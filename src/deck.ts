@@ -132,7 +132,7 @@ export class Deck {
     for (const [x, z, color, intensity, flicker] of def.lights) {
       this.lights.push({ position: new THREE.Vector3(x, this.y + 1.4, z), color: new THREE.Color(color), intensity, flicker })
     }
-    this.pathfinder = new Pathfinder(this.map, this.blockedTiles)
+    this.pathfinder = new Pathfinder(this.map, this.blockedTiles, this.colliders)
   }
 
   roomName(x: number, z: number): string {

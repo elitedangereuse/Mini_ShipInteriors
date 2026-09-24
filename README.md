@@ -118,7 +118,7 @@ Un nouveau joueur arrive dans une combinaison tirée au hasard. Les combinaisons
 
 Les robots ont des pas plus lourds. Pour ajouter une espèce ou un modèle, il suffit de compléter `RACES` dans `src/looks.ts` : les modèles sont remis à la même taille automatiquement, et une animation manquante est remplacée par une animation voisine.
 
-**Comète** vit dans les quartiers (pont supérieur), près de son panier au coin du feu. Il vient se frotter aux jambes du joueur, fait sa toilette, pique des sprints, miaule, ronronne quand on le caresse (`E`) et danse quand on danse à côté de lui.
+**Comète** vit dans les quartiers (pont supérieur), près de son panier au coin du feu. Il vient se frotter aux jambes du joueur, fait sa toilette, pique des sprints, miaule, ronronne quand on le caresse (`E`) et danse quand on danse à côté de lui. S'il se retrouve coincé contre un meuble, il renonce à son trajet et repart ailleurs.
 
 ## Mobilier fait main
 
@@ -171,7 +171,8 @@ Une page de debug, `/gallery.html`, affiche chaque modèle du kit avec son nom e
 | Chat | `Entrée`, puis `Entrée` pour envoyer, `Échap` pour annuler |
 | Commandes du chat | `/nom CMDR Pseudo` (invités), `/perso` (apparence au hasard), `/danse`…, `/aide` |
 | Changer d'apparence | le **Holo-Me** des quartiers du commandant (pont supérieur) |
-| Pivoter la caméra | `R` / `Maj+R`, ou les boutons en haut à droite |
+| Pivoter la caméra | `R` / `Maj+R`, ou les boutons en haut à droite (d'un quart de tour ; ramène aussi la vue isométrique après la caméra libre) |
+| Caméra libre | maintenir le **clic droit** ou le **clic molette** et glisser : horizontalement on tourne autour du personnage, verticalement on incline la vue (de rasante à presque de dessus) ; avec `Maj`, on fait glisser la vue, qui revient sur le personnage dès qu'il bouge |
 | Zoom | molette, ou les boutons loupe |
 | Son | `M` ou le bouton haut-parleur, curseur de volume (le son démarre au premier clic ou à la première touche, contrainte des navigateurs) |
 
@@ -243,8 +244,8 @@ Les bips, les mélodies d'arcade, les étincelles, le miaulement et le ronronnem
 | `src/cmdr.ts` | Identité : billet du site, noms d'invités tirés de la SF. |
 | `integration/elitedangereuse/` | Endpoint PHP à déposer sur elitedangereuse.fr. |
 | `src/ui.ts` | Bulles au-dessus des têtes, chat, panneaux d'ascenseur et du Holo-Me, dialogues. |
-| `src/pathfinding.ts` · `src/physics.ts` | A* 8 directions ; collisions cercle contre rectangles. |
-| `src/camera.ts` · `src/starfield.ts` | Caméra isométrique ; étoiles (shader). |
+| `src/pathfinding.ts` · `src/physics.ts` | A* 8 directions, dont chaque passage entre deux tuiles est validé contre les meubles (plus de chemin à travers une chaise) ; collisions cercle contre rectangles. |
+| `src/camera.ts` · `src/starfield.ts` | Caméra isométrique et caméra libre (rotation, inclinaison, glissement) ; étoiles (shader). |
 | `src/main.ts` | Assemblage, entrées, boucle de jeu. |
 | `docs/images/` | Captures d'écran de ce README. |
 

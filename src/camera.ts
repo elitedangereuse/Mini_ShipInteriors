@@ -1,17 +1,38 @@
 import * as THREE from 'three'
 
 /** Élévation de la vraie projection isométrique : atan(1/√2) ≈ 35,26°. */
-const ELEVATION = Math.atan(1 / Math.SQRT2)
+const ISO_ELEVATION = Math.atan(1 / Math.SQRT2)
+/** Caméra libre : de la vue rasante à la vue presque de dessus. */
+const MIN_ELEVATION = THREE.MathUtils.degToRad(18)
+const MAX_ELEVATION = THREE.MathUtils.degToRad(80)
+/** Azimut des vues isométriques : 45° + un quart de tour entier. */
+const ISO_AZIMUTH = Math.PI / 4
+const QUARTER = Math.PI / 2
+/** Caméra libre : on ne s'éloigne pas du personnage de plus de ce rayon (en tuiles). */
+const MAX_PAN = 14
 const DISTANCE = 60
 
-/** Caméra orthographique isométrique qui suit une cible, avec zoom et rotation par quarts de tour. */
+const _v = new THREE.Vector3()
+
+/**
+ * Caméra orthographique qui suit une cible, avec zoom. Par défaut, vue isométrique
+ * et rotation par quarts de tour ; en caméra libre, on tourne et on incline à volonté,
+ * et on peut faire glisser la vue (elle revient sur le personnage dès qu'il bouge).
+ */
 export class IsoCamera {
   readonly camera: THREE.OrthographicCamera
   readonly target = new THREE.Vector3()
-  private azimuth = Math.PI / 4
-  private azimuthGoal = Math.PI / 4
+  private azimuth = ISO_AZIMUTH
+  private azimuthGoal = ISO_AZIMUTH
+  private elevation = ISO_ELEVATION
+  private elevationGoal = ISO_ELEVATION
   private zoom = 5.5
   private zoomGoal = 5.5
+  /** Décalage de la vue par rapport au personnage (caméra libre). */
+  private offset = new THREE.Vector3()
+  /** Délai pendant lequel le décalage tient, même si le personnage bouge (on est en train de le faire glisser). */
+  private panHold = 0
+  private lastFollow: THREE.Vector3 | null = null
 
   constructor(private aspect: number) {
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200)
@@ -23,9 +44,36 @@ export class IsoCamera {
     this.applyFrustum()
   }
 
-  /** Quart de tour : +1 horaire, -1 anti-horaire. */
+  /**
+   * Quart de tour : +1 horaire, -1 anti-horaire. Après la caméra libre, on repart
+   * de la vue isométrique la plus proche dans ce sens, inclinaison et cadrage compris.
+   */
   rotate(step: 1 | -1) {
-    this.azimuthGoal += (step * Math.PI) / 2
+    const k = (this.azimuthGoal - ISO_AZIMUTH) / QUARTER
+    const next = step > 0 ? Math.floor(k + 1e-6) + 1 : Math.ceil(k - 1e-6) - 1
+    this.azimuthGoal = ISO_AZIMUTH + next * QUARTER
+    this.elevationGoal = ISO_ELEVATION
+    this.offset.set(0, 0, 0)
+  }
+
+  /** Caméra libre : tourne autour de la cible et change l'inclinaison (radians). */
+  orbit(dAzimuth: number, dElevation: number) {
+    this.azimuth += dAzimuth
+    this.azimuthGoal += dAzimuth
+    this.elevation = THREE.MathUtils.clamp(this.elevation + dElevation, MIN_ELEVATION, MAX_ELEVATION)
+    this.elevationGoal = this.elevation
+  }
+
+  /**
+   * Caméra libre : fait glisser la vue, comme si on attrapait le sol (déplacement en pixels).
+   * @param viewportHeight hauteur de la fenêtre, en pixels
+   */
+  pan(dxPx: number, dyPx: number, viewportHeight: number) {
+    const unit = (2 * this.zoom) / viewportHeight
+    // À l'écran, le sol est vu en biais : un pixel vertical couvre plus de sol qu'un pixel horizontal.
+    this.offset.add(this.screenToGround(-dxPx * unit, (dyPx * unit) / Math.sin(this.elevation), _v))
+    if (this.offset.length() > MAX_PAN) this.offset.setLength(MAX_PAN)
+    this.panHold = 0.3
   }
 
   /** Zoom visé (demi-hauteur du cadre, en tuiles). */
@@ -53,8 +101,9 @@ export class IsoCamera {
     return out.set(sx * c - sy * s, 0, -sx * s - sy * c)
   }
 
-  /** Changement de pont : la caméra saute directement à la nouvelle altitude. */
+  /** Changement de pont : la caméra saute directement à la nouvelle altitude, sur le personnage. */
   snapTo(follow: THREE.Vector3) {
+    this.offset.set(0, 0, 0)
     this.target.set(follow.x, follow.y + 0.4, follow.z)
   }
 
@@ -62,17 +111,29 @@ export class IsoCamera {
     return this.azimuth
   }
 
+  /** Inclinaison actuelle (radians au-dessus de l'horizon). */
+  get tilt(): number {
+    return this.elevation
+  }
+
   update(dt: number, follow: THREE.Vector3) {
+    // Le personnage se remet en route : la vue libre revient doucement sur lui.
+    this.panHold = Math.max(0, this.panHold - dt)
+    const moved = this.lastFollow ? Math.hypot(follow.x - this.lastFollow.x, follow.z - this.lastFollow.z) : 0
+    if (moved > 1e-3 && this.panHold === 0) this.offset.multiplyScalar(Math.exp(-3 * dt))
+    ;(this.lastFollow ??= new THREE.Vector3()).copy(follow)
+
     this.azimuth = THREE.MathUtils.damp(this.azimuth, this.azimuthGoal, 8, dt)
+    this.elevation = THREE.MathUtils.damp(this.elevation, this.elevationGoal, 8, dt)
     this.zoom = THREE.MathUtils.damp(this.zoom, this.zoomGoal, 10, dt)
-    this.target.x = THREE.MathUtils.damp(this.target.x, follow.x, 6, dt)
-    this.target.z = THREE.MathUtils.damp(this.target.z, follow.z, 6, dt)
+    this.target.x = THREE.MathUtils.damp(this.target.x, follow.x + this.offset.x, 6, dt)
+    this.target.z = THREE.MathUtils.damp(this.target.z, follow.z + this.offset.z, 6, dt)
     this.target.y = THREE.MathUtils.damp(this.target.y, follow.y + 0.4, 10, dt)
     this.applyFrustum()
-    const h = Math.cos(ELEVATION) * DISTANCE
+    const h = Math.cos(this.elevation) * DISTANCE
     this.camera.position.set(
       this.target.x + Math.sin(this.azimuth) * h,
-      this.target.y + Math.sin(ELEVATION) * DISTANCE,
+      this.target.y + Math.sin(this.elevation) * DISTANCE,
       this.target.z + Math.cos(this.azimuth) * h,
     )
     this.camera.lookAt(this.target)

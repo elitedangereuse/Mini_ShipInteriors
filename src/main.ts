@@ -692,7 +692,9 @@ function pick(e: PointerEvent): { tile: Tile | null; item: Interactable | null }
 
 // Survol traité une fois par image (les souris 1000 Hz enverraient des centaines de lancers de rayon).
 let pendingMove: PointerEvent | null = null
-canvas.addEventListener('pointermove', (e) => (pendingMove = e))
+canvas.addEventListener('pointermove', (e) => {
+  if (!freeLook) pendingMove = e
+})
 function processHover() {
   if (!pendingMove) return
   const { tile, item } = pick(pendingMove)
@@ -701,6 +703,42 @@ function processHover() {
   hover.visible = !!tile && deck.pathfinder.walkable(tile.x, tile.z)
   if (tile) hover.position.set(tile.x, deck.y + 0.01, tile.z)
 }
+
+// Caméra libre : clic droit ou clic molette maintenu, puis glisser. Horizontalement on tourne
+// autour du personnage, verticalement on incline la vue ; avec Maj, on la fait glisser.
+// R (ou les boutons de rotation) ramène la vue isométrique.
+let freeLook: { id: number; x: number; y: number } | null = null
+canvas.addEventListener('contextmenu', (e) => e.preventDefault())
+// Pas de défilement automatique au clic molette.
+canvas.addEventListener('mousedown', (e) => {
+  if (e.button === 1) e.preventDefault()
+})
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.button !== 1 && e.button !== 2) return
+  e.preventDefault()
+  freeLook = { id: e.pointerId, x: e.clientX, y: e.clientY }
+  try {
+    canvas.setPointerCapture(e.pointerId)
+  } catch {}
+  canvas.style.cursor = 'grabbing'
+  hover.visible = false
+})
+canvas.addEventListener('pointermove', (e) => {
+  if (!freeLook || e.pointerId !== freeLook.id) return
+  const dx = e.clientX - freeLook.x, dy = e.clientY - freeLook.y
+  freeLook.x = e.clientX
+  freeLook.y = e.clientY
+  if (e.shiftKey) iso.pan(dx, dy, innerHeight)
+  else iso.orbit(-dx * 0.008, dy * 0.006)
+})
+function endFreeLook(e: PointerEvent) {
+  if (!freeLook || e.pointerId !== freeLook.id) return
+  freeLook = null
+  if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId)
+  canvas.style.cursor = 'default'
+}
+canvas.addEventListener('pointerup', endFreeLook)
+canvas.addEventListener('pointercancel', endFreeLook)
 
 // Clic en dehors du panneau d'ascenseur : il se ferme, et le clic ne fait rien d'autre.
 addEventListener(
@@ -726,7 +764,8 @@ function playerTile(): Tile {
 }
 
 function goTo(tile: Tile, onArrive?: () => void): boolean {
-  const path = deck.pathfinder.find(playerTile(), tile)
+  // Chemin qui contourne les meubles ; à défaut, on tente quand même (au pire, on s'arrête contre l'obstacle).
+  const path = deck.pathfinder.find(playerTile(), tile) ?? deck.pathfinder.find(playerTile(), tile, false)
   if (!path) return false
   player.setPath(path.slice(1).map((t) => ({ x: t.x, z: t.z })))
   if (!player.moving) player.setPath([{ x: tile.x, z: tile.z }])
@@ -743,18 +782,24 @@ function goTo(tile: Tile, onArrive?: () => void): boolean {
 function goInteract(item: Interactable) {
   if (distanceTo(item) < INTERACT_RANGE) return interactWith(item)
   const start = playerTile()
-  const candidates: { tile: Tile; len: number }[] = []
-  for (let dz = -2; dz <= 2; dz++) {
-    for (let dx = -2; dx <= 2; dx++) {
-      const t = { x: Math.round(item.position.x) + dx, z: Math.round(item.position.z) + dz }
-      if (!deck.pathfinder.walkable(t.x, t.z)) continue
-      if (Math.hypot(t.x - item.position.x, t.z - item.position.z) > INTERACT_RANGE) continue
-      const path = deck.pathfinder.find(start, t)
-      if (path) candidates.push({ tile: t, len: path.length })
+  // Tuile libre la plus proche (en chemin) : d'abord en contournant les meubles, sinon sans ;
+  // d'abord à portée de main, sinon un peu plus loin (le centre d'un grand lit est loin de ses bords).
+  for (const strict of [true, false]) {
+    for (const range of [INTERACT_RANGE, INTERACT_RANGE + 0.45]) {
+      const candidates: { tile: Tile; len: number }[] = []
+      for (let dz = -2; dz <= 2; dz++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const t = { x: Math.round(item.position.x) + dx, z: Math.round(item.position.z) + dz }
+          if (!deck.pathfinder.walkable(t.x, t.z)) continue
+          if (Math.hypot(t.x - item.position.x, t.z - item.position.z) > range) continue
+          const path = deck.pathfinder.find(start, t, strict)
+          if (path) candidates.push({ tile: t, len: path.length })
+        }
+      }
+      candidates.sort((a, b) => a.len - b.len)
+      if (candidates.length) return goTo(candidates[0].tile, () => interactWith(item))
     }
   }
-  candidates.sort((a, b) => a.len - b.len)
-  if (candidates.length) goTo(candidates[0].tile, () => interactWith(item))
 }
 
 // ------------------------------------------------------------------ interactions
@@ -843,7 +888,7 @@ function frame() {
   for (const r of remotes.values()) actors.get(deckById(r.level))?.push(r.group.position)
   for (const d of decks) d.update(dt, actors.get(d)!, d === deck ? player.position : null, toCam)
 
-  stars.update(dt, iso.target, toCam)
+  stars.update(dt, iso.target, toCam, iso.tilt)
   sound.update(iso.target, iso.angle)
   ambience(dt)
   for (const [i, l] of lightPool.entries()) {

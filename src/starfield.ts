@@ -73,13 +73,16 @@ export class Starfield {
     }
   }
 
-  /** @param toCamera direction horizontale de la cible vers la caméra */
-  update(dt: number, target: THREE.Vector3, toCamera: THREE.Vector3) {
+  /**
+   * @param toCamera direction horizontale de la cible vers la caméra
+   * @param elevation inclinaison de la caméra (radians)
+   */
+  update(dt: number, target: THREE.Vector3, toCamera: THREE.Vector3, elevation: number) {
     this.time += dt
-    // Point où le regard de la caméra traverse la couche d'étoiles (élévation isométrique : tan = 1/√2).
-    const drop = target.y - (DEPTH - 10)
-    const cx = target.x - toCamera.x * drop * Math.SQRT2
-    const cz = target.z - toCamera.z * drop * Math.SQRT2
+    // Point où le regard de la caméra traverse la couche d'étoiles.
+    const run = (target.y - (DEPTH - 10)) / Math.tan(elevation)
+    const cx = target.x - toCamera.x * run
+    const cz = target.z - toCamera.z * run
     for (const m of this.materials) {
       m.uniforms.uTime.value = this.time
       m.uniforms.uCenter.value.set(cx, 0, cz)

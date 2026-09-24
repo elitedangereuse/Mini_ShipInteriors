@@ -10,6 +10,8 @@ const RADIUS = 0.12
 const WALK = 0.9
 const RUN = 2.6
 const SCALE = 0.26
+/** Temps sans vraie avance au bout duquel le chat renonce à son trajet (coincé contre une chaise…). */
+const STUCK_AFTER = 0.4
 
 /**
  * Comète, le chat du bord (Cube Pets de Kenney).
@@ -28,6 +30,7 @@ export class Cat {
   private speed = WALK
   private yaw = 0
   private stride = 0
+  private stuckTime = 0
   private meowIn = 15 + Math.random() * 20
 
   onStep?: () => void
@@ -75,6 +78,7 @@ export class Cat {
     this.path = out
     this.speed = speed
     this.state = 'walk'
+    this.stuckTime = 0
     return true
   }
 
@@ -200,16 +204,23 @@ export class Cat {
     const dx = target.x - p.x, dz = target.z - p.z
     const dist = Math.hypot(dx, dz)
     const step = this.speed * dt
-    if (dist <= step) {
-      this.path.shift()
-      p.x = target.x
-      p.z = target.z
-    } else {
-      const q = { x: p.x + (dx / dist) * step, z: p.z + (dz / dist) * step }
-      resolveCircle(q, RADIUS, this.deck.colliders)
-      p.x = q.x
-      p.z = q.z
-      this.yaw = Math.atan2(dx, dz)
+    const reached = dist <= step
+    if (reached) this.path.shift()
+    // Même en atteignant un point, on ne se pose jamais dans un meuble.
+    const q = reached ? { x: target.x, z: target.z } : { x: p.x + (dx / dist) * step, z: p.z + (dz / dist) * step }
+    resolveCircle(q, RADIUS, this.deck.colliders)
+    const moved = Math.hypot(q.x - p.x, q.z - p.z)
+    p.x = q.x
+    p.z = q.z
+    if (!reached) this.yaw = Math.atan2(dx, dz)
+    // Coincé (la collision le repousse à chaque pas) : il renonce, et repartira ailleurs.
+    this.stuckTime = !reached && moved < step * 0.3 ? this.stuckTime + dt : 0
+    if (this.stuckTime > STUCK_AFTER) {
+      this.path = []
+      this.stuckTime = 0
+      this.state = 'idle'
+      this.timer = 0.3 + Math.random() * 0.8
+      return
     }
     this.play(this.speed > WALK * 1.5 ? 'run' : 'walk')
     this.stride += step
