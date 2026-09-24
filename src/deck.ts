@@ -1,0 +1,717 @@
+import * as THREE from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { station, themes, type StationModel, type ThemeMaterials } from './assets'
+import { makeFadeable, makeIndexedFadeable } from './fade'
+import { buildFurniture, ED_ORANGE, isCustomModel, tickFurniture, type Emitter } from './furniture'
+import { LEVEL_HEIGHT, LIFT, type LevelDef } from './levels'
+import { DIRS, ShipMap } from './map'
+import { Pathfinder } from './pathfinding'
+
+/** Rectangle de collision dans le plan XZ. */
+export interface Box2 {
+  minX: number
+  maxX: number
+  minZ: number
+  maxZ: number
+}
+
+export interface Interactable {
+  object: THREE.Object3D
+  /** Position au sol (coordonnées du pont ; peut être une référence vivante, ex. le chat). */
+  position: THREE.Vector3
+  label: string
+  /** Texte affiché ; avec une liste, une phrase au hasard à chaque fois. */
+  text?: string | string[]
+  onInteract?: () => void
+}
+
+/** Sons d'ambiance d'un pont : ceux des meubles, plus les bips des consoles du cockpit. */
+export type EmitterKind = Emitter | 'beep'
+
+/**
+ * Objet qui peut masquer le joueur ; rendu « tramé » quand il est devant lui.
+ * Soit fusionné avec les autres (`index` dans la texture de fondu), soit autonome
+ * (`uniform` : portes, qui bougent, et consoles, qu'on doit pouvoir cliquer).
+ */
+interface Occluder {
+  center: THREE.Vector3
+  value: number
+  index?: number
+  uniform?: { value: number }
+}
+
+interface DoorState {
+  panel: THREE.Object3D
+  center: THREE.Vector3
+  /** Axe de glissement du panneau (le long du mur). */
+  axis: THREE.Vector3
+  open: number
+  wanted: boolean
+}
+
+const WALL_T = 0.3
+/**
+ * Poteau d'angle : un peu plus large et plus haut que les murs, pour recouvrir
+ * entièrement la zone où deux murs se chevauchent (sinon leurs dessus, au même
+ * niveau, se battent pour le même pixel : z-fighting en dents de scie).
+ */
+const POST_W = WALL_T + 0.05
+const POST_H = 1.03
+const DOOR_GAP = 0.5
+const FLOOR_Y = -0.3
+const DOOR_RANGE = 1.3
+
+const PICK_MATERIAL = new THREE.MeshBasicMaterial()
+
+const _right = new THREE.Vector3()
+const _v = new THREE.Vector3()
+
+/** Petit hash déterministe pour varier les murs sans aléatoire. */
+function hash(x: number, z: number): number {
+  let h = (x * 374761393 + z * 668265263) | 0
+  h = (h ^ (h >>> 13)) * 1274126177
+  return (h ^ (h >>> 16)) >>> 0
+}
+
+export class Deck {
+  readonly group = new THREE.Group()
+  readonly map: ShipMap
+  readonly pathfinder: Pathfinder
+  readonly colliders: Box2[] = []
+  readonly interactables: Interactable[] = []
+  /** Tuiles occupées par un meuble : « x,z ». */
+  readonly blockedTiles = new Set<string>()
+  /** Altitude du sol de ce pont. */
+  readonly y: number
+  /** Lumières du pont, en coordonnées monde. */
+  readonly lights: { position: THREE.Vector3; color: THREE.Color; intensity: number; flicker?: 'neon' | 'fire' }[] = []
+  /** Sources sonores (coordonnées monde). */
+  readonly engineEmitters: THREE.Vector3[] = []
+  /** Sons d'ambiance par type (bips, arcade, soudure, machines), en coordonnées monde. */
+  readonly emitters = new Map<EmitterKind, THREE.Vector3[]>()
+
+  /** Appelé quand une porte s'ouvre ou se ferme (position monde). */
+  onDoor?: (position: THREE.Vector3, open: boolean) => void
+
+  private occluders: Occluder[] = []
+  private doors: DoorState[] = []
+  private staticParts = new Map<string, { material: THREE.Material; geos: THREE.BufferGeometry[]; cast: boolean; fading: boolean }>()
+  private fadeData!: Float32Array
+  private fadeTex!: THREE.DataTexture
+  private time = 0
+  private core?: THREE.Mesh
+  private coreMat?: THREE.MeshStandardMaterial
+  private plumes: THREE.Mesh[] = []
+  private glowMat: THREE.ShaderMaterial
+  private liftBeam!: THREE.Mesh
+  private liftHalo!: THREE.Mesh
+  private liftRings: THREE.Mesh[] = []
+  private liftSign!: THREE.Sprite
+  private liftBoost = 0
+  private holo?: { rings: THREE.Mesh[]; beam: THREE.Mesh }
+  /** Animations du mobilier (hologrammes, drones…). */
+  private animated: ((t: number) => void)[] = []
+  /** Peinture de la coque et du mobilier du kit sur ce pont. */
+  private theme: ThemeMaterials
+
+  constructor(readonly def: LevelDef) {
+    this.theme = themes[def.theme ?? 'station']
+    this.map = new ShipMap(def.layout)
+    this.y = def.id * LEVEL_HEIGHT
+    this.group.position.y = this.y
+    this.glowMat = makeGlowMaterial()
+
+    this.buildFloors()
+    this.buildWalls()
+    this.buildProps()
+    this.buildLift()
+    if (def.wardrobe) this.buildWardrobe(def.wardrobe.x, def.wardrobe.z)
+    if (def.engine) this.buildEngine()
+    this.flushStatic()
+
+    for (const [x, z, color, intensity, flicker] of def.lights) {
+      this.lights.push({ position: new THREE.Vector3(x, this.y + 1.4, z), color: new THREE.Color(color), intensity, flicker })
+    }
+    this.pathfinder = new Pathfinder(this.map, this.blockedTiles)
+  }
+
+  roomName(x: number, z: number): string {
+    const r = this.map.room(Math.round(x), Math.round(z))
+    return r ? this.def.rooms[r] ?? '' : ''
+  }
+
+  // ------------------------------------------------------------------ build
+
+  /** Modèle du kit, repeint avec `material` (la coque ou le mobilier du thème du pont). */
+  private place(name: StationModel, x: number, y: number, z: number, rotY = 0, material: THREE.Material = this.theme.shell): THREE.Object3D {
+    const o = station(name)
+    o.position.set(x, y, z)
+    o.rotation.y = rotY
+    o.traverse((c) => {
+      if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = material
+    })
+    o.updateMatrixWorld(true)
+    return o
+  }
+
+  /**
+   * Volume invisible aux dimensions d'un meuble fusionné : il ne coûte aucun appel de dessin,
+   * mais le lancer de rayon (clic, survol) le touche quand même.
+   */
+  private pickVolume(box: THREE.Box3): THREE.Object3D {
+    const size = box.getSize(new THREE.Vector3())
+    const volume = new THREE.Mesh(new THREE.BoxGeometry(size.x, size.y, size.z), PICK_MATERIAL)
+    box.getCenter(volume.position)
+    volume.visible = false
+    this.group.add(volume)
+    return volume
+  }
+
+  private addEmitter(kind: EmitterKind, position: THREE.Vector3) {
+    const list = this.emitters.get(kind) ?? []
+    list.push(position)
+    this.emitters.set(kind, list)
+  }
+
+  /**
+   * Objet qui ne bouge jamais : sa géométrie est fusionnée avec les autres (1 appel de dessin par matériau).
+   * @param occ index d'occulteur : l'objet pourra être tramé individuellement
+   */
+  private addStatic(o: THREE.Object3D, cast: boolean, occ?: number) {
+    o.updateMatrixWorld(true)
+    o.traverse((c) => {
+      const mesh = c as THREE.Mesh
+      if (!mesh.isMesh) return
+      const g = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld)
+      const material = mesh.material as THREE.Material
+      // Couleurs par sommet : seulement pour les matériaux qui s'en servent (mobilier fait main).
+      const keepColor = material.vertexColors
+      for (const name of Object.keys(g.attributes)) {
+        if (name !== 'position' && name !== 'normal' && name !== 'uv' && !(keepColor && name === 'color')) g.deleteAttribute(name)
+      }
+      const fading = occ !== undefined
+      if (fading) g.setAttribute('aOcc', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count).fill(occ), 1))
+      const key = `${material.uuid}:${cast}:${fading}`
+      let part = this.staticParts.get(key)
+      if (!part) this.staticParts.set(key, (part = { material, geos: [], cast, fading }))
+      part.geos.push(g)
+    })
+  }
+
+  /** Occulteur immobile : fusionné, tramé via la texture de fondu. */
+  private addFading(o: THREE.Object3D, center: THREE.Vector3) {
+    const index = this.occluders.filter((x) => x.index !== undefined).length
+    this.occluders.push({ center, value: 1, index })
+    this.addStatic(o, true, index)
+  }
+
+  private flushStatic() {
+    const count = Math.max(1, this.occluders.filter((x) => x.index !== undefined).length)
+    this.fadeData = new Float32Array(count).fill(1)
+    this.fadeTex = new THREE.DataTexture(this.fadeData, count, 1, THREE.RedFormat, THREE.FloatType)
+    this.fadeTex.needsUpdate = true
+    for (const part of this.staticParts.values()) {
+      const merged = mergeGeometries(part.geos, false)
+      for (const g of part.geos) g.dispose()
+      if (!merged) continue
+      const material = part.fading ? makeIndexedFadeable(part.material, this.fadeTex) : part.material
+      const mesh = new THREE.Mesh(merged, material)
+      mesh.castShadow = part.cast
+      mesh.receiveShadow = true
+      this.group.add(mesh)
+    }
+    this.staticParts.clear()
+  }
+
+  /** Occulteur autonome (reste un objet à part) : il reçoit son propre matériau « tramable ». */
+  private addOccluder(objects: THREE.Object3D[], center: THREE.Vector3) {
+    const fade = { value: 1 }
+    const cache = new Map<THREE.Material, THREE.Material>()
+    for (const o of objects) {
+      o.traverse((c) => {
+        const m = c as THREE.Mesh
+        if (!m.isMesh) return
+        const src = m.material as THREE.Material
+        let dst = cache.get(src)
+        if (!dst) cache.set(src, (dst = makeFadeable(src, fade)))
+        m.material = dst
+      })
+      this.group.add(o)
+    }
+    this.occluders.push({ center, value: 1, uniform: fade })
+  }
+
+  private buildFloors() {
+    const hullMat = new THREE.MeshLambertMaterial({ color: '#23263a' })
+    const hullGeo = new THREE.BoxGeometry(1, 0.35, 1)
+    for (let z = 0; z < this.map.height; z++) {
+      for (let x = 0; x < this.map.width; x++) {
+        const room = this.map.room(x, z)
+        if (!room) continue
+        let model: StationModel = this.def.floors?.[room] ?? 'floor'
+        // Quelques dalles à picots pour varier, sauf dans les quartiers (les tapis y sont posés à plat).
+        if (model === 'floor' && this.def.theme !== 'cozy' && hash(x, z) % 9 === 0) model = 'floor-detail'
+        this.addStatic(this.place(model, x, FLOOR_Y, z), false)
+        // Coque sombre sous le plancher, pour donner de l'épaisseur au vaisseau.
+        const h = new THREE.Mesh(hullGeo, hullMat)
+        h.position.set(x, FLOOR_Y - 0.175, z)
+        this.addStatic(h, false)
+      }
+    }
+  }
+
+  private buildWalls() {
+    const built = new Set<string>()
+    // Nombre de murs touchant chaque sommet de la grille, par axe.
+    const vertex = new Map<string, { h: number; v: number }>()
+    const touch = (vx: number, vz: number, axis: 'h' | 'v') => {
+      const k = `${vx},${vz}`
+      const c = vertex.get(k) ?? { h: 0, v: 0 }
+      c[axis]++
+      vertex.set(k, c)
+    }
+
+    for (const door of this.map.doors) {
+      built.add(this.map.edgeKey(door.x, door.z, door.dir))
+      this.buildDoor(door.x, door.z, door.dir, touch)
+    }
+
+    for (let z = 0; z < this.map.height; z++) {
+      for (let x = 0; x < this.map.width; x++) {
+        const room = this.map.room(x, z)
+        if (!room) continue
+        for (let dir = 0; dir < 4; dir++) {
+          if (this.map.edge(x, z, dir) !== 'wall') continue
+          const key = this.map.edgeKey(x, z, dir)
+          if (built.has(key)) continue
+          built.add(key)
+
+          const d = DIRS[dir]
+          const cx = x + d.dx * 0.5
+          const cz = z + d.dz * 0.5
+          const alongX = d.dz !== 0
+          const exterior = !this.map.isFloor(x + d.dx, z + d.dz)
+          const hsh = hash(Math.round(cx * 2), Math.round(cz * 2))
+          const windowRate = this.def.windows?.[room] ?? 1 / 3
+
+          let model: StationModel = 'wall'
+          if (exterior && (hsh % 1000) / 1000 < windowRate) model = 'wall-window'
+          else if (!exterior && hsh % 5 === 0) model = 'wall-pillar'
+          const wall = this.place(model, cx, 0, cz, alongX ? 0 : Math.PI / 2)
+          this.addFading(wall, new THREE.Vector3(cx, 0.5, cz))
+
+          if (alongX) {
+            this.colliders.push({ minX: cx - 0.5, maxX: cx + 0.5, minZ: cz - WALL_T / 2, maxZ: cz + WALL_T / 2 })
+            touch(cx - 0.5, cz, 'h')
+            touch(cx + 0.5, cz, 'h')
+          } else {
+            this.colliders.push({ minX: cx - WALL_T / 2, maxX: cx + WALL_T / 2, minZ: cz - 0.5, maxZ: cz + 0.5 })
+            touch(cx, cz - 0.5, 'v')
+            touch(cx, cz + 0.5, 'v')
+          }
+        }
+      }
+    }
+
+    // Poteaux aux angles, là où deux murs ne sont pas dans le prolongement l'un de l'autre.
+    const post = makePostMesh(this.theme.shell)
+    for (const [k, c] of vertex) {
+      const straight = (c.h === 2 && c.v === 0) || (c.v === 2 && c.h === 0)
+      if (straight) continue
+      const [vx, vz] = k.split(',').map(Number)
+      const m = post.clone()
+      m.position.set(vx, POST_H / 2, vz)
+      this.addFading(m, new THREE.Vector3(vx, 0.5, vz))
+      const hs = POST_W / 2
+      this.colliders.push({ minX: vx - hs, maxX: vx + hs, minZ: vz - hs, maxZ: vz + hs })
+    }
+  }
+
+  private buildDoor(x: number, z: number, dir: number, touch: (vx: number, vz: number, a: 'h' | 'v') => void) {
+    const d = DIRS[dir]
+    const cx = x + d.dx * 0.5
+    const cz = z + d.dz * 0.5
+    const alongX = d.dz !== 0
+    const rot = alongX ? 0 : Math.PI / 2
+    const frame = this.place('wall-door', cx, 0, cz, rot)
+    // Panneau légèrement aminci : pas de faces confondues avec l'encadrement.
+    const panel = this.place('door-single', cx, 0, cz, rot)
+    panel.scale.set(0.98, 0.99, 0.9)
+    this.addOccluder([frame, panel], new THREE.Vector3(cx, 0.5, cz))
+    this.doors.push({
+      panel,
+      center: new THREE.Vector3(cx, 0, cz),
+      axis: alongX ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1),
+      open: 0,
+      wanted: false,
+    })
+
+    const g = DOOR_GAP / 2
+    const t = WALL_T / 2
+    if (alongX) {
+      this.colliders.push({ minX: cx - 0.5, maxX: cx - g, minZ: cz - t, maxZ: cz + t })
+      this.colliders.push({ minX: cx + g, maxX: cx + 0.5, minZ: cz - t, maxZ: cz + t })
+      touch(cx - 0.5, cz, 'h')
+      touch(cx + 0.5, cz, 'h')
+    } else {
+      this.colliders.push({ minX: cx - t, maxX: cx + t, minZ: cz - 0.5, maxZ: cz - g })
+      this.colliders.push({ minX: cx - t, maxX: cx + t, minZ: cz + g, maxZ: cz + 0.5 })
+      touch(cx, cz - 0.5, 'v')
+      touch(cx, cz + 0.5, 'v')
+    }
+  }
+
+  private buildProps() {
+    const box = new THREE.Box3()
+    for (const p of this.def.props) {
+      const rotY = ((p.rot ?? 0) * Math.PI) / 2
+      let o: THREE.Object3D
+      if (isCustomModel(p.model)) {
+        // Graine tirée de la position : chaque meuble varie, mais pareil chez tous les joueurs.
+        const f = buildFurniture(p.model, p.label, hash(Math.round(p.x * 10), Math.round(p.z * 10)))
+        if (f.live) {
+          f.live.position.set(p.x, p.y ?? 0, p.z)
+          f.live.rotation.y = rotY
+          this.group.add(f.live)
+        }
+        if (f.update) this.animated.push(f.update)
+        if (f.emitter) this.addEmitter(f.emitter, new THREE.Vector3(p.x, this.y + 0.6, p.z))
+        // Hologramme pur : ni collision, ni interaction.
+        if (!f.solid) continue
+        o = f.solid
+        o.position.set(p.x, p.y ?? 0, p.z)
+        o.rotation.y = rotY
+        o.updateMatrixWorld(true)
+      } else {
+        o = this.place(p.model, p.x, p.y ?? 0, p.z, rotY, this.theme.furniture)
+      }
+      box.setFromObject(o)
+      const center = box.getCenter(new THREE.Vector3())
+      if (p.solid !== false) {
+        const m = 0.04
+        const b = { minX: box.min.x + m, maxX: box.max.x - m, minZ: box.min.z + m, maxZ: box.max.z - m }
+        this.colliders.push(b)
+        for (let tz = Math.floor(b.minZ); tz <= Math.ceil(b.maxZ); tz++) {
+          for (let tx = Math.floor(b.minX); tx <= Math.ceil(b.maxX); tx++) {
+            // Tuile bloquée si son centre est sous le meuble (avec une petite marge).
+            if (tx > b.minX - 0.15 && tx < b.maxX + 0.15 && tz > b.minZ - 0.15 && tz < b.maxZ + 0.15) {
+              this.blockedTiles.add(`${tx},${tz}`)
+            }
+          }
+        }
+      }
+
+      // Tout le mobilier est fusionné avec le pont (les grands meubles restent tramables un par un) ;
+      // un meuble interactif se clique grâce à un volume invisible.
+      if (box.max.y > 0.6) this.addFading(o, center)
+      else this.addStatic(o, true)
+
+      if (p.interact) {
+        this.interactables.push({ object: this.pickVolume(box), position: center.clone().setY(0), label: p.action ?? 'Examiner', text: p.interact })
+      }
+      // Les consoles du poste de pilotage bipent.
+      if (this.def.id === 0 && this.map.room(Math.round(p.x), Math.round(p.z)) === 'b' && p.model.startsWith('computer')) {
+        this.addEmitter('beep', new THREE.Vector3(center.x, this.y + 0.6, center.z))
+      }
+    }
+  }
+
+  /**
+   * Ascenseur, identique sur tous les ponts : plateforme, halo au sol qui pulse, faisceau,
+   * anneaux qui montent et panneau flottant (qui dépasse des murs : on le repère de loin).
+   */
+  private buildLift() {
+    const { x, z } = LIFT
+    const cyan = '#59d8ff'
+    const base = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.44, 0.47, 0.06, 32),
+      new THREE.MeshStandardMaterial({ color: '#3d424e', metalness: 0.7, roughness: 0.35 }),
+    )
+    base.position.set(x, 0.03, z)
+    base.receiveShadow = true
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.41, 0.03, 8, 48), new THREE.MeshBasicMaterial({ color: cyan }))
+    ring.rotation.x = Math.PI / 2
+    ring.position.set(x, 0.065, z)
+    this.liftHalo = new THREE.Mesh(
+      new THREE.RingGeometry(0.5, 0.62, 48),
+      new THREE.MeshBasicMaterial({ color: cyan, transparent: true, opacity: 0.5, depthWrite: false }),
+    )
+    this.liftHalo.rotation.x = -Math.PI / 2
+    this.liftHalo.position.set(x, 0.012, z)
+    // Mélange normal (et non additif) : le faisceau reste visible sur les sols clairs.
+    this.liftBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.4, 32, 1, true), makeGlowMaterial(false))
+    this.liftBeam.position.set(x, 0.75, z)
+    ;(this.liftBeam.material as THREE.ShaderMaterial).uniforms.uColor.value.set(cyan)
+    this.liftRings = [0, 1, 2].map(() => {
+      const r = new THREE.Mesh(
+        new THREE.TorusGeometry(0.4, 0.014, 6, 40),
+        new THREE.MeshBasicMaterial({ color: '#bff3ff', transparent: true, depthWrite: false }),
+      )
+      r.rotation.x = Math.PI / 2
+      r.position.set(x, 0.1, z)
+      return r
+    })
+    this.liftSign = new THREE.Sprite(new THREE.SpriteMaterial({ map: liftSignTexture(), transparent: true, depthWrite: false }))
+    this.liftSign.scale.setScalar(0.46)
+    this.liftSign.position.set(x, 1.55, z)
+    this.group.add(base, ring, this.liftHalo, this.liftBeam, ...this.liftRings, this.liftSign)
+    this.interactables.push({ object: base, position: new THREE.Vector3(x, 0, z), label: 'Ascenseur' })
+  }
+
+  /** Holo-Me (comme dans Elite Dangerous) : plateforme, anneaux en rotation, faisceau orange. */
+  private buildWardrobe(x: number, z: number) {
+    const base = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.46, 0.5, 0.06, 32),
+      new THREE.MeshLambertMaterial({ color: '#2a2e36' }),
+    )
+    base.position.set(x, 0.03, z)
+    base.receiveShadow = true
+    this.group.add(base)
+    const ringMat = new THREE.MeshBasicMaterial({ color: '#ffa04a' })
+    const floorRing = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.02, 8, 48), ringMat)
+    floorRing.rotation.x = Math.PI / 2
+    floorRing.position.set(x, 0.065, z)
+    this.group.add(floorRing)
+    const rings: THREE.Mesh[] = []
+    for (const [y, r] of [[0.35, 0.36], [0.75, 0.3]] as const) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.012, 6, 48), ringMat)
+      ring.position.set(x, y, z)
+      ring.rotation.x = Math.PI / 2
+      this.group.add(ring)
+      rings.push(ring)
+    }
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.1, 32, 1, true), this.glowMat.clone())
+    beam.position.set(x, 0.6, z)
+    ;(beam.material as THREE.ShaderMaterial).uniforms.uColor.value.set(ED_ORANGE)
+    this.group.add(beam)
+    this.holo = { rings, beam }
+    this.interactables.push({ object: base, position: new THREE.Vector3(x, 0, z), label: 'Holo-Me' })
+  }
+
+  get wardrobeInteractable(): Interactable | undefined {
+    return this.interactables.find((i) => i.label === 'Holo-Me')
+  }
+
+  /** Intensité du faisceau de la garde-robe (plus fort pendant l'essayage). */
+  wardrobeGlow = 0
+
+  /** Signale un trajet d'ascenseur (le faisceau s'intensifie). */
+  pulseLift() {
+    this.liftBoost = 1
+  }
+
+  get liftInteractable(): Interactable {
+    return this.interactables.find((i) => i.label === 'Ascenseur')!
+  }
+
+  /** Cœur du réacteur (salle des machines) et tuyères à l'arrière du vaisseau. */
+  private buildEngine() {
+    const cx = 4.5, cz = 4.5
+    const base = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.85, 0.95, 0.15, 24),
+      new THREE.MeshStandardMaterial({ color: '#3d424e', metalness: 0.6, roughness: 0.4 }),
+    )
+    base.position.set(cx, 0.075, cz)
+    this.addStatic(base, false)
+
+    this.coreMat = new THREE.MeshStandardMaterial({ color: '#66e0ff', emissive: '#29c8ff', emissiveIntensity: 2.5 })
+    this.core = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 1.3, 24, 1, true), this.coreMat)
+    this.core.position.set(cx, 0.8, cz)
+    this.group.add(this.core)
+
+    const ringMat = new THREE.MeshStandardMaterial({ color: '#f08a24', metalness: 0.5, roughness: 0.35 })
+    for (const y of [0.3, 0.8, 1.3]) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.07, 10, 32), ringMat)
+      ring.rotation.x = Math.PI / 2
+      ring.position.set(cx, y, cz)
+      this.addStatic(ring, true)
+    }
+    this.colliders.push({ minX: cx - 0.8, maxX: cx + 0.8, minZ: cz - 0.8, maxZ: cz + 0.8 })
+    for (const [tx, tz] of [[4, 4], [5, 4], [4, 5], [5, 5]]) this.blockedTiles.add(`${tx},${tz}`)
+    this.interactables.push({
+      object: this.core,
+      position: new THREE.Vector3(cx, 0, cz),
+      label: 'Examiner',
+      text: 'Centrale électrique 5A : 98 % de sa capacité. Un bourdonnement grave fait vibrer le plancher.',
+    })
+    this.engineEmitters.push(new THREE.Vector3(cx, this.y + 0.8, cz))
+
+    // Tuyères : sortent de la coque côté ouest (poupe).
+    const nozzleMat = new THREE.MeshStandardMaterial({ color: '#3b3f5e', metalness: 0.7, roughness: 0.35, side: THREE.DoubleSide })
+    for (const z of [3, 6]) {
+      const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.42, 0.8, 20, 1, true), nozzleMat)
+      nozzle.rotation.z = Math.PI / 2
+      nozzle.position.set(-0.8, -0.2, z)
+      this.addStatic(nozzle, false)
+      const plume = new THREE.Mesh(new THREE.ConeGeometry(0.5, 2.6, 20, 1, true), this.glowMat)
+      plume.rotation.z = Math.PI / 2
+      plume.position.set(-2.4, -0.2, z)
+      this.group.add(plume)
+      this.plumes.push(plume)
+      this.engineEmitters.push(new THREE.Vector3(-1.6, this.y - 0.2, z))
+    }
+  }
+
+  // ----------------------------------------------------------------- update
+
+  /**
+   * @param actors positions (monde) de tous les personnages présents sur ce pont (portes)
+   * @param focus position du joueur local si ce pont est affiché (murs tramés), sinon null
+   * @param toCamera direction horizontale (normalisée) du joueur vers la caméra
+   */
+  update(dt: number, actors: THREE.Vector3[], focus: THREE.Vector3 | null, toCamera: THREE.Vector3) {
+    this.time += dt
+
+    // Portes automatiques.
+    for (const d of this.doors) {
+      const wanted = actors.some((a) => Math.hypot(a.x - d.center.x, a.z - d.center.z) < DOOR_RANGE)
+      if (wanted !== d.wanted) {
+        d.wanted = wanted
+        this.onDoor?.(new THREE.Vector3(d.center.x, this.y + 0.5, d.center.z), wanted)
+      }
+      d.open = THREE.MathUtils.damp(d.open, wanted ? 1 : 0, 10, dt)
+      d.panel.position.copy(d.center).addScaledVector(d.axis, d.open * 0.42)
+    }
+
+    if (!focus) return
+
+    // Murs et gros meubles entre la caméra et le joueur : tramés.
+    const right = _right.set(toCamera.z, 0, -toCamera.x)
+    const v = _v
+    let dirty = false
+    for (const o of this.occluders) {
+      v.set(o.center.x - focus.x, 0, o.center.z - focus.z)
+      const ahead = v.dot(toCamera)
+      const lateral = Math.abs(v.dot(right))
+      const hide = ahead > 0.1 && ahead < 3 && lateral < 1.6
+      const before = o.value
+      o.value = THREE.MathUtils.damp(o.value, hide ? 0.25 : 1, 8, dt)
+      if (o.value > 0.995) o.value = 1
+      if (o.value === before) continue
+      if (o.uniform) o.uniform.value = o.value
+      else {
+        this.fadeData[o.index!] = o.value
+        dirty = true
+      }
+    }
+    if (dirty) this.fadeTex.needsUpdate = true
+
+    this.glowMat.uniforms.uTime.value = this.time
+    const beam = this.liftBeam.material as THREE.ShaderMaterial
+    this.liftBoost = Math.max(0, this.liftBoost - dt * 0.8)
+    beam.uniforms.uTime.value = this.time
+    beam.uniforms.uIntensity.value = 0.42 + Math.sin(this.time * 2) * 0.06 + this.liftBoost * 0.8
+    for (const [i, r] of this.liftRings.entries()) {
+      const k = (this.time * 0.45 + i / this.liftRings.length) % 1
+      r.position.y = 0.1 + k * 1.25
+      ;(r.material as THREE.MeshBasicMaterial).opacity = (1 - k) * 0.9
+    }
+    ;(this.liftHalo.material as THREE.MeshBasicMaterial).opacity = 0.35 + 0.25 * Math.sin(this.time * 2.5) + this.liftBoost * 0.4
+    this.liftSign.position.y = 1.55 + Math.sin(this.time * 1.6) * 0.04
+
+    if (this.holo) {
+      const t = this.time
+      this.holo.rings[0].position.y = 0.35 + Math.sin(t * 1.3) * 0.2
+      this.holo.rings[1].position.y = 0.8 + Math.sin(t * 1.3 + 2) * 0.2
+      for (const r of this.holo.rings) r.rotation.z = t
+      const m = this.holo.beam.material as THREE.ShaderMaterial
+      m.uniforms.uTime.value = t
+      m.uniforms.uIntensity.value = 0.22 + Math.sin(t * 2.4) * 0.05 + this.wardrobeGlow * 0.5
+    }
+
+    tickFurniture(this.time)
+    for (const a of this.animated) a(this.time)
+
+    if (this.core && this.coreMat) {
+      this.coreMat.emissiveIntensity = 2.2 + Math.sin(this.time * 3) * 0.6
+      this.core.rotation.y += dt * 0.8
+    }
+    for (const [i, p] of this.plumes.entries()) {
+      const s = 1 + Math.sin(this.time * 25 + i * 2) * 0.06
+      p.scale.set(s, 1 + Math.sin(this.time * 17 + i) * 0.1, s)
+    }
+  }
+}
+
+/** Poteau d'angle qui réutilise le matériau (et la couleur exacte) des murs du pont. */
+function makePostMesh(material: THREE.Material): THREE.Mesh {
+  let src: THREE.Mesh | undefined
+  station('wall').traverse((o) => {
+    if (!src && (o as THREE.Mesh).isMesh) src = o as THREE.Mesh
+  })
+  const geo = new THREE.BoxGeometry(POST_W, POST_H, POST_W)
+  // Toutes les UV pointent sur le texel du dessus du mur.
+  const g = src!.geometry
+  const pos = g.getAttribute('position')
+  const uv = g.getAttribute('uv')
+  let best = 0
+  for (let i = 0; i < pos.count; i++) if (pos.getY(i) > pos.getY(best)) best = i
+  const u = uv.getX(best), v = uv.getY(best)
+  const uvs = geo.getAttribute('uv')
+  for (let i = 0; i < uvs.count; i++) uvs.setXY(i, u, v)
+  const m = new THREE.Mesh(geo, material)
+  m.castShadow = true
+  m.receiveShadow = true
+  return m
+}
+
+/** Panneau de l'ascenseur : pastille sombre cerclée de cyan, flèches vers le haut et vers le bas. */
+function liftSignTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas')
+  c.width = c.height = 128
+  const g = c.getContext('2d')!
+  g.fillStyle = 'rgba(10, 22, 36, 0.85)'
+  g.strokeStyle = '#59d8ff'
+  g.lineWidth = 7
+  g.beginPath()
+  g.roundRect(8, 8, 112, 112, 26)
+  g.fill()
+  g.stroke()
+  g.fillStyle = '#bff3ff'
+  for (const [tip, base] of [[22, 56], [106, 72]]) {
+    g.beginPath()
+    g.moveTo(64, tip)
+    g.lineTo(92, base)
+    g.lineTo(36, base)
+    g.closePath()
+    g.fill()
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  t.anisotropy = 4
+  return t
+}
+
+/**
+ * Halo en dégradé (jets des tuyères, faisceaux).
+ * @param additive lumière ajoutée ; sinon mélange normal, qui reste visible sur les sols clairs
+ */
+function makeGlowMaterial(additive = true): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uColor: { value: new THREE.Color('#40b4ff') },
+      uIntensity: { value: 0.9 },
+    },
+    vertexShader: `
+      varying float vH;
+      void main() {
+        vH = 1.0 - uv.y; // 1 à la base, 0 à l'extrémité
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: `
+      uniform float uTime;
+      uniform vec3 uColor;
+      uniform float uIntensity;
+      varying float vH;
+      void main() {
+        float flicker = 0.85 + 0.15 * sin(uTime * 40.0 + vH * 20.0);
+        vec3 col = mix(uColor, vec3(0.92, 0.97, 1.0), vH * vH);
+        gl_FragColor = vec4(col * flicker, pow(vH, 1.6) * uIntensity);
+      }`,
+    transparent: true,
+    blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  })
+}

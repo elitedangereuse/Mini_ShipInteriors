@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>Mini Interior — vaisseau isométrique</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="bubbles"></div>
+
+    <div id="loading">
+      <div class="loading-title">Mise sous tension du vaisseau…</div>
+      <div class="bar"><div id="loading-bar"></div></div>
+    </div>
+
+    <div id="hud" hidden>
+      <div class="panel top-left">
+        <div class="ship-name">Vaisseau Vermine · <span id="deck"></span></div>
+        <div id="room" class="room"></div>
+        <div id="net" class="net"><i data-icon="user-solo"></i>Solo</div>
+        <div id="identity" class="identity"></div>
+      </div>
+
+      <div class="top-right">
+        <div class="panel buttons">
+          <button id="rot-left" title="Pivoter la caméra (Maj+R)" aria-label="Pivoter la caméra à gauche"><i data-icon="arrow-counter-clockwise"></i></button>
+          <button id="rot-right" title="Pivoter la caméra (R)" aria-label="Pivoter la caméra à droite"><i data-icon="arrow-clockwise"></i></button>
+          <button id="zoom-in" title="Zoom avant (molette)" aria-label="Zoom avant"><i data-icon="magnifying-glass-plus"></i></button>
+          <button id="zoom-out" title="Zoom arrière (molette)" aria-label="Zoom arrière"><i data-icon="magnifying-glass-minus"></i></button>
+          <button id="mute" title="Son (M)" aria-label="Couper ou rétablir le son"><i data-icon="speaker-high"></i></button>
+          <input id="volume" type="range" min="0" max="100" step="1" title="Volume" aria-label="Volume" />
+          <button id="help-toggle" title="Aide (H)" aria-label="Aide"><i data-icon="question"></i></button>
+        </div>
+        <div id="help" class="panel help">
+          <div><kbd>ZQSD</kbd> <kbd>WASD</kbd> <kbd class="arrows"><i data-icon="arrow-up"></i><i data-icon="arrow-left"></i><i data-icon="arrow-down"></i><i data-icon="arrow-right"></i></kbd> ou clic : se déplacer</div>
+          <div><kbd>Maj</kbd> courir · <kbd>E</kbd> interagir</div>
+          <div><kbd>1</kbd>…<kbd>7</kbd> emotes · <kbd>Entrée</kbd> chat</div>
+          <div><kbd>R</kbd> pivoter · molette : zoom</div>
+          <div><kbd>M</kbd> son · <kbd>H</kbd> cacher l'aide</div>
+          <div>Holo-Me (apparence) : quartiers du commandant, pont supérieur</div>
+          <div class="muted">Chat : <code>/nom CMDR Pseudo</code>, <code>/perso</code> (au hasard), <code>/aide</code></div>
+        </div>
+      </div>
+
+      <div id="chat" class="panel chat">
+        <div id="chat-log"></div>
+        <form id="chat-form" autocomplete="off">
+          <input id="chat-input" maxlength="200" placeholder="Entrée pour discuter…" />
+        </form>
+      </div>
+
+      <div id="emotes" class="panel emotes"></div>
+
+      <div id="prompt" hidden><kbd>E</kbd><span id="prompt-label">Examiner</span></div>
+      <div id="dialog" hidden></div>
+
+      <div id="lift" class="panel lift" hidden>
+        <div class="lift-title">Ascenseur</div>
+        <div id="lift-buttons"></div>
+        <div class="lift-hint">
+          <kbd class="arrows"><i data-icon="arrow-up"></i><i data-icon="arrow-down"></i></kbd> choisir · <kbd>Entrée</kbd> y aller
+        </div>
+        <button id="lift-close" class="lift-close">Fermer <kbd>E</kbd><kbd>Échap</kbd></button>
+      </div>
+
+      <div id="wardrobe" class="panel wardrobe" hidden></div>
+
+      <div id="sound-hint" class="toast"><i data-icon="speaker-low"></i>Clique ou appuie sur une touche pour activer le son</div>
+    </div>
+
+    <div id="fade"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
