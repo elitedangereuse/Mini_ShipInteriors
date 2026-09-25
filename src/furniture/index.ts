@@ -1,4 +1,5 @@
 import { COZY } from './cozy'
+import { DECOR } from './decor'
 import { ELITE } from './elite'
 import { compact, rng, type Builder, type Furniture } from './kit'
 import { LEISURE } from './leisure'
@@ -9,11 +10,13 @@ import { WORKSHOP } from './workshop'
  * - elite.ts : poste de pilotage, cartes holographiques, FSD, SRV, drones… (clins d'œil à Elite Dangerous) ;
  * - workshop.ts : la cale (minage, bricolage, réparation) ;
  * - leisure.ts : infirmerie, salle de sport, salon d'arcade ;
- * - cozy.ts : les quartiers (chambres, douches, serre, salon).
- * On les place dans levels.ts comme les modèles du kit : `{ model: 'fireplace', x, z, rot }`.
+ * - cozy.ts : les quartiers (chambres, douches, serre, salon) ;
+ * - decor.ts : la décoration des cabines (affiches, cadres, plantes, petits objets…).
+ * On les place dans levels.ts comme les modèles du kit : `{ model: 'fireplace', x, z, rot }`,
+ * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...WORKSHOP, ...LEISURE, ...COZY } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...WORKSHOP, ...LEISURE, ...COZY, ...DECOR } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 

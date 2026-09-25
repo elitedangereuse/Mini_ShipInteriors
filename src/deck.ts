@@ -21,8 +21,8 @@ export interface Interactable {
   /** Position au sol (coordonnées du pont ; peut être une référence vivante, ex. le chat). */
   position: THREE.Vector3
   label: string
-  /** Texte affiché ; avec une liste, une phrase au hasard à chaque fois. */
-  text?: string | string[]
+  /** Texte affiché ; avec une liste, une phrase au hasard à chaque fois ; une fonction est relue à chaque interaction. */
+  text?: string | string[] | (() => string | string[])
   onInteract?: () => void
 }
 

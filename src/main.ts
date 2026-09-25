@@ -869,8 +869,9 @@ function interactWith(item: Interactable) {
   if (item.onInteract) return item.onInteract()
   player.interact()
   net.sendEmote('interact')
-  if (Array.isArray(item.text)) dialog.show(item.text[Math.floor(Math.random() * item.text.length)])
-  else if (item.text) dialog.show(item.text)
+  const text = typeof item.text === 'function' ? item.text() : item.text
+  if (Array.isArray(text)) dialog.show(text[Math.floor(Math.random() * text.length)])
+  else if (text) dialog.show(text)
 }
 
 // ------------------------------------------------------------------ boucle

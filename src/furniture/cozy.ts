@@ -22,7 +22,7 @@ const C = {
 }
 
 /** Couleurs de tissu, choisies par le `label` du meuble (« teal », « mustard »…). */
-const FABRIC: Record<string, string> = {
+export const FABRIC: Record<string, string> = {
   teal: '#3f8f8c',
   terracotta: '#c0643f',
   mustard: '#d9a441',
@@ -33,9 +33,9 @@ const FABRIC: Record<string, string> = {
   cream: '#e9dcc4',
   purple: '#5a3a8a',
 }
-const fabric = (label: string | undefined, fallback: keyof typeof FABRIC) => lit(FABRIC[label ?? ''] ?? FABRIC[fallback])
+export const fabric = (label: string | undefined, fallback: keyof typeof FABRIC) => lit(FABRIC[label ?? ''] ?? FABRIC[fallback])
 
-const LEAVES = ['#5aa35a', '#3c7a44', '#86c46a', '#4f9a4a']
+export const LEAVES = ['#5aa35a', '#3c7a44', '#86c46a', '#4f9a4a']
 
 // ---------------------------------------------------------------- chambre
 
