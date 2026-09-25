@@ -2,8 +2,8 @@ import * as THREE from 'three'
 import { CAT_MODEL, preload, rig } from './assets'
 import type { CabinEditor } from './cabin/editor'
 import { CabinBar, InviteMenu, InviteToasts, type CrewEntry } from './cabin/hud'
-import { DEFAULT_CABIN, normalizeLayout, serializeLayout, type CabinItem } from './cabin/layout'
-import { CabinStore, requestCabin } from './cabin/storage'
+import { DEFAULT_CABIN, normalizeLayout, sameLayout, serializeLayout, type CabinItem } from './cabin/layout'
+import { CabinStore, requestCabin, type SiteCabin } from './cabin/storage'
 import { devCmdr, fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
 import { Sound } from './audio'
 import { Avatar, EMOTES } from './avatar'
@@ -120,9 +120,13 @@ if (account) {
   linked = true
   profile.name = `CMDR ${account}`
 }
-const siteCabin = account ? await within(cabinRequest, 3000, null) : null
-/** Enregistrement des quartiers d'un CMDR : sur le site s'il a répondu, sinon dans le navigateur. */
-let cabinStore = account ? new CabinStore(account, !!siteCabin) : null
+/** Réponse du site sur les quartiers du CMDR, si elle est arrivée à temps (undefined : pas encore). */
+const siteCabin = account ? await within<SiteCabin | null | undefined>(cabinRequest, 3000, undefined) : undefined
+/**
+ * Enregistrement des quartiers d'un CMDR : sur le site, ou dans ce navigateur s'il ne répond pas.
+ * Tant que le site n'a pas répondu, on ne les aménage pas : on écraserait ceux qu'il garde.
+ */
+let cabinStore = account ? new CabinStore(account) : null
 
 const decks = LEVELS.map((def) => new Deck(def))
 for (const d of decks) scene.add(d.group)
@@ -131,8 +135,28 @@ const deckById = (id: number) => decks.find((d) => d.def.id === id)!
 // Les quartiers du commandant : la cabine du joueur, meublée selon son aménagement.
 const cabinDeck = decks.find((d) => d.cabin)!
 const cabin = cabinDeck.cabin!
-/** Aménagement des quartiers du joueur (celui du site pour un CMDR, sinon celui d'origine). */
-let ownLayout: CabinItem[] = normalizeLayout(cabinStore?.saved(siteCabin) ?? DEFAULT_CABIN, cabin.bounds)
+
+/** Réponse du site (ou son absence) : l'aménagement à montrer, envoyé au site s'il vient de ce navigateur. */
+function connectStore(store: CabinStore, site: SiteCabin | null): CabinItem[] {
+  const { layout, upload } = store.connect(site)
+  const items = normalizeLayout(layout ?? DEFAULT_CABIN, cabin.bounds)
+  if (upload) store.save(items)
+  return items
+}
+
+/**
+ * Aménagement des quartiers du joueur : pour un CMDR, celui du site (en attendant sa réponse,
+ * celui gardé dans ce navigateur) ; sinon, celui d'origine.
+ */
+let ownLayout: CabinItem[] = !cabinStore
+  ? normalizeLayout(DEFAULT_CABIN, cabin.bounds)
+  : siteCabin !== undefined
+    ? connectStore(cabinStore, siteCabin)
+    : normalizeLayout(cabinStore.localCopy ?? DEFAULT_CABIN, cabin.bounds)
+if (cabinStore && siteCabin === undefined) {
+  const store = cabinStore
+  void cabinRequest.then((site) => siteAnswered(store, site))
+}
 cabin.setLayout(ownLayout)
 
 /** On se réveille à deux pas du Holo-Me : sur une tuile libre voisine, sinon sur sa plateforme. */
@@ -727,19 +751,26 @@ function loadEditor(): Promise<void> {
 
 /**
  * CMDR reconnu par le relais sans que le site ait répondu au chargement : on va chercher ses
- * quartiers maintenant (sans eux, l'aménagement écraserait celui qu'il a enregistré).
+ * quartiers maintenant (en attendant, ceux gardés dans ce navigateur).
  */
 function adoptAccount() {
   if (cabinStore) return
-  void requestCabin().then((fromSite) => {
-    if (cabinStore) return
-    const store = new CabinStore(profile.name.replace(/^CMDR /, ''), !!fromSite)
-    cabinStore = store
-    ownLayout = normalizeLayout(store.saved(fromSite) ?? DEFAULT_CABIN, cabin.bounds)
-    if (editing()) editor!.replace(ownLayout)
-    if (verified) net.sendCabin(serializeLayout(ownLayout))
-    if (!visiting) showCabin()
-  })
+  const store = (cabinStore = new CabinStore(profile.name.replace(/^CMDR /, '')))
+  setOwnLayout(normalizeLayout(store.localCopy ?? DEFAULT_CABIN, cabin.bounds))
+  void requestCabin().then((site) => siteAnswered(store, site))
+}
+
+/** Le site répond en cours de partie : ses quartiers remplacent ceux montrés en attendant. */
+function siteAnswered(store: CabinStore, site: SiteCabin | null) {
+  if (cabinStore === store) setOwnLayout(connectStore(store, site))
+}
+
+/** Aménagement de ses quartiers venu d'ailleurs que du mode aménagement (qui attend le site). */
+function setOwnLayout(items: CabinItem[]) {
+  if (sameLayout(items, ownLayout)) return
+  ownLayout = items
+  if (verified) net.sendCabin(serializeLayout(items))
+  if (!visiting) showCabin()
 }
 
 /** Position dans la cabine (le bon pont, la bonne pièce) ? */
@@ -751,7 +782,7 @@ async function openEditor() {
   if (editing() || riding) return
   if (visiting) return chat.add('system', 'Ces quartiers ne sont pas les vôtres : on n\'aménage que chez soi.')
   if (!linked) return chat.add('system', 'Aménager ses quartiers est réservé aux CMDR connectés à elitedangereuse.fr.')
-  if (!cabinStore) return chat.add('system', 'Vos quartiers arrivent du site, encore un instant…')
+  if (!cabinStore?.ready) return chat.add('system', 'Vos quartiers arrivent du site, encore un instant…')
   if (!editor) {
     await loadEditor()
     // On a pu partir (ascenseur, invitation) pendant le chargement.
@@ -769,7 +800,7 @@ async function openEditor() {
   iso.zoomTo(ed.fitZoom())
   document.body.classList.add('editing')
   ed.start(ownLayout)
-  ed.setSaveState(store.idleState)
+  ed.setSaveState(store.state)
   store.onState = (state) => ed.setSaveState(state)
 }
 
