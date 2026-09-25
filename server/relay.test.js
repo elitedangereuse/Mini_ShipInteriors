@@ -125,6 +125,17 @@ const next = (socket, event, match = () => true) =>
     socket.on(event, on)
   })
 
+/** Vrai si `socket` reçoit `event` dans les `ms` millisecondes. */
+const receives = (socket, event, ms = 150) =>
+  new Promise((resolve) => {
+    const on = () => resolve(true)
+    socket.once(event, on)
+    setTimeout(() => {
+      socket.off(event, on)
+      resolve(false)
+    }, ms)
+  })
+
 describe('rediffusion', () => {
   test('chat, emote et position passent d\'un joueur aux autres, validés', async () => {
     const a = client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-adam' })
@@ -174,6 +185,8 @@ describe('rediffusion', () => {
   test('le jukebox du pont principal s\'entend de tous, et d\'un nouveau venu, au bon moment du morceau', async () => {
     const a = client({ auth: { name: 'CMDR Disco' } })
     const wa = await welcome(a)
+    // À l'arrivée, le silence aussi est dit (un joueur reconnecté arrête le morceau d'avant).
+    assert.equal(wa.music.track, null)
     const b = client({ auth: { name: 'CMDR Oreille' } })
     await welcome(b)
     a.emit('music', { where: 'deck', track: 'Disco!', x: 11.3, z: 6.32 }) // identifiant invalide : ignoré
@@ -183,27 +196,32 @@ describe('rediffusion', () => {
     // Le nouveau venu arrive en plein morceau.
     await new Promise((r) => setTimeout(r, 120))
     const c = client({ auth: { name: 'CMDR Retard' } })
-    const late = next(c, 'music')
-    await welcome(c)
-    const m = await late
+    const m = (await welcome(c)).music
     assert.equal(m.track, 'disco')
     assert.ok(m.at >= 0.1 && m.at < 5, `écoulé : ${m.at}`)
     a.emit('music', { where: 'deck', track: null, x: 11.3, z: 6.32 })
     assert.equal((await next(b, 'music')).track, null)
     for (const socket of [a, b, c]) socket.disconnect()
   })
-})
 
-/** Vrai si `socket` reçoit `event` dans les `ms` millisecondes. */
-const receives = (socket, event, ms = 150) =>
-  new Promise((resolve) => {
-    const on = () => resolve(true)
-    socket.once(event, on)
-    setTimeout(() => {
-      socket.off(event, on)
-      resolve(false)
-    }, ms)
+  test('trop de choix d\'un coup au jukebox : le demandeur retrouve le morceau de tous', async () => {
+    const a = client({ auth: { name: 'CMDR Zappeur' } })
+    await welcome(a)
+    const b = client({ auth: { name: 'CMDR Patient' } })
+    await welcome(b)
+    const refused = next(a, 'music')
+    for (const track of ['disco', 'lofi', 'space', 'lounge']) a.emit('music', { where: 'deck', track, x: 11.3, z: 6.32 })
+    const m = await refused
+    assert.equal(m.busy, true)
+    assert.equal(m.track, 'space', 'le dernier choix accepté')
+    assert.equal(await receives(b, 'music', 150), false, 'le choix refusé n\'est pas diffusé')
+    await new Promise((r) => setTimeout(r, 2100))
+    a.emit('music', { where: 'deck', track: null, x: 11.3, z: 6.32 })
+    assert.equal((await next(b, 'music')).track, null)
+    a.disconnect()
+    b.disconnect()
   })
+})
 
 const LAYOUT = { v: 1, items: [{ m: 'holo-me', x: 11.6, z: 8.4, r: 0 }, { m: 'sofa', x: 14.25, z: 9.97, r: 2, v: 'teal' }] }
 
@@ -334,6 +352,20 @@ describe('quartiers', () => {
     const home = next(guest, 'music')
     guest.emit('visit', { host: null })
     assert.equal((await home).track, null)
+    host.disconnect()
+    guest.disconnect()
+  })
+
+  test('un hôte reconnecté rend au relais sa musique, là où elle en était', async () => {
+    const { host, wh, guest, wg } = await hostAndGuest()
+    host.emit('music', { where: 'cabin', track: 'lofi', x: 13, z: 8, at: 42 })
+    host.emit('invite', { to: wg.id })
+    await next(guest, 'invite')
+    const heard = next(guest, 'music')
+    guest.emit('visit', { host: wh.id })
+    const m = await heard
+    assert.equal(m.track, 'lofi')
+    assert.ok(m.at >= 42 && m.at < 45, `écoulé : ${m.at}`)
     host.disconnect()
     guest.disconnect()
   })

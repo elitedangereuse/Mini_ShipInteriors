@@ -19,7 +19,7 @@ import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, LIFT, SPAWN } from '
 import { hydrateIcons, icon } from './icons'
 import { lookId, lookPath, lookRig, parseLook, RACES, raceOf, randomLook, variantsOf, type Look } from './looks'
 import { JukeboxPanel, JukeboxPlayer, trackById, type Track } from './music'
-import { Net, type PlayerState } from './net'
+import { Net, type MusicState, type PlayerState } from './net'
 import type { Tile } from './pathfinding'
 import { PhotoMode } from './photo'
 import { overlapsAny, resolveCircle } from './physics'
@@ -521,6 +521,11 @@ net.onMessage = (m) => {
       updateIdentity()
       for (const p of m.players) addRemote(p)
       chat.add('system', welcomeOnline(m.players.length))
+      // Le jukebox du pont principal, tel que le relais le connaît (après une reconnexion aussi).
+      if (m.music) applyMusic(m.music)
+      // Le relais oublie tout à chaque connexion : la musique de nos quartiers, on la lui rend.
+      const own = cabinMusic.playing
+      if (own) net.sendMusic('cabin', own.track.id, own.x, own.z, own.position)
       break
     case 'join':
       addRemote(m.player)
@@ -581,15 +586,10 @@ net.onMessage = (m) => {
     }
     case 'music': {
       // Un morceau au jukebox (du pont principal, ou des quartiers où l'on est), ou le silence.
-      const music = m.where === 'deck' ? deckMusic : cabinMusic
-      const track = trackById(m.track)
-      if (!track) {
-        music.stop()
-        break
-      }
-      music.play(track, jukeboxAt(m.where, m.x, m.z), m.at)
+      const track = applyMusic(m)
+      if (m.busy) dialog.show(tr('Doucement avec le jukebox : un morceau à la fois.', 'Easy on the jukebox: one track at a time.'))
       const r = remotes.get(m.id)
-      if (r) chat.add('system', tr(`${r.name} a mis « ${track.title} » au jukebox.`, `${r.name} put “${track.title}” on the jukebox.`))
+      if (track && r) chat.add('system', tr(`${r.name} a mis « ${track.title} » au jukebox.`, `${r.name} put “${track.title}” on the jukebox.`))
       break
     }
     case 'cabin':
@@ -810,6 +810,15 @@ let jukeboxWhere: 'deck' | 'cabin' = 'deck'
 /** Place (monde) d'un jukebox : au pont principal, ou dans les quartiers. */
 function jukeboxAt(where: 'deck' | 'cabin', x: number, z: number): THREE.Vector3 {
   return new THREE.Vector3(x, (where === 'deck' ? deckById(0).y : cabinDeck.y) + 0.7, z)
+}
+
+/** Ce que joue un jukebox selon le relais : un morceau, à sa position et à sa place, ou le silence. */
+function applyMusic(m: MusicState): Track | null {
+  const music = m.where === 'deck' ? deckMusic : cabinMusic
+  const track = trackById(m.track)
+  if (track) music.play(track, jukeboxAt(m.where, m.x, m.z), m.at)
+  else music.stop()
+  return track
 }
 
 function nowPlaying(track: Track) {
@@ -1117,6 +1126,8 @@ function leaveVisit(message?: string) {
   const was = visiting !== null || entering !== null
   visitSeq++
   entering = null
+  // La musique de l'hôte reste chez lui ; en ligne, le relais nous rend celle de nos quartiers.
+  if (was) cabinMusic.stop()
   if (visiting) {
     visiting = null
     showCabin()

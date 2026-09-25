@@ -147,9 +147,10 @@ export function attachRelay(
       id: player.id,
       you: { name: player.name, verified: player.verified },
       players: [...players.values()].filter((p) => p !== player).map(publicState),
+      // Le jukebox du pont principal, silence compris : après une reconnexion, on se recale.
+      music: musicOf(0),
     })
     socket.broadcast.emit('join', { player: publicState(player) })
-    if (music.has(0)) socket.emit('music', { id: 0, ...musicOf(0) })
     log(`[relais] ${player.name}${player.verified ? ' (CMDR vérifié)' : ''} (#${player.id}) a embarqué — ${players.size} à bord`)
 
     let chatBudget = 5
@@ -193,16 +194,19 @@ export function attachRelay(
       io.emit('profile', { id: player.id, name: player.name, verified: player.verified, skin: player.skin })
     })
 
-    // Jukebox : un morceau (ou le silence) au pont principal, ou dans les quartiers où l'on est.
+    // Jukebox : un morceau (ou le silence) au pont principal, ou dans les quartiers où l'on est,
+    // depuis son début ou `at` secondes plus loin (un hôte reconnecté rend la sienne au relais).
+    // Trop de choix d'un coup : le demandeur, qui joue déjà le sien, retrouve celui de tous.
     socket.on('music', (raw) => {
       const m = obj(raw)
-      if (musicBudget < 1 || (m.where !== 'deck' && m.where !== 'cabin')) return
+      if (m.where !== 'deck' && m.where !== 'cabin') return
+      const instance = m.where === 'deck' ? 0 : player.cabin
+      if (musicBudget < 1) return socket.emit('music', { id: 0, ...musicOf(instance), busy: true })
       const track = m.track === null ? null : TRACK.test(String(m.track)) ? String(m.track) : undefined
       const x = num(m.x, -5, 40), z = num(m.z, -5, 20)
       if (track === undefined || x === null || z === null) return
       musicBudget--
-      const instance = m.where === 'deck' ? 0 : player.cabin
-      if (track) music.set(instance, { track, since: Date.now(), x, z })
+      if (track) music.set(instance, { track, since: Date.now() - (num(m.at, 0, 3600) ?? 0) * 1000, x, z })
       else music.delete(instance)
       const msg = { id: player.id, ...musicOf(instance) }
       for (const p of players.values()) {

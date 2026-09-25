@@ -19,8 +19,18 @@ export interface PlayerState {
   cabin: number
 }
 
+/** Ce que joue un jukebox : son morceau (null : il se tait), depuis `at` secondes, à sa place. */
+export interface MusicState {
+  where: 'deck' | 'cabin'
+  track: string | null
+  at: number
+  x: number
+  z: number
+}
+
 export type ServerMessage =
-  | { t: 'welcome'; id: number; you: { name: string; verified: boolean }; players: PlayerState[] }
+  /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
+  | { t: 'welcome'; id: number; you: { name: string; verified: boolean }; players: PlayerState[]; music?: MusicState }
   | { t: 'join'; player: PlayerState }
   | { t: 'leave'; id: number }
   | { t: 'state'; id: number; x: number; z: number; yaw: number; level: number; anim: string; pose?: string; py?: number }
@@ -40,10 +50,10 @@ export type ServerMessage =
    */
   | { t: 'visit'; id: number; cabin: number; by?: number; expired?: boolean }
   /**
-   * Jukebox du pont principal ou des quartiers où l'on est : son morceau (null : il se tait),
-   * joué depuis `at` secondes, à sa place ; `id` : qui l'a choisi (0 : le relais, à l'arrivée).
+   * Jukebox du pont principal ou des quartiers où l'on est ; `id` : qui l'a choisi (0 : le
+   * relais, à l'arrivée) ; `busy` : notre choix est refusé (trop d'un coup), voici celui de tous.
    */
-  | { t: 'music'; id: number; where: 'deck' | 'cabin'; track: string | null; at: number; x: number; z: number }
+  | ({ t: 'music'; id: number; busy?: boolean } & MusicState)
 
 /**
  * Réponse du relais à une invitation : partie, ou pourquoi pas (guest : on n'est pas CMDR,
@@ -180,9 +190,12 @@ export class Net {
     this.send('visit', { host })
   }
 
-  /** Choisit un morceau au jukebox du pont principal ou des quartiers où l'on est (null : l'arrêter). */
-  sendMusic(where: 'deck' | 'cabin', track: string | null, x: number, z: number) {
-    this.send('music', { where, track, x: Math.round(x * 100) / 100, z: Math.round(z * 100) / 100 })
+  /**
+   * Choisit un morceau au jukebox du pont principal ou des quartiers où l'on est (null : l'arrêter),
+   * depuis son début ou `at` secondes plus loin.
+   */
+  sendMusic(where: 'deck' | 'cabin', track: string | null, x: number, z: number, at = 0) {
+    this.send('music', { where, track, x: Math.round(x * 100) / 100, z: Math.round(z * 100) / 100, ...(at > 0 ? { at: Math.round(at * 100) / 100 } : {}) })
   }
 
   /** Raccompagner un visiteur de ses quartiers. */
