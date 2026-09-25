@@ -1,11 +1,13 @@
 import * as THREE from 'three'
 import { CAT_MODEL, preload, rig } from './assets'
+import { DEFAULT_CABIN } from './cabin/layout'
 import { devCmdr, fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
 import { Sound } from './audio'
 import { Avatar, EMOTES } from './avatar'
 import { IsoCamera } from './camera'
 import { Cat } from './cat'
 import { Deck, type Interactable } from './deck'
+import { holoMeGlow } from './furniture'
 import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, LIFT, SPAWN } from './levels'
 import { hydrateIcons, icon } from './icons'
 import { lookId, lookPath, lookRig, parseLook, RACES, raceOf, randomLook, variantsOf, type Look } from './looks'
@@ -109,17 +111,37 @@ if (account) {
 const decks = LEVELS.map((def) => new Deck(def))
 for (const d of decks) scene.add(d.group)
 const deckById = (id: number) => decks.find((d) => d.def.id === id)!
-let deck = deckById(SPAWN.level)
+
+// Les quartiers du commandant : la cabine du joueur, meublée selon son aménagement.
+const cabinDeck = decks.find((d) => d.cabin)!
+const cabin = cabinDeck.cabin!
+cabin.setLayout(DEFAULT_CABIN)
+
+/** On se réveille à deux pas du Holo-Me : sur une tuile libre voisine, sinon sur sa plateforme. */
+function spawnPoint(): { x: number; z: number } {
+  const h = cabin.holoMe?.position
+  if (!h) return SPAWN
+  const hx = Math.round(h.x), hz = Math.round(h.z)
+  for (const [dx, dz] of [[-1, -1], [0, -1], [-1, 0], [1, -1], [-1, 1], [1, 0], [0, 1], [1, 1]]) {
+    if (cabinDeck.pathfinder.walkable(hx + dx, hz + dz)) return { x: hx + dx, z: hz + dz }
+  }
+  return { x: h.x, z: h.z }
+}
+
+let deck = cabinDeck
 
 const stars = new Starfield()
 scene.add(stars.group)
 
 const player = new Player(new Avatar(await lookRig(parseLook(profile.skin))), deck.colliders)
-player.position.set(SPAWN.x, deck.y, SPAWN.z)
+const spawn = spawnPoint()
+player.position.set(spawn.x, deck.y, spawn.z)
 scene.add(player.root)
 
-const catDeck = deckById(CAT_SPAWN.level)
-const cat = new Cat(await rig(CAT_MODEL), catDeck, CAT_SPAWN.x, CAT_SPAWN.z)
+// Comète vit près de son panier.
+const catDeck = cabinDeck
+const basket = cabin.items.find((i) => i.m === 'cat-bed') ?? CAT_SPAWN
+const cat = new Cat(await rig(CAT_MODEL), catDeck, basket.x, basket.z)
 catDeck.interactables.push({
   object: cat.root,
   position: cat.root.position,
@@ -186,12 +208,8 @@ function flicker(kind: 'neon' | 'fire', t: number, seed: number): number {
   return crisis > 1.3 && Math.sin(t * 90) > 0.2 ? 0.25 : 1
 }
 
-function setDeck(next: Deck) {
-  deck = next
-  for (const d of decks) d.group.visible = d === deck
-  player.colliders = deck.colliders
-  player.position.y = deck.y
-  iso.snapTo(player.position)
+/** Lumières du pont affiché dans la réserve (celles de la cabine suivent ses meubles). */
+function applyLights() {
   for (const [i, l] of lightPool.entries()) {
     const def = deck.lights[i]
     l.intensity = def ? def.intensity : 0
@@ -200,6 +218,18 @@ function setDeck(next: Deck) {
       l.color.copy(def.color)
     }
   }
+}
+cabin.onLights = () => {
+  if (deck === cabinDeck) applyLights()
+}
+
+function setDeck(next: Deck) {
+  deck = next
+  for (const d of decks) d.group.visible = d === deck
+  player.colliders = deck.colliders
+  player.position.y = deck.y
+  iso.snapTo(player.position)
+  applyLights()
   const ambience = deck.def.ambience ?? DEFAULT_AMBIENCE
   hemi.color.set(ambience.sky)
   hemi.groundColor.set(ambience.ground)
@@ -498,8 +528,6 @@ chat.add(
 // ------------------------------------------------------------------ garde-robe
 
 const wardrobe = new WardrobePanel()
-const wardrobeDeck = decks.find((d) => d.wardrobeInteractable)!
-const wardrobePad = wardrobeDeck.wardrobeInteractable!
 let dressing: { original: string; zoom: number } | null = null
 let lookRequest = 0
 let spin = 0
@@ -529,21 +557,23 @@ function saveLook(look: Look) {
 }
 
 function openWardrobe() {
+  const pad = cabin.holoMe?.position
+  if (!pad) return
   const start = () => {
     dressing = { original: profile.skin, zoom: iso.zoomLevel }
     iso.zoomTo(2.3)
     spin = Math.atan2(toCam.x, toCam.z) // face à la caméra
-    wardrobeDeck.wardrobeGlow = 1
-    sound.play('lift', new THREE.Vector3(wardrobePad.position.x, deck.y + 0.5, wardrobePad.position.z), { volume: 0.1, rate: 1.4 })
+    holoMeGlow.value = 1
+    sound.play('lift', new THREE.Vector3(pad.x, deck.y + 0.5, pad.z), { volume: 0.1, rate: 1.4 })
     wardrobe.open(parseLook(profile.skin))
   }
   // On monte d'abord sur la plateforme.
-  if (Math.hypot(player.position.x - wardrobePad.position.x, player.position.z - wardrobePad.position.z) > 0.1) {
-    player.setPath([{ x: wardrobePad.position.x, z: wardrobePad.position.z }])
+  if (Math.hypot(player.position.x - pad.x, player.position.z - pad.z) > 0.1) {
+    player.setPath([{ x: pad.x, z: pad.z }])
     player.onArrive = start
   } else start()
 }
-wardrobePad.onInteract = openWardrobe
+cabin.onHoloMe = openWardrobe
 
 wardrobe.onChange = (look) => {
   void applyLook(look)
@@ -552,7 +582,7 @@ wardrobe.onChange = (look) => {
 wardrobe.onClose = (confirmed, look) => {
   if (!dressing) return
   iso.zoomTo(dressing.zoom)
-  wardrobeDeck.wardrobeGlow = 0
+  holoMeGlow.value = 0
   if (confirmed) {
     if (lookId(look) !== dressing.original) saveLook(look)
     emote('joie')
@@ -974,6 +1004,6 @@ frame()
 // Accès de debug (dev uniquement) : window.__game dans la console.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    __game: { renderer, sound, player, cat, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso },
+    __game: { renderer, sound, player, cat, cabin, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso },
   })
 }

@@ -33,4 +33,5 @@ export function buildFurniture(model: CustomModel, label: string | undefined, se
   return f
 }
 
-export { ED_ORANGE, tickFurniture, type Emitter } from './kit'
+export { holoMeGlow } from './elite'
+export { beamMaterial, disposeFurniture, ED_ORANGE, keepShared, tickFurniture, type Emitter } from './kit'

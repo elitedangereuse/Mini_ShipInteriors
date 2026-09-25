@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import {
-  box, compact, cylinder, ED_ORANGE, ellipseSegments, glass, holoMaterial, instanced, lineMaterial, mat, mesh,
+  beamMaterial, box, compact, cylinder, ED_ORANGE, ellipseSegments, glass, glow, holoMaterial, instanced, lineMaterial, lit, mat, mesh,
   panelTexture, part, pointCloud, setInstance, type Builder,
 } from './kit'
 
@@ -328,7 +328,41 @@ const sampleTank: Builder = () => {
   }
 }
 
+/** Intensité du faisceau du Holo-Me : 1 pendant l'essayage (cf. main.ts). */
+export const holoMeGlow = { value: 0 }
+
+/** Holo-Me (comme dans Elite Dangerous) : plateforme, anneaux en rotation, faisceau orange. */
+const holoMe: Builder = () => {
+  const g = new THREE.Group()
+  g.add(cylinder(0.46, 0.5, 0.06, lit('#2a2e36'), 0, 0.03, 0, 32))
+  const floorRing = mesh(new THREE.TorusGeometry(0.42, 0.02, 8, 48), glow('#ffa04a'), 0, 0.065, 0)
+  floorRing.rotation.x = Math.PI / 2
+  g.add(floorRing)
+  const live = new THREE.Group()
+  const rings = ([[0.35, 0.36], [0.75, 0.3]] as const).map(([y, r]) => {
+    const ring = part(new THREE.TorusGeometry(r, 0.012, 6, 48), glow('#ffa04a'), 0, y, 0)
+    ring.rotation.x = Math.PI / 2
+    live.add(ring)
+    return ring
+  })
+  const beamMat = beamMaterial()
+  beamMat.uniforms.uColor.value.set(ED_ORANGE)
+  live.add(part(new THREE.CylinderGeometry(0.42, 0.42, 1.1, 32, 1, true), beamMat, 0, 0.6, 0))
+  return {
+    solid: g,
+    live,
+    update: (t) => {
+      rings[0].position.y = 0.35 + Math.sin(t * 1.3) * 0.2
+      rings[1].position.y = 0.8 + Math.sin(t * 1.3 + 2) * 0.2
+      for (const r of rings) r.rotation.z = t
+      beamMat.uniforms.uTime.value = t
+      beamMat.uniforms.uIntensity.value = 0.22 + Math.sin(t * 2.4) * 0.05 + holoMeGlow.value * 0.5
+    },
+  }
+}
+
 export const ELITE = {
+  'holo-me': holoMe,
   'pilot-seat': pilotSeat,
   radar,
   'holo-panel': holoPanel,

@@ -90,6 +90,8 @@ export class StaticMerge {
       const mesh = new THREE.Mesh(merged, material)
       mesh.castShadow = part.cast
       mesh.receiveShadow = true
+      // Matériau créé pour ce maillage (à libérer avec lui), et non le matériau partagé d'origine.
+      mesh.userData.ownMaterial = part.fading
       parent.add(mesh)
       meshes.push(mesh)
     }

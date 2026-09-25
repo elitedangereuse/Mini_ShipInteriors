@@ -17,6 +17,18 @@ import rocketLaunch from '@phosphor-icons/core/duotone/rocket-launch-duotone.svg
 import thumbsDown from '@phosphor-icons/core/duotone/thumbs-down-duotone.svg?raw'
 import thumbsUp from '@phosphor-icons/core/duotone/thumbs-up-duotone.svg?raw'
 import user from '@phosphor-icons/core/duotone/user-duotone.svg?raw'
+import bed from '@phosphor-icons/core/duotone/bed-duotone.svg?raw'
+import books from '@phosphor-icons/core/duotone/books-duotone.svg?raw'
+import couch from '@phosphor-icons/core/duotone/couch-duotone.svg?raw'
+import cube from '@phosphor-icons/core/duotone/cube-duotone.svg?raw'
+import doorOpen from '@phosphor-icons/core/duotone/door-open-duotone.svg?raw'
+import envelopeSimple from '@phosphor-icons/core/duotone/envelope-simple-duotone.svg?raw'
+import frameCorners from '@phosphor-icons/core/duotone/frame-corners-duotone.svg?raw'
+import gameController from '@phosphor-icons/core/duotone/game-controller-duotone.svg?raw'
+import lamp from '@phosphor-icons/core/duotone/lamp-duotone.svg?raw'
+import pottedPlant from '@phosphor-icons/core/duotone/potted-plant-duotone.svg?raw'
+import rocket from '@phosphor-icons/core/duotone/rocket-duotone.svg?raw'
+import squareHalf from '@phosphor-icons/core/duotone/square-half-duotone.svg?raw'
 
 import arrowClockwise from '@phosphor-icons/core/bold/arrow-clockwise-bold.svg?raw'
 import arrowCounterClockwise from '@phosphor-icons/core/bold/arrow-counter-clockwise-bold.svg?raw'
@@ -24,6 +36,17 @@ import arrowDown from '@phosphor-icons/core/bold/arrow-down-bold.svg?raw'
 import arrowLeft from '@phosphor-icons/core/bold/arrow-left-bold.svg?raw'
 import arrowRight from '@phosphor-icons/core/bold/arrow-right-bold.svg?raw'
 import arrowUUpLeft from '@phosphor-icons/core/bold/arrow-u-up-left-bold.svg?raw'
+import arrowUUpRight from '@phosphor-icons/core/bold/arrow-u-up-right-bold.svg?raw'
+import broom from '@phosphor-icons/core/bold/broom-bold.svg?raw'
+import check from '@phosphor-icons/core/bold/check-bold.svg?raw'
+import cloudCheck from '@phosphor-icons/core/bold/cloud-check-bold.svg?raw'
+import cloudSlash from '@phosphor-icons/core/bold/cloud-slash-bold.svg?raw'
+import paintBrush from '@phosphor-icons/core/bold/paint-brush-bold.svg?raw'
+import signOut from '@phosphor-icons/core/bold/sign-out-bold.svg?raw'
+import trash from '@phosphor-icons/core/bold/trash-bold.svg?raw'
+import userPlus from '@phosphor-icons/core/bold/user-plus-bold.svg?raw'
+import warningCircle from '@phosphor-icons/core/bold/warning-circle-bold.svg?raw'
+import x from '@phosphor-icons/core/bold/x-bold.svg?raw'
 import arrowUp from '@phosphor-icons/core/bold/arrow-up-bold.svg?raw'
 import caretLeft from '@phosphor-icons/core/bold/caret-left-bold.svg?raw'
 import caretRight from '@phosphor-icons/core/bold/caret-right-bold.svg?raw'
@@ -56,6 +79,19 @@ const SVG = {
   alien,
   robot,
   ghost,
+  // catalogue de la cabine, invitations
+  bed,
+  couch,
+  books,
+  lamp,
+  'potted-plant': pottedPlant,
+  'frame-corners': frameCorners,
+  cube,
+  rocket,
+  'game-controller': gameController,
+  'square-half': squareHalf,
+  'envelope-simple': envelopeSimple,
+  'door-open': doorOpen,
   // commandes
   'arrow-clockwise': arrowClockwise,
   'arrow-counter-clockwise': arrowCounterClockwise,
@@ -64,6 +100,17 @@ const SVG = {
   'arrow-left': arrowLeft,
   'arrow-right': arrowRight,
   'arrow-u-up-left': arrowUUpLeft,
+  'arrow-u-up-right': arrowUUpRight,
+  broom,
+  check,
+  'cloud-check': cloudCheck,
+  'cloud-slash': cloudSlash,
+  'paint-brush': paintBrush,
+  'sign-out': signOut,
+  trash,
+  'user-plus': userPlus,
+  'warning-circle': warningCircle,
+  x,
   'caret-left': caretLeft,
   'caret-right': caretRight,
   'gender-female': genderFemale,

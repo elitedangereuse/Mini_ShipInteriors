@@ -1,4 +1,5 @@
 import type { StationModel, Theme } from './assets'
+import type { CabinDef } from './cabin/view'
 import type { CustomModel } from './furniture'
 
 /** Orientation en quarts de tour : 0 = face +z (sud), 1 = +x (est), 2 = -z (nord), 3 = -x (ouest). */
@@ -57,8 +58,11 @@ export interface LevelDef {
   lights: LightDef[]
   /** Réacteur et tuyères. */
   engine?: boolean
-  /** Holo-Me, la garde-robe holographique (changer d'apparence). */
-  wardrobe?: { x: number; z: number }
+  /**
+   * Cabine personnalisable : ses meubles (Holo-Me compris) ne sont pas dans `props` mais dans
+   * l'aménagement de chaque joueur (cf. src/cabin/).
+   */
+  cabin?: CabinDef
 }
 
 /** Écart vertical entre deux ponts. */
@@ -67,9 +71,12 @@ export const LEVEL_HEIGHT = 1.6
 /** L'ascenseur est au même endroit sur chaque pont. */
 export const LIFT = { x: 10, z: 5 }
 
-/** On se réveille dans ses quartiers, près du Holo-Me (même valeur que dans server/relay.js). */
+/**
+ * On se réveille dans ses quartiers, à deux pas du Holo-Me (cf. main.ts) ; à défaut, ici
+ * (même valeur que dans server/relay.js).
+ */
 export const SPAWN = { level: 1, x: 11.2, z: 7.4 }
-/** Comète vit dans les quartiers, près de son panier. */
+/** Comète vit dans les quartiers, près de son panier (ou ici, s'il n'y en a pas). */
 export const CAT_SPAWN = { level: 1, x: 14.9, z: 7.3 }
 
 export const LEVELS: LevelDef[] = [
@@ -277,6 +284,7 @@ export const LEVELS: LevelDef[] = [
       '        pppppppp oo  ',
       '        pppppppp     ',
       '        pppppppp     ',
+      '        pppppppp     ',
     ],
     rooms: {
       c: 'Coursive',
@@ -287,7 +295,8 @@ export const LEVELS: LevelDef[] = [
       o: 'Salon panoramique',
     },
     windows: { c: 0, k: 0.3, d: 0.2, p: 0.6, g: 0.5, o: 1 },
-    wardrobe: { x: 12.2, z: 8.5 },
+    // Les quartiers du commandant : la cabine de chaque joueur, porte au nord sur la coursive.
+    cabin: { room: 'p', door: { x: 11, z: 6 } },
     props: [
       // --- Coursive ---
       { model: 'rug', x: 12.9, z: 5, label: 'warm:3.8x0.7', solid: false },
@@ -306,30 +315,6 @@ export const LEVELS: LevelDef[] = [
       { model: 'toilet', x: 15.05, z: 0.95, interact: 'Toilettes à dépression. Ne pas utiliser pendant un saut FSD.' },
       { model: 'sink', x: 15.12, z: 2.25, rot: 3, interact: 'Lavabo : le miroir affiche la météo de la station la plus proche.' },
       { model: 'rug', x: 13.2, z: 2.3, label: 'bath:1.2x0.7', solid: false },
-
-      // --- Quartiers du commandant (le Holo-Me est au centre, cf. `wardrobe`) ---
-      { model: 'cozy-bed', x: 8.55, z: 8.6, rot: 1, label: 'teal', interact: 'Grand lit : couette épaisse, deux oreillers, et une peluche qui ressemble étrangement à Comète.' },
-      { model: 'nightstand', x: 8, z: 7.55 },
-      { model: 'suit-locker', x: 7.95, z: 6.4, rot: 1, interact: 'Casier à combinaisons : une Maverick propre et repassée. Enfin, propre.' },
-      {
-        model: 'bookshelf', x: 9.35, z: 6.2,
-        interact: [
-          'Bibliothèque : « Elite : The Dark Wheel », un guide des Ingénieurs, et un livre de cuisine thargoïde (vide).',
-          'Un album photo : vous devant Sagittarius A*, en combinaison, pouce levé.',
-        ],
-      },
-      {
-        model: 'aquarium', x: 10.3, z: 8.45, rot: 1, action: 'Observer',
-        interact: ['Aquarium : six poissons de la Terre, une plante de Colonia.', 'Le poisson orange vous fixe. Il juge vos choix de carrière.'],
-      },
-      { model: 'desk', x: 12.65, z: 6.33, interact: 'Bureau : une maquette de Cobra Mk III, une tasse de Hutton Orbital et 212 messages non lus.' },
-      { model: 'chair-cushion', x: 12.65, z: 6.95, rot: 2 },
-      { model: 'fireplace', x: 14.6, z: 6.24, action: 'Se réchauffer', interact: 'Cheminée holographique : 100 % réconfort, 0 % combustion. Comète adore.' },
-      { model: 'cat-bed', x: 15.05, z: 7.1, solid: false, interact: 'Panier de Comète : plein de poils, et une souris en tissu mâchouillée.' },
-      { model: 'rug', x: 14.4, z: 8.1, label: 'warm:2x1.4', solid: false },
-      { model: 'coffee-table', x: 14.4, z: 7.95 },
-      { model: 'sofa', x: 14.45, z: 9.03, rot: 2, label: 'terracotta', interact: 'Canapé : le meilleur endroit du vaisseau, face au feu.' },
-      { model: 'floor-lamp', x: 13.4, z: 9.15 },
 
       // --- Serre hydroponique ---
       { model: 'hydro-rack', x: 5.75, z: 2.9, interact: ['Hydroponie : tomates, basilic et un piment de Lave.', 'Les plantes poussent sous des LED roses. Elles ont l\'air heureuses.'] },
@@ -350,11 +335,10 @@ export const LEVELS: LevelDef[] = [
       [12, 4.6, '#ffd9a8', 2],
       [9.6, 2, '#ffcf99', 2.2],
       [13.8, 2, '#e6f6ff', 2],
-      [9.8, 8, '#ffc98f', 2.2],
-      [14.5, 7.2, '#ff9a4a', 2.2, 'fire'],
-      [12.2, 8.5, '#ffd2a8', 1.4],
+      [10.2, 8.4, '#ffc98f', 2.3],
       [6, 4.5, '#ffb3e6', 2.6],
       [17.8, 4.6, '#ffd0a0', 2.4],
+      // Les deux dernières lumières sont celles des objets de la cabine (Holo-Me, cheminée…).
     ],
   },
 ]

@@ -40,11 +40,45 @@ export const ED_ORANGE = '#ff8a1c'
 // ---------------------------------------------------------------- matériaux
 
 const shared = new Map<string, THREE.Material>()
+/** Matériaux et textures communs à plusieurs meubles : on ne les libère jamais (cf. disposeFurniture). */
+const keep = new WeakSet<object>()
 
 function sharedMaterial<M extends THREE.Material>(key: string, make: () => M): M {
   let m = shared.get(key)
-  if (!m) shared.set(key, (m = make()))
+  if (!m) {
+    shared.set(key, (m = make()))
+    keep.add(m)
+  }
   return m as M
+}
+
+/** Marque un matériau ou une texture comme partagé : disposeFurniture ne le libère pas. */
+export function keepShared<T extends object>(o: T): T {
+  keep.add(o)
+  return o
+}
+
+/**
+ * Libère la mémoire GPU d'un meuble retiré (géométries, matériaux et textures qui lui sont
+ * propres) ; les matériaux partagés restent.
+ */
+export function disposeFurniture(root: THREE.Object3D) {
+  root.traverse((o) => {
+    const m = o as THREE.Mesh
+    if (!m.geometry) return
+    m.geometry.dispose()
+    for (const material of Array.isArray(m.material) ? m.material : [m.material]) {
+      if (!material || keep.has(material)) continue
+      for (const value of Object.values(material)) {
+        if ((value as THREE.Texture)?.isTexture && !keep.has(value)) (value as THREE.Texture).dispose()
+      }
+      const uniforms = (material as THREE.ShaderMaterial).uniforms
+      if (uniforms) {
+        for (const u of Object.values(uniforms)) if ((u.value as THREE.Texture)?.isTexture && !keep.has(u.value)) u.value.dispose()
+      }
+      material.dispose()
+    }
+  })
 }
 
 /** Matériau mat, éclairé, d'une couleur (partagé). */
@@ -72,8 +106,8 @@ export const mat = {
 }
 
 /** Matériaux des meubles fusionnés : la couleur de chaque pièce est portée par ses sommets. */
-const litVertex = new THREE.MeshLambertMaterial({ vertexColors: true })
-const glowVertex = new THREE.MeshBasicMaterial({ vertexColors: true })
+const litVertex = keepShared(new THREE.MeshLambertMaterial({ vertexColors: true }))
+const glowVertex = keepShared(new THREE.MeshBasicMaterial({ vertexColors: true }))
 
 // ---------------------------------------------------------------- primitives
 
@@ -132,18 +166,28 @@ export function rng(seed: number): () => number {
  * Fusionne toutes les pièces d'un meuble en deux maillages au plus (éclairé, lumineux),
  * la couleur de chaque pièce passant dans ses sommets : un meuble de 30 pièces coûte
  * ainsi 2 appels de dessin, et les meubles non interactifs rejoignent la géométrie du pont.
+ * Les pièces texturées (affiches, cadres) restent à part, avec leur matériau : la fusion
+ * du pont les regroupe ensuite par texture.
  */
 export function compact(group: THREE.Object3D): THREE.Group {
   group.updateMatrixWorld(true)
   const parts: Record<'lit' | 'glow', THREE.BufferGeometry[]> = { lit: [], glow: [] }
   const inverse = group.matrixWorld.clone().invert()
   const local = new THREE.Matrix4()
+  const textured: THREE.Mesh[] = []
   group.traverse((o) => {
     const m = o as THREE.Mesh
     if (!m.isMesh) return
     const src = m.material as THREE.MeshLambertMaterial | THREE.MeshBasicMaterial
     const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone()
     g.applyMatrix4(local.multiplyMatrices(inverse, m.matrixWorld))
+    if (src.map) {
+      const t = new THREE.Mesh(g, src)
+      t.castShadow = m.castShadow
+      t.receiveShadow = m.receiveShadow
+      textured.push(t)
+      return
+    }
     for (const name of Object.keys(g.attributes)) if (name !== 'position' && name !== 'normal') g.deleteAttribute(name)
     const n = g.attributes.position.count
     const colors = new Float32Array(n * 3)
@@ -161,6 +205,7 @@ export function compact(group: THREE.Object3D): THREE.Group {
     m.receiveShadow = true
     out.add(m)
   }
+  if (textured.length) out.add(...textured)
   return out
 }
 
@@ -240,7 +285,41 @@ export function holoMaterial(map: THREE.Texture | null, color = ED_ORANGE, opaci
   })
 }
 
-export const lineMaterial = new THREE.LineBasicMaterial({ color: ED_ORANGE, transparent: true, opacity: 0.85, depthWrite: false })
+export const lineMaterial = keepShared(new THREE.LineBasicMaterial({ color: ED_ORANGE, transparent: true, opacity: 0.85, depthWrite: false }))
+
+/**
+ * Halo en dégradé (jets des tuyères, faisceaux de l'ascenseur et du Holo-Me).
+ * @param additive lumière ajoutée ; sinon mélange normal, qui reste visible sur les sols clairs
+ */
+export function beamMaterial(additive = true): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uColor: { value: new THREE.Color('#40b4ff') },
+      uIntensity: { value: 0.9 },
+    },
+    vertexShader: `
+      varying float vH;
+      void main() {
+        vH = 1.0 - uv.y; // 1 à la base, 0 à l'extrémité
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: `
+      uniform float uTime;
+      uniform vec3 uColor;
+      uniform float uIntensity;
+      varying float vH;
+      void main() {
+        float flicker = 0.85 + 0.15 * sin(uTime * 40.0 + vH * 20.0);
+        vec3 col = mix(uColor, vec3(0.92, 0.97, 1.0), vH * vH);
+        gl_FragColor = vec4(col * flicker, pow(vH, 1.6) * uIntensity);
+      }`,
+    transparent: true,
+    blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  })
+}
 
 /** Points d'une ellipse horizontale, par paires de segments (pour LineSegments). */
 export function ellipseSegments(rx: number, rz: number, y = 0, seg = 48): THREE.Vector3[] {

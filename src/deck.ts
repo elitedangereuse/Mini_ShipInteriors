@@ -1,7 +1,8 @@
 import * as THREE from 'three'
 import { station, themes, type StationModel, type ThemeMaterials } from './assets'
+import { CabinView } from './cabin/view'
 import { makeFadeable } from './fade'
-import { buildFurniture, ED_ORANGE, isCustomModel, tickFurniture, type Emitter } from './furniture'
+import { beamMaterial, buildFurniture, isCustomModel, tickFurniture, type Emitter } from './furniture'
 import { LEVEL_HEIGHT, LIFT, type LevelDef } from './levels'
 import { DIRS, ShipMap } from './map'
 import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type Occluder } from './merge'
@@ -100,30 +101,31 @@ export class Deck {
   private core?: THREE.Mesh
   private coreMat?: THREE.MeshStandardMaterial
   private plumes: THREE.Mesh[] = []
+  /** Jets des tuyères. */
   private glowMat: THREE.ShaderMaterial
   private liftBeam!: THREE.Mesh
   private liftHalo!: THREE.Mesh
   private liftRings: THREE.Mesh[] = []
   private liftSign!: THREE.Sprite
   private liftBoost = 0
-  private holo?: { rings: THREE.Mesh[]; beam: THREE.Mesh }
   /** Animations du mobilier (hologrammes, drones…). */
   private animated: ((t: number) => void)[] = []
   /** Peinture de la coque et du mobilier du kit sur ce pont. */
-  private theme: ThemeMaterials
+  readonly theme: ThemeMaterials
+  /** Cabine personnalisable du pont (les quartiers du commandant), dont chaque joueur a son exemplaire. */
+  readonly cabin?: CabinView
 
   constructor(readonly def: LevelDef) {
     this.theme = themes[def.theme ?? 'station']
     this.map = new ShipMap(def.layout)
     this.y = def.id * LEVEL_HEIGHT
     this.group.position.y = this.y
-    this.glowMat = makeGlowMaterial()
+    this.glowMat = beamMaterial()
 
     this.buildFloors()
     this.buildWalls()
     this.buildProps()
     this.buildLift()
-    if (def.wardrobe) this.buildWardrobe(def.wardrobe.x, def.wardrobe.z)
     if (def.engine) this.buildEngine()
     this.flushStatic()
 
@@ -131,6 +133,8 @@ export class Deck {
       this.lights.push({ position: new THREE.Vector3(x, this.y + 1.4, z), color: new THREE.Color(color), intensity, flicker })
     }
     this.pathfinder = new Pathfinder(this.map, this.blockedTiles, this.colliders)
+    // Ses meubles viennent de l'aménagement du joueur (cf. main.ts) : ils s'ajoutent au reste du pont.
+    if (def.cabin) this.cabin = new CabinView(this, def.cabin)
   }
 
   roomName(x: number, z: number): string {
@@ -177,8 +181,27 @@ export class Deck {
   }
 
   /** Occulteur immobile : fusionné, tramé via la texture de fondu. */
-  private addFading(o: THREE.Object3D, center: THREE.Vector3) {
-    this.occluders.push(this.merge.addFading(o, center))
+  private addFading(o: THREE.Object3D, center: THREE.Vector3, outward?: Occluder['outward']) {
+    this.occluders.push(this.merge.addFading(o, center, undefined, outward))
+  }
+
+  /**
+   * Côté extérieur de la cabine pour un mur (milieu d'une arête) ou un poteau (sommet) posé sur
+   * son pourtour : somme des directions « tuile de la cabine → point » des tuiles qui le touchent.
+   * En mode aménagement, les murs tournés vers la caméra s'estompent pour laisser voir l'intérieur.
+   */
+  private cabinOutward(x: number, z: number): Occluder['outward'] {
+    const room = this.def.cabin?.room
+    if (!room) return undefined
+    let ox = 0, oz = 0
+    for (let tz = Math.ceil(z - 0.5 - 1e-6); tz <= Math.floor(z + 0.5 + 1e-6); tz++) {
+      for (let tx = Math.ceil(x - 0.5 - 1e-6); tx <= Math.floor(x + 0.5 + 1e-6); tx++) {
+        if (this.map.room(tx, tz) !== room) continue
+        ox += x - tx
+        oz += z - tz
+      }
+    }
+    return Math.abs(ox) > 1e-6 || Math.abs(oz) > 1e-6 ? { x: Math.sign(Math.round(ox * 10)), z: Math.sign(Math.round(oz * 10)) } : undefined
   }
 
   private flushStatic() {
@@ -187,7 +210,7 @@ export class Deck {
   }
 
   /** Occulteur autonome (reste un objet à part) : il reçoit son propre matériau « tramable ». */
-  private addOccluder(objects: THREE.Object3D[], center: THREE.Vector3) {
+  private addOccluder(objects: THREE.Object3D[], center: THREE.Vector3, outward?: Occluder['outward']) {
     const fade = { value: 1 }
     const cache = new Map<THREE.Material, THREE.Material>()
     for (const o of objects) {
@@ -201,7 +224,7 @@ export class Deck {
       })
       this.group.add(o)
     }
-    this.occluders.push({ center, value: 1, uniform: fade })
+    this.occluders.push({ center, value: 1, uniform: fade, outward })
   }
 
   private buildFloors() {
@@ -261,7 +284,7 @@ export class Deck {
           if (exterior && (hsh % 1000) / 1000 < windowRate) model = 'wall-window'
           else if (!exterior && hsh % 5 === 0) model = 'wall-pillar'
           const wall = this.place(model, cx, 0, cz, alongX ? 0 : Math.PI / 2)
-          this.addFading(wall, new THREE.Vector3(cx, 0.5, cz))
+          this.addFading(wall, new THREE.Vector3(cx, 0.5, cz), this.cabinOutward(cx, cz))
           this.walls.push({ x: cx, z: cz, alongX, model })
 
           if (alongX) {
@@ -285,7 +308,7 @@ export class Deck {
       const [vx, vz] = k.split(',').map(Number)
       const m = post.clone()
       m.position.set(vx, POST_H / 2, vz)
-      this.addFading(m, new THREE.Vector3(vx, 0.5, vz))
+      this.addFading(m, new THREE.Vector3(vx, 0.5, vz), this.cabinOutward(vx, vz))
       this.posts.push({ x: vx, z: vz })
       const hs = POST_W / 2
       this.colliders.push({ minX: vx - hs, maxX: vx + hs, minZ: vz - hs, maxZ: vz + hs })
@@ -302,7 +325,7 @@ export class Deck {
     // Panneau légèrement aminci : pas de faces confondues avec l'encadrement.
     const panel = this.place('door-single', cx, 0, cz, rot)
     panel.scale.set(0.98, 0.99, 0.9)
-    this.addOccluder([frame, panel], new THREE.Vector3(cx, 0.5, cz))
+    this.addOccluder([frame, panel], new THREE.Vector3(cx, 0.5, cz), this.cabinOutward(cx, cz))
     this.walls.push({ x: cx, z: cz, alongX, model: 'door' })
     this.doors.push({
       panel,
@@ -405,7 +428,7 @@ export class Deck {
     this.liftHalo.rotation.x = -Math.PI / 2
     this.liftHalo.position.set(x, 0.012, z)
     // Mélange normal (et non additif) : le faisceau reste visible sur les sols clairs.
-    this.liftBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.4, 32, 1, true), makeGlowMaterial(false))
+    this.liftBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.4, 32, 1, true), beamMaterial(false))
     this.liftBeam.position.set(x, 0.75, z)
     ;(this.liftBeam.material as THREE.ShaderMaterial).uniforms.uColor.value.set(cyan)
     this.liftRings = [0, 1, 2].map(() => {
@@ -423,43 +446,6 @@ export class Deck {
     this.group.add(base, ring, this.liftHalo, this.liftBeam, ...this.liftRings, this.liftSign)
     this.interactables.push({ object: base, position: new THREE.Vector3(x, 0, z), label: 'Ascenseur' })
   }
-
-  /** Holo-Me (comme dans Elite Dangerous) : plateforme, anneaux en rotation, faisceau orange. */
-  private buildWardrobe(x: number, z: number) {
-    const base = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.46, 0.5, 0.06, 32),
-      new THREE.MeshLambertMaterial({ color: '#2a2e36' }),
-    )
-    base.position.set(x, 0.03, z)
-    base.receiveShadow = true
-    this.group.add(base)
-    const ringMat = new THREE.MeshBasicMaterial({ color: '#ffa04a' })
-    const floorRing = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.02, 8, 48), ringMat)
-    floorRing.rotation.x = Math.PI / 2
-    floorRing.position.set(x, 0.065, z)
-    this.group.add(floorRing)
-    const rings: THREE.Mesh[] = []
-    for (const [y, r] of [[0.35, 0.36], [0.75, 0.3]] as const) {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.012, 6, 48), ringMat)
-      ring.position.set(x, y, z)
-      ring.rotation.x = Math.PI / 2
-      this.group.add(ring)
-      rings.push(ring)
-    }
-    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.1, 32, 1, true), this.glowMat.clone())
-    beam.position.set(x, 0.6, z)
-    ;(beam.material as THREE.ShaderMaterial).uniforms.uColor.value.set(ED_ORANGE)
-    this.group.add(beam)
-    this.holo = { rings, beam }
-    this.interactables.push({ object: base, position: new THREE.Vector3(x, 0, z), label: 'Holo-Me' })
-  }
-
-  get wardrobeInteractable(): Interactable | undefined {
-    return this.interactables.find((i) => i.label === 'Holo-Me')
-  }
-
-  /** Intensité du faisceau de la garde-robe (plus fort pendant l'essayage). */
-  wardrobeGlow = 0
 
   /** Signale un trajet d'ascenseur (le faisceau s'intensifie). */
   pulseLift() {
@@ -524,8 +510,9 @@ export class Deck {
    * @param actors positions (monde) de tous les personnages présents sur ce pont (portes)
    * @param focus position du joueur local si ce pont est affiché (murs tramés), sinon null
    * @param toCamera direction horizontale (normalisée) du joueur vers la caméra
+   * @param editing mode aménagement : les murs de la cabine tournés vers la caméra s'estompent
    */
-  update(dt: number, actors: THREE.Vector3[], focus: THREE.Vector3 | null, toCamera: THREE.Vector3) {
+  update(dt: number, actors: THREE.Vector3[], focus: THREE.Vector3 | null, toCamera: THREE.Vector3, editing = false) {
     this.time += dt
 
     // Portes automatiques.
@@ -542,7 +529,7 @@ export class Deck {
     if (!focus) return
 
     // Murs et gros meubles entre la caméra et le joueur : tramés.
-    if (updateOccluders(this.occluders, this.fades, { focus, toCamera, cabin: false }, dt)) this.fades.texture.needsUpdate = true
+    if (updateOccluders(this.occluders, this.fades, { focus, toCamera, cabin: editing }, dt)) this.fades.texture.needsUpdate = true
 
     this.glowMat.uniforms.uTime.value = this.time
     const beam = this.liftBeam.material as THREE.ShaderMaterial
@@ -557,18 +544,9 @@ export class Deck {
     ;(this.liftHalo.material as THREE.MeshBasicMaterial).opacity = 0.35 + 0.25 * Math.sin(this.time * 2.5) + this.liftBoost * 0.4
     this.liftSign.position.y = 1.55 + Math.sin(this.time * 1.6) * 0.04
 
-    if (this.holo) {
-      const t = this.time
-      this.holo.rings[0].position.y = 0.35 + Math.sin(t * 1.3) * 0.2
-      this.holo.rings[1].position.y = 0.8 + Math.sin(t * 1.3 + 2) * 0.2
-      for (const r of this.holo.rings) r.rotation.z = t
-      const m = this.holo.beam.material as THREE.ShaderMaterial
-      m.uniforms.uTime.value = t
-      m.uniforms.uIntensity.value = 0.22 + Math.sin(t * 2.4) * 0.05 + this.wardrobeGlow * 0.5
-    }
-
     tickFurniture(this.time)
     for (const a of this.animated) a(this.time)
+    this.cabin?.update(this.time, dt, { focus: editing && this.cabin ? this.cabin.center : focus, toCamera, cabin: editing })
 
     if (this.core && this.coreMat) {
       this.coreMat.emissiveIntensity = 2.2 + Math.sin(this.time * 3) * 0.6
@@ -628,38 +606,4 @@ function liftSignTexture(): THREE.CanvasTexture {
   t.colorSpace = THREE.SRGBColorSpace
   t.anisotropy = 4
   return t
-}
-
-/**
- * Halo en dégradé (jets des tuyères, faisceaux).
- * @param additive lumière ajoutée ; sinon mélange normal, qui reste visible sur les sols clairs
- */
-function makeGlowMaterial(additive = true): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      uTime: { value: 0 },
-      uColor: { value: new THREE.Color('#40b4ff') },
-      uIntensity: { value: 0.9 },
-    },
-    vertexShader: `
-      varying float vH;
-      void main() {
-        vH = 1.0 - uv.y; // 1 à la base, 0 à l'extrémité
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }`,
-    fragmentShader: `
-      uniform float uTime;
-      uniform vec3 uColor;
-      uniform float uIntensity;
-      varying float vH;
-      void main() {
-        float flicker = 0.85 + 0.15 * sin(uTime * 40.0 + vH * 20.0);
-        vec3 col = mix(uColor, vec3(0.92, 0.97, 1.0), vH * vH);
-        gl_FragColor = vec4(col * flicker, pow(vH, 1.6) * uIntensity);
-      }`,
-    transparent: true,
-    blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-  })
 }
