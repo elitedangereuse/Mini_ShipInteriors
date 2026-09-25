@@ -11,13 +11,13 @@
     "test": "node --test server/*.test.js"
   },
   "dependencies": {
-    "@phosphor-icons/core": "^2.1.1",
-    "socket.io": "^4.8.3",
-    "socket.io-client": "^4.8.3",
-    "three": "^0.186.0"
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
+    "@phosphor-icons/core": "^2.1.1",
     "@types/three": "^0.186.0",
+    "socket.io-client": "^4.8.3",
+    "three": "^0.186.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.0"
   },

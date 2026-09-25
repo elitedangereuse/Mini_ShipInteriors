@@ -48,16 +48,17 @@ function sameOrigin(req) {
 /**
  * Branche le relais sur un serveur HTTP existant.
  * @param {import('node:http').Server} httpServer
- * @param {{ log?: (m: string) => void, cmdrUrl?: string, path?: string, devCmdr?: boolean }} options
+ * @param {{ log?: (m: string) => void, error?: (m: string) => void, cmdrUrl?: string, path?: string, devCmdr?: boolean }} options
+ *   log     : arrivées et départs ; error : ce qui empêche de reconnaître les CMDR
  *   cmdrUrl : endpoint du site qui reconnaît le cookie (défaut : variable ED_CMDR_URL)
  *   path    : chemin de la socket (défaut : WS_PATH, ou la variable WS_PATH)
  *   devCmdr : serveur de dev uniquement, accepte le nom de CMDR envoyé par le client (?cmdr=Nom)
  */
 export function attachRelay(
   httpServer,
-  { log = console.log, cmdrUrl = process.env.ED_CMDR_URL ?? '', path = process.env.WS_PATH || WS_PATH, devCmdr = false } = {},
+  { log = console.log, error = console.error, cmdrUrl = process.env.ED_CMDR_URL ?? '', path = process.env.WS_PATH || WS_PATH, devCmdr = false } = {},
 ) {
-  if (!cmdrUrl) log('[relais] ED_CMDR_URL absent : les comptes Élite Dangereuse ne peuvent pas être reconnus (tout le monde est invité).')
+  if (!cmdrUrl) error('[relais] ED_CMDR_URL absent : les comptes Élite Dangereuse ne peuvent pas être reconnus (tout le monde est invité).')
   const io = new Server(httpServer, {
     path,
     serveClient: false,
@@ -80,7 +81,7 @@ export function attachRelay(
   io.use(async (socket, next) => {
     if (players.size >= MAX_PLAYERS) return next(new Error('Vaisseau complet'))
     const auth = obj(socket.handshake.auth)
-    socket.data.cmdr = devCmdr && auth.cmdr ? cleanCmdrName(auth.cmdr) : await cmdrFromCookie(socket.handshake.headers.cookie, { url: cmdrUrl, log })
+    socket.data.cmdr = devCmdr && auth.cmdr ? cleanCmdrName(auth.cmdr) : await cmdrFromCookie(socket.handshake.headers.cookie, { url: cmdrUrl, error })
     next()
   })
 

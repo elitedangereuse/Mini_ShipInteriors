@@ -30,7 +30,7 @@ const clients = []
 before(async () => {
   const siteUrl = await listen(site)
   game = createServer()
-  relay = attachRelay(game, { log: () => {}, cmdrUrl: `${siteUrl}/outils/mini-shipinteriors-cmdr.php` })
+  relay = attachRelay(game, { log: () => {}, error: () => {}, cmdrUrl: `${siteUrl}/outils/mini-shipinteriors-cmdr.php` })
   url = await listen(game)
 })
 

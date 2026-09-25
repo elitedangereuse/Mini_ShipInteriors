@@ -38,7 +38,7 @@ export function cleanCmdrName(name) {
  * Demande au site quel CMDR porte ce cookie.
  * @returns {Promise<string | null>} nom visible du CMDR, ou null (invité, site injoignable)
  */
-export async function cmdrFromCookie(cookieHeader, { url, timeoutMs = 3000, log = console.log } = {}) {
+export async function cmdrFromCookie(cookieHeader, { url, timeoutMs = 3000, error = console.error } = {}) {
   const value = cookieValue(cookieHeader)
   // Sans cookie, inutile d'interroger le site : c'est un invité. (En local, le site connecte
   // d'office tout visiteur : il répondrait un CMDR même pour une requête sans cookie.)
@@ -51,13 +51,13 @@ export async function cmdrFromCookie(cookieHeader, { url, timeoutMs = 3000, log 
       signal: AbortSignal.timeout(timeoutMs),
     })
     if (!res.ok) {
-      log(`[relais] identité : le site a répondu ${res.status}, joueur traité en invité`)
+      error(`[relais] identité : le site a répondu ${res.status}, joueur traité en invité`)
       return null
     }
     const data = await res.json()
     return cleanCmdrName(data?.cmdr)
   } catch (err) {
-    log(`[relais] identité : site injoignable (${err?.message ?? err}), joueur traité en invité`)
+    error(`[relais] identité : site injoignable (${err?.message ?? err}), joueur traité en invité`)
     return null
   }
 }

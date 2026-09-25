@@ -195,7 +195,9 @@ Le cookie du site n'est pas `SameSite` : le relais n'accepte que les connexions 
 
 ### Mise en production
 
-Le jeu est un sous-module du repo `elitedangereuselight`, dans `outils/mini-shipinteriors`. Ce repo contient l'endpoint, la conf nginx (`scripts/nginx/mini-shipinteriors-*.conf`), les services systemd du relais (`scripts/systemd/mini-shipinteriors-*.service`) et le script de déploiement (`gitutils/deploy-mini-shipinteriors.sh`).
+Le jeu est un sous-module du repo `elitedangereuselight`, dans `outils/mini-shipinteriors`. Ce repo contient l'endpoint, la conf nginx (`scripts/nginx/mini-shipinteriors-*.conf`), et ses scripts de déploiement envoient le jeu construit et le relais (cf. son README).
+
+`dependencies` ne contient que ce que le relais charge (socket.io) : le client (three, icônes, socket.io-client) est intégré au build par Vite, d'où `devDependencies`.
 
 Le relais : `npm ci --omit=dev && npm start`, avec ces variables :
 
@@ -203,6 +205,7 @@ Le relais : `npm ci --omit=dev && npm start`, avec ces variables :
 |---|---|
 | `ED_CMDR_URL` | endpoint du site, par son **adresse publique** : `https://elitedangereuse.fr/outils/mini-shipinteriors-cmdr.php`. Sur `localhost` ou `127.0.0.1`, le site se croit en local et connecte d'office tout visiteur avec le CMDR de dev : avec `NODE_ENV=production`, le relais refuse alors de démarrer. Les redirections ne sont pas suivies (le cookie ne doit pas partir ailleurs) |
 | `PORT`, `BIND_HOST` | écoute du relais (8080 et toutes les interfaces par défaut ; en prod, `127.0.0.1` derrière nginx) |
+| `LOG_LABEL` | étiquette ajoutée à chaque ligne de log, horodatée (ex. `prod`, `preprod`). Les erreurs (site injoignable, plantage) vont sur la sortie d'erreur, le reste (arrivées, départs) sur la sortie standard |
 | `WS_PATH` | chemin de la socket (défaut `/ws/mini-shipinteriors`). S'il change, rebâtir le client avec `VITE_WS_PATH` et adapter nginx |
 
 Au build : `VITE_WS_PATH` (chemin de la socket) et `VITE_ED_CMDR_URL` (endpoint, défaut `/outils/mini-shipinteriors-cmdr.php`).

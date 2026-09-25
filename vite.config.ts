@@ -18,11 +18,12 @@ function relay(): Plugin {
   return {
     name: 'mini-interior-relay',
     configureServer(server) {
-      const log = (m: string) => server.config.logger.info(m)
-      if (server.httpServer) attachRelay(server.httpServer, { log, cmdrUrl, devCmdr: true })
+      const { info, warn } = server.config.logger
+      if (server.httpServer) attachRelay(server.httpServer, { log: (m) => info(m), error: (m) => warn(m), cmdrUrl, devCmdr: true })
     },
     configurePreviewServer(server) {
-      attachRelay(server.httpServer, { log: (m: string) => server.config.logger.info(m), cmdrUrl })
+      const { info, warn } = server.config.logger
+      attachRelay(server.httpServer, { log: (m) => info(m), error: (m) => warn(m), cmdrUrl })
     },
   }
 }
