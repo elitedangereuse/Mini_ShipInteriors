@@ -110,8 +110,22 @@ button {
   padding: 10px 14px;
 }
 .top-left {
+  position: absolute;
   top: 16px;
   left: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.top-left .panel {
+  position: static;
+}
+/* Logo du site (assets/images/logo.svg d'elitedangereuse.fr, texte vectorisé : pas de police à charger). */
+.site-logo {
+  display: block;
+  width: 200px;
+  height: auto;
 }
 .ship-name {
   font-size: 11px;
@@ -552,6 +566,9 @@ kbd .icon {
 @media (max-width: 720px) {
   .help {
     display: none;
+  }
+  .site-logo {
+    width: 140px;
   }
   .emotes {
     left: auto;
