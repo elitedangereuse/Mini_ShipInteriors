@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>Un vaisseau spatial isométrique et multijoueur, jouable directement dans le navigateur.</strong><br>
-  Trois ponts à explorer entre CMDR, des quartiers à aménager et où recevoir, un Holo-Me pour changer d'apparence, et Comète, le chat du bord.
+  Trois ponts à explorer entre CMDR, des quartiers à aménager et où recevoir, des bornes d'arcade qui se jouent, un jukebox, un mode photo, un Holo-Me pour changer d'apparence, et Comète, le chat du bord.
 </p>
 
 <p align="center">
@@ -26,6 +26,10 @@
 - [Holo-Me (garde-robe)](#holo-me-garde-robe)
 - [Quartiers personnalisables](#quartiers-personnalisables)
 - [Mobilier fait main](#mobilier-fait-main)
+- [S'installer, jouer, danser](#sinstaller-jouer-danser)
+- [Bornes d'arcade](#bornes-darcade)
+- [Jukebox](#jukebox)
+- [Mode photo](#mode-photo)
 - [Lancer en local](#lancer-en-local)
 - [Commandes](#commandes)
 - [Langues](#langues)
@@ -33,7 +37,7 @@
 - [Sons](#sons)
 - [Choix techniques](#choix-techniques)
 - [Architecture](#architecture)
-- [Assets](#assets-tous-en-cc0--domaine-public-par-kenney)
+- [Assets](#assets-tous-en-cc0-ou-dans-le-domaine-public)
 - [Limites connues / pistes](#limites-connues--pistes)
 
 ## En bref
@@ -45,8 +49,12 @@ Mini Interior est un POC : un vaisseau sur trois ponts, vu de dessus en isométr
 - **Comptes Élite Dangereuse** : un CMDR connecté à [elitedangereuse.fr](https://elitedangereuse.fr) arrive sous son nom, avec un badge « vérifié ».
 - **Holo-Me** : humain, combinaison spatiale, alien, robot ou créature, et chaque changement s'applique en direct.
 - **Quartiers personnalisables** : chaque joueur a sa propre instance des quartiers du commandant. Un CMDR connecté les aménage (93 meubles et objets : lits, plantes, affiches, bornes d'arcade, piste de danse, boule à facettes, tasse de Hutton Orbital…), choisit le papier peint et le sol, et y invite qui il veut.
-- **Des dizaines de meubles animés** : bornes d'arcade jouables, hologrammes, bras robotisé qui soude, aquarium, cheminée…
-- **Son spatialisé** : pas, réacteur, bips des consoles, mélodies d'arcade, ronronnements.
+- **On s'installe** : s'asseoir sur les chaises, les canapés et les fauteuils, se coucher dans les lits (même la couchette du haut), prendre les commandes au poste de pilotage (et lancer un saut FSD), pédaler, courir, frapper le sac, mixer, jouer à la pince à peluches, danser en rythme. Les autres voient la pose.
+- **Arcade** : trois bornes se jouent pour de vrai, Cargaison (un Tetris de conteneurs), Viper (un Snake) et Astéroïdes, avec le tableau des meilleurs scores gardé par le site.
+- **Jukebox** : sept morceaux libres de droits, que tout le pont (ou toute la cabine) entend ensemble ; la piste de danse bat sur leur tempo.
+- **Mode photo** : la scène sans l'interface, jusqu'en 4K, à télécharger.
+- **Des dizaines de meubles animés** : hologrammes, bras robotisé qui soude, aquarium, cheminée, pince à peluches…
+- **Son spatialisé** : pas, réacteur, bips des consoles, mélodies d'arcade, ronronnements, jukebox.
 
 <p align="center">
   <img src="docs/images/equipage.jpg" alt="Deux joueurs dans le salon panoramique : l'un parle dans une bulle, l'autre danse" width="100%">
@@ -62,7 +70,7 @@ On se réveille dans ses quartiers, sur le pont supérieur, à deux pas du Holo-
 | Pont | Ambiance | Pièces |
 |---|---|---|
 | **Pont supérieur** · les quartiers | *cozy* : crème et bois miel, tissus, plantes, lumière chaude, pas feutrés | **quartiers du commandant**, [aménagés par chaque CMDR](#quartiers-personnalisables) (au départ : grand lit, cheminée holographique, canapé, aquarium, bureau, bibliothèque, casier à combinaisons, **Holo-Me**), cabines d'équipage (lits superposés), douches, serre hydroponique, salon panoramique (carte du système), coursive |
-| **Pont principal** | la station d'origine, mobilier aux couleurs d'Elite | poste de pilotage (siège et HOTAS, scanner, panneaux holographiques, carte galactique), salle des machines (centrale, réacteur FSD, tuyères), **infirmerie** (lits médicaux, scanner corporel, quarantaine), **salle de sport**, **salon d'arcade** (trois bornes jouables), mess, coursive |
+| **Pont principal** | la station d'origine, mobilier aux couleurs d'Elite | poste de pilotage (siège et HOTAS, scanner, panneaux holographiques, carte galactique), salle des machines (centrale, réacteur FSD, tuyères), **infirmerie** (lits médicaux, scanner corporel, quarantaine), **salle de sport**, **salon d'arcade** (trois bornes jouables : Cargaison, Viper, Astéroïdes ; une pince à peluches), mess (et son jukebox), coursive |
 | **Cale** | *brute* : acier noirci et rouillé, jaune de chantier, lumière sodium, néons qui grésillent | **atelier** (établis, poste de soudure, établi d'ingénieur, ferraille), **baie de réparation** (SRV Scarab sur pont élévateur, bras robotisé qui soude, AFMU), **raffinerie** (fusion, tapis roulant de minerai, cristaux, drones collecteurs, laser minier), soute, palier de l'ascenseur |
 
 ### Pont supérieur · les quartiers
@@ -80,7 +88,7 @@ On se réveille dans ses quartiers, sur le pont supérieur, à deux pas du Holo-
 <table>
   <tr>
     <td width="50%"><img src="docs/images/cockpit.jpg" alt="Le poste de pilotage : siège, consoles, carte galactique holographique"><br><sub><b>Poste de pilotage</b> : siège et HOTAS, scanner, carte galactique holographique.</sub></td>
-    <td width="50%"><img src="docs/images/arcade.jpg" alt="Le salon d'arcade et ses trois bornes"><br><sub><b>Salon d'arcade</b> : trois bornes jouables (Elite, Invaders, Asteroids) à côté du mess.</sub></td>
+    <td width="50%"><img src="docs/images/arcade.jpg" alt="Le salon d'arcade : trois bornes, la pince à peluches ; le jukebox du mess au fond"><br><sub><b>Salon d'arcade</b> : trois bornes jouables (Cargaison, Viper, Astéroïdes) et une pince à peluches, à côté du mess et de son jukebox.</sub></td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/images/machines.jpg" alt="La salle des machines : réacteur, FSD et tuyères"><br><sub><b>Salle des machines</b> : centrale, réacteur FSD, et les tuyères à la poupe.</sub></td>
@@ -180,6 +188,87 @@ La galerie de debug les montre tous, animés : `/gallery.html?mobilier` (avec `&
 
 Côté performances, chaque meuble est fusionné en deux maillages au plus (couleurs portées par les sommets), puis avec le reste du pont. Un meuble interactif se clique grâce à un volume invisible, qui ne coûte aucun appel de dessin. Les pièces mobiles répétées (contacts du scanner, poissons, étincelles…) sont instanciées. Les consoles racontent le lore d'Elite : Jameson Memorial, Hutton Orbital, Felicity Farseer, les étoiles KGBFOAM…
 
+## S'installer, jouer, danser
+
+<p align="center">
+  <img src="docs/images/assis.jpg" alt="Deux CMDR attablés au mess ; le chat annonce que l'un d'eux a mis un morceau au jukebox" width="100%">
+  <br><em>Au mess : deux CMDR attablés (chacun voit l'autre assis), le jukebox qui joue le morceau choisi par l'un d'eux.</em>
+</p>
+
+Les meubles ont des places (`src/seats.ts`). `E`, ou un clic sur le meuble, y emmène le personnage, qui s'y installe en douceur : il recule sur l'assise, monte sur le lit. Le moindre pas, `E` ou un clic ailleurs le relève. Les autres joueurs voient la pose et sa hauteur ; une place prise n'est pas proposée.
+
+| Meuble | Ce qu'on y fait |
+|---|---|
+| Chaises, fauteuils, canapés (trois places), pouf, banc (des deux côtés), toilettes | s'asseoir |
+| Grand lit (deux places), lits superposés (en haut aussi), lits médicaux, banc de musculation | s'allonger, et dormir (de petits « Zzz ») |
+| Siège du pilote | prendre les commandes ; au poste de pilotage, `Espace` lance un **saut FSD** vers une destination d'Elite (Shinrarta Dezhra, Colonia, Beagle Point…) : charge du réacteur, compte à rebours, étoiles en traînées, secousse, éclair |
+| Vélo, tapis de course, sac de frappe | pédaler, courir, frapper (le sac encaisse chaque coup) |
+| Bornes d'arcade, borne cocktail (à deux), flipper, borne de course | jouer (cf. [Bornes d'arcade](#bornes-darcade)) |
+| Pince à peluches (il y en a une au salon d'arcade) | la caméra passe derrière le joueur ; les flèches déplacent la pince, `Espace` la lâche. Bien visée, elle attrape la Comète assise sur le Thargoïde… qui peut encore glisser en remontant. Les peluches gagnées sont comptées |
+| Platines, piste de danse | mixer, danser |
+
+Une chaise poussée contre la table s'aborde par le côté, un lit contre un mur par l'autre bord (`src/seating.ts`). Le meuble où l'on est installé ne s'estompe pas quand il passe devant le personnage. La danse change de pas tous les deux temps, sur le tempo de la soirée (`src/tempo.ts`) : 120 BPM, ou celui du morceau que joue le jukebox. La piste, la boule à facettes et les lumières battent sur le même tempo.
+
+<p align="center">
+  <img src="docs/images/dodo.jpg" alt="Un CMDR couché dans le grand lit des quartiers, la tête sur l'oreiller" width="100%">
+</p>
+
+La galerie de debug montre chaque meuble avec un personnage à chacune de ses places : `/gallery.html?poses` (`&side` : de profil, `&cam=x,y,z` : d'où l'on regarde, `&pose=lie` : une pose seule, avec une règle graduée).
+
+## Bornes d'arcade
+
+<p align="center">
+  <img src="docs/images/cargaison.jpg" alt="La borne de Cargaison ouverte en grand : la soute, la réserve, les conteneurs suivants, les crédits" width="100%">
+</p>
+
+Trois bornes se jouent (`src/arcade/`). Devant l'une d'elles, `E` ou un clic ouvre la borne en grand : fronton au néon, écran cathodique, pupitre. `Espace` lance la partie, `P` la met en pause, `E` ou `Échap` fait quitter la borne. L'écran titre fait tourner une démonstration, jouée par le pilote automatique du jeu, et alterne avec le tableau des meilleurs scores. Les bornes du vaisseau jouent aussi leur démonstration, record affiché (« HI 012340 »).
+
+| Jeu | Commandes | En bref |
+|---|---|---|
+| **Cargaison** (un Tetris) | `←` `→` déplacer, `↑` tourner, `X` tourner à gauche, `↓` descendre, `Espace` lâcher, `Maj` réserve | des conteneurs de fret s'empilent dans la soute. Sept formes tirées par sacs de sept, rotation SRS et ses décalages contre les parois, réserve, trois suivants, fantôme, verrouillage différé, un niveau tous les dix lignes |
+| **Viper** (un Snake) | flèches | le Viper remorque les conteneurs qu'il ramasse, au bout de son rayon tracteur ; Brandy de Lave doré en bonus, mines à partir du niveau 3 |
+| **Astéroïdes** | `←` `→` tourner, `↑` poussée, `Espace` tirer, `↓` saut FSD d'urgence | en vecteurs lumineux : les roches se brisent, des Thargoïdes traversent en tirant (le petit vise juste), une vie tous les 10 000 points, un saut raté une fois sur douze, et le battement de cœur qui s'accélère |
+
+Sur mobile, une manette tactile s'affiche sous la borne. La borne est chargée à la première partie (~14 ko), et le vaisseau reste figé derrière elle. Les autres jeux (Elite, Thargoid Invaders, le Labyrinthe de Comète, SRV Rally) ne font que leur démonstration ; dans le catalogue du mode aménagement, les jeux jouables viennent en tête, marqués « jouable ».
+
+**Meilleurs scores.** Un CMDR connecté inscrit son score en fin de partie : le site garde le meilleur de chacun, par jeu (cf. [Fonctionnement](#fonctionnement)), et l'écran de fin montre son rang parmi les dix meilleurs. Un invité garde son record dans le navigateur. Les jeux tournent dans le navigateur : le site écarte seulement les scores impossibles (au-delà du plafond du jeu, ou plus de points par seconde que le jeu n'en donne).
+
+## Jukebox
+
+<p align="center">
+  <img src="docs/images/jukebox.jpg" alt="Le panneau du jukebox : les sept morceaux, leur artiste, leur durée et leur ambiance" width="100%">
+</p>
+
+Le jukebox propose sept morceaux libres de droits : celui du mess, au pont principal, et celui qu'on pose dans ses quartiers. On choisit au clavier (`↑` `↓`, `Entrée`) ou à la souris ; un morceau fini, le suivant enchaîne. Le son est spatialisé, et ne s'entend que sur le pont du jukebox. Le relais garde le morceau en cours, et depuis quand il joue, pour le pont principal et pour chaque instance des quartiers : ceux qui arrivent l'entendent au même endroit que les autres (à une seconde près, le temps de charger le morceau).
+
+| Morceau | Artiste | Style | Licence |
+|---|---|---|---|
+| Le Beau Danube bleu (J. Strauss II) | U.S. Marine Band | la valse de l'ordinateur d'amarrage | domaine public |
+| Funky Disco Beats to Boogie/Woogie to | Fupi | disco funk, 110 BPM | CC0 |
+| Day Dreams | HoliznaCC0 | synthwave, 130 BPM | CC0 |
+| Chills | HoliznaCC0 | lo-fi, 96 BPM | CC0 |
+| Ganymede | congusbongus | spacesynth, 118 BPM | CC0 |
+| Interstellar Fleet 1 | Zane Little Music | chiptune, 130 BPM | CC0 |
+| Two Left Socks | congusbongus | bossa lounge, 135 BPM | CC0 |
+
+Les MP3 (18 Mo en tout, tous au même volume, -16 LUFS) ne sont chargés qu'à la demande. Leurs sources, la preuve de chaque licence et les montages sont dans `public/assets/music/CREDITS.txt`. Les platines, elles, gardent leurs quelques mesures de disco synthétisées.
+
+## Mode photo
+
+<p align="center">
+  <img src="docs/images/mode-photo.jpg" alt="Le mode photo : l'interface a disparu, la barre du mode photo en bas, l'aperçu de la photo prise à droite" width="100%">
+</p>
+
+`P`, ou l'appareil photo de la barre du haut, efface l'interface. On cadre à la caméra libre (plus près et plus loin qu'en jeu), on prend la pose avec les emotes, puis `Espace` déclenche. La photo ne garde que la scène, rendue jusqu'en 4K (12 mégapixels au plus) sur le fond du jeu. L'aperçu propose de la télécharger (JPEG) ou de la copier, et les douze dernières de la séance restent dans la pellicule.
+
+| Option | Touche |
+|---|---|
+| Noms des CMDR (dessinés dans la photo, badge vérifié compris) | `N` |
+| Cacher son personnage | `C` |
+| Figer l'instant (personnages, meubles, étoiles ; la caméra bouge toujours) | `F` |
+| Grille des tiers, pour cadrer (jamais dans la photo) | `G` |
+| Sortir | `Échap` ou `P` |
+
 ## Lancer en local
 
 Prérequis : Node 20 ou plus.
@@ -187,7 +276,7 @@ Prérequis : Node 20 ou plus.
 ```bash
 npm install
 npm run dev        # http://localhost:5173 — jeu + relais multijoueur
-npm test           # tests du relais (identité, origine, rediffusion, quartiers)
+npm test           # tests du relais (identité, origine, rediffusion, poses, jukebox, quartiers)
 ```
 
 Pour tester le multijoueur, ouvre deux onglets (ou un onglet et un autre navigateur). Chaque onglet est un membre d'équipage.
@@ -201,7 +290,7 @@ npm start          # http://localhost:8080 (variable PORT pour changer)
 
 Sans `dist/`, `npm start` ne fait que le relais : c'est le cas sur elitedangereuse.fr, où le site sert lui-même le jeu. Le contenu de `dist/` peut aussi être déposé sur un hébergement purement statique. Dans ce cas, le jeu fonctionne en **solo** : sans relais, le chat reste local.
 
-Une page de debug, `/gallery.html`, affiche chaque modèle du kit avec son nom et son orientation d'origine (`?only=wall,floor&zoom=4&cols=4&back`), ou le mobilier fait main avec `?mobilier`. En dev, `window.__game` expose quelques fonctions (`goTo`, `ride`, `emote`, `say`…).
+Une page de debug, `/gallery.html`, affiche chaque modèle du kit avec son nom et son orientation d'origine (`?only=wall,floor&zoom=4&cols=4&back`), ou le mobilier fait main avec `?mobilier` (`?poses` : les places des meubles). En dev, `window.__game` expose quelques fonctions (`goTo`, `ride`, `emote`, `say`, `sitOn`…).
 
 ## Commandes
 
@@ -209,7 +298,11 @@ Une page de debug, `/gallery.html`, affiche chaque modèle du kit avec son nom e
 |---|---|
 | Se déplacer | `ZQSD` (AZERTY), `WASD` (QWERTY), flèches, ou clic sur le sol (pathfinding) |
 | Courir | `Maj` |
-| Interagir | `E` ou `Espace` près d'un objet, ou clic sur l'objet (le perso y va tout seul) |
+| Interagir | `E` ou `Espace` près d'un objet, ou clic sur l'objet (le perso y va tout seul) ; sur un meuble où l'on s'installe (chaise, lit, borne…), le personnage y prend place, et le moindre pas, `E` ou un clic ailleurs le relève |
+| Installé | `Espace` : saut FSD (siège du poste de pilotage), lâcher la pince (pince à peluches, que les flèches déplacent) |
+| Bornes d'arcade | `Espace` jouer, `P` pause, `E` ou `Échap` quitter ; les commandes de chaque jeu sont sur le pupitre (cf. [Bornes d'arcade](#bornes-darcade)) |
+| Jukebox | `↑` `↓` choisir, `Entrée` jouer ; `E`, `Échap` ou un clic en dehors pour fermer |
+| Mode photo | `P` ou l'appareil photo en haut à droite ; `Espace` photo, `N` noms, `C` cacher son personnage, `F` figer, `G` grille, `Échap` sortir |
 | Changer de pont | interagir avec l'ascenseur (la plateforme cyan surmontée d'un panneau ▲▼, dans la coursive ou sur le palier), puis `↑` `↓` pour choisir l'étage et `Entrée` pour y aller, ou un clic ; `E`, `Échap` ou un clic en dehors pour fermer |
 | Emotes | `1`…`7` ou la barre en bas : salut, oui, non, joie, danse, assis, dodo |
 | Chat | `Entrée`, puis `Entrée` pour envoyer, `Échap` pour annuler |
@@ -248,13 +341,15 @@ Les **quartiers aménagés** passent par un second endpoint, `outils/mini-shipin
 
 Tant que le site n'a pas répondu, les quartiers ne s'aménagent pas : on écraserait ceux qu'il garde. S'il ne répond pas du tout, l'aménagement est gardé dans le navigateur, daté ; un envoi en échec y laisse aussi une copie, et il est réessayé. À la réponse suivante du site, cette copie l'emporte si elle est plus récente, et lui est envoyée. Chaque page du jeu numérote ses envois : un envoi plus ancien arrivé en retard (page fermée en plein enregistrement) n'écrase pas le plus récent.
 
+Les **meilleurs scores** des bornes d'arcade passent par un troisième endpoint, `outils/mini-shipinteriors-scores.php` : `GET ?game=cargo` rend les dix meilleurs et le rang du CMDR connecté, `GET` sans jeu le record de chaque jeu (pour les écrans des bornes), `POST` inscrit une partie (table `mini_shipinteriors_score`, le meilleur score de chaque CMDR à chaque jeu, et son nombre de parties). Lire est ouvert à tous ; inscrire est réservé aux CMDR, doit venir du site (en-tête `Origin`) et s'espace de 3 s. Le site écarte les scores impossibles (au-delà du plafond du jeu, ou plus de points par seconde que le jeu n'en donne).
+
 Les demandes de compte et de quartiers partent dès le chargement de la page, pendant celui des modèles, et on ne les attend au plus que 3 s une fois les modèles chargés.
 
 Le cookie du site n'est pas `SameSite` : le relais n'accepte que les connexions de la même origine (en-tête `Origin` comparé au `Host`). Sinon, une page d'un autre site pourrait ouvrir une socket avec le cookie d'un visiteur et parler en son nom.
 
 ### Mise en production
 
-Le jeu est un sous-module du repo `elitedangereuselight`, dans `outils/mini-shipinteriors`. Ce repo contient les endpoints, la table des quartiers (`docker/tables/mini_shipinteriors.sql`, à jouer une fois en prod), la conf nginx (`scripts/nginx/mini-shipinteriors-*.conf`), et ses scripts de déploiement envoient le jeu construit et le relais (cf. son README).
+Le jeu est un sous-module du repo `elitedangereuselight`, dans `outils/mini-shipinteriors`. Ce repo contient les endpoints, les tables des quartiers et des scores (`docker/tables/mini_shipinteriors.sql`, à jouer en prod, idempotent), la conf nginx (`scripts/nginx/mini-shipinteriors-*.conf`), et ses scripts de déploiement envoient le jeu construit et le relais (cf. son README).
 
 `dependencies` ne contient que ce que le relais charge (socket.io) : le client (three, icônes, socket.io-client) est intégré au build par Vite, d'où `devDependencies`.
 
@@ -267,7 +362,7 @@ Le relais : `npm ci --omit=dev && npm start`, avec ces variables :
 | `LOG_LABEL` | étiquette ajoutée à chaque ligne de log, horodatée (ex. `prod`, `preprod`). Les erreurs (site injoignable, plantage) vont sur la sortie d'erreur, le reste (arrivées, départs) sur la sortie standard |
 | `WS_PATH` | chemin de la socket (défaut `/ws/mini-shipinteriors`). S'il change, rebâtir le client avec `VITE_WS_PATH` et adapter nginx |
 
-Au build : `VITE_WS_PATH` (chemin de la socket), `VITE_ED_CMDR_URL` (endpoint du compte, défaut `/outils/mini-shipinteriors-cmdr.php`) et `VITE_ED_CABIN_URL` (endpoint des quartiers, défaut `/outils/mini-shipinteriors-cabin.php`).
+Au build : `VITE_WS_PATH` (chemin de la socket), `VITE_ED_CMDR_URL` (endpoint du compte, défaut `/outils/mini-shipinteriors-cmdr.php`) `VITE_ED_CABIN_URL` (endpoint des quartiers, défaut `/outils/mini-shipinteriors-cabin.php`) et `VITE_ED_SCORES_URL` (endpoint des scores, défaut `/outils/mini-shipinteriors-scores.php`).
 
 Sans `ED_CMDR_URL`, ou si le site ne répond pas, le jeu fonctionne quand même : tout le monde est invité.
 
@@ -286,9 +381,11 @@ Tous les sons sont spatialisés (HRTF), avec l'auditeur au-dessus du joueur, ori
 - « bip bip » aléatoires et bruits d'ordinateur autour des consoles du cockpit ;
 - mélodies des bornes d'arcade, crépitements de soudure dans la cale, grondement de la raffinerie (qu'on n'entend que dans la cale) ;
 - pas feutrés sur les sols des quartiers ;
-- portes coulissantes, ascenseur, notifications du chat.
+- portes coulissantes, ascenseur, notifications du chat ;
+- le jukebox (cf. [Jukebox](#jukebox)), qu'on n'entend que sur son pont ;
+- coups dans le sac, moteur et jingles de la pince, charge et saut du FSD, déclencheur du mode photo.
 
-Les bips, les mélodies d'arcade, les étincelles, le miaulement et le ronronnement sont synthétisés en direct (Web Audio), le reste vient des packs audio de Kenney.
+Les bips, les mélodies d'arcade, les étincelles, le miaulement, le ronronnement et tous les bruitages des bornes (tirs, explosions, lignes, battement de cœur d'Astéroïdes) sont synthétisés en direct (Web Audio). Le reste vient des packs audio de Kenney, et la musique du jukebox de ses auteurs.
 
 ## Choix techniques
 
@@ -296,7 +393,7 @@ Les bips, les mélodies d'arcade, les étincelles, le miaulement et le ronronnem
 - **Performances.** Les packs Kenney sont entièrement mats, donc ils sont rendus en **Lambert** au lieu du PBR : même aspect, bien moins de calcul par pixel. Toute la géométrie immobile d'un pont (sols, coque, murs, poteaux, meubles) est fusionnée en quelques maillages : on fait **~105 appels de dessin par image sur le pont principal (ombres comprises), au lieu de ~420**. Les meubles des quartiers sont fusionnés à part, et refusionnés à chaque changement d'aménagement (un meuble déplacé n'est pas reconstruit) : ~6 appels de dessin de plus sur le pont supérieur, 2 de plus avec des revêtements (qui se redessinent sur place, sans refusion), et un par pièce animée (écrans, platines, dalles de la piste…). Les murs à rendre transparents devant le joueur restent individualisables grâce à un index par sommet et une petite texture de fondu. Les étoiles sont animées entièrement dans le GPU. Une réserve de 8 lumières ponctuelles, de taille fixe, évite toute recompilation de shader, et tous les shaders sont compilés avant la première image. La densité de pixels démarre à 1,5. Elle baisse si l'image passe sous ~50 i/s, et remonte jusqu'à 2 s'il reste de la marge. Le survol à la souris est traité une fois par image, et la boucle n'alloue presque plus rien (moins de pauses du ramasse-miettes).
 - **Anti-clignotement.** Le fondu des murs est **tramé** (matrice de Bayer) au lieu d'être en vraie transparence. Il n'y a donc plus de tri d'objets transparents ni de bascule opaque/transparent. Les **poteaux d'angle** sont un peu plus larges et plus hauts que les murs : les dessus de murs qui se chevauchaient au même niveau causaient un z-fighting en dents de scie. L'ombre du soleil est fixe et couvre tout le vaisseau, elle ne « nage » plus quand la caméra bouge. Enfin, les faces confondues (panneaux de portes, dalles au sol) ont été décalées.
 - **Multijoueur.** Un relais socket.io minimal (`server/relay.js`) reçoit positions, messages et emotes, les valide et les rediffuse. socket.io apporte la reconnexion automatique et le repli en long polling quand le WebSocket ne passe pas. Le relais est branché sur le serveur de dev de Vite et sur `server/index.js` en production. Ce n'est pas un serveur qui fait autorité : pour un POC, chaque client fait confiance aux autres. Comète (l'animal) est simulé séparément sur chaque client. Pour les quartiers, en revanche, le relais tranche : il garde l'aménagement de chaque CMDR vérifié (forme vérifiée par `server/cabin.js`), n'ouvre des quartiers que sur invitation, transmet leurs changements aux seuls visiteurs, et renvoie ceux-ci chez eux quand leur hôte part. Chaque joueur porte l'instance des quartiers où il se trouve (`cabin`, l'id de son hôte) ; chaque client en déduit qui il voit.
-- **Chargement à la demande.** Le mode aménagement (éditeur, règles de pose, vignettes du catalogue, ~25 ko) n'est téléchargé qu'à sa première ouverture. Les vignettes sont rendues à la demande dans un petit contexte WebGL hors écran, libéré une fois la file vidée.
+- **Chargement à la demande.** Le mode aménagement (éditeur, règles de pose, vignettes du catalogue, ~25 ko) n'est téléchargé qu'à sa première ouverture, la borne d'arcade en grand (~14 ko) à la première partie, un morceau du jukebox quand il joue. Les vignettes sont rendues à la demande dans un petit contexte WebGL hors écran, libéré une fois la file vidée.
 
 ## Architecture
 
@@ -307,7 +404,12 @@ Les bips, les mélodies d'arcade, les étincelles, le miaulement et le ronronnem
 | `src/deck.ts` · `src/merge.ts` | Construit un pont : sols, murs sur les arêtes, hublots, poteaux, portes automatiques, meubles, ascenseur, réacteur, tuyères. Fusion de géométrie et fondu tramé (`merge.ts`, partagé avec les quartiers). |
 | `src/cabin/` | **Quartiers personnalisables** : catalogue des objets (`catalog.ts`), revêtements des murs et du sol (`finishes.ts`), aménagement et sa normalisation (`layout.ts`), construction et fusion dans le pont (`view.ts`), règles de pose (`rules.ts`), mode aménagement (`editor.ts`), vignettes (`thumbs.ts`), barre des quartiers et invitations (`hud.ts`), enregistrement sur le site (`storage.ts`). |
 | `src/fade.ts` | Shaders de transparence tramée (par objet ou indexée pour la géométrie fusionnée). |
-| `src/avatar.ts` | Personnage animé : locomotion, emotes. Partagé par le joueur local et les joueurs distants. |
+| `src/avatar.ts` | Personnage animé : locomotion, emotes, poses sur les meubles, danse au tempo. Partagé par le joueur local et les joueurs distants. |
+| `src/seats.ts` · `src/seating.ts` | Les places de chaque meuble (pose, hauteur, orientation) ; s'y installer (choix d'une place libre, abord, trajet) et s'en relever. |
+| `src/tempo.ts` | Tempo de la soirée, que suivent la piste de danse, les lumières et les danseurs, calé sur le morceau du jukebox. |
+| `src/arcade/` | **Bornes d'arcade** : les jeux et leur pilote automatique (`cargo.ts`, `viper.ts`, `asteroids.ts`), socle et police pixel (`game.ts`), la borne en grand (`cabinet.ts`), bruitages (`sfx.ts`), meilleurs scores (`scores.ts`). |
+| `src/music.ts` | Le jukebox : ses morceaux, leur lecture spatialisée, son panneau. |
+| `src/photo.ts` | Le mode photo : options, prise de vue en haute définition, aperçu, pellicule. |
 | `src/looks.ts` | Catalogue des apparences (espèces, sexe, modèles, teintes, combinaisons) et fabrication des modèles correspondants (casques, sacs dorsaux). |
 | `src/furniture/` | Mobilier fait main, par zone (`elite`, `workshop`, `leisure`, `cozy`, `decor`), et sa boîte à outils commune (`kit.ts` : fusion, instanciation, hologrammes, écrans animés). |
 | `src/recolor.ts` | Recoloration de texture pixel par pixel (aliens, combinaisons, mobilier repeint). |
@@ -316,7 +418,7 @@ Les bips, les mélodies d'arcade, les étincelles, le miaulement et le ronronnem
 | `src/remote.ts` | Joueurs distants : interpolation, animations et emotes rejouées. |
 | `src/cat.ts` | Comète, le chat (petite machine à états). |
 | `src/audio.ts` | Sons spatialisés ; bips, mélodies d'arcade, étincelles, miaulement et ronronnement synthétisés. |
-| `src/net.ts` · `server/` | Client et relais multijoueur (socket.io), reconnaissance du CMDR par le site (`server/cmdr.js`), aménagements des quartiers (`server/cabin.js`), serveur de production, tests (`server/relay.test.js`). |
+| `src/net.ts` · `server/` | Client et relais multijoueur (socket.io) : positions et poses, chat, emotes, jukebox ; reconnaissance du CMDR par le site (`server/cmdr.js`), aménagements des quartiers (`server/cabin.js`), serveur de production, tests (`server/relay.test.js`). |
 | `src/cmdr.ts` | Identité : CMDR connecté au site, noms d'invités tirés de la SF. |
 | `src/ui.ts` | Bulles au-dessus des têtes, chat, panneaux d'ascenseur et du Holo-Me, dialogues. |
 | `src/i18n.ts` | Langue du jeu (celle du site) et `tr()`, cf. [Langues](#langues). |
@@ -325,7 +427,9 @@ Les bips, les mélodies d'arcade, les étincelles, le miaulement et le ronronnem
 | `src/main.ts` | Assemblage, entrées, boucle de jeu. |
 | `docs/images/` | Captures d'écran de ce README. |
 
-## Assets (tous en CC0 / domaine public, par [Kenney](https://www.kenney.nl))
+## Assets (tous en CC0 ou dans le domaine public)
+
+Modèles et sons par [Kenney](https://www.kenney.nl) :
 
 - [Space Station Kit](https://kenney.nl/assets/space-station-kit) — `public/assets/station/`
 - [Mini Characters](https://kenney.nl/assets/mini-characters) — `public/assets/characters/` (12 personnages, ~30 animations)
@@ -333,6 +437,8 @@ Les bips, les mélodies d'arcade, les étincelles, le miaulement et le ronronnem
 - [Mini Dungeon](https://kenney.nl/assets/mini-dungeon) — `public/assets/creatures/` (orque)
 - [Cube Pets](https://kenney.nl/assets/cube-pets) — `public/assets/pets/` (le chat)
 - [Impact Sounds](https://kenney.nl/assets/impact-sounds), [Sci-fi Sounds](https://kenney.nl/assets/sci-fi-sounds), [Interface Sounds](https://kenney.nl/assets/interface-sounds) — `public/assets/sounds/`
+
+Musiques du jukebox, `public/assets/music/` (détail dans `CREDITS.txt`) : Le Beau Danube bleu par l'[U.S. Marine Band](https://commons.wikimedia.org/wiki/File:%22An_der_sch%C3%B6nen,_blauen_Donau%22_performed_by_the_U.S._Marine_Band.flac) (domaine public) ; en CC0 sur OpenGameArt, [Fupi](https://opengameart.org/content/funky-disco-beats-to-boogiewoogie-to), [HoliznaCC0](https://opengameart.org/content/retro-wave-collection) ([Chills](https://opengameart.org/content/chills)), [congusbongus](https://opengameart.org/content/ganymede) ([Two Left Socks](https://opengameart.org/content/two-left-socks)) et [Zane Little Music](https://opengameart.org/content/interstellar-fleet-1).
 
 Les licences d'origine sont copiées à côté des fichiers.
 
@@ -344,7 +450,9 @@ Les icônes de l'interface viennent de [Phosphor Icons](https://phosphoricons.co
 - Deux onglets d'un même CMDR aménagent les mêmes quartiers : le dernier enregistrement l'emporte, et l'autre onglet ne voit le changement qu'au rechargement.
 - Une visite ne survit pas à une reconnexion au relais : le visiteur rentre chez lui.
 - Le suffixe « (invité) » que le relais ajoute au nom d'un invité homonyme d'un CMDR présent reste en français, dans les deux langues.
-- Les sons sont en Ogg Vorbis : c'est parfait sur Chrome et Firefox, mais un ancien Safari peut rester muet. Une conversion en `.m4a` réglerait ça.
-- Pistes : pseudo et choix du personnage dans un écran d'accueil, PNJ d'équipage avec routines, escaliers du kit en plus de l'ascenseur, plans édités dans [Tiled](https://www.mapeditor.org/), s'asseoir sur les canapés et fauteuils des quartiers, objets gagnés en jeu à ajouter au catalogue.
+- Les sons sont en Ogg Vorbis : c'est parfait sur Chrome et Firefox, mais un ancien Safari peut rester muet. Une conversion en `.m4a` réglerait ça (la musique du jukebox, elle, est en MP3).
+- Les scores des bornes sont calculés dans le navigateur : le site écarte l'impossible, pas la triche fine. Un score suspect se retrouve au nom de son CMDR (et se retire en base).
+- Une partie de borne ou de pince ne se voit que chez celui qui joue : les autres le voient à la borne, qui fait sa démonstration.
+- Pistes : pseudo et choix du personnage dans un écran d'accueil, PNJ d'équipage avec routines, escaliers du kit en plus de l'ascenseur, plans édités dans [Tiled](https://www.mapeditor.org/), objets gagnés en jeu à ajouter au catalogue (la peluche de Comète gagnée à la pince…), parties d'arcade à deux sur la borne cocktail.
 
 <p align="center"><sub>o7, CMDR.</sub></p>
