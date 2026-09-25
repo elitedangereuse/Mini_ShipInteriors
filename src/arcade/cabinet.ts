@@ -277,12 +277,22 @@ export class ArcadeCabinet {
     if (this.mode === 'play') this.setMode('pause')
   }
 
-  /** Clavier : pris en entier par la borne (sauf M, le son), en phase de capture. */
+  /**
+   * Clavier : pris en entier par la borne, en phase de capture, sauf M (le son). Les raccourcis
+   * du navigateur (Ctrl, Alt, Cmd) gardent leur effet, sans atteindre le jeu derrière la borne.
+   */
   private onKey = (e: KeyboardEvent) => {
-    if (e.code === 'KeyM' || e.ctrlKey || e.metaKey || e.altKey) return
-    e.preventDefault()
+    const modified = e.ctrlKey || e.metaKey || e.altKey
+    if (e.code === 'KeyM' && !modified) return
     e.stopPropagation()
     const down = e.type === 'keydown'
+    if (modified) {
+      // Un bouton relâché pendant le raccourci l'est aussi pour la borne.
+      const b = KEYS[e.code]
+      if (b && !down) this.held.delete(b)
+      return
+    }
+    e.preventDefault()
     if (down && !e.repeat && (e.code === 'Escape' || e.code === 'KeyE')) return this.close()
     if (down && !e.repeat && e.code === 'KeyP') {
       if (this.mode === 'play') this.setMode('pause')
