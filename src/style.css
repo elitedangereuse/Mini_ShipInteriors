@@ -786,16 +786,15 @@ kbd .icon {
 }
 
 /* ---------- barre de la cabine (ses quartiers, ou ceux d'un autre CMDR) ---------- */
+/* Dans la colonne de gauche, sous le bloc du vaisseau : rien ne la chevauche. */
 .cabin-bar {
-  left: 50%;
-  top: 16px;
-  transform: translateX(-50%);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px 12px;
+  max-width: min(340px, calc(100vw - 32px));
   padding: 6px 6px 6px 14px;
   pointer-events: auto;
-  white-space: nowrap;
 }
 .cb-title {
   display: flex;
@@ -831,7 +830,7 @@ kbd .icon {
   color: var(--cyan);
 }
 .cabin-bar a {
-  padding: 0 8px;
+  padding: 0 8px 0 0;
   color: var(--cyan);
   font-size: 12px;
   text-decoration: none;
@@ -841,8 +840,8 @@ kbd .icon {
 }
 
 /* ---------- mode aménagement ---------- */
-/* Le reste du HUD s'efface : le vaisseau, la caméra et le chat restent. */
-body.editing .top-left,
+/* Le reste du HUD s'efface : le vaisseau, la caméra, le chat et les invitations restent. */
+body.editing .top-left > :not(#invites),
 body.editing #help,
 body.editing #emotes,
 body.editing #prompt,
@@ -851,6 +850,10 @@ body.editing #cabin-bar,
 body.editing .about-toggle,
 body.editing #about {
   display: none !important;
+}
+/* Les invitations reçues passent sous la barre de l'éditeur. */
+body.editing .top-left {
+  top: 172px;
 }
 .editor {
   position: absolute;
@@ -1128,9 +1131,6 @@ body.editing #about {
   color: #ffc4c9;
 }
 @media (max-width: 720px) {
-  .cabin-bar {
-    top: 60px;
-  }
   .ed-catalog {
     left: 16px;
     right: 16px;
@@ -1155,3 +1155,112 @@ body.editing #about {
     top: 60px;
   }
 }
+
+/* ---------- invitations dans les quartiers ---------- */
+.invite-menu {
+  display: grid;
+  gap: 6px;
+  width: min(340px, calc(100vw - 32px));
+  max-height: 40vh;
+  overflow-y: auto;
+  pointer-events: auto;
+  border-color: var(--cyan);
+}
+.im-title {
+  margin-top: 2px;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.im-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.im-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.im-empty {
+  font-size: 12px;
+  color: var(--muted);
+}
+.invite-menu button,
+.invite-toast button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.invite-menu button:hover:not(:disabled),
+.invite-toast button:hover {
+  background: rgba(89, 216, 255, 0.16);
+  border-color: var(--cyan);
+}
+.invite-menu button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.invites {
+  display: grid;
+  gap: 8px;
+  width: min(340px, calc(100vw - 32px));
+}
+.invites:empty {
+  display: none;
+}
+.invite-toast,
+.top-left .invite-toast {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  overflow: hidden;
+  pointer-events: auto;
+  border-color: var(--accent);
+  box-shadow: 0 0 24px rgba(255, 176, 58, 0.18);
+  animation: pop 0.2s ease-out;
+}
+.it-text {
+  line-height: 1.4;
+}
+.it-icon {
+  margin-right: 6px;
+  color: var(--accent);
+  font-size: 16px;
+}
+.it-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.invite-toast .it-join {
+  border-color: var(--accent);
+  background: rgba(255, 176, 58, 0.22);
+  font-weight: 600;
+}
+.it-timer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: var(--accent);
+  transform-origin: left;
+  animation: it-time 60s linear forwards;
+}
+@keyframes it-time {
+  to {
+    transform: scaleX(0);
+  }
+}
+

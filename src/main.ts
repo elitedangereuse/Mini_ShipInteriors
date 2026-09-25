@@ -1,8 +1,8 @@
 import * as THREE from 'three'
 import { CAT_MODEL, preload, rig } from './assets'
 import { CabinEditor, EDIT_ELEVATION, EDIT_ZOOM } from './cabin/editor'
-import { CabinBar } from './cabin/hud'
-import { DEFAULT_CABIN, normalizeLayout, type CabinItem } from './cabin/layout'
+import { CabinBar, InviteMenu, InviteToasts, type CrewEntry } from './cabin/hud'
+import { DEFAULT_CABIN, normalizeLayout, serializeLayout, type CabinItem } from './cabin/layout'
 import { CabinStore, requestCabin } from './cabin/storage'
 import { devCmdr, fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
 import { Sound } from './audio'
@@ -398,7 +398,7 @@ function addRemote(s: PlayerState) {
   scene.add(r.group)
   bubbles.attach(`p${s.id}`, (out) => (r.group.visible && r.avatar ? r.avatar.head(out) : null), r.name, s.verified)
   r.onStep = (pos, sprint) => {
-    if (r.level === deck.def.id) footstep(r.level, pos, sprint, r.skin)
+    if (r.group.visible) footstep(r.level, pos, sprint, r.skin)
   }
 }
 
@@ -411,7 +411,12 @@ function removeRemote(id: number) {
 }
 
 net.onStatus = (online) => {
-  if (!online) for (const id of [...remotes.keys()]) removeRemote(id)
+  if (!online) {
+    for (const id of [...remotes.keys()]) removeRemote(id)
+    inviteToasts.clear()
+    inviteMenu.close()
+    leaveVisit('Liaison perdue avec le relais : retour dans vos quartiers.')
+  }
   updateNetStatus()
   updateIdentity()
 }
@@ -426,6 +431,8 @@ net.onMessage = (m) => {
       if (verified) {
         linked = true
         adoptAccount()
+        // Ses quartiers, pour ceux qu'il invitera (le relais oublie tout à chaque connexion).
+        net.sendCabin(serializeLayout(ownLayout))
       }
       updateIdentity()
       for (const p of m.players) addRemote(p)
@@ -438,7 +445,12 @@ net.onMessage = (m) => {
     case 'leave': {
       const r = remotes.get(m.id)
       if (r) chat.add('system', `${r.name} a débarqué.`)
+      if (visiting?.host === m.id || entering === m.id) leaveVisit(`${r?.name ?? 'Votre hôte'} a quitté le vaisseau : retour dans vos quartiers.`)
       removeRemote(m.id)
+      hostLayouts.delete(m.id)
+      invitedAt.delete(m.id)
+      inviteToasts.remove(m.id)
+      refreshInviteMenu()
       break
     }
     case 'state':
@@ -477,6 +489,38 @@ net.onMessage = (m) => {
         r.skin = m.skin
         void r.load()
       }
+      break
+    }
+    case 'cabin':
+      // Aménagement d'un hôte : à l'entrée dans ses quartiers, puis à chacun de ses changements.
+      hostLayouts.set(m.id, m.layout)
+      if (visiting?.host === m.id) showCabin()
+      break
+    case 'invite':
+      inviteToasts.add(m.id, m.name, m.verified)
+      sound.play('ding', null, { volume: 0.12, rate: 1.25 })
+      break
+    case 'decline':
+      invitedAt.delete(m.id)
+      chat.add('system', `${m.name} a décliné votre invitation.`)
+      refreshInviteMenu()
+      break
+    case 'visit': {
+      if (m.id === net.id) {
+        const host = visiting?.name ?? remotes.get(entering ?? -1)?.name ?? 'Votre hôte'
+        if (m.cabin !== net.id) void enterVisit(m.cabin)
+        else if (visiting || entering !== null) leaveVisit(m.by ? `${host} vous a raccompagné : retour dans vos quartiers.` : 'Retour dans vos quartiers.')
+        else if (joining !== null) chat.add('system', 'Cette invitation a expiré.')
+        joining = null
+        break
+      }
+      const r = remotes.get(m.id)
+      if (!r) break
+      if (m.cabin === net.id && r.cabin !== net.id) chat.add('system', `${r.name} est entré dans vos quartiers.`)
+      else if (r.cabin === net.id && m.cabin !== net.id) chat.add('system', `${r.name} a quitté vos quartiers.`)
+      r.cabin = m.cabin
+      invitedAt.delete(m.id)
+      refreshInviteMenu()
       break
     }
   }
@@ -532,8 +576,16 @@ async function command(text: string) {
       await applyLook(look)
       return saveLook(look)
     }
+    case 'inviter': {
+      if (!verified || !net.online) return chat.add('system', 'Inviter dans ses quartiers est réservé aux CMDR connectés au site, en ligne.')
+      if (!arg) return chat.add('system', 'Usage : /inviter CMDR Nom')
+      const key = (n: string) => n.toLowerCase().replace(/^cmdr\s+/, '').replace(/\s+\(invité\)$/, '').trim()
+      const r = [...remotes.values()].find((x) => key(x.name) === key(arg))
+      if (!r) return chat.add('system', `Personne à bord ne s'appelle ${arg}.`)
+      return invite(r.id)
+    }
     case 'aide':
-      return chat.add('system', `Commandes : /nom CMDR Pseudo (invités) · /perso · ${EMOTES.map((x) => '/' + x.id).join(' ')}`)
+      return chat.add('system', `Commandes : /nom CMDR Pseudo (invités) · /perso · /inviter CMDR Nom · ${EMOTES.map((x) => '/' + x.id).join(' ')}`)
     default:
       return chat.add('system', `Commande inconnue : /${cmd}. Tapez /aide.`)
   }
@@ -652,6 +704,7 @@ const editor = new CabinEditor(cabin, {
   onChange: (items) => {
     ownLayout = items
     cabinStore?.save(items)
+    if (verified) net.sendCabin(serializeLayout(items))
   },
   onClose: () => closeEditor(),
 })
@@ -668,7 +721,8 @@ function adoptAccount() {
     cabinStore = store
     ownLayout = normalizeLayout(store.saved(fromSite) ?? DEFAULT_CABIN, cabin.bounds)
     if (editor.active) editor.replace(ownLayout)
-    cabin.setLayout(ownLayout)
+    if (verified) net.sendCabin(serializeLayout(ownLayout))
+    if (!visiting) showCabin()
   })
 }
 
@@ -679,6 +733,7 @@ function inCabin(level: number, x: number, z: number): boolean {
 
 function openEditor() {
   if (editor.active || riding) return
+  if (visiting) return chat.add('system', 'Ces quartiers ne sont pas les vôtres : on n\'aménage que chez soi.')
   if (!linked) return chat.add('system', 'Aménager ses quartiers est réservé aux CMDR connectés à elitedangereuse.fr.')
   if (!cabinStore) return chat.add('system', 'Vos quartiers arrivent du site, encore un instant…')
   if (!inCabin(deck.def.id, player.position.x, player.position.z)) return chat.add('system', 'On aménage ses quartiers depuis ses quartiers, sur le pont supérieur.')
@@ -707,6 +762,143 @@ function closeEditor() {
   void cabinStore?.flush()
 }
 cabinBar.onEdit = openEditor
+
+// ------------------------------------------------------------------ visites
+
+/*
+ * Chacun a sa propre instance des quartiers : on n'y voit que ceux qui s'y trouvent avec nous.
+ * Un CMDR invite un membre d'équipage (le relais vérifie l'invitation) ; l'invité est
+ * téléporté devant la porte, dans les quartiers meublés comme chez l'hôte, et les voit changer
+ * en direct. Il rentre chez lui en sortant par la porte, ou quand l'hôte le raccompagne ou
+ * quitte le vaisseau.
+ */
+
+/** Quartiers d'un autre CMDR où l'on se trouve (null : chez soi). */
+let visiting: { host: number; name: string } | null = null
+/** Invitation acceptée, en attente de la réponse du relais. */
+let joining: number | null = null
+/** Entrée en cours dans les quartiers d'un hôte, le temps du fondu (id de l'hôte). */
+let entering: number | null = null
+/** Numéro de la dernière entrée ou sortie : une entrée interrompue en plein fondu s'arrête là. */
+let visitSeq = 0
+/** Derniers aménagements reçus des hôtes. */
+const hostLayouts = new Map<number, unknown>()
+/** Invitations envoyées (id de l'invité → fin de validité), pour la liste d'équipage. */
+const invitedAt = new Map<number, number>()
+const inviteMenu = new InviteMenu()
+const inviteToasts = new InviteToasts()
+
+/** Instance des quartiers où se trouve le joueur local (id de l'hôte). */
+const myCabin = () => visiting?.host ?? net.id
+
+/** Un autre joueur est-il visible ? Dans des quartiers, seulement s'il est dans la même instance. */
+function sees(r: RemotePlayer): boolean {
+  if (r.level !== deck.def.id) return false
+  return !inCabin(r.level, r.group.position.x, r.group.position.z) || r.cabin === myCabin()
+}
+
+/** Aménagement affiché : celui de l'hôte pendant une visite, le sien sinon. */
+function showCabin() {
+  cabin.setLayout(visiting ? normalizeLayout(hostLayouts.get(visiting.host) ?? DEFAULT_CABIN, cabin.bounds) : ownLayout)
+  // Un meuble a pu apparaître sous nos pieds (ou sous les pattes de Comète).
+  if (deck === cabinDeck) unstick(player.position, 0.18)
+  unstick(cat.root.position, 0.12)
+}
+
+function crew(): CrewEntry[] {
+  // Ses propres autres onglets (même CMDR) ne s'invitent pas.
+  return [...remotes.values()].filter((r) => !verified || r.name !== profile.name).map((r) => ({
+    id: r.id,
+    name: r.name,
+    state: r.cabin === net.id ? 'visiting' : (invitedAt.get(r.id) ?? 0) > Date.now() ? 'invited' : 'free',
+  }))
+}
+
+function refreshInviteMenu() {
+  inviteMenu.refresh(crew())
+}
+
+function invite(id: number) {
+  const r = remotes.get(id)
+  if (!r) return
+  if (r.cabin === net.id) return chat.add('system', `${r.name} est déjà dans vos quartiers.`)
+  net.sendInvite(id)
+  invitedAt.set(id, Date.now() + 60000)
+  refreshInviteMenu()
+  chat.add('system', `Invitation envoyée à ${r.name}.`)
+}
+
+/** Invitation acceptée : on demande au relais d'entrer (il vérifie qu'elle est valable). */
+function acceptInvite(host: number) {
+  if (!net.online) return
+  joining = host
+  net.sendVisit(host)
+}
+
+/** Le relais nous fait entrer : téléportation devant la porte des quartiers de l'hôte. */
+async function enterVisit(host: number) {
+  const seq = ++visitSeq
+  const name = remotes.get(host)?.name ?? 'un CMDR'
+  entering = host
+  if (editor.active) closeEditor()
+  wardrobe.close(false)
+  lift.close()
+  inviteMenu.close()
+  inviteToasts.remove(host)
+  player.cancelPath()
+  marker.visible = false
+  riding = true
+  await fadeScreen(true)
+  // Raccompagné (ou hôte parti) pendant le fondu : on n'entre pas.
+  if (seq === visitSeq) {
+    if (deck !== cabinDeck) setDeck(cabinDeck)
+    visiting = { host, name }
+    const door = cabin.def.door
+    player.position.set(door.x, cabinDeck.y, door.z + 0.25)
+    player.setHeading(0)
+    showCabin()
+    iso.snapTo(player.position)
+    net.sendState({ x: player.position.x, z: player.position.z, yaw: player.heading, level: deck.def.id, anim: 'idle' }, Infinity)
+    sound.play('ding', null, { volume: 0.1 })
+  }
+  if (entering === host) entering = null
+  await fadeScreen(false)
+  riding = false
+  if (seq === visitSeq && visiting?.host === host) chat.add('system', `Vous voici dans les quartiers de ${name}. Ressortez par la porte pour rentrer chez vous.`)
+}
+
+/** Fin de visite (ou d'une entrée en cours) : on retrouve ses propres quartiers, là où l'on se tient. */
+function leaveVisit(message?: string) {
+  const was = visiting !== null || entering !== null
+  visitSeq++
+  entering = null
+  if (visiting) {
+    visiting = null
+    showCabin()
+  }
+  if (was && message) chat.add('system', message)
+}
+
+cabinBar.onInvite = () => {
+  if (inviteMenu.isOpen) return inviteMenu.close()
+  inviteMenu.open(crew())
+}
+cabinBar.onLeave = () => {
+  net.sendVisit(null)
+  leaveVisit('Retour dans vos quartiers.')
+}
+inviteMenu.onInvite = invite
+inviteMenu.onKick = (id) => net.sendKick(id)
+inviteToasts.onAccept = acceptInvite
+inviteToasts.onDecline = (id) => net.sendDecline(id)
+// Clic en dehors de la liste d'équipage : elle se ferme.
+addEventListener(
+  'pointerdown',
+  (e) => {
+    if (inviteMenu.isOpen && !inviteMenu.contains(e.target) && !(e.target instanceof Node && $('cabin-bar').contains(e.target))) inviteMenu.close()
+  },
+  { capture: true },
+)
 
 /**
  * Un meuble vient d'être posé là où se tient un personnage : il en sort par le côté le plus
@@ -766,6 +958,7 @@ addEventListener('keydown', (e) => {
   }
   if (e.code === 'Escape') {
     toggleAbout(false)
+    inviteMenu.close()
     return wardrobe.close(false)
   }
   keys.add(e.code)
@@ -1034,8 +1227,8 @@ function frame() {
   player.update(dt, input, keys.has('ShiftLeft') || keys.has('ShiftRight'))
 
   for (const r of remotes.values()) {
-    r.group.visible = r.level === deck.def.id
     r.update(dt)
+    r.group.visible = sees(r)
   }
   cat.update(dt, catDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
 
@@ -1047,7 +1240,8 @@ function frame() {
   for (const list of actors.values()) list.length = 0
   actors.get(deck)!.push(player.position)
   actors.get(catDeck)!.push(cat.root.position)
-  for (const r of remotes.values()) actors.get(deckById(r.level))?.push(r.group.position)
+  // Un joueur d'une autre instance des quartiers n'ouvre pas nos portes.
+  for (const r of remotes.values()) if (r.group.visible || r.level !== deck.def.id) actors.get(deckById(r.level))?.push(r.group.position)
   for (const d of decks) d.update(dt, actors.get(d)!, d === deck ? player.position : null, toCam, editor.active && d === cabinDeck)
   editor.update(timer.getElapsed())
 
@@ -1061,15 +1255,23 @@ function frame() {
   marker.scale.setScalar(1 + Math.sin(timer.getElapsed() * 6) * 0.12)
 
   // Pièce courante.
-  const name = deck.roomName(player.position.x, player.position.z)
+  const here = inCabin(deck.def.id, player.position.x, player.position.z)
+  // On sort des quartiers d'un hôte par la porte : on rentre chez soi.
+  if (visiting && !here && !riding) {
+    net.sendVisit(null)
+    leaveVisit()
+  }
+  const name = visiting && here ? `Quartiers de ${visiting.name}` : deck.roomName(player.position.x, player.position.z)
   if (name !== currentRoom) {
     currentRoom = name
     roomEl.textContent = name
   }
 
   // Dans ses quartiers : de quoi les aménager.
-  const home = !editor.active && inCabin(deck.def.id, player.position.x, player.position.z)
-  cabinBar.set(home ? { kind: 'own', canEdit: linked, loginUrl: loginUrl() } : null)
+  cabinBar.set(
+    !here || editor.active ? null : visiting ? { kind: 'visit', host: visiting.name } : { kind: 'own', canEdit: linked, canInvite: verified && net.online, loginUrl: loginUrl() },
+  )
+  if (!here && inviteMenu.isOpen) inviteMenu.close()
 
   // Invite « E » au-dessus de l'objet le plus proche.
   const near = riding || lift.isOpen || wardrobe.isOpen || editor.active ? null : nearestInteractable()
@@ -1136,6 +1338,6 @@ frame()
 // Accès de debug (dev uniquement) : window.__game dans la console.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    __game: { renderer, sound, player, cat, cabin, editor, openEditor, closeEditor, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso },
+    __game: { renderer, sound, player, cat, cabin, editor, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso },
   })
 }

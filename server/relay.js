@@ -6,7 +6,14 @@
 // ED_LOGGED_CMDR_ID. Le relais le fait reconnaître par le site (cf. cmdr.js), puis impose au
 // joueur son nom de CMDR et le marque « vérifié ». Les autres sont des invités, libres de leur
 // nom, mais sans la marque.
+//
+// Quartiers : chaque joueur a sa propre instance des quartiers du commandant (`cabin` : l'id du
+// joueur chez qui il se trouve, le sien par défaut). Un CMDR vérifié envoie l'aménagement des
+// siens (cf. cabin.js), et peut inviter un joueur connecté : celui-ci n'y entre qu'avec une
+// invitation, reçoit l'aménagement, puis chacun de ses changements. L'hôte peut raccompagner un
+// visiteur ; s'il quitte le vaisseau, ses visiteurs rentrent chez eux.
 import { Server } from 'socket.io'
+import { sanitizeLayout } from './cabin.js'
 import { cleanCmdrName, cmdrFromCookie } from './cmdr.js'
 
 /** Chemin de la socket, partagé avec le client (VITE_WS_PATH) et la conf nginx. */
@@ -20,6 +27,8 @@ const LOOK = /^[a-z]+(\.[a-z0-9-]+){1,3}$/
 const EMOTES = new Set(['salut', 'oui', 'non', 'joie', 'danse', 'assis', 'dodo', 'interact'])
 const ANIMS = new Set(['idle', 'walk', 'sprint'])
 const LEVELS = new Set([-1, 0, 1])
+/** Une invitation dans des quartiers vaut une minute. */
+const INVITE_TTL = 60000
 
 const clean = (s, max) =>
   String(s ?? '')
@@ -62,13 +71,25 @@ export function attachRelay(
   const io = new Server(httpServer, {
     path,
     serveClient: false,
-    maxHttpBufferSize: 4096,
+    // Un aménagement de quartiers plein fait ~5 Ko.
+    maxHttpBufferSize: 16384,
     allowRequest: (req, callback) => callback(null, sameOrigin(req)),
   })
   const players = new Map() // socket.id -> joueur
+  const sockets = new Map() // id du joueur -> socket
   let nextId = 1
 
-  const publicState = (p) => ({ id: p.id, name: p.name, verified: p.verified, skin: p.skin, x: p.x, z: p.z, level: p.level, yaw: p.yaw, anim: p.anim })
+  const publicState = (p) => ({ id: p.id, name: p.name, verified: p.verified, skin: p.skin, x: p.x, z: p.z, level: p.level, yaw: p.yaw, anim: p.anim, cabin: p.cabin })
+  const playerById = (id) => {
+    const socket = sockets.get(id)
+    return socket ? players.get(socket.id) : undefined
+  }
+  /** Le joueur passe dans l'instance des quartiers de `cabin` (la sienne s'il rentre chez lui). */
+  const moveTo = (p, cabin, by) => {
+    if (p.cabin === cabin) return
+    p.cabin = cabin
+    io.emit('visit', by ? { id: p.id, cabin, by } : { id: p.id, cabin })
+  }
 
   /** Nom d'invité : jamais celui d'un CMDR vérifié présent à bord. */
   const guestName = (wanted, self) => {
@@ -95,9 +116,15 @@ export function attachRelay(
       skin: validLook(auth.skin) ? auth.skin : 'human.female.b',
       // Point d'apparition : les quartiers du commandant (cf. SPAWN dans src/levels.ts).
       x: 11.2, z: 7.4, level: 1, yaw: 0, anim: 'idle',
+      // Instance des quartiers : les siens (id du joueur qui reçoit), son aménagement, ses invitations.
+      cabin: 0,
+      layout: null,
+      invited: new Map(), // id de l'invité -> fin de validité
     }
+    player.cabin = player.id
     player.name = cmdr ? `CMDR ${cmdr}` : guestName(auth.name, player)
     players.set(socket.id, player)
+    sockets.set(player.id, socket)
     socket.emit('welcome', {
       id: player.id,
       you: { name: player.name, verified: player.verified },
@@ -107,7 +134,13 @@ export function attachRelay(
     log(`[relais] ${player.name}${player.verified ? ' (CMDR vérifié)' : ''} (#${player.id}) a embarqué — ${players.size} à bord`)
 
     let chatBudget = 5
-    const refill = setInterval(() => (chatBudget = Math.min(5, chatBudget + 1)), 1000)
+    let inviteBudget = 3
+    let cabinBudget = 10
+    const refill = setInterval(() => {
+      chatBudget = Math.min(5, chatBudget + 1)
+      inviteBudget = Math.min(3, inviteBudget + 0.25)
+      cabinBudget = Math.min(10, cabinBudget + 5)
+    }, 1000)
 
     socket.on('state', (raw) => {
       const m = obj(raw)
@@ -137,10 +170,62 @@ export function attachRelay(
       io.emit('profile', { id: player.id, name: player.name, verified: player.verified, skin: player.skin })
     })
 
+    // Aménagement de ses quartiers (CMDR vérifiés seulement), transmis à ceux qui s'y trouvent.
+    socket.on('cabin', (raw) => {
+      if (!player.verified || cabinBudget < 1) return
+      const layout = sanitizeLayout(obj(raw).layout)
+      if (!layout) return
+      cabinBudget--
+      player.layout = layout
+      for (const p of players.values()) {
+        if (p !== player && p.cabin === player.id) sockets.get(p.id)?.emit('cabin', { id: player.id, layout })
+      }
+    })
+
+    // Invitation dans ses quartiers (CMDR vérifiés seulement), valable une minute.
+    socket.on('invite', (raw) => {
+      const to = playerById(obj(raw).to)
+      if (!player.verified || !to || to === player || to.cabin === player.id || inviteBudget < 1) return
+      inviteBudget--
+      player.invited.set(to.id, Date.now() + INVITE_TTL)
+      sockets.get(to.id)?.emit('invite', { id: player.id, name: player.name, verified: player.verified })
+    })
+
+    socket.on('decline', (raw) => {
+      const host = playerById(obj(raw).to)
+      if (!host?.invited.delete(player.id)) return
+      sockets.get(host.id)?.emit('decline', { id: player.id, name: player.name })
+    })
+
+    // Entrer dans les quartiers d'un hôte (sur invitation), ou rentrer chez soi (host absent).
+    socket.on('visit', (raw) => {
+      const hostId = obj(raw).host
+      if (hostId === null || hostId === undefined || hostId === player.id) return moveTo(player, player.id)
+      const host = playerById(hostId)
+      const until = host?.invited.get(player.id) ?? 0
+      if (!host || until < Date.now()) {
+        // Invitation expirée ou inconnue : le client apprend qu'il reste où il est.
+        return socket.emit('visit', { id: player.id, cabin: player.cabin })
+      }
+      host.invited.delete(player.id)
+      // L'aménagement d'abord : le visiteur entre dans des quartiers déjà meublés.
+      socket.emit('cabin', { id: host.id, layout: host.layout })
+      moveTo(player, host.id)
+    })
+
+    // L'hôte raccompagne un visiteur : celui-ci rentre chez lui.
+    socket.on('kick', (raw) => {
+      const guest = playerById(obj(raw).id)
+      if (guest && guest !== player && guest.cabin === player.id) moveTo(guest, guest.id, player.id)
+    })
+
     socket.on('disconnect', () => {
       clearInterval(refill)
       players.delete(socket.id)
+      sockets.delete(player.id)
       socket.broadcast.emit('leave', { id: player.id })
+      // Ses visiteurs rentrent chez eux.
+      for (const p of players.values()) if (p.cabin === player.id) moveTo(p, p.id)
       log(`[relais] ${player.name} (#${player.id}) a débarqué — ${players.size} à bord`)
     })
   })

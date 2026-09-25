@@ -12,6 +12,8 @@ export interface PlayerState {
   level: number
   yaw: number
   anim: string
+  /** Instance des quartiers où il se trouve : l'id du joueur qui reçoit (le sien, chez lui). */
+  cabin: number
 }
 
 export type ServerMessage =
@@ -22,12 +24,20 @@ export type ServerMessage =
   | { t: 'chat'; id: number; name: string; verified?: boolean; text: string }
   | { t: 'emote'; id: number; emote: string }
   | { t: 'profile'; id: number; name: string; verified?: boolean; skin: string }
+  /** Aménagement des quartiers du joueur `id` (on s'y trouve, ou l'on vient d'y entrer). */
+  | { t: 'cabin'; id: number; layout: unknown }
+  /** Le joueur `id` nous invite dans ses quartiers. */
+  | { t: 'invite'; id: number; name: string; verified?: boolean }
+  /** Le joueur `id` a décliné notre invitation. */
+  | { t: 'decline'; id: number; name: string }
+  /** Le joueur `id` est désormais dans les quartiers de `cabin` (les siens s'il rentre) ; `by` : raccompagné par l'hôte. */
+  | { t: 'visit'; id: number; cabin: number; by?: number }
 
-type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin'>
+type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin'>
 
 /** Chemin de la socket : le même que WS_PATH dans server/relay.js et que la conf nginx du site. */
 const WS_PATH = import.meta.env.VITE_WS_PATH || '/ws/mini-shipinteriors'
-const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile']
+const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit']
 
 export class Net {
   online = false
@@ -36,6 +46,9 @@ export class Net {
   private socket?: Socket
   private last = ''
   private lastSent = 0
+  private cabinTimer = 0
+  private cabinSent = 0
+  private cabinPending: unknown = null
 
   /** Identifiant attribué par le relais au joueur local. */
   id = -1
@@ -116,5 +129,35 @@ export class Net {
   sendProfile(profile: { name: string; skin: string }) {
     this.profile = profile
     this.send('profile', profile)
+  }
+
+  /** Aménagement de ses quartiers, pour ses invités (4 envois par seconde au plus, le dernier gagne). */
+  sendCabin(layout: unknown) {
+    this.cabinPending = layout
+    if (this.cabinTimer) return
+    const wait = Math.max(0, 250 - (performance.now() - this.cabinSent))
+    this.cabinTimer = window.setTimeout(() => {
+      this.cabinTimer = 0
+      this.cabinSent = performance.now()
+      this.send('cabin', { layout: this.cabinPending })
+    }, wait)
+  }
+
+  sendInvite(to: number) {
+    this.send('invite', { to })
+  }
+
+  sendDecline(to: number) {
+    this.send('decline', { to })
+  }
+
+  /** Entrer dans les quartiers de `host` (sur invitation), ou rentrer chez soi (null). */
+  sendVisit(host: number | null) {
+    this.send('visit', { host })
+  }
+
+  /** Raccompagner un visiteur de ses quartiers. */
+  sendKick(id: number) {
+    this.send('kick', { id })
   }
 }
