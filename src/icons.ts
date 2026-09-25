@@ -23,6 +23,7 @@ import arrowCounterClockwise from '@phosphor-icons/core/bold/arrow-counter-clock
 import arrowDown from '@phosphor-icons/core/bold/arrow-down-bold.svg?raw'
 import arrowLeft from '@phosphor-icons/core/bold/arrow-left-bold.svg?raw'
 import arrowRight from '@phosphor-icons/core/bold/arrow-right-bold.svg?raw'
+import arrowUUpLeft from '@phosphor-icons/core/bold/arrow-u-up-left-bold.svg?raw'
 import arrowUp from '@phosphor-icons/core/bold/arrow-up-bold.svg?raw'
 import caretLeft from '@phosphor-icons/core/bold/caret-left-bold.svg?raw'
 import caretRight from '@phosphor-icons/core/bold/caret-right-bold.svg?raw'
@@ -61,6 +62,7 @@ const SVG = {
   'arrow-down': arrowDown,
   'arrow-left': arrowLeft,
   'arrow-right': arrowRight,
+  'arrow-u-up-left': arrowUUpLeft,
   'caret-left': caretLeft,
   'caret-right': caretRight,
   'gender-female': genderFemale,

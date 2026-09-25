@@ -126,6 +126,8 @@ button {
   display: block;
   width: 200px;
   height: auto;
+  /* Lisible aussi quand le logo passe sur le décor éclairé (mobile). */
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.9));
 }
 .ship-name {
   font-size: 11px;
@@ -208,6 +210,33 @@ button {
 }
 .buttons button:hover {
   background: rgba(255, 255, 255, 0.14);
+}
+/* Retour au site : en tête de la colonne de droite, en face du logo. Quitter le jeu mérite un
+   libellé, et hors de la barre il ne la rallonge pas (elle toucherait le bandeau du son). */
+.site-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  pointer-events: auto;
+}
+.site-link .icon {
+  font-size: 16px;
+  color: var(--accent);
+}
+.site-link:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 #volume {
   width: 72px;
@@ -569,6 +598,25 @@ kbd .icon {
   }
   .site-logo {
     width: 140px;
+  }
+  /* En haut, « Retour au site » (icône seule) et la barre partagent une ligne qui prend toute la
+     largeur : sans le curseur de volume (le bouton son reste), elle tient, et le logo et le bloc
+     du vaisseau passent dessous. */
+  .top-right {
+    flex-direction: row;
+    align-items: stretch;
+  }
+  .site-link {
+    padding: 0 12px;
+  }
+  .site-link span {
+    display: none;
+  }
+  #volume {
+    display: none;
+  }
+  .top-left {
+    top: 72px;
   }
   .emotes {
     left: auto;
