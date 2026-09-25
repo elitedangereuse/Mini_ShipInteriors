@@ -6,6 +6,18 @@
     <title>Mini Ship Interiors</title>
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="/src/style.css" />
+    <script>
+      // Langue du jeu : celle du site, lue comme le fait le site (?lang=, sinon son cookie LANG,
+      // sinon le français, cf. phputils/gettext_setup.php). Le jeu n'est traduit qu'en anglais :
+      // toute autre langue du site le met en anglais. Posée avant le premier rendu, sur <html
+      // lang> : la page, écrite en deux langues, n'en montre qu'une (cf. style.css et src/i18n.ts).
+      ;(function () {
+        var query = new URLSearchParams(location.search).get('lang')
+        var cookie = /(?:^|;\s*)LANG=([^;]*)/.exec(document.cookie)
+        var lang = query !== null ? query : cookie ? cookie[1] : 'fr_FR'
+        if (['en_US', 'it_IT', 'ru_RU', 'de_DE', 'es_ES', 'pt_PT', 'ja_JP'].indexOf(lang) >= 0) document.documentElement.lang = 'en'
+      })()
+    </script>
   </head>
   <body>
     <div id="app"></div>
@@ -16,7 +28,7 @@
       saut quand le vaisseau est prêt. Tout est en HTML et CSS, sans attendre le script du jeu :
       l'écran est là dès le premier rendu et ses animations tournent pendant que le jeu charge.
     -->
-    <div id="loading" role="progressbar" aria-label="Mise sous tension du vaisseau" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+    <div id="loading" role="progressbar" aria-labelledby="boot-title" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
       <div class="boot-emblem">
         <div class="boot-glow"></div>
         <div id="boot-warp" class="boot-warp" aria-hidden="true"></div>
@@ -44,8 +56,10 @@
           <img src="/logo-elite-dangereuse.svg" alt="Élite Dangereuse" width="596" height="190" />
           <div class="boot-shine"></div>
         </div>
-        <div class="boot-title">Mise sous tension du vaisseau</div>
-        <div class="boot-status"><span id="boot-step">Réacteur à fusion</span><span id="boot-pct">0&#8239;%</span></div>
+        <div id="boot-title" class="boot-title"><span lang="fr">Mise sous tension du vaisseau</span><span lang="en">Powering up the ship</span></div>
+        <div class="boot-status">
+          <span id="boot-step"><span lang="fr">Réacteur à fusion</span><span lang="en">Power plant</span></span><span id="boot-pct">0&#8239;%</span>
+        </div>
       </div>
     </div>
     <script>
@@ -82,34 +96,50 @@
 
       <div class="top-right">
         <div class="top-row">
-          <a id="back-to-site" class="site-link" href="/" title="Retour sur elitedangereuse.fr"><i data-icon="arrow-u-up-left"></i><span>Retour au site</span></a>
+          <a id="back-to-site" class="site-link" href="/" title="Retour sur elitedangereuse.fr" data-en-title="Back to elitedangereuse.fr">
+            <i data-icon="arrow-u-up-left"></i><span lang="fr">Retour au site</span><span lang="en">Back to site</span>
+          </a>
           <div class="panel buttons">
-            <button id="rot-left" title="Pivoter la caméra (Maj+R)" aria-label="Pivoter la caméra à gauche"><i data-icon="arrow-counter-clockwise"></i></button>
-            <button id="rot-right" title="Pivoter la caméra (R)" aria-label="Pivoter la caméra à droite"><i data-icon="arrow-clockwise"></i></button>
-            <button id="zoom-in" title="Zoom avant (molette)" aria-label="Zoom avant"><i data-icon="magnifying-glass-plus"></i></button>
-            <button id="zoom-out" title="Zoom arrière (molette)" aria-label="Zoom arrière"><i data-icon="magnifying-glass-minus"></i></button>
-            <button id="mute" title="Son (M)" aria-label="Couper ou rétablir le son"><i data-icon="speaker-high"></i></button>
+            <button id="rot-left" title="Pivoter la caméra (Maj+R)" aria-label="Pivoter la caméra à gauche" data-en-title="Rotate camera (Shift+R)" data-en-aria-label="Rotate camera left"><i data-icon="arrow-counter-clockwise"></i></button>
+            <button id="rot-right" title="Pivoter la caméra (R)" aria-label="Pivoter la caméra à droite" data-en-title="Rotate camera (R)" data-en-aria-label="Rotate camera right"><i data-icon="arrow-clockwise"></i></button>
+            <button id="zoom-in" title="Zoom avant (molette)" aria-label="Zoom avant" data-en-title="Zoom in (mouse wheel)" data-en-aria-label="Zoom in"><i data-icon="magnifying-glass-plus"></i></button>
+            <button id="zoom-out" title="Zoom arrière (molette)" aria-label="Zoom arrière" data-en-title="Zoom out (mouse wheel)" data-en-aria-label="Zoom out"><i data-icon="magnifying-glass-minus"></i></button>
+            <button id="mute" title="Son (M)" aria-label="Couper ou rétablir le son" data-en-title="Sound (M)" data-en-aria-label="Mute or unmute"><i data-icon="speaker-high"></i></button>
             <input id="volume" type="range" min="0" max="100" step="1" title="Volume" aria-label="Volume" />
-            <button id="help-toggle" title="Aide (H)" aria-label="Aide"><i data-icon="question"></i></button>
+            <button id="help-toggle" title="Aide (H)" aria-label="Aide" data-en-title="Help (H)" data-en-aria-label="Help"><i data-icon="question"></i></button>
           </div>
         </div>
         <div id="help" class="panel help">
-          <div><kbd>ZQSD</kbd> <kbd>WASD</kbd> <kbd class="arrows"><i data-icon="arrow-up"></i><i data-icon="arrow-left"></i><i data-icon="arrow-down"></i><i data-icon="arrow-right"></i></kbd> ou clic : se déplacer</div>
-          <div><kbd>Maj</kbd> courir · <kbd>E</kbd> interagir</div>
-          <div><kbd>1</kbd>…<kbd>7</kbd> emotes · <kbd>Entrée</kbd> chat</div>
-          <div><kbd>R</kbd> pivoter · molette : zoom</div>
-          <div>Clic droit ou molette maintenu : caméra libre (<kbd>Maj</kbd> : déplacer la vue)</div>
-          <div><kbd>M</kbd> son · <kbd>H</kbd> cacher l'aide</div>
-          <div>Holo-Me (apparence) : quartiers du commandant, pont supérieur</div>
-          <div><kbd>B</kbd> aménager ses quartiers (CMDR connectés au site)</div>
-          <div class="muted">Chat : <code>/nom CMDR Pseudo</code>, <code>/perso</code> (au hasard), <code>/inviter CMDR Nom</code>, <code>/aide</code></div>
+          <div lang="fr">
+            <kbd>ZQSD</kbd> <kbd>WASD</kbd> <kbd class="arrows"><i data-icon="arrow-up"></i><i data-icon="arrow-left"></i><i data-icon="arrow-down"></i><i data-icon="arrow-right"></i></kbd> ou clic : se déplacer
+          </div>
+          <div lang="en">
+            <kbd>WASD</kbd> <kbd>ZQSD</kbd> <kbd class="arrows"><i data-icon="arrow-up"></i><i data-icon="arrow-left"></i><i data-icon="arrow-down"></i><i data-icon="arrow-right"></i></kbd> or click: move
+          </div>
+          <div lang="fr"><kbd>Maj</kbd> courir · <kbd>E</kbd> interagir</div>
+          <div lang="en"><kbd>Shift</kbd> run · <kbd>E</kbd> interact</div>
+          <div lang="fr"><kbd>1</kbd>…<kbd>7</kbd> emotes · <kbd>Entrée</kbd> chat</div>
+          <div lang="en"><kbd>1</kbd>…<kbd>7</kbd> emotes · <kbd>Enter</kbd> chat</div>
+          <div lang="fr"><kbd>R</kbd> pivoter · molette : zoom</div>
+          <div lang="en"><kbd>R</kbd> rotate · mouse wheel: zoom</div>
+          <div lang="fr">Clic droit ou molette maintenu : caméra libre (<kbd>Maj</kbd> : déplacer la vue)</div>
+          <div lang="en">Hold right-click or wheel: free camera (<kbd>Shift</kbd>: pan the view)</div>
+          <div lang="fr"><kbd>M</kbd> son · <kbd>H</kbd> cacher l'aide</div>
+          <div lang="en"><kbd>M</kbd> sound · <kbd>H</kbd> hide help</div>
+          <div lang="fr">Holo-Me (apparence) : quartiers du commandant, pont supérieur</div>
+          <div lang="en">Holo-Me (appearance): Commander's quarters, upper deck</div>
+          <div lang="fr"><kbd>B</kbd> aménager ses quartiers (CMDR connectés au site)</div>
+          <div lang="en"><kbd>B</kbd> decorate your quarters (CMDRs logged in to the site)</div>
+          <div class="muted" lang="fr">Chat : <code>/nom CMDR Pseudo</code>, <code>/perso</code> (au hasard), <code>/inviter CMDR Nom</code>, <code>/aide</code></div>
+          <div class="muted" lang="en">Chat: <code>/name CMDR Nickname</code>, <code>/random</code> (random look), <code>/invite CMDR Name</code>, <code>/help</code></div>
         </div>
       </div>
+    </div>
 
       <div id="chat" class="panel chat">
         <div id="chat-log"></div>
         <form id="chat-form" autocomplete="off">
-          <input id="chat-input" maxlength="200" placeholder="Entrée pour discuter…" />
+          <input id="chat-input" maxlength="200" placeholder="Entrée pour discuter…" data-en-placeholder="Press Enter to chat…" />
         </form>
       </div>
 
@@ -119,31 +149,43 @@
       <div id="dialog" hidden></div>
 
       <div id="lift" class="panel lift" hidden>
-        <div class="lift-title">Ascenseur</div>
+        <div class="lift-title"><span lang="fr">Ascenseur</span><span lang="en">Lift</span></div>
         <div id="lift-buttons"></div>
         <div class="lift-hint">
-          <kbd class="arrows"><i data-icon="arrow-up"></i><i data-icon="arrow-down"></i></kbd> choisir · <kbd>Entrée</kbd> y aller
+          <kbd class="arrows"><i data-icon="arrow-up"></i><i data-icon="arrow-down"></i></kbd>
+          <span lang="fr">choisir · <kbd>Entrée</kbd> y aller</span><span lang="en">select · <kbd>Enter</kbd> go</span>
         </div>
-        <button id="lift-close" class="lift-close">Fermer <kbd>E</kbd><kbd>Échap</kbd></button>
+        <button id="lift-close" class="lift-close">
+          <span lang="fr">Fermer</span><span lang="en">Close</span> <kbd>E</kbd><kbd lang="fr">Échap</kbd><kbd lang="en">Esc</kbd>
+        </button>
       </div>
 
       <div id="wardrobe" class="panel wardrobe" hidden></div>
 
       <div id="editor" class="editor" hidden></div>
 
-      <button id="about-toggle" class="about-toggle" title="À propos de ce projet" aria-label="À propos de ce projet" aria-expanded="false" aria-controls="about"><i data-icon="info"></i></button>
+      <button id="about-toggle" class="about-toggle" title="À propos de ce projet" aria-label="À propos de ce projet" data-en-title="About this project" data-en-aria-label="About this project" aria-expanded="false" aria-controls="about"><i data-icon="info"></i></button>
       <div id="about" class="panel about" hidden>
-        <div class="about-title">À propos</div>
-        <p>
+        <div class="about-title"><span lang="fr">À propos</span><span lang="en">About</span></div>
+        <p lang="fr">
           Ce Fleet Carrier a été développé avec Claude Code (modèle Claude Opus 5.5). Les modèles 3D, les personnages et les sons
           viennent de projets gratuits et libres : les packs de <a href="https://kenney.nl" target="_blank" rel="noopener">Kenney</a>
           (domaine public) et les icônes <a href="https://phosphoricons.com" target="_blank" rel="noopener">Phosphor</a> (licence MIT).
           Le reste du mobilier (bornes d'arcade, hologrammes, SRV…) a été dessiné par l'IA, directement en code.
         </p>
-        <p class="about-tech">Technologies : Three.js, TypeScript et Vite pour le jeu, Node.js et socket.io pour le multijoueur.</p>
+        <p lang="en">
+          This Fleet Carrier was built with Claude Code (Claude Opus 5.5 model). The 3D models, characters and sounds come from free,
+          open projects: the <a href="https://kenney.nl" target="_blank" rel="noopener">Kenney</a> packs (public domain) and the
+          <a href="https://phosphoricons.com" target="_blank" rel="noopener">Phosphor</a> icons (MIT licence). The rest of the
+          furniture (arcade cabinets, holograms, SRV…) was drawn by the AI, directly in code.
+        </p>
+        <p class="about-tech" lang="fr">Technologies : Three.js, TypeScript et Vite pour le jeu, Node.js et socket.io pour le multijoueur.</p>
+        <p class="about-tech" lang="en">Technologies: Three.js, TypeScript and Vite for the game, Node.js and socket.io for multiplayer.</p>
       </div>
 
-      <div id="sound-hint" class="toast"><i data-icon="speaker-low"></i>Clique ou appuie sur une touche pour activer le son</div>
+      <div id="sound-hint" class="toast">
+        <i data-icon="speaker-low"></i><span lang="fr">Clique ou appuie sur une touche pour activer le son</span><span lang="en">Click or press a key to turn the sound on</span>
+      </div>
     </div>
 
     <div id="fade"></div>

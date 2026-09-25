@@ -11,6 +11,7 @@ import { IsoCamera } from './camera'
 import { Cat } from './cat'
 import { Deck, type Interactable } from './deck'
 import { beatAt, beatPulse, holoMeGlow, holoTime } from './furniture'
+import { EN, localizeAttributes, tr } from './i18n'
 import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, LIFT, SPAWN } from './levels'
 import { hydrateIcons, icon } from './icons'
 import { lookId, lookPath, lookRig, parseLook, RACES, raceOf, randomLook, variantsOf, type Look } from './looks'
@@ -116,7 +117,7 @@ const lightPool = Array.from({ length: 8 }, () => {
 
 // Les modèles font l'essentiel de l'attente : 90 % de la jauge, le reste pour le site et le montage.
 await preload([lookPath(parseLook(profile.skin))], (r) => bootProgress(r * 0.9))
-bootProgress(0.94, 'Identification du CMDR')
+bootProgress(0.94, tr('Identification du CMDR', 'Identifying CMDR'))
 const account = await within(accountRequest, 3000, null)
 if (account) {
   linked = true
@@ -189,7 +190,7 @@ const cat = new Cat(await rig(CAT_MODEL), catDeck, basket.x, basket.z)
 catDeck.interactables.push({
   object: cat.root,
   position: cat.root.position,
-  label: `Caresser ${cat.name}`,
+  label: tr(`Caresser ${cat.name}`, `Pet ${cat.name}`),
   onInteract: () => {
     player.interact()
     net.sendEmote('interact')
@@ -230,6 +231,7 @@ bubbles.attach('me', (out) => player.avatar.head(out))
 bubbles.attach('cat', (out) => (catDeck.group.visible ? cat.root.getWorldPosition(out).setY(out.y + 0.55) : null))
 
 hydrateIcons()
+localizeAttributes()
 for (const [i, e] of EMOTES.entries()) {
   const b = document.createElement('button')
   b.title = `${e.label} (${i + 1})`
@@ -331,8 +333,8 @@ cat.onMeow = (purr) => {
   const p = cat.root.getWorldPosition(new THREE.Vector3()).setY(catDeck.y + 0.3)
   sound.meow(p)
   if (purr) sound.purr(p, 2.6)
-  if (purr) bubbles.say('cat', 'Mrrrou…', 'heart')
-  else bubbles.say('cat', 'Miaou ?')
+  if (purr) bubbles.say('cat', tr('Mrrrou…', 'Purrr…'), 'heart')
+  else bubbles.say('cat', tr('Miaou ?', 'Meow?'))
 }
 
 function startSound() {
@@ -408,6 +410,16 @@ const net = new Net(profile, devCmdr())
 
 let lastAnnouncedName = ''
 
+/** Arrivée sur le relais : qui d'autre est à bord. */
+function welcomeOnline(others: number): string {
+  if (!others) return tr('Connecté. Personne d\'autre à bord pour l\'instant.', 'Connected. Nobody else aboard for now.')
+  if (EN) return others === 1 ? 'Connected. One other crew member aboard.' : `Connected. ${others} other crew members aboard.`
+  return `Connecté. ${others} autre(s) membre(s) d'équipage à bord.`
+}
+
+const renamed = (name: string) => tr(`Vous vous appelez désormais ${name}.`, `You are now called ${name}.`)
+const BACK_HOME = tr('Retour dans vos quartiers.', 'Back to your quarters.')
+
 function updateIdentity() {
   const el = $('identity')
   el.replaceChildren()
@@ -419,12 +431,12 @@ function updateIdentity() {
     // Même domaine que le site : sa page de connexion, avec la page de retour, comme ailleurs sur le site.
     const a = document.createElement('a')
     a.href = `/auth-redirect.php?redirect=${encodeURIComponent(location.pathname + location.search)}`
-    a.textContent = 'Invité · se connecter au site'
+    a.textContent = tr('Invité · se connecter au site', 'Guest · log in to the site')
     el.appendChild(a)
   } else if (net.online && !verified) {
     const w = document.createElement('span')
     w.className = 'id-warn'
-    w.textContent = 'compte non vérifié par le serveur'
+    w.textContent = tr('compte non vérifié par le serveur', 'account not verified by the server')
     el.appendChild(w)
   }
 }
@@ -433,7 +445,7 @@ const levelY = (level: number) => level * LEVEL_HEIGHT
 function updateNetStatus() {
   const el = $('net')
   el.classList.toggle('online', net.online)
-  el.replaceChildren(icon(net.online ? 'users-three' : 'user-solo'), net.online ? `En ligne · ${remotes.size + 1} à bord` : 'Solo')
+  el.replaceChildren(icon(net.online ? 'users-three' : 'user-solo'), net.online ? tr(`En ligne · ${remotes.size + 1} à bord`, `Online · ${remotes.size + 1} aboard`) : 'Solo')
 }
 
 function addRemote(s: PlayerState) {
@@ -460,7 +472,7 @@ net.onStatus = (online) => {
     for (const id of [...remotes.keys()]) removeRemote(id)
     inviteToasts.clear()
     inviteMenu.close()
-    leaveVisit('Liaison perdue avec le relais : retour dans vos quartiers.')
+    leaveVisit(tr('Liaison perdue avec le relais : retour dans vos quartiers.', 'Lost contact with the relay: back to your quarters.'))
   }
   updateNetStatus()
   updateIdentity()
@@ -481,16 +493,19 @@ net.onMessage = (m) => {
       }
       updateIdentity()
       for (const p of m.players) addRemote(p)
-      chat.add('system', m.players.length ? `Connecté. ${m.players.length} autre(s) membre(s) d'équipage à bord.` : 'Connecté. Personne d\'autre à bord pour l\'instant.')
+      chat.add('system', welcomeOnline(m.players.length))
       break
     case 'join':
       addRemote(m.player)
-      chat.add('system', [nameTag(m.player.name, m.player.verified), ' a embarqué.'])
+      chat.add('system', [nameTag(m.player.name, m.player.verified), tr(' a embarqué.', ' came aboard.')])
       break
     case 'leave': {
       const r = remotes.get(m.id)
-      if (r) chat.add('system', `${r.name} a débarqué.`)
-      if (visiting?.host === m.id || entering === m.id) leaveVisit(`${r?.name ?? 'Votre hôte'} a quitté le vaisseau : retour dans vos quartiers.`)
+      if (r) chat.add('system', tr(`${r.name} a débarqué.`, `${r.name} disembarked.`))
+      if (visiting?.host === m.id || entering === m.id) {
+        const host = r?.name ?? tr('Votre hôte', 'Your host')
+        leaveVisit(tr(`${host} a quitté le vaisseau : retour dans vos quartiers.`, `${host} left the ship: back to your quarters.`))
+      }
       removeRemote(m.id)
       hostLayouts.delete(m.id)
       invitedAt.delete(m.id)
@@ -519,7 +534,7 @@ net.onMessage = (m) => {
     case 'profile': {
       if (m.id === net.id) {
         // Nom accepté par le relais (éventuellement suffixé « (invité) »).
-        if (!verified && m.name !== lastAnnouncedName) chat.add('system', `Vous vous appelez désormais ${m.name}.`)
+        if (!verified && m.name !== lastAnnouncedName) chat.add('system', renamed(m.name))
         lastAnnouncedName = m.name
         profile.name = m.name
         updateIdentity()
@@ -527,7 +542,7 @@ net.onMessage = (m) => {
       }
       const r = remotes.get(m.id)
       if (!r) break
-      if (r.name !== m.name) chat.add('system', `${r.name} s'appelle désormais ${m.name}.`)
+      if (r.name !== m.name) chat.add('system', tr(`${r.name} s'appelle désormais ${m.name}.`, `${r.name} is now called ${m.name}.`))
       r.name = m.name
       bubbles.rename(`p${m.id}`, m.name, m.verified)
       if (r.skin !== m.skin) {
@@ -547,24 +562,26 @@ net.onMessage = (m) => {
       break
     case 'decline':
       invitedAt.delete(m.id)
-      chat.add('system', `${m.name} a décliné votre invitation.`)
+      chat.add('system', tr(`${m.name} a décliné votre invitation.`, `${m.name} declined your invitation.`))
       refreshInviteMenu()
       break
     case 'visit': {
       if (m.id === net.id) {
-        const host = visiting?.name ?? remotes.get(entering ?? -1)?.name ?? 'Votre hôte'
+        const host = visiting?.name ?? remotes.get(entering ?? -1)?.name ?? tr('Votre hôte', 'Your host')
         // Entrée refusée : on reste où l'on est (chez soi, ou chez un autre hôte).
         if (m.expired) {
-          if (joining !== null) chat.add('system', 'Cette invitation a expiré.')
+          if (joining !== null) chat.add('system', tr('Cette invitation a expiré.', 'This invitation has expired.'))
         } else if (m.cabin !== net.id) void enterVisit(m.cabin)
-        else if (visiting || entering !== null) leaveVisit(m.by ? `${host} vous a raccompagné : retour dans vos quartiers.` : 'Retour dans vos quartiers.')
+        else if (visiting || entering !== null) {
+          leaveVisit(m.by ? tr(`${host} vous a raccompagné : retour dans vos quartiers.`, `${host} showed you out: back to your quarters.`) : BACK_HOME)
+        }
         joining = null
         break
       }
       const r = remotes.get(m.id)
       if (!r) break
-      if (m.cabin === net.id && r.cabin !== net.id) chat.add('system', `${r.name} est entré dans vos quartiers.`)
-      else if (r.cabin === net.id && m.cabin !== net.id) chat.add('system', `${r.name} a quitté vos quartiers.`)
+      if (m.cabin === net.id && r.cabin !== net.id) chat.add('system', tr(`${r.name} est entré dans vos quartiers.`, `${r.name} entered your quarters.`))
+      else if (r.cabin === net.id && m.cabin !== net.id) chat.add('system', tr(`${r.name} a quitté vos quartiers.`, `${r.name} left your quarters.`))
       r.cabin = m.cabin
       invitedAt.delete(m.id)
       refreshInviteMenu()
@@ -595,22 +612,29 @@ chat.onSend = (text) => {
   sound.play('chat', null, { volume: 0.1, rate: 1.2 })
 }
 
+/**
+ * Commandes du chat, en français ou en anglais quelle que soit la langue du jeu (/nom ou /name…) ;
+ * l'aide donne celles de la langue du joueur.
+ */
 async function command(text: string) {
   const [cmd, ...rest] = text.slice(1).split(' ')
   const arg = rest.join(' ').trim()
-  const e = EMOTES.find((x) => x.id === cmd.toLowerCase())
+  const name = cmd.toLowerCase()
+  const e = EMOTES.find((x) => x.id === name || x.en === name)
   if (e) return emote(e.id)
-  switch (cmd.toLowerCase()) {
+  switch (name) {
     case 'nom':
-      if (linked) return chat.add('system', `Votre nom vient de votre compte Élite Dangereuse : ${profile.name}.`)
-      if (!arg) return chat.add('system', 'Usage : /nom CMDR Pseudo')
+    case 'name':
+      if (linked) return chat.add('system', tr(`Votre nom vient de votre compte Élite Dangereuse : ${profile.name}.`, `Your name comes from your Élite Dangereuse account: ${profile.name}.`))
+      if (!arg) return chat.add('system', tr('Usage : /nom CMDR Pseudo', 'Usage: /name CMDR Nickname'))
       profile.name = arg.slice(0, 32)
       store.set('name', profile.name)
       updateIdentity()
       // En ligne, le relais confirme (et peut suffixer « (invité) ») : message à la réponse.
       if (net.online) return net.sendProfile(profile)
-      return chat.add('system', `Vous vous appelez désormais ${profile.name}.`)
-    case 'perso': {
+      return chat.add('system', renamed(profile.name))
+    case 'perso':
+    case 'random': {
       const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)]
       const race = pick(RACES)
       const sex = Math.random() < 0.5 ? 'female' : 'male'
@@ -623,26 +647,41 @@ async function command(text: string) {
       await applyLook(look)
       return saveLook(look)
     }
-    case 'inviter': {
-      if (!verified || !net.online) return chat.add('system', 'Inviter dans ses quartiers est réservé aux CMDR connectés au site, en ligne.')
-      if (!arg) return chat.add('system', 'Usage : /inviter CMDR Nom')
+    case 'inviter':
+    case 'invite': {
+      if (!verified || !net.online) {
+        return chat.add('system', tr('Inviter dans ses quartiers est réservé aux CMDR connectés au site, en ligne.', 'Only CMDRs logged in to the site, and online, can invite people to their quarters.'))
+      }
+      if (!arg) return chat.add('system', tr('Usage : /inviter CMDR Nom', 'Usage: /invite CMDR Name'))
       const key = (n: string) => n.toLowerCase().replace(/^cmdr\s+/, '').replace(/\s+\(invité\)$/, '').trim()
       const r = [...remotes.values()].find((x) => key(x.name) === key(arg))
-      if (!r) return chat.add('system', `Personne à bord ne s'appelle ${arg}.`)
+      if (!r) return chat.add('system', tr(`Personne à bord ne s'appelle ${arg}.`, `Nobody aboard is called ${arg}.`))
       return invite(r.id)
     }
     case 'aide':
-      return chat.add('system', `Commandes : /nom CMDR Pseudo (invités) · /perso · /inviter CMDR Nom · ${EMOTES.map((x) => '/' + x.id).join(' ')}`)
+    case 'help': {
+      const emotes = EMOTES.map((x) => '/' + tr(x.id, x.en)).join(' ')
+      return chat.add(
+        'system',
+        tr(`Commandes : /nom CMDR Pseudo (invités) · /perso · /inviter CMDR Nom · ${emotes}`, `Commands: /name CMDR Nickname (guests) · /random · /invite CMDR Name · ${emotes}`),
+      )
+    }
     default:
-      return chat.add('system', `Commande inconnue : /${cmd}. Tapez /aide.`)
+      return chat.add('system', tr(`Commande inconnue : /${cmd}. Tapez /aide.`, `Unknown command: /${cmd}. Type /help.`))
   }
 }
 
 chat.add(
   'system',
   linked
-    ? `Bienvenue à bord, ${profile.name}. Compte Élite Dangereuse lié. Entrée pour discuter, /aide pour les commandes.`
-    : `Bienvenue à bord, ${profile.name} (invité). Entrée pour discuter, /aide pour les commandes.`,
+    ? tr(
+        `Bienvenue à bord, ${profile.name}. Compte Élite Dangereuse lié. Entrée pour discuter, /aide pour les commandes.`,
+        `Welcome aboard, ${profile.name}. Élite Dangereuse account linked. Press Enter to chat, /help for commands.`,
+      )
+    : tr(
+        `Bienvenue à bord, ${profile.name} (invité). Entrée pour discuter, /aide pour les commandes.`,
+        `Welcome aboard, ${profile.name} (guest). Press Enter to chat, /help for commands.`,
+      ),
 )
 
 // ------------------------------------------------------------------ garde-robe
@@ -662,7 +701,7 @@ async function applyLook(look: Look) {
 function describe(look: Look): string {
   const race = raceOf(look)
   const parts = [race.label]
-  if (race.sexed) parts.push(look.sex === 'female' ? 'femme' : 'homme')
+  if (race.sexed) parts.push(look.sex === 'female' ? tr('femme', 'female') : tr('homme', 'male'))
   parts.push(variantsOf(race, look.sex).find((v) => v.id === look.variant)?.label ?? '')
   const tint = race.tints?.find((t) => t.id === look.tint)
   if (tint) parts.push(tint.label)
@@ -673,7 +712,7 @@ function saveLook(look: Look) {
   profile.skin = lookId(look)
   store.set('skin', profile.skin)
   net.sendProfile(profile)
-  chat.add('system', `Nouvelle apparence : ${describe(look)}.`)
+  chat.add('system', tr(`Nouvelle apparence : ${describe(look)}.`, `New look: ${describe(look)}.`))
 }
 
 function openWardrobe() {
@@ -803,9 +842,9 @@ function inCabin(level: number, x: number, z: number): boolean {
 
 async function openEditor() {
   if (editing() || riding) return
-  if (visiting) return chat.add('system', 'Ces quartiers ne sont pas les vôtres : on n\'aménage que chez soi.')
-  if (!linked) return chat.add('system', 'Aménager ses quartiers est réservé aux CMDR connectés à elitedangereuse.fr.')
-  if (!cabinStore?.ready) return chat.add('system', 'Vos quartiers arrivent du site, encore un instant…')
+  if (visiting) return chat.add('system', tr('Ces quartiers ne sont pas les vôtres : on n\'aménage que chez soi.', 'These quarters aren\'t yours: you can only decorate your own.'))
+  if (!linked) return chat.add('system', tr('Aménager ses quartiers est réservé aux CMDR connectés à elitedangereuse.fr.', 'Only CMDRs logged in to elitedangereuse.fr can decorate their quarters.'))
+  if (!cabinStore?.ready) return chat.add('system', tr('Vos quartiers arrivent du site, encore un instant…', 'Your quarters are on their way from the site, just a moment…'))
   if (!editor) {
     await loadEditor()
     // On a pu partir (ascenseur, invitation) pendant le chargement.
@@ -813,7 +852,9 @@ async function openEditor() {
   }
   const store = cabinStore
   const ed = editor
-  if (!inCabin(deck.def.id, player.position.x, player.position.z)) return chat.add('system', 'On aménage ses quartiers depuis ses quartiers, sur le pont supérieur.')
+  if (!inCabin(deck.def.id, player.position.x, player.position.z)) {
+    return chat.add('system', tr('On aménage ses quartiers depuis ses quartiers, sur le pont supérieur.', 'You decorate your quarters from inside them, on the upper deck.'))
+  }
   lift.close()
   wardrobe.close(false)
   player.cancelPath()
@@ -895,28 +936,30 @@ function refreshInviteMenu() {
   inviteMenu.refresh(crew())
 }
 
+const alreadyHere = (name: string) => tr(`${name} est déjà dans vos quartiers.`, `${name} is already in your quarters.`)
+
 async function invite(id: number) {
   const r = remotes.get(id)
   if (!r) return
-  if (r.cabin === net.id) return chat.add('system', `${r.name} est déjà dans vos quartiers.`)
+  if (r.cabin === net.id) return chat.add('system', alreadyHere(r.name))
   // Grisée tout de suite dans la liste (pas de double envoi), rendue si le relais la refuse ;
   // une invitation envoyée avant reste valable.
   const previous = invitedAt.get(id)
   invitedAt.set(id, Date.now() + 60000)
   refreshInviteMenu()
   const reply = await net.sendInvite(id)
-  if (reply?.ok) return chat.add('system', `Invitation envoyée à ${r.name}.`)
+  if (reply?.ok) return chat.add('system', tr(`Invitation envoyée à ${r.name}.`, `Invitation sent to ${r.name}.`))
   if (previous) invitedAt.set(id, previous)
   else invitedAt.delete(id)
   refreshInviteMenu()
-  if (!reply) return chat.add('system', 'Invitation non envoyée : liaison perdue avec le relais.')
+  if (!reply) return chat.add('system', tr('Invitation non envoyée : liaison perdue avec le relais.', 'Invitation not sent: lost contact with the relay.'))
   chat.add(
     'system',
     {
-      guest: 'Inviter dans ses quartiers est réservé aux CMDR connectés au site.',
-      gone: `${r.name} n'est plus à bord.`,
-      here: `${r.name} est déjà dans vos quartiers.`,
-      busy: 'Doucement : trop d\'invitations d\'un coup. Réessayez dans quelques secondes.',
+      guest: tr('Inviter dans ses quartiers est réservé aux CMDR connectés au site.', 'Only CMDRs logged in to the site can invite people to their quarters.'),
+      gone: tr(`${r.name} n'est plus à bord.`, `${r.name} is no longer aboard.`),
+      here: alreadyHere(r.name),
+      busy: tr('Doucement : trop d\'invitations d\'un coup. Réessayez dans quelques secondes.', 'Easy there: too many invitations at once. Try again in a few seconds.'),
     }[reply.reason],
   )
 }
@@ -931,7 +974,7 @@ function acceptInvite(host: number) {
 /** Le relais nous fait entrer : téléportation devant la porte des quartiers de l'hôte. */
 async function enterVisit(host: number) {
   const seq = ++visitSeq
-  const name = remotes.get(host)?.name ?? 'un CMDR'
+  const name = remotes.get(host)?.name ?? tr('un CMDR', 'a CMDR')
   entering = host
   if (editing()) closeEditor()
   wardrobe.close(false)
@@ -957,7 +1000,9 @@ async function enterVisit(host: number) {
   if (entering === host) entering = null
   await fadeScreen(false)
   riding = false
-  if (seq === visitSeq && visiting?.host === host) chat.add('system', `Vous voici dans les quartiers de ${name}. Ressortez par la porte pour rentrer chez vous.`)
+  if (seq === visitSeq && visiting?.host === host) {
+    chat.add('system', tr(`Vous voici dans les quartiers de ${name}. Ressortez par la porte pour rentrer chez vous.`, `You are in ${name}'s quarters. Walk back out through the door to go home.`))
+  }
 }
 
 /** Fin de visite (ou d'une entrée en cours) : on retrouve ses propres quartiers, là où l'on se tient. */
@@ -978,7 +1023,7 @@ cabinBar.onInvite = () => {
 }
 cabinBar.onLeave = () => {
   net.sendVisit(null)
-  leaveVisit('Retour dans vos quartiers.')
+  leaveVisit(BACK_HOME)
 }
 inviteMenu.onInvite = (id) => void invite(id)
 inviteMenu.onKick = (id) => net.sendKick(id)
@@ -1366,7 +1411,7 @@ function frame() {
     net.sendVisit(null)
     leaveVisit()
   }
-  const name = visiting && here ? `Quartiers de ${visiting.name}` : deck.roomName(player.position.x, player.position.z)
+  const name = visiting && here ? tr(`Quartiers de ${visiting.name}`, `${visiting.name}'s quarters`) : deck.roomName(player.position.x, player.position.z)
   if (name !== currentRoom) {
     currentRoom = name
     roomEl.textContent = name

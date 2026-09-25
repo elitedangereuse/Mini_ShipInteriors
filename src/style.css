@@ -35,6 +35,12 @@ body {
   display: none !important;
 }
 
+/* Textes de la page écrits en deux langues (cf. index.html) : seule celle du jeu s'affiche. */
+html:not([lang='en']) [lang='en'],
+html[lang='en'] [lang='fr'] {
+  display: none !important;
+}
+
 button {
   font: inherit;
 }

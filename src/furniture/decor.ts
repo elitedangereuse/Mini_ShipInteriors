@@ -5,6 +5,7 @@ import {
   animatedScreen, barZ, box, cylinder, drawnTexture, ED_ORANGE, glass, glow, holoMaterial, instanced, keepShared, lit,
   mesh, part, rng, setInstance, sphere, type Builder,
 } from './kit'
+import { tr } from '../i18n'
 
 /*
  * Décoration des cabines (mode aménagement) : de quoi accrocher aux murs (affiches, cadres,
@@ -124,7 +125,8 @@ interface PosterDef {
 /** Affiches de voyage, à la façon des vieilles réclames, aux couleurs d'Elite. */
 export const POSTERS: Record<string, PosterDef> = {
   colonia: {
-    label: 'Colonia', title: 'COLONIA', lines: ['22 000 al de la Bulle', 'Le voyage d\'une vie'], sky: ['#12072e', '#8e2c6a'],
+    label: 'Colonia', title: 'COLONIA', sky: ['#12072e', '#8e2c6a'],
+    lines: [tr('22 000 al de la Bulle', '22,000 ly from the Bubble'), tr('Le voyage d\'une vie', 'The journey of a lifetime')],
     art: (g, w, h, random) => {
       stars(g, w, h, random, 120)
       g.globalCompositeOperation = 'lighter'
@@ -136,7 +138,8 @@ export const POSTERS: Record<string, PosterDef> = {
     },
   },
   jameson: {
-    label: 'Jameson Memorial', title: 'JAMESON MEMORIAL', lines: ['Shinrarta Dezhra', 'Réservé aux pilotes Elite'], sky: ['#081626', '#1f5e6e'],
+    label: 'Jameson Memorial', title: 'JAMESON MEMORIAL', sky: ['#081626', '#1f5e6e'],
+    lines: ['Shinrarta Dezhra', tr('Réservé aux pilotes Elite', 'Elite pilots only')],
     art: (g, w, h, random) => {
       stars(g, w, h, random, 90)
       glowDisc(g, w * 0.22, h * 0.2, 70, 'rgba(255, 190, 90, 0.9)')
@@ -145,7 +148,8 @@ export const POSTERS: Record<string, PosterDef> = {
     },
   },
   hutton: {
-    label: 'Hutton Orbital', title: 'HUTTON ORBITAL', lines: ['0,22 al de supercroisière', 'Ça vaut le détour'], sky: ['#2a1206', '#c06a2a'],
+    label: 'Hutton Orbital', title: 'HUTTON ORBITAL', sky: ['#2a1206', '#c06a2a'],
+    lines: [tr('0,22 al de supercroisière', '0.22 ly of supercruise'), tr('Ça vaut le détour', 'Well worth the detour')],
     art: (g, w, h, random) => {
       stars(g, w, h * 0.6, random, 60)
       glowDisc(g, w * 0.5, h * 0.95, 160, 'rgba(255, 170, 80, 0.8)')
@@ -170,7 +174,8 @@ export const POSTERS: Record<string, PosterDef> = {
     },
   },
   sagittarius: {
-    label: 'Sagittarius A*', title: 'SAGITTARIUS A*', lines: ['Le cœur de la galaxie', '25 900 al de Sol'], sky: ['#050308', '#2a1236'],
+    label: 'Sagittarius A*', title: 'SAGITTARIUS A*', sky: ['#050308', '#2a1236'],
+    lines: [tr('Le cœur de la galaxie', 'The heart of the galaxy'), tr('25 900 al de Sol', '25,900 ly from Sol')],
     art: (g, w, h, random) => {
       stars(g, w, h, random, 140)
       const x = w * 0.5, y = h * 0.45
@@ -194,7 +199,8 @@ export const POSTERS: Record<string, PosterDef> = {
     },
   },
   thargoid: {
-    label: 'Thargoïdes', title: 'RESTEZ VIGILANTS', lines: ['Signalez toute activité', 'thargoïde à Aegis'], sky: ['#010805', '#0e3a24'],
+    label: tr('Thargoïdes', 'Thargoids'), title: tr('RESTEZ VIGILANTS', 'STAY VIGILANT'), sky: ['#010805', '#0e3a24'],
+    lines: [tr('Signalez toute activité', 'Report all Thargoid'), tr('thargoïde à Aegis', 'activity to Aegis')],
     art: (g, w, h, random) => {
       stars(g, w, h, random, 70)
       const x = w * 0.5, y = h * 0.44
@@ -220,7 +226,8 @@ export const POSTERS: Record<string, PosterDef> = {
     },
   },
   beagle: {
-    label: 'Beagle Point', title: 'BEAGLE POINT', lines: ['65 279 al de Sol', 'Au bout de la galaxie'], sky: ['#000000', '#101a3a'],
+    label: 'Beagle Point', title: 'BEAGLE POINT', sky: ['#000000', '#101a3a'],
+    lines: [tr('65 279 al de Sol', '65,279 ly from Sol'), tr('Au bout de la galaxie', 'At the edge of the galaxy')],
     art: (g, w, h, random) => {
       stars(g, w, h * 0.5, random, 25)
       // La galaxie, vue de son bord : une bande d'étoiles à l'horizon.
@@ -235,7 +242,8 @@ export const POSTERS: Record<string, PosterDef> = {
     },
   },
   comete: {
-    label: 'Comète', title: 'COMÈTE', lines: ['Chat du bord', 'Ne pas nourrir après un saut'], sky: ['#fbe3c4', '#e89a6a'],
+    label: 'Comète', title: 'COMÈTE', sky: ['#fbe3c4', '#e89a6a'],
+    lines: [tr('Chat du bord', 'Ship\'s cat'), tr('Ne pas nourrir après un saut', 'Do not feed after a jump')],
     art: (g, w, h) => {
       const x = w * 0.5, y = h * 0.46
       g.fillStyle = '#8a8f99'
@@ -282,7 +290,8 @@ export const POSTERS: Record<string, PosterDef> = {
     },
   },
   guardians: {
-    label: 'Gardiens', title: 'LES GARDIENS', lines: ['Ruines de Synuefe', 'Un peuple disparu'], sky: ['#02141c', '#0a3f52'],
+    label: tr('Gardiens', 'Guardians'), title: tr('LES GARDIENS', 'THE GUARDIANS'), sky: ['#02141c', '#0a3f52'],
+    lines: [tr('Ruines de Synuefe', 'Ruins of Synuefe'), tr('Un peuple disparu', 'A lost civilisation')],
     art: (g, w, h, random) => {
       stars(g, w, h * 0.5, random, 60)
       g.fillStyle = '#081a20'
@@ -351,7 +360,7 @@ const poster: Builder = ({ label }) => {
 /** Tableaux encadrés (paysages spatiaux). */
 export const FRAMES: Record<string, { label: string; draw: (g: CanvasRenderingContext2D, w: number, h: number, random: () => number) => void }> = {
   ringed: {
-    label: 'Géante à anneaux',
+    label: tr('Géante à anneaux', 'Ringed giant'),
     draw: (g, w, h, random) => {
       g.fillStyle = '#070a18'
       g.fillRect(0, 0, w, h)
@@ -364,7 +373,7 @@ export const FRAMES: Record<string, { label: string; draw: (g: CanvasRenderingCo
     },
   },
   earthlike: {
-    label: 'Monde terrestre',
+    label: tr('Monde terrestre', 'Earth-like world'),
     draw: (g, w, h, random) => {
       g.fillStyle = '#03060e'
       g.fillRect(0, 0, w, h)
@@ -382,7 +391,7 @@ export const FRAMES: Record<string, { label: string; draw: (g: CanvasRenderingCo
     },
   },
   nebula: {
-    label: 'Nébuleuse',
+    label: tr('Nébuleuse', 'Nebula'),
     draw: (g, w, h, random) => {
       g.fillStyle = '#05030c'
       g.fillRect(0, 0, w, h)
@@ -395,7 +404,7 @@ export const FRAMES: Record<string, { label: string; draw: (g: CanvasRenderingCo
     },
   },
   station: {
-    label: 'Station Coriolis',
+    label: tr('Station Coriolis', 'Coriolis station'),
     draw: (g, w, h, random) => {
       g.fillStyle = '#060912'
       g.fillRect(0, 0, w, h)
@@ -454,12 +463,12 @@ const wallClock: Builder = () => {
 }
 
 const HEADLINES = [
-  'Des Thargoïdes aperçus près de Maia',
-  'La painite s\'envole à Jameson Memorial',
-  'Hutton Orbital : record de visiteurs (trois)',
-  'Colonia fête un nouveau record de colons',
-  'Les Ingénieurs rouvrent leurs ateliers',
-  'Un CMDR rejoint Sagittarius A* en Sidewinder',
+  tr('Des Thargoïdes aperçus près de Maia', 'Thargoids sighted near Maia'),
+  tr('La painite s\'envole à Jameson Memorial', 'Painite prices soar at Jameson Memorial'),
+  tr('Hutton Orbital : record de visiteurs (trois)', 'Hutton Orbital: record visitor numbers (three)'),
+  tr('Colonia fête un nouveau record de colons', 'Colonia celebrates a record number of colonists'),
+  tr('Les Ingénieurs rouvrent leurs ateliers', 'Engineers reopen their workshops'),
+  tr('Un CMDR rejoint Sagittarius A* en Sidewinder', 'CMDR reaches Sagittarius A* in a Sidewinder'),
 ]
 
 /** Écran mural : le fil d'infos de GalNet qui défile, et une planète qui tourne. */
@@ -479,7 +488,7 @@ const wallScreen: Builder = () => {
     c.fillText('GALNET', 5, 11)
     c.fillStyle = '#ffe2c0'
     c.font = '9px system-ui, sans-serif'
-    c.fillText('EN DIRECT', 118, 11)
+    c.fillText(tr('EN DIRECT', 'LIVE'), 118, 11)
     // Planète qui tourne (ses bandes glissent).
     const px = 42, py = 48, r = 22
     c.save()
@@ -498,11 +507,12 @@ const wallScreen: Builder = () => {
     c.restore()
     c.fillStyle = '#9fd8ff'
     c.font = '700 9px system-ui, sans-serif'
-    c.fillText('SYSTÈME', 74, 34)
+    c.fillText(tr('SYSTÈME', 'SYSTEM'), 74, 34)
     c.fillStyle = '#e6f2ff'
     c.font = '8px system-ui, sans-serif'
-    c.fillText('Classe G · 4 planètes', 74, 46)
-    c.fillText(`Trafic : ${40 + Math.floor(t / 7) % 30} vaisseaux`, 74, 57)
+    c.fillText(tr('Classe G · 4 planètes', 'Class G · 4 planets'), 74, 46)
+    const traffic = 40 + (Math.floor(t / 7) % 30)
+    c.fillText(tr(`Trafic : ${traffic} vaisseaux`, `Traffic: ${traffic} ships`), 74, 57)
     // Bandeau d'infos.
     c.fillStyle = 'rgba(0,0,0,0.55)'
     c.fillRect(0, 74, 160, 16)
@@ -790,7 +800,7 @@ const lavaLamp: Builder = ({ label, random }) => {
 /** Globes : Terre, Mars, géante gazeuse (textures équirectangulaires). */
 export const GLOBES: Record<string, { label: string; draw: (g: CanvasRenderingContext2D, w: number, h: number, random: () => number) => void }> = {
   earth: {
-    label: 'Terre',
+    label: tr('Terre', 'Earth'),
     draw: (g, w, h, random) => {
       g.fillStyle = '#2f6fb0'
       g.fillRect(0, 0, w, h)
@@ -821,7 +831,7 @@ export const GLOBES: Record<string, { label: string; draw: (g: CanvasRenderingCo
     },
   },
   gas: {
-    label: 'Géante gazeuse',
+    label: tr('Géante gazeuse', 'Gas giant'),
     draw: (g, w, h) => {
       for (let y = 0; y < h; y += 4) {
         const k = Math.sin(y * 0.19) * 0.5 + Math.sin(y * 0.07) * 0.5

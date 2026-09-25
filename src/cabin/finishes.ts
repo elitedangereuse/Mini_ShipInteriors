@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { rng } from '../furniture/kit'
 import type { Finish } from './layout'
+import { tr } from '../i18n'
 
 /*
  * Revêtements des quartiers : papiers peints et parements des murs, sols. Chaque motif se
@@ -228,7 +229,7 @@ function leaf(g: CanvasRenderingContext2D, x: number, y: number, a: number, len:
 
 export const WALL_STYLES: FinishStyle[] = [
   {
-    id: 'paint', name: 'Peinture', size: 1,
+    id: 'paint', name: tr('Peinture', 'Paint'), size: 1,
     palette: ['#efe3cf', '#d9c4a0', '#9fb59a', '#3f7f7c', '#8fb3c9', '#34507a', '#c0643f', '#d9a0a0', '#d9a441', '#6e4a6e', '#3a3e46', '#f4f2ec'],
     draw: (g, s, c, random) => {
       g.fillStyle = c.hex
@@ -237,7 +238,7 @@ export const WALL_STYLES: FinishStyle[] = [
     },
   },
   {
-    id: 'stripes', name: 'Rayures', size: 0.5,
+    id: 'stripes', name: tr('Rayures', 'Stripes'), size: 0.5,
     palette: ['#9fb59a', '#efe3cf', '#8fb3c9', '#34507a', '#d9a0a0', '#d9a441', '#7a2e3a', '#3a3e46'],
     draw: (g, s, c, random) => {
       g.fillStyle = c.hex
@@ -254,7 +255,7 @@ export const WALL_STYLES: FinishStyle[] = [
     },
   },
   {
-    id: 'damask', name: 'Damassé', size: 0.4,
+    id: 'damask', name: tr('Damassé', 'Damask'), size: 0.4,
     palette: ['#7a2e3a', '#34507a', '#2f6b4f', '#1f2a3a', '#c9a24a', '#e9dcc4', '#3f7f7c', '#5a3a5a'],
     draw: (g, s, c, random) => {
       g.fillStyle = c.hex
@@ -279,7 +280,7 @@ export const WALL_STYLES: FinishStyle[] = [
     },
   },
   {
-    id: 'scales', name: 'Écailles art déco', size: 0.3,
+    id: 'scales', name: tr('Écailles art déco', 'Art deco scales'), size: 0.3,
     palette: ['#2c4a6e', '#1f4a4a', '#efe3cf', '#7a2e3a', '#3a3e46', '#d9a441', '#9fb59a'],
     draw: (g, s, c) => {
       g.fillStyle = c.hex
@@ -345,7 +346,7 @@ export const WALL_STYLES: FinishStyle[] = [
     },
   },
   {
-    id: 'leaves', name: 'Feuillage', size: 0.6,
+    id: 'leaves', name: tr('Feuillage', 'Foliage'), size: 0.6,
     palette: ['#dfe8d5', '#efe3cf', '#f2dcd2', '#cfe0e6', '#1f3a2e', '#2a2a30'],
     draw: (g, s, c, random) => {
       g.fillStyle = c.hex
@@ -359,7 +360,7 @@ export const WALL_STYLES: FinishStyle[] = [
     },
   },
   {
-    id: 'wood', name: 'Lambris', size: 0.4,
+    id: 'wood', name: tr('Lambris', 'Wood panelling'), size: 0.4,
     palette: ['#b08556', '#d8c2a0', '#c49a6c', '#8a5a3a', '#6b4630', '#3a2a22', '#e6ddd0', '#5a7a8a', '#7e8f6a'],
     draw: (g, s, c, random) => {
       // Lames verticales : on dessine des lames horizontales, puis on tourne le tout d'un quart de tour.
@@ -379,7 +380,7 @@ export const WALL_STYLES: FinishStyle[] = [
     },
   },
   {
-    id: 'brick', name: 'Briques', size: 0.5,
+    id: 'brick', name: tr('Briques', 'Brick'), size: 0.5,
     palette: ['#a4533a', '#c07048', '#7a4a3a', '#b89a7a', '#8a8a8a', '#e8e4dc', '#3a3a3e'],
     draw: (g, s, c, random) => {
       g.fillStyle = c.dark ? c.mix('#8a8680', 0.6) : c.mix('#d8d2c4', 0.72)
@@ -401,7 +402,7 @@ export const WALL_STYLES: FinishStyle[] = [
     },
   },
   {
-    id: 'concrete', name: 'Béton banché', size: 1,
+    id: 'concrete', name: tr('Béton banché', 'Cast concrete'), size: 1,
     palette: ['#9a9a96', '#c8c6c0', '#6e6e6c', '#4a4a4c', '#b8aa98'],
     draw: (g, s, c, random) => {
       g.fillStyle = c.hex
@@ -425,7 +426,7 @@ export const WALL_STYLES: FinishStyle[] = [
     },
   },
   {
-    id: 'panels', name: 'Panneaux de coque', size: 0.5,
+    id: 'panels', name: tr('Panneaux de coque', 'Hull panels'), size: 0.5,
     palette: ['#7a8292', '#4a505c', '#d8dce2', '#3a4a5c', '#8a6a4a', '#5a6a5a'],
     draw: (g, s, c, random) => {
       g.fillStyle = c.shade(-0.12)
@@ -456,7 +457,7 @@ export const WALL_STYLES: FinishStyle[] = [
     },
   },
   {
-    id: 'quilted', name: 'Capitonné', size: 0.3,
+    id: 'quilted', name: tr('Capitonné', 'Quilted'), size: 0.3,
     palette: ['#6e2a2a', '#8a5a3a', '#2f4a3a', '#1f1f24', '#e9dcc4', '#34507a', '#d98b8b'],
     draw: (g, s, c) => {
       g.fillStyle = c.shade(-0.1)
@@ -497,7 +498,7 @@ export const WALL_STYLES: FinishStyle[] = [
     },
   },
   {
-    id: 'hex', name: 'Alvéoles', size: 0.3,
+    id: 'hex', name: tr('Alvéoles', 'Honeycomb'), size: 0.3,
     palette: ['#3a4a5c', '#1f2430', '#d8dce2', '#ff8a1c', '#2f6b4f', '#6e4a6e'],
     draw: (g, s, c) => {
       g.fillStyle = c.hex
@@ -518,7 +519,7 @@ export const WALL_STYLES: FinishStyle[] = [
 
 export const FLOOR_STYLES: FinishStyle[] = [
   {
-    id: 'planks', name: 'Parquet', size: 1,
+    id: 'planks', name: tr('Parquet', 'Floorboards'), size: 1,
     palette: ['#b08556', '#d8c2a0', '#c49a6c', '#8a5a3a', '#6b4630', '#3a2a22', '#e6ddd0', '#8a8a86'],
     draw: (g, s, c, random) => {
       const h = s / 8, len = s / 2
@@ -539,7 +540,7 @@ export const FLOOR_STYLES: FinishStyle[] = [
     },
   },
   {
-    id: 'chevron', name: 'Point de Hongrie', size: 0.6,
+    id: 'chevron', name: tr('Point de Hongrie', 'Chevron parquet'), size: 0.6,
     palette: ['#c49a6c', '#b08556', '#d8c2a0', '#8a5a3a', '#6b4630', '#e6ddd0'],
     draw: (g, s, c, random) => {
       const w = s / 4, h = s / 8
@@ -570,7 +571,7 @@ export const FLOOR_STYLES: FinishStyle[] = [
     },
   },
   {
-    id: 'carpet', name: 'Moquette', size: 0.5,
+    id: 'carpet', name: tr('Moquette', 'Carpet'), size: 0.5,
     palette: ['#6f7f95', '#8a4a4a', '#4a6a5a', '#b8a88a', '#3a3e46', '#d98b8b', '#5a3a8a', '#d9a441'],
     draw: (g, s, c, random) => {
       g.fillStyle = c.hex
@@ -589,7 +590,7 @@ export const FLOOR_STYLES: FinishStyle[] = [
     },
   },
   {
-    id: 'tiles', name: 'Carrelage', size: 0.8,
+    id: 'tiles', name: tr('Carrelage', 'Tiles'), size: 0.8,
     palette: ['#e8e4dc', '#efe3cf', '#9fb59a', '#6fa8b8', '#c07048', '#9a9a96', '#2a2a2e'],
     draw: (g, s, c, random) => {
       g.fillStyle = c.dark ? c.shade(0.12) : c.mix('#8a8680', 0.45)
@@ -608,7 +609,7 @@ export const FLOOR_STYLES: FinishStyle[] = [
     },
   },
   {
-    id: 'checker', name: 'Damier', size: 0.8,
+    id: 'checker', name: tr('Damier', 'Chequerboard'), size: 0.8,
     palette: ['#1f1f24', '#34507a', '#7a2e3a', '#2f6b4f', '#c07048', '#6e4a6e'],
     draw: (g, s, c, random) => {
       const light = c.dark ? c.mix('#f2eee6', 0.9) : c.shade(0.3)
@@ -623,7 +624,7 @@ export const FLOOR_STYLES: FinishStyle[] = [
     },
   },
   {
-    id: 'marble', name: 'Marbre', size: 1.2,
+    id: 'marble', name: tr('Marbre', 'Marble'), size: 1.2,
     palette: ['#ece8e2', '#2a2a2e', '#d9c7b0', '#9fb59a', '#c9a0a0'],
     draw: (g, s, c, random) => {
       g.fillStyle = c.hex
@@ -688,7 +689,7 @@ export const FLOOR_STYLES: FinishStyle[] = [
     },
   },
   {
-    id: 'hextiles', name: 'Tomettes', size: 0.5,
+    id: 'hextiles', name: tr('Tomettes', 'Hexagonal tiles'), size: 0.5,
     palette: ['#b8653f', '#c9884f', '#8a4a32', '#e6ddd0', '#6e6e6c'],
     draw: (g, s, c, random) => {
       g.fillStyle = c.dark ? c.shade(0.14) : c.mix('#d8d2c4', 0.6)
@@ -703,7 +704,7 @@ export const FLOOR_STYLES: FinishStyle[] = [
     },
   },
   {
-    id: 'plate', name: 'Tôle larmée', size: 0.4,
+    id: 'plate', name: tr('Tôle larmée', 'Tread plate'), size: 0.4,
     palette: ['#9aa2ae', '#6e7480', '#c9a24a', '#4a505c', '#8a5a3a'],
     draw: (g, s, c, random) => {
       g.fillStyle = c.hex
@@ -736,7 +737,7 @@ export const FLOOR_STYLES: FinishStyle[] = [
     },
   },
   {
-    id: 'concrete', name: 'Béton ciré', size: 1.2,
+    id: 'concrete', name: tr('Béton ciré', 'Polished concrete'), size: 1.2,
     palette: ['#a8a6a0', '#c8c6c0', '#7a7a78', '#4a4a4c', '#c4b8a4'],
     draw: (g, s, c, random) => {
       g.fillStyle = c.hex
@@ -759,7 +760,7 @@ export const FLOOR_STYLES: FinishStyle[] = [
     },
   },
   {
-    id: 'tatami', name: 'Tatamis', size: 1,
+    id: 'tatami', name: tr('Tatamis', 'Tatami'), size: 1,
     palette: ['#c9c08a', '#a8b07a', '#d9cfa0', '#b89a6a'],
     draw: (g, s, c, random) => {
       g.fillStyle = c.hex

@@ -1,3 +1,4 @@
+import { tr } from '../i18n'
 import { icon } from '../icons'
 import { $, nameTag } from '../ui'
 
@@ -41,17 +42,17 @@ export class CabinBar {
       return b
     }
     if (state.kind === 'visit') {
-      title.append(icon('door-open'), document.createTextNode(`Quartiers de ${state.host}`))
-      actions.append(button('Rentrer chez moi', 'sign-out', () => this.onLeave?.()))
+      title.append(icon('door-open'), document.createTextNode(tr(`Quartiers de ${state.host}`, `${state.host}'s quarters`)))
+      actions.append(button(tr('Rentrer chez moi', 'Go home'), 'sign-out', () => this.onLeave?.()))
     } else if (state.canEdit) {
-      title.append(icon('bed'), document.createTextNode('Vos quartiers'))
-      actions.append(button('Aménager', 'paint-brush', () => this.onEdit?.(), 'B'))
-      if (state.canInvite) actions.append(button('Inviter', 'user-plus', () => this.onInvite?.()))
+      title.append(icon('bed'), document.createTextNode(tr('Vos quartiers', 'Your quarters')))
+      actions.append(button(tr('Aménager', 'Decorate'), 'paint-brush', () => this.onEdit?.(), 'B'))
+      if (state.canInvite) actions.append(button(tr('Inviter', 'Invite'), 'user-plus', () => this.onInvite?.()))
     } else {
-      title.append(icon('bed'), document.createTextNode('Vos quartiers'))
+      title.append(icon('bed'), document.createTextNode(tr('Vos quartiers', 'Your quarters')))
       const a = document.createElement('a')
       a.href = state.loginUrl ?? '/'
-      a.textContent = 'Connectez-vous au site pour les aménager'
+      a.textContent = tr('Connectez-vous au site pour les aménager', 'Log in to the site to decorate them')
       actions.append(a)
     }
     this.el.append(title, actions)
@@ -121,14 +122,18 @@ export class InviteMenu {
       b.onclick = onClick
       return b
     }
-    section('Dans vos quartiers', crew.filter((c) => c.state === 'visiting'), (c) => button('Raccompagner', 'sign-out', () => this.onKick?.(c.id)))
-    section('Inviter dans vos quartiers', crew.filter((c) => c.state !== 'visiting'), (c) =>
-      c.state === 'invited' ? button('Invité', 'check', () => {}, true) : button('Inviter', 'envelope-simple', () => this.onInvite?.(c.id)),
+    section(tr('Dans vos quartiers', 'In your quarters'), crew.filter((c) => c.state === 'visiting'), (c) =>
+      button(tr('Raccompagner', 'Show out'), 'sign-out', () => this.onKick?.(c.id)),
+    )
+    section(tr('Inviter dans vos quartiers', 'Invite to your quarters'), crew.filter((c) => c.state !== 'visiting'), (c) =>
+      c.state === 'invited'
+        ? button(tr('Invité', 'Invited'), 'check', () => {}, true)
+        : button(tr('Inviter', 'Invite'), 'envelope-simple', () => this.onInvite?.(c.id)),
     )
     if (!crew.length) {
       const empty = document.createElement('div')
       empty.className = 'im-empty'
-      empty.textContent = 'Personne d\'autre à bord pour l\'instant.'
+      empty.textContent = tr('Personne d\'autre à bord pour l\'instant.', 'Nobody else aboard for now.')
       this.el.appendChild(empty)
     }
   }
@@ -149,18 +154,18 @@ export class InviteToasts {
     text.className = 'it-text'
     const who = document.createElement('strong')
     who.append(nameTag(name, verified))
-    text.append(icon('envelope-simple', 'it-icon'), who, document.createTextNode(' vous invite dans ses quartiers.'))
+    text.append(icon('envelope-simple', 'it-icon'), who, document.createTextNode(tr(' vous invite dans ses quartiers.', ' invites you to their quarters.')))
     const actions = document.createElement('div')
     actions.className = 'it-actions'
     const join = document.createElement('button')
     join.className = 'it-join'
-    join.append(icon('door-open'), document.createTextNode('Rejoindre'))
+    join.append(icon('door-open'), document.createTextNode(tr('Rejoindre', 'Join')))
     join.onclick = () => {
       this.remove(id)
       this.onAccept?.(id, name)
     }
     const no = document.createElement('button')
-    no.textContent = 'Non merci'
+    no.textContent = tr('Non merci', 'No thanks')
     no.onclick = () => {
       this.remove(id)
       this.onDecline?.(id)

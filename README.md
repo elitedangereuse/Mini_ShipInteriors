@@ -28,6 +28,7 @@
 - [Mobilier fait main](#mobilier-fait-main)
 - [Lancer en local](#lancer-en-local)
 - [Commandes](#commandes)
+- [Langues](#langues)
 - [Comptes Élite Dangereuse](#comptes-élite-dangereuse)
 - [Sons](#sons)
 - [Choix techniques](#choix-techniques)
@@ -212,7 +213,7 @@ Une page de debug, `/gallery.html`, affiche chaque modèle du kit avec son nom e
 | Changer de pont | interagir avec l'ascenseur (la plateforme cyan surmontée d'un panneau ▲▼, dans la coursive ou sur le palier), puis `↑` `↓` pour choisir l'étage et `Entrée` pour y aller, ou un clic ; `E`, `Échap` ou un clic en dehors pour fermer |
 | Emotes | `1`…`7` ou la barre en bas : salut, oui, non, joie, danse, assis, dodo |
 | Chat | `Entrée`, puis `Entrée` pour envoyer, `Échap` pour annuler |
-| Commandes du chat | `/nom CMDR Pseudo` (invités), `/perso` (apparence au hasard), `/inviter CMDR Nom`, `/danse`…, `/aide` |
+| Commandes du chat | `/nom CMDR Pseudo` (invités), `/perso` (apparence au hasard), `/inviter CMDR Nom`, `/danse`…, `/aide` ; en anglais, `/name`, `/random`, `/invite`, `/dance`…, `/help` |
 | Changer d'apparence | le **Holo-Me** des quartiers du commandant (pont supérieur) |
 | Aménager ses quartiers | `B`, ou « Aménager » dans la barre des quartiers (CMDR connectés au site, cf. [Quartiers personnalisables](#quartiers-personnalisables)) |
 | Inviter dans ses quartiers | « Inviter » dans la barre des quartiers, ou `/inviter CMDR Nom` ; rejoindre ou décliner une invitation reçue en haut à gauche |
@@ -220,6 +221,14 @@ Une page de debug, `/gallery.html`, affiche chaque modèle du kit avec son nom e
 | Caméra libre | maintenir le **clic droit** ou le **clic molette** et glisser : horizontalement on tourne autour du personnage, verticalement on incline la vue (de rasante à presque de dessus) ; avec `Maj`, on fait glisser la vue, qui revient sur le personnage dès qu'il bouge |
 | Zoom | molette, ou les boutons loupe |
 | Son | `M` ou le bouton haut-parleur, curseur de volume (le son démarre au premier clic ou à la première touche, contrainte des navigateurs) |
+
+## Langues
+
+Le jeu parle la langue du site : français si elitedangereuse.fr est en français, anglais dans toutes ses autres langues (il n'est traduit qu'en anglais). Le script de tête d'`index.html` lit la langue comme le fait le site (`?lang=`, sinon son cookie `LANG`, sinon le français) et la pose sur `<html lang>` avant le premier rendu : l'écran de démarrage s'affiche directement dans la bonne langue. Pour essayer l'anglais : `?lang=en_US` dans l'adresse.
+
+- Dans le code, chaque texte visible s'écrit `tr('Texte français', 'English text')` (`src/i18n.ts`), y compris ceux dessinés dans les textures (affiches, bornes d'arcade, panneaux holo). La langue ne change pas en cours de partie : `tr()` s'emploie aussi dans les tables du catalogue et des ponts.
+- Dans `index.html`, un texte existe en deux exemplaires, `<span lang="fr">…</span><span lang="en">…</span>`, et `style.css` masque celui de l'autre langue ; les infobulles anglaises sont dans `data-en-title`, `data-en-aria-label` et `data-en-placeholder`.
+- Les identifiants (objets du catalogue, variantes, emotes, messages du relais) ne se traduisent pas : un aménagement enregistré est le même dans les deux langues, et deux joueurs de langues différentes se voient danser. Les commandes du chat marchent dans les deux langues, quelle que soit celle du jeu.
 
 ## Comptes Élite Dangereuse
 
@@ -310,6 +319,7 @@ Les bips, les mélodies d'arcade, les étincelles, le miaulement et le ronronnem
 | `src/net.ts` · `server/` | Client et relais multijoueur (socket.io), reconnaissance du CMDR par le site (`server/cmdr.js`), aménagements des quartiers (`server/cabin.js`), serveur de production, tests (`server/relay.test.js`). |
 | `src/cmdr.ts` | Identité : CMDR connecté au site, noms d'invités tirés de la SF. |
 | `src/ui.ts` | Bulles au-dessus des têtes, chat, panneaux d'ascenseur et du Holo-Me, dialogues. |
+| `src/i18n.ts` | Langue du jeu (celle du site) et `tr()`, cf. [Langues](#langues). |
 | `src/pathfinding.ts` · `src/physics.ts` | A* 8 directions, dont chaque passage entre deux tuiles est validé contre les meubles (plus de chemin à travers une chaise) ; collisions cercle contre rectangles. |
 | `src/camera.ts` · `src/starfield.ts` | Caméra isométrique et caméra libre (rotation, inclinaison, glissement) ; étoiles (shader). |
 | `src/main.ts` | Assemblage, entrées, boucle de jeu. |
@@ -333,6 +343,7 @@ Les icônes de l'interface viennent de [Phosphor Icons](https://phosphoricons.co
 - Le relais ne fait pas autorité (pas de validation des déplacements), et Comète est simulé séparément sur chaque client (chacun voit « son » chat, qui le suit aussi en visite).
 - Deux onglets d'un même CMDR aménagent les mêmes quartiers : le dernier enregistrement l'emporte, et l'autre onglet ne voit le changement qu'au rechargement.
 - Une visite ne survit pas à une reconnexion au relais : le visiteur rentre chez lui.
+- Le suffixe « (invité) » que le relais ajoute au nom d'un invité homonyme d'un CMDR présent reste en français, dans les deux langues.
 - Les sons sont en Ogg Vorbis : c'est parfait sur Chrome et Firefox, mais un ancien Safari peut rester muet. Une conversion en `.m4a` réglerait ça.
 - Pistes : pseudo et choix du personnage dans un écran d'accueil, PNJ d'équipage avec routines, escaliers du kit en plus de l'ascenseur, plans édités dans [Tiled](https://www.mapeditor.org/), s'asseoir sur les canapés et fauteuils des quartiers, objets gagnés en jeu à ajouter au catalogue.
 

@@ -3,6 +3,7 @@ import { station, themes, type StationModel, type ThemeMaterials } from './asset
 import { CabinView } from './cabin/view'
 import { makeFadeable } from './fade'
 import { beamMaterial, buildFurniture, isCustomModel, tickFurniture, type Emitter } from './furniture'
+import { tr } from './i18n'
 import { LEVEL_HEIGHT, LIFT, type Flicker, type LevelDef } from './levels'
 import { DIRS, ShipMap } from './map'
 import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type Occluder } from './merge'
@@ -107,6 +108,7 @@ export class Deck {
   private liftHalo!: THREE.Mesh
   private liftRings: THREE.Mesh[] = []
   private liftSign!: THREE.Sprite
+  private liftItem!: Interactable
   private liftBoost = 0
   /** Animations du mobilier (hologrammes, drones…). */
   private animated: ((t: number) => void)[] = []
@@ -396,7 +398,8 @@ export class Deck {
       else this.addStatic(o, true)
 
       if (p.interact) {
-        this.interactables.push({ object: this.pickVolume(box), position: center.clone().setY(0), label: p.action ?? 'Examiner', text: p.interact })
+        const label = p.action ?? tr('Examiner', 'Examine')
+        this.interactables.push({ object: this.pickVolume(box), position: center.clone().setY(0), label, text: p.interact })
       }
       // Les consoles du poste de pilotage bipent.
       if (this.def.id === 0 && this.map.room(Math.round(p.x), Math.round(p.z)) === 'b' && p.model.startsWith('computer')) {
@@ -444,7 +447,8 @@ export class Deck {
     this.liftSign.scale.setScalar(0.46)
     this.liftSign.position.set(x, 1.55, z)
     this.group.add(base, ring, this.liftHalo, this.liftBeam, ...this.liftRings, this.liftSign)
-    this.interactables.push({ object: base, position: new THREE.Vector3(x, 0, z), label: 'Ascenseur' })
+    this.liftItem = { object: base, position: new THREE.Vector3(x, 0, z), label: tr('Ascenseur', 'Lift') }
+    this.interactables.push(this.liftItem)
   }
 
   /** Signale un trajet d'ascenseur (le faisceau s'intensifie). */
@@ -453,7 +457,7 @@ export class Deck {
   }
 
   get liftInteractable(): Interactable {
-    return this.interactables.find((i) => i.label === 'Ascenseur')!
+    return this.liftItem
   }
 
   /** Cœur du réacteur (salle des machines) et tuyères à l'arrière du vaisseau. */
@@ -483,8 +487,11 @@ export class Deck {
     this.interactables.push({
       object: this.core,
       position: new THREE.Vector3(cx, 0, cz),
-      label: 'Examiner',
-      text: 'Centrale électrique 5A : 98 % de sa capacité. Un bourdonnement grave fait vibrer le plancher.',
+      label: tr('Examiner', 'Examine'),
+      text: tr(
+        'Centrale électrique 5A : 98 % de sa capacité. Un bourdonnement grave fait vibrer le plancher.',
+        '5A power plant: running at 98% capacity. A deep hum makes the floor vibrate.',
+      ),
     })
     this.engineEmitters.push(new THREE.Vector3(cx, this.y + 0.8, cz))
 

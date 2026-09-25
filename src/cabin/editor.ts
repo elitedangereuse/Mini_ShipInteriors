@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import type { Sound } from '../audio'
 import type { IsoCamera } from '../camera'
+import { EN, tr } from '../i18n'
 import { icon } from '../icons'
 import type { Rot } from '../levels'
 import { DIRS } from '../map'
@@ -67,6 +68,8 @@ interface Held {
 const ORIGIN = 'origin'
 /** Vignettes des revêtements (px) : un pan de mur de 1 m de haut, ou 0,8 m de sol. */
 const THUMB = 128
+
+const RESET = tr('Réinitialiser', 'Reset')
 
 const snap = (v: number, step = SNAP) => Math.round(Math.round(v / step) * step * 1000) / 1000
 const round3 = (v: number) => Math.round(v * 1000) / 1000
@@ -157,7 +160,7 @@ export class CabinEditor {
     bar.className = 'panel ed-bar'
     const title = document.createElement('div')
     title.className = 'ed-title'
-    title.textContent = 'Aménagement des quartiers'
+    title.textContent = tr('Aménagement des quartiers', 'Decorating your quarters')
     this.countEl = document.createElement('div')
     this.countEl.className = 'ed-count'
     this.saveEl = document.createElement('div')
@@ -170,14 +173,14 @@ export class CabinEditor {
       b.onclick = onClick
       return b
     }
-    this.undoBtn = button('Annuler', 'arrow-u-up-left', () => this.undo())
-    this.undoBtn.title = 'Annuler (Ctrl+Z)'
-    this.redoBtn = button('Rétablir', 'arrow-u-up-right', () => this.redo())
-    this.redoBtn.title = 'Rétablir (Ctrl+Y)'
-    this.resetBtn = button('Réinitialiser', 'broom', () => this.reset())
-    this.resetBtn.title = 'Réinitialiser : revenir aux quartiers d\'origine'
-    const done = button('Terminer', 'check', () => this.host.onClose(), 'ed-done')
-    done.title = 'Terminer (Échap)'
+    this.undoBtn = button(tr('Annuler', 'Undo'), 'arrow-u-up-left', () => this.undo())
+    this.undoBtn.title = tr('Annuler (Ctrl+Z)', 'Undo (Ctrl+Z)')
+    this.redoBtn = button(tr('Rétablir', 'Redo'), 'arrow-u-up-right', () => this.redo())
+    this.redoBtn.title = tr('Rétablir (Ctrl+Y)', 'Redo (Ctrl+Y)')
+    this.resetBtn = button(RESET, 'broom', () => this.reset())
+    this.resetBtn.title = tr('Réinitialiser : revenir aux quartiers d\'origine', 'Reset: back to the original quarters')
+    const done = button(tr('Terminer', 'Done'), 'check', () => this.host.onClose(), 'ed-done')
+    done.title = tr('Terminer (Échap)', 'Done (Esc)')
     const info = document.createElement('div')
     info.className = 'ed-info'
     info.append(title, this.countEl, this.saveEl)
@@ -191,7 +194,7 @@ export class CabinEditor {
     catalog.className = 'panel ed-catalog'
     this.modes = document.createElement('div')
     this.modes.className = 'ed-modes'
-    for (const [mode, label, glyph] of [['objects', 'Mobilier', 'couch'], ['finish', 'Murs et sol', 'paint-roller']] as const) {
+    for (const [mode, label, glyph] of [['objects', tr('Mobilier', 'Furniture'), 'couch'], ['finish', tr('Murs et sol', 'Walls and floor'), 'paint-roller']] as const) {
       const b = document.createElement('button')
       b.dataset.mode = mode
       b.append(icon(glyph), document.createTextNode(label))
@@ -319,7 +322,12 @@ export class CabinEditor {
   /** Enregistrement de l'aménagement : en cours, fait, ou en échec. */
   setSaveState(state: 'saving' | 'saved' | 'error' | 'local') {
     this.saveEl.replaceChildren()
-    const text = { saving: 'Enregistrement…', saved: 'Enregistré', error: 'Non enregistré : site injoignable', local: 'Enregistré sur cet appareil' }[state]
+    const text = {
+      saving: tr('Enregistrement…', 'Saving…'),
+      saved: tr('Enregistré', 'Saved'),
+      error: tr('Non enregistré : site injoignable', 'Not saved: site unreachable'),
+      local: tr('Enregistré sur cet appareil', 'Saved on this device'),
+    }[state]
     this.saveEl.className = `ed-save ${state}`
     this.saveEl.append(icon(state === 'error' ? 'cloud-slash' : 'cloud-check'), document.createTextNode(text))
   }
@@ -353,7 +361,7 @@ export class CabinEditor {
     for (const entry of CATALOG.filter((e) => e.category === id)) {
       const card = document.createElement('button')
       card.className = 'ed-card'
-      card.title = `${entry.name}${entry.mount === 'wall' ? ' (à accrocher)' : entry.mount === 'top' ? ' (se pose sur un meuble)' : ''}`
+      card.title = `${entry.name}${entry.mount === 'wall' ? tr(' (à accrocher)', ' (hangs on a wall)') : entry.mount === 'top' ? tr(' (se pose sur un meuble)', ' (goes on furniture)') : ''}`
       const img = document.createElement('img')
       img.alt = ''
       img.draggable = false
@@ -380,7 +388,7 @@ export class CabinEditor {
 
   private startPlacing(entry: CatalogEntry) {
     this.cancelHeld()
-    if (this.items.length >= MAX_ITEMS) return this.refuse(`Cabine pleine : ${MAX_ITEMS} objets au plus`)
+    if (this.items.length >= MAX_ITEMS) return this.refuse(tr(`Cabine pleine : ${MAX_ITEMS} objets au plus`, `Quarters full: ${MAX_ITEMS} items at most`))
     const item: CabinItem = { m: entry.id, x: this.view.center.x, z: this.view.center.z, r: 0, s: Math.floor(Math.random() * 100000) }
     if (entry.variants) item.v = entry.variants[0].id
     const ghost = this.view.makeGhost(item)
@@ -402,14 +410,14 @@ export class CabinEditor {
     this.setMode('finish')
     this.cards.replaceChildren()
     this.finishEls = {}
-    for (const [slot, title] of [['wall', 'Murs'], ['floor', 'Sol']] as const) {
+    for (const [slot, title] of [['wall', tr('Murs', 'Walls')], ['floor', tr('Sol', 'Floor')]] as const) {
       const h = document.createElement('div')
       h.className = 'ed-cat-title'
       h.textContent = title
       const grid = document.createElement('div')
       grid.className = 'ed-finishes'
       const cards = new Map<string, HTMLButtonElement>()
-      const styles = [{ id: ORIGIN, name: 'D\'origine' }, ...stylesOf(slot)]
+      const styles = [{ id: ORIGIN, name: tr('D\'origine', 'Original') }, ...stylesOf(slot)]
       for (const style of styles) {
         const b = document.createElement('button')
         b.className = 'ed-finish'
@@ -469,7 +477,7 @@ export class CabinEditor {
       b.className = 'ed-swatch'
       b.dataset.color = color
       b.title = color
-      b.setAttribute('aria-label', `Teinte ${color}`)
+      b.setAttribute('aria-label', tr(`Teinte ${color}`, `Colour ${color}`))
       b.style.setProperty('--swatch', color)
       b.onclick = () => {
         const current = this[slot]
@@ -479,7 +487,7 @@ export class CabinEditor {
     }
     const custom = document.createElement('label')
     custom.className = 'ed-swatch custom'
-    custom.title = 'Autre teinte'
+    custom.title = tr('Autre teinte', 'Custom colour')
     const input = document.createElement('input')
     input.type = 'color'
     input.value = finish.color
@@ -837,9 +845,12 @@ export class CabinEditor {
       return b
     }
     if (entry.mount !== 'wall') {
-      row.append(tool('Tourner à gauche (Maj+R)', 'arrow-counter-clockwise', () => this.rotate(-1)), tool('Tourner à droite (R)', 'arrow-clockwise', () => this.rotate(1)))
+      row.append(
+        tool(tr('Tourner à gauche (Maj+R)', 'Rotate left (Shift+R)'), 'arrow-counter-clockwise', () => this.rotate(-1)),
+        tool(tr('Tourner à droite (R)', 'Rotate right (R)'), 'arrow-clockwise', () => this.rotate(1)),
+      )
     }
-    if (!entry.fixed) row.append(tool('Retirer (Suppr)', 'trash', () => this.remove(), 'ed-remove'))
+    if (!entry.fixed) row.append(tool(tr('Retirer (Suppr)', 'Remove (Del)'), 'trash', () => this.remove(), 'ed-remove'))
     this.tools.append(name)
     if (row.children.length) this.tools.append(row)
     if (entry.variants) {
@@ -892,7 +903,8 @@ export class CabinEditor {
     // Tourné contre un mur, un meuble allongé en sortirait : il glisse d'autant vers l'intérieur.
     if (entry.mount !== 'top' || !(item.y ?? 0)) this.keepInside(probe, this.view.bounds)
     const why = this.check(probe)
-    if (why) return this.refuse(`Pas la place de le tourner : ${why.charAt(0).toLowerCase()}${why.slice(1)}`)
+    const reason = why && why.charAt(0).toLowerCase() + why.slice(1)
+    if (why) return this.refuse(tr(`Pas la place de le tourner : ${reason}`, `No room to rotate it: ${reason}`))
     this.commit(this.candidate(probe).items, i)
     this.host.sound.ui('rotate')
   }
@@ -915,12 +927,12 @@ export class CabinEditor {
     const item = this.items[i]
     const entry = item && entryOf(item.m)
     if (!entry) return
-    if (entry.fixed) return this.refuse('Le Holo-Me ne se range pas : déplacez-le plutôt')
+    if (entry.fixed) return this.refuse(tr('Le Holo-Me ne se range pas : déplacez-le plutôt', 'The Holo-Me can\'t be put away: move it instead'))
     // Ce qui était posé dessus part avec lui (Ctrl+Z pour tout récupérer).
     const gone = new Set([i, ...ridersOf(this.view, this.items, i)])
     this.commit(this.items.filter((_, j) => !gone.has(j)), -1)
     this.host.sound.ui('drop')
-    if (gone.size > 1) this.toast(`${entry.name} retiré, avec ce qui était posé dessus (Ctrl+Z pour annuler)`)
+    if (gone.size > 1) this.toast(tr(`${entry.name} retiré, avec ce qui était posé dessus (Ctrl+Z pour annuler)`, `${entry.name} removed, along with what was on it (Ctrl+Z to undo)`))
   }
 
   /** Ajuste l'objet choisi au clavier, par petits pas (le long des axes de l'écran). */
@@ -1013,23 +1025,23 @@ export class CabinEditor {
     if (performance.now() - this.confirmReset > 3000) {
       this.confirmReset = performance.now()
       this.resetBtn.classList.add('confirm')
-      this.resetBtn.lastChild!.textContent = 'Confirmer ?'
+      this.resetBtn.lastChild!.textContent = tr('Confirmer ?', 'Confirm?')
       setTimeout(() => this.renderBar(), 3000)
       return
     }
     this.confirmReset = 0
     this.cancelHeld()
     this.commitLayout(defaultLayout(), -1)
-    this.toast('Quartiers remis comme au premier jour (Ctrl+Z pour annuler)')
+    this.toast(tr('Quartiers remis comme au premier jour (Ctrl+Z pour annuler)', 'Quarters back the way they were on day one (Ctrl+Z to undo)'))
   }
 
   private renderBar() {
-    this.countEl.textContent = `${this.items.length} / ${MAX_ITEMS} objets`
+    this.countEl.textContent = tr(`${this.items.length} / ${MAX_ITEMS} objets`, `${this.items.length} / ${MAX_ITEMS} items`)
     this.undoBtn.disabled = !this.past.length
     this.redoBtn.disabled = !this.future.length
     if (performance.now() - this.confirmReset > 3000) {
       this.resetBtn.classList.remove('confirm')
-      this.resetBtn.lastChild!.textContent = 'Réinitialiser'
+      this.resetBtn.lastChild!.textContent = RESET
     }
   }
 
@@ -1099,9 +1111,15 @@ export class CabinEditor {
     this.keysEl.replaceChildren()
     const parts: [string, string][] = this.held
       ? this.held.index < 0
-        ? [['Clic', 'poser'], ['Maj+clic', 'en poser plusieurs'], ['R', 'tourner'], ['Échap', 'annuler']]
-        : [['Relâcher', 'poser'], ['R', 'tourner'], ['Échap', 'annuler']]
-      : [['Clic', 'choisir'], ['Glisser', 'déplacer'], ['R', 'tourner'], ['Flèches', 'ajuster'], ['Suppr', 'retirer'], ['Ctrl+Z', 'annuler'], ['Échap', 'terminer']]
+        ? EN
+          ? [['Click', 'place'], ['Shift+click', 'place several'], ['R', 'rotate'], ['Esc', 'cancel']]
+          : [['Clic', 'poser'], ['Maj+clic', 'en poser plusieurs'], ['R', 'tourner'], ['Échap', 'annuler']]
+        : EN
+          ? [['Release', 'place'], ['R', 'rotate'], ['Esc', 'cancel']]
+          : [['Relâcher', 'poser'], ['R', 'tourner'], ['Échap', 'annuler']]
+      : EN
+        ? [['Click', 'select'], ['Drag', 'move'], ['R', 'rotate'], ['Arrows', 'nudge'], ['Del', 'remove'], ['Ctrl+Z', 'undo'], ['Esc', 'done']]
+        : [['Clic', 'choisir'], ['Glisser', 'déplacer'], ['R', 'tourner'], ['Flèches', 'ajuster'], ['Suppr', 'retirer'], ['Ctrl+Z', 'annuler'], ['Échap', 'terminer']]
     parts.forEach(([key, what], i) => {
       if (i) this.keysEl.append(' · ')
       const k = document.createElement('kbd')

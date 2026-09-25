@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { station, type StationModel } from '../assets'
 import type { Box2, Deck, Interactable, WallSegment } from '../deck'
 import { buildFurniture, disposeFurniture, isCustomModel, keepShared, type CustomModel, type Emitter } from '../furniture'
+import { tr } from '../i18n'
 import type { Rot } from '../levels'
 import { DIRS } from '../map'
 import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type FadeFocus, type Occluder } from '../merge'
@@ -548,7 +549,7 @@ export class CabinView {
       if (apart) return
       const text = interactText(b.entry, item.v)
       if (b.entry.fixed || text || b.entry.emote) {
-        const it: Interactable = { object: b.pick, position: center.clone().setY(0), label: b.entry.action ?? 'Examiner', text }
+        const it: Interactable = { object: b.pick, position: center.clone().setY(0), label: b.entry.action ?? tr('Examiner', 'Examine'), text }
         const emote = b.entry.emote
         if (b.entry.fixed) {
           it.label = b.entry.name

@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { EN, tr } from './i18n'
 import { icon, type IconName } from './icons'
 import { raceOf, RACES, variantsOf, type Look } from './looks'
 
@@ -9,7 +10,7 @@ export function nameTag(name: string, verified?: boolean): DocumentFragment {
   const f = document.createDocumentFragment()
   if (verified) {
     const badge = icon('seal-check', 'verified-badge')
-    badge.setAttribute('aria-label', 'CMDR vérifié')
+    badge.setAttribute('aria-label', tr('CMDR vérifié', 'Verified CMDR'))
     badge.removeAttribute('aria-hidden')
     f.append(badge)
   }
@@ -278,7 +279,7 @@ export function fadeScreen(on: boolean): Promise<void> {
 // --------------------------------------------------------------- démarrage
 
 /** Systèmes mis sous tension l'un après l'autre pendant le chargement des modèles. */
-const BOOT_STEPS = ['Réacteur à fusion', "Distributeur d'énergie", 'Support vital', 'Systèmes de bord']
+const BOOT_STEPS = EN ? ['Power plant', 'Power distributor', 'Life support', 'Ship systems'] : ['Réacteur à fusion', "Distributeur d'énergie", 'Support vital', 'Systèmes de bord']
 /** Circonférence de la jauge (rayon 57, cf. index.html). */
 const BOOT_ARC = 358.14
 
@@ -295,7 +296,7 @@ export function bootProgress(ratio: number, step = BOOT_STEPS[Math.min(BOOT_STEP
 
 /** Vaisseau prêt : le saut, puis l'écran quitte la page (ses animations ne tournent plus). */
 export function bootDone() {
-  bootProgress(1, 'Systèmes en ligne')
+  bootProgress(1, tr('Systèmes en ligne', 'Systems online'))
   const root = $('loading')
   root.classList.add('done')
   setTimeout(() => root.remove(), 1300)
@@ -374,15 +375,15 @@ export class WardrobePanel {
 
     const title = document.createElement('div')
     title.className = 'lift-title'
-    title.textContent = 'Holo-Me · garde-robe'
+    title.textContent = tr('Holo-Me · garde-robe', 'Holo-Me · wardrobe')
     const rows: HTMLElement[] = [title]
-    rows.push(row('Espèce', ...RACES.map((r) => button(r.label, r.id === race.id, () => this.set({ race: r.id }), '', r.icon))))
+    rows.push(row(tr('Espèce', 'Species'), ...RACES.map((r) => button(r.label, r.id === race.id, () => this.set({ race: r.id }), '', r.icon))))
     if (race.sexed) {
       rows.push(
         row(
-          'Sexe',
-          button('Femme', this.look.sex === 'female', () => this.set({ sex: 'female' }), '', 'gender-female'),
-          button('Homme', this.look.sex === 'male', () => this.set({ sex: 'male' }), '', 'gender-male'),
+          tr('Sexe', 'Sex'),
+          button(tr('Femme', 'Female'), this.look.sex === 'female', () => this.set({ sex: 'female' }), '', 'gender-female'),
+          button(tr('Homme', 'Male'), this.look.sex === 'male', () => this.set({ sex: 'male' }), '', 'gender-male'),
         ),
       )
     }
@@ -393,13 +394,13 @@ export class WardrobePanel {
     name.textContent = variant.label
     const prev = button('', false, () => this.cycle(-1), 'wr-arrow', 'caret-left')
     const next = button('', false, () => this.cycle(1), 'wr-arrow', 'caret-right')
-    prev.title = 'Modèle précédent'
-    next.title = 'Modèle suivant'
-    rows.push(row('Modèle', prev, name, next))
+    prev.title = tr('Modèle précédent', 'Previous model')
+    next.title = tr('Modèle suivant', 'Next model')
+    rows.push(row(tr('Modèle', 'Model'), prev, name, next))
     if (race.tints) {
       rows.push(
         row(
-          race.tintLabel ?? 'Teinte',
+          race.tintLabel ?? tr('Teinte', 'Colour'),
           ...race.tints.map((t) => {
             const b = button(t.label, t.id === this.look.tint, () => this.set({ tint: t.id }), 'wr-tint')
             b.style.setProperty('--swatch', t.swatch)
@@ -410,7 +411,7 @@ export class WardrobePanel {
     }
     const actions = document.createElement('div')
     actions.className = 'wr-actions'
-    actions.append(button('Annuler', false, () => this.close(false), 'wr-cancel'), button('Valider', false, () => this.close(true), 'wr-ok'))
+    actions.append(button(tr('Annuler', 'Cancel'), false, () => this.close(false), 'wr-cancel'), button(tr('Valider', 'Confirm'), false, () => this.close(true), 'wr-ok'))
     rows.push(actions)
     this.el.replaceChildren(...rows)
   }

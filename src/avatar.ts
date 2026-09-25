@@ -1,11 +1,15 @@
 import * as THREE from 'three'
 import type { Rig } from './assets'
+import { tr } from './i18n'
 import type { IconName } from './icons'
 
 export type Locomotion = 'idle' | 'walk' | 'sprint'
 
 export interface EmoteDef {
+  /** Identifiant envoyé aux autres joueurs, et commande du chat (/salut). */
   id: string
+  /** Commande anglaise du chat (/wave), acceptée aussi. */
+  en: string
   icon: IconName | ''
   label: string
   /** Animations jouées à la suite (en boucle pour mode 'loop'). */
@@ -16,17 +20,17 @@ export interface EmoteDef {
 }
 
 export const EMOTES: EmoteDef[] = [
-  { id: 'salut', icon: 'hand-waving', label: 'Salut', anims: ['interact-left'], mode: 'once', repeat: 2 },
-  { id: 'oui', icon: 'thumbs-up', label: 'Oui', anims: ['emote-yes'], mode: 'once', repeat: 2 },
-  { id: 'non', icon: 'thumbs-down', label: 'Non', anims: ['emote-no'], mode: 'once', repeat: 2 },
-  { id: 'joie', icon: 'confetti', label: 'Joie', anims: ['jump'], mode: 'once', repeat: 3 },
-  { id: 'danse', icon: 'disco-ball', label: 'Danse', anims: ['attack-kick-left', 'attack-kick-right'], mode: 'loop' },
-  { id: 'assis', icon: 'armchair', label: 'Assis', anims: ['sit'], mode: 'hold' },
-  { id: 'dodo', icon: 'moon-stars', label: 'Dodo', anims: ['die'], mode: 'hold' },
+  { id: 'salut', en: 'wave', icon: 'hand-waving', label: tr('Salut', 'Wave'), anims: ['interact-left'], mode: 'once', repeat: 2 },
+  { id: 'oui', en: 'yes', icon: 'thumbs-up', label: tr('Oui', 'Yes'), anims: ['emote-yes'], mode: 'once', repeat: 2 },
+  { id: 'non', en: 'no', icon: 'thumbs-down', label: tr('Non', 'No'), anims: ['emote-no'], mode: 'once', repeat: 2 },
+  { id: 'joie', en: 'cheer', icon: 'confetti', label: tr('Joie', 'Cheer'), anims: ['jump'], mode: 'once', repeat: 3 },
+  { id: 'danse', en: 'dance', icon: 'disco-ball', label: tr('Danse', 'Dance'), anims: ['attack-kick-left', 'attack-kick-right'], mode: 'loop' },
+  { id: 'assis', en: 'sit', icon: 'armchair', label: tr('Assis', 'Sit'), anims: ['sit'], mode: 'hold' },
+  { id: 'dodo', en: 'sleep', icon: 'moon-stars', label: tr('Dodo', 'Sleep'), anims: ['die'], mode: 'hold' },
 ]
 
 /** Emote interne (non proposée dans la barre) : utiliser une console. */
-const INTERACT: EmoteDef = { id: 'interact', icon: '', label: '', anims: ['interact-right'], mode: 'once' }
+const INTERACT: EmoteDef = { id: 'interact', en: 'interact', icon: '', label: '', anims: ['interact-right'], mode: 'once' }
 
 /** Animations de repli quand un pack ne fournit pas un clip (les Blocky Characters n'ont pas « jump »). */
 const FALLBACK: Record<string, string> = { jump: 'emote-yes', crouch: 'sit' }

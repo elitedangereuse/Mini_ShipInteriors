@@ -3,6 +3,7 @@ import {
   beamMaterial, box, compact, cylinder, ED_ORANGE, ellipseSegments, glass, glow, holoMaterial, instanced, lineMaterial, lit, mat, mesh,
   panelTexture, part, pointCloud, setInstance, type Builder,
 } from './kit'
+import { tr } from '../i18n'
 
 /*
  * Mobilier inspiré d'Elite Dangerous : poste de pilotage, cartes holographiques,
@@ -10,7 +11,7 @@ import {
  */
 
 /** Panneau holographique flottant (0,70 × 0,44), légèrement incliné vers l'arrière. Texte : « Titre|ligne|ligne ». */
-const holoPanel: Builder = ({ label = 'Systèmes|Nominal' }) => {
+const holoPanel: Builder = ({ label = tr('Systèmes|Nominal', 'Systems|Nominal') }) => {
   const live = new THREE.Group()
   const panel = part(new THREE.PlaneGeometry(0.7, 0.44), holoMaterial(panelTexture(label), ED_ORANGE, 0.9), 0, 0.86, 0)
   panel.rotation.x = -0.22

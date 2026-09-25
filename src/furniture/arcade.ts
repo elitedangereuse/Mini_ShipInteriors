@@ -5,6 +5,7 @@ import {
   animatedScreen, barX, barZ, box, compact, cylinder, drawnTexture, ED_ORANGE, glass, glow, instanced, keepShared, lit,
   mesh, part, rng, setInstance, sphere, type Builder,
 } from './kit'
+import { tr } from '../i18n'
 
 /*
  * Salon d'arcade : bornes droites, borne cocktail, flippers, borne de course et pince à
@@ -327,7 +328,7 @@ const drawComete: Draw = (c, t) => {
   if (k < pause && Math.floor(t * 4) % 2 === 0) {
     c.fillStyle = '#ffe14f'
     c.textAlign = 'center'
-    c.fillText('PRÊT !', W / 2, oy + 7 * cell + 5)
+    c.fillText(tr('PRÊT !', 'READY!'), W / 2, oy + 7 * cell + 5)
     c.textAlign = 'start'
   }
 }
@@ -653,9 +654,9 @@ const drawCargo: Draw = (c, t) => {
   // Tableau de bord : prochain conteneur, lignes, tonnage.
   c.font = '7px monospace'
   c.fillStyle = '#9aa0aa'
-  c.fillText('SUIV.', 2, 12)
-  c.fillText('LIGNES', 71, 12)
-  c.fillText('FRET', 71, 38)
+  c.fillText(tr('SUIV.', 'NEXT'), 2, 12)
+  c.fillText(tr('LIGNES', 'LINES'), 71, 12)
+  c.fillText(tr('FRET', 'LOAD'), 71, 38)
   const next = drops[i + 1]
   if (next) {
     c.fillStyle = FREIGHT[CARGO.colors[next.id]]
@@ -668,8 +669,8 @@ const drawCargo: Draw = (c, t) => {
   if (!drop && Math.floor(t * 3) % 2 === 0) {
     c.fillStyle = '#ffe14f'
     c.textAlign = 'center'
-    c.fillText(CARGO.full ? 'SOUTE' : 'CARGAISON', W / 2, 36)
-    c.fillText(CARGO.full ? 'PLEINE !' : 'LIVRÉE !', W / 2, 45)
+    c.fillText(CARGO.full ? tr('SOUTE', 'HOLD') : tr('CARGAISON', 'CARGO'), W / 2, 36)
+    c.fillText(CARGO.full ? tr('PLEINE !', 'FULL!') : tr('LIVRÉE !', 'DELIVERED!'), W / 2, 45)
     c.textAlign = 'start'
   }
 }
@@ -679,10 +680,10 @@ const drawCargo: Draw = (c, t) => {
 const GAMES: Record<string, { title: string; side: string; neon: string; draw: Draw }> = {
   elite: { title: 'ELITE', side: '#1f3f8a', neon: '#39e0ff', draw: drawElite },
   invaders: { title: 'THARGOID INVADERS', side: '#4a1f6a', neon: '#ff4fd8', draw: drawInvaders },
-  asteroids: { title: 'ASTÉROÏDES', side: '#7a1f1f', neon: '#ffe14f', draw: drawAsteroids },
-  comete: { title: 'LE LABYRINTHE DE COMÈTE', side: '#1d5f6b', neon: '#ff8ad8', draw: drawComete },
+  asteroids: { title: tr('ASTÉROÏDES', 'ASTEROIDS'), side: '#7a1f1f', neon: '#ffe14f', draw: drawAsteroids },
+  comete: { title: tr('LE LABYRINTHE DE COMÈTE', 'COMÈTE\'S MAZE'), side: '#1d5f6b', neon: '#ff8ad8', draw: drawComete },
   srv: { title: 'SRV RALLY', side: '#8a4512', neon: ED_ORANGE, draw: drawSrv },
-  cargo: { title: 'CARGAISON', side: '#46561f', neon: '#9dff5a', draw: drawCargo },
+  cargo: { title: tr('CARGAISON', 'CARGO'), side: '#46561f', neon: '#9dff5a', draw: drawCargo },
 }
 
 const marquees = new Map<string, THREE.MeshBasicMaterial>()
@@ -894,8 +895,8 @@ const PINBALLS: Record<string, PinballDef> = {
     },
   },
   guardians: {
-    title: 'GARDIENS', body: '#143a5c', trim: '#59d8ff', field: ['#061c2a', '#156482'], lamp: '#9ff4ff',
-    messages: ['RELIQUE', 'MULTIBILLE'],
+    title: tr('GARDIENS', 'GUARDIANS'), body: '#143a5c', trim: '#59d8ff', field: ['#061c2a', '#156482'], lamp: '#9ff4ff',
+    messages: [tr('RELIQUE', 'RELIC'), tr('MULTIBILLE', 'MULTIBALL')],
     art: (g, w, h, random) => {
       starDots(g, w, h * 0.7, random, 70)
       g.fillStyle = '#061a22'
@@ -936,7 +937,7 @@ const PINBALLS: Record<string, PinballDef> = {
   },
   lave: {
     title: 'LAVE STATION', body: '#7a1a12', trim: '#ff8a1c', field: ['#260a04', '#8a2c12'], lamp: '#ffc24f',
-    messages: ['AMARRAGE OK', 'JACKPOT'],
+    messages: [tr('AMARRAGE OK', 'DOCKING GRANTED'), 'JACKPOT'],
     art: (g, w, h, random) => {
       const sky = g.createLinearGradient(0, 0, 0, h)
       sky.addColorStop(0, '#12040a')
@@ -1629,7 +1630,7 @@ const clawMachine: Builder = ({ label, random }) => {
   for (const x of [-0.21, 0.21]) g.add(box(0.02, 0.02, 0.44, chrome, x, 0.845, 0))
   g.add(box(0.44, 0.006, 0.44, glow('#fff3e0'), 0, 0.857, 0), box(0.5, 0.06, 0.5, body, 0, 0.89, 0, 0.012))
   g.add(box(0.46, 0.1, 0.04, black, 0, 0.97, -0.02, 0.008))
-  g.add(mesh(new THREE.PlaneGeometry(0.44, 0.09), marquee('PINCE À COMÈTE', paint.neon, ['#1f0a1a', '#4a1440']), 0, 0.97, 0.0005))
+  g.add(mesh(new THREE.PlaneGeometry(0.44, 0.09), marquee(tr('PINCE À COMÈTE', 'COMÈTE CLAW'), paint.neon, ['#1f0a1a', '#4a1440']), 0, 0.97, 0.0005))
   // Le tas de peluches, sur deux couches, hors de la goulotte ; la Comète visée trône sur un Thargoïde.
   const [tx, tz] = [[0.08, -0.06], [0.09, 0.07], [-0.02, -0.1], [0.04, 0.0]][Math.floor(random() * 4)]
   const heap = new THREE.Group()

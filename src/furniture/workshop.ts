@@ -3,6 +3,7 @@ import {
   barX, barZ, box, cylinder, decal, drawnTexture, ED_ORANGE, glow, holoMaterial, instanced, lit, mat, mesh, panelTexture,
   part, setInstance, sphere, type Builder,
 } from './kit'
+import { tr } from '../i18n'
 
 /*
  * La cale : minage, bricolage, réparation. Du métal usé, de la rouille, du jaune de
@@ -176,7 +177,9 @@ const welder: Builder = ({ random }) => {
  * Établi d'ingénieur (les Ingénieurs d'Elite) : un module en cours de modification,
  * dont le cœur luit en violet, et un panneau holographique. Texte : « Titre|ligne|ligne ».
  */
-const engineerBench: Builder = ({ label = 'Farseer Inc.|FSD · grade 5|Portée augmentée|Effet : charge profonde' }) => {
+const engineerBench: Builder = ({
+  label = tr('Farseer Inc.|FSD · grade 5|Portée augmentée|Effet : charge profonde', 'Farseer Inc.|FSD · grade 5|Increased range|Effect: Deep Charge'),
+}) => {
   const g = new THREE.Group()
   for (const [x, z] of LEGS) g.add(box(0.06, 0.36, 0.06, lit(C.steelDark), x, 0.18, z))
   g.add(box(1.2, 0.06, 0.6, lit('#4b4f57'), 0, 0.39, 0), box(1.2, 0.025, 0.02, lit(C.hazard), 0, 0.41, 0.3))

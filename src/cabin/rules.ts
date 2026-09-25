@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { tr } from '../i18n'
 import { DIRS } from '../map'
 import { Pathfinder } from '../pathfinding'
 import { entryOf, isSolid, type CatalogEntry } from './catalog'
@@ -107,27 +108,27 @@ export function refusal(view: CabinView, items: CabinItem[], i: number, moving: 
   const item = items[i]
   const entry = entryOf(item.m)
   const box = view.boxOf(item)
-  if (!entry || !box) return 'Objet inconnu'
+  if (!entry || !box) return tr('Objet inconnu', 'Unknown item')
   const b = view.bounds
 
   if (entry.mount === 'wall') {
     const wall = view.wallOf(item)
-    if (!wall) return 'Accrochez-le à un mur'
+    if (!wall) return tr('Accrochez-le à un mur', 'Hang it on a wall')
     const alongX = DIRS[wall.dir].dz !== 0
     const a0 = alongX ? box.min.x : box.min.z, a1 = alongX ? box.max.x : box.max.z
-    if (!wall.spans.some(([u, v]) => a0 >= u - EPS && a1 <= v + EPS)) return 'Pas de place sur ce pan de mur (porte, hublot, pilier)'
-    if (box.max.y > 1 + EPS) return 'Trop haut pour ce mur'
+    if (!wall.spans.some(([u, v]) => a0 >= u - EPS && a1 <= v + EPS)) return tr('Pas de place sur ce pan de mur (porte, hublot, pilier)', 'No room on this stretch of wall (door, porthole, pillar)')
+    if (box.max.y > 1 + EPS) return tr('Trop haut pour ce mur', 'Too tall for this wall')
   } else {
-    if (box.min.x < b.minX - EPS || box.max.x > b.maxX + EPS || box.min.z < b.minZ - EPS || box.max.z > b.maxZ + EPS) return 'Hors des quartiers'
-    if (view.posts.some((p) => overlapXZ(box, p))) return 'Pas de place contre ce poteau'
+    if (box.min.x < b.minX - EPS || box.max.x > b.maxX + EPS || box.min.z < b.minZ - EPS || box.max.z > b.maxZ + EPS) return tr('Hors des quartiers', 'Outside the quarters')
+    if (view.posts.some((p) => overlapXZ(box, p))) return tr('Pas de place contre ce poteau', 'No room against this post')
   }
 
   const surfaces = surfacesOf(view, items)
   const base = baseOf(view, items, i, surfaces)
   if (entry.mount === 'top' && (item.y ?? 0) > 0) {
     const s = surfaces.find((s) => s.index === base)
-    if (!s) return 'Posez-le sur un meuble, ou au sol'
-    if (box.min.x < s.minX - EPS || box.max.x > s.maxX + EPS || box.min.z < s.minZ - EPS || box.max.z > s.maxZ + EPS) return 'Trop grand pour ce meuble'
+    if (!s) return tr('Posez-le sur un meuble, ou au sol', 'Put it on a piece of furniture, or on the floor')
+    if (box.min.x < s.minX - EPS || box.max.x > s.maxX + EPS || box.min.z < s.minZ - EPS || box.max.z > s.maxZ + EPS) return tr('Trop grand pour ce meuble', 'Too big for this piece of furniture')
   }
 
   const other = new THREE.Box3()
@@ -137,14 +138,14 @@ export function refusal(view: CabinView, items: CabinItem[], i: number, moving: 
     if (!ej || !view.boxOf(items[j], other)) continue
     // Un objet et le meuble qui le porte ne se gênent pas.
     if (base === j || baseOf(view, items, j, surfaces) === i) continue
-    if (conflict(entry, box, ej, other)) return `Pas la place ici (${ej.name.toLowerCase()})`
+    if (conflict(entry, box, ej, other)) return tr(`Pas la place ici (${ej.name.toLowerCase()})`, `No room here (${ej.name.toLowerCase()})`)
   }
 
   // Devant la porte, on passe : rien au sol (un tapis, si ; une suspension, au-dessus des têtes, aussi).
   if (entry.mount !== 'wall' && entry.mount !== 'flat' && !(item.y ?? 0) && box.min.y < HEADROOM) {
     const d = view.def.door
-    if (overlapXZ(box, { minX: d.x - 0.45, maxX: d.x + 0.45, minZ: d.z - 0.45, maxZ: d.z + 0.45 })) return 'Laissez le passage de la porte libre'
+    if (overlapXZ(box, { minX: d.x - 0.45, maxX: d.x + 0.45, minZ: d.z - 0.45, maxZ: d.z + 0.45 })) return tr('Laissez le passage de la porte libre', 'Keep the doorway clear')
   }
-  if ((isSolid(entry) || entry.fixed) && !holoReachable(view, items)) return 'Le Holo-Me doit rester accessible depuis la porte'
+  if ((isSolid(entry) || entry.fixed) && !holoReachable(view, items)) return tr('Le Holo-Me doit rester accessible depuis la porte', 'The Holo-Me must stay reachable from the door')
   return null
 }

@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { rig, type Rig } from './assets'
+import { tr } from './i18n'
 import type { IconName } from './icons'
 import { recolored } from './recolor'
 
@@ -66,22 +67,22 @@ export interface Race {
 /** Mini Characters proposés, par sexe. La femme « a » (avec des béquilles) est retirée du catalogue. */
 const MINI: Record<Sex, string[]> = { female: ['b', 'c', 'd', 'e', 'f'], male: ['a', 'b', 'c', 'd', 'e', 'f'] }
 const miniVariants = (): Choice[] =>
-  (['female', 'male'] as const).flatMap((sex) => MINI[sex].map((id, i) => ({ id, label: `Modèle ${i + 1}`, sex })))
+  (['female', 'male'] as const).flatMap((sex) => MINI[sex].map((id, i) => ({ id, label: tr(`Modèle ${i + 1}`, `Model ${i + 1}`), sex })))
 
 export const RACES: Race[] = [
-  { id: 'human', label: 'Humain', icon: 'user', sexed: true, variants: miniVariants() },
+  { id: 'human', label: tr('Humain', 'Human'), icon: 'user', sexed: true, variants: miniVariants() },
   {
     id: 'suit',
-    label: 'Combinaison',
+    label: tr('Combinaison', 'Suit'),
     icon: 'rocket-launch',
     sexed: true,
     variants: miniVariants(),
-    tintLabel: 'Combinaison',
+    tintLabel: tr('Combinaison', 'Suit'),
     // D'après les combinaisons d'Elite Dangerous: Odyssey.
     tints: [
       {
         id: 'flight',
-        label: 'Vol',
+        label: tr('Vol', 'Flight'),
         swatch: '#e07b2c',
         suit: {
           ramp: [[0, '#101216'], [0.45, '#262a33'], [0.8, '#474d59'], [0.87, '#d9742a'], [1, '#ff9f55']],
@@ -139,12 +140,12 @@ export const RACES: Race[] = [
     icon: 'alien',
     sexed: true,
     variants: miniVariants(),
-    tintLabel: 'Teinte',
+    tintLabel: tr('Teinte', 'Colour'),
     // Rotation de teinte appliquée à toute la texture (peau, cheveux et habits changent ensemble).
     tints: [
-      { id: 'green', label: 'Zorblien', hue: 95, swatch: '#6fdc6f' },
-      { id: 'blue', label: 'Cryonien', hue: 175, swatch: '#5cc8ff' },
-      { id: 'violet', label: 'Nébulien', hue: 245, swatch: '#b27cff' },
+      { id: 'green', label: tr('Zorblien', 'Zorblian'), hue: 95, swatch: '#6fdc6f' },
+      { id: 'blue', label: tr('Cryonien', 'Cryonian'), hue: 175, swatch: '#5cc8ff' },
+      { id: 'violet', label: tr('Nébulien', 'Nebulian'), hue: 245, swatch: '#b27cff' },
     ],
   },
   {
@@ -153,20 +154,20 @@ export const RACES: Race[] = [
     icon: 'robot',
     sexed: false,
     variants: [
-      { id: 'g', label: 'Unité R-7' },
-      { id: 'h', label: 'Unité V-3' },
+      { id: 'g', label: tr('Unité R-7', 'Unit R-7') },
+      { id: 'h', label: tr('Unité V-3', 'Unit V-3') },
       { id: 'd', label: 'Mannequin T-0' },
     ],
   },
   {
     id: 'creature',
-    label: 'Créature',
+    label: tr('Créature', 'Creature'),
     icon: 'ghost',
     sexed: false,
     variants: [
-      { id: 'orc', label: 'Orque de Kepler' },
-      { id: 'o', label: 'Troll des soutes' },
-      { id: 'l', label: 'Zombie en costume' },
+      { id: 'orc', label: tr('Orque de Kepler', 'Kepler orc') },
+      { id: 'o', label: tr('Troll des soutes', 'Cargo hold troll') },
+      { id: 'l', label: tr('Zombie en costume', 'Zombie in a suit') },
     ],
   },
 ]
