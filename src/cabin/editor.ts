@@ -79,7 +79,8 @@ export class CabinEditor {
   private placeOnRelease = false
   private lastPointer: { clientX: number; clientY: number } | null = null
   private pointerDirty = false
-  private lastNudge = 0
+  /** Dernier petit pas au clavier : les suivants, sur le même objet, s'y ajoutent dans l'historique. */
+  private lastNudge: { index: number; at: number } | null = null
   private category: CategoryId = 'rest'
   private confirmReset = 0
 
@@ -265,6 +266,7 @@ export class CabinEditor {
     this.selected = this.hovered = -1
     this.held = null
     this.press = null
+    this.lastNudge = null
     this.open = true
     this.root.hidden = false
     this.helpers.visible = true
@@ -283,15 +285,6 @@ export class CabinEditor {
     this.tools.hidden = true
     this.selected = this.hovered = -1
     this.view.detach([])
-  }
-
-  /** Aménagement remplacé de l'extérieur (réinitialisation de la cabine depuis un autre onglet…). */
-  replace(items: CabinItem[]) {
-    this.cancelHeld()
-    this.items = cloneLayout(items)
-    this.selected = -1
-    this.renderBar()
-    this.renderTools()
   }
 
   /** Enregistrement de l'aménagement : en cours, fait, ou en échec. */
@@ -361,9 +354,10 @@ export class CabinEditor {
   pointerDown(e: PointerEvent) {
     this.lastPointer = e
     if (e.button !== 0) return
-    if (this.held?.index === -1) {
+    // Un objet déjà en main (relâché hors de la fenêtre…) se pose là, comme un nouvel objet.
+    if (this.held) {
       this.aimAt(e)
-      return this.place(e.shiftKey)
+      return this.held.index === -1 ? this.place(e.shiftKey) : this.drop()
     }
     const index = this.view.pickItem(this.ray(e))
     this.select(index)
@@ -423,8 +417,9 @@ export class CabinEditor {
   /** Saisit un objet de la cabine pour le déplacer (avec ce qui est posé dessus). */
   private grabItem(index: number, e: { clientX: number; clientY: number }) {
     const item = this.items[index]
-    const entry = entryOf(item.m)
+    const entry = item && entryOf(item.m)
     if (!entry) return
+    this.cancelHeld()
     const ray = this.ray(e).ray
     let grab = { x: 0, z: 0 }
     if (entry.mount === 'wall') {
@@ -631,9 +626,11 @@ export class CabinEditor {
       return this.cancelHeld()
     }
     const c = this.candidate(held)
+    this.host.sound.ui('drop')
+    // Revenu à sa place : rien ne change, mais l'objet doit quitter la main (et se reposer).
+    if (sameLayout(c.items, this.items)) return this.cancelHeld()
     this.clearHeld()
     this.commit(c.items, c.index)
-    this.host.sound.ui('drop')
     this.setHint()
   }
 
@@ -800,10 +797,11 @@ export class CabinEditor {
       const why = refusal(this.view, next, j, moving)
       if (why) return this.refuse(why)
     }
-    // Les petits pas qui se suivent ne font qu'une seule étape d'annulation.
-    const merge = performance.now() - this.lastNudge < 800
-    this.lastNudge = performance.now()
+    // Les petits pas qui se suivent sur un même objet ne font qu'une seule étape d'annulation.
+    const now = performance.now()
+    const merge = this.lastNudge?.index === i && now - this.lastNudge.at < 800
     this.commit(next, i, merge)
+    this.lastNudge = { index: i, at: now }
   }
 
   // ---------------------------------------------------------------- historique
@@ -817,6 +815,10 @@ export class CabinEditor {
   }
 
   private apply(next: CabinItem[], select: number) {
+    // Un autre changement, une annulation : le prochain petit pas est une nouvelle étape, et un
+    // clic en cours ne vise plus le même objet.
+    this.lastNudge = null
+    this.press = null
     this.items = next
     this.view.setLayout(next)
     this.selected = select < next.length ? select : -1

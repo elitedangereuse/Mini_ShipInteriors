@@ -67,7 +67,7 @@ function hashString(s: string): number {
   return h >>> 0
 }
 
-export const seedOf = (item: CabinItem) => item.s ?? hashString(item.m)
+export const seedOf = (item: Pick<CabinItem, 'm' | 's'>) => item.s ?? hashString(item.m)
 
 /**
  * Boîte d'un objet tourné de `r` quarts de tour et posé en (x, y, z).
@@ -118,7 +118,7 @@ export class CabinView {
   onLights?: () => void
 
   private built: Built[] = []
-  /** Boîtes locales par modèle et variante (vérifications du mode aménagement). */
+  /** Boîtes locales par modèle, variante et graine (vérifications du mode aménagement). */
   private boxes = new Map<string, THREE.Box3>()
   private merge = new StaticMerge()
   private meshes: THREE.Mesh[] = []
@@ -234,7 +234,7 @@ export class CabinView {
 
   // ---------------------------------------------------------------- construction
 
-  private keyOf(item: CabinItem): string {
+  private keyOf(item: Pick<CabinItem, 'm' | 'v' | 's'>): string {
     return `${item.m}|${item.v ?? ''}|${seedOf(item)}`
   }
 
@@ -272,10 +272,10 @@ export class CabinView {
     local.getCenter(pick.position)
     pick.visible = false
     holder.add(pick)
-    const boxKey = `${item.m}|${item.v ?? ''}`
-    if (!this.boxes.has(boxKey)) this.boxes.set(boxKey, local.clone())
+    const key = this.keyOf(item)
+    if (!this.boxes.has(key)) this.boxes.set(key, local.clone())
     this.group.add(holder)
-    return { key: this.keyOf(item), entry, holder, solid, update, emitter, local, pick, custom }
+    return { key, entry, holder, solid, update, emitter, local, pick, custom }
   }
 
   private dispose(b: Built) {
@@ -289,12 +289,15 @@ export class CabinView {
     b.holder.rotation.y = (item.r * Math.PI) / 2
   }
 
-  /** Boîte locale d'un modèle et d'une variante (construit un exemplaire au besoin). */
-  localBox(m: string, v: string | undefined): THREE.Box3 | null {
-    const key = `${m}|${v ?? ''}`
+  /**
+   * Boîte locale d'un objet (construit un exemplaire au besoin). La graine compte : d'une plante
+   * à l'autre, le feuillage n'a pas la même taille.
+   */
+  localBox(item: Pick<CabinItem, 'm' | 'v' | 's'>): THREE.Box3 | null {
+    const key = this.keyOf(item)
     let box = this.boxes.get(key)
     if (!box) {
-      const b = this.build({ m, v, x: 0, z: 0, r: 0 })
+      const b = this.build({ m: item.m, v: item.v, s: item.s, x: 0, z: 0, r: 0 })
       if (!b) return null
       box = b.local.clone()
       this.dispose(b)
@@ -304,7 +307,7 @@ export class CabinView {
 
   /** Boîte (coordonnées du pont) de l'objet `item`. */
   boxOf(item: CabinItem, out = new THREE.Box3()): THREE.Box3 | null {
-    const local = this.localBox(item.m, item.v)
+    const local = this.localBox(item)
     return local ? placedBox(local, item.r, item.x, item.y ?? 0, item.z, out) : null
   }
 

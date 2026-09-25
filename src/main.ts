@@ -1158,7 +1158,13 @@ addEventListener(
 
 canvas.addEventListener('pointerdown', (e) => {
   if (e.button !== 0 || riding) return
-  if (editing()) return editor!.pointerDown(e)
+  if (editing()) {
+    // Objet glissé jusque sous le catalogue : il le relâche quand même dans le mode aménagement.
+    try {
+      canvas.setPointerCapture(e.pointerId)
+    } catch {}
+    return editor!.pointerDown(e)
+  }
   if (wardrobe.isOpen) return wardrobe.close(false)
   const { tile, item } = pick(e)
   if (item) return goInteract(item)
