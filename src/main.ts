@@ -741,6 +741,8 @@ async function applyLook(look: Look) {
   if (req !== lookRequest) return
   player.setAvatar(new Avatar(r))
   player.avatar.setPose(seating.pose)
+  // Au sac de frappe, le nouvel avatar frappe aussi.
+  bindPose()
   photo.refresh()
 }
 
