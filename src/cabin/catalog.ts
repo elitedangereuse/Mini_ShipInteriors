@@ -184,6 +184,34 @@ const ARCADE_TEXTS: Record<string, string[]> = {
   ],
   invaders: ['THARGOID INVADERS : vague 7. Les Thargoïdes finissent toujours par gagner.', 'INSÉREZ UN CRÉDIT (les crédits de la banque galactique ne marchent pas).'],
   asteroids: ['ASTÉROÏDES : 8 900 points. Le vrai minage paie mieux.', 'Vous pulvérisez une roche de painite. Aïe, votre portefeuille.'],
+  comete: [
+    'LE LABYRINTHE DE COMÈTE : toutes les croquettes avalées, trois robots aspirateurs semés. Comète réclame le niveau suivant.',
+    'GAME OVER : Comète s\'est arrêtée en plein couloir pour faire sa toilette.',
+  ],
+  srv: [
+    'SRV RALLY : saut de 40 m en 0,16 G. Vous atterrissez trois minutes plus tard, sur le toit.',
+    'Record de la lune : 1 240 m sans casser un seul module. L\'assurance n\'en revient pas.',
+  ],
+  cargo: [
+    'CARGAISON : 64 t de palladium parfaitement rangées. La station refuse quand même le conteneur rouge.',
+    'Rangée complète ! Un conteneur marqué « Brandy de Lave » vient de disparaître. Aucun témoin.',
+  ],
+}
+
+/** Jeux des bornes (cf. GAMES dans furniture/arcade.ts) : la vignette de chacun sert de pastille. */
+const ARCADE_GAMES: Variant[] = [
+  { id: 'elite', label: 'Elite' },
+  { id: 'invaders', label: 'Thargoid Invaders' },
+  { id: 'asteroids', label: 'Astéroïdes' },
+  { id: 'comete', label: 'Le Labyrinthe de Comète' },
+  { id: 'srv', label: 'SRV Rally' },
+  { id: 'cargo', label: 'Cargaison' },
+]
+
+const PINBALL_TEXTS: Record<string, string[]> = {
+  thargoid: ['THARGOID ATTACK : multibille ! Trois cœurs thargoïdes rebondissent entre les bumpers.', 'HYPERDICTION : la bille s\'arrête net, tourne sur elle-même… puis file dans le trou. TILT.'],
+  guardians: ['GARDIENS : les trois obélisques s\'allument. La bille, elle, n\'y comprend rien.', 'Relique gagnée ! Elle ne sert à rien, mais elle brille en bleu.'],
+  lave: ['LAVE STATION : amarrage au premier essai, bille supplémentaire !', 'JACKPOT : une caisse de Brandy de Lave. Le flipper ne rend pas la monnaie.'],
 }
 
 // ---------------------------------------------------------------- catalogue
@@ -457,12 +485,41 @@ export const CATALOG: CatalogEntry[] = [
   },
   { id: 'cargo', name: 'Conteneurs de cargaison', category: 'elite', model: 'cargo', mount: 'floor' },
 
-  // --- Sport
+  // --- Arcade
   {
-    id: 'arcade', name: 'Borne d\'arcade', category: 'arcade', model: 'arcade', mount: 'floor', action: 'Jouer',
-    variants: [{ id: 'elite', label: 'Elite' }, { id: 'invaders', label: 'Thargoid Invaders' }, { id: 'asteroids', label: 'Astéroïdes' }],
+    id: 'arcade', name: 'Borne d\'arcade', category: 'arcade', model: 'arcade', mount: 'floor', action: 'Jouer', variants: ARCADE_GAMES, surface: 0.95,
     interact: (v) => ARCADE_TEXTS[v ?? 'elite'] ?? ARCADE_TEXTS.elite,
   },
+  {
+    id: 'arcade-table', name: 'Borne cocktail', category: 'arcade', model: 'arcade-table', mount: 'floor', action: 'Jouer', variants: ARCADE_GAMES, surface: 0.38,
+    interact: [
+      'Borne cocktail : partie à deux, face à face. Votre adversaire a posé sa tasse de Hutton Orbital sur l\'écran.',
+      'Vous perdez contre un CMDR qui joue à l\'envers. Il prétend que c\'est l\'écran qui l\'est.',
+    ],
+  },
+  {
+    id: 'pinball', name: 'Flipper', category: 'arcade', model: 'pinball', mount: 'floor', action: 'Jouer',
+    variants: [{ id: 'thargoid', label: 'Thargoid Attack' }, { id: 'guardians', label: 'Gardiens' }, { id: 'lave', label: 'Lave Station' }],
+    interact: (v) => PINBALL_TEXTS[v ?? 'thargoid'] ?? PINBALL_TEXTS.thargoid,
+  },
+  {
+    id: 'arcade-racer', name: 'Borne de course', category: 'arcade', model: 'arcade-racer', mount: 'floor', action: 'Piloter',
+    variants: [{ id: 'red', label: 'Rouge', swatch: '#c62a22' }, { id: 'blue', label: 'Bleu', swatch: '#2358c4' }, { id: 'yellow', label: 'Jaune', swatch: '#e8b420' }],
+    interact: [
+      'CANYON RUN : 412 km/h au ras de la roche. La tour de contrôle vous rappelle que la limite est à 100.',
+      'Dernier portique passé à deux mètres du sol. Record battu ; l\'odeur de brûlé, c\'est d\'origine.',
+    ],
+  },
+  {
+    id: 'claw-machine', name: 'Pince à peluches', category: 'arcade', model: 'claw-machine', mount: 'floor', action: 'Tenter sa chance',
+    variants: [{ id: 'pink', label: 'Rose', swatch: '#ff6fae' }, { id: 'cyan', label: 'Cyan', swatch: '#35c6d9' }, { id: 'yellow', label: 'Jaune', swatch: '#ffc93c' }],
+    interact: [
+      'PINCE À COMÈTE : la pince attrape une Comète… et la lâche en remontant. Comme d\'habitude.',
+      '1 CR la partie. Taux de réussite affiché : « compétitif ». La vraie Comète vous observe, l\'air narquois.',
+    ],
+  },
+
+  // --- Sport
   {
     id: 'punching-bag', name: 'Sac de frappe', category: 'leisure', model: 'punching-bag', mount: 'floor', action: 'Frapper',
     interact: ['Paf ! Le sac encaisse sans broncher.', 'Bim ! Quelqu\'un a dessiné un Thargoïde dessus.'],

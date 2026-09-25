@@ -1,12 +1,11 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
-  animatedScreen, barX, box, compact, cylinder, drawnTexture, glow, holoMaterial, lit, mesh, part, sphere, type Builder,
+  animatedScreen, barX, box, compact, cylinder, drawnTexture, glow, holoMaterial, lit, mesh, part, type Builder,
 } from './kit'
-import { COBRA_EDGES, COBRA_VERTICES } from './cobra'
 
 /*
- * Pont principal : infirmerie, salle de sport et salon d'arcade.
+ * Pont principal : infirmerie, salle de sport et enseigne du salon d'arcade (les bornes sont dans arcade.ts).
  */
 
 const C = {
@@ -198,168 +197,7 @@ const punchingBag: Builder = () => {
   }
 }
 
-// ---------------------------------------------------------------- arcade
-
-type Draw = (c: CanvasRenderingContext2D, t: number) => void
-
-const W = 96, H = 80
-
-/** Projection de la Cobra Mk III en fil de fer (façon Elite, 1984). */
-const drawElite: Draw = (c, t) => {
-  c.fillStyle = '#000'
-  c.fillRect(0, 0, W, H)
-  // Étoiles qui défilent.
-  c.fillStyle = '#9aa'
-  for (let i = 0; i < 18; i++) {
-    const x = (i * 37 + t * (8 + (i % 3) * 6)) % W
-    c.fillRect(W - x, (i * 23) % 50, 1, 1)
-  }
-  const ay = t * 0.9, ax = 0.35 + Math.sin(t * 0.6) * 0.25
-  const pts = COBRA_VERTICES.map(([x, y, z]) => {
-    const x1 = x * Math.cos(ay) - z * Math.sin(ay), z1 = x * Math.sin(ay) + z * Math.cos(ay)
-    const y1 = y * Math.cos(ax) - z1 * Math.sin(ax), z2 = y * Math.sin(ax) + z1 * Math.cos(ax)
-    const k = 34 / (z2 + 3)
-    return [W / 2 + x1 * k, 26 - y1 * k] as const
-  })
-  c.strokeStyle = '#f2f2f2'
-  c.lineWidth = 1
-  c.beginPath()
-  for (const [a, b] of COBRA_EDGES) {
-    c.moveTo(pts[a][0], pts[a][1])
-    c.lineTo(pts[b][0], pts[b][1])
-  }
-  c.stroke()
-  // Tableau de bord : le scanner elliptique d'origine.
-  c.strokeStyle = '#e8c33a'
-  c.beginPath()
-  c.ellipse(W / 2, 64, 26, 9, 0, 0, Math.PI * 2)
-  c.stroke()
-  c.fillStyle = '#e8c33a'
-  c.fillRect(W / 2 + Math.cos(t) * 16, 64 + Math.sin(t) * 5, 2, 2)
-  c.fillStyle = '#6f6'
-  c.font = '7px monospace'
-  c.fillText('JAMESON', 3, 8)
-}
-
-/** Des Thargoïdes (octogones) qui descendent, un canon qui tire. */
-const drawInvaders: Draw = (c, t) => {
-  c.fillStyle = '#000'
-  c.fillRect(0, 0, W, H)
-  const dx = Math.sin(t * 0.8) * 12, dy = (Math.floor(t / 3) % 5) * 2
-  for (let row = 0; row < 3; row++) {
-    for (let col = 0; col < 5; col++) {
-      const x = 16 + col * 16 + dx, y = 12 + row * 12 + dy, r = 4 + (Math.floor(t * 4) % 2)
-      c.fillStyle = row === 0 ? '#ff5ad8' : '#6dff7a'
-      c.beginPath()
-      for (let k = 0; k < 8; k++) {
-        const a = (k / 8) * Math.PI * 2 + Math.PI / 8, rr = k % 2 ? r : r * 0.6
-        if (k) c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr)
-        else c.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr)
-      }
-      c.fill()
-    }
-  }
-  const px = W / 2 + Math.sin(t * 1.3) * 30
-  c.fillStyle = '#39e0ff'
-  c.fillRect(px - 5, 70, 10, 4)
-  c.fillRect(px - 1, 67, 2, 3)
-  const shot = (t * 70) % 60
-  c.fillStyle = '#fff'
-  c.fillRect(px - 0.5, 66 - shot, 1, 4)
-  c.font = '7px monospace'
-  c.fillText('1984', 3, 8)
-}
-
-const ROCKS = Array.from({ length: 5 }, (_, i) => ({
-  x: (i * 29) % W, y: (i * 41) % H, vx: ((i % 3) - 1) * 6 + 3, vy: ((i % 2) * 2 - 1) * 5, r: 5 + (i % 3) * 3,
-  shape: Array.from({ length: 9 }, (_, k) => 0.7 + (((i * 7 + k * 13) % 10) / 10) * 0.5),
-}))
-
-/** Astéroïdes vectoriels qui dérivent, un vaisseau qui tourne et tire. */
-const drawAsteroids: Draw = (c, t) => {
-  c.fillStyle = '#000'
-  c.fillRect(0, 0, W, H)
-  c.strokeStyle = '#f2f2f2'
-  c.lineWidth = 1
-  for (const r of ROCKS) {
-    const x = (((r.x + r.vx * t) % W) + W) % W, y = (((r.y + r.vy * t) % H) + H) % H
-    c.beginPath()
-    r.shape.forEach((k, i) => {
-      const a = (i / r.shape.length) * Math.PI * 2 + t * 0.3
-      if (i) c.lineTo(x + Math.cos(a) * r.r * k, y + Math.sin(a) * r.r * k)
-      else c.moveTo(x + Math.cos(a) * r.r * k, y + Math.sin(a) * r.r * k)
-    })
-    c.closePath()
-    c.stroke()
-  }
-  const a = t * 1.1, sx = W / 2, sy = H / 2
-  c.beginPath()
-  c.moveTo(sx + Math.cos(a) * 6, sy + Math.sin(a) * 6)
-  c.lineTo(sx + Math.cos(a + 2.5) * 5, sy + Math.sin(a + 2.5) * 5)
-  c.lineTo(sx + Math.cos(a - 2.5) * 5, sy + Math.sin(a - 2.5) * 5)
-  c.closePath()
-  c.stroke()
-  const d = ((t * 60) % 40) + 8
-  c.fillStyle = '#fff'
-  c.fillRect(sx + Math.cos(a - 0.6) * d, sy + Math.sin(a - 0.6) * d, 1.5, 1.5)
-}
-
-const GAMES: Record<string, { title: string; side: string; neon: string; draw: Draw }> = {
-  elite: { title: 'ELITE', side: '#1f3f8a', neon: '#39e0ff', draw: drawElite },
-  invaders: { title: 'THARGOID INVADERS', side: '#4a1f6a', neon: '#ff4fd8', draw: drawInvaders },
-  asteroids: { title: 'ASTÉROÏDES', side: '#7a1f1f', neon: '#ffe14f', draw: drawAsteroids },
-}
-
-function marquee(title: string, neon: string): THREE.Texture {
-  return drawnTexture(256, 64, (c) => {
-    const grad = c.createLinearGradient(0, 0, 256, 0)
-    grad.addColorStop(0, '#12081f')
-    grad.addColorStop(0.5, '#2a1440')
-    grad.addColorStop(1, '#12081f')
-    c.fillStyle = grad
-    c.fillRect(0, 0, 256, 64)
-    c.font = `800 ${title.length > 10 ? 24 : 38}px system-ui, sans-serif`
-    c.textAlign = 'center'
-    c.textBaseline = 'middle'
-    c.shadowColor = neon
-    c.shadowBlur = 12
-    c.fillStyle = '#fff'
-    c.fillText(title, 128, 34)
-  })
-}
-
-/** Borne d'arcade jouable (écran animé). Jeux : `elite`, `invaders`, `asteroids`. */
-const arcade: Builder = ({ label = 'elite' }) => {
-  const game = GAMES[label] ?? GAMES.elite
-  const g = new THREE.Group()
-  const side = lit(game.side), black = lit('#121318')
-  for (const x of [-0.285, 0.285]) g.add(box(0.05, 0.95, 0.52, side, x, 0.475, 0))
-  g.add(box(0.52, 0.95, 0.04, black, 0, 0.475, -0.24), box(0.52, 0.42, 0.3, black, 0, 0.21, 0.09))
-  g.add(box(0.52, 0.025, 0.02, glow(game.neon), 0, 0.3, 0.245), box(0.06, 0.04, 0.012, glow('#ffd84f'), 0, 0.22, 0.246))
-  // Pupitre incliné : joystick et trois boutons.
-  const deck = new THREE.Group()
-  deck.position.set(0, 0.47, 0.17)
-  deck.rotation.x = 0.25
-  deck.add(box(0.52, 0.05, 0.2, lit('#2a2a33'), 0, 0, 0))
-  deck.add(cylinder(0.01, 0.01, 0.07, lit('#cfd3d8'), -0.12, 0.06, 0, 6), sphere(0.022, glow('#ff3b3b'), -0.12, 0.1, 0, 8))
-  ;['#39e0ff', '#ffe14f', '#ff4fd8'].forEach((col, i) => deck.add(cylinder(0.018, 0.018, 0.015, glow(col), 0.04 + i * 0.06, 0.03, 0, 10)))
-  g.add(deck)
-  // Écran incliné dans son cadre, fronton.
-  const bezel = new THREE.Group()
-  bezel.position.set(0, 0.67, 0.02)
-  bezel.rotation.x = -0.18
-  bezel.add(box(0.52, 0.34, 0.04, black, 0, 0, 0))
-  g.add(bezel, box(0.52, 0.14, 0.22, black, 0, 0.88, -0.07))
-
-  const screen = animatedScreen(W, H, 12, game.draw)
-  const live = new THREE.Group()
-  const glass = new THREE.Group()
-  glass.position.copy(bezel.position)
-  glass.rotation.copy(bezel.rotation)
-  glass.add(part(new THREE.PlaneGeometry(0.42, 0.3), new THREE.MeshBasicMaterial({ map: screen.texture }), 0, 0, 0.022))
-  live.add(glass, part(new THREE.PlaneGeometry(0.5, 0.12), new THREE.MeshBasicMaterial({ map: marquee(game.title, game.neon) }), 0, 0.88, 0.042))
-  return { solid: g, live, emitter: 'arcade', update: (t) => screen.tick(t) }
-}
+// ---------------------------------------------------------------- salon d'arcade (bornes : cf. arcade.ts)
 
 /** Enseigne au néon (texte : `label`), qui grésille de temps en temps. */
 const neonSign: Builder = ({ label = 'ARCADE' }) => {
@@ -401,6 +239,5 @@ export const LEISURE = {
   'weight-bench': weightBench,
   'dumbbell-rack': dumbbellRack,
   'punching-bag': punchingBag,
-  arcade,
   'neon-sign': neonSign,
 } satisfies Record<string, Builder>

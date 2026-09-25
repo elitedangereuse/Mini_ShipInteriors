@@ -1,3 +1,4 @@
+import { ARCADE } from './arcade'
 import { COZY } from './cozy'
 import { DECOR } from './decor'
 import { ELITE } from './elite'
@@ -11,7 +12,8 @@ import { WORKSHOP } from './workshop'
  * Mobilier fait main, en primitives Three.js, rangé par zone :
  * - elite.ts : poste de pilotage, cartes holographiques, FSD, SRV, drones… (clins d'œil à Elite Dangerous) ;
  * - workshop.ts : la cale (minage, bricolage, réparation) ;
- * - leisure.ts : infirmerie, salle de sport, salon d'arcade ;
+ * - leisure.ts : infirmerie, salle de sport, enseigne du salon d'arcade ;
+ * - arcade.ts : bornes d'arcade, borne cocktail, flippers, borne de course, pince à peluches ;
  * - cozy.ts : les quartiers (chambres, douches, serre, salon) ;
  * - decor.ts : la décoration des cabines (affiches, cadres, plantes, petits objets…) ;
  * - lights.ts : les luminaires des cabines (guirlande, bandeau LED, néons, lampadaire arc, suspensions…) ;
@@ -20,7 +22,7 @@ import { WORKSHOP } from './workshop'
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...WORKSHOP, ...LEISURE, ...COZY, ...DECOR, ...LIGHTS, ...PARTY } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...WORKSHOP, ...LEISURE, ...ARCADE, ...COZY, ...DECOR, ...LIGHTS, ...PARTY } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 
