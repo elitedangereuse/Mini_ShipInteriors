@@ -61,6 +61,9 @@ export const TRACKS: Track[] = [
 export const trackById = (id: string | null | undefined) => TRACKS.find((t) => t.id === id) ?? null
 const nextTrack = (t: Track) => TRACKS[(TRACKS.indexOf(t) + 1) % TRACKS.length]
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+/** Un tour de la liste : partie de n'importe quel morceau, elle y revient au bout de ce temps. */
+const CYCLE = TRACKS.reduce((s, t) => s + t.duration, 0)
+const now = () => performance.now() / 1000
 
 /** Un jukebox qui joue : son morceau, spatialisé à sa place, qu'on n'entend que sur son pont. */
 export class JukeboxPlayer {
@@ -68,6 +71,15 @@ export class JukeboxPlayer {
   private node: ReturnType<Sound['speaker']> = null
   private readonly at = new THREE.Vector3()
   private audible = true
+  /**
+   * Morceau choisi, et l'instant (horloge du navigateur, s) où il a commencé : la liste enchaîne
+   * sur cette horloge, comme chez tous ceux qui l'écoutent, quel que soit le temps de chargement
+   * de chacun.
+   */
+  private origin: { track: Track; t0: number } | null = null
+  /** Recalé sur cette horloge depuis le dernier démarrage (cf. align). */
+  private aligned = false
+  private retrying = false
   /** Morceau en cours (null : le jukebox se tait). */
   track: Track | null = null
   /** Un morceau démarre (choisi, ou le suivant qui enchaîne). */
@@ -78,9 +90,15 @@ export class JukeboxPlayer {
     private readonly volume: number,
   ) {
     this.audio.preload = 'auto'
-    this.audio.addEventListener('ended', () => {
-      if (this.track) this.play(nextTrack(this.track), this.at, 0)
-    })
+    // Un morceau fini : le suivant, là où en est la soirée.
+    this.audio.addEventListener('ended', () => this.start(this.track))
+    this.audio.addEventListener('playing', () => this.align())
+  }
+
+  /** Où en est la soirée : morceau choisi, temps écoulé depuis (à un tour de liste près), place. */
+  get playing(): { track: Track; position: number; x: number; z: number } | null {
+    const o = this.origin
+    return o && this.track ? { track: o.track, position: (now() - o.t0) % CYCLE, x: this.at.x, z: this.at.z } : null
   }
 
   /**
@@ -88,18 +106,62 @@ export class JukeboxPlayer {
    * rejoint une soirée commencée plus tôt).
    */
   play(track: Track, at: THREE.Vector3, position = 0) {
-    let t = track, p = Math.max(0, position)
-    for (let i = 0; i < 64 && p >= t.duration; i++) {
-      p -= t.duration
-      t = nextTrack(t)
-    }
-    this.track = t
+    this.origin = { track, t0: now() - Math.max(0, position) }
     this.at.copy(at)
     this.attach()
     this.node?.move(this.at)
+    this.start()
+  }
+
+  /** Le morceau de la soirée et sa position, à cet instant ; jamais `ended`, qui vient de finir. */
+  private cue(ended?: Track | null): { track: Track; position: number } | null {
+    const o = this.origin
+    if (!o) return null
+    let t = o.track, p = (now() - o.t0) % CYCLE
+    while (p >= t.duration) {
+      p -= t.duration
+      t = nextTrack(t)
+    }
+    // Fini avant l'heure (le fichier est un peu plus court que sa durée) : le suivant, du début.
+    if (t === ended) return { track: nextTrack(t), position: 0 }
+    return { track: t, position: p }
+  }
+
+  private start(ended?: Track | null) {
+    const cue = this.cue(ended)
+    if (!cue) return
+    const { track: t, position: p } = cue
+    // Ce morceau-là passe déjà, à l'heure (le relais nous le rappelle) : on ne le recharge pas.
+    if (t === this.track && !this.audio.paused && Math.abs(this.audio.currentTime - p) < 1) return
+    this.track = t
+    this.aligned = false
     this.audio.src = `${BASE}music/${t.id}.mp3#t=${p.toFixed(2)}`
-    void this.audio.play().catch(() => {})
+    this.audio.play().catch((e: unknown) => {
+      if (e instanceof DOMException && e.name === 'NotAllowedError') this.retryOnGesture()
+    })
     this.onTrack?.(t)
+  }
+
+  /** Parti après son chargement : on rattrape le temps perdu, une fois par morceau. */
+  private align() {
+    if (this.aligned) return
+    this.aligned = true
+    const cue = this.cue()
+    if (cue?.track === this.track && Math.abs(this.audio.currentTime - cue.position) > 0.25) this.audio.currentTime = cue.position
+  }
+
+  /** Lecture refusée (réglage strict du navigateur) : on réessaie au premier geste, à l'heure. */
+  private retryOnGesture() {
+    if (this.retrying) return
+    this.retrying = true
+    const retry = () => {
+      removeEventListener('pointerdown', retry, true)
+      removeEventListener('keydown', retry, true)
+      this.retrying = false
+      if (this.track && this.audio.paused) this.start()
+    }
+    addEventListener('pointerdown', retry, true)
+    addEventListener('keydown', retry, true)
   }
 
   /**
@@ -117,6 +179,7 @@ export class JukeboxPlayer {
 
   stop() {
     this.track = null
+    this.origin = null
     this.audio.pause()
     this.audio.removeAttribute('src')
     this.audio.load()
