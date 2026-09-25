@@ -14,6 +14,8 @@ import type { CabinView } from './view'
  */
 
 const EPS = 0.004
+/** Au-dessus des têtes (personnages de 0,67) : une suspension ne gêne pas le passage. */
+const HEADROOM = 0.68
 /** Une affiche peut être masquée à 30 % par ce qui est posé devant elle. */
 const WALL_COVER = 0.3
 /** Écart de hauteur toléré entre un objet posé et le dessus de son meuble. */
@@ -138,8 +140,8 @@ export function refusal(view: CabinView, items: CabinItem[], i: number, moving: 
     if (conflict(entry, box, ej, other)) return `Pas la place ici (${ej.name.toLowerCase()})`
   }
 
-  // Devant la porte, on passe : rien au sol (un tapis, si).
-  if (entry.mount !== 'wall' && entry.mount !== 'flat' && !(item.y ?? 0)) {
+  // Devant la porte, on passe : rien au sol (un tapis, si ; une suspension, au-dessus des têtes, aussi).
+  if (entry.mount !== 'wall' && entry.mount !== 'flat' && !(item.y ?? 0) && box.min.y < HEADROOM) {
     const d = view.def.door
     if (overlapXZ(box, { minX: d.x - 0.45, maxX: d.x + 0.45, minZ: d.z - 0.45, maxZ: d.z + 0.45 })) return 'Laissez le passage de la porte libre'
   }

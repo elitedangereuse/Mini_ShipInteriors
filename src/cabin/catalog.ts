@@ -136,6 +136,23 @@ const GLOBE_TEXTS: Record<string, string> = {
 
 const NEONS: Record<string, string> = { o7: 'o7', elite: 'ÉLITE', comete: 'COMÈTE', cmdr: 'CMDR' }
 
+/** Néons en forme (cf. NEON_SHAPES dans furniture/lights.ts) : libellé, couleur du tube, phrase. */
+const NEON_SHAPES: (Variant & { text: string })[] = [
+  { id: 'planet', label: 'Planète à anneaux', swatch: '#39d5ff', text: 'Néon planète : une géante gazeuse de poche. Pas de station en orbite, pas de taxe d\'amarrage.' },
+  { id: 'star', label: 'Étoile', swatch: '#ffd23c', text: 'Néon étoile : classe O, la plus brillante… de la cabine. Ne pas écoper de carburant dessus.' },
+  { id: 'bolt', label: 'Éclair', swatch: '#ff8a1c', text: 'Néon éclair : il grésille comme un FSD qui charge.' },
+  { id: 'cat', label: 'Comète', swatch: '#ff6ad5', text: 'Néon Comète : la seule version de Comète qui ne réclame pas sa pâtée.' },
+  { id: 'heart', label: 'Cœur', swatch: '#ff2e63', text: 'Néon cœur : cadeau d\'un CMDR croisé à Jameson Memorial.' },
+]
+
+/** Bandeaux LED (cf. LEDS dans furniture/lights.ts) et la couleur de leur lumière. */
+const LED_STRIPS: (Variant & { light: string })[] = [
+  { id: 'cyan', label: 'Cyan', swatch: '#39d5ff', light: '#39d5ff' },
+  { id: 'magenta', label: 'Magenta', swatch: '#ff3bd0', light: '#ff3bd0' },
+  { id: 'amber', label: 'Ambre', swatch: '#ffa630', light: '#ffa630' },
+  { id: 'rainbow', label: 'Arc-en-ciel', swatch: 'linear-gradient(90deg, #ff3b3b, #ffe94f, #3bff8a, #3bc8ff, #b061ff)', light: '#c9a0ff' },
+]
+
 /** Palettes de la piste de danse (cf. FLOOR_PALETTES dans furniture/party.ts), et leur lumière. */
 const DANCE: (Variant & { light: string })[] = [
   { id: 'disco', label: 'Arc-en-ciel', swatch: 'conic-gradient(#ff3b6b, #ffe94f, #3bff8a, #3bc8ff, #b43bff, #ff3b6b)', light: '#ff4fd8' },
@@ -256,8 +273,59 @@ export const CATALOG: CatalogEntry[] = [
     light: { color: '#ffd9a8', intensity: 1.1, at: [0, 1.05, 0], priority: 3 },
   },
   {
+    id: 'arc-lamp', name: 'Lampadaire arc', category: 'light', model: 'arc-lamp', mount: 'floor',
+    light: { color: '#ffd9a8', intensity: 1.0, at: [0, 0.8, 0.3], priority: 3 },
+    interact: [
+      'Lampadaire arc : quarante kilos de marbre dans le socle, la cargaison la moins rentable de la galaxie.',
+      'Il se penche sur le fauteuil comme un contrôleur de trafic sur une approche ratée.',
+    ],
+  },
+  {
+    id: 'paper-lantern', name: 'Lampe en papier', category: 'light', model: 'paper-lantern', mount: 'floor',
+    variants: [{ id: 'round', label: 'Trois boules', swatch: '#ffe6bd' }, { id: 'tall', label: 'Colonne', swatch: '#ffd494' }],
+    light: { color: '#ffcf8f', intensity: 0.8, at: [0, 0.45, 0], priority: 3 },
+    interact: ['Papier de riz cultivé en hydroponie à Achenar. Tenir à l\'écart des propulseurs.', 'Le papier frémit à chaque saut ; la lanterne, elle, reste zen.'],
+  },
+  {
+    id: 'pendant-lamp', name: 'Suspension', category: 'light', model: 'pendant-lamp', mount: 'floor', solid: false,
+    variants: [{ id: 'dome', label: 'Dôme de métal', swatch: '#30343c' }, { id: 'globe', label: 'Globe de verre', swatch: '#fff3dc' }, { id: 'rattan', label: 'Rotin', swatch: '#a8743c' }],
+    light: (v) => ({ color: v === 'rattan' ? '#ffb870' : '#ffd2a0', intensity: 0.9, at: [0, 0.68, 0], priority: 3 }),
+    interact: (v) =>
+      v === 'rattan'
+        ? 'Suspension de rotin : tressée main sur une planète agricole. Le rotin n\'avait jamais vu l\'espace.'
+        : 'Suspension : elle se balance à chaque saut hyperspatial, et un peu plus à chaque atterrissage raté.',
+  },
+  {
     id: 'sconce', name: 'Applique', category: 'light', model: 'sconce', mount: 'wall',
     light: { color: '#ffd9a8', intensity: 0.8, at: [0, 0.8, 0.3], priority: 4 },
+  },
+  {
+    id: 'string-lights', name: 'Guirlande lumineuse', category: 'light', model: 'string-lights', mount: 'wall',
+    variants: [{ id: 'warm', label: 'Blanc chaud', swatch: '#ffe3b0' }, { id: 'multi', label: 'Multicolore', swatch: 'conic-gradient(#ff6a5a, #ffd23c, #6aff8a, #6ab8ff, #ff6ad5, #ff6a5a)' }, { id: 'blue', label: 'Bleu glacier', swatch: '#9fdcff' }],
+    light: (v) => ({ color: v === 'blue' ? '#9fd4ff' : '#ffc98a', intensity: 0.5, at: [0, 0.72, 0.25], priority: 5 }),
+    interact: [
+      'Guirlande lumineuse : seize ampoules, et toujours une qui clignote à contretemps. Comme le pilote automatique.',
+      'Accrochée pour les fêtes de 3309. Personne n\'a eu le cœur de la décrocher.',
+    ],
+  },
+  {
+    id: 'led-strip', name: 'Bandeau LED', category: 'light', model: 'led-strip', mount: 'wall', variants: LED_STRIPS,
+    light: (v) => ({ color: (LED_STRIPS.find((l) => l.id === v) ?? LED_STRIPS[0]).light, intensity: 0.6, at: [0, 0.7, 0.2], priority: 5 }),
+    interact: [
+      'Bandeau LED : ambiance salon de tuning de Deciat. Felicity Farseer n\'approuve pas.',
+      'Seize millions de couleurs, et l\'équipage vote toujours pour l\'orange des interfaces.',
+    ],
+  },
+  {
+    id: 'desk-lamp', name: 'Lampe de bureau', category: 'light', model: 'desk-lamp', mount: 'top',
+    variants: [
+      { id: 'black', label: 'Noire', swatch: '#23262d' },
+      { id: 'white', label: 'Blanche', swatch: '#e9ecef' },
+      { id: 'orange', label: 'Orange Elite', swatch: '#ff8a1c' },
+      { id: 'teal', label: 'Bleu canard', swatch: '#2f9a96' },
+    ],
+    light: { color: '#ffe2b0', intensity: 0.5, at: [0, 0.12, 0.09], priority: 5 },
+    interact: ['Lampe de bureau : idéale pour lire les petites lignes d\'un contrat de la Pilots Federation.', 'Elle éclaire le journal de bord. Et les 212 messages non lus.'],
   },
   {
     id: 'lava-lamp', name: 'Lampe à lave', category: 'light', model: 'lava-lamp', mount: 'top',
@@ -269,6 +337,14 @@ export const CATALOG: CatalogEntry[] = [
     id: 'candles', name: 'Bougies', category: 'light', model: 'candles', mount: 'top',
     interact: 'Bougies : de vraies flammes, rarissimes à bord. Le détecteur d\'incendie fait semblant de dormir.',
     light: { color: '#ffb35c', intensity: 0.5, at: [0, 0.35, 0], flicker: 'fire', priority: 5 },
+  },
+  {
+    id: 'plasma-ball', name: 'Boule plasma', category: 'light', model: 'plasma-ball', mount: 'top', action: 'Toucher',
+    light: { color: '#c77dff', intensity: 0.5, at: [0, 0.2, 0], priority: 5 },
+    interact: [
+      'Vous posez un doigt sur le verre : les éclairs viennent vous saluer. Comète crache, puis revient regarder.',
+      'Un orage en bocal : la météo la plus stable du vaisseau. Ne pas la montrer aux Gardiens.',
+    ],
   },
 
   // --- Plantes
@@ -314,6 +390,11 @@ export const CATALOG: CatalogEntry[] = [
     id: 'wall-neon', name: 'Néon', category: 'wall', model: 'wall-neon', mount: 'wall',
     variants: Object.entries(NEONS).map(([id, label]) => ({ id, label })),
     label: (v) => NEONS[v ?? ''] ?? NEONS.o7,
+  },
+  {
+    id: 'neon-shape', name: 'Néon en forme', category: 'wall', model: 'neon-shape', mount: 'wall', variants: NEON_SHAPES,
+    light: (v) => ({ color: (NEON_SHAPES.find((n) => n.id === v) ?? NEON_SHAPES[0]).swatch!, intensity: 0.5, at: [0, 0.6, 0.3], flicker: 'neon', priority: 5 }),
+    interact: (v) => (NEON_SHAPES.find((n) => n.id === v) ?? NEON_SHAPES[0]).text,
   },
 
   // --- Objets
