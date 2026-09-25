@@ -1365,6 +1365,11 @@ canvas.addEventListener('pointerdown', (e) => {
   }
   if (wardrobe.isOpen) return wardrobe.close(false)
   const { tile, item, point } = pick(e)
+  // Mode photo : un clic place le personnage, sans rien déclencher (une borne s'ouvrirait par-dessus).
+  if (photo.active) {
+    if (tile && !seating.current) goTo(tile)
+    return
+  }
   // Installé sur un meuble : un clic sur lui relève le personnage, un clic ailleurs aussi, puis il y va.
   const seat = seating.current
   if (seat) {
@@ -1734,6 +1739,7 @@ const photo = new PhotoMode({
 function openPhoto() {
   if (editing() || arcade?.isOpen || riding) return
   lift.close()
+  jukebox.close()
   wardrobe.close(false)
   inviteMenu.close()
   toggleAbout(false)
