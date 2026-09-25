@@ -25,11 +25,21 @@ export interface Furniture {
 /** Bips d'arcade, crépitements de soudure, grondement de machine. */
 export type Emitter = 'arcade' | 'sparks' | 'hum'
 
+/** Pièce d'un meuble : faces intérieures de ses murs, en coordonnées du pont. */
+export interface Room {
+  minX: number
+  maxX: number
+  minZ: number
+  maxZ: number
+}
+
 export interface BuildOptions {
   /** Texte libre du meuble (titre d'un panneau, jeu d'une borne, couleur d'un tissu…). */
   label?: string
   /** Aléatoire déterministe, qui dépend de la position du meuble : tout le monde voit le même vaisseau. */
   random: () => number
+  /** Pièce où le meuble est posé, si on la connaît (les reflets d'une boule à facettes s'y arrêtent). */
+  room?: Room
 }
 
 export type Builder = (o: BuildOptions) => Furniture

@@ -10,7 +10,7 @@ import { Avatar, EMOTES } from './avatar'
 import { IsoCamera } from './camera'
 import { Cat } from './cat'
 import { Deck, type Interactable } from './deck'
-import { holoMeGlow } from './furniture'
+import { beatPulse, holoMeGlow, holoTime } from './furniture'
 import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, LIFT, SPAWN } from './levels'
 import { hydrateIcons, icon } from './icons'
 import { lookId, lookPath, lookRig, parseLook, RACES, raceOf, randomLook, variantsOf, type Look } from './looks'
@@ -265,6 +265,13 @@ function applyLights() {
 }
 cabin.onLights = () => {
   if (deck === cabinDeck) applyLights()
+}
+// Danser sur la piste : l'emote, et une phrase.
+cabin.onEmote = (id, text) => {
+  emote(id)
+  const t = typeof text === 'function' ? text() : text
+  if (Array.isArray(t)) dialog.show(t[Math.floor(Math.random() * t.length)])
+  else if (t) dialog.show(t)
 }
 
 function setDeck(next: Deck) {
@@ -1330,7 +1337,13 @@ function frame() {
   ambience(dt)
   for (const [i, l] of lightPool.entries()) {
     const def = deck.lights[i]
-    if (def?.flicker) l.intensity = def.intensity * flicker(def.flicker, timer.getElapsed(), i)
+    if (!def?.flicker) continue
+    if (def.flicker === 'neon' || def.flicker === 'fire') l.intensity = def.intensity * flicker(def.flicker, timer.getElapsed(), i)
+    else {
+      // Lumière de soirée : à l'horloge des meubles, pour battre avec la piste de danse.
+      l.intensity = def.intensity * (0.4 + 0.6 * beatPulse(holoTime.value))
+      if (def.flicker === 'disco') l.color.setHSL((holoTime.value * 0.07 + i * 0.13) % 1, 0.9, 0.55)
+    }
   }
   marker.scale.setScalar(1 + Math.sin(timer.getElapsed() * 6) * 0.12)
 

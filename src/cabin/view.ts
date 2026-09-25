@@ -135,6 +135,8 @@ export class CabinView {
   onHoloMe?: () => void
   /** Les lumières de la cabine ont changé : le pont affiché doit réaffecter sa réserve. */
   onLights?: () => void
+  /** Interaction avec un objet qui fait jouer une emote (danser sur la piste), cf. main.ts. */
+  onEmote?: (emote: string, text: Interactable['text']) => void
 
   private built: Built[] = []
   /** Boîtes locales par modèle, variante et graine (vérifications du mode aménagement). */
@@ -336,7 +338,7 @@ export class CabinView {
     let emitter: Emitter | undefined
     const custom = isCustomModel(entry.model)
     if (custom) {
-      const f = buildFurniture(entry.model as CustomModel, builderLabel(entry, item.v), seedOf(item))
+      const f = buildFurniture(entry.model as CustomModel, builderLabel(entry, item.v), seedOf(item), this.bounds)
       if (f.solid) holder.add((solid = f.solid))
       if (f.live) holder.add(f.live)
       // Pièces animées placées avant la mesure : une instance pas encore posée compte à sa
@@ -543,17 +545,18 @@ export class CabinView {
       }
       if (apart) return
       const text = interactText(b.entry, item.v)
-      if (b.entry.fixed || text) {
+      if (b.entry.fixed || text || b.entry.emote) {
         const it: Interactable = { object: b.pick, position: center.clone().setY(0), label: b.entry.action ?? 'Examiner', text }
+        const emote = b.entry.emote
         if (b.entry.fixed) {
           it.label = b.entry.name
           it.onInteract = () => this.onHoloMe?.()
           this.holoMe = it
-        }
+        } else if (emote) it.onInteract = () => this.onEmote?.(emote, text)
         this.interactables.push(it)
         deck.interactables.push(it)
       }
-      const l = b.entry.light
+      const l = typeof b.entry.light === 'function' ? b.entry.light(item.v) : b.entry.light
       if (l) {
         const at = rotateLocal(item.r, l.at[0], l.at[2])
         lights.push({

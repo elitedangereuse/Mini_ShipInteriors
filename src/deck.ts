@@ -3,7 +3,7 @@ import { station, themes, type StationModel, type ThemeMaterials } from './asset
 import { CabinView } from './cabin/view'
 import { makeFadeable } from './fade'
 import { beamMaterial, buildFurniture, isCustomModel, tickFurniture, type Emitter } from './furniture'
-import { LEVEL_HEIGHT, LIFT, type LevelDef } from './levels'
+import { LEVEL_HEIGHT, LIFT, type Flicker, type LevelDef } from './levels'
 import { DIRS, ShipMap } from './map'
 import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type Occluder } from './merge'
 import { Pathfinder } from './pathfinding'
@@ -80,7 +80,7 @@ export class Deck {
   /** Altitude du sol de ce pont. */
   readonly y: number
   /** Lumières du pont, en coordonnées monde. */
-  readonly lights: { position: THREE.Vector3; color: THREE.Color; intensity: number; flicker?: 'neon' | 'fire' }[] = []
+  readonly lights: { position: THREE.Vector3; color: THREE.Color; intensity: number; flicker?: Flicker }[] = []
   /** Sources sonores (coordonnées monde). */
   readonly engineEmitters: THREE.Vector3[] = []
   /** Sons d'ambiance par type (bips, arcade, soudure, machines), en coordonnées monde. */

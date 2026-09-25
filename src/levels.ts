@@ -24,6 +24,12 @@ export interface Prop {
 }
 
 /** Lumière : x, z, couleur, intensité, et au besoin sa façon de vaciller (néon fatigué, feu de cheminée). */
+/**
+ * Vacillement d'une lumière : néon fatigué, feu de cheminée ; ou lumière de soirée, qui bat au
+ * tempo de la piste de danse (pulse), en changeant de couleur (disco).
+ */
+export type Flicker = 'neon' | 'fire' | 'disco' | 'pulse'
+
 export type LightDef = [number, number, string, number, ('neon' | 'fire')?]
 
 /** Éclairage d'ambiance d'un pont : ciel et sol (lumière hémisphérique), soleil. */

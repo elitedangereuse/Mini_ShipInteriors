@@ -2,6 +2,7 @@ import type { StationModel } from '../assets'
 import type { CustomModel } from '../furniture'
 import { FRAMES, GLOBES, POSTERS } from '../furniture/decor'
 import type { IconName } from '../icons'
+import type { Flicker } from '../levels'
 
 /*
  * Catalogue du mode aménagement : tout ce qu'on peut poser dans sa cabine. Un objet de
@@ -25,7 +26,7 @@ export interface Variant {
   swatch?: string
 }
 
-export type CategoryId = 'rest' | 'living' | 'storage' | 'light' | 'plants' | 'wall' | 'objects' | 'elite' | 'leisure' | 'rugs'
+export type CategoryId = 'rest' | 'living' | 'storage' | 'light' | 'plants' | 'wall' | 'objects' | 'elite' | 'leisure' | 'arcade' | 'party' | 'rugs'
 
 export const CATEGORIES: { id: CategoryId; label: string; icon: IconName }[] = [
   { id: 'rest', label: 'Chambre', icon: 'bed' },
@@ -36,9 +37,21 @@ export const CATEGORIES: { id: CategoryId; label: string; icon: IconName }[] = [
   { id: 'wall', label: 'Murs', icon: 'frame-corners' },
   { id: 'objects', label: 'Objets', icon: 'cube' },
   { id: 'elite', label: 'Elite', icon: 'rocket' },
-  { id: 'leisure', label: 'Loisirs', icon: 'game-controller' },
+  { id: 'leisure', label: 'Sport', icon: 'barbell' },
+  { id: 'arcade', label: 'Arcade', icon: 'joystick' },
+  { id: 'party', label: 'Soirée', icon: 'disco-ball' },
   { id: 'rugs', label: 'Tapis', icon: 'square-half' },
 ]
+
+/** Lumière d'un objet ; `at` : position dans le repère de l'objet. */
+export interface CatalogLight {
+  color: string
+  intensity: number
+  at: [number, number, number]
+  flicker?: Flicker
+  /** La réserve de lumières est petite : priorité la plus basse d'abord. */
+  priority: number
+}
 
 export interface CatalogEntry {
   id: string
@@ -62,11 +75,10 @@ export interface CatalogEntry {
   interact?: string | string[] | ((variant: string | undefined) => string | string[])
   /** Verbe de l'invite ; « Examiner » par défaut. */
   action?: string
-  /**
-   * Lumière de l'objet (la réserve de lumières est petite : priorité la plus basse d'abord).
-   * `at` : position dans le repère de l'objet.
-   */
-  light?: { color: string; intensity: number; at: [number, number, number]; flicker?: 'neon' | 'fire'; priority: number }
+  /** Emote que joue le personnage à l'interaction (danser sur la piste), avec le texte. */
+  emote?: string
+  /** Lumière de l'objet, ou de chacune de ses variantes. */
+  light?: CatalogLight | ((variant: string | undefined) => CatalogLight)
   /** Unique et indispensable : on le déplace, on ne le retire pas (le Holo-Me). */
   fixed?: boolean
 }
@@ -121,6 +133,24 @@ const GLOBE_TEXTS: Record<string, string> = {
 }
 
 const NEONS: Record<string, string> = { o7: 'o7', elite: 'ÉLITE', comete: 'COMÈTE', cmdr: 'CMDR' }
+
+/** Palettes de la piste de danse (cf. FLOOR_PALETTES dans furniture/party.ts), et leur lumière. */
+const DANCE: (Variant & { light: string })[] = [
+  { id: 'disco', label: 'Arc-en-ciel', swatch: 'conic-gradient(#ff3b6b, #ffe94f, #3bff8a, #3bc8ff, #b43bff, #ff3b6b)', light: '#ff4fd8' },
+  { id: 'neon', label: 'Néon', swatch: 'linear-gradient(135deg, #ff4fd8, #39e0ff)', light: '#ff4fd8' },
+  { id: 'gold', label: 'Or', swatch: 'linear-gradient(135deg, #fff1c4, #ff9f3b)', light: '#ffb86b' },
+  { id: 'ice', label: 'Glace', swatch: 'linear-gradient(135deg, #ffffff, #6a8cff)', light: '#59d8ff' },
+]
+const DANCE_TEXTS = [
+  'La piste s\'illumine sous vos pieds. Comète vous regarde, perplexe.',
+  'Vous enchaînez un pas de danse en gravité réduite. Enfin, presque.',
+  'Le Thargoïde de l\'affiche semble battre la mesure.',
+]
+const danceLight = (v: string | undefined): CatalogLight => {
+  const d = DANCE.find((x) => x.id === v) ?? DANCE[0]
+  // Juste après le Holo-Me : on pose une piste de danse pour sa lumière.
+  return { color: d.light, intensity: 1.6, at: [0, 0.45, 0], flicker: d.id === 'disco' ? 'disco' : 'pulse', priority: 0.5 }
+}
 
 const GALNET = [
   'GalNet en direct : des Thargoïdes aperçus près de Maia.',
@@ -344,9 +374,9 @@ export const CATALOG: CatalogEntry[] = [
   },
   { id: 'cargo', name: 'Conteneurs de cargaison', category: 'elite', model: 'cargo', mount: 'floor' },
 
-  // --- Loisirs
+  // --- Sport
   {
-    id: 'arcade', name: 'Borne d\'arcade', category: 'leisure', model: 'arcade', mount: 'floor', action: 'Jouer',
+    id: 'arcade', name: 'Borne d\'arcade', category: 'arcade', model: 'arcade', mount: 'floor', action: 'Jouer',
     variants: [{ id: 'elite', label: 'Elite' }, { id: 'invaders', label: 'Thargoid Invaders' }, { id: 'asteroids', label: 'Astéroïdes' }],
     interact: (v) => ARCADE_TEXTS[v ?? 'elite'] ?? ARCADE_TEXTS.elite,
   },
@@ -364,6 +394,55 @@ export const CATALOG: CatalogEntry[] = [
   },
   { id: 'weight-bench', name: 'Banc de musculation', category: 'leisure', model: 'weight-bench', mount: 'floor' },
   { id: 'dumbbell-rack', name: 'Haltères', category: 'leisure', model: 'dumbbell-rack', mount: 'floor' },
+
+  // --- Soirée
+  {
+    id: 'dance-floor', name: 'Piste de danse', category: 'party', model: 'dance-floor', mount: 'flat', variants: DANCE,
+    label: (v) => `${v ?? 'disco'}:1.5x1.5`, action: 'Danser', emote: 'danse', interact: DANCE_TEXTS, light: danceLight,
+  },
+  {
+    id: 'dance-floor-large', name: 'Grande piste de danse', category: 'party', model: 'dance-floor', mount: 'flat', variants: DANCE,
+    label: (v) => `${v ?? 'disco'}:2x2`, action: 'Danser', emote: 'danse', interact: DANCE_TEXTS, light: danceLight,
+  },
+  {
+    id: 'disco-ball', name: 'Boule à facettes', category: 'party', model: 'disco-ball', mount: 'floor', solid: false, action: 'Admirer',
+    interact: ['Boule à facettes : quatre cent trente-deux petits miroirs, et autant de reflets de vous.', 'Elle tourne. Comète essaie d\'attraper les reflets depuis une heure.'],
+  },
+  {
+    id: 'dj-booth', name: 'Platines de DJ', category: 'party', model: 'dj-booth', mount: 'floor', action: 'Mixer',
+    interact: [
+      'Vous scratchez « Le Beau Danube bleu ». Le public (Comète) est en délire.',
+      'Aux platines : un remix du bip de l\'ordinateur de bord. Un classique.',
+      'Vous montez le son. Quelque part, un voisin de cabine tape au mur.',
+    ],
+  },
+  {
+    id: 'jukebox', name: 'Jukebox', category: 'party', model: 'jukebox', mount: 'floor', action: 'Choisir un morceau',
+    interact: [
+      'Le jukebox joue « Le Beau Danube bleu (Docking Mix) ». Parfait pour un amarrage.',
+      'Morceau choisi : « Sérénade en supercroisière ». Quatorze minutes, comme le trajet jusqu\'à la station.',
+      'Le jukebox joue « Fly Me to Hutton Orbital ». Il y en a pour un moment.',
+      'Face B : « Thargoid Groove ». La coque vibre étrangement.',
+    ],
+  },
+  {
+    id: 'speaker', name: 'Enceinte', category: 'party', model: 'speaker', mount: 'floor',
+    variants: [{ id: 'black', label: 'Noire', swatch: '#1b1b21' }, { id: 'wood', label: 'Bois', swatch: '#7a4e32' }, { id: 'white', label: 'Blanche', swatch: '#e8eaee' }],
+  },
+  {
+    id: 'laser', name: 'Projecteur laser', category: 'party', model: 'laser', mount: 'top',
+    variants: [
+      { id: 'green', label: 'Vert', swatch: '#39ff6a' },
+      { id: 'red', label: 'Rouge', swatch: '#ff3b3b' },
+      { id: 'blue', label: 'Bleu', swatch: '#3b8cff' },
+      { id: 'rgb', label: 'Multicolore', swatch: 'conic-gradient(#ff3b3b, #39ff6a, #3b8cff, #ff3b3b)' },
+    ],
+    interact: 'Projecteur laser : classe 2, promis. Ne pas viser les hublots.',
+  },
+  {
+    id: 'stage-light', name: 'Lyre', category: 'party', model: 'stage-light', mount: 'floor',
+    interact: 'Lyre motorisée : elle balaie la pièce en rythme. Comète la poursuit.',
+  },
 
   // --- Tapis
   { id: 'rug', name: 'Tapis', category: 'rugs', model: 'rug', mount: 'flat', variants: RUG_PALETTES, label: (v) => `${v ?? 'warm'}:2x1.4` },
