@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import {
   animatedScreen, beamMaterial, box, cylinder, drawnTexture, glass, glow, instanced, keepShared, lit, mesh, part, rng, setInstance, type Builder,
 } from './kit'
-import { beatAt } from '../tempo'
+import { beatAt, beatPhase } from '../tempo'
 
 /*
  * Soirée dans les quartiers : piste de danse, boule à facettes, platines, jukebox, enceinte,
@@ -73,7 +73,7 @@ const danceFloor: Builder = ({ label = 'disco' }) => {
   const off = new THREE.Color('#1c1a26'), c = new THREE.Color()
   const cx = (nx - 1) / 2, cz = (nz - 1) / 2
   const update = (t: number) => {
-    const b = beatAt(t), beat = Math.floor(b), pulse = Math.exp(-(b % 1) * 4)
+    const b = beatAt(t), beat = Math.floor(b), pulse = Math.exp(-(b - beat) * 4)
     const pattern = Math.floor(beat / 8) % 4
     for (let i = 0; i < nx; i++) {
       for (let j = 0; j < nz; j++) {
@@ -195,7 +195,7 @@ const discoBall: Builder = ({ random, room }) => {
     const spin = t * 0.45
     ball.rotation.y = spin
     const holder = live.parent
-    const pulse = 0.75 + 0.25 * Math.exp(-(beatAt(t) % 1) * 4)
+    const pulse = 0.75 + 0.25 * Math.exp(-beatPhase(t) * 4)
     // Centre de la boule dans le repère du parent (le pont, pour une cabine).
     const px = holder?.position.x ?? 0, pz = holder?.position.z ?? 0, py = (holder?.position.y ?? 0) + BALL_Y, rot = holder?.rotation.y ?? 0
     // Du repère du pont à celui du meuble (tourné de `rot` autour de y).
@@ -303,7 +303,7 @@ const djBooth: Builder = () => {
   const screen = animatedScreen(96, 28, 15, (c, t) => {
     c.fillStyle = '#07060c'
     c.fillRect(0, 0, 96, 28)
-    const pulse = Math.exp(-(beatAt(t) % 1) * 4)
+    const pulse = Math.exp(-beatPhase(t) * 4)
     for (let i = 0; i < 16; i++) {
       const h = 3 + (0.5 + 0.5 * Math.sin(t * 7 + i * 1.3)) * 14 * (0.55 + 0.45 * pulse) + (i % 4 === 0 ? pulse * 6 : 0)
       const grad = c.createLinearGradient(0, 28, 0, 28 - h)
@@ -318,7 +318,7 @@ const djBooth: Builder = () => {
   const LED = ['#3bff8a', '#3bff8a', '#3bff8a', '#ffe94f', '#ffe94f', '#ff3b3b'].map((c) => new THREE.Color(c))
   const update = (t: number) => {
     for (const [i, p] of decks.entries()) p.rotation.y = -t * (3.5 + i * 0.1)
-    const pulse = Math.exp(-(beatAt(t) % 1) * 4)
+    const pulse = Math.exp(-beatPhase(t) * 4)
     for (let i = 0; i < 12; i++) {
       const level = (i < 6 ? 0.35 : 0.3) + pulse * 0.55 + 0.1 * Math.sin(t * 9 + (i < 6 ? 0 : 2))
       leds.setColorAt(i, (i % 6) / 6 < level ? on.copy(LED[i % 6]) : off)
@@ -455,7 +455,7 @@ const speaker: Builder = ({ label = 'black' }) => {
   live.add(woofer, tweeter, ring)
   const base = new THREE.Color(s.ring)
   const update = (t: number) => {
-    const pulse = Math.exp(-(beatAt(t) % 1) * 5)
+    const pulse = Math.exp(-beatPhase(t) * 5)
     woofer.position.z = pulse * 0.012
     woofer.scale.setScalar(1 + pulse * 0.04)
     ringMat.color.copy(base).multiplyScalar(0.35 + 0.65 * pulse)
@@ -502,7 +502,7 @@ const laser: Builder = ({ label = 'green' }) => {
   const c = new THREE.Color(color)
   const update = (t: number) => {
     fan.rotation.set(-0.35 - 0.2 * Math.sin(t * 0.9), Math.sin(t * 0.6) * 0.5, 0)
-    const b = beatAt(t), pulse = Math.exp(-(b % 1) * 3)
+    const b = beatAt(t), pulse = Math.exp(-(b - Math.floor(b)) * 3)
     beams.forEach((m, i) => {
       const u = (m.material as THREE.ShaderMaterial).uniforms
       if (label === 'rgb') c.setHSL(mod(t * 0.15 + i * 0.12, 1), 1, 0.55)
@@ -556,7 +556,7 @@ const stageLight: Builder = ({ random }) => {
     lensMat.color.copy(c)
     u.uColor.value.copy(c)
     u.uTime.value = t
-    u.uIntensity.value = 0.35 + 0.25 * Math.exp(-(beatAt(t) % 1) * 3)
+    u.uIntensity.value = 0.35 + 0.25 * Math.exp(-beatPhase(t) * 3)
   }
   update(0)
   return { solid: g, live, update }

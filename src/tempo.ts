@@ -18,8 +18,18 @@ export const tempo = {
 /** Battement en cours (à virgule) à l'instant `t` de l'horloge des meubles. */
 export const beatAt = (t: number) => ((t - tempo.origin) * tempo.bpm) / 60
 
+/**
+ * Où l'on en est du battement, de 0 (sur le temps) à 1 (juste avant le suivant). Avant le
+ * battement 0 (une vignette du catalogue, dessinée à l'instant 1,7, une fois un morceau calé),
+ * le battement est négatif : `b % 1` le serait aussi.
+ */
+export const beatPhase = (t: number) => {
+  const b = beatAt(t)
+  return b - Math.floor(b)
+}
+
 /** Éclat du battement : 1 sur le temps, puis il retombe avant le suivant. */
-export const beatPulse = (t: number) => Math.exp(-(((beatAt(t) % 1) + 1) % 1) * 4)
+export const beatPulse = (t: number) => Math.exp(-beatPhase(t) * 4)
 
 /** Battement en cours, maintenant. */
 export const beatNow = () => beatAt(tempo.now)
