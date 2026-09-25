@@ -108,6 +108,11 @@ export interface FadeFocus {
   toCamera: THREE.Vector3
   /** Mode aménagement : on estompe les murs de la cabine tournés vers la caméra, et eux seuls. */
   cabin: boolean
+  /**
+   * Meuble où le joueur est installé (position au sol de son centre) : il ne s'estompe pas, même
+   * si son centre passe devant le joueur (couché dans un lit, on reste dans le lit).
+   */
+  keep?: { x: number; z: number } | null
 }
 
 const _right = new THREE.Vector3()
@@ -128,6 +133,7 @@ export function updateOccluders(list: Occluder[], fades: FadeBuffer | null, view
       _v.set(o.center.x - focus.x, 0, o.center.z - focus.z)
       const ahead = _v.dot(toCamera)
       hide = ahead > 0.1 && ahead < 3 && Math.abs(_v.dot(right)) < 1.6
+      if (hide && view.keep && Math.abs(o.center.x - view.keep.x) < 0.02 && Math.abs(o.center.z - view.keep.z) < 0.02) hide = false
     }
     const before = o.value
     o.value = THREE.MathUtils.damp(o.value, hide ? 0.25 : 1, 8, dt)

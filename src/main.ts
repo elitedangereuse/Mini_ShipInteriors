@@ -1820,7 +1820,8 @@ function frame() {
   actors.get(catDeck)!.push(cat.root.position)
   // Un joueur d'une autre instance des quartiers n'ouvre pas nos portes.
   for (const r of remotes.values()) if (r.group.visible || r.level !== deck.def.id) actors.get(deckById(r.level))?.push(r.group.position)
-  for (const d of decks) d.update(world, actors.get(d)!, d === deck ? player.position : null, toCam, editing() && d === cabinDeck)
+  const keep = seating.current?.item.position ?? null
+  for (const d of decks) d.update(world, actors.get(d)!, d === deck ? player.position : null, toCam, editing() && d === cabinDeck, keep)
   editor?.update(timer.getElapsed())
 
   stars.update(world, iso.target, toCam, iso.tilt)
