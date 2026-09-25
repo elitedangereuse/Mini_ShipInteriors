@@ -38,6 +38,21 @@ export default defineConfig({
   // on relaie au site Docker.
   server: { proxy: { [CMDR_ENDPOINT]: ED_SITE_URL, [CABIN_ENDPOINT]: ED_SITE_URL } },
   preview: { proxy: { [CMDR_ENDPOINT]: ED_SITE_URL, [CABIN_ENDPOINT]: ED_SITE_URL } },
-  // Three.js pèse ~650 ko minifié à lui seul, le jeu et son mobilier ~150 ko : c'est attendu.
-  build: { chunkSizeWarningLimit: 900 },
+  // Three.js pèse ~650 ko minifié à lui seul, le jeu et son mobilier ~200 ko : c'est attendu.
+  // Le mode aménagement est chargé à la demande (import dynamique, ~25 ko) ; les morceaux
+  // partagés prennent un nom clair (sinon, celui du premier module commun venu) : vendor pour
+  // les dépendances, game pour le code du jeu que l'éditeur utilise aussi.
+  build: {
+    chunkSizeWarningLimit: 900,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: 'vendor', test: /node_modules/, priority: 2 },
+            { name: 'game', minShareCount: 2, priority: 1 },
+          ],
+        },
+      },
+    },
+  },
 })

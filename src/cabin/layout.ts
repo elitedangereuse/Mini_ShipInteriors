@@ -59,6 +59,10 @@ export const DEFAULT_CABIN: CabinItem[] = [
   { m: 'sofa', x: 14.25, z: 9.97, r: 2, v: 'terracotta' },
   { m: 'floor-lamp', x: 12.95, z: 10.05, r: 0 },
   { m: 'beanbag', x: 15.0, z: 8.0, r: 0, v: 'mustard' },
+  // Aux murs : une affiche au-dessus de la table de chevet, l'horloge au-dessus du feu, un tableau.
+  { m: 'poster', x: 7.65, z: 7.05, r: 1, v: 'colonia' },
+  { m: 'wall-clock', x: 14.0, z: 5.65, r: 0 },
+  { m: 'frame', x: 15.35, z: 8.9, r: 3, v: 'ringed' },
 ]
 
 const round = (v: number) => Math.round(v * 1000) / 1000
