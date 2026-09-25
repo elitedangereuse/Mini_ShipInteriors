@@ -531,8 +531,9 @@ export class Deck {
    * @param toCamera direction horizontale (normalisée) du joueur vers la caméra
    * @param editing mode aménagement : les murs de la cabine tournés vers la caméra s'estompent
    * @param keep meuble où le joueur est installé : il ne s'estompe pas (cf. FadeFocus)
+   * @param fade temps écoulé pour le tramage, qui suit la caméra même quand l'instant est figé (mode photo)
    */
-  update(dt: number, actors: THREE.Vector3[], focus: THREE.Vector3 | null, toCamera: THREE.Vector3, editing = false, keep: { x: number; z: number } | null = null) {
+  update(dt: number, actors: THREE.Vector3[], focus: THREE.Vector3 | null, toCamera: THREE.Vector3, editing = false, keep: { x: number; z: number } | null = null, fade = dt) {
     this.time += dt
 
     // Portes automatiques.
@@ -549,7 +550,7 @@ export class Deck {
     if (!focus) return
 
     // Murs et gros meubles entre la caméra et le joueur : tramés.
-    if (updateOccluders(this.occluders, this.fades, { focus, toCamera, cabin: editing, keep }, dt)) this.fades.texture.needsUpdate = true
+    if (updateOccluders(this.occluders, this.fades, { focus, toCamera, cabin: editing, keep }, fade)) this.fades.texture.needsUpdate = true
 
     this.glowMat.uniforms.uTime.value = this.time
     const beam = this.liftBeam.material as THREE.ShaderMaterial
@@ -566,7 +567,7 @@ export class Deck {
 
     tickFurniture(this.time)
     for (const a of this.animated) a(this.time)
-    this.cabin?.update(this.time, dt, { focus: editing && this.cabin ? this.cabin.center : focus, toCamera, cabin: editing, keep })
+    this.cabin?.update(this.time, fade, { focus: editing && this.cabin ? this.cabin.center : focus, toCamera, cabin: editing, keep })
 
     if (this.core && this.coreMat) {
       this.coreMat.emissiveIntensity = 2.2 + Math.sin(this.time * 3) * 0.6

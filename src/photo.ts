@@ -125,7 +125,7 @@ export class PhotoMode {
     this.bar.hidden = this.hint.hidden = !on
     this.gridEl.hidden = !on || !this.grid
     if (!on) {
-      this.frozen = false
+      this.frozen = this.hideMe = false
       this.host.me().visible = true
       this.preview.hidden = true
       this.sync()

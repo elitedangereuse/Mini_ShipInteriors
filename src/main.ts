@@ -936,14 +936,14 @@ function inCabin(level: number, x: number, z: number): boolean {
 }
 
 async function openEditor() {
-  if (editing() || riding) return
+  if (editing() || riding || photo.active) return
   if (visiting) return chat.add('system', tr('Ces quartiers ne sont pas les vôtres : on n\'aménage que chez soi.', 'These quarters aren\'t yours: you can only decorate your own.'))
   if (!linked) return chat.add('system', tr('Aménager ses quartiers est réservé aux CMDR connectés à elitedangereuse.fr.', 'Only CMDRs logged in to elitedangereuse.fr can decorate their quarters.'))
   if (!cabinStore?.ready) return chat.add('system', tr('Vos quartiers arrivent du site, encore un instant…', 'Your quarters are on their way from the site, just a moment…'))
   if (!editor) {
     await loadEditor()
     // On a pu partir (ascenseur, invitation) pendant le chargement.
-    if (!editor || editing() || riding || visiting || !inCabin(deck.def.id, player.position.x, player.position.z)) return
+    if (!editor || editing() || riding || visiting || photo.active || !inCabin(deck.def.id, player.position.x, player.position.z)) return
   }
   const store = cabinStore
   const ed = editor
@@ -1537,6 +1537,8 @@ function walkTo(to: { x: number; z: number }, arrived: () => void): boolean {
 function seated(seat: Seated) {
   const { item } = seat
   bindPose()
+  // Passé en mode photo pendant qu'on s'installait : on tient la pose, sans rien lancer.
+  if (photo.active) return
   if (seat.spot.pose === 'claw' && item.control?.kind === 'claw') return startClaw(seat, item.control)
   const game = item.furniture?.label
   if (seat.spot.pose === 'arcade' && isGameId(game)) return void openArcade(seat, game)
@@ -1739,6 +1741,9 @@ const photo = new PhotoMode({
     iso.zoomMin = on ? 1.1 : 2.5
     iso.zoomMax = on ? 18 : 14
     if (!on) iso.zoomTo(THREE.MathUtils.clamp(iso.zoomLevel, 2.5, 14))
+    // Un trajet commencé avant s'arrête là : à l'arrivée, une borne ou un panneau s'ouvrirait
+    // par-dessus le mode photo.
+    if (on) player.cancelPath()
     hover.visible = marker.visible = false
     keys.clear()
   },
@@ -1829,7 +1834,7 @@ function frame() {
   // Un joueur d'une autre instance des quartiers n'ouvre pas nos portes.
   for (const r of remotes.values()) if (r.group.visible || r.level !== deck.def.id) actors.get(deckById(r.level))?.push(r.group.position)
   const keep = seating.current?.item.position ?? null
-  for (const d of decks) d.update(world, actors.get(d)!, d === deck ? player.position : null, toCam, editing() && d === cabinDeck, keep)
+  for (const d of decks) d.update(world, actors.get(d)!, d === deck ? player.position : null, toCam, editing() && d === cabinDeck, keep, dt)
   editor?.update(timer.getElapsed())
 
   stars.update(world, iso.target, toCam, iso.tilt)
@@ -1891,10 +1896,11 @@ function frame() {
   // On s'éloigne de l'ascenseur ou du jukebox : le panneau se ferme.
   if (lift.isOpen && Math.hypot(player.position.x - liftTile.x, player.position.z - liftTile.z) > 1.6) lift.close()
   if (jukebox.isOpen && jukeboxNear && Math.hypot(player.position.x - jukeboxNear.x, player.position.z - jukeboxNear.z) > 2) jukebox.close()
-  // Les jukebox ne s'entendent que sur leur pont ; la soirée bat sur le morceau qu'on entend.
+  // Les jukebox ne s'entendent que sur leur pont ; la soirée bat sur le morceau qu'on entend,
+  // sauf quand le mode photo fige l'instant.
   deckMusic.setAudible(deck.def.id === 0)
   cabinMusic.setAudible(deck === cabinDeck)
-  if (!deckMusic.syncTempo() && !cabinMusic.syncTempo()) syncTempo(null)
+  if (!photo.frozen && !deckMusic.syncTempo() && !cabinMusic.syncTempo()) syncTempo(null)
 
   dialog.update(dt)
   seating.arbitrate()

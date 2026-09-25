@@ -619,6 +619,7 @@ export class CabinView {
     return { center: box.getCenter(new THREE.Vector3()) }
   }
 
+  /** @param dt temps écoulé pour le tramage des murs et des gros meubles */
   update(t: number, dt: number, view: FadeFocus) {
     for (const b of this.built) b.update?.(t)
     if (updateOccluders(this.occluders, this.fades, view, dt)) this.fades.texture.needsUpdate = true
