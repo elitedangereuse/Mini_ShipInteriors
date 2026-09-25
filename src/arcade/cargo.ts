@@ -1,5 +1,5 @@
 import { tr } from '../i18n'
-import { emptyPad, padScore, pixelText, random, type ArcadeGame, type Pad, type Sfx } from './game'
+import { emptyPad, padScore, pixelText, random, type ArcadeGame, type Button, type Pad, type Sfx } from './game'
 
 /*
  * CARGAISON : des conteneurs de fret tombent dans la soute ; une rangée pleine part à la
@@ -94,6 +94,8 @@ export class Cargo implements ArcadeGame {
   private dasTime = 0
   /** Rangées pleines qui clignotent avant de partir. */
   clearing: { rows: number[]; t: number } | null = null
+  /** Rotation, réserve ou pas de côté tapés pendant ce temps : pour le conteneur suivant. */
+  private early = new Set<Button>()
   private popups: { text: string; t: number }[] = []
   private overTime = 0
   private rand: () => number
@@ -254,13 +256,17 @@ export class Cargo implements ArcadeGame {
       return
     }
     if (this.clearing) {
+      // La chute directe, elle, ne se garde pas : elle lâcherait un conteneur encore invisible.
+      for (const b of pad.pressed) if (b !== 'a') this.early.add(b)
       this.clearing.t += dt
       if (this.clearing.t >= CLEAR_TIME) this.finishClear()
       return
     }
     if (!this.piece) return
+    const pressed = this.early.size ? new Set([...pad.pressed, ...this.early]) : pad.pressed
+    this.early.clear()
 
-    if (pad.pressed.has('c') && !this.holdUsed) {
+    if (pressed.has('c') && !this.holdUsed) {
       // Réserve : on y range le conteneur, et l'on reprend celui qui y était (ou le suivant).
       const kind = this.piece.kind
       this.sounds.push('hold')
@@ -270,17 +276,17 @@ export class Cargo implements ArcadeGame {
       this.holdUsed = true
       if (!this.piece) return
     }
-    if (pad.pressed.has('up')) this.rotate(1)
-    if (pad.pressed.has('b')) this.rotate(-1)
+    if (pressed.has('up')) this.rotate(1)
+    if (pressed.has('b')) this.rotate(-1)
 
     // Gauche, droite : un pas, puis la répétition automatique (la dernière direction appuyée gagne).
     let dir = 0
-    if (pad.pressed.has('left')) dir = -1
-    else if (pad.pressed.has('right')) dir = 1
+    if (pressed.has('left')) dir = -1
+    else if (pressed.has('right')) dir = 1
     else if (this.dasDir && pad.held.has(this.dasDir < 0 ? 'left' : 'right')) dir = this.dasDir
     else if (pad.held.has('left')) dir = -1
     else if (pad.held.has('right')) dir = 1
-    if (dir !== this.dasDir || pad.pressed.has('left') || pad.pressed.has('right')) {
+    if (dir !== this.dasDir || pressed.has('left') || pressed.has('right')) {
       this.dasDir = dir
       this.dasTime = 0
       if (dir && this.tryMove(dir, 0)) this.sounds.push('move')
@@ -292,7 +298,7 @@ export class Cargo implements ArcadeGame {
       }
     }
 
-    if (pad.pressed.has('a')) {
+    if (pressed.has('a')) {
       // Chute directe : 2 crédits par rangée.
       const y = this.ghostY()
       this.score += (y - this.piece.y) * 2
