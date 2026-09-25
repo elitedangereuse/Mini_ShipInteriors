@@ -10,6 +10,8 @@ export class RemotePlayer {
   readonly group = new THREE.Group()
   avatar?: Avatar
   name: string
+  /** CMDR reconnu par le site. */
+  verified: boolean
   skin: string
   level: number
   /** Instance des quartiers où il se trouve (id du joueur qui reçoit). */
@@ -30,6 +32,7 @@ export class RemotePlayer {
     private levelY: (level: number) => number,
   ) {
     this.name = s.name
+    this.verified = !!s.verified
     this.skin = s.skin
     this.level = s.level
     this.cabin = s.cabin ?? id

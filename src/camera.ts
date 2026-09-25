@@ -109,12 +109,16 @@ export class IsoCamera {
     return this.zoomGoal
   }
 
+  /** Zoom le plus rapproché à la molette (le mode photo va plus près), et le plus éloigné. */
+  zoomMin = 2.5
+  zoomMax = 14
+
   zoomTo(z: number) {
-    this.zoomGoal = THREE.MathUtils.clamp(z, 2, 14)
+    this.zoomGoal = THREE.MathUtils.clamp(z, Math.min(2, this.zoomMin), this.zoomMax)
   }
 
   zoomBy(factor: number) {
-    this.zoomGoal = THREE.MathUtils.clamp(this.zoomGoal * factor, 2.5, 14)
+    this.zoomGoal = THREE.MathUtils.clamp(this.zoomGoal * factor, this.zoomMin, this.zoomMax)
   }
 
   /** Direction horizontale (normalisée) de la scène vers la caméra. */

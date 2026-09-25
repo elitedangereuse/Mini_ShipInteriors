@@ -20,6 +20,7 @@ import { hydrateIcons, icon } from './icons'
 import { lookId, lookPath, lookRig, parseLook, RACES, raceOf, randomLook, variantsOf, type Look } from './looks'
 import { Net, type PlayerState } from './net'
 import type { Tile } from './pathfinding'
+import { PhotoMode } from './photo'
 import { overlapsAny, resolveCircle } from './physics'
 import { Player } from './player'
 import { RemotePlayer } from './remote'
@@ -561,6 +562,7 @@ net.onMessage = (m) => {
       if (!r) break
       if (r.name !== m.name) chat.add('system', tr(`${r.name} s'appelle désormais ${m.name}.`, `${r.name} is now called ${m.name}.`))
       r.name = m.name
+      r.verified = !!m.verified
       bubbles.rename(`p${m.id}`, m.name, m.verified)
       if (r.skin !== m.skin) {
         r.skin = m.skin
@@ -717,6 +719,7 @@ async function applyLook(look: Look) {
   if (req !== lookRequest) return
   player.setAvatar(new Avatar(r))
   player.avatar.setPose(seating.pose)
+  photo.refresh()
 }
 
 function describe(look: Look): string {
@@ -1114,6 +1117,9 @@ addEventListener('keydown', (e) => {
   // Mode aménagement : ses touches d'abord (les flèches se répètent pour ajuster un objet).
   if (editing() && editor!.keyDown(e)) return
   if (e.repeat) return
+  // Mode photo : ses touches (déclencheur, options) ; on garde les déplacements, les poses, R et M.
+  if (photo.keyDown(e)) return
+  if (e.code === 'KeyP' && !editing()) return openPhoto()
   if (liftKey(e)) return
   if (e.code === 'Enter') {
     e.preventDefault()
@@ -1134,7 +1140,12 @@ addEventListener('keydown', (e) => {
     updateMuteButton()
   }
   if (e.code === 'KeyH') $('help').hidden = !$('help').hidden
-  if (editing()) return
+  if (editing() || photo.active) {
+    // En photo, les emotes servent de poses.
+    const pose = /^Digit([1-9])$/.exec(e.code)
+    if (photo.active && pose && EMOTES[+pose[1] - 1]) emote(EMOTES[+pose[1] - 1].id)
+    return
+  }
   // Installé sur un meuble : E relève le personnage, Espace fait ce que permet la place.
   if (seating.current) {
     if (e.code === 'KeyE' && seating.settled) seating.stand()
@@ -1169,6 +1180,7 @@ $('mute').onclick = () => {
   updateMuteButton()
 }
 $('help-toggle').onclick = () => ($('help').hidden = !$('help').hidden)
+$('photo-toggle').onclick = () => openPhoto()
 
 // « À propos » : comment le jeu a été fait, pour qui veut savoir. Échap le referme aussi.
 function toggleAbout(open = $('about').hidden) {
@@ -1623,6 +1635,40 @@ async function fsdJump() {
   jumping = false
 }
 
+// ------------------------------------------------------------------ mode photo
+
+const photo = new PhotoMode({
+  renderer,
+  scene,
+  camera: () => iso.camera,
+  helpers: [hover, marker],
+  me: () => player.root,
+  tags: () => [
+    { at: player.avatar.head(new THREE.Vector3()), name: profile.name, verified },
+    ...[...remotes.values()].filter((r) => r.group.visible && r.avatar).map((r) => ({ at: r.avatar!.head(new THREE.Vector3()), name: r.name, verified: r.verified })),
+  ],
+  shutter: () => sound.shutter(),
+  rotate: (step) => iso.rotate(step),
+  zoom: (factor) => iso.zoomBy(factor),
+  onToggle: (on) => {
+    // Plus près en photo (jusqu'au visage), plus loin aussi (tout le pont).
+    iso.zoomMin = on ? 1.1 : 2.5
+    iso.zoomMax = on ? 18 : 14
+    if (!on) iso.zoomTo(THREE.MathUtils.clamp(iso.zoomLevel, 2.5, 14))
+    hover.visible = marker.visible = false
+    keys.clear()
+  },
+})
+
+function openPhoto() {
+  if (editing() || arcade?.isOpen || riding) return
+  lift.close()
+  wardrobe.close(false)
+  inviteMenu.close()
+  toggleAbout(false)
+  photo.toggle()
+}
+
 // ------------------------------------------------------------------ boucle
 
 const roomEl = $('room')
@@ -1676,14 +1722,16 @@ function frame() {
     spin += dt * 0.7
     player.setHeading(spin)
   }
-  if (!editing()) processHover()
-  player.update(dt, input, keys.has('ShiftLeft') || keys.has('ShiftRight'))
+  // Mode photo, instant figé : personnages, meubles et étoiles s'arrêtent ; la caméra, non.
+  const world = photo.frozen ? 0 : dt
+  if (!editing() && !photo.active) processHover()
+  player.update(world, input, keys.has('ShiftLeft') || keys.has('ShiftRight'))
 
   for (const r of remotes.values()) {
-    r.update(dt)
+    r.update(world)
     r.group.visible = sees(r)
   }
-  cat.update(dt, catDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
+  cat.update(world, catDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
 
   // En mode aménagement, la caméra regarde la cabine, pas le personnage.
   iso.update(dt, editing() ? editor!.focus(editFocus) : claw ? claw.focus : player.position)
@@ -1695,10 +1743,10 @@ function frame() {
   actors.get(catDeck)!.push(cat.root.position)
   // Un joueur d'une autre instance des quartiers n'ouvre pas nos portes.
   for (const r of remotes.values()) if (r.group.visible || r.level !== deck.def.id) actors.get(deckById(r.level))?.push(r.group.position)
-  for (const d of decks) d.update(dt, actors.get(d)!, d === deck ? player.position : null, toCam, editing() && d === cabinDeck)
+  for (const d of decks) d.update(world, actors.get(d)!, d === deck ? player.position : null, toCam, editing() && d === cabinDeck)
   editor?.update(timer.getElapsed())
 
-  stars.update(dt, iso.target, toCam, iso.tilt)
+  stars.update(world, iso.target, toCam, iso.tilt)
   sound.update(iso.target, iso.angle)
   ambience(dt)
   for (const [i, l] of lightPool.entries()) {
@@ -1817,6 +1865,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, cat, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso },
+    __game: { renderer, sound, player, cat, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso },
   })
 }

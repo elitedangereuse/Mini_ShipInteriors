@@ -564,4 +564,26 @@ export class Sound {
     boom.start(t1)
     boom.stop(t1 + 1.5)
   }
+
+  /** Déclencheur du mode photo : le claquement de l'obturateur, puis le réarmement. */
+  shutter() {
+    if (!this.ready) return
+    const ctx = this.ctx
+    const out = this.output(null, { volume: 0.18 }).input
+    for (const [at, freq, len] of [[0, 3200, 0.03], [0.07, 1800, 0.05]] as const) {
+      const t = ctx.currentTime + 0.005 + at
+      const src = ctx.createBufferSource()
+      src.buffer = this.whiteNoise
+      const bp = ctx.createBiquadFilter()
+      bp.type = 'bandpass'
+      bp.frequency.value = freq
+      bp.Q.value = 1.2
+      const env = ctx.createGain()
+      env.gain.setValueAtTime(1, t)
+      env.gain.exponentialRampToValueAtTime(0.001, t + len)
+      src.connect(bp).connect(env).connect(out)
+      src.start(t, Math.random() * 0.5)
+      src.stop(t + len + 0.02)
+    }
+  }
 }
