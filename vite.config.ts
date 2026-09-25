@@ -1,29 +1,28 @@
 import { defineConfig, type Plugin } from 'vite'
 import { attachRelay } from './server/relay.js'
-import { issueTicket } from './server/ticket.js'
-
-/** En dev, un secret par défaut suffit : c'est le serveur de dev lui-même qui signe les billets. */
-const DEV_SECRET = process.env.MINI_INTERIOR_SECRET || 'dev-only-secret'
 
 /**
- * Branche le relais multijoueur sur le serveur de dev (et de preview) de Vite, sur /ws.
- * En dev, /dev/ticket?name=X simule elitedangereuse.fr : il signe un billet pour le CMDR X
- * (côté jeu : ouvrir http://localhost:5173/?cmdr=X).
+ * Site elitedangereuse.fr en local (Docker, cf. docker/README.md du repo elitedangereuselight).
+ * Les cookies ne dépendent pas du port : un CMDR connecté sur localhost:8080 l'est aussi ici.
+ */
+const ED_SITE_URL = process.env.ED_SITE_URL || 'http://localhost:8080'
+const CMDR_ENDPOINT = '/outils/mini-shipinteriors-cmdr.php'
+
+/**
+ * Branche le relais multijoueur sur le serveur de dev (et de preview) de Vite, sur /ws/mini-shipinteriors.
+ * Le relais fait reconnaître le cookie du site par le site local. Sans Docker, ?cmdr=X simule
+ * le CMDR X (serveur de dev uniquement).
  */
 function relay(): Plugin {
+  const cmdrUrl = process.env.ED_CMDR_URL || ED_SITE_URL + CMDR_ENDPOINT
   return {
     name: 'mini-interior-relay',
     configureServer(server) {
       const log = (m: string) => server.config.logger.info(m)
-      if (server.httpServer) attachRelay(server.httpServer, { log, secret: DEV_SECRET })
-      server.middlewares.use('/dev/ticket', (req, res) => {
-        const name = new URL(req.url ?? '', 'http://dev').searchParams.get('name')?.trim().slice(0, 40)
-        res.setHeader('Content-Type', 'application/json')
-        res.end(JSON.stringify(name ? { cmdr: name, ticket: issueTicket(name, DEV_SECRET) } : { cmdr: null }))
-      })
+      if (server.httpServer) attachRelay(server.httpServer, { log, cmdrUrl, devCmdr: true })
     },
     configurePreviewServer(server) {
-      attachRelay(server.httpServer, { log: (m: string) => server.config.logger.info(m) })
+      attachRelay(server.httpServer, { log: (m: string) => server.config.logger.info(m), cmdrUrl })
     },
   }
 }
@@ -32,6 +31,9 @@ export default defineConfig({
   // base relative : le build peut être servi depuis n'importe quel sous-dossier.
   base: './',
   plugins: [relay()],
+  // Le client demande au site qui est connecté (même origine en prod) : en local, on relaie au site Docker.
+  server: { proxy: { [CMDR_ENDPOINT]: ED_SITE_URL } },
+  preview: { proxy: { [CMDR_ENDPOINT]: ED_SITE_URL } },
   // Three.js pèse ~650 ko minifié à lui seul, le jeu et son mobilier ~150 ko : c'est attendu.
   build: { chunkSizeWarningLimit: 900 },
 })

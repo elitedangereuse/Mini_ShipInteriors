@@ -1,12 +1,16 @@
-// Relais multijoueur minimal : chaque client annonce sa position, ses messages
+// Relais multijoueur minimal (socket.io) : chaque client annonce sa position, ses messages
 // et ses emotes ; le serveur valide, mémorise l'état et le rediffuse aux autres.
 // Utilisé par le serveur de dev (plugin Vite) et par server/index.js en production.
 //
-// Identité : un joueur connecté à elitedangereuse.fr présente un billet signé par le site
-// (cf. ticket.js) ; le relais lui impose alors son nom de CMDR et le marque « vérifié ».
-// Les autres sont des invités, libres de leur nom, mais sans la marque.
-import { WebSocketServer } from 'ws'
-import { verifyTicket } from './ticket.js'
+// Identité : le jeu est servi sur le domaine du site, la poignée de main emporte donc le cookie
+// ED_LOGGED_CMDR_ID. Le relais le fait reconnaître par le site (cf. cmdr.js), puis impose au
+// joueur son nom de CMDR et le marque « vérifié ». Les autres sont des invités, libres de leur
+// nom, mais sans la marque.
+import { Server } from 'socket.io'
+import { cleanCmdrName, cmdrFromCookie } from './cmdr.js'
+
+/** Chemin de la socket, partagé avec le client (VITE_WS_PATH) et la conf nginx. */
+export const WS_PATH = '/ws/mini-shipinteriors'
 
 const MAX_PLAYERS = 32
 const MAX_TEXT = 200
@@ -23,28 +27,46 @@ const clean = (s, max) =>
     .trim()
     .slice(0, max)
 const num = (v, lo, hi) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null)
+const obj = (v) => (v && typeof v === 'object' ? v : {})
+const validLook = (s) => typeof s === 'string' && s.length <= 40 && LOOK.test(s)
 
 /**
- * Branche le relais sur un serveur HTTP existant, sur le chemin /ws.
- * @param {{ log?: (m: string) => void, secret?: string }} options
- *   secret : secret partagé avec le site (défaut : variable MINI_INTERIOR_SECRET)
+ * Même origine uniquement. Le cookie du site n'est pas SameSite : sans ce contrôle, une page
+ * d'un autre site pourrait ouvrir une socket avec le cookie d'un visiteur et parler en son nom.
+ * Un client hors navigateur n'envoie pas d'Origin, mais il n'a pas non plus le cookie d'autrui.
  */
-export function attachRelay(httpServer, { log = console.log, secret = process.env.MINI_INTERIOR_SECRET ?? '' } = {}) {
-  if (!secret) log('[relais] MINI_INTERIOR_SECRET absent : les comptes Élite Dangereuse ne peuvent pas être vérifiés (tout le monde est invité).')
-  const wss = new WebSocketServer({ noServer: true, maxPayload: 4096 })
-  const players = new Map() // ws -> joueur
+function sameOrigin(req) {
+  const origin = req.headers.origin
+  if (!origin) return true
+  try {
+    return new URL(origin).host === req.headers.host
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Branche le relais sur un serveur HTTP existant.
+ * @param {import('node:http').Server} httpServer
+ * @param {{ log?: (m: string) => void, cmdrUrl?: string, path?: string, devCmdr?: boolean }} options
+ *   cmdrUrl : endpoint du site qui reconnaît le cookie (défaut : variable ED_CMDR_URL)
+ *   path    : chemin de la socket (défaut : WS_PATH, ou la variable WS_PATH)
+ *   devCmdr : serveur de dev uniquement, accepte le nom de CMDR envoyé par le client (?cmdr=Nom)
+ */
+export function attachRelay(
+  httpServer,
+  { log = console.log, cmdrUrl = process.env.ED_CMDR_URL ?? '', path = process.env.WS_PATH || WS_PATH, devCmdr = false } = {},
+) {
+  if (!cmdrUrl) log('[relais] ED_CMDR_URL absent : les comptes Élite Dangereuse ne peuvent pas être reconnus (tout le monde est invité).')
+  const io = new Server(httpServer, {
+    path,
+    serveClient: false,
+    maxHttpBufferSize: 4096,
+    allowRequest: (req, callback) => callback(null, sameOrigin(req)),
+  })
+  const players = new Map() // socket.id -> joueur
   let nextId = 1
 
-  httpServer.on('upgrade', (req, socket, head) => {
-    if (!req.url?.startsWith('/ws')) return // laisse passer le HMR de Vite
-    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req))
-  })
-
-  const send = (ws, msg) => ws.readyState === 1 && ws.send(JSON.stringify(msg))
-  const broadcast = (msg, except) => {
-    const data = JSON.stringify(msg)
-    for (const ws of players.keys()) if (ws !== except && ws.readyState === 1) ws.send(data)
-  }
   const publicState = (p) => ({ id: p.id, name: p.name, verified: p.verified, skin: p.skin, x: p.x, z: p.z, level: p.level, yaw: p.yaw, anim: p.anim })
 
   /** Nom d'invité : jamais celui d'un CMDR vérifié présent à bord. */
@@ -54,78 +76,72 @@ export function attachRelay(httpServer, { log = console.log, secret = process.en
     return taken ? `${name.slice(0, MAX_NAME - 9)} (invité)` : name
   }
 
-  wss.on('connection', (ws) => {
-    if (players.size >= MAX_PLAYERS) return ws.close(1013, 'Vaisseau complet')
-    let player = null
+  // Avant d'embarquer : place à bord, puis identité (le site est interrogé une fois par connexion).
+  io.use(async (socket, next) => {
+    if (players.size >= MAX_PLAYERS) return next(new Error('Vaisseau complet'))
+    const auth = obj(socket.handshake.auth)
+    socket.data.cmdr = devCmdr && auth.cmdr ? cleanCmdrName(auth.cmdr) : await cmdrFromCookie(socket.handshake.headers.cookie, { url: cmdrUrl, log })
+    next()
+  })
+
+  io.on('connection', (socket) => {
+    const auth = obj(socket.handshake.auth)
+    const cmdr = socket.data.cmdr
+    const player = {
+      id: nextId++,
+      name: '',
+      verified: !!cmdr,
+      skin: validLook(auth.skin) ? auth.skin : 'human.female.b',
+      // Point d'apparition : les quartiers du commandant (cf. SPAWN dans src/levels.ts).
+      x: 11.2, z: 7.4, level: 1, yaw: 0, anim: 'idle',
+    }
+    player.name = cmdr ? `CMDR ${cmdr}` : guestName(auth.name, player)
+    players.set(socket.id, player)
+    socket.emit('welcome', {
+      id: player.id,
+      you: { name: player.name, verified: player.verified },
+      players: [...players.values()].filter((p) => p !== player).map(publicState),
+    })
+    socket.broadcast.emit('join', { player: publicState(player) })
+    log(`[relais] ${player.name}${player.verified ? ' (CMDR vérifié)' : ''} (#${player.id}) a embarqué — ${players.size} à bord`)
+
     let chatBudget = 5
     const refill = setInterval(() => (chatBudget = Math.min(5, chatBudget + 1)), 1000)
 
-    ws.on('message', (raw) => {
-      let m
-      try {
-        m = JSON.parse(raw)
-      } catch {
-        return
-      }
-      if (!player) {
-        if (m.t !== 'hello') return
-        const account = verifyTicket(m.ticket, secret)
-        player = {
-          id: nextId++,
-          name: '',
-          verified: !!account,
-          account: account?.key ?? null,
-          skin: typeof m.skin === 'string' && m.skin.length <= 40 && LOOK.test(m.skin) ? m.skin : 'human.female.b',
-          // Point d'apparition : les quartiers du commandant (cf. SPAWN dans src/levels.ts).
-          x: 11.2, z: 7.4, level: 1, yaw: 0, anim: 'idle',
-        }
-        player.name = account ? `CMDR ${account.name}` : guestName(m.name, player)
-        players.set(ws, player)
-        send(ws, {
-          t: 'welcome',
-          id: player.id,
-          you: { name: player.name, verified: player.verified },
-          players: [...players.values()].filter((p) => p !== player).map(publicState),
-        })
-        broadcast({ t: 'join', player: publicState(player) }, ws)
-        log(`[relais] ${player.name}${player.verified ? ' (CMDR vérifié)' : ''} (#${player.id}) a embarqué — ${players.size} à bord`)
-        return
-      }
-      switch (m.t) {
-        case 'state': {
-          const x = num(m.x, -5, 40), z = num(m.z, -5, 20), yaw = num(m.yaw, -10, 10)
-          if (x === null || z === null || yaw === null || !LEVELS.has(m.level)) return
-          Object.assign(player, { x, z, yaw, level: m.level, anim: ANIMS.has(m.anim) ? m.anim : 'idle' })
-          broadcast({ t: 'state', id: player.id, x, z, yaw, level: player.level, anim: player.anim }, ws)
-          break
-        }
-        case 'chat': {
-          const text = clean(m.text, MAX_TEXT)
-          if (!text || chatBudget <= 0) return
-          chatBudget--
-          broadcast({ t: 'chat', id: player.id, name: player.name, verified: player.verified, text }, ws)
-          break
-        }
-        case 'emote':
-          if (EMOTES.has(m.emote)) broadcast({ t: 'emote', id: player.id, emote: m.emote }, ws)
-          break
-        case 'profile': {
-          // Le nom d'un CMDR vérifié vient du site : il ne se change pas en jeu.
-          if (!player.verified && clean(m.name, MAX_NAME)) player.name = guestName(m.name, player)
-          if (typeof m.skin === 'string' && m.skin.length <= 40 && LOOK.test(m.skin)) player.skin = m.skin
-          broadcast({ t: 'profile', id: player.id, name: player.name, verified: player.verified, skin: player.skin })
-          break
-        }
-      }
+    socket.on('state', (raw) => {
+      const m = obj(raw)
+      const x = num(m.x, -5, 40), z = num(m.z, -5, 20), yaw = num(m.yaw, -10, 10)
+      if (x === null || z === null || yaw === null || !LEVELS.has(m.level)) return
+      Object.assign(player, { x, z, yaw, level: m.level, anim: ANIMS.has(m.anim) ? m.anim : 'idle' })
+      socket.broadcast.emit('state', { id: player.id, x, z, yaw, level: player.level, anim: player.anim })
     })
 
-    ws.on('close', () => {
+    socket.on('chat', (raw) => {
+      const text = clean(obj(raw).text, MAX_TEXT)
+      if (!text || chatBudget <= 0) return
+      chatBudget--
+      socket.broadcast.emit('chat', { id: player.id, name: player.name, verified: player.verified, text })
+    })
+
+    socket.on('emote', (raw) => {
+      const emote = obj(raw).emote
+      if (EMOTES.has(emote)) socket.broadcast.emit('emote', { id: player.id, emote })
+    })
+
+    socket.on('profile', (raw) => {
+      const m = obj(raw)
+      // Le nom d'un CMDR vérifié vient du site : il ne se change pas en jeu.
+      if (!player.verified && clean(m.name, MAX_NAME)) player.name = guestName(m.name, player)
+      if (validLook(m.skin)) player.skin = m.skin
+      io.emit('profile', { id: player.id, name: player.name, verified: player.verified, skin: player.skin })
+    })
+
+    socket.on('disconnect', () => {
       clearInterval(refill)
-      if (!player) return
-      players.delete(ws)
-      broadcast({ t: 'leave', id: player.id })
+      players.delete(socket.id)
+      socket.broadcast.emit('leave', { id: player.id })
       log(`[relais] ${player.name} (#${player.id}) a débarqué — ${players.size} à bord`)
     })
   })
-  return wss
+  return io
 }

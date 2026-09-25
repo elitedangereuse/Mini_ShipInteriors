@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { CAT_MODEL, preload, rig } from './assets'
-import { fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
+import { devCmdr, fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
 import { Sound } from './audio'
 import { Avatar, EMOTES } from './avatar'
 import { IsoCamera } from './camera'
@@ -49,9 +49,9 @@ const profile = {
   skin: lookId(store.get('skin') ? parseLook(store.get('skin')) : randomLook()),
 }
 store.set('skin', profile.skin)
-/** Compte lié au site (le relais le confirme en vérifiant le billet). */
+/** Compte lié au site (le relais le confirme en faisant reconnaître le cookie du site). */
 let linked = false
-/** Le relais a vérifié le billet : nom verrouillé, badge « vérifié ». */
+/** Le relais a reconnu le CMDR : nom verrouillé, badge « vérifié ». */
 let verified = false
 
 // ------------------------------------------------------------------ rendu
@@ -103,7 +103,7 @@ await preload([lookPath(parseLook(profile.skin))], (r) => ($('loading-bar').styl
 const account = await accountRequest
 if (account) {
   linked = true
-  profile.name = `CMDR ${account.cmdr}`
+  profile.name = `CMDR ${account}`
 }
 
 const decks = LEVELS.map((def) => new Deck(def))
@@ -311,14 +311,7 @@ function ambience(dt: number) {
 // ------------------------------------------------------------------ réseau
 
 const remotes = new Map<number, RemotePlayer>()
-// Premier billet : celui obtenu au chargement ; ensuite, un billet frais à chaque reconnexion.
-let firstTicket = account?.ticket
-const net = new Net(profile, async () => {
-  if (!linked) return undefined
-  const t = firstTicket ?? (await fetchCmdrAccount())?.ticket
-  firstTicket = undefined
-  return t
-})
+const net = new Net(profile, devCmdr())
 
 let lastAnnouncedName = ''
 
@@ -330,10 +323,9 @@ function updateIdentity() {
   name.append(nameTag(profile.name, verified))
   el.appendChild(name)
   if (!linked) {
+    // Même domaine que le site : sa page de connexion, avec la page de retour, comme ailleurs sur le site.
     const a = document.createElement('a')
-    a.href = 'https://elitedangereuse.fr/'
-    a.target = '_blank'
-    a.rel = 'noopener'
+    a.href = `/auth-redirect.php?redirect=${encodeURIComponent(location.pathname + location.search)}`
     a.textContent = 'Invité · se connecter au site'
     el.appendChild(a)
   } else if (net.online && !verified) {
@@ -381,6 +373,9 @@ net.onMessage = (m) => {
       // Le relais fait autorité sur le nom (CMDR vérifié, ou invité homonyme d'un CMDR présent).
       profile.name = m.you.name
       verified = m.you.verified
+      // Reconnu par le site via le relais : le compte est lié, même si la demande faite au
+      // chargement n'avait pas abouti.
+      if (verified) linked = true
       updateIdentity()
       for (const p of m.players) addRemote(p)
       chat.add('system', m.players.length ? `Connecté. ${m.players.length} autre(s) membre(s) d'équipage à bord.` : 'Connecté. Personne d\'autre à bord pour l\'instant.')

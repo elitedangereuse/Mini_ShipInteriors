@@ -1,4 +1,8 @@
-import type { Server } from 'node:http'
-import type { WebSocketServer } from 'ws'
+import type { Server as HttpServer } from 'node:http'
+import type { Server } from 'socket.io'
 
-export function attachRelay(httpServer: Server, options?: { log?: (message: string) => void; secret?: string }): WebSocketServer
+export const WS_PATH: string
+export function attachRelay(
+  httpServer: HttpServer,
+  options?: { log?: (message: string) => void; cmdrUrl?: string; path?: string; devCmdr?: boolean },
+): Server

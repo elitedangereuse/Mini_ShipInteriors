@@ -30,41 +30,34 @@ export function isLegacyDefaultName(name: string): boolean {
   return /^Cadet-\d+$/.test(name)
 }
 
-export interface CmdrAccount {
-  /** Nom du CMDR tel qu'affiché sur le site (sans le préfixe « CMDR »). */
-  cmdr: string
-  /** Billet signé par le site, vérifié par le relais multijoueur. */
-  ticket: string
+/**
+ * Endpoint du site qui dit quel CMDR est connecté (outils/mini-shipinteriors-cmdr.php dans le repo
+ * elitedangereuselight). Le jeu est servi sur le même domaine que le site : le cookie
+ * ED_LOGGED_CMDR_ID part tout seul avec la requête. Surcharge possible au build :
+ * VITE_ED_CMDR_URL=… npm run build
+ */
+const CMDR_URL = import.meta.env.VITE_ED_CMDR_URL || '/outils/mini-shipinteriors-cmdr.php'
+
+/** Dev uniquement : ?cmdr=Nom simule un CMDR connecté (le relais de dev accepte ce nom tel quel). */
+export function devCmdr(): string | undefined {
+  if (!import.meta.env.DEV) return undefined
+  return new URLSearchParams(location.search).get('cmdr')?.trim().slice(0, 40) || undefined
 }
 
 /**
- * Adresse de l'endpoint du site qui délivre le billet (integration/elitedangereuse/).
- * Surcharge possible au build : VITE_ED_TICKET_URL=… npm run build
+ * Nom du CMDR connecté au site (sans le préfixe « CMDR »), ou null (invité, site injoignable).
+ * Sert à l'affichage : c'est le relais, en faisant reconnaître le cookie par le site, qui
+ * décide du nom et de la marque « vérifié ».
  */
-function ticketUrl(): string | null {
-  const params = new URLSearchParams(location.search)
-  // Dev : ?cmdr=Nom simule un CMDR connecté (billet signé par le serveur de dev).
-  if (import.meta.env.DEV && params.get('cmdr')) return `/dev/ticket?name=${encodeURIComponent(params.get('cmdr')!)}`
-  if (import.meta.env.VITE_ED_TICKET_URL) return import.meta.env.VITE_ED_TICKET_URL
-  if (location.hostname.endsWith('.elitedangereuse.fr')) return 'https://elitedangereuse.fr/mini-interior-ticket.php'
-  return null
-}
-
-/** CMDR connecté au site, ou null (invité, site injoignable, hors elitedangereuse.fr). */
-export async function fetchCmdrAccount(timeoutMs = 3000): Promise<CmdrAccount | null> {
-  const url = ticketUrl()
-  if (!url) return null
-  const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+export async function fetchCmdrAccount(timeoutMs = 3000): Promise<string | null> {
+  const simulated = devCmdr()
+  if (simulated) return simulated
   try {
-    // credentials: le cookie ED_LOGGED_CMDR_ID du site part avec la requête (même site).
-    const res = await fetch(url, { credentials: 'include', signal: ctrl.signal })
+    const res = await fetch(CMDR_URL, { credentials: 'same-origin', signal: AbortSignal.timeout(timeoutMs) })
     if (!res.ok) return null
-    const data = (await res.json()) as { cmdr?: string | null; ticket?: string }
-    return data.cmdr && data.ticket ? { cmdr: data.cmdr, ticket: data.ticket } : null
+    const data = (await res.json()) as { cmdr?: string | null }
+    return typeof data.cmdr === 'string' && data.cmdr.trim() ? data.cmdr.trim() : null
   } catch {
     return null
-  } finally {
-    clearTimeout(timer)
   }
 }
