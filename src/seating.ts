@@ -25,6 +25,8 @@ export interface SeatingHost {
   deck: () => Deck
   /** Joueurs distants visibles (même pont, même instance des quartiers). */
   visible: () => Iterable<RemotePlayer>
+  /** Numéro du joueur local au relais (le premier arrivé à bord a le plus petit). */
+  self: () => number
   /** Marche jusqu'au point (chemin, repère de destination), puis rappelle ; false : aucun chemin. */
   walk: (to: { x: number; z: number }, arrived: () => void) => boolean
   /** Installé (la pose tient, le trajet est fini). */
@@ -56,14 +58,34 @@ export class Seating {
     return this.current !== null && !this.host.player.gliding
   }
 
+  /**
+   * Le joueur distant tient-il la place ? Il annonce sa place dès qu'il commence à s'y
+   * installer (cf. sendState dans main.ts).
+   */
+  private holds(r: RemotePlayer, spot: SeatSpot): boolean {
+    return !!r.pose && Math.hypot(r.target.x - spot.x, r.target.z - spot.z) < 0.25 && Math.abs(r.target.y - (this.host.deck().y + spot.y)) < 0.2
+  }
+
   /** Une place est-elle déjà prise par un autre joueur ? */
   occupied(spot: SeatSpot): boolean {
-    const y = this.host.deck().y + spot.y
-    for (const r of this.host.visible()) {
-      if (!r.pose) continue
-      if (Math.hypot(r.target.x - spot.x, r.target.z - spot.z) < 0.25 && Math.abs(r.target.y - y) < 0.2) return true
-    }
+    for (const r of this.host.visible()) if (this.holds(r, spot)) return true
     return false
+  }
+
+  /**
+   * Deux joueurs installés à la même place, chacun l'ayant crue libre (arrivés ensemble, à la
+   * latence près) : le dernier arrivé à bord se relève. À appeler à chaque image.
+   */
+  arbitrate() {
+    const seat = this.current
+    if (!seat || !this.settled) return
+    const me = this.host.self()
+    for (const r of this.host.visible()) {
+      if (r.id < me && this.holds(r, seat.spot)) {
+        this.stand()
+        return this.host.taken()
+      }
+    }
   }
 
   /**

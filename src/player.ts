@@ -76,6 +76,11 @@ export class Player {
     return this.glide !== null
   }
 
+  /** Où finit le trajet scripté en cours, s'il y en a un. */
+  get glideEnd(): Readonly<Glide['to']> | null {
+    return this.glide?.to ?? null
+  }
+
   /**
    * Va en ligne droite à (x, y, z), tourné vers `yaw`, en `duration` secondes, sans tenir compte
    * des collisions (on s'assoit dans le volume du fauteuil) ; `walk` : en marchant.

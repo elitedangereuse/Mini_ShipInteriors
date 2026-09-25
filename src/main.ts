@@ -195,6 +195,7 @@ const seating = new Seating({
   player,
   deck: () => deck,
   visible: () => [...remotes.values()].filter((r) => r.group.visible),
+  self: () => net.id,
   walk: (to, arrived) => walkTo(to, arrived),
   settled: (seat) => seated(seat),
   taken: () => dialog.show(tr('Quelqu\'un vient de prendre la place.', 'Someone just took that seat.')),
@@ -1468,10 +1469,15 @@ function interactWith(item: Interactable) {
 
 // ------------------------------------------------------------------ s'installer
 
-/** Position, animation et pose du joueur, pour les autres (10 fois par seconde au plus, sauf `now`). */
+/**
+ * Position, animation et pose du joueur, pour les autres (10 fois par seconde au plus, sauf
+ * `now`). Pendant qu'il s'installe ou se relève, on annonce déjà où il arrive : les autres l'y
+ * voient glisser d'un seul mouvement, et la place est prise dès le départ.
+ */
 function sendState(now = false) {
+  const at = player.glideEnd ?? { x: player.position.x, z: player.position.z, yaw: player.heading }
   net.sendState(
-    { x: player.position.x, z: player.position.z, yaw: player.heading, level: deck.def.id, anim: player.avatar.locomotion, pose: seating.pose ?? undefined, py: seating.height },
+    { x: at.x, z: at.z, yaw: at.yaw, level: deck.def.id, anim: player.avatar.locomotion, pose: seating.pose ?? undefined, py: seating.height },
     now ? Infinity : performance.now(),
   )
 }
@@ -1891,6 +1897,7 @@ function frame() {
   if (!deckMusic.syncTempo() && !cabinMusic.syncTempo()) syncTempo(null)
 
   dialog.update(dt)
+  seating.arbitrate()
   sendState()
   // Couché sur un lit : de petits « Zzz » de temps en temps, chez soi comme chez les autres.
   snore += dt
