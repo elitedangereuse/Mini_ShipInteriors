@@ -305,13 +305,12 @@ cabin.onEmote = (id, text) => {
   emote(id)
   showText(text)
 }
-// Jukebox : on choisit un morceau. Platines : quelques mesures, lancées sur un temps de la piste de danse.
+// Jukebox : on choisit un morceau. Platines : quelques mesures, lancées sur un temps de la piste
+// de danse, au tempo du morceau qui passe (la pose « mix » fait le geste).
 cabin.onMusic = (position, text, model) => {
   if (model === 'jukebox') return openJukebox('cabin', position)
-  player.interact()
-  net.sendEmote('interact')
   const b = beatAt(holoTime.value)
-  sound.groove(new THREE.Vector3(position.x, cabinDeck.y + 0.6, position.z), (Math.ceil(b) - b) * 0.5)
+  sound.groove(new THREE.Vector3(position.x, cabinDeck.y + 0.6, position.z), ((Math.ceil(b) - b) * 60) / tempo.bpm, tempo.bpm)
   showText(text)
 }
 

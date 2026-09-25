@@ -350,17 +350,17 @@ export class Sound {
   }
 
   /**
-   * Quatre mesures de disco à 120 BPM (jukebox, platines), dans `delay` secondes (sur un temps
-   * de la piste de danse) : grosse caisse à chaque temps, charleston entre les temps, basse en
-   * octaves, accords en contretemps, sur la mineur, fa, do, sol. Une seule à la fois.
+   * Quatre mesures de disco (platines), dans `delay` secondes (sur un temps de la piste de
+   * danse), au tempo de la soirée : grosse caisse à chaque temps, charleston entre les temps,
+   * basse en octaves, accords en contretemps, sur la mineur, fa, do, sol. Une seule à la fois.
    * @returns durée (s), ou 0 si rien ne joue
    */
-  groove(pos: THREE.Vector3, delay = 0): number {
+  groove(pos: THREE.Vector3, delay = 0, bpm = 120): number {
     if (!this.ready) return 0
     const ctx = this.ctx
     const t0 = ctx.currentTime + delay
     if (t0 < this.grooveUntil) return 0
-    const beat = 0.5, bars = 4
+    const beat = 60 / bpm, bars = 4
     this.grooveUntil = t0 + bars * 4 * beat
     const out = this.output(pos, { volume: 0.22, ref: 1.6, rolloff: 1.3 }).input
     const roots = [110, 87.31, 130.81, 98]
