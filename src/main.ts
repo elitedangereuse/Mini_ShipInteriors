@@ -704,12 +704,12 @@ const cabinBar = new CabinBar()
 let editor: CabinEditor | null = null
 let editorLoading: Promise<void> | null = null
 /** Vue plongeante du mode aménagement (cf. cabin/editor.ts). */
-let editView = { elevation: 0, zoom: 0 }
+let editElevation = 0
 const editing = () => editor?.active === true
 
 function loadEditor(): Promise<void> {
-  editorLoading ??= import('./cabin/editor').then(({ CabinEditor, EDIT_ELEVATION, EDIT_ZOOM }) => {
-    editView = { elevation: EDIT_ELEVATION, zoom: EDIT_ZOOM }
+  editorLoading ??= import('./cabin/editor').then(({ CabinEditor, EDIT_ELEVATION }) => {
+    editElevation = EDIT_ELEVATION
     editor = new CabinEditor(cabin, {
       canvas: renderer.domElement,
       iso,
@@ -765,8 +765,8 @@ async function openEditor() {
   player.cancelPath()
   marker.visible = hover.visible = false
   editZoom = iso.zoomLevel
-  iso.setRestElevation(editView.elevation)
-  iso.zoomTo(editView.zoom)
+  iso.setRestElevation(editElevation)
+  iso.zoomTo(ed.fitZoom())
   document.body.classList.add('editing')
   ed.start(ownLayout)
   ed.setSaveState(store.idleState)

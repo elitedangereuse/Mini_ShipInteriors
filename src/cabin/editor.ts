@@ -24,9 +24,11 @@ const SNAP = 0.05
 const SNAP_TOP = 0.02
 const MAGNET = 0.12
 const HISTORY = 60
-/** Vue plongeante (vue d'architecte), zoom de départ. */
+/** Vue plongeante (vue d'architecte). */
 export const EDIT_ELEVATION = THREE.MathUtils.degToRad(56)
-export const EDIT_ZOOM = 4.7
+/** Écran étroit : le catalogue est une feuille en bas, sur 38 % de la hauteur (cf. style.css). */
+const NARROW = 720
+const SHEET = 0.38
 /** L'objet en main se soulève un peu : on voit qu'il est « pris ». */
 const LIFT = 0.05
 
@@ -96,6 +98,7 @@ export class CabinEditor {
 
   // Interface.
   private readonly root = $('editor')
+  private readonly bar: HTMLElement
   private readonly countEl: HTMLElement
   private readonly saveEl: HTMLElement
   private readonly undoBtn: HTMLButtonElement
@@ -133,7 +136,7 @@ export class CabinEditor {
     view.group.add(this.helpers)
 
     // Barre du haut : compteur, annuler, rétablir, réinitialiser, terminer.
-    const bar = document.createElement('div')
+    const bar = (this.bar = document.createElement('div'))
     bar.className = 'panel ed-bar'
     const title = document.createElement('div')
     title.className = 'ed-title'
@@ -155,7 +158,7 @@ export class CabinEditor {
     this.redoBtn = button('Rétablir', 'arrow-u-up-right', () => this.redo())
     this.redoBtn.title = 'Rétablir (Ctrl+Y)'
     this.resetBtn = button('Réinitialiser', 'broom', () => this.reset())
-    this.resetBtn.title = 'Revenir aux quartiers d\'origine'
+    this.resetBtn.title = 'Réinitialiser : revenir aux quartiers d\'origine'
     const done = button('Terminer', 'check', () => this.host.onClose(), 'ed-done')
     done.title = 'Terminer (Échap)'
     const info = document.createElement('div')
@@ -218,12 +221,39 @@ export class CabinEditor {
     return this.open
   }
 
-  /** Point que la caméra regarde (la cabine, décalée pour laisser la place au catalogue). */
+  /**
+   * Zone de l'écran où l'on voit la cabine, en pixels, et le décalage de son centre par rapport
+   * au centre de l'écran : à droite, le catalogue ; sur écran étroit, la barre en haut et le
+   * catalogue en bas.
+   */
+  private visible(): { w: number; h: number; dx: number; dy: number } {
+    if (innerWidth > NARROW) {
+      const panel = Math.min(360, innerWidth * 0.3)
+      return { w: innerWidth - panel, h: innerHeight, dx: panel / 2, dy: 0 }
+    }
+    const top = this.bar.getBoundingClientRect().bottom + 8
+    const bottom = innerHeight * (1 - SHEET) - 8
+    return { w: innerWidth, h: Math.max(80, bottom - top), dx: 0, dy: innerHeight / 2 - (top + bottom) / 2 }
+  }
+
+  /** Zoom qui fait tenir toute la cabine dans la zone visible (vue plongeante, sous tous les angles). */
+  fitZoom(): number {
+    const b = this.view.bounds
+    // Vue à 45° : la cabine forme un losange de (largeur + profondeur) · cos 45° de large.
+    const diag = (b.maxX - b.minX + (b.maxZ - b.minZ)) * Math.SQRT1_2
+    const tall = diag * Math.sin(EDIT_ELEVATION) + Math.cos(EDIT_ELEVATION)
+    const v = this.visible()
+    return 1.12 * Math.max((diag * innerHeight) / (2 * v.w), (tall * innerHeight) / (2 * v.h))
+  }
+
+  /** Point que la caméra regarde : la cabine, au milieu de la zone que le catalogue laisse visible. */
   focus(out: THREE.Vector3): THREE.Vector3 {
     out.copy(this.view.center)
-    const panel = innerWidth > 720 ? Math.min(360, innerWidth * 0.3) : 0
-    const shift = (panel / 2) * ((2 * this.host.iso.zoomLevel) / innerHeight)
-    return out.add(this.host.iso.screenToGround(1, 0, this.hit).multiplyScalar(shift))
+    const v = this.visible()
+    const unit = (2 * this.host.iso.zoomLevel) / innerHeight
+    // Au sol vu en biais, un pixel vertical couvre plus de terrain qu'un pixel horizontal.
+    const g = this.host.iso.screenToGround(v.dx * unit, (-v.dy * unit) / Math.sin(EDIT_ELEVATION), this.hit)
+    return out.add(g)
   }
 
   // ---------------------------------------------------------------- ouverture
@@ -295,11 +325,16 @@ export class CabinEditor {
       const name = document.createElement('span')
       name.textContent = entry.name
       card.append(img, name)
+      // À la souris, on saisit la carte (clic, ou glisser-déposer dans la cabine) ; au doigt,
+      // glisser fait défiler le catalogue, et toucher une carte la prend en main.
       card.addEventListener('pointerdown', (e) => {
-        if (e.button !== 0) return
+        if (e.button !== 0 || e.pointerType !== 'mouse') return
         e.preventDefault()
         this.startPlacing(entry)
         this.placeOnRelease = true
+      })
+      card.addEventListener('click', (e) => {
+        if ((e as PointerEvent).pointerType !== 'mouse') this.startPlacing(entry)
       })
       this.cards.appendChild(card)
     }

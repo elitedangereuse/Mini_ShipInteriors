@@ -853,7 +853,7 @@ body.editing #about {
 }
 /* Les invitations reçues passent sous la barre de l'éditeur. */
 body.editing .top-left {
-  top: 172px;
+  top: 80px;
 }
 .editor {
   position: absolute;
@@ -864,30 +864,30 @@ body.editing .top-left {
   font: inherit;
   cursor: pointer;
 }
+/* Une seule ligne, en haut à gauche : elle ne cache presque rien de la cabine. */
 .ed-bar {
   left: 16px;
   top: 16px;
-  display: grid;
-  gap: 8px;
-  width: min(340px, calc(100vw - 32px));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  max-width: calc(100vw - 32px);
+  padding: 8px 10px 8px 14px;
   pointer-events: auto;
   border-color: rgba(89, 216, 255, 0.45);
 }
 .ed-info {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 10px;
+  display: grid;
 }
 .ed-title {
-  width: 100%;
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--muted);
 }
 .ed-count {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--cyan);
 }
@@ -907,18 +907,26 @@ body.editing .top-left {
 }
 .ed-actions {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
 }
+/* Icônes seules (le libellé est dans l'info-bulle), sauf « Terminer ». */
 .ed-actions button {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 9px;
+  padding: 7px 9px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--text);
+  font-size: 0;
+}
+.ed-actions button .icon {
+  font-size: 16px;
+}
+.ed-actions button.confirm,
+.ed-actions .ed-done {
   font-size: 12px;
 }
 .ed-actions button:hover:not(:disabled) {
@@ -934,7 +942,7 @@ body.editing .top-left {
   color: #ffb0b0;
 }
 .ed-actions .ed-done {
-  margin-left: auto;
+  margin-left: 4px;
   border-color: var(--cyan);
   background: rgba(89, 216, 255, 0.22);
   font-weight: 600;
@@ -1002,7 +1010,6 @@ body.editing .top-left {
   color: var(--text);
   font-size: 12px;
   line-height: 1.2;
-  touch-action: none;
 }
 .ed-card:hover {
   background: rgba(89, 216, 255, 0.12);
@@ -1131,6 +1138,16 @@ body.editing .top-left {
   color: #ffc4c9;
 }
 @media (max-width: 720px) {
+  /* Sous la ligne du haut (retour au site, caméra) : on garde les boutons de rotation. */
+  .ed-bar {
+    top: 64px;
+  }
+  .ed-title {
+    display: none;
+  }
+  body.editing .top-left {
+    top: 124px;
+  }
   .ed-catalog {
     left: 16px;
     right: 16px;
