@@ -1496,12 +1496,14 @@ function walkTo(to: { x: number; z: number }, arrived: () => void): boolean {
   let points: { x: number; z: number }[] = [to]
   if (!Seating.straight(here, to, deck)) {
     const start = playerTile()
+    const room = deck.map.room(Math.round(to.x), Math.round(to.z))
     const candidates: { path: Tile[]; score: number }[] = []
     for (const strict of [true, false]) {
       for (let dz = -1; dz <= 1; dz++) {
         for (let dx = -1; dx <= 1; dx++) {
           const t = { x: Math.round(to.x) + dx, z: Math.round(to.z) + dz }
-          if (!deck.pathfinder.walkable(t.x, t.z) || Math.hypot(t.x - to.x, t.z - to.z) > 1.2) continue
+          // Une tuile de la pièce voisine est à côté, mais derrière le mur.
+          if (!deck.pathfinder.walkable(t.x, t.z) || deck.map.room(t.x, t.z) !== room || Math.hypot(t.x - to.x, t.z - to.z) > 1.2) continue
           const path = deck.pathfinder.find(start, t, strict)
           if (path) candidates.push({ path, score: path.length + Math.hypot(t.x - to.x, t.z - to.z) * 3 })
         }

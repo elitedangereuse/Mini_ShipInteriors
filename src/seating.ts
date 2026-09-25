@@ -112,21 +112,24 @@ export class Seating {
   }
 
   /**
-   * Abord d'une place : devant elle d'abord, puis sur les côtés, puis derrière. Une chaise
-   * poussée contre une table s'aborde par le côté, un lit contre un mur par l'autre bord.
+   * Abord d'une place, dans sa pièce : devant elle d'abord, puis sur les côtés, puis derrière,
+   * et un peu plus loin seulement si aucun côté n'est libre (le moniteur d'un lit médical
+   * dépasse sur le côté). Une chaise poussée contre une table s'aborde par le côté, un lit
+   * contre un mur par l'autre bord.
    */
   private approach(spot: SeatSpot): { x: number; z: number } | null {
     const deck = this.host.deck()
+    const room = deck.map.room(Math.round(spot.x), Math.round(spot.z))
     const dx = spot.from.x - spot.x, dz = spot.from.z - spot.z
     const r = Math.max(0.12, Math.hypot(dx, dz))
     const a0 = Math.atan2(dx, dz)
-    for (const da of [0, Math.PI / 2, -Math.PI / 2, Math.PI / 4, -Math.PI / 4, (3 * Math.PI) / 4, (-3 * Math.PI) / 4, Math.PI]) {
-      // Un abord proche (debout devant une borne) ne tourne pas autour du meuble.
-      if (da && r < 0.3) break
-      // Un peu plus loin s'il le faut (le moniteur d'un lit médical dépasse sur le côté).
-      for (const far of [0, 0.15, 0.3]) {
+    for (const far of [0, 0.15, 0.3]) {
+      for (const da of [0, Math.PI / 2, -Math.PI / 2, Math.PI / 4, -Math.PI / 4, (3 * Math.PI) / 4, (-3 * Math.PI) / 4, Math.PI]) {
+        // Un abord proche (debout devant une borne) ne tourne pas autour du meuble.
+        if (da && r < 0.3) break
         const p = { x: spot.x + Math.sin(a0 + da) * (r + far), z: spot.z + Math.cos(a0 + da) * (r + far) }
-        if (deck.map.isFloor(Math.round(p.x), Math.round(p.z)) && !overlapsAny(p, CLEARANCE, deck.colliders)) return p
+        // Passé un mur, c'est une autre pièce : l'abord serait de l'autre côté.
+        if (room && deck.map.room(Math.round(p.x), Math.round(p.z)) === room && !overlapsAny(p, CLEARANCE, deck.colliders)) return p
       }
     }
     return null
