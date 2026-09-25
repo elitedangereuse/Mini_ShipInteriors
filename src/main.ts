@@ -20,7 +20,7 @@ import { overlapsAny, resolveCircle } from './physics'
 import { Player } from './player'
 import { RemotePlayer } from './remote'
 import { Starfield } from './starfield'
-import { $, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel } from './ui'
+import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel } from './ui'
 
 // ------------------------------------------------------------------ profil
 
@@ -114,7 +114,9 @@ const lightPool = Array.from({ length: 8 }, () => {
 
 // ------------------------------------------------------------------ monde
 
-await preload([lookPath(parseLook(profile.skin))], (r) => ($('loading-bar').style.width = `${Math.round(r * 100)}%`))
+// Les modèles font l'essentiel de l'attente : 90 % de la jauge, le reste pour le site et le montage.
+await preload([lookPath(parseLook(profile.skin))], (r) => bootProgress(r * 0.9))
+bootProgress(0.94, 'Identification du CMDR')
 const account = await within(accountRequest, 3000, null)
 if (account) {
   linked = true
@@ -1407,7 +1409,7 @@ for (const d of decks) d.group.visible = true
 renderer.compile(scene, iso.camera)
 setDeck(deck)
 
-$('loading').classList.add('done')
+bootDone()
 $('hud').hidden = false
 updateNetStatus()
 updateIdentity()

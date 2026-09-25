@@ -52,36 +52,377 @@ button {
 }
 
 /* ---------- chargement / transitions ---------- */
+/*
+ * Écran de démarrage. Toutes les animations ne touchent que transform et opacity : le
+ * navigateur les joue hors du fil principal, elles restent fluides pendant que le jeu décode
+ * ses modèles et compile ses shaders (plusieurs centaines de millisecondes bloquantes).
+ * Les animations d'entrée et la sortie (#loading.done) portent sur des éléments différents :
+ * une animation terminée garde sa dernière image et masquerait la transition de sortie.
+ *
+ * --e : diamètre de l'emblème. Le logo fait 97,785 × 31,159 unités : l'emblème en occupe le
+ * carré de gauche, le texte le reste ; les deux sont des découpes du même fichier.
+ */
 #loading {
+  --e: min(40vw, 30vh, 190px);
+  --orange: #ff6a00;
+  --ice: #cfe9ff;
   position: fixed;
   inset: 0;
-  display: grid;
-  place-content: center;
-  gap: 14px;
-  text-align: center;
-  transition: opacity 0.6s;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--e) * 0.3);
+  padding-bottom: 4vh;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 106, 0, 0.1) 0%, transparent 45%),
+    radial-gradient(ellipse at 30% 20%, #2a1f4d 0%, #0e1024 55%, #05060f 100%);
 }
 #loading.done {
   opacity: 0;
   pointer-events: none;
+  transition: opacity 0.5s ease 0.35s;
 }
-.loading-title {
-  letter-spacing: 0.08em;
-  color: var(--muted);
+
+.boot-emblem {
+  position: relative;
+  width: var(--e);
+  height: var(--e);
+  margin-top: calc(var(--e) * 0.25);
 }
-.bar {
-  width: 260px;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 2px;
-  overflow: hidden;
+
+/* Lueur du réacteur : elle monte avec la charge (--p, de 0 à 1, posé par le jeu). */
+.boot-glow {
+  position: absolute;
+  inset: -60%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 106, 0, 0.45) 0%, rgba(255, 106, 0, 0.12) 38%, transparent 68%);
+  opacity: calc(0.3 + var(--p, 0) * 0.7);
+  transition: opacity 0.4s;
+  animation: boot-breathe 3.2s ease-in-out infinite alternate;
 }
-#loading-bar {
+@keyframes boot-breathe {
+  from {
+    transform: scale(0.9);
+  }
+  to {
+    transform: scale(1.06);
+  }
+}
+
+/* Hyperespace : chaque traînée part de derrière l'emblème et file vers le bord de l'écran. */
+.boot-warp {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  animation: boot-fade-in 1.4s ease-out both;
+}
+.boot-warp i {
+  position: absolute;
+}
+.boot-warp b {
+  position: absolute;
+  top: -0.5px;
+  width: 16vmax;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(207, 233, 255, 0), rgba(207, 233, 255, 0.75));
+  transform-origin: 0 50%;
+  opacity: 0;
+  animation: boot-streak 2s cubic-bezier(0.55, 0, 0.95, 0.55) infinite;
+}
+.boot-warp b.bright {
+  top: -1px;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(207, 233, 255, 0), #fff);
+}
+.boot-warp b.amber {
+  height: 1.5px;
+  background: linear-gradient(90deg, rgba(255, 176, 58, 0), rgba(255, 176, 58, 0.85));
+}
+@keyframes boot-streak {
+  0% {
+    transform: translateX(24px) scaleX(0.04);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(78vmax) scaleX(1);
+    opacity: 1;
+  }
+}
+@keyframes boot-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Anneaux et emblème : ce bloc plonge vers le joueur au moment du saut. */
+.boot-jump {
+  position: absolute;
+  inset: 0;
+}
+.boot-rings {
+  position: absolute;
+  inset: -25%;
+  animation: boot-rings-in 1s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s both;
+}
+.boot-rings svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
   height: 100%;
-  width: 0;
-  background: linear-gradient(90deg, var(--cyan), var(--accent));
-  transition: width 0.15s;
+  overflow: visible;
+  fill: none;
 }
+.boot-ticks {
+  stroke: var(--accent);
+  opacity: 0.55;
+  animation: boot-spin 60s linear infinite;
+}
+.boot-segments {
+  stroke: var(--ice);
+  stroke-width: 0.9;
+  opacity: 0.4;
+  animation: boot-spin 24s linear infinite reverse;
+}
+.boot-charge {
+  filter: drop-shadow(0 0 3px rgba(255, 106, 0, 0.9));
+}
+.boot-charge .track {
+  stroke: rgba(255, 106, 0, 0.16);
+  stroke-width: 1.4;
+}
+.boot-charge .arc {
+  stroke: var(--orange);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+}
+/* Tête de la jauge : un point incandescent qui tourne avec la charge. 12 % = (75 − 57) / 150. */
+.boot-head {
+  position: absolute;
+  inset: 0;
+  transform: rotate(calc(var(--p, 0) * 360deg));
+}
+.boot-head::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 12%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: #fff4e0;
+  box-shadow:
+    0 0 6px 2px rgba(255, 176, 58, 0.9),
+    0 0 18px 6px rgba(255, 106, 0, 0.55);
+}
+@keyframes boot-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes boot-rings-in {
+  from {
+    transform: scale(0.72) rotate(-40deg);
+    opacity: 0;
+  }
+}
+
+/* L'emblème s'allume comme un hologramme de tableau de bord : quelques ratés, puis stable. */
+.boot-mark {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  animation: boot-flicker 1.1s linear 0.3s both;
+}
+.boot-mark img {
+  display: block;
+  width: calc(var(--e) * 3.1383);
+  max-width: none;
+  height: var(--e);
+}
+@keyframes boot-flicker {
+  0% {
+    opacity: 0;
+    transform: scale(0.84);
+  }
+  16% {
+    opacity: 0.85;
+  }
+  22% {
+    opacity: 0.2;
+  }
+  32% {
+    opacity: 1;
+  }
+  40% {
+    opacity: 0.55;
+  }
+  55%,
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Éclair du saut, depuis le centre de l'emblème. */
+.boot-flash {
+  position: absolute;
+  inset: -20%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, rgba(255, 214, 160, 0.85) 22%, rgba(255, 106, 0, 0.35) 48%, transparent 70%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Le texte du logo, sous l'emblème (--ut : une unité du logo, à cette échelle). */
+.boot-text {
+  --ut: calc(var(--e) * 0.0232);
+  /* Au-dessus des traînées, qui sortent du bloc de l'emblème. */
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.boot-wordmark {
+  position: relative;
+  width: calc(var(--ut) * 66.2);
+  height: calc(var(--ut) * 25);
+  margin-bottom: 4px;
+  overflow: hidden;
+  animation: boot-rise 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.75s both;
+}
+.boot-wordmark img,
+.boot-shine {
+  position: absolute;
+  left: calc(var(--ut) * -31.6);
+  top: calc(var(--ut) * -3);
+  width: calc(var(--ut) * 97.785);
+  max-width: none;
+  height: calc(var(--ut) * 31.159);
+}
+/*
+ * Reflet qui balaie les lettres une fois, au masque du logo pour ne pas éclairer le fond. Le
+ * masque est posé trois fois en intersection (opacité au cube) : les lettres, opaques, restent
+ * pleines, mais leur halo flou n'accroche presque plus le reflet.
+ */
+.boot-shine {
+  --logo: url('/logo-elite-dangereuse.svg') 0 0 / 100% 100% no-repeat;
+  overflow: hidden;
+  -webkit-mask: var(--logo), var(--logo), var(--logo);
+  -webkit-mask-composite: source-in;
+  mask: var(--logo), var(--logo), var(--logo);
+  mask-composite: intersect;
+}
+.boot-shine::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 30%;
+  width: 24%;
+  background: linear-gradient(100deg, transparent, rgba(255, 244, 224, 0.95) 50%, transparent);
+  transform: translateX(-140%);
+  animation: boot-shine 1.2s ease-in-out 1.45s both;
+}
+@keyframes boot-shine {
+  to {
+    transform: translateX(310%);
+  }
+}
+@keyframes boot-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+.boot-title {
+  color: var(--text);
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  animation: boot-rise 0.7s ease-out 1s both;
+}
+.boot-status {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  width: calc(var(--ut) * 58);
+  min-width: 220px;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  animation: boot-rise 0.7s ease-out 1.1s both;
+}
+#boot-pct {
+  color: var(--accent);
+}
+
+/* Le saut : les anneaux plongent vers le joueur, l'hyperespace s'étire, l'éclair couvre la bascule. */
+#loading.done .boot-jump {
+  transform: scale(4.5);
+  opacity: 0;
+  transition:
+    transform 0.7s cubic-bezier(0.6, 0, 0.9, 0.5),
+    opacity 0.45s ease 0.3s;
+}
+#loading.done .boot-warp {
+  transform: scale(2.6);
+  transition: transform 0.85s cubic-bezier(0.5, 0, 0.9, 0.4);
+}
+#loading.done .boot-text {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
+}
+#loading.done .boot-flash {
+  animation: boot-flash 0.8s ease-out 0.12s both;
+}
+@keyframes boot-flash {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  28% {
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(5);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-warp {
+    display: none;
+  }
+  .boot-glow,
+  .boot-rings,
+  .boot-rings svg,
+  .boot-mark,
+  .boot-wordmark,
+  .boot-shine::before,
+  .boot-title,
+  .boot-status {
+    animation: none;
+  }
+  #loading.done .boot-jump,
+  #loading.done .boot-text {
+    transform: none;
+  }
+  #loading.done .boot-flash {
+    animation: none;
+  }
+}
+
 #fade {
   position: fixed;
   inset: 0;

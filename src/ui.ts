@@ -275,6 +275,32 @@ export function fadeScreen(on: boolean): Promise<void> {
   return new Promise((r) => setTimeout(r, 300))
 }
 
+// --------------------------------------------------------------- démarrage
+
+/** Systèmes mis sous tension l'un après l'autre pendant le chargement des modèles. */
+const BOOT_STEPS = ['Réacteur à fusion', "Distributeur d'énergie", 'Support vital', 'Systèmes de bord']
+/** Circonférence de la jauge (rayon 57, cf. index.html). */
+const BOOT_ARC = 358.14
+
+/** Écran de démarrage : charge de 0 à 1, et l'étape en cours (par défaut, selon la charge). */
+export function bootProgress(ratio: number, step = BOOT_STEPS[Math.min(BOOT_STEPS.length - 1, Math.floor(ratio * BOOT_STEPS.length))]) {
+  const percent = Math.round(ratio * 100)
+  const root = $('loading')
+  root.style.setProperty('--p', String(ratio))
+  root.setAttribute('aria-valuenow', String(percent))
+  $('boot-arc').style.strokeDashoffset = String(BOOT_ARC * (1 - ratio))
+  $('boot-pct').textContent = `${percent}\u202f%`
+  $('boot-step').textContent = step
+}
+
+/** Vaisseau prêt : le saut, puis l'écran quitte la page (ses animations ne tournent plus). */
+export function bootDone() {
+  bootProgress(1, 'Systèmes en ligne')
+  const root = $('loading')
+  root.classList.add('done')
+  setTimeout(() => root.remove(), 1300)
+}
+
 // --------------------------------------------------------------- garde-robe
 
 /** Panneau de la garde-robe : race, sexe, modèle, teinte ; aperçu en direct sur le personnage. */

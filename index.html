@@ -11,10 +11,59 @@
     <div id="app"></div>
     <div id="bubbles"></div>
 
-    <div id="loading">
-      <div class="loading-title">Mise sous tension du vaisseau…</div>
-      <div class="bar"><div id="loading-bar"></div></div>
+    <!--
+      Démarrage : l'emblème du site dans la jauge de charge, l'hyperespace qui en sort, puis le
+      saut quand le vaisseau est prêt. Tout est en HTML et CSS, sans attendre le script du jeu :
+      l'écran est là dès le premier rendu et ses animations tournent pendant que le jeu charge.
+    -->
+    <div id="loading" role="progressbar" aria-label="Mise sous tension du vaisseau" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="boot-emblem">
+        <div class="boot-glow"></div>
+        <div id="boot-warp" class="boot-warp" aria-hidden="true"></div>
+        <div class="boot-jump">
+          <div class="boot-rings" aria-hidden="true">
+            <svg class="boot-ticks" viewBox="-75 -75 150 150">
+              <circle r="66" stroke-width="3.2" stroke-dasharray="0.7 5.0596" />
+              <circle r="66" stroke-width="6.5" stroke-dasharray="1.6 102.07" />
+            </svg>
+            <svg class="boot-segments" viewBox="-75 -75 150 150">
+              <circle r="52.4" stroke-dasharray="40 5 4.8732 5" />
+            </svg>
+            <svg class="boot-charge" viewBox="-75 -75 150 150">
+              <circle class="track" r="57" />
+              <circle id="boot-arc" class="arc" r="57" stroke-dasharray="358.14" stroke-dashoffset="358.14" transform="rotate(-90)" />
+            </svg>
+            <div id="boot-head" class="boot-head"></div>
+          </div>
+          <div class="boot-mark"><img src="/logo-elite-dangereuse.svg" alt="" width="596" height="190" /></div>
+        </div>
+        <div class="boot-flash"></div>
+      </div>
+      <div class="boot-text">
+        <div class="boot-wordmark">
+          <img src="/logo-elite-dangereuse.svg" alt="Élite Dangereuse" width="596" height="190" />
+          <div class="boot-shine"></div>
+        </div>
+        <div class="boot-title">Mise sous tension du vaisseau</div>
+        <div class="boot-status"><span id="boot-step">Réacteur à fusion</span><span id="boot-pct">0&#8239;%</span></div>
+      </div>
     </div>
+    <script>
+      // Traînées de l'hyperespace, réparties à l'angle d'or : posées avant le script du jeu.
+      ;(function () {
+        var warp = document.getElementById('boot-warp')
+        var html = ''
+        for (var i = 0; i < 72; i++) {
+          var angle = (i * 137.508) % 360
+          var duration = 1.3 + Math.random() * 1.7
+          var tint = i % 9 === 0 ? ' class="amber"' : i % 4 === 0 ? ' class="bright"' : ''
+          html +=
+            '<i style="transform:rotate(' + angle.toFixed(1) + 'deg)"><b' + tint +
+            ' style="animation-duration:' + duration.toFixed(2) + 's;animation-delay:' + (-Math.random() * duration).toFixed(2) + 's"></b></i>'
+        }
+        warp.innerHTML = html
+      })()
+    </script>
 
     <div id="hud" hidden>
       <div class="top-left">
