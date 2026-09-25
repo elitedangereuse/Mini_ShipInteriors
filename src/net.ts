@@ -87,15 +87,21 @@ export class Net {
     if (this.online && this.socket?.connected) this.socket.emit(event, msg)
   }
 
-  /** Envoie la position si elle a changé (10 Hz max), ou au moins toutes les 2 s. */
+  /**
+   * Envoie la position si elle a changé (10 Hz max), ou au moins toutes les 2 s.
+   * `now = Infinity` force l'envoi (changement de pont).
+   */
   sendState(s: LocalState, now: number) {
-    if (now - this.lastSent < 100) return
+    const force = now === Infinity
+    if (!force && now - this.lastSent < 100) return
     const round = (v: number) => Math.round(v * 100) / 100
     const msg = { x: round(s.x), z: round(s.z), yaw: round(s.yaw), level: s.level, anim: s.anim }
     const key = JSON.stringify(msg)
-    if (key === this.last && now - this.lastSent < 2000) return
+    if (!force && key === this.last && now - this.lastSent < 2000) return
     this.last = key
-    this.lastSent = now
+    // Jamais Infinity ici : les envois suivants attendraient « 100 ms après l'infini », soit
+    // plus aucune position après le premier trajet en ascenseur.
+    this.lastSent = force ? performance.now() : now
     this.send('state', msg)
   }
 
