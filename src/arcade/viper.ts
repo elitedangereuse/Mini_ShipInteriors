@@ -61,12 +61,13 @@ export class Viper implements ArcadeGame {
     return this.body.some((b) => b.x === x && b.y === y) || this.mines.some((m) => m.x === x && m.y === y)
   }
 
-  /** Case libre, loin de la tête. */
+  /** Case libre (ni le Viper, ni une mine, ni le fret, ni le Brandy doré), loin de la tête. */
   private freeCell(): { x: number; y: number } {
     const head = this.body[0]
+    const at = (c: { x: number; y: number } | null | undefined, x: number, y: number) => !!c && c.x === x && c.y === y
     for (let i = 0; i < 400; i++) {
       const x = 1 + Math.floor(this.rand() * (COLS - 2)), y = 1 + Math.floor(this.rand() * (ROWS - 2))
-      if (this.occupied(x, y) || (this.food && this.food.x === x && this.food.y === y)) continue
+      if (this.occupied(x, y) || at(this.food, x, y) || at(this.gold, x, y)) continue
       if (Math.abs(x - head.x) + Math.abs(y - head.y) < 4) continue
       return { x, y }
     }
