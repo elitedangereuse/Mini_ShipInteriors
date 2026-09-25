@@ -431,35 +431,10 @@ export const LEVELS: LevelDef[] = [
       { model: 'table-display-planet', x: 15, z: 7, rot: 3, solid: false },
 
       // --- Salon d'arcade ---
-      {
-        model: 'arcade', x: 16.05, z: 7, rot: 1, label: 'elite', action: tr('Jouer', 'Play'),
-        interact: [
-          tr(
-            'ELITE (1984) : vous vous posez à Lave Station du premier coup. Personne ne vous croira.',
-            'ELITE (1984): you dock at Lave Station on your first try. Nobody will believe you.',
-          ),
-          tr('Un Krait vous prend en chasse. GAME OVER. Record : CMDR Jameson.', 'A Krait gives chase. GAME OVER. High score: CMDR Jameson.'),
-          tr('Vous survivez à un passage à Riedquat. Légende instantanée.', 'You survive a trip through Riedquat. Instant legend.'),
-        ],
-      },
-      {
-        model: 'arcade', x: 16.05, z: 8, rot: 1, label: 'invaders', action: tr('Jouer', 'Play'),
-        interact: [
-          tr('THARGOID INVADERS : vague 7. Les Thargoïdes finissent toujours par gagner.', 'THARGOID INVADERS: wave 7. The Thargoids always win in the end.'),
-          tr(
-            'Nouveau record : 12 340 points ! Une hyperdiction vous arrache à la partie.',
-            'New high score: 12,340 points! A hyperdiction drags you out of the game.',
-          ),
-          tr('INSÉREZ UN CRÉDIT (les crédits de la banque galactique ne marchent pas).', 'INSERT CREDIT (galactic bank credits not accepted).'),
-        ],
-      },
-      {
-        model: 'arcade', x: 16.05, z: 9, rot: 1, label: 'asteroids', action: tr('Jouer', 'Play'),
-        interact: [
-          tr('ASTÉROÏDES : 8 900 points. Le vrai minage paie mieux.', 'ASTEROIDS: 8,900 points. Real mining pays better.'),
-          tr('Vous pulvérisez une roche de painite. Aïe, votre portefeuille.', 'You blast a painite rock to dust. Ouch, your wallet.'),
-        ],
-      },
+      // Les trois bornes se jouent (cf. src/arcade/) : Cargaison, Viper, Astéroïdes.
+      { model: 'arcade', x: 16.05, z: 7, rot: 1, label: 'cargo' },
+      { model: 'arcade', x: 16.05, z: 8, rot: 1, label: 'viper' },
+      { model: 'arcade', x: 16.05, z: 9, rot: 1, label: 'asteroids' },
       { model: 'neon-sign', x: 17.1, z: 6.1, label: 'ARCADE' },
       { model: 'claw-machine', x: 19.95, z: 6.42, rot: 3, label: 'cyan' },
       { model: 'rug', x: 18.3, z: 8.1, label: 'neon:2x1.8', solid: false },

@@ -43,6 +43,7 @@ export class Sound {
   private noise?: AudioBuffer
   /** Fin du morceau en cours (horloge audio) : un seul à la fois. */
   private grooveUntil = 0
+  private arcade?: GainNode
 
   constructor() {
     this.rig.add(this.listener)
@@ -123,6 +124,17 @@ export class Sound {
 
   get ready(): boolean {
     return this.started && this.ctx.state === 'running'
+  }
+
+  /** Sortie non spatialisée des bornes d'arcade (cf. arcade/sfx.ts) ; null tant que le son n'a pas démarré. */
+  arcadeOutput(): AudioNode | null {
+    if (!this.ready) return null
+    if (!this.arcade) {
+      this.arcade = this.ctx.createGain()
+      this.arcade.gain.value = 0.5
+      this.arcade.connect(this.listener.getInput())
+    }
+    return this.arcade
   }
 
   update(position: THREE.Vector3, azimuth: number) {

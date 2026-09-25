@@ -1,4 +1,7 @@
 import * as THREE from 'three'
+import type { ArcadeCabinet } from './arcade/cabinet'
+import { isGameId, type GameId } from './arcade/game'
+import { fetchRecords } from './arcade/scores'
 import { CAT_MODEL, preload, rig } from './assets'
 import type { CabinEditor } from './cabin/editor'
 import { CabinBar, InviteMenu, InviteToasts, type CrewEntry } from './cabin/hud'
@@ -1439,6 +1442,8 @@ function seated(seat: Seated) {
   const { item } = seat
   bindPose()
   if (seat.spot.pose === 'claw' && item.control?.kind === 'claw') return startClaw(seat, item.control)
+  const game = item.furniture?.label
+  if (seat.spot.pose === 'arcade' && isGameId(game)) return void openArcade(seat, game)
   if (item.onInteract) return item.onInteract()
   showText(item.text)
 }
@@ -1447,6 +1452,7 @@ function seated(seat: Seated) {
 function poseChanged() {
   if (!seating.current) {
     stopClaw()
+    arcade?.close()
     player.avatar.onPoseStep = undefined
   }
   sendState(true)
@@ -1478,6 +1484,27 @@ function seatPrompt(seat: Seated): { main: string; space?: string } {
 function seatAction(seat: Seated) {
   if (claw) return dropClaw()
   if (canJump(seat)) void fsdJump()
+}
+
+// ------------------------------------------------------------------ bornes d'arcade
+
+/** La borne en grand (cf. arcade/cabinet.ts) : chargée à la première partie. */
+let arcade: ArcadeCabinet | null = null
+let arcadeLoading: Promise<void> | null = null
+
+async function openArcade(seat: Seated, game: GameId) {
+  arcadeLoading ??= import('./arcade/cabinet').then(({ ArcadeCabinet }) => {
+    arcade = new ArcadeCabinet({ sound, linked: () => linked })
+    // On quitte la borne : on s'en écarte.
+    arcade.onClose = () => {
+      if (seating.current?.spot.pose === 'arcade') seating.stand()
+    }
+  })
+  await arcadeLoading
+  // Relevé (ou parti) pendant le chargement.
+  if (seating.current !== seat) return
+  keys.clear()
+  arcade!.open(game)
 }
 
 // ------------------------------------------------------------------ pince à peluches
@@ -1618,6 +1645,12 @@ let snore = 0
 function frame() {
   timer.update()
   const dt = Math.min(timer.getDelta(), 0.05)
+  // Borne d'arcade ouverte : elle couvre l'écran, le vaisseau reste figé derrière (dernière image),
+  // et la borne a toute la machine pour elle.
+  if (arcade?.isOpen) {
+    requestAnimationFrame(frame)
+    return
+  }
   // Horloge de la soirée : celle des meubles (danseurs, platines).
   tempo.now = holoTime.value
 
@@ -1773,6 +1806,8 @@ setDeck(deck)
 
 bootDone()
 $('hud').hidden = false
+// Les records des bornes, pour leurs écrans (« HI 12340 »).
+void fetchRecords()
 updateNetStatus()
 updateIdentity()
 frame()
@@ -1782,6 +1817,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, cat, cabin, seating, sitOn, interactables: () => deck.interactables, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso },
+    __game: { renderer, sound, player, cat, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso },
   })
 }

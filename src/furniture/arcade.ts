@@ -5,6 +5,10 @@ import {
   animatedScreen, barX, barZ, box, compact, cylinder, drawnTexture, ED_ORANGE, glass, glow, instanced, keepShared, lit,
   mesh, part, rng, setInstance, sphere, type Builder, type ClawControl, type ClawResult,
 } from './kit'
+import { Asteroids, AsteroidsPilot } from '../arcade/asteroids'
+import { Cargo, CargoPilot, COLS as CARGO_COLS, FREIGHT, FREIGHT_DARK, HIDDEN as CARGO_HIDDEN, ROWS as CARGO_ROWS } from '../arcade/cargo'
+import { padScore, pixelText, records, type ArcadeGame, type GameId, type Pad } from '../arcade/game'
+import { COLS as VIPER_COLS, ROWS as VIPER_ROWS, Viper, ViperPilot } from '../arcade/viper'
 import { tr } from '../i18n'
 
 /*
@@ -131,40 +135,6 @@ const drawInvaders: Draw = (c, t) => {
   c.fillRect(px - 0.5, 66 - shot, 1, 4)
   c.font = '7px monospace'
   c.fillText('1984', 3, 8)
-}
-
-const ROCKS = Array.from({ length: 5 }, (_, i) => ({
-  x: (i * 29) % W, y: (i * 41) % H, vx: ((i % 3) - 1) * 6 + 3, vy: ((i % 2) * 2 - 1) * 5, r: 5 + (i % 3) * 3,
-  shape: Array.from({ length: 9 }, (_, k) => 0.7 + (((i * 7 + k * 13) % 10) / 10) * 0.5),
-}))
-
-/** Astéroïdes vectoriels qui dérivent, un vaisseau qui tourne et tire. */
-const drawAsteroids: Draw = (c, t) => {
-  c.fillStyle = '#000'
-  c.fillRect(0, 0, W, H)
-  c.strokeStyle = '#f2f2f2'
-  c.lineWidth = 1
-  for (const r of ROCKS) {
-    const x = (((r.x + r.vx * t) % W) + W) % W, y = (((r.y + r.vy * t) % H) + H) % H
-    c.beginPath()
-    r.shape.forEach((k, i) => {
-      const a = (i / r.shape.length) * Math.PI * 2 + t * 0.3
-      if (i) c.lineTo(x + Math.cos(a) * r.r * k, y + Math.sin(a) * r.r * k)
-      else c.moveTo(x + Math.cos(a) * r.r * k, y + Math.sin(a) * r.r * k)
-    })
-    c.closePath()
-    c.stroke()
-  }
-  const a = t * 1.1, sx = W / 2, sy = H / 2
-  c.beginPath()
-  c.moveTo(sx + Math.cos(a) * 6, sy + Math.sin(a) * 6)
-  c.lineTo(sx + Math.cos(a + 2.5) * 5, sy + Math.sin(a + 2.5) * 5)
-  c.lineTo(sx + Math.cos(a - 2.5) * 5, sy + Math.sin(a - 2.5) * 5)
-  c.closePath()
-  c.stroke()
-  const d = ((t * 60) % 40) + 8
-  c.fillStyle = '#fff'
-  c.fillRect(sx + Math.cos(a - 0.6) * d, sy + Math.sin(a - 0.6) * d, 1.5, 1.5)
 }
 
 // --- Le Labyrinthe de Comète
@@ -491,200 +461,179 @@ const drawSrv: Draw = (c, t) => {
   c.fillRect(66, 3, 26 * (1 - ((t / 40) % 1) * 0.7), 3)
 }
 
-// --- Cargaison
-
-/** Soute de 8 × 12 cases de 5 × 6 px ; les conteneurs vont de 1 × 1 à 5 × 1, jamais de quatre cases. */
-const HOLD = { cols: 8, rows: 12, cw: 5, ch: 6, x: 28, y: 6 }
-const CONTAINERS: [number, number][] = [[1, 1], [2, 1], [3, 1], [1, 2], [1, 3], [3, 2], [5, 1], [2, 1], [3, 1]]
-const FREIGHT = ['#e0701e', '#3fa8d8', '#c8373a', '#8a9a3a', '#d8dde4', '#e9a917']
-const FREIGHT_DARK = ['#8a3f0e', '#1f5a78', '#6e1a1c', '#4a5420', '#8a9098', '#8a6208']
-
-interface Drop {
-  x: number
-  y: number
-  w: number
-  h: number
-  id: number
-  /** Lignes pleines une fois le conteneur posé (un bit par rangée). */
-  full: number
-}
+// --- Cargaison, Viper, Astéroïdes : les jeux jouables (cf. src/arcade/)
 
 /**
- * Partie écrite d'avance (même graine, même partie), dans une soute déjà à moitié chargée :
- * chaque conteneur va à la place la plus basse qui laisse le moins de trous (à peu près).
- * On garde l'état de la soute avant chaque chute.
+ * Démonstration d'un jeu jouable : une vraie partie, jouée par son pilote automatique, dessinée
+ * en petit ; une par écran. Elle a déjà `warmup` secondes de jeu quand l'écran s'allume (une
+ * vignette du catalogue montre une partie en cours). Une partie perdue recommence trois
+ * secondes plus tard.
  */
-const CARGO = (() => {
-  const { cols, rows } = HOLD
-  const grid = new Uint16Array(cols * rows)
-  const random = rng(1984)
-  const top = (x: number) => {
-    let y = 0
-    while (y < rows && !grid[y * cols + x]) y++
-    return y
-  }
-  const drops: Drop[] = [], boards: Uint16Array[] = [], colors = [0], lines = [0]
-  let full = false, id = 0
-  // Chargement de départ : quatre rangées au fond, chacune avec au moins un trou.
-  for (let r = rows - 4; r < rows; r++) {
-    const gap = Math.floor(random() * cols)
-    for (let x = 0; x < cols; ) {
-      const w = Math.min(1 + Math.floor(random() * 3), cols - x)
-      if (x === gap || (x < gap && x + w > gap) || random() < 0.12) {
-        x++
-        continue
+function liveDemo<G extends ArcadeGame>(
+  make: () => G,
+  pilot: (game: G) => (dt: number) => Pad,
+  draw: (c: CanvasRenderingContext2D, game: G, t: number) => void,
+  warmup: number,
+): () => Draw {
+  return () => {
+    let game = make(), next = pilot(game), last = -1, lost = 0
+    for (let i = 0; i < warmup / 0.03 && !game.over; i++) game.step(0.03, next(0.03))
+    if (game.over) {
+      game = make()
+      next = pilot(game)
+    }
+    game.sounds.length = 0
+    return (c, t) => {
+      const dt = last < 0 ? 0 : Math.min(0.25, Math.max(0, t - last))
+      last = t
+      // L'écran ne se redessine que 12 fois par seconde : on découpe le temps en petits pas.
+      const n = Math.ceil(dt / 0.03)
+      for (let i = 0; i < n; i++) game.step(dt / n, next(dt / n))
+      game.sounds.length = 0
+      if (game.over && (lost += dt) > 3) {
+        game = make()
+        next = pilot(game)
+        lost = 0
       }
-      colors[++id] = Math.floor(random() * FREIGHT.length)
-      grid.fill(id, r * cols + x, r * cols + x + w)
-      x += w
-    }
-  }
-  for (let n = 0; n < 60; n++) {
-    id++
-    const [w0, h0] = CONTAINERS[Math.floor(random() * CONTAINERS.length)]
-    let best = -Infinity, bx = 0, by = 0, bw = w0, bh = h0
-    for (const [w, h] of [[w0, h0], [h0, w0]]) {
-      for (let x = 0; x + w <= cols; x++) {
-        let floor = rows
-        for (let i = x; i < x + w; i++) floor = Math.min(floor, top(i))
-        const y = floor - h
-        if (y < 1) continue
-        let holes = 0
-        for (let i = x; i < x + w; i++) holes += top(i) - floor
-        // Rangées complétées par ce conteneur.
-        let filled = 0
-        for (let r = y; r < floor; r++) {
-          let n = w
-          for (let i = 0; i < cols; i++) if ((i < x || i >= x + w) && grid[r * cols + i]) n++
-          if (n === cols) filled++
-        }
-        const score = y - holes + filled * 2 + random() * 5
-        if (score > best) [best, bx, by, bw, bh] = [score, x, y, w, h]
-      }
-    }
-    if (best === -Infinity) {
-      full = true
-      break
-    }
-    boards.push(grid.slice())
-    colors[id] = Math.floor(random() * FREIGHT.length)
-    for (let r = by; r < by + bh; r++) grid.fill(id, r * cols + bx, r * cols + bx + bw)
-    let rowsFull = 0
-    for (let r = 0; r < rows; r++) {
-      if (grid.subarray(r * cols, (r + 1) * cols).every((v) => v > 0)) {
-        rowsFull |= 1 << r
-        grid.copyWithin(cols, 0, r * cols)
-        grid.fill(0, 0, cols)
-      }
-    }
-    drops.push({ x: bx, y: by, w: bw, h: bh, id, full: rowsFull })
-    lines.push(lines[lines.length - 1] + [...Array(rows).keys()].filter((r) => rowsFull & (1 << r)).length)
-    if ([...Array(cols).keys()].some((x) => top(x) < 4)) {
-      full = true
-      break
+      draw(c, game, t)
     }
   }
-  boards.push(grid.slice())
-  /** `full` : la partie finit soute pleine ; sinon, la cargaison est livrée. */
-  return { drops, boards, colors, lines, full }
-})()
-
-/** État de la soute qu'on dessine (cf. idAt) : le plateau et le conteneur qui tombe. */
-const hold = { board: CARGO.boards[0], x: 0, y: 0, w: 0, h: 0, id: 0 }
-
-function idAt(x: number, y: number): number {
-  if (x < 0 || y < 0 || x >= HOLD.cols || y >= HOLD.rows) return -1
-  if (hold.id && x >= hold.x && x < hold.x + hold.w && y >= hold.y && y < hold.y + hold.h) return hold.id
-  return hold.board[y * HOLD.cols + x]
 }
 
-/** Une case de conteneur : tôle ondulée, bord sombre là où commence un autre conteneur. */
-function cargoCell(c: CanvasRenderingContext2D, x: number, y: number, flash: boolean) {
-  const id = idAt(x, y), k = CARGO.colors[id]
-  const px = HOLD.x + x * HOLD.cw, py = HOLD.y + y * HOLD.ch
-  c.fillStyle = flash ? '#ffffff' : FREIGHT[k]
-  c.fillRect(px, py, HOLD.cw, HOLD.ch)
-  if (flash) return
-  c.fillStyle = FREIGHT_DARK[k]
-  c.fillRect(px + 1, py + 1, 1, HOLD.ch - 2)
-  c.fillRect(px + 3, py + 1, 1, HOLD.ch - 2)
-  if (idAt(x + 1, y) !== id) c.fillRect(px + HOLD.cw - 1, py, 1, HOLD.ch)
-  if (idAt(x, y + 1) !== id) c.fillRect(px, py + HOLD.ch - 1, HOLD.cw, 1)
+/** Record du vaisseau pour ce jeu (cf. src/arcade/scores.ts), en haut de l'écran. */
+function hiScore(c: CanvasRenderingContext2D, id: GameId, x: number, y: number) {
+  const best = records[id]
+  if (!best) return
+  c.fillStyle = '#ffe14f'
+  pixelText(c, `HI ${padScore(best.score, 5)}`, x, y)
 }
 
-/** Des conteneurs tombent et s'empilent dans la soute ; les rangées pleines disparaissent. */
-const drawCargo: Draw = (c, t) => {
-  const { cols, rows, cw, ch, x: ox, y: oy } = HOLD
-  const { drops, boards, lines } = CARGO
-  const step = 1.25, fall = 0.7
-  const k = t % (drops.length * step + 2.5)
-  const i = Math.min(drops.length, Math.floor(k / step)), f = (k - i * step) / step
-  const drop = drops[i]
+/** Cargaison en petit : la soute (cases de 3 px), le conteneur suivant, les lignes, le score. */
+function drawCargoDemo(c: CanvasRenderingContext2D, game: Cargo, t: number) {
+  const cell = 3, ox = 33, oy = 14
   c.fillStyle = '#07090d'
   c.fillRect(0, 0, W, H)
-  // Parois de la soute, trappe d'entrée et ses feux, bandes de danger au fond.
-  const width = cols * cw, floor = oy + rows * ch
   c.fillStyle = '#3a3f4a'
-  c.fillRect(ox - 3, 0, 3, H)
-  c.fillRect(ox + width, 0, 3, H)
-  c.fillStyle = '#1a1d24'
-  c.fillRect(ox, 0, width, oy)
-  c.fillStyle = Math.floor(t * 3) % 2 ? ED_ORANGE : '#5a3008'
-  c.fillRect(ox + 11, 2, 2, 2)
-  c.fillRect(ox + width - 13, 2, 2, 2)
-  for (let x = 0; x < width + 6; x += 4) {
-    c.fillStyle = (x / 4) % 2 ? '#17181b' : '#e9a917'
-    c.fillRect(ox - 3 + x, floor, 4, H - floor)
-  }
+  c.fillRect(ox - 2, oy - 3, 2, CARGO_ROWS * cell + 3)
+  c.fillRect(ox + CARGO_COLS * cell, oy - 3, 2, CARGO_ROWS * cell + 3)
   c.fillStyle = '#10131a'
-  for (let r = 0; r < rows; r++) c.fillRect(ox, oy + r * ch, width, 1)
-  // La soute avant cette chute, et le conteneur qui tombe (par à-coups), puis se pose.
-  hold.board = boards[i]
-  hold.id = 0
-  if (drop) {
-    const u = Math.min(1, f / fall)
-    hold.id = drop.id
-    hold.w = drop.w
-    hold.h = drop.h
-    hold.x = Math.round(3 + (drop.x - 3) * Math.min(1, u * 2.5))
-    hold.y = Math.floor(-drop.h + (drop.y + drop.h) * u)
+  c.fillRect(ox, oy, CARGO_COLS * cell, CARGO_ROWS * cell)
+  c.fillStyle = Math.floor(t * 3) % 2 ? ED_ORANGE : '#5a3008'
+  c.fillRect(ox + 3, oy - 3, 2, 2)
+  c.fillRect(ox + CARGO_COLS * cell - 5, oy - 3, 2, 2)
+  const floor = oy + CARGO_ROWS * cell
+  for (let x = -2; x < CARGO_COLS * cell + 2; x += 3) {
+    c.fillStyle = (x + 2) % 6 ? '#e9a917' : '#17181b'
+    c.fillRect(ox + x, floor, 3, 3)
   }
-  const flash = drop && f > fall && Math.floor(t * 12) % 2 === 0 ? drop.full : 0
-  for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) if (idAt(x, y) > 0) cargoCell(c, x, y, (flash & (1 << y)) > 0)
-  // Tableau de bord : prochain conteneur, lignes, tonnage.
-  c.font = '7px monospace'
+  const flash = game.clearing && Math.floor(game.clearing.t * 16) % 2 === 0
+  const cellAt = (x: number, y: number, kind: number) => {
+    const px = ox + x * cell, py = oy + (y - CARGO_HIDDEN) * cell
+    c.fillStyle = kind < 0 ? '#ffffff' : FREIGHT[kind]
+    c.fillRect(px, py, cell, cell)
+    if (kind < 0) return
+    c.fillStyle = FREIGHT_DARK[kind]
+    c.fillRect(px, py + cell - 1, cell, 1)
+  }
+  for (let y = CARGO_HIDDEN; y < CARGO_ROWS + CARGO_HIDDEN; y++) {
+    for (let x = 0; x < CARGO_COLS; x++) {
+      const v = game.board[y * CARGO_COLS + x]
+      if (v) cellAt(x, y, flash && game.clearing!.rows.includes(y) ? -1 : v - 1)
+    }
+  }
+  if (game.piece) for (const [x, y] of game.cellsOf(game.piece)) if (y >= CARGO_HIDDEN) cellAt(x, y, game.piece.kind)
+  // Le suivant, les lignes, le score.
+  const next = game.queue[0]
+  if (next !== undefined) {
+    for (const [x, y] of game.cellsOf({ id: 0, kind: next, rot: 0, x: 0, y: 0 })) {
+      c.fillStyle = FREIGHT[next]
+      c.fillRect(72 + x * 3, 24 + y * 3, 3, 3)
+    }
+  }
   c.fillStyle = '#9aa0aa'
-  c.fillText(tr('SUIV.', 'NEXT'), 2, 12)
-  c.fillText(tr('LIGNES', 'LINES'), 71, 12)
-  c.fillText(tr('FRET', 'LOAD'), 71, 38)
-  const next = drops[i + 1]
-  if (next) {
-    c.fillStyle = FREIGHT[CARGO.colors[next.id]]
-    c.fillRect(13 - next.w * 2, 27 - next.h * 2, next.w * 4 - 1, next.h * 4 - 1)
+  pixelText(c, 'NEXT', 70, 14)
+  pixelText(c, tr('LIGN.', 'LINES'), 2, 30)
+  c.fillStyle = '#ffffff'
+  pixelText(c, String(game.lines), 2, 40)
+  pixelText(c, padScore(game.score, 5), 2, 58)
+  hiScore(c, 'cargo', 2, 2)
+}
+
+/** Viper en petit : la zone de chargement (cases de 3 px), le train de conteneurs, la tête. */
+function drawViperDemo(c: CanvasRenderingContext2D, game: Viper, t: number) {
+  const cell = 3, ox = 3, oy = 17
+  c.fillStyle = '#04060c'
+  c.fillRect(0, 0, W, H)
+  c.fillStyle = '#1c2436'
+  for (let i = 0; i < 14; i++) c.fillRect((i * 37 + Math.floor(t * 2)) % W, (i * 23) % H, 1, 1)
+  c.fillStyle = `rgba(89, 216, 255, ${0.45 + 0.2 * Math.sin(t * 4)})`
+  c.fillRect(ox - 1, oy - 1, VIPER_COLS * cell + 2, 1)
+  c.fillRect(ox - 1, oy + VIPER_ROWS * cell, VIPER_COLS * cell + 2, 1)
+  c.fillRect(ox - 1, oy - 1, 1, VIPER_ROWS * cell + 2)
+  c.fillRect(ox + VIPER_COLS * cell, oy - 1, 1, VIPER_ROWS * cell + 2)
+  for (const m of game.mines) {
+    c.fillStyle = Math.floor(t * 4 + m.x) % 2 ? '#ff3b3b' : '#8a1a1a'
+    c.fillRect(ox + m.x * cell, oy + m.y * cell, cell, cell)
   }
-  c.fillStyle = '#fff'
-  c.fillText(String(lines[i]), 73, 22)
-  c.fillText(`${(i * 12) % 1000} t`, 73, 48)
-  // Fin de partie : soute pleine, ou cargaison livrée ; on recommence.
-  if (!drop && Math.floor(t * 3) % 2 === 0) {
-    c.fillStyle = '#ffe14f'
-    c.textAlign = 'center'
-    c.fillText(CARGO.full ? tr('SOUTE', 'HOLD') : tr('CARGAISON', 'CARGO'), W / 2, 36)
-    c.fillText(CARGO.full ? tr('PLEINE !', 'FULL!') : tr('LIVRÉE !', 'DELIVERED!'), W / 2, 45)
-    c.textAlign = 'start'
+  c.fillStyle = Math.floor(t * 4) % 2 ? '#ffffff' : ED_ORANGE
+  c.fillRect(ox + game.food.x * cell, oy + game.food.y * cell, cell, cell)
+  if (game.gold) {
+    c.fillStyle = '#ffd23c'
+    c.fillRect(ox + game.gold.x * cell, oy + game.gold.y * cell, cell, cell)
+  }
+  game.body.forEach((b, i) => {
+    c.fillStyle = i === 0 ? '#dfe6f0' : i % 4 === 0 ? ED_ORANGE : '#8a93a1'
+    c.fillRect(ox + b.x * cell, oy + b.y * cell, cell, cell)
+  })
+  const head = game.body[0]
+  c.fillStyle = '#ff8a1c'
+  c.fillRect(ox + head.x * cell + 1, oy + head.y * cell + 1, 1, 1)
+  c.fillStyle = '#ffffff'
+  pixelText(c, padScore(game.score, 5), 64, 2)
+  hiScore(c, 'viper', 2, 2)
+  if (game.over && Math.floor(t * 3) % 2) {
+    c.fillStyle = '#ff5a4f'
+    pixelText(c, 'GAME OVER', W / 2, 44, 1, 'center')
   }
 }
+
+/** Astéroïdes en petit : le champ de roches du jeu, tracé sans halo. */
+function drawAsteroidsDemo(c: CanvasRenderingContext2D, game: Asteroids, t: number) {
+  game.drawSmall(c, W, H, t)
+  hiScore(c, 'asteroids', 50, 2)
+}
+
+const cargoDemo = liveDemo(() => new Cargo(), (g) => {
+  const pilot = new CargoPilot(g)
+  return (dt) => pilot.next(dt)
+}, drawCargoDemo, 28)
+const viperDemo = liveDemo(() => new Viper(), (g) => {
+  const pilot = new ViperPilot(g)
+  return () => pilot.next()
+}, drawViperDemo, 9)
+const asteroidsDemo = liveDemo(() => new Asteroids(), (g) => {
+  const pilot = new AsteroidsPilot(g)
+  return (dt) => pilot.next(dt)
+}, drawAsteroidsDemo, 12)
 
 // ---------------------------------------------------------------- bornes
 
-const GAMES: Record<string, { title: string; side: string; neon: string; draw: Draw }> = {
+/**
+ * Jeux des bornes : titre du fronton, flancs, néon, et l'écran (une animation, ou pour les jeux
+ * jouables une fabrique de démonstration : chaque écran a sa partie).
+ */
+const GAMES: Record<string, { title: string; side: string; neon: string; draw: Draw | (() => Draw); live?: true }> = {
+  cargo: { title: tr('CARGAISON', 'CARGO'), side: '#46561f', neon: '#9dff5a', draw: cargoDemo, live: true },
+  viper: { title: 'VIPER', side: '#5a1446', neon: '#ffb03a', draw: viperDemo, live: true },
+  asteroids: { title: tr('ASTÉROÏDES', 'ASTEROIDS'), side: '#7a1f1f', neon: '#ffe14f', draw: asteroidsDemo, live: true },
   elite: { title: 'ELITE', side: '#1f3f8a', neon: '#39e0ff', draw: drawElite },
   invaders: { title: 'THARGOID INVADERS', side: '#4a1f6a', neon: '#ff4fd8', draw: drawInvaders },
-  asteroids: { title: tr('ASTÉROÏDES', 'ASTEROIDS'), side: '#7a1f1f', neon: '#ffe14f', draw: drawAsteroids },
   comete: { title: tr('LE LABYRINTHE DE COMÈTE', 'COMÈTE\'S MAZE'), side: '#1d5f6b', neon: '#ff8ad8', draw: drawComete },
   srv: { title: 'SRV RALLY', side: '#8a4512', neon: ED_ORANGE, draw: drawSrv },
-  cargo: { title: tr('CARGAISON', 'CARGO'), side: '#46561f', neon: '#9dff5a', draw: drawCargo },
 }
+
+/** L'animation d'un écran : celle du jeu, ou une partie de démonstration à lui. */
+const screenOf = (game: (typeof GAMES)[string]): Draw => (game.live ? (game.draw as () => Draw)() : (game.draw as Draw))
 
 const marquees = new Map<string, THREE.MeshBasicMaterial>()
 
@@ -729,9 +678,12 @@ function marquee(title: string, neon: string, bg: [string, string] = ['#12081f',
   return m
 }
 
-/** Borne d'arcade jouable (écran animé). Jeux : `elite`, `invaders`, `asteroids`, `comete`, `srv`, `cargo`. */
-const arcade: Builder = ({ label = 'elite' }) => {
-  const game = GAMES[label] ?? GAMES.elite
+/**
+ * Borne d'arcade (écran animé). Jeux : `cargo`, `viper`, `asteroids` (jouables, cf. src/arcade/),
+ * `elite`, `invaders`, `comete`, `srv`.
+ */
+const arcade: Builder = ({ label = 'cargo' }) => {
+  const game = GAMES[label] ?? GAMES.cargo
   const g = new THREE.Group()
   const side = lit(game.side), black = lit('#121318')
   for (const x of [-0.285, 0.285]) g.add(box(0.05, 0.95, 0.52, side, x, 0.475, 0))
@@ -752,7 +704,7 @@ const arcade: Builder = ({ label = 'elite' }) => {
   bezel.add(box(0.52, 0.34, 0.04, black, 0, 0, 0))
   g.add(bezel, box(0.52, 0.14, 0.22, black, 0, 0.88, -0.07))
 
-  const screen = animatedScreen(W, H, 12, game.draw)
+  const screen = animatedScreen(W, H, 12, screenOf(game))
   const live = new THREE.Group()
   const face = new THREE.Group()
   face.position.copy(bezel.position)
@@ -766,8 +718,8 @@ const arcade: Builder = ({ label = 'elite' }) => {
  * Borne cocktail : une table basse, l'écran tourné vers le haut sous la vitre, un pupitre à
  * chaque petit bout pour deux joueurs face à face (le premier côté +z). Jeu : `label` (cf. GAMES).
  */
-const arcadeTable: Builder = ({ label = 'elite', random }) => {
-  const game = GAMES[label] ?? GAMES.elite
+const arcadeTable: Builder = ({ label = 'cargo', random }) => {
+  const game = GAMES[label] ?? GAMES.cargo
   const g = new THREE.Group()
   const side = lit(game.side), black = lit(C.black), chrome = lit(C.chrome)
   g.add(box(0.34, 0.05, 0.36, black, 0, 0.025, 0), box(0.44, 0.29, 0.42, side, 0, 0.195, 0, 0.012))
@@ -787,7 +739,7 @@ const arcadeTable: Builder = ({ label = 'elite', random }) => {
     deck.add(cylinder(0.014, 0.014, 0.012, glow('#39e0ff'), 0.035, 0.022, 0, 10), cylinder(0.014, 0.014, 0.012, glow('#ffe14f'), 0.08, 0.022, 0, 10))
     g.add(deck)
   }
-  const screen = animatedScreen(W, H, 12, game.draw)
+  const screen = animatedScreen(W, H, 12, screenOf(game))
   const phase = random() * 60
   const live = new THREE.Group()
   const face = part(new THREE.PlaneGeometry(0.3, 0.25), new THREE.MeshBasicMaterial({ map: screen.texture }), 0, 0.3705, 0)

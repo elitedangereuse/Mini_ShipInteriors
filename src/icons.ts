@@ -66,6 +66,21 @@ import speakerLow from '@phosphor-icons/core/bold/speaker-low-bold.svg?raw'
 import speakerSlash from '@phosphor-icons/core/bold/speaker-slash-bold.svg?raw'
 import userSolo from '@phosphor-icons/core/bold/user-bold.svg?raw'
 import usersThree from '@phosphor-icons/core/bold/users-three-bold.svg?raw'
+import caretUp from '@phosphor-icons/core/bold/caret-up-bold.svg?raw'
+import caretDown from '@phosphor-icons/core/bold/caret-down-bold.svg?raw'
+import camera from '@phosphor-icons/core/bold/camera-bold.svg?raw'
+import downloadSimple from '@phosphor-icons/core/bold/download-simple-bold.svg?raw'
+import copy from '@phosphor-icons/core/bold/copy-bold.svg?raw'
+import userFocus from '@phosphor-icons/core/bold/user-focus-bold.svg?raw'
+import tag from '@phosphor-icons/core/bold/tag-bold.svg?raw'
+import snowflake from '@phosphor-icons/core/bold/snowflake-bold.svg?raw'
+import gridFour from '@phosphor-icons/core/bold/grid-four-bold.svg?raw'
+import play from '@phosphor-icons/core/bold/play-bold.svg?raw'
+import pause from '@phosphor-icons/core/bold/pause-bold.svg?raw'
+import stop from '@phosphor-icons/core/bold/stop-bold.svg?raw'
+import musicNotes from '@phosphor-icons/core/bold/music-notes-bold.svg?raw'
+import vinylRecord from '@phosphor-icons/core/bold/vinyl-record-bold.svg?raw'
+import trophy from '@phosphor-icons/core/bold/trophy-bold.svg?raw'
 
 const SVG = {
   // emotes
@@ -133,6 +148,22 @@ const SVG = {
   'speaker-slash': speakerSlash,
   'user-solo': userSolo,
   'users-three': usersThree,
+  // bornes d'arcade, jukebox, mode photo
+  'caret-up': caretUp,
+  'caret-down': caretDown,
+  camera,
+  'download-simple': downloadSimple,
+  copy,
+  'user-focus': userFocus,
+  tag,
+  snowflake,
+  'grid-four': gridFour,
+  play,
+  pause,
+  stop,
+  'music-notes': musicNotes,
+  'vinyl-record': vinylRecord,
+  trophy,
 } as const
 
 export type IconName = keyof typeof SVG

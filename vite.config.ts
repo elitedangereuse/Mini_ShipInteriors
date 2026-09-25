@@ -9,6 +9,8 @@ const ED_SITE_URL = process.env.ED_SITE_URL || 'http://localhost:8080'
 const CMDR_ENDPOINT = '/outils/mini-shipinteriors-cmdr.php'
 /** Aménagement des quartiers des CMDR (lecture, écriture). */
 const CABIN_ENDPOINT = '/outils/mini-shipinteriors-cabin.php'
+/** Meilleurs scores des bornes d'arcade (lecture, inscription). */
+const SCORES_ENDPOINT = '/outils/mini-shipinteriors-scores.php'
 
 /**
  * Branche le relais multijoueur sur le serveur de dev (et de preview) de Vite, sur /ws/mini-shipinteriors.
@@ -34,10 +36,10 @@ export default defineConfig({
   // base relative : le build peut être servi depuis n'importe quel sous-dossier.
   base: './',
   plugins: [relay()],
-  // Le client demande au site qui est connecté et ses quartiers (même origine en prod) : en local,
-  // on relaie au site Docker.
-  server: { proxy: { [CMDR_ENDPOINT]: ED_SITE_URL, [CABIN_ENDPOINT]: ED_SITE_URL } },
-  preview: { proxy: { [CMDR_ENDPOINT]: ED_SITE_URL, [CABIN_ENDPOINT]: ED_SITE_URL } },
+  // Le client demande au site qui est connecté, ses quartiers et les scores des bornes (même
+  // origine en prod) : en local, on relaie au site Docker.
+  server: { proxy: { [CMDR_ENDPOINT]: ED_SITE_URL, [CABIN_ENDPOINT]: ED_SITE_URL, [SCORES_ENDPOINT]: ED_SITE_URL } },
+  preview: { proxy: { [CMDR_ENDPOINT]: ED_SITE_URL, [CABIN_ENDPOINT]: ED_SITE_URL, [SCORES_ENDPOINT]: ED_SITE_URL } },
   // Three.js pèse ~650 ko minifié à lui seul, le jeu et son mobilier ~200 ko : c'est attendu.
   // Le mode aménagement est chargé à la demande (import dynamique, ~25 ko) ; les morceaux
   // partagés prennent un nom clair (sinon, celui du premier module commun venu) : vendor pour

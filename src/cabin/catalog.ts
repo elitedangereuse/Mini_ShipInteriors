@@ -283,14 +283,18 @@ const ARCADE_TEXTS: Record<string, string[]> = {
   ],
 }
 
-/** Jeux des bornes (cf. GAMES dans furniture/arcade.ts) : la vignette de chacun sert de pastille. */
+/**
+ * Jeux des bornes (cf. GAMES dans furniture/arcade.ts) : la vignette de chacun sert de pastille.
+ * Les trois premiers se jouent (cf. src/arcade/) ; les autres ne font que leur démonstration.
+ */
 const ARCADE_GAMES: Variant[] = [
+  { id: 'cargo', label: tr('Cargaison (jouable)', 'Cargo (playable)') },
+  { id: 'viper', label: tr('Viper (jouable)', 'Viper (playable)') },
+  { id: 'asteroids', label: tr('Astéroïdes (jouable)', 'Asteroids (playable)') },
   { id: 'elite', label: 'Elite' },
   { id: 'invaders', label: 'Thargoid Invaders' },
-  { id: 'asteroids', label: tr('Astéroïdes', 'Asteroids') },
   { id: 'comete', label: tr('Le Labyrinthe de Comète', 'Comète\'s Maze') },
   { id: 'srv', label: 'SRV Rally' },
-  { id: 'cargo', label: tr('Cargaison', 'Cargo') },
 ]
 
 const PINBALL_TEXTS: Record<string, string[]> = {

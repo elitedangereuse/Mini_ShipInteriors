@@ -1762,3 +1762,204 @@ body.editing .top-left {
   }
 }
 
+
+/* ---------- bornes d'arcade (arcade/cabinet.ts) ---------- */
+/* La borne en grand : fronton au néon, écran cathodique dans son cadre, pupitre. --sw : largeur de
+   l'écran (4:3), qui tient dans la fenêtre avec le fronton et le pupitre. */
+.arcade {
+  --sw: min(90vw, calc((100vh - 250px) * 4 / 3), 860px);
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at 50% 40%, rgba(12, 9, 28, 0.55), rgba(2, 3, 8, 0.9));
+}
+.arc-cab {
+  width: calc(var(--sw) + 56px);
+  padding: 0 28px 16px;
+  border-radius: 18px 18px 10px 10px;
+  background: linear-gradient(90deg, var(--side) 0 18px, #121318 18px calc(100% - 18px), var(--side) calc(100% - 18px));
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.65), 0 0 70px color-mix(in srgb, var(--neon) 16%, transparent);
+}
+.arc-marquee {
+  margin: 0 -28px 14px;
+  padding: 12px 20px 10px;
+  border-radius: 18px 18px 0 0;
+  border-bottom: 3px solid var(--neon);
+  background: linear-gradient(90deg, #12081f, #2a1440, #12081f);
+  color: #fff;
+  font: 800 clamp(22px, 4vw, 40px) / 1.15 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-shadow: 0 0 6px var(--neon), 0 0 18px var(--neon), 0 0 36px var(--neon);
+  box-shadow: 0 8px 30px color-mix(in srgb, var(--neon) 30%, transparent);
+}
+.arc-bezel {
+  padding: 16px;
+  border-radius: 16px;
+  background: #07080c;
+  box-shadow: inset 0 0 0 2px #1d1f27, inset 0 0 30px rgba(0, 0, 0, 0.8);
+}
+.arc-screen {
+  position: relative;
+  width: var(--sw);
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: 16px / 13px;
+  background: #000;
+}
+.arc-screen canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  filter: saturate(1.15) contrast(1.05);
+}
+.arc-screen canvas.smooth {
+  image-rendering: auto;
+}
+/* Écran cathodique : lignes de balayage, coins assombris, reflet du néon, léger scintillement. */
+.arc-crt {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.2) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at 50% 50%, transparent 58%, rgba(0, 0, 0, 0.55) 100%),
+    linear-gradient(160deg, rgba(255, 255, 255, 0.06), transparent 35%);
+  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.6), inset 0 0 10px color-mix(in srgb, var(--neon) 22%, transparent);
+  animation: arc-flicker 0.15s steps(2) infinite;
+}
+@keyframes arc-flicker {
+  50% {
+    opacity: 0.96;
+  }
+}
+.arc-deck {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: linear-gradient(#2a2a33, #1b1c22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.arc-help {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.arc-help span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.arc-quit {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  cursor: pointer;
+}
+.arc-quit:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.arc-touch {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .arc-crt {
+    animation: none;
+  }
+}
+/* Écran tactile : une croix directionnelle et trois boutons, sous la borne. */
+@media (pointer: coarse) {
+  .arcade {
+    --sw: min(94vw, calc((100vh - 290px) * 4 / 3), 860px);
+    place-items: start center;
+    padding-top: 12px;
+  }
+  .arc-cab {
+    width: calc(var(--sw) + 24px);
+    padding: 0 12px 10px;
+    background: linear-gradient(90deg, var(--side) 0 8px, #121318 8px calc(100% - 8px), var(--side) calc(100% - 8px));
+  }
+  .arc-marquee {
+    margin: 0 -12px 8px;
+    padding: 8px;
+  }
+  .arc-bezel {
+    padding: 8px;
+  }
+  .arc-help {
+    display: none;
+  }
+  .arc-deck {
+    justify-content: flex-end;
+  }
+  .arc-touch {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    pointer-events: none;
+  }
+  .arc-touch button {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+    font: 700 18px system-ui, sans-serif;
+    font-size: 22px;
+    pointer-events: auto;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .arc-touch button:active {
+    background: rgba(255, 255, 255, 0.25);
+  }
+  .arc-dpad {
+    display: grid;
+    grid-template-areas: '. up .' 'left . right' '. down .';
+    gap: 2px;
+  }
+  .arc-dpad [data-b='up'] {
+    grid-area: up;
+  }
+  .arc-dpad [data-b='left'] {
+    grid-area: left;
+  }
+  .arc-dpad [data-b='right'] {
+    grid-area: right;
+  }
+  .arc-dpad [data-b='down'] {
+    grid-area: down;
+  }
+  .arc-abc {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+  }
+  .arc-abc [data-b='a'] {
+    width: 70px;
+    height: 70px;
+    background: color-mix(in srgb, var(--neon) 40%, transparent);
+  }
+}
