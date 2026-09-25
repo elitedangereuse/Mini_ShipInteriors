@@ -251,6 +251,9 @@ export class CabinView {
       const f = buildFurniture(entry.model as CustomModel, builderLabel(entry, item.v), seedOf(item))
       if (f.solid) holder.add((solid = f.solid))
       if (f.live) holder.add(f.live)
+      // Pièces animées placées avant la mesure : une instance pas encore posée compte à sa
+      // taille d'origine (les bulles d'une lampe à lave, les planètes d'une carte du système).
+      f.update?.(0)
       update = f.update
       emitter = f.emitter
     } else {
