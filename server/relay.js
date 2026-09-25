@@ -271,6 +271,8 @@ export function attachRelay(
       players.delete(socket.id)
       sockets.delete(player.id)
       music.delete(player.id)
+      // Plus personne à bord : le jukebox du mess se tait.
+      if (!players.size) music.clear()
       socket.broadcast.emit('leave', { id: player.id })
       // Ses visiteurs rentrent chez eux.
       for (const p of players.values()) if (p.cabin === player.id) moveTo(p, p.id)
