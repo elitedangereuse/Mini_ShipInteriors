@@ -18,6 +18,7 @@ import { EN, localizeAttributes, tr } from './i18n'
 import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, LIFT, SPAWN } from './levels'
 import { hydrateIcons, icon } from './icons'
 import { lookId, lookPath, lookRig, parseLook, RACES, raceOf, randomLook, variantsOf, type Look } from './looks'
+import { JukeboxPanel, JukeboxPlayer, trackById, type Track } from './music'
 import { Net, type PlayerState } from './net'
 import type { Tile } from './pathfinding'
 import { PhotoMode } from './photo'
@@ -26,7 +27,7 @@ import { Player } from './player'
 import { RemotePlayer } from './remote'
 import { Seating, type Seated } from './seating'
 import { Starfield } from './starfield'
-import { tempo } from './tempo'
+import { syncTempo, tempo } from './tempo'
 import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel } from './ui'
 
 // ------------------------------------------------------------------ profil
@@ -218,6 +219,13 @@ catDeck.interactables.push({
 const sound = new Sound()
 scene.add(sound.rig)
 
+/** Jukebox du pont principal (celui du mess) et des quartiers où l'on se trouve. */
+const deckMusic = new JukeboxPlayer(sound, 0.4)
+const cabinMusic = new JukeboxPlayer(sound, 0.4)
+for (const it of decks[LEVELS.findIndex((l) => l.id === 0)].interactables) {
+  if (it.furniture?.model === 'jukebox') it.onInteract = () => openJukebox('deck', it.position)
+}
+
 // Repère de la tuile survolée (carré) et de la destination (anneau).
 const hover = new THREE.Mesh(
   new THREE.RingGeometry(0.6, 0.7, 4, 1, Math.PI / 4),
@@ -296,8 +304,9 @@ cabin.onEmote = (id, text) => {
   emote(id)
   showText(text)
 }
-// Jukebox, platines : quelques mesures, lancées sur un temps de la piste de danse.
-cabin.onMusic = (position, text) => {
+// Jukebox : on choisit un morceau. Platines : quelques mesures, lancées sur un temps de la piste de danse.
+cabin.onMusic = (position, text, model) => {
+  if (model === 'jukebox') return openJukebox('cabin', position)
   player.interact()
   net.sendEmote('interact')
   const b = beatAt(holoTime.value)
@@ -570,6 +579,19 @@ net.onMessage = (m) => {
       }
       break
     }
+    case 'music': {
+      // Un morceau au jukebox (du pont principal, ou des quartiers où l'on est), ou le silence.
+      const music = m.where === 'deck' ? deckMusic : cabinMusic
+      const track = trackById(m.track)
+      if (!track) {
+        music.stop()
+        break
+      }
+      music.play(track, jukeboxAt(m.where, m.x, m.z), m.at)
+      const r = remotes.get(m.id)
+      if (r) chat.add('system', tr(`${r.name} a mis « ${track.title} » au jukebox.`, `${r.name} put “${track.title}” on the jukebox.`))
+      break
+    }
     case 'cabin':
       // Aménagement d'un hôte : à l'entrée dans ses quartiers, puis à chacun de ses changements.
       hostLayouts.set(m.id, m.layout)
@@ -773,6 +795,54 @@ wardrobe.onClose = (confirmed, look) => {
     void applyLook(parseLook(dressing.original))
   }
   dressing = null
+}
+
+// ------------------------------------------------------------------ jukebox
+
+const jukebox = new JukeboxPanel()
+/** Jukebox dont le panneau est ouvert : on s'en éloigne, il se ferme. */
+let jukeboxNear: THREE.Vector3 | null = null
+
+/** Place (monde) d'un jukebox : au pont principal, ou dans les quartiers. */
+function jukeboxAt(where: 'deck' | 'cabin', x: number, z: number): THREE.Vector3 {
+  return new THREE.Vector3(x, (where === 'deck' ? deckById(0).y : cabinDeck.y) + 0.7, z)
+}
+
+function nowPlaying(track: Track) {
+  dialog.show(`♪ ${track.title} — ${track.artist}. ${track.mood}`)
+}
+
+/** Le panneau du jukebox : on choisit un morceau (pour tous ceux qui sont là), ou on l'arrête. */
+function openJukebox(where: 'deck' | 'cabin', at: THREE.Vector3) {
+  player.interact()
+  net.sendEmote('interact')
+  const music = where === 'deck' ? deckMusic : cabinMusic
+  jukeboxNear = at.clone()
+  jukebox.open(
+    music.track,
+    (track) => {
+      music.play(track, jukeboxAt(where, at.x, at.z), 0)
+      net.sendMusic(where, track.id, at.x, at.z)
+      nowPlaying(track)
+      sound.play('emote', null, { volume: 0.05, rate: 0.8 })
+    },
+    () => {
+      music.stop()
+      net.sendMusic(where, null, at.x, at.z)
+    },
+  )
+}
+
+/** Panneau du jukebox ouvert : haut, bas, Entrée ; E ou Échap pour le fermer. */
+function jukeboxKey(e: KeyboardEvent): boolean {
+  if (!jukebox.isOpen) return false
+  if (e.code === 'ArrowUp' || e.code === 'KeyW') jukebox.move(-1)
+  else if (e.code === 'ArrowDown' || e.code === 'KeyS') jukebox.move(1)
+  else if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') jukebox.confirm()
+  else if (e.code === 'KeyE' || e.code === 'Escape') jukebox.close()
+  else if (!MOVE_KEYS.has(e.code)) return false
+  e.preventDefault()
+  return true
 }
 
 // ------------------------------------------------------------------ ascenseur
@@ -1120,7 +1190,7 @@ addEventListener('keydown', (e) => {
   // Mode photo : ses touches (déclencheur, options) ; on garde les déplacements, les poses, R et M.
   if (photo.keyDown(e)) return
   if (e.code === 'KeyP' && !editing()) return openPhoto()
-  if (liftKey(e)) return
+  if (liftKey(e) || jukeboxKey(e)) return
   if (e.code === 'Enter') {
     e.preventDefault()
     return chat.open()
@@ -1161,7 +1231,7 @@ chat.onOpen = () => keys.clear()
 const inputDir = new THREE.Vector3()
 function keyboardDirection(): THREE.Vector3 {
   inputDir.set(0, 0, 0)
-  if (chat.typing || riding || lift.isOpen || editing()) return inputDir
+  if (chat.typing || riding || lift.isOpen || jukebox.isOpen || editing()) return inputDir
   const on = (...codes: string[]) => codes.some((c) => keys.has(c))
   // event.code = position physique : KeyW/KeyA correspondent à Z/Q sur un clavier AZERTY.
   const sx = (on('KeyD', 'ArrowRight') ? 1 : 0) - (on('KeyA', 'ArrowLeft') ? 1 : 0)
@@ -1276,8 +1346,9 @@ canvas.addEventListener('pointerup', (e) => {
 addEventListener(
   'pointerdown',
   (e) => {
-    if (!lift.isOpen || lift.contains(e.target)) return
-    lift.close()
+    const panel = lift.isOpen ? lift : jukebox.isOpen ? jukebox : null
+    if (!panel || panel.contains(e.target)) return
+    panel.close()
     e.stopPropagation()
   },
   { capture: true },
@@ -1783,7 +1854,7 @@ function frame() {
   // Invite « E » au-dessus de l'objet le plus proche ; installé sur un meuble, au-dessus du
   // personnage : se relever (et ce que permet la place).
   const sitting = seating.settled && !riding && !editing()
-  const near = riding || lift.isOpen || wardrobe.isOpen || editing() || seating.current ? null : nearestInteractable()
+  const near = riding || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || editing() || seating.current ? null : nearestInteractable()
   const sit = sitting ? seatPrompt(seating.current!) : null
   const label = sit ? `${sit.main}|${sit.space ?? ''}` : near?.label
   if (promptEl.hidden !== !label) promptEl.hidden = !label
@@ -1802,8 +1873,13 @@ function frame() {
     const y = ((1 - screenPos.y) / 2) * innerHeight
     promptEl.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`
   }
-  // On s'éloigne de l'ascenseur : le panneau se ferme.
+  // On s'éloigne de l'ascenseur ou du jukebox : le panneau se ferme.
   if (lift.isOpen && Math.hypot(player.position.x - liftTile.x, player.position.z - liftTile.z) > 1.6) lift.close()
+  if (jukebox.isOpen && jukeboxNear && Math.hypot(player.position.x - jukeboxNear.x, player.position.z - jukeboxNear.z) > 2) jukebox.close()
+  // Les jukebox ne s'entendent que sur leur pont ; la soirée bat sur le morceau qu'on entend.
+  deckMusic.setAudible(deck.def.id === 0)
+  cabinMusic.setAudible(deck === cabinDeck)
+  if (!deckMusic.syncTempo() && !cabinMusic.syncTempo()) syncTempo(null)
 
   dialog.update(dt)
   sendState()
@@ -1865,6 +1941,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, cat, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso },
+    __game: { renderer, sound, player, cat, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, music: { deck: deckMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso },
   })
 }

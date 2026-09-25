@@ -126,6 +126,26 @@ export class Sound {
     return this.started && this.ctx.state === 'running'
   }
 
+  /**
+   * Haut-parleur spatialisé (le jukebox) : son entrée, dont on règle le volume, et de quoi le
+   * déplacer ; null tant que le son n'a pas démarré.
+   */
+  speaker(pos: THREE.Vector3, volume: number, ref = 2, rolloff = 1.2): { input: GainNode; move: (p: THREE.Vector3) => void } | null {
+    if (!this.ready) return null
+    const input = this.ctx.createGain()
+    input.gain.value = volume
+    const panner = this.panner(pos, ref, rolloff)
+    input.connect(panner)
+    return {
+      input,
+      move: (p) => {
+        panner.positionX.value = p.x
+        panner.positionY.value = p.y
+        panner.positionZ.value = p.z
+      },
+    }
+  }
+
   /** Sortie non spatialisée des bornes d'arcade (cf. arcade/sfx.ts) ; null tant que le son n'a pas démarré. */
   arcadeOutput(): AudioNode | null {
     if (!this.ready) return null

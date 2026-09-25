@@ -170,6 +170,28 @@ describe('rediffusion', () => {
     assert.equal((await next(b, 'state', (m) => m.id === wa.id)).py, 1.2)
     for (const socket of [a, b, c]) socket.disconnect()
   })
+
+  test('le jukebox du pont principal s\'entend de tous, et d\'un nouveau venu, au bon moment du morceau', async () => {
+    const a = client({ auth: { name: 'CMDR Disco' } })
+    const wa = await welcome(a)
+    const b = client({ auth: { name: 'CMDR Oreille' } })
+    await welcome(b)
+    a.emit('music', { where: 'deck', track: 'Disco!', x: 11.3, z: 6.32 }) // identifiant invalide : ignoré
+    a.emit('music', { where: 'deck', track: 'disco', x: 11.3, z: 6.32 })
+    const heard = await next(b, 'music')
+    assert.deepEqual({ ...heard, at: 0 }, { id: wa.id, where: 'deck', track: 'disco', at: 0, x: 11.3, z: 6.32 })
+    // Le nouveau venu arrive en plein morceau.
+    await new Promise((r) => setTimeout(r, 120))
+    const c = client({ auth: { name: 'CMDR Retard' } })
+    const late = next(c, 'music')
+    await welcome(c)
+    const m = await late
+    assert.equal(m.track, 'disco')
+    assert.ok(m.at >= 0.1 && m.at < 5, `écoulé : ${m.at}`)
+    a.emit('music', { where: 'deck', track: null, x: 11.3, z: 6.32 })
+    assert.equal((await next(b, 'music')).track, null)
+    for (const socket of [a, b, c]) socket.disconnect()
+  })
 })
 
 /** Vrai si `socket` reçoit `event` dans les `ms` millisecondes. */
@@ -293,6 +315,27 @@ describe('quartiers', () => {
     const declined = next(host, 'decline')
     guest.emit('decline', { to: wh.id })
     assert.deepEqual(await declined, { id: wg.id, name: 'CMDR Solo' })
+  })
+
+  test('le jukebox des quartiers ne s\'entend que chez l\'hôte, et on le retrouve en entrant', async () => {
+    const host = client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-rackam' })
+    const wh = await welcome(host)
+    const guest = client({ auth: { name: 'CMDR Voisin' } })
+    const wg = await welcome(guest)
+    host.emit('music', { where: 'cabin', track: 'lounge', x: 13, z: 8 })
+    assert.equal(await receives(guest, 'music'), false, 'hors des quartiers, le voisin n\'entend rien')
+    host.emit('invite', { to: wg.id })
+    await next(guest, 'invite')
+    const heard = next(guest, 'music')
+    guest.emit('visit', { host: wh.id })
+    const m = await heard
+    assert.deepEqual([m.where, m.track, m.x, m.z], ['cabin', 'lounge', 13, 8])
+    // Il rentre chez lui : ses quartiers à lui se taisent.
+    const home = next(guest, 'music')
+    guest.emit('visit', { host: null })
+    assert.equal((await home).track, null)
+    host.disconnect()
+    guest.disconnect()
   })
 
   test('l\'hôte raccompagne son visiteur ; s\'il débarque, ses visiteurs rentrent chez eux', async () => {

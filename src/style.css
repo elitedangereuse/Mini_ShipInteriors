@@ -2161,3 +2161,102 @@ body.photo #bubbles .emote-pop {
     bottom: 130px;
   }
 }
+
+/* ---------- jukebox (music.ts), à la manière du panneau de l'ascenseur, en rose de soirée ---------- */
+.jukebox {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: 8px;
+  width: min(430px, calc(100vw - 32px));
+  max-height: calc(100vh - 150px);
+  padding: 14px;
+  pointer-events: auto;
+  border-color: #ff4fd8;
+  box-shadow: 0 0 30px rgba(255, 79, 216, 0.18);
+}
+.jukebox .lift-title .icon {
+  font-size: 15px;
+  color: #ff4fd8;
+}
+.jb-list {
+  display: grid;
+  gap: 6px;
+  overflow-y: auto;
+}
+.jb-list button {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  grid-template-areas: 'icon title' 'icon artist' 'icon mood';
+  column-gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.jb-list button .icon {
+  grid-area: icon;
+  align-self: center;
+  font-size: 18px;
+  color: var(--muted);
+}
+.jb-title {
+  grid-area: title;
+  font-weight: 600;
+}
+.jb-artist {
+  grid-area: artist;
+  font-size: 12px;
+  color: var(--muted);
+}
+.jb-mood {
+  grid-area: mood;
+  margin-top: 2px;
+  font-size: 12px;
+  font-style: italic;
+  color: #d4c2f0;
+}
+.jb-list button.selected {
+  border-color: #ff4fd8;
+  background: rgba(255, 79, 216, 0.14);
+  box-shadow: inset 3px 0 0 #ff4fd8;
+}
+.jb-list button.playing .icon {
+  color: #ff4fd8;
+  animation: jb-bounce 0.5s ease-in-out infinite alternate;
+}
+@keyframes jb-bounce {
+  to {
+    transform: translateY(-2px) scale(1.12);
+  }
+}
+.jb-actions {
+  display: flex;
+  gap: 8px;
+}
+.jb-actions button {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  cursor: pointer;
+}
+.jb-actions button:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+@media (prefers-reduced-motion: reduce) {
+  .jb-list button.playing .icon {
+    animation: none;
+  }
+}

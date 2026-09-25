@@ -22,6 +22,8 @@ export interface Prop {
   action?: string
   /** Texte libre d'un meuble fait main : titre d'un panneau (« TITRE|ligne|ligne »), jeu d'une borne, couleur d'un tissu… */
   label?: string
+  /** On y choisit la musique (le jukebox, cf. src/music.ts). */
+  music?: boolean
 }
 
 /** Lumière : x, z, couleur, intensité, et au besoin sa façon de vaciller (néon fatigué, feu de cheminée). */
@@ -429,6 +431,8 @@ export const LEVELS: LevelDef[] = [
         ),
       },
       { model: 'table-display-planet', x: 15, z: 7, rot: 3, solid: false },
+      // Le jukebox du mess : tout le pont l'entend (cf. src/music.ts).
+      { model: 'jukebox', x: 11.3, z: 6.32, action: tr('Choisir un morceau', 'Pick a song'), music: true },
 
       // --- Salon d'arcade ---
       // Les trois bornes se jouent (cf. src/arcade/) : Cargaison, Viper, Astéroïdes.

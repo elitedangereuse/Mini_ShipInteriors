@@ -7,6 +7,9 @@
 // joueur son nom de CMDR et le marque « vérifié ». Les autres sont des invités, libres de leur
 // nom, mais sans la marque.
 //
+// Jukebox : le morceau choisi (et depuis quand il joue) est gardé pour le pont principal, et pour
+// chaque instance des quartiers ; le relais le transmet à ceux qui sont là, et à ceux qui arrivent.
+//
 // Quartiers : chaque joueur a sa propre instance des quartiers du commandant (`cabin` : l'id du
 // joueur chez qui il se trouve, le sien par défaut). Un CMDR vérifié envoie l'aménagement des
 // siens (cf. cabin.js), et peut inviter un joueur connecté : celui-ci n'y entre qu'avec une
@@ -31,6 +34,8 @@ const POSES = new Set(['sit', 'lie', 'pilot', 'arcade', 'claw', 'punch', 'run', 
 const LEVELS = new Set([-1, 0, 1])
 /** Une invitation dans des quartiers vaut une minute. */
 const INVITE_TTL = 60000
+/** Morceaux du jukebox (cf. src/music.ts) : un identifiant court. */
+const TRACK = /^[a-z0-9-]{1,24}$/
 
 const clean = (s, max) =>
   String(s ?? '')
@@ -80,6 +85,13 @@ export function attachRelay(
   const players = new Map() // socket.id -> joueur
   const sockets = new Map() // id du joueur -> socket
   let nextId = 1
+  /** Jukebox qui jouent : 0 pour le pont principal, sinon l'id de l'hôte des quartiers. */
+  const music = new Map() // instance -> { track, since, x, z }
+  /** Ce que joue le jukebox d'une instance, pour un joueur qui y arrive (track null : il se tait). */
+  const musicOf = (instance) => {
+    const m = music.get(instance)
+    return { where: instance ? 'cabin' : 'deck', track: m?.track ?? null, at: m ? (Date.now() - m.since) / 1000 : 0, x: m?.x ?? 0, z: m?.z ?? 0 }
+  }
 
   /** Position et animation d'un joueur, avec sa pose s'il est installé sur un meuble. */
   const motion = (p) => ({ x: p.x, z: p.z, yaw: p.yaw, level: p.level, anim: p.anim, ...(p.pose ? { pose: p.pose, py: p.py } : {}) })
@@ -93,6 +105,8 @@ export function attachRelay(
     if (p.cabin === cabin) return
     p.cabin = cabin
     io.emit('visit', by ? { id: p.id, cabin, by } : { id: p.id, cabin })
+    // La musique de ces quartiers-là (ou le silence).
+    sockets.get(p.id)?.emit('music', { id: 0, ...musicOf(cabin) })
   }
 
   /** Nom d'invité : jamais celui d'un CMDR vérifié présent à bord. */
@@ -135,15 +149,18 @@ export function attachRelay(
       players: [...players.values()].filter((p) => p !== player).map(publicState),
     })
     socket.broadcast.emit('join', { player: publicState(player) })
+    if (music.has(0)) socket.emit('music', { id: 0, ...musicOf(0) })
     log(`[relais] ${player.name}${player.verified ? ' (CMDR vérifié)' : ''} (#${player.id}) a embarqué — ${players.size} à bord`)
 
     let chatBudget = 5
     let inviteBudget = 3
     let cabinBudget = 10
+    let musicBudget = 3
     const refill = setInterval(() => {
       chatBudget = Math.min(5, chatBudget + 1)
       inviteBudget = Math.min(3, inviteBudget + 0.25)
       cabinBudget = Math.min(10, cabinBudget + 5)
+      musicBudget = Math.min(3, musicBudget + 0.5)
     }, 1000)
 
     socket.on('state', (raw) => {
@@ -174,6 +191,23 @@ export function attachRelay(
       if (!player.verified && clean(m.name, MAX_NAME)) player.name = guestName(m.name, player)
       if (validLook(m.skin)) player.skin = m.skin
       io.emit('profile', { id: player.id, name: player.name, verified: player.verified, skin: player.skin })
+    })
+
+    // Jukebox : un morceau (ou le silence) au pont principal, ou dans les quartiers où l'on est.
+    socket.on('music', (raw) => {
+      const m = obj(raw)
+      if (musicBudget < 1 || (m.where !== 'deck' && m.where !== 'cabin')) return
+      const track = m.track === null ? null : TRACK.test(String(m.track)) ? String(m.track) : undefined
+      const x = num(m.x, -5, 40), z = num(m.z, -5, 20)
+      if (track === undefined || x === null || z === null) return
+      musicBudget--
+      const instance = m.where === 'deck' ? 0 : player.cabin
+      if (track) music.set(instance, { track, since: Date.now(), x, z })
+      else music.delete(instance)
+      const msg = { id: player.id, ...musicOf(instance) }
+      for (const p of players.values()) {
+        if (p !== player && (instance === 0 || p.cabin === instance)) sockets.get(p.id)?.emit('music', msg)
+      }
     })
 
     // Aménagement de ses quartiers (CMDR vérifiés seulement), transmis à ceux qui s'y trouvent.
@@ -236,6 +270,7 @@ export function attachRelay(
       clearInterval(refill)
       players.delete(socket.id)
       sockets.delete(player.id)
+      music.delete(player.id)
       socket.broadcast.emit('leave', { id: player.id })
       // Ses visiteurs rentrent chez eux.
       for (const p of players.values()) if (p.cabin === player.id) moveTo(p, p.id)

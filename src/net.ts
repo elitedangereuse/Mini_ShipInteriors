@@ -39,6 +39,11 @@ export type ServerMessage =
    * on reste dans `cabin`.
    */
   | { t: 'visit'; id: number; cabin: number; by?: number; expired?: boolean }
+  /**
+   * Jukebox du pont principal ou des quartiers où l'on est : son morceau (null : il se tait),
+   * joué depuis `at` secondes, à sa place ; `id` : qui l'a choisi (0 : le relais, à l'arrivée).
+   */
+  | { t: 'music'; id: number; where: 'deck' | 'cabin'; track: string | null; at: number; x: number; z: number }
 
 /**
  * Réponse du relais à une invitation : partie, ou pourquoi pas (guest : on n'est pas CMDR,
@@ -50,7 +55,7 @@ type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin'>
 
 /** Chemin de la socket : le même que WS_PATH dans server/relay.js et que la conf nginx du site. */
 const WS_PATH = import.meta.env.VITE_WS_PATH || '/ws/mini-shipinteriors'
-const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit']
+const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'music']
 
 export class Net {
   online = false
@@ -173,6 +178,11 @@ export class Net {
   /** Entrer dans les quartiers de `host` (sur invitation), ou rentrer chez soi (null). */
   sendVisit(host: number | null) {
     this.send('visit', { host })
+  }
+
+  /** Choisit un morceau au jukebox du pont principal ou des quartiers où l'on est (null : l'arrêter). */
+  sendMusic(where: 'deck' | 'cabin', track: string | null, x: number, z: number) {
+    this.send('music', { where, track, x: Math.round(x * 100) / 100, z: Math.round(z * 100) / 100 })
   }
 
   /** Raccompagner un visiteur de ses quartiers. */

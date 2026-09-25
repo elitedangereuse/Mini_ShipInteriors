@@ -1,0 +1,217 @@
+MINI SHIP INTERIORS — JUKEBOX DES QUARTIERS
+Crédits et licences de la bande-son
+=====================================================================
+
+Tous les morceaux ci-dessous sont dans le domaine public ou placés sous
+CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/).
+Aucune attribution n'est exigée ; ces crédits sont donnés par courtoisie.
+Chaque licence a été vérifiée sur la page source elle-même le 25/09/2026.
+
+Traitement commun (fichiers out/<id>.mp3) :
+  - MP3 stéréo 44,1 kHz, LAME VBR -q:a 5, tags ID3v2.3 (titre, artiste,
+    commentaire = licence + source).
+  - Loudness : loudnorm en deux passes, mode linéaire, cible -16 LUFS
+    intégrés, crête vraie ≤ -1 dBTP avant encodage. Pour danube, disco et
+    lounge, un limiteur de crête (suréchantillonné ×4, plafond -1,5 dBFS)
+    est appliqué avant loudnorm pour rester en mode linéaire (danube :
+    au plus 2,2 dB de réduction, sur moins de 2 % du morceau).
+  - Silence de tête retiré quand il dépassait 0,3 s.
+  - BPM et premier temps sont mesurés sur le MP3 final, avec un décodage
+    sans blanc (ffmpeg, Chrome, Firefox) :
+    temps n = décalage + n × 60 / BPM.
+
+
+---------------------------------------------------------------------
+1. danube.mp3
+---------------------------------------------------------------------
+Titre       : « An der schönen, blauen Donau » (Le Beau Danube bleu), op. 314
+              (arrangement pour orchestre d'harmonie)
+Compositeur : Johann Strauss II (1825-1899)
+Interprète  : United States Marine Band, direction Albert F. Schoepper
+              (enregistrement vers 1972)
+Licence     : Domaine public
+              - composition : PD-old-auto-expired (Strauss est mort en 1899)
+              - interprétation : PD-USGov-Military-Marines (œuvre du
+                gouvernement fédéral américain)
+Preuve      : https://commons.wikimedia.org/wiki/File:%22An_der_sch%C3%B6nen,_blauen_Donau%22_performed_by_the_U.S._Marine_Band.flac
+Téléchargé  : https://upload.wikimedia.org/wikipedia/commons/b/bf/%22An_der_sch%C3%B6nen%2C_blauen_Donau%22_performed_by_the_U.S._Marine_Band.flac
+              (FLAC 24 bits, 9:09, sha1 847c9a4a99273155180e92a595098bf23e5c256a)
+Montage     : 0,48 s de silence de tête retiré ; on garde l'introduction,
+              le thème célèbre (vers 1:05) et la suite de la valse ; coupe
+              à une fin de phrase calme à 3:23,1, fondu de sortie de 4 s
+              (3:19,1 → 3:23,1).
+Durée       : 3:23,1 (203,1 s)      Taille : 2 893 579 octets (2,89 Mo)
+Loudness    : -15,9 LUFS, LRA 13,9 LU (dynamique orchestrale conservée)
+Tempo       : pas de pulsation stable. C'est une valse viennoise rubato, à
+              trois temps, entre 195 et 215 temps/min environ selon les
+              passages. Ne pas y caler la piste : prévoir un éclairage lent
+              ou libre.
+Ambiance    : « La valse de l'ordinateur d'amarrage : détendez-vous, il
+              s'occupe de l'approche. »
+Remarque    : Commons ne nomme pas l'arrangeur de la version pour harmonie.
+              La page traite la composition et l'interprétation (œuvre du
+              gouvernement américain), pas l'arrangement lui-même.
+
+
+---------------------------------------------------------------------
+2. disco.mp3
+---------------------------------------------------------------------
+Titre       : Funky Disco Beats to Boogie/Woogie to
+Artiste     : Fupi
+Licence     : CC0 1.0
+Preuve      : https://opengameart.org/content/funky-disco-beats-to-boogiewoogie-to
+Téléchargé  : https://opengameart.org/sites/default/files/funkydiscobeatstoboogieslashwoogieto.flac
+Montage     : morceau entier. C'est une boucle qui s'arrête net, d'où un
+              fondu de sortie de 4 s sur la fin (2:09,1 → 2:13,1).
+Durée       : 2:13,1 (133,1 s)      Taille : 2 308 378 octets (2,31 Mo)
+Tempo       : 110 BPM, premier temps à 0,005 s, confiance haute
+              (grosse caisse sur 1 et 3, clap sur 2 et 4, grille stable à
+              ±3 ms sur tout le morceau)
+Ambiance    : « Basse funky, cuivres et cordes : la boule à facettes tourne,
+              tout le monde sur la piste ! »
+
+
+---------------------------------------------------------------------
+3. synthwave.mp3
+---------------------------------------------------------------------
+Titre       : Day Dreams
+Artiste     : HoliznaCC0
+Licence     : CC0 1.0 (la page dit : « This music is public domain Cc0, so
+              use it how you want! »)
+Preuve      : https://opengameart.org/content/retro-wave-collection
+Téléchargé  : https://opengameart.org/sites/default/files/retro_wave_1.zip
+              (fichier « Retro Wave 1/05 HoliznaCC0 - Day Dreams.mp3 », 320 kbit/s)
+Montage     : morceau entier ; 3,2 s de silence de fin retirées.
+Durée       : 3:14,3 (194,3 s)      Taille : 2 856 526 octets (2,86 Mo)
+Tempo       : 130 BPM, premier temps à 0,005 s, confiance haute
+              (grosse caisse sur chaque temps, grille stable)
+Ambiance    : « Néons, arpèges et grosse caisse : virée nocturne
+              rétro-futuriste. »
+
+
+---------------------------------------------------------------------
+4. lofi.mp3
+---------------------------------------------------------------------
+Titre       : Chills
+Artiste     : HoliznaCC0
+Licence     : CC0 1.0 (la page dit : « This music is public domain Cc0, So
+              use it how you want! »)
+Preuve      : https://opengameart.org/content/chills
+Téléchargé  : https://opengameart.org/sites/default/files/01_holiznacc0_-_chills_0.mp3
+Montage     : aucun (morceau entier).
+Durée       : 2:54,9 (174,9 s)      Taille : 2 614 137 octets (2,61 Mo)
+Tempo       : 96 BPM, premier temps à 0,007 s, confiance moyenne
+              (le BPM est sûr, mais le beat hip-hop est swingué : les
+              frappes s'écartent de la grille jusqu'à ±35 ms)
+Ambiance    : « Saxo feutré et beat nonchalant pour décompresser entre deux
+              sauts. »
+
+
+---------------------------------------------------------------------
+5. space.mp3
+---------------------------------------------------------------------
+Titre       : Ganymede
+Artiste     : congusbongus
+Licence     : CC0 1.0
+Preuve      : https://opengameart.org/content/ganymede
+Téléchargé  : https://opengameart.org/sites/default/files/ganymede.ogg
+Montage     : aucun. Le silence de tête (0,21 s) est sous le seuil de
+              0,3 s, donc conservé.
+Durée       : 3:03,3 (183,3 s)      Taille : 3 097 348 octets (3,10 Mo)
+Tempo       : 118 BPM, premier temps à 0,211 s, confiance haute
+Ambiance    : « Spacesynth en orbite de Jupiter : arpèges cosmiques pour
+              danser en apesanteur. »
+
+
+---------------------------------------------------------------------
+6. chiptune.mp3
+---------------------------------------------------------------------
+Titre       : Interstellar Fleet 1 (version longue)
+Artiste     : Zane Little Music
+Licence     : CC0 1.0
+Preuve      : https://opengameart.org/content/interstellar-fleet-1
+Téléchargé  : https://opengameart.org/sites/default/files/interstellar_fleet_1.zip
+              (« WAV/Interstellar Fleet 1.wav » et
+               « WAV/Interstellar Fleet 1 [LOOP].wav »)
+Montage     : l'original ne dure que 1:44. On enchaîne les 48 premières
+              mesures de la version complète, la boucle officielle de
+              l'auteur (48 mesures exactes), puis la fin de la version
+              complète. Les raccords sont des fondus enchaînés de 20 ms
+              centrés, sans décalage de la grille rythmique.
+Durée       : 3:13,2 (193,2 s)      Taille : 2 722 850 octets (2,72 Mo)
+Tempo       : 130 BPM, premier temps à 0,005 s. Confiance haute pour le
+              BPM, moyenne pour la phase : la rythmique est très syncopée,
+              et la grille suit le début de mesure du fichier (la boucle
+              fait exactement 48 mesures à 130 BPM). Les accents les plus
+              forts tombent souvent sur le contretemps (0,236 s + n × 0,4615).
+              Si l'éclairage paraît décalé d'un demi-temps, prendre 0,236 s.
+Ambiance    : « 8-bit héroïque pour pilotes d'élite : la borne d'arcade de
+              la flotte. »
+
+
+---------------------------------------------------------------------
+7. lounge.mp3 (bonus)
+---------------------------------------------------------------------
+Titre       : Two Left Socks
+Artiste     : congusbongus
+Licence     : CC0 1.0
+Preuve      : https://opengameart.org/content/two-left-socks
+Téléchargé  : https://opengameart.org/sites/default/files/two_left_socks_0.ogg
+Montage     : fondu de 1 s sur la toute fin, où le dernier accord était
+              coupé à -33 dB ; le silence de tête (0,22 s) est conservé.
+Durée       : 3:20,2 (200,2 s)      Taille : 1 937 384 octets (1,94 Mo)
+Tempo       : 135 BPM, premier temps à 0,215 s, confiance haute
+              (c'est une bossa nova : on peut aussi la lire en demi-tempo,
+              à 67,5)
+Ambiance    : « Bossa nova d'ascenseur en synthé FM : cocktail au bar du
+              carrier. »
+
+
+=====================================================================
+MORCEAUX ÉCARTÉS
+=====================================================================
+Licence douteuse ou refusée :
+  - « Strauss, An der schönen blauen Donau.ogg » (Commons, European
+    Archive, marqué CC0) : vieil enregistrement placé sous CC0 par une
+    archive qui n'en détient pas les droits. Doute, donc écarté.
+  - Deva, « Xenocity - Sidekick » (OGA, marqué CC0) : la description
+    demande de contacter l'auteur pour un usage commercial, ce qui
+    contredit la CC0.
+  - KarateStudios, « Bossa Town » (OGA, marqué CC0) : la description dit
+    « please credit ». Ambigu, donc écarté.
+  - josepharaoh99, « Pacific Ocean » (OGA, marqué CC0) : l'uploader écrit
+    ne pas en être l'auteur (le morceau est de Dan Alan).
+  - congusbongus, « Space Cadet » et « Dogs of Cyberspace » (CC-BY 4.0 /
+    OGA-BY 4.0), « Space Philately » (CC-BY-SA 3.0) : refusés.
+  - Holizna × Humanfobia, « Beats From The Crypt Hop » (archive.org) :
+    CC BY-NC-ND, refusé.
+  - Albums Loyalty Freak Music et Anonymous420 marqués CC-BY, CC-BY-NC,
+    CC-BY-NC-SA ou « Copyright » sur loyaltyfreakmusic.com : refusés.
+  - Recherche « CC0 » sur archive.org : trop de fausses déclarations (par
+    exemple des vinyles de The Midnight ou de Perturbator marqués CC0).
+    Source non fiable, donc pas utilisée.
+  - FreePD.com (CC0) : site fermé, il ne reste que des miroirs tiers.
+  - Free Music Archive : le téléchargement demande une connexion. Les
+    morceaux de HoliznaCC0 viennent donc de ses propres pages OGA.
+  - SpringySpringo, « Bossa Shop Theme » (CC-BY 3.0 + CC0, fait avec des
+    samples BandLab) : on a préféré du CC0 seul.
+
+Bonne licence (CC0) mais écartés pour la qualité, la durée ou le tempo :
+  - Loyalty Freak Music, « Can't Stop My Feet ! » (130 BPM, 3:05) : bonne
+    pulsation, mais un mix plus dense et plus brut. Alternative disco.
+  - Of Far Different Nature, « Funky House » : 1:09 seulement.
+  - Of Far Different Nature, « Liquid Flame » : grille rythmique instable
+    (±200 ms), inutilisable pour synchroniser la lumière.
+  - Juhani Junkala, « 5 Chiptunes (Action) » et « Chiptune Adventures » :
+    excellents, mais ce sont des boucles de 0:56 à 1:14.
+  - Zane Little Music, « It Takes A Hero » et « Synesthesia » (140 BPM,
+    2:34-2:36) : alternatives chiptune valables.
+  - HoliznaCC0, « Back In The 80s », « Machines With Feelings »,
+    « Night Life », « Make Funk » : alternatives synthwave et funk.
+  - congusbongus, « Midnight Drive » ; hatmix, « Lost in the Snow Wave » :
+    pas de pulsation nette à la détection.
+  - MintoDog, « Space City » (1:57) et « Cozy Puzzle In-Game 1 »
+    (pulsation faible) ; Pro Sensory, « Mocha Frapp » (2:10) : alternatives
+    plus courtes.
+  - tricksntraps, « Flying Temple » (trance à 128 BPM, 2:17) : alternative
+    électro.
