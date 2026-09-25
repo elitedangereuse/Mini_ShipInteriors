@@ -803,6 +803,8 @@ wardrobe.onClose = (confirmed, look) => {
 const jukebox = new JukeboxPanel()
 /** Jukebox dont le panneau est ouvert : on s'en éloigne, il se ferme. */
 let jukeboxNear: THREE.Vector3 | null = null
+/** Où est ce jukebox : les quartiers peuvent changer d'aménagement sous le panneau. */
+let jukeboxWhere: 'deck' | 'cabin' = 'deck'
 
 /** Place (monde) d'un jukebox : au pont principal, ou dans les quartiers. */
 function jukeboxAt(where: 'deck' | 'cabin', x: number, z: number): THREE.Vector3 {
@@ -819,6 +821,7 @@ function openJukebox(where: 'deck' | 'cabin', at: THREE.Vector3) {
   net.sendEmote('interact')
   const music = where === 'deck' ? deckMusic : cabinMusic
   jukeboxNear = at.clone()
+  jukeboxWhere = where
   jukebox.open(
     music.track,
     (track) => {
@@ -951,6 +954,7 @@ async function openEditor() {
     return chat.add('system', tr('On aménage ses quartiers depuis ses quartiers, sur le pont supérieur.', 'You decorate your quarters from inside them, on the upper deck.'))
   }
   lift.close()
+  jukebox.close()
   wardrobe.close(false)
   seating.leave()
   player.cancelPath()
@@ -1014,6 +1018,8 @@ function sees(r: RemotePlayer): boolean {
 /** Aménagement affiché : celui de l'hôte pendant une visite, le sien sinon. */
 function showCabin() {
   cabin.setLayout(visiting ? normalizeLayout(hostLayouts.get(visiting.host) ?? null, cabin.bounds) : ownLayout)
+  // Le jukebox du panneau a pu bouger, disparaître, ou être celui de l'hôte qui nous raccompagne.
+  if (jukeboxWhere === 'cabin') jukebox.close()
   // Assis sur un meuble des quartiers : on retrouve sa place, ou l'on se relève s'il a bougé.
   seating.relink()
   // Un meuble a pu apparaître sous nos pieds (ou sous les pattes de Comète).
@@ -1077,6 +1083,7 @@ async function enterVisit(host: number) {
   if (editing()) closeEditor()
   wardrobe.close(false)
   lift.close()
+  jukebox.close()
   inviteMenu.close()
   inviteToasts.remove(host)
   seating.leave()
