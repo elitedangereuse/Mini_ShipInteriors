@@ -1559,8 +1559,8 @@ function seated(seat: Seated) {
   // Passé en mode photo pendant qu'on s'installait : on tient la pose, sans rien lancer.
   if (photo.active) return
   if (seat.spot.pose === 'claw' && item.control?.kind === 'claw') return startClaw(seat, item.control)
-  const game = item.furniture?.label
-  if (seat.spot.pose === 'arcade' && isGameId(game)) return void openArcade(seat, game)
+  const game = arcadeGame(seat)
+  if (game) return void openArcade(seat, game)
   if (item.onInteract) return item.onInteract()
   showText(item.text)
 }
@@ -1594,13 +1594,17 @@ function bindPose() {
 function seatPrompt(seat: Seated): { main: string; space?: string } {
   if (claw) return { main: tr('Quitter', 'Leave'), space: claw.control.busy ? undefined : tr('Lâcher la pince', 'Drop the claw') }
   if (canJump(seat)) return { main: tr('Se lever', 'Stand up'), space: jumping ? undefined : tr('Saut FSD', 'FSD jump') }
+  // Devant une borne fermée (on sort du mode photo, ou elle n'a pas pu se charger).
+  if (arcadeGame(seat)) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
   return { main: tr('Se lever', 'Stand up') }
 }
 
 /** Espace, installé sur un meuble. */
 function seatAction(seat: Seated) {
   if (claw) return dropClaw()
-  if (canJump(seat)) void fsdJump()
+  if (canJump(seat)) return void fsdJump()
+  const game = arcadeGame(seat)
+  if (game) void openArcade(seat, game)
 }
 
 // ------------------------------------------------------------------ bornes d'arcade
@@ -1609,7 +1613,14 @@ function seatAction(seat: Seated) {
 let arcade: ArcadeCabinet | null = null
 let arcadeLoading: Promise<void> | null = null
 
+/** Jeu de la borne où l'on se tient, s'il est jouable. */
+function arcadeGame(seat: Seated): GameId | null {
+  const game = seat.item.furniture?.label
+  return seat.spot.pose === 'arcade' && isGameId(game) ? game : null
+}
+
 async function openArcade(seat: Seated, game: GameId) {
+  if (arcade?.isOpen) return
   arcadeLoading ??= import('./arcade/cabinet').then(({ ArcadeCabinet }) => {
     arcade = new ArcadeCabinet({ sound, linked: () => linked })
     // On quitte la borne : on s'en écarte.
@@ -1617,7 +1628,15 @@ async function openArcade(seat: Seated, game: GameId) {
       if (seating.current?.spot.pose === 'arcade') seating.stand()
     }
   })
-  await arcadeLoading
+  try {
+    await arcadeLoading
+  } catch {
+    // Réseau coupé, ou nouvelle version du jeu en ligne. Chrome garde l'échec en mémoire
+    // (même module, même échec) : seul un rechargement de la page répare à coup sûr.
+    arcadeLoading = null
+    if (seating.current === seat) dialog.show(tr('La borne ne répond pas : rechargez la page pour y jouer.', 'The cabinet isn\'t responding: reload the page to play.'))
+    return
+  }
   // Relevé (ou parti) pendant le chargement.
   if (seating.current !== seat) return
   keys.clear()
