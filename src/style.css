@@ -1888,6 +1888,8 @@ body.editing .top-left {
     --sw: min(94vw, calc((100vh - 290px) * 4 / 3), 860px);
     place-items: start center;
     padding-top: 12px;
+    /* Le HUD (chat, emotes) passerait sous la manette : on l'occulte. */
+    background: rgba(2, 3, 8, 0.94);
   }
   .arc-cab {
     width: calc(var(--sw) + 24px);

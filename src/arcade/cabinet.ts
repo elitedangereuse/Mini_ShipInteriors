@@ -74,6 +74,10 @@ const KEYS: Record<string, Button> = {
 
 type Mode = 'title' | 'play' | 'pause' | 'over'
 
+/** Écran tactile : la borne affiche sa manette, et parle de ses boutons plutôt que du clavier. */
+const TOUCH = matchMedia('(pointer: coarse)').matches
+const START = TOUCH ? 'A' : tr('ESPACE', 'SPACE')
+
 /** Manette lâchée (fin de partie : le jeu finit ses animations). */
 const IDLE: Pad = { held: new Set(), pressed: new Set() }
 
@@ -405,7 +409,7 @@ export class ArcadeCabinet {
       else this.drawBoard(k, 30 * k, null)
       if (Math.floor(this.time * 2) % 2) {
         g.fillStyle = '#ffffff'
-        pixelText(g, tr('APPUYEZ SUR ESPACE', 'PRESS SPACE'), w / 2, h - 32 * k, 2 * k, 'center')
+        pixelText(g, tr(`APPUYEZ SUR ${START}`, `PRESS ${START}`), w / 2, h - 32 * k, 2 * k, 'center')
       }
     } else {
       this.game!.draw(g, this.time)
@@ -415,7 +419,7 @@ export class ArcadeCabinet {
         g.fillStyle = '#ffffff'
         pixelText(g, 'PAUSE', w / 2, h / 2 - 12 * k, 3 * k, 'center')
         g.fillStyle = '#8a92a6'
-        pixelText(g, tr('P OU ESPACE : REPRENDRE', 'P OR SPACE: RESUME'), w / 2, h / 2 + 16 * k, k, 'center')
+        pixelText(g, TOUCH ? tr('A : REPRENDRE', 'A: RESUME') : tr('P OU ESPACE : REPRENDRE', 'P OR SPACE: RESUME'), w / 2, h / 2 + 16 * k, k, 'center')
       }
       if (this.mode === 'over' && this.modeTime > 1.6) this.drawResult(k)
     }
@@ -510,7 +514,7 @@ export class ArcadeCabinet {
     this.drawBoard(k, 74 * k, rank)
     if (this.modeTime > 2.5) {
       g.fillStyle = Math.floor(this.time * 2) % 2 ? '#ffffff' : '#8a92a6'
-      pixelText(g, tr('ESPACE : REJOUER · ÉCHAP : QUITTER', 'SPACE: PLAY AGAIN · ESC: LEAVE'), w / 2, h - 16 * k, k, 'center')
+      pixelText(g, TOUCH ? tr('A : REJOUER', 'A: PLAY AGAIN') : tr('ESPACE : REJOUER · ÉCHAP : QUITTER', 'SPACE: PLAY AGAIN · ESC: LEAVE'), w / 2, h - 16 * k, k, 'center')
     }
   }
 }

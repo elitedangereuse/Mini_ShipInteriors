@@ -1720,7 +1720,7 @@ const photo = new PhotoMode({
   helpers: [hover, marker],
   me: () => player.root,
   tags: () => [
-    { at: player.avatar.head(new THREE.Vector3()), name: profile.name, verified },
+    { at: player.avatar.head(new THREE.Vector3()), name: profile.name, verified, me: true },
     ...[...remotes.values()].filter((r) => r.group.visible && r.avatar).map((r) => ({ at: r.avatar!.head(new THREE.Vector3()), name: r.name, verified: r.verified })),
   ],
   shutter: () => sound.shutter(),

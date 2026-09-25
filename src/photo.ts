@@ -15,6 +15,8 @@ export interface PhotoTag {
   at: THREE.Vector3
   name: string
   verified: boolean
+  /** Le joueur lui-même : sans nom sur la photo quand il se cache. */
+  me?: boolean
 }
 
 export interface PhotoHost {
@@ -248,6 +250,7 @@ export class PhotoMode {
     g.font = `600 ${11 * scale}px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`
     g.textBaseline = 'middle'
     for (const tag of this.host.tags()) {
+      if (tag.me && this.hideMe) continue
       v.copy(tag.at).project(camera)
       if (v.z > 1 || Math.abs(v.x) > 1.1 || Math.abs(v.y) > 1.1) continue
       const x = ((v.x + 1) / 2) * w, y = ((1 - v.y) / 2) * h
