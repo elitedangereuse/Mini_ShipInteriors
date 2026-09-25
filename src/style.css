@@ -211,8 +211,12 @@ button {
 .buttons button:hover {
   background: rgba(255, 255, 255, 0.14);
 }
-/* Retour au site : en tête de la colonne de droite, en face du logo. Quitter le jeu mérite un
-   libellé, et hors de la barre il ne la rallonge pas (elle toucherait le bandeau du son). */
+/* Retour au site, à gauche de la barre : quitter le jeu mérite un libellé. */
+.top-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
 .site-link {
   display: flex;
   align-items: center;
@@ -540,10 +544,11 @@ kbd .icon {
   font-size: 12px;
 }
 
+/* Au-dessus des emotes : en haut, il toucherait « Retour au site » et la barre sous ~1360 px. */
 .toast {
   position: absolute;
   left: 50%;
-  top: 16px;
+  bottom: 80px;
   transform: translateX(-50%);
   padding: 6px 12px;
   border-radius: 999px;
@@ -652,13 +657,9 @@ kbd .icon {
   .site-logo {
     width: 140px;
   }
-  /* En haut, « Retour au site » (icône seule) et la barre partagent une ligne qui prend toute la
-     largeur : sans le curseur de volume (le bouton son reste), elle tient, et le logo et le bloc
-     du vaisseau passent dessous. */
-  .top-right {
-    flex-direction: row;
-    align-items: stretch;
-  }
+  /* En haut, « Retour au site » (icône seule) et la barre prennent toute la largeur : sans le
+     curseur de volume (le bouton son reste), la ligne tient, et le logo et le bloc du vaisseau
+     passent dessous. */
   .site-link {
     padding: 0 12px;
   }
@@ -670,6 +671,10 @@ kbd .icon {
   }
   .top-left {
     top: 72px;
+  }
+  .toast {
+    top: 16px;
+    bottom: auto;
   }
   /* Les emotes occupent le coin en bas à droite (3 rangées) : « À propos » monte au-dessus. */
   .about-toggle {
