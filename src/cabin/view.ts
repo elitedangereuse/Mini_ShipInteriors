@@ -137,6 +137,8 @@ export class CabinView {
   onLights?: () => void
   /** Interaction avec un objet qui fait jouer une emote (danser sur la piste), cf. main.ts. */
   onEmote?: (emote: string, text: Interactable['text']) => void
+  /** Interaction avec un objet qui joue de la musique (jukebox, platines), à sa position (pont). */
+  onMusic?: (position: THREE.Vector3, text: Interactable['text']) => void
 
   private built: Built[] = []
   /** Boîtes locales par modèle, variante et graine (vérifications du mode aménagement). */
@@ -553,6 +555,7 @@ export class CabinView {
           it.onInteract = () => this.onHoloMe?.()
           this.holoMe = it
         } else if (emote) it.onInteract = () => this.onEmote?.(emote, text)
+        else if (b.entry.music) it.onInteract = () => this.onMusic?.(it.position, text)
         this.interactables.push(it)
         deck.interactables.push(it)
       }

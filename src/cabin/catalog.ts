@@ -77,6 +77,8 @@ export interface CatalogEntry {
   action?: string
   /** Emote que joue le personnage à l'interaction (danser sur la piste), avec le texte. */
   emote?: string
+  /** L'interaction joue quelques mesures de musique (jukebox, platines), avec le texte. */
+  music?: boolean
   /** Lumière de l'objet, ou de chacune de ses variantes. */
   light?: CatalogLight | ((variant: string | undefined) => CatalogLight)
   /** Unique et indispensable : on le déplace, on ne le retire pas (le Holo-Me). */
@@ -409,7 +411,7 @@ export const CATALOG: CatalogEntry[] = [
     interact: ['Boule à facettes : quatre cent trente-deux petits miroirs, et autant de reflets de vous.', 'Elle tourne. Comète essaie d\'attraper les reflets depuis une heure.'],
   },
   {
-    id: 'dj-booth', name: 'Platines de DJ', category: 'party', model: 'dj-booth', mount: 'floor', action: 'Mixer',
+    id: 'dj-booth', name: 'Platines de DJ', category: 'party', model: 'dj-booth', mount: 'floor', action: 'Mixer', music: true,
     interact: [
       'Vous scratchez « Le Beau Danube bleu ». Le public (Comète) est en délire.',
       'Aux platines : un remix du bip de l\'ordinateur de bord. Un classique.',
@@ -417,7 +419,7 @@ export const CATALOG: CatalogEntry[] = [
     ],
   },
   {
-    id: 'jukebox', name: 'Jukebox', category: 'party', model: 'jukebox', mount: 'floor', action: 'Choisir un morceau',
+    id: 'jukebox', name: 'Jukebox', category: 'party', model: 'jukebox', mount: 'floor', action: 'Choisir un morceau', music: true,
     interact: [
       'Le jukebox joue « Le Beau Danube bleu (Docking Mix) ». Parfait pour un amarrage.',
       'Morceau choisi : « Sérénade en supercroisière ». Quatorze minutes, comme le trajet jusqu\'à la station.',

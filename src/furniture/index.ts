@@ -40,5 +40,5 @@ export function buildFurniture(model: CustomModel, label: string | undefined, se
 }
 
 export { holoMeGlow } from './elite'
-export { beatPulse } from './party'
+export { beatAt, beatPulse } from './party'
 export { beamMaterial, disposeFurniture, ED_ORANGE, holoTime, keepShared, tickFurniture, type Emitter } from './kit'

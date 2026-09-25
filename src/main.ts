@@ -10,7 +10,7 @@ import { Avatar, EMOTES } from './avatar'
 import { IsoCamera } from './camera'
 import { Cat } from './cat'
 import { Deck, type Interactable } from './deck'
-import { beatPulse, holoMeGlow, holoTime } from './furniture'
+import { beatAt, beatPulse, holoMeGlow, holoTime } from './furniture'
 import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, LIFT, SPAWN } from './levels'
 import { hydrateIcons, icon } from './icons'
 import { lookId, lookPath, lookRig, parseLook, RACES, raceOf, randomLook, variantsOf, type Look } from './looks'
@@ -266,12 +266,24 @@ function applyLights() {
 cabin.onLights = () => {
   if (deck === cabinDeck) applyLights()
 }
-// Danser sur la piste : l'emote, et une phrase.
-cabin.onEmote = (id, text) => {
-  emote(id)
+/** Phrase d'une interaction (une au hasard dans une liste). */
+function showText(text: Interactable['text']) {
   const t = typeof text === 'function' ? text() : text
   if (Array.isArray(t)) dialog.show(t[Math.floor(Math.random() * t.length)])
   else if (t) dialog.show(t)
+}
+// Danser sur la piste : l'emote, et une phrase.
+cabin.onEmote = (id, text) => {
+  emote(id)
+  showText(text)
+}
+// Jukebox, platines : quelques mesures, lancées sur un temps de la piste de danse.
+cabin.onMusic = (position, text) => {
+  player.interact()
+  net.sendEmote('interact')
+  const b = beatAt(holoTime.value)
+  sound.groove(new THREE.Vector3(position.x, cabinDeck.y + 0.6, position.z), (Math.ceil(b) - b) * 0.5)
+  showText(text)
 }
 
 function setDeck(next: Deck) {

@@ -41,6 +41,8 @@ export class Sound {
   private muted = false
   private volume = 0.6
   private noise?: AudioBuffer
+  /** Fin du morceau en cours (horloge audio) : un seul à la fois. */
+  private grooveUntil = 0
 
   constructor() {
     this.rig.add(this.listener)
@@ -313,6 +315,71 @@ export class Sound {
       src.start(t, Math.random() * 0.8)
       src.stop(t + 0.12)
     }
+  }
+
+  /**
+   * Quatre mesures de disco à 120 BPM (jukebox, platines), dans `delay` secondes (sur un temps
+   * de la piste de danse) : grosse caisse à chaque temps, charleston entre les temps, basse en
+   * octaves, accords en contretemps, sur la mineur, fa, do, sol. Une seule à la fois.
+   * @returns durée (s), ou 0 si rien ne joue
+   */
+  groove(pos: THREE.Vector3, delay = 0): number {
+    if (!this.ready) return 0
+    const ctx = this.ctx
+    const t0 = ctx.currentTime + delay
+    if (t0 < this.grooveUntil) return 0
+    const beat = 0.5, bars = 4
+    this.grooveUntil = t0 + bars * 4 * beat
+    const out = this.output(pos, { volume: 0.22, ref: 1.6, rolloff: 1.3 }).input
+    const roots = [110, 87.31, 130.81, 98]
+    const chords = [[220, 261.63, 329.63], [174.61, 220, 261.63], [261.63, 329.63, 392], [196, 246.94, 293.66]]
+    const note = (type: OscillatorType, f: number, t: number, len: number, level: number, cutoff: number) => {
+      const osc = ctx.createOscillator()
+      osc.type = type
+      osc.frequency.value = f
+      const lp = ctx.createBiquadFilter()
+      lp.type = 'lowpass'
+      lp.frequency.value = cutoff
+      const env = ctx.createGain()
+      env.gain.setValueAtTime(0, t)
+      env.gain.linearRampToValueAtTime(level, t + 0.006)
+      env.gain.setTargetAtTime(0, t + len * 0.6, len * 0.25)
+      osc.connect(lp).connect(env).connect(out)
+      osc.start(t)
+      osc.stop(t + len + 0.2)
+    }
+    for (let bar = 0; bar < bars; bar++) {
+      for (let b = 0; b < 4; b++) {
+        const t = t0 + (bar * 4 + b) * beat
+        // Grosse caisse : une sinusoïde qui plonge de 150 à 45 Hz.
+        const kick = ctx.createOscillator()
+        kick.frequency.setValueAtTime(150, t)
+        kick.frequency.exponentialRampToValueAtTime(45, t + 0.12)
+        const kEnv = ctx.createGain()
+        kEnv.gain.setValueAtTime(1, t)
+        kEnv.gain.exponentialRampToValueAtTime(0.001, t + 0.3)
+        kick.connect(kEnv).connect(out)
+        kick.start(t)
+        kick.stop(t + 0.32)
+        // Charleston : un souffle très aigu, entre les temps.
+        const hat = ctx.createBufferSource()
+        hat.buffer = this.whiteNoise
+        const hp = ctx.createBiquadFilter()
+        hp.type = 'highpass'
+        hp.frequency.value = 7500
+        const hEnv = ctx.createGain()
+        hEnv.gain.setValueAtTime(0.35, t + beat / 2)
+        hEnv.gain.exponentialRampToValueAtTime(0.001, t + beat / 2 + 0.05)
+        hat.connect(hp).connect(hEnv).connect(out)
+        hat.start(t + beat / 2, Math.random() * 0.5)
+        hat.stop(t + beat / 2 + 0.07)
+        // Basse en octaves (croches), accords en contretemps un temps sur deux.
+        note('sawtooth', roots[bar], t, beat * 0.42, 0.32, 700)
+        note('sawtooth', roots[bar] * 2, t + beat / 2, beat * 0.42, 0.26, 900)
+        if (b % 2 === 1) for (const f of chords[bar]) note('square', f, t + beat / 2, beat * 0.35, 0.07, 2200)
+      }
+    }
+    return bars * 4 * beat
   }
 
   /** Petite mélodie de borne d'arcade (ondes carrées, parfois un « piou » descendant). */
