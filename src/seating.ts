@@ -88,27 +88,33 @@ export class Seating {
       const exit = this.approach(spot)
       if (!exit) continue
       const ticket = ++this.pending
-      if (this.host.walk(exit, () => ticket === this.pending && this.settle(item, spot, exit))) return 'ok'
+      if (this.host.walk(exit, () => ticket === this.pending && this.settle({ item, spot, exit }))) return 'ok'
     }
     return 'blocked'
   }
 
   /**
    * L'aménagement des quartiers a changé sous nos pieds : on retrouve sa place parmi les
-   * nouveaux meubles (même position), sinon on se relève sur-le-champ.
+   * nouveaux meubles (même position), sinon on se relève sur-le-champ. Un meuble resté en
+   * place (le siège du pilote, un pont plus bas) garde son occupant.
    */
-  relink(interactables: Interactable[]) {
+  relink() {
     const seat = this.current
-    if (!seat || interactables.includes(seat.item)) return
+    if (!seat) return
+    const item = this.find(seat)
+    if (item) seat.item = item
+    else this.leave()
+  }
+
+  /** Le meuble d'une place parmi ceux du pont : lui-même, ou celui qui l'a remplacé au même endroit. */
+  private find(seat: Seated): Interactable | null {
+    const list = this.host.deck().interactables
+    if (list.includes(seat.item)) return seat.item
     const s = seat.spot
-    for (const it of interactables) {
-      if (!it.seats) continue
-      if (it.seats(seat.exit).some((o) => o.pose === s.pose && Math.hypot(o.x - s.x, o.z - s.z) < 0.02 && Math.abs(o.y - s.y) < 0.02)) {
-        seat.item = it
-        return
-      }
+    for (const it of list) {
+      if (it.seats?.(seat.exit).some((o) => o.pose === s.pose && Math.hypot(o.x - s.x, o.z - s.z) < 0.02 && Math.abs(o.y - s.y) < 0.02)) return it
     }
-    this.leave()
+    return null
   }
 
   /**
@@ -135,8 +141,12 @@ export class Seating {
     return null
   }
 
-  private settle(item: Interactable, spot: SeatSpot, exit: { x: number; z: number }) {
-    // Quelqu'un a pu s'y installer pendant qu'on marchait.
+  private settle(target: Seated) {
+    // Le meuble a pu disparaître pendant qu'on marchait (retiré par l'hôte, visite finie)...
+    const item = this.find(target)
+    if (!item) return
+    // ... ou quelqu'un s'y installer.
+    const { spot, exit } = target
     if (this.occupied(spot)) return this.host.taken()
     const player = this.host.player
     const seat: Seated = { item, spot, exit }

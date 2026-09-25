@@ -1014,7 +1014,7 @@ function sees(r: RemotePlayer): boolean {
 function showCabin() {
   cabin.setLayout(visiting ? normalizeLayout(hostLayouts.get(visiting.host) ?? null, cabin.bounds) : ownLayout)
   // Assis sur un meuble des quartiers : on retrouve sa place, ou l'on se relève s'il a bougé.
-  seating.relink(cabinDeck.interactables)
+  seating.relink()
   // Un meuble a pu apparaître sous nos pieds (ou sous les pattes de Comète).
   if (deck === cabinDeck && !seating.current) unstick(player.position, 0.18)
   unstick(cat.root.position, 0.12)
