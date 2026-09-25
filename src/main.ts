@@ -618,7 +618,10 @@ addEventListener('keydown', (e) => {
     e.preventDefault()
     return chat.open()
   }
-  if (e.code === 'Escape') return wardrobe.close(false)
+  if (e.code === 'Escape') {
+    toggleAbout(false)
+    return wardrobe.close(false)
+  }
   keys.add(e.code)
   if (e.code === 'KeyR') iso.rotate(e.shiftKey ? -1 : 1)
   if (e.code === 'KeyE' || e.code === 'Space') tryInteract()
@@ -656,6 +659,13 @@ $('mute').onclick = () => {
   updateMuteButton()
 }
 $('help-toggle').onclick = () => ($('help').hidden = !$('help').hidden)
+
+// « À propos » : comment le jeu a été fait, pour qui veut savoir. Échap le referme aussi.
+function toggleAbout(open = $('about').hidden) {
+  $('about').hidden = !open
+  $('about-toggle').setAttribute('aria-expanded', String(open))
+}
+$('about-toggle').onclick = () => toggleAbout()
 
 const raycaster = new THREE.Raycaster()
 const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)

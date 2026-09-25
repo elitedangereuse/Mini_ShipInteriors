@@ -29,6 +29,7 @@ import caretLeft from '@phosphor-icons/core/bold/caret-left-bold.svg?raw'
 import caretRight from '@phosphor-icons/core/bold/caret-right-bold.svg?raw'
 import genderFemale from '@phosphor-icons/core/bold/gender-female-bold.svg?raw'
 import genderMale from '@phosphor-icons/core/bold/gender-male-bold.svg?raw'
+import info from '@phosphor-icons/core/bold/info-bold.svg?raw'
 import magnifyingGlassMinus from '@phosphor-icons/core/bold/magnifying-glass-minus-bold.svg?raw'
 import magnifyingGlassPlus from '@phosphor-icons/core/bold/magnifying-glass-plus-bold.svg?raw'
 import question from '@phosphor-icons/core/bold/question-bold.svg?raw'
@@ -67,6 +68,7 @@ const SVG = {
   'caret-right': caretRight,
   'gender-female': genderFemale,
   'gender-male': genderMale,
+  info,
   'magnifying-glass-plus': magnifyingGlassPlus,
   'magnifying-glass-minus': magnifyingGlassMinus,
   question,
