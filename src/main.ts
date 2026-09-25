@@ -2,7 +2,8 @@ import * as THREE from 'three'
 import { CAT_MODEL, preload, rig } from './assets'
 import { CabinEditor, EDIT_ELEVATION, EDIT_ZOOM } from './cabin/editor'
 import { CabinBar } from './cabin/hud'
-import { cloneLayout, DEFAULT_CABIN, type CabinItem } from './cabin/layout'
+import { DEFAULT_CABIN, normalizeLayout, type CabinItem } from './cabin/layout'
+import { CabinStore, requestCabin } from './cabin/storage'
 import { devCmdr, fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
 import { Sound } from './audio'
 import { Avatar, EMOTES } from './avatar'
@@ -42,8 +43,17 @@ const storedName = store.get('name')
 const guestName = storedName && !isLegacyDefaultName(storedName) ? storedName : randomCmdrName()
 store.set('name', guestName)
 
-// Compte Élite Dangereuse : demandé au site pendant le chargement des modèles.
-const accountRequest = fetchCmdrAccount()
+// Compte Élite Dangereuse et quartiers aménagés : demandés au site pendant le chargement des
+// modèles (le cookie du site identifie le CMDR ; un invité reçoit un refus).
+const accountRequest = fetchCmdrAccount(15000)
+const cabinRequest = requestCabin(15000)
+/**
+ * Réponse d'une demande au site, attendue au plus `ms` à partir de maintenant. Le délai ne court
+ * qu'une fois les modèles chargés : sur une machine lente, le chargement seul dépasse souvent
+ * quelques secondes, alors que le site a répondu depuis longtemps.
+ */
+const within = <T,>(request: Promise<T>, ms: number, fallback: T) =>
+  Promise.race([request, new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms))])
 
 /**
  * `name` : nom affiché (CMDR du site si le compte est lié, sinon nom d'invité).
@@ -105,11 +115,14 @@ const lightPool = Array.from({ length: 8 }, () => {
 // ------------------------------------------------------------------ monde
 
 await preload([lookPath(parseLook(profile.skin))], (r) => ($('loading-bar').style.width = `${Math.round(r * 100)}%`))
-const account = await accountRequest
+const account = await within(accountRequest, 3000, null)
 if (account) {
   linked = true
   profile.name = `CMDR ${account}`
 }
+const siteCabin = account ? await within(cabinRequest, 3000, null) : null
+/** Enregistrement des quartiers d'un CMDR : sur le site s'il a répondu, sinon dans le navigateur. */
+let cabinStore = account ? new CabinStore(account, !!siteCabin) : null
 
 const decks = LEVELS.map((def) => new Deck(def))
 for (const d of decks) scene.add(d.group)
@@ -118,7 +131,9 @@ const deckById = (id: number) => decks.find((d) => d.def.id === id)!
 // Les quartiers du commandant : la cabine du joueur, meublée selon son aménagement.
 const cabinDeck = decks.find((d) => d.cabin)!
 const cabin = cabinDeck.cabin!
-cabin.setLayout(DEFAULT_CABIN)
+/** Aménagement des quartiers du joueur (celui du site pour un CMDR, sinon celui d'origine). */
+let ownLayout: CabinItem[] = normalizeLayout(cabinStore?.saved(siteCabin) ?? DEFAULT_CABIN, cabin.bounds)
+cabin.setLayout(ownLayout)
 
 /** On se réveille à deux pas du Holo-Me : sur une tuile libre voisine, sinon sur sa plateforme. */
 function spawnPoint(): { x: number; z: number } {
@@ -408,7 +423,10 @@ net.onMessage = (m) => {
       verified = m.you.verified
       // Reconnu par le site via le relais : le compte est lié, même si la demande faite au
       // chargement n'avait pas abouti.
-      if (verified) linked = true
+      if (verified) {
+        linked = true
+        adoptAccount()
+      }
       updateIdentity()
       for (const p of m.players) addRemote(p)
       chat.add('system', m.players.length ? `Connecté. ${m.players.length} autre(s) membre(s) d'équipage à bord.` : 'Connecté. Personne d\'autre à bord pour l\'instant.')
@@ -624,8 +642,6 @@ async function ride(target: number) {
 
 // ------------------------------------------------------------------ aménagement
 
-/** Aménagement des quartiers du joueur. */
-let ownLayout: CabinItem[] = cloneLayout(DEFAULT_CABIN)
 let editZoom = 0
 const loginUrl = () => `/auth-redirect.php?redirect=${encodeURIComponent(location.pathname + location.search)}`
 const cabinBar = new CabinBar()
@@ -635,9 +651,26 @@ const editor = new CabinEditor(cabin, {
   sound,
   onChange: (items) => {
     ownLayout = items
+    cabinStore?.save(items)
   },
   onClose: () => closeEditor(),
 })
+
+/**
+ * CMDR reconnu par le relais sans que le site ait répondu au chargement : on va chercher ses
+ * quartiers maintenant (sans eux, l'aménagement écraserait celui qu'il a enregistré).
+ */
+function adoptAccount() {
+  if (cabinStore) return
+  void requestCabin().then((fromSite) => {
+    if (cabinStore) return
+    const store = new CabinStore(profile.name.replace(/^CMDR /, ''), !!fromSite)
+    cabinStore = store
+    ownLayout = normalizeLayout(store.saved(fromSite) ?? DEFAULT_CABIN, cabin.bounds)
+    if (editor.active) editor.replace(ownLayout)
+    cabin.setLayout(ownLayout)
+  })
+}
 
 /** Position dans la cabine (le bon pont, la bonne pièce) ? */
 function inCabin(level: number, x: number, z: number): boolean {
@@ -647,6 +680,7 @@ function inCabin(level: number, x: number, z: number): boolean {
 function openEditor() {
   if (editor.active || riding) return
   if (!linked) return chat.add('system', 'Aménager ses quartiers est réservé aux CMDR connectés à elitedangereuse.fr.')
+  if (!cabinStore) return chat.add('system', 'Vos quartiers arrivent du site, encore un instant…')
   if (!inCabin(deck.def.id, player.position.x, player.position.z)) return chat.add('system', 'On aménage ses quartiers depuis ses quartiers, sur le pont supérieur.')
   lift.close()
   wardrobe.close(false)
@@ -657,6 +691,8 @@ function openEditor() {
   iso.zoomTo(EDIT_ZOOM)
   document.body.classList.add('editing')
   editor.start(ownLayout)
+  editor.setSaveState(cabinStore.idleState)
+  cabinStore.onState = (state) => editor.setSaveState(state)
 }
 
 function closeEditor() {
@@ -668,6 +704,7 @@ function closeEditor() {
   renderer.domElement.style.cursor = 'default'
   unstick(player.position, 0.18)
   unstick(cat.root.position, 0.12)
+  void cabinStore?.flush()
 }
 cabinBar.onEdit = openEditor
 

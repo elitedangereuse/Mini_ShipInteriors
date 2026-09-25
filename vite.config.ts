@@ -7,6 +7,8 @@ import { attachRelay } from './server/relay.js'
  */
 const ED_SITE_URL = process.env.ED_SITE_URL || 'http://localhost:8080'
 const CMDR_ENDPOINT = '/outils/mini-shipinteriors-cmdr.php'
+/** Aménagement des quartiers des CMDR (lecture, écriture). */
+const CABIN_ENDPOINT = '/outils/mini-shipinteriors-cabin.php'
 
 /**
  * Branche le relais multijoueur sur le serveur de dev (et de preview) de Vite, sur /ws/mini-shipinteriors.
@@ -32,9 +34,10 @@ export default defineConfig({
   // base relative : le build peut être servi depuis n'importe quel sous-dossier.
   base: './',
   plugins: [relay()],
-  // Le client demande au site qui est connecté (même origine en prod) : en local, on relaie au site Docker.
-  server: { proxy: { [CMDR_ENDPOINT]: ED_SITE_URL } },
-  preview: { proxy: { [CMDR_ENDPOINT]: ED_SITE_URL } },
+  // Le client demande au site qui est connecté et ses quartiers (même origine en prod) : en local,
+  // on relaie au site Docker.
+  server: { proxy: { [CMDR_ENDPOINT]: ED_SITE_URL, [CABIN_ENDPOINT]: ED_SITE_URL } },
+  preview: { proxy: { [CMDR_ENDPOINT]: ED_SITE_URL, [CABIN_ENDPOINT]: ED_SITE_URL } },
   // Three.js pèse ~650 ko minifié à lui seul, le jeu et son mobilier ~150 ko : c'est attendu.
   build: { chunkSizeWarningLimit: 900 },
 })
