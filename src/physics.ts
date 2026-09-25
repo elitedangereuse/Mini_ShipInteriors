@@ -49,3 +49,13 @@ export function clearPath(a: { x: number; z: number }, b: { x: number; z: number
   }
   return true
 }
+
+/** Le cercle touche-t-il un des rectangles ? */
+export function overlapsAny(p: { x: number; z: number }, r: number, boxes: Box2[]): boolean {
+  for (const b of boxes) {
+    const cx = Math.max(b.minX, Math.min(p.x, b.maxX))
+    const cz = Math.max(b.minZ, Math.min(p.z, b.maxZ))
+    if ((p.x - cx) ** 2 + (p.z - cz) ** 2 < r * r - 1e-6) return true
+  }
+  return false
+}

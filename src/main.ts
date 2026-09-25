@@ -1,6 +1,8 @@
 import * as THREE from 'three'
 import { CAT_MODEL, preload, rig } from './assets'
-import { DEFAULT_CABIN } from './cabin/layout'
+import { CabinEditor, EDIT_ELEVATION, EDIT_ZOOM } from './cabin/editor'
+import { CabinBar } from './cabin/hud'
+import { cloneLayout, DEFAULT_CABIN, type CabinItem } from './cabin/layout'
 import { devCmdr, fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
 import { Sound } from './audio'
 import { Avatar, EMOTES } from './avatar'
@@ -13,6 +15,7 @@ import { hydrateIcons, icon } from './icons'
 import { lookId, lookPath, lookRig, parseLook, RACES, raceOf, randomLook, variantsOf, type Look } from './looks'
 import { Net, type PlayerState } from './net'
 import type { Tile } from './pathfinding'
+import { overlapsAny, resolveCircle } from './physics'
 import { Player } from './player'
 import { RemotePlayer } from './remote'
 import { Starfield } from './starfield'
@@ -619,6 +622,79 @@ async function ride(target: number) {
   riding = false
 }
 
+// ------------------------------------------------------------------ aménagement
+
+/** Aménagement des quartiers du joueur. */
+let ownLayout: CabinItem[] = cloneLayout(DEFAULT_CABIN)
+let editZoom = 0
+const loginUrl = () => `/auth-redirect.php?redirect=${encodeURIComponent(location.pathname + location.search)}`
+const cabinBar = new CabinBar()
+const editor = new CabinEditor(cabin, {
+  canvas: renderer.domElement,
+  iso,
+  sound,
+  onChange: (items) => {
+    ownLayout = items
+  },
+  onClose: () => closeEditor(),
+})
+
+/** Position dans la cabine (le bon pont, la bonne pièce) ? */
+function inCabin(level: number, x: number, z: number): boolean {
+  return level === cabinDeck.def.id && cabin.contains(x, z)
+}
+
+function openEditor() {
+  if (editor.active || riding) return
+  if (!linked) return chat.add('system', 'Aménager ses quartiers est réservé aux CMDR connectés à elitedangereuse.fr.')
+  if (!inCabin(deck.def.id, player.position.x, player.position.z)) return chat.add('system', 'On aménage ses quartiers depuis ses quartiers, sur le pont supérieur.')
+  lift.close()
+  wardrobe.close(false)
+  player.cancelPath()
+  marker.visible = hover.visible = false
+  editZoom = iso.zoomLevel
+  iso.setRestElevation(EDIT_ELEVATION)
+  iso.zoomTo(EDIT_ZOOM)
+  document.body.classList.add('editing')
+  editor.start(ownLayout)
+}
+
+function closeEditor() {
+  if (!editor.active) return
+  editor.stop()
+  iso.setRestElevation(null)
+  iso.zoomTo(editZoom)
+  document.body.classList.remove('editing')
+  renderer.domElement.style.cursor = 'default'
+  unstick(player.position, 0.18)
+  unstick(cat.root.position, 0.12)
+}
+cabinBar.onEdit = openEditor
+
+/**
+ * Un meuble vient d'être posé là où se tient un personnage : il en sort par le côté le plus
+ * proche, ou, à défaut, rejoint la tuile libre la plus proche de la cabine.
+ */
+function unstick(p: THREE.Vector3, r: number) {
+  const colliders = cabinDeck.colliders
+  if (!overlapsAny(p, r, colliders)) return
+  const q = { x: p.x, z: p.z }
+  resolveCircle(q, r, colliders)
+  if (!overlapsAny(q, r, colliders)) {
+    p.x = q.x
+    p.z = q.z
+    return
+  }
+  let best: { x: number; z: number } | null = null
+  for (const t of cabin.tiles) {
+    if (cabinDeck.pathfinder.walkable(t.x, t.z) && (!best || Math.hypot(t.x - p.x, t.z - p.z) < Math.hypot(best.x - p.x, best.z - p.z))) best = t
+  }
+  if (best) {
+    p.x = best.x
+    p.z = best.z
+  }
+}
+
 // ------------------------------------------------------------------ entrées
 
 const keys = new Set<string>()
@@ -642,7 +718,10 @@ function liftKey(e: KeyboardEvent): boolean {
 }
 
 addEventListener('keydown', (e) => {
-  if (chat.typing || e.repeat) return
+  if (chat.typing) return
+  // Mode aménagement : ses touches d'abord (les flèches se répètent pour ajuster un objet).
+  if (editor.active && editor.keyDown(e)) return
+  if (e.repeat) return
   if (liftKey(e)) return
   if (e.code === 'Enter') {
     e.preventDefault()
@@ -654,12 +733,14 @@ addEventListener('keydown', (e) => {
   }
   keys.add(e.code)
   if (e.code === 'KeyR') iso.rotate(e.shiftKey ? -1 : 1)
-  if (e.code === 'KeyE' || e.code === 'Space') tryInteract()
+  if (e.code === 'KeyB') return editor.active ? closeEditor() : openEditor()
   if (e.code === 'KeyM') {
     sound.toggleMute()
     updateMuteButton()
   }
   if (e.code === 'KeyH') $('help').hidden = !$('help').hidden
+  if (editor.active) return
+  if (e.code === 'KeyE' || e.code === 'Space') tryInteract()
   const digit = /^Digit([1-9])$/.exec(e.code)
   if (digit && EMOTES[+digit[1] - 1]) emote(EMOTES[+digit[1] - 1].id)
 })
@@ -670,7 +751,7 @@ chat.onOpen = () => keys.clear()
 const inputDir = new THREE.Vector3()
 function keyboardDirection(): THREE.Vector3 {
   inputDir.set(0, 0, 0)
-  if (chat.typing || riding || lift.isOpen) return inputDir
+  if (chat.typing || riding || lift.isOpen || editor.active) return inputDir
   const on = (...codes: string[]) => codes.some((c) => keys.has(c))
   // event.code = position physique : KeyW/KeyA correspondent à Z/Q sur un clavier AZERTY.
   const sx = (on('KeyD', 'ArrowRight') ? 1 : 0) - (on('KeyA', 'ArrowLeft') ? 1 : 0)
@@ -728,7 +809,9 @@ function pick(e: PointerEvent): { tile: Tile | null; item: Interactable | null }
 // Survol traité une fois par image (les souris 1000 Hz enverraient des centaines de lancers de rayon).
 let pendingMove: PointerEvent | null = null
 canvas.addEventListener('pointermove', (e) => {
-  if (!freeLook) pendingMove = e
+  if (freeLook) return
+  if (editor.active) editor.pointerMove(e)
+  else pendingMove = e
 })
 function processHover() {
   if (!pendingMove) return
@@ -774,6 +857,9 @@ function endFreeLook(e: PointerEvent) {
 }
 canvas.addEventListener('pointerup', endFreeLook)
 canvas.addEventListener('pointercancel', endFreeLook)
+canvas.addEventListener('pointerup', (e) => {
+  if (e.button === 0 && editor.active) editor.pointerUp(e)
+})
 
 // Clic en dehors du panneau d'ascenseur : il se ferme, et le clic ne fait rien d'autre.
 addEventListener(
@@ -788,6 +874,7 @@ addEventListener(
 
 canvas.addEventListener('pointerdown', (e) => {
   if (e.button !== 0 || riding) return
+  if (editor.active) return editor.pointerDown(e)
   if (wardrobe.isOpen) return wardrobe.close(false)
   const { tile, item } = pick(e)
   if (item) return goInteract(item)
@@ -859,7 +946,7 @@ function nearestInteractable(): Interactable | null {
 }
 
 function tryInteract() {
-  if (riding || lift.isOpen || wardrobe.isOpen) return
+  if (riding || lift.isOpen || wardrobe.isOpen || editor.active) return
   const item = nearestInteractable()
   if (item) interactWith(item)
 }
@@ -883,6 +970,7 @@ timer.connect(document)
 const toCam = new THREE.Vector3()
 const screenPos = new THREE.Vector3()
 const actors = new Map<Deck, THREE.Vector3[]>(decks.map((d) => [d, []]))
+const editFocus = new THREE.Vector3()
 let perfTime = 0
 let perfFrames = 0
 let fastWindows = 0
@@ -905,7 +993,7 @@ function frame() {
     spin += dt * 0.7
     player.setHeading(spin)
   }
-  processHover()
+  if (!editor.active) processHover()
   player.update(dt, input, keys.has('ShiftLeft') || keys.has('ShiftRight'))
 
   for (const r of remotes.values()) {
@@ -914,7 +1002,8 @@ function frame() {
   }
   cat.update(dt, catDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
 
-  iso.update(dt, player.position)
+  // En mode aménagement, la caméra regarde la cabine, pas le personnage.
+  iso.update(dt, editor.active ? editor.focus(editFocus) : player.position)
   iso.toCamera(toCam)
 
   // Qui se trouve sur quel pont (pour ouvrir les portes).
@@ -922,7 +1011,8 @@ function frame() {
   actors.get(deck)!.push(player.position)
   actors.get(catDeck)!.push(cat.root.position)
   for (const r of remotes.values()) actors.get(deckById(r.level))?.push(r.group.position)
-  for (const d of decks) d.update(dt, actors.get(d)!, d === deck ? player.position : null, toCam)
+  for (const d of decks) d.update(dt, actors.get(d)!, d === deck ? player.position : null, toCam, editor.active && d === cabinDeck)
+  editor.update(timer.getElapsed())
 
   stars.update(dt, iso.target, toCam, iso.tilt)
   sound.update(iso.target, iso.angle)
@@ -940,8 +1030,12 @@ function frame() {
     roomEl.textContent = name
   }
 
+  // Dans ses quartiers : de quoi les aménager.
+  const home = !editor.active && inCabin(deck.def.id, player.position.x, player.position.z)
+  cabinBar.set(home ? { kind: 'own', canEdit: linked, loginUrl: loginUrl() } : null)
+
   // Invite « E » au-dessus de l'objet le plus proche.
-  const near = riding || lift.isOpen || wardrobe.isOpen ? null : nearestInteractable()
+  const near = riding || lift.isOpen || wardrobe.isOpen || editor.active ? null : nearestInteractable()
   if (promptEl.hidden !== !near) promptEl.hidden = !near
   if (near) {
     if (near.label !== promptText) promptLabel.textContent = promptText = near.label
@@ -1005,6 +1099,6 @@ frame()
 // Accès de debug (dev uniquement) : window.__game dans la console.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    __game: { renderer, sound, player, cat, cabin, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso },
+    __game: { renderer, sound, player, cat, cabin, editor, openEditor, closeEditor, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso },
   })
 }

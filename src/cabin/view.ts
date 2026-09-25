@@ -129,8 +129,8 @@ export class CabinView {
   private blocked: string[] = []
   private interactables: Interactable[] = []
   private emitters: { kind: Emitter; position: THREE.Vector3 }[] = []
-  /** Objet montré à part, hors de la géométrie fusionnée (sélection du mode aménagement). */
-  private detached = -1
+  /** Objets montrés à part, hors de la géométrie fusionnée (déplacés en mode aménagement). */
+  private detached = new Set<number>()
   private readonly frame = new THREE.Matrix4()
 
   constructor(
@@ -325,27 +325,23 @@ export class CabinView {
     for (const list of pool.values()) for (const b of list) this.dispose(b)
     this.built = next
     this.items = kept
-    this.detached = -1
+    this.detached.clear()
     this.rebuild()
   }
 
   // ---------------------------------------------------------------- mode aménagement
 
-  /** Montre l'objet `index` à part (il suit la souris sans refusion) ; -1 : tout refusionner. */
-  detach(index: number) {
-    if (index === this.detached) return
-    this.detached = index
+  /** Montre ces objets à part (ils suivent la souris sans refusion) ; [] : tout refusionner. */
+  detach(indices: number[]) {
+    if (indices.length === this.detached.size && indices.every((i) => this.detached.has(i))) return
+    this.detached = new Set(indices)
     this.rebuild()
   }
 
-  get detachedIndex(): number {
-    return this.detached
-  }
-
-  /** Déplace l'objet montré à part (aperçu, sans rien valider). */
-  moveDetached(x: number, y: number, z: number, r: Rot) {
-    const b = this.built[this.detached]
-    if (!b) return
+  /** Déplace un objet montré à part (aperçu, sans rien valider). */
+  moveDetached(index: number, x: number, y: number, z: number, r: Rot) {
+    const b = this.built[index]
+    if (!b || !this.detached.has(index)) return
     b.holder.position.set(x, y, z)
     b.holder.rotation.y = (r * Math.PI) / 2
   }
@@ -376,6 +372,33 @@ export class CabinView {
     ;(holder.userData.built as Built | undefined)?.update?.(t)
   }
 
+  /** Collisions et tuiles bloquées d'un aménagement (hors objets `skip`), sans rien toucher au pont. */
+  blockers(items: CabinItem[], skip?: Set<number>): { colliders: Box2[]; tiles: Set<string> } {
+    const colliders: Box2[] = []
+    const tiles = new Set<string>()
+    const box = new THREE.Box3()
+    items.forEach((item, i) => {
+      const entry = entryOf(item.m)
+      if (!entry || !isSolid(entry) || skip?.has(i) || !this.boxOf(item, box)) return
+      const m = 0.04
+      const c = { minX: box.min.x + m, maxX: box.max.x - m, minZ: box.min.z + m, maxZ: box.max.z - m }
+      colliders.push(c)
+      for (let tz = Math.floor(c.minZ); tz <= Math.ceil(c.maxZ); tz++) {
+        for (let tx = Math.floor(c.minX); tx <= Math.ceil(c.maxX); tx++) {
+          // Tuile bloquée si son centre est sous le meuble (avec une petite marge), comme dans deck.ts.
+          if (tx > c.minX - 0.15 && tx < c.maxX + 0.15 && tz > c.minZ - 0.15 && tz < c.maxZ + 0.15) tiles.add(`${tx},${tz}`)
+        }
+      }
+    })
+    return { colliders, tiles }
+  }
+
+  /** Collisions et tuiles bloquées du reste du pont (tout sauf la cabine). */
+  staticBlockers(): { colliders: Box2[]; tiles: Set<string> } {
+    const own = new Set(this.blocked)
+    return { colliders: this.deck.colliders.slice(0, this.baseColliders), tiles: new Set([...this.deck.blockedTiles].filter((k) => !own.has(k))) }
+  }
+
   // ---------------------------------------------------------------- fusion et câblage
 
   private rebuild() {
@@ -388,8 +411,7 @@ export class CabinView {
     this.group.updateMatrixWorld(true)
     this.frame.copy(this.group.matrixWorld).invert()
     this.occluders = []
-    const colliders: Box2[] = []
-    const tiles = new Set<string>()
+    const { colliders, tiles } = this.blockers(this.items, this.detached)
     const box = new THREE.Box3()
     const center = new THREE.Vector3()
     for (const b of this.interactables) {
@@ -410,7 +432,7 @@ export class CabinView {
       const item = this.items[i]
       placedBox(b.local, item.r, item.x, item.y ?? 0, item.z, box)
       box.getCenter(center)
-      const apart = i === this.detached
+      const apart = this.detached.has(i)
       if (b.solid) {
         b.solid.visible = apart
         if (!apart) {
@@ -420,17 +442,6 @@ export class CabinView {
         }
       }
       if (apart) return
-      if (isSolid(b.entry)) {
-        const m = 0.04
-        const c = { minX: box.min.x + m, maxX: box.max.x - m, minZ: box.min.z + m, maxZ: box.max.z - m }
-        colliders.push(c)
-        for (let tz = Math.floor(c.minZ); tz <= Math.ceil(c.maxZ); tz++) {
-          for (let tx = Math.floor(c.minX); tx <= Math.ceil(c.maxX); tx++) {
-            // Tuile bloquée si son centre est sous le meuble (avec une petite marge), comme dans deck.ts.
-            if (tx > c.minX - 0.15 && tx < c.maxX + 0.15 && tz > c.minZ - 0.15 && tz < c.maxZ + 0.15) tiles.add(`${tx},${tz}`)
-          }
-        }
-      }
       const text = interactText(b.entry, item.v)
       if (b.entry.fixed || text) {
         const it: Interactable = { object: b.pick, position: center.clone().setY(0), label: b.entry.action ?? 'Examiner', text }

@@ -26,6 +26,8 @@ export class IsoCamera {
   private azimuthGoal = ISO_AZIMUTH
   private elevation = ISO_ELEVATION
   private elevationGoal = ISO_ELEVATION
+  /** Inclinaison de repos : celle de la vue isométrique, ou la vue plongeante du mode aménagement. */
+  private restElevation = ISO_ELEVATION
   private zoom = 5.5
   private zoomGoal = 5.5
   /** Décalage de la vue par rapport au personnage (caméra libre). */
@@ -52,7 +54,14 @@ export class IsoCamera {
     const k = (this.azimuthGoal - ISO_AZIMUTH) / QUARTER
     const next = step > 0 ? Math.floor(k + 1e-6) + 1 : Math.ceil(k - 1e-6) - 1
     this.azimuthGoal = ISO_AZIMUTH + next * QUARTER
-    this.elevationGoal = ISO_ELEVATION
+    this.elevationGoal = this.restElevation
+    this.offset.set(0, 0, 0)
+  }
+
+  /** Inclinaison de repos (radians) ; null : celle de la vraie vue isométrique. */
+  setRestElevation(rad: number | null) {
+    this.restElevation = rad ?? ISO_ELEVATION
+    this.elevationGoal = this.restElevation
     this.offset.set(0, 0, 0)
   }
 

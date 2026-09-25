@@ -203,6 +203,30 @@ export class Sound {
     })
   }
 
+  /**
+   * Petits sons d'interface du mode aménagement (non spatialisés) : prendre un objet, le poser,
+   * le tourner, refuser une place.
+   */
+  ui(kind: 'pick' | 'drop' | 'rotate' | 'deny') {
+    if (!this.ready) return
+    const notes = { pick: [660, 990], drop: [880, 587], rotate: [740], deny: [220, 196] }[kind]
+    const out = this.output(null, { volume: kind === 'deny' ? 0.07 : 0.05 }).input
+    const t0 = this.ctx.currentTime + 0.01
+    notes.forEach((f, i) => {
+      const t = t0 + i * 0.06
+      const osc = this.ctx.createOscillator()
+      osc.type = kind === 'deny' ? 'triangle' : 'sine'
+      osc.frequency.value = f
+      const env = this.ctx.createGain()
+      env.gain.setValueAtTime(0, t)
+      env.gain.linearRampToValueAtTime(1, t + 0.008)
+      env.gain.setTargetAtTime(0, t + 0.03, kind === 'deny' ? 0.04 : 0.02)
+      osc.connect(env).connect(out)
+      osc.start(t)
+      osc.stop(t + 0.25)
+    })
+  }
+
   /** Miaulement : dent de scie filtrée par deux formants qui glissent (« mi-a-ou »). */
   meow(pos: THREE.Vector3) {
     if (!this.ready) return

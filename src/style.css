@@ -784,3 +784,374 @@ kbd .icon {
     transform: none;
   }
 }
+
+/* ---------- barre de la cabine (ses quartiers, ou ceux d'un autre CMDR) ---------- */
+.cabin-bar {
+  left: 50%;
+  top: 16px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 6px 6px 14px;
+  pointer-events: auto;
+  white-space: nowrap;
+}
+.cb-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.cb-title .icon {
+  font-size: 17px;
+}
+.cb-actions {
+  display: flex;
+  gap: 6px;
+}
+.cabin-bar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  cursor: pointer;
+}
+.cabin-bar button:hover {
+  background: rgba(89, 216, 255, 0.16);
+  border-color: var(--cyan);
+}
+.cabin-bar button .icon {
+  font-size: 15px;
+  color: var(--cyan);
+}
+.cabin-bar a {
+  padding: 0 8px;
+  color: var(--cyan);
+  font-size: 12px;
+  text-decoration: none;
+}
+.cabin-bar a:hover {
+  text-decoration: underline;
+}
+
+/* ---------- mode aménagement ---------- */
+/* Le reste du HUD s'efface : le vaisseau, la caméra et le chat restent. */
+body.editing .top-left,
+body.editing #help,
+body.editing #emotes,
+body.editing #prompt,
+body.editing #dialog,
+body.editing #cabin-bar,
+body.editing .about-toggle,
+body.editing #about {
+  display: none !important;
+}
+.editor {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.editor button {
+  font: inherit;
+  cursor: pointer;
+}
+.ed-bar {
+  left: 16px;
+  top: 16px;
+  display: grid;
+  gap: 8px;
+  width: min(340px, calc(100vw - 32px));
+  pointer-events: auto;
+  border-color: rgba(89, 216, 255, 0.45);
+}
+.ed-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.ed-title {
+  width: 100%;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.ed-count {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--cyan);
+}
+.ed-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.ed-save.saved,
+.ed-save.local {
+  color: #7dffa8;
+}
+.ed-save.error {
+  color: #ff8a8a;
+}
+.ed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ed-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font-size: 12px;
+}
+.ed-actions button:hover:not(:disabled) {
+  background: rgba(89, 216, 255, 0.16);
+  border-color: var(--cyan);
+}
+.ed-actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ed-actions button.confirm {
+  border-color: #ff8a8a;
+  color: #ffb0b0;
+}
+.ed-actions .ed-done {
+  margin-left: auto;
+  border-color: var(--cyan);
+  background: rgba(89, 216, 255, 0.22);
+  font-weight: 600;
+}
+.ed-catalog {
+  right: 16px;
+  top: 72px;
+  bottom: 16px;
+  width: min(300px, 30vw);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  pointer-events: auto;
+  border-color: rgba(89, 216, 255, 0.45);
+}
+.ed-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+.ed-tabs button {
+  display: grid;
+  place-items: center;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  font-size: 19px;
+}
+.ed-tabs button:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+}
+.ed-tabs button.active {
+  color: var(--cyan);
+  border-color: var(--cyan);
+  background: rgba(89, 216, 255, 0.14);
+}
+.ed-cards {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  align-content: start;
+  gap: 6px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.ed-cat-title {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.ed-card {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.2;
+  touch-action: none;
+}
+.ed-card:hover {
+  background: rgba(89, 216, 255, 0.12);
+  border-color: var(--cyan);
+}
+.ed-card img {
+  width: 88px;
+  height: 88px;
+  pointer-events: none;
+}
+.ed-tools {
+  left: 50%;
+  bottom: 58px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(640px, calc(100vw - 32px));
+  padding: 6px 10px;
+  pointer-events: auto;
+  border-color: var(--cyan);
+}
+.ed-tool-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cyan);
+  white-space: nowrap;
+}
+.ed-tool-row,
+.ed-variants {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+}
+.ed-variants {
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
+}
+.ed-tool-row button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font-size: 16px;
+}
+.ed-tool-row button:hover {
+  background: rgba(89, 216, 255, 0.16);
+}
+.ed-tool-row .ed-remove:hover {
+  background: rgba(255, 79, 94, 0.22);
+  border-color: #ff4f5e;
+}
+.ed-variants button {
+  width: 30px;
+  height: 30px;
+  padding: 1px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.ed-variants button img {
+  width: 100%;
+  height: 100%;
+}
+.ed-variants button.swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--swatch);
+}
+.ed-variants button.active {
+  outline: 2px solid var(--cyan);
+  outline-offset: 1px;
+}
+.ed-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ed-status {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  color: #ffc4c9;
+}
+/* Refus en direct : la raison remplace l'aide des touches. */
+.ed-hint.refused {
+  border-color: #ff4f5e;
+}
+.ed-hint.refused .ed-status {
+  display: inline-flex;
+}
+.ed-hint.refused .ed-status + span {
+  display: none;
+}
+.ed-toast {
+  position: absolute;
+  left: 50%;
+  top: 16px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--cyan);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.ed-toast.error {
+  border-color: #ff4f5e;
+  color: #ffc4c9;
+}
+@media (max-width: 720px) {
+  .cabin-bar {
+    top: 60px;
+  }
+  .ed-catalog {
+    left: 16px;
+    right: 16px;
+    top: auto;
+    width: auto;
+    height: 38vh;
+  }
+  .ed-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .ed-card img {
+    width: 64px;
+    height: 64px;
+  }
+  .ed-hint {
+    display: none;
+  }
+  .ed-tools {
+    bottom: calc(38vh + 28px);
+  }
+  .ed-toast {
+    top: 60px;
+  }
+}
