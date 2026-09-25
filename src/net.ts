@@ -30,8 +30,18 @@ export type ServerMessage =
   | { t: 'invite'; id: number; name: string; verified?: boolean }
   /** Le joueur `id` a décliné notre invitation. */
   | { t: 'decline'; id: number; name: string }
-  /** Le joueur `id` est désormais dans les quartiers de `cabin` (les siens s'il rentre) ; `by` : raccompagné par l'hôte. */
-  | { t: 'visit'; id: number; cabin: number; by?: number }
+  /**
+   * Le joueur `id` est désormais dans les quartiers de `cabin` (les siens s'il rentre) ; `by` :
+   * raccompagné par l'hôte. `expired` : notre demande d'entrée est refusée (invitation expirée),
+   * on reste dans `cabin`.
+   */
+  | { t: 'visit'; id: number; cabin: number; by?: number; expired?: boolean }
+
+/**
+ * Réponse du relais à une invitation : partie, ou pourquoi pas (guest : on n'est pas CMDR,
+ * gone : l'invité n'est plus à bord, here : il est déjà chez nous, busy : trop d'invitations).
+ */
+export type InviteReply = { ok: true } | { ok: false; reason: 'guest' | 'gone' | 'here' | 'busy' }
 
 type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin'>
 
@@ -143,8 +153,14 @@ export class Net {
     }, wait)
   }
 
-  sendInvite(to: number) {
-    this.send('invite', { to })
+  /** Invite `to` dans ses quartiers ; null : pas de réponse du relais (liaison perdue). */
+  async sendInvite(to: number): Promise<InviteReply | null> {
+    if (!this.online || !this.socket?.connected) return null
+    try {
+      return (await this.socket.timeout(5000).emitWithAck('invite', { to })) as InviteReply
+    } catch {
+      return null
+    }
   }
 
   sendDecline(to: number) {

@@ -214,7 +214,7 @@ describe('quartiers', () => {
     const { host, wh, guest, wg } = await hostAndGuest()
     const refused = next(guest, 'visit')
     guest.emit('visit', { host: wh.id })
-    assert.deepEqual(await refused, { id: wg.id, cabin: wg.id })
+    assert.deepEqual(await refused, { id: wg.id, cabin: wg.id, expired: true })
 
     host.emit('invite', { to: wg.id })
     await next(guest, 'invite')
@@ -224,7 +224,38 @@ describe('quartiers', () => {
     await next(guest, 'visit', (m) => m.cabin === wg.id)
     const again = next(guest, 'visit')
     guest.emit('visit', { host: wh.id })
-    assert.deepEqual(await again, { id: wg.id, cabin: wg.id })
+    assert.deepEqual(await again, { id: wg.id, cabin: wg.id, expired: true })
+  })
+
+  test('chez un hôte, une invitation expirée d\'un autre CMDR laisse le visiteur où il est', async () => {
+    const { host, wh, guest, wg } = await hostAndGuest()
+    const other = client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-adam' })
+    const wo = await welcome(other)
+    host.emit('invite', { to: wg.id })
+    await next(guest, 'invite')
+    guest.emit('visit', { host: wh.id })
+    await next(guest, 'visit', (m) => m.cabin === wh.id)
+    const refused = next(guest, 'visit')
+    guest.emit('visit', { host: wo.id })
+    assert.deepEqual(await refused, { id: wg.id, cabin: wh.id, expired: true })
+  })
+
+  test('l\'hôte apprend si son invitation est partie, ou pourquoi', async () => {
+    const { host, wh, guest, wg } = await hostAndGuest()
+    const invite = (socket, to) => socket.timeout(2000).emitWithAck('invite', { to })
+    assert.deepEqual(await invite(host, wg.id), { ok: true })
+    assert.deepEqual(await invite(guest, wh.id), { ok: false, reason: 'guest' })
+    assert.deepEqual(await invite(host, wh.id), { ok: false, reason: 'gone' })
+    assert.deepEqual(await invite(host, 99999), { ok: false, reason: 'gone' })
+    guest.emit('visit', { host: wh.id })
+    await next(guest, 'visit', (m) => m.cabin === wh.id)
+    assert.deepEqual(await invite(host, wg.id), { ok: false, reason: 'here' })
+    // Trois invitations d'un coup, pas une de plus (une de plus toutes les quatre secondes).
+    const others = await Promise.all(['CMDR Kirk', 'CMDR Spock', 'CMDR Uhura'].map((name) => welcome(client({ auth: { name } }))))
+    const replies = []
+    for (const w of others) replies.push(await invite(host, w.id))
+    assert.deepEqual(replies.map((r) => r.ok), [true, true, false])
+    assert.equal(replies[2].reason, 'busy')
   })
 
   test('un invité n\'aménage pas de quartiers et n\'invite personne', async () => {

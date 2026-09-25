@@ -182,13 +182,20 @@ export function attachRelay(
       }
     })
 
-    // Invitation dans ses quartiers (CMDR vérifiés seulement), valable une minute.
-    socket.on('invite', (raw) => {
+    // Invitation dans ses quartiers (CMDR vérifiés seulement), valable une minute. L'hôte apprend
+    // si elle est partie, ou pourquoi (guest : il n'est pas CMDR, gone : l'invité n'est plus à
+    // bord, here : déjà chez lui, busy : trop d'invitations d'un coup).
+    socket.on('invite', (raw, ack) => {
+      const reply = typeof ack === 'function' ? ack : () => {}
       const to = playerById(obj(raw).to)
-      if (!player.verified || !to || to === player || to.cabin === player.id || inviteBudget < 1) return
+      if (!player.verified) return reply({ ok: false, reason: 'guest' })
+      if (!to || to === player) return reply({ ok: false, reason: 'gone' })
+      if (to.cabin === player.id) return reply({ ok: false, reason: 'here' })
+      if (inviteBudget < 1) return reply({ ok: false, reason: 'busy' })
       inviteBudget--
       player.invited.set(to.id, Date.now() + INVITE_TTL)
       sockets.get(to.id)?.emit('invite', { id: player.id, name: player.name, verified: player.verified })
+      reply({ ok: true })
     })
 
     socket.on('decline', (raw) => {
@@ -205,7 +212,7 @@ export function attachRelay(
       const until = host?.invited.get(player.id) ?? 0
       if (!host || until < Date.now()) {
         // Invitation expirée ou inconnue : le client apprend qu'il reste où il est.
-        return socket.emit('visit', { id: player.id, cabin: player.cabin })
+        return socket.emit('visit', { id: player.id, cabin: player.cabin, expired: true })
       }
       host.invited.delete(player.id)
       // L'aménagement d'abord : le visiteur entre dans des quartiers déjà meublés.

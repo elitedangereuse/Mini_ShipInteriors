@@ -532,9 +532,11 @@ net.onMessage = (m) => {
     case 'visit': {
       if (m.id === net.id) {
         const host = visiting?.name ?? remotes.get(entering ?? -1)?.name ?? 'Votre hôte'
-        if (m.cabin !== net.id) void enterVisit(m.cabin)
+        // Entrée refusée : on reste où l'on est (chez soi, ou chez un autre hôte).
+        if (m.expired) {
+          if (joining !== null) chat.add('system', 'Cette invitation a expiré.')
+        } else if (m.cabin !== net.id) void enterVisit(m.cabin)
         else if (visiting || entering !== null) leaveVisit(m.by ? `${host} vous a raccompagné : retour dans vos quartiers.` : 'Retour dans vos quartiers.')
-        else if (joining !== null) chat.add('system', 'Cette invitation a expiré.')
         joining = null
         break
       }
@@ -872,19 +874,35 @@ function refreshInviteMenu() {
   inviteMenu.refresh(crew())
 }
 
-function invite(id: number) {
+async function invite(id: number) {
   const r = remotes.get(id)
   if (!r) return
   if (r.cabin === net.id) return chat.add('system', `${r.name} est déjà dans vos quartiers.`)
-  net.sendInvite(id)
+  // Grisée tout de suite dans la liste (pas de double envoi), rendue si le relais la refuse ;
+  // une invitation envoyée avant reste valable.
+  const previous = invitedAt.get(id)
   invitedAt.set(id, Date.now() + 60000)
   refreshInviteMenu()
-  chat.add('system', `Invitation envoyée à ${r.name}.`)
+  const reply = await net.sendInvite(id)
+  if (reply?.ok) return chat.add('system', `Invitation envoyée à ${r.name}.`)
+  if (previous) invitedAt.set(id, previous)
+  else invitedAt.delete(id)
+  refreshInviteMenu()
+  if (!reply) return chat.add('system', 'Invitation non envoyée : liaison perdue avec le relais.')
+  chat.add(
+    'system',
+    {
+      guest: 'Inviter dans ses quartiers est réservé aux CMDR connectés au site.',
+      gone: `${r.name} n'est plus à bord.`,
+      here: `${r.name} est déjà dans vos quartiers.`,
+      busy: 'Doucement : trop d\'invitations d\'un coup. Réessayez dans quelques secondes.',
+    }[reply.reason],
+  )
 }
 
 /** Invitation acceptée : on demande au relais d'entrer (il vérifie qu'elle est valable). */
 function acceptInvite(host: number) {
-  if (!net.online) return
+  if (!net.online || visiting?.host === host) return
   joining = host
   net.sendVisit(host)
 }
@@ -941,7 +959,7 @@ cabinBar.onLeave = () => {
   net.sendVisit(null)
   leaveVisit('Retour dans vos quartiers.')
 }
-inviteMenu.onInvite = invite
+inviteMenu.onInvite = (id) => void invite(id)
 inviteMenu.onKick = (id) => net.sendKick(id)
 inviteToasts.onAccept = acceptInvite
 inviteToasts.onDecline = (id) => net.sendDecline(id)
