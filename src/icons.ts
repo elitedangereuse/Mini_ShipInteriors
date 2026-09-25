@@ -29,6 +29,10 @@ import lamp from '@phosphor-icons/core/duotone/lamp-duotone.svg?raw'
 import pottedPlant from '@phosphor-icons/core/duotone/potted-plant-duotone.svg?raw'
 import rocket from '@phosphor-icons/core/duotone/rocket-duotone.svg?raw'
 import squareHalf from '@phosphor-icons/core/duotone/square-half-duotone.svg?raw'
+import joystick from '@phosphor-icons/core/duotone/joystick-duotone.svg?raw'
+import barbell from '@phosphor-icons/core/duotone/barbell-duotone.svg?raw'
+import paintRoller from '@phosphor-icons/core/duotone/paint-roller-duotone.svg?raw'
+import palette from '@phosphor-icons/core/duotone/palette-duotone.svg?raw'
 
 import arrowClockwise from '@phosphor-icons/core/bold/arrow-clockwise-bold.svg?raw'
 import arrowCounterClockwise from '@phosphor-icons/core/bold/arrow-counter-clockwise-bold.svg?raw'
@@ -90,6 +94,10 @@ const SVG = {
   rocket,
   'game-controller': gameController,
   'square-half': squareHalf,
+  joystick,
+  barbell,
+  'paint-roller': paintRoller,
+  palette,
   'envelope-simple': envelopeSimple,
   'door-open': doorOpen,
   // commandes

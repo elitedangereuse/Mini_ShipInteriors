@@ -1,12 +1,13 @@
 import * as THREE from 'three'
 import { station, type StationModel } from '../assets'
-import type { Box2, Deck, Interactable } from '../deck'
+import type { Box2, Deck, Interactable, WallSegment } from '../deck'
 import { buildFurniture, disposeFurniture, isCustomModel, keepShared, type CustomModel, type Emitter } from '../furniture'
 import type { Rot } from '../levels'
 import { DIRS } from '../map'
-import { fadeBuffer, StaticMerge, updateOccluders, type FadeFocus, type Occluder } from '../merge'
+import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type FadeFocus, type Occluder } from '../merge'
 import { builderLabel, entryOf, interactText, isSolid, type CatalogEntry } from './catalog'
-import type { CabinItem, Rect } from './layout'
+import { FinishTexture } from './finishes'
+import { sameItems, type CabinItem, type CabinLayout, type Finish, type Rect } from './layout'
 
 /*
  * La cabine telle qu'on la voit : les objets d'un aménagement, construits et fusionnés dans
@@ -30,6 +31,21 @@ const POST_HALF = 0.175
 const MAX_OCCLUDERS = 96
 
 const PICK_MATERIAL = keepShared(new THREE.MeshBasicMaterial())
+
+/**
+ * Papier peint : sur le panneau en retrait des murs du kit (0,10 de l'axe du mur, entre le
+ * bandeau du bas, jusqu'à 0,2, et le chanfrein du haut, à partir de 0,7), à côté des
+ * encadrements (hublot, pilier, porte) mesurés dans les modèles.
+ */
+const PANEL = { depth: 0.103, bottom: 0.2, top: 0.7 }
+const PANEL_SPANS: Record<WallSegment['model'], [number, number][]> = {
+  wall: [[-0.5, 0.5]],
+  'wall-window': [[-0.5, -0.4], [0.4, 0.5]],
+  'wall-pillar': [[-0.5, -0.2], [0.2, 0.5]],
+  door: [[-0.5, -0.3], [0.3, 0.5]],
+}
+/** Revêtement du sol, juste au-dessus des dalles (les tapis, plus hauts, restent dessus). */
+const FLOORING_Y = 0.002
 
 /** Mur de la cabine auquel on peut accrocher des objets. */
 export interface WallLine {
@@ -110,6 +126,9 @@ export class CabinView {
   readonly posts: Box2[] = []
   /** Aménagement affiché. */
   items: CabinItem[] = []
+  /** Revêtements affichés (absents : murs et sol d'origine). */
+  wall?: Finish
+  floor?: Finish
   /** Holo-Me de la cabine (interaction : cf. onHoloMe). */
   holoMe: Interactable | null = null
   /** Interaction avec le Holo-Me (ouvrir la garde-robe, cf. main.ts). */
@@ -132,6 +151,10 @@ export class CabinView {
   /** Objets montrés à part, hors de la géométrie fusionnée (déplacés en mode aménagement). */
   private detached = new Set<number>()
   private readonly frame = new THREE.Matrix4()
+  /** Papier peint des murs de la cabine : un maillage, tramé pan par pan avec ses murs. */
+  private readonly wallpaper: { mesh: THREE.Mesh; texture: FinishTexture; occluders: Occluder[]; fades: FadeBuffer }
+  /** Revêtement du sol. */
+  private readonly flooring: { mesh: THREE.Mesh; texture: FinishTexture }
 
   constructor(
     readonly deck: Deck,
@@ -151,6 +174,8 @@ export class CabinView {
       maxZ: Math.max(...zs) + 0.5 - WALL_HALF,
     }
     this.findWalls()
+    this.wallpaper = this.buildWallpaper()
+    this.flooring = this.buildFlooring()
   }
 
   /** Centre de la cabine (caméra du mode aménagement). */
@@ -232,6 +257,69 @@ export class CabinView {
     return best
   }
 
+  // ---------------------------------------------------------------- revêtements
+
+  /** Panneaux de papier peint, un par pan de mur, chacun tramé avec son mur. */
+  private buildWallpaper() {
+    const texture = new FinishTexture()
+    const material = new THREE.MeshLambertMaterial({ map: texture.texture })
+    const merge = new StaticMerge()
+    const occluders: Occluder[] = []
+    for (const t of this.tiles) {
+      for (let dir = 0; dir < 4; dir++) {
+        if (this.deck.map.edge(t.x, t.z, dir) === 'open') continue
+        const d = DIRS[dir]
+        const cx = t.x + d.dx * 0.5, cz = t.z + d.dz * 0.5
+        const seg = this.deck.walls.find((w) => Math.abs(w.x - cx) < 1e-6 && Math.abs(w.z - cz) < 1e-6)
+        if (!seg) continue
+        const geo = panelGeometry(cx, cz, d, PANEL_SPANS[seg.model])
+        // Même centre et même côté extérieur que le mur (cf. deck.ts) : même fondu.
+        occluders.push(merge.addFading(new THREE.Mesh(geo, material), new THREE.Vector3(cx, 0.5, cz), undefined, { x: d.dx, z: d.dz }))
+        geo.dispose()
+      }
+    }
+    const fades = fadeBuffer(merge.fadingCount)
+    const [mesh] = merge.flush(this.group, fades.texture)
+    mesh.castShadow = false
+    mesh.visible = false
+    return { mesh, texture, occluders, fades }
+  }
+
+  /** Revêtement du sol : une dalle par tuile de la cabine, coordonnées de texture en mètres. */
+  private buildFlooring() {
+    const texture = new FinishTexture()
+    const pos: number[] = [], uv: number[] = [], index: number[] = []
+    for (const t of this.tiles) {
+      const i = pos.length / 3
+      for (const [dx, dz] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]) {
+        pos.push(t.x + dx, FLOORING_Y, t.z + dz)
+        uv.push(t.x + dx, -(t.z + dz))
+      }
+      index.push(i, i + 3, i + 2, i, i + 2, i + 1)
+    }
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+    geo.setIndex(index)
+    geo.computeVertexNormals()
+    const material = new THREE.MeshLambertMaterial({ map: texture.texture, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })
+    const mesh = new THREE.Mesh(geo, material)
+    mesh.receiveShadow = true
+    mesh.visible = false
+    this.group.add(mesh)
+    return { mesh, texture }
+  }
+
+  /** Revêtements des murs et du sol (absents : ceux d'origine), redessinés sur place. */
+  private setFinish(wall: Finish | undefined, floor: Finish | undefined) {
+    this.wall = wall && { ...wall }
+    this.floor = floor && { ...floor }
+    this.wallpaper.mesh.visible = !!wall
+    if (wall) this.wallpaper.texture.set('wall', wall)
+    this.flooring.mesh.visible = !!floor
+    if (floor) this.flooring.texture.set('floor', floor)
+  }
+
   // ---------------------------------------------------------------- construction
 
   private keyOf(item: Pick<CabinItem, 'm' | 'v' | 's'>): string {
@@ -311,8 +399,14 @@ export class CabinView {
     return local ? placedBox(local, item.r, item.x, item.y ?? 0, item.z, out) : null
   }
 
-  /** Affiche un nouvel aménagement ; les objets inchangés (modèle, variante, graine) sont réutilisés. */
-  setLayout(items: CabinItem[]) {
+  /**
+   * Affiche un nouvel aménagement ; les objets inchangés (modèle, variante, graine) sont
+   * réutilisés, et si seuls les revêtements changent, rien n'est refondu.
+   */
+  setLayout(layout: CabinLayout) {
+    this.setFinish(layout.wall, layout.floor)
+    const items = layout.items
+    if (!this.detached.size && this.built.length && sameItems(items, this.items)) return
     const pool = new Map<string, Built[]>()
     for (const b of this.built) {
       const list = pool.get(b.key) ?? []
@@ -511,5 +605,41 @@ export class CabinView {
   update(t: number, dt: number, view: FadeFocus) {
     for (const b of this.built) b.update?.(t)
     if (updateOccluders(this.occluders, this.fades, view, dt)) this.fades.texture.needsUpdate = true
+    const w = this.wallpaper
+    if (w.mesh.visible && updateOccluders(w.occluders, w.fades, view, dt)) w.fades.texture.needsUpdate = true
   }
+}
+
+/**
+ * Panneaux de papier peint d'un pan de mur (arête de milieu (cx, cz), côté cabine opposé à
+ * `d`), aux intervalles `spans` le long du mur. Coordonnées de texture en mètres, continues
+ * d'un pan à l'autre, de gauche à droite vu depuis la pièce.
+ */
+function panelGeometry(cx: number, cz: number, d: { dx: number; dz: number }, spans: [number, number][]): THREE.BufferGeometry {
+  const along = d.dz !== 0 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1)
+  // Vu depuis la pièce (regard vers le mur, direction d), la droite est d × haut.
+  const right = new THREE.Vector3(-d.dz, 0, d.dx)
+  const inward = new THREE.Vector3(-d.dx, 0, -d.dz)
+  const base = new THREE.Vector3(cx, 0, cz).addScaledVector(inward, PANEL.depth)
+  const pos: number[] = [], uv: number[] = [], normal: number[] = [], index: number[] = []
+  const p = new THREE.Vector3()
+  for (const [a, b] of spans) {
+    const i = pos.length / 3
+    for (const [s, y] of [[a, PANEL.bottom], [b, PANEL.bottom], [b, PANEL.top], [a, PANEL.top]]) {
+      p.copy(base).addScaledVector(along, s).setY(y)
+      pos.push(p.x, p.y, p.z)
+      normal.push(inward.x, 0, inward.z)
+      uv.push(p.dot(right), y)
+    }
+    // Face tournée vers la pièce : on retourne les triangles s'il le faut.
+    const facing = new THREE.Vector3().crossVectors(along, new THREE.Vector3(0, 1, 0)).dot(inward) > 0
+    if (facing) index.push(i, i + 1, i + 2, i, i + 2, i + 3)
+    else index.push(i, i + 2, i + 1, i, i + 3, i + 2)
+  }
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(normal, 3))
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+  geo.setIndex(index)
+  return geo
 }

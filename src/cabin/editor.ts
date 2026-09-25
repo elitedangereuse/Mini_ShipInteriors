@@ -6,17 +6,19 @@ import type { Rot } from '../levels'
 import { DIRS } from '../map'
 import { $ } from '../ui'
 import { CATALOG, CATEGORIES, entryOf, type CatalogEntry, type CategoryId } from './catalog'
-import { cloneLayout, DEFAULT_CABIN, MAX_ITEMS, sameLayout, type CabinItem } from './layout'
+import { drawFinish, stylesOf, styleOf, type Slot } from './finishes'
+import { cloneItems, cloneLayout, defaultLayout, MAX_ITEMS, sameItems, sameLayout, type CabinItem, type CabinLayout, type Finish } from './layout'
 import { refusal, ridersOf, surfacesOf, type Surface } from './rules'
 import { thumbnail } from './thumbs'
 import { rotateLocal, type CabinView, type WallLine } from './view'
 
 /*
  * Mode aménagement : dans ses quartiers, le CMDR pose, déplace, tourne et retire meubles et
- * objets. À la souris : clic pour choisir, glisser pour déplacer, une carte du catalogue pour
- * poser un nouvel objet (clic, ou glisser-déposer). Au clavier : R pour tourner, Suppr pour
- * retirer, flèches pour ajuster, Ctrl+Z pour annuler, Échap pour finir. Chaque changement
- * passe par les règles de pose (rules.ts) ; main.ts l'enregistre et le montre aux invités.
+ * objets, et choisit le revêtement des murs et du sol. À la souris : clic pour choisir,
+ * glisser pour déplacer, une carte du catalogue pour poser un nouvel objet (clic, ou
+ * glisser-déposer). Au clavier : R pour tourner, Suppr pour retirer, flèches pour ajuster,
+ * Ctrl+Z pour annuler, Échap pour finir. Chaque changement passe par les règles de pose
+ * (rules.ts) ; main.ts l'enregistre et le montre aux invités.
  */
 
 /** Pas de la grille de pose, et distance à laquelle un meuble se colle à un mur. */
@@ -37,7 +39,7 @@ export interface EditorHost {
   iso: IsoCamera
   sound: Sound
   /** L'aménagement a changé : à enregistrer et à montrer aux invités. */
-  onChange: (items: CabinItem[]) => void
+  onChange: (layout: CabinLayout) => void
   /** Le joueur quitte le mode aménagement (Terminer, Échap). */
   onClose: () => void
 }
@@ -61,15 +63,22 @@ interface Held {
   aimed: boolean
 }
 
+/** Carte « d'origine » des revêtements : murs et sol du vaisseau, sans rien dessus. */
+const ORIGIN = 'origin'
+/** Vignettes des revêtements (px) : un pan de mur de 1 m de haut, ou 0,8 m de sol. */
+const THUMB = 128
+
 const snap = (v: number, step = SNAP) => Math.round(Math.round(v / step) * step * 1000) / 1000
 const round3 = (v: number) => Math.round(v * 1000) / 1000
 
 export class CabinEditor {
-  /** Aménagement en cours d'édition. */
+  /** Aménagement en cours d'édition : les objets, et les revêtements (absents : ceux d'origine). */
   items: CabinItem[] = []
+  wall?: Finish
+  floor?: Finish
   private open = false
-  private past: CabinItem[][] = []
-  private future: CabinItem[][] = []
+  private past: CabinLayout[] = []
+  private future: CabinLayout[] = []
   private selected = -1
   private hovered = -1
   private held: Held | null = null
@@ -81,7 +90,11 @@ export class CabinEditor {
   private pointerDirty = false
   /** Dernier petit pas au clavier : les suivants, sur le même objet, s'y ajoutent dans l'historique. */
   private lastNudge: { index: number; at: number } | null = null
+  /** Dernière retouche d'une teinte (nuancier) : les suivantes s'y ajoutent dans l'historique. */
+  private lastTint: { slot: Slot; at: number } | null = null
   private category: CategoryId = 'rest'
+  /** Catalogue du mobilier, ou revêtements des murs et du sol. */
+  private mode: 'objects' | 'finish' = 'objects'
   private confirmReset = 0
 
   private readonly raycaster = new THREE.Raycaster()
@@ -105,8 +118,11 @@ export class CabinEditor {
   private readonly undoBtn: HTMLButtonElement
   private readonly redoBtn: HTMLButtonElement
   private readonly resetBtn: HTMLButtonElement
+  private readonly modes: HTMLElement
   private readonly tabs: HTMLElement
   private readonly cards: HTMLElement
+  /** Onglet des revêtements : cartes des motifs et nuancier, par emplacement. */
+  private finishEls: Partial<Record<Slot, { cards: Map<string, HTMLButtonElement>; colors: HTMLElement; style?: string }>> = {}
   private readonly tools: HTMLElement
   private readonly hint: HTMLElement
   private readonly status: HTMLElement
@@ -170,14 +186,23 @@ export class CabinEditor {
     actions.append(this.undoBtn, this.redoBtn, this.resetBtn, done)
     bar.append(info, actions)
 
-    // Catalogue : onglets par catégorie, cartes avec vignette.
+    // Catalogue : mobilier (onglets par catégorie, cartes avec vignette) ou murs et sol.
     const catalog = document.createElement('div')
     catalog.className = 'panel ed-catalog'
+    this.modes = document.createElement('div')
+    this.modes.className = 'ed-modes'
+    for (const [mode, label, glyph] of [['objects', 'Mobilier', 'couch'], ['finish', 'Murs et sol', 'paint-roller']] as const) {
+      const b = document.createElement('button')
+      b.dataset.mode = mode
+      b.append(icon(glyph), document.createTextNode(label))
+      b.onclick = () => (mode === 'finish' ? this.showFinishes() : this.showCategory(this.category))
+      this.modes.appendChild(b)
+    }
     this.tabs = document.createElement('div')
     this.tabs.className = 'ed-tabs'
     this.cards = document.createElement('div')
     this.cards.className = 'ed-cards'
-    catalog.append(this.tabs, this.cards)
+    catalog.append(this.modes, this.tabs, this.cards)
     for (const c of CATEGORIES) {
       const b = document.createElement('button')
       b.title = c.label
@@ -259,18 +284,22 @@ export class CabinEditor {
 
   // ---------------------------------------------------------------- ouverture
 
-  start(items: CabinItem[]) {
-    this.items = cloneLayout(items)
+  start(layout: CabinLayout) {
+    const own = cloneLayout(layout)
+    this.items = own.items
+    this.wall = own.wall
+    this.floor = own.floor
     this.past = []
     this.future = []
     this.selected = this.hovered = -1
     this.held = null
     this.press = null
-    this.lastNudge = null
+    this.lastNudge = this.lastTint = null
     this.open = true
     this.root.hidden = false
     this.helpers.visible = true
-    this.showCategory(this.category)
+    if (this.mode === 'finish') this.showFinishes()
+    else this.showCategory(this.category)
     this.renderBar()
     this.renderTools()
     this.setHint()
@@ -295,9 +324,25 @@ export class CabinEditor {
     this.saveEl.append(icon(state === 'error' ? 'cloud-slash' : 'cloud-check'), document.createTextNode(text))
   }
 
+  /** Aménagement en cours (les objets et les revêtements). */
+  get layout(): CabinLayout {
+    const layout: CabinLayout = { items: this.items }
+    if (this.wall) layout.wall = this.wall
+    if (this.floor) layout.floor = this.floor
+    return layout
+  }
+
   // ---------------------------------------------------------------- catalogue
 
+  private setMode(mode: 'objects' | 'finish') {
+    this.mode = mode
+    for (const b of this.modes.children) (b as HTMLElement).classList.toggle('active', (b as HTMLElement).dataset.mode === mode)
+    this.tabs.hidden = mode === 'finish'
+    this.cards.classList.toggle('finish', mode === 'finish')
+  }
+
   private showCategory(id: CategoryId) {
+    this.setMode('objects')
     this.category = id
     for (const b of this.tabs.children) (b as HTMLElement).classList.toggle('active', (b as HTMLElement).dataset.cat === id)
     this.cards.replaceChildren()
@@ -347,6 +392,116 @@ export class CabinEditor {
     this.host.sound.ui('pick')
     this.setHint()
     if (this.lastPointer) this.aimAt(this.lastPointer)
+  }
+
+  // ---------------------------------------------------------------- revêtements
+
+  /** Onglet des revêtements : pour les murs puis le sol, les motifs, puis les teintes du motif choisi. */
+  private showFinishes() {
+    this.cancelHeld()
+    this.setMode('finish')
+    this.cards.replaceChildren()
+    this.finishEls = {}
+    for (const [slot, title] of [['wall', 'Murs'], ['floor', 'Sol']] as const) {
+      const h = document.createElement('div')
+      h.className = 'ed-cat-title'
+      h.textContent = title
+      const grid = document.createElement('div')
+      grid.className = 'ed-finishes'
+      const cards = new Map<string, HTMLButtonElement>()
+      const styles = [{ id: ORIGIN, name: 'D\'origine' }, ...stylesOf(slot)]
+      for (const style of styles) {
+        const b = document.createElement('button')
+        b.className = 'ed-finish'
+        b.title = style.name
+        const canvas = document.createElement('canvas')
+        canvas.width = canvas.height = THUMB
+        paintThumb(canvas, slot, style.id === ORIGIN ? undefined : { style: style.id, color: styleOf(slot, style.id)!.palette[0] })
+        const name = document.createElement('span')
+        name.textContent = style.name
+        b.append(canvas, name)
+        b.onclick = () => {
+          if ((this[slot]?.style ?? ORIGIN) === style.id) return
+          this.setFinish(slot, style.id === ORIGIN ? undefined : { style: style.id, color: styleOf(slot, style.id)!.palette[0] })
+          this.host.sound.ui('pick')
+        }
+        grid.appendChild(b)
+        cards.set(style.id, b)
+      }
+      const colors = document.createElement('div')
+      colors.className = 'ed-colors'
+      this.cards.append(h, grid, colors)
+      this.finishEls[slot] = { cards, colors }
+    }
+    this.refreshFinishes()
+  }
+
+  /** Carte du motif choisi (dans sa teinte) et nuancier de ce motif, pour les murs et le sol. */
+  private refreshFinishes() {
+    for (const slot of ['wall', 'floor'] as const) {
+      const els = this.finishEls[slot]
+      if (!els) continue
+      const finish = this[slot]
+      const id = finish?.style ?? ORIGIN
+      for (const [key, b] of els.cards) b.classList.toggle('active', key === id)
+      const card = els.cards.get(id)
+      if (finish && card) paintThumb(card.querySelector('canvas')!, slot, finish)
+      if (els.style !== id) {
+        els.style = id
+        this.renderColors(slot, els.colors)
+      }
+      for (const b of els.colors.querySelectorAll<HTMLElement>('[data-color]')) b.classList.toggle('active', b.dataset.color === finish?.color)
+      const input = els.colors.querySelector('input')
+      if (input && finish && input.value !== finish.color) input.value = finish.color
+      els.colors.querySelector('.custom')?.classList.toggle('active', !!finish && !styleOf(slot, finish.style)?.palette.includes(finish.color))
+    }
+  }
+
+  /** Nuancier du motif choisi : ses teintes, et une teinte libre (sélecteur de couleur). */
+  private renderColors(slot: Slot, row: HTMLElement) {
+    row.replaceChildren()
+    const finish = this[slot]
+    const style = finish && styleOf(slot, finish.style)
+    row.hidden = !style
+    if (!style) return
+    for (const color of style.palette) {
+      const b = document.createElement('button')
+      b.className = 'ed-swatch'
+      b.dataset.color = color
+      b.title = color
+      b.setAttribute('aria-label', `Teinte ${color}`)
+      b.style.setProperty('--swatch', color)
+      b.onclick = () => {
+        const current = this[slot]
+        if (current && current.color !== color) this.setFinish(slot, { style: current.style, color })
+      }
+      row.appendChild(b)
+    }
+    const custom = document.createElement('label')
+    custom.className = 'ed-swatch custom'
+    custom.title = 'Autre teinte'
+    const input = document.createElement('input')
+    input.type = 'color'
+    input.value = finish.color
+    // Le sélecteur envoie une teinte à chaque mouvement : une seule étape d'annulation en tout.
+    input.oninput = () => {
+      const current = this[slot]
+      if (current) this.setFinish(slot, { style: current.style, color: input.value.toLowerCase() }, true)
+    }
+    input.onchange = () => (this.lastTint = null)
+    custom.append(icon('palette'), input)
+    row.appendChild(custom)
+  }
+
+  /** Nouveau revêtement (undefined : celui d'origine). `tint` : retouche continue d'une teinte. */
+  private setFinish(slot: Slot, finish: Finish | undefined, tint = false) {
+    const now = performance.now()
+    const merge = tint && this.lastTint?.slot === slot && now - this.lastTint.at < 1500
+    const next = { ...this.layout }
+    if (finish) next[slot] = finish
+    else delete next[slot]
+    this.commitLayout(next, this.selected, merge)
+    if (tint) this.lastTint = { slot, at: now }
   }
 
   // ---------------------------------------------------------------- souris
@@ -525,7 +680,7 @@ export class CabinEditor {
 
   /** Aménagement tel qu'il serait avec l'objet en main à sa place (et ce qui est posé dessus). */
   private candidate(held: Held): { items: CabinItem[]; index: number; moving: Set<number> } {
-    const items = cloneLayout(this.items)
+    const items = cloneItems(this.items)
     let index = held.index
     if (index < 0) {
       index = items.length
@@ -628,7 +783,7 @@ export class CabinEditor {
     const c = this.candidate(held)
     this.host.sound.ui('drop')
     // Revenu à sa place : rien ne change, mais l'objet doit quitter la main (et se reposer).
-    if (sameLayout(c.items, this.items)) return this.cancelHeld()
+    if (sameItems(c.items, this.items)) return this.cancelHeld()
     this.clearHeld()
     this.commit(c.items, c.index)
     this.setHint()
@@ -648,7 +803,7 @@ export class CabinEditor {
     const moved = this.held && this.held.index >= 0
     this.clearHeld()
     this.placeOnRelease = false
-    if (moved) this.view.setLayout(this.items)
+    if (moved) this.view.setLayout(this.layout)
     this.setHint()
   }
 
@@ -746,7 +901,7 @@ export class CabinEditor {
     const i = this.selected
     const item = this.items[i]
     if (!item || item.v === id) return
-    const next = cloneLayout(this.items)
+    const next = cloneItems(this.items)
     next[i].v = id
     // Une autre variante peut être un peu plus grande (un grand tapis…) : on vérifie.
     const why = refusal(this.view, next, i)
@@ -780,7 +935,7 @@ export class CabinEditor {
     const dx = Math.abs(g.x) > Math.abs(g.z) ? Math.sign(g.x) * step : 0
     const dz = dx ? 0 : Math.sign(g.z) * step
     const riders = ridersOf(this.view, this.items, i)
-    const next = cloneLayout(this.items)
+    const next = cloneItems(this.items)
     const wall = entry.mount === 'wall' ? this.view.wallOf(item) : null
     for (const j of [i, ...riders]) {
       if (wall) {
@@ -806,24 +961,32 @@ export class CabinEditor {
 
   // ---------------------------------------------------------------- historique
 
+  /** Nouveaux objets (les revêtements ne changent pas). */
   private commit(next: CabinItem[], select: number, merge = false) {
-    if (sameLayout(next, this.items)) return
-    if (!merge || !this.past.length) this.past.push(this.items)
+    this.commitLayout({ ...this.layout, items: next }, select, merge)
+  }
+
+  private commitLayout(next: CabinLayout, select: number, merge = false) {
+    if (sameLayout(next, this.layout)) return
+    if (!merge || !this.past.length) this.past.push(this.layout)
     if (this.past.length > HISTORY) this.past.shift()
     this.future = []
     this.apply(next, select)
   }
 
-  private apply(next: CabinItem[], select: number) {
-    // Un autre changement, une annulation : le prochain petit pas est une nouvelle étape, et un
-    // clic en cours ne vise plus le même objet.
-    this.lastNudge = null
+  private apply(next: CabinLayout, select: number) {
+    // Un autre changement, une annulation : le prochain petit pas (ou la prochaine teinte) est
+    // une nouvelle étape, et un clic en cours ne vise plus le même objet.
+    this.lastNudge = this.lastTint = null
     this.press = null
-    this.items = next
+    this.items = next.items
+    this.wall = next.wall
+    this.floor = next.floor
     this.view.setLayout(next)
-    this.selected = select < next.length ? select : -1
+    this.selected = select < next.items.length ? select : -1
     this.renderTools()
     this.renderBar()
+    if (this.mode === 'finish') this.refreshFinishes()
     this.host.onChange(cloneLayout(next))
   }
 
@@ -831,7 +994,7 @@ export class CabinEditor {
     const prev = this.past.pop()
     if (!prev) return
     this.cancelHeld()
-    this.future.push(this.items)
+    this.future.push(this.layout)
     this.apply(prev, -1)
     this.host.sound.ui('rotate')
   }
@@ -840,7 +1003,7 @@ export class CabinEditor {
     const next = this.future.pop()
     if (!next) return
     this.cancelHeld()
-    this.past.push(this.items)
+    this.past.push(this.layout)
     this.apply(next, -1)
     this.host.sound.ui('rotate')
   }
@@ -856,7 +1019,7 @@ export class CabinEditor {
     }
     this.confirmReset = 0
     this.cancelHeld()
-    this.commit(cloneLayout(DEFAULT_CABIN), -1)
+    this.commitLayout(defaultLayout(), -1)
     this.toast('Quartiers remis comme au premier jour (Ctrl+Z pour annuler)')
   }
 
@@ -975,4 +1138,47 @@ export class CabinEditor {
     grid.renderOrder = 1
     return grid
   }
+}
+
+// ---------------------------------------------------------------- vignettes des revêtements
+
+const offscreen = document.createElement('canvas')
+const thumbs = new Map<string, HTMLCanvasElement>()
+
+/**
+ * Dessine la vignette d'un revêtement dans `canvas` (THUMB × THUMB) : un pan de mur de 1 m de
+ * haut (bandeaux du kit en bas et en haut, motif entre les deux) ou 0,8 m de sol, à l'échelle.
+ * Sans revêtement : l'allure d'origine du vaisseau.
+ */
+function paintThumb(canvas: HTMLCanvasElement, slot: Slot, finish: Finish | undefined) {
+  const key = finish ? `${slot}:${finish.style}:${finish.color}` : `${slot}:${ORIGIN}`
+  let src = thumbs.get(key)
+  if (!src) {
+    src = document.createElement('canvas')
+    src.width = src.height = THUMB
+    const g = src.getContext('2d')!
+    const style = finish && drawFinish(offscreen, slot, finish)
+    if (style) {
+      const pattern = g.createPattern(offscreen, 'repeat')!
+      const k = (THUMB / (slot === 'wall' ? 1 : 0.8)) * (style.size / offscreen.width)
+      pattern.setTransform(new DOMMatrix().scale(k, k))
+      g.fillStyle = pattern
+    } else g.fillStyle = slot === 'wall' ? '#efe6d6' : '#d9d3de'
+    g.fillRect(0, 0, THUMB, THUMB)
+    if (slot === 'wall') {
+      // Bandeaux du kit : plein en bas (0 à 0,2), chanfrein puis plein en haut (0,7 à 1).
+      g.fillStyle = '#e4d8c2'
+      g.fillRect(0, THUMB * 0.8, THUMB, THUMB * 0.2)
+      g.fillRect(0, 0, THUMB, THUMB * 0.2)
+      g.fillStyle = '#d6c7ad'
+      g.fillRect(0, THUMB * 0.2, THUMB, THUMB * 0.1)
+    } else if (!style) {
+      g.strokeStyle = '#c3bccb'
+      g.lineWidth = 3
+      g.strokeRect(THUMB * 0.1, THUMB * 0.1, THUMB * 0.8, THUMB * 0.8)
+    }
+    if (thumbs.size > 200) thumbs.delete(thumbs.keys().next().value!)
+    thumbs.set(key, src)
+  }
+  canvas.getContext('2d')!.drawImage(src, 0, 0)
 }

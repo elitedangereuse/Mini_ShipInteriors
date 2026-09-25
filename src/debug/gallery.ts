@@ -2,9 +2,11 @@
 // une flèche +Z (rouge) pour repérer l'orientation d'origine et une tuile 1x1.
 // Avec ?mobilier : le mobilier fait main (src/furniture/), animé.
 // Avec ?catalogue : les vignettes du catalogue des cabines, toutes variantes (&variantes).
+// Avec ?revetements : les motifs des murs et des sols, dans deux de leurs teintes (&x2 : répétés).
 import * as THREE from 'three'
 import { preload, station, STATION_MODELS } from '../assets'
 import { CATALOG, CATEGORIES } from '../cabin/catalog'
+import { drawFinish, stylesOf } from '../cabin/finishes'
 import { thumbnail } from '../cabin/thumbs'
 import { buildFurniture, CUSTOM_MODELS, tickFurniture, type CustomModel } from '../furniture'
 
@@ -40,7 +42,42 @@ function label(text: string): THREE.Sprite {
 
 await preload([], () => {})
 if (params.has('catalogue')) showCatalogue()
+else if (params.has('revetements')) showFinishes()
 else showModels()
+
+/** Motifs des revêtements, en grand : première teinte de la palette, puis une autre. */
+function showFinishes() {
+  renderer.domElement.remove()
+  document.body.style.cssText = 'margin:0;padding:16px;background:#1b1d2a;color:#e6e8ff;font:12px system-ui;overflow:auto;height:auto'
+  document.documentElement.style.overflow = 'auto'
+  const repeat = params.has('x2') ? 2 : 1
+  for (const slot of ['wall', 'floor'] as const) {
+    const h = document.createElement('h3')
+    h.textContent = slot === 'wall' ? 'Murs' : 'Sols'
+    const grid = document.createElement('div')
+    grid.style.cssText = 'display:flex;flex-wrap:wrap;gap:10px'
+    for (const style of stylesOf(slot)) {
+      for (const color of [style.palette[0], style.palette[Math.min(style.palette.length - 1, 3)]]) {
+        const card = document.createElement('div')
+        card.style.cssText = 'text-align:center;background:#262a3d;border-radius:8px;padding:6px'
+        const tile = document.createElement('canvas')
+        drawFinish(tile, slot, { style: style.id, color })
+        const view = document.createElement('canvas')
+        view.width = view.height = 256
+        const g = view.getContext('2d')!
+        const pattern = g.createPattern(tile, 'repeat')!
+        pattern.setTransform(new DOMMatrix().scale(1 / repeat, 1 / repeat))
+        g.fillStyle = pattern
+        g.fillRect(0, 0, 256, 256)
+        const name = document.createElement('div')
+        name.textContent = `${style.name} · ${color} · ${style.size} m`
+        card.append(view, name)
+        grid.append(card)
+      }
+    }
+    document.body.append(h, grid)
+  }
+}
 
 /** Vignettes du catalogue des cabines, par catégorie (toutes les variantes avec &variantes). */
 function showCatalogue() {

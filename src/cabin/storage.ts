@@ -1,4 +1,4 @@
-import { serializeLayout, type CabinItem } from './layout'
+import { serializeLayout, type CabinLayout } from './layout'
 
 /*
  * Enregistrement de l'aménagement des quartiers d'un CMDR sur le site
@@ -68,7 +68,7 @@ export class CabinStore {
   /** Le site a répondu : on y enregistre ; false : dans ce navigateur ; null : réponse attendue. */
   private remote: boolean | null = null
   /** Dernier aménagement pas encore parti au site. */
-  private pending: CabinItem[] | null = null
+  private pending: CabinLayout | null = null
   /**
    * Numéro du dernier aménagement reçu (et de son envoi au site) : la réponse à un envoi plus
    * ancien ne compte plus.
@@ -127,14 +127,14 @@ export class CabinStore {
   }
 
   /** Enregistre l'aménagement un peu plus tard (un seul envoi pour une rafale de changements). */
-  save(items: CabinItem[]) {
+  save(layout: CabinLayout) {
     this.version++
     clearTimeout(this.timer)
     if (!this.remote) {
-      this.writeLocal(items, this.version)
+      this.writeLocal(layout, this.version)
       return this.report('local')
     }
-    this.pending = items
+    this.pending = layout
     this.report('saving')
     this.timer = window.setTimeout(() => void this.flush(), DELAY)
   }
@@ -149,11 +149,11 @@ export class CabinStore {
   /** Envoie le dernier aménagement, puis celui qui a pu arriver entre-temps. */
   private async drain() {
     while (this.pending) {
-      const items = this.pending
+      const layout = this.pending
       this.pending = null
-      await this.post(items, this.version, false)
+      await this.post(layout, this.version, false)
       // Échec, et rien de plus récent : nouvel essai plus tard.
-      if (this.pending === items) return
+      if (this.pending === layout) return
     }
   }
 
@@ -164,23 +164,23 @@ export class CabinStore {
   private leave() {
     clearTimeout(this.timer)
     if (!this.remote || !this.pending) return
-    const items = this.pending
+    const layout = this.pending
     this.pending = null
-    this.writeLocal(items, this.version)
-    void this.post(items, this.version, true)
+    this.writeLocal(layout, this.version)
+    void this.post(layout, this.version, true)
   }
 
   /**
    * Envoie un aménagement au site. En cas d'échec, s'il est toujours le dernier, il reste en
    * attente (et dans ce navigateur) jusqu'au prochain essai.
    */
-  private async post(items: CabinItem[], version: number, keepalive: boolean) {
+  private async post(layout: CabinLayout, version: number, keepalive: boolean) {
     try {
       const res = await fetch(CABIN_URL, {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ cabin: serializeLayout(items), session: this.session, seq: version }),
+        body: JSON.stringify({ cabin: serializeLayout(layout), session: this.session, seq: version }),
         // La page se ferme : la requête doit partir quand même.
         keepalive,
       })
@@ -190,8 +190,8 @@ export class CabinStore {
       this.report('saved')
     } catch {
       if (version !== this.version) return
-      this.pending = items
-      this.writeLocal(items, version)
+      this.pending = layout
+      this.writeLocal(layout, version)
       this.report('error')
       clearTimeout(this.timer)
       this.timer = window.setTimeout(() => void this.flush(), RETRY)
@@ -219,9 +219,9 @@ export class CabinStore {
     }
   }
 
-  private writeLocal(items: CabinItem[], seq: number) {
+  private writeLocal(layout: CabinLayout, seq: number) {
     try {
-      localStorage.setItem(this.localKey, JSON.stringify({ ...serializeLayout(items), t: Date.now(), session: this.session, seq }))
+      localStorage.setItem(this.localKey, JSON.stringify({ ...serializeLayout(layout), t: Date.now(), session: this.session, seq }))
     } catch {}
   }
 

@@ -313,4 +313,17 @@ describe('quartiers', () => {
     const full = sanitizeLayout({ items: Array.from({ length: 80 }, () => ({ m: 'plant', x: 10, z: 8, r: 0 })) })
     assert.equal(full.items.length, MAX_ITEMS)
   })
+
+  test('les revêtements des murs et du sol passent, s\'ils ont la bonne forme', () => {
+    const items = [{ m: 'mug', x: 1, z: 1, r: 0 }]
+    assert.deepEqual(sanitizeLayout({ items, wall: { style: 'damask', color: '#7a2e3a', extra: 1 }, floor: { style: 'planks', color: '#b08556' } }), {
+      v: 1,
+      items,
+      wall: { style: 'damask', color: '#7a2e3a' },
+      floor: { style: 'planks', color: '#b08556' },
+    })
+    for (const bad of [{ style: 'Damask', color: '#7a2e3a' }, { style: 'damask', color: 'red' }, { style: 'damask', color: '#7A2E3A' }, { style: 'damask' }, 'damask', null]) {
+      assert.deepEqual(sanitizeLayout({ items, wall: bad, floor: bad }), { v: 1, items })
+    }
+  })
 })

@@ -1,10 +1,12 @@
 import type { Rot } from '../levels'
 import { entryOf } from './catalog'
+import { normalizeFinish } from './finishes'
 
 /*
- * Aménagement d'une cabine : la liste de ses objets. C'est ce qui est enregistré sur le site
- * (outils/mini-shipinteriors-cabin.php) et envoyé par le relais aux CMDR invités.
- * Format compact, identique partout : { v: 1, items: [{ m, x, z, r, v?, y?, s? }] }.
+ * Aménagement d'une cabine : la liste de ses objets, et les revêtements de ses murs et de son
+ * sol. C'est ce qui est enregistré sur le site (outils/mini-shipinteriors-cabin.php) et envoyé
+ * par le relais aux CMDR invités. Format compact, identique partout :
+ * { v: 1, items: [{ m, x, z, r, v?, y?, s? }], wall?: { style, color }, floor?: { style, color } }.
  */
 
 export interface CabinItem {
@@ -21,6 +23,19 @@ export interface CabinItem {
   y?: number
   /** Graine de l'aléatoire du meuble (feuillage d'une plante…) : même graine, même objet. */
   s?: number
+}
+
+/** Revêtement des murs ou du sol : un motif (cf. finishes.ts) et sa couleur (#rrggbb). */
+export interface Finish {
+  style: string
+  color: string
+}
+
+/** Aménagement complet ; sans revêtement, murs et sol restent ceux d'origine du vaisseau. */
+export interface CabinLayout {
+  items: CabinItem[]
+  wall?: Finish
+  floor?: Finish
 }
 
 export const CABIN_FORMAT = 1
@@ -67,28 +82,59 @@ export const DEFAULT_CABIN: CabinItem[] = [
 
 const round = (v: number) => Math.round(v * 1000) / 1000
 
-export function cloneLayout(items: CabinItem[]): CabinItem[] {
+/** Les quartiers tels qu'on les découvre : mobilier d'origine, murs et sol du vaisseau. */
+export function defaultLayout(): CabinLayout {
+  return { items: cloneItems(DEFAULT_CABIN) }
+}
+
+export function cloneItems(items: CabinItem[]): CabinItem[] {
   return items.map((i) => ({ ...i }))
 }
 
-export function sameLayout(a: CabinItem[], b: CabinItem[]): boolean {
+export function cloneLayout(layout: CabinLayout): CabinLayout {
+  const out: CabinLayout = { items: cloneItems(layout.items) }
+  if (layout.wall) out.wall = { ...layout.wall }
+  if (layout.floor) out.floor = { ...layout.floor }
+  return out
+}
+
+export function sameItems(a: CabinItem[], b: CabinItem[]): boolean {
   return JSON.stringify(a) === JSON.stringify(b)
 }
 
+export function sameLayout(a: CabinLayout, b: CabinLayout): boolean {
+  return JSON.stringify(serializeLayout(a)) === JSON.stringify(serializeLayout(b))
+}
+
 /** Ce qui part au site et au relais. */
-export function serializeLayout(items: CabinItem[]): { v: number; items: CabinItem[] } {
-  return { v: CABIN_FORMAT, items }
+export function serializeLayout(layout: CabinLayout): { v: number; items: CabinItem[]; wall?: Finish; floor?: Finish } {
+  const out: { v: number; items: CabinItem[]; wall?: Finish; floor?: Finish } = { v: CABIN_FORMAT, items: layout.items }
+  if (layout.wall) out.wall = layout.wall
+  if (layout.floor) out.floor = layout.floor
+  return out
 }
 
 /**
  * Aménagement lisible par ce client, quelle qu'en soit la source (site, relais) : objets
  * inconnus du catalogue écartés, variantes inconnues remplacées, positions dans la cabine,
- * un Holo-Me et un seul. Ne vérifie pas les chevauchements : c'est le rôle du mode aménagement.
- * @param raw { v, items } ou directement la liste des objets
+ * un Holo-Me et un seul, revêtements inconnus oubliés (ceux d'origine à la place). Ne vérifie
+ * pas les chevauchements : c'est le rôle du mode aménagement.
+ * @param raw { v, items, wall?, floor? } ou directement la liste des objets
  */
-export function normalizeLayout(raw: unknown, bounds: Rect): CabinItem[] {
+export function normalizeLayout(raw: unknown, bounds: Rect): CabinLayout {
+  const layout: CabinLayout = { items: normalizeItems(raw, bounds) }
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const { wall, floor } = raw as { wall?: unknown; floor?: unknown }
+    const w = normalizeFinish('wall', wall), f = normalizeFinish('floor', floor)
+    if (w) layout.wall = w
+    if (f) layout.floor = f
+  }
+  return layout
+}
+
+function normalizeItems(raw: unknown, bounds: Rect): CabinItem[] {
   const list = Array.isArray(raw) ? raw : Array.isArray((raw as { items?: unknown })?.items) ? (raw as { items: unknown[] }).items : null
-  if (!list) return cloneLayout(DEFAULT_CABIN)
+  if (!list) return cloneItems(DEFAULT_CABIN)
   const out: CabinItem[] = []
   let holo = false
   for (const it of list) {
