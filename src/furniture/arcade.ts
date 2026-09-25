@@ -551,7 +551,7 @@ function drawCargoDemo(c: CanvasRenderingContext2D, game: Cargo, t: number) {
     }
   }
   c.fillStyle = '#9aa0aa'
-  pixelText(c, 'NEXT', 70, 14)
+  pixelText(c, tr('SUIV.', 'NEXT'), W - 1, 14, 1, 'right')
   pixelText(c, tr('LIGN.', 'LINES'), 2, 30)
   c.fillStyle = '#ffffff'
   pixelText(c, String(game.lines), 2, 40)
