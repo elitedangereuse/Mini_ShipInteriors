@@ -10,7 +10,7 @@ import { Avatar, EMOTES } from './avatar'
 import { IsoCamera } from './camera'
 import { Cat } from './cat'
 import { Deck, type Interactable } from './deck'
-import { beatAt, beatPulse, holoMeGlow, holoTime } from './furniture'
+import { beatAt, beatPulse, holoMeGlow, holoTime, type ClawControl, type ClawResult } from './furniture'
 import { EN, localizeAttributes, tr } from './i18n'
 import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, LIFT, SPAWN } from './levels'
 import { hydrateIcons, icon } from './icons'
@@ -20,7 +20,9 @@ import type { Tile } from './pathfinding'
 import { overlapsAny, resolveCircle } from './physics'
 import { Player } from './player'
 import { RemotePlayer } from './remote'
+import { Seating, type Seated } from './seating'
 import { Starfield } from './starfield'
+import { tempo } from './tempo'
 import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel } from './ui'
 
 // ------------------------------------------------------------------ profil
@@ -183,6 +185,17 @@ const spawn = spawnPoint()
 player.position.set(spawn.x, deck.y, spawn.z)
 scene.add(player.root)
 
+/** Place occupée sur un meuble : assis, couché, aux commandes, à une borne (cf. seating.ts). */
+const seating = new Seating({
+  player,
+  deck: () => deck,
+  visible: () => [...remotes.values()].filter((r) => r.group.visible),
+  walk: (to, arrived) => walkTo(to, arrived),
+  settled: (seat) => seated(seat),
+  taken: () => dialog.show(tr('Quelqu\'un vient de prendre la place.', 'Someone just took that seat.')),
+  changed: () => poseChanged(),
+})
+
 // Comète vit près de son panier.
 const catDeck = cabinDeck
 const basket = cabin.items.find((i) => i.m === 'cat-bed') ?? CAT_SPAWN
@@ -289,6 +302,7 @@ cabin.onMusic = (position, text) => {
 }
 
 function setDeck(next: Deck) {
+  seating.leave()
   deck = next
   for (const d of decks) d.group.visible = d === deck
   player.colliders = deck.colliders
@@ -595,6 +609,8 @@ net.connect()
 // ------------------------------------------------------------------ chat & emotes
 
 function emote(id: string) {
+  // Assis ou couché : on se relève d'abord.
+  if (seating.current) return seating.stand(() => emote(id))
   const def = player.avatar.playEmote(id)
   if (!def) return
   player.cancelPath()
@@ -695,7 +711,9 @@ let spin = 0
 async function applyLook(look: Look) {
   const req = ++lookRequest
   const r = await lookRig(look)
-  if (req === lookRequest) player.setAvatar(new Avatar(r))
+  if (req !== lookRequest) return
+  player.setAvatar(new Avatar(r))
+  player.avatar.setPose(seating.pose)
 }
 
 function describe(look: Look): string {
@@ -857,6 +875,7 @@ async function openEditor() {
   }
   lift.close()
   wardrobe.close(false)
+  seating.leave()
   player.cancelPath()
   marker.visible = hover.visible = false
   editZoom = iso.zoomLevel
@@ -918,8 +937,10 @@ function sees(r: RemotePlayer): boolean {
 /** Aménagement affiché : celui de l'hôte pendant une visite, le sien sinon. */
 function showCabin() {
   cabin.setLayout(visiting ? normalizeLayout(hostLayouts.get(visiting.host) ?? null, cabin.bounds) : ownLayout)
+  // Assis sur un meuble des quartiers : on retrouve sa place, ou l'on se relève s'il a bougé.
+  seating.relink(cabinDeck.interactables)
   // Un meuble a pu apparaître sous nos pieds (ou sous les pattes de Comète).
-  if (deck === cabinDeck) unstick(player.position, 0.18)
+  if (deck === cabinDeck && !seating.current) unstick(player.position, 0.18)
   unstick(cat.root.position, 0.12)
 }
 
@@ -981,6 +1002,7 @@ async function enterVisit(host: number) {
   lift.close()
   inviteMenu.close()
   inviteToasts.remove(host)
+  seating.leave()
   player.cancelPath()
   marker.visible = false
   riding = true
@@ -1097,6 +1119,8 @@ addEventListener('keydown', (e) => {
   if (e.code === 'Escape') {
     toggleAbout(false)
     inviteMenu.close()
+    // Devant la pince : on quitte la partie.
+    if (claw && seating.settled) seating.stand()
     return wardrobe.close(false)
   }
   keys.add(e.code)
@@ -1108,7 +1132,11 @@ addEventListener('keydown', (e) => {
   }
   if (e.code === 'KeyH') $('help').hidden = !$('help').hidden
   if (editing()) return
-  if (e.code === 'KeyE' || e.code === 'Space') tryInteract()
+  // Installé sur un meuble : E relève le personnage, Espace fait ce que permet la place.
+  if (seating.current) {
+    if (e.code === 'KeyE' && seating.settled) seating.stand()
+    if (e.code === 'Space' && seating.settled) seatAction(seating.current)
+  } else if (e.code === 'KeyE' || e.code === 'Space') tryInteract()
   const digit = /^Digit([1-9])$/.exec(e.code)
   if (digit && EMOTES[+digit[1] - 1]) emote(EMOTES[+digit[1] - 1].id)
 })
@@ -1152,7 +1180,7 @@ const groundHit = new THREE.Vector3()
 const pointer = new THREE.Vector2()
 const canvas = renderer.domElement
 
-function pick(e: PointerEvent): { tile: Tile | null; item: Interactable | null } {
+function pick(e: PointerEvent): { tile: Tile | null; item: Interactable | null; point: THREE.Vector3 | null } {
   pointer.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1)
   raycaster.setFromCamera(pointer, iso.camera)
   const hits = raycaster.intersectObjects(deck.interactables.map((i) => i.object), true)
@@ -1171,7 +1199,7 @@ function pick(e: PointerEvent): { tile: Tile | null; item: Interactable | null }
   groundPlane.constant = -deck.y
   const p = raycaster.ray.intersectPlane(groundPlane, groundHit)
   const tile = p ? { x: Math.round(p.x), z: Math.round(p.z) } : null
-  return { tile: tile && deck.map.isFloor(tile.x, tile.z) ? tile : null, item }
+  return { tile: tile && deck.map.isFloor(tile.x, tile.z) ? tile : null, item, point: item ? hits[0].point : null }
 }
 
 // Survol traité une fois par image (les souris 1000 Hz enverraient des centaines de lancers de rayon).
@@ -1250,8 +1278,15 @@ canvas.addEventListener('pointerdown', (e) => {
     return editor!.pointerDown(e)
   }
   if (wardrobe.isOpen) return wardrobe.close(false)
-  const { tile, item } = pick(e)
-  if (item) return goInteract(item)
+  const { tile, item, point } = pick(e)
+  // Installé sur un meuble : un clic sur lui relève le personnage, un clic ailleurs aussi, puis il y va.
+  const seat = seating.current
+  if (seat) {
+    if (!seating.settled) return
+    if (item === seat.item) return seating.stand()
+    return seating.stand(() => (item ? goInteract(item, point) : tile && goTo(tile)))
+  }
+  if (item) return goInteract(item, point)
   if (tile) goTo(tile)
 })
 
@@ -1274,8 +1309,12 @@ function goTo(tile: Tile, onArrive?: () => void): boolean {
   return true
 }
 
-/** Marche jusqu'à la tuile libre la plus proche de l'objet, puis interagit. */
-function goInteract(item: Interactable) {
+/**
+ * Marche jusqu'à la tuile libre la plus proche de l'objet, puis interagit. Un meuble où l'on
+ * s'installe a ses propres abords : on prend la place la plus proche de `point` (le clic).
+ */
+function goInteract(item: Interactable, point?: THREE.Vector3 | null) {
+  if (item.seats) return sitOn(item, point ?? undefined)
   if (distanceTo(item) < INTERACT_RANGE) return interactWith(item)
   const start = playerTile()
   // Tuile libre la plus proche (en chemin) : d'abord en contournant les meubles, sinon sans ;
@@ -1326,6 +1365,7 @@ function tryInteract() {
 }
 
 function interactWith(item: Interactable) {
+  if (item.seats) return sitOn(item)
   player.lookAt(item.position)
   if (item.onInteract) return item.onInteract()
   player.interact()
@@ -1333,6 +1373,227 @@ function interactWith(item: Interactable) {
   const text = typeof item.text === 'function' ? item.text() : item.text
   if (Array.isArray(text)) dialog.show(text[Math.floor(Math.random() * text.length)])
   else if (text) dialog.show(text)
+}
+
+// ------------------------------------------------------------------ s'installer
+
+/** Position, animation et pose du joueur, pour les autres (10 fois par seconde au plus, sauf `now`). */
+function sendState(now = false) {
+  net.sendState(
+    { x: player.position.x, z: player.position.z, yaw: player.heading, level: deck.def.id, anim: player.avatar.locomotion, pose: seating.pose ?? undefined, py: seating.height },
+    now ? Infinity : performance.now(),
+  )
+}
+
+/** S'installer sur un meuble (la place libre la plus proche de `near`, là où l'on a cliqué). */
+function sitOn(item: Interactable, near?: { x: number; z: number }) {
+  const result = seating.take(item, near)
+  if (result === 'full') dialog.show(tr('Toutes les places sont prises.', 'All the seats are taken.'))
+  else if (result === 'blocked') dialog.show(tr('Impossible d\'y accéder : quelque chose bloque le passage.', 'Can\'t get there: something is in the way.'))
+}
+
+/**
+ * Marche jusqu'à l'abord d'une place : tout droit s'il n'y a rien entre les deux, sinon par les
+ * tuiles, jusqu'à la plus proche de l'abord, puis l'abord lui-même.
+ */
+function walkTo(to: { x: number; z: number }, arrived: () => void): boolean {
+  const here = player.position
+  if (Math.hypot(to.x - here.x, to.z - here.z) < 0.05) {
+    arrived()
+    return true
+  }
+  let points: { x: number; z: number }[] = [to]
+  if (!Seating.straight(here, to, deck)) {
+    const start = playerTile()
+    const candidates: { path: Tile[]; score: number }[] = []
+    for (const strict of [true, false]) {
+      for (let dz = -1; dz <= 1; dz++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const t = { x: Math.round(to.x) + dx, z: Math.round(to.z) + dz }
+          if (!deck.pathfinder.walkable(t.x, t.z) || Math.hypot(t.x - to.x, t.z - to.z) > 1.2) continue
+          const path = deck.pathfinder.find(start, t, strict)
+          if (path) candidates.push({ path, score: path.length + Math.hypot(t.x - to.x, t.z - to.z) * 3 })
+        }
+      }
+      if (candidates.length) break
+    }
+    if (!candidates.length) return false
+    const best = candidates.reduce((a, b) => (b.score < a.score ? b : a))
+    points = [...best.path.slice(1).map((t) => ({ x: t.x, z: t.z })), to]
+  }
+  player.setPath(points)
+  player.onArrive = () => {
+    marker.visible = false
+    arrived()
+  }
+  marker.position.set(to.x, deck.y + 0.02, to.z)
+  marker.visible = true
+  return true
+}
+
+/**
+ * Installé : ce que fait le meuble (la pince se pilote, le sac encaisse, les platines jouent
+ * quelques mesures), ou sa phrase.
+ */
+function seated(seat: Seated) {
+  const { item } = seat
+  bindPose()
+  if (seat.spot.pose === 'claw' && item.control?.kind === 'claw') return startClaw(seat, item.control)
+  if (item.onInteract) return item.onInteract()
+  showText(item.text)
+}
+
+/** Pose prise ou quittée : les autres le voient tout de suite ; la pince et le sac, eux, sont lâchés. */
+function poseChanged() {
+  if (!seating.current) {
+    stopClaw()
+    player.avatar.onPoseStep = undefined
+  }
+  sendState(true)
+}
+
+/** À chaque coup de poing, le sac de frappe encaisse (un peu après le début du geste). */
+function bindPose() {
+  const seat = seating.current
+  const bag = seat?.item.control?.kind === 'bag' ? seat.item.control : null
+  player.avatar.onPoseStep = bag
+    ? () => {
+        setTimeout(() => {
+          if (seating.current !== seat) return
+          bag.hit()
+          sound.thud(new THREE.Vector3(seat!.item.position.x, deck.y + 0.6, seat!.item.position.z))
+        }, 180)
+      }
+    : undefined
+}
+
+/** Invite au-dessus du personnage installé : se relever, et ce que permet sa place (Espace). */
+function seatPrompt(seat: Seated): { main: string; space?: string } {
+  if (claw) return { main: tr('Quitter', 'Leave'), space: claw.control.busy ? undefined : tr('Lâcher la pince', 'Drop the claw') }
+  if (canJump(seat)) return { main: tr('Se lever', 'Stand up'), space: jumping ? undefined : tr('Saut FSD', 'FSD jump') }
+  return { main: tr('Se lever', 'Stand up') }
+}
+
+/** Espace, installé sur un meuble. */
+function seatAction(seat: Seated) {
+  if (claw) return dropClaw()
+  if (canJump(seat)) void fsdJump()
+}
+
+// ------------------------------------------------------------------ pince à peluches
+
+/** Partie de pince en cours : la machine, son orientation, le cadrage, le zoom d'avant. */
+let claw: { control: ClawControl; rot: number; focus: THREE.Vector3; zoom: number; heading: number } | null = null
+const pickText = (list: string[]) => list[Math.floor(Math.random() * list.length)]
+
+function startClaw(seat: Seated, control: ClawControl) {
+  control.take(true)
+  const p = seat.item.position
+  claw = { control, rot: seat.spot.yaw - Math.PI, focus: new THREE.Vector3(p.x, deck.y, p.z), zoom: iso.zoomLevel, heading: iso.heading }
+  // La caméra passe derrière le joueur et plonge : on voit la pince à travers la vitre, par-dessus
+  // sa tête, et non le dos de la machine.
+  iso.turnTo(seat.spot.yaw + Math.PI)
+  iso.setRestElevation(0.95)
+  iso.zoomTo(1.7)
+  sound.jingle('coin')
+  dialog.show(
+    tr(
+      'PINCE À COMÈTE · 1 CR la partie. Flèches : déplacer la pince au-dessus de la Comète assise sur le Thargoïde. Espace : la lâcher.',
+      'COMÈTE CLAW · 1 CR a go. Arrow keys: move the claw over the Comète sitting on the Thargoid. Space: drop it.',
+    ),
+  )
+}
+
+function stopClaw() {
+  if (!claw) return
+  claw.control.take(false)
+  iso.setRestElevation(null)
+  iso.zoomTo(claw.zoom)
+  iso.turnTo(claw.heading, false)
+  claw = null
+}
+
+function dropClaw() {
+  if (!claw?.control.drop(clawResult)) return
+  sound.jingle('motor')
+}
+
+function clawResult(result: ClawResult) {
+  if (result === 'win') {
+    const wins = Number(store.get('claw-wins') ?? 0) + 1
+    store.set('claw-wins', String(wins))
+    sound.jingle('win')
+    bubbles.emote('me', 'confetti')
+    const count = wins === 1 ? tr('Votre toute première !', 'Your very first!') : tr(`Peluches gagnées : ${wins}.`, `Plushies won: ${wins}.`)
+    dialog.show(tr(`Gagné ! Une Comète en peluche tombe dans la trappe. ${count}`, `You win! A plush Comète drops into the prize chute. ${count}`))
+    return
+  }
+  sound.jingle('lose')
+  dialog.show(
+    result === 'slip'
+      ? pickText([
+          tr('La pince attrape la Comète… et la lâche en remontant. Comme d\'habitude.', 'The claw grabs the Comète… and drops it on the way up. As usual.'),
+          tr('Presque ! La peluche glisse entre les griffes. La vraie Comète ricane.', 'So close! The plush slips through the prongs. The real Comète sniggers.'),
+        ])
+      : pickText([
+          tr('La pince se referme sur du vide. Visez la Comète assise sur le Thargoïde.', 'The claw closes on thin air. Aim for the Comète sitting on the Thargoid.'),
+          tr('Raté : la pince ramène un Thargoïde en peluche… qui retombe aussitôt.', 'Missed: the claw hauls up a plush Thargoid… which falls straight back.'),
+        ]),
+  )
+}
+
+// ------------------------------------------------------------------ saut FSD
+
+/** Destinations du saut FSD depuis le siège du pilote (pour le plaisir : le vaisseau reste où il est). */
+const JUMPS: [string, string, string][] = [
+  ['Shinrarta Dezhra', 'Jameson Memorial en vue. Les pilotes Elite vous saluent.', 'Jameson Memorial in sight. The Elite pilots salute you.'],
+  ['Sol', 'La Terre, bleue et lointaine. Pas de permis : demi-tour poli.', 'Earth, blue and distant. No permit: polite U-turn.'],
+  ['Colonia', '22 000 al plus tard, les Colons vous offrent un café.', '22,000 ly later, the Colonists offer you a coffee.'],
+  ['Alpha Centauri', 'Hutton Orbital est à 0,22 al. Courage.', 'Hutton Orbital is 0.22 ly away. Chin up.'],
+  ['Lave', 'Lave Station, comme en 1984. Le Brandy de Lave est hors de prix.', 'Lave Station, just like in 1984. Lavian Brandy is outrageously priced.'],
+  ['Sagittarius A*', 'Le trou noir au cœur de la galaxie. Ne regardez pas trop longtemps.', 'The black hole at the heart of the galaxy. Don\'t stare too long.'],
+  ['Maia', 'Nébuleuse des Pléiades. Rien à signaler… presque rien.', 'Pleiades Nebula. Nothing to report… almost nothing.'],
+  ['Beagle Point', 'Au bout de la galaxie. Il y a encore des étoiles.', 'The far end of the galaxy. There are still more stars.'],
+]
+let jumping = false
+
+/** Le saut n'est possible que depuis le vrai poste de pilotage (pas d'un siège recyclé en fauteuil). */
+function canJump(seat: Seated): boolean {
+  return deck.def.id === 0 && seat.item.furniture?.model === 'pilot-seat'
+}
+
+function flash(soft = false) {
+  const el = $('flash')
+  el.classList.toggle('soft', soft)
+  el.classList.remove('on')
+  void el.offsetWidth
+  el.classList.add('on')
+}
+
+async function fsdJump() {
+  if (jumping) return
+  jumping = true
+  const [name, fr, en] = JUMPS[Math.floor(Math.random() * JUMPS.length)]
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+  const charge = 4, travel = 3.5
+  sound.fsd(charge, travel)
+  dialog.show(tr(`Saut FSD vers ${name}. Chargement du réacteur…`, `FSD jump to ${name}. Charging frame shift drive…`))
+  iso.shake(0.02)
+  await wait(1600)
+  for (const n of [3, 2, 1]) {
+    dialog.show(`${n}…`)
+    iso.shake(0.03 + (3 - n) * 0.02)
+    await wait(800)
+  }
+  flash()
+  stars.warp(55)
+  iso.shake(0.16)
+  dialog.show(tr('Saut !', 'Jump!'))
+  await wait(travel * 1000)
+  stars.warp(1)
+  flash(true)
+  dialog.show(tr(`Arrivée : ${name}. ${fr}`, `Arrived: ${name}. ${en}`))
+  jumping = false
 }
 
 // ------------------------------------------------------------------ boucle
@@ -1351,12 +1612,27 @@ let fastWindows = 0
 /** Densité de pixels maximale autorisée ; redescend si l'affichage a déjà peiné à ce niveau. */
 let dprCeiling = MAX_DPR
 let promptText = ''
+/** Chronomètre des « Zzz » de ceux qui dorment. */
+let snore = 0
 
 function frame() {
   timer.update()
   const dt = Math.min(timer.getDelta(), 0.05)
+  // Horloge de la soirée : celle des meubles (danseurs, platines).
+  tempo.now = holoTime.value
 
   const input = keyboardDirection()
+  if (claw) {
+    // Devant la pince : les flèches la déplacent, dans le repère de la machine.
+    const c = Math.cos(claw.rot), s = Math.sin(claw.rot)
+    claw.control.steer(input.x * c - input.z * s, input.x * s + input.z * c, dt)
+    input.set(0, 0, 0)
+  }
+  if (seating.current) {
+    // Installé sur un meuble : le moindre pas relève le personnage, qui repart une fois debout.
+    if (input.lengthSq() > 0 && seating.settled) seating.stand()
+    input.set(0, 0, 0)
+  }
   if (input.lengthSq() > 0) {
     marker.visible = false
     if (lift.isOpen) lift.close()
@@ -1377,7 +1653,7 @@ function frame() {
   cat.update(dt, catDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
 
   // En mode aménagement, la caméra regarde la cabine, pas le personnage.
-  iso.update(dt, editing() ? editor!.focus(editFocus) : player.position)
+  iso.update(dt, editing() ? editor!.focus(editFocus) : claw ? claw.focus : player.position)
   iso.toCamera(toCam)
 
   // Qui se trouve sur quel pont (pour ouvrir les portes).
@@ -1423,12 +1699,24 @@ function frame() {
   )
   if (!here && inviteMenu.isOpen) inviteMenu.close()
 
-  // Invite « E » au-dessus de l'objet le plus proche.
-  const near = riding || lift.isOpen || wardrobe.isOpen || editing() ? null : nearestInteractable()
-  if (promptEl.hidden !== !near) promptEl.hidden = !near
-  if (near) {
-    if (near.label !== promptText) promptLabel.textContent = promptText = near.label
-    screenPos.set(near.position.x, deck.y + 1.1, near.position.z).project(iso.camera)
+  // Invite « E » au-dessus de l'objet le plus proche ; installé sur un meuble, au-dessus du
+  // personnage : se relever (et ce que permet la place).
+  const sitting = seating.settled && !riding && !editing()
+  const near = riding || lift.isOpen || wardrobe.isOpen || editing() || seating.current ? null : nearestInteractable()
+  const sit = sitting ? seatPrompt(seating.current!) : null
+  const label = sit ? `${sit.main}|${sit.space ?? ''}` : near?.label
+  if (promptEl.hidden !== !label) promptEl.hidden = !label
+  if (label) {
+    if (label !== promptText) {
+      promptText = label
+      if (sit?.space) {
+        const k = document.createElement('kbd')
+        k.textContent = tr('Espace', 'Space')
+        promptLabel.replaceChildren(sit.main, ' · ', k, ' ', sit.space)
+      } else promptLabel.textContent = sit ? sit.main : label
+    }
+    if (sitting) screenPos.set(player.position.x, player.position.y + 1.3, player.position.z).project(iso.camera)
+    else screenPos.set(near!.position.x, deck.y + 1.1, near!.position.z).project(iso.camera)
     const x = ((screenPos.x + 1) / 2) * innerWidth
     const y = ((1 - screenPos.y) / 2) * innerHeight
     promptEl.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`
@@ -1437,10 +1725,14 @@ function frame() {
   if (lift.isOpen && Math.hypot(player.position.x - liftTile.x, player.position.z - liftTile.z) > 1.6) lift.close()
 
   dialog.update(dt)
-  net.sendState(
-    { x: player.position.x, z: player.position.z, yaw: player.heading, level: deck.def.id, anim: player.avatar.locomotion },
-    performance.now(),
-  )
+  sendState()
+  // Couché sur un lit : de petits « Zzz » de temps en temps, chez soi comme chez les autres.
+  snore += dt
+  if (snore > 4.5) {
+    snore = 0
+    if (seating.settled && seating.pose === 'lie') bubbles.emote('me', 'moon-stars')
+    for (const r of remotes.values()) if (r.group.visible && r.pose === 'lie') bubbles.emote(`p${r.id}`, 'moon-stars')
+  }
 
   renderer.render(scene, iso.camera)
   bubbles.update(iso.camera)
@@ -1490,6 +1782,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, cat, cabin, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso },
+    __game: { renderer, sound, player, cat, cabin, seating, sitOn, interactables: () => deck.interactables, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso },
   })
 }

@@ -1,11 +1,12 @@
 import * as THREE from 'three'
 import { station, type StationModel } from '../assets'
 import type { Box2, Deck, Interactable, WallSegment } from '../deck'
-import { buildFurniture, disposeFurniture, isCustomModel, keepShared, type CustomModel, type Emitter } from '../furniture'
+import { buildFurniture, disposeFurniture, isCustomModel, keepShared, type CustomModel, type Emitter, type FurnitureControl } from '../furniture'
 import { tr } from '../i18n'
 import type { Rot } from '../levels'
 import { DIRS } from '../map'
 import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type FadeFocus, type Occluder } from '../merge'
+import { placeSeats, seatAction, seatsOf } from '../seats'
 import { builderLabel, entryOf, interactText, isSolid, type CatalogEntry } from './catalog'
 import { FinishTexture } from './finishes'
 import { sameItems, type CabinItem, type CabinLayout, type Finish, type Rect } from './layout'
@@ -71,6 +72,7 @@ interface Built {
   solid?: THREE.Object3D
   update?: (t: number) => void
   emitter?: Emitter
+  control?: FurnitureControl
   /** Boîte de l'objet dans son propre repère (orientation 0). */
   local: THREE.Box3
   pick: THREE.Mesh
@@ -339,6 +341,7 @@ export class CabinView {
     let solid: THREE.Object3D | undefined
     let update: Built['update']
     let emitter: Emitter | undefined
+    let control: FurnitureControl | undefined
     const custom = isCustomModel(entry.model)
     if (custom) {
       const f = buildFurniture(entry.model as CustomModel, builderLabel(entry, item.v), seedOf(item), this.bounds)
@@ -349,6 +352,7 @@ export class CabinView {
       f.update?.(0)
       update = f.update
       emitter = f.emitter
+      control = f.control
     } else {
       solid = station(entry.model as StationModel)
       solid.traverse((c) => {
@@ -368,7 +372,7 @@ export class CabinView {
     const key = this.keyOf(item)
     if (!this.boxes.has(key)) this.boxes.set(key, local.clone())
     this.group.add(holder)
-    return { key, entry, holder, solid, update, emitter, local, pick, custom }
+    return { key, entry, holder, solid, update, emitter, control, local, pick, custom }
   }
 
   private dispose(b: Built) {
@@ -548,8 +552,14 @@ export class CabinView {
       }
       if (apart) return
       const text = interactText(b.entry, item.v)
-      if (b.entry.fixed || text || b.entry.emote) {
-        const it: Interactable = { object: b.pick, position: center.clone().setY(0), label: b.entry.action ?? tr('Examiner', 'Examine'), text }
+      const seats = seatsOf(b.entry.model)
+      if (b.entry.fixed || text || b.entry.emote || seats) {
+        const label = b.entry.action ?? (seats ? seatAction(seats) : tr('Examiner', 'Examine'))
+        const it: Interactable = { object: b.pick, position: center.clone().setY(0), label, text, control: b.control, furniture: { model: b.entry.model, label: builderLabel(b.entry, item.v) } }
+        if (seats) {
+          const rot = (item.r * Math.PI) / 2, y = item.y ?? 0
+          it.seats = (toward) => placeSeats(seats, item.x, item.z, rot, toward).map((s) => ({ ...s, y: s.y + y }))
+        }
         const emote = b.entry.emote
         if (b.entry.fixed) {
           it.label = b.entry.name

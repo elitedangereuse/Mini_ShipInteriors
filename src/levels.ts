@@ -461,6 +461,7 @@ export const LEVELS: LevelDef[] = [
         ],
       },
       { model: 'neon-sign', x: 17.1, z: 6.1, label: 'ARCADE' },
+      { model: 'claw-machine', x: 19.95, z: 6.42, rot: 3, label: 'cyan' },
       { model: 'rug', x: 18.3, z: 8.1, label: 'neon:2x1.8', solid: false },
       {
         model: 'sofa', x: 20.02, z: 8.1, rot: 3, label: 'purple',

@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
-  animatedScreen, barX, box, compact, cylinder, drawnTexture, glow, holoMaterial, lit, mesh, part, type Builder,
+  animatedScreen, barX, box, compact, cylinder, drawnTexture, glow, holoMaterial, lit, mesh, part, type BagControl, type Builder,
 } from './kit'
 
 /*
@@ -187,11 +187,26 @@ const punchingBag: Builder = () => {
   bag.position.y = -0.42
   pivot.add(bag)
   live.add(pivot)
+  // Un coup de poing (cf. main.ts) le fait partir vers l'arrière (-z), puis il revient en oscillant.
+  let now = 0, hitAt = -Infinity, swing = 0
+  const control: BagControl = {
+    kind: 'bag',
+    hit() {
+      const u = now - hitAt
+      swing = Math.min(0.5, 0.28 + swing * Math.exp(-u * 2.2) * 0.5)
+      hitAt = now
+    },
+  }
   return {
     solid: g,
     live,
+    control,
     update: (t) => {
-      pivot.rotation.x = Math.sin(t * 1.9) * 0.06
+      now = t
+      const u = t - hitAt
+      // rotation.x > 0 envoie le sac (sous le pivot) vers -z.
+      const kick = u < 6 ? swing * Math.sin(u * 7) * Math.exp(-u * 2.2) : 0
+      pivot.rotation.x = Math.sin(t * 1.9) * 0.06 + kick
       pivot.rotation.z = Math.sin(t * 1.3 + 1) * 0.04
     },
   }

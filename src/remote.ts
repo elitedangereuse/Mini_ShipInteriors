@@ -3,6 +3,7 @@ import { Avatar, type Locomotion } from './avatar'
 import { lookRig, parseLook } from './looks'
 import type { PlayerState } from './net'
 import { dampAngle } from './player'
+import { POSE_IDS, type PoseId } from './seats'
 
 /** Autre membre d'équipage connecté : position interpolée, animations et emotes rejouées. */
 export class RemotePlayer {
@@ -13,7 +14,10 @@ export class RemotePlayer {
   level: number
   /** Instance des quartiers où il se trouve (id du joueur qui reçoit). */
   cabin: number
-  private target = new THREE.Vector3()
+  /** Pose tenue sur un meuble (assis, couché, à une borne…), ou null. */
+  pose: PoseId | null = null
+  /** Position visée (celle que le joueur a envoyée), hauteur de la pose comprise. */
+  readonly target = new THREE.Vector3()
   private yaw = 0
   private anim: Locomotion = 'idle'
   private stride = 0
@@ -42,16 +46,19 @@ export class RemotePlayer {
     if (this.avatar) this.group.remove(this.avatar.root)
     this.avatar = new Avatar(r)
     this.group.add(this.avatar.root)
+    this.avatar.setPose(this.pose)
     if (this.pendingEmote) this.avatar.playEmote(this.pendingEmote)
     this.pendingEmote = null
   }
 
-  apply(s: Pick<PlayerState, 'x' | 'z' | 'yaw' | 'level' | 'anim'>) {
+  apply(s: Pick<PlayerState, 'x' | 'z' | 'yaw' | 'level' | 'anim' | 'pose' | 'py'>) {
     const changedLevel = s.level !== this.level
     this.level = s.level
-    this.target.set(s.x, this.levelY(s.level), s.z)
+    this.pose = POSE_IDS.includes(s.pose as PoseId) ? (s.pose as PoseId) : null
+    this.target.set(s.x, this.levelY(s.level) + (this.pose ? Math.min(1.2, Math.max(0, s.py ?? 0)) : 0), s.z)
     this.yaw = s.yaw
     this.anim = (['idle', 'walk', 'sprint'].includes(s.anim) ? s.anim : 'idle') as Locomotion
+    this.avatar?.setPose(this.pose)
     if (changedLevel) this.group.position.copy(this.target) // ascenseur : pas d'interpolation
   }
 
@@ -65,7 +72,8 @@ export class RemotePlayer {
     const bx = p.x, bz = p.z
     p.x = THREE.MathUtils.damp(p.x, this.target.x, 10, dt)
     p.z = THREE.MathUtils.damp(p.z, this.target.z, 10, dt)
-    p.y = this.target.y
+    // La hauteur suit aussi en douceur : il s'assoit, il monte sur la couchette du haut.
+    p.y = THREE.MathUtils.damp(p.y, this.target.y, 12, dt)
     if (p.distanceTo(this.target) > 4) p.copy(this.target) // trop loin : téléportation
     const moved = Math.hypot(p.x - bx, p.z - bz)
     this.group.rotation.y = dampAngle(this.group.rotation.y, this.yaw, 12, dt)

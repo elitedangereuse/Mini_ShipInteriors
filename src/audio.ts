@@ -438,4 +438,118 @@ export class Sound {
     src.stop(t + duration + 0.1)
     lfo.stop(t + duration + 0.1)
   }
+
+  /** Coup de poing dans le sac : un souffle grave et une sinusoïde qui plonge. */
+  thud(pos: THREE.Vector3) {
+    if (!this.ready) return
+    const ctx = this.ctx
+    const t = ctx.currentTime + 0.005
+    const out = this.output(pos, { volume: 0.32, ref: 1.2, rolloff: 1.6 }).input
+    const body = ctx.createOscillator()
+    body.frequency.setValueAtTime(130 + Math.random() * 20, t)
+    body.frequency.exponentialRampToValueAtTime(48, t + 0.12)
+    const env = ctx.createGain()
+    env.gain.setValueAtTime(0.9, t)
+    env.gain.exponentialRampToValueAtTime(0.001, t + 0.18)
+    body.connect(env).connect(out)
+    body.start(t)
+    body.stop(t + 0.2)
+    const slap = ctx.createBufferSource()
+    slap.buffer = this.whiteNoise
+    const lp = ctx.createBiquadFilter()
+    lp.type = 'lowpass'
+    lp.frequency.value = 900
+    const sEnv = ctx.createGain()
+    sEnv.gain.setValueAtTime(0.5, t)
+    sEnv.gain.exponentialRampToValueAtTime(0.001, t + 0.07)
+    slap.connect(lp).connect(sEnv).connect(out)
+    slap.start(t, Math.random() * 0.5)
+    slap.stop(t + 0.08)
+  }
+
+  /**
+   * Petits airs de borne (non spatialisés) : une pièce qui tombe, une partie gagnée, perdue ;
+   * le bourdonnement du moteur de la pince.
+   */
+  jingle(kind: 'coin' | 'win' | 'lose' | 'motor') {
+    if (!this.ready) return
+    const ctx = this.ctx
+    const out = this.output(null, { volume: kind === 'motor' ? 0.035 : 0.07 }).input
+    const t0 = ctx.currentTime + 0.01
+    const tone = (f: number, t: number, len: number, type: OscillatorType = 'square', to?: number) => {
+      const osc = ctx.createOscillator()
+      osc.type = type
+      osc.frequency.setValueAtTime(f, t)
+      if (to) osc.frequency.exponentialRampToValueAtTime(to, t + len)
+      const env = ctx.createGain()
+      env.gain.setValueAtTime(0, t)
+      env.gain.linearRampToValueAtTime(1, t + 0.006)
+      env.gain.setTargetAtTime(0, t + len * 0.7, len * 0.2)
+      osc.connect(env).connect(out)
+      osc.start(t)
+      osc.stop(t + len + 0.1)
+    }
+    if (kind === 'coin') [988, 1319].forEach((f, i) => tone(f, t0 + i * 0.08, 0.1))
+    else if (kind === 'win') [523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone(f, t0 + i * 0.09, i === 5 ? 0.3 : 0.1))
+    else if (kind === 'lose') [392, 330, 262].forEach((f, i) => tone(f, t0 + i * 0.16, 0.18, 'triangle'))
+    else tone(95, t0, 0.5, 'sawtooth', 70)
+  }
+
+  /**
+   * Saut FSD : le moteur se charge (un sifflement qui monte, `charge` secondes), puis le saut
+   * (un grondement et un souffle), puis l'arrivée.
+   */
+  fsd(charge: number, jump: number) {
+    if (!this.ready) return
+    const ctx = this.ctx
+    const t0 = ctx.currentTime + 0.02
+    const out = this.output(null, { volume: 0.18 }).input
+    // Charge : deux dents de scie désaccordées qui montent, sous un filtre qui s'ouvre.
+    for (const detune of [-8, 8]) {
+      const osc = ctx.createOscillator()
+      osc.type = 'sawtooth'
+      osc.detune.value = detune
+      osc.frequency.setValueAtTime(70, t0)
+      osc.frequency.exponentialRampToValueAtTime(420, t0 + charge)
+      const lp = ctx.createBiquadFilter()
+      lp.type = 'lowpass'
+      lp.frequency.setValueAtTime(300, t0)
+      lp.frequency.exponentialRampToValueAtTime(2600, t0 + charge)
+      const env = ctx.createGain()
+      env.gain.setValueAtTime(0, t0)
+      env.gain.linearRampToValueAtTime(0.22, t0 + charge * 0.8)
+      env.gain.linearRampToValueAtTime(0, t0 + charge + 0.05)
+      osc.connect(lp).connect(env).connect(out)
+      osc.start(t0)
+      osc.stop(t0 + charge + 0.1)
+    }
+    // Saut : un souffle de bruit qui balaie les graves aux aigus, et un grondement.
+    const t1 = t0 + charge
+    const rush = ctx.createBufferSource()
+    rush.buffer = this.whiteNoise
+    rush.loop = true
+    const bp = ctx.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.Q.value = 0.8
+    bp.frequency.setValueAtTime(200, t1)
+    bp.frequency.exponentialRampToValueAtTime(3000, t1 + jump * 0.5)
+    bp.frequency.exponentialRampToValueAtTime(300, t1 + jump)
+    const rEnv = ctx.createGain()
+    rEnv.gain.setValueAtTime(0, t1)
+    rEnv.gain.linearRampToValueAtTime(0.9, t1 + 0.15)
+    rEnv.gain.linearRampToValueAtTime(0.5, t1 + jump * 0.7)
+    rEnv.gain.linearRampToValueAtTime(0, t1 + jump)
+    rush.connect(bp).connect(rEnv).connect(out)
+    rush.start(t1)
+    rush.stop(t1 + jump + 0.1)
+    const boom = ctx.createOscillator()
+    boom.frequency.setValueAtTime(90, t1)
+    boom.frequency.exponentialRampToValueAtTime(30, t1 + 1.2)
+    const bEnv = ctx.createGain()
+    bEnv.gain.setValueAtTime(1, t1)
+    bEnv.gain.exponentialRampToValueAtTime(0.001, t1 + 1.4)
+    boom.connect(bEnv).connect(out)
+    boom.start(t1)
+    boom.stop(t1 + 1.5)
+  }
 }

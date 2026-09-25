@@ -2,12 +2,13 @@ import * as THREE from 'three'
 import { station, themes, type StationModel, type ThemeMaterials } from './assets'
 import { CabinView } from './cabin/view'
 import { makeFadeable } from './fade'
-import { beamMaterial, buildFurniture, isCustomModel, tickFurniture, type Emitter } from './furniture'
+import { beamMaterial, buildFurniture, isCustomModel, tickFurniture, type Emitter, type FurnitureControl } from './furniture'
 import { tr } from './i18n'
 import { LEVEL_HEIGHT, LIFT, type Flicker, type LevelDef } from './levels'
 import { DIRS, ShipMap } from './map'
 import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type Occluder } from './merge'
 import { Pathfinder } from './pathfinding'
+import { placeSeats, seatAction, seatsOf, type SeatSpot } from './seats'
 
 /** Rectangle de collision dans le plan XZ. */
 export interface Box2 {
@@ -25,6 +26,12 @@ export interface Interactable {
   /** Texte affiché ; avec une liste, une phrase au hasard à chaque fois ; une fonction est relue à chaque interaction. */
   text?: string | string[] | (() => string | string[])
   onInteract?: () => void
+  /** Places où s'installer (s'asseoir, s'allonger, jouer…), dans le repère du pont, cf. seats.ts. */
+  seats?: (toward: { x: number; z: number }) => SeatSpot[]
+  /** Commande du meuble (la pince à peluches, le sac de frappe). */
+  control?: FurnitureControl
+  /** Meuble et variante (le jeu d'une borne, par exemple). */
+  furniture?: { model: string; label?: string }
 }
 
 /** Sons d'ambiance d'un pont : ceux des meubles, plus les bips des consoles du cockpit. */
@@ -357,9 +364,11 @@ export class Deck {
     for (const p of this.def.props) {
       const rotY = ((p.rot ?? 0) * Math.PI) / 2
       let o: THREE.Object3D
+      let control: FurnitureControl | undefined
       if (isCustomModel(p.model)) {
         // Graine tirée de la position : chaque meuble varie, mais pareil chez tous les joueurs.
         const f = buildFurniture(p.model, p.label, hash(Math.round(p.x * 10), Math.round(p.z * 10)))
+        control = f.control
         if (f.live) {
           f.live.position.set(p.x, p.y ?? 0, p.z)
           f.live.rotation.y = rotY
@@ -397,9 +406,12 @@ export class Deck {
       if (box.max.y > 0.6) this.addFading(o, center)
       else this.addStatic(o, true)
 
-      if (p.interact) {
-        const label = p.action ?? tr('Examiner', 'Examine')
-        this.interactables.push({ object: this.pickVolume(box), position: center.clone().setY(0), label, text: p.interact })
+      const seats = seatsOf(p.model)
+      if (p.interact || seats) {
+        const label = p.action ?? (seats ? seatAction(seats) : tr('Examiner', 'Examine'))
+        const it: Interactable = { object: this.pickVolume(box), position: center.clone().setY(0), label, text: p.interact, control, furniture: { model: p.model, label: p.label } }
+        if (seats) it.seats = (toward) => placeSeats(seats, p.x, p.z, rotY, toward).map((s) => ({ ...s, y: s.y + (p.y ?? 0) }))
+        this.interactables.push(it)
       }
       // Les consoles du poste de pilotage bipent.
       if (this.def.id === 0 && this.map.room(Math.round(p.x), Math.round(p.z)) === 'b' && p.model.startsWith('computer')) {

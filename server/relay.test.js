@@ -114,6 +114,17 @@ describe('origine', () => {
   })
 })
 
+/** Prochain message `event` reçu par `socket` qui satisfait `match`. */
+const next = (socket, event, match = () => true) =>
+  new Promise((resolve) => {
+    const on = (m) => {
+      if (!match(m)) return
+      socket.off(event, on)
+      resolve(m)
+    }
+    socket.on(event, on)
+  })
+
 describe('rediffusion', () => {
   test('chat, emote et position passent d\'un joueur aux autres, validés', async () => {
     const a = client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-adam' })
@@ -139,18 +150,27 @@ describe('rediffusion', () => {
     b.disconnect()
     assert.equal((await left)[0].id, wb.id)
   })
-})
 
-/** Prochain message `event` reçu par `socket` qui satisfait `match`. */
-const next = (socket, event, match = () => true) =>
-  new Promise((resolve) => {
-    const on = (m) => {
-      if (!match(m)) return
-      socket.off(event, on)
-      resolve(m)
-    }
-    socket.on(event, on)
+  test('la pose sur un meuble passe avec la position, et un nouveau venu la voit', async () => {
+    const a = client({ auth: { name: 'CMDR Assise' } })
+    const wa = await welcome(a)
+    const b = client({ auth: { name: 'CMDR Regard' } })
+    await welcome(b)
+    const state = { x: 12.5, z: 7.24, yaw: 0, level: 0, anim: 'idle' }
+    a.emit('state', { ...state, pose: 'sit', py: 0.25 })
+    assert.deepEqual(await next(b, 'state', (m) => m.id === wa.id), { id: wa.id, ...state, pose: 'sit', py: 0.25 })
+    // Un nouveau venu voit qui est assis où.
+    const c = client({ auth: { name: 'CMDR Tardif' } })
+    const seen = (await welcome(c)).players.find((p) => p.id === wa.id)
+    assert.deepEqual([seen.pose, seen.py], ['sit', 0.25])
+    // Une pose inconnue n'en est pas une ; la hauteur reste bornée.
+    a.emit('state', { ...state, pose: 'lévitation', py: 3 })
+    assert.deepEqual(await next(b, 'state', (m) => m.id === wa.id), { id: wa.id, ...state })
+    a.emit('state', { ...state, pose: 'lie', py: 3 })
+    assert.equal((await next(b, 'state', (m) => m.id === wa.id)).py, 1.2)
+    for (const socket of [a, b, c]) socket.disconnect()
   })
+})
 
 /** Vrai si `socket` reçoit `event` dans les `ms` millisecondes. */
 const receives = (socket, event, ms = 150) =>

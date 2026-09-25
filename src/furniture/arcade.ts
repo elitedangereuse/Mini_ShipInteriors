@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { COBRA_EDGES, COBRA_VERTICES } from './cobra'
 import {
   animatedScreen, barX, barZ, box, compact, cylinder, drawnTexture, ED_ORANGE, glass, glow, instanced, keepShared, lit,
-  mesh, part, rng, setInstance, sphere, type Builder,
+  mesh, part, rng, setInstance, sphere, type Builder, type ClawControl, type ClawResult,
 } from './kit'
 import { tr } from '../i18n'
 
@@ -1602,7 +1602,7 @@ const BALLS = ['#ff8ad8', '#ffe14f', '#6ab0ff', '#f4f0ea', '#ff9a3c', '#8fe06a']
  * Pince : position de repos (au-dessus de la goulotte), hauteur du moyeu (en haut, en bas),
  * hauteur de la Comète visée (posée sur un Thargoïde du tas), durée d'une partie.
  */
-const CLAW = { hx: -0.155, hz: 0.155, up: 0.74, down: 0.59, rest: 0.458, period: 11 }
+const CLAW = { hx: -0.155, hz: 0.155, up: 0.74, down: 0.59, rest: 0.458, period: 11, reach: 0.19 }
 
 /**
  * Pince à peluches : meuble à trappe à lots et monnayeur, cage vitrée pleine de peluches (Comète,
@@ -1668,41 +1668,211 @@ const clawMachine: Builder = ({ label, random }) => {
   const slip = CLAW.up - (CLAW.up - CLAW.down) * (1 - ease(0.85 / 1.2)) - (CLAW.down - CLAW.rest)
   const fallTime = Math.sqrt((slip - CLAW.rest) / 1.5)
   let bulbStep = -1
+
+  /*
+   * Quand personne ne joue, la pince fait sa démonstration (une Comète attrapée… et lâchée en
+   * remontant). Un joueur la déplace, puis la lâche : elle s'ouvre, descend, se referme, remonte,
+   * revient au-dessus de la goulotte et s'ouvre. Bien visée, elle attrape la Comète, qui peut
+   * encore glisser en route ; gagnée, la peluche tombe dans la trappe à lots.
+   */
+  /** Pince affichée : elle suit en douceur la démonstration ou la partie. */
+  const at = { x: CLAW.hx, z: CLAW.hz, hub: CLAW.up, open: 0 }
+  type Stage = 'aim' | 'open' | 'down' | 'close' | 'up' | 'home' | 'release' | 'reset'
+  const STAGES: Record<Stage, number> = { aim: Infinity, open: 0.35, down: 1.1, close: 0.45, up: 1.1, home: 1, release: 0.4, reset: 0.4 }
+  let game: {
+    stage: Stage
+    since: number
+    x: number
+    z: number
+    from: { x: number; z: number }
+    held: boolean
+    /** Moment de la remontée (de 0 à 1) où la Comète glisse ; Infinity : elle tient bon. */
+    slipAt: number
+    result: ClawResult
+    done?: (r: ClawResult) => void
+  } | null = null
+  /** Le joueur a rendu la main : la démonstration reprend quand la partie est finie, pince au repos. */
+  let released = false
+  /** Peluche qui tombe (vers le tas, ou dans la goulotte), et peluche gagnée (dans la trappe, puis de retour). */
+  let fall: { from: number; x: number; z: number; since: number; into: 'heap' | 'chute' } | null = null
+  let wonAt = -Infinity
+  let now = 0
+  /** Hauteur de la Comète dans la démonstration, à l'instant k du cycle. */
+  const demoPrize = (k: number, hub: number) => {
+    const s = k - 5.85
+    if (k > 5 && s < 0) return hub - (CLAW.down - CLAW.rest)
+    if (s >= 0 && s < fallTime) return slip - 1.5 * s * s
+    if (s >= fallTime && s < fallTime + 0.15) return CLAW.rest + 0.012 - 2.15 * (s - fallTime - 0.075) ** 2
+    return CLAW.rest
+  }
+  const demoHub = (k: number) => CLAW.up - (CLAW.up - CLAW.down) * (ease((k - 3.4) / 1.2) - ease((k - 5) / 1.2))
+  const next = (stage: Stage) => {
+    game!.stage = stage
+    game!.since = now
+  }
+
+  const control: ClawControl = {
+    kind: 'claw',
+    get busy() {
+      return !!game && game.stage !== 'aim'
+    },
+    take(on) {
+      if (!on) {
+        released = true
+        if (game?.stage === 'aim') game = null
+        return
+      }
+      released = false
+      if (game) return
+      // La démonstration tenait peut-être la Comète : elle la lâche.
+      const k = (now + phase) % CLAW.period
+      const y = demoPrize(k, demoHub(k))
+      if (y > CLAW.rest + 0.005 && wonAt < now - 3.8) fall = { from: y, x: tx, z: tz, since: now, into: 'heap' }
+      game = { stage: 'aim', since: now, x: at.x, z: at.z, from: { x: at.x, z: at.z }, held: false, slipAt: Infinity, result: 'miss' }
+    },
+    steer(x, z, dt) {
+      if (game?.stage !== 'aim') return
+      game.x = THREE.MathUtils.clamp(game.x + x * 0.24 * dt, -CLAW.reach, CLAW.reach)
+      game.z = THREE.MathUtils.clamp(game.z + z * 0.24 * dt, -CLAW.reach, CLAW.reach)
+    },
+    drop(done) {
+      if (game?.stage !== 'aim') return false
+      game.done = done
+      game.held = false
+      game.result = 'miss'
+      next('open')
+      return true
+    },
+  }
+
+  /** Fait avancer la partie ; rend la cible de la pince (position, hauteur du moyeu, ouverture). */
+  const play = (g: NonNullable<typeof game>) => {
+    let u = Math.min(1, (now - g.since) / STAGES[g.stage])
+    if (g.stage === 'home') u = Math.min(1, (now - g.since) / (0.4 + Math.hypot(g.from.x - CLAW.hx, g.from.z - CLAW.hz) / 0.22))
+    const e = ease(u)
+    let { x, z } = g
+    let hub = CLAW.up, open = 0
+    switch (g.stage) {
+      case 'open': open = e; break
+      case 'down': open = 1; hub = CLAW.up - (CLAW.up - CLAW.down) * e; break
+      case 'close': open = 1 - e; hub = CLAW.down; break
+      case 'up': hub = CLAW.down + (CLAW.up - CLAW.down) * e; break
+      case 'home': x = g.from.x + (CLAW.hx - g.from.x) * e; z = g.from.z + (CLAW.hz - g.from.z) * e; break
+      case 'release': x = CLAW.hx; z = CLAW.hz; open = e; break
+      case 'reset': x = CLAW.hx; z = CLAW.hz; open = 1 - e; break
+    }
+    if (u < 1) return { x, z, hub, open }
+    // Fin de l'étape.
+    const d = Math.hypot(g.x - tx, g.z - tz)
+    switch (g.stage) {
+      case 'open': next('down'); break
+      case 'down': next('close'); break
+      case 'close':
+        // Bien centrée sur la Comète, la pince la prend presque toujours, et la lâche une fois sur
+        // quatre en remontant ; à côté, elle la prend une fois sur deux, et la lâche plus souvent.
+        g.held = wonAt < now - 3.8 && Math.random() < (d < 0.03 ? 0.9 : d < 0.06 ? 0.45 : 0)
+        g.slipAt = g.held && Math.random() < (d < 0.03 ? 0.25 : 0.55) ? 0.45 + Math.random() * 0.4 : Infinity
+        next('up')
+        break
+      case 'up': g.from = { x: g.x, z: g.z }; next('home'); break
+      case 'home': next('release'); break
+      case 'release': next('reset'); break
+      case 'reset': {
+        const done = g.done
+        g.x = CLAW.hx
+        g.z = CLAW.hz
+        g.done = undefined
+        next('aim')
+        if (released) game = null
+        done?.(g.result)
+        break
+      }
+    }
+    return { x, z, hub, open }
+  }
+
   return {
     solid: g,
     live,
     emitter: 'arcade',
+    control,
     update: (t) => {
+      const dt = Math.min(0.1, Math.max(0, t - now))
+      now = t
       const k = (t + phase) % CLAW.period
-      // Aller (x puis z), ouvrir, descendre, fermer, remonter, retour (z puis x), ouvrir au-dessus de la goulotte.
-      const x = CLAW.hx + (tx - CLAW.hx) * (ease(k - 1) - ease(k - 7.2))
-      const z = CLAW.hz + (tz - CLAW.hz) * (ease(k - 2) - ease(k - 6.2))
-      const drop = ease((k - 3.4) / 1.2) - ease((k - 5) / 1.2)
-      const open = ease((k - 3) / 0.4) - ease((k - 4.6) / 0.4) + ease((k - 8.2) / 0.4) - ease((k - 8.6) / 0.4)
-      const hub = CLAW.up - (CLAW.up - CLAW.down) * drop
-      setInstance(rig, 0, 0, 0.828, z, _size.set(0.42, 0.014, 0.028))
-      setInstance(rig, 1, x, 0.814, z, _size.set(0.05, 0.026, 0.05))
-      setInstance(rig, 2, x, (0.8 + hub) / 2, z, _size.set(0.004, 0.8 - hub, 0.004))
-      setInstance(rig, 3, x, hub, z, _size.set(0.034, 0.022, 0.034))
+      let x: number, z: number, hub: number, open: number
+      if (game) ({ x, z, hub, open } = play(game))
+      else {
+        // Aller (x puis z), ouvrir, descendre, fermer, remonter, retour (z puis x), ouvrir au-dessus de la goulotte.
+        x = CLAW.hx + (tx - CLAW.hx) * (ease(k - 1) - ease(k - 7.2))
+        z = CLAW.hz + (tz - CLAW.hz) * (ease(k - 2) - ease(k - 6.2))
+        open = ease((k - 3) / 0.4) - ease((k - 4.6) / 0.4) + ease((k - 8.2) / 0.4) - ease((k - 8.6) / 0.4)
+        hub = demoHub(k)
+      }
+      const follow = 1 - Math.exp(-14 * dt)
+      at.x += (x - at.x) * follow
+      at.z += (z - at.z) * follow
+      at.hub += (hub - at.hub) * follow
+      at.open += (open - at.open) * follow
+      setInstance(rig, 0, 0, 0.828, at.z, _size.set(0.42, 0.014, 0.028))
+      setInstance(rig, 1, at.x, 0.814, at.z, _size.set(0.05, 0.026, 0.05))
+      setInstance(rig, 2, at.x, (0.8 + at.hub) / 2, at.z, _size.set(0.004, 0.8 - at.hub, 0.004))
+      setInstance(rig, 3, at.x, at.hub, at.z, _size.set(0.034, 0.022, 0.034))
       for (let n = 0; n < 3; n++) {
         const a = (n / 3) * Math.PI * 2
-        _o.position.set(x + Math.sin(a) * 0.016, hub - 0.008, z + Math.cos(a) * 0.016)
-        _o.rotation.set(0.15 - 0.75 * open, a, 0, 'YXZ')
+        _o.position.set(at.x + Math.sin(a) * 0.016, at.hub - 0.008, at.z + Math.cos(a) * 0.016)
+        _o.rotation.set(0.15 - 0.75 * at.open, a, 0, 'YXZ')
         _o.updateMatrix()
         rig.setMatrixAt(4 + n, _m.multiplyMatrices(_o.matrix, prong))
         rig.setMatrixAt(7 + n, _m.multiplyMatrices(_o.matrix, hook))
       }
       rig.instanceMatrix.needsUpdate = true
-      // La Comète : prise à 5 s, elle glisse à 5,85 s et retombe à sa place, avec un petit rebond.
-      let y = CLAW.rest
-      const s = k - 5.85
-      if (k > 5 && s < 0) y = hub - (CLAW.down - CLAW.rest)
-      else if (s >= 0 && s < fallTime) y = slip - 1.5 * s * s
-      else if (s >= fallTime && s < fallTime + 0.15) y = CLAW.rest + 0.012 - 2.15 * (s - fallTime - 0.075) ** 2
-      prize.position.set(tx, y, tz)
-      prize.rotation.set(0, turn, k > 5 && s < 0 ? Math.sin(k * 14) * 0.08 : 0)
-      // Guirlande du toit : un chenillard.
-      const step = Math.floor((t + phase) * 6)
+
+      // La Comète : tenue par la pince, qui tombe, gagnée, ou dans la démonstration.
+      let px = tx, py = CLAW.rest, pz = tz, wobble = 0, scale = 1
+      const held = game?.held && ['up', 'home', 'release'].includes(game.stage)
+      if (game?.held && game.stage === 'up' && (now - game.since) / STAGES.up > game.slipAt) {
+        // Elle glisse en remontant.
+        game.held = false
+        game.result = 'slip'
+        fall = { from: at.hub - (CLAW.down - CLAW.rest), x: at.x, z: at.z, since: now, into: 'heap' }
+      }
+      if (game?.held && game.stage === 'release' && now - game.since > 0.15) {
+        game.held = false
+        game.result = 'win'
+        fall = { from: at.hub - (CLAW.down - CLAW.rest), x: at.x, z: at.z, since: now, into: 'chute' }
+      }
+      const since = now - wonAt
+      if (since < 3.8) {
+        // Gagnée : dans la trappe à lots, puis de retour sur le tas.
+        if (since < 2.6) [px, py, pz, scale] = [-0.11, 0.105, 0.2, 0.85]
+        else if (since < 3.5) scale = 0
+        else scale = ease((since - 3.5) / 0.3)
+      } else if (fall) {
+        const s = now - fall.since
+        const floor = fall.into === 'chute' ? 0.3 : CLAW.rest
+        px = fall.into === 'heap' ? fall.x + (tx - fall.x) * Math.min(1, s * 4) : fall.x
+        pz = fall.into === 'heap' ? fall.z + (tz - fall.z) * Math.min(1, s * 4) : fall.z
+        py = fall.from - 1.5 * s * s
+        if (py <= floor) {
+          if (fall.into === 'chute') wonAt = now
+          fall = null
+          py = floor
+        }
+      } else if (held) {
+        px = at.x
+        pz = at.z
+        py = at.hub - (CLAW.down - CLAW.rest)
+        wobble = Math.sin(now * 14) * 0.08
+      } else if (!game) {
+        py = demoPrize(k, at.hub)
+        wobble = k > 5 && k < 5.85 ? Math.sin(k * 14) * 0.08 : 0
+      }
+      prize.position.set(px, py, pz)
+      prize.scale.setScalar(Math.max(0.001, scale))
+      prize.rotation.set(0, turn, wobble)
+      // Guirlande du toit : un chenillard (plus vif pendant une partie).
+      const step = Math.floor((t + phase) * (game ? 10 : 6))
       if (step !== bulbStep) {
         bulbStep = step
         for (let i = 0; i < 9; i++) bulbs.setColorAt(i, (i + step) % 3 === 0 ? on : off)

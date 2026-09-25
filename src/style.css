@@ -440,6 +440,28 @@ button {
 #fade.on {
   opacity: 1;
 }
+/* Éclair plein écran (saut FSD, déclencheur du mode photo) : il s'allume d'un coup et s'éteint. */
+#flash {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, #ffffff 0%, #d8ecff 45%, #7ab8ff 100%);
+  opacity: 0;
+  pointer-events: none;
+}
+#flash.on {
+  animation: flash 0.9s ease-out;
+}
+#flash.soft {
+  background: #ffffff;
+}
+@keyframes flash {
+  from {
+    opacity: 0.9;
+  }
+  to {
+    opacity: 0;
+  }
+}
 
 /* ---------- HUD ---------- */
 #hud {

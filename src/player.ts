@@ -10,6 +10,22 @@ const SPRINT_SPEED = 3.4
 const STRIDE_WALK = 0.57
 const STRIDE_SPRINT = 0.85
 
+/** Montée douce de 0 à 1. */
+const smooth = (u: number) => u * u * (3 - 2 * u)
+
+/**
+ * Trajet scripté, sans collisions : s'installer sur un meuble (le personnage recule sur
+ * l'assise, monte sur le lit), ou s'en relever. `walk` : on marche pendant le trajet.
+ */
+interface Glide {
+  from: { x: number; y: number; z: number; yaw: number }
+  to: { x: number; y: number; z: number; yaw: number }
+  t: number
+  duration: number
+  walk: boolean
+  done?: () => void
+}
+
 /** Joueur local : clavier, suivi de chemin et collisions, par-dessus un Avatar. */
 export class Player {
   readonly root = new THREE.Group()
@@ -19,6 +35,7 @@ export class Player {
   private busyTime = 0
   private stride = 0
   private yaw = 0
+  private glide: Glide | null = null
   /** Appelé quand le personnage atteint la fin d'un chemin. */
   onArrive?: () => void
   /** Appelé à chaque pas. */
@@ -54,6 +71,27 @@ export class Player {
     this.onArrive = undefined
   }
 
+  /** Trajet scripté en cours (installation sur un meuble, relevé) ? */
+  get gliding(): boolean {
+    return this.glide !== null
+  }
+
+  /**
+   * Va en ligne droite à (x, y, z), tourné vers `yaw`, en `duration` secondes, sans tenir compte
+   * des collisions (on s'assoit dans le volume du fauteuil) ; `walk` : en marchant.
+   */
+  glideTo(to: { x: number; y: number; z: number; yaw: number }, duration: number, walk: boolean, done?: () => void) {
+    this.cancelPath()
+    this.busyTime = 0
+    const p = this.position
+    this.glide = { from: { x: p.x, y: p.y, z: p.z, yaw: this.root.rotation.y }, to, t: 0, duration: Math.max(0.05, duration), walk, done }
+  }
+
+  /** Interrompt un trajet scripté, sur place (téléportation, changement de pont). */
+  stopGlide() {
+    this.glide = null
+  }
+
   /** Supprime les points intermédiaires quand une ligne droite est possible. */
   private smooth(points: { x: number; z: number }[]): { x: number; z: number }[] {
     if (points.length < 3) return points
@@ -86,6 +124,33 @@ export class Player {
 
   /** @param input direction voulue au clavier (plan XZ, longueur 0 à 1) */
   update(dt: number, input: THREE.Vector3, sprint: boolean) {
+    if (this.glide) {
+      const g = this.glide
+      g.t = Math.min(g.duration, g.t + dt)
+      const k = smooth(g.t / g.duration)
+      const bx = this.position.x, bz = this.position.z
+      this.position.set(g.from.x + (g.to.x - g.from.x) * k, g.from.y + (g.to.y - g.from.y) * k, g.from.z + (g.to.z - g.from.z) * k)
+      let d = (g.to.yaw - g.from.yaw) % (Math.PI * 2)
+      if (d > Math.PI) d -= Math.PI * 2
+      if (d < -Math.PI) d += Math.PI * 2
+      this.yaw = g.from.yaw + d * k
+      this.root.rotation.y = this.yaw
+      const speed = Math.hypot(this.position.x - bx, this.position.z - bz) / Math.max(dt, 1e-3)
+      this.avatar.setLocomotion(g.walk && g.t < g.duration ? 'walk' : 'idle', speed)
+      if (g.walk) {
+        this.stride += speed * dt
+        if (this.stride >= STRIDE_WALK) {
+          this.stride -= STRIDE_WALK
+          this.onStep?.(false)
+        }
+      }
+      if (g.t >= g.duration) {
+        this.glide = null
+        g.done?.()
+      }
+      this.avatar.update(dt)
+      return
+    }
     const hasInput = input.lengthSq() > 0
     if (this.busyTime > 0 && !hasInput) {
       this.busyTime -= dt

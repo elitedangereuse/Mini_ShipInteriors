@@ -45,4 +45,7 @@ export function buildFurniture(model: CustomModel, label: string | undefined, se
 
 export { holoMeGlow } from './elite'
 export { beatAt, beatPulse } from './party'
-export { beamMaterial, disposeFurniture, ED_ORANGE, holoTime, keepShared, tickFurniture, type Emitter } from './kit'
+export {
+  beamMaterial, disposeFurniture, ED_ORANGE, holoTime, keepShared, tickFurniture, type BagControl, type ClawControl, type ClawResult, type Emitter,
+  type FurnitureControl,
+} from './kit'

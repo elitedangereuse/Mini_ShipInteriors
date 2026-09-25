@@ -2,20 +2,15 @@ import * as THREE from 'three'
 import {
   animatedScreen, beamMaterial, box, cylinder, drawnTexture, glass, glow, instanced, keepShared, lit, mesh, part, rng, setInstance, type Builder,
 } from './kit'
+import { beatAt } from '../tempo'
 
 /*
  * Soirée dans les quartiers : piste de danse, boule à facettes, platines, jukebox, enceinte,
- * laser et lyre. Tout bat au même tempo (cf. beatAt), celui des lumières « disco » de main.ts.
+ * laser et lyre. Tout bat au même tempo (cf. tempo.ts), celui des lumières « disco » de main.ts,
+ * et celui du morceau que joue le jukebox.
  */
 
-/** Tempo de la soirée, en battements par minute. */
-const BPM = 120
-
-/** Battement en cours (à virgule) à l'instant `t`. */
-export const beatAt = (t: number) => (t * BPM) / 60
-
-/** Éclat du battement : 1 sur le temps, puis il retombe avant le suivant. */
-export const beatPulse = (t: number) => Math.exp(-(beatAt(t) % 1) * 4)
+export { beatAt, beatPulse } from '../tempo'
 
 const mod = (a: number, n: number) => ((a % n) + n) % n
 

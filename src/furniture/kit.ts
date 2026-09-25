@@ -20,7 +20,33 @@ export interface Furniture {
   live?: THREE.Object3D
   update?: (t: number) => void
   emitter?: Emitter
+  /** Commande d'un meuble qu'on manipule (cf. main.ts) : la pince à peluches, le sac de frappe. */
+  control?: FurnitureControl
 }
+
+/** Issue d'une partie de pince : peluche gagnée, lâchée en remontant, ou rien attrapé. */
+export type ClawResult = 'win' | 'slip' | 'miss'
+
+/** Pince à peluches pilotée par le joueur (cf. arcade.ts) : on la déplace, puis on la lâche. */
+export interface ClawControl {
+  kind: 'claw'
+  /** Le joueur prend la main (la démonstration s'interrompt), ou la rend. */
+  take(on: boolean): void
+  /** Déplacement voulu de la pince (de -1 à 1 sur chaque axe, repère du meuble) pendant `dt`. */
+  steer(x: number, z: number, dt: number): void
+  /** Lâche la pince (false si elle est déjà partie) ; `done` quand elle est revenue. */
+  drop(done: (result: ClawResult) => void): boolean
+  /** La pince descend, remonte ou revient. */
+  readonly busy: boolean
+}
+
+/** Sac de frappe (cf. leisure.ts) : il encaisse un coup. */
+export interface BagControl {
+  kind: 'bag'
+  hit(): void
+}
+
+export type FurnitureControl = ClawControl | BagControl
 
 /** Bips d'arcade, crépitements de soudure, grondement de machine. */
 export type Emitter = 'arcade' | 'sparks' | 'hum'

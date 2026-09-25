@@ -12,6 +12,9 @@ export interface PlayerState {
   level: number
   yaw: number
   anim: string
+  /** Pose tenue sur un meuble (cf. seats.ts), et hauteur au-dessus du pont (assis, couché). */
+  pose?: string
+  py?: number
   /** Instance des quartiers où il se trouve : l'id du joueur qui reçoit (le sien, chez lui). */
   cabin: number
 }
@@ -20,7 +23,7 @@ export type ServerMessage =
   | { t: 'welcome'; id: number; you: { name: string; verified: boolean }; players: PlayerState[] }
   | { t: 'join'; player: PlayerState }
   | { t: 'leave'; id: number }
-  | { t: 'state'; id: number; x: number; z: number; yaw: number; level: number; anim: string }
+  | { t: 'state'; id: number; x: number; z: number; yaw: number; level: number; anim: string; pose?: string; py?: number }
   | { t: 'chat'; id: number; name: string; verified?: boolean; text: string }
   | { t: 'emote'; id: number; emote: string }
   | { t: 'profile'; id: number; name: string; verified?: boolean; skin: string }
@@ -118,7 +121,7 @@ export class Net {
     const force = now === Infinity
     if (!force && now - this.lastSent < 100) return
     const round = (v: number) => Math.round(v * 100) / 100
-    const msg = { x: round(s.x), z: round(s.z), yaw: round(s.yaw), level: s.level, anim: s.anim }
+    const msg = { x: round(s.x), z: round(s.z), yaw: round(s.yaw), level: s.level, anim: s.anim, ...(s.pose ? { pose: s.pose, py: round(s.py ?? 0) } : {}) }
     const key = JSON.stringify(msg)
     if (!force && key === this.last && now - this.lastSent < 2000) return
     this.last = key

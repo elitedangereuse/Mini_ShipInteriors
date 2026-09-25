@@ -35,6 +35,8 @@ export class IsoCamera {
   /** Délai pendant lequel le décalage tient, même si le personnage bouge (on est en train de le faire glisser). */
   private panHold = 0
   private lastFollow: THREE.Vector3 | null = null
+  /** Secousse de la vue (saut FSD), qui s'amortit. */
+  private jolt = 0
 
   constructor(private aspect: number) {
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200)
@@ -54,6 +56,23 @@ export class IsoCamera {
     const k = (this.azimuthGoal - ISO_AZIMUTH) / QUARTER
     const next = step > 0 ? Math.floor(k + 1e-6) + 1 : Math.ceil(k - 1e-6) - 1
     this.azimuthGoal = ISO_AZIMUTH + next * QUARTER
+    this.elevationGoal = this.restElevation
+    this.offset.set(0, 0, 0)
+  }
+
+  /** Azimut visé (radians) : à retenir pour y revenir (cf. turnTo). */
+  get heading(): number {
+    return this.azimuthGoal
+  }
+
+  /**
+   * Tourne la vue vers cet azimut (la caméra est alors du côté (sin a, cos a) de la cible), par le
+   * plus court chemin ; `snap` : ramené à la vue isométrique la plus proche.
+   */
+  turnTo(azimuth: number, snap = true) {
+    const a = snap ? ISO_AZIMUTH + Math.round((azimuth - ISO_AZIMUTH) / QUARTER) * QUARTER : azimuth
+    const d = THREE.MathUtils.euclideanModulo(a - this.azimuthGoal + Math.PI, Math.PI * 2) - Math.PI
+    this.azimuthGoal += d
     this.elevationGoal = this.restElevation
     this.offset.set(0, 0, 0)
   }
@@ -110,6 +129,11 @@ export class IsoCamera {
     return out.set(sx * c - sy * s, 0, -sx * s - sy * c)
   }
 
+  /** Secoue la vue (amplitude en tuiles), le temps qu'elle s'amortisse. */
+  shake(amount: number) {
+    this.jolt = Math.max(this.jolt, amount)
+  }
+
   /** Changement de pont : la caméra saute directement à la nouvelle altitude, sur le personnage. */
   snapTo(follow: THREE.Vector3) {
     this.offset.set(0, 0, 0)
@@ -146,6 +170,11 @@ export class IsoCamera {
       this.target.z + Math.cos(this.azimuth) * h,
     )
     this.camera.lookAt(this.target)
+    if (this.jolt > 1e-3) {
+      this.jolt *= Math.exp(-2.5 * dt)
+      this.camera.translateX((Math.random() - 0.5) * this.jolt)
+      this.camera.translateY((Math.random() - 0.5) * this.jolt)
+    }
   }
 
   private applyFrustum() {

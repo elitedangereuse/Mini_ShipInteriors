@@ -3,12 +3,18 @@
 // Avec ?mobilier : le mobilier fait main (src/furniture/), animé.
 // Avec ?catalogue : les vignettes du catalogue des cabines, toutes variantes (&variantes).
 // Avec ?revetements : les motifs des murs et des sols, dans deux de leurs teintes (&x2 : répétés).
+// Avec ?poses : chaque meuble où l'on s'installe, un personnage à chacune de ses places
+// (&look=robot.g pour un autre modèle, &only=sofa,cozy-bed).
 import * as THREE from 'three'
-import { preload, station, STATION_MODELS } from '../assets'
+import { preload, station, STATION_MODELS, type StationModel } from '../assets'
+import { Avatar } from '../avatar'
 import { CATALOG, CATEGORIES } from '../cabin/catalog'
 import { drawFinish, stylesOf } from '../cabin/finishes'
 import { thumbnail } from '../cabin/thumbs'
-import { buildFurniture, CUSTOM_MODELS, tickFurniture, type CustomModel } from '../furniture'
+import { buildFurniture, CUSTOM_MODELS, isCustomModel, tickFurniture, type CustomModel } from '../furniture'
+import { lookRig, parseLook } from '../looks'
+import { placeSeats, SEATS } from '../seats'
+import { tempo } from '../tempo'
 
 const renderer = new THREE.WebGLRenderer({ antialias: true })
 renderer.setSize(innerWidth, innerHeight)
@@ -27,6 +33,10 @@ const ZOOM = +(params.get('zoom') ?? 12)
 const aspect = innerWidth / innerHeight
 const cam = new THREE.OrthographicCamera(-ZOOM * aspect, ZOOM * aspect, ZOOM, -ZOOM, -100, 100)
 cam.position.set(params.has('back') ? -1 : 1, 1, params.has('back') ? -1 : 1).multiplyScalar(20)
+// &side : de profil (depuis +x), presque à l'horizontale, pour juger des hauteurs.
+if (params.has('side')) cam.position.set(20, 3, 0.01)
+// &cam=x,y,z : n'importe quelle direction de vue.
+if (params.get('cam')) cam.position.set(...(params.get('cam')!.split(',').map(Number) as [number, number, number])).setLength(20)
 cam.lookAt(0, 0, 0)
 
 function label(text: string): THREE.Sprite {
@@ -43,7 +53,81 @@ function label(text: string): THREE.Sprite {
 await preload([], () => {})
 if (params.has('catalogue')) showCatalogue()
 else if (params.has('revetements')) showFinishes()
+else if (params.has('poses')) await showPoses()
 else showModels()
+
+/** Meubles où l'on s'installe, un personnage à chaque place : hauteurs et orientations à l'œil. */
+async function showPoses() {
+  const only = params.get('only')
+  const models = Object.keys(SEATS).filter((m) => !only || only.split(',').includes(m))
+  const rows = Math.ceil(models.length / COLS)
+  const avatars: Avatar[] = []
+  const look = parseLook(params.get('look') ?? 'human.female.b')
+  // &pose=lie : une pose seule, au sol, avec une règle graduée tous les 10 cm.
+  const lone = params.get('pose')
+  if (lone) {
+    const a = new Avatar(await lookRig(look))
+    a.setPose(lone as keyof typeof SEATS & never)
+    scene.add(a.root)
+    avatars.push(a)
+    for (let i = 0; i <= 10; i++) {
+      const tick = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.004, i % 5 ? 0.05 : 0.12), new THREE.MeshBasicMaterial({ color: i % 5 ? '#888' : '#ff3355' }))
+      tick.position.set(0, i * 0.1, -0.5)
+      scene.add(tick)
+      const tz = tick.clone()
+      tz.rotation.x = Math.PI / 2
+      tz.position.set(0, 0.002, -1 + i * 0.2)
+      scene.add(tz)
+    }
+    models.length = 0
+  }
+  for (const [i, name] of models.entries()) {
+    const x = ((i % COLS) - (COLS - 1) / 2) * 2.2
+    const z = (Math.floor(i / COLS) - (rows - 1) / 2) * 2.2
+    const tile = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.8), new THREE.MeshBasicMaterial({ color: '#3a3f5c' }))
+    tile.rotation.x = -Math.PI / 2
+    tile.position.set(x, -0.01, z)
+    scene.add(tile)
+    if (isCustomModel(name)) {
+      const f = buildFurniture(name, undefined, i + 1)
+      for (const part of [f.solid, f.live]) {
+        if (!part) continue
+        part.position.set(x, 0, z)
+        scene.add(part)
+      }
+    } else {
+      const m = station(name as StationModel)
+      m.position.set(x, 0, z)
+      scene.add(m)
+    }
+    for (const spot of placeSeats(SEATS[name as CustomModel]!, x, z, 0, { x: x + 1, z: z + 1 })) {
+      const a = new Avatar(await lookRig(look))
+      a.root.position.set(spot.x, spot.y, spot.z)
+      a.root.rotation.y = spot.yaw
+      a.setPose(spot.pose)
+      scene.add(a.root)
+      avatars.push(a)
+      // Abord de la place : où l'on se tient avant de s'installer.
+      const dot = new THREE.Mesh(new THREE.CircleGeometry(0.05, 12), new THREE.MeshBasicMaterial({ color: '#ffb03a' }))
+      dot.rotation.x = -Math.PI / 2
+      dot.position.set(spot.from.x, 0.005, spot.from.z)
+      scene.add(dot)
+    }
+    const l = label(name)
+    l.position.set(x + 0.9, 0, z + 0.9)
+    scene.add(l)
+  }
+  const clock = new THREE.Timer()
+  function frame() {
+    clock.update()
+    const dt = Math.min(clock.getDelta(), 0.05)
+    tempo.now = clock.getElapsed()
+    for (const a of avatars) a.update(dt)
+    renderer.render(scene, cam)
+    requestAnimationFrame(frame)
+  }
+  frame()
+}
 
 /** Motifs des revêtements, en grand : première teinte de la palette, puis une autre. */
 function showFinishes() {

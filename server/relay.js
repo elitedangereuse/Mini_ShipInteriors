@@ -26,6 +26,8 @@ const MAX_NAME = 32
 const LOOK = /^[a-z]+(\.[a-z0-9-]+){1,3}$/
 const EMOTES = new Set(['salut', 'oui', 'non', 'joie', 'danse', 'assis', 'dodo', 'interact'])
 const ANIMS = new Set(['idle', 'walk', 'sprint'])
+// Poses tenues sur un meuble (cf. src/seats.ts) : assis, couché, aux commandes, à une borne…
+const POSES = new Set(['sit', 'lie', 'pilot', 'arcade', 'claw', 'punch', 'run', 'pedal', 'mix'])
 const LEVELS = new Set([-1, 0, 1])
 /** Une invitation dans des quartiers vaut une minute. */
 const INVITE_TTL = 60000
@@ -79,7 +81,9 @@ export function attachRelay(
   const sockets = new Map() // id du joueur -> socket
   let nextId = 1
 
-  const publicState = (p) => ({ id: p.id, name: p.name, verified: p.verified, skin: p.skin, x: p.x, z: p.z, level: p.level, yaw: p.yaw, anim: p.anim, cabin: p.cabin })
+  /** Position et animation d'un joueur, avec sa pose s'il est installé sur un meuble. */
+  const motion = (p) => ({ x: p.x, z: p.z, yaw: p.yaw, level: p.level, anim: p.anim, ...(p.pose ? { pose: p.pose, py: p.py } : {}) })
+  const publicState = (p) => ({ id: p.id, name: p.name, verified: p.verified, skin: p.skin, ...motion(p), cabin: p.cabin })
   const playerById = (id) => {
     const socket = sockets.get(id)
     return socket ? players.get(socket.id) : undefined
@@ -115,7 +119,7 @@ export function attachRelay(
       verified: !!cmdr,
       skin: validLook(auth.skin) ? auth.skin : 'human.female.b',
       // Point d'apparition : les quartiers du commandant (cf. SPAWN dans src/levels.ts).
-      x: 11.2, z: 7.4, level: 1, yaw: 0, anim: 'idle',
+      x: 11.2, z: 7.4, level: 1, yaw: 0, anim: 'idle', pose: '', py: 0,
       // Instance des quartiers : les siens (id du joueur qui reçoit), son aménagement, ses invitations.
       cabin: 0,
       layout: null,
@@ -146,8 +150,10 @@ export function attachRelay(
       const m = obj(raw)
       const x = num(m.x, -5, 40), z = num(m.z, -5, 20), yaw = num(m.yaw, -10, 10)
       if (x === null || z === null || yaw === null || !LEVELS.has(m.level)) return
-      Object.assign(player, { x, z, yaw, level: m.level, anim: ANIMS.has(m.anim) ? m.anim : 'idle' })
-      socket.broadcast.emit('state', { id: player.id, x, z, yaw, level: player.level, anim: player.anim })
+      // Une pose inconnue n'en est pas une ; sa hauteur reste à portée d'une couchette du haut.
+      const pose = POSES.has(m.pose) ? m.pose : ''
+      Object.assign(player, { x, z, yaw, level: m.level, anim: ANIMS.has(m.anim) ? m.anim : 'idle', pose, py: pose ? (num(m.py, 0, 1.2) ?? 0) : 0 })
+      socket.broadcast.emit('state', { id: player.id, ...motion(player) })
     })
 
     socket.on('chat', (raw) => {
