@@ -25,6 +25,11 @@ export class Pathfinder {
     private colliders: Box2[] = [],
   ) {}
 
+  /** Les meubles ont bougé (tuiles bloquées, collisions) : les passages sont à revalider. */
+  invalidate() {
+    this.passages.clear()
+  }
+
   walkable(x: number, z: number): boolean {
     return this.map.isFloor(x, z) && !this.blocked.has(`${x},${z}`)
   }

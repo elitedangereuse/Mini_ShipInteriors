@@ -1,10 +1,10 @@
 import * as THREE from 'three'
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { station, themes, type StationModel, type ThemeMaterials } from './assets'
-import { makeFadeable, makeIndexedFadeable } from './fade'
+import { makeFadeable } from './fade'
 import { buildFurniture, ED_ORANGE, isCustomModel, tickFurniture, type Emitter } from './furniture'
 import { LEVEL_HEIGHT, LIFT, type LevelDef } from './levels'
 import { DIRS, ShipMap } from './map'
+import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type Occluder } from './merge'
 import { Pathfinder } from './pathfinding'
 
 /** Rectangle de collision dans le plan XZ. */
@@ -28,16 +28,14 @@ export interface Interactable {
 /** Sons d'ambiance d'un pont : ceux des meubles, plus les bips des consoles du cockpit. */
 export type EmitterKind = Emitter | 'beep'
 
-/**
- * Objet qui peut masquer le joueur ; rendu « tramé » quand il est devant lui.
- * Soit fusionné avec les autres (`index` dans la texture de fondu), soit autonome
- * (`uniform` : portes, qui bougent, et consoles, qu'on doit pouvoir cliquer).
- */
-interface Occluder {
-  center: THREE.Vector3
-  value: number
-  index?: number
-  uniform?: { value: number }
+/** Pan de mur posé sur l'arête entre deux tuiles (les affiches s'y accrochent, cf. cabin/). */
+export interface WallSegment {
+  /** Milieu de l'arête. */
+  x: number
+  z: number
+  /** Le mur court le long de x (arête nord ou sud d'une tuile), sinon le long de z. */
+  alongX: boolean
+  model: 'wall' | 'wall-window' | 'wall-pillar' | 'door'
 }
 
 interface DoorState {
@@ -63,9 +61,6 @@ const DOOR_RANGE = 1.3
 
 const PICK_MATERIAL = new THREE.MeshBasicMaterial()
 
-const _right = new THREE.Vector3()
-const _v = new THREE.Vector3()
-
 /** Petit hash déterministe pour varier les murs sans aléatoire. */
 function hash(x: number, z: number): number {
   let h = (x * 374761393 + z * 668265263) | 0
@@ -89,15 +84,18 @@ export class Deck {
   readonly engineEmitters: THREE.Vector3[] = []
   /** Sons d'ambiance par type (bips, arcade, soudure, machines), en coordonnées monde. */
   readonly emitters = new Map<EmitterKind, THREE.Vector3[]>()
+  /** Pans de mur et portes, en coordonnées du pont. */
+  readonly walls: WallSegment[] = []
+  /** Poteaux d'angle (centre, en coordonnées du pont ; côté POST_WIDTH). */
+  readonly posts: { x: number; z: number }[] = []
 
   /** Appelé quand une porte s'ouvre ou se ferme (position monde). */
   onDoor?: (position: THREE.Vector3, open: boolean) => void
 
   private occluders: Occluder[] = []
   private doors: DoorState[] = []
-  private staticParts = new Map<string, { material: THREE.Material; geos: THREE.BufferGeometry[]; cast: boolean; fading: boolean }>()
-  private fadeData!: Float32Array
-  private fadeTex!: THREE.DataTexture
+  private merge = new StaticMerge()
+  private fades!: FadeBuffer
   private time = 0
   private core?: THREE.Mesh
   private coreMat?: THREE.MeshStandardMaterial
@@ -173,54 +171,19 @@ export class Deck {
     this.emitters.set(kind, list)
   }
 
-  /**
-   * Objet qui ne bouge jamais : sa géométrie est fusionnée avec les autres (1 appel de dessin par matériau).
-   * @param occ index d'occulteur : l'objet pourra être tramé individuellement
-   */
-  private addStatic(o: THREE.Object3D, cast: boolean, occ?: number) {
-    o.updateMatrixWorld(true)
-    o.traverse((c) => {
-      const mesh = c as THREE.Mesh
-      if (!mesh.isMesh) return
-      const g = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld)
-      const material = mesh.material as THREE.Material
-      // Couleurs par sommet : seulement pour les matériaux qui s'en servent (mobilier fait main).
-      const keepColor = material.vertexColors
-      for (const name of Object.keys(g.attributes)) {
-        if (name !== 'position' && name !== 'normal' && name !== 'uv' && !(keepColor && name === 'color')) g.deleteAttribute(name)
-      }
-      const fading = occ !== undefined
-      if (fading) g.setAttribute('aOcc', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count).fill(occ), 1))
-      const key = `${material.uuid}:${cast}:${fading}`
-      let part = this.staticParts.get(key)
-      if (!part) this.staticParts.set(key, (part = { material, geos: [], cast, fading }))
-      part.geos.push(g)
-    })
+  /** Objet qui ne bouge jamais : sa géométrie est fusionnée avec les autres (1 appel de dessin par matériau). */
+  private addStatic(o: THREE.Object3D, cast: boolean) {
+    this.merge.add(o, cast)
   }
 
   /** Occulteur immobile : fusionné, tramé via la texture de fondu. */
   private addFading(o: THREE.Object3D, center: THREE.Vector3) {
-    const index = this.occluders.filter((x) => x.index !== undefined).length
-    this.occluders.push({ center, value: 1, index })
-    this.addStatic(o, true, index)
+    this.occluders.push(this.merge.addFading(o, center))
   }
 
   private flushStatic() {
-    const count = Math.max(1, this.occluders.filter((x) => x.index !== undefined).length)
-    this.fadeData = new Float32Array(count).fill(1)
-    this.fadeTex = new THREE.DataTexture(this.fadeData, count, 1, THREE.RedFormat, THREE.FloatType)
-    this.fadeTex.needsUpdate = true
-    for (const part of this.staticParts.values()) {
-      const merged = mergeGeometries(part.geos, false)
-      for (const g of part.geos) g.dispose()
-      if (!merged) continue
-      const material = part.fading ? makeIndexedFadeable(part.material, this.fadeTex) : part.material
-      const mesh = new THREE.Mesh(merged, material)
-      mesh.castShadow = part.cast
-      mesh.receiveShadow = true
-      this.group.add(mesh)
-    }
-    this.staticParts.clear()
+    this.fades = fadeBuffer(this.merge.fadingCount)
+    this.merge.flush(this.group, this.fades.texture)
   }
 
   /** Occulteur autonome (reste un objet à part) : il reçoit son propre matériau « tramable ». */
@@ -294,11 +257,12 @@ export class Deck {
           const hsh = hash(Math.round(cx * 2), Math.round(cz * 2))
           const windowRate = this.def.windows?.[room] ?? 1 / 3
 
-          let model: StationModel = 'wall'
+          let model: 'wall' | 'wall-window' | 'wall-pillar' = 'wall'
           if (exterior && (hsh % 1000) / 1000 < windowRate) model = 'wall-window'
           else if (!exterior && hsh % 5 === 0) model = 'wall-pillar'
           const wall = this.place(model, cx, 0, cz, alongX ? 0 : Math.PI / 2)
           this.addFading(wall, new THREE.Vector3(cx, 0.5, cz))
+          this.walls.push({ x: cx, z: cz, alongX, model })
 
           if (alongX) {
             this.colliders.push({ minX: cx - 0.5, maxX: cx + 0.5, minZ: cz - WALL_T / 2, maxZ: cz + WALL_T / 2 })
@@ -322,6 +286,7 @@ export class Deck {
       const m = post.clone()
       m.position.set(vx, POST_H / 2, vz)
       this.addFading(m, new THREE.Vector3(vx, 0.5, vz))
+      this.posts.push({ x: vx, z: vz })
       const hs = POST_W / 2
       this.colliders.push({ minX: vx - hs, maxX: vx + hs, minZ: vz - hs, maxZ: vz + hs })
     }
@@ -338,6 +303,7 @@ export class Deck {
     const panel = this.place('door-single', cx, 0, cz, rot)
     panel.scale.set(0.98, 0.99, 0.9)
     this.addOccluder([frame, panel], new THREE.Vector3(cx, 0.5, cz))
+    this.walls.push({ x: cx, z: cz, alongX, model: 'door' })
     this.doors.push({
       panel,
       center: new THREE.Vector3(cx, 0, cz),
@@ -576,25 +542,7 @@ export class Deck {
     if (!focus) return
 
     // Murs et gros meubles entre la caméra et le joueur : tramés.
-    const right = _right.set(toCamera.z, 0, -toCamera.x)
-    const v = _v
-    let dirty = false
-    for (const o of this.occluders) {
-      v.set(o.center.x - focus.x, 0, o.center.z - focus.z)
-      const ahead = v.dot(toCamera)
-      const lateral = Math.abs(v.dot(right))
-      const hide = ahead > 0.1 && ahead < 3 && lateral < 1.6
-      const before = o.value
-      o.value = THREE.MathUtils.damp(o.value, hide ? 0.25 : 1, 8, dt)
-      if (o.value > 0.995) o.value = 1
-      if (o.value === before) continue
-      if (o.uniform) o.uniform.value = o.value
-      else {
-        this.fadeData[o.index!] = o.value
-        dirty = true
-      }
-    }
-    if (dirty) this.fadeTex.needsUpdate = true
+    if (updateOccluders(this.occluders, this.fades, { focus, toCamera, cabin: false }, dt)) this.fades.texture.needsUpdate = true
 
     this.glowMat.uniforms.uTime.value = this.time
     const beam = this.liftBeam.material as THREE.ShaderMaterial
