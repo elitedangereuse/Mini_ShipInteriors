@@ -8,6 +8,12 @@ import { CabinBar, InviteMenu, InviteToasts, type CrewEntry } from './cabin/hud'
 import { normalizeLayout, sameLayout, serializeLayout, type CabinItem, type CabinLayout } from './cabin/layout'
 import { CabinStore, requestCabin, type SiteCabin } from './cabin/storage'
 import { devCmdr, fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
+import { ECONOMY, formatCredits, skinPrice } from './economy/data'
+import { CreditsHud } from './economy/hud'
+import { taskOf } from './economy/schedule'
+import { allLooks, lookOwned, skinProduct, starterLook } from './economy/skins'
+import { TASK_INFO, TaskBoard, type LiveTask } from './economy/tasks'
+import { Wallet } from './economy/wallet'
 import { Sound } from './audio'
 import { Avatar, EMOTES } from './avatar'
 import { IsoCamera } from './camera'
@@ -17,7 +23,7 @@ import { beatAt, beatPulse, holoMeGlow, holoTime, type ClawControl, type ClawRes
 import { EN, localizeAttributes, tr } from './i18n'
 import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, LIFT, SPAWN } from './levels'
 import { hydrateIcons, icon } from './icons'
-import { lookId, lookPath, lookRig, parseLook, RACES, raceOf, randomLook, variantsOf, type Look } from './looks'
+import { lookId, lookPath, lookRig, parseLook, raceOf, variantsOf, type Look } from './looks'
 import { JukeboxPanel, JukeboxPlayer, trackById, type Track } from './music'
 import { Net, type MusicState, type PlayerState } from './net'
 import type { Tile } from './pathfinding'
@@ -55,6 +61,9 @@ store.set('name', guestName)
 // modèles (le cookie du site identifie le CMDR ; un invité reçoit un refus).
 const accountRequest = fetchCmdrAccount(15000)
 const cabinRequest = requestCabin(15000)
+/** Crédits du CMDR (cf. economy/wallet.ts), demandés au site en même temps. */
+const wallet = new Wallet()
+void wallet.load()
 /**
  * Réponse d'une demande au site, attendue au plus `ms` à partir de maintenant. Le délai ne court
  * qu'une fois les modèles chargés : sur une machine lente, le chargement seul dépasse souvent
@@ -69,7 +78,7 @@ const within = <T,>(request: Promise<T>, ms: number, fallback: T) =>
  */
 const profile = {
   name: guestName,
-  skin: lookId(store.get('skin') ? parseLook(store.get('skin')) : randomLook()),
+  skin: lookId(store.get('skin') ? parseLook(store.get('skin')) : starterLook()),
 }
 store.set('skin', profile.skin)
 /** Compte lié au site (le relais le confirme en faisant reconnaître le cookie du site). */
@@ -258,6 +267,14 @@ bubbles.attach('cat', (out) => (catDeck.group.visible ? cat.root.getWorldPositio
 
 hydrateIcons()
 localizeAttributes()
+const creditsHud = new CreditsHud(wallet)
+// Crédits gagnés : ils s'envolent du solde ; une tâche ou un record, aussi au-dessus de la tête.
+wallet.onGain = (amount, kind) => {
+  creditsHud.gain(amount, kind === 'passive')
+  if (kind === 'passive') return
+  bubbles.gain('me', `+${formatCredits(amount)}`)
+  sound.credits(amount >= 1000)
+}
 for (const [i, e] of EMOTES.entries()) {
   const b = document.createElement('button')
   b.title = `${e.label} (${i + 1})`
@@ -678,15 +695,9 @@ async function command(text: string) {
       return chat.add('system', renamed(profile.name))
     case 'perso':
     case 'random': {
-      const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)]
-      const race = pick(RACES)
-      const sex = Math.random() < 0.5 ? 'female' : 'male'
-      const look: Look = {
-        race: race.id,
-        sex,
-        variant: pick(variantsOf(race, sex)).id,
-        tint: race.tints ? pick(race.tints).id : 'green',
-      }
+      // Au hasard parmi les apparences qu'on peut porter (offertes, ou achetées).
+      const looks = allLooks().filter((l) => lookOwned(l, wallet))
+      const look: Look = looks[Math.floor(Math.random() * looks.length)]
       await applyLook(look)
       return saveLook(look)
     }
@@ -701,12 +712,35 @@ async function command(text: string) {
       if (!r) return chat.add('system', tr(`Personne à bord ne s'appelle ${arg}.`, `Nobody aboard is called ${arg}.`))
       return invite(r.id)
     }
+    case 'credits':
+    case 'crédits':
+    case 'solde':
+    case 'balance': {
+      if (wallet.state === 'guest') return chat.add('system', tr('Les crédits sont réservés aux CMDR connectés au site.', 'Credits are for CMDRs logged in to the site.'))
+      if (!wallet.ready) return chat.add('system', tr('Crédits indisponibles pour l\'instant : le site ne répond pas.', 'Credits unavailable for now: the site isn\'t responding.'))
+      return chat.add('system', tr(`Solde : ${formatCredits(wallet.balance)}.`, `Balance: ${formatCredits(wallet.balance)}.`))
+    }
+    case 'taches':
+    case 'tâches':
+    case 'chores': {
+      // Où sont les tâches : par pont, et les pièces où elles attendent.
+      const lines: string[] = []
+      for (const d of [...decks].sort((a, b) => b.def.id - a.def.id)) {
+        const rooms = [...board.live.values()].filter((t) => t.deck === d).map((t) => d.roomName(t.spot.x, t.spot.z))
+        if (rooms.length) lines.push(`${d.def.name} : ${rooms.length} (${[...new Set(rooms)].join(', ')})`)
+      }
+      if (!lines.length) return chat.add('system', tr('Aucune tâche à bord pour l\'instant : tout est en ordre.', 'No chores aboard right now: everything is shipshape.'))
+      return chat.add('system', tr(`Tâches à bord · ${lines.join(' · ')}`, `Chores aboard · ${lines.join(' · ')}`))
+    }
     case 'aide':
     case 'help': {
       const emotes = EMOTES.map((x) => '/' + tr(x.id, x.en)).join(' ')
       return chat.add(
         'system',
-        tr(`Commandes : /nom CMDR Pseudo (invités) · /perso · /inviter CMDR Nom · ${emotes}`, `Commands: /name CMDR Nickname (guests) · /random · /invite CMDR Name · ${emotes}`),
+        tr(
+          `Commandes : /nom CMDR Pseudo (invités) · /perso · /inviter CMDR Nom · /credits · /taches · ${emotes}`,
+          `Commands: /name CMDR Nickname (guests) · /random · /invite CMDR Name · /credits · /chores · ${emotes}`,
+        ),
       )
     }
     default:
@@ -781,6 +815,54 @@ function openWardrobe() {
   } else start()
 }
 cabin.onHoloMe = openWardrobe
+
+/** Pourquoi on ne peut pas acheter en ce moment, ou null. */
+function shopBlocked(): string | null {
+  if (!linked || wallet.state === 'guest') return tr('Connectez-vous au site pour acheter des apparences.', 'Log in to the site to buy looks.')
+  if (wallet.state === 'offline') return tr('Boutique indisponible : le site ne répond pas.', 'Shop unavailable: the site isn\'t responding.')
+  if (wallet.state === 'loading') return tr('Chargement de vos crédits…', 'Loading your credits…')
+  return null
+}
+wardrobe.shop = {
+  price: (look) => (lookOwned(look, wallet) ? null : skinPrice(skinProduct(look)!)),
+  blocked: shopBlocked,
+  balance: () => wallet.balance,
+  buy: async (look) => {
+    const product = skinProduct(look)
+    if (!product) return null
+    const result = await wallet.buySkin(product)
+    if (result.ok) {
+      sound.credits(true)
+      chat.add('system', tr(`Apparence achetée : ${describe(look)}.`, `Look bought: ${describe(look)}.`))
+      return null
+    }
+    return result.reason === 'funds' ? tr('Crédits insuffisants.', 'Not enough credits.') : (shopBlocked() ?? tr('Achat non abouti : le site ne répond pas.', 'Purchase failed: the site isn\'t responding.'))
+  },
+}
+
+/**
+ * Apparence portée sans être à soi (choisie avant les crédits, ou sur un autre appareil comme
+ * invité) : retour à la combinaison de vol, offerte. Rien tant qu'on ne sait pas (site injoignable).
+ */
+function checkLook() {
+  wardrobe.refresh()
+  if (wallet.state !== 'ready' && wallet.state !== 'guest') return
+  const look = parseLook(profile.skin)
+  if (lookOwned(look, wallet)) return
+  const next = starterLook()
+  void applyLook(next)
+  profile.skin = lookId(next)
+  store.set('skin', profile.skin)
+  net.sendProfile(profile)
+  chat.add(
+    'system',
+    tr(
+      `${describe(look)} n'est pas dans votre garde-robe : retour à la combinaison de vol. Le Holo-Me de vos quartiers vend les autres apparences.`,
+      `${describe(look)} isn't in your wardrobe: back to the flight suit. The Holo-Me in your quarters sells the other looks.`,
+    ),
+  )
+}
+wallet.subscribe(checkLook)
 
 wardrobe.onChange = (look) => {
   void applyLook(look)
@@ -914,6 +996,7 @@ function loadEditor(): Promise<void> {
         if (verified) net.sendCabin(serializeLayout(layout))
       },
       onClose: () => closeEditor(),
+      wallet,
     })
   })
   return editorLoading
@@ -924,6 +1007,7 @@ function loadEditor(): Promise<void> {
  * quartiers maintenant (en attendant, ceux gardés dans ce navigateur).
  */
 function adoptAccount() {
+  if (!wallet.ready) void wallet.load()
   if (cabinStore) return
   const store = (cabinStore = new CabinStore(profile.name.replace(/^CMDR /, '')))
   setOwnLayout(normalizeLayout(store.localCopy, cabin.bounds))
@@ -1218,6 +1302,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'Escape') {
     toggleAbout(false)
     inviteMenu.close()
+    stopWork()
     // Devant la pince : on quitte la partie.
     if (claw && seating.settled) seating.stand()
     return wardrobe.close(false)
@@ -1384,6 +1469,7 @@ canvas.addEventListener('pointerdown', (e) => {
     return editor!.pointerDown(e)
   }
   if (wardrobe.isOpen) return wardrobe.close(false)
+  stopWork()
   const { tile, item, point } = pick(e)
   // Mode photo : un clic place le personnage, sans rien déclencher (une borne s'ouvrirait par-dessus).
   if (photo.active) {
@@ -1622,7 +1708,7 @@ function arcadeGame(seat: Seated): GameId | null {
 async function openArcade(seat: Seated, game: GameId) {
   if (arcade?.isOpen) return
   arcadeLoading ??= import('./arcade/cabinet').then(({ ArcadeCabinet }) => {
-    arcade = new ArcadeCabinet({ sound, linked: () => linked })
+    arcade = new ArcadeCabinet({ sound, linked: () => linked, onCredits: (credits) => wallet.arcade(credits) })
     // On quitte la borne : on s'en écarte.
     arcade.onClose = () => {
       if (seating.current?.spot.pose === 'arcade') seating.stand()
@@ -1759,6 +1845,99 @@ async function fsdJump() {
   jumping = false
 }
 
+// ------------------------------------------------------------------ tâches de bord
+
+/*
+ * Tâches de bord (cf. economy/tasks.ts) : on s'approche d'une tâche, `E` ou un clic, et le
+ * personnage s'y met pendant quelques secondes ; le moindre pas l'interrompt. Réglée, la tâche
+ * disparaît pour soi, et le site la paie (un invité n'est pas payé).
+ */
+const board = new TaskBoard(decks, wallet)
+// Le site a répondu (tâches déjà réglées ailleurs) : on met les ponts à jour.
+wallet.subscribe(() => board.refresh())
+const progressEl = $('task-progress')
+const progressFill = $('task-progress-fill')
+/** Tâche en cours de règlement, où en est le geste, et quand vient le prochain. */
+let working: { task: LiveTask; t: number; duration: number; next: number } | null = null
+
+board.onInteract = (task) => {
+  if (working || riding || photo.active || editing()) return
+  player.cancelPath()
+  marker.visible = false
+  player.lookAt(task.item.position)
+  working = { task, t: 0, duration: taskOf(task.spot).duration, next: 0 }
+  board.pin(task.spot.id)
+  $('task-progress-label').textContent = TASK_INFO[task.spot.task].doing
+  progressFill.style.width = '0'
+  progressEl.hidden = false
+}
+
+function stopWork() {
+  if (!working) return
+  working = null
+  board.pin(null)
+  progressEl.hidden = true
+}
+
+/** Le geste avance (à chaque image) : le personnage s'affaire, la jauge se remplit. */
+function workStep(dt: number) {
+  const w = working
+  if (!w) return
+  // Parti ailleurs, installé, en photo, ou la tâche a disparu : le geste s'arrête.
+  if (riding || seating.current || editing() || photo.active || player.moving || !board.live.has(w.task.spot.id)) return stopWork()
+  w.t += dt
+  w.next -= dt
+  if (w.next <= 0) {
+    w.next = 0.65
+    player.interact()
+    net.sendEmote('interact')
+    const p = w.task.item.position
+    const at = new THREE.Vector3(p.x, w.task.deck.y + 0.4, p.z)
+    const noise = TASK_INFO[w.task.spot.task].sound
+    if (noise === 'sparks') sound.sparks(at)
+    else sound.work(noise, at)
+  }
+  progressFill.style.width = `${Math.min(100, (w.t / w.duration) * 100).toFixed(1)}%`
+  screenPos.set(w.task.item.position.x, w.task.deck.y + 1.05, w.task.item.position.z).project(iso.camera)
+  progressEl.style.transform = `translate(${(((screenPos.x + 1) / 2) * innerWidth).toFixed(1)}px, ${(((1 - screenPos.y) / 2) * innerHeight).toFixed(1)}px) translate(-50%, -100%)`
+  if (w.t >= w.duration) void finishTask(w.task)
+}
+
+/** Tâche réglée : elle disparaît pour soi, le site la paie. */
+async function finishTask(task: LiveTask) {
+  stopWork()
+  board.complete(task)
+  const info = TASK_INFO[task.spot.task]
+  showText(info.done)
+  const reward = formatCredits(taskOf(task.spot).reward)
+  if (wallet.state === 'guest') return guestPaid(reward)
+  const result = await wallet.claimTask(task.spot.id, task.cycle)
+  if (result.ok) return
+  if (result.reason === 'guest') return guestPaid(reward)
+  if (result.reason === 'claimed') return chat.add('system', tr('Cette tâche était déjà réglée, dans une autre fenêtre du jeu.', 'That chore was already done, in another game window.'))
+  if (result.reason === 'expired' || result.reason === 'inactive') return chat.add('system', tr('Trop tard : cette tâche n\'était plus là.', 'Too late: that chore was no longer there.'))
+  // Pas payée (site injoignable) : la tâche revient, on pourra réessayer.
+  board.undo(task.spot, task.cycle)
+  chat.add('system', tr('Crédits indisponibles : le site ne répond pas. La tâche reste à régler.', 'Credits unavailable: the site isn\'t responding. The chore is still there.'))
+}
+
+/** Un invité règle une tâche : il n'est pas payé, on lui dit comment l'être. */
+function guestPaid(reward: string) {
+  const a = document.createElement('a')
+  a.href = loginUrl()
+  a.textContent = tr('Connectez-vous au site', 'Log in to the site')
+  chat.add('system', [tr(`Tâche réglée (${reward} pour un CMDR). `, `Chore done (${reward} for a CMDR). `), a, tr(' pour être payé en crédits.', ' to be paid in credits.')])
+}
+
+// Revenu passif : un battement par minute, tant qu'on joue (fenêtre visible, et une touche, un
+// clic ou un mouvement de souris dans le dernier quart d'heure). Le site paie le temps écoulé.
+const AFK = 15 * 60 * 1000
+let lastInput = performance.now()
+for (const type of ['keydown', 'pointerdown', 'pointermove', 'wheel']) addEventListener(type, () => (lastInput = performance.now()), { capture: true, passive: true })
+setInterval(() => {
+  if (document.visibilityState === 'visible' && performance.now() - lastInput < AFK) void wallet.passive()
+}, ECONOMY.passive.beat * 1000)
+
 // ------------------------------------------------------------------ mode photo
 
 const photo = new PhotoMode({
@@ -1815,6 +1994,9 @@ let dprCeiling = MAX_DPR
 let promptText = ''
 /** Chronomètre des « Zzz » de ceux qui dorment. */
 let snore = 0
+/** Prochaine mise à l'heure des tâches de bord ; instant figé par le mode photo. */
+let taskClock = 0
+let frozenAt = 0
 
 function frame() {
   timer.update()
@@ -1842,6 +2024,7 @@ function frame() {
   }
   if (input.lengthSq() > 0) {
     marker.visible = false
+    stopWork()
     if (lift.isOpen) lift.close()
     if (wardrobe.isOpen) wardrobe.close(false)
   }
@@ -1874,6 +2057,14 @@ function frame() {
   const keep = seating.current?.item.position ?? null
   for (const d of decks) d.update(world, actors.get(d)!, d === deck ? player.position : null, toCam, editing() && d === cabinDeck, keep, dt)
   editor?.update(timer.getElapsed())
+  // Tâches de bord : à l'heure chaque seconde, animées sur le pont affiché.
+  if ((taskClock -= dt) <= 0) {
+    taskClock = 1
+    board.refresh()
+    creditsHud.setTasks(board.count(deck))
+  }
+  board.update(photo.frozen ? frozenAt : (frozenAt = timer.getElapsed()), deck, !photo.active)
+  creditsHud.update(dt)
 
   stars.update(world, iso.target, toCam, iso.tilt)
   sound.update(iso.target, iso.angle)
@@ -1912,7 +2103,7 @@ function frame() {
   // Invite « E » au-dessus de l'objet le plus proche ; installé sur un meuble, au-dessus du
   // personnage : se relever (et ce que permet la place).
   const sitting = seating.settled && !riding && !editing()
-  const near = riding || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || editing() || seating.current ? null : nearestInteractable()
+  const near = riding || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || editing() || seating.current || working ? null : nearestInteractable()
   const sit = sitting ? seatPrompt(seating.current!) : null
   const label = sit ? `${sit.main}|${sit.space ?? ''}` : near?.label
   if (promptEl.hidden !== !label) promptEl.hidden = !label
@@ -1940,6 +2131,7 @@ function frame() {
   cabinMusic.setAudible(deck === cabinDeck)
   if (!photo.frozen && !deckMusic.syncTempo() && !cabinMusic.syncTempo()) syncTempo(null)
 
+  workStep(dt)
   dialog.update(dt)
   seating.arbitrate()
   sendState()
@@ -1990,6 +2182,8 @@ setDeck(deck)
 
 bootDone()
 $('hud').hidden = false
+// Les crédits ont pu arriver pendant le chargement : l'apparence portée est-elle à soi ?
+checkLook()
 // Les records des bornes, pour leurs écrans (« HI 12340 »).
 void fetchRecords()
 updateNetStatus()
@@ -2001,6 +2195,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, cat, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, music: { deck: deckMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso },
+    __game: { renderer, sound, player, cat, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso },
   })
 }

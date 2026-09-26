@@ -11,7 +11,7 @@ import { recolored } from './recolor'
  * « alien.male.c.blue », « robot.g »…) : c'est ce qui est sauvegardé et envoyé aux autres joueurs.
  */
 
-export type RaceId = 'human' | 'suit' | 'alien' | 'robot' | 'creature'
+export type RaceId = 'human' | 'suit' | 'alien' | 'robot' | 'creature' | 'guardian'
 export type Sex = 'female' | 'male'
 
 export interface Look {
@@ -43,6 +43,12 @@ interface SuitStyle {
   visor: string
   /** Voyants (sac dorsal, lampe du casque). */
   light: string
+}
+
+interface GuardianStyle {
+  ramp: [number, string][]
+  light: string
+  core: string
 }
 
 interface Tint extends Choice {
@@ -170,6 +176,18 @@ export const RACES: Race[] = [
       { id: 'l', label: tr('Zombie en costume', 'Zombie in a suit') },
     ],
   },
+  {
+    id: 'guardian',
+    label: tr('Gardien', 'Guardian'),
+    icon: 'seal-check',
+    sexed: false,
+    variants: [
+      { id: 'a', label: tr('Sentinelle antique', 'Ancient sentinel') },
+      { id: 'b', label: tr('Veilleur synuefe', 'Synuefe watcher') },
+      { id: 'c', label: tr('Exilé d\'obélisque', 'Obelisk exile') },
+      { id: 's', label: tr('Archiviste lumineux', 'Luminous archivist') },
+    ],
+  },
 ]
 
 export const DEFAULT_LOOK: Look = { race: 'suit', sex: 'female', variant: 'b', tint: 'flight' }
@@ -229,6 +247,21 @@ interface ModelSpec {
   hue?: number
   antennae?: boolean
   suit?: SuitStyle
+  guardian?: GuardianStyle
+}
+
+const GUARDIAN_MODELS: Record<string, string> = { a: 'g', b: 'h', c: 'd', s: 'o' }
+
+const GUARDIAN_STYLE: GuardianStyle = {
+  ramp: [
+    [0, '#071018'],
+    [0.32, '#163044'],
+    [0.58, '#466f7a'],
+    [0.82, '#b7cfc7'],
+    [1, '#ecf3dc'],
+  ],
+  light: '#54f5ff',
+  core: '#8cffd4',
 }
 
 function spec(l: Look): ModelSpec {
@@ -245,6 +278,8 @@ function spec(l: Look): ModelSpec {
       return { path: `blocky/character-${l.variant}.glb`, height: 0.72 }
     case 'creature':
       return l.variant === 'orc' ? { path: 'creatures/character-orc.glb', height: 0.74 } : { path: `blocky/character-${l.variant}.glb`, height: 0.72 }
+    case 'guardian':
+      return { path: `blocky/character-${GUARDIAN_MODELS[l.variant] ?? 'g'}.glb`, height: 0.78, guardian: GUARDIAN_STYLE }
   }
 }
 
@@ -293,6 +328,20 @@ function suitTexture(src: THREE.Texture, s: SuitStyle): THREE.Texture {
     while (i < stops.length - 2 && l > stops[i + 1].at) i++
     const a = stops[i], b = stops[i + 1]
     c.copy(a.color).lerp(b.color, THREE.MathUtils.clamp((l - a.at) / (b.at - a.at), 0, 1))
+  })
+}
+
+/** Teinte froide de Gardien : pierre claire, joints bleus et zones lumineuses cyan. */
+function guardianTexture(src: THREE.Texture, s: GuardianStyle): THREE.Texture {
+  const stops = s.ramp.map(([at, color]) => ({ at, color: new THREE.Color(color) }))
+  const glow = new THREE.Color(s.light)
+  return recolored(src, `guardian:${JSON.stringify(s.ramp)}`, (hsl, c) => {
+    const l = THREE.MathUtils.clamp(hsl.l, 0, 1)
+    let i = 0
+    while (i < stops.length - 2 && l > stops[i + 1].at) i++
+    const a = stops[i], b = stops[i + 1]
+    c.copy(a.color).lerp(b.color, THREE.MathUtils.clamp((l - a.at) / (b.at - a.at), 0, 1))
+    if (hsl.s > 0.45 && hsl.l > 0.45) c.lerp(glow, 0.35)
   })
 }
 
@@ -416,6 +465,41 @@ function addSuitGear(root: THREE.Object3D, s: SuitStyle) {
   }
 }
 
+/** Ornements de Gardien : couronne et noyau lumineux, attachés aux os si le modèle en expose. */
+function addGuardianGear(root: THREE.Object3D, s: GuardianStyle) {
+  const stone = new THREE.MeshLambertMaterial({ color: '#d8e2d6' })
+  const dark = new THREE.MeshLambertMaterial({ color: '#123044' })
+  const light = new THREE.MeshBasicMaterial({ color: s.light })
+  const coreMat = new THREE.MeshBasicMaterial({ color: s.core })
+  const head = root.getObjectByName('head') ?? root
+  const torso = root.getObjectByName('torso') ?? root
+
+  const crown = new THREE.Group()
+  for (let i = 0; i < 5; i++) {
+    const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.035, i === 2 ? 0.2 : 0.15, 4), i === 2 ? light : stone)
+    tooth.position.set((i - 2) * 0.055, 0.05 - Math.abs(i - 2) * 0.015, -0.02)
+    tooth.rotation.z = (i - 2) * -0.18
+    crown.add(tooth)
+  }
+  crown.position.set(0, 0.37, 0.01)
+  head.add(crown)
+
+  const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.06, 0), coreMat)
+  core.position.set(0, 0.02, 0.18)
+  torso.add(core)
+  const band = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.012, 4, 18), light)
+  band.position.copy(core.position)
+  band.rotation.x = Math.PI / 2
+  torso.add(band)
+
+  for (const side of [-1, 1]) {
+    const vane = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.18, 0.025), dark)
+    vane.position.set(side * 0.18, 0.08, 0.12)
+    vane.rotation.z = side * -0.35
+    torso.add(vane)
+  }
+}
+
 /** Instancie le modèle animé d'une apparence (mis à l'échelle, teinté, accessoirisé). */
 export async function lookRig(l: Look): Promise<LookRig> {
   const s = spec(l)
@@ -432,8 +516,10 @@ export async function lookRig(l: Look): Promise<LookRig> {
     if (s.hue !== undefined) retexture(m, cache, (t) => tinted(t, s.hue!))
     // Combinaison : seul le corps change, le visage reste celui du modèle.
     else if (s.suit && m.name === 'body-mesh') retexture(m, cache, (t) => suitTexture(t, s.suit!))
+    else if (s.guardian && (m.material as THREE.MeshLambertMaterial).map) retexture(m, cache, (t) => guardianTexture(t, s.guardian!))
   })
   if (s.antennae) addAntennae(r.root)
   if (s.suit) addSuitGear(r.root, s.suit)
-  return { ...r, height: s.height + (s.suit && s.suit.helmet !== 'none' ? 0.05 : 0) }
+  if (s.guardian) addGuardianGear(r.root, s.guardian)
+  return { ...r, height: s.height + (s.suit && s.suit.helmet !== 'none' ? 0.05 : 0) + (s.guardian ? 0.08 : 0) }
 }

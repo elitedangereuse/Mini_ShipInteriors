@@ -33,6 +33,7 @@ import joystick from '@phosphor-icons/core/duotone/joystick-duotone.svg?raw'
 import barbell from '@phosphor-icons/core/duotone/barbell-duotone.svg?raw'
 import paintRoller from '@phosphor-icons/core/duotone/paint-roller-duotone.svg?raw'
 import palette from '@phosphor-icons/core/duotone/palette-duotone.svg?raw'
+import coins from '@phosphor-icons/core/duotone/coins-duotone.svg?raw'
 
 import arrowClockwise from '@phosphor-icons/core/bold/arrow-clockwise-bold.svg?raw'
 import arrowCounterClockwise from '@phosphor-icons/core/bold/arrow-counter-clockwise-bold.svg?raw'
@@ -81,6 +82,22 @@ import stop from '@phosphor-icons/core/bold/stop-bold.svg?raw'
 import musicNotes from '@phosphor-icons/core/bold/music-notes-bold.svg?raw'
 import vinylRecord from '@phosphor-icons/core/bold/vinyl-record-bold.svg?raw'
 import trophy from '@phosphor-icons/core/bold/trophy-bold.svg?raw'
+import drop from '@phosphor-icons/core/bold/drop-bold.svg?raw'
+import plant from '@phosphor-icons/core/bold/plant-bold.svg?raw'
+import pawPrint from '@phosphor-icons/core/bold/paw-print-bold.svg?raw'
+import forkKnife from '@phosphor-icons/core/bold/fork-knife-bold.svg?raw'
+import packageIcon from '@phosphor-icons/core/bold/package-bold.svg?raw'
+import drone from '@phosphor-icons/core/bold/drone-bold.svg?raw'
+import cpu from '@phosphor-icons/core/bold/cpu-bold.svg?raw'
+import fan from '@phosphor-icons/core/bold/fan-bold.svg?raw'
+import shieldWarning from '@phosphor-icons/core/bold/shield-warning-bold.svg?raw'
+import lightning from '@phosphor-icons/core/bold/lightning-bold.svg?raw'
+import wind from '@phosphor-icons/core/bold/wind-bold.svg?raw'
+import wrench from '@phosphor-icons/core/bold/wrench-bold.svg?raw'
+import lockSimple from '@phosphor-icons/core/bold/lock-simple-bold.svg?raw'
+import shoppingCart from '@phosphor-icons/core/bold/shopping-cart-bold.svg?raw'
+import minus from '@phosphor-icons/core/bold/minus-bold.svg?raw'
+import plus from '@phosphor-icons/core/bold/plus-bold.svg?raw'
 
 const SVG = {
   // emotes
@@ -164,6 +181,24 @@ const SVG = {
   'music-notes': musicNotes,
   'vinyl-record': vinylRecord,
   trophy,
+  // crédits, boutique, tâches de bord (leurs marqueurs sont dessinés avec, cf. economy/tasks.ts)
+  coins,
+  'lock-simple': lockSimple,
+  'shopping-cart': shoppingCart,
+  minus,
+  plus,
+  wrench,
+  drop,
+  plant,
+  'paw-print': pawPrint,
+  'fork-knife': forkKnife,
+  package: packageIcon,
+  drone,
+  cpu,
+  fan,
+  'shield-warning': shieldWarning,
+  lightning,
+  wind,
 } as const
 
 export type IconName = keyof typeof SVG
@@ -179,6 +214,9 @@ export function icon(name: IconName, className = ''): SVGSVGElement {
   svg.setAttribute('aria-hidden', 'true')
   return svg
 }
+
+/** Code SVG d'une icône (pour la dessiner dans une texture). */
+export const iconSvg = (name: IconName): string => SVG[name]
 
 /** Remplace les `<i data-icon="nom">` du HTML statique par les icônes correspondantes. */
 export function hydrateIcons(root: ParentNode = document) {

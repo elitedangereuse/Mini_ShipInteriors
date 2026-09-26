@@ -1,6 +1,8 @@
 import * as THREE from 'three'
 import type { Sound } from '../audio'
 import type { IsoCamera } from '../camera'
+import { formatCredits, itemPrice } from '../economy/data'
+import type { Wallet } from '../economy/wallet'
 import { EN, tr } from '../i18n'
 import { icon } from '../icons'
 import type { Rot } from '../levels'
@@ -8,7 +10,7 @@ import { DIRS } from '../map'
 import { $ } from '../ui'
 import { CATALOG, CATEGORIES, entryOf, type CatalogEntry, type CategoryId } from './catalog'
 import { drawFinish, stylesOf, styleOf, type Slot } from './finishes'
-import { cloneItems, cloneLayout, defaultLayout, MAX_ITEMS, sameItems, sameLayout, type CabinItem, type CabinLayout, type Finish } from './layout'
+import { cloneItems, cloneLayout, DEFAULT_CABIN, defaultLayout, MAX_ITEMS, sameItems, sameLayout, type CabinItem, type CabinLayout, type Finish } from './layout'
 import { refusal, ridersOf, surfacesOf, type Surface } from './rules'
 import { thumbnail } from './thumbs'
 import { rotateLocal, type CabinView, type WallLine } from './view'
@@ -20,6 +22,11 @@ import { rotateLocal, type CabinView, type WallLine } from './view'
  * glisser-déposer). Au clavier : R pour tourner, Suppr pour retirer, flèches pour ajuster,
  * Ctrl+Z pour annuler, Échap pour finir. Chaque changement passe par les règles de pose
  * (rules.ts) ; main.ts l'enregistre et le montre aux invités.
+ *
+ * Les objets se paient en crédits, à l'exemplaire (cf. economy/) : une carte montre les
+ * exemplaires en stock (achetés, plus le mobilier d'origine, offert, moins ceux qui sont posés),
+ * ou le prix. Sans exemplaire en stock, la carte ouvre l'achat ; l'objet acheté passe en main.
+ * Retirer un objet le remet en stock : il se repose sans rien payer.
  */
 
 /** Pas de la grille de pose, et distance à laquelle un meuble se colle à un mur. */
@@ -43,6 +50,8 @@ export interface EditorHost {
   onChange: (layout: CabinLayout) => void
   /** Le joueur quitte le mode aménagement (Terminer, Échap). */
   onClose: () => void
+  /** Crédits du CMDR : les objets s'achètent à l'exemplaire. */
+  wallet: Wallet
 }
 
 /** Objet en main : un objet de la cabine qu'on déplace, ou un nouvel objet du catalogue. */
@@ -70,6 +79,14 @@ const ORIGIN = 'origin'
 const THUMB = 128
 
 const RESET = tr('Réinitialiser', 'Reset')
+/** Exemplaires achetés d'un coup au plus (même limite sur le site). */
+const MAX_BATCH = 10
+/** Exemplaires d'un même objet dans l'inventaire au plus (même limite sur le site). */
+const MAX_COPIES = 64
+
+/** Le mobilier d'origine des quartiers est offert : exemplaires de chaque objet. */
+const FREE = new Map<string, number>()
+for (const it of DEFAULT_CABIN) FREE.set(it.m, (FREE.get(it.m) ?? 0) + 1)
 
 const snap = (v: number, step = SNAP) => Math.round(Math.round(v / step) * step * 1000) / 1000
 const round3 = (v: number) => Math.round(v * 1000) / 1000
@@ -96,6 +113,10 @@ export class CabinEditor {
   /** Dernière retouche d'une teinte (nuancier) : les suivantes s'y ajoutent dans l'historique. */
   private lastTint: { slot: Slot; at: number } | null = null
   private category: CategoryId = 'rest'
+  /** Achat en cours : l'objet, combien d'exemplaires, la réponse attendue du site, un refus. */
+  private buying: { entry: CatalogEntry; count: number; pending: boolean; error: string } | null = null
+  /** Étiquette de prix (ou de stock) de chaque carte du catalogue affichée. */
+  private cardTags = new Map<string, { card: HTMLElement; tag: HTMLElement; entry: CatalogEntry }>()
   /** Catalogue du mobilier, ou revêtements des murs et du sol. */
   private mode: 'objects' | 'finish' = 'objects'
   private confirmReset = 0
@@ -117,7 +138,9 @@ export class CabinEditor {
   private readonly root = $('editor')
   private readonly bar: HTMLElement
   private readonly countEl: HTMLElement
+  private readonly balanceEl: HTMLElement
   private readonly saveEl: HTMLElement
+  private readonly buyEl: HTMLElement
   private readonly undoBtn: HTMLButtonElement
   private readonly redoBtn: HTMLButtonElement
   private readonly resetBtn: HTMLButtonElement
@@ -165,6 +188,8 @@ export class CabinEditor {
     this.countEl.className = 'ed-count'
     this.saveEl = document.createElement('div')
     this.saveEl.className = 'ed-save'
+    this.balanceEl = document.createElement('div')
+    this.balanceEl.className = 'ed-balance'
     const button = (label: string, glyph: Parameters<typeof icon>[0], onClick: () => void, cls = '') => {
       const b = document.createElement('button')
       b.className = cls
@@ -183,7 +208,7 @@ export class CabinEditor {
     done.title = tr('Terminer (Échap)', 'Done (Esc)')
     const info = document.createElement('div')
     info.className = 'ed-info'
-    info.append(title, this.countEl, this.saveEl)
+    info.append(title, this.countEl, this.balanceEl, this.saveEl)
     const actions = document.createElement('div')
     actions.className = 'ed-actions'
     actions.append(this.undoBtn, this.redoBtn, this.resetBtn, done)
@@ -205,7 +230,11 @@ export class CabinEditor {
     this.tabs.className = 'ed-tabs'
     this.cards = document.createElement('div')
     this.cards.className = 'ed-cards'
-    catalog.append(this.modes, this.tabs, this.cards)
+    // Achat d'un objet : en bas du catalogue, sous les cartes.
+    this.buyEl = document.createElement('div')
+    this.buyEl.className = 'ed-buy'
+    this.buyEl.hidden = true
+    catalog.append(this.modes, this.tabs, this.cards, this.buyEl)
     for (const c of CATEGORIES) {
       const b = document.createElement('button')
       b.title = c.label
@@ -234,6 +263,14 @@ export class CabinEditor {
     this.toastEl.hidden = true
     this.root.append(bar, catalog, this.tools, this.hint, this.toastEl)
     for (const el of [bar, catalog, this.tools]) el.addEventListener('pointerdown', (e) => e.stopPropagation())
+
+    // Solde, stock et achat suivent les crédits (achat fait, réponse du site…).
+    host.wallet.subscribe(() => {
+      if (!this.open) return
+      this.renderBalance()
+      this.refreshCards()
+      this.renderBuy()
+    })
 
     // Carte saisie, relâchée au-dessus de la cabine : l'objet est posé là.
     addEventListener('pointerup', (e) => {
@@ -304,12 +341,14 @@ export class CabinEditor {
     if (this.mode === 'finish') this.showFinishes()
     else this.showCategory(this.category)
     this.renderBar()
+    this.renderBalance()
     this.renderTools()
     this.setHint()
   }
 
   stop() {
     if (!this.open) return
+    this.closeBuy()
     this.cancelHeld()
     this.open = false
     this.root.hidden = true
@@ -358,6 +397,7 @@ export class CabinEditor {
     title.className = 'ed-cat-title'
     title.textContent = CATEGORIES.find((c) => c.id === id)?.label ?? ''
     this.cards.appendChild(title)
+    this.cardTags.clear()
     for (const entry of CATALOG.filter((e) => e.category === id)) {
       const card = document.createElement('button')
       card.className = 'ed-card'
@@ -370,12 +410,16 @@ export class CabinEditor {
       })
       const name = document.createElement('span')
       name.textContent = entry.name
-      card.append(img, name)
+      const tag = document.createElement('span')
+      tag.className = 'ed-card-tag'
+      card.append(img, name, tag)
       // À la souris, on saisit la carte (clic, ou glisser-déposer dans la cabine) ; au doigt,
-      // glisser fait défiler le catalogue, et toucher une carte la prend en main.
+      // glisser fait défiler le catalogue, et toucher une carte la prend en main. Sans
+      // exemplaire en stock, la carte ouvre l'achat.
       card.addEventListener('pointerdown', (e) => {
         if (e.button !== 0 || e.pointerType !== 'mouse') return
         e.preventDefault()
+        if (this.stock(entry.id) <= 0) return this.openBuy(entry)
         this.startPlacing(entry)
         this.placeOnRelease = true
       })
@@ -383,12 +427,178 @@ export class CabinEditor {
         if ((e as PointerEvent).pointerType !== 'mouse') this.startPlacing(entry)
       })
       this.cards.appendChild(card)
+      this.cardTags.set(entry.id, { card, tag, entry })
     }
+    this.refreshCards()
+  }
+
+  // ---------------------------------------------------------------- crédits
+
+  /**
+   * Exemplaires d'un objet qu'on peut encore poser : achetés, plus ceux du mobilier d'origine
+   * (offerts), moins ceux déjà posés. Un objet sans prix n'est pas compté (Infinity).
+   */
+  private stock(id: string): number {
+    if (itemPrice(id) === null) return Infinity
+    let placed = 0
+    for (const it of this.items) if (it.m === id) placed++
+    return (this.host.wallet.items.get(id) ?? 0) + (FREE.get(id) ?? 0) - placed
+  }
+
+  /** Étiquettes des cartes : exemplaires en stock, ou prix (grisé s'il dépasse le solde). */
+  private refreshCards() {
+    const { wallet } = this.host
+    for (const { card, tag, entry } of this.cardTags.values()) {
+      const stock = this.stock(entry.id)
+      const price = itemPrice(entry.id) ?? 0
+      const inStock = stock > 0
+      tag.textContent = !Number.isFinite(stock) ? '' : inStock ? tr(`${stock} en stock`, `${stock} in stock`) : formatCredits(price)
+      tag.classList.toggle('stock', inStock)
+      card.classList.toggle('poor', !inStock && wallet.ready && price > wallet.balance)
+      card.title = `${entry.name}${entry.mount === 'wall' ? tr(' (à accrocher)', ' (hangs on a wall)') : entry.mount === 'top' ? tr(' (se pose sur un meuble)', ' (goes on furniture)') : ''}${inStock ? '' : tr(` · ${formatCredits(price)} l'exemplaire`, ` · ${formatCredits(price)} each`)}`
+    }
+  }
+
+  private renderBalance() {
+    const { wallet } = this.host
+    this.balanceEl.replaceChildren(icon('coins'), document.createTextNode(wallet.ready ? formatCredits(wallet.balance) : tr('Crédits indisponibles', 'Credits unavailable')))
+    this.balanceEl.classList.toggle('offline', !wallet.ready)
+  }
+
+  /** Ouvre l'achat d'un objet (en bas du catalogue). */
+  private openBuy(entry: CatalogEntry) {
+    this.cancelHeld()
+    this.buying = { entry, count: 1, pending: false, error: '' }
+    this.host.sound.ui('pick')
+    this.renderBuy()
+  }
+
+  private closeBuy() {
+    if (!this.buying) return
+    this.buying = null
+    this.renderBuy()
+  }
+
+  /** Nombre d'exemplaires qu'on peut acheter d'un coup (inventaire plein, limite par achat). */
+  private maxBatch(entry: CatalogEntry): number {
+    return Math.max(1, Math.min(MAX_BATCH, MAX_COPIES - (this.host.wallet.items.get(entry.id) ?? 0)))
+  }
+
+  private renderBuy() {
+    const b = this.buying
+    this.buyEl.hidden = !b
+    if (!b) return
+    const { wallet } = this.host
+    const price = itemPrice(b.entry.id) ?? 0
+    b.count = Math.min(b.count, this.maxBatch(b.entry))
+    const total = price * b.count
+    this.buyEl.replaceChildren()
+
+    const head = document.createElement('div')
+    head.className = 'eb-head'
+    const img = document.createElement('img')
+    img.alt = ''
+    img.draggable = false
+    thumbnail(b.entry, b.entry.variants?.[0].id, (url) => {
+      if (url) img.src = url
+    })
+    const what = document.createElement('div')
+    const name = document.createElement('div')
+    name.className = 'eb-name'
+    name.textContent = b.entry.name
+    const unit = document.createElement('div')
+    unit.className = 'eb-unit'
+    unit.textContent = tr(`${formatCredits(price)} l'exemplaire`, `${formatCredits(price)} each`)
+    what.append(name, unit)
+    const close = document.createElement('button')
+    close.className = 'eb-close'
+    close.title = tr('Fermer (Échap)', 'Close (Esc)')
+    close.append(icon('x'))
+    close.onclick = () => this.closeBuy()
+    head.append(img, what, close)
+
+    // Quantité, total, et solde après l'achat.
+    const row = document.createElement('div')
+    row.className = 'eb-row'
+    const step = (glyph: 'minus' | 'plus', delta: number, disabled: boolean) => {
+      const btn = document.createElement('button')
+      btn.className = 'eb-step'
+      btn.append(icon(glyph))
+      btn.disabled = disabled || b.pending
+      btn.setAttribute('aria-label', delta > 0 ? tr('Un de plus', 'One more') : tr('Un de moins', 'One less'))
+      btn.onclick = () => {
+        b.count += delta
+        b.error = ''
+        this.renderBuy()
+      }
+      return btn
+    }
+    const count = document.createElement('span')
+    count.className = 'eb-count'
+    count.textContent = `×${b.count}`
+    const sum = document.createElement('span')
+    sum.className = 'eb-total'
+    sum.textContent = formatCredits(total)
+    row.append(step('minus', -1, b.count <= 1), count, step('plus', 1, b.count >= this.maxBatch(b.entry)), sum)
+
+    const note = document.createElement('div')
+    note.className = 'eb-note'
+    const short = wallet.ready && total > wallet.balance
+    if (b.error) {
+      note.textContent = b.error
+      note.classList.add('error')
+    } else if (wallet.state === 'offline') {
+      note.textContent = tr('Boutique indisponible : le site ne répond pas.', 'Shop unavailable: the site isn\'t responding.')
+      note.classList.add('error')
+    } else if (!wallet.ready) note.textContent = tr('Chargement de vos crédits…', 'Loading your credits…')
+    else if (short) {
+      note.textContent = tr(
+        `Il vous manque ${formatCredits(total - wallet.balance)}. Les tâches de bord et les bornes d'arcade en rapportent.`,
+        `You're ${formatCredits(total - wallet.balance)} short. Ship chores and the arcade cabinets pay.`,
+      )
+      note.classList.add('error')
+    } else note.textContent = tr(`Solde après l'achat : ${formatCredits(wallet.balance - total)}`, `Balance after purchase: ${formatCredits(wallet.balance - total)}`)
+
+    const buy = document.createElement('button')
+    buy.className = 'eb-buy'
+    buy.append(icon('shopping-cart'), document.createTextNode(b.pending ? tr('Achat…', 'Buying…') : tr('Acheter', 'Buy')))
+    buy.disabled = b.pending || !wallet.ready || short
+    buy.onclick = () => void this.confirmBuy()
+    this.buyEl.append(head, row, note, buy)
+  }
+
+  /** Achète les exemplaires demandés ; le premier passe en main, prêt à être posé. */
+  private async confirmBuy() {
+    const b = this.buying
+    if (!b || b.pending) return
+    b.pending = true
+    b.error = ''
+    this.renderBuy()
+    const result = await this.host.wallet.buyItem(b.entry.id, b.count)
+    if (this.buying !== b) return
+    b.pending = false
+    if (!result.ok) {
+      this.host.sound.ui('deny')
+      b.error = {
+        funds: tr('Crédits insuffisants.', 'Not enough credits.'),
+        max: tr(`Inventaire plein : ${MAX_COPIES} exemplaires au plus.`, `Inventory full: ${MAX_COPIES} copies at most.`),
+        guest: tr('Achats réservés aux CMDR connectés au site.', 'Only CMDRs logged in to the site can buy.'),
+      }[result.reason as 'funds' | 'max' | 'guest'] ?? tr('Achat non abouti : le site ne répond pas. Réessayez.', 'Purchase failed: the site isn\'t responding. Try again.')
+      return this.renderBuy()
+    }
+    const total = (itemPrice(b.entry.id) ?? 0) * b.count
+    this.buying = null
+    this.renderBuy()
+    this.host.sound.credits()
+    this.toast(tr(`${b.entry.name}${b.count > 1 ? ` ×${b.count}` : ''} : ${formatCredits(total)}. Cliquez dans la cabine pour poser.`, `${b.entry.name}${b.count > 1 ? ` ×${b.count}` : ''}: ${formatCredits(total)}. Click in your quarters to place it.`))
+    this.startPlacing(b.entry)
   }
 
   private startPlacing(entry: CatalogEntry) {
     this.cancelHeld()
     if (this.items.length >= MAX_ITEMS) return this.refuse(tr(`Cabine pleine : ${MAX_ITEMS} objets au plus`, `Quarters full: ${MAX_ITEMS} items at most`))
+    if (this.stock(entry.id) <= 0) return this.openBuy(entry)
+    this.closeBuy()
     const item: CabinItem = { m: entry.id, x: this.view.center.x, z: this.view.center.z, r: 0, s: Math.floor(Math.random() * 100000) }
     if (entry.variants) item.v = entry.variants[0].id
     const ghost = this.view.makeGhost(item)
@@ -407,8 +617,10 @@ export class CabinEditor {
   /** Onglet des revêtements : pour les murs puis le sol, les motifs, puis les teintes du motif choisi. */
   private showFinishes() {
     this.cancelHeld()
+    this.closeBuy()
     this.setMode('finish')
     this.cards.replaceChildren()
+    this.cardTags.clear()
     this.finishEls = {}
     for (const [slot, title] of [['wall', tr('Murs', 'Walls')], ['floor', tr('Sol', 'Floor')]] as const) {
       const h = document.createElement('div')
@@ -775,7 +987,9 @@ export class CabinEditor {
     this.clearHeld()
     this.commit(c.items, keep ? -1 : c.index)
     this.host.sound.ui('drop')
-    if (keep) this.startPlacing(entry)
+    // Maj+clic : un autre en main, s'il en reste en stock.
+    if (keep && this.stock(entry.id) > 0) this.startPlacing(entry)
+    else if (keep) this.toast(tr(`Plus de ${entry.name.toLowerCase()} en stock : la carte du catalogue en achète d'autres.`, `No more ${entry.name.toLowerCase()} in stock: its catalogue card buys more.`))
     this.setHint()
   }
 
@@ -998,6 +1212,7 @@ export class CabinEditor {
     this.selected = select < next.items.length ? select : -1
     this.renderTools()
     this.renderBar()
+    this.refreshCards()
     if (this.mode === 'finish') this.refreshFinishes()
     this.host.onChange(cloneLayout(next))
   }
@@ -1054,8 +1269,10 @@ export class CabinEditor {
       if (e.shiftKey) this.redo()
       else this.undo()
     } else if (ctrl && e.code === 'KeyY') this.redo()
+    else if (this.buying && (e.code === 'Enter' || e.code === 'NumpadEnter')) void this.confirmBuy()
     else if (e.code === 'Escape') {
-      if (this.held) this.cancelHeld()
+      if (this.buying) this.closeBuy()
+      else if (this.held) this.cancelHeld()
       else if (this.selected >= 0) this.select(-1)
       else this.host.onClose()
     } else if (e.code === 'KeyR' && (this.held || this.selected >= 0)) this.rotate(e.shiftKey ? -1 : 1)

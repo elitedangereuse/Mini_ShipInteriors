@@ -49,8 +49,19 @@ export async function fetchBoard(game: GameId): Promise<Board | null> {
   }
 }
 
+/**
+ * Crédits d'un record personnel (cf. phputils/mini_shipinteriors/credits.php) : gagnés, solde
+ * après, paliers de score franchis, record du vaisseau pris à un autre CMDR.
+ */
+export interface ArcadeCredits {
+  earned: number
+  balance: number
+  tiers: number[]
+  record: boolean
+}
+
 export type Submission =
-  | { kind: 'saved'; board: Board; best: boolean }
+  | { kind: 'saved'; board: Board; best: boolean; credits: ArcadeCredits | null }
   /** Invité : le score reste dans le navigateur. */
   | { kind: 'guest' }
   | { kind: 'error' }
@@ -66,11 +77,16 @@ export async function submitScore(game: GameId, score: number, level: number, du
     })
     if (res.status === 401) return { kind: 'guest' }
     if (!res.ok) return { kind: 'error' }
-    const data = (await res.json()) as { best?: unknown }
+    const data = (await res.json()) as { best?: unknown; credits?: Partial<ArcadeCredits> | null }
     const b = board(data)
     if (!b) return { kind: 'error' }
     if (b.top[0]) records[game] = { cmdr: b.top[0].cmdr, score: b.top[0].score }
-    return { kind: 'saved', board: b, best: data.best === true }
+    const c = data.credits
+    const credits =
+      c && Number.isFinite(c.earned) && Number.isFinite(c.balance)
+        ? { earned: c.earned!, balance: c.balance!, tiers: Array.isArray(c.tiers) ? c.tiers.filter(Number.isFinite) : [], record: c.record === true }
+        : null
+    return { kind: 'saved', board: b, best: data.best === true, credits }
   } catch {
     return { kind: 'error' }
   }
