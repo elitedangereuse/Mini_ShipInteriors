@@ -511,86 +511,116 @@ function addGuardianGear(root: THREE.Object3D, s: GuardianStyle) {
   const coreMat = new THREE.MeshBasicMaterial({ color: s.core })
   const head = root.getObjectByName('head') ?? root
   const torso = root.getObjectByName('torso') ?? root
+  root.updateMatrixWorld(true)
+  const bounds = (part: THREE.Object3D) => {
+    const mesh = part as THREE.Mesh
+    return mesh.isMesh ? boxInBone(mesh, part) : new THREE.Box3(new THREE.Vector3(-0.4, 0, -0.2), new THREE.Vector3(0.4, 1, 0.2))
+  }
+  const headBox = bounds(head)
+  const headSize = headBox.getSize(new THREE.Vector3())
+  const headCenter = headBox.getCenter(new THREE.Vector3())
+  const torsoBox = bounds(torso)
+  const torsoSize = torsoBox.getSize(new THREE.Vector3())
+  const torsoCenter = torsoBox.getCenter(new THREE.Vector3())
+  const front = (box: THREE.Box3) => box.max.z + box.getSize(new THREE.Vector3()).z * 0.025
 
+  // Une couronne intégrée au contour du crâne, dimensionnée en coordonnées locales du modèle.
   const crown = new THREE.Group()
+  const crownY = headBox.max.y + headSize.y * 0.035
+  const crownZ = headCenter.z
+  const crownWidth = headSize.x * 0.76
   if (s.motif === 'watcher') {
-    // Halo polygonal, volontairement décentré : il lit bien même sur le modèle sombre.
-    const halo = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.014, 5, 8), light)
-    halo.rotation.x = Math.PI / 2
-    halo.rotation.z = -0.18
-    halo.position.set(0, 0.08, -0.01)
+    const halo = new THREE.Mesh(new THREE.TorusGeometry(crownWidth * 0.42, headSize.x * 0.035, 5, 10), light)
+    halo.position.set(0, crownY + headSize.y * 0.11, crownZ - headSize.z * 0.15)
     crown.add(halo)
     for (const side of [-1, 1]) {
-      const shard = new THREE.Mesh(new THREE.OctahedronGeometry(0.035, 0), accent)
-      shard.position.set(side * 0.14, 0.05, 0)
+      const shard = new THREE.Mesh(new THREE.OctahedronGeometry(headSize.x * 0.13, 0), accent)
+      shard.position.set(side * crownWidth * 0.55, crownY, crownZ)
       crown.add(shard)
     }
   } else if (s.motif === 'exile') {
-    // Un fragment d'obélisque planté dans le front, plus deux éclats cassés.
-    const obelisk = new THREE.Mesh(new THREE.ConeGeometry(0.052, 0.22, 4), light)
-    obelisk.position.set(0, 0.13, 0.08)
+    const obelisk = new THREE.Mesh(new THREE.ConeGeometry(headSize.x * 0.16, headSize.y * 0.34, 4), light)
+    obelisk.position.set(0, crownY + headSize.y * 0.13, crownZ + headSize.z * 0.08)
     obelisk.rotation.z = -0.08
     crown.add(obelisk)
     for (const side of [-1, 1]) {
-      const shard = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.11, 4), accent)
-      shard.position.set(side * 0.085, 0.06, 0.01)
-      shard.rotation.z = side * 0.32
+      const shard = new THREE.Mesh(new THREE.ConeGeometry(headSize.x * 0.09, headSize.y * 0.2, 4), accent)
+      shard.position.set(side * crownWidth * 0.38, crownY + headSize.y * 0.03, crownZ)
+      shard.rotation.z = side * 0.3
       crown.add(shard)
     }
   } else if (s.motif === 'archivist') {
-    // Trois anneaux fins et un cristal central, comme une petite balise d'archive.
     for (let i = 0; i < 3; i++) {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.1 + i * 0.035, 0.009, 4, 16), i === 1 ? light : accent)
-      ring.rotation.x = Math.PI / 2
-      ring.rotation.z = (i - 1) * 0.22
-      ring.position.set(0, 0.06 + i * 0.018, 0)
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(crownWidth * (0.3 + i * 0.1), headSize.x * 0.025, 4, 16), i === 1 ? light : accent)
+      ring.position.set(0, crownY + headSize.y * (0.07 + i * 0.035), crownZ - headSize.z * 0.12)
+      ring.rotation.y = (i - 1) * 0.24
       crown.add(ring)
     }
-    const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.04, 0), coreMat)
-    crystal.position.set(0, 0.16, 0.02)
+    const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(headSize.x * 0.15, 0), coreMat)
+    crystal.position.set(0, crownY + headSize.y * 0.28, crownZ)
     crown.add(crystal)
   } else {
-    // Diadème à cinq pointes de la sentinelle antique.
     for (let i = 0; i < 5; i++) {
-      const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.035, i === 2 ? 0.2 : 0.15, 4), i === 2 ? light : stone)
-      tooth.position.set((i - 2) * 0.055, 0.05 - Math.abs(i - 2) * 0.015, -0.02)
-      tooth.rotation.z = (i - 2) * -0.18
+      const tooth = new THREE.Mesh(new THREE.ConeGeometry(headSize.x * 0.1, headSize.y * (i === 2 ? 0.32 : 0.23), 4), i === 2 ? light : stone)
+      tooth.position.set((i - 2) * crownWidth * 0.23, crownY + headSize.y * 0.1 - Math.abs(i - 2) * headSize.y * 0.015, crownZ)
+      tooth.rotation.z = (i - 2) * -0.15
       crown.add(tooth)
     }
   }
-  crown.position.set(0, 0.37, 0.01)
   head.add(crown)
 
-  // Plaque de poitrine et noyau : la plaque évite l'effet « simple personnage recoloré ».
-  const chest = new THREE.Mesh(new RoundedBoxGeometry(0.22, 0.2, 0.055, 1, 0.025), accent)
-  chest.position.set(0, 0.08, 0.16)
-  chest.rotation.z = Math.PI / 4
+  // Cuirasse en trois plaques, bord lumineux et cristal central.
+  const plateW = torsoSize.x * 0.72
+  const plateH = torsoSize.y * 0.43
+  const plateY = torsoCenter.y + torsoSize.y * 0.04
+  const plateZ = front(torsoBox)
+  const backing = new THREE.Mesh(new RoundedBoxGeometry(plateW * 1.08, plateH * 1.08, torsoSize.z * 0.1, 2, Math.min(plateW, plateH) * 0.12), dark)
+  backing.position.set(torsoCenter.x, plateY, plateZ)
+  torso.add(backing)
+  const chest = new THREE.Mesh(new RoundedBoxGeometry(plateW, plateH, torsoSize.z * 0.08, 2, Math.min(plateW, plateH) * 0.13), accent)
+  chest.position.set(torsoCenter.x, plateY, plateZ + torsoSize.z * 0.06)
   torso.add(chest)
-
-  const core = new THREE.Mesh(new THREE.OctahedronGeometry(s.motif === 'archivist' ? 0.07 : 0.06, 0), coreMat)
-  core.position.set(0, 0.02, 0.18)
+  const inset = new THREE.Mesh(new RoundedBoxGeometry(plateW * 0.72, plateH * 0.66, torsoSize.z * 0.055, 2, Math.min(plateW, plateH) * 0.1), stone)
+  inset.position.set(torsoCenter.x, plateY, plateZ + torsoSize.z * 0.12)
+  torso.add(inset)
+  const core = new THREE.Mesh(new THREE.OctahedronGeometry(Math.min(plateW, plateH) * 0.19, 0), coreMat)
+  core.position.set(torsoCenter.x, plateY, plateZ + torsoSize.z * 0.2)
   torso.add(core)
-  const band = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.012, 4, 18), light)
+  const band = new THREE.Mesh(new THREE.TorusGeometry(Math.min(plateW, plateH) * 0.27, torsoSize.x * 0.018, 5, 20), light)
   band.position.copy(core.position)
-  band.rotation.x = Math.PI / 2
   torso.add(band)
 
+  // Épaulettes et brassards suivent leurs membres, avec genouillères et grèves assorties.
   for (const side of [-1, 1]) {
-    const shoulder = new THREE.Mesh(new RoundedBoxGeometry(0.13, 0.1, 0.16, 1, 0.025), stone)
-    shoulder.position.set(side * 0.18, 0.12, 0.03)
-    shoulder.rotation.z = side * -0.2
-    torso.add(shoulder)
-    const vane = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.18, 0.025), dark)
-    vane.position.set(side * 0.18, 0.08, 0.12)
-    vane.rotation.z = side * -0.35
-    torso.add(vane)
-  }
-
-  // Petits points lumineux latéraux : ils donnent du relief sans ajouter un gros halo plat.
-  for (const side of [-1, 1]) {
-    const marker = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), light)
-    marker.position.set(side * 0.22, 0.02, 0.15)
-    torso.add(marker)
+    const arm = root.getObjectByName(side < 0 ? 'arm-right' : 'arm-left')
+    if (arm) {
+      const b = bounds(arm), size = b.getSize(new THREE.Vector3()), center = b.getCenter(new THREE.Vector3())
+      const shoulder = new THREE.Mesh(new RoundedBoxGeometry(size.x * 0.92, size.y * 0.3, size.z * 0.92, 1, Math.min(size.x, size.z) * 0.18), stone)
+      shoulder.position.set(center.x, b.max.y - size.y * 0.12, center.z)
+      arm.add(shoulder)
+      const bracerDepth = size.z * 0.22
+      const bracer = new THREE.Mesh(new RoundedBoxGeometry(size.x * 0.82, size.y * 0.32, bracerDepth, 1, Math.min(size.x, bracerDepth) * 0.15), accent)
+      bracer.position.set(center.x, b.min.y + size.y * 0.28, front(b) + bracerDepth * 0.48)
+      arm.add(bracer)
+      const stud = new THREE.Mesh(new THREE.OctahedronGeometry(Math.min(size.x, size.z) * 0.16, 0), light)
+      stud.position.set(center.x, bracer.position.y, bracer.position.z + bracerDepth * 0.55)
+      arm.add(stud)
+    }
+    const leg = root.getObjectByName(side < 0 ? 'leg-right' : 'leg-left')
+    if (leg) {
+      const b = bounds(leg), size = b.getSize(new THREE.Vector3()), center = b.getCenter(new THREE.Vector3())
+      const plateDepth = size.z * 0.22
+      const knee = new THREE.Mesh(new RoundedBoxGeometry(size.x * 0.82, size.y * 0.2, plateDepth, 1, Math.min(size.x, plateDepth) * 0.16), accent)
+      knee.position.set(center.x, b.min.y + size.y * 0.7, front(b) + plateDepth * 0.48)
+      leg.add(knee)
+      const shinDepth = size.z * 0.18
+      const shin = new THREE.Mesh(new RoundedBoxGeometry(size.x * 0.74, size.y * 0.3, shinDepth, 1, Math.min(size.x, shinDepth) * 0.14), dark)
+      shin.position.set(center.x, b.min.y + size.y * 0.3, front(b) + shinDepth * 0.48)
+      leg.add(shin)
+      const rune = new THREE.Mesh(new THREE.BoxGeometry(size.x * 0.12, size.y * 0.18, size.z * 0.06), light)
+      rune.position.set(center.x, shin.position.y, shin.position.z + shinDepth * 0.52)
+      leg.add(rune)
+    }
   }
 }
 
