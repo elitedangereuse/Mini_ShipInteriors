@@ -55,7 +55,7 @@ Mini Interior est un POC : un vaisseau sur trois ponts, vu de dessus en isométr
 - **Arcade** : trois bornes se jouent pour de vrai, Cargaison (un Tetris de conteneurs), Viper (un Snake) et Astéroïdes, avec le tableau des meilleurs scores gardé par le site.
 - **Jukebox** : sept morceaux libres de droits, que tout le pont (ou toute la cabine) entend ensemble ; la piste de danse bat sur leur tempo.
 - **Mode photo** : la scène sans l'interface, jusqu'en 4K, à télécharger.
-- **Crédits** : comme dans Elite, le CR paie les meubles des quartiers (à l'exemplaire) et les apparences du Holo-Me. On en gagne à bord : un revenu passif, lent, les tâches de bord et les records aux bornes d'arcade. Le site tient les comptes.
+- **Crédits** : comme dans Elite, le CR débloque les meubles des quartiers et les apparences du Holo-Me. Un meuble débloqué peut être posé autant de fois que souhaité. On gagne des crédits à bord : un revenu passif, lent, les tâches et les records aux bornes d'arcade. Le site tient les comptes.
 - **Tâches de bord** : ordures, flaques, plantes à arroser, pannes, fuites, brèches dans la coque… douze sortes de petites tâches apparaissent un peu partout, les mêmes pour tous, et chacun peut les régler : une tâche réglée ne disparaît que pour celui qui l'a réglée.
 - **Des dizaines de meubles animés** : hologrammes, bras robotisé qui soude, aquarium, cheminée, pince à peluches…
 - **Son spatialisé** : pas, réacteur, bips des consoles, mélodies d'arcade, ronronnements, jukebox.
@@ -143,7 +143,7 @@ Les robots ont des pas plus lourds. Pour ajouter une espèce ou un modèle, il s
 
 Les quartiers du commandant (40 tuiles, là où se trouve le Holo-Me) sont **instanciés** : chaque joueur a les siens, meublés selon son aménagement, et n'y voit que ceux qui s'y trouvent avec lui. Hors des quartiers, rien ne change : on croise tout l'équipage dans la coursive.
 
-Un CMDR connecté au site les **aménage** : dans ses quartiers, `B` ou « Aménager » ouvre le mode aménagement. La caméra passe en vue plongeante sur la cabine, les murs côté caméra s'estompent, le catalogue s'ouvre à droite. Les objets s'achètent à l'exemplaire, en crédits ; le mobilier d'origine est offert (cf. [Crédits](#crédits)).
+Un CMDR connecté au site les **aménage** : dans ses quartiers, `B` ou « Aménager » ouvre le mode aménagement. La caméra passe en vue plongeante sur la cabine, les murs côté caméra s'estompent, le catalogue s'ouvre à droite. Les objets payants se débloquent une fois, en crédits, puis peuvent être posés librement ; le mobilier d'origine est offert (cf. [Crédits](#crédits)).
 
 | Action | Souris / clavier |
 |---|---|
@@ -287,10 +287,10 @@ Le vaisseau a sa monnaie, le crédit (CR), comme dans Elite Dangerous. Un CMDR c
 
 | Dépenser | Prix |
 |---|---|
-| Meubles et objets des quartiers | à l'exemplaire, de 1 500 CR (la tasse de Hutton Orbital) à 80 000 CR (la borne de course) ; le mobilier d'origine des quartiers est offert |
+| Meubles et objets des quartiers | déblocage unique, de 1 500 CR (la tasse de Hutton Orbital) à 80 000 CR (la borne de course) ; ensuite, pose libre. Le mobilier d'origine des quartiers est offert |
 | Apparences du Holo-Me | de 30 000 CR (la combinaison Maverick) à 200 000 CR (la Sentinelle des Gardiens) ; les humains et la combinaison de vol sont offerts |
 
-Dans le mode aménagement, chaque carte du catalogue montre les exemplaires en stock (achetés, plus le mobilier d'origine, moins ce qui est posé) ou le prix, grisé s'il dépasse le solde. Sans exemplaire en stock, la carte ouvre l'achat, sous le catalogue (de 1 à 10 exemplaires) ; l'objet acheté passe en main, prêt à poser. Retirer un objet le remet en stock : il se repose sans rien payer, et « Annuler » ne rembourse rien. Au Holo-Me, tout s'essaie : une apparence qu'on n'a pas porte un cadenas et son prix, et « Acheter et porter » remplace « Valider ». Une apparence payante portée sans être achetée (choisie avant les crédits) redevient la combinaison de vol ; `/perso` ne tire que parmi celles qu'on a.
+Dans le mode aménagement, chaque carte montre « Débloqué » pour un objet acheté, ou son prix de déblocage, grisé si le solde ne suffit pas. Le mobilier d'origine reste offert en quantité limitée. Une carte payante ouvre le déblocage sous le catalogue ; l'objet passe alors en main et peut ensuite être posé autant de fois que souhaité. Les exemplaires déjà achetés sont convertis en déblocages permanents. La cabine conserve une limite de 64 objets posés. Au Holo-Me, tout s'essaie : une apparence qu'on n'a pas porte un cadenas et son prix, et « Acheter et porter » remplace « Valider ». Une apparence payante portée sans être achetée (choisie avant les crédits) redevient la combinaison de vol ; `/perso` ne tire que parmi celles qu'on a.
 
 Tous les chiffres sont dans `src/economy/economy.json` : prix, tâches et leurs emplacements, paliers des bornes, revenu passif, prime de bienvenue. Le site les relit pour tenir les comptes (cf. [Fonctionnement](#fonctionnement)) : le prix affiché est celui qui est débité.
 
@@ -390,10 +390,10 @@ Tant que le site n'a pas répondu, les quartiers ne s'aménagent pas : on écras
 
 Les **meilleurs scores** des bornes d'arcade passent par un troisième endpoint, `outils/mini-shipinteriors-scores.php` : `GET ?game=cargo` rend les dix meilleurs et le rang du CMDR connecté, `GET` sans jeu le record de chaque jeu (pour les écrans des bornes), `POST` inscrit une partie (table `mini_shipinteriors_score`, le meilleur score de chaque CMDR à chaque jeu, et son nombre de parties). Lire est ouvert à tous ; inscrire est réservé aux CMDR, doit venir du site (en-tête `Origin`) et s'espace de 3 s. Le site écarte les scores impossibles : au-delà du plafond du jeu ; à Cargaison et à Viper, plus de points que n'en permet le niveau atteint (le score y grandit comme le carré du niveau), ou ce niveau atteint trop vite ; à Astéroïdes, plus de points par seconde que le jeu n'en donne. Deux inscriptions simultanées n'en font qu'une.
 
-Les **crédits** passent par un quatrième endpoint, `outils/mini-shipinteriors-credits.php` : `GET` rend le compte du CMDR connecté (solde, objets et apparences achetés, dernière apparition réglée de chaque emplacement de tâche) et l'heure du site, qui cale le calendrier des tâches (même pour un invité) ; `POST` fait une demande, que le site vérifie avant d'écrire (table `mini_shipinteriors_wallet` pour les comptes, `_owned` pour l'inventaire, `_task` pour les tâches réglées) :
+Les **crédits** passent par un quatrième endpoint, `outils/mini-shipinteriors-credits.php` : `GET` rend le compte du CMDR connecté (solde, objets et apparences débloqués, dernière apparition réglée de chaque emplacement de tâche) et l'heure du site, qui cale le calendrier des tâches (même pour un invité) ; `POST` fait une demande, que le site vérifie avant d'écrire (table `mini_shipinteriors_wallet` pour les comptes, `_owned` pour l'inventaire, `_task` pour les tâches réglées) :
 - un battement du revenu passif : payé au temps écoulé depuis le précédent, rien après plus de deux minutes d'absence, et un seul à la fois pour tous les onglets d'un CMDR ;
 - une tâche réglée : elle doit exister à ce moment d'après le calendrier (à une minute près après sa fin), et ne pas avoir déjà été réglée par ce CMDR ;
-- un achat : le solde est débité et l'inventaire complété dans une même transaction, jamais en dessous de zéro.
+- un déblocage : le solde est débité une seule fois et le déblocage enregistré dans une même transaction, jamais en dessous de zéro.
 
 Les records des bornes paient leurs paliers dans la réponse de l'endpoint des scores. Écrire est réservé aux CMDR et demande l'en-tête `Origin` du site. Les chiffres viennent de `src/economy/economy.json`, que le build copie dans `dist/` : le site le relit là en production, dans le sous-module en local (`phputils/mini_shipinteriors/credits.php`).
 

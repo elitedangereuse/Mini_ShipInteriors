@@ -19,7 +19,7 @@ const CREDITS_URL = import.meta.env.VITE_ED_CREDITS_URL || '/outils/mini-shipint
 export type WalletState = 'loading' | 'guest' | 'ready' | 'offline'
 
 /** Pourquoi une demande n'a pas abouti. */
-export type Refusal = 'funds' | 'max' | 'claimed' | 'expired' | 'inactive' | 'early' | 'guest' | 'offline'
+export type Refusal = 'funds' | 'max' | 'owned' | 'claimed' | 'expired' | 'inactive' | 'early' | 'guest' | 'offline'
 
 export type Outcome = { ok: true; earned: number } | { ok: false; reason: Refusal }
 
@@ -42,7 +42,7 @@ const RETRY = [15, 30, 60, 120, 300]
 export class Wallet {
   state: WalletState = 'loading'
   balance = 0
-  /** Exemplaires achetés de chaque objet des quartiers (le mobilier d'origine est offert en plus). */
+  /** Objets débloqués dans les quartiers (le mobilier d'origine est offert en plus). */
   readonly items = new Map<string, number>()
   /** Apparences achetées (clés de skins.ts). */
   readonly skins = new Set<string>()
@@ -95,7 +95,9 @@ export class Wallet {
     }
     this.balance = Number(w.balance) || 0
     this.items.clear()
-    for (const [id, n] of Object.entries((w.items as Record<string, unknown>) ?? {})) if (Number(n) > 0) this.items.set(id, Number(n))
+    // Les anciennes sauvegardes comptent des exemplaires : un achat, quel que soit ce nombre,
+    // devient le déblocage permanent de l'objet.
+    for (const [id, n] of Object.entries((w.items as Record<string, unknown>) ?? {})) if (Number(n) > 0) this.items.set(id, 1)
     this.skins.clear()
     for (const s of Array.isArray(w.skins) ? w.skins : []) if (typeof s === 'string') this.skins.add(s)
     for (const [spot, cycle] of Object.entries((w.tasks as Record<string, unknown>) ?? {})) {
@@ -134,9 +136,9 @@ export class Wallet {
     return { ok: false, reason }
   }
 
-  /** Achète `count` exemplaires d'un objet des quartiers. */
-  buyItem(id: string, count = 1): Promise<Outcome> {
-    return this.buy({ item: id, count }, (owned) => this.items.set(id, owned))
+  /** Débloque un objet des quartiers ; il pourra ensuite être posé plusieurs fois. */
+  buyItem(id: string): Promise<Outcome> {
+    return this.buy({ item: id }, () => this.items.set(id, 1))
   }
 
   /** Achète une apparence (clé de skins.ts). */
@@ -173,7 +175,7 @@ export class Wallet {
 
   private refusal(reply: Reply | null): Refusal {
     if (!reply) return 'offline'
-    const known: Refusal[] = ['funds', 'max', 'claimed', 'expired', 'inactive', 'early']
+    const known: Refusal[] = ['funds', 'max', 'owned', 'claimed', 'expired', 'inactive', 'early']
     if (reply.error === 'auth') {
       this.state = 'guest'
       this.changed()

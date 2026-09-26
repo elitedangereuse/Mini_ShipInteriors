@@ -23,10 +23,8 @@ import { rotateLocal, type CabinView, type WallLine } from './view'
  * Ctrl+Z pour annuler, Échap pour finir. Chaque changement passe par les règles de pose
  * (rules.ts) ; main.ts l'enregistre et le montre aux invités.
  *
- * Les objets se paient en crédits, à l'exemplaire (cf. economy/) : une carte montre les
- * exemplaires en stock (achetés, plus le mobilier d'origine, offert, moins ceux qui sont posés),
- * ou le prix. Sans exemplaire en stock, la carte ouvre l'achat ; l'objet acheté passe en main.
- * Retirer un objet le remet en stock : il se repose sans rien payer.
+ * Les objets payants se débloquent une fois en crédits (cf. economy/) et peuvent ensuite être
+ * posés plusieurs fois. Le mobilier d'origine reste offert et disponible en quantité limitée.
  */
 
 /** Pas de la grille de pose, et distance à laquelle un meuble se colle à un mur. */
@@ -50,7 +48,7 @@ export interface EditorHost {
   onChange: (layout: CabinLayout) => void
   /** Le joueur quitte le mode aménagement (Terminer, Échap). */
   onClose: () => void
-  /** Crédits du CMDR : les objets s'achètent à l'exemplaire. */
+  /** Crédits du CMDR : les objets du catalogue se débloquent une fois. */
   wallet: Wallet
 }
 
@@ -79,11 +77,6 @@ const ORIGIN = 'origin'
 const THUMB = 128
 
 const RESET = tr('Réinitialiser', 'Reset')
-/** Exemplaires achetés d'un coup au plus (même limite sur le site). */
-const MAX_BATCH = 10
-/** Exemplaires d'un même objet dans l'inventaire au plus (même limite sur le site). */
-const MAX_COPIES = 64
-
 /** Le mobilier d'origine des quartiers est offert : exemplaires de chaque objet. */
 const FREE = new Map<string, number>()
 for (const it of DEFAULT_CABIN) FREE.set(it.m, (FREE.get(it.m) ?? 0) + 1)
@@ -113,9 +106,9 @@ export class CabinEditor {
   /** Dernière retouche d'une teinte (nuancier) : les suivantes s'y ajoutent dans l'historique. */
   private lastTint: { slot: Slot; at: number } | null = null
   private category: CategoryId = 'rest'
-  /** Achat en cours : l'objet, combien d'exemplaires, la réponse attendue du site, un refus. */
-  private buying: { entry: CatalogEntry; count: number; pending: boolean; error: string } | null = null
-  /** Étiquette de prix (ou de stock) de chaque carte du catalogue affichée. */
+  /** Déblocage en cours : l'objet, la réponse attendue du site, un refus. */
+  private buying: { entry: CatalogEntry; pending: boolean; error: string } | null = null
+  /** Étiquette de déblocage ou de stock offert de chaque carte affichée. */
   private cardTags = new Map<string, { card: HTMLElement; tag: HTMLElement; entry: CatalogEntry }>()
   /** Catalogue du mobilier, ou revêtements des murs et du sol. */
   private mode: 'objects' | 'finish' = 'objects'
@@ -230,7 +223,7 @@ export class CabinEditor {
     this.tabs.className = 'ed-tabs'
     this.cards = document.createElement('div')
     this.cards.className = 'ed-cards'
-    // Achat d'un objet : en bas du catalogue, sous les cartes.
+    // Déblocage d'un objet : en bas du catalogue, sous les cartes.
     this.buyEl = document.createElement('div')
     this.buyEl.className = 'ed-buy'
     this.buyEl.hidden = true
@@ -415,7 +408,7 @@ export class CabinEditor {
       card.append(img, name, tag)
       // À la souris, on saisit la carte (clic, ou glisser-déposer dans la cabine) ; au doigt,
       // glisser fait défiler le catalogue, et toucher une carte la prend en main. Sans
-      // exemplaire en stock, la carte ouvre l'achat.
+      // exemplaire d'origine disponible, sinon la carte ouvre le déblocage.
       card.addEventListener('pointerdown', (e) => {
         if (e.button !== 0 || e.pointerType !== 'mouse') return
         e.preventDefault()
@@ -434,28 +427,39 @@ export class CabinEditor {
 
   // ---------------------------------------------------------------- crédits
 
-  /**
-   * Exemplaires d'un objet qu'on peut encore poser : achetés, plus ceux du mobilier d'origine
-   * (offerts), moins ceux déjà posés. Un objet sans prix n'est pas compté (Infinity).
-   */
+  /** Objets débloqués sans limite ; les exemplaires d'origine restent comptés séparément. */
   private stock(id: string): number {
     if (itemPrice(id) === null) return Infinity
+    if (this.host.wallet.items.has(id)) return Infinity
     let placed = 0
     for (const it of this.items) if (it.m === id) placed++
-    return (this.host.wallet.items.get(id) ?? 0) + (FREE.get(id) ?? 0) - placed
+    return (FREE.get(id) ?? 0) - placed
   }
 
-  /** Étiquettes des cartes : exemplaires en stock, ou prix (grisé s'il dépasse le solde). */
+  /** Étiquettes des cartes : déblocage, stock offert, ou prix (grisé si le solde est insuffisant). */
   private refreshCards() {
     const { wallet } = this.host
     for (const { card, tag, entry } of this.cardTags.values()) {
       const stock = this.stock(entry.id)
-      const price = itemPrice(entry.id) ?? 0
+      const price = itemPrice(entry.id)
+      const unlocked = price !== null && wallet.items.has(entry.id)
       const inStock = stock > 0
-      tag.textContent = !Number.isFinite(stock) ? '' : inStock ? tr(`${stock} en stock`, `${stock} in stock`) : formatCredits(price)
+      tag.textContent = unlocked
+        ? tr('Débloqué', 'Unlocked')
+        : !Number.isFinite(stock)
+          ? ''
+          : inStock
+            ? tr(`${stock} offert${stock > 1 ? 's' : ''}`, `${stock} free`)
+            : price === null ? '' : formatCredits(price)
       tag.classList.toggle('stock', inStock)
-      card.classList.toggle('poor', !inStock && wallet.ready && price > wallet.balance)
-      card.title = `${entry.name}${entry.mount === 'wall' ? tr(' (à accrocher)', ' (hangs on a wall)') : entry.mount === 'top' ? tr(' (se pose sur un meuble)', ' (goes on furniture)') : ''}${inStock ? '' : tr(` · ${formatCredits(price)} l'exemplaire`, ` · ${formatCredits(price)} each`)}`
+      card.classList.toggle('poor', !inStock && !unlocked && wallet.ready && price !== null && price > wallet.balance)
+      const mount = entry.mount === 'wall' ? tr(' (à accrocher)', ' (hangs on a wall)') : entry.mount === 'top' ? tr(' (se pose sur un meuble)', ' (goes on furniture)') : ''
+      const state = unlocked
+        ? tr(' · Débloqué : posez-en autant que vous voulez', ' · Unlocked: place as many as you like')
+        : price === null || inStock
+          ? price !== null ? tr(` · ${stock} exemplaire${stock > 1 ? 's' : ''} offert${stock > 1 ? 's' : ''} · déblocage ${formatCredits(price)}`, ` · ${stock} free ${stock === 1 ? 'copy' : 'copies'} · unlock ${formatCredits(price)}`) : ''
+          : tr(` · Débloquer pour ${formatCredits(price)}`, ` · Unlock for ${formatCredits(price)}`)
+      card.title = `${entry.name}${mount}${state}`
     }
   }
 
@@ -465,10 +469,10 @@ export class CabinEditor {
     this.balanceEl.classList.toggle('offline', !wallet.ready)
   }
 
-  /** Ouvre l'achat d'un objet (en bas du catalogue). */
+  /** Ouvre le déblocage d'un objet (en bas du catalogue). */
   private openBuy(entry: CatalogEntry) {
     this.cancelHeld()
-    this.buying = { entry, count: 1, pending: false, error: '' }
+    this.buying = { entry, pending: false, error: '' }
     this.host.sound.ui('pick')
     this.renderBuy()
   }
@@ -479,19 +483,12 @@ export class CabinEditor {
     this.renderBuy()
   }
 
-  /** Nombre d'exemplaires qu'on peut acheter d'un coup (inventaire plein, limite par achat). */
-  private maxBatch(entry: CatalogEntry): number {
-    return Math.max(1, Math.min(MAX_BATCH, MAX_COPIES - (this.host.wallet.items.get(entry.id) ?? 0)))
-  }
-
   private renderBuy() {
     const b = this.buying
     this.buyEl.hidden = !b
     if (!b) return
     const { wallet } = this.host
     const price = itemPrice(b.entry.id) ?? 0
-    b.count = Math.min(b.count, this.maxBatch(b.entry))
-    const total = price * b.count
     this.buyEl.replaceChildren()
 
     const head = document.createElement('div')
@@ -508,7 +505,7 @@ export class CabinEditor {
     name.textContent = b.entry.name
     const unit = document.createElement('div')
     unit.className = 'eb-unit'
-    unit.textContent = tr(`${formatCredits(price)} l'exemplaire`, `${formatCredits(price)} each`)
+    unit.textContent = tr(`Déblocage · ${formatCredits(price)}`, `Unlock · ${formatCredits(price)}`)
     what.append(name, unit)
     const close = document.createElement('button')
     close.className = 'eb-close'
@@ -517,33 +514,9 @@ export class CabinEditor {
     close.onclick = () => this.closeBuy()
     head.append(img, what, close)
 
-    // Quantité, total, et solde après l'achat.
-    const row = document.createElement('div')
-    row.className = 'eb-row'
-    const step = (glyph: 'minus' | 'plus', delta: number, disabled: boolean) => {
-      const btn = document.createElement('button')
-      btn.className = 'eb-step'
-      btn.append(icon(glyph))
-      btn.disabled = disabled || b.pending
-      btn.setAttribute('aria-label', delta > 0 ? tr('Un de plus', 'One more') : tr('Un de moins', 'One less'))
-      btn.onclick = () => {
-        b.count += delta
-        b.error = ''
-        this.renderBuy()
-      }
-      return btn
-    }
-    const count = document.createElement('span')
-    count.className = 'eb-count'
-    count.textContent = `×${b.count}`
-    const sum = document.createElement('span')
-    sum.className = 'eb-total'
-    sum.textContent = formatCredits(total)
-    row.append(step('minus', -1, b.count <= 1), count, step('plus', 1, b.count >= this.maxBatch(b.entry)), sum)
-
     const note = document.createElement('div')
     note.className = 'eb-note'
-    const short = wallet.ready && total > wallet.balance
+    const short = wallet.ready && price > wallet.balance
     if (b.error) {
       note.textContent = b.error
       note.classList.add('error')
@@ -553,44 +526,48 @@ export class CabinEditor {
     } else if (!wallet.ready) note.textContent = tr('Chargement de vos crédits…', 'Loading your credits…')
     else if (short) {
       note.textContent = tr(
-        `Il vous manque ${formatCredits(total - wallet.balance)}. Les tâches de bord et les bornes d'arcade en rapportent.`,
-        `You're ${formatCredits(total - wallet.balance)} short. Ship chores and the arcade cabinets pay.`,
+        `Il vous manque ${formatCredits(price - wallet.balance)}. Les tâches de bord et les bornes d'arcade en rapportent.`,
+        `You're ${formatCredits(price - wallet.balance)} short. Ship chores and the arcade cabinets pay.`,
       )
       note.classList.add('error')
-    } else note.textContent = tr(`Solde après l'achat : ${formatCredits(wallet.balance - total)}`, `Balance after purchase: ${formatCredits(wallet.balance - total)}`)
+    } else note.textContent = tr(
+      `Débloquez cet objet une fois, puis posez-en autant que vous voulez. Solde après : ${formatCredits(wallet.balance - price)}`,
+      `Unlock this item once, then place as many as you like. Balance after: ${formatCredits(wallet.balance - price)}`,
+    )
 
     const buy = document.createElement('button')
     buy.className = 'eb-buy'
-    buy.append(icon('shopping-cart'), document.createTextNode(b.pending ? tr('Achat…', 'Buying…') : tr('Acheter', 'Buy')))
+    buy.append(icon('lock-simple'), document.createTextNode(b.pending ? tr('Déblocage…', 'Unlocking…') : tr('Débloquer', 'Unlock')))
     buy.disabled = b.pending || !wallet.ready || short
     buy.onclick = () => void this.confirmBuy()
-    this.buyEl.append(head, row, note, buy)
+    this.buyEl.append(head, note, buy)
   }
 
-  /** Achète les exemplaires demandés ; le premier passe en main, prêt à être posé. */
+  /** Débloque l'objet ; il passe en main et peut désormais être posé librement. */
   private async confirmBuy() {
     const b = this.buying
     if (!b || b.pending) return
     b.pending = true
     b.error = ''
     this.renderBuy()
-    const result = await this.host.wallet.buyItem(b.entry.id, b.count)
+    const result = await this.host.wallet.buyItem(b.entry.id)
     if (this.buying !== b) return
     b.pending = false
     if (!result.ok) {
       this.host.sound.ui('deny')
       b.error = {
         funds: tr('Crédits insuffisants.', 'Not enough credits.'),
-        max: tr(`Inventaire plein : ${MAX_COPIES} exemplaires au plus.`, `Inventory full: ${MAX_COPIES} copies at most.`),
+        owned: tr('Cet objet est déjà débloqué. Cliquez sur sa carte pour le poser.', 'This item is already unlocked. Click its card to place it.'),
+        max: tr('Cet objet est déjà débloqué.', 'This item is already unlocked.'),
         guest: tr('Achats réservés aux CMDR connectés au site.', 'Only CMDRs logged in to the site can buy.'),
-      }[result.reason as 'funds' | 'max' | 'guest'] ?? tr('Achat non abouti : le site ne répond pas. Réessayez.', 'Purchase failed: the site isn\'t responding. Try again.')
+      }[result.reason as 'funds' | 'max' | 'owned' | 'guest'] ?? tr('Déblocage non abouti : le site ne répond pas. Réessayez.', 'Unlock failed: the site isn\'t responding. Try again.')
       return this.renderBuy()
     }
-    const total = (itemPrice(b.entry.id) ?? 0) * b.count
+    const price = itemPrice(b.entry.id) ?? 0
     this.buying = null
     this.renderBuy()
     this.host.sound.credits()
-    this.toast(tr(`${b.entry.name}${b.count > 1 ? ` ×${b.count}` : ''} : ${formatCredits(total)}. Cliquez dans la cabine pour poser.`, `${b.entry.name}${b.count > 1 ? ` ×${b.count}` : ''}: ${formatCredits(total)}. Click in your quarters to place it.`))
+    this.toast(tr(`${b.entry.name} débloqué · ${formatCredits(price)}. Cliquez dans la cabine pour le poser, autant de fois que vous voulez.`, `${b.entry.name} unlocked · ${formatCredits(price)}. Click in your quarters to place it as many times as you like.`))
     this.startPlacing(b.entry)
   }
 
@@ -987,9 +964,9 @@ export class CabinEditor {
     this.clearHeld()
     this.commit(c.items, keep ? -1 : c.index)
     this.host.sound.ui('drop')
-    // Maj+clic : un autre en main, s'il en reste en stock.
+    // Maj+clic : garder la carte en main pour poser un autre exemplaire.
     if (keep && this.stock(entry.id) > 0) this.startPlacing(entry)
-    else if (keep) this.toast(tr(`Plus de ${entry.name.toLowerCase()} en stock : la carte du catalogue en achète d'autres.`, `No more ${entry.name.toLowerCase()} in stock: its catalogue card buys more.`))
+    else if (keep) this.toast(tr(`La carte du catalogue permet de débloquer ${entry.name.toLowerCase()}.`, `Use the catalogue card to unlock ${entry.name.toLowerCase()}.`))
     this.setHint()
   }
 

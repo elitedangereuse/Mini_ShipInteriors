@@ -7,7 +7,7 @@ import raw from './economy.json'
  * repo elitedangereuselight) : le prix affiché ici est celui que le site débite.
  * - start : prime de bienvenue d'un nouveau compte ;
  * - passive : revenu passif, payé à chaque battement (une fois par minute) ;
- * - items, skins : prix des objets des quartiers (par exemplaire) et des apparences (cf. skins.ts) ;
+ * - items, skins : prix de déblocage des objets des quartiers et des apparences (cf. skins.ts) ;
  * - tasks, spots : les tâches de bord et leurs emplacements (cf. schedule.ts et tasks.ts) ;
  * - arcade : paliers de score des bornes, et prime du record du vaisseau.
  */
@@ -55,7 +55,7 @@ interface Economy {
 
 export const ECONOMY = raw as unknown as Economy
 
-/** Prix d'un exemplaire d'un objet du catalogue des quartiers, ou null s'il n'est pas à vendre. */
+/** Prix de déblocage d'un objet du catalogue des quartiers, ou null s'il n'est pas à vendre. */
 export const itemPrice = (id: string): number | null => ECONOMY.items[id] ?? null
 
 /** Prix d'une apparence (clé de skins.ts : « suit.artemis »…), ou null si elle est gratuite. */
