@@ -54,7 +54,7 @@ interface PoseDef {
 }
 
 const POSES: Record<PoseId, PoseDef> = {
-  sit: { anims: ['sit'], hold: true, hip: 0.125 },
+  sit: { anims: ['sit'], hold: true },
   // Couché, le corps descend jusqu'à 6 cm sous l'origine (et la tête, 12 cm) : on le remonte.
   lie: { anims: ['die'], hold: true, from: 0.55, hip: -0.07 },
   pilot: { anims: ['drive'], hold: true, hip: 0.2 },
@@ -104,6 +104,12 @@ export class Avatar {
   private stepTime = 0
   private emoteTime = 0
   private height: number
+  /** Dessous de l'assise et point le plus bas de « sit », après mise à l'échelle du modèle. */
+  private sitting = { seat: 0, ground: 0 }
+  /** Garde le contact avec le sol pendant l'emote assise et son relevé. */
+  private groundSit = 0
+  private readonly groundBounds = new THREE.Box3()
+  private readonly groundOrigin = new THREE.Vector3()
   private pose: PoseDef | null = null
   private posed: PoseId | null = null
   private poseStep = 0
@@ -129,7 +135,39 @@ export class Avatar {
       }
       this.actions.set(clip.name, a)
     }
+    this.sitting = this.measureSitting()
     this.fadeTo('idle', 0)
+  }
+
+  /**
+   * « sit » abaisse déjà le squelette. Les Mini et les Blocky n'ont ni les mêmes unités,
+   * ni la même hauteur de bassin : on mesure la pose, au lieu de la descendre à nouveau.
+   */
+  private measureSitting(): { seat: number; ground: number } {
+    const action = this.actions.get('sit')
+    if (!action) return { seat: 0, ground: 0 }
+    action.reset().play()
+    this.mixer.update(action.getClip().duration)
+    this.model.updateMatrixWorld(true)
+    const hip = this.model.getObjectByName('leg-left')
+    const at = hip?.getWorldPosition(new THREE.Vector3()) ?? new THREE.Vector3()
+    const point = new THREE.Vector3()
+    let seat = Infinity, ground = Infinity
+    this.model.traverse((o) => {
+      const mesh = o as THREE.Mesh
+      if (!mesh.isMesh) return
+      if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) (mesh as THREE.SkinnedMesh).skeleton.update()
+      const vertices = mesh.geometry.getAttribute('position')
+      for (let i = 0; i < vertices.count; i++) {
+        mesh.getVertexPosition(i, point).applyMatrix4(mesh.matrixWorld)
+        ground = Math.min(ground, point.y)
+        // Le bassin et l'arrière des cuisses reposent sur le coussin ; les pieds pendent devant.
+        if (point.z < at.z + this.height * 0.09) seat = Math.min(seat, point.y)
+      }
+    })
+    this.mixer.stopAllAction()
+    this.model.updateMatrixWorld(true)
+    return { seat: Number.isFinite(seat) ? seat - 0.005 : 0, ground: Number.isFinite(ground) ? ground - 0.005 : 0 }
   }
 
   get locomotion(): Locomotion {
@@ -234,7 +272,7 @@ export class Avatar {
         this.poseStep++
         this.startPoseStep()
       }
-      sink = p.hip ?? 0
+      sink = this.posed === 'sit' ? this.sitting.seat : p.hip ?? 0
       if (p.motion === 'pedal') hop = Math.abs(Math.sin(this.poseTime * 6)) * 0.018
       if (p.motion === 'mix') sway = Math.sin(beatNow() * Math.PI) * 0.18
     } else if (this.emote?.id === 'danse') {
@@ -273,7 +311,7 @@ export class Avatar {
         else this.stepTime = Infinity // hold : on garde la pose
       }
       if (this.emote?.id === 'joie') hop = Math.abs(Math.sin((this.emoteTime / 0.5) * Math.PI)) * 0.18
-      if (this.emote?.id === 'assis') sink = 0.2
+      if (this.emote?.id === 'assis') sink = this.sitting.ground
     }
     if (!this.emote && !this.pose) {
       this.fadeTo(this.base, 0.2)
@@ -289,6 +327,19 @@ export class Avatar {
       this.model.rotation.y = THREE.MathUtils.damp(this.model.rotation.y, sway, 8, dt)
     }
     this.mixer.update(dt)
+    // Le fondu des clips et le décalage du modèle n'avancent pas à la même vitesse : empêcher
+    // aussi l'enfoncement pendant la transition, particulièrement visible sur les Blocky.
+    this.groundSit = this.emote?.id === 'assis' ? 0.6 : Math.max(0, this.groundSit - dt)
+    if (this.groundSit && !this.pose) {
+      this.root.updateWorldMatrix(true, false)
+      this.root.updateMatrixWorld(true)
+      this.model.traverse((o) => {
+        if ((o as THREE.SkinnedMesh).isSkinnedMesh) (o as THREE.SkinnedMesh).skeleton.update()
+      })
+      this.groundBounds.setFromObject(this.model, true)
+      const floor = this.root.getWorldPosition(this.groundOrigin).y
+      this.model.position.y += Math.max(0, floor + 0.005 - this.groundBounds.min.y)
+    }
   }
 
   /** Position monde au-dessus de la tête (bulles, noms). */
