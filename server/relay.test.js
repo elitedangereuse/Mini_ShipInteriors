@@ -221,6 +221,29 @@ describe('rediffusion', () => {
     a.disconnect()
     b.disconnect()
   })
+
+  test('une partie de Puissance 4 est créée et rediffuse les coups aux deux joueurs', async () => {
+    const a = client({ auth: { name: 'CMDR Rouge' } })
+    await welcome(a)
+    a.emit('state', { x: 19, z: 7.45, yaw: 0, level: 0, anim: 'idle' })
+    const first = next(a, 'board:state')
+    a.emit('board:join', { game: 'guardian-connect', table: 'guardian-connect' })
+    assert.equal((await first).players.length, 1)
+
+    const b = client({ auth: { name: 'CMDR Jaune' } })
+    await welcome(b)
+    b.emit('state', { x: 19, z: 7.45, yaw: 0, level: 0, anim: 'idle' })
+    const seenByA = next(a, 'board:state', (m) => m.players.length === 2)
+    const seenByB = next(b, 'board:state', (m) => m.players.length === 2)
+    b.emit('board:join', { game: 'guardian-connect', table: 'guardian-connect' })
+    await Promise.all([seenByA, seenByB])
+
+    const moved = next(b, 'board:state', (m) => m.board[5][0] === 'red')
+    a.emit('board:move', { game: 'guardian-connect', table: 'guardian-connect', move: { column: 0 } })
+    assert.equal((await moved).turn, 'yellow')
+    a.disconnect()
+    b.disconnect()
+  })
 })
 
 const LAYOUT = { v: 1, items: [{ m: 'holo-me', x: 11.6, z: 8.4, r: 0 }, { m: 'sofa', x: 14.25, z: 9.97, r: 2, v: 'teal' }] }

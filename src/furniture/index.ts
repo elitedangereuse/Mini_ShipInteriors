@@ -1,4 +1,5 @@
 import { ARCADE } from './arcade'
+import { BOARD } from './board'
 import { COZY } from './cozy'
 import { DECOR } from './decor'
 import { ELITE } from './elite'
@@ -22,7 +23,7 @@ import { WORKSHOP } from './workshop'
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...WORKSHOP, ...LEISURE, ...ARCADE, ...COZY, ...DECOR, ...LIGHTS, ...PARTY } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...WORKSHOP, ...LEISURE, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 

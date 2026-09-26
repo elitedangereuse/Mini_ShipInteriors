@@ -439,6 +439,18 @@ export const LEVELS: LevelDef[] = [
       { model: 'arcade', x: 16.05, z: 7, rot: 1, label: 'cargo' },
       { model: 'arcade', x: 16.05, z: 8, rot: 1, label: 'viper' },
       { model: 'arcade', x: 16.05, z: 9, rot: 1, label: 'asteroids' },
+      {
+        model: 'holo-draughts', x: 17.75, z: 6.75, action: tr('Jouer aux dames', 'Play draughts'),
+        interact: tr('Table holographique : les pièces attendent deux adversaires.', 'Holographic table: the pieces await two opponents.'),
+      },
+      {
+        model: 'guardian-connect', x: 19, z: 7.45, action: tr('Jouer à Puissance 4', 'Play Connect Four'),
+        interact: tr('Puissance 4 Guardian : alignez quatre cristaux avant votre adversaire.', 'Guardian Connect Four: align four crystals before your opponent.'),
+      },
+      {
+        model: 'imperial-chess', x: 17.75, z: 8.85, action: tr('Jouer aux échecs', 'Play chess'),
+        interact: tr('Échec Impérial : stratégie, patience et aucun duel de plasma sur l’échiquier.', 'Imperial Chess: strategy, patience, and no plasma duels on the board.'),
+      },
       { model: 'neon-sign', x: 17.1, z: 6.1, label: 'ARCADE' },
       { model: 'claw-machine', x: 19.95, z: 6.42, rot: 3, label: 'cyan' },
       { model: 'rug', x: 18.3, z: 8.1, label: 'neon:2x1.8', solid: false },

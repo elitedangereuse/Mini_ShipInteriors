@@ -49,6 +49,9 @@ interface GuardianStyle {
   ramp: [number, string][]
   light: string
   core: string
+  accent: string
+  dark: string
+  motif: 'sentinel' | 'watcher' | 'exile' | 'archivist'
 }
 
 interface Tint extends Choice {
@@ -252,16 +255,43 @@ interface ModelSpec {
 
 const GUARDIAN_MODELS: Record<string, string> = { a: 'g', b: 'h', c: 'd', s: 'o' }
 
-const GUARDIAN_STYLE: GuardianStyle = {
-  ramp: [
-    [0, '#071018'],
-    [0.32, '#163044'],
-    [0.58, '#466f7a'],
-    [0.82, '#b7cfc7'],
-    [1, '#ecf3dc'],
-  ],
-  light: '#54f5ff',
-  core: '#8cffd4',
+const GUARDIAN_STYLES: Record<string, GuardianStyle> = {
+  // Silhouette compacte et froide : le Gardien qui monte la garde devant l'obélisque.
+  a: {
+    ramp: [[0, '#061018'], [0.3, '#102b3c'], [0.58, '#356878'], [0.82, '#a8d2cf'], [1, '#e5f5e8']],
+    light: '#5cf4ff',
+    core: '#9bffe0',
+    accent: '#86d7d4',
+    dark: '#09202d',
+    motif: 'sentinel',
+  },
+  // Palette minérale violette, avec une couronne de veilleur plus aérienne.
+  b: {
+    ramp: [[0, '#0c0b1a'], [0.3, '#211d42'], [0.58, '#514d82'], [0.82, '#b8b9e3'], [1, '#f1eaff']],
+    light: '#b68cff',
+    core: '#f2b8ff',
+    accent: '#9f88df',
+    dark: '#17132f',
+    motif: 'watcher',
+  },
+  // Teintes rouillées et or : un Gardien abîmé, reconstruit autour d'un fragment d'obélisque.
+  c: {
+    ramp: [[0, '#160d0b'], [0.3, '#3a211d'], [0.58, '#765146'], [0.82, '#d2a37a'], [1, '#fff0c8']],
+    light: '#ffb957',
+    core: '#ffe49a',
+    accent: '#d18a52',
+    dark: '#2b1717',
+    motif: 'exile',
+  },
+  // Blanc stellaire et or pâle : le plus rare, presque holographique.
+  s: {
+    ramp: [[0, '#080d16'], [0.3, '#1b3248'], [0.58, '#58819a'], [0.82, '#c6e1e3'], [1, '#fff8dc']],
+    light: '#a9f6ff',
+    core: '#fff2b0',
+    accent: '#76b8d0',
+    dark: '#102033',
+    motif: 'archivist',
+  },
 }
 
 function spec(l: Look): ModelSpec {
@@ -279,7 +309,7 @@ function spec(l: Look): ModelSpec {
     case 'creature':
       return l.variant === 'orc' ? { path: 'creatures/character-orc.glb', height: 0.74 } : { path: `blocky/character-${l.variant}.glb`, height: 0.72 }
     case 'guardian':
-      return { path: `blocky/character-${GUARDIAN_MODELS[l.variant] ?? 'g'}.glb`, height: 0.78, guardian: GUARDIAN_STYLE }
+      return { path: `blocky/character-${GUARDIAN_MODELS[l.variant] ?? 'g'}.glb`, height: 0.78, guardian: GUARDIAN_STYLES[l.variant] ?? GUARDIAN_STYLES.a }
   }
 }
 
@@ -331,17 +361,21 @@ function suitTexture(src: THREE.Texture, s: SuitStyle): THREE.Texture {
   })
 }
 
-/** Teinte froide de Gardien : pierre claire, joints bleus et zones lumineuses cyan. */
+/** Repeint un Gardien en conservant le relief de la texture, avec un accent propre à sa variante. */
 function guardianTexture(src: THREE.Texture, s: GuardianStyle): THREE.Texture {
   const stops = s.ramp.map(([at, color]) => ({ at, color: new THREE.Color(color) }))
   const glow = new THREE.Color(s.light)
-  return recolored(src, `guardian:${JSON.stringify(s.ramp)}`, (hsl, c) => {
+  const accent = new THREE.Color(s.accent)
+  return recolored(src, `guardian:${JSON.stringify(s.ramp)}:${s.accent}`, (hsl, c) => {
     const l = THREE.MathUtils.clamp(hsl.l, 0, 1)
     let i = 0
     while (i < stops.length - 2 && l > stops[i + 1].at) i++
     const a = stops[i], b = stops[i + 1]
     c.copy(a.color).lerp(b.color, THREE.MathUtils.clamp((l - a.at) / (b.at - a.at), 0, 1))
-    if (hsl.s > 0.45 && hsl.l > 0.45) c.lerp(glow, 0.35)
+    // Les motifs colorés de la texture deviennent des veines minérales, tandis que les
+    // aplats très clairs prennent une légère dominante de l'accent de la variante.
+    if (hsl.s > 0.35 && hsl.l > 0.3) c.lerp(accent, 0.32)
+    if (hsl.l > 0.78 && hsl.s > 0.18) c.lerp(glow, 0.14)
   })
 }
 
@@ -465,26 +499,75 @@ function addSuitGear(root: THREE.Object3D, s: SuitStyle) {
   }
 }
 
-/** Ornements de Gardien : couronne et noyau lumineux, attachés aux os si le modèle en expose. */
+/**
+ * Ornements de Gardien : chaque variante reçoit une silhouette reconnaissable, un noyau
+ * lumineux et des plaques d'armure. Tout est attaché aux os du modèle pour suivre les poses.
+ */
 function addGuardianGear(root: THREE.Object3D, s: GuardianStyle) {
-  const stone = new THREE.MeshLambertMaterial({ color: '#d8e2d6' })
-  const dark = new THREE.MeshLambertMaterial({ color: '#123044' })
+  const stone = new THREE.MeshLambertMaterial({ color: s.ramp[s.ramp.length - 2][1] })
+  const dark = new THREE.MeshLambertMaterial({ color: s.dark })
+  const accent = new THREE.MeshLambertMaterial({ color: s.accent })
   const light = new THREE.MeshBasicMaterial({ color: s.light })
   const coreMat = new THREE.MeshBasicMaterial({ color: s.core })
   const head = root.getObjectByName('head') ?? root
   const torso = root.getObjectByName('torso') ?? root
 
   const crown = new THREE.Group()
-  for (let i = 0; i < 5; i++) {
-    const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.035, i === 2 ? 0.2 : 0.15, 4), i === 2 ? light : stone)
-    tooth.position.set((i - 2) * 0.055, 0.05 - Math.abs(i - 2) * 0.015, -0.02)
-    tooth.rotation.z = (i - 2) * -0.18
-    crown.add(tooth)
+  if (s.motif === 'watcher') {
+    // Halo polygonal, volontairement décentré : il lit bien même sur le modèle sombre.
+    const halo = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.014, 5, 8), light)
+    halo.rotation.x = Math.PI / 2
+    halo.rotation.z = -0.18
+    halo.position.set(0, 0.08, -0.01)
+    crown.add(halo)
+    for (const side of [-1, 1]) {
+      const shard = new THREE.Mesh(new THREE.OctahedronGeometry(0.035, 0), accent)
+      shard.position.set(side * 0.14, 0.05, 0)
+      crown.add(shard)
+    }
+  } else if (s.motif === 'exile') {
+    // Un fragment d'obélisque planté dans le front, plus deux éclats cassés.
+    const obelisk = new THREE.Mesh(new THREE.ConeGeometry(0.052, 0.22, 4), light)
+    obelisk.position.set(0, 0.13, 0.08)
+    obelisk.rotation.z = -0.08
+    crown.add(obelisk)
+    for (const side of [-1, 1]) {
+      const shard = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.11, 4), accent)
+      shard.position.set(side * 0.085, 0.06, 0.01)
+      shard.rotation.z = side * 0.32
+      crown.add(shard)
+    }
+  } else if (s.motif === 'archivist') {
+    // Trois anneaux fins et un cristal central, comme une petite balise d'archive.
+    for (let i = 0; i < 3; i++) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.1 + i * 0.035, 0.009, 4, 16), i === 1 ? light : accent)
+      ring.rotation.x = Math.PI / 2
+      ring.rotation.z = (i - 1) * 0.22
+      ring.position.set(0, 0.06 + i * 0.018, 0)
+      crown.add(ring)
+    }
+    const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.04, 0), coreMat)
+    crystal.position.set(0, 0.16, 0.02)
+    crown.add(crystal)
+  } else {
+    // Diadème à cinq pointes de la sentinelle antique.
+    for (let i = 0; i < 5; i++) {
+      const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.035, i === 2 ? 0.2 : 0.15, 4), i === 2 ? light : stone)
+      tooth.position.set((i - 2) * 0.055, 0.05 - Math.abs(i - 2) * 0.015, -0.02)
+      tooth.rotation.z = (i - 2) * -0.18
+      crown.add(tooth)
+    }
   }
   crown.position.set(0, 0.37, 0.01)
   head.add(crown)
 
-  const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.06, 0), coreMat)
+  // Plaque de poitrine et noyau : la plaque évite l'effet « simple personnage recoloré ».
+  const chest = new THREE.Mesh(new RoundedBoxGeometry(0.22, 0.2, 0.055, 1, 0.025), accent)
+  chest.position.set(0, 0.08, 0.16)
+  chest.rotation.z = Math.PI / 4
+  torso.add(chest)
+
+  const core = new THREE.Mesh(new THREE.OctahedronGeometry(s.motif === 'archivist' ? 0.07 : 0.06, 0), coreMat)
   core.position.set(0, 0.02, 0.18)
   torso.add(core)
   const band = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.012, 4, 18), light)
@@ -493,10 +576,21 @@ function addGuardianGear(root: THREE.Object3D, s: GuardianStyle) {
   torso.add(band)
 
   for (const side of [-1, 1]) {
+    const shoulder = new THREE.Mesh(new RoundedBoxGeometry(0.13, 0.1, 0.16, 1, 0.025), stone)
+    shoulder.position.set(side * 0.18, 0.12, 0.03)
+    shoulder.rotation.z = side * -0.2
+    torso.add(shoulder)
     const vane = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.18, 0.025), dark)
     vane.position.set(side * 0.18, 0.08, 0.12)
     vane.rotation.z = side * -0.35
     torso.add(vane)
+  }
+
+  // Petits points lumineux latéraux : ils donnent du relief sans ajouter un gros halo plat.
+  for (const side of [-1, 1]) {
+    const marker = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), light)
+    marker.position.set(side * 0.22, 0.02, 0.15)
+    torso.add(marker)
   }
 }
 

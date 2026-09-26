@@ -28,6 +28,26 @@ export interface MusicState {
   z: number
 }
 
+export type BoardGameId = 'draughts' | 'guardian-connect' | 'imperial-chess'
+
+export interface BoardPlayer {
+  id: number
+  name: string
+  color: string
+}
+
+export interface BoardState {
+  game: BoardGameId
+  table: string
+  players: BoardPlayer[]
+  board: (string | null)[][]
+  turn: string
+  status: 'waiting' | 'playing' | 'ended'
+  winner: string | null
+  message: string
+  continueAt: [number, number] | null
+}
+
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
   | { t: 'welcome'; id: number; you: { name: string; verified: boolean }; players: PlayerState[]; music?: MusicState }
@@ -54,6 +74,8 @@ export type ServerMessage =
    * relais, à l'arrivée) ; `busy` : notre choix est refusé (trop d'un coup), voici celui de tous.
    */
   | ({ t: 'music'; id: number; busy?: boolean } & MusicState)
+  | { t: 'board:state'; game: BoardGameId; table: string; players: BoardPlayer[]; board: (string | null)[][]; turn: string; status: BoardState['status']; winner: string | null; message: string; continueAt: [number, number] | null }
+  | { t: 'board:error'; game: string; table: string; code: 'full' | 'invalid' | 'busy' | 'unavailable' }
 
 /**
  * Réponse du relais à une invitation : partie, ou pourquoi pas (guest : on n'est pas CMDR,
@@ -65,7 +87,7 @@ type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin'>
 
 /** Chemin de la socket : le même que WS_PATH dans server/relay.js et que la conf nginx du site. */
 const WS_PATH = import.meta.env.VITE_WS_PATH || '/ws/mini-shipinteriors'
-const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'music']
+const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'music', 'board:state', 'board:error']
 
 export class Net {
   online = false
@@ -196,6 +218,18 @@ export class Net {
    */
   sendMusic(where: 'deck' | 'cabin', track: string | null, x: number, z: number, at = 0) {
     this.send('music', { where, track, x: Math.round(x * 100) / 100, z: Math.round(z * 100) / 100, ...(at > 0 ? { at: Math.round(at * 100) / 100 } : {}) })
+  }
+
+  sendBoardJoin(game: BoardGameId, table: string) {
+    this.send('board:join', { game, table })
+  }
+
+  sendBoardMove(game: BoardGameId, table: string, move: object) {
+    this.send('board:move', { game, table, move })
+  }
+
+  sendBoardLeave() {
+    this.send('board:leave', {})
   }
 
   /** Raccompagner un visiteur de ses quartiers. */

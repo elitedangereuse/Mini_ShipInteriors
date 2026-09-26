@@ -16,6 +16,7 @@
 // invitation, reçoit l'aménagement, puis chacun de ses changements. L'hôte peut raccompagner un
 // visiteur ; s'il quitte le vaisseau, ses visiteurs rentrent chez eux.
 import { Server } from 'socket.io'
+import { BOARD_GAMES, applyBoardMove, boardColor, boardState, newBoardGame } from './boards.js'
 import { sanitizeLayout } from './cabin.js'
 import { cleanCmdrName, cmdrFromCookie } from './cmdr.js'
 
@@ -84,6 +85,7 @@ export function attachRelay(
   })
   const players = new Map() // socket.id -> joueur
   const sockets = new Map() // id du joueur -> socket
+  const boards = new Map() // table -> partie de plateau
   let nextId = 1
   /** Jukebox qui jouent : 0 pour le pont principal, sinon l'id de l'hôte des quartiers. */
   const music = new Map() // instance -> { track, since, x, z }
@@ -99,6 +101,29 @@ export function attachRelay(
   const playerById = (id) => {
     const socket = sockets.get(id)
     return socket ? players.get(socket.id) : undefined
+  }
+  const boardKey = (game, table) => (BOARD_GAMES.has(game) && table === game ? table : null)
+  const emitBoard = (state) => {
+    const msg = boardState(state)
+    for (const p of state.players) sockets.get(p.id)?.emit('board:state', msg)
+  }
+  const leaveBoard = (p) => {
+    const key = p.boardKey
+    if (!key) return
+    const state = boards.get(key)
+    p.boardKey = null
+    if (!state) return
+    state.players = state.players.filter((x) => x.id !== p.id)
+    if (!state.players.length) boards.delete(key)
+    else {
+      // Une partie qui perd un joueur repart proprement à zéro ; aucune victoire n'est attribuée
+      // automatiquement, ce qui évite de récompenser une déconnexion ou de conserver un vieux
+      // plateau terminé pour le prochain adversaire.
+      const fresh = newBoardGame(state.game, state.table)
+      fresh.players = state.players
+      boards.set(key, fresh)
+      for (const boardPlayer of fresh.players) sockets.get(boardPlayer.id)?.emit('board:state', boardState(fresh))
+    }
   }
   /** Le joueur passe dans l'instance des quartiers de `cabin` (la sienne s'il rentre chez lui). */
   const moveTo = (p, cabin, by) => {
@@ -138,6 +163,7 @@ export function attachRelay(
       cabin: 0,
       layout: null,
       invited: new Map(), // id de l'invité -> fin de validité
+      boardKey: null,
     }
     player.cabin = player.id
     player.name = cmdr ? `CMDR ${cmdr}` : guestName(auth.name, player)
@@ -157,11 +183,13 @@ export function attachRelay(
     let inviteBudget = 3
     let cabinBudget = 10
     let musicBudget = 3
+    let boardBudget = 30
     const refill = setInterval(() => {
       chatBudget = Math.min(5, chatBudget + 1)
       inviteBudget = Math.min(3, inviteBudget + 0.25)
       cabinBudget = Math.min(10, cabinBudget + 5)
       musicBudget = Math.min(3, musicBudget + 0.5)
+      boardBudget = Math.min(30, boardBudget + 10)
     }, 1000)
 
     socket.on('state', (raw) => {
@@ -192,7 +220,48 @@ export function attachRelay(
       if (!player.verified && clean(m.name, MAX_NAME)) player.name = guestName(m.name, player)
       if (validLook(m.skin)) player.skin = m.skin
       io.emit('profile', { id: player.id, name: player.name, verified: player.verified, skin: player.skin })
+      if (player.boardKey) {
+        const state = boards.get(player.boardKey)
+        const boardPlayer = state?.players.find((p) => p.id === player.id)
+        if (boardPlayer) {
+          boardPlayer.name = player.name
+          emitBoard(state)
+        }
+      }
     })
+
+    // Jeux de plateau : deux places maximum, un seul état validé par le relais pour chaque table.
+    socket.on('board:join', (raw) => {
+      if (boardBudget-- <= 0) return socket.emit('board:error', { game: '', table: '', code: 'busy' })
+      const m = obj(raw)
+      const game = typeof m.game === 'string' ? m.game : ''
+      const table = typeof m.table === 'string' ? m.table : ''
+      const key = boardKey(game, table)
+      if (!key || player.level !== 0) return socket.emit('board:error', { game, table, code: 'unavailable' })
+      if (player.boardKey && player.boardKey !== key) leaveBoard(player)
+      let state = boards.get(key)
+      if (!state) boards.set(key, (state = newBoardGame(game, table)))
+      const already = state.players.find((p) => p.id === player.id)
+      if (!already && state.players.length >= 2) return socket.emit('board:error', { game, table, code: 'full' })
+      if (!already) {
+        const color = boardColor(game, state.players.length)
+        state.players.push({ id: player.id, name: player.name, color })
+        player.boardKey = key
+      }
+      if (state.players.length >= 2 && state.status === 'waiting') state.status = 'playing'
+      emitBoard(state)
+    })
+
+    socket.on('board:move', (raw) => {
+      if (boardBudget-- <= 0) return socket.emit('board:error', { game: '', table: '', code: 'busy' })
+      const m = obj(raw)
+      const key = boardKey(m.game, m.table)
+      const state = key ? boards.get(key) : null
+      if (!state || player.boardKey !== key || !applyBoardMove(state, player, m.move)) return socket.emit('board:error', { game: m.game, table: m.table, code: 'invalid' })
+      emitBoard(state)
+    })
+
+    socket.on('board:leave', () => leaveBoard(player))
 
     // Jukebox : un morceau (ou le silence) au pont principal, ou dans les quartiers où l'on est,
     // depuis son début ou `at` secondes plus loin (un hôte reconnecté rend la sienne au relais).
@@ -272,6 +341,7 @@ export function attachRelay(
 
     socket.on('disconnect', () => {
       clearInterval(refill)
+      leaveBoard(player)
       players.delete(socket.id)
       sockets.delete(player.id)
       music.delete(player.id)

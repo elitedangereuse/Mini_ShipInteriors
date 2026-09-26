@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import type { ArcadeCabinet } from './arcade/cabinet'
 import { isGameId, type GameId } from './arcade/game'
 import { fetchRecords } from './arcade/scores'
+import { BoardGames } from './board/games'
 import { CAT_MODEL, preload, rig } from './assets'
 import type { CabinEditor } from './cabin/editor'
 import { CabinBar, InviteMenu, InviteToasts, type CrewEntry } from './cabin/hud'
@@ -25,7 +26,7 @@ import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, LIFT, SPAWN } from '
 import { hydrateIcons, icon } from './icons'
 import { lookId, lookPath, lookRig, parseLook, raceOf, variantsOf, type Look } from './looks'
 import { JukeboxPanel, JukeboxPlayer, trackById, type Track } from './music'
-import { Net, type MusicState, type PlayerState } from './net'
+import { Net, type BoardGameId, type MusicState, type PlayerState } from './net'
 import type { Tile } from './pathfinding'
 import { PhotoMode } from './photo'
 import { overlapsAny, resolveCircle } from './physics'
@@ -451,6 +452,15 @@ function ambience(dt: number) {
 
 const remotes = new Map<number, RemotePlayer>()
 const net = new Net(profile, devCmdr())
+const boardGames = new BoardGames({
+  playerId: () => net.id,
+  sendJoin: (game, table) => net.sendBoardJoin(game, table),
+  sendMove: (game, table, move) => net.sendBoardMove(game, table, move),
+  sendLeave: () => net.sendBoardLeave(),
+})
+boardGames.onClose = () => {
+  if (seating.current?.spot.pose === 'sit') seating.stand()
+}
 
 let lastAnnouncedName = ''
 
@@ -513,6 +523,7 @@ function removeRemote(id: number) {
 
 net.onStatus = (online) => {
   if (!online) {
+    boardGames.close(false)
     for (const id of [...remotes.keys()]) removeRemote(id)
     inviteToasts.clear()
     inviteMenu.close()
@@ -609,6 +620,10 @@ net.onMessage = (m) => {
       if (track && r) chat.add('system', tr(`${r.name} a mis « ${track.title} » au jukebox.`, `${r.name} put “${track.title}” on the jukebox.`))
       break
     }
+    case 'board:state':
+    case 'board:error':
+      boardGames.receive(m)
+      break
     case 'cabin':
       // Aménagement d'un hôte : à l'entrée dans ses quartiers, puis à chacun de ses changements.
       hostLayouts.set(m.id, m.layout)
@@ -1647,6 +1662,8 @@ function seated(seat: Seated) {
   if (seat.spot.pose === 'claw' && item.control?.kind === 'claw') return startClaw(seat, item.control)
   const game = arcadeGame(seat)
   if (game) return void openArcade(seat, game)
+  const board = boardGame(seat)
+  if (board) return boardGames.open(board.game, board.table)
   if (item.onInteract) return item.onInteract()
   showText(item.text)
 }
@@ -1656,6 +1673,7 @@ function poseChanged() {
   if (!seating.current) {
     stopClaw()
     arcade?.close()
+    boardGames.close(false)
     player.avatar.onPoseStep = undefined
   }
   sendState(true)
@@ -1682,6 +1700,7 @@ function seatPrompt(seat: Seated): { main: string; space?: string } {
   if (canJump(seat)) return { main: tr('Se lever', 'Stand up'), space: jumping ? undefined : tr('Saut FSD', 'FSD jump') }
   // Devant une borne fermée (on sort du mode photo, ou elle n'a pas pu se charger).
   if (arcadeGame(seat)) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
+  if (boardGame(seat)) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
   return { main: tr('Se lever', 'Stand up') }
 }
 
@@ -1691,6 +1710,8 @@ function seatAction(seat: Seated) {
   if (canJump(seat)) return void fsdJump()
   const game = arcadeGame(seat)
   if (game) void openArcade(seat, game)
+  const board = boardGame(seat)
+  if (board) boardGames.open(board.game, board.table)
 }
 
 // ------------------------------------------------------------------ bornes d'arcade
@@ -1703,6 +1724,15 @@ let arcadeLoading: Promise<void> | null = null
 function arcadeGame(seat: Seated): GameId | null {
   const game = seat.item.furniture?.label
   return seat.spot.pose === 'arcade' && isGameId(game) ? game : null
+}
+
+function boardGame(seat: Seated): { game: BoardGameId; table: string } | null {
+  if (seat.spot.pose !== 'sit') return null
+  const model = seat.item.furniture?.model
+  if (model === 'holo-draughts') return { game: 'draughts', table: 'draughts' }
+  if (model === 'guardian-connect') return { game: 'guardian-connect', table: 'guardian-connect' }
+  if (model === 'imperial-chess') return { game: 'imperial-chess', table: 'imperial-chess' }
+  return null
 }
 
 async function openArcade(seat: Seated, game: GameId) {
@@ -1967,7 +1997,7 @@ const photo = new PhotoMode({
 })
 
 function openPhoto() {
-  if (editing() || arcade?.isOpen || riding) return
+  if (editing() || arcade?.isOpen || boardGames.isOpen || riding) return
   lift.close()
   jukebox.close()
   wardrobe.close(false)
@@ -2003,7 +2033,7 @@ function frame() {
   const dt = Math.min(timer.getDelta(), 0.05)
   // Borne d'arcade ouverte : elle couvre l'écran, le vaisseau reste figé derrière (dernière image),
   // et la borne a toute la machine pour elle.
-  if (arcade?.isOpen) {
+  if (arcade?.isOpen || boardGames.isOpen) {
     requestAnimationFrame(frame)
     return
   }
