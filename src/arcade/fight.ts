@@ -1,3 +1,5 @@
+import { fightStage, type FightStageId } from '../../shared/fight-stages.js'
+import { drawAlternateStage } from './fight-stages'
 import { tr } from '../i18n'
 import { drawFighterSprite, fightSpritesReady } from './fight-sprites'
 import { emptyPad, pixelText } from './game'
@@ -24,7 +26,8 @@ function label(g: CanvasRenderingContext2D, text: string, x: number, y: number, 
   g.fillStyle = color; pixelText(g, text, x, y, size, align)
 }
 /** Rue commerçante au crépuscule : façades, enseignes, public et pavés en pixels. */
-export function drawFightStage(g: CanvasRenderingContext2D, t: number) {
+export function drawFightStage(g: CanvasRenderingContext2D, t: number, stage: FightStageId = 'street') {
+  if (stage !== 'street') { drawAlternateStage(g, t, stage); return }
   rect(g, '#251c39', 0, 0, 480, 300)
   const sky = ['#251c39', '#3d2949', '#63344e', '#95504e', '#c87357', '#e79c69']
   sky.forEach((color, i) => rect(g, color, 0, 38 + i * 21, 480, 24))
@@ -59,10 +62,10 @@ export function drawFightStage(g: CanvasRenderingContext2D, t: number) {
   }
   // Enseignes et store rayé du snack. Un néon fait mine de fatiguer.
   rect(g, '#291b31', 7, 151, 125, 20); rect(g, '#e7a45f', 9, 153, 121, 2)
-  label(g, 'CHEZ KO', 69, 158, '#ffdd8c', 1, 'center')
+  label(g, tr('CHEZ KO', 'KO DINER'), 69, 158, '#ffdd8c', 1, 'center')
   for (let x = 10; x < 120; x += 10) { rect(g, x % 20 ? '#d16865' : '#ffe3ac', x, 173, 10, 8); rect(g, x % 20 ? '#9b414f' : '#ccac8a', x, 181, 10, 5) }
   rect(g, '#373142', 170, 151, 140, 19); rect(g, '#e89f68', 171, 152, 138, 2)
-  label(g, 'DOJO DU COIN', 240, 158, '#ffcf84', 1, 'center')
+  label(g, tr('DOJO DU COIN', 'CORNER DOJO'), 240, 158, '#ffcf84', 1, 'center')
   rect(g, '#241f37', 347, 151, 123, 20)
   label(g, 'INSERT COIN', 408, 158, Math.sin(t * 2) > -0.94 ? '#79dad7' : '#407b84', 1, 'center')
   // Éclairage suspendu et banderoles d'un tournoi parfaitement improvisé.
@@ -176,7 +179,7 @@ export class Fight extends FightSimulation {
     const impact = this.sparks.some(s => !s.blocked && s.life > 0.13)
     g.save()
     if (impact) g.translate(Math.floor(Math.sin(t * 80) * 2), 0)
-    drawFightStage(g, t)
+    drawFightStage(g, t, this.stage)
     const koTime = this.phase === 'round' ? 2.2 - this.phaseTime : this.over ? 2.2 : 0
     this.fighters.forEach((f, i) => {
       disc(g, '#03091ba0', f.x, FLOOR + 4, 22, 4)
@@ -225,7 +228,7 @@ export class Fight extends FightSimulation {
   }
   private drawVersus(g: CanvasRenderingContext2D, t: number) {
     const elapsed = 2.8 - this.phaseTime, entry = Math.max(0, 1 - elapsed / 0.65) ** 3 * 250
-    drawFightStage(g, t); rect(g, '#090f27cc', 0, 0, 480, 300)
+    drawFightStage(g, t, this.stage); rect(g, '#090f27cc', 0, 0, 480, 300)
     for (let y = 0; y < 300; y += 4) { rect(g, '#213b56', 0, y, 242 - y * 0.12, 4); rect(g, '#563148', 246 - y * 0.12, y, 480, 4) }
     rect(g, '#efd599', 240, 0, 4, 300)
     portrait(g, this.fighters[0].character, 112 - entry, 222, 2, 1, t)
@@ -234,7 +237,7 @@ export class Fight extends FightSimulation {
     label(g, fighterProfile(this.fighters[1].character).name, 370 + entry, 238, '#ffc0d2', 3, 'center')
     if (elapsed > 0.55) label(g, 'VS', 240, 137, '#ffe39c', 4, 'center')
     label(g, FIGHT_TITLE, 240, 22, '#ffdd96', 2, 'center')
-    label(g, tr('DOJO DU COIN · DEUX MANCHES GAGNANTES', 'CORNER DOJO · FIRST TO TWO ROUNDS'), 240, 283, '#d6dceb', 1, 'center')
+    label(g, `${tr(...fightStage(this.stage).name).toUpperCase()} · ${tr('2 MANCHES GAGNANTES', 'FIRST TO 2 ROUNDS')}`, 240, 283, '#d6dceb', 1, 'center')
   }
 }
 export const fightDemo = () => {

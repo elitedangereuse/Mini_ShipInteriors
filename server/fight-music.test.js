@@ -11,3 +11,23 @@ test('la composition produit une boucle déterministe audible, finie et sans sat
   assert.ok(samples.length / 8000 > 13 && samples.length / 8000 < 14)
   assert.ok(Math.abs(samples[0] - samples.at(-1)) < .02, 'les bords de la boucle sont silencieux')
 })
+
+test('les quatre stages ont des compositions distinctes et des boucles propres', async () => {
+  const { FIGHT_STAGES } = await import('../shared/fight-stages.js')
+  const { createHash } = await import('node:crypto')
+  const signatures = new Set()
+  for (const stage of FIGHT_STAGES) {
+    const samples = composeFightMusic(8000, stage.music)
+    assert.deepEqual(samples, composeFightMusic(8000, stage.music), stage.id)
+    let peak = 0, power = 0
+    for (const sample of samples) {
+      assert.ok(Number.isFinite(sample), stage.id)
+      peak = Math.max(peak, Math.abs(sample)); power += sample * sample
+    }
+    assert.ok(peak < 1 && Math.sqrt(power / samples.length) > .03, stage.id)
+    assert.ok(samples.length / 8000 > 12 && samples.length / 8000 < 18, stage.id)
+    assert.ok(Math.abs(samples[0] - samples.at(-1)) < .02, stage.id)
+    signatures.add(createHash('sha256').update(Buffer.from(samples.buffer)).digest('hex'))
+  }
+  assert.equal(signatures.size, FIGHT_STAGES.length)
+})

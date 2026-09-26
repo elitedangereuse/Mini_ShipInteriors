@@ -1,3 +1,4 @@
+import type { FightStageId } from './fight-stages.js'
 import type { FighterId } from './fight-roster.js'
 import type { Pad, Sfx } from '../src/arcade/game'
 export type FightMode = 'solo' | 'versus' | 'demo'
@@ -10,6 +11,7 @@ export interface Fighter {
 }
 export const MOVES: Record<Move, { windup: number; duration: number; range: number; damage: number }>
 export interface FightSnapshot {
+  stage: FightStageId
   fighters: [Fighter, Fighter]
   phase: 'intro' | 'ready' | 'fight' | 'round' | 'over'
   phaseTime: number; remaining: number; winner: number | null; roundWinner: number | null
@@ -25,6 +27,7 @@ export class FightSimulation implements FightSnapshot {
   readonly width: 480
   readonly height: 300
   readonly sounds: Sfx[]
+  stage: FightStageId
   best: number; score: number; level: number; over: boolean
   fighters: [Fighter, Fighter]
   phase: FightSnapshot['phase']; phaseTime: number; remaining: number

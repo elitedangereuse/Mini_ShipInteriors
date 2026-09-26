@@ -525,7 +525,7 @@ export class ArcadeCabinet {
     this.clearInput()
     const choice = FIGHT_ROSTER.filter(f => f.id !== this.selectedFighter)
     const cpu = choice[Math.floor(Math.random() * choice.length)].id
-    this.game = this.id === 'fight' ? new Fight('solo', 3312, [this.selectedFighter, cpu]) : create(this.id)
+    this.game = this.id === 'fight' ? new Fight('solo', crypto.getRandomValues(new Uint32Array(1))[0], [this.selectedFighter, cpu]) : create(this.id)
     this.game.best = Math.max(localBest(this.id), this.board?.top[0]?.score ?? 0)
     this.canvas.width = this.game.width
     this.canvas.height = this.game.height
@@ -577,7 +577,7 @@ export class ArcadeCabinet {
       const scene = document.hidden || this.mode === 'pause' ? 'pause'
         : this.mode === 'intro' || (this.game instanceof Fight && this.game.phase === 'intro') ? 'intro'
         : this.mode === 'title' ? 'select' : this.mode === 'over' ? 'over' : 'battle'
-      this.fightMusic?.setScene(scene)
+      this.fightMusic?.setScene(scene, this.game instanceof Fight && this.mode !== 'title' && this.mode !== 'intro' ? this.game.stage : undefined)
     }
 
     switch (this.mode) {

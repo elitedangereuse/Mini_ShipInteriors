@@ -1,3 +1,4 @@
+import { chooseFightStage } from './fight-stages.js'
 import { fighterProfile } from './fight-roster.js'
 // Simulation commune au navigateur et au relais ; le serveur décide des contacts et du résultat.
 const emptyPad = () => ({
@@ -72,11 +73,13 @@ export class FightSimulation {
   accumulator = 0
   pending = [emptyPad(), emptyPad()]
   rng
+  stage
   aiTime = [0, 0]
   aiPads = [emptyPad(), emptyPad()]
   constructor(mode = 'solo', seed = 3312, characters = ['nova', 'vesper']) {
     this.mode = mode
     this.rng = random(seed)
+    this.stage = chooseFightStage(random(seed ^ 0x57a9e)())
     this.fighters = [fighter(130, 1, 0, characters[0]), fighter(350, -1, 0, characters[1])]
   }
   step(dt, pad) {
@@ -295,6 +298,7 @@ export class FightSimulation {
   }
   snapshot() {
     return structuredClone({
+      stage: this.stage,
       fighters: this.fighters,
       phase: this.phase,
       phaseTime: this.phaseTime,

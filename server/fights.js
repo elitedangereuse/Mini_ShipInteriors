@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto'
 import { fighterProfile } from '../shared/fight-roster.js'
 import { FightSimulation } from '../shared/fight.js'
 
@@ -32,7 +33,7 @@ export function fightRelay(playerById, socketById) {
   }
   const start = match => {
     stop(match)
-    match.game = new FightSimulation('versus', 3312, match.players.map(p => p.fighter))
+    match.game = new FightSimulation('versus', randomInt(0x100000000), match.players.map(p => p.fighter))
     match.session = ++serial; match.rematch.clear()
     match.players.forEach(p => { p.pad = pad(); p.at = Date.now() })
     let previous = performance.now(), frames = 0

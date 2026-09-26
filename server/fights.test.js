@@ -4,6 +4,7 @@ import { createServer } from 'node:http'
 import { once } from 'node:events'
 import { io as connect } from 'socket.io-client'
 import { attachRelay, WS_PATH } from './relay.js'
+import { FIGHT_STAGES } from '../shared/fight-stages.js'
 import { FightSimulation } from '../shared/fight.js'
 
 const pad = (held = [], pressed = []) => ({ held: new Set(held), pressed: new Set(pressed) })
@@ -76,11 +77,13 @@ test('deux clients rejoignent le même duel, partagent la simulation et libèren
   const playingA = next(a, 'fight:state', s => s.status === 'playing'), playingB = next(b, 'fight:state', s => s.status === 'playing')
   b.emit('fight:join', { fighter: 'nyx' }); const [sa, sb] = await Promise.all([playingA, playingB]); assert.deepEqual(sa, sb)
   assert.deepEqual(sa.snapshot.fighters.map(f => f.character), ['atlas', 'nyx'])
+  assert.ok(FIGHT_STAGES.some(stage => stage.id === sa.snapshot.stage))
   const full = next(c, 'fight:error'); c.emit('fight:join'); assert.equal((await full).code, 'full')
   // Un spectateur ne peut pas envoyer les commandes d'un combattant.
   c.emit('fight:input', { session: sa.session, held: ['left'], pressed: ['c'] })
   const active = await next(a, 'fight:state', s => s.snapshot.phase === 'fight')
   assert.ok(active.snapshot.fighters[0].energy >= 40)
+  assert.equal(active.snapshot.stage, sa.snapshot.stage)
   const moved = next(b, 'fight:state', s => s.snapshot.fighters[0].x > 132)
   a.emit('fight:input', { session: sa.session, held: ['right'], pressed: [], hp: 0, winner: 0 }); await moved
   const staleRelease = await next(b, 'fight:state', s => s.snapshot.remaining < 59.4)
