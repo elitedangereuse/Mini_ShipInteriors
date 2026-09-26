@@ -4,7 +4,9 @@ import { EN, tr } from '../i18n'
 import { icon, type IconName } from '../icons'
 import { Asteroids, AsteroidsPilot } from './asteroids'
 import { Cargo, CargoPilot } from './cargo'
-import { Fight, fightDemo } from './fight'
+import { Fight, fightDemo, drawFightIntro, drawFightSelection } from './fight'
+import { FightMusic } from './fight-music'
+import { FIGHT_ROSTER, fighterProfile, type FighterId } from '../../shared/fight-roster.js'
 import { padScore, pixelText, textWidth, type ArcadeGame, type Button, type GameId, type Pad } from './game'
 import { arcadeTiers } from '../economy/data'
 import { fetchBoard, localBest, saveLocalBest, submitScore, type ArcadeCredits, type Board, type Submission } from './scores'
@@ -38,6 +40,7 @@ const GAMES: Record<GameId, GameInfo> = {
     neon: '#76eeff', side: '#322457',
     help: [
       [['1', '2'], tr('Solo / duel en ligne (titre)', 'Solo / online duel (title)')],
+      [['←', '→'], tr('Choisir le combattant (titre)', 'Choose fighter (title)')],
       [[tr('Z Q S D', 'W A S D')], tr('Bouger / sauter / baisser', 'Move / jump / crouch')],
       [['F', 'G', 'H'], tr('Poing / pied / plasma', 'Punch / kick / plasma')],
       [[tr('Flèches', 'Arrows')], tr('Bouger / sauter / baisser aussi', 'Also move / jump / crouch')],
@@ -94,7 +97,7 @@ const FIGHT_KEYS: Record<string, Button> = {
   ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down',
 }
 
-type Mode = 'title' | 'play' | 'pause' | 'over'
+type Mode = 'intro' | 'title' | 'play' | 'pause' | 'over'
 
 /** Écran tactile : la borne affiche sa manette, et parle de ses boutons plutôt que du clavier. */
 const TOUCH = matchMedia('(pointer: coarse)').matches
@@ -148,6 +151,9 @@ export class ArcadeCabinet {
   private readonly g: CanvasRenderingContext2D
   private readonly marquee: HTMLDivElement
   private readonly help: HTMLDivElement
+  private readonly fightRoster: HTMLDivElement
+  private selectedFighter: FighterId = 'nova'
+  private fightMusic: FightMusic | null = null
   private readonly fightMenu: HTMLDivElement
   private fightMode: 'solo' | 'online' = 'solo'
   private readonly fightStatus: HTMLDivElement
@@ -232,8 +238,21 @@ export class ArcadeCabinet {
     this.fightStatus.className = 'arc-fight-status'
     this.fightStatus.setAttribute('aria-live', 'polite')
     this.fightMenu.append(this.fightStatus)
+    this.fightRoster = document.createElement('div')
+    this.fightRoster.className = 'arc-fight-roster'
+    this.fightRoster.setAttribute('role', 'group')
+    this.fightRoster.setAttribute('aria-label', tr('Choisir un combattant', 'Choose a fighter'))
+    for (const profile of FIGHT_ROSTER) {
+      const btn = document.createElement('button')
+      btn.textContent = profile.name
+      btn.dataset.fighter = profile.id
+      btn.style.setProperty('--fighter', profile.color)
+      btn.title = `${tr(...profile.role)} · + ${tr(...profile.strength)} · - ${tr(...profile.weakness)}`
+      btn.onclick = () => this.chooseFighter(profile.id)
+      this.fightRoster.append(btn)
+    }
     deck.append(this.help, quit)
-    cab.append(this.marquee, bezel, this.fightMenu, deck)
+    cab.append(this.marquee, bezel, this.fightMenu, this.fightRoster, deck)
     this.el.append(cab, this.touchPad())
     document.body.append(this.el)
     // Clic à côté de la borne : on la quitte.
@@ -281,7 +300,10 @@ export class ArcadeCabinet {
   open(id: GameId) {
     this.leaveFight()
     this.id = id
+    this.fightMusic?.stop()
+    this.fightMusic = null
     this.fightMenu.hidden = id !== 'fight'
+    this.fightRoster.hidden = id !== 'fight'
     this.el.classList.toggle('arc-fighting', id === 'fight')
     this.updateFightMenu()
     this.el.setAttribute('aria-label', GAMES[id].title)
@@ -306,7 +328,7 @@ export class ArcadeCabinet {
     this.canvas.width = this.attract.game.width
     this.canvas.height = this.attract.game.height
     this.canvas.classList.toggle('smooth', !!this.attract.game.smooth)
-    this.setMode('title')
+    this.setMode(id === 'fight' ? 'intro' : 'title')
     this.board = undefined
     if (id !== 'fight') void fetchBoard(id).then((b) => {
       if (this.id === id) this.board = b
@@ -324,6 +346,8 @@ export class ArcadeCabinet {
   close() {
     if (this.el.hidden) return
     this.el.hidden = true
+    this.fightMusic?.stop()
+    this.fightMusic = null
     this.leaveFight()
     cancelAnimationFrame(this.raf)
     removeEventListener('keydown', this.onKey, true)
@@ -338,6 +362,7 @@ export class ArcadeCabinet {
   private setMode(mode: Mode) {
     this.mode = mode
     this.modeTime = 0
+    this.updateFightMenu()
   }
 
   private leaveFight() {
@@ -346,6 +371,7 @@ export class ArcadeCabinet {
     this.fightState = null
     this.fightPressed.clear()
     if (this.fightStatus) this.fightStatus.textContent = ''
+    this.updateFightMenu()
   }
 
   disconnected() {
@@ -382,11 +408,23 @@ export class ArcadeCabinet {
     const next = message.snapshot.over ? 'over' : 'play'
     if (this.mode !== next) { this.clearInput(); this.setMode(next) }
     const other = message.players[1 - me]
-    this.fightStatus.textContent = `${tr('Vous :', 'You:')} ${me === 0 ? 'NOVA' : 'VESPER'} · ${other?.name ?? ''}`
+    this.fightStatus.textContent = `${tr('Vous :', 'You:')} ${fighterProfile(message.players[me].fighter).name} · ${other?.name ?? ''}`
     if (message.rematch.length) this.fightStatus.textContent += tr(' · Revanche : les deux joueurs doivent accepter.', ' · Rematch: both players must accept.')
   }
 
+  private chooseFighter(id: FighterId) {
+    if (this.fightJoined || (this.mode !== 'title' && this.mode !== 'intro')) return
+    this.selectedFighter = id
+    if (this.mode === 'intro') this.setMode('title')
+    this.updateFightMenu()
+    this.play('rotate')
+  }
+
   private updateFightMenu() {
+    for (const btn of this.fightRoster?.querySelectorAll<HTMLButtonElement>('button') ?? []) {
+      btn.setAttribute('aria-pressed', String(btn.dataset.fighter === this.selectedFighter))
+      btn.disabled = this.fightJoined || (this.mode !== 'title' && this.mode !== 'intro')
+    }
     for (const btn of this.fightMenu.querySelectorAll('button[data-mode]')) btn.setAttribute('aria-pressed', String((btn as HTMLButtonElement).dataset.mode === this.fightMode))
   }
 
@@ -397,6 +435,7 @@ export class ArcadeCabinet {
   }
 
   private onBlur = () => {
+    this.fightMusic?.setScene('pause')
     this.clearInput()
     if (this.fightJoined && this.fightState) this.host.net.sendFightInput(this.fightState.session, [], [])
     if (this.mode === 'play' && !this.fightJoined) this.setMode('pause')
@@ -418,10 +457,21 @@ export class ArcadeCabinet {
       if (b && !down) this.held.delete(b)
       return
     }
+    if (e.code === 'Tab') return
     e.preventDefault()
-    if (this.id === 'fight' && this.mode === 'title' && down && !e.repeat && (e.code === 'Digit1' || e.code === 'Digit2')) {
+    if (this.id === 'fight' && (e.code === 'Space' || e.code === 'Enter') && e.target instanceof HTMLButtonElement && this.el.contains(e.target)) {
+      if (down && !e.repeat) { e.target.click(); e.target.blur() }
+      return
+    }
+    if (this.id === 'fight' && (this.mode === 'title' || this.mode === 'intro') && down && !e.repeat && (e.code === 'Digit1' || e.code === 'Digit2')) {
       const mode = e.code === 'Digit1' ? 'solo' : 'online'
       this.fightMenu.querySelector<HTMLButtonElement>(`button[data-mode="${mode}"]`)?.click()
+      return
+    }
+    if (this.id === 'fight' && this.mode === 'title' && !this.fightJoined && down && !e.repeat && ['ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD'].includes(e.code)) {
+      const direction = e.code === 'ArrowLeft' || e.code === 'KeyA' ? -1 : 1
+      const index = FIGHT_ROSTER.findIndex(f => f.id === this.selectedFighter)
+      this.chooseFighter(FIGHT_ROSTER[(index + direction + FIGHT_ROSTER.length) % FIGHT_ROSTER.length].id)
       return
     }
     if (down && !e.repeat && (e.code === 'Escape' || e.code === 'KeyE')) return this.close()
@@ -439,6 +489,7 @@ export class ArcadeCabinet {
   }
 
   private start() {
+    if (this.id === 'fight' && this.mode === 'intro') { this.setMode('title'); this.clearInput(); return }
     if (this.id === 'fight' && this.fightMode === 'online') {
       if (!this.host.net.online) {
         this.fightStatus.textContent = tr('Relais déconnecté : le mode solo reste disponible.', 'Relay disconnected: solo mode is available.')
@@ -453,12 +504,15 @@ export class ArcadeCabinet {
         this.fightJoined = true
         this.fightWaitingSince = performance.now()
         this.fightStatus.textContent = tr('Connexion à la borne…', 'Connecting to the cabinet…')
-        this.host.net.sendFightJoin()
+        this.updateFightMenu()
+        this.host.net.sendFightJoin(this.selectedFighter)
       }
       return
     }
     this.clearInput()
-    this.game = create(this.id)
+    const choice = FIGHT_ROSTER.filter(f => f.id !== this.selectedFighter)
+    const cpu = choice[Math.floor(Math.random() * choice.length)].id
+    this.game = this.id === 'fight' ? new Fight('solo', 3312, [this.selectedFighter, cpu]) : create(this.id)
     this.game.best = Math.max(localBest(this.id), this.board?.top[0]?.score ?? 0)
     this.canvas.width = this.game.width
     this.canvas.height = this.game.height
@@ -502,7 +556,21 @@ export class ArcadeCabinet {
       }
     }
 
+    if (this.id === 'fight') {
+      if (!this.fightMusic) {
+        const out = this.host.sound.arcadeOutput()
+        if (out) this.fightMusic = new FightMusic(this.host.sound.ctx, out)
+      }
+      const scene = document.hidden || this.mode === 'pause' ? 'pause'
+        : this.mode === 'intro' || (this.game instanceof Fight && this.game.phase === 'intro') ? 'intro'
+        : this.mode === 'title' ? 'select' : this.mode === 'over' ? 'over' : 'battle'
+      this.fightMusic?.setScene(scene)
+    }
+
     switch (this.mode) {
+      case 'intro':
+        if (this.modeTime >= 3.6 || pad.pressed.has('a')) { this.setMode('title'); this.clearInput() }
+        break
       case 'title': {
         const a = this.attract!
         a.game.step(dt, a.next(dt))
@@ -510,6 +578,12 @@ export class ArcadeCabinet {
         if (a.game.over && (this.attractOver += dt) > 3) {
           this.attract = demo(this.id)
           this.attractOver = 0
+        }
+        if (this.id === 'fight' && !this.fightJoined) {
+          if (pad.pressed.has('left') || pad.pressed.has('right')) {
+            const index = FIGHT_ROSTER.findIndex(f => f.id === this.selectedFighter)
+            this.chooseFighter(FIGHT_ROSTER[(index + (pad.pressed.has('left') ? -1 : 1) + 6) % 6].id)
+          }
         }
         if (pad.pressed.has('a')) this.start()
         break
@@ -567,7 +641,11 @@ export class ArcadeCabinet {
     const g = this.g, w = this.canvas.width, h = this.canvas.height
     const k = w / 320
     g.save()
-    if (this.mode === 'title') {
+    if (this.id === 'fight' && this.mode === 'intro') {
+      drawFightIntro(g, this.modeTime)
+    } else if (this.id === 'fight' && this.mode === 'title') {
+      drawFightSelection(g, this.selectedFighter, this.fightMode === 'online', this.fightJoined, this.time)
+    } else if (this.mode === 'title') {
       const a = this.attract!
       a.game.draw(g, this.time)
       g.fillStyle = 'rgba(2, 3, 8, 0.55)'
@@ -618,13 +696,6 @@ export class ArcadeCabinet {
     pixelText(g, title, w / 2, y, scale, 'center')
     g.fillStyle = '#d8dde4'
     pixelText(g, this.info.tagline, w / 2, y + 7 * scale + 16 * k, k, 'center')
-    if (this.id === 'fight') {
-      g.fillStyle = '#ffe19a'
-      pixelText(g, this.fightMode === 'solo' ? tr('SOLO CONTRE VESPER / CPU', 'SOLO VS VESPER / CPU') : tr('2 JOUEURS CONNECTÉS AU VAISSEAU', '2 PLAYERS CONNECTED TO THE SHIP'), w / 2, y + 7 * scale + 44 * k, k, 'center')
-      g.fillStyle = '#d8dde4'
-      pixelText(g, this.fightJoined && !this.game ? tr('EN ATTENTE D’UN ADVERSAIRE…', 'WAITING FOR AN OPPONENT…') : tr('2 MANCHES GAGNANTES · 60 S', 'FIRST TO 2 ROUNDS · 60 S'), w / 2, y + 7 * scale + 64 * k, k, 'center')
-      return
-    }
     const top = this.board?.top[0]
     const best = Math.max(localBest(this.id), top?.score ?? 0)
     g.fillStyle = '#ffe14f'

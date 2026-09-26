@@ -1,3 +1,4 @@
+import { fighterProfile } from '../shared/fight-roster.js'
 import { FightSimulation } from '../shared/fight.js'
 
 const BUTTONS = new Set(['left', 'right', 'up', 'down', 'a', 'b', 'c'])
@@ -10,7 +11,7 @@ export function fightRelay(playerById, socketById) {
   let serial = 0
   const emit = match => {
     const state = {
-      session: match.session, players: match.players.map(p => ({ id: p.id, name: playerById(p.id)?.name ?? p.name })),
+      session: match.session, players: match.players.map(p => ({ id: p.id, name: playerById(p.id)?.name ?? p.name, fighter: p.fighter })),
       status: match.game ? match.game.over ? 'ended' : 'playing' : 'waiting',
       rematch: [...match.rematch], snapshot: match.game?.snapshot() ?? null,
     }
@@ -31,7 +32,7 @@ export function fightRelay(playerById, socketById) {
   }
   const start = match => {
     stop(match)
-    match.game = new FightSimulation('versus')
+    match.game = new FightSimulation('versus', 3312, match.players.map(p => p.fighter))
     match.session = ++serial; match.rematch.clear()
     match.players.forEach(p => { p.pad = pad(); p.at = Date.now() })
     let previous = performance.now(), frames = 0
@@ -55,7 +56,7 @@ export function fightRelay(playerById, socketById) {
   }
   const connect = (socket, player) => {
     let lastJoin = 0, inputWindow = 0, inputCount = 0
-    socket.on('fight:join', () => {
+    socket.on('fight:join', raw => {
       const key = room(player)
       if (!key) return socket.emit('fight:error', { code: 'unavailable' })
       const existing = matches.get(player.fightRoom)
@@ -67,7 +68,7 @@ export function fightRelay(playerById, socketById) {
       leave(player)
       const match = target ?? { room: key, session: ++serial, players: [], game: null, timer: null, rematch: new Set() }
       matches.set(key, match)
-      match.players.push({ id: player.id, name: player.name, pad: pad(), at: Date.now() })
+      match.players.push({ id: player.id, name: player.name, fighter: fighterProfile(raw?.fighter).id, pad: pad(), at: Date.now() })
       player.fightRoom = key
       if (match.players.length === 2) start(match)
       else emit(match)

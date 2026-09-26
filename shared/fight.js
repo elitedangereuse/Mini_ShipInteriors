@@ -1,3 +1,4 @@
+import { fighterProfile } from './fight-roster.js'
 // Simulation commune au navigateur et au relais ; le serveur décide des contacts et du résultat.
 const emptyPad = () => ({
   held: new Set(),
@@ -33,7 +34,9 @@ export const MOVES = {
     damage: 12,
   },
 }
-const fighter = (x, face, wins = 0) => ({
+const fighter = (x, face, wins = 0, character = 'nova') => ({
+  character: fighterProfile(character).id,
+  walk: 0,
   x,
   y: 0,
   vy: 0,
@@ -58,8 +61,8 @@ export class FightSimulation {
   level = 1
   over = false
   fighters = [fighter(130, 1), fighter(350, -1)]
-  phase = 'ready'
-  phaseTime = 1.8
+  phase = 'intro'
+  phaseTime = 2.8
   remaining = 60
   winner = null
   roundWinner = null
@@ -70,9 +73,10 @@ export class FightSimulation {
   rng
   aiTime = [0, 0]
   aiPads = [emptyPad(), emptyPad()]
-  constructor(mode = 'solo', seed = 3312) {
+  constructor(mode = 'solo', seed = 3312, characters = ['nova', 'vesper']) {
     this.mode = mode
     this.rng = random(seed)
+    this.fighters = [fighter(130, 1, 0, characters[0]), fighter(350, -1, 0, characters[1])]
   }
   step(dt, pad) {
     if (this.over) return
@@ -98,6 +102,7 @@ export class FightSimulation {
     const me = this.fighters[i],
       other = this.fighters[1 - i],
       distance = Math.abs(me.x - other.x)
+    const profile = fighterProfile(me.character)
     const toward = other.x > me.x ? 'right' : 'left',
       away = toward === 'right' ? 'left' : 'right'
     if (
@@ -106,11 +111,11 @@ export class FightSimulation {
     ) {
       p.held.add(away)
       if (this.rng() < 0.3) p.pressed.add('up')
-    } else if (distance > 58) {
+    } else if (distance > MOVES.kick.range * profile.reach * 0.85) {
       p.held.add(toward)
-      if (distance > 140 && me.energy >= 35 && this.rng() < 0.45) p.pressed.add('c')
+      if (distance > 140 && me.energy >= profile.plasmaCost && this.rng() < 0.45) p.pressed.add('c')
     } else {
-      p.pressed.add(this.rng() < 0.55 ? 'a' : 'b')
+      p.pressed.add(distance < MOVES.punch.range * profile.reach && this.rng() < 0.55 ? 'a' : 'b')
       if (this.rng() < 0.2) p.pressed.add('up')
       if (this.rng() < 0.2) p.held.add('down')
     }
@@ -122,7 +127,9 @@ export class FightSimulation {
     if (this.phase !== 'fight') {
       this.phaseTime -= dt
       if (this.phaseTime <= 0) {
-        if (this.phase === 'ready') {
+        if (this.phase === 'intro') {
+          this.phase = 'ready'; this.phaseTime = 1.8; this.sounds.push('bonus')
+        } else if (this.phase === 'ready') {
           this.phase = 'fight'
           this.sounds.push('level')
         } else if (this.phase === 'round') {
@@ -133,7 +140,7 @@ export class FightSimulation {
             this.sounds.push('over')
           } else {
             this.level++
-            this.fighters = [fighter(130, 1, this.fighters[0].wins), fighter(350, -1, this.fighters[1].wins)]
+            this.fighters = [fighter(130, 1, this.fighters[0].wins, this.fighters[0].character), fighter(350, -1, this.fighters[1].wins, this.fighters[1].character)]
             this.remaining = 60
             this.phase = 'ready'
             this.phaseTime = 1.8
@@ -149,10 +156,11 @@ export class FightSimulation {
     this.fighters.forEach((f, i) => {
       const other = this.fighters[1 - i],
         p = pads[i]
+      const profile = fighterProfile(f.character)
       f.face = other.x >= f.x ? 1 : -1
       f.stun = Math.max(0, f.stun - dt)
       f.cooldown = Math.max(0, f.cooldown - dt)
-      f.energy = Math.min(100, f.energy + dt * 7)
+      f.energy = Math.min(100, f.energy + dt * profile.regen)
       f.y += f.vy * dt
       f.vy -= 850 * dt
       if (f.y <= 0) {
@@ -164,15 +172,16 @@ export class FightSimulation {
       f.guard = !f.attack && f.stun === 0 && f.y === 0 && movement === -f.face
       if (!f.stun && !f.attack) {
         if (p.pressed.has('up') && f.y === 0) {
-          f.vy = 355
+          f.vy = profile.jump
           f.crouch = false
           f.guard = false
           this.sounds.push('thrust')
         }
-        f.x += movement * dt * (f.crouch ? 35 : f.guard ? 62 : 115)
+        f.x += movement * dt * profile.speed * (f.crouch ? 0.3 : f.guard ? 0.54 : 1)
+        f.walk += Math.abs(movement) * dt * profile.speed / 12
         if (!f.cooldown) {
           const move =
-            p.pressed.has('c') && f.energy >= 35
+            p.pressed.has('c') && f.energy >= profile.plasmaCost
               ? 'plasma'
               : p.pressed.has('b')
                 ? 'kick'
@@ -186,8 +195,8 @@ export class FightSimulation {
               hit: false,
             }
             f.guard = false
-            f.cooldown = MOVES[move].duration + 0.08
-            if (move === 'plasma') f.energy -= 35
+            f.cooldown = MOVES[move].duration * profile.tempo + 0.08
+            if (move === 'plasma') f.energy -= profile.plasmaCost
           }
         }
       }
@@ -205,7 +214,9 @@ export class FightSimulation {
     this.fighters.forEach((f, i) => {
       const attack = f.attack
       if (!attack) return
-      const move = MOVES[attack.move],
+      const profile = fighterProfile(f.character)
+      const base = MOVES[attack.move]
+      const move = { ...base, windup: base.windup * profile.tempo, duration: base.duration * profile.tempo, range: base.range * profile.reach },
         other = this.fighters[1 - i]
       if (!attack.hit && attack.time >= move.windup && attack.time < move.windup + 0.1) {
         if (attack.move === 'plasma') {
@@ -214,6 +225,7 @@ export class FightSimulation {
             y: f.y + 32,
             dir: f.face,
             owner: i,
+            speed: profile.plasmaSpeed, damage: Math.round(12 * profile.plasmaPower),
           })
           attack.hit = true
           this.sounds.push('shoot')
@@ -225,7 +237,7 @@ export class FightSimulation {
         ) {
           hits.push({
             owner: i,
-            damage: move.damage,
+            damage: Math.round(move.damage * profile.power),
             low: f.crouch,
             x: other.x,
             y: FLOOR - other.y - 32,
@@ -236,12 +248,12 @@ export class FightSimulation {
       if (attack.time >= move.duration) f.attack = null
     })
     this.projectiles = this.projectiles.filter((p) => {
-      p.x += p.dir * 250 * dt
+      p.x += p.dir * p.speed * dt
       const other = this.fighters[1 - p.owner]
       if (Math.abs(p.x - other.x) < 18 && p.y > other.y + 8 && p.y < other.y + (other.crouch ? 35 : 66)) {
         hits.push({
           owner: p.owner,
-          damage: 12,
+          damage: p.damage,
           low: false,
           x: p.x,
           y: FLOOR - p.y,
@@ -257,7 +269,7 @@ export class FightSimulation {
     for (const h of hits) {
       const f = this.fighters[1 - h.owner],
         blocked = guards[1 - h.owner].guard && (!h.low || guards[1 - h.owner].crouch)
-      f.hp = Math.max(0, f.hp - (blocked ? 1 : h.damage))
+      f.hp = Math.max(0, f.hp - (blocked ? 1 : Math.max(1, Math.round(h.damage * fighterProfile(f.character).armor))))
       f.stun = blocked ? 0.08 : 0.22
       f.attack = null
       f.x = Math.max(24, Math.min(456, f.x + this.fighters[h.owner].face * (blocked ? 4 : 10)))

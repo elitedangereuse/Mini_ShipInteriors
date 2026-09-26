@@ -8,7 +8,7 @@ import { FightSimulation } from '../shared/fight.js'
 
 const pad = (held = [], pressed = []) => ({ held: new Set(held), pressed: new Set(pressed) })
 const advance = (game, seconds, input = pad()) => { for (let i = 0; i < Math.round(seconds * 120); i++) game.step(1 / 120, i ? { ...input, pressed: new Set(), ...(input.second ? { second: { ...input.second, pressed: new Set() } } : {}) } : input) }
-const ready = () => { const g = new FightSimulation('versus'); advance(g, 2); g.fighters[0].x = 200; g.fighters[1].x = 240; return g }
+const ready = () => { const g = new FightSimulation('versus', 3312, ['nova', 'nova']); advance(g, 4.8); g.fighters[0].x = 200; g.fighters[1].x = 240; return g }
 
 test('un coup inflige une seule fois ses dégâts ; hors portée il ne touche pas', () => {
   const g = ready(); advance(g, 0.4, pad([], ['a'])); assert.equal(g.fighters[1].hp, 92)
@@ -60,7 +60,7 @@ before(async () => {
 })
 after(() => { clients.forEach(c => c.disconnect()); relay.close() })
 const next = (socket, event, predicate = () => true) => new Promise((resolve, reject) => {
-  const timeout = setTimeout(() => { socket.off(event, listener); reject(new Error(`Timeout: ${event}`)) }, 4000)
+  const timeout = setTimeout(() => { socket.off(event, listener); reject(new Error(`Timeout: ${event}`)) }, 8000)
   const listener = msg => { if (predicate(msg)) { clearTimeout(timeout); socket.off(event, listener); resolve(msg) } }
   socket.on(event, listener)
 })
@@ -72,9 +72,10 @@ const client = async name => {
 
 test('deux clients rejoignent le même duel, partagent la simulation et libèrent la borne', async () => {
   const a = await client('Nova'), b = await client('Vesper'), c = await client('Spectateur')
-  const waiting = next(a, 'fight:state', s => s.status === 'waiting'); a.emit('fight:join'); assert.equal((await waiting).players.length, 1)
+  const waiting = next(a, 'fight:state', s => s.status === 'waiting'); a.emit('fight:join', { fighter: 'atlas', speed: 999 }); assert.equal((await waiting).players.length, 1)
   const playingA = next(a, 'fight:state', s => s.status === 'playing'), playingB = next(b, 'fight:state', s => s.status === 'playing')
-  b.emit('fight:join'); const [sa, sb] = await Promise.all([playingA, playingB]); assert.deepEqual(sa, sb)
+  b.emit('fight:join', { fighter: 'nyx' }); const [sa, sb] = await Promise.all([playingA, playingB]); assert.deepEqual(sa, sb)
+  assert.deepEqual(sa.snapshot.fighters.map(f => f.character), ['atlas', 'nyx'])
   const full = next(c, 'fight:error'); c.emit('fight:join'); assert.equal((await full).code, 'full')
   // Un spectateur ne peut pas envoyer les commandes d'un combattant.
   c.emit('fight:input', { session: sa.session, held: ['left'], pressed: ['c'] })
@@ -102,14 +103,14 @@ test('la revanche attend les deux accords et les cabines restent séparées', as
   t.mock.method(globalThis, 'clearInterval', () => {})
   const players = new Map(), sockets = new Map()
   const manager = fightRelay(id => players.get(id), id => sockets.get(id))
-  const add = (id, cabin) => {
+  const add = (id, cabin, fighter = 'nova') => {
     const player = { id, name: `Player ${id}`, level: 1, cabin }
     const socket = new EventEmitter(); socket.on('fight:state', s => { socket.state = s })
-    players.set(id, player); sockets.set(id, socket); manager.connect(socket, player); socket.emit('fight:join'); return socket
+    players.set(id, player); sockets.set(id, socket); manager.connect(socket, player); socket.emit('fight:join', { fighter }); return socket
   }
-  const a = add(1, 1), isolated = add(2, 2)
+  const a = add(1, 1, 'atlas'), isolated = add(2, 2, 'not-a-fighter')
   assert.equal(a.state.status, 'waiting'); assert.equal(isolated.state.status, 'waiting')
-  const b = add(3, 1); assert.equal(a.state.status, 'playing')
+  const b = add(3, 1, 'rook'); assert.equal(a.state.status, 'playing')
   for (let frame = 0; frame < 20000 && a.state.status !== 'ended'; frame++) {
     const session = a.state.session
     a.emit('fight:input', { session, held: ['right'], pressed: ['b'] })
@@ -122,5 +123,45 @@ test('la revanche attend les deux accords et les cabines restent séparées', as
   b.emit('fight:rematch'); assert.ok(a.state.session > previous); assert.equal(a.state.status, 'playing')
   assert.deepEqual(a.state.snapshot.fighters.map(f => f.wins), [0, 0])
   assert.equal(isolated.state.status, 'waiting')
+  assert.equal(isolated.state.players[0].fighter, 'nova')
+  assert.deepEqual(a.state.snapshot.fighters.map(f => f.character), ['atlas', 'rook'])
   for (const player of players.values()) manager.leave(player)
+})
+
+const duel = (a, b = 'nova') => {
+  const game = new FightSimulation('versus', 3312, [a, b])
+  advance(game, 4.8); game.fighters[0].x = 200; game.fighters[1].x = 240; return game
+}
+test('les six profils modifient effectivement vitesse, puissance, blindage et récupération', () => {
+  const speed = character => { const g = duel(character); g.fighters[1].x = 450; advance(g, .2, pad(['right'])); return g.fighters[0].x }
+  assert.ok(speed('vesper') > speed('nova')); assert.ok(speed('nova') > speed('atlas'))
+  const damage = (attacker, defender = 'nova') => { const g = duel(attacker, defender); advance(g, .5, pad([], ['a'])); return 100 - g.fighters[1].hp }
+  assert.ok(damage('atlas') > damage('nova')); assert.ok(damage('nova') > damage('vesper'))
+  assert.ok(damage('nova', 'atlas') < damage('nova', 'vesper'))
+  const fast = duel('vesper'), slow = duel('atlas'); fast.step(1 / 120, pad([], ['a'])); slow.step(1 / 120, pad([], ['a']))
+  assert.ok(fast.fighters[0].cooldown < slow.fighters[0].cooldown)
+})
+test('Nyx saute plus haut ; Rook touche plus loin ; Helix privilégie le plasma', () => {
+  const nova = duel('nova'), nyx = duel('nyx'); advance(nova, .2, pad([], ['up'])); advance(nyx, .2, pad([], ['up']))
+  assert.ok(nyx.fighters[0].y > nova.fighters[0].y)
+  const reach = character => { const g = duel(character); g.fighters[1].x = 272; advance(g, .6, pad([], ['b'])); return g.fighters[1].hp }
+  assert.equal(reach('nova'), 100); assert.ok(reach('rook') < 100)
+  const plasma = character => { const g = duel(character); g.fighters[1].x = 350; advance(g, 1, pad([], ['c'])); return g }
+  const helix = plasma('helix'), base = plasma('nova')
+  assert.ok(helix.fighters[1].hp < base.fighters[1].hp)
+  assert.ok(helix.fighters[0].energy > base.fighters[0].energy)
+})
+test('le versus ne consomme pas le temps de manche et les personnages persistent après un KO', () => {
+  const g = new FightSimulation('versus', 3312, ['nyx', 'helix']); advance(g, 2)
+  assert.equal(g.phase, 'intro'); assert.equal(g.remaining, 60)
+  advance(g, 2.8); g.fighters[1].hp = 0; advance(g, 4.5)
+  assert.deepEqual(g.fighters.map(f => f.character), ['nyx', 'helix'])
+  assert.equal(g.fighters[0].wins, 1); assert.equal(g.fighters[1].hp, 100)
+})
+
+test('chacun des six personnages peut jouer le rôle de l’adversaire CPU', () => {
+  for (const character of ['nova', 'vesper', 'atlas', 'nyx', 'helix', 'rook']) {
+    const game = new FightSimulation('solo', 3312, ['nova', character]); advance(game, 20)
+    assert.ok(game.fighters[0].hp < 100 || game.fighters[1].wins > 0, character)
+  }
 })

@@ -1,3 +1,4 @@
+import type { FighterId } from '../shared/fight-roster.js'
 import type { FightSnapshot } from '../shared/fight.js'
 /** Client du relais multijoueur (server/relay.js, socket.io). Sans serveur, le jeu reste en solo. */
 import { io, type Socket } from 'socket.io-client'
@@ -51,7 +52,7 @@ export interface BoardState {
 
 export interface FightState {
   session: number
-  players: { id: number; name: string }[]
+  players: { id: number; name: string; fighter: FighterId }[]
   status: 'waiting' | 'playing' | 'ended'
   rematch: number[]
   snapshot: FightSnapshot | null
@@ -231,7 +232,7 @@ export class Net {
     this.send('music', { where, track, x: Math.round(x * 100) / 100, z: Math.round(z * 100) / 100, ...(at > 0 ? { at: Math.round(at * 100) / 100 } : {}) })
   }
 
-  sendFightJoin() { this.send('fight:join', {}) }
+  sendFightJoin(fighter: FighterId) { this.send('fight:join', { fighter }) }
   sendFightLeave() { this.send('fight:leave', {}) }
   sendFightInput(session: number, held: string[], pressed: string[]) { this.send('fight:input', { session, held, pressed }) }
   sendFightRematch() { this.send('fight:rematch', {}) }
