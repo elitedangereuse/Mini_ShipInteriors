@@ -310,8 +310,15 @@ export function bootProgress(ratio: number, step = BOOT_STEPS[Math.min(BOOT_STEP
 export function bootDone() {
   bootProgress(1, tr('Systèmes en ligne', 'Systems online'))
   const root = $('loading')
-  root.classList.add('done')
-  setTimeout(() => root.remove(), 1300)
+  // Laisser peindre la jauge pleine avant la pause, puis lancer le saut.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        root.classList.add('done')
+        setTimeout(() => root.remove(), 1300)
+      }, 400)
+    })
+  })
 }
 
 // --------------------------------------------------------------- garde-robe
