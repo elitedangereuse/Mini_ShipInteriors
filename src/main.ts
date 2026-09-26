@@ -21,6 +21,7 @@ import { IsoCamera } from './camera'
 import { Cat } from './cat'
 import { Deck, type Interactable } from './deck'
 import { beatAt, beatPulse, holoMeGlow, holoTime, type ClawControl, type ClawResult } from './furniture'
+import { GamepadControls, type GamepadInput } from '../shared/gamepad.js'
 import { EN, localizeAttributes, tr } from './i18n'
 import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, LIFT, SPAWN } from './levels'
 import { hydrateIcons, icon } from './icons'
@@ -1287,6 +1288,11 @@ function unstick(p: THREE.Vector3, r: number) {
 // ------------------------------------------------------------------ entrées
 
 const keys = new Set<string>()
+const gamepad = new GamepadControls()
+let usingGamepad = false
+for (const type of ['keydown', 'pointerdown']) addEventListener(type, () => (usingGamepad = false), { capture: true })
+addEventListener('blur', () => gamepad.suspend())
+addEventListener('visibilitychange', () => gamepad.suspend())
 /** Touches de déplacement (position physique : KeyW/KeyA = Z/Q sur un clavier AZERTY). */
 const MOVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'])
 
@@ -1363,6 +1369,58 @@ function keyboardDirection(): THREE.Vector3 {
   const sy = (on('KeyW', 'ArrowUp') ? 1 : 0) - (on('KeyS', 'ArrowDown') ? 1 : 0)
   if (!sx && !sy) return inputDir
   return iso.screenToGround(sx, sy, inputDir).normalize()
+}
+
+function updateGamepad(dt: number): GamepadInput {
+  const focus = document.activeElement
+  const typing = focus instanceof HTMLElement && (focus.matches('input, textarea, select') || focus.isContentEditable)
+  const enabled = document.hasFocus() && !document.hidden && !typing && !chat.typing && !editing() && !photo.active && !arcade?.isOpen && !boardGames.isOpen
+  const pad = gamepad.poll(enabled)
+  if (!pad.connected) usingGamepad = false
+  if (!enabled) return pad
+  if (pad.active) {
+    usingGamepad = true
+    lastInput = performance.now()
+  }
+  // Les panneaux prennent les commandes avant le personnage.
+  const panel = lift.isOpen ? lift : jukebox.isOpen ? jukebox : null
+  if (panel) {
+    pad.moveX = pad.moveY = 0
+    if (pad.cancel) panel.close()
+    else {
+      if (pad.up) panel.move(-1)
+      if (pad.down) panel.move(1)
+      if (pad.interact) panel.confirm()
+    }
+    return pad
+  }
+  if (pad.cancel) {
+    toggleAbout(false)
+    inviteMenu.close()
+    stopWork()
+    wardrobe.close(false)
+    if (claw && seating.settled) seating.stand()
+    return pad
+  }
+  if (pad.help) $('help').hidden = !$('help').hidden
+  if (riding || wardrobe.isOpen) return pad
+  if (pad.rotateLeft) iso.rotate(-1)
+  if (pad.rotateRight) iso.rotate(1)
+  if (pad.lookX || pad.lookY) iso.orbit(-pad.lookX * dt * 1.8, pad.lookY * dt * 1.2)
+  if (pad.zoom) iso.zoomBy(Math.exp(pad.zoom * dt))
+  if (seating.current) {
+    if (pad.interact && seating.settled) seating.stand()
+    else if (pad.action && seating.settled) seatAction(seating.current)
+  } else if (pad.interact || pad.action) tryInteract()
+  return pad
+}
+
+function movementDirection(pad: GamepadInput): THREE.Vector3 {
+  const input = keyboardDirection()
+  if (chat.typing || riding || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || editing() || photo.active) return input
+  // Le clavier reste prioritaire lorsqu'une touche de déplacement est maintenue.
+  if (input.lengthSq() === 0) iso.screenToGround(pad.moveX, -pad.moveY, input)
+  return input
 }
 
 addEventListener('wheel', (e) => iso.zoomBy(Math.exp(e.deltaY * 0.001)), { passive: true })
@@ -2036,6 +2094,7 @@ let frozenAt = 0
 function frame() {
   timer.update()
   const dt = Math.min(timer.getDelta(), 0.05)
+  const pad = updateGamepad(dt)
   // Borne d'arcade ouverte : elle couvre l'écran, le vaisseau reste figé derrière (dernière image),
   // et la borne a toute la machine pour elle.
   if (arcade?.isOpen || boardGames.isOpen) {
@@ -2045,7 +2104,7 @@ function frame() {
   // Horloge de la soirée : celle des meubles (danseurs, platines).
   tempo.now = holoTime.value
 
-  const input = keyboardDirection()
+  const input = movementDirection(pad)
   if (claw) {
     // Devant la pince : les flèches la déplacent, dans le repère de la machine.
     const c = Math.cos(claw.rot), s = Math.sin(claw.rot)
@@ -2071,7 +2130,7 @@ function frame() {
   // Mode photo, instant figé : personnages, meubles et étoiles s'arrêtent ; la caméra, non.
   const world = photo.frozen ? 0 : dt
   if (!editing() && !photo.active) processHover()
-  player.update(world, input, keys.has('ShiftLeft') || keys.has('ShiftRight'))
+  player.update(world, input, pad.sprint || keys.has('ShiftLeft') || keys.has('ShiftRight'))
 
   for (const r of remotes.values()) {
     r.update(world)
@@ -2141,13 +2200,15 @@ function frame() {
   const near = riding || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || editing() || seating.current || working ? null : nearestInteractable()
   const sit = sitting ? seatPrompt(seating.current!) : null
   const label = sit ? `${sit.main}|${sit.space ?? ''}` : near?.label
+  promptEl.querySelector('kbd')!.textContent = usingGamepad ? 'A / ×' : 'E'
   if (promptEl.hidden !== !label) promptEl.hidden = !label
   if (label) {
-    if (label !== promptText) {
-      promptText = label
+    const promptKey = `${usingGamepad}|${label}`
+    if (promptKey !== promptText) {
+      promptText = promptKey
       if (sit?.space) {
         const k = document.createElement('kbd')
-        k.textContent = tr('Espace', 'Space')
+        k.textContent = usingGamepad ? 'X / □' : tr('Espace', 'Space')
         promptLabel.replaceChildren(sit.main, ' · ', k, ' ', sit.space)
       } else promptLabel.textContent = sit ? sit.main : label
     }

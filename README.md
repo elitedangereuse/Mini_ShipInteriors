@@ -375,6 +375,27 @@ Une page de debug, `/gallery.html`, affiche chaque modèle du kit avec son nom e
 
 ## Commandes
 
+### Manette
+
+Les manettes reconnues par le navigateur avec la disposition [Gamepad « standard »](https://www.w3.org/TR/gamepad/#remapping) (Xbox, PlayStation et compatibles) sont détectées automatiquement : appuyer sur un bouton après avoir ouvert le jeu. L'API demande HTTPS, ou localhost en développement. Le clavier et la souris restent utilisables.
+
+| Action | Manette (Xbox / PlayStation) |
+|---|---|
+| Marcher | Stick gauche, vitesse progressive ; croix directionnelle, vitesse normale |
+| Courir | Maintenir L3 (clic du stick gauche) |
+| Interagir, s'asseoir, se relever | A / Croix |
+| Action du siège (saut FSD, pince) | X / Carré |
+| Ascenseur / jukebox | Stick gauche ou croix haut-bas pour choisir (un cran par impulsion), A / Croix pour valider, B / Rond pour fermer |
+| Fermer un panneau, arrêter une tâche, quitter la pince | B / Rond |
+| Caméra libre | Stick droit |
+| Pivoter d'un quart de tour | LB / L1 et RB / R1 |
+| Zoom | LT / L2 : éloigner ; RT / R2 : rapprocher |
+| Afficher / cacher l'aide | Start / Options |
+
+Une zone morte évite la dérive des sticks. Les boutons d'action ne se répètent pas quand on les maintient. Les invites près des meubles affichent les boutons de la manette après son utilisation. Les commandes manette sont suspendues pendant la saisie, en mode aménagement, en mode photo, dans les jeux de table et les bornes d'arcade, ou lorsque la fenêtre n'a plus le focus. Pour activer le son, un premier clic ou une touche du clavier peut être nécessaire selon le navigateur.
+
+### Clavier et souris
+
 | Action | Clavier / souris |
 |---|---|
 | Se déplacer | `ZQSD` (AZERTY), `WASD` (QWERTY), flèches, ou clic sur le sol (pathfinding) |
@@ -383,6 +404,7 @@ Une page de debug, `/gallery.html`, affiche chaque modèle du kit avec son nom e
 | Installé | `Espace` : saut FSD (siège du poste de pilotage), lâcher la pince (pince à peluches, que les flèches déplacent) |
 | Tâches de bord | `E` ou un clic près d'une tâche (repère orange) : le personnage s'y met, le moindre pas l'interrompt |
 | Bornes d'arcade | `Espace` jouer, `P` pause, `E` ou `Échap` quitter ; les commandes de chaque jeu sont sur le pupitre (cf. [Bornes d'arcade](#bornes-darcade)) |
+| Jeux de plateau | `E` ou clic sur la table pour s'installer ; deux joueurs aux dames, à Puissance 4 ou aux échecs. Aux dames (8×8), choisir une pièce encadrée puis une destination marquée : les prises sont obligatoires, et une rafle continue avec la même pièce. Les pions avancent vers le camp adverse ; les dames se déplacent dans les deux sens. |
 | Jukebox | `↑` `↓` choisir, `Entrée` jouer ; `E`, `Échap` ou un clic en dehors pour fermer |
 | Mode photo | `P` ou l'appareil photo en haut à droite ; `Espace` photo, `N` noms, `C` cacher son personnage, `F` figer, `G` grille, `Échap` sortir |
 | Changer de pont | interagir avec l'ascenseur (la plateforme cyan surmontée d'un panneau ▲▼, dans la coursive ou sur le palier), puis `↑` `↓` pour choisir l'étage et `Entrée` pour y aller, ou un clic ; `E`, `Échap` ou un clic en dehors pour fermer |

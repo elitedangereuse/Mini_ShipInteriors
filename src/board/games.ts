@@ -83,7 +83,8 @@ export class BoardGames {
       if (!this.current || message.game !== this.current.game || message.table !== this.current.table) return
       this.state = message
       this.notice = ''
-      this.selected = null
+      const me = message.players.find((p) => p.id === this.host.playerId())
+      this.selected = message.game === 'draughts' && message.turn === me?.color ? message.continueAt : null
       this.render()
     } else if (message.t === 'board:error') {
       if (!this.current || (message.game && message.game !== this.current.game) || (message.table && message.table !== this.current.table)) return
@@ -115,6 +116,21 @@ export class BoardGames {
       return
     }
     const piece = this.state.board[y]?.[x] ?? null
+    if (this.current.game === 'draughts') {
+      const moves = this.state.legalMoves ?? []
+      const playable = moves.some((m) => m.from[0] === x && m.from[1] === y)
+      if (ownPiece(this.current.game, piece, me.color) && !playable) {
+        this.notice = this.state.continueAt
+          ? tr('Continuez la prise avec la même pièce.', 'Continue capturing with the same piece.')
+          : tr('Choisissez une pièce encadrée : seules ces pièces peuvent jouer.', 'Choose an outlined piece: only those pieces can move.')
+        return this.render()
+      }
+      if (this.selected && !ownPiece(this.current.game, piece, me.color) && !moves.some((m) => m.from[0] === this.selected![0] && m.from[1] === this.selected![1] && m.to[0] === x && m.to[1] === y)) {
+        this.notice = tr('Choisissez une destination marquée sur le damier.', 'Choose a marked destination on the board.')
+        return this.render()
+      }
+    }
+    this.notice = ''
     if (!this.selected) {
       if (ownPiece(this.current.game, piece, me.color)) this.selected = [x, y]
       else this.notice = tr('Sélectionnez une de vos pièces.', 'Select one of your pieces.')
@@ -128,8 +144,9 @@ export class BoardGames {
       this.selected = [x, y]
       return this.render()
     }
-    this.host.sendMove(this.current.game, this.current.table, { from: this.selected, to: [x, y], promote: 'q' })
+    const from = this.selected
     this.selected = null
+    this.host.sendMove(this.current.game, this.current.table, { from, to: [x, y], promote: 'q' })
   }
 
   private render() {
@@ -175,7 +192,13 @@ export class BoardGames {
     hint.className = 'boardgame-hint'
     hint.textContent = game === 'guardian-connect'
       ? tr('Cliquez sur une colonne pour faire tomber votre cristal.', 'Click a column to drop your crystal.')
-      : tr('Sélectionnez une pièce puis sa destination.', 'Select a piece, then its destination.')
+      : game === 'draughts'
+        ? this.state?.continueAt
+          ? tr('Rafle : continuez avec la même pièce vers une case marquée.', 'Multiple capture: continue with the same piece to a marked square.')
+          : this.state?.legalMoves?.some((m) => Math.abs(m.to[0] - m.from[0]) === 2)
+            ? tr('Prise obligatoire : choisissez une pièce encadrée puis une destination marquée.', 'Capture required: choose an outlined piece, then a marked destination.')
+            : tr('Pions : une case en diagonale vers le camp adverse. Choisissez une pièce encadrée puis une destination marquée.', 'Men move one square diagonally toward the opposing side. Choose an outlined piece, then a marked destination.')
+        : tr('Sélectionnez une pièce puis sa destination.', 'Select a piece, then its destination.')
     panel.append(hint)
     this.root.append(panel)
   }
@@ -184,6 +207,8 @@ export class BoardGames {
     const board = document.createElement('div')
     board.className = 'boardgame-board'
     const size = state.game === 'guardian-connect' ? [7, 6] : [8, 8]
+    const me = state.players.find((p) => p.id === this.host.playerId())
+    const moves = state.game === 'draughts' && state.status === 'playing' && state.turn === me?.color ? state.legalMoves ?? [] : []
     for (let y = 0; y < size[1]; y++) for (let x = 0; x < size[0]; x++) {
       const cell = document.createElement('button')
       cell.type = 'button'
@@ -191,6 +216,8 @@ export class BoardGames {
       cell.dataset.y = String(y)
       cell.className = `boardgame-cell ${((x + y) & 1) ? 'dark' : 'light'}`
       if (this.selected?.[0] === x && this.selected?.[1] === y) cell.classList.add('selected')
+      if (moves.some((m) => m.from[0] === x && m.from[1] === y)) cell.classList.add('movable')
+      if (moves.some((m) => m.from[0] === this.selected?.[0] && m.from[1] === this.selected?.[1] && m.to[0] === x && m.to[1] === y)) cell.classList.add('destination')
       const piece = state.board[y]?.[x] ?? null
       if (piece) {
         const token = document.createElement('span')
@@ -211,4 +238,3 @@ export class BoardGames {
     return board
   }
 }
-

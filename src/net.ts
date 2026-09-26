@@ -38,6 +38,11 @@ export interface BoardPlayer {
   color: string
 }
 
+export interface BoardMove {
+  from: [number, number]
+  to: [number, number]
+}
+
 export interface BoardState {
   game: BoardGameId
   table: string
@@ -48,6 +53,7 @@ export interface BoardState {
   winner: string | null
   message: string
   continueAt: [number, number] | null
+  legalMoves: BoardMove[]
 }
 
 export interface FightState {
@@ -84,7 +90,7 @@ export type ServerMessage =
    * relais, à l'arrivée) ; `busy` : notre choix est refusé (trop d'un coup), voici celui de tous.
    */
   | ({ t: 'music'; id: number; busy?: boolean } & MusicState)
-  | { t: 'board:state'; game: BoardGameId; table: string; players: BoardPlayer[]; board: (string | null)[][]; turn: string; status: BoardState['status']; winner: string | null; message: string; continueAt: [number, number] | null }
+  | ({ t: 'board:state' } & BoardState)
   | ({ t: 'fight:state' } & FightState)
   | { t: 'fight:error'; code: 'full' | 'unavailable' | 'busy' }
   | { t: 'board:error'; game: string; table: string; code: 'full' | 'invalid' | 'busy' | 'unavailable' }

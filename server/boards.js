@@ -110,24 +110,32 @@ function draughtsCaptures(board, color, only = null) {
   return out
 }
 
+/** Même liste pour valider les coups et guider le joueur (prises et rafles obligatoires). */
+export function draughtsMoves(state, color = state.turn) {
+  const captures = draughtsCaptures(state.board, color, state.continueAt)
+  if (captures.length || state.continueAt) return captures
+  const wanted = color === 'red' ? 'r' : 'b'
+  const moves = []
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+    const piece = state.board[y][x]
+    if (piece?.toLowerCase() !== wanted) continue
+    for (const [dx, dy] of draughtsDirections(piece)) {
+      const tx = x + dx, ty = y + dy
+      if (inside(tx, ty, 8, 8) && !state.board[ty][tx]) moves.push({ from: [x, y], to: [tx, ty] })
+    }
+  }
+  return moves
+}
+
 function applyDraughts(state, player, move) {
   const p = playerOf(state, player.id)
-  if (!p || state.status === 'ended' || state.turn !== p.color) return false
+  if (!p || state.status !== 'playing' || state.turn !== p.color) return false
   const from = Array.isArray(move?.from) ? move.from : [], to = Array.isArray(move?.to) ? move.to : []
   const [x, y] = from, [tx, ty] = to
   if (![x, y, tx, ty].every(Number.isInteger) || !inside(x, y, 8, 8) || !inside(tx, ty, 8, 8)) return false
-  if (state.continueAt && (state.continueAt[0] !== x || state.continueAt[1] !== y)) return false
+  if (!draughtsMoves(state, p.color).some((m) => m.from[0] === x && m.from[1] === y && m.to[0] === tx && m.to[1] === ty)) return false
   const piece = state.board[y][x], wanted = p.color === 'red' ? 'r' : 'b'
-  if (!piece || piece.toLowerCase() !== wanted || state.board[ty][tx]) return false
-  const dx = tx - x, dy = ty - y
-  const distance = Math.abs(dx)
-  if (distance !== Math.abs(dy) || (distance !== 1 && distance !== 2)) return false
-  const capture = distance === 2
-  if (capture) {
-    const mx = (x + tx) / 2, my = (y + ty) / 2
-    if (!state.board[my][mx] || state.board[my][mx].toLowerCase() === wanted) return false
-  } else if (draughtsCaptures(state.board, p.color, state.continueAt).length) return false
-  if (piece === piece.toLowerCase() && dy !== (wanted === 'r' ? -1 : 1) * distance) return false
+  const capture = Math.abs(tx - x) === 2
 
   const board = copyBoard(state.board)
   board[y][x] = null
@@ -141,8 +149,7 @@ function applyDraughts(state, player, move) {
     state.continueAt = null
     state.turn = opponent('draughts', p.color)
   }
-  const enemyPiece = opponent('draughts', p.color) === 'red' ? 'r' : 'b'
-  if (!board.some((row) => row.some((cell) => cell?.toLowerCase() === enemyPiece))) {
+  if (!state.continueAt && !draughtsMoves(state).length) {
     state.status = 'ended'
     state.winner = p.color
   } else state.status = 'playing'
@@ -151,7 +158,7 @@ function applyDraughts(state, player, move) {
 
 function applyConnect(state, player, move) {
   const p = playerOf(state, player.id)
-  if (!p || state.status === 'ended' || state.turn !== p.color) return false
+  if (!p || state.status !== 'playing' || state.turn !== p.color) return false
   const col = move?.column
   if (!Number.isInteger(col) || col < 0 || col >= 7) return false
   let row = -1
@@ -281,7 +288,7 @@ function chessHasMove(state, color) {
 
 function applyChess(state, player, move) {
   const p = playerOf(state, player.id)
-  if (!p || state.status === 'ended' || state.turn !== p.color) return false
+  if (!p || state.status !== 'playing' || state.turn !== p.color) return false
   const next = chessMove(state, p.color, move)
   if (!next) return false
   Object.assign(state, next)
@@ -305,6 +312,7 @@ export function boardState(state) {
     winner: state.winner,
     message: state.message,
     continueAt: state.continueAt,
+    legalMoves: state.game === 'draughts' && state.status === 'playing' ? draughtsMoves(state) : [],
   }
 }
 

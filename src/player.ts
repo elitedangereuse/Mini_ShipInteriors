@@ -127,7 +127,7 @@ export class Player {
     this.avatar.playEmote('interact')
   }
 
-  /** @param input direction voulue au clavier (plan XZ, longueur 0 à 1) */
+  /** @param input direction voulue au clavier ou au stick (plan XZ, longueur 0 à 1) */
   update(dt: number, input: THREE.Vector3, sprint: boolean) {
     if (this.glide) {
       const g = this.glide

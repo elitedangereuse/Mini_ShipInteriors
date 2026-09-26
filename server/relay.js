@@ -250,7 +250,7 @@ export function attachRelay(
       const already = state.players.find((p) => p.id === player.id)
       if (!already && state.players.length >= 2) return socket.emit('board:error', { game, table, code: 'full' })
       if (!already) {
-        const color = boardColor(game, state.players.length)
+        const color = [boardColor(game, 0), boardColor(game, 1)].find((c) => !state.players.some((p) => p.color === c))
         state.players.push({ id: player.id, name: player.name, color })
         player.boardKey = key
       }

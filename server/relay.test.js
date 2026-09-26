@@ -248,6 +248,47 @@ describe('rediffusion', () => {
 
 const LAYOUT = { v: 1, items: [{ m: 'holo-me', x: 11.6, z: 8.4, r: 0 }, { m: 'sofa', x: 14.25, z: 9.97, r: 2, v: 'teal' }] }
 
+describe('jeux de plateau : remplacement du premier joueur', () => {
+  for (const [game, firstColor, secondColor, opening, reply] of [
+    ['draughts', 'red', 'blue', { from: [0, 5], to: [1, 4] }, { from: [1, 2], to: [0, 3] }],
+    ['guardian-connect', 'red', 'yellow', { column: 0 }, { column: 1 }],
+    ['imperial-chess', 'white', 'black', { from: [4, 6], to: [4, 4] }, { from: [4, 1], to: [4, 3] }],
+  ]) {
+    test(`${game} : le remplaçant reçoit la couleur libre et les deux camps peuvent jouer`, { timeout: 5000 }, async () => {
+      const a = client(), b = client(), c = client()
+      try {
+        const [wa, wb, wc] = await Promise.all([welcome(a), welcome(b), welcome(c)])
+        for (const socket of [a, b, c]) socket.emit('state', { x: 18, z: 8, yaw: 0, level: 0, anim: 'idle' })
+        const first = next(a, 'board:state')
+        a.emit('board:join', { game, table: game })
+        assert.equal((await first).players[0].color, firstColor)
+        const joined = next(b, 'board:state', m => m.players.length === 2)
+        b.emit('board:join', { game, table: game })
+        await joined
+        const reset = next(b, 'board:state', m => m.players.length === 1)
+        a.emit('board:leave', {})
+        const waiting = await reset
+        assert.equal(waiting.status, 'waiting')
+        assert.deepEqual(waiting.players.map(p => [p.id, p.color]), [[wb.id, secondColor]])
+        const replaced = next(c, 'board:state', m => m.players.length === 2)
+        c.emit('board:join', { game, table: game })
+        const state = await replaced
+        assert.equal(state.players.find(p => p.id === wc.id).color, firstColor)
+        assert.equal(new Set(state.players.map(p => p.color)).size, 2)
+        assert.ok(!state.players.some(p => p.id === wa.id))
+        const moved = next(b, 'board:state', m => m.turn === secondColor)
+        c.emit('board:move', { game, table: game, move: opening })
+        await moved
+        const answered = next(c, 'board:state', m => m.turn === firstColor)
+        b.emit('board:move', { game, table: game, move: reply })
+        await answered
+      } finally {
+        for (const socket of [a, b, c]) socket.disconnect()
+      }
+    })
+  }
+})
+
 describe('quartiers', () => {
   /** Un CMDR vérifié (Rackam) qui reçoit, et un invité qui se promène. */
   async function hostAndGuest() {

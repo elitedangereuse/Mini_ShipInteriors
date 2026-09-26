@@ -449,7 +449,8 @@ export const LEVELS: LevelDef[] = [
         interact: tr('Puissance 4 Guardian : alignez quatre cristaux avant votre adversaire.', 'Guardian Connect Four: align four crystals before your opponent.'),
       },
       {
-        model: 'imperial-chess', x: 17.75, z: 8.85, action: tr('Jouer aux échecs', 'Play chess'),
+        // Places et abords gardés à l'intérieur du salon, loin du mur sud (z = 9,5).
+        model: 'imperial-chess', x: 17.75, z: 8.4, action: tr('Jouer aux échecs', 'Play chess'),
         interact: tr('Échec Impérial : stratégie, patience et aucun duel de plasma sur l’échiquier.', 'Imperial Chess: strategy, patience, and no plasma duels on the board.'),
       },
       { model: 'neon-sign', x: 17.1, z: 6.1, label: 'ARCADE' },
