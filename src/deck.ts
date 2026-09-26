@@ -406,7 +406,7 @@ export class Deck {
       if (box.max.y > 0.6) this.addFading(o, center)
       else this.addStatic(o, true)
 
-      const seats = seatsOf(p.model)
+      const seats = seatsOf(p.model, p.label)
       if (p.interact || seats || p.music) {
         const label = p.action ?? (seats ? seatAction(seats) : tr('Examiner', 'Examine'))
         const it: Interactable = { object: this.pickVolume(box), position: center.clone().setY(0), label, text: p.interact, control, furniture: { model: p.model, label: p.label } }

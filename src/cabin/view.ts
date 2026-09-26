@@ -552,7 +552,7 @@ export class CabinView {
       }
       if (apart) return
       const text = interactText(b.entry, item.v)
-      const seats = seatsOf(b.entry.model)
+      const seats = seatsOf(b.entry.model, builderLabel(b.entry, item.v))
       if (b.entry.fixed || text || b.entry.emote || seats) {
         const label = b.entry.action ?? (seats ? seatAction(seats) : tr('Examiner', 'Examine'))
         const it: Interactable = { object: b.pick, position: center.clone().setY(0), label, text, control: b.control, furniture: { model: b.entry.model, label: builderLabel(b.entry, item.v) } }

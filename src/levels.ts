@@ -435,10 +435,11 @@ export const LEVELS: LevelDef[] = [
       { model: 'jukebox', x: 11.3, z: 6.32, action: tr('Choisir un morceau', 'Pick a song'), music: true },
 
       // --- Salon d'arcade ---
-      // Les trois bornes se jouent (cf. src/arcade/) : Cargaison, Viper, Astéroïdes.
+      // Quatre bornes jouables : Cargaison, Viper, Astéroïdes et Orbital Clash.
       { model: 'arcade', x: 16.05, z: 7, rot: 1, label: 'cargo' },
       { model: 'arcade', x: 16.05, z: 8, rot: 1, label: 'viper' },
       { model: 'arcade', x: 16.05, z: 9, rot: 1, label: 'asteroids' },
+      { model: 'arcade', x: 16.05, z: 6.15, rot: 1, label: 'fight' },
       {
         model: 'holo-draughts', x: 17.75, z: 6.75, action: tr('Jouer aux dames', 'Play draughts'),
         interact: tr('Table holographique : les pièces attendent deux adversaires.', 'Holographic table: the pieces await two opponents.'),

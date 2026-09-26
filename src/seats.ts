@@ -66,7 +66,9 @@ export const SEATS: Partial<Record<CustomModel | StationModel, Seat[]>> = {
   'dj-booth': [stand('mix', 0.44)],
 }
 
-export const seatsOf = (model: string): Seat[] | undefined => SEATS[model as CustomModel | StationModel]
+const FIGHT_SEATS = [stand('arcade', 0.44, -0.2), stand('arcade', 0.44, 0.2)]
+export const seatsOf = (model: string, label?: string): Seat[] | undefined =>
+  model === 'arcade' && label === 'fight' ? FIGHT_SEATS : SEATS[model as CustomModel | StationModel]
 
 /** Verbe de l'invite d'un meuble où l'on s'installe (s'il n'en a pas un à lui). */
 export function seatAction(seats: Seat[]): string {

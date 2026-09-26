@@ -524,6 +524,7 @@ function removeRemote(id: number) {
 net.onStatus = (online) => {
   if (!online) {
     boardGames.close(false)
+    arcade?.disconnected()
     for (const id of [...remotes.keys()]) removeRemote(id)
     inviteToasts.clear()
     inviteMenu.close()
@@ -620,6 +621,10 @@ net.onMessage = (m) => {
       if (track && r) chat.add('system', tr(`${r.name} a mis « ${track.title} » au jukebox.`, `${r.name} put “${track.title}” on the jukebox.`))
       break
     }
+    case 'fight:state':
+    case 'fight:error':
+      arcade?.receiveFight(m)
+      break
     case 'board:state':
     case 'board:error':
       boardGames.receive(m)
@@ -1738,7 +1743,7 @@ function boardGame(seat: Seated): { game: BoardGameId; table: string } | null {
 async function openArcade(seat: Seated, game: GameId) {
   if (arcade?.isOpen) return
   arcadeLoading ??= import('./arcade/cabinet').then(({ ArcadeCabinet }) => {
-    arcade = new ArcadeCabinet({ sound, linked: () => linked, onCredits: (credits) => wallet.arcade(credits) })
+    arcade = new ArcadeCabinet({ sound, net, linked: () => linked, onCredits: (credits) => wallet.arcade(credits) })
     // On quitte la borne : on s'en écarte.
     arcade.onClose = () => {
       if (seating.current?.spot.pose === 'arcade') seating.stand()

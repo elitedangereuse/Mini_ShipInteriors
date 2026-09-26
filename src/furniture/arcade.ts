@@ -5,6 +5,8 @@ import {
   animatedScreen, barX, barZ, box, compact, cylinder, drawnTexture, ED_ORANGE, glass, glow, instanced, keepShared, lit,
   mesh, part, rng, setInstance, sphere, type Builder, type ClawControl, type ClawResult,
 } from './kit'
+import { Fight } from '../arcade/fight'
+import { emptyPad } from '../arcade/game'
 import { Asteroids, AsteroidsPilot } from '../arcade/asteroids'
 import { Cargo, CargoPilot, COLS as CARGO_COLS, FREIGHT, FREIGHT_DARK, HIDDEN as CARGO_HIDDEN, ROWS as CARGO_ROWS } from '../arcade/cargo'
 import { padScore, pixelText, records, type ArcadeGame, type GameId, type Pad } from '../arcade/game'
@@ -623,6 +625,11 @@ const asteroidsDemo = liveDemo(() => new Asteroids(), (g) => {
  * jouables une fabrique de démonstration : chaque écran a sa partie).
  */
 const GAMES: Record<string, { title: string; side: string; neon: string; draw: Draw | (() => Draw); live?: true }> = {
+  fight: { title: 'ORBITAL CLASH', side: '#322457', neon: '#76eeff', live: true,
+    draw: liveDemo(() => new Fight('demo'), () => () => emptyPad(), (c, game, t) => {
+      c.save(); c.scale(W / game.width, H / game.height); game.draw(c, t); c.restore()
+    }, 5),
+  },
   cargo: { title: tr('CARGAISON', 'CARGO'), side: '#46561f', neon: '#9dff5a', draw: cargoDemo, live: true },
   viper: { title: 'VIPER', side: '#5a1446', neon: '#ffb03a', draw: viperDemo, live: true },
   asteroids: { title: tr('ASTÉROÏDES', 'ASTEROIDS'), side: '#7a1f1f', neon: '#ffe14f', draw: asteroidsDemo, live: true },
@@ -694,8 +701,11 @@ const arcade: Builder = ({ label = 'cargo' }) => {
   deck.position.set(0, 0.47, 0.17)
   deck.rotation.x = 0.25
   deck.add(box(0.52, 0.05, 0.2, lit('#2a2a33'), 0, 0, 0))
-  deck.add(cylinder(0.01, 0.01, 0.07, lit('#cfd3d8'), -0.12, 0.06, 0, 6), sphere(0.022, glow('#ff3b3b'), -0.12, 0.1, 0, 8))
-  ;['#39e0ff', '#ffe14f', '#ff4fd8'].forEach((col, i) => deck.add(cylinder(0.018, 0.018, 0.015, glow(col), 0.04 + i * 0.06, 0.03, 0, 10)))
+  for (const offset of label === 'fight' ? [-0.13, 0.13] : [0]) {
+    const stick = label === 'fight' ? offset - 0.075 : -0.12
+    deck.add(cylinder(0.01, 0.01, 0.07, lit('#cfd3d8'), stick, 0.06, 0, 6), sphere(0.022, glow(offset > 0 ? '#ff75ad' : '#39e0ff'), stick, 0.1, 0, 8))
+    ;['#39e0ff', '#ffe14f', '#ff4fd8'].forEach((col, i) => deck.add(cylinder(0.014, 0.014, 0.015, glow(col), label === 'fight' ? offset + i * 0.035 : 0.04 + i * 0.06, 0.03, 0, 10)))
+  }
   g.add(deck)
   // Écran incliné dans son cadre, fronton.
   const bezel = new THREE.Group()

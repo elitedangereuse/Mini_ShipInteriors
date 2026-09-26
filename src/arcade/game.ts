@@ -6,7 +6,7 @@
  */
 
 /** Jeux jouables ; les autres bornes (Elite, Invaders…) ne font que leur démonstration. */
-export const GAME_IDS = ['cargo', 'viper', 'asteroids'] as const
+export const GAME_IDS = ['cargo', 'viper', 'asteroids', 'fight'] as const
 export type GameId = (typeof GAME_IDS)[number]
 
 export const isGameId = (id: string | undefined): id is GameId => GAME_IDS.includes(id as GameId)
@@ -23,6 +23,8 @@ export type Button = 'left' | 'right' | 'up' | 'down' | 'a' | 'b' | 'c'
 export interface Pad {
   held: Set<Button>
   pressed: Set<Button>
+  /** Deuxième manette, pour les duels locaux. */
+  second?: Pad
 }
 
 export const emptyPad = (): Pad => ({ held: new Set(), pressed: new Set() })

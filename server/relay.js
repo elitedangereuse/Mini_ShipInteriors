@@ -16,6 +16,7 @@
 // invitation, reçoit l'aménagement, puis chacun de ses changements. L'hôte peut raccompagner un
 // visiteur ; s'il quitte le vaisseau, ses visiteurs rentrent chez eux.
 import { Server } from 'socket.io'
+import { fightRelay } from './fights.js'
 import { BOARD_GAMES, applyBoardMove, boardColor, boardState, newBoardGame } from './boards.js'
 import { sanitizeLayout } from './cabin.js'
 import { cleanCmdrName, cmdrFromCookie } from './cmdr.js'
@@ -102,6 +103,7 @@ export function attachRelay(
     const socket = sockets.get(id)
     return socket ? players.get(socket.id) : undefined
   }
+  const fights = fightRelay(playerById, id => sockets.get(id))
   const boardKey = (game, table) => (BOARD_GAMES.has(game) && table === game ? table : null)
   const emitBoard = (state) => {
     const msg = boardState(state)
@@ -128,6 +130,7 @@ export function attachRelay(
   /** Le joueur passe dans l'instance des quartiers de `cabin` (la sienne s'il rentre chez lui). */
   const moveTo = (p, cabin, by) => {
     if (p.cabin === cabin) return
+    fights.leave(p)
     p.cabin = cabin
     io.emit('visit', by ? { id: p.id, cabin, by } : { id: p.id, cabin })
     // La musique de ces quartiers-là (ou le silence).
@@ -179,6 +182,8 @@ export function attachRelay(
     socket.broadcast.emit('join', { player: publicState(player) })
     log(`[relais] ${player.name}${player.verified ? ' (CMDR vérifié)' : ''} (#${player.id}) a embarqué — ${players.size} à bord`)
 
+    fights.connect(socket, player)
+
     let chatBudget = 5
     let inviteBudget = 3
     let cabinBudget = 10
@@ -198,6 +203,7 @@ export function attachRelay(
       if (x === null || z === null || yaw === null || !LEVELS.has(m.level)) return
       // Une pose inconnue n'en est pas une ; sa hauteur reste à portée d'une couchette du haut.
       const pose = POSES.has(m.pose) ? m.pose : ''
+      if (player.level !== m.level) fights.leave(player)
       Object.assign(player, { x, z, yaw, level: m.level, anim: ANIMS.has(m.anim) ? m.anim : 'idle', pose, py: pose ? (num(m.py, 0, 1.2) ?? 0) : 0 })
       socket.broadcast.emit('state', { id: player.id, ...motion(player) })
     })

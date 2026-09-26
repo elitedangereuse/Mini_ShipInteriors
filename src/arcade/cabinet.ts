@@ -1,8 +1,10 @@
 import type { Sound } from '../audio'
+import type { Net, FightState, ServerMessage } from '../net'
 import { EN, tr } from '../i18n'
 import { icon, type IconName } from '../icons'
 import { Asteroids, AsteroidsPilot } from './asteroids'
 import { Cargo, CargoPilot } from './cargo'
+import { Fight, fightDemo } from './fight'
 import { padScore, pixelText, textWidth, type ArcadeGame, type Button, type GameId, type Pad } from './game'
 import { arcadeTiers } from '../economy/data'
 import { fetchBoard, localBest, saveLocalBest, submitScore, type ArcadeCredits, type Board, type Submission } from './scores'
@@ -30,6 +32,19 @@ const MOVE = tr('Déplacer', 'Move')
 const PAUSE: [string[], string] = [['P'], tr('Pause', 'Pause')]
 
 const GAMES: Record<GameId, GameInfo> = {
+  fight: {
+    title: 'ORBITAL CLASH',
+    tagline: tr('DUEL DANS LE HANGAR ORBITAL', 'ORBITAL HANGAR DUEL'),
+    neon: '#76eeff', side: '#322457',
+    help: [
+      [['1', '2'], tr('Solo / duel en ligne (titre)', 'Solo / online duel (title)')],
+      [[tr('Z Q S D', 'W A S D')], tr('Bouger / sauter / baisser', 'Move / jump / crouch')],
+      [['F', 'G', 'H'], tr('Poing / pied / plasma', 'Punch / kick / plasma')],
+      [[tr('Flèches', 'Arrows')], tr('Bouger / sauter / baisser aussi', 'Also move / jump / crouch')],
+      [[tr('Reculer', 'Move back')], tr('Garde (bas + recul : garde basse)', 'Block (down + back: low block)')],
+      [[tr('Espace', 'Space')], tr('Jouer / rejouer', 'Play / rematch')], [['P'], tr('Pause (solo)', 'Pause (solo)')],
+    ],
+  },
   cargo: {
     title: tr('CARGAISON', 'CARGO'),
     tagline: tr('CHARGEZ LA SOUTE, LIVREZ LES LIGNES', 'LOAD THE HOLD, DELIVER THE LINES'),
@@ -73,6 +88,12 @@ const KEYS: Record<string, Button> = {
   Space: 'a', Enter: 'a', NumpadEnter: 'a', KeyX: 'b', ShiftLeft: 'c', ShiftRight: 'c', KeyC: 'c',
 }
 
+const FIGHT_KEYS: Record<string, Button> = {
+  KeyA: 'left', KeyD: 'right', KeyW: 'up', KeyS: 'down', KeyF: 'a', KeyG: 'b', KeyH: 'c',
+  Space: 'a', Enter: 'a', NumpadEnter: 'a',
+  ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down',
+}
+
 type Mode = 'title' | 'play' | 'pause' | 'over'
 
 /** Écran tactile : la borne affiche sa manette, et parle de ses boutons plutôt que du clavier. */
@@ -83,12 +104,14 @@ const START = TOUCH ? 'A' : tr('ESPACE', 'SPACE')
 const IDLE: Pad = { held: new Set(), pressed: new Set() }
 
 function create(id: GameId): ArcadeGame {
+  if (id === 'fight') return new Fight()
   return id === 'cargo' ? new Cargo() : id === 'viper' ? new Viper() : new Asteroids()
 }
 
 /** Une partie de démonstration et son pilote automatique, déjà en cours (quelques secondes d'avance). */
 function demo(id: GameId): { game: ArcadeGame; next: (dt: number) => Pad } {
   let d: { game: ArcadeGame; next: (dt: number) => Pad }
+  if (id === 'fight') return fightDemo()
   if (id === 'cargo') {
     const game = new Cargo()
     const pilot = new CargoPilot(game)
@@ -109,6 +132,7 @@ function demo(id: GameId): { game: ArcadeGame; next: (dt: number) => Pad } {
 
 export interface CabinetHost {
   sound: Sound
+  net: Net
   /** Le joueur est-il un CMDR connecté au site (son score s'inscrit au classement) ? */
   linked: () => boolean
   /** Un record personnel rapporte des crédits (paliers franchis, record du vaisseau). */
@@ -124,6 +148,14 @@ export class ArcadeCabinet {
   private readonly g: CanvasRenderingContext2D
   private readonly marquee: HTMLDivElement
   private readonly help: HTMLDivElement
+  private readonly fightMenu: HTMLDivElement
+  private fightMode: 'solo' | 'online' = 'solo'
+  private readonly fightStatus: HTMLDivElement
+  private fightState: FightState | null = null
+  private fightJoined = false
+  private fightSendAt = 0
+  private fightWaitingSince = 0
+  private readonly fightPressed = new Set<Button>()
   private id: GameId = 'cargo'
   private info = GAMES.cargo
   private game: ArcadeGame | null = null
@@ -176,8 +208,32 @@ export class ArcadeCabinet {
     k.textContent = tr('Échap', 'Esc')
     quit.append(k)
     quit.onclick = () => this.close()
+    this.fightMenu = document.createElement('div')
+    this.fightMenu.className = 'arc-fight-menu'
+    for (const [mode, label] of [['solo', tr('Solo contre CPU', 'Solo vs CPU')], ['online', tr('2 joueurs en ligne', '2 players online')]] as const) {
+      const btn = document.createElement('button')
+      btn.textContent = label
+      btn.dataset.mode = mode
+      btn.onclick = () => {
+        this.leaveFight()
+        this.fightMode = mode
+        this.game = null
+        this.clearInput()
+        this.setMode('title')
+        this.updateFightMenu()
+      }
+      this.fightMenu.append(btn)
+    }
+    const start = document.createElement('button')
+    start.textContent = tr('Combat !', 'Fight!')
+    start.onclick = () => this.start()
+    this.fightMenu.append(start)
+    this.fightStatus = document.createElement('div')
+    this.fightStatus.className = 'arc-fight-status'
+    this.fightStatus.setAttribute('aria-live', 'polite')
+    this.fightMenu.append(this.fightStatus)
     deck.append(this.help, quit)
-    cab.append(this.marquee, bezel, deck)
+    cab.append(this.marquee, bezel, this.fightMenu, deck)
     this.el.append(cab, this.touchPad())
     document.body.append(this.el)
     // Clic à côté de la borne : on la quitte.
@@ -223,7 +279,12 @@ export class ArcadeCabinet {
   }
 
   open(id: GameId) {
+    this.leaveFight()
     this.id = id
+    this.fightMenu.hidden = id !== 'fight'
+    this.el.classList.toggle('arc-fighting', id === 'fight')
+    this.updateFightMenu()
+    this.el.setAttribute('aria-label', GAMES[id].title)
     this.info = GAMES[id]
     this.el.style.setProperty('--neon', this.info.neon)
     this.el.style.setProperty('--side', this.info.side)
@@ -247,11 +308,10 @@ export class ArcadeCabinet {
     this.canvas.classList.toggle('smooth', !!this.attract.game.smooth)
     this.setMode('title')
     this.board = undefined
-    void fetchBoard(id).then((b) => {
+    if (id !== 'fight') void fetchBoard(id).then((b) => {
       if (this.id === id) this.board = b
     })
-    this.held.clear()
-    this.pressed.clear()
+    this.clearInput()
     this.el.hidden = false
     addEventListener('keydown', this.onKey, true)
     addEventListener('keyup', this.onKey, true)
@@ -264,10 +324,12 @@ export class ArcadeCabinet {
   close() {
     if (this.el.hidden) return
     this.el.hidden = true
+    this.leaveFight()
     cancelAnimationFrame(this.raf)
     removeEventListener('keydown', this.onKey, true)
     removeEventListener('keyup', this.onKey, true)
     removeEventListener('blur', this.onBlur)
+    this.clearInput()
     this.game = null
     this.attract = null
     this.onClose?.()
@@ -278,9 +340,66 @@ export class ArcadeCabinet {
     this.modeTime = 0
   }
 
+  private leaveFight() {
+    if (this.fightJoined) this.host.net.sendFightLeave()
+    this.fightJoined = false
+    this.fightState = null
+    this.fightPressed.clear()
+    if (this.fightStatus) this.fightStatus.textContent = ''
+  }
+
+  disconnected() {
+    if (!this.fightJoined) return
+    this.leaveFight()
+    this.game = null
+    this.setMode('title')
+    this.clearInput()
+    this.fightStatus.textContent = tr('Connexion perdue. Rejoignez le duel après reconnexion.', 'Connection lost. Rejoin the duel after reconnecting.')
+  }
+
+  receiveFight(message: Extract<ServerMessage, { t: 'fight:state' | 'fight:error' }>) {
+    if (!this.isOpen || this.id !== 'fight' || !this.fightJoined) return
+    if (message.t === 'fight:error') {
+      this.leaveFight()
+      this.fightStatus.textContent = message.code === 'full'
+        ? tr('Un duel est déjà en cours ici. Réessayez après leur départ.', 'A duel is already in progress here. Try again when they leave.')
+        : tr('Duel indisponible ici. Rejoignez la borne du salon ou des quartiers.', 'Duel unavailable here. Join a lounge or cabin cabinet.')
+      return
+    }
+    const me = message.players.findIndex(p => p.id === this.host.net.id)
+    if (me < 0) return
+    this.fightState = message
+    if (!message.snapshot) {
+      this.game = null
+      this.setMode('title')
+      this.clearInput()
+      this.fightStatus.textContent = tr('En attente : un autre joueur doit choisir « 2 joueurs en ligne » puis « Combat » dans la même pièce.', 'Waiting: another player must choose “2 players online” then “Fight” in the same room.')
+      return
+    }
+    if (!(this.game instanceof Fight)) this.game = new Fight('versus')
+    Object.assign(this.game, message.snapshot, { sounds: [] })
+    for (const s of message.snapshot.sounds) this.play(s)
+    const next = message.snapshot.over ? 'over' : 'play'
+    if (this.mode !== next) { this.clearInput(); this.setMode(next) }
+    const other = message.players[1 - me]
+    this.fightStatus.textContent = `${tr('Vous :', 'You:')} ${me === 0 ? 'NOVA' : 'VESPER'} · ${other?.name ?? ''}`
+    if (message.rematch.length) this.fightStatus.textContent += tr(' · Revanche : les deux joueurs doivent accepter.', ' · Rematch: both players must accept.')
+  }
+
+  private updateFightMenu() {
+    for (const btn of this.fightMenu.querySelectorAll('button[data-mode]')) btn.setAttribute('aria-pressed', String((btn as HTMLButtonElement).dataset.mode === this.fightMode))
+  }
+
+  private clearInput() {
+    this.held.clear(); this.pressed.clear()
+    this.pad.held.clear(); this.pad.pressed.clear()
+    this.fightPressed.clear()
+  }
+
   private onBlur = () => {
-    this.held.clear()
-    if (this.mode === 'play') this.setMode('pause')
+    this.clearInput()
+    if (this.fightJoined && this.fightState) this.host.net.sendFightInput(this.fightState.session, [], [])
+    if (this.mode === 'play' && !this.fightJoined) this.setMode('pause')
   }
 
   /**
@@ -292,20 +411,27 @@ export class ArcadeCabinet {
     if (e.code === 'KeyM' && !modified) return
     e.stopPropagation()
     const down = e.type === 'keydown'
+    const keyMap = this.id === 'fight' ? FIGHT_KEYS : KEYS
     if (modified) {
       // Un bouton relâché pendant le raccourci l'est aussi pour la borne.
-      const b = KEYS[e.code]
+      const b = keyMap[e.code]
       if (b && !down) this.held.delete(b)
       return
     }
     e.preventDefault()
+    if (this.id === 'fight' && this.mode === 'title' && down && !e.repeat && (e.code === 'Digit1' || e.code === 'Digit2')) {
+      const mode = e.code === 'Digit1' ? 'solo' : 'online'
+      this.fightMenu.querySelector<HTMLButtonElement>(`button[data-mode="${mode}"]`)?.click()
+      return
+    }
     if (down && !e.repeat && (e.code === 'Escape' || e.code === 'KeyE')) return this.close()
     if (down && !e.repeat && e.code === 'KeyP') {
+      if (this.fightJoined) return
       if (this.mode === 'play') this.setMode('pause')
       else if (this.mode === 'pause') this.setMode('play')
       return
     }
-    const b = KEYS[e.code]
+    const b = keyMap[e.code]
     if (!b) return
     if (!down) return void this.held.delete(b)
     if (!e.repeat) this.pressed.add(b)
@@ -313,6 +439,25 @@ export class ArcadeCabinet {
   }
 
   private start() {
+    if (this.id === 'fight' && this.fightMode === 'online') {
+      if (!this.host.net.online) {
+        this.fightStatus.textContent = tr('Relais déconnecté : le mode solo reste disponible.', 'Relay disconnected: solo mode is available.')
+        return
+      }
+      if (this.fightJoined && this.fightState?.status === 'playing') return
+      this.clearInput()
+      if (this.fightJoined && this.fightState?.status === 'ended') {
+        this.host.net.sendFightRematch()
+        this.fightStatus.textContent = tr('Revanche demandée : votre adversaire doit aussi accepter.', 'Rematch requested: your opponent must also accept.')
+      } else {
+        this.fightJoined = true
+        this.fightWaitingSince = performance.now()
+        this.fightStatus.textContent = tr('Connexion à la borne…', 'Connecting to the cabinet…')
+        this.host.net.sendFightJoin()
+      }
+      return
+    }
+    this.clearInput()
     this.game = create(this.id)
     this.game.best = Math.max(localBest(this.id), this.board?.top[0]?.score ?? 0)
     this.canvas.width = this.game.width
@@ -344,6 +489,19 @@ export class ArcadeCabinet {
     pad.held.clear()
     for (const b of this.held) pad.held.add(b)
 
+    if (this.fightJoined) {
+      for (const b of pad.pressed) this.fightPressed.add(b)
+      if (this.fightState?.status === 'playing' && now - this.fightSendAt >= 1000 / 30) {
+        this.host.net.sendFightInput(this.fightState.session, [...pad.held], [...this.fightPressed])
+        this.fightPressed.clear()
+        this.fightSendAt = now
+      }
+      if (!this.fightState && now - this.fightWaitingSince > 8000) {
+        this.leaveFight()
+        this.fightStatus.textContent = tr('La borne ne répond pas. Réessayez ou jouez en solo.', 'Cabinet not responding. Retry or play solo.')
+      }
+    }
+
     switch (this.mode) {
       case 'title': {
         const a = this.attract!
@@ -358,11 +516,11 @@ export class ArcadeCabinet {
       }
       case 'play': {
         const game = this.game!
-        game.step(dt, pad)
+        if (!this.fightJoined) game.step(dt, pad)
         this.duration += dt
         for (const s of game.sounds) this.play(s)
         game.sounds.length = 0
-        if (game.over) this.finish()
+        if (game.over && !this.fightJoined) this.finish()
         break
       }
       case 'pause':
@@ -370,7 +528,7 @@ export class ArcadeCabinet {
         break
       case 'over': {
         const game = this.game!
-        game.step(dt, IDLE)
+        if (!this.fightJoined) game.step(dt, IDLE)
         for (const s of game.sounds) this.play(s)
         game.sounds.length = 0
         if (this.modeTime > 2.5 && pad.pressed.has('a')) this.start()
@@ -385,6 +543,7 @@ export class ArcadeCabinet {
   private finish() {
     const game = this.game!
     this.setMode('over')
+    if (this.id === 'fight') return
     this.personal = saveLocalBest(this.id, game.score)
     if (game.score <= 0) return
     if (!this.host.linked()) {
@@ -422,7 +581,7 @@ export class ArcadeCabinet {
       g.fillRect(14 * k, 18 * k, w - 28 * k, k)
       g.fillRect(14 * k, 193 * k, w - 28 * k, k)
       g.globalAlpha = 1
-      if (Math.floor(this.modeTime / 7) % 2 === 0) this.drawTitle(k)
+      if (this.id === 'fight' || Math.floor(this.modeTime / 7) % 2 === 0) this.drawTitle(k)
       else this.drawBoard(k, 30 * k, null)
       if (Math.floor(this.time * 2) % 2) {
         g.fillStyle = '#ffffff'
@@ -438,7 +597,12 @@ export class ArcadeCabinet {
         g.fillStyle = '#8a92a6'
         pixelText(g, TOUCH ? tr('A : REPRENDRE', 'A: RESUME') : tr('P OU ESPACE : REPRENDRE', 'P OR SPACE: RESUME'), w / 2, h / 2 + 16 * k, k, 'center')
       }
-      if (this.mode === 'over' && this.modeTime > 1.6) this.drawResult(k)
+      if (this.mode === 'over' && this.modeTime > 1.6) {
+        if (this.id === 'fight') {
+          g.fillStyle = '#fff'
+          pixelText(g, tr(`${START} OU COMBAT : REVANCHE`, `${START} OR FIGHT: REMATCH`), w / 2, h - 40, 1, 'center')
+        } else this.drawResult(k)
+      }
     }
     g.restore()
   }
@@ -454,6 +618,13 @@ export class ArcadeCabinet {
     pixelText(g, title, w / 2, y, scale, 'center')
     g.fillStyle = '#d8dde4'
     pixelText(g, this.info.tagline, w / 2, y + 7 * scale + 16 * k, k, 'center')
+    if (this.id === 'fight') {
+      g.fillStyle = '#ffe19a'
+      pixelText(g, this.fightMode === 'solo' ? tr('SOLO CONTRE VESPER / CPU', 'SOLO VS VESPER / CPU') : tr('2 JOUEURS CONNECTÉS AU VAISSEAU', '2 PLAYERS CONNECTED TO THE SHIP'), w / 2, y + 7 * scale + 44 * k, k, 'center')
+      g.fillStyle = '#d8dde4'
+      pixelText(g, this.fightJoined && !this.game ? tr('EN ATTENTE D’UN ADVERSAIRE…', 'WAITING FOR AN OPPONENT…') : tr('2 MANCHES GAGNANTES · 60 S', 'FIRST TO 2 ROUNDS · 60 S'), w / 2, y + 7 * scale + 64 * k, k, 'center')
+      return
+    }
     const top = this.board?.top[0]
     const best = Math.max(localBest(this.id), top?.score ?? 0)
     g.fillStyle = '#ffe14f'

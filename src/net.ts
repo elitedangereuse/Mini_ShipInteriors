@@ -1,3 +1,4 @@
+import type { FightSnapshot } from '../shared/fight.js'
 /** Client du relais multijoueur (server/relay.js, socket.io). Sans serveur, le jeu reste en solo. */
 import { io, type Socket } from 'socket.io-client'
 
@@ -48,6 +49,14 @@ export interface BoardState {
   continueAt: [number, number] | null
 }
 
+export interface FightState {
+  session: number
+  players: { id: number; name: string }[]
+  status: 'waiting' | 'playing' | 'ended'
+  rematch: number[]
+  snapshot: FightSnapshot | null
+}
+
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
   | { t: 'welcome'; id: number; you: { name: string; verified: boolean }; players: PlayerState[]; music?: MusicState }
@@ -75,6 +84,8 @@ export type ServerMessage =
    */
   | ({ t: 'music'; id: number; busy?: boolean } & MusicState)
   | { t: 'board:state'; game: BoardGameId; table: string; players: BoardPlayer[]; board: (string | null)[][]; turn: string; status: BoardState['status']; winner: string | null; message: string; continueAt: [number, number] | null }
+  | ({ t: 'fight:state' } & FightState)
+  | { t: 'fight:error'; code: 'full' | 'unavailable' | 'busy' }
   | { t: 'board:error'; game: string; table: string; code: 'full' | 'invalid' | 'busy' | 'unavailable' }
 
 /**
@@ -87,7 +98,7 @@ type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin'>
 
 /** Chemin de la socket : le même que WS_PATH dans server/relay.js et que la conf nginx du site. */
 const WS_PATH = import.meta.env.VITE_WS_PATH || '/ws/mini-shipinteriors'
-const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'music', 'board:state', 'board:error']
+const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'music', 'board:state', 'board:error', 'fight:state', 'fight:error']
 
 export class Net {
   online = false
@@ -219,6 +230,11 @@ export class Net {
   sendMusic(where: 'deck' | 'cabin', track: string | null, x: number, z: number, at = 0) {
     this.send('music', { where, track, x: Math.round(x * 100) / 100, z: Math.round(z * 100) / 100, ...(at > 0 ? { at: Math.round(at * 100) / 100 } : {}) })
   }
+
+  sendFightJoin() { this.send('fight:join', {}) }
+  sendFightLeave() { this.send('fight:leave', {}) }
+  sendFightInput(session: number, held: string[], pressed: string[]) { this.send('fight:input', { session, held, pressed }) }
+  sendFightRematch() { this.send('fight:rematch', {}) }
 
   sendBoardJoin(game: BoardGameId, table: string) {
     this.send('board:join', { game, table })
