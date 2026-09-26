@@ -5,7 +5,7 @@ Crédits et licences de la bande-son
 Tous les morceaux ci-dessous sont dans le domaine public ou placés sous
 CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/).
 Aucune attribution n'est exigée ; ces crédits sont donnés par courtoisie.
-Chaque licence a été vérifiée sur la page source elle-même le 25/09/2026.
+Chaque licence a été vérifiée sur la page source elle-même le 26/09/2026.
 
 Traitement commun (fichiers out/<id>.mp3) :
   - MP3 stéréo 44,1 kHz, LAME VBR -q:a 5, tags ID3v2.3 (titre, artiste,
@@ -15,6 +15,10 @@ Traitement commun (fichiers out/<id>.mp3) :
     lounge, un limiteur de crête (suréchantillonné ×4, plafond -1,5 dBFS)
     est appliqué avant loudnorm pour rester en mode linéaire (danube :
     au plus 2,2 dB de réduction, sur moins de 2 % du morceau).
+    Exception : fight-left (-0,5 dB) et synesthesia (-4,7 dB) sont atténués
+    pour approcher -16 LUFS, puis limités (suréchantillonnage ×4, plafond
+    -1,5 dBFS) avant encodage. Mesure du MP3 décodé : -16,0 et -15,9 LUFS ;
+    crête vraie -1,14 et -3,86 dBTP.
   - Silence de tête retiré quand il dépassait 0,3 s.
   - BPM et premier temps sont mesurés sur le MP3 final, avec un décodage
     sans blanc (ffmpeg, Chrome, Firefox) :
@@ -167,6 +171,43 @@ Ambiance    : « Bossa nova d'ascenseur en synthé FM : cocktail au bar du
               carrier. »
 
 
+---------------------------------------------------------------------
+8. fight-left.mp3
+---------------------------------------------------------------------
+Titre       : All The Fight Left!
+Artiste     : HoliznaCC0
+Licence     : CC0 1.0 (la page dit : « This music is public domain Cc0, so
+              use it how you want! »)
+Preuve      : https://opengameart.org/content/all-the-fight-left
+Téléchargé  : https://opengameart.org/sites/default/files/01_holiznacc0_-_all_the_fight_left.mp3
+Montage     : morceau entier (source MP3 320 kbit/s).
+Traitement  : atténuation de 0,5 dB, puis limiteur après suréchantillonnage
+              ×4 (plafond -1,5 dBFS) ; le MP3 décodé mesure -16,0 LUFS et
+              -1,14 dBTP.
+Durée       : 2:51,9 (171,9 s)      Taille : 2 797 723 octets (2,80 Mo)
+Tempo       : non renseigné ; pas encore mesuré avec assez de confiance.
+Ambiance    : « Synthwave mélancolique et cinématique pour regarder défiler
+              les étoiles. »
+
+
+---------------------------------------------------------------------
+9. synesthesia.mp3
+---------------------------------------------------------------------
+Titre       : Synesthesia
+Artiste     : Zane Little Music
+Licence     : CC0 1.0
+Preuve      : https://opengameart.org/content/synesthesia
+Téléchargé  : https://opengameart.org/sites/default/files/synesthesia_0.mp3
+Montage     : morceau entier (source MP3 320 kbit/s).
+Traitement  : atténuation de 4,7 dB, puis limiteur après suréchantillonnage
+              ×4 (plafond -1,5 dBFS) ; le MP3 décodé mesure -15,9 LUFS et
+              -3,86 dBTP.
+Durée       : 2:35,6 (155,6 s)      Taille : 2 683 172 octets (2,68 Mo)
+Tempo       : non renseigné ; pas encore mesuré avec assez de confiance.
+Ambiance    : « Synthés pétillants et un brin étranges : la nuit prend une
+              autre couleur. »
+
+
 =====================================================================
 MORCEAUX ÉCARTÉS
 =====================================================================
@@ -204,8 +245,8 @@ Bonne licence (CC0) mais écartés pour la qualité, la durée ou le tempo :
     (±200 ms), inutilisable pour synchroniser la lumière.
   - Juhani Junkala, « 5 Chiptunes (Action) » et « Chiptune Adventures » :
     excellents, mais ce sont des boucles de 0:56 à 1:14.
-  - Zane Little Music, « It Takes A Hero » et « Synesthesia » (140 BPM,
-    2:34-2:36) : alternatives chiptune valables.
+  - Zane Little Music, « It Takes A Hero » (140 BPM, 2:34-2:36) : une
+    autre alternative chiptune valable.
   - HoliznaCC0, « Back In The 80s », « Machines With Feelings »,
     « Night Life », « Make Funk » : alternatives synthwave et funk.
   - congusbongus, « Midnight Drive » ; hatmix, « Lost in the Snow Wave » :

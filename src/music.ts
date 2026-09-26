@@ -7,7 +7,7 @@ import { syncTempo } from './tempo'
 import { $ } from './ui'
 
 /*
- * Le jukebox : sept morceaux libres de droits (CC0 ou domaine public, cf.
+ * Le jukebox : neuf morceaux libres de droits (CC0 ou domaine public, cf.
  * public/assets/music/CREDITS.txt), joués depuis le jukebox, spatialisés. Un morceau fini, le
  * suivant de la liste enchaîne. La piste de danse, la boule à facettes et les danseurs battent
  * sur son tempo (cf. tempo.ts). Le relais transmet le choix aux autres (au pont principal, ou
@@ -55,6 +55,14 @@ export const TRACKS: Track[] = [
   {
     id: 'lounge', title: 'Two Left Socks', artist: 'congusbongus', duration: 200.2, bpm: 135, offset: 0.215,
     mood: tr('Bossa nova d\'ascenseur en synthé FM : cocktail au bar du carrier.', 'FM-synth elevator bossa nova: cocktails at the carrier bar.'),
+  },
+  {
+    id: 'fight-left', title: 'All The Fight Left!', artist: 'HoliznaCC0', duration: 171.9, bpm: null, offset: 0,
+    mood: tr('Synthwave mélancolique et cinématique pour regarder défiler les étoiles.', 'Melancholy, cinematic synthwave for watching the stars go by.'),
+  },
+  {
+    id: 'synesthesia', title: 'Synesthesia', artist: 'Zane Little Music', duration: 155.6, bpm: null, offset: 0,
+    mood: tr('Synthés pétillants et un brin étranges : la nuit prend une autre couleur.', 'Bubbly, slightly spooky synths: the night takes on a different color.'),
   },
 ]
 

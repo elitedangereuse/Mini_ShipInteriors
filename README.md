@@ -53,7 +53,7 @@ Mini Interior est un POC : un vaisseau sur trois ponts, vu de dessus en isométr
 - **Quartiers personnalisables** : chaque joueur a sa propre instance des quartiers du commandant. Un CMDR connecté les aménage (93 meubles et objets : lits, plantes, affiches, bornes d'arcade, piste de danse, boule à facettes, tasse de Hutton Orbital…), choisit le papier peint et le sol, et y invite qui il veut.
 - **On s'installe** : s'asseoir sur les chaises, les canapés et les fauteuils, se coucher dans les lits (même la couchette du haut), prendre les commandes au poste de pilotage (et lancer un saut FSD), pédaler, courir, frapper le sac, mixer, jouer à la pince à peluches, danser en rythme. Les autres voient la pose.
 - **Arcade** : quatre bornes se jouent pour de vrai, Cargaison (un Tetris de conteneurs), Viper (un Snake), Astéroïdes et Orbital Clash (combat solo ou duel en ligne), avec le tableau des meilleurs scores gardé par le site.
-- **Jukebox** : sept morceaux libres de droits, que tout le pont (ou toute la cabine) entend ensemble ; la piste de danse bat sur leur tempo.
+- **Jukebox** : neuf morceaux libres de droits, que tout le pont (ou toute la cabine) entend ensemble ; la piste de danse suit leur tempo quand il est établi, sinon celui de la soirée.
 - **Mode photo** : la scène sans l'interface, jusqu'en 4K, à télécharger.
 - **Crédits** : comme dans Elite, le CR débloque les meubles des quartiers et les apparences du Holo-Me. Un meuble débloqué peut être posé autant de fois que souhaité. On gagne des crédits à bord : un revenu passif, lent, les tâches et les records aux bornes d'arcade. Le site tient les comptes.
 - **Tâches de bord** : ordures, flaques, plantes à arroser, pannes, fuites, brèches dans la coque… douze sortes de petites tâches apparaissent un peu partout, les mêmes pour tous, et chacun peut les régler : une tâche réglée ne disparaît que pour celui qui l'a réglée.
@@ -245,10 +245,10 @@ Sur mobile, une manette tactile s'affiche sous la borne. La borne est chargée �
 ## Jukebox
 
 <p align="center">
-  <img src="docs/images/jukebox.jpg" alt="Le panneau du jukebox : les sept morceaux, leur artiste, leur durée et leur ambiance" width="100%">
+  <img src="docs/images/jukebox.jpg" alt="Le panneau du jukebox : les morceaux, leur artiste, leur durée et leur ambiance" width="100%">
 </p>
 
-Le jukebox propose sept morceaux libres de droits : celui du mess, au pont principal, et celui qu'on pose dans ses quartiers. On choisit au clavier (`↑` `↓`, `Entrée`) ou à la souris ; un morceau fini, le suivant enchaîne. Le son est spatialisé, et ne s'entend que sur le pont du jukebox. Le relais garde le morceau en cours, et depuis quand il joue, pour le pont principal et pour chaque instance des quartiers : ceux qui arrivent l'entendent au même endroit que les autres (chacun rattrape le temps de chargement du morceau), et la liste enchaîne à la même heure chez tous. Après une coupure, on retrouve le morceau du relais, ou son silence ; un hôte reconnecté lui rend celui de ses quartiers.
+Le jukebox propose neuf morceaux libres de droits : celui du mess, au pont principal, et celui qu'on pose dans ses quartiers. On choisit au clavier (`↑` `↓`, `Entrée`) ou à la souris ; un morceau fini, le suivant enchaîne. Le son est spatialisé, et ne s'entend que sur le pont du jukebox. Le relais garde le morceau en cours, et depuis quand il joue, pour le pont principal et pour chaque instance des quartiers : ceux qui arrivent l'entendent au même endroit que les autres (chacun rattrape le temps de chargement du morceau), et la liste enchaîne à la même heure chez tous. Après une coupure, on retrouve le morceau du relais, ou son silence ; un hôte reconnecté lui rend celui de ses quartiers.
 
 | Morceau | Artiste | Style | Licence |
 |---|---|---|---|
@@ -259,8 +259,10 @@ Le jukebox propose sept morceaux libres de droits : celui du mess, au pont princ
 | Ganymede | congusbongus | spacesynth, 118 BPM | CC0 |
 | Interstellar Fleet 1 | Zane Little Music | chiptune, 130 BPM | CC0 |
 | Two Left Socks | congusbongus | bossa lounge, 135 BPM | CC0 |
+| All The Fight Left! | HoliznaCC0 | synthwave cinématique | CC0 |
+| Synesthesia | Zane Little Music | synthé pétillant et étrange | CC0 |
 
-Les MP3 (18 Mo en tout, tous au même volume, -16 LUFS) ne sont chargés qu'à la demande. Leurs sources, la preuve de chaque licence et les montages sont dans `public/assets/music/CREDITS.txt`. Les platines, elles, gardent leurs quelques mesures de disco synthétisées.
+Les MP3 (environ 24 Mo en tout, normalisés autour de -16 LUFS) ne sont chargés qu'à la demande. Leurs sources, la preuve de chaque licence et les montages sont dans `public/assets/music/CREDITS.txt`. Les platines, elles, gardent leurs quelques mesures de disco synthétisées.
 
 ## Mode photo
 
@@ -498,7 +500,7 @@ Modèles et sons par [Kenney](https://www.kenney.nl) :
 - [Cube Pets](https://kenney.nl/assets/cube-pets) — `public/assets/pets/` (le chat)
 - [Impact Sounds](https://kenney.nl/assets/impact-sounds), [Sci-fi Sounds](https://kenney.nl/assets/sci-fi-sounds), [Interface Sounds](https://kenney.nl/assets/interface-sounds) — `public/assets/sounds/`
 
-Musiques du jukebox, `public/assets/music/` (détail dans `CREDITS.txt`) : Le Beau Danube bleu par l'[U.S. Marine Band](https://commons.wikimedia.org/wiki/File:%22An_der_sch%C3%B6nen,_blauen_Donau%22_performed_by_the_U.S._Marine_Band.flac) (domaine public) ; en CC0 sur OpenGameArt, [Fupi](https://opengameart.org/content/funky-disco-beats-to-boogiewoogie-to), [HoliznaCC0](https://opengameart.org/content/retro-wave-collection) ([Chills](https://opengameart.org/content/chills)), [congusbongus](https://opengameart.org/content/ganymede) ([Two Left Socks](https://opengameart.org/content/two-left-socks)) et [Zane Little Music](https://opengameart.org/content/interstellar-fleet-1).
+Musiques du jukebox, `public/assets/music/` (détail dans `CREDITS.txt`) : Le Beau Danube bleu par l'[U.S. Marine Band](https://commons.wikimedia.org/wiki/File:%22An_der_sch%C3%B6nen,_blauen_Donau%22_performed_by_the_U.S._Marine_Band.flac) (domaine public) ; en CC0 sur OpenGameArt, [Fupi](https://opengameart.org/content/funky-disco-beats-to-boogiewoogie-to), [HoliznaCC0](https://opengameart.org/content/retro-wave-collection) ([Chills](https://opengameart.org/content/chills), [All The Fight Left!](https://opengameart.org/content/all-the-fight-left)), [congusbongus](https://opengameart.org/content/ganymede) ([Two Left Socks](https://opengameart.org/content/two-left-socks)) et [Zane Little Music](https://opengameart.org/content/interstellar-fleet-1) ([Synesthesia](https://opengameart.org/content/synesthesia)).
 
 Les licences d'origine sont copiées à côté des fichiers.
 
