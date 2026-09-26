@@ -4,7 +4,8 @@ import { icon, type IconName } from '../icons'
 import { Asteroids, AsteroidsPilot } from './asteroids'
 import { Cargo, CargoPilot } from './cargo'
 import { padScore, pixelText, textWidth, type ArcadeGame, type Button, type GameId, type Pad } from './game'
-import { fetchBoard, localBest, saveLocalBest, submitScore, type Board, type Submission } from './scores'
+import { arcadeTiers } from '../economy/data'
+import { fetchBoard, localBest, saveLocalBest, submitScore, type ArcadeCredits, type Board, type Submission } from './scores'
 import { ArcadeSfx } from './sfx'
 import { Viper, ViperPilot } from './viper'
 
@@ -110,7 +111,12 @@ export interface CabinetHost {
   sound: Sound
   /** Le joueur est-il un CMDR connecté au site (son score s'inscrit au classement) ? */
   linked: () => boolean
+  /** Un record personnel rapporte des crédits (paliers franchis, record du vaisseau). */
+  onCredits?: (credits: ArcadeCredits) => void
 }
+
+/** Nombre écrit pour la police pixel, par milliers : « 25 000 ». */
+const grouped = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
 
 export class ArcadeCabinet {
   private readonly el: HTMLDivElement
@@ -391,7 +397,8 @@ export class ArcadeCabinet {
       if (this.id !== id || this.game !== game) return
       this.result = r
       if (r.kind === 'saved') this.board = r.board
-      if (r.kind === 'saved' && r.best && r.board.me?.rank === 1) this.play('life')
+      if (r.kind === 'saved' && r.credits) this.host.onCredits?.(r.credits)
+      if (r.kind === 'saved' && ((r.best && r.board.me?.rank === 1) || r.credits)) this.play('life')
     })
   }
 
@@ -454,6 +461,18 @@ export class ArcadeCabinet {
     else if (best) pixelText(g, tr(`VOTRE RECORD : ${padScore(best)}`, `YOUR BEST: ${padScore(best)}`), w / 2, y + 7 * scale + 44 * k, k, 'center')
     g.fillStyle = '#8a92a6'
     pixelText(g, 'ÉLITE DANGEREUSE · 3312', w / 2, y + 7 * scale + 64 * k, k, 'center')
+    // Crédits : le prochain palier de score à franchir, et ce qu'il rapporte.
+    g.fillStyle = '#7dffa8'
+    pixelText(g, this.nextTier(), w / 2, y + 7 * scale + 84 * k, k, 'center')
+  }
+
+  /** Ligne des crédits de l'écran titre : le prochain palier de score (records personnels). */
+  private nextTier(): string {
+    if (!this.host.linked()) return tr('CONNECTEZ-VOUS AU SITE POUR GAGNER DES CRÉDITS', 'LOG IN TO THE SITE TO EARN CREDITS')
+    const best = Math.max(localBest(this.id), this.board?.me?.score ?? 0)
+    const next = arcadeTiers(this.id).find(([score]) => score > best)
+    if (!next) return tr('TOUS LES PALIERS FRANCHIS : BATTEZ LE RECORD DU VAISSEAU', 'EVERY TIER CLEARED: BEAT THE SHIP RECORD')
+    return tr(`PALIER ${grouped(next[0])} : +${grouped(next[1])} CR`, `TIER ${grouped(next[0])}: +${grouped(next[1])} CR`)
   }
 
   /**
@@ -520,6 +539,16 @@ export class ArcadeCabinet {
       pixelText(g, a + ' !', w / 2, 48 * k, k, 'center')
       pixelText(g, b, w / 2, 58 * k, k, 'center')
     } else pixelText(g, line, w / 2, 50 * k, k, 'center')
+    // Crédits gagnés par ce record : paliers franchis, prime du record du vaisseau.
+    const credits = r && r !== 'pending' && r.kind === 'saved' ? r.credits : null
+    if (credits) {
+      const parts = [`+${grouped(credits.earned)} CR`]
+      if (credits.tiers.length === 1) parts.push(tr(`PALIER ${grouped(credits.tiers[0])}`, `TIER ${grouped(credits.tiers[0])}`))
+      else if (credits.tiers.length > 1) parts.push(tr(`${credits.tiers.length} PALIERS`, `${credits.tiers.length} TIERS`))
+      if (credits.record) parts.push(tr('PRIME DE RECORD', 'RECORD BONUS'))
+      g.fillStyle = '#7dffa8'
+      pixelText(g, parts.join(' · '), w / 2, (line.includes(' ! ') && textWidth(line, k) > w - 16 * k ? 66 : 62) * k, k, 'center')
+    }
     const rank = r && r !== 'pending' && r.kind === 'saved' ? (r.board.me?.rank ?? null) : null
     this.drawBoard(k, 74 * k, rank)
     if (this.modeTime > 2.5) {

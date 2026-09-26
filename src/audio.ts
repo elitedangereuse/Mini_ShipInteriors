@@ -585,6 +585,89 @@ export class Sound {
     boom.stop(t1 + 1.5)
   }
 
+  /**
+   * Crédits encaissés (non spatialisé) : le cliquetis d'une caisse enregistreuse, puis deux
+   * notes de clochette qui montent (trois pour une grosse somme).
+   */
+  credits(big = false) {
+    if (!this.ready) return
+    const ctx = this.ctx
+    const out = this.output(null, { volume: 0.09 }).input
+    const t0 = ctx.currentTime + 0.01
+    const clink = ctx.createBufferSource()
+    clink.buffer = this.whiteNoise
+    const bp = ctx.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.frequency.value = 5200
+    bp.Q.value = 3
+    const cEnv = ctx.createGain()
+    cEnv.gain.setValueAtTime(0.6, t0)
+    cEnv.gain.exponentialRampToValueAtTime(0.001, t0 + 0.05)
+    clink.connect(bp).connect(cEnv).connect(out)
+    clink.start(t0, Math.random() * 0.5)
+    clink.stop(t0 + 0.06)
+    ;(big ? [1319, 1760, 2637] : [1568, 2093]).forEach((f, i) => {
+      const t = t0 + 0.05 + i * 0.075
+      for (const [type, gain] of [['sine', 1], ['triangle', 0.3]] as const) {
+        const osc = ctx.createOscillator()
+        osc.type = type
+        osc.frequency.value = f
+        const env = ctx.createGain()
+        env.gain.setValueAtTime(0, t)
+        env.gain.linearRampToValueAtTime(gain, t + 0.005)
+        env.gain.setTargetAtTime(0, t + 0.02, i === (big ? 2 : 1) ? 0.12 : 0.05)
+        osc.connect(env).connect(out)
+        osc.start(t)
+        osc.stop(t + 0.8)
+      }
+    })
+  }
+
+  /**
+   * Bruit d'une tâche de bord en cours (spatialisé) : frotter (ordures, flaque, vaisselle),
+   * une clé sur du métal (réparations), un sifflement (vapeur, brèche), de l'eau (plantes).
+   */
+  work(kind: 'scrub' | 'wrench' | 'hiss' | 'water', pos: THREE.Vector3) {
+    if (!this.ready) return
+    const ctx = this.ctx
+    const t = ctx.currentTime + 0.01
+    const out = this.output(pos, { volume: kind === 'hiss' ? 0.1 : 0.14, ref: 1.2, rolloff: 1.6 }).input
+    const noise = (filter: BiquadFilterType, freq: number, q: number, len: number, peak = 1) => {
+      const src = ctx.createBufferSource()
+      src.buffer = this.whiteNoise
+      const f = ctx.createBiquadFilter()
+      f.type = filter
+      f.frequency.value = freq
+      f.Q.value = q
+      const env = ctx.createGain()
+      env.gain.setValueAtTime(0, t)
+      env.gain.linearRampToValueAtTime(peak, t + len * 0.3)
+      env.gain.exponentialRampToValueAtTime(0.001, t + len)
+      src.connect(f).connect(env).connect(out)
+      src.start(t, Math.random() * 0.5)
+      src.stop(t + len + 0.02)
+      return f
+    }
+    if (kind === 'scrub') noise('bandpass', 1400 + Math.random() * 900, 0.8, 0.22)
+    else if (kind === 'hiss') noise('highpass', 3500, 0.7, 0.5, 0.8)
+    else if (kind === 'water') {
+      // Glouglou : un bruit filtré dont la fréquence saute, comme des bulles.
+      const f = noise('bandpass', 700, 6, 0.35)
+      for (let i = 1; i < 5; i++) f.frequency.setValueAtTime(500 + Math.random() * 900, t + i * 0.06)
+    } else {
+      noise('bandpass', 3100, 9, 0.12)
+      const osc = ctx.createOscillator()
+      osc.type = 'triangle'
+      osc.frequency.value = 1850 + Math.random() * 300
+      const env = ctx.createGain()
+      env.gain.setValueAtTime(0.35, t)
+      env.gain.exponentialRampToValueAtTime(0.001, t + 0.25)
+      osc.connect(env).connect(out)
+      osc.start(t)
+      osc.stop(t + 0.3)
+    }
+  }
+
   /** Déclencheur du mode photo : le claquement de l'obturateur, puis le réarmement. */
   shutter() {
     if (!this.ready) return

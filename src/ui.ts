@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { formatCredits } from './economy/data'
 import { EN, tr } from './i18n'
 import { icon, type IconName } from './icons'
 import { raceOf, RACES, variantsOf, type Look } from './looks'
@@ -85,6 +86,17 @@ export class Bubbles {
     const e = document.createElement('div')
     e.className = 'emote-pop'
     e.append(icon(name))
+    a.el.insertBefore(e, a.el.firstChild)
+    e.addEventListener('animationend', () => e.remove())
+  }
+
+  /** Texte qui s'envole au-dessus de la tête (crédits gagnés). */
+  gain(key: string, text: string) {
+    const a = this.anchors.get(key)
+    if (!a) return
+    const e = document.createElement('div')
+    e.className = 'gain-pop'
+    e.textContent = text
     a.el.insertBefore(e, a.el.firstChild)
     e.addEventListener('animationend', () => e.remove())
   }
@@ -304,10 +316,31 @@ export function bootDone() {
 
 // --------------------------------------------------------------- garde-robe
 
-/** Panneau de la garde-robe : race, sexe, modèle, teinte ; aperçu en direct sur le personnage. */
+/**
+ * Boutique du Holo-Me (cf. economy/skins.ts) : ce que coûte une apparence qu'on n'a pas, et de
+ * quoi l'acheter.
+ */
+export interface WardrobeShop {
+  /** Prix d'une apparence qu'on n'a pas encore, ou null (offerte, ou déjà achetée). */
+  price(look: Look): number | null
+  /** Pourquoi on ne peut pas acheter en ce moment (invité, site injoignable…), ou null. */
+  blocked(): string | null
+  balance(): number
+  /** Achète l'apparence : null si c'est fait, sinon pourquoi pas. */
+  buy(look: Look): Promise<string | null>
+}
+
+/**
+ * Panneau de la garde-robe : race, sexe, modèle, teinte ; aperçu en direct sur le personnage.
+ * Tout s'essaie ; une apparence payante qu'on n'a pas s'achète avant d'être portée.
+ */
 export class WardrobePanel {
   private el = $('wardrobe')
   private look!: Look
+  /** Achat en cours, et le refus du dernier achat. */
+  private pending = false
+  private error = ''
+  shop?: WardrobeShop
   onChange?: (look: Look) => void
   onClose?: (confirmed: boolean, look: Look) => void
 
@@ -317,6 +350,8 @@ export class WardrobePanel {
 
   open(look: Look) {
     this.look = { ...look }
+    this.pending = false
+    this.error = ''
     this.el.hidden = false
     this.render()
   }
@@ -327,7 +362,32 @@ export class WardrobePanel {
     this.onClose?.(confirmed, { ...this.look })
   }
 
+  /** Les crédits ont changé (achat, réponse du site) : prix et boutons à jour. */
+  refresh() {
+    if (this.isOpen) this.render()
+  }
+
+  /** Achète l'apparence essayée, puis la porte. */
+  private async buy() {
+    if (!this.shop || this.pending) return
+    this.pending = true
+    this.error = ''
+    this.render()
+    const look = { ...this.look }
+    const refusal = await this.shop.buy(look)
+    this.pending = false
+    if (!this.isOpen) return
+    if (refusal) {
+      this.error = refusal
+      return this.render()
+    }
+    // Toujours la même apparence (on a pu en essayer une autre pendant l'achat) : on la porte.
+    if (JSON.stringify(look) === JSON.stringify(this.look)) this.close(true)
+    else this.render()
+  }
+
   private set(patch: Partial<Look>) {
+    this.error = ''
     const next = { ...this.look, ...patch }
     const race = raceOf(next)
     const variants = variantsOf(race, next.sex)
@@ -373,11 +433,39 @@ export class WardrobePanel {
       return b
     }
 
+    const shop = this.shop
+    const price = (look: Look) => shop?.price(look) ?? null
+    /** Cadenas, et le prix en info-bulle, sur un choix qu'on n'a pas. */
+    const lock = (b: HTMLButtonElement, cost: number | null) => {
+      if (cost === null) return b
+      b.classList.add('locked')
+      b.append(icon('lock-simple', 'wr-lock'))
+      b.title = formatCredits(cost)
+      return b
+    }
+    // Une race est verrouillée si aucune de ses apparences n'est offerte ni achetée.
+    const raceLocked = (id: Look['race']) => {
+      const r = RACES.find((x) => x.id === id)!
+      for (const sex of r.sexed ? (['female', 'male'] as const) : (['female'] as const)) {
+        for (const v of variantsOf(r, sex)) for (const t of r.tints ?? [{ id: 'green' }]) if (price({ race: id, sex, variant: v.id, tint: t.id }) === null) return false
+      }
+      return true
+    }
+
     const title = document.createElement('div')
     title.className = 'lift-title'
     title.textContent = tr('Holo-Me · garde-robe', 'Holo-Me · wardrobe')
     const rows: HTMLElement[] = [title]
-    rows.push(row(tr('Espèce', 'Species'), ...RACES.map((r) => button(r.label, r.id === race.id, () => this.set({ race: r.id }), '', r.icon))))
+    rows.push(
+      row(
+        tr('Espèce', 'Species'),
+        ...RACES.map((r) => {
+          const b = button(r.label, r.id === race.id, () => this.set({ race: r.id }), '', r.icon)
+          if (raceLocked(r.id)) b.append(icon('lock-simple', 'wr-lock'))
+          return b
+        }),
+      ),
+    )
     if (race.sexed) {
       rows.push(
         row(
@@ -392,6 +480,9 @@ export class WardrobePanel {
     const name = document.createElement('span')
     name.className = 'wr-variant'
     name.textContent = variant.label
+    // Robots, créatures, Gardiens : chaque modèle s'achète.
+    const variantCost = race.tints ? null : price(this.look)
+    if (variantCost !== null) name.append(icon('lock-simple', 'wr-lock'))
     const prev = button('', false, () => this.cycle(-1), 'wr-arrow', 'caret-left')
     const next = button('', false, () => this.cycle(1), 'wr-arrow', 'caret-right')
     prev.title = tr('Modèle précédent', 'Previous model')
@@ -404,14 +495,36 @@ export class WardrobePanel {
           ...race.tints.map((t) => {
             const b = button(t.label, t.id === this.look.tint, () => this.set({ tint: t.id }), 'wr-tint')
             b.style.setProperty('--swatch', t.swatch)
-            return b
+            // Combinaisons, teintes d'alien : chacune s'achète, pour tous les modèles.
+            return race.id === 'suit' || race.id === 'alien' ? lock(b, price({ ...this.look, tint: t.id })) : b
           }),
         ),
       )
     }
+    // Apparence payante qu'on n'a pas : son prix, et l'achat à la place de « Valider ».
+    const cost = price(this.look)
     const actions = document.createElement('div')
     actions.className = 'wr-actions'
-    actions.append(button(tr('Annuler', 'Cancel'), false, () => this.close(false), 'wr-cancel'), button(tr('Valider', 'Confirm'), false, () => this.close(true), 'wr-ok'))
+    const cancel = button(tr('Annuler', 'Cancel'), false, () => this.close(false), 'wr-cancel')
+    if (cost === null) actions.append(cancel, button(tr('Valider', 'Confirm'), false, () => this.close(true), 'wr-ok'))
+    else {
+      const blocked = shop?.blocked() ?? tr('Boutique indisponible.', 'Shop unavailable.')
+      const short = !blocked && cost > shop!.balance() ? cost - shop!.balance() : 0
+      const note = document.createElement('div')
+      note.className = 'wr-price'
+      note.append(icon('lock-simple'), document.createTextNode(tr(`À acheter : ${formatCredits(cost)}`, `To buy: ${formatCredits(cost)}`)))
+      const why = this.error || blocked || (short ? tr(`Il vous manque ${formatCredits(short)} : tâches de bord et bornes d'arcade en rapportent.`, `You're ${formatCredits(short)} short: ship chores and arcade cabinets pay.`) : '')
+      if (why) {
+        const w = document.createElement('div')
+        w.className = 'wr-why'
+        w.textContent = why
+        note.append(w)
+      }
+      rows.push(note)
+      const buy = button(this.pending ? tr('Achat…', 'Buying…') : tr('Acheter et porter', 'Buy and wear'), false, () => void this.buy(), 'wr-ok wr-buy', 'shopping-cart')
+      buy.disabled = this.pending || !!blocked || short > 0
+      actions.append(cancel, buy)
+    }
     rows.push(actions)
     this.el.replaceChildren(...rows)
   }

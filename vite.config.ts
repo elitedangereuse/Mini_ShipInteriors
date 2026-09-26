@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { defineConfig, type Plugin } from 'vite'
 import { attachRelay } from './server/relay.js'
 
@@ -11,6 +12,9 @@ const CMDR_ENDPOINT = '/outils/mini-shipinteriors-cmdr.php'
 const CABIN_ENDPOINT = '/outils/mini-shipinteriors-cabin.php'
 /** Meilleurs scores des bornes d'arcade (lecture, inscription). */
 const SCORES_ENDPOINT = '/outils/mini-shipinteriors-scores.php'
+/** Crédits du CMDR (solde, achats, gains). */
+const CREDITS_ENDPOINT = '/outils/mini-shipinteriors-credits.php'
+const SITE_PROXY = { [CMDR_ENDPOINT]: ED_SITE_URL, [CABIN_ENDPOINT]: ED_SITE_URL, [SCORES_ENDPOINT]: ED_SITE_URL, [CREDITS_ENDPOINT]: ED_SITE_URL }
 
 /**
  * Branche le relais multijoueur sur le serveur de dev (et de preview) de Vite, sur /ws/mini-shipinteriors.
@@ -32,14 +36,29 @@ function relay(): Plugin {
   }
 }
 
+/**
+ * Les chiffres de l'économie (src/economy/economy.json) sont intégrés au jeu, et copiés tels quels
+ * dans dist/ : le site, qui tient les comptes, y relit en production les prix et les récompenses
+ * (phputils/mini_shipinteriors/credits.php, repo elitedangereuselight).
+ */
+function economy(): Plugin {
+  return {
+    name: 'mini-interior-economy',
+    apply: 'build',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'economy.json', source: readFileSync(new URL('./src/economy/economy.json', import.meta.url), 'utf8') })
+    },
+  }
+}
+
 export default defineConfig({
   // base relative : le build peut être servi depuis n'importe quel sous-dossier.
   base: './',
-  plugins: [relay()],
-  // Le client demande au site qui est connecté, ses quartiers et les scores des bornes (même
-  // origine en prod) : en local, on relaie au site Docker.
-  server: { proxy: { [CMDR_ENDPOINT]: ED_SITE_URL, [CABIN_ENDPOINT]: ED_SITE_URL, [SCORES_ENDPOINT]: ED_SITE_URL } },
-  preview: { proxy: { [CMDR_ENDPOINT]: ED_SITE_URL, [CABIN_ENDPOINT]: ED_SITE_URL, [SCORES_ENDPOINT]: ED_SITE_URL } },
+  plugins: [relay(), economy()],
+  // Le client demande au site qui est connecté, ses quartiers, les scores des bornes et ses
+  // crédits (même origine en prod) : en local, on relaie au site Docker.
+  server: { proxy: SITE_PROXY },
+  preview: { proxy: SITE_PROXY },
   // Three.js pèse ~650 ko minifié à lui seul, le jeu et son mobilier ~200 ko : c'est attendu.
   // Le mode aménagement est chargé à la demande (import dynamique, ~25 ko) ; les morceaux
   // partagés prennent un nom clair (sinon, celui du premier module commun venu) : vendor pour

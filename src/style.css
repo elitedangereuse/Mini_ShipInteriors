@@ -546,6 +546,72 @@ button {
 .id-warn {
   color: var(--accent);
 }
+/* Crédits du CMDR, sous son nom ; les gains s'en envolent. */
+.credits {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffd27a;
+  font-variant-numeric: tabular-nums;
+  pointer-events: auto;
+  cursor: help;
+}
+.credits .icon {
+  font-size: 18px;
+  color: var(--accent);
+}
+.credits.offline {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.cr-gain {
+  position: absolute;
+  left: 100%;
+  top: -2px;
+  margin-left: 8px;
+  white-space: nowrap;
+  color: #7dffa8;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  animation: cr-float 1.8s ease-out forwards;
+}
+.cr-gain.quiet {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+@keyframes cr-float {
+  0% {
+    transform: translateY(6px);
+    opacity: 0;
+  }
+  15% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-18px);
+    opacity: 0;
+  }
+}
+.tasks-here {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.tasks-here .icon {
+  color: #ff8a1c;
+}
 
 .top-right {
   position: absolute;
@@ -834,6 +900,45 @@ kbd .icon {
 #prompt kbd {
   border-color: var(--accent);
   color: var(--accent);
+}
+/* Tâche de bord en cours : le geste et sa jauge, au-dessus de la tâche (orange de l'interface d'Elite). */
+.task-progress {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+  display: grid;
+  gap: 4px;
+  min-width: 128px;
+  padding: 5px 9px 6px;
+  background: var(--panel);
+  border: 1px solid #ff8a1c;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #ffd9a8;
+  white-space: nowrap;
+}
+.tp-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 138, 28, 0.2);
+  overflow: hidden;
+}
+#task-progress-fill {
+  height: 100%;
+  width: 0;
+  background: #ff8a1c;
+  box-shadow: 0 0 6px #ff8a1c;
+}
+/* Gain au-dessus de la tête du joueur. */
+.gain-pop {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  color: #7dffa8;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  animation: float-up 1.8s ease-out forwards;
 }
 #dialog {
   position: absolute;
@@ -1146,6 +1251,43 @@ kbd .icon {
 .wardrobe .wr-ok:hover {
   background: #e0701a;
 }
+/* Apparences payantes qu'on n'a pas : un cadenas, leur prix, l'achat à la place de « Valider ». */
+.wardrobe .wr-lock,
+.wr-variant .wr-lock {
+  font-size: 12px;
+  color: #ffd27a;
+  opacity: 0.85;
+}
+.wr-variant .wr-lock {
+  margin-left: 6px;
+  vertical-align: -1px;
+}
+.wardrobe button.locked:not(.active) {
+  color: var(--muted);
+}
+.wr-price {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 7px;
+  row-gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 176, 58, 0.5);
+  border-radius: 8px;
+  background: rgba(255, 176, 58, 0.08);
+  font-weight: 700;
+  color: #ffd27a;
+}
+.wr-why {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  font-weight: 400;
+  color: #ffb0b0;
+}
+.wardrobe .wr-buy:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 @media (max-width: 720px) {
   .wardrobe {
     top: auto;
@@ -1388,6 +1530,137 @@ body.editing .top-left {
   width: 88px;
   height: 88px;
   pointer-events: none;
+}
+/* Prix d'un exemplaire, ou exemplaires en stock (achetés, ou mobilier d'origine offert). */
+.ed-card-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffd27a;
+  font-variant-numeric: tabular-nums;
+}
+.ed-card-tag.stock {
+  color: #7dffa8;
+  font-weight: 600;
+}
+.ed-card-tag:empty {
+  display: none;
+}
+.ed-card.poor img {
+  opacity: 0.55;
+}
+.ed-card.poor .ed-card-tag {
+  color: var(--muted);
+}
+.ed-balance {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffd27a;
+  font-variant-numeric: tabular-nums;
+}
+.ed-balance .icon {
+  color: var(--accent);
+}
+.ed-balance.offline {
+  font-weight: 400;
+  color: var(--muted);
+}
+/* Achat d'un objet, sous les cartes du catalogue. */
+.ed-buy {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: rgba(255, 176, 58, 0.08);
+}
+.eb-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+.eb-head img {
+  width: 52px;
+  height: 52px;
+}
+.eb-name {
+  font-weight: 700;
+}
+.eb-unit {
+  font-size: 12px;
+  color: #ffd27a;
+}
+.ed-buy .eb-close {
+  align-self: start;
+  padding: 3px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 15px;
+}
+.ed-buy .eb-close:hover {
+  color: var(--text);
+}
+.eb-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ed-buy .eb-step {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font-size: 13px;
+}
+.ed-buy .eb-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.eb-count {
+  min-width: 30px;
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.eb-total {
+  margin-left: auto;
+  font-weight: 700;
+  color: #ffd27a;
+  font-variant-numeric: tabular-nums;
+}
+.eb-note {
+  font-size: 12px;
+  color: var(--muted);
+}
+.eb-note.error {
+  color: #ffb0b0;
+}
+.ed-buy .eb-buy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: rgba(255, 176, 58, 0.22);
+  color: #ffe3b3;
+  font-weight: 700;
+}
+.ed-buy .eb-buy:hover:not(:disabled) {
+  background: rgba(255, 176, 58, 0.34);
+}
+.ed-buy .eb-buy:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 /* Mobilier, ou murs et sol. */
 .ed-modes {
@@ -1977,7 +2250,8 @@ body.photo.photo-names #bubbles {
   display: block;
 }
 body.photo #bubbles .say,
-body.photo #bubbles .emote-pop {
+body.photo #bubbles .emote-pop,
+body.photo #bubbles .gain-pop {
   display: none;
 }
 .photo-bar {

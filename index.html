@@ -87,6 +87,8 @@
           <div id="room" class="room"></div>
           <div id="net" class="net"><i data-icon="user-solo"></i>Solo</div>
           <div id="identity" class="identity"></div>
+          <div id="credits" class="credits" hidden><i data-icon="coins"></i><span id="credits-value"></span></div>
+          <div id="tasks-here" class="tasks-here" hidden><i data-icon="wrench"></i><span></span></div>
         </div>
         <!-- Dans des quartiers : les aménager, y inviter ; invitations reçues. -->
         <div id="cabin-bar" class="panel cabin-bar" hidden></div>
@@ -131,8 +133,10 @@
           <div lang="en">Holo-Me (appearance): Commander's quarters, upper deck</div>
           <div lang="fr"><kbd>B</kbd> aménager ses quartiers (CMDR connectés au site)</div>
           <div lang="en"><kbd>B</kbd> decorate your quarters (CMDRs logged in to the site)</div>
-          <div class="muted" lang="fr">Chat : <code>/nom CMDR Pseudo</code>, <code>/perso</code> (au hasard), <code>/inviter CMDR Nom</code>, <code>/aide</code></div>
-          <div class="muted" lang="en">Chat: <code>/name CMDR Nickname</code>, <code>/random</code> (random look), <code>/invite CMDR Name</code>, <code>/help</code></div>
+          <div lang="fr">Tâches de bord (repères orange) : <kbd>E</kbd> pour les régler contre des crédits</div>
+          <div lang="en">Ship chores (orange markers): <kbd>E</kbd> to take care of them for credits</div>
+          <div class="muted" lang="fr">Chat : <code>/nom CMDR Pseudo</code>, <code>/perso</code> (au hasard), <code>/inviter CMDR Nom</code>, <code>/taches</code>, <code>/aide</code></div>
+          <div class="muted" lang="en">Chat: <code>/name CMDR Nickname</code>, <code>/random</code> (random look), <code>/invite CMDR Name</code>, <code>/chores</code>, <code>/help</code></div>
         </div>
       </div>
 
@@ -146,6 +150,8 @@
       <div id="emotes" class="panel emotes"></div>
 
       <div id="prompt" hidden><kbd>E</kbd><span id="prompt-label">Examiner</span></div>
+      <!-- Tâche de bord en cours : le geste, et sa progression. -->
+      <div id="task-progress" class="task-progress" hidden><span id="task-progress-label"></span><div class="tp-bar"><div id="task-progress-fill"></div></div></div>
       <div id="dialog" hidden></div>
 
       <div id="lift" class="panel lift" hidden>
