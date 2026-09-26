@@ -1,0 +1,10 @@
+Sprites de Ruelle Fighter II — LuizMelo
+Licence : CC0 1.0 Universal
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Adaptation technique : bandes découpées en frames, marges transparentes retirées,
+atlas PNG et pivots communs. Aucun pixel du dessin original n’a été repeint.
+
+Fantasy Martial Characters 2
+https://luizmelo.itch.io/fantasy-martial-characters-2
+Character 1 à Character 6 : les six combattants du pack.

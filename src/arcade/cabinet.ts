@@ -5,8 +5,9 @@ import { icon, type IconName } from '../icons'
 import { Asteroids, AsteroidsPilot } from './asteroids'
 import { Cargo, CargoPilot } from './cargo'
 import { Fight, fightDemo, drawFightIntro, drawFightSelection } from './fight'
+import { loadFightSprites, fightSpritesReady } from './fight-sprites'
 import { FightMusic } from './fight-music'
-import { FIGHT_ROSTER, fighterProfile, type FighterId } from '../../shared/fight-roster.js'
+import { FIGHT_TITLE, FIGHT_ROSTER, fighterProfile, type FighterId } from '../../shared/fight-roster.js'
 import { padScore, pixelText, textWidth, type ArcadeGame, type Button, type GameId, type Pad } from './game'
 import { arcadeTiers } from '../economy/data'
 import { fetchBoard, localBest, saveLocalBest, submitScore, type ArcadeCredits, type Board, type Submission } from './scores'
@@ -35,14 +36,14 @@ const PAUSE: [string[], string] = [['P'], tr('Pause', 'Pause')]
 
 const GAMES: Record<GameId, GameInfo> = {
   fight: {
-    title: 'ORBITAL CLASH',
-    tagline: tr('DUEL DANS LE HANGAR ORBITAL', 'ORBITAL HANGAR DUEL'),
-    neon: '#76eeff', side: '#322457',
+    title: FIGHT_TITLE,
+    tagline: tr('CHAMPIONNAT DU COIN', 'NEIGHBORHOOD CHAMPIONSHIP'),
+    neon: '#ffbd68', side: '#682c43',
     help: [
       [['1', '2'], tr('Solo / duel en ligne (titre)', 'Solo / online duel (title)')],
       [['←', '→'], tr('Choisir le combattant (titre)', 'Choose fighter (title)')],
       [[tr('Z Q S D', 'W A S D')], tr('Bouger / sauter / baisser', 'Move / jump / crouch')],
-      [['F', 'G', 'H'], tr('Poing / pied / plasma', 'Punch / kick / plasma')],
+      [['F', 'G', 'H'], tr('Rapide / lourde / spécial', 'Light / heavy / special')],
       [[tr('Flèches', 'Arrows')], tr('Bouger / sauter / baisser aussi', 'Also move / jump / crouch')],
       [[tr('Reculer', 'Move back')], tr('Garde (bas + recul : garde basse)', 'Block (down + back: low block)')],
       [[tr('Espace', 'Space')], tr('Jouer / rejouer', 'Play / rematch')], [['P'], tr('Pause (solo)', 'Pause (solo)')],
@@ -300,6 +301,9 @@ export class ArcadeCabinet {
   open(id: GameId) {
     this.leaveFight()
     this.id = id
+    if (id === 'fight') void loadFightSprites(true).catch(() => {
+      if (this.isOpen && this.id === 'fight') this.fightStatus.textContent = tr('Sprites indisponibles. Combat ! pour réessayer.', 'Sprites unavailable. Press Fight! to retry.')
+    })
     this.fightMusic?.stop()
     this.fightMusic = null
     this.fightMenu.hidden = id !== 'fight'
@@ -490,6 +494,15 @@ export class ArcadeCabinet {
 
   private start() {
     if (this.id === 'fight' && this.mode === 'intro') { this.setMode('title'); this.clearInput(); return }
+    if (this.id === 'fight' && !fightSpritesReady()) {
+      this.fightStatus.textContent = tr('Chargement des combattants…', 'Loading fighters…')
+      void loadFightSprites(true).then(() => {
+        if (this.isOpen && this.id === 'fight') this.fightStatus.textContent = ''
+      }).catch(() => {
+        if (this.isOpen && this.id === 'fight') this.fightStatus.textContent = tr('Sprites indisponibles. Combat ! pour réessayer.', 'Sprites unavailable. Press Fight! to retry.')
+      })
+      return
+    }
     if (this.id === 'fight' && this.fightMode === 'online') {
       if (!this.host.net.online) {
         this.fightStatus.textContent = tr('Relais déconnecté : le mode solo reste disponible.', 'Relay disconnected: solo mode is available.')
@@ -569,7 +582,7 @@ export class ArcadeCabinet {
 
     switch (this.mode) {
       case 'intro':
-        if (this.modeTime >= 3.6 || pad.pressed.has('a')) { this.setMode('title'); this.clearInput() }
+        if (fightSpritesReady() && (this.modeTime >= 3.6 || pad.pressed.has('a'))) { this.setMode('title'); this.clearInput() }
         break
       case 'title': {
         const a = this.attract!

@@ -435,7 +435,7 @@ export const LEVELS: LevelDef[] = [
       { model: 'jukebox', x: 11.3, z: 6.32, action: tr('Choisir un morceau', 'Pick a song'), music: true },
 
       // --- Salon d'arcade ---
-      // Quatre bornes jouables : Cargaison, Viper, Astéroïdes et Orbital Clash.
+      // Quatre bornes jouables : Cargaison, Viper, Astéroïdes et Ruelle Fighter II.
       { model: 'arcade', x: 16.05, z: 7, rot: 1, label: 'cargo' },
       { model: 'arcade', x: 16.05, z: 8, rot: 1, label: 'viper' },
       { model: 'arcade', x: 16.05, z: 9, rot: 1, label: 'asteroids' },

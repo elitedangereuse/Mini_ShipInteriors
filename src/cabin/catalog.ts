@@ -291,7 +291,7 @@ const ARCADE_GAMES: Variant[] = [
   { id: 'cargo', label: tr('Cargaison (jouable)', 'Cargo (playable)') },
   { id: 'viper', label: tr('Viper (jouable)', 'Viper (playable)') },
   { id: 'asteroids', label: tr('Astéroïdes (jouable)', 'Asteroids (playable)') },
-  { id: 'fight', label: tr('Orbital Clash (solo / 2 joueurs)', 'Orbital Clash (solo / 2 players)') },
+  { id: 'fight', label: tr('Ruelle Fighter II (solo / 2 joueurs)', 'Ruelle Fighter II (solo / 2 players)') },
   { id: 'elite', label: 'Elite' },
   { id: 'invaders', label: 'Thargoid Invaders' },
   { id: 'comete', label: tr('Le Labyrinthe de Comète', 'Comète\'s Maze') },

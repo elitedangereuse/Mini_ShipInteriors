@@ -1,7 +1,8 @@
 import { tr } from '../i18n'
+import { drawFighterSprite, fightSpritesReady } from './fight-sprites'
 import { emptyPad, pixelText } from './game'
-import { FightSimulation, MOVES, type Fighter } from '../../shared/fight.js'
-import { FIGHT_ROSTER, fighterProfile, type FighterId } from '../../shared/fight-roster.js'
+import { FightSimulation, type Fighter } from '../../shared/fight.js'
+import { FIGHT_TITLE, FIGHT_ROSTER, fighterProfile, type FighterId } from '../../shared/fight-roster.js'
 export type { FightMode } from '../../shared/fight.js'
 const FLOOR = 238
 const snap = (v: number) => Math.round(v / 2) * 2
@@ -18,165 +19,100 @@ function disc(g: CanvasRenderingContext2D, color: string, cx: number, cy: number
     rect(g, color, cx - w, cy + y, w * 2, 2)
   }
 }
-function label(g: CanvasRenderingContext2D, text: string, x: number, y: number, color: string, size = 1, align: 'left' | 'center' | 'right' = 'left') {
+function label(g: CanvasRenderingContext2D, text: string, x: number, y: number, color: string | CanvasGradient, size = 1, align: 'left' | 'center' | 'right' = 'left') {
   g.fillStyle = '#030811'; pixelText(g, text, x + size, y + size, size, align)
   g.fillStyle = color; pixelText(g, text, x, y, size, align)
 }
-function limb(g: CanvasRenderingContext2D, color: string, x: number, y: number, tx: number, ty: number, width: number) {
-  const steps = Math.max(1, Math.ceil(Math.max(Math.abs(tx - x), Math.abs(ty - y)) / 2))
-  for (const [paint, thickness] of [['#080d1b', width + 4], [color, width]] as const) {
-    for (let n = 0; n <= steps; n++) rect(g, paint, x + (tx - x) * n / steps - thickness / 2, y + (ty - y) * n / steps - thickness / 2, thickness, thickness)
-  }
-}
-
-/** Hangar détaillé, ciel en parallaxe, planète en bandes et passerelle d'observation. */
+/** Rue commerçante au crépuscule : façades, enseignes, public et pavés en pixels. */
 export function drawFightStage(g: CanvasRenderingContext2D, t: number) {
-  rect(g, '#080e20', 0, 0, 480, 300)
-  for (let i = 0; i < 75; i++) {
-    const x = ((i * 73 - Math.floor(t / 2)) % 480 + 480) % 480
-    rect(g, i % 3 ? '#667a9e' : '#b9dbe0', x, 46 + (i * 37) % 156, 2, 2)
+  rect(g, '#251c39', 0, 0, 480, 300)
+  const sky = ['#251c39', '#3d2949', '#63344e', '#95504e', '#c87357', '#e79c69']
+  sky.forEach((color, i) => rect(g, color, 0, 38 + i * 21, 480, 24))
+  // Toits en profondeur et fenêtres allumées.
+  for (let i = 0; i < 13; i++) {
+    const x = i * 41 - 9, y = 76 + (i * 29) % 43
+    rect(g, '#352c43', x, y, 36, 110)
+    rect(g, '#29263b', x + 7, y - 8, 19, 8)
+    for (let yy = y + 10; yy < 164; yy += 12) for (let xx = x + 5; xx < x + 33; xx += 10)
+      rect(g, (xx + yy) % 3 ? '#725358' : '#ecb878', xx, yy, 4, 6)
   }
-  disc(g, '#314874', 329, 130, 80)
-  for (let y = -70; y < 76; y += 6) {
-    const extent = Math.sqrt(Math.max(0, 80 ** 2 - y ** 2))
-    rect(g, y % 12 ? '#3a5482' : '#283d66', 329 - extent, 130 + y, extent * 2, 4)
+  // Trois boutiques, avec briques, corniches, volets et portes.
+  for (const [x, w, color, shade] of [[0, 143, '#865953', '#533d43'], [157, 165, '#b08a6b', '#70504e'], [336, 144, '#67647a', '#414152']] as const) {
+    rect(g, shade, x, 102, w, 137)
+    rect(g, color, x + 3, 107, w - 6, 119)
+    for (let y = 111; y < 225; y += 10) {
+      rect(g, shade, x + 3, y, w - 6, 2)
+      for (let xx = x + (y % 20 ? 14 : 4); xx < x + w - 5; xx += 24) rect(g, shade, xx, y + 2, 2, 8)
+    }
+    rect(g, '#382f39', x, 101, w, 6); rect(g, '#d8aa87', x + 1, 107, w - 2, 2)
+    for (let xx = x + 14; xx < x + w - 18; xx += 40) {
+      rect(g, '#392c3a', xx - 2, 115, 28, 30); rect(g, '#182c40', xx, 118, 24, 25)
+      rect(g, '#d6a976', xx + 3, 120, 8, 20); rect(g, '#704c50', xx + 12, 118, 2, 25)
+      rect(g, '#5e777c', xx + 14, 120, 8, 9); rect(g, '#cbab91', xx - 3, 145, 30, 3)
+    }
+    rect(g, '#292635', x + 10, 172, w - 20, 55)
+    rect(g, '#42354a', x + 14, 178, w - 28, 49)
+    for (let y = 180; y < 225; y += 5) rect(g, '#605267', x + 14, y, w - 28, 2)
+    rect(g, '#171f32', x + w - 35, 173, 22, 54)
+    rect(g, '#748b8e', x + w - 31, 179, 14, 27); rect(g, '#e3b67b', x + w - 20, 211, 2, 3)
+    rect(g, '#b59786', x + 6, 226, w - 12, 7)
   }
-  disc(g, '#080e2066', 354, 126, 60, 78)
-  // Anneau interrompu en blocs ; la planète reste entièrement pixellisée.
-  for (let i = 0; i < 120; i++) {
-    const a = i / 120 * Math.PI * 2, x = Math.cos(a) * 109, y = Math.sin(a) * 18
-    if (i > 55 && i < 115) continue
-    rect(g, '#a1b4cd', 329 + x, 132 + y - x * 0.24, 4, 2)
+  // Enseignes et store rayé du snack. Un néon fait mine de fatiguer.
+  rect(g, '#291b31', 7, 151, 125, 20); rect(g, '#e7a45f', 9, 153, 121, 2)
+  label(g, 'CHEZ KO', 69, 158, '#ffdd8c', 1, 'center')
+  for (let x = 10; x < 120; x += 10) { rect(g, x % 20 ? '#d16865' : '#ffe3ac', x, 173, 10, 8); rect(g, x % 20 ? '#9b414f' : '#ccac8a', x, 181, 10, 5) }
+  rect(g, '#373142', 170, 151, 140, 19); rect(g, '#e89f68', 171, 152, 138, 2)
+  label(g, 'DOJO DU COIN', 240, 158, '#ffcf84', 1, 'center')
+  rect(g, '#241f37', 347, 151, 123, 20)
+  label(g, 'INSERT COIN', 408, 158, Math.sin(t * 2) > -0.94 ? '#79dad7' : '#407b84', 1, 'center')
+  // Éclairage suspendu et banderoles d'un tournoi parfaitement improvisé.
+  for (let x = 0; x < 480; x += 4) rect(g, '#252538', x, 78 + Math.sin(x / 480 * Math.PI) * 18, 4, 2)
+  for (let i = 0; i < 15; i++) {
+    const x = i * 34 + 4, y = 80 + Math.sin(x / 480 * Math.PI) * 18
+    const colors = ['#edbd70', '#cd5d69', '#70b8b0']
+    for (let h = 0; h < 10; h += 2) rect(g, colors[i % 3], x + h / 2 + Math.sin(t * 2 + i), y + h, 12 - h, 2)
   }
-  // Transporteur au loin, navette et tuyères.
-  const ship = 18 + (t * 4) % 95
-  rect(g, '#7186a3', ship, 92, 47, 6); rect(g, '#344566', ship + 10, 86, 26, 14)
-  rect(g, '#a0dbeb', ship + 33, 88, 7, 3); rect(g, '#6495cb', ship - 6, 94, 8, 2)
-  rect(g, '#162036', 0, 193, 480, 35)
-  for (let x = 0; x < 480; x += 24) {
-    rect(g, '#2a3b54', x, 198, 17, 14)
-    rect(g, '#fdcc6a', x + 3, 201, 3, 2)
-    rect(g, '#556880', x, 215, 21, 3)
+  // Spectateurs de quartier (petites silhouettes décoratives).
+  for (const [x, color, skin] of [[31, '#ad6871', '#d7a17d'], [104, '#66879a', '#f0bb8b'], [372, '#ad9257', '#c48b66'], [443, '#775d96', '#ebba95']] as const) {
+    const bob = Math.sin(t * 3 + x) > 0.5 ? -2 : 0
+    rect(g, '#252637', x - 5, 222, 4, 12); rect(g, '#252637', x + 2, 222, 4, 12)
+    rect(g, color, x - 6, 210 + bob, 13, 16); rect(g, skin, x - 4, 202 + bob, 9, 9)
+    rect(g, '#332b39', x - 5, 201 + bob, 10, 3)
+    rect(g, skin, x - 10, 212 + bob, 4, 8); rect(g, skin, x + 7, 209 + bob, 4, 10)
   }
-  for (const x of [0, 82, 390, 470]) {
-    rect(g, '#0a1225', x - 4, 36, 18, 198)
-    rect(g, '#243c52', x, 38, 10, 198)
-    rect(g, '#506f86', x, 38, 2, 194)
-    for (let y = 58; y < 200; y += 32) rect(g, '#0c1728', x + 2, y, 6, 6)
-    rect(g, '#8fdbe3', x + 4, 47, 2, 23)
+  // Affiches, caisse de bouteilles, poubelles et vapeur d'une bouche d'égout.
+  rect(g, '#edd9ad', 141, 165, 14, 26); label(g, 'VS', 148, 170, '#a34458', 1, 'center')
+  rect(g, '#9f5e54', 324, 170, 10, 36); rect(g, '#392e3c', 325, 172, 8, 8)
+  for (const x of [10, 463]) { rect(g, '#252f3b', x - 3, 219, 15, 15); rect(g, '#647274', x - 4, 217, 17, 3); rect(g, '#819592', x, 222, 2, 9) }
+  rect(g, '#665661', 0, 234, 480, 4); rect(g, '#d3b69b', 0, FLOOR, 480, 3)
+  rect(g, '#3c3b4b', 0, FLOOR + 3, 480, 59)
+  for (let y = FLOOR + 8; y < 300; y += 10) {
+    rect(g, '#565061', 0, y, 480, 2)
+    for (let x = y % 20 ? 0 : 20; x < 480; x += 40) rect(g, '#565061', x, y + 2, 2, 8)
   }
-  rect(g, '#263c50', 0, 40, 480, 10); rect(g, '#647b85', 0, 40, 480, 2)
-  for (let x = 12; x < 480; x += 48) { rect(g, '#0c1728', x, 43, 32, 3); rect(g, '#efbc62', x + 8, 46, 16, 2) }
-  // Caisses, conduites et balises au bord de l'arène.
-  for (const [x, y, color] of [[24, 218, '#535d66'], [53, 221, '#776238'], [413, 218, '#535d66']] as const) {
-    rect(g, '#080e19', x - 2, y - 2, 26, FLOOR - y + 2)
-    rect(g, color, x, y, 22, FLOOR - y)
-    rect(g, '#bbc3b2', x, y, 22, 2); rect(g, '#1b2934', x + 6, y + 5, 10, 6)
-    rect(g, '#ffce70', x + 2, y + 11, 4, 3)
+  for (const [x, color] of [[42, '#df977a'], [238, '#caa56d'], [400, '#69a1a9']] as const)
+    for (let y = 245; y < 291; y += 6) rect(g, color + '22', x - (y - 238) / 2, y, y - 224, 2)
+  rect(g, '#242b38', 324, 254, 36, 6)
+  for (let x = 328; x < 357; x += 6) rect(g, '#78818c', x, 254, 2, 6)
+  for (let i = 0; i < 6; i++) {
+    const age = (t * 14 + i * 7) % 42
+    rect(g, '#ddbdab22', 337 + Math.sin(t + i) * 5 - age / 6, 249 - age, 4 + age / 3, 2)
   }
-  label(g, 'DOCK 07', 116, 62, '#597389')
-  label(g, 'ORBITAL / 3312', 375, 177, '#78909d', 1, 'right')
-  rect(g, '#172b40', 0, FLOOR, 480, 62)
-  rect(g, '#8eeae2', 0, FLOOR, 480, 2); rect(g, '#425a70', 0, FLOOR + 4, 480, 2)
-  for (let y = FLOOR + 8; y < 300; y += 2) {
-    const perspective = (y - FLOOR + 15) / 77
-    for (let x = -480; x < 960; x += 64) rect(g, '#3b566d', 240 + (x - 240) * perspective, y, 2, 2)
-  }
-  for (const y of [251, 270, 297]) rect(g, '#456478', 0, y, 480, 2)
-  for (let x = 0; x < 480; x += 24) { rect(g, '#dfad54', x, 288, 12, 4); rect(g, '#070f1e', x + 12, 288, 12, 4) }
-  for (const x of [7, 467]) { rect(g, '#06111d', x, 224, 8, 14); rect(g, Math.sin(t * 3) > 0 ? '#fa7482' : '#783d55', x + 2, 226, 4, 6) }
 }
 
-/** Sprites articulés : les six silhouettes partagent les poses, pas leur costume. */
-export function drawCombatant(g: CanvasRenderingContext2D, f: Fighter, t: number, alternate = false) {
-  const p = fighterProfile(f.character), heavy = p.style === 'heavy', sentinel = p.style === 'sentinel'
-  const body = f.stun > 0 ? '#e8f7ff' : alternate ? p.accent : p.color
-  const wide = heavy ? 16 : sentinel ? 13 : 10
-  const attack = f.attack, timing = attack ? MOVES[attack.move] : null
-  const active = attack && attack.time >= timing!.windup * p.tempo && attack.time < timing!.windup * p.tempo + 0.13
-  const walk = !attack && !f.guard && !f.crouch && !f.y ? Math.sin(f.walk) * 5 : 0
-  g.save(); g.translate(snap(f.x), snap(FLOOR - f.y)); g.scale(f.face, 1)
-  if (p.style === 'ninja' || sentinel) {
-    // Écharpe ou cape, dont les contours restent en marches d'escalier.
-    for (let y = -51; y < (sentinel ? -10 : -42); y += 2) rect(g, sentinel ? p.dark : p.accent, -wide - 8 - Math.sin(t * 8 + y) * 2, y, sentinel ? 13 : 17, 2)
+/** Les poses manquantes dans les packs de plateforme sont indiquées par la garde. */
+export function drawCombatant(g: CanvasRenderingContext2D, f: Fighter, t: number, alternate = false, koTime = 0) {
+  drawFighterSprite(g, f, t, FLOOR, koTime)
+  if (f.guard) {
+    g.save(); g.translate(snap(f.x), snap(FLOOR - f.y)); g.scale(f.face, 1)
+    for (let y = -57; y < -10; y += 4) rect(g, '#9ddcffaa', 25 + Math.sqrt(Math.max(0, 24 ** 2 - (y + 34) ** 2)) / 3, y, 2, 3)
+    g.restore()
   }
-  const low = f.crouch ? 20 : 0, bob = !f.y && !f.crouch ? Math.sin(t * 5) * 1.5 : 0
-  g.translate(0, snap(low + bob))
-  const backFoot = -9 - walk, frontFoot = 9 + walk
-  limb(g, p.dark, -7, -27, backFoot, -5 - low, heavy ? 12 : 8)
-  limb(g, p.dark, 7, -27, frontFoot, -5 - low, heavy ? 12 : 8)
-  rect(g, p.light, backFoot - 7, -6 - low, 13, 5); rect(g, '#080f1d', backFoot - 8, -2 - low, 15, 3)
-  rect(g, p.light, frontFoot - 4, -6 - low, 15, 5); rect(g, '#080f1d', frontFoot - 5, -2 - low, 17, 3)
-  rect(g, body, -11, -22, 7, 6); rect(g, body, 5, -22, 7, 6)
-  // Bras arrière, panneau dorsal, torse avec contour et deux niveaux d'ombre.
-  limb(g, p.dark, -wide, -44, -wide - 6, -30 + walk, 8)
-  rect(g, '#080e1d', -wide - 5, -47, wide * 2 + 10, 25)
-  rect(g, p.dark, -wide - 2, -46, wide * 2 + 4, 22)
-  rect(g, body, -wide, -47, wide * 2, 19)
-  rect(g, p.light, -wide + 2, -46, 3, 14)
-  rect(g, p.dark, -wide, -31, wide * 2, 5)
-  rect(g, '#c9d7d7', -wide - 2, -27, wide * 2 + 4, 3)
-  rect(g, p.accent, -4, -29, 7, 6)
-  if (p.style === 'alien') {
-    for (const x of [-5, 3]) { rect(g, p.light, x, -43, 3, 12); rect(g, p.accent, x, -40, 3, 4) }
-  } else {
-    rect(g, p.dark, -6, -43, 13, 8); rect(g, p.accent, -4, -42, 9, 3)
-    rect(g, p.light, -wide - 4, -46, heavy ? 11 : 7, 8)
-    if (sentinel) { rect(g, '#253447', -5, -39, 12, 5); rect(g, p.accent, 4, -38, 3, 2) }
-  }
-  // Tête : casque de pilote, crête cyborg, capuche, masque alien ou blindage de robot.
-  rect(g, '#060d1b', -12, -68, 25, 20)
-  rect(g, p.dark, -11, -66, 23, 18)
-  if (p.style === 'pilot') {
-    rect(g, p.light, -9, -66, 18, 4); rect(g, '#b7cbd8', -10, -63, 21, 12)
-    rect(g, '#15243c', -3, -63, 17, 10); rect(g, '#efbb66', 1, -62, 12, 3)
-    rect(g, '#4e7f9b', 2, -58, 9, 2); rect(g, '#edeeee', -10, -51, 20, 4)
-    rect(g, p.dark, -13, -61, 5, 9)
-  } else if (p.style === 'acrobat') {
-    rect(g, body, -7, -69, 14, 5); rect(g, p.accent, -3, -71, 5, 4)
-    rect(g, '#efd1b8', -7, -61, 18, 10); rect(g, '#262541', -8, -58, 22, 4)
-    rect(g, p.light, 4, -58, 8, 2); rect(g, p.dark, -11, -64, 6, 15)
-    rect(g, '#c9e8ed', -5, -52, 17, 4)
-  } else if (p.style === 'ninja') {
-    rect(g, body, -9, -66, 17, 5); rect(g, p.dark, -6, -62, 18, 13)
-    rect(g, '#edd0b1', -3, -59, 15, 5); rect(g, '#0a1027', 2, -58, 10, 2)
-    rect(g, p.accent, -10, -54, 23, 6); rect(g, p.light, -7, -65, 4, 2)
-  } else if (p.style === 'alien') {
-    rect(g, body, -6, -70, 12, 24); rect(g, p.light, -10, -63, 21, 10)
-    rect(g, '#172f34', -5, -62, 6, 7); rect(g, '#172f34', 6, -62, 6, 7)
-    rect(g, p.accent, -3, -61, 2, 4); rect(g, p.accent, 8, -61, 2, 4)
-    rect(g, p.dark, -2, -51, 8, 3); rect(g, p.accent, -2, -75, 4, 6)
-  } else {
-    rect(g, body, -12, -66, 23, 16); rect(g, p.light, -12, -66, 23, 3)
-    rect(g, '#1d263b', -6, -61, 20, 7); rect(g, p.accent, -3, -60, 15, 3)
-    rect(g, p.dark, -7, -52, 20, 5)
-    for (const x of [-4, 2, 8]) rect(g, '#869da2', x, -51, 2, 3)
-    if (heavy) { rect(g, '#8099a1', -16, -63, 5, 12); rect(g, p.accent, -14, -69, 3, 7) }
-  }
-  if (heavy || sentinel) { rect(g, '#091323', wide - 2, -48, 13, 12); rect(g, body, wide, -47, 10, 9); rect(g, p.light, wide, -46, 10, 2) }
-  // Avant-bras : anticipation, extension, puis récupération. Pied projeté lors du kick.
-  const windup = attack && !active ? -6 : 0
-  const handX = active ? (attack!.move === 'punch' ? MOVES.punch.range * p.reach - 8 : 29) : f.guard ? 18 : 19 + walk
-  const handY = active ? -40 : f.guard ? -57 : -40 + windup
-  limb(g, body, wide, -42, handX, handY, heavy ? 11 : 8)
-  rect(g, p.dark, handX - 6, handY - 6, heavy ? 16 : 12, 12)
-  rect(g, p.light, handX - 4, handY - 5, heavy ? 12 : 9, 8)
-  rect(g, body, handX - 4, handY + 2, 10, 3)
-  if (active && attack!.move === 'kick') {
-    const reach = MOVES.kick.range * p.reach - 10
-    limb(g, body, 5, -27, reach, -22, heavy ? 12 : 9)
-    rect(g, p.light, reach - 5, -27, 13, 11); rect(g, '#0b1326', reach + 6, -27, 4, 13)
-  }
-  if (active && attack!.move !== 'plasma') {
-    const reach = attack!.move === 'kick' ? MOVES.kick.range * p.reach : handX
-    for (let k = 0; k < 4; k++) rect(g, `${p.light}99`, reach - 13 - k * 6, (attack!.move === 'kick' ? -20 : -38) + k * 2, 8, 2)
-  }
-  if (f.guard) for (let y = -57; y < -10; y += 4) rect(g, '#9ddcffaa', 25 + Math.sqrt(Math.max(0, 24 ** 2 - (y + 34) ** 2)) / 3, y, 2, 3)
-  if (attack?.move === 'plasma' && !active) { disc(g, `${p.color}88`, handX + 7, handY, 6); rect(g, '#fff3c8', handX + 5, handY - 2, 4, 4) }
-  g.restore()
+  // En miroir, un repère J2 évite de confondre deux costumes identiques.
+  if (alternate) label(g, '2P', f.x, FLOOR - f.y - 87, '#ffb68b', 1, 'center')
 }
 function portrait(g: CanvasRenderingContext2D, id: FighterId, x: number, y: number, scale: number, face: number, t: number) {
-  const f: Fighter = { character: id, x: 0, y: 0, vy: 0, face, hp: 100, energy: 40, wins: 0, stun: 0, cooldown: 0, guard: false, crouch: false, attack: null, walk: 0 }
+  const f: Fighter = { character: id, x: 0, y: 0, vy: 0, face, hp: 100, energy: 40, wins: 0, stun: 0, cooldown: 0, guard: false, crouch: false, attack: null, walk: 0, moving: false }
   g.save(); g.translate(snap(x), snap(y)); g.scale(scale, scale); g.translate(0, -FLOOR)
   drawCombatant(g, f, t); g.restore()
 }
@@ -191,17 +127,19 @@ export function drawFightIntro(g: CanvasRenderingContext2D, elapsed: number) {
   const reveal = Math.max(0, Math.min(1, (elapsed - 0.5) / 0.7))
   g.save(); g.translate(240, 28); g.transform(1, 0, -0.12, 1, 0, 0)
   g.globalAlpha = reveal
-  label(g, 'ORBITAL', 3, 3, '#8a274b', 5, 'center')
-  label(g, 'ORBITAL', 0, 0, '#ffe18d', 5, 'center')
-  label(g, 'CLASH', 3, 48, '#8a274b', 6, 'center')
-  label(g, 'CLASH', 0, 45, '#ff985f', 6, 'center')
+  label(g, 'RUELLE', 3, 3, '#8a274b', 5, 'center')
+  const gold = g.createLinearGradient(0, 0, 0, 84)
+  gold.addColorStop(0, '#fff2a2'); gold.addColorStop(0.5, '#ffce65'); gold.addColorStop(1, '#ff704a')
+  label(g, 'RUELLE', 0, 0, gold, 5, 'center')
+  label(g, 'FIGHTER II', 3, 48, '#8a274b', 4, 'center')
+  label(g, 'FIGHTER II', 0, 45, gold, 4, 'center')
   g.restore()
   if (elapsed > 1.1) {
     const radius = Math.min(60, (elapsed - 1.1) * 90)
     for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2; rect(g, i % 2 ? '#ffc772' : '#79edff', 240 + Math.cos(a) * radius, 199 + Math.sin(a) * radius * 0.6, 6, 3) }
     label(g, 'VS', 240, 185, '#ffe5b4', 4, 'center')
   }
-  label(g, tr('SIX COMBATTANTS. UNE ARÈNE.', 'SIX FIGHTERS. ONE ARENA.'), 240, 266, '#e4eaf7', 1, 'center')
+  label(g, tr('CHAMPIONNAT DU COIN', 'NEIGHBORHOOD CHAMPIONSHIP'), 240, 266, '#e4eaf7', 1, 'center')
   label(g, tr('ESPACE / A : PASSER', 'SPACE / A: SKIP'), 240, 284, '#8eb5ca', 1, 'center')
 }
 
@@ -209,12 +147,12 @@ export function drawFightSelection(g: CanvasRenderingContext2D, selected: Fighte
   const p = fighterProfile(selected)
   drawFightStage(g, t)
   rect(g, '#071126ee', 0, 0, 480, 300)
-  label(g, 'ORBITAL CLASH', 240, 12, '#ffe09b', 3, 'center')
+  label(g, FIGHT_TITLE, 240, 12, '#ffe09b', 2, 'center')
   label(g, tr('CHOISISSEZ VOTRE COMBATTANT', 'CHOOSE YOUR FIGHTER'), 240, 43, '#a7b7d8', 1, 'center')
   portrait(g, selected, 83, 186, 1.5, 1, t)
   label(g, p.name, 180, 66, p.color, 3)
   label(g, tr(...p.role), 180, 92, '#dce5f3')
-  const names = [tr('VITESSE', 'SPEED'), tr('FRAPPE', 'STRIKE'), tr('BLINDAGE', 'ARMOR')]
+  const names = [tr('VITESSE', 'SPEED'), tr('FRAPPE', 'STRIKE'), tr('DÉFENSE', 'DEFENSE')]
   names.forEach((name, i) => {
     label(g, name, 180, 111 + i * 13, '#849fb7')
     for (let n = 0; n < 5; n++) rect(g, n < p.stats[i] ? p.color : '#27344b', 252 + n * 15, 111 + i * 13, 11, 6)
@@ -229,7 +167,7 @@ export function drawFightSelection(g: CanvasRenderingContext2D, selected: Fighte
     portrait(g, f.id, x + 36, 254, 0.5, 1, t)
     label(g, f.name, x + 37, 263, chosen ? f.color : '#a0b4cb', 1, 'center')
   })
-  label(g, waiting ? tr('EN ATTENTE D’UN ADVERSAIRE…', 'WAITING FOR AN OPPONENT…') : tr('GAUCHE / DROITE : CHOISIR · A : COMBAT', 'LEFT / RIGHT: CHOOSE · A: FIGHT'), 240, 286, waiting ? '#ffe09b' : '#bacfe3', 1, 'center')
+  label(g, !fightSpritesReady() ? tr('CHARGEMENT DES COMBATTANTS…', 'LOADING FIGHTERS…') : waiting ? tr('EN ATTENTE D’UN ADVERSAIRE…', 'WAITING FOR AN OPPONENT…') : tr('GAUCHE / DROITE : CHOISIR · A : COMBAT', 'LEFT / RIGHT: CHOOSE · A: FIGHT'), 240, 286, waiting ? '#ffe09b' : '#bacfe3', 1, 'center')
 }
 
 export class Fight extends FightSimulation {
@@ -239,12 +177,13 @@ export class Fight extends FightSimulation {
     g.save()
     if (impact) g.translate(Math.floor(Math.sin(t * 80) * 2), 0)
     drawFightStage(g, t)
+    const koTime = this.phase === 'round' ? 2.2 - this.phaseTime : this.over ? 2.2 : 0
     this.fighters.forEach((f, i) => {
       disc(g, '#03091ba0', f.x, FLOOR + 4, 22, 4)
       // Reflet au sol, en transparence et en blocs.
       g.save(); g.globalAlpha = 0.09; g.translate(0, FLOOR * 1.4 + 5); g.scale(1, -0.4)
-      drawCombatant(g, f, t, i === 1 && f.character === this.fighters[0].character); g.restore()
-      drawCombatant(g, f, t, i === 1 && f.character === this.fighters[0].character)
+      drawCombatant(g, f, t, i === 1 && f.character === this.fighters[0].character, koTime); g.restore()
+      drawCombatant(g, f, t, i === 1 && f.character === this.fighters[0].character, koTime)
     })
     for (const p of this.projectiles) {
       const color = fighterProfile(this.fighters[p.owner].character).color
@@ -294,8 +233,8 @@ export class Fight extends FightSimulation {
     label(g, fighterProfile(this.fighters[0].character).name, 112 - entry, 238, '#a4f4ff', 3, 'center')
     label(g, fighterProfile(this.fighters[1].character).name, 370 + entry, 238, '#ffc0d2', 3, 'center')
     if (elapsed > 0.55) label(g, 'VS', 240, 137, '#ffe39c', 4, 'center')
-    label(g, 'ORBITAL CLASH', 240, 22, '#ffdd96', 2, 'center')
-    label(g, tr('HANGAR 07 · DEUX MANCHES GAGNANTES', 'HANGAR 07 · FIRST TO TWO ROUNDS'), 240, 283, '#d6dceb', 1, 'center')
+    label(g, FIGHT_TITLE, 240, 22, '#ffdd96', 2, 'center')
+    label(g, tr('DOJO DU COIN · DEUX MANCHES GAGNANTES', 'CORNER DOJO · FIRST TO TWO ROUNDS'), 240, 283, '#d6dceb', 1, 'center')
   }
 }
 export const fightDemo = () => {

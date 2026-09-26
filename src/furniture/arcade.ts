@@ -5,6 +5,7 @@ import {
   animatedScreen, barX, barZ, box, compact, cylinder, drawnTexture, ED_ORANGE, glass, glow, instanced, keepShared, lit,
   mesh, part, rng, setInstance, sphere, type Builder, type ClawControl, type ClawResult,
 } from './kit'
+import { FIGHT_TITLE } from '../../shared/fight-roster.js'
 import { Fight } from '../arcade/fight'
 import { emptyPad } from '../arcade/game'
 import { Asteroids, AsteroidsPilot } from '../arcade/asteroids'
@@ -625,7 +626,7 @@ const asteroidsDemo = liveDemo(() => new Asteroids(), (g) => {
  * jouables une fabrique de démonstration : chaque écran a sa partie).
  */
 const GAMES: Record<string, { title: string; side: string; neon: string; draw: Draw | (() => Draw); live?: true }> = {
-  fight: { title: 'ORBITAL CLASH', side: '#322457', neon: '#76eeff', live: true,
+  fight: { title: FIGHT_TITLE, side: '#682c43', neon: '#ffbd68', live: true,
     draw: liveDemo(() => new Fight('demo'), () => () => emptyPad(), (c, game, t) => {
       c.save(); c.scale(W / game.width, H / game.height); game.draw(c, t); c.restore()
     }, 5),

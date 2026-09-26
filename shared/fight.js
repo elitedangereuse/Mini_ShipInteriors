@@ -37,6 +37,7 @@ export const MOVES = {
 const fighter = (x, face, wins = 0, character = 'nova') => ({
   character: fighterProfile(character).id,
   walk: 0,
+  moving: false,
   x,
   y: 0,
   vy: 0,
@@ -170,6 +171,7 @@ export class FightSimulation {
       const movement = Number(p.held.has('right')) - Number(p.held.has('left'))
       f.crouch = f.y === 0 && p.held.has('down')
       f.guard = !f.attack && f.stun === 0 && f.y === 0 && movement === -f.face
+      f.moving = movement !== 0 && !f.stun && !f.attack && !f.crouch
       if (!f.stun && !f.attack) {
         if (p.pressed.has('up') && f.y === 0) {
           f.vy = profile.jump

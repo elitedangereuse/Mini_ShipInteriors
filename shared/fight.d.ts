@@ -3,7 +3,7 @@ import type { Pad, Sfx } from '../src/arcade/game'
 export type FightMode = 'solo' | 'versus' | 'demo'
 type Move = 'punch' | 'kick' | 'plasma'
 export interface Fighter {
-  character: FighterId; walk: number
+  character: FighterId; walk: number; moving: boolean
   x: number; y: number; vy: number; face: number; hp: number; energy: number
   wins: number; stun: number; cooldown: number; guard: boolean; crouch: boolean
   attack: { move: Move; time: number; hit: boolean } | null
