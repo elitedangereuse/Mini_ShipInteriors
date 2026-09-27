@@ -415,7 +415,7 @@ export const LEVELS: LevelDef[] = [
       },
       { model: 'table-display-planet', x: 15, z: 7, rot: 3, solid: false },
       // Le jukebox du mess : tout le pont l'entend (cf. src/music.ts).
-      { model: 'jukebox', x: 11.3, z: 6.32, action: tr('Choisir un morceau', 'Pick a song'), music: true },
+      { model: 'jukebox', x: 11.3, z: 5.82, action: tr('Choisir un morceau', 'Pick a song'), music: true },
 
       // --- Salon d'arcade ---
       // Quatre bornes jouables : Cargaison, Viper, Astéroïdes et Ruelle Fighter II.

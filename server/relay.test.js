@@ -30,7 +30,7 @@ const listen = async (server) => {
 let game, url, relay
 
 /** Devant le jukebox du mess (pont principal). */
-const AT_JUKEBOX = { x: 11.3, z: 7.1, yaw: 0, level: 0, anim: 'idle' }
+const AT_JUKEBOX = { x: 11.3, z: 6.6, yaw: 0, level: 0, anim: 'idle' }
 const clients = []
 
 afterEach(() => {
@@ -203,17 +203,17 @@ describe('rediffusion', () => {
     const b = client({ auth: { name: 'CMDR Oreille' } })
     await welcome(b)
     a.emit('state', AT_JUKEBOX)
-    a.emit('music', { where: 'deck', track: 'Disco!', x: 11.3, z: 6.32 }) // identifiant invalide : ignoré
-    a.emit('music', { where: 'deck', track: 'disco', x: 11.3, z: 6.32 })
+    a.emit('music', { where: 'deck', track: 'Disco!', x: 11.3, z: 5.82 }) // identifiant invalide : ignoré
+    a.emit('music', { where: 'deck', track: 'disco', x: 11.3, z: 5.82 })
     const heard = await next(b, 'music')
-    assert.deepEqual({ ...heard, at: 0 }, { id: wa.id, where: 'deck', track: 'disco', at: 0, x: 11.3, z: 6.32 })
+    assert.deepEqual({ ...heard, at: 0 }, { id: wa.id, where: 'deck', track: 'disco', at: 0, x: 11.3, z: 5.82 })
     // Le nouveau venu arrive en plein morceau.
     await new Promise((r) => setTimeout(r, 120))
     const c = client({ auth: { name: 'CMDR Retard' } })
     const m = (await welcome(c)).music
     assert.equal(m.track, 'disco')
     assert.ok(m.at >= 0.1 && m.at < 5, `écoulé : ${m.at}`)
-    a.emit('music', { where: 'deck', track: null, x: 11.3, z: 6.32 })
+    a.emit('music', { where: 'deck', track: null, x: 11.3, z: 5.82 })
     assert.equal((await next(b, 'music')).track, null)
     for (const socket of [a, b, c]) socket.disconnect()
   })
@@ -225,13 +225,13 @@ describe('rediffusion', () => {
     await welcome(b)
     a.emit('state', AT_JUKEBOX)
     const refused = next(a, 'music')
-    for (const track of ['disco', 'lofi', 'space', 'lounge']) a.emit('music', { where: 'deck', track, x: 11.3, z: 6.32 })
+    for (const track of ['disco', 'lofi', 'space', 'lounge']) a.emit('music', { where: 'deck', track, x: 11.3, z: 5.82 })
     const m = await refused
     assert.equal(m.busy, true)
     assert.equal(m.track, 'space', 'le dernier choix accepté')
     assert.equal(await receives(b, 'music', 150, (m) => m.track === 'lounge'), false, 'le choix refusé n\'est pas diffusé')
     await new Promise((r) => setTimeout(r, 2100))
-    a.emit('music', { where: 'deck', track: null, x: 11.3, z: 6.32 })
+    a.emit('music', { where: 'deck', track: null, x: 11.3, z: 5.82 })
     assert.equal((await next(b, 'music')).track, null)
     a.disconnect()
     b.disconnect()
@@ -245,7 +245,7 @@ describe('rediffusion', () => {
     // Coursive, juste au nord du mur du mess : le jukebox est à 1,3 de là, mais derrière le mur.
     a.emit('state', { x: 11, z: 5, yaw: 0, level: 0, anim: 'idle' })
     const far = next(a, 'music')
-    a.emit('music', { where: 'deck', track: 'disco', x: 11.3, z: 6.32 })
+    a.emit('music', { where: 'deck', track: 'disco', x: 11.3, z: 5.82 })
     assert.equal((await far).far, true)
     assert.equal(await receives(b, 'music', 150), false, 'le choix refusé n\'est pas diffusé')
     // Même chose pour Puissance 4, depuis la salle de sport, au nord du salon d'arcade.
