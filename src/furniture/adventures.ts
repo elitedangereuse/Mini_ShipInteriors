@@ -5,6 +5,7 @@ import {
   sphere, type Builder,
 } from './kit'
 import { LEAVES } from './cozy'
+import { tr } from '../i18n'
 
 /*
  * Souvenirs des aventures d'Élite Dangereuse (elitedangereuse.fr/aventures), pour les quartiers :
@@ -82,7 +83,7 @@ const scarlettHolo: Builder = () => {
     c.fillText('JACOB SCARLETT', 96, 22)
     c.fillStyle = '#6f8aa6'
     c.font = '600 11px system-ui, sans-serif'
-    c.fillText('SÉCURITÉ · ROSS 154', 96, 39)
+    c.fillText(tr('SÉCURITÉ · ROSS 154', 'SECURITY · ROSS 154'), 96, 39)
   })
   const front = mesh(new THREE.PlaneGeometry(0.16, 0.04), plaque, 0, 0.037, 0.207)
   front.rotation.x = -0.14
@@ -223,7 +224,7 @@ const escapePod: Builder = () => {
     c.font = '800 20px system-ui, sans-serif'
     c.fillText('ODYSSEUS', 80, 22)
     c.font = '600 10px system-ui, sans-serif'
-    c.fillText('CAPSULE 02 · SOS', 80, 35)
+    c.fillText(tr('CAPSULE 02 · SOS', 'POD 02 · SOS'), 80, 35)
   })
   const label = mesh(new THREE.PlaneGeometry(0.16, 0.04), plate, -0.2, R + 0.08, R - 0.03)
   label.rotation.set(-0.45, -0.25, 0)
@@ -260,7 +261,7 @@ const survivalGuide: Builder = () => {
     c.fillRect(124, 0, 8, 176)
     c.fillStyle = '#7a1f22'
     c.font = '800 13px Georgia, serif'
-    c.fillText('GUIDE DE SURVIE', 14, 22)
+    c.fillText(tr('GUIDE DE SURVIE', 'SURVIVAL GUIDE'), 14, 22)
     c.fillText('Page 7', 196, 22)
     c.fillStyle = '#6b5a45'
     for (let y = 36; y < 166; y += 9) {
@@ -422,7 +423,7 @@ const duchessPortrait: Builder = () => {
     c.fillStyle = '#e0b84a'
     c.textAlign = 'center'
     c.font = '700 11px Georgia, serif'
-    c.fillText('DUCHESSE D’ADENATES', 96, 245)
+    c.fillText(tr('DUCHESSE D’ADENATES', 'DUCHESS OF ADENATES'), 96, 245)
   })
   g.add(mesh(new THREE.PlaneGeometry(0.36, 0.48), art, 0, 0.68, 0.0345))
   return { solid: g }
@@ -552,9 +553,9 @@ const pathBanner: Builder = () => {
     c.fillStyle = '#e0b84a'
     c.textAlign = 'center'
     c.font = '700 14px Georgia, serif'
-    c.fillText('LA VOIE', 90, 250)
+    c.fillText(tr('LA VOIE', 'THE PATH'), 90, 250)
     c.font = 'italic 11px Georgia, serif'
-    c.fillText('Que la lumière te guide', 90, 270)
+    c.fillText(tr('Que la lumière te guide', 'May the light guide you'), 90, 270)
   })
   g.add(mesh(cloth, art, 0, 0.95, 0.03))
   return { solid: g }
@@ -576,8 +577,8 @@ const thetisBlackbox: Builder = () => {
     c.font = '800 20px system-ui, sans-serif'
     c.fillText('THETIS', 64, 28)
     c.font = '700 9px system-ui, sans-serif'
-    c.fillText('FLIGHT RECORDER', 64, 44)
-    c.fillText('DO NOT OPEN', 64, 56)
+    c.fillText(tr('ENREGISTREUR DE VOL', 'FLIGHT RECORDER'), 64, 44)
+    c.fillText(tr('NE PAS OUVRIR', 'DO NOT OPEN'), 64, 56)
   })
   g.add(mesh(new THREE.PlaneGeometry(0.076, 0.07), stencil, 0, 0.05, 0.0561))
   const handle = mesh(new THREE.TorusGeometry(0.03, 0.006, 5, 12, Math.PI), lit(C.steel), 0, 0.1, 0)
