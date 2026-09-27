@@ -838,6 +838,51 @@ kbd .icon {
   font: 600 9px ui-monospace, monospace;
   color: var(--muted);
 }
+.emotes button.active {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--border);
+  color: var(--accent);
+}
+/* Palette des réactions : les médaillons du site, au-dessus du bouton qui l'ouvre. */
+.reactions {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  display: grid;
+  grid-template-columns: repeat(4, 48px);
+  gap: 6px;
+  padding: 8px;
+}
+.reactions[hidden] {
+  display: none;
+}
+.emotes .reactions button {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+}
+.reactions img {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.reactions button:hover img,
+.reactions button:focus-visible img {
+  transform: scale(1.08);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.emotes .reactions button span {
+  right: 0;
+  bottom: 0;
+  min-width: 13px;
+  border-radius: 7px;
+  background: var(--panel);
+  text-align: center;
+}
 
 /* ---------- à propos ---------- */
 .about-toggle {
@@ -1104,6 +1149,18 @@ kbd .icon {
   color: var(--accent);
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
   animation: float-up 1.8s ease-out forwards;
+}
+/* Réaction : le médaillon rond, cerclé d'orange, qui s'envole comme une emote. */
+.reaction-pop img {
+  display: block;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--accent), 0 3px 6px rgba(0, 0, 0, 0.5);
+}
+.reaction-pop {
+  line-height: normal;
+  animation-duration: 2.4s;
 }
 .say-icon {
   color: #e8457c;

@@ -5,9 +5,11 @@
 // Avec ?revetements : les motifs des murs et des sols, dans deux de leurs teintes (&x2 : répétés).
 // Avec ?poses : chaque meuble où l'on s'installe, un personnage à chacune de ses places
 // (&look=robot.g pour un autre modèle, &only=sofa,cozy-bed).
+// Avec ?emote=o7 : une emote jouée en boucle par plusieurs apparences (&looks=…, &at=0.8 : figée à 0,8 s ;
+// &salute=x,y,z : l'angle du bras pour le salut).
 import * as THREE from 'three'
 import { preload, station, STATION_MODELS, type StationModel } from '../assets'
-import { Avatar } from '../avatar'
+import { Avatar, SALUTE } from '../avatar'
 import { CATALOG, CATEGORIES } from '../cabin/catalog'
 import { drawFinish, stylesOf } from '../cabin/finishes'
 import { thumbnail } from '../cabin/thumbs'
@@ -54,7 +56,39 @@ await preload([], () => {})
 if (params.has('catalogue')) showCatalogue()
 else if (params.has('revetements')) showFinishes()
 else if (params.has('poses')) await showPoses()
+else if (params.has('emote')) await showEmote(params.get('emote')!)
 else showModels()
+
+/** Une emote, jouée en boucle par plusieurs apparences côte à côte. */
+async function showEmote(id: string) {
+  const looks = (params.get('looks') ?? 'human.male.a,human.female.c,suit.female.b.maverick,alien.male.d,robot.d,creature.orc').split(',')
+  if (params.get('salute')) SALUTE.set(...(params.get('salute')!.split(',').map(Number) as [number, number, number]))
+  const at = params.get('at')
+  const avatars: Avatar[] = []
+  for (const [i, id] of looks.entries()) {
+    const a = new Avatar(await lookRig(parseLook(id)))
+    a.root.position.set((i - (looks.length - 1) / 2) * 1.1, -0.35, 0)
+    scene.add(a.root)
+    avatars.push(a)
+    const l = label(id)
+    l.position.set(a.root.position.x, -0.25, 0.4)
+    scene.add(l)
+  }
+  const play = () => { for (const a of avatars) { a.playEmote(id); if (at) a.update(+at) } }
+  play()
+  const clock = new THREE.Timer()
+  function frame() {
+    clock.update()
+    const dt = Math.min(clock.getDelta(), 0.05)
+    if (!at) {
+      for (const a of avatars) a.update(dt)
+      if (!avatars[0].emoteId) play()
+    } else for (const a of avatars) a.update(0)
+    renderer.render(scene, cam)
+    requestAnimationFrame(frame)
+  }
+  frame()
+}
 
 /** Meubles où l'on s'installe, un personnage à chaque place : hauteurs et orientations à l'œil. */
 async function showPoses() {

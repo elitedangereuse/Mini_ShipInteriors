@@ -408,9 +408,10 @@ Une zone morte évite la dérive des sticks. Les boutons d'action ne se répète
 | Jukebox | `↑` `↓` choisir, `Entrée` jouer ; `E`, `Échap` ou un clic en dehors pour fermer |
 | Mode photo | `P` ou l'appareil photo en haut à droite ; `Espace` photo, `N` noms, `C` cacher son personnage, `F` figer, `G` grille, `Échap` sortir |
 | Changer de pont | interagir avec l'ascenseur (la plateforme cyan surmontée d'un panneau ▲▼, dans la coursive ou sur le palier), puis `↑` `↓` pour choisir l'étage et `Entrée` pour y aller, ou un clic ; `E`, `Échap` ou un clic en dehors pour fermer |
-| Emotes | `1`…`7` ou la barre en bas : salut, oui, non, joie, danse, assis, dodo |
+| Emotes | `1`…`8` ou la barre en bas : salut, oui, non, joie, danse, assis, dodo, **o7** (le salut des CMDR, la main à la tempe) |
+| Réactions | `9` ou le bouton au sourire de la barre, puis `1`…`8` ou un clic : un médaillon aux images du site s'envole au-dessus de la tête (Braben, Raxxla, Thargoïdes, Gardiens, Dark Wheel, Fédération des pilotes, Fuel Rats, logo du site) ; le personnage ne bouge pas, on peut réagir assis |
 | Chat | `Entrée`, puis `Entrée` pour envoyer, `Échap` pour annuler |
-| Commandes du chat | `/nom CMDR Pseudo` (invités), `/perso` (apparence au hasard, parmi les siennes), `/inviter CMDR Nom`, `/credits` (son solde), `/taches` (où sont les tâches de bord), `/danse`…, `/aide` ; en anglais, `/name`, `/random`, `/invite`, `/credits`, `/chores`, `/dance`…, `/help` |
+| Commandes du chat | `/nom CMDR Pseudo` (invités), `/perso` (apparence au hasard, parmi les siennes), `/inviter CMDR Nom`, `/credits` (son solde), `/taches` (où sont les tâches de bord), `/danse`…, `/o7`, `/braben`, `/raxxla`…, `/aide` ; en anglais, `/name`, `/random`, `/invite`, `/credits`, `/chores`, `/dance`…, `/help` |
 | Changer d'apparence | le **Holo-Me** des quartiers du commandant (pont supérieur) |
 | Aménager ses quartiers | `B`, ou « Aménager » dans la barre des quartiers (CMDR connectés au site, cf. [Quartiers personnalisables](#quartiers-personnalisables)) |
 | Inviter dans ses quartiers | « Inviter » dans la barre des quartiers, ou `/inviter CMDR Nom` ; rejoindre ou décliner une invitation reçue en haut à gauche |
@@ -587,6 +588,8 @@ Modèles et sons par [Kenney](https://www.kenney.nl) :
 Musiques du jukebox, `public/assets/music/` (détail dans `CREDITS.txt`) : Le Beau Danube bleu par l'[U.S. Marine Band](https://commons.wikimedia.org/wiki/File:%22An_der_sch%C3%B6nen,_blauen_Donau%22_performed_by_the_U.S._Marine_Band.flac) (domaine public) ; en CC0 sur OpenGameArt, [Fupi](https://opengameart.org/content/funky-disco-beats-to-boogiewoogie-to), [HoliznaCC0](https://opengameart.org/content/retro-wave-collection) ([Chills](https://opengameart.org/content/chills), [All The Fight Left!](https://opengameart.org/content/all-the-fight-left)), [congusbongus](https://opengameart.org/content/ganymede) ([Two Left Socks](https://opengameart.org/content/two-left-socks)) et [Zane Little Music](https://opengameart.org/content/interstellar-fleet-1) ([Synesthesia](https://opengameart.org/content/synesthesia)).
 
 Sprites de Ruelle Fighter II : **Fantasy Martial Characters 2**, par [LuizMelo](https://luizmelo.itch.io/fantasy-martial-characters-2), sous **CC0 1.0**. Le pack a été acheté pour soutenir l’auteur. La licence originale est conservée avec les atlas ; les dessins ne sont pas repeints.
+
+Médaillons des réactions, `public/assets/reactions/` : visuels d'[elitedangereuse.fr](https://elitedangereuse.fr) (cartes à collectionner « Badge Braben » et « La Secte de la Voie », icônes du lore, logo du site, bannière Fuel Rats de Coriolis), recadrés en 96 px. Ils ne sont pas sous CC0.
 
 Les licences d'origine sont copiées à côté des fichiers.
 

@@ -35,6 +35,7 @@ import { PhotoMode } from './photo'
 import { overlapsAny, resolveCircle } from './physics'
 import { Player } from './player'
 import { renderQuality } from './quality'
+import { findReaction, REACTIONS, reactionImage } from './reactions'
 import { RemotePlayer } from './remote'
 import { Seating, type Seated } from './seating'
 import { Starfield } from './starfield'
@@ -301,6 +302,49 @@ for (const [i, e] of EMOTES.entries()) {
   b.onclick = () => emote(e.id)
   $('emotes').appendChild(b)
 }
+
+/** Réactions (médaillons du site) : un bouton de la barre des emotes ouvre leur palette. */
+const REACTION_KEY = EMOTES.length + 1
+const reactionsButton = document.createElement('button')
+reactionsButton.title = tr(`Réactions (${REACTION_KEY})`, `Reactions (${REACTION_KEY})`)
+reactionsButton.setAttribute('aria-label', tr('Réactions', 'Reactions'))
+reactionsButton.setAttribute('aria-expanded', 'false')
+reactionsButton.append(icon('smiley-sticker'))
+const reactionsKey = document.createElement('span')
+reactionsKey.textContent = String(REACTION_KEY)
+reactionsButton.appendChild(reactionsKey)
+const reactionsPanel = document.createElement('div')
+reactionsPanel.className = 'panel reactions'
+reactionsPanel.hidden = true
+reactionsPanel.setAttribute('role', 'menu')
+for (const [i, r] of REACTIONS.entries()) {
+  const b = document.createElement('button')
+  b.setAttribute('role', 'menuitem')
+  b.title = `${r.label} (${i + 1})`
+  b.setAttribute('aria-label', r.label)
+  const img = document.createElement('img')
+  img.src = reactionImage(r.id)
+  img.alt = ''
+  img.draggable = false
+  const n = document.createElement('span')
+  n.textContent = String(i + 1)
+  b.append(img, n)
+  b.onclick = () => {
+    react(r.id)
+    toggleReactions(false)
+  }
+  reactionsPanel.appendChild(b)
+}
+function toggleReactions(open = reactionsPanel.hidden === true) {
+  reactionsPanel.hidden = !open
+  reactionsButton.setAttribute('aria-expanded', String(open))
+  reactionsButton.classList.toggle('active', open)
+}
+reactionsButton.onclick = () => toggleReactions()
+$('emotes').append(reactionsButton, reactionsPanel)
+addEventListener('pointerdown', (e) => {
+  if (!reactionsPanel.hidden && !$('emotes').contains(e.target as Node)) toggleReactions(false)
+})
 
 /** Boucles sonores des machines (raffinerie…), une par meuble, coupées hors de leur pont. */
 const hums: { deck: Deck; gain: GainNode; volume: number }[] = []
@@ -601,6 +645,11 @@ net.onMessage = (m) => {
     case 'emote': {
       const r = remotes.get(m.id)
       if (!r) break
+      const reaction = findReaction(m.emote)
+      if (reaction) {
+        if (r.level === deck.def.id) bubbles.reaction(`p${m.id}`, reactionImage(reaction.id))
+        break
+      }
       r.emote(m.emote)
       const def = EMOTES.find((e) => e.id === m.emote)
       if (def && r.level === deck.def.id) bubbles.emote(`p${m.id}`, def.icon)
@@ -699,6 +748,13 @@ function emote(id: string) {
   sound.play('emote', null, { volume: 0.06 })
 }
 
+/** Réaction : le médaillon s'envole, le personnage ne bouge pas (on peut rester assis). */
+function react(id: string) {
+  bubbles.reaction('me', reactionImage(id))
+  net.sendEmote(id)
+  sound.play('emote', null, { volume: 0.06, rate: 1.25 })
+}
+
 chat.onSend = (text) => {
   if (text.startsWith('/')) return command(text)
   chat.add('me', text, nameTag(profile.name, verified))
@@ -717,6 +773,8 @@ async function command(text: string) {
   const name = cmd.toLowerCase()
   const e = EMOTES.find((x) => x.id === name || x.en === name)
   if (e) return emote(e.id)
+  const reaction = findReaction(name)
+  if (reaction) return react(reaction.id)
   switch (name) {
     case 'nom':
     case 'name':
@@ -769,7 +827,7 @@ async function command(text: string) {
     }
     case 'aide':
     case 'help': {
-      const emotes = EMOTES.map((x) => '/' + tr(x.id, x.en)).join(' ')
+      const emotes = [...EMOTES, ...REACTIONS].map((x) => '/' + tr(x.id, x.en)).join(' ')
       return chat.add(
         'system',
         tr(
@@ -1348,6 +1406,7 @@ addEventListener('keydown', (e) => {
   }
   if (e.code === 'Escape') {
     toggleAbout(false)
+    toggleReactions(false)
     inviteMenu.close()
     stopWork()
     // Devant la pince : on quitte la partie.
@@ -1374,7 +1433,14 @@ addEventListener('keydown', (e) => {
     if (e.code === 'Space' && seating.settled) seatAction(seating.current)
   } else if (e.code === 'KeyE' || e.code === 'Space') tryInteract()
   const digit = /^Digit([1-9])$/.exec(e.code)
-  if (digit && EMOTES[+digit[1] - 1]) emote(EMOTES[+digit[1] - 1].id)
+  if (!digit) return
+  // Palette des réactions ouverte : les chiffres choisissent une réaction.
+  if (!reactionsPanel.hidden && REACTIONS[+digit[1] - 1]) {
+    react(REACTIONS[+digit[1] - 1].id)
+    return toggleReactions(false)
+  }
+  if (+digit[1] === REACTION_KEY) return toggleReactions()
+  if (EMOTES[+digit[1] - 1]) emote(EMOTES[+digit[1] - 1].id)
 })
 addEventListener('keyup', (e) => keys.delete(e.code))
 addEventListener('blur', () => keys.clear())

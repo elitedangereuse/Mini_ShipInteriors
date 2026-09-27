@@ -33,7 +33,11 @@ const MAX_TEXT = 200
 const MAX_NAME = 32
 // Identifiant d'apparence (cf. src/looks.ts), ex. « human.female.b », « alien.male.c.blue », « robot.g ».
 const LOOK = /^[a-z]+(\.[a-z0-9-]+){1,3}$/
-const EMOTES = new Set(['salut', 'oui', 'non', 'joie', 'danse', 'assis', 'dodo', 'interact'])
+// Emotes (src/avatar.ts), puis réactions (médaillons du site, src/reactions.ts).
+const EMOTES = new Set([
+  'salut', 'oui', 'non', 'joie', 'danse', 'assis', 'dodo', 'o7', 'interact',
+  'braben', 'raxxla', 'thargoides', 'gardiens', 'dark-wheel', 'pilotes', 'fuel-rats', 'site',
+])
 const ANIMS = new Set(['idle', 'walk', 'sprint'])
 // Poses tenues sur un meuble (cf. src/seats.ts) : assis, couché, aux commandes, à une borne…
 const POSES = new Set(['sit', 'lie', 'pilot', 'arcade', 'claw', 'punch', 'run', 'pedal', 'mix'])

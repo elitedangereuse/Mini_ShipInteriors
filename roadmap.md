@@ -175,13 +175,24 @@ Choix et réalisation (27 septembre 2026) :
 
 - [x] **DEC-01 · P1 · Décoration — Néon o7.** Augmenter sa taille, retirer la
   plaque noire derrière et proposer plusieurs couleurs.
-- [ ] **DEC-02 · P3 · Expression — Emote et icônes du site.** Ajouter une emote
+- [x] **DEC-02 · P3 · Expression — Emote et icônes du site.** Ajouter une emote
   o7 ainsi que des icônes du site, par exemple Raxxla et Braben.
 - [ ] **DEC-03 · P3 · Décoration — Éléments des aventures.** Ajouter des
   personnages ou objets issus des aventures, par exemple Jacob Scarlett.
 - [ ] **DEC-04 · P3 · Ambiance — Compagnons supplémentaires.** Ajouter d'autres 
   animaux du pack de sprites et créer d'autres objets pour les animaux.
   Si possible ajouter plusieurs couleurs pour les animaux.
+
+Réalisation (27 septembre 2026) :
+
+- DEC-02 : emote « o7 » (`8`, `/o7`) : le bras droit monte à la tempe et y reste
+  deux secondes, sur toutes les apparences ; son icône « o7 » s'envole au-dessus
+  de la tête. Un bouton « Réactions » (`9`) ouvre une palette de huit médaillons
+  tirés des visuels du site : Braben (carte « Badge Braben »), Raxxla (symbole de
+  la Voie), Thargoïdes, Gardiens, Dark Wheel, Fédération des pilotes (icônes du
+  lore), Fuel Rats et le logo du site. Une réaction ne fait pas bouger le
+  personnage : elle marche assis ou couché. Commandes du chat : `/braben`,
+  `/raxxla`… Le relais n'accepte que ces identifiants.
 
 ## Fiche détaillée — Jeu d'horreur et de récupération (SOC-06)
 

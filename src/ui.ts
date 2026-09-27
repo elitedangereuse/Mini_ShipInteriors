@@ -90,6 +90,20 @@ export class Bubbles {
     e.addEventListener('animationend', () => e.remove())
   }
 
+  /** Médaillon d'une réaction (image du site) qui s'envole au-dessus de la tête. */
+  reaction(key: string, src: string) {
+    const a = this.anchors.get(key)
+    if (!a) return
+    const e = document.createElement('div')
+    e.className = 'emote-pop reaction-pop'
+    const img = document.createElement('img')
+    img.src = src
+    img.alt = ''
+    e.append(img)
+    a.el.insertBefore(e, a.el.firstChild)
+    e.addEventListener('animationend', () => e.remove())
+  }
+
   /** Texte qui s'envole au-dessus de la tête (crédits gagnés). */
   gain(key: string, text: string) {
     const a = this.anchors.get(key)

@@ -158,6 +158,10 @@ describe('rediffusion', () => {
     b.emit('emote', { emote: 'pirouette' }) // inconnue : ignorée
     b.emit('emote', { emote: 'danse' })
     assert.deepEqual((await once(a, 'emote'))[0], { id: wb.id, emote: 'danse' })
+    b.emit('emote', { emote: 'o7' })
+    assert.deepEqual((await once(a, 'emote'))[0], { id: wb.id, emote: 'o7' })
+    b.emit('emote', { emote: 'braben' }) // réaction : un médaillon du site
+    assert.deepEqual((await once(a, 'emote'))[0], { id: wb.id, emote: 'braben' })
 
     b.emit('state', { x: 999, z: 3, yaw: 0, level: 0, anim: 'moonwalk' })
     assert.deepEqual((await once(a, 'state'))[0], { id: wb.id, x: 40, z: 3, yaw: 0, level: 0, anim: 'idle' })

@@ -11,6 +11,7 @@ import discoBall from '@phosphor-icons/core/duotone/disco-ball-duotone.svg?raw'
 import ghost from '@phosphor-icons/core/duotone/ghost-duotone.svg?raw'
 import handWaving from '@phosphor-icons/core/duotone/hand-waving-duotone.svg?raw'
 import heart from '@phosphor-icons/core/duotone/heart-duotone.svg?raw'
+import smileySticker from '@phosphor-icons/core/duotone/smiley-sticker-duotone.svg?raw'
 import moonStars from '@phosphor-icons/core/duotone/moon-stars-duotone.svg?raw'
 import robot from '@phosphor-icons/core/duotone/robot-duotone.svg?raw'
 import rocketLaunch from '@phosphor-icons/core/duotone/rocket-launch-duotone.svg?raw'
@@ -100,8 +101,16 @@ import shoppingCart from '@phosphor-icons/core/bold/shopping-cart-bold.svg?raw'
 import minus from '@phosphor-icons/core/bold/minus-bold.svg?raw'
 import plus from '@phosphor-icons/core/bold/plus-bold.svg?raw'
 
+/** « o7 », le salut des CMDR (un petit bonhomme qui salue), dessiné dans la grille des Phosphor duotone. */
+const o7 =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor">' +
+  '<circle cx="78" cy="164" r="38" opacity="0.2"/>' +
+  '<circle cx="78" cy="164" r="38" fill="none" stroke="currentColor" stroke-width="16"/>' +
+  '<path d="M140 60h84l-62 142" fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+
 const SVG = {
   // emotes
+  o7,
   'hand-waving': handWaving,
   'thumbs-up': thumbsUp,
   'thumbs-down': thumbsDown,
@@ -110,6 +119,7 @@ const SVG = {
   armchair,
   'moon-stars': moonStars,
   heart,
+  'smiley-sticker': smileySticker,
   // espèces
   user,
   'rocket-launch': rocketLaunch,

@@ -19,6 +19,10 @@ export interface EmoteDef {
   /** once : joue `repeat` fois puis revient au repos · loop : jusqu'au prochain mouvement · hold : garde la pose finale. */
   mode: 'once' | 'loop' | 'hold'
   repeat?: number
+  /** Durée de l'emote, quand elle ne suit pas celle de ses animations (un geste ajouté par-dessus). */
+  duration?: number
+  /** Geste du bras droit posé par-dessus l'animation (le salut « o7 ») : le squelette n'a pas de clip pour ça. */
+  gesture?: 'salute'
 }
 
 export const EMOTES: EmoteDef[] = [
@@ -29,6 +33,7 @@ export const EMOTES: EmoteDef[] = [
   { id: 'danse', en: 'dance', icon: 'disco-ball', label: tr('Danse', 'Dance'), anims: ['attack-kick-left', 'attack-kick-right'], mode: 'loop' },
   { id: 'assis', en: 'sit', icon: 'armchair', label: tr('Assis', 'Sit'), anims: ['sit'], mode: 'hold' },
   { id: 'dodo', en: 'sleep', icon: 'moon-stars', label: tr('Dodo', 'Sleep'), anims: ['die'], mode: 'hold' },
+  { id: 'o7', en: 'o7', icon: 'o7', label: tr('Salut militaire (o7)', 'Salute (o7)'), anims: ['idle'], mode: 'once', duration: 2.2, gesture: 'salute' },
 ]
 
 /** Emote interne (non proposée dans la barre) : utiliser une console. */
@@ -82,6 +87,14 @@ const DANCE: { anim: string; reps: number; move: 'sway' | 'bounce' | 'hop' | 'sp
 ]
 const TAU = Math.PI * 2
 
+/**
+ * Le salut « o7 » : le bras droit (un seul os, sans coude) levé devant la tempe. Repère de l'os :
+ * le bras pend vers -y, le personnage regarde vers +z. Le geste monte en 0,25 s et redescend
+ * pendant les 0,3 dernières secondes de l'emote.
+ */
+export const SALUTE = new THREE.Euler(-2.2, 0, 1.1)
+const saluteQ = new THREE.Quaternion()
+
 const WALK_NOMINAL = 1.7
 const SPRINT_NOMINAL = 3.4
 
@@ -119,6 +132,7 @@ export class Avatar {
   private dance = -1
   private danceRep = 0
   private readonly danceStart = Math.floor(Math.random() * DANCE.length)
+  private readonly armRight: THREE.Object3D | null
   /** À chaque animation d'une pose (un coup de poing dans le sac, cf. main.ts). */
   onPoseStep?: (step: number) => void
 
@@ -136,6 +150,7 @@ export class Avatar {
       this.actions.set(clip.name, a)
     }
     this.sitting = this.measureSitting()
+    this.armRight = this.model.getObjectByName('arm-right') ?? null
     this.fadeTo('idle', 0)
   }
 
@@ -240,7 +255,7 @@ export class Avatar {
     let name = e.anims[this.step % e.anims.length]
     if (!this.actions.has(name)) name = FALLBACK[name] ?? 'idle'
     const clip = this.actions.get(name)?.getClip()
-    this.stepTime = clip?.duration ?? 0.5
+    this.stepTime = e.duration ?? clip?.duration ?? 0.5
     this.fadeTo(name, 0.12, restart)
   }
 
@@ -327,6 +342,11 @@ export class Avatar {
       this.model.rotation.y = THREE.MathUtils.damp(this.model.rotation.y, sway, 8, dt)
     }
     this.mixer.update(dt)
+    if (this.emote?.gesture === 'salute' && this.armRight) {
+      const t = this.emoteTime, end = this.emote.duration ?? 2
+      const w = THREE.MathUtils.smoothstep(t, 0, 0.25) * (1 - THREE.MathUtils.smoothstep(t, end - 0.3, end))
+      this.armRight.quaternion.slerp(saluteQ.setFromEuler(SALUTE), w)
+    }
     // Le fondu des clips et le décalage du modèle n'avancent pas à la même vitesse : empêcher
     // aussi l'enfoncement pendant la transition, particulièrement visible sur les Blocky.
     this.groundSit = this.emote?.id === 'assis' ? 0.6 : Math.max(0, this.groundSit - dt)
