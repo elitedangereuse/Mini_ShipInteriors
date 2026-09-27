@@ -7,6 +7,8 @@ import { isGameId, records, type GameId } from './game'
  * aussi gardé dans le navigateur (celui d'un invité ne vit que là).
  */
 
+export type ScoreGame = GameId | 'gym-run' | 'gym-bike' | 'gym-punch'
+
 const SCORES_URL = import.meta.env.VITE_ED_SCORES_URL || '/outils/mini-shipinteriors-scores.php'
 
 export interface ScoreRow {
@@ -37,12 +39,12 @@ function board(data: unknown): Board | null {
 }
 
 /** Tableau d'un jeu (null : le site ne répond pas). */
-export async function fetchBoard(game: GameId): Promise<Board | null> {
+export async function fetchBoard(game: ScoreGame): Promise<Board | null> {
   try {
     const res = await fetch(`${SCORES_URL}?game=${game}`, { signal: AbortSignal.timeout(8000), headers: { Accept: 'application/json' } })
     if (!res.ok) return null
     const b = board(await res.json())
-    if (b?.top[0]) records[game] = { cmdr: b.top[0].cmdr, score: b.top[0].score }
+    if (b?.top[0] && isGameId(game)) records[game] = { cmdr: b.top[0].cmdr, score: b.top[0].score }
     return b
   } catch {
     return null
@@ -67,7 +69,7 @@ export type Submission =
   | { kind: 'error' }
 
 /** Inscrit un score (le site garde le meilleur de chaque CMDR). */
-export async function submitScore(game: GameId, score: number, level: number, duration: number): Promise<Submission> {
+export async function submitScore(game: ScoreGame, score: number, level: number, duration: number): Promise<Submission> {
   try {
     const res = await fetch(SCORES_URL, {
       method: 'POST',
@@ -80,7 +82,7 @@ export async function submitScore(game: GameId, score: number, level: number, du
     const data = (await res.json()) as { best?: unknown; credits?: Partial<ArcadeCredits> | null }
     const b = board(data)
     if (!b) return { kind: 'error' }
-    if (b.top[0]) records[game] = { cmdr: b.top[0].cmdr, score: b.top[0].score }
+    if (b.top[0] && isGameId(game)) records[game] = { cmdr: b.top[0].cmdr, score: b.top[0].score }
     const c = data.credits
     const credits =
       c && Number.isFinite(c.earned) && Number.isFinite(c.balance)
@@ -106,7 +108,7 @@ export async function fetchRecords() {
 }
 
 /** Meilleur score gardé dans ce navigateur. */
-export function localBest(game: GameId): number {
+export function localBest(game: ScoreGame): number {
   try {
     return Math.max(0, Number(localStorage.getItem(`arcade-best:${game}`)) || 0)
   } catch {
@@ -114,7 +116,7 @@ export function localBest(game: GameId): number {
   }
 }
 
-export function saveLocalBest(game: GameId, score: number): boolean {
+export function saveLocalBest(game: ScoreGame, score: number): boolean {
   if (score <= localBest(game)) return false
   try {
     localStorage.setItem(`arcade-best:${game}`, String(Math.floor(score)))

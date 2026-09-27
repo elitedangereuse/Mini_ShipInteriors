@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
 import { createServer } from 'node:http'
-import { after, before, describe, test } from 'node:test'
+import { after, afterEach, before, describe, test } from 'node:test'
 import { io as connect } from 'socket.io-client'
 import { MAX_ITEMS, sanitizeLayout } from './cabin.js'
 import { cookieValue } from './cmdr.js'
@@ -32,6 +32,10 @@ let game, url, relay
 /** Devant le jukebox du mess (pont principal). */
 const AT_JUKEBOX = { x: 11.3, z: 7.1, yaw: 0, level: 0, anim: 'idle' }
 const clients = []
+
+afterEach(() => {
+  for (const socket of clients.splice(0)) socket.disconnect()
+})
 
 before(async () => {
   const siteUrl = await listen(site)
@@ -131,10 +135,10 @@ const next = (socket, event, match = () => true) =>
   })
 
 /** Vrai si `socket` reçoit `event` dans les `ms` millisecondes. */
-const receives = (socket, event, ms = 150) =>
+const receives = (socket, event, ms = 150, match = () => true) =>
   new Promise((resolve) => {
-    const on = () => resolve(true)
-    socket.once(event, on)
+    const on = (message) => { if (match(message)) resolve(true) }
+    socket.on(event, on)
     setTimeout(() => {
       socket.off(event, on)
       resolve(false)
@@ -225,7 +229,7 @@ describe('rediffusion', () => {
     const m = await refused
     assert.equal(m.busy, true)
     assert.equal(m.track, 'space', 'le dernier choix accepté')
-    assert.equal(await receives(b, 'music', 150), false, 'le choix refusé n\'est pas diffusé')
+    assert.equal(await receives(b, 'music', 150, (m) => m.track === 'lounge'), false, 'le choix refusé n\'est pas diffusé')
     await new Promise((r) => setTimeout(r, 2100))
     a.emit('music', { where: 'deck', track: null, x: 11.3, z: 6.32 })
     assert.equal((await next(b, 'music')).track, null)

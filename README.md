@@ -609,4 +609,19 @@ Les icônes de l'interface viennent de [Phosphor Icons](https://phosphoricons.co
 - Une partie de borne ou de pince ne se voit que chez celui qui joue : les autres le voient à la borne, qui fait sa démonstration.
 - Pistes : pseudo et choix du personnage dans un écran d'accueil, PNJ d'équipage avec routines, escaliers du kit en plus de l'ascenseur, plans édités dans [Tiled](https://www.mapeditor.org/), objets gagnés en jeu à ajouter au catalogue (la peluche de Comète gagnée à la pince…), parties d'arcade à deux sur la borne cocktail.
 
+## Salle de sport
+
+Le tapis, le vélo et le sac de frappe ont trois défis de rythme, affichés dans
+une bulle au-dessus du personnage. La boîte de dialogue du vaisseau explique
+les règles et annonce le résultat. Le personnage reste sur l'appareil avec
+l'animation de course, de pédalage ou de frappe pendant la séance, puis se
+relève à la fin. Les touches sont alternées pour les jambes, avec des séquences
+aléatoires pour la boxe. Attendre le signal « Frappez », puis répondre avant
+la fin du délai. Erreur, frappe trop tôt ou retard terminent la séance.
+Chaque réponse vaut 100 points ; le délai descend de 1,2 s à 0,28 s, avec un
+plafond de 99 900 points. Les flèches et les boutons tactiles sont disponibles.
+Échap arrête la séance. Records locaux pour les invités ; classement, record
+personnel et huit petits paliers de crédits (20 à 300 CR, 925 CR au maximum
+par appareil) pour les CMDR, sans prime de record d'arcade.
+
 <p align="center"><sub>o7, CMDR.</sub></p>

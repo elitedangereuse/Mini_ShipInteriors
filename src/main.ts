@@ -1,3 +1,4 @@
+import { GymGame, type Sport } from './gym'
 import { loadSiteArt, SitePanel } from './site'
 import * as THREE from 'three'
 import type { ArcadeCabinet } from './arcade/cabinet'
@@ -282,7 +283,15 @@ const promptEl = $('prompt')
 const promptLabel = $('prompt-label')
 
 bubbles.attach('me', (out) => player.avatar.head(out))
+bubbles.attach('gym', (out) => player.avatar.head(out).setY(out.y + 0.35))
 bubbles.attach('cat', (out) => (catDeck.group.visible ? cat.root.getWorldPosition(out).setY(out.y + 0.55) : null))
+const gym = new GymGame(bubbles, dialog, wallet, () => { if (seating.current) seating.stand() })
+for (const d of decks) for (const it of d.interactables) {
+  const model = it.furniture?.model
+  const sport = ({ treadmill: 'gym-run', 'exercise-bike': 'gym-bike', 'punching-bag': 'gym-punch' } as Record<string, Sport>)[model ?? '']
+  // seated() appelle cette action une fois le personnage installé sur l'appareil.
+  if (sport) it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; gym.start(sport) }
+}
 
 hydrateIcons()
 localizeAttributes()
@@ -1477,6 +1486,7 @@ function liftKey(e: KeyboardEvent): boolean {
 }
 
 addEventListener('keydown', (e) => {
+  if (gym.key(e)) return
   if (chat.typing) return
   if (sitePanel.isOpen) {
     if (e.code === 'Escape' || e.code === 'KeyE') sitePanel.close()
@@ -1539,7 +1549,7 @@ chat.onOpen = () => keys.clear()
 const inputDir = new THREE.Vector3()
 function keyboardDirection(): THREE.Vector3 {
   inputDir.set(0, 0, 0)
-  if (chat.typing || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || editing()) return inputDir
+  if (gym.active || chat.typing || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || editing()) return inputDir
   const on = (...codes: string[]) => codes.some((c) => keys.has(c))
   // event.code = position physique : KeyW/KeyA correspondent à Z/Q sur un clavier AZERTY.
   const sx = (on('KeyD', 'ArrowRight') ? 1 : 0) - (on('KeyA', 'ArrowLeft') ? 1 : 0)
@@ -1558,6 +1568,11 @@ function updateGamepad(dt: number): GamepadInput {
   if (pad.active) {
     usingGamepad = true
     lastInput = performance.now()
+  }
+  if (gym.active) {
+    pad.moveX = pad.moveY = 0
+    if (pad.cancel) gym.stop()
+    return pad
   }
   // Les panneaux prennent les commandes avant le personnage.
   const panel = sitePanel.isOpen ? sitePanel : lift.isOpen ? lift : jukebox.isOpen ? jukebox : null
@@ -1751,7 +1766,7 @@ addEventListener(
 )
 
 canvas.addEventListener('pointerdown', (e) => {
-  if (e.button !== 0 || riding) return
+  if (e.button !== 0 || riding || gym.active) return
   if (editing()) {
     // Objet glissé jusque sous le catalogue : il le relâche quand même dans le mode aménagement.
     try {
@@ -1854,7 +1869,7 @@ function nearestInteractable(): Interactable | null {
 }
 
 function tryInteract() {
-  if (riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || editing()) return
+  if (gym.active || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || editing()) return
   const item = nearestInteractable()
   if (item) interactWith(item)
 }
@@ -1954,6 +1969,7 @@ function seated(seat: Seated) {
 /** Pose prise ou quittée : les autres le voient tout de suite ; la pince et le sac, eux, sont lâchés. */
 function poseChanged() {
   if (!seating.current) {
+    gym.stop()
     stopClaw()
     arcade?.close()
     boardGames.close(false)
@@ -2314,6 +2330,7 @@ let frozenAt = 0
 function frame() {
   timer.update()
   const dt = Math.min(timer.getDelta(), 0.05)
+  gym.update()
   const pad = updateGamepad(dt)
   // Borne d'arcade ouverte : elle couvre l'écran, le vaisseau reste figé derrière (dernière image),
   // et la borne a toute la machine pour elle.
@@ -2419,8 +2436,8 @@ function frame() {
 
   // Invite « E » au-dessus de l'objet le plus proche ; installé sur un meuble, au-dessus du
   // personnage : se relever (et ce que permet la place).
-  const sitting = seating.settled && !riding && !editing()
-  const near = riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || editing() || seating.current || working ? null : nearestInteractable()
+  const sitting = seating.settled && !gym.active && !riding && !editing()
+  const near = gym.active || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || editing() || seating.current || working ? null : nearestInteractable()
   const sit = sitting ? seatPrompt(seating.current!) : null
   const label = sit ? `${sit.main}|${sit.space ?? ''}` : near?.label
   promptEl.querySelector('kbd')!.textContent = usingGamepad ? 'A / ×' : 'E'

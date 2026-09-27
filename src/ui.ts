@@ -56,6 +56,13 @@ export class Bubbles {
     a?.tag?.replaceChildren(nameTag(name, verified))
   }
 
+  /** Élément interactif qui suit un personnage, sans masquer la scène. */
+  overlay(key: string, content: HTMLElement | null) {
+    const a = this.anchors.get(key)
+    if (!a) return
+    a.el.replaceChildren(...(content ? [content] : []))
+  }
+
   detach(key: string) {
     const a = this.anchors.get(key)
     if (!a) return

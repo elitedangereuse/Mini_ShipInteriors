@@ -2881,3 +2881,17 @@ body.photo #bubbles .gain-pop {
   .site-panel th:first-child, .site-panel td:first-child { width: 32px; }
   .site-unit { display: block; margin: 3px 0 0; }
 }
+
+.gym-overlay { position: relative; width: 216px; padding: 10px 12px 9px; border: 1px solid #79c8dc; border-radius: 12px; background: #0b1724e8; color: #f5fbff; text-align: center; box-shadow: 0 8px 24px #000a, 0 0 18px #4dbdd744; pointer-events: auto; font: 12px/1.25 ui-monospace, 'SF Mono', Menlo, monospace; }
+.gym-overlay::after { content: ''; position: absolute; left: calc(50% - 6px); bottom: -7px; width: 12px; height: 12px; transform: rotate(45deg); background: #0b1724; border-right: 1px solid #79c8dc; border-bottom: 1px solid #79c8dc; }
+.gym-cue { font: 700 42px/1.05 system-ui, sans-serif; color: #ffbd70; margin: 3px 0; }
+.gym-overlay.ready .gym-cue, .gym-overlay.ready .gym-status { color: #76f0c2; }
+.gym-status { min-height: 16px; color: #ffbd70; font-weight: bold; }
+.gym-progress { height: 4px; margin: 7px 0; border-radius: 4px; background: linear-gradient(90deg, #76f0c2 var(--fill, 0%), #345061 var(--fill, 0%)); }
+.gym-score { display: block; font-size: 16px; }
+.gym-best { color: #a7c6d4; }
+.gym-controls { display: flex; justify-content: center; gap: 5px; margin-top: 7px; }
+.gym-controls button, .gym-cancel { border: 1px solid #6b98a9; border-radius: 5px; background: #233c50; color: #fff; cursor: pointer; }
+.gym-controls button { min-width: 36px; min-height: 32px; font: 22px/1 system-ui, sans-serif; touch-action: manipulation; }
+.gym-controls button:active { background: #5ab6a1; }
+.gym-cancel { position: absolute; top: 3px; right: 5px; padding: 0 5px; font: 18px/1.2 system-ui, sans-serif; }

@@ -143,11 +143,21 @@ Choix et réalisation (27 septembre 2026) :
   par une nouvelle porte dans la cale. Explorer une baie de stockage en forme
   de labyrinthe, récupérer les colis et les rapporter au lobby en échappant aux
   Thargoids. Voir la fiche détaillée ci-dessous.
-- [ ] **SOC-07 · P3 · Activité — Mini-jeux des équipements de sport.** Rendre
+- [x] **SOC-07 · P3 · Activité — Mini-jeux des équipements de sport.** Rendre
   les appareils de la salle de sport jouables : suites de touches à frapper en
   rythme, de plus en plus vite, avec échec sur erreur ou retard, score et
   meilleur score conservé. Prévoir un mini-jeu par type d'appareil. Plafonner
   les scores comme pour l'arcade et valider les gains côté site.
+
+
+- SOC-07 : tapis, vélo et sac de frappe, avec séquences accélérées, erreur de
+  touche ou de rythme, boutons tactiles, records et crédits par paliers.
+  Le rythme et le score suivent le personnage dans la scène ; la boîte de
+  dialogue en bas affiche les consignes et le résultat, sans fenêtre modale.
+  Le personnage s'installe sur l'appareil et conserve son animation pendant le jeu.
+  Les huit paliers rapportent 20 à 300 CR (925 CR au total par appareil), sans
+  prime de record d'arcade ; le message de fin affiche le montant réellement gagné.
+  Le site contrôle le plafond de 99 900 points et la plausibilité temporelle.
 
 ## 4. Structure du vaisseau et immersion
 
