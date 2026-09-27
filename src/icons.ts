@@ -92,6 +92,7 @@ import cpu from '@phosphor-icons/core/bold/cpu-bold.svg?raw'
 import fan from '@phosphor-icons/core/bold/fan-bold.svg?raw'
 import shieldWarning from '@phosphor-icons/core/bold/shield-warning-bold.svg?raw'
 import lightning from '@phosphor-icons/core/bold/lightning-bold.svg?raw'
+import personSimpleRun from '@phosphor-icons/core/bold/person-simple-run-bold.svg?raw'
 import wind from '@phosphor-icons/core/bold/wind-bold.svg?raw'
 import wrench from '@phosphor-icons/core/bold/wrench-bold.svg?raw'
 import lockSimple from '@phosphor-icons/core/bold/lock-simple-bold.svg?raw'
@@ -198,6 +199,7 @@ const SVG = {
   fan,
   'shield-warning': shieldWarning,
   lightning,
+  'person-simple-run': personSimpleRun,
   wind,
 } as const
 

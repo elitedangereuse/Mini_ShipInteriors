@@ -1475,6 +1475,21 @@ $('light-mode').onclick = () => {
 }
 updateLightMode()
 
+// Sprint auto : évite de maintenir Maj, sans autre avantage (même vitesse, mêmes pas) ; Maj ou L3 font alors marcher.
+let autoSprint = store.get('mini-shipinteriors-autosprint') === 'true'
+function updateAutoSprint() {
+  const button = $('auto-sprint')
+  button.setAttribute('aria-pressed', String(autoSprint))
+  button.title = tr(autoSprint ? 'Sprint auto actif · Maj pour marcher' : 'Activer le sprint automatique', autoSprint ? 'Auto-sprint on · Shift to walk' : 'Enable auto-sprint')
+  button.setAttribute('aria-label', button.title)
+}
+$('auto-sprint').onclick = () => {
+  autoSprint = !autoSprint
+  store.set('mini-shipinteriors-autosprint', String(autoSprint))
+  updateAutoSprint()
+}
+updateAutoSprint()
+
 // « À propos » : comment le jeu a été fait, pour qui veut savoir. Échap le referme aussi.
 function toggleAbout(open = $('about').hidden) {
   $('about').hidden = !open
@@ -2170,7 +2185,7 @@ function frame() {
   // Mode photo, instant figé : personnages, meubles et étoiles s'arrêtent ; la caméra, non.
   const world = photo.frozen ? 0 : dt
   if (!editing() && !photo.active) processHover()
-  player.update(world, input, pad.sprint || keys.has('ShiftLeft') || keys.has('ShiftRight'))
+  player.update(world, input, autoSprint !== (pad.sprint || keys.has('ShiftLeft') || keys.has('ShiftRight')))
 
   for (const r of remotes.values()) {
     r.update(world)
