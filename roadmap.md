@@ -34,13 +34,13 @@ les catégories et les étapes de réalisation.
   le joueur du côté libre sans traverser les meubles. Si le joueur occupe
   la destination ou bouche le passage, abandonner le trajet plutôt qu'insister.
   Mesurer l'avancée après les collisions et préserver le mode photo figé.
-- [ ] **UX-07 · P1 · Bug — Interactions à travers les murs.** Empêcher
+- [x] **UX-07 · P1 · Bug — Interactions à travers les murs.** Empêcher
   d'activer un objet, un PNJ ou un siège situé derrière un mur ou une cloison.
   Vérifier la ligne de vue en plus de la distance, côté client pour le survol et
   côté serveur pour l'action, dans les espaces communs comme dans les quartiers
   où les joueurs posent leurs propres murs (SHIP-02). Vérifier aussi les objets
   adossés aux murs, qui doivent rester utilisables depuis la bonne face.
-- [ ] **UX-08 · P1 · Ergonomie — Bouton de sprint automatique.** Ajouter un
+- [x] **UX-08 · P1 · Ergonomie — Bouton de sprint automatique.** Ajouter un
   bouton pour activer ou désactiver le sprint auto, avec choix mémorisé sur
   l'appareil. Le sprint auto doit rester compatible avec l'endurance et les
   bruits du jeu d'horreur : il ne donne aucun avantage, il évite seulement de
@@ -57,6 +57,24 @@ est validée par l’utilisateur pour cette première livraison ; la mesure du
 gain de fluidité sur un PC ancien reste à réaliser.
 UX-06 dispose de tests de régression simulant les trajets, les meubles,
 les passages étroits, l'arrivée du joueur en cours de trajet et le mode photo.
+
+Réalisation (27 septembre 2026) :
+
+- UX-07 : le plan des ponts et un test de ligne de vue sont partagés entre le
+  client et le relais (`shared/sight.js`). L'invite et `E` ignorent un objet,
+  un PNJ ou un siège derrière un mur ; un clic mène à une place du bon côté.
+  Une porte ne laisse passer la vue que par son ouverture. Le relais refuse
+  les tables de jeux et le jukebox hors de portée ou derrière un mur. Les
+  94 objets interactifs des trois ponts restent utilisables depuis leur face,
+  objets adossés compris. Les murs posés par les joueurs (SHIP-02) devront
+  s'ajouter au plan utilisé par ce test.
+- UX-08 : bouton du coureur dans la barre en haut à droite, choix mémorisé sur
+  l'appareil. Le sprint auto donne la même allure et les mêmes pas qu'une
+  course à la main ; `Maj` ou `L3` font alors marcher.
+- DEC-01 : néon plus grand, sans plaque (deux fixations discrètes), en six
+  couleurs (rose d'origine, orange Elite, cyan, vert, violet, blanc), choisies en
+  pastilles sous le texte. Il éclaire le mur de sa couleur ; les néons déjà
+  posés restent roses.
 
 ## 2. Liens avec le site, progression et récompenses
 
@@ -155,7 +173,7 @@ Choix et réalisation (27 septembre 2026) :
 
 ## 5. Personnalisation et ambiance
 
-- [ ] **DEC-01 · P1 · Décoration — Néon o7.** Augmenter sa taille, retirer la
+- [x] **DEC-01 · P1 · Décoration — Néon o7.** Augmenter sa taille, retirer la
   plaque noire derrière et proposer plusieurs couleurs.
 - [ ] **DEC-02 · P3 · Expression — Emote et icônes du site.** Ajouter une emote
   o7 ainsi que des icônes du site, par exemple Raxxla et Braben.
