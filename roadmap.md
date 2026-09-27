@@ -177,7 +177,7 @@ Choix et réalisation (27 septembre 2026) :
   plaque noire derrière et proposer plusieurs couleurs.
 - [x] **DEC-02 · P3 · Expression — Emote et icônes du site.** Ajouter une emote
   o7 ainsi que des icônes du site, par exemple Raxxla et Braben.
-- [ ] **DEC-03 · P3 · Décoration — Éléments des aventures.** Ajouter des
+- [x] **DEC-03 · P3 · Décoration — Éléments des aventures.** Ajouter des
   personnages ou objets issus des aventures, par exemple Jacob Scarlett.
 - [ ] **DEC-04 · P3 · Ambiance — Compagnons supplémentaires.** Ajouter d'autres 
   animaux du pack de sprites et créer d'autres objets pour les animaux.
@@ -193,6 +193,15 @@ Réalisation (27 septembre 2026) :
   lore), Fuel Rats et le logo du site. Une réaction ne fait pas bouger le
   personnage : elle marche assis ou couché. Commandes du chat : `/braben`,
   `/raxxla`… Le relais n'accepte que ces identifiants.
+- DEC-03 : choix retenu, des objets libres, achetés en crédits (pas de lien
+  avec les aventures terminées). Catégorie « Aventures » du catalogue, dix
+  souvenirs dessinés en primitives : hologramme de Jacob Scarlett (personnage
+  qui tourne et grésille sur son socle), coffre de La Buse, capsule de survie
+  de l'Odysseus (balise qui clignote), Guide de survie et ses pages perdues,
+  maquette du FNS Damocles, portrait de la duchesse d'Adenates, sapin de la
+  Quête de Noël (guirlande qui clignote), bannière de la Voie, boîte noire du
+  Thetis (son écho en ondes) et enseigne de TAXI Corp. Chaque objet cite son
+  aventure à l'interaction. Prix de 6 000 à 45 000 CR dans `economy.json`.
 
 ## Fiche détaillée — Jeu d'horreur et de récupération (SOC-06)
 

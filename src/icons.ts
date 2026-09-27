@@ -35,6 +35,7 @@ import barbell from '@phosphor-icons/core/duotone/barbell-duotone.svg?raw'
 import paintRoller from '@phosphor-icons/core/duotone/paint-roller-duotone.svg?raw'
 import palette from '@phosphor-icons/core/duotone/palette-duotone.svg?raw'
 import coins from '@phosphor-icons/core/duotone/coins-duotone.svg?raw'
+import treasureChest from '@phosphor-icons/core/duotone/treasure-chest-duotone.svg?raw'
 
 import arrowClockwise from '@phosphor-icons/core/bold/arrow-clockwise-bold.svg?raw'
 import arrowCounterClockwise from '@phosphor-icons/core/bold/arrow-counter-clockwise-bold.svg?raw'
@@ -143,6 +144,7 @@ const SVG = {
   palette,
   'envelope-simple': envelopeSimple,
   'door-open': doorOpen,
+  'treasure-chest': treasureChest,
   // commandes
   'arrow-clockwise': arrowClockwise,
   'arrow-counter-clockwise': arrowCounterClockwise,

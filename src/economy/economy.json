@@ -20,7 +20,9 @@
     "punching-bag": 12000, "exercise-bike": 20000, "treadmill": 25000, "weight-bench": 15000, "dumbbell-rack": 8000,
     "dance-floor": 40000, "dance-floor-large": 60000, "disco-ball": 25000, "dj-booth": 50000, "jukebox": 65000,
     "speaker": 10000, "laser": 12000, "stage-light": 20000,
-    "rug": 6000, "rug-small": 4000, "rug-large": 9000, "rug-round": 6000
+    "rug": 6000, "rug-small": 4000, "rug-large": 9000, "rug-round": 6000,
+    "scarlett-holo": 45000, "treasure-chest": 30000, "escape-pod": 35000, "survival-guide": 6000, "damocles-model": 15000,
+    "duchess-portrait": 12000, "christmas-tree": 20000, "path-banner": 10000, "thetis-blackbox": 12000, "taxi-sign": 9000
   },
   "skins": {
     "suit.maverick": 30000, "suit.dominator": 40000, "suit.artemis": 45000,

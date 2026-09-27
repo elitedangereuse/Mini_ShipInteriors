@@ -1,3 +1,4 @@
+import { ADVENTURES } from './adventures'
 import { ARCADE } from './arcade'
 import { BOARD } from './board'
 import { COZY } from './cozy'
@@ -19,12 +20,13 @@ import { SITE } from './site'
  * - cozy.ts : les quartiers (chambres, douches, serre, salon) ;
  * - decor.ts : la décoration des cabines (affiches, cadres, plantes, petits objets…) ;
  * - lights.ts : les luminaires des cabines (guirlande, bandeau LED, néons, lampadaire arc, suspensions…) ;
- * - party.ts : la soirée dans les quartiers (piste de danse, boule à facettes, platines…).
+ * - party.ts : la soirée dans les quartiers (piste de danse, boule à facettes, platines…) ;
+ * - adventures.ts : les souvenirs des aventures du site (Jacob Scarlett, La Buse, l'Odysseus…).
  * On les place dans levels.ts comme les modèles du kit : `{ model: 'fireplace', x, z, rot }`,
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...WORKSHOP, ...LEISURE, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY, ...SITE } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...WORKSHOP, ...LEISURE, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 

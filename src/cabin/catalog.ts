@@ -27,7 +27,7 @@ export interface Variant {
   swatch?: string
 }
 
-export type CategoryId = 'rest' | 'living' | 'storage' | 'light' | 'plants' | 'wall' | 'objects' | 'elite' | 'leisure' | 'arcade' | 'party' | 'rugs'
+export type CategoryId = 'rest' | 'living' | 'storage' | 'light' | 'plants' | 'wall' | 'objects' | 'elite' | 'adventures' | 'leisure' | 'arcade' | 'party' | 'rugs'
 
 export const CATEGORIES: { id: CategoryId; label: string; icon: IconName }[] = [
   { id: 'rest', label: tr('Chambre', 'Bedroom'), icon: 'bed' },
@@ -38,6 +38,7 @@ export const CATEGORIES: { id: CategoryId; label: string; icon: IconName }[] = [
   { id: 'wall', label: tr('Murs', 'Walls'), icon: 'frame-corners' },
   { id: 'objects', label: tr('Objets', 'Objects'), icon: 'cube' },
   { id: 'elite', label: 'Elite', icon: 'rocket' },
+  { id: 'adventures', label: tr('Aventures', 'Adventures'), icon: 'treasure-chest' },
   { id: 'leisure', label: tr('Sport', 'Fitness'), icon: 'barbell' },
   { id: 'arcade', label: 'Arcade', icon: 'joystick' },
   { id: 'party', label: tr('Soirée', 'Party'), icon: 'disco-ball' },
@@ -934,6 +935,86 @@ export const CATALOG: CatalogEntry[] = [
   {
     id: 'stage-light', name: tr('Lyre', 'Moving head light'), category: 'party', model: 'stage-light', mount: 'floor',
     interact: tr('Lyre motorisée : elle balaie la pièce en rythme. Comète la poursuit.', 'Moving head light: it sweeps the room to the beat. Comète chases it.'),
+  },
+
+  // --- Aventures : souvenirs des aventures du site (src/furniture/adventures.ts)
+  {
+    id: 'scarlett-holo', name: tr('Hologramme de Jacob Scarlett', 'Jacob Scarlett hologram'), category: 'adventures', model: 'scarlett-holo', mount: 'floor',
+    action: tr('Se recueillir', 'Pay respects'),
+    light: { color: '#6fd8ff', intensity: 0.3, at: [0, 0.5, 0], priority: 4 },
+    interact: [
+      tr(
+        'L\'officier Jacob Scarlett, sécurité de Ross 154. Vu pour la dernière fois à Ross 446. (La Disparition de Jacob Scarlett)',
+        'Officer Jacob Scarlett, Ross 154 security. Last seen in Ross 446. (The Disappearance of Jacob Scarlett)',
+      ),
+      tr('« … Scarlett. Bingo ! … fausse identité … base … Istanu … » Le message est toujours aussi corrompu.', '“… Scarlett. Bingo! … false identity … base … Istanu …” The message is as corrupted as ever.'),
+      tr('L\'hologramme grésille. Un café au bar de Birkeland City, et tout a commencé.', 'The hologram flickers. One coffee at the Birkeland City bar, and it all began.'),
+    ],
+  },
+  {
+    id: 'treasure-chest', name: tr('Coffre de La Buse', 'La Buse\'s chest'), category: 'adventures', model: 'treasure-chest', mount: 'floor',
+    action: tr('Fouiller', 'Rummage'),
+    light: { color: '#ffc55a', intensity: 0.3, at: [0, 0.35, 0.05], priority: 3 },
+    interact: [
+      tr('Le trésor de La Buse : des doublons, des rubis, et pas un seul crédit convertible. (Le Trésor de La Buse)', 'La Buse\'s treasure: doubloons, rubies, and not a single convertible credit. (La Buse\'s Treasure)'),
+      tr('« Mes trésors à qui saura comprendre. » Vous comprenez surtout qu\'il faut payer la douane.', '“My treasure to whoever understands.” Mostly, you understand that customs must be paid.'),
+    ],
+  },
+  {
+    id: 'escape-pod', name: tr('Capsule de l\'Odysseus', 'Odysseus escape pod'), category: 'adventures', model: 'escape-pod', mount: 'floor',
+    interact: [
+      tr('Capsule de survie de l\'expédition Odysseus. Vide, heureusement : tout le monde a été sauvé. (Le Sauvetage de l\'Odysseus)', 'Escape pod from the Odysseus expedition. Empty, fortunately: everyone was rescued. (Saving the Odysseus)'),
+      tr('La balise de détresse clignote encore. Personne n\'a trouvé comment l\'éteindre.', 'The distress beacon is still blinking. Nobody has worked out how to turn it off.'),
+    ],
+  },
+  {
+    id: 'survival-guide', name: tr('Guide de survie', 'Survival guide'), category: 'adventures', model: 'survival-guide', mount: 'top', action: tr('Lire', 'Read'),
+    interact: [
+      tr('Le Guide de survie, ses onze pages perdues enfin recollées. (Les Pages Perdues du Guide de Survie)', 'The Survival Guide, its eleven lost pages finally glued back in. (The Lost Pages of the Survival Guide)'),
+      tr('Page 7 : « Toujours emporter un module de ravitaillement. » Souligné trois fois.', 'Page 7: “Always carry a fuel scoop.” Underlined three times.'),
+    ],
+  },
+  {
+    id: 'damocles-model', name: tr('Maquette du FNS Damocles', 'FNS Damocles model'), category: 'adventures', model: 'damocles-model', mount: 'top', action: tr('Admirer', 'Admire'),
+    interact: tr(
+      'Le FNS Damocles, croiseur de classe Farragut, détourné puis retrouvé. Celui-ci ne quitte pas l\'étagère. (Le Détournement du FNS Damocles)',
+      'The FNS Damocles, a Farragut-class battlecruiser, hijacked and then found. This one stays on the shelf. (The FNS Damocles Hijacking)',
+    ),
+  },
+  {
+    id: 'duchess-portrait', name: tr('Portrait de la duchesse', 'Portrait of the Duchess'), category: 'adventures', model: 'duchess-portrait', mount: 'wall',
+    interact: tr(
+      'La duchesse d\'Adenates, peinte à la cour impériale. Elle a toujours l\'air de négocier avec des mercenaires. (Une duchesse d\'Adenates en détresse)',
+      'The Duchess of Adenates, painted at the Imperial court. She still looks like she is haggling with mercenaries. (A Distressed Duchess from Adenates)',
+    ),
+  },
+  {
+    id: 'christmas-tree', name: tr('Sapin de la Quête de Noël', 'Christmas Quest tree'), category: 'adventures', model: 'christmas-tree', mount: 'floor',
+    light: { color: '#ffcf8a', intensity: 0.3, at: [0, 0.6, 0], priority: 3 },
+    interact: [
+      tr('Les jouets de Sandra Corrs, livrés à temps. Joyeux Noël, CMDR ! (La Quête de Noël)', 'Sandra Corrs\'s toys, delivered on time. Merry Christmas, CMDR! (The Christmas Quest)'),
+      tr('Une étiquette sur un paquet : « Pour Comète. Ne pas ouvrir avant le 25. » Il est déjà ouvert.', 'A tag on a present: “For Comète. Do not open before the 25th.” It is already open.'),
+    ],
+  },
+  {
+    id: 'path-banner', name: tr('Bannière de la Voie', 'Banner of the Path'), category: 'adventures', model: 'path-banner', mount: 'wall',
+    light: { color: '#3dff9a', intensity: 0.2, at: [0, 0.7, 0.2], priority: 2 },
+    interact: [
+      tr('« Que la lumière te guide, Adepte o7. » (L\'Épreuve, la Cérémonie et les Reliques de la Voie)', '“May the light guide you, Adept o7.” (The Trial, the Ceremony and the Relics of the Path)'),
+      tr('Le symbole de Raxxla. La Voie vous attend.', 'The symbol of Raxxla. The Path awaits you.'),
+    ],
+  },
+  {
+    id: 'thetis-blackbox', name: tr('Boîte noire du Thetis', 'Thetis black box'), category: 'adventures', model: 'thetis-blackbox', mount: 'top', action: tr('Écouter', 'Listen'),
+    interact: [
+      tr('L\'enregistreur du Thetis. Au casque, un signal lointain se répète… (L\'Écho du Thetis)', 'The Thetis flight recorder. Through the headset, a distant signal repeats… (The Echo of the Thetis)'),
+      tr('Vous avez cru entendre votre nom dans l\'écho. Mieux vaut ne pas y penser.', 'You thought you heard your name in the echo. Best not to dwell on it.'),
+    ],
+  },
+  {
+    id: 'taxi-sign', name: tr('Enseigne TAXI Corp.', 'TAXI Corp. sign'), category: 'adventures', model: 'taxi-sign', mount: 'wall',
+    light: { color: '#ffd23a', intensity: 0.35, at: [0, 0.8, 0.25], priority: 4 },
+    interact: tr('TAXI Corp. : « Épreuve du feu réussie. » Vos passagers en parlent encore. (Taxi Driver)', 'TAXI Corp.: “Trial by fire passed.” Your passengers still talk about it. (Taxi Driver)'),
   },
 
   // --- Tapis
