@@ -55,6 +55,9 @@ export const SPECIES: Species[] = [
   { id: 'sanglier', model: 'hog', label: tr('Sanglier', 'Boar'), name: 'Mamba', scale: 0.27, voice: 'grunt', home: 'straw', says: [tr('Grouik !', 'Snort!'), tr('*fouille le sol*', '*roots around*')] },
 ]
 
+/** Animaux dans des quartiers, Comète compris : au-delà, ça fait une ménagerie. */
+export const MAX_PETS = 2
+
 const BY_ID = new Map(SPECIES.map((s) => [s.id, s]))
 
 export const speciesOf = (id: string | undefined): Species | undefined => (id ? BY_ID.get(id) : undefined)
@@ -63,11 +66,14 @@ export const speciesOf = (id: string | undefined): Species | undefined => (id ? 
 export const petItemId = (s: Species) => `pet-${s.id}`
 export const speciesOfItem = (m: string): Species | undefined => (m.startsWith('pet-') ? BY_ID.get(m.slice(4)) : undefined)
 
+/** Panier habité : celui de Comète, ou celui d'un compagnon adopté. */
+export const isPetHome = (m: string): boolean => m === 'cat-bed' || !!speciesOfItem(m)
+
 // ---------------------------------------------------------------- robes
 
 /**
- * Robe : on repeint le pelage (la texture de palette partagée par tout le pack), en gardant
- * le noir des yeux, le blanc de leur reflet et le rose des museaux.
+ * Robe : on repeint le pelage (la texture de palette partagée par tout le pack), sans toucher
+ * aux yeux ni aux museaux (cf. splitModel).
  */
 interface Coat {
   id: string

@@ -21,7 +21,7 @@ import { Sound } from './audio'
 import { Avatar, EMOTES } from './avatar'
 import { IsoCamera } from './camera'
 import { Cat } from './cat'
-import { petRig, speciesOfItem, type Species } from './pets'
+import { MAX_PETS, petRig, speciesOfItem, type Species } from './pets'
 import { Deck, type Interactable } from './deck'
 import { beatAt, beatPulse, holoMeGlow, holoTime, type ClawControl, type ClawResult } from './furniture'
 import { GamepadControls, type GamepadInput } from '../shared/gamepad.js'
@@ -220,13 +220,14 @@ const seating = new Seating({
   changed: () => poseChanged(),
 })
 
-// Comète vit près de son panier.
+// Comète vit près de son panier ; sans panier dans les quartiers affichés, il n'est pas là
+// (on peut le remplacer par un autre compagnon, cf. syncCompanions).
 const catDeck = cabinDeck
 const basket = cabin.items.find((i) => i.m === 'cat-bed') ?? CAT_SPAWN
 /** Gamelles posées dans les quartiers affichés : les animaux y passent manger. */
 const petBowls = () => cabin.items.filter((i) => i.m === 'pet-bowl').map(({ x, z }) => ({ x, z }))
 const cat = new Cat(await rig(CAT_MODEL), catDeck, basket.x, basket.z, { bowls: petBowls })
-catDeck.interactables.push({
+const catInteractable: Interactable = {
   object: cat.root,
   position: cat.root.position,
   label: tr(`Caresser ${cat.name}`, `Pet ${cat.name}`),
@@ -235,7 +236,10 @@ catDeck.interactables.push({
     net.sendEmote('interact')
     cat.pet(player.position)
   },
-})
+}
+catDeck.interactables.push(catInteractable)
+/** Comète est-il à bord (son panier est-il dans les quartiers affichés) ? */
+let cometeHere = true
 
 const sound = new Sound()
 scene.add(sound.rig)
@@ -284,7 +288,7 @@ const promptLabel = $('prompt-label')
 
 bubbles.attach('me', (out) => player.avatar.head(out))
 bubbles.attach('gym', (out) => player.avatar.head(out).setY(out.y + 0.35))
-bubbles.attach('cat', (out) => (catDeck.group.visible ? cat.root.getWorldPosition(out).setY(out.y + 0.55) : null))
+bubbles.attach('cat', (out) => (catDeck.group.visible && cometeHere ? cat.root.getWorldPosition(out).setY(out.y + 0.55) : null))
 const gym = new GymGame(bubbles, dialog, wallet, () => { if (seating.current) seating.stand() })
 for (const d of decks) for (const it of d.interactables) {
   const model = it.furniture?.model
@@ -468,11 +472,14 @@ const companions = new Map<string, Companion>()
 const companionsLoading = new Set<string>()
 let companionItems: CabinItem[] | null = null
 
+/** Paniers habités : deux animaux au plus, Comète compris (les règles de pose l'imposent aussi). */
 function wantedCompanions(): Map<string, CabinItem> {
   const wanted = new Map<string, CabinItem>()
   const seen = new Map<string, number>()
+  let room = MAX_PETS - (cabin.items.some((i) => i.m === 'cat-bed') ? 1 : 0)
   for (const item of cabin.items) {
-    if (!speciesOfItem(item.m)) continue
+    if (!speciesOfItem(item.m) || room <= 0) continue
+    room--
     const base = `${item.m}|${item.v ?? ''}`
     const n = seen.get(base) ?? 0
     seen.set(base, n + 1)
@@ -485,6 +492,21 @@ function wantedCompanions(): Map<string, CabinItem> {
 function syncCompanions() {
   if (cabin.items === companionItems) return
   companionItems = cabin.items
+  // Comète arrive avec son panier, et repart avec.
+  const basket = cabin.items.find((i) => i.m === 'cat-bed')
+  if (!!basket !== cometeHere) {
+    cometeHere = !!basket
+    const i = catDeck.interactables.indexOf(catInteractable)
+    if (basket) {
+      cat.root.position.set(basket.x, 0, basket.z)
+      catDeck.group.add(cat.root)
+      unstick(cat.root.position, 0.12)
+      if (i < 0) catDeck.interactables.push(catInteractable)
+    } else {
+      cat.root.removeFromParent()
+      if (i >= 0) catDeck.interactables.splice(i, 1)
+    }
+  }
   const wanted = wantedCompanions()
   for (const key of [...companions.keys()]) if (!wanted.has(key)) removeCompanion(key)
   for (const [key, item] of wanted) if (!companions.has(key) && !companionsLoading.has(key)) void addCompanion(key, item)
@@ -2373,7 +2395,7 @@ function frame() {
     r.update(world)
     r.group.visible = sees(r)
   }
-  cat.update(world, catDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
+  if (cometeHere) cat.update(world, catDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
   syncCompanions()
   for (const c of companions.values()) c.pet.update(world, cabinDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
 
@@ -2385,7 +2407,7 @@ function frame() {
   // Qui se trouve sur quel pont (pour ouvrir les portes).
   for (const list of actors.values()) list.length = 0
   actors.get(deck)!.push(player.position)
-  actors.get(catDeck)!.push(cat.root.position)
+  if (cometeHere) actors.get(catDeck)!.push(cat.root.position)
   // Un joueur d'une autre instance des quartiers n'ouvre pas nos portes.
   for (const r of remotes.values()) if (r.group.visible || r.level !== deck.def.id) actors.get(deckById(r.level))?.push(r.group.position)
   const keep = seating.current?.item.position ?? null

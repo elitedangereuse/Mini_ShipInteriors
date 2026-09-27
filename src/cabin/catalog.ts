@@ -408,7 +408,7 @@ export const CATALOG: CatalogEntry[] = [
     ],
   },
   {
-    id: 'cat-bed', name: tr('Panier de Comète', 'Comète\'s basket'), category: 'living', model: 'cat-bed', mount: 'floor', solid: false,
+    id: 'cat-bed', name: tr('Panier de Comète', 'Comète\'s basket'), category: 'pets', model: 'cat-bed', mount: 'floor', solid: false,
     interact: tr('Panier de Comète : plein de poils, et une souris en tissu mâchouillée.', 'Comète\'s basket: full of fur, plus one chewed-up fabric mouse.'),
   },
 

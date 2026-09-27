@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { tr } from '../i18n'
 import { DIRS } from '../map'
 import { Pathfinder } from '../pathfinding'
+import { isPetHome, MAX_PETS } from '../pets'
 import { entryOf, isSolid, type CatalogEntry } from './catalog'
 import type { CabinItem } from './layout'
 import type { CabinView } from './view'
@@ -110,6 +111,9 @@ export function refusal(view: CabinView, items: CabinItem[], i: number, moving: 
   const box = view.boxOf(item)
   if (!entry || !box) return tr('Objet inconnu', 'Unknown item')
   const b = view.bounds
+  if (isPetHome(item.m) && items.filter((it) => isPetHome(it.m)).length > MAX_PETS) {
+    return tr(`${MAX_PETS} animaux au plus : retirez d'abord un panier`, `${MAX_PETS} pets at most: remove a basket first`)
+  }
 
   if (entry.mount === 'wall') {
     const wall = view.wallOf(item)
