@@ -36,7 +36,7 @@ const LOOK = /^[a-z]+(\.[a-z0-9-]+){1,3}$/
 // Emotes (src/avatar.ts), puis réactions (médaillons du site, src/reactions.ts).
 const EMOTES = new Set([
   'salut', 'oui', 'non', 'joie', 'danse', 'assis', 'dodo', 'o7', 'interact',
-  'braben', 'raxxla', 'thargoides', 'gardiens', 'dark-wheel', 'pilotes', 'fuel-rats', 'site',
+  'site', 'braben', 'raxxla', 'federation', 'empire', 'alliance', 'aegis', 'fuel-rats',
 ])
 const ANIMS = new Set(['idle', 'walk', 'sprint'])
 // Poses tenues sur un meuble (cf. src/seats.ts) : assis, couché, aux commandes, à une borne…
