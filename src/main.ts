@@ -20,6 +20,7 @@ import { Sound } from './audio'
 import { Avatar, EMOTES } from './avatar'
 import { IsoCamera } from './camera'
 import { Cat } from './cat'
+import { petRig, speciesOfItem, type Species } from './pets'
 import { Deck, type Interactable } from './deck'
 import { beatAt, beatPulse, holoMeGlow, holoTime, type ClawControl, type ClawResult } from './furniture'
 import { GamepadControls, type GamepadInput } from '../shared/gamepad.js'
@@ -221,7 +222,9 @@ const seating = new Seating({
 // Comète vit près de son panier.
 const catDeck = cabinDeck
 const basket = cabin.items.find((i) => i.m === 'cat-bed') ?? CAT_SPAWN
-const cat = new Cat(await rig(CAT_MODEL), catDeck, basket.x, basket.z)
+/** Gamelles posées dans les quartiers affichés : les animaux y passent manger. */
+const petBowls = () => cabin.items.filter((i) => i.m === 'pet-bowl').map(({ x, z }) => ({ x, z }))
+const cat = new Cat(await rig(CAT_MODEL), catDeck, basket.x, basket.z, { bowls: petBowls })
 catDeck.interactables.push({
   object: cat.root,
   position: cat.root.position,
@@ -438,6 +441,90 @@ cat.onMeow = (purr) => {
   if (purr) sound.purr(p, 2.6)
   if (purr) bubbles.say('cat', tr('Mrrrou…', 'Purrr…'), 'heart')
   else bubbles.say('cat', tr('Miaou ?', 'Meow?'))
+}
+
+// ------------------------------------------------------------------ compagnons
+
+/**
+ * Compagnons adoptés (cf. pets.ts) : un par panier des quartiers affichés (les siens, ou ceux de
+ * l'hôte en visite). Chacun vit près de son panier, comme Comète, et ne quitte pas les quartiers.
+ * Clé : modèle, robe et rang parmi les paniers identiques ; déplacer un panier ne le recrée pas.
+ */
+interface Companion {
+  species: Species
+  pet: Cat
+  interactable: Interactable
+}
+const companions = new Map<string, Companion>()
+const companionsLoading = new Set<string>()
+let companionItems: CabinItem[] | null = null
+
+function wantedCompanions(): Map<string, CabinItem> {
+  const wanted = new Map<string, CabinItem>()
+  const seen = new Map<string, number>()
+  for (const item of cabin.items) {
+    if (!speciesOfItem(item.m)) continue
+    const base = `${item.m}|${item.v ?? ''}`
+    const n = seen.get(base) ?? 0
+    seen.set(base, n + 1)
+    wanted.set(`${base}|${n}`, item)
+  }
+  return wanted
+}
+
+/** Fait correspondre les animaux aux paniers, à chaque nouvel aménagement affiché. */
+function syncCompanions() {
+  if (cabin.items === companionItems) return
+  companionItems = cabin.items
+  const wanted = wantedCompanions()
+  for (const key of [...companions.keys()]) if (!wanted.has(key)) removeCompanion(key)
+  for (const [key, item] of wanted) if (!companions.has(key) && !companionsLoading.has(key)) void addCompanion(key, item)
+}
+
+async function addCompanion(key: string, item: CabinItem) {
+  const species = speciesOfItem(item.m)!
+  companionsLoading.add(key)
+  const r = await petRig(species, item.v).catch(() => null)
+  companionsLoading.delete(key)
+  // Le panier a pu disparaître pendant le chargement.
+  if (!r || companions.has(key) || !wantedCompanions().has(key)) return
+  // Perchoir et ruche ont un mât au milieu : l'animal apparaît au pied.
+  const aside = species.home === 'perch' || species.home === 'hive' ? 0.3 : 0
+  const pet = new Cat(r, cabinDeck, item.x, item.z + aside, { name: species.name, scale: species.scale, area: cabin.bounds, bowls: petBowls })
+  unstick(pet.root.position, 0.12)
+  const bubble = `pet:${key}`
+  const say = (happy: boolean) => {
+    if (cabinDeck !== deck) return
+    sound.critter(species.voice, pet.root.getWorldPosition(new THREE.Vector3()).setY(cabinDeck.y + 0.3))
+    bubbles.say(bubble, species.says[happy ? species.says.length - 1 : 0], happy ? 'heart' : undefined)
+  }
+  pet.onMeow = say
+  pet.onStep = () => {
+    if (cabinDeck === deck) sound.play('catStep', pet.root.getWorldPosition(new THREE.Vector3()), { volume: 0.03, rate: 1.6 * (0.26 / species.scale) })
+  }
+  const interactable: Interactable = {
+    object: pet.root,
+    position: pet.root.position,
+    label: tr(`Caresser ${species.name}`, `Pet ${species.name}`),
+    onInteract: () => {
+      player.interact()
+      net.sendEmote('interact')
+      pet.pet(player.position)
+    },
+  }
+  cabinDeck.interactables.push(interactable)
+  bubbles.attach(bubble, (out) => (cabinDeck.group.visible ? pet.root.getWorldPosition(out).setY(out.y + 0.5) : null))
+  companions.set(key, { species, pet, interactable })
+}
+
+function removeCompanion(key: string) {
+  const c = companions.get(key)
+  if (!c) return
+  c.pet.root.removeFromParent()
+  const i = cabinDeck.interactables.indexOf(c.interactable)
+  if (i >= 0) cabinDeck.interactables.splice(i, 1)
+  bubbles.detach(`pet:${key}`)
+  companions.delete(key)
 }
 
 function startSound() {
@@ -1166,6 +1253,7 @@ function closeEditor() {
   renderer.domElement.style.cursor = 'default'
   unstick(player.position, 0.18)
   unstick(cat.root.position, 0.12)
+  for (const c of companions.values()) unstick(c.pet.root.position, 0.12)
   void cabinStore?.flush()
 }
 cabinBar.onEdit = () => void openEditor()
@@ -1214,6 +1302,8 @@ function showCabin() {
   // Un meuble a pu apparaître sous nos pieds (ou sous les pattes de Comète).
   if (deck === cabinDeck && !seating.current) unstick(player.position, 0.18)
   unstick(cat.root.position, 0.12)
+  syncCompanions()
+  for (const c of companions.values()) unstick(c.pet.root.position, 0.12)
 }
 
 function crew(): CrewEntry[] {
@@ -2267,6 +2357,8 @@ function frame() {
     r.group.visible = sees(r)
   }
   cat.update(world, catDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
+  syncCompanions()
+  for (const c of companions.values()) c.pet.update(world, cabinDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
 
   // En mode aménagement, la caméra regarde la cabine, pas le personnage.
   iso.update(dt, editing() ? editor!.focus(editFocus) : claw ? claw.focus : player.position)
@@ -2422,6 +2514,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, cat, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso },
+    __game: { renderer, sound, player, cat, companions, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso },
   })
 }

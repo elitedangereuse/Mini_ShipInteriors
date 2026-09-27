@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { BASE } from './assets'
+import type { Voice } from './pets'
 
 const SOUNDS = {
   step: ['footstep_concrete_000', 'footstep_concrete_001', 'footstep_concrete_002', 'footstep_concrete_003', 'footstep_concrete_004'],
@@ -32,6 +33,24 @@ const pick = <T,>(a: readonly T[]) => a[Math.floor(Math.random() * a.length)]
  * tourné comme la caméra : un son à droite de l'écran s'entend à droite.
  * Les sons Kenney sont des fichiers ; les bips et le chat sont synthétisés.
  */
+/** Réglages des cris : onde, hauteurs (départ, sommet, fin), durée, formant, répétitions… */
+const VOICES: Record<Exclude<Voice, 'meow'>, {
+  wave: OscillatorType; f: [number, number, number]; len: number; formant: number; q: number
+  reps?: number; gap?: number; vib?: [number, number]; noise?: number; volume?: number
+}> = {
+  bark: { wave: 'square', f: [420, 540, 260], len: 0.14, formant: 900, q: 3, reps: 2, gap: 0.2, noise: 0.3 },
+  yip: { wave: 'sawtooth', f: [900, 1300, 700], len: 0.12, formant: 1500, q: 4, reps: 2, gap: 0.16 },
+  squeak: { wave: 'sine', f: [1800, 2600, 2000], len: 0.09, formant: 2200, q: 1, reps: 2, gap: 0.12, volume: 0.12 },
+  chirp: { wave: 'sine', f: [2400, 3600, 2200], len: 0.07, formant: 2800, q: 1, reps: 3, gap: 0.09, volume: 0.12 },
+  grunt: { wave: 'sawtooth', f: [110, 135, 90], len: 0.28, formant: 420, q: 2, noise: 0.4, volume: 0.3 },
+  honk: { wave: 'square', f: [320, 390, 300], len: 0.22, formant: 1100, q: 4, reps: 2, gap: 0.27 },
+  roar: { wave: 'sawtooth', f: [140, 190, 90], len: 0.8, formant: 600, q: 1.5, noise: 0.6, vib: [9, 15], volume: 0.3 },
+  buzz: { wave: 'sawtooth', f: [210, 222, 200], len: 0.7, formant: 900, q: 1, vib: [30, 25], volume: 0.1 },
+  moo: { wave: 'sawtooth', f: [150, 172, 118], len: 0.9, formant: 520, q: 3, vib: [5, 4], volume: 0.3 },
+  trumpet: { wave: 'sawtooth', f: [380, 640, 520], len: 0.6, formant: 1400, q: 5, vib: [7, 10] },
+  click: { wave: 'square', f: [3000, 3000, 2800], len: 0.02, formant: 3000, q: 2, reps: 4, gap: 0.07, noise: 0.8, volume: 0.1 },
+}
+
 export class Sound {
   readonly listener = new THREE.AudioListener()
   /** Objet à placer dans la scène ; porte l'auditeur. */
@@ -305,6 +324,58 @@ export class Sound {
     vib.start(t)
     osc.stop(t + len + 0.05)
     vib.stop(t + len + 0.05)
+  }
+
+  /**
+   * Cri d'un compagnon (cf. pets.ts), synthétisé comme le miaulement : une onde dont la hauteur
+   * monte puis retombe, passée dans un formant, avec un souffle de bruit et un vibrato au besoin.
+   */
+  critter(voice: Voice, pos: THREE.Vector3) {
+    if (voice === 'meow') return this.meow(pos)
+    if (!this.ready) return
+    const v = VOICES[voice]
+    const ctx = this.ctx
+    const out = this.output(pos, { volume: v.volume ?? 0.22, ref: 1.2, rolloff: 1.4 }).input
+    const pitch = 0.9 + Math.random() * 0.2
+    for (let i = 0; i < (v.reps ?? 1); i++) {
+      const t = ctx.currentTime + 0.01 + i * (v.gap ?? 0)
+      const osc = ctx.createOscillator()
+      osc.type = v.wave
+      osc.frequency.setValueAtTime(v.f[0] * pitch, t)
+      osc.frequency.linearRampToValueAtTime(v.f[1] * pitch, t + v.len * 0.3)
+      osc.frequency.linearRampToValueAtTime(v.f[2] * pitch, t + v.len)
+      const formant = ctx.createBiquadFilter()
+      formant.type = 'bandpass'
+      formant.frequency.value = v.formant
+      formant.Q.value = v.q
+      const env = ctx.createGain()
+      env.gain.setValueAtTime(0, t)
+      env.gain.linearRampToValueAtTime(1, t + Math.min(0.04, v.len * 0.2))
+      env.gain.linearRampToValueAtTime(0.6, t + v.len * 0.7)
+      env.gain.linearRampToValueAtTime(0, t + v.len)
+      osc.connect(formant).connect(env).connect(out)
+      const stops: AudioScheduledSourceNode[] = [osc]
+      if (v.vib) {
+        const vib = ctx.createOscillator()
+        vib.frequency.value = v.vib[0]
+        const depth = ctx.createGain()
+        depth.gain.value = v.vib[1]
+        vib.connect(depth).connect(osc.frequency)
+        stops.push(vib)
+      }
+      if (v.noise) {
+        const noise = ctx.createBufferSource()
+        noise.buffer = this.whiteNoise
+        const amount = ctx.createGain()
+        amount.gain.value = v.noise
+        noise.connect(amount).connect(formant)
+        stops.push(noise)
+      }
+      for (const n of stops) {
+        n.start(t)
+        n.stop(t + v.len + 0.05)
+      }
+    }
   }
 
   /** Ronronnement : bruit grave modulé ~25 Hz. */

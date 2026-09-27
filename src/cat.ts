@@ -11,6 +11,16 @@ const WALK = 0.9
 const RUN = 2.6
 const SCALE = 0.26
 const PLAYER_CLEARANCE = 0.38
+/** Options d'un compagnon adopté (cf. pets.ts) ; Comète s'en passe. */
+export interface PetOptions {
+  name?: string
+  scale?: number
+  /** Zone où il se promène (ses quartiers) ; il ne vient au joueur que s'il s'y trouve. */
+  area?: { minX: number; maxX: number; minZ: number; maxZ: number }
+  /** Gamelles où il va manger de temps en temps. */
+  bowls?: () => { x: number; z: number }[]
+}
+
 /** Temps sans vraie avance au bout duquel le chat renonce à son trajet (coincé contre une chaise…). */
 const STUCK_AFTER = 0.4
 
@@ -21,7 +31,7 @@ const STUCK_AFTER = 0.4
  */
 export class Cat {
   readonly root = new THREE.Group()
-  readonly name = 'Comète'
+  readonly name: string
   private mixer: THREE.AnimationMixer
   private actions = new Map<string, THREE.AnimationAction>()
   private current?: THREE.AnimationAction
@@ -35,6 +45,8 @@ export class Cat {
   /** Garder le même côté pendant un contournement évite les hésitations gauche/droite. */
   private avoidSide = 1
   private meowIn = 15 + Math.random() * 20
+  /** En route vers une gamelle : il y mangera en arrivant. */
+  private hungry = false
 
   onStep?: () => void
   onMeow?: (purr: boolean) => void
@@ -44,8 +56,10 @@ export class Cat {
     readonly deck: Deck,
     x: number,
     z: number,
+    private readonly options: PetOptions = {},
   ) {
-    rig.root.scale.setScalar(SCALE)
+    this.name = options.name ?? 'Comète'
+    rig.root.scale.setScalar(options.scale ?? SCALE)
     this.root.add(rig.root)
     this.root.position.set(x, 0, z)
     this.mixer = new THREE.AnimationMixer(rig.root)
@@ -81,6 +95,7 @@ export class Cat {
     this.path = out
     this.speed = speed
     this.state = 'walk'
+    this.hungry = false
     this.stuckTime = 0
     return true
   }
@@ -90,9 +105,14 @@ export class Cat {
     for (let tries = 0; tries < 20; tries++) {
       const x = Math.round(p.x + (Math.random() * 2 - 1) * range)
       const z = Math.round(p.z + (Math.random() * 2 - 1) * range)
-      if (this.deck.pathfinder.walkable(x, z)) return { x, z }
+      if (this.deck.pathfinder.walkable(x, z) && this.inArea(x, z)) return { x, z }
     }
     return null
+  }
+
+  private inArea(x: number, z: number): boolean {
+    const a = this.options.area
+    return !a || (x >= a.minX && x <= a.maxX && z >= a.minZ && z <= a.maxZ)
   }
 
   /** Caresse : le chat se tourne vers le joueur, ronronne et se réjouit. */
@@ -167,7 +187,18 @@ export class Cat {
 
   private decide(player: THREE.Vector3 | null, distPlayer: number) {
     const r = Math.random()
-    if (player && distPlayer > 2 && distPlayer < 12 && r < 0.35) {
+    const bowl = this.options.bowls?.().sort(() => Math.random() - 0.5)[0]
+    if (bowl && r < 0.12) {
+      // Un petit creux : direction la gamelle, puis on mange.
+      for (const [dx, dz] of [[0, 1], [1, 0], [-1, 0], [0, -1]]) {
+        const tx = Math.round(bowl.x + dx * 0.5), tz = Math.round(bowl.z + dz * 0.5)
+        if (this.deck.pathfinder.walkable(tx, tz) && this.goTo(tx, tz, WALK)) {
+          this.hungry = true
+          return
+        }
+      }
+    }
+    if (player && distPlayer > 2 && distPlayer < 12 && r < 0.35 && this.inArea(player.x, player.z)) {
       // Vient se frotter au joueur.
       const tx = Math.round(player.x), tz = Math.round(player.z)
       for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
@@ -215,8 +246,9 @@ export class Cat {
     const p = this.root.position
     let target = this.path[0]
     if (!target) {
-      this.state = 'idle'
-      this.timer = 1.5 + Math.random() * 4
+      this.state = this.hungry ? 'groom' : 'idle'
+      this.timer = this.hungry ? 3 + Math.random() * 2 : 1.5 + Math.random() * 4
+      this.hungry = false
       return
     }
     if (player) {

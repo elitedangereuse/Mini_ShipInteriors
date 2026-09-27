@@ -3,6 +3,7 @@ import { station, themes, type StationModel } from '../assets'
 import { buildFurniture, disposeFurniture, isCustomModel, type CustomModel } from '../furniture'
 import { builderLabel, type CatalogEntry } from './catalog'
 import { prepareArtwork } from '../furniture/site'
+import { petPreview } from '../pets'
 
 /*
  * Vignettes du catalogue : chaque objet rendu seul, en vue isométrique, dans un petit rendu
@@ -46,6 +47,8 @@ const corners = Array.from({ length: 8 }, () => new THREE.Vector3())
 async function render(entry: CatalogEntry, variant: string | undefined): Promise<string> {
   const preview = entry.model === 'site-art' && variant
     ? await prepareArtwork(variant) : undefined
+  // Un panier se montre avec son habitant, dans sa robe.
+  const pet = entry.model === 'pet-bed' ? await petPreview(builderLabel(entry, variant)) : null
   if (!renderer) setup()
   const holder = new THREE.Group()
   const custom = isCustomModel(entry.model)
@@ -55,6 +58,7 @@ async function render(entry: CatalogEntry, variant: string | undefined): Promise
     if (f.live) holder.add(f.live)
     // Pièces animées (poissons, flammes…) : on les place comme en cours de jeu.
     f.update?.(1.7)
+    if (pet) holder.add(pet)
   } else {
     const o = station(entry.model as StationModel)
     o.traverse((c) => {
@@ -96,6 +100,8 @@ async function render(entry: CatalogEntry, variant: string | undefined): Promise
   renderer!.render(scene, camera)
   const url = renderer!.domElement.toDataURL('image/png')
   scene.remove(holder)
+  // L'animal partage géométrie et matériaux avec ceux du jeu : on ne les libère pas.
+  if (pet) holder.remove(pet)
   if (custom) disposeFurniture(holder)
   return url
 }

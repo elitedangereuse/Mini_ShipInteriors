@@ -2,6 +2,7 @@ import type { StationModel } from '../assets'
 import type { CustomModel } from '../furniture'
 import { FRAMES, GLOBES, NEON_COLORS, POSTERS } from '../furniture/decor'
 import { tr } from '../i18n'
+import { COATS, petItemId, SPECIES } from '../pets'
 import type { IconName } from '../icons'
 import type { Flicker } from '../levels'
 
@@ -27,7 +28,7 @@ export interface Variant {
   swatch?: string
 }
 
-export type CategoryId = 'rest' | 'living' | 'storage' | 'light' | 'plants' | 'wall' | 'objects' | 'elite' | 'adventures' | 'leisure' | 'arcade' | 'party' | 'rugs'
+export type CategoryId = 'rest' | 'living' | 'storage' | 'light' | 'plants' | 'wall' | 'objects' | 'elite' | 'adventures' | 'pets' | 'leisure' | 'arcade' | 'party' | 'rugs'
 
 export const CATEGORIES: { id: CategoryId; label: string; icon: IconName }[] = [
   { id: 'rest', label: tr('Chambre', 'Bedroom'), icon: 'bed' },
@@ -39,6 +40,7 @@ export const CATEGORIES: { id: CategoryId; label: string; icon: IconName }[] = [
   { id: 'objects', label: tr('Objets', 'Objects'), icon: 'cube' },
   { id: 'elite', label: 'Elite', icon: 'rocket' },
   { id: 'adventures', label: tr('Aventures', 'Adventures'), icon: 'treasure-chest' },
+  { id: 'pets', label: tr('Animaux', 'Pets'), icon: 'paw-print' },
   { id: 'leisure', label: tr('Sport', 'Fitness'), icon: 'barbell' },
   { id: 'arcade', label: 'Arcade', icon: 'joystick' },
   { id: 'party', label: tr('Soirée', 'Party'), icon: 'disco-ball' },
@@ -1015,6 +1017,26 @@ export const CATALOG: CatalogEntry[] = [
     id: 'taxi-sign', name: tr('Enseigne TAXI Corp.', 'TAXI Corp. sign'), category: 'adventures', model: 'taxi-sign', mount: 'wall',
     light: { color: '#ffd23a', intensity: 0.35, at: [0, 0.8, 0.25], priority: 4 },
     interact: tr('TAXI Corp. : « Épreuve du feu réussie. » Vos passagers en parlent encore. (Taxi Driver)', 'TAXI Corp.: “Trial by fire passed.” Your passengers still talk about it. (Taxi Driver)'),
+  },
+
+  // --- Animaux : un panier par compagnon adopté (il vit à côté, cf. src/pets.ts), et de quoi s'en occuper
+  ...SPECIES.map((s): CatalogEntry => ({
+    id: petItemId(s), name: `${s.label} · ${s.name}`, category: 'pets', model: 'pet-bed', mount: 'floor', solid: false,
+    variants: COATS.map(({ id, label, swatch }) => ({ id, label, swatch })),
+    label: (v) => `${s.id}|${v ?? COATS[0].id}`,
+    interact: tr(`Le panier de ${s.name}. Encore tout chaud.`, `${s.name}'s basket. Still warm.`),
+  })),
+  {
+    id: 'pet-bowl', name: tr('Gamelles', 'Pet bowls'), category: 'pets', model: 'pet-bowl', mount: 'top',
+    interact: tr('Croquettes et eau fraîche. Les compagnons viennent y manger de temps en temps.', 'Kibble and fresh water. Your pets drop by for a snack now and then.'),
+  },
+  { id: 'cat-tree', name: tr('Arbre à chat', 'Cat tree'), category: 'pets', model: 'cat-tree', mount: 'floor', interact: tr('Arbre à chat : trois étages de moquette et une balle qui pend.', 'Cat tree: three floors of carpet and a dangling ball.') },
+  { id: 'dog-house', name: tr('Niche', 'Dog house'), category: 'pets', model: 'dog-house', mount: 'floor', interact: tr('Une niche en bois. Ici, elle est climatisée.', 'A wooden dog house. Up here, it has air conditioning.') },
+  { id: 'pet-toys', name: tr('Jouets', 'Pet toys'), category: 'pets', model: 'pet-toys', mount: 'top', action: tr('Couiner', 'Squeak'), interact: [tr('Couic !', 'Squeak!'), tr('La balle roule sous le canapé. Évidemment.', 'The ball rolls under the sofa. Of course.')] },
+  { id: 'scratching-post', name: tr('Griffoir', 'Scratching post'), category: 'pets', model: 'scratching-post', mount: 'floor', interact: tr('Griffoir : il protège le canapé. En théorie.', 'Scratching post: it protects the sofa. In theory.') },
+  {
+    id: 'fish-bowl', name: tr('Bocal à poisson', 'Fish bowl'), category: 'pets', model: 'fish-bowl', mount: 'top', action: tr('Nourrir', 'Feed'),
+    interact: [tr('Le poisson-clown fait le tour de son bocal. Il s\'appelle Bubulle.', 'The clownfish swims round its bowl. It is called Bubbles.'), tr('Vous saupoudrez un peu de nourriture. Bubulle est ravi.', 'You sprinkle some food. Bubbles is delighted.')],
   },
 
   // --- Tapis

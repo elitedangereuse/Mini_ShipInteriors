@@ -179,7 +179,7 @@ Choix et réalisation (27 septembre 2026) :
   o7 ainsi que des icônes du site, par exemple Raxxla et Braben.
 - [x] **DEC-03 · P3 · Décoration — Éléments des aventures.** Ajouter des
   personnages ou objets issus des aventures, par exemple Jacob Scarlett.
-- [ ] **DEC-04 · P3 · Ambiance — Compagnons supplémentaires.** Ajouter d'autres 
+- [x] **DEC-04 · P3 · Ambiance — Compagnons supplémentaires.** Ajouter d'autres 
   animaux du pack de sprites et créer d'autres objets pour les animaux.
   Si possible ajouter plusieurs couleurs pour les animaux.
 
@@ -202,6 +202,16 @@ Réalisation (27 septembre 2026) :
   Quête de Noël (guirlande qui clignote), bannière de la Voie, boîte noire du
   Thetis (son écho en ondes) et enseigne de TAXI Corp. Chaque objet cite son
   aventure à l'interaction. Prix de 6 000 à 45 000 CR dans `economy.json`.
+- DEC-04 : choix retenu, les compagnons vivent dans les quartiers. Catégorie
+  « Animaux » : les 23 animaux du pack Cube Pets (Comète reste le chat du
+  bord), chacun avec un nom clin d'œil à Elite, un panier adapté (coussin,
+  perchoir, ruche, feuille, paille, banquise, bac à sable, hutte, bambous),
+  un cri synthétisé et six robes (nature, nuit, neige, or, cosmique, menthe)
+  obtenues en repeignant la palette, yeux et museaux compris à part. L'animal
+  vit près de son panier, ne quitte pas les quartiers, va manger aux gamelles
+  et se laisse caresser ; les invités voient ceux de leur hôte. Objets pour
+  animaux : gamelles, arbre à chat, niche, jouets, griffoir, bocal à poisson
+  (le poisson-clown du pack, en cubes). 15 000 à 50 000 CR par animal.
 
 ## Fiche détaillée — Jeu d'horreur et de récupération (SOC-06)
 
