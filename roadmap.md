@@ -198,9 +198,10 @@ Réalisation (27 septembre 2026) :
 - DEC-02 : emote « o7 » (`8`, `/o7`) : le bras droit monte à la tempe et y reste
   deux secondes, sur toutes les apparences ; son icône « o7 » s'envole au-dessus
   de la tête. Un bouton « Réactions » (`9`) ouvre une palette de huit médaillons
-  tirés des visuels du site : Braben (carte « Badge Braben »), Raxxla (symbole de
-  la Voie), Thargoïdes, Gardiens, Dark Wheel, Fédération des pilotes (icônes du
-  lore), Fuel Rats et le logo du site. Une réaction ne fait pas bouger le
+  tirés des visuels du site : le logo du site en premier, Braben (carte « Badge
+  Braben »), Raxxla (symbole de la Voie), les emblèmes de la Fédération, de
+  l'Empire, de l'Alliance et d'Aegis, et les Fuel Rats ; chaque visuel est
+  centré dans son médaillon rond. Une réaction ne fait pas bouger le
   personnage : elle marche assis ou couché. Commandes du chat : `/braben`,
   `/raxxla`… Le relais n'accepte que ces identifiants.
 - DEC-03 : choix retenu, des objets libres, achetés en crédits (pas de lien
@@ -217,7 +218,10 @@ Réalisation (27 septembre 2026) :
   bord), chacun avec un nom clin d'œil à Elite, un panier adapté (coussin,
   perchoir, ruche, feuille, paille, banquise, bac à sable, hutte, bambous),
   un cri synthétisé et six robes (nature, nuit, neige, or, cosmique, menthe)
-  obtenues en repeignant la palette, yeux et museaux compris à part. L'animal
+  obtenues en repeignant la palette : seules les cases du pelage changent,
+  les yeux et le museau (repérés comme petits volumes à l'avant de la tête)
+  gardent leurs couleurs. Deux animaux au plus par quartiers, Comète compris :
+  sans son panier, Comète n'est pas là, et l'on peut le remplacer. L'animal
   vit près de son panier, ne quitte pas les quartiers, va manger aux gamelles
   et se laisse caresser ; les invités voient ceux de leur hôte. Objets pour
   animaux : gamelles, arbre à chat, niche, jouets, griffoir, bocal à poisson

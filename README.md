@@ -135,7 +135,7 @@ Les robots ont des pas plus lourds. Pour ajouter une espèce ou un modèle, il s
 
 **Comète** vit dans les quartiers (pont supérieur), près de son panier au coin du feu. Il vient se frotter aux jambes du joueur, fait sa toilette, pique des sprints, miaule, ronronne quand on le caresse (`E`) et danse quand on danse à côté de lui. S'il se retrouve coincé contre un meuble, il renonce à son trajet et repart ailleurs.
 
-Dans ses quartiers, un CMDR peut **adopter d'autres compagnons** (catégorie « Animaux » du catalogue) : les 23 animaux des Cube Pets, du chien Jameson au perroquet Felicity (qui répète « o7 ! »), en passant par le panda Bambou ou l'éléphant Cutter. On pose le panier de l'animal (un coussin, un perchoir, une ruche, une banquise, un bac à sable… selon l'espèce) ; l'animal vit à côté, comme Comète : il se promène sans quitter les quartiers, vient voir le joueur, va manger aux gamelles, danse, et se laisse caresser (`E`), chacun avec son cri (synthétisé) et sa bulle. Chaque animal a six robes (nature, nuit, neige, or, cosmique, menthe) : la palette du pack est repeinte, sauf les yeux et les museaux (`src/pets.ts`). Les invités voient les compagnons de leur hôte.
+Dans ses quartiers, un CMDR peut **adopter d'autres compagnons** (catégorie « Animaux » du catalogue) : les 23 animaux des Cube Pets, du chien Jameson au perroquet Felicity (qui répète « o7 ! »), en passant par le panda Bambou ou l'éléphant Cutter. On pose le panier de l'animal (un coussin, un perchoir, une ruche, une banquise, un bac à sable… selon l'espèce) ; l'animal vit à côté, comme Comète : il se promène sans quitter les quartiers, vient voir le joueur, va manger aux gamelles, danse, et se laisse caresser (`E`), chacun avec son cri (synthétisé) et sa bulle. Chaque animal a six robes (nature, nuit, neige, or, cosmique, menthe) : seules les cases de la palette qui font le pelage sont repeintes ; les yeux et le museau, de petits volumes à l'avant de la tête, gardent leurs couleurs (`src/pets.ts`). Deux animaux au plus par quartiers, Comète compris : retirer le panier de Comète (rangé lui aussi dans « Animaux ») le fait partir, et libère sa place pour l'animal de son choix. Les invités voient les compagnons de leur hôte.
 
 ## Quartiers personnalisables
 
@@ -411,7 +411,7 @@ Une zone morte évite la dérive des sticks. Les boutons d'action ne se répète
 | Mode photo | `P` ou l'appareil photo en haut à droite ; `Espace` photo, `N` noms, `C` cacher son personnage, `F` figer, `G` grille, `Échap` sortir |
 | Changer de pont | interagir avec l'ascenseur (la plateforme cyan surmontée d'un panneau ▲▼, dans la coursive ou sur le palier), puis `↑` `↓` pour choisir l'étage et `Entrée` pour y aller, ou un clic ; `E`, `Échap` ou un clic en dehors pour fermer |
 | Emotes | `1`…`8` ou la barre en bas : salut, oui, non, joie, danse, assis, dodo, **o7** (le salut des CMDR, la main à la tempe) |
-| Réactions | `9` ou le bouton au sourire de la barre, puis `1`…`8` ou un clic : un médaillon aux images du site s'envole au-dessus de la tête (Braben, Raxxla, Thargoïdes, Gardiens, Dark Wheel, Fédération des pilotes, Fuel Rats, logo du site) ; le personnage ne bouge pas, on peut réagir assis |
+| Réactions | `9` ou le bouton au sourire de la barre, puis `1`…`8` ou un clic : un médaillon aux images du site s'envole au-dessus de la tête (logo du site, Braben, Raxxla, Fédération, Empire, Alliance, Aegis, Fuel Rats) ; le personnage ne bouge pas, on peut réagir assis |
 | Chat | `Entrée`, puis `Entrée` pour envoyer, `Échap` pour annuler |
 | Commandes du chat | `/nom CMDR Pseudo` (invités), `/perso` (apparence au hasard, parmi les siennes), `/inviter CMDR Nom`, `/credits` (son solde), `/taches` (où sont les tâches de bord), `/danse`…, `/o7`, `/braben`, `/raxxla`…, `/aide` ; en anglais, `/name`, `/random`, `/invite`, `/credits`, `/chores`, `/dance`…, `/help` |
 | Changer d'apparence | le **Holo-Me** des quartiers du commandant (pont supérieur) |
@@ -591,7 +591,7 @@ Musiques du jukebox, `public/assets/music/` (détail dans `CREDITS.txt`) : Le Be
 
 Sprites de Ruelle Fighter II : **Fantasy Martial Characters 2**, par [LuizMelo](https://luizmelo.itch.io/fantasy-martial-characters-2), sous **CC0 1.0**. Le pack a été acheté pour soutenir l’auteur. La licence originale est conservée avec les atlas ; les dessins ne sont pas repeints.
 
-Médaillons des réactions, `public/assets/reactions/` : visuels d'[elitedangereuse.fr](https://elitedangereuse.fr) (cartes à collectionner « Badge Braben » et « La Secte de la Voie », icônes du lore, logo du site, bannière Fuel Rats de Coriolis), recadrés en 96 px. Ils ne sont pas sous CC0.
+Médaillons des réactions, `public/assets/reactions/` : visuels d'[elitedangereuse.fr](https://elitedangereuse.fr) (logo du site, cartes à collectionner « Badge Braben » et « La Secte de la Voie », emblèmes des factions, bannière Fuel Rats de Coriolis), recadrés en 96 px. Ils ne sont pas sous CC0.
 
 Les licences d'origine sont copiées à côté des fichiers.
 
