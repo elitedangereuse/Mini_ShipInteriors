@@ -214,8 +214,8 @@ Réalisation (27 septembre 2026) :
   Thetis (son écho en ondes) et enseigne de TAXI Corp. Chaque objet cite son
   aventure à l'interaction. Prix de 6 000 à 45 000 CR dans `economy.json`.
 - DEC-04 : choix retenu, les compagnons vivent dans les quartiers. Catégorie
-  « Animaux » : les 23 animaux du pack Cube Pets (Comète reste le chat du
-  bord), chacun avec un nom clin d'œil à Elite, un panier adapté (coussin,
+  « Animaux » : Comète en tête (offert, un seul : le choisir pose son panier),
+  puis les 22 autres animaux du pack Cube Pets, chacun avec un nom clin d'œil à Elite, un panier adapté (coussin,
   perchoir, ruche, feuille, paille, banquise, bac à sable, hutte, bambous),
   un cri synthétisé et six robes (nature, nuit, neige, or, cosmique, menthe)
   obtenues en repeignant la palette : seules les cases du pelage changent,

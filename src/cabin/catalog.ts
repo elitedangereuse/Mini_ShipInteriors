@@ -407,10 +407,6 @@ export const CATALOG: CatalogEntry[] = [
       tr('Le poisson orange vous fixe. Il juge vos choix de carrière.', 'The goldfish stares at you. It is judging your career choices.'),
     ],
   },
-  {
-    id: 'cat-bed', name: tr('Panier de Comète', 'Comète\'s basket'), category: 'pets', model: 'cat-bed', mount: 'floor', solid: false,
-    interact: tr('Panier de Comète : plein de poils, et une souris en tissu mâchouillée.', 'Comète\'s basket: full of fur, plus one chewed-up fabric mouse.'),
-  },
 
   // --- Rangements
   {
@@ -1020,6 +1016,11 @@ export const CATALOG: CatalogEntry[] = [
   },
 
   // --- Animaux : un panier par compagnon adopté (il vit à côté, cf. src/pets.ts), et de quoi s'en occuper
+  // Comète, le chat du bord : offert, et un seul. Le choisir pose son panier (il vit à côté).
+  {
+    id: 'cat-bed', name: tr('Chat · Comète', 'Cat · Comète'), category: 'pets', model: 'cat-bed', mount: 'floor', solid: false,
+    interact: tr('Panier de Comète : plein de poils, et une souris en tissu mâchouillée.', 'Comète\'s basket: full of fur, plus one chewed-up fabric mouse.'),
+  },
   ...SPECIES.map((s): CatalogEntry => ({
     id: petItemId(s), name: `${s.label} · ${s.name}`, category: 'pets', model: 'pet-bed', mount: 'floor', solid: false,
     variants: COATS.map(({ id, label, swatch }) => ({ id, label, swatch })),

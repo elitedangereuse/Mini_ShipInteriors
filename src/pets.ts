@@ -30,7 +30,6 @@ export interface Species {
 }
 
 export const SPECIES: Species[] = [
-  { id: 'chat', model: 'cat', label: tr('Chat', 'Cat'), name: 'Nova', scale: 0.26, voice: 'meow', home: 'cushion', says: [tr('Miaou ?', 'Meow?'), tr('Mrrrou…', 'Purrr…')] },
   { id: 'chien', model: 'dog', label: tr('Chien', 'Dog'), name: 'Jameson', scale: 0.27, voice: 'bark', home: 'cushion', says: [tr('Wouf !', 'Woof!'), tr('Wouf wouf !', 'Woof woof!')] },
   { id: 'renard', model: 'fox', label: tr('Renard', 'Fox'), name: 'Farseer', scale: 0.26, voice: 'yip', home: 'cushion', says: [tr('Yip ?', 'Yip?'), tr('Yip yip !', 'Yip yip!')] },
   { id: 'lapin', model: 'bunny', label: tr('Lapin', 'Bunny'), name: 'Lave', scale: 0.24, voice: 'squeak', home: 'straw', says: [tr('*renifle*', '*sniff*'), tr('*remue le nez*', '*twitches nose*')] },
@@ -229,10 +228,13 @@ export async function petRig(species: Species, coat: string | undefined): Promis
 /** Hauteur où l'animal se tient sur son panier (vignettes du catalogue). */
 const PERCH: Partial<Record<Home, number>> = { cushion: 0.07, bamboo: 0.07, perch: 0.545, hive: 0.35, ice: 0.05, sand: 0.058 }
 
-/** L'animal debout sur son panier, pour la vignette d'un panier (`label` : « espèce|robe »). */
+/** Comète, pour la vignette de son panier (il n'est pas dans SPECIES : il est offert, et unique). */
+const COMETE: Species = { id: 'comete', model: 'cat', label: tr('Chat', 'Cat'), name: 'Comète', scale: 0.26, voice: 'meow', home: 'cushion', says: [] }
+
+/** L'animal debout sur son panier, pour la vignette d'un panier (`label` : « espèce|robe », ou « comete »). */
 export async function petPreview(label: string | undefined): Promise<THREE.Object3D | null> {
   const [id, coat] = (label ?? '').split('|')
-  const species = speciesOf(id)
+  const species = id === COMETE.id ? COMETE : speciesOf(id)
   if (!species) return null
   const r = await petRig(species, coat)
   r.root.scale.setScalar(species.scale)

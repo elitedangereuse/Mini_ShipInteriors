@@ -5,7 +5,7 @@
     "cozy-bed": 24000, "bunk-bed": 18000, "nightstand": 4000, "dresser": 9000, "suit-locker": 15000,
     "sofa": 18000, "armchair": 12000, "beanbag": 5000, "bench": 7000, "coffee-table": 6000, "side-table": 4000,
     "table": 7000, "table-large": 10000, "chair": 3500, "office-chair": 6000, "desk": 12000, "fireplace": 35000,
-    "aquarium": 40000, "cat-bed": 5000,
+    "aquarium": 40000,
     "bookshelf": 12000, "locker": 8000, "crate": 3000, "wall-shelf": 4000,
     "floor-lamp": 6000, "arc-lamp": 9000, "paper-lantern": 5000, "pendant-lamp": 7000, "sconce": 5000,
     "string-lights": 6000, "led-strip": 7000, "desk-lamp": 4000, "lava-lamp": 5000, "candles": 2500, "plasma-ball": 8000,
@@ -23,7 +23,7 @@
     "rug": 6000, "rug-small": 4000, "rug-large": 9000, "rug-round": 6000,
     "scarlett-holo": 45000, "treasure-chest": 30000, "escape-pod": 35000, "survival-guide": 6000, "damocles-model": 15000,
     "duchess-portrait": 12000, "christmas-tree": 20000, "path-banner": 10000, "thetis-blackbox": 12000, "taxi-sign": 9000,
-    "pet-chat": 30000, "pet-chien": 30000, "pet-renard": 30000, "pet-lapin": 30000, "pet-panda": 30000, "pet-manchot": 30000, "pet-koala": 30000, "pet-singe": 30000, "pet-perroquet": 30000, "pet-poussin": 15000, "pet-cochon": 30000, "pet-ours": 50000, "pet-tigre": 50000, "pet-lion": 50000, "pet-castor": 30000, "pet-abeille": 15000, "pet-chenille": 15000, "pet-vache": 50000, "pet-crabe": 15000, "pet-cerf": 30000, "pet-elephant": 50000, "pet-girafe": 50000, "pet-sanglier": 30000,
+    "pet-chien": 30000, "pet-renard": 30000, "pet-lapin": 30000, "pet-panda": 30000, "pet-manchot": 30000, "pet-koala": 30000, "pet-singe": 30000, "pet-perroquet": 30000, "pet-poussin": 15000, "pet-cochon": 30000, "pet-ours": 50000, "pet-tigre": 50000, "pet-lion": 50000, "pet-castor": 30000, "pet-abeille": 15000, "pet-chenille": 15000, "pet-vache": 50000, "pet-crabe": 15000, "pet-cerf": 30000, "pet-elephant": 50000, "pet-girafe": 50000, "pet-sanglier": 30000,
     "pet-bowl": 2000, "cat-tree": 12000, "dog-house": 10000, "pet-toys": 1500, "scratching-post": 4000, "fish-bowl": 8000
   },
   "skins": {

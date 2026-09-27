@@ -48,7 +48,7 @@ async function render(entry: CatalogEntry, variant: string | undefined): Promise
   const preview = entry.model === 'site-art' && variant
     ? await prepareArtwork(variant) : undefined
   // Un panier se montre avec son habitant, dans sa robe.
-  const pet = entry.model === 'pet-bed' ? await petPreview(builderLabel(entry, variant)) : null
+  const pet = entry.model === 'pet-bed' ? await petPreview(builderLabel(entry, variant)) : entry.model === 'cat-bed' ? await petPreview('comete') : null
   if (!renderer) setup()
   const holder = new THREE.Group()
   const custom = isCustomModel(entry.model)

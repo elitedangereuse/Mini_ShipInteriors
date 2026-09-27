@@ -111,6 +111,7 @@ export function refusal(view: CabinView, items: CabinItem[], i: number, moving: 
   const box = view.boxOf(item)
   if (!entry || !box) return tr('Objet inconnu', 'Unknown item')
   const b = view.bounds
+  if (item.m === 'cat-bed' && items.filter((it) => it.m === 'cat-bed').length > 1) return tr('Comète est déjà là', 'Comète is already here')
   if (isPetHome(item.m) && items.filter((it) => isPetHome(it.m)).length > MAX_PETS) {
     return tr(`${MAX_PETS} animaux au plus : retirez d'abord un panier`, `${MAX_PETS} pets at most: remove a basket first`)
   }
