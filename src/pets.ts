@@ -89,38 +89,134 @@ export const COATS: Coat[] = [
 
 export const coatOf = (id: string | undefined): Coat => COATS.find((c) => c.id === id) ?? COATS[0]
 
-/** Yeux (noirs), reflets (blancs purs) et museaux roses ne changent pas avec la robe. */
-function keeps(h: HSL): boolean {
-  if (h.l < 0.12 || (h.l > 0.95 && h.s < 0.2)) return true
-  const hue = h.h * 360
-  return h.s > 0.5 && h.l > 0.55 && (hue > 300 || hue < 8)
+/*
+ * La palette du pack est une grille de 16 × 4 cases (dégradés) ; chaque morceau d'un animal
+ * pioche dans une case. La robe ne repeint que les cases du pelage (celles qui couvrent au moins
+ * 5 % de l'animal) ; les yeux et le museau, de petits volumes à l'avant de la tête, gardent la
+ * texture d'origine grâce à un second matériau, même quand leur case sert aussi au pelage
+ * (le noir du panda, le blanc de l'ours).
+ */
+const COLS = 16, ROWS = 4
+/** Case du gris foncé des pupilles et des truffes, commune à tout le pack. */
+const PUPIL = 15 + 3 * COLS
+/** Part de la surface au-delà de laquelle une case est du pelage ; en deçà, un volume est un détail. */
+const FUR_SHARE = 0.05
+const DETAIL_SHARE = 0.012
+
+interface Split {
+  /** Cases du pelage, repeintes par la robe. */
+  fur: Set<number>
+  /** Géométries redécoupées : groupe 0 repeint, groupe 1 d'origine (par maillage). */
+  geometries: Map<string, THREE.BufferGeometry>
+}
+
+const splits = new Map<string, Split>()
+
+const swatchOf = (u: number, v: number) => Math.min(COLS - 1, Math.floor(u * COLS)) + Math.min(ROWS - 1, Math.floor(v * ROWS)) * COLS
+
+/** Mesure un modèle une fois : cases du pelage, et triangles des yeux et du museau à protéger. */
+function splitModel(model: string, root: THREE.Object3D): Split {
+  const hit = splits.get(model)
+  if (hit) return hit
+  const meshes: THREE.Mesh[] = []
+  root.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh)
+  })
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3()
+  const area = new Map<number, number>()
+  let total = 0
+  const perMesh = meshes.map((mesh) => {
+    const g = mesh.geometry
+    const pos = g.attributes.position, uv = g.attributes.uv
+    const index = g.index ? Array.from(g.index.array) : Array.from({ length: pos.count }, (_, i) => i)
+    const tris = index.length / 3
+    const triArea = new Float32Array(tris), triSwatch = new Int32Array(tris)
+    // Volumes : sommets soudés par position.
+    const key = (i: number) => `${Math.round(pos.getX(i) * 1e4)},${Math.round(pos.getY(i) * 1e4)},${Math.round(pos.getZ(i) * 1e4)}`
+    const parent = new Map<string, string>()
+    const find = (k: string): string => {
+      let r = k
+      while (parent.get(r) !== r) r = parent.get(r)!
+      parent.set(k, r)
+      return r
+    }
+    for (const i of index) if (!parent.has(key(i))) parent.set(key(i), key(i))
+    for (let t = 0; t < tris; t++) {
+      const [i, j, k] = [index[t * 3], index[t * 3 + 1], index[t * 3 + 2]]
+      const ri = find(key(i))
+      for (const n of [j, k]) {
+        const rn = find(key(n))
+        if (rn !== ri) parent.set(rn, ri)
+      }
+      a.fromBufferAttribute(pos, i)
+      b.fromBufferAttribute(pos, j)
+      c.fromBufferAttribute(pos, k)
+      triArea[t] = b.sub(a).cross(c.sub(a)).length() / 2
+      triSwatch[t] = swatchOf((uv.getX(i) + uv.getX(j) + uv.getX(k)) / 3, (uv.getY(i) + uv.getY(j) + uv.getY(k)) / 3)
+      area.set(triSwatch[t], (area.get(triSwatch[t]) ?? 0) + triArea[t])
+      total += triArea[t]
+    }
+    const comp = Array.from({ length: tris }, (_, t) => find(key(index[t * 3])))
+    return { mesh, index, tris, triArea, triSwatch, comp }
+  })
+  const fur = new Set([...area].filter(([, s]) => s / total >= FUR_SHARE).map(([k]) => k))
+  const geometries = new Map<string, THREE.BufferGeometry>()
+  for (const m of perMesh) {
+    // Un détail : petit volume à l'avant (z > 0,5), avec du gris des pupilles.
+    const stats = new Map<string, { area: number; z: number; n: number; pupil: boolean }>()
+    const pos = m.mesh.geometry.attributes.position
+    for (let t = 0; t < m.tris; t++) {
+      const st = stats.get(m.comp[t]) ?? { area: 0, z: 0, n: 0, pupil: false }
+      st.area += m.triArea[t]
+      st.z += pos.getZ(m.index[t * 3])
+      st.n++
+      st.pupil ||= m.triSwatch[t] === PUPIL
+      stats.set(m.comp[t], st)
+    }
+    const kept = (t: number) => {
+      const st = stats.get(m.comp[t])!
+      return st.area / total < DETAIL_SHARE && st.pupil && st.z / st.n > 0.5
+    }
+    const painted: number[] = [], original: number[] = []
+    for (let t = 0; t < m.tris; t++) (kept(t) ? original : painted).push(m.index[t * 3], m.index[t * 3 + 1], m.index[t * 3 + 2])
+    const g = m.mesh.geometry.clone()
+    g.setIndex([...painted, ...original])
+    g.clearGroups()
+    g.addGroup(0, painted.length, 0)
+    g.addGroup(painted.length, original.length, 1)
+    geometries.set(m.mesh.name, g)
+  }
+  const split = { fur, geometries }
+  splits.set(model, split)
+  return split
 }
 
 const painted = new Map<string, THREE.MeshLambertMaterial>()
 
-/** L'animal d'une espèce, dans sa robe (modèle animé, matériau propre à la robe). */
+/** L'animal d'une espèce, dans sa robe (modèle animé ; yeux et museau d'origine). */
 export async function petRig(species: Species, coat: string | undefined): Promise<Rig> {
   const r = await rig(`pets/animal-${species.model}.glb`)
   const c = coatOf(coat)
-  if (c.paint) {
-    const paint = c.paint
-    r.root.traverse((o) => {
-      const mesh = o as THREE.Mesh
-      if (!mesh.isMesh) return
-      const src = mesh.material as THREE.MeshLambertMaterial
-      if (!src.map) return
-      const key = `${src.uuid}:${c.id}`
-      let m = painted.get(key)
-      if (!m) {
-        m = src.clone()
-        m.map = recolored(src.map, `coat:${c.id}`, (h, col) => {
-          if (!keeps(h)) paint(h, col)
-        })
-        painted.set(key, m)
-      }
-      mesh.material = m
-    })
-  }
+  if (!c.paint) return r
+  const paint = c.paint
+  const split = splitModel(species.model, r.root)
+  r.root.traverse((o) => {
+    const mesh = o as THREE.Mesh
+    const src = mesh.material as THREE.MeshLambertMaterial
+    if (!mesh.isMesh || !src.map) return
+    const key = `${species.model}:${c.id}`
+    let m = painted.get(key)
+    if (!m) {
+      m = src.clone()
+      m.map = recolored(src.map, `coat:${key}`, (h, col, x, y) => {
+        const img = src.map!.image as { width: number; height: number }
+        if (split.fur.has(swatchOf(x / img.width, y / img.height))) paint(h, col)
+      })
+      painted.set(key, m)
+    }
+    mesh.geometry = split.geometries.get(mesh.name) ?? mesh.geometry
+    mesh.material = [m, src]
+  })
   return r
 }
 
