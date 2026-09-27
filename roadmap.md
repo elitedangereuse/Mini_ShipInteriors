@@ -34,6 +34,17 @@ les catégories et les étapes de réalisation.
   le joueur du côté libre sans traverser les meubles. Si le joueur occupe
   la destination ou bouche le passage, abandonner le trajet plutôt qu'insister.
   Mesurer l'avancée après les collisions et préserver le mode photo figé.
+- [ ] **UX-07 · P1 · Bug — Interactions à travers les murs.** Empêcher
+  d'activer un objet, un PNJ ou un siège situé derrière un mur ou une cloison.
+  Vérifier la ligne de vue en plus de la distance, côté client pour le survol et
+  côté serveur pour l'action, dans les espaces communs comme dans les quartiers
+  où les joueurs posent leurs propres murs (SHIP-02). Vérifier aussi les objets
+  adossés aux murs, qui doivent rester utilisables depuis la bonne face.
+- [ ] **UX-08 · P1 · Ergonomie — Bouton de sprint automatique.** Ajouter un
+  bouton pour activer ou désactiver le sprint auto, avec choix mémorisé sur
+  l'appareil. Le sprint auto doit rester compatible avec l'endurance et les
+  bruits du jeu d'horreur : il ne donne aucun avantage, il évite seulement de
+  maintenir une touche.
 
 État de validation (27 septembre 2026) : UX-01 à UX-04 vérifiés dans Firefox,
 avec 36 configurations de plateaux (vides, mixtes et remplis, de 180 à 520 px),
@@ -102,7 +113,7 @@ Choix et réalisation (27 septembre 2026) :
   restent visibles pour les autres joueurs, avec la porte fermée ; l'accès doit
   être vérifié à partir de l'appartenance au groupe sur le site.
 - [ ] **SOC-02 · P3 · Activité — Clash galactique.** Créer une pièce où jouer
-  au Clash galactique du site.
+  au Clash galactique du site. Intégrer le jeu depuis un iframe du site par exemple, c'est plus simple.
 - [ ] **SOC-03 · P3 · Activité — Mini CQC.** Intégrer le mini CQC du site dans
   les mini-shipinteriors via un embed.
 - [ ] **SOC-04 · P3 · Activité — Cinéma.** Créer une salle diffusant les trailers
@@ -114,11 +125,18 @@ Choix et réalisation (27 septembre 2026) :
   par une nouvelle porte dans la cale. Explorer une baie de stockage en forme
   de labyrinthe, récupérer les colis et les rapporter au lobby en échappant aux
   Thargoids. Voir la fiche détaillée ci-dessous.
+- [ ] **SOC-07 · P3 · Activité — Mini-jeux des équipements de sport.** Rendre
+  les appareils de la salle de sport jouables : suites de touches à frapper en
+  rythme, de plus en plus vite, avec échec sur erreur ou retard, score et
+  meilleur score conservé. Prévoir un mini-jeu par type d'appareil. Plafonner
+  les scores comme pour l'arcade et valider les gains côté site.
 
 ## 4. Structure du vaisseau et immersion
 
 - [ ] **SHIP-01 · P2 · Aménagement — Vaisseau et poste de pilotage.** Agrandir
-  le vaisseau et revoir le poste de pilotage, notamment en ajoutant des vitres.
+  le vaisseau et revoir le poste de pilotage. Ajouter des vitres dans la salle
+  de pilotage, ouvertes sur l'espace et le système en cours, en conservant la
+  lisibilité de la vue isométrique et la cohérence avec la coque de SHIP-03.
   Prévoir de la place pour les nouveaux espaces communautaires.
 - [ ] **SHIP-02 · P2 · Aménagement et économie — Extensions des quartiers.**
   Faire acheter les agrandissements des quartiers personnels avec des crédits,
@@ -143,8 +161,9 @@ Choix et réalisation (27 septembre 2026) :
   o7 ainsi que des icônes du site, par exemple Raxxla et Braben.
 - [ ] **DEC-03 · P3 · Décoration — Éléments des aventures.** Ajouter des
   personnages ou objets issus des aventures, par exemple Jacob Scarlett.
-- [ ] **DEC-04 · P3 · Ambiance — Compagnons supplémentaires.** Ajouter un
-  chien, une tortue et un robot aspirateur en complément de Comète.
+- [ ] **DEC-04 · P3 · Ambiance — Compagnons supplémentaires.** Ajouter d'autres 
+  animaux du pack de sprites et créer d'autres objets pour les animaux.
+  Si possible ajouter plusieurs couleurs pour les animaux.
 
 ## Fiche détaillée — Jeu d'horreur et de récupération (SOC-06)
 
@@ -214,6 +233,34 @@ renvoyés les joueurs capturés. Le labyrinthe forme la zone dangereuse au-delà
   à la capture, laisser tomber le colis à un emplacement accessible dans le
   labyrinthe afin qu'un survivant puisse encore le récupérer.
 
+### Furtivité, bruit et endurance
+
+- **Casiers de cachette.** Répartir des casiers dans le labyrinthe où se
+  cacher, avec une **durée maximale** au-delà de laquelle le joueur est éjecté,
+  afin d'éviter l'attente indéfinie. Afficher le temps restant. Proposition :
+  un Thargoid passant à proximité peut fouiller un casier occupé ; un casier ne
+  peut accueillir qu'un joueur, et entrer ou sortir prend un court instant.
+  Régler la durée, le délai de recharge et le comportement en portant un colis.
+- **Bruit des déplacements.** Marcher est silencieux, courir fait du bruit et
+  attire les Thargoids vers la position sonore. Distinguer clairement les deux
+  allures pour le joueur, avec un repère visuel du bruit émis. Proposition :
+  d'autres actions bruyantes (ouvrir un casier, faire tomber un colis) émettent
+  un bruit ponctuel. Les portées d'écoute restent à régler pendant les essais.
+- **Barre d'endurance.** Limiter la course avec une endurance qui se consomme
+  en courant et se régénère à l'arrêt ou en marchant. Porter un colis pèse sur
+  la dépense. L'endurance épuisée ramène à la marche, sans blocage total du
+  joueur. Afficher la barre près du personnage et régler valeurs et vitesses de
+  régénération avec les vitesses de la partie.
+- **Fusées d'appel (flairs).** Placer dans le labyrinthe des fusées ramassables
+  qui, une fois lancées, attirent le ou les monstres quelques instants vers
+  l'endroit choisi. Utile pour dégager un passage ou couvrir un porteur.
+  Proposition : nombre porté limité, une seule fusée active à la fois, et un
+  effet visuel et sonore repérable par toute l'équipe. Régler la durée de
+  l'attraction, la portée et la quantité disponible par partie.
+- Ces mécaniques ne doivent pas dépendre du profil graphique : le mode léger
+  (UX-05) conserve les mêmes durées, portées de bruit et règles d'attraction.
+  Le sprint auto (UX-08) reste soumis au bruit et à l'endurance.
+
 ### Spectateurs et caméras de surveillance
 
 Les joueurs capturés restent au lobby et suivent leurs coéquipiers encore
@@ -243,6 +290,10 @@ comme propositions constituent des choix de conception à tester.
 
 - Fixer les nombres de colis autorisés, les vitesses normales et de portage,
   la portée de vision, les règles de détection et le barème des ennemis.
+- Fixer l'endurance et sa régénération, les portées d'écoute de la marche et de
+  la course, la durée maximale des casiers, ainsi que la durée, la portée et le
+  nombre des fusées d'appel. Vérifier qu'aucune de ces mécaniques ne permet de
+  terminer une partie sans risque ni de bloquer les Thargoids indéfiniment.
 - Choisir un labyrinthe fixe ou des variantes ; garantir que chaque colis
   reste accessible et qu'aucune disposition ne rend la mission impossible.
 - Définir l'abandon et la déconnexion : traitement du colis porté, maintien
@@ -253,6 +304,9 @@ comme propositions constituent des choix de conception à tester.
   l'équipe, et une victoire obtenue par un survivant après les captures des
   autres. Vérifier aussi le dépôt du dernier colis, le ralentissement,
   les caméras, l'isolement des équipes et l'attribution unique des gains.
+  Vérifier aussi l'éjection d'un casier en fin de durée, la fouille d'un casier
+  occupé, la course sans endurance, une fuite réussie grâce à une fusée, et le
+  bruit entendu par les Thargoids en coopératif.
 
 ### Découpage de réalisation proposé
 
@@ -260,6 +314,8 @@ comme propositions constituent des choix de conception à tester.
    porter, déposer et terminer la partie.
 2. Ajouter le skin Thargoid, les poursuites, les captures, la vision réduite
    et l'ambiance sonore ; équilibrer une mission solo complète.
+   Ajouter ensuite la furtivité : endurance et bruit des déplacements, casiers
+   de cachette à durée limitée, puis fusées d'appel.
 3. Ajouter les équipes jusqu'à quatre, les instances, le choix des colis et
    l'évolution du nombre d'ennemis ; synchroniser les événements de la partie.
 4. Ajouter les caméras des spectateurs, les cas de déconnexion, les récompenses
@@ -284,7 +340,10 @@ comme propositions constituent des choix de conception à tester.
 
 ## Ordre de réalisation proposé
 
-1. **Stabiliser et améliorer le confort.** Traiter UX-01 à UX-04, puis DEC-01.
+1. **Stabiliser et améliorer le confort.** Traiter UX-01 à UX-04, puis UX-07,
+   UX-08 et DEC-01. UX-07 précède les extensions de quartiers, qui multiplient
+   les murs, et le jeu d'horreur, où les casiers et les colis se trouvent près
+   des cloisons.
    Le bug des plateaux reste à vérifier même si des corrections ont déjà été
    apportées aux jeux de société.
    Réaliser ensuite UX-05 pour faciliter l'accès sur les PC anciens et disposer
@@ -297,7 +356,7 @@ comme propositions constituent des choix de conception à tester.
    les emplacements du comptoir, des classements, des futures pièces et de la
    porte de SOC-06 avant leur aménagement définitif.
 4. **Installer les activités et lieux de vie.** Ajouter SOC-02 à SOC-05 dans
-   les espaces prévus. Vérifier la faisabilité des embeds du mini CQC, de
+   les espaces prévus, puis SOC-07 dans la salle de sport existante. Vérifier la faisabilité des embeds du mini CQC, de
    YouTube et de Twitch avant de construire les pièces concernées.
 5. **Construire le jeu d'horreur par étapes.** Réaliser SOC-06 selon son
    découpage dédié, en s'appuyant sur l'économie existante, le relais
@@ -317,3 +376,5 @@ comme propositions constituent des choix de conception à tester.
 - Quels prix et quelles surfaces retenir pour les extensions des quartiers ?
 - Pour SOC-06, régler les paramètres, les récompenses et les cas d'abandon
   listés dans sa fiche avant de figer les règles de la première version.
+- Quels appareils de sport rendre jouables, et les mini-jeux rapportent-ils des
+  crédits ou seulement un score ?
