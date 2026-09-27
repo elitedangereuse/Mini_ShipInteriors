@@ -14,7 +14,7 @@ export function artChoice(choices: Choice[], current: string | undefined, cards:
   const root = document.createElement('div')
   root.className = 'ed-art-choice'
   const preview = document.createElement('img')
-  preview.className = 'ed-art-preview' + (current?.startsWith('badge:') ? ' ed-art-badge' : ''); preview.alt = ''; preview.draggable = false
+  preview.className = 'ed-art-preview' + (current?.startsWith('badge:') ? ' ed-art-badge' : current?.startsWith('adv:') ? ' ed-art-poster' : ''); preview.alt = ''; preview.draggable = false
   if (current) preview.src = artUrl(current)
   const controls = document.createElement('div'); controls.className = 'ed-art-controls'
   const label = document.createElement('label'); label.className = 'ed-art-label'

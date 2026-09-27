@@ -3,46 +3,109 @@ import { box, mesh, lit, glow, cylinder, drawnTexture, keepShared, type Builder 
 import { wallScreenHousing } from './decor'
 import { tr } from '../i18n'
 import { counterStaff } from './counter-staff'
+import { renderQuality } from '../quality'
 
 const prints = new Map<string, THREE.MeshBasicMaterial>()
 const printLoads = new Map<string, Promise<void>>()
+/** Visuels SVG animés (badges, emblèmes de la Voie) : redessinés au fil du temps, cf. tickArtwork. */
+const animated = new Map<string, { svg: string; draw: (img: HTMLImageElement) => void; busy: boolean; last: number }>()
+const ANIMATION = /(?:-webkit-)?animation\s*:/
+
+/**
+ * SVG figé à l'instant `t` (secondes) : un navigateur ne dessine dans un canvas que la première
+ * image d'un SVG animé. Chaque animation CSS est mise en pause, avec un délai négatif qui la
+ * place là où elle en serait après `t` secondes.
+ */
+export function seekSvg(svg: string, t: number): string {
+  return svg.replace(/((?:-webkit-)?animation)\s*:\s*([^;}"]+)/g, (declaration, property: string, value: string) => {
+    const delays = value.split(/,(?![^(]*\))/).map((part) => {
+      const times = [...part.matchAll(/(?:^|\s)(-?\d*\.?\d+)(ms|s)(?=\s|$)/g)].map((m) => Number(m[1]) / (m[2] === 'ms' ? 1000 : 1))
+      return `${((times[1] ?? 0) - t).toFixed(3)}s`
+    })
+    return `${declaration};${property}-delay:${delays.join(',')};${property}-play-state:paused`
+  })
+}
+
+/** Image d'un SVG (texte), chargée. */
+function svgImage(svg: string): Promise<HTMLImageElement> {
+  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))
+  const img = new Image()
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = url
+  }).finally(() => URL.revokeObjectURL(url))
+}
+
+/**
+ * Nouvelle image des visuels animés, une dizaine de fois par seconde au plus (moins en mode
+ * léger) ; chaque visuel partagé n'est redessiné qu'une fois, quel que soit le nombre de cadres.
+ */
+function tickArtwork(key: string) {
+  const a = animated.get(key)
+  const now = performance.now()
+  if (!a || a.busy || now - a.last < (renderQuality.light ? 500 : 100)) return
+  a.busy = true
+  a.last = now
+  void svgImage(seekSvg(a.svg, (now / 1000) % 3600)).then(a.draw, () => {}).finally(() => { a.busy = false })
+}
+
 /** Shared placeholder map survives merging; update it after the site image arrives. */
-function artwork(id: string, squarePreview = false) {
-  const key = squarePreview ? `${id}:square-preview` : id
-  let material = prints.get(key)
+function artwork(id: string) {
+  let material = prints.get(id)
   if (material) return material
   const badge = id.startsWith('badge:')
+  const poster = id.startsWith('adv:')
   const width = id.startsWith('card:') ? 371 : 512
   const map = keepShared(drawnTexture(width, 512, (g) => {
     if (!badge) { g.fillStyle = '#e8edf0'; g.fillRect(0, 0, width, 512) }
     g.fillStyle = '#ffae48'; g.font = '40px sans-serif'; g.textAlign = 'center'; g.fillText('…', width / 2, 270)
   }))
   material = keepShared(new THREE.MeshBasicMaterial({ map, transparent: badge, alphaTest: badge ? 0.05 : 0 }))
-  prints.set(key, material)
+  prints.set(id, material)
   if (typeof Image !== 'undefined' && /^(card|badge|adv):[a-f0-9]{16}$/.test(id)) {
-    const img = new Image()
     let loaded!: () => void
-    printLoads.set(key, new Promise<void>((resolve) => { loaded = resolve }))
-    img.onerror = () => loaded()
-    img.onload = () => {
+    printLoads.set(id, new Promise<void>((resolve) => { loaded = resolve }))
+    const draw = (img: HTMLImageElement, vector: boolean) => {
       const canvas = map.image as HTMLCanvasElement
       const g = canvas.getContext('2d')!
       g.clearRect(0, 0, width, 512)
-      if (!badge) { g.fillStyle = '#e8edf0'; g.fillRect(0, 0, width, 512) }
-      const scale = Math.min(width / img.width, 512 / img.height)
+      // Un emblème vectoriel (les aventures de la Voie) se détache sur un fond sombre.
+      if (!badge) { g.fillStyle = poster && vector ? '#0d1420' : '#e8edf0'; g.fillRect(0, 0, width, 512) }
+      // Poster carré : une couverture rectangulaire est recadrée, un emblème reste entier.
+      const fit = poster && !vector ? Math.max : Math.min
+      const scale = fit(width / img.width, 512 / img.height) * (poster && vector ? 0.86 : 1)
       const w = img.width * scale, h = img.height * scale
       g.drawImage(img, (width - w) / 2, (512 - h) / 2, w, h)
       map.needsUpdate = true
-      loaded()
     }
-    img.src = `/outils/mini-shipinteriors-site.php?image=${encodeURIComponent(id)}${squarePreview ? '&thumbnail=1' : ''}`
+    void (async () => {
+      try {
+        const response = await fetch(`/outils/mini-shipinteriors-site.php?image=${encodeURIComponent(id)}`)
+        if (!response.ok) return
+        if ((response.headers.get('Content-Type') ?? '').startsWith('image/svg+xml')) {
+          const svg = await response.text()
+          draw(await svgImage(ANIMATION.test(svg) ? seekSvg(svg, (performance.now() / 1000) % 3600) : svg), true)
+          if (ANIMATION.test(svg)) animated.set(id, { svg, draw: (img) => draw(img, true), busy: false, last: performance.now() })
+        } else {
+          const url = URL.createObjectURL(await response.blob())
+          const img = new Image()
+          await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = url }).finally(() => URL.revokeObjectURL(url))
+          draw(img, false)
+        }
+      } catch {
+        // Visuel indisponible : le cadre garde son attente.
+      } finally {
+        loaded()
+      }
+    })()
   }
   return material
 }
 /** Catalogue captures the furnished frame only once its artwork has arrived. */
-export async function prepareArtwork(id: string, squarePreview = false): Promise<THREE.MeshBasicMaterial> {
-  const material = artwork(id, squarePreview)
-  const pending = printLoads.get(squarePreview ? `${id}:square-preview` : id)
+export async function prepareArtwork(id: string): Promise<THREE.MeshBasicMaterial> {
+  const material = artwork(id)
+  const pending = printLoads.get(id)
   if (!pending) return material
   await new Promise<void>((resolve) => {
     // An unavailable image must not block the rest of the furniture catalogue.
@@ -73,13 +136,13 @@ const artFrame: Builder = ({ label }) => {
     }
     g.add(mesh(new THREE.ExtrudeGeometry(shape, { depth: 0.025, bevelEnabled: false }), lit('#614a3b'), 0, 0.65, 0),
       mesh(front, artwork(label), 0, 0.65, 0.026))
-    return { solid: g }
+    return { solid: g, update: () => tickArtwork(label) }
   }
   const card = label?.startsWith('card:')
   const w = card ? 0.42 : 0.58, h = card ? 0.58 : 0.58
   g.add(box(w + 0.05, h + 0.05, 0.025, lit('#d6ad65'), 0, 0.65, 0.0125))
   g.add(mesh(new THREE.PlaneGeometry(w, h), artwork(label ?? ''), 0, 0.65, 0.026))
-  return { solid: g }
+  return { solid: g, update: () => tickArtwork(label ?? '') }
 }
 const counter: Builder = ({ label, random }) => {
   const hunt = label === 'hunt'

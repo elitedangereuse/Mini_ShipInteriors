@@ -45,7 +45,7 @@ const corners = Array.from({ length: 8 }, () => new THREE.Vector3())
 
 async function render(entry: CatalogEntry, variant: string | undefined): Promise<string> {
   const preview = entry.model === 'site-art' && variant
-    ? await prepareArtwork(variant, entry.id === 'adventure-poster') : undefined
+    ? await prepareArtwork(variant) : undefined
   if (!renderer) setup()
   const holder = new THREE.Group()
   const custom = isCustomModel(entry.model)
