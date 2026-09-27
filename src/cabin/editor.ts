@@ -8,7 +8,7 @@ import { icon } from '../icons'
 import type { Rot } from '../levels'
 import { DIRS } from '../map'
 import { $ } from '../ui'
-import { CATALOG, CATEGORIES, entryOf, type CatalogEntry, type CategoryId } from './catalog'
+import { CATALOG, CATEGORIES, entryOf, joinVariant, splitVariant, type CatalogEntry, type CategoryId } from './catalog'
 import { drawFinish, stylesOf, styleOf, type Slot } from './finishes'
 import { cloneItems, cloneLayout, DEFAULT_CABIN, defaultLayout, MAX_ITEMS, sameItems, sameLayout, type CabinItem, type CabinLayout, type Finish } from './layout'
 import { refusal, ridersOf, surfacesOf, type Surface } from './rules'
@@ -1055,13 +1055,14 @@ export class CabinEditor {
       this.tools.append(artChoice(entry.variants, item.v, entry.id === 'site-card', this.artSearch,
         (query) => { this.artSearch = query }, (id) => this.setVariant(id)))
     } else if (entry.variants) {
+      const [base, tint] = splitVariant(entry, item.v)
       const variants = document.createElement('div')
       variants.className = 'ed-variants'
       for (const v of entry.variants) {
         const b = document.createElement('button')
         b.title = v.label
         b.setAttribute('aria-label', v.label)
-        b.classList.toggle('active', v.id === item.v)
+        b.classList.toggle('active', v.id === base)
         if (v.swatch) {
           b.className += ' swatch'
           b.style.setProperty('--swatch', v.swatch)
@@ -1074,10 +1075,25 @@ export class CabinEditor {
           })
           b.append(img)
         }
-        b.onclick = () => this.setVariant(v.id)
+        b.onclick = () => this.setVariant(joinVariant(entry, v.id, tint))
         variants.appendChild(b)
       }
       this.tools.append(variants)
+      if (entry.tints?.length && base) {
+        const tints = document.createElement('div')
+        tints.className = 'ed-variants'
+        for (const t of entry.tints) {
+          const b = document.createElement('button')
+          b.className = 'swatch'
+          b.title = t.label
+          b.setAttribute('aria-label', t.label)
+          b.classList.toggle('active', t.id === tint)
+          b.style.setProperty('--swatch', t.swatch ?? '')
+          b.onclick = () => this.setVariant(joinVariant(entry, base, t.id))
+          tints.appendChild(b)
+        }
+        this.tools.append(tints)
+      }
     }
   }
 

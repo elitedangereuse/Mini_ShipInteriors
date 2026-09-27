@@ -1,5 +1,5 @@
 import type { Rot } from '../levels'
-import { entryOf } from './catalog'
+import { entryOf, knownVariant } from './catalog'
 import { normalizeFinish } from './finishes'
 
 /*
@@ -155,7 +155,7 @@ function normalizeItems(raw: unknown, bounds: Rect): CabinItem[] {
       const kind = { 'site-card': 'card', 'site-badge': 'badge', 'adventure-poster': 'adv' }[entry.id]
       if (typeof o.v !== 'string' || !new RegExp(`^${kind}:[a-f0-9]{16}$`).test(o.v)) continue
       item.v = o.v
-    } else if (entry.variants?.length) item.v = entry.variants.some((v) => v.id === o.v) ? (o.v as string) : entry.variants[0].id
+    } else if (entry.variants?.length) item.v = typeof o.v === 'string' && knownVariant(entry, o.v) ? (o.v as string) : entry.variants[0].id
     const y = Number(o.y)
     if (entry.mount === 'top' && Number.isFinite(y) && y > 0 && y < 2) item.y = round(y)
     const s = Number(o.s)

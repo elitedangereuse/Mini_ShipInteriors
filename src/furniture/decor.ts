@@ -555,31 +555,48 @@ const sconce: Builder = () => {
   return { solid: g }
 }
 
+/** Couleurs du néon mural : halo du tube et cœur presque blanc. Rose : celle d'origine. */
+export const NEON_COLORS: Record<string, { label: string; tube: string; core: string }> = {
+  pink: { label: tr('Rose', 'Pink'), tube: '#ff4fd8', core: '#ffd6f6' },
+  orange: { label: tr('Orange Elite', 'Elite orange'), tube: '#ff8a1c', core: '#ffe2bf' },
+  cyan: { label: tr('Cyan', 'Cyan'), tube: '#39d5ff', core: '#d6f6ff' },
+  green: { label: tr('Vert', 'Green'), tube: '#4dff7a', core: '#dcffe4' },
+  purple: { label: tr('Violet', 'Purple'), tube: '#9a5cff', core: '#e6dcff' },
+  white: { label: tr('Blanc', 'White'), tube: '#bfd4ff', core: '#ffffff' },
+}
+
 const neonTextures = new Map<string, THREE.Texture>()
 
-/** Néon mural (texte : `label`), qui grésille de temps en temps. */
+/**
+ * Néon mural, sans plaque : le tube seul, qui grésille de temps en temps.
+ * `label` : « texte|couleur » (cf. NEON_COLORS ; rose par défaut).
+ */
 const wallNeon: Builder = ({ label = 'o7' }) => {
-  let texture = neonTextures.get(label)
+  const [text, colorId] = label.split('|')
+  const color = NEON_COLORS[colorId] ?? NEON_COLORS.pink
+  const key = `${text}|${color.tube}`
+  let texture = neonTextures.get(key)
   if (!texture) {
     texture = keepShared(
-      drawnTexture(512, 160, (c) => {
+      drawnTexture(512, 192, (c) => {
         c.textAlign = 'center'
         c.textBaseline = 'middle'
-        c.font = `800 ${label.length > 6 ? 70 : 96}px system-ui, sans-serif`
-        c.shadowColor = '#ff4fd8'
+        c.font = `800 ${text.length > 6 ? 76 : text.length > 2 ? 108 : 164}px system-ui, sans-serif`
+        c.shadowColor = color.tube
         c.shadowBlur = 26
-        c.fillStyle = '#ffd6f6'
-        c.fillText(label, 256, 84)
-        c.fillText(label, 256, 84)
+        c.fillStyle = color.core
+        c.fillText(text, 256, 100)
+        c.fillText(text, 256, 100)
       }),
     )
-    neonTextures.set(label, texture)
+    neonTextures.set(key, texture)
   }
   const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false })
+  // Pas de plaque : deux fixations discrètes suffisent à accrocher le tube au mur.
   const g = new THREE.Group()
-  g.add(box(0.5, 0.17, 0.01, lit('#1b1d24'), 0, 0.72, 0.005, 0.02))
+  for (const x of [-0.3, 0.3]) g.add(barZ(0.008, 0.02, lit(C.steelDark), x, 0.74, 0.01, 6))
   const live = new THREE.Group()
-  live.add(part(new THREE.PlaneGeometry(0.5, 0.16), material, 0, 0.72, 0.012))
+  live.add(part(new THREE.PlaneGeometry(0.8, 0.3), material, 0, 0.74, 0.02))
   return {
     solid: g,
     live,

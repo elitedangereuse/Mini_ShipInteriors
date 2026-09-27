@@ -1,6 +1,6 @@
 import type { StationModel } from '../assets'
 import type { CustomModel } from '../furniture'
-import { FRAMES, GLOBES, POSTERS } from '../furniture/decor'
+import { FRAMES, GLOBES, NEON_COLORS, POSTERS } from '../furniture/decor'
 import { tr } from '../i18n'
 import type { IconName } from '../icons'
 import type { Flicker } from '../levels'
@@ -63,6 +63,11 @@ export interface CatalogEntry {
   model: CustomModel | StationModel
   mount: Mount
   variants?: Variant[]
+  /**
+   * Teintes, en pastilles, à combiner avec la variante (couleur d'un néon) : la variante posée
+   * devient « variante:teinte », sauf pour la première teinte (celle d'origine).
+   */
+  tints?: Variant[]
   /** Visuel de la miniature du catalogue, indépendant de la variante posée. */
   thumbnailVariant?: string
   /** Texte passé au constructeur du meuble selon la variante (par défaut : la variante elle-même). */
@@ -177,6 +182,7 @@ const GLOBE_TEXTS: Record<string, string> = {
 }
 
 const NEONS: Record<string, string> = { o7: 'o7', elite: tr('ÉLITE', 'ELITE'), comete: 'COMÈTE', cmdr: 'CMDR' }
+const NEON_TINTS: Variant[] = Object.entries(NEON_COLORS).map(([id, c]) => ({ id, label: c.label, swatch: c.tube }))
 
 /** Néons en forme (cf. NEON_SHAPES dans furniture/lights.ts) : libellé, couleur du tube, phrase. */
 const NEON_SHAPES: (Variant & { text: string })[] = [
@@ -635,8 +641,12 @@ export const CATALOG: CatalogEntry[] = [
   },
   {
     id: 'wall-neon', name: tr('Néon', 'Neon sign'), category: 'wall', model: 'wall-neon', mount: 'wall',
-    variants: Object.entries(NEONS).map(([id, label]) => ({ id, label })),
-    label: (v) => NEONS[v ?? ''] ?? NEONS.o7,
+    variants: Object.entries(NEONS).map(([id, label]) => ({ id, label })), tints: NEON_TINTS,
+    label: (v) => {
+      const [text, tint] = (v ?? '').split(':')
+      return `${NEONS[text] ?? NEONS.o7}|${tint ?? 'pink'}`
+    },
+    light: (v) => ({ color: (NEON_COLORS[(v ?? '').split(':')[1]] ?? NEON_COLORS.pink).tube, intensity: 0.45, at: [0, 0.74, 0.3], flicker: 'neon', priority: 5 }),
   },
   {
     id: 'neon-shape', name: tr('Néon en forme', 'Shaped neon'), category: 'wall', model: 'neon-shape', mount: 'wall', variants: NEON_SHAPES,
@@ -943,6 +953,25 @@ const BY_ID = new Map(CATALOG.map((e) => [e.id, e]))
 
 export function entryOf(id: string): CatalogEntry | undefined {
   return BY_ID.get(id)
+}
+
+/** Variante et teinte d'une variante posée (cf. `tints`) ; la teinte d'origine si aucune. */
+export function splitVariant(entry: CatalogEntry, variant: string | undefined): [string | undefined, string | undefined] {
+  if (!entry.tints?.length || !variant) return [variant, entry.tints?.[0]?.id]
+  const [base, tint] = variant.split(':')
+  return [base, tint ?? entry.tints[0].id]
+}
+
+/** Variante posée pour une variante et une teinte ; la teinte d'origine ne s'écrit pas. */
+export function joinVariant(entry: CatalogEntry, base: string, tint: string | undefined): string {
+  return !entry.tints?.length || !tint || tint === entry.tints[0].id ? base : `${base}:${tint}`
+}
+
+/** Variante connue du catalogue (teinte comprise) ? */
+export function knownVariant(entry: CatalogEntry, variant: string | undefined): boolean {
+  const [base, tint] = splitVariant(entry, variant)
+  return !!entry.variants?.some((v) => v.id === base) && (!entry.tints?.length || entry.tints.some((t) => t.id === tint))
+    && variant === joinVariant(entry, base!, tint)
 }
 
 /** Texte passé au constructeur du meuble. */
