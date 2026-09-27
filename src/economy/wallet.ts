@@ -24,7 +24,7 @@ export type Refusal = 'funds' | 'max' | 'owned' | 'claimed' | 'expired' | 'inact
 export type Outcome = { ok: true; earned: number } | { ok: false; reason: Refusal }
 
 /** D'où viennent des crédits gagnés. */
-export type GainKind = 'passive' | 'task' | 'arcade'
+export type GainKind = 'passive' | 'task' | 'arcade' | 'site'
 
 interface Reply {
   status?: string
@@ -164,6 +164,10 @@ export class Wallet {
   arcade(credits: { earned: number; balance: number }) {
     if (!this.ready) return
     this.credit(credits, 'arcade')
+  }
+
+  site(credits: { earned: number; balance: number }) {
+    this.credit(credits, 'site')
   }
 
   private credit(reply: { earned?: number; balance?: number }, kind: GainKind) {

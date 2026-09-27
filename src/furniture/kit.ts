@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { renderQuality } from '../quality'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 
@@ -455,6 +456,7 @@ export function pointCloud(positions: Float32Array, colors: Float32Array, sizes:
   const points = new THREE.Points(geo, material)
   const size = new THREE.Vector2()
   points.onBeforeRender = (renderer) => {
+    geo.setDrawRange(0, renderQuality.light ? Math.ceil(positions.length / 12) : positions.length / 3)
     material.uniforms.uScale.value = renderer.getDrawingBufferSize(size).y * 0.5
   }
   points.frustumCulled = false

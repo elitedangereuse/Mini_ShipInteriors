@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { renderQuality } from './quality'
 import { station, themes, type StationModel, type ThemeMaterials } from './assets'
 import { CabinView } from './cabin/view'
 import { makeFadeable } from './fade'
@@ -118,7 +119,8 @@ export class Deck {
   private liftItem!: Interactable
   private liftBoost = 0
   /** Animations du mobilier (hologrammes, drones…). */
-  private animated: ((t: number) => void)[] = []
+  private animated: { update: (t: number) => void; interactive: boolean }[] = []
+  private decorationFrame = -1
   /** Peinture de la coque et du mobilier du kit sur ce pont. */
   readonly theme: ThemeMaterials
   /** Cabine personnalisable du pont (les quartiers du commandant), dont chaque joueur a son exemplaire. */
@@ -374,7 +376,7 @@ export class Deck {
           f.live.rotation.y = rotY
           this.group.add(f.live)
         }
-        if (f.update) this.animated.push(f.update)
+        if (f.update) this.animated.push({ update: f.update, interactive: !!f.control })
         if (f.emitter) this.addEmitter(f.emitter, new THREE.Vector3(p.x, this.y + 0.6, p.z))
         // Hologramme pur : ni collision, ni interaction.
         if (!f.solid) continue
@@ -566,7 +568,10 @@ export class Deck {
     this.liftSign.position.y = 1.55 + Math.sin(this.time * 1.6) * 0.04
 
     tickFurniture(this.time)
-    for (const a of this.animated) a(this.time)
+    const frame = Math.floor(this.time * 12)
+    const decorate = !renderQuality.light || frame !== this.decorationFrame
+    this.decorationFrame = frame
+    for (const a of this.animated) if (decorate || a.interactive) a.update(this.time)
     this.cabin?.update(this.time, fade, { focus: editing && this.cabin ? this.cabin.center : focus, toCamera, cabin: editing, keep })
 
     if (this.core && this.coreMat) {

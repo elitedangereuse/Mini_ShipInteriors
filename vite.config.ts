@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, type Plugin, type ProxyOptions } from 'vite'
 import { attachRelay } from './server/relay.js'
 
 /**
@@ -14,7 +14,21 @@ const CABIN_ENDPOINT = '/outils/mini-shipinteriors-cabin.php'
 const SCORES_ENDPOINT = '/outils/mini-shipinteriors-scores.php'
 /** Crédits du CMDR (solde, achats, gains). */
 const CREDITS_ENDPOINT = '/outils/mini-shipinteriors-credits.php'
-const SITE_PROXY = { [CMDR_ENDPOINT]: ED_SITE_URL, [CABIN_ENDPOINT]: ED_SITE_URL, [SCORES_ENDPOINT]: ED_SITE_URL, [CREDITS_ENDPOINT]: ED_SITE_URL }
+// PHP sees the Docker host, while the browser may use 127.0.0.1:5173.
+// Translate only a verified same-origin request; foreign origins remain refused.
+const siteProxy: ProxyOptions = {
+  target: ED_SITE_URL, changeOrigin: true,
+  configure(proxy) {
+    proxy.on('proxyReq', (outgoing, incoming) => {
+      const origin = incoming.headers.origin
+      if (!origin) return
+      try {
+        outgoing.setHeader('Origin', new URL(origin).host === incoming.headers.host ? new URL(ED_SITE_URL).origin : 'null')
+      } catch { outgoing.setHeader('Origin', 'null') }
+    })
+  },
+}
+const SITE_PROXY = Object.fromEntries([CMDR_ENDPOINT, CABIN_ENDPOINT, SCORES_ENDPOINT, CREDITS_ENDPOINT, '/outils/mini-shipinteriors-site.php'].map((path) => [path, siteProxy]))
 
 /**
  * Branche le relais multijoueur sur le serveur de dev (et de preview) de Vite, sur /ws/mini-shipinteriors.
@@ -54,6 +68,7 @@ function economy(): Plugin {
 export default defineConfig({
   // base relative : le build peut être servi depuis n'importe quel sous-dossier.
   base: './',
+  define: { 'import.meta.env.VITE_ED_SITE_ORIGIN': JSON.stringify(ED_SITE_URL) },
   plugins: [relay(), economy()],
   // Le client demande au site qui est connecté, ses quartiers, les scores des bornes et ses
   // crédits (même origine en prod) : en local, on relaie au site Docker.

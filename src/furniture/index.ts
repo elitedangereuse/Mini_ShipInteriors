@@ -8,6 +8,7 @@ import { LEISURE } from './leisure'
 import { LIGHTS } from './lights'
 import { PARTY } from './party'
 import { WORKSHOP } from './workshop'
+import { SITE } from './site'
 
 /*
  * Mobilier fait main, en primitives Three.js, rangé par zone :
@@ -23,7 +24,7 @@ import { WORKSHOP } from './workshop'
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...WORKSHOP, ...LEISURE, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...WORKSHOP, ...LEISURE, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY, ...SITE } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 

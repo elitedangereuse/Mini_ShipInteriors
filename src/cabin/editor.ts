@@ -13,6 +13,7 @@ import { drawFinish, stylesOf, styleOf, type Slot } from './finishes'
 import { cloneItems, cloneLayout, DEFAULT_CABIN, defaultLayout, MAX_ITEMS, sameItems, sameLayout, type CabinItem, type CabinLayout, type Finish } from './layout'
 import { refusal, ridersOf, surfacesOf, type Surface } from './rules'
 import { thumbnail } from './thumbs'
+import { artChoice } from './art-choice'
 import { rotateLocal, type CabinView, type WallLine } from './view'
 
 /*
@@ -392,13 +393,14 @@ export class CabinEditor {
     this.cards.appendChild(title)
     this.cardTags.clear()
     for (const entry of CATALOG.filter((e) => e.category === id)) {
+      if (entry.model === 'site-art' && !entry.variants?.length) continue
       const card = document.createElement('button')
       card.className = 'ed-card'
       card.title = `${entry.name}${entry.mount === 'wall' ? tr(' (à accrocher)', ' (hangs on a wall)') : entry.mount === 'top' ? tr(' (se pose sur un meuble)', ' (goes on furniture)') : ''}`
       const img = document.createElement('img')
       img.alt = ''
       img.draggable = false
-      thumbnail(entry, entry.variants?.[0].id, (url) => {
+      thumbnail(entry, entry.variants?.[0]?.id, (url) => {
         if (url) img.src = url
       })
       const name = document.createElement('span')
@@ -496,7 +498,7 @@ export class CabinEditor {
     const img = document.createElement('img')
     img.alt = ''
     img.draggable = false
-    thumbnail(b.entry, b.entry.variants?.[0].id, (url) => {
+    thumbnail(b.entry, b.entry.variants?.[0]?.id, (url) => {
       if (url) img.src = url
     })
     const what = document.createElement('div')
@@ -577,7 +579,7 @@ export class CabinEditor {
     if (this.stock(entry.id) <= 0) return this.openBuy(entry)
     this.closeBuy()
     const item: CabinItem = { m: entry.id, x: this.view.center.x, z: this.view.center.z, r: 0, s: Math.floor(Math.random() * 100000) }
-    if (entry.variants) item.v = entry.variants[0].id
+    if (entry.variants?.length) item.v = entry.variants[0].id
     const ghost = this.view.makeGhost(item)
     if (!ghost) return
     ghost.visible = false
@@ -1015,9 +1017,14 @@ export class CabinEditor {
     this.renderTools()
   }
 
+  private artSearch = ''
+  private artSearchIndex = -1
+
   private renderTools() {
+    if (this.artSearchIndex !== this.selected) { this.artSearch = ''; this.artSearchIndex = this.selected }
     const item = this.items[this.selected]
     const entry = item && entryOf(item.m)
+    this.tools.classList.toggle('has-art', entry?.model === 'site-art')
     this.tools.hidden = !entry
     if (!entry) return
     this.tools.replaceChildren()
@@ -1044,7 +1051,10 @@ export class CabinEditor {
     if (!entry.fixed) row.append(tool(tr('Retirer (Suppr)', 'Remove (Del)'), 'trash', () => this.remove(), 'ed-remove'))
     this.tools.append(name)
     if (row.children.length) this.tools.append(row)
-    if (entry.variants) {
+    if (entry.model === 'site-art' && entry.variants?.length) {
+      this.tools.append(artChoice(entry.variants, item.v, entry.id === 'site-card', this.artSearch,
+        (query) => { this.artSearch = query }, (id) => this.setVariant(id)))
+    } else if (entry.variants) {
       const variants = document.createElement('div')
       variants.className = 'ed-variants'
       for (const v of entry.variants) {

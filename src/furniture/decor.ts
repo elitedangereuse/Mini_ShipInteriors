@@ -471,10 +471,17 @@ const HEADLINES = [
   tr('Un CMDR rejoint Sagittarius A* en Sidewinder', 'CMDR reaches Sagittarius A* in a Sidewinder'),
 ]
 
+/** Shared GalNet casing, also used by the crew's honours screen. */
+export function wallScreenHousing(w = 0.64, h = 0.38, y = 0.56): THREE.Group {
+  const g = new THREE.Group()
+  g.add(box(w, h, 0.03, lit(C.black), 0, y, 0.015, 0.01),
+    box(0.1, 0.04, 0.02, lit(C.steelDark), 0, y, 0.005))
+  return g
+}
+
 /** Écran mural : le fil d'infos de GalNet qui défile, et une planète qui tourne. */
 const wallScreen: Builder = () => {
-  const g = new THREE.Group()
-  g.add(box(0.64, 0.38, 0.03, lit(C.black), 0, 0.56, 0.015, 0.01), box(0.1, 0.04, 0.02, lit(C.steelDark), 0, 0.56, 0.005))
+  const g = wallScreenHousing()
   const screen = animatedScreen(160, 90, 12, (c, t) => {
     const grad = c.createLinearGradient(0, 0, 0, 90)
     grad.addColorStop(0, '#081626')

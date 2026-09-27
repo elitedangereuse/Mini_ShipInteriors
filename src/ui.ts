@@ -237,6 +237,13 @@ export class LiftPanel {
         const b = document.createElement('button')
         const label = document.createElement('span')
         label.textContent = l.name
+        if (l.id === current) {
+          const here = document.createElement('small')
+          here.className = 'lift-current'
+          here.textContent = tr('Vous êtes ici', 'You are here')
+          label.append(' ', here)
+          b.setAttribute('aria-current', 'location')
+        }
         const n = document.createElement('kbd')
         n.textContent = l.id > 0 ? `+${l.id}` : String(l.id)
         b.append(label, n)
@@ -347,6 +354,7 @@ export class WardrobePanel {
   /** Achat en cours, et le refus du dernier achat. */
   private pending = false
   private error = ''
+  rotating = true
   shop?: WardrobeShop
   onChange?: (look: Look) => void
   onClose?: (confirmed: boolean, look: Look) => void
@@ -357,6 +365,7 @@ export class WardrobePanel {
 
   open(look: Look) {
     this.look = { ...look }
+    this.rotating = true
     this.pending = false
     this.error = ''
     this.el.hidden = false
@@ -463,6 +472,15 @@ export class WardrobePanel {
     title.className = 'lift-title'
     title.textContent = tr('Holo-Me · garde-robe', 'Holo-Me · wardrobe')
     const rows: HTMLElement[] = [title]
+    const rotation = button(
+      this.rotating ? tr('Arrêter la rotation', 'Pause rotation') : tr('Reprendre la rotation', 'Resume rotation'),
+      !this.rotating,
+      () => { this.rotating = !this.rotating; this.render() },
+      'wr-rotation',
+      this.rotating ? 'pause' : 'play',
+    )
+    rotation.setAttribute('aria-pressed', String(!this.rotating))
+    rows.push(rotation)
     rows.push(
       row(
         tr('Espèce', 'Species'),

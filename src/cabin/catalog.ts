@@ -63,6 +63,8 @@ export interface CatalogEntry {
   model: CustomModel | StationModel
   mount: Mount
   variants?: Variant[]
+  /** Visuel de la miniature du catalogue, indépendant de la variante posée. */
+  thumbnailVariant?: string
   /** Texte passé au constructeur du meuble selon la variante (par défaut : la variante elle-même). */
   label?: (variant: string | undefined) => string | undefined
   /** Hauteur du dessus, sur lequel on peut poser des petits objets. */
@@ -603,6 +605,11 @@ export const CATALOG: CatalogEntry[] = [
       tr('Les plantes poussent sous des LED roses. Elles ont l\'air heureuses.', 'The plants grow under pink LEDs. They look happy.'),
     ],
   },
+
+  // Site artwork is unlocked by actual possessions / completed adventures, at no CR cost.
+  { id: 'site-card', name: tr('Carte de collection encadrée', 'Framed collectible card'), category: 'wall', model: 'site-art', mount: 'wall', variants: [] },
+  { id: 'site-badge', name: tr('Badge encadré', 'Framed badge'), category: 'wall', model: 'site-art', mount: 'wall', variants: [] },
+  { id: 'adventure-poster', name: tr('Poster d’aventure', 'Adventure poster'), category: 'wall', model: 'site-art', mount: 'wall', variants: [], thumbnailVariant: 'adv:d4735e3a265e16ee' /* La Disparition de Jacob Scarlett (aventure 2) */ },
 
   // --- Murs
   {

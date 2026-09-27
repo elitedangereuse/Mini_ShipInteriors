@@ -10,6 +10,7 @@ const RADIUS = 0.12
 const WALK = 0.9
 const RUN = 2.6
 const SCALE = 0.26
+const PLAYER_CLEARANCE = 0.38
 /** Temps sans vraie avance au bout duquel le chat renonce à son trajet (coincé contre une chaise…). */
 const STUCK_AFTER = 0.4
 
@@ -31,6 +32,8 @@ export class Cat {
   private yaw = 0
   private stride = 0
   private stuckTime = 0
+  /** Garder le même côté pendant un contournement évite les hésitations gauche/droite. */
+  private avoidSide = 1
   private meowIn = 15 + Math.random() * 20
 
   onStep?: () => void
@@ -108,6 +111,7 @@ export class Cat {
    */
   update(dt: number, player: THREE.Vector3 | null, dancing: boolean) {
     this.mixer.update(dt)
+    if (dt <= 0) return
     const p = this.root.position
     const distPlayer = player ? Math.hypot(player.x - p.x, player.z - p.z) : Infinity
 
@@ -144,20 +148,12 @@ export class Cat {
         if (player) this.yaw = Math.atan2(player.x - p.x, player.z - p.z)
         break
       case 'walk':
-        this.walk(dt)
+        this.walk(dt, player)
         break
     }
 
     // Ne pas marcher dans les pieds du joueur.
-    if (player && distPlayer < 0.38 && distPlayer > 1e-4) {
-      const k = (0.38 - distPlayer) / distPlayer
-      p.x -= (player.x - p.x) * k
-      p.z -= (player.z - p.z) * k
-      const q = { x: p.x, z: p.z }
-      resolveCircle(q, RADIUS, this.deck.colliders)
-      p.x = q.x
-      p.z = q.z
-    }
+    if (player) this.keepAway(p, player)
 
     // Miaulement spontané quand le joueur est dans les parages.
     this.meowIn -= dt
@@ -193,26 +189,91 @@ export class Cat {
     this.timer = 2 + Math.random() * 4
   }
 
-  private walk(dt: number) {
+  /** Séparation calculée à la position actuelle, y compris si le joueur vient sur le chat. */
+  private keepAway(p: { x: number; z: number }, player: { x: number; z: number }) {
+    const dx = p.x - player.x, dz = p.z - player.z
+    const dist = Math.hypot(dx, dz)
+    if (dist >= PLAYER_CLEARANCE) return
+    // Superposition exacte : reculer dans le repère du chat, plutôt que diviser par zéro.
+    const ux = dist > 1e-4 ? dx / dist : -Math.sin(this.yaw)
+    const uz = dist > 1e-4 ? dz / dist : -Math.cos(this.yaw)
+    p.x = player.x + ux * PLAYER_CLEARANCE
+    p.z = player.z + uz * PLAYER_CLEARANCE
+    resolveCircle(p, RADIUS, this.deck.colliders)
+  }
+
+  /** Le segment du prochain pas traverse-t-il les pieds du joueur ? */
+  private playerBlocks(to: { x: number; z: number }, player: { x: number; z: number }, p: { x: number; z: number } = this.root.position): boolean {
+    const dx = to.x - p.x, dz = to.z - p.z
+    const lengthSq = dx * dx + dz * dz
+    const t = lengthSq ? THREE.MathUtils.clamp(((player.x - p.x) * dx + (player.z - p.z) * dz) / lengthSq, 0, 1) : 0
+    const distance = Math.hypot(p.x + dx * t - player.x, p.z + dz * t - player.z)
+    return distance < PLAYER_CLEARANCE - 1e-6
+  }
+
+  private walk(dt: number, player: THREE.Vector3 | null) {
     const p = this.root.position
-    const target = this.path[0]
+    let target = this.path[0]
     if (!target) {
       this.state = 'idle'
       this.timer = 1.5 + Math.random() * 4
       return
     }
-    const dx = target.x - p.x, dz = target.z - p.z
-    const dist = Math.hypot(dx, dz)
-    const step = this.speed * dt
-    const reached = dist <= step
-    if (reached) this.path.shift()
+    if (player) {
+      this.keepAway(p, player)
+      // Le joueur occupe la destination : attendre un autre trajet, sans tourner autour de lui.
+      if (Math.hypot(target.x - player.x, target.z - player.z) < PLAYER_CLEARANCE) {
+        this.path = []
+        this.state = 'idle'
+        this.timer = 0.3 + Math.random() * 0.8
+        this.play('idle')
+        return
+      }
+    }
+    let dx = target.x - p.x, dz = target.z - p.z
+    let dist = Math.hypot(dx, dz)
+    let step = Math.min(this.speed * dt, dist)
     // Même en atteignant un point, on ne se pose jamais dans un meuble.
-    const q = reached ? { x: target.x, z: target.z } : { x: p.x + (dx / dist) * step, z: p.z + (dz / dist) * step }
+    let q = dist <= step ? { x: target.x, z: target.z } : { x: p.x + (dx / dist) * step, z: p.z + (dz / dist) * step }
+    if (player && this.playerBlocks(q, player)) {
+      // Vérifier tout le détour avant de s'engager : un côté peut finir contre un meuble.
+      const margin = PLAYER_CLEARANCE + RADIUS
+      const ux = dx / dist, uz = dz / dist
+      let detour: { x: number; z: number }[] | null = null
+      for (const side of [this.avoidSide, -this.avoidSide]) {
+        const near = { x: player.x - ux * margin + side * uz * margin, z: player.z - uz * margin - side * ux * margin }
+        const far = { x: player.x + ux * margin + side * uz * margin, z: player.z + uz * margin - side * ux * margin }
+        if ([ [p, near], [near, far], [far, target] ].every(([from, to]) =>
+          !this.playerBlocks(to, player, from) && clearPath(from, to, RADIUS, this.deck.colliders),
+        )) {
+          detour = [near, far]
+          this.avoidSide = side
+          break
+        }
+      }
+      if (!detour) {
+        this.path = []
+        this.state = 'idle'
+        this.timer = 0.3 + Math.random() * 0.8
+        this.play('idle')
+        return
+      }
+      this.path.unshift(...detour)
+      target = this.path[0]
+      dx = target.x - p.x
+      dz = target.z - p.z
+      dist = Math.hypot(dx, dz)
+      step = Math.min(this.speed * dt, dist)
+      q = { x: p.x + dx / dist * step, z: p.z + dz / dist * step }
+    }
     resolveCircle(q, RADIUS, this.deck.colliders)
+    if (player) this.keepAway(q, player)
     const moved = Math.hypot(q.x - p.x, q.z - p.z)
+    if (moved > 1e-6) this.yaw = Math.atan2(q.x - p.x, q.z - p.z)
     p.x = q.x
     p.z = q.z
-    if (!reached) this.yaw = Math.atan2(dx, dz)
+    const reached = Math.hypot(target.x - p.x, target.z - p.z) < 0.01
+    if (reached) this.path.shift()
     // Coincé (la collision le repousse à chaque pas) : il renonce, et repartira ailleurs.
     this.stuckTime = !reached && moved < step * 0.3 ? this.stuckTime + dt : 0
     if (this.stuckTime > STUCK_AFTER) {
@@ -223,7 +284,7 @@ export class Cat {
       return
     }
     this.play(this.speed > WALK * 1.5 ? 'run' : 'walk')
-    this.stride += step
+    this.stride += moved
     if (this.stride > 0.22) {
       this.stride = 0
       this.onStep?.()

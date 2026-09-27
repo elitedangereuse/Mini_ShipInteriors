@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { station, themes, type StationModel } from '../assets'
 import { buildFurniture, disposeFurniture, isCustomModel, type CustomModel } from '../furniture'
 import { builderLabel, type CatalogEntry } from './catalog'
+import { prepareArtwork } from '../furniture/site'
 
 /*
  * Vignettes du catalogue : chaque objet rendu seul, en vue isométrique, dans un petit rendu
@@ -42,7 +43,9 @@ function setup() {
 
 const corners = Array.from({ length: 8 }, () => new THREE.Vector3())
 
-function render(entry: CatalogEntry, variant: string | undefined): string {
+async function render(entry: CatalogEntry, variant: string | undefined): Promise<string> {
+  const preview = entry.model === 'site-art' && variant
+    ? await prepareArtwork(variant, entry.id === 'adventure-poster') : undefined
   if (!renderer) setup()
   const holder = new THREE.Group()
   const custom = isCustomModel(entry.model)
@@ -59,6 +62,11 @@ function render(entry: CatalogEntry, variant: string | undefined): string {
     })
     holder.add(o)
   }
+  if (preview) holder.traverse((object) => {
+    if (object instanceof THREE.Mesh && object.material instanceof THREE.MeshBasicMaterial && object.material.map) {
+      object.material = preview
+    }
+  })
   scene.add(holder)
   holder.updateMatrixWorld(true)
   const box = new THREE.Box3().setFromObject(holder)
@@ -66,7 +74,8 @@ function render(entry: CatalogEntry, variant: string | undefined): string {
 
   // Vue isométrique, cadrée sur la boîte de l'objet.
   const center = box.getCenter(new THREE.Vector3())
-  camera.position.copy(center).add(new THREE.Vector3(1, 0.85, 1).normalize().multiplyScalar(10))
+  const angle = entry.model === 'site-art' ? new THREE.Vector3(0.55, 0.35, 1) : new THREE.Vector3(1, 0.85, 1)
+  camera.position.copy(center).add(angle.normalize().multiplyScalar(10))
   camera.lookAt(center)
   camera.updateMatrixWorld(true)
   const { min, max } = box
@@ -92,7 +101,7 @@ function render(entry: CatalogEntry, variant: string | undefined): string {
 }
 
 /** Traite la file une vignette à la fois, entre deux images du jeu. */
-function pump() {
+async function pump() {
   const job = queue.shift()
   if (!job) {
     running = false
@@ -106,7 +115,7 @@ function pump() {
   }
   let url = ''
   try {
-    url = render(job.entry, job.variant)
+    url = await render(job.entry, job.variant)
   } catch {
     // Vignette ratée : la carte du catalogue garde son icône.
   }
@@ -118,6 +127,7 @@ function pump() {
 
 /** Vignette d'un objet (image PNG en data URL, vide en cas d'échec), rendue à la demande. */
 export function thumbnail(entry: CatalogEntry, variant: string | undefined, cb: (url: string) => void) {
+  variant = entry.thumbnailVariant ?? variant
   const key = `${entry.id}|${variant ?? ''}`
   const hit = cache.get(key)
   if (hit !== undefined) return cb(hit)

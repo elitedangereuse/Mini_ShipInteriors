@@ -151,7 +151,11 @@ function normalizeItems(raw: unknown, bounds: Rect): CabinItem[] {
       holo = true
     }
     const item: CabinItem = { m: entry.id, x: round(x), z: round(z), r: ([0, 1, 2, 3].includes(o.r as number) ? o.r : 0) as Rot }
-    if (entry.variants) item.v = entry.variants.some((v) => v.id === o.v) ? (o.v as string) : entry.variants[0].id
+    if (entry.model === 'site-art') {
+      const kind = { 'site-card': 'card', 'site-badge': 'badge', 'adventure-poster': 'adv' }[entry.id]
+      if (typeof o.v !== 'string' || !new RegExp(`^${kind}:[a-f0-9]{16}$`).test(o.v)) continue
+      item.v = o.v
+    } else if (entry.variants?.length) item.v = entry.variants.some((v) => v.id === o.v) ? (o.v as string) : entry.variants[0].id
     const y = Number(o.y)
     if (entry.mount === 'top' && Number.isFinite(y) && y > 0 && y < 2) item.y = round(y)
     const s = Number(o.s)

@@ -16,7 +16,9 @@ const site = createServer((req, res) => {
   seen.push(req.headers.cookie)
   const name = ACCOUNTS[cookieValue(req.headers.cookie)] ?? null
   res.setHeader('Content-Type', 'application/json')
-  res.end(JSON.stringify({ cmdr: name }))
+  if (req.url === '/outils/mini-shipinteriors-site.php?ownership=1') {
+    res.end(JSON.stringify({ status: 'success', art: name ? [{ id: 'card:3598ce6f965b2481', kind: 'card' }] : [] }))
+  } else res.end(JSON.stringify({ cmdr: name }))
 })
 
 const listen = async (server) => {
@@ -332,6 +334,25 @@ describe('quartiers', () => {
     const left = next(host, 'visit', (m) => m.id === wg.id)
     guest.emit('visit', { host: null })
     assert.deepEqual(await left, { id: wg.id, cabin: wg.id })
+  })
+
+  test('un visiteur voit les cartes possédées, sans recevoir une décoration usurpée', async () => {
+    const { host, wh, guest, wg } = await hostAndGuest()
+    host.emit('cabin', { layout: LAYOUT })
+    const invited = next(guest, 'invite')
+    host.emit('invite', { to: wg.id })
+    await invited
+    const initial = next(guest, 'cabin')
+    guest.emit('visit', { host: wh.id })
+    await initial
+    const earned = { v: 1, items: [...LAYOUT.items, { m: 'site-card', v: 'card:3598ce6f965b2481', x: 10, z: 5.65, r: 0 }] }
+    const update = next(guest, 'cabin')
+    host.emit('cabin', { layout: earned })
+    assert.deepEqual(await update, { id: wh.id, layout: earned })
+    const forged = { v: 1, items: [...LAYOUT.items, { m: 'site-card', v: 'card:0000000000000000', x: 10, z: 5.65, r: 0 }] }
+    const leaked = receives(guest, 'cabin')
+    host.emit('cabin', { layout: forged })
+    assert.equal(await leaked, false)
   })
 
   test('sans invitation, on n\'entre pas ; une invitation ne sert qu\'une fois', async () => {

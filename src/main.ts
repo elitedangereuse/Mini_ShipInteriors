@@ -1,3 +1,4 @@
+import { loadSiteArt, SitePanel } from './site'
 import * as THREE from 'three'
 import type { ArcadeCabinet } from './arcade/cabinet'
 import { isGameId, type GameId } from './arcade/game'
@@ -32,6 +33,7 @@ import type { Tile } from './pathfinding'
 import { PhotoMode } from './photo'
 import { overlapsAny, resolveCircle } from './physics'
 import { Player } from './player'
+import { renderQuality } from './quality'
 import { RemotePlayer } from './remote'
 import { Seating, type Seated } from './seating'
 import { Starfield } from './starfield'
@@ -91,12 +93,13 @@ let verified = false
 // ------------------------------------------------------------------ rendu
 
 const MAX_DPR = Math.min(devicePixelRatio, 2)
+renderQuality.light = store.get('mini-shipinteriors-light') === 'true'
 let dpr = Math.min(MAX_DPR, 1.5)
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' })
-renderer.setPixelRatio(dpr)
+renderer.setPixelRatio(renderQuality.light ? Math.min(MAX_DPR, 0.75) : dpr)
 renderer.setSize(innerWidth, innerHeight)
 renderer.setClearColor(0x000000, 0) // fond : dégradé CSS
-renderer.shadowMap.enabled = true
+renderer.shadowMap.enabled = !renderQuality.light
 renderer.shadowMap.type = THREE.PCFShadowMap
 renderer.toneMapping = THREE.ACESFilmicToneMapping
 renderer.toneMappingExposure = 1.1
@@ -261,6 +264,15 @@ const bubbles = new Bubbles()
 const chat = new Chat()
 const dialog = new Dialog()
 const lift = new LiftPanel()
+const sitePanel = new SitePanel(wallet)
+for (const it of decks[LEVELS.findIndex((l) => l.id === 0)].interactables) {
+  if (it.furniture?.model === 'reward-counter') {
+    const kind = it.furniture.label === 'weekly' ? 'weekly' : 'hunt'
+    it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; void sitePanel.counter(kind) }
+  } else if (it.furniture?.model === 'employee-board') {
+    it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; void sitePanel.rankings() }
+  }
+}
 const promptEl = $('prompt')
 const promptLabel = $('prompt-label')
 
@@ -1058,6 +1070,8 @@ async function openEditor() {
   if (visiting) return chat.add('system', tr('Ces quartiers ne sont pas les vôtres : on n\'aménage que chez soi.', 'These quarters aren\'t yours: you can only decorate your own.'))
   if (!linked) return chat.add('system', tr('Aménager ses quartiers est réservé aux CMDR connectés à elitedangereuse.fr.', 'Only CMDRs logged in to elitedangereuse.fr can decorate their quarters.'))
   if (!cabinStore?.ready) return chat.add('system', tr('Vos quartiers arrivent du site, encore un instant…', 'Your quarters are on their way from the site, just a moment…'))
+  await loadSiteArt()
+  if (editing() || riding || visiting || photo.active) return
   if (!editor) {
     await loadEditor()
     // On a pu partir (ascenseur, invitation) pendant le chargement.
@@ -1314,6 +1328,11 @@ function liftKey(e: KeyboardEvent): boolean {
 
 addEventListener('keydown', (e) => {
   if (chat.typing) return
+  if (sitePanel.isOpen) {
+    if (e.code === 'Escape' || e.code === 'KeyE') sitePanel.close()
+    e.preventDefault()
+    return
+  }
   // Mode aménagement : ses touches d'abord (les flèches se répètent pour ajuster un objet).
   if (editing() && editor!.keyDown(e)) return
   if (e.repeat) return
@@ -1362,7 +1381,7 @@ chat.onOpen = () => keys.clear()
 const inputDir = new THREE.Vector3()
 function keyboardDirection(): THREE.Vector3 {
   inputDir.set(0, 0, 0)
-  if (chat.typing || riding || lift.isOpen || jukebox.isOpen || editing()) return inputDir
+  if (chat.typing || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || editing()) return inputDir
   const on = (...codes: string[]) => codes.some((c) => keys.has(c))
   // event.code = position physique : KeyW/KeyA correspondent à Z/Q sur un clavier AZERTY.
   const sx = (on('KeyD', 'ArrowRight') ? 1 : 0) - (on('KeyA', 'ArrowLeft') ? 1 : 0)
@@ -1383,7 +1402,7 @@ function updateGamepad(dt: number): GamepadInput {
     lastInput = performance.now()
   }
   // Les panneaux prennent les commandes avant le personnage.
-  const panel = lift.isOpen ? lift : jukebox.isOpen ? jukebox : null
+  const panel = sitePanel.isOpen ? sitePanel : lift.isOpen ? lift : jukebox.isOpen ? jukebox : null
   if (panel) {
     pad.moveX = pad.moveY = 0
     if (pad.cancel) panel.close()
@@ -1417,7 +1436,7 @@ function updateGamepad(dt: number): GamepadInput {
 
 function movementDirection(pad: GamepadInput): THREE.Vector3 {
   const input = keyboardDirection()
-  if (chat.typing || riding || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || editing() || photo.active) return input
+  if (chat.typing || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || editing() || photo.active) return input
   // Le clavier reste prioritaire lorsqu'une touche de déplacement est maintenue.
   if (input.lengthSq() === 0) iso.screenToGround(pad.moveX, -pad.moveY, input)
   return input
@@ -1434,6 +1453,27 @@ $('mute').onclick = () => {
 }
 $('help-toggle').onclick = () => ($('help').hidden = !$('help').hidden)
 $('photo-toggle').onclick = () => openPhoto()
+function updateLightMode() {
+  const light = renderQuality.light
+  renderer.setPixelRatio(light ? Math.min(MAX_DPR, 0.75) : dpr)
+  renderer.shadowMap.enabled = !light
+  renderer.shadowMap.needsUpdate = true
+  for (const [i, l] of lightPool.entries()) {
+    const def = deck.lights[i]
+    if (def) { l.intensity = def.intensity; l.color.set(def.color) }
+  }
+  const button = $('light-mode')
+  button.setAttribute('aria-pressed', String(light))
+  button.title = tr(light ? 'Mode léger actif · revenir au rendu normal' : 'Activer le mode léger', light ? 'Light mode active · restore normal rendering' : 'Enable light mode')
+  button.setAttribute('aria-label', button.title)
+}
+$('light-mode').onclick = () => {
+  renderQuality.light = !renderQuality.light
+  store.set('mini-shipinteriors-light', String(renderQuality.light))
+  perfTime = perfFrames = fastWindows = 0
+  updateLightMode()
+}
+updateLightMode()
 
 // « À propos » : comment le jeu a été fait, pour qui veut savoir. Échap le referme aussi.
 function toggleAbout(open = $('about').hidden) {
@@ -1529,7 +1569,7 @@ canvas.addEventListener('pointerup', (e) => {
 addEventListener(
   'pointerdown',
   (e) => {
-    const panel = lift.isOpen ? lift : jukebox.isOpen ? jukebox : null
+    const panel = sitePanel.isOpen ? sitePanel : lift.isOpen ? lift : jukebox.isOpen ? jukebox : null
     if (!panel || panel.contains(e.target)) return
     panel.close()
     e.stopPropagation()
@@ -1634,7 +1674,7 @@ function nearestInteractable(): Interactable | null {
 }
 
 function tryInteract() {
-  if (riding || lift.isOpen || wardrobe.isOpen || editing()) return
+  if (riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || editing()) return
   const item = nearestInteractable()
   if (item) interactWith(item)
 }
@@ -2124,7 +2164,7 @@ function frame() {
   }
   if (wardrobe.isOpen) {
     // Essayage : le personnage tourne lentement sur lui-même.
-    spin += dt * 0.7
+    if (wardrobe.rotating) spin += dt * 0.7
     player.setHeading(spin)
   }
   // Mode photo, instant figé : personnages, meubles et étoiles s'arrêtent ; la caméra, non.
@@ -2141,6 +2181,7 @@ function frame() {
   // En mode aménagement, la caméra regarde la cabine, pas le personnage.
   iso.update(dt, editing() ? editor!.focus(editFocus) : claw ? claw.focus : player.position)
   iso.toCamera(toCam)
+  document.body.classList.toggle('camera-rotating', iso.rotating)
 
   // Qui se trouve sur quel pont (pour ouvrir les portes).
   for (const list of actors.values()) list.length = 0
@@ -2165,7 +2206,7 @@ function frame() {
   ambience(dt)
   for (const [i, l] of lightPool.entries()) {
     const def = deck.lights[i]
-    if (!def?.flicker) continue
+    if (!def?.flicker || renderQuality.light) continue
     if (def.flicker === 'neon' || def.flicker === 'fire') l.intensity = def.intensity * flicker(def.flicker, timer.getElapsed(), i)
     else {
       // Lumière de soirée : à l'horloge des meubles, pour battre avec la piste de danse.
@@ -2197,7 +2238,7 @@ function frame() {
   // Invite « E » au-dessus de l'objet le plus proche ; installé sur un meuble, au-dessus du
   // personnage : se relever (et ce que permet la place).
   const sitting = seating.settled && !riding && !editing()
-  const near = riding || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || editing() || seating.current || working ? null : nearestInteractable()
+  const near = riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || editing() || seating.current || working ? null : nearestInteractable()
   const sit = sitting ? seatPrompt(seating.current!) : null
   const label = sit ? `${sit.main}|${sit.space ?? ''}` : near?.label
   promptEl.querySelector('kbd')!.textContent = usingGamepad ? 'A / ×' : 'E'
@@ -2246,7 +2287,7 @@ function frame() {
   // on la remonte (sans dépasser le dernier niveau qui a peiné) s'il reste de la marge.
   perfTime += dt
   perfFrames++
-  if (perfTime > 2) {
+  if (perfTime > 2 && !renderQuality.light) {
     const avg = perfTime / perfFrames
     if (avg > 1 / 50 && dpr > 1) {
       dprCeiling = dpr - 0.25

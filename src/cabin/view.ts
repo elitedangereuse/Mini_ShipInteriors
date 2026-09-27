@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { renderQuality } from '../quality'
 import { station, type StationModel } from '../assets'
 import type { Box2, Deck, Interactable, WallSegment } from '../deck'
 import { buildFurniture, disposeFurniture, isCustomModel, keepShared, type CustomModel, type Emitter, type FurnitureControl } from '../furniture'
@@ -144,6 +145,7 @@ export class CabinView {
   onMusic?: (position: THREE.Vector3, text: Interactable['text'], model: string) => void
 
   private built: Built[] = []
+  private decorationFrame = -1
   /** Boîtes locales par modèle, variante et graine (vérifications du mode aménagement). */
   private boxes = new Map<string, THREE.Box3>()
   private merge = new StaticMerge()
@@ -621,7 +623,10 @@ export class CabinView {
 
   /** @param dt temps écoulé pour le tramage des murs et des gros meubles */
   update(t: number, dt: number, view: FadeFocus) {
-    for (const b of this.built) b.update?.(t)
+    const frame = Math.floor(t * 12)
+    const decorate = !renderQuality.light || frame !== this.decorationFrame
+    this.decorationFrame = frame
+    for (const b of this.built) if (decorate || b.control) b.update?.(t)
     if (updateOccluders(this.occluders, this.fades, view, dt)) this.fades.texture.needsUpdate = true
     const w = this.wallpaper
     if (w.mesh.visible && updateOccluders(w.occluders, w.fades, view, dt)) w.fades.texture.needsUpdate = true

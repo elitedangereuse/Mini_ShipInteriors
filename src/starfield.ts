@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { renderQuality } from './quality'
 
 const SIZE = 140
 const DEPTH = -30
@@ -117,6 +118,7 @@ export class Starfield {
         depthWrite: false,
       })
       const points = new THREE.Points(geo, mat)
+      points.onBeforeRender = () => geo.setDrawRange(0, renderQuality.light ? Math.ceil(l.count / 4) : l.count)
       points.frustumCulled = false
       points.renderOrder = -1
       this.group.add(points)
@@ -143,6 +145,7 @@ export class Starfield {
    * @param elevation inclinaison de la caméra (radians)
    */
   update(dt: number, target: THREE.Vector3, toCamera: THREE.Vector3, elevation: number) {
+    this.group.children[this.group.children.length - 1].visible = !renderQuality.light
     this.time += dt
     // On accélère franchement, on freine plus en douceur.
     this.speed = THREE.MathUtils.damp(this.speed, this.target, this.target > this.speed ? 1.6 : 1.1, dt)

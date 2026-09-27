@@ -37,6 +37,12 @@ export class IsoCamera {
   private lastFollow: THREE.Vector3 | null = null
   /** Secousse de la vue (saut FSD), qui s'amortit. */
   private jolt = 0
+  private orbitHold = 0
+
+  /** Inclut le mouvement direct et la fin amortie d'un quart de tour. */
+  get rotating(): boolean {
+    return this.orbitHold > 0 || Math.abs(this.azimuthGoal - this.azimuth) > 0.001 || Math.abs(this.elevationGoal - this.elevation) > 0.001
+  }
 
   constructor(private aspect: number) {
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200)
@@ -86,6 +92,7 @@ export class IsoCamera {
 
   /** Caméra libre : tourne autour de la cible et change l'inclinaison (radians). */
   orbit(dAzimuth: number, dElevation: number) {
+    if (dAzimuth || dElevation) this.orbitHold = 0.15
     this.azimuth += dAzimuth
     this.azimuthGoal += dAzimuth
     this.elevation = THREE.MathUtils.clamp(this.elevation + dElevation, MIN_ELEVATION, MAX_ELEVATION)
@@ -154,6 +161,7 @@ export class IsoCamera {
   }
 
   update(dt: number, follow: THREE.Vector3) {
+    this.orbitHold = Math.max(0, this.orbitHold - dt)
     // Le personnage se remet en route : la vue libre revient doucement sur lui.
     this.panHold = Math.max(0, this.panHold - dt)
     const moved = this.lastFollow ? Math.hypot(follow.x - this.lastFollow.x, follow.z - this.lastFollow.z) : 0

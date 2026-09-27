@@ -19,6 +19,7 @@ import { Server } from 'socket.io'
 import { fightRelay } from './fights.js'
 import { BOARD_GAMES, applyBoardMove, boardColor, boardState, newBoardGame } from './boards.js'
 import { sanitizeLayout } from './cabin.js'
+import { hasSiteArtwork, siteArtworkAllowed } from './site.js'
 import { cleanCmdrName, cmdrFromCookie } from './cmdr.js'
 
 /** Chemin de la socket, partagé avec le client (VITE_WS_PATH) et la conf nginx. */
@@ -290,11 +291,15 @@ export function attachRelay(
     })
 
     // Aménagement de ses quartiers (CMDR vérifiés seulement), transmis à ceux qui s'y trouvent.
-    socket.on('cabin', (raw) => {
+    let cabinRevision = 0
+    socket.on('cabin', async (raw) => {
       if (!player.verified || cabinBudget < 1) return
       const layout = sanitizeLayout(obj(raw).layout)
       if (!layout) return
       cabinBudget--
+      const revision = ++cabinRevision
+      if (hasSiteArtwork(layout) && !await siteArtworkAllowed(layout, socket.handshake.headers.cookie, cmdrUrl)) return
+      if (revision !== cabinRevision || !players.has(socket.id)) return
       player.layout = layout
       for (const p of players.values()) {
         if (p !== player && p.cabin === player.id) sockets.get(p.id)?.emit('cabin', { id: player.id, layout })

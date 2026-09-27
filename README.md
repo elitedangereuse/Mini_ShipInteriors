@@ -69,7 +69,7 @@ Mini Interior est un POC : un vaisseau sur trois ponts, vu de dessus en isométr
 
 Trois ponts, trois ambiances. Chaque pont repeint à sa façon la même palette du kit (coque et mobilier, cf. `themes` dans `src/assets.ts`), et a son propre éclairage (ciel, soleil, lumières qui vacillent) et son propre bruit de pas. Le pont principal est de loin le plus grand (~210 tuiles). La cale et le pont supérieur sont deux fois plus petits (~90 et ~110 tuiles), autour de l'ascenseur.
 
-On se réveille dans ses quartiers, sur le pont supérieur, à deux pas du Holo-Me.
+On se réveille dans ses quartiers, sur le pont supérieur, à deux pas du Holo-Me. Dans le sélecteur de l’ascenseur, **Vous êtes ici** indique le pont actuel.
 
 | Pont | Ambiance | Pièces |
 |---|---|---|
@@ -119,7 +119,7 @@ On se réveille dans ses quartiers, sur le pont supérieur, à deux pas du Holo-
   <img src="docs/images/holo-me.jpg" alt="Le panneau Holo-Me ouvert : choix de l'espèce, du sexe, du modèle et de la combinaison" width="100%">
 </p>
 
-Dans les quartiers du commandant (pont supérieur), monte sur la plateforme orange du Holo-Me et appuie sur `E`. La caméra se rapproche, le personnage tourne sur lui-même et chaque choix s'applique en direct. **Valider** enregistre l'apparence et l'envoie aux autres joueurs. **Annuler** ou `Échap` revient à l'apparence d'avant.
+Dans les quartiers du commandant (pont supérieur), monte sur la plateforme orange du Holo-Me et appuie sur `E`. La caméra se rapproche, le personnage tourne sur lui-même (le bouton **Arrêter la rotation / Reprendre la rotation** permet de figer l’aperçu) et chaque choix s'applique en direct. **Valider** enregistre l'apparence et l'envoie aux autres joueurs. **Annuler** ou `Échap` revient à l'apparence d'avant.
 
 | Espèce | Choix |
 |---|---|
@@ -357,7 +357,7 @@ Prérequis : Node 20 ou plus.
 ```bash
 npm install
 npm run dev        # http://localhost:5173 — jeu + relais multijoueur
-npm test           # tests du relais (identité, origine, rediffusion, poses, jukebox, quartiers)
+npm test           # tests du relais, des activités et des déplacements de Comète
 ```
 
 Pour tester le multijoueur, ouvre deux onglets (ou un onglet et un autre navigateur). Chaque onglet est un membre d'équipage.
@@ -417,6 +417,7 @@ Une zone morte évite la dérive des sticks. Les boutons d'action ne se répète
 | Pivoter la caméra | `R` / `Maj+R`, ou les boutons en haut à droite (d'un quart de tour ; ramène aussi la vue isométrique après la caméra libre) |
 | Caméra libre | maintenir le **clic droit** ou le **clic molette** et glisser : horizontalement on tourne autour du personnage, verticalement on incline la vue (de rasante à presque de dessus) ; avec `Maj`, on fait glisser la vue, qui revient sur le personnage dès qu'il bouge |
 | Zoom | molette, ou les boutons loupe |
+| Mode léger | bouton éclair en haut à droite : rendu moins coûteux, retour au rendu normal au second clic ; choix mémorisé sur cet appareil |
 | Son | `M` ou le bouton haut-parleur, curseur de volume (le son démarre au premier clic ou à la première touche, contrainte des navigateurs) |
 
 ## Langues
@@ -441,9 +442,36 @@ Le jeu est servi sur le domaine du site (`https://elitedangereuse.fr/outils/mini
 
 Le client appelle aussi l'endpoint au chargement, pour afficher son nom avant d'être en ligne (et en solo).
 
-Les **quartiers aménagés** passent par un second endpoint, `outils/mini-shipinteriors-cabin.php`, que seul le client appelle, avec le même cookie : `GET` rend l'aménagement du CMDR (`null` s'il n'a jamais aménagé ses quartiers) et sa date, `POST` l'enregistre (table `mini_shipinteriors_cabin`). L'écriture est réservée aux CMDR, et doit venir du site : son en-tête `Origin` est vérifié, une page tierce ne réaménage pas une cabine. Le site ne vérifie que la forme de l'aménagement (64 objets, identifiants courts, nombres finis dans le vaisseau) : le catalogue vit dans le jeu, qui écarte à la lecture ce qu'il ne connaît pas. Le relais n'y touche pas : c'est le client d'un CMDR vérifié qui lui envoie son aménagement, pour le montrer à ses invités.
+Les **quartiers aménagés** passent par un second endpoint, `outils/mini-shipinteriors-cabin.php`, que seul le client appelle, avec le même cookie : `GET` rend l'aménagement du CMDR (`null` s'il n'a jamais aménagé ses quartiers) et sa date, `POST` l'enregistre (table `mini_shipinteriors_cabin`). L'écriture est réservée aux CMDR, et doit venir du site : son en-tête `Origin` est vérifié, une page tierce ne réaménage pas une cabine. Le site vérifie les possessions des cartes, badges et posters exposés, puis la forme de l'aménagement (64 objets, identifiants courts, nombres finis dans le vaisseau) : le catalogue vit dans le jeu, qui écarte à la lecture ce qu'il ne connaît pas. Le relais n'y touche pas : c'est le client d'un CMDR vérifié qui lui envoie son aménagement, pour le montrer à ses invités.
 
 Tant que le site n'a pas répondu, les quartiers ne s'aménagent pas : on écraserait ceux qu'il garde. S'il ne répond pas du tout, l'aménagement est gardé dans le navigateur, daté ; un envoi en échec y laisse aussi une copie, et il est réessayé. À la réponse suivante du site, cette copie l'emporte si elle est plus récente, et lui est envoyée. Chaque page du jeu numérote ses envois : un envoi plus ancien arrivé en retard (page fermée en plein enregistrement) n'écrase pas le plus récent.
+
+La **progression du site** passe par `outils/mini-shipinteriors-site.php` : les cartes
+possédées et les badges obtenus peuvent être encadrés, et chaque aventure terminée
+(y compris avant cette mise à jour) débloque son poster. Ces trois décorations sont
+gratuites dans « Murs » ; sélectionner l’objet posé ouvre le choix de son visuel.
+Les identifiants compacts sont persistés dans la variante des objets ; les visiteurs
+les voient même sans posséder les mêmes collections. Le site valide les possessions
+avant enregistrement, et le relais avant diffusion aux invités.
+
+Dans la salle des machines du pont principal, deux comptoirs distincts donnent les
+gains en attente : **10 000 CR par Weekly entièrement terminée**, ou **10 000 CR par
+cible de Chasse galactique validée**. Chaque comptoir permet de tout récupérer pour
+son activité. Le site recherche les validations réelles ; une transaction verrouille
+le compte et inscrit chaque récompense une seule fois. Les validations historiques
+ne paient pas de crédits : seule la première installation de la migration fixe le
+lancement. Dans la salle de sport, le panneau « Employés du mois » affiche les top 10
+mensuel (30 jours), général, collectionneurs et podiums, avec les liens de profil.
+
+Installation côté site : jouer **`docker/tables/mini_shipinteriors_site.sql`** après
+`mini_shipinteriors.sql` et `system_hunts.sql`. La migration est idempotente ; la jouer
+au lancement de cette fonctionnalité, car elle enregistre la frontière des nouvelles
+récompenses. Les requêtes locales via Vite préservent le contrôle d’origine malgré
+les hôtes distincts du navigateur et de Docker.
+
+Les tests PHP de progression s’exécutent avec une vraie base MySQL et des tables
+**temporaires propres à la connexion**, sans modifier les comptes :
+`docker exec -w /var/www/html -e MSI_DB_TESTS=1 elitedangereuse php vendor/bin/phpunit phputils/tests/mini-shipinteriors`.
 
 Les **meilleurs scores** des bornes d'arcade passent par un troisième endpoint, `outils/mini-shipinteriors-scores.php` : `GET ?game=cargo` rend les dix meilleurs et le rang du CMDR connecté, `GET` sans jeu le record de chaque jeu (pour les écrans des bornes), `POST` inscrit une partie (table `mini_shipinteriors_score`, le meilleur score de chaque CMDR à chaque jeu, et son nombre de parties). Lire est ouvert à tous ; inscrire est réservé aux CMDR, doit venir du site (en-tête `Origin`) et s'espace de 3 s. Le site écarte les scores impossibles : au-delà du plafond du jeu ; à Cargaison et à Viper, plus de points que n'en permet le niveau atteint (le score y grandit comme le carré du niveau), ou ce niveau atteint trop vite ; à Astéroïdes, plus de points par seconde que le jeu n'en donne. Deux inscriptions simultanées n'en font qu'une.
 

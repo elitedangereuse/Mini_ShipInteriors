@@ -324,15 +324,18 @@ export const LEVELS: LevelDef[] = [
       },
 
       // --- Salle des machines ---
+      // Guichets aux murs nord/sud ; l’allée est reste libre depuis la coursive.
+      { model: 'reward-counter', x: 6.4, z: 0.35, label: 'weekly', interact: tr('Officier de liaison · Weekly', 'Liaison officer · Weekly'), action: tr('Récupérer les crédits', 'Collect credits') },
+      { model: 'reward-counter', x: 6.4, z: 8.65, rot: 2, label: 'hunt', interact: tr('Scientifique du LJPC · Chasse galactique', 'LJPC scientist · Galactic Hunt'), action: tr('Récupérer les crédits', 'Collect credits') },
       {
-        model: 'computer-system', x: 4.5, z: 2, rot: 0,
+        model: 'computer-system', x: 4.2, z: 0.35, rot: 0,
         interact: tr(
           'Distributeur d\'énergie : 4 pips aux systèmes, 2 aux moteurs, 0 aux armes. Vaisseau pacifiste.',
           'Power distributor: 4 pips to systems, 2 to engines, 0 to weapons. A pacifist ship.',
         ),
       },
       {
-        model: 'computer-system', x: 4.5, z: 7, rot: 2,
+        model: 'computer-system', x: 4.2, z: 8.65, rot: 2,
         interact: tr('Support vital : oxygène 100 %. Filtres à remplacer dans 42 jours.', 'Life support: oxygen 100%. Filters due for replacement in 42 days.'),
       },
       {
@@ -352,8 +355,8 @@ export const LEVELS: LevelDef[] = [
       { model: 'container-tall', x: 0, z: 5 },
       { model: 'container-wide', x: 1, z: 1 },
       { model: 'container-wide', x: 1, z: 8 },
-      { model: 'pipe-ring-colored', x: 7, z: 1 },
-      { model: 'pipe-ring-colored', x: 7, z: 8 },
+      { model: 'pipe-ring-colored', x: 2.8, z: 0.25 },
+      { model: 'pipe-ring-colored', x: 2.8, z: 8.75 },
       { model: 'structure-panel', x: 2, z: 7, y: 0.005, solid: false },
       { model: 'structure-panel', x: 2, z: 2, y: 0.005, solid: false },
 
@@ -386,6 +389,7 @@ export const LEVELS: LevelDef[] = [
       },
 
       // --- Salle de sport ---
+      { model: 'employee-board', x: 18.7, z: -0.35, solid: false, interact: 'Employés du mois', action: tr('Consulter les classements', 'View rankings') },
       {
         model: 'treadmill', x: 16.05, z: 0.7, action: tr('Courir', 'Run'),
         interact: [

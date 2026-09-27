@@ -1,8 +1,8 @@
 # Roadmap — Mini ShipInteriors
 
 Cette roadmap organise les demandes par catégorie et propose un ordre de
-réalisation. Toutes restent à faire ou à vérifier ; les priorités ne
-constituent pas un engagement de calendrier.
+réalisation. Les cases cochées indiquent les demandes réalisées et vérifiées ;
+les priorités ne constituent pas un engagement de calendrier.
 
 ## Priorités
 
@@ -15,38 +15,85 @@ les catégories et les étapes de réalisation.
 
 ## 1. Corrections et ergonomie
 
-- [ ] **UX-01 · P1 · Bug — Plateaux de dames et d'échecs.** Corriger les
+- [x] **UX-01 · P1 · Bug — Plateaux de dames et d'échecs.** Corriger les
   différences de largeur des cases au centre ou sans pièce. Vérifier que toutes
   les cases gardent des dimensions uniformes, avec ou sans pièce.
-- [ ] **UX-02 · P1 · Bug — Popups pendant la rotation de caméra.** Masquer les
+- [x] **UX-02 · P1 · Bug — Popups pendant la rotation de caméra.** Masquer les
   popups pendant que la caméra tourne, puis les réafficher une fois la rotation
   terminée, afin d'éviter leur agitation à l'écran.
-- [ ] **UX-03 · P1 · Ergonomie — Repère dans l'ascenseur.** Indiquer clairement
+- [x] **UX-03 · P1 · Ergonomie — Repère dans l'ascenseur.** Indiquer clairement
   l'étage actuel, par exemple avec une mention « Vous êtes ici » sur le sélecteur
   des ponts.
-- [ ] **UX-04 · P1 · Ergonomie — Rotation du Holo-Me.** Ajouter un bouton pour
+- [x] **UX-04 · P1 · Ergonomie — Rotation du Holo-Me.** Ajouter un bouton pour
   arrêter et reprendre la rotation automatique du personnage.
-- [ ] **UX-05 · P2 · Performance — Mode léger.** Ajouter un mode destiné aux
+- [x] **UX-05 · P2 · Performance — Mode léger.** Ajouter un mode destiné aux
   PC anciens, désactivé par défaut et activable depuis un bouton dans la barre
   en haut à droite. Réduire les effets et la qualité du rendu sans modifier les
   règles de jeu. Voir les critères détaillés ci-dessous.
+- [x] **UX-06 · P1 · Bug — Comète bloqué contre le joueur.** Contourner
+  le joueur du côté libre sans traverser les meubles. Si le joueur occupe
+  la destination ou bouche le passage, abandonner le trajet plutôt qu'insister.
+  Mesurer l'avancée après les collisions et préserver le mode photo figé.
+
+État de validation (27 septembre 2026) : UX-01 à UX-04 vérifiés dans Firefox,
+avec 36 configurations de plateaux (vides, mixtes et remplis, de 180 à 520 px),
+les rotations libres et amorties, les trois étages et la pause/reprise du Holo-Me.
+Le profil UX-05 est implémenté : bouton en haut à droite, choix mémorisé,
+résolution réduite, ombres désactivées, particules réduites, traînées d'étoiles
+masquées et animations décoratives espacées. L'activation, la mémorisation et
+le retour au rendu normal sont vérifiés avec le site Docker local. Cette fonctionnalité
+est validée par l’utilisateur pour cette première livraison ; la mesure du
+gain de fluidité sur un PC ancien reste à réaliser.
+UX-06 dispose de tests de régression simulant les trajets, les meubles,
+les passages étroits, l'arrivée du joueur en cours de trajet et le mode photo.
 
 ## 2. Liens avec le site, progression et récompenses
 
-- [ ] **SITE-01 · P2 · Fonctionnalité — Badges, cartes et aventures.** Relier
+- [x] **SITE-01 · P2 · Fonctionnalité — Badges, cartes et aventures.** Relier
   la progression du site aux mini-shipinteriors : badges obtenus et aventures
   terminées. Permettre d'exposer son badge préféré ou sa carte préférée dans ses
   quartiers.
-- [ ] **SITE-02 · P2 · Récompense — Posters d'aventures.** Terminer une aventure
+- [x] **SITE-02 · P2 · Récompense — Posters d'aventures.** Terminer une aventure
   débloque son poster dans les mini-shipinteriors. Le déblocage doit être
   rétroactif pour les aventures déjà terminées. S'appuyer sur SITE-01.
-- [ ] **SITE-03 · P2 · Récompense — Comptoir de crédits.** Les activités Weekly
+- [x] **SITE-03 · P2 · Récompense — Comptoir de crédits.** Les activités Weekly
   et Chasse galactique donnent des crédits à venir récupérer au comptoir du
   vaisseau. Prévoir le suivi des gains en attente et empêcher de récupérer deux
-  fois la même récompense.
-- [ ] **SITE-04 · P2 · Fonctionnalité — Classements à bord.** Afficher les
+  fois la même récompense. Installer deux comptoirs visuellement distincts
+  dans la salle des machines, un pour chaque activité.
+- [x] **SITE-04 · P2 · Fonctionnalité — Classements à bord.** Afficher les
   classements du site dans le vaisseau, notamment l'employé du mois. Choisir
   leur emplacement et les classements à présenter.
+
+Choix et réalisation (27 septembre 2026) :
+
+- Les trois décorations gratuites sont dans « Murs » : carte de collection
+  encadrée, badge encadré et poster d’aventure. Après la pose, sélectionner
+  l’objet pour choisir son visuel parmi les possessions du compte. Les visuels
+  restent lumineux dans les pièces sombres ; le sélecteur propose un aperçu
+  et une recherche par nom pour les cartes. Le badge épouse sa forme hexagonale,
+  avec sa bordure d’origine comme cadre et sans fond rectangulaire. Les miniatures
+  du catalogue montrent les trois cadres en 3D sur un mur, une fois leur visuel chargé.
+- Toutes les aventures déjà terminées débloquent leur poster. La couverture
+  publiée est utilisée pour les aventures créées avec l’éditeur.
+- Weekly : 10 000 CR pour la semaine entièrement validée. Chasse galactique :
+  10 000 CR par cible validée. Les gains sont immédiatement récupérables au
+  comptoir correspondant ; les validations antérieures au lancement ne paient
+  pas de crédits. La migration SQL fixe ce lancement une seule fois.
+- Le panneau « Employés du mois » est dans la salle de sport du pont principal :
+  top 10 des 30 derniers jours, général, collectionneurs et podiums d’aventures.
+  Écran adapté du modèle GalNet, fenêtre élargie et quatre onglets sur une ligne
+  (défilement horizontal sur petit écran).
+- Les deux comptoirs sont adossés aux murs nord et sud de la salle des machines,
+  avec un officier de liaison en uniforme sobre pour les Weekly et un scientifique
+  du LJPC en blouse, avec tablette et échantillons, pour la Chasse galactique.
+  Respiration, regards, clignements des yeux et petits gestes animent les PNJ.
+  Les consoles et tuyaux sont regroupés en périphérie pour dégager les accès aux
+  guichets et la circulation autour du réacteur ; parcours et collisions vérifiés.
+- La base vérifie les possessions avant enregistrement et les récompenses avant
+  paiement. Le relais vérifie aussi les visuels exposés aux visiteurs. Tests :
+  double récupération, rollback d’un paiement, historique, noms stockés,
+  décorations usurpées et conservation des visuels lors des visites.
 
 ## 3. Espaces communautaires et activités
 
@@ -260,10 +307,6 @@ comme propositions constituent des choix de conception à tester.
 
 ## Choix à préciser au moment de chaque chantier
 
-- Quelles cartes peuvent être exposées, et quels badges, aventures et
-  classements du site sont concernés ?
-- Quel montant de crédits attribuer aux Weekly et à la Chasse galactique,
-  et à quel moment rendre les gains récupérables ?
 - Faut-il une pièce par groupe (Voie / LJPC), ou un espace commun réservé aux
   membres de l'un ou l'autre ?
 - Quelle playlist YouTube et quelle chaîne Twitch utiliser pour le cinéma ?
