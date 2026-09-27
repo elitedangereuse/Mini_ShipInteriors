@@ -2,6 +2,7 @@ import type { StationModel, Theme } from './assets'
 import type { CabinDef } from './cabin/view'
 import type { CustomModel } from './furniture'
 import { tr } from './i18n'
+import { BOARD_TABLES, SHIP_LAYOUTS } from '../shared/ship-layouts.js'
 
 /** Orientation en quarts de tour : 0 = face +z (sud), 1 = +x (est), 2 = -z (nord), 3 = -x (ouest). */
 export type Rot = 0 | 1 | 2 | 3
@@ -95,18 +96,7 @@ export const LEVELS: LevelDef[] = [
     name: tr('Cale', 'Hold'),
     theme: 'raw',
     ambience: { sky: '#8f97a8', ground: '#22180f', hemi: 0.9, sun: '#ffd2a0', sunIntensity: 1.35 },
-    layout: [
-      '                     ',
-      '            rrrrr    ',
-      '    aaaa    rrrrrgg  ',
-      '    aaaa    rrrrr+g  ',
-      '    aaaa jjj+rr+rgg  ',
-      '    aaaa+jjjmmmmmgg  ',
-      '    aaaa jjj+mmmm+g  ',
-      '    aaaa    mmmmmgg  ',
-      '            mmmmm    ',
-      '                     ',
-    ],
+    layout: SHIP_LAYOUTS['-1'],
     rooms: {
       a: tr('Atelier', 'Workshop'),
       j: tr('Palier de la cale', 'Hold landing'),
@@ -255,18 +245,7 @@ export const LEVELS: LevelDef[] = [
   {
     id: 0,
     name: tr('Pont principal', 'Main deck'),
-    layout: [
-      '  eeeeee   qqqqqrrrrr       ',
-      ' eeeeeeee  qqqqqrrrrr       ',
-      'eeeeeeeee  qqqqqrrrrr   bb  ',
-      'eeeeeeeee  qq+qqrr+rr  bbbb ',
-      'eeeeeeee+cccccccccccc+bbbbbb',
-      'eeeeeeeeecccccccccccccbbbbbb',
-      'eeeeeeeee  mm+mmss+ss  bbbb ',
-      'eeeeeeeee  mmmmmsssss   bb  ',
-      ' eeeeeeee  mmmmmsssss       ',
-      '  eeeeee   mmmmmsssss       ',
-    ],
+    layout: SHIP_LAYOUTS['0'],
     rooms: {
       e: tr('Salle des machines', 'Engine room'),
       c: tr('Coursive', 'Corridor'),
@@ -445,16 +424,16 @@ export const LEVELS: LevelDef[] = [
       { model: 'arcade', x: 16.05, z: 9, rot: 1, label: 'asteroids' },
       { model: 'arcade', x: 16.05, z: 6.15, rot: 1, label: 'fight' },
       {
-        model: 'holo-draughts', x: 17.75, z: 6.75, action: tr('Jouer aux dames', 'Play draughts'),
+        model: 'holo-draughts', x: BOARD_TABLES.draughts.x, z: BOARD_TABLES.draughts.z, action: tr('Jouer aux dames', 'Play draughts'),
         interact: tr('Table holographique : les pièces attendent deux adversaires.', 'Holographic table: the pieces await two opponents.'),
       },
       {
-        model: 'guardian-connect', x: 19, z: 7.45, action: tr('Jouer à Puissance 4', 'Play Connect Four'),
+        model: 'guardian-connect', x: BOARD_TABLES['guardian-connect'].x, z: BOARD_TABLES['guardian-connect'].z, action: tr('Jouer à Puissance 4', 'Play Connect Four'),
         interact: tr('Puissance 4 Guardian : alignez quatre cristaux avant votre adversaire.', 'Guardian Connect Four: align four crystals before your opponent.'),
       },
       {
         // Places et abords gardés à l'intérieur du salon, loin du mur sud (z = 9,5).
-        model: 'imperial-chess', x: 17.75, z: 8.4, action: tr('Jouer aux échecs', 'Play chess'),
+        model: 'imperial-chess', x: BOARD_TABLES['imperial-chess'].x, z: BOARD_TABLES['imperial-chess'].z, action: tr('Jouer aux échecs', 'Play chess'),
         interact: tr('Échec Impérial : stratégie, patience et aucun duel de plasma sur l’échiquier.', 'Imperial Chess: strategy, patience, and no plasma duels on the board.'),
       },
       { model: 'neon-sign', x: 17.1, z: 6.1, label: 'ARCADE' },
@@ -485,19 +464,7 @@ export const LEVELS: LevelDef[] = [
     theme: 'cozy',
     footsteps: 'soft',
     ambience: { sky: '#ffe6cc', ground: '#3a2a20', hemi: 1.3, sun: '#ffd9b0', sunIntensity: 1.9 },
-    layout: [
-      '                     ',
-      '        kkkkdddd     ',
-      '        kkkkdddd oo  ',
-      '     gggk+kkdd+doooo ',
-      '     ggg+ccccccc+ooo ',
-      '     gggccccccccoooo ',
-      '     gggppp+ppppoooo ',
-      '        pppppppp oo  ',
-      '        pppppppp     ',
-      '        pppppppp     ',
-      '        pppppppp     ',
-    ],
+    layout: SHIP_LAYOUTS['1'],
     rooms: {
       c: tr('Coursive', 'Corridor'),
       k: tr('Cabines d\'équipage', 'Crew cabins'),

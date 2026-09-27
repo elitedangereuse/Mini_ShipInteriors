@@ -9,6 +9,7 @@ import { LEVEL_HEIGHT, LIFT, type Flicker, type LevelDef } from './levels'
 import { DIRS, ShipMap } from './map'
 import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type Occluder } from './merge'
 import { Pathfinder } from './pathfinding'
+import { DOOR_GAP } from '../shared/sight.js'
 import { placeSeats, seatAction, seatsOf, type SeatSpot } from './seats'
 
 /** Rectangle de collision dans le plan XZ. */
@@ -65,7 +66,6 @@ const WALL_T = 0.3
  */
 const POST_W = WALL_T + 0.05
 const POST_H = 1.03
-const DOOR_GAP = 0.5
 const FLOOR_Y = -0.3
 const DOOR_RANGE = 1.3
 

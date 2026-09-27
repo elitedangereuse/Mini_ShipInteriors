@@ -89,11 +89,11 @@ export type ServerMessage =
    * Jukebox du pont principal ou des quartiers où l'on est ; `id` : qui l'a choisi (0 : le
    * relais, à l'arrivée) ; `busy` : notre choix est refusé (trop d'un coup), voici celui de tous.
    */
-  | ({ t: 'music'; id: number; busy?: boolean } & MusicState)
+  | ({ t: 'music'; id: number; busy?: boolean; far?: boolean } & MusicState)
   | ({ t: 'board:state' } & BoardState)
   | ({ t: 'fight:state' } & FightState)
   | { t: 'fight:error'; code: 'full' | 'unavailable' | 'busy' }
-  | { t: 'board:error'; game: string; table: string; code: 'full' | 'invalid' | 'busy' | 'unavailable' }
+  | { t: 'board:error'; game: string; table: string; code: 'full' | 'invalid' | 'busy' | 'unavailable' | 'far' }
 
 /**
  * Réponse du relais à une invitation : partie, ou pourquoi pas (guest : on n'est pas CMDR,
@@ -232,10 +232,11 @@ export class Net {
 
   /**
    * Choisit un morceau au jukebox du pont principal ou des quartiers où l'on est (null : l'arrêter),
-   * depuis son début ou `at` secondes plus loin.
+   * depuis son début ou `at` secondes plus loin. Avec `at`, c'est la musique de ses quartiers,
+   * rendue au relais après une reconnexion : il ne vérifie pas qu'on est au jukebox.
    */
-  sendMusic(where: 'deck' | 'cabin', track: string | null, x: number, z: number, at = 0) {
-    this.send('music', { where, track, x: Math.round(x * 100) / 100, z: Math.round(z * 100) / 100, ...(at > 0 ? { at: Math.round(at * 100) / 100 } : {}) })
+  sendMusic(where: 'deck' | 'cabin', track: string | null, x: number, z: number, at?: number) {
+    this.send('music', { where, track, x: Math.round(x * 100) / 100, z: Math.round(z * 100) / 100, ...(at !== undefined ? { at: Math.round(at * 100) / 100 } : {}) })
   }
 
   sendFightJoin(fighter: FighterId) { this.send('fight:join', { fighter }) }

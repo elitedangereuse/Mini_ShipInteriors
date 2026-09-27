@@ -21,6 +21,9 @@ import { BOARD_GAMES, applyBoardMove, boardColor, boardState, newBoardGame } fro
 import { sanitizeLayout } from './cabin.js'
 import { hasSiteArtwork, siteArtworkAllowed } from './site.js'
 import { cleanCmdrName, cmdrFromCookie } from './cmdr.js'
+import { BOARD_TABLES, SHIP_LAYOUTS } from '../shared/ship-layouts.js'
+import { ShipMap } from '../shared/ship-map.js'
+import { canReach } from '../shared/sight.js'
 
 /** Chemin de la socket, partagé avec le client (VITE_WS_PATH) et la conf nginx. */
 export const WS_PATH = '/ws/mini-shipinteriors'
@@ -37,6 +40,14 @@ const POSES = new Set(['sit', 'lie', 'pilot', 'arcade', 'claw', 'punch', 'run', 
 const LEVELS = new Set([-1, 0, 1])
 /** Une invitation dans des quartiers vaut une minute. */
 const INVITE_TTL = 60000
+/**
+ * Portée d'une action arbitrée par le relais (table de jeu, jukebox) : celle du client (1,45),
+ * plus la place assise autour de la table et le retard de la dernière position reçue.
+ */
+const REACH = 2.5
+/** Plans des ponts : on n'agit pas à travers un mur (cf. shared/sight.js). */
+const MAPS = new Map(Object.entries(SHIP_LAYOUTS).map(([id, layout]) => [Number(id), new ShipMap(layout)]))
+const reaches = (player, level, at) => player.level === level && canReach(MAPS.get(level), player, at, REACH)
 /** Morceaux du jukebox (cf. src/music.ts) : un identifiant court. */
 const TRACK = /^[a-z0-9-]{1,24}$/
 
@@ -245,6 +256,7 @@ export function attachRelay(
       const table = typeof m.table === 'string' ? m.table : ''
       const key = boardKey(game, table)
       if (!key || player.level !== 0) return socket.emit('board:error', { game, table, code: 'unavailable' })
+      if (!reaches(player, BOARD_TABLES[game].level, BOARD_TABLES[game])) return socket.emit('board:error', { game, table, code: 'far' })
       if (player.boardKey && player.boardKey !== key) leaveBoard(player)
       let state = boards.get(key)
       if (!state) boards.set(key, (state = newBoardGame(game, table)))
@@ -281,6 +293,9 @@ export function attachRelay(
       const track = m.track === null ? null : TRACK.test(String(m.track)) ? String(m.track) : undefined
       const x = num(m.x, -5, 40), z = num(m.z, -5, 20)
       if (track === undefined || x === null || z === null) return
+      // Au jukebox, et de ce côté du mur ; sauf l'hôte reconnecté qui rend sa musique (`at`).
+      const restore = m.where === 'cabin' && m.at !== undefined
+      if (!restore && !reaches(player, m.where === 'deck' ? 0 : 1, { x, z })) return socket.emit('music', { id: 0, ...musicOf(instance), far: true })
       musicBudget--
       if (track) music.set(instance, { track, since: Date.now() - (num(m.at, 0, 3600) ?? 0) * 1000, x, z })
       else music.delete(instance)

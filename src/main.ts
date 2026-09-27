@@ -23,6 +23,7 @@ import { Cat } from './cat'
 import { Deck, type Interactable } from './deck'
 import { beatAt, beatPulse, holoMeGlow, holoTime, type ClawControl, type ClawResult } from './furniture'
 import { GamepadControls, type GamepadInput } from '../shared/gamepad.js'
+import { lineOfSight } from '../shared/sight.js'
 import { EN, localizeAttributes, tr } from './i18n'
 import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, LIFT, SPAWN } from './levels'
 import { hydrateIcons, icon } from './icons'
@@ -630,6 +631,7 @@ net.onMessage = (m) => {
       // Un morceau au jukebox (du pont principal, ou des quartiers où l'on est), ou le silence.
       const track = applyMusic(m)
       if (m.busy) dialog.show(tr('Doucement avec le jukebox : un morceau à la fois.', 'Easy on the jukebox: one track at a time.'))
+      if (m.far) dialog.show(tr('Approchez-vous du jukebox pour choisir un morceau.', 'Move closer to the jukebox to pick a song.'))
       const r = remotes.get(m.id)
       if (track && r) chat.add('system', tr(`${r.name} a mis « ${track.title} » au jukebox.`, `${r.name} put “${track.title}” on the jukebox.`))
       break
@@ -1645,7 +1647,7 @@ function goTo(tile: Tile, onArrive?: () => void): boolean {
  */
 function goInteract(item: Interactable, point?: THREE.Vector3 | null) {
   if (item.seats) return sitOn(item, point ?? undefined)
-  if (distanceTo(item) < INTERACT_RANGE) return interactWith(item)
+  if (distanceTo(item) < INTERACT_RANGE && inSight(item)) return interactWith(item)
   const start = playerTile()
   // Tuile libre la plus proche (en chemin) : d'abord en contournant les meubles, sinon sans ;
   // d'abord à portée de main, sinon un peu plus loin (le centre d'un grand lit est loin de ses bords).
@@ -1657,6 +1659,8 @@ function goInteract(item: Interactable, point?: THREE.Vector3 | null) {
           const t = { x: Math.round(item.position.x) + dx, z: Math.round(item.position.z) + dz }
           if (!deck.pathfinder.walkable(t.x, t.z)) continue
           if (Math.hypot(t.x - item.position.x, t.z - item.position.z) > range) continue
+          // À portée, mais derrière le mur : on n'y interagirait pas.
+          if (!lineOfSight(deck.map, t, item.position)) continue
           const path = deck.pathfinder.find(start, t, strict)
           if (path) candidates.push({ tile: t, len: path.length })
         }
@@ -1675,12 +1679,17 @@ function distanceTo(item: Interactable): number {
   return Math.hypot(player.position.x - item.position.x, player.position.z - item.position.z)
 }
 
+/** Rien ne sépare le joueur de l'objet : ni mur ni cloison (cf. shared/sight.js). */
+function inSight(item: Interactable): boolean {
+  return lineOfSight(deck.map, player.position, item.position)
+}
+
 function nearestInteractable(): Interactable | null {
   let best: Interactable | null = null
   let bestD = INTERACT_RANGE
   for (const i of deck.interactables) {
     const d = distanceTo(i)
-    if (d < bestD) {
+    if (d < bestD && inSight(i)) {
       best = i
       bestD = d
     }

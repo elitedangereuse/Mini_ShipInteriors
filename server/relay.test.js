@@ -28,6 +28,9 @@ const listen = async (server) => {
 }
 
 let game, url, relay
+
+/** Devant le jukebox du mess (pont principal). */
+const AT_JUKEBOX = { x: 11.3, z: 7.1, yaw: 0, level: 0, anim: 'idle' }
 const clients = []
 
 before(async () => {
@@ -191,6 +194,7 @@ describe('rediffusion', () => {
     assert.equal(wa.music.track, null)
     const b = client({ auth: { name: 'CMDR Oreille' } })
     await welcome(b)
+    a.emit('state', AT_JUKEBOX)
     a.emit('music', { where: 'deck', track: 'Disco!', x: 11.3, z: 6.32 }) // identifiant invalide : ignoré
     a.emit('music', { where: 'deck', track: 'disco', x: 11.3, z: 6.32 })
     const heard = await next(b, 'music')
@@ -211,6 +215,7 @@ describe('rediffusion', () => {
     await welcome(a)
     const b = client({ auth: { name: 'CMDR Patient' } })
     await welcome(b)
+    a.emit('state', AT_JUKEBOX)
     const refused = next(a, 'music')
     for (const track of ['disco', 'lofi', 'space', 'lounge']) a.emit('music', { where: 'deck', track, x: 11.3, z: 6.32 })
     const m = await refused
@@ -220,6 +225,26 @@ describe('rediffusion', () => {
     await new Promise((r) => setTimeout(r, 2100))
     a.emit('music', { where: 'deck', track: null, x: 11.3, z: 6.32 })
     assert.equal((await next(b, 'music')).track, null)
+    a.disconnect()
+    b.disconnect()
+  })
+
+  test('le jukebox et les tables ne s\'utilisent pas à travers un mur', async () => {
+    const a = client({ auth: { name: 'CMDR Passe-Muraille' } })
+    await welcome(a)
+    const b = client({ auth: { name: 'CMDR Témoin' } })
+    await welcome(b)
+    // Coursive, juste au nord du mur du mess : le jukebox est à 1,3 de là, mais derrière le mur.
+    a.emit('state', { x: 11, z: 5, yaw: 0, level: 0, anim: 'idle' })
+    const far = next(a, 'music')
+    a.emit('music', { where: 'deck', track: 'disco', x: 11.3, z: 6.32 })
+    assert.equal((await far).far, true)
+    assert.equal(await receives(b, 'music', 150), false, 'le choix refusé n\'est pas diffusé')
+    // Même chose pour Puissance 4, depuis la salle de sport, au nord du salon d'arcade.
+    a.emit('state', { x: 19, z: 5, yaw: 0, level: 0, anim: 'idle' })
+    const refused = next(a, 'board:error')
+    a.emit('board:join', { game: 'guardian-connect', table: 'guardian-connect' })
+    assert.equal((await refused).code, 'far')
     a.disconnect()
     b.disconnect()
   })

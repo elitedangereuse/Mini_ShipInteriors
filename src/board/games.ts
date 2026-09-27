@@ -94,7 +94,9 @@ export class BoardGames {
           ? tr('Coup impossible.', 'That move is not allowed.')
           : message.code === 'busy'
             ? tr('Le relais est momentanément occupé.', 'The relay is temporarily busy.')
-            : tr('Cette table n’est pas disponible ici.', 'This table is not available here.')
+            : message.code === 'far'
+              ? tr('Approchez-vous de la table pour jouer.', 'Move closer to the table to play.')
+              : tr('Cette table n’est pas disponible ici.', 'This table is not available here.')
       this.render()
     }
   }
