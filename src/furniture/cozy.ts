@@ -128,6 +128,7 @@ const RUGS: Record<string, [string, string, string]> = {
   rubber: ['#2a2d33', '#3a3e46', '#5a5f68'],
   neon: ['#241640', '#3a2766', '#ff4fd8'],
   bath: ['#6fa8b8', '#dff0f4', '#ffffff'],
+  bar: ['#3c1712', '#5e241b', '#c9a24a'],
 }
 const rug: Builder = ({ label = 'warm' }) => {
   const [name, size] = label.split(':')

@@ -3,7 +3,7 @@
 // Une lettre par tuile (colonne = x, ligne = z), une lettre par pièce, '+' pour une porte.
 
 export const SHIP_LAYOUTS = {
-  // Cale
+  // Cale ; Chez Jacques, le bar clandestin, ne s'ouvre que depuis le fond de la soute.
   '-1': [
     '                     ',
     '            rrrrr    ',
@@ -13,7 +13,12 @@ export const SHIP_LAYOUTS = {
     '    aaaa+jjjmmmmmgg  ',
     '    aaaa jjj+mmmm+g  ',
     '    aaaa    mmmmmgg  ',
-    '            mmmmm    ',
+    '            mmmmm+   ',
+    '         bbbbbbbbbb  ',
+    '         bbbbbbbbbb  ',
+    '         bbbbbbbbbb  ',
+    '         bbbbbbbbbb  ',
+    '         bbbbbbbbbb  ',
     '                     ',
   ],
   // Pont principal

@@ -10,9 +10,9 @@ import { $ } from './ui'
  * Le jukebox : neuf morceaux libres de droits (CC0 ou domaine public, cf.
  * public/assets/music/CREDITS.txt), joués depuis le jukebox, spatialisés. Un morceau fini, le
  * suivant de la liste enchaîne. La piste de danse, la boule à facettes et les danseurs battent
- * sur son tempo (cf. tempo.ts). Le relais transmet le choix aux autres (au pont principal, ou
- * aux quartiers où l'on se trouve), avec le temps écoulé : chacun retombe sur le même morceau,
- * au même endroit.
+ * sur son tempo (cf. tempo.ts). Le relais transmet le choix aux autres (au pont principal, à la
+ * cale, ou aux quartiers où l'on se trouve), avec le temps écoulé : chacun retombe sur le même
+ * morceau, au même endroit.
  */
 
 export interface Track {

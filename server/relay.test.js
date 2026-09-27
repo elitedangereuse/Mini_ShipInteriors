@@ -218,6 +218,32 @@ describe('rediffusion', () => {
     for (const socket of [a, b, c]) socket.disconnect()
   })
 
+  test('le jukebox du bar de la cale joue à part de celui du mess, et se choisit depuis la cale', async () => {
+    const a = client({ auth: { name: 'CMDR Comptoir' } })
+    const wa = await welcome(a)
+    assert.equal(wa.hold.track, null)
+    const b = client({ auth: { name: 'CMDR Habitué' } })
+    await welcome(b)
+    // Depuis le mess, le jukebox du bar est hors de portée (autre pont).
+    a.emit('state', AT_JUKEBOX)
+    const far = next(a, 'music')
+    a.emit('music', { where: 'hold', track: 'lounge', x: 8.83, z: 9.6 })
+    assert.equal((await far).far, true)
+    // Au bar, devant le jukebox.
+    a.emit('state', { x: 9.6, z: 9.8, yaw: 0, level: -1, anim: 'idle' })
+    a.emit('music', { where: 'hold', track: 'lounge', x: 8.83, z: 9.6 })
+    const heard = await next(b, 'music')
+    assert.deepEqual({ ...heard, at: 0 }, { id: wa.id, where: 'hold', track: 'lounge', at: 0, x: 8.83, z: 9.6 })
+    // Le nouveau venu apprend les deux : le bar joue, le mess se tait.
+    const c = client({ auth: { name: 'CMDR Tardif' } })
+    const wc = await welcome(c)
+    assert.equal(wc.hold.track, 'lounge')
+    assert.equal(wc.music.track, null)
+    a.emit('music', { where: 'hold', track: null, x: 8.83, z: 9.6 })
+    assert.equal((await next(b, 'music')).track, null)
+    for (const socket of [a, b, c]) socket.disconnect()
+  })
+
   test('trop de choix d\'un coup au jukebox : le demandeur retrouve le morceau de tous', async () => {
     const a = client({ auth: { name: 'CMDR Zappeur' } })
     await welcome(a)
@@ -242,7 +268,7 @@ describe('rediffusion', () => {
     await welcome(a)
     const b = client({ auth: { name: 'CMDR Témoin' } })
     await welcome(b)
-    // Coursive, juste au nord du mur du mess : le jukebox est à 1,3 de là, mais derrière le mur.
+    // Coursive, juste au nord du mur du mess : le jukebox est à portée de main, mais derrière le mur.
     a.emit('state', { x: 11, z: 5, yaw: 0, level: 0, anim: 'idle' })
     const far = next(a, 'music')
     a.emit('music', { where: 'deck', track: 'disco', x: 11.3, z: 5.82 })

@@ -52,6 +52,10 @@ const REACH = 2.5
 /** Plans des ponts : on n'agit pas à travers un mur (cf. shared/sight.js). */
 const MAPS = new Map(Object.entries(SHIP_LAYOUTS).map(([id, layout]) => [Number(id), new ShipMap(layout)]))
 const reaches = (player, level, at) => player.level === level && canReach(MAPS.get(level), player, at, REACH)
+/** Pont de chaque jukebox : le mess (pont principal), le bar (la cale), les quartiers. */
+const JUKEBOX_LEVEL = new Map([['deck', 0], ['hold', -1], ['cabin', 1]])
+/** Jukebox d'une instance commune (cf. `music` plus bas) ; les autres sont des quartiers. */
+const JUKEBOX_WHERE = new Map([[0, 'deck'], [-1, 'hold']])
 /** Morceaux du jukebox (cf. src/music.ts) : un identifiant court. */
 const TRACK = /^[a-z0-9-]{1,24}$/
 
@@ -104,12 +108,15 @@ export function attachRelay(
   const sockets = new Map() // id du joueur -> socket
   const boards = new Map() // table -> partie de plateau
   let nextId = 1
-  /** Jukebox qui jouent : 0 pour le pont principal, sinon l'id de l'hôte des quartiers. */
+  /**
+   * Jukebox qui jouent : 0 pour le pont principal (le mess), -1 pour la cale (le bar), sinon
+   * l'id de l'hôte des quartiers.
+   */
   const music = new Map() // instance -> { track, since, x, z }
   /** Ce que joue le jukebox d'une instance, pour un joueur qui y arrive (track null : il se tait). */
   const musicOf = (instance) => {
     const m = music.get(instance)
-    return { where: instance ? 'cabin' : 'deck', track: m?.track ?? null, at: m ? (Date.now() - m.since) / 1000 : 0, x: m?.x ?? 0, z: m?.z ?? 0 }
+    return { where: JUKEBOX_WHERE.get(instance) ?? 'cabin', track: m?.track ?? null, at: m ? (Date.now() - m.since) / 1000 : 0, x: m?.x ?? 0, z: m?.z ?? 0 }
   }
 
   /** Position et animation d'un joueur, avec sa pose s'il est installé sur un meuble. */
@@ -192,8 +199,9 @@ export function attachRelay(
       id: player.id,
       you: { name: player.name, verified: player.verified },
       players: [...players.values()].filter((p) => p !== player).map(publicState),
-      // Le jukebox du pont principal, silence compris : après une reconnexion, on se recale.
+      // Les jukebox du pont principal et de la cale, silence compris : après une reconnexion, on se recale.
       music: musicOf(0),
+      hold: musicOf(-1),
     })
     socket.broadcast.emit('join', { player: publicState(player) })
     log(`[relais] ${player.name}${player.verified ? ' (CMDR vérifié)' : ''} (#${player.id}) a embarqué — ${players.size} à bord`)
@@ -286,26 +294,27 @@ export function attachRelay(
 
     socket.on('board:leave', () => leaveBoard(player))
 
-    // Jukebox : un morceau (ou le silence) au pont principal, ou dans les quartiers où l'on est,
+    // Jukebox : un morceau (ou le silence) au pont principal, à la cale, ou dans les quartiers où l'on est,
     // depuis son début ou `at` secondes plus loin (un hôte reconnecté rend la sienne au relais).
     // Trop de choix d'un coup : le demandeur, qui joue déjà le sien, retrouve celui de tous.
     socket.on('music', (raw) => {
       const m = obj(raw)
-      if (m.where !== 'deck' && m.where !== 'cabin') return
-      const instance = m.where === 'deck' ? 0 : player.cabin
+      if (!JUKEBOX_LEVEL.has(m.where)) return
+      const instance = m.where === 'cabin' ? player.cabin : m.where === 'deck' ? 0 : -1
       if (musicBudget < 1) return socket.emit('music', { id: 0, ...musicOf(instance), busy: true })
       const track = m.track === null ? null : TRACK.test(String(m.track)) ? String(m.track) : undefined
       const x = num(m.x, -5, 40), z = num(m.z, -5, 20)
       if (track === undefined || x === null || z === null) return
       // Au jukebox, et de ce côté du mur ; sauf l'hôte reconnecté qui rend sa musique (`at`).
       const restore = m.where === 'cabin' && m.at !== undefined
-      if (!restore && !reaches(player, m.where === 'deck' ? 0 : 1, { x, z })) return socket.emit('music', { id: 0, ...musicOf(instance), far: true })
+      if (!restore && !reaches(player, JUKEBOX_LEVEL.get(m.where), { x, z })) return socket.emit('music', { id: 0, ...musicOf(instance), far: true })
       musicBudget--
       if (track) music.set(instance, { track, since: Date.now() - (num(m.at, 0, 3600) ?? 0) * 1000, x, z })
       else music.delete(instance)
       const msg = { id: player.id, ...musicOf(instance) }
       for (const p of players.values()) {
-        if (p !== player && (instance === 0 || p.cabin === instance)) sockets.get(p.id)?.emit('music', msg)
+        // Les ponts communs s'entendent de tous (chacun n'écoute que celui de son pont) ; des quartiers, seulement de qui s'y trouve.
+        if (p !== player && (instance <= 0 || p.cabin === instance)) sockets.get(p.id)?.emit('music', msg)
       }
     })
 
@@ -375,7 +384,7 @@ export function attachRelay(
       players.delete(socket.id)
       sockets.delete(player.id)
       music.delete(player.id)
-      // Plus personne à bord : le jukebox du mess se tait.
+      // Plus personne à bord : les jukebox du mess et du bar se taisent.
       if (!players.size) music.clear()
       socket.broadcast.emit('leave', { id: player.id })
       // Ses visiteurs rentrent chez eux.

@@ -45,6 +45,9 @@ export const SEATS: Partial<Record<CustomModel | StationModel, Seat[]>> = {
   // Assez près du bord avant pour que les jambes pendent hors des coussins.
   sofa: [sit(-0.38, 0.22, 0.3), sit(0, 0.22, 0.3), sit(0.38, 0.22, 0.3)],
   armchair: [sit(0, 0.08, 0.28)],
+  'bar-chair': [sit(0, 0.03, 0.27)],
+  // Face au comptoir : on grimpe dessus par derrière.
+  'bar-stool': [sit(0, 0, 0.43, 0, [0, -0.45])],
   beanbag: [sit(0, 0, 0.24, 'free')],
   bench: [sit(-0.24, 0, 0.3, 'both'), sit(0.24, 0, 0.3, 'both')],
   toilet: [sit(0, 0.06, 0.235)],

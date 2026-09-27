@@ -21,9 +21,12 @@ export interface PlayerState {
   cabin: number
 }
 
+/** Où est un jukebox : au mess du pont principal, au bar de la cale, ou dans des quartiers. */
+export type JukeboxWhere = 'deck' | 'hold' | 'cabin'
+
 /** Ce que joue un jukebox : son morceau (null : il se tait), depuis `at` secondes, à sa place. */
 export interface MusicState {
-  where: 'deck' | 'cabin'
+  where: JukeboxWhere
   track: string | null
   at: number
   x: number
@@ -66,7 +69,7 @@ export interface FightState {
 
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
-  | { t: 'welcome'; id: number; you: { name: string; verified: boolean }; players: PlayerState[]; music?: MusicState }
+  | { t: 'welcome'; id: number; you: { name: string; verified: boolean }; players: PlayerState[]; music?: MusicState; hold?: MusicState }
   | { t: 'join'; player: PlayerState }
   | { t: 'leave'; id: number }
   | { t: 'state'; id: number; x: number; z: number; yaw: number; level: number; anim: string; pose?: string; py?: number }
@@ -231,11 +234,11 @@ export class Net {
   }
 
   /**
-   * Choisit un morceau au jukebox du pont principal ou des quartiers où l'on est (null : l'arrêter),
+   * Choisit un morceau au jukebox du pont principal, de la cale ou des quartiers où l'on est (null : l'arrêter),
    * depuis son début ou `at` secondes plus loin. Avec `at`, c'est la musique de ses quartiers,
    * rendue au relais après une reconnexion : il ne vérifie pas qu'on est au jukebox.
    */
-  sendMusic(where: 'deck' | 'cabin', track: string | null, x: number, z: number, at?: number) {
+  sendMusic(where: JukeboxWhere, track: string | null, x: number, z: number, at?: number) {
     this.send('music', { where, track, x: Math.round(x * 100) / 100, z: Math.round(z * 100) / 100, ...(at !== undefined ? { at: Math.round(at * 100) / 100 } : {}) })
   }
 

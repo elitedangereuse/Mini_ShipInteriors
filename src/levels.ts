@@ -90,7 +90,7 @@ export const SPAWN = { level: 1, x: 11.2, z: 7.4 }
 export const CAT_SPAWN = { level: 1, x: 14.9, z: 7.3 }
 
 export const LEVELS: LevelDef[] = [
-  // ======================================================== Cale : minage, bricolage, réparation
+  // ======================================================== Cale : minage, bricolage, réparation, et un bar clandestin
   {
     id: -1,
     name: tr('Cale', 'Hold'),
@@ -103,9 +103,12 @@ export const LEVELS: LevelDef[] = [
       r: tr('Baie de réparation', 'Repair bay'),
       m: tr('Raffinerie', 'Refinery'),
       g: tr('Soute', 'Cargo bay'),
+      // Le nom du bar ne se traduit pas.
+      b: 'Chez Jacques',
     },
+    // Le bar est tenu plus proprement que le reste de la cale : dalles lisses, pas un hublot.
     floors: { a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel' },
-    windows: { a: 0.1, j: 0, r: 0.12, m: 0, g: 0.1 },
+    windows: { a: 0.1, j: 0, r: 0.12, m: 0, g: 0.1, b: 0 },
     props: [
       // --- Palier : l'ascenseur au centre (cf. LIFT) ---
       { model: 'hazard-floor', x: 10, z: 5, solid: false },
@@ -230,6 +233,65 @@ export const LEVELS: LevelDef[] = [
           '2B mining laser, put away for the winter. Do not aim at the hydrogen tanks.',
         ),
       },
+
+      // --- Chez Jacques : le bar clandestin, au fond de la soute ---
+      // Arrière-bar contre le mur nord, Jacques entre lui et le comptoir, tabourets côté salle.
+      {
+        model: 'back-bar', x: 12.4, z: 8.8,
+        interact: tr(
+          'Arrière-bar : Brandy de Lave, whisky d\'Eranin, Onionhead « à usage médical » et une bouteille sans étiquette que personne n\'ose ouvrir.',
+          'Back bar: Lavian Brandy, Eranin whisky, Onionhead “for medical use” and an unlabelled bottle nobody dares to open.',
+        ),
+      },
+      { model: 'bar-counter', x: 12.4, z: 9.8 },
+      {
+        model: 'bartender', x: 12.4, z: 9.25, action: tr('Parler à Jacques', 'Talk to Jacques'),
+        interact: [
+          tr('Jacques : « Bienvenue chez Jacques. Ici, on ne demande ni votre nom, ni votre cargaison. »', 'Jacques: “Welcome to Chez Jacques. Here, nobody asks your name, or your cargo.”'),
+          tr('Jacques : « Du Brandy de Lave ? Officiellement, je n\'en ai pas. Officieusement, c\'est 400 CR le verre. »', 'Jacques: “Lavian Brandy? Officially, I have none. Unofficially, it\'s 400 CR a glass.”'),
+          tr('Jacques : « Le cocktail du jour : le Supercroisière. Trois doses de rhum, une de carburant… pardon, de sirop. »', 'Jacques: “Cocktail of the day: the Supercruise. Three shots of rum, one of fuel… sorry, of syrup.”'),
+          tr('Jacques : « Si la sécurité monte à bord, ce bar est une réserve de pièces détachées. Compris ? »', 'Jacques: “If security comes aboard, this bar is a spare parts store. Understood?”'),
+          tr('Jacques : « J\'ai servi à Jameson Memorial, moi. Ils m\'ont remplacé par un distributeur. Un distributeur ! »', 'Jacques: “I used to serve at Jameson Memorial, you know. They replaced me with a vending machine. A vending machine!”'),
+          tr('Jacques : « Onionhead ? Jamais entendu parler. Et baissez la voix. »', 'Jacques: “Onionhead? Never heard of it. And keep your voice down.”'),
+          tr('Jacques : « o7, CMDR. Le premier verre au retour de Colonia, c\'est la maison qui l\'offre. »', 'Jacques: “o7, CMDR. Your first drink back from Colonia is on the house.”'),
+          tr('Jacques essuie un verre, vous regarde, et en essuie un autre. Il attend votre commande.', 'Jacques wipes a glass, looks at you, and wipes another one. He is waiting for your order.'),
+        ],
+      },
+      { model: 'bar-stool', x: 11.2, z: 10.45, rot: 2 },
+      { model: 'bar-stool', x: 12, z: 10.45, rot: 2 },
+      { model: 'bar-stool', x: 12.8, z: 10.45, rot: 2, label: 'black' },
+      { model: 'bar-stool', x: 13.6, z: 10.45, rot: 2 },
+      // Le jukebox du bar, contre le mur ouest : toute la cale l'entend (cf. src/music.ts).
+      { model: 'jukebox', x: 8.83, z: 9.6, rot: 1, action: tr('Choisir un morceau', 'Pick a song'), music: true },
+      // Trois tables de bistro, sur un grand tapis.
+      { model: 'rug', x: 13, z: 12.3, label: 'bar:7.6x1.7', solid: false },
+      { model: 'bar-table', x: 10.3, z: 12.3 },
+      { model: 'bar-chair', x: 9.78, z: 12.3, rot: 1 },
+      { model: 'bar-chair', x: 10.82, z: 12.3, rot: 3 },
+      { model: 'bar-table', x: 13, z: 12.2 },
+      { model: 'bar-chair', x: 12.48, z: 12.2, rot: 1 },
+      { model: 'bar-chair', x: 13.52, z: 12.2, rot: 3 },
+      { model: 'bar-chair', x: 13, z: 12.74, rot: 2 },
+      { model: 'bar-table', x: 15.7, z: 12.3 },
+      { model: 'bar-chair', x: 15.18, z: 12.3, rot: 1 },
+      { model: 'bar-chair', x: 16.22, z: 12.3, rot: 3 },
+      // Banquette du coin, contre le mur est, et sa table.
+      {
+        model: 'sofa', x: 18.03, z: 10.9, rot: 3, label: 'plum',
+        interact: tr('Banquette du fond : la place de ceux qui ne veulent pas qu\'on voie leur visage.', 'Back booth: the seat for those who would rather not show their face.'),
+      },
+      { model: 'bar-table', x: 17.2, z: 10.9 },
+      // La marchandise, à deux pas de l'entrée de la soute.
+      {
+        model: 'crate', x: 18, z: 9.1,
+        interact: tr(
+          'Caisses marquées « PIÈCES DÉTACHÉES ». Elles tintent quand on les secoue.',
+          'Crates marked “SPARE PARTS”. They clink when you shake them.',
+        ),
+      },
+      { model: 'crate', x: 18, z: 9.1, y: 0.4 },
+      { model: 'crate', x: 18.02, z: 9.62 },
+      { model: 'plant-tall', x: 17.95, z: 12.95 },
     ],
     lights: [
       [5.6, 3.1, '#ffb35c', 3],
@@ -238,6 +300,8 @@ export const LEVELS: LevelDef[] = [
       [14.3, 2.3, '#fff0d8', 3.2],
       [14.3, 6.9, '#ff7a2a', 3, 'fire'],
       [17.9, 4.6, '#ffb060', 2.2, 'neon'],
+      [12.4, 9.7, '#ffb45e', 3.4],
+      [14.2, 11.8, '#ff9f5a', 3, 'fire'],
     ],
   },
 
