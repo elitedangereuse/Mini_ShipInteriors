@@ -39,7 +39,10 @@ cam.position.set(params.has('back') ? -1 : 1, 1, params.has('back') ? -1 : 1).mu
 if (params.has('side')) cam.position.set(20, 3, 0.01)
 // &cam=x,y,z : n'importe quelle direction de vue.
 if (params.get('cam')) cam.position.set(...(params.get('cam')!.split(',').map(Number) as [number, number, number])).setLength(20)
-cam.lookAt(0, 0, 0)
+// &target=x,y,z : point visé (pour cadrer un seul objet de près).
+const target = new THREE.Vector3(...((params.get('target') ?? '0,0,0').split(',').map(Number) as [number, number, number]))
+cam.position.add(target)
+cam.lookAt(target)
 
 function label(text: string): THREE.Sprite {
   const c = document.createElement('canvas')
@@ -208,7 +211,7 @@ function showCatalogue() {
     const grid = document.createElement('div')
     grid.style.cssText = 'display:flex;flex-wrap:wrap;gap:10px'
     for (const e of CATALOG.filter((x) => x.category === cat.id)) {
-      for (const v of params.has('variantes') && e.variants ? e.variants.map((x) => x.id) : [e.variants?.[0].id]) {
+      for (const v of params.has('variantes') && e.variants ? e.variants.map((x) => x.id) : [e.variants?.[0]?.id]) {
         const card = document.createElement('div')
         card.style.cssText = 'width:132px;text-align:center;background:#262a3d;border-radius:8px;padding:6px'
         const img = document.createElement('img')
