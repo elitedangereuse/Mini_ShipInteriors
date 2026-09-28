@@ -1688,6 +1688,11 @@ function updateGamepad(dt: number): GamepadInput {
     if (pad.cancel) gym.stop()
     return pad
   }
+  if (barPanel.isOpen) {
+    pad.moveX = pad.moveY = 0
+    if (pad.cancel) barPanel.close()
+    return pad
+  }
   // Les panneaux prennent les commandes avant le personnage.
   const panel = sitePanel.isOpen ? sitePanel : lift.isOpen ? lift : jukebox.isOpen ? jukebox : null
   if (panel) {
@@ -1723,7 +1728,7 @@ function updateGamepad(dt: number): GamepadInput {
 
 function movementDirection(pad: GamepadInput): THREE.Vector3 {
   const input = keyboardDirection()
-  if (chat.typing || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || editing() || photo.active) return input
+  if (chat.typing || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || wardrobe.isOpen || editing() || photo.active) return input
   // Le clavier reste prioritaire lorsqu'une touche de déplacement est maintenue.
   if (input.lengthSq() === 0) iso.screenToGround(pad.moveX, -pad.moveY, input)
   return input
@@ -2071,6 +2076,7 @@ function seated(seat: Seated) {
   bindPose()
   // Passé en mode photo pendant qu'on s'installait : on tient la pose, sans rien lancer.
   if (photo.active) return
+  if (deck.def.id === -1 && item.furniture?.model === 'bar-stool') return barPanel.open()
   if (seat.spot.pose === 'claw' && item.control?.kind === 'claw') return startClaw(seat, item.control)
   const game = arcadeGame(seat)
   if (game) return void openArcade(seat, game)
@@ -2118,6 +2124,7 @@ function seatPrompt(seat: Seated): { main: string; space?: string } {
   if (arcadeGame(seat)) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
   if (seat.item.furniture?.model === 'bar-table' && seat.item.furniture.label === 'galactic-clash') return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
   if (seat.item.furniture?.model === 'pinball' && deck.def.id === -1) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
+  if (seat.item.furniture?.model === 'bar-stool' && deck.def.id === -1) return { main: tr('Se lever', 'Stand up'), space: tr('Parler à Jacques', 'Talk to Jacques') }
   if (boardGame(seat)) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
   return { main: tr('Se lever', 'Stand up') }
 }
@@ -2130,6 +2137,7 @@ function seatAction(seat: Seated) {
   if (game) void openArcade(seat, game)
   if (seat.item.furniture?.model === 'bar-table' && seat.item.furniture.label === 'galactic-clash') return gameEmbed.open('cards')
   if (seat.item.furniture?.model === 'pinball' && deck.def.id === -1) return gameEmbed.open('cqc')
+  if (seat.item.furniture?.model === 'bar-stool' && deck.def.id === -1) return barPanel.open()
   const board = boardGame(seat)
   if (board) boardGames.open(board.game, board.table)
 }
