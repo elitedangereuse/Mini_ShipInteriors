@@ -1043,7 +1043,7 @@ async function command(text: string) {
       // Où sont les tâches : par pont, et les pièces où elles attendent.
       const lines: string[] = []
       for (const d of [...decks].sort((a, b) => b.def.id - a.def.id)) {
-        const rooms = [...board.live.values()].filter((t) => t.deck === d).map((t) => d.roomName(t.spot.x, t.spot.z))
+        const rooms = [...board.live.values()].filter((t) => t.deck === d).map((t) => d.roomName(t.item.position.x, t.item.position.z))
         if (rooms.length) lines.push(`${d.def.name} : ${rooms.length} (${[...new Set(rooms)].join(', ')})`)
       }
       if (!lines.length) return chat.add('system', tr('Aucune tâche à bord pour l\'instant : tout est en ordre.', 'No chores aboard right now: everything is shipshape.'))

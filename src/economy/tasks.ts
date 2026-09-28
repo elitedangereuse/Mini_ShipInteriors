@@ -7,6 +7,7 @@ import { iconSvg, type IconName } from '../icons'
 import { DIRS } from '../map'
 import { formatCredits, type Spot, type TaskKind } from './data'
 import { activeTasks, clock, hash32, taskOf } from './schedule'
+import { placeTask } from './placement'
 import type { Wallet } from './wallet'
 
 /*
@@ -230,6 +231,11 @@ export class TaskBoard {
   private add(spot: Spot, cycle: number) {
     const deck = this.decks.find((d) => d.def.id === spot.deck)
     if (!deck) return
+    // Place vérifiée : jamais dans un mur, un meuble ou un comptoir (cf. placement.ts).
+    const place = placeTask(deck, spot)
+    // En dev : le plan a bougé sous l'emplacement, economy.json est à corriger.
+    if (import.meta.env.DEV && (!place || place.moved)) console.warn(`Tâche ${spot.id} : ${place ? `déplacée en (${place.x}, ${place.z})` : 'aucune place libre'}, cf. economy.json`)
+    if (!place) return
     const def = taskOf(spot)
     const info = TASK_INFO[spot.task]
     const holder = new THREE.Group()
@@ -241,16 +247,16 @@ export class TaskBoard {
     holder.add(body)
 
     let at: { x: number; z: number }
-    if (spot.wall !== undefined) {
+    if (place.wall !== undefined) {
       // Sur la face intérieure du mur, tournée vers la pièce (nord → face au sud…).
-      const d = DIRS[spot.wall]
-      body.position.set(spot.x + d.dx * (0.5 - WALL_HALF), 0, spot.z + d.dz * (0.5 - WALL_HALF))
-      body.rotation.y = (((4 - spot.wall) % 4) * Math.PI) / 2
-      at = { x: spot.x + d.dx * 0.28, z: spot.z + d.dz * 0.28 }
+      const d = DIRS[place.wall]
+      body.position.set(place.x + d.dx * (0.5 - WALL_HALF), 0, place.z + d.dz * (0.5 - WALL_HALF))
+      body.rotation.y = (((4 - place.wall) % 4) * Math.PI) / 2
+      at = { x: place.x + d.dx * 0.28, z: place.z + d.dz * 0.28 }
     } else {
-      body.position.set(spot.x, spot.y ?? 0, spot.z)
+      body.position.set(place.x, spot.y ?? 0, place.z)
       body.rotation.y = ((spot.rot ?? 0) * Math.PI) / 2
-      at = { x: spot.x, z: spot.z }
+      at = { x: place.x, z: place.z }
     }
 
     // Volume invisible, qu'on clique : le décor fait parfois quelques centimètres de haut.
