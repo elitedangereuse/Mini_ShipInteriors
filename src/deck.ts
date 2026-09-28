@@ -8,6 +8,7 @@ import { beamMaterial, buildFurniture, isCustomModel, tickFurniture, type Emitte
 import { tr } from './i18n'
 import { LEVEL_HEIGHT, LIFT, type Flicker, type LevelDef } from './levels'
 import { DIRS, ShipMap } from './map'
+import { Hull } from './hull'
 import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type Occluder } from './merge'
 import { Pathfinder } from './pathfinding'
 import { DOOR_GAP } from '../shared/sight.js'
@@ -157,6 +158,7 @@ export class Deck {
   readonly theme: ThemeMaterials
   /** Cabine personnalisable du pont (les quartiers du commandant), dont chaque joueur a son exemplaire. */
   readonly cabin?: CabinView
+  private readonly hull = new Hull()
 
   constructor(readonly def: LevelDef) {
     this.theme = themes[def.theme ?? 'station']
@@ -166,6 +168,8 @@ export class Deck {
     this.glowMat = beamMaterial()
 
     this.buildFloors()
+    // La coque sous le pont : le corps du vaisseau, le même sous chaque pont (cf. hull.ts).
+    this.group.add(this.hull.group)
     this.buildWalls()
     this.buildProps()
     this.buildLift()
@@ -271,8 +275,6 @@ export class Deck {
   }
 
   private buildFloors() {
-    const hullMat = new THREE.MeshLambertMaterial({ color: '#23263a' })
-    const hullGeo = new THREE.BoxGeometry(1, 0.35, 1)
     for (let z = 0; z < this.map.height; z++) {
       for (let x = 0; x < this.map.width; x++) {
         const room = this.map.room(x, z)
@@ -281,10 +283,6 @@ export class Deck {
         // Quelques dalles à picots pour varier, sauf dans les quartiers (les tapis y sont posés à plat).
         if (model === 'floor' && this.def.theme !== 'cozy' && hash(x, z) % 9 === 0) model = 'floor-detail'
         this.addStatic(this.place(model, x, FLOOR_Y, z), false)
-        // Coque sombre sous le plancher, pour donner de l'épaisseur au vaisseau.
-        const h = new THREE.Mesh(hullGeo, hullMat)
-        h.position.set(x, FLOOR_Y - 0.175, z)
-        this.addStatic(h, false)
       }
     }
   }
@@ -595,19 +593,20 @@ export class Deck {
     })
     this.engineEmitters.push(new THREE.Vector3(cx, this.y + 0.8, cz))
 
-    // Tuyères : sortent de la coque côté ouest (poupe).
+    // Tuyères : sortent de la coque côté ouest (poupe), à mi-hauteur.
     const nozzleMat = new THREE.MeshStandardMaterial({ color: '#3b3f5e', metalness: 0.7, roughness: 0.35, side: THREE.DoubleSide })
+    const stern = Hull.stern
     for (const z of [3, 6]) {
       const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.42, 0.8, 20, 1, true), nozzleMat)
       nozzle.rotation.z = Math.PI / 2
-      nozzle.position.set(-0.8, -0.2, z)
+      nozzle.position.set(stern - 0.3, -0.75, z)
       this.addStatic(nozzle, false)
       const plume = new THREE.Mesh(new THREE.ConeGeometry(0.5, 2.6, 20, 1, true), this.glowMat)
       plume.rotation.z = Math.PI / 2
-      plume.position.set(-2.4, -0.2, z)
+      plume.position.set(stern - 1.9, -0.75, z)
       this.group.add(plume)
       this.plumes.push(plume)
-      this.engineEmitters.push(new THREE.Vector3(-1.6, this.y - 0.2, z))
+      this.engineEmitters.push(new THREE.Vector3(stern - 1.1, this.y - 0.75, z))
     }
   }
 
@@ -656,6 +655,7 @@ export class Deck {
     this.liftSign.position.y = 1.55 + Math.sin(this.time * 1.6) * 0.04
 
     tickFurniture(this.time)
+    this.hull.update(this.time)
     const frame = Math.floor(this.time * 12)
     const decorate = !renderQuality.light || frame !== this.decorationFrame
     this.decorationFrame = frame
