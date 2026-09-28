@@ -659,7 +659,7 @@ export const LEVELS: LevelDef[] = [
         ],
       },
       {
-        model: 'amadioha-photo', x: 20.65, z: 0.1, rot: 1, solid: false,
+        model: 'amadioha-photo', x: 25.35, z: 1, rot: 3, solid: false,
         interact: tr('Photo de l\'installation scientifique Amadioha, près de sa naine blanche. En bas, d\'une écriture d\'enfant : « Chez nous ».', 'Photo of the Amadioha Scientific Installation, beside its white dwarf. At the bottom, in a child\'s hand: “Home”.'),
       },
       {
