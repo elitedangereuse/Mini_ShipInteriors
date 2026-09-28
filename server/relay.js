@@ -25,6 +25,7 @@ import { BOARD_GAMES, applyBoardMove, boardColor, boardState, newBoardGame } fro
 import { sanitizeLayout } from './cabin.js'
 import { hasSiteArtwork, siteArtworkAllowed } from './site.js'
 import { cleanCmdrName, cmdrFromCookie } from './cmdr.js'
+import { createCinema } from './cinema.js'
 import { BOARD_TABLES, SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import { ShipMap } from '../shared/ship-map.js'
 import { applyWings } from '../shared/cabin-wings.js'
@@ -127,6 +128,8 @@ export function attachRelay(
   })
   const players = new Map() // socket.id -> joueur
   const sockets = new Map() // id du joueur -> socket
+  const cinema = createCinema({ cmdrUrl, players: () => [...players.values()], emit: (event, state) => io.emit(event, state), error })
+  httpServer.on('close', () => cinema.dispose())
   const boards = new Map() // table -> partie de plateau
   let nextId = 1
   /**
@@ -234,6 +237,8 @@ export function attachRelay(
       hold: musicOf(-1),
       system,
     })
+    socket.emit('cinema:state', cinema.snapshot())
+    void cinema.refresh().then(() => socket.connected && socket.emit('cinema:state', cinema.snapshot()))
     socket.broadcast.emit('join', { player: publicState(player) })
     log(`[relais] ${player.name}${player.verified ? ' (CMDR vérifié)' : ''} (#${player.id}) a embarqué — ${players.size} à bord`)
 
@@ -243,12 +248,14 @@ export function attachRelay(
     let inviteBudget = 3
     let cabinBudget = 10
     let musicBudget = 3
+    let cinemaBudget = 3
     let boardBudget = 30
     const refill = setInterval(() => {
       chatBudget = Math.min(5, chatBudget + 1)
       inviteBudget = Math.min(3, inviteBudget + 0.25)
       cabinBudget = Math.min(10, cabinBudget + 5)
       musicBudget = Math.min(3, musicBudget + 0.5)
+      cinemaBudget = Math.min(3, cinemaBudget + 0.5)
       boardBudget = Math.min(30, boardBudget + 10)
     }, 1000)
 
@@ -261,6 +268,15 @@ export function attachRelay(
       if (player.level !== m.level) fights.leave(player)
       Object.assign(player, { x, z, yaw, level: m.level, anim: ANIMS.has(m.anim) ? m.anim : 'idle', pose, py: pose ? (num(m.py, 0, 1.2) ?? 0) : 0 })
       socket.broadcast.emit('state', { id: player.id, ...motion(player) })
+      cinema.operatorChanged()
+    })
+
+    socket.on('cinema:choose', async (raw) => {
+      if (cinemaBudget < 1) return socket.emit('cinema:error', { reason: 'busy' })
+      cinemaBudget--
+      const id = obj(raw).id
+      const reason = await cinema.choose(player, id)
+      if (reason) socket.emit('cinema:error', { reason })
     })
 
     socket.on('chat', (raw) => {
@@ -429,6 +445,7 @@ export function attachRelay(
       leaveBoard(player)
       players.delete(socket.id)
       sockets.delete(player.id)
+      cinema.operatorChanged()
       music.delete(player.id)
       // Plus personne à bord : les jukebox du mess et du bar se taisent.
       if (!players.size) music.clear()

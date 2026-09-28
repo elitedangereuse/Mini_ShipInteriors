@@ -158,19 +158,23 @@ Choix et réalisation (27 septembre 2026) :
   Les huit paliers rapportent 20 à 300 CR (925 CR au total par appareil), sans
   prime de record d'arcade ; le message de fin affiche le montant réellement gagné.
   Le site contrôle le plafond de 99 900 points et la plausibilité temporelle.
-- SOC-04, la salle seulement (28 septembre 2026) : le cinéma du pont supérieur
+- SOC-04 (28 septembre 2026) : le cinéma du pont supérieur
   est ouvert, derrière le salon. Grand écran à rideaux de velours au nord, où
   tourne en boucle une fausse bande-annonce dessinée (même scène pour tout le
   bord), quatre rangées de six fauteuils, projecteur à bobines et son faisceau,
   machine à pop-corn, affiches de faux films, panneau « Sortie ». La lumière
   baisse en fondu quand on entre (`dim` dans levels.ts) et l'écran éclaire la
-  salle aux couleurs de la scène. Reste à faire : la playlist YouTube et le
-  live Twitch.
+  salle aux couleurs de la scène. Un fauteuil bleu au fond sert de régie : son
+  occupant choisit, parmi les aventures visibles avec trailer en base, la séance
+  commune à tout le bord. Les autres fauteuils et l'écran ouvrent le lecteur
+  partagé. En direct, la chaîne Twitch prend la priorité et suspend les trailers.
 - Salon d'écoute (même jour) : l'ancien salon panoramique, en version cosy,
   pour Radio Dangereuse (le podcast Elite Dangerous) et les Galères
   Galactiques (mini-fiction audio humoristique). Affiches des deux émissions,
   enseigne « ON AIR », casques sur pied et au mur, poste d'écoute animé, coussins
-  de sol. L'écoute elle-même n'est pas branchée : le poste affiche un texte.
+  de sol. Les assises et l'ampli ouvrent un sélecteur Radio Dangereuse / Galères
+  Galactiques. Le premier se lit dans un lecteur local (son site interdit les
+  iframes tierces), le second dans une iframe directe.
 - Labo du L.J.P.C. (même jour), d'après l'aventure « Connais ton ennemi » :
   tableau d'enquête des trois sites thargoïdes, paillasse, échantillon sous
   cloche, hologramme d'un intercepteur, photo d'Amadioha. James et Julia sont
@@ -509,7 +513,6 @@ comme propositions constituent des choix de conception à tester.
 
 - Faut-il une pièce par groupe (Voie / LJPC), ou un espace commun réservé aux
   membres de l'un ou l'autre ?
-- Quelle playlist YouTube et quelle chaîne Twitch utiliser pour le cinéma ?
 - Quelle forme donner aux éléments d'aventures : PNJ, objets décoratifs ou
   objets à débloquer ?
 - Les nouveaux compagnons vivent-ils dans les espaces communs, dans les

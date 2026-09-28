@@ -758,7 +758,7 @@ export const LEVELS: LevelDef[] = [
       // --- Salon d'écoute : casques, fauteuils face aux étoiles, les affiches des deux émissions ---
       { model: 'on-air-sign', x: 15.65, z: 1.05, rot: 1, solid: false },
       {
-        model: 'podcast-poster', x: 15.65, z: 1.95, rot: 1, label: 'radio', solid: false,
+        model: 'podcast-poster', x: 17.2, z: 7.35, rot: 2, label: 'radio', solid: false,
         interact: tr(
           'Radio Dangereuse : le podcast Elite Dangerous de la communauté. Actus, débats et histoires de CMDR, à retrouver sur radio.elitedangereuse.fr.',
           'Radio Dangereuse: the community\'s Elite Dangerous podcast. News, debates and CMDR stories, on radio.elitedangereuse.fr.',
@@ -831,6 +831,8 @@ export const LEVELS: LevelDef[] = [
       { model: 'cinema-row', x: 24.2, z: 4.46, rot: 2 },
       { model: 'cinema-row', x: 24.2, z: 5.46, rot: 2 },
       { model: 'cinema-row', x: 24.2, z: 6.46, rot: 2 },
+      { model: 'projection-chair', x: 26.65, z: 7.55, rot: 2, action: tr('Prendre la régie', 'Take the controls'),
+        interact: tr('Fauteuil de diffusion : choisissez la séance pour tout le bord.', 'Projection chair: choose the screening for everyone aboard.') },
       // Le projecteur, perché au mur du fond : son faisceau file jusqu'à la toile.
       { model: 'film-projector', x: 24.2, z: 8.35, rot: 2, label: '7.62', solid: false },
       {

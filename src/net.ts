@@ -38,6 +38,17 @@ export interface MusicState {
   seed?: number
 }
 
+export interface CinemaTrailer { id: number; title: string; image: string; video: string }
+export interface CinemaState {
+  trailers: CinemaTrailer[]
+  live: boolean
+  liveTitle: string
+  selected: number | null
+  since: number
+  operator: number | null
+  now: number
+}
+
 export type BoardGameId = 'draughts' | 'guardian-connect' | 'imperial-chess'
 
 export interface BoardPlayer {
@@ -103,6 +114,8 @@ export type ServerMessage =
   | ({ t: 'board:state' } & BoardState)
   | ({ t: 'fight:state' } & FightState)
   | { t: 'fight:error'; code: 'full' | 'unavailable' | 'busy' }
+  | ({ t: 'cinema:state' } & CinemaState)
+  | { t: 'cinema:error'; reason: 'live' | 'seat' | 'invalid' | 'busy' }
   | { t: 'board:error'; game: string; table: string; code: 'full' | 'invalid' | 'busy' | 'unavailable' | 'far' }
 
 /**
@@ -115,7 +128,7 @@ type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin'>
 
 /** Chemin de la socket : le même que WS_PATH dans server/relay.js et que la conf nginx du site. */
 const WS_PATH = import.meta.env.VITE_WS_PATH || '/ws/mini-shipinteriors'
-const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'music', 'jump', 'board:state', 'board:error', 'fight:state', 'fight:error']
+const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'music', 'jump', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error']
 
 export class Net {
   online = false
@@ -207,6 +220,10 @@ export class Net {
   /** Demande un saut FSD (installé dans le siège du pilote) : le relais choisit la destination. */
   sendJump() {
     this.send('jump', {})
+  }
+
+  sendCinemaChoice(id: number | null) {
+    this.send('cinema:choose', { id })
   }
 
   sendProfile(profile: { name: string; skin: string }) {

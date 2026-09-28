@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Radio Dangereuse · Écoute</title>
+<style>
+  :root { color-scheme: dark; font: 15px/1.45 system-ui,sans-serif; background: #111923; color: #f5ecdf }
+  * { box-sizing: border-box }
+  body { margin: 0; padding: 20px; background: radial-gradient(circle at top left,#423020,#111923 65%); min-height: 100vh }
+  header { display: flex; align-items: center; gap: 18px; margin: 0 auto 22px; max-width: 680px }
+  header img { width: min(48vw, 220px); height: auto }
+  h1 { font: 500 clamp(19px,5vw,27px) Georgia,serif; margin: 0 }
+  p { color: #ccbca6; margin: 4px 0 0 }
+  main { max-width: 680px; margin: auto }
+  ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px }
+  li { padding: 14px; background: #26313cdc; border: 1px solid #a56d3680; border-radius: 14px }
+  li:focus-within { border-color: #f9aa60 }
+  strong { display: block; color: #fff5e5; margin-bottom: 9px }
+  small { color: #eaa46f; margin-right: 7px }
+  audio { display: block; width: 100%; height: 40px }
+  a { color: #ffbd84 }
+  footer { text-align: center; padding: 22px }
+  @media(max-width:500px) { body { padding: 12px } header { display: block } header img { width: 170px } h1 { margin-top: 10px } li { padding: 11px } }
+</style>
+<header>
+  <img src="assets/shows/radio-dangereuse.png" alt="Radio Dangereuse">
+  <div><h1>À écouter à bord</h1><p>Le podcast francophone d’Elite Dangerous</p></div>
+</header>
+<main>
+  <ol>
+    <li><strong><small>ÉPISODE 6</small> On code en SSN</strong><audio controls preload="none" src="https://radio.elitedangereuse.fr/assets/audio/radio-dangereuse-6.mp3"></audio></li>
+    <li><strong><small>ÉPISODE 5</small> Des anecdotes en pagaille</strong><audio controls preload="none" src="https://radio.elitedangereuse.fr/assets/audio/radio-dangereuse-5.mp3"></audio></li>
+    <li><strong><small>ÉPISODE 4</small> On lève le voile sur Salomé</strong><audio controls preload="none" src="https://radio.elitedangereuse.fr/assets/audio/radio-dangereuse-4.mp3"></audio></li>
+    <li><strong><small>ÉPISODE 3</small> On débug à la vitesse lumière</strong><audio controls preload="none" src="https://radio.elitedangereuse.fr/assets/audio/radio-dangereuse-3.mp3"></audio></li>
+    <li><strong><small>ÉPISODE 2</small> N’oubliez pas votre anti-cafard !</strong><audio controls preload="none" src="https://radio.elitedangereuse.fr/assets/audio/radio-dangereuse-2.mp3"></audio></li>
+    <li><strong><small>ÉPISODE 1</small> On n’a pas encore trouvé Raxxla !</strong><audio controls preload="none" src="https://radio.elitedangereuse.fr/assets/audio/radio-dangereuse-1.mp3"></audio></li>
+  </ol>
+  <footer><a href="https://radio.elitedangereuse.fr/" target="_blank" rel="noopener noreferrer">Tous les épisodes sur Radio Dangereuse ↗</a></footer>
+</main>
+<script>
+  document.querySelectorAll('audio').forEach(player => player.addEventListener('play', () => {
+    document.querySelectorAll('audio').forEach(other => { if (other !== player) other.pause() })
+  }))
+</script>
+</html>

@@ -76,6 +76,7 @@ export const SEATS: Partial<Record<CustomModel | StationModel, Seat[]>> = {
     const x = (i - (CINEMA_ROW_SEATS - 1) / 2) * CINEMA_SEAT_PITCH
     return sit(x, 0.04, 0.27, 0, [x, 0.5])
   }),
+  'projection-chair': [sit(0, 0.04, 0.31, 0, [0, 0.58])],
   'floor-cushion': [sit(0, 0, 0.13, 'free')],
 }
 

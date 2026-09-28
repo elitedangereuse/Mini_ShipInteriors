@@ -34,6 +34,24 @@ const C = {
  * l'horloge des meubles (le mode photo la fige). La lumière de l'écran la suit (cf. main.ts).
  */
 export const film = { time: 0 }
+let projection: { mode: 'trailer' | 'twitch'; title: string; image: HTMLImageElement | null } | null = null
+let projectionRequest = 0
+
+/** Sur l'écran 3D, une affiche indique la séance commune ; le lecteur s'ouvre aux fauteuils. */
+export function setProjection(mode: 'trailer' | 'twitch' | null, title = '', imageUrl = '') {
+  const request = ++projectionRequest
+  if (mode === null) {
+    // Sans séance, l'écran et sa lumière reprennent le film animé d'origine.
+    projection = null
+    return
+  }
+  projection = { mode, title, image: null }
+  if (mode === 'trailer' && imageUrl) {
+    const image = new Image()
+    image.onload = () => { if (request === projectionRequest && projection) projection.image = image }
+    image.src = imageUrl
+  }
+}
 let filmOffset: number | null = null
 const LOOP = 48
 
@@ -49,6 +67,7 @@ const SCENES = [
 
 /** Lumière que l'écran jette dans la salle : intensité (0 à ~1,3) et couleur de la scène en cours. */
 export function filmGlow(time: number): { k: number; color: string } {
+  if (projection) return { k: projection.mode === 'twitch' ? 0.75 : 0.55, color: projection.mode === 'twitch' ? '#a970ff' : '#9bc8e8' }
   const t = ((time % LOOP) + LOOP) % LOOP
   const scene = SCENES.find((s) => t < s.end) ?? SCENES[0]
   let k = scene.light
@@ -116,6 +135,27 @@ function titleCard(g: CanvasRenderingContext2D, lines: [string, string, number][
 
 /** Une image du film, à l'instant `time` de la boucle. */
 function drawFilm(g: CanvasRenderingContext2D, time: number) {
+  if (projection) {
+    g.fillStyle = '#070b13'
+    g.fillRect(0, 0, W, H)
+    if (projection.image) {
+      const image = projection.image
+      const scale = Math.max(W / image.width, H / image.height)
+      const w = image.width * scale, h = image.height * scale
+      g.drawImage(image, (W - w) / 2, (H - h) / 2, w, h)
+      g.fillStyle = 'rgba(3, 7, 14, .64)'
+      g.fillRect(0, H - 73, W, 73)
+    }
+    g.textAlign = 'left'
+    g.textBaseline = 'alphabetic'
+    g.fillStyle = projection.mode === 'twitch' ? '#b38cff' : '#ffcb7e'
+    g.font = '800 23px system-ui, sans-serif'
+    g.fillText(projection.mode === 'twitch' ? '● EN DIRECT · TWITCH' : '▶ SÉANCE EN COURS', 22, H - 44)
+    g.fillStyle = '#fff5e8'
+    g.font = '600 26px Georgia, serif'
+    g.fillText(projection.title.slice(0, 43), 22, H - 14, W - 44)
+    return
+  }
   const t = ((time % LOOP) + LOOP) % LOOP
   g.fillStyle = '#05060a'
   g.fillRect(0, 0, W, H)
@@ -332,6 +372,25 @@ const cinemaRow: Builder = ({ label }) => {
   }
   // Veilleuses d'allée, au bas des flancs de la rangée.
   for (const s of [-1, 1]) g.add(box(0.012, 0.03, 0.12, glow('#ffb45e'), s * (width / 2 + 0.03), 0.05, 0.02))
+  return { solid: g }
+}
+
+/** Fauteuil de régie, isolé au fond : velours bleu, liserés d'or et pupitre de diffusion. */
+const projectionChair: Builder = () => {
+  const g = new THREE.Group()
+  const blue = lit('#244a73'), dark = lit('#152b48'), gold = lit(C.gold)
+  g.add(box(0.72, 0.13, 0.47, blue, 0, 0.24, 0.02, 0.045))
+  g.add(box(0.72, 0.56, 0.13, dark, 0, 0.52, -0.25, 0.04))
+  g.add(box(0.72, 0.035, 0.06, gold, 0, 0.79, -0.25, 0.01))
+  for (const x of [-0.37, 0.37]) {
+    g.add(box(0.075, 0.37, 0.49, dark, x, 0.22, 0.02, 0.015))
+    g.add(box(0.08, 0.035, 0.49, gold, x, 0.42, 0.02, 0.01))
+  }
+  g.add(box(0.69, 0.045, 0.12, lit(C.frame), 0, 0.025, -0.12))
+  // Pupitre sur l'accoudoir droit : voyant ON AIR et trois touches rétroéclairées.
+  g.add(box(0.23, 0.055, 0.28, lit(C.frame), 0.43, 0.46, 0.13, 0.012))
+  g.add(box(0.18, 0.007, 0.13, glow('#55b7ee'), 0.43, 0.491, 0.07))
+  for (let i = 0; i < 3; i++) g.add(box(0.043, 0.008, 0.04, glow(i === 0 ? '#ffb45e' : '#74d0fa'), 0.37 + i * 0.06, 0.491, 0.21))
   return { solid: g }
 }
 
@@ -663,6 +722,7 @@ const exitSign: Builder = () => {
 export const CINEMA = {
   'cinema-screen': cinemaScreen,
   'cinema-row': cinemaRow,
+  'projection-chair': projectionChair,
   'popcorn-machine': popcornMachine,
   'film-projector': filmProjector,
   'movie-poster': moviePoster,

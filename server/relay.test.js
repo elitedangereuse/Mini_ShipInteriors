@@ -13,13 +13,43 @@ import { PILOT_SEAT, SYSTEM_IDS } from '../shared/systems.js'
 /** Faux site : reconnaît deux cookies, comme outils/mini-shipinteriors-cmdr.php. */
 const ACCOUNTS = { 'jeton-adam': 'Adam Fauster', 'jeton-rackam': 'Rackam' }
 const seen = []
+const cinemaTrailer = { id: 42, title: 'Le Détournement', image: '/outils/mini-shipinteriors-cinema.php?image=42', video: 'JMo_6uawuBg' }
 const site = createServer((req, res) => {
+  if (req.url === '/outils/mini-shipinteriors-cinema.php') {
+    res.setHeader('Content-Type', 'application/json')
+    res.end(JSON.stringify({ status: 'success', trailers: [cinemaTrailer], live: false, liveTitle: '' }))
+    return
+  }
   seen.push(req.headers.cookie)
   const name = ACCOUNTS[cookieValue(req.headers.cookie)] ?? null
   res.setHeader('Content-Type', 'application/json')
   if (req.url === '/outils/mini-shipinteriors-site.php?ownership=1') {
     res.end(JSON.stringify({ status: 'success', art: name ? [{ id: 'card:3598ce6f965b2481', kind: 'card' }] : [] }))
   } else res.end(JSON.stringify({ cmdr: name }))
+})
+
+test('cinéma : seul le fauteuil de régie programme le trailer reçu par tout le bord', async () => {
+  const operator = client()
+  const audience = client()
+  const catalog = next(operator, 'cinema:state', (m) => m.trailers.some((t) => t.id === cinemaTrailer.id))
+  const ow = await welcome(operator)
+  await welcome(audience)
+  await catalog
+  const denied = next(audience, 'cinema:error')
+  audience.emit('cinema:choose', { id: cinemaTrailer.id })
+  assert.equal((await denied).reason, 'seat')
+  const occupied = next(operator, 'cinema:state', (m) => m.operator === ow.id)
+  operator.emit('state', { x: 26.65, z: 7.51, level: 1, yaw: 0, anim: 'idle', pose: 'sit', py: 0.31 })
+  await occupied
+  const shown = next(audience, 'cinema:state', (m) => m.selected === cinemaTrailer.id)
+  operator.emit('cinema:choose', { id: cinemaTrailer.id })
+  const state = await shown
+  assert.equal(state.trailers.find((t) => t.id === state.selected).video, cinemaTrailer.video)
+  assert.ok(state.since > 0)
+  const late = client()
+  const restored = next(late, 'cinema:state', (m) => m.selected === cinemaTrailer.id)
+  await welcome(late)
+  assert.equal((await restored).since, state.since)
 })
 
 const listen = async (server) => {

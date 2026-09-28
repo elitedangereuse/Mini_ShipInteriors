@@ -7,6 +7,8 @@ import { fetchRecords } from './arcade/scores'
 import { BoardGames } from './board/games'
 import { BarPanel, CocktailEffects } from './bar'
 import { GameEmbed } from './game-embed'
+import { MediaRoom } from './media-room'
+import { CinemaRoom } from './cinema-room'
 import { CAT_MODEL, preload, rig } from './assets'
 import type { CabinEditor } from './cabin/editor'
 import { CabinBar, InviteMenu, InviteToasts, type CrewEntry } from './cabin/hud'
@@ -227,6 +229,11 @@ const barPanel = new BarPanel(wallet, cocktailEffects,
   },
 )
 const gameEmbed = new GameEmbed()
+const mediaRoom = new MediaRoom({ get: () => iso.zoomLevel, set: (value) => iso.zoomTo(value) })
+const cinemaRoom = new CinemaRoom(
+  { get: () => iso.zoomLevel, set: (value) => iso.zoomTo(value) },
+  { online: () => net.online, self: () => net.id, choose: (id) => net.sendCinemaChoice(id) },
+)
 const spawn = spawnPoint()
 player.position.set(spawn.x, deck.y, spawn.z)
 scene.add(player.root)
@@ -782,6 +789,7 @@ function removeRemote(id: number) {
 
 net.onStatus = (online) => {
   if (!online) {
+    cinemaRoom.close()
     boardGames.close(false)
     arcade?.disconnected()
     for (const id of [...remotes.keys()]) removeRemote(id)
@@ -893,6 +901,12 @@ net.onMessage = (m) => {
       if (track && r) chat.add('system', tr(`${r.name} a mis « ${track.title} » au jukebox.`, `${r.name} put “${track.title}” on the jukebox.`))
       break
     }
+    case 'cinema:state':
+      cinemaRoom.receive(m)
+      break
+    case 'cinema:error':
+      cinemaRoom.error(m.reason)
+      break
     case 'fight:state':
     case 'fight:error':
       arcade?.receiveFight(m)
@@ -1692,7 +1706,7 @@ function liftKey(e: KeyboardEvent): boolean {
 }
 
 addEventListener('keydown', (e) => {
-  if (barPanel.isOpen || gameEmbed.isOpen) { if (e.code === 'Escape') { barPanel.close(); gameEmbed.close() }; e.preventDefault(); return }
+  if (barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen) { if (e.code === 'Escape') { barPanel.close(); gameEmbed.close(); mediaRoom.close(); cinemaRoom.close() }; e.preventDefault(); return }
   if (gym.key(e)) return
   if (chat.typing) return
   if (sitePanel.isOpen) {
@@ -1756,7 +1770,7 @@ chat.onOpen = () => keys.clear()
 const inputDir = new THREE.Vector3()
 function keyboardDirection(): THREE.Vector3 {
   inputDir.set(0, 0, 0)
-  if (gym.active || chat.typing || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gameEmbed.isOpen || editing()) return inputDir
+  if (gym.active || chat.typing || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing()) return inputDir
   const on = (...codes: string[]) => codes.some((c) => keys.has(c))
   // event.code = position physique : KeyW/KeyA correspondent à Z/Q sur un clavier AZERTY.
   const sx = (on('KeyD', 'ArrowRight') ? 1 : 0) - (on('KeyA', 'ArrowLeft') ? 1 : 0)
@@ -1768,7 +1782,7 @@ function keyboardDirection(): THREE.Vector3 {
 function updateGamepad(dt: number): GamepadInput {
   const focus = document.activeElement
   const typing = focus instanceof HTMLElement && (focus.matches('input, textarea, select') || focus.isContentEditable)
-  const enabled = document.hasFocus() && !document.hidden && !typing && !chat.typing && !editing() && !photo.active && !arcade?.isOpen && !boardGames.isOpen && !barPanel.isOpen && !gameEmbed.isOpen
+  const enabled = document.hasFocus() && !document.hidden && !typing && !chat.typing && !editing() && !photo.active && !arcade?.isOpen && !boardGames.isOpen && !barPanel.isOpen && !gameEmbed.isOpen && !mediaRoom.isOpen && !cinemaRoom.isOpen
   const pad = gamepad.poll(enabled)
   if (!pad.connected) usingGamepad = false
   if (!enabled) return pad
@@ -2087,7 +2101,7 @@ function nearestInteractable(): Interactable | null {
 }
 
 function tryInteract() {
-  if (gym.active || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gameEmbed.isOpen || editing()) return
+  if (gym.active || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing()) return
   const item = nearestInteractable()
   if (item) interactWith(item)
 }
@@ -2095,6 +2109,10 @@ function tryInteract() {
 function interactWith(item: Interactable) {
   if (item.seats) return sitOn(item)
   player.lookAt(item.position)
+  if (deck.def.id === 1) {
+    if (item.furniture?.model === 'podcast-console' || item.furniture?.model === 'podcast-poster') return mediaRoom.open()
+    if (item.furniture?.model === 'cinema-screen') return void cinemaRoom.open(false)
+  }
   if (item.onInteract) return item.onInteract()
   player.interact()
   net.sendEmote('interact')
@@ -2181,6 +2199,9 @@ function seated(seat: Seated) {
   if (game) return void openArcade(seat, game)
   if (seat.item.furniture?.model === 'bar-table' && seat.item.furniture.label === 'galactic-clash') return gameEmbed.open('cards')
   if (seat.item.furniture?.model === 'pinball' && deck.def.id === -1) return gameEmbed.open('cqc')
+  if (deck.def.id === 1 && deck.map.room(Math.round(item.position.x), Math.round(item.position.z)) === 'o') return mediaRoom.open()
+  if (deck.def.id === 1 && item.furniture?.model === 'cinema-row') return void cinemaRoom.open(false)
+  if (deck.def.id === 1 && item.furniture?.model === 'projection-chair') return void cinemaRoom.open(true)
   const board = boardGame(seat)
   if (board) return boardGames.open(board.game, board.table)
   if (item.onInteract) return item.onInteract()
@@ -2195,6 +2216,8 @@ function poseChanged() {
     arcade?.close()
     boardGames.close(false)
     gameEmbed.close()
+    mediaRoom.close()
+    cinemaRoom.close()
     player.avatar.onPoseStep = undefined
   }
   sendState(true)
@@ -2223,6 +2246,9 @@ function seatPrompt(seat: Seated): { main: string; space?: string } {
   if (arcadeGame(seat)) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
   if (seat.item.furniture?.model === 'bar-table' && seat.item.furniture.label === 'galactic-clash') return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
   if (seat.item.furniture?.model === 'pinball' && deck.def.id === -1) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
+  if (deck.def.id === 1 && deck.map.room(Math.round(seat.item.position.x), Math.round(seat.item.position.z)) === 'o') return { main: tr('Se lever', 'Stand up'), space: tr('Écouter', 'Listen') }
+  if (deck.def.id === 1 && seat.item.furniture?.model === 'cinema-row') return { main: tr('Se lever', 'Stand up'), space: tr('Regarder', 'Watch') }
+  if (deck.def.id === 1 && seat.item.furniture?.model === 'projection-chair') return { main: tr('Se lever', 'Stand up'), space: tr('Régie', 'Controls') }
   if (seat.item.furniture?.model === 'bar-stool' && deck.def.id === -1) return { main: tr('Se lever', 'Stand up'), space: tr('Parler à Jacques', 'Talk to Jacques') }
   if (boardGame(seat)) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
   return { main: tr('Se lever', 'Stand up') }
@@ -2236,6 +2262,9 @@ function seatAction(seat: Seated) {
   if (game) void openArcade(seat, game)
   if (seat.item.furniture?.model === 'bar-table' && seat.item.furniture.label === 'galactic-clash') return gameEmbed.open('cards')
   if (seat.item.furniture?.model === 'pinball' && deck.def.id === -1) return gameEmbed.open('cqc')
+  if (deck.def.id === 1 && deck.map.room(Math.round(seat.item.position.x), Math.round(seat.item.position.z)) === 'o') return mediaRoom.open()
+  if (deck.def.id === 1 && seat.item.furniture?.model === 'cinema-row') return void cinemaRoom.open(false)
+  if (deck.def.id === 1 && seat.item.furniture?.model === 'projection-chair') return void cinemaRoom.open(true)
   if (seat.item.furniture?.model === 'bar-stool' && deck.def.id === -1) return barPanel.open()
   const board = boardGame(seat)
   if (board) boardGames.open(board.game, board.table)
@@ -2534,7 +2563,7 @@ const photo = new PhotoMode({
 })
 
 function openPhoto() {
-  if (editing() || arcade?.isOpen || boardGames.isOpen || barPanel.isOpen || gameEmbed.isOpen || riding) return
+  if (editing() || arcade?.isOpen || boardGames.isOpen || barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || riding) return
   lift.close()
   jukebox.close()
   wardrobe.close(false)

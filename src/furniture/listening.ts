@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { fabric } from './cozy'
 import { animatedScreen, barX, barZ, box, cylinder, drawnTexture, ED_ORANGE, glow, lit, mesh, part, sphere, type Builder } from './kit'
 import { tr } from '../i18n'
+import { BASE } from '../assets'
 
 /*
  * Le salon d'écoute du pont supérieur : on s'y installe au chaud, casque sur les oreilles, pour
@@ -99,125 +100,6 @@ const headphoneRack: Builder = () => {
   return { solid: g }
 }
 
-/** Étoile à quatre branches, dorée (celle des Galères Galactiques). */
-function sparkle(c: CanvasRenderingContext2D, x: number, y: number, r: number) {
-  c.beginPath()
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2 - Math.PI / 2
-    const d = i % 2 ? r * 0.28 : r
-    c.lineTo(x + Math.cos(a) * d, y + Math.sin(a) * d)
-  }
-  c.closePath()
-  c.fill()
-}
-
-/** Visuels des deux émissions, dessinés d'après leurs logos. */
-const SHOWS: Record<string, (c: CanvasRenderingContext2D, w: number, h: number) => void> = {
-  // Radio Dangereuse : fond anthracite, orbites grises, emblème ailé orange, bandes bleu et rouge.
-  radio: (c, w, h) => {
-    const bg = c.createLinearGradient(0, 0, 0, h)
-    bg.addColorStop(0, '#22252c')
-    bg.addColorStop(1, '#0e0f13')
-    c.fillStyle = bg
-    c.fillRect(0, 0, w, h)
-    const cx = w / 2, cy = 170
-    c.strokeStyle = '#4d4f55'
-    c.lineWidth = 11
-    for (const a of [-0.5, 0.5]) {
-      c.beginPath()
-      c.ellipse(cx, cy, 128, 46, a, 0, Math.PI * 2)
-      c.stroke()
-    }
-    // Emblème : trois chevrons emboîtés qui descendent en pointe, une lame au centre.
-    c.strokeStyle = C.rd
-    c.lineJoin = 'miter'
-    c.lineWidth = 15
-    for (let k = 0; k < 3; k++) {
-      c.beginPath()
-      c.moveTo(cx - 112 + k * 26, 68 + k * 26)
-      c.lineTo(cx, 250 - k * 14)
-      c.lineTo(cx + 112 - k * 26, 68 + k * 26)
-      c.stroke()
-    }
-    c.fillStyle = C.rd
-    c.beginPath()
-    c.moveTo(cx, 96)
-    c.lineTo(cx + 13, 150)
-    c.lineTo(cx, 176)
-    c.lineTo(cx - 13, 150)
-    c.closePath()
-    c.fill()
-    c.textAlign = 'center'
-    c.fillStyle = '#ffffff'
-    c.font = '800 38px system-ui, sans-serif'
-    c.fillText('RADIO', cx, 312)
-    c.fillStyle = C.rd
-    c.fillText('DANGEREUSE', cx, 350, w - 30)
-    c.fillStyle = '#d8dbe0'
-    c.font = '500 17px system-ui, sans-serif'
-    c.fillText(tr('Le podcast Elite Dangerous', 'The Elite Dangerous podcast'), cx, 382, w - 30)
-    c.fillStyle = '#1b4fa0'
-    c.fillRect(cx - 86, 408, 64, 14)
-    c.fillStyle = '#e2463c'
-    c.fillRect(cx + 22, 408, 64, 14)
-  },
-  // Galères Galactiques : grand disque bleu nuit, étoiles dorées, un petit vaisseau en panne qui fume.
-  galeres: (c, w, h) => {
-    c.fillStyle = '#141a3e'
-    c.fillRect(0, 0, w, h)
-    const cx = w / 2, cy = 190, r = 142
-    c.fillStyle = C.gg
-    c.beginPath()
-    c.arc(cx, cy, r, 0, Math.PI * 2)
-    c.fill()
-    c.strokeStyle = '#2a3470'
-    c.lineWidth = 4
-    c.stroke()
-    c.fillStyle = C.ggGold
-    for (const [x, y, s] of [[-92, -30, 14], [-60, -60, 7], [70, -72, 12], [104, -2, 15], [-104, 50, 7], [92, 70, 6], [-30, -86, 5]]) sparkle(c, cx + x, cy + y, s)
-    c.fillStyle = 'rgba(255,255,255,0.8)'
-    for (let i = 0; i < 30; i++) {
-      const a = i * 2.4, d = 40 + ((i * 37) % 90)
-      c.fillRect(cx + Math.cos(a) * d, cy + Math.sin(a) * d, 2, 2)
-    }
-    // Le vaisseau en panne, penché, qui crache sa fumée.
-    c.fillStyle = 'rgba(200, 205, 215, 0.55)'
-    for (const [x, y, s] of [[-40, -8, 14], [-58, -20, 11], [-72, -34, 8]]) {
-      c.beginPath()
-      c.arc(cx + x, cy + y, s, 0, Math.PI * 2)
-      c.fill()
-    }
-    c.save()
-    c.translate(cx + 6, cy + 6)
-    c.rotate(0.35)
-    c.fillStyle = '#c9cdd4'
-    c.beginPath()
-    c.moveTo(46, 0)
-    c.lineTo(-30, -18)
-    c.lineTo(-36, 0)
-    c.lineTo(-30, 18)
-    c.closePath()
-    c.fill()
-    c.fillStyle = '#59d8ff'
-    c.fillRect(8, -5, 14, 7)
-    c.restore()
-    c.fillStyle = ED_ORANGE
-    sparkle(c, cx - 30, cy + 22, 9)
-    c.fillStyle = '#ffffff'
-    c.textAlign = 'center'
-    c.font = '600 40px Georgia, serif'
-    c.fillText('Galères', cx, cy - 86)
-    c.font = '600 32px Georgia, serif'
-    c.fillText('Galactiques', cx, cy + 112)
-    c.fillStyle = C.ggGold
-    c.font = 'italic 18px Georgia, serif'
-    c.fillText(tr('Mini-fiction audio humoristique', 'A comedy audio mini-series'), cx, 378, w - 30)
-    c.fillStyle = 'rgba(255,255,255,0.75)'
-    c.font = '500 14px system-ui, sans-serif'
-    c.fillText('galeresgalactiques.fr', cx, 412)
-  },
-}
-
 /**
  * Affiche encadrée d'une émission, accrochée au mur, éclairée par une petite rampe de laiton.
  * Émission : `label` (radio, galeres).
@@ -226,7 +108,30 @@ const podcastPoster: Builder = ({ label }) => {
   const show = label === 'galeres' ? 'galeres' : 'radio'
   const g = new THREE.Group()
   g.add(box(0.54, 0.74, 0.03, lit(C.woodDark), 0, 0.56, 0.015, 0.01))
-  const art = drawnTexture(320, 440, (c) => SHOWS[show](c, 320, 440))
+  const art = drawnTexture(320, 440, (c) => {
+    const gradient = c.createLinearGradient(0, 0, 320, 440)
+    gradient.addColorStop(0, show === 'radio' ? '#332316' : '#15204c')
+    gradient.addColorStop(1, '#0d121d')
+    c.fillStyle = gradient
+    c.fillRect(0, 0, 320, 440)
+    c.strokeStyle = show === 'radio' ? '#ffc43e' : '#f3c11b'
+    c.lineWidth = 4
+    c.strokeRect(13, 13, 294, 414)
+    c.textAlign = 'center'
+    c.fillStyle = '#efd9b8'
+    c.font = '700 17px system-ui, sans-serif'
+    c.fillText(show === 'radio' ? tr('LE PODCAST À BORD', 'THE PODCAST ON BOARD') : tr('MINI SÉRIE AUDIO', 'AUDIO MINI-SERIES'), 160, 388)
+  })
+  const logo = new Image()
+  logo.onload = () => {
+    const c = (art.image as HTMLCanvasElement).getContext('2d')!
+    const maxW = 272, maxH = show === 'radio' ? 160 : 292
+    const scale = Math.min(maxW / logo.width, maxH / logo.height)
+    const w = logo.width * scale, h = logo.height * scale
+    c.drawImage(logo, (320 - w) / 2, (350 - h) / 2, w, h)
+    art.needsUpdate = true
+  }
+  logo.src = BASE + (show === 'radio' ? 'shows/radio-dangereuse.png' : 'shows/galeres-galactiques.svg')
   g.add(part(new THREE.PlaneGeometry(0.48, 0.66), new THREE.MeshBasicMaterial({ map: art }), 0, 0.56, 0.032))
   // Rampe : un bras, une réglette lumineuse au-dessus du cadre.
   g.add(barZ(0.006, 0.08, lit(C.brass), 0, 0.95, 0.04, 6), box(0.26, 0.022, 0.03, lit(C.brass), 0, 0.95, 0.08, 0.006))
