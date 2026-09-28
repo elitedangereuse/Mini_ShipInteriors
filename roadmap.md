@@ -161,12 +161,12 @@ Choix et réalisation (27 septembre 2026) :
 
 ## 4. Structure du vaisseau et immersion
 
-- [ ] **SHIP-01 · P2 · Aménagement — Vaisseau et poste de pilotage.** Agrandir
+- [x] **SHIP-01 · P2 · Aménagement — Vaisseau et poste de pilotage.** Agrandir
   le vaisseau et revoir le poste de pilotage. Ajouter des vitres dans la salle
   de pilotage, ouvertes sur l'espace et le système en cours, en conservant la
   lisibilité de la vue isométrique et la cohérence avec la coque de SHIP-03.
   Prévoir de la place pour les nouveaux espaces communautaires.
-- [ ] **SHIP-02 · P2 · Aménagement et économie — Extensions des quartiers.**
+- [x] **SHIP-02 · P2 · Aménagement et économie — Extensions des quartiers.**
   Faire acheter les agrandissements des quartiers personnels avec des crédits,
   plutôt que d'agrandir gratuitement les quartiers de tous les joueurs.
   Proposer des extensions permanentes par paliers, avec aperçu de la surface
@@ -176,7 +176,7 @@ Choix et réalisation (27 septembre 2026) :
   existants ; vérifier les passages, les collisions et les visites dans des
   quartiers de tailles différentes. Les prix, surfaces et nombres de paliers
   restent à définir.
-- [ ] **SHIP-03 · P2 · Exploration — Coque partiellement visible.** Essayer une
+- [x] **SHIP-03 · P2 · Exploration — Coque partiellement visible.** Essayer une
   coque visible autour de certaines parties du vaisseau pour donner l'impression
   d'un ensemble cohérent plutôt que de pièces flottant dans l'espace. Étudier
   cette coque avec SHIP-01 pour conserver la lisibilité de la vue isométrique.
@@ -204,6 +204,41 @@ Choix retenus (28 septembre 2026) :
   tuiles orientés vers leur porte), avec ses propres murs et sol. Changer de
   forme est gratuit et vide la pièce de ses objets (qui restent débloqués).
   Les formes remplacent la pose libre de murs.
+
+Réalisation (28 septembre 2026) :
+
+- SHIP-01 : le pont principal passe de ~210 à ~330 tuiles, la cale et le pont
+  supérieur de ~140 et ~110 à ~180 et ~170. Les six pièces réservées sont en
+  travaux derrière des portes verrouillées (voyant rouge, texte à l'examen) :
+  le plan partagé (`shared/ship-map.js`) connaît les portes verrouillées, qui
+  arrêtent le passage et la vue. Le poste de pilotage passe de 26 à 44 tuiles :
+  verrières (allège, bandeau orange, verre) sur l'avant et les flancs, tableau
+  de bord du pilote à écrans animés, postes du navigateur et du copilote,
+  fauteuil du commandant sur son estrade. La réserve de huit lumières suit
+  désormais le joueur.
+- Système en cours : le relais garde le système du vaisseau et choisit la
+  destination du saut demandé par le pilote installé ; tout le bord le vit, un
+  saut à la fois, et un nouveau venu arrive dans le système en cours. Huit
+  destinations dessinées sous le pont, à la proue, et qui suivent la caméra
+  comme le champ d'étoiles (`src/systems.ts`, `shared/systems.js`).
+- SHIP-03 : un seul corps de coque sous le pont affiché, dont la silhouette
+  épouse les trois ponts et la place des extensions (élargie d'une tuile,
+  creux comblés, escaliers lissés), sous les planchers : il ne masque jamais
+  la vue isométrique. Tôles, feux de navigation, tuyères à la poupe.
+- SHIP-02 : achat par le site (`{"action":"buy","wing":…}`), compte et espaces
+  verrouillés pendant l'achat (pas de double débit, pas deux fois le même
+  palier), espaces débloqués rendus avec le compte ; le site ne garde que les
+  pièces des espaces débloqués et accepte 32 objets de plus par pièce (160 au
+  plus). Pièces construites à la volée (sols, murs, portes intérieures,
+  poteaux, fondu), revêtements par pièce, règles de pose par pièce, onglet
+  « Pièces » avec aperçu au sol. Vérifié de bout en bout avec le site Docker
+  local : achat, forme, revêtement, confirmation d'une pièce meublée,
+  annulation, rechargement ; tests Node (formes, orientations, portes,
+  relais) et PHP (prix, économie, pièces gardées).
+- Avant déploiement : aucune table nouvelle (les espaces sont des lignes
+  `wing:…` de `mini_shipinteriors_owned`) ; redémarrer le relais (plans,
+  saut FSD, aménagements plus grands : messages jusqu'à 32 Ko) ; déployer le
+  build avec son `economy.json` (prix des espaces) avant ou avec le site.
 
 ## 5. Personnalisation et ambiance
 
@@ -440,7 +475,8 @@ comme propositions constituent des choix de conception à tester.
 3. **Préparer les espaces.** Définir le plan agrandi avec SHIP-01 et expérimenter
    SHIP-03, puis réaliser les extensions payantes de SHIP-02 et SOC-01. Fixer
    les emplacements du comptoir, des classements, des futures pièces et de la
-   porte de SOC-06 avant leur aménagement définitif.
+   porte de SOC-06 avant leur aménagement définitif. Fait pour SHIP-01 à 03 :
+   les futures pièces et la porte de SOC-06 ont leur place, en travaux.
 4. **Installer les activités et lieux de vie.** Ajouter SOC-02 à SOC-05 dans
    les espaces prévus, puis SOC-07 dans la salle de sport existante. Vérifier la faisabilité des embeds du mini CQC, de
    YouTube et de Twitch avant de construire les pièces concernées.
@@ -459,7 +495,6 @@ comme propositions constituent des choix de conception à tester.
   objets à débloquer ?
 - Les nouveaux compagnons vivent-ils dans les espaces communs, dans les
   quartiers, ou dans les deux ?
-- Quels prix et quelles surfaces retenir pour les extensions des quartiers ?
 - Pour SOC-06, régler les paramètres, les récompenses et les cas d'abandon
   listés dans sa fiche avant de figer les règles de la première version.
 - Quels appareils de sport rendre jouables, et les mini-jeux rapportent-ils des
