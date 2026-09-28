@@ -795,7 +795,7 @@ net.onStatus = (online) => {
     for (const id of [...remotes.keys()]) removeRemote(id)
     inviteToasts.clear()
     inviteMenu.close()
-    leaveVisit(tr('Liaison perdue avec le relais : retour dans vos quartiers.', 'Lost contact with the relay: back to your quarters.'))
+    leaveVisit(tr('Liaison perdue avec le relais : retour dans vos quartiers.', 'Lost contact with the relay: back to your quarters.'), true)
   }
   updateNetStatus()
   updateIdentity()
@@ -835,7 +835,7 @@ net.onMessage = (m) => {
       if (r) chat.add('system', tr(`${r.name} a débarqué.`, `${r.name} disembarked.`))
       if (visiting?.host === m.id || entering === m.id) {
         const host = r?.name ?? tr('Votre hôte', 'Your host')
-        leaveVisit(tr(`${host} a quitté le vaisseau : retour dans vos quartiers.`, `${host} left the ship: back to your quarters.`))
+        leaveVisit(tr(`${host} a quitté le vaisseau : retour dans vos quartiers.`, `${host} left the ship: back to your quarters.`), true)
       }
       removeRemote(m.id)
       hostLayouts.delete(m.id)
@@ -937,7 +937,7 @@ net.onMessage = (m) => {
           if (joining !== null) chat.add('system', tr('Cette invitation a expiré.', 'This invitation has expired.'))
         } else if (m.cabin !== net.id) void enterVisit(m.cabin)
         else if (visiting || entering !== null) {
-          leaveVisit(m.by ? tr(`${host} vous a raccompagné : retour dans vos quartiers.`, `${host} showed you out: back to your quarters.`) : BACK_HOME)
+          leaveVisit(m.by ? tr(`${host} vous a raccompagné : retour dans vos quartiers.`, `${host} showed you out: back to your quarters.`) : BACK_HOME, true)
         }
         joining = null
         break
@@ -1614,9 +1614,13 @@ async function enterVisit(host: number) {
   }
 }
 
-/** Fin de visite (ou d'une entrée en cours) : on retrouve ses propres quartiers, là où l'on se tient. */
-function leaveVisit(message?: string) {
+/**
+ * Fin de visite (ou d'une entrée en cours) : on retrouve ses propres quartiers, là où l'on se
+ * tient. `home` : visite interrompue (liaison perdue, hôte parti, raccompagné), on y est ramené.
+ */
+function leaveVisit(message?: string, home = false) {
   const was = visiting !== null || entering !== null
+  const inside = visiting !== null
   visitSeq++
   entering = null
   // La musique de l'hôte reste chez lui ; en ligne, le relais nous rend celle de nos quartiers.
@@ -1626,6 +1630,33 @@ function leaveVisit(message?: string) {
     showCabin()
   }
   if (was && message) chat.add('system', message)
+  if (inside && home) void bringHome()
+}
+
+/** Retour dans ses quartiers, à deux pas du Holo-Me, le temps d'un fondu. */
+async function bringHome() {
+  // En plein trajet d'ascenseur ou d'entrée chez un autre hôte : on n'y touche pas (showCabin
+  // nous a déjà sortis du vide, s'il le fallait).
+  if (riding) return
+  const seq = visitSeq
+  riding = true
+  seating.leave()
+  player.cancelPath()
+  marker.visible = false
+  lift.close()
+  jukebox.close()
+  await fadeScreen(true)
+  // Invité ailleurs pendant le fondu : on laisse faire l'entrée.
+  if (seq === visitSeq && !visiting) {
+    if (deck !== cabinDeck) setDeck(cabinDeck)
+    const s = spawnPoint()
+    player.position.set(s.x, cabinDeck.y, s.z)
+    iso.snapTo(player.position)
+    sendState(true)
+  }
+  await fadeScreen(false)
+  // Une entrée chez un autre hôte, commencée pendant le fondu, rendra la main elle-même.
+  if (seq === visitSeq) riding = false
 }
 
 cabinBar.onInvite = () => {
