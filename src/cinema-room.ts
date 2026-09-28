@@ -537,7 +537,7 @@ export class CinemaRoom {
     this.stage.style.transform = `matrix(${(b.x - a.x) / FILM_W}, ${(b.y - a.y) / FILM_W}, ${(c.x - a.x) / FILM_H}, ${(c.y - a.y) / FILM_H}, ${a.x}, ${a.y})`
     this.volumeControl.hidden = !inCinemaRoom || (this.state.live ? !this.twitchPlayer : !this.youtubePlayer)
     this.volumeControl.style.left = `${c.x + (b.x - a.x) / 2}px`
-    this.volumeControl.style.top = `${c.y + (b.y - a.y) / 2 + 8}px`
+    this.volumeControl.style.top = `${c.y + (b.y - a.y) / 2 + 4}px`
   }
 
   private syncYouTube(force = false) {
