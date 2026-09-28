@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="FUNKY DISCO">
+<defs>
+  <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#271335"/><stop offset="1" stop-color="#a54083"/></linearGradient>
+  <radialGradient id="light"><stop stop-color="#ffcc69" stop-opacity=".24"/><stop offset="1" stop-color="#ffcc69" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="512" height="512" fill="url(#bg)"/>
+<circle cx="256" cy="220" r="250" fill="url(#light)"/>
+<path d="M27 27h458v458H27z" fill="none" stroke="#ffcc69" stroke-opacity=".47" stroke-width="2"/>
+<circle cx="256" cy="231" r="124" fill="#df91bd" opacity=".18" stroke="#ffcc69" stroke-width="3"/>
+      <path d="M132 231h248 M150 181h212 M150 281h212 M180 137h152 M180 325h152 M206 114v234 M256 107v248 M306 114v234" stroke="#ffd89a" stroke-width="5" opacity=".72"/>
+      <path d="m78 130 8 21 21 8-21 8-8 21-8-21-21-8 21-8z M420 248l7 18 18 7-18 7-7 18-7-18-18-7 18-7z" fill="#fff2cf"/>
+<rect x="0" y="386" width="512" height="126" fill="#271335" opacity=".9"/>
+<path d="M28 388h456" stroke="#ffcc69" stroke-width="3"/>
+<text x="32" y="74" fill="#ffcc69" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700" letter-spacing="7">JUKEBOX · ÉLITE</text>
+<text x="32" y="433" fill="#fff9ed" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="700" letter-spacing="1.4">FUNKY DISCO</text>
+<text x="32" y="466" fill="#ffcc69" font-family="Arial,Helvetica,sans-serif" font-size="15" letter-spacing="3">FUPI</text>
+</svg>

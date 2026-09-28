@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="BLUE DANUBE">
+<defs>
+  <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#101b36"/><stop offset="1" stop-color="#658cbd"/></linearGradient>
+  <radialGradient id="light"><stop stop-color="#d9c394" stop-opacity=".24"/><stop offset="1" stop-color="#d9c394" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="512" height="512" fill="url(#bg)"/>
+<circle cx="256" cy="220" r="250" fill="url(#light)"/>
+<path d="M27 27h458v458H27z" fill="none" stroke="#d9c394" stroke-opacity=".47" stroke-width="2"/>
+<circle cx="256" cy="232" r="132" fill="none" stroke="#d9c394" stroke-width="2" opacity=".55"/>
+      <circle cx="256" cy="232" r="106" fill="none" stroke="#d9c394" stroke-width="1" opacity=".4"/>
+      <path d="M55 240 C110 175 160 330 220 245 S330 170 455 248 M55 270 C110 205 160 360 220 275 S330 200 455 278" fill="none" stroke="#f6e6c4" stroke-width="7" opacity=".78"/>
+      <path d="M82 196 C170 125 276 141 411 189" fill="none" stroke="#d9c394" stroke-width="2" opacity=".65"/>
+<rect x="0" y="386" width="512" height="126" fill="#101b36" opacity=".9"/>
+<path d="M28 388h456" stroke="#d9c394" stroke-width="3"/>
+<text x="32" y="74" fill="#d9c394" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700" letter-spacing="7">JUKEBOX · ÉLITE</text>
+<text x="32" y="433" fill="#fff9ed" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="700" letter-spacing="1.4">BLUE DANUBE</text>
+<text x="32" y="466" fill="#d9c394" font-family="Arial,Helvetica,sans-serif" font-size="15" letter-spacing="3">U.S. MARINE BAND</text>
+</svg>

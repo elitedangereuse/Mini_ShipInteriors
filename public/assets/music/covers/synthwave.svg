@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="DAY DREAMS">
+<defs>
+  <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#211438"/><stop offset="1" stop-color="#a63a89"/></linearGradient>
+  <radialGradient id="light"><stop stop-color="#ff9e70" stop-opacity=".24"/><stop offset="1" stop-color="#ff9e70" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="512" height="512" fill="url(#bg)"/>
+<circle cx="256" cy="220" r="250" fill="url(#light)"/>
+<path d="M27 27h458v458H27z" fill="none" stroke="#ff9e70" stroke-opacity=".47" stroke-width="2"/>
+<circle cx="256" cy="205" r="108" fill="#ff9e70" opacity=".86"/>
+      <path d="M148 220h216 M155 239h202 M169 256h174 M191 272h130" stroke="#3d1c54" stroke-width="8"/>
+      <path d="M0 306h512 M256 306 28 420 M256 306 484 420 M256 306 110 420 M256 306 402 420 M0 342h512 M0 387h512" stroke="#ff8caa" stroke-width="3" opacity=".75" fill="none"/>
+<rect x="0" y="386" width="512" height="126" fill="#211438" opacity=".9"/>
+<path d="M28 388h456" stroke="#ff9e70" stroke-width="3"/>
+<text x="32" y="74" fill="#ff9e70" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700" letter-spacing="7">JUKEBOX · ÉLITE</text>
+<text x="32" y="433" fill="#fff9ed" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="700" letter-spacing="1.4">DAY DREAMS</text>
+<text x="32" y="466" fill="#ff9e70" font-family="Arial,Helvetica,sans-serif" font-size="15" letter-spacing="3">HOLIZNACC0</text>
+</svg>

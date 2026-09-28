@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ALL THE FIGHT LEFT">
+<defs>
+  <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#241728"/><stop offset="1" stop-color="#8f3351"/></linearGradient>
+  <radialGradient id="light"><stop stop-color="#ff9c9f" stop-opacity=".24"/><stop offset="1" stop-color="#ff9c9f" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="512" height="512" fill="url(#bg)"/>
+<circle cx="256" cy="220" r="250" fill="url(#light)"/>
+<path d="M27 27h458v458H27z" fill="none" stroke="#ff9c9f" stroke-opacity=".47" stroke-width="2"/>
+<circle cx="256" cy="220" r="113" fill="#ff858e" opacity=".3"/>
+      <path d="M73 310 172 213l46 39 83-129 137 187" stroke="#ffd6bd" stroke-width="12" fill="none" stroke-linejoin="round"/>
+      <path d="M65 338h382 M106 353h300" stroke="#ee8294" stroke-width="4" opacity=".7"/>
+      <path d="m379 109 28 24-28 24-28-24z" fill="#ffb5b2"/>
+<rect x="0" y="386" width="512" height="126" fill="#241728" opacity=".9"/>
+<path d="M28 388h456" stroke="#ff9c9f" stroke-width="3"/>
+<text x="32" y="74" fill="#ff9c9f" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700" letter-spacing="7">JUKEBOX · ÉLITE</text>
+<text x="32" y="433" fill="#fff9ed" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="700" letter-spacing="1.4">ALL THE FIGHT LEFT</text>
+<text x="32" y="466" fill="#ff9c9f" font-family="Arial,Helvetica,sans-serif" font-size="15" letter-spacing="3">HOLIZNACC0</text>
+</svg>

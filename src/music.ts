@@ -6,20 +6,31 @@ import { icon } from './icons'
 import { syncTempo } from './tempo'
 import { $ } from './ui'
 
-/*
- * Le jukebox : neuf morceaux libres de droits (CC0 ou domaine public, cf.
- * public/assets/music/CREDITS.txt), joués depuis le jukebox, spatialisés. Un morceau fini, le
- * suivant de la liste enchaîne. La piste de danse, la boule à facettes et les danseurs battent
- * sur son tempo (cf. tempo.ts). Le relais transmet le choix aux autres (au pont principal, à la
- * cale, ou aux quartiers où l'on se trouve), avec le temps écoulé : chacun retombe sur le même
- * morceau, au même endroit.
- */
+/* Le relais partage le choix et l'heure de départ. Chaque client retrouve le même titre,
+ * y compris à l'intérieur d'un album, après une reconnexion. */
+
+type MusicStyle = 'ambient' | 'classical' | 'disco' | 'synthwave' | 'lofi' | 'spacesynth' | 'chiptune' | 'lounge'
+const STYLE_LABELS: Record<MusicStyle, string> = {
+  ambient: tr('Ambient', 'Ambient'), classical: tr('Classique', 'Classical'), disco: 'Disco',
+  synthwave: 'Synthwave', lofi: 'Lo-fi', spacesynth: 'Spacesynth', chiptune: 'Chiptune', lounge: 'Lounge',
+}
+
+interface Song {
+  title: string
+  file: string
+  duration: number
+  bpm?: number | null
+  offset?: number
+}
 
 export interface Track {
   id: string
   title: string
   artist: string
   mood: string
+  style: MusicStyle
+  cover: string
+  songs?: Song[]
   /** Durée du fichier (s) : la liste s'enchaîne de façon prévisible, chez tous les joueurs. */
   duration: number
   /** Tempo et premier temps (s) ; null : pas de pulsation stable (la valse), la soirée garde le sien. */
@@ -30,39 +41,70 @@ export interface Track {
 export const TRACKS: Track[] = [
   {
     id: 'danube', title: tr('Le Beau Danube bleu', 'The Blue Danube'), artist: 'U.S. Marine Band · J. Strauss II', duration: 203.1, bpm: null, offset: 0,
+    style: 'classical', cover: 'danube.svg',
     mood: tr('La valse de l\'ordinateur d\'amarrage : détendez-vous, il s\'occupe de l\'approche.', 'The docking computer waltz: relax, it handles the approach.'),
   },
   {
     id: 'disco', title: 'Funky Disco Beats to Boogie/Woogie to', artist: 'Fupi', duration: 133.1, bpm: 110, offset: 0.005,
+    style: 'disco', cover: 'disco.svg',
     mood: tr('Basse funky, cuivres et cordes : la boule à facettes tourne, tout le monde sur la piste !', 'Funky bass, brass and strings: the mirror ball is spinning, everybody on the dance floor!'),
   },
   {
     id: 'synthwave', title: 'Day Dreams', artist: 'HoliznaCC0', duration: 194.3, bpm: 130, offset: 0.005,
+    style: 'synthwave', cover: 'synthwave.svg',
     mood: tr('Néons, arpèges et grosse caisse : virée nocturne rétro-futuriste.', 'Neon, arpeggios and a four-on-the-floor kick: a retro-futuristic night drive.'),
   },
   {
     id: 'lofi', title: 'Chills', artist: 'HoliznaCC0', duration: 174.9, bpm: 96, offset: 0.007,
+    style: 'lofi', cover: 'lofi.svg',
     mood: tr('Saxo feutré et beat nonchalant pour décompresser entre deux sauts.', 'Mellow sax and a lazy beat to unwind between two jumps.'),
   },
   {
     id: 'space', title: 'Ganymede', artist: 'congusbongus', duration: 183.3, bpm: 118, offset: 0.211,
+    style: 'spacesynth', cover: 'space.svg',
     mood: tr('Spacesynth en orbite de Jupiter : arpèges cosmiques pour danser en apesanteur.', 'Spacesynth in orbit around Jupiter: cosmic arpeggios for zero-g dancing.'),
   },
   {
     id: 'chiptune', title: 'Interstellar Fleet 1', artist: 'Zane Little Music', duration: 193.2, bpm: 130, offset: 0.005,
+    style: 'chiptune', cover: 'chiptune.svg',
     mood: tr('8-bit héroïque pour pilotes d\'élite : la borne d\'arcade de la flotte.', 'Heroic 8-bit for Elite pilots: the fleet\'s arcade cabinet.'),
   },
   {
     id: 'lounge', title: 'Two Left Socks', artist: 'congusbongus', duration: 200.2, bpm: 135, offset: 0.215,
+    style: 'lounge', cover: 'lounge.svg',
     mood: tr('Bossa nova d\'ascenseur en synthé FM : cocktail au bar du carrier.', 'FM-synth elevator bossa nova: cocktails at the carrier bar.'),
   },
   {
     id: 'fight-left', title: 'All The Fight Left!', artist: 'HoliznaCC0', duration: 171.9, bpm: null, offset: 0,
+    style: 'synthwave', cover: 'fight-left.svg',
     mood: tr('Synthwave mélancolique et cinématique pour regarder défiler les étoiles.', 'Melancholy, cinematic synthwave for watching the stars go by.'),
   },
   {
     id: 'synesthesia', title: 'Synesthesia', artist: 'Zane Little Music', duration: 155.6, bpm: null, offset: 0,
+    style: 'synthwave', cover: 'synesthesia.svg',
     mood: tr('Synthés pétillants et un brin étranges : la nuit prend une autre couleur.', 'Bubbly, slightly spooky synths: the night takes on a different color.'),
+  },
+  {
+    id: 'dangerous-spaces', title: 'Dangerous Spaces', artist: 'Ben Carter Jr', style: 'ambient',
+    cover: 'dangerous-spaces.png', duration: 1123.52, bpm: null, offset: 0,
+    mood: tr('Quatre voyages contemplatifs aux confins de l’espace.', 'Four contemplative journeys to the edge of space.'),
+    songs: [
+      { title: 'Infinite Drift', file: 'dangerous-spaces-01.mp3', duration: 303.12 },
+      { title: 'Orbit of Glass', file: 'dangerous-spaces-02.mp3', duration: 261.05 },
+      { title: 'And beyond', file: 'dangerous-spaces-03.mp3', duration: 289.49 },
+      { title: 'H.O.P.E.', file: 'dangerous-spaces-04.mp3', duration: 269.86 },
+    ],
+  },
+  {
+    id: 'end-of-everything', title: 'The End of Everything', artist: 'Ben Carter Jr', style: 'ambient',
+    cover: 'end-of-everything.png', duration: 1107.96, bpm: null, offset: 0,
+    mood: tr('Quatre paysages sonores sombres et majestueux.', 'Four dark, majestic soundscapes.'),
+    songs: [
+      { title: 'Abyssal Silence', file: 'end-of-everything-01.mp3', duration: 309.89 },
+      { title: 'Alone', file: 'end-of-everything-02.mp3', duration: 253.68 },
+      { title: 'No Safety', file: 'end-of-everything-03.mp3', duration: 287.23 },
+      { title: 'The End', file: 'end-of-everything-04.mp3', duration: 257.16 },
+    ],
   },
 ]
 
@@ -72,13 +114,26 @@ const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60))
 /** Un tour de la liste : partie de n'importe quel morceau, elle y revient au bout de ce temps. */
 const CYCLE = TRACKS.reduce((s, t) => s + t.duration, 0)
 const now = () => performance.now() / 1000
+const coverUrl = (track: Track) => `${BASE}music/covers/${track.cover}`
 
-/** Un jukebox qui joue : son morceau, spatialisé à sa place, qu'on n'entend que sur son pont. */
+function songAt(track: Track, elapsed: number): { song: Song; index: number; position: number } {
+  if (!track.songs) return { song: { title: track.title, file: `${track.id}.mp3`, duration: track.duration, bpm: track.bpm, offset: track.offset }, index: 0, position: elapsed }
+  let position = elapsed
+  for (let index = 0; index < track.songs.length; index++) {
+    const song = track.songs[index]
+    if (position < song.duration || index === track.songs.length - 1) return { song, index, position: Math.min(position, song.duration) }
+    position -= song.duration
+  }
+  throw new Error('Empty album')
+}
+
+/** Un jukebox qui joue en stéréo, avec une acoustique différente de part et d'autre des cloisons. */
 export class JukeboxPlayer {
   private readonly audio = new Audio()
-  private node: ReturnType<Sound['speaker']> = null
+  private output: GainNode | null = null
+  private filter: BiquadFilterNode | null = null
   private readonly at = new THREE.Vector3()
-  private audible = true
+  private acoustics: 'inside' | 'outside' | 'away' = 'away'
   /**
    * Morceau choisi, et l'instant (horloge du navigateur, s) où il a commencé : la liste enchaîne
    * sur cette horloge, comme chez tous ceux qui l'écoutent, quel que soit le temps de chargement
@@ -88,6 +143,7 @@ export class JukeboxPlayer {
   /** Recalé sur cette horloge depuis le dernier démarrage (cf. align). */
   private aligned = false
   private retrying = false
+  private songIndex = -1
   /** Morceau en cours (null : le jukebox se tait). */
   track: Track | null = null
   /** Un morceau démarre (choisi, ou le suivant qui enchaîne). */
@@ -98,8 +154,9 @@ export class JukeboxPlayer {
     private readonly volume: number,
   ) {
     this.audio.preload = 'auto'
+    this.audio.muted = true
     // Un morceau fini : le suivant, là où en est la soirée.
-    this.audio.addEventListener('ended', () => this.start(this.track))
+    this.audio.addEventListener('ended', () => this.ended())
     this.audio.addEventListener('playing', () => this.align())
   }
 
@@ -107,6 +164,13 @@ export class JukeboxPlayer {
   get playing(): { track: Track; position: number; x: number; z: number } | null {
     const o = this.origin
     return o && this.track ? { track: o.track, position: (now() - o.t0) % CYCLE, x: this.at.x, z: this.at.z } : null
+  }
+
+  get current(): { track: Track; song: Song; songIndex: number; elapsed: number; position: number } | null {
+    const cue = this.cue()
+    if (!cue) return null
+    const { song, index, position } = songAt(cue.track, cue.position)
+    return { track: cue.track, song, songIndex: index, elapsed: cue.position, position }
   }
 
   /**
@@ -117,12 +181,11 @@ export class JukeboxPlayer {
     this.origin = { track, t0: now() - Math.max(0, position) }
     this.at.copy(at)
     this.attach()
-    this.node?.move(this.at)
     this.start()
   }
 
   /** Le morceau de la soirée et sa position, à cet instant ; jamais `ended`, qui vient de finir. */
-  private cue(ended?: Track | null): { track: Track; position: number } | null {
+  private cue(): { track: Track; position: number } | null {
     const o = this.origin
     if (!o) return null
     let t = o.track, p = (now() - o.t0) % CYCLE
@@ -130,20 +193,30 @@ export class JukeboxPlayer {
       p -= t.duration
       t = nextTrack(t)
     }
-    // Fini avant l'heure (le fichier est un peu plus court que sa durée) : le suivant, du début.
-    if (t === ended) return { track: nextTrack(t), position: 0 }
     return { track: t, position: p }
   }
 
-  private start(ended?: Track | null) {
-    const cue = this.cue(ended)
+  private ended() {
+    const cue = this.cue()
+    if (cue && cue.track === this.track && songAt(cue.track, cue.position).index === this.songIndex && this.origin) {
+      // Le fichier a fini avant sa durée annoncée : avancer l'horloge commune jusqu'au suivant.
+      const segment = songAt(cue.track, cue.position)
+      this.origin.t0 -= segment.song.duration - segment.position
+    }
+    this.start()
+  }
+
+  private start() {
+    const cue = this.cue()
     if (!cue) return
     const { track: t, position: p } = cue
+    const { song, index, position } = songAt(t, p)
     // Ce morceau-là passe déjà, à l'heure (le relais nous le rappelle) : on ne le recharge pas.
-    if (t === this.track && !this.audio.paused && Math.abs(this.audio.currentTime - p) < 1) return
+    if (t === this.track && index === this.songIndex && !this.audio.paused && Math.abs(this.audio.currentTime - position) < 1) return
     this.track = t
+    this.songIndex = index
     this.aligned = false
-    this.audio.src = `${BASE}music/${t.id}.mp3#t=${p.toFixed(2)}`
+    this.audio.src = `${BASE}music/${song.file}#t=${position.toFixed(2)}`
     this.audio.play().catch((e: unknown) => {
       if (e instanceof DOMException && e.name === 'NotAllowedError') this.retryOnGesture()
     })
@@ -155,7 +228,10 @@ export class JukeboxPlayer {
     if (this.aligned) return
     this.aligned = true
     const cue = this.cue()
-    if (cue?.track === this.track && Math.abs(this.audio.currentTime - cue.position) > 0.25) this.audio.currentTime = cue.position
+    if (cue?.track === this.track) {
+      const song = songAt(cue.track, cue.position)
+      if (song.index === this.songIndex && Math.abs(this.audio.currentTime - song.position) > 0.25) this.audio.currentTime = song.position
+    }
   }
 
   /** Lecture refusée (réglage strict du navigateur) : on réessaie au premier geste, à l'heure. */
@@ -173,50 +249,67 @@ export class JukeboxPlayer {
   }
 
   /**
-   * Branche le jukebox sur le son du jeu (volume général, spatialisation). Avant le premier geste
+   * Branche le jukebox sur le son du jeu (volume général, stéréo). Avant le premier geste
    * du joueur, le son n'a pas démarré : le morceau tourne en muet, pour rester à l'heure.
    */
   private attach() {
-    if (this.node) return
-    this.node = this.sound.speaker(this.at, this.audible ? this.volume : 0, 2.2, 1.1)
-    this.audio.muted = !this.node
-    if (!this.node) return
-    this.sound.ctx.createMediaElementSource(this.audio).connect(this.node.input)
-    this.node.move(this.at)
+    if (this.output || !this.sound.ready) return
+    const filter = this.sound.ctx.createBiquadFilter()
+    filter.type = 'lowpass'
+    filter.Q.value = 0.7
+    filter.frequency.value = this.acoustics === 'inside' ? 16000 : 900
+    const output = this.sound.ctx.createGain()
+    output.gain.value = this.acoustics === 'inside' ? this.volume : this.acoustics === 'outside' ? this.volume * 0.16 : 0
+    this.sound.ctx.createMediaElementSource(this.audio).connect(filter).connect(output).connect(this.sound.listener.getInput())
+    this.filter = filter
+    this.output = output
+    this.audio.muted = false
   }
 
   stop() {
     this.track = null
+    this.songIndex = -1
     this.origin = null
     this.audio.pause()
     this.audio.removeAttribute('src')
     this.audio.load()
   }
 
-  /** On l'entend sur son pont seulement (fondu). */
-  setAudible(on: boolean) {
-    if (on === this.audible) return
-    this.audible = on
-    if (this.node) this.sound.fade(this.node.input, on ? this.volume : 0, 0.8)
+  /** Son plein dans la pièce, assourdi sur le même pont, silencieux aux autres ponts. */
+  setRoom(onDeck: boolean, sameRoom: boolean) {
+    const next = !onDeck ? 'away' : sameRoom ? 'inside' : 'outside'
+    if (next === this.acoustics) return
+    this.acoustics = next
+    if (!this.output || !this.filter) return
+    this.sound.fade(this.output, next === 'inside' ? this.volume : next === 'outside' ? this.volume * 0.16 : 0, 0.65)
+    const frequency = this.filter.frequency
+    const t = this.sound.ctx.currentTime
+    frequency.cancelScheduledValues(t)
+    frequency.setValueAtTime(frequency.value, t)
+    frequency.exponentialRampToValueAtTime(next === 'inside' ? 16000 : next === 'outside' ? 900 : 450, t + 0.65)
   }
 
   /** Cale la soirée sur le morceau (si on l'entend et qu'il a un tempo) ; false sinon. */
   syncTempo(): boolean {
-    if (this.track && !this.node) this.attach()
-    if (!this.audible || !this.track?.bpm || this.audio.paused) return false
-    syncTempo({ bpm: this.track.bpm, offset: this.track.offset }, this.audio.currentTime)
+    if (this.track && !this.output) this.attach()
+    const song = this.current?.song
+    if (this.acoustics !== 'inside' || !song?.bpm || this.audio.paused) return false
+    syncTempo({ bpm: song.bpm, offset: song.offset ?? 0 }, this.audio.currentTime)
     return true
   }
 }
 
-/**
- * Panneau du jukebox : la liste des morceaux (le morceau en cours marqué), et de quoi l'arrêter.
- * Au clavier : haut, bas, Entrée ; E ou Échap pour fermer (cf. main.ts).
- */
+/** Catalogue du jukebox : albums, morceaux et filtre de style. */
 export class JukeboxPanel {
   private readonly el: HTMLDivElement
-  private rows: HTMLButtonElement[] = []
+  private rows: { track: Track; button: HTMLButtonElement }[] = []
   private selected = 0
+  private filter: MusicStyle | null = null
+  private filters: HTMLButtonElement[] = []
+  private list!: HTMLDivElement
+  private hero!: HTMLDivElement
+  private player: JukeboxPlayer | null = null
+  private refreshTimer: number | null = null
   private pick?: (t: Track) => void
 
   constructor() {
@@ -234,84 +327,220 @@ export class JukeboxPanel {
     return target instanceof Node && this.el.contains(target)
   }
 
-  open(current: Track | null, pick: (t: Track) => void, stop: () => void) {
+  open(player: JukeboxPlayer, pick: (t: Track) => void, stop: () => void) {
+    this.player = player
     this.pick = pick
-    const title = document.createElement('div')
-    title.className = 'lift-title'
-    title.append(icon('vinyl-record'), tr(' Jukebox', ' Jukebox'))
-    const list = document.createElement('div')
-    list.className = 'jb-list'
-    this.rows = TRACKS.map((t, i) => {
+    const heading = document.createElement('header')
+    heading.className = 'jb-heading'
+    const headingText = document.createElement('div')
+    const eyebrow = document.createElement('div')
+    eyebrow.className = 'jb-eyebrow'
+    eyebrow.textContent = tr('MUSIQUE À BORD', 'MUSIC ON BOARD')
+    const title = document.createElement('h2')
+    title.append(icon('vinyl-record'), ' Jukebox')
+    const intro = document.createElement('p')
+    intro.textContent = tr('Choisissez la bande-son du vaisseau.', 'Choose the ship’s soundtrack.')
+    headingText.append(eyebrow, title, intro)
+    const closeTop = document.createElement('button')
+    closeTop.className = 'jb-close'
+    closeTop.type = 'button'
+    closeTop.textContent = '×'
+    closeTop.setAttribute('aria-label', tr('Fermer', 'Close'))
+    closeTop.onclick = () => this.close()
+    heading.append(headingText, closeTop)
+
+    this.hero = document.createElement('div')
+    this.hero.className = 'jb-hero'
+    this.hero.setAttribute('aria-live', 'polite')
+    this.renderHero()
+
+    const catalogue = document.createElement('div')
+    catalogue.className = 'jb-catalogue'
+    const filterLabel = document.createElement('div')
+    filterLabel.className = 'jb-section-title'
+    filterLabel.textContent = tr('Explorer par style', 'Browse by style')
+    const filters = document.createElement('div')
+    filters.className = 'jb-filters'
+    const styles: (MusicStyle | null)[] = [null, ...new Set(TRACKS.map((t) => t.style))]
+    this.filters = styles.map((style) => {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = 'jb-filter'
+      button.textContent = style ? STYLE_LABELS[style] : tr('Tout', 'All')
+      button.onclick = () => this.setFilter(style)
+      filters.append(button)
+      return button
+    })
+    const libraryTitle = document.createElement('div')
+    libraryTitle.className = 'jb-section-title jb-library-title'
+    libraryTitle.textContent = tr('Albums et morceaux', 'Albums and tracks')
+    this.list = document.createElement('div')
+    this.list.className = 'jb-list'
+    this.rows = [...TRACKS].sort((a, b) => Number(!!b.songs) - Number(!!a.songs)).map((t) => {
       const b = document.createElement('button')
-      b.className = t === current ? 'playing' : ''
+      b.type = 'button'
+      b.className = 'jb-card'
+      const cover = document.createElement('img')
+      cover.className = 'jb-cover'
+      cover.src = coverUrl(t)
+      cover.alt = ''
+      cover.loading = 'lazy'
+      const content = document.createElement('span')
+      content.className = 'jb-card-content'
+      const tag = document.createElement('span')
+      tag.className = 'jb-card-tag'
+      tag.textContent = t.songs ? tr(`ALBUM · ${t.songs.length} TITRES`, `ALBUM · ${t.songs.length} TRACKS`) : STYLE_LABELS[t.style].toUpperCase()
       const name = document.createElement('span')
       name.className = 'jb-title'
       name.textContent = t.title
       const by = document.createElement('span')
       by.className = 'jb-artist'
       by.textContent = `${t.artist} · ${clock(t.duration)}`
-      const mood = document.createElement('span')
-      mood.className = 'jb-mood'
-      mood.textContent = t.mood
-      b.append(icon(t === current ? 'music-notes' : 'play'), name, by, mood)
-      b.onclick = () => this.choose(i)
-      b.onpointerenter = () => this.select(i)
-      return b
+      content.append(tag, name, by)
+      if (t.songs) {
+        const songs = document.createElement('span')
+        songs.className = 'jb-song-preview'
+        songs.textContent = t.songs.map((s) => s.title).join(' · ')
+        content.append(songs)
+      }
+      const play = document.createElement('span')
+      play.className = 'jb-play'
+      play.append(icon('play'))
+      b.append(cover, content, play)
+      b.setAttribute('aria-label', tr(`Jouer ${t.songs ? 'l’album ' : ''}${t.title}, ${t.artist}`, `Play ${t.songs ? 'album ' : ''}${t.title}, ${t.artist}`))
+      b.onclick = () => this.choose(t)
+      b.onpointerenter = () => this.select(this.visibleRows().findIndex((row) => row.track === t), false)
+      return { track: t, button: b }
     })
-    list.append(...this.rows)
+    this.list.append(...this.rows.map((row) => row.button))
+    catalogue.append(filterLabel, filters, libraryTitle, this.list)
     const actions = document.createElement('div')
     actions.className = 'jb-actions'
-    if (current) {
-      const off = document.createElement('button')
-      off.append(icon('stop'), tr('Arrêter la musique', 'Stop the music'))
-      off.onclick = () => {
-        this.close()
-        stop()
-      }
-      actions.append(off)
-    }
+    const off = document.createElement('button')
+    off.className = 'jb-stop'
+    off.append(icon('stop'), tr('Arrêter la musique', 'Stop the music'))
+    off.hidden = !player.track
+    off.onclick = () => { this.close(); stop() }
+    actions.append(off)
     const close = document.createElement('button')
-    close.className = 'lift-close'
+    close.className = 'jb-done'
     close.append(tr('Fermer', 'Close'))
-    for (const key of ['E', tr('Échap', 'Esc')]) {
-      const k = document.createElement('kbd')
-      k.textContent = key
-      close.append(k)
-    }
     close.onclick = () => this.close()
     actions.append(close)
     const hint = document.createElement('div')
-    hint.className = 'lift-hint'
-    hint.textContent = tr('↑ ↓ choisir · Entrée : jouer', '↑ ↓ choose · Enter: play')
-    this.el.replaceChildren(title, list, hint, actions)
-    this.selected = -1
-    this.select(Math.max(0, current ? TRACKS.indexOf(current) : 0))
+    hint.className = 'jb-hint'
+    hint.textContent = tr('← → filtrer · ↑ ↓ choisir · Entrée : jouer · Échap : fermer', '← → filter · ↑ ↓ choose · Enter: play · Esc: close')
+    this.el.replaceChildren(heading, this.hero, catalogue, hint, actions)
+    this.setFilter(this.filter)
+    this.select(Math.max(0, this.visibleRows().findIndex((row) => row.track === player.track)))
     this.el.hidden = false
+    if (this.refreshTimer !== null) clearInterval(this.refreshTimer)
+    this.refreshTimer = window.setInterval(() => this.renderHero(), 500)
   }
 
   move(step: number) {
-    this.select((this.selected + step + this.rows.length) % this.rows.length)
+    const count = this.visibleRows().length
+    if (count) {
+      this.select((this.selected + step + count) % count)
+      this.visibleRows()[this.selected]?.button.focus({ preventScroll: true })
+    }
+  }
+
+  filterMove(step: number) {
+    const styles: (MusicStyle | null)[] = [null, ...new Set(TRACKS.map((t) => t.style))]
+    this.setFilter(styles[(styles.indexOf(this.filter) + step + styles.length) % styles.length])
+    this.visibleRows()[this.selected]?.button.focus({ preventScroll: true })
   }
 
   confirm() {
-    this.choose(this.selected)
+    const active = document.activeElement
+    if (active instanceof HTMLButtonElement && this.el.contains(active) && !active.classList.contains('jb-card')) active.click()
+    else this.choose(this.visibleRows()[this.selected]?.track)
   }
 
-  private select(i: number) {
-    this.rows[this.selected]?.classList.remove('selected')
+  private visibleRows() {
+    return this.rows.filter((row) => !this.filter || row.track.style === this.filter)
+  }
+
+  private setFilter(style: MusicStyle | null) {
+    this.filter = style
+    const styles: (MusicStyle | null)[] = [null, ...new Set(TRACKS.map((t) => t.style))]
+    this.filters.forEach((button, i) => {
+      button.classList.toggle('active', styles[i] === style)
+      button.setAttribute('aria-pressed', String(styles[i] === style))
+    })
+    this.rows.forEach(({ track, button }) => { button.hidden = !!style && track.style !== style })
+    this.select(0)
+  }
+
+  private select(i: number, scroll = true) {
+    this.rows.forEach(({ button }) => button.classList.remove('selected'))
+    if (i < 0) return
     this.selected = i
-    this.rows[i]?.classList.add('selected')
-    this.rows[i]?.scrollIntoView({ block: 'nearest' })
+    const button = this.visibleRows()[i]?.button
+    button?.classList.add('selected')
+    if (scroll) button?.scrollIntoView({ block: 'nearest' })
   }
 
-  private choose(i: number) {
-    const t = TRACKS[i]
+  private choose(t?: Track) {
     if (!t) return
     this.close()
     this.pick?.(t)
   }
 
+  private renderHero() {
+    if (!this.hero) return
+    const current = this.player?.current
+    if (!current) {
+      this.rows.forEach(({ button }) => button.classList.remove('playing'))
+      if (this.hero.classList.contains('empty')) return
+      delete this.hero.dataset.song
+      this.hero.replaceChildren()
+      this.hero.classList.add('empty')
+      const message = document.createElement('div')
+      message.innerHTML = `<span class="jb-hero-eyebrow">${tr('À L’ÉCOUTE', 'NOW PLAYING')}</span><strong>${tr('À vous de choisir', 'Your turn to choose')}</strong><span>${tr('Une ambiance pour chaque traversée.', 'A soundtrack for every journey.')}</span>`
+      this.hero.append(icon('music-notes'), message)
+      return
+    }
+    this.hero.classList.remove('empty')
+    const { track, song, songIndex, elapsed } = current
+    const signature = `${track.id}:${songIndex}`
+    if (this.hero.dataset.song !== signature) {
+      this.hero.dataset.song = signature
+      const img = document.createElement('img')
+      img.src = coverUrl(track)
+      img.alt = ''
+      const body = document.createElement('div')
+      body.className = 'jb-hero-body'
+      const label = document.createElement('span')
+      label.className = 'jb-hero-eyebrow'
+      label.textContent = tr('À L’ÉCOUTE', 'NOW PLAYING')
+      const name = document.createElement('strong')
+      name.textContent = track.title
+      const artist = document.createElement('span')
+      artist.textContent = track.artist
+      const songName = document.createElement('span')
+      songName.className = 'jb-hero-song'
+      songName.textContent = track.songs ? `${String(songIndex + 1).padStart(2, '0')} / ${track.songs.length} · ${song.title}` : STYLE_LABELS[track.style]
+      const progress = document.createElement('div')
+      progress.className = 'jb-progress'
+      progress.append(document.createElement('span'))
+      const time = document.createElement('span')
+      time.className = 'jb-time'
+      time.setAttribute('aria-hidden', 'true')
+      body.append(label, name, artist, songName, progress, time)
+      this.hero.replaceChildren(img, body)
+    }
+    const bar = this.hero.querySelector<HTMLElement>('.jb-progress span')
+    if (bar) bar.style.width = `${Math.min(100, elapsed / track.duration * 100)}%`
+    const time = this.hero.querySelector<HTMLElement>('.jb-time')
+    if (time) time.textContent = `${clock(elapsed)} / ${clock(track.duration)}`
+    this.rows.forEach(({ track: t, button }) => button.classList.toggle('playing', t === track))
+  }
+
   close() {
     this.el.hidden = true
+    if (this.refreshTimer !== null) clearInterval(this.refreshTimer)
+    this.refreshTimer = null
   }
 }

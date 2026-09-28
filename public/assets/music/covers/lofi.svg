@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="CHILLS">
+<defs>
+  <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#132b3b"/><stop offset="1" stop-color="#518089"/></linearGradient>
+  <radialGradient id="light"><stop stop-color="#f2c597" stop-opacity=".24"/><stop offset="1" stop-color="#f2c597" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="512" height="512" fill="url(#bg)"/>
+<circle cx="256" cy="220" r="250" fill="url(#light)"/>
+<path d="M27 27h458v458H27z" fill="none" stroke="#f2c597" stroke-opacity=".47" stroke-width="2"/>
+<rect x="133" y="89" width="246" height="262" rx="8" fill="#102132" stroke="#e2b18c" stroke-width="7"/>
+      <path d="M256 92v257 M136 219h240" stroke="#d3af93" stroke-width="7"/>
+      <circle cx="311" cy="155" r="33" fill="#efb479"/>
+      <path d="M164 292c23-23 45-4 58-23s36-15 51 4 45-17 79 10" fill="none" stroke="#79b0ae" stroke-width="13" opacity=".65"/>
+      <path d="m111 99-12 35 m32 21-11 36 m280-81-10 30 m-13 118-14 39" stroke="#c1d8d1" stroke-width="4" opacity=".5"/>
+<rect x="0" y="386" width="512" height="126" fill="#132b3b" opacity=".9"/>
+<path d="M28 388h456" stroke="#f2c597" stroke-width="3"/>
+<text x="32" y="74" fill="#f2c597" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700" letter-spacing="7">JUKEBOX · ÉLITE</text>
+<text x="32" y="433" fill="#fff9ed" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="700" letter-spacing="1.4">CHILLS</text>
+<text x="32" y="466" fill="#f2c597" font-family="Arial,Helvetica,sans-serif" font-size="15" letter-spacing="3">HOLIZNACC0</text>
+</svg>

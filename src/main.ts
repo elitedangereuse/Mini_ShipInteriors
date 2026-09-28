@@ -1166,7 +1166,7 @@ function openJukebox(where: JukeboxWhere, at: THREE.Vector3) {
   jukeboxNear = at.clone()
   jukeboxWhere = where
   jukebox.open(
-    music.track,
+    music,
     (track) => {
       music.play(track, jukeboxAt(where, at.x, at.z), 0)
       net.sendMusic(where, track.id, at.x, at.z)
@@ -1180,11 +1180,13 @@ function openJukebox(where: JukeboxWhere, at: THREE.Vector3) {
   )
 }
 
-/** Panneau du jukebox ouvert : haut, bas, Entrée ; E ou Échap pour le fermer. */
+/** Panneau du jukebox ouvert : flèches pour le catalogue et les styles. */
 function jukeboxKey(e: KeyboardEvent): boolean {
   if (!jukebox.isOpen) return false
   if (e.code === 'ArrowUp' || e.code === 'KeyW') jukebox.move(-1)
   else if (e.code === 'ArrowDown' || e.code === 'KeyS') jukebox.move(1)
+  else if (e.code === 'ArrowLeft' || e.code === 'KeyA') jukebox.filterMove(-1)
+  else if (e.code === 'ArrowRight' || e.code === 'KeyD') jukebox.filterMove(1)
   else if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') jukebox.confirm()
   else if (e.code === 'KeyE' || e.code === 'Escape') jukebox.close()
   else if (!MOVE_KEYS.has(e.code)) return false
@@ -1701,6 +1703,8 @@ function updateGamepad(dt: number): GamepadInput {
     else {
       if (pad.up) panel.move(-1)
       if (pad.down) panel.move(1)
+      if (panel === jukebox && pad.rotateLeft) jukebox.filterMove(-1)
+      if (panel === jukebox && pad.rotateRight) jukebox.filterMove(1)
       if (pad.interact) panel.confirm()
     }
     return pad
@@ -2604,11 +2608,15 @@ function frame() {
   // On s'éloigne de l'ascenseur ou du jukebox : le panneau se ferme.
   if (lift.isOpen && Math.hypot(player.position.x - liftTile.x, player.position.z - liftTile.z) > 1.6) lift.close()
   if (jukebox.isOpen && jukeboxNear && Math.hypot(player.position.x - jukeboxNear.x, player.position.z - jukeboxNear.z) > 2) jukebox.close()
-  // Les jukebox ne s'entendent que sur leur pont ; la soirée bat sur le morceau qu'on entend,
-  // sauf quand le mode photo fige l'instant.
-  deckMusic.setAudible(deck.def.id === 0)
-  holdMusic.setAudible(deck.def.id === -1)
-  cabinMusic.setAudible(deck === cabinDeck)
+  // Chaque jukebox remplit sa pièce en stéréo ; derrière une cloison, il reste sourd et lointain.
+  // Un autre pont est silencieux. Le repère des pièces suit la carte du pont, portes comprises.
+  for (const [music, source] of [[deckMusic, deckById(0)], [holdMusic, deckById(-1)], [cabinMusic, cabinDeck]] as const) {
+    const playing = music.playing
+    const jukeboxRoom = playing && source.map.room(Math.round(playing.x), Math.round(playing.z))
+    const playerRoom = source === deck ? source.map.room(Math.round(player.position.x), Math.round(player.position.z)) : null
+    music.setRoom(source === deck, !!jukeboxRoom && jukeboxRoom === playerRoom)
+  }
+  // La soirée bat sur le morceau entendu dans la pièce, sauf quand le mode photo fige l'instant.
   if (!photo.frozen && !deckMusic.syncTempo() && !holdMusic.syncTempo() && !cabinMusic.syncTempo()) syncTempo(null)
 
   workStep(dt)

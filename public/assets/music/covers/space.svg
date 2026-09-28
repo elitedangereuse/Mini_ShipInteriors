@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="GANYMEDE">
+<defs>
+  <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#101a39"/><stop offset="1" stop-color="#475f9d"/></linearGradient>
+  <radialGradient id="light"><stop stop-color="#d4b3fc" stop-opacity=".24"/><stop offset="1" stop-color="#d4b3fc" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="512" height="512" fill="url(#bg)"/>
+<circle cx="256" cy="220" r="250" fill="url(#light)"/>
+<path d="M27 27h458v458H27z" fill="none" stroke="#d4b3fc" stroke-opacity=".47" stroke-width="2"/>
+<ellipse cx="259" cy="239" rx="194" ry="58" transform="rotate(-21 259 239)" fill="none" stroke="#bdaaf3" stroke-width="16" opacity=".56"/>
+      <circle cx="257" cy="235" r="105" fill="#8398c8"/>
+      <path d="M183 165c27 38 35 69 27 119 M277 136c18 50 26 112 15 199" stroke="#dce4ff" stroke-width="15" opacity=".23" fill="none"/>
+      <path d="M76 117h8 M407 133h8 M384 339h8 M120 321h8" stroke="#fff" stroke-width="5"/>
+<rect x="0" y="386" width="512" height="126" fill="#101a39" opacity=".9"/>
+<path d="M28 388h456" stroke="#d4b3fc" stroke-width="3"/>
+<text x="32" y="74" fill="#d4b3fc" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700" letter-spacing="7">JUKEBOX · ÉLITE</text>
+<text x="32" y="433" fill="#fff9ed" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="700" letter-spacing="1.4">GANYMEDE</text>
+<text x="32" y="466" fill="#d4b3fc" font-family="Arial,Helvetica,sans-serif" font-size="15" letter-spacing="3">CONGUSBONGUS</text>
+</svg>

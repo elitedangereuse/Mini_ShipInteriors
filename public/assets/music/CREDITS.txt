@@ -2,7 +2,7 @@ MINI SHIP INTERIORS — JUKEBOX DES QUARTIERS
 Crédits et licences de la bande-son
 =====================================================================
 
-Tous les morceaux ci-dessous sont dans le domaine public ou placés sous
+Les neuf morceaux individuels ci-dessous sont dans le domaine public ou placés sous
 CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/).
 Aucune attribution n'est exigée ; ces crédits sont donnés par courtoisie.
 Chaque licence a été vérifiée sur la page source elle-même le 26/09/2026.
@@ -207,6 +207,31 @@ Tempo       : non renseigné ; pas encore mesuré avec assez de confiance.
 Ambiance    : « Synthés pétillants et un brin étranges : la nuit prend une
               autre couleur. »
 
+
+=====================================================================
+ALBUMS DE BEN CARTER JR
+=====================================================================
+
+Deux mini-albums et leurs pochettes, fournis dans le projet par l'équipe.
+Ils sont présentés comme deux albums dans le jukebox. Ces créations ne sont
+pas couvertes par les licences CC0/domaine public indiquées plus haut.
+Les huit MP3 de jeu sont des copies audio sans réencodage, sans image ID3.
+Les originaux restent dans le dossier musiques/ du projet.
+
+Dangerous Spaces — Ben Carter Jr — pochette dangerous-spaces.png
+  01 Infinite Drift       dangerous-spaces-01.mp3      5:03
+  02 Orbit of Glass       dangerous-spaces-02.mp3      4:21
+  03 And beyond          dangerous-spaces-03.mp3      4:49
+  04 H.O.P.E.            dangerous-spaces-04.mp3      4:30
+
+The End of Everything — Ben Carter Jr — pochette end-of-everything.png
+  01 Abyssal Silence     end-of-everything-01.mp3     5:10
+  02 Alone               end-of-everything-02.mp3     4:14
+  03 No Safety           end-of-everything-03.mp3     4:47
+  04 The End             end-of-everything-04.mp3     4:17
+
+Les pochettes SVG des neuf morceaux individuels sont des illustrations
+originales créées pour le jukebox par scripts/generate_jukebox_covers.py.
 
 =====================================================================
 MORCEAUX ÉCARTÉS
