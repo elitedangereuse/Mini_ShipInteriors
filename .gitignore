@@ -2,3 +2,7 @@ node_modules
 dist
 .DS_Store
 *.log
+
+# Secrets locaux (clé YouTube du relais de dev)
+.env.local
+.env.*.local

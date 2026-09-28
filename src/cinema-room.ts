@@ -15,6 +15,7 @@ interface YouTubePlayer {
   pauseVideo(): void
   mute(): void
   unMute(): void
+  setVolume(volume: number): void
 }
 interface YouTubeApi {
   Player: new (holder: HTMLElement, options: { videoId: string; playerVars: Record<string, string | number>; events: {
@@ -25,6 +26,7 @@ interface YouTubeApi {
 interface TwitchPlayer {
   addEventListener(event: string, listener: () => void): void
   setMuted(muted: boolean): void
+  setVolume(volume: number): void
   play(): void
   pause(): void
 }
@@ -79,8 +81,13 @@ export class CinemaRoom {
   private searchResults = document.createElement('div')
   private stage = document.createElement('div')
   private frame = document.createElement('iframe')
-  private soundButton = document.createElement('button')
-  private soundOn = false
+  private volumeControl = document.createElement('div')
+  private volumeIcon = document.createElement('button')
+  private volumeInput = document.createElement('input')
+  private volumeValue = document.createElement('output')
+  private volume = 0
+  /** Volume rétabli par l'icône après une coupure. */
+  private lastVolume = 50
   private onCinemaDeck = false
   private inCinemaRoom = false
   private readonly topLeft = new THREE.Vector3()
@@ -105,6 +112,14 @@ export class CinemaRoom {
       search: (query: string) => Promise<{ videos: CinemaVideo[]; reason?: string }>; video: (id: string) => void;
       duration: (id: number | string, since: number, duration: number) => void },
   ) {
+    try {
+      const stored = localStorage.getItem('mini-shipinteriors-cinema-volume')
+      if (stored !== null) {
+        const value = Number(stored)
+        if (Number.isFinite(value)) this.volume = Math.max(0, Math.min(100, Math.round(value)))
+        if (this.volume > 0) this.lastVolume = this.volume
+      }
+    } catch { /* Le navigateur peut interdire le stockage local. */ }
     this.root.className = 'cinema-room-overlay'
     this.root.hidden = true
     this.root.setAttribute('role', 'dialog')
@@ -160,17 +175,31 @@ export class CinemaRoom {
     this.shell.append(header, body)
     this.root.append(this.shell)
     this.stage.setAttribute('aria-label', tr('Écran du cinéma', 'Cinema screen'))
-    this.soundButton.type = 'button'
-    this.soundButton.className = 'cinema-screen-sound'
-    this.soundButton.onclick = () => {
-      this.soundOn = !this.soundOn
-      this.applySound()
-      this.updateSoundButton()
-    }
-    this.updateSoundButton()
-    document.body.append(this.stage, this.soundButton, this.root)
+    this.volumeControl.className = 'cinema-screen-volume'
+    this.volumeControl.setAttribute('role', 'group')
+    this.volumeControl.setAttribute('aria-label', tr('Volume du cinéma', 'Cinema volume'))
+    this.volumeIcon.className = 'cinema-screen-volume-icon'
+    this.volumeInput.type = 'range'
+    this.volumeInput.min = '0'
+    this.volumeInput.max = '100'
+    this.volumeInput.step = '1'
+    this.volumeInput.value = String(this.volume)
+    this.volumeInput.setAttribute('aria-label', tr('Volume du cinéma', 'Cinema volume'))
+    this.volumeInput.oninput = () => this.setVolume(Number(this.volumeInput.value))
+    this.volumeIcon.type = 'button'
+    this.volumeIcon.onclick = () => this.setVolume(this.volume > 0 ? 0 : this.lastVolume)
+    this.volumeControl.addEventListener('keydown', (event) => event.stopPropagation())
+    // La molette règle le volume au lieu de zoomer la caméra.
+    this.volumeControl.addEventListener('wheel', (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      this.setVolume(this.volume + (event.deltaY < 0 ? 5 : -5))
+    }, { passive: false })
+    this.volumeControl.append(this.volumeIcon, this.volumeInput, this.volumeValue)
+    this.updateVolumeControl()
+    document.body.append(this.stage, this.volumeControl, this.root)
     this.stage.hidden = true
-    this.soundButton.hidden = true
+    this.volumeControl.hidden = true
     this.root.addEventListener('click', (event) => { if (event.target === this.root) this.close() })
     this.root.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') { event.preventDefault(); this.close() }
@@ -184,19 +213,31 @@ export class CinemaRoom {
   get isOpen() { return !this.root.hidden }
   get isController() { return this.isOpen && this.controller }
 
-  private updateSoundButton() {
-    const label = this.soundOn ? tr('Couper le son du cinéma', 'Mute cinema audio') : tr('Activer le son du cinéma', 'Enable cinema audio')
-    this.soundButton.replaceChildren(icon(this.soundOn ? 'speaker-high' : 'speaker-slash'))
-    this.soundButton.title = label
-    this.soundButton.setAttribute('aria-label', label)
-    this.soundButton.setAttribute('aria-pressed', String(this.soundOn))
+  /** Volume propre à chaque spectateur, gardé d'une visite à l'autre. */
+  private setVolume(value: number) {
+    this.volume = Math.max(0, Math.min(100, Math.round(value)))
+    if (this.volume > 0) this.lastVolume = this.volume
+    try { localStorage.setItem('mini-shipinteriors-cinema-volume', String(this.volume)) } catch { /* Stockage indisponible. */ }
+    this.applySound()
+    this.updateVolumeControl()
+  }
+
+  private updateVolumeControl() {
+    const label = this.volume > 0 ? tr('Couper le son du cinéma', 'Mute cinema audio') : tr('Rétablir le son du cinéma', 'Unmute cinema audio')
+    this.volumeIcon.replaceChildren(icon(this.volume === 0 ? 'speaker-slash' : this.volume < 45 ? 'speaker-low' : 'speaker-high'))
+    this.volumeIcon.title = label
+    this.volumeIcon.setAttribute('aria-label', label)
+    this.volumeInput.value = String(this.volume)
+    this.volumeValue.textContent = `${this.volume} %`
   }
 
   private applySound() {
-    const audible = this.soundOn && this.inCinemaRoom
+    const audible = this.inCinemaRoom && this.volume > 0
     try {
+      this.youtubePlayer?.setVolume(this.volume)
       if (audible) this.youtubePlayer?.unMute()
       else this.youtubePlayer?.mute()
+      this.twitchPlayer?.setVolume(this.volume / 100)
       this.twitchPlayer?.setMuted(!audible)
     } catch { /* Un lecteur externe peut être en cours de chargement. */ }
   }
@@ -367,7 +408,7 @@ export class CinemaRoom {
     if (key === 'none') {
       this.stage.replaceChildren()
       this.stage.hidden = true
-      this.soundButton.hidden = true
+      this.volumeControl.hidden = true
       return
     }
     if (this.state.live) {
@@ -468,14 +509,14 @@ export class CinemaRoom {
     }
     if (this.playing === 'none' || !this.playing || !onCinemaDeck) {
       this.stage.hidden = true
-      this.soundButton.hidden = true
+      this.volumeControl.hidden = true
       return
     }
     const { width, height, centerY, depth } = CINEMA_SCREEN
     const screenZ = z + depth
     if (camera.position.z <= screenZ) {
       this.stage.hidden = true
-      this.soundButton.hidden = true
+      this.volumeControl.hidden = true
       return
     }
     const point = (v: THREE.Vector3) => ({ x: (v.x + 1) * innerWidth / 2, y: (1 - v.y) * innerHeight / 2 })
@@ -487,15 +528,15 @@ export class CinemaRoom {
     if (w < 30 || h < 12 || Math.max(a.x, b.x, c.x) < 0 || Math.min(a.x, b.x, c.x) > innerWidth
       || Math.max(a.y, b.y, c.y) < 0 || Math.min(a.y, b.y, c.y) > innerHeight) {
       this.stage.hidden = true
-      this.soundButton.hidden = true
+      this.volumeControl.hidden = true
       return
     }
     this.stage.hidden = false
     this.stage.style.pointerEvents = inCinemaRoom ? 'auto' : 'none'
     this.stage.style.transform = `matrix(${(b.x - a.x) / 640}, ${(b.y - a.y) / 640}, ${(c.x - a.x) / 256}, ${(c.y - a.y) / 256}, ${a.x}, ${a.y})`
-    this.soundButton.hidden = !inCinemaRoom || (this.state.live ? !this.twitchPlayer : !this.youtubePlayer)
-    this.soundButton.style.left = `${c.x + (b.x - a.x) / 2}px`
-    this.soundButton.style.top = `${c.y + (b.y - a.y) / 2 + 8}px`
+    this.volumeControl.hidden = !inCinemaRoom || (this.state.live ? !this.twitchPlayer : !this.youtubePlayer)
+    this.volumeControl.style.left = `${c.x + (b.x - a.x) / 2}px`
+    this.volumeControl.style.top = `${c.y + (b.y - a.y) / 2 + 8}px`
   }
 
   private syncYouTube(force = false) {

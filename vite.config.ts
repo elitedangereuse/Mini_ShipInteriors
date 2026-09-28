@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { defineConfig, type Plugin, type ProxyOptions } from 'vite'
+import { defineConfig, loadEnv, type Plugin, type ProxyOptions } from 'vite'
 import { attachRelay } from './server/relay.js'
 
 /**
@@ -33,19 +33,24 @@ const SITE_PROXY = Object.fromEntries([CMDR_ENDPOINT, CABIN_ENDPOINT, SCORES_END
 /**
  * Branche le relais multijoueur sur le serveur de dev (et de preview) de Vite, sur /ws/mini-shipinteriors.
  * Le relais fait reconnaître le cookie du site par le site local. Sans Docker, ?cmdr=X simule
- * le CMDR X (serveur de dev uniquement).
+ * le CMDR X (serveur de dev uniquement). La clé YouTube de la régie du cinéma vient de
+ * l'environnement, ou d'un `.env.local` (non versionné) : jamais envoyée au client.
  */
 function relay(): Plugin {
   const cmdrUrl = process.env.ED_CMDR_URL || ED_SITE_URL + CMDR_ENDPOINT
+  let youtubeKey = ''
   return {
     name: 'mini-interior-relay',
+    configResolved(config) {
+      if (config.envDir !== false) youtubeKey = loadEnv(config.mode, config.envDir, 'YOUTUBE_').YOUTUBE_API_KEY ?? ''
+    },
     configureServer(server) {
       const { info, warn } = server.config.logger
-      if (server.httpServer) attachRelay(server.httpServer, { log: (m) => info(m), error: (m) => warn(m), cmdrUrl, devCmdr: true })
+      if (server.httpServer) attachRelay(server.httpServer, { log: (m) => info(m), error: (m) => warn(m), cmdrUrl, devCmdr: true, youtubeKey })
     },
     configurePreviewServer(server) {
       const { info, warn } = server.config.logger
-      attachRelay(server.httpServer, { log: (m) => info(m), error: (m) => warn(m), cmdrUrl })
+      attachRelay(server.httpServer, { log: (m) => info(m), error: (m) => warn(m), cmdrUrl, youtubeKey })
     },
   }
 }

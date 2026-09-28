@@ -3042,11 +3042,14 @@ body.photo #bubbles .gain-pop {
 .cinema-room-youtube { width: 100%; height: 100%; }
 .cinema-room-twitch { position: absolute; top: 0; left: 92.5px; width: 533px; height: 300px; transform: scale(.853333); transform-origin: 0 0; }
 .cinema-room-twitch iframe { width: 533px; height: 300px; }
-.cinema-screen-sound { position: fixed; z-index: 31; display: grid; place-items: center; width: 36px; height: 36px; transform: translateX(-50%); border: 1px solid #bf9867; border-radius: 50%; color: #ffe1ad; background: #182535f0; box-shadow: 0 3px 14px #000a, inset 0 0 0 1px #ffe1ad24; cursor: pointer; }
-.cinema-screen-sound:hover { color: #fff; border-color: #ffd39c; background: #34445b; }
-.cinema-screen-sound[aria-pressed=true] { color: #ffe8bd; background: #755039; }
-.cinema-screen-sound .icon { width: 18px; height: 18px; }
-.cinema-screen-sound:focus-visible { outline: 2px solid #ffca8b; outline-offset: 3px; }
+.cinema-screen-volume { position: fixed; z-index: 31; display: flex; align-items: center; gap: 8px; padding: 4px 12px 4px 4px; transform: translateX(-50%); border: 1px solid #bf9867; border-radius: 999px; color: #ffe1ad; background: #182535f0; box-shadow: 0 3px 14px #000a, inset 0 0 0 1px #ffe1ad24; }
+.cinema-screen-volume[hidden] { display: none; }
+.cinema-screen-volume-icon { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; color: inherit; background: none; cursor: pointer; }
+.cinema-screen-volume-icon:hover { color: #fff; background: #34445b; }
+.cinema-screen-volume-icon .icon { width: 18px; height: 18px; }
+.cinema-screen-volume input { width: 110px; margin: 0; accent-color: #f6b366; cursor: pointer; }
+.cinema-screen-volume output { min-width: 4ch; font: 600 12px/1 system-ui,sans-serif; font-variant-numeric: tabular-nums; text-align: right; }
+.cinema-screen-volume-icon:focus-visible, .cinema-screen-volume input:focus-visible { outline: 2px solid #ffca8b; outline-offset: 3px; }
 .cinema-room-header button:focus-visible, .cinema-room-card:focus-visible { outline: 2px solid #ffca8b; outline-offset: 2px; }
 @media (max-width: 600px) {
   .media-room-overlay { padding: 8px; background: #07101ae8; }
