@@ -34,7 +34,7 @@ export const SHIP_LAYOUTS = {
     'eeeeeeeee  qqqqqrrrrrlllllccccc bbbbb   ',
     'eeeeeeeee  qq+qqrr+rrll+llccccc bbbbbbb ',
     'eeeeeeee+cccccccccccccccccccccc+bbbbbbb ',
-    'eeeeeeeeecccccccccccccccccccccc+bbbbbbb ',
+    'eeeeeeee+cccccccccccccccccccccc+bbbbbbb ',
     'eeeeeeeee  mm+mmss+ssss+ssccccc bbbbbbb ',
     'eeeeeeeee  mmmmmssssssssssccccc bbbbb   ',
     ' eeeeeeee  mmmmmssssssssssccccc bbb     ',

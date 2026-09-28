@@ -420,8 +420,9 @@ export const LEVELS: LevelDef[] = [
     floors: { c: 'floor-panel', b: 'floor-detail', l: 'floor-panel' },
     // Le poste de pilotage et la Promenade sont vitrés sur l'espace.
     canopy: { b: [0, 1, 2], c: [0, 1, 2] },
-    // Le poste de pilotage s'ouvre sur la coursive par une porte double, sur ses deux tuiles.
-    doubleDoors: [{ x: 31, z: 4, dir: 1 }],
+    // Le poste de pilotage et la salle commune s'ouvrent sur la coursive par une porte double,
+    // sur ses deux tuiles.
+    doubleDoors: [{ x: 31, z: 4, dir: 1 }, { x: 8, z: 4, dir: 1 }],
     props: [
       // --- Poste de pilotage, à la proue : verrières sur l'avant et les flancs ---
       // Le pilote face au tableau de bord, le copilote et le navigateur de part et d'autre, la
