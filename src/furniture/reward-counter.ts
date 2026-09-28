@@ -4,7 +4,7 @@ import { counterStaff } from './counter-staff'
 import { tr } from '../i18n'
 
 /*
- * Les deux comptoirs de la salle des machines, où l'on récupère les crédits gagnés sur le site :
+ * Les deux comptoirs de la salle commune, où l'on récupère les crédits gagnés sur le site :
  * - Weekly : le bureau des missions de l'officier de liaison, or sur bleu nuit, comme un tableau
  *   de missions d'Elite ; un hologramme de la récompense tourne sur le bureau ;
  * - LJPC : le comptoir de la scientifique de la Chasse galactique, un bureau de labo blanc et

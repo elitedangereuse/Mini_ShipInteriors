@@ -72,7 +72,7 @@ function cabinMap(layout) {
 }
 /** `host` : dans des quartiers, leur hôte (ses pièces d'extension comptent). */
 const reaches = (player, level, at, host) => player.level === level && canReach(host && level === 1 ? cabinMap(host.layout) : MAPS.get(level), player, at, REACH)
-/** Pont de chaque jukebox : le mess (pont principal), le bar (la cale), les quartiers. */
+/** Pont de chaque jukebox : la salle commune (pont principal), le bar (la cale), les quartiers. */
 const JUKEBOX_LEVEL = new Map([['deck', 0], ['hold', -1], ['cabin', 1]])
 /** Jukebox d'une instance commune (cf. `music` plus bas) ; les autres sont des quartiers. */
 const JUKEBOX_WHERE = new Map([[0, 'deck'], [-1, 'hold']])
@@ -133,7 +133,7 @@ export function attachRelay(
   const boards = new Map() // table -> partie de plateau
   let nextId = 1
   /**
-   * Jukebox qui jouent : 0 pour le pont principal (le mess), -1 pour la cale (le bar), sinon
+   * Jukebox qui jouent : 0 pour le pont principal (la salle commune), -1 pour la cale (le bar), sinon
    * l'id de l'hôte des quartiers.
    */
   const music = new Map() // instance -> { track, since, x, z, song, loop, shuffle, seed }
@@ -447,7 +447,7 @@ export function attachRelay(
       sockets.delete(player.id)
       cinema.operatorChanged()
       music.delete(player.id)
-      // Plus personne à bord : les jukebox du mess et du bar se taisent.
+      // Plus personne à bord : les jukebox de la salle commune et du bar se taisent.
       if (!players.size) music.clear()
       socket.broadcast.emit('leave', { id: player.id })
       // Ses visiteurs rentrent chez eux.

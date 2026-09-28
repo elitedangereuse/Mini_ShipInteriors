@@ -7,7 +7,7 @@ import { tr } from '../i18n'
  * principal, d'après l'aventure « Connais ton ennemi » : le tableau d'enquête des trois sites
  * thargoïdes, la paillasse, l'échantillon sous cloche, l'hologramme d'un intercepteur, la photo
  * d'Amadioha, et James et Julia, les deux jeunes prodiges. Moustache, leur chatte noire, est un
- * animal du bord (cf. main.ts). Sarcelle et blanc, comme le comptoir LJPC de la salle des machines.
+ * animal du bord (cf. main.ts). Sarcelle et blanc, comme le comptoir LJPC de la salle commune.
  * Un objet accroché est construit dos au mur (origine sur la face du mur, contenu vers +z).
  */
 

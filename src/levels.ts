@@ -74,8 +74,8 @@ export interface LevelDef {
    * cette fraction, en fondu (cf. main.ts).
    */
   dim?: Record<string, number>
-  /** Réacteur et tuyères. */
-  engine?: boolean
+  /** Salle des machines : centre du cœur du réacteur (ses tuyères, elles, sont sous tous les ponts). */
+  engine?: { x: number; z: number }
   /**
    * Pièces en travaux (cf. CLOSED_ROOMS) : ce qu'on lit en examinant leur porte verrouillée,
    * par lettre de pièce.
@@ -119,6 +119,7 @@ export const LEVELS: LevelDef[] = [
       // Le nom du bar ne se traduit pas.
       b: 'Chez Jacques',
       h: tr('Sas de la zone thargoïde', 'Thargoid zone airlock'),
+      e: tr('Salle des machines', 'Engine room'),
     },
     closed: {
       h: tr(
@@ -128,7 +129,9 @@ export const LEVELS: LevelDef[] = [
     },
     // Le bar est tenu plus proprement que le reste de la cale : dalles lisses, pas un hublot.
     floors: { a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', h: 'floor-panel' },
-    windows: { a: 0.1, j: 0, r: 0.12, m: 0, g: 0.1, b: 0, h: 0 },
+    windows: { a: 0.1, j: 0, r: 0.12, m: 0, g: 0.1, b: 0, h: 0, e: 0 },
+    // Le cœur du réacteur, au milieu de la salle des machines.
+    engine: { x: 1.5, z: 5 },
     props: [
       // --- Palier : l'ascenseur au centre (cf. LIFT) ---
       { model: 'hazard-floor', x: 10, z: 5, solid: false },
@@ -140,6 +143,37 @@ export const LEVELS: LevelDef[] = [
         ),
       },
       { model: 'drums', x: 9.2, z: 5.95 },
+
+      // --- Salle des machines, derrière l'atelier : le réacteur au centre, le FSD au nord ---
+      {
+        model: 'fsd', x: 1.3, z: 3, rot: 0,
+        interact: tr(
+          'Réacteur FSD 5A, modifié par Felicity Farseer (portée augmentée). Ne pas toucher pendant la charge.',
+          '5A frame shift drive, engineered by Felicity Farseer (increased range). Do not touch while charging.',
+        ),
+      },
+      {
+        model: 'computer-system', x: 0, z: 4.2, rot: 1,
+        interact: tr(
+          'Distributeur d\'énergie : 4 pips aux systèmes, 2 aux moteurs, 0 aux armes. Vaisseau pacifiste.',
+          'Power distributor: 4 pips to systems, 2 to engines, 0 to weapons. A pacifist ship.',
+        ),
+      },
+      {
+        model: 'computer-system', x: 0, z: 5.8, rot: 1,
+        interact: tr('Support vital : oxygène 100 %. Filtres à remplacer dans 42 jours.', 'Life support: oxygen 100%. Filters due for replacement in 42 days.'),
+      },
+      {
+        model: 'container-tall', x: 0, z: 7,
+        interact: tr(
+          'Réservoir : 32 t d\'hydrogène. Pour le plein, écoper une étoile K, G, B, F, O, A ou M.',
+          'Fuel tank: 32 t of hydrogen. To refuel, scoop a K, G, B, F, O, A or M star.',
+        ),
+      },
+      { model: 'container-wide', x: 1.4, z: 7.05 },
+      { model: 'container-tall', x: 3, z: 3 },
+      { model: 'pipe-ring-colored', x: 2.8, z: 7.25 },
+      { model: 'structure-panel', x: 1.5, z: 6.4, y: 0.005, solid: false },
 
       // --- Atelier ---
       {
@@ -161,7 +195,7 @@ export const LEVELS: LevelDef[] = [
         ),
       },
       {
-        model: 'welder', x: 4.2, z: 5.4, rot: 1,
+        model: 'welder', x: 4.2, z: 6.1, rot: 1,
         interact: tr(
           'Poste de soudure : ne jamais regarder l\'arc sans masque. Oui, même toi.',
           'Welding station: never look at the arc without a mask. Yes, even you.',
@@ -326,6 +360,7 @@ export const LEVELS: LevelDef[] = [
       { model: 'work-lamp', x: 24.6, z: 4.9, rot: 3 },
     ],
     lights: [
+      [1.5, 5, '#4fd4ff', 4],
       [5.6, 3.1, '#ffb35c', 3],
       [5.6, 6.3, '#ffa24a', 2.4, 'neon'],
       [10, 5, '#ffd9a0', 1.6],
@@ -343,7 +378,7 @@ export const LEVELS: LevelDef[] = [
     name: tr('Pont principal', 'Main deck'),
     layout: SHIP_LAYOUTS['0'],
     rooms: {
-      e: tr('Salle des machines', 'Engine room'),
+      e: tr('Salle commune', 'Common room'),
       c: tr('Coursive', 'Corridor'),
       q: tr('Infirmerie', 'Medical bay'),
       r: tr('Salle de sport', 'Gym'),
@@ -360,7 +395,6 @@ export const LEVELS: LevelDef[] = [
     },
     floors: { c: 'floor-panel', b: 'floor-detail', l: 'floor-panel' },
     canopy: { b: [0, 1, 2] },
-    engine: true,
     props: [
       // --- Poste de pilotage, à la proue : verrières sur l'avant et les flancs ---
       // Le pilote face au tableau de bord, le copilote et le navigateur de part et d'autre, la
@@ -413,42 +447,41 @@ export const LEVELS: LevelDef[] = [
       { model: 'computer-screen', x: 33, z: 8, rot: 2, interact: tr('Journal de bord : « Jour 1 : on a agrandi le poste de pilotage. Jour 2 : on cherche encore le café. »', 'Ship\'s log: “Day 1: we enlarged the cockpit. Day 2: still looking for the coffee.”') },
       { model: 'plant-tall', x: 32.1, z: 7.25 },
 
-      // --- Salle des machines ---
-      // Guichets aux murs nord/sud ; l’allée est reste libre depuis la coursive.
-      { model: 'reward-counter', x: 6.4, z: 0.35, label: 'weekly', interact: tr('Officier de liaison · Weekly', 'Liaison officer · Weekly'), action: tr('Récupérer les crédits', 'Collect credits') },
-      { model: 'reward-counter', x: 6.4, z: 8.65, rot: 2, label: 'hunt', interact: tr('Scientifique du LJPC · Chasse galactique', 'LJPC scientist · Galactic Hunt'), action: tr('Récupérer les crédits', 'Collect credits') },
+      // --- Salle commune, à la poupe : les deux comptoirs côte à côte au nord, le jukebox dans l'angle,
+      // un grand salon de canapés au milieu, un coin lecture au sud, des plantes partout ---
+      { model: 'reward-counter', x: 3.7, z: 0.35, label: 'weekly', interact: tr('Officier de liaison · Weekly', 'Liaison officer · Weekly'), action: tr('Récupérer les crédits', 'Collect credits') },
+      { model: 'reward-counter', x: 5.3, z: 0.35, label: 'hunt', interact: tr('Scientifique du LJPC · Chasse galactique', 'LJPC scientist · Galactic Hunt'), action: tr('Récupérer les crédits', 'Collect credits') },
+      // Le jukebox de la salle commune : tout le pont l'entend (cf. src/music.ts).
+      { model: 'jukebox', x: 1, z: 0.82, action: tr('Choisir un morceau', 'Pick a song'), music: true },
+      { model: 'plant-tall', x: 7.9, z: 1.05 },
+      { model: 'monstera', x: 0.05, z: 2.15 },
+      { model: 'rug', x: 4, z: 5.3, label: 'warm:4.4x3.2', solid: false },
       {
-        model: 'computer-system', x: 4.2, z: 0.35, rot: 0,
-        interact: tr(
-          'Distributeur d\'énergie : 4 pips aux systèmes, 2 aux moteurs, 0 aux armes. Vaisseau pacifiste.',
-          'Power distributor: 4 pips to systems, 2 to engines, 0 to weapons. A pacifist ship.',
-        ),
+        model: 'sofa', x: 4, z: 6.75, rot: 2, label: 'teal',
+        interact: tr('Canapé de la salle commune : on s\'y retrouve entre deux missions, et on refait la galaxie.', 'Common room sofa: where the crew meets between missions to put the galaxy to rights.'),
       },
-      {
-        model: 'computer-system', x: 4.2, z: 8.65, rot: 2,
-        interact: tr('Support vital : oxygène 100 %. Filtres à remplacer dans 42 jours.', 'Life support: oxygen 100%. Filters due for replacement in 42 days.'),
-      },
-      {
-        model: 'fsd', x: 2, z: 4.5, rot: 1,
-        interact: tr(
-          'Réacteur FSD 5A, modifié par Felicity Farseer (portée augmentée). Ne pas toucher pendant la charge.',
-          '5A frame shift drive, engineered by Felicity Farseer (increased range). Do not touch while charging.',
-        ),
-      },
-      {
-        model: 'container-tall', x: 0, z: 3,
-        interact: tr(
-          'Réservoir : 32 t d\'hydrogène. Pour le plein, écoper une étoile K, G, B, F, O, A ou M.',
-          'Fuel tank: 32 t of hydrogen. To refuel, scoop a K, G, B, F, O, A or M star.',
-        ),
-      },
-      { model: 'container-tall', x: 0, z: 5 },
-      { model: 'container-wide', x: 1, z: 1 },
-      { model: 'container-wide', x: 1, z: 8 },
-      { model: 'pipe-ring-colored', x: 2.8, z: 0.25 },
-      { model: 'pipe-ring-colored', x: 2.8, z: 8.75 },
-      { model: 'structure-panel', x: 2, z: 7, y: 0.005, solid: false },
-      { model: 'structure-panel', x: 2, z: 2, y: 0.005, solid: false },
+      { model: 'sofa', x: 2.05, z: 5.3, rot: 1, label: 'terracotta' },
+      { model: 'sofa', x: 5.95, z: 5.3, rot: 3, label: 'mustard' },
+      { model: 'coffee-table', x: 4, z: 5.3 },
+      { model: 'floor-lamp', x: 2.05, z: 6.6 },
+      { model: 'plant', x: 5.95, z: 6.55 },
+      { model: 'bookshelf', x: -0.2, z: 4.6, rot: 1, interact: tr('Bibliothèque commune : guides de minage, romans de Drew Wagar, et un manuel du Cobra annoté au crayon.', 'Shared bookshelf: mining guides, Drew Wagar novels, and a Cobra manual annotated in pencil.') },
+      { model: 'plant-tall', x: 0.05, z: 7.1 },
+      // Coin lecture, au sud : deux fauteuils tournés vers le salon.
+      { model: 'rug-round', x: 4.5, z: 8.6, solid: false },
+      { model: 'armchair', x: 3.7, z: 9, rot: 2, label: 'sage' },
+      { model: 'armchair', x: 5.3, z: 9, rot: 2, label: 'plum' },
+      { model: 'side-table', x: 4.5, z: 9.1 },
+      { model: 'books', x: 4.5, z: 9.1, y: 0.3125, solid: false },
+      { model: 'plant-tall', x: 1.3, z: 8.25 },
+      // À l'est, près de la porte : un petit coin de poufs autour d'un canapé.
+      { model: 'rug', x: 7.1, z: 7, label: 'blue:2.4x2', solid: false },
+      { model: 'sofa', x: 8.05, z: 7, rot: 3, label: 'navy' },
+      { model: 'beanbag', x: 6.55, z: 6.5, label: 'rose' },
+      { model: 'beanbag', x: 6.55, z: 7.5, label: 'teal' },
+      { model: 'monstera', x: 7.9, z: 8.35 },
+      { model: 'plant-tall', x: 7.9, z: 2.6 },
+      { model: 'plant', x: 2.2, z: 1.1 },
 
       // --- Infirmerie ---
       {
@@ -520,13 +553,19 @@ export const LEVELS: LevelDef[] = [
       {
         model: 'computer', x: 11, z: 9, rot: 2,
         interact: tr(
-          'Distributeur : plus de Brandy de Lave. Il reste du café lyophilisé et une tasse de Hutton Orbital.',
-          'Vending machine: out of Lavian Brandy. There is freeze-dried coffee left, and a Hutton Orbital mug.',
+          'Terminal du mess : au menu, ragoût de protéines. L\'option « comme sur Terre » est en rupture.',
+          'Mess terminal: protein stew on the menu. The “just like on Earth” option is sold out.',
         ),
       },
       { model: 'table-display-planet', x: 15, z: 7, rot: 3, solid: false },
-      // Le jukebox du mess : tout le pont l'entend (cf. src/music.ts).
-      { model: 'jukebox', x: 11.3, z: 5.82, action: tr('Choisir un morceau', 'Pick a song'), music: true },
+      {
+        model: 'vending-machine', x: 11.3, z: 5.65, action: tr('Acheter un snack', 'Buy a snack'),
+        interact: [
+          tr('Distributeur : plus de Brandy de Lave. Il reste du café lyophilisé et une tasse de Hutton Orbital.', 'Vending machine: out of Lavian Brandy. There is freeze-dried coffee left, and a Hutton Orbital mug.'),
+          tr('Clonk ! Une barre protéinée « goût Achenar » tombe dans le bac. Personne ne sait quel goût a Achenar.', 'Clonk! An “Achenar flavour” protein bar drops into the tray. Nobody knows what Achenar tastes like.'),
+          tr('La machine avale vos crédits et réfléchit longuement. Puis elle vous rend une canette de Lavian Cola.', 'The machine swallows your credits and thinks it over. Then it hands you a can of Lavian Cola.'),
+        ],
+      },
 
       // --- Grande salle d'arcade : deux rangées de bornes jouables, les jeux de plateau à l'est, un coin salon ---
       // Au sud, face au nord : Cargaison, Viper, Astéroïdes et Ruelle Fighter II.
@@ -645,7 +684,9 @@ export const LEVELS: LevelDef[] = [
       { model: 'plant-tall', x: 30.4, z: 5.2 },
     ],
     lights: [
-      [4.5, 4.5, '#4fd4ff', 6],
+      [4, 5, '#ffd9a8', 3],
+      [4.5, 1.4, '#fff1dd', 2.4],
+      [4.5, 8.5, '#ffc98a', 2],
       [34.5, 4.5, '#ffa04a', 3.4],
       [37.2, 4.5, '#9fd8ff', 2.4],
       [13, 1.5, '#e8f6ff', 3.2],

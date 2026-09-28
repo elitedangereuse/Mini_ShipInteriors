@@ -5,17 +5,18 @@
 import { wingDoors } from './cabin-wings.js'
 
 export const SHIP_LAYOUTS = {
-  // Cale ; Chez Jacques, le bar clandestin, ne s'ouvre que depuis le fond de la soute. À l'est de
-  // la soute, le lobby de la baie infestée (SOC-06), en travaux.
+  // Cale ; à la poupe, la salle des machines, derrière l'atelier. Chez Jacques, le bar clandestin, ne
+  // s'ouvre que depuis le fond de la soute. À l'est de la soute, le lobby de la baie infestée (SOC-06),
+  // en travaux.
   '-1': [
     '                            ',
     '            rrrrr           ',
     '    aaaa    rrrrrgg hhhhhh  ',
-    '    aaaa    rrrrr+g hhhhhh  ',
-    '    aaaa jjj+rr+rgg hhhhhh  ',
-    '    aaaa+jjjmmmmmgg+hhhhhh  ',
-    '    aaaa jjj+mmmm+g hhhhhh  ',
-    '    aaaa    mmmmmgg hhhhhh  ',
+    'eeeeaaaa    rrrrr+g hhhhhh  ',
+    'eeeeaaaa jjj+rr+rgg hhhhhh  ',
+    'eee+aaaa+jjjmmmmmgg+hhhhhh  ',
+    'eeeeaaaa jjj+mmmm+g hhhhhh  ',
+    'eeeeaaaa    mmmmmgg hhhhhh  ',
     '            mmmmm+  hhhhhh  ',
     '         bbbbbbbbbb         ',
     '         bbbbbbbbbb         ',
@@ -24,7 +25,7 @@ export const SHIP_LAYOUTS = {
     '         bbbbbbbbbb         ',
     '                            ',
   ],
-  // Pont principal. La coursive file vers le poste de pilotage et ses verrières, à la proue ; au nord, le labo
+  // Pont principal. À la poupe, la salle commune ; la coursive file vers le poste de pilotage et ses verrières, à la proue ; au nord, le labo
   // du LJPC et la salle de La Voie, en travaux ; au sud, la grande salle d'arcade (deux portes) et le mini CQC, en travaux.
   '0': [
     '  eeeeee   qqqqqrrrrrlllllvvvvv         ',

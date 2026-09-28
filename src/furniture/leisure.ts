@@ -3,9 +3,11 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
   animatedScreen, barX, box, compact, cylinder, drawnTexture, glow, holoMaterial, lit, mesh, part, type BagControl, type Builder,
 } from './kit'
+import { tr } from '../i18n'
 
 /*
- * Pont principal : infirmerie, salle de sport et enseigne du salon d'arcade (les bornes sont dans arcade.ts).
+ * Pont principal : infirmerie, salle de sport, distributeur du mess et enseigne du salon d'arcade (les
+ * bornes sont dans arcade.ts).
  */
 
 const C = {
@@ -245,6 +247,63 @@ const neonSign: Builder = ({ label = 'ARCADE' }) => {
   }
 }
 
+/**
+ * Distributeur du mess, adossé au mur : caisse orange Elite, vitrine éclairée de cinq rayons (canettes,
+ * barres, sachets, tasses de Hutton Orbital), fronton lumineux, monnayeur et bac de retrait. De
+ * temps en temps, une spirale tourne et un article tombe.
+ */
+const vendingMachine: Builder = ({ random }) => {
+  const g = new THREE.Group()
+  const body = lit('#e0701e'), dark = lit(C.black), chrome = lit(C.chrome)
+  g.add(box(0.66, 0.96, 0.42, body, 0, 0.48, 0.21, 0.02), box(0.5, 0.74, 0.02, dark, -0.06, 0.55, 0.42))
+  // Fronton.
+  const sign = drawnTexture(256, 48, (c) => {
+    c.fillStyle = '#17181b'
+    c.fillRect(0, 0, 256, 48)
+    c.fillStyle = '#ffb45e'
+    c.font = '800 26px system-ui, sans-serif'
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    c.fillText(tr('SNACKS · CAFÉ', 'SNACKS · COFFEE'), 128, 26)
+  })
+  g.add(part(new THREE.PlaneGeometry(0.6, 0.11), new THREE.MeshBasicMaterial({ map: sign }), 0, 1.0, 0.425))
+  // Vitrine : fond lumineux, rayons, articles de couleur.
+  g.add(box(0.46, 0.7, 0.005, glow('#fff3de'), -0.06, 0.56, 0.3))
+  const colors = ['#d8323c', '#3a7bd5', '#39d98a', '#ffd35a', '#b28aff', '#ff8a1c', '#eef1f4']
+  for (let row = 0; row < 5; row++) {
+    const y = 0.3 + row * 0.13
+    g.add(box(0.46, 0.008, 0.1, chrome, -0.06, y, 0.36))
+    for (let i = 0; i < 5; i++) {
+      const col = lit(colors[Math.floor(random() * colors.length)])
+      const x = -0.24 + i * 0.09
+      if (row === 4) g.add(cylinder(0.02, 0.02, 0.07, col, x, y + 0.04, 0.37, 10))
+      else if (row === 0) g.add(cylinder(0.022, 0.018, 0.05, lit('#eef1f4'), x, y + 0.03, 0.37, 10), cylinder(0.023, 0.023, 0.014, lit('#e0701e'), x, y + 0.035, 0.37, 10))
+      else g.add(box(0.06, 0.08, 0.03, col, x, y + 0.045, 0.37, 0.005))
+    }
+  }
+  // Panneau de commande : écran, touches, monnayeur ; bac de retrait en bas.
+  g.add(box(0.1, 0.06, 0.01, glow('#7dffa8'), 0.25, 0.8, 0.425))
+  for (let r = 0; r < 3; r++) for (let k = 0; k < 3; k++) g.add(box(0.022, 0.022, 0.01, lit('#c9cdd4'), 0.225 + k * 0.026, 0.7 - r * 0.03, 0.425))
+  g.add(box(0.03, 0.05, 0.01, dark, 0.25, 0.55, 0.425), box(0.008, 0.03, 0.012, glow('#ffd35a'), 0.25, 0.55, 0.43))
+  g.add(box(0.44, 0.1, 0.03, dark, -0.06, 0.1, 0.415, 0.01))
+  // La vitre, et l'article qui tombe.
+  const live = new THREE.Group()
+  live.add(part(new THREE.PlaneGeometry(0.48, 0.72), new THREE.MeshLambertMaterial({ color: '#dff4ff', transparent: true, opacity: 0.18, depthWrite: false }), -0.06, 0.56, 0.43))
+  const falling = box(0.06, 0.08, 0.03, lit('#d8323c'), 0.03, 0.5, 0.37, 0.005)
+  falling.visible = false
+  live.add(falling)
+  return {
+    solid: g,
+    live,
+    update(t) {
+      // Toutes les 11 s, un paquet quitte le troisième rayon et tombe dans le bac.
+      const k = (t % 11) - 9.6
+      falling.visible = k > 0
+      if (k > 0) falling.position.y = Math.max(0.12, 0.605 - k * k * 0.9)
+    },
+  }
+}
+
 export const LEISURE = {
   'med-bed': medBed,
   'body-scan': bodyScan,
@@ -255,4 +314,5 @@ export const LEISURE = {
   'dumbbell-rack': dumbbellRack,
   'punching-bag': punchingBag,
   'neon-sign': neonSign,
+  'vending-machine': vendingMachine,
 } satisfies Record<string, Builder>

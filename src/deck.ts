@@ -186,7 +186,8 @@ export class Deck {
     this.buildWalls()
     this.buildProps()
     this.buildLift()
-    if (def.engine) this.buildEngine()
+    if (def.engine) this.buildCore(def.engine.x, def.engine.z)
+    this.buildNozzles(!!def.engine)
     this.flushStatic()
 
     for (const [x, z, color, intensity, flicker] of def.lights) {
@@ -608,9 +609,8 @@ export class Deck {
     return this.liftItem
   }
 
-  /** Cœur du réacteur (salle des machines) et tuyères à l'arrière du vaisseau. */
-  private buildEngine() {
-    const cx = 4.5, cz = 4.5
+  /** Cœur du réacteur, au centre de la salle des machines (cf. `engine` dans levels.ts). */
+  private buildCore(cx: number, cz: number) {
     const base = new THREE.Mesh(
       new THREE.CylinderGeometry(0.85, 0.95, 0.15, 24),
       new THREE.MeshStandardMaterial({ color: '#3d424e', metalness: 0.6, roughness: 0.4 }),
@@ -631,7 +631,10 @@ export class Deck {
       this.addStatic(ring, true)
     }
     this.colliders.push({ minX: cx - 0.8, maxX: cx + 0.8, minZ: cz - 0.8, maxZ: cz + 0.8 })
-    for (const [tx, tz] of [[4, 4], [5, 4], [4, 5], [5, 5]]) this.blockedTiles.add(`${tx},${tz}`)
+    // Tuiles dont le centre est sous le socle.
+    for (let tz = Math.ceil(cz - 0.8); tz <= Math.floor(cz + 0.8); tz++) {
+      for (let tx = Math.ceil(cx - 0.8); tx <= Math.floor(cx + 0.8); tx++) this.blockedTiles.add(`${tx},${tz}`)
+    }
     this.interactables.push({
       object: this.core,
       position: new THREE.Vector3(cx, 0, cz),
@@ -642,8 +645,13 @@ export class Deck {
       ),
     })
     this.engineEmitters.push(new THREE.Vector3(cx, this.y + 0.8, cz))
+  }
 
-    // Tuyères : sortent de la coque côté ouest (poupe), à mi-hauteur.
+  /**
+   * Tuyères : elles sortent de la coque côté ouest (poupe), à mi-hauteur, sous chaque pont ;
+   * on ne les entend que depuis celui de la salle des machines (`sound`).
+   */
+  private buildNozzles(sound: boolean) {
     const nozzleMat = new THREE.MeshStandardMaterial({ color: '#3b3f5e', metalness: 0.7, roughness: 0.35, side: THREE.DoubleSide })
     const stern = Hull.stern
     for (const z of [3, 6]) {
@@ -656,7 +664,7 @@ export class Deck {
       plume.position.set(stern - 1.9, -0.75, z)
       this.group.add(plume)
       this.plumes.push(plume)
-      this.engineEmitters.push(new THREE.Vector3(stern - 1.1, this.y - 0.75, z))
+      if (sound) this.engineEmitters.push(new THREE.Vector3(stern - 1.1, this.y - 0.75, z))
     }
   }
 

@@ -273,7 +273,7 @@ let cometeHere = true
 const sound = new Sound()
 scene.add(sound.rig)
 
-/** Jukebox du pont principal (celui du mess), de la cale (celui du bar) et des quartiers où l'on se trouve. */
+/** Jukebox du pont principal (celui de la salle commune), de la cale (celui du bar) et des quartiers où l'on se trouve. */
 const deckMusic = new JukeboxPlayer(sound, 0.4)
 const holdMusic = new JukeboxPlayer(sound, 0.4)
 const cabinMusic = new JukeboxPlayer(sound, 0.4)
@@ -649,8 +649,8 @@ function removeCompanion(key: string) {
 
 function startSound() {
   void sound.start(() => {
-    // Tuyères à la poupe et bourdonnement du réacteur (pont principal).
-    for (const [i, p] of deckById(0).engineEmitters.entries()) {
+    // Tuyères à la poupe et bourdonnement du réacteur (salle des machines, dans la cale).
+    for (const [i, p] of (decks.find((d) => d.def.engine) ?? deck).engineEmitters.entries()) {
       if (i === 0) sound.loop('engine', p, { volume: 0.2, rate: 0.5, ref: 1.5, rolloff: 1.2 })
       else sound.loop('engine', p, { volume: 0.32, rate: 0.8, ref: 2.5, rolloff: 1 })
     }

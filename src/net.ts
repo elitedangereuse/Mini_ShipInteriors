@@ -22,7 +22,7 @@ export interface PlayerState {
   cabin: number
 }
 
-/** Où est un jukebox : au mess du pont principal, au bar de la cale, ou dans des quartiers. */
+/** Où est un jukebox : à la salle commune du pont principal, au bar de la cale, ou dans des quartiers. */
 export type JukeboxWhere = 'deck' | 'hold' | 'cabin'
 
 /** Ce que joue un jukebox : son morceau (null : il se tait), depuis `at` secondes, à sa place. */
