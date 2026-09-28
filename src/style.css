@@ -3007,16 +3007,16 @@ body.photo #bubbles .gain-pop {
 .media-room-choice strong { font: 600 21px Georgia, serif; }
 .media-room-choice span { color: #c8c9cb; font-size: 12px; }
 .media-room-frame { width: 100%; height: 100%; border: 0; background: #101821; }
-.cinema-room-overlay { position: fixed; inset: 0; z-index: 133; display: grid; place-items: center; padding: 16px; background: #05080be8; backdrop-filter: blur(7px); }
+.cinema-room-overlay { position: fixed; inset: 0; z-index: 133; display: flex; justify-content: flex-end; align-items: center; padding: 16px; pointer-events: none; }
 .cinema-room-overlay[hidden] { display: none; }
-.cinema-room-shell { display: flex; flex-direction: column; width: min(1060px, 100%); height: min(760px, calc(100dvh - 32px)); overflow: hidden; border: 1px solid #bf9867; border-radius: 19px; color: #f8eddd; background: linear-gradient(155deg, #29212a, #111c2a 60%); box-shadow: 0 28px 90px #000d; }
+.cinema-room-shell { display: flex; flex-direction: column; width: min(340px, 100%); height: min(720px, calc(100dvh - 32px)); overflow: hidden; border: 1px solid #bf9867; border-radius: 19px; color: #f8eddd; background: linear-gradient(155deg, #29212aef, #111c2aef 60%); box-shadow: 0 28px 90px #000d; pointer-events: auto; }
 .cinema-room-header { display: flex; justify-content: space-between; gap: 16px; padding: 15px 20px; border-bottom: 1px solid #b9915c80; }
 .cinema-room-header small { color: #e3ad6b; font-size: 10px; font-weight: 800; letter-spacing: .17em; }
 .cinema-room-header h2 { margin: 4px 0; font: 500 25px Georgia,serif; }
 .cinema-room-header p { margin: 0; color: #d7c7b4; font-size: 12px; }
 .cinema-room-header button { align-self: flex-start; padding: 8px 12px; border: 1px solid #b9915c; border-radius: 9px; color: #fff0dd; background: #684437; cursor: pointer; }
 .cinema-room-body { display: flex; flex: 1; min-height: 0; }
-.cinema-room-cards { display: none; width: min(310px, 35%); min-width: 215px; overflow: auto; padding: 12px; border-right: 1px solid #b9915c55; background: #101b29; }
+.cinema-room-cards { display: none; width: 100%; min-width: 0; overflow: auto; padding: 12px; background: #101b29; }
 .cinema-room-control .cinema-room-cards:not([hidden]) { display: grid; align-content: start; gap: 10px; }
 .cinema-room-card { display: block; width: 100%; padding: 7px; text-align: left; border: 1px solid #ffffff32; border-radius: 10px; background: #263443; color: #f8eddd; cursor: pointer; }
 .cinema-room-card:hover { border-color: #ffc483; background: #354959; }
@@ -3025,10 +3025,10 @@ body.photo #bubbles .gain-pop {
 .cinema-room-card img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; }
 .cinema-room-card strong { display: block; margin: 7px 3px 2px; font: 600 13px/1.25 system-ui,sans-serif; }
 .cinema-room-stop { padding: 10px; text-align: center; }
-.cinema-room-stage { display: grid; place-items: center; flex: 1; min-width: 0; background: #06080c; }
+.cinema-room-stage { position: fixed; top: 0; left: 0; z-index: 30; display: block; width: 640px; height: 256px; overflow: hidden; transform-origin: 0 0; background: #06080c; }
 .cinema-room-stage iframe { display: block; width: 100%; height: 100%; border: 0; }
 .cinema-room-youtube { width: 100%; height: 100%; }
-.cinema-room-empty { max-width: 400px; padding: 24px; text-align: center; color: #d3c2ac; font: 18px/1.4 Georgia,serif; }
+.cinema-screen-sound { position: fixed; z-index: 31; transform: translateX(-50%); padding: 5px 10px; border: 1px solid #bf9867; border-radius: 8px; color: #fff0dd; background: #182535eb; cursor: pointer; }
 .cinema-room-header button:focus-visible, .cinema-room-card:focus-visible { outline: 2px solid #ffca8b; outline-offset: 2px; }
 @media (max-width: 600px) {
   .media-room-overlay { padding: 8px; background: #07101ae8; }
@@ -3040,11 +3040,7 @@ body.photo #bubbles .gain-pop {
   .cinema-room-shell { height: calc(100dvh - 16px); }
   .cinema-room-header { padding: 10px 12px; }
   .cinema-room-header h2 { font-size: 19px; }
-  .cinema-room-control .cinema-room-body { flex-direction: column-reverse; }
-  .cinema-room-cards { width: 100%; min-width: 0; max-height: 40%; border-right: 0; border-top: 1px solid #b9915c55; }
-  .cinema-room-control .cinema-room-cards:not([hidden]) { display: flex; overflow-x: auto; }
-  .cinema-room-card { min-width: 140px; width: 140px; flex: none; }
-  .cinema-room-stop { min-width: 110px; width: 110px; }
+  .cinema-room-shell { width: min(300px, 80vw); }
 }
 @media (max-width: 900px) {
   .jacques-overlay { left: 8px !important; right: 8px; top: auto !important; bottom: 8px; width: auto; }

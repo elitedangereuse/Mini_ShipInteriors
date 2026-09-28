@@ -34,10 +34,11 @@ const C = {
  * l'horloge des meubles (le mode photo la fige). La lumière de l'écran la suit (cf. main.ts).
  */
 export const film = { time: 0 }
+export const CINEMA_SCREEN = { width: 3.3, height: 1.32, centerY: 0.94, depth: 0.075 } as const
 let projection: { mode: 'trailer' | 'twitch'; title: string; image: HTMLImageElement | null } | null = null
 let projectionRequest = 0
 
-/** Sur l'écran 3D, une affiche indique la séance commune ; le lecteur s'ouvre aux fauteuils. */
+/** Sur l'écran 3D, une affiche indique la séance commune sous le lecteur intégré. */
 export function setProjection(mode: 'trailer' | 'twitch' | null, title = '', imageUrl = '') {
   const request = ++projectionRequest
   if (mode === null) {
@@ -304,7 +305,7 @@ function curtain(g: THREE.Group, x: number, w: number, h: number, side: -1 | 1) 
  */
 const cinemaScreen: Builder = () => {
   const g = new THREE.Group()
-  const SW = 3.3, SH = 1.32, SY = 0.94
+  const { width: SW, height: SH, centerY: SY } = CINEMA_SCREEN
   // Mur de fond en velours sombre, cadre noir mat autour de la toile.
   g.add(box(4.6, 1.78, 0.03, lit(C.velvetDeep), 0, 0.89, 0.015))
   g.add(box(SW + 0.16, SH + 0.14, 0.05, lit(C.black), 0, SY, 0.045))
@@ -322,7 +323,7 @@ const cinemaScreen: Builder = () => {
   const screen = animatedScreen(W, H, 12, drawFilm)
   screen.texture.magFilter = THREE.LinearFilter
   const live = new THREE.Group()
-  live.add(part(new THREE.PlaneGeometry(SW, SH), new THREE.MeshBasicMaterial({ map: screen.texture, toneMapped: false }), 0, SY, 0.075))
+  live.add(part(new THREE.PlaneGeometry(SW, SH), new THREE.MeshBasicMaterial({ map: screen.texture, toneMapped: false }), 0, SY, CINEMA_SCREEN.depth))
   return {
     solid: g,
     live,

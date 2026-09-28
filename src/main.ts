@@ -230,10 +230,9 @@ const barPanel = new BarPanel(wallet, cocktailEffects,
 )
 const gameEmbed = new GameEmbed()
 const mediaRoom = new MediaRoom({ get: () => iso.zoomLevel, set: (value) => iso.zoomTo(value) })
-const cinemaRoom = new CinemaRoom(
-  { get: () => iso.zoomLevel, set: (value) => iso.zoomTo(value) },
-  { online: () => net.online, self: () => net.id, choose: (id) => net.sendCinemaChoice(id) },
-)
+const cinemaRoom = new CinemaRoom({ online: () => net.online, self: () => net.id, choose: (id) => net.sendCinemaChoice(id) })
+const cinemaScreenProp = deckById(1).def.props.find((p) => p.model === 'cinema-screen')!
+const cinemaFocus = new THREE.Vector3()
 const spawn = spawnPoint()
 player.position.set(spawn.x, deck.y, spawn.z)
 scene.add(player.root)
@@ -1875,7 +1874,9 @@ function movementDirection(pad: GamepadInput): THREE.Vector3 {
   return input
 }
 
-addEventListener('wheel', (e) => { if (!barPanel.isOpen) iso.zoomBy(Math.exp(e.deltaY * 0.001)) }, { passive: true })
+addEventListener('wheel', (e) => {
+  if (!barPanel.isOpen && !cinemaRoom.isOpen) iso.zoomBy(Math.exp(e.deltaY * 0.001))
+}, { passive: true })
 $('rot-left').onclick = () => iso.rotate(-1)
 $('rot-right').onclick = () => iso.rotate(1)
 $('zoom-in').onclick = () => iso.zoomBy(0.8)
@@ -2685,7 +2686,9 @@ function frame() {
   // Mode aménagement : le joueur au milieu de la zone que le catalogue laisse visible.
   if (editing()) editor!.frameCamera()
   else iso.frameCenter(0, 0, innerHeight)
-  iso.update(dt, claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : player.position)
+  const cinemaSeat = deck.def.id === 1 && ['cinema-row', 'projection-chair'].includes(seating.current?.item.furniture?.model ?? '')
+  if (cinemaSeat) cinemaFocus.set(cinemaScreenProp.x, deck.y, (player.position.z + cinemaScreenProp.z) / 2)
+  iso.update(dt, claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : cinemaSeat ? cinemaFocus : player.position)
   if (barPanel.isOpen) {
     iso.camera.updateMatrixWorld()
     barPanel.place(iso.camera, player.position, jacquesAt)
@@ -2805,6 +2808,7 @@ function frame() {
   }
 
   renderer.render(scene, iso.camera)
+  cinemaRoom.placeScreen(iso.camera, deck.def.id === 1, cinemaScreenProp.x, deckById(1).y, cinemaScreenProp.z)
   bubbles.update(iso.camera)
 
   // Résolution adaptative : on baisse la densité de pixels si l'affichage peine,
