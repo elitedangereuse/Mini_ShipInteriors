@@ -337,25 +337,45 @@ export class CabinEditor {
     return { w: innerWidth, h: Math.max(80, bottom - top), dx: 0, dy: innerHeight / 2 - (top + bottom) / 2 }
   }
 
-  /** Zoom qui fait tenir toute la cabine dans la zone visible (vue plongeante, sous tous les angles). */
-  fitZoom(): number {
+  /**
+   * Zoom qui fait tenir toute la cabine dans la zone visible, autour de ce point (le joueur),
+   * en vue plongeante et sous les quatre vues isométriques.
+   */
+  fitZoom(center: THREE.Vector3): number {
     const b = this.frame()
-    // Vue à 45° : la cabine forme un losange de (largeur + profondeur) · cos 45° de large.
-    const diag = (b.maxX - b.minX + (b.maxZ - b.minZ)) * Math.SQRT1_2
-    const tall = diag * Math.sin(EDIT_ELEVATION) + Math.cos(EDIT_ELEVATION)
     const v = this.visible()
-    return 1.12 * Math.max((diag * innerHeight) / (2 * v.w), (tall * innerHeight) / (2 * v.h))
+    const s = Math.sin(EDIT_ELEVATION), c = Math.cos(EDIT_ELEVATION)
+    let wide = 0, tall = 0
+    for (let q = 0; q < 4; q++) {
+      const a = Math.PI / 4 + (q * Math.PI) / 2
+      for (const x of [b.minX, b.maxX]) {
+        for (const z of [b.minZ, b.maxZ]) {
+          const dx = x - center.x, dz = z - center.z
+          wide = Math.max(wide, Math.abs(dx * Math.cos(a) - dz * Math.sin(a)))
+          // Le sol s'éloigne en remontant l'écran ; la caméra vise 0,4 au-dessus, et les murs font une tuile.
+          const away = -(dx * Math.sin(a) + dz * Math.cos(a)) * s
+          tall = Math.max(tall, Math.abs(away - 0.4 * c), Math.abs(away + 0.6 * c))
+        }
+      }
+    }
+    return 1.12 * Math.max((wide * innerHeight) / v.w, (tall * innerHeight) / v.h)
   }
 
-  /** Point que la caméra regarde : la cabine, au milieu de la zone que le catalogue laisse visible. */
-  focus(out: THREE.Vector3): THREE.Vector3 {
-    const f = this.frame()
-    out.set((f.minX + f.maxX) / 2, this.view.deck.y, (f.minZ + f.maxZ) / 2)
+  /**
+   * Toute la cabine à l'écran, autour du joueur : sur un téléphone, joueur dans un coin, on dézoome
+   * plus loin que d'habitude (cf. closeEditor, qui remet la limite).
+   */
+  reframe(center: THREE.Vector3 = this.host.iso.target) {
+    const iso = this.host.iso
+    const z = this.fitZoom(center)
+    iso.zoomMax = Math.max(iso.zoomMax, z)
+    iso.zoomTo(z)
+  }
+
+  /** Le joueur au milieu de la zone que le catalogue laisse visible. */
+  frameCamera() {
     const v = this.visible()
-    const unit = (2 * this.host.iso.zoomLevel) / innerHeight
-    // Au sol vu en biais, un pixel vertical couvre plus de terrain qu'un pixel horizontal.
-    const g = this.host.iso.screenToGround(v.dx * unit, (-v.dy * unit) / Math.sin(EDIT_ELEVATION), this.hit)
-    return out.add(g)
+    this.host.iso.frameCenter(v.dx, v.dy, innerHeight)
   }
 
   /** Ce que la caméra cadre : la cabine et ses pièces ; dans l'onglet « Pièces », les trois espaces aussi. */
@@ -454,7 +474,7 @@ export class CabinEditor {
     this.cards.classList.toggle('finish', mode !== 'objects')
     if (mode !== 'rooms') this.showPreview(null)
     // L'onglet « Pièces » cadre aussi les espaces encore fermés.
-    if (reframe && this.open) this.host.iso.zoomTo(this.fitZoom())
+    if (reframe && this.open) this.reframe()
   }
 
   private showCategory(id: CategoryId) {

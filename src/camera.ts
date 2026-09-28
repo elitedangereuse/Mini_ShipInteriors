@@ -38,6 +38,12 @@ export class IsoCamera {
   /** Secousse de la vue (saut FSD), qui s'amortit. */
   private jolt = 0
   private orbitHold = 0
+  /**
+   * Décalage du cadre à l'écran, en demi-hauteurs de fenêtre : la cible apparaît au centre d'une
+   * zone que des panneaux laissent visible, à tous les zooms et sous toutes les inclinaisons.
+   */
+  private shift = new THREE.Vector2()
+  private shiftGoal = new THREE.Vector2()
 
   /** Inclut le mouvement direct et la fin amortie d'un quart de tour. */
   get rotating(): boolean {
@@ -111,6 +117,16 @@ export class IsoCamera {
     this.panHold = 0.3
   }
 
+  /**
+   * Place la cible au centre d'une zone de l'écran plutôt qu'au centre de la fenêtre.
+   * @param dxPx décalage vers la gauche du centre de la zone, en pixels
+   * @param dyPx décalage vers le haut, en pixels
+   * @param viewportHeight hauteur de la fenêtre, en pixels
+   */
+  frameCenter(dxPx: number, dyPx: number, viewportHeight: number) {
+    this.shiftGoal.set((2 * dxPx) / viewportHeight, (2 * dyPx) / viewportHeight)
+  }
+
   /** Zoom visé (demi-hauteur du cadre, en tuiles). */
   get zoomLevel(): number {
     return this.zoomGoal
@@ -171,6 +187,8 @@ export class IsoCamera {
     this.azimuth = THREE.MathUtils.damp(this.azimuth, this.azimuthGoal, 8, dt)
     this.elevation = THREE.MathUtils.damp(this.elevation, this.elevationGoal, 8, dt)
     this.zoom = THREE.MathUtils.damp(this.zoom, this.zoomGoal, 10, dt)
+    this.shift.x = THREE.MathUtils.damp(this.shift.x, this.shiftGoal.x, 6, dt)
+    this.shift.y = THREE.MathUtils.damp(this.shift.y, this.shiftGoal.y, 6, dt)
     this.target.x = THREE.MathUtils.damp(this.target.x, follow.x + this.offset.x, 6, dt)
     this.target.z = THREE.MathUtils.damp(this.target.z, follow.z + this.offset.z, 6, dt)
     this.target.y = THREE.MathUtils.damp(this.target.y, follow.y + 0.4, 10, dt)
@@ -191,10 +209,11 @@ export class IsoCamera {
 
   private applyFrustum() {
     const z = this.zoom
-    this.camera.left = -z * this.aspect
-    this.camera.right = z * this.aspect
-    this.camera.top = z
-    this.camera.bottom = -z
+    const sx = this.shift.x * z, sy = this.shift.y * z
+    this.camera.left = -z * this.aspect + sx
+    this.camera.right = z * this.aspect + sx
+    this.camera.top = z - sy
+    this.camera.bottom = -z - sy
     this.camera.updateProjectionMatrix()
   }
 }

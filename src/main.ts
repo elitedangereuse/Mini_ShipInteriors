@@ -1404,7 +1404,7 @@ async function openEditor(tab?: 'rooms') {
   iso.setRestElevation(editElevation)
   document.body.classList.add('editing')
   ed.start(ownLayout, tab)
-  iso.zoomTo(ed.fitZoom())
+  ed.reframe(player.position)
   ed.setSaveState(store.state)
   store.onState = (state) => ed.setSaveState(state)
 }
@@ -1413,6 +1413,7 @@ function closeEditor() {
   if (!editor?.active) return
   editor.stop()
   iso.setRestElevation(null)
+  iso.zoomMax = 14
   iso.zoomTo(editZoom)
   document.body.classList.remove('editing')
   renderer.domElement.style.cursor = 'default'
@@ -2581,7 +2582,6 @@ timer.connect(document)
 const toCam = new THREE.Vector3()
 const screenPos = new THREE.Vector3()
 const actors = new Map<Deck, THREE.Vector3[]>(decks.map((d) => [d, []]))
-const editFocus = new THREE.Vector3()
 let perfTime = 0
 let perfFrames = 0
 let fastWindows = 0
@@ -2651,7 +2651,10 @@ function frame() {
     barFocus.set((player.position.x + jacquesAt.x) / 2, player.position.y, (player.position.z + jacquesAt.z) / 2)
     if (innerWidth <= 900) barFocus.add(iso.screenToGround(0, -1.1))
   }
-  iso.update(dt, editing() ? editor!.focus(editFocus) : claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : player.position)
+  // Mode aménagement : le joueur au milieu de la zone que le catalogue laisse visible.
+  if (editing()) editor!.frameCamera()
+  else iso.frameCenter(0, 0, innerHeight)
+  iso.update(dt, claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : player.position)
   if (barPanel.isOpen) {
     iso.camera.updateMatrixWorld()
     barPanel.place(iso.camera, player.position, jacquesAt)
