@@ -1,16 +1,20 @@
 import { tr } from './i18n'
 
-type Game = 'cards' | 'cqc'
-const GAMES: Record<Game, { title: string; url: string; fullUrl: string; hint: string }> = {
+type Game = 'cards' | 'cqc' | 'edgis'
+const EDGIS_URL = 'https://edgis.elitedangereuse.fr/static/galaxymap.html?x=0&y=0&z=0&radius=20'
+const GAMES: Record<Game, { title: string; url: string; fullUrl: string; hint: string; kicker?: string }> = {
   cards: { title: 'Galactic Clash', url: '/galactic_clash.php', fullUrl: '/galactic_clash.php', hint: tr('Choisissez une partie solo ou un duel dans le jeu.', 'Choose a solo game or a duel in the game.') },
   cqc: { title: 'Mini-CQC', url: '/cqc.php?mini_embed=1', fullUrl: '/cqc.php', hint: tr('Jouez en solo ou rejoignez d’autres pilotes.', 'Play solo or join other pilots.') },
+  edgis: { title: tr('Carte galactique · EDGIS', 'Galaxy map · EDGIS'), url: EDGIS_URL, fullUrl: EDGIS_URL,
+    hint: tr('Explorez la galaxie avec EDGIS.', 'Explore the galaxy with EDGIS.'), kicker: tr('POSTE DE PILOTAGE · NAVIGATION', 'BRIDGE · NAVIGATION') },
 }
 
-/** Fenêtre du jeu du site, dans le même domaine pour conserver la session du CMDR. */
+/** Fenêtre des jeux du site et de la carte galactique EDGIS. */
 export class GameEmbed {
   private root = document.createElement('section')
   private frame = document.createElement('iframe')
   private title = document.createElement('h2')
+  private kicker = document.createElement('small')
   private hint = document.createElement('p')
   private link = document.createElement('a')
   private previousFocus: HTMLElement | null = null
@@ -25,10 +29,8 @@ export class GameEmbed {
     const header = document.createElement('header')
     header.className = 'bar-game-header'
     const intro = document.createElement('div')
-    const kicker = document.createElement('small')
-    kicker.textContent = tr('CHEZ JACQUES · TABLE DE JEU', 'CHEZ JACQUES · GAME TABLE')
     this.hint.className = 'bar-game-hint'
-    intro.append(kicker, this.title, this.hint)
+    intro.append(this.kicker, this.title, this.hint)
     const actions = document.createElement('div')
     actions.className = 'bar-game-actions'
     this.link.target = '_blank'
@@ -57,6 +59,7 @@ export class GameEmbed {
     const def = GAMES[game]
     this.previousFocus = document.activeElement as HTMLElement
     this.title.textContent = def.title
+    this.kicker.textContent = def.kicker ?? tr('CHEZ JACQUES · TABLE DE JEU', 'CHEZ JACQUES · GAME TABLE')
     this.hint.textContent = def.hint
     this.link.href = def.fullUrl
     this.frame.src = def.url

@@ -2145,6 +2145,7 @@ function tryInteract() {
 function interactWith(item: Interactable) {
   if (item.seats) return sitOn(item)
   player.lookAt(item.position)
+  if (item.furniture?.model === 'galaxy-map') return gameEmbed.open('edgis')
   if (deck.def.id === 1) {
     if (item.furniture?.model === 'podcast-console' || item.furniture?.model === 'podcast-poster') return mediaRoom.open()
     if (item.furniture?.model === 'cinema-screen') return void cinemaRoom.open(false)
