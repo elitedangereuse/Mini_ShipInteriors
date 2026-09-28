@@ -21,7 +21,7 @@ import { BOARD_GAMES, applyBoardMove, boardColor, boardState, newBoardGame } fro
 import { sanitizeLayout } from './cabin.js'
 import { hasSiteArtwork, siteArtworkAllowed } from './site.js'
 import { cleanCmdrName, cmdrFromCookie } from './cmdr.js'
-import { BOARD_TABLES, SHIP_LAYOUTS } from '../shared/ship-layouts.js'
+import { BOARD_TABLES, SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import { ShipMap } from '../shared/ship-map.js'
 import { canReach } from '../shared/sight.js'
 
@@ -50,7 +50,7 @@ const INVITE_TTL = 60000
  */
 const REACH = 2.5
 /** Plans des ponts : on n'agit pas à travers un mur (cf. shared/sight.js). */
-const MAPS = new Map(Object.entries(SHIP_LAYOUTS).map(([id, layout]) => [Number(id), new ShipMap(layout)]))
+const MAPS = new Map(Object.entries(SHIP_LAYOUTS).map(([id, layout]) => [Number(id), new ShipMap(layout, shipMapOptions(id))]))
 const reaches = (player, level, at) => player.level === level && canReach(MAPS.get(level), player, at, REACH)
 /** Pont de chaque jukebox : le mess (pont principal), le bar (la cale), les quartiers. */
 const JUKEBOX_LEVEL = new Map([['deck', 0], ['hold', -1], ['cabin', 1]])
@@ -223,7 +223,7 @@ export function attachRelay(
 
     socket.on('state', (raw) => {
       const m = obj(raw)
-      const x = num(m.x, -5, 40), z = num(m.z, -5, 20), yaw = num(m.yaw, -10, 10)
+      const x = num(m.x, -5, 50), z = num(m.z, -5, 20), yaw = num(m.yaw, -10, 10)
       if (x === null || z === null || yaw === null || !LEVELS.has(m.level)) return
       // Une pose inconnue n'en est pas une ; sa hauteur reste à portée d'une couchette du haut.
       const pose = POSES.has(m.pose) ? m.pose : ''
@@ -303,7 +303,7 @@ export function attachRelay(
       const instance = m.where === 'cabin' ? player.cabin : m.where === 'deck' ? 0 : -1
       if (musicBudget < 1) return socket.emit('music', { id: 0, ...musicOf(instance), busy: true })
       const track = m.track === null ? null : TRACK.test(String(m.track)) ? String(m.track) : undefined
-      const x = num(m.x, -5, 40), z = num(m.z, -5, 20)
+      const x = num(m.x, -5, 50), z = num(m.z, -5, 20)
       if (track === undefined || x === null || z === null) return
       // Au jukebox, et de ce côté du mur ; sauf l'hôte reconnecté qui rend sa musique (`at`).
       const restore = m.where === 'cabin' && m.at !== undefined

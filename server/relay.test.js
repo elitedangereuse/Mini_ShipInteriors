@@ -168,7 +168,7 @@ describe('rediffusion', () => {
     assert.deepEqual((await once(a, 'emote'))[0], { id: wb.id, emote: 'braben' })
 
     b.emit('state', { x: 999, z: 3, yaw: 0, level: 0, anim: 'moonwalk' })
-    assert.deepEqual((await once(a, 'state'))[0], { id: wb.id, x: 40, z: 3, yaw: 0, level: 0, anim: 'idle' })
+    assert.deepEqual((await once(a, 'state'))[0], { id: wb.id, x: 50, z: 3, yaw: 0, level: 0, anim: 'idle' })
 
     const left = once(a, 'leave')
     b.disconnect()

@@ -19,12 +19,27 @@ export interface Door {
  *   ' '  vide
  *   a-z  sol d'une pièce (même lettre = même pièce ; un mur sépare deux lettres différentes)
  *   '+'  porte : relie les deux tuiles voisines situées de part et d'autre
+ *
+ * Une porte peut être verrouillée : on la voit, mais elle ne s'ouvre pas, et elle arrête le
+ * passage et la vue comme un mur.
  */
+export interface ShipMapOptions {
+  /** Pièces fermées : leurs portes sont verrouillées. */
+  closed?: string
+  /** Portes en plus des '+', posées sur un bord de tuile. */
+  doors?: Door[]
+}
+
 export declare class ShipMap {
   readonly width: number
   readonly height: number
   readonly doors: Door[]
-  constructor(layout: string[])
+  constructor(layout: string[], options?: ShipMapOptions)
+  /** Porte sur le bord `dir` de la tuile (x, z). */
+  addDoor(x: number, z: number, dir: number): void
+  /** Verrouille (ou déverrouille) la porte du bord `dir` de la tuile (x, z). */
+  lock(x: number, z: number, dir: number, on?: boolean): void
+  isLocked(x: number, z: number, dir: number): boolean
   room(x: number, z: number): string | null
   isFloor(x: number, z: number): boolean
   /** Clé unique d'une arête, identique vue des deux tuiles. */

@@ -64,10 +64,15 @@ export interface LevelDef {
   /** Proportion de murs extérieurs percés d'un hublot, par pièce (défaut : 1/3). */
   windows?: Record<string, number>
   props: Prop[]
-  /** 8 lumières au plus (cf. main.ts). */
+  /** La réserve en éclaire 8 à la fois, les plus proches du joueur (cf. applyLights dans main.ts). */
   lights: LightDef[]
   /** Réacteur et tuyères. */
   engine?: boolean
+  /**
+   * Pièces en travaux (cf. CLOSED_ROOMS) : ce qu'on lit en examinant leur porte verrouillée,
+   * par lettre de pièce.
+   */
+  closed?: Record<string, string | string[]>
   /**
    * Cabine personnalisable : ses meubles (Holo-Me compris) ne sont pas dans `props` mais dans
    * l'aménagement de chaque joueur (cf. src/cabin/).
@@ -105,10 +110,17 @@ export const LEVELS: LevelDef[] = [
       g: tr('Soute', 'Cargo bay'),
       // Le nom du bar ne se traduit pas.
       b: 'Chez Jacques',
+      h: tr('Sas de la zone thargoïde', 'Thargoid zone airlock'),
+    },
+    closed: {
+      h: tr(
+        'Porte verrouillée : « Sas de la zone thargoïde — en travaux ». Derrière, on entend gratter.',
+        'Locked door: “Thargoid zone airlock — under construction”. Something is scratching on the other side.',
+      ),
     },
     // Le bar est tenu plus proprement que le reste de la cale : dalles lisses, pas un hublot.
-    floors: { a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel' },
-    windows: { a: 0.1, j: 0, r: 0.12, m: 0, g: 0.1, b: 0 },
+    floors: { a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', h: 'floor-panel' },
+    windows: { a: 0.1, j: 0, r: 0.12, m: 0, g: 0.1, b: 0, h: 0 },
     props: [
       // --- Palier : l'ascenseur au centre (cf. LIFT) ---
       { model: 'hazard-floor', x: 10, z: 5, solid: false },
@@ -292,6 +304,17 @@ export const LEVELS: LevelDef[] = [
       { model: 'crate', x: 18, z: 9.1, y: 0.4 },
       { model: 'crate', x: 18.02, z: 9.62 },
       { model: 'plant-tall', x: 17.95, z: 12.95 },
+
+      // --- Sas de la zone thargoïde (SOC-06), en travaux ---
+      { model: 'works-sign', x: 22.9, z: 5.2, rot: 3, label: tr('Bientôt|Zone thargoïde', 'Coming soon|Thargoid zone') },
+      { model: 'works-tape', x: 23.5, z: 5, solid: false },
+      { model: 'scaffold', x: 22.6, z: 2.05 },
+      { model: 'tarp-crates', x: 24.9, z: 2.3, rot: 1 },
+      { model: 'tarp-crates', x: 24.9, z: 7.55, rot: 1 },
+      { model: 'cones', x: 20.6, z: 7.7 },
+      { model: 'drums', x: 20.5, z: 2.5 },
+      { model: 'cables', x: 21.6, z: 6.8, solid: false },
+      { model: 'work-lamp', x: 24.6, z: 4.9, rot: 3 },
     ],
     lights: [
       [5.6, 3.1, '#ffb35c', 3],
@@ -318,48 +341,58 @@ export const LEVELS: LevelDef[] = [
       m: 'Mess',
       s: tr('Salon d\'arcade', 'Arcade lounge'),
       b: tr('Poste de pilotage', 'Cockpit'),
+      l: 'LJPC',
+      v: 'La Voie',
+      a: tr('Salle du Clash Galactique', 'Galactic Clash room'),
+      k: tr('Simulateur Mini-CQC', 'Mini-CQC simulator'),
+    },
+    closed: {
+      l: tr('Porte verrouillée : « Quartier du LJPC — en travaux ».', 'Locked door: “LJPC quarters — under construction”.'),
+      v: tr('Porte verrouillée : « Sanctuaire de La Voie — en travaux ». Un symbole est gravé sur le panneau.', 'Locked door: “La Voie sanctuary — under construction”. A symbol is carved into the panel.'),
+      a: tr('Porte verrouillée : « Salle du Clash Galactique — en travaux ».', 'Locked door: “Galactic Clash room — under construction”.'),
+      k: tr('Porte verrouillée : « Simulateur Mini-CQC — en travaux ». On entend des tirs de laser… enregistrés.', 'Locked door: “Mini-CQC simulator — under construction”. You can hear laser fire… recorded.'),
     },
     floors: { c: 'floor-panel', b: 'floor-detail' },
     engine: true,
     props: [
       // --- Poste de pilotage : siège et HOTAS, scanner, panneaux holographiques, carte galactique ---
       {
-        model: 'computer-wide', x: 27, z: 4, rot: 3,
+        model: 'computer-wide', x: 37, z: 4, rot: 3,
         interact: tr(
           'Supercroisière assistée engagée. Destination : Jameson Memorial, Shinrarta Dezhra — 3 sauts.',
           'Supercruise assist engaged. Destination: Jameson Memorial, Shinrarta Dezhra — 3 jumps.',
         ),
       },
       {
-        model: 'computer-wide', x: 27, z: 5, rot: 3,
+        model: 'computer-wide', x: 37, z: 5, rot: 3,
         interact: tr('Ordinateur d\'amarrage prêt. Musique d\'approche : « Le Beau Danube bleu ».', 'Docking computer ready. Approach music: “The Blue Danube”.'),
       },
       {
-        model: 'pilot-seat', x: 25.9, z: 4.5, rot: 1,
+        model: 'pilot-seat', x: 35.9, z: 4.5, rot: 1,
         interact: tr('Siège du pilote. Quelqu\'un a gravé « o7 » sur l\'accoudoir.', 'Pilot\'s seat. Someone has carved “o7” into the armrest.'),
       },
-      { model: 'radar', x: 26.55, z: 4.5, rot: 1 },
+      { model: 'radar', x: 36.55, z: 4.5, rot: 1 },
       {
-        model: 'holo-panel', x: 26.2, z: 3.35, rot: 0,
+        model: 'holo-panel', x: 36.2, z: 3.35, rot: 0,
         label: tr('Navigation|Shinrarta Dezhra|Jameson Memorial|12,4 al · 3 sauts', 'Navigation|Shinrarta Dezhra|Jameson Memorial|12.4 ly · 3 jumps'),
       },
       {
-        model: 'holo-panel', x: 26.2, z: 5.65, rot: 2,
+        model: 'holo-panel', x: 36.2, z: 5.65, rot: 2,
         label: tr('Systèmes|Boucliers 100 %|Coque 100 %|FSD chargé', 'Systems|Shields 100%|Hull 100%|FSD charged'),
       },
       {
-        model: 'galaxy-map', x: 24, z: 4.5,
+        model: 'galaxy-map', x: 34, z: 4.5,
         interact: tr(
           'Carte galactique : 400 milliards d\'étoiles. Colonia à 22 000 al, Beagle Point à 65 279 al.',
           'Galaxy map: 400 billion stars. Colonia is 22,000 ly away, Beagle Point 65,279 ly.',
         ),
       },
       {
-        model: 'computer-screen', x: 24.5, z: 2, rot: 0,
+        model: 'computer-screen', x: 34.5, z: 2, rot: 0,
         interact: tr('Comms : Felicity Farseer attend toujours son Meta-Alloy.', 'Comms: Felicity Farseer is still waiting for her Meta-Alloys.'),
       },
       {
-        model: 'computer-screen', x: 24.5, z: 7, rot: 2,
+        model: 'computer-screen', x: 34.5, z: 7, rot: 2,
         interact: tr(
           'Télémétrie : portée de saut 42,7 al, carburant 32 t. Aucune signature thargoïde.',
           'Telemetry: jump range 42.7 ly, fuel 32 t. No Thargoid signatures.',
@@ -508,16 +541,42 @@ export const LEVELS: LevelDef[] = [
         interact: tr('Canapé du salon : la meilleure place pour regarder les autres perdre.', 'Lounge sofa: the best seat for watching others lose.'),
       },
       { model: 'beanbag', x: 18.8, z: 9.05, label: 'teal' },
+
+      // --- Pièces en travaux : LJPC et La Voie au nord, Clash Galactique et Mini-CQC au sud ---
+      { model: 'works-sign', x: 23, z: 1.6, label: tr('Bientôt|LJPC', 'Coming soon|LJPC') },
+      { model: 'scaffold', x: 22, z: 0.05 },
+      { model: 'tarp-crates', x: 24.95, z: 0.4 },
+      { model: 'cones', x: 21.4, z: 2.3 },
+      { model: 'works-sign', x: 28, z: 1.6, label: tr('Bientôt|La Voie', 'Coming soon|La Voie') },
+      { model: 'tarp-crates', x: 26.9, z: 0.4 },
+      { model: 'scaffold', x: 29.5, z: 0.05 },
+      { model: 'works-tape', x: 28, z: 1.4, solid: false },
+      { model: 'works-sign', x: 23, z: 7.6, rot: 2, label: tr('Bientôt|Clash Galactique', 'Coming soon|Galactic Clash') },
+      { model: 'scaffold', x: 24.5, z: 8.95, rot: 2 },
+      { model: 'tarp-crates', x: 21.55, z: 8.7 },
+      { model: 'cones', x: 25.3, z: 6.6 },
+      { model: 'works-sign', x: 28, z: 7.6, rot: 2, label: tr('Bientôt|Mini-CQC', 'Coming soon|Mini-CQC') },
+      { model: 'tarp-crates', x: 26.6, z: 8.7 },
+      { model: 'tarp-crates', x: 29.45, z: 8.7 },
+      { model: 'works-tape', x: 28, z: 7.8, solid: false },
+      { model: 'bench', x: 26, z: 3.9, label: 'teal' },
+      { model: 'plant-tall', x: 30.4, z: 5.2 },
     ],
     lights: [
       [4.5, 4.5, '#4fd4ff', 6],
-      [24.5, 4.5, '#ffa04a', 4],
+      [34.5, 4.5, '#ffa04a', 4],
       [13, 1.5, '#e8f6ff', 3.2],
       [18, 1.5, '#fff4e4', 3],
       [13, 8, '#ffe2b0', 3],
       [18.3, 8.2, '#ff4fd8', 2.6, 'neon'],
       [16.8, 7.2, '#39d0ff', 2],
       [15, 4.5, '#ffffff', 2.5],
+      // Coursive prolongée et projecteurs de chantier des pièces en travaux.
+      [26, 4.5, '#ffffff', 2.2],
+      [23, 1.6, '#ffe7c2', 2.2],
+      [28, 1.6, '#ffe7c2', 2.2],
+      [23, 7.4, '#ffe7c2', 2.2],
+      [28, 7.4, '#ffe7c2', 2.2],
     ],
   },
 
@@ -536,8 +595,12 @@ export const LEVELS: LevelDef[] = [
       p: tr('Quartiers du commandant', 'Commander\'s quarters'),
       g: tr('Serre hydroponique', 'Hydroponics bay'),
       o: tr('Salon panoramique', 'Observation lounge'),
+      n: tr('Cinéma', 'Cinema'),
     },
-    windows: { c: 0, k: 0.3, d: 0.2, p: 0.6, g: 0.5, o: 1 },
+    closed: {
+      n: tr('Porte verrouillée : « Cinéma — en travaux ». Programme de la soirée inaugurale : à venir.', 'Locked door: “Cinema — under construction”. Opening night programme: to be announced.'),
+    },
+    windows: { c: 0, k: 0.3, d: 0.2, p: 0.6, g: 0.5, o: 1, n: 0 },
     // Les quartiers du commandant : la cabine de chaque joueur, porte au nord sur la coursive.
     cabin: { room: 'p', door: { x: 11, z: 6 } },
     props: [
@@ -624,6 +687,16 @@ export const LEVELS: LevelDef[] = [
         ),
       },
       { model: 'plant-tall', x: 17.5, z: 7.15 },
+
+      // --- Cinéma, en travaux : l'écran au fond, à l'est ---
+      { model: 'works-sign', x: 22.2, z: 5.9, rot: 1, label: tr('Bientôt|Cinéma', 'Coming soon|Cinema') },
+      { model: 'scaffold', x: 26.9, z: 2.3, rot: 3 },
+      { model: 'scaffold', x: 26.9, z: 6.9, rot: 3 },
+      { model: 'tarp-crates', x: 22.9, z: 1.4 },
+      { model: 'tarp-crates', x: 24.3, z: 1.4 },
+      { model: 'tarp-crates', x: 23.6, z: 8.1 },
+      { model: 'works-tape', x: 25, z: 4.6, solid: false },
+      { model: 'cones', x: 24.6, z: 6.2 },
     ],
     lights: [
       [12, 4.6, '#ffd9a8', 2],
@@ -632,6 +705,7 @@ export const LEVELS: LevelDef[] = [
       [10.2, 8.4, '#ffc98f', 2.3],
       [6, 4.5, '#ffb3e6', 2.6],
       [17.8, 4.6, '#ffd0a0', 2.4],
+      [24.5, 4.5, '#ffe7c2', 2.4],
       // Les deux dernières lumières sont celles des objets de la cabine (Holo-Me, cheminée…).
     ],
   },

@@ -3,51 +3,68 @@
 // Une lettre par tuile (colonne = x, ligne = z), une lettre par pièce, '+' pour une porte.
 
 export const SHIP_LAYOUTS = {
-  // Cale ; Chez Jacques, le bar clandestin, ne s'ouvre que depuis le fond de la soute.
+  // Cale ; Chez Jacques, le bar clandestin, ne s'ouvre que depuis le fond de la soute. À l'est de
+  // la soute, le lobby de la baie infestée (SOC-06), en travaux.
   '-1': [
-    '                     ',
-    '            rrrrr    ',
-    '    aaaa    rrrrrgg  ',
-    '    aaaa    rrrrr+g  ',
-    '    aaaa jjj+rr+rgg  ',
-    '    aaaa+jjjmmmmmgg  ',
-    '    aaaa jjj+mmmm+g  ',
-    '    aaaa    mmmmmgg  ',
-    '            mmmmm+   ',
-    '         bbbbbbbbbb  ',
-    '         bbbbbbbbbb  ',
-    '         bbbbbbbbbb  ',
-    '         bbbbbbbbbb  ',
-    '         bbbbbbbbbb  ',
-    '                     ',
+    '                            ',
+    '            rrrrr           ',
+    '    aaaa    rrrrrgg hhhhhh  ',
+    '    aaaa    rrrrr+g hhhhhh  ',
+    '    aaaa jjj+rr+rgg hhhhhh  ',
+    '    aaaa+jjjmmmmmgg+hhhhhh  ',
+    '    aaaa jjj+mmmm+g hhhhhh  ',
+    '    aaaa    mmmmmgg hhhhhh  ',
+    '            mmmmm+  hhhhhh  ',
+    '         bbbbbbbbbb         ',
+    '         bbbbbbbbbb         ',
+    '         bbbbbbbbbb         ',
+    '         bbbbbbbbbb         ',
+    '         bbbbbbbbbb         ',
+    '                            ',
   ],
-  // Pont principal
+  // Pont principal. La coursive file vers le poste de pilotage, à la proue ; au nord, les salles
+  // de LJPC et de La Voie, au sud celles du Clash galactique et du mini CQC, en travaux.
   '0': [
-    '  eeeeee   qqqqqrrrrr       ',
-    ' eeeeeeee  qqqqqrrrrr       ',
-    'eeeeeeeee  qqqqqrrrrr   bb  ',
-    'eeeeeeeee  qq+qqrr+rr  bbbb ',
-    'eeeeeeee+cccccccccccc+bbbbbb',
-    'eeeeeeeeecccccccccccccbbbbbb',
-    'eeeeeeeee  mm+mmss+ss  bbbb ',
-    'eeeeeeeee  mmmmmsssss   bb  ',
-    ' eeeeeeee  mmmmmsssss       ',
-    '  eeeeee   mmmmmsssss       ',
+    '  eeeeee   qqqqqrrrrrlllllvvvvv        ',
+    ' eeeeeeee  qqqqqrrrrrlllllvvvvv        ',
+    'eeeeeeeee  qqqqqrrrrrlllllvvvvv   bb   ',
+    'eeeeeeeee  qq+qqrr+rrll+llvv+vv  bbbb  ',
+    'eeeeeeee+cccccccccccccccccccccc+bbbbbb ',
+    'eeeeeeeeecccccccccccccccccccccccbbbbbb ',
+    'eeeeeeeee  mm+mmss+ssaa+aakk+kk  bbbb  ',
+    'eeeeeeeee  mmmmmsssssaaaaakkkkk   bb   ',
+    ' eeeeeeee  mmmmmsssssaaaaakkkkk        ',
+    '  eeeeee   mmmmmsssssaaaaakkkkk        ',
   ],
-  // Pont supérieur : les quartiers
+  // Pont supérieur : les quartiers ; derrière le salon panoramique, le cinéma, en travaux.
   '1': [
-    '                     ',
-    '        kkkkdddd     ',
-    '        kkkkdddd oo  ',
-    '     gggk+kkdd+doooo ',
-    '     ggg+ccccccc+ooo ',
-    '     gggccccccccoooo ',
-    '     gggppp+ppppoooo ',
-    '        pppppppp oo  ',
-    '        pppppppp     ',
-    '        pppppppp     ',
-    '        pppppppp     ',
+    '                             ',
+    '        kkkkdddd     nnnnnnn ',
+    '        kkkkdddd oo  nnnnnnn ',
+    '     gggk+kkdd+doooo nnnnnnn ',
+    '     ggg+ccccccc+ooo nnnnnnn ',
+    '     gggccccccccoooo+nnnnnnn ',
+    '     gggppp+ppppoooo nnnnnnn ',
+    '        pppppppp oo  nnnnnnn ',
+    '        pppppppp     nnnnnnn ',
+    '        pppppppp             ',
+    '        pppppppp             ',
   ],
+}
+
+/**
+ * Pièces en travaux de chaque pont : on les voit, meublées de caisses et d'échafaudages, mais
+ * leurs portes restent verrouillées (cf. ShipMap).
+ */
+export const CLOSED_ROOMS = {
+  '-1': 'h',
+  '0': 'lvak',
+  '1': 'n',
+}
+
+/** Plan d'un pont, portes des pièces en travaux verrouillées. */
+export function shipMapOptions(level) {
+  return { closed: CLOSED_ROOMS[level] ?? '' }
 }
 
 /** Tables de jeux de plateau (pont principal), par jeu : une table par jeu. */

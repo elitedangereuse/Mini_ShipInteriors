@@ -10,6 +10,7 @@ import { DIRS, ShipMap } from './map'
 import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type Occluder } from './merge'
 import { Pathfinder } from './pathfinding'
 import { DOOR_GAP } from '../shared/sight.js'
+import { shipMapOptions } from '../shared/ship-layouts.js'
 import { placeSeats, seatAction, seatsOf, type SeatSpot } from './seats'
 
 /** Rectangle de collision dans le plan XZ. */
@@ -56,6 +57,12 @@ interface DoorState {
   axis: THREE.Vector3
   open: number
   wanted: boolean
+  /** Tuile et bord de la porte (cf. ShipMap.isLocked). */
+  x: number
+  z: number
+  dir: number
+  /** Voyants rouges de la porte verrouillée, de part et d'autre. */
+  lamp: THREE.Object3D
 }
 
 const WALL_T = 0.3
@@ -70,6 +77,9 @@ const FLOOR_Y = -0.3
 const DOOR_RANGE = 1.3
 
 const PICK_MATERIAL = new THREE.MeshBasicMaterial()
+/** Voyant d'une porte verrouillée : une barrette rouge qui dépasse des deux faces du linteau. */
+const LOCK_LAMP_GEO = new THREE.BoxGeometry(0.16, 0.035, 0.33)
+const LOCK_LAMP_MAT = new THREE.MeshBasicMaterial({ color: '#ff3b2f' })
 
 /** Petit hash déterministe pour varier les murs sans aléatoire. */
 function hash(x: number, z: number): number {
@@ -128,7 +138,7 @@ export class Deck {
 
   constructor(readonly def: LevelDef) {
     this.theme = themes[def.theme ?? 'station']
-    this.map = new ShipMap(def.layout)
+    this.map = new ShipMap(def.layout, shipMapOptions(def.id))
     this.y = def.id * LEVEL_HEIGHT
     this.group.position.y = this.y
     this.glowMat = beamMaterial()
@@ -336,7 +346,13 @@ export class Deck {
     // Panneau légèrement aminci : pas de faces confondues avec l'encadrement.
     const panel = this.place('door-single', cx, 0, cz, rot)
     panel.scale.set(0.98, 0.99, 0.9)
-    this.addOccluder([frame, panel], new THREE.Vector3(cx, 0.5, cz), this.cabinOutward(cx, cz))
+    // Voyant rouge au-dessus de l'ouverture, des deux côtés : la porte est verrouillée.
+    const lamp = new THREE.Mesh(LOCK_LAMP_GEO, LOCK_LAMP_MAT)
+    lamp.position.set(cx, 0.84, cz)
+    lamp.rotation.y = rot
+    lamp.visible = this.map.isLocked(x, z, dir)
+    // Tramé avec la porte : il s'efface avec elle devant le joueur.
+    this.addOccluder([frame, panel, lamp], new THREE.Vector3(cx, 0.5, cz), this.cabinOutward(cx, cz))
     this.walls.push({ x: cx, z: cz, alongX, model: 'door' })
     this.doors.push({
       panel,
@@ -344,7 +360,20 @@ export class Deck {
       axis: alongX ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1),
       open: 0,
       wanted: false,
+      x,
+      z,
+      dir,
+      lamp,
     })
+    const closed = this.closedText(x, z, dir)
+    if (closed) {
+      this.interactables.push({
+        object: panel,
+        position: new THREE.Vector3(cx, 0, cz),
+        label: tr('Examiner', 'Examine'),
+        text: () => (this.map.isLocked(x, z, dir) ? closed : tr('La porte est ouverte.', 'The door is open.')),
+      })
+    }
 
     const g = DOOR_GAP / 2
     const t = WALL_T / 2
@@ -359,6 +388,17 @@ export class Deck {
       touch(cx, cz - 0.5, 'v')
       touch(cx, cz + 0.5, 'v')
     }
+  }
+
+  /** Texte d'une porte verrouillée : celui de la pièce en travaux qu'elle ferme. */
+  private closedText(x: number, z: number, dir: number): string | string[] | undefined {
+    if (!this.map.isLocked(x, z, dir)) return undefined
+    const d = DIRS[dir]
+    for (const r of [this.map.room(x, z), this.map.room(x + d.dx, z + d.dz)]) {
+      const text = r ? this.def.closed?.[r] : undefined
+      if (text) return text
+    }
+    return undefined
   }
 
   private buildProps() {
@@ -538,9 +578,11 @@ export class Deck {
   update(dt: number, actors: THREE.Vector3[], focus: THREE.Vector3 | null, toCamera: THREE.Vector3, editing = false, keep: { x: number; z: number } | null = null, fade = dt) {
     this.time += dt
 
-    // Portes automatiques.
+    // Portes automatiques (sauf celles qui sont verrouillées).
     for (const d of this.doors) {
-      const wanted = actors.some((a) => Math.hypot(a.x - d.center.x, a.z - d.center.z) < DOOR_RANGE)
+      const locked = this.map.isLocked(d.x, d.z, d.dir)
+      d.lamp.visible = locked
+      const wanted = !locked && actors.some((a) => Math.hypot(a.x - d.center.x, a.z - d.center.z) < DOOR_RANGE)
       if (wanted !== d.wanted) {
         d.wanted = wanted
         this.onDoor?.(new THREE.Vector3(d.center.x, this.y + 0.5, d.center.z), wanted)

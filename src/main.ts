@@ -378,10 +378,22 @@ function flicker(kind: 'neon' | 'fire', t: number, seed: number): number {
   return crisis > 1.3 && Math.sin(t * 90) > 0.2 ? 0.25 : 1
 }
 
-/** Lumières du pont affiché dans la réserve (celles de la cabine suivent ses meubles). */
+/** Lumière du pont confiée à chaque lumière de la réserve (cf. applyLights). */
+const pooled: (Deck['lights'][number] | undefined)[] = []
+/** Position (au sol) d'où la réserve a été répartie la dernière fois. */
+const lightsFrom = new THREE.Vector3(Infinity, 0, 0)
+
+/**
+ * Lumières du pont affiché dans la réserve (celles de la cabine suivent ses meubles) : les plus
+ * proches du joueur, un grand pont en ayant plus que la réserve.
+ */
 function applyLights() {
+  lightsFrom.copy(player.position)
+  const near = deck.lights.length <= lightPool.length
+    ? deck.lights
+    : [...deck.lights].sort((a, b) => a.position.distanceToSquared(player.position) - b.position.distanceToSquared(player.position)).slice(0, lightPool.length)
   for (const [i, l] of lightPool.entries()) {
-    const def = deck.lights[i]
+    const def = (pooled[i] = near[i])
     l.intensity = def ? def.intensity : 0
     if (def) {
       l.position.copy(def.position)
@@ -1662,7 +1674,7 @@ function updateLightMode() {
   renderer.shadowMap.enabled = !light
   renderer.shadowMap.needsUpdate = true
   for (const [i, l] of lightPool.entries()) {
-    const def = deck.lights[i]
+    const def = pooled[i]
     if (def) { l.intensity = def.intensity; l.color.set(def.color) }
   }
   const button = $('light-mode')
@@ -2433,8 +2445,10 @@ function frame() {
   stars.update(world, iso.target, toCam, iso.tilt)
   sound.update(iso.target, iso.angle)
   ambience(dt)
+  // Le joueur a fait quelques pas : la réserve se répartit sur les lumières les plus proches.
+  if (deck.lights.length > lightPool.length && Math.hypot(player.position.x - lightsFrom.x, player.position.z - lightsFrom.z) > 2) applyLights()
   for (const [i, l] of lightPool.entries()) {
-    const def = deck.lights[i]
+    const def = pooled[i]
     if (!def?.flicker || renderQuality.light) continue
     if (def.flicker === 'neon' || def.flicker === 'fire') l.intensity = def.intensity * flicker(def.flicker, timer.getElapsed(), i)
     else {

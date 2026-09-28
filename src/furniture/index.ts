@@ -11,6 +11,7 @@ import { LIGHTS } from './lights'
 import { PARTY } from './party'
 import { PETS } from './pets'
 import { WORKSHOP } from './workshop'
+import { WORKS } from './works'
 import { SITE } from './site'
 
 /*
@@ -25,12 +26,13 @@ import { SITE } from './site'
  * - lights.ts : les luminaires des cabines (guirlande, bandeau LED, néons, lampadaire arc, suspensions…) ;
  * - party.ts : la soirée dans les quartiers (piste de danse, boule à facettes, platines…) ;
  * - adventures.ts : les souvenirs des aventures du site (Jacob Scarlett, La Buse, l'Odysseus…) ;
- * - pets.ts : les paniers des compagnons et les objets pour animaux (gamelles, arbre à chat…).
+ * - pets.ts : les paniers des compagnons et les objets pour animaux (gamelles, arbre à chat…) ;
+ * - works.ts : les pièces en travaux (échafaudage, panneau « Bientôt », cônes, bâches).
  * On les place dans levels.ts comme les modèles du kit : `{ model: 'fireplace', x, z, rot }`,
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...WORKSHOP, ...BAR, ...LEISURE, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...WORKSHOP, ...BAR, ...LEISURE, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 

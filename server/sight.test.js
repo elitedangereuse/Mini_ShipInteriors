@@ -2,12 +2,12 @@
 //   npm test
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { SHIP_LAYOUTS } from '../shared/ship-layouts.js'
+import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import { ShipMap } from '../shared/ship-map.js'
 import { canReach, lineOfSight } from '../shared/sight.js'
 
-const main = new ShipMap(SHIP_LAYOUTS['0'])
-const upper = new ShipMap(SHIP_LAYOUTS['1'])
+const main = new ShipMap(SHIP_LAYOUTS['0'], shipMapOptions(0))
+const upper = new ShipMap(SHIP_LAYOUTS['1'], shipMapOptions(1))
 
 test('dans une même pièce, on voit', () => {
   assert.ok(lineOfSight(main, { x: 12, z: 7 }, { x: 14.6, z: 8.4 }))
@@ -41,4 +41,22 @@ test('un coin de mur ne laisse pas passer la vue', () => {
 test('un objet au ras d\'un mur extérieur reste visible depuis sa pièce', () => {
   // Tuile (0, 5) de la salle des machines : l'objet déborde un peu sur le vide, à l'ouest.
   assert.ok(lineOfSight(main, { x: 1, z: 5 }, { x: -0.45, z: 5 }))
+})
+
+test('la porte d\'une pièce en travaux est verrouillée : ni passage, ni vue', () => {
+  // Salle du LJPC : porte en (23, 3), arête sud vers la coursive.
+  assert.equal(main.edge(23, 3, 2), 'wall')
+  assert.ok(main.isLocked(23, 3, 2))
+  assert.equal(lineOfSight(main, { x: 23, z: 4 }, { x: 23, z: 2 }), false)
+  // La porte du mess, elle, s'ouvre toujours.
+  assert.equal(main.edge(13, 6, 0), 'door')
+})
+
+test('une porte ajoutée sur le vide reste fermée tant qu\'on ne la déverrouille pas', () => {
+  const map = new ShipMap(['aaa', 'aaa'], { doors: [{ x: 2, z: 0, dir: 1 }] })
+  assert.equal(map.edge(2, 0, 1), 'door')
+  map.lock(2, 0, 1)
+  assert.equal(map.edge(2, 0, 1), 'wall')
+  map.lock(2, 0, 1, false)
+  assert.equal(map.edge(2, 0, 1), 'door')
 })
