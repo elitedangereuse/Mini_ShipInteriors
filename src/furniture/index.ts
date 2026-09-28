@@ -2,6 +2,7 @@ import { ADVENTURES } from './adventures'
 import { ARCADE } from './arcade'
 import { BAR } from './bar'
 import { BOARD } from './board'
+import { CINEMA } from './cinema'
 import { COCKPIT } from './cockpit'
 import { COZY } from './cozy'
 import { DECOR } from './decor'
@@ -29,12 +30,13 @@ import { SITE } from './site'
  * - party.ts : la soirée dans les quartiers (piste de danse, boule à facettes, platines…) ;
  * - adventures.ts : les souvenirs des aventures du site (Jacob Scarlett, La Buse, l'Odysseus…) ;
  * - pets.ts : les paniers des compagnons et les objets pour animaux (gamelles, arbre à chat…) ;
- * - works.ts : les pièces en travaux (échafaudage, panneau « Bientôt », cônes, bâches).
+ * - works.ts : les pièces en travaux (échafaudage, panneau « Bientôt », cônes, bâches) ;
+ * - cinema.ts : le cinéma du pont supérieur (écran à rideaux, fauteuils, projecteur, pop-corn).
  * On les place dans levels.ts comme les modèles du kit : `{ model: 'fireplace', x, z, rot }`,
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...COCKPIT, ...WORKSHOP, ...BAR, ...LEISURE, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...COCKPIT, ...WORKSHOP, ...BAR, ...LEISURE, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 
@@ -57,6 +59,7 @@ export function buildFurniture(model: CustomModel, label: string | undefined, se
 
 export { holoMeGlow } from './elite'
 export { beatAt, beatPulse } from './party'
+export { film, filmGlow } from './cinema'
 export {
   beamMaterial, disposeFurniture, ED_ORANGE, holoTime, keepShared, tickFurniture, type BagControl, type ClawControl, type ClawResult, type Emitter,
   type FurnitureControl,

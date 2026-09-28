@@ -30,11 +30,12 @@ export interface Prop {
 /** Lumière : x, z, couleur, intensité, et au besoin sa façon de vaciller (néon fatigué, feu de cheminée). */
 /**
  * Vacillement d'une lumière : néon fatigué, feu de cheminée ; ou lumière de soirée, qui bat au
- * tempo de la piste de danse (pulse), en changeant de couleur (disco).
+ * tempo de la piste de danse (pulse), en changeant de couleur (disco) ; ou reflet de l'écran de
+ * cinéma, qui suit les scènes du film (screen).
  */
-export type Flicker = 'neon' | 'fire' | 'disco' | 'pulse'
+export type Flicker = 'neon' | 'fire' | 'disco' | 'pulse' | 'screen'
 
-export type LightDef = [number, number, string, number, ('neon' | 'fire')?]
+export type LightDef = [number, number, string, number, ('neon' | 'fire' | 'screen')?]
 
 /** Éclairage d'ambiance d'un pont : ciel et sol (lumière hémisphérique), soleil. */
 export interface Ambience {
@@ -68,6 +69,11 @@ export interface LevelDef {
   props: Prop[]
   /** La réserve en éclaire 8 à la fois, les plus proches du joueur (cf. applyLights dans main.ts). */
   lights: LightDef[]
+  /**
+   * Pièces tamisées : quand on y entre, la lumière d'ambiance du pont (ciel, soleil) descend à
+   * cette fraction, en fondu (cf. main.ts).
+   */
+  dim?: Record<string, number>
   /** Réacteur et tuyères. */
   engine?: boolean
   /**
@@ -620,10 +626,9 @@ export const LEVELS: LevelDef[] = [
       E: tr('Extension droite', 'Right extension'),
       F: tr('Extension droite', 'Right extension'),
     },
-    closed: {
-      n: tr('Porte verrouillée : « Cinéma — en travaux ». Programme de la soirée inaugurale : à venir.', 'Locked door: “Cinema — under construction”. Opening night programme: to be announced.'),
-    },
     windows: { c: 0, k: 0.3, d: 0.2, p: 0.6, g: 0.5, o: 1, n: 0 },
+    // On baisse les lumières au cinéma.
+    dim: { n: 0.45 },
     // Les quartiers du commandant : la cabine de chaque joueur, porte au nord sur la coursive.
     cabin: { room: 'p', door: { x: 11, z: 6 } },
     props: [
@@ -716,15 +721,38 @@ export const LEVELS: LevelDef[] = [
       { model: 'side-table', x: 17.45, z: 1.15 },
       { model: 'plant-tall', x: 19.35, z: 1.2 },
 
-      // --- Cinéma, en travaux : l'écran au fond, à l'est ---
-      { model: 'works-sign', x: 22.2, z: 5.9, rot: 1, label: tr('Bientôt|Cinéma', 'Coming soon|Cinema') },
-      { model: 'scaffold', x: 26.9, z: 2.3, rot: 3 },
-      { model: 'scaffold', x: 26.9, z: 6.9, rot: 3 },
-      { model: 'tarp-crates', x: 22.9, z: 1.4 },
-      { model: 'tarp-crates', x: 24.3, z: 1.4 },
-      { model: 'tarp-crates', x: 23.6, z: 8.1 },
-      { model: 'works-tape', x: 25, z: 4.6, solid: false },
-      { model: 'cones', x: 24.6, z: 6.2 },
+      // --- Cinéma : le grand écran au nord, quatre rangées face à lui, le projecteur au fond ---
+      { model: 'rug', x: 24, z: 4.5, label: 'cinema:6.7x7.7', solid: false },
+      {
+        model: 'cinema-screen', x: 24.2, z: 0.65, action: tr('Regarder', 'Watch'),
+        interact: [
+          tr('Ce soir : la bande-annonce en boucle. Le film ? Prochainement. Comme toujours.', 'Tonight: the trailer, on a loop. The film? Coming soon. As always.'),
+          tr('Le Cobra passe devant la géante gazeuse. Toute la salle retient son souffle.', 'The Cobra crosses the gas giant. The whole room holds its breath.'),
+          tr('Quelqu\'un chuchote : « C\'est tourné dans Colonia, en vrai. »', 'Someone whispers: “They actually shot it in Colonia.”'),
+        ],
+      },
+      { model: 'cinema-row', x: 24.2, z: 3.46, rot: 2 },
+      { model: 'cinema-row', x: 24.2, z: 4.46, rot: 2 },
+      { model: 'cinema-row', x: 24.2, z: 5.46, rot: 2 },
+      { model: 'cinema-row', x: 24.2, z: 6.46, rot: 2 },
+      // Le projecteur, perché au mur du fond : son faisceau file jusqu'à la toile.
+      { model: 'film-projector', x: 24.2, z: 8.35, rot: 2, label: '7.62', solid: false },
+      {
+        model: 'popcorn-machine', x: 21.1, z: 7.8, rot: 1, action: tr('Se servir', 'Help yourself'),
+        interact: [
+          tr('Un cornet de pop-corn, bien beurré. Il en tombe la moitié entre les fauteuils.', 'A cone of popcorn, well buttered. Half of it ends up between the seats.'),
+          tr('Pop-corn sucré-salé : le seul compromis accepté par tout l\'équipage.', 'Sweet and salty popcorn: the only compromise the whole crew accepts.'),
+          tr('La machine claque et crépite. Comète regarde les grains sauter, fascinée.', 'The machine pops and crackles. Comète watches the kernels jump, spellbound.'),
+        ],
+      },
+      { model: 'movie-poster', x: 20.65, z: 1.6, rot: 1, label: 'hutton', solid: false },
+      { model: 'sconce', x: 20.65, z: 2.3, rot: 1, solid: false },
+      { model: 'movie-poster', x: 20.65, z: 3.0, rot: 1, label: 'thargoid', solid: false },
+      { model: 'exit-sign', x: 20.65, z: 5.9, rot: 1, solid: false },
+      { model: 'sconce', x: 20.65, z: 6.6, rot: 1, solid: false },
+      { model: 'movie-poster', x: 20.65, z: 7.35, rot: 1, label: 'jameson', solid: false },
+      { model: 'sconce', x: 27.35, z: 2.3, rot: 3, solid: false },
+      { model: 'sconce', x: 27.35, z: 6.6, rot: 3, solid: false },
     ],
     lights: [
       [12, 4.6, '#ffd9a8', 2],
@@ -734,7 +762,9 @@ export const LEVELS: LevelDef[] = [
       [6, 4.5, '#ffb3e6', 2.6],
       [17.8, 4.6, '#ffd0a0', 2.4],
       [17.6, 1.8, '#ffd9a8', 2],
-      [24.5, 4.5, '#ffe7c2', 2.4],
+      [24.2, 1.8, '#9fb8ff', 1.8, 'screen'],
+      [21.4, 7.4, '#ffb45e', 0.9],
+      [26.4, 5.4, '#ff9a5a', 0.5],
       // Les deux dernières lumières sont celles des objets de la cabine (Holo-Me, cheminée…).
     ],
   },

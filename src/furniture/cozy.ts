@@ -120,7 +120,7 @@ const coffeeTable: Builder = () => {
 
 /**
  * Tapis : bordure, fond, deux rayures. `label` = « palette » ou « palette:LxP »
- * (palettes : warm, blue, rubber, neon, bath, bar, arcade).
+ * (palettes : warm, blue, rubber, neon, bath, bar, arcade, cinema).
  */
 const RUGS: Record<string, [string, string, string]> = {
   warm: ['#b8563a', '#efe0c4', '#d9a441'],
@@ -130,6 +130,7 @@ const RUGS: Record<string, [string, string, string]> = {
   bath: ['#6fa8b8', '#dff0f4', '#ffffff'],
   bar: ['#3c1712', '#5e241b', '#c9a24a'],
   arcade: ['#1f5a63', '#b8573c', '#e8b24a'],
+  cinema: ['#2a0a10', '#4a1119', '#c9a24a'],
 }
 const rug: Builder = ({ label = 'warm' }) => {
   const [name, size] = label.split(':')

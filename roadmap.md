@@ -158,6 +158,14 @@ Choix et réalisation (27 septembre 2026) :
   Les huit paliers rapportent 20 à 300 CR (925 CR au total par appareil), sans
   prime de record d'arcade ; le message de fin affiche le montant réellement gagné.
   Le site contrôle le plafond de 99 900 points et la plausibilité temporelle.
+- SOC-04, la salle seulement (28 septembre 2026) : le cinéma du pont supérieur
+  est ouvert, derrière le salon. Grand écran à rideaux de velours au nord, où
+  tourne en boucle une fausse bande-annonce dessinée (même scène pour tout le
+  bord), quatre rangées de six fauteuils, projecteur à bobines et son faisceau,
+  machine à pop-corn, affiches de faux films, panneau « Sortie ». La lumière
+  baisse en fondu quand on entre (`dim` dans levels.ts) et l'écran éclaire la
+  salle aux couleurs de la scène. Reste à faire : la playlist YouTube et le
+  live Twitch.
 
 ## 4. Structure du vaisseau et immersion
 

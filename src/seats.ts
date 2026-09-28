@@ -1,5 +1,6 @@
 import type { StationModel } from './assets'
 import type { CustomModel } from './furniture'
+import { CINEMA_ROW_SEATS, CINEMA_SEAT_PITCH } from './furniture/cinema'
 import { tr } from './i18n'
 
 /*
@@ -70,6 +71,11 @@ export const SEATS: Partial<Record<CustomModel | StationModel, Seat[]>> = {
   'arcade-racer': [{ pose: 'pilot', x: 0, z: 0.2, y: 0.26, yaw: Math.PI, from: [0.5, 0.25] }],
   'claw-machine': [stand('claw', 0.46)],
   'dj-booth': [stand('mix', 0.44)],
+  // Rangée de fauteuils de cinéma : on entre par l'allée, devant la rangée.
+  'cinema-row': Array.from({ length: CINEMA_ROW_SEATS }, (_, i) => {
+    const x = (i - (CINEMA_ROW_SEATS - 1) / 2) * CINEMA_SEAT_PITCH
+    return sit(x, 0.04, 0.27, 0, [x, 0.5])
+  }),
 }
 
 const FIGHT_SEATS = [stand('arcade', 0.44, -0.2), stand('arcade', 0.44, 0.2)]

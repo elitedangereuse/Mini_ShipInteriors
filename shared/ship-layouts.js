@@ -38,7 +38,7 @@ export const SHIP_LAYOUTS = {
     ' eeeeeeee  mmmmmsssssssssskkkkk bbb     ',
     '  eeeeee   mmmmmsssssssssskkkkk         ',
   ],
-  // Pont supérieur : les quartiers ; derrière le salon panoramique, le cinéma, en travaux.
+  // Pont supérieur : les quartiers ; derrière le salon panoramique, le cinéma.
   '1': [
     '                             ',
     '        kkkkddddoooo nnnnnnn ',
@@ -61,7 +61,6 @@ export const SHIP_LAYOUTS = {
 export const CLOSED_ROOMS = {
   '-1': 'h',
   '0': 'lvk',
-  '1': 'n',
 }
 
 /**

@@ -25,7 +25,7 @@ import { IsoCamera } from './camera'
 import { Cat } from './cat'
 import { MAX_PETS, petRig, speciesOfItem, type Species } from './pets'
 import { Deck, type Interactable } from './deck'
-import { beatAt, beatPulse, holoMeGlow, holoTime, type ClawControl, type ClawResult } from './furniture'
+import { beatAt, beatPulse, film, filmGlow, holoMeGlow, holoTime, type ClawControl, type ClawResult } from './furniture'
 import { GamepadControls, type GamepadInput } from '../shared/gamepad.js'
 import { lineOfSight } from '../shared/sight.js'
 import { EN, localizeAttributes, tr } from './i18n'
@@ -450,6 +450,14 @@ cabin.onMusic = (position, text, model) => {
   showText(text)
 }
 
+/** Lumière d'ambiance du pont, baissée dans les pièces tamisées (cf. `dim` dans levels.ts). */
+let dimming = 1
+function applyAmbience() {
+  const ambience = deck.def.ambience ?? DEFAULT_AMBIENCE
+  hemi.intensity = ambience.hemi * dimming
+  sun.intensity = ambience.sunIntensity * dimming
+}
+
 function setDeck(next: Deck) {
   seating.leave()
   deck = next
@@ -461,9 +469,8 @@ function setDeck(next: Deck) {
   const ambience = deck.def.ambience ?? DEFAULT_AMBIENCE
   hemi.color.set(ambience.sky)
   hemi.groundColor.set(ambience.ground)
-  hemi.intensity = ambience.hemi
   sun.color.set(ambience.sun)
-  sun.intensity = ambience.sunIntensity
+  applyAmbience()
   sun.position.set(SHIP_CENTER.x - 6, deck.y + 14, SHIP_CENTER.z + 4)
   sun.target.position.set(SHIP_CENTER.x, deck.y, SHIP_CENTER.z)
   // Les machines d'un pont ne s'entendent que sur ce pont.
@@ -2578,13 +2585,24 @@ function frame() {
     const def = pooled[i]
     if (!def?.flicker || renderQuality.light) continue
     if (def.flicker === 'neon' || def.flicker === 'fire') l.intensity = def.intensity * flicker(def.flicker, timer.getElapsed(), i)
-    else {
+    else if (def.flicker === 'screen') {
+      // Reflet de l'écran de cinéma : il suit les scènes du film.
+      const glow = filmGlow(film.time)
+      l.intensity = def.intensity * glow.k
+      l.color.set(glow.color)
+    } else {
       // Lumière de soirée : à l'horloge des meubles, pour battre avec la piste de danse.
       l.intensity = def.intensity * (0.4 + 0.6 * beatPulse(holoTime.value))
       if (def.flicker === 'disco') l.color.setHSL((holoTime.value * 0.07 + i * 0.13) % 1, 0.9, 0.55)
     }
   }
   marker.scale.setScalar(1 + Math.sin(timer.getElapsed() * 6) * 0.12)
+  // Pièce tamisée (le cinéma) : l'ambiance baisse en fondu quand on y entre, remonte quand on en sort.
+  const dimTo = deck.def.dim?.[deck.map.room(Math.round(player.position.x), Math.round(player.position.z)) ?? ''] ?? 1
+  if (dimming !== dimTo) {
+    dimming = Math.abs(dimTo - dimming) < 0.005 ? dimTo : dimming + (dimTo - dimming) * Math.min(1, dt * 2.5)
+    applyAmbience()
+  }
 
   // Pièce courante.
   const here = inCabin(deck.def.id, player.position.x, player.position.z)
