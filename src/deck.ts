@@ -199,6 +199,9 @@ export class Deck {
   }
 
   roomName(x: number, z: number): string {
+    const tx = Math.round(x), tz = Math.round(z)
+    const area = this.def.areas?.find((a) => tx >= a.minX && tx <= a.maxX && tz >= a.minZ && tz <= a.maxZ && this.map.room(tx, tz))
+    if (area) return area.name
     const r = this.map.room(Math.round(x), Math.round(z))
     return r ? this.def.rooms[r] ?? '' : ''
   }

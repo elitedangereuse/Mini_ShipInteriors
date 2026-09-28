@@ -20,7 +20,7 @@ import { SITE } from './site'
 
 /*
  * Mobilier fait main, en primitives Three.js, rangé par zone :
- * - elite.ts : poste de pilotage, cartes holographiques, FSD, SRV, drones… (clins d'œil à Elite Dangerous) ;
+ * - elite.ts : poste de pilotage, cartes holographiques, FSD, SRV, drones, maquette du Cobra… (clins d'œil à Elite Dangerous) ;
  * - cockpit.ts : le poste de pilotage agrandi (tableau de bord, consoles, sièges d'équipage, fauteuil du commandant) ;
  * - workshop.ts : la cale (minage, bricolage, réparation) ;
  * - bar.ts : Chez Jacques, le bar clandestin de la cale (comptoir, bouteilles, Jacques le robot barman) ;

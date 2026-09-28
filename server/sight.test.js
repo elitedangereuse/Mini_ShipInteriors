@@ -8,6 +8,7 @@ import { canReach, lineOfSight } from '../shared/sight.js'
 
 const main = new ShipMap(SHIP_LAYOUTS['0'], shipMapOptions(0))
 const upper = new ShipMap(SHIP_LAYOUTS['1'], shipMapOptions(1))
+const hold = new ShipMap(SHIP_LAYOUTS['-1'], shipMapOptions(-1))
 
 test('dans une même pièce, on voit', () => {
   assert.ok(lineOfSight(main, { x: 12, z: 7 }, { x: 14.6, z: 8.4 }))
@@ -44,10 +45,10 @@ test('un objet au ras d\'un mur extérieur reste visible depuis sa pièce', () =
 })
 
 test('la porte d\'une pièce en travaux est verrouillée : ni passage, ni vue', () => {
-  // Salle de La Voie : porte en (28, 3), arête sud vers la coursive.
-  assert.equal(main.edge(28, 3, 2), 'wall')
-  assert.ok(main.isLocked(28, 3, 2))
-  assert.equal(lineOfSight(main, { x: 28, z: 4 }, { x: 28, z: 2 }), false)
+  // Salle de La Voie, dans la cale : porte en (2, 8), arête nord vers la salle des machines.
+  assert.equal(hold.edge(2, 8, 0), 'wall')
+  assert.ok(hold.isLocked(2, 8, 0))
+  assert.equal(lineOfSight(hold, { x: 2, z: 7 }, { x: 2, z: 9 }), false)
   // La porte du mess, elle, s'ouvre toujours.
   assert.equal(main.edge(13, 6, 0), 'door')
 })

@@ -64,6 +64,11 @@ export interface LevelDef {
   floors?: Record<string, StationModel>
   /** Proportion de murs extérieurs percés d'un hublot, par pièce (défaut : 1/3). */
   windows?: Record<string, number>
+  /**
+   * Coins d'une pièce qui portent leur propre nom (tuiles comprises entre min et max) : la
+   * Promenade, qui s'ouvre sur la coursive sans mur, n'est pas « la coursive ».
+   */
+  areas?: { name: string; minX: number; maxX: number; minZ: number; maxZ: number }[]
   /** Verrières : par pièce, les côtés (0 nord, 1 est, 2 sud, 3 ouest) dont les murs extérieurs sont vitrés. */
   canopy?: Record<string, number[]>
   props: Prop[]
@@ -120,19 +125,32 @@ export const LEVELS: LevelDef[] = [
       b: 'Chez Jacques',
       h: tr('Sas de la zone thargoïde', 'Thargoid zone airlock'),
       e: tr('Salle des machines', 'Engine room'),
+      v: 'La Voie',
     },
     closed: {
       h: tr(
         'Porte verrouillée : « Sas de la zone thargoïde — en travaux ». Derrière, on entend gratter.',
         'Locked door: “Thargoid zone airlock — under construction”. Something is scratching on the other side.',
       ),
+      v: tr(
+        'Porte verrouillée, cachée derrière les machines : « Sanctuaire de La Voie — en travaux ». Un symbole est gravé sur le panneau.',
+        'A locked door, hidden behind the machinery: “La Voie sanctuary — under construction”. A symbol is carved into the panel.',
+      ),
     },
     // Le bar est tenu plus proprement que le reste de la cale : dalles lisses, pas un hublot.
     floors: { a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', h: 'floor-panel' },
-    windows: { a: 0.1, j: 0, r: 0.12, m: 0, g: 0.1, b: 0, h: 0, e: 0 },
+    windows: { a: 0.1, j: 0, r: 0.12, m: 0, g: 0.1, b: 0, h: 0, e: 0, v: 0 },
     // Le cœur du réacteur, au milieu de la salle des machines.
     engine: { x: 1.5, z: 5 },
     props: [
+      // --- La Voie, en travaux : cachée derrière la salle des machines ---
+      { model: 'works-sign', x: 1.2, z: 9.6, label: tr('Bientôt|La Voie', 'Coming soon|La Voie') },
+      { model: 'scaffold', x: 3.4, z: 8.15 },
+      { model: 'tarp-crates', x: 0.35, z: 10.9 },
+      { model: 'tarp-crates', x: 3.6, z: 10.9 },
+      { model: 'cones', x: 2.9, z: 9.8 },
+      { model: 'works-tape', x: 2, z: 8.3, solid: false },
+
       // --- Palier : l'ascenseur au centre (cf. LIFT) ---
       { model: 'hazard-floor', x: 10, z: 5, solid: false },
       {
@@ -361,6 +379,7 @@ export const LEVELS: LevelDef[] = [
     ],
     lights: [
       [1.5, 5, '#4fd4ff', 4],
+      [2, 9.8, '#ffe7c2', 1.8],
       [5.6, 3.1, '#ffb35c', 3],
       [5.6, 6.3, '#ffa24a', 2.4, 'neon'],
       [10, 5, '#ffd9a0', 1.6],
@@ -386,15 +405,11 @@ export const LEVELS: LevelDef[] = [
       s: tr('Salon d\'arcade', 'Arcade lounge'),
       b: tr('Poste de pilotage', 'Cockpit'),
       l: tr('Labo du L.J.P.C.', 'L.J.P.C. lab'),
-      v: 'La Voie',
-      k: tr('Simulateur Mini-CQC', 'Mini-CQC simulator'),
     },
-    closed: {
-      v: tr('Porte verrouillée : « Sanctuaire de La Voie — en travaux ». Un symbole est gravé sur le panneau.', 'Locked door: “La Voie sanctuary — under construction”. A symbol is carved into the panel.'),
-      k: tr('Porte verrouillée : « Simulateur Mini-CQC — en travaux ». On entend des tirs de laser… enregistrés.', 'Locked door: “Mini-CQC simulator — under construction”. You can hear laser fire… recorded.'),
-    },
+    areas: [{ name: tr('Promenade', 'Promenade deck'), minX: 26, maxX: 30, minZ: 0, maxZ: 9 }],
     floors: { c: 'floor-panel', b: 'floor-detail', l: 'floor-panel' },
-    canopy: { b: [0, 1, 2] },
+    // Le poste de pilotage et la Promenade sont vitrés sur l'espace.
+    canopy: { b: [0, 1, 2], c: [0, 1, 2] },
     props: [
       // --- Poste de pilotage, à la proue : verrières sur l'avant et les flancs ---
       // Le pilote face au tableau de bord, le copilote et le navigateur de part et d'autre, la
@@ -671,17 +686,22 @@ export const LEVELS: LevelDef[] = [
       { model: 'cat-bed', x: 25, z: 2.9, interact: tr('Le panier de Moustache. Il y a des poils noirs partout, et un stylo de James.', 'Moustache\'s basket. Black hair everywhere, and one of James\'s pens.') },
       { model: 'pet-bowl', x: 25.05, z: 2.3, rot: 1 },
 
-      // --- Pièces en travaux : La Voie au nord, le Mini-CQC au sud ---
-      { model: 'works-sign', x: 28, z: 1.6, label: tr('Bientôt|La Voie', 'Coming soon|La Voie') },
-      { model: 'tarp-crates', x: 26.9, z: 0.4 },
-      { model: 'scaffold', x: 29.5, z: 0.05 },
-      { model: 'works-tape', x: 28, z: 1.4, solid: false },
-      { model: 'works-sign', x: 28, z: 7.6, rot: 2, label: tr('Bientôt|Mini-CQC', 'Coming soon|Mini-CQC') },
-      { model: 'tarp-crates', x: 26.6, z: 8.7 },
-      { model: 'tarp-crates', x: 29.45, z: 8.7 },
-      { model: 'works-tape', x: 28, z: 7.8, solid: false },
-      { model: 'bench', x: 26, z: 3.9, label: 'teal' },
-      { model: 'plant-tall', x: 30.4, z: 5.2 },
+      // --- La Promenade : la coursive s'élargit en atrium vitré, et contourne la maquette du Cobra ---
+      {
+        model: 'cobra-monument', x: 28, z: 4.5,
+        interact: [
+          tr('Cobra Mk III, à l\'échelle 1/40. Le vaisseau de départ de milliers de commandants, et de quelques-uns qui n\'en sont jamais descendus.', 'Cobra Mk III, 1:40 scale. The starter ship of thousands of commanders, and of a few who never got out of it.'),
+          tr('Sur le socle, quelqu\'un a collé un post-it : « 1984 – toujours en service. o7 »', 'On the plinth, someone has stuck a note: “1984 – still in service. o7”'),
+        ],
+      },
+      { model: 'bench', x: 28, z: 0.45, label: 'teal', interact: tr('Banc face à la verrière : on y regarde défiler les systèmes.', 'A bench facing the canopy: watch the systems go by.') },
+      { model: 'bench', x: 28, z: 8.55, label: 'teal' },
+      { model: 'plant-tall', x: 26.1, z: 1.05 },
+      { model: 'monstera', x: 29.9, z: 1.05 },
+      { model: 'monstera', x: 26.1, z: 7.95 },
+      { model: 'plant-tall', x: 29.9, z: 7.95 },
+      { model: 'telescope', x: 29.85, z: 2.6, rot: 1, interact: tr('Longue-vue : on y voit la station la plus proche… et le parking de Fleet Carriers.', 'Spyglass: you can see the nearest station… and the Fleet Carrier car park.') },
+      { model: 'telescope', x: 26.15, z: 6.4, rot: 3 },
     ],
     lights: [
       [4, 5, '#ffd9a8', 3],
@@ -696,14 +716,14 @@ export const LEVELS: LevelDef[] = [
       [16.8, 7.2, '#39d0ff', 2],
       [20.6, 7.5, '#39d0ff', 2],
       [15, 4.5, '#ffffff', 2.5],
-      // Coursive prolongée et projecteurs de chantier des pièces en travaux.
-      [26, 4.5, '#ffffff', 2.2],
+      // La Promenade : le monument, et la lueur bleutée des verrières.
+      [28, 4.5, '#cfe6ff', 2.6],
       [23, 1.2, '#e6fbff', 2.4],
       [21.3, 0.4, '#7dffa8', 1.2],
       [24.7, 0.5, '#bff6ff', 1.2],
-      [28, 1.6, '#ffe7c2', 2.2],
+      [28, 1, '#9fd8ff', 1.4],
       [23.3, 7.8, '#b06bff', 2.6],
-      [28, 7.4, '#ffe7c2', 2.2],
+      [28, 8, '#9fd8ff', 1.4],
     ],
   },
 

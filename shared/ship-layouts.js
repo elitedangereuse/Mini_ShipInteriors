@@ -5,9 +5,9 @@
 import { wingDoors } from './cabin-wings.js'
 
 export const SHIP_LAYOUTS = {
-  // Cale ; à la poupe, la salle des machines, derrière l'atelier. Chez Jacques, le bar clandestin, ne
-  // s'ouvre que depuis le fond de la soute. À l'est de la soute, le lobby de la baie infestée (SOC-06),
-  // en travaux.
+  // Cale ; à la poupe, la salle des machines, derrière l'atelier, et cachée derrière elle, la salle de
+  // La Voie, en travaux. Chez Jacques, le bar clandestin, ne s'ouvre que depuis le fond de la soute. À
+  // l'est de la soute, le lobby de la baie infestée (SOC-06), en travaux.
   '-1': [
     '                            ',
     '            rrrrr           ',
@@ -17,27 +17,28 @@ export const SHIP_LAYOUTS = {
     'eee+aaaa+jjjmmmmmgg+hhhhhh  ',
     'eeeeaaaa jjj+mmmm+g hhhhhh  ',
     'eeeeaaaa    mmmmmgg hhhhhh  ',
-    '            mmmmm+  hhhhhh  ',
-    '         bbbbbbbbbb         ',
-    '         bbbbbbbbbb         ',
-    '         bbbbbbbbbb         ',
+    'vv+vv       mmmmm+  hhhhhh  ',
+    'vvvvv    bbbbbbbbbb         ',
+    'vvvvv    bbbbbbbbbb         ',
+    'vvvvv    bbbbbbbbbb         ',
     '         bbbbbbbbbb         ',
     '         bbbbbbbbbb         ',
     '                            ',
   ],
-  // Pont principal. À la poupe, la salle commune ; la coursive file vers le poste de pilotage et ses verrières, à la proue ; au nord, le labo
-  // du LJPC et la salle de La Voie, en travaux ; au sud, la grande salle d'arcade (deux portes) et le mini CQC, en travaux.
+  // Pont principal. À la poupe, la salle commune ; la coursive file vers le poste de pilotage et ses
+  // verrières, à la proue, et s'ouvre juste avant sur la Promenade, un atrium vitré autour de la
+  // maquette du Cobra. Au nord, le labo du LJPC ; au sud, la grande salle d'arcade (deux portes).
   '0': [
-    '  eeeeee   qqqqqrrrrrlllllvvvvv         ',
-    ' eeeeeeee  qqqqqrrrrrlllllvvvvv bbb     ',
-    'eeeeeeeee  qqqqqrrrrrlllllvvvvv bbbbb   ',
-    'eeeeeeeee  qq+qqrr+rrll+llvv+vv bbbbbbb ',
+    '  eeeeee   qqqqqrrrrrlllll ccc          ',
+    ' eeeeeeee  qqqqqrrrrrlllllccccc bbb     ',
+    'eeeeeeeee  qqqqqrrrrrlllllccccc bbbbb   ',
+    'eeeeeeeee  qq+qqrr+rrll+llccccc bbbbbbb ',
     'eeeeeeee+cccccccccccccccccccccc+bbbbbbb ',
     'eeeeeeeeecccccccccccccccccccccccbbbbbbb ',
-    'eeeeeeeee  mm+mmss+ssss+sskk+kk bbbbbbb ',
-    'eeeeeeeee  mmmmmsssssssssskkkkk bbbbb   ',
-    ' eeeeeeee  mmmmmsssssssssskkkkk bbb     ',
-    '  eeeeee   mmmmmsssssssssskkkkk         ',
+    'eeeeeeeee  mm+mmss+ssss+ssccccc bbbbbbb ',
+    'eeeeeeeee  mmmmmssssssssssccccc bbbbb   ',
+    ' eeeeeeee  mmmmmssssssssssccccc bbb     ',
+    '  eeeeee   mmmmmssssssssss ccc          ',
   ],
   // Pont supérieur : les quartiers ; derrière le salon d'écoute, le cinéma.
   '1': [
@@ -60,8 +61,7 @@ export const SHIP_LAYOUTS = {
  * leurs portes restent verrouillées (cf. ShipMap).
  */
 export const CLOSED_ROOMS = {
-  '-1': 'h',
-  '0': 'vk',
+  '-1': 'hv',
 }
 
 /**

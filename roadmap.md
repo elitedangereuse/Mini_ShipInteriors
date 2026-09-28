@@ -181,6 +181,12 @@ Choix et réalisation (27 septembre 2026) :
   des PNJ animés ; Moustache, leur chatte noire, ne quitte jamais le labo.
   La porte est ouverte à tous : l'accès réservé aux membres (SOC-01) reste à
   faire.
+- Promenade (même jour) : les salles en travaux de La Voie et du Mini-CQC
+  quittent le pont principal. À leur place, la coursive s'ouvre sur un atrium
+  vitré au nord, à l'est et au sud, et contourne une grande maquette de Cobra
+  Mk III sur son socle, avec bancs, plantes et longues-vues. La Voie, toujours
+  en travaux, est cachée dans la cale derrière la salle des machines ; le
+  Mini-CQC reste jouable par l'intégration du site.
 
 ## 4. Structure du vaisseau et immersion
 
