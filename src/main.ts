@@ -178,7 +178,6 @@ const ljpcEntrance = deckById(0).map.doors.find((door) => {
 })
 const ljpcDoorItem = ljpcEntrance && deckById(0).doorExamine(ljpcEntrance.x, ljpcEntrance.z, ljpcEntrance.dir)
 if (ljpcDoorItem) ljpcDoorItem.label = tr('Accès réservé', 'Restricted access')
-let ljpcNoticeShown = false
 const jacquesAt = deckById(-1).interactables.find((it) => it.furniture?.model === 'bartender')!.position
 
 // Les quartiers du commandant : la cabine du joueur, meublée selon son aménagement.
@@ -2823,16 +2822,6 @@ function frame() {
   }
   // La soirée bat sur le morceau entendu dans la pièce, sauf quand le mode photo fige l'instant.
   if (!photo.frozen && !deckMusic.syncTempo() && !holdMusic.syncTempo() && !cabinMusic.syncTempo()) syncTempo(null)
-
-  if (!ljpcMember && deck.def.id === 0 && ljpcEntrance && ljpcDoorItem) {
-    const direction = DIRS[ljpcEntrance.dir]
-    const distance = Math.hypot(player.position.x - ljpcEntrance.x - direction.dx * 0.5,
-      player.position.z - ljpcEntrance.z - direction.dz * 0.5)
-    if (distance < 1.5 && !ljpcNoticeShown) {
-      ljpcNoticeShown = true
-      showText(ljpcDoorItem.text)
-    } else if (distance > 2) ljpcNoticeShown = false
-  } else ljpcNoticeShown = false
 
   workStep(dt)
   dialog.update(dt)
