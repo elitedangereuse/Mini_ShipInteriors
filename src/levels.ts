@@ -82,7 +82,11 @@ export interface LevelDef {
   dim?: Record<string, number>
   /** Salle des machines : centre du cœur du réacteur (ses tuyères, elles, sont sous tous les ponts). */
   engine?: { x: number; z: number }
-  /** Portes doubles (encadrement large, deux battants) : tuile et bord, comme ShipMap.addDoor. */
+  /**
+   * Portes doubles, sur deux tuiles (deux battants, ouverture de 1,6) : la première arête (tuile et
+   * bord, comme ShipMap.addDoor) ; la seconde est sa voisine le long du mur (x + 1 pour un bord
+   * nord ou sud, z + 1 pour un bord est ou ouest). Les deux sont des portes du plan ('+').
+   */
   doubleDoors?: { x: number; z: number; dir: number }[]
   /**
    * Pièces en travaux (cf. CLOSED_ROOMS) : ce qu'on lit en examinant leur porte verrouillée,
@@ -416,7 +420,7 @@ export const LEVELS: LevelDef[] = [
     floors: { c: 'floor-panel', b: 'floor-detail', l: 'floor-panel' },
     // Le poste de pilotage et la Promenade sont vitrés sur l'espace.
     canopy: { b: [0, 1, 2], c: [0, 1, 2] },
-    // Le poste de pilotage s'ouvre sur la coursive par une porte double.
+    // Le poste de pilotage s'ouvre sur la coursive par une porte double, sur ses deux tuiles.
     doubleDoors: [{ x: 31, z: 4, dir: 1 }],
     props: [
       // --- Poste de pilotage, à la proue : verrières sur l'avant et les flancs ---

@@ -66,7 +66,7 @@ export interface DoorState {
   dir: number
   /** Voyants rouges de la porte verrouillée, de part et d'autre. */
   lamp: THREE.Object3D
-  /** Porte double : le second battant (`panel` est le premier), chacun s'écarte de son côté. */
+  /** Porte double (sur deux tuiles) : le second battant (`panel` est le premier), chacun s'écarte de son côté. */
   pair?: THREE.Object3D
   /** Invite de la porte tant qu'elle est verrouillée (cf. Deck.update). */
   examine?: Interactable
@@ -408,7 +408,7 @@ export class Deck {
           const windowRate = this.def.windows?.[room] ?? 1 / 3
 
           let model: 'wall' | 'wall-window' | 'wall-pillar' = 'wall'
-          if (exterior && (hsh % 1000) / 1000 < windowRate) model = 'wall-window'
+          if (exterior && (hsh % 1000) / 1000 < windowRate && !this.doorPocket(x, z, dir)) model = 'wall-window'
           else if (!exterior && hsh % 5 === 0) model = 'wall-pillar'
           if (exterior && this.def.canopy?.[room]?.includes(dir)) {
             // Verrière : une allège, un bandeau, et du verre entre les deux.
@@ -466,6 +466,15 @@ export class Deck {
     return g
   }
 
+  /** Mur où rentre un battant de porte double (cf. `doubleDoors`) : plein, sans fenêtre où on le verrait. */
+  private doorPocket(x: number, z: number, dir: number): boolean {
+    const key = this.map.edgeKey(x, z, dir)
+    return this.def.doubleDoors?.some((e) => {
+      const a = e.dir % 2 === 0 ? { dx: 1, dz: 0 } : { dx: 0, dz: 1 }
+      return this.map.edgeKey(e.x - a.dx, e.z - a.dz, e.dir) === key || this.map.edgeKey(e.x + 2 * a.dx, e.z + 2 * a.dz, e.dir) === key
+    }) ?? false
+  }
+
   private buildDoor(x: number, z: number, dir: number, touch: (vx: number, vz: number, a: 'h' | 'v') => void) {
     const d = DIRS[dir]
     const cx = x + d.dx * 0.5
@@ -473,17 +482,37 @@ export class Deck {
     const alongX = d.dz !== 0
     const rot = alongX ? 0 : Math.PI / 2
     const key = this.map.edgeKey(x, z, dir)
-    // Porte double (cf. `doubleDoors`) : l'encadrement large du kit, deux battants simples côte à côte.
-    const double = this.def.doubleDoors?.some((e) => this.map.edgeKey(e.x, e.z, e.dir) === key) ?? false
-    const frame = this.place(double ? 'wall-door-wide' : 'wall-door', cx, 0, cz, rot)
-    // Panneau légèrement aminci : pas de faces confondues avec l'encadrement.
-    const panel = this.place('door-single', cx, 0, cz, rot)
-    panel.scale.set(0.98, 0.99, 0.9)
-    const pair = double ? this.place('door-single', cx, 0, cz, rot) : undefined
-    pair?.scale.set(0.98, 0.99, 0.9)
+    const t = WALL_T / 2
+    // Porte double (cf. `doubleDoors`) : deux arêtes voisines le long du mur, chacune avec le côté
+    // d'un encadrement large du kit (montant en -x du modèle, tourné vers l'extérieur). La première
+    // porte les deux battants ; la seconde, seulement son montant.
+    const along = alongX ? { dx: 1, dz: 0 } : { dx: 0, dz: 1 }
+    const first = this.def.doubleDoors?.some((e) => this.map.edgeKey(e.x, e.z, e.dir) === key) ?? false
+    const second = !first && (this.def.doubleDoors?.some((e) => this.map.edgeKey(e.x + along.dx, e.z + along.dz, e.dir) === key) ?? false)
+    if (second) {
+      const frame = this.place('wall-door-edge', cx, 0, cz, alongX ? Math.PI : Math.PI / 2)
+      this.addOccluder([frame], new THREE.Vector3(cx, 0.5, cz), this.cabinOutward(cx, cz))
+      this.walls.push({ x: cx, z: cz, alongX, model: 'door' })
+      // Le montant, au bout de l'ouverture (qui fait 1,6 sur les deux tuiles).
+      if (alongX) this.colliders.push({ minX: cx + 0.3, maxX: cx + 0.5, minZ: cz - t, maxZ: cz + t })
+      else this.colliders.push({ minX: cx - t, maxX: cx + t, minZ: cz + 0.3, maxZ: cz + 0.5 })
+      touch(cx - along.dx * 0.5, cz - along.dz * 0.5, alongX ? 'h' : 'v')
+      touch(cx + along.dx * 0.5, cz + along.dz * 0.5, alongX ? 'h' : 'v')
+      return
+    }
+    const frame = this.place(first ? 'wall-door-edge' : 'wall-door', cx, 0, cz, first && !alongX ? -Math.PI / 2 : rot)
+    // Milieu de la porte : celui de l'arête, ou la jonction des deux tuiles d'une porte double.
+    const mx = first ? cx + along.dx * 0.5 : cx
+    const mz = first ? cz + along.dz * 0.5 : cz
+    // Panneau légèrement aminci : pas de faces confondues avec l'encadrement. Porte double : les
+    // battants du kit (0,6), élargis à 0,8 pour fermer chacun sa moitié.
+    const panel = this.place(first ? 'door-double' : 'door-single', mx, 0, mz, rot)
+    panel.scale.set(first ? 1.3 : 0.98, 0.99, 0.9)
+    const pair = first ? this.place('door-double', mx, 0, mz, rot) : undefined
+    pair?.scale.set(1.3, 0.99, 0.9)
     // Voyant rouge au-dessus de l'ouverture, des deux côtés : la porte est verrouillée.
     const lamp = new THREE.Mesh(LOCK_LAMP_GEO, LOCK_LAMP_MAT)
-    lamp.position.set(cx, 0.84, cz)
+    lamp.position.set(mx, 0.84, mz)
     lamp.rotation.y = rot
     lamp.visible = this.map.isLocked(x, z, dir)
     // Tramé avec la porte : il s'efface avec elle devant le joueur.
@@ -491,7 +520,7 @@ export class Deck {
     this.walls.push({ x: cx, z: cz, alongX, model: 'door' })
     this.doors.push({
       panel,
-      center: new THREE.Vector3(cx, 0, cz),
+      center: new THREE.Vector3(mx, 0, mz),
       axis: alongX ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1),
       open: 0,
       wanted: false,
@@ -507,28 +536,29 @@ export class Deck {
       const state = this.doors[this.doors.length - 1]
       state.examine = {
         object: panel,
-        position: new THREE.Vector3(cx, 0, cz),
+        position: new THREE.Vector3(mx, 0, mz),
         label: tr('Examiner', 'Examine'),
         text: () => this.lockedText?.(x, z, dir) ?? this.closedText(x, z, dir) ?? tr('Porte verrouillée.', 'Locked door.'),
       }
       this.interactables.push(state.examine)
     }
 
-    // L'ouverture de l'encadrement large fait 0,8 au lieu de 0,6.
-    const g = (double ? DOOR_GAP + 0.2 : DOOR_GAP) / 2
-    const t = WALL_T / 2
+    // Ouverture, de part et d'autre du milieu : 0,6, ou 1,6 pour une porte double (son second
+    // montant est posé avec la seconde arête).
+    const g = (first ? 1.6 : DOOR_GAP) / 2
     if (alongX) {
-      this.colliders.push({ minX: cx - 0.5, maxX: cx - g, minZ: cz - t, maxZ: cz + t })
-      this.colliders.push({ minX: cx + g, maxX: cx + 0.5, minZ: cz - t, maxZ: cz + t })
+      this.colliders.push({ minX: cx - 0.5, maxX: mx - g, minZ: cz - t, maxZ: cz + t })
+      if (!first) this.colliders.push({ minX: cx + g, maxX: cx + 0.5, minZ: cz - t, maxZ: cz + t })
       touch(cx - 0.5, cz, 'h')
       touch(cx + 0.5, cz, 'h')
     } else {
-      this.colliders.push({ minX: cx - t, maxX: cx + t, minZ: cz - 0.5, maxZ: cz - g })
-      this.colliders.push({ minX: cx - t, maxX: cx + t, minZ: cz + g, maxZ: cz + 0.5 })
+      this.colliders.push({ minX: cx - t, maxX: cx + t, minZ: cz - 0.5, maxZ: mz - g })
+      if (!first) this.colliders.push({ minX: cx - t, maxX: cx + t, minZ: cz + g, maxZ: cz + 0.5 })
       touch(cx, cz - 0.5, 'v')
       touch(cx, cz + 0.5, 'v')
     }
-    const gap = alongX ? { minX: cx - g, maxX: cx + g, minZ: cz - t, maxZ: cz + t } : { minX: cx - t, maxX: cx + t, minZ: cz - g, maxZ: cz + g }
+    // Verrouillée, une porte double se bouche sur toute sa largeur (ses deux arêtes le sont ensemble).
+    const gap = alongX ? { minX: mx - g, maxX: mx + g, minZ: cz - t, maxZ: cz + t } : { minX: cx - t, maxX: cx + t, minZ: mz - g, maxZ: mz + g }
     const box = { ...(this.map.isLocked(x, z, dir) ? gap : NOWHERE) }
     this.colliders.push(box)
     this.doors[this.doors.length - 1].bar = { box, gap }
@@ -748,9 +778,9 @@ export class Deck {
       }
       d.open = THREE.MathUtils.damp(d.open, wanted ? 1 : 0, 10, dt)
       if (d.pair) {
-        // Chaque battant (0,4 de large) part de son côté et rentre dans le mur.
-        d.panel.position.copy(d.center).addScaledVector(d.axis, -0.2 - d.open * 0.38)
-        d.pair.position.copy(d.center).addScaledVector(d.axis, 0.2 + d.open * 0.38)
+        // Chaque battant (0,8 de large) part de son côté et rentre dans le mur.
+        d.panel.position.copy(d.center).addScaledVector(d.axis, -0.4 - d.open * 0.78)
+        d.pair.position.copy(d.center).addScaledVector(d.axis, 0.4 + d.open * 0.78)
       } else d.panel.position.copy(d.center).addScaledVector(d.axis, d.open * 0.42)
     }
 
