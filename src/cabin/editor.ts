@@ -157,7 +157,7 @@ export class CabinEditor {
   private readonly hoverBox = new THREE.Box3Helper(new THREE.Box3(), new THREE.Color('#bff3ff'))
   private readonly selectBox = new THREE.Box3Helper(new THREE.Box3(), new THREE.Color('#59d8ff'))
   private readonly heldBox = new THREE.Box3Helper(new THREE.Box3(), new THREE.Color('#7dffa8'))
-  private grid: THREE.LineSegments
+  private grid: THREE.Group
   /** Aperçu au sol d'un espace ou d'une forme (onglet « Pièces »). */
   private readonly preview: THREE.Mesh
   private readonly helpers = new THREE.Group()
@@ -985,7 +985,7 @@ export class CabinEditor {
   /** Le quadrillage suit les pièces affichées. */
   private refreshGrid() {
     this.grid.removeFromParent()
-    this.grid.geometry.dispose()
+    for (const m of this.grid.children) (m as THREE.Mesh).geometry.dispose()
     this.grid = this.makeGrid()
     this.helpers.add(this.grid)
   }
@@ -1662,24 +1662,50 @@ export class CabinEditor {
     this.toastTimer = window.setTimeout(() => (this.toastEl.hidden = true), 2600)
   }
 
-  /** Quadrillage discret du sol de la cabine (une ligne par bord de tuile). */
-  private makeGrid(): THREE.LineSegments {
+  /**
+   * Quadrillage du sol de la cabine (un trait par bord de tuile) : un trait clair sur un liseré
+   * sombre, lisible sur un sol uni comme sur un motif chargé.
+   */
+  private makeGrid(): THREE.Group {
     // Les bords intérieurs des tuiles de la cabine et de ses pièces (pas ceux qui longent un mur).
-    const pts: THREE.Vector3[] = []
+    const edges: [number, number, number, number][] = []
     const own = new Set(this.view.floorTiles.map((t) => `${t.x},${t.z}`))
     for (const key of own) {
       const [x, z] = key.split(',').map(Number)
       const map = this.view.deck.map
-      if (own.has(`${x + 1},${z}`) && map.edge(x, z, 1) === 'open') pts.push(new THREE.Vector3(x + 0.5, 0.006, z - 0.5), new THREE.Vector3(x + 0.5, 0.006, z + 0.5))
-      if (own.has(`${x},${z + 1}`) && map.edge(x, z, 2) === 'open') pts.push(new THREE.Vector3(x - 0.5, 0.006, z + 0.5), new THREE.Vector3(x + 0.5, 0.006, z + 0.5))
+      if (own.has(`${x + 1},${z}`) && map.edge(x, z, 1) === 'open') edges.push([x + 0.5, z - 0.5, x + 0.5, z + 0.5])
+      if (own.has(`${x},${z + 1}`) && map.edge(x, z, 2) === 'open') edges.push([x - 0.5, z + 0.5, x + 0.5, z + 0.5])
     }
-    const grid = new THREE.LineSegments(
-      new THREE.BufferGeometry().setFromPoints(pts),
-      new THREE.LineBasicMaterial({ color: '#59d8ff', transparent: true, opacity: 0.22, depthWrite: false }),
-    )
-    grid.renderOrder = 1
-    return grid
+    const halo = new THREE.Mesh(gridStrips(edges, 0.04, 0.003), GRID_HALO)
+    const line = new THREE.Mesh(gridStrips(edges, 0.014, 0.004), GRID_LINE)
+    halo.renderOrder = 1
+    line.renderOrder = 2
+    return new THREE.Group().add(halo, line)
   }
+}
+
+// Le revêtement du sol est décollé vers la caméra (cf. view.ts, d'autant plus qu'on dézoome) : le
+// quadrillage l'est un peu plus, et reste sous les tapis imprimés (cf. decal()). Il écrit sa
+// profondeur et la compare strictement : aux croisements, une bande ne se dessine pas deux fois
+// par-dessus elle-même, le liseré garde la même teinte partout.
+const GRID_DEPTH = { depthFunc: THREE.LessDepth, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }
+const GRID_HALO = new THREE.MeshBasicMaterial({ color: '#03121c', transparent: true, opacity: 0.5, ...GRID_DEPTH })
+const GRID_LINE = new THREE.MeshBasicMaterial({ color: '#8fe9ff', transparent: true, opacity: 0.75, ...GRID_DEPTH })
+
+/** Bandes plates au sol, de demi-largeur `half`, prolongées d'autant aux bouts pour fermer les angles. */
+function gridStrips(edges: [number, number, number, number][], half: number, y: number): THREE.BufferGeometry {
+  const pos = new Float32Array(edges.length * 12)
+  const index: number[] = []
+  edges.forEach(([x0, z0, x1, z1], i) => {
+    const [ax, az, bx, bz] = [x0 - half, z0 - half, x1 + half, z1 + half]
+    pos.set([ax, y, az, bx, y, az, bx, y, bz, ax, y, bz], i * 12)
+    const k = i * 4
+    index.push(k, k + 2, k + 1, k, k + 3, k + 2)
+  })
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+  geometry.setIndex(index)
+  return geometry
 }
 
 // ---------------------------------------------------------------- vignettes des formes de plan
