@@ -212,7 +212,7 @@ export class BarPanel {
     const y = (1 - this.playerScreen.y) * innerHeight / 2
     const width = this.root.offsetWidth, height = this.root.offsetHeight
     const side = this.jacquesScreen.x > this.playerScreen.x ? -1 : 1
-    const left = side < 0 ? x - width - 48 : x + 48
+    const left = side < 0 ? x - width - 80 : x + 80
     this.root.style.left = `${Math.max(12, Math.min(left, innerWidth - width - 12))}px`
     this.root.style.top = `${Math.max(12, Math.min(y - height / 2, innerHeight - height - 12))}px`
   }
