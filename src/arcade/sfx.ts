@@ -85,6 +85,14 @@ export class ArcadeSfx {
         return this.tone('sawtooth', 1600, 200, 0.25, 0.08, 0.25)
       case 'beat-hi': return this.tone('triangle', 118, 100, 0.09, 0.45)
       case 'beat-lo': return this.tone('triangle', 98, 84, 0.09, 0.45)
+      // Thargoid Invaders : un Thargoïde abattu, et les quatre notes graves de la marche.
+      case 'zap':
+        this.tone('square', 900, 140, 0.13, 0.08)
+        return this.hiss(0.16, 'bandpass', 1800, 0.3, 0, 300)
+      case 'march-1': return this.tone('triangle', 110, 104, 0.08, 0.5)
+      case 'march-2': return this.tone('triangle', 98, 93, 0.08, 0.5)
+      case 'march-3': return this.tone('triangle', 87, 82, 0.08, 0.5)
+      case 'march-4': return this.tone('triangle', 82, 78, 0.08, 0.5)
     }
   }
 }

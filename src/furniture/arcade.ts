@@ -9,6 +9,7 @@ import { FIGHT_TITLE } from '../../shared/fight-roster.js'
 import { Fight } from '../arcade/fight'
 import { emptyPad } from '../arcade/game'
 import { Asteroids, AsteroidsPilot } from '../arcade/asteroids'
+import { Invaders, InvadersPilot } from '../arcade/invaders'
 import { Cargo, CargoPilot, COLS as CARGO_COLS, FREIGHT, FREIGHT_DARK, HIDDEN as CARGO_HIDDEN, ROWS as CARGO_ROWS } from '../arcade/cargo'
 import { padScore, pixelText, records, type ArcadeGame, type GameId, type Pad } from '../arcade/game'
 import { COLS as VIPER_COLS, ROWS as VIPER_ROWS, Viper, ViperPilot } from '../arcade/viper'
@@ -109,35 +110,6 @@ const drawElite: Draw = (c, t) => {
   c.fillStyle = '#6f6'
   c.font = '7px monospace'
   c.fillText('JAMESON', 3, 8)
-}
-
-/** Des Thargoïdes (octogones) qui descendent, un canon qui tire. */
-const drawInvaders: Draw = (c, t) => {
-  c.fillStyle = '#000'
-  c.fillRect(0, 0, W, H)
-  const dx = Math.sin(t * 0.8) * 12, dy = (Math.floor(t / 3) % 5) * 2
-  for (let row = 0; row < 3; row++) {
-    for (let col = 0; col < 5; col++) {
-      const x = 16 + col * 16 + dx, y = 12 + row * 12 + dy, r = 4 + (Math.floor(t * 4) % 2)
-      c.fillStyle = row === 0 ? '#ff5ad8' : '#6dff7a'
-      c.beginPath()
-      for (let k = 0; k < 8; k++) {
-        const a = (k / 8) * Math.PI * 2 + Math.PI / 8, rr = k % 2 ? r : r * 0.6
-        if (k) c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr)
-        else c.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr)
-      }
-      c.fill()
-    }
-  }
-  const px = W / 2 + Math.sin(t * 1.3) * 30
-  c.fillStyle = '#39e0ff'
-  c.fillRect(px - 5, 70, 10, 4)
-  c.fillRect(px - 1, 67, 2, 3)
-  const shot = (t * 70) % 60
-  c.fillStyle = '#fff'
-  c.fillRect(px - 0.5, 66 - shot, 1, 4)
-  c.font = '7px monospace'
-  c.fillText('1984', 3, 8)
 }
 
 // --- Le Labyrinthe de Comète
@@ -464,7 +436,7 @@ const drawSrv: Draw = (c, t) => {
   c.fillRect(66, 3, 26 * (1 - ((t / 40) % 1) * 0.7), 3)
 }
 
-// --- Cargaison, Viper, Astéroïdes : les jeux jouables (cf. src/arcade/)
+// --- Cargaison, Viper, Astéroïdes, Thargoid Invaders : les jeux jouables (cf. src/arcade/)
 
 /**
  * Démonstration d'un jeu jouable : une vraie partie, jouée par son pilote automatique, dessinée
@@ -618,6 +590,13 @@ const asteroidsDemo = liveDemo(() => new Asteroids(), (g) => {
   const pilot = new AsteroidsPilot(g)
   return (dt) => pilot.next(dt)
 }, drawAsteroidsDemo, 12)
+const invadersDemo = liveDemo(() => new Invaders(), (g) => {
+  const pilot = new InvadersPilot(g)
+  return (dt) => pilot.next(dt)
+}, (c, game, t) => {
+  game.drawSmall(c, W, H, t)
+  hiScore(c, 'invaders', 2, 2)
+}, 10)
 
 // ---------------------------------------------------------------- bornes
 
@@ -635,7 +614,7 @@ const GAMES: Record<string, { title: string; side: string; neon: string; draw: D
   viper: { title: 'VIPER', side: '#5a1446', neon: '#ffb03a', draw: viperDemo, live: true },
   asteroids: { title: tr('ASTÉROÏDES', 'ASTEROIDS'), side: '#7a1f1f', neon: '#ffe14f', draw: asteroidsDemo, live: true },
   elite: { title: 'ELITE', side: '#1f3f8a', neon: '#39e0ff', draw: drawElite },
-  invaders: { title: 'THARGOID INVADERS', side: '#4a1f6a', neon: '#ff4fd8', draw: drawInvaders },
+  invaders: { title: 'THARGOID INVADERS', side: '#4a1f6a', neon: '#ff4fd8', draw: invadersDemo, live: true },
   comete: { title: tr('LE LABYRINTHE DE COMÈTE', 'COMÈTE\'S MAZE'), side: '#1d5f6b', neon: '#ff8ad8', draw: drawComete },
   srv: { title: 'SRV RALLY', side: '#8a4512', neon: ED_ORANGE, draw: drawSrv },
 }
@@ -687,8 +666,8 @@ function marquee(title: string, neon: string, bg: [string, string] = ['#12081f',
 }
 
 /**
- * Borne d'arcade (écran animé). Jeux : `cargo`, `viper`, `asteroids` (jouables, cf. src/arcade/),
- * `elite`, `invaders`, `comete`, `srv`.
+ * Borne d'arcade (écran animé). Jeux : `cargo`, `viper`, `asteroids`, `invaders` (jouables, cf. src/arcade/),
+ * `elite`, `comete`, `srv`.
  */
 const arcade: Builder = ({ label = 'cargo' }) => {
   const game = GAMES[label] ?? GAMES.cargo

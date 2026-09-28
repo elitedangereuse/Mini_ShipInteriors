@@ -1,12 +1,12 @@
 /*
- * Socle des jeux des bornes d'arcade (Cargaison, Viper, Astéroïdes) : la manette, ce qu'un jeu
+ * Socle des jeux des bornes d'arcade (Cargaison, Viper, Astéroïdes, Thargoid Invaders) : la manette, ce qu'un jeu
  * expose à la borne, et une police pixel de 5 × 7 dessinée à la main, pour écrire sur leurs
  * écrans comme en 1984. Chaque jeu est une petite machine à états, sans DOM ni son : la borne
  * (cabinet.ts) l'affiche, les écrans du vaisseau le font jouer tout seul (cf. autopilot).
  */
 
 /** Jeux jouables ; les autres bornes (Elite, Invaders…) ne font que leur démonstration. */
-export const GAME_IDS = ['cargo', 'viper', 'asteroids', 'fight'] as const
+export const GAME_IDS = ['cargo', 'viper', 'asteroids', 'invaders', 'fight'] as const
 export type GameId = (typeof GAME_IDS)[number]
 
 export const isGameId = (id: string | undefined): id is GameId => GAME_IDS.includes(id as GameId)
@@ -34,6 +34,7 @@ export type Sfx =
   | 'move' | 'rotate' | 'drop' | 'lock' | 'hold' | 'line' | 'tetra' | 'level' | 'over'
   | 'eat' | 'bonus' | 'turn'
   | 'shoot' | 'bang' | 'bang-small' | 'thrust' | 'saucer' | 'life' | 'warp' | 'beat-hi' | 'beat-lo'
+  | 'zap' | 'march-1' | 'march-2' | 'march-3' | 'march-4'
 
 export interface ArcadeGame {
   readonly id: GameId

@@ -12,6 +12,7 @@ import { padScore, pixelText, textWidth, type ArcadeGame, type Button, type Game
 import { arcadeTiers } from '../economy/data'
 import { fetchBoard, localBest, saveLocalBest, submitScore, type ArcadeCredits, type Board, type Submission } from './scores'
 import { ArcadeSfx } from './sfx'
+import { Invaders, InvadersPilot } from './invaders'
 import { Viper, ViperPilot } from './viper'
 
 /*
@@ -84,6 +85,13 @@ const GAMES: Record<GameId, GameInfo> = {
       PAUSE,
     ],
   },
+  invaders: {
+    title: 'THARGOID INVADERS',
+    tagline: tr('TENEZ LA LIGNE, SAUVEZ LES STATIONS', 'HOLD THE LINE, SAVE THE STATIONS'),
+    neon: '#ff4fd8',
+    side: '#4a1f6a',
+    help: [[['←', '→'], MOVE], [[tr('Espace', 'Space')], tr('Tirer', 'Fire')], PAUSE],
+  },
 }
 
 /** Touches (position physique : KeyW/KeyA sont Z/Q sur un clavier AZERTY) → boutons de la borne. */
@@ -108,8 +116,13 @@ const START = TOUCH ? 'A' : tr('ESPACE', 'SPACE')
 const IDLE: Pad = { held: new Set(), pressed: new Set() }
 
 function create(id: GameId): ArcadeGame {
-  if (id === 'fight') return new Fight()
-  return id === 'cargo' ? new Cargo() : id === 'viper' ? new Viper() : new Asteroids()
+  switch (id) {
+    case 'fight': return new Fight()
+    case 'cargo': return new Cargo()
+    case 'viper': return new Viper()
+    case 'invaders': return new Invaders()
+    case 'asteroids': return new Asteroids()
+  }
 }
 
 /** Une partie de démonstration et son pilote automatique, déjà en cours (quelques secondes d'avance). */
@@ -124,6 +137,10 @@ function demo(id: GameId): { game: ArcadeGame; next: (dt: number) => Pad } {
     const game = new Viper()
     const pilot = new ViperPilot(game)
     d = { game, next: () => pilot.next() }
+  } else if (id === 'invaders') {
+    const game = new Invaders()
+    const pilot = new InvadersPilot(game)
+    d = { game, next: (dt) => pilot.next(dt) }
   } else {
     const game = new Asteroids()
     const pilot = new AsteroidsPilot(game)

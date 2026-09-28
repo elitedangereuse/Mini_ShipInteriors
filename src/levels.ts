@@ -718,11 +718,11 @@ export const LEVELS: LevelDef[] = [
       { model: 'arcade', x: 20.6, z: 9.02, rot: 2, label: 'fight' },
       // Au nord, face au sud, de part et d'autre des portes : un deuxième exemplaire des jeux solo,
       // pour que tout le monde joue quand l'équipage est nombreux (le duel de Ruelle Fighter II
-      // est unique sur le pont, cf. server/fights.js), et un flipper.
+      // est unique sur le pont, cf. server/fights.js), Thargoid Invaders, et un flipper.
       { model: 'arcade', x: 16.45, z: 5.98, label: 'cargo' },
       { model: 'arcade', x: 19.35, z: 5.98, label: 'viper' },
       { model: 'arcade', x: 20.55, z: 5.98, label: 'asteroids' },
-      { model: 'arcade', x: 21.75, z: 5.98, label: 'cargo' },
+      { model: 'arcade', x: 21.75, z: 5.98, label: 'invaders' },
       { model: 'pinball', x: 24.05, z: 6.1, label: 'thargoid' },
       { model: 'claw-machine', x: 25.0, z: 6.2, rot: 3, label: 'cyan' },
       { model: 'neon-sign', x: 15.72, z: 7.5, rot: 1, label: 'ARCADE' },
