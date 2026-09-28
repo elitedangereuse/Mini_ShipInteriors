@@ -25,7 +25,7 @@ const site = createServer((req, res) => {
   res.setHeader('Content-Type', 'application/json')
   if (req.url === '/outils/mini-shipinteriors-site.php?ownership=1') {
     res.end(JSON.stringify({ status: 'success', art: name ? [{ id: 'card:3598ce6f965b2481', kind: 'card' }] : [] }))
-  } else res.end(JSON.stringify({ cmdr: name, ljpc: name === 'Adam Fauster' }))
+  } else res.end(JSON.stringify({ cmdr: name, ljpc: name === 'Adam Fauster', voie: name === 'Adam Fauster' }))
 })
 
 test('cinéma : seul le fauteuil de régie programme le trailer reçu par tout le bord', async () => {
@@ -121,7 +121,7 @@ const welcome = (socket) =>
 describe('identité', () => {
   test('un cookie reconnu par le site donne un CMDR vérifié', async () => {
     const w = await welcome(client({ cookie: 'autre=1; ED_LOGGED_CMDR_ID=jeton-adam', auth: { name: 'CMDR Usurpateur' } }))
-    assert.deepEqual(w.you, { name: 'CMDR Adam Fauster', verified: true, ljpc: true })
+    assert.deepEqual(w.you, { name: 'CMDR Adam Fauster', verified: true, ljpc: true, voie: true })
     // Seul le cookie du site est relayé, pas les autres cookies du navigateur.
     assert.equal(seen.at(-1), 'ED_LOGGED_CMDR_ID=jeton-adam')
   })
@@ -129,24 +129,24 @@ describe('identité', () => {
   test('sans cookie, invité avec le nom de son choix', async () => {
     const before = seen.length
     const w = await welcome(client({ auth: { name: 'CMDR Ripley' } }))
-    assert.deepEqual(w.you, { name: 'CMDR Ripley', verified: false, ljpc: false })
+    assert.deepEqual(w.you, { name: 'CMDR Ripley', verified: false, ljpc: false, voie: false })
     assert.equal(seen.length, before, 'le site n\'est pas interrogé sans cookie')
   })
 
   test('un cookie inconnu du site reste invité', async () => {
     const w = await welcome(client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-bidon', auth: { name: 'CMDR Solo' } }))
-    assert.deepEqual(w.you, { name: 'CMDR Solo', verified: false, ljpc: false })
+    assert.deepEqual(w.you, { name: 'CMDR Solo', verified: false, ljpc: false, voie: false })
   })
 
   test('hors serveur de dev, le nom de CMDR envoyé par le client est ignoré', async () => {
     const w = await welcome(client({ auth: { name: 'CMDR Kirk', cmdr: 'Adam Fauster' } }))
-    assert.deepEqual(w.you, { name: 'CMDR Kirk', verified: false, ljpc: false })
+    assert.deepEqual(w.you, { name: 'CMDR Kirk', verified: false, ljpc: false, voie: false })
   })
 
   test('un invité ne prend pas le nom d\'un CMDR vérifié à bord', async () => {
     await welcome(client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-rackam' }))
     const w = await welcome(client({ auth: { name: 'cmdr rackam' } }))
-    assert.deepEqual(w.you, { name: 'cmdr rackam (invité)', verified: false, ljpc: false })
+    assert.deepEqual(w.you, { name: 'cmdr rackam (invité)', verified: false, ljpc: false, voie: false })
   })
 
   test('un CMDR vérifié ne change pas de nom en jeu', async () => {
@@ -181,6 +181,25 @@ describe('identité', () => {
     const memberState = next(observer, 'state', (m) => m.id === memberWelcome.id)
     member.emit('state', { x: 23, z: 1, level: 0, yaw: 0, anim: 'idle' })
     assert.equal((await memberState).z, 1)
+  })
+
+  test('le sanctuaire de la Voie refuse les non-adeptes et accepte l’épreuve accomplie', async () => {
+    const observer = client()
+    await welcome(observer)
+    const guest = client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-rackam' })
+    const guestWelcome = await welcome(guest)
+    assert.equal(guestWelcome.you.voie, false)
+    const guestState = next(observer, 'state', (m) => m.id === guestWelcome.id)
+    guest.emit('state', { x: 2, z: 9, level: -1, yaw: 0, anim: 'idle' })
+    guest.emit('state', { x: 2, z: 7, level: -1, yaw: 0, anim: 'idle' })
+    assert.equal((await guestState).z, 7)
+
+    const adept = client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-adam' })
+    const adeptWelcome = await welcome(adept)
+    assert.equal(adeptWelcome.you.voie, true)
+    const adeptState = next(observer, 'state', (m) => m.id === adeptWelcome.id)
+    adept.emit('state', { x: 2, z: 9, level: -1, yaw: 0, anim: 'idle' })
+    assert.equal((await adeptState).z, 9)
   })
 })
 

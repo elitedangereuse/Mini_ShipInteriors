@@ -2,7 +2,7 @@
 <html lang="fr">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <title>Mini Ship Interiors</title>
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="/src/style.css" />
@@ -103,6 +103,7 @@
             <i data-icon="arrow-u-up-left"></i><span lang="fr">Retour au site</span><span lang="en">Back to site</span>
           </a>
           <div class="panel buttons">
+            <button id="mobile-fullscreen" title="Plein écran" aria-label="Plein écran" data-en-title="Fullscreen" data-en-aria-label="Fullscreen"><i data-icon="frame-corners"></i></button>
             <button id="rot-left" title="Pivoter la caméra (Maj+R)" aria-label="Pivoter la caméra à gauche" data-en-title="Rotate camera (Shift+R)" data-en-aria-label="Rotate camera left"><i data-icon="arrow-counter-clockwise"></i></button>
             <button id="rot-right" title="Pivoter la caméra (R)" aria-label="Pivoter la caméra à droite" data-en-title="Rotate camera (R)" data-en-aria-label="Rotate camera right"><i data-icon="arrow-clockwise"></i></button>
             <button id="zoom-in" title="Zoom avant (molette)" aria-label="Zoom avant" data-en-title="Zoom in (mouse wheel)" data-en-aria-label="Zoom in"><i data-icon="magnifying-glass-plus"></i></button>
@@ -159,6 +160,15 @@
       </div>
 
       <div id="emotes" class="panel emotes"></div>
+      <div id="touch-pad" aria-label="Commandes tactiles">
+        <div id="touch-stick" class="touch-stick" aria-label="Déplacement"><div class="touch-stick-knob"></div></div>
+        <div class="touch-actions">
+          <button id="touch-sprint" aria-label="Courir" title="Courir"><i data-icon="person-simple-run"></i></button>
+          <button id="touch-cancel" aria-label="Fermer" title="Fermer"><i data-icon="x"></i></button>
+          <button id="touch-action" aria-label="Action" title="Action">X</button>
+          <button id="touch-interact" aria-label="Interagir" title="Interagir">A</button>
+        </div>
+      </div>
 
       <div id="prompt" hidden><kbd>E</kbd><span id="prompt-label">Examiner</span></div>
       <!-- Tâche de bord en cours : le geste, et sa progression. -->
@@ -202,6 +212,14 @@
 
       <div id="sound-hint" class="toast">
         <i data-icon="speaker-low"></i><span lang="fr">Clique ou appuie sur une touche pour activer le son</span><span lang="en">Click or press a key to turn the sound on</span>
+      </div>
+    </div>
+    <div id="mobile-entry" hidden>
+      <div class="mobile-entry-card">
+        <strong lang="fr">Mini Ship Interiors</strong><strong lang="en">Mini Ship Interiors</strong>
+        <p lang="fr">Tournez votre téléphone en paysage, puis lancez le jeu.</p>
+        <p lang="en">Rotate your phone to landscape, then enter the game.</p>
+        <button id="mobile-enter"><span lang="fr">Jouer en plein écran</span><span lang="en">Play fullscreen</span></button>
       </div>
     </div>
 

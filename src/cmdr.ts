@@ -49,19 +49,24 @@ export function devLjpc(): boolean {
   return import.meta.env.DEV && new URLSearchParams(location.search).get('ljpc') === '1'
 }
 
+/** Dev uniquement : ?voie=1 simule la première épreuve de la Voie terminée. */
+export function devVoie(): boolean {
+  return import.meta.env.DEV && new URLSearchParams(location.search).get('voie') === '1'
+}
+
 /**
  * Nom du CMDR connecté au site (sans le préfixe « CMDR »), ou null (invité, site injoignable).
  * Sert à l'affichage : c'est le relais, en faisant reconnaître le cookie par le site, qui
  * décide du nom et de la marque « vérifié ».
  */
-export async function fetchCmdrAccount(timeoutMs = 3000): Promise<{ name: string; ljpc: boolean } | null> {
+export async function fetchCmdrAccount(timeoutMs = 3000): Promise<{ name: string; ljpc: boolean; voie: boolean } | null> {
   const simulated = devCmdr()
-  if (simulated) return { name: simulated, ljpc: devLjpc() }
+  if (simulated) return { name: simulated, ljpc: devLjpc(), voie: devVoie() }
   try {
     const res = await fetch(CMDR_URL, { credentials: 'same-origin', signal: AbortSignal.timeout(timeoutMs) })
     if (!res.ok) return null
-    const data = (await res.json()) as { cmdr?: string | null; ljpc?: boolean }
-    return typeof data.cmdr === 'string' && data.cmdr.trim() ? { name: data.cmdr.trim(), ljpc: data.ljpc === true } : null
+    const data = (await res.json()) as { cmdr?: string | null; ljpc?: boolean; voie?: boolean }
+    return typeof data.cmdr === 'string' && data.cmdr.trim() ? { name: data.cmdr.trim(), ljpc: data.ljpc === true, voie: data.voie === true } : null
   } catch {
     return null
   }

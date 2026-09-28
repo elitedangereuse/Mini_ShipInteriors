@@ -175,12 +175,16 @@ export class Deck {
   readonly cabin?: CabinView
   private readonly hull = new Hull()
   private ljpcCover?: THREE.Group
+  private voieCover?: THREE.Group
 
   constructor(readonly def: LevelDef) {
     this.theme = themes[def.theme ?? 'station']
     this.map = new ShipMap(def.layout, shipMapOptions(def.id))
     if (def.id === 0) for (const d of this.map.doors) {
       if (this.doorRoom(d.x, d.z, d.dir, 'l')) this.map.lock(d.x, d.z, d.dir)
+    }
+    if (def.id === -1) for (const d of this.map.doors) {
+      if (this.doorRoom(d.x, d.z, d.dir, 'v')) this.map.lock(d.x, d.z, d.dir)
     }
     this.y = def.id * LEVEL_HEIGHT
     this.group.position.y = this.y
@@ -191,7 +195,8 @@ export class Deck {
     this.group.add(this.hull.group)
     this.buildWalls()
     this.buildProps()
-    if (def.id === 0) this.buildLjpcCover()
+    if (def.id === 0) this.ljpcCover = this.buildRoomCover('l', '#101722', '#263344')
+    if (def.id === -1) this.voieCover = this.buildRoomCover('v', '#030303', '#080808')
     this.buildLift()
     if (def.engine) this.buildCore(def.engine.x, def.engine.z)
     this.buildNozzles(!!def.engine)
@@ -222,29 +227,38 @@ export class Deck {
     if (this.ljpcCover) this.ljpcCover.visible = !member
   }
 
+  /** L'épreuve de la Voie ouvre le sanctuaire uniquement à son adepte. */
+  setVoieAccess(adept: boolean) {
+    if (this.def.id !== -1) return
+    for (const d of this.map.doors) if (this.doorRoom(d.x, d.z, d.dir, 'v')) this.map.lock(d.x, d.z, d.dir, !adept)
+    this.syncLocks()
+    this.pathfinder.invalidate()
+    if (this.voieCover) this.voieCover.visible = !adept
+  }
+
   private doorRoom(x: number, z: number, dir: number, room: string) {
     const d = DIRS[dir]
     return this.map.room(x, z) === room || this.map.room(x + d.dx, z + d.dz) === room
   }
 
-  private buildLjpcCover() {
+  private buildRoomCover(room: string, slabColor: string, rimColor: string): THREE.Group | undefined {
     const tiles: { x: number; z: number }[] = []
     for (let z = 0; z < this.map.height; z++) for (let x = 0; x < this.map.width; x++) {
-      if (this.map.room(x, z) === 'l') tiles.push({ x, z })
+      if (this.map.room(x, z) === room) tiles.push({ x, z })
     }
-    if (!tiles.length) return
+    if (!tiles.length) return undefined
     const x0 = Math.min(...tiles.map((t) => t.x)), x1 = Math.max(...tiles.map((t) => t.x))
     const z0 = Math.min(...tiles.map((t) => t.z)), z1 = Math.max(...tiles.map((t) => t.z))
     const w = x1 - x0 + 1.18, h = z1 - z0 + 1.18
     const cover = new THREE.Group()
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(w, 0.14, h), new THREE.MeshBasicMaterial({ color: '#101722' }))
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(w, 0.14, h), new THREE.MeshBasicMaterial({ color: slabColor }))
     slab.position.set((x0 + x1) / 2, 1.13, (z0 + z1) / 2)
     cover.add(slab)
-    const rim = new THREE.Mesh(new THREE.BoxGeometry(w + 0.04, 0.025, h + 0.04), new THREE.MeshBasicMaterial({ color: '#263344' }))
+    const rim = new THREE.Mesh(new THREE.BoxGeometry(w + 0.04, 0.025, h + 0.04), new THREE.MeshBasicMaterial({ color: rimColor }))
     rim.position.copy(slab.position).y += 0.08
     cover.add(rim)
     this.group.add(cover)
-    this.ljpcCover = cover
+    return cover
   }
 
   // ------------------------------------------------------------------ build

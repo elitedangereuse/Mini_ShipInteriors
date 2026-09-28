@@ -87,7 +87,7 @@ export interface FightState {
 
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
-  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean }; players: PlayerState[]; music?: MusicState; hold?: MusicState; system?: SystemId }
+  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean }; players: PlayerState[]; music?: MusicState; hold?: MusicState; system?: SystemId }
   | { t: 'join'; player: PlayerState }
   | { t: 'leave'; id: number }
   | { t: 'state'; id: number; x: number; z: number; yaw: number; level: number; anim: string; pose?: string; py?: number }
@@ -155,13 +155,14 @@ export class Net {
     private profile: { name: string; skin: string },
     private devCmdr?: string,
     private devLjpc = false,
+    private devVoie = false,
   ) {}
 
   connect() {
     const socket = io({
       path: WS_PATH,
       // Relu à chaque (re)connexion : le relais reçoit le nom et l'apparence du moment.
-      auth: (cb) => cb({ ...this.profile, cmdr: this.devCmdr, ljpc: this.devLjpc }),
+      auth: (cb) => cb({ ...this.profile, cmdr: this.devCmdr, ljpc: this.devLjpc, voie: this.devVoie }),
       // Délai croissant (hébergement statique sans relais : on insiste de moins en moins).
       reconnectionDelay: 2000,
       reconnectionDelayMax: 30000,

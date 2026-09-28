@@ -14,7 +14,7 @@ import type { CabinEditor } from './cabin/editor'
 import { CabinBar, InviteMenu, InviteToasts, type CrewEntry } from './cabin/hud'
 import { normalizeLayout, sameLayout, serializeLayout, type CabinItem, type CabinLayout } from './cabin/layout'
 import { CabinStore, requestCabin, type SiteCabin } from './cabin/storage'
-import { devCmdr, devLjpc, fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
+import { devCmdr, devLjpc, devVoie, fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
 import { ECONOMY, formatCredits, skinPrice, wingPrice } from './economy/data'
 import { CreditsHud } from './economy/hud'
 import { taskOf } from './economy/schedule'
@@ -29,6 +29,7 @@ import { MAX_PETS, petRig, speciesOfItem, type Species } from './pets'
 import { Deck, type Interactable } from './deck'
 import { beatAt, beatPulse, film, filmGlow, holoMeGlow, holoTime, type ClawControl, type ClawResult } from './furniture'
 import { GamepadControls, type GamepadInput } from '../shared/gamepad.js'
+import { TouchGamepad } from './touch-gamepad'
 import { lineOfSight } from '../shared/sight.js'
 import { DIRS } from './map'
 import { EN, localizeAttributes, tr } from './i18n'
@@ -103,6 +104,8 @@ let linked = false
 let verified = false
 /** Badge accordé à la fin de l'aventure L.J.P.C. ; l'accès reste fermé pendant sa vérification. */
 let ljpcMember = false
+/** Première épreuve de la Voie accomplie : accès individuel au sanctuaire de la cale. */
+let voieAdept = false
 
 // ------------------------------------------------------------------ rendu
 
@@ -158,6 +161,7 @@ if (account) {
   linked = true
   profile.name = `CMDR ${account.name}`
   ljpcMember = account.ljpc
+  voieAdept = account.voie
 }
 /** Réponse du site sur les quartiers du CMDR, si elle est arrivée à temps (undefined : pas encore). */
 const siteCabin = account ? await within<SiteCabin | null | undefined>(cabinRequest, 3000, undefined) : undefined
@@ -171,6 +175,7 @@ const decks = LEVELS.map((def) => new Deck(def))
 for (const d of decks) scene.add(d.group)
 const deckById = (id: number) => decks.find((d) => d.def.id === id)!
 deckById(0).setLjpcAccess(ljpcMember)
+deckById(-1).setVoieAccess(voieAdept)
 const ljpcEntrance = deckById(0).map.doors.find((door) => {
   const d = DIRS[door.dir]
   const map = deckById(0).map
@@ -178,6 +183,12 @@ const ljpcEntrance = deckById(0).map.doors.find((door) => {
 })
 const ljpcDoorItem = ljpcEntrance && deckById(0).doorExamine(ljpcEntrance.x, ljpcEntrance.z, ljpcEntrance.dir)
 if (ljpcDoorItem) ljpcDoorItem.label = tr('Accès réservé', 'Restricted access')
+const voieEntrance = deckById(-1).map.doors.find((door) => {
+  const d = DIRS[door.dir]
+  const map = deckById(-1).map
+  return map.room(door.x, door.z) === 'v' || map.room(door.x + d.dx, door.z + d.dz) === 'v'
+})
+const voieDoorItem = voieEntrance && deckById(-1).doorExamine(voieEntrance.x, voieEntrance.z, voieEntrance.dir)
 const jacquesAt = deckById(-1).interactables.find((it) => it.furniture?.model === 'bartender')!.position
 
 // Les quartiers du commandant : la cabine du joueur, meublée selon son aménagement.
@@ -412,6 +423,17 @@ function toggleReactions(open = reactionsPanel.hidden === true) {
 }
 reactionsButton.onclick = () => toggleReactions()
 $('emotes').append(reactionsButton, reactionsPanel)
+const mobileEmotesToggle = document.createElement('button')
+mobileEmotesToggle.className = 'mobile-emotes-toggle'
+mobileEmotesToggle.setAttribute('aria-label', tr('Afficher les emotes', 'Show emotes'))
+mobileEmotesToggle.setAttribute('aria-expanded', 'false')
+mobileEmotesToggle.append(icon('smiley-sticker'))
+mobileEmotesToggle.onclick = () => {
+  const open = $('emotes').classList.toggle('expanded')
+  mobileEmotesToggle.setAttribute('aria-expanded', String(open))
+  if (!open) toggleReactions(false)
+}
+$('emotes').prepend(mobileEmotesToggle)
 addEventListener('pointerdown', (e) => {
   if (!reactionsPanel.hidden && !$('emotes').contains(e.target as Node)) toggleReactions(false)
 })
@@ -565,7 +587,7 @@ moustache.onMeow = (purr) => {
 
 /**
  * Compagnons adoptés (cf. pets.ts) : un par panier des quartiers affichés (les siens, ou ceux de
- * l'hôte en visite). Chacun vit près de son panier, comme Comète, et ne quitte pas les quartiers.
+ * l'hôte en visite). Chacun vit près de son panier et peut explorer le pont comme Comète.
  * Clé : modèle, robe et rang parmi les paniers identiques ; déplacer un panier ne le recrée pas.
  */
 interface Companion {
@@ -626,7 +648,7 @@ async function addCompanion(key: string, item: CabinItem) {
   if (!r || companions.has(key) || !wantedCompanions().has(key)) return
   // Perchoir et ruche ont un mât au milieu : l'animal apparaît au pied.
   const aside = species.home === 'perch' || species.home === 'hive' ? 0.3 : 0
-  const pet = new Cat(r, cabinDeck, item.x, item.z + aside, { name: species.name, scale: species.scale, area: cabin.bounds, bowls: petBowls })
+  const pet = new Cat(r, cabinDeck, item.x, item.z + aside, { name: species.name, scale: species.scale, bowls: petBowls })
   unstick(pet.root.position, 0.12)
   const bubble = `pet:${key}`
   const say = (happy: boolean) => {
@@ -732,7 +754,7 @@ function ambience(dt: number) {
 // ------------------------------------------------------------------ réseau
 
 const remotes = new Map<number, RemotePlayer>()
-const net = new Net(profile, devCmdr(), devLjpc())
+const net = new Net(profile, devCmdr(), devLjpc(), devVoie())
 const boardGames = new BoardGames({
   playerId: () => net.id,
   sendJoin: (game, table) => net.sendBoardJoin(game, table),
@@ -822,7 +844,9 @@ net.onMessage = (m) => {
       profile.name = m.you.name
       verified = m.you.verified
       ljpcMember = m.you.ljpc
+      voieAdept = m.you.voie
       deckById(0).setLjpcAccess(ljpcMember)
+      deckById(-1).setVoieAccess(voieAdept)
       // Reconnu par le site via le relais : le compte est lié, même si la demande faite au
       // chargement n'avait pas abouti.
       if (verified) {
@@ -1731,6 +1755,21 @@ function nearestCabinTile(p: { x: number; z: number }): { x: number; z: number }
 
 const keys = new Set<string>()
 const gamepad = new GamepadControls()
+const touchGamepad = matchMedia('(pointer: coarse)').matches ? new TouchGamepad() : null
+let mobileStarted = false
+function syncMobileEntry() {
+  if (!touchGamepad) return
+  $('mobile-entry').hidden = mobileStarted && innerWidth > innerHeight
+}
+async function enterMobile() {
+  mobileStarted = true
+  try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen?.() } catch { /* Plein écran indisponible. */ }
+  try { await (screen.orientation as ScreenOrientation & { lock?: (orientation: 'landscape') => Promise<void> }).lock?.('landscape') } catch { /* Rotation manuelle requise. */ }
+  syncMobileEntry()
+}
+$('mobile-enter').onclick = () => void enterMobile()
+$('mobile-fullscreen').onclick = () => void enterMobile()
+addEventListener('orientationchange', syncMobileEntry)
 let usingGamepad = false
 for (const type of ['keydown', 'pointerdown']) addEventListener(type, () => (usingGamepad = false), { capture: true })
 addEventListener('blur', () => gamepad.suspend())
@@ -1833,6 +1872,18 @@ function updateGamepad(dt: number): GamepadInput {
   const typing = focus instanceof HTMLElement && (focus.matches('input, textarea, select') || focus.isContentEditable)
   const enabled = document.hasFocus() && !document.hidden && !typing && !chat.typing && !editing() && !photo.active && !arcade?.isOpen && !boardGames.isOpen && !barPanel.isOpen && !gameEmbed.isOpen && !mediaRoom.isOpen && !cinemaRoom.isOpen
   const pad = gamepad.poll(enabled)
+  if (touchGamepad) {
+    const touch = touchGamepad.poll(enabled)
+    if (touch.moveX || touch.moveY) { pad.moveX = touch.moveX; pad.moveY = touch.moveY }
+    pad.sprint ||= touch.sprint
+    pad.interact ||= touch.interact
+    pad.action ||= touch.action
+    pad.cancel ||= touch.cancel
+    pad.up ||= touch.up
+    pad.down ||= touch.down
+    pad.active ||= touch.active
+    pad.connected ||= touch.connected
+  }
   if (!pad.connected) usingGamepad = false
   if (!enabled) return pad
   if (pad.active) {
@@ -1958,7 +2009,7 @@ const canvas = renderer.domElement
 function pick(e: PointerEvent): { tile: Tile | null; item: Interactable | null; point: THREE.Vector3 | null } {
   pointer.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1)
   raycaster.setFromCamera(pointer, iso.camera)
-  const hits = raycaster.intersectObjects(deck.interactables.filter((i) => !hiddenLjpcItem(i)).map((i) => i.object), true)
+  const hits = raycaster.intersectObjects(deck.interactables.filter((i) => !hiddenRestrictedItem(i)).map((i) => i.object), true)
   let item: Interactable | null = null
   if (hits.length) {
     item =
@@ -2142,7 +2193,7 @@ function nearestInteractable(): Interactable | null {
   let best: Interactable | null = null
   let bestD = INTERACT_RANGE
   for (const i of deck.interactables) {
-    if (hiddenLjpcItem(i)) continue
+    if (hiddenRestrictedItem(i)) continue
     const d = distanceTo(i)
     if (d < bestD && inSight(i)) {
       best = i
@@ -2152,9 +2203,10 @@ function nearestInteractable(): Interactable | null {
   return best
 }
 
-function hiddenLjpcItem(item: Interactable): boolean {
-  return !ljpcMember && deck.def.id === 0
-    && deck.map.room(Math.round(item.position.x), Math.round(item.position.z)) === 'l'
+function hiddenRestrictedItem(item: Interactable): boolean {
+  const room = deck.map.room(Math.round(item.position.x), Math.round(item.position.z))
+  return (!ljpcMember && deck.def.id === 0 && room === 'l')
+    || (!voieAdept && deck.def.id === -1 && room === 'v' && item !== voieDoorItem)
 }
 
 function tryInteract() {
@@ -2174,6 +2226,7 @@ function interactWith(item: Interactable) {
   if (item.onInteract) return item.onInteract()
   player.interact()
   net.sendEmote('interact')
+  if (item === voieDoorItem && !voieAdept) return dialog.showCipher()
   const text = typeof item.text === 'function' ? item.text() : item.text
   if (Array.isArray(text)) dialog.show(text[Math.floor(Math.random() * text.length)])
   else if (text) dialog.show(text)
@@ -2699,7 +2752,8 @@ function frame() {
 
   for (const r of remotes.values()) {
     r.update(world)
-    r.group.visible = sees(r) && (ljpcMember || r.level !== 0 || deck.map.room(Math.round(r.group.position.x), Math.round(r.group.position.z)) !== 'l')
+    const room = deckById(r.level).map.room(Math.round(r.group.position.x), Math.round(r.group.position.z))
+    r.group.visible = sees(r) && (ljpcMember || r.level !== 0 || room !== 'l') && (voieAdept || r.level !== -1 || room !== 'v')
   }
   if (cometeHere) cat.update(world, catDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
   syncCompanions()
@@ -2728,6 +2782,7 @@ function frame() {
   for (const list of actors.values()) list.length = 0
   actors.get(deck)!.push(player.position)
   if (cometeHere) actors.get(catDeck)!.push(cat.root.position)
+  for (const c of companions.values()) actors.get(cabinDeck)!.push(c.pet.root.position)
   // Un joueur d'une autre instance des quartiers n'ouvre pas nos portes.
   for (const r of remotes.values()) if (r.group.visible || r.level !== deck.def.id) actors.get(deckById(r.level))?.push(r.group.position)
   const keep = seating.current?.item.position ?? null
@@ -2868,6 +2923,7 @@ function frame() {
 addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight)
   iso.resize(innerWidth / innerHeight)
+  syncMobileEntry()
 })
 
 // Compile tous les shaders avant la première image (pas d'à-coup au premier fondu de mur).
@@ -2877,6 +2933,7 @@ setDeck(deck)
 
 bootDone()
 $('hud').hidden = false
+syncMobileEntry()
 // Les crédits ont pu arriver pendant le chargement : l'apparence portée est-elle à soi ?
 checkLook()
 // Les records des bornes, pour leurs écrans (« HI 12340 »).

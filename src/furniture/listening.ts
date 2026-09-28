@@ -24,6 +24,30 @@ const C = {
   ggGold: '#ffd23c',
 }
 
+/** Le SVG animé est figé sur sa première image par drawImage : le vaisseau y est invisible. */
+let galeresLayers: Promise<[HTMLImageElement, HTMLImageElement]> | undefined
+function galeresPosterLayers(): Promise<[HTMLImageElement, HTMLImageElement]> {
+  return galeresLayers ??= fetch(BASE + 'shows/galeres-galactiques.svg')
+    .then((response) => {
+      if (!response.ok) throw new Error(`Galères Galactiques: ${response.status}`)
+      return response.text()
+    })
+    .then(async (svg) => {
+      const image = (css: string) => new Promise<HTMLImageElement>((resolve, reject) => {
+        const url = URL.createObjectURL(new Blob([svg.replace('</svg>', `<style>${css}</style></svg>`)], { type: 'image/svg+xml' }))
+        const img = new Image()
+        img.onload = () => { URL.revokeObjectURL(url); resolve(img) }
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Galères Galactiques: image illisible')) }
+        img.src = url
+      })
+      const still = '.slide-in-elliptic-bottom-fwd,.shipanim{animation:none!important;-webkit-animation:none!important;transform:none!important;opacity:1!important}'
+      return Promise.all([
+        image(`${still}svg > g.slide-in-elliptic-bottom-fwd{display:none}`),
+        image(`${still}svg > g:not(.slide-in-elliptic-bottom-fwd){display:none}`),
+      ])
+    })
+}
+
 /** Casques : arceau et coques, puis coussinets. */
 const HEADPHONES: Record<string, [string, string]> = {
   orange: [ED_ORANGE, C.black],
@@ -108,7 +132,8 @@ const podcastPoster: Builder = ({ label }) => {
   const show = label === 'galeres' ? 'galeres' : 'radio'
   const g = new THREE.Group()
   g.add(box(0.54, 0.74, 0.03, lit(C.woodDark), 0, 0.56, 0.015, 0.01))
-  const art = drawnTexture(320, 440, (c) => {
+  const paint = (c: CanvasRenderingContext2D, logo?: HTMLImageElement, ship?: HTMLImageElement, t = 0) => {
+    c.clearRect(0, 0, 320, 440)
     const gradient = c.createLinearGradient(0, 0, 320, 440)
     gradient.addColorStop(0, show === 'radio' ? '#332316' : '#15204c')
     gradient.addColorStop(1, '#0d121d')
@@ -121,22 +146,49 @@ const podcastPoster: Builder = ({ label }) => {
     c.fillStyle = '#efd9b8'
     c.font = '700 17px system-ui, sans-serif'
     c.fillText(show === 'radio' ? tr('LE PODCAST À BORD', 'THE PODCAST ON BOARD') : tr('MINI SÉRIE AUDIO', 'AUDIO MINI-SERIES'), 160, 388)
-  })
-  const logo = new Image()
-  logo.onload = () => {
-    const c = (art.image as HTMLCanvasElement).getContext('2d')!
-    const maxW = 272, maxH = show === 'radio' ? 160 : 292
-    const scale = Math.min(maxW / logo.width, maxH / logo.height)
-    const w = logo.width * scale, h = logo.height * scale
-    c.drawImage(logo, (320 - w) / 2, (350 - h) / 2, w, h)
-    art.needsUpdate = true
+    if (logo) {
+      const maxW = 272, maxH = show === 'radio' ? 160 : 292
+      const scale = Math.min(maxW / logo.width, maxH / logo.height)
+      const w = logo.width * scale, h = logo.height * scale
+      const x = (320 - w) / 2, y = (350 - h) / 2
+      c.drawImage(logo, x, y, w, h)
+      if (ship) {
+        // Même frémissement que dans le SVG, mais sur la seule couche du vaisseau.
+        const dx = Math.sin(t * 18) * 0.8, dy = Math.cos(t * 23) * 0.8
+        c.drawImage(ship, x + dx, y + dy, w, h)
+      }
+    }
   }
-  logo.src = BASE + (show === 'radio' ? 'shows/radio-dangereuse.png' : 'shows/galeres-galactiques.svg')
+  const art = drawnTexture(320, 440, paint)
+  const canvas = art.image as HTMLCanvasElement
+  const context = canvas.getContext('2d')!
+  let logo: HTMLImageElement | undefined, ship: HTMLImageElement | undefined
+  if (show === 'radio') {
+    const image = new Image()
+    image.onload = () => { logo = image; paint(context, logo); art.needsUpdate = true }
+    image.src = BASE + 'shows/radio-dangereuse.png'
+  } else {
+    void galeresPosterLayers().then(([background, vessel]) => {
+      logo = background
+      ship = vessel
+      paint(context, logo, ship)
+      art.needsUpdate = true
+    }).catch(() => { /* Le cadre reste lisible si l'image ne charge pas. */ })
+  }
   g.add(part(new THREE.PlaneGeometry(0.48, 0.66), new THREE.MeshBasicMaterial({ map: art }), 0, 0.56, 0.032))
   // Rampe : un bras, une réglette lumineuse au-dessus du cadre.
   g.add(barZ(0.006, 0.08, lit(C.brass), 0, 0.95, 0.04, 6), box(0.26, 0.022, 0.03, lit(C.brass), 0, 0.95, 0.08, 0.006))
   g.add(box(0.22, 0.004, 0.02, glow('#fff0cf'), 0, 0.938, 0.08))
-  return { solid: g }
+  let frame = -1
+  return {
+    solid: g,
+    ...(show === 'galeres' ? { update(t: number) {
+      if (!logo || !ship || Math.floor(t * 12) === frame) return
+      frame = Math.floor(t * 12)
+      paint(context, logo, ship, t)
+      art.needsUpdate = true
+    } } : {}),
+  }
 }
 
 /** Enseigne « ON AIR » de studio de radio, rouge, accrochée au mur. */

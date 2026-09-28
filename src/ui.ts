@@ -204,8 +204,24 @@ export class Dialog {
   private el = $('dialog')
   private timer = 0
   private typing = 0
+  private cipher = 0
+
+  /** Le message du sanctuaire change de glyphes tant que la porte refuse l'accès. */
+  showCipher() {
+    clearInterval(this.typing)
+    this.el.hidden = false
+    this.timer = 5
+    this.cipher = 0
+    this.scramble()
+  }
+
+  private scramble() {
+    const glyphs = '⟁⟟⟊⫷⫸⋈⌁⍜⎔⎊⧖◈⊘⌬⟡⧫⟁'
+    this.el.textContent = Array.from({ length: 38 }, (_, i) => i === 12 || i === 25 ? ' ' : glyphs[Math.floor(Math.random() * glyphs.length)]).join('')
+  }
 
   show(text: string) {
+    this.cipher = -1
     this.el.hidden = false
     this.el.textContent = ''
     clearInterval(this.typing)
@@ -220,6 +236,10 @@ export class Dialog {
   update(dt: number) {
     if (this.timer <= 0) return
     this.timer -= dt
+    if (this.cipher >= 0) {
+      this.cipher += dt
+      if (this.cipher >= 0.08) { this.cipher = 0; this.scramble() }
+    }
     if (this.timer <= 0) this.el.hidden = true
   }
 }

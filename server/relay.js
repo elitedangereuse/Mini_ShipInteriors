@@ -27,7 +27,7 @@ import { hasSiteArtwork, siteArtworkAllowed } from './site.js'
 import { cleanCmdrName, cmdrIdentityFromCookie } from './cmdr.js'
 import { createCinema } from './cinema.js'
 import { BOARD_TABLES, SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
-import { ShipMap } from '../shared/ship-map.js'
+import { DIRS, ShipMap } from '../shared/ship-map.js'
 import { applyWings } from '../shared/cabin-wings.js'
 import { canReach } from '../shared/sight.js'
 import { HOME_SYSTEM, JUMP_CHARGE, JUMP_TRAVEL, PILOT_SEAT, nextSystem } from '../shared/systems.js'
@@ -58,6 +58,11 @@ const INVITE_TTL = 60000
 const REACH = 2.5
 /** Plans des ponts : on n'agit pas à travers un mur (cf. shared/sight.js). */
 const MAPS = new Map(Object.entries(SHIP_LAYOUTS).map(([id, layout]) => [Number(id), new ShipMap(layout, shipMapOptions(id))]))
+const voieMap = new ShipMap(SHIP_LAYOUTS['-1'], shipMapOptions(-1))
+for (const d of voieMap.doors) {
+  const step = DIRS[d.dir]
+  if (voieMap.room(d.x, d.z) === 'v' || voieMap.room(d.x + step.dx, d.z + step.dz) === 'v') voieMap.lock(d.x, d.z, d.dir, false)
+}
 /** Plan du pont des quartiers avec les pièces d'extension d'un aménagement (gardé avec lui). */
 const cabinMaps = new WeakMap()
 function cabinMap(layout) {
@@ -71,7 +76,9 @@ function cabinMap(layout) {
   return map
 }
 /** `host` : dans des quartiers, leur hôte (ses pièces d'extension comptent). */
-const reaches = (player, level, at, host) => player.level === level && canReach(host && level === 1 ? cabinMap(host.layout) : MAPS.get(level), player, at, REACH)
+const reaches = (player, level, at, host) => player.level === level && canReach(
+  host && level === 1 ? cabinMap(host.layout) : level === -1 && player.voie ? voieMap : MAPS.get(level), player, at, REACH,
+)
 /** Pont de chaque jukebox : la salle commune (pont principal), le bar (la cale), les quartiers. */
 const JUKEBOX_LEVEL = new Map([['deck', 0], ['hold', -1], ['cabin', 1]])
 /** Jukebox d'une instance commune (cf. `music` plus bas) ; les autres sont des quartiers. */
@@ -207,7 +214,7 @@ export function attachRelay(
     if (players.size >= MAX_PLAYERS) return next(new Error('Vaisseau complet'))
     const auth = obj(socket.handshake.auth)
     socket.data.identity = devCmdr && auth.cmdr
-      ? { name: cleanCmdrName(auth.cmdr), ljpc: auth.ljpc === true }
+      ? { name: cleanCmdrName(auth.cmdr), ljpc: auth.ljpc === true, voie: auth.voie === true }
       : await cmdrIdentityFromCookie(socket.handshake.headers.cookie, { url: cmdrUrl, error })
     next()
   })
@@ -221,6 +228,7 @@ export function attachRelay(
       name: '',
       verified: !!cmdr,
       ljpc: !!cmdr && identity.ljpc === true,
+      voie: !!cmdr && identity.voie === true,
       skin: validLook(auth.skin) ? auth.skin : 'human.female.b',
       // Point d'apparition : les quartiers du commandant (cf. SPAWN dans src/levels.ts).
       x: 11.2, z: 7.4, level: 1, yaw: 0, anim: 'idle', pose: '', py: 0,
@@ -236,7 +244,7 @@ export function attachRelay(
     sockets.set(player.id, socket)
     socket.emit('welcome', {
       id: player.id,
-      you: { name: player.name, verified: player.verified, ljpc: player.ljpc },
+      you: { name: player.name, verified: player.verified, ljpc: player.ljpc, voie: player.voie },
       players: [...players.values()].filter((p) => p !== player).map(publicState),
       // Les jukebox du pont principal et de la cale, silence compris : après une reconnexion, on se recale.
       music: musicOf(0),
@@ -271,6 +279,7 @@ export function attachRelay(
       const x = num(m.x, -5, 50), z = num(m.z, -5, 20), yaw = num(m.yaw, -10, 10)
       if (x === null || z === null || yaw === null || !LEVELS.has(m.level)) return
       if (m.level === 0 && MAPS.get(0).room(Math.round(x), Math.round(z)) === 'l' && !player.ljpc) return
+      if (m.level === -1 && MAPS.get(-1).room(Math.round(x), Math.round(z)) === 'v' && !player.voie) return
       // Une pose inconnue n'en est pas une ; sa hauteur reste à portée d'une couchette du haut.
       const pose = POSES.has(m.pose) ? m.pose : ''
       if (player.level !== m.level) fights.leave(player)
