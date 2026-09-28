@@ -50,6 +50,53 @@ export function clearPath(a: { x: number; z: number }, b: { x: number; z: number
   return true
 }
 
+/** Ouverture d'une porte où l'on passe : milieu, sens du mur, demi-largeur. */
+export interface Doorway {
+  x: number
+  z: number
+  /** Le mur court le long de x (porte à franchir en z), sinon le long de z. */
+  alongX: boolean
+  half: number
+}
+
+/** Jusqu'où, le long du mur, une porte attire celui qui fonce dedans : les montants et un peu plus. */
+const FUNNEL_REACH = 0.45
+/** Distance au mur (de part et d'autre) où l'on est guidé. */
+const FUNNEL_DEPTH = 0.8
+
+/**
+ * Guidage dans l'embrasure : l'ouverture ne laisse que quelques centimètres de jeu de chaque côté
+ * du personnage, qui bute sinon sur un montant. S'il avance vers une porte en la visant à peu près,
+ * `next` glisse le long du mur vers l'axe de l'ouverture (de `maxShift` au plus). Modifie `next`.
+ * @param p position actuelle ; `dir` direction voulue (normalisée)
+ */
+export function funnelDoorway(p: { x: number; z: number }, next: { x: number; z: number }, dir: { x: number; z: number }, r: number, doorways: Doorway[], maxShift: number) {
+  let best: Doorway | null = null
+  let bestDist = Infinity
+  for (const d of doorways) {
+    const across = d.alongX ? p.z - d.z : p.x - d.x
+    const lateral = d.alongX ? p.x - d.x : p.z - d.z
+    if (Math.abs(across) > FUNNEL_DEPTH || Math.abs(lateral) > d.half + FUNNEL_REACH) continue
+    // On va vers le mur (ou on est dedans), franchement : pas en le longeant.
+    const push = d.alongX ? dir.z : dir.x
+    const toward = Math.abs(across) < 0.05 ? Math.abs(push) : -Math.sign(across) * push
+    if (toward < 0.35) continue
+    const dist = Math.hypot(across, lateral)
+    if (dist < bestDist) {
+      best = d
+      bestDist = dist
+    }
+  }
+  if (!best) return
+  const lateral = best.alongX ? p.x - best.x : p.z - best.z
+  const slack = Math.max(0, best.half - r - 0.02)
+  const excess = Math.abs(lateral) - slack
+  if (excess <= 0) return
+  const shift = -Math.sign(lateral) * Math.min(excess, maxShift)
+  if (best.alongX) next.x += shift
+  else next.z += shift
+}
+
 /** Le cercle touche-t-il un des rectangles ? */
 export function overlapsAny(p: { x: number; z: number }, r: number, boxes: Box2[]): boolean {
   for (const b of boxes) {

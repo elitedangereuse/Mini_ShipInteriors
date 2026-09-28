@@ -238,6 +238,7 @@ const systemView = new SystemView()
 scene.add(systemView.group)
 
 const player = new Player(new Avatar(await lookRig(parseLook(profile.skin))), deck.colliders)
+player.doorways = () => deck.doorways()
 const cocktailEffects = new CocktailEffects(player, scene)
 const barFocus = new THREE.Vector3()
 let barZoom: number | null = null

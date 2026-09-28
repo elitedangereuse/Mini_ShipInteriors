@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { Avatar } from './avatar'
 import type { Box2 } from './deck'
-import { clearPath, resolveCircle } from './physics'
+import { clearPath, funnelDoorway, resolveCircle, type Doorway } from './physics'
 
 const RADIUS = 0.18
 const WALK_SPEED = 1.7
@@ -42,6 +42,8 @@ export class Player {
   onArrive?: () => void
   /** Appelé à chaque pas. */
   onStep?: (sprint: boolean) => void
+  /** Portes où l'on passe, sur le pont du joueur (guidage dans l'embrasure au clavier). */
+  doorways: () => Doorway[] = () => []
 
   constructor(
     public avatar: Avatar,
@@ -194,6 +196,9 @@ export class Player {
       const speed = sprint ? SPRINT_SPEED * this.speedMultiplier : WALK_SPEED
       const bx = this.position.x, bz = this.position.z
       const next = { x: bx + dir.x * speed * dt, z: bz + dir.z * speed * dt }
+      // Au clavier, on vise mal une ouverture étroite (et en diagonale, en vue isométrique) : de quoi
+      // compenser la dérive latérale d'une direction à 45°.
+      if (hasInput) funnelDoorway(this.position, next, dir, RADIUS, this.doorways(), speed * dt * 1.5)
       resolveCircle(next, RADIUS, this.colliders)
       this.position.x = next.x
       this.position.z = next.z

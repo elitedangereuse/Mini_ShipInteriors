@@ -12,6 +12,7 @@ import { DIRS, ShipMap } from './map'
 import { Hull } from './hull'
 import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type Occluder } from './merge'
 import { Pathfinder } from './pathfinding'
+import type { Doorway } from './physics'
 import { DOOR_GAP } from '../shared/sight.js'
 import { shipMapOptions } from '../shared/ship-layouts.js'
 import { placeSeats, seatAction, seatsOf, type SeatSpot } from './seats'
@@ -281,6 +282,16 @@ export class Deck {
   doorExamine(x: number, z: number, dir: number): Interactable | undefined {
     const key = this.map.edgeKey(x, z, dir)
     return this.doors.find((d) => this.map.edgeKey(d.x, d.z, d.dir) === key)?.examine
+  }
+
+  /** Ouvertures des portes où l'on passe (cf. funnelDoorway). */
+  doorways(): Doorway[] {
+    const out: Doorway[] = []
+    for (const d of this.doors) {
+      if (this.map.isLocked(d.x, d.z, d.dir)) continue
+      out.push({ x: d.center.x, z: d.center.z, alongX: d.axis.x !== 0, half: d.pair ? 0.8 : DOOR_GAP / 2 })
+    }
+    return out
   }
 
   unregisterDoor(door: DoorState) {
