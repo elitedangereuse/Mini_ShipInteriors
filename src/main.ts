@@ -41,6 +41,8 @@ import { findReaction, REACTIONS, reactionImage } from './reactions'
 import { RemotePlayer } from './remote'
 import { Seating, type Seated } from './seating'
 import { Starfield } from './starfield'
+import { SystemView, SYSTEMS } from './systems'
+import { nextSystem, JUMP_CHARGE, JUMP_TRAVEL, type SystemId } from '../shared/systems.js'
 import { syncTempo, tempo } from './tempo'
 import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel } from './ui'
 
@@ -202,6 +204,9 @@ let deck = cabinDeck
 
 const stars = new Starfield()
 scene.add(stars.group)
+/** Le système où se trouve le vaisseau, vu par les verrières (il change au saut FSD). */
+const systemView = new SystemView()
+scene.add(systemView.group)
 
 const player = new Player(new Avatar(await lookRig(parseLook(profile.skin))), deck.colliders)
 const spawn = spawnPoint()
@@ -747,6 +752,8 @@ net.onMessage = (m) => {
       // Les jukebox du pont principal et de la cale, tels que le relais les connaît (après une reconnexion aussi).
       if (m.music) applyMusic(m.music)
       if (m.hold) applyMusic(m.hold)
+      // Le système où se trouve le vaisseau, le même pour tout le bord.
+      if (m.system && !jumping) systemView.set(m.system)
       // Le relais oublie tout à chaque connexion : la musique de nos quartiers, on la lui rend.
       const own = cabinMusic.playing
       if (own) net.sendMusic('cabin', own.track.id, own.x, own.z, own.position)
@@ -813,6 +820,10 @@ net.onMessage = (m) => {
       }
       break
     }
+    case 'jump':
+      // Un pilote lance le saut FSD (nous, ou un autre) : tout le bord part.
+      void playJump(m.system, m.id === net.id ? null : m.name)
+      break
     case 'music': {
       // Un morceau au jukebox (du pont principal, de la cale, ou des quartiers où l'on est), ou le silence.
       const track = applyMusic(m)
@@ -2164,17 +2175,6 @@ function clawResult(result: ClawResult) {
 
 // ------------------------------------------------------------------ saut FSD
 
-/** Destinations du saut FSD depuis le siège du pilote (pour le plaisir : le vaisseau reste où il est). */
-const JUMPS: [string, string, string][] = [
-  ['Shinrarta Dezhra', 'Jameson Memorial en vue. Les pilotes Elite vous saluent.', 'Jameson Memorial in sight. The Elite pilots salute you.'],
-  ['Sol', 'La Terre, bleue et lointaine. Pas de permis : demi-tour poli.', 'Earth, blue and distant. No permit: polite U-turn.'],
-  ['Colonia', '22 000 al plus tard, les Colons vous offrent un café.', '22,000 ly later, the Colonists offer you a coffee.'],
-  ['Alpha Centauri', 'Hutton Orbital est à 0,22 al. Courage.', 'Hutton Orbital is 0.22 ly away. Chin up.'],
-  ['Lave', 'Lave Station, comme en 1984. Le Brandy de Lave est hors de prix.', 'Lave Station, just like in 1984. Lavian Brandy is outrageously priced.'],
-  ['Sagittarius A*', 'Le trou noir au cœur de la galaxie. Ne regardez pas trop longtemps.', 'The black hole at the heart of the galaxy. Don\'t stare too long.'],
-  ['Maia', 'Nébuleuse des Pléiades. Rien à signaler… presque rien.', 'Pleiades Nebula. Nothing to report… almost nothing.'],
-  ['Beagle Point', 'Au bout de la galaxie. Il y a encore des étoiles.', 'The far end of the galaxy. There are still more stars.'],
-]
 let jumping = false
 
 /** Le saut n'est possible que depuis le vrai poste de pilotage (pas d'un siège recyclé en fauteuil). */
@@ -2190,16 +2190,34 @@ function flash(soft = false) {
   el.classList.add('on')
 }
 
-async function fsdJump() {
+/**
+ * Le pilote demande un saut FSD : le relais choisit la destination et l'annonce à tout le bord
+ * (cf. playJump) ; sans relais, on part seul, au hasard.
+ */
+function fsdJump() {
+  if (jumping) return
+  if (net.online) net.sendJump()
+  else void playJump(nextSystem(systemView.id), null)
+}
+
+/**
+ * Saut FSD vers `system`, vécu par tout le bord : charge du réacteur, compte à rebours,
+ * traversée (étoiles étirées, le décor s'efface), arrivée dans le nouveau système.
+ * @param by nom du pilote, si ce n'est pas nous
+ */
+async function playJump(system: SystemId, by: string | null) {
   if (jumping) return
   jumping = true
-  const [name, fr, en] = JUMPS[Math.floor(Math.random() * JUMPS.length)]
+  const { name, arrival } = SYSTEMS[system]
   const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
-  const charge = 4, travel = 3.5
-  sound.fsd(charge, travel)
-  dialog.show(tr(`Saut FSD vers ${name}. Chargement du réacteur…`, `FSD jump to ${name}. Charging frame shift drive…`))
+  sound.fsd(JUMP_CHARGE, JUMP_TRAVEL)
+  dialog.show(
+    by
+      ? tr(`${by} lance le saut FSD vers ${name}. Chargement du réacteur…`, `${by} is jumping to ${name}. Charging frame shift drive…`)
+      : tr(`Saut FSD vers ${name}. Chargement du réacteur…`, `FSD jump to ${name}. Charging frame shift drive…`),
+  )
   iso.shake(0.02)
-  await wait(1600)
+  await wait(JUMP_CHARGE * 1000 - 2400)
   for (const n of [3, 2, 1]) {
     dialog.show(`${n}…`)
     iso.shake(0.03 + (3 - n) * 0.02)
@@ -2207,12 +2225,15 @@ async function fsdJump() {
   }
   flash()
   stars.warp(55)
+  systemView.hide(true)
   iso.shake(0.16)
   dialog.show(tr('Saut !', 'Jump!'))
-  await wait(travel * 1000)
+  await wait(JUMP_TRAVEL * 1000)
   stars.warp(1)
+  systemView.set(system)
+  systemView.hide(false)
   flash(true)
-  dialog.show(tr(`Arrivée : ${name}. ${fr}`, `Arrived: ${name}. ${en}`))
+  dialog.show(tr(`Arrivée : ${name}. ${arrival}`, `Arrived: ${name}. ${arrival}`))
   jumping = false
 }
 
@@ -2443,6 +2464,7 @@ function frame() {
   creditsHud.update(dt)
 
   stars.update(world, iso.target, toCam, iso.tilt)
+  systemView.update(world, deck.y, toCam, iso.tilt)
   sound.update(iso.target, iso.angle)
   ambience(dt)
   // Le joueur a fait quelques pas : la réserve se répartit sur les lumières les plus proches.
@@ -2576,6 +2598,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, cat, companions, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso },
+    __game: { renderer, sound, player, cat, companions, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView },
   })
 }

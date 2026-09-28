@@ -1,5 +1,6 @@
 import type { FighterId } from '../shared/fight-roster.js'
 import type { FightSnapshot } from '../shared/fight.js'
+import type { SystemId } from '../shared/systems.js'
 /** Client du relais multijoueur (server/relay.js, socket.io). Sans serveur, le jeu reste en solo. */
 import { io, type Socket } from 'socket.io-client'
 
@@ -69,7 +70,7 @@ export interface FightState {
 
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
-  | { t: 'welcome'; id: number; you: { name: string; verified: boolean }; players: PlayerState[]; music?: MusicState; hold?: MusicState }
+  | { t: 'welcome'; id: number; you: { name: string; verified: boolean }; players: PlayerState[]; music?: MusicState; hold?: MusicState; system?: SystemId }
   | { t: 'join'; player: PlayerState }
   | { t: 'leave'; id: number }
   | { t: 'state'; id: number; x: number; z: number; yaw: number; level: number; anim: string; pose?: string; py?: number }
@@ -93,6 +94,8 @@ export type ServerMessage =
    * relais, à l'arrivée) ; `busy` : notre choix est refusé (trop d'un coup), voici celui de tous.
    */
   | ({ t: 'music'; id: number; busy?: boolean; far?: boolean } & MusicState)
+  /** Saut FSD lancé par le pilote `id` : tout le bord part vers `system`. */
+  | { t: 'jump'; id: number; name: string; system: SystemId }
   | ({ t: 'board:state' } & BoardState)
   | ({ t: 'fight:state' } & FightState)
   | { t: 'fight:error'; code: 'full' | 'unavailable' | 'busy' }
@@ -108,7 +111,7 @@ type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin'>
 
 /** Chemin de la socket : le même que WS_PATH dans server/relay.js et que la conf nginx du site. */
 const WS_PATH = import.meta.env.VITE_WS_PATH || '/ws/mini-shipinteriors'
-const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'music', 'board:state', 'board:error', 'fight:state', 'fight:error']
+const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'music', 'jump', 'board:state', 'board:error', 'fight:state', 'fight:error']
 
 export class Net {
   online = false
@@ -195,6 +198,11 @@ export class Net {
 
   sendEmote(emote: string) {
     this.send('emote', { emote })
+  }
+
+  /** Demande un saut FSD (installé dans le siège du pilote) : le relais choisit la destination. */
+  sendJump() {
+    this.send('jump', {})
   }
 
   sendProfile(profile: { name: string; skin: string }) {

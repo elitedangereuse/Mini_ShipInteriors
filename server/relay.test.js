@@ -8,6 +8,7 @@ import { io as connect } from 'socket.io-client'
 import { MAX_ITEMS, sanitizeLayout } from './cabin.js'
 import { cookieValue } from './cmdr.js'
 import { attachRelay, WS_PATH } from './relay.js'
+import { PILOT_SEAT, SYSTEM_IDS } from '../shared/systems.js'
 
 /** Faux site : reconnaît deux cookies, comme outils/mini-shipinteriors-cmdr.php. */
 const ACCOUNTS = { 'jeton-adam': 'Adam Fauster', 'jeton-rackam': 'Rackam' }
@@ -308,6 +309,34 @@ describe('rediffusion', () => {
 })
 
 const LAYOUT = { v: 1, items: [{ m: 'holo-me', x: 11.6, z: 8.4, r: 0 }, { m: 'sofa', x: 14.25, z: 9.97, r: 2, v: 'teal' }] }
+
+describe('saut FSD', () => {
+  test('le pilote installé lance un saut, que tout le bord vit, un à la fois', async () => {
+    const pilot = client({ auth: { name: 'CMDR Pilote' } })
+    const start = (await welcome(pilot)).system
+    assert.ok(SYSTEM_IDS.includes(start))
+    const crew = client({ auth: { name: 'CMDR Passager' } })
+    await welcome(crew)
+    // Debout à côté du siège : rien ne se passe.
+    pilot.emit('state', { x: PILOT_SEAT.x, z: PILOT_SEAT.z, yaw: 0, level: 0, anim: 'idle' })
+    pilot.emit('jump')
+    assert.equal(await receives(crew, 'jump', 150), false)
+    // Aux commandes : le saut part, vers un autre système, annoncé à tous.
+    pilot.emit('state', { x: PILOT_SEAT.x, z: PILOT_SEAT.z, yaw: 0, level: 0, anim: 'idle', pose: 'pilot', py: 0.3 })
+    const heard = next(crew, 'jump')
+    const own = next(pilot, 'jump')
+    pilot.emit('jump')
+    const jump = await heard
+    assert.equal(jump.name, 'CMDR Pilote')
+    assert.notEqual(jump.system, start)
+    assert.deepEqual(await own, jump)
+    // Un second saut pendant le premier est ignoré ; un nouveau venu arrive dans le nouveau système.
+    pilot.emit('jump')
+    assert.equal(await receives(crew, 'jump', 150), false)
+    const late = client({ auth: { name: 'CMDR Retardataire' } })
+    assert.equal((await welcome(late)).system, jump.system)
+  })
+})
 
 describe('jeux de plateau : remplacement du premier joueur', () => {
   for (const [game, firstColor, secondColor, opening, reply] of [

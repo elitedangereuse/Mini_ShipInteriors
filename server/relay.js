@@ -10,6 +10,10 @@
 // Jukebox : le morceau choisi (et depuis quand il joue) est gardé pour le pont principal, et pour
 // chaque instance des quartiers ; le relais le transmet à ceux qui sont là, et à ceux qui arrivent.
 //
+// Saut FSD : le vaisseau est dans un système (cf. shared/systems.js), le même pour tout le bord.
+// Le pilote, installé dans son siège, demande un saut ; le relais choisit la destination et
+// l'annonce à tous, qui le vivent ensemble. Un saut à la fois.
+//
 // Quartiers : chaque joueur a sa propre instance des quartiers du commandant (`cabin` : l'id du
 // joueur chez qui il se trouve, le sien par défaut). Un CMDR vérifié envoie l'aménagement des
 // siens (cf. cabin.js), et peut inviter un joueur connecté : celui-ci n'y entre qu'avec une
@@ -24,6 +28,7 @@ import { cleanCmdrName, cmdrFromCookie } from './cmdr.js'
 import { BOARD_TABLES, SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import { ShipMap } from '../shared/ship-map.js'
 import { canReach } from '../shared/sight.js'
+import { HOME_SYSTEM, JUMP_CHARGE, JUMP_TRAVEL, PILOT_SEAT, nextSystem } from '../shared/systems.js'
 
 /** Chemin de la socket, partagé avec le client (VITE_WS_PATH) et la conf nginx. */
 export const WS_PATH = '/ws/mini-shipinteriors'
@@ -58,6 +63,8 @@ const JUKEBOX_LEVEL = new Map([['deck', 0], ['hold', -1], ['cabin', 1]])
 const JUKEBOX_WHERE = new Map([[0, 'deck'], [-1, 'hold']])
 /** Morceaux du jukebox (cf. src/music.ts) : un identifiant court. */
 const TRACK = /^[a-z0-9-]{1,24}$/
+/** Après un saut, le réacteur refroidit un peu avant le suivant (ms). */
+const FSD_COOLDOWN = 2000
 
 const clean = (s, max) =>
   String(s ?? '')
@@ -113,6 +120,9 @@ export function attachRelay(
    * l'id de l'hôte des quartiers.
    */
   const music = new Map() // instance -> { track, since, x, z }
+  /** Système où se trouve le vaisseau, et fin du saut en cours (aucun autre avant). */
+  let system = HOME_SYSTEM
+  let jumpEnds = 0
   /** Ce que joue le jukebox d'une instance, pour un joueur qui y arrive (track null : il se tait). */
   const musicOf = (instance) => {
     const m = music.get(instance)
@@ -202,6 +212,7 @@ export function attachRelay(
       // Les jukebox du pont principal et de la cale, silence compris : après une reconnexion, on se recale.
       music: musicOf(0),
       hold: musicOf(-1),
+      system,
     })
     socket.broadcast.emit('join', { player: publicState(player) })
     log(`[relais] ${player.name}${player.verified ? ' (CMDR vérifié)' : ''} (#${player.id}) a embarqué — ${players.size} à bord`)
@@ -316,6 +327,16 @@ export function attachRelay(
         // Les ponts communs s'entendent de tous (chacun n'écoute que celui de son pont) ; des quartiers, seulement de qui s'y trouve.
         if (p !== player && (instance <= 0 || p.cabin === instance)) sockets.get(p.id)?.emit('music', msg)
       }
+    })
+
+    // Saut FSD : installé dans le siège du pilote, et pas pendant un autre saut. Tout le bord le vit.
+    socket.on('jump', () => {
+      const now = Date.now()
+      if (now < jumpEnds || player.level !== PILOT_SEAT.level || player.pose !== 'pilot') return
+      if (Math.hypot(player.x - PILOT_SEAT.x, player.z - PILOT_SEAT.z) > 1) return
+      system = nextSystem(system)
+      jumpEnds = now + (JUMP_CHARGE + JUMP_TRAVEL) * 1000 + FSD_COOLDOWN
+      io.emit('jump', { id: player.id, name: player.name, system })
     })
 
     // Aménagement de ses quartiers (CMDR vérifiés seulement), transmis à ceux qui s'y trouvent.
