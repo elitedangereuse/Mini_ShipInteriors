@@ -12,7 +12,7 @@ const pending = new Map<string, Promise<GLTF>>()
 /** Modèles du Space Station Kit (Kenney, CC0) utilisés par les ponts. */
 export const STATION_MODELS = [
   'floor', 'floor-detail', 'floor-panel', 'floor-panel-straight',
-  'wall', 'wall-detail', 'wall-window', 'wall-switch', 'wall-pillar', 'wall-door', 'wall-corner',
+  'wall', 'wall-detail', 'wall-window', 'wall-switch', 'wall-pillar', 'wall-door', 'wall-door-wide', 'wall-corner',
   'door-single',
   'bed-single', 'bed-double', 'chair', 'chair-cushion', 'chair-armrest-headrest',
   'computer', 'computer-screen', 'computer-system', 'computer-wide',

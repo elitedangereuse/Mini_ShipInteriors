@@ -66,6 +66,8 @@ export interface DoorState {
   dir: number
   /** Voyants rouges de la porte verrouillée, de part et d'autre. */
   lamp: THREE.Object3D
+  /** Porte double : le second battant (`panel` est le premier), chacun s'écarte de son côté. */
+  pair?: THREE.Object3D
   /** Invite de la porte tant qu'elle est verrouillée (cf. Deck.update). */
   examine?: Interactable
   /**
@@ -470,17 +472,22 @@ export class Deck {
     const cz = z + d.dz * 0.5
     const alongX = d.dz !== 0
     const rot = alongX ? 0 : Math.PI / 2
-    const frame = this.place('wall-door', cx, 0, cz, rot)
+    const key = this.map.edgeKey(x, z, dir)
+    // Porte double (cf. `doubleDoors`) : l'encadrement large du kit, deux battants simples côte à côte.
+    const double = this.def.doubleDoors?.some((e) => this.map.edgeKey(e.x, e.z, e.dir) === key) ?? false
+    const frame = this.place(double ? 'wall-door-wide' : 'wall-door', cx, 0, cz, rot)
     // Panneau légèrement aminci : pas de faces confondues avec l'encadrement.
     const panel = this.place('door-single', cx, 0, cz, rot)
     panel.scale.set(0.98, 0.99, 0.9)
+    const pair = double ? this.place('door-single', cx, 0, cz, rot) : undefined
+    pair?.scale.set(0.98, 0.99, 0.9)
     // Voyant rouge au-dessus de l'ouverture, des deux côtés : la porte est verrouillée.
     const lamp = new THREE.Mesh(LOCK_LAMP_GEO, LOCK_LAMP_MAT)
     lamp.position.set(cx, 0.84, cz)
     lamp.rotation.y = rot
     lamp.visible = this.map.isLocked(x, z, dir)
     // Tramé avec la porte : il s'efface avec elle devant le joueur.
-    this.addOccluder([frame, panel, lamp], new THREE.Vector3(cx, 0.5, cz), this.cabinOutward(cx, cz))
+    this.addOccluder(pair ? [frame, panel, pair, lamp] : [frame, panel, lamp], new THREE.Vector3(cx, 0.5, cz), this.cabinOutward(cx, cz))
     this.walls.push({ x: cx, z: cz, alongX, model: 'door' })
     this.doors.push({
       panel,
@@ -492,6 +499,7 @@ export class Deck {
       z,
       dir,
       lamp,
+      pair,
     })
     // Porte verrouillée : on l'examine (pièce en travaux, extension de quartiers à débloquer). Une
     // porte d'extension se déverrouille en cours de partie : l'invite disparaît alors (cf. update).
@@ -506,7 +514,8 @@ export class Deck {
       this.interactables.push(state.examine)
     }
 
-    const g = DOOR_GAP / 2
+    // L'ouverture de l'encadrement large fait 0,8 au lieu de 0,6.
+    const g = (double ? DOOR_GAP + 0.2 : DOOR_GAP) / 2
     const t = WALL_T / 2
     if (alongX) {
       this.colliders.push({ minX: cx - 0.5, maxX: cx - g, minZ: cz - t, maxZ: cz + t })
@@ -738,7 +747,11 @@ export class Deck {
         this.onDoor?.(new THREE.Vector3(d.center.x, this.y + 0.5, d.center.z), wanted)
       }
       d.open = THREE.MathUtils.damp(d.open, wanted ? 1 : 0, 10, dt)
-      d.panel.position.copy(d.center).addScaledVector(d.axis, d.open * 0.42)
+      if (d.pair) {
+        // Chaque battant (0,4 de large) part de son côté et rentre dans le mur.
+        d.panel.position.copy(d.center).addScaledVector(d.axis, -0.2 - d.open * 0.38)
+        d.pair.position.copy(d.center).addScaledVector(d.axis, 0.2 + d.open * 0.38)
+      } else d.panel.position.copy(d.center).addScaledVector(d.axis, d.open * 0.42)
     }
 
     if (!focus) return
