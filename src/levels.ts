@@ -132,7 +132,7 @@ export const LEVELS: LevelDef[] = [
       b: 'Chez Jacques',
       h: tr('Sas de la zone thargoïde', 'Thargoid zone airlock'),
       e: tr('Salle des machines', 'Engine room'),
-      v: 'La Voie',
+      v: tr('Sanctuaire de la Voie', 'Sanctuary of the Path'),
     },
     closed: {
       h: tr(
@@ -140,8 +140,8 @@ export const LEVELS: LevelDef[] = [
         'Locked door: “Thargoid zone airlock — under construction”. Something is scratching on the other side.',
       ),
       v: tr(
-        'Porte verrouillée, cachée derrière les machines : « Sanctuaire de La Voie — en travaux ». Un symbole est gravé sur le panneau.',
-        'A locked door, hidden behind the machinery: “La Voie sanctuary — under construction”. A symbol is carved into the panel.',
+        'Une porte sans poignée, cachée derrière les machines. Sur le panneau, un symbole gravé : six pétales autour d’un hexagone. « Seuls les Adeptes peuvent trouver la Voie. » Terminez L’Épreuve de la Voie pour entrer.',
+        'A door with no handle, hidden behind the machinery. A symbol is carved into the panel: six petals around a hexagon. “Only Adepts can find the Path.” Complete The Trial of the Path to enter.',
       ),
     },
     // Le bar est tenu plus proprement que le reste de la cale : dalles lisses, pas un hublot.
@@ -149,14 +149,125 @@ export const LEVELS: LevelDef[] = [
     windows: { a: 0.1, j: 0, r: 0.12, m: 0, g: 0.1, b: 0, h: 0, e: 0, v: 0 },
     // Le cœur du réacteur, au milieu de la salle des machines.
     engine: { x: 1.5, z: 5 },
+    // Le sanctuaire de la Voie n'est éclairé que par ses flammes et son portail.
+    dim: { v: 0.5 },
     props: [
-      // --- La Voie, en travaux : cachée derrière la salle des machines ---
-      { model: 'works-sign', x: 1.2, z: 9.6, label: tr('Bientôt|La Voie', 'Coming soon|La Voie') },
-      { model: 'scaffold', x: 3.4, z: 8.15 },
-      { model: 'tarp-crates', x: 0.35, z: 10.9 },
-      { model: 'tarp-crates', x: 3.6, z: 10.9 },
-      { model: 'cones', x: 2.9, z: 9.8 },
-      { model: 'works-tape', x: 2, z: 8.3, solid: false },
+      // --- Sanctuaire de la Voie, caché derrière la salle des machines : d'après L'Épreuve, La
+      // Cérémonie et Les Reliques de la Voie. On entre au nord ; le portail de Raxxla est au mur
+      // ouest, gardé par l'Adepte Supérieur, l'emblème au sol devant lui. Ce qui compte est contre
+      // les murs nord et ouest, ceux qu'on voit de la caméra ---
+      { model: 'voie-floor', x: 2, z: 10, solid: false },
+      { model: 'voie-drape', x: -0.35, z: 8.55, rot: 1, label: '1.7', solid: false },
+      { model: 'voie-drape', x: 2, z: 12.35, rot: 2, label: '4.6', solid: false },
+      { model: 'voie-drape', x: 4.35, z: 10, rot: 3, label: '4.6', solid: false },
+      {
+        model: 'raxxla-gate', x: -0.35, z: 10, rot: 1, action: tr('Contempler', 'Behold'),
+        interact: [
+          tr(
+            'Le portail de Raxxla. Au fond du puits, des étoiles qui ne figurent sur aucune carte tournent, et tombent.',
+            'The gate of Raxxla. Deep in the well, stars that appear on no map spin, and fall.',
+          ),
+          tr(
+            'Au-dessus du portail : « Suis la Voie de Raxxla ». Tu tends la main : le vortex est froid, et il murmure ton nom.',
+            'Above the gate: “Follow the Path of Raxxla”. You reach out: the vortex is cold, and it whispers your name.',
+          ),
+          tr(
+            'Les Enfants de Raxxla le cherchaient dans les étoiles. La Voie l\'a trouvé ici, au fond de la cale. Du moins, c\'est ce qu\'on raconte.',
+            'The Children of Raxxla searched the stars for it. The Path found it here, at the bottom of the hold. Or so they say.',
+          ),
+        ],
+      },
+      {
+        model: 'chronicles-lectern', x: 0.7, z: 10, rot: 1, action: tr('Lire', 'Read'),
+        interact: [
+          tr(
+            'Chroniques de la Voie : « Fondée dans l\'obscurité de l\'espace lointain, la Voie travaille depuis longtemps à éclairer la vérité sur les événements qui ont façonné la galaxie. »',
+            'Chronicles of the Path: “Founded in the darkness of deep space, the Path has long worked to shed light on the events that shaped the galaxy.”',
+          ),
+          tr(
+            'Chroniques de la Voie : « Le Guide voulut rejoindre The Dark Wheel. On le refusa, pour des raisons inconnues. Alors il fonda la Voie. »',
+            'Chronicles of the Path: “The Guide sought to join The Dark Wheel. He was refused, for reasons unknown. So he founded the Path.”',
+          ),
+          tr(
+            'Chroniques de la Voie : « Avec Salomé, pilote des Enfants de Raxxla, le Guide attira des adeptes parmi les pilotes désabusés de la galaxie. »',
+            'Chronicles of the Path: “With Salomé, a pilot of the Children of Raxxla, the Guide drew followers from among the galaxy\'s disillusioned pilots.”',
+          ),
+          tr(
+            'Chroniques de la Voie : « Que cachent les artefacts des systèmes aliens ? Que sait vraiment The Dark Wheel ? Et quelle est la véritable nature de Raxxla ? »',
+            'Chronicles of the Path: “What lies behind the artefacts of the alien systems? What does The Dark Wheel really know? And what is the true nature of Raxxla?”',
+          ),
+          tr('« Ainsi la Voie poursuit sa quête… » La suite a été arrachée. Il reste une trace de doigt, verte.', '“And so the Path pursues its quest…” The rest has been torn out. A green fingerprint remains.'),
+        ],
+      },
+      {
+        model: 'salome-shrine', x: 0.8, z: 7.65, action: tr('Se recueillir', 'Pay respects'),
+        interact: [
+          tr(
+            'Kahina Tijani Loren, dite Salomé. Sénatrice impériale, elle a tout quitté pour révéler une conspiration, et le groupe occulte qui en tirait les ficelles.',
+            'Kahina Tijani Loren, known as Salomé. An Imperial senator, she left everything behind to expose a conspiracy, and the occult group pulling its strings.',
+          ),
+          tr('Les cierges de l\'icône ne s\'éteignent jamais. Personne ne se souvient de les avoir allumés.', 'The candles by the icon never go out. Nobody remembers lighting them.'),
+          tr('Un mot glissé sous la rose : « Elle n\'est pas morte. Elle nous attend au bout de la Voie. »', 'A note slipped under the rose: “She is not dead. She is waiting for us at the end of the Path.”'),
+          tr('Derrière le cadre, un petit bouton. Tu appuies. Rien ne se passe. Le cadeau n\'est pas celui que tu penses.', 'Behind the frame, a small button. You press it. Nothing happens. The gift is not the one you think.'),
+        ],
+      },
+      {
+        model: 'voie-terminal', x: -0.08, z: 11.25, rot: 1, action: tr('Consulter', 'Use'),
+        interact: [
+          tr(
+            'Le terminal de l\'Épreuve. Un seul compte : adepte@voie. La commande « help » propose ls, cd, cat… et porte.',
+            'The Trial terminal. A single account: adept@path. The “help” command lists ls, cd, cat… and door.',
+          ),
+          tr('Tu tapes « porte ». Le terminal répond : « La clé est vide. »', 'You type “door”. The terminal replies: “The key is empty.”'),
+          tr('Tu tapes une clé au hasard. « Ta clé n\'ouvre pas la porte, cherche encore adepte. »', 'You type a random key. “Your key does not open the door, keep looking, adept.”'),
+          tr('L\'écran se brouille une seconde. Un nom apparaît en blanc, puis s\'efface : KAHINA.', 'The screen glitches for a second. A name appears in white, then fades: KAHINA.'),
+        ],
+      },
+      {
+        model: 'voie-relic', x: 2.95, z: 7.87, label: 'shard',
+        interact: [
+          tr('Première Relique : un éclat de cristal vert, tiède au toucher. Il bat comme un cœur, très lentement.', 'First Relic: a shard of green crystal, warm to the touch. It beats like a heart, very slowly.'),
+          tr('Sur la colonne : « Rassemble les trois Reliques de la Voie et trouve la sortie vers la Vérité. »', 'On the column: “Gather the three Relics of the Path and find the way out to the Truth.”'),
+        ],
+      },
+      {
+        model: 'voie-relic', x: 3.5, z: 7.87, label: 'medallion',
+        interact: tr('Deuxième Relique : un médaillon hexagonal frappé de l\'emblème. Il est bien plus lourd qu\'il ne devrait.', 'Second Relic: a hexagonal medallion struck with the emblem. It is far heavier than it should be.'),
+      },
+      {
+        model: 'voie-relic', x: 4.05, z: 7.87, label: 'eye',
+        interact: tr('Troisième Relique : une sphère de néant cerclée de violet. Quand on la regarde, elle regarde aussi.', 'Third Relic: a sphere of nothingness ringed with violet. When you look at it, it looks back.'),
+      },
+      {
+        model: 'voie-adept', x: 0.4, z: 9, rot: 1, action: tr('Parler', 'Talk'),
+        interact: [
+          tr('L\'Adepte Supérieur : « Bienvenue, Adepte. Tu es ici chez toi. »', 'The Superior Adept: “Welcome, Adept. You are at home here.”'),
+          tr('L\'Adepte Supérieur : « Seuls les Adeptes peuvent trouver la Voie. Tu l\'as trouvée : ne t\'en égare pas. »', 'The Superior Adept: “Only Adepts can find the Path. You have found it: do not stray from it.”'),
+          tr('L\'Adepte Supérieur : « Gloire à la Voie. » Il attend, immobile, que tu répondes la même chose.', 'The Superior Adept: “Glory to the Path.” He waits, motionless, for you to say it back.'),
+          tr(
+            'L\'Adepte Supérieur : « The Dark Wheel a fermé sa porte au Guide. Nous en avons ouvert une autre, et celle-là ne se referme pas. »',
+            'The Superior Adept: “The Dark Wheel closed its door on the Guide. We opened another one, and this one does not close.”',
+          ),
+          tr('L\'Adepte Supérieur : « Pour capter le secret, cherche là où le son est roi. » Il ne dit pas de quel secret il parle.', 'The Superior Adept: “To capture the secret, look where sound is king.” He does not say which secret.'),
+          tr('L\'Adepte Supérieur : « Que la lumière te guide, Adepte. o7 »', 'The Superior Adept: “May the light guide you, Adept. o7”'),
+          tr('Sous la capuche, il n\'y a rien. Seulement deux lueurs vertes, qui te fixent sans ciller.', 'Under the hood there is nothing. Only two green lights, staring at you without blinking.'),
+        ],
+      },
+      {
+        model: 'adept-robes', x: 4.29, z: 8.9, rot: 3, solid: false,
+        interact: tr(
+          'Robes d\'adepte, vert-noir, galonnées d\'or. L\'une d\'elles est exactement à ta taille. Personne ne t\'a pourtant mesuré.',
+          'Adept robes, green-black, trimmed with gold. One of them is exactly your size. Yet nobody ever measured you.',
+        ),
+      },
+      {
+        model: 'dark-wheel-dagger', x: 4.29, z: 11, rot: 3, solid: false,
+        interact: tr(
+          'La roue du Dark Wheel, clouée au mur par une dague et barrée de rouge. Ils ont refusé le Guide. La Voie n\'a pas oublié.',
+          'The wheel of The Dark Wheel, nailed to the wall with a dagger and slashed in red. They turned the Guide away. The Path has not forgotten.',
+        ),
+      },
+      { model: 'path-banner', x: -0.3, z: 8.55, rot: 1, solid: false, interact: tr('« Que la lumière te guide, Adepte o7. »', '“May the light guide you, Adept o7.”') },
 
       // --- Palier : l'ascenseur au centre (cf. LIFT) ---
       { model: 'hazard-floor', x: 10, z: 5, solid: false },
@@ -386,7 +497,11 @@ export const LEVELS: LevelDef[] = [
     ],
     lights: [
       [1.5, 5, '#4fd4ff', 4],
-      [2, 9.8, '#ffe7c2', 1.8],
+      // Sanctuaire de la Voie : le portail, les bougies autour de l'emblème, les cierges de Salomé, les Reliques.
+      [0.3, 10, '#3dffb0', 2.8],
+      [2, 10, '#b8ffd9', 2, 'fire'],
+      [0.85, 8.2, '#ffb45e', 1.5, 'fire'],
+      [3.5, 8.3, '#8a5cff', 1.6],
       [5.6, 3.1, '#ffb35c', 3],
       [5.6, 6.3, '#ffa24a', 2.4, 'neon'],
       [10, 5, '#ffd9a0', 1.6],

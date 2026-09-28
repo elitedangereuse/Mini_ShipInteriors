@@ -5,8 +5,8 @@
 import { wingDoors } from './cabin-wings.js'
 
 export const SHIP_LAYOUTS = {
-  // Cale ; à la poupe, la salle des machines, derrière l'atelier, et cachée derrière elle, la salle de
-  // La Voie, en travaux. Chez Jacques, le bar clandestin, ne s'ouvre que depuis le fond de la soute. À
+  // Cale ; à la poupe, la salle des machines, derrière l'atelier, et cachée derrière elle, le
+  // sanctuaire de la Voie. Chez Jacques, le bar clandestin, ne s'ouvre que depuis le fond de la soute. À
   // l'est de la soute, le lobby de la baie infestée (SOC-06), en travaux.
   '-1': [
     '                            ',
@@ -21,7 +21,7 @@ export const SHIP_LAYOUTS = {
     'vvvvv    bbbbbbbbbb         ',
     'vvvvv    bbbbbbbbbb         ',
     'vvvvv    bbbbbbbbbb         ',
-    '         bbbbbbbbbb         ',
+    'vvvvv    bbbbbbbbbb         ',
     '         bbbbbbbbbb         ',
     '                            ',
   ],

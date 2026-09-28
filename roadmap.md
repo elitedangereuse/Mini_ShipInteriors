@@ -191,6 +191,18 @@ Choix et réalisation (27 septembre 2026) :
   Mk III sur son socle, avec bancs, plantes et longues-vues. La Voie, toujours
   en travaux, est cachée dans la cale derrière la salle des machines ; le
   Mini-CQC reste jouable par l'intégration du site.
+- Sanctuaire de la Voie (même jour), d'après L'Épreuve, La Cérémonie et Les
+  Reliques de la Voie : la pièce cachée derrière la salle des machines passe à
+  5 × 5 et quitte les travaux. Obsidienne, or terni et vert de Raxxla, tentures,
+  lumière baissée (`dim`) ; au mur ouest, le portail de Raxxla (l'emblème en
+  relief autour d'un vortex qui aspire les étoiles), gardé par l'Adepte
+  Supérieur (PNJ encapuchonné, sans visage, qui lévite) ; au sol, l'emblème
+  incrusté dont les pétales s'éveillent un à un, cerclé de la devise « brouillée »
+  du site et de bougies noires. Autour : le lutrin des Chroniques de la Voie,
+  l'icône de Salomé (Kahina Tijani Loren) et ses cierges, le terminal
+  adepte@voie, les trois Reliques sous cloche, les robes des adeptes et la roue
+  brisée du Dark Wheel. Aucune réponse des aventures n'y figure (date, système,
+  clé). L'accès réservé aux adeptes (SOC-01) est traité à part.
 
 ## 4. Structure du vaisseau et immersion
 
