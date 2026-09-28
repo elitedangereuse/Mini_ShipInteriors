@@ -130,9 +130,9 @@ Choix et réalisation (27 septembre 2026) :
   Créer des espaces accessibles uniquement aux membres concernés. Les pièces
   restent visibles pour les autres joueurs, avec la porte fermée ; l'accès doit
   être vérifié à partir de l'appartenance au groupe sur le site.
-- [ ] **SOC-02 · P3 · Activité — Clash galactique.** Créer une pièce où jouer
+- [x] **SOC-02 · P3 · Activité — Clash galactique.** Créer une pièce où jouer
   au Clash galactique du site. Intégrer le jeu depuis un iframe du site par exemple, c'est plus simple.
-- [ ] **SOC-03 · P3 · Activité — Mini CQC.** Intégrer le mini CQC du site dans
+- [x] **SOC-03 · P3 · Activité — Mini CQC.** Intégrer le mini CQC du site dans
   les mini-shipinteriors via un embed.
 - [ ] **SOC-04 · P3 · Activité — Cinéma.** Créer une salle diffusant les trailers
   du site depuis une playlist YouTube. Basculer sur le live Twitch quand la
@@ -388,8 +388,7 @@ renvoyés les joueurs capturés. Le labyrinthe forme la zone dangereuse au-delà
 Les joueurs capturés restent au lobby et suivent leurs coéquipiers encore
 actifs à travers une interface de caméras de surveillance. Permettre de passer
 d'une caméra à l'autre pour observer l'équipe. Ce mode ne donne aucun contrôle
-sur les survivants et n'autorise pas le retour dans la manche. Les emplacements
-des caméras et leur couverture du labyrinthe restent à définir.
+sur les survivants et n'autorise pas le retour dans la manche. Les caméras sont centrés sur les joueurs restants et montrent la même chose que voient les joueurs observés.
 
 ### Crédits et classement
 
