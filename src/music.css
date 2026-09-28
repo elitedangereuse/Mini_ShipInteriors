@@ -47,8 +47,8 @@
 .jukebox .jb-list .jb-title { display: block; overflow: hidden; color: #fff; font-size: 13px; font-weight: 700; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .jukebox .jb-list .jb-artist { display: block; overflow: hidden; color: #bcb5ca; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .jb-song-preview { display: block; overflow: hidden; color: #e3cade; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.jb-play { display: grid; place-items: center; width: 29px; height: 29px; flex: none; border: 1px solid #ffbdde8c; border-radius: 50%; color: #ffb8df; }
-.jb-play .icon { color: inherit !important; font-size: 13px !important; animation: none !important; }
+.jb-play { display: flex; align-items: center; justify-content: center; width: 29px; height: 29px; flex: none; border: 1px solid #ffbdde8c; border-radius: 50%; color: #ffb8df; }
+.jb-play .icon { display: block; grid-area: auto; color: inherit !important; font-size: 13px !important; animation: none !important; transform: translateX(-1px); }
 .jb-hint { color: #9f9bb8; font-size: 11px; text-align: center; }
 .jb-actions { justify-content: flex-end; }
 .jb-actions button { flex: initial; min-width: 135px; border-color: #ffffff36; border-radius: 8px; background: #ffffff12; }
