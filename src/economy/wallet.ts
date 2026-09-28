@@ -146,6 +146,16 @@ export class Wallet {
     return this.buy({ skin: product }, () => this.skins.add(product))
   }
 
+  /** Cocktail consommable : le site débite le verre, sans l'ajouter aux objets possédés. */
+  async buyDrink(drink: string): Promise<Outcome> {
+    if (this.state === 'guest') return { ok: false, reason: 'guest' }
+    if (!this.ready) return { ok: false, reason: 'offline' }
+    const reply = await this.request('POST', { action: 'drink', drink })
+    if (typeof reply?.balance === 'number') this.balance = reply.balance
+    this.changed()
+    return reply?.status === 'success' ? { ok: true, earned: 0 } : { ok: false, reason: this.refusal(reply) }
+  }
+
   private async buy(body: object, own: (owned: number) => void): Promise<Outcome> {
     if (this.state === 'guest') return { ok: false, reason: 'guest' }
     if (!this.ready) return { ok: false, reason: 'offline' }

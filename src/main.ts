@@ -5,6 +5,8 @@ import type { ArcadeCabinet } from './arcade/cabinet'
 import { isGameId, type GameId } from './arcade/game'
 import { fetchRecords } from './arcade/scores'
 import { BoardGames } from './board/games'
+import { BarPanel, CocktailEffects } from './bar'
+import { GameEmbed } from './game-embed'
 import { CAT_MODEL, preload, rig } from './assets'
 import type { CabinEditor } from './cabin/editor'
 import { CabinBar, InviteMenu, InviteToasts, type CrewEntry } from './cabin/hud'
@@ -209,6 +211,9 @@ const systemView = new SystemView()
 scene.add(systemView.group)
 
 const player = new Player(new Avatar(await lookRig(parseLook(profile.skin))), deck.colliders)
+const cocktailEffects = new CocktailEffects(player, scene)
+const barPanel = new BarPanel(wallet, cocktailEffects)
+const gameEmbed = new GameEmbed()
 const spawn = spawnPoint()
 player.position.set(spawn.x, deck.y, spawn.z)
 scene.add(player.root)
@@ -303,6 +308,9 @@ bubbles.attach('cat', (out) => (catDeck.group.visible && cometeHere ? cat.root.g
 const gym = new GymGame(bubbles, dialog, wallet, () => { if (seating.current) seating.stand() })
 for (const d of decks) for (const it of d.interactables) {
   const model = it.furniture?.model
+  if (d.def.id === -1 && model === 'bartender') {
+    it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; player.interact(); net.sendEmote('interact'); barPanel.open() }
+  }
   const sport = ({ treadmill: 'gym-run', 'exercise-bike': 'gym-bike', 'punching-bag': 'gym-punch' } as Record<string, Sport>)[model ?? '']
   // seated() appelle cette action une fois le personnage installé sur l'appareil.
   if (sport) it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; gym.start(sport) }
@@ -1539,6 +1547,7 @@ function liftKey(e: KeyboardEvent): boolean {
 }
 
 addEventListener('keydown', (e) => {
+  if (barPanel.isOpen || gameEmbed.isOpen) { if (e.code === 'Escape') { barPanel.close(); gameEmbed.close() }; e.preventDefault(); return }
   if (gym.key(e)) return
   if (chat.typing) return
   if (sitePanel.isOpen) {
@@ -1602,7 +1611,7 @@ chat.onOpen = () => keys.clear()
 const inputDir = new THREE.Vector3()
 function keyboardDirection(): THREE.Vector3 {
   inputDir.set(0, 0, 0)
-  if (gym.active || chat.typing || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || editing()) return inputDir
+  if (gym.active || chat.typing || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gameEmbed.isOpen || editing()) return inputDir
   const on = (...codes: string[]) => codes.some((c) => keys.has(c))
   // event.code = position physique : KeyW/KeyA correspondent à Z/Q sur un clavier AZERTY.
   const sx = (on('KeyD', 'ArrowRight') ? 1 : 0) - (on('KeyA', 'ArrowLeft') ? 1 : 0)
@@ -1614,7 +1623,7 @@ function keyboardDirection(): THREE.Vector3 {
 function updateGamepad(dt: number): GamepadInput {
   const focus = document.activeElement
   const typing = focus instanceof HTMLElement && (focus.matches('input, textarea, select') || focus.isContentEditable)
-  const enabled = document.hasFocus() && !document.hidden && !typing && !chat.typing && !editing() && !photo.active && !arcade?.isOpen && !boardGames.isOpen
+  const enabled = document.hasFocus() && !document.hidden && !typing && !chat.typing && !editing() && !photo.active && !arcade?.isOpen && !boardGames.isOpen && !barPanel.isOpen && !gameEmbed.isOpen
   const pad = gamepad.poll(enabled)
   if (!pad.connected) usingGamepad = false
   if (!enabled) return pad
@@ -1922,7 +1931,7 @@ function nearestInteractable(): Interactable | null {
 }
 
 function tryInteract() {
-  if (gym.active || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || editing()) return
+  if (gym.active || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gameEmbed.isOpen || editing()) return
   const item = nearestInteractable()
   if (item) interactWith(item)
 }
@@ -2013,6 +2022,8 @@ function seated(seat: Seated) {
   if (seat.spot.pose === 'claw' && item.control?.kind === 'claw') return startClaw(seat, item.control)
   const game = arcadeGame(seat)
   if (game) return void openArcade(seat, game)
+  if (seat.item.furniture?.model === 'bar-table' && seat.item.furniture.label === 'galactic-clash') return gameEmbed.open('cards')
+  if (seat.item.furniture?.model === 'pinball' && deck.def.id === -1) return gameEmbed.open('cqc')
   const board = boardGame(seat)
   if (board) return boardGames.open(board.game, board.table)
   if (item.onInteract) return item.onInteract()
@@ -2026,6 +2037,7 @@ function poseChanged() {
     stopClaw()
     arcade?.close()
     boardGames.close(false)
+    gameEmbed.close()
     player.avatar.onPoseStep = undefined
   }
   sendState(true)
@@ -2052,6 +2064,8 @@ function seatPrompt(seat: Seated): { main: string; space?: string } {
   if (canJump(seat)) return { main: tr('Se lever', 'Stand up'), space: jumping ? undefined : tr('Saut FSD', 'FSD jump') }
   // Devant une borne fermée (on sort du mode photo, ou elle n'a pas pu se charger).
   if (arcadeGame(seat)) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
+  if (seat.item.furniture?.model === 'bar-table' && seat.item.furniture.label === 'galactic-clash') return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
+  if (seat.item.furniture?.model === 'pinball' && deck.def.id === -1) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
   if (boardGame(seat)) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
   return { main: tr('Se lever', 'Stand up') }
 }
@@ -2062,6 +2076,8 @@ function seatAction(seat: Seated) {
   if (canJump(seat)) return void fsdJump()
   const game = arcadeGame(seat)
   if (game) void openArcade(seat, game)
+  if (seat.item.furniture?.model === 'bar-table' && seat.item.furniture.label === 'galactic-clash') return gameEmbed.open('cards')
+  if (seat.item.furniture?.model === 'pinball' && deck.def.id === -1) return gameEmbed.open('cqc')
   const board = boardGame(seat)
   if (board) boardGames.open(board.game, board.table)
 }
@@ -2359,7 +2375,7 @@ const photo = new PhotoMode({
 })
 
 function openPhoto() {
-  if (editing() || arcade?.isOpen || boardGames.isOpen || riding) return
+  if (editing() || arcade?.isOpen || boardGames.isOpen || barPanel.isOpen || gameEmbed.isOpen || riding) return
   lift.close()
   jukebox.close()
   wardrobe.close(false)
@@ -2397,7 +2413,7 @@ function frame() {
   const pad = updateGamepad(dt)
   // Borne d'arcade ouverte : elle couvre l'écran, le vaisseau reste figé derrière (dernière image),
   // et la borne a toute la machine pour elle.
-  if (arcade?.isOpen || boardGames.isOpen) {
+  if (arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen) {
     requestAnimationFrame(frame)
     return
   }
@@ -2431,6 +2447,7 @@ function frame() {
   const world = photo.frozen ? 0 : dt
   if (!editing() && !photo.active) processHover()
   player.update(world, input, autoSprint !== (pad.sprint || keys.has('ShiftLeft') || keys.has('ShiftRight')))
+  cocktailEffects.update(world)
 
   for (const r of remotes.values()) {
     r.update(world)

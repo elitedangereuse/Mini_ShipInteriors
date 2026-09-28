@@ -203,7 +203,7 @@ const barStool: Builder = ({ label }) => {
 }
 
 /** Table de bistro ronde : plateau ciré cerclé de laiton, pied en fonte, bougie ; verres au hasard. */
-const barTable: Builder = ({ random }) => {
+const barTable: Builder = ({ random, label }) => {
   const g = new THREE.Group()
   const iron = lit(C.black)
   g.add(cylinder(0.3, 0.3, 0.03, lit(C.woodTop), 0, 0.42, 0, 24), cylinder(0.305, 0.305, 0.012, lit(C.brass), 0, 0.41, 0, 24))
@@ -214,6 +214,16 @@ const barTable: Builder = ({ random }) => {
     g.add(foot)
   }
   const top = 0.435
+  if (label === 'galactic-clash') {
+    // Une table de cartes reconnaissable parmi les tables du bar, avec deux mains face à face.
+    g.add(cylinder(0.255, 0.255, 0.006, lit('#173d51'), 0, top + 0.003, 0, 24))
+    for (const side of [-1, 1]) for (let i = 0; i < 3; i++) {
+      const card = box(0.075, 0.005, 0.11, lit('#e1e9ee'), (i - 1) * 0.075, top + 0.011, side * 0.13)
+      card.rotation.y = (i - 1) * -0.1
+      g.add(card, box(0.036, 0.003, 0.065, glow(side < 0 ? '#ffaf56' : '#75dfff'), (i - 1) * 0.075, top + 0.015, side * 0.13))
+    }
+    return { solid: g }
+  }
   // Bougie dans son photophore : la flamme luit.
   g.add(cylinder(0.018, 0.018, 0.04, lit(C.cream), 0, top + 0.02, 0, 8), sphere(0.01, glow('#ffcf6a'), 0, top + 0.05, 0, 6))
   g.add(cylinder(0.03, 0.028, 0.006, lit(C.brass), 0, top + 0.003, 0, 10))

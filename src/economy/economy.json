@@ -1,6 +1,10 @@
 {
   "start": 30000,
   "passive": { "perMinute": 100, "beat": 60, "minGap": 50, "maxGap": 120 },
+  "drinks": {
+    "night-conda": 600, "caustic-sour": 500, "imperial-crush": 550,
+    "stellar-kick": 650, "colonia-dream": 500
+  },
   "items": {
     "cozy-bed": 24000, "bunk-bed": 18000, "nightstand": 4000, "dresser": 9000, "suit-locker": 15000,
     "sofa": 18000, "armchair": 12000, "beanbag": 5000, "bench": 7000, "coffee-table": 6000, "side-table": 4000,

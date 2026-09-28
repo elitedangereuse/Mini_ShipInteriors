@@ -48,6 +48,7 @@ interface Economy {
   passive: { perMinute: number; beat: number; minGap: number; maxGap: number }
   items: Record<string, number>
   skins: Record<string, number>
+  drinks: Record<string, number>
   tasks: Record<TaskKind, TaskDef>
   spots: Spot[]
   arcade: { record: number; tiers: Record<string, [number, number][]> }
@@ -60,6 +61,9 @@ export const itemPrice = (id: string): number | null => ECONOMY.items[id] ?? nul
 
 /** Prix d'une apparence (clé de skins.ts : « suit.artemis »…), ou null si elle est gratuite. */
 export const skinPrice = (product: string): number | null => ECONOMY.skins[product] ?? null
+
+/** Prix d'un cocktail, débité à chaque verre. */
+export const drinkPrice = (id: string): number | null => ECONOMY.drinks[id] ?? null
 
 /** Paliers de score d'un jeu d'arcade : [score, crédits gagnés]. */
 export const arcadeTiers = (game: string): [number, number][] => ECONOMY.arcade.tiers[game] ?? []
