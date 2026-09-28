@@ -316,6 +316,8 @@ export class JukeboxPanel {
     this.el = document.createElement('div')
     this.el.className = 'panel jukebox'
     this.el.hidden = true
+    // La molette fait défiler le catalogue sans atteindre le zoom global de la caméra.
+    this.el.addEventListener('wheel', (event) => event.stopPropagation(), { passive: true })
     $('hud').append(this.el)
   }
 
