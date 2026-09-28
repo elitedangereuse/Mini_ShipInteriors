@@ -529,17 +529,19 @@ export const LEVELS: LevelDef[] = [
       // Le jukebox du mess : tout le pont l'entend (cf. src/music.ts).
       { model: 'jukebox', x: 11.3, z: 5.82, action: tr('Choisir un morceau', 'Pick a song'), music: true },
 
-      // --- Grande salle d'arcade : deux rangées de bornes, les jeux de plateau à l'est, un coin salon ---
-      // Au sud, face au nord, les quatre bornes jouables : Cargaison, Viper, Astéroïdes et Ruelle Fighter II.
+      // --- Grande salle d'arcade : deux rangées de bornes jouables, les jeux de plateau à l'est, un coin salon ---
+      // Au sud, face au nord : Cargaison, Viper, Astéroïdes et Ruelle Fighter II.
       { model: 'arcade', x: 16.7, z: 9.02, rot: 2, label: 'cargo' },
       { model: 'arcade', x: 17.95, z: 9.02, rot: 2, label: 'viper' },
       { model: 'arcade', x: 19.2, z: 9.02, rot: 2, label: 'asteroids' },
       { model: 'arcade', x: 20.6, z: 9.02, rot: 2, label: 'fight' },
-      // Au nord, face au sud, de part et d'autre des portes : les bornes de démonstration et un flipper.
-      { model: 'arcade', x: 16.45, z: 5.98, label: 'elite' },
-      { model: 'arcade', x: 19.35, z: 5.98, label: 'invaders' },
-      { model: 'arcade', x: 20.55, z: 5.98, label: 'comete' },
-      { model: 'arcade', x: 21.75, z: 5.98, label: 'srv' },
+      // Au nord, face au sud, de part et d'autre des portes : un deuxième exemplaire des jeux solo,
+      // pour que tout le monde joue quand l'équipage est nombreux (le duel de Ruelle Fighter II
+      // est unique sur le pont, cf. server/fights.js), et un flipper.
+      { model: 'arcade', x: 16.45, z: 5.98, label: 'cargo' },
+      { model: 'arcade', x: 19.35, z: 5.98, label: 'viper' },
+      { model: 'arcade', x: 20.55, z: 5.98, label: 'asteroids' },
+      { model: 'arcade', x: 21.75, z: 5.98, label: 'cargo' },
       { model: 'pinball', x: 24.05, z: 6.1, label: 'thargoid' },
       { model: 'claw-machine', x: 25.0, z: 6.2, rot: 3, label: 'cyan' },
       { model: 'neon-sign', x: 15.72, z: 7.5, rot: 1, label: 'ARCADE' },
