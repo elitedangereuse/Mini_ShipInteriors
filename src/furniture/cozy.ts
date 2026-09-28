@@ -1,11 +1,14 @@
 import * as THREE from 'three'
 import { cobraGeometry } from './cobra'
+import { tr } from '../i18n'
+import { renderQuality } from '../quality'
 import {
-  barX, barZ, box, cylinder, ED_ORANGE, glass, glow, holoMaterial, instanced, lit, mesh, part, setInstance, sphere, type Builder,
+  barX, barZ, box, cylinder, drawnTexture, ED_ORANGE, glass, glow, holoMaterial, instanced, lit, mesh, part, setInstance, sphere, type Builder,
 } from './kit'
 
 /*
- * Pont supérieur, les quartiers : bois chaud, tissus, plantes, lumières douces.
+ * Pont supérieur, les quartiers : bois chaud, tissus, plantes, lumières douces. Le dortoir de
+ * l'équipage, les douches et la serre y ont aussi leurs petits objets du quotidien.
  */
 
 const C = {
@@ -340,6 +343,143 @@ const suitLocker: Builder = ({ label }) => {
   return { solid: g, live }
 }
 
+/** Malle de pied de lit : cantine d'acier cerclée, autocollants, une serviette pliée et des bottes à côté. */
+const footlocker: Builder = () => {
+  const g = new THREE.Group()
+  const steel = lit('#3f5a4a'), band = lit('#2a3a30')
+  g.add(box(0.52, 0.22, 0.3, steel, 0, 0.11, 0, 0.015), box(0.54, 0.05, 0.32, band, 0, 0.245, 0, 0.012))
+  for (const x of [-0.18, 0.18]) g.add(box(0.03, 0.23, 0.31, band, x, 0.115, 0))
+  g.add(box(0.06, 0.05, 0.01, lit(C.chrome), 0, 0.2, 0.158), box(0.1, 0.06, 0.004, lit(ED_ORANGE), -0.09, 0.12, 0.152))
+  g.add(box(0.07, 0.07, 0.004, lit('#e9dcc4'), 0.1, 0.1, 0.152), box(0.05, 0.012, 0.005, lit('#34507a'), 0.1, 0.1, 0.155))
+  // Serviette pliée sur le couvercle, bottes de vol au pied.
+  g.add(box(0.22, 0.04, 0.16, lit(FABRIC.teal), 0.1, 0.29, 0, 0.012), box(0.2, 0.012, 0.16, lit(C.cream), 0.1, 0.305, 0))
+  for (const x of [-0.33, -0.43]) g.add(box(0.07, 0.14, 0.09, lit('#2a2e36'), x, 0.07, 0.04, 0.02), box(0.07, 0.04, 0.16, lit('#2a2e36'), x, 0.02, 0.08, 0.015))
+  return { solid: g }
+}
+
+/** Patères au mur : deux blousons de vol, un casque et une serviette. */
+const coatHooks: Builder = () => {
+  const g = new THREE.Group()
+  g.add(box(0.62, 0.05, 0.03, lit(C.woodDark), 0, 0.84, 0.015, 0.01))
+  for (const x of [-0.22, 0, 0.22]) g.add(barZ(0.008, 0.07, lit(C.chrome), x, 0.82, 0.05, 6))
+  // Blousons : un orange aux bandes réfléchissantes, un bleu marine, épaules et manches pendantes.
+  for (const [x, color] of [[-0.22, ED_ORANGE], [0.22, '#34507a']] as const) {
+    const cloth = lit(color)
+    g.add(box(0.18, 0.34, 0.06, cloth, x, 0.62, 0.07, 0.025), box(0.2, 0.05, 0.07, cloth, x, 0.77, 0.07, 0.02))
+    for (const s of [-1, 1]) g.add(box(0.045, 0.28, 0.05, cloth, x + s * 0.11, 0.62, 0.08, 0.015))
+    g.add(box(0.17, 0.02, 0.005, lit('#e8eef4'), x, 0.56, 0.1), box(0.01, 0.3, 0.005, lit('#2a2e36'), x, 0.62, 0.101))
+  }
+  // Casque accroché au milieu, visière ambrée ; serviette rayée qui pend dessous.
+  g.add(sphere(0.07, lit('#e9e2d6'), 0, 0.73, 0.09, 12), box(0.09, 0.05, 0.02, glow('#ffb640'), 0, 0.72, 0.155, 0.01))
+  g.add(box(0.12, 0.2, 0.012, lit(FABRIC.sage), 0, 0.55, 0.05), box(0.12, 0.02, 0.013, lit(C.cream), 0, 0.5, 0.05))
+  return { solid: g }
+}
+
+/** Tableau de liège de l'équipage : tours de corvée, photos, post-it, une carte avec l'itinéraire. */
+const crewBoard: Builder = () => {
+  const g = new THREE.Group()
+  g.add(box(0.74, 0.46, 0.03, lit(C.woodDark), 0, 0.62, 0.015, 0.008))
+  const face = drawnTexture(352, 216, (c) => {
+    c.fillStyle = '#b98b5a'
+    c.fillRect(0, 0, 352, 216)
+    for (let i = 0; i < 700; i++) {
+      c.fillStyle = i % 2 ? 'rgba(90, 55, 25, 0.25)' : 'rgba(255, 220, 170, 0.18)'
+      c.fillRect((i * 137.3) % 352, (i * 71.9) % 216, 2, 2)
+    }
+    const pin = (x: number, y: number, color: string) => {
+      c.fillStyle = color
+      c.beginPath()
+      c.arc(x, y, 5, 0, Math.PI * 2)
+      c.fill()
+    }
+    // La feuille des corvées.
+    c.save()
+    c.translate(18, 16)
+    c.rotate(-0.03)
+    c.fillStyle = '#f7f3ea'
+    c.fillRect(0, 0, 118, 150)
+    c.fillStyle = '#2a2e36'
+    c.font = '700 13px system-ui, sans-serif'
+    c.fillText(tr('CORVÉES', 'CHORES'), 10, 20)
+    c.font = '11px system-ui, sans-serif'
+    const chores = [tr('Vaisselle', 'Dishes'), tr('Filtres', 'Filters'), tr('Plantes', 'Plants'), tr('Litière', 'Litter'), tr('Quart', 'Watch')]
+    const who = ['Jacques', 'Julia', 'James', tr('Vous', 'You'), 'Comète']
+    chores.forEach((chore, i) => {
+      c.fillStyle = '#2a2e36'
+      c.fillText(chore, 10, 44 + i * 22)
+      c.fillStyle = '#c0643f'
+      c.fillText(who[i], 62, 44 + i * 22)
+      c.fillStyle = 'rgba(42, 46, 54, 0.2)'
+      c.fillRect(8, 49 + i * 22, 102, 1)
+    })
+    c.restore()
+    pin(78, 18, '#d9453a')
+    // Deux photos façon polaroïd.
+    for (const [x, y, rot, sky, ground] of [[150, 22, 0.08, '#3a6ac0', '#c98a4a'], [150, 110, -0.06, '#1a1440', '#8a5ad0']] as const) {
+      c.save()
+      c.translate(x, y)
+      c.rotate(rot)
+      c.fillStyle = '#fbfaf5'
+      c.fillRect(0, 0, 74, 84)
+      c.fillStyle = sky
+      c.fillRect(6, 6, 62, 58)
+      c.fillStyle = ground
+      c.beginPath()
+      c.arc(37, 80, 44, Math.PI, 0)
+      c.fill()
+      c.fillStyle = '#fbfaf5'
+      c.fillRect(0, 64, 74, 20)
+      c.restore()
+      pin(x + 36, y + 6, '#3f8f8c')
+    }
+    // La carte, l'itinéraire tracé au feutre rouge.
+    c.save()
+    c.translate(238, 20)
+    c.rotate(0.04)
+    c.fillStyle = '#0d1428'
+    c.fillRect(0, 0, 98, 86)
+    c.fillStyle = '#cfe0ff'
+    for (let i = 0; i < 40; i++) c.fillRect((i * 53) % 96, (i * 31) % 84, 1.5, 1.5)
+    c.strokeStyle = '#ff5a4a'
+    c.lineWidth = 2
+    c.beginPath()
+    c.moveTo(12, 70)
+    c.lineTo(34, 48)
+    c.lineTo(58, 56)
+    c.lineTo(84, 16)
+    c.stroke()
+    c.restore()
+    pin(287, 22, '#d9a441')
+    // Post-it.
+    for (const [x, y, color, text] of [[246, 124, '#ffe46a', tr('Rendre le casque', 'Return the helmet')], [292, 150, '#ff9ac0', 'o7 !']] as const) {
+      c.fillStyle = color
+      c.fillRect(x, y, 54, 50)
+      c.fillStyle = '#3a2a4a'
+      c.font = '600 10px system-ui, sans-serif'
+      c.fillText(text, x + 4, y + 20, 48)
+    }
+  })
+  g.add(part(new THREE.PlaneGeometry(0.68, 0.42), new THREE.MeshLambertMaterial({ map: face }), 0, 0.62, 0.032))
+  return { solid: g }
+}
+
+/** Panier à linge en osier : chaussettes, un tee-shirt qui dépasse. */
+const laundryBasket: Builder = () => {
+  const g = new THREE.Group()
+  const wicker = lit('#c49a6c')
+  g.add(cylinder(0.16, 0.13, 0.3, wicker, 0, 0.15, 0, 14))
+  for (const y of [0.08, 0.16, 0.24]) {
+    const ring = mesh(new THREE.TorusGeometry(0.15 - y * 0.08, 0.008, 4, 18), lit(C.woodDark), 0, y, 0)
+    ring.rotation.x = Math.PI / 2
+    g.add(ring)
+  }
+  g.add(sphere(0.1, lit(FABRIC.navy), -0.03, 0.29, 0.02, 8), sphere(0.08, lit(C.linen), 0.05, 0.3, -0.03, 8))
+  const shirt = box(0.14, 0.02, 0.1, lit(FABRIC.terracotta), 0.13, 0.28, 0.05, 0.008)
+  shirt.rotation.z = -0.7
+  g.add(shirt, box(0.05, 0.03, 0.1, lit(FABRIC.mustard), -0.08, 0.33, -0.05, 0.01))
+  return { solid: g }
+}
+
 /** Double casier d'équipage, cabossé et couvert d'autocollants. */
 const locker: Builder = () => {
   const g = new THREE.Group()
@@ -368,7 +508,71 @@ const shower: Builder = () => {
   const side = part(new THREE.PlaneGeometry(0.78, 0.86), glass('#d8f4ff', 0.2), 0.39, 0.49, 0)
   side.rotation.y = Math.PI / 2
   live.add(front, side)
-  return { solid: g, live }
+  // Les ondes de la douche sonique : des anneaux pâles qui descendent du pommeau, en boucle.
+  const waveMat = new THREE.MeshBasicMaterial({ color: '#8ff0ff', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })
+  const waves = [0, 1, 2].map(() => {
+    const w = part(new THREE.TorusGeometry(0.2, 0.006, 4, 28), waveMat.clone())
+    w.rotation.x = Math.PI / 2
+    live.add(w)
+    return w
+  })
+  return {
+    solid: g,
+    live,
+    update(t) {
+      for (const [i, w] of waves.entries()) {
+        const k = (t * 0.45 + i / 3) % 1
+        w.visible = !renderQuality.light
+        w.position.set(0, 0.84 - k * 0.76, -0.02)
+        w.scale.setScalar(0.55 + k * 0.5)
+        ;(w.material as THREE.MeshBasicMaterial).opacity = Math.sin(k * Math.PI) * 0.28
+      }
+    },
+  }
+}
+
+/** Porte-serviettes chauffant, au mur : barreaux chromés, deux serviettes pliées dessus. */
+const towelRail: Builder = () => {
+  const g = new THREE.Group()
+  const chrome = lit(C.chrome)
+  for (const x of [-0.24, 0.24]) g.add(cylinder(0.012, 0.012, 0.56, chrome, x, 0.55, 0.05, 6), barZ(0.01, 0.05, chrome, x, 0.3, 0.025, 6), barZ(0.01, 0.05, chrome, x, 0.8, 0.025, 6))
+  for (let i = 0; i < 6; i++) g.add(barX(0.008, 0.48, chrome, 0, 0.32 + i * 0.09, 0.05, 6))
+  g.add(box(0.2, 0.3, 0.035, lit(FABRIC.teal), -0.1, 0.62, 0.07, 0.012), box(0.2, 0.025, 0.036, lit(C.cream), -0.1, 0.52, 0.07))
+  g.add(box(0.18, 0.24, 0.035, lit(FABRIC.rose), 0.12, 0.66, 0.07, 0.012))
+  g.add(box(0.04, 0.02, 0.01, glow('#ff8a5a'), 0.24, 0.26, 0.06))
+  return { solid: g }
+}
+
+/** Armoire de toilette murale : porte-miroir entrouverte, étagère de flacons, verre à dents. */
+const bathCabinet: Builder = () => {
+  const g = new THREE.Group()
+  g.add(box(0.44, 0.3, 0.12, lit(C.white), 0, 0.72, 0.06, 0.01), box(0.4, 0.01, 0.1, lit('#dfe3e8'), 0, 0.66, 0.07))
+  // Porte miroir entrouverte, pivotée sur sa charnière gauche.
+  const door = new THREE.Group()
+  door.position.set(-0.21, 0.72, 0.125)
+  door.rotation.y = -0.6
+  door.add(box(0.21, 0.28, 0.012, lit('#dfe3e8'), 0.105, 0, 0), box(0.18, 0.25, 0.004, lit('#bcd7e3'), 0.105, 0, 0.008))
+  g.add(door)
+  // L'intérieur, côté droit : flacons, dentifrice, gobelet et deux brosses.
+  ;['#6ad0ff', '#ff8a6a', '#d9f06a'].forEach((col, i) => g.add(cylinder(0.018, 0.018, 0.07 - i * 0.01, lit(col), 0.05 + i * 0.045, 0.7 - i * 0.005, 0.08, 8)))
+  g.add(box(0.1, 0.02, 0.03, lit('#f4f7fa'), 0.1, 0.78, 0.08))
+  // Tablette sous l'armoire : gobelet et brosses à dents.
+  g.add(box(0.36, 0.02, 0.1, lit(C.white), 0, 0.53, 0.05), cylinder(0.022, 0.018, 0.06, lit(FABRIC.teal), -0.1, 0.57, 0.06, 8))
+  for (const [x, col] of [[-0.11, '#ff8a6a'], [-0.09, '#6ad0ff']] as const) {
+    const brush = cylinder(0.004, 0.004, 0.1, lit(col), x, 0.62, 0.06, 4)
+    brush.rotation.z = x < -0.1 ? 0.2 : -0.2
+    g.add(brush)
+  }
+  g.add(cylinder(0.03, 0.03, 0.05, lit(C.cream), 0.1, 0.565, 0.06, 10), sphere(0.012, glow('#8ff0ff'), 0.18, 0.84, 0.12, 6))
+  return { solid: g }
+}
+
+/** Pèse-personne à affichage lumineux, posé au sol. */
+const bathScale: Builder = () => {
+  const g = new THREE.Group()
+  g.add(box(0.28, 0.035, 0.3, lit(C.white), 0, 0.018, 0, 0.015), box(0.24, 0.004, 0.18, lit('#dfe3e8'), 0, 0.037, 0.03))
+  g.add(box(0.1, 0.004, 0.04, glow('#7dffa8'), 0, 0.038, -0.1))
+  return { solid: g }
 }
 
 /** Lavabo sur meuble, miroir, gobelet. */
@@ -416,6 +620,133 @@ const hydroRack: Builder = ({ random }) => {
   return { solid: g }
 }
 
+/**
+ * Mur végétal, au mur : trois rangées de poches de feutre débordantes de feuillage et de fleurs,
+ * goutte-à-goutte, rampe de LED roses au-dessus. Largeur : `label` (mètres, 1,6 par défaut).
+ */
+const plantWall: Builder = ({ label, random }) => {
+  const width = Number(label) || 1.6
+  const g = new THREE.Group()
+  g.add(box(width, 0.78, 0.03, lit('#2f3a2a'), 0, 0.5, 0.015, 0.01))
+  const cols = Math.round(width / 0.2)
+  const flowers = ['#ff6ad5', '#ffd23c', '#ffffff', '#ff8a5a']
+  for (const y of [0.22, 0.46, 0.7]) {
+    g.add(box(width - 0.04, 0.012, 0.03, lit('#8a9099'), 0, y + 0.13, 0.04))
+    for (let i = 0; i < cols; i++) {
+      const x = -width / 2 + 0.1 + i * ((width - 0.2) / (cols - 1))
+      g.add(box(0.16, 0.1, 0.07, lit('#4a3a2a'), x, y, 0.05, 0.02))
+      for (let k = 0; k < 3; k++) {
+        const leaf = mesh(new THREE.IcosahedronGeometry(0.045 + random() * 0.035, 0), lit(LEAVES[Math.floor(random() * 4)]), x + (random() - 0.5) * 0.14, y + 0.05 + random() * 0.08, 0.08 + random() * 0.04)
+        leaf.scale.y = 0.8
+        g.add(leaf)
+      }
+      // Du lierre qui retombe, une fleur de temps en temps.
+      if (random() < 0.45) g.add(box(0.02, 0.12 + random() * 0.1, 0.02, lit(LEAVES[1]), x + (random() - 0.5) * 0.1, y - 0.1, 0.09, 0.008))
+      if (random() < 0.35) g.add(sphere(0.022, lit(flowers[Math.floor(random() * 4)]), x + (random() - 0.5) * 0.1, y + 0.1, 0.12, 6))
+    }
+  }
+  g.add(box(width, 0.035, 0.1, lit('#2a2e36'), 0, 0.93, 0.06), box(width - 0.06, 0.012, 0.012, glow('#ff6ad5'), 0, 0.91, 0.11))
+  return { solid: g }
+}
+
+/**
+ * Établi de rempotage : plateaux de semis, pots de terre cuite, sac de terreau, arrosoir,
+ * transplantoir ; bocaux de graines sur l'étagère du dessous. Face à +z.
+ */
+const pottingBench: Builder = ({ random }) => {
+  const g = new THREE.Group()
+  const wood = lit(C.woodLight), dark = lit(C.wood)
+  g.add(box(1.0, 0.04, 0.42, wood, 0, 0.42, 0, 0.01), box(1.0, 0.03, 0.38, dark, 0, 0.14, 0))
+  for (const x of [-0.47, 0.47]) for (const z of [-0.18, 0.18]) g.add(box(0.04, 0.42, 0.04, dark, x, 0.21, z))
+  g.add(box(1.0, 0.18, 0.02, wood, 0, 0.53, -0.2))
+  // Deux plateaux de semis, rangées de pousses.
+  for (const x of [-0.3, 0.02]) {
+    g.add(box(0.28, 0.04, 0.22, lit('#2a2e36'), x, 0.46, 0.02), box(0.26, 0.012, 0.2, lit(C.soil), x, 0.48, 0.02))
+    for (let i = 0; i < 4; i++) for (let k = 0; k < 3; k++) {
+      const h = 0.03 + random() * 0.04
+      g.add(mesh(new THREE.ConeGeometry(0.014, h, 4), lit(LEAVES[(i + k) % 4]), x - 0.1 + i * 0.066, 0.49 + h / 2, -0.05 + k * 0.07))
+    }
+  }
+  // Pots vides empilés, le sac de terreau ouvert, l'arrosoir.
+  for (let i = 0; i < 3; i++) g.add(cylinder(0.06, 0.045, 0.06, lit('#b8653f'), 0.3, 0.47 + i * 0.03, -0.08, 10))
+  g.add(box(0.18, 0.2, 0.1, lit('#6b8a3a'), 0.36, 0.26, 0.05, 0.03), box(0.15, 0.03, 0.08, lit(C.soil), 0.36, 0.37, 0.05, 0.01))
+  g.add(cylinder(0.05, 0.055, 0.1, lit('#3f8f8c'), 0.3, 0.49, 0.11, 10))
+  const spout = cylinder(0.008, 0.012, 0.12, lit('#3f8f8c'), 0.37, 0.52, 0.11, 6)
+  spout.rotation.z = -1.0
+  g.add(spout)
+  // Bocaux de graines sur la tablette basse.
+  ;['#d9a441', '#8a5a3a', '#e9dcc4', '#5aa35a'].forEach((col, i) => g.add(cylinder(0.035, 0.035, 0.08, lit(col), -0.36 + i * 0.1, 0.195, 0.02, 8), cylinder(0.037, 0.037, 0.015, lit(C.woodDark), -0.36 + i * 0.1, 0.24, 0.02, 8)))
+  return { solid: g }
+}
+
+/** Cuve de solution nutritive : colonne vitrée où montent des bulles, tuyaux vers les bacs, manomètre. */
+const nutrientTank: Builder = ({ random }) => {
+  const g = new THREE.Group()
+  const steel = lit('#dfe3e8'), dark = lit('#2a2e36')
+  g.add(cylinder(0.2, 0.22, 0.1, dark, 0, 0.05, 0, 16), cylinder(0.2, 0.2, 0.06, dark, 0, 0.85, 0, 16))
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4
+    g.add(box(0.03, 0.72, 0.03, steel, Math.cos(a) * 0.19, 0.46, Math.sin(a) * 0.19))
+  }
+  g.add(cylinder(0.165, 0.165, 0.6, glow('#3fd08a'), 0, 0.42, 0, 16))
+  // Tuyaux qui partent vers les bacs, manomètre et vanne.
+  g.add(barX(0.02, 0.3, steel, 0.3, 0.8, 0, 8), cylinder(0.02, 0.02, 0.5, steel, 0.44, 0.55, 0, 8))
+  g.add(cylinder(0.045, 0.045, 0.02, steel, 0.0, 0.72, 0.21, 12))
+  const gauge = cylinder(0.04, 0.04, 0.012, lit('#f4f7fa'), 0, 0.72, 0.222, 12)
+  gauge.rotation.x = Math.PI / 2
+  g.add(gauge, box(0.004, 0.03, 0.004, lit('#d9453a'), 0.008, 0.73, 0.23))
+  g.add(cylinder(0.035, 0.035, 0.015, lit('#d9453a'), 0.3, 0.86, 0, 10))
+  const live = new THREE.Group()
+  live.add(part(new THREE.CylinderGeometry(0.18, 0.18, 0.62, 18, 1, true), glass('#d8fff0', 0.25), 0, 0.42, 0))
+  const COUNT = 10
+  const bubbles = instanced(new THREE.SphereGeometry(0.012, 6, 4), Array(COUNT).fill('#e8fff4'))
+  const rise = Array.from({ length: COUNT }, () => ({ x: (random() - 0.5) * 0.2, z: (random() - 0.5) * 0.2, speed: 0.25 + random() * 0.3, phase: random() }))
+  live.add(bubbles)
+  return {
+    solid: g,
+    live,
+    update(t) {
+      bubbles.visible = !renderQuality.light
+      if (!bubbles.visible) return
+      rise.forEach((b, i) => {
+        const k = (t * b.speed + b.phase) % 1
+        setInstance(bubbles, i, b.x + Math.sin(t * 3 + i) * 0.01, 0.14 + k * 0.56, b.z, 0.6 + k * 0.6)
+      })
+      bubbles.instanceMatrix.needsUpdate = true
+    },
+  }
+}
+
+/**
+ * Drone pollinisateur : un petit bourdon mécanique qui fait la tournée des plantes, en huit,
+ * ses rotors flous et son voyant qui clignote. Sans collision. Rayon de sa ronde : `label`.
+ */
+const pollinatorDrone: Builder = ({ label }) => {
+  const reach = Number(label) || 0.8
+  const drone = new THREE.Group()
+  drone.add(sphere(0.035, lit('#ffd23c'), 0, 0, 0, 10), box(0.05, 0.012, 0.02, lit('#2a2e36'), 0, 0, 0.025))
+  for (const x of [-0.045, 0.045]) {
+    drone.add(barX(0.004, 0.04, lit('#2a2e36'), x * 0.6, 0.02, 0, 4))
+    const rotor = part(new THREE.CircleGeometry(0.03, 12), glass('#e8f4ff', 0.35), x, 0.03, 0)
+    rotor.rotation.x = -Math.PI / 2
+    drone.add(rotor)
+  }
+  const led = sphere(0.01, glow('#7dffa8'), 0, -0.03, 0, 6)
+  drone.add(led)
+  const live = new THREE.Group()
+  live.add(drone)
+  return {
+    live,
+    update(t) {
+      const a = t * 0.5
+      drone.position.set(Math.sin(a) * reach, 0.82 + Math.sin(t * 1.7) * 0.06, Math.sin(a * 2) * reach * 0.45)
+      drone.rotation.y = Math.atan2(Math.cos(a) * reach, Math.cos(a * 2) * reach * 0.9)
+      drone.rotation.z = Math.sin(t * 9) * 0.06
+      led.visible = Math.floor(t * 2) % 2 === 0
+    },
+  }
+}
+
 /** Panier de Comète : coussin rose, rebord moelleux, et une souris en tissu. */
 const catBed: Builder = () => {
   const g = new THREE.Group()
@@ -457,10 +788,21 @@ export const COZY = {
   fireplace,
   'suit-locker': suitLocker,
   locker,
+  footlocker,
+  'coat-hooks': coatHooks,
+  'crew-board': crewBoard,
+  'laundry-basket': laundryBasket,
   shower,
   sink,
   toilet,
+  'towel-rail': towelRail,
+  'bath-cabinet': bathCabinet,
+  'bath-scale': bathScale,
   'hydro-rack': hydroRack,
+  'plant-wall': plantWall,
+  'potting-bench': pottingBench,
+  'nutrient-tank': nutrientTank,
+  'pollinator-drone': pollinatorDrone,
   bench,
   'cat-bed': catBed,
 } satisfies Record<string, Builder>

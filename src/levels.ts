@@ -907,6 +907,32 @@ export const LEVELS: LevelDef[] = [
         ),
       },
       { model: 'rug', x: 9.9, z: 2.35, label: 'blue:1.3x0.8', solid: false },
+      { model: 'nightstand', x: 8.6, z: 0.83 },
+      { model: 'string-lights', x: 7.65, z: 1.25, rot: 1, label: 'warm', solid: false },
+      {
+        model: 'footlocker', x: 8.15, z: 2.02,
+        interact: tr(
+          'Malle de pied de lit, bourrée d\'autocollants. Sur le couvercle, au feutre : « Ne pas s\'asseoir. Si. Même toi. »',
+          'Footlocker, covered in stickers. On the lid, in marker: “Do not sit. Yes. You too.”',
+        ),
+      },
+      {
+        model: 'coat-hooks', x: 10.32, z: 0.65, solid: false,
+        interact: tr(
+          'Deux blousons de vol et un casque. Le blouson orange sent encore le carburant de la dernière escale.',
+          'Two flight jackets and a helmet. The orange one still smells of fuel from the last stopover.',
+        ),
+      },
+      {
+        model: 'crew-board', x: 7.65, z: 2.95, rot: 1, solid: false,
+        interact: [
+          tr('Tableau des corvées : cette semaine, Comète est de quart. Personne n\'a osé lui dire non.', 'Chore board: this week, Comète is on watch. Nobody dared to say no.'),
+          tr('Un post-it : « Rendre le casque de Jacques ». Un autre, en dessous : « Quel casque ? »', 'A sticky note: “Return Jacques’s helmet”. Another, underneath: “What helmet?”'),
+          tr('Sur la carte, un itinéraire au feutre rouge. Il finit à Hutton Orbital. Évidemment.', 'On the map, a route in red marker. It ends at Hutton Orbital. Of course.'),
+        ],
+      },
+      { model: 'laundry-basket', x: 8.1, z: 3.12 },
+      { model: 'footlocker', x: 11.05, z: 3.18, rot: 2 },
 
       // --- Douches ---
       {
@@ -932,17 +958,51 @@ export const LEVELS: LevelDef[] = [
         interact: tr('Lavabo : le miroir affiche la météo de la station la plus proche.', 'Washbasin: the mirror shows the weather at the nearest station.'),
       },
       { model: 'rug', x: 13.2, z: 2.3, label: 'bath:1.2x0.7', solid: false },
-
-      // --- Serre hydroponique ---
+      { model: 'towel-rail', x: 11.65, z: 3.0, rot: 1, solid: false, interact: tr('Porte-serviettes chauffant : les serviettes sont tièdes, et sentent la lavande de synthèse.', 'Heated towel rail: the towels are warm, and smell of synthetic lavender.') },
       {
-        model: 'hydro-rack', x: 5.75, z: 2.9,
+        model: 'bath-cabinet', x: 14.3, z: 0.65, solid: false,
+        interact: [
+          tr('Armoire de toilette : dentifrice, pansements, et un flacon d\'anti-mal de l\'espace à moitié vide.', 'Bathroom cabinet: toothpaste, plasters, and a half-empty bottle of space-sickness pills.'),
+          tr('Deux brosses à dents. La troisième, avec des poils de chat, n\'appartient à personne.', 'Two toothbrushes. The third one, with cat hair on it, belongs to nobody.'),
+        ],
+      },
+      { model: 'laundry-basket', x: 13.3, z: 3.22 },
+      {
+        model: 'bath-scale', x: 12.3, z: 3.05, solid: false, action: tr('Se peser', 'Weigh yourself'),
+        interact: [
+          tr('Le pèse-personne affiche votre masse… en tonnes de cargo. 0,08 t. Pas de quoi remplir une soute.', 'The scale shows your mass… in tonnes of cargo. 0.08 t. Not enough to fill a hold.'),
+          tr('« Gravité du pont : 0,97 G. » Vous avez donc perdu trois pour cent. Bravo.', '“Deck gravity: 0.97 G.” So you have lost three percent. Well done.'),
+        ],
+      },
+      { model: 'plant', x: 15.15, z: 3.15 },
+
+      // --- Serre hydroponique : cuve et bacs au nord, mur végétal à l'ouest, établi au milieu ---
+      {
+        model: 'hydro-rack', x: 6.2, z: 2.9,
         interact: [
           tr('Hydroponie : tomates, basilic et un piment de Lave.', 'Hydroponics: tomatoes, basil and a Lave chilli.'),
           tr('Les plantes poussent sous des LED roses. Elles ont l\'air heureuses.', 'The plants grow under pink LEDs. They look happy.'),
         ],
       },
       { model: 'hydro-rack', x: 5.75, z: 6.1, rot: 2 },
-      { model: 'plant-tall', x: 5, z: 4.5 },
+      {
+        model: 'plant-wall', x: 4.65, z: 4.5, rot: 1, label: '1.6', solid: false,
+        interact: tr('Mur végétal : fougères, lierre et fraisiers, arrosés goutte à goutte. Il purifie l\'air du pont, et il le sait.', 'Living wall: ferns, ivy and strawberries on a drip feed. It purifies the deck\'s air, and it knows it.'),
+      },
+      {
+        model: 'potting-bench', x: 6.2, z: 4.8,
+        interact: [
+          tr('Établi de rempotage : des semis de laitue, de la terre sous les ongles, et un arrosoir qui fuit.', 'Potting bench: lettuce seedlings, soil under your nails, and a leaky watering can.'),
+          tr('Un bocal étiqueté « graines de Colonia — NE PAS MANGER ». Quelqu\'un en a mangé.', 'A jar labelled “Colonia seeds — DO NOT EAT”. Someone ate some.'),
+        ],
+      },
+      {
+        model: 'nutrient-tank', x: 5.0, z: 2.98,
+        interact: tr('Cuve de solution nutritive : azote, phosphore, potassium, et une pointe de poussière d\'astéroïde.', 'Nutrient tank: nitrogen, phosphorus, potassium, and a pinch of asteroid dust.'),
+      },
+      { model: 'exobio-plant', x: 7.08, z: 3.0, label: 'crystal' },
+      { model: 'monstera', x: 4.92, z: 6.08 },
+      { model: 'pollinator-drone', x: 6.1, z: 4.4, label: '0.75' },
 
       // --- Salon d'écoute : casques, fauteuils face aux étoiles, les affiches des deux émissions ---
       { model: 'on-air-sign', x: 15.65, z: 1.05, rot: 1, solid: false },
