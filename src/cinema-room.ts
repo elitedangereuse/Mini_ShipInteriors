@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { tr } from './i18n'
+import { icon } from './icons'
 import { CINEMA_SCREEN, setProjection } from './furniture/cinema'
 import type { CinemaState, CinemaTrailer } from './net'
 
@@ -16,10 +17,22 @@ interface YouTubePlayer {
   unMute(): void
 }
 interface YouTubeApi {
-  Player: new (holder: HTMLElement, options: { videoId: string; playerVars: Record<string, string | number>; events: { onReady: (event: { target: YouTubePlayer }) => void } }) => YouTubePlayer
+  Player: new (holder: HTMLElement, options: { videoId: string; playerVars: Record<string, string | number>; events: {
+    onReady: (event: { target: YouTubePlayer }) => void
+    onStateChange: (event: { data: number }) => void
+  } }) => YouTubePlayer
+}
+interface TwitchPlayer {
+  addEventListener(event: string, listener: () => void): void
+  setMuted(muted: boolean): void
+  play(): void
+  pause(): void
+}
+interface TwitchApi {
+  Player: { new (holderId: string, options: { width: number; height: number; channel: string; parent: string[]; muted: boolean; autoplay: boolean }): TwitchPlayer; READY: string }
 }
 declare global {
-  interface Window { YT?: YouTubeApi; onYouTubeIframeAPIReady?: () => void }
+  interface Window { YT?: YouTubeApi; Twitch?: TwitchApi; onYouTubeIframeAPIReady?: () => void }
 }
 let youtubeApiPromise: Promise<YouTubeApi> | null = null
 function youtubeApi(): Promise<YouTubeApi> {
@@ -34,6 +47,18 @@ function youtubeApi(): Promise<YouTubeApi> {
   })
   return youtubeApiPromise
 }
+let twitchApiPromise: Promise<TwitchApi> | null = null
+function twitchApi(): Promise<TwitchApi> {
+  if (window.Twitch?.Player) return Promise.resolve(window.Twitch)
+  twitchApiPromise ??= new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = 'https://player.twitch.tv/js/embed/v1.js'
+    script.onload = () => window.Twitch?.Player ? resolve(window.Twitch) : reject(new Error('Twitch API unavailable'))
+    script.onerror = () => { twitchApiPromise = null; reject(new Error('Twitch API unavailable')) }
+    document.head.append(script)
+  })
+  return twitchApiPromise
+}
 
 /** Régie et lecteur partagés : seul le fauteuil bleu peut changer la séance. */
 export class CinemaRoom {
@@ -47,10 +72,12 @@ export class CinemaRoom {
   private soundButton = document.createElement('button')
   private soundOn = false
   private onCinemaDeck = false
+  private inCinemaRoom = false
   private readonly topLeft = new THREE.Vector3()
   private readonly topRight = new THREE.Vector3()
   private readonly bottomLeft = new THREE.Vector3()
   private youtubePlayer: YouTubePlayer | null = null
+  private twitchPlayer: TwitchPlayer | null = null
   private playerToken = 0
   private closeButton = document.createElement('button')
   private previousFocus: HTMLElement | null = null
@@ -61,7 +88,7 @@ export class CinemaRoom {
   private receivedAt = performance.now()
 
   constructor(
-    private network: { online: () => boolean; self: () => number; choose: (id: number | null) => void },
+    private network: { online: () => boolean; self: () => number; choose: (id: number | null) => void; duration: (id: number, since: number, duration: number) => void },
   ) {
     this.root.className = 'cinema-room-overlay'
     this.root.hidden = true
@@ -93,11 +120,10 @@ export class CinemaRoom {
     this.soundButton.className = 'cinema-screen-sound'
     this.soundButton.onclick = () => {
       this.soundOn = !this.soundOn
-      if (this.soundOn) this.youtubePlayer?.unMute()
-      else this.youtubePlayer?.mute()
-      this.soundButton.textContent = this.soundOn ? tr('🔊 Couper le son', '🔊 Mute') : tr('🔇 Activer le son', '🔇 Enable sound')
+      this.applySound()
+      this.updateSoundButton()
     }
-    this.soundButton.textContent = tr('🔇 Activer le son', '🔇 Enable sound')
+    this.updateSoundButton()
     document.body.append(this.stage, this.soundButton, this.root)
     this.stage.hidden = true
     this.soundButton.hidden = true
@@ -113,6 +139,23 @@ export class CinemaRoom {
 
   get isOpen() { return !this.root.hidden }
   get isController() { return this.isOpen && this.controller }
+
+  private updateSoundButton() {
+    const label = this.soundOn ? tr('Couper le son du cinéma', 'Mute cinema audio') : tr('Activer le son du cinéma', 'Enable cinema audio')
+    this.soundButton.replaceChildren(icon(this.soundOn ? 'speaker-high' : 'speaker-slash'))
+    this.soundButton.title = label
+    this.soundButton.setAttribute('aria-label', label)
+    this.soundButton.setAttribute('aria-pressed', String(this.soundOn))
+  }
+
+  private applySound() {
+    const audible = this.soundOn && this.inCinemaRoom
+    try {
+      if (audible) this.youtubePlayer?.unMute()
+      else this.youtubePlayer?.mute()
+      this.twitchPlayer?.setMuted(!audible)
+    } catch { /* Un lecteur externe peut être en cours de chargement. */ }
+  }
 
   receive(state: CinemaState) {
     this.state = state
@@ -217,6 +260,8 @@ export class CinemaRoom {
     this.playerToken++
     this.youtubePlayer?.destroy()
     this.youtubePlayer = null
+    try { this.twitchPlayer?.setMuted(true); this.twitchPlayer?.pause() } catch { /* Le lecteur se ferme. */ }
+    this.twitchPlayer = null
     this.frame.removeAttribute('src')
     this.frame.remove()
     if (key === 'none') {
@@ -226,8 +271,28 @@ export class CinemaRoom {
       return
     }
     if (this.state.live) {
-      if (this.onCinemaDeck) this.frame.src = this.twitchSource()
-      this.stage.replaceChildren(this.frame)
+      const token = this.playerToken
+      const holder = document.createElement('div')
+      holder.className = 'cinema-room-twitch'
+      holder.id = 'cinema-twitch-player'
+      this.stage.replaceChildren(holder)
+      void twitchApi().then((api) => {
+        if (token !== this.playerToken) return
+        const player = new api.Player(holder.id, {
+          width: 533, height: 300, channel: 'elitedangereuse',
+          parent: [location.hostname || 'elitedangereuse.fr'], muted: true, autoplay: true,
+        })
+        this.twitchPlayer = player
+        player.addEventListener(api.Player.READY, () => {
+          if (token !== this.playerToken) return
+          this.applySound()
+          if (!this.onCinemaDeck) player.pause()
+        })
+      }).catch(() => {
+        if (token !== this.playerToken) return
+        this.frame.src = this.twitchSource()
+        this.stage.replaceChildren(this.frame)
+      })
     } else if (current) {
       const token = this.playerToken
       const holder = document.createElement('div')
@@ -241,23 +306,26 @@ export class CinemaRoom {
           events: { onReady: ({ target }) => {
             if (token !== this.playerToken) return
             if (this.onCinemaDeck) {
-              if (this.soundOn) target.unMute()
-              else target.mute() // lecture automatique autorisée ; chacun peut ensuite activer le son
+              this.applySound()
               this.syncYouTube(true)
             } else {
               target.mute()
               target.pauseVideo()
             }
-          } },
+          }, onStateChange: ({ data }) => { if (data === 0) this.finishTrailer() } },
         })
       }).catch(() => {
         if (token !== this.playerToken) return
         // Si l'API est bloquée, le lecteur standard garde la séance accessible.
-        const elapsed = Math.max(0, Math.floor((this.state.now - this.state.since + performance.now() - this.receivedAt) / 1000))
-        this.frame.src = `https://www.youtube.com/embed/${current.video}?autoplay=1&mute=1&start=${elapsed}`
+        this.frame.src = this.youtubeSource(current.video)
         this.stage.replaceChildren(this.frame)
       })
     }
+  }
+
+  private youtubeSource(video: string) {
+    const elapsed = Math.max(0, Math.floor((this.state.now - this.state.since + performance.now() - this.receivedAt) / 1000))
+    return `https://www.youtube.com/embed/${video}?autoplay=1&mute=1&start=${elapsed}`
   }
 
   private twitchSource() {
@@ -266,17 +334,36 @@ export class CinemaRoom {
   }
 
   /** Aligne le lecteur HTML sur la toile 3D de la salle, même pendant les mouvements de caméra. */
-  placeScreen(camera: THREE.Camera, onCinemaDeck: boolean, x: number, y: number, z: number) {
+  placeScreen(camera: THREE.Camera, onCinemaDeck: boolean, inCinemaRoom: boolean, x: number, y: number, z: number) {
     if (onCinemaDeck !== this.onCinemaDeck) {
       this.onCinemaDeck = onCinemaDeck
       if (onCinemaDeck) {
-        if (this.state.live) this.frame.src = this.twitchSource()
-        if (this.soundOn) this.youtubePlayer?.unMute()
+        if (this.state.live) {
+          if (this.twitchPlayer) {
+            try { this.twitchPlayer.play() } catch { /* Le lecteur charge. */ }
+          }
+          else if (this.frame.isConnected) this.frame.src = this.twitchSource()
+        } else if (this.frame.isConnected) {
+          const current = this.state.trailers.find((t) => t.id === this.state.selected)
+          if (current) this.frame.src = this.youtubeSource(current.video)
+        }
         this.syncYouTube(true)
       } else {
-        if (this.state.live) this.frame.removeAttribute('src')
+        if (this.state.live) {
+          try { this.twitchPlayer?.pause() } catch { /* Le lecteur charge. */ }
+        }
+        this.frame.removeAttribute('src')
         this.youtubePlayer?.mute()
         this.youtubePlayer?.pauseVideo()
+      }
+    }
+    if (inCinemaRoom !== this.inCinemaRoom) {
+      this.inCinemaRoom = inCinemaRoom
+      this.applySound()
+      // Le lecteur simple de secours n'a pas d'API de volume : le recharger muet en sortant.
+      if (!inCinemaRoom && onCinemaDeck && this.frame.isConnected) {
+        const current = this.state.trailers.find((t) => t.id === this.state.selected)
+        this.frame.src = this.state.live ? this.twitchSource() : current ? this.youtubeSource(current.video) : ''
       }
     }
     if (this.playing === 'none' || !this.playing || !onCinemaDeck) {
@@ -304,8 +391,9 @@ export class CinemaRoom {
       return
     }
     this.stage.hidden = false
+    this.stage.style.pointerEvents = inCinemaRoom ? 'auto' : 'none'
     this.stage.style.transform = `matrix(${(b.x - a.x) / 640}, ${(b.y - a.y) / 640}, ${(c.x - a.x) / 256}, ${(c.y - a.y) / 256}, ${a.x}, ${a.y})`
-    this.soundButton.hidden = this.playing === 'twitch'
+    this.soundButton.hidden = !inCinemaRoom || (this.state.live ? !this.twitchPlayer : !this.youtubePlayer)
     this.soundButton.style.left = `${c.x + (b.x - a.x) / 2}px`
     this.soundButton.style.top = `${c.y + (b.y - a.y) / 2 + 8}px`
   }
@@ -316,10 +404,28 @@ export class CinemaRoom {
     try {
       const elapsed = Math.max(0, (this.state.now - this.state.since + performance.now() - this.receivedAt) / 1000)
       const duration = player.getDuration()
-      const target = duration > 0 ? elapsed % duration : elapsed
+      this.reportTrailerDuration(duration)
+      if (duration > 0 && elapsed >= duration) {
+        this.finishTrailer()
+        return
+      }
+      const target = elapsed
       if (force || Math.abs(player.getCurrentTime() - target) > 2.5) player.seekTo(target, true)
       player.playVideo()
     } catch { /* Le player n'est pas encore prêt. */ }
+  }
+
+  private reportTrailerDuration(duration: number) {
+    const { selected, since } = this.state
+    if (!this.network.online() || !this.onCinemaDeck || selected === null || !Number.isFinite(duration) || duration < 5) return
+    this.network.duration(selected, since, duration)
+  }
+
+  private finishTrailer() {
+    if (this.state.selected === null || this.state.live) return
+    this.youtubePlayer?.pauseVideo()
+    if (this.network.online()) this.reportTrailerDuration(this.youtubePlayer?.getDuration() ?? 0)
+    else this.receive({ ...this.state, selected: null, since: 0, now: Date.now() })
   }
 
   close() {

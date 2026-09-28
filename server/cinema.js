@@ -9,7 +9,7 @@ export function cinemaOperator(players) {
 
 const videoId = (s) => typeof s === 'string' && /^[A-Za-z0-9_-]{11}$/.test(s)
 
-export function createCinema({ cmdrUrl, players, emit, error = console.error }) {
+export function createCinema({ cmdrUrl, players, emit, error = console.error, now = Date.now, schedule = setTimeout, cancel = clearTimeout }) {
   let trailers = []
   let live = false
   let liveTitle = ''
@@ -18,14 +18,21 @@ export function createCinema({ cmdrUrl, players, emit, error = console.error }) 
   let lastCheck = 0
   let checking = null
   let lastOperator = null
+  let endTimer = null
 
-  const snapshot = () => ({ trailers, live, liveTitle, selected, since, operator: cinemaOperator(players()), now: Date.now() })
+  const snapshot = () => ({ trailers, live, liveTitle, selected, since, operator: cinemaOperator(players()), now: now() })
   const broadcast = () => emit('cinema:state', snapshot())
+  const clearSelection = () => {
+    if (endTimer !== null) cancel(endTimer)
+    endTimer = null
+    selected = null
+    since = 0
+  }
 
   const refresh = async (force = false) => {
     if (checking) return checking
-    if (!force && Date.now() - lastCheck < 30000) return
-    lastCheck = Date.now()
+    if (!force && now() - lastCheck < 30000) return
+    lastCheck = now()
     checking = (async () => {
       try {
         if (!cmdrUrl) return
@@ -43,7 +50,7 @@ export function createCinema({ cmdrUrl, players, emit, error = console.error }) 
         trailers = next
         live = nextLive
         liveTitle = nextTitle
-        if (live || (selected !== null && !trailers.some((t) => t.id === selected))) { selected = null; since = 0 }
+        if (live || (selected !== null && !trailers.some((t) => t.id === selected))) clearSelection()
         if (changed) broadcast()
       } catch (e) { error(`[cinéma] catalogue indisponible : ${e?.message ?? e}`) }
       finally { checking = null }
@@ -56,10 +63,24 @@ export function createCinema({ cmdrUrl, players, emit, error = console.error }) 
     if (live) return 'live'
     if (cinemaOperator(players()) !== player.id) return 'seat'
     if (id !== null && !trailers.some((t) => t.id === id)) return 'invalid'
+    clearSelection()
     selected = id
-    since = id === null ? 0 : Date.now()
+    since = id === null ? 0 : now()
     broadcast()
     return null
+  }
+
+  /** La durée réelle vient du lecteur YouTube ; le relais arrête la séance pour tout le bord. */
+  const reportDuration = (id, started, duration) => {
+    if (live || selected === null || id !== selected || started !== since || endTimer !== null
+      || !Number.isFinite(duration) || duration < 5 || duration > 3600) return false
+    endTimer = schedule(() => {
+      if (selected !== id || since !== started || live) return
+      clearSelection()
+      broadcast()
+    }, Math.max(0, started + Math.ceil(duration * 1000) - now()))
+    endTimer.unref?.()
+    return true
   }
 
   const operatorChanged = () => {
@@ -71,5 +92,5 @@ export function createCinema({ cmdrUrl, players, emit, error = console.error }) 
 
   const timer = setInterval(() => { if (players().length) void refresh(true) }, 30000)
   timer.unref?.()
-  return { snapshot, refresh, choose, operatorChanged, dispose: () => clearInterval(timer) }
+  return { snapshot, refresh, choose, reportDuration, operatorChanged, dispose: () => { clearInterval(timer); if (endTimer !== null) cancel(endTimer) } }
 }

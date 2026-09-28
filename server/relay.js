@@ -279,6 +279,12 @@ export function attachRelay(
       if (reason) socket.emit('cinema:error', { reason })
     })
 
+    socket.on('cinema:duration', (raw) => {
+      if (player.level !== 1) return
+      const { id, since, duration } = obj(raw)
+      cinema.reportDuration(id, since, duration)
+    })
+
     socket.on('chat', (raw) => {
       const text = clean(obj(raw).text, MAX_TEXT)
       if (!text || chatBudget <= 0) return

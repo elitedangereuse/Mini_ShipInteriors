@@ -230,7 +230,10 @@ const barPanel = new BarPanel(wallet, cocktailEffects,
 )
 const gameEmbed = new GameEmbed()
 const mediaRoom = new MediaRoom({ get: () => iso.zoomLevel, set: (value) => iso.zoomTo(value) })
-const cinemaRoom = new CinemaRoom({ online: () => net.online, self: () => net.id, choose: (id) => net.sendCinemaChoice(id) })
+const cinemaRoom = new CinemaRoom({
+  online: () => net.online, self: () => net.id, choose: (id) => net.sendCinemaChoice(id),
+  duration: (id, since, duration) => net.sendCinemaDuration(id, since, duration),
+})
 const cinemaScreenProp = deckById(1).def.props.find((p) => p.model === 'cinema-screen')!
 const cinemaFocus = new THREE.Vector3()
 const spawn = spawnPoint()
@@ -2808,7 +2811,9 @@ function frame() {
   }
 
   renderer.render(scene, iso.camera)
-  cinemaRoom.placeScreen(iso.camera, deck.def.id === 1, cinemaScreenProp.x, deckById(1).y, cinemaScreenProp.z)
+  cinemaRoom.placeScreen(iso.camera, deck.def.id === 1,
+    deck.def.id === 1 && deck.map.room(Math.round(player.position.x), Math.round(player.position.z)) === 'n',
+    cinemaScreenProp.x, deckById(1).y, cinemaScreenProp.z)
   bubbles.update(iso.camera)
 
   // Résolution adaptative : on baisse la densité de pixels si l'affichage peine,

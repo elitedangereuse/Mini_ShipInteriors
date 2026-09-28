@@ -226,6 +226,10 @@ export class Net {
     this.send('cinema:choose', { id })
   }
 
+  sendCinemaDuration(id: number, since: number, duration: number) {
+    this.send('cinema:duration', { id, since, duration })
+  }
+
   sendProfile(profile: { name: string; skin: string }) {
     this.profile = profile
     this.send('profile', profile)
