@@ -219,6 +219,22 @@ describe('rediffusion', () => {
     for (const socket of [a, b, c]) socket.disconnect()
   })
 
+  test('le titre choisi dans un album, la boucle et le mélange suivent les nouveaux venus', async () => {
+    const a = client({ auth: { name: 'CMDR Album' } })
+    await welcome(a)
+    const b = client({ auth: { name: 'CMDR Duo' } })
+    await welcome(b)
+    a.emit('state', AT_JUKEBOX)
+    const heard = next(b, 'music')
+    a.emit('music', { where: 'deck', track: 'dangerous-spaces', song: 2, loop: true, shuffle: true, seed: 12345, x: 11.3, z: 5.82 })
+    const m = await heard
+    assert.deepEqual([m.track, m.song, m.loop, m.shuffle, m.seed], ['dangerous-spaces', 2, true, true, 12345])
+    const c = client({ auth: { name: 'CMDR Arrivée' } })
+    const late = (await welcome(c)).music
+    assert.deepEqual([late.track, late.song, late.loop, late.shuffle, late.seed], ['dangerous-spaces', 2, true, true, 12345])
+    for (const socket of [a, b, c]) socket.disconnect()
+  })
+
   test('le jukebox du bar de la cale joue à part de celui du mess, et se choisit depuis la cale', async () => {
     const a = client({ auth: { name: 'CMDR Comptoir' } })
     const wa = await welcome(a)

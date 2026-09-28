@@ -32,7 +32,7 @@ import { EN, localizeAttributes, tr } from './i18n'
 import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, LIFT, SPAWN } from './levels'
 import { hydrateIcons, icon } from './icons'
 import { lookId, lookPath, lookRig, parseLook, raceOf, variantsOf, type Look } from './looks'
-import { JukeboxPanel, JukeboxPlayer, trackById, type Track } from './music'
+import { JukeboxPanel, JukeboxPlayer, trackById, type MusicOptions, type Track } from './music'
 import { Net, type BoardGameId, type JukeboxWhere, type MusicState, type PlayerState } from './net'
 import type { Tile } from './pathfinding'
 import { PhotoMode } from './photo'
@@ -784,7 +784,7 @@ net.onMessage = (m) => {
       if (m.system && !jumping) systemView.set(m.system)
       // Le relais oublie tout à chaque connexion : la musique de nos quartiers, on la lui rend.
       const own = cabinMusic.playing
-      if (own) net.sendMusic('cabin', own.track.id, own.x, own.z, own.position)
+      if (own) net.sendMusic('cabin', own.track.id, own.x, own.z, own.position, own)
       break
     case 'join':
       addRemote(m.player)
@@ -1168,13 +1168,13 @@ function applyMusic(m: MusicState): Track | null {
   const music = jukeboxes[m.where]
   if (!music) return null
   const track = trackById(m.track)
-  if (track) music.play(track, jukeboxAt(m.where, m.x, m.z), m.at)
+  if (track) music.play(track, jukeboxAt(m.where, m.x, m.z), m.at, m)
   else music.stop()
   return track
 }
 
-function nowPlaying(track: Track) {
-  dialog.show(`♪ ${track.title} — ${track.artist}. ${track.mood}`)
+function nowPlaying(track: Track, song = 0) {
+  dialog.show(`♪ ${track.songs?.[song]?.title ?? track.title} — ${track.artist}. ${track.mood}`)
 }
 
 /** Le panneau du jukebox : on choisit un morceau (pour tous ceux qui sont là), ou on l'arrête. */
@@ -1184,17 +1184,35 @@ function openJukebox(where: JukeboxWhere, at: THREE.Vector3) {
   const music = jukeboxes[where]
   jukeboxNear = at.clone()
   jukeboxWhere = where
+  const choose = (track: Track, song: number, position = 0, options: Omit<MusicOptions, 'song'> = music.options) => {
+    music.play(track, jukeboxAt(where, at.x, at.z), position, { ...options, song })
+    net.sendMusic(where, track.id, at.x, at.z, position > 0 ? position : undefined, { ...options, song })
+  }
   jukebox.open(
     music,
-    (track) => {
-      music.play(track, jukeboxAt(where, at.x, at.z), 0)
-      net.sendMusic(where, track.id, at.x, at.z)
-      nowPlaying(track)
+    (track, song) => {
+      choose(track, song)
+      nowPlaying(track, song)
       sound.play('emote', null, { volume: 0.05, rate: 0.8 })
     },
     () => {
       music.stop()
       net.sendMusic(where, null, at.x, at.z)
+    },
+    (kind) => {
+      const current = music.current
+      if (!current) return
+      const options = music.options
+      if (kind === 'previous' || kind === 'next') {
+        const target = music.adjacent(kind === 'previous' ? -1 : 1)
+        if (target) choose(target.track, target.song, 0, options)
+      } else if (kind === 'loop') {
+        choose(current.track, current.songIndex, current.position, { ...options, loop: !options.loop })
+      } else {
+        choose(current.track, current.songIndex, current.position, {
+          ...options, shuffle: !options.shuffle, seed: !options.shuffle ? Math.floor(Math.random() * 0x100000000) : options.seed,
+        })
+      }
     },
   )
 }

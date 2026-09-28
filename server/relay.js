@@ -133,14 +133,20 @@ export function attachRelay(
    * Jukebox qui jouent : 0 pour le pont principal (le mess), -1 pour la cale (le bar), sinon
    * l'id de l'hôte des quartiers.
    */
-  const music = new Map() // instance -> { track, since, x, z }
+  const music = new Map() // instance -> { track, since, x, z, song, loop, shuffle, seed }
   /** Système où se trouve le vaisseau, et fin du saut en cours (aucun autre avant). */
   let system = HOME_SYSTEM
   let jumpEnds = 0
   /** Ce que joue le jukebox d'une instance, pour un joueur qui y arrive (track null : il se tait). */
   const musicOf = (instance) => {
     const m = music.get(instance)
-    return { where: JUKEBOX_WHERE.get(instance) ?? 'cabin', track: m?.track ?? null, at: m ? (Date.now() - m.since) / 1000 : 0, x: m?.x ?? 0, z: m?.z ?? 0 }
+    return {
+      where: JUKEBOX_WHERE.get(instance) ?? 'cabin', track: m?.track ?? null,
+      at: m ? (Date.now() - m.since) / 1000 : 0, x: m?.x ?? 0, z: m?.z ?? 0,
+      ...(m?.song ? { song: m.song } : {}),
+      ...(m?.loop ? { loop: true } : {}),
+      ...(m?.shuffle ? { shuffle: true, seed: m.seed } : {}),
+    }
   }
 
   /** Position et animation d'un joueur, avec sa pose s'il est installé sur un meuble. */
@@ -330,12 +336,16 @@ export function attachRelay(
       const track = m.track === null ? null : TRACK.test(String(m.track)) ? String(m.track) : undefined
       const x = num(m.x, -5, 50), z = num(m.z, -5, 20)
       if (track === undefined || x === null || z === null) return
+      const song = Number.isInteger(m.song) && m.song >= 0 && m.song <= 3 ? m.song : 0
+      const loop = m.loop === true
+      const shuffle = m.shuffle === true
+      const seed = Number.isInteger(m.seed) && m.seed >= 0 && m.seed <= 0xffffffff ? m.seed : 0
       // Au jukebox, et de ce côté du mur ; sauf l'hôte reconnecté qui rend sa musique (`at`).
       const restore = m.where === 'cabin' && m.at !== undefined
       const host = m.where === 'cabin' ? playerById(player.cabin) : undefined
       if (!restore && !reaches(player, JUKEBOX_LEVEL.get(m.where), { x, z }, host)) return socket.emit('music', { id: 0, ...musicOf(instance), far: true })
       musicBudget--
-      if (track) music.set(instance, { track, since: Date.now() - (num(m.at, 0, 3600) ?? 0) * 1000, x, z })
+      if (track) music.set(instance, { track, since: Date.now() - (num(m.at, 0, 86400) ?? 0) * 1000, x, z, song, loop, shuffle, seed })
       else music.delete(instance)
       const msg = { id: player.id, ...musicOf(instance) }
       for (const p of players.values()) {

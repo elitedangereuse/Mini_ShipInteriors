@@ -5,6 +5,7 @@ import { tr } from './i18n'
 import { icon } from './icons'
 import { syncTempo } from './tempo'
 import { $ } from './ui'
+import { musicCue, musicOrder } from '../shared/music-playlist.js'
 
 /* Le relais partage le choix et l'heure de départ. Chaque client retrouve le même titre,
  * y compris à l'intérieur d'un album, après une reconnexion. */
@@ -109,23 +110,14 @@ export const TRACKS: Track[] = [
 ]
 
 export const trackById = (id: string | null | undefined) => TRACKS.find((t) => t.id === id) ?? null
-const nextTrack = (t: Track) => TRACKS[(TRACKS.indexOf(t) + 1) % TRACKS.length]
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
-/** Un tour de la liste : partie de n'importe quel morceau, elle y revient au bout de ce temps. */
-const CYCLE = TRACKS.reduce((s, t) => s + t.duration, 0)
 const now = () => performance.now() / 1000
 const coverUrl = (track: Track) => `${BASE}music/covers/${track.cover}`
-
-function songAt(track: Track, elapsed: number): { song: Song; index: number; position: number } {
-  if (!track.songs) return { song: { title: track.title, file: `${track.id}.mp3`, duration: track.duration, bpm: track.bpm, offset: track.offset }, index: 0, position: elapsed }
-  let position = elapsed
-  for (let index = 0; index < track.songs.length; index++) {
-    const song = track.songs[index]
-    if (position < song.duration || index === track.songs.length - 1) return { song, index, position: Math.min(position, song.duration) }
-    position -= song.duration
-  }
-  throw new Error('Empty album')
-}
+export interface MusicOptions { song: number; loop: boolean; shuffle: boolean; seed: number }
+const SONGS = TRACKS.flatMap((track) => (track.songs ?? [{ title: track.title, file: `${track.id}.mp3`, duration: track.duration, bpm: track.bpm, offset: track.offset }])
+  .map((song, index) => ({ track, song, index })))
+const DURATIONS = SONGS.map((entry) => entry.song.duration)
+const songId = (track: Track, index: number) => SONGS.findIndex((entry) => entry.track === track && entry.index === index)
 
 /** Un jukebox qui joue en stéréo, avec une acoustique différente de part et d'autre des cloisons. */
 export class JukeboxPlayer {
@@ -134,16 +126,13 @@ export class JukeboxPlayer {
   private filter: BiquadFilterNode | null = null
   private readonly at = new THREE.Vector3()
   private acoustics: 'inside' | 'outside' | 'away' = 'away'
-  /**
-   * Morceau choisi, et l'instant (horloge du navigateur, s) où il a commencé : la liste enchaîne
-   * sur cette horloge, comme chez tous ceux qui l'écoutent, quel que soit le temps de chargement
-   * de chacun.
-   */
-  private origin: { track: Track; t0: number } | null = null
+  /** Titre choisi, ordre partagé et heure où il a commencé. */
+  private origin: { entry: number; t0: number; loop: boolean; shuffle: boolean; seed: number } | null = null
+  private order: number[] = []
   /** Recalé sur cette horloge depuis le dernier démarrage (cf. align). */
   private aligned = false
   private retrying = false
-  private songIndex = -1
+  private entryIndex = -1
   /** Morceau en cours (null : le jukebox se tait). */
   track: Track | null = null
   /** Un morceau démarre (choisi, ou le suivant qui enchaîne). */
@@ -160,67 +149,85 @@ export class JukeboxPlayer {
     this.audio.addEventListener('playing', () => this.align())
   }
 
-  /** Où en est la soirée : morceau choisi, temps écoulé depuis (à un tour de liste près), place. */
-  get playing(): { track: Track; position: number; x: number; z: number } | null {
+  /** État à rendre au relais après reconnexion. */
+  get playing(): { track: Track; position: number; x: number; z: number } & MusicOptions | null {
     const o = this.origin
-    return o && this.track ? { track: o.track, position: (now() - o.t0) % CYCLE, x: this.at.x, z: this.at.z } : null
+    const cue = this.cue()
+    return o && cue ? {
+      track: SONGS[o.entry].track, song: SONGS[o.entry].index,
+      position: (now() - o.t0) % cue.cycle, x: this.at.x, z: this.at.z,
+      loop: o.loop, shuffle: o.shuffle, seed: o.seed,
+    } : null
   }
 
   get current(): { track: Track; song: Song; songIndex: number; elapsed: number; position: number } | null {
     const cue = this.cue()
     if (!cue) return null
-    const { song, index, position } = songAt(cue.track, cue.position)
-    return { track: cue.track, song, songIndex: index, elapsed: cue.position, position }
+    const { track, song, index } = SONGS[cue.index]
+    const elapsed = (track.songs?.slice(0, index).reduce((sum, item) => sum + item.duration, 0) ?? 0) + cue.position
+    return { track, song, songIndex: index, elapsed, position: cue.position }
+  }
+
+  get options(): Omit<MusicOptions, 'song'> {
+    const o = this.origin
+    return { loop: o?.loop ?? false, shuffle: o?.shuffle ?? false, seed: o?.seed ?? 0 }
+  }
+
+  adjacent(step: -1 | 1): { track: Track; song: number } | null {
+    const cue = this.cue()
+    if (!cue) return null
+    const index = this.order[(cue.orderIndex + step + this.order.length) % this.order.length]
+    return { track: SONGS[index].track, song: SONGS[index].index }
   }
 
   /**
    * Joue `track` depuis `position` secondes ; au-delà de sa fin, la liste a enchaîné (on
    * rejoint une soirée commencée plus tôt).
    */
-  play(track: Track, at: THREE.Vector3, position = 0) {
-    this.origin = { track, t0: now() - Math.max(0, position) }
+  play(track: Track, at: THREE.Vector3, position = 0, options: Partial<MusicOptions> = {}) {
+    const selected = songId(track, Math.max(0, Math.min((track.songs?.length ?? 1) - 1, Math.trunc(options.song ?? 0))))
+    if (selected < 0) return
+    const preserve = position > 0 && selected === this.entryIndex && !this.audio.paused && Math.abs(this.audio.currentTime - position) < 0.5
+    const shuffle = options.shuffle ?? false
+    const seed = options.seed ?? 0
+    this.origin = { entry: selected, t0: now() - Math.max(0, position), loop: options.loop ?? false, shuffle, seed }
+    this.order = musicOrder(SONGS.length, selected, shuffle, seed)
     this.at.copy(at)
     this.attach()
-    this.start()
+    this.start(!preserve)
   }
 
-  /** Le morceau de la soirée et sa position, à cet instant ; jamais `ended`, qui vient de finir. */
-  private cue(): { track: Track; position: number } | null {
+  /** Titre et position à l'heure commune, indépendamment du chargement local. */
+  private cue(): { index: number; orderIndex: number; position: number; cycle: number } | null {
     const o = this.origin
     if (!o) return null
-    let t = o.track, p = (now() - o.t0) % CYCLE
-    while (p >= t.duration) {
-      p -= t.duration
-      t = nextTrack(t)
-    }
-    return { track: t, position: p }
+    return musicCue(DURATIONS, this.order, now() - o.t0, o.loop)
   }
 
   private ended() {
     const cue = this.cue()
-    if (cue && cue.track === this.track && songAt(cue.track, cue.position).index === this.songIndex && this.origin) {
-      // Le fichier a fini avant sa durée annoncée : avancer l'horloge commune jusqu'au suivant.
-      const segment = songAt(cue.track, cue.position)
-      this.origin.t0 -= segment.song.duration - segment.position
+    if (cue && this.origin && cue.index === this.entryIndex) {
+      if (this.origin.loop) this.origin.t0 = now()
+      else this.origin.t0 -= DURATIONS[cue.index] - cue.position
     }
     this.start()
   }
 
-  private start() {
+  private start(force = false) {
     const cue = this.cue()
     if (!cue) return
-    const { track: t, position: p } = cue
-    const { song, index, position } = songAt(t, p)
+    const { track, song } = SONGS[cue.index]
+    const position = cue.position
     // Ce morceau-là passe déjà, à l'heure (le relais nous le rappelle) : on ne le recharge pas.
-    if (t === this.track && index === this.songIndex && !this.audio.paused && Math.abs(this.audio.currentTime - position) < 1) return
-    this.track = t
-    this.songIndex = index
+    if (!force && cue.index === this.entryIndex && !this.audio.paused && Math.abs(this.audio.currentTime - position) < 1) return
+    this.track = track
+    this.entryIndex = cue.index
     this.aligned = false
     this.audio.src = `${BASE}music/${song.file}#t=${position.toFixed(2)}`
     this.audio.play().catch((e: unknown) => {
       if (e instanceof DOMException && e.name === 'NotAllowedError') this.retryOnGesture()
     })
-    this.onTrack?.(t)
+    this.onTrack?.(track)
   }
 
   /** Parti après son chargement : on rattrape le temps perdu, une fois par morceau. */
@@ -228,10 +235,7 @@ export class JukeboxPlayer {
     if (this.aligned) return
     this.aligned = true
     const cue = this.cue()
-    if (cue?.track === this.track) {
-      const song = songAt(cue.track, cue.position)
-      if (song.index === this.songIndex && Math.abs(this.audio.currentTime - song.position) > 0.25) this.audio.currentTime = song.position
-    }
+    if (cue?.index === this.entryIndex && Math.abs(this.audio.currentTime - cue.position) > 0.25) this.audio.currentTime = cue.position
   }
 
   /** Lecture refusée (réglage strict du navigateur) : on réessaie au premier geste, à l'heure. */
@@ -268,8 +272,9 @@ export class JukeboxPlayer {
 
   stop() {
     this.track = null
-    this.songIndex = -1
+    this.entryIndex = -1
     this.origin = null
+    this.order = []
     this.audio.pause()
     this.audio.removeAttribute('src')
     this.audio.load()
@@ -307,10 +312,16 @@ export class JukeboxPanel {
   private filter: MusicStyle | null = null
   private filters: HTMLButtonElement[] = []
   private list!: HTMLDivElement
+  private detail!: HTMLDivElement
+  private detailRows: HTMLButtonElement[] = []
+  private album: Track | null = null
   private hero!: HTMLDivElement
+  private controls: Partial<Record<'previous' | 'next' | 'loop' | 'shuffle', HTMLButtonElement>> = {}
+  private off?: HTMLButtonElement
   private player: JukeboxPlayer | null = null
   private refreshTimer: number | null = null
-  private pick?: (t: Track) => void
+  private pick?: (t: Track, song: number) => void
+  private command?: (kind: 'previous' | 'next' | 'loop' | 'shuffle') => void
 
   constructor() {
     this.el = document.createElement('div')
@@ -329,9 +340,11 @@ export class JukeboxPanel {
     return target instanceof Node && this.el.contains(target)
   }
 
-  open(player: JukeboxPlayer, pick: (t: Track) => void, stop: () => void) {
+  open(player: JukeboxPlayer, pick: (t: Track, song: number) => void, stop: () => void, command: (kind: 'previous' | 'next' | 'loop' | 'shuffle') => void) {
     this.player = player
     this.pick = pick
+    this.command = command
+    this.album = null
     const heading = document.createElement('header')
     heading.className = 'jb-heading'
     const headingText = document.createElement('div')
@@ -355,6 +368,30 @@ export class JukeboxPanel {
     this.hero.className = 'jb-hero'
     this.hero.setAttribute('aria-live', 'polite')
     this.renderHero()
+
+    const transport = document.createElement('div')
+    transport.className = 'jb-transport'
+    const controls: { kind: 'previous' | 'next' | 'loop' | 'shuffle'; label: string; iconName: 'skip-back' | 'skip-forward' | 'repeat-once' | 'shuffle' }[] = [
+      { kind: 'previous', label: tr('Piste précédente', 'Previous track'), iconName: 'skip-back' },
+      { kind: 'next', label: tr('Piste suivante', 'Next track'), iconName: 'skip-forward' },
+      { kind: 'loop', label: tr('Répéter ce titre', 'Repeat this track'), iconName: 'repeat-once' },
+      { kind: 'shuffle', label: tr('Ordre aléatoire', 'Shuffle order'), iconName: 'shuffle' },
+    ]
+    this.controls = {}
+    for (const item of controls) {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = `jb-transport-${item.kind}`
+      const label = document.createElement('span')
+      label.textContent = item.label
+      button.append(icon(item.iconName), label)
+      button.title = item.label
+      button.setAttribute('aria-label', item.label)
+      button.onclick = () => { this.command?.(item.kind); this.renderHero() }
+      this.controls[item.kind] = button
+      transport.append(button)
+    }
+    this.updateControls()
 
     const catalogue = document.createElement('div')
     catalogue.className = 'jb-catalogue'
@@ -407,15 +444,18 @@ export class JukeboxPanel {
       }
       const play = document.createElement('span')
       play.className = 'jb-play'
-      play.append(icon('play'))
+      play.append(icon(t.songs ? 'caret-right' : 'play'))
       b.append(cover, content, play)
-      b.setAttribute('aria-label', tr(`Jouer ${t.songs ? 'l’album ' : ''}${t.title}, ${t.artist}`, `Play ${t.songs ? 'album ' : ''}${t.title}, ${t.artist}`))
-      b.onclick = () => this.choose(t)
+      b.setAttribute('aria-label', tr(`${t.songs ? 'Ouvrir l’album' : 'Jouer'} ${t.title}, ${t.artist}`, `${t.songs ? 'Open album' : 'Play'} ${t.title}, ${t.artist}`))
+      b.onclick = () => t.songs ? this.showAlbum(t) : this.choose(t, 0)
       b.onpointerenter = () => this.select(this.visibleRows().findIndex((row) => row.track === t), false)
       return { track: t, button: b }
     })
     this.list.append(...this.rows.map((row) => row.button))
-    catalogue.append(filterLabel, filters, libraryTitle, this.list)
+    this.detail = document.createElement('div')
+    this.detail.className = 'jb-album-detail'
+    this.detail.hidden = true
+    catalogue.append(filterLabel, filters, libraryTitle, this.list, this.detail)
     const actions = document.createElement('div')
     actions.className = 'jb-actions'
     const off = document.createElement('button')
@@ -423,6 +463,7 @@ export class JukeboxPanel {
     off.append(icon('stop'), tr('Arrêter la musique', 'Stop the music'))
     off.hidden = !player.track
     off.onclick = () => { this.close(); stop() }
+    this.off = off
     actions.append(off)
     const close = document.createElement('button')
     close.className = 'jb-done'
@@ -431,20 +472,21 @@ export class JukeboxPanel {
     actions.append(close)
     const hint = document.createElement('div')
     hint.className = 'jb-hint'
-    hint.textContent = tr('← → filtrer · ↑ ↓ choisir · Entrée : jouer · Échap : fermer', '← → filter · ↑ ↓ choose · Enter: play · Esc: close')
-    this.el.replaceChildren(heading, this.hero, catalogue, hint, actions)
+    hint.textContent = tr('← → filtrer · ↑ ↓ choisir · Entrée : ouvrir / jouer · Échap : fermer', '← → filter · ↑ ↓ choose · Enter: open / play · Esc: close')
+    this.el.replaceChildren(heading, this.hero, transport, catalogue, hint, actions)
     this.setFilter(this.filter)
     this.select(Math.max(0, this.visibleRows().findIndex((row) => row.track === player.track)))
     this.el.hidden = false
+    this.renderHero()
     if (this.refreshTimer !== null) clearInterval(this.refreshTimer)
     this.refreshTimer = window.setInterval(() => this.renderHero(), 500)
   }
 
   move(step: number) {
-    const count = this.visibleRows().length
+    const count = this.album ? this.detailRows.length : this.visibleRows().length
     if (count) {
       this.select((this.selected + step + count) % count)
-      this.visibleRows()[this.selected]?.button.focus({ preventScroll: true })
+      ;(this.album ? this.detailRows[this.selected] : this.visibleRows()[this.selected]?.button)?.focus({ preventScroll: true })
     }
   }
 
@@ -456,8 +498,9 @@ export class JukeboxPanel {
 
   confirm() {
     const active = document.activeElement
-    if (active instanceof HTMLButtonElement && this.el.contains(active) && !active.classList.contains('jb-card')) active.click()
-    else this.choose(this.visibleRows()[this.selected]?.track)
+    if (active instanceof HTMLButtonElement && this.el.contains(active) && !active.classList.contains('jb-card')) return active.click()
+    if (this.album) this.detailRows[this.selected]?.click()
+    else this.visibleRows()[this.selected]?.button.click()
   }
 
   private visibleRows() {
@@ -465,6 +508,7 @@ export class JukeboxPanel {
   }
 
   private setFilter(style: MusicStyle | null) {
+    this.hideAlbum()
     this.filter = style
     const styles: (MusicStyle | null)[] = [null, ...new Set(TRACKS.map((t) => t.style))]
     this.filters.forEach((button, i) => {
@@ -477,24 +521,103 @@ export class JukeboxPanel {
 
   private select(i: number, scroll = true) {
     this.rows.forEach(({ button }) => button.classList.remove('selected'))
+    this.detailRows.forEach((button) => button.classList.remove('selected'))
     if (i < 0) return
     this.selected = i
-    const button = this.visibleRows()[i]?.button
+    const button = this.album ? this.detailRows[i] : this.visibleRows()[i]?.button
     button?.classList.add('selected')
     if (scroll) button?.scrollIntoView({ block: 'nearest' })
   }
 
-  private choose(t?: Track) {
+  private showAlbum(track: Track) {
+    if (!track.songs) return this.choose(track, 0)
+    this.album = track
+    const back = document.createElement('button')
+    back.type = 'button'
+    back.className = 'jb-album-back'
+    back.append(icon('arrow-left'), tr('Tous les albums et morceaux', 'All albums and tracks'))
+    back.onclick = () => this.hideAlbum()
+    const heading = document.createElement('div')
+    heading.className = 'jb-album-heading'
+    const cover = document.createElement('img')
+    cover.src = coverUrl(track)
+    cover.alt = ''
+    const info = document.createElement('div')
+    const eyebrow = document.createElement('span')
+    eyebrow.className = 'jb-card-tag'
+    eyebrow.textContent = tr(`ALBUM · ${track.songs.length} TITRES`, `ALBUM · ${track.songs.length} TRACKS`)
+    const name = document.createElement('strong')
+    name.textContent = track.title
+    const artist = document.createElement('span')
+    artist.textContent = `${track.artist} · ${clock(track.duration)}`
+    info.append(eyebrow, name, artist)
+    heading.append(cover, info)
+    const all = document.createElement('button')
+    all.type = 'button'
+    all.className = 'jb-album-all'
+    all.append(icon('play'), tr('Lire l’album depuis le début', 'Play album from the start'))
+    all.onclick = () => this.choose(track, 0)
+    this.detailRows = [all]
+    const songs = document.createElement('div')
+    songs.className = 'jb-album-songs'
+    track.songs.forEach((song, index) => {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = 'jb-album-song'
+      const number = document.createElement('span')
+      number.className = 'jb-album-number'
+      number.textContent = String(index + 1).padStart(2, '0')
+      const title = document.createElement('strong')
+      title.textContent = song.title
+      const duration = document.createElement('span')
+      duration.textContent = clock(song.duration)
+      button.append(number, title, duration, icon('play'))
+      button.onclick = () => this.choose(track, index)
+      button.onpointerenter = () => this.select(index + 1, false)
+      this.detailRows.push(button)
+      songs.append(button)
+    })
+    this.detail.replaceChildren(back, heading, all, songs)
+    this.list.hidden = true
+    this.detail.hidden = false
+    const current = this.player?.current
+    this.select(current?.track === track ? current.songIndex + 1 : 0)
+    this.detailRows[this.selected]?.focus({ preventScroll: true })
+  }
+
+  private hideAlbum() {
+    this.album = null
+    this.detailRows = []
+    if (this.detail) this.detail.hidden = true
+    if (this.list) this.list.hidden = false
+  }
+
+  private choose(t?: Track, song = 0) {
     if (!t) return
     this.close()
-    this.pick?.(t)
+    this.pick?.(t, song)
+  }
+
+  private updateControls() {
+    const active = !!this.player?.current
+    for (const [kind, button] of Object.entries(this.controls) as ['previous' | 'next' | 'loop' | 'shuffle', HTMLButtonElement][]) {
+      button.disabled = !active
+      if (kind === 'loop' || kind === 'shuffle') {
+        const on = this.player?.options[kind] ?? false
+        button.classList.toggle('active', on)
+        button.setAttribute('aria-pressed', String(on))
+      }
+    }
+    if (this.off) this.off.hidden = !active
   }
 
   private renderHero() {
     if (!this.hero) return
+    this.updateControls()
     const current = this.player?.current
     if (!current) {
       this.rows.forEach(({ button }) => button.classList.remove('playing'))
+      this.detailRows.forEach((button) => button.classList.remove('playing'))
       if (this.hero.classList.contains('empty')) return
       delete this.hero.dataset.song
       this.hero.replaceChildren()
@@ -538,10 +661,12 @@ export class JukeboxPanel {
     const time = this.hero.querySelector<HTMLElement>('.jb-time')
     if (time) time.textContent = `${clock(elapsed)} / ${clock(track.duration)}`
     this.rows.forEach(({ track: t, button }) => button.classList.toggle('playing', t === track))
+    this.detailRows.forEach((button, i) => button.classList.toggle('playing', this.album === track && i === songIndex + 1))
   }
 
   close() {
     this.el.hidden = true
+    this.hideAlbum()
     if (this.refreshTimer !== null) clearInterval(this.refreshTimer)
     this.refreshTimer = null
   }

@@ -2,7 +2,7 @@
 .jukebox {
   width: min(900px, calc(100vw - 28px));
   max-height: min(780px, calc(100dvh - 42px));
-  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
   gap: 16px;
   padding: clamp(16px, 2.6vw, 28px);
   overflow: hidden;
@@ -31,6 +31,12 @@
 .jb-hero.empty > .icon { font-size: 36px; color: #f8a8d5; }
 .jb-hero.empty > div { display: flex; flex-direction: column; gap: 3px; }
 .jb-hero.empty > div > span:last-child { color: #c9bed0; font-size: 12px; }
+.jb-transport { display: flex; flex-wrap: wrap; gap: 8px; }
+.jb-transport button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 7px 12px; border: 1px solid #ffffff31; border-radius: 8px; background: #ffffff0c; color: #ede3f0; font-size: 11px; cursor: pointer; }
+.jb-transport button:nth-child(3) { margin-left: auto; }
+.jb-transport button:hover:not(:disabled), .jb-transport button.active { border-color: #f2a5d2; background: #f2a5d228; color: white; }
+.jb-transport button:disabled { opacity: .42; cursor: default; }
+.jb-transport button .icon { font-size: 16px; }
 .jb-catalogue { display: flex; flex-direction: column; min-height: 0; }
 .jb-section-title { margin-bottom: 8px; color: #d2cada; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .jb-library-title { margin-top: 17px; }
@@ -38,6 +44,21 @@
 .jb-filter { flex: none; padding: 7px 13px; border: 1px solid #ffffff29; border-radius: 999px; background: #ffffff0b; color: #d4cddd; font-size: 11px; cursor: pointer; }
 .jb-filter.active, .jb-filter:hover { border-color: #ff9bd5; background: #ff8dcc27; color: white; }
 .jb-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 9px; min-height: 0; overflow-y: auto; padding: 2px 5px 8px 2px; scrollbar-color: #ad6b9d transparent; }
+.jb-album-detail { display: flex; flex-direction: column; gap: 11px; min-height: 0; overflow-y: auto; padding: 2px 6px 7px 2px; scrollbar-color: #ad6b9d transparent; }
+.jb-album-back { display: inline-flex; align-items: center; gap: 7px; align-self: flex-start; padding: 4px 0; border: 0; background: transparent; color: #edb4d8; font-size: 11px; cursor: pointer; }
+.jb-album-heading { display: flex; align-items: center; gap: 15px; }
+.jb-album-heading img { width: 84px; height: 84px; flex: none; object-fit: cover; border-radius: 9px; }
+.jb-album-heading > div { display: flex; flex-direction: column; min-width: 0; gap: 2px; color: #ccc2d6; font-size: 12px; }
+.jb-album-heading strong { color: white; font: 500 clamp(20px, 3vw, 30px)/1.12 Georgia, serif; }
+.jb-album-all, .jb-album-song { display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 12px; border: 1px solid #ffffff2c; border-radius: 9px; background: #ffffff0c; color: white; text-align: left; cursor: pointer; }
+.jb-album-all { justify-content: center; border-color: #eeaad5; background: #ec91c727; color: #ffe4f4; font-weight: 700; }
+.jb-album-songs { display: grid; gap: 6px; }
+.jb-album-song strong { flex: 1; font-size: 12px; }
+.jb-album-song > span:nth-last-child(2) { color: #bfb6cb; font-size: 11px; font-variant-numeric: tabular-nums; }
+.jb-album-number { color: #e2a2ca; font-size: 11px; font-variant-numeric: tabular-nums; }
+.jb-album-song .icon { color: #ffc4e7; font-size: 12px; }
+.jb-album-all:hover, .jb-album-song:hover, .jb-album-all.selected, .jb-album-song.selected { border-color: #f897d3; background: #f897d31b; }
+.jb-album-song.playing { border-color: #e1a675a8; box-shadow: inset 3px 0 #e1a675; }
 .jukebox .jb-list button.jb-card { display: flex; align-items: center; min-width: 0; min-height: 84px; gap: 12px; padding: 8px; border: 1px solid #ffffff23; border-radius: 11px; background: #ffffff0c; text-align: left; color: #f7f2fb; cursor: pointer; box-shadow: none; }
 .jukebox .jb-list button.jb-card[hidden] { display: none !important; }
 .jukebox .jb-list button.jb-card:hover, .jukebox .jb-list button.jb-card.selected { border-color: #f897d3; background: #f897d31b; box-shadow: inset 3px 0 #f897d3; }
@@ -60,6 +81,11 @@
   .jb-hero { min-height: 106px; gap: 12px; }
   .jb-hero > img { width: 80px; height: 80px; }
   .jb-list { grid-template-columns: minmax(0, 1fr); }
+  .jb-transport { flex-wrap: nowrap; gap: 5px; }
+  .jb-transport button { flex: 1; min-width: 0; padding: 7px 4px; }
+  .jb-transport button:nth-child(3) { margin-left: 0; }
+  .jb-transport button span { display: none; }
+  .jb-album-heading img { width: 64px; height: 64px; }
   .jb-library-title { margin-top: 10px; }
   .jb-hint { display: none; }
   .jb-actions button { flex: 1; }

@@ -32,6 +32,10 @@ export interface MusicState {
   at: number
   x: number
   z: number
+  song?: number
+  loop?: boolean
+  shuffle?: boolean
+  seed?: number
 }
 
 export type BoardGameId = 'draughts' | 'guardian-connect' | 'imperial-chess'
@@ -246,8 +250,8 @@ export class Net {
    * depuis son début ou `at` secondes plus loin. Avec `at`, c'est la musique de ses quartiers,
    * rendue au relais après une reconnexion : il ne vérifie pas qu'on est au jukebox.
    */
-  sendMusic(where: JukeboxWhere, track: string | null, x: number, z: number, at?: number) {
-    this.send('music', { where, track, x: Math.round(x * 100) / 100, z: Math.round(z * 100) / 100, ...(at !== undefined ? { at: Math.round(at * 100) / 100 } : {}) })
+  sendMusic(where: JukeboxWhere, track: string | null, x: number, z: number, at?: number, options?: Pick<MusicState, 'song' | 'loop' | 'shuffle' | 'seed'>) {
+    this.send('music', { where, track, x: Math.round(x * 100) / 100, z: Math.round(z * 100) / 100, ...(at !== undefined ? { at: Math.round(at * 100) / 100 } : {}), ...options })
   }
 
   sendFightJoin(fighter: FighterId) { this.send('fight:join', { fighter }) }

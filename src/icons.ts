@@ -79,6 +79,10 @@ import tag from '@phosphor-icons/core/bold/tag-bold.svg?raw'
 import snowflake from '@phosphor-icons/core/bold/snowflake-bold.svg?raw'
 import gridFour from '@phosphor-icons/core/bold/grid-four-bold.svg?raw'
 import play from '@phosphor-icons/core/bold/play-bold.svg?raw'
+import skipBack from '@phosphor-icons/core/bold/skip-back-bold.svg?raw'
+import skipForward from '@phosphor-icons/core/bold/skip-forward-bold.svg?raw'
+import repeatOnce from '@phosphor-icons/core/bold/repeat-once-bold.svg?raw'
+import shuffle from '@phosphor-icons/core/bold/shuffle-bold.svg?raw'
 import pause from '@phosphor-icons/core/bold/pause-bold.svg?raw'
 import stop from '@phosphor-icons/core/bold/stop-bold.svg?raw'
 import musicNotes from '@phosphor-icons/core/bold/music-notes-bold.svg?raw'
@@ -189,6 +193,10 @@ const SVG = {
   snowflake,
   'grid-four': gridFour,
   play,
+  'skip-back': skipBack,
+  'skip-forward': skipForward,
+  'repeat-once': repeatOnce,
+  shuffle,
   pause,
   stop,
   'music-notes': musicNotes,
