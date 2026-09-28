@@ -3,6 +3,7 @@ import type { CabinDef } from './cabin/view'
 import type { CustomModel } from './furniture'
 import { tr } from './i18n'
 import { BOARD_TABLES, SHIP_LAYOUTS } from '../shared/ship-layouts.js'
+import { PILOT_SEAT } from '../shared/systems.js'
 
 /** Orientation en quarts de tour : 0 = face +z (sud), 1 = +x (est), 2 = -z (nord), 3 = -x (ouest). */
 export type Rot = 0 | 1 | 2 | 3
@@ -428,7 +429,7 @@ export const LEVELS: LevelDef[] = [
         ],
       },
       {
-        model: 'pilot-seat', x: 36.9, z: 4.5, rot: 1,
+        model: 'pilot-seat', x: PILOT_SEAT.x, z: PILOT_SEAT.z, rot: 1,
         interact: tr('Siège du pilote. Quelqu\'un a gravé « o7 » sur l\'accoudoir.', 'Pilot\'s seat. Someone has carved “o7” into the armrest.'),
       },
       { model: 'radar', x: 37.5, z: 4.5, rot: 1 },

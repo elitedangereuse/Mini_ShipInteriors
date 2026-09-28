@@ -9,7 +9,7 @@ export const SYSTEM_IDS = ['shinrarta', 'sol', 'colonia', 'alpha-centauri', 'lav
 export const HOME_SYSTEM = 'shinrarta'
 
 /** Siège du pilote (pont principal) : on ne lance un saut qu'installé dessus. */
-export const PILOT_SEAT = { level: 0, x: 36.9, z: 4.5 }
+export const PILOT_SEAT = { level: 0, x: 36.75, z: 4.5 }
 
 /** Durée d'un saut : charge du réacteur, puis traversée (secondes), comme dans le client. */
 export const JUMP_CHARGE = 4

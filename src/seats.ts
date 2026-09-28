@@ -52,7 +52,9 @@ export const SEATS: Partial<Record<CustomModel | StationModel, Seat[]>> = {
   beanbag: [sit(0, 0, 0.24, 'free')],
   bench: [sit(-0.24, 0, 0.3, 'both'), sit(0.24, 0, 0.3, 'both')],
   toilet: [sit(0, 0.06, 0.235)],
-  'pilot-seat': [{ pose: 'pilot', x: 0, z: 0.06, y: 0.3, yaw: 0 }],
+  // On s'y glisse de face, entre le siège et le tableau de bord (de côté, on traverserait
+  // l'accoudoir et le HOTAS) : le siège est reculé d'autant (cf. PILOT_SEAT).
+  'pilot-seat': [{ pose: 'pilot', x: 0, z: 0.06, y: 0.3, yaw: 0, from: [0, 0.5] }],
   'crew-seat': [sit(0, 0.05, 0.3)],
   'command-chair': [sit(0, 0.06, 0.36)],
   'cozy-bed': [lie(-0.27, 0.02, 0.32, [-0.95, 0.12]), lie(0.27, 0.02, 0.32, [0.95, 0.12])],
