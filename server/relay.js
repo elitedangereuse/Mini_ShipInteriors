@@ -27,6 +27,7 @@ import { hasSiteArtwork, siteArtworkAllowed } from './site.js'
 import { cleanCmdrName, cmdrFromCookie } from './cmdr.js'
 import { BOARD_TABLES, SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import { ShipMap } from '../shared/ship-map.js'
+import { applyWings } from '../shared/cabin-wings.js'
 import { canReach } from '../shared/sight.js'
 import { HOME_SYSTEM, JUMP_CHARGE, JUMP_TRAVEL, PILOT_SEAT, nextSystem } from '../shared/systems.js'
 
@@ -56,7 +57,20 @@ const INVITE_TTL = 60000
 const REACH = 2.5
 /** Plans des ponts : on n'agit pas à travers un mur (cf. shared/sight.js). */
 const MAPS = new Map(Object.entries(SHIP_LAYOUTS).map(([id, layout]) => [Number(id), new ShipMap(layout, shipMapOptions(id))]))
-const reaches = (player, level, at) => player.level === level && canReach(MAPS.get(level), player, at, REACH)
+/** Plan du pont des quartiers avec les pièces d'extension d'un aménagement (gardé avec lui). */
+const cabinMaps = new WeakMap()
+function cabinMap(layout) {
+  if (!layout?.wings) return MAPS.get(1)
+  let map = cabinMaps.get(layout)
+  if (!map) {
+    map = new ShipMap(SHIP_LAYOUTS['1'], shipMapOptions(1))
+    applyWings(map, layout.wings)
+    cabinMaps.set(layout, map)
+  }
+  return map
+}
+/** `host` : dans des quartiers, leur hôte (ses pièces d'extension comptent). */
+const reaches = (player, level, at, host) => player.level === level && canReach(host && level === 1 ? cabinMap(host.layout) : MAPS.get(level), player, at, REACH)
 /** Pont de chaque jukebox : le mess (pont principal), le bar (la cale), les quartiers. */
 const JUKEBOX_LEVEL = new Map([['deck', 0], ['hold', -1], ['cabin', 1]])
 /** Jukebox d'une instance commune (cf. `music` plus bas) ; les autres sont des quartiers. */
@@ -107,8 +121,8 @@ export function attachRelay(
   const io = new Server(httpServer, {
     path,
     serveClient: false,
-    // Un aménagement de quartiers plein fait ~5 Ko.
-    maxHttpBufferSize: 16384,
+    // Un aménagement de quartiers plein (160 objets, extensions comprises) fait ~13 Ko.
+    maxHttpBufferSize: 32768,
     allowRequest: (req, callback) => callback(null, sameOrigin(req)),
   })
   const players = new Map() // socket.id -> joueur
@@ -318,7 +332,8 @@ export function attachRelay(
       if (track === undefined || x === null || z === null) return
       // Au jukebox, et de ce côté du mur ; sauf l'hôte reconnecté qui rend sa musique (`at`).
       const restore = m.where === 'cabin' && m.at !== undefined
-      if (!restore && !reaches(player, JUKEBOX_LEVEL.get(m.where), { x, z })) return socket.emit('music', { id: 0, ...musicOf(instance), far: true })
+      const host = m.where === 'cabin' ? playerById(player.cabin) : undefined
+      if (!restore && !reaches(player, JUKEBOX_LEVEL.get(m.where), { x, z }, host)) return socket.emit('music', { id: 0, ...musicOf(instance), far: true })
       musicBudget--
       if (track) music.set(instance, { track, since: Date.now() - (num(m.at, 0, 3600) ?? 0) * 1000, x, z })
       else music.delete(instance)

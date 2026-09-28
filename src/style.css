@@ -1736,24 +1736,26 @@ body.editing .top-left {
   opacity: 0.45;
   cursor: default;
 }
-/* Mobilier, ou murs et sol. */
+/* Mobilier, murs et sol, ou pièces des extensions. */
 .ed-modes {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 4px;
 }
 .ed-modes button {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
   height: 32px;
+  padding: 0 4px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
 }
 .ed-modes button:hover {
   color: var(--text);
@@ -1765,7 +1767,8 @@ body.editing .top-left {
   background: rgba(89, 216, 255, 0.14);
 }
 .ed-modes .icon {
-  font-size: 17px;
+  flex: none;
+  font-size: 16px;
 }
 .ed-cards.finish {
   display: flex;
@@ -1797,6 +1800,121 @@ body.editing .top-left {
   border-color: var(--cyan);
   background: rgba(89, 216, 255, 0.18);
   box-shadow: 0 0 0 1px var(--cyan) inset;
+}
+/* Murs et sol : la pièce à repeindre (quartiers, ou une extension). */
+.ed-room-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.ed-room-chips button {
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 12px;
+}
+.ed-room-chips button:hover {
+  color: var(--text);
+}
+.ed-room-chips button.active {
+  color: var(--cyan);
+  border-color: var(--cyan);
+  background: rgba(89, 216, 255, 0.14);
+}
+/* Pièces : les trois espaces d'extension, leur prix ou leurs formes de plan. */
+.ed-rooms-intro {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.ed-wing {
+  display: grid;
+  gap: 7px;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.ed-wing:hover {
+  border-color: rgba(89, 216, 255, 0.55);
+}
+.ed-wing-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ed-wing-name {
+  font-weight: 700;
+}
+.ed-wing-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.ed-wing-buy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: rgba(255, 176, 58, 0.22);
+  color: #ffe3b3;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ed-wing-buy:hover:not(:disabled) {
+  background: rgba(255, 176, 58, 0.34);
+}
+.ed-wing-buy:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ed-patterns {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+}
+.ed-pattern {
+  display: grid;
+  place-items: center;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.ed-pattern-name {
+  min-height: 15px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.ed-pattern-name.confirm {
+  color: #ffe3b3;
+}
+.ed-pattern canvas {
+  width: 100%;
+  max-width: 44px;
+  height: auto;
+  aspect-ratio: 1;
+}
+.ed-pattern:hover {
+  background: rgba(89, 216, 255, 0.12);
+  border-color: var(--cyan);
+}
+.ed-pattern.active {
+  border-color: var(--cyan);
+  background: rgba(89, 216, 255, 0.18);
+  box-shadow: 0 0 0 1px var(--cyan) inset;
+}
+.ed-pattern.confirm {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
 }
 .ed-finish canvas {
   width: 64px;

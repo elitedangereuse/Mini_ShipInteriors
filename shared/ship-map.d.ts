@@ -26,8 +26,8 @@ export interface Door {
 export interface ShipMapOptions {
   /** Pièces fermées : leurs portes sont verrouillées. */
   closed?: string
-  /** Portes en plus des '+', posées sur un bord de tuile. */
-  doors?: Door[]
+  /** Portes en plus des '+', posées sur un bord de tuile ; verrouillées si `locked`. */
+  doors?: (Door & { locked?: boolean })[]
 }
 
 export declare class ShipMap {
@@ -37,6 +37,10 @@ export declare class ShipMap {
   constructor(layout: string[], options?: ShipMapOptions)
   /** Porte sur le bord `dir` de la tuile (x, z). */
   addDoor(x: number, z: number, dir: number): void
+  /** Retire la porte du bord `dir` de la tuile (x, z), s'il y en a une. */
+  removeDoor(x: number, z: number, dir: number): void
+  /** Change la pièce d'une tuile (null : du vide), le plan s'agrandissant au besoin. */
+  setRoom(x: number, z: number, room: string | null): void
   /** Verrouille (ou déverrouille) la porte du bord `dir` de la tuile (x, z). */
   lock(x: number, z: number, dir: number, on?: boolean): void
   isLocked(x: number, z: number, dir: number): boolean

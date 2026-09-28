@@ -1,12 +1,16 @@
 // Aménagement des quartiers d'un CMDR, tel que le relais le garde et le rediffuse à ses invités.
 //
 // Le catalogue des objets et des revêtements vit dans le client (src/cabin/catalog.ts,
-// src/cabin/finishes.ts) : le relais ne vérifie que la forme, bornée (64 objets, identifiants
-// courts, nombres finis dans le vaisseau, couleurs #rrggbb), et chaque client écarte à la lecture
-// ce qu'il ne connaît pas. Mêmes règles que le site (phputils/mini_shipinteriors/cabin.php), qui
-// enregistre l'aménagement.
+// src/cabin/finishes.ts) : le relais ne vérifie que la forme, bornée (160 objets, identifiants
+// courts, nombres finis dans le vaisseau, couleurs #rrggbb, pièces d'extension connues), et chaque
+// client écarte à la lecture ce qu'il ne connaît pas. Mêmes règles que le site
+// (phputils/mini_shipinteriors/cabin.php), qui enregistre l'aménagement et ne garde que les pièces
+// des espaces débloqués.
 
-export const MAX_ITEMS = 64
+import { WING_PATTERNS, WING_SLOTS } from '../shared/cabin-wings.js'
+
+/** Les quartiers (64 objets) et trois pièces d'extension (32 chacune). */
+export const MAX_ITEMS = 64 + 32 * WING_SLOTS.length
 
 const MODEL = /^[a-z0-9-]{1,32}$/
 const VARIANT = /^[a-z0-9.:-]{1,24}$/
@@ -51,5 +55,23 @@ export function sanitizeLayout(raw) {
   const wall = finish(raw.wall), floor = finish(raw.floor)
   if (wall) layout.wall = wall
   if (floor) layout.floor = floor
+  const wings = sanitizeWings(raw.wings)
+  if (wings) layout.wings = wings
   return layout
+}
+
+/** Pièces d'extension ({ left?, middle?, right? } : forme connue, revêtements), ou null. */
+export function sanitizeWings(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const out = {}
+  for (const slot of WING_SLOTS) {
+    const w = raw[slot.id]
+    if (!w || typeof w !== 'object' || typeof w.shape !== 'string' || !Object.hasOwn(WING_PATTERNS, w.shape)) continue
+    const wing = { shape: w.shape }
+    const wall = finish(w.wall), floor = finish(w.floor)
+    if (wall) wing.wall = wall
+    if (floor) wing.floor = floor
+    out[slot.id] = wing
+  }
+  return Object.keys(out).length ? out : null
 }

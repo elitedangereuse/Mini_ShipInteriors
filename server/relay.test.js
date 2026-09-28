@@ -578,8 +578,22 @@ describe('quartiers', () => {
       { m: 'mug', x: 1.235, z: 2, r: 3, v: 'warm:2x1.4', y: 0.4, s: 12 },
       { m: 'mug', x: 1, z: 1, r: 0 },
     ])
-    const full = sanitizeLayout({ items: Array.from({ length: 80 }, () => ({ m: 'plant', x: 10, z: 8, r: 0 })) })
+    const full = sanitizeLayout({ items: Array.from({ length: 200 }, () => ({ m: 'plant', x: 10, z: 8, r: 0 })) })
     assert.equal(full.items.length, MAX_ITEMS)
+  })
+
+  test('les pièces d\'extension passent, avec une forme connue et leurs revêtements', () => {
+    const items = [{ m: 'mug', x: 11, z: 12, r: 0 }]
+    const out = sanitizeLayout({
+      items,
+      wings: {
+        middle: { shape: 'deux-pieces', wall: { style: 'damask', color: '#7a2e3a' }, floor: { style: 'planks', color: 'rouge' } },
+        left: { shape: 'pentagone' },
+        attic: { shape: 'carre' },
+      },
+    })
+    assert.deepEqual(out.wings, { middle: { shape: 'deux-pieces', wall: { style: 'damask', color: '#7a2e3a' } } })
+    assert.equal(sanitizeLayout({ items, wings: 'toutes' }).wings, undefined)
   })
 
   test('les revêtements des murs et du sol passent, s\'ils ont la bonne forme', () => {

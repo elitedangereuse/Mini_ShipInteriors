@@ -52,7 +52,8 @@ export interface WallSegment {
   model: 'wall' | 'wall-window' | 'wall-pillar' | 'door'
 }
 
-interface DoorState {
+/** Porte automatique : son panneau glisse quand quelqu'un approche (sauf si elle est verrouillée). */
+export interface DoorState {
   panel: THREE.Object3D
   center: THREE.Vector3
   /** Axe de glissement du panneau (le long du mur). */
@@ -65,17 +66,19 @@ interface DoorState {
   dir: number
   /** Voyants rouges de la porte verrouillée, de part et d'autre. */
   lamp: THREE.Object3D
+  /** Invite de la porte tant qu'elle est verrouillée (cf. Deck.update). */
+  examine?: Interactable
 }
 
-const WALL_T = 0.3
+export const WALL_T = 0.3
 /**
  * Poteau d'angle : un peu plus large et plus haut que les murs, pour recouvrir
  * entièrement la zone où deux murs se chevauchent (sinon leurs dessus, au même
  * niveau, se battent pour le même pixel : z-fighting en dents de scie).
  */
-const POST_W = WALL_T + 0.05
-const POST_H = 1.03
-const FLOOR_Y = -0.3
+export const POST_W = WALL_T + 0.05
+export const POST_H = 1.03
+export const FLOOR_Y = -0.3
 const DOOR_RANGE = 1.3
 
 const PICK_MATERIAL = new THREE.MeshBasicMaterial()
@@ -103,7 +106,7 @@ const LOCK_LAMP_GEO = new THREE.BoxGeometry(0.16, 0.035, 0.33)
 const LOCK_LAMP_MAT = new THREE.MeshBasicMaterial({ color: '#ff3b2f' })
 
 /** Petit hash déterministe pour varier les murs sans aléatoire. */
-function hash(x: number, z: number): number {
+export function hash(x: number, z: number): number {
   let h = (x * 374761393 + z * 668265263) | 0
   h = (h ^ (h >>> 13)) * 1274126177
   return (h ^ (h >>> 16)) >>> 0
@@ -134,6 +137,8 @@ export class Deck {
 
   /** Appelé quand une porte s'ouvre ou se ferme (position monde). */
   onDoor?: (position: THREE.Vector3, open: boolean) => void
+  /** Texte d'une porte verrouillée, s'il ne vient pas d'une pièce en travaux (extensions des quartiers). */
+  lockedText?: (x: number, z: number, dir: number) => string | undefined
 
   private occluders: Occluder[] = []
   private doors: DoorState[] = []
@@ -192,6 +197,26 @@ export class Deck {
   // ------------------------------------------------------------------ build
 
   /** Modèle du kit, repeint avec `material` (la coque ou le mobilier du thème du pont). */
+  placeModel(name: StationModel, x: number, y: number, z: number, rotY = 0, material: THREE.Material = this.theme.shell): THREE.Object3D {
+    return this.place(name, x, y, z, rotY, material)
+  }
+
+  /** Porte construite après coup (pièces des extensions de quartiers) : elle s'ouvre comme les autres. */
+  registerDoor(door: DoorState) {
+    this.doors.push(door)
+  }
+
+  /** Invite d'une porte verrouillée à la construction (pour lui donner une action, cf. main.ts). */
+  doorExamine(x: number, z: number, dir: number): Interactable | undefined {
+    const key = this.map.edgeKey(x, z, dir)
+    return this.doors.find((d) => this.map.edgeKey(d.x, d.z, d.dir) === key)?.examine
+  }
+
+  unregisterDoor(door: DoorState) {
+    const i = this.doors.indexOf(door)
+    if (i >= 0) this.doors.splice(i, 1)
+  }
+
   private place(name: StationModel, x: number, y: number, z: number, rotY = 0, material: THREE.Material = this.theme.shell): THREE.Object3D {
     const o = station(name)
     o.position.set(x, y, z)
@@ -409,14 +434,17 @@ export class Deck {
       dir,
       lamp,
     })
-    const closed = this.closedText(x, z, dir)
-    if (closed) {
-      this.interactables.push({
+    // Porte verrouillée : on l'examine (pièce en travaux, extension de quartiers à débloquer). Une
+    // porte d'extension se déverrouille en cours de partie : l'invite disparaît alors (cf. update).
+    if (this.map.isLocked(x, z, dir)) {
+      const state = this.doors[this.doors.length - 1]
+      state.examine = {
         object: panel,
         position: new THREE.Vector3(cx, 0, cz),
         label: tr('Examiner', 'Examine'),
-        text: () => (this.map.isLocked(x, z, dir) ? closed : tr('La porte est ouverte.', 'The door is open.')),
-      })
+        text: () => this.lockedText?.(x, z, dir) ?? this.closedText(x, z, dir) ?? tr('Porte verrouillée.', 'Locked door.'),
+      }
+      this.interactables.push(state.examine)
     }
 
     const g = DOOR_GAP / 2
@@ -436,7 +464,6 @@ export class Deck {
 
   /** Texte d'une porte verrouillée : celui de la pièce en travaux qu'elle ferme. */
   private closedText(x: number, z: number, dir: number): string | string[] | undefined {
-    if (!this.map.isLocked(x, z, dir)) return undefined
     const d = DIRS[dir]
     for (const r of [this.map.room(x, z), this.map.room(x + d.dx, z + d.dz)]) {
       const text = r ? this.def.closed?.[r] : undefined
@@ -627,6 +654,11 @@ export class Deck {
     for (const d of this.doors) {
       const locked = this.map.isLocked(d.x, d.z, d.dir)
       d.lamp.visible = locked
+      if (d.examine) {
+        const i = this.interactables.indexOf(d.examine)
+        if (locked && i < 0) this.interactables.push(d.examine)
+        else if (!locked && i >= 0) this.interactables.splice(i, 1)
+      }
       const wanted = !locked && actors.some((a) => Math.hypot(a.x - d.center.x, a.z - d.center.z) < DOOR_RANGE)
       if (wanted !== d.wanted) {
         d.wanted = wanted
@@ -703,7 +735,7 @@ function solidBox(w: number, h: number, d: number, material: THREE.Material): TH
 }
 
 /** Poteau d'angle qui réutilise le matériau (et la couleur exacte) des murs du pont. */
-function makePostMesh(material: THREE.Material): THREE.Mesh {
+export function makePostMesh(material: THREE.Material): THREE.Mesh {
   return solidBox(POST_W, POST_H, POST_W, material)
 }
 

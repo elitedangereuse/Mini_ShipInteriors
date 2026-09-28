@@ -1,4 +1,5 @@
 import { clock } from './schedule'
+import type { WingId } from '../../shared/cabin-wings.js'
 
 /*
  * Crédits du CMDR connecté, tenus par le site (outils/mini-shipinteriors-credits.php, repo
@@ -33,7 +34,7 @@ interface Reply {
   balance?: number
   earned?: number
   owned?: number
-  wallet?: { balance?: unknown; items?: unknown; skins?: unknown; tasks?: unknown } | null
+  wallet?: { balance?: unknown; items?: unknown; skins?: unknown; wings?: unknown; tasks?: unknown } | null
 }
 
 /** Délais des nouveaux essais quand le site ne répond pas (en secondes), puis le dernier en boucle. */
@@ -46,6 +47,8 @@ export class Wallet {
   readonly items = new Map<string, number>()
   /** Apparences achetées (clés de skins.ts). */
   readonly skins = new Set<string>()
+  /** Espaces d'extension des quartiers débloqués (cf. shared/cabin-wings.js). */
+  readonly wings = new Set<WingId>()
   /** Dernière apparition réglée de chaque emplacement de tâche (cf. schedule.ts). */
   readonly tasks = new Map<string, number>()
   /** Des crédits viennent d'être gagnés (le solde est déjà à jour). */
@@ -100,6 +103,8 @@ export class Wallet {
     for (const [id, n] of Object.entries((w.items as Record<string, unknown>) ?? {})) if (Number(n) > 0) this.items.set(id, 1)
     this.skins.clear()
     for (const s of Array.isArray(w.skins) ? w.skins : []) if (typeof s === 'string') this.skins.add(s)
+    this.wings.clear()
+    for (const id of Array.isArray(w.wings) ? w.wings : []) if (id === 'left' || id === 'middle' || id === 'right') this.wings.add(id)
     for (const [spot, cycle] of Object.entries((w.tasks as Record<string, unknown>) ?? {})) {
       // Une tâche réglée pendant la réponse (un autre onglet) : on garde la plus récente.
       if (Number.isInteger(cycle)) this.tasks.set(spot, Math.max(this.tasks.get(spot) ?? -1, cycle as number))
@@ -144,6 +149,11 @@ export class Wallet {
   /** Achète une apparence (clé de skins.ts). */
   buySkin(product: string): Promise<Outcome> {
     return this.buy({ skin: product }, () => this.skins.add(product))
+  }
+
+  /** Débloque un espace d'extension des quartiers (son prix dépend du nombre déjà débloqué). */
+  buyWing(id: WingId): Promise<Outcome> {
+    return this.buy({ wing: id }, () => this.wings.add(id))
   }
 
   /** Cocktail consommable : le site débite le verre, sans l'ajouter aux objets possédés. */

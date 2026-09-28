@@ -2,6 +2,8 @@
 // relais, qui vérifie qu'un joueur voit et atteint ce qu'il utilise (cf. sight.js).
 // Une lettre par tuile (colonne = x, ligne = z), une lettre par pièce, '+' pour une porte.
 
+import { wingDoors } from './cabin-wings.js'
+
 export const SHIP_LAYOUTS = {
   // Cale ; Chez Jacques, le bar clandestin, ne s'ouvre que depuis le fond de la soute. À l'est de
   // la soute, le lobby de la baie infestée (SOC-06), en travaux.
@@ -62,9 +64,13 @@ export const CLOSED_ROOMS = {
   '1': 'n',
 }
 
-/** Plan d'un pont, portes des pièces en travaux verrouillées. */
+/**
+ * Plan d'un pont : portes des pièces en travaux verrouillées ; au pont supérieur, les portes des
+ * trois espaces d'extension des quartiers (verrouillées tant qu'aucune pièce n'y est posée, cf.
+ * applyWings).
+ */
 export function shipMapOptions(level) {
-  return { closed: CLOSED_ROOMS[level] ?? '' }
+  return { closed: CLOSED_ROOMS[level] ?? '', doors: String(level) === '1' ? wingDoors().map((d) => ({ ...d, locked: true })) : [] }
 }
 
 /** Tables de jeux de plateau (pont principal), par jeu : une table par jeu. */

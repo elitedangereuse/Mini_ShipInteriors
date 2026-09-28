@@ -356,8 +356,8 @@ export const LEVELS: LevelDef[] = [
       k: tr('Porte verrouillée : « Simulateur Mini-CQC — en travaux ». On entend des tirs de laser… enregistrés.', 'Locked door: “Mini-CQC simulator — under construction”. You can hear laser fire… recorded.'),
     },
     floors: { c: 'floor-panel', b: 'floor-detail' },
-    engine: true,
     canopy: { b: [0, 1, 2] },
+    engine: true,
     props: [
       // --- Poste de pilotage, à la proue : verrières sur l'avant et les flancs ---
       // Le pilote face au tableau de bord, le copilote et le navigateur de part et d'autre, la
@@ -407,9 +407,9 @@ export const LEVELS: LevelDef[] = [
           'Telemetry: jump range 42.7 ly, fuel 32 t. No Thargoid signatures.',
         ),
       },
-
       { model: 'computer-screen', x: 33, z: 8, rot: 2, interact: tr('Journal de bord : « Jour 1 : on a agrandi le poste de pilotage. Jour 2 : on cherche encore le café. »', 'Ship\'s log: “Day 1: we enlarged the cockpit. Day 2: still looking for the coffee.”') },
       { model: 'plant-tall', x: 32.1, z: 7.25 },
+
       // --- Salle des machines ---
       // Guichets aux murs nord/sud ; l’allée est reste libre depuis la coursive.
       { model: 'reward-counter', x: 6.4, z: 0.35, label: 'weekly', interact: tr('Officier de liaison · Weekly', 'Liaison officer · Weekly'), action: tr('Récupérer les crédits', 'Collect credits') },
@@ -608,6 +608,13 @@ export const LEVELS: LevelDef[] = [
       g: tr('Serre hydroponique', 'Hydroponics bay'),
       o: tr('Salon panoramique', 'Observation lounge'),
       n: tr('Cinéma', 'Cinema'),
+      // Pièces des extensions des quartiers (cf. shared/cabin-wings.js).
+      A: tr('Extension gauche', 'Left extension'),
+      B: tr('Extension gauche', 'Left extension'),
+      C: tr('Extension du milieu', 'Middle extension'),
+      D: tr('Extension du milieu', 'Middle extension'),
+      E: tr('Extension droite', 'Right extension'),
+      F: tr('Extension droite', 'Right extension'),
     },
     closed: {
       n: tr('Porte verrouillée : « Cinéma — en travaux ». Programme de la soirée inaugurale : à venir.', 'Locked door: “Cinema — under construction”. Opening night programme: to be announced.'),

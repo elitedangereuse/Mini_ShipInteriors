@@ -4,7 +4,7 @@ import { DIRS } from '../map'
 import { Pathfinder } from '../pathfinding'
 import { isPetHome, MAX_PETS } from '../pets'
 import { entryOf, isSolid, type CatalogEntry } from './catalog'
-import type { CabinItem } from './layout'
+import { ROOM_ITEMS, WING_ITEMS, type CabinItem } from './layout'
 import type { CabinView } from './view'
 
 /*
@@ -110,7 +110,6 @@ export function refusal(view: CabinView, items: CabinItem[], i: number, moving: 
   const entry = entryOf(item.m)
   const box = view.boxOf(item)
   if (!entry || !box) return tr('Objet inconnu', 'Unknown item')
-  const b = view.bounds
   if (item.m === 'cat-bed' && items.filter((it) => it.m === 'cat-bed').length > 1) return tr('Comète est déjà là', 'Comète is already here')
   if (isPetHome(item.m) && items.filter((it) => isPetHome(it.m)).length > MAX_PETS) {
     return tr(`${MAX_PETS} animaux au plus : retirez d'abord un panier`, `${MAX_PETS} pets at most: remove a basket first`)
@@ -124,8 +123,16 @@ export function refusal(view: CabinView, items: CabinItem[], i: number, moving: 
     if (!wall.spans.some(([u, v]) => a0 >= u - EPS && a1 <= v + EPS)) return tr('Pas de place sur ce pan de mur (porte, hublot, pilier)', 'No room on this stretch of wall (door, porthole, pillar)')
     if (box.max.y > 1 + EPS) return tr('Trop haut pour ce mur', 'Too tall for this wall')
   } else {
-    if (box.min.x < b.minX - EPS || box.max.x > b.maxX + EPS || box.min.z < b.minZ - EPS || box.max.z > b.maxZ + EPS) return tr('Hors des quartiers', 'Outside the quarters')
+    if (!view.fits(box)) return view.contains(item.x, item.z) ? tr('À cheval sur un mur ou une porte', 'Straddling a wall or a door') : tr('Hors des quartiers', 'Outside the quarters')
     if (view.posts.some((p) => overlapXZ(box, p))) return tr('Pas de place contre ce poteau', 'No room against this post')
+  }
+
+  // Chaque pièce a son plafond d'objets : les quartiers, et chaque pièce d'extension.
+  const room = view.roomAt(item.x, item.z)
+  if (room) {
+    const cap = room === 'main' ? ROOM_ITEMS : WING_ITEMS
+    const count = items.filter((it) => view.roomAt(it.x, it.z) === room).length
+    if (count > cap) return tr(`Pièce pleine : ${cap} objets au plus`, `Room full: ${cap} items at most`)
   }
 
   const surfaces = surfacesOf(view, items)

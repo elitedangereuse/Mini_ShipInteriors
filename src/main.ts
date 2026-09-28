@@ -13,7 +13,7 @@ import { CabinBar, InviteMenu, InviteToasts, type CrewEntry } from './cabin/hud'
 import { normalizeLayout, sameLayout, serializeLayout, type CabinItem, type CabinLayout } from './cabin/layout'
 import { CabinStore, requestCabin, type SiteCabin } from './cabin/storage'
 import { devCmdr, fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
-import { ECONOMY, formatCredits, skinPrice } from './economy/data'
+import { ECONOMY, formatCredits, skinPrice, wingPrice } from './economy/data'
 import { CreditsHud } from './economy/hud'
 import { taskOf } from './economy/schedule'
 import { allLooks, lookOwned, skinProduct, starterLook } from './economy/skins'
@@ -45,6 +45,7 @@ import { Seating, type Seated } from './seating'
 import { Starfield } from './starfield'
 import { SystemView, SYSTEMS } from './systems'
 import { nextSystem, JUMP_CHARGE, JUMP_TRAVEL, type SystemId } from '../shared/systems.js'
+import { DEFAULT_PATTERN, WING_SLOTS, type WingId } from '../shared/cabin-wings.js'
 import { syncTempo, tempo } from './tempo'
 import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel } from './ui'
 
@@ -1266,7 +1267,9 @@ function adoptAccount() {
 
 /** Le site répond en cours de partie : ses quartiers remplacent ceux montrés en attendant. */
 function siteAnswered(store: CabinStore, site: SiteCabin | null) {
-  if (cabinStore === store) setOwnLayout(connectStore(store, site))
+  if (cabinStore !== store) return
+  setOwnLayout(connectStore(store, site))
+  reconcileWings()
 }
 
 /** Aménagement de ses quartiers venu d'ailleurs que du mode aménagement (qui attend le site). */
@@ -1282,7 +1285,8 @@ function inCabin(level: number, x: number, z: number): boolean {
   return level === cabinDeck.def.id && cabin.contains(x, z)
 }
 
-async function openEditor() {
+/** @param tab onglet à ouvrir : « Pièces » depuis la porte d'un espace d'extension */
+async function openEditor(tab?: 'rooms') {
   if (editing() || riding || photo.active) return
   if (visiting) return chat.add('system', tr('Ces quartiers ne sont pas les vôtres : on n\'aménage que chez soi.', 'These quarters aren\'t yours: you can only decorate your own.'))
   if (!linked) return chat.add('system', tr('Aménager ses quartiers est réservé aux CMDR connectés à elitedangereuse.fr.', 'Only CMDRs logged in to elitedangereuse.fr can decorate their quarters.'))
@@ -1307,9 +1311,9 @@ async function openEditor() {
   marker.visible = hover.visible = false
   editZoom = iso.zoomLevel
   iso.setRestElevation(editElevation)
-  iso.zoomTo(ed.fitZoom())
   document.body.classList.add('editing')
-  ed.start(ownLayout)
+  ed.start(ownLayout, tab)
+  iso.zoomTo(ed.fitZoom())
   ed.setSaveState(store.state)
   store.onState = (state) => ed.setSaveState(state)
 }
@@ -1327,6 +1331,54 @@ function closeEditor() {
   void cabinStore?.flush()
 }
 cabinBar.onEdit = () => void openEditor()
+
+// ------------------------------------------------------------------ extensions des quartiers
+
+/** Espace d'extension dont la porte est sur ce bord de tuile. */
+const wingAtDoor = (x: number, z: number, dir: number) => WING_SLOTS.find((s) => s.door.x === x && s.door.z === z && s.door.dir === dir)
+const WING_DOOR_NAMES: Record<WingId, string> = { left: tr('gauche', 'left'), middle: tr('du milieu', 'middle'), right: tr('droite', 'right') }
+
+/** Porte fermée d'un espace : chez un hôte, un espace qu'il n'a pas aménagé ; chez soi, l'extension à débloquer. */
+cabinDeck.lockedText = (x, z, dir) => {
+  const slot = wingAtDoor(x, z, dir)
+  if (!slot) return undefined
+  if (visiting) return tr('Porte fermée : votre hôte n\'a pas encore aménagé cet espace.', 'Closed door: your host has not fitted out this space yet.')
+  if (!linked) return tr('Porte fermée : une extension des quartiers, réservée aux CMDR connectés à elitedangereuse.fr.', 'Closed door: a quarters extension, for CMDRs logged in to elitedangereuse.fr.')
+  const price = wingPrice(wallet.wings.size)
+  return tr(
+    `Extension ${WING_DOOR_NAMES[slot.id]} de vos quartiers${price ? ` : ${formatCredits(price)}` : ''}. Débloquez-la depuis le mode aménagement, onglet « Pièces ».`,
+    `Your quarters' ${WING_DOOR_NAMES[slot.id]} extension${price ? `: ${formatCredits(price)}` : ''}. Unlock it from the decorating mode, “Rooms” tab.`,
+  )
+}
+for (const slot of WING_SLOTS) {
+  const it = cabinDeck.doorExamine(slot.door.x, slot.door.z, slot.door.dir)
+  // Chez soi, la porte mène droit à l'onglet « Pièces » ; ailleurs, on lit ce qu'elle dit.
+  if (it) it.onInteract = () => (!visiting && linked ? void openEditor('rooms') : showText(it.text))
+}
+
+/**
+ * Les pièces de ses quartiers suivent les espaces débloqués sur le site : un espace acheté
+ * (ailleurs, ou avant un enregistrement manqué) reçoit une pièce de la forme par défaut, une pièce
+ * sans espace débloqué disparaît (le site la refuserait).
+ */
+function reconcileWings() {
+  if (!wallet.ready || !cabinStore?.ready || editing()) return
+  const wings = { ...(ownLayout.wings ?? {}) }
+  let changed = false
+  for (const slot of WING_SLOTS) {
+    const owned = wallet.wings.has(slot.id)
+    if (owned === !!wings[slot.id]) continue
+    if (owned) wings[slot.id] = { shape: DEFAULT_PATTERN }
+    else delete wings[slot.id]
+    changed = true
+  }
+  if (!changed) return
+  const next: CabinLayout = { ...ownLayout, wings }
+  if (!Object.keys(wings).length) delete next.wings
+  cabinStore.save(next)
+  setOwnLayout(next)
+}
+wallet.subscribe(reconcileWings)
 
 // ------------------------------------------------------------------ visites
 

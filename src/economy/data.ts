@@ -8,6 +8,7 @@ import raw from './economy.json'
  * - start : prime de bienvenue d'un nouveau compte ;
  * - passive : revenu passif, payé à chaque battement (une fois par minute) ;
  * - items, skins : prix de déblocage des objets des quartiers et des apparences (cf. skins.ts) ;
+ * - wings : prix des espaces d'extension des quartiers, du premier débloqué au dernier ;
  * - tasks, spots : les tâches de bord et leurs emplacements (cf. schedule.ts et tasks.ts) ;
  * - arcade : paliers de score des bornes, et prime du record du vaisseau.
  */
@@ -48,6 +49,7 @@ interface Economy {
   passive: { perMinute: number; beat: number; minGap: number; maxGap: number }
   items: Record<string, number>
   skins: Record<string, number>
+  wings: number[]
   drinks: Record<string, number>
   tasks: Record<TaskKind, TaskDef>
   spots: Spot[]
@@ -55,6 +57,9 @@ interface Economy {
 }
 
 export const ECONOMY = raw as unknown as Economy
+
+/** Prix du prochain espace d'extension des quartiers, `owned` étant déjà débloqués ; null : plus rien à débloquer. */
+export const wingPrice = (owned: number): number | null => ECONOMY.wings?.[owned] ?? null
 
 /** Prix de déblocage d'un objet du catalogue des quartiers, ou null s'il n'est pas à vendre. */
 export const itemPrice = (id: string): number | null => ECONOMY.items[id] ?? null

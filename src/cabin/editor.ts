@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import type { Sound } from '../audio'
 import type { IsoCamera } from '../camera'
-import { formatCredits, itemPrice } from '../economy/data'
+import { formatCredits, itemPrice, wingPrice } from '../economy/data'
 import type { Wallet } from '../economy/wallet'
 import { EN, tr } from '../i18n'
 import { icon } from '../icons'
@@ -10,11 +10,12 @@ import { DIRS } from '../map'
 import { $ } from '../ui'
 import { CATALOG, CATEGORIES, entryOf, joinVariant, splitVariant, type CatalogEntry, type CategoryId } from './catalog'
 import { drawFinish, stylesOf, styleOf, type Slot } from './finishes'
-import { cloneItems, cloneLayout, DEFAULT_CABIN, defaultLayout, MAX_ITEMS, sameItems, sameLayout, type CabinItem, type CabinLayout, type Finish } from './layout'
+import { cloneItems, cloneLayout, cloneWings, DEFAULT_CABIN, defaultLayout, ROOM_ITEMS, sameItems, sameLayout, WING_ITEMS, wingShapes, type CabinItem, type CabinLayout, type CabinWings, type Finish } from './layout'
 import { refusal, ridersOf, surfacesOf, type Surface } from './rules'
 import { thumbnail } from './thumbs'
 import { artChoice } from './art-choice'
 import { rotateLocal, type CabinView, type WallLine } from './view'
+import { DEFAULT_PATTERN, WING_PATTERNS, WING_SIZE, WING_SLOTS, wingPlan, type PatternId, type WingId } from '../../shared/cabin-wings.js'
 
 /*
  * Mode aménagement : dans ses quartiers, le CMDR pose, déplace, tourne et retire meubles et
@@ -26,6 +27,10 @@ import { rotateLocal, type CabinView, type WallLine } from './view'
  *
  * Les objets payants se débloquent une fois en crédits (cf. economy/) et peuvent ensuite être
  * posés plusieurs fois. Le mobilier d'origine reste offert et disponible en quantité limitée.
+ *
+ * Onglet « Pièces » : les trois espaces d'extension (SHIP-02). Un espace se débloque une fois,
+ * puis reçoit une pièce dont on choisit la forme de plan ; changer de forme vide la pièce de ses
+ * objets (ils restent débloqués). Chaque pièce a ses murs et son sol (onglet « Murs et sol »).
  */
 
 /** Pas de la grille de pose, et distance à laquelle un meuble se colle à un mur. */
@@ -72,6 +77,25 @@ interface Held {
   aimed: boolean
 }
 
+/** Noms des espaces d'extension et des formes de plan. */
+const WING_NAMES: Record<WingId, string> = {
+  left: tr('Extension gauche', 'Left extension'),
+  middle: tr('Extension du milieu', 'Middle extension'),
+  right: tr('Extension droite', 'Right extension'),
+}
+const PATTERN_NAMES: Record<PatternId, string> = {
+  carre: tr('Carré', 'Square'),
+  octogone: tr('Octogone', 'Octagon'),
+  rectangle: tr('Rectangle', 'Rectangle'),
+  galerie: tr('Galerie', 'Gallery'),
+  l: tr('En L', 'L-shaped'),
+  t: tr('En T', 'T-shaped'),
+  u: tr('En U', 'U-shaped'),
+  losange: tr('Losange', 'Diamond'),
+  'deux-pieces': tr('Deux pièces', 'Two rooms'),
+  suite: tr('Suite', 'Suite'),
+}
+
 /** Carte « d'origine » des revêtements : murs et sol du vaisseau, sans rien dessus. */
 const ORIGIN = 'origin'
 /** Vignettes des revêtements (px) : un pan de mur de 1 m de haut, ou 0,8 m de sol. */
@@ -90,6 +114,8 @@ export class CabinEditor {
   items: CabinItem[] = []
   wall?: Finish
   floor?: Finish
+  /** Pièces des extensions débloquées : forme et revêtements. */
+  wings?: CabinWings
   private open = false
   private past: CabinLayout[] = []
   private future: CabinLayout[] = []
@@ -105,14 +131,20 @@ export class CabinEditor {
   /** Dernier petit pas au clavier : les suivants, sur le même objet, s'y ajoutent dans l'historique. */
   private lastNudge: { index: number; at: number } | null = null
   /** Dernière retouche d'une teinte (nuancier) : les suivantes s'y ajoutent dans l'historique. */
-  private lastTint: { slot: Slot; at: number } | null = null
+  private lastTint: { slot: Slot; room: 'main' | WingId; at: number } | null = null
+  /** Pièce dont l'onglet « Murs et sol » change les revêtements. */
+  private finishRoom: 'main' | WingId = 'main'
+  /** Changement de forme d'une pièce qui a des objets : un second clic confirme. */
+  private confirmShape: { id: WingId; shape: PatternId; at: number } | null = null
+  /** Déblocage d'un espace : réponse du site attendue, refus. */
+  private wingBuy: { id: WingId; pending: boolean; error: string } | null = null
   private category: CategoryId = 'rest'
   /** Déblocage en cours : l'objet, la réponse attendue du site, un refus. */
   private buying: { entry: CatalogEntry; pending: boolean; error: string } | null = null
   /** Étiquette de déblocage ou de stock offert de chaque carte affichée. */
   private cardTags = new Map<string, { card: HTMLElement; tag: HTMLElement; entry: CatalogEntry }>()
-  /** Catalogue du mobilier, ou revêtements des murs et du sol. */
-  private mode: 'objects' | 'finish' = 'objects'
+  /** Catalogue du mobilier, revêtements des murs et du sol, ou pièces des extensions. */
+  private mode: 'objects' | 'finish' | 'rooms' = 'objects'
   private confirmReset = 0
 
   private readonly raycaster = new THREE.Raycaster()
@@ -125,7 +157,9 @@ export class CabinEditor {
   private readonly hoverBox = new THREE.Box3Helper(new THREE.Box3(), new THREE.Color('#bff3ff'))
   private readonly selectBox = new THREE.Box3Helper(new THREE.Box3(), new THREE.Color('#59d8ff'))
   private readonly heldBox = new THREE.Box3Helper(new THREE.Box3(), new THREE.Color('#7dffa8'))
-  private readonly grid: THREE.LineSegments
+  private grid: THREE.LineSegments
+  /** Aperçu au sol d'un espace ou d'une forme (onglet « Pièces »). */
+  private readonly preview: THREE.Mesh
   private readonly helpers = new THREE.Group()
 
   // Interface.
@@ -168,7 +202,13 @@ export class CabinEditor {
     ;(this.hoverBox.material as THREE.LineBasicMaterial).opacity = 0.55
     this.grid = this.makeGrid()
     this.heldBox.visible = false
-    this.helpers.add(this.footprint, this.hoverBox, this.selectBox, this.heldBox, this.grid)
+    this.preview = new THREE.Mesh(
+      new THREE.BufferGeometry(),
+      new THREE.MeshBasicMaterial({ color: '#59d8ff', transparent: true, opacity: 0.28, depthWrite: false, depthTest: false, side: THREE.DoubleSide }),
+    )
+    this.preview.renderOrder = 4
+    this.preview.visible = false
+    this.helpers.add(this.footprint, this.hoverBox, this.selectBox, this.heldBox, this.grid, this.preview)
     this.helpers.visible = false
     view.group.add(this.helpers)
 
@@ -213,11 +253,11 @@ export class CabinEditor {
     catalog.className = 'panel ed-catalog'
     this.modes = document.createElement('div')
     this.modes.className = 'ed-modes'
-    for (const [mode, label, glyph] of [['objects', tr('Mobilier', 'Furniture'), 'couch'], ['finish', tr('Murs et sol', 'Walls and floor'), 'paint-roller']] as const) {
+    for (const [mode, label, glyph] of [['objects', tr('Mobilier', 'Furniture'), 'couch'], ['finish', tr('Murs et sol', 'Walls and floor'), 'paint-roller'], ['rooms', tr('Pièces', 'Rooms'), 'grid-four']] as const) {
       const b = document.createElement('button')
       b.dataset.mode = mode
       b.append(icon(glyph), document.createTextNode(label))
-      b.onclick = () => (mode === 'finish' ? this.showFinishes() : this.showCategory(this.category))
+      b.onclick = () => (mode === 'finish' ? this.showFinishes() : mode === 'rooms' ? this.showRooms() : this.showCategory(this.category))
       this.modes.appendChild(b)
     }
     this.tabs = document.createElement('div')
@@ -264,6 +304,7 @@ export class CabinEditor {
       this.renderBalance()
       this.refreshCards()
       this.renderBuy()
+      if (this.mode === 'rooms' && !this.wingBuy?.pending) this.showRooms()
     })
 
     // Carte saisie, relâchée au-dessus de la cabine : l'objet est posé là.
@@ -298,7 +339,7 @@ export class CabinEditor {
 
   /** Zoom qui fait tenir toute la cabine dans la zone visible (vue plongeante, sous tous les angles). */
   fitZoom(): number {
-    const b = this.view.bounds
+    const b = this.frame()
     // Vue à 45° : la cabine forme un losange de (largeur + profondeur) · cos 45° de large.
     const diag = (b.maxX - b.minX + (b.maxZ - b.minZ)) * Math.SQRT1_2
     const tall = diag * Math.sin(EDIT_ELEVATION) + Math.cos(EDIT_ELEVATION)
@@ -308,7 +349,8 @@ export class CabinEditor {
 
   /** Point que la caméra regarde : la cabine, au milieu de la zone que le catalogue laisse visible. */
   focus(out: THREE.Vector3): THREE.Vector3 {
-    out.copy(this.view.center)
+    const f = this.frame()
+    out.set((f.minX + f.maxX) / 2, this.view.deck.y, (f.minZ + f.maxZ) / 2)
     const v = this.visible()
     const unit = (2 * this.host.iso.zoomLevel) / innerHeight
     // Au sol vu en biais, un pixel vertical couvre plus de terrain qu'un pixel horizontal.
@@ -316,13 +358,34 @@ export class CabinEditor {
     return out.add(g)
   }
 
+  /** Ce que la caméra cadre : la cabine et ses pièces ; dans l'onglet « Pièces », les trois espaces aussi. */
+  private frame(): { minX: number; maxX: number; minZ: number; maxZ: number } {
+    const b = { ...this.view.extent }
+    if (this.mode === 'rooms') {
+      for (const s of WING_SLOTS) {
+        b.minX = Math.min(b.minX, s.x0 - 0.5)
+        b.maxX = Math.max(b.maxX, s.x0 + WING_SIZE - 0.5)
+        b.minZ = Math.min(b.minZ, s.z0 - 0.5)
+        b.maxZ = Math.max(b.maxZ, s.z0 + WING_SIZE - 0.5)
+      }
+    }
+    return b
+  }
+
   // ---------------------------------------------------------------- ouverture
 
-  start(layout: CabinLayout) {
+  /**
+   * @param tab onglet à ouvrir (sinon le dernier) ; `wing` : l'espace à montrer dans « Pièces »
+   */
+  start(layout: CabinLayout, tab?: 'rooms') {
     const own = cloneLayout(layout)
     this.items = own.items
     this.wall = own.wall
     this.floor = own.floor
+    this.wings = own.wings
+    if (tab) this.mode = tab
+    if (this.finishRoom !== 'main' && !this.wings?.[this.finishRoom]) this.finishRoom = 'main'
+    this.refreshGrid()
     this.past = []
     this.future = []
     this.selected = this.hovered = -1
@@ -333,6 +396,7 @@ export class CabinEditor {
     this.root.hidden = false
     this.helpers.visible = true
     if (this.mode === 'finish') this.showFinishes()
+    else if (this.mode === 'rooms') this.showRooms()
     else this.showCategory(this.category)
     this.renderBar()
     this.renderBalance()
@@ -343,6 +407,7 @@ export class CabinEditor {
   stop() {
     if (!this.open) return
     this.closeBuy()
+    this.showPreview(null)
     this.cancelHeld()
     this.open = false
     this.root.hidden = true
@@ -370,16 +435,26 @@ export class CabinEditor {
     const layout: CabinLayout = { items: this.items }
     if (this.wall) layout.wall = this.wall
     if (this.floor) layout.floor = this.floor
+    if (this.wings && Object.keys(this.wings).length) layout.wings = this.wings
     return layout
+  }
+
+  /** Objets au plus : les quartiers, et chaque pièce d'extension. */
+  private get capacity(): number {
+    return ROOM_ITEMS + WING_ITEMS * Object.keys(this.wings ?? {}).length
   }
 
   // ---------------------------------------------------------------- catalogue
 
-  private setMode(mode: 'objects' | 'finish') {
+  private setMode(mode: 'objects' | 'finish' | 'rooms') {
+    const reframe = (mode === 'rooms') !== (this.mode === 'rooms')
     this.mode = mode
     for (const b of this.modes.children) (b as HTMLElement).classList.toggle('active', (b as HTMLElement).dataset.mode === mode)
-    this.tabs.hidden = mode === 'finish'
-    this.cards.classList.toggle('finish', mode === 'finish')
+    this.tabs.hidden = mode !== 'objects'
+    this.cards.classList.toggle('finish', mode !== 'objects')
+    if (mode !== 'rooms') this.showPreview(null)
+    // L'onglet « Pièces » cadre aussi les espaces encore fermés.
+    if (reframe && this.open) this.host.iso.zoomTo(this.fitZoom())
   }
 
   private showCategory(id: CategoryId) {
@@ -575,7 +650,7 @@ export class CabinEditor {
 
   private startPlacing(entry: CatalogEntry) {
     this.cancelHeld()
-    if (this.items.length >= MAX_ITEMS) return this.refuse(tr(`Cabine pleine : ${MAX_ITEMS} objets au plus`, `Quarters full: ${MAX_ITEMS} items at most`))
+    if (this.items.length >= this.capacity) return this.refuse(tr(`Cabine pleine : ${this.capacity} objets au plus`, `Quarters full: ${this.capacity} items at most`))
     if (this.stock(entry.id) <= 0) return this.openBuy(entry)
     this.closeBuy()
     const item: CabinItem = { m: entry.id, x: this.view.center.x, z: this.view.center.z, r: 0, s: Math.floor(Math.random() * 100000) }
@@ -601,6 +676,24 @@ export class CabinEditor {
     this.cards.replaceChildren()
     this.cardTags.clear()
     this.finishEls = {}
+    // Avec des extensions : la pièce à repeindre (les quartiers, ou une des extensions).
+    const wings = WING_SLOTS.filter((s) => this.wings?.[s.id])
+    if (this.finishRoom !== 'main' && !this.wings?.[this.finishRoom]) this.finishRoom = 'main'
+    if (wings.length) {
+      const chips = document.createElement('div')
+      chips.className = 'ed-room-chips'
+      for (const [id, name] of [['main', tr('Quartiers', 'Quarters')], ...wings.map((s) => [s.id, WING_NAMES[s.id]])] as ['main' | WingId, string][]) {
+        const b = document.createElement('button')
+        b.textContent = name
+        b.classList.toggle('active', id === this.finishRoom)
+        b.onclick = () => {
+          this.finishRoom = id
+          this.showFinishes()
+        }
+        chips.appendChild(b)
+      }
+      this.cards.appendChild(chips)
+    }
     for (const [slot, title] of [['wall', tr('Murs', 'Walls')], ['floor', tr('Sol', 'Floor')]] as const) {
       const h = document.createElement('div')
       h.className = 'ed-cat-title'
@@ -620,7 +713,7 @@ export class CabinEditor {
         name.textContent = style.name
         b.append(canvas, name)
         b.onclick = () => {
-          if ((this[slot]?.style ?? ORIGIN) === style.id) return
+          if ((this.finishOf(slot)?.style ?? ORIGIN) === style.id) return
           this.setFinish(slot, style.id === ORIGIN ? undefined : { style: style.id, color: styleOf(slot, style.id)!.palette[0] })
           this.host.sound.ui('pick')
         }
@@ -640,7 +733,7 @@ export class CabinEditor {
     for (const slot of ['wall', 'floor'] as const) {
       const els = this.finishEls[slot]
       if (!els) continue
-      const finish = this[slot]
+      const finish = this.finishOf(slot)
       const id = finish?.style ?? ORIGIN
       for (const [key, b] of els.cards) b.classList.toggle('active', key === id)
       const card = els.cards.get(id)
@@ -659,7 +752,7 @@ export class CabinEditor {
   /** Nuancier du motif choisi : ses teintes, et une teinte libre (sélecteur de couleur). */
   private renderColors(slot: Slot, row: HTMLElement) {
     row.replaceChildren()
-    const finish = this[slot]
+    const finish = this.finishOf(slot)
     const style = finish && styleOf(slot, finish.style)
     row.hidden = !style
     if (!style) return
@@ -671,7 +764,7 @@ export class CabinEditor {
       b.setAttribute('aria-label', tr(`Teinte ${color}`, `Colour ${color}`))
       b.style.setProperty('--swatch', color)
       b.onclick = () => {
-        const current = this[slot]
+        const current = this.finishOf(slot)
         if (current && current.color !== color) this.setFinish(slot, { style: current.style, color })
       }
       row.appendChild(b)
@@ -684,7 +777,7 @@ export class CabinEditor {
     input.value = finish.color
     // Le sélecteur envoie une teinte à chaque mouvement : une seule étape d'annulation en tout.
     input.oninput = () => {
-      const current = this[slot]
+      const current = this.finishOf(slot)
       if (current) this.setFinish(slot, { style: current.style, color: input.value.toLowerCase() }, true)
     }
     input.onchange = () => (this.lastTint = null)
@@ -692,15 +785,189 @@ export class CabinEditor {
     row.appendChild(custom)
   }
 
-  /** Nouveau revêtement (undefined : celui d'origine). `tint` : retouche continue d'une teinte. */
+  /** Revêtement affiché de la pièce choisie (cf. finishRoom). */
+  private finishOf(slot: Slot): Finish | undefined {
+    return this.finishRoom === 'main' ? this[slot] : this.wings?.[this.finishRoom]?.[slot]
+  }
+
+  /** Nouveau revêtement de la pièce choisie (undefined : celui d'origine). `tint` : retouche continue d'une teinte. */
   private setFinish(slot: Slot, finish: Finish | undefined, tint = false) {
     const now = performance.now()
-    const merge = tint && this.lastTint?.slot === slot && now - this.lastTint.at < 1500
+    const room = this.finishRoom
+    const merge = tint && this.lastTint?.slot === slot && this.lastTint.room === room && now - this.lastTint.at < 1500
     const next = { ...this.layout }
-    if (finish) next[slot] = finish
-    else delete next[slot]
+    const target: { wall?: Finish; floor?: Finish } | undefined = room === 'main' ? next : (next.wings = cloneWings(next.wings ?? {}))[room]
+    if (!target) return
+    if (finish) target[slot] = finish
+    else delete target[slot]
     this.commitLayout(next, this.selected, merge)
-    if (tint) this.lastTint = { slot, at: now }
+    if (tint) this.lastTint = { slot, room, at: now }
+  }
+
+  // ---------------------------------------------------------------- pièces (extensions)
+
+  /**
+   * Onglet « Pièces » : les trois espaces d'extension. Fermé : son prix, et de quoi le débloquer.
+   * Ouvert : les dix formes de plan de sa pièce.
+   */
+  private showRooms() {
+    this.cancelHeld()
+    this.closeBuy()
+    this.setMode('rooms')
+    this.cards.replaceChildren()
+    this.cardTags.clear()
+    const wallet = this.host.wallet
+    const intro = document.createElement('div')
+    intro.className = 'ed-rooms-intro'
+    intro.textContent = tr(
+      'Trois espaces bordent vos quartiers, chacun derrière sa porte. Débloquez-en un, puis choisissez la forme de sa pièce ; vous pourrez en changer à tout moment.',
+      'Three spaces border your quarters, each behind its own door. Unlock one, then pick the shape of its room; you can change it at any time.',
+    )
+    this.cards.appendChild(intro)
+    const price = wingPrice(wallet.wings.size)
+    for (const slot of WING_SLOTS) {
+      const box = document.createElement('div')
+      box.className = 'ed-wing'
+      const head = document.createElement('div')
+      head.className = 'ed-wing-head'
+      const name = document.createElement('div')
+      name.className = 'ed-wing-name'
+      name.textContent = WING_NAMES[slot.id]
+      head.appendChild(name)
+      box.appendChild(head)
+      box.onpointerenter = () => this.showPreview(slot.id, this.wings?.[slot.id]?.shape)
+      box.onpointerleave = () => this.showPreview(null)
+      if (!wallet.wings.has(slot.id)) {
+        const state = document.createElement('div')
+        state.className = 'ed-wing-state'
+        state.append(icon('lock-simple'), document.createTextNode(tr('Fermé', 'Locked')))
+        head.appendChild(state)
+        const note = document.createElement('div')
+        note.className = 'eb-note'
+        note.textContent = tr(`Une pièce jusqu'à ${WING_SIZE} × ${WING_SIZE} tuiles, et ${WING_ITEMS} objets de plus.`, `A room of up to ${WING_SIZE} × ${WING_SIZE} tiles, and ${WING_ITEMS} more items.`)
+        const buy = document.createElement('button')
+        buy.className = 'ed-wing-buy'
+        const pending = this.wingBuy?.id === slot.id && this.wingBuy.pending
+        buy.append(icon('shopping-cart'), document.createTextNode(price === null ? '—' : pending ? tr('Déblocage…', 'Unlocking…') : tr(`Débloquer · ${formatCredits(price)}`, `Unlock · ${formatCredits(price)}`)))
+        buy.disabled = price === null || pending || !wallet.ready || wallet.balance < price
+        buy.onclick = () => void this.buyWing(slot.id)
+        box.append(note, buy)
+        const why = this.wingBuy?.id === slot.id ? this.wingBuy.error : !wallet.ready ? tr('Crédits indisponibles pour le moment.', 'Credits unavailable at the moment.') : price !== null && wallet.balance < price ? tr('Crédits insuffisants.', 'Not enough credits.') : ''
+        if (why) {
+          const err = document.createElement('div')
+          err.className = 'eb-note error'
+          err.textContent = why
+          box.appendChild(err)
+        }
+      } else {
+        const current = this.wings?.[slot.id]?.shape
+        const grid = document.createElement('div')
+        grid.className = 'ed-patterns'
+        // Sous les vignettes : le nom de la forme survolée (sinon de la forme choisie), ou la confirmation attendue.
+        const caption = document.createElement('div')
+        caption.className = 'ed-pattern-name'
+        const pending = this.confirmShape?.id === slot.id && performance.now() - this.confirmShape.at < 4000 ? this.confirmShape.shape : null
+        const describe = (id: PatternId | undefined) => {
+          caption.classList.toggle('confirm', !!pending && id === pending)
+          caption.textContent = !id ? '' : pending && id === pending ? tr(`${PATTERN_NAMES[id]} : cliquez à nouveau pour confirmer`, `${PATTERN_NAMES[id]}: click again to confirm`) : PATTERN_NAMES[id]
+        }
+        for (const id of Object.keys(WING_PATTERNS) as PatternId[]) {
+          const b = document.createElement('button')
+          b.className = 'ed-pattern'
+          b.title = PATTERN_NAMES[id]
+          b.setAttribute('aria-label', PATTERN_NAMES[id])
+          b.classList.toggle('active', id === current)
+          b.classList.toggle('confirm', id === pending)
+          const canvas = document.createElement('canvas')
+          canvas.width = canvas.height = 60
+          drawPattern(canvas, id)
+          b.append(canvas)
+          b.onpointerenter = () => {
+            this.showPreview(slot.id, id)
+            describe(id)
+          }
+          b.onpointerleave = () => describe(pending ?? current)
+          b.onclick = () => this.chooseShape(slot.id, id)
+          grid.appendChild(b)
+        }
+        describe(pending ?? current)
+        box.append(grid, caption)
+      }
+      this.cards.appendChild(box)
+    }
+  }
+
+  /** Débloque un espace : le site débite, puis l'espace reçoit une pièce de la forme par défaut. */
+  private async buyWing(id: WingId) {
+    if (this.wingBuy?.pending) return
+    this.wingBuy = { id, pending: true, error: '' }
+    this.showRooms()
+    const outcome = await this.host.wallet.buyWing(id)
+    if (!this.open) return
+    this.wingBuy = null
+    if (outcome.ok || outcome.reason === 'owned') {
+      this.host.wallet.wings.add(id)
+      const next = { ...this.layout, wings: { ...cloneWings(this.wings ?? {}), [id]: this.wings?.[id] ?? { shape: DEFAULT_PATTERN } } }
+      this.commitLayout(next, this.selected)
+      this.host.sound.ui('drop')
+      this.toast(tr(`${WING_NAMES[id]} débloquée : choisissez la forme de sa pièce`, `${WING_NAMES[id]} unlocked: pick the shape of its room`))
+    } else {
+      const reason = outcome.reason
+      this.wingBuy = {
+        id,
+        pending: false,
+        error: reason === 'funds' ? tr('Crédits insuffisants.', 'Not enough credits.') : reason === 'guest' ? tr('Réservé aux CMDR connectés.', 'For logged-in CMDRs only.') : tr('Le site ne répond pas, réessayez.', 'The site is not answering, try again.'),
+      }
+    }
+    this.showRooms()
+  }
+
+  /**
+   * Nouvelle forme pour la pièce de l'espace `id`. Ses objets en sortent (ils restent débloqués) :
+   * s'il y en a, un second clic confirme.
+   */
+  private chooseShape(id: WingId, shape: PatternId) {
+    const wing = this.wings?.[id]
+    if (!wing || wing.shape === shape) return
+    const inside = this.items.filter((it) => this.view.roomAt(it.x, it.z) === id)
+    const now = performance.now()
+    if (inside.length && !(this.confirmShape?.id === id && this.confirmShape.shape === shape && now - this.confirmShape.at < 4000)) {
+      this.confirmShape = { id, shape, at: now }
+      this.toast(tr(`${inside.length} objet(s) quitteront cette pièce (ils restent débloqués). Cliquez à nouveau pour confirmer.`, `${inside.length} item(s) will leave this room (they stay unlocked). Click again to confirm.`))
+      setTimeout(() => this.mode === 'rooms' && this.open && this.showRooms(), 4000)
+      return this.showRooms()
+    }
+    this.confirmShape = null
+    const wings = cloneWings(this.wings ?? {})
+    wings[id] = { ...wings[id]!, shape }
+    this.commitLayout({ ...this.layout, items: this.items.filter((it) => !inside.includes(it)), wings }, -1)
+    this.host.sound.ui('pick')
+    this.showRooms()
+    this.showPreview(id, shape)
+  }
+
+  /** Aperçu au sol : tout l'espace `id` (fermé), ou la forme `shape` qu'il recevrait ; null : rien. */
+  private showPreview(id: WingId | null, shape?: PatternId) {
+    const slot = id && WING_SLOTS.find((s) => s.id === id)
+    this.preview.visible = !!slot
+    if (!slot) return
+    const tiles = shape ? wingPlan(slot, shape).tiles : Array.from({ length: WING_SIZE * WING_SIZE }, (_, i) => ({ x: slot.x0 + (i % WING_SIZE), z: slot.z0 + Math.floor(i / WING_SIZE) }))
+    const pos: number[] = []
+    for (const t of tiles) {
+      const [x0, x1, z0, z1] = [t.x - 0.46, t.x + 0.46, t.z - 0.46, t.z + 0.46]
+      pos.push(x0, 0.02, z0, x1, 0.02, z1, x1, 0.02, z0, x0, 0.02, z0, x0, 0.02, z1, x1, 0.02, z1)
+    }
+    this.preview.geometry.dispose()
+    this.preview.geometry = new THREE.BufferGeometry()
+    this.preview.geometry.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  }
+
+  /** Le quadrillage suit les pièces affichées. */
+  private refreshGrid() {
+    this.grid.removeFromParent()
+    this.grid.geometry.dispose()
+    this.grid = this.makeGrid()
+    this.helpers.add(this.grid)
   }
 
   // ---------------------------------------------------------------- souris
@@ -752,7 +1019,7 @@ export class CabinEditor {
 
   /** Pan de mur de la cabine visé par le curseur (le plus proche de la caméra). */
   private wallAt(ray: THREE.Ray): { wall: WallLine; along: number } | null {
-    const b = this.view.bounds
+    const b = this.view.extent
     let best: { wall: WallLine; along: number; t: number } | null = null
     for (const wall of this.view.walls) {
       const alongX = DIRS[wall.dir].dz !== 0
@@ -843,7 +1110,7 @@ export class CabinEditor {
         item.x = snap(p.x + held.grab.x, SNAP_TOP)
         item.z = snap(p.z + held.grab.z, SNAP_TOP)
         delete item.y
-        this.keepInside(held, this.view.bounds)
+        this.keepInside(held, this.view.roomRect(item.x, item.z))
       }
     } else {
       const p = this.atHeight(ray, 0)
@@ -851,7 +1118,7 @@ export class CabinEditor {
       item.x = snap(p.x + held.grab.x)
       item.z = snap(p.z + held.grab.z)
       this.magnet(held)
-      this.keepInside(held, this.view.bounds)
+      this.keepInside(held, this.view.roomRect(item.x, item.z))
     }
     held.aimed = true
     this.validate()
@@ -871,7 +1138,7 @@ export class CabinEditor {
   private magnet(held: Held) {
     const box = this.view.boxOf(held.item, this.tmpBox)
     if (!box) return
-    const b = this.view.bounds
+    const b = this.view.roomRect(held.item.x, held.item.z)
     const pull = (lo: number, hi: number, min: number, max: number) => (Math.abs(lo - min) < MAGNET ? min - lo : Math.abs(max - hi) < MAGNET ? max - hi : 0)
     held.item.x = round3(held.item.x + pull(box.min.x, box.max.x, b.minX, b.maxX))
     held.item.z = round3(held.item.z + pull(box.min.z, box.max.z, b.minZ, b.maxZ))
@@ -1118,7 +1385,7 @@ export class CabinEditor {
     })
     const probe: Held = { index: i, item: { ...item, r: ((item.r + step + 4) % 4) as Rot }, entry, grab: { x: 0, z: 0 }, riders, r0: item.r, refusal: null, aimed: true }
     // Tourné contre un mur, un meuble allongé en sortirait : il glisse d'autant vers l'intérieur.
-    if (entry.mount !== 'top' || !(item.y ?? 0)) this.keepInside(probe, this.view.bounds)
+    if (entry.mount !== 'top' || !(item.y ?? 0)) this.keepInside(probe, this.view.roomRect(item.x, item.z))
     const why = this.check(probe)
     const reason = why && why.charAt(0).toLowerCase() + why.slice(1)
     if (why) return this.refuse(tr(`Pas la place de le tourner : ${reason}`, `No room to rotate it: ${reason}`))
@@ -1208,15 +1475,22 @@ export class CabinEditor {
     // une nouvelle étape, et un clic en cours ne vise plus le même objet.
     this.lastNudge = this.lastTint = null
     this.press = null
+    const reshaped = wingShapes(next.wings) !== wingShapes(this.wings)
     this.items = next.items
     this.wall = next.wall
     this.floor = next.floor
+    this.wings = next.wings
     this.view.setLayout(next)
+    if (reshaped) this.refreshGrid()
     this.selected = select < next.items.length ? select : -1
     this.renderTools()
     this.renderBar()
     this.refreshCards()
-    if (this.mode === 'finish') this.refreshFinishes()
+    if (this.mode === 'finish') {
+      if (reshaped) this.showFinishes()
+      else this.refreshFinishes()
+    }
+    if (this.mode === 'rooms' && reshaped) this.showRooms()
     this.host.onChange(cloneLayout(next))
   }
 
@@ -1249,12 +1523,17 @@ export class CabinEditor {
     }
     this.confirmReset = 0
     this.cancelHeld()
-    this.commitLayout(defaultLayout(), -1)
+    // Les espaces débloqués le restent : leurs pièces reviennent vides, à la forme par défaut.
+    const reset = defaultLayout()
+    const wings: CabinWings = {}
+    for (const id of Object.keys(this.wings ?? {}) as WingId[]) wings[id] = { shape: DEFAULT_PATTERN }
+    if (Object.keys(wings).length) reset.wings = wings
+    this.commitLayout(reset, -1)
     this.toast(tr('Quartiers remis comme au premier jour (Ctrl+Z pour annuler)', 'Quarters back the way they were on day one (Ctrl+Z to undo)'))
   }
 
   private renderBar() {
-    this.countEl.textContent = tr(`${this.items.length} / ${MAX_ITEMS} objets`, `${this.items.length} / ${MAX_ITEMS} items`)
+    this.countEl.textContent = tr(`${this.items.length} / ${this.capacity} objets`, `${this.items.length} / ${this.capacity} items`)
     this.undoBtn.disabled = !this.past.length
     this.redoBtn.disabled = !this.future.length
     if (performance.now() - this.confirmReset > 3000) {
@@ -1365,16 +1644,48 @@ export class CabinEditor {
 
   /** Quadrillage discret du sol de la cabine (une ligne par bord de tuile). */
   private makeGrid(): THREE.LineSegments {
-    const b = this.view.bounds
+    // Les bords intérieurs des tuiles de la cabine et de ses pièces (pas ceux qui longent un mur).
     const pts: THREE.Vector3[] = []
-    for (let x = Math.ceil(b.minX - 0.5) + 0.5; x < b.maxX; x++) pts.push(new THREE.Vector3(x, 0.006, b.minZ), new THREE.Vector3(x, 0.006, b.maxZ))
-    for (let z = Math.ceil(b.minZ - 0.5) + 0.5; z < b.maxZ; z++) pts.push(new THREE.Vector3(b.minX, 0.006, z), new THREE.Vector3(b.maxX, 0.006, z))
+    const own = new Set(this.view.floorTiles.map((t) => `${t.x},${t.z}`))
+    for (const key of own) {
+      const [x, z] = key.split(',').map(Number)
+      const map = this.view.deck.map
+      if (own.has(`${x + 1},${z}`) && map.edge(x, z, 1) === 'open') pts.push(new THREE.Vector3(x + 0.5, 0.006, z - 0.5), new THREE.Vector3(x + 0.5, 0.006, z + 0.5))
+      if (own.has(`${x},${z + 1}`) && map.edge(x, z, 2) === 'open') pts.push(new THREE.Vector3(x - 0.5, 0.006, z + 0.5), new THREE.Vector3(x + 0.5, 0.006, z + 0.5))
+    }
     const grid = new THREE.LineSegments(
       new THREE.BufferGeometry().setFromPoints(pts),
       new THREE.LineBasicMaterial({ color: '#59d8ff', transparent: true, opacity: 0.22, depthWrite: false }),
     )
     grid.renderOrder = 1
     return grid
+  }
+}
+
+// ---------------------------------------------------------------- vignettes des formes de plan
+
+/** Vignette d'une forme de plan, vue depuis la porte (en haut) : ses tuiles, ses deux pièces, ses portes. */
+function drawPattern(canvas: HTMLCanvasElement, id: PatternId) {
+  const g = canvas.getContext('2d')!
+  const W = canvas.width, cell = (W - 8) / WING_SIZE, o = 4
+  const shape = WING_PATTERNS[id]
+  g.clearRect(0, 0, W, W)
+  shape.rows.forEach((row, pz) => {
+    for (let px = 0; px < row.length; px++) {
+      if (row[px] === ' ') continue
+      g.fillStyle = row[px] === 'a' ? 'rgba(89, 216, 255, 0.55)' : 'rgba(125, 255, 168, 0.5)'
+      g.fillRect(o + px * cell + 1, o + pz * cell + 1, cell - 2, cell - 2)
+    }
+  })
+  // La porte des quartiers, au milieu du bord du haut ; les portes intérieures, en orange.
+  g.fillStyle = '#ffb03a'
+  g.fillRect(o + 2 * cell + cell * 0.2, 0, cell * 0.6, 4)
+  for (const d of shape.doors ?? []) {
+    const cx = o + (d.px + 0.5) * cell, cz = o + (d.pz + 0.5) * cell
+    const vertical = d.dir === 1 || d.dir === 3
+    const ex = cx + (d.dir === 1 ? cell / 2 : d.dir === 3 ? -cell / 2 : 0), ez = cz + (d.dir === 2 ? cell / 2 : d.dir === 0 ? -cell / 2 : 0)
+    if (vertical) g.fillRect(ex - 2, ez - cell * 0.3, 4, cell * 0.6)
+    else g.fillRect(ex - cell * 0.3, ez - 2, cell * 0.6, 4)
   }
 }
 

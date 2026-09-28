@@ -18,9 +18,9 @@ export const DIRS = [
 export class ShipMap {
   /**
    * @param {string[]} layout
-   * @param {{ closed?: string, doors?: { x: number, z: number, dir: number }[] }} [options]
+   * @param {{ closed?: string, doors?: { x: number, z: number, dir: number, locked?: boolean }[] }} [options]
    *   closed : pièces fermées (leurs portes sont verrouillées) ; doors : portes en plus des '+',
-   *   posées sur un bord de tuile (elles peuvent donner sur le vide, fermées, cf. lock)
+   *   posées sur un bord de tuile (elles peuvent donner sur le vide), verrouillées si `locked`
    */
   constructor(layout, options = {}) {
     /** Portes : tuile de la porte et direction (0..3) vers la tuile de l'autre côté. */
@@ -37,7 +37,10 @@ export class ShipMap {
       }),
     )
     this.resolveDoors()
-    for (const d of options.doors ?? []) this.addDoor(d.x, d.z, d.dir)
+    for (const d of options.doors ?? []) {
+      this.addDoor(d.x, d.z, d.dir)
+      if (d.locked) this.lock(d.x, d.z, d.dir)
+    }
     if (options.closed) {
       for (const d of this.doors) {
         const other = this.room(d.x + DIRS[d.dir].dx, d.z + DIRS[d.dir].dz)
@@ -52,6 +55,24 @@ export class ShipMap {
     if (this.doorEdges.has(key)) return
     this.doors.push({ x, z, dir })
     this.doorEdges.add(key)
+  }
+
+  /** Retire la porte du bord `dir` de la tuile (x, z), s'il y en a une. */
+  removeDoor(x, z, dir) {
+    const key = this.edgeKey(x, z, dir)
+    if (!this.doorEdges.delete(key)) return
+    this.locked.delete(key)
+    this.doors = this.doors.filter((d) => this.edgeKey(d.x, d.z, d.dir) !== key)
+  }
+
+  /** Change la pièce d'une tuile (null : du vide), le plan s'agrandissant au besoin. */
+  setRoom(x, z, room) {
+    if (x < 0 || z < 0) throw new Error(`Tuile hors du plan (${x}, ${z})`)
+    while (this.rooms.length <= z) this.rooms.push([])
+    this.rooms[z][x] = room
+    for (let r = 0; r < this.rooms.length; r++) while (this.rooms[r].length <= x) this.rooms[r].push(null)
+    this.height = this.rooms.length
+    this.width = Math.max(this.width, x + 1)
   }
 
   /** Verrouille (ou déverrouille) la porte du bord `dir` de la tuile (x, z). */

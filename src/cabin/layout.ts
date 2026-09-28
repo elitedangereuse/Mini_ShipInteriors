@@ -1,12 +1,16 @@
 import type { Rot } from '../levels'
 import { entryOf, knownVariant } from './catalog'
 import { normalizeFinish } from './finishes'
+import { DEFAULT_PATTERN, WING_PATTERNS, WING_SLOTS, wingPlan, type PatternId, type WingId } from '../../shared/cabin-wings.js'
 
 /*
  * Aménagement d'une cabine : la liste de ses objets, et les revêtements de ses murs et de son
  * sol. C'est ce qui est enregistré sur le site (outils/mini-shipinteriors-cabin.php) et envoyé
  * par le relais aux CMDR invités. Format compact, identique partout :
- * { v: 1, items: [{ m, x, z, r, v?, y?, s? }], wall?: { style, color }, floor?: { style, color } }.
+ * { v: 1, items: [{ m, x, z, r, v?, y?, s? }], wall?: { style, color }, floor?: { style, color },
+ *   wings?: { left?: { shape, wall?, floor? }, middle?: …, right?: … } }.
+ * `wings` : les pièces des extensions débloquées (cf. shared/cabin-wings.js), leur forme et leurs
+ * revêtements ; leurs objets sont dans `items`, comme ceux des quartiers.
  */
 
 export interface CabinItem {
@@ -31,16 +35,29 @@ export interface Finish {
   color: string
 }
 
+/** Pièce d'une extension : sa forme de plan, et ses revêtements (absents : ceux d'origine). */
+export interface WingLayout {
+  shape: PatternId
+  wall?: Finish
+  floor?: Finish
+}
+
+export type CabinWings = Partial<Record<WingId, WingLayout>>
+
 /** Aménagement complet ; sans revêtement, murs et sol restent ceux d'origine du vaisseau. */
 export interface CabinLayout {
   items: CabinItem[]
   wall?: Finish
   floor?: Finish
+  wings?: CabinWings
 }
 
 export const CABIN_FORMAT = 1
-/** Nombre d'objets au plus, Holo-Me compris (même limite dans le relais et sur le site). */
-export const MAX_ITEMS = 64
+/** Objets au plus dans les quartiers, Holo-Me compris, et dans chaque pièce d'extension. */
+export const ROOM_ITEMS = 64
+export const WING_ITEMS = 32
+/** Objets au plus en tout : les quartiers et trois extensions (même limite dans le relais et sur le site). */
+export const MAX_ITEMS = ROOM_ITEMS + WING_ITEMS * WING_SLOTS.length
 
 /** Rectangle intérieur d'une pièce (face intérieure des murs). */
 export interface Rect {
@@ -95,8 +112,20 @@ export function cloneLayout(layout: CabinLayout): CabinLayout {
   const out: CabinLayout = { items: cloneItems(layout.items) }
   if (layout.wall) out.wall = { ...layout.wall }
   if (layout.floor) out.floor = { ...layout.floor }
+  if (layout.wings) out.wings = cloneWings(layout.wings)
   return out
 }
+
+export function cloneWings(wings: CabinWings): CabinWings {
+  const out: CabinWings = {}
+  for (const [id, w] of Object.entries(wings) as [WingId, WingLayout][]) {
+    out[id] = { shape: w.shape, ...(w.wall ? { wall: { ...w.wall } } : {}), ...(w.floor ? { floor: { ...w.floor } } : {}) }
+  }
+  return out
+}
+
+/** Formes des pièces : même clé, mêmes pièces sur le plan (les revêtements n'y changent rien). */
+export const wingShapes = (wings: CabinWings | undefined) => WING_SLOTS.map((s) => wings?.[s.id]?.shape ?? '').join('|')
 
 export function sameItems(a: CabinItem[], b: CabinItem[]): boolean {
   return JSON.stringify(a) === JSON.stringify(b)
@@ -107,36 +136,73 @@ export function sameLayout(a: CabinLayout, b: CabinLayout): boolean {
 }
 
 /** Ce qui part au site et au relais. */
-export function serializeLayout(layout: CabinLayout): { v: number; items: CabinItem[]; wall?: Finish; floor?: Finish } {
-  const out: { v: number; items: CabinItem[]; wall?: Finish; floor?: Finish } = { v: CABIN_FORMAT, items: layout.items }
+export function serializeLayout(layout: CabinLayout): { v: number; items: CabinItem[]; wall?: Finish; floor?: Finish; wings?: CabinWings } {
+  const out: { v: number; items: CabinItem[]; wall?: Finish; floor?: Finish; wings?: CabinWings } = { v: CABIN_FORMAT, items: layout.items }
   if (layout.wall) out.wall = layout.wall
   if (layout.floor) out.floor = layout.floor
+  if (layout.wings && Object.keys(layout.wings).length) out.wings = layout.wings
   return out
 }
 
 /**
  * Aménagement lisible par ce client, quelle qu'en soit la source (site, relais) : objets
- * inconnus du catalogue écartés, variantes inconnues remplacées, positions dans la cabine,
- * un Holo-Me et un seul, revêtements inconnus oubliés (ceux d'origine à la place). Ne vérifie
+ * inconnus du catalogue écartés, variantes inconnues remplacées, positions dans la cabine (ou
+ * dans une de ses pièces d'extension), un Holo-Me et un seul, revêtements inconnus oubliés
+ * (ceux d'origine à la place), formes inconnues remplacées par la forme par défaut. Ne vérifie
  * pas les chevauchements : c'est le rôle du mode aménagement.
- * @param raw { v, items, wall?, floor? } ou directement la liste des objets
+ * @param raw { v, items, wall?, floor?, wings? } ou directement la liste des objets
+ * @param bounds rectangle intérieur des quartiers (hors extensions)
  */
 export function normalizeLayout(raw: unknown, bounds: Rect): CabinLayout {
-  const layout: CabinLayout = { items: normalizeItems(raw, bounds) }
+  const wings = raw && typeof raw === 'object' && !Array.isArray(raw) ? normalizeWings((raw as { wings?: unknown }).wings) : undefined
+  const layout: CabinLayout = { items: normalizeItems(raw, bounds, wings) }
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     const { wall, floor } = raw as { wall?: unknown; floor?: unknown }
     const w = normalizeFinish('wall', wall), f = normalizeFinish('floor', floor)
     if (w) layout.wall = w
     if (f) layout.floor = f
   }
+  if (wings) layout.wings = wings
   return layout
 }
 
-function normalizeItems(raw: unknown, bounds: Rect): CabinItem[] {
+/** Pièces d'extension : espaces connus, formes connues (sinon celle par défaut), revêtements lisibles. */
+export function normalizeWings(raw: unknown): CabinWings | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const out: CabinWings = {}
+  for (const slot of WING_SLOTS) {
+    const w = (raw as Record<string, unknown>)[slot.id]
+    if (!w || typeof w !== 'object') continue
+    const { shape, wall, floor } = w as { shape?: unknown; wall?: unknown; floor?: unknown }
+    const wing: WingLayout = { shape: typeof shape === 'string' && shape in WING_PATTERNS ? (shape as PatternId) : DEFAULT_PATTERN }
+    const wf = normalizeFinish('wall', wall), ff = normalizeFinish('floor', floor)
+    if (wf) wing.wall = wf
+    if (ff) wing.floor = ff
+    out[slot.id] = wing
+  }
+  return Object.keys(out).length ? out : undefined
+}
+
+/** Tuiles des pièces d'extension (« x,z »), pour savoir si un objet y est. */
+export function wingTiles(wings: CabinWings | undefined): Set<string> {
+  const out = new Set<string>()
+  for (const slot of WING_SLOTS) {
+    const w = wings?.[slot.id]
+    if (w) for (const t of wingPlan(slot, w.shape).tiles) out.add(`${t.x},${t.z}`)
+  }
+  return out
+}
+
+function normalizeItems(raw: unknown, bounds: Rect, wings?: CabinWings): CabinItem[] {
   const list = Array.isArray(raw) ? raw : Array.isArray((raw as { items?: unknown })?.items) ? (raw as { items: unknown[] }).items : null
   if (!list) return cloneItems(DEFAULT_CABIN)
   const out: CabinItem[] = []
   let holo = false
+  const annex = wingTiles(wings)
+  // Un peu de marge : un objet accroché est posé sur la face du mur.
+  const inside = (x: number, z: number) =>
+    (x >= bounds.minX - 0.3 && x <= bounds.maxX + 0.3 && z >= bounds.minZ - 0.3 && z <= bounds.maxZ + 0.3) ||
+    [[0, 0], [0.3, 0], [-0.3, 0], [0, 0.3], [0, -0.3]].some(([dx, dz]) => annex.has(`${Math.round(x + dx)},${Math.round(z + dz)}`))
   for (const it of list) {
     if (out.length >= MAX_ITEMS) break
     if (!it || typeof it !== 'object') continue
@@ -144,8 +210,7 @@ function normalizeItems(raw: unknown, bounds: Rect): CabinItem[] {
     const entry = typeof o.m === 'string' ? entryOf(o.m) : undefined
     const x = Number(o.x), z = Number(o.z)
     if (!entry || !Number.isFinite(x) || !Number.isFinite(z)) continue
-    // Un peu de marge : un objet accroché est posé sur la face du mur.
-    if (x < bounds.minX - 0.3 || x > bounds.maxX + 0.3 || z < bounds.minZ - 0.3 || z > bounds.maxZ + 0.3) continue
+    if (!inside(x, z)) continue
     if (entry.fixed) {
       if (holo) continue
       holo = true
