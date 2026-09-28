@@ -266,8 +266,12 @@ function drawFilm(g: CanvasRenderingContext2D, time: number) {
     titleCard(g, [
       [tr('PROCHAINEMENT', 'COMING SOON'), '800 58px system-ui, sans-serif', 108],
       [tr('dans votre Fleet Carrier', 'in your Fleet Carrier'), '400 24px system-ui, sans-serif', 160],
-      ['o7', '700 22px system-ui, sans-serif', 212],
+      ['o7', '700 22px system-ui, sans-serif', 202],
     ], Math.min((t - 38) / 1.2, (46 - t) / 1.2))
+    // En attendant une vraie séance, le carton dit où elle se choisit.
+    g.fillStyle = '#9fd8ff'
+    titleCard(g, [[tr('Votre séance se choisit à la régie, au fond de la salle', 'Pick the screening at the booth, at the back of the room'),
+      '600 21px system-ui, sans-serif', 238]], Math.min((t - 39) / 1.2, (46 - t) / 1.2))
   }
   // Grain de pellicule et vignettage.
   g.fillStyle = 'rgba(255, 255, 255, 0.05)'
@@ -376,7 +380,11 @@ const cinemaRow: Builder = ({ label }) => {
   return { solid: g }
 }
 
-/** Fauteuil de régie, isolé au fond : velours bleu, liserés d'or et pupitre de diffusion. */
+/**
+ * Fauteuil de régie, isolé au fond : velours bleu, liserés d'or et pupitre de diffusion. On le
+ * repère sans message : un rai de lumière bleue qui respire et son halo au sol, comme sur une
+ * scène.
+ */
 const projectionChair: Builder = () => {
   const g = new THREE.Group()
   const blue = lit('#244a73'), dark = lit('#152b48'), gold = lit(C.gold)
@@ -392,7 +400,38 @@ const projectionChair: Builder = () => {
   g.add(box(0.23, 0.055, 0.28, lit(C.frame), 0.43, 0.46, 0.13, 0.012))
   g.add(box(0.18, 0.007, 0.13, glow('#55b7ee'), 0.43, 0.491, 0.07))
   for (let i = 0; i < 3; i++) g.add(box(0.043, 0.008, 0.04, glow(i === 0 ? '#ffb45e' : '#74d0fa'), 0.37 + i * 0.06, 0.491, 0.21))
-  return { solid: g }
+  // Halo au sol, au-dessus du tapis de la salle (2 cm).
+  const halo = drawnTexture(128, 128, (c) => {
+    const r = c.createRadialGradient(64, 64, 0, 64, 64, 64)
+    r.addColorStop(0, 'rgba(116, 208, 250, 0.8)')
+    r.addColorStop(0.55, 'rgba(85, 183, 238, 0.4)')
+    r.addColorStop(1, 'rgba(85, 183, 238, 0)')
+    c.fillStyle = r
+    c.fillRect(0, 0, 128, 128)
+  })
+  const haloMat = new THREE.MeshBasicMaterial({ map: halo, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })
+  const pool = part(new THREE.CircleGeometry(0.72, 32), haloMat, 0, 0.03, 0.1)
+  pool.rotation.x = -Math.PI / 2
+  // Rai de lumière qui tombe sur le fauteuil, comme sur une scène : il dépasse du mur sud, qui
+  // cache le fauteuil dans la vue par défaut. Opacité portée par les sommets, nulle en haut.
+  const H = 2.1
+  const shaft = new THREE.CylinderGeometry(0.16, 0.62, H, 24, 6, true)
+  const pos = shaft.attributes.position
+  const alpha = new Float32Array(pos.count * 4)
+  for (let i = 0; i < pos.count; i++) {
+    const k = 0.5 + pos.getY(i) / H
+    alpha.set([1, 1, 1, (1 - k) ** 1.5 * 0.5], i * 4)
+  }
+  shaft.setAttribute('color', new THREE.BufferAttribute(alpha, 4))
+  const shaftMat = new THREE.MeshBasicMaterial({ color: '#74d0fa', vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })
+  const beam = part(shaft, shaftMat, 0, 0.03 + H / 2, 0.1)
+  const live = new THREE.Group()
+  live.add(pool, beam)
+  return { solid: g, live, update: (t) => {
+    const k = Math.sin(t * 1.4)
+    haloMat.opacity = 0.7 + 0.3 * k
+    shaftMat.opacity = 0.8 + 0.2 * k
+  } }
 }
 
 // ---------------------------------------------------------------- pop-corn

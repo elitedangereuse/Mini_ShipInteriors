@@ -169,7 +169,9 @@ Choix et réalisation (27 septembre 2026) :
   commune à tout le bord. Les autres fauteuils et l'écran ouvrent le lecteur
   partagé. En direct, la chaîne Twitch prend la priorité et suspend les trailers.
   Sous l'écran, chacun règle son propre volume (curseur, muet par défaut,
-  retenu par le navigateur) ; le son ne s'entend que dans la salle.
+  retenu par le navigateur) ; le son ne s'entend que dans la salle. Un rai de
+  lumière bleue désigne la régie, et le carton final du faux film y renvoie ;
+  assis dans les rangées, plus d'invite par-dessus l'écran.
 - Salon d'écoute (même jour) : l'ancien salon panoramique, en version cosy,
   pour Radio Dangereuse (le podcast Elite Dangerous) et les Galères
   Galactiques (mini-fiction audio humoristique). Affiches des deux émissions,

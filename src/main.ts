@@ -2297,8 +2297,11 @@ function bindPose() {
     : undefined
 }
 
-/** Invite au-dessus du personnage installé : se relever, et ce que permet sa place (Espace). */
-function seatPrompt(seat: Seated): { main: string; space?: string } {
+/**
+ * Invite au-dessus du personnage installé : se relever, et ce que permet sa place (Espace).
+ * Aucune dans les rangées du cinéma : elle cacherait l'écran (E et Espace marchent toujours).
+ */
+function seatPrompt(seat: Seated): { main: string; space?: string } | null {
   if (claw) return { main: tr('Quitter', 'Leave'), space: claw.control.busy ? undefined : tr('Lâcher la pince', 'Drop the claw') }
   if (canJump(seat)) return { main: tr('Se lever', 'Stand up'), space: jumping ? undefined : tr('Saut FSD', 'FSD jump') }
   // Devant une borne fermée (on sort du mode photo, ou elle n'a pas pu se charger).
@@ -2306,7 +2309,7 @@ function seatPrompt(seat: Seated): { main: string; space?: string } {
   if (seat.item.furniture?.model === 'bar-table' && seat.item.furniture.label === 'galactic-clash') return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
   if (seat.item.furniture?.model === 'pinball' && deck.def.id === -1) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
   if (deck.def.id === 1 && deck.map.room(Math.round(seat.item.position.x), Math.round(seat.item.position.z)) === 'o') return { main: tr('Se lever', 'Stand up'), space: tr('Écouter', 'Listen') }
-  if (deck.def.id === 1 && seat.item.furniture?.model === 'cinema-row') return { main: tr('Se lever', 'Stand up'), space: tr('Regarder', 'Watch') }
+  if (deck.def.id === 1 && seat.item.furniture?.model === 'cinema-row') return null
   if (deck.def.id === 1 && seat.item.furniture?.model === 'projection-chair') return { main: tr('Se lever', 'Stand up'), space: tr('Régie', 'Controls') }
   if (seat.item.furniture?.model === 'bar-stool' && deck.def.id === -1) return { main: tr('Se lever', 'Stand up'), space: tr('Parler à Jacques', 'Talk to Jacques') }
   if (boardGame(seat)) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
