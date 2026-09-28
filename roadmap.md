@@ -137,7 +137,7 @@ Choix et réalisation (27 septembre 2026) :
 - [ ] **SOC-04 · P3 · Activité — Cinéma.** Créer une salle diffusant les trailers
   du site depuis une playlist YouTube. Basculer sur le live Twitch quand la
   chaîne est en direct, puis revenir à la playlist à la fin du live.
-- [ ] **SOC-05 · P3 · Lieu de vie — Bar.** Ajouter un bar avec un robot serveur.
+- [x] **SOC-05 · P3 · Lieu de vie — Bar.** Ajouter un bar avec un robot serveur.
 - [ ] **SOC-06 · P3 · Activité — Récupération de cargaison en zone Thargoid.**
   Créer un jeu d'horreur solo ou coopératif jusqu'à quatre joueurs, accessible
   par une nouvelle porte dans la cale. Explorer une baie de stockage en forme
@@ -180,6 +180,30 @@ Choix et réalisation (27 septembre 2026) :
   coque visible autour de certaines parties du vaisseau pour donner l'impression
   d'un ensemble cohérent plutôt que de pièces flottant dans l'espace. Étudier
   cette coque avec SHIP-01 pour conserver la lisibilité de la vue isométrique.
+
+Choix retenus (28 septembre 2026) :
+
+- **Répartition des futurs espaces selon l'ambiance des ponts.** Pont principal :
+  LJPC et La Voie au nord de la coursive prolongée, Clash galactique et mini CQC
+  au sud, à côté de l'arcade. Pont supérieur (cosy) : le cinéma, et le salon
+  panoramique recyclé plus tard en salon d'écoute (podcasts Radio Dangereuse,
+  épisodes de Galère Galactique). Cale : le lobby du jeu d'horreur (SOC-06).
+  Ces pièces sont construites dès la refonte, « en travaux » : murs, sol, place
+  dans la coque, porte verrouillée, caisses, échafaudage et panneau « Bientôt ».
+- **Poste de pilotage agrandi sur place**, à la proue du pont principal :
+  verrières, sièges supplémentaires, tableaux de bord.
+- **Système en cours** : le saut FSD lancé depuis le siège du pilote change de
+  système pour tout le bord (synchronisé par le relais). Chaque destination est
+  dessinée hors du vaisseau, visible par les verrières (étoile, planètes,
+  anneaux, station).
+- **Extensions des quartiers (SHIP-02) : trois espaces** (gauche, milieu,
+  droite) accolés aux quartiers, chacun derrière sa propre porte. On débloque un
+  espace une fois, dans l'ordre de son choix : 100 000 CR le premier, 250 000 CR
+  le deuxième, 500 000 CR le troisième. Dans un espace débloqué, on choisit une
+  pièce parmi **10 formes de plan** communes aux trois espaces (carrés de 5 × 5
+  tuiles orientés vers leur porte), avec ses propres murs et sol. Changer de
+  forme est gratuit et vide la pièce de ses objets (qui restent débloqués).
+  Les formes remplacent la pose libre de murs.
 
 ## 5. Personnalisation et ambiance
 
