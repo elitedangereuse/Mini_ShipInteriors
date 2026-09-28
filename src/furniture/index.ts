@@ -2,6 +2,7 @@ import { ADVENTURES } from './adventures'
 import { ARCADE } from './arcade'
 import { BAR } from './bar'
 import { BOARD } from './board'
+import { COCKPIT } from './cockpit'
 import { COZY } from './cozy'
 import { DECOR } from './decor'
 import { ELITE } from './elite'
@@ -17,6 +18,7 @@ import { SITE } from './site'
 /*
  * Mobilier fait main, en primitives Three.js, rangé par zone :
  * - elite.ts : poste de pilotage, cartes holographiques, FSD, SRV, drones… (clins d'œil à Elite Dangerous) ;
+ * - cockpit.ts : le poste de pilotage agrandi (tableau de bord, consoles, sièges d'équipage, fauteuil du commandant) ;
  * - workshop.ts : la cale (minage, bricolage, réparation) ;
  * - bar.ts : Chez Jacques, le bar clandestin de la cale (comptoir, bouteilles, Jacques le robot barman) ;
  * - leisure.ts : infirmerie, salle de sport, enseigne du salon d'arcade ;
@@ -32,7 +34,7 @@ import { SITE } from './site'
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...WORKSHOP, ...BAR, ...LEISURE, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...COCKPIT, ...WORKSHOP, ...BAR, ...LEISURE, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 

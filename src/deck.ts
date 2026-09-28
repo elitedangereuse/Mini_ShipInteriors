@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { renderQuality } from './quality'
 import { station, themes, type StationModel, type ThemeMaterials } from './assets'
 import { CabinView } from './cabin/view'
@@ -77,6 +78,25 @@ const FLOOR_Y = -0.3
 const DOOR_RANGE = 1.3
 
 const PICK_MATERIAL = new THREE.MeshBasicMaterial()
+/** Bandeau lumineux au pied des verrières. */
+const CANOPY_TRIM = new THREE.MeshBasicMaterial({ color: '#ff8a1c' })
+/** Verre des verrières, bleuté, à peine visible : on regarde l'espace à travers. */
+const CANOPY_GLASS = new THREE.MeshLambertMaterial({ color: '#9fd8ff', transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide })
+
+/** Tous les pans de verre d'un pont, en un maillage (un appel de dessin). */
+function canopyGlass(panes: { x: number; z: number; alongX: boolean }[]): THREE.Mesh {
+  const geos = panes.map((p) => {
+    const g = new THREE.PlaneGeometry(1, POST_H - 0.37)
+    if (!p.alongX) g.rotateY(Math.PI / 2)
+    g.translate(p.x, 0.27 + (POST_H - 0.37) / 2, p.z)
+    return g
+  })
+  const mesh = new THREE.Mesh(mergeGeometries(geos), CANOPY_GLASS)
+  for (const g of geos) g.dispose()
+  mesh.renderOrder = 2
+  return mesh
+}
+
 /** Voyant d'une porte verrouillée : une barrette rouge qui dépasse des deux faces du linteau. */
 const LOCK_LAMP_GEO = new THREE.BoxGeometry(0.16, 0.035, 0.33)
 const LOCK_LAMP_MAT = new THREE.MeshBasicMaterial({ color: '#ff3b2f' })
@@ -108,6 +128,8 @@ export class Deck {
   readonly walls: WallSegment[] = []
   /** Poteaux d'angle (centre, en coordonnées du pont ; côté POST_WIDTH). */
   readonly posts: { x: number; z: number }[] = []
+  /** Pans de verrière (milieu de l'arête). */
+  private readonly glass: { x: number; z: number; alongX: boolean }[] = []
 
   /** Appelé quand une porte s'ouvre ou se ferme (position monde). */
   onDoor?: (position: THREE.Vector3, open: boolean) => void
@@ -304,9 +326,16 @@ export class Deck {
           let model: 'wall' | 'wall-window' | 'wall-pillar' = 'wall'
           if (exterior && (hsh % 1000) / 1000 < windowRate) model = 'wall-window'
           else if (!exterior && hsh % 5 === 0) model = 'wall-pillar'
-          const wall = this.place(model, cx, 0, cz, alongX ? 0 : Math.PI / 2)
-          this.addFading(wall, new THREE.Vector3(cx, 0.5, cz), this.cabinOutward(cx, cz))
-          this.walls.push({ x: cx, z: cz, alongX, model })
+          if (exterior && this.def.canopy?.[room]?.includes(dir)) {
+            // Verrière : une allège, un bandeau, et du verre entre les deux.
+            this.addFading(this.canopyFrame(cx, cz, alongX), new THREE.Vector3(cx, 0.5, cz))
+            this.glass.push({ x: cx, z: cz, alongX })
+            this.walls.push({ x: cx, z: cz, alongX, model: 'wall-window' })
+          } else {
+            const wall = this.place(model, cx, 0, cz, alongX ? 0 : Math.PI / 2)
+            this.addFading(wall, new THREE.Vector3(cx, 0.5, cz), this.cabinOutward(cx, cz))
+            this.walls.push({ x: cx, z: cz, alongX, model })
+          }
 
           if (alongX) {
             this.colliders.push({ minX: cx - 0.5, maxX: cx + 0.5, minZ: cz - WALL_T / 2, maxZ: cz + WALL_T / 2 })
@@ -334,6 +363,23 @@ export class Deck {
       const hs = POST_W / 2
       this.colliders.push({ minX: vx - hs, maxX: vx + hs, minZ: vz - hs, maxZ: vz + hs })
     }
+    if (this.glass.length) this.group.add(canopyGlass(this.glass))
+  }
+
+  /** Cadre d'un pan de verrière (arête de milieu cx, cz) : allège, bandeau orange, linteau. */
+  private canopyFrame(cx: number, cz: number, alongX: boolean): THREE.Object3D {
+    const g = new THREE.Group()
+    const w = 1, t = WALL_T
+    const add = (h: number, y: number, material: THREE.Material, depth = t) => {
+      const m = solidBox(alongX ? w : depth, h, alongX ? depth : w, material)
+      m.position.set(cx, y, cz)
+      g.add(m)
+    }
+    add(0.24, 0.12, this.theme.shell)
+    add(0.03, 0.255, CANOPY_TRIM, t + 0.02)
+    add(0.1, POST_H - 0.05 - 0.02, this.theme.shell)
+    g.updateMatrixWorld(true)
+    return g
   }
 
   private buildDoor(x: number, z: number, dir: number, touch: (vx: number, vz: number, a: 'h' | 'v') => void) {
@@ -456,7 +502,7 @@ export class Deck {
         this.interactables.push(it)
       }
       // Les consoles du poste de pilotage bipent.
-      if (this.def.id === 0 && this.map.room(Math.round(p.x), Math.round(p.z)) === 'b' && p.model.startsWith('computer')) {
+      if (this.def.id === 0 && this.map.room(Math.round(p.x), Math.round(p.z)) === 'b' && (p.model.startsWith('computer') || p.model.endsWith('console'))) {
         this.addEmitter('beep', new THREE.Vector3(center.x, this.y + 0.6, center.z))
       }
     }
@@ -627,26 +673,38 @@ export class Deck {
   }
 }
 
-/** Poteau d'angle qui réutilise le matériau (et la couleur exacte) des murs du pont. */
-function makePostMesh(material: THREE.Material): THREE.Mesh {
-  let src: THREE.Mesh | undefined
-  station('wall').traverse((o) => {
-    if (!src && (o as THREE.Mesh).isMesh) src = o as THREE.Mesh
-  })
-  const geo = new THREE.BoxGeometry(POST_W, POST_H, POST_W)
-  // Toutes les UV pointent sur le texel du dessus du mur.
-  const g = src!.geometry
-  const pos = g.getAttribute('position')
-  const uv = g.getAttribute('uv')
-  let best = 0
-  for (let i = 0; i < pos.count; i++) if (pos.getY(i) > pos.getY(best)) best = i
-  const u = uv.getX(best), v = uv.getY(best)
+/** Point de la texture du kit où se trouve la couleur du dessus des murs (cf. solidBox). */
+let wallTexel: [number, number] | null = null
+
+/**
+ * Pavé uni de la couleur exacte des murs du pont : toutes ses coordonnées de texture pointent
+ * sur le texel du dessus du mur (poteaux d'angle, cadres des verrières).
+ */
+function solidBox(w: number, h: number, d: number, material: THREE.Material): THREE.Mesh {
+  if (!wallTexel) {
+    let src: THREE.Mesh | undefined
+    station('wall').traverse((o) => {
+      if (!src && (o as THREE.Mesh).isMesh) src = o as THREE.Mesh
+    })
+    const g = src!.geometry
+    const pos = g.getAttribute('position')
+    const uv = g.getAttribute('uv')
+    let best = 0
+    for (let i = 0; i < pos.count; i++) if (pos.getY(i) > pos.getY(best)) best = i
+    wallTexel = [uv.getX(best), uv.getY(best)]
+  }
+  const geo = new THREE.BoxGeometry(w, h, d)
   const uvs = geo.getAttribute('uv')
-  for (let i = 0; i < uvs.count; i++) uvs.setXY(i, u, v)
+  for (let i = 0; i < uvs.count; i++) uvs.setXY(i, wallTexel[0], wallTexel[1])
   const m = new THREE.Mesh(geo, material)
   m.castShadow = true
   m.receiveShadow = true
   return m
+}
+
+/** Poteau d'angle qui réutilise le matériau (et la couleur exacte) des murs du pont. */
+function makePostMesh(material: THREE.Material): THREE.Mesh {
+  return solidBox(POST_W, POST_H, POST_W, material)
 }
 
 /** Panneau de l'ascenseur : pastille sombre cerclée de cyan, flèches vers le haut et vers le bas. */

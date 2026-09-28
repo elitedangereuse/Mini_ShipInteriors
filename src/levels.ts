@@ -63,6 +63,8 @@ export interface LevelDef {
   floors?: Record<string, StationModel>
   /** Proportion de murs extérieurs percés d'un hublot, par pièce (défaut : 1/3). */
   windows?: Record<string, number>
+  /** Verrières : par pièce, les côtés (0 nord, 1 est, 2 sud, 3 ouest) dont les murs extérieurs sont vitrés. */
+  canopy?: Record<string, number[]>
   props: Prop[]
   /** La réserve en éclaire 8 à la fois, les plus proches du joueur (cf. applyLights dans main.ts). */
   lights: LightDef[]
@@ -354,51 +356,59 @@ export const LEVELS: LevelDef[] = [
     },
     floors: { c: 'floor-panel', b: 'floor-detail' },
     engine: true,
+    canopy: { b: [0, 1, 2] },
     props: [
-      // --- Poste de pilotage : siège et HOTAS, scanner, panneaux holographiques, carte galactique ---
+      // --- Poste de pilotage, à la proue : verrières sur l'avant et les flancs ---
+      // Le pilote face au tableau de bord, le copilote et le navigateur de part et d'autre, la
+      // carte galactique au centre, et le fauteuil du commandant derrière elle.
       {
-        model: 'computer-wide', x: 37, z: 4, rot: 3,
-        interact: tr(
-          'Supercroisière assistée engagée. Destination : Jameson Memorial, Shinrarta Dezhra — 3 sauts.',
-          'Supercruise assist engaged. Destination: Jameson Memorial, Shinrarta Dezhra — 3 jumps.',
-        ),
+        model: 'helm-console', x: 37.95, z: 4.5, rot: 3,
+        interact: [
+          tr(
+            'Supercroisière assistée engagée. Destination : Jameson Memorial, Shinrarta Dezhra — 3 sauts.',
+            'Supercruise assist engaged. Destination: Jameson Memorial, Shinrarta Dezhra — 3 jumps.',
+          ),
+          tr('Ordinateur d\'amarrage prêt. Musique d\'approche : « Le Beau Danube bleu ».', 'Docking computer ready. Approach music: “The Blue Danube”.'),
+        ],
       },
       {
-        model: 'computer-wide', x: 37, z: 5, rot: 3,
-        interact: tr('Ordinateur d\'amarrage prêt. Musique d\'approche : « Le Beau Danube bleu ».', 'Docking computer ready. Approach music: “The Blue Danube”.'),
-      },
-      {
-        model: 'pilot-seat', x: 35.9, z: 4.5, rot: 1,
+        model: 'pilot-seat', x: 36.9, z: 4.5, rot: 1,
         interact: tr('Siège du pilote. Quelqu\'un a gravé « o7 » sur l\'accoudoir.', 'Pilot\'s seat. Someone has carved “o7” into the armrest.'),
       },
-      { model: 'radar', x: 36.55, z: 4.5, rot: 1 },
+      { model: 'radar', x: 37.5, z: 4.5, rot: 1 },
+      { model: 'side-console', x: 37.55, z: 3, rot: 3, label: 'nav', interact: tr('Poste du navigateur : route tracée, 3 sauts, aucune étoile à neutrons sur le trajet. Dommage.', 'Navigator\'s station: route plotted, 3 jumps, no neutron stars on the way. Pity.') },
+      { model: 'crew-seat', x: 36.7, z: 3, rot: 1, interact: tr('Siège du navigateur : l\'accoudoir est usé à force de pianoter sur la carte.', 'Navigator\'s seat: the armrest is worn from tapping on the map.') },
+      { model: 'side-console', x: 37.55, z: 6, rot: 3, label: 'comms', interact: tr('Comms : Felicity Farseer attend toujours son Meta-Alloy.', 'Comms: Felicity Farseer is still waiting for her Meta-Alloys.') },
+      { model: 'crew-seat', x: 36.7, z: 6, rot: 1, interact: tr('Siège du copilote : il sent encore le café de la dernière veille.', 'Co-pilot\'s seat: it still smells of the last watch\'s coffee.') },
       {
-        model: 'holo-panel', x: 36.2, z: 3.35, rot: 0,
-        label: tr('Navigation|Shinrarta Dezhra|Jameson Memorial|12,4 al · 3 sauts', 'Navigation|Shinrarta Dezhra|Jameson Memorial|12.4 ly · 3 jumps'),
-      },
-      {
-        model: 'holo-panel', x: 36.2, z: 5.65, rot: 2,
-        label: tr('Systèmes|Boucliers 100 %|Coque 100 %|FSD chargé', 'Systems|Shields 100%|Hull 100%|FSD charged'),
-      },
-      {
-        model: 'galaxy-map', x: 34, z: 4.5,
+        model: 'galaxy-map', x: 34.5, z: 4.5,
         interact: tr(
           'Carte galactique : 400 milliards d\'étoiles. Colonia à 22 000 al, Beagle Point à 65 279 al.',
           'Galaxy map: 400 billion stars. Colonia is 22,000 ly away, Beagle Point 65,279 ly.',
         ),
       },
       {
-        model: 'computer-screen', x: 34.5, z: 2, rot: 0,
-        interact: tr('Comms : Felicity Farseer attend toujours son Meta-Alloy.', 'Comms: Felicity Farseer is still waiting for her Meta-Alloys.'),
+        model: 'command-chair', x: 33.1, z: 4.5, rot: 1,
+        interact: tr('Fauteuil du commandant. D\'ici, on voit toute la passerelle… et on donne les ordres.', 'The commander\'s chair. From here you see the whole bridge… and give the orders.'),
       },
       {
-        model: 'computer-screen', x: 34.5, z: 7, rot: 2,
+        model: 'holo-panel', x: 35.3, z: 2.35, rot: 0,
+        label: tr('Navigation|Shinrarta Dezhra|Jameson Memorial|12,4 al · 3 sauts', 'Navigation|Shinrarta Dezhra|Jameson Memorial|12.4 ly · 3 jumps'),
+      },
+      {
+        model: 'holo-panel', x: 35.3, z: 6.65, rot: 2,
+        label: tr('Systèmes|Boucliers 100 %|Coque 100 %|FSD chargé', 'Systems|Shields 100%|Hull 100%|FSD charged'),
+      },
+      {
+        model: 'computer-screen', x: 33, z: 1, rot: 0,
         interact: tr(
           'Télémétrie : portée de saut 42,7 al, carburant 32 t. Aucune signature thargoïde.',
           'Telemetry: jump range 42.7 ly, fuel 32 t. No Thargoid signatures.',
         ),
       },
 
+      { model: 'computer-screen', x: 33, z: 8, rot: 2, interact: tr('Journal de bord : « Jour 1 : on a agrandi le poste de pilotage. Jour 2 : on cherche encore le café. »', 'Ship\'s log: “Day 1: we enlarged the cockpit. Day 2: still looking for the coffee.”') },
+      { model: 'plant-tall', x: 32.1, z: 7.25 },
       // --- Salle des machines ---
       // Guichets aux murs nord/sud ; l’allée est reste libre depuis la coursive.
       { model: 'reward-counter', x: 6.4, z: 0.35, label: 'weekly', interact: tr('Officier de liaison · Weekly', 'Liaison officer · Weekly'), action: tr('Récupérer les crédits', 'Collect credits') },
@@ -564,7 +574,8 @@ export const LEVELS: LevelDef[] = [
     ],
     lights: [
       [4.5, 4.5, '#4fd4ff', 6],
-      [34.5, 4.5, '#ffa04a', 4],
+      [34.5, 4.5, '#ffa04a', 3.4],
+      [37.2, 4.5, '#9fd8ff', 2.4],
       [13, 1.5, '#e8f6ff', 3.2],
       [18, 1.5, '#fff4e4', 3],
       [13, 8, '#ffe2b0', 3],

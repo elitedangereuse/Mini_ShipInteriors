@@ -22,19 +22,19 @@ export const SHIP_LAYOUTS = {
     '         bbbbbbbbbb         ',
     '                            ',
   ],
-  // Pont principal. La coursive file vers le poste de pilotage, à la proue ; au nord, les salles
+  // Pont principal. La coursive file vers le poste de pilotage et ses verrières, à la proue ; au nord, les salles
   // de LJPC et de La Voie, au sud celles du Clash galactique et du mini CQC, en travaux.
   '0': [
-    '  eeeeee   qqqqqrrrrrlllllvvvvv        ',
-    ' eeeeeeee  qqqqqrrrrrlllllvvvvv        ',
-    'eeeeeeeee  qqqqqrrrrrlllllvvvvv   bb   ',
-    'eeeeeeeee  qq+qqrr+rrll+llvv+vv  bbbb  ',
-    'eeeeeeee+cccccccccccccccccccccc+bbbbbb ',
-    'eeeeeeeeecccccccccccccccccccccccbbbbbb ',
-    'eeeeeeeee  mm+mmss+ssaa+aakk+kk  bbbb  ',
-    'eeeeeeeee  mmmmmsssssaaaaakkkkk   bb   ',
-    ' eeeeeeee  mmmmmsssssaaaaakkkkk        ',
-    '  eeeeee   mmmmmsssssaaaaakkkkk        ',
+    '  eeeeee   qqqqqrrrrrlllllvvvvv         ',
+    ' eeeeeeee  qqqqqrrrrrlllllvvvvv bbb     ',
+    'eeeeeeeee  qqqqqrrrrrlllllvvvvv bbbbb   ',
+    'eeeeeeeee  qq+qqrr+rrll+llvv+vv bbbbbbb ',
+    'eeeeeeee+cccccccccccccccccccccc+bbbbbbb ',
+    'eeeeeeeeecccccccccccccccccccccccbbbbbbb ',
+    'eeeeeeeee  mm+mmss+ssaa+aakk+kk bbbbbbb ',
+    'eeeeeeeee  mmmmmsssssaaaaakkkkk bbbbb   ',
+    ' eeeeeeee  mmmmmsssssaaaaakkkkk bbb     ',
+    '  eeeeee   mmmmmsssssaaaaakkkkk         ',
   ],
   // Pont supérieur : les quartiers ; derrière le salon panoramique, le cinéma, en travaux.
   '1': [

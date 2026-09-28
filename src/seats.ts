@@ -52,6 +52,8 @@ export const SEATS: Partial<Record<CustomModel | StationModel, Seat[]>> = {
   bench: [sit(-0.24, 0, 0.3, 'both'), sit(0.24, 0, 0.3, 'both')],
   toilet: [sit(0, 0.06, 0.235)],
   'pilot-seat': [{ pose: 'pilot', x: 0, z: 0.06, y: 0.3, yaw: 0 }],
+  'crew-seat': [sit(0, 0.05, 0.3)],
+  'command-chair': [sit(0, 0.06, 0.36)],
   'cozy-bed': [lie(-0.27, 0.02, 0.32, [-0.95, 0.12]), lie(0.27, 0.02, 0.32, [0.95, 0.12])],
   'bunk-bed': [lie(0, 0.1, 0.27, [0.55, 0.2]), lie(0, 0.1, 0.71, [0.55, 0.2])],
   'med-bed': [lie(0, 0.08, 0.3)],
@@ -71,8 +73,15 @@ export const SEATS: Partial<Record<CustomModel | StationModel, Seat[]>> = {
 }
 
 const FIGHT_SEATS = [stand('arcade', 0.44, -0.2), stand('arcade', 0.44, 0.2)]
+/** Les deux chaises de la table Galactic Clash, déjà visibles dans le bar. */
+const CARD_SEATS = [
+  sit(-0.52, 0, 0.27, Math.PI / 2, [-0.82, 0]),
+  sit(0.52, 0, 0.27, -Math.PI / 2, [0.82, 0]),
+]
 export const seatsOf = (model: string, label?: string): Seat[] | undefined =>
-  model === 'arcade' && label === 'fight' ? FIGHT_SEATS : SEATS[model as CustomModel | StationModel]
+  model === 'arcade' && label === 'fight' ? FIGHT_SEATS
+    : model === 'bar-table' && label === 'galactic-clash' ? CARD_SEATS
+      : SEATS[model as CustomModel | StationModel]
 
 /** Verbe de l'invite d'un meuble où l'on s'installe (s'il n'en a pas un à lui). */
 export function seatAction(seats: Seat[]): string {
