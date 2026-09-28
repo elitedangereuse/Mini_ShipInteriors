@@ -616,7 +616,7 @@ export const LEVELS: LevelDef[] = [
       d: tr('Douches', 'Showers'),
       p: tr('Quartiers du commandant', 'Commander\'s quarters'),
       g: tr('Serre hydroponique', 'Hydroponics bay'),
-      o: tr('Salon panoramique', 'Observation lounge'),
+      o: tr('Salon d\'écoute', 'Listening lounge'),
       n: tr('Cinéma', 'Cinema'),
       // Pièces des extensions des quartiers (cf. shared/cabin-wings.js).
       A: tr('Extension gauche', 'Left extension'),
@@ -627,8 +627,8 @@ export const LEVELS: LevelDef[] = [
       F: tr('Extension droite', 'Right extension'),
     },
     windows: { c: 0, k: 0.3, d: 0.2, p: 0.6, g: 0.5, o: 1, n: 0 },
-    // On baisse les lumières au cinéma.
-    dim: { n: 0.45 },
+    // On baisse les lumières au cinéma, un peu au salon d'écoute.
+    dim: { n: 0.45, o: 0.7 },
     // Les quartiers du commandant : la cabine de chaque joueur, porte au nord sur la coursive.
     cabin: { room: 'p', door: { x: 11, z: 6 } },
     props: [
@@ -691,35 +691,67 @@ export const LEVELS: LevelDef[] = [
       { model: 'hydro-rack', x: 5.75, z: 6.1, rot: 2 },
       { model: 'plant-tall', x: 5, z: 4.5 },
 
-      // --- Salon panoramique ---
+      // --- Salon d'écoute : casques, fauteuils face aux étoiles, les affiches des deux émissions ---
+      { model: 'on-air-sign', x: 15.65, z: 1.05, rot: 1, solid: false },
       {
-        model: 'orrery', x: 17.5, z: 2.65,
+        model: 'podcast-poster', x: 15.65, z: 1.95, rot: 1, label: 'radio', solid: false,
         interact: tr(
-          'Carte du système : une étoile de classe G, quatre planètes, dont une géante gazeuse à anneaux.',
-          'System map: a class G star and four planets, one of them a ringed gas giant.',
+          'Radio Dangereuse : le podcast Elite Dangerous de la communauté. Actus, débats et histoires de CMDR, à retrouver sur radio.elitedangereuse.fr.',
+          'Radio Dangereuse: the community\'s Elite Dangerous podcast. News, debates and CMDR stories, on radio.elitedangereuse.fr.',
         ),
       },
-      { model: 'rug', x: 17.4, z: 5.5, label: 'warm:2.2x1.6', solid: false },
       {
-        model: 'sofa', x: 16.3, z: 5.5, rot: 1, label: 'teal',
-        interact: tr('Canapé face aux étoiles. On ne s\'en lasse pas.', 'A sofa facing the stars. It never gets old.'),
+        model: 'podcast-poster', x: 15.65, z: 2.9, rot: 1, label: 'galeres', solid: false,
+        interact: tr(
+          'Les Galères Galactiques : une mini-fiction audio humoristique, où rien ne se passe jamais comme prévu dans l\'espace. Sur galeresgalactiques.fr.',
+          'Galères Galactiques: a comedy audio mini-series where nothing in space ever goes to plan. On galeresgalactiques.fr.',
+        ),
+      },
+      {
+        model: 'headphone-rack', x: 15.65, z: 5.5, rot: 1, solid: false,
+        interact: tr(
+          'Casques d\'écoute : un pour Radio Dangereuse, un pour les Galères Galactiques, et un de rechange. Comète mâchouille les câbles.',
+          'Headphones: one for Radio Dangereuse, one for Galères Galactiques, and a spare. Comète chews the cables.',
+        ),
+      },
+      // Sous tout le salon, un grand tapis chaud ; les autres tapis sont posés dessus.
+      { model: 'rug', x: 17.5, z: 3.6, label: 'cosy:3.6x5.7', solid: false },
+      { model: 'armchair', x: 16.55, z: 1.3, rot: 2, label: 'terracotta', interact: tr('Fauteuil sous les hublots : un épisode, les étoiles, et plus rien d\'autre.', 'Armchair under the portholes: an episode, the stars, and nothing else.') },
+      { model: 'armchair', x: 18.35, z: 1.3, rot: 2, label: 'teal' },
+      { model: 'plant-tall', x: 19.35, z: 1.2 },
+      // Le poste d'écoute, entre les deux fauteuils, contre la baie.
+      {
+        model: 'podcast-console', x: 17.45, z: 0.86, action: tr('Écouter', 'Listen'),
+        interact: [
+          tr(
+            'Casque sur les oreilles : un épisode de Radio Dangereuse, le podcast Elite Dangerous. On en ressort avec trois idées de route et une envie d\'aller miner.',
+            'Headphones on: an episode of Radio Dangereuse, the Elite Dangerous podcast. You come out with three route ideas and an urge to go mining.',
+          ),
+          tr(
+            'Vous lancez les Galères Galactiques, la mini-fiction audio humoristique. À bord, rien ne se passe comme prévu, et on rit tout seul dans le salon.',
+            'You play Galères Galactiques, the comedy audio mini-series. Aboard, nothing goes to plan, and you laugh alone in the lounge.',
+          ),
+          tr('Le vumètre danse. Quelqu\'un a laissé le volume sur 11.', 'The VU meter dances. Someone left the volume on 11.'),
+        ],
+      },
+      { model: 'side-table', x: 19.1, z: 3 },
+      { model: 'headphone-stand', x: 19.04, z: 2.96, y: 0.3125, label: 'orange', solid: false },
+      { model: 'mug', x: 19.18, z: 3.1, y: 0.3125, solid: false },
+      { model: 'rug-round', x: 17.65, z: 3.05, y: 0.012, solid: false },
+      { model: 'floor-cushion', x: 17.2, z: 3.05, label: 'plum' },
+      { model: 'floor-cushion', x: 18.15, z: 2.85, label: 'mustard' },
+      {
+        model: 'sofa', x: 16.3, z: 5.5, rot: 1, label: 'terracotta',
+        interact: tr('Canapé du salon d\'écoute : on s\'y enfonce, casque sur les oreilles, face aux étoiles.', 'The listening lounge sofa: sink in, headphones on, facing the stars.'),
       },
       { model: 'coffee-table', x: 17.35, z: 5.5, rot: 1 },
       { model: 'beanbag', x: 18.5, z: 5, label: 'mustard' },
       { model: 'beanbag', x: 18.5, z: 6, label: 'rose' },
-      {
-        model: 'holo-panel', x: 19, z: 3.3, rot: 3,
-        label: tr(
-          'Exploration|Systèmes scannés : 318|Premières découvertes : 42|Valeur : 142 M cr',
-          'Exploration|Systems scanned: 318|First discoveries: 42|Value: 142 M CR',
-        ),
-      },
-      { model: 'plant-tall', x: 17.5, z: 7.15 },
-      // Au nord, agrandi jusqu'aux hublots : deux fauteuils face aux étoiles.
-      { model: 'armchair', x: 16.55, z: 1.3, rot: 2, label: 'terracotta', interact: tr('Fauteuil sous les hublots : on y compte les étoiles filantes.', 'Armchair under the portholes: the place to count shooting stars.') },
-      { model: 'armchair', x: 18.35, z: 1.3, rot: 2, label: 'teal' },
-      { model: 'side-table', x: 17.45, z: 1.15 },
-      { model: 'plant-tall', x: 19.35, z: 1.2 },
+      // L'alcôve : un guéridon, un casque sur son pied, une lampe de papier.
+      { model: 'side-table', x: 17.2, z: 7.05 },
+      { model: 'headphone-stand', x: 17.14, z: 7.02, y: 0.3125, label: 'navy', solid: false },
+      { model: 'candles', x: 17.3, z: 7.12, y: 0.3125, solid: false },
+      { model: 'paper-lantern', x: 17.9, z: 7.1, label: 'tall' },
 
       // --- Cinéma : le grand écran au nord, quatre rangées face à lui, le projecteur au fond ---
       { model: 'rug', x: 24, z: 4.5, label: 'cinema:6.7x7.7', solid: false },
@@ -760,8 +792,8 @@ export const LEVELS: LevelDef[] = [
       [13.8, 2, '#e6f6ff', 2],
       [10.2, 8.4, '#ffc98f', 2.3],
       [6, 4.5, '#ffb3e6', 2.6],
-      [17.8, 4.6, '#ffd0a0', 2.4],
-      [17.6, 1.8, '#ffd9a8', 2],
+      [17.4, 5.2, '#ffb36b', 1.9, 'fire'],
+      [17.6, 2.2, '#ffc98a', 1.6],
       [24.2, 1.8, '#9fb8ff', 1.8, 'screen'],
       [21.4, 7.4, '#ffb45e', 0.9],
       [26.4, 5.4, '#ff9a5a', 0.5],

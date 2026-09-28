@@ -166,6 +166,11 @@ Choix et réalisation (27 septembre 2026) :
   baisse en fondu quand on entre (`dim` dans levels.ts) et l'écran éclaire la
   salle aux couleurs de la scène. Reste à faire : la playlist YouTube et le
   live Twitch.
+- Salon d'écoute (même jour) : l'ancien salon panoramique, en version cosy,
+  pour Radio Dangereuse (le podcast Elite Dangerous) et les Galères
+  Galactiques (mini-fiction audio humoristique). Affiches des deux émissions,
+  enseigne « ON AIR », casques sur pied et au mur, poste d'écoute animé, coussins
+  de sol. L'écoute elle-même n'est pas branchée : le poste affiche un texte.
 
 ## 4. Structure du vaisseau et immersion
 

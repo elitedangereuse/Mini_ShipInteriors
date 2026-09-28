@@ -2597,7 +2597,7 @@ function frame() {
     }
   }
   marker.scale.setScalar(1 + Math.sin(timer.getElapsed() * 6) * 0.12)
-  // Pièce tamisée (le cinéma) : l'ambiance baisse en fondu quand on y entre, remonte quand on en sort.
+  // Pièce tamisée (cinéma, salon d'écoute) : l'ambiance baisse en fondu quand on y entre, remonte quand on en sort.
   const dimTo = deck.def.dim?.[deck.map.room(Math.round(player.position.x), Math.round(player.position.z)) ?? ''] ?? 1
   if (dimming !== dimTo) {
     dimming = Math.abs(dimTo - dimming) < 0.005 ? dimTo : dimming + (dimTo - dimming) * Math.min(1, dt * 2.5)
