@@ -214,7 +214,7 @@ Les meubles ont des places (`src/seats.ts`). `E`, ou un clic sur le meuble, y em
 
 | Meuble | Ce qu'on y fait |
 |---|---|
-| Chaises, fauteuils, canapés (trois places), pouf, banc (des deux côtés), toilettes | s'asseoir ; aux fauteuils du studio, on prend le micro et le néon « ON AIR » s'allume pour tout le bord |
+| Chaises, fauteuils, canapés (trois places), pouf, banc (des deux côtés), toilettes | s'asseoir ; aux fauteuils du studio, on prend le micro et le néon « ON AIR » s'allume pour tout le bord. Assis sur des toilettes du pont supérieur pendant un saut FSD, on est aspiré dans la cuvette et l'on retombe dans la cale (`src/toilet-flush.ts`) |
 | Grand lit (deux places), lits superposés (en haut aussi), lits médicaux, banc de musculation | s'allonger, et dormir (de petits « Zzz ») |
 | Siège du pilote | prendre les commandes ; au poste de pilotage, `Espace` lance un **saut FSD** vers une destination d'Elite (Shinrarta Dezhra, Sol, Colonia, Alpha Centauri, Lave, Sagittarius A*, Maia, Beagle Point) : charge du réacteur, compte à rebours, étoiles en traînées, secousse, éclair. Le relais choisit la destination et tout le bord part avec le pilote (un saut à la fois) ; le système d'arrivée se dessine hors du vaisseau, visible par les verrières (étoiles, planètes éclairées par leur étoile, anneaux, Coriolis ou Orbis, disque d'accrétion, nébuleuses ; cf. `src/systems.ts`) |
 | Vélo, tapis de course, sac de frappe | pédaler, courir, frapper (le sac encaisse chaque coup) |

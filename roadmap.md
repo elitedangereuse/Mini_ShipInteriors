@@ -211,6 +211,10 @@ Choix et réalisation (27 septembre 2026) :
   s'amorce en clignotant dès que quelqu'un est installé au micro (vu de tout le
   bord). Au sud, le salon garde son côté cosy : fauteuils et poufs tournés vers
   le studio, poste d'écoute au mur ouest.
+- Toilettes à dépression (même jour) : assis sur des toilettes du pont
+  supérieur au moment du saut FSD, on est aspiré dans un tourbillon, puis l'on
+  tombe du plafond de la cale, juste en dessous, et l'on reste sonné par terre.
+  Les autres joueurs voient l'aspiration et lisent un message dans le chat.
 
 ## 4. Structure du vaisseau et immersion
 

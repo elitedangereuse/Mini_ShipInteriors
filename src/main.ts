@@ -51,6 +51,7 @@ import { SystemView, SYSTEMS } from './systems'
 import { nextSystem, JUMP_CHARGE, JUMP_TRAVEL, type SystemId } from '../shared/systems.js'
 import { DEFAULT_PATTERN, WING_SLOTS, type WingId } from '../shared/cabin-wings.js'
 import { syncTempo, tempo } from './tempo'
+import { ToiletFlushes } from './toilet-flush'
 import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel } from './ui'
 
 // ------------------------------------------------------------------ profil
@@ -174,6 +175,8 @@ let cabinStore = account ? new CabinStore(account.name) : null
 const decks = LEVELS.map((def) => new Deck(def))
 for (const d of decks) scene.add(d.group)
 const deckById = (id: number) => decks.find((d) => d.def.id === id)!
+/** Aspirés par les toilettes pendant un saut FSD (cf. flushCrew). */
+const flushes = new ToiletFlushes(scene)
 deckById(0).setLjpcAccess(ljpcMember)
 deckById(-1).setVoieAccess(voieAdept)
 const ljpcEntrance = deckById(0).map.doors.find((door) => {
@@ -2507,6 +2510,8 @@ function studioLive(): boolean {
 // ------------------------------------------------------------------ saut FSD
 
 let jumping = false
+/** Aspirés par les toilettes, déjà dans la cale avant la fin du saut (cf. flushToHold). */
+let flushLanded = false
 
 /** Le saut n'est possible que depuis le vrai poste de pilotage (pas d'un siège recyclé en fauteuil). */
 function canJump(seat: Seated): boolean {
@@ -2559,13 +2564,101 @@ async function playJump(system: SystemId, by: string | null) {
   systemView.hide(true)
   iso.shake(0.16)
   dialog.show(tr('Saut !', 'Jump!'))
+  flushCrew()
   await wait(JUMP_TRAVEL * 1000)
   stars.warp(1)
   systemView.set(system)
   systemView.hide(false)
   flash(true)
-  dialog.show(tr(`Arrivée : ${name}. ${arrival}`, `Arrived: ${name}. ${arrival}`))
+  dialog.show(flushLanded
+    ? tr(`Arrivée : ${name}… et vous, dans la cale. ${FLUSH_MORAL}`, `Arrived: ${name}… and you, in the hold. ${FLUSH_MORAL}`)
+    : tr(`Arrivée : ${name}. ${arrival}`, `Arrived: ${name}. ${arrival}`))
+  flushLanded = false
   jumping = false
+}
+
+// ------------------------------------------------------------------ toilettes à dépression
+
+const FLUSH_MORAL = tr('Les toilettes à dépression n\'aiment pas les sauts FSD : c\'était pourtant écrit dessus.', 'Vacuum toilets don\'t like FSD jumps: it said so right on the lid.')
+
+/** Assis sur des toilettes du pont supérieur (les nôtres, ou celles des quartiers) ? */
+const onToilet = (seat: Seated | null) => !!seat && deck.def.id === 1 && seat.item.furniture?.model === 'toilet'
+
+/**
+ * Au moment du saut, les toilettes du pont supérieur aspirent leurs occupants (« Ne pas utiliser
+ * pendant un saut FSD ») : nous, qui retombons dans la cale, et les autres joueurs que l'on voit
+ * assis dessus (leur propre client les y envoie).
+ */
+function flushCrew() {
+  const seat = seating.current
+  if (onToilet(seat) && !riding && !photo.active && !editing()) void flushToHold(seat!)
+  if (deck.def.id !== 1) return
+  const toilets = deck.interactables.filter((it) => it.furniture?.model === 'toilet')
+  for (const r of remotes.values()) {
+    if (!r.avatar || !r.group.visible || r.level !== 1 || r.pose !== 'sit') continue
+    const on = toilets.some((it) => it.seats?.(r.target).some((s) => Math.hypot(s.x - r.target.x, s.z - r.target.z) < 0.25))
+    if (!on) continue
+    const bowl = new THREE.Vector3(r.target.x, deck.y + 0.25, r.target.z)
+    flushes.start(r.avatar.root, bowl, () => r.level !== 1)
+    sound.flush(bowl)
+    chat.add('system', tr(`Les toilettes à dépression ont aspiré ${r.name} en plein saut FSD. Direction : la cale.`, `The vacuum toilet sucked ${r.name} down mid-jump. Next stop: the hold.`))
+  }
+}
+
+/** Aspirés par la cuvette, on tourne, on rétrécit, et l'on retombe dans la cale, juste en dessous. */
+async function flushToHold(seat: Seated) {
+  riding = true
+  player.cancelPath()
+  marker.visible = false
+  lift.close()
+  jukebox.close()
+  const bowl = new THREE.Vector3(seat.spot.x, deck.y + 0.25, seat.spot.z)
+  sound.flush(bowl)
+  await new Promise<void>((done) => flushes.start(player.avatar.root, bowl, () => deck.def.id === -1, done))
+  await fadeScreen(true)
+  // Aspirés chez un autre : la visite s'arrête là.
+  if (visiting) {
+    net.sendVisit(null)
+    leaveVisit()
+  }
+  flushes.reset(player.avatar.root)
+  const hold = deckById(-1)
+  setDeck(hold)
+  const at = landingSpot(hold, seat.spot.x, seat.spot.z)
+  player.position.set(at.x, hold.y, at.z)
+  iso.snapTo(player.position)
+  sendState(true)
+  flushes.drop(player.root, player.avatar.root, hold.y, () => {
+    sound.thud(player.position.clone())
+    iso.shake(0.05)
+    // Sonné, par terre : le moindre pas le relève.
+    player.avatar.playEmote('dodo')
+    net.sendEmote('dodo')
+    riding = false
+    // Arrivés avant la fin du saut, la morale vient avec l'arrivée ; sinon, tout de suite.
+    if (jumping) flushLanded = true
+    else dialog.show(tr(`Vous voilà dans la cale. ${FLUSH_MORAL}`, `Here you are, in the hold. ${FLUSH_MORAL}`))
+  })
+  await fadeScreen(false)
+}
+
+/**
+ * Où l'on tombe dans la cale : à la verticale de la cuvette si le sol y est libre, sinon au centre
+ * de la tuile libre la plus proche (jamais dans une pièce fermée, ni au sanctuaire de la Voie).
+ */
+function landingSpot(hold: Deck, x: number, z: number): { x: number; z: number } {
+  const open = (tx: number, tz: number) => {
+    const room = hold.map.room(tx, tz)
+    return !!room && room !== 'v' && hold.def.closed?.[room] === undefined && hold.pathfinder.walkable(tx, tz)
+  }
+  if (open(Math.round(x), Math.round(z)) && !overlapsAny({ x, z }, 0.2, hold.colliders)) return { x, z }
+  let best: { x: number; z: number } | null = null
+  for (let tz = 0; tz < hold.map.height; tz++) {
+    for (let tx = 0; tx < hold.map.width; tx++) {
+      if (open(tx, tz) && (!best || Math.hypot(tx - x, tz - z) < Math.hypot(best.x - x, best.z - z))) best = { x: tx, z: tz }
+    }
+  }
+  return best ?? { x: LIFT.x, z: LIFT.z }
 }
 
 // ------------------------------------------------------------------ tâches de bord
@@ -2768,6 +2861,7 @@ function frame() {
     const room = deckById(r.level).map.room(Math.round(r.group.position.x), Math.round(r.group.position.z))
     r.group.visible = sees(r) && (ljpcMember || r.level !== 0 || room !== 'l') && (voieAdept || r.level !== -1 || room !== 'v')
   }
+  flushes.update(world)
   // Quelqu'un au micro du studio (nous, ou un autre) : le néon « ON AIR » s'allume.
   studio.onAir = studioLive()
   if (cometeHere) cat.update(world, catDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')

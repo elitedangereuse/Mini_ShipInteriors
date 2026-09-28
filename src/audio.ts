@@ -542,6 +542,56 @@ export class Sound {
     lfo.stop(t + duration + 0.1)
   }
 
+  /**
+   * Chasse des toilettes à dépression (cf. toilet-flush.ts) : une aspiration dont la bande monte,
+   * des bulles qui gargouillent, et un « schlorp » final qui plonge.
+   */
+  flush(pos: THREE.Vector3) {
+    if (!this.ready) return
+    const ctx = this.ctx
+    const t = ctx.currentTime + 0.01
+    const out = this.output(pos, { volume: 0.4, ref: 1.5, rolloff: 1.4 }).input
+    const suck = ctx.createBufferSource()
+    suck.buffer = this.whiteNoise
+    suck.loop = true
+    const bp = ctx.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.Q.value = 2
+    bp.frequency.setValueAtTime(300, t)
+    bp.frequency.exponentialRampToValueAtTime(2400, t + 1.4)
+    const env = ctx.createGain()
+    env.gain.setValueAtTime(0, t)
+    env.gain.linearRampToValueAtTime(0.7, t + 0.3)
+    env.gain.linearRampToValueAtTime(0.9, t + 1.4)
+    env.gain.exponentialRampToValueAtTime(0.001, t + 1.8)
+    suck.connect(bp).connect(env).connect(out)
+    suck.start(t)
+    suck.stop(t + 1.85)
+    for (let i = 0; i < 14; i++) {
+      const b = t + 0.2 + i * 0.09 + Math.random() * 0.04
+      const f = 180 + Math.random() * 260
+      const bubble = ctx.createOscillator()
+      bubble.frequency.setValueAtTime(f, b)
+      bubble.frequency.exponentialRampToValueAtTime(f * 2.2, b + 0.06)
+      const g = ctx.createGain()
+      g.gain.setValueAtTime(0.25, b)
+      g.gain.exponentialRampToValueAtTime(0.001, b + 0.07)
+      bubble.connect(g).connect(out)
+      bubble.start(b)
+      bubble.stop(b + 0.08)
+    }
+    const end = t + 1.55
+    const slurp = ctx.createOscillator()
+    slurp.frequency.setValueAtTime(600, end)
+    slurp.frequency.exponentialRampToValueAtTime(60, end + 0.25)
+    const sEnv = ctx.createGain()
+    sEnv.gain.setValueAtTime(0.6, end)
+    sEnv.gain.exponentialRampToValueAtTime(0.001, end + 0.3)
+    slurp.connect(sEnv).connect(out)
+    slurp.start(end)
+    slurp.stop(end + 0.32)
+  }
+
   /** Coup de poing dans le sac : un souffle grave et une sinusoïde qui plonge. */
   thud(pos: THREE.Vector3) {
     if (!this.ready) return
