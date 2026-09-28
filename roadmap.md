@@ -171,6 +171,12 @@ Choix et réalisation (27 septembre 2026) :
   Galactiques (mini-fiction audio humoristique). Affiches des deux émissions,
   enseigne « ON AIR », casques sur pied et au mur, poste d'écoute animé, coussins
   de sol. L'écoute elle-même n'est pas branchée : le poste affiche un texte.
+- Labo du L.J.P.C. (même jour), d'après l'aventure « Connais ton ennemi » :
+  tableau d'enquête des trois sites thargoïdes, paillasse, échantillon sous
+  cloche, hologramme d'un intercepteur, photo d'Amadioha. James et Julia sont
+  des PNJ animés ; Moustache, leur chatte noire, ne quitte jamais le labo.
+  La porte est ouverte à tous : l'accès réservé aux membres (SOC-01) reste à
+  faire.
 
 ## 4. Structure du vaisseau et immersion
 

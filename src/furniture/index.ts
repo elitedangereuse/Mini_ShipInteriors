@@ -11,6 +11,7 @@ import { compact, rng, type Builder, type Furniture, type Room } from './kit'
 import { LEISURE } from './leisure'
 import { LIGHTS } from './lights'
 import { LISTENING } from './listening'
+import { LJPC } from './ljpc'
 import { PARTY } from './party'
 import { PETS } from './pets'
 import { WORKSHOP } from './workshop'
@@ -33,12 +34,13 @@ import { SITE } from './site'
  * - pets.ts : les paniers des compagnons et les objets pour animaux (gamelles, arbre à chat…) ;
  * - works.ts : les pièces en travaux (échafaudage, panneau « Bientôt », cônes, bâches) ;
  * - cinema.ts : le cinéma du pont supérieur (écran à rideaux, fauteuils, projecteur, pop-corn) ;
- * - listening.ts : le salon d'écoute (casques, affiches de Radio Dangereuse et des Galères Galactiques, poste d'écoute).
+ * - listening.ts : le salon d'écoute (casques, affiches de Radio Dangereuse et des Galères Galactiques, poste d'écoute) ;
+ * - ljpc.ts : le labo du L.J.P.C. (tableau d'enquête, paillasse, échantillon, hologramme, James et Julia).
  * On les place dans levels.ts comme les modèles du kit : `{ model: 'fireplace', x, z, rot }`,
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...COCKPIT, ...WORKSHOP, ...BAR, ...LEISURE, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...LISTENING } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...COCKPIT, ...WORKSHOP, ...BAR, ...LEISURE, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...LISTENING, ...LJPC } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 

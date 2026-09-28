@@ -507,6 +507,38 @@ cat.onMeow = (purr) => {
   else bubbles.say('cat', tr('Miaou ?', 'Meow?'))
 }
 
+// Moustache, la chatte noire de James et Julia, vit dans le labo du L.J.P.C. et n'en sort pas.
+const labDeck = deckById(0)
+const MOUSTACHE: Species = { id: 'moustache', model: 'cat', label: tr('Chat', 'Cat'), name: 'Moustache', scale: 0.24, voice: 'meow', home: 'cushion', says: [] }
+const moustache = new Cat(await petRig(MOUSTACHE, 'nuit'), labDeck, 24.6, 2.5, {
+  name: 'Moustache',
+  scale: MOUSTACHE.scale,
+  area: { minX: 21, maxX: 25, minZ: 0, maxZ: 3 },
+  confine: true,
+  bowls: () => [{ x: 25.05, z: 2.3 }],
+})
+labDeck.interactables.push({
+  object: moustache.root,
+  position: moustache.root.position,
+  label: tr('Caresser Moustache', 'Pet Moustache'),
+  onInteract: () => {
+    player.interact()
+    net.sendEmote('interact')
+    moustache.pet(player.position)
+  },
+})
+bubbles.attach('moustache', (out) => (labDeck.group.visible ? moustache.root.getWorldPosition(out).setY(out.y + 0.5) : null))
+moustache.onStep = () => {
+  if (labDeck === deck) sound.play('catStep', moustache.root.getWorldPosition(new THREE.Vector3()), { volume: 0.03, rate: 1.7 })
+}
+moustache.onMeow = (purr) => {
+  if (labDeck !== deck) return
+  const p = moustache.root.getWorldPosition(new THREE.Vector3()).setY(labDeck.y + 0.3)
+  sound.meow(p)
+  if (purr) sound.purr(p, 2.6)
+  bubbles.say('moustache', purr ? tr('Mrrrou…', 'Purrr…') : tr('Mrrraou !', 'Mrrrow!'), purr ? 'heart' : undefined)
+}
+
 // ------------------------------------------------------------------ compagnons
 
 /**
@@ -2561,6 +2593,7 @@ function frame() {
   if (cometeHere) cat.update(world, catDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
   syncCompanions()
   for (const c of companions.values()) c.pet.update(world, cabinDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
+  moustache.update(world, labDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
 
   // Chez Jacques, on garde le joueur et le barman ensemble dans le cadre.
   if (barPanel.isOpen && deck.def.id === -1) {
@@ -2743,6 +2776,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, cat, companions, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView },
+    __game: { renderer, sound, player, cat, moustache, companions, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView },
   })
 }

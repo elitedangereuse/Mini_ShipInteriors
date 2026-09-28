@@ -478,10 +478,12 @@ export class Deck {
       const rotY = ((p.rot ?? 0) * Math.PI) / 2
       let o: THREE.Object3D
       let control: FurnitureControl | undefined
+      let extent: THREE.Box3 | undefined
       if (isCustomModel(p.model)) {
         // Graine tirée de la position : chaque meuble varie, mais pareil chez tous les joueurs.
         const f = buildFurniture(p.model, p.label, hash(Math.round(p.x * 10), Math.round(p.z * 10)))
         control = f.control
+        extent = f.extent
         if (f.live) {
           f.live.position.set(p.x, p.y ?? 0, p.z)
           f.live.rotation.y = rotY
@@ -499,6 +501,7 @@ export class Deck {
         o = this.place(p.model, p.x, p.y ?? 0, p.z, rotY, this.theme.furniture)
       }
       box.setFromObject(o)
+      if (extent) box.copy(extent).applyMatrix4(o.matrixWorld)
       const center = box.getCenter(new THREE.Vector3())
       if (p.solid !== false) {
         const m = 0.04

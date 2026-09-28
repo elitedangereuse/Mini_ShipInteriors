@@ -19,6 +19,8 @@ export interface PetOptions {
   area?: { minX: number; maxX: number; minZ: number; maxZ: number }
   /** Gamelles où il va manger de temps en temps. */
   bowls?: () => { x: number; z: number }[]
+  /** Ne quitte jamais sa zone, même poussé par le joueur (Moustache, dans le labo du L.J.P.C.). */
+  confine?: boolean
 }
 
 /** Temps sans vraie avance au bout duquel le chat renonce à son trajet (coincé contre une chaise…). */
@@ -174,6 +176,12 @@ export class Cat {
 
     // Ne pas marcher dans les pieds du joueur.
     if (player) this.keepAway(p, player)
+    // Tenu dans sa zone : on ne le pousse pas dehors, pas même par la porte.
+    const a = this.options.area
+    if (this.options.confine && a) {
+      p.x = THREE.MathUtils.clamp(p.x, a.minX - 0.5 + RADIUS, a.maxX + 0.5 - RADIUS)
+      p.z = THREE.MathUtils.clamp(p.z, a.minZ - 0.5 + RADIUS, a.maxZ + 0.5 - RADIUS)
+    }
 
     // Miaulement spontané quand le joueur est dans les parages.
     this.meowIn -= dt

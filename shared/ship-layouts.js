@@ -24,8 +24,8 @@ export const SHIP_LAYOUTS = {
     '         bbbbbbbbbb         ',
     '                            ',
   ],
-  // Pont principal. La coursive file vers le poste de pilotage et ses verrières, à la proue ; au nord, les salles
-  // de LJPC et de La Voie, en travaux ; au sud, la grande salle d'arcade (deux portes) et le mini CQC, en travaux.
+  // Pont principal. La coursive file vers le poste de pilotage et ses verrières, à la proue ; au nord, le labo
+  // du LJPC et la salle de La Voie, en travaux ; au sud, la grande salle d'arcade (deux portes) et le mini CQC, en travaux.
   '0': [
     '  eeeeee   qqqqqrrrrrlllllvvvvv         ',
     ' eeeeeeee  qqqqqrrrrrlllllvvvvv bbb     ',
@@ -60,7 +60,7 @@ export const SHIP_LAYOUTS = {
  */
 export const CLOSED_ROOMS = {
   '-1': 'h',
-  '0': 'lvk',
+  '0': 'vk',
 }
 
 /**

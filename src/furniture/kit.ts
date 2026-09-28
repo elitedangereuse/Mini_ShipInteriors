@@ -23,6 +23,11 @@ export interface Furniture {
   emitter?: Emitter
   /** Commande d'un meuble qu'on manipule (cf. main.ts) : la pince à peluches, le sac de frappe. */
   control?: FurnitureControl
+  /**
+   * Volume de collision et de clic (repère du meuble), quand la partie fixe ne le couvre pas :
+   * un personnage animé, dont presque tout est dans `live`.
+   */
+  extent?: THREE.Box3
 }
 
 /** Issue d'une partie de pince : peluche gagnée, lâchée en remontant, ou rien attrapé. */

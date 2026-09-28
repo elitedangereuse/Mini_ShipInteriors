@@ -350,16 +350,15 @@ export const LEVELS: LevelDef[] = [
       m: 'Mess',
       s: tr('Salon d\'arcade', 'Arcade lounge'),
       b: tr('Poste de pilotage', 'Cockpit'),
-      l: 'LJPC',
+      l: tr('Labo du L.J.P.C.', 'L.J.P.C. lab'),
       v: 'La Voie',
       k: tr('Simulateur Mini-CQC', 'Mini-CQC simulator'),
     },
     closed: {
-      l: tr('Porte verrouillée : « Quartier du LJPC — en travaux ».', 'Locked door: “LJPC quarters — under construction”.'),
       v: tr('Porte verrouillée : « Sanctuaire de La Voie — en travaux ». Un symbole est gravé sur le panneau.', 'Locked door: “La Voie sanctuary — under construction”. A symbol is carved into the panel.'),
       k: tr('Porte verrouillée : « Simulateur Mini-CQC — en travaux ». On entend des tirs de laser… enregistrés.', 'Locked door: “Mini-CQC simulator — under construction”. You can hear laser fire… recorded.'),
     },
-    floors: { c: 'floor-panel', b: 'floor-detail' },
+    floors: { c: 'floor-panel', b: 'floor-detail', l: 'floor-panel' },
     canopy: { b: [0, 1, 2] },
     engine: true,
     props: [
@@ -568,11 +567,72 @@ export const LEVELS: LevelDef[] = [
       { model: 'beanbag', x: 21.8, z: 9.0, label: 'mustard' },
       { model: 'plant-tall', x: 25.1, z: 7.1 },
 
-      // --- Pièces en travaux : LJPC et La Voie au nord, le Mini-CQC au sud ---
-      { model: 'works-sign', x: 23, z: 1.6, label: tr('Bientôt|LJPC', 'Coming soon|LJPC') },
-      { model: 'scaffold', x: 22, z: 0.05 },
-      { model: 'tarp-crates', x: 24.95, z: 0.4 },
-      { model: 'cones', x: 21.4, z: 2.3 },
+      // --- Labo du L.J.P.C., d'après l'aventure « Connais ton ennemi » : James devant son tableau
+      // d'enquête, Julia qui dessine par terre, et Moustache (cf. main.ts), qui ne quitte pas le labo ---
+      {
+        model: 'ljpc-board', x: 23, z: -0.35, solid: false,
+        interact: tr(
+          'Tableau d\'enquête : un scout à HIP 17125, un intercepteur à HIP 17862, une base thargoïde entourée trois fois, un QR code et du morse. En gros : CONNAIS TON ENNEMI.',
+          'Investigation board: a scout at HIP 17125, an interceptor at HIP 17862, a Thargoid base circled three times, a QR code and some Morse. In big letters: KNOW YOUR ENEMY.',
+        ),
+      },
+      {
+        model: 'ljpc-kid', x: 21.95, z: 0.45, label: 'james', action: tr('Parler', 'Talk'),
+        interact: [
+          tr(
+            'James : « Commandant ! Professeur James Hopper, du L.J.P.C. Nous menons des recherches très sérieuses sur la menace qui menace… heu, sur le fléau qui frappe l\'humanité. »',
+            'James: “Commander! Professor James Hopper, of the L.J.P.C. We conduct very serious research into the menacing menace… er, the scourge striking humanity.”',
+          ),
+          tr('James : « Pour la science ! Pour le progrès ! Pour l\'humanité ! » Julia, par terre : « Et pour le goûter. »', 'James: “For science! For progress! For humanity!” Julia, from the floor: “And for snack time.”'),
+          tr('James : « Fais moins de bruit, Julia, je parle avec notre associé ! … Veuillez m\'excuser, commandant. »', 'James: “Keep it down, Julia, I\'m talking to our associate! … Please excuse me, commander.”'),
+          tr(
+            'James : « Notre père est chercheur en biomécanique. Ma sœur et moi, on l\'aide. Nous avons un quotient intellectuel bien au-dessus de la moyenne, vous savez. »',
+            'James: “Our father researches biomechanics. My sister and I help him. We have an IQ well above average, you know.”',
+          ),
+          tr('James : « Vos échantillons du site de crash ? Une véritable mine d\'or ! Moustache, laisse ça tranqui… »', 'James: “Your samples from the crash site? A real gold mine! Moustache, leave that alo…”'),
+        ],
+      },
+      {
+        model: 'ljpc-kid', x: 24.15, z: 1.75, label: 'julia', action: tr('Parler', 'Talk'),
+        interact: [
+          tr('Julia lève les yeux de son dessin : « Ça, c\'est un Thargoïde. Et là, c\'est Moustache qui le fait fuir. »', 'Julia looks up from her drawing: “That\'s a Thargoid. And that\'s Moustache scaring it off.”'),
+          tr('Julia : « James fait son sérieux, mais c\'est moi qui ai eu l\'idée du morse ! »', 'Julia: “James acts all serious, but the Morse code was my idea!”'),
+          tr('Julia : « Je dessine la base thargoïde. Elle ressemble à un Titan, tu trouves pas ? »', 'Julia: “I\'m drawing the Thargoid base. It looks like a Titan, don\'t you think?”'),
+          tr('Julia : « Chut ! Moustache a encore marché sur la console pendant l\'appel du commandant. »', 'Julia: “Shh! Moustache walked on the console again during the commander\'s call.”'),
+        ],
+      },
+      {
+        model: 'holo-thargoid', x: 23.15, z: 1.5,
+        interact: tr('Hologramme d\'un intercepteur thargoïde. James y a ajouté des flèches, des mesures, et un mot : « méchant ».', 'Hologram of a Thargoid interceptor. James has added arrows, measurements and one word: “mean”.'),
+      },
+      {
+        model: 'containment-pod', x: 21.1, z: 0.1,
+        interact: tr(
+          'Échantillon biomécanique thargoïde, rapporté par un CMDR de confiance. Près de six ans d\'âge, en excellent état. Étiquette : « NE PAS TOUCHER (toi aussi Moustache) ».',
+          'Thargoid biomechanical sample, brought back by a trusted CMDR. Nearly six years old, in excellent condition. Label: “DO NOT TOUCH (you too Moustache)”.',
+        ),
+      },
+      {
+        model: 'lab-bench', x: 24.75, z: -0.1,
+        interact: [
+          tr('Microscope, éprouvettes, boîtes de Petri : les échantillons du scout de HIP 17125, encore en excellent état.', 'Microscope, test tubes, Petri dishes: the samples from the HIP 17125 scout, still in excellent condition.'),
+          tr('Le bécher bouillonne. Une étiquette de Julia : « soupe de Thargoïde, ne pas boire ».', 'The beaker bubbles. A label in Julia\'s hand: “Thargoid soup, do not drink”.'),
+        ],
+      },
+      {
+        model: 'amadioha-photo', x: 20.65, z: 0.85, rot: 1, solid: false,
+        interact: tr('Photo de l\'installation scientifique Amadioha, près de sa naine blanche. En bas, d\'une écriture d\'enfant : « Chez nous ».', 'Photo of the Amadioha Scientific Installation, beside its white dwarf. At the bottom, in a child\'s hand: “Home”.'),
+      },
+      {
+        model: 'ljpc-banner', x: 20.65, z: 1.75, rot: 1, solid: false,
+        interact: tr('L.J.P.C. : Laboratoire des Jeunes Prodiges Cosmiques, fondé par James et Julia pour aider leur père… et l\'humanité.', 'L.J.P.C.: Laboratory of Young Cosmic Prodigies, founded by James and Julia to help their father… and humanity.'),
+      },
+      { model: 'bookshelf', x: 20.85, z: 2.75, rot: 1 },
+      { model: 'rug-round', x: 24.15, z: 2, label: 'blue', solid: false },
+      { model: 'cat-bed', x: 25, z: 2.9, interact: tr('Le panier de Moustache. Il y a des poils noirs partout, et un stylo de James.', 'Moustache\'s basket. Black hair everywhere, and one of James\'s pens.') },
+      { model: 'pet-bowl', x: 25.05, z: 2.3, rot: 1 },
+
+      // --- Pièces en travaux : La Voie au nord, le Mini-CQC au sud ---
       { model: 'works-sign', x: 28, z: 1.6, label: tr('Bientôt|La Voie', 'Coming soon|La Voie') },
       { model: 'tarp-crates', x: 26.9, z: 0.4 },
       { model: 'scaffold', x: 29.5, z: 0.05 },
@@ -597,7 +657,9 @@ export const LEVELS: LevelDef[] = [
       [15, 4.5, '#ffffff', 2.5],
       // Coursive prolongée et projecteurs de chantier des pièces en travaux.
       [26, 4.5, '#ffffff', 2.2],
-      [23, 1.6, '#ffe7c2', 2.2],
+      [23, 1.2, '#e6fbff', 2.4],
+      [21.3, 0.4, '#7dffa8', 1.2],
+      [24.7, 0.5, '#bff6ff', 1.2],
       [28, 1.6, '#ffe7c2', 2.2],
       [23.3, 7.8, '#b06bff', 2.6],
       [28, 7.4, '#ffe7c2', 2.2],

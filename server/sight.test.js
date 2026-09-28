@@ -44,10 +44,10 @@ test('un objet au ras d\'un mur extérieur reste visible depuis sa pièce', () =
 })
 
 test('la porte d\'une pièce en travaux est verrouillée : ni passage, ni vue', () => {
-  // Salle du LJPC : porte en (23, 3), arête sud vers la coursive.
-  assert.equal(main.edge(23, 3, 2), 'wall')
-  assert.ok(main.isLocked(23, 3, 2))
-  assert.equal(lineOfSight(main, { x: 23, z: 4 }, { x: 23, z: 2 }), false)
+  // Salle de La Voie : porte en (28, 3), arête sud vers la coursive.
+  assert.equal(main.edge(28, 3, 2), 'wall')
+  assert.ok(main.isLocked(28, 3, 2))
+  assert.equal(lineOfSight(main, { x: 28, z: 4 }, { x: 28, z: 2 }), false)
   // La porte du mess, elle, s'ouvre toujours.
   assert.equal(main.edge(13, 6, 0), 'door')
 })
