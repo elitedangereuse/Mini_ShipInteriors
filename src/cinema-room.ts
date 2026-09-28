@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { tr } from './i18n'
 import { icon } from './icons'
 import { CINEMA_SCREEN, setProjection } from './furniture/cinema'
+import { FILM_H, FILM_W } from './furniture/cinema-film'
 import type { CinemaState, CinemaTrailer, CinemaVideo } from './net'
 
 const ENDPOINT = '/outils/mini-shipinteriors-cinema.php'
@@ -420,7 +421,7 @@ export class CinemaRoom {
       void twitchApi().then((api) => {
         if (token !== this.playerToken) return
         const player = new api.Player(holder.id, {
-          width: 533, height: 300, channel: 'elitedangereuse',
+          width: FILM_W, height: FILM_H, channel: 'elitedangereuse',
           parent: [location.hostname || 'elitedangereuse.fr'], muted: true, autoplay: true,
         })
         this.twitchPlayer = player
@@ -533,7 +534,7 @@ export class CinemaRoom {
     }
     this.stage.hidden = false
     this.stage.style.pointerEvents = inCinemaRoom ? 'auto' : 'none'
-    this.stage.style.transform = `matrix(${(b.x - a.x) / 640}, ${(b.y - a.y) / 640}, ${(c.x - a.x) / 256}, ${(c.y - a.y) / 256}, ${a.x}, ${a.y})`
+    this.stage.style.transform = `matrix(${(b.x - a.x) / FILM_W}, ${(b.y - a.y) / FILM_W}, ${(c.x - a.x) / FILM_H}, ${(c.y - a.y) / FILM_H}, ${a.x}, ${a.y})`
     this.volumeControl.hidden = !inCinemaRoom || (this.state.live ? !this.twitchPlayer : !this.youtubePlayer)
     this.volumeControl.style.left = `${c.x + (b.x - a.x) / 2}px`
     this.volumeControl.style.top = `${c.y + (b.y - a.y) / 2 + 8}px`

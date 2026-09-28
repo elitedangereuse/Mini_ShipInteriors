@@ -1,9 +1,11 @@
 import * as THREE from 'three'
 import {
-  animatedScreen, barX, barZ, box, cylinder, drawnTexture, ED_ORANGE, glass, glow, instanced, lit, mesh, part, setInstance, sphere,
+  animatedScreen, barX, barZ, box, cylinder, drawnTexture, glass, glow, instanced, lit, mesh, part, setInstance, sphere,
   type Builder,
 } from './kit'
 import { renderQuality } from '../quality'
+import { drawTrailer, FILM_H, FILM_LOOP, FILM_W, trailerGlow } from './cinema-film'
+import { drawPoster, POSTER_H, POSTER_W } from './cinema-posters'
 import { tr } from '../i18n'
 
 /*
@@ -34,7 +36,8 @@ const C = {
  * l'horloge des meubles (le mode photo la fige). La lumière de l'écran la suit (cf. main.ts).
  */
 export const film = { time: 0 }
-export const CINEMA_SCREEN = { width: 3.3, height: 1.32, centerY: 0.94, depth: 0.075 } as const
+/** La toile, en 16:9 comme les vidéos de la régie (cf. FILM_W, FILM_H). */
+export const CINEMA_SCREEN = { width: 3.2, height: 1.8, centerY: 1.2, depth: 0.075 } as const
 let projection: { mode: 'trailer' | 'twitch'; title: string; image: HTMLImageElement | null } | null = null
 let projectionRequest = 0
 
@@ -54,85 +57,14 @@ export function setProjection(mode: 'trailer' | 'twitch' | null, title = '', ima
   }
 }
 let filmOffset: number | null = null
-const LOOP = 48
-
-/** Scènes du film, en secondes dans la boucle : amorce, croisière, saut, station, carton final. */
-const SCENES = [
-  { end: 6, light: 0.7, color: '#d8dde6' },
-  { end: 18, light: 0.45, color: '#8fa8ff' },
-  { end: 26, light: 0.9, color: '#9fd8ff' },
-  { end: 38, light: 0.6, color: '#ffb56b' },
-  { end: 46, light: 0.55, color: '#ff9a3c' },
-  { end: 48, light: 0.08, color: '#8fa8ff' },
-]
 
 /** Lumière que l'écran jette dans la salle : intensité (0 à ~1,3) et couleur de la scène en cours. */
 export function filmGlow(time: number): { k: number; color: string } {
   if (projection) return { k: projection.mode === 'twitch' ? 0.75 : 0.55, color: projection.mode === 'twitch' ? '#a970ff' : '#9bc8e8' }
-  const t = ((time % LOOP) + LOOP) % LOOP
-  const scene = SCENES.find((s) => t < s.end) ?? SCENES[0]
-  let k = scene.light
-  // Le saut FSD s'emballe et finit sur un éclair blanc.
-  if (scene === SCENES[2]) k = 0.5 + ((t - 18) / 8) ** 2 * 0.5 + (t > 25.4 ? 0.3 : 0)
-  // Fondus entre les scènes.
-  const start = SCENES[SCENES.indexOf(scene) - 1]?.end ?? 0
-  k *= Math.min(1, (t - start) / 0.6, (scene.end - t) / 0.6 + 0.25)
-  return { k, color: scene.color }
+  return trailerGlow(((time % FILM_LOOP) + FILM_LOOP) % FILM_LOOP)
 }
 
-const W = 640, H = 256
-
-/** Étoiles du film, tirées une fois. */
-const STARS = Array.from({ length: 90 }, (_, i) => {
-  const r = (n: number) => ((Math.sin(i * 127.1 + n * 311.7) * 43758.5453) % 1 + 1) % 1
-  return { x: r(1) * W, y: r(2) * H, s: 0.6 + r(3) * 1.6, v: 4 + r(4) * 16 }
-})
-
-function starfield(g: CanvasRenderingContext2D, t: number, speed: number) {
-  g.fillStyle = '#fff'
-  for (const s of STARS) {
-    const x = ((s.x - t * s.v * speed) % W + W) % W
-    g.globalAlpha = 0.4 + s.s * 0.3
-    g.fillRect(x, s.y, s.s, s.s)
-  }
-  g.globalAlpha = 1
-}
-
-/** Silhouette de Cobra Mk III vue de profil : un coin bas, et la lueur des propulseurs. */
-function cobra(g: CanvasRenderingContext2D, x: number, y: number, s: number) {
-  g.save()
-  g.translate(x, y)
-  g.scale(s, s)
-  const glowing = g.createRadialGradient(-34, 0, 0, -34, 0, 18)
-  glowing.addColorStop(0, 'rgba(140, 200, 255, 0.95)')
-  glowing.addColorStop(1, 'rgba(140, 200, 255, 0)')
-  g.fillStyle = glowing
-  g.fillRect(-56, -18, 30, 36)
-  g.fillStyle = '#c9cdd4'
-  g.beginPath()
-  g.moveTo(40, 2)
-  g.lineTo(-30, -9)
-  g.lineTo(-36, 4)
-  g.lineTo(-30, 9)
-  g.closePath()
-  g.fill()
-  g.fillStyle = '#7a8292'
-  g.fillRect(-30, 2, 60, 3)
-  g.fillStyle = ED_ORANGE
-  g.fillRect(4, -3, 10, 2)
-  g.restore()
-}
-
-function titleCard(g: CanvasRenderingContext2D, lines: [string, string, number][], alpha: number) {
-  g.globalAlpha = Math.max(0, Math.min(1, alpha))
-  g.textAlign = 'center'
-  g.textBaseline = 'middle'
-  for (const [text, font, y] of lines) {
-    g.font = font
-    g.fillText(text, W / 2, y)
-  }
-  g.globalAlpha = 1
-}
+const W = FILM_W, H = FILM_H
 
 /** Une image du film, à l'instant `time` de la boucle. */
 function drawFilm(g: CanvasRenderingContext2D, time: number) {
@@ -157,130 +89,7 @@ function drawFilm(g: CanvasRenderingContext2D, time: number) {
     g.fillText(projection.title.slice(0, 43), 22, H - 14, W - 44)
     return
   }
-  const t = ((time % LOOP) + LOOP) % LOOP
-  g.fillStyle = '#05060a'
-  g.fillRect(0, 0, W, H)
-  if (t < 6) {
-    // Amorce : fond gris, cercles de visée, le compte à rebours balayé.
-    const n = 5 - Math.floor(t)
-    g.fillStyle = '#9a9ea6'
-    g.fillRect(0, 0, W, H)
-    g.fillStyle = '#7b7f87'
-    g.beginPath()
-    g.moveTo(W / 2, H / 2)
-    g.arc(W / 2, H / 2, 300, -Math.PI / 2, -Math.PI / 2 + (t % 1) * Math.PI * 2)
-    g.fill()
-    g.strokeStyle = '#e8eaee'
-    g.lineWidth = 4
-    for (const r of [70, 90]) {
-      g.beginPath()
-      g.arc(W / 2, H / 2, r, 0, Math.PI * 2)
-      g.stroke()
-    }
-    g.fillRect(0, H / 2 - 1, W, 2)
-    g.fillRect(W / 2 - 1, 0, 2, H)
-    g.fillStyle = '#17181b'
-    g.font = '700 120px Georgia, serif'
-    g.textAlign = 'center'
-    g.textBaseline = 'middle'
-    if (n > 0) g.fillText(String(n), W / 2, H / 2 + 6)
-  } else if (t < 18) {
-    // Croisière : une géante gazeuse à anneaux, un Cobra passe devant.
-    starfield(g, t, 0.4)
-    const p = g.createRadialGradient(470, 110, 10, 500, 130, 120)
-    p.addColorStop(0, '#ffd08a')
-    p.addColorStop(0.6, '#c0643f')
-    p.addColorStop(1, '#3a1a14')
-    g.fillStyle = p
-    g.beginPath()
-    g.arc(500, 130, 92, 0, Math.PI * 2)
-    g.fill()
-    g.strokeStyle = 'rgba(255, 220, 170, 0.55)'
-    g.lineWidth = 6
-    g.beginPath()
-    g.ellipse(500, 132, 160, 26, -0.18, 0, Math.PI * 2)
-    g.stroke()
-    cobra(g, -80 + (t - 6) * 62, 150 - (t - 6) * 3, 1.5)
-    g.fillStyle = ED_ORANGE
-    titleCard(g, [[tr('ELITE DANGEREUSE PRÉSENTE', 'ELITE DANGEREUSE PRESENTS'), '600 26px system-ui, sans-serif', 50]], Math.min(t - 7.5, 12.5 - t))
-  } else if (t < 26) {
-    // Saut FSD : traînées d'étoiles qui s'allongent, tunnel bleu, puis l'éclair.
-    const k = (t - 18) / 8
-    const tunnel = g.createRadialGradient(W / 2, H / 2, 5, W / 2, H / 2, 320)
-    tunnel.addColorStop(0, `rgba(210, 240, 255, ${0.3 + k * 0.6})`)
-    tunnel.addColorStop(0.35, `rgba(60, 120, 255, ${0.15 + k * 0.4})`)
-    tunnel.addColorStop(1, 'rgba(5, 6, 10, 0)')
-    g.fillStyle = tunnel
-    g.fillRect(0, 0, W, H)
-    g.strokeStyle = '#dff4ff'
-    g.lineWidth = 1.5
-    for (const [i, s] of STARS.entries()) {
-      const a = (i / STARS.length) * Math.PI * 2 + s.x
-      const d = ((s.y / H + t * (0.3 + k * 1.4)) % 1) * 380
-      const len = 6 + k * k * 120
-      g.globalAlpha = Math.min(1, d / 120)
-      g.beginPath()
-      g.moveTo(W / 2 + Math.cos(a) * d, H / 2 + Math.sin(a) * d * 0.6)
-      g.lineTo(W / 2 + Math.cos(a) * (d + len), H / 2 + Math.sin(a) * (d + len) * 0.6)
-      g.stroke()
-    }
-    g.globalAlpha = 1
-    if (t > 25.4) {
-      g.fillStyle = `rgba(255, 255, 255, ${(t - 25.4) / 0.6})`
-      g.fillRect(0, 0, W, H)
-    }
-  } else if (t < 38) {
-    // Arrivée : une station Coriolis tourne, le Cobra vise la fente.
-    starfield(g, t, 0.1)
-    const sun = g.createRadialGradient(80, 60, 0, 80, 60, 140)
-    sun.addColorStop(0, 'rgba(255, 230, 190, 0.9)')
-    sun.addColorStop(1, 'rgba(255, 150, 60, 0)')
-    g.fillStyle = sun
-    g.fillRect(0, 0, 260, 220)
-    const a = (t - 26) * 0.35
-    g.save()
-    g.translate(W / 2, H / 2)
-    g.rotate(a)
-    g.fillStyle = '#5d6470'
-    g.strokeStyle = '#aab2bf'
-    g.lineWidth = 2
-    g.beginPath()
-    for (let i = 0; i < 8; i++) {
-      const b = (i / 8) * Math.PI * 2 + Math.PI / 8
-      g.lineTo(Math.cos(b) * 92, Math.sin(b) * 92)
-    }
-    g.closePath()
-    g.fill()
-    g.stroke()
-    g.fillStyle = '#0b0d12'
-    g.fillRect(-30, -9, 60, 18)
-    g.strokeStyle = ED_ORANGE
-    g.strokeRect(-30, -9, 60, 18)
-    g.restore()
-    const k = (t - 26) / 12
-    cobra(g, 120 + k * 200, 210 - k * 82, 1.3 - k * 1.1)
-  } else if (t < 46) {
-    // Carton final.
-    starfield(g, t, 0.05)
-    g.fillStyle = ED_ORANGE
-    titleCard(g, [
-      [tr('PROCHAINEMENT', 'COMING SOON'), '800 58px system-ui, sans-serif', 108],
-      [tr('dans votre Fleet Carrier', 'in your Fleet Carrier'), '400 24px system-ui, sans-serif', 160],
-      ['o7', '700 22px system-ui, sans-serif', 202],
-    ], Math.min((t - 38) / 1.2, (46 - t) / 1.2))
-    // En attendant une vraie séance, le carton dit où elle se choisit.
-    g.fillStyle = '#9fd8ff'
-    titleCard(g, [[tr('Votre séance se choisit à la régie, au fond de la salle', 'Pick the screening at the booth, at the back of the room'),
-      '600 21px system-ui, sans-serif', 238]], Math.min((t - 39) / 1.2, (46 - t) / 1.2))
-  }
-  // Grain de pellicule et vignettage.
-  g.fillStyle = 'rgba(255, 255, 255, 0.05)'
-  for (let i = 0; i < 14; i++) g.fillRect(((time * 977 + i * 131) % 1) * W, ((time * 613 + i * 71) % 1) * H, 2, 2)
-  const v = g.createRadialGradient(W / 2, H / 2, H * 0.6, W / 2, H / 2, W * 0.62)
-  v.addColorStop(0, 'rgba(0, 0, 0, 0)')
-  v.addColorStop(1, 'rgba(0, 0, 0, 0.45)')
-  g.fillStyle = v
-  g.fillRect(0, 0, W, H)
+  drawTrailer(g, ((time % FILM_LOOP) + FILM_LOOP) % FILM_LOOP)
 }
 
 // ---------------------------------------------------------------- l'écran
@@ -305,24 +114,24 @@ function curtain(g: THREE.Group, x: number, w: number, h: number, side: -1 | 1) 
 /**
  * Grand écran de cinéma, accroché au mur : cadre noir mat, toile où passe le film (bande-annonce
  * en boucle, cf. drawFilm), rideaux de velours et lambrequin frangé d'or, petite scène bordée
- * de veilleuses. Largeur totale : 4,6.
+ * de veilleuses. Largeur totale : 4,6 ; il dépasse des murs de la salle, comme un vrai écran.
  */
 const cinemaScreen: Builder = () => {
   const g = new THREE.Group()
   const { width: SW, height: SH, centerY: SY } = CINEMA_SCREEN
   // Mur de fond en velours sombre, cadre noir mat autour de la toile.
-  g.add(box(4.6, 1.78, 0.03, lit(C.velvetDeep), 0, 0.89, 0.015))
+  g.add(box(4.6, 2.42, 0.03, lit(C.velvetDeep), 0, 1.21, 0.015))
   g.add(box(SW + 0.16, SH + 0.14, 0.05, lit(C.black), 0, SY, 0.045))
   // Lambrequin : un bandeau plissé et sa frange dorée.
-  g.add(box(4.6, 0.2, 0.12, lit(C.velvet), 0, 1.72, 0.08, 0.02), box(4.62, 0.035, 0.13, lit(C.gold), 0, 1.61, 0.085))
-  for (let i = 0; i < 23; i++) g.add(box(0.1, 0.16, 0.02, lit(i % 2 ? C.velvet : C.velvetDark), -2.2 + i * 0.2, 1.7, 0.15))
-  curtain(g, -2.0, 0.6, 1.62, -1)
-  curtain(g, 2.0, 0.6, 1.62, 1)
+  g.add(box(4.6, 0.2, 0.12, lit(C.velvet), 0, 2.34, 0.08, 0.02), box(4.62, 0.035, 0.13, lit(C.gold), 0, 2.23, 0.085))
+  for (let i = 0; i < 23; i++) g.add(box(0.1, 0.16, 0.02, lit(i % 2 ? C.velvet : C.velvetDark), -2.2 + i * 0.2, 2.32, 0.15))
+  curtain(g, -2.0, 0.6, 2.24, -1)
+  curtain(g, 2.0, 0.6, 2.24, 1)
   // Petite scène en bois sombre, bordée de veilleuses.
   g.add(box(4.2, 0.1, 0.44, lit(C.wood), 0, 0.05, 0.22, 0.01), box(4.22, 0.02, 0.02, lit(C.goldDark), 0, 0.1, 0.44))
   for (let i = 0; i < 12; i++) g.add(box(0.05, 0.02, 0.01, glow('#ffc67a'), -1.93 + i * 0.35, 0.05, 0.445))
   // Haut-parleurs de façade, sous la toile, derrière la toile tendue.
-  for (const x of [-1.2, 0, 1.2]) g.add(box(0.36, 0.16, 0.04, lit(C.frame), x, 0.18, 0.06, 0.01))
+  for (const x of [-1.2, 0, 1.2]) g.add(box(0.36, 0.1, 0.04, lit(C.frame), x, 0.16, 0.06, 0.01))
 
   const screen = animatedScreen(W, H, 12, drawFilm)
   screen.texture.magFilter = THREE.LinearFilter
@@ -519,7 +328,7 @@ const popcornMachine: Builder = ({ random }) => {
 /**
  * Projecteur à bobines sur sa console murale, tourné vers +z : les deux bobines tournent, un
  * faisceau pâle file jusqu'à l'écran, des poussières y dansent. Portée : `label` (défaut 7,4).
- * Le faisceau vise la toile (3,3 × 1,32, centrée à 0,94 de haut) depuis l'objectif (y = 1,22).
+ * Le faisceau vise la toile (cf. CINEMA_SCREEN) depuis l'objectif (y = 1,14).
  */
 const filmProjector: Builder = ({ label, random }) => {
   const reach = Number(label) || 7.4
@@ -557,7 +366,8 @@ const filmProjector: Builder = ({ label, random }) => {
 
   // Faisceau : pyramide ouverte de l'objectif à la toile, qui s'éteint en approchant de l'écran.
   const lens = new THREE.Vector3(0.04, 1.14, 0.38)
-  const corners = [[-1.65, 0.28], [1.65, 0.28], [1.65, 1.6], [-1.65, 1.6]].map(([x, y]) => new THREE.Vector3(x, y, reach))
+  const { width: SW, height: SH, centerY: SY } = CINEMA_SCREEN
+  const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([x, y]) => new THREE.Vector3((x * SW) / 2, SY + (y * SH) / 2, reach))
   const pos: number[] = [], alpha: number[] = []
   for (let i = 0; i < 4; i++) {
     const a = corners[i], b = corners[(i + 1) % 4]
@@ -608,8 +418,8 @@ const filmProjector: Builder = ({ label, random }) => {
       if (!dust.visible) return
       for (const [i, m] of motes.entries()) {
         const u = (m.u + t * m.speed) % 1
-        const x = lens.x + (m.sx * 3 - lens.x) * u + Math.sin(t * 0.7 + m.phase) * 0.03
-        const y = lens.y + (0.94 + m.sy * 1.2 - lens.y) * u + Math.sin(t * 0.5 + m.phase) * 0.03
+        const x = lens.x + (m.sx * SW * 0.9 - lens.x) * u + Math.sin(t * 0.7 + m.phase) * 0.03
+        const y = lens.y + (SY + m.sy * SH * 0.9 - lens.y) * u + Math.sin(t * 0.5 + m.phase) * 0.03
         setInstance(dust, i, x, y, lens.z + (reach - lens.z) * u, 1, t + m.phase)
       }
       dust.instanceMatrix.needsUpdate = true
@@ -619,112 +429,44 @@ const filmProjector: Builder = ({ label, random }) => {
 
 // ---------------------------------------------------------------- affiches et signalétique
 
-/** Films à l'affiche : titre, accroche, et le fond de l'affiche. */
-const FEATURES: Record<string, { title: string[]; line: string; sky: [string, string]; draw: (c: CanvasRenderingContext2D) => void }> = {
-  hutton: {
-    title: ['HUTTON', 'ORBITAL'],
-    line: tr('0,22 année-lumière. Une éternité.', '0.22 light years. An eternity.'),
-    sky: ['#0b1030', '#3a2c6a'],
-    draw: (c) => {
-      c.fillStyle = '#ffd08a'
-      c.beginPath()
-      c.arc(60, 150, 26, 0, Math.PI * 2)
-      c.fill()
-      c.fillStyle = '#c9cdd4'
-      c.fillRect(150, 118, 34, 50)
-      c.fillStyle = '#e8eef4'
-      c.beginPath()
-      c.moveTo(185, 140)
-      c.lineTo(235, 132)
-      c.lineTo(235, 150)
-      c.closePath()
-      c.fill()
-      c.strokeStyle = 'rgba(255,255,255,0.5)'
-      c.setLineDash([4, 6])
-      c.beginPath()
-      c.moveTo(86, 150)
-      c.lineTo(148, 142)
-      c.stroke()
-      c.setLineDash([])
-    },
-  },
-  thargoid: {
-    title: ['LA NUIT', 'DES THARGOÏDES'],
-    line: tr('Dans l\'espace, personne ne vous entend scanner.', 'In space, no one can hear you scan.'),
-    sky: ['#03140a', '#0e3b24'],
-    draw: (c) => {
-      c.fillStyle = '#2a5a3a'
-      c.beginPath()
-      for (let i = 0; i < 8; i++) {
-        const a = (i / 8) * Math.PI * 2
-        c.lineTo(128 + Math.cos(a) * 80, 150 + Math.sin(a) * 38)
-        c.lineTo(128 + Math.cos(a + 0.39) * 44, 150 + Math.sin(a + 0.39) * 20)
-      }
-      c.closePath()
-      c.fill()
-      c.fillStyle = '#6aff9a'
-      for (let i = 0; i < 8; i++) {
-        const a = (i / 8) * Math.PI * 2
-        c.beginPath()
-        c.arc(128 + Math.cos(a) * 58, 150 + Math.sin(a) * 27, 4, 0, Math.PI * 2)
-        c.fill()
-      }
-    },
-  },
-  jameson: {
-    title: ['LE DERNIER', 'CAFÉ DE JAMESON'],
-    line: tr('Une comédie romantique à Shinrarta Dezhra.', 'A romantic comedy in Shinrarta Dezhra.'),
-    sky: ['#2a0e18', '#8a3a2a'],
-    draw: (c) => {
-      c.fillStyle = '#fff4e6'
-      c.fillRect(100, 130, 56, 44)
-      c.strokeStyle = '#fff4e6'
-      c.lineWidth = 8
-      c.beginPath()
-      c.arc(160, 150, 14, -Math.PI / 2, Math.PI / 2)
-      c.stroke()
-      c.strokeStyle = 'rgba(255,255,255,0.6)'
-      c.lineWidth = 3
-      for (const x of [115, 128, 141]) {
-        c.beginPath()
-        c.moveTo(x, 120)
-        c.bezierCurveTo(x - 8, 108, x + 8, 100, x, 86)
-        c.stroke()
-      }
-    },
-  },
-}
+/** Ampoules de la marquise autour d'une affiche : leurs positions, dans le plan du cadre. */
+const BULBS = (() => {
+  const out: [number, number][] = []
+  const [w, h, y0] = [0.5, 0.68, 0.62]
+  for (let i = 0; i <= 6; i++) for (const y of [y0 - h / 2, y0 + h / 2]) out.push([-w / 2 + (i * w) / 6, y])
+  for (let i = 1; i < 8; i++) for (const x of [-w / 2, w / 2]) out.push([x, y0 - h / 2 + (i * h) / 8])
+  return out
+})()
 
 /**
- * Caisson lumineux d'affiche de cinéma, accroché au mur : cadre doré, affiche rétroéclairée d'un
- * faux film d'Elite. Film : `label` (hutton, thargoid, jameson).
+ * Caisson lumineux d'affiche de cinéma, accroché au mur : cadre doré à ampoules de marquise qui
+ * clignotent en chenillard, affiche rétroéclairée d'un faux film d'Elite (cf. cinema-posters.ts).
+ * Film : `label` (hutton, thargoid, jameson).
  */
 const moviePoster: Builder = ({ label }) => {
-  const f = FEATURES[label ?? ''] ?? FEATURES.hutton
   const g = new THREE.Group()
-  g.add(box(0.46, 0.64, 0.05, lit(C.goldDark), 0, 0.62, 0.025, 0.01), box(0.4, 0.58, 0.02, lit(C.black), 0, 0.62, 0.045))
-  const art = drawnTexture(256, 372, (c) => {
-    const sky = c.createLinearGradient(0, 0, 0, 372)
-    sky.addColorStop(0, f.sky[0])
-    sky.addColorStop(1, f.sky[1])
-    c.fillStyle = sky
-    c.fillRect(0, 0, 256, 372)
-    c.fillStyle = 'rgba(255,255,255,0.8)'
-    for (let i = 0; i < 40; i++) c.fillRect((i * 97) % 256, (i * 53) % 230, 1.5, 1.5)
-    f.draw(c)
-    c.fillStyle = '#fff4e6'
-    c.textAlign = 'center'
-    c.font = '800 30px Georgia, serif'
-    f.title.forEach((line, i) => c.fillText(line, 128, 240 + i * 34))
-    c.font = 'italic 13px Georgia, serif'
-    c.fillStyle = '#ffd35a'
-    c.fillText(f.line, 128, 318, 236)
-    c.font = '600 11px system-ui, sans-serif'
-    c.fillStyle = 'rgba(255,255,255,0.7)'
-    c.fillText(tr('BIENTÔT DANS VOTRE CINÉMA DE BORD', 'SOON IN YOUR ONBOARD CINEMA'), 128, 350)
-  })
-  g.add(part(new THREE.PlaneGeometry(0.38, 0.555), new THREE.MeshBasicMaterial({ map: art }), 0, 0.62, 0.057))
-  return { solid: g }
+  g.add(box(0.5, 0.68, 0.04, lit(C.goldDark), 0, 0.62, 0.02, 0.01), box(0.44, 0.62, 0.02, lit(C.gold), 0, 0.62, 0.035, 0.005))
+  g.add(box(0.4, 0.58, 0.02, lit(C.black), 0, 0.62, 0.045))
+  const art = drawnTexture(POSTER_W, POSTER_H, (c) => drawPoster(c, label ?? 'hutton'))
+  g.add(part(new THREE.PlaneGeometry(0.38, 0.555), new THREE.MeshBasicMaterial({ map: art, toneMapped: false }), 0, 0.62, 0.057))
+  // Les ampoules : une sur deux s'allume, puis l'autre, comme au fronton des vieux cinémas.
+  const bulbs = instanced(new THREE.SphereGeometry(0.011, 6, 4), BULBS.map(() => '#ffe3a0'))
+  BULBS.forEach(([x, y], i) => setInstance(bulbs, i, x, y, 0.045))
+  const live = new THREE.Group()
+  live.add(bulbs)
+  const on = new THREE.Color('#fff1c8'), off = new THREE.Color('#8a5a24')
+  let step = -1
+  return {
+    solid: g,
+    live,
+    update(t) {
+      const s = renderQuality.light ? 0 : Math.floor(t * 2.5) % 2
+      if (s === step) return
+      step = s
+      BULBS.forEach((_, i) => bulbs.setColorAt(i, renderQuality.light || (i + s) % 2 ? on : off))
+      bulbs.instanceColor!.needsUpdate = true
+    },
+  }
 }
 
 /** Panneau « Sortie » lumineux, vert, accroché au mur. */
