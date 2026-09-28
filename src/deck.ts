@@ -433,15 +433,17 @@ export class Deck {
           const cx = x + d.dx * 0.5
           const cz = z + d.dz * 0.5
           const alongX = d.dz !== 0
-          const exterior = !this.map.isFloor(x + d.dx, z + d.dz)
+          const other = this.map.room(x + d.dx, z + d.dz)
+          const exterior = !other
           const hsh = hash(Math.round(cx * 2), Math.round(cz * 2))
           const windowRate = this.def.windows?.[room] ?? 1 / 3
 
           let model: 'wall' | 'wall-window' | 'wall-pillar' = 'wall'
           if (exterior && (hsh % 1000) / 1000 < windowRate && !this.doorPocket(x, z, dir)) model = 'wall-window'
           else if (!exterior && hsh % 5 === 0) model = 'wall-pillar'
-          if (exterior && this.def.canopy?.[room]?.includes(dir)) {
-            // Verrière : une allège, un bandeau, et du verre entre les deux.
+          const glazed = !!other && this.def.glazed?.some((pair) => pair.includes(room) && pair.includes(other))
+          if ((exterior && this.def.canopy?.[room]?.includes(dir)) || glazed) {
+            // Verrière, ou cloison vitrée : une allège, un bandeau, et du verre entre les deux.
             this.addFading(this.canopyFrame(cx, cz, alongX), new THREE.Vector3(cx, 0.5, cz))
             this.glass.push({ x: cx, z: cz, alongX })
             this.walls.push({ x: cx, z: cz, alongX, model: 'wall-window' })

@@ -72,6 +72,8 @@ export interface LevelDef {
   areas?: { name: string; minX: number; maxX: number; minZ: number; maxZ: number }[]
   /** Verrières : par pièce, les côtés (0 nord, 1 est, 2 sud, 3 ouest) dont les murs extérieurs sont vitrés. */
   canopy?: Record<string, number[]>
+  /** Cloisons vitrées, comme les verrières : paires de pièces (deux lettres) dont le mur mitoyen est une vitre. */
+  glazed?: string[]
   props: Prop[]
   /** La réserve en éclaire 8 à la fois, les plus proches du joueur (cf. applyLights dans main.ts). */
   lights: LightDef[]
@@ -870,6 +872,7 @@ export const LEVELS: LevelDef[] = [
       p: tr('Quartiers du commandant', 'Commander\'s quarters'),
       g: tr('Serre hydroponique', 'Hydroponics bay'),
       o: tr('Salon d\'écoute', 'Listening lounge'),
+      s: tr('Studio Radio Dangereuse', 'Radio Dangereuse studio'),
       n: tr('Cinéma', 'Cinema'),
       // Pièces des extensions des quartiers (cf. shared/cabin-wings.js).
       A: tr('Extension gauche', 'Left extension'),
@@ -879,7 +882,9 @@ export const LEVELS: LevelDef[] = [
       E: tr('Extension droite', 'Right extension'),
       F: tr('Extension droite', 'Right extension'),
     },
-    windows: { c: 0, k: 0.3, d: 0.2, p: 0.6, g: 0.5, o: 1, n: 0 },
+    windows: { c: 0, k: 0.3, d: 0.2, p: 0.6, g: 0.5, o: 1, n: 0, s: 0 },
+    // Le salon voit le studio par sa vitre.
+    glazed: ['os'],
     // On baisse les lumières au cinéma, un peu au salon d'écoute.
     dim: { n: 0.45, o: 0.7 },
     // Les quartiers du commandant : la cabine de chaque joueur, porte au nord sur la coursive.
@@ -1004,45 +1009,51 @@ export const LEVELS: LevelDef[] = [
       { model: 'monstera', x: 4.92, z: 6.08 },
       { model: 'pollinator-drone', x: 6.1, z: 4.4, label: '0.75' },
 
-      // --- Salon d'écoute : casques, fauteuils face aux étoiles, les affiches des deux émissions ---
-      { model: 'on-air-sign', x: 15.65, z: 1.05, rot: 1, solid: false },
+      // --- Studio Radio Dangereuse : trois animateurs autour de la table ronde, face à la vitre ---
+      { model: 'studio-table', x: 17.45, z: 2.0 },
+      // Dans le studio, `interact` est ce qu'on lit en s'installant au micro.
+      ...([[16.5, 2.0, 1], [17.45, 1.08, 0], [18.4, 2.0, 3]] as const).map(([x, z, rot]): Prop => ({
+        model: 'studio-chair', x, z, rot, action: tr('Prendre le micro', 'Take the mic'),
+        interact: [
+          tr('Vous approchez le micro : « Bonsoir à tous, et bienvenue dans Radio Dangereuse ! »', 'You lean into the mic: “Good evening everyone, and welcome to Radio Dangereuse!”'),
+          tr('Casque sur les oreilles, vous entendez votre propre voix. Elle sonne bien plus grave qu\'en vrai.', 'Headphones on, you hear your own voice. It sounds much deeper than in real life.'),
+          tr('Sujet du jour : « Faut-il vraiment aller à Hutton Orbital ? » Le débat promet d\'être long.', 'Today\'s topic: “Should you really fly to Hutton Orbital?” The debate promises to be long.'),
+          tr('Vous tapotez le micro : « Un, deux… un, deux… On est en direct, là ? » Le néon ON AIR répond pour vous.', 'You tap the mic: “One, two… one, two… Are we live?” The ON AIR sign answers for you.'),
+        ],
+      })),
+      { model: 'mug', x: 17.2, z: 2.28, y: 0.415, solid: false },
+      { model: 'acoustic-panel', x: 16.3, z: 0.65 },
+      { model: 'wall-clock', x: 17.45, z: 0.65, solid: false, interact: tr('L\'horloge du studio : l\'émission commence à l\'heure. En théorie.', 'The studio clock: the show starts on time. In theory.') },
+      { model: 'acoustic-panel', x: 18.6, z: 0.65 },
       {
-        model: 'podcast-poster', x: 17.2, z: 7.35, rot: 2, label: 'radio', solid: false,
+        model: 'podcast-poster', x: 15.65, z: 1.15, rot: 1, label: 'radio', solid: false,
         interact: tr(
           'Radio Dangereuse : le podcast Elite Dangerous de la communauté. Actus, débats et histoires de CMDR, à retrouver sur radio.elitedangereuse.fr.',
           'Radio Dangereuse: the community\'s Elite Dangerous podcast. News, debates and CMDR stories, on radio.elitedangereuse.fr.',
         ),
       },
-      // Les Galères Galactiques de part et d'autre de la porte : l'ancien logo, gardé en souvenir, et le nouveau.
       {
-        model: 'podcast-poster', x: 15.65, z: 2.9, rot: 1, label: 'galeres', solid: false,
+        model: 'headphone-rack', x: 15.65, z: 2.5, rot: 1, solid: false,
         interact: tr(
-          'L\'ancienne affiche des Galères Galactiques, gardée en souvenir : une mini-fiction audio humoristique, où rien ne se passe jamais comme prévu dans l\'espace.',
-          'The old Galères Galactiques poster, kept as a keepsake: a comedy audio mini-series where nothing in space ever goes to plan.',
+          'Casques de rechange du studio : un pour chaque invité, un pour Comète, qui mâchouille les câbles.',
+          'Spare studio headphones: one for each guest, one for Comète, who chews the cables.',
         ),
       },
+      // Au-dessus de la vitre, côté salon : le néon de l'émission et son « ON AIR ».
+      { model: 'radio-neon', x: 17.2, z: 3.5, solid: false },
+
+      // --- Salon d'écoute : fauteuils et poufs tournés vers le studio, les affiches des Galères ---
+      { model: 'rug', x: 17.5, z: 5.0, label: 'cosy:3.6x2.6', solid: false },
       {
-        model: 'podcast-poster', x: 15.65, z: 5.1, rot: 1, label: 'gg', solid: false,
+        model: 'podcast-poster', x: 15.65, z: 4.95, rot: 1, label: 'gg', solid: false,
         interact: tr(
           'Le nouveau logo des Galères Galactiques : deux G et une étoile à neutrons. Toujours rien qui se passe comme prévu, sur galeresgalactiques.fr.',
           'The new Galères Galactiques logo: two Gs and a neutron star. Still nothing goes to plan, on galeresgalactiques.fr.',
         ),
       },
+      // Le poste d'écoute, contre le mur ouest.
       {
-        model: 'headphone-rack', x: 15.65, z: 6.05, rot: 1, solid: false,
-        interact: tr(
-          'Casques d\'écoute : un pour Radio Dangereuse, un pour les Galères Galactiques, et un de rechange. Comète mâchouille les câbles.',
-          'Headphones: one for Radio Dangereuse, one for Galères Galactiques, and a spare. Comète chews the cables.',
-        ),
-      },
-      // Sous tout le salon, un grand tapis chaud ; les autres tapis sont posés dessus.
-      { model: 'rug', x: 17.5, z: 3.6, label: 'cosy:3.6x5.7', solid: false },
-      { model: 'armchair', x: 16.55, z: 1.3, rot: 2, label: 'terracotta', interact: tr('Fauteuil sous les hublots : un épisode, les étoiles, et plus rien d\'autre.', 'Armchair under the portholes: an episode, the stars, and nothing else.') },
-      { model: 'armchair', x: 18.35, z: 1.3, rot: 2, label: 'teal' },
-      { model: 'plant-tall', x: 19.35, z: 1.2 },
-      // Le poste d'écoute, entre les deux fauteuils, contre la baie.
-      {
-        model: 'podcast-console', x: 17.45, z: 0.86, action: tr('Écouter', 'Listen'),
+        model: 'podcast-console', x: 15.84, z: 5.82, rot: 1, action: tr('Écouter', 'Listen'),
         interact: [
           tr(
             'Casque sur les oreilles : un épisode de Radio Dangereuse, le podcast Elite Dangerous. On en ressort avec trois idées de route et une envie d\'aller miner.',
@@ -1055,24 +1066,30 @@ export const LEVELS: LevelDef[] = [
           tr('Le vumètre danse. Quelqu\'un a laissé le volume sur 11.', 'The VU meter dances. Someone left the volume on 11.'),
         ],
       },
-      { model: 'side-table', x: 19.1, z: 3 },
-      { model: 'headphone-stand', x: 19.04, z: 2.96, y: 0.3125, label: 'orange', solid: false },
-      { model: 'mug', x: 19.18, z: 3.1, y: 0.3125, solid: false },
-      { model: 'rug-round', x: 17.65, z: 3.05, y: 0.012, solid: false },
-      { model: 'floor-cushion', x: 17.2, z: 3.05, label: 'plum' },
-      { model: 'floor-cushion', x: 18.15, z: 2.85, label: 'mustard' },
       {
-        model: 'sofa', x: 16.3, z: 5.5, rot: 1, label: 'terracotta',
-        interact: tr('Canapé du salon d\'écoute : on s\'y enfonce, casque sur les oreilles, face aux étoiles.', 'The listening lounge sofa: sink in, headphones on, facing the stars.'),
+        model: 'armchair', x: 16.62, z: 6.02, rot: 2, label: 'terracotta',
+        interact: tr('Fauteuil du salon : un épisode, la vitre du studio, et plus rien d\'autre.', 'Lounge armchair: an episode, the studio window, and nothing else.'),
       },
-      { model: 'coffee-table', x: 17.35, z: 5.5, rot: 1 },
-      { model: 'beanbag', x: 18.5, z: 5, label: 'mustard' },
-      { model: 'beanbag', x: 18.5, z: 6, label: 'rose' },
-      // L'alcôve : un guéridon, un casque sur son pied, une lampe de papier.
+      { model: 'armchair', x: 17.6, z: 6.02, rot: 2, label: 'teal' },
+      { model: 'side-table', x: 18.45, z: 6.1 },
+      { model: 'headphone-stand', x: 18.4, z: 6.07, y: 0.3125, label: 'orange', solid: false },
+      { model: 'mug', x: 18.52, z: 6.17, y: 0.3125, solid: false },
+      // Les poufs, au premier rang.
+      { model: 'beanbag', x: 16.55, z: 5.0, label: 'mustard' },
+      { model: 'floor-cushion', x: 17.2, z: 5.02, label: 'plum' },
+      { model: 'beanbag', x: 18.45, z: 5.0, label: 'rose' },
+      // L'alcôve : un guéridon, un casque sur son pied, une lampe de papier, l'ancienne affiche des Galères.
       { model: 'side-table', x: 17.2, z: 7.05 },
       { model: 'headphone-stand', x: 17.14, z: 7.02, y: 0.3125, label: 'navy', solid: false },
       { model: 'candles', x: 17.3, z: 7.12, y: 0.3125, solid: false },
       { model: 'paper-lantern', x: 17.9, z: 7.1, label: 'tall' },
+      {
+        model: 'podcast-poster', x: 17.2, z: 7.35, rot: 2, label: 'galeres', solid: false,
+        interact: tr(
+          'L\'ancienne affiche des Galères Galactiques, gardée en souvenir : une mini-fiction audio humoristique, où rien ne se passe jamais comme prévu dans l\'espace.',
+          'The old Galères Galactiques poster, kept as a keepsake: a comedy audio mini-series where nothing in space ever goes to plan.',
+        ),
+      },
 
       // --- Cinéma : le grand écran au nord, quatre rangées face à lui, le projecteur au fond ---
       { model: 'rug', x: 24, z: 4.5, label: 'cinema:6.7x7.7', solid: false },
@@ -1115,8 +1132,10 @@ export const LEVELS: LevelDef[] = [
       [13.8, 2, '#e6f6ff', 2],
       [10.2, 8.4, '#ffc98f', 2.3],
       [6, 4.5, '#ffb3e6', 2.6],
-      [17.4, 5.2, '#ffb36b', 1.9, 'fire'],
-      [17.6, 2.2, '#ffc98a', 1.6],
+      [17.4, 5.4, '#ffb36b', 1.9, 'fire'],
+      // Le studio, et la lueur du néon sur la vitre.
+      [17.45, 1.9, '#fff0dc', 1.8],
+      [17.2, 3.9, '#ff9a3c', 1.1, 'neon'],
       [24.2, 1.8, '#9fb8ff', 1.8, 'screen'],
       [21.4, 7.4, '#ffb45e', 0.9],
       [26.4, 5.4, '#ff9a5a', 0.5],

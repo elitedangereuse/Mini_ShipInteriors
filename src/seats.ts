@@ -79,6 +79,8 @@ export const SEATS: Partial<Record<CustomModel | StationModel, Seat[]>> = {
     return sit(x, 0.04, 0.27, 0, [x, 0.5])
   }),
   'projection-chair': [sit(0, 0.04, 0.31, 0, [0, 0.58])],
+  // Fauteuil du studio, tourné vers la table : on s'y glisse par le côté (cf. Seating.approach).
+  'studio-chair': [sit(0, 0.03, 0.3)],
   'floor-cushion': [sit(0, 0, 0.13, 'free')],
 }
 

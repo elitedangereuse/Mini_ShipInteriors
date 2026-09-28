@@ -40,12 +40,13 @@ export const SHIP_LAYOUTS = {
     ' eeeeeeee  mmmmmssssssssssccccc bbb     ',
     '  eeeeee   mmmmmssssssssss ccc          ',
   ],
-  // Pont supérieur : les quartiers ; derrière le salon d'écoute, le cinéma.
+  // Pont supérieur : les quartiers ; derrière le salon d'écoute, le cinéma. Au nord du salon,
+  // derrière une vitre, le studio de Radio Dangereuse (porte à l'est).
   '1': [
     '                             ',
-    '        kkkkddddoooo nnnnnnn ',
-    '        kkkkddddoooo nnnnnnn ',
-    '     gggk+kkdd+doooo nnnnnnn ',
+    '        kkkkddddssss nnnnnnn ',
+    '        kkkkddddssss nnnnnnn ',
+    '     gggk+kkdd+dsss+ nnnnnnn ',
     '     ggg+ccccccc+ooo nnnnnnn ',
     '     gggccccccccoooo+nnnnnnn ',
     '     gggppp+ppppoooo nnnnnnn ',

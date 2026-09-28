@@ -8,7 +8,8 @@ import { BASE } from '../assets'
  * Le salon d'écoute du pont supérieur : on s'y installe au chaud, casque sur les oreilles, pour
  * Radio Dangereuse (le podcast Elite Dangerous) et les Galères Galactiques (mini-fiction audio
  * humoristique). Casques, affiches des deux émissions (les Galères en ont deux : l'ancien logo et
- * le nouveau), poste d'écoute, coussins de sol.
+ * le nouveau), poste d'écoute, coussins de sol. Le studio de l'émission, derrière la vitre du
+ * salon, est dans studio.ts.
  * Un objet accroché est construit dos au mur (origine sur la face du mur, contenu vers +z).
  */
 
@@ -61,7 +62,7 @@ const HEADPHONES: Record<string, [string, string]> = {
  * Casque d'écoute : arceau en demi-cercle au-dessus de l'origine (plan x-y), coques de part et
  * d'autre, coussinets tournés vers l'intérieur.
  */
-function headphones(color: string | undefined): THREE.Group {
+export function headphones(color: string | undefined): THREE.Group {
   const [shell, pad] = HEADPHONES[color ?? ''] ?? HEADPHONES.orange
   const g = new THREE.Group()
   g.add(mesh(new THREE.TorusGeometry(0.066, 0.008, 6, 18, Math.PI), lit(shell)))
@@ -199,26 +200,6 @@ const podcastPoster: Builder = ({ label }) => {
   }
 }
 
-/** Enseigne « ON AIR » de studio de radio, rouge, accrochée au mur. */
-const onAirSign: Builder = () => {
-  const g = new THREE.Group()
-  const face = drawnTexture(256, 96, (c) => {
-    c.fillStyle = '#e02a2a'
-    c.fillRect(0, 0, 256, 96)
-    c.strokeStyle = '#ffd6d0'
-    c.lineWidth = 5
-    c.strokeRect(8, 8, 240, 80)
-    c.fillStyle = '#fff4f0'
-    c.font = '800 50px system-ui, sans-serif'
-    c.textAlign = 'center'
-    c.textBaseline = 'middle'
-    c.fillText('ON AIR', 128, 51)
-  })
-  g.add(box(0.36, 0.15, 0.05, lit(C.black), 0, 0.86, 0.025, 0.01))
-  g.add(part(new THREE.PlaneGeometry(0.32, 0.12), new THREE.MeshBasicMaterial({ map: face }), 0, 0.86, 0.051))
-  return { solid: g }
-}
-
 /**
  * Poste d'écoute : un buffet bas de bois, l'ampli à deux vumètres dont les aiguilles dansent,
  * l'écran « En écoute » qui alterne les deux émissions sur une forme d'onde, deux enceintes
@@ -303,7 +284,6 @@ export const LISTENING = {
   'headphones-flat': headphonesFlat,
   'headphone-rack': headphoneRack,
   'podcast-poster': podcastPoster,
-  'on-air-sign': onAirSign,
   'podcast-console': podcastConsole,
   'floor-cushion': floorCushion,
 } satisfies Record<string, Builder>

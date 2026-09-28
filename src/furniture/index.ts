@@ -18,6 +18,7 @@ import { VOIE } from './voie'
 import { WORKSHOP } from './workshop'
 import { WORKS } from './works'
 import { SITE } from './site'
+import { STUDIO } from './studio'
 
 /*
  * Mobilier fait main, en primitives Three.js, rangé par zone :
@@ -36,13 +37,14 @@ import { SITE } from './site'
  * - works.ts : les pièces en travaux (échafaudage, panneau « Bientôt », cônes, bâches) ;
  * - cinema.ts : le cinéma du pont supérieur (écran à rideaux, fauteuils, projecteur, pop-corn) ;
  * - listening.ts : le salon d'écoute (casques, affiches de Radio Dangereuse et des Galères Galactiques, poste d'écoute) ;
+ * - studio.ts : le studio de Radio Dangereuse (table à trois micros, fauteuils, mousse acoustique, néon « ON AIR ») ;
  * - ljpc.ts : le labo du L.J.P.C. (tableau d'enquête, paillasse, échantillon, hologramme, James et Julia) ;
  * - voie.ts : le sanctuaire de la Voie (portail de Raxxla, Chroniques, icône de Salomé, Reliques, l'Adepte Supérieur).
  * On les place dans levels.ts comme les modèles du kit : `{ model: 'fireplace', x, z, rot }`,
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...COCKPIT, ...WORKSHOP, ...BAR, ...LEISURE, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...LISTENING, ...LJPC, ...VOIE } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...COCKPIT, ...WORKSHOP, ...BAR, ...LEISURE, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...LISTENING, ...STUDIO, ...LJPC, ...VOIE } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 
@@ -66,6 +68,7 @@ export function buildFurniture(model: CustomModel, label: string | undefined, se
 export { holoMeGlow } from './elite'
 export { beatAt, beatPulse } from './party'
 export { film, filmGlow } from './cinema'
+export { studio } from './studio'
 export {
   beamMaterial, disposeFurniture, ED_ORANGE, holoTime, keepShared, tickFurniture, type BagControl, type ClawControl, type ClawResult, type Emitter,
   type FurnitureControl,

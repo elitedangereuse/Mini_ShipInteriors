@@ -203,6 +203,14 @@ Choix et réalisation (27 septembre 2026) :
   adepte@voie, les trois Reliques sous cloche, les robes des adeptes et la roue
   brisée du Dark Wheel. Aucune réponse des aventures n'y figure (date, système,
   clé). L'accès réservé aux adeptes (SOC-01) est traité à part.
+- Studio Radio Dangereuse (29 septembre 2026) : le salon d'écoute est coupé en
+  deux. Au nord, derrière une cloison vitrée (`glazed` dans levels.ts), le
+  studio : table ronde, trois fauteuils et trois micros sur bras, mousse
+  acoustique, horloge. Au-dessus de la vitre, côté salon, un néon tracé d'après
+  les SVG du logo du site (planète et nom, en tubes) et un « ON AIR » rouge, qui
+  s'amorce en clignotant dès que quelqu'un est installé au micro (vu de tout le
+  bord). Au sud, le salon garde son côté cosy : fauteuils et poufs tournés vers
+  le studio, poste d'écoute au mur ouest.
 
 ## 4. Structure du vaisseau et immersion
 

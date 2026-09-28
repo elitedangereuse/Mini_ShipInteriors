@@ -27,7 +27,7 @@ import { IsoCamera } from './camera'
 import { Cat } from './cat'
 import { MAX_PETS, petRig, speciesOfItem, type Species } from './pets'
 import { Deck, type Interactable } from './deck'
-import { beatAt, beatPulse, film, filmGlow, holoMeGlow, holoTime, type ClawControl, type ClawResult } from './furniture'
+import { beatAt, beatPulse, film, filmGlow, holoMeGlow, holoTime, studio, type ClawControl, type ClawResult } from './furniture'
 import { GamepadControls, type GamepadInput } from '../shared/gamepad.js'
 import { TouchGamepad } from './touch-gamepad'
 import { lineOfSight } from '../shared/sight.js'
@@ -2492,6 +2492,18 @@ function clawResult(result: ClawResult) {
   )
 }
 
+// ------------------------------------------------------------------ studio de Radio Dangereuse
+
+/** Quelqu'un est-il installé à un micro du studio (pièce `s` du pont supérieur) ? */
+function studioLive(): boolean {
+  const upper = deckById(1)
+  const inStudio = (x: number, z: number) => upper.map.room(Math.round(x), Math.round(z)) === 's'
+  const seat = seating.current
+  if (seat && deck === upper && inStudio(seat.spot.x, seat.spot.z)) return true
+  for (const r of remotes.values()) if (r.level === 1 && r.pose === 'sit' && inStudio(r.target.x, r.target.z)) return true
+  return false
+}
+
 // ------------------------------------------------------------------ saut FSD
 
 let jumping = false
@@ -2756,6 +2768,8 @@ function frame() {
     const room = deckById(r.level).map.room(Math.round(r.group.position.x), Math.round(r.group.position.z))
     r.group.visible = sees(r) && (ljpcMember || r.level !== 0 || room !== 'l') && (voieAdept || r.level !== -1 || room !== 'v')
   }
+  // Quelqu'un au micro du studio (nous, ou un autre) : le néon « ON AIR » s'allume.
+  studio.onAir = studioLive()
   if (cometeHere) cat.update(world, catDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
   syncCompanions()
   for (const c of companions.values()) c.pet.update(world, cabinDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
