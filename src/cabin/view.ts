@@ -327,6 +327,7 @@ export class CabinView {
       }
       this.wings.clear()
       const placed = applyWings(this.deck.map, wings)
+      this.deck.syncLocks()
       this.letters = new Set([this.def.room])
       for (const slot of WING_SLOTS) {
         const plan = placed[slot.id]

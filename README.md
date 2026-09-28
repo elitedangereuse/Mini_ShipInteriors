@@ -184,7 +184,7 @@ L'aménagement est **enregistré sur le site** (cf. [Comptes Élite Dangereuse](
   <img src="docs/images/visite.jpg" alt="Un CMDR en visite dans les quartiers aménagés d'un autre : chacun parle dans une bulle, la barre indique « Quartiers de CMDR Adam Fauster »" width="100%">
 </p>
 
-Un CMDR **invite** un membre d'équipage connecté : « Inviter » dans la barre de ses quartiers (la liste de l'équipage), ou `/inviter CMDR Nom`. L'invitation vaut une minute ; si l'invité la rejoint, où qu'il soit à bord, il est téléporté devant la porte, dans des quartiers meublés comme chez son hôte, et voit chacun de ses changements en direct. Il rentre chez lui en ressortant par la porte (ou « Rentrer chez moi »), quand l'hôte le raccompagne (depuis la liste de l'équipage), ou quand l'hôte quitte le vaisseau.
+Un CMDR **invite** un membre d'équipage connecté : « Inviter » dans la barre de ses quartiers (la liste de l'équipage), ou `/inviter CMDR Nom`. L'invitation vaut une minute ; si l'invité la rejoint, où qu'il soit à bord, il est téléporté devant la porte, dans des quartiers meublés comme chez son hôte, et voit chacun de ses changements en direct. La visite dure même s'il sort dans la coursive : il peut revenir chez son hôte tant qu'il reste sur le pont supérieur. Il rentre chez lui avec « Rentrer chez moi » (dans la barre, jusque dans la coursive), en prenant l'ascenseur, quand l'hôte le raccompagne (depuis la liste de l'équipage), ou quand l'hôte quitte le vaisseau. S'il se trouvait dans une pièce d'extension de son hôte, il revient dans ses propres quartiers, au plus près.
 
 ## Mobilier fait main
 

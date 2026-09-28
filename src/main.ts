@@ -1282,6 +1282,12 @@ async function ride(target: number) {
   deck.pulseLift()
   sound.play('lift', new THREE.Vector3(LIFT.x, deck.y + 0.5, LIFT.z), { volume: 0.2 })
   await fadeScreen(true)
+  // Changer de pont met fin à une visite : on retrouvera ses propres quartiers.
+  if (visiting) {
+    const host = visiting.name
+    net.sendVisit(null)
+    leaveVisit(tr(`Fin de la visite chez ${host} : vos quartiers vous attendent.`, `Your visit to ${host} is over: your own quarters await.`))
+  }
   setDeck(deckById(target))
   deck.pulseLift()
   net.sendState({ x: player.position.x, z: player.position.z, yaw: player.heading, level: deck.def.id, anim: 'idle' }, Infinity)
@@ -1359,7 +1365,7 @@ function inCabin(level: number, x: number, z: number): boolean {
 /** @param tab onglet à ouvrir : « Pièces » depuis la porte d'un espace d'extension */
 async function openEditor(tab?: 'rooms') {
   if (editing() || riding || photo.active) return
-  if (visiting) return chat.add('system', tr('Ces quartiers ne sont pas les vôtres : on n\'aménage que chez soi.', 'These quarters aren\'t yours: you can only decorate your own.'))
+  if (visiting) return chat.add('system', tr(`Vous êtes en visite chez ${visiting.name} : on n'aménage que chez soi.`, `You're visiting ${visiting.name}: you can only decorate your own quarters.`))
   if (!linked) return chat.add('system', tr('Aménager ses quartiers est réservé aux CMDR connectés à elitedangereuse.fr.', 'Only CMDRs logged in to elitedangereuse.fr can decorate their quarters.'))
   if (!cabinStore?.ready) return chat.add('system', tr('Vos quartiers arrivent du site, encore un instant…', 'Your quarters are on their way from the site, just a moment…'))
   await loadSiteArt()
@@ -1457,11 +1463,12 @@ wallet.subscribe(reconcileWings)
  * Chacun a sa propre instance des quartiers : on n'y voit que ceux qui s'y trouvent avec nous.
  * Un CMDR invite un membre d'équipage (le relais vérifie l'invitation) ; l'invité est
  * téléporté devant la porte, dans les quartiers meublés comme chez l'hôte, et les voit changer
- * en direct. Il rentre chez lui en sortant par la porte, ou quand l'hôte le raccompagne ou
- * quitte le vaisseau.
+ * en direct. La visite dure même s'il sort dans la coursive (il peut revenir) : il rentre chez
+ * lui avec « Rentrer chez moi », en changeant de pont, ou quand l'hôte le raccompagne ou quitte
+ * le vaisseau.
  */
 
-/** Quartiers d'un autre CMDR où l'on se trouve (null : chez soi). */
+/** Hôte dont on visite les quartiers, qu'on y soit ou dans la coursive (null : chez soi). */
 let visiting: { host: number; name: string } | null = null
 /** Invitation acceptée, en attente de la réponse du relais. */
 let joining: number | null = null
@@ -1492,6 +1499,15 @@ function showCabin() {
   if (jukeboxWhere === 'cabin') jukebox.close()
   // Assis sur un meuble des quartiers : on retrouve sa place, ou l'on se relève s'il a bougé.
   seating.relink()
+  // La pièce d'extension où l'on se tenait (celle de l'hôte, ou une forme changée) n'existe plus :
+  // on revient dans les quartiers, au plus près, plutôt que de flotter dans le vide.
+  if (deck === cabinDeck && !cabinDeck.map.isFloor(Math.round(player.position.x), Math.round(player.position.z))) {
+    seating.leave()
+    player.cancelPath()
+    marker.visible = false
+    const t = nearestCabinTile(player.position)
+    if (t) player.position.set(t.x, cabinDeck.y, t.z)
+  }
   // Un meuble a pu apparaître sous nos pieds (ou sous les pattes de Comète).
   if (deck === cabinDeck && !seating.current) unstick(player.position, 0.18)
   unstick(cat.root.position, 0.12)
@@ -1579,7 +1595,7 @@ async function enterVisit(host: number) {
   await fadeScreen(false)
   riding = false
   if (seq === visitSeq && visiting?.host === host) {
-    chat.add('system', tr(`Vous voici dans les quartiers de ${name}. Ressortez par la porte pour rentrer chez vous.`, `You are in ${name}'s quarters. Walk back out through the door to go home.`))
+    chat.add('system', tr(`Vous voici dans les quartiers de ${name}. « Rentrer chez moi » ou l'ascenseur vous ramènent chez vous.`, `You are in ${name}'s quarters. “Go home” or the lift takes you back to yours.`))
   }
 }
 
@@ -1632,14 +1648,20 @@ function unstick(p: THREE.Vector3, r: number) {
     p.z = q.z
     return
   }
-  let best: { x: number; z: number } | null = null
-  for (const t of cabin.tiles) {
-    if (cabinDeck.pathfinder.walkable(t.x, t.z) && (!best || Math.hypot(t.x - p.x, t.z - p.z) < Math.hypot(best.x - p.x, best.z - p.z))) best = t
-  }
+  const best = nearestCabinTile(p)
   if (best) {
     p.x = best.x
     p.z = best.z
   }
+}
+
+/** Tuile libre des quartiers (hors extensions) la plus proche. */
+function nearestCabinTile(p: { x: number; z: number }): { x: number; z: number } | null {
+  let best: { x: number; z: number } | null = null
+  for (const t of cabin.tiles) {
+    if (cabinDeck.pathfinder.walkable(t.x, t.z) && (!best || Math.hypot(t.x - p.x, t.z - p.z) < Math.hypot(best.x - p.x, best.z - p.z))) best = t
+  }
+  return best
 }
 
 // ------------------------------------------------------------------ entrées
@@ -2657,20 +2679,15 @@ function frame() {
 
   // Pièce courante.
   const here = inCabin(deck.def.id, player.position.x, player.position.z)
-  // On sort des quartiers d'un hôte par la porte : on rentre chez soi.
-  if (visiting && !here && !riding) {
-    net.sendVisit(null)
-    leaveVisit()
-  }
   const name = visiting && here ? tr(`Quartiers de ${visiting.name}`, `${visiting.name}'s quarters`) : deck.roomName(player.position.x, player.position.z)
   if (name !== currentRoom) {
     currentRoom = name
     roomEl.textContent = name
   }
 
-  // Dans ses quartiers : de quoi les aménager.
+  // Dans ses quartiers : de quoi les aménager. En visite, jusque dans la coursive : de quoi rentrer.
   cabinBar.set(
-    !here || editing() ? null : visiting ? { kind: 'visit', host: visiting.name } : { kind: 'own', canEdit: linked, canInvite: verified && net.online, loginUrl: loginUrl() },
+    editing() ? null : visiting ? { kind: 'visit', host: visiting.name, inside: here } : !here ? null : { kind: 'own', canEdit: linked, canInvite: verified && net.online, loginUrl: loginUrl() },
   )
   if (!here && inviteMenu.isOpen) inviteMenu.close()
 

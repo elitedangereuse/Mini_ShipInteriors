@@ -4,12 +4,13 @@ import { $, nameTag } from '../ui'
 
 /*
  * Barre de la cabine, en haut de l'écran, quand on est dans des quartiers : les siens (aménager,
- * inviter), ou ceux d'un autre CMDR (qui reçoit, repartir).
+ * inviter), ou ceux d'un autre CMDR (qui reçoit, repartir), et tant que dure la visite, même dans
+ * la coursive.
  */
 
 export type CabinBarState =
   | { kind: 'own'; canEdit: boolean; canInvite: boolean; loginUrl?: string }
-  | { kind: 'visit'; host: string }
+  | { kind: 'visit'; host: string; inside: boolean }
   | null
 
 export class CabinBar {
@@ -42,7 +43,7 @@ export class CabinBar {
       return b
     }
     if (state.kind === 'visit') {
-      title.append(icon('door-open'), document.createTextNode(tr(`Quartiers de ${state.host}`, `${state.host}'s quarters`)))
+      title.append(icon('door-open'), document.createTextNode(state.inside ? tr(`Quartiers de ${state.host}`, `${state.host}'s quarters`) : tr(`En visite chez ${state.host}`, `Visiting ${state.host}`)))
       actions.append(button(tr('Rentrer chez moi', 'Go home'), 'sign-out', () => this.onLeave?.()))
     } else if (state.canEdit) {
       title.append(icon('bed'), document.createTextNode(tr('Vos quartiers', 'Your quarters')))

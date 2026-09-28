@@ -68,7 +68,15 @@ export interface DoorState {
   lamp: THREE.Object3D
   /** Invite de la porte tant qu'elle est verrouillée (cf. Deck.update). */
   examine?: Interactable
+  /**
+   * Collision qui bouche l'ouverture tant que la porte est verrouillée (au clavier, on passerait
+   * entre les montants), et le rectangle qu'elle prend alors ; déverrouillée, elle est rangée au loin.
+   */
+  bar?: { box: Box2; gap: Box2 }
 }
+
+/** Où se range la collision d'une porte ouverte : hors de portée de tout. */
+const NOWHERE: Box2 = { minX: -1e6, maxX: -1e6, minZ: -1e6, maxZ: -1e6 }
 
 export const WALL_T = 0.3
 /**
@@ -215,6 +223,14 @@ export class Deck {
   unregisterDoor(door: DoorState) {
     const i = this.doors.indexOf(door)
     if (i >= 0) this.doors.splice(i, 1)
+  }
+
+  /**
+   * Portes verrouillées ou déverrouillées sur le plan (extensions des quartiers) : leur ouverture
+   * se bouche ou se libère. À appeler avant de revalider les passages (cf. Pathfinder.invalidate).
+   */
+  syncLocks() {
+    for (const d of this.doors) if (d.bar) Object.assign(d.bar.box, this.map.isLocked(d.x, d.z, d.dir) ? d.bar.gap : NOWHERE)
   }
 
   private place(name: StationModel, x: number, y: number, z: number, rotY = 0, material: THREE.Material = this.theme.shell): THREE.Object3D {
@@ -460,6 +476,10 @@ export class Deck {
       touch(cx, cz - 0.5, 'v')
       touch(cx, cz + 0.5, 'v')
     }
+    const gap = alongX ? { minX: cx - g, maxX: cx + g, minZ: cz - t, maxZ: cz + t } : { minX: cx - t, maxX: cx + t, minZ: cz - g, maxZ: cz + g }
+    const box = { ...(this.map.isLocked(x, z, dir) ? gap : NOWHERE) }
+    this.colliders.push(box)
+    this.doors[this.doors.length - 1].bar = { box, gap }
   }
 
   /** Texte d'une porte verrouillée : celui de la pièce en travaux qu'elle ferme. */
