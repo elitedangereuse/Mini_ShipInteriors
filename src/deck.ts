@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { renderQuality } from './quality'
 import { station, themes, type StationModel, type ThemeMaterials } from './assets'
 import { CabinView } from './cabin/view'
+import { DoorHints } from './door-hints'
 import { makeFadeable } from './fade'
 import { beamMaterial, buildFurniture, isCustomModel, tickFurniture, type Emitter, type FurnitureControl } from './furniture'
 import { tr } from './i18n'
@@ -149,9 +150,12 @@ export class Deck {
   onDoor?: (position: THREE.Vector3, open: boolean) => void
   /** Texte d'une porte verrouillée, s'il ne vient pas d'une pièce en travaux (extensions des quartiers). */
   lockedText?: (x: number, z: number, dir: number) => string | undefined
+  /** Repères des portes cachées par un mur ou un meuble (cf. door-hints.ts) ; faux en mode photo. */
+  doorHints = true
 
   private occluders: Occluder[] = []
   private doors: DoorState[] = []
+  private hints = new DoorHints()
   private merge = new StaticMerge()
   private fades!: FadeBuffer
   private time = 0
@@ -282,6 +286,7 @@ export class Deck {
   unregisterDoor(door: DoorState) {
     const i = this.doors.indexOf(door)
     if (i >= 0) this.doors.splice(i, 1)
+    this.hints.remove(door)
   }
 
   /**
@@ -797,6 +802,8 @@ export class Deck {
         d.pair.position.copy(d.center).addScaledVector(d.axis, 0.4 + d.open * 0.78)
       } else d.panel.position.copy(d.center).addScaledVector(d.axis, d.open * 0.42)
     }
+
+    this.hints.update(this.doors, (d) => this.map.isLocked(d.x, d.z, d.dir), actors, focus, toCamera, this.doorHints, this.time, fade)
 
     if (!focus) return
 

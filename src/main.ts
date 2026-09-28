@@ -2786,7 +2786,10 @@ function frame() {
   // Un joueur d'une autre instance des quartiers n'ouvre pas nos portes.
   for (const r of remotes.values()) if (r.group.visible || r.level !== deck.def.id) actors.get(deckById(r.level))?.push(r.group.position)
   const keep = seating.current?.item.position ?? null
-  for (const d of decks) d.update(world, actors.get(d)!, d === deck ? player.position : null, toCam, editing() && d === cabinDeck, keep, dt)
+  for (const d of decks) {
+    d.doorHints = !photo.active
+    d.update(world, actors.get(d)!, d === deck ? player.position : null, toCam, editing() && d === cabinDeck, keep, dt)
+  }
   editor?.update(timer.getElapsed())
   // Tâches de bord : à l'heure chaque seconde, animées sur le pont affiché.
   if ((taskClock -= dt) <= 0) {
