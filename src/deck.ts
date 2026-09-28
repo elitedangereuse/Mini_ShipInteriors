@@ -172,10 +172,14 @@ export class Deck {
   /** Cabine personnalisable du pont (les quartiers du commandant), dont chaque joueur a son exemplaire. */
   readonly cabin?: CabinView
   private readonly hull = new Hull()
+  private ljpcCover?: THREE.Group
 
   constructor(readonly def: LevelDef) {
     this.theme = themes[def.theme ?? 'station']
     this.map = new ShipMap(def.layout, shipMapOptions(def.id))
+    if (def.id === 0) for (const d of this.map.doors) {
+      if (this.doorRoom(d.x, d.z, d.dir, 'l')) this.map.lock(d.x, d.z, d.dir)
+    }
     this.y = def.id * LEVEL_HEIGHT
     this.group.position.y = this.y
     this.glowMat = beamMaterial()
@@ -185,6 +189,7 @@ export class Deck {
     this.group.add(this.hull.group)
     this.buildWalls()
     this.buildProps()
+    if (def.id === 0) this.buildLjpcCover()
     this.buildLift()
     if (def.engine) this.buildCore(def.engine.x, def.engine.z)
     this.buildNozzles(!!def.engine)
@@ -204,6 +209,40 @@ export class Deck {
     if (area) return area.name
     const r = this.map.room(Math.round(x), Math.round(z))
     return r ? this.def.rooms[r] ?? '' : ''
+  }
+
+  /** L'accès au labo est individuel : la porte et le plafond restent fermés sans badge. */
+  setLjpcAccess(member: boolean) {
+    if (this.def.id !== 0) return
+    for (const d of this.map.doors) if (this.doorRoom(d.x, d.z, d.dir, 'l')) this.map.lock(d.x, d.z, d.dir, !member)
+    this.syncLocks()
+    this.pathfinder.invalidate()
+    if (this.ljpcCover) this.ljpcCover.visible = !member
+  }
+
+  private doorRoom(x: number, z: number, dir: number, room: string) {
+    const d = DIRS[dir]
+    return this.map.room(x, z) === room || this.map.room(x + d.dx, z + d.dz) === room
+  }
+
+  private buildLjpcCover() {
+    const tiles: { x: number; z: number }[] = []
+    for (let z = 0; z < this.map.height; z++) for (let x = 0; x < this.map.width; x++) {
+      if (this.map.room(x, z) === 'l') tiles.push({ x, z })
+    }
+    if (!tiles.length) return
+    const x0 = Math.min(...tiles.map((t) => t.x)), x1 = Math.max(...tiles.map((t) => t.x))
+    const z0 = Math.min(...tiles.map((t) => t.z)), z1 = Math.max(...tiles.map((t) => t.z))
+    const w = x1 - x0 + 1.18, h = z1 - z0 + 1.18
+    const cover = new THREE.Group()
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(w, 0.14, h), new THREE.MeshBasicMaterial({ color: '#101722' }))
+    slab.position.set((x0 + x1) / 2, 1.13, (z0 + z1) / 2)
+    cover.add(slab)
+    const rim = new THREE.Mesh(new THREE.BoxGeometry(w + 0.04, 0.025, h + 0.04), new THREE.MeshBasicMaterial({ color: '#263344' }))
+    rim.position.copy(slab.position).y += 0.08
+    cover.add(rim)
+    this.group.add(cover)
+    this.ljpcCover = cover
   }
 
   // ------------------------------------------------------------------ build

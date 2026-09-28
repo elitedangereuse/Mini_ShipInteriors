@@ -24,7 +24,7 @@ import { fightRelay } from './fights.js'
 import { BOARD_GAMES, applyBoardMove, boardColor, boardState, newBoardGame } from './boards.js'
 import { sanitizeLayout } from './cabin.js'
 import { hasSiteArtwork, siteArtworkAllowed } from './site.js'
-import { cleanCmdrName, cmdrFromCookie } from './cmdr.js'
+import { cleanCmdrName, cmdrIdentityFromCookie } from './cmdr.js'
 import { createCinema } from './cinema.js'
 import { BOARD_TABLES, SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import { ShipMap } from '../shared/ship-map.js'
@@ -204,17 +204,21 @@ export function attachRelay(
   io.use(async (socket, next) => {
     if (players.size >= MAX_PLAYERS) return next(new Error('Vaisseau complet'))
     const auth = obj(socket.handshake.auth)
-    socket.data.cmdr = devCmdr && auth.cmdr ? cleanCmdrName(auth.cmdr) : await cmdrFromCookie(socket.handshake.headers.cookie, { url: cmdrUrl, error })
+    socket.data.identity = devCmdr && auth.cmdr
+      ? { name: cleanCmdrName(auth.cmdr), ljpc: auth.ljpc === true }
+      : await cmdrIdentityFromCookie(socket.handshake.headers.cookie, { url: cmdrUrl, error })
     next()
   })
 
   io.on('connection', (socket) => {
     const auth = obj(socket.handshake.auth)
-    const cmdr = socket.data.cmdr
+    const identity = socket.data.identity
+    const cmdr = identity?.name
     const player = {
       id: nextId++,
       name: '',
       verified: !!cmdr,
+      ljpc: !!cmdr && identity.ljpc === true,
       skin: validLook(auth.skin) ? auth.skin : 'human.female.b',
       // Point d'apparition : les quartiers du commandant (cf. SPAWN dans src/levels.ts).
       x: 11.2, z: 7.4, level: 1, yaw: 0, anim: 'idle', pose: '', py: 0,
@@ -230,7 +234,7 @@ export function attachRelay(
     sockets.set(player.id, socket)
     socket.emit('welcome', {
       id: player.id,
-      you: { name: player.name, verified: player.verified },
+      you: { name: player.name, verified: player.verified, ljpc: player.ljpc },
       players: [...players.values()].filter((p) => p !== player).map(publicState),
       // Les jukebox du pont principal et de la cale, silence compris : après une reconnexion, on se recale.
       music: musicOf(0),
@@ -263,6 +267,7 @@ export function attachRelay(
       const m = obj(raw)
       const x = num(m.x, -5, 50), z = num(m.z, -5, 20), yaw = num(m.yaw, -10, 10)
       if (x === null || z === null || yaw === null || !LEVELS.has(m.level)) return
+      if (m.level === 0 && MAPS.get(0).room(Math.round(x), Math.round(z)) === 'l' && !player.ljpc) return
       // Une pose inconnue n'en est pas une ; sa hauteur reste à portée d'une couchette du haut.
       const pose = POSES.has(m.pose) ? m.pose : ''
       if (player.level !== m.level) fights.leave(player)

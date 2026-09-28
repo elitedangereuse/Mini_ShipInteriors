@@ -44,19 +44,24 @@ export function devCmdr(): string | undefined {
   return new URLSearchParams(location.search).get('cmdr')?.trim().slice(0, 40) || undefined
 }
 
+/** Dev uniquement : ?ljpc=1 ouvre le laboratoire pour le CMDR simulé. */
+export function devLjpc(): boolean {
+  return import.meta.env.DEV && new URLSearchParams(location.search).get('ljpc') === '1'
+}
+
 /**
  * Nom du CMDR connecté au site (sans le préfixe « CMDR »), ou null (invité, site injoignable).
  * Sert à l'affichage : c'est le relais, en faisant reconnaître le cookie par le site, qui
  * décide du nom et de la marque « vérifié ».
  */
-export async function fetchCmdrAccount(timeoutMs = 3000): Promise<string | null> {
+export async function fetchCmdrAccount(timeoutMs = 3000): Promise<{ name: string; ljpc: boolean } | null> {
   const simulated = devCmdr()
-  if (simulated) return simulated
+  if (simulated) return { name: simulated, ljpc: devLjpc() }
   try {
     const res = await fetch(CMDR_URL, { credentials: 'same-origin', signal: AbortSignal.timeout(timeoutMs) })
     if (!res.ok) return null
-    const data = (await res.json()) as { cmdr?: string | null }
-    return typeof data.cmdr === 'string' && data.cmdr.trim() ? data.cmdr.trim() : null
+    const data = (await res.json()) as { cmdr?: string | null; ljpc?: boolean }
+    return typeof data.cmdr === 'string' && data.cmdr.trim() ? { name: data.cmdr.trim(), ljpc: data.ljpc === true } : null
   } catch {
     return null
   }

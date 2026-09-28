@@ -406,6 +406,9 @@ export const LEVELS: LevelDef[] = [
       b: tr('Poste de pilotage', 'Cockpit'),
       l: tr('Labo du L.J.P.C.', 'L.J.P.C. lab'),
     },
+    closed: {
+      l: tr('Accès réservé aux membres du L.J.P.C. Terminez l’aventure « Connais ton ennemi » pour entrer.', 'Access reserved for L.J.P.C. members. Complete the “Know Your Enemy” adventure to enter.'),
+    },
     areas: [{ name: tr('Promenade', 'Promenade deck'), minX: 26, maxX: 30, minZ: 0, maxZ: 9 }],
     floors: { c: 'floor-panel', b: 'floor-detail', l: 'floor-panel' },
     // Le poste de pilotage et la Promenade sont vitrés sur l'espace.

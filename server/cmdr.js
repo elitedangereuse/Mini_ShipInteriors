@@ -36,9 +36,9 @@ export function cleanCmdrName(name) {
 
 /**
  * Demande au site quel CMDR porte ce cookie.
- * @returns {Promise<string | null>} nom visible du CMDR, ou null (invité, site injoignable)
+ * @returns {Promise<{name: string, ljpc: boolean} | null>} identité vérifiée, ou null (invité, site injoignable)
  */
-export async function cmdrFromCookie(cookieHeader, { url, timeoutMs = 3000, error = console.error } = {}) {
+export async function cmdrIdentityFromCookie(cookieHeader, { url, timeoutMs = 3000, error = console.error } = {}) {
   const value = cookieValue(cookieHeader)
   // Sans cookie, inutile d'interroger le site : c'est un invité. (En local, le site connecte
   // d'office tout visiteur : il répondrait un CMDR même pour une requête sans cookie.)
@@ -55,9 +55,15 @@ export async function cmdrFromCookie(cookieHeader, { url, timeoutMs = 3000, erro
       return null
     }
     const data = await res.json()
-    return cleanCmdrName(data?.cmdr)
+    const name = cleanCmdrName(data?.cmdr)
+    return name ? { name, ljpc: data?.ljpc === true } : null
   } catch (err) {
     error(`[relais] identité : site injoignable (${err?.message ?? err}), joueur traité en invité`)
     return null
   }
+}
+
+/** Ancien appelant : seul le nom visible lui est utile. */
+export async function cmdrFromCookie(cookieHeader, options) {
+  return (await cmdrIdentityFromCookie(cookieHeader, options))?.name ?? null
 }

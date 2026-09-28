@@ -14,7 +14,7 @@ import type { CabinEditor } from './cabin/editor'
 import { CabinBar, InviteMenu, InviteToasts, type CrewEntry } from './cabin/hud'
 import { normalizeLayout, sameLayout, serializeLayout, type CabinItem, type CabinLayout } from './cabin/layout'
 import { CabinStore, requestCabin, type SiteCabin } from './cabin/storage'
-import { devCmdr, fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
+import { devCmdr, devLjpc, fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
 import { ECONOMY, formatCredits, skinPrice, wingPrice } from './economy/data'
 import { CreditsHud } from './economy/hud'
 import { taskOf } from './economy/schedule'
@@ -30,6 +30,7 @@ import { Deck, type Interactable } from './deck'
 import { beatAt, beatPulse, film, filmGlow, holoMeGlow, holoTime, type ClawControl, type ClawResult } from './furniture'
 import { GamepadControls, type GamepadInput } from '../shared/gamepad.js'
 import { lineOfSight } from '../shared/sight.js'
+import { DIRS } from './map'
 import { EN, localizeAttributes, tr } from './i18n'
 import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, LIFT, SPAWN } from './levels'
 import { hydrateIcons, icon } from './icons'
@@ -100,6 +101,8 @@ store.set('skin', profile.skin)
 let linked = false
 /** Le relais a reconnu le CMDR : nom verrouillé, badge « vérifié ». */
 let verified = false
+/** Badge accordé à la fin de l'aventure L.J.P.C. ; l'accès reste fermé pendant sa vérification. */
+let ljpcMember = false
 
 // ------------------------------------------------------------------ rendu
 
@@ -153,7 +156,8 @@ bootProgress(0.94, tr('Identification du CMDR', 'Identifying CMDR'))
 const account = await within(accountRequest, 3000, null)
 if (account) {
   linked = true
-  profile.name = `CMDR ${account}`
+  profile.name = `CMDR ${account.name}`
+  ljpcMember = account.ljpc
 }
 /** Réponse du site sur les quartiers du CMDR, si elle est arrivée à temps (undefined : pas encore). */
 const siteCabin = account ? await within<SiteCabin | null | undefined>(cabinRequest, 3000, undefined) : undefined
@@ -161,11 +165,20 @@ const siteCabin = account ? await within<SiteCabin | null | undefined>(cabinRequ
  * Enregistrement des quartiers d'un CMDR : sur le site, ou dans ce navigateur s'il ne répond pas.
  * Tant que le site n'a pas répondu, on ne les aménage pas : on écraserait ceux qu'il garde.
  */
-let cabinStore = account ? new CabinStore(account) : null
+let cabinStore = account ? new CabinStore(account.name) : null
 
 const decks = LEVELS.map((def) => new Deck(def))
 for (const d of decks) scene.add(d.group)
 const deckById = (id: number) => decks.find((d) => d.def.id === id)!
+deckById(0).setLjpcAccess(ljpcMember)
+const ljpcEntrance = deckById(0).map.doors.find((door) => {
+  const d = DIRS[door.dir]
+  const map = deckById(0).map
+  return map.room(door.x, door.z) === 'l' || map.room(door.x + d.dx, door.z + d.dz) === 'l'
+})
+const ljpcDoorItem = ljpcEntrance && deckById(0).doorExamine(ljpcEntrance.x, ljpcEntrance.z, ljpcEntrance.dir)
+if (ljpcDoorItem) ljpcDoorItem.label = tr('Accès réservé', 'Restricted access')
+let ljpcNoticeShown = false
 const jacquesAt = deckById(-1).interactables.find((it) => it.furniture?.model === 'bartender')!.position
 
 // Les quartiers du commandant : la cabine du joueur, meublée selon son aménagement.
@@ -719,7 +732,7 @@ function ambience(dt: number) {
 // ------------------------------------------------------------------ réseau
 
 const remotes = new Map<number, RemotePlayer>()
-const net = new Net(profile, devCmdr())
+const net = new Net(profile, devCmdr(), devLjpc())
 const boardGames = new BoardGames({
   playerId: () => net.id,
   sendJoin: (game, table) => net.sendBoardJoin(game, table),
@@ -808,6 +821,8 @@ net.onMessage = (m) => {
       // Le relais fait autorité sur le nom (CMDR vérifié, ou invité homonyme d'un CMDR présent).
       profile.name = m.you.name
       verified = m.you.verified
+      ljpcMember = m.you.ljpc
+      deckById(0).setLjpcAccess(ljpcMember)
       // Reconnu par le site via le relais : le compte est lié, même si la demande faite au
       // chargement n'avait pas abouti.
       if (verified) {
@@ -1943,7 +1958,7 @@ const canvas = renderer.domElement
 function pick(e: PointerEvent): { tile: Tile | null; item: Interactable | null; point: THREE.Vector3 | null } {
   pointer.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1)
   raycaster.setFromCamera(pointer, iso.camera)
-  const hits = raycaster.intersectObjects(deck.interactables.map((i) => i.object), true)
+  const hits = raycaster.intersectObjects(deck.interactables.filter((i) => !hiddenLjpcItem(i)).map((i) => i.object), true)
   let item: Interactable | null = null
   if (hits.length) {
     item =
@@ -2127,6 +2142,7 @@ function nearestInteractable(): Interactable | null {
   let best: Interactable | null = null
   let bestD = INTERACT_RANGE
   for (const i of deck.interactables) {
+    if (hiddenLjpcItem(i)) continue
     const d = distanceTo(i)
     if (d < bestD && inSight(i)) {
       best = i
@@ -2134,6 +2150,11 @@ function nearestInteractable(): Interactable | null {
     }
   }
   return best
+}
+
+function hiddenLjpcItem(item: Interactable): boolean {
+  return !ljpcMember && deck.def.id === 0
+    && deck.map.room(Math.round(item.position.x), Math.round(item.position.z)) === 'l'
 }
 
 function tryInteract() {
@@ -2675,7 +2696,7 @@ function frame() {
 
   for (const r of remotes.values()) {
     r.update(world)
-    r.group.visible = sees(r)
+    r.group.visible = sees(r) && (ljpcMember || r.level !== 0 || deck.map.room(Math.round(r.group.position.x), Math.round(r.group.position.z)) !== 'l')
   }
   if (cometeHere) cat.update(world, catDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
   syncCompanions()
@@ -2798,6 +2819,16 @@ function frame() {
   }
   // La soirée bat sur le morceau entendu dans la pièce, sauf quand le mode photo fige l'instant.
   if (!photo.frozen && !deckMusic.syncTempo() && !holdMusic.syncTempo() && !cabinMusic.syncTempo()) syncTempo(null)
+
+  if (!ljpcMember && deck.def.id === 0 && ljpcEntrance && ljpcDoorItem) {
+    const direction = DIRS[ljpcEntrance.dir]
+    const distance = Math.hypot(player.position.x - ljpcEntrance.x - direction.dx * 0.5,
+      player.position.z - ljpcEntrance.z - direction.dz * 0.5)
+    if (distance < 1.5 && !ljpcNoticeShown) {
+      ljpcNoticeShown = true
+      showText(ljpcDoorItem.text)
+    } else if (distance > 2) ljpcNoticeShown = false
+  } else ljpcNoticeShown = false
 
   workStep(dt)
   dialog.update(dt)
