@@ -40,18 +40,19 @@ export const EMOTES: EmoteDef[] = [
 const INTERACT: EmoteDef = { id: 'interact', en: 'interact', icon: '', label: '', anims: ['interact-right'], mode: 'once' }
 
 /** Animations de repli quand un pack ne fournit pas un clip (les Blocky Characters n'ont pas « jump »). */
-const FALLBACK: Record<string, string> = { jump: 'emote-yes', crouch: 'sit' }
+const FALLBACK: Record<string, string> = { jump: 'emote-yes', crouch: 'sit', drive: 'sit' }
 
 /**
  * Pose tenue sur un meuble (cf. seats.ts) : ses animations, jouées en boucle, ou la dernière image
- * tenue (`hold`). `hip` : hauteur du bassin dans l'animation assise (le modèle descend d'autant,
- * le bassin se pose sur l'assise) ; `from` : part de la première animation sautée (la chute de
+ * tenue (`hold`). `seated` : le bassin se pose sur l'assise, à la hauteur mesurée sur
+ * l'animation de chaque modèle (comme « sit ») ; `hip` : sinon, de combien le modèle descend ; `from` : part de la première animation sautée (la chute de
  * « die » : on s'allonge sans tomber) ; `speed` : vitesse de lecture ; `motion` : petit
  * mouvement du modèle en plus (pédaler, dodeliner de la tête aux platines).
  */
 interface PoseDef {
   anims: string[]
   hold?: boolean
+  seated?: boolean
   hip?: number
   from?: number
   speed?: number
@@ -62,12 +63,12 @@ const POSES: Record<PoseId, PoseDef> = {
   sit: { anims: ['sit'], hold: true },
   // Couché, le corps descend jusqu'à 6 cm sous l'origine (et la tête, 12 cm) : on le remonte.
   lie: { anims: ['die'], hold: true, from: 0.55, hip: -0.07 },
-  pilot: { anims: ['drive'], hold: true, hip: 0.2 },
+  pilot: { anims: ['drive'], hold: true, seated: true },
   arcade: { anims: ['interact-right', 'interact-left'], speed: 1.5 },
   claw: { anims: ['interact-right', 'idle'], speed: 0.8 },
   punch: { anims: ['attack-melee-right', 'attack-melee-left'], speed: 1.1 },
   run: { anims: ['sprint'], speed: 0.85 },
-  pedal: { anims: ['drive'], hold: true, hip: 0.2, motion: 'pedal' },
+  pedal: { anims: ['drive'], hold: true, seated: true, motion: 'pedal' },
   mix: { anims: ['interact-left', 'interact-right'], speed: 0.9, motion: 'mix' },
 }
 
@@ -119,6 +120,8 @@ export class Avatar {
   private height: number
   /** Dessous de l'assise et point le plus bas de « sit », après mise à l'échelle du modèle. */
   private sitting = { seat: 0, ground: 0 }
+  /** Même mesure, sur l'animation des commandes (« drive » : pilote, vélo). */
+  private driving = { seat: 0, ground: 0 }
   /** Garde le contact avec le sol pendant l'emote assise et son relevé. */
   private groundSit = 0
   private readonly groundBounds = new THREE.Box3()
@@ -149,17 +152,18 @@ export class Avatar {
       }
       this.actions.set(clip.name, a)
     }
-    this.sitting = this.measureSitting()
+    this.sitting = this.measureSitting('sit')
+    this.driving = this.measureSitting(this.actions.has('drive') ? 'drive' : FALLBACK.drive)
     this.armRight = this.model.getObjectByName('arm-right') ?? null
     this.fadeTo('idle', 0)
   }
 
   /**
-   * « sit » abaisse déjà le squelette. Les Mini et les Blocky n'ont ni les mêmes unités,
-   * ni la même hauteur de bassin : on mesure la pose, au lieu de la descendre à nouveau.
+   * « sit » et « drive » abaissent déjà le squelette. Les Mini et les Blocky n'ont ni les mêmes
+   * unités, ni la même hauteur de bassin : on mesure la pose, au lieu de la descendre à nouveau.
    */
-  private measureSitting(): { seat: number; ground: number } {
-    const action = this.actions.get('sit')
+  private measureSitting(clip: string): { seat: number; ground: number } {
+    const action = this.actions.get(clip)
     if (!action) return { seat: 0, ground: 0 }
     action.reset().play()
     this.mixer.update(action.getClip().duration)
@@ -287,7 +291,7 @@ export class Avatar {
         this.poseStep++
         this.startPoseStep()
       }
-      sink = this.posed === 'sit' ? this.sitting.seat : p.hip ?? 0
+      sink = this.posed === 'sit' ? this.sitting.seat : p.seated ? this.driving.seat : p.hip ?? 0
       if (p.motion === 'pedal') hop = Math.abs(Math.sin(this.poseTime * 6)) * 0.018
       if (p.motion === 'mix') sway = Math.sin(beatNow() * Math.PI) * 0.18
     } else if (this.emote?.id === 'danse') {
