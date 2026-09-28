@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { tr } from './i18n'
 import { icon } from './icons'
 import { CINEMA_SCREEN, setProjection } from './furniture/cinema'
-import type { CinemaState, CinemaTrailer } from './net'
+import type { CinemaState, CinemaTrailer, CinemaVideo } from './net'
 
 const ENDPOINT = '/outils/mini-shipinteriors-cinema.php'
 
@@ -66,7 +66,17 @@ export class CinemaRoom {
   private shell = document.createElement('div')
   private title = document.createElement('h2')
   private status = document.createElement('p')
+  private selector = document.createElement('div')
+  private tabs = document.createElement('div')
+  private trailersTab = document.createElement('button')
+  private youtubeTab = document.createElement('button')
   private cards = document.createElement('div')
+  private searchPanel = document.createElement('div')
+  private searchForm = document.createElement('form')
+  private searchInput = document.createElement('input')
+  private searchButton = document.createElement('button')
+  private searchStatus = document.createElement('p')
+  private searchResults = document.createElement('div')
   private stage = document.createElement('div')
   private frame = document.createElement('iframe')
   private soundButton = document.createElement('button')
@@ -84,11 +94,16 @@ export class CinemaRoom {
   private controller = false
   private playing = ''
   private catalogKey = ''
-  private state: CinemaState = { trailers: [], live: false, liveTitle: '', selected: null, since: 0, operator: null, now: Date.now() }
+  private tab: 'trailers' | 'youtube' = 'trailers'
+  private searchSerial = 0
+  private searching = false
+  private state: CinemaState = { trailers: [], live: false, liveTitle: '', selected: null, youtube: null, since: 0, operator: null, now: Date.now() }
   private receivedAt = performance.now()
 
   constructor(
-    private network: { online: () => boolean; self: () => number; choose: (id: number | null) => void; duration: (id: number, since: number, duration: number) => void },
+    private network: { online: () => boolean; self: () => number; choose: (id: number | null) => void;
+      search: (query: string) => Promise<{ videos: CinemaVideo[]; reason?: string }>; video: (id: string) => void;
+      duration: (id: number | string, since: number, duration: number) => void },
   ) {
     this.root.className = 'cinema-room-overlay'
     this.root.hidden = true
@@ -107,12 +122,41 @@ export class CinemaRoom {
     header.append(heading, this.closeButton)
     const body = document.createElement('div')
     body.className = 'cinema-room-body'
+    this.selector.className = 'cinema-room-selector'
+    this.tabs.className = 'cinema-room-tabs'
+    this.trailersTab.type = 'button'
+    this.trailersTab.textContent = tr('Trailers', 'Trailers')
+    this.trailersTab.onclick = () => { this.tab = 'trailers'; this.renderControls() }
+    this.youtubeTab.type = 'button'
+    this.youtubeTab.textContent = 'YouTube'
+    this.youtubeTab.onclick = () => { this.tab = 'youtube'; this.renderControls() }
+    this.tabs.append(this.trailersTab, this.youtubeTab)
     this.cards.className = 'cinema-room-cards'
+    this.searchPanel.className = 'cinema-room-search'
+    this.searchForm.className = 'cinema-room-search-form'
+    this.searchInput.type = 'search'
+    this.searchInput.maxLength = 500
+    this.searchInput.minLength = 2
+    this.searchInput.placeholder = tr('Recherche ou lien YouTube…', 'Search or YouTube link…')
+    this.searchInput.setAttribute('aria-label', tr('Recherche ou lien YouTube', 'Search or YouTube link'))
+    this.searchButton.type = 'submit'
+    this.searchButton.textContent = tr('Chercher', 'Search')
+    this.searchForm.onsubmit = (event) => { event.preventDefault(); void this.search() }
+    this.searchForm.append(this.searchInput, this.searchButton)
+    this.searchStatus.className = 'cinema-room-search-status'
+    this.searchResults.className = 'cinema-room-search-results'
+    const stopSearch = document.createElement('button')
+    stopSearch.type = 'button'
+    stopSearch.className = 'cinema-room-card cinema-room-stop'
+    stopSearch.textContent = tr('Arrêter la projection', 'Stop screening')
+    stopSearch.onclick = () => this.choose(null)
+    this.searchPanel.append(this.searchForm, this.searchStatus, stopSearch, this.searchResults)
     this.stage.className = 'cinema-room-stage'
     this.frame.title = tr('Projection commune', 'Shared screening')
     this.frame.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture; encrypted-media')
     this.frame.setAttribute('allowfullscreen', '')
-    body.append(this.cards)
+    this.selector.append(this.tabs, this.cards, this.searchPanel)
+    body.append(this.selector)
     this.shell.append(header, body)
     this.root.append(this.shell)
     this.stage.setAttribute('aria-label', tr('Écran du cinéma', 'Cinema screen'))
@@ -160,9 +204,9 @@ export class CinemaRoom {
   receive(state: CinemaState) {
     this.state = state
     this.receivedAt = performance.now()
-    const current = state.trailers.find((t) => t.id === state.selected)
+    const current = state.youtube ?? state.trailers.find((t) => t.id === state.selected)
     setProjection(state.live ? 'twitch' : current ? 'trailer' : null,
-      state.live ? (state.liveTitle || 'Élite Dangereuse') : current?.title ?? '', current?.image ?? '')
+      state.live ? (state.liveTitle || 'Élite Dangereuse') : current?.title ?? '', state.youtube ? '' : current?.image ?? '')
     this.renderScreen()
     if (this.isOpen) this.renderControls()
   }
@@ -189,20 +233,63 @@ export class CinemaRoom {
       if (data.status !== 'success' || !Array.isArray(data.trailers)) return
       const live = data.live === true
       this.receive({ ...this.state, trailers: data.trailers, live, liveTitle: data.liveTitle ?? '',
-        selected: live ? null : this.state.selected, operator: this.controller ? this.network.self() : null, now: Date.now() })
+        selected: live ? null : this.state.selected, youtube: live ? null : this.state.youtube,
+        operator: this.controller ? this.network.self() : null, now: Date.now() })
     } catch { /* Le faux film reste disponible sans le site. */ }
   }
 
   private choose(id: number | null) {
     if (!this.controller || this.state.live) return
     if (this.network.online()) this.network.choose(id)
-    else this.receive({ ...this.state, selected: id, since: id === null ? 0 : Date.now(), now: Date.now() })
+    else this.receive({ ...this.state, selected: id, youtube: null, since: id === null ? 0 : Date.now(), now: Date.now() })
+  }
+
+  private async search() {
+    if (!this.controller || this.state.live || !this.network.online()) return
+    const query = this.searchInput.value.trim()
+    if (query.length < 2) return
+    const serial = ++this.searchSerial
+    this.searching = true
+    this.searchButton.disabled = true
+    this.searchStatus.textContent = tr('Recherche en cours…', 'Searching…')
+    const result = await this.network.search(query)
+    if (serial !== this.searchSerial) return
+    this.searching = false
+    this.searchButton.disabled = false
+    this.searchResults.replaceChildren(...result.videos.map((video) => this.videoCard(video)))
+    this.searchStatus.textContent = result.reason === 'seat'
+      ? tr('Installez-vous dans le fauteuil de régie.', 'Sit in the projection chair.')
+      : result.reason === 'live' ? tr('Le direct Twitch est prioritaire.', 'Twitch live takes priority.')
+      : result.reason === 'busy' ? tr('Patientez avant une nouvelle recherche.', 'Wait before searching again.')
+      : result.reason ? tr('Recherche indisponible. Vous pouvez coller un lien YouTube.', 'Search unavailable. You can paste a YouTube link.')
+      : result.videos.length ? tr('Choisissez une vidéo à diffuser.', 'Choose a video to screen.')
+      : tr('Aucune vidéo trouvée.', 'No videos found.')
+    this.renderControls()
+  }
+
+  private videoCard(video: CinemaVideo): HTMLButtonElement {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'cinema-room-card'
+    button.dataset.video = video.video
+    const image = document.createElement('img')
+    image.src = video.image
+    image.alt = ''
+    image.loading = 'lazy'
+    const title = document.createElement('strong')
+    title.textContent = video.title
+    button.append(image, title)
+    button.onclick = () => {
+      if (this.network.online() && !this.state.live && this.state.operator === this.network.self()) this.network.video(video.video)
+    }
+    return button
   }
 
   error(reason: string) {
     this.status.textContent = reason === 'live'
-      ? tr('Le direct Twitch a commencé : les trailers sont suspendus.', 'Twitch is live: trailers are paused.')
+      ? tr('Le direct Twitch a commencé : les vidéos sont suspendues.', 'Twitch is live: videos are paused.')
       : reason === 'busy' ? tr('Un instant entre deux changements de séance.', 'Wait a moment between screenings.')
+      : reason === 'invalid' ? tr('Cette vidéo n’est plus disponible dans la recherche. Relancez-la.', 'This video is no longer in the search results. Search again.')
       : tr('Installez-vous dans le fauteuil de régie pour choisir.', 'Sit in the projection chair to choose.')
   }
 
@@ -221,7 +308,7 @@ export class CinemaRoom {
     }
     for (const button of this.cards.querySelectorAll<HTMLButtonElement>('.cinema-room-card')) {
       button.disabled = this.state.live || (this.network.online() && this.state.operator !== this.network.self())
-      button.setAttribute('aria-pressed', (button.dataset.id ? Number(button.dataset.id) === this.state.selected : this.state.selected === null) ? 'true' : 'false')
+      button.setAttribute('aria-pressed', (button.dataset.id ? Number(button.dataset.id) === this.state.selected : this.state.selected === null && !this.state.youtube) ? 'true' : 'false')
     }
   }
 
@@ -243,18 +330,31 @@ export class CinemaRoom {
 
   private renderControls() {
     this.shell.classList.toggle('cinema-room-control', this.controller)
-    this.cards.hidden = !this.controller || this.state.live
+    this.selector.hidden = !this.controller || this.state.live
+    this.cards.hidden = this.tab !== 'trailers'
+    this.searchPanel.hidden = this.tab !== 'youtube'
+    this.trailersTab.setAttribute('aria-selected', String(this.tab === 'trailers'))
+    this.youtubeTab.setAttribute('aria-selected', String(this.tab === 'youtube'))
     if (this.controller) this.renderCards()
-    const current = this.state.trailers.find((t) => t.id === this.state.selected)
+    const canChoose = this.network.online() && this.state.operator === this.network.self() && !this.state.live
+    this.searchInput.disabled = !canChoose
+    this.searchButton.disabled = !canChoose || this.searching
+    this.searchPanel.querySelector<HTMLButtonElement>('.cinema-room-stop')!.disabled = this.state.live || (this.network.online() && !canChoose)
+    for (const button of this.searchResults.querySelectorAll<HTMLButtonElement>('.cinema-room-card')) {
+      button.disabled = !canChoose
+      button.setAttribute('aria-pressed', String(button.dataset.video === this.state.youtube?.video))
+    }
+    if (!this.network.online() && this.tab === 'youtube') this.searchStatus.textContent = tr('La recherche demande une connexion au relais.', 'Search requires a relay connection.')
+    const current = this.state.youtube ?? this.state.trailers.find((t) => t.id === this.state.selected)
     this.title.textContent = this.controller ? tr('Régie de projection', 'Projection booth') : tr('Séance en cours', 'Now showing')
     this.status.textContent = this.state.live
-      ? tr('🔴 Direct Twitch · la sélection des trailers est suspendue.', '🔴 Twitch live · trailer selection is paused.')
+      ? tr('🔴 Direct Twitch · la sélection des vidéos est suspendue.', '🔴 Twitch live · video selection is paused.')
       : current ? current.title : tr('La salle attend une séance.', 'Waiting for a screening.')
   }
 
   private renderScreen() {
-    const current = this.state.trailers.find((t) => t.id === this.state.selected)
-    const key = this.state.live ? 'twitch' : current ? `trailer:${current.id}:${this.state.since}` : 'none'
+    const current = this.state.youtube ?? this.state.trailers.find((t) => t.id === this.state.selected)
+    const key = this.state.live ? 'twitch' : current ? `youtube:${current.video}:${this.state.since}` : 'none'
     if (key === this.playing) return
     this.playing = key
     this.playerToken++
@@ -312,7 +412,7 @@ export class CinemaRoom {
               target.mute()
               target.pauseVideo()
             }
-          }, onStateChange: ({ data }) => { if (data === 0) this.finishTrailer() } },
+          }, onStateChange: ({ data }) => { if (data === 0) this.finishVideo() } },
         })
       }).catch(() => {
         if (token !== this.playerToken) return
@@ -344,7 +444,7 @@ export class CinemaRoom {
           }
           else if (this.frame.isConnected) this.frame.src = this.twitchSource()
         } else if (this.frame.isConnected) {
-          const current = this.state.trailers.find((t) => t.id === this.state.selected)
+          const current = this.state.youtube ?? this.state.trailers.find((t) => t.id === this.state.selected)
           if (current) this.frame.src = this.youtubeSource(current.video)
         }
         this.syncYouTube(true)
@@ -362,7 +462,7 @@ export class CinemaRoom {
       this.applySound()
       // Le lecteur simple de secours n'a pas d'API de volume : le recharger muet en sortant.
       if (!inCinemaRoom && onCinemaDeck && this.frame.isConnected) {
-        const current = this.state.trailers.find((t) => t.id === this.state.selected)
+        const current = this.state.youtube ?? this.state.trailers.find((t) => t.id === this.state.selected)
         this.frame.src = this.state.live ? this.twitchSource() : current ? this.youtubeSource(current.video) : ''
       }
     }
@@ -400,13 +500,13 @@ export class CinemaRoom {
 
   private syncYouTube(force = false) {
     const player = this.youtubePlayer
-    if (!player || !this.onCinemaDeck || this.state.live || this.state.selected === null) return
+    if (!player || !this.onCinemaDeck || this.state.live || (this.state.selected === null && !this.state.youtube)) return
     try {
       const elapsed = Math.max(0, (this.state.now - this.state.since + performance.now() - this.receivedAt) / 1000)
       const duration = player.getDuration()
       this.reportTrailerDuration(duration)
       if (duration > 0 && elapsed >= duration) {
-        this.finishTrailer()
+        this.finishVideo()
         return
       }
       const target = elapsed
@@ -416,16 +516,17 @@ export class CinemaRoom {
   }
 
   private reportTrailerDuration(duration: number) {
-    const { selected, since } = this.state
-    if (!this.network.online() || !this.onCinemaDeck || selected === null || !Number.isFinite(duration) || duration < 5) return
-    this.network.duration(selected, since, duration)
+    const { selected, youtube, since } = this.state
+    const id = youtube?.video ?? selected
+    if (!this.network.online() || !this.onCinemaDeck || id === null || !Number.isFinite(duration) || duration < 1) return
+    this.network.duration(id, since, duration)
   }
 
-  private finishTrailer() {
-    if (this.state.selected === null || this.state.live) return
+  private finishVideo() {
+    if ((this.state.selected === null && !this.state.youtube) || this.state.live) return
     this.youtubePlayer?.pauseVideo()
     if (this.network.online()) this.reportTrailerDuration(this.youtubePlayer?.getDuration() ?? 0)
-    else this.receive({ ...this.state, selected: null, since: 0, now: Date.now() })
+    else this.receive({ ...this.state, selected: null, youtube: null, since: 0, now: Date.now() })
   }
 
   close() {

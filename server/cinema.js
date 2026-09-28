@@ -8,24 +8,43 @@ export function cinemaOperator(players) {
 }
 
 const videoId = (s) => typeof s === 'string' && /^[A-Za-z0-9_-]{11}$/.test(s)
+function youtubeLinkId(value) {
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
+    const host = url.hostname.toLowerCase()
+    let id = null
+    if (host === 'youtu.be' || host === 'www.youtu.be') id = url.pathname.split('/')[1]
+    else if (['youtube.com', 'www.youtube.com', 'm.youtube.com'].includes(host)) {
+      const parts = url.pathname.split('/').filter(Boolean)
+      id = parts[0] === 'watch' ? url.searchParams.get('v') : ['shorts', 'live', 'embed'].includes(parts[0]) ? parts[1] : null
+    }
+    return videoId(id) ? id : null
+  } catch { return null }
+}
 
-export function createCinema({ cmdrUrl, players, emit, error = console.error, now = Date.now, schedule = setTimeout, cancel = clearTimeout }) {
+export function createCinema({ cmdrUrl, players, emit, error = console.error, now = Date.now, schedule = setTimeout, cancel = clearTimeout,
+  youtubeKey = process.env.YOUTUBE_API_KEY ?? '', fetcher = fetch }) {
   let trailers = []
   let live = false
   let liveTitle = ''
   let selected = null
+  let youtube = null
   let since = 0
   let lastCheck = 0
   let checking = null
   let lastOperator = null
   let endTimer = null
+  const foundVideos = new Map()
+  const searchCache = new Map()
 
-  const snapshot = () => ({ trailers, live, liveTitle, selected, since, operator: cinemaOperator(players()), now: now() })
+  const snapshot = () => ({ trailers, live, liveTitle, selected, youtube, since, operator: cinemaOperator(players()), now: now() })
   const broadcast = () => emit('cinema:state', snapshot())
   const clearSelection = () => {
     if (endTimer !== null) cancel(endTimer)
     endTimer = null
     selected = null
+    youtube = null
     since = 0
   }
 
@@ -70,12 +89,64 @@ export function createCinema({ cmdrUrl, players, emit, error = console.error, no
     return null
   }
 
+  /** La clé ne quitte jamais le relais ; seuls les résultats vidéo intégrables sont proposés. */
+  const search = async (player, query) => {
+    await refresh()
+    if (live) return { reason: 'live', videos: [] }
+    if (cinemaOperator(players()) !== player.id) return { reason: 'seat', videos: [] }
+    if (typeof query !== 'string' || query.trim().length < 2 || query.length > 500) return { reason: 'invalid', videos: [] }
+    const linked = youtubeLinkId(query.trim())
+    if (linked) {
+      const video = { video: linked, title: 'YouTube', image: `https://i.ytimg.com/vi/${linked}/mqdefault.jpg` }
+      foundVideos.set(linked, { ...video, foundAt: now() })
+      return { videos: [video] }
+    }
+    if (query.length > 100) return { reason: 'invalid', videos: [] }
+    if (!youtubeKey) return { reason: 'unavailable', videos: [] }
+    const normalized = query.trim().toLocaleLowerCase()
+    const cached = searchCache.get(normalized)
+    if (cached && now() - cached.at < 300000) return { videos: cached.videos }
+    try {
+      const url = new URL('https://www.googleapis.com/youtube/v3/search')
+      for (const [key, value] of Object.entries({ part: 'snippet', type: 'video', videoEmbeddable: 'true', videoSyndicated: 'true',
+        maxResults: '12', q: query.trim(), key: youtubeKey })) url.searchParams.set(key, value)
+      const response = await fetcher(url, { signal: AbortSignal.timeout(6000), redirect: 'error' })
+      if (!response.ok) throw new Error(`YouTube HTTP ${response.status}`)
+      const data = await response.json()
+      const videos = (Array.isArray(data.items) ? data.items : []).filter((item) => videoId(item?.id?.videoId)
+        && typeof item?.snippet?.title === 'string' && item.snippet.liveBroadcastContent !== 'live')
+        .map((item) => ({ video: item.id.videoId, title: item.snippet.title.slice(0, 120),
+          image: `https://i.ytimg.com/vi/${item.id.videoId}/mqdefault.jpg` }))
+      for (const video of videos) foundVideos.set(video.video, { ...video, foundAt: now() })
+      for (const [id, video] of foundVideos) if (now() - video.foundAt > 600000) foundVideos.delete(id)
+      searchCache.set(normalized, { at: now(), videos })
+      for (const [key, value] of searchCache) if (now() - value.at > 300000) searchCache.delete(key)
+      return { videos }
+    } catch (e) {
+      error(`[cinéma] recherche YouTube indisponible : ${e?.message ?? e}`)
+      return { reason: 'unavailable', videos: [] }
+    }
+  }
+
+  const chooseVideo = async (player, id) => {
+    await refresh()
+    if (live) return 'live'
+    if (cinemaOperator(players()) !== player.id) return 'seat'
+    const video = foundVideos.get(id)
+    if (!video || now() - video.foundAt > 600000) return 'invalid'
+    clearSelection()
+    youtube = { video: video.video, title: video.title, image: video.image }
+    since = now()
+    broadcast()
+    return null
+  }
+
   /** La durée réelle vient du lecteur YouTube ; le relais arrête la séance pour tout le bord. */
   const reportDuration = (id, started, duration) => {
-    if (live || selected === null || id !== selected || started !== since || endTimer !== null
-      || !Number.isFinite(duration) || duration < 5 || duration > 3600) return false
+    if (live || (selected === null && youtube === null) || id !== (youtube?.video ?? selected) || started !== since || endTimer !== null
+      || !Number.isFinite(duration) || duration < 1 || duration > 43200) return false
     endTimer = schedule(() => {
-      if (selected !== id || since !== started || live) return
+      if ((youtube?.video ?? selected) !== id || since !== started || live) return
       clearSelection()
       broadcast()
     }, Math.max(0, started + Math.ceil(duration * 1000) - now()))
@@ -92,5 +163,6 @@ export function createCinema({ cmdrUrl, players, emit, error = console.error, no
 
   const timer = setInterval(() => { if (players().length) void refresh(true) }, 30000)
   timer.unref?.()
-  return { snapshot, refresh, choose, reportDuration, operatorChanged, dispose: () => { clearInterval(timer); if (endTimer !== null) cancel(endTimer) } }
+  return { snapshot, refresh, choose, search, chooseVideo, reportDuration, operatorChanged,
+    dispose: () => { clearInterval(timer); if (endTimer !== null) cancel(endTimer) } }
 }

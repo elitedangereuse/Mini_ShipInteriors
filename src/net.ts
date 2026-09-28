@@ -39,11 +39,13 @@ export interface MusicState {
 }
 
 export interface CinemaTrailer { id: number; title: string; image: string; video: string }
+export interface CinemaVideo { video: string; title: string; image: string }
 export interface CinemaState {
   trailers: CinemaTrailer[]
   live: boolean
   liveTitle: string
   selected: number | null
+  youtube: CinemaVideo | null
   since: number
   operator: number | null
   now: number
@@ -115,7 +117,7 @@ export type ServerMessage =
   | ({ t: 'fight:state' } & FightState)
   | { t: 'fight:error'; code: 'full' | 'unavailable' | 'busy' }
   | ({ t: 'cinema:state' } & CinemaState)
-  | { t: 'cinema:error'; reason: 'live' | 'seat' | 'invalid' | 'busy' }
+  | { t: 'cinema:error'; reason: 'live' | 'seat' | 'invalid' | 'busy' | 'unavailable' }
   | { t: 'board:error'; game: string; table: string; code: 'full' | 'invalid' | 'busy' | 'unavailable' | 'far' }
 
 /**
@@ -227,7 +229,20 @@ export class Net {
     this.send('cinema:choose', { id })
   }
 
-  sendCinemaDuration(id: number, since: number, duration: number) {
+  sendCinemaVideo(video: string) {
+    this.send('cinema:video', { video })
+  }
+
+  async searchCinema(query: string): Promise<{ videos: CinemaVideo[]; reason?: string }> {
+    if (!this.online || !this.socket?.connected) return { videos: [], reason: 'unavailable' }
+    try {
+      return await this.socket.timeout(8500).emitWithAck('cinema:search', { query }) as { videos: CinemaVideo[]; reason?: string }
+    } catch {
+      return { videos: [], reason: 'unavailable' }
+    }
+  }
+
+  sendCinemaDuration(id: number | string, since: number, duration: number) {
     this.send('cinema:duration', { id, since, duration })
   }
 

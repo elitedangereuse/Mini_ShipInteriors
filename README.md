@@ -511,6 +511,7 @@ Le relais : `npm ci --omit=dev && npm start`, avec ces variables :
 | Variable | Rôle |
 |---|---|
 | `ED_CMDR_URL` | endpoint du site, par son **adresse publique** : `https://elitedangereuse.fr/outils/mini-shipinteriors-cmdr.php`. Sur `localhost` ou `127.0.0.1`, le site se croit en local et connecte d'office tout visiteur avec le CMDR de dev : avec `NODE_ENV=production`, le relais refuse alors de démarrer. Les redirections ne sont pas suivies (le cookie ne doit pas partir ailleurs) |
+| `YOUTUBE_API_KEY` | clé YouTube Data API v3 du **relais** pour la recherche par mots dans la régie du cinéma. Elle reste côté serveur. Sans clé, on peut toujours coller un lien YouTube et le projeter, en plus des trailers et du direct Twitch. L'API Google doit être activée pour le projet de cette clé. |
 | `PORT`, `BIND_HOST` | écoute du relais (8080 et toutes les interfaces par défaut ; en prod, `127.0.0.1` derrière nginx) |
 | `LOG_LABEL` | étiquette ajoutée à chaque ligne de log, horodatée (ex. `prod`, `preprod`). Les erreurs (site injoignable, plantage) vont sur la sortie d'erreur, le reste (arrivées, départs) sur la sortie standard |
 | `WS_PATH` | chemin de la socket (défaut `/ws/mini-shipinteriors`). S'il change, rebâtir le client avec `VITE_WS_PATH` et adapter nginx |

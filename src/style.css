@@ -3016,8 +3016,20 @@ body.photo #bubbles .gain-pop {
 .cinema-room-header p { margin: 0; color: #d7c7b4; font-size: 12px; }
 .cinema-room-header button { align-self: flex-start; padding: 8px 12px; border: 1px solid #b9915c; border-radius: 9px; color: #fff0dd; background: #684437; cursor: pointer; }
 .cinema-room-body { display: flex; flex: 1; min-height: 0; }
-.cinema-room-cards { display: none; width: 100%; min-width: 0; overflow: auto; padding: 12px; background: #101b29; }
+.cinema-room-selector { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; background: #101b29; }
+.cinema-room-selector[hidden], .cinema-room-cards[hidden], .cinema-room-search[hidden] { display: none !important; }
+.cinema-room-tabs { display: flex; gap: 6px; padding: 10px 12px 0; }
+.cinema-room-tabs button { flex: 1; padding: 9px 5px; border: 1px solid #ffffff36; border-radius: 8px 8px 0 0; background: #253443; color: #e6d4bd; cursor: pointer; }
+.cinema-room-tabs button[aria-selected=true] { border-color: #e5ac68; border-bottom-color: #101b29; color: #ffe6c2; background: #101b29; }
+.cinema-room-cards { display: none; flex: 1; width: 100%; min-width: 0; min-height: 0; overflow: auto; padding: 12px; background: #101b29; }
 .cinema-room-control .cinema-room-cards:not([hidden]) { display: grid; align-content: start; gap: 10px; }
+.cinema-room-search { display: flex; flex: 1; min-height: 0; flex-direction: column; padding: 12px; }
+.cinema-room-search-form { display: flex; gap: 6px; }
+.cinema-room-search-form input { min-width: 0; flex: 1; padding: 9px; border: 1px solid #ad8d6b; border-radius: 8px; background: #0b1420; color: #fff3e4; }
+.cinema-room-search-form button { padding: 9px; border: 1px solid #e5ac68; border-radius: 8px; background: #684437; color: #fff3e4; cursor: pointer; }
+.cinema-room-search-form button:disabled { opacity: .55; cursor: default; }
+.cinema-room-search-status { margin: 10px 2px; color: #dbc7ad; font-size: 12px; }
+.cinema-room-search-results { display: grid; flex: 1; align-content: start; gap: 10px; min-height: 0; overflow: auto; }
 .cinema-room-card { display: block; width: 100%; padding: 7px; text-align: left; border: 1px solid #ffffff32; border-radius: 10px; background: #263443; color: #f8eddd; cursor: pointer; }
 .cinema-room-card:hover { border-color: #ffc483; background: #354959; }
 .cinema-room-card[aria-pressed=true] { border-color: #f6b366; box-shadow: 0 0 0 1px #f6b366; }

@@ -66,3 +66,71 @@ test('la régie choisit la séance commune, qui s’arrête pour tous à la fin 
     site.close()
   }
 })
+
+test('la régie cherche une vidéo YouTube et la diffuse à tous, sauf pendant un direct Twitch', async () => {
+  let payload = { status: 'success', trailers: [trailer], live: false, liveTitle: '' }
+  const site = createServer((_req, res) => { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(payload)) })
+  site.listen(0, '127.0.0.1')
+  await once(site, 'listening')
+  const audience = { id: 1, level: 1, x: 24, z: 5, pose: 'sit' }
+  const operator = { id: 2, ...PROJECTION_SEAT, pose: 'sit' }
+  const sent = []
+  let clock = Date.now()
+  let scheduled = null
+  let searches = 0
+  const youtube = { video: 'dQw4w9WgXcQ', title: 'Une vidéo quelconque', image: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg' }
+  const cinema = createCinema({ cmdrUrl: `http://127.0.0.1:${site.address().port}`, players: () => [audience, operator],
+    emit: (_name, state) => sent.push(state), error: () => {}, now: () => clock, youtubeKey: 'test-secret',
+    fetcher: async (url) => {
+      searches++
+      assert.equal(url.searchParams.get('key'), 'test-secret')
+      assert.equal(url.searchParams.get('videoEmbeddable'), 'true')
+      return { ok: true, json: async () => ({ items: [
+        { id: { videoId: youtube.video }, snippet: { title: youtube.title, liveBroadcastContent: 'none' } },
+        { id: { videoId: 'invalid' }, snippet: { title: 'Invalid' } },
+      ] }) }
+    },
+    schedule: (fn, ms) => { scheduled = { fn, ms, unref() {} }; return scheduled },
+    cancel: (timer) => { if (scheduled === timer) scheduled = null },
+  })
+  try {
+    assert.equal((await cinema.search(audience, 'quelconque')).reason, 'seat')
+    assert.equal((await cinema.search(operator, 'quelconque')).videos[0].video, youtube.video)
+    assert.equal((await cinema.search(operator, 'quelconque')).videos.length, 1)
+    assert.equal(searches, 1, 'une même recherche utilise le cache')
+    assert.equal(await cinema.chooseVideo(audience, youtube.video), 'seat')
+    assert.equal(await cinema.chooseVideo(operator, 'abcdefghijk'), 'invalid')
+    assert.equal(await cinema.chooseVideo(operator, youtube.video), null)
+    const state = cinema.snapshot()
+    assert.deepEqual(state.youtube, youtube)
+    assert.equal(state.selected, null)
+    assert.deepEqual(sent.at(-1).youtube, youtube)
+    assert.equal(cinema.reportDuration(youtube.video, state.since, 5400), true)
+    assert.equal(scheduled.ms, 5400000)
+    clock += 5400000
+    scheduled.fn()
+    assert.equal(cinema.snapshot().youtube, null)
+    assert.equal(cinema.snapshot().since, 0)
+    payload = { ...payload, live: true }
+    await cinema.refresh(true)
+    assert.equal((await cinema.search(operator, 'quelconque')).reason, 'live')
+    assert.equal(await cinema.chooseVideo(operator, youtube.video), 'live')
+  } finally {
+    cinema.dispose()
+    site.closeAllConnections()
+    site.close()
+  }
+})
+
+test('sans clé API, un lien YouTube peut tout de même être projeté', async () => {
+  const operator = { id: 3, ...PROJECTION_SEAT, pose: 'sit' }
+  const cinema = createCinema({ cmdrUrl: '', players: () => [operator], emit: () => {}, error: () => {}, youtubeKey: '' })
+  try {
+    assert.equal((await cinema.search(operator, 'exploration spatiale')).reason, 'unavailable')
+    assert.equal((await cinema.search(operator, 'https://youtube.com.evil.example/watch?v=dQw4w9WgXcQ')).reason, 'unavailable')
+    const found = await cinema.search(operator, 'https://youtu.be/dQw4w9WgXcQ?t=4')
+    assert.equal(found.videos[0].video, 'dQw4w9WgXcQ')
+    assert.equal(await cinema.chooseVideo(operator, found.videos[0].video), null)
+    assert.equal(cinema.snapshot().youtube.video, 'dQw4w9WgXcQ')
+  } finally { cinema.dispose() }
+})

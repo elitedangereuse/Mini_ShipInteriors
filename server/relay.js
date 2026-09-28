@@ -116,7 +116,8 @@ function sameOrigin(req) {
  */
 export function attachRelay(
   httpServer,
-  { log = console.log, error = console.error, cmdrUrl = process.env.ED_CMDR_URL ?? '', path = process.env.WS_PATH || WS_PATH, devCmdr = false } = {},
+  { log = console.log, error = console.error, cmdrUrl = process.env.ED_CMDR_URL ?? '', path = process.env.WS_PATH || WS_PATH,
+    devCmdr = false, youtubeKey = process.env.YOUTUBE_API_KEY ?? '', youtubeFetch = fetch } = {},
 ) {
   if (!cmdrUrl) error('[relais] ED_CMDR_URL absent : les comptes Élite Dangereuse ne peuvent pas être reconnus (tout le monde est invité).')
   const io = new Server(httpServer, {
@@ -128,7 +129,8 @@ export function attachRelay(
   })
   const players = new Map() // socket.id -> joueur
   const sockets = new Map() // id du joueur -> socket
-  const cinema = createCinema({ cmdrUrl, players: () => [...players.values()], emit: (event, state) => io.emit(event, state), error })
+  const cinema = createCinema({ cmdrUrl, players: () => [...players.values()], emit: (event, state) => io.emit(event, state), error,
+    youtubeKey, fetcher: youtubeFetch })
   httpServer.on('close', () => cinema.dispose())
   const boards = new Map() // table -> partie de plateau
   let nextId = 1
@@ -253,6 +255,7 @@ export function attachRelay(
     let cabinBudget = 10
     let musicBudget = 3
     let cinemaBudget = 3
+    let lastCinemaSearch = 0
     let boardBudget = 30
     const refill = setInterval(() => {
       chatBudget = Math.min(5, chatBudget + 1)
@@ -281,6 +284,20 @@ export function attachRelay(
       cinemaBudget--
       const id = obj(raw).id
       const reason = await cinema.choose(player, id)
+      if (reason) socket.emit('cinema:error', { reason })
+    })
+
+    socket.on('cinema:search', async (raw, reply) => {
+      if (typeof reply !== 'function') return
+      if (Date.now() - lastCinemaSearch < 2000) return reply({ reason: 'busy', videos: [] })
+      lastCinemaSearch = Date.now()
+      reply(await cinema.search(player, obj(raw).query))
+    })
+
+    socket.on('cinema:video', async (raw) => {
+      if (cinemaBudget < 1) return socket.emit('cinema:error', { reason: 'busy' })
+      cinemaBudget--
+      const reason = await cinema.chooseVideo(player, obj(raw).video)
       if (reason) socket.emit('cinema:error', { reason })
     })
 

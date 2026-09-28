@@ -245,6 +245,7 @@ const gameEmbed = new GameEmbed()
 const mediaRoom = new MediaRoom({ get: () => iso.zoomLevel, set: (value) => iso.zoomTo(value) })
 const cinemaRoom = new CinemaRoom({
   online: () => net.online, self: () => net.id, choose: (id) => net.sendCinemaChoice(id),
+  search: (query) => net.searchCinema(query), video: (id) => net.sendCinemaVideo(id),
   duration: (id, since, duration) => net.sendCinemaDuration(id, since, duration),
 })
 const cinemaScreenProp = deckById(1).def.props.find((p) => p.model === 'cinema-screen')!

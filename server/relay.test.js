@@ -52,6 +52,23 @@ test('cinéma : seul le fauteuil de régie programme le trailer reçu par tout l
   assert.equal((await restored).since, state.since)
 })
 
+test('cinéma : une vidéo cherchée par la régie est reçue par toute la salle', async () => {
+  const operator = client()
+  const audience = client()
+  await welcome(operator)
+  await welcome(audience)
+  const occupied = next(operator, 'cinema:state', (m) => m.operator !== null)
+  operator.emit('state', { x: 26.65, z: 7.51, level: 1, yaw: 0, anim: 'idle', pose: 'sit', py: 0.31 })
+  await occupied
+  const denied = await audience.timeout(3000).emitWithAck('cinema:search', { query: 'cobra' })
+  assert.equal(denied.reason, 'seat')
+  const found = await operator.timeout(3000).emitWithAck('cinema:search', { query: 'cobra' })
+  assert.equal(found.videos[0].video, 'dQw4w9WgXcQ')
+  const shown = next(audience, 'cinema:state', (m) => m.youtube?.video === found.videos[0].video)
+  operator.emit('cinema:video', { video: found.videos[0].video })
+  assert.equal((await shown).youtube.title, 'Cobra Mk III')
+})
+
 const listen = async (server) => {
   server.listen(0, '127.0.0.1')
   await once(server, 'listening')
@@ -71,7 +88,10 @@ afterEach(() => {
 before(async () => {
   const siteUrl = await listen(site)
   game = createServer()
-  relay = attachRelay(game, { log: () => {}, error: () => {}, cmdrUrl: `${siteUrl}/outils/mini-shipinteriors-cmdr.php` })
+  relay = attachRelay(game, { log: () => {}, error: () => {}, cmdrUrl: `${siteUrl}/outils/mini-shipinteriors-cmdr.php`,
+    youtubeKey: 'test', youtubeFetch: async () => ({ ok: true, json: async () => ({ items: [
+      { id: { videoId: 'dQw4w9WgXcQ' }, snippet: { title: 'Cobra Mk III', liveBroadcastContent: 'none' } },
+    ] }) }) })
   url = await listen(game)
 })
 
