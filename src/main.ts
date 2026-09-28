@@ -164,6 +164,7 @@ let cabinStore = account ? new CabinStore(account) : null
 const decks = LEVELS.map((def) => new Deck(def))
 for (const d of decks) scene.add(d.group)
 const deckById = (id: number) => decks.find((d) => d.def.id === id)!
+const jacquesAt = deckById(-1).interactables.find((it) => it.furniture?.model === 'bartender')!.position
 
 // Les quartiers du commandant : la cabine du joueur, meublée selon son aménagement.
 const cabinDeck = decks.find((d) => d.cabin)!
@@ -213,7 +214,18 @@ scene.add(systemView.group)
 
 const player = new Player(new Avatar(await lookRig(parseLook(profile.skin))), deck.colliders)
 const cocktailEffects = new CocktailEffects(player, scene)
-const barPanel = new BarPanel(wallet, cocktailEffects)
+const barFocus = new THREE.Vector3()
+let barZoom: number | null = null
+const barPanel = new BarPanel(wallet, cocktailEffects,
+  () => {
+    barZoom = iso.zoomLevel
+    iso.zoomTo(Math.min(barZoom, innerWidth <= 900 ? 3.2 : 2.7))
+  },
+  () => {
+    if (barZoom !== null) iso.zoomTo(barZoom)
+    barZoom = null
+  },
+)
 const gameEmbed = new GameEmbed()
 const spawn = spawnPoint()
 player.position.set(spawn.x, deck.y, spawn.z)
@@ -1738,7 +1750,7 @@ function movementDirection(pad: GamepadInput): THREE.Vector3 {
   return input
 }
 
-addEventListener('wheel', (e) => iso.zoomBy(Math.exp(e.deltaY * 0.001)), { passive: true })
+addEventListener('wheel', (e) => { if (!barPanel.isOpen) iso.zoomBy(Math.exp(e.deltaY * 0.001)) }, { passive: true })
 $('rot-left').onclick = () => iso.rotate(-1)
 $('rot-right').onclick = () => iso.rotate(1)
 $('zoom-in').onclick = () => iso.zoomBy(0.8)
@@ -1880,6 +1892,10 @@ canvas.addEventListener('pointerup', (e) => {
 addEventListener(
   'pointerdown',
   (e) => {
+    if (barPanel.isOpen) {
+      if (!barPanel.contains(e.target)) { barPanel.close(); e.stopPropagation() }
+      return
+    }
     const panel = sitePanel.isOpen ? sitePanel : lift.isOpen ? lift : jukebox.isOpen ? jukebox : null
     if (!panel || panel.contains(e.target)) return
     panel.close()
@@ -2521,8 +2537,16 @@ function frame() {
   syncCompanions()
   for (const c of companions.values()) c.pet.update(world, cabinDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
 
-  // En mode aménagement, la caméra regarde la cabine, pas le personnage.
-  iso.update(dt, editing() ? editor!.focus(editFocus) : claw ? claw.focus : player.position)
+  // Chez Jacques, on garde le joueur et le barman ensemble dans le cadre.
+  if (barPanel.isOpen && deck.def.id === -1) {
+    barFocus.set((player.position.x + jacquesAt.x) / 2, player.position.y, (player.position.z + jacquesAt.z) / 2)
+    if (innerWidth <= 900) barFocus.add(iso.screenToGround(0, -1.1))
+  }
+  iso.update(dt, editing() ? editor!.focus(editFocus) : claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : player.position)
+  if (barPanel.isOpen) {
+    iso.camera.updateMatrixWorld()
+    barPanel.place(iso.camera, player.position, jacquesAt)
+  }
   iso.toCamera(toCam)
   document.body.classList.toggle('camera-rotating', iso.rotating)
 
@@ -2583,8 +2607,8 @@ function frame() {
 
   // Invite « E » au-dessus de l'objet le plus proche ; installé sur un meuble, au-dessus du
   // personnage : se relever (et ce que permet la place).
-  const sitting = seating.settled && !gym.active && !riding && !editing()
-  const near = gym.active || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || editing() || seating.current || working ? null : nearestInteractable()
+  const sitting = seating.settled && !gym.active && !riding && !editing() && !barPanel.isOpen
+  const near = gym.active || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working ? null : nearestInteractable()
   const sit = sitting ? seatPrompt(seating.current!) : null
   const label = sit ? `${sit.main}|${sit.space ?? ''}` : near?.label
   promptEl.querySelector('kbd')!.textContent = usingGamepad ? 'A / ×' : 'E'

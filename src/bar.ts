@@ -120,6 +120,8 @@ export class BarPanel {
   private root = document.createElement('section')
   private list = document.createElement('div')
   private status = document.createElement('p')
+  private playerScreen = new THREE.Vector3()
+  private jacquesScreen = new THREE.Vector3()
   private previousFocus: HTMLElement | null = null
   private busy = false
   private line = 0
@@ -130,7 +132,7 @@ export class BarPanel {
     tr('« Si la sécurité monte à bord, ce bar est une réserve de pièces détachées. »', '“If security comes aboard, this is a spare parts store.”'),
   ]
 
-  constructor(private wallet: Wallet, private effects: CocktailEffects) {
+  constructor(private wallet: Wallet, private effects: CocktailEffects, private onOpen: () => void, private onClose: () => void) {
     this.root.className = 'jacques-overlay'
     this.root.hidden = true
     this.root.setAttribute('role', 'dialog')
@@ -176,21 +178,44 @@ export class BarPanel {
       }
       e.stopPropagation()
     })
+    this.root.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true })
     this.wallet.subscribe(() => { if (this.isOpen) this.render() })
     setInterval(() => { if (this.isOpen) this.updateTimers() }, 1000)
   }
 
   get isOpen() { return !this.root.hidden }
+  contains(target: EventTarget | null) { return target instanceof Node && this.root.contains(target) }
   open() {
+    if (this.isOpen) return
     this.previousFocus = document.activeElement as HTMLElement
     this.line = Math.floor(Math.random() * this.lines.length)
     this.root.querySelector('.jacques-speech p')!.textContent = this.lines[this.line]
     this.status.textContent = ''
     this.root.hidden = false
+    this.onOpen()
     this.render()
     this.root.querySelector<HTMLButtonElement>('.jacques-close')?.focus()
   }
-  close() { if (this.busy) return; this.root.hidden = true; this.previousFocus?.focus() }
+  close() {
+    if (this.busy || !this.isOpen) return
+    this.root.hidden = true
+    this.onClose()
+    this.previousFocus?.focus()
+  }
+
+  /** Suit la place du joueur à l'écran, du côté opposé à Jacques. */
+  place(camera: THREE.Camera, player: THREE.Vector3, jacques: THREE.Vector3) {
+    if (!this.isOpen || innerWidth <= 900) return
+    this.playerScreen.set(player.x, player.y + 0.85, player.z).project(camera)
+    this.jacquesScreen.set(jacques.x, player.y + 0.85, jacques.z).project(camera)
+    const x = (this.playerScreen.x + 1) * innerWidth / 2
+    const y = (1 - this.playerScreen.y) * innerHeight / 2
+    const width = this.root.offsetWidth, height = this.root.offsetHeight
+    const side = this.jacquesScreen.x > this.playerScreen.x ? -1 : 1
+    const left = side < 0 ? x - width - 48 : x + 48
+    this.root.style.left = `${Math.max(12, Math.min(left, innerWidth - width - 12))}px`
+    this.root.style.top = `${Math.max(12, Math.min(y - height / 2, innerHeight - height - 12))}px`
+  }
 
   private render() {
     const focused = (document.activeElement as HTMLButtonElement)?.dataset?.drink

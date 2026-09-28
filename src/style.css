@@ -2937,16 +2937,20 @@ body.photo #bubbles .gain-pop {
 }
 .site-panel[hidden] { display: none; }
 
-/* Chez Jacques et les jeux du site : panneaux au-dessus du HUD, lisibles sur mobile. */
-.jacques-overlay, .bar-game-overlay {
+/* La carte suit le joueur sans cacher le comptoir ni Jacques. */
+.jacques-overlay {
+  position: fixed; z-index: 130; width: min(350px, calc(100vw - 24px));
+}
+/* Les jeux du site occupent le reste de l'écran. */
+.bar-game-overlay {
   position: fixed; inset: 0; z-index: 130;
   display: grid; place-items: center; padding: 16px;
   background: radial-gradient(ellipse at 50% 30%, #26435ba8, #050b15ed 72%);
   backdrop-filter: blur(10px);
 }
 .jacques-panel {
-  width: min(770px, 100%); max-height: min(860px, calc(100dvh - 32px)); overflow: auto;
-  padding: clamp(18px, 3vw, 32px);
+  width: 100%; max-height: min(640px, 72dvh); overflow: auto;
+  padding: 16px;
   color: #f4e6d2; border: 1px solid #dcad6b80; border-radius: 20px;
   background: linear-gradient(150deg, #273b44 0%, #152330 50%, #171a27 100%);
   box-shadow: 0 28px 80px #000b, inset 0 1px #fff3;
@@ -2955,7 +2959,7 @@ body.photo #bubbles .gain-pop {
 .jacques-heading small, .bar-game-header small, .jacques-menu-title {
   font-size: 11px; font-weight: 800; letter-spacing: .18em; color: #eac07c;
 }
-.jacques-heading h2 { margin: 4px 0 0; font-size: clamp(36px, 6vw, 54px); line-height: 1; font-family: Georgia, serif; font-weight: 500; }
+.jacques-heading h2 { margin: 4px 0 0; font-size: 30px; line-height: 1; font-family: Georgia, serif; font-weight: 500; }
 .jacques-overlay button, .bar-game-overlay button, .bar-game-overlay a {
   border: 1px solid #d6b27b88; border-radius: 9px; background: #a76026; color: #fff4e5;
   padding: 10px 14px; font: inherit; font-weight: 700; cursor: pointer; text-decoration: none;
@@ -2964,17 +2968,17 @@ body.photo #bubbles .gain-pop {
 .jacques-overlay button:focus-visible, .bar-game-overlay button:focus-visible, .bar-game-overlay a:focus-visible { outline: 2px solid #fff0bc; outline-offset: 3px; }
 .jacques-overlay button:disabled { opacity: .45; cursor: default; }
 .jacques-heading .jacques-close { width: 38px; height: 38px; padding: 0; font-size: 28px; line-height: 1; background: #fff1; }
-.jacques-speech { display: flex; align-items: center; gap: 16px; margin: 22px 0 28px; padding: 18px 20px; border-left: 3px solid #e4b576; border-radius: 0 12px 12px 0; background: #0b172999; }
-.jacques-speech p { flex: 1; margin: 0; font: italic 17px/1.4 Georgia, serif; }
-.jacques-speech button { flex: none; background: transparent; font-size: 12px; }
+.jacques-speech { display: block; margin: 14px 0 18px; padding: 12px; border-left: 3px solid #e4b576; border-radius: 0 12px 12px 0; background: #0b172999; }
+.jacques-speech p { margin: 0; font: italic 15px/1.4 Georgia, serif; }
+.jacques-speech button { margin-top: 8px; background: transparent; font-size: 12px; }
 .jacques-menu-title { display: flex; justify-content: space-between; border-bottom: 1px solid #c99d6280; padding-bottom: 9px; }
 .jacques-menu-title small { color: #b6c4ce; font: inherit; }
 .jacques-drinks { display: grid; gap: 8px; margin-top: 12px; }
-.jacques-drink { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 12px 14px; border: 1px solid #ffffff1a; border-radius: 12px; background: #ffffff0a; }
-.jacques-glass { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: color-mix(in srgb, var(--drink-color), transparent 82%); color: var(--drink-color); font-size: 27px; text-shadow: 0 0 16px var(--drink-color); }
-.jacques-drink strong { display: block; color: #fff1df; font: 600 20px/1.2 Georgia, serif; }
+.jacques-drink { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 8px; border: 1px solid #ffffff1a; border-radius: 12px; background: #ffffff0a; }
+.jacques-glass { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: color-mix(in srgb, var(--drink-color), transparent 82%); color: var(--drink-color); font-size: 21px; text-shadow: 0 0 16px var(--drink-color); }
+.jacques-drink strong { display: block; color: #fff1df; font: 600 17px/1.2 Georgia, serif; }
 .jacques-drink small { display: block; margin-top: 4px; color: #b7c8cf; font-size: 12px; }
-.jacques-drink button { min-width: 105px; white-space: nowrap; font-size: 12px; }
+.jacques-drink button { min-width: 75px; padding: 8px; white-space: nowrap; font-size: 12px; }
 .jacques-status { min-height: 22px; margin: 17px 0 0; color: #e5c694; font-size: 13px; }
 .bar-game-shell { width: min(1300px, 100%); height: min(920px, calc(100dvh - 32px)); min-height: 0; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #82bed4a6; border-radius: 17px; background: #101b2b; box-shadow: 0 28px 90px #000c; }
 .bar-game-header { flex: none; align-items: center; padding: 14px 20px; background: linear-gradient(90deg, #17344b, #29273e); border-bottom: 1px solid #76b3ca75; }
@@ -2983,15 +2987,14 @@ body.photo #bubbles .gain-pop {
 .bar-game-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .bar-game-actions a { background: #213a4d; border-color: #6798a9; }
 .bar-game-shell iframe { display: block; flex: 1; width: 100%; min-height: 0; border: 0; background: #0d1521; }
+@media (max-width: 900px) {
+  .jacques-overlay { left: 8px !important; right: 8px; top: auto !important; bottom: 8px; width: auto; }
+  .jacques-panel { max-height: 43dvh; }
+}
 @media (max-width: 600px) {
-  .jacques-overlay, .bar-game-overlay { padding: 8px; }
-  .jacques-panel, .bar-game-shell { max-height: calc(100dvh - 16px); height: auto; border-radius: 13px; }
-  .jacques-speech { display: block; margin: 18px 0 22px; padding: 14px; }
-  .jacques-speech button { margin-top: 12px; }
-  .jacques-drink { grid-template-columns: 36px minmax(0, 1fr); gap: 8px; padding: 10px; }
-  .jacques-glass { width: 34px; height: 34px; }
-  .jacques-drink strong { font-size: 17px; }
-  .jacques-drink button { grid-column: 2; justify-self: start; padding: 7px 12px; }
+  .bar-game-overlay { padding: 8px; }
+  .jacques-panel, .bar-game-shell { border-radius: 13px; }
+  .jacques-drink { grid-template-columns: 30px minmax(0, 1fr) auto; }
   .bar-game-shell { height: calc(100dvh - 16px); }
   .bar-game-header { align-items: flex-start; padding: 10px 12px; gap: 8px; }
   .bar-game-header h2 { font-size: 20px; }
