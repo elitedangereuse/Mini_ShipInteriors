@@ -6,18 +6,15 @@ import { HOME_SYSTEM, SYSTEM_IDS, type SystemId } from '../shared/systems.js'
 /*
  * Le système où se trouve le vaisseau, vu par les verrières du poste de pilotage : étoiles,
  * planètes, anneaux, stations, trou noir ou nébuleuse, dessinés loin sous le pont (ils passent
- * derrière le vaisseau), entre lui et le champ d'étoiles. C'est un arrière-plan : accroché au
- * regard de la caméra, décalé vers le bas à droite de l'écran, et tourné avec elle, il garde la
- * même place et la même disposition sous tous les angles (accroché à un point du vaisseau, il
- * tournerait autour de lui et passerait dessous, puis devant). Le saut FSD (cf. main.ts) le
- * remplace par celui de la destination.
+ * derrière le vaisseau), entre lui et le champ d'étoiles. Il se tient au large de bâbord (au nord),
+ * à la hauteur du point que regarde la caméra : le vaisseau est long et étroit, cette bande reste
+ * dégagée sous tous les angles, et le décor ne passe jamais sous la coque quand la caméra tourne
+ * (accroché devant la proue, il tournait autour d'elle et passait sous le vaisseau). Le saut FSD
+ * (cf. main.ts) le remplace par celui de la destination.
  */
 
-/** Azimut de la vue isométrique par défaut (cf. camera.ts) : le décor y est disposé tel que défini. */
-const ISO_AZIMUTH = Math.PI / 4
-
-/** Où le système apparaît à l'écran, par rapport au point que regarde la caméra (en tuiles) : à droite, un peu plus bas. */
-const OFFSET = { right: 8, down: 0.5 }
+/** Où le système apparaît : au large de bâbord (z, au nord de la coque), à la hauteur (x) du point que regarde la caméra. */
+const PORT_Z = -8
 /** Profondeur du décor sous le pont affiché. */
 const DEPTH = 16
 
@@ -379,12 +376,9 @@ function orbis(size: number): THREE.Group {
 /** Un système construit : son groupe, et ses animations. */
 interface Built {
   group: THREE.Group
-  /** `turn` : rotation du décor avec la caméra (radians), que suit la lumière des planètes. */
-  update: (t: number, turn: number) => void
+  update: (t: number) => void
   dispose: () => void
 }
-
-const UP = new THREE.Vector3(0, 1, 0)
 
 function build(id: SystemId): Built {
   const def = SYSTEMS[id]
@@ -392,13 +386,6 @@ function build(id: SystemId): Built {
   const disposables: { dispose(): void }[] = []
   const keep = <T extends { dispose(): void }>(o: T) => (disposables.push(o), o)
   const spinners: { o: THREE.Object3D; speed: number }[] = []
-  // Direction de l'étoile de chaque planète dans le repère du décor, et l'uniforme (monde) qui la reçoit.
-  const lamps: { local: THREE.Vector3; world: THREE.Vector3 }[] = []
-  const lit = (light: THREE.Vector3) => {
-    const world = light.clone()
-    lamps.push({ local: light, world })
-    return world
-  }
   const seed = SYSTEM_IDS.indexOf(id) + 1
 
   for (const n of def.nebula ?? []) {
@@ -421,7 +408,7 @@ function build(id: SystemId): Built {
   const main = def.stars[0]
   for (const [i, p] of def.planets.entries()) {
     const light = main ? new THREE.Vector3(main.x - p.x, 2, main.z - p.z).normalize() : new THREE.Vector3(1, 0.5, -1).normalize()
-    const planet = new THREE.Mesh(keep(new THREE.SphereGeometry(p.radius, 40, 28)), keep(planetMaterial(keep(surfaceTexture(p, seed * 5 + i)), lit(light), p.atmosphere)))
+    const planet = new THREE.Mesh(keep(new THREE.SphereGeometry(p.radius, 40, 28)), keep(planetMaterial(keep(surfaceTexture(p, seed * 5 + i)), light, p.atmosphere)))
     planet.position.set(p.x, 0, p.z)
     planet.rotation.z = 0.35
     group.add(planet)
@@ -435,7 +422,7 @@ function build(id: SystemId): Built {
     if (p.moon) {
       const moon = new THREE.Mesh(
         keep(new THREE.SphereGeometry(p.moon.radius, 24, 16)),
-        keep(planetMaterial(keep(surfaceTexture({ kind: 'rocky', radius: p.moon.radius, x: 0, z: 0, colors: ['#7d7d80', '#b9b9bd'] }, seed + 99)), lit(light.clone()), undefined)),
+        keep(planetMaterial(keep(surfaceTexture({ kind: 'rocky', radius: p.moon.radius, x: 0, z: 0, colors: ['#7d7d80', '#b9b9bd'] }, seed + 99)), light, undefined)),
       )
       moon.position.set(p.x + p.moon.x, 0.5, p.z + p.moon.z)
       group.add(moon)
@@ -469,9 +456,8 @@ function build(id: SystemId): Built {
   }
   return {
     group,
-    update: (t, turn) => {
+    update: (t) => {
       for (const s of spinners) s.o.rotation.y = t * s.speed
-      for (const l of lamps) l.world.copy(l.local).applyAxisAngle(UP, turn)
       if (disk) disk.uniforms.uTime.value = t
     },
     dispose: () => {
@@ -519,17 +505,11 @@ export class SystemView {
   update(dt: number, deckY: number, target: THREE.Vector3, toCamera: THREE.Vector3, elevation: number) {
     this.time += dt
     this.shown = THREE.MathUtils.damp(this.shown, this.wanted, this.wanted > this.shown ? 1.5 : 6, dt)
-    // Point du pont décalé à l'écran (droite : (cos a, -sin a) ; bas : vers la caméra), puis là où le
-    // regard qui passe par lui traverse la profondeur du décor.
-    const ax = target.x + toCamera.z * OFFSET.right + toCamera.x * OFFSET.down
-    const az = target.z - toCamera.x * OFFSET.right + toCamera.z * OFFSET.down
+    // Là où le regard qui passe par ce point du pont traverse la profondeur du décor.
     const run = DEPTH / Math.tan(elevation)
-    this.group.position.set(ax - toCamera.x * run, deckY - DEPTH, az - toCamera.z * run)
-    // Le décor tourne avec la caméra (azimut de la caméra : direction (sin a, cos a) vers elle).
-    const turn = Math.atan2(toCamera.x, toCamera.z) - ISO_AZIMUTH
-    this.group.rotation.y = turn
+    this.group.position.set(target.x - toCamera.x * run, deckY - DEPTH, PORT_Z - toCamera.z * run)
     this.group.scale.setScalar(0.4 + 0.6 * this.shown)
     this.group.visible = this.shown > 0.02
-    this.current.update(renderQuality.light ? Math.floor(this.time * 4) / 4 : this.time, turn)
+    this.current.update(renderQuality.light ? Math.floor(this.time * 4) / 4 : this.time)
   }
 }
