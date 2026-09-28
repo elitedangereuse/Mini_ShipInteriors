@@ -25,7 +25,7 @@ export const SHIP_LAYOUTS = {
     '                            ',
   ],
   // Pont principal. La coursive file vers le poste de pilotage et ses verrières, à la proue ; au nord, les salles
-  // de LJPC et de La Voie, au sud celles du Clash galactique et du mini CQC, en travaux.
+  // de LJPC et de La Voie, en travaux ; au sud, la grande salle d'arcade (deux portes) et le mini CQC, en travaux.
   '0': [
     '  eeeeee   qqqqqrrrrrlllllvvvvv         ',
     ' eeeeeeee  qqqqqrrrrrlllllvvvvv bbb     ',
@@ -33,16 +33,16 @@ export const SHIP_LAYOUTS = {
     'eeeeeeeee  qq+qqrr+rrll+llvv+vv bbbbbbb ',
     'eeeeeeee+cccccccccccccccccccccc+bbbbbbb ',
     'eeeeeeeeecccccccccccccccccccccccbbbbbbb ',
-    'eeeeeeeee  mm+mmss+ssaa+aakk+kk bbbbbbb ',
-    'eeeeeeeee  mmmmmsssssaaaaakkkkk bbbbb   ',
-    ' eeeeeeee  mmmmmsssssaaaaakkkkk bbb     ',
-    '  eeeeee   mmmmmsssssaaaaakkkkk         ',
+    'eeeeeeeee  mm+mmss+ssss+sskk+kk bbbbbbb ',
+    'eeeeeeeee  mmmmmsssssssssskkkkk bbbbb   ',
+    ' eeeeeeee  mmmmmsssssssssskkkkk bbb     ',
+    '  eeeeee   mmmmmsssssssssskkkkk         ',
   ],
   // Pont supérieur : les quartiers ; derrière le salon panoramique, le cinéma, en travaux.
   '1': [
     '                             ',
-    '        kkkkdddd     nnnnnnn ',
-    '        kkkkdddd oo  nnnnnnn ',
+    '        kkkkddddoooo nnnnnnn ',
+    '        kkkkddddoooo nnnnnnn ',
     '     gggk+kkdd+doooo nnnnnnn ',
     '     ggg+ccccccc+ooo nnnnnnn ',
     '     gggccccccccoooo+nnnnnnn ',
@@ -60,7 +60,7 @@ export const SHIP_LAYOUTS = {
  */
 export const CLOSED_ROOMS = {
   '-1': 'h',
-  '0': 'lvak',
+  '0': 'lvk',
   '1': 'n',
 }
 
@@ -75,7 +75,7 @@ export function shipMapOptions(level) {
 
 /** Tables de jeux de plateau (pont principal), par jeu : une table par jeu. */
 export const BOARD_TABLES = {
-  draughts: { level: 0, x: 17.75, z: 6.75 },
-  'guardian-connect': { level: 0, x: 19, z: 7.45 },
-  'imperial-chess': { level: 0, x: 17.75, z: 8.4 },
+  draughts: { level: 0, x: 21.9, z: 7.6 },
+  'guardian-connect': { level: 0, x: 23.3, z: 7.6 },
+  'imperial-chess': { level: 0, x: 24.7, z: 7.6 },
 }

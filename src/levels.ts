@@ -346,13 +346,11 @@ export const LEVELS: LevelDef[] = [
       b: tr('Poste de pilotage', 'Cockpit'),
       l: 'LJPC',
       v: 'La Voie',
-      a: tr('Salle du Clash Galactique', 'Galactic Clash room'),
       k: tr('Simulateur Mini-CQC', 'Mini-CQC simulator'),
     },
     closed: {
       l: tr('Porte verrouillée : « Quartier du LJPC — en travaux ».', 'Locked door: “LJPC quarters — under construction”.'),
       v: tr('Porte verrouillée : « Sanctuaire de La Voie — en travaux ». Un symbole est gravé sur le panneau.', 'Locked door: “La Voie sanctuary — under construction”. A symbol is carved into the panel.'),
-      a: tr('Porte verrouillée : « Salle du Clash Galactique — en travaux ».', 'Locked door: “Galactic Clash room — under construction”.'),
       k: tr('Porte verrouillée : « Simulateur Mini-CQC — en travaux ». On entend des tirs de laser… enregistrés.', 'Locked door: “Mini-CQC simulator — under construction”. You can hear laser fire… recorded.'),
     },
     floors: { c: 'floor-panel', b: 'floor-detail' },
@@ -525,12 +523,23 @@ export const LEVELS: LevelDef[] = [
       // Le jukebox du mess : tout le pont l'entend (cf. src/music.ts).
       { model: 'jukebox', x: 11.3, z: 5.82, action: tr('Choisir un morceau', 'Pick a song'), music: true },
 
-      // --- Salon d'arcade ---
-      // Quatre bornes jouables : Cargaison, Viper, Astéroïdes et Ruelle Fighter II.
-      { model: 'arcade', x: 16.05, z: 7, rot: 1, label: 'cargo' },
-      { model: 'arcade', x: 16.05, z: 8, rot: 1, label: 'viper' },
-      { model: 'arcade', x: 16.05, z: 9, rot: 1, label: 'asteroids' },
-      { model: 'arcade', x: 16.05, z: 6.15, rot: 1, label: 'fight' },
+      // --- Grande salle d'arcade : deux rangées de bornes, les jeux de plateau à l'est, un coin salon ---
+      // Au sud, face au nord, les quatre bornes jouables : Cargaison, Viper, Astéroïdes et Ruelle Fighter II.
+      { model: 'arcade', x: 16.7, z: 9.02, rot: 2, label: 'cargo' },
+      { model: 'arcade', x: 17.95, z: 9.02, rot: 2, label: 'viper' },
+      { model: 'arcade', x: 19.2, z: 9.02, rot: 2, label: 'asteroids' },
+      { model: 'arcade', x: 20.6, z: 9.02, rot: 2, label: 'fight' },
+      // Au nord, face au sud, de part et d'autre des portes : les bornes de démonstration et un flipper.
+      { model: 'arcade', x: 16.45, z: 5.98, label: 'elite' },
+      { model: 'arcade', x: 19.35, z: 5.98, label: 'invaders' },
+      { model: 'arcade', x: 20.55, z: 5.98, label: 'comete' },
+      { model: 'arcade', x: 21.75, z: 5.98, label: 'srv' },
+      { model: 'pinball', x: 24.05, z: 6.1, label: 'thargoid' },
+      { model: 'claw-machine', x: 25.0, z: 6.2, rot: 3, label: 'cyan' },
+      { model: 'neon-sign', x: 15.72, z: 7.5, rot: 1, label: 'ARCADE' },
+      // Tapis colorés : l'allée entre les deux rangées, et le coin des jeux de plateau.
+      { model: 'rug', x: 18.6, z: 7.5, label: 'arcade:5.2x1.5', solid: false },
+      { model: 'rug', x: 23.3, z: 7.95, label: 'neon:3.9x2.3', solid: false },
       {
         model: 'holo-draughts', x: BOARD_TABLES.draughts.x, z: BOARD_TABLES.draughts.z, action: tr('Jouer aux dames', 'Play draughts'),
         interact: tr('Table holographique : les pièces attendent deux adversaires.', 'Holographic table: the pieces await two opponents.'),
@@ -540,20 +549,18 @@ export const LEVELS: LevelDef[] = [
         interact: tr('Puissance 4 Guardian : alignez quatre cristaux avant votre adversaire.', 'Guardian Connect Four: align four crystals before your opponent.'),
       },
       {
-        // Places et abords gardés à l'intérieur du salon, loin du mur sud (z = 9,5).
         model: 'imperial-chess', x: BOARD_TABLES['imperial-chess'].x, z: BOARD_TABLES['imperial-chess'].z, action: tr('Jouer aux échecs', 'Play chess'),
         interact: tr('Échec Impérial : stratégie, patience et aucun duel de plasma sur l’échiquier.', 'Imperial Chess: strategy, patience, and no plasma duels on the board.'),
       },
-      { model: 'neon-sign', x: 17.1, z: 6.1, label: 'ARCADE' },
-      { model: 'claw-machine', x: 19.95, z: 6.42, rot: 3, label: 'cyan' },
-      { model: 'rug', x: 18.3, z: 8.1, label: 'neon:2x1.8', solid: false },
       {
-        model: 'sofa', x: 20.02, z: 8.1, rot: 3, label: 'purple',
+        model: 'sofa', x: 23.3, z: 9.02, rot: 2, label: 'purple',
         interact: tr('Canapé du salon : la meilleure place pour regarder les autres perdre.', 'Lounge sofa: the best seat for watching others lose.'),
       },
-      { model: 'beanbag', x: 18.8, z: 9.05, label: 'teal' },
+      { model: 'beanbag', x: 24.85, z: 9.0, label: 'teal' },
+      { model: 'beanbag', x: 21.8, z: 9.0, label: 'mustard' },
+      { model: 'plant-tall', x: 25.1, z: 7.1 },
 
-      // --- Pièces en travaux : LJPC et La Voie au nord, Clash Galactique et Mini-CQC au sud ---
+      // --- Pièces en travaux : LJPC et La Voie au nord, le Mini-CQC au sud ---
       { model: 'works-sign', x: 23, z: 1.6, label: tr('Bientôt|LJPC', 'Coming soon|LJPC') },
       { model: 'scaffold', x: 22, z: 0.05 },
       { model: 'tarp-crates', x: 24.95, z: 0.4 },
@@ -562,10 +569,6 @@ export const LEVELS: LevelDef[] = [
       { model: 'tarp-crates', x: 26.9, z: 0.4 },
       { model: 'scaffold', x: 29.5, z: 0.05 },
       { model: 'works-tape', x: 28, z: 1.4, solid: false },
-      { model: 'works-sign', x: 23, z: 7.6, rot: 2, label: tr('Bientôt|Clash Galactique', 'Coming soon|Galactic Clash') },
-      { model: 'scaffold', x: 24.5, z: 8.95, rot: 2 },
-      { model: 'tarp-crates', x: 21.55, z: 8.7 },
-      { model: 'cones', x: 25.3, z: 6.6 },
       { model: 'works-sign', x: 28, z: 7.6, rot: 2, label: tr('Bientôt|Mini-CQC', 'Coming soon|Mini-CQC') },
       { model: 'tarp-crates', x: 26.6, z: 8.7 },
       { model: 'tarp-crates', x: 29.45, z: 8.7 },
@@ -580,14 +583,15 @@ export const LEVELS: LevelDef[] = [
       [13, 1.5, '#e8f6ff', 3.2],
       [18, 1.5, '#fff4e4', 3],
       [13, 8, '#ffe2b0', 3],
-      [18.3, 8.2, '#ff4fd8', 2.6, 'neon'],
+      [18.3, 7.6, '#ff4fd8', 2.6, 'neon'],
       [16.8, 7.2, '#39d0ff', 2],
+      [20.6, 7.5, '#39d0ff', 2],
       [15, 4.5, '#ffffff', 2.5],
       // Coursive prolongée et projecteurs de chantier des pièces en travaux.
       [26, 4.5, '#ffffff', 2.2],
       [23, 1.6, '#ffe7c2', 2.2],
       [28, 1.6, '#ffe7c2', 2.2],
-      [23, 7.4, '#ffe7c2', 2.2],
+      [23.3, 7.8, '#b06bff', 2.6],
       [28, 7.4, '#ffe7c2', 2.2],
     ],
   },
@@ -706,6 +710,11 @@ export const LEVELS: LevelDef[] = [
         ),
       },
       { model: 'plant-tall', x: 17.5, z: 7.15 },
+      // Au nord, agrandi jusqu'aux hublots : deux fauteuils face aux étoiles.
+      { model: 'armchair', x: 16.55, z: 1.3, rot: 2, label: 'terracotta', interact: tr('Fauteuil sous les hublots : on y compte les étoiles filantes.', 'Armchair under the portholes: the place to count shooting stars.') },
+      { model: 'armchair', x: 18.35, z: 1.3, rot: 2, label: 'teal' },
+      { model: 'side-table', x: 17.45, z: 1.15 },
+      { model: 'plant-tall', x: 19.35, z: 1.2 },
 
       // --- Cinéma, en travaux : l'écran au fond, à l'est ---
       { model: 'works-sign', x: 22.2, z: 5.9, rot: 1, label: tr('Bientôt|Cinéma', 'Coming soon|Cinema') },
@@ -724,6 +733,7 @@ export const LEVELS: LevelDef[] = [
       [10.2, 8.4, '#ffc98f', 2.3],
       [6, 4.5, '#ffb3e6', 2.6],
       [17.8, 4.6, '#ffd0a0', 2.4],
+      [17.6, 1.8, '#ffd9a8', 2],
       [24.5, 4.5, '#ffe7c2', 2.4],
       // Les deux dernières lumières sont celles des objets de la cabine (Holo-Me, cheminée…).
     ],

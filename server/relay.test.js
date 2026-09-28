@@ -275,8 +275,8 @@ describe('rediffusion', () => {
     a.emit('music', { where: 'deck', track: 'disco', x: 11.3, z: 5.82 })
     assert.equal((await far).far, true)
     assert.equal(await receives(b, 'music', 150), false, 'le choix refusé n\'est pas diffusé')
-    // Même chose pour Puissance 4, depuis la salle de sport, au nord du salon d'arcade.
-    a.emit('state', { x: 19, z: 5, yaw: 0, level: 0, anim: 'idle' })
+    // Même chose pour Puissance 4, depuis la coursive, au nord de la salle d'arcade, hors de sa porte.
+    a.emit('state', { x: 23.9, z: 5.4, yaw: 0, level: 0, anim: 'idle' })
     const refused = next(a, 'board:error')
     a.emit('board:join', { game: 'guardian-connect', table: 'guardian-connect' })
     assert.equal((await refused).code, 'far')
@@ -287,14 +287,14 @@ describe('rediffusion', () => {
   test('une partie de Puissance 4 est créée et rediffuse les coups aux deux joueurs', async () => {
     const a = client({ auth: { name: 'CMDR Rouge' } })
     await welcome(a)
-    a.emit('state', { x: 19, z: 7.45, yaw: 0, level: 0, anim: 'idle' })
+    a.emit('state', { x: 23.3, z: 7.05, yaw: 0, level: 0, anim: 'idle' })
     const first = next(a, 'board:state')
     a.emit('board:join', { game: 'guardian-connect', table: 'guardian-connect' })
     assert.equal((await first).players.length, 1)
 
     const b = client({ auth: { name: 'CMDR Jaune' } })
     await welcome(b)
-    b.emit('state', { x: 19, z: 7.45, yaw: 0, level: 0, anim: 'idle' })
+    b.emit('state', { x: 23.3, z: 7.05, yaw: 0, level: 0, anim: 'idle' })
     const seenByA = next(a, 'board:state', (m) => m.players.length === 2)
     const seenByB = next(b, 'board:state', (m) => m.players.length === 2)
     b.emit('board:join', { game: 'guardian-connect', table: 'guardian-connect' })
@@ -348,7 +348,7 @@ describe('jeux de plateau : remplacement du premier joueur', () => {
       const a = client(), b = client(), c = client()
       try {
         const [wa, wb, wc] = await Promise.all([welcome(a), welcome(b), welcome(c)])
-        for (const socket of [a, b, c]) socket.emit('state', { x: 18, z: 8, yaw: 0, level: 0, anim: 'idle' })
+        for (const socket of [a, b, c]) socket.emit('state', { x: 23.3, z: 8.2, yaw: 0, level: 0, anim: 'idle' })
         const first = next(a, 'board:state')
         a.emit('board:join', { game, table: game })
         assert.equal((await first).players[0].color, firstColor)

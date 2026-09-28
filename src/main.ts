@@ -2541,7 +2541,7 @@ function frame() {
   creditsHud.update(dt)
 
   stars.update(world, iso.target, toCam, iso.tilt)
-  systemView.update(world, deck.y, toCam, iso.tilt)
+  systemView.update(world, deck.y, iso.target, toCam, iso.tilt)
   sound.update(iso.target, iso.angle)
   ambience(dt)
   // Le joueur a fait quelques pas : la réserve se répartit sur les lumières les plus proches.

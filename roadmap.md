@@ -184,8 +184,9 @@ Choix et réalisation (27 septembre 2026) :
 Choix retenus (28 septembre 2026) :
 
 - **Répartition des futurs espaces selon l'ambiance des ponts.** Pont principal :
-  LJPC et La Voie au nord de la coursive prolongée, Clash galactique et mini CQC
-  au sud, à côté de l'arcade. Pont supérieur (cosy) : le cinéma, et le salon
+  LJPC et La Voie au nord de la coursive prolongée, mini CQC au sud, à côté de
+  l'arcade. La salle prévue pour le Clash galactique a été rendue à l'arcade,
+  désormais sur deux salles (le Clash se joue déjà au bar de la cale). Pont supérieur (cosy) : le cinéma, et le salon
   panoramique recyclé plus tard en salon d'écoute (podcasts Radio Dangereuse,
   épisodes de Galère Galactique). Cale : le lobby du jeu d'horreur (SOC-06).
   Ces pièces sont construites dès la refonte, « en travaux » : murs, sol, place
@@ -208,7 +209,7 @@ Choix retenus (28 septembre 2026) :
 Réalisation (28 septembre 2026) :
 
 - SHIP-01 : le pont principal passe de ~210 à ~330 tuiles, la cale et le pont
-  supérieur de ~140 et ~110 à ~180 et ~170. Les six pièces réservées sont en
+  supérieur de ~140 et ~110 à ~180 et ~170. Les cinq pièces réservées sont en
   travaux derrière des portes verrouillées (voyant rouge, texte à l'examen) :
   le plan partagé (`shared/ship-map.js`) connaît les portes verrouillées, qui
   arrêtent le passage et la vue. Le poste de pilotage passe de 26 à 44 tuiles :
