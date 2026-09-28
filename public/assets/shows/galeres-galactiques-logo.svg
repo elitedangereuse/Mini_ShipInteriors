@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Galères Galactiques</title>
+  <defs>
+    <!-- Dégradé orange du logo, inversé pour les tracés de glyphes (repère y vers le haut) -->
+    <linearGradient id="lgOrange" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#ffc07a"/>
+      <stop offset=".45" stop-color="#ff8a3d"/>
+      <stop offset="1" stop-color="#b8400e"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffb066"/>
+      <stop offset=".5" stop-color="#ff8a3d"/>
+      <stop offset="1" stop-color="#c24a12"/>
+    </linearGradient>
+    <radialGradient id="disc" cx="50%" cy="42%" r="60%">
+      <stop offset="0" stop-color="#0a1020"/>
+      <stop offset="1" stop-color="#000"/>
+    </radialGradient>
+    <radialGradient id="nsHaloWide">
+      <stop offset="0" stop-color="#9fd2ff" stop-opacity=".3"/>
+      <stop offset=".35" stop-color="#4f8dff" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#2a4dff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="nsGlow">
+      <stop offset="0" stop-color="#fff" stop-opacity="1"/>
+      <stop offset=".18" stop-color="#cfeeff" stop-opacity=".9"/>
+      <stop offset=".45" stop-color="#6fb8ff" stop-opacity=".35"/>
+      <stop offset="1" stop-color="#3d7bff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="coneGrad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="620" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity=".85"/>
+      <stop offset=".12" stop-color="#b6e2ff" stop-opacity=".5"/>
+      <stop offset=".45" stop-color="#5e8dff" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#6a4dff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="coneCore" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="560" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="1"/>
+      <stop offset=".3" stop-color="#d9f0ff" stop-opacity=".7"/>
+      <stop offset="1" stop-color="#7fb6ff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="spikeGrad" x1="0" x2="1">
+      <stop offset="0" stop-color="#bfe3ff" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#bfe3ff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="spikeGradV" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#bfe3ff" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#bfe3ff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="b1" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.4"/></filter>
+    <filter id="b3" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3.5"/></filter>
+    <filter id="b10" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="11"/></filter>
+    <mask id="slice" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <rect x="0" y="364" width="1024" height="10" fill="#000"/>
+      <rect x="0" y="678" width="1024" height="10" fill="#000"/>
+    </mask>
+    <clipPath id="inside"><circle cx="512" cy="512" r="452"/></clipPath>
+    <!-- Glyphe G de Saira (graisse 800, largeur 125 %), converti en tracé -->
+    <path id="G" fill="url(#lgOrange)" stroke="#000" stroke-width="12.5" paint-order="stroke" d="M417 -8Q328 -8 265.5 2.5Q203 13 162 36.5Q121 60 98.5 101.5Q76 143 66.5 202Q57 261 57 344Q57 427 66.5 486Q76 545 98 586.5Q120 628 160.5 651.5Q201 675 262 685.5Q323 696 410 696Q452 696 502.5 692.5Q553 689 604.5 683.5Q656 678 699 672L699 522Q661 527 621.5 530Q582 533 548 535Q514 537 492 537Q433 537 394 535Q355 533 332.5 524Q310 515 299 494.5Q288 474 285 437Q282 400 282 344Q282 295 284 260Q286 225 294.5 203Q303 181 319 169Q335 157 361.5 152.5Q388 148 426 148Q435 148 448.5 148.5Q462 149 475.5 148.5Q489 148 501 150L501 264L399 264L399 407L703 407L703 12Q658 7 607 2Q556 -3 506.5 -5.5Q457 -8 417 -8Z"/>
+    <g id="cone">
+      <path d="M0 -6 L620 -64 L620 64 L0 6 Z" fill="url(#coneGrad)" filter="url(#b10)"/>
+      <path d="M0 -3 L560 -17 L560 17 L0 3 Z" fill="url(#coneCore)" filter="url(#b3)"/>
+      <path d="M0 -1.2 L450 -3 L450 3 L0 1.2 Z" fill="url(#coneCore)"/>
+    </g>
+  </defs>
+
+  <!-- Disque noir et anneau orange -->
+  <circle cx="512" cy="512" r="500" fill="url(#ring)"/>
+  <circle cx="512" cy="512" r="452" fill="url(#disc)"/>
+  <circle cx="512" cy="512" r="452" fill="none" stroke="#000" stroke-width="6"/>
+  <circle cx="512" cy="512" r="497" fill="none" stroke="#000" stroke-opacity=".5" stroke-width="6"/>
+
+  <g clip-path="url(#inside)">
+    <!-- Deux G en diagonale -->
+    <g mask="url(#slice)">
+      <use href="#G" xlink:href="#G" transform="translate(196.3 494) scale(.4 -.4)"/>
+      <use href="#G" xlink:href="#G" transform="translate(520.3 808) scale(.4 -.4)"/>
+    </g>
+
+    <!-- Étoile à neutrons au centre : ses jets séparent les deux G -->
+    <g style="mix-blend-mode:screen" transform="translate(512 512)">
+      <circle r="260" fill="url(#nsHaloWide)"/>
+      <g transform="rotate(-45)">
+        <use href="#cone" xlink:href="#cone"/>
+        <use href="#cone" xlink:href="#cone" transform="scale(-1 1)"/>
+      </g>
+      <circle r="110" fill="url(#nsGlow)"/>
+      <circle r="50" fill="none" stroke="#a9d8ff" stroke-opacity=".22" stroke-width="2.4" filter="url(#b3)"/>
+      <g transform="rotate(12)" filter="url(#b1)" opacity=".85">
+        <ellipse rx="175" ry="2" fill="url(#spikeGrad)"/>
+        <ellipse ry="175" rx="2" fill="url(#spikeGradV)"/>
+        <ellipse rx="88" ry="1.4" fill="url(#spikeGrad)" transform="rotate(45)" opacity=".6"/>
+        <ellipse rx="88" ry="1.4" fill="url(#spikeGrad)" transform="rotate(-45)" opacity=".6"/>
+      </g>
+      <circle r="28" fill="#e8f6ff" filter="url(#b10)" opacity=".9"/>
+      <circle r="13" fill="#fff"/>
+    </g>
+  </g>
+</svg>

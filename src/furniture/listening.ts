@@ -7,7 +7,8 @@ import { BASE } from '../assets'
 /*
  * Le salon d'écoute du pont supérieur : on s'y installe au chaud, casque sur les oreilles, pour
  * Radio Dangereuse (le podcast Elite Dangerous) et les Galères Galactiques (mini-fiction audio
- * humoristique). Casques, affiches des deux émissions, poste d'écoute, coussins de sol.
+ * humoristique). Casques, affiches des deux émissions (les Galères en ont deux : l'ancien logo et
+ * le nouveau), poste d'écoute, coussins de sol.
  * Un objet accroché est construit dos au mur (origine sur la face du mur, contenu vers +z).
  */
 
@@ -126,31 +127,38 @@ const headphoneRack: Builder = () => {
 
 /**
  * Affiche encadrée d'une émission, accrochée au mur, éclairée par une petite rampe de laiton.
- * Émission : `label` (radio, galeres).
+ * Émission : `label` (radio, galeres, ou gg pour le nouveau logo des Galères Galactiques ;
+ * l'ancienne affiche reste accrochée en souvenir).
  */
 const podcastPoster: Builder = ({ label }) => {
-  const show = label === 'galeres' ? 'galeres' : 'radio'
+  const show = label === 'galeres' || label === 'gg' ? label : 'radio'
   const g = new THREE.Group()
   g.add(box(0.54, 0.74, 0.03, lit(C.woodDark), 0, 0.56, 0.015, 0.01))
   const paint = (c: CanvasRenderingContext2D, logo?: HTMLImageElement, ship?: HTMLImageElement, t = 0) => {
     c.clearRect(0, 0, 320, 440)
     const gradient = c.createLinearGradient(0, 0, 320, 440)
-    gradient.addColorStop(0, show === 'radio' ? '#332316' : '#15204c')
-    gradient.addColorStop(1, '#0d121d')
+    gradient.addColorStop(0, show === 'radio' ? '#332316' : show === 'gg' ? '#1a1410' : '#15204c')
+    gradient.addColorStop(1, show === 'gg' ? '#05070d' : '#0d121d')
     c.fillStyle = gradient
     c.fillRect(0, 0, 320, 440)
-    c.strokeStyle = show === 'radio' ? '#ffc43e' : '#f3c11b'
+    c.strokeStyle = show === 'radio' ? '#ffc43e' : show === 'gg' ? '#ff8a3d' : '#f3c11b'
     c.lineWidth = 4
     c.strokeRect(13, 13, 294, 414)
     c.textAlign = 'center'
+    if (show === 'gg') {
+      // Le logo n'a pas de texte : le titre de l'émission, sous le disque.
+      c.fillStyle = '#ffb066'
+      c.font = '800 25px system-ui, sans-serif'
+      c.fillText('GALÈRES GALACTIQUES', 160, 330, 272)
+    }
     c.fillStyle = '#efd9b8'
     c.font = '700 17px system-ui, sans-serif'
     c.fillText(show === 'radio' ? tr('LE PODCAST À BORD', 'THE PODCAST ON BOARD') : tr('MINI SÉRIE AUDIO', 'AUDIO MINI-SERIES'), 160, 388)
     if (logo) {
-      const maxW = 272, maxH = show === 'radio' ? 160 : 292
+      const maxW = show === 'gg' ? 250 : 272, maxH = show === 'radio' ? 160 : show === 'gg' ? 250 : 292
       const scale = Math.min(maxW / logo.width, maxH / logo.height)
       const w = logo.width * scale, h = logo.height * scale
-      const x = (320 - w) / 2, y = (350 - h) / 2
+      const x = (320 - w) / 2, y = show === 'gg' ? 38 : (350 - h) / 2
       c.drawImage(logo, x, y, w, h)
       if (ship) {
         // Même frémissement que dans le SVG, mais sur la seule couche du vaisseau.
@@ -163,10 +171,10 @@ const podcastPoster: Builder = ({ label }) => {
   const canvas = art.image as HTMLCanvasElement
   const context = canvas.getContext('2d')!
   let logo: HTMLImageElement | undefined, ship: HTMLImageElement | undefined
-  if (show === 'radio') {
+  if (show !== 'galeres') {
     const image = new Image()
     image.onload = () => { logo = image; paint(context, logo); art.needsUpdate = true }
-    image.src = BASE + 'shows/radio-dangereuse.png'
+    image.src = BASE + (show === 'radio' ? 'shows/radio-dangereuse.png' : 'shows/galeres-galactiques-logo.svg')
   } else {
     void galeresPosterLayers().then(([background, vessel]) => {
       logo = background

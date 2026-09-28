@@ -1013,15 +1013,23 @@ export const LEVELS: LevelDef[] = [
           'Radio Dangereuse: the community\'s Elite Dangerous podcast. News, debates and CMDR stories, on radio.elitedangereuse.fr.',
         ),
       },
+      // Les Galères Galactiques de part et d'autre de la porte : l'ancien logo, gardé en souvenir, et le nouveau.
       {
         model: 'podcast-poster', x: 15.65, z: 2.9, rot: 1, label: 'galeres', solid: false,
         interact: tr(
-          'Les Galères Galactiques : une mini-fiction audio humoristique, où rien ne se passe jamais comme prévu dans l\'espace. Sur galeresgalactiques.fr.',
-          'Galères Galactiques: a comedy audio mini-series where nothing in space ever goes to plan. On galeresgalactiques.fr.',
+          'L\'ancienne affiche des Galères Galactiques, gardée en souvenir : une mini-fiction audio humoristique, où rien ne se passe jamais comme prévu dans l\'espace.',
+          'The old Galères Galactiques poster, kept as a keepsake: a comedy audio mini-series where nothing in space ever goes to plan.',
         ),
       },
       {
-        model: 'headphone-rack', x: 15.65, z: 5.5, rot: 1, solid: false,
+        model: 'podcast-poster', x: 15.65, z: 5.1, rot: 1, label: 'gg', solid: false,
+        interact: tr(
+          'Le nouveau logo des Galères Galactiques : deux G et une étoile à neutrons. Toujours rien qui se passe comme prévu, sur galeresgalactiques.fr.',
+          'The new Galères Galactiques logo: two Gs and a neutron star. Still nothing goes to plan, on galeresgalactiques.fr.',
+        ),
+      },
+      {
+        model: 'headphone-rack', x: 15.65, z: 6.05, rot: 1, solid: false,
         interact: tr(
           'Casques d\'écoute : un pour Radio Dangereuse, un pour les Galères Galactiques, et un de rechange. Comète mâchouille les câbles.',
           'Headphones: one for Radio Dangereuse, one for Galères Galactiques, and a spare. Comète chews the cables.',
