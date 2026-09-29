@@ -7,6 +7,8 @@
 // (&look=robot.g pour un autre modèle, &only=sofa,cozy-bed).
 // Avec ?emote=o7 : une emote jouée en boucle par plusieurs apparences (&looks=…, &at=0.8 : figée à 0,8 s ;
 // &salute=x,y,z : l'angle du bras pour le salut).
+// Avec ?thargoid : le Thargoïde de la zone thargoïde dans chacune de ses humeurs, sur place, à côté
+// d'un CMDR pour l'échelle (&dark : dans le noir, à la lampe frontale ; &at=1.2 : figé ; &only=chase,attack).
 import * as THREE from 'three'
 import { preload, station, STATION_MODELS, type StationModel } from '../assets'
 import { Avatar, SALUTE } from '../avatar'
@@ -17,6 +19,7 @@ import { buildFurniture, CUSTOM_MODELS, isCustomModel, tickFurniture, type Custo
 import { lookRig, parseLook } from '../looks'
 import { placeSeats, SEATS } from '../seats'
 import { tempo } from '../tempo'
+import { ThargoidBody, type ThargoidMood } from '../salvage/thargoid'
 
 const renderer = new THREE.WebGLRenderer({ antialias: true })
 renderer.setSize(innerWidth, innerHeight)
@@ -60,6 +63,7 @@ if (params.has('catalogue')) showCatalogue()
 else if (params.has('revetements')) showFinishes()
 else if (params.has('poses')) await showPoses()
 else if (params.has('emote')) await showEmote(params.get('emote')!)
+else if (params.has('thargoid')) await showThargoid()
 else showModels()
 
 /** Une emote, jouée en boucle par plusieurs apparences côte à côte. */
@@ -90,6 +94,52 @@ async function showEmote(id: string) {
     renderer.render(scene, cam)
     requestAnimationFrame(frame)
   }
+  frame()
+}
+
+/** Le Thargoïde, une silhouette par humeur, sur place (vitesse simulée), et un CMDR pour l'échelle. */
+async function showThargoid() {
+  const only = params.get('only')?.split(',')
+  const moods = ([['patrol', 1], ['investigate', 1.55], ['chase', 2.45], ['search', 0], ['attack', 0], ['lured', 0], ['look', 0]] as [ThargoidMood, number][])
+    .filter(([m]) => !only || only.includes(m))
+  if (params.has('dark')) {
+    scene.background = new THREE.Color('#020303')
+    for (const l of [...scene.children]) if ((l as THREE.Light).isLight) (l as THREE.Light).intensity *= 0.18
+    const lamp = new THREE.PointLight('#ffe7c4', 6, 7, 1.4)
+    lamp.position.set(0, 1.2, 1.6)
+    scene.add(lamp)
+  }
+  const bodies: { body: ThargoidBody; mood: ThargoidMood; speed: number }[] = []
+  const x0 = -(moods.length - 1) / 2 * 1.1
+  moods.forEach(([mood, speed], i) => {
+    const body = new ThargoidBody()
+    body.root.position.set(x0 + i * 1.1, -0.35, 0)
+    scene.add(body.root)
+    bodies.push({ body, mood, speed })
+    const l = label(mood)
+    l.position.set(body.root.position.x, -0.3, 0.55)
+    scene.add(l)
+  })
+  const cmdr = new Avatar(await lookRig(parseLook('suit.male.c.maverick')))
+  cmdr.root.position.set(x0 - (only ? 0.7 : 1.1), -0.35, 0)
+  scene.add(cmdr.root)
+  const at = params.get('at')
+  let loop = 0
+  const clock = new THREE.Timer()
+  function frame() {
+    clock.update()
+    const dt = at ? 0 : Math.min(clock.getDelta(), 0.05)
+    loop += dt
+    for (const b of bodies) {
+      // L'attaque se rejoue toutes les deux secondes et demie.
+      const mood = b.mood === 'attack' && loop % 2.5 > 1.9 ? 'look' : b.mood
+      b.body.update(dt, mood, b.speed)
+    }
+    cmdr.update(dt)
+    renderer.render(scene, cam)
+    requestAnimationFrame(frame)
+  }
+  if (at) for (const b of bodies) for (let k = 0; k < 40; k++) b.body.update(+at / 40, b.mood, b.speed)
   frame()
 }
 

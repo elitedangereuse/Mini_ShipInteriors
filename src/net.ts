@@ -117,8 +117,13 @@ export interface SalvageStart {
   members: { id: number; name: string }[]
   spawn: { x: number; z: number }
   spawns: Record<string, { x: number; z: number }>
+  /** Ticket de reconnexion (à soi seul) : il rend sa place après une déconnexion. */
+  ticket: string
+  status: SalvageStatus
+  /** Retour dans une partie en cours, après une déconnexion. */
+  resumed?: boolean
 }
-export type SalvageStatus = 'arriving' | 'alive' | 'captured' | 'left' | 'gone'
+export type SalvageStatus = 'arriving' | 'alive' | 'captured' | 'left' | 'away' | 'gone'
 export interface SalvageMember { id: number; status: SalvageStatus; carrying: number | null; hidden: number | null; left?: number; flares: number }
 export interface SalvageState {
   game: string
@@ -135,8 +140,12 @@ export interface SalvageState {
 /** Événement d'une partie, pour les sons, les messages et les animations. */
 export interface SalvageEvent {
   kind: 'arrive' | 'pickup' | 'drop' | 'deposit' | 'capture' | 'hide' | 'unhide' | 'eject' | 'search' | 'searched' | 'flare' | 'flare-out'
-    | 'flare-pickup' | 'quit' | 'gone' | 'spotted' | 'heard'
+    | 'flare-pickup' | 'quit' | 'gone' | 'spotted' | 'heard' | 'away' | 'back'
   id?: number
+  /** `back` : l'ancien id du joueur revenu. */
+  old?: number
+  /** `away` : combien de temps sa place l'attend (s). */
+  wait?: number
   monster?: number
   cargo?: number
   locker?: number
@@ -148,8 +157,12 @@ export interface SalvageEvent {
   x?: number
   z?: number
 }
-export interface SalvageEnd { game: string; won: boolean; reason: 'won' | 'lost' | 'timeout'; delivered: number; parcels: number; enemies: number; team: number; duration: number }
-export type SalvageAction = 'create' | 'join' | 'leave' | 'settings' | 'ready' | 'pickup' | 'hide' | 'unhide' | 'flare' | 'quit'
+export interface SalvageEnd {
+  game: string; won: boolean; reason: 'won' | 'lost' | 'timeout'; delivered: number; parcels: number; enemies: number; team: number; duration: number
+  /** Partie finie pendant une déconnexion : le résultat, à qui revient avec son ticket. */
+  late?: boolean
+}
+export type SalvageAction = 'create' | 'join' | 'leave' | 'settings' | 'ready' | 'pickup' | 'hide' | 'unhide' | 'flare' | 'quit' | 'resume'
 
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */

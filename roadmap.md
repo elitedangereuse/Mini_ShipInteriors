@@ -529,8 +529,13 @@ Les quatre étapes du découpage sont livrées ensemble. Choix retenus :
 - **Capture** : le colis tombe sur place (un coéquipier peut le reprendre) ; le capturé
   revient au lobby et suit l'équipe par la caméra alliée (même vue que le coéquipier
   suivi) ; le mur des caméras la rouvre. Il ne revient pas dans la manche.
-- **Abandon, déconnexion** : « Abandonner » (deux clics) ou une déconnexion valent
-  capture, colis lâché ; pas de reconnexion à la partie. Plus personne en course : défaite.
+- **Abandon** : « Abandonner » (deux clics) vaut capture, colis lâché. Plus personne en
+  course : défaite.
+- **Déconnexion** : le colis tombe, la place attend 60 s (statut « liaison perdue »,
+  équipe prévenue). Chaque membre reçoit un ticket au départ, gardé par le navigateur ;
+  présenté à la reconnexion (même après un rechargement), il rend la place : en course, au
+  sas d'extraction ; capturé, aux caméras. Un ticket encore en jeu dans un autre onglet
+  n'ouvre pas de seconde place ; la mission finie, il donne le résultat (10 min).
   Une mission oubliée s'arrête au bout de 30 minutes.
 - **Récompense** : 1 500 CR par colis, + 50 % par ennemi au-delà du premier (1 500 CR
   pour 1 colis et 1 ennemi, 6 800 pour 3 et 2, 31 500 pour 6 et 6), à chaque CMDR de
@@ -543,6 +548,14 @@ Les quatre étapes du découpage sont livrées ensemble. Choix retenus :
 - **Chat** : dans la baie, on ne parle qu'à son équipe.
 - **Mode léger** : mêmes règles, même vue ; seul l'anticrénelage du brouillard saute.
 
+Deuxième passe (2026-09-29) : un vrai Thargoïde humanoïde, procédural
+(`src/salvage/thargoid.ts` ; `/gallery.html?thargoid` le montre de près), avec son chant et
+son crissement synthétisés ; la reconnexion à une partie en cours ; un bouton tactile dédié
+aux fusées (avec le compte, lancer droit devant), le bouton X restant utilisable. Éprouvé
+dans Chrome : coupure du réseau et rechargement de la page en pleine course (retour au sas),
+coupure d'un capturé (retour aux caméras), bouton de fusée en émulation tactile ; tests Node
+des reconnexions (deux coupures de suite, autre onglet, autre CMDR, partie finie entre-temps).
+
 Vérifications : 29 tests Node (labyrinthe, relais de jeu, relais socket.io, gains), 4 tests
 PHP (dont un en base) ; parties jouées dans Chrome : victoire solo payée par le site local,
 partie à deux (chat d'équipe, capture, caméra alliée, fusée, casier, abandon, défaite).
@@ -551,13 +564,10 @@ Reste à faire pour une version suivante :
 - **Équilibrage en vraies parties** : vitesses, portées de vue et d'ouïe, durée des casiers et
   des fusées, nombre d'ennemis conseillé, montant des récompenses. Impossible à régler en
   headless (le client y tourne à quelques images par seconde, les ennemis du relais non).
-- **Un vrai modèle de Thargoïde** à la place des zombies en costume.
-- **Reconnexion** : une déconnexion vaut abandon ; pas de retour dans une partie en cours.
 - **Écrans du lobby** : les six moniteurs montrent des images d'ambiance ; la vraie caméra
   alliée s'ouvre depuis le mur (ou d'elle-même après une capture).
 - **Mesures** : coût du brouillard de guerre (une passe de rendu en plus) sur un PC ancien et
   sous Safari ; le mode léger n'en retire que l'anticrénelage.
-- **Tactile** : la fusée se lance depuis la pastille « Fusées » du HUD, sans bouton dédié.
 - **Vue subjective** (`V`, arrivée entre-temps) : utilisable dans la baie, fusée lancée dans
   le sens du regard ; les caméras alliées restent en vue isométrique. À éprouver en partie.
 

@@ -313,7 +313,7 @@ export const SALVAGE_URL = import.meta.env.VITE_ED_SALVAGE_URL || '/outils/mini-
 
 export interface HudMember { id: number; name: string; status: SalvageStatus; carrying: boolean; hidden: boolean }
 
-const STATUS_ICON: Record<string, IconName> = { alive: 'user-solo', arriving: 'user-solo', captured: 'skull', left: 'sign-out', gone: 'sign-out' }
+const STATUS_ICON: Record<string, IconName> = { alive: 'user-solo', arriving: 'user-solo', captured: 'skull', left: 'sign-out', gone: 'sign-out', away: 'cloud-slash' }
 
 /** En mission : l'équipe, la progression, les fusées, l'endurance et le casier près du personnage. */
 export class MissionHud {
@@ -386,7 +386,8 @@ export class MissionHud {
     for (const m of members) {
       const li = el('li', `s-${m.status}${m.id === self ? ' self' : ''}`)
       li.append(icon(m.hidden ? 'eye-closed' : m.carrying ? 'package' : STATUS_ICON[m.status] ?? 'user-solo'), el('span', '', m.name))
-      li.title = m.status === 'captured' ? tr('Capturé', 'Caught') : m.status === 'left' || m.status === 'gone' ? tr('Parti', 'Gone') : m.hidden ? tr('Caché', 'Hidden') : m.carrying ? tr('Porte un colis', 'Carrying a crate') : tr('Actif', 'Active')
+      li.title = m.status === 'captured' ? tr('Capturé', 'Caught') : m.status === 'left' || m.status === 'gone' ? tr('Parti', 'Gone')
+        : m.status === 'away' ? tr('Liaison perdue : sa place l\'attend', 'Lost contact: place kept') : m.hidden ? tr('Caché', 'Hidden') : m.carrying ? tr('Porte un colis', 'Carrying a crate') : tr('Actif', 'Active')
       this.crew.append(li)
     }
   }

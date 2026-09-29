@@ -51,6 +51,8 @@ export const RULES = {
   maxDuration: 1800,
   /** Une équipe se lance quelques secondes après que tous ses membres sont prêts. */
   countdown: 3,
+  /** Après une déconnexion, la place d'un joueur en course l'attend ce temps-là (s). */
+  reconnect: 60,
 }
 
 /** Récompense par membre d'une équipe victorieuse (cf. `salvage` dans economy.json, relu par le site). */

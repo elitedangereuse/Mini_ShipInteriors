@@ -2,8 +2,8 @@ import * as THREE from 'three'
 import type { Sound } from '../audio'
 
 /*
- * Bruitages de la baie infestée, synthétisés (Web Audio), sans musique : les grognements et les
- * pas des ennemis (des indices de leur proximité), le cœur qui s'emballe quand l'un d'eux est
+ * Bruitages de la baie infestée, synthétisés (Web Audio), sans musique : le chant métallique et
+ * les pas des Thargoïdes (des indices de leur proximité), le cœur qui s'emballe quand l'un d'eux est
  * tout près, le chuintement d'une fusée, le claquement des casiers, le détecteur de cargaison,
  * le dépôt au sas, la capture. Les sons de la scène passent par l'écho (cf. Sound.setEcho).
  */
@@ -51,54 +51,107 @@ export class SalvageSfx {
     src.stop(t + len + 0.3)
   }
 
-  /** Grognement rauque d'un ennemi : une voix grave qui râle, vibrée, dans un formant. */
+  /**
+   * Modulation en anneau : le signal multiplié par une sinusoïde de `freq` Hz, ce qui lui donne
+   * ce timbre métallique, pas tout à fait vocal, des Thargoïdes. Renvoie l'entrée.
+   */
+  private ring(out: AudioNode, t: number, len: number, freq: number, to = freq): GainNode {
+    const ctx = this.ctx
+    const ring = ctx.createGain()
+    ring.gain.value = 0
+    const mod = ctx.createOscillator()
+    mod.frequency.setValueAtTime(freq, t)
+    mod.frequency.linearRampToValueAtTime(to, t + len)
+    mod.connect(ring.gain)
+    ring.connect(out)
+    mod.start(t)
+    mod.stop(t + len + 0.2)
+    return ring
+  }
+
+  /**
+   * Chant d'un Thargoïde : une nappe grave et métallique qui ondule, un sifflement qui glisse
+   * par-dessus comme un chant de baleine, et quelques cliquetis de carapace.
+   */
   groan(pos: THREE.Vector3, angry = false) {
-    const out = this.sound.voice(pos, angry ? 0.5 : 0.32, 1.4, 1.1)
+    const out = this.sound.voice(pos, angry ? 0.5 : 0.34, 1.4, 1.1)
     if (!out) return
     const ctx = this.ctx
     const t = ctx.currentTime + 0.01
-    const len = angry ? 0.9 : 1.2 + Math.random() * 0.8
-    const pitch = (angry ? 1.4 : 1) * (0.85 + Math.random() * 0.3)
-    const osc = ctx.createOscillator()
-    osc.type = 'sawtooth'
-    osc.frequency.setValueAtTime(70 * pitch, t)
-    osc.frequency.linearRampToValueAtTime(95 * pitch, t + len * 0.35)
-    osc.frequency.linearRampToValueAtTime(58 * pitch, t + len)
-    const vib = ctx.createOscillator()
-    vib.frequency.value = angry ? 13 : 6 + Math.random() * 4
-    const depth = ctx.createGain()
-    depth.gain.value = angry ? 14 : 7
-    vib.connect(depth).connect(osc.frequency)
-    const formant = ctx.createBiquadFilter()
-    formant.type = 'bandpass'
-    formant.frequency.setValueAtTime(angry ? 700 : 420, t)
-    formant.frequency.linearRampToValueAtTime(angry ? 1100 : 560, t + len * 0.4)
-    formant.frequency.linearRampToValueAtTime(380, t + len)
-    formant.Q.value = 2.5
+    const len = angry ? 1 : 1.6 + Math.random() * 0.9
+    const pitch = (angry ? 1.35 : 1) * (0.9 + Math.random() * 0.2)
     const env = ctx.createGain()
     env.gain.setValueAtTime(0, t)
-    env.gain.linearRampToValueAtTime(1, t + 0.12)
-    env.gain.linearRampToValueAtTime(0.7, t + len * 0.7)
+    env.gain.linearRampToValueAtTime(1, t + 0.25)
+    env.gain.linearRampToValueAtTime(0.75, t + len * 0.7)
     env.gain.linearRampToValueAtTime(0, t + len)
-    osc.connect(formant).connect(env).connect(out)
-    osc.start(t)
+    env.connect(out)
+    // Nappe : deux dents de scie graves désaccordées, passées dans l'anneau et un formant qui balaie.
+    const low = this.ring(env, t, len, 31 * pitch, 23 * pitch)
+    const formant = ctx.createBiquadFilter()
+    formant.type = 'bandpass'
+    formant.Q.value = 3
+    formant.frequency.setValueAtTime(380, t)
+    formant.frequency.linearRampToValueAtTime(angry ? 1100 : 620, t + len * 0.5)
+    formant.frequency.linearRampToValueAtTime(300, t + len)
+    formant.connect(low)
+    for (const detune of [0, 7]) {
+      const o = ctx.createOscillator()
+      o.type = 'sawtooth'
+      o.frequency.setValueAtTime(62 * pitch + detune, t)
+      o.frequency.linearRampToValueAtTime(48 * pitch + detune, t + len)
+      o.connect(formant)
+      o.start(t)
+      o.stop(t + len + 0.05)
+    }
+    // Chant : une sinusoïde qui glisse vers le bas, vibrée, à peine modulée.
+    const song = ctx.createOscillator()
+    song.type = 'sine'
+    const f0 = (angry ? 720 : 460) * pitch
+    song.frequency.setValueAtTime(f0, t)
+    song.frequency.exponentialRampToValueAtTime(f0 * 0.55, t + len)
+    const vib = ctx.createOscillator()
+    vib.frequency.value = angry ? 11 : 5.5
+    const depth = ctx.createGain()
+    depth.gain.value = f0 * 0.025
+    vib.connect(depth).connect(song.frequency)
+    const songGain = ctx.createGain()
+    songGain.gain.value = 0.35
+    song.connect(songGain).connect(this.ring(env, t, len, 170 * pitch))
+    song.start(t)
     vib.start(t)
-    osc.stop(t + len + 0.05)
+    song.stop(t + len + 0.05)
     vib.stop(t + len + 0.05)
-    this.hiss(out, t, len, angry ? 1400 : 900, 1.2, angry ? 0.7 : 0.45)
+    // Cliquetis de carapace, au début.
+    for (let i = 0; i < 3 + Math.floor(Math.random() * 3); i++) this.hiss(out, t + i * 0.07 + Math.random() * 0.03, 0.03, 3200 + Math.random() * 1500, 4, 0.5)
   }
 
-  /** Il vous a vu : un cri qui monte, et un coup sourd. */
+  /** Il vous a repéré : un crissement métallique qui monte, et un souffle. */
   shriek(pos: THREE.Vector3) {
     const out = this.sound.voice(pos, 0.45, 1.6, 1)
     if (!out) return
-    const t = this.ctx.currentTime + 0.01
-    this.tone(out, 'sawtooth', 180, 420, t, 0.5, 0.8)
-    this.tone(out, 'square', 240, 560, t + 0.02, 0.45, 0.4)
-    this.hiss(out, t, 0.6, 2200, 2, 0.8, 800)
+    const ctx = this.ctx
+    const t = ctx.currentTime + 0.01
+    const len = 0.65
+    const env = ctx.createGain()
+    env.gain.setValueAtTime(0, t)
+    env.gain.linearRampToValueAtTime(1, t + 0.05)
+    env.gain.setTargetAtTime(0, t + len * 0.6, len * 0.2)
+    env.connect(out)
+    const ring = this.ring(env, t, len, 90, 260)
+    for (const [f0, f1] of [[260, 1150], [273, 1210]]) {
+      const o = ctx.createOscillator()
+      o.type = 'sawtooth'
+      o.frequency.setValueAtTime(f0, t)
+      o.frequency.exponentialRampToValueAtTime(f1, t + len * 0.8)
+      o.connect(ring)
+      o.start(t)
+      o.stop(t + len + 0.1)
+    }
+    this.hiss(out, t, len, 2600, 2, 0.6, 5200)
   }
 
-  /** Pas lourds et traînants d'un ennemi (le pas du vaisseau, plus grave). */
+  /** Pas d'un Thargoïde : griffes sur le métal (le pas du vaisseau, plus grave). */
   step(pos: THREE.Vector3, running: boolean) {
     this.sound.play('step', pos, { volume: running ? 0.22 : 0.15, rate: 0.62 + Math.random() * 0.08, ref: 1.3, rolloff: 1.3 })
   }

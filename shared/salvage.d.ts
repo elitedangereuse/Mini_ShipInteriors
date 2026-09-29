@@ -25,6 +25,7 @@ export declare const RULES: {
   grace: number
   maxDuration: number
   countdown: number
+  reconnect: number
 }
 
 export interface Tile { x: number; z: number }

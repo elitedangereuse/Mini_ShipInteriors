@@ -75,6 +75,36 @@ interface Game {
 
 type Phase = 'ship' | 'loading' | 'zone' | 'caught' | 'watching'
 
+/**
+ * Ticket de reconnexion de la mission en cours, gardé dans le navigateur : après une coupure,
+ * un rechargement, même une fermeture de l'onglet, on le présente au relais pour retrouver sa
+ * place (cf. `resume` dans server/salvage.js).
+ */
+const TICKET_KEY = 'mini-shipinteriors-salvage'
+let ticketMemo: { game: string; ticket: string } | null = null
+const ticketStore = {
+  get(): { game: string; ticket: string } | null {
+    try {
+      const v = JSON.parse(localStorage.getItem(TICKET_KEY) ?? 'null')
+      if (v && typeof v.game === 'string' && typeof v.ticket === 'string') return v
+    } catch {}
+    // Stockage refusé (navigation privée) : la reconnexion marche encore sans rechargement.
+    return ticketMemo
+  },
+  set(game: string, ticket: string) {
+    ticketMemo = { game, ticket }
+    try {
+      localStorage.setItem(TICKET_KEY, JSON.stringify(ticketMemo))
+    } catch {}
+  },
+  clear() {
+    ticketMemo = null
+    try {
+      localStorage.removeItem(TICKET_KEY)
+    } catch {}
+  },
+}
+
 const ERRORS: Record<string, string> = {
   lobby: tr('Il faut être dans le lobby du sas.', 'You need to be in the airlock lobby.'),
   full: tr('Équipe complète (quatre au plus).', 'Crew full (four at most).'),
@@ -114,6 +144,10 @@ export class SalvageClient {
   private quitArmed = 0
   private endTimer = 0
   private caughtTimer = 0
+  /** Revenu en capturé : on ouvre les caméras dès que l'équipe est là. */
+  private resumeWatch = false
+  private resumeTries = 0
+  private resumeTimer = 0
   private readonly tmp = new THREE.Vector3()
 
   constructor(private host: SalvageHost) {
@@ -182,6 +216,12 @@ export class SalvageClient {
   }
 
   /** Un panneau du mode est ouvert (il prend le clavier). */
+  /** Fusées en poche, pour le bouton tactile : null hors de la baie (ou caché, capturé). */
+  get flares(): { count: number; ready: boolean } | null {
+    if (this.phase !== 'zone' || !this.inZone || !this.me || this.me.status !== 'alive' || this.hiding) return null
+    return { count: this.me.flares, ready: !this.game?.state?.flare }
+  }
+
   get panelOpen(): boolean {
     return this.lobbyPanel.isOpen || this.boardPanel.isOpen || this.hud.endOpen
   }
@@ -250,15 +290,27 @@ export class SalvageClient {
 
   onMessage(m: ServerMessage) {
     switch (m.t) {
-      case 'welcome':
+      case 'welcome': {
         if (m.salvage) this.lobby = m.salvage
         this.refreshLobby()
+        // Une mission en cours avant la coupure (ou le rechargement) : on demande à y revenir.
+        this.resumeTries = 0
+        this.askResume()
         break
+      }
       case 'salvage:lobby':
         this.lobby = { teams: m.teams }
         this.refreshLobby()
         break
       case 'salvage:error':
+        if (m.code === 'resume' || m.code === 'elsewhere') clearTimeout(this.resumeTimer)
+        // Plus de place à reprendre (partie oubliée par le relais, délai passé) : rien à dire.
+        if (m.code === 'resume') {
+          ticketStore.clear()
+          break
+        }
+        // La mission se joue dans un autre onglet : on le laisse faire.
+        if (m.code === 'elsewhere') break
         if (this.lobbyPanel.isOpen) this.lobbyPanel.message(ERRORS[m.code] ?? tr('Action refusée.', 'Action refused.'))
         else if (this.game) {
           this.host.dialog.show(ERRORS[m.code] ?? tr('Impossible pour l\'instant.', 'Not possible right now.'))
@@ -276,6 +328,14 @@ export class SalvageClient {
         break
       case 'salvage:end':
         if (this.game?.id === m.game) this.finish(m)
+        else if (m.late) {
+          clearTimeout(this.resumeTimer)
+          // La mission s'est finie pendant la coupure.
+          ticketStore.clear()
+          this.host.dialog.show(m.won
+            ? tr('Pendant votre absence, votre équipe a récupéré toute la cargaison : mission réussie.', 'While you were away, your crew recovered all the cargo: mission accomplished.')
+            : tr('Pendant votre absence, la mission a échoué.', 'While you were away, the mission failed.'))
+        }
         break
       case 'salvage:reward':
         this.host.wallet.site({ earned: m.earned, balance: m.balance })
@@ -284,17 +344,33 @@ export class SalvageClient {
     }
   }
 
-  /** Liaison perdue avec le relais : la mission s'arrête pour nous, retour au lobby. */
+  /**
+   * Liaison perdue avec le relais : on revient au lobby ; à la reconnexion, le ticket rend sa
+   * place (au sas d'extraction), pendant une minute.
+   */
   disconnected() {
     if (!this.game) return
-    void this.leave(tr('Liaison perdue avec le relais : retour au lobby.', 'Lost contact with the relay: back to the lobby.'))
+    const g = this.game
+    void this.leave(tr(`Liaison perdue avec le relais : votre place vous attend ${RULES.reconnect} secondes, vous reprendrez au sas d'extraction.`, `Lost contact with the relay: your place is kept for ${RULES.reconnect} seconds, you'll resume at the extraction airlock.`))
+      .then(() => { if (this.game === g) this.dispose() })
   }
 
   // ------------------------------------------------------------------ départ, arrivée
 
+  /** Demande à reprendre la mission du ticket ; sans réponse (message perdu), redemande deux fois. */
+  private askResume() {
+    clearTimeout(this.resumeTimer)
+    const saved = ticketStore.get()
+    if (!saved || !this.host.net.online || this.game?.id === saved.game) return
+    this.host.net.sendSalvage('resume', saved)
+    if (this.resumeTries++ < 2) this.resumeTimer = window.setTimeout(() => this.askResume(), 8000)
+  }
+
   private async start(m: SalvageStart) {
+    clearTimeout(this.resumeTimer)
     this.closePanels()
     if (this.game) this.dispose()
+    ticketStore.set(m.game, m.ticket)
     this.phase = 'loading'
     const kit = await loadZoneKit()
     const zone = generateZone(m.seed, { team: m.team, parcels: m.parcels, enemies: m.enemies })
@@ -309,18 +385,29 @@ export class SalvageClient {
     })
     deck.group.add(this.compass, ...this.rings.map((r) => r.mesh))
     this.game = { id: m.game, zone, deck, monsters, items, members: m.members, parcels: m.parcels, enemies: m.enemies, state: null, end: null, carried: new Map() }
-    this.me = { id: this.host.net.id, status: 'arriving', carrying: null, hidden: null, flares: 0 }
+    this.me = { id: this.host.net.id, status: m.status, carrying: null, hidden: null, flares: 0 }
     this.stamina = 1
     this.exhausted = false
     this.fog.setZone(zone)
     this.fog.update(m.spawn, RULES.vision, 0, true)
     this.hud.mission(0, m.parcels)
     this.hud.setFlares(0, false)
+    // Revenu après avoir été capturé : on reste au vaisseau, et l'on suit l'équipe par les caméras.
+    if (m.resumed && m.status === 'captured') {
+      this.phase = 'ship'
+      this.resumeWatch = true
+      this.host.dialog.show(tr('De retour : vous suivez votre équipe par les caméras.', 'Back: you follow your crew through the cameras.'))
+      return
+    }
     this.hud.canQuit(true)
     this.hud.show(true)
     this.host.sound.setEcho(1)
     await this.host.moveTo(deck, m.spawn)
     this.phase = 'zone'
+    if (m.resumed) {
+      this.host.dialog.show(tr('De retour dans la mission : vous reprenez au sas d\'extraction.', 'Back in the mission: you resume at the extraction airlock.'))
+      return
+    }
     this.host.dialog.show(m.parcels > 1
       ? tr(`${m.parcels} colis à rapporter au sas d'extraction. Marchez sans bruit : ils entendent courir.`, `${m.parcels} crates to bring back to the extraction airlock. Walk quietly: they can hear running.`)
       : tr('Un colis à rapporter au sas d\'extraction. Marchez sans bruit : ils entendent courir.', 'One crate to bring back to the extraction airlock. Walk quietly: they can hear running.'))
@@ -332,6 +419,8 @@ export class SalvageClient {
     if (!g) return
     this.stopWatching(false)
     if (this.inZone) await this.host.moveTo(this.host.hold, LOBBY_RETURN)
+    // Reconnecté pendant le trajet : la mission reprise a déjà pris la main.
+    if (this.game !== g) return
     this.host.player.load = 1
     this.host.sound.setEcho(0)
     this.hud.show(false)
@@ -379,7 +468,8 @@ export class SalvageClient {
   }
 
   /** Lance une fusée : vers la tuile visée si elle est à portée et en vue, sinon droit devant. */
-  throwFlare() {
+  /** Lance une fusée là où l'on vise ; `ahead` (manette, bouton tactile) : droit devant. */
+  throwFlare(ahead = false) {
     const g = this.game
     if (!g || !this.inZone || this.phase !== 'zone' || !this.me || this.me.status !== 'alive' || this.me.hidden !== null) return
     if (!this.me.flares) {
@@ -388,7 +478,7 @@ export class SalvageClient {
     }
     const p = this.host.player.position
     let target: { x: number; z: number } | null = null
-    const pointed = this.host.pointed()
+    const pointed = ahead ? null : this.host.pointed()
     if (pointed && Math.hypot(pointed.x - p.x, pointed.z - p.z) <= RULES.flare.range && walkable(g.zone, pointed.x, pointed.z) && !inAirlock(g.zone, pointed) && zoneSight(g.zone, p, pointed)) target = pointed
     if (!target) {
       // Droit devant (le regard en vue subjective, sinon le personnage), puis tout autour : au
@@ -423,6 +513,7 @@ export class SalvageClient {
       return
     }
     this.quitArmed = 0
+    ticketStore.clear()
     this.host.net.sendSalvage('quit')
     void this.leave(tr('Mission abandonnée : retour au lobby.', 'Mission aborted: back to the lobby.'))
   }
@@ -537,6 +628,10 @@ export class SalvageClient {
     for (const id of carriers) this.carry(id)
     // Fusée qui brûle (le relais la tient ; on la rattrape si on l'a manquée).
     if (!s.flare) g.items.stopFlare()
+    if (this.resumeWatch && this.watchable().length) {
+      this.resumeWatch = false
+      this.openCameras()
+    }
   }
 
   /** Accroche un colis dans le dos du porteur (os du torse : il suit les animations). */
@@ -587,7 +682,9 @@ export class SalvageClient {
         if (e.id === self) {
           this.sfx.click(true)
           this.host.player.interact()
-          this.host.dialog.show(tr('Fusée d\'appel : F la lance là où vous visez. Elle attire les ennemis proches quelques secondes.', 'Decoy flare: F throws it where you aim. It lures nearby enemies for a few seconds.'))
+          this.host.dialog.show(matchMedia('(pointer: coarse)').matches
+            ? tr('Fusée d\'appel : le bouton rouge à flamme la lance droit devant. Elle attire les ennemis proches quelques secondes.', 'Decoy flare: the red flame button throws it straight ahead. It lures nearby enemies for a few seconds.')
+            : tr('Fusée d\'appel : F la lance là où vous visez. Elle attire les ennemis proches quelques secondes.', 'Decoy flare: F throws it where you aim. It lures nearby enemies for a few seconds.'))
         }
         break
       case 'deposit':
@@ -643,6 +740,17 @@ export class SalvageClient {
         if (e.id !== self) this.host.dialog.show(tr(`${name(e.id)} a quitté la mission.`, `${name(e.id)} left the mission.`))
         if (this.watching === e.id) this.cycle(1)
         break
+      case 'away':
+        if (e.id !== self) this.host.dialog.show(tr(`${name(e.id)} a perdu la liaison : sa place l'attend ${e.wait ?? RULES.reconnect} secondes.`, `${name(e.id)} lost contact: their place is kept for ${e.wait ?? RULES.reconnect} seconds.`))
+        if (this.watching === e.id) this.cycle(1)
+        break
+      case 'back': {
+        // Revenu sous un nouvel id : l'équipe le retrouve.
+        const member = g.members.find((m) => m.id === e.old)
+        if (member && e.id !== undefined) member.id = e.id
+        if (e.id !== self) this.host.dialog.show(tr(`${name(e.id)} est de retour.`, `${name(e.id)} is back.`))
+        break
+      }
     }
   }
 
@@ -675,6 +783,7 @@ export class SalvageClient {
   private finish(r: SalvageEnd) {
     const g = this.game!
     g.end = r
+    ticketStore.clear()
     this.sfx.end(r.won)
     this.hud.mission(r.delivered, r.parcels)
     // Plus rien à suivre : un capturé resté au lobby retrouve sa vue, sous l'écran de fin.

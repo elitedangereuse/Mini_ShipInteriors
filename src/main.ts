@@ -2007,8 +2007,11 @@ function updateGamepad(dt: number): GamepadInput {
   const typing = focus instanceof HTMLElement && (focus.matches('input, textarea, select') || focus.isContentEditable)
   const enabled = document.hasFocus() && !document.hidden && !typing && !chat.typing && !editing() && !photo.active && !arcade?.isOpen && !boardGames.isOpen && !barPanel.isOpen && !gameEmbed.isOpen && !mediaRoom.isOpen && !cinemaRoom.isOpen
   const pad = gamepad.poll(enabled)
+  let flare = false
   if (touchGamepad) {
     const touch = touchGamepad.poll(enabled)
+    touchGamepad.showFlares(zone.flares)
+    flare = touch.flare
     if (touch.moveX || touch.moveY) { pad.moveX = touch.moveX; pad.moveY = touch.moveY }
     pad.sprint ||= touch.sprint
     pad.interact ||= touch.interact
@@ -2078,7 +2081,7 @@ function updateGamepad(dt: number): GamepadInput {
   if (seating.current) {
     if (pad.interact && seating.settled) seating.stand()
     else if (pad.action && seating.settled) seatAction(seating.current)
-  } else if (pad.action && zone.inZone) zone.throwFlare()
+  } else if ((pad.action || flare) && zone.inZone) zone.throwFlare(true)
   else if (pad.interact || pad.action) tryInteract()
   return pad
 }

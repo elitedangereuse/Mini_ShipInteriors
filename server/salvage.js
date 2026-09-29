@@ -15,6 +15,11 @@
 //
 // Gains : une victoire paie chaque membre CMDR, y compris ceux qui ont été capturés ; le relais
 // transmet le résultat au site (cf. `reward`), qui ne paie qu'une fois par partie et par CMDR.
+//
+// Reconnexion : au départ, chaque membre reçoit un ticket. Déconnecté en pleine course, il lâche
+// son colis et sa place l'attend une minute (RULES.reconnect) ; avec son ticket, il revient au sas
+// d'extraction. Un capturé revient suivre son équipe tant que la partie dure. Une partie finie
+// entre-temps : on lui en donne le résultat (gardé dix minutes).
 
 import { randomBytes } from 'node:crypto'
 import { DIRS, ShipMap } from '../shared/ship-map.js'
@@ -34,9 +39,13 @@ const SEARCH_AGAIN = 15
 const STEP_NOISE = 0.45
 /** Une position plus lointaine que la vitesse ne le permet est ignorée (marge en tuiles). */
 const SLACK = 0.9
+/** Délai pour entrer dans la baie après le départ (ou le retour) : au-delà, c'est un abandon (ms). */
+const ARRIVAL = 30000
+/** Résultat d'une partie finie, gardé pour ceux qui reviennent après (ms). */
+const KEEP_RESULT = 600000
 
 /** Événements du lobby ; les autres (ramasser, se cacher, lancer une fusée, abandonner) sont ceux d'une partie. */
-export const LOBBY_ACTIONS = new Set(['salvage:create', 'salvage:join', 'salvage:leave', 'salvage:settings', 'salvage:ready'])
+export const LOBBY_ACTIONS = new Set(['salvage:create', 'salvage:join', 'salvage:leave', 'salvage:settings', 'salvage:ready', 'salvage:resume'])
 export const GAME_ACTIONS = new Set(['salvage:pickup', 'salvage:hide', 'salvage:unhide', 'salvage:flare', 'salvage:quit'])
 
 const clampInt = (v, lo, hi) => (Number.isInteger(v) ? Math.min(hi, Math.max(lo, v)) : null)
@@ -54,10 +63,14 @@ export function inLobby(p) {
  * @param {(event: string, data: object) => void} o.broadcast envoie à tout le bord
  * @param {(member: object, result: object) => Promise<{ earned: number, balance: number } | null>} [o.reward]
  */
-export function createSalvage({ playerById, emit, broadcast, reward = async () => null, now = Date.now, random = Math.random, log = () => {}, debug = false }) {
+export function createSalvage({
+  playerById, emit, broadcast, reward = async () => null, now = Date.now, random = Math.random, log = () => {}, debug = false,
+  seed = () => randomBytes(4).readUInt32LE(0),
+}) {
   const teams = new Map() // id -> équipe
   const games = new Map() // id -> partie
   const teamOf = new Map() // id du joueur -> équipe
+  const finished = new Map() // id de partie -> { result, tickets, until }
   let nextTeam = 1
 
   // ------------------------------------------------------------------ lobby
@@ -67,7 +80,8 @@ export function createSalvage({ playerById, emit, broadcast, reward = async () =
     startsIn: t.status === 'countdown' ? Math.max(0, (t.startAt - now()) / 1000) : undefined,
     members: t.members.map((id) => {
       const p = playerById(id)
-      return { id, name: p?.name ?? '?', verified: !!p?.verified, ready: t.ready.has(id) }
+      const m = t.game?.members.get(id)
+      return { id, name: p?.name ?? m?.name ?? '?', verified: !!(p?.verified ?? m?.verified), ready: t.ready.has(id) }
     }),
     ...(t.game ? { delivered: t.game.delivered, alive: [...t.game.members.values()].filter((m) => m.status === 'alive').length } : {}),
   })
@@ -158,13 +172,13 @@ export function createSalvage({ playerById, emit, broadcast, reward = async () =
   // ------------------------------------------------------------------ partie
 
   function startGame(t) {
-    const seed = randomBytes(4).readUInt32LE(0)
     const settings = { team: t.members.length, parcels: t.parcels, enemies: t.enemies }
-    const zone = generateZone(seed, settings)
-    const rand = mulberry32(seed ^ 0x9e3779b9)
+    const gameSeed = seed()
+    const zone = generateZone(gameSeed, settings)
+    const rand = mulberry32(gameSeed ^ 0x9e3779b9)
     const spawns = pickSpawns(zone, t.members.length, zone.monsters, rand)
     const game = {
-      id: randomBytes(8).toString('hex'), team: t, seed, zone, settings, startedAt: now(), delivered: 0, ended: false,
+      id: randomBytes(8).toString('hex'), team: t, seed: gameSeed, zone, settings, startedAt: now(), delivered: 0, ended: false,
       members: new Map(),
       cargo: zone.cargo.map((c) => ({ id: c.id, x: c.x, z: c.z, state: 'ground', by: null })),
       flares: new Set(zone.flares.map((f) => f.id)),
@@ -183,27 +197,34 @@ export function createSalvage({ playerById, emit, broadcast, reward = async () =
         id, name: p?.name ?? '?', verified: !!p?.verified, cookie: p?.cookie ?? null, status: 'arriving',
         spawn: spawns[i], x: spawns[i].x, z: spawns[i].z, at: now(), carrying: null, hidden: null, hiddenAt: 0, seen: false,
         cooldown: 0, flares: 0, noiseAt: 0, sprint: false,
+        // Reconnexion : le ticket (secret, donné à lui seul), la liaison, la fin du délai d'attente.
+        ticket: randomBytes(12).toString('hex'), connected: true, awayUntil: 0, arrivingSince: now(),
       })
     })
     t.status = 'playing'
     t.game = game
     t.ready.clear()
     games.set(game.id, game)
-    const roster = t.members.map((id) => ({ id, name: game.members.get(id).name }))
-    for (const m of game.members.values()) {
-      emit(m.id, 'salvage:start', {
-        game: game.id, seed, team: settings.team, parcels: settings.parcels, enemies: settings.enemies, members: roster,
-        spawn: m.spawn, spawns: Object.fromEntries([...game.members.values()].map((o) => [o.id, o.spawn])),
-      })
-    }
-    log(`[salvage] mission ${game.id} : ${roster.map((r) => r.name).join(', ')} — ${settings.parcels} colis, ${settings.enemies} ennemi(s)`)
+    for (const m of game.members.values()) emit(m.id, 'salvage:start', startMessage(game, m))
+    log(`[salvage] mission ${game.id} : ${[...game.members.values()].map((m) => m.name).join(', ')} — ${settings.parcels} colis, ${settings.enemies} ennemi(s)`)
     announce()
+  }
+
+  /** Départ (ou retour) d'un membre : la graine, l'équipe, son point d'arrivée et son ticket. */
+  function startMessage(game, m) {
+    const s = game.settings
+    return {
+      game: game.id, seed: game.seed, team: s.team, parcels: s.parcels, enemies: s.enemies,
+      members: [...game.members.values()].map((o) => ({ id: o.id, name: o.name })),
+      spawn: m.spawn, spawns: Object.fromEntries([...game.members.values()].map((o) => [o.id, o.spawn])),
+      ticket: m.ticket, status: m.status,
+    }
   }
 
   const gameOf = (p) => teamOf.get(p.id)?.game ?? null
   const memberOf = (p) => gameOf(p)?.members.get(p.id) ?? null
   const toGame = (game, event, data) => {
-    for (const m of game.members.values()) if (m.status !== 'gone') emit(m.id, event, data)
+    for (const m of game.members.values()) if (m.connected) emit(m.id, event, data)
   }
   const tell = (game, data) => toGame(game, 'salvage:event', data)
 
@@ -278,7 +299,8 @@ export function createSalvage({ playerById, emit, broadcast, reward = async () =
   function checkEnd(game) {
     if (game.ended) return
     if (game.delivered >= game.settings.parcels) return endGame(game, true)
-    const active = [...game.members.values()].some((m) => m.status === 'alive' || m.status === 'arriving')
+    // Un joueur déconnecté compte encore, le temps qu'il revienne.
+    const active = [...game.members.values()].some((m) => m.status === 'alive' || m.status === 'arriving' || m.status === 'away')
     if (!active) endGame(game, false)
   }
 
@@ -295,9 +317,13 @@ export function createSalvage({ playerById, emit, broadcast, reward = async () =
       team: game.settings.team, duration,
     }
     toGame(game, 'salvage:end', result)
-    // Membres partis du vaisseau : ils quittent l'équipe.
-    for (const m of game.members.values()) if (m.status === 'gone') leaveTeam({ id: m.id })
+    // Membres partis du vaisseau (ou pas encore revenus) : ils quittent l'équipe ; qui revient
+    // plus tard apprendra le résultat.
+    const absent = new Set([...game.members.values()].filter((m) => !m.connected).map((m) => m.id))
+    t.members = t.members.filter((id) => !absent.has(id))
+    if (absent.has(t.leader)) t.leader = t.members[0]
     if (!t.members.length) teams.delete(t.id)
+    finished.set(game.id, { result, tickets: new Set([...game.members.values()].map((m) => m.ticket)), until: now() + KEEP_RESULT })
     log(`[salvage] mission ${game.id} : ${won ? 'réussie' : reason === 'timeout' ? 'annulée' : 'échouée'}, ${game.delivered}/${game.settings.parcels} colis en ${duration} s`)
     announce()
     if (!won) return
@@ -398,6 +424,7 @@ export function createSalvage({ playerById, emit, broadcast, reward = async () =
 
   function handle(p, action, raw) {
     const data = raw && typeof raw === 'object' ? raw : {}
+    if (action === 'salvage:resume') return resume(p, data)
     const game = gameOf(p)
     // Serveur de dev seulement (essais dans le navigateur) : figer les ennemis, en poser un.
     if (action === 'salvage:debug') {
@@ -452,7 +479,7 @@ export function createSalvage({ playerById, emit, broadcast, reward = async () =
     if (!m) return
     if (p.level !== ZONE_LEVEL) {
       // Revenu au vaisseau en pleine partie sans l'avoir quittée : c'est un abandon.
-      if (m.status === 'alive' || (m.status === 'arriving' && now() - game.startedAt > 15000)) gameAction(p, game, 'salvage:quit', {})
+      if (m.status === 'alive' || (m.status === 'arriving' && now() - m.arrivingSince > ARRIVAL)) gameAction(p, game, 'salvage:quit', {})
       return
     }
     if (m.status === 'arriving') {
@@ -476,26 +503,80 @@ export function createSalvage({ playerById, emit, broadcast, reward = async () =
     }
   }
 
-  /** Départ du vaisseau (déconnexion). */
+  /**
+   * Départ du vaisseau (déconnexion). En pleine course : le colis tombe, et la place attend son
+   * joueur une minute (il revient avec son ticket, cf. resume) ; capturé : il pourra revenir
+   * suivre son équipe.
+   */
   function leave(p) {
     const t = teamOf.get(p.id)
     if (!t) return
+    teamOf.delete(p.id)
     const game = t.game
     const m = game?.members.get(p.id)
-    if (m) {
-      if (m.hidden !== null) {
-        game.lockers.set(m.hidden, null)
-        m.hidden = null
-      }
-      if (m.status === 'alive') drop(game, m)
-      m.status = 'gone'
-      tell(game, { kind: 'gone', id: m.id })
-      checkEnd(game)
-      if (!game.ended) return announce()
+    if (!m) {
+      teamOf.set(p.id, t)
+      leaveTeam(p)
+      unready(t)
+      return announce()
+    }
+    m.connected = false
+    if (m.hidden !== null) {
+      game.lockers.set(m.hidden, null)
+      m.hidden = null
+    }
+    if (m.status === 'alive' || m.status === 'arriving') {
+      drop(game, m)
+      m.status = 'away'
+      m.awayUntil = now() + RULES.reconnect * 1000
+      tell(game, { kind: 'away', id: m.id, wait: RULES.reconnect })
+    } else if (m.status === 'left') m.status = 'gone'
+    checkEnd(game)
+    announce()
+  }
+
+  /**
+   * Retour d'un membre après une déconnexion (nouvel id de joueur, même ticket) : il retrouve sa
+   * place ; en course, il repart du sas d'extraction.
+   */
+  function resume(p, data) {
+    const ticket = typeof data.ticket === 'string' ? data.ticket : ''
+    const game = games.get(data.game)
+    if (!game) {
+      const done = finished.get(data.game)
+      if (done && done.tickets.has(ticket)) emit(p.id, 'salvage:end', { ...done.result, late: true })
+      else emit(p.id, 'salvage:error', { code: 'resume' })
       return
     }
-    leaveTeam(p)
-    unready(t)
+    const m = ticket ? [...game.members.values()].find((x) => x.ticket === ticket) : null
+    // Encore joué depuis un autre onglet : on ne lui prend pas sa place (et l'on garde le ticket).
+    if (m?.connected) return error(p, 'elsewhere')
+    if (!m || m.status === 'gone' || m.status === 'left' || gameOf(p)) return error(p, 'resume')
+    // La place d'un CMDR ne revient qu'à lui (un autre compte sur le même navigateur, par exemple).
+    if (m.verified && (!p.verified || p.name !== m.name)) return error(p, 'resume')
+    if (p.cookie) m.cookie = p.cookie
+    if (teamOf.has(p.id)) {
+      const t = teamOf.get(p.id)
+      leaveTeam(p)
+      unready(t)
+    }
+    const old = m.id
+    game.members.delete(old)
+    m.id = p.id
+    m.connected = true
+    game.members.set(p.id, m)
+    const t = game.team
+    t.members = t.members.map((id) => (id === old ? p.id : id))
+    if (t.leader === old) t.leader = p.id
+    teamOf.set(p.id, t)
+    for (const mon of game.monsters) if (mon.target === old) mon.target = null
+    if (m.status === 'away') {
+      const pad = game.zone.airlock.pad
+      Object.assign(m, { status: 'arriving', spawn: { x: pad.x, z: pad.z }, x: pad.x, z: pad.z, at: now(), arrivingSince: now() })
+    }
+    emit(p.id, 'salvage:start', { ...startMessage(game, m), resumed: true })
+    tell(game, { kind: 'back', id: p.id, old })
+    log(`[salvage] mission ${game.id} : ${m.name} est revenu (${m.status})`)
     announce()
   }
 
@@ -716,6 +797,14 @@ export function createSalvage({ playerById, emit, broadcast, reward = async () =
   function stepGame(game, dt) {
     const t = now()
     const zone = game.zone
+    // Déconnectés trop longtemps : ils ne reviendront plus dans cette partie.
+    for (const m of game.members.values()) {
+      if (m.status !== 'away' || t < m.awayUntil) continue
+      m.status = 'gone'
+      tell(game, { kind: 'gone', id: m.id })
+      checkEnd(game)
+      if (game.ended) return
+    }
     // Bruits de course : un pas sonore de temps en temps, plus fort avec un colis.
     for (const m of game.members.values()) {
       if (m.status !== 'alive' || m.hidden !== null || !m.sprint) continue
@@ -760,6 +849,7 @@ export function createSalvage({ playerById, emit, broadcast, reward = async () =
   /** Un pas de simulation (dt en secondes) : départs des équipes prêtes, puis chaque partie. */
   function tick(dt) {
     const t = now()
+    for (const [id, done] of finished) if (done.until < t) finished.delete(id)
     for (const team of [...teams.values()]) {
       if (team.status === 'countdown' && team.startAt <= t) startGame(team)
     }

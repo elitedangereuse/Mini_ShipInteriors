@@ -1,6 +1,6 @@
 import type { GamepadInput } from '../shared/gamepad.js'
 
-type Button = 'interact' | 'action' | 'cancel'
+type Button = 'interact' | 'action' | 'cancel' | 'flare'
 
 /** Manette tactile du mode paysage : stick analogique et boutons indépendants des pointeurs du décor. */
 export class TouchGamepad {
@@ -10,6 +10,8 @@ export class TouchGamepad {
   private sprint = false
   private pending = new Set<Button>()
   private direction = 0
+  private flareButton = document.getElementById('touch-flare')!
+  private flareShown = ''
 
   constructor() {
     const stick = document.getElementById('touch-stick')!
@@ -44,7 +46,7 @@ export class TouchGamepad {
     stick.addEventListener('pointercancel', release)
     stick.addEventListener('lostpointercapture', release)
 
-    for (const name of ['interact', 'action', 'cancel', 'sprint'] as const) {
+    for (const name of ['interact', 'action', 'cancel', 'sprint', 'flare'] as const) {
       const button = document.getElementById(`touch-${name}`)!
       button.addEventListener('pointerdown', (e) => {
         e.preventDefault()
@@ -75,7 +77,22 @@ export class TouchGamepad {
     for (const b of document.querySelectorAll('#touch-pad .pressed')) b.classList.remove('pressed')
   }
 
-  poll(enabled: boolean): GamepadInput {
+  /**
+   * Bouton des fusées de la zone thargoïde : `null` le cache (hors de la baie) ; sinon il montre
+   * les fusées en poche, grisé quand il n'y en a plus ou qu'une autre brûle encore.
+   */
+  showFlares(flares: { count: number; ready: boolean } | null) {
+    const shown = flares ? `${flares.count}:${flares.ready}` : ''
+    if (shown === this.flareShown) return
+    this.flareShown = shown
+    this.flareButton.hidden = !flares
+    if (!flares) return
+    this.flareButton.querySelector('.touch-flare-count')!.textContent = String(flares.count)
+    this.flareButton.classList.toggle('empty', flares.count === 0)
+    this.flareButton.classList.toggle('ready', flares.ready && flares.count > 0)
+  }
+
+  poll(enabled: boolean): GamepadInput & { flare: boolean } {
     const pressed = this.pending
     this.pending = new Set()
     const direction = this.y < -0.55 ? -1 : this.y > 0.55 ? 1 : 0
@@ -91,6 +108,7 @@ export class TouchGamepad {
       interact: enabled && pressed.has('interact'), action: enabled && pressed.has('action'), cancel: enabled && pressed.has('cancel'),
       rotateLeft: false, rotateRight: false, help: false,
       up: enabled && up, down: enabled && down,
+      flare: enabled && pressed.has('flare'),
     }
   }
 }

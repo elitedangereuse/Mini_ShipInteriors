@@ -7,8 +7,9 @@ import { createSalvage, inLobby } from './salvage.js'
 import { distances, findPath, inAirlock, lockerFront, lockerSpot, mulberry32, RULES, ZONE_LEVEL } from '../shared/salvage.js'
 
 /** Relais simulé : joueurs, horloge, messages envoyés et gains demandés au site. */
-function harness() {
+function harness(seed = 20260929) {
   let t = 1_000_000
+  let seeds = mulberry32(seed)
   const players = new Map()
   const sent = []
   const broadcasts = []
@@ -23,6 +24,7 @@ function harness() {
     },
     now: () => t,
     random: mulberry32(7),
+    seed: () => Math.floor(seeds() * 0xffffffff),
   })
   const add = (id, verified = true) => {
     const p = { id, name: `CMDR ${id}`, verified, level: -1, x: 22, z: 5, anim: 'idle', cookie: verified ? `ED_LOGGED_CMDR_ID=jeton-${id}` : null }
@@ -319,7 +321,7 @@ test('fusée : les ennemis à portée y courent et ignorent les joueurs le temps
   assert.notEqual(mon.mode, 'lured')
 })
 
-test('déconnexion : le colis tombe, et la partie s\'arrête quand plus personne n\'est actif', () => {
+test('déconnexion : le colis tombe, la place attend une minute, puis la partie s\'arrête sans personne en course', () => {
   const h = harness()
   const { members } = h.team(1, 2)
   const game = h.launch(members)
@@ -328,13 +330,112 @@ test('déconnexion : le colis tombe, et la partie s\'arrête quand plus personne
   h.walk(members[0], game.zone.cargo[0])
   h.salvage.handle(members[0], 'salvage:pickup', { kind: 'cargo', id: 0 })
   h.salvage.leave(members[0])
-  assert.equal(game.cargo[0].state, 'ground')
-  assert.equal(h.last(2, 'salvage:end'), undefined)
-  // Le second abandonne : il revient au lobby, la mission est perdue.
+  assert.equal(game.cargo[0].state, 'ground', 'le colis tombe pour que l\'équipe continue')
+  assert.equal(game.members.get(1).status, 'away')
+  assert.ok(h.last(2, 'salvage:event', (e) => e.kind === 'away' && e.id === 1))
+  // Le second abandonne : on attend encore le déconnecté.
   h.salvage.handle(members[1], 'salvage:quit', {})
+  assert.equal(h.last(2, 'salvage:end'), undefined)
+  h.advance(RULES.reconnect + 0.5)
+  assert.equal(game.members.get(1).status, 'gone')
   assert.equal(h.last(2, 'salvage:end')?.won, false)
   // Le partant a quitté l'équipe ; l'autre y reste.
   assert.deepEqual(h.broadcasts.at(-1).data.teams[0].members.map((m) => m.id), [2])
+})
+
+test('reconnexion : avec son ticket, un joueur en course retrouve sa place, au sas d\'extraction', () => {
+  const h = harness()
+  const { members: [a, b] } = h.team(1, 2)
+  const game = h.launch([a, b])
+  game.monsters.length = 0
+  h.arrive(a)
+  h.arrive(b)
+  const ticket = h.last(1, 'salvage:start').ticket
+  assert.match(ticket, /^[0-9a-f]{24}$/)
+  assert.notEqual(ticket, h.last(2, 'salvage:start').ticket)
+  h.salvage.leave(a)
+  h.advance(10)
+  // Le même joueur revient sous un nouvel id (nouvelle connexion) : un mauvais ticket ne suffit pas.
+  const back = h.add(7)
+  back.name = 'CMDR 1'
+  h.salvage.handle(back, 'salvage:resume', { game: game.id, ticket: 'faux' })
+  assert.equal(h.last(7, 'salvage:error').code, 'resume')
+  h.salvage.handle(back, 'salvage:resume', { game: game.id, ticket })
+  const again = h.last(7, 'salvage:start')
+  assert.ok(again?.resumed)
+  assert.deepEqual(again.spawn, game.zone.airlock.pad)
+  assert.equal(game.members.get(7).status, 'arriving')
+  assert.equal(game.members.has(1), false)
+  assert.deepEqual([...h.salvage.teammates(back)].sort(), [2, 7])
+  assert.ok(h.last(2, 'salvage:event', (e) => e.kind === 'back' && e.id === 7 && e.old === 1))
+  // Il rentre dans la baie par le sas, puis joue normalement.
+  Object.assign(back, { level: ZONE_LEVEL, x: again.spawn.x, z: again.spawn.z })
+  assert.ok(h.salvage.accepts(back, back.x, back.z))
+  h.salvage.moved(back)
+  assert.equal(game.members.get(7).status, 'alive')
+  // Déjà revenu (un second onglet, par exemple) : le même ticket ne rouvre pas une seconde place.
+  const twin = h.add(8)
+  h.salvage.handle(twin, 'salvage:resume', { game: game.id, ticket })
+  assert.equal(h.last(8, 'salvage:error').code, 'elsewhere')
+  assert.equal(game.members.get(7).id, 7)
+})
+
+test('reconnexion : deux coupures de suite, le même ticket sert encore', () => {
+  const h = harness()
+  const { members: [a, b] } = h.team(1, 2)
+  const game = h.launch([a, b])
+  game.monsters.length = 0
+  h.arrive(a)
+  h.arrive(b)
+  const ticket = h.last(1, 'salvage:start').ticket
+  let me = a
+  for (const id of [7, 8]) {
+    h.salvage.leave(me)
+    assert.equal(game.members.get(me.id).status, 'away')
+    const back = Object.assign(h.add(id), { name: 'CMDR 1' })
+    h.salvage.handle(back, 'salvage:resume', { game: game.id, ticket })
+    const again = h.last(id, 'salvage:start')
+    assert.ok(again?.resumed, `retour sous l'id ${id}`)
+    Object.assign(back, { level: ZONE_LEVEL, x: again.spawn.x, z: again.spawn.z })
+    h.salvage.moved(back)
+    assert.equal(game.members.get(id).status, 'alive')
+    me = back
+  }
+})
+
+test('reconnexion : un capturé revient suivre son équipe ; après la fin, on apprend le résultat', () => {
+  const h = harness()
+  const { members: [a, b] } = h.team(1, 2)
+  const game = h.launch([a, b])
+  h.arrive(a)
+  h.arrive(b)
+  h.advance(RULES.grace)
+  game.monsters.length = 1
+  Object.assign(game.monsters[0], { x: a.x + 0.2, z: a.z, path: [], mode: 'patrol' })
+  h.advance(0.2)
+  assert.equal(game.members.get(1).status, 'captured')
+  game.monsters.length = 0
+  const ticket = h.last(1, 'salvage:start').ticket
+  h.salvage.leave(a)
+  // Un autre CMDR (même navigateur, autre compte) ne prend pas sa place.
+  const other = h.add(9)
+  h.salvage.handle(other, 'salvage:resume', { game: game.id, ticket })
+  assert.equal(h.last(9, 'salvage:error').code, 'resume')
+  const back = Object.assign(h.add(5), { name: 'CMDR 1' })
+  h.salvage.handle(back, 'salvage:resume', { game: game.id, ticket })
+  assert.equal(h.last(5, 'salvage:start')?.status, 'captured')
+  h.advance(0.2)
+  assert.ok(h.last(5, 'salvage:state'), 'il reçoit l\'état de la partie (caméras)')
+  // B gagne ; A, reparti entre-temps, revient après la fin.
+  h.salvage.leave(back)
+  h.walk(b, game.zone.cargo[0])
+  h.salvage.handle(b, 'salvage:pickup', { kind: 'cargo', id: 0 })
+  h.walk(b, game.zone.airlock.pad)
+  assert.ok(h.last(2, 'salvage:end')?.won)
+  const late = h.add(6)
+  h.salvage.handle(late, 'salvage:resume', { game: game.id, ticket })
+  const end = h.last(6, 'salvage:end')
+  assert.ok(end?.won && end.late)
 })
 
 test('coéquipiers : seuls les membres de la même partie', () => {
