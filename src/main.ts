@@ -48,6 +48,8 @@ import { findReaction, REACTIONS, reactionImage } from './reactions'
 import { Patroller, SERGEANT, soldierRig, type ShipReport } from './patrol'
 import { CHEF, Chef, chefRig, type ChefReport } from './chef'
 import { Kitchen } from './kitchen'
+import { NURSE, Nurse, nurseRig, type NurseReport } from './nurse'
+import { Infirmary, Plasters } from './infirmary'
 import { menuOf } from './menu'
 import { RemotePlayer } from './remote'
 import { Seating, type Seated } from './seating'
@@ -708,6 +710,71 @@ chef.onWork = (work) => {
   else if (work === 'fetch') sound.work('wrench', at)
 }
 
+// Betty, l'infirmière, fait la tournée de l'infirmerie (cf. nurse.ts) ; allongé sur un lit, on
+// l'appelle en consultation, et on repart avec un pansement (cf. infirmary.ts).
+const nurse = new Nurse(await nurseRig(), patrolDeck)
+const infirmary = new Infirmary({
+  deck: patrolDeck,
+  nurse,
+  player,
+  here: () => deck,
+  seat: () => seating.current,
+  self: () => net.id,
+  show: (text) => dialog.show(text),
+  nurseSays: (text) => {
+    if (patrolDeck === deck) bubbles.say('nurse', text)
+  },
+  feel: (icon) => bubbles.emote('me', icon),
+  care: (bed, healed) => {
+    nurse.care(bed, net.id)
+    net.sendNurseCare(bed >= 0, healed)
+  },
+})
+const plasters = new Plasters()
+/** Ce que l'infirmière sait quand on lui parle : le système, nos consultations, notre pansement. */
+function nurseReport(): NurseReport {
+  return { system: SYSTEMS[systemView.id].name, visits: infirmary.visits, patched: infirmary.patched(net.id) }
+}
+patrolDeck.interactables.push({
+  object: nurse.root,
+  position: nurse.position,
+  label: tr(`Parler à ${NURSE}`, `Talk to ${NURSE}`),
+  onInteract: () => {
+    player.interact()
+    net.sendEmote('interact')
+    // Pendant la consultation, elle ausculte ; sinon elle bavarde.
+    const line = infirmary.reminder() ?? nurse.talk(player.position, nurseReport())
+    if (!infirmary.busy) net.sendNurseTalk()
+    dialog.show(tr(`${NURSE} : « ${line} »`, `${NURSE}: “${line}”`))
+  },
+})
+bubbles.attach('nurse', (out) => (patrolDeck.group.visible ? nurse.avatar.head(out) : null))
+nurse.onBark = (text) => {
+  if (patrolDeck === deck) bubbles.say('nurse', text)
+}
+nurse.onStep = () => {
+  if (patrolDeck === deck) sound.play('softStep', nurse.root.getWorldPosition(new THREE.Vector3()), { volume: 0.07, rate: 1.2 })
+}
+/**
+ * Ses bruits de travail ne se chevauchent pas : l'ordinateur du poste de soins (un bruit de 5 s, au
+ * volume des consoles du bord) et le bip d'un moniteur, une fois par poste et non à chaque geste.
+ */
+const nurseQuiet = { type: 0, check: 0 }
+nurse.onWork = (work) => {
+  if (patrolDeck !== deck) return
+  const at = nurse.root.getWorldPosition(new THREE.Vector3()).setY(patrolDeck.y + 0.45)
+  const now = performance.now()
+  if (work === 'type') {
+    if (now < nurseQuiet.type) return
+    nurseQuiet.type = now + 12000
+    sound.play('computer', at, { volume: 0.05, ref: 1.2, rolloff: 1.6 })
+  } else if (work === 'check') {
+    if (now < nurseQuiet.check) return
+    nurseQuiet.check = now + 5000
+    sound.beep(at)
+  } else if (work === 'wash') sound.work('water', at)
+}
+
 // ------------------------------------------------------------------ compagnons
 
 /**
@@ -1031,6 +1098,8 @@ net.onMessage = (m) => {
       if (m.patrol) sergeant.sync(m.patrol)
       // Le chef aussi, dans sa tournée (ou à la passe, si quelqu'un cuisine avec lui).
       if (m.chef) chef.sync(m.chef)
+      // Et Betty, dans sa tournée (ou au chevet d'un patient), avec les pansements du bord.
+      if (m.nurse) nurse.sync(m.nurse)
       // Le relais oublie tout à chaque connexion : la musique de nos quartiers, on la lui rend.
       const own = cabinMusic.playing
       if (own) net.sendMusic('cabin', own.track.id, own.x, own.z, own.position, own)
@@ -1076,6 +1145,7 @@ net.onMessage = (m) => {
       if (m.emote === 'o7' && r.level === patrolDeck.def.id) {
         sergeant.greet(r.group.position, false)
         chef.greet(r.group.position, false)
+        nurse.greet(r.group.position, false)
       }
       const def = EMOTES.find((e) => e.id === m.emote)
       if (def && r.level === deck.def.id) bubbles.emote(`p${m.id}`, def.icon)
@@ -1111,6 +1181,11 @@ net.onMessage = (m) => {
       // Quelqu'un parle au chef ou cuisine avec lui (nous aussi : le relais recale sa tournée).
       chef.sync(m)
       if (m.id !== net.id && patrolDeck === deck && m.hold > 0 && m.cook === 0) bubbles.say('chef', '…')
+      break
+    case 'nurse':
+      // Quelqu'un parle à Betty, l'appelle à son lit ou en repart (nous aussi : le relais recale sa tournée).
+      nurse.sync(m)
+      if (m.id !== net.id && patrolDeck === deck && m.hold > 0 && m.care === 0 && m.face) bubbles.say('nurse', '…')
       break
     case 'jump':
       // Un pilote lance le saut FSD (nous, ou un autre) : tout le bord part. Dans la baie infestée,
@@ -2712,6 +2787,7 @@ function seatPrompt(seat: Seated): { main: string; space?: string } | null {
   if (deck.def.id === 1 && seat.item.furniture?.model === 'projection-chair') return { main: tr('Se lever', 'Stand up'), space: tr('Régie', 'Controls') }
   if (seat.item.furniture?.model === 'bar-stool' && deck.def.id === -1) return { main: tr('Se lever', 'Stand up'), space: tr('Parler à Jacques', 'Talk to Jacques') }
   if (boardGame(seat)) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
+  if (infirmary.canCall(seat)) return { main: tr('Se lever', 'Stand up'), space: infirmary.busy ? undefined : tr(`Appeler ${NURSE}`, `Call ${NURSE}`) }
   return { main: tr('Se lever', 'Stand up') }
 }
 
@@ -2729,6 +2805,7 @@ function seatAction(seat: Seated) {
   if (seat.item.furniture?.model === 'bar-stool' && deck.def.id === -1) return barPanel.open()
   const board = boardGame(seat)
   if (board) boardGames.open(board.game, board.table)
+  if (infirmary.canCall(seat)) infirmary.call()
 }
 
 // ------------------------------------------------------------------ bornes d'arcade
@@ -3252,6 +3329,11 @@ function frame() {
   moustache.update(world, labDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
   sergeant.update(world, patrolDeck === deck ? player.position : null, player.avatar.emoteId)
   chef.update(world, patrolDeck === deck ? player.position : null, player.avatar.emoteId)
+  nurse.update(world, patrolDeck === deck ? player.position : null, player.avatar.emoteId)
+  infirmary.update()
+  // Pansements de Betty : le nôtre, et ceux des autres.
+  plasters.show(player.avatar, infirmary.patched(net.id))
+  for (const r of remotes.values()) plasters.show(r.avatar, infirmary.patched(r.id))
 
   // Chez Jacques, on garde le joueur et le barman ensemble dans le cadre.
   if (barPanel.isOpen && deck.def.id === -1) {
@@ -3293,7 +3375,7 @@ function frame() {
   for (const list of actors.values()) list.length = 0
   actors.get(deck)?.push(player.position)
   if (cometeHere) actors.get(catDeck)!.push(cat.root.position)
-  actors.get(patrolDeck)!.push(sergeant.position, chef.position)
+  actors.get(patrolDeck)!.push(sergeant.position, chef.position, nurse.position)
   for (const c of companions.values()) actors.get(cabinDeck)!.push(c.pet.root.position)
   // Un joueur d'une autre instance des quartiers n'ouvre pas nos portes.
   for (const r of remotes.values()) if (r.group.visible || r.level !== deck.def.id) actors.get(deckById(r.level))?.push(r.group.position)
@@ -3419,8 +3501,8 @@ function frame() {
   snore += dt
   if (snore > 4.5) {
     snore = 0
-    if (seating.settled && seating.pose === 'lie') bubbles.emote('me', 'moon-stars')
-    for (const r of remotes.values()) if (r.group.visible && r.pose === 'lie') bubbles.emote(`p${r.id}`, 'moon-stars')
+    if (seating.settled && seating.pose === 'lie' && !infirmary.busy) bubbles.emote('me', 'moon-stars')
+    for (const r of remotes.values()) if (r.group.visible && r.pose === 'lie' && nurse.patient !== r.id) bubbles.emote(`p${r.id}`, 'moon-stars')
   }
 
   liftRide.update(dt, activeCamera())
@@ -3483,6 +3565,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, cat, moustache, sergeant, chef, kitchen, companions, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, salvage: zone, view: () => viewDeck },
+    __game: { renderer, sound, player, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, companions, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, salvage: zone, view: () => viewDeck },
   })
 }

@@ -28,12 +28,13 @@ export const SHIP_LAYOUTS = {
   // Pont principal. À la poupe, la salle commune ; la coursive file vers le poste de pilotage et ses
   // verrières, à la proue, et s'ouvre juste avant sur la Promenade, un atrium vitré autour de la
   // maquette du Cobra. Au nord, le labo du LJPC ; au sud, la grande salle d'arcade (deux portes) et
-  // le mess, un self dont la cuisine occupe le fond.
+  // le mess, un self dont la cuisine occupe le fond. Au nord, contre la salle commune, l'infirmerie
+  // de Betty.
   '0': [
-    '  eeeeee   qqqqqrrrrrlllll ccc          ',
-    ' eeeeeeee  qqqqqrrrrrlllllccccc bbb     ',
-    'eeeeeeeee  qqqqqrrrrrlllllccccc bbbbb   ',
-    'eeeeeeeee  qq+qqrr+rrll+llccccc bbbbbbb ',
+    '  eeeeee qqqqqqqrrrrrlllll ccc          ',
+    ' eeeeeeeeqqqqqqqrrrrrlllllccccc bbb     ',
+    'eeeeeeeeeqqqqqqqrrrrrlllllccccc bbbbb   ',
+    'eeeeeeeeeqqqq+qqrr+rrll+llccccc bbbbbbb ',
     'eeeeeeee+cccccccccccccccccccccc+bbbbbbb ',
     'eeeeeeee+cccccccccccccccccccccc+bbbbbbb ',
     'eeeeeeeeemmmm+mmss+ssss+ssccccc bbbbbbb ',
