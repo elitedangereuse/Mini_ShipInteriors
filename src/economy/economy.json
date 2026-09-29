@@ -2,6 +2,7 @@
   "start": 30000,
   "passive": { "perMinute": 100, "beat": 60, "minGap": 50, "maxGap": 120 },
   "wings": [100000, 250000, 500000],
+  "salvage": { "parcel": 1500, "enemyBonus": 0.5 },
   "drinks": {
     "night-conda": 600, "caustic-sour": 500, "imperial-crush": 550,
     "stellar-kick": 650, "colonia-dream": 500

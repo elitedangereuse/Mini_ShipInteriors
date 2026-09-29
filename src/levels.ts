@@ -1,4 +1,7 @@
+import type * as THREE from 'three'
 import type { StationModel, Theme } from './assets'
+import type { ShipMapOptions } from '../shared/ship-map.js'
+import type { ZoneKit } from './salvage/kit'
 import type { CabinDef } from './cabin/view'
 import type { CustomModel } from './furniture'
 import { tr } from './i18n'
@@ -9,8 +12,10 @@ import { PILOT_SEAT } from '../shared/systems.js'
 export type Rot = 0 | 1 | 2 | 3
 
 export interface Prop {
-  /** Modèle du kit Kenney, ou meuble fait main (cf. src/furniture/). */
-  model: StationModel | CustomModel
+  /** Modèle du kit Kenney, ou meuble fait main (cf. src/furniture/), ou objet déjà construit (`object`). */
+  model: StationModel | CustomModel | 'prebuilt'
+  /** Objet déjà construit (`model: 'prebuilt'`) : les conteneurs et le décor de la baie infestée. */
+  object?: THREE.Object3D
   x: number
   z: number
   rot?: Rot
@@ -100,6 +105,11 @@ export interface LevelDef {
    * l'aménagement de chaque joueur (cf. src/cabin/).
    */
   cabin?: CabinDef
+  /**
+   * Baie infestée de la zone thargoïde (cf. src/salvage/) : son plan (murs du labyrinthe, portes
+   * du sas) et le kit de ses murs, sols et portes. Ni coque, ni ascenseur, ni tuyères.
+   */
+  zone?: { kit: ZoneKit; map: ShipMapOptions }
 }
 
 /** Écart vertical entre deux ponts. */
@@ -132,15 +142,11 @@ export const LEVELS: LevelDef[] = [
       g: tr('Soute', 'Cargo bay'),
       // Le nom du bar ne se traduit pas.
       b: 'Chez Jacques',
-      h: tr('Sas de la zone thargoïde', 'Thargoid zone airlock'),
+      h: tr('Lobby de la zone thargoïde', 'Thargoid zone lobby'),
       e: tr('Salle des machines', 'Engine room'),
       v: tr('Sanctuaire de la Voie', 'Sanctuary of the Path'),
     },
     closed: {
-      h: tr(
-        'Porte verrouillée : « Sas de la zone thargoïde — en travaux ». Derrière, on entend gratter.',
-        'Locked door: “Thargoid zone airlock — under construction”. Something is scratching on the other side.',
-      ),
       v: tr(
         'Une porte sans poignée, cachée derrière les machines. Sur le panneau, un symbole gravé : six pétales autour d’un hexagone. « Seuls les Adeptes peuvent trouver la Voie. » Terminez L’Épreuve de la Voie pour entrer.',
         'A door with no handle, hidden behind the machinery. A symbol is carved into the panel: six petals around a hexagon. “Only Adepts can find the Path.” Complete The Trial of the Path to enter.',
@@ -486,16 +492,39 @@ export const LEVELS: LevelDef[] = [
       { model: 'crate', x: 18.02, z: 9.62 },
       { model: 'plant-tall', x: 17.95, z: 12.95 },
 
-      // --- Sas de la zone thargoïde (SOC-06), en travaux ---
-      { model: 'works-sign', x: 22.9, z: 5.2, rot: 3, label: tr('Bientôt|Zone thargoïde', 'Coming soon|Thargoid zone') },
-      { model: 'works-tape', x: 23.5, z: 5, solid: false },
-      { model: 'scaffold', x: 22.6, z: 2.05 },
-      { model: 'tarp-crates', x: 24.9, z: 2.3, rot: 1 },
-      { model: 'tarp-crates', x: 24.9, z: 7.55, rot: 1 },
-      { model: 'cones', x: 20.6, z: 7.7 },
-      { model: 'drums', x: 20.5, z: 2.5 },
-      { model: 'cables', x: 21.6, z: 6.8, solid: false },
-      { model: 'work-lamp', x: 24.6, z: 4.9, rot: 3 },
+      // --- Lobby de la zone thargoïde (SOC-06) : on y forme son équipe au terminal, on suit les
+      // coéquipiers sur les caméras, et la porte blindée du mur nord mène à la baie infestée ---
+      {
+        model: 'salvage-terminal', x: 22.6, z: 5.3, action: tr('Préparer une mission', 'Prepare a mission'),
+        interact: tr('Terminal de mission : récupération de cargaison en zone thargoïde.', 'Mission terminal: cargo recovery in a Thargoid zone.'),
+      },
+      {
+        model: 'surveillance-wall', x: 21.4, z: 1.88, action: tr('Caméras', 'Cameras'),
+        interact: [
+          tr('Six caméras dans la baie de stockage. Sur la trois, quelque chose vient de passer. Ou pas.', 'Six cameras in the storage bay. On number three, something just walked past. Or not.'),
+          tr('Les caméras filment la baie infestée. En mission, elles suivent l\'équipe.', 'The cameras watch the infested bay. During a mission, they follow the crew.'),
+        ],
+      },
+      { model: 'blast-door', x: 24.2, z: 1.54, solid: false, interact: tr(
+        'La porte blindée ne s\'ouvre qu\'au départ d\'une mission. Derrière, on entend gratter.',
+        'The blast door only opens when a mission starts. Something is scratching on the other side.',
+      ) },
+      { model: 'drop-zone', x: 24.2, z: 2.55, solid: false },
+      { model: 'bio-sign', x: 22.88, z: 1.67, solid: false, interact: tr(
+        '« Contamination caustique. Tout colis rapporté passe au scanner avant de quitter le sas. »',
+        '“Caustic contamination. Every recovered crate is scanned before it leaves the airlock.”',
+      ) },
+      { model: 'salvage-board', x: 19.68, z: 3.2, rot: 1, action: tr('Classement', 'Leaderboard') },
+      { model: 'locker-row', x: 19.8, z: 7.2, rot: 1, interact: tr(
+        'Vestiaire du sas : combinaisons, lampes frontales, et un mot scotché : « Dans la baie, ne restez jamais plus de vingt secondes dans un casier. »',
+        'Airlock locker room: suits, head torches, and a taped note: “In the bay, never stay in a locker for more than twenty seconds.”',
+      ) },
+      { model: 'flare-crate', x: 21.1, z: 7.8, interact: tr(
+        'Des fusées d\'appel rouges. Lancées dans la baie, elles attirent ce qui y rôde pendant quelques secondes.',
+        'Red decoy flares. Thrown in the bay, they draw whatever prowls there for a few seconds.',
+      ) },
+      { model: 'drums', x: 25, z: 7.9 },
+      { model: 'cables', x: 23.6, z: 7.2, solid: false },
     ],
     lights: [
       [1.5, 5, '#4fd4ff', 4],
@@ -512,6 +541,10 @@ export const LEVELS: LevelDef[] = [
       [17.9, 4.6, '#ffb060', 2.2, 'neon'],
       [12.4, 9.7, '#ffb45e', 3.4],
       [14.2, 11.8, '#ff9f5a', 3, 'fire'],
+      // Lobby de la zone thargoïde : lumière froide, gyrophare de la porte blindée, écrans verts.
+      [22.6, 5.6, '#cfe6ff', 2.4],
+      [24.3, 2.5, '#ff3b2f', 2.2, 'neon'],
+      [21.4, 2.6, '#6dff9a', 1.4],
     ],
   },
 

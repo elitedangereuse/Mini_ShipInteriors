@@ -14,6 +14,13 @@ const CABIN_ENDPOINT = '/outils/mini-shipinteriors-cabin.php'
 const SCORES_ENDPOINT = '/outils/mini-shipinteriors-scores.php'
 /** Crédits du CMDR (solde, achats, gains). */
 const CREDITS_ENDPOINT = '/outils/mini-shipinteriors-credits.php'
+/** Zone thargoïde : classement des victoires (lecture), gains des missions (écrit par le relais). */
+const SALVAGE_ENDPOINT = '/outils/mini-shipinteriors-salvage.php'
+/**
+ * Clé partagée entre le relais et le site pour payer les missions gagnées (MSI_RELAY_SECRET des
+ * deux côtés en production) ; en local, le site accepte celle-ci.
+ */
+const DEV_RELAY_SECRET = process.env.MSI_RELAY_SECRET || 'dev-local'
 // PHP sees the Docker host, while the browser may use 127.0.0.1:5173.
 // Translate only a verified same-origin request; foreign origins remain refused.
 const siteProxy: ProxyOptions = {
@@ -28,7 +35,7 @@ const siteProxy: ProxyOptions = {
     })
   },
 }
-const SITE_PROXY = Object.fromEntries([CMDR_ENDPOINT, CABIN_ENDPOINT, SCORES_ENDPOINT, CREDITS_ENDPOINT, '/outils/mini-shipinteriors-site.php', '/outils/mini-shipinteriors-cinema.php'].map((path) => [path, siteProxy]))
+const SITE_PROXY = Object.fromEntries([CMDR_ENDPOINT, CABIN_ENDPOINT, SCORES_ENDPOINT, CREDITS_ENDPOINT, SALVAGE_ENDPOINT, '/outils/mini-shipinteriors-site.php', '/outils/mini-shipinteriors-cinema.php'].map((path) => [path, siteProxy]))
 
 /**
  * Branche le relais multijoueur sur le serveur de dev (et de preview) de Vite, sur /ws/mini-shipinteriors.
@@ -46,11 +53,11 @@ function relay(): Plugin {
     },
     configureServer(server) {
       const { info, warn } = server.config.logger
-      if (server.httpServer) attachRelay(server.httpServer, { log: (m) => info(m), error: (m) => warn(m), cmdrUrl, devCmdr: true, youtubeKey })
+      if (server.httpServer) attachRelay(server.httpServer, { log: (m) => info(m), error: (m) => warn(m), cmdrUrl, devCmdr: true, youtubeKey, relaySecret: DEV_RELAY_SECRET })
     },
     configurePreviewServer(server) {
       const { info, warn } = server.config.logger
-      attachRelay(server.httpServer, { log: (m) => info(m), error: (m) => warn(m), cmdrUrl, youtubeKey })
+      attachRelay(server.httpServer, { log: (m) => info(m), error: (m) => warn(m), cmdrUrl, youtubeKey, relaySecret: DEV_RELAY_SECRET })
     },
   }
 }

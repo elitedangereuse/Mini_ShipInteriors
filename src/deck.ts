@@ -165,11 +165,11 @@ export class Deck {
   private plumes: THREE.Mesh[] = []
   /** Jets des tuyères. */
   private glowMat: THREE.ShaderMaterial
-  private liftBeam!: THREE.Mesh
-  private liftHalo!: THREE.Mesh
+  private liftBeam?: THREE.Mesh
+  private liftHalo?: THREE.Mesh
   private liftRings: THREE.Mesh[] = []
-  private liftSign!: THREE.Sprite
-  private liftItem!: Interactable
+  private liftSign?: THREE.Sprite
+  private liftItem?: Interactable
   private liftBoost = 0
   /** Animations du mobilier (hologrammes, drones…). */
   private animated: { update: (t: number) => void; interactive: boolean }[] = []
@@ -184,7 +184,7 @@ export class Deck {
 
   constructor(readonly def: LevelDef) {
     this.theme = themes[def.theme ?? 'station']
-    this.map = new ShipMap(def.layout, shipMapOptions(def.id))
+    this.map = new ShipMap(def.layout, def.zone?.map ?? shipMapOptions(def.id))
     if (def.id === 0) for (const d of this.map.doors) {
       if (this.doorRoom(d.x, d.z, d.dir, 'l')) this.map.lock(d.x, d.z, d.dir)
     }
@@ -196,15 +196,16 @@ export class Deck {
     this.glowMat = beamMaterial()
 
     this.buildFloors()
-    // La coque sous le pont : le corps du vaisseau, le même sous chaque pont (cf. hull.ts).
-    this.group.add(this.hull.group)
+    // La coque sous le pont : le corps du vaisseau, le même sous chaque pont (cf. hull.ts). La
+    // baie infestée n'en a pas : elle flotte dans le noir.
+    if (!def.zone) this.group.add(this.hull.group)
     this.buildWalls()
     this.buildProps()
     if (def.id === 0) this.ljpcCover = this.buildRoomCover('l', '#101722', '#263344')
     if (def.id === -1) this.voieCover = this.buildRoomCover('v', '#030303', '#080808')
-    this.buildLift()
+    if (!def.zone) this.buildLift()
     if (def.engine) this.buildCore(def.engine.x, def.engine.z)
-    this.buildNozzles(!!def.engine)
+    if (!def.zone) this.buildNozzles(!!def.engine)
     this.flushStatic()
 
     for (const [x, z, color, intensity, flicker] of def.lights) {
@@ -395,6 +396,10 @@ export class Deck {
       for (let x = 0; x < this.map.width; x++) {
         const room = this.map.room(x, z)
         if (!room) continue
+        if (this.def.zone) {
+          this.addStatic(this.def.zone.kit.floor(x, z, hash(x, z)), false)
+          continue
+        }
         let model: StationModel = this.def.floors?.[room] ?? 'floor'
         // Quelques dalles à picots pour varier, sauf dans les quartiers (les tapis y sont posés à plat).
         if (model === 'floor' && this.def.theme !== 'cozy' && hash(x, z) % 9 === 0) model = 'floor-detail'
@@ -448,7 +453,7 @@ export class Deck {
             this.glass.push({ x: cx, z: cz, alongX })
             this.walls.push({ x: cx, z: cz, alongX, model: 'wall-window' })
           } else {
-            const wall = this.place(model, cx, 0, cz, alongX ? 0 : Math.PI / 2)
+            const wall = this.def.zone ? this.def.zone.kit.wall(cx, cz, alongX) : this.place(model, cx, 0, cz, alongX ? 0 : Math.PI / 2)
             this.addFading(wall, new THREE.Vector3(cx, 0.5, cz), this.cabinOutward(cx, cz))
             this.walls.push({ x: cx, z: cz, alongX, model })
           }
@@ -472,8 +477,8 @@ export class Deck {
       const straight = (c.h === 2 && c.v === 0) || (c.v === 2 && c.h === 0)
       if (straight) continue
       const [vx, vz] = k.split(',').map(Number)
-      const m = post.clone()
-      m.position.set(vx, POST_H / 2, vz)
+      const m = this.def.zone ? this.def.zone.kit.post(vx, vz) : post.clone()
+      if (!this.def.zone) m.position.set(vx, POST_H / 2, vz)
       this.addFading(m, new THREE.Vector3(vx, 0.5, vz), this.cabinOutward(vx, vz))
       this.posts.push({ x: vx, z: vz })
       const hs = POST_W / 2
@@ -532,6 +537,7 @@ export class Deck {
       touch(cx + along.dx * 0.5, cz + along.dz * 0.5, alongX ? 'h' : 'v')
       return
     }
+    if (this.def.zone) return this.buildGate(x, z, dir, cx, cz, alongX, touch)
     const frame = this.place(first ? 'wall-door-edge' : 'wall-door', cx, 0, cz, first && !alongX ? -Math.PI / 2 : rot)
     // Milieu de la porte : celui de l'arête, ou la jonction des deux tuiles d'une porte double.
     const mx = first ? cx + along.dx * 0.5 : cx
@@ -596,6 +602,34 @@ export class Deck {
     this.doors[this.doors.length - 1].bar = { box, gap }
   }
 
+  /**
+   * Porte du sas de la baie infestée (kit modulaire) : un encadrement épais et un vantail qui
+   * coulisse dans le mur, comme les portes du vaisseau.
+   */
+  private buildGate(x: number, z: number, dir: number, cx: number, cz: number, alongX: boolean, touch: (vx: number, vz: number, a: 'h' | 'v') => void) {
+    const { frame, door } = this.def.zone!.kit.gate(cx, cz, alongX)
+    const lamp = new THREE.Mesh(LOCK_LAMP_GEO, LOCK_LAMP_MAT)
+    lamp.position.set(cx, 0.84, cz)
+    lamp.rotation.y = alongX ? 0 : Math.PI / 2
+    lamp.visible = false
+    this.addOccluder([frame, door, lamp], new THREE.Vector3(cx, 0.5, cz))
+    this.walls.push({ x: cx, z: cz, alongX, model: 'door' })
+    this.doors.push({
+      panel: door, center: new THREE.Vector3(cx, 0, cz), axis: alongX ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1),
+      open: 0, wanted: false, x, z, dir, lamp,
+    })
+    const g = DOOR_GAP / 2, t = WALL_T / 2
+    if (alongX) {
+      this.colliders.push({ minX: cx - 0.5, maxX: cx - g, minZ: cz - t, maxZ: cz + t }, { minX: cx + g, maxX: cx + 0.5, minZ: cz - t, maxZ: cz + t })
+      touch(cx - 0.5, cz, 'h')
+      touch(cx + 0.5, cz, 'h')
+    } else {
+      this.colliders.push({ minX: cx - t, maxX: cx + t, minZ: cz - 0.5, maxZ: cz - g }, { minX: cx - t, maxX: cx + t, minZ: cz + g, maxZ: cz + 0.5 })
+      touch(cx, cz - 0.5, 'v')
+      touch(cx, cz + 0.5, 'v')
+    }
+  }
+
   /** Texte d'une porte verrouillée : celui de la pièce en travaux qu'elle ferme. */
   private closedText(x: number, z: number, dir: number): string | string[] | undefined {
     const d = DIRS[dir]
@@ -613,7 +647,13 @@ export class Deck {
       let o: THREE.Object3D
       let control: FurnitureControl | undefined
       let extent: THREE.Box3 | undefined
-      if (isCustomModel(p.model)) {
+      if (p.model === 'prebuilt') {
+        if (!p.object) continue
+        o = p.object
+        o.position.set(p.x, p.y ?? 0, p.z)
+        o.rotation.y = rotY
+        o.updateMatrixWorld(true)
+      } else if (isCustomModel(p.model)) {
         // Graine tirée de la position : chaque meuble varie, mais pareil chez tous les joueurs.
         const f = buildFurniture(p.model, p.label, hash(Math.round(p.x * 10), Math.round(p.z * 10)))
         control = f.control
@@ -718,7 +758,8 @@ export class Deck {
     this.liftBoost = 1
   }
 
-  get liftInteractable(): Interactable {
+  /** L'ascenseur (absent de la baie infestée). */
+  get liftInteractable(): Interactable | undefined {
     return this.liftItem
   }
 
@@ -824,17 +865,19 @@ export class Deck {
     if (updateOccluders(this.occluders, this.fades, { focus, toCamera, cabin: editing, keep }, fade)) this.fades.texture.needsUpdate = true
 
     this.glowMat.uniforms.uTime.value = this.time
-    const beam = this.liftBeam.material as THREE.ShaderMaterial
-    this.liftBoost = Math.max(0, this.liftBoost - dt * 0.8)
-    beam.uniforms.uTime.value = this.time
-    beam.uniforms.uIntensity.value = 0.42 + Math.sin(this.time * 2) * 0.06 + this.liftBoost * 0.8
-    for (const [i, r] of this.liftRings.entries()) {
-      const k = (this.time * 0.45 + i / this.liftRings.length) % 1
-      r.position.y = 0.1 + k * 1.25
-      ;(r.material as THREE.MeshBasicMaterial).opacity = (1 - k) * 0.9
+    if (this.liftBeam && this.liftHalo && this.liftSign) {
+      const beam = this.liftBeam.material as THREE.ShaderMaterial
+      this.liftBoost = Math.max(0, this.liftBoost - dt * 0.8)
+      beam.uniforms.uTime.value = this.time
+      beam.uniforms.uIntensity.value = 0.42 + Math.sin(this.time * 2) * 0.06 + this.liftBoost * 0.8
+      for (const [i, r] of this.liftRings.entries()) {
+        const k = (this.time * 0.45 + i / this.liftRings.length) % 1
+        r.position.y = 0.1 + k * 1.25
+        ;(r.material as THREE.MeshBasicMaterial).opacity = (1 - k) * 0.9
+      }
+      ;(this.liftHalo.material as THREE.MeshBasicMaterial).opacity = 0.35 + 0.25 * Math.sin(this.time * 2.5) + this.liftBoost * 0.4
+      this.liftSign.position.y = 1.55 + Math.sin(this.time * 1.6) * 0.04
     }
-    ;(this.liftHalo.material as THREE.MeshBasicMaterial).opacity = 0.35 + 0.25 * Math.sin(this.time * 2.5) + this.liftBoost * 0.4
-    this.liftSign.position.y = 1.55 + Math.sin(this.time * 1.6) * 0.04
 
     tickFurniture(this.time)
     this.hull.update(this.time)

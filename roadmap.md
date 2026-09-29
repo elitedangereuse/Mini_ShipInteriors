@@ -138,7 +138,7 @@ Choix et réalisation (27 septembre 2026) :
   du site depuis une playlist YouTube. Basculer sur le live Twitch quand la
   chaîne est en direct, puis revenir à la playlist à la fin du live.
 - [x] **SOC-05 · P3 · Lieu de vie — Bar.** Ajouter un bar avec un robot serveur.
-- [ ] **SOC-06 · P3 · Activité — Récupération de cargaison en zone Thargoid.**
+- [x] **SOC-06 · P3 · Activité — Récupération de cargaison en zone Thargoid.**
   Créer un jeu d'horreur solo ou coopératif jusqu'à quatre joueurs, accessible
   par une nouvelle porte dans la cale. Explorer une baie de stockage en forme
   de labyrinthe, récupérer les colis et les rapporter au lobby en échappant aux
@@ -485,6 +485,73 @@ comme propositions constituent des choix de conception à tester.
   Vérifier aussi l'éjection d'un casier en fin de durée, la fouille d'un casier
   occupé, la course sans endurance, une fuite réussie grâce à une fusée, et le
   bruit entendu par les Thargoids en coopératif.
+
+### Réalisation (29 septembre 2026)
+
+Les quatre étapes du découpage sont livrées ensemble. Choix retenus :
+
+- **Lobby** : l'ancien sas en travaux de la cale (pièce `h`), ouvert et meublé : terminal
+  de mission, mur de six caméras de surveillance, porte blindée de la zone (bandes de
+  danger, gyrophare), tableau des victoires, vestiaire, caisse de fusées. On y forme son
+  équipe au terminal ; en sortir, c'est la quitter.
+- **Réglages de l'équipe** : le chef choisit le nombre de colis **et** le nombre d'ennemis
+  (1 à 6 chacun, demande de l'utilisateur plutôt que le barème « un par joueur ») ; menace
+  et récompense s'affichent ; un changement remet tout le monde en attente ; départ trois
+  secondes après le dernier « prêt ».
+- **Labyrinthe** : un nouveau tirage à chaque mission, depuis une graine du relais, le même
+  chez chaque client (`shared/salvage.js`) : couloirs sinueux, culs-de-sac en partie
+  rouverts (des boucles pour semer un ennemi), halls encombrés de conteneurs, sas
+  d'extraction contre un bord (zone sûre, deux portes). Tout reste accessible, ennemis
+  compris (vérifié sur des dizaines de graines). Taille : 18 × 16 à 26 × 22 tuiles selon
+  l'équipe et les colis. Murs du Modular Space Kit à l'échelle 1/4 (une pièce du kit = une
+  tuile), conteneurs du Train Kit, décor du Space Kit.
+- **Dépôt** : au sas d'extraction de la baie (entrer dans le sas avec un colis le livre),
+  plutôt qu'au lobby du vaisseau : le joueur reste en course pour les colis suivants.
+- **Vision** : 3,6 tuiles autour de soi, en ligne de vue (murs et conteneurs), rendue par
+  un brouillard de guerre qui relit la profondeur ; 1,5 dans un casier ; le zoom reste
+  libre, la vue ne grandit pas.
+- **Son** : pas de musique ; pas avec écho, grognements et pas des ennemis, cœur qui bat
+  quand l'un est à moins de 5 tuiles, détecteur de cargaison qui bipe à moins de 7 tuiles
+  d'un colis, flèche vers le sas quand on porte un colis.
+- **Vitesses** : marche 1,7, course 3,4 ; porteur × 0,62. Ennemis : patrouille 1, enquête
+  1,55, poursuite 2,45 (plus vite qu'un porteur, moins qu'un joueur qui court à vide).
+- **Détection** : vue de 4,6 tuiles dans un cône de 125°, 1,35 tout autour ; capture à
+  0,5 ; cible perdue au bout de 4 s sans la voir ; 4 s de répit au départ.
+- **Bruit et endurance** : la course s'entend à 7 tuiles de chemin (8,5 avec un colis),
+  casier 3,5, éjection 4,5, colis qui tombe 5. Endurance : 5 s de course (3,3 avec un
+  colis), récupération plus rapide à l'arrêt qu'en marchant, reprise à 30 %.
+- **Casiers** : 20 s au plus, un par casier, pas avec un colis, 6 s avant d'y revenir. Un
+  ennemi qui a vu le joueur y entrer le fouille (2,2 s) et l'en tire ; un ennemi qui passe
+  devant un casier occupé le fouille une fois sur cinq environ.
+- **Fusées** : 2 + taille de l'équipe + colis / 2 dans la baie, deux au plus sur soi ;
+  lancées à 5,5 tuiles au plus, en vue ; 12 s ; portée d'attraction 12 tuiles de chemin ;
+  une seule à la fois ; les ennemis attirés ignorent les joueurs.
+- **Capture** : le colis tombe sur place (un coéquipier peut le reprendre) ; le capturé
+  revient au lobby et suit l'équipe par la caméra alliée (même vue que le coéquipier
+  suivi) ; le mur des caméras la rouvre. Il ne revient pas dans la manche.
+- **Abandon, déconnexion** : « Abandonner » (deux clics) ou une déconnexion valent
+  capture, colis lâché ; pas de reconnexion à la partie. Plus personne en course : défaite.
+  Une mission oubliée s'arrête au bout de 30 minutes.
+- **Récompense** : 1 500 CR par colis, + 50 % par ennemi au-delà du premier (1 500 CR
+  pour 1 colis et 1 ennemi, 6 800 pour 3 et 2, 31 500 pour 6 et 6), à chaque CMDR de
+  l'équipe gagnante, capturés compris ; rien en cas de défaite ; les invités jouent sans
+  crédits. Chiffres dans `economy.json`.
+- **Classement** : par victoires ; à égalité, colis rapportés, puis première victoire.
+- **Autorité** : le relais arbitre tout et ignore une position impossible ; il transmet la
+  victoire au site avec le cookie de chaque membre et une clé partagée
+  (`MSI_RELAY_SECRET`) ; le site ne paie qu'une fois par partie et par CMDR.
+- **Chat** : dans la baie, on ne parle qu'à son équipe.
+- **Mode léger** : mêmes règles, même vue ; seul l'anticrénelage du brouillard saute.
+
+Vérifications : 29 tests Node (labyrinthe, relais de jeu, relais socket.io, gains), 4 tests
+PHP (dont un en base) ; parties jouées dans Chrome : victoire solo payée par le site local,
+partie à deux (chat d'équipe, capture, caméra alliée, fusée, casier, abandon, défaite).
+Reste à régler après de vraies parties : l'équilibre (vitesses, portées, nombre d'ennemis
+par défaut) et un vrai modèle de Thargoïde à la place des zombies.
+
+Avant déploiement : jouer `docker/tables/mini_shipinteriors_salvage.sql` ; définir
+`MSI_RELAY_SECRET` (même valeur) pour le relais (unité systemd) et pour PHP ; redémarrer
+le relais ; déployer le build avec son `economy.json` (section `salvage`).
 
 ### Découpage de réalisation proposé
 

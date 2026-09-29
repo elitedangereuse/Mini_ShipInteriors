@@ -397,3 +397,16 @@ test('endurance : deux minutes de missions à quatre, six ennemis, sans erreur n
     assert.ok(missions >= 2)
   }
 })
+
+test('le crochet de debug (serveur de dev) fige les ennemis ; il est inerte sinon', () => {
+  const h = harness()
+  const { members: [a] } = h.team(1)
+  const game = h.launch([a])
+  h.arrive(a)
+  h.salvage.handle(a, 'salvage:debug', { freeze: true })
+  assert.equal(game.frozen, undefined, 'sans debug, rien')
+  const mon = game.monsters[0]
+  const before = { x: mon.x, z: mon.z }
+  h.advance(1)
+  assert.notDeepEqual({ x: mon.x, z: mon.z }, before, 'les ennemis bougent')
+})

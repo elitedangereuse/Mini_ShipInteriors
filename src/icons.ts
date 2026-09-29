@@ -38,6 +38,12 @@ import coins from '@phosphor-icons/core/duotone/coins-duotone.svg?raw'
 import treasureChest from '@phosphor-icons/core/duotone/treasure-chest-duotone.svg?raw'
 
 import arrowClockwise from '@phosphor-icons/core/bold/arrow-clockwise-bold.svg?raw'
+import crown from '@phosphor-icons/core/bold/crown-bold.svg?raw'
+import skull from '@phosphor-icons/core/bold/skull-bold.svg?raw'
+import eyeClosed from '@phosphor-icons/core/bold/eye-closed-bold.svg?raw'
+import flame from '@phosphor-icons/core/bold/flame-bold.svg?raw'
+import videoCamera from '@phosphor-icons/core/bold/video-camera-bold.svg?raw'
+import footprints from '@phosphor-icons/core/bold/footprints-bold.svg?raw'
 import arrowCounterClockwise from '@phosphor-icons/core/bold/arrow-counter-clockwise-bold.svg?raw'
 import arrowDown from '@phosphor-icons/core/bold/arrow-down-bold.svg?raw'
 import arrowLeft from '@phosphor-icons/core/bold/arrow-left-bold.svg?raw'
@@ -221,6 +227,13 @@ const SVG = {
   lightning,
   'person-simple-run': personSimpleRun,
   wind,
+  // zone thargoïde : chef d'équipe, capturé, caché, fusée, caméras, bruit
+  crown,
+  skull,
+  'eye-closed': eyeClosed,
+  flame,
+  'video-camera': videoCamera,
+  footprints,
 } as const
 
 export type IconName = keyof typeof SVG

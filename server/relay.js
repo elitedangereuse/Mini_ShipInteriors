@@ -182,6 +182,8 @@ export function attachRelay(
     broadcast: (event, data) => io.emit(event, data),
     reward: (member, result) => postSalvageResult(member.cookie, result, { cmdrUrl, secret: relaySecret, error, fetcher: salvageFetch }),
     log,
+    // Serveur de dev : les essais dans le navigateur peuvent figer ou placer les ennemis.
+    debug: devCmdr,
   })
   const salvageTimer = setInterval(() => salvage.tick(0.1), 100)
   salvageTimer.unref?.()
@@ -326,7 +328,7 @@ export function attachRelay(
       cinema.operatorChanged()
     })
 
-    for (const event of [...LOBBY_ACTIONS, ...GAME_ACTIONS]) {
+    for (const event of [...LOBBY_ACTIONS, ...GAME_ACTIONS, ...(devCmdr ? ['salvage:debug'] : [])]) {
       socket.on(event, (raw) => {
         if (salvageBudget < 1) return
         salvageBudget--

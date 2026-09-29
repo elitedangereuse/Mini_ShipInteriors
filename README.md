@@ -28,6 +28,7 @@
 - [Mobilier fait main](#mobilier-fait-main)
 - [S'installer, jouer, danser](#sinstaller-jouer-danser)
 - [Bornes d'arcade](#bornes-darcade)
+- [Zone thargoïde : récupération de cargaison](#zone-thargoïde--récupération-de-cargaison)
 - [Jukebox](#jukebox)
 - [Mode photo](#mode-photo)
 - [Crédits](#crédits)
@@ -54,6 +55,7 @@ Mini Interior est un POC : un vaisseau sur trois ponts, vu de dessus en isométr
 - **On s'installe** : s'asseoir sur les chaises, les canapés et les fauteuils, se coucher dans les lits (même la couchette du haut), prendre les commandes au poste de pilotage (et lancer un saut FSD, que tout le bord vit ensemble), pédaler, courir, frapper le sac, mixer, jouer à la pince à peluches, danser en rythme. Les autres voient la pose.
 - **Un vaisseau d'un seul tenant** : les ponts reposent sur une coque (tôles, feux de navigation, tuyères), et le système où l'on se trouve (étoile, planètes, station, trou noir…) se voit par les verrières du poste de pilotage.
 - **Arcade** : cinq bornes se jouent pour de vrai, Cargaison (un Tetris de conteneurs), Viper (un Snake), Astéroïdes, Thargoid Invaders et Ruelle Fighter II (combat solo ou duel en ligne), avec le tableau des meilleurs scores gardé par le site.
+- **Zone thargoïde** : un jeu d'horreur en équipe (un à quatre). Depuis le lobby de la cale, on part récupérer des colis dans une baie de stockage infestée, un labyrinthe plongé dans le noir où rôdent des zombies ; casiers pour se cacher, fusées pour les attirer ailleurs, caméras pour suivre son équipe après s'être fait prendre, crédits et classement des victoires.
 - **Jukebox** : neuf morceaux libres de droits, que tout le pont (ou toute la cabine) entend ensemble ; la piste de danse suit leur tempo quand il est établi, sinon celui de la soirée.
 - **Mode photo** : la scène sans l'interface, jusqu'en 4K, à télécharger.
 - **Crédits** : comme dans Elite, le CR débloque les meubles des quartiers et les apparences du Holo-Me. Un meuble débloqué peut être posé autant de fois que souhaité. On gagne des crédits à bord : un revenu passif, lent, les tâches et les records aux bornes d'arcade. Le site tient les comptes.
@@ -72,7 +74,7 @@ Trois ponts, trois ambiances. Chaque pont repeint à sa façon la même palette 
 
 Les ponts reposent sur une **coque** (`src/hull.ts`) : un seul corps de vaisseau, dont la silhouette épouse les trois ponts à la fois et la place des extensions de quartiers, lissée et biseautée. Le pont affiché se pose sur son dos, un cran plus haut, et elle ne cache jamais rien. Tôles rivetées, trappes et grilles, feux de navigation qui clignotent (rouge à bâbord, vert à tribord, blanc à la poupe et à la proue, fixes en mode léger) ; les tuyères sortent de sa poupe.
 
-Les futurs espaces communautaires sont déjà là, **en travaux** : LJPC et La Voie au nord de la coursive du pont principal, le Mini-CQC au sud, à côté de l'arcade, le cinéma derrière le salon panoramique, et le sas de la zone thargoïde au fond de la soute. On les voit, meublés d'échafaudages, de panneaux « Bientôt », de cônes et de bâches, mais leur porte reste verrouillée (voyant rouge) ; l'examiner dit ce qui s'y prépare (cf. `CLOSED_ROOMS`).
+Les futurs espaces communautaires sont déjà là, **en travaux** : LJPC et La Voie au nord de la coursive du pont principal, le Mini-CQC au sud, à côté de l'arcade, et le cinéma derrière le salon panoramique. On les voit, meublés d'échafaudages, de panneaux « Bientôt », de cônes et de bâches, mais leur porte reste verrouillée (voyant rouge) ; l'examiner dit ce qui s'y prépare (cf. `CLOSED_ROOMS`). Le sas de la zone thargoïde, au fond de la soute, est devenu le lobby de la [récupération de cargaison](#zone-thargoïde--récupération-de-cargaison).
 
 La réserve de huit lumières du moteur de rendu suit le joueur : un pont peut en avoir davantage, les plus proches s'allument.
 
@@ -82,7 +84,7 @@ On se réveille dans ses quartiers, sur le pont supérieur, à deux pas du Holo-
 |---|---|---|
 | **Pont supérieur** · les quartiers | *cozy* : crème et bois miel, tissus, plantes, lumière chaude, pas feutrés | **quartiers du commandant**, [aménagés par chaque CMDR](#quartiers-personnalisables) (au départ : grand lit, cheminée holographique, canapé, aquarium, bureau, bibliothèque, casier à combinaisons, **Holo-Me**) et leurs trois **extensions** payantes, cabines d'équipage (lits superposés), douches, serre hydroponique, salon d'écoute (fauteuils et poufs tournés vers la vitre du studio), studio de Radio Dangereuse (trois micros, néon « ON AIR »), cinéma, coursive |
 | **Pont principal** | la station d'origine, mobilier aux couleurs d'Elite | **poste de pilotage** à la proue, sous verrières (siège du pilote et HOTAS face au tableau de bord, postes du navigateur et du copilote, fauteuil du commandant, scanner, panneaux holographiques, carte galactique), salles de LJPC, de La Voie et du Mini-CQC (en travaux), salle des machines (centrale, réacteur FSD, tuyères), **infirmerie** (lits médicaux, scanner corporel, quarantaine), **salle de sport**, grand **salon d'arcade** (deux rangées de bornes, dont cinq jouables : Cargaison, Viper, Astéroïdes, Thargoid Invaders, Ruelle Fighter II ; un flipper, une pince à peluches, les tables de dames, de Puissance 4 et d'échecs, un coin salon sur des tapis colorés), mess (et son jukebox), coursive |
-| **Cale** | *brute* : acier noirci et rouillé, jaune de chantier, lumière sodium, néons qui grésillent | sas de la zone thargoïde (en travaux), **atelier** (établis, poste de soudure, établi d'ingénieur, ferraille), **baie de réparation** (SRV Scarab sur pont élévateur, bras robotisé qui soude, AFMU), **raffinerie** (fusion, tapis roulant de minerai, cristaux, drones collecteurs, laser minier), soute, palier de l'ascenseur ; au fond de la soute, **Chez Jacques**, le bar clandestin, plus soigné que le reste (arrière-bar chargé de bouteilles sous son enseigne au néon, comptoir capitonné et tabourets, tables de bistro, banquette, son propre jukebox) où sert **Jacques**, un robot barman à béret et nœud papillon qui essuie les verres, secoue le shaker et fait des clins d'œil |
+| **Cale** | *brute* : acier noirci et rouillé, jaune de chantier, lumière sodium, néons qui grésillent | **lobby de la zone thargoïde** (terminal de mission, mur des caméras de surveillance, porte blindée, classement), **atelier** (établis, poste de soudure, établi d'ingénieur, ferraille), **baie de réparation** (SRV Scarab sur pont élévateur, bras robotisé qui soude, AFMU), **raffinerie** (fusion, tapis roulant de minerai, cristaux, drones collecteurs, laser minier), soute, palier de l'ascenseur ; au fond de la soute, **Chez Jacques**, le bar clandestin, plus soigné que le reste (arrière-bar chargé de bouteilles sous son enseigne au néon, comptoir capitonné et tabourets, tables de bistro, banquette, son propre jukebox) où sert **Jacques**, un robot barman à béret et nœud papillon qui essuie les verres, secoue le shaker et fait des clins d'œil |
 
 ### Pont supérieur · les quartiers
 
@@ -283,6 +285,36 @@ Sur mobile, une manette tactile s'affiche sous la borne. La borne est chargée �
 **Crédits.** Les trois jeux à score ont huit paliers : un record personnel paie, une fois, chaque palier qu'il franchit (de 1 000 CR le premier à 40 000 CR le dernier), et prendre le record du vaisseau à un autre CMDR rapporte 10 000 CR de plus. L'écran titre annonce le prochain palier et ce qu'il rapporte ; l'écran de fin, ce que la partie a rapporté.
 
 **Meilleurs scores.** Un CMDR connecté inscrit son score en fin de partie : le site garde le meilleur de chacun, par jeu (cf. [Fonctionnement](#fonctionnement)), et l'écran de fin montre son rang parmi les dix meilleurs. Un invité garde son record dans le navigateur. Les jeux tournent dans le navigateur : le site écarte seulement les scores impossibles (au-delà du plafond du jeu, plus de points que n'en permet le niveau atteint, ou plus de points par seconde que n'en donne Astéroïdes).
+
+## Zone thargoïde : récupération de cargaison
+
+Un jeu d'horreur, en solo ou jusqu'à quatre : une baie de stockage infestée, plongée dans le noir, où il faut retrouver des colis et les rapporter au sas d'extraction sans se faire attraper.
+
+**Le lobby.** Au fond de la soute (la cale), l'ancien sas en travaux est devenu le lobby de la zone : le **terminal de mission** au milieu, le **mur des caméras de surveillance** au nord, la **porte blindée** de la zone (gyrophare, bandes de danger), le **tableau des victoires** à l'ouest, un vestiaire de casiers et une caisse de fusées. Au terminal (`E`), on crée son équipe ou l'on en rejoint une (quatre au plus) ; le chef choisit le **nombre de colis** (1 à 6) et le **nombre d'ennemis** (1 à 6), avec la menace et la récompense affichées ; chacun se déclare **prêt**, et la mission part trois secondes après le dernier. Changer un réglage remet tout le monde en attente ; sortir du lobby, c'est quitter l'équipe. Chaque équipe a sa propre instance : ses colis, ses ennemis, sa partie.
+
+**La baie.** Un labyrinthe tiré au sort à chaque mission (`shared/salvage.js`) : de longs couloirs sinueux, des boucles pour semer un poursuivant, des halls encombrés de conteneurs, et, contre un bord, le **sas d'extraction** (zone sûre : les ennemis n'y entrent pas). Sa taille grandit avec l'équipe et le nombre de colis (de 18 × 16 à 26 × 22 tuiles). Les murs, sols, piliers et portes viennent du Modular Space Kit, à l'échelle d'une tuile ; les conteneurs, des wagons du Train Kit ; les fûts, générateurs, ossements et cristaux thargoïdes, du Space Kit. Les joueurs apparaissent au hasard, loin des ennemis.
+
+- **Vision réduite** : on ne voit qu'autour de soi (3,6 tuiles), et en ligne de vue : ni à travers un mur, ni derrière un conteneur. Le reste est noir, quel que soit le zoom (qui reste libre). La lampe frontale suit le joueur ; les lampes de secours rougeoient, le sas brille en vert.
+- **Son** : pas de musique, seulement les pas, avec l'écho des parois de métal, les pas traînants et les grognements des ennemis (des indices de leur proximité), le cœur qui s'emballe quand l'un d'eux est tout près, et le **détecteur de cargaison**, qui bipe plus vite à l'approche d'un colis.
+- **Colis** : `E` pour le ramasser, un seul à la fois. Il pèse : son porteur marche et court plus lentement (× 0,62), et plus vite à bout de souffle. Une flèche verte au sol montre la direction du sas. Entrer dans le sas avec un colis le livre ; la barre de mission compte « 2 / 5 colis rapportés ».
+- **Course, bruit, endurance** : marcher est silencieux, courir (`Maj`, ou le sprint auto) fait du bruit, que les ennemis entendent à 7 tuiles de chemin (8,5 avec un colis) ; des ondes au sol montrent ce bruit. La course vide l'endurance (plus vite en portant), la marche et l'arrêt la rendent ; épuisé, on marche jusqu'à en avoir retrouvé 30 %. La barre s'affiche au-dessus du personnage.
+- **Casiers** : `E` pour s'y cacher (sans colis, un par casier), 20 secondes au plus (compte à rebours affiché), puis on en est éjecté ; `E` pour en sortir. Un ennemi qui vous a vu vous y glisser vient le fouiller et vous en tire ; un ennemi qui passe devant le fouille parfois. Entrer et sortir fait un peu de bruit ; on n'y retourne pas tout de suite.
+- **Fusées d'appel** : des fusées rouges traînent dans les couloirs (deux au plus sur soi). `F` en lance une là où l'on vise (souris, à 5,5 tuiles au plus et en vue), sinon droit devant : pendant 12 secondes, les ennemis à portée (12 tuiles de chemin) y courent et ignorent les joueurs. Une seule brûle à la fois ; toute l'équipe la voit et l'entend.
+- **Ennemis** : des zombies en costume pour l'instant, un peu plus grands que les joueurs, aux yeux verts. Ils patrouillent (en rôdant parfois du côté des joueurs), viennent voir un bruit, poursuivent qui ils voient (cône de vue de 4,6 tuiles, et tout autour de très près), perdent une cible cachée au bout de quelques secondes, fouillent les casiers. En poursuite, ils vont plus vite qu'un porteur, moins qu'un joueur qui court à vide.
+- **Capture** : au contact, l'ennemi frappe, le joueur tombe (voile rouge, rugissement) et lâche son colis là où il est, qu'un coéquipier peut reprendre. Il revient au lobby et suit son équipe par la **caméra alliée** : la baie vue par un coéquipier encore en course, avec sa vue réduite (`←` `→` pour changer de caméra, `Échap` pour quitter). Le mur des caméras du lobby la rouvre tant que la mission dure.
+- **Chat et emotes** : dans la baie, on ne parle qu'à son équipe (un capturé resté au lobby lui parle aussi).
+- **Fin** : victoire quand tous les colis sont rapportés, défaite quand plus personne n'est en course (capturé, parti ou déconnecté). « Abandonner » (deux clics) lâche le colis et ramène au lobby. L'écran de fin donne le résultat, la durée et la récompense, et « Retour au lobby » ; l'équipe y reste formée pour repartir.
+
+**Récompense et classement.** Une victoire paie chaque CMDR de l'équipe, capturés compris : 1 500 CR par colis, majorés de 50 % par ennemi au-delà du premier (`salvage` dans `economy.json` ; par exemple 6 800 CR pour 3 colis et 2 ennemis, 31 500 CR pour 6 et 6). Une défaite ne paie rien. Le tableau du lobby classe les CMDR par victoires ; à égalité, le plus de colis rapportés, puis la première victoire. Un invité joue avec son équipe, sans crédits.
+
+**Qui fait quoi.** Le relais fait autorité (`server/salvage.js`) : il forme les équipes, tire la graine, fait vivre les ennemis dix fois par seconde (patrouille, ouïe, vue, poursuite, fouille, fusée), arbitre les ramassages, les casiers, les fusées, les dépôts et les captures, et ignore une position impossible (hors du sol, ou plus rapide qu'une course). Les clients construisent la même baie depuis la graine et n'envoient que leur position et leurs actions ; dans la baie, le relais ne transmet les positions qu'à l'équipe. À la victoire, il présente au site le cookie de chaque membre CMDR et sa clé (`MSI_RELAY_SECRET`) : le site paie et compte la victoire, une fois par partie et par CMDR (cf. [Fonctionnement](#fonctionnement)). Le mode léger ne change ni la vue, ni le bruit, ni les règles.
+
+| Mission | Clavier et souris | Manette |
+|---|---|---|
+| Ramasser, se cacher, sortir du casier | `E` ou clic | A / Croix |
+| Courir (bruyant) | `Maj`, ou le sprint auto | L3 |
+| Lancer une fusée | `F` (vers la souris) ou la pastille « Fusées » | X / Carré (droit devant) |
+| Caméra alliée | `←` `→`, `Échap` | LB / RB, A / Croix |
 
 ## Jukebox
 
@@ -495,6 +527,8 @@ Les **crédits** passent par un quatrième endpoint, `outils/mini-shipinteriors-
 - une tâche réglée : elle doit exister à ce moment d'après le calendrier (à une minute près après sa fin), et ne pas avoir déjà été réglée par ce CMDR ;
 - un déblocage : le solde est débité une seule fois et le déblocage enregistré dans une même transaction, jamais en dessous de zéro.
 
+La **zone thargoïde** passe par un cinquième endpoint, `outils/mini-shipinteriors-salvage.php` (table `mini_shipinteriors_salvage`, `docker/tables/mini_shipinteriors_salvage.sql`) : `GET` rend le classement des victoires (dix premiers, et le rang du CMDR connecté), ouvert à tous ; `POST` n'est accepté que du relais, qui présente la clé partagée `MSI_RELAY_SECRET` (en-tête `X-Relay-Key`) et le cookie du membre à payer. Le site vérifie la forme du résultat (partie gagnée, tous les colis livrés, bornes du jeu, durée plausible), puis enregistre la victoire et verse la récompense dans une même transaction ; la clé primaire (partie, CMDR) empêche de payer deux fois. En local, le site accepte la clé `dev-local`, que le serveur de dev envoie par défaut.
+
 Les records des bornes paient leurs paliers dans la réponse de l'endpoint des scores. Écrire est réservé aux CMDR et demande l'en-tête `Origin` du site. Les chiffres viennent de `src/economy/economy.json`, que le build copie dans `dist/` : le site le relit là en production, dans le sous-module en local (`phputils/mini_shipinteriors/credits.php`).
 
 Les demandes de compte et de quartiers partent dès le chargement de la page, pendant celui des modèles, et on ne les attend au plus que 3 s une fois les modèles chargés.
@@ -516,8 +550,9 @@ Le relais : `npm ci --omit=dev && npm start`, avec ces variables :
 | `PORT`, `BIND_HOST` | écoute du relais (8080 et toutes les interfaces par défaut ; en prod, `127.0.0.1` derrière nginx) |
 | `LOG_LABEL` | étiquette ajoutée à chaque ligne de log, horodatée (ex. `prod`, `preprod`). Les erreurs (site injoignable, plantage) vont sur la sortie d'erreur, le reste (arrivées, départs) sur la sortie standard |
 | `WS_PATH` | chemin de la socket (défaut `/ws/mini-shipinteriors`). S'il change, rebâtir le client avec `VITE_WS_PATH` et adapter nginx |
+| `MSI_RELAY_SECRET` | clé partagée avec le site pour payer les missions gagnées de la zone thargoïde : la **même valeur** dans l'environnement du relais et dans celui de PHP. Sans elle, les missions se jouent, mais rien n'est versé (le relais le signale dans son journal d'erreurs) |
 
-Au build : `VITE_WS_PATH` (chemin de la socket), `VITE_ED_CMDR_URL` (endpoint du compte, défaut `/outils/mini-shipinteriors-cmdr.php`), `VITE_ED_CABIN_URL` (endpoint des quartiers, défaut `/outils/mini-shipinteriors-cabin.php`), `VITE_ED_SCORES_URL` (endpoint des scores, défaut `/outils/mini-shipinteriors-scores.php`) et `VITE_ED_CREDITS_URL` (endpoint des crédits, défaut `/outils/mini-shipinteriors-credits.php`). Le build copie aussi `src/economy/economy.json` dans `dist/`, où le site le lit.
+Au build : `VITE_WS_PATH` (chemin de la socket), `VITE_ED_CMDR_URL` (endpoint du compte, défaut `/outils/mini-shipinteriors-cmdr.php`), `VITE_ED_CABIN_URL` (endpoint des quartiers, défaut `/outils/mini-shipinteriors-cabin.php`), `VITE_ED_SCORES_URL` (endpoint des scores, défaut `/outils/mini-shipinteriors-scores.php`) `VITE_ED_CREDITS_URL` (endpoint des crédits, défaut `/outils/mini-shipinteriors-credits.php`) et `VITE_ED_SALVAGE_URL` (classement de la zone thargoïde, défaut `/outils/mini-shipinteriors-salvage.php`). Le build copie aussi `src/economy/economy.json` dans `dist/`, où le site le lit.
 
 Sans `ED_CMDR_URL`, ou si le site ne répond pas, le jeu fonctionne quand même : tout le monde est invité.
 
@@ -526,6 +561,8 @@ Sans `ED_CMDR_URL`, ou si le site ne répond pas, le jeu fonctionne quand même 
 Avec le site en local (Docker, `http://localhost:8080`), `npm run dev` suffit : les cookies ne dépendent pas du port, et le site local connecte d'office son CMDR de dev. Le relais de dev interroge `http://localhost:8080/outils/mini-shipinteriors-cmdr.php`, et le serveur de dev y renvoie aussi les requêtes du client, quartiers compris (variable `ED_SITE_URL` pour une autre adresse). La clé YouTube du relais de dev se met dans un `.env.local` (non versionné) : `YOUTUBE_API_KEY=…`. La table des quartiers se crée à la main dans le conteneur : `docker exec -i elitedangereuse mysql -u root -proot lavermv500 < docker/tables/mini_shipinteriors.sql`.
 
 Sans le site, `http://localhost:5173/?cmdr=Adam%20Fauster` simule un CMDR connecté (serveur de dev uniquement) ; ses quartiers sont alors gardés dans le navigateur. Pour essayer les visites, ouvrir deux onglets sous deux noms différents.
+
+Zone thargoïde en local : la table se crée à la main (`docker exec -i elitedangereuse mysql -u root -proot lavermv500 < docker/tables/mini_shipinteriors_salvage.sql`) ; le relais de dev envoie la clé `dev-local`, que le site local accepte. Pour les essais dans le navigateur, le serveur de dev (lui seul) accepte `salvage:debug` sur la socket : `{ freeze: true }` fige les ennemis de sa partie, `{ monster: 0, x, z }` en pose un.
 
 ## Sons
 
@@ -571,6 +608,8 @@ Les bips, les mélodies d'arcade, les étincelles, le miaulement, le ronronnemen
 | `shared/fight-stages.js` · `src/arcade/fight-stages.ts` | Catalogue bilingue des quatre stages, tirage partagé dans les snapshots et décors animés. La rue reste dessinée dans `fight.ts`. |
 | `src/arcade/fight-music.ts` · `shared/fight-music.js` | Quatre musiques chiptune originales, synthèse, cache, fondus entre stages, pause et arrêt à la fermeture. |
 | `src/music.ts` | Le jukebox : ses morceaux, leur lecture spatialisée, son panneau. |
+| `shared/salvage.js` · `server/salvage.js` | **Zone thargoïde** : règles et labyrinthe tiré d'une graine (couloirs, halls, conteneurs, sas, casiers, colis, fusées, repaires ; chemins et ligne de vue), communs au relais et au client ; côté relais, les équipes du lobby et chaque partie (ennemis à 10 Hz, casiers, fusées, captures, dépôts, fin, gains envoyés au site). Tests : `server/salvage*.test.js`. |
+| `src/salvage/` | Le client de la zone : la partie (`client.ts`), la baie en pont du jeu (`zone-deck.ts`, `kit.ts` pour le Modular Space Kit, les conteneurs et le décor), le brouillard de guerre (`fog.ts`), les ennemis (`monsters.ts`), les casiers, colis et fusées (`items.ts`), les bruitages (`sfx.ts`), le terminal, le classement et le HUD de mission (`ui.ts`). Le mobilier du lobby est dans `src/furniture/salvage.ts`. |
 | `src/economy/` | **Crédits** : les chiffres (`economy.json`, relu par le site) et leur lecture (`data.ts`), le compte tenu par le site (`wallet.ts`), le calendrier des tâches (`schedule.ts`), les tâches à bord et leurs marqueurs (`tasks.ts`), les apparences payantes (`skins.ts`), le solde dans le HUD (`hud.ts`). |
 | `src/photo.ts` | Le mode photo : options, prise de vue en haute définition, aperçu, pellicule. |
 | `src/looks.ts` | Catalogue des apparences (espèces, sexe, modèles, teintes, combinaisons) et fabrication des modèles correspondants (casques, sacs dorsaux). |
@@ -599,6 +638,9 @@ Modèles et sons par [Kenney](https://www.kenney.nl) :
 - [Blocky Characters](https://kenney.nl/assets/blocky-characters) — `public/assets/blocky/` (robots, troll, zombie)
 - [Mini Dungeon](https://kenney.nl/assets/mini-dungeon) — `public/assets/creatures/` (orque)
 - [Cube Pets](https://kenney.nl/assets/cube-pets) — `public/assets/pets/` (Comète et les 22 autres compagnons)
+- [Modular Space Kit](https://kenney.nl/assets/modular-space-kit) — `public/assets/zone/` (murs, piliers, sols et portes de la baie infestée)
+- [Train Kit](https://kenney.nl/assets/train-kit) — `public/assets/train/` (les conteneurs des wagons, dans la baie)
+- [Space Kit](https://kenney.nl/assets/space-kit) — `public/assets/space/` (fûts, générateurs, ossements, cristaux, tuyaux)
 - [Impact Sounds](https://kenney.nl/assets/impact-sounds), [Sci-fi Sounds](https://kenney.nl/assets/sci-fi-sounds), [Interface Sounds](https://kenney.nl/assets/interface-sounds) — `public/assets/sounds/`
 
 Musiques du jukebox, `public/assets/music/` (détail dans `CREDITS.txt`) : Le Beau Danube bleu par l'[U.S. Marine Band](https://commons.wikimedia.org/wiki/File:%22An_der_sch%C3%B6nen,_blauen_Donau%22_performed_by_the_U.S._Marine_Band.flac) (domaine public) ; en CC0 sur OpenGameArt, [Fupi](https://opengameart.org/content/funky-disco-beats-to-boogiewoogie-to), [HoliznaCC0](https://opengameart.org/content/retro-wave-collection) ([Chills](https://opengameart.org/content/chills), [All The Fight Left!](https://opengameart.org/content/all-the-fight-left)), [congusbongus](https://opengameart.org/content/ganymede) ([Two Left Socks](https://opengameart.org/content/two-left-socks)) et [Zane Little Music](https://opengameart.org/content/interstellar-fleet-1) ([Synesthesia](https://opengameart.org/content/synesthesia)).

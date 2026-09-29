@@ -52,6 +52,8 @@ import { nextSystem, JUMP_CHARGE, JUMP_TRAVEL, type SystemId } from '../shared/s
 import { DEFAULT_PATTERN, WING_SLOTS, type WingId } from '../shared/cabin-wings.js'
 import { syncTempo, tempo } from './tempo'
 import { ToiletFlushes } from './toilet-flush'
+import { SalvageClient } from './salvage/client'
+import { ZONE_LEVEL } from '../shared/salvage.js'
 import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel } from './ui'
 
 // ------------------------------------------------------------------ profil
@@ -233,6 +235,13 @@ function spawnPoint(): { x: number; z: number } {
 }
 
 let deck = cabinDeck
+/**
+ * Pont affiché : celui du joueur, ou la baie de la zone thargoïde quand un capturé suit son
+ * équipe par les caméras (le joueur, lui, reste au lobby).
+ */
+let view = cabinDeck
+/** Zone thargoïde : lobby, mission, caméras (créée une fois le relais prêt, cf. plus bas). */
+let salvage: SalvageClient | null = null
 
 const stars = new Starfield()
 scene.add(stars.group)
@@ -352,7 +361,7 @@ for (const it of decks[LEVELS.findIndex((l) => l.id === 0)].interactables) {
 const promptEl = $('prompt')
 const promptLabel = $('prompt-label')
 
-bubbles.attach('me', (out) => player.avatar.head(out))
+bubbles.attach('me', (out) => (player.root.visible ? player.avatar.head(out) : null))
 bubbles.attach('gym', (out) => player.avatar.head(out).setY(out.y + 0.35))
 bubbles.attach('cat', (out) => (catDeck.group.visible && cometeHere ? cat.root.getWorldPosition(out).setY(out.y + 0.55) : null))
 const gym = new GymGame(bubbles, dialog, wallet, () => { if (seating.current) seating.stand() })
@@ -462,10 +471,11 @@ const lightsFrom = new THREE.Vector3(Infinity, 0, 0)
  * proches du joueur, un grand pont en ayant plus que la réserve.
  */
 function applyLights() {
-  lightsFrom.copy(player.position)
-  const near = deck.lights.length <= lightPool.length
-    ? deck.lights
-    : [...deck.lights].sort((a, b) => a.position.distanceToSquared(player.position) - b.position.distanceToSquared(player.position)).slice(0, lightPool.length)
+  const focus = salvage?.watchTarget ?? player.position
+  lightsFrom.copy(focus)
+  const near = view.lights.length <= lightPool.length
+    ? view.lights
+    : [...view.lights].sort((a, b) => a.position.distanceToSquared(focus) - b.position.distanceToSquared(focus)).slice(0, lightPool.length)
   for (const [i, l] of lightPool.entries()) {
     const def = (pooled[i] = near[i])
     l.intensity = def ? def.intensity : 0
@@ -476,7 +486,7 @@ function applyLights() {
   }
 }
 cabin.onLights = () => {
-  if (deck === cabinDeck) applyLights()
+  if (view === cabinDeck) applyLights()
 }
 /** Phrase d'une interaction (une au hasard dans une liste). */
 function showText(text: Interactable['text']) {
@@ -501,7 +511,7 @@ cabin.onMusic = (position, text, model) => {
 /** Lumière d'ambiance du pont, baissée dans les pièces tamisées (cf. `dim` dans levels.ts). */
 let dimming = 1
 function applyAmbience() {
-  const ambience = deck.def.ambience ?? DEFAULT_AMBIENCE
+  const ambience = view.def.ambience ?? DEFAULT_AMBIENCE
   hemi.intensity = ambience.hemi * dimming
   sun.intensity = ambience.sunIntensity * dimming
 }
@@ -509,24 +519,33 @@ function applyAmbience() {
 function setDeck(next: Deck) {
   seating.leave()
   deck = next
-  for (const d of decks) d.group.visible = d === deck
   player.colliders = deck.colliders
   player.position.y = deck.y
   iso.snapTo(player.position)
-  applyLights()
-  const ambience = deck.def.ambience ?? DEFAULT_AMBIENCE
-  hemi.color.set(ambience.sky)
-  hemi.groundColor.set(ambience.ground)
-  sun.color.set(ambience.sun)
-  applyAmbience()
-  sun.position.set(SHIP_CENTER.x - 6, deck.y + 14, SHIP_CENTER.z + 4)
-  sun.target.position.set(SHIP_CENTER.x, deck.y, SHIP_CENTER.z)
-  // Les machines d'un pont ne s'entendent que sur ce pont.
-  for (const h of hums) sound.fade(h.gain, h.deck === deck ? h.volume : 0)
+  setView(deck)
   hover.position.y = deck.y + 0.01
   marker.position.y = deck.y + 0.02
   marker.visible = false
   $('deck').textContent = deck.def.name
+}
+
+/** Affiche un pont (celui du joueur, ou la baie suivie par les caméras) : ses murs, ses lumières, son ambiance. */
+function setView(next: Deck) {
+  view = next
+  for (const d of decks) d.group.visible = d === view
+  if (salvage?.deck) salvage.deck.group.visible = salvage.deck === view
+  applyLights()
+  const ambience = view.def.ambience ?? DEFAULT_AMBIENCE
+  hemi.color.set(ambience.sky)
+  hemi.groundColor.set(ambience.ground)
+  sun.color.set(ambience.sun)
+  applyAmbience()
+  sun.position.set(SHIP_CENTER.x - 6, view.y + 14, SHIP_CENTER.z + 4)
+  sun.target.position.set(SHIP_CENTER.x, view.y, SHIP_CENTER.z)
+  // Les machines d'un pont ne s'entendent que sur ce pont.
+  for (const h of hums) sound.fade(h.gain, h.deck === view ? h.volume : 0)
+  // La baie infestée est hors du vaisseau : ni étoiles, ni système par les verrières.
+  stars.group.visible = systemView.group.visible = !view.def.zone
 }
 setDeck(deck)
 
@@ -539,7 +558,7 @@ for (const d of decks) {
 }
 /** Pas d'un personnage : feutrés sur les sols des quartiers, métalliques ailleurs. */
 function footstep(level: number, position: THREE.Vector3, sprint: boolean, skin: string) {
-  const soft = deckById(level).def.footsteps === 'soft'
+  const soft = (level === ZONE_LEVEL ? salvage?.deck : deckById(level))?.def.footsteps === 'soft'
   sound.play(soft ? 'softStep' : 'step', position, { volume: (sprint ? 0.15 : 0.11) * (soft ? 1.5 : 1), rate: stepRate(skin) })
 }
 player.onStep = (sprint) => footstep(deck.def.id, player.position, sprint, profile.skin)
@@ -759,6 +778,41 @@ function ambience(dt: number) {
 
 const remotes = new Map<number, RemotePlayer>()
 const net = new Net(profile, devCmdr(), devLjpc(), devVoie())
+salvage = new SalvageClient({
+  scene, renderer, iso, player, sound, net, dialog, wallet, remotes,
+  deck: () => deck,
+  hold: deckById(-1),
+  moveTo: async (next, at) => {
+    await fadeScreen(true)
+    stopWork()
+    player.cancelPath()
+    player.stopGlide()
+    marker.visible = false
+    setDeck(next)
+    player.position.set(at.x, next.y, at.z)
+    iso.snapTo(player.position)
+    sendState(true)
+    await fadeScreen(false)
+  },
+  showView: (zone) => setView(zone ?? deck),
+  verified: () => verified,
+  pointed: () => (hover.visible ? { x: hover.position.x, z: hover.position.z } : null),
+  project: (p) => {
+    screenPos.copy(p).project(iso.camera)
+    return { x: ((screenPos.x + 1) / 2) * innerWidth, y: ((1 - screenPos.y) / 2) * innerHeight }
+  },
+})
+const zone = salvage
+// Le lobby de la zone thargoïde : terminal de mission, caméras de surveillance, classement.
+for (const it of deckById(-1).interactables) {
+  const model = it.furniture?.model
+  if (model === 'salvage-terminal') it.onInteract = () => { player.interact(); zone.openTerminal() }
+  else if (model === 'salvage-board') it.onInteract = () => { player.interact(); zone.openLeaderboard() }
+  else if (model === 'surveillance-wall') it.onInteract = () => {
+    player.interact()
+    if (!zone.openCameras()) showText(it.text)
+  }
+}
 const boardGames = new BoardGames({
   playerId: () => net.id,
   sendJoin: (game, table) => net.sendBoardJoin(game, table),
@@ -830,6 +884,7 @@ function removeRemote(id: number) {
 
 net.onStatus = (online) => {
   if (!online) {
+    zone.disconnected()
     cinemaRoom.close()
     boardGames.close(false)
     arcade?.disconnected()
@@ -842,6 +897,7 @@ net.onStatus = (online) => {
   updateIdentity()
 }
 net.onMessage = (m) => {
+  zone.onMessage(m)
   switch (m.t) {
     case 'welcome':
       // Le relais fait autorité sur le nom (CMDR vérifié, ou invité homonyme d'un CMDR présent).
@@ -934,8 +990,10 @@ net.onMessage = (m) => {
       break
     }
     case 'jump':
-      // Un pilote lance le saut FSD (nous, ou un autre) : tout le bord part.
-      void playJump(m.system, m.id === net.id ? null : m.name)
+      // Un pilote lance le saut FSD (nous, ou un autre) : tout le bord part. Dans la baie infestée,
+      // on ne le vit pas ; on retrouvera le vaisseau dans son nouveau système.
+      if (deck.def.zone || view.def.zone) systemView.set(m.system)
+      else void playJump(m.system, m.id === net.id ? null : m.name)
       break
     case 'music': {
       // Un morceau au jukebox (du pont principal, de la cale, ou des quartiers où l'on est), ou le silence.
@@ -1330,7 +1388,7 @@ const liftTile = { x: LIFT.x, z: LIFT.z }
 function openLift() {
   lift.open(LEVELS, deck.def.id, (id) => void ride(id))
 }
-for (const d of decks) d.liftInteractable.onInteract = openLift
+for (const d of decks) if (d.liftInteractable) d.liftInteractable.onInteract = openLift
 
 async function ride(target: number) {
   if (riding || target === deck.def.id) return
@@ -1548,7 +1606,9 @@ const myCabin = () => visiting?.host ?? net.id
 
 /** Un autre joueur est-il visible ? Dans des quartiers, seulement s'il est dans la même instance. */
 function sees(r: RemotePlayer): boolean {
-  if (r.level !== deck.def.id) return false
+  // Dans la baie infestée (ou par les caméras) : seulement ses coéquipiers, hors des casiers.
+  if (r.level === ZONE_LEVEL) return !!view.def.zone && !!salvage?.sees(r.id)
+  if (r.level !== view.def.id || view !== deck) return false
   return !inCabin(r.level, r.group.position.x, r.group.position.z) || r.cabin === myCabin()
 }
 
@@ -1801,6 +1861,7 @@ addEventListener('keydown', (e) => {
   if (barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen) { if (e.code === 'Escape') { barPanel.close(); gameEmbed.close(); mediaRoom.close(); cinemaRoom.close() }; e.preventDefault(); return }
   if (gym.key(e)) return
   if (chat.typing) return
+  if (zone.keyDown(e)) return
   if (sitePanel.isOpen) {
     if (e.code === 'Escape' || e.code === 'KeyE') sitePanel.close()
     e.preventDefault()
@@ -1862,7 +1923,7 @@ chat.onOpen = () => keys.clear()
 const inputDir = new THREE.Vector3()
 function keyboardDirection(): THREE.Vector3 {
   inputDir.set(0, 0, 0)
-  if (gym.active || chat.typing || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing()) return inputDir
+  if (gym.active || chat.typing || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return inputDir
   const on = (...codes: string[]) => codes.some((c) => keys.has(c))
   // event.code = position physique : KeyW/KeyA correspondent à Z/Q sur un clavier AZERTY.
   const sx = (on('KeyD', 'ArrowRight') ? 1 : 0) - (on('KeyA', 'ArrowLeft') ? 1 : 0)
@@ -1932,16 +1993,24 @@ function updateGamepad(dt: number): GamepadInput {
   if (pad.rotateRight) iso.rotate(1)
   if (pad.lookX || pad.lookY) iso.orbit(-pad.lookX * dt * 1.8, pad.lookY * dt * 1.2)
   if (pad.zoom) iso.zoomBy(Math.exp(pad.zoom * dt))
+  if (zone.frozen) {
+    // Caméras alliées : gauche, droite pour changer de coéquipier ; B pour les quitter.
+    if (pad.rotateLeft) zone.keyDown(new KeyboardEvent('keydown', { code: 'ArrowLeft' }))
+    if (pad.rotateRight) zone.keyDown(new KeyboardEvent('keydown', { code: 'ArrowRight' }))
+    if (pad.interact) zone.keyDown(new KeyboardEvent('keydown', { code: 'KeyE' }))
+    return pad
+  }
   if (seating.current) {
     if (pad.interact && seating.settled) seating.stand()
     else if (pad.action && seating.settled) seatAction(seating.current)
-  } else if (pad.interact || pad.action) tryInteract()
+  } else if (pad.action && zone.inZone) zone.throwFlare()
+  else if (pad.interact || pad.action) tryInteract()
   return pad
 }
 
 function movementDirection(pad: GamepadInput): THREE.Vector3 {
   const input = keyboardDirection()
-  if (chat.typing || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || wardrobe.isOpen || editing() || photo.active) return input
+  if (chat.typing || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || wardrobe.isOpen || editing() || photo.active || zone.frozen || zone.panelOpen) return input
   // Le clavier reste prioritaire lorsqu'une touche de déplacement est maintenue.
   if (input.lengthSq() === 0) iso.screenToGround(pad.moveX, -pad.moveY, input)
   return input
@@ -2095,6 +2164,12 @@ addEventListener(
       if (!barPanel.contains(e.target)) { barPanel.close(); e.stopPropagation() }
       return
     }
+    // Terminal ou classement de la zone thargoïde : un clic à côté les ferme (l'écran de fin, lui, attend son bouton).
+    if (zone.panelOpen && !zone.contains(e.target) && !(e.target instanceof Element && e.target.closest('.salvage-end'))) {
+      zone.closePanels()
+      e.stopPropagation()
+      return
+    }
     const panel = sitePanel.isOpen ? sitePanel : lift.isOpen ? lift : jukebox.isOpen ? jukebox : null
     if (!panel || panel.contains(e.target)) return
     panel.close()
@@ -2104,7 +2179,7 @@ addEventListener(
 )
 
 canvas.addEventListener('pointerdown', (e) => {
-  if (e.button !== 0 || riding || gym.active) return
+  if (e.button !== 0 || riding || gym.active || zone.frozen) return
   if (editing()) {
     // Objet glissé jusque sous le catalogue : il le relâche quand même dans le mode aménagement.
     try {
@@ -2214,7 +2289,7 @@ function hiddenRestrictedItem(item: Interactable): boolean {
 }
 
 function tryInteract() {
-  if (gym.active || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing()) return
+  if (gym.active || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return
   const item = nearestInteractable()
   if (item) interactWith(item)
 }
@@ -2853,14 +2928,18 @@ function frame() {
   // Mode photo, instant figé : personnages, meubles et étoiles s'arrêtent ; la caméra, non.
   const world = photo.frozen ? 0 : dt
   if (!editing() && !photo.active) processHover()
-  player.update(world, input, autoSprint !== (pad.sprint || keys.has('ShiftLeft') || keys.has('ShiftRight')))
+  player.update(world, input, zone.sprint(autoSprint !== (pad.sprint || keys.has('ShiftLeft') || keys.has('ShiftRight'))))
   cocktailEffects.update(world)
 
   for (const r of remotes.values()) {
     r.update(world)
-    const room = deckById(r.level).map.room(Math.round(r.group.position.x), Math.round(r.group.position.z))
+    const room = r.level === ZONE_LEVEL ? null : deckById(r.level)?.map.room(Math.round(r.group.position.x), Math.round(r.group.position.z))
     r.group.visible = sees(r) && (ljpcMember || r.level !== 0 || room !== 'l') && (voieAdept || r.level !== -1 || room !== 'v')
   }
+  // Zone thargoïde : la mission (ennemis, objets, vue, endurance) ; le joueur caché dans un casier,
+  // ou resté au lobby pendant qu'il suit son équipe, ne se voit pas.
+  zone.update(dt)
+  player.root.visible = view === deck && !zone.hiding
   flushes.update(world)
   // Quelqu'un au micro du studio (nous, ou un autre) : le néon « ON AIR » s'allume.
   studio.onAir = studioLive()
@@ -2879,7 +2958,7 @@ function frame() {
   else iso.frameCenter(0, 0, innerHeight)
   const cinemaSeat = deck.def.id === 1 && ['cinema-row', 'projection-chair'].includes(seating.current?.item.furniture?.model ?? '')
   if (cinemaSeat) cinemaFocus.set(cinemaScreenProp.x, deck.y, (player.position.z + cinemaScreenProp.z) / 2)
-  iso.update(dt, claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : cinemaSeat ? cinemaFocus : player.position)
+  iso.update(dt, zone.watchTarget ?? (claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : cinemaSeat ? cinemaFocus : player.position))
   if (barPanel.isOpen) {
     iso.camera.updateMatrixWorld()
     barPanel.place(iso.camera, player.position, jacquesAt)
@@ -2889,7 +2968,7 @@ function frame() {
 
   // Qui se trouve sur quel pont (pour ouvrir les portes).
   for (const list of actors.values()) list.length = 0
-  actors.get(deck)!.push(player.position)
+  actors.get(deck)?.push(player.position)
   if (cometeHere) actors.get(catDeck)!.push(cat.root.position)
   for (const c of companions.values()) actors.get(cabinDeck)!.push(c.pet.root.position)
   // Un joueur d'une autre instance des quartiers n'ouvre pas nos portes.
@@ -2897,7 +2976,15 @@ function frame() {
   const keep = seating.current?.item.position ?? null
   for (const d of decks) {
     d.doorHints = !photo.active
-    d.update(world, actors.get(d)!, d === deck ? player.position : null, toCam, editing() && d === cabinDeck, keep, dt)
+    d.update(world, actors.get(d)!, d === view ? player.position : null, toCam, editing() && d === cabinDeck, keep, dt)
+  }
+  // La baie infestée : ses portes s'ouvrent devant l'équipe ; ses murs s'estompent devant le joueur
+  // (ou devant le coéquipier que suit la caméra).
+  const bay = zone.deck
+  if (bay) {
+    const inside = [...remotes.values()].filter((r) => r.level === ZONE_LEVEL && r.group.visible).map((r) => r.group.position)
+    if (deck === bay) inside.push(player.position)
+    bay.update(world, inside, view === bay ? (zone.watchTarget ?? player.position) : null, toCam, false, null, dt)
   }
   editor?.update(timer.getElapsed())
   // Tâches de bord : à l'heure chaque seconde, animées sur le pont affiché.
@@ -2909,12 +2996,16 @@ function frame() {
   board.update(photo.frozen ? frozenAt : (frozenAt = timer.getElapsed()), deck, !photo.active)
   creditsHud.update(dt)
 
-  stars.update(world, iso.target, toCam, iso.tilt)
-  systemView.update(world, deck.y, iso.target, toCam, iso.tilt)
+  // Dans la baie infestée (ou par les caméras), ni étoiles ni système : on est hors du vaisseau.
+  if (!view.def.zone) {
+    stars.update(world, iso.target, toCam, iso.tilt)
+    systemView.update(world, deck.y, iso.target, toCam, iso.tilt)
+  }
   sound.update(iso.target, iso.angle)
   ambience(dt)
-  // Le joueur a fait quelques pas : la réserve se répartit sur les lumières les plus proches.
-  if (deck.lights.length > lightPool.length && Math.hypot(player.position.x - lightsFrom.x, player.position.z - lightsFrom.z) > 2) applyLights()
+  // Le joueur (ou le coéquipier suivi) a fait quelques pas : la réserve se répartit sur les lumières les plus proches.
+  const lit = zone.watchTarget ?? player.position
+  if (view.lights.length > lightPool.length && Math.hypot(lit.x - lightsFrom.x, lit.z - lightsFrom.z) > 2) applyLights()
   for (const [i, l] of lightPool.entries()) {
     const def = pooled[i]
     if (!def?.flicker || renderQuality.light) continue
@@ -2955,7 +3046,7 @@ function frame() {
   // Invite « E » au-dessus de l'objet le plus proche ; installé sur un meuble, au-dessus du
   // personnage : se relever (et ce que permet la place).
   const sitting = seating.settled && !gym.active && !riding && !editing() && !barPanel.isOpen
-  const near = gym.active || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working ? null : nearestInteractable()
+  const near = gym.active || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || zone.frozen || zone.panelOpen ? null : nearestInteractable()
   const sit = sitting ? seatPrompt(seating.current!) : null
   const label = sit ? `${sit.main}|${sit.space ?? ''}` : near?.label
   promptEl.querySelector('kbd')!.textContent = usingGamepad ? 'A / ×' : 'E'
@@ -2985,7 +3076,7 @@ function frame() {
     const playing = music.playing
     const jukeboxRoom = playing && source.map.room(Math.round(playing.x), Math.round(playing.z))
     const playerRoom = source === deck ? source.map.room(Math.round(player.position.x), Math.round(player.position.z)) : null
-    music.setRoom(source === deck, !!jukeboxRoom && jukeboxRoom === playerRoom)
+    music.setRoom(source === deck && view === deck, !!jukeboxRoom && jukeboxRoom === playerRoom)
   }
   // La soirée bat sur le morceau entendu dans la pièce, sauf quand le mode photo fige l'instant.
   if (!photo.frozen && !deckMusic.syncTempo() && !holdMusic.syncTempo() && !cabinMusic.syncTempo()) syncTempo(null)
@@ -3002,7 +3093,8 @@ function frame() {
     for (const r of remotes.values()) if (r.group.visible && r.pose === 'lie') bubbles.emote(`p${r.id}`, 'moon-stars')
   }
 
-  renderer.render(scene, iso.camera)
+  // Dans la baie (ou par les caméras), tout passe par le brouillard de guerre (cf. salvage/fog.ts).
+  if (!zone.render(scene, iso.camera, renderQuality.light)) renderer.render(scene, iso.camera)
   cinemaRoom.placeScreen(iso.camera, deck.def.id === 1,
     deck.def.id === 1 && deck.map.room(Math.round(player.position.x), Math.round(player.position.z)) === 'n',
     cinemaScreenProp.x, deckById(1).y, cinemaScreenProp.z)
@@ -3059,6 +3151,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, cat, moustache, companions, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView },
+    __game: { renderer, sound, player, cat, moustache, companions, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, salvage: zone, view: () => view },
   })
 }

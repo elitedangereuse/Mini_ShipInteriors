@@ -85,9 +85,65 @@ export interface FightState {
   snapshot: FightSnapshot | null
 }
 
+/** Zone thargoïde (cf. server/salvage.js) : une équipe du lobby, ou en mission. */
+export interface SalvageTeam {
+  id: number
+  leader: number
+  parcels: number
+  enemies: number
+  status: 'forming' | 'countdown' | 'playing'
+  startsIn?: number
+  members: { id: number; name: string; verified: boolean; ready: boolean }[]
+  delivered?: number
+  alive?: number
+}
+export interface SalvageLobby { teams: SalvageTeam[] }
+export interface SalvageStart {
+  game: string
+  seed: number
+  team: number
+  parcels: number
+  enemies: number
+  members: { id: number; name: string }[]
+  spawn: { x: number; z: number }
+  spawns: Record<string, { x: number; z: number }>
+}
+export type SalvageStatus = 'arriving' | 'alive' | 'captured' | 'left' | 'gone'
+export interface SalvageMember { id: number; status: SalvageStatus; carrying: number | null; hidden: number | null; left?: number; flares: number }
+export interface SalvageState {
+  game: string
+  monsters: { id: number; x: number; z: number; yaw: number; mode: 'patrol' | 'investigate' | 'chase' | 'lured' | 'look' | 'search' | 'attack' }[]
+  members: SalvageMember[]
+  cargo: { id: number; state: 'ground' | 'carried' | 'delivered'; x: number; z: number }[]
+  flares: number[]
+  flare: { x: number; z: number; left: number } | null
+  lockers: number[]
+  searching: number[]
+  delivered: number
+  elapsed: number
+}
+/** Événement d'une partie, pour les sons, les messages et les animations. */
+export interface SalvageEvent {
+  kind: 'arrive' | 'pickup' | 'drop' | 'deposit' | 'capture' | 'hide' | 'unhide' | 'eject' | 'search' | 'searched' | 'flare' | 'flare-out'
+    | 'flare-pickup' | 'quit' | 'gone' | 'spotted' | 'heard'
+  id?: number
+  monster?: number
+  cargo?: number
+  locker?: number
+  flare?: number
+  count?: number
+  delivered?: number
+  found?: boolean
+  burn?: number
+  x?: number
+  z?: number
+}
+export interface SalvageEnd { game: string; won: boolean; reason: 'won' | 'lost' | 'timeout'; delivered: number; parcels: number; enemies: number; team: number; duration: number }
+export type SalvageAction = 'create' | 'join' | 'leave' | 'settings' | 'ready' | 'pickup' | 'hide' | 'unhide' | 'flare' | 'quit'
+
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
-  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean }; players: PlayerState[]; music?: MusicState; hold?: MusicState; system?: SystemId }
+  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean }; players: PlayerState[]; music?: MusicState; hold?: MusicState; system?: SystemId; salvage?: SalvageLobby }
   | { t: 'join'; player: PlayerState }
   | { t: 'leave'; id: number }
   | { t: 'state'; id: number; x: number; z: number; yaw: number; level: number; anim: string; pose?: string; py?: number }
@@ -119,6 +175,13 @@ export type ServerMessage =
   | ({ t: 'cinema:state' } & CinemaState)
   | { t: 'cinema:error'; reason: 'live' | 'seat' | 'invalid' | 'busy' | 'unavailable' }
   | { t: 'board:error'; game: string; table: string; code: 'full' | 'invalid' | 'busy' | 'unavailable' | 'far' }
+  | ({ t: 'salvage:lobby' } & SalvageLobby)
+  | ({ t: 'salvage:start' } & SalvageStart)
+  | ({ t: 'salvage:state' } & SalvageState)
+  | ({ t: 'salvage:event' } & SalvageEvent)
+  | ({ t: 'salvage:end' } & SalvageEnd)
+  | { t: 'salvage:reward'; game: string; earned: number; balance: number }
+  | { t: 'salvage:error'; code: string }
 
 /**
  * Réponse du relais à une invitation : partie, ou pourquoi pas (guest : on n'est pas CMDR,
@@ -130,7 +193,8 @@ type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin'>
 
 /** Chemin de la socket : le même que WS_PATH dans server/relay.js et que la conf nginx du site. */
 const WS_PATH = import.meta.env.VITE_WS_PATH || '/ws/mini-shipinteriors'
-const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'music', 'jump', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error']
+const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'music', 'jump', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error',
+  'salvage:lobby', 'salvage:start', 'salvage:state', 'salvage:event', 'salvage:end', 'salvage:reward', 'salvage:error']
 
 export class Net {
   online = false
@@ -312,5 +376,10 @@ export class Net {
   /** Raccompagner un visiteur de ses quartiers. */
   sendKick(id: number) {
     this.send('kick', { id })
+  }
+
+  /** Zone thargoïde : former son équipe au lobby, puis agir en mission (cf. server/salvage.js). */
+  sendSalvage(action: SalvageAction, data: object = {}) {
+    this.send(`salvage:${action}`, data)
   }
 }

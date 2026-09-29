@@ -3262,3 +3262,138 @@ body.photo #bubbles .gain-pop {
   #dialog { bottom: 70px; width: min(390px, 56vw); padding: 8px; font-size: 11px; }
   body.editing #touch-pad, body.photo #touch-pad { display: none; }
 }
+
+/* ------------------------------------------------------------------ zone thargoïde (SOC-06) */
+
+/* Dans la baie, le noir est total autour de la vue du joueur. */
+body.in-zone { background: #000; }
+
+.salvage-panel {
+  position: fixed; z-index: 120; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: min(620px, calc(100vw - 28px)); max-height: calc(100dvh - 32px); overflow: auto;
+  box-sizing: border-box; padding: 24px 26px; color: #e3f2e8;
+  border: 1px solid #3f7a5a; border-radius: 14px;
+  background:
+    linear-gradient(90deg, #e9a91722 0 6px, transparent 6px) left top / 100% 100% no-repeat,
+    linear-gradient(150deg, #13241c, #0b1511 55%, #0a0f0e);
+  box-shadow: 0 24px 90px #000c, inset 0 1px #ffffff10, 0 0 0 1px #6dff9a14;
+  user-select: text; -webkit-user-select: text;
+}
+.salvage-panel[hidden] { display: none; }
+.salvage-head { padding-right: 34px; margin-bottom: 12px; }
+.salvage-kicker { color: #e9a917; font-size: 10px; font-weight: 800; letter-spacing: .18em; }
+.salvage-panel h2 { margin: 6px 0 0; font-size: 25px; letter-spacing: -.01em; color: #f2fff6; }
+.salvage-close { position: absolute; right: 14px; top: 14px; width: 32px; height: 32px; padding: 0; font-size: 22px; line-height: 1; border-radius: 8px; border: 1px solid #3f7a5a; color: #cfe9da; background: #ffffff08; cursor: pointer; }
+.salvage-body { display: grid; gap: 12px; }
+.salvage-intro { margin: 0; color: #b4cdbf; font-size: 13px; line-height: 1.5; }
+.salvage-warn { margin: 0; padding: 10px 12px; border-left: 3px solid #ff6a5c; border-radius: 0 8px 8px 0; background: #ff6a5c14; color: #ffc2bb; }
+.salvage-status { margin: 0; color: #ffd98a; font-size: 13px; }
+.salvage-note { color: #93ad9f; font-size: 12px; }
+.salvage-empty { margin: 0; color: #93ad9f; font-size: 13px; }
+.salvage-panel button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 10px 14px; border: 1px solid #3f7a5a; border-radius: 8px; cursor: pointer;
+  color: #dff3e6; background: #17302a; font: inherit; font-size: 13px; font-weight: 600;
+}
+.salvage-panel button .icon { width: 16px; height: 16px; }
+.salvage-panel button:hover:not(:disabled) { background: #1f4236; border-color: #6dff9a99; }
+.salvage-panel button:focus-visible { outline: 2px solid #e9a917; outline-offset: 2px; }
+.salvage-panel button:disabled { opacity: .45; cursor: default; }
+.salvage-panel .salvage-primary { background: #e9a917; border-color: #e9a917; color: #14120a; }
+.salvage-panel .salvage-primary:hover:not(:disabled) { background: #ffc233; border-color: #ffc233; }
+.salvage-panel .salvage-quiet { background: transparent; }
+.salvage-panel .salvage-link { background: transparent; border-color: transparent; padding-left: 0; color: #9fe8bc; }
+.salvage-teams { display: grid; gap: 8px; }
+.salvage-team-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid #ffffff14; border-radius: 10px; background: #ffffff07; }
+.salvage-team-info { display: grid; gap: 2px; }
+.salvage-team-info span { color: #a3bdb0; font-size: 12px; }
+.salvage-team { display: grid; gap: 12px; padding: 14px; border: 1px solid #3f7a5a88; border-radius: 12px; background: #0f1d18; }
+.salvage-members { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+.salvage-members li { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 8px 10px; border-radius: 8px; background: #ffffff08; border: 1px solid #ffffff10; }
+.salvage-members li.ready { border-color: #6dff9a66; background: #6dff9a12; }
+.salvage-members li.free { color: #6c8577; font-style: italic; justify-content: center; }
+.salvage-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.salvage-ready { color: #8aa598; font-size: 11px; }
+.salvage-members li.ready .salvage-ready { color: #6dff9a; font-weight: 700; }
+.salvage-crown { width: 15px; height: 15px; color: #e9a917; flex: none; }
+.salvage-settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.salvage-stepper { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 10px; background: #ffffff07; }
+.salvage-label { color: #b4cdbf; font-size: 12px; }
+.salvage-stepper button { width: 32px; height: 32px; padding: 0; }
+.salvage-value { min-width: 2ch; text-align: center; font-size: 20px; color: #f2fff6; font-variant-numeric: tabular-nums; }
+.salvage-summary { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin: 0; font-size: 13px; }
+.salvage-threat { font-weight: 700; }
+.salvage-threat.t0 { color: #9fe8bc; }
+.salvage-threat.t1 { color: #ffd98a; }
+.salvage-threat.t2 { color: #ffa25a; }
+.salvage-threat.t3 { color: #ff6a5c; }
+.salvage-reward { color: #ffd98a; font-weight: 700; }
+.salvage-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.salvage-countdown { color: #6dff9a; font-size: 15px; margin-right: auto; }
+.salvage-rules { margin: 0; color: #8aa598; font-size: 12px; line-height: 1.5; }
+.salvage-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.salvage-table { width: 100%; border-spacing: 0 4px; font-size: 14px; }
+.salvage-table th { text-align: left; padding: 6px 12px; color: #93ad9f; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; font-weight: 600; }
+.salvage-table td { padding: 9px 12px; background: #ffffff07; }
+.salvage-table td:first-child { border-radius: 8px 0 0 8px; width: 40px; color: #e9a917; font-weight: 700; }
+.salvage-table td:last-child { border-radius: 0 8px 8px 0; }
+.salvage-table td.salvage-empty { border-radius: 8px; text-align: center; padding: 18px; }
+.salvage-table a { color: #9fe8bc; }
+
+/* En mission : l'équipe et la progression en haut, les consignes en bas. */
+.salvage-hud { position: fixed; z-index: 40; top: 76px; left: 50%; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 12px; max-width: min(760px, calc(100vw - 440px)); padding: 8px 12px; border: 1px solid #3f7a5a99; border-radius: 12px; background: #07100dcc; backdrop-filter: blur(6px); pointer-events: auto; }
+.salvage-hud-top { display: grid; gap: 1px; }
+.salvage-hud-title { display: flex; align-items: center; gap: 6px; color: #e9a917; font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.salvage-hud-title .icon { width: 13px; height: 13px; }
+.salvage-hud-progress { color: #f2fff6; font-size: 15px; font-weight: 700; }
+.salvage-hud-crew { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.salvage-hud-crew li { display: flex; align-items: center; gap: 4px; max-width: 150px; padding: 3px 7px; border-radius: 999px; background: #ffffff0d; color: #cfe9da; font-size: 12px; }
+.salvage-hud-crew li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.salvage-hud-crew li .icon { width: 13px; height: 13px; flex: none; }
+.salvage-hud-crew li.self { box-shadow: inset 0 0 0 1px #6dff9a66; }
+.salvage-hud-crew li.s-captured { color: #ff8f86; background: #ff3b2f1c; }
+.salvage-hud-crew li.s-left, .salvage-hud-crew li.s-gone { opacity: .5; }
+.salvage-hud-flares { display: flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 8px; color: #ffb3aa; background: #ff3b2f18; font-size: 12px; cursor: pointer; }
+.salvage-hud-flares .icon { width: 14px; height: 14px; }
+.salvage-hud-flares kbd { padding: 0 4px; border: 1px solid #ffb3aa66; border-radius: 4px; font: 600 10px/1.5 system-ui, sans-serif; }
+.salvage-hud-flares.empty { opacity: .45; }
+.salvage-hud-quit { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border: 1px solid #ff6a5c55; border-radius: 8px; color: #ffc2bb; background: transparent; font: 600 12px system-ui, sans-serif; cursor: pointer; }
+.salvage-hud-quit .icon { width: 13px; height: 13px; }
+.salvage-hud-hint { flex-basis: 100%; text-align: center; color: #8aa598; font-size: 11px; }
+.salvage-stamina { position: fixed; z-index: 35; top: 0; left: 0; width: 54px; height: 6px; padding: 1px; border-radius: 4px; background: #000a; box-shadow: 0 0 0 1px #ffffff33; pointer-events: none; }
+.salvage-stamina-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #6dff9a, #c8ff6a); transition: width .1s linear; }
+.salvage-stamina.exhausted .salvage-stamina-fill { background: #ff6a5c; }
+.salvage-locker { position: fixed; z-index: 35; top: 0; left: 0; padding: 3px 8px; border-radius: 999px; color: #dff3e6; background: #0b1511dd; box-shadow: 0 0 0 1px #6dff9a55; font: 700 12px system-ui, sans-serif; white-space: nowrap; pointer-events: none; }
+.salvage-locker.urgent { color: #ffd0cb; box-shadow: 0 0 0 1px #ff6a5c; animation: salvage-pulse .5s ease-in-out infinite alternate; }
+@keyframes salvage-pulse { to { background: #4a1510dd; } }
+
+/* Caméra alliée : la baie vue par un coéquipier, comme sur un moniteur de surveillance. */
+.salvage-spectator { position: fixed; z-index: 42; bottom: 18px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid #6dff9a66; border-radius: 12px; background: #04100ae6; pointer-events: auto; }
+.salvage-spectator-label { display: flex; align-items: center; gap: 6px; margin-right: 6px; color: #6dff9a; font: 700 12px ui-monospace, monospace; letter-spacing: .08em; }
+.salvage-spectator-label strong { color: #f2fff6; letter-spacing: 0; font-family: system-ui, sans-serif; }
+.salvage-spectator-label .icon { width: 16px; height: 16px; }
+.salvage-spectator button { display: inline-flex; align-items: center; gap: 5px; padding: 7px 10px; border: 1px solid #3f7a5a; border-radius: 8px; color: #dff3e6; background: #17302a; font: 600 12px system-ui, sans-serif; cursor: pointer; }
+.salvage-spectator button .icon { width: 14px; height: 14px; }
+body.salvage-watching #app::after { content: ''; position: fixed; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, #0000 0 3px, #00000038 3px 4px), radial-gradient(ellipse at center, #0000 55%, #000c 100%); }
+body.salvage-watching #app { filter: saturate(.55) sepia(.25) hue-rotate(70deg) contrast(1.08); }
+
+/* Capture : voile rouge. */
+.salvage-vignette { position: fixed; inset: 0; z-index: 44; pointer-events: none; background: radial-gradient(ellipse at center, #0000 30%, #b0101099 100%); opacity: 0; }
+.salvage-vignette.flash { animation: salvage-flash 1.9s ease-out forwards; }
+.salvage-vignette.soft { animation: salvage-flash .9s ease-out forwards; }
+@keyframes salvage-flash { 0% { opacity: 0; } 12% { opacity: 1; } 100% { opacity: 0; } }
+
+.salvage-end { width: min(460px, calc(100vw - 28px)); text-align: center; }
+.salvage-end.won { border-color: #6dff9a; }
+.salvage-end .salvage-head { padding-right: 0; }
+.salvage-end-reward { margin: 0; color: #ffd98a; font-weight: 700; }
+
+/* Écran étroit : la barre de mission passe à droite, sous la barre d'outils (le cartouche du pont est à gauche). */
+@media (max-width: 1100px) {
+  .salvage-hud { left: auto; right: 16px; transform: none; max-width: min(380px, calc(100vw - 32px)); justify-content: flex-end; }
+  .salvage-hud-hint { display: none; }
+}
+@media (max-width: 700px) {
+  .salvage-members, .salvage-settings { grid-template-columns: 1fr; }
+  .salvage-spectator { flex-wrap: wrap; justify-content: center; width: calc(100vw - 24px); }
+}

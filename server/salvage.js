@@ -54,7 +54,7 @@ export function inLobby(p) {
  * @param {(event: string, data: object) => void} o.broadcast envoie à tout le bord
  * @param {(member: object, result: object) => Promise<{ earned: number, balance: number } | null>} [o.reward]
  */
-export function createSalvage({ playerById, emit, broadcast, reward = async () => null, now = Date.now, random = Math.random, log = () => {} }) {
+export function createSalvage({ playerById, emit, broadcast, reward = async () => null, now = Date.now, random = Math.random, log = () => {}, debug = false }) {
   const teams = new Map() // id -> équipe
   const games = new Map() // id -> partie
   const teamOf = new Map() // id du joueur -> équipe
@@ -399,6 +399,16 @@ export function createSalvage({ playerById, emit, broadcast, reward = async () =
   function handle(p, action, raw) {
     const data = raw && typeof raw === 'object' ? raw : {}
     const game = gameOf(p)
+    // Serveur de dev seulement (essais dans le navigateur) : figer les ennemis, en poser un.
+    if (action === 'salvage:debug') {
+      if (!debug || !game) return
+      if (typeof data.freeze === 'boolean') game.frozen = data.freeze
+      const mon = game.monsters[data.monster]
+      if (mon && Number.isFinite(data.x) && Number.isFinite(data.z) && walkable(game.zone, Math.round(data.x), Math.round(data.z))) {
+        Object.assign(mon, { x: data.x, z: data.z, path: [], mode: 'patrol' })
+      }
+      return
+    }
     if (game && action !== 'salvage:create' && action !== 'salvage:join') return gameAction(p, game, action, data)
     if (LOBBY_ACTIONS.has(action)) lobbyAction(p, action, data)
   }
@@ -722,7 +732,7 @@ export function createSalvage({ playerById, emit, broadcast, reward = async () =
       tell(game, { kind: 'flare-out' })
       game.flare = null
     }
-    for (const mon of game.monsters) {
+    for (const mon of game.frozen ? [] : game.monsters) {
       stepMonster(game, mon, dt)
       if (game.ended) return
     }

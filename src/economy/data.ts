@@ -9,6 +9,8 @@ import raw from './economy.json'
  * - passive : revenu passif, payé à chaque battement (une fois par minute) ;
  * - items, skins : prix de déblocage des objets des quartiers et des apparences (cf. skins.ts) ;
  * - wings : prix des espaces d'extension des quartiers, du premier débloqué au dernier ;
+ * - salvage : récompense d'une mission réussie en zone thargoïde, par membre (par colis, et bonus
+ *   par ennemi au-delà du premier, cf. salvageReward dans shared/salvage.js) ;
  * - tasks, spots : les tâches de bord et leurs emplacements (cf. schedule.ts et tasks.ts) ;
  * - arcade : paliers de score des bornes, et prime du record du vaisseau.
  */
@@ -50,6 +52,7 @@ interface Economy {
   items: Record<string, number>
   skins: Record<string, number>
   wings: number[]
+  salvage: { parcel: number; enemyBonus: number }
   drinks: Record<string, number>
   tasks: Record<TaskKind, TaskDef>
   spots: Spot[]

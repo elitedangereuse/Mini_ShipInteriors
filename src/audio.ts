@@ -63,6 +63,9 @@ export class Sound {
   /** Fin du morceau en cours (horloge audio) : un seul à la fois. */
   private grooveUntil = 0
   private arcade?: GainNode
+  /** Écho de la baie infestée (cf. setEcho) : réverbération où partent aussi les sons joués. */
+  private reverb?: { input: GainNode; wet: GainNode }
+  private echo = 0
 
   constructor() {
     this.rig.add(this.listener)
@@ -138,6 +141,7 @@ export class Sound {
         }
       }),
     )
+    if (this.echo) this.setEcho(this.echo)
     onReady()
   }
 
@@ -200,7 +204,57 @@ export class Sound {
     gain.gain.value = o.volume ?? 1
     if (pos) gain.connect(this.panner(pos, o.ref, o.rolloff))
     else gain.connect(this.listener.getInput())
+    // Dans la baie infestée, les sons de la scène résonnent sur les parois de métal.
+    if (pos && this.echo > 0 && this.reverb) gain.connect(this.reverb.input)
     return { input: gain, gain }
+  }
+
+  /**
+   * Entrée d'un son synthétisé ailleurs (cf. src/salvage/sfx.ts), spatialisé si `pos` ; il passe
+   * par l'écho comme les autres. null tant que le son n'a pas démarré.
+   */
+  voice(pos: THREE.Vector3 | null, volume: number, ref = 1.5, rolloff = 1.2): AudioNode | null {
+    if (!this.ready) return null
+    return this.output(pos, { volume, ref, rolloff }).input
+  }
+
+  /** Bruit blanc d'une seconde (pour les sons synthétisés ailleurs). */
+  get noiseBuffer(): AudioBuffer {
+    return this.whiteNoise
+  }
+
+  /**
+   * Écho de la baie infestée (0 : aucun) : une réverbération métallique, longue et sourde, dans
+   * laquelle partent les sons joués dans la scène (pas, ennemis, casiers).
+   */
+  setEcho(amount: number) {
+    this.echo = amount
+    if (!this.ready) return
+    if (!this.reverb) {
+      const ctx = this.ctx
+      const rate = ctx.sampleRate, len = Math.floor(rate * 2.4)
+      const ir = ctx.createBuffer(2, len, rate)
+      for (let ch = 0; ch < 2; ch++) {
+        const d = ir.getChannelData(ch)
+        // Décroissance exponentielle, quelques réflexions nettes au début (les parois du couloir).
+        for (let i = 0; i < len; i++) {
+          const t = i / rate
+          d[i] = (Math.random() * 2 - 1) * Math.exp(-t * 2.6) * (t < 0.012 ? t / 0.012 : 1)
+        }
+        for (const [at, k] of [[0.043, 0.5], [0.087, 0.35], [0.131, 0.25], [0.19, 0.18]]) d[Math.floor((at + ch * 0.007) * rate)] += k
+      }
+      const input = ctx.createGain()
+      const convolver = ctx.createConvolver()
+      convolver.buffer = ir
+      const dark = ctx.createBiquadFilter()
+      dark.type = 'lowpass'
+      dark.frequency.value = 2400
+      const wet = ctx.createGain()
+      wet.gain.value = 0
+      input.connect(dark).connect(convolver).connect(wet).connect(this.listener.getInput())
+      this.reverb = { input, wet }
+    }
+    this.fade(this.reverb.wet, amount * 0.55, 0.8)
   }
 
   /** Joue un son (variante au hasard) ; `pos` null = non spatialisé (interface). */

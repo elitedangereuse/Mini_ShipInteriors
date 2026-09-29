@@ -15,7 +15,7 @@ export const ZONE_LEVEL = -2
 /** Le lobby : le sas de la cale, pièce 'h' du pont -1 (cf. shared/ship-layouts.js). */
 export const LOBBY = { level: -1, room: 'h' }
 /** Où l'on revient dans le lobby (fin de partie, capture, abandon) : devant la porte blindée. */
-export const LOBBY_RETURN = { x: 24.1, z: 5 }
+export const LOBBY_RETURN = { x: 24.2, z: 2.7 }
 
 /**
  * Chiffres de la partie (tuiles et secondes). Le mode léger n'y change rien : même vue, même bruit.
@@ -426,13 +426,15 @@ function buildGraph(zone) {
   }
   zone.map = new ShipMap(zone.layout, { walls: zone.walls, doors: zone.doors })
   // Plan « de vue » : un conteneur arrête le regard comme un mur (il se voit, pas ce qu'il cache).
+  // Lu dans les tableaux de la baie (des milliers de rayons à chaque image pour la vue du joueur) ;
+  // une porte du sas y est un passage ouvert.
   zone.sightMap = {
     isFloor: (x, z) => x >= 0 && z >= 0 && x < W && z < H && !zone.blocked[z * W + x],
-    room: (x, z) => zone.map.room(x, z),
+    room: (x, z) => (x >= 0 && z >= 0 && x < W && z < H ? zone.room[z * W + x] : null),
     edge: (x, z, dir) => {
-      const nx = x + DIRS[dir].dx, nz = z + DIRS[dir].dz
-      if (nx < 0 || nz < 0 || nx >= W || nz >= H || zone.blocked[nz * W + nx] || zone.blocked[z * W + x]) return 'wall'
-      return zone.map.edge(x, z, dir)
+      if (x < 0 || z < 0 || x >= W || z >= H) return 'wall'
+      const i = z * W + x
+      return zone.adj[i * 4 + dir] >= 0 ? 'open' : 'wall'
     },
   }
 }

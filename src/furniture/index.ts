@@ -17,6 +17,7 @@ import { PETS } from './pets'
 import { VOIE } from './voie'
 import { WORKSHOP } from './workshop'
 import { WORKS } from './works'
+import { SALVAGE } from './salvage'
 import { SITE } from './site'
 import { STUDIO } from './studio'
 
@@ -39,12 +40,13 @@ import { STUDIO } from './studio'
  * - listening.ts : le salon d'écoute (casques, affiches de Radio Dangereuse et des Galères Galactiques, poste d'écoute) ;
  * - studio.ts : le studio de Radio Dangereuse (table à trois micros, fauteuils, mousse acoustique, néon « ON AIR ») ;
  * - ljpc.ts : le labo du L.J.P.C. (tableau d'enquête, paillasse, échantillon, hologramme, James et Julia) ;
- * - voie.ts : le sanctuaire de la Voie (portail de Raxxla, Chroniques, icône de Salomé, Reliques, l'Adepte Supérieur).
+ * - voie.ts : le sanctuaire de la Voie (portail de Raxxla, Chroniques, icône de Salomé, Reliques, l'Adepte Supérieur) ;
+ * - salvage.ts : la zone thargoïde (lobby du sas de la cale, casiers, colis, fusées, plateforme d'extraction).
  * On les place dans levels.ts comme les modèles du kit : `{ model: 'fireplace', x, z, rot }`,
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...COCKPIT, ...WORKSHOP, ...BAR, ...LEISURE, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...LISTENING, ...STUDIO, ...LJPC, ...VOIE } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...COCKPIT, ...WORKSHOP, ...BAR, ...LEISURE, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...LISTENING, ...STUDIO, ...LJPC, ...VOIE, ...SALVAGE } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 
@@ -69,6 +71,7 @@ export { holoMeGlow } from './elite'
 export { beatAt, beatPulse } from './party'
 export { film, filmGlow } from './cinema'
 export { studio } from './studio'
+export { cargoCanister, flareStick, lockerParts } from './salvage'
 export {
   beamMaterial, disposeFurniture, ED_ORANGE, holoTime, keepShared, tickFurniture, type BagControl, type ClawControl, type ClawResult, type Emitter,
   type FurnitureControl,

@@ -31,6 +31,8 @@ export class Player {
   readonly root = new THREE.Group()
   /** Effet temporaire d'un cocktail ; 1 hors effet. */
   speedMultiplier = 1
+  /** Charge portée (un colis dans la zone thargoïde) : ralentit la marche comme la course ; 1 sans rien. */
+  load = 1
   readonly position: THREE.Vector3
   private path: { x: number; z: number }[] = []
   private stuckTime = 0
@@ -177,7 +179,7 @@ export class Player {
       const target = this.path[0]
       dir.set(target.x - this.position.x, 0, target.z - this.position.z)
       const dist = dir.length()
-      const speed = sprint ? SPRINT_SPEED * this.speedMultiplier : WALK_SPEED
+      const speed = (sprint ? SPRINT_SPEED * this.speedMultiplier : WALK_SPEED) * this.load
       if (dist < Math.max(0.06, speed * dt)) {
         this.path.shift()
         if (!this.path.length) {
@@ -193,7 +195,7 @@ export class Player {
     }
 
     if (dir.lengthSq() > 0) {
-      const speed = sprint ? SPRINT_SPEED * this.speedMultiplier : WALK_SPEED
+      const speed = (sprint ? SPRINT_SPEED * this.speedMultiplier : WALK_SPEED) * this.load
       const bx = this.position.x, bz = this.position.z
       const next = { x: bx + dir.x * speed * dt, z: bz + dir.z * speed * dt }
       // Au clavier, on vise mal une ouverture étroite (et en diagonale, en vue isométrique) : à peine
