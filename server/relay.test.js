@@ -10,6 +10,7 @@ import { cookieValue } from './cmdr.js'
 import { attachRelay, WS_PATH } from './relay.js'
 import { PILOT_SEAT, SYSTEM_IDS } from '../shared/systems.js'
 import { PATROL_HOLD, PATROL_LEVEL, patrolAt } from '../shared/patrol.js'
+import { CHEF_COOK, CHEF_HOLD, CHEF_LEVEL, chefAt } from '../shared/chef.js'
 
 /** Faux site : reconnaît deux cookies, comme outils/mini-shipinteriors-cmdr.php. */
 const ACCOUNTS = { 'jeton-adam': 'Adam Fauster', 'jeton-rackam': 'Rackam' }
@@ -473,6 +474,52 @@ describe('patrouille', () => {
     const joined = (await welcome(late)).patrol
     assert.ok(joined.hold > 0)
     assert.ok(Math.abs(joined.tau - held.tau) < 1e-6)
+  })
+})
+
+describe('chef du mess', () => {
+  test('le chef est le même pour tous ; lui parler l\'arrête, cuisiner le retient au bout du self', async () => {
+    const cook = client({ auth: { name: 'CMDR Commis' } })
+    const crew = client({ auth: { name: 'CMDR Gourmand' } })
+    const first = (await welcome(cook)).chef
+    const seen = (await welcome(crew)).chef
+    assert.equal(first.hold, 0)
+    assert.equal(first.cook, 0)
+    assert.ok(Math.abs(seen.tau - first.tau) < 0.5)
+    // Hors du mess (dans les quartiers), on ne cuisine pas, et on ne lui parle pas.
+    cook.emit('chef:cook', { on: true })
+    cook.emit('chef:talk')
+    assert.equal(await receives(crew, 'chef', 150), false)
+    // À côté de lui : il s'arrête, face au joueur, pour tous.
+    const at = chefAt(first.tau + 0.4)
+    cook.emit('state', { x: at.x, z: at.z, yaw: 0, level: CHEF_LEVEL, anim: 'idle' })
+    const talked = next(crew, 'chef')
+    cook.emit('chef:talk')
+    const held = await talked
+    assert.ok(held.hold > CHEF_HOLD - 0.5)
+    assert.deepEqual(held.face, { x: at.x, z: at.z })
+    // Une commande, depuis la salle : il attend au bout du self, pour tous, le temps de la commande et du retour.
+    cook.emit('state', { x: 12, z: 9.2, yaw: 0, level: CHEF_LEVEL, anim: 'idle' })
+    const cooking = next(crew, 'chef', (m) => m.cook > 0)
+    cook.emit('chef:cook', { on: true })
+    const order = await cooking
+    assert.ok(order.cook > CHEF_COOK - 1)
+    assert.ok(order.hold > order.cook)
+    assert.ok(Math.abs(order.tau - held.tau) < 0.5)
+    // Un nouveau venu le trouve au bout du self.
+    const late = client({ auth: { name: 'CMDR Retardataire' } })
+    assert.ok((await welcome(late)).chef.cook > 0)
+    // La commande servie, il repart : plus de commande, juste le temps de revenir.
+    const done = next(crew, 'chef', (m) => m.cook === 0)
+    cook.emit('chef:cook', { on: false })
+    const back = await done
+    assert.ok(back.hold > 0 && back.hold < 10)
+    // Un commis qui s'en va sans finir libère le chef aussi.
+    cook.emit('chef:cook', { on: true })
+    await next(crew, 'chef', (m) => m.cook > 0)
+    const left = next(crew, 'chef', (m) => m.cook === 0)
+    cook.disconnect()
+    await left
   })
 })
 

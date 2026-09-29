@@ -19,7 +19,7 @@ import type { Wallet } from './wallet'
  */
 
 /** Bruit du geste en cours (cf. Sound.work, ou les étincelles de Sound.sparks). */
-export type WorkSound = 'scrub' | 'wrench' | 'hiss' | 'water' | 'sparks'
+export type WorkSound = 'scrub' | 'wrench' | 'hiss' | 'water' | 'sparks' | 'chop' | 'sizzle'
 
 /**
  * Ce qu'on fait de chaque tâche : le verbe de l'invite, le geste en cours, une phrase une fois
@@ -316,14 +316,16 @@ function decor(spot: Spot, seed: number): Furniture {
 
 // ---------------------------------------------------------------- marqueurs
 
-const markers = new Map<IconName, THREE.SpriteMaterial>()
+const markers = new Map<string, THREE.SpriteMaterial>()
 
 /**
  * Marqueur d'une tâche : hexagone sombre cerclé d'orange (l'interface d'Elite), avec l'icône de
- * la tâche. Visible à travers les murs, comme un repère de l'interface du vaisseau.
+ * la tâche. Visible à travers les murs, comme un repère de l'interface du vaisseau. Les étapes des
+ * commandes du chef ont le leur, cerclé d'une autre couleur (cf. kitchen.ts).
  */
-function markerMaterial(name: IconName): THREE.SpriteMaterial {
-  let m = markers.get(name)
+export function markerMaterial(name: IconName, stroke = '#ff8a1c'): THREE.SpriteMaterial {
+  const key = `${name}:${stroke}`
+  let m = markers.get(key)
   if (m) return m
   const S = 128
   const canvas = document.createElement('canvas')
@@ -341,7 +343,7 @@ function markerMaterial(name: IconName): THREE.SpriteMaterial {
   g.fillStyle = 'rgba(12, 14, 28, 0.82)'
   g.fill()
   g.lineWidth = 7
-  g.strokeStyle = '#ff8a1c'
+  g.strokeStyle = stroke
   g.stroke()
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace
@@ -353,6 +355,6 @@ function markerMaterial(name: IconName): THREE.SpriteMaterial {
   }
   img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(iconSvg(name).replace('currentColor', '#ffd9a8'))}`
   m = keepShared(new THREE.SpriteMaterial({ map: keepShared(texture), transparent: true, depthTest: false, depthWrite: false }))
-  markers.set(name, m)
+  markers.set(key, m)
   return m
 }

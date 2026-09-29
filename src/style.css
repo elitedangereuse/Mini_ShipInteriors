@@ -1439,6 +1439,48 @@ kbd .icon {
   }
 }
 
+/* ---------- bon de commande du mess (cf. src/kitchen.ts) ---------- */
+/* Sous le bloc du vaisseau : le plat, la table, et les étapes (faites, en cours, à venir). */
+.order-ticket {
+  width: min(260px, calc(100vw - 32px));
+  padding: 8px 12px 9px;
+  border-color: rgba(57, 208, 255, 0.45);
+  font-size: 12px;
+}
+.ot-head {
+  font-weight: 600;
+  color: #39d0ff;
+}
+.ot-dish {
+  margin: 1px 0 5px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.ot-steps {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0 0 0 18px;
+  color: var(--muted);
+}
+.ot-steps li.done {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+.ot-steps li.now {
+  color: var(--text);
+  font-weight: 600;
+}
+.ot-steps li.now::marker {
+  color: #39d0ff;
+}
+.ot-where {
+  display: block;
+  font-weight: 400;
+  color: #39d0ff;
+}
+
 /* ---------- barre de la cabine (ses quartiers, ou ceux d'un autre CMDR) ---------- */
 /* Dans la colonne de gauche, sous le bloc du vaisseau : rien ne la chevauche. */
 .cabin-bar {

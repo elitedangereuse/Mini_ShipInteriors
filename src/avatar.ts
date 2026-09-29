@@ -96,6 +96,58 @@ const TAU = Math.PI * 2
 export const SALUTE = new THREE.Euler(-2.2, 0, 1.1)
 const saluteQ = new THREE.Quaternion()
 
+/**
+ * Porter à deux mains (un plateau) : les bras tendus droit devant soi, un peu vers le bas, les
+ * mains sous les bords du plateau (repère du parent des bras : le personnage regarde vers +z ;
+ * x vers l'intérieur).
+ */
+const CARRY = new THREE.Vector3(0, -0.42, 0.9).normalize()
+const carryQ = new THREE.Quaternion()
+const carryDir = new THREE.Vector3()
+
+/** Un bras : l'os, sa direction au repos (repère du parent, quaternion identité) et sa longueur. */
+interface Arm {
+  bone: THREE.Object3D
+  rest: THREE.Vector3
+  length: number
+  /** -1 ou 1 : de quel côté du corps il pend (x du repère du parent). */
+  side: number
+}
+
+/**
+ * Mesure un bras (un seul os, sans coude) : vers où part-il quand son quaternion est à l'identité,
+ * et jusqu'où ? Les modèles n'ont pas tous la même pose de repos : on la mesure sur les sommets
+ * de la peau que l'os entraîne (repère de l'os, qui à l'identité est celui de son parent).
+ */
+function measureArm(model: THREE.Object3D, bone: THREE.Object3D | undefined): Arm | null {
+  if (!bone?.parent) return null
+  const sum = new THREE.Vector3()
+  const points: THREE.Vector3[] = []
+  model.traverse((o) => {
+    const mesh = o as THREE.SkinnedMesh
+    if (!mesh.isSkinnedMesh) return
+    const index = mesh.skeleton.bones.indexOf(bone as THREE.Bone)
+    if (index < 0) return
+    const position = mesh.geometry.getAttribute('position')
+    const skinIndex = mesh.geometry.getAttribute('skinIndex')
+    const skinWeight = mesh.geometry.getAttribute('skinWeight')
+    if (!position || !skinIndex || !skinWeight) return
+    const toBone = mesh.skeleton.boneInverses[index].clone().multiply(mesh.bindMatrix)
+    for (let i = 0; i < position.count; i++) {
+      let weight = 0
+      for (let k = 0; k < skinIndex.itemSize; k++) if (skinIndex.getComponent(i, k) === index) weight += skinWeight.getComponent(i, k)
+      if (weight < 0.5) continue
+      const p = new THREE.Vector3().fromBufferAttribute(position, i).applyMatrix4(toBone)
+      points.push(p)
+      sum.add(p)
+    }
+  })
+  if (points.length < 3) return null
+  const rest = sum.divideScalar(points.length).normalize()
+  const length = Math.max(...points.map((p) => p.dot(rest)))
+  return length > 0 ? { bone, rest, length, side: Math.sign(bone.position.x) || 1 } : null
+}
+
 const WALK_NOMINAL = 1.7
 const SPRINT_NOMINAL = 3.4
 
@@ -136,6 +188,11 @@ export class Avatar {
   private danceRep = 0
   private readonly danceStart = Math.floor(Math.random() * DANCE.length)
   private readonly armRight: THREE.Object3D | null
+  /** Les deux bras mesurés (porter un plateau), s'ils existent. */
+  private readonly arms: Arm[]
+  /** Porte quelque chose à deux mains devant soi (cf. hands) ; les bras s'y mettent en douceur. */
+  carrying = false
+  private carryWeight = 0
   /** À chaque animation d'une pose (un coup de poing dans le sac, cf. main.ts). */
   onPoseStep?: (step: number) => void
 
@@ -155,6 +212,8 @@ export class Avatar {
     this.sitting = this.measureSitting('sit')
     this.driving = this.measureSitting(this.actions.has('drive') ? 'drive' : FALLBACK.drive)
     this.armRight = this.model.getObjectByName('arm-right') ?? null
+    const arms = [measureArm(this.model, this.armRight ?? undefined), measureArm(this.model, this.model.getObjectByName('arm-left'))]
+    this.arms = arms.every((a) => a) ? (arms as Arm[]) : []
     this.fadeTo('idle', 0)
   }
 
@@ -351,6 +410,15 @@ export class Avatar {
       const w = THREE.MathUtils.smoothstep(t, 0, 0.25) * (1 - THREE.MathUtils.smoothstep(t, end - 0.3, end))
       this.armRight.quaternion.slerp(saluteQ.setFromEuler(SALUTE), w)
     }
+    // À deux mains, par-dessus l'animation (sauf installé sur un meuble, et le bras qui salue).
+    this.carryWeight = THREE.MathUtils.damp(this.carryWeight, this.carrying && !this.pose ? 1 : 0, 12, dt)
+    if (this.carryWeight > 0.001) {
+      for (const arm of this.arms) {
+        if (arm.bone === this.armRight && this.emote?.gesture === 'salute') continue
+        carryDir.set(-arm.side * CARRY.x, CARRY.y, CARRY.z)
+        arm.bone.quaternion.slerp(carryQ.setFromUnitVectors(arm.rest, carryDir), this.carryWeight)
+      }
+    }
     // Le fondu des clips et le décalage du modèle n'avancent pas à la même vitesse : empêcher
     // aussi l'enfoncement pendant la transition, particulièrement visible sur les Blocky.
     this.groundSit = this.emote?.id === 'assis' ? 0.6 : Math.max(0, this.groundSit - dt)
@@ -364,6 +432,21 @@ export class Avatar {
       const floor = this.root.getWorldPosition(this.groundOrigin).y
       this.model.position.y += Math.max(0, floor + 0.005 - this.groundBounds.min.y)
     }
+  }
+
+  /**
+   * Entre les deux mains (monde), là où poser ce qu'on porte ; null si le modèle n'a pas deux bras
+   * mesurables.
+   */
+  hands(out: THREE.Vector3): THREE.Vector3 | null {
+    if (this.arms.length !== 2) return null
+    out.set(0, 0, 0)
+    const tip = new THREE.Vector3()
+    for (const arm of this.arms) {
+      arm.bone.updateWorldMatrix(true, false)
+      out.add(arm.bone.localToWorld(tip.copy(arm.rest).multiplyScalar(arm.length)))
+    }
+    return out.multiplyScalar(0.5)
   }
 
   /** Position monde au-dessus de la tête (bulles, noms). */

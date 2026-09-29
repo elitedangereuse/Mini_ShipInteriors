@@ -18,6 +18,10 @@
 // relais tient l'horloge de la ronde, la même pour tous ; un joueur qui lui parle l'arrête
 // quelques secondes pour tout le bord, face à lui.
 //
+// Mess : Marcel, le chef, fait la tournée de sa cuisine (cf. shared/chef.js), sur une horloge
+// que le relais tient de même. Un joueur qui prend une commande l'attire au bout du self pour tout le
+// bord, tant qu'il cuisine (chaque étape relance l'attente), puis le chef reprend sa tournée.
+//
 // Quartiers : chaque joueur a sa propre instance des quartiers du commandant (`cabin` : l'id du
 // joueur chez qui il se trouve, le sien par défaut). Un CMDR vérifié envoie l'aménagement des
 // siens (cf. cabin.js), et peut inviter un joueur connecté : celui-ci n'y entre qu'avec une
@@ -40,6 +44,7 @@ import { DIRS, ShipMap } from '../shared/ship-map.js'
 import { applyWings } from '../shared/cabin-wings.js'
 import { canReach } from '../shared/sight.js'
 import { PATROL_LEVEL, PATROL_PERIOD, holdPatrol, patrolAt, patrolTime } from '../shared/patrol.js'
+import { CHEF_COOK, CHEF_LEVEL, CHEF_PERIOD, CHEF_ROOM, CHEF_WAIT, chefAt, chefTime, cookChef, holdChef } from '../shared/chef.js'
 import { HOME_SYSTEM, JUMP_CHARGE, JUMP_TRAVEL, PILOT_SEAT, nextSystem } from '../shared/systems.js'
 import { ZONE_LEVEL } from '../shared/salvage.js'
 
@@ -170,6 +175,41 @@ export function attachRelay(
     hold: Math.max(0, patrol.holdUntil - now) / 1000,
     ...(patrolFace && patrol.holdUntil > now ? { face: patrolFace } : {}),
   })
+  /** Horloge de la tournée du chef, vers qui il se tourne, et les commandes en cours (id du joueur -> fin, ms). */
+  let chef = { tau: Math.random() * CHEF_PERIOD, at: Date.now(), holdUntil: 0 }
+  let chefFace = null
+  const cooks = new Map()
+  /** Fin de la dernière commande en cours (ms), 0 s'il n'y en a plus. */
+  const cookUntil = (now = Date.now()) => {
+    let until = 0
+    for (const [id, end] of cooks) {
+      if (end <= now) cooks.delete(id)
+      else until = Math.max(until, end)
+    }
+    return until
+  }
+  /** Où en est le chef : instant de la tournée (s), arrêt restant (s), commande en cours (s), et vers qui il regarde. */
+  const chefState = (now = Date.now()) => {
+    const cook = cookUntil(now)
+    return {
+      tau: chefTime(chef, now),
+      hold: Math.max(0, chef.holdUntil - now) / 1000,
+      cook: Math.max(0, cook - now) / 1000,
+      ...(chefFace && chef.holdUntil > now ? { face: chefFace } : {}),
+    }
+  }
+  /**
+   * Un commis se met aux fourneaux ou avance d'une étape (`on`), ou s'en va : le chef l'attend au
+   * bout du self, ou repart. Rend false si rien n'a changé.
+   */
+  const setCook = (player, on, now = Date.now()) => {
+    if (on) {
+      cooks.set(player.id, now + CHEF_COOK * 1000)
+      chefFace = { x: player.x, z: player.z }
+    } else if (!cooks.delete(player.id)) return false
+    chef = cookChef(chef, now, cookUntil(now))
+    return true
+  }
   /** Ce que joue le jukebox d'une instance, pour un joueur qui y arrive (track null : il se tait). */
   const musicOf = (instance) => {
     const m = music.get(instance)
@@ -292,6 +332,7 @@ export function attachRelay(
       hold: musicOf(-1),
       system,
       patrol: patrolState(),
+      chef: chefState(),
       salvage: salvage.snapshot(),
     })
     socket.emit('cinema:state', cinema.snapshot())
@@ -309,6 +350,7 @@ export function attachRelay(
     let lastCinemaSearch = 0
     let boardBudget = 30
     let patrolBudget = 1
+    let chefBudget = 3
     let salvageBudget = 20
     const refill = setInterval(() => {
       chatBudget = Math.min(5, chatBudget + 1)
@@ -318,6 +360,7 @@ export function attachRelay(
       cinemaBudget = Math.min(3, cinemaBudget + 0.5)
       boardBudget = Math.min(30, boardBudget + 10)
       patrolBudget = Math.min(1, patrolBudget + 0.5)
+      chefBudget = Math.min(3, chefBudget + 1)
       salvageBudget = Math.min(20, salvageBudget + 10)
     }, 1000)
 
@@ -486,6 +529,29 @@ export function attachRelay(
       io.emit('patrol', { id: player.id, ...patrolState(now) })
     })
 
+    // On parle au chef : à portée de lui (à sa place dans la tournée, ou au bout du self s'il y attend un commis).
+    socket.on('chef:talk', () => {
+      if (chefBudget < 1) return
+      const now = Date.now()
+      const at = cookUntil(now) ? CHEF_WAIT : chefAt(chefTime(chef, now))
+      if (!reaches(player, CHEF_LEVEL, at) && !reaches(player, CHEF_LEVEL, CHEF_WAIT)) return
+      chefBudget--
+      chef = holdChef(chef, now)
+      chefFace = { x: player.x, z: player.z }
+      io.emit('chef', { id: player.id, ...chefState(now) })
+    })
+
+    // On cuisine avec le chef (on), ou on a fini (off) : se mettre aux fourneaux, seulement depuis le
+    // mess ; finir ne coûte rien (il n'y a rien à finir sans avoir commencé).
+    socket.on('chef:cook', (raw) => {
+      const on = obj(raw).on === true
+      if (on) {
+        if (chefBudget < 1 || player.level !== CHEF_LEVEL || MAPS.get(CHEF_LEVEL).room(Math.round(player.x), Math.round(player.z)) !== CHEF_ROOM) return
+        chefBudget--
+      }
+      if (setCook(player, on)) io.emit('chef', { id: player.id, ...chefState() })
+    })
+
     // Saut FSD : installé dans le siège du pilote, et pas pendant un autre saut. Tout le bord le vit.
     socket.on('jump', () => {
       const now = Date.now()
@@ -564,6 +630,8 @@ export function attachRelay(
       sockets.delete(player.id)
       cinema.operatorChanged()
       music.delete(player.id)
+      // Son commis parti, le chef reprend sa tournée.
+      if (setCook(player, false)) socket.broadcast.emit('chef', { id: player.id, ...chefState() })
       // Plus personne à bord : les jukebox de la salle commune et du bar se taisent.
       if (!players.size) music.clear()
       socket.broadcast.emit('leave', { id: player.id })

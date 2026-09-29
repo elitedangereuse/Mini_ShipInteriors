@@ -33,6 +33,7 @@
 - [Mode photo](#mode-photo)
 - [Crédits](#crédits)
 - [Tâches de bord](#tâches-de-bord)
+- [Le mess](#le-mess)
 - [Lancer en local](#lancer-en-local)
 - [Commandes](#commandes)
 - [Langues](#langues)
@@ -83,7 +84,7 @@ On se réveille dans ses quartiers, sur le pont supérieur, à deux pas du Holo-
 | Pont | Ambiance | Pièces |
 |---|---|---|
 | **Pont supérieur** · les quartiers | *cozy* : crème et bois miel, tissus, plantes, lumière chaude, pas feutrés | **quartiers du commandant**, [aménagés par chaque CMDR](#quartiers-personnalisables) (au départ : grand lit, cheminée holographique, canapé, aquarium, bureau, bibliothèque, casier à combinaisons, **Holo-Me**) et leurs trois **extensions** payantes, cabines d'équipage (lits superposés), douches, serre hydroponique, salon d'écoute (fauteuils et poufs tournés vers la vitre du studio), studio de Radio Dangereuse (trois micros, néon « ON AIR »), cinéma, coursive |
-| **Pont principal** | la station d'origine, mobilier aux couleurs d'Elite | **poste de pilotage** à la proue, sous verrières (siège du pilote et HOTAS face au tableau de bord, postes du navigateur et du copilote, fauteuil du commandant, scanner, panneaux holographiques, carte galactique), salles de LJPC, de La Voie et du Mini-CQC (en travaux), salle des machines (centrale, réacteur FSD, tuyères), **infirmerie** (lits médicaux, scanner corporel, quarantaine), **salle de sport**, grand **salon d'arcade** (deux rangées de bornes, dont cinq jouables : Cargaison, Viper, Astéroïdes, Thargoid Invaders, Ruelle Fighter II ; un flipper, une pince à peluches, les tables de dames, de Puissance 4 et d'échecs, un coin salon sur des tapis colorés), mess (et son jukebox), coursive |
+| **Pont principal** | la station d'origine, mobilier aux couleurs d'Elite | **poste de pilotage** à la proue, sous verrières (siège du pilote et HOTAS face au tableau de bord, postes du navigateur et du copilote, fauteuil du commandant, scanner, panneaux holographiques, carte galactique), salles de LJPC, de La Voie et du Mini-CQC (en travaux), salle des machines (centrale, réacteur FSD, tuyères), **infirmerie** (lits médicaux, scanner corporel, quarantaine), **salle de sport**, grand **salon d'arcade** (deux rangées de bornes, dont cinq jouables : Cargaison, Viper, Astéroïdes, Thargoid Invaders, Ruelle Fighter II ; un flipper, une pince à peluches, les tables de dames, de Puissance 4 et d'échecs, un coin salon sur des tapis colorés), **mess**, un self avec sa cuisine et son chef (cf. [Le mess](#le-mess)), coursive |
 | **Cale** | *brute* : acier noirci et rouillé, jaune de chantier, lumière sodium, néons qui grésillent | **lobby de la zone thargoïde** (terminal de mission, mur des caméras de surveillance, porte blindée, classement), **atelier** (établis, poste de soudure, établi d'ingénieur, ferraille), **baie de réparation** (SRV Scarab sur pont élévateur, bras robotisé qui soude, AFMU), **raffinerie** (fusion, tapis roulant de minerai, cristaux, drones collecteurs, laser minier), soute, palier de l'ascenseur ; au fond de la soute, **Chez Jacques**, le bar clandestin, plus soigné que le reste (arrière-bar chargé de bouteilles sous son enseigne au néon, comptoir capitonné et tabourets, tables de bistro, banquette, son propre jukebox) où sert **Jacques**, un robot barman à béret et nœud papillon qui essuie les verres, secoue le shaker et fait des clins d'œil |
 
 ### Pont supérieur · les quartiers
@@ -385,7 +386,7 @@ Des incidents apparaissent aux quatre coins du vaisseau, hors des quartiers : un
 | Éponger une flaque (huile, liquide de refroidissement, eau) | salle des machines, infirmerie, douches, atelier, raffinerie | 500 CR | 2 s |
 | Arroser une plante | serre, coursive, salon panoramique | 450 CR | 2 s |
 | Balayer les poils de Comète | coursives, salon panoramique | 300 CR | 1,2 s |
-| Débarrasser la vaisselle | table du mess, table basse du salon panoramique | 450 CR | 1,8 s |
+| Débarrasser la vaisselle | table basse du salon panoramique | 450 CR | 1,8 s |
 | Ranger des conteneurs renversés | soute | 700 CR | 2,5 s |
 | Ranger des drones collecteurs | raffinerie | 700 CR | 2,2 s |
 | Recalibrer une console | salle des machines, poste de pilotage | 800 CR | 2,5 s |
@@ -394,9 +395,21 @@ Des incidents apparaissent aux quatre coins du vaisseau, hors des quartiers : un
 | Réparer un panneau électrique | atelier, soute, coursive, douches | 1 100 CR | 3 s |
 | Colmater une brèche dans la coque | baie de réparation, salle des machines, poste de pilotage | 1 500 CR | 3,5 s |
 
-Leur calendrier ne dépend que de l'heure (`src/economy/schedule.ts`) : tous les joueurs voient les mêmes tâches aux mêmes endroits, sans que le relais ni le site aient à les annoncer. Chacun des 36 emplacements découpe le temps en apparitions de 8 à 30 minutes selon la tâche, décalées d'un emplacement à l'autre ; chaque apparition a une tâche avec la probabilité de sa sorte (de 30 à 50 %), tirée d'un hachage de l'emplacement et du numéro d'apparition. Une quinzaine de tâches attendent ainsi à bord à tout moment. Le site refait le même calcul (même hachage, testé des deux côtés) : il sait si une tâche qu'on lui dit réglée était bien là, et ne la paie qu'une fois par apparition et par CMDR. L'heure du site, donnée à chaque réponse, cale celle du jeu.
+Leur calendrier ne dépend que de l'heure (`src/economy/schedule.ts`) : tous les joueurs voient les mêmes tâches aux mêmes endroits, sans que le relais ni le site aient à les annoncer. Chacun des 35 emplacements découpe le temps en apparitions de 8 à 30 minutes selon la tâche, décalées d'un emplacement à l'autre ; chaque apparition a une tâche avec la probabilité de sa sorte (de 30 à 50 %), tirée d'un hachage de l'emplacement et du numéro d'apparition. Une quinzaine de tâches attendent ainsi à bord à tout moment. Le site refait le même calcul (même hachage, testé des deux côtés) : il sait si une tâche qu'on lui dit réglée était bien là, et ne la paie qu'une fois par apparition et par CMDR. L'heure du site, donnée à chaque réponse, cale celle du jeu.
 
 Les emplacements sont notés à la main dans `economy.json`, mais le jeu vérifie chaque place avant d'y poser une tâche (`src/economy/placement.ts`) : au sol, dans une pièce ouverte (ni en travaux, ni dans les quartiers), à l'écart des murs, des meubles, des comptoirs, des portes et des affiches ; au mur, sur un pan lisse (ni porte, ni hublot, ni pilier) que rien ne masque ; sur un meuble (la vaisselle), seulement s'il est toujours là. Une place prise fait glisser la tâche à la plus proche qui convient, dans la même pièce, la même chez tous ; en dev, la console le signale, pour corriger `economy.json`.
+
+## Le mess
+
+Au sud de la coursive, le mess est un self de 7 × 7 tuiles. Dans la salle, deux tables de cantine à bancs (six places chacune), la fontaine à eau, le distributeur, le retour plateaux et le tableau du menu du jour. Le comptoir traverse la pièce d'ouest en est : plateaux et couverts, bain-marie, passe du chef sous ses lampes chauffantes, vitrine réfrigérée, pain et boissons. Derrière, la cuisine : frigo, plan de travail, fourneau sous sa hotte, plonge et garde-manger. On y entre par le passage à l'est du comptoir.
+
+**Le menu du jour** (entrée, plat, dessert, boisson, tirés des marchandises rares d'Elite : lapin de Ceti, escargots d'Irukama, café CD-75…) ne dépend que de la date : tout le bord mange la même chose, et il change à minuit (`src/menu.ts`).
+
+**Marcel, le chef**, fait la tournée de sa cuisine (frigo, plan de travail, fourneau, passe, plonge, garde-manger) et, de temps en temps, un tour de salle. Il coupe, remue et lave, avec les bruits qui vont avec, et crie « Service ! » à la passe. Comme le sergent Rourke, il est le même pour tout le bord : sa tournée suit une horloge que tient le relais (`shared/chef.js`). Quand on lui parle, il s'arrête et répond : son métier, le menu, le système où se trouve le vaisseau, les plats qu'on a cuisinés avec lui.
+
+**Cuisiner avec Marcel.** Au rail des bons, sur la passe, on prend une commande : une recette au hasard parmi six, pour une table. Marcel vient au bout de la ligne du self, côté cuisine, et y attend, pour tout le bord, tant que la commande dure : la passe reste libre pour dresser. Le bon s'affiche sous le bloc du vaisseau ; chaque étape a son poste (frigo, garde-manger, plan de travail, fourneau, plonge, puis la passe pour dresser), marqué d'un hexagone cyan. On y va, `E`, quelques secondes de geste avec la même jauge que les tâches de bord, et Marcel commente. Le mess n'a pas de tâches de bord : on y vient pour cuisiner et manger. L'assiette dressée part en salle. Sortir du mess, ou rester trop longtemps sans rien faire, abandonne la commande. Les commandes ne rapportent pas de crédits : le nombre de plats envoyés est gardé dans le navigateur, et Marcel en parle.
+
+**Manger.** Au début du self, on prend un plateau garni du menu du jour. Assis à une table de cantine, il se pose devant soi ; au bout de quelques secondes, le plateau est fini. On le rapporte au retour plateaux. Le plateau ne se voit que chez soi.
 
 ## Lancer en local
 
@@ -610,6 +623,8 @@ Les bips, les mélodies d'arcade, les étincelles, le miaulement, le ronronnemen
 | `shared/fight-stages.js` · `src/arcade/fight-stages.ts` | Catalogue bilingue des quatre stages, tirage partagé dans les snapshots et décors animés. La rue reste dessinée dans `fight.ts`. |
 | `src/arcade/fight-music.ts` · `shared/fight-music.js` | Quatre musiques chiptune originales, synthèse, cache, fondus entre stages, pause et arrêt à la fermeture. |
 | `src/music.ts` | Le jukebox : ses morceaux, leur lecture spatialisée, son panneau. |
+| `src/chef.ts` · `shared/chef.js` | Marcel, le chef du mess : sa tenue, sa tournée partagée par le relais (tests dans `server/chef.test.js`), ses répliques. |
+| `src/kitchen.ts` · `src/menu.ts` | Le self côté joueur : commandes en étapes avec le chef, bon de commande, plateaux ; le menu du jour. |
 | `shared/salvage.js` · `server/salvage.js` | **Zone thargoïde** : règles et labyrinthe tiré d'une graine (couloirs, halls, conteneurs, sas, casiers, colis, fusées, repaires ; chemins et ligne de vue), communs au relais et au client ; côté relais, les équipes du lobby et chaque partie (ennemis à 10 Hz, casiers, fusées, captures, dépôts, fin, gains envoyés au site). Tests : `server/salvage*.test.js`. |
 | `src/salvage/` | Le client de la zone : la partie (`client.ts`), la baie en pont du jeu (`zone-deck.ts`, `kit.ts` pour le Modular Space Kit, les conteneurs et le décor), le brouillard de guerre (`fog.ts`), les ennemis (`monsters.ts`), les casiers, colis et fusées (`items.ts`), les bruitages (`sfx.ts`), le terminal, le classement et le HUD de mission (`ui.ts`). Le mobilier du lobby est dans `src/furniture/salvage.ts`. |
 | `src/economy/` | **Crédits** : les chiffres (`economy.json`, relu par le site) et leur lecture (`data.ts`), le compte tenu par le site (`wallet.ts`), le calendrier des tâches (`schedule.ts`), les tâches à bord et leurs marqueurs (`tasks.ts`), les apparences payantes (`skins.ts`), le solde dans le HUD (`hud.ts`). |

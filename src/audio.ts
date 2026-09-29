@@ -802,12 +802,12 @@ export class Sound {
    * Bruit d'une tâche de bord en cours (spatialisé) : frotter (ordures, flaque, vaisselle),
    * une clé sur du métal (réparations), un sifflement (vapeur, brèche), de l'eau (plantes).
    */
-  work(kind: 'scrub' | 'wrench' | 'hiss' | 'water', pos: THREE.Vector3) {
+  work(kind: 'scrub' | 'wrench' | 'hiss' | 'water' | 'chop' | 'sizzle', pos: THREE.Vector3) {
     if (!this.ready) return
     const ctx = this.ctx
     const t = ctx.currentTime + 0.01
     const out = this.output(pos, { volume: kind === 'hiss' ? 0.1 : 0.14, ref: 1.2, rolloff: 1.6 }).input
-    const noise = (filter: BiquadFilterType, freq: number, q: number, len: number, peak = 1) => {
+    const noise = (filter: BiquadFilterType, freq: number, q: number, len: number, peak = 1, t = ctx.currentTime + 0.01) => {
       const src = ctx.createBufferSource()
       src.buffer = this.whiteNoise
       const f = ctx.createBiquadFilter()
@@ -824,6 +824,15 @@ export class Sound {
       return f
     }
     if (kind === 'scrub') noise('bandpass', 1400 + Math.random() * 900, 0.8, 0.22)
+    else if (kind === 'chop') {
+      // Couteau sur la planche : deux ou trois coups secs et boisés.
+      const n = 2 + Math.floor(Math.random() * 2)
+      for (let i = 0; i < n; i++) noise('bandpass', 850 + Math.random() * 350, 1.6, 0.07, 1, t + i * 0.16)
+    } else if (kind === 'sizzle') {
+      // Poêle qui grésille : un souffle aigu, et des crépitements par-dessus.
+      noise('highpass', 2600, 0.6, 0.6, 0.5)
+      for (let i = 0; i < 6; i++) noise('bandpass', 3500 + Math.random() * 2500, 3, 0.03, 0.9, t + Math.random() * 0.55)
+    }
     else if (kind === 'hiss') noise('highpass', 3500, 0.7, 0.5, 0.8)
     else if (kind === 'water') {
       // Glouglou : un bruit filtré dont la fréquence saute, comme des bulles.
