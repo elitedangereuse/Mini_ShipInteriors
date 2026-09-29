@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
 import { createServer } from 'node:http'
-import { after, afterEach, before, describe, test } from 'node:test'
+import { after, afterEach, before, describe, mock, test } from 'node:test'
 import { io as connect } from 'socket.io-client'
 import { MAX_ITEMS, sanitizeLayout } from './cabin.js'
 import { cookieValue } from './cmdr.js'
@@ -11,6 +11,7 @@ import { attachRelay, WS_PATH } from './relay.js'
 import { PILOT_SEAT, SYSTEM_IDS } from '../shared/systems.js'
 import { PATROL_HOLD, PATROL_LEVEL, patrolAt } from '../shared/patrol.js'
 import { CHEF_COOK, CHEF_HOLD, CHEF_LEVEL, chefAt } from '../shared/chef.js'
+import { NURSE_BEDS, NURSE_CARE, NURSE_CARE_MIN, NURSE_HOLD, NURSE_LEVEL, NURSE_PATCH, nurseAt } from '../shared/nurse.js'
 
 /** Faux site : reconnaît deux cookies, comme outils/mini-shipinteriors-cmdr.php. */
 const ACCOUNTS = { 'jeton-adam': 'Adam Fauster', 'jeton-rackam': 'Rackam' }
@@ -520,6 +521,104 @@ describe('chef du mess', () => {
     const left = next(crew, 'chef', (m) => m.cook === 0)
     cook.disconnect()
     await left
+  })
+})
+
+describe('infirmière', () => {
+  /** Allongé sur un lit de l'infirmerie (cf. seats.ts : la tête vers l'oreiller). */
+  const lying = (bed) => ({ x: NURSE_BEDS[bed].x, z: NURSE_BEDS[bed].z + 0.08, yaw: 0, level: NURSE_LEVEL, anim: 'idle', pose: 'lie', py: 0.3 })
+
+  test('Betty est la même pour tous ; lui parler l\'arrête, l\'appeler d\'un lit l\'amène au chevet', async () => {
+    const patient = client({ auth: { name: 'CMDR Patient' } })
+    const crew = client({ auth: { name: 'CMDR Visiteur' } })
+    const first = (await welcome(patient)).nurse
+    const seen = (await welcome(crew)).nurse
+    assert.equal(first.hold, 0)
+    assert.equal(first.care, 0)
+    assert.equal(first.bed, -1)
+    assert.deepEqual(first.patched, [])
+    assert.ok(Math.abs(seen.tau - first.tau) < 0.5)
+    // Depuis les quartiers (autre pont), on ne lui parle pas, et on ne l'appelle pas.
+    patient.emit('nurse:talk')
+    patient.emit('nurse:care', { on: true })
+    assert.equal(await receives(crew, 'nurse', 150), false)
+    // À côté d'elle : elle s'arrête, face au joueur, pour tous.
+    const at = nurseAt(first.tau + 0.4)
+    patient.emit('state', { x: at.x, z: at.z, yaw: 0, level: NURSE_LEVEL, anim: 'idle' })
+    const talked = next(crew, 'nurse')
+    patient.emit('nurse:talk')
+    const held = await talked
+    assert.ok(held.hold > NURSE_HOLD - 0.5)
+    assert.deepEqual(held.face, { x: at.x, z: at.z })
+    // Debout dans l'infirmerie, on ne l'appelle pas : il faut être allongé sur un lit.
+    patient.emit('nurse:care', { on: true })
+    assert.equal(await receives(crew, 'nurse', 150), false)
+    // Allongé sur le deuxième lit : elle vient au chevet, pour tous, le temps de la consultation et du retour.
+    patient.emit('state', lying(1))
+    const called = next(crew, 'nurse', (m) => m.care > 0)
+    patient.emit('nurse:care', { on: true })
+    const consult = await called
+    assert.equal(consult.bed, 1)
+    assert.equal(consult.patient, (await welcome(client())).players.find((p) => p.name === 'CMDR Patient').id)
+    assert.ok(consult.care > NURSE_CARE - 1)
+    assert.ok(consult.hold > consult.care)
+    // Une consultation à la fois : un autre patient allongé attend son tour.
+    const other = client({ auth: { name: 'CMDR Suivant' } })
+    await welcome(other)
+    other.emit('state', lying(0))
+    other.emit('nurse:care', { on: true })
+    assert.equal(await receives(crew, 'nurse', 150), false)
+    // Un nouveau venu la trouve au chevet.
+    assert.equal((await welcome(client())).nurse.bed, 1)
+    // Relevé trop tôt : pas de pansement, elle repart.
+    const done = next(crew, 'nurse', (m) => m.care === 0)
+    patient.emit('nurse:care', { on: false, healed: true })
+    const back = await done
+    assert.deepEqual(back.patched, [])
+    assert.ok(back.hold > 0 && back.hold < 12)
+  })
+
+  test('une consultation menée à son terme laisse un pansement, que tout le bord voit, jusqu\'au départ du patient', async () => {
+    const patient = client({ auth: { name: 'CMDR Soigné' } })
+    const crew = client({ auth: { name: 'CMDR Témoin' } })
+    const id = (await welcome(patient)).id
+    await welcome(crew)
+    patient.emit('state', lying(2))
+    const called = next(crew, 'nurse', (m) => m.care > 0)
+    patient.emit('nurse:care', { on: true })
+    await called
+    // La consultation dure : on avance l'horloge du relais.
+    mock.timers.enable({ apis: ['Date'], now: Date.now() })
+    try {
+      mock.timers.tick((NURSE_CARE_MIN + 1) * 1000)
+      const healed = next(crew, 'nurse', (m) => m.care === 0)
+      patient.emit('nurse:care', { on: false, healed: true })
+      const [[who, secs]] = (await healed).patched
+      assert.equal(who, id)
+      assert.ok(secs > NURSE_PATCH - 1)
+      const late = (await welcome(client())).nurse
+      assert.deepEqual(late.patched.map(([p]) => p), [id])
+    } finally {
+      mock.timers.reset()
+    }
+    // Il débarque : son pansement part avec lui.
+    const gone = next(crew, 'nurse', (m) => m.patched.length === 0)
+    patient.disconnect()
+    await gone
+  })
+
+  test('un patient qui s\'en va sans finir libère l\'infirmière', async () => {
+    const patient = client({ auth: { name: 'CMDR Pressé' } })
+    const crew = client({ auth: { name: 'CMDR Témoin' } })
+    await welcome(patient)
+    await welcome(crew)
+    patient.emit('state', lying(0))
+    const called = next(crew, 'nurse', (m) => m.care > 0)
+    patient.emit('nurse:care', { on: true })
+    await called
+    const left = next(crew, 'nurse', (m) => m.care === 0)
+    patient.disconnect()
+    assert.deepEqual((await left).patched, [])
   })
 })
 

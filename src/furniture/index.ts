@@ -13,6 +13,7 @@ import { LEISURE } from './leisure'
 import { LIGHTS } from './lights'
 import { LISTENING } from './listening'
 import { LJPC } from './ljpc'
+import { MEDICAL } from './medical'
 import { PARTY } from './party'
 import { PETS } from './pets'
 import { VOIE } from './voie'
@@ -28,7 +29,8 @@ import { STUDIO } from './studio'
  * - cockpit.ts : le poste de pilotage agrandi (tableau de bord, consoles, sièges d'équipage, fauteuil du commandant) ;
  * - workshop.ts : la cale (minage, bricolage, réparation) ;
  * - bar.ts : Chez Jacques, le bar clandestin de la cale (comptoir, bouteilles, Jacques le robot barman) ;
- * - leisure.ts : infirmerie, salle de sport, enseigne du salon d'arcade ;
+ * - leisure.ts : infirmerie (lits, scanner, pharmacie), salle de sport, enseigne du salon d'arcade ;
+ * - medical.ts : l'infirmerie agrandie de Betty (rideaux de box, perfusions, poste de soins, négatoscope…) ;
  * - kitchen.ts : le mess, un self (tables de cantine, comptoir, cuisine de Marcel, décor des tâches de cuisine) ;
  * - arcade.ts : bornes d'arcade, borne cocktail, flippers, borne de course, pince à peluches ;
  * - cozy.ts : les quartiers (chambres, douches, serre, salon) ;
@@ -48,7 +50,7 @@ import { STUDIO } from './studio'
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...COCKPIT, ...WORKSHOP, ...BAR, ...LEISURE, ...KITCHEN, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...LISTENING, ...STUDIO, ...LJPC, ...VOIE, ...SALVAGE } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...COCKPIT, ...WORKSHOP, ...BAR, ...LEISURE, ...MEDICAL, ...KITCHEN, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...LISTENING, ...STUDIO, ...LJPC, ...VOIE, ...SALVAGE } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 
