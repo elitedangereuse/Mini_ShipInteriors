@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { FLOOR_Y, hash, makePostMesh, POST_H, POST_W, WALL_T, type Box2, type Deck, type DoorState, type WallSegment } from '../deck'
+import { ceilingLamp, ceilingTile, FLOOR_Y, hash, makePostMesh, POST_H, POST_W, WALL_T, type Box2, type Deck, type DoorState, type WallSegment } from '../deck'
 import { makeFadeable } from '../fade'
 import { DIRS } from '../map'
 import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type FadeFocus, type Occluder } from '../merge'
@@ -21,6 +21,8 @@ const WINDOWS = 0.35
 
 export class WingShell {
   readonly group = new THREE.Group()
+  /** Son plafond, rangé avec celui du pont (affiché en vue subjective seulement). */
+  private readonly ceiling = new THREE.Group()
   readonly colliders: Box2[] = []
   /** Pans de mur et portes posés par la pièce (le papier peint et les objets accrochés s'y fient). */
   readonly walls: WallSegment[] = []
@@ -114,6 +116,15 @@ export class WingShell {
       if (m.userData.ownMaterial) this.owned.push(m.material as THREE.Material)
     }
     post.geometry.dispose()
+
+    // Plafond, et un plafonnier sous la lampe de la pièce (au centre de ses tuiles, cf. CabinView).
+    const top = new StaticMerge()
+    for (const t of plan.tiles) top.add(ceilingTile(t.x, t.z, deck.ceilingY, deck.ceilingMaterial), false)
+    const cx = plan.tiles.reduce((s, t) => s + t.x, 0) / plan.tiles.length
+    const cz = plan.tiles.reduce((s, t) => s + t.z, 0) / plan.tiles.length
+    top.add(ceilingLamp(cx, cz, '#ffd9a8', deck.ceilingY), false)
+    for (const m of top.flush(this.ceiling, this.fades.texture)) this.owned.push(m.geometry)
+    deck.ceiling.add(this.ceiling)
   }
 
   /** Porte intérieure entre les deux pièces d'une forme : elle s'ouvre comme celles du pont. */
@@ -165,6 +176,7 @@ export class WingShell {
   dispose() {
     for (const d of this.doors) this.deck.unregisterDoor(d)
     this.group.removeFromParent()
+    this.ceiling.removeFromParent()
     for (const o of this.owned) o.dispose()
     this.fades.texture.dispose()
   }

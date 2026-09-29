@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { renderQuality } from './quality'
-import { station, themes, type StationModel, type ThemeMaterials } from './assets'
+import { station, themes, type StationModel, type Theme, type ThemeMaterials } from './assets'
 import { CabinView } from './cabin/view'
 import { DoorHints } from './door-hints'
 import { makeFadeable } from './fade'
@@ -91,6 +91,13 @@ export const WALL_T = 0.3
 export const POST_W = WALL_T + 0.05
 export const POST_H = 1.03
 export const FLOOR_Y = -0.3
+/**
+ * Plafond (vue subjective seulement) : juste sous le dessus des murs (1), qui le percent sans
+ * laisser de jour, et bien au-dessus des têtes (0,72 pour le plus grand CMDR).
+ */
+export const CEILING_Y = 0.99
+/** Dans la baie infestée, les murs font 1,06 (cf. salvage/kit.ts) : le Thargoïde tient debout. */
+const ZONE_CEILING_Y = 1.05
 const DOOR_RANGE = 1.3
 
 const PICK_MATERIAL = new THREE.MeshBasicMaterial()
@@ -111,6 +118,74 @@ function canopyGlass(panes: { x: number; z: number; alongX: boolean }[]): THREE.
   for (const g of geos) g.dispose()
   mesh.renderOrder = 2
   return mesh
+}
+
+/** Teinte du plafond selon l'ambiance du pont (cf. assets.ts), et dans la baie infestée. */
+const CEILING_COLORS: Record<Theme | 'zone', string> = { station: '#5b6475', raw: '#4a4239', cozy: '#d8c6a6', zone: '#1d2322' }
+
+/**
+ * Panneaux de plafond d'une tuile : quatre plaques à joints fins et peu contrastés. Le plafond est
+ * tout près des yeux (une tuile fait tout l'écran quand on lève la tête) : des joints marqués y
+ * deviendraient des poutres.
+ */
+function ceilingPanel(): THREE.CanvasTexture {
+  const c = document.createElement('canvas')
+  c.width = c.height = 128
+  const g = c.getContext('2d')!
+  g.fillStyle = '#c4c4c4'
+  g.fillRect(0, 0, 128, 128)
+  for (const [x, y] of [[0, 0], [64, 0], [0, 64], [64, 64]]) {
+    g.fillStyle = '#f4f4f4'
+    g.fillRect(x + 1.5, y + 1.5, 61, 61)
+    g.fillStyle = '#ebebeb'
+    g.fillRect(x + 9, y + 9, 46, 46)
+    g.fillStyle = '#cfcfcf'
+    for (const [rx, ry] of [[5, 5], [59, 5], [5, 59], [59, 59]]) g.fillRect(x + rx - 1, y + ry - 1, 2, 2)
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  t.anisotropy = 8
+  return t
+}
+let panelTexture: THREE.CanvasTexture | null = null
+
+/**
+ * Matériau du plafond d'une ambiance. Les lampes du pont sont au-dessus de lui (cf. Deck.lights)
+ * et n'éclairent pas sa face du dessous : il s'éclaire donc un peu lui-même.
+ */
+const ceilingMaterials = new Map<string, THREE.MeshLambertMaterial>()
+export function ceilingMaterial(look: Theme | 'zone'): THREE.MeshLambertMaterial {
+  let m = ceilingMaterials.get(look)
+  if (!m) {
+    panelTexture ??= ceilingPanel()
+    const color = new THREE.Color(CEILING_COLORS[look])
+    m = new THREE.MeshLambertMaterial({ color, map: panelTexture, emissive: color, emissiveMap: panelTexture, emissiveIntensity: 0.55 })
+    ceilingMaterials.set(look, m)
+  }
+  return m
+}
+
+/** Dalle de plafond d'une tuile, face tournée vers le bas (invisible d'au-dessus), à hauteur `y`. */
+const CEILING_GEO = new THREE.PlaneGeometry(1, 1).rotateX(Math.PI / 2)
+export function ceilingTile(x: number, z: number, y: number, material: THREE.Material): THREE.Mesh {
+  const tile = new THREE.Mesh(CEILING_GEO, material)
+  tile.position.set(x, y, z)
+  tile.updateMatrixWorld(true)
+  return tile
+}
+
+/** Plafonnier sous une lampe du pont : un disque qui brille de sa couleur. */
+const LAMP_GEO = new THREE.CylinderGeometry(0.15, 0.17, 0.025, 24)
+const lampMaterials = new Map<string, THREE.MeshBasicMaterial>()
+export function ceilingLamp(x: number, z: number, color: THREE.ColorRepresentation, y: number): THREE.Mesh {
+  const c = new THREE.Color(color)
+  const key = c.getHexString()
+  let m = lampMaterials.get(key)
+  if (!m) lampMaterials.set(key, (m = new THREE.MeshBasicMaterial({ color: c.lerp(new THREE.Color('#ffffff'), 0.55) })))
+  const lamp = new THREE.Mesh(LAMP_GEO, m)
+  lamp.position.set(x, y - 0.012, z)
+  lamp.updateMatrixWorld(true)
+  return lamp
 }
 
 /** Voyant d'une porte verrouillée : une barrette rouge qui dépasse des deux faces du linteau. */
@@ -179,6 +254,11 @@ export class Deck {
   /** Cabine personnalisable du pont (les quartiers du commandant), dont chaque joueur a son exemplaire. */
   readonly cabin?: CabinView
   private readonly hull = new Hull()
+  /** Plafond, affiché en vue subjective seulement (cf. main.ts) ; les pièces d'extension y ajoutent le leur. */
+  readonly ceiling = new THREE.Group()
+  /** Hauteur du plafond au-dessus du sol du pont, et son matériau. */
+  readonly ceilingY: number
+  readonly ceilingMaterial: THREE.MeshLambertMaterial
   private ljpcCover?: THREE.Group
   private voieCover?: THREE.Group
 
@@ -193,6 +273,8 @@ export class Deck {
     }
     this.y = def.id * LEVEL_HEIGHT
     this.group.position.y = this.y
+    this.ceilingY = def.zone ? ZONE_CEILING_Y : CEILING_Y
+    this.ceilingMaterial = ceilingMaterial(def.zone ? 'zone' : def.theme ?? 'station')
     this.glowMat = beamMaterial()
 
     this.buildFloors()
@@ -207,6 +289,7 @@ export class Deck {
     if (def.engine) this.buildCore(def.engine.x, def.engine.z)
     if (!def.zone) this.buildNozzles(!!def.engine)
     this.flushStatic()
+    this.buildCeiling()
 
     for (const [x, z, color, intensity, flicker] of def.lights) {
       this.lights.push({ position: new THREE.Vector3(x, this.y + 1.4, z), color: new THREE.Color(color), intensity, flicker })
@@ -406,6 +489,26 @@ export class Deck {
         this.addStatic(this.place(model, x, FLOOR_Y, z), false)
       }
     }
+  }
+
+  /**
+   * Plafond de toutes les pièces, en un maillage par matériau, avec un plafonnier sous chaque
+   * lampe. Au-dessus de l'ascenseur, un trou : son tube monte au travers.
+   */
+  private buildCeiling() {
+    const merge = new StaticMerge()
+    const lift = (x: number, z: number) => !this.def.zone && Math.round(x) === LIFT.x && Math.round(z) === LIFT.z
+    for (let z = 0; z < this.map.height; z++) {
+      for (let x = 0; x < this.map.width; x++) {
+        if (this.map.room(x, z) && !lift(x, z)) merge.add(ceilingTile(x, z, this.ceilingY, this.ceilingMaterial), false)
+      }
+    }
+    for (const [x, z, color] of this.def.lights) {
+      if (this.map.room(Math.round(x), Math.round(z)) && !lift(x, z)) merge.add(ceilingLamp(x, z, color, this.ceilingY), false)
+    }
+    merge.flush(this.ceiling, this.fades.texture)
+    this.ceiling.visible = false
+    this.group.add(this.ceiling)
   }
 
   private buildWalls() {

@@ -9,6 +9,8 @@ const THIRD_DISTANCE = 1.7
 const THIRD_ELEVATION = THREE.MathUtils.degToRad(22)
 const THIRD_MIN_ELEVATION = THREE.MathUtils.degToRad(-10)
 const THIRD_MAX_ELEVATION = THREE.MathUtils.degToRad(70)
+/** Écart minimal entre la caméra et le plafond. */
+const CEILING_MARGIN = 0.1
 /** En dessous de ce mélange, la caméra est dans la tête : le personnage est masqué. */
 const HIDE_BODY_BELOW = 0.35
 
@@ -87,8 +89,11 @@ export class FirstPersonCamera {
     return out.set(sx * c - sy * s, 0, -sx * s - sy * c)
   }
 
-  /** @param head dessus de la tête du personnage (Avatar.head) */
-  update(dt: number, head: THREE.Vector3) {
+  /**
+   * @param head dessus de la tête du personnage (Avatar.head)
+   * @param ceiling hauteur (monde) du plafond : la caméra reste dessous, même derrière le personnage
+   */
+  update(dt: number, head: THREE.Vector3, ceiling = Infinity) {
     this.blend = THREE.MathUtils.damp(this.blend, this.thirdPerson ? 1 : 0, 5, dt)
     if (Math.abs(this.blend - (this.thirdPerson ? 1 : 0)) < 1e-3) this.blend = this.thirdPerson ? 1 : 0
     const k = smooth(this.blend)
@@ -96,14 +101,15 @@ export class FirstPersonCamera {
     const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch)
 
     // Dans les yeux : on regarde devant soi, vers (-sin yaw, -cos yaw), relevé de `pitch`.
-    _eye.set(head.x, head.y - EYE_BELOW_HEAD, head.z)
+    const top = ceiling - CEILING_MARGIN
+    _eye.set(head.x, Math.min(head.y - EYE_BELOW_HEAD, top), head.z)
     const eyeLook = _look.set(_eye.x - s * cp, _eye.y + sp, _eye.z - c * cp)
 
     // Derrière le personnage : en orbite autour de sa poitrine, le regard vers lui.
     _pivot.set(head.x, head.y - EYE_BELOW_HEAD - 0.1, head.z)
     const elevation = THREE.MathUtils.clamp(THIRD_ELEVATION - this.pitch, THIRD_MIN_ELEVATION, THIRD_MAX_ELEVATION)
     const h = Math.cos(elevation) * THIRD_DISTANCE
-    _third.set(_pivot.x + s * h, _pivot.y + Math.sin(elevation) * THIRD_DISTANCE, _pivot.z + c * h)
+    _third.set(_pivot.x + s * h, Math.min(_pivot.y + Math.sin(elevation) * THIRD_DISTANCE, top), _pivot.z + c * h)
 
     this.position.lerpVectors(_eye, _third, k)
     this.camera.position.copy(this.position)

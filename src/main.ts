@@ -2136,7 +2136,8 @@ function toggleFps() {
   fpsWanted = !fpsWanted
   store.set('mini-shipinteriors-fps', String(fpsWanted))
   updateFpsButton()
-  // Le clic ou la touche qui active la vue suffit à capturer le curseur.
+  // Le clic ou la touche qui active la vue suffit à capturer le curseur (sinon, au premier pas).
+  relock = fpsWanted
   if (fpsWanted && !isoOnly() && !needsCursor() && matchMedia('(pointer: fine)').matches) lockCursor()
 }
 $('fps-view').onclick = () => toggleFps()
@@ -2321,9 +2322,40 @@ function unlockCursor() {
 function needsCursor(): boolean {
   return chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || inviteMenu.isOpen || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen
 }
-document.addEventListener('pointerlockchange', () => document.body.classList.toggle('fps-locked', cursorLocked()))
+document.addEventListener('pointerlockchange', () => {
+  document.body.classList.toggle('fps-locked', cursorLocked())
+  if (cursorLocked()) relock = false
+})
 document.addEventListener('mousemove', (e) => {
   if (cursorLocked() && fpsShown) fps.look(-e.movementX * 0.0025, -e.movementY * 0.0025)
+})
+
+// Curseur libre (pas encore capturé, ou libéré par Échap) : le regard suit quand même la souris,
+// sans bouton à tenir, et continue de tourner tant que le curseur reste près d'un bord de l'écran.
+// Sur la barre d'outils ou un panneau, le curseur ne compte plus (on va cliquer).
+let freeAim: { x: number; y: number } | null = null
+canvas.addEventListener('pointermove', (e) => {
+  if (e.pointerType !== 'mouse' || cursorLocked() || !fpsShown || needsCursor()) {
+    freeAim = null
+    return
+  }
+  if (freeAim) fps.look(-(e.clientX - freeAim.x) * 0.0025, -(e.clientY - freeAim.y) * 0.0025)
+  freeAim = { x: e.clientX, y: e.clientY }
+})
+canvas.addEventListener('pointerleave', () => (freeAim = null))
+/** Bord de l'écran où le regard tourne tout seul (part de la demi-largeur ou de la demi-hauteur). */
+const EDGE = 0.15
+function edgeLook(dt: number) {
+  if (!freeAim || cursorLocked() || needsCursor()) return
+  const edge = (u: number) => Math.sign(u) * THREE.MathUtils.clamp((Math.abs(u) - (1 - EDGE)) / EDGE, 0, 1)
+  const ex = edge((freeAim.x / innerWidth) * 2 - 1), ey = edge((freeAim.y / innerHeight) * 2 - 1)
+  if (ex || ey) fps.look(-ex * dt * 2.4, -ey * dt * 1.2)
+}
+// Le curseur rendu par un panneau (ou pas encore pris) se reprend dès qu'on se remet à marcher ;
+// Échap, lui, le laisse libre jusqu'au prochain clic.
+let relock = fpsWanted
+addEventListener('keydown', (e) => {
+  if (relock && fpsShown && MOVE_KEYS.has(e.code) && !cursorLocked() && !needsCursor() && matchMedia('(pointer: fine)').matches) lockCursor()
 })
 const crosshair = $('fps-crosshair')
 
@@ -3044,7 +3076,11 @@ function frame() {
   const dt = Math.min(timer.getDelta(), 0.05)
   gym.update()
   const pad = updateGamepad(dt)
-  if (cursorLocked() && (!fpsWanted || isoOnly() || needsCursor())) unlockCursor()
+  if (cursorLocked() && (!fpsWanted || isoOnly() || needsCursor())) {
+    unlockCursor()
+    relock = true
+  }
+  if (fpsShown) edgeLook(dt)
   // Borne d'arcade ouverte : elle couvre l'écran, le vaisseau reste figé derrière (dernière image),
   // et la borne a toute la machine pour elle.
   if (arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen) {
@@ -3133,7 +3169,7 @@ function frame() {
   }
   if (fpsShown) {
     fps.thirdPerson = busyBody()
-    fps.update(dt, player.avatar.head(fpsHead))
+    fps.update(dt, player.avatar.head(fpsHead), deck.y + deck.ceilingY)
     fps.toCamera(toCam)
   } else iso.toCamera(toCam)
   player.avatar.root.visible = !fpsShown || fps.showsBody
@@ -3150,12 +3186,15 @@ function frame() {
   const keep = seating.current?.item.position ?? null
   for (const d of decks) {
     d.doorHints = !photo.active && !fpsShown
+    // Le plafond cacherait tout, vu de haut : on ne le voit que de l'intérieur.
+    d.ceiling.visible = fpsShown
     d.update(world, actors.get(d)!, d === viewDeck ? player.position : null, toCam, editing() && d === cabinDeck, keep, dt)
   }
   // La baie infestée : ses portes s'ouvrent devant l'équipe ; ses murs s'estompent devant le joueur
   // (ou devant le coéquipier que suit la caméra).
   const bay = zone.deck
   if (bay) {
+    bay.ceiling.visible = fpsShown
     const inside = [...remotes.values()].filter((r) => r.level === ZONE_LEVEL && r.group.visible).map((r) => r.group.position)
     if (deck === bay) inside.push(player.position)
     bay.update(world, inside, viewDeck === bay ? (zone.watchTarget ?? player.position) : null, toCam, false, null, dt)
