@@ -126,7 +126,7 @@ Choix et réalisation (27 septembre 2026) :
 
 ## 3. Espaces communautaires et activités
 
-- [ ] **SOC-01 · P2 · Fonctionnalité — Pièces réservées à la Voie et à LJPC.**
+- [x] **SOC-01 · P2 · Fonctionnalité — Pièces réservées à la Voie et à LJPC.**
   Créer des espaces accessibles uniquement aux membres concernés. Les pièces
   restent visibles pour les autres joueurs, avec la porte fermée ; l'accès doit
   être vérifié à partir de l'appartenance au groupe sur le site.
