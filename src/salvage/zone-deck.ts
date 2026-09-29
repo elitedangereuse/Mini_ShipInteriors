@@ -6,8 +6,8 @@ import { ZONE_LEVEL, type Zone } from '../../shared/salvage.js'
 import type { ZoneKit } from './kit'
 
 /*
- * La baie infestée en pont du jeu (cf. LevelDef, Deck) : le labyrinthe tiré de la graine (murs,
- * portes du sas), ses conteneurs et piles de fûts (des obstacles), son décor (câbles, ossements,
+ * La baie infestée en pont du jeu (cf. LevelDef, Deck) : le plan fixe (parois, portes du sas),
+ * ses rangées de conteneurs et piles de caisses (des obstacles), son décor (câbles, ossements,
  * cristaux thargoïdes, flaques caustiques), les lampes de secours et la plateforme d'extraction.
  * Les casiers, les colis et les fusées changent pendant la partie : ils sont à part (cf. items.ts).
  */
@@ -41,12 +41,18 @@ export function zoneLevel(zone: Zone, kit: ZoneKit): LevelDef {
     lights.push([door.x + out.dx * 0.9, door.z + out.dz * 0.9, '#4fdc84', 0.9])
   }
 
-  // Lampes de secours, rouges et fatiguées, sur des pans de mur nord (face à la caméra) ou ouest.
+  // Lampes de secours, rouges et fatiguées, sur la paroi ou le flanc d'un conteneur, au nord
+  // (face à la caméra) ou à l'ouest.
+  const closed = (x: number, z: number, d: number) => {
+    const nx = x + DIRS[d].dx, nz = z + DIRS[d].dz
+    return !zone.open[(z * zone.width + x) * 4 + d] || nx < 0 || nz < 0 || nx >= zone.width || nz >= zone.height || !!zone.blocked[nz * zone.width + nx]
+  }
   for (let z = 0; z < zone.height; z++) {
     for (let x = 0; x < zone.width; x++) {
       const i = z * zone.width + x
-      if (zone.room[i] !== 'z' || zone.blocked[i] || hash(x * 7 + 3, z * 5 + 1) % 9 !== 0) continue
-      const dir = [0, 3].find((d) => !zone.open[i * 4 + d])
+      if (zone.room[i] !== 'z' || zone.blocked[i] || hash(x * 7 + 3, z * 5 + 1) % 7 !== 0) continue
+      if (zone.lockers.some((l) => l.x === x && l.z === z)) continue
+      const dir = [0, 3].find((d) => closed(x, z, d))
       if (dir === undefined) continue
       props.push({ model: 'emergency-lamp', x: x + DIRS[dir].dx * 0.34, z: z + DIRS[dir].dz * 0.34, rot: FACING[dir], solid: false })
       lights.push([x + DIRS[dir].dx * 0.2, z + DIRS[dir].dz * 0.2, '#ff3322', 0.8, 'neon'])
@@ -58,7 +64,7 @@ export function zoneLevel(zone: Zone, kit: ZoneKit): LevelDef {
     name: tr('Zone thargoïde', 'Thargoid zone'),
     theme: 'raw',
     // Presque noir : on y voit à la lampe frontale, dans le rayon de sa propre vue (cf. fog.ts).
-    ambience: { sky: '#3d4d62', ground: '#07090c', hemi: 0.8, sun: '#8fa6c0', sunIntensity: 0.35 },
+    ambience: { sky: '#4a5d76', ground: '#0b0f14', hemi: 1.5, sun: '#8fa6c0', sunIntensity: 0.6 },
     footsteps: 'hard',
     layout: zone.layout,
     rooms: { z: tr('Baie de stockage infestée', 'Infested storage bay'), x: tr('Sas d\'extraction', 'Extraction airlock') },

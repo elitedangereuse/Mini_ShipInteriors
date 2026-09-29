@@ -58,7 +58,7 @@ import { DEFAULT_PATTERN, WING_SLOTS, type WingId } from '../shared/cabin-wings.
 import { syncTempo, tempo } from './tempo'
 import { ToiletFlushes } from './toilet-flush'
 import { SalvageClient } from './salvage/client'
-import { ZONE_LEVEL } from '../shared/salvage.js'
+import { LOBBY_RETURN, ZONE_LEVEL } from '../shared/salvage.js'
 import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel } from './ui'
 import { LiftRide } from './lift-ride'
 
@@ -2214,7 +2214,8 @@ updateFpsButton()
 /** Là, il faut voir la scène de haut : la vue isométrique reprend la main, même en vue subjective. */
 function isoOnly(): boolean {
   // Les caméras alliées de la zone thargoïde suivent un coéquipier, de haut.
-  return editing() || photo.active || !!claw || barPanel.isOpen || cinemaRoom.isOpen || mediaRoom.isOpen || !!zone.watchTarget
+  // Caché dans un casier aussi : en vue subjective, on ne verrait que l'intérieur de la porte.
+  return editing() || photo.active || !!claw || barPanel.isOpen || cinemaRoom.isOpen || mediaRoom.isOpen || !!zone.watchTarget || zone.hiding
 }
 /** Occupé (installé, en emote, au travail…) : en vue subjective, la caméra passe derrière le personnage. */
 function busyBody(): boolean {
@@ -3304,6 +3305,14 @@ function frame() {
     d.ceiling.visible = fpsShown
     d.update(world, actors.get(d)!, d === viewDeck ? player.position : null, toCam, editing() && d === cabinDeck, keep, dt)
   }
+  // Filet de sécurité : ni le joueur ni la vue ne restent sur une baie démontée (l'écran serait
+  // vide, sans rien à dessiner) ; on rentre au lobby.
+  if (deck.def.zone && deck !== zone.deck) {
+    setDeck(deckById(-1))
+    player.position.set(LOBBY_RETURN.x, deck.y, LOBBY_RETURN.z)
+    iso.snapTo(player.position)
+    sendState(true)
+  } else if (viewDeck.def.zone && viewDeck !== zone.deck) setView(deck)
   // La baie infestée : ses portes s'ouvrent devant l'équipe ; ses murs s'estompent devant le joueur
   // (ou devant le coéquipier que suit la caméra).
   const bay = zone.deck

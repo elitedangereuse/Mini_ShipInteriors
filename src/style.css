@@ -3502,6 +3502,8 @@ body.in-zone { background: #000; }
 .salvage-stamina-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #6dff9a, #c8ff6a); transition: width .1s linear; }
 .salvage-stamina.exhausted .salvage-stamina-fill { background: #ff6a5c; }
 .salvage-locker { position: fixed; z-index: 35; top: 0; left: 0; padding: 3px 8px; border-radius: 999px; color: #dff3e6; background: #0b1511dd; box-shadow: 0 0 0 1px #6dff9a55; font: 700 12px system-ui, sans-serif; white-space: nowrap; pointer-events: none; }
+/* Caché dans un casier : on regarde dehors entre les fentes de la porte (de fines lamelles). */
+body.salvage-hidden #app::after { content: ''; position: fixed; inset: 0; pointer-events: none; background: repeating-linear-gradient(180deg, #0000 0 11px, #0007 11px 14px), radial-gradient(ellipse at center, #0000 45%, #0009 100%); }
 .salvage-locker.urgent { color: #ffd0cb; box-shadow: 0 0 0 1px #ff6a5c; animation: salvage-pulse .5s ease-in-out infinite alternate; }
 @keyframes salvage-pulse { to { background: #4a1510dd; } }
 

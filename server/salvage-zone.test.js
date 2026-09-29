@@ -1,10 +1,10 @@
-// Baie infestée de la zone thargoïde (SOC-06) : le labyrinthe tiré d'une graine.
+// Baie infestée de la zone thargoïde (SOC-06) : le plan fixe, et ce que la graine y dispose.
 //   npm test
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
-  distances, findPath, generateZone, inAirlock, lockerFront, lockerSpot, mulberry32, pickSpawns, RULES, salvageReward, smoothPath,
-  straightWalk, walkable, zoneSight, zoneSize,
+  BAY, distances, findPath, generateZone, inAirlock, lockerFront, lockerSpot, mulberry32, pickSpawns, RULES, salvageReward, smoothPath,
+  straightWalk, walkable, zoneSight,
 } from '../shared/salvage.js'
 
 const SETTINGS = [
@@ -22,16 +22,31 @@ const each = (fn) => {
 test('même graine, même baie (le relais et chaque client construisent la même)', () => {
   const a = generateZone(424242, { team: 2, parcels: 3, enemies: 2 })
   const b = generateZone(424242, { team: 2, parcels: 3, enemies: 2 })
-  assert.deepEqual(a.layout, b.layout)
-  assert.deepEqual(a.walls, b.walls)
   assert.deepEqual([a.lockers, a.flares, a.cargo, a.monsters, a.decor, a.containers], [b.lockers, b.flares, b.cargo, b.monsters, b.decor, b.containers])
+  // Le plan ne change pas ; ce qu'on y trouve, si.
   const c = generateZone(424243, { team: 2, parcels: 3, enemies: 2 })
-  assert.notDeepEqual(a.walls, c.walls)
+  assert.deepEqual([a.layout, a.containers, a.lockers, a.doors], [c.layout, c.containers, c.lockers, c.doors])
+  assert.notDeepEqual([a.cargo, a.flares, a.monsters], [c.cargo, c.flares, c.monsters])
 })
 
-test('la taille grandit avec l\'équipe et les colis, sans dépasser le plafond', () => {
-  assert.deepEqual(zoneSize(1, 1), { width: 18, height: 16 })
-  assert.ok(zoneSize(4, 6).width <= 26 && zoneSize(4, 6).height <= 22)
+test('le plan : rectangulaire, conteneurs par paires, un sas de six tuiles au bord sud', () => {
+  assert.ok(BAY.every((line) => line.length === BAY[0].length))
+  for (const line of BAY) for (const run of line.match(/=+/g) ?? []) assert.equal(run.length % 2, 0, line)
+  for (let x = 0; x < BAY[0].length; x++) {
+    const column = BAY.map((line) => line[x]).join('')
+    for (const run of column.match(/H+/g) ?? []) assert.equal(run.length % 2, 0, `colonne ${x}`)
+  }
+  const zone = generateZone(1, { team: 1, parcels: 1, enemies: 1 })
+  assert.equal(zone.airlock.tiles.length, 6)
+  assert.equal(zone.airlock.side, 2)
+  assert.ok(zone.lockers.length >= 30, 'des casiers partout')
+})
+
+test('des couloirs d\'au moins deux tuiles entre les rangées de conteneurs', () => {
+  const zone = generateZone(1, { team: 1, parcels: 1, enemies: 1 })
+  // Chaque passage d'une rangée pleine (lignes 7 et 15) fait deux tuiles de large.
+  for (const z of [7, 15]) for (const gap of BAY[z].match(/\.+/g)) assert.ok(gap.length >= 2, `ligne ${z}`)
+  assert.equal(zone.walls.length, 0)
 })
 
 test('toute la baie est accessible depuis le sas, conteneurs compris', () => {
@@ -77,10 +92,11 @@ test('les ennemis ne peuvent pas entrer dans le sas, mais atteignent toute la ba
   })
 })
 
-test('un casier se dresse contre un mur, et l\'on en sort du côté de la tuile', () => {
+test('un casier se dresse contre une paroi ou un conteneur, et l\'on en sort du côté de la tuile', () => {
   each((zone) => {
     for (const l of zone.lockers) {
-      assert.equal(zone.map.edge(l.x, l.z, l.dir), 'wall', `casier ${l.id} sans mur (graine ${zone.seed})`)
+      const back = { x: l.x + [0, 1, 0, -1][l.dir], z: l.z + [-1, 0, 1, 0][l.dir] }
+      assert.ok(zone.map.edge(l.x, l.z, l.dir) === 'wall' || !walkable(zone, back.x, back.z), `casier ${l.id} sans appui (graine ${zone.seed})`)
       const spot = lockerSpot(l), front = lockerFront(l)
       assert.equal(Math.round(spot.x) + 0, l.x)
       assert.equal(Math.round(front.z) + 0, l.z)
@@ -88,11 +104,13 @@ test('un casier se dresse contre un mur, et l\'on en sort du côté de la tuile'
   })
 })
 
-test('la vue s\'arrête aux murs et aux conteneurs', () => {
+test('la vue s\'arrête aux parois et aux conteneurs', () => {
   const zone = generateZone(42, { team: 1, parcels: 2, enemies: 1 })
-  // Un mur du labyrinthe : de part et d'autre, on ne se voit pas.
-  const w = zone.walls.find((e) => e.dir === 1)
-  assert.equal(zoneSight(zone, { x: w.x, z: w.z }, { x: w.x + 1, z: w.z }), false)
+  // Une rangée de conteneurs : de part et d'autre, on ne se voit pas ; par un passage, si.
+  assert.equal(zoneSight(zone, { x: 8, z: 6 }, { x: 8, z: 8 }), false)
+  assert.equal(zoneSight(zone, { x: 4, z: 6 }, { x: 4, z: 8 }), true)
+  // Le sas : on n'y voit que par ses portes.
+  assert.equal(zoneSight(zone, { x: 15, z: 21 }, { x: 15, z: 22 }), false)
   // Un conteneur de hall : la tuile de derrière est cachée.
   let checked = 0
   for (const c of zone.containers) {
@@ -139,6 +157,8 @@ test('récompense : plus de colis et plus d\'ennemis, plus de crédits', () => {
   assert.equal(salvageReward(e, 1, 1), 1500)
   assert.equal(salvageReward(e, 3, 2), 6800)
   assert.ok(salvageReward(e, 6, 6) > salvageReward(e, 6, 5))
-  assert.ok(RULES.monster.chase > RULES.sprint * RULES.carry, 'un porteur qui court ne sème pas un poursuivant')
-  assert.ok(RULES.monster.chase < RULES.sprint, 'sans colis, on peut le semer en courant')
+  assert.ok(RULES.monster.chase > RULES.walk, 'qui marche se fait rattraper')
+  assert.ok(RULES.monster.chase < RULES.sprint, 'sans colis, on le sème en courant')
+  assert.ok(RULES.monster.chase < RULES.sprint * RULES.carry * 1.1, 'un porteur qui court le tient à distance, à peine')
+  assert.ok(RULES.hiddenVision >= RULES.vision * 0.7, 'caché, on voit encore dehors')
 })

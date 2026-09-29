@@ -3,6 +3,8 @@ import type { Door, EdgeKind, ShipMap } from './ship-map.js'
 export declare const ZONE_LEVEL: -2
 export declare const LOBBY: { level: -1; room: 'h' }
 export declare const LOBBY_RETURN: { x: number; z: number }
+/** Plan fixe de la baie (une lettre par tuile). */
+export declare const BAY: string[]
 
 export declare const RULES: {
   team: number
@@ -63,7 +65,6 @@ export interface Zone {
 }
 
 export declare function salvageReward(economy: { parcel: number; enemyBonus: number } | null | undefined, parcels: number, enemies: number): number
-export declare function zoneSize(team: number, parcels: number): { width: number; height: number }
 export declare function mulberry32(seed: number): () => number
 export declare function generateZone(seed: number, settings: { team: number; parcels: number; enemies: number }): Zone
 export declare function tileOf(zone: Zone, p: { x: number; z: number }): Tile | null

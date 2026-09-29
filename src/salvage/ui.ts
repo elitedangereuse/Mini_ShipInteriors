@@ -369,6 +369,7 @@ export class MissionHud {
     if (!on) {
       this.stamina.hidden = true
       this.locker.hidden = true
+      this.peek(false)
     }
     document.body.classList.toggle('in-zone', on)
   }
@@ -423,6 +424,11 @@ export class MissionHud {
     const s = Math.ceil(left)
     this.locker.textContent = tr(`Caché · ${s} s`, `Hidden · ${s} s`)
     this.locker.classList.toggle('urgent', left < 5)
+  }
+
+  /** Caché dans un casier : on regarde dehors entre les fentes de la porte. */
+  peek(on: boolean) {
+    if (document.body.classList.contains('salvage-hidden') !== on) document.body.classList.toggle('salvage-hidden', on)
   }
 
   /** Caméra alliée : le nom du coéquipier suivi, ou null pour la fermer. */

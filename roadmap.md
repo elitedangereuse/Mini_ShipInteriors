@@ -498,33 +498,33 @@ Les quatre étapes du découpage sont livrées ensemble. Choix retenus :
   (1 à 6 chacun, demande de l'utilisateur plutôt que le barème « un par joueur ») ; menace
   et récompense s'affichent ; un changement remet tout le monde en attente ; départ trois
   secondes après le dernier « prêt ».
-- **Labyrinthe** : un nouveau tirage à chaque mission, depuis une graine du relais, le même
-  chez chaque client (`shared/salvage.js`) : couloirs sinueux, culs-de-sac en partie
-  rouverts (des boucles pour semer un ennemi), halls encombrés de conteneurs, sas
-  d'extraction contre un bord (zone sûre, deux portes). Tout reste accessible, ennemis
-  compris (vérifié sur des dizaines de graines). Taille : 18 × 16 à 26 × 22 tuiles selon
-  l'équipe et les colis. Murs du Modular Space Kit à l'échelle 1/4 (une pièce du kit = une
-  tuile), conteneurs du Train Kit, décor du Space Kit.
+- **Baie** : un plan fixe (`BAY` dans `shared/salvage.js`, 30 × 24 tuiles) depuis la
+  troisième passe ; le labyrinthe tiré au sort était trop étriqué. Trois bandes de halls
+  séparées par des cloisons percées de passages de deux tuiles, un grand hall central
+  semé d'îlots de conteneurs, sas d'extraction au milieu du bord sud (zone sûre, deux
+  portes), 33 casiers. La graine du relais y place colis (à l'abri, loin du sas), fusées,
+  ennemis et décor, la même chez chaque client. Murs du Modular Space Kit à l'échelle 1/4
+  (une pièce du kit = une tuile), conteneurs du Train Kit, décor du Space Kit.
 - **Dépôt** : au sas d'extraction de la baie (entrer dans le sas avec un colis le livre),
   plutôt qu'au lobby du vaisseau : le joueur reste en course pour les colis suivants.
-- **Vision** : 3,6 tuiles autour de soi, en ligne de vue (murs et conteneurs), rendue par
-  un brouillard de guerre qui relit la profondeur ; 1,5 dans un casier ; le zoom reste
-  libre, la vue ne grandit pas.
+- **Vision** : 5,2 tuiles autour de soi, en ligne de vue (murs et conteneurs), rendue par
+  un brouillard de guerre qui relit la profondeur ; 4,2 dans un casier (on voit dehors,
+  entre des lamelles, en vue isométrique) ; le zoom reste libre, la vue ne grandit pas.
 - **Son** : pas de musique ; pas avec écho, grognements et pas des ennemis, cœur qui bat
   quand l'un est à moins de 5 tuiles, détecteur de cargaison qui bipe à moins de 7 tuiles
   d'un colis, flèche vers le sas quand on porte un colis.
-- **Vitesses** : marche 1,7, course 3,4 ; porteur × 0,62. Ennemis : patrouille 1, enquête
-  1,55, poursuite 2,45 (plus vite qu'un porteur, moins qu'un joueur qui court à vide).
-- **Détection** : vue de 4,6 tuiles dans un cône de 125°, 1,35 tout autour ; capture à
-  0,5 ; cible perdue au bout de 4 s sans la voir ; 4 s de répit au départ.
-- **Bruit et endurance** : la course s'entend à 7 tuiles de chemin (8,5 avec un colis),
-  casier 3,5, éjection 4,5, colis qui tombe 5. Endurance : 5 s de course (3,3 avec un
-  colis), récupération plus rapide à l'arrêt qu'en marchant, reprise à 30 %.
-- **Casiers** : 20 s au plus, un par casier, pas avec un colis, 6 s avant d'y revenir. Un
+- **Vitesses** : marche 1,7, course 3,4 ; porteur × 0,62. Ennemis : patrouille 0,8,
+  enquête 1,2, poursuite 2 (plus vite qu'un marcheur, moins qu'un coureur, même chargé).
+- **Détection** : vue de 4,2 tuiles dans un cône de 120°, 1,1 tout autour ; capture à
+  0,45 ; cible perdue au bout de 2,5 s sans la voir ; 8 s de répit au départ.
+- **Bruit et endurance** : la course s'entend à 6 tuiles de chemin (7 avec un colis),
+  casier 3, éjection 4,5, colis qui tombe 5. Endurance : 7,7 s de course (5 avec un
+  colis), récupération plus rapide à l'arrêt qu'en marchant, reprise à 25 %.
+- **Casiers** : 30 s au plus, un par casier, pas avec un colis, 4 s avant d'y revenir. Un
   ennemi qui a vu le joueur y entrer le fouille (2,2 s) et l'en tire ; un ennemi qui passe
   devant un casier occupé le fouille une fois sur cinq environ.
-- **Fusées** : 2 + taille de l'équipe + colis / 2 dans la baie, deux au plus sur soi ;
-  lancées à 5,5 tuiles au plus, en vue ; 12 s ; portée d'attraction 12 tuiles de chemin ;
+- **Fusées** : 3 + taille de l'équipe + colis / 2 dans la baie, deux au plus sur soi ;
+  lancées à 6,5 tuiles au plus, en vue ; 15 s ; portée d'attraction 12 tuiles de chemin ;
   une seule à la fois ; les ennemis attirés ignorent les joueurs.
 - **Capture** : le colis tombe sur place (un coéquipier peut le reprendre) ; le capturé
   revient au lobby et suit l'équipe par la caméra alliée (même vue que le coéquipier
@@ -555,6 +555,13 @@ aux fusées (avec le compte, lancer droit devant), le bouton X restant utilisabl
 dans Chrome : coupure du réseau et rechargement de la page en pleine course (retour au sas),
 coupure d'un capturé (retour aux caméras), bouton de fusée en émulation tactile ; tests Node
 des reconnexions (deux coupures de suite, autre onglet, autre CMDR, partie finie entre-temps).
+
+Troisième passe (2026-09-29), après des parties jouées : difficulté baissée (ennemis plus
+lents, plus vite semés, vue élargie, endurance plus longue), plan fixe aéré à la place du
+labyrinthe, plus de casiers, vue dehors depuis un casier ; l'écran de fin ne se ferme plus
+tout seul pour un capturé, qui se relève au lobby ; un filet de sécurité ramène au lobby un
+joueur resté sur une baie démontée (signalé : écran bleu après « Retour au lobby » pour un
+capturé, pas reproduit en local, cause non établie).
 
 Vérifications : 29 tests Node (labyrinthe, relais de jeu, relais socket.io, gains), 4 tests
 PHP (dont un en base) ; parties jouées dans Chrome : victoire solo payée par le site local,

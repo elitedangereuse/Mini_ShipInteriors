@@ -127,7 +127,7 @@ export class SalvageClient {
   private readonly sfx: SalvageSfx
   private readonly fog: FogOfWar
   /** Lampe frontale : elle suit le joueur (ou le coéquipier suivi par la caméra). */
-  private readonly lantern = new THREE.PointLight('#ffe7c4', 0, 6, 1.4)
+  private readonly lantern = new THREE.PointLight('#ffe7c4', 0, 9, 1.2)
   private readonly flareLight = new THREE.PointLight('#ff3b2f', 0, 7, 1.4)
   private readonly compass: THREE.Mesh
   private readonly rings: { mesh: THREE.Mesh; t: number }[] = []
@@ -148,6 +148,8 @@ export class SalvageClient {
   private resumeWatch = false
   private resumeTries = 0
   private resumeTimer = 0
+  /** Retour au lobby en cours : un seul trajet à la fois. */
+  private leaving: Promise<void> | null = null
   private readonly tmp = new THREE.Vector3()
 
   constructor(private host: SalvageHost) {
@@ -413,21 +415,32 @@ export class SalvageClient {
       : tr('Un colis à rapporter au sas d\'extraction. Marchez sans bruit : ils entendent courir.', 'One crate to bring back to the extraction airlock. Walk quietly: they can hear running.'))
   }
 
-  /** Quitte la baie (fin, abandon, capture) : retour devant la porte blindée du lobby. */
-  private async leave(message?: string) {
+  /**
+   * Quitte la baie (fin, abandon, capture) : retour devant la porte blindée du lobby. Un second
+   * appel pendant le trajet (« Retour au lobby » cliqué pendant la capture) attend le premier.
+   */
+  private leave(message?: string): Promise<void> {
+    this.leaving ??= this.leaveNow(message).finally(() => (this.leaving = null))
+    return this.leaving
+  }
+
+  private async leaveNow(message?: string) {
     const g = this.game
     if (!g) return
     this.stopWatching(false)
     if (this.inZone) await this.host.moveTo(this.host.hold, LOBBY_RETURN)
     // Reconnecté pendant le trajet : la mission reprise a déjà pris la main.
     if (this.game !== g) return
+    // Capturé, on s'était effondré : on se relève au lobby.
+    if (this.host.player.avatar.emoteId === 'dodo') this.host.player.avatar.stopEmote()
     this.host.player.load = 1
     this.host.sound.setEcho(0)
     this.hud.show(false)
     this.phase = 'ship'
     if (message) this.host.dialog.show(message)
-    // La mission continue pour l'équipe : on garde la baie pour les caméras, jusqu'à la fin.
-    if (g.end) this.dispose()
+    // La mission continue pour l'équipe : on garde la baie pour les caméras, jusqu'à la fin ;
+    // finie, on la démonte une fois l'écran de fin refermé (son bouton, ou le délai).
+    if (g.end && !this.hud.endOpen) this.dispose()
   }
 
   private dispose() {
@@ -769,7 +782,10 @@ export class SalvageClient {
       if (monster) player.lookAt(monster)
       player.avatar.playEmote('dodo')
       this.host.net.sendEmote('dodo')
-      this.host.dialog.show(tr('Capturé ! Vos coéquipiers continuent : suivez-les sur les caméras.', 'Caught! Your crewmates carry on: follow them on the cameras.'))
+      const others = g.state?.members.some((m) => m.id !== self && (m.status === 'alive' || m.status === 'arriving' || m.status === 'away'))
+      this.host.dialog.show(others
+        ? tr('Capturé ! Vos coéquipiers continuent : suivez-les sur les caméras.', 'Caught! Your crewmates carry on: follow them on the cameras.')
+        : tr('Capturé !', 'Caught!'))
       return
     }
     const r = this.host.remotes.get(e.id ?? -1)
@@ -845,8 +861,11 @@ export class SalvageClient {
     // Vue : autour de soi (ou du coéquipier suivi), réduite dans un casier.
     const hidden = inZone && this.me?.hidden !== null && this.me?.hidden !== undefined
     this.fog.update(viewer, hidden ? RULES.hiddenVision : RULES.vision, dt)
+    this.hud.peek(hidden)
     this.lantern.position.set(viewer.x, g.deck.y + 1.05, viewer.z)
-    this.lantern.intensity = hidden ? 1 : 3.2
+    // Caché, la lampe baisse un peu, mais éclaire encore devant le casier : on voit venir.
+    this.lantern.intensity = hidden ? 3.2 : 4.5
+    this.lantern.distance = hidden ? 8 : 9
     const flare = g.items.flare
     this.flareLight.intensity = flare ? 4 * flare.k : 0
     if (flare) this.flareLight.position.set(flare.x, g.deck.y + 0.35, flare.z)
