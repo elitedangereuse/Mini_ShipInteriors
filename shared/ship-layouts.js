@@ -7,23 +7,24 @@ import { wingDoors } from './cabin-wings.js'
 export const SHIP_LAYOUTS = {
   // Cale ; à la poupe, la salle des machines, derrière l'atelier, et cachée derrière elle, le
   // sanctuaire de la Voie. Chez Jacques, le bar clandestin, ne s'ouvre que depuis le fond de la soute. À
-  // l'est de la soute, le lobby de la zone thargoïde (SOC-06), d'où partent les missions.
+  // l'est de la soute, le lobby de la zone thargoïde (SOC-06), d'où partent les missions ; collé à
+  // lui, le hangar du Krait, ouvert sur l'espace à la proue.
   '-1': [
-    '                            ',
-    '            rrrrr           ',
-    '    aaaa    rrrrrgg hhhhhh  ',
-    'eeeeaaaa    rrrrr+g hhhhhh  ',
-    'eeeeaaaa jjj+rr+rgg hhhhhh  ',
-    'eee+aaaa+jjjmmmmmgg+hhhhhh  ',
-    'eeeeaaaa jjj+mmmm+g hhhhhh  ',
-    'eeeeaaaa    mmmmmgg hhhhhh  ',
-    'vv+vv       mmmmm+  hhhhhh  ',
-    'vvvvv    bbbbbbbbbb         ',
-    'vvvvv    bbbbbbbbbb         ',
-    'vvvvv    bbbbbbbbbb         ',
-    'vvvvv    bbbbbbbbbb         ',
-    '         bbbbbbbbbb         ',
-    '                            ',
+    '                          kkkkkkkkkkkk  ',
+    '            rrrrr         kkkkkkkkkkkk  ',
+    '    aaaa    rrrrrgg hhhhhhkkkkkkkkkkkk  ',
+    'eeeeaaaa    rrrrr+g hhhhhhkkkkkkkkkkkk  ',
+    'eeeeaaaa jjj+rr+rgg hhhhhh+kkkkkkkkkkk  ',
+    'eee+aaaa+jjjmmmmmgg+hhhhhh+kkkkkkkkkkk  ',
+    'eeeeaaaa jjj+mmmm+g hhhhhhkkkkkkkkkkkk  ',
+    'eeeeaaaa    mmmmmgg hhhhhhkkkkkkkkkkkk  ',
+    'vv+vv       mmmmm+  hhhhhhkkkkkkkkkkkk  ',
+    'vvvvv    bbbbbbbbbb       kkkkkkkkkkkk  ',
+    'vvvvv    bbbbbbbbbb       kkkkkkkkkkkk  ',
+    'vvvvv    bbbbbbbbbb                     ',
+    'vvvvv    bbbbbbbbbb                     ',
+    '         bbbbbbbbbb                     ',
+    '                                        ',
   ],
   // Pont principal. À la poupe, la salle commune ; la coursive file vers le poste de pilotage et ses
   // verrières, à la proue, et s'ouvre juste avant sur la Promenade, un atrium vitré autour de la

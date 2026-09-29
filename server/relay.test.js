@@ -11,6 +11,7 @@ import { attachRelay, WS_PATH } from './relay.js'
 import { PILOT_SEAT, SYSTEM_IDS } from '../shared/systems.js'
 import { PATROL_HOLD, PATROL_LEVEL, patrolAt } from '../shared/patrol.js'
 import { CHEF_COOK, CHEF_HOLD, CHEF_LEVEL, chefAt } from '../shared/chef.js'
+import { MECH_HELP, MECH_HOLD, MECH_LEVEL, mechAt } from '../shared/mechanic.js'
 import { NURSE_BEDS, NURSE_CARE, NURSE_CARE_MIN, NURSE_HOLD, NURSE_LEVEL, NURSE_PATCH, nurseAt } from '../shared/nurse.js'
 
 /** Faux site : reconnaît deux cookies, comme outils/mini-shipinteriors-cmdr.php. */
@@ -520,6 +521,52 @@ describe('chef du mess', () => {
     await next(crew, 'chef', (m) => m.cook > 0)
     const left = next(crew, 'chef', (m) => m.cook === 0)
     cook.disconnect()
+    await left
+  })
+})
+
+describe('mécano du hangar', () => {
+  test('le mécano est le même pour tous ; lui parler l\'arrête, l\'aider le retient au nez du Krait', async () => {
+    const helper = client({ auth: { name: 'CMDR Apprenti' } })
+    const crew = client({ auth: { name: 'CMDR Badaud' } })
+    const first = (await welcome(helper)).mechanic
+    const seen = (await welcome(crew)).mechanic
+    assert.equal(first.hold, 0)
+    assert.equal(first.help, 0)
+    assert.ok(Math.abs(seen.tau - first.tau) < 0.5)
+    // Hors du hangar (dans les quartiers), on ne l'aide pas, et on ne lui parle pas.
+    helper.emit('mech:help', { on: true })
+    helper.emit('mech:talk')
+    assert.equal(await receives(crew, 'mechanic', 150), false)
+    // À côté de lui : il s'arrête, face au joueur, pour tous.
+    const at = mechAt(first.tau + 0.4)
+    helper.emit('state', { x: at.x, z: at.z, yaw: 0, level: MECH_LEVEL, anim: 'idle' })
+    const talked = next(crew, 'mechanic')
+    helper.emit('mech:talk')
+    const held = await talked
+    assert.ok(held.hold > MECH_HOLD - 0.5)
+    assert.deepEqual(held.face, { x: at.x, z: at.z })
+    // Une révision, depuis le hangar : il attend au nez du Krait, pour tous, le temps de la révision et du retour.
+    helper.emit('state', { x: 29, z: 9, yaw: 0, level: MECH_LEVEL, anim: 'idle' })
+    const helping = next(crew, 'mechanic', (m) => m.help > 0)
+    helper.emit('mech:help', { on: true })
+    const job = await helping
+    assert.ok(job.help > MECH_HELP - 1)
+    // Figé le temps de la révision, plus celui du retour (nul s'il était justement devant le nez du Krait).
+    assert.ok(job.hold >= job.help)
+    // Un nouveau venu le trouve au nez du Krait.
+    const late = client({ auth: { name: 'CMDR Retardataire' } })
+    assert.ok((await welcome(late)).mechanic.help > 0)
+    // La révision finie, il repart : plus de révision, juste le temps de revenir.
+    const done = next(crew, 'mechanic', (m) => m.help === 0)
+    helper.emit('mech:help', { on: false })
+    const back = await done
+    assert.ok(back.hold >= 0 && back.hold < 25)
+    // Un aide qui s'en va sans finir libère le mécano aussi.
+    helper.emit('mech:help', { on: true })
+    await next(crew, 'mechanic', (m) => m.help > 0)
+    const left = next(crew, 'mechanic', (m) => m.help === 0)
+    helper.disconnect()
     await left
   })
 })

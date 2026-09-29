@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { renderQuality } from './quality'
-import { station, themes, type StationModel, type Theme, type ThemeMaterials } from './assets'
+import { floorFinishes, station, themes, type StationModel, type Theme, type ThemeMaterials } from './assets'
 import { CabinView } from './cabin/view'
 import { DoorHints } from './door-hints'
 import { makeFadeable } from './fade'
@@ -16,6 +16,7 @@ import type { Doorway } from './physics'
 import { DOOR_GAP } from '../shared/sight.js'
 import { shipMapOptions } from '../shared/ship-layouts.js'
 import { placeSeats, seatAction, seatsOf, type SeatSpot } from './seats'
+import { ForceShield, type ShieldPane } from './shield'
 
 /** Rectangle de collision dans le plan XZ. */
 export interface Box2 {
@@ -39,6 +40,11 @@ export interface Interactable {
   control?: FurnitureControl
   /** Meuble et variante (le jeu d'une borne, par exemple). */
   furniture?: { model: string; label?: string }
+  /**
+   * Installé ici, c'est ce meuble-là qui ne s'estompe pas (son centre) : le Krait, pour son
+   * escabeau, puisqu'on s'assoit dans le cockpit. Par défaut, le meuble lui-même.
+   */
+  keep?: THREE.Vector3
 }
 
 /** Sons d'ambiance d'un pont : ceux des meubles, plus les bips des consoles du cockpit. */
@@ -251,6 +257,8 @@ export class Deck {
   readonly posts: { x: number; z: number }[] = []
   /** Pans de verrière (milieu de l'arête). */
   private readonly glass: { x: number; z: number; alongX: boolean }[] = []
+  /** Boucliers des hangars ouverts sur l'espace (cf. `shield` dans levels.ts). */
+  private readonly shields: ForceShield[] = []
 
   /** Appelé quand une porte s'ouvre ou se ferme (position monde). */
   onDoor?: (position: THREE.Vector3, open: boolean) => void
@@ -518,7 +526,8 @@ export class Deck {
         let model: StationModel = this.def.floors?.[room] ?? 'floor'
         // Quelques dalles à picots pour varier, sauf dans les quartiers (les tapis y sont posés à plat).
         if (model === 'floor' && this.def.theme !== 'cozy' && hash(x, z) % 9 === 0) model = 'floor-detail'
-        this.addStatic(this.place(model, x, FLOOR_Y, z), false)
+        const finish = this.def.floorFinish?.[room]
+        this.addStatic(this.place(model, x, FLOOR_Y, z, 0, finish ? floorFinishes[finish] : this.theme.shell), false)
       }
     }
   }
@@ -551,6 +560,8 @@ export class Deck {
 
   private buildWalls() {
     const built = new Set<string>()
+    /** Pans des boucliers, par pièce et par côté. */
+    const shieldPanes = new Map<string, ShieldPane[]>()
     // Nombre de murs touchant chaque sommet de la grille, par axe.
     const vertex = new Map<string, { h: number; v: number }>()
     const touch = (vx: number, vz: number, axis: 'h' | 'v') => {
@@ -588,7 +599,11 @@ export class Deck {
           if (exterior && (hsh % 1000) / 1000 < windowRate && !this.doorPocket(x, z, dir)) model = 'wall-window'
           else if (!exterior && hsh % 5 === 0) model = 'wall-pillar'
           const glazed = !!other && this.def.glazed?.some((pair) => pair.includes(room) && pair.includes(other))
-          if ((exterior && this.def.canopy?.[room]?.includes(dir)) || glazed) {
+          if (exterior && this.def.shield?.[room]?.includes(dir)) {
+            // Hangar ouvert sur l'espace : pas de mur, le champ de force (sa collision reste celle d'un mur).
+            const key = `${room}:${dir}`
+            shieldPanes.set(key, [...(shieldPanes.get(key) ?? []), { x: cx, z: cz, alongX }])
+          } else if ((exterior && this.def.canopy?.[room]?.includes(dir)) || glazed) {
             // Verrière, ou cloison vitrée : une allège, un bandeau, et du verre entre les deux.
             this.addFading(this.canopyFrame(cx, cz, alongX), new THREE.Vector3(cx, 0.5, cz))
             this.glass.push({ x: cx, z: cz, alongX })
@@ -626,6 +641,12 @@ export class Deck {
       this.colliders.push({ minX: vx - hs, maxX: vx + hs, minZ: vz - hs, maxZ: vz + hs })
     }
     if (this.glass.length) this.group.add(canopyGlass(this.glass))
+    for (const [key, panes] of shieldPanes) {
+      const d = DIRS[Number(key.split(':')[1])]
+      const shield = new ForceShield(panes, (d.dx + d.dz) as 1 | -1)
+      this.shields.push(shield)
+      this.group.add(shield.group)
+    }
   }
 
   /** Cadre d'un pan de verrière (arête de milieu cx, cz) : allège, bandeau orange, linteau. */
@@ -840,7 +861,8 @@ export class Deck {
       const seats = seatsOf(p.model, p.label)
       if (p.interact || seats || p.music) {
         const label = p.action ?? (seats ? seatAction(seats) : tr('Examiner', 'Examine'))
-        const it: Interactable = { object: this.pickVolume(box), position: center.clone().setY(0), label, text: p.interact, control, furniture: { model: p.model, label: p.label } }
+        const position = p.reach ? new THREE.Vector3(p.reach.x, 0, p.reach.z) : center.clone().setY(0)
+        const it: Interactable = { object: this.pickVolume(box), position, label, text: p.interact, control, furniture: { model: p.model, label: p.label } }
         if (seats) it.seats = (toward) => placeSeats(seats, p.x, p.z, rotY, toward).map((s) => ({ ...s, y: s.y + (p.y ?? 0) }))
         this.interactables.push(it)
       }
@@ -1014,6 +1036,7 @@ export class Deck {
     if (this.ceiling.visible && updateOccluders(this.ceilingOccluders, this.ceilingFades, { focus, toCamera, cabin: editing, keep }, fade)) this.ceilingFades.texture.needsUpdate = true
 
     this.glowMat.uniforms.uTime.value = this.time
+    for (const s of this.shields) s.update(dt, toCamera, this.ceiling.visible ? this.ceilingY : null)
     if (this.liftBeam && this.liftHalo && this.liftSign) {
       const beam = this.liftBeam.material as THREE.ShaderMaterial
       this.liftBoost = Math.max(0, this.liftBoost - dt * 0.8)

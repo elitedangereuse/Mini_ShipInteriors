@@ -1,6 +1,7 @@
 import type { StationModel } from './assets'
 import type { CustomModel } from './furniture'
 import { CINEMA_ROW_SEATS, CINEMA_SEAT_PITCH } from './furniture/cinema'
+import { KRAIT_LADDER_REACH, KRAIT_PILOT } from './furniture/hangar'
 import { tr } from './i18n'
 
 /*
@@ -58,6 +59,8 @@ export const SEATS: Partial<Record<CustomModel | StationModel, Seat[]>> = {
   // l'accoudoir et le HOTAS) : le siège est reculé d'autant (cf. PILOT_SEAT).
   'pilot-seat': [{ pose: 'pilot', x: 0, z: 0.06, y: 0.3, yaw: 0, from: [0, 0.5] }],
   'crew-seat': [sit(0, 0.05, 0.3)],
+  // Le cockpit du Krait du hangar : on grimpe sur l'escabeau, puis on se glisse dans le siège, face au nez.
+  'krait-ladder': [{ pose: 'pilot', x: 0, z: KRAIT_LADDER_REACH, y: KRAIT_PILOT.y, yaw: Math.PI, from: [0, 0.2] }],
   'command-chair': [sit(0, 0.06, 0.36)],
   'cozy-bed': [lie(-0.27, 0.02, 0.32, [-0.95, 0.12]), lie(0.27, 0.02, 0.32, [0.95, 0.12])],
   'bunk-bed': [lie(0, 0.1, 0.27, [0.55, 0.2]), lie(0, 0.1, 0.71, [0.55, 0.2])],

@@ -56,6 +56,13 @@ export interface ThemeMaterials {
 
 export const themes = {} as Record<Theme, ThemeMaterials>
 
+/**
+ * Sols repeints d'une pièce, quel que soit le thème du pont (cf. `floorFinish` dans levels.ts) :
+ * l'acier brossé argenté du hangar, qui accroche la lumière des projecteurs.
+ */
+export type FloorFinish = 'silver'
+export const floorFinishes = {} as Record<FloorFinish, THREE.Material>
+
 type Paint = (hsl: { h: number; s: number; l: number }, c: THREE.Color) => void
 
 const deg = (d: number) => d / 360
@@ -176,6 +183,17 @@ export async function preload(extra: string[], onProgress: (ratio: number) => vo
       furniture: painted(`${theme}-furniture`, p.furniture),
     }
   }
+  // Argent : les aciers clairs et bleutés, le jaune de chantier gardé, des reflets (Phong).
+  const silver = paint({
+    steel: (l, c) => set(c, 212, 0.07, 0.34 + l * 0.52),
+    accent: (l, c) => set(c, 44, 0.88, l * 0.82),
+    screen: (l, c) => set(c, 205, 0.2, 0.3 + l * 0.3),
+  })
+  floorFinishes.silver = new THREE.MeshPhongMaterial({
+    map: stationMaterial.map ? recolored(stationMaterial.map, 'silver-floor', silver) : null,
+    specular: '#8e9aab',
+    shininess: 60,
+  })
 }
 
 /** Instance d'un modèle statique (partage géométrie et matériau). */

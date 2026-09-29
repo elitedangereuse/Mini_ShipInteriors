@@ -9,6 +9,7 @@ import { COCKPIT } from './cockpit'
 import { COZY } from './cozy'
 import { DECOR } from './decor'
 import { ELITE } from './elite'
+import { HANGAR } from './hangar'
 import { compact, rng, type Builder, type Furniture, type Room } from './kit'
 import { KENNEY } from './kenney'
 import { KITCHEN } from './kitchen'
@@ -50,6 +51,7 @@ import { STUDIO } from './studio'
  * - studio.ts : le studio de Radio Dangereuse (table à trois micros, fauteuils, mousse acoustique, néon « ON AIR ») ;
  * - ljpc.ts : le labo du L.J.P.C. (tableau d'enquête, paillasse, échantillon, hologramme, James et Julia) ;
  * - voie.ts : le sanctuaire de la Voie (portail de Raxxla, Chroniques, icône de Salomé, Reliques, l'Adepte Supérieur) ;
+ * - hangar.ts : le hangar de la cale (le Krait Mk II, son escabeau, le pad, l'atelier de Nico le mécano, le pupitre du hangar) ;
  * - salvage.ts : la zone thargoïde (lobby du sas de la cale, casiers, colis, fusées, plateforme d'extraction) ;
  * - kenney.ts : le Furniture Kit de Kenney (salle de bain, cuisine, salon, chambre), pour les cabines ;
  * - retro.ts : écrans et consoles des cabines (télé cathodique, consoles, micro 8 bits, PC, cassettes) ;
@@ -60,7 +62,7 @@ import { STUDIO } from './studio'
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...COCKPIT, ...WORKSHOP, ...BAR, ...LEISURE, ...MEDICAL, ...KITCHEN, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...LISTENING, ...STUDIO, ...LJPC, ...VOIE, ...SALVAGE, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...COCKPIT, ...WORKSHOP, ...BAR, ...LEISURE, ...MEDICAL, ...KITCHEN, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...LISTENING, ...STUDIO, ...LJPC, ...VOIE, ...SALVAGE, ...HANGAR, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 

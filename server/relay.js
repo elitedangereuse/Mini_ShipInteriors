@@ -27,6 +27,11 @@
 // son chevet pour tout le bord, une consultation à la fois ; menée à son terme, elle lui laisse un
 // pansement que tout le bord voit un moment.
 //
+// Hangar : Nico, le mécano, fait la tournée du hangar de la cale autour du Krait (cf.
+// shared/mechanic.js), sur une horloge que le relais tient de même. Un joueur qui l'aide (une
+// révision du Krait) l'attire devant le nez du vaisseau pour tout le bord, tant qu'il travaille
+// (chaque étape relance l'attente), puis le mécano reprend sa tournée.
+//
 // Quartiers : chaque joueur a sa propre instance des quartiers du commandant (`cabin` : l'id du
 // joueur chez qui il se trouve, le sien par défaut). Un CMDR vérifié envoie l'aménagement des
 // siens (cf. cabin.js), et peut inviter un joueur connecté : celui-ci n'y entre qu'avec une
@@ -54,6 +59,7 @@ import { CHEF_COOK, CHEF_LEVEL, CHEF_PERIOD, CHEF_ROOM, CHEF_WAIT, chefAt, chefT
 import {
   NURSE_BEDS, NURSE_CARE, NURSE_CARE_MIN, NURSE_LEVEL, NURSE_PATCH, NURSE_PERIOD, NURSE_ROOM, bedOf, careNurse, holdNurse, nurseAt, nurseTime,
 } from '../shared/nurse.js'
+import { MECH_HELP, MECH_LEVEL, MECH_PERIOD, MECH_ROOM, MECH_WAIT, helpMech, holdMech, mechAt, mechTime } from '../shared/mechanic.js'
 import { HOME_SYSTEM, JUMP_CHARGE, JUMP_TRAVEL, PILOT_SEAT, nextSystem } from '../shared/systems.js'
 import { ZONE_LEVEL } from '../shared/salvage.js'
 
@@ -257,6 +263,41 @@ export function attachRelay(
     care = null
     return true
   }
+  /** Horloge de la tournée du mécano, vers qui il se tourne, et les révisions en cours (id du joueur -> fin, ms). */
+  let mech = { tau: Math.random() * MECH_PERIOD, at: Date.now(), holdUntil: 0 }
+  let mechFace = null
+  const helpers = new Map()
+  /** Fin de la dernière révision en cours (ms), 0 s'il n'y en a plus. */
+  const helpUntil = (now = Date.now()) => {
+    let until = 0
+    for (const [id, end] of helpers) {
+      if (end <= now) helpers.delete(id)
+      else until = Math.max(until, end)
+    }
+    return until
+  }
+  /** Où en est le mécano : instant de la tournée (s), arrêt restant (s), révision en cours (s), et vers qui il regarde. */
+  const mechState = (now = Date.now()) => {
+    const help = helpUntil(now)
+    return {
+      tau: mechTime(mech, now),
+      hold: Math.max(0, mech.holdUntil - now) / 1000,
+      help: Math.max(0, help - now) / 1000,
+      ...(mechFace && mech.holdUntil > now ? { face: mechFace } : {}),
+    }
+  }
+  /**
+   * Un aide se met à la révision ou avance d'une étape (`on`), ou s'en va : le mécano l'attend au
+   * nez du Krait, ou repart. Rend false si rien n'a changé.
+   */
+  const setHelp = (player, on, now = Date.now()) => {
+    if (on) {
+      helpers.set(player.id, now + MECH_HELP * 1000)
+      mechFace = { x: player.x, z: player.z }
+    } else if (!helpers.delete(player.id)) return false
+    mech = helpMech(mech, now, helpUntil(now))
+    return true
+  }
   /** Ce que joue le jukebox d'une instance, pour un joueur qui y arrive (track null : il se tait). */
   const musicOf = (instance) => {
     const m = music.get(instance)
@@ -381,6 +422,7 @@ export function attachRelay(
       patrol: patrolState(),
       chef: chefState(),
       nurse: nurseState(),
+      mechanic: mechState(),
       salvage: salvage.snapshot(),
     })
     socket.emit('cinema:state', cinema.snapshot())
@@ -400,6 +442,7 @@ export function attachRelay(
     let patrolBudget = 1
     let chefBudget = 3
     let nurseBudget = 3
+    let mechBudget = 3
     let salvageBudget = 20
     const refill = setInterval(() => {
       chatBudget = Math.min(5, chatBudget + 1)
@@ -411,6 +454,7 @@ export function attachRelay(
       patrolBudget = Math.min(1, patrolBudget + 0.5)
       chefBudget = Math.min(3, chefBudget + 1)
       nurseBudget = Math.min(3, nurseBudget + 1)
+      mechBudget = Math.min(3, mechBudget + 1)
       salvageBudget = Math.min(20, salvageBudget + 10)
     }, 1000)
 
@@ -636,6 +680,29 @@ export function attachRelay(
       io.emit('nurse', { id: player.id, ...nurseState(now) })
     })
 
+    // On parle au mécano : à portée de lui (à sa place dans la tournée, ou au nez du Krait s'il y attend un aide).
+    socket.on('mech:talk', () => {
+      if (mechBudget < 1) return
+      const now = Date.now()
+      const at = helpUntil(now) ? MECH_WAIT : mechAt(mechTime(mech, now))
+      if (!reaches(player, MECH_LEVEL, at) && !reaches(player, MECH_LEVEL, MECH_WAIT)) return
+      mechBudget--
+      mech = holdMech(mech, now)
+      mechFace = { x: player.x, z: player.z }
+      io.emit('mechanic', { id: player.id, ...mechState(now) })
+    })
+
+    // On aide le mécano (on : une étape de plus de la révision), ou on a fini (off) : seulement
+    // depuis le hangar ; finir ne coûte rien.
+    socket.on('mech:help', (raw) => {
+      const on = obj(raw).on === true
+      if (on) {
+        if (mechBudget < 1 || player.level !== MECH_LEVEL || MAPS.get(MECH_LEVEL).room(Math.round(player.x), Math.round(player.z)) !== MECH_ROOM) return
+        mechBudget--
+      }
+      if (setHelp(player, on)) io.emit('mechanic', { id: player.id, ...mechState() })
+    })
+
     // Saut FSD : installé dans le siège du pilote, et pas pendant un autre saut. Tout le bord le vit.
     socket.on('jump', () => {
       const now = Date.now()
@@ -716,6 +783,8 @@ export function attachRelay(
       music.delete(player.id)
       // Son commis parti, le chef reprend sa tournée.
       if (setCook(player, false)) socket.broadcast.emit('chef', { id: player.id, ...chefState() })
+      // Son aide parti, le mécano reprend sa tournée.
+      if (setHelp(player, false)) socket.broadcast.emit('mechanic', { id: player.id, ...mechState() })
       // Son patient parti, l'infirmière reprend sa tournée ; son pansement part avec lui.
       const hadPatch = patched.delete(player.id)
       if (endCare(player, false) || hadPatch) socket.broadcast.emit('nurse', { id: player.id, ...nurseState() })

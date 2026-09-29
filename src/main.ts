@@ -49,6 +49,8 @@ import { Patroller, SERGEANT, soldierRig, type ShipReport } from './patrol'
 import { CHEF, Chef, chefRig, type ChefReport } from './chef'
 import { Kitchen } from './kitchen'
 import { NURSE, Nurse, nurseRig, type NurseReport } from './nurse'
+import { DROID, MECHANIC, Mechanic, mechanicRig, type MechanicReport } from './mechanic'
+import { Hangar } from './hangar'
 import { Infirmary, Plasters } from './infirmary'
 import { menuOf } from './menu'
 import { RemotePlayer } from './remote'
@@ -775,6 +777,68 @@ nurse.onWork = (work) => {
   } else if (work === 'wash') sound.work('water', at)
 }
 
+// Nico, le mécano, fait le tour du Krait dans le hangar de la cale (cf. mechanic.ts), Boulon, son
+// drone, sur les talons ; au pupitre du hangar, on fait une révision avec lui (cf. hangar.ts).
+const holdDeck = deckById(-1)
+const mechanic = new Mechanic(await mechanicRig(), holdDeck)
+const hangar = new Hangar({
+  deck: holdDeck,
+  mechanic,
+  player,
+  here: () => deck,
+  seat: () => seating.current,
+  // Les autres joueurs assis aux commandes du Krait (la place de l'escabeau).
+  pilots: () => {
+    const cockpit = holdDeck.interactables.find((it) => it.furniture?.model === 'krait-ladder')?.seats?.(player.position)[0]
+    if (!cockpit) return 0
+    let n = 0
+    for (const r of remotes.values()) if (r.level === holdDeck.def.id && r.pose === 'pilot' && Math.hypot(r.target.x - cockpit.x, r.target.z - cockpit.z) < 0.3) n++
+    return n
+  },
+  show: (text) => dialog.show(text),
+  help: (on) => {
+    mechanic.help(player.position, on)
+    net.sendMechHelp(on)
+  },
+  work: (job) => startWork({ ...job, deck: holdDeck }),
+})
+/** Ce que le mécano sait quand on lui parle : le système, nos révisions, si l'on est dans le cockpit. */
+function mechanicReport(): MechanicReport {
+  return { system: SYSTEMS[systemView.id].name, done: hangar.done, aboard: hangar.aboardKrait }
+}
+holdDeck.interactables.push({
+  object: mechanic.root,
+  position: mechanic.position,
+  label: tr(`Parler à ${MECHANIC}`, `Talk to ${MECHANIC}`),
+  onInteract: () => {
+    player.interact()
+    net.sendEmote('interact')
+    // Pendant une révision, il rappelle l'étape ; sinon il bavarde.
+    const line = hangar.reminder() ?? mechanic.talk(player.position, mechanicReport())
+    if (!hangar.busy) net.sendMechTalk()
+    dialog.show(tr(`${MECHANIC} : « ${line} »`, `${MECHANIC}: “${line}”`))
+  },
+})
+bubbles.attach('mechanic', (out) => (holdDeck.group.visible ? mechanic.avatar.head(out) : null))
+bubbles.attach('droid', (out) => (holdDeck.group.visible ? mechanic.droid.getWorldPosition(out).setY(out.y + 0.18) : null))
+mechanic.onBark = (text) => {
+  if (holdDeck === deck) bubbles.say('mechanic', text)
+}
+mechanic.onBeep = (text) => {
+  if (holdDeck === deck) bubbles.say('droid', `${DROID} : ${text}`)
+}
+mechanic.onStep = () => {
+  if (holdDeck === deck) sound.play('step', mechanic.root.getWorldPosition(new THREE.Vector3()), { volume: 0.07, rate: 1.15 })
+}
+mechanic.onWork = (work) => {
+  if (holdDeck !== deck) return
+  const at = mechanic.root.getWorldPosition(new THREE.Vector3()).setY(holdDeck.y + 0.45)
+  if (work === 'weld') sound.sparks(at)
+  else if (work === 'refuel') sound.work('hiss', at)
+  else if (work === 'type' || work === 'scan') sound.work('scrub', at)
+  else sound.work('wrench', at)
+}
+
 // ------------------------------------------------------------------ compagnons
 
 /**
@@ -1100,6 +1164,8 @@ net.onMessage = (m) => {
       if (m.chef) chef.sync(m.chef)
       // Et Betty, dans sa tournée (ou au chevet d'un patient), avec les pansements du bord.
       if (m.nurse) nurse.sync(m.nurse)
+      // Et le mécano du hangar (ou devant le nez du Krait, si quelqu'un fait une révision avec lui).
+      if (m.mechanic) mechanic.sync(m.mechanic)
       // Le relais oublie tout à chaque connexion : la musique de nos quartiers, on la lui rend.
       const own = cabinMusic.playing
       if (own) net.sendMusic('cabin', own.track.id, own.x, own.z, own.position, own)
@@ -1147,6 +1213,7 @@ net.onMessage = (m) => {
         chef.greet(r.group.position, false)
         nurse.greet(r.group.position, false)
       }
+      if (m.emote === 'o7' && r.level === holdDeck.def.id) mechanic.greet(r.group.position, false)
       const def = EMOTES.find((e) => e.id === m.emote)
       if (def && r.level === deck.def.id) bubbles.emote(`p${m.id}`, def.icon)
       break
@@ -1186,6 +1253,11 @@ net.onMessage = (m) => {
       // Quelqu'un parle à Betty, l'appelle à son lit ou en repart (nous aussi : le relais recale sa tournée).
       nurse.sync(m)
       if (m.id !== net.id && patrolDeck === deck && m.hold > 0 && m.care === 0 && m.face) bubbles.say('nurse', '…')
+      break
+    case 'mechanic':
+      // Quelqu'un parle au mécano ou l'aide (nous aussi : le relais recale sa tournée).
+      mechanic.sync(m)
+      if (m.id !== net.id && holdDeck === deck && m.hold > 0 && m.help === 0) bubbles.say('mechanic', '…')
       break
     case 'jump':
       // Un pilote lance le saut FSD (nous, ou un autre) : tout le bord part. Dans la baie infestée,
@@ -3332,6 +3404,8 @@ function frame() {
   chef.update(world, patrolDeck === deck ? player.position : null, player.avatar.emoteId)
   nurse.update(world, patrolDeck === deck ? player.position : null, player.avatar.emoteId)
   infirmary.update()
+  mechanic.update(world, holdDeck === deck ? player.position : null, player.avatar.emoteId)
+  hangar.update(world)
   // Pansements de Betty : le nôtre, et ceux des autres.
   plasters.show(player.avatar, infirmary.patched(net.id))
   for (const r of remotes.values()) plasters.show(r.avatar, infirmary.patched(r.id))
@@ -3377,10 +3451,11 @@ function frame() {
   actors.get(deck)?.push(player.position)
   if (cometeHere) actors.get(catDeck)!.push(cat.root.position)
   actors.get(patrolDeck)!.push(sergeant.position, chef.position, nurse.position)
+  actors.get(holdDeck)!.push(mechanic.position)
   for (const c of companions.values()) actors.get(cabinDeck)!.push(c.pet.root.position)
   // Un joueur d'une autre instance des quartiers n'ouvre pas nos portes.
   for (const r of remotes.values()) if (r.group.visible || r.level !== deck.def.id) actors.get(deckById(r.level))?.push(r.group.position)
-  const keep = seating.current?.item.position ?? null
+  const keep = seating.current ? (seating.current.item.keep ?? seating.current.item.position) : null
   for (const d of decks) {
     d.doorHints = !photo.active && !fpsShown
     // Le plafond cacherait tout, vu de haut : on ne le voit que de l'intérieur.
@@ -3574,6 +3649,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, companions, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, salvage: zone, view: () => viewDeck },
+    __game: { renderer, sound, player, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, companions, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, salvage: zone, view: () => viewDeck },
   })
 }

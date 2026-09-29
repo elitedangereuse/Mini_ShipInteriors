@@ -10,6 +10,7 @@
 // &salute=x,y,z : l'angle du bras pour le salut ; &plaster : avec le pansement de Betty).
 // Avec ?thargoid : le Thargoïde de la zone thargoïde dans chacune de ses humeurs, sur place, à côté
 // d'un CMDR pour l'échelle (&dark : dans le noir, à la lampe frontale ; &at=1.2 : figé ; &only=chase,attack).
+// Avec ?mechanic : Nico, le mécano du hangar, et le Mini Character dont il est fait (mêmes options que ?nurse).
 // Avec ?nurse : Betty, l'infirmière, à côté du modèle d'origine (&walk : en marche ; &emote=interact ;
 // &cam=0,0.3,1&target=0,0.1,0&zoom=0.5 : de face, de près).
 import * as THREE from 'three'
@@ -24,6 +25,7 @@ import { placeSeats, SEATS } from '../seats'
 import { tempo } from '../tempo'
 import { ThargoidBody, type ThargoidMood } from '../salvage/thargoid'
 import { nurseRig } from '../nurse'
+import { mechanicRig } from '../mechanic'
 import { Plasters } from '../infirmary'
 
 const renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -68,14 +70,15 @@ if (params.has('catalogue')) showCatalogue()
 else if (params.has('revetements')) showFinishes()
 else if (params.has('poses')) await showPoses()
 else if (params.has('nurse')) await showNurse()
+else if (params.has('mechanic')) await showNurse(true)
 else if (params.has('emote')) await showEmote(params.get('emote')!)
 else if (params.has('thargoid')) await showThargoid()
 else showModels()
 
 /** Betty, l'infirmière (cf. src/nurse.ts), et le Mini Character dont elle est faite. */
-async function showNurse() {
-  const betty = new Avatar(await nurseRig())
-  const base = new Avatar(await lookRig(parseLook('human.female.f')))
+async function showNurse(mechanic = false) {
+  const betty = new Avatar(mechanic ? await mechanicRig() : await nurseRig())
+  const base = new Avatar(await lookRig(parseLook(mechanic ? 'human.male.d' : 'human.female.f')))
   betty.root.position.set(-0.45, -0.35, 0)
   base.root.position.set(0.45, -0.35, 0)
   scene.add(betty.root, base.root)
