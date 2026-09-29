@@ -24,6 +24,7 @@ import { Wallet } from './economy/wallet'
 import { Sound } from './audio'
 import { Avatar, EMOTES } from './avatar'
 import { IsoCamera } from './camera'
+import { FirstPersonCamera } from './fps'
 import { Cat } from './cat'
 import { MAX_PETS, petRig, speciesOfItem, type Species } from './pets'
 import { Deck, type Interactable } from './deck'
@@ -44,6 +45,7 @@ import { overlapsAny, resolveCircle } from './physics'
 import { Player } from './player'
 import { renderQuality } from './quality'
 import { findReaction, REACTIONS, reactionImage } from './reactions'
+import { Patroller, SERGEANT, soldierRig, type ShipReport } from './patrol'
 import { RemotePlayer } from './remote'
 import { Seating, type Seated } from './seating'
 import { Starfield } from './starfield'
@@ -129,6 +131,15 @@ const scene = new THREE.Scene()
 const iso = new IsoCamera(innerWidth / innerHeight)
 const zoomParam = Number(new URLSearchParams(location.search).get('zoom'))
 if (zoomParam) iso.zoomBy(zoomParam / 5.5)
+// Vue subjective (bouton à côté du mode léger) : la vue isométrique reprend la main là où il faut
+// voir la scène de haut (aménagement, photo, pince, bar, cinéma), cf. `isoOnly`.
+const fps = new FirstPersonCamera(innerWidth / innerHeight)
+let fpsWanted = store.get('mini-shipinteriors-fps') === 'true'
+/** Vue subjective affichée à l'image courante. */
+let fpsShown = false
+/** Vue qui convertit les directions de l'écran en directions au sol, et caméra du rendu. */
+const view = () => (fpsShown ? fps : iso)
+const activeCamera = (): THREE.Camera => (fpsShown ? fps.camera : iso.camera)
 
 // Ciel et soleil : leurs couleurs changent d'un pont à l'autre (cf. `ambience` dans levels.ts).
 const hemi = new THREE.HemisphereLight(DEFAULT_AMBIENCE.sky, DEFAULT_AMBIENCE.ground, DEFAULT_AMBIENCE.hemi)
@@ -239,7 +250,7 @@ let deck = cabinDeck
  * Pont affiché : celui du joueur, ou la baie de la zone thargoïde quand un capturé suit son
  * équipe par les caméras (le joueur, lui, reste au lobby).
  */
-let view = cabinDeck
+let viewDeck = cabinDeck
 /** Zone thargoïde : lobby, mission, caméras (créée une fois le relais prêt, cf. plus bas). */
 let salvage: SalvageClient | null = null
 
@@ -473,9 +484,9 @@ const lightsFrom = new THREE.Vector3(Infinity, 0, 0)
 function applyLights() {
   const focus = salvage?.watchTarget ?? player.position
   lightsFrom.copy(focus)
-  const near = view.lights.length <= lightPool.length
-    ? view.lights
-    : [...view.lights].sort((a, b) => a.position.distanceToSquared(focus) - b.position.distanceToSquared(focus)).slice(0, lightPool.length)
+  const near = viewDeck.lights.length <= lightPool.length
+    ? viewDeck.lights
+    : [...viewDeck.lights].sort((a, b) => a.position.distanceToSquared(focus) - b.position.distanceToSquared(focus)).slice(0, lightPool.length)
   for (const [i, l] of lightPool.entries()) {
     const def = (pooled[i] = near[i])
     l.intensity = def ? def.intensity : 0
@@ -486,7 +497,7 @@ function applyLights() {
   }
 }
 cabin.onLights = () => {
-  if (view === cabinDeck) applyLights()
+  if (viewDeck === cabinDeck) applyLights()
 }
 /** Phrase d'une interaction (une au hasard dans une liste). */
 function showText(text: Interactable['text']) {
@@ -511,7 +522,7 @@ cabin.onMusic = (position, text, model) => {
 /** Lumière d'ambiance du pont, baissée dans les pièces tamisées (cf. `dim` dans levels.ts). */
 let dimming = 1
 function applyAmbience() {
-  const ambience = view.def.ambience ?? DEFAULT_AMBIENCE
+  const ambience = viewDeck.def.ambience ?? DEFAULT_AMBIENCE
   hemi.intensity = ambience.hemi * dimming
   sun.intensity = ambience.sunIntensity * dimming
 }
@@ -531,21 +542,21 @@ function setDeck(next: Deck) {
 
 /** Affiche un pont (celui du joueur, ou la baie suivie par les caméras) : ses murs, ses lumières, son ambiance. */
 function setView(next: Deck) {
-  view = next
-  for (const d of decks) d.group.visible = d === view
-  if (salvage?.deck) salvage.deck.group.visible = salvage.deck === view
+  viewDeck = next
+  for (const d of decks) d.group.visible = d === viewDeck
+  if (salvage?.deck) salvage.deck.group.visible = salvage.deck === viewDeck
   applyLights()
-  const ambience = view.def.ambience ?? DEFAULT_AMBIENCE
+  const ambience = viewDeck.def.ambience ?? DEFAULT_AMBIENCE
   hemi.color.set(ambience.sky)
   hemi.groundColor.set(ambience.ground)
   sun.color.set(ambience.sun)
   applyAmbience()
-  sun.position.set(SHIP_CENTER.x - 6, view.y + 14, SHIP_CENTER.z + 4)
-  sun.target.position.set(SHIP_CENTER.x, view.y, SHIP_CENTER.z)
+  sun.position.set(SHIP_CENTER.x - 6, viewDeck.y + 14, SHIP_CENTER.z + 4)
+  sun.target.position.set(SHIP_CENTER.x, viewDeck.y, SHIP_CENTER.z)
   // Les machines d'un pont ne s'entendent que sur ce pont.
-  for (const h of hums) sound.fade(h.gain, h.deck === view ? h.volume : 0)
+  for (const h of hums) sound.fade(h.gain, h.deck === viewDeck ? h.volume : 0)
   // La baie infestée est hors du vaisseau : ni étoiles, ni système par les verrières.
-  stars.group.visible = systemView.group.visible = !view.def.zone
+  stars.group.visible = systemView.group.visible = !viewDeck.def.zone
 }
 setDeck(deck)
 
@@ -604,6 +615,41 @@ moustache.onMeow = (purr) => {
   sound.meow(p)
   if (purr) sound.purr(p, 2.6)
   bubbles.say('moustache', purr ? tr('Mrrrou…', 'Purrr…') : tr('Mrrraou !', 'Mrrrow!'), purr ? 'heart' : undefined)
+}
+
+// Le sergent Rourke, de la sécurité, fait sa ronde sur le pont principal (cf. patrol.ts).
+const patrolDeck = deckById(0)
+const sergeant = new Patroller(await soldierRig(), patrolDeck)
+/** Ce que le sergent sait du bord : le système, et les tâches en attente sur les ponts. */
+function shipReport(): ShipReport {
+  const tasks = [...board.live.values()]
+  const quarters = cabinDeck.def.cabin?.room
+  return {
+    system: SYSTEMS[systemView.id].name,
+    room: patrolDeck.roomName(sergeant.position.x, sergeant.position.z),
+    deck: tasks.filter((t) => t.deck === patrolDeck).map((t) => ({ kind: t.spot.task, room: patrolDeck.roomName(t.item.position.x, t.item.position.z) })),
+    quarters: tasks.filter((t) => t.deck === cabinDeck && cabinDeck.map.room(Math.round(t.item.position.x), Math.round(t.item.position.z)) === quarters).map((t) => t.spot.task),
+    hold: tasks.filter((t) => t.deck.def.id === -1).length,
+  }
+}
+patrolDeck.interactables.push({
+  object: sergeant.root,
+  position: sergeant.position,
+  label: tr('Parler au sergent Rourke', 'Talk to Sergeant Rourke'),
+  onInteract: () => {
+    player.interact()
+    net.sendEmote('interact')
+    const line = sergeant.talk(player.position, shipReport())
+    net.sendPatrolTalk()
+    dialog.show(tr(`${SERGEANT} : « ${line} »`, `${SERGEANT}: “${line}”`))
+  },
+})
+bubbles.attach('sergeant', (out) => (patrolDeck.group.visible ? sergeant.avatar.head(out) : null))
+sergeant.onBark = (text) => {
+  if (patrolDeck === deck) bubbles.say('sergeant', text)
+}
+sergeant.onStep = () => {
+  if (patrolDeck === deck) sound.play('step', sergeant.root.getWorldPosition(new THREE.Vector3()), { volume: 0.08, rate: 0.8 })
 }
 
 // ------------------------------------------------------------------ compagnons
@@ -798,7 +844,7 @@ salvage = new SalvageClient({
   verified: () => verified,
   pointed: () => (hover.visible ? { x: hover.position.x, z: hover.position.z } : null),
   project: (p) => {
-    screenPos.copy(p).project(iso.camera)
+    screenPos.copy(p).project(activeCamera())
     return { x: ((screenPos.x + 1) / 2) * innerWidth, y: ((1 - screenPos.y) / 2) * innerHeight }
   },
 })
@@ -923,6 +969,8 @@ net.onMessage = (m) => {
       if (m.hold) applyMusic(m.hold)
       // Le système où se trouve le vaisseau, le même pour tout le bord.
       if (m.system && !jumping) systemView.set(m.system)
+      // Le sergent en est au même point de sa ronde pour tout le bord.
+      if (m.patrol) sergeant.sync(m.patrol)
       // Le relais oublie tout à chaque connexion : la musique de nos quartiers, on la lui rend.
       const own = cabinMusic.playing
       if (own) net.sendMusic('cabin', own.track.id, own.x, own.z, own.position, own)
@@ -964,6 +1012,8 @@ net.onMessage = (m) => {
         break
       }
       r.emote(m.emote)
+      // Un salut à côté du sergent : il le rend (chacun le voit, le calcul est le même partout).
+      if (m.emote === 'o7' && r.level === patrolDeck.def.id) sergeant.greet(r.group.position, false)
       const def = EMOTES.find((e) => e.id === m.emote)
       if (def && r.level === deck.def.id) bubbles.emote(`p${m.id}`, def.icon)
       break
@@ -989,10 +1039,15 @@ net.onMessage = (m) => {
       }
       break
     }
+    case 'patrol':
+      // Quelqu'un parle au sergent (nous aussi : le relais recale l'arrêt) ; les autres le voient répondre.
+      sergeant.sync(m)
+      if (m.id !== net.id && patrolDeck === deck) bubbles.say('sergeant', '…')
+      break
     case 'jump':
       // Un pilote lance le saut FSD (nous, ou un autre) : tout le bord part. Dans la baie infestée,
       // on ne le vit pas ; on retrouvera le vaisseau dans son nouveau système.
-      if (deck.def.zone || view.def.zone) systemView.set(m.system)
+      if (deck.def.zone || viewDeck.def.zone) systemView.set(m.system)
       else void playJump(m.system, m.id === net.id ? null : m.name)
       break
     case 'music': {
@@ -1607,8 +1662,8 @@ const myCabin = () => visiting?.host ?? net.id
 /** Un autre joueur est-il visible ? Dans des quartiers, seulement s'il est dans la même instance. */
 function sees(r: RemotePlayer): boolean {
   // Dans la baie infestée (ou par les caméras) : seulement ses coéquipiers, hors des casiers.
-  if (r.level === ZONE_LEVEL) return !!view.def.zone && !!salvage?.sees(r.id)
-  if (r.level !== view.def.id || view !== deck) return false
+  if (r.level === ZONE_LEVEL) return !!viewDeck.def.zone && !!salvage?.sees(r.id)
+  if (r.level !== viewDeck.def.id || viewDeck !== deck) return false
   return !inCabin(r.level, r.group.position.x, r.group.position.z) || r.cabin === myCabin()
 }
 
@@ -1888,7 +1943,8 @@ addEventListener('keydown', (e) => {
     return wardrobe.close(false)
   }
   keys.add(e.code)
-  if (e.code === 'KeyR') iso.rotate(e.shiftKey ? -1 : 1)
+  if (e.code === 'KeyR' && !fpsShown) iso.rotate(e.shiftKey ? -1 : 1)
+  if (e.code === 'KeyV' && !editing()) return toggleFps()
   if (e.code === 'KeyB') return editing() ? closeEditor() : void openEditor()
   if (e.code === 'KeyM') {
     sound.toggleMute()
@@ -1929,7 +1985,7 @@ function keyboardDirection(): THREE.Vector3 {
   const sx = (on('KeyD', 'ArrowRight') ? 1 : 0) - (on('KeyA', 'ArrowLeft') ? 1 : 0)
   const sy = (on('KeyW', 'ArrowUp') ? 1 : 0) - (on('KeyS', 'ArrowDown') ? 1 : 0)
   if (!sx && !sy) return inputDir
-  return iso.screenToGround(sx, sy, inputDir).normalize()
+  return view().screenToGround(sx, sy, inputDir).normalize()
 }
 
 function updateGamepad(dt: number): GamepadInput {
@@ -1989,16 +2045,21 @@ function updateGamepad(dt: number): GamepadInput {
   }
   if (pad.help) $('help').hidden = !$('help').hidden
   if (riding || wardrobe.isOpen) return pad
-  if (pad.rotateLeft) iso.rotate(-1)
-  if (pad.rotateRight) iso.rotate(1)
-  if (pad.lookX || pad.lookY) iso.orbit(-pad.lookX * dt * 1.8, pad.lookY * dt * 1.2)
-  if (pad.zoom) iso.zoomBy(Math.exp(pad.zoom * dt))
   if (zone.frozen) {
-    // Caméras alliées : gauche, droite pour changer de coéquipier ; B pour les quitter.
+    // Caméras alliées : gauche, droite pour changer de coéquipier ; A pour les quitter. Caché
+    // dans un casier : A pour en sortir.
     if (pad.rotateLeft) zone.keyDown(new KeyboardEvent('keydown', { code: 'ArrowLeft' }))
     if (pad.rotateRight) zone.keyDown(new KeyboardEvent('keydown', { code: 'ArrowRight' }))
     if (pad.interact) zone.keyDown(new KeyboardEvent('keydown', { code: 'KeyE' }))
     return pad
+  }
+  if (fpsShown) {
+    if (pad.lookX || pad.lookY) fps.look(-pad.lookX * dt * 2.4, -pad.lookY * dt * 1.8)
+  } else {
+    if (pad.rotateLeft) iso.rotate(-1)
+    if (pad.rotateRight) iso.rotate(1)
+    if (pad.lookX || pad.lookY) iso.orbit(-pad.lookX * dt * 1.8, pad.lookY * dt * 1.2)
+    if (pad.zoom) iso.zoomBy(Math.exp(pad.zoom * dt))
   }
   if (seating.current) {
     if (pad.interact && seating.settled) seating.stand()
@@ -2012,12 +2073,12 @@ function movementDirection(pad: GamepadInput): THREE.Vector3 {
   const input = keyboardDirection()
   if (chat.typing || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || wardrobe.isOpen || editing() || photo.active || zone.frozen || zone.panelOpen) return input
   // Le clavier reste prioritaire lorsqu'une touche de déplacement est maintenue.
-  if (input.lengthSq() === 0) iso.screenToGround(pad.moveX, -pad.moveY, input)
+  if (input.lengthSq() === 0) view().screenToGround(pad.moveX, -pad.moveY, input)
   return input
 }
 
 addEventListener('wheel', (e) => {
-  if (!barPanel.isOpen && !cinemaRoom.isOpen) iso.zoomBy(Math.exp(e.deltaY * 0.001))
+  if (!barPanel.isOpen && !cinemaRoom.isOpen && !fpsShown) iso.zoomBy(Math.exp(e.deltaY * 0.001))
 }, { passive: true })
 $('rot-left').onclick = () => iso.rotate(-1)
 $('rot-right').onclick = () => iso.rotate(1)
@@ -2051,6 +2112,39 @@ $('light-mode').onclick = () => {
 }
 updateLightMode()
 
+function updateFpsButton() {
+  const button = $('fps-view')
+  button.setAttribute('aria-pressed', String(fpsWanted))
+  button.title = tr(fpsWanted ? 'Vue subjective active · revenir à la vue isométrique (V)' : 'Vue subjective (V)', fpsWanted ? 'First-person view on · back to isometric view (V)' : 'First-person view (V)')
+  button.setAttribute('aria-label', button.title)
+}
+function toggleFps() {
+  fpsWanted = !fpsWanted
+  store.set('mini-shipinteriors-fps', String(fpsWanted))
+  updateFpsButton()
+  // Le clic ou la touche qui active la vue suffit à capturer le curseur.
+  if (fpsWanted && !isoOnly() && !needsCursor() && matchMedia('(pointer: fine)').matches) lockCursor()
+}
+$('fps-view').onclick = () => toggleFps()
+updateFpsButton()
+
+/** Là, il faut voir la scène de haut : la vue isométrique reprend la main, même en vue subjective. */
+function isoOnly(): boolean {
+  // Les caméras alliées de la zone thargoïde suivent un coéquipier, de haut.
+  return editing() || photo.active || !!claw || barPanel.isOpen || cinemaRoom.isOpen || mediaRoom.isOpen || !!zone.watchTarget
+}
+/** Occupé (installé, en emote, au travail…) : en vue subjective, la caméra passe derrière le personnage. */
+function busyBody(): boolean {
+  return !!seating.current || player.gliding || !!working || gym.active || riding || wardrobe.isOpen || player.avatar.emoteId !== null
+}
+/** Passage d'une vue à l'autre : un bref fondu au noir cache la bascule de projection. */
+function curtain() {
+  const el = $('view-curtain')
+  el.classList.remove('lift')
+  void el.offsetWidth
+  el.classList.add('lift')
+}
+
 // Sprint auto : évite de maintenir Maj, sans autre avantage (même vitesse, mêmes pas) ; Maj ou L3 font alors marcher.
 let autoSprint = store.get('mini-shipinteriors-autosprint') === 'true'
 function updateAutoSprint() {
@@ -2079,9 +2173,9 @@ const groundHit = new THREE.Vector3()
 const pointer = new THREE.Vector2()
 const canvas = renderer.domElement
 
-function pick(e: PointerEvent): { tile: Tile | null; item: Interactable | null; point: THREE.Vector3 | null } {
+function pick(e: { clientX: number; clientY: number }): { tile: Tile | null; item: Interactable | null; point: THREE.Vector3 | null } {
   pointer.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1)
-  raycaster.setFromCamera(pointer, iso.camera)
+  raycaster.setFromCamera(pointer, activeCamera())
   const hits = raycaster.intersectObjects(deck.interactables.filter((i) => !hiddenRestrictedItem(i)).map((i) => i.object), true)
   let item: Interactable | null = null
   if (hits.length) {
@@ -2113,23 +2207,26 @@ function processHover() {
   const { tile, item } = pick(pendingMove)
   pendingMove = null
   canvas.style.cursor = item ? 'pointer' : 'default'
-  hover.visible = !!tile && deck.pathfinder.walkable(tile.x, tile.z)
+  hover.visible = !fpsShown && !!tile && deck.pathfinder.walkable(tile.x, tile.z)
   if (tile) hover.position.set(tile.x, deck.y + 0.01, tile.z)
 }
 
 // Caméra libre : clic droit ou clic molette maintenu, puis glisser. Horizontalement on tourne
 // autour du personnage, verticalement on incline la vue ; avec Maj, on la fait glisser.
 // R (ou les boutons de rotation) ramène la vue isométrique.
-let freeLook: { id: number; x: number; y: number } | null = null
+// En vue subjective, le clic gauche glissé tourne aussi le regard ; sans glisser, c'est un clic.
+let freeLook: { id: number; x: number; y: number; button: number; moved: number } | null = null
 canvas.addEventListener('contextmenu', (e) => e.preventDefault())
 // Pas de défilement automatique au clic molette.
 canvas.addEventListener('mousedown', (e) => {
   if (e.button === 1) e.preventDefault()
 })
 canvas.addEventListener('pointerdown', (e) => {
-  if (e.button !== 1 && e.button !== 2) return
+  // Vue subjective à la souris : le curseur est capturé sur la mire (cf. lockCursor).
+  if (fpsShown && e.pointerType === 'mouse') return
+  if (e.button !== 1 && e.button !== 2 && !(e.button === 0 && fpsShown)) return
   e.preventDefault()
-  freeLook = { id: e.pointerId, x: e.clientX, y: e.clientY }
+  freeLook = { id: e.pointerId, x: e.clientX, y: e.clientY, button: e.button, moved: 0 }
   try {
     canvas.setPointerCapture(e.pointerId)
   } catch {}
@@ -2141,14 +2238,18 @@ canvas.addEventListener('pointermove', (e) => {
   const dx = e.clientX - freeLook.x, dy = e.clientY - freeLook.y
   freeLook.x = e.clientX
   freeLook.y = e.clientY
-  if (e.shiftKey) iso.pan(dx, dy, innerHeight)
+  freeLook.moved += Math.abs(dx) + Math.abs(dy)
+  if (fpsShown) fps.look(-dx * 0.005, -dy * 0.004)
+  else if (e.shiftKey) iso.pan(dx, dy, innerHeight)
   else iso.orbit(-dx * 0.008, dy * 0.006)
 })
 function endFreeLook(e: PointerEvent) {
   if (!freeLook || e.pointerId !== freeLook.id) return
+  const tap = freeLook.button === 0 && freeLook.moved < 6
   freeLook = null
   if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId)
   canvas.style.cursor = 'default'
+  if (tap && e.type === 'pointerup' && fpsShown) click(e)
 }
 canvas.addEventListener('pointerup', endFreeLook)
 canvas.addEventListener('pointercancel', endFreeLook)
@@ -2179,7 +2280,42 @@ addEventListener(
 )
 
 canvas.addEventListener('pointerdown', (e) => {
-  if (e.button !== 0 || riding || gym.active || zone.frozen) return
+  if (fpsShown && e.pointerType === 'mouse') {
+    // Premier clic : le curseur est capturé ; ensuite, le clic gauche vise ce qui est sous la mire.
+    if (!cursorLocked()) lockCursor()
+    else if (e.button === 0) click(e, screenCenter())
+    return
+  }
+  // Vue subjective au doigt : le clic part au relâchement, s'il n'a pas servi à tourner le regard.
+  if (e.button === 0 && !fpsShown) click(e)
+})
+
+// Vue subjective à la souris : le curseur disparaît, bloqué sur la mire, et la souris tourne
+// le regard sans limite. Échap le libère (le navigateur s'en charge) ; un panneau, le chat ou
+// le retour à la vue isométrique aussi (cf. frame).
+const cursorLocked = () => document.pointerLockElement === canvas
+const screenCenter = () => ({ clientX: innerWidth / 2, clientY: innerHeight / 2 })
+function lockCursor() {
+  try {
+    ;(canvas.requestPointerLock() as unknown as Promise<void> | undefined)?.catch?.(() => {})
+  } catch {}
+}
+function unlockCursor() {
+  if (cursorLocked()) document.exitPointerLock()
+}
+/** Ce qui se manipule au curseur : on le rend. */
+function needsCursor(): boolean {
+  return chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || inviteMenu.isOpen || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen
+}
+document.addEventListener('pointerlockchange', () => document.body.classList.toggle('fps-locked', cursorLocked()))
+document.addEventListener('mousemove', (e) => {
+  if (cursorLocked() && fpsShown) fps.look(-e.movementX * 0.0025, -e.movementY * 0.0025)
+})
+const crosshair = $('fps-crosshair')
+
+function click(e: PointerEvent, at: { clientX: number; clientY: number } = e) {
+  // Caché dans un casier, capturé, derrière les caméras : le clic ne fait rien.
+  if (riding || gym.active || zone.frozen) return
   if (editing()) {
     // Objet glissé jusque sous le catalogue : il le relâche quand même dans le mode aménagement.
     try {
@@ -2189,7 +2325,7 @@ canvas.addEventListener('pointerdown', (e) => {
   }
   if (wardrobe.isOpen) return wardrobe.close(false)
   stopWork()
-  const { tile, item, point } = pick(e)
+  const { tile, item, point } = pick(at)
   // Mode photo : un clic place le personnage, sans rien déclencher (une borne s'ouvrirait par-dessus).
   if (photo.active) {
     if (tile && !seating.current) goTo(tile)
@@ -2204,7 +2340,7 @@ canvas.addEventListener('pointerdown', (e) => {
   }
   if (item) return goInteract(item, point)
   if (tile) goTo(tile)
-})
+}
 
 function playerTile(): Tile {
   return { x: Math.round(player.position.x), z: Math.round(player.position.z) }
@@ -2789,7 +2925,7 @@ function workStep(dt: number) {
     else sound.work(noise, at)
   }
   progressFill.style.width = `${Math.min(100, (w.t / w.duration) * 100).toFixed(1)}%`
-  screenPos.set(w.task.item.position.x, w.task.deck.y + 1.05, w.task.item.position.z).project(iso.camera)
+  screenPos.set(w.task.item.position.x, w.task.deck.y + 1.05, w.task.item.position.z).project(activeCamera())
   progressEl.style.transform = `translate(${(((screenPos.x + 1) / 2) * innerWidth).toFixed(1)}px, ${(((1 - screenPos.y) / 2) * innerHeight).toFixed(1)}px) translate(-50%, -100%)`
   if (w.t >= w.duration) void finishTask(w.task)
 }
@@ -2874,6 +3010,7 @@ let currentRoom = ''
 const timer = new THREE.Timer()
 timer.connect(document)
 const toCam = new THREE.Vector3()
+const fpsHead = new THREE.Vector3()
 const screenPos = new THREE.Vector3()
 const actors = new Map<Deck, THREE.Vector3[]>(decks.map((d) => [d, []]))
 let perfTime = 0
@@ -2893,6 +3030,7 @@ function frame() {
   const dt = Math.min(timer.getDelta(), 0.05)
   gym.update()
   const pad = updateGamepad(dt)
+  if (cursorLocked() && (!fpsWanted || isoOnly() || needsCursor())) unlockCursor()
   // Borne d'arcade ouverte : elle couvre l'écran, le vaisseau reste figé derrière (dernière image),
   // et la borne a toute la machine pour elle.
   if (arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen) {
@@ -2928,6 +3066,8 @@ function frame() {
   // Mode photo, instant figé : personnages, meubles et étoiles s'arrêtent ; la caméra, non.
   const world = photo.frozen ? 0 : dt
   if (!editing() && !photo.active) processHover()
+  // Mire sur un objet utilisable : elle s'allume.
+  crosshair.classList.toggle('aim', fpsShown && cursorLocked() && !!pick(screenCenter()).item)
   player.update(world, input, zone.sprint(autoSprint !== (pad.sprint || keys.has('ShiftLeft') || keys.has('ShiftRight'))))
   cocktailEffects.update(world)
 
@@ -2939,7 +3079,7 @@ function frame() {
   // Zone thargoïde : la mission (ennemis, objets, vue, endurance) ; le joueur caché dans un casier,
   // ou resté au lobby pendant qu'il suit son équipe, ne se voit pas.
   zone.update(dt)
-  player.root.visible = view === deck && !zone.hiding
+  player.root.visible = viewDeck === deck && !zone.hiding
   flushes.update(world)
   // Quelqu'un au micro du studio (nous, ou un autre) : le néon « ON AIR » s'allume.
   studio.onAir = studioLive()
@@ -2947,6 +3087,7 @@ function frame() {
   syncCompanions()
   for (const c of companions.values()) c.pet.update(world, cabinDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
   moustache.update(world, labDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
+  sergeant.update(world, patrolDeck === deck ? player.position : null, player.avatar.emoteId)
 
   // Chez Jacques, on garde le joueur et le barman ensemble dans le cadre.
   if (barPanel.isOpen && deck.def.id === -1) {
@@ -2963,20 +3104,39 @@ function frame() {
     iso.camera.updateMatrixWorld()
     barPanel.place(iso.camera, player.position, jacquesAt)
   }
-  iso.toCamera(toCam)
-  document.body.classList.toggle('camera-rotating', iso.rotating)
+  // Vue subjective : dans les yeux du personnage, derrière lui quand il est occupé.
+  const subjective = fpsWanted && !isoOnly()
+  if (subjective !== fpsShown) {
+    fpsShown = subjective
+    curtain()
+    document.body.classList.toggle('fps-view', fpsShown)
+    if (fpsShown) {
+      fps.align(iso.angle)
+      fps.thirdPerson = busyBody()
+      fps.snap()
+      hover.visible = false
+    }
+  }
+  if (fpsShown) {
+    fps.thirdPerson = busyBody()
+    fps.update(dt, player.avatar.head(fpsHead))
+    fps.toCamera(toCam)
+  } else iso.toCamera(toCam)
+  player.avatar.root.visible = !fpsShown || fps.showsBody
+  document.body.classList.toggle('camera-rotating', !fpsShown && iso.rotating)
 
   // Qui se trouve sur quel pont (pour ouvrir les portes).
   for (const list of actors.values()) list.length = 0
   actors.get(deck)?.push(player.position)
   if (cometeHere) actors.get(catDeck)!.push(cat.root.position)
+  actors.get(patrolDeck)!.push(sergeant.position)
   for (const c of companions.values()) actors.get(cabinDeck)!.push(c.pet.root.position)
   // Un joueur d'une autre instance des quartiers n'ouvre pas nos portes.
   for (const r of remotes.values()) if (r.group.visible || r.level !== deck.def.id) actors.get(deckById(r.level))?.push(r.group.position)
   const keep = seating.current?.item.position ?? null
   for (const d of decks) {
-    d.doorHints = !photo.active
-    d.update(world, actors.get(d)!, d === view ? player.position : null, toCam, editing() && d === cabinDeck, keep, dt)
+    d.doorHints = !photo.active && !fpsShown
+    d.update(world, actors.get(d)!, d === viewDeck ? player.position : null, toCam, editing() && d === cabinDeck, keep, dt)
   }
   // La baie infestée : ses portes s'ouvrent devant l'équipe ; ses murs s'estompent devant le joueur
   // (ou devant le coéquipier que suit la caméra).
@@ -2984,7 +3144,7 @@ function frame() {
   if (bay) {
     const inside = [...remotes.values()].filter((r) => r.level === ZONE_LEVEL && r.group.visible).map((r) => r.group.position)
     if (deck === bay) inside.push(player.position)
-    bay.update(world, inside, view === bay ? (zone.watchTarget ?? player.position) : null, toCam, false, null, dt)
+    bay.update(world, inside, viewDeck === bay ? (zone.watchTarget ?? player.position) : null, toCam, false, null, dt)
   }
   editor?.update(timer.getElapsed())
   // Tâches de bord : à l'heure chaque seconde, animées sur le pont affiché.
@@ -2997,15 +3157,15 @@ function frame() {
   creditsHud.update(dt)
 
   // Dans la baie infestée (ou par les caméras), ni étoiles ni système : on est hors du vaisseau.
-  if (!view.def.zone) {
+  if (!viewDeck.def.zone) {
     stars.update(world, iso.target, toCam, iso.tilt)
     systemView.update(world, deck.y, iso.target, toCam, iso.tilt)
   }
-  sound.update(iso.target, iso.angle)
+  sound.update(fpsShown ? fps.listener : iso.target, view().angle)
   ambience(dt)
   // Le joueur (ou le coéquipier suivi) a fait quelques pas : la réserve se répartit sur les lumières les plus proches.
   const lit = zone.watchTarget ?? player.position
-  if (view.lights.length > lightPool.length && Math.hypot(lit.x - lightsFrom.x, lit.z - lightsFrom.z) > 2) applyLights()
+  if (viewDeck.lights.length > lightPool.length && Math.hypot(lit.x - lightsFrom.x, lit.z - lightsFrom.z) > 2) applyLights()
   for (const [i, l] of lightPool.entries()) {
     const def = pooled[i]
     if (!def?.flicker || renderQuality.light) continue
@@ -3061,8 +3221,10 @@ function frame() {
         promptLabel.replaceChildren(sit.main, ' · ', k, ' ', sit.space)
       } else promptLabel.textContent = sit ? sit.main : label
     }
-    if (sitting) screenPos.set(player.position.x, player.position.y + 1.3, player.position.z).project(iso.camera)
-    else screenPos.set(near!.position.x, deck.y + 1.1, near!.position.z).project(iso.camera)
+    if (sitting) screenPos.set(player.position.x, player.position.y + 1.3, player.position.z).project(activeCamera())
+    else screenPos.set(near!.position.x, deck.y + 1.1, near!.position.z).project(activeCamera())
+    // Vue subjective : un objet derrière soi n'a pas d'invite à l'écran (la projection la renverrait devant).
+    if (screenPos.z > 1) screenPos.set(0, -0.55, 0)
     const x = ((screenPos.x + 1) / 2) * innerWidth
     const y = ((1 - screenPos.y) / 2) * innerHeight
     promptEl.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`
@@ -3076,7 +3238,7 @@ function frame() {
     const playing = music.playing
     const jukeboxRoom = playing && source.map.room(Math.round(playing.x), Math.round(playing.z))
     const playerRoom = source === deck ? source.map.room(Math.round(player.position.x), Math.round(player.position.z)) : null
-    music.setRoom(source === deck && view === deck, !!jukeboxRoom && jukeboxRoom === playerRoom)
+    music.setRoom(source === deck && viewDeck === deck, !!jukeboxRoom && jukeboxRoom === playerRoom)
   }
   // La soirée bat sur le morceau entendu dans la pièce, sauf quand le mode photo fige l'instant.
   if (!photo.frozen && !deckMusic.syncTempo() && !holdMusic.syncTempo() && !cabinMusic.syncTempo()) syncTempo(null)
@@ -3094,11 +3256,11 @@ function frame() {
   }
 
   // Dans la baie (ou par les caméras), tout passe par le brouillard de guerre (cf. salvage/fog.ts).
-  if (!zone.render(scene, iso.camera, renderQuality.light)) renderer.render(scene, iso.camera)
-  cinemaRoom.placeScreen(iso.camera, deck.def.id === 1,
+  if (!zone.render(scene, activeCamera(), renderQuality.light)) renderer.render(scene, activeCamera())
+  cinemaRoom.placeScreen(activeCamera(), deck.def.id === 1,
     deck.def.id === 1 && deck.map.room(Math.round(player.position.x), Math.round(player.position.z)) === 'n',
     cinemaScreenProp.x, deckById(1).y, cinemaScreenProp.z)
-  bubbles.update(iso.camera)
+  bubbles.update(activeCamera())
 
   // Résolution adaptative : on baisse la densité de pixels si l'affichage peine,
   // on la remonte (sans dépasser le dernier niveau qui a peiné) s'il reste de la marge.
@@ -3127,6 +3289,7 @@ function frame() {
 addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight)
   iso.resize(innerWidth / innerHeight)
+  fps.resize(innerWidth / innerHeight)
   syncMobileEntry()
 })
 
@@ -3151,6 +3314,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, cat, moustache, companions, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, salvage: zone, view: () => view },
+    __game: { renderer, sound, player, cat, moustache, sergeant, companions, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, salvage: zone, view: () => viewDeck },
   })
 }

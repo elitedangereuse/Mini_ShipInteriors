@@ -9,6 +9,7 @@ import { MAX_ITEMS, sanitizeLayout } from './cabin.js'
 import { cookieValue } from './cmdr.js'
 import { attachRelay, WS_PATH } from './relay.js'
 import { PILOT_SEAT, SYSTEM_IDS } from '../shared/systems.js'
+import { PATROL_HOLD, PATROL_LEVEL, patrolAt } from '../shared/patrol.js'
 
 /** Faux site : reconnaît deux cookies, comme outils/mini-shipinteriors-cmdr.php. */
 const ACCOUNTS = { 'jeton-adam': 'Adam Fauster', 'jeton-rackam': 'Rackam' }
@@ -439,6 +440,39 @@ describe('saut FSD', () => {
     assert.equal(await receives(crew, 'jump', 150), false)
     const late = client({ auth: { name: 'CMDR Retardataire' } })
     assert.equal((await welcome(late)).system, jump.system)
+  })
+})
+
+describe('patrouille', () => {
+  test('le sergent est le même pour tous ; lui parler l\'arrête pour tout le bord', async () => {
+    const talker = client({ auth: { name: 'CMDR Bavard' } })
+    const crew = client({ auth: { name: 'CMDR Témoin' } })
+    const first = (await welcome(talker)).patrol
+    const seen = (await welcome(crew)).patrol
+    assert.equal(first.hold, 0)
+    // Même horloge pour les deux, à quelques millisecondes près.
+    assert.ok(Math.abs(seen.tau - first.tau) < 0.5)
+    // Depuis les quartiers (autre pont), on ne lui parle pas.
+    talker.emit('patrol:talk')
+    assert.equal(await receives(crew, 'patrol', 150), false)
+    // À côté de lui : il s'arrête, face au joueur, pour tous.
+    const at = patrolAt(first.tau + 0.4)
+    talker.emit('state', { x: at.x, z: at.z, yaw: 0, level: PATROL_LEVEL, anim: 'idle' })
+    const heard = next(crew, 'patrol')
+    const own = next(talker, 'patrol')
+    talker.emit('patrol:talk')
+    const held = await heard
+    assert.ok(held.hold > PATROL_HOLD - 0.5)
+    assert.deepEqual(held.face, { x: at.x, z: at.z })
+    assert.deepEqual(await own, held)
+    // Une réplique toutes les 2 s au plus.
+    talker.emit('patrol:talk')
+    assert.equal(await receives(crew, 'patrol', 150), false)
+    // Un nouveau venu le trouve arrêté, au même point de la ronde.
+    const late = client({ auth: { name: 'CMDR Retardataire' } })
+    const joined = (await welcome(late)).patrol
+    assert.ok(joined.hold > 0)
+    assert.ok(Math.abs(joined.tau - held.tau) < 1e-6)
   })
 })
 
