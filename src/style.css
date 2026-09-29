@@ -440,6 +440,57 @@ button {
 #fade.on {
   opacity: 1;
 }
+/* Trajet d'ascenseur (src/lift-ride.ts) : tout s'assombrit sauf une ellipse autour du tube. */
+#lift-ride {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.24s ease;
+  background: radial-gradient(ellipse var(--rx, 120px) var(--ry, 180px) at var(--x, 50%) var(--y, 50%),
+    rgba(5, 6, 15, 0) 0%, rgba(5, 6, 15, 0) 42%, rgba(5, 6, 15, 0.72) 70%, #05060f 100%);
+}
+#lift-ride.on {
+  opacity: 1;
+}
+.lift-ride-label {
+  position: absolute;
+  left: var(--x, 50%);
+  top: var(--lt, 70%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: 1px solid rgba(89, 216, 255, 0.45);
+  border-radius: 999px;
+  background: rgba(8, 20, 34, 0.7);
+  color: #bff3ff;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-shadow: 0 0 8px rgba(89, 216, 255, 0.6);
+  transform: translate(-50%, 6px);
+  transition: transform 0.3s ease-out;
+}
+#lift-ride.down .lift-ride-label {
+  transform: translate(-50%, -6px);
+}
+#lift-ride.on .lift-ride-label {
+  transform: translate(-50%, 0);
+}
+.lift-ride-label .icon {
+  width: 13px;
+  height: 13px;
+  color: var(--cyan);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lift-ride-label,
+  #lift-ride.down .lift-ride-label {
+    transform: translate(-50%, 0);
+    transition: none;
+  }
+}
 /* Éclair plein écran (saut FSD, déclencheur du mode photo) : il s'allume d'un coup et s'éteint. */
 #flash {
   position: fixed;

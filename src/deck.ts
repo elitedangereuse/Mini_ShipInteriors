@@ -758,6 +758,12 @@ export class Deck {
     this.liftBoost = 1
   }
 
+  /** Faisceau et anneaux de l'ascenseur : cachés le temps d'un trajet, pour qu'on voie le personnage dans le tube. */
+  showLiftBeam(on: boolean) {
+    if (this.liftBeam) this.liftBeam.visible = on
+    for (const r of this.liftRings) r.visible = on
+  }
+
   /** L'ascenseur (absent de la baie infestée). */
   get liftInteractable(): Interactable | undefined {
     return this.liftItem

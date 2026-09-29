@@ -57,6 +57,7 @@ import { ToiletFlushes } from './toilet-flush'
 import { SalvageClient } from './salvage/client'
 import { ZONE_LEVEL } from '../shared/salvage.js'
 import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel } from './ui'
+import { LiftRide } from './lift-ride'
 
 // ------------------------------------------------------------------ profil
 
@@ -1441,6 +1442,8 @@ function jukeboxKey(e: KeyboardEvent): boolean {
 
 let riding = false
 const liftTile = { x: LIFT.x, z: LIFT.z }
+const liftRide = new LiftRide()
+scene.add(liftRide.group)
 
 function openLift() {
   lift.open(LEVELS, deck.def.id, (id) => void ride(id))
@@ -1453,20 +1456,29 @@ async function ride(target: number) {
   player.cancelPath()
   player.position.x = LIFT.x
   player.position.z = LIFT.z
-  deck.pulseLift()
+  marker.visible = false
   sound.play('lift', new THREE.Vector3(LIFT.x, deck.y + 0.5, LIFT.z), { volume: 0.2 })
-  await fadeScreen(true)
-  // Changer de pont met fin à une visite : on retrouvera ses propres quartiers.
-  if (visiting) {
-    const host = visiting.name
-    net.sendVisit(null)
-    leaveVisit(tr(`Fin de la visite chez ${host} : vos quartiers vous attendent.`, `Your visit to ${host} is over: your own quarters await.`))
-  }
-  setDeck(deckById(target))
-  deck.pulseLift()
-  net.sendState({ x: player.position.x, z: player.position.z, yaw: player.heading, level: deck.def.id, anim: 'idle' }, Infinity)
-  sound.play('ding', null, { volume: 0.1 })
-  await fadeScreen(false)
+  const next = deckById(target)
+  for (const d of decks) d.showLiftBeam(false)
+  // On s'approche du tube le temps du trajet, puis on revient au cadrage du joueur.
+  const zoom = iso.zoomLevel
+  iso.zoomTo(Math.min(zoom, 3.4))
+  // Le pont change en plein noir, au milieu du trajet dans le tube (cf. lift-ride.ts).
+  await liftRide.run(LIFT.x, deck.y, LIFT.z, next.y > deck.y, next.def.name, () => {
+    // Changer de pont met fin à une visite : on retrouvera ses propres quartiers.
+    if (visiting) {
+      const host = visiting.name
+      net.sendVisit(null)
+      leaveVisit(tr(`Fin de la visite chez ${host} : vos quartiers vous attendent.`, `Your visit to ${host} is over: your own quarters await.`))
+    }
+    setDeck(next)
+    deck.pulseLift()
+    net.sendState({ x: player.position.x, z: player.position.z, yaw: player.heading, level: deck.def.id, anim: 'idle' }, Infinity)
+    sound.play('ding', null, { volume: 0.1 })
+    return deck.y
+  })
+  for (const d of decks) d.showLiftBeam(true)
+  iso.zoomTo(zoom)
   riding = false
 }
 
@@ -3257,6 +3269,7 @@ function frame() {
     for (const r of remotes.values()) if (r.group.visible && r.pose === 'lie') bubbles.emote(`p${r.id}`, 'moon-stars')
   }
 
+  liftRide.update(dt, activeCamera())
   // Dans la baie (ou par les caméras), tout passe par le brouillard de guerre (cf. salvage/fog.ts).
   if (!zone.render(scene, activeCamera(), renderQuality.light)) renderer.render(scene, activeCamera())
   cinemaRoom.placeScreen(activeCamera(), deck.def.id === 1,
