@@ -22,6 +22,11 @@
 // que le relais tient de même. Un joueur qui prend une commande l'attire au bout du self pour tout le
 // bord, tant qu'il cuisine (chaque étape relance l'attente), puis le chef reprend sa tournée.
 //
+// Infirmerie : Betty, l'infirmière, fait la tournée de l'infirmerie (cf. shared/nurse.js), sur une
+// horloge que le relais tient de même. Un joueur allongé sur un lit qui l'appelle la fait venir à
+// son chevet pour tout le bord, une consultation à la fois ; menée à son terme, elle lui laisse un
+// pansement que tout le bord voit un moment.
+//
 // Quartiers : chaque joueur a sa propre instance des quartiers du commandant (`cabin` : l'id du
 // joueur chez qui il se trouve, le sien par défaut). Un CMDR vérifié envoie l'aménagement des
 // siens (cf. cabin.js), et peut inviter un joueur connecté : celui-ci n'y entre qu'avec une
@@ -45,6 +50,9 @@ import { applyWings } from '../shared/cabin-wings.js'
 import { canReach } from '../shared/sight.js'
 import { PATROL_LEVEL, PATROL_PERIOD, holdPatrol, patrolAt, patrolTime } from '../shared/patrol.js'
 import { CHEF_COOK, CHEF_LEVEL, CHEF_PERIOD, CHEF_ROOM, CHEF_WAIT, chefAt, chefTime, cookChef, holdChef } from '../shared/chef.js'
+import {
+  NURSE_BEDS, NURSE_CARE, NURSE_CARE_MIN, NURSE_LEVEL, NURSE_PATCH, NURSE_PERIOD, NURSE_ROOM, bedOf, careNurse, holdNurse, nurseAt, nurseTime,
+} from '../shared/nurse.js'
 import { HOME_SYSTEM, JUMP_CHARGE, JUMP_TRAVEL, PILOT_SEAT, nextSystem } from '../shared/systems.js'
 import { ZONE_LEVEL } from '../shared/salvage.js'
 
@@ -210,6 +218,40 @@ export function attachRelay(
     chef = cookChef(chef, now, cookUntil(now))
     return true
   }
+  /**
+   * Horloge de la tournée de l'infirmière, vers qui elle se tourne, la consultation en cours
+   * (patient, lit, début et fin, ms) et les pansements (id du joueur -> fin, ms).
+   */
+  let nurse = { tau: Math.random() * NURSE_PERIOD, at: Date.now(), holdUntil: 0 }
+  let nurseFace = null
+  let care = null
+  const patched = new Map()
+  /** Où en est l'infirmière : instant (s), arrêt restant (s), consultation (s restantes, lit, patient), pansements (s restantes). */
+  const nurseState = (now = Date.now()) => {
+    if (care && care.until <= now) care = null
+    for (const [id, end] of patched) if (end <= now) patched.delete(id)
+    return {
+      tau: nurseTime(nurse, now),
+      hold: Math.max(0, nurse.holdUntil - now) / 1000,
+      care: care ? (care.until - now) / 1000 : 0,
+      bed: care ? care.bed : -1,
+      patient: care ? care.patient : 0,
+      patched: [...patched].map(([id, end]) => [id, (end - now) / 1000]),
+      ...(nurseFace && nurse.holdUntil > now ? { face: nurseFace } : {}),
+    }
+  }
+  /**
+   * Le patient en consultation s'en va, ou elle se termine (`healed` : menée à son terme, il
+   * repart avec un pansement) : l'infirmière reprend sa tournée. Rend false si ce n'était pas lui.
+   */
+  const endCare = (player, healed, now = Date.now()) => {
+    if (!care || care.patient !== player.id) return false
+    if (healed && now - care.start >= NURSE_CARE_MIN * 1000) patched.set(player.id, now + NURSE_PATCH * 1000)
+    nurse = careNurse(nurse, now, 0, care.bed)
+    nurseFace = null
+    care = null
+    return true
+  }
   /** Ce que joue le jukebox d'une instance, pour un joueur qui y arrive (track null : il se tait). */
   const musicOf = (instance) => {
     const m = music.get(instance)
@@ -333,6 +375,7 @@ export function attachRelay(
       system,
       patrol: patrolState(),
       chef: chefState(),
+      nurse: nurseState(),
       salvage: salvage.snapshot(),
     })
     socket.emit('cinema:state', cinema.snapshot())
@@ -351,6 +394,7 @@ export function attachRelay(
     let boardBudget = 30
     let patrolBudget = 1
     let chefBudget = 3
+    let nurseBudget = 3
     let salvageBudget = 20
     const refill = setInterval(() => {
       chatBudget = Math.min(5, chatBudget + 1)
@@ -361,6 +405,7 @@ export function attachRelay(
       boardBudget = Math.min(30, boardBudget + 10)
       patrolBudget = Math.min(1, patrolBudget + 0.5)
       chefBudget = Math.min(3, chefBudget + 1)
+      nurseBudget = Math.min(3, nurseBudget + 1)
       salvageBudget = Math.min(20, salvageBudget + 10)
     }, 1000)
 
@@ -552,6 +597,40 @@ export function attachRelay(
       if (setCook(player, on)) io.emit('chef', { id: player.id, ...chefState() })
     })
 
+    // On parle à l'infirmière : à portée d'elle (à sa place dans la tournée, ou au chevet où elle consulte).
+    socket.on('nurse:talk', () => {
+      if (nurseBudget < 1) return
+      const now = Date.now()
+      nurseState(now)
+      const at = care ? NURSE_BEDS[care.bed].side : nurseAt(nurseTime(nurse, now))
+      if (!reaches(player, NURSE_LEVEL, at)) return
+      nurseBudget--
+      nurse = holdNurse(nurse, now)
+      nurseFace = { x: player.x, z: player.z }
+      io.emit('nurse', { id: player.id, ...nurseState(now) })
+    })
+
+    // On l'appelle depuis un lit de l'infirmerie (on), ou la consultation est finie (off ; `healed` :
+    // menée à son terme). Une consultation à la fois : elle ne quitte pas un autre patient.
+    socket.on('nurse:care', (raw) => {
+      const m = obj(raw)
+      const now = Date.now()
+      nurseState(now)
+      if (m.on !== true) {
+        if (endCare(player, m.healed === true, now)) io.emit('nurse', { id: player.id, ...nurseState(now) })
+        return
+      }
+      if (nurseBudget < 1 || care || player.level !== NURSE_LEVEL || player.pose !== 'lie') return
+      if (MAPS.get(NURSE_LEVEL).room(Math.round(player.x), Math.round(player.z)) !== NURSE_ROOM) return
+      const bed = bedOf(player)
+      if (bed < 0) return
+      nurseBudget--
+      care = { patient: player.id, bed, start: now, until: now + NURSE_CARE * 1000 }
+      nurseFace = { x: NURSE_BEDS[bed].x, z: NURSE_BEDS[bed].z }
+      nurse = careNurse(nurse, now, care.until, bed)
+      io.emit('nurse', { id: player.id, ...nurseState(now) })
+    })
+
     // Saut FSD : installé dans le siège du pilote, et pas pendant un autre saut. Tout le bord le vit.
     socket.on('jump', () => {
       const now = Date.now()
@@ -632,6 +711,9 @@ export function attachRelay(
       music.delete(player.id)
       // Son commis parti, le chef reprend sa tournée.
       if (setCook(player, false)) socket.broadcast.emit('chef', { id: player.id, ...chefState() })
+      // Son patient parti, l'infirmière reprend sa tournée ; son pansement part avec lui.
+      const hadPatch = patched.delete(player.id)
+      if (endCare(player, false) || hadPatch) socket.broadcast.emit('nurse', { id: player.id, ...nurseState() })
       // Plus personne à bord : les jukebox de la salle commune et du bar se taisent.
       if (!players.size) music.clear()
       socket.broadcast.emit('leave', { id: player.id })

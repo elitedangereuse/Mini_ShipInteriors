@@ -661,32 +661,78 @@ export const LEVELS: LevelDef[] = [
       { model: 'plant-tall', x: 7.9, z: 2.6 },
       { model: 'plant', x: 2.2, z: 1.1 },
 
-      // --- Infirmerie ---
+      // --- Infirmerie : le domaine de Betty (cf. src/nurse.ts). Trois lits en box le long du mur
+      // nord (on s'y allonge, et Betty vient en consultation, cf. src/infirmary.ts), le scanner, le
+      // frigo à vaccins et le négatoscope ; le poste de soins au sud-ouest, face aux lits ; la
+      // pharmacie et l'échelle d'acuité au mur ouest ; la salle d'attente près de la porte ; la
+      // quarantaine, le défibrillateur, le lavabo et le fauteuil roulant à l'est. L'allée du milieu
+      // (z ≈ 1,2 à 2,3) reste libre : c'est là que passe Betty (cf. shared/nurse.js). ---
+      ...[9.2, 10.5, 11.8].map((x): Prop => ({ model: 'med-bed', x, z: 0.3, label: 'left' })),
+      ...[9.85, 11.15].map((x): Prop => ({ model: 'med-curtain', x, z: 0, solid: false })),
+      ...[9.65, 10.95, 12.25].map((x): Prop => ({ model: 'iv-stand', x, z: -0.12 })),
       {
-        model: 'med-bed', x: 11, z: 0.3,
-        interact: [
-          tr('Lit médical : draps propres, scanner en veille.', 'Medical bed: clean sheets, scanner on standby.'),
-          tr('Le moniteur affiche 72 battements par minute. Les vôtres.', 'The monitor shows 72 beats per minute. Yours.'),
-        ],
-      },
-      { model: 'med-bed', x: 15, z: 0.3, label: 'left' },
-      {
-        model: 'body-scan', x: 13, z: 0.35,
+        model: 'body-scan', x: 13.2, z: 0.4,
         interact: tr(
           'Scanner médical : constantes de l\'équipage normales. Le chat est en léger surpoids.',
           'Medical scanner: crew vital signs normal. The cat is slightly overweight.',
         ),
       },
       {
-        model: 'med-cabinet', x: 11, z: 2.5, rot: 1,
+        model: 'med-fridge', x: 14.25, z: -0.12,
+        interact: tr(
+          'Réfrigérateur à vaccins, +4 °C : antidote au venin de Thargoïde (expérimental), vaccin contre la grippe de Lave, et le yaourt de Betty. Surtout, ne touchez pas au yaourt de Betty.',
+          'Vaccine fridge, +4 °C: Thargoid venom antidote (experimental), Lave flu vaccine, and Betty\'s yoghurt. Whatever you do, don\'t touch Betty\'s yoghurt.',
+        ),
+      },
+      {
+        model: 'xray-board', x: 14.95, z: -0.35, solid: false,
+        interact: [
+          tr('Radio du thorax : RAS. Le commentaire au feutre dit « joli sternum ».', 'Chest X-ray: all clear. The marker note says “nice sternum”.'),
+          tr('Radio de l\'abdomen : un limpet de collecte. Le patient jure qu\'il ne sait pas comment c\'est arrivé là.', 'Abdominal X-ray: a collector limpet. The patient swears he has no idea how it got there.'),
+        ],
+      },
+      {
+        model: 'med-cabinet', x: 8.82, z: 1.3, rot: 1,
         interact: tr(
           'Armoire à pharmacie : trousses de soin, cellules d\'énergie et pansements Pioneer Supplies.',
           'Medicine cabinet: medkits, energy cells and Pioneer Supplies plasters.',
         ),
       },
       {
-        model: 'sample-tank', x: 15, z: 2.55,
+        model: 'eye-chart', x: 8.65, z: 2.1, rot: 1, solid: false,
+        interact: tr('Échelle d\'acuité : dernière ligne, « o7 o7 ». Si vous la lisez, vous êtes pilote de chasse.', 'Eye chart: bottom line, “o7 o7”. If you can read it, you\'re a fighter pilot.'),
+      },
+      { model: 'med-poster', x: 8.65, z: 2.75, rot: 1, solid: false },
+      {
+        model: 'nurse-station', x: 9.6, z: 2.6, rot: 2,
+        interact: [
+          tr('Poste de soins de Betty : un bocal de sucettes « pour les courageux », et des roses. Personne ne sait qui les envoie.', 'Betty\'s nurses\' station: a jar of lollipops “for the brave”, and roses. Nobody knows who sends them.'),
+          tr('Sur le dossier du dessus : « Sergent Rourke — 3e visite cette semaine. Toujours rien. »', 'On the top file: “Sergeant Rourke — 3rd visit this week. Still nothing wrong.”'),
+          tr('Une tasse de café marquée de rouge à lèvres. Et un mot : « Ne pas sonner pour rien. Sauf si vous êtes mignon. »', 'A coffee mug with a lipstick mark. And a note: “Don\'t ring for nothing. Unless you\'re cute.”'),
+        ],
+      },
+      // Salle d'attente.
+      { model: 'chair', x: 11, z: 3.05, rot: 2 },
+      { model: 'chair', x: 11.55, z: 3.05, rot: 2 },
+      {
+        model: 'med-scale', x: 12.25, z: 3.15, rot: 2,
+        interact: [
+          tr('Pèse-personne : 72 kg, dont 3 de café.', 'Scales: 72 kg, 3 of which are coffee.'),
+          tr('Toise : 1,75 m. Sous 0,8 g, vous avez gagné deux centimètres.', 'Height gauge: 1.75 m. At 0.8 g, you\'ve gained two centimetres.'),
+        ],
+      },
+      {
+        model: 'med-sink', x: 14, z: 3.35, rot: 2,
+        interact: tr('Lavabo chirurgical : savon, gel, gants. Betty vérifie. Betty vérifie toujours.', 'Surgical sink: soap, gel, gloves. Betty checks. Betty always checks.'),
+      },
+      { model: 'wheelchair', x: 14.85, z: 2.95, rot: 3, interact: tr('Fauteuil roulant. Quelqu\'un a peint des flammes sur les roues.', 'Wheelchair. Someone has painted flames on the wheels.') },
+      {
+        model: 'sample-tank', x: 15.05, z: 1.35,
         interact: tr('Quarantaine : Bacterium Aurasus. Il bouge quand on ne le regarde pas.', 'Quarantine: Bacterium Aurasus. It moves when nobody is looking.'),
+      },
+      {
+        model: 'defibrillator', x: 15.35, z: 2.2, rot: 3, solid: false,
+        interact: tr('Défibrillateur. Betty dit qu\'elle n\'en a jamais eu besoin : elle a un meilleur effet sur les cœurs.', 'Defibrillator. Betty says she has never needed it: she has a better effect on hearts.'),
       },
 
       // --- Salle de sport ---
@@ -916,7 +962,10 @@ export const LEVELS: LevelDef[] = [
       [4.5, 8.5, '#ffc98a', 2],
       [34.5, 4.5, '#ffa04a', 3.4],
       [37.2, 4.5, '#9fd8ff', 2.4],
-      [13, 1.5, '#e8f6ff', 3.2],
+      // L'infirmerie : lumière clinique sur les lits, et la lampe rosée du poste de Betty.
+      [10.2, 1.4, '#eef8ff', 2.6],
+      [13.8, 1.4, '#e8f6ff', 2.6],
+      [9.6, 2.9, '#ffc2d6', 1.2],
       [18, 1.5, '#fff4e4', 3],
       // Le mess : la salle, les lampes chauffantes de la passe, la cuisine.
       [12, 7.5, '#ffe2b0', 3],

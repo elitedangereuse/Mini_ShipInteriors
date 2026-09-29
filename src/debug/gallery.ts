@@ -6,9 +6,11 @@
 // Avec ?poses : chaque meuble où l'on s'installe, un personnage à chacune de ses places
 // (&look=robot.g pour un autre modèle, &only=sofa,cozy-bed).
 // Avec ?emote=o7 : une emote jouée en boucle par plusieurs apparences (&looks=…, &at=0.8 : figée à 0,8 s ;
-// &salute=x,y,z : l'angle du bras pour le salut).
+// &salute=x,y,z : l'angle du bras pour le salut ; &plaster : avec le pansement de Betty).
 // Avec ?thargoid : le Thargoïde de la zone thargoïde dans chacune de ses humeurs, sur place, à côté
 // d'un CMDR pour l'échelle (&dark : dans le noir, à la lampe frontale ; &at=1.2 : figé ; &only=chase,attack).
+// Avec ?nurse : Betty, l'infirmière, à côté du modèle d'origine (&walk : en marche ; &emote=interact ;
+// &cam=0,0.3,1&target=0,0.1,0&zoom=0.5 : de face, de près).
 import * as THREE from 'three'
 import { preload, station, STATION_MODELS, type StationModel } from '../assets'
 import { Avatar, SALUTE } from '../avatar'
@@ -20,6 +22,8 @@ import { lookRig, parseLook } from '../looks'
 import { placeSeats, SEATS } from '../seats'
 import { tempo } from '../tempo'
 import { ThargoidBody, type ThargoidMood } from '../salvage/thargoid'
+import { nurseRig } from '../nurse'
+import { Plasters } from '../infirmary'
 
 const renderer = new THREE.WebGLRenderer({ antialias: true })
 renderer.setSize(innerWidth, innerHeight)
@@ -62,9 +66,33 @@ await preload([], () => {})
 if (params.has('catalogue')) showCatalogue()
 else if (params.has('revetements')) showFinishes()
 else if (params.has('poses')) await showPoses()
+else if (params.has('nurse')) await showNurse()
 else if (params.has('emote')) await showEmote(params.get('emote')!)
 else if (params.has('thargoid')) await showThargoid()
 else showModels()
+
+/** Betty, l'infirmière (cf. src/nurse.ts), et le Mini Character dont elle est faite. */
+async function showNurse() {
+  const betty = new Avatar(await nurseRig())
+  const base = new Avatar(await lookRig(parseLook('human.female.f')))
+  betty.root.position.set(-0.45, -0.35, 0)
+  base.root.position.set(0.45, -0.35, 0)
+  scene.add(betty.root, base.root)
+  const emote = params.get('emote')
+  const clock = new THREE.Timer()
+  function frame() {
+    clock.update()
+    const dt = Math.min(clock.getDelta(), 0.05)
+    for (const a of [betty, base]) {
+      a.setLocomotion(params.has('walk') ? 'walk' : 'idle', params.has('walk') ? 0.8 : 0)
+      if (emote && !a.emoteId) a.playEmote(emote)
+      a.update(dt)
+    }
+    renderer.render(scene, cam)
+    requestAnimationFrame(frame)
+  }
+  frame()
+}
 
 /** Une emote, jouée en boucle par plusieurs apparences côte à côte. */
 async function showEmote(id: string) {
@@ -74,6 +102,7 @@ async function showEmote(id: string) {
   const avatars: Avatar[] = []
   for (const [i, id] of looks.entries()) {
     const a = new Avatar(await lookRig(parseLook(id)))
+    if (params.has('plaster')) new Plasters().show(a, true)
     a.root.position.set((i - (looks.length - 1) / 2) * 1.1, -0.35, 0)
     scene.add(a.root)
     avatars.push(a)
