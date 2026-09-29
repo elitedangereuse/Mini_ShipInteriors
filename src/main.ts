@@ -45,6 +45,7 @@ import { overlapsAny, resolveCircle } from './physics'
 import { Player } from './player'
 import { renderQuality } from './quality'
 import { findReaction, REACTIONS, reactionImage } from './reactions'
+import { Patroller, SERGEANT, soldierRig, type ShipReport } from './patrol'
 import { RemotePlayer } from './remote'
 import { Seating, type Seated } from './seating'
 import { Starfield } from './starfield'
@@ -597,6 +598,41 @@ moustache.onMeow = (purr) => {
   bubbles.say('moustache', purr ? tr('Mrrrou…', 'Purrr…') : tr('Mrrraou !', 'Mrrrow!'), purr ? 'heart' : undefined)
 }
 
+// Le sergent Rourke, de la sécurité, fait sa ronde sur le pont principal (cf. patrol.ts).
+const patrolDeck = deckById(0)
+const sergeant = new Patroller(await soldierRig(), patrolDeck)
+/** Ce que le sergent sait du bord : le système, et les tâches en attente sur les ponts. */
+function shipReport(): ShipReport {
+  const tasks = [...board.live.values()]
+  const quarters = cabinDeck.def.cabin?.room
+  return {
+    system: SYSTEMS[systemView.id].name,
+    room: patrolDeck.roomName(sergeant.position.x, sergeant.position.z),
+    deck: tasks.filter((t) => t.deck === patrolDeck).map((t) => ({ kind: t.spot.task, room: patrolDeck.roomName(t.item.position.x, t.item.position.z) })),
+    quarters: tasks.filter((t) => t.deck === cabinDeck && cabinDeck.map.room(Math.round(t.item.position.x), Math.round(t.item.position.z)) === quarters).map((t) => t.spot.task),
+    hold: tasks.filter((t) => t.deck.def.id === -1).length,
+  }
+}
+patrolDeck.interactables.push({
+  object: sergeant.root,
+  position: sergeant.position,
+  label: tr('Parler au sergent Rourke', 'Talk to Sergeant Rourke'),
+  onInteract: () => {
+    player.interact()
+    net.sendEmote('interact')
+    const line = sergeant.talk(player.position, shipReport())
+    net.sendPatrolTalk()
+    dialog.show(tr(`${SERGEANT} : « ${line} »`, `${SERGEANT}: “${line}”`))
+  },
+})
+bubbles.attach('sergeant', (out) => (patrolDeck.group.visible ? sergeant.avatar.head(out) : null))
+sergeant.onBark = (text) => {
+  if (patrolDeck === deck) bubbles.say('sergeant', text)
+}
+sergeant.onStep = () => {
+  if (patrolDeck === deck) sound.play('step', sergeant.root.getWorldPosition(new THREE.Vector3()), { volume: 0.08, rate: 0.8 })
+}
+
 // ------------------------------------------------------------------ compagnons
 
 /**
@@ -877,6 +913,8 @@ net.onMessage = (m) => {
       if (m.hold) applyMusic(m.hold)
       // Le système où se trouve le vaisseau, le même pour tout le bord.
       if (m.system && !jumping) systemView.set(m.system)
+      // Le sergent en est au même point de sa ronde pour tout le bord.
+      if (m.patrol) sergeant.sync(m.patrol)
       // Le relais oublie tout à chaque connexion : la musique de nos quartiers, on la lui rend.
       const own = cabinMusic.playing
       if (own) net.sendMusic('cabin', own.track.id, own.x, own.z, own.position, own)
@@ -918,6 +956,8 @@ net.onMessage = (m) => {
         break
       }
       r.emote(m.emote)
+      // Un salut à côté du sergent : il le rend (chacun le voit, le calcul est le même partout).
+      if (m.emote === 'o7' && r.level === patrolDeck.def.id) sergeant.greet(r.group.position, false)
       const def = EMOTES.find((e) => e.id === m.emote)
       if (def && r.level === deck.def.id) bubbles.emote(`p${m.id}`, def.icon)
       break
@@ -943,6 +983,11 @@ net.onMessage = (m) => {
       }
       break
     }
+    case 'patrol':
+      // Quelqu'un parle au sergent (nous aussi : le relais recale l'arrêt) ; les autres le voient répondre.
+      sergeant.sync(m)
+      if (m.id !== net.id && patrolDeck === deck) bubbles.say('sergeant', '…')
+      break
     case 'jump':
       // Un pilote lance le saut FSD (nous, ou un autre) : tout le bord part.
       void playJump(m.system, m.id === net.id ? null : m.name)
@@ -2960,6 +3005,7 @@ function frame() {
   syncCompanions()
   for (const c of companions.values()) c.pet.update(world, cabinDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
   moustache.update(world, labDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
+  sergeant.update(world, patrolDeck === deck ? player.position : null, player.avatar.emoteId)
 
   // Chez Jacques, on garde le joueur et le barman ensemble dans le cadre.
   if (barPanel.isOpen && deck.def.id === -1) {
@@ -3001,6 +3047,7 @@ function frame() {
   for (const list of actors.values()) list.length = 0
   actors.get(deck)!.push(player.position)
   if (cometeHere) actors.get(catDeck)!.push(cat.root.position)
+  actors.get(patrolDeck)!.push(sergeant.position)
   for (const c of companions.values()) actors.get(cabinDeck)!.push(c.pet.root.position)
   // Un joueur d'une autre instance des quartiers n'ouvre pas nos portes.
   for (const r of remotes.values()) if (r.group.visible || r.level !== deck.def.id) actors.get(deckById(r.level))?.push(r.group.position)
@@ -3172,6 +3219,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, cat, moustache, companions, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView },
+    __game: { renderer, sound, player, cat, moustache, sergeant, companions, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView },
   })
 }
