@@ -36,8 +36,9 @@ function setup() {
   sun.position.set(3, 6, 4)
   scene.add(sun)
   camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 50)
-  // Pan de mur crème derrière les objets accrochés (le dos des objets est en z = 0).
-  wall = new THREE.Mesh(new THREE.BoxGeometry(3, 1, 0.1), new THREE.MeshLambertMaterial({ color: '#e7d9c2' }))
+  // Pan de cloison gris ardoise derrière les objets accrochés (le dos des objets est en z = 0) : il
+  // tranche sur les bois clairs comme sur les sombres, et sur le fond sombre du catalogue.
+  wall = new THREE.Mesh(new THREE.BoxGeometry(3, 1, 0.1), new THREE.MeshLambertMaterial({ color: '#5e6878' }))
   wall.position.set(0, 0.5, -0.05)
   scene.add(wall)
 }

@@ -9,12 +9,15 @@ import { compact, cylinder, glass, glow, lit, part, type Builder } from './kit'
  * (bois, métal, tissu, verre…), sans texture. Chaque constructeur en clone un, le remet à
  * l'échelle du vaisseau (le kit n'est pas homogène : ses toilettes sont bien plus grandes que
  * ses chaises), le tourne face à +z, le pose au sol (ou au mur, dos contre lui), et le repeint
- * selon sa variante : tissu, essence de bois, couleur d'électroménager. Le verre reste à part,
+ * selon sa variante (cf. paint()) ; son bois prend par défaut celui du bord. Le verre reste à part,
  * translucide ; les abat-jour s'allument.
  */
 
-/** Comment repeindre un modèle selon sa variante (le `label` du meuble). */
-type Paint = 'fabric' | 'wood' | 'appliance'
+/**
+ * Comment repeindre un modèle selon sa variante (le `label` du meuble) : tissu, essence de bois,
+ * couleur d'électroménager, émail des sanitaires, finition du métal, pelage.
+ */
+type Paint = 'fabric' | 'wood' | 'appliance' | 'porcelain' | 'metal' | 'fur'
 
 interface KitDef {
   /** Nom du modèle dans le kit. */
@@ -29,47 +32,120 @@ interface KitDef {
   hang?: number
   /** Variantes : ce qu'elles repeignent. */
   paint?: Paint
+  /** Teintes : ce qu'elles repeignent (le cadre d'un canapé, la nappe d'une table). */
+  tint?: Paint
+  /** Électroménager : le matériau du kit qui fait sa carrosserie (« metalLight » par défaut). */
+  body?: string
+  /** Garde les couleurs du kit (le carton : son « bois » n'en est pas). */
+  raw?: boolean
 }
 
-/** Essences et laques du bois (matériaux « wood » et « woodDark » du kit) ; `oak` : celle d'origine. */
+/**
+ * Essences et laques du bois (matériaux « wood » et « woodDark » du kit). `oak`, par défaut, est
+ * le bois du bord (celui du mobilier fait main des quartiers, cf. cozy.ts) : tout meuble du kit
+ * sans choix d'essence le prend aussi, pour ses pieds, ses cadres ou son pot. `light-oak` : le
+ * chêne clair d'origine du kit.
+ */
 export const WOODS: Record<string, [string, string] | null> = {
-  oak: null,
+  oak: ['#9a6a45', '#6b4630'],
   honey: ['#c98f4e', '#a8733c'],
   walnut: ['#7a4e32', '#5a3822'],
+  'light-oak': null,
+  terracotta: ['#b8653f', '#8a4a32'],
+  cream: ['#e9dcc4', '#c9b79a'],
   white: ['#eeeae2', '#cfc9bd'],
-  graphite: ['#4a4f58', '#353a42'],
   sage: ['#9ab39a', '#7d977e'],
+  teal: ['#3f7f7c', '#2f625f'],
+  navy: ['#34507a', '#263c5c'],
+  graphite: ['#4a4f58', '#353a42'],
 }
 
-/** Couleurs de l'électroménager (matériau « metalLight » du kit) ; `steel` : celle d'origine. */
+/** Couleurs de l'électroménager (sa carrosserie, cf. KitDef.body) ; `steel` : celle d'origine. */
 export const APPLIANCES: Record<string, string | null> = {
   steel: null,
   white: '#f2f1ec',
   cream: '#f1e3c2',
   mint: '#a8e0cc',
+  sky: '#8fb3c9',
+  orange: '#e0782f',
   red: '#d8453b',
+  graphite: '#4a4f58',
   black: '#2b2d31',
+}
+
+/** Émail des sanitaires (matériaux « carpetWhite » et « _defaultMat » du kit) ; `white` : celui d'origine. */
+export const PORCELAINS: Record<string, string | null> = {
+  white: null,
+  cream: '#efe3cf',
+  sage: '#9fb59a',
+  rose: '#d9a0a0',
+  sky: '#8fb3c9',
+  teal: '#3f7f7c',
+  black: '#2f3136',
+}
+
+/** Finitions du métal (matériau « metal » du kit : pieds de lampe, poubelle, tables en verre) ; `chrome` : celle d'origine. */
+export const METALS: Record<string, string | null> = {
+  chrome: null,
+  brass: '#c9a24a',
+  copper: '#b8703f',
+  gunmetal: '#5a616b',
+  black: '#2b2d31',
+  white: '#eeeae2',
+  orange: '#e0782f',
+}
+
+/** Pelages du nounours (matériau « fur » du kit) ; `beige` : celui d'origine. */
+export const FURS: Record<string, string | null> = {
+  honey: '#b98a55',
+  beige: null,
+  brown: '#6e4a32',
+  white: '#efe8dc',
+  grey: '#8a8f98',
+  pink: '#e3a3b4',
+  blue: '#7fa6cf',
 }
 
 const darker = (hex: string, k = 0.72) => '#' + new THREE.Color(hex).multiplyScalar(k).getHexString()
 
-/** Matériau d'une pièce du modèle, selon son nom dans le kit et la variante. */
+/** Couleur de `label` dans `table`, sinon celle par défaut (la première) ; `null` : la couleur du kit. */
+const pick = <T>(table: Record<string, T>, label: string | undefined): T => (label !== undefined && label in table ? table[label] : Object.values(table)[0])
+
+/**
+ * Matériau d'une pièce du modèle, selon son nom dans le kit et le `label` du meuble : sa variante
+ * repeint ce que dit `paint`, sa teinte (après « : », cf. `tints` au catalogue) ce que dit `tint`.
+ */
 function paint(source: THREE.Material, def: KitDef, label: string | undefined): THREE.Material {
   const name = source.name
   if (name === 'lamp') return glow('#fff0c8')
-  if (def.paint === 'fabric') {
-    const color = FABRIC[label ?? '']
-    if (color && (name === 'carpet' || name === 'carpetBlue')) return lit(color)
-    if (color && name === 'carpetDarker') return lit(darker(color))
-  } else if (def.paint === 'wood') {
-    const wood = WOODS[label ?? '']
-    if (wood && name === 'wood') return lit(wood[0])
-    if (wood && name === 'woodDark') return lit(wood[1])
-  } else if (def.paint === 'appliance') {
-    const color = APPLIANCES[label ?? '']
-    if (color && name === 'metalLight') return lit(color)
+  if (def.raw) return source
+  const [variant, tint] = (label ?? '').split(':')
+  const has = (p: Paint) => def.paint === p || def.tint === p
+  const choice = (p: Paint) => (def.paint === p ? variant : def.tint === p ? tint : undefined)
+  let color: string | null | undefined
+  if (has('appliance') && name === (def.body ?? 'metalLight')) {
+    color = pick(APPLIANCES, choice('appliance'))
+  } else if (name === 'wood' || name === 'woodDark') {
+    if (has('fur')) {
+      // Le « bois » du nounours est son pelage clair : un ton au-dessus du pelage choisi.
+      const fur = pick(FURS, choice('fur'))
+      color = fur && darker(fur, 1.16)
+    } else {
+      // Le bois : l'essence choisie, sinon celle du bord.
+      const wood = pick(WOODS, choice('wood'))
+      color = wood?.[name === 'wood' ? 0 : 1]
+    }
+  } else if (has('fabric') && (name === 'carpet' || name === 'carpetBlue' || name === 'carpetDarker')) {
+    const fabric = FABRIC[choice('fabric') ?? '']
+    color = fabric && (name === 'carpetDarker' ? darker(fabric) : fabric)
+  } else if (has('porcelain') && (name === 'carpetWhite' || name === '_defaultMat')) {
+    color = pick(PORCELAINS, choice('porcelain'))
+  } else if (has('metal') && name === 'metal') {
+    color = pick(METALS, choice('metal'))
+  } else if (has('fur') && name === 'fur') {
+    color = pick(FURS, choice('fur'))
   }
-  return source
+  return color ? lit(color) : source
 }
 
 /** Verre des cabines de douche, des vitrines de four, des tables basses. */
@@ -116,7 +192,7 @@ function kit(def: KitDef): Builder {
  * moyeu (la pièce de métal clair), qui devient l'origine du meuble ; la tige reste fixe.
  */
 const ceilingFan: Builder = (o) => {
-  const root = kit({ file: 'ceilingFan', s: 1.3, hang: 0.8 })(o).solid!
+  const root = kit({ file: 'ceilingFan', s: 1.3, hang: 0.8, paint: 'wood' })(o).solid!
   const rod = root.children[1]
   rod.removeFromParent()
   const hub = new THREE.Box3()
@@ -138,20 +214,20 @@ const ceilingFan: Builder = (o) => {
 
 const DEFS = {
   // --- Salle de bain
-  'k-toilet': { file: 'toilet', s: 1 },
-  'k-toilet-square': { file: 'toiletSquare', s: 1 },
-  'k-bathtub': { file: 'bathtub', s: 1.15 },
-  'k-shower': { file: 'shower', s: 0.9 },
-  'k-shower-round': { file: 'showerRound', s: 0.9 },
-  'k-bathroom-sink': { file: 'bathroomSink', s: 1.2 },
-  'k-bathroom-sink-square': { file: 'bathroomSinkSquare', s: 1.2 },
+  'k-toilet': { file: 'toilet', s: 1, paint: 'porcelain' },
+  'k-toilet-square': { file: 'toiletSquare', s: 1, paint: 'porcelain' },
+  'k-bathtub': { file: 'bathtub', s: 1.15, paint: 'porcelain' },
+  'k-shower': { file: 'shower', s: 0.9, paint: 'porcelain' },
+  'k-shower-round': { file: 'showerRound', s: 0.9, paint: 'porcelain' },
+  'k-bathroom-sink': { file: 'bathroomSink', s: 1.2, paint: 'porcelain' },
+  'k-bathroom-sink-square': { file: 'bathroomSinkSquare', s: 1.2, paint: 'porcelain' },
   'k-bathroom-mirror': { file: 'bathroomMirror', s: 1.2, wall: 0.38, paint: 'wood' },
   'k-bathroom-cabinet': { file: 'bathroomCabinet', s: 1.3, wall: 0.42, paint: 'wood' },
   'k-bathroom-vanity': { file: 'bathroomCabinetDrawer', s: 1.2, paint: 'wood' },
-  'k-washer': { file: 'washer', s: 1.25 },
-  'k-dryer': { file: 'dryer', s: 1.25 },
-  'k-washer-dryer': { file: 'washerDryerStacked', s: 1.05 },
-  'k-trashcan': { file: 'trashcan', s: 0.8 },
+  'k-washer': { file: 'washer', s: 1.25, paint: 'appliance' },
+  'k-dryer': { file: 'dryer', s: 1.25, paint: 'appliance' },
+  'k-washer-dryer': { file: 'washerDryerStacked', s: 1.05, paint: 'appliance' },
+  'k-trashcan': { file: 'trashcan', s: 0.8, paint: 'metal' },
   'k-bath-mat': { file: 'rugDoormat', s: 1.4 },
   // --- Cuisine
   'k-fridge': { file: 'kitchenFridge', s: 1.05, paint: 'appliance' },
@@ -167,17 +243,17 @@ const DEFS = {
   'k-kitchen-upper-double': { file: 'kitchenCabinetUpperDouble', s: 1.3, wall: 0.44, paint: 'wood' },
   'k-kitchen-bar': { file: 'kitchenBar', s: 1.3, paint: 'wood' },
   'k-kitchen-bar-end': { file: 'kitchenBarEnd', s: 1.3, paint: 'wood' },
-  'k-microwave': { file: 'kitchenMicrowave', s: 1.2 },
-  'k-coffee-machine': { file: 'kitchenCoffeeMachine', s: 1.2 },
-  'k-toaster': { file: 'toaster', s: 1.1 },
-  'k-blender': { file: 'kitchenBlender', s: 1.2 },
-  'k-hood': { file: 'hoodModern', s: 1.3, wall: 0.46 },
-  'k-bar-stool': { file: 'stoolBar', s: 1.3, paint: 'fabric' },
-  'k-bar-stool-square': { file: 'stoolBarSquare', s: 1.3, paint: 'fabric' },
+  'k-microwave': { file: 'kitchenMicrowave', s: 1.2, paint: 'appliance', body: 'carpetWhite' },
+  'k-coffee-machine': { file: 'kitchenCoffeeMachine', s: 1.2, paint: 'appliance', body: 'metalMedium' },
+  'k-toaster': { file: 'toaster', s: 1.1, paint: 'appliance', body: 'metal' },
+  'k-blender': { file: 'kitchenBlender', s: 1.2, paint: 'appliance', body: 'metalMedium' },
+  'k-hood': { file: 'hoodModern', s: 1.3, wall: 0.46, paint: 'appliance', body: 'metalMedium' },
+  'k-bar-stool': { file: 'stoolBar', s: 1.3, paint: 'fabric', tint: 'wood' },
+  'k-bar-stool-square': { file: 'stoolBarSquare', s: 1.3, paint: 'fabric', tint: 'wood' },
   'k-dining-table': { file: 'tableCross', s: 1.3, paint: 'wood' },
-  'k-dining-table-cloth': { file: 'tableCrossCloth', s: 1.3, paint: 'wood' },
+  'k-dining-table-cloth': { file: 'tableCrossCloth', s: 1.3, paint: 'wood', tint: 'fabric' },
   'k-round-table': { file: 'tableRound', s: 1.25, paint: 'wood' },
-  'k-table-cloth': { file: 'tableCloth', s: 1.3, paint: 'wood' },
+  'k-table-cloth': { file: 'tableCloth', s: 1.3, paint: 'wood', tint: 'fabric' },
   // --- Salon
   'k-lounge-sofa': { file: 'loungeSofa', s: 1.4, paint: 'fabric' },
   'k-lounge-sofa-long': { file: 'loungeSofaLong', s: 1.4, paint: 'fabric' },
@@ -188,36 +264,36 @@ const DEFS = {
   'k-design-chair': { file: 'loungeDesignChair', s: 1.4, paint: 'fabric' },
   'k-design-sofa': { file: 'loungeDesignSofa', s: 1.4, paint: 'fabric' },
   'k-design-sofa-corner': { file: 'loungeDesignSofaCorner', s: 1.4, paint: 'fabric' },
-  'k-coffee-table-glass': { file: 'tableCoffeeGlass', s: 1.4 },
+  'k-coffee-table-glass': { file: 'tableCoffeeGlass', s: 1.4, paint: 'metal' },
   'k-coffee-table-square': { file: 'tableCoffeeSquare', s: 1.4, paint: 'wood' },
-  'k-glass-table': { file: 'tableGlass', s: 1.3 },
-  'k-chair-modern': { file: 'chairModernCushion', s: 1.25, paint: 'fabric' },
-  'k-chair-modern-frame': { file: 'chairModernFrameCushion', s: 1.25, paint: 'fabric' },
+  'k-glass-table': { file: 'tableGlass', s: 1.3, paint: 'metal' },
+  'k-chair-modern': { file: 'chairModernCushion', s: 1.25, paint: 'fabric', tint: 'metal' },
+  'k-chair-modern-frame': { file: 'chairModernFrameCushion', s: 1.25, paint: 'fabric', tint: 'metal' },
   'k-chair-rounded': { file: 'chairRounded', s: 1.25, paint: 'wood' },
   'k-desk-chair': { file: 'chairDesk', s: 1.15, paint: 'fabric' },
-  'k-low-bench': { file: 'benchCushionLow', s: 1.4, paint: 'fabric' },
+  'k-low-bench': { file: 'benchCushionLow', s: 1.4, paint: 'fabric', tint: 'wood' },
   'k-side-table-drawers': { file: 'sideTableDrawers', s: 1.3, paint: 'wood' },
   'k-tv-cabinet': { file: 'cabinetTelevision', s: 1.35, paint: 'wood' },
   'k-tv-cabinet-doors': { file: 'cabinetTelevisionDoors', s: 1.35, paint: 'wood' },
   'k-tv-modern': { file: 'televisionModern', s: 1 },
-  'k-tv-vintage': { file: 'televisionVintage', s: 1 },
-  'k-speaker-tall': { file: 'speaker', s: 1.2 },
-  'k-speaker-small': { file: 'speakerSmall', s: 1.2 },
-  'k-lamp-round-floor': { file: 'lampRoundFloor', s: 1.15 },
-  'k-lamp-square-floor': { file: 'lampSquareFloor', s: 1.15 },
-  'k-lamp-round-table': { file: 'lampRoundTable', s: 1.1 },
-  'k-lamp-square-table': { file: 'lampSquareTable', s: 1.1 },
+  'k-tv-vintage': { file: 'televisionVintage', s: 1, paint: 'wood' },
+  'k-speaker-tall': { file: 'speaker', s: 1.2, paint: 'wood' },
+  'k-speaker-small': { file: 'speakerSmall', s: 1.2, paint: 'wood' },
+  'k-lamp-round-floor': { file: 'lampRoundFloor', s: 1.15, paint: 'metal' },
+  'k-lamp-square-floor': { file: 'lampSquareFloor', s: 1.15, paint: 'metal' },
+  'k-lamp-round-table': { file: 'lampRoundTable', s: 1.1, paint: 'metal' },
+  'k-lamp-square-table': { file: 'lampSquareTable', s: 1.1, paint: 'metal' },
   'k-lamp-wall': { file: 'lampWall', s: 1.2, wall: 0.62 },
   'k-coat-rack': { file: 'coatRackStanding', s: 1.15, paint: 'wood' },
   'k-coat-rack-wall': { file: 'coatRack', s: 1.2, wall: 0.5, paint: 'wood' },
-  'k-bear': { file: 'bear', s: 0.55 },
-  'k-bear-giant': { file: 'bear', s: 1.3 },
+  'k-bear': { file: 'bear', s: 0.55, paint: 'fur' },
+  'k-bear-giant': { file: 'bear', s: 1.3, paint: 'fur' },
   'k-pillow': { file: 'pillow', s: 1, paint: 'fabric' },
   'k-pillow-long': { file: 'pillowLong', s: 1, paint: 'fabric' },
-  'k-plant-small-1': { file: 'plantSmall1', s: 1.3 },
-  'k-plant-small-2': { file: 'plantSmall2', s: 1.3 },
-  'k-plant-small-3': { file: 'plantSmall3', s: 1.3 },
-  'k-potted-plant': { file: 'pottedPlant', s: 1.2 },
+  'k-plant-small-1': { file: 'plantSmall1', s: 1.3, paint: 'wood' },
+  'k-plant-small-2': { file: 'plantSmall2', s: 1.3, paint: 'wood' },
+  'k-plant-small-3': { file: 'plantSmall3', s: 1.3, paint: 'wood' },
+  'k-potted-plant': { file: 'pottedPlant', s: 1.2, paint: 'wood' },
   'k-laptop': { file: 'laptop', s: 0.9 },
   'k-computer-screen': { file: 'computerScreen', s: 1 },
   'k-keyboard': { file: 'computerKeyboard', s: 1 },
@@ -228,11 +304,11 @@ const DEFS = {
   'k-bookcase-low': { file: 'bookcaseOpenLow', s: 1.1, paint: 'wood' },
   'k-bookcase-doors': { file: 'bookcaseClosedDoors', s: 1.1, paint: 'wood' },
   'k-bookcase-wide': { file: 'bookcaseClosedWide', s: 1.1, paint: 'wood' },
-  'k-box-closed': { file: 'cardboardBoxClosed', s: 1.2 },
-  'k-box-open': { file: 'cardboardBoxOpen', s: 1.2 },
-  'k-bed-bunk': { file: 'bedBunk', s: 1.1, paint: 'fabric' },
-  'k-bed-double': { file: 'bedDouble', s: 1.35, paint: 'fabric' },
-  'k-bed-single': { file: 'bedSingle', s: 1.35, paint: 'fabric' },
+  'k-box-closed': { file: 'cardboardBoxClosed', s: 1.2, raw: true },
+  'k-box-open': { file: 'cardboardBoxOpen', s: 1.2, raw: true },
+  'k-bed-bunk': { file: 'bedBunk', s: 1.1, paint: 'fabric', tint: 'wood' },
+  'k-bed-double': { file: 'bedDouble', s: 1.35, paint: 'fabric', tint: 'wood' },
+  'k-bed-single': { file: 'bedSingle', s: 1.35, paint: 'fabric', tint: 'wood' },
   'k-nightstand': { file: 'cabinetBedDrawerTable', s: 1.4, paint: 'wood' },
   'k-nightstand-drawers': { file: 'cabinetBedDrawer', s: 1.4, paint: 'wood' },
   'k-rug-rectangle': { file: 'rugRectangle', s: 1.2, paint: 'fabric' },
