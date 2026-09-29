@@ -754,22 +754,24 @@ body.camera-rotating #task-progress {
 .help .muted {
   opacity: 0.8;
 }
-/* Réglage dans l'aide : la sensibilité de la souris en vue subjective. */
+/* Réglage dans l'aide : la sensibilité de la souris en vue subjective. Le HUD laisse passer
+   les clics (pointer-events: none) : le réglage, lui, doit les prendre. */
 .help-setting {
   display: flex;
   align-items: center;
   gap: 8px;
   color: var(--text);
+  pointer-events: auto;
 }
 .help-setting input {
-  flex: 1;
-  min-width: 80px;
+  width: 96px;
+  margin: 0;
   accent-color: var(--cyan);
   cursor: pointer;
 }
 .help-setting output {
-  min-width: 3.2em;
-  text-align: right;
+  min-width: 2.6em;
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 code {
