@@ -1852,7 +1852,7 @@ body.editing .top-left {
 /* Mobilier, murs et sol, ou pièces des extensions. */
 .ed-modes {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 4px;
 }
 .ed-modes button {
@@ -1860,7 +1860,7 @@ body.editing .top-left {
   align-items: center;
   justify-content: center;
   gap: 5px;
-  height: 32px;
+  height: 30px;
   padding: 0 4px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1869,6 +1869,7 @@ body.editing .top-left {
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
+  overflow: hidden;
 }
 .ed-modes button:hover {
   color: var(--text);
@@ -1881,7 +1882,7 @@ body.editing .top-left {
 }
 .ed-modes .icon {
   flex: none;
-  font-size: 16px;
+  font-size: 15px;
 }
 .ed-cards.finish {
   display: flex;

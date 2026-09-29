@@ -10,8 +10,10 @@ import { DIRS } from '../map'
 import { $ } from '../ui'
 import { CATALOG, CATEGORIES, entryOf, joinVariant, splitVariant, type CatalogEntry, type CategoryId } from './catalog'
 import { drawFinish, stylesOf, styleOf, type Slot } from './finishes'
-import { cloneItems, cloneLayout, cloneWings, DEFAULT_CABIN, defaultLayout, ROOM_ITEMS, sameItems, sameLayout, WING_ITEMS, wingShapes, type CabinItem, type CabinLayout, type CabinWings, type Finish } from './layout'
-import { refusal, ridersOf, surfacesOf, type Surface } from './rules'
+import { cloneItems, cloneLayout, cloneWings, DEFAULT_CABIN, defaultLayout, ROOM_ITEMS, sameItems, sameLayout, WING_ITEMS, wingShapes, type CabinItem, type CabinLayout, type CabinWings, type Finish, type Partition } from './layout'
+import { kindOf, PARTITION_KINDS, partitionCenter } from './partitions'
+import { hangingOn, partitionRefusal, refusal, ridersOf, surfacesOf, type Surface } from './rules'
+import { isDoor, MAX_PARTITIONS, partitionKey } from '../../shared/cabin-partitions.js'
 import { thumbnail } from './thumbs'
 import { artChoice } from './art-choice'
 import { rotateLocal, type CabinView, type WallLine } from './view'
@@ -27,6 +29,10 @@ import { DEFAULT_PATTERN, WING_PATTERNS, WING_SIZE, WING_SLOTS, wingPlan, type P
  *
  * Les objets payants se débloquent une fois en crédits (cf. economy/) et peuvent ensuite être
  * posés plusieurs fois. Le mobilier d'origine reste offert et disponible en quantité limitée.
+ *
+ * Onglet « Cloisons » : des murs et des portes posés sur les lignes du quadrillage, pour découper
+ * une pièce en plusieurs (gratuits, cf. partitions.ts) ; un clic pose, glisser trace une ligne de
+ * murs, la gomme retire. Chaque partie des quartiers doit rester accessible depuis la porte.
  *
  * Onglet « Pièces » : les trois espaces d'extension (SHIP-02). Un espace se débloque une fois,
  * puis reçoit une pièce dont on choisit la forme de plan ; changer de forme vide la pièce de ses
@@ -96,6 +102,9 @@ const PATTERN_NAMES: Record<PatternId, string> = {
   suite: tr('Suite', 'Suite'),
 }
 
+/** Outil de l'onglet « Cloisons » qui retire une cloison. */
+const ERASE = 'erase'
+
 /** Carte « d'origine » des revêtements : murs et sol du vaisseau, sans rien dessus. */
 const ORIGIN = 'origin'
 /** Vignettes des revêtements (px) : un pan de mur de 1 m de haut, ou 0,8 m de sol. */
@@ -116,6 +125,8 @@ export class CabinEditor {
   floor?: Finish
   /** Pièces des extensions débloquées : forme et revêtements. */
   wings?: CabinWings
+  /** Cloisons : murs et portes posés sur le quadrillage. */
+  partitions: Partition[] = []
   private open = false
   private past: CabinLayout[] = []
   private future: CabinLayout[] = []
@@ -143,8 +154,15 @@ export class CabinEditor {
   private buying: { entry: CatalogEntry; pending: boolean; error: string } | null = null
   /** Étiquette de déblocage ou de stock offert de chaque carte affichée. */
   private cardTags = new Map<string, { card: HTMLElement; tag: HTMLElement; entry: CatalogEntry }>()
-  /** Catalogue du mobilier, revêtements des murs et du sol, ou pièces des extensions. */
-  private mode: 'objects' | 'finish' | 'rooms' = 'objects'
+  /** Catalogue du mobilier, revêtements des murs et du sol, cloisons, ou pièces des extensions. */
+  private mode: 'objects' | 'finish' | 'partitions' | 'rooms' = 'objects'
+  /** Onglet « Cloisons » : l'outil choisi (un modèle de cloison, ou la gomme). */
+  private tool = 'wall'
+  /** Arête visée et ce qu'y ferait l'outil (refus éventuel), recalculés quand l'arête ou l'aménagement changent. */
+  private edge: { p: Partition; key: string; existing?: Partition; refusal: string | null; noop: boolean } | null = null
+  /** Tracé en cours (bouton enfoncé) : les arêtes déjà traitées, et si l'historique a sa première étape. */
+  private painting: { done: Set<string>; committed: boolean } | null = null
+  private partitionEls: { cards: Map<string, HTMLElement>; count: HTMLElement } | null = null
   private confirmReset = 0
 
   private readonly raycaster = new THREE.Raycaster()
@@ -160,6 +178,9 @@ export class CabinEditor {
   private grid: THREE.Group
   /** Aperçu au sol d'un espace ou d'une forme (onglet « Pièces »). */
   private readonly preview: THREE.Mesh
+  /** Onglet « Cloisons » : aperçu de la cloison visée, et marques au sol des cloisons posées. */
+  private readonly edgeGhost: THREE.Mesh
+  private marks = new THREE.Group()
   private readonly helpers = new THREE.Group()
 
   // Interface.
@@ -208,7 +229,13 @@ export class CabinEditor {
     )
     this.preview.renderOrder = 4
     this.preview.visible = false
-    this.helpers.add(this.footprint, this.hoverBox, this.selectBox, this.heldBox, this.grid, this.preview)
+    this.edgeGhost = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, WALL_GHOST),
+      new THREE.MeshBasicMaterial({ color: '#7dffa8', transparent: true, opacity: 0.4, depthWrite: false, depthTest: false }),
+    )
+    this.edgeGhost.renderOrder = 5
+    this.edgeGhost.visible = false
+    this.helpers.add(this.footprint, this.hoverBox, this.selectBox, this.heldBox, this.grid, this.preview, this.edgeGhost, this.marks)
     this.helpers.visible = false
     view.group.add(this.helpers)
 
@@ -253,11 +280,16 @@ export class CabinEditor {
     catalog.className = 'panel ed-catalog'
     this.modes = document.createElement('div')
     this.modes.className = 'ed-modes'
-    for (const [mode, label, glyph] of [['objects', tr('Mobilier', 'Furniture'), 'couch'], ['finish', tr('Murs et sol', 'Walls and floor'), 'paint-roller'], ['rooms', tr('Pièces', 'Rooms'), 'grid-four']] as const) {
+    const MODES = [
+      ['objects', tr('Mobilier', 'Furniture'), 'couch'], ['finish', tr('Murs et sol', 'Walls & floor'), 'paint-roller'],
+      ['partitions', tr('Cloisons', 'Partitions'), 'wall'], ['rooms', tr('Pièces', 'Rooms'), 'grid-four'],
+    ] as const
+    for (const [mode, label, glyph] of MODES) {
       const b = document.createElement('button')
       b.dataset.mode = mode
+      b.title = label
       b.append(icon(glyph), document.createTextNode(label))
-      b.onclick = () => (mode === 'finish' ? this.showFinishes() : mode === 'rooms' ? this.showRooms() : this.showCategory(this.category))
+      b.onclick = () => (mode === 'finish' ? this.showFinishes() : mode === 'rooms' ? this.showRooms() : mode === 'partitions' ? this.showPartitions() : this.showCategory(this.category))
       this.modes.appendChild(b)
     }
     this.tabs = document.createElement('div')
@@ -403,6 +435,9 @@ export class CabinEditor {
     this.wall = own.wall
     this.floor = own.floor
     this.wings = own.wings
+    this.partitions = own.partitions ?? []
+    this.edge = null
+    this.painting = null
     if (tab) this.mode = tab
     if (this.finishRoom !== 'main' && !this.wings?.[this.finishRoom]) this.finishRoom = 'main'
     this.refreshGrid()
@@ -417,6 +452,7 @@ export class CabinEditor {
     this.helpers.visible = true
     if (this.mode === 'finish') this.showFinishes()
     else if (this.mode === 'rooms') this.showRooms()
+    else if (this.mode === 'partitions') this.showPartitions()
     else this.showCategory(this.category)
     this.renderBar()
     this.renderBalance()
@@ -434,6 +470,9 @@ export class CabinEditor {
     this.helpers.visible = false
     this.tools.hidden = true
     this.selected = this.hovered = -1
+    this.painting = null
+    this.edge = null
+    this.view.solidPartitions = false
     this.view.detach([])
   }
 
@@ -456,6 +495,7 @@ export class CabinEditor {
     if (this.wall) layout.wall = this.wall
     if (this.floor) layout.floor = this.floor
     if (this.wings && Object.keys(this.wings).length) layout.wings = this.wings
+    if (this.partitions.length) layout.partitions = this.partitions
     return layout
   }
 
@@ -466,13 +506,23 @@ export class CabinEditor {
 
   // ---------------------------------------------------------------- catalogue
 
-  private setMode(mode: 'objects' | 'finish' | 'rooms') {
+  private setMode(mode: 'objects' | 'finish' | 'partitions' | 'rooms') {
     const reframe = (mode === 'rooms') !== (this.mode === 'rooms')
     this.mode = mode
     for (const b of this.modes.children) (b as HTMLElement).classList.toggle('active', (b as HTMLElement).dataset.mode === mode)
     this.tabs.hidden = mode !== 'objects'
     this.cards.classList.toggle('finish', mode !== 'objects')
     if (mode !== 'rooms') this.showPreview(null)
+    if (mode !== 'partitions') {
+      this.partitionEls = null
+      this.edge = null
+      this.painting = null
+      this.edgeGhost.visible = false
+      this.setStatus(null)
+    }
+    this.view.solidPartitions = mode === 'partitions'
+    this.refreshMarks()
+    this.setHint()
     // L'onglet « Pièces » cadre aussi les espaces encore fermés.
     if (reframe && this.open) this.reframe()
   }
@@ -824,6 +874,156 @@ export class CabinEditor {
     if (tint) this.lastTint = { slot, room, at: now }
   }
 
+  // ---------------------------------------------------------------- cloisons
+
+  /** Onglet « Cloisons » : les modèles (murs, portes) et la gomme ; la cloison se pose dans la cabine. */
+  private showPartitions() {
+    this.cancelHeld()
+    this.closeBuy()
+    this.select(-1)
+    this.setMode('partitions')
+    this.cards.replaceChildren()
+    this.cardTags.clear()
+    const intro = document.createElement('div')
+    intro.className = 'ed-rooms-intro'
+    intro.textContent = tr(
+      'Posez des murs et des portes sur les lignes du quadrillage pour découper vos pièces : un clic pose, glisser trace une ligne de murs. Les murs prennent le papier peint de leur pièce. C\'est gratuit.',
+      'Place walls and doors on the grid lines to split your rooms: click to place, drag to draw a line of walls. Walls take on their room\'s wallpaper. It\'s free.',
+    )
+    const count = document.createElement('div')
+    count.className = 'ed-cat-title'
+    const grid = document.createElement('div')
+    grid.className = 'ed-finishes'
+    const cards = new Map<string, HTMLElement>()
+    for (const kind of [...PARTITION_KINDS, { id: ERASE, name: tr('Gomme', 'Eraser'), door: false }]) {
+      const b = document.createElement('button')
+      b.className = 'ed-finish'
+      b.title = kind.name
+      const canvas = document.createElement('canvas')
+      canvas.width = canvas.height = THUMB
+      drawPartition(canvas, kind.id)
+      const name = document.createElement('span')
+      name.textContent = kind.name
+      b.append(canvas, name)
+      b.onclick = () => {
+        this.tool = kind.id
+        this.edge = null
+        for (const [id, c] of cards) c.classList.toggle('active', id === this.tool)
+        this.host.sound.ui('pick')
+      }
+      b.classList.toggle('active', kind.id === this.tool)
+      grid.appendChild(b)
+      cards.set(kind.id, b)
+    }
+    this.cards.append(intro, count, grid)
+    this.partitionEls = { cards, count }
+    this.renderPartitionCount()
+  }
+
+  private renderPartitionCount() {
+    if (!this.partitionEls) return
+    const doors = this.partitions.filter(isDoor).length
+    this.partitionEls.count.textContent = tr(
+      `${this.partitions.length} / ${MAX_PARTITIONS} cloisons · ${doors} porte${doors > 1 ? 's' : ''}`,
+      `${this.partitions.length} / ${MAX_PARTITIONS} partitions · ${doors} door${doors === 1 ? '' : 's'}`,
+    )
+  }
+
+  /** Arête du quadrillage la plus proche du point visé au sol (tuile à l'ouest ou au nord, et sens). */
+  private edgeUnder(e: { clientX: number; clientY: number }): Partition | null {
+    const p = this.atHeight(this.ray(e).ray, 0)
+    if (!p) return null
+    const tx = Math.round(p.x), tz = Math.round(p.z)
+    const fx = p.x - tx, fz = p.z - tz
+    if (!this.view.contains(p.x, p.z)) return null
+    // La ligne la plus proche : verticale (x = k + 0,5) ou horizontale (z = k + 0,5).
+    if (0.5 - Math.abs(fx) < 0.5 - Math.abs(fz)) return { x: fx > 0 ? tx : tx - 1, z: tz, e: 'v' }
+    return { x: tx, z: fz > 0 ? tz : tz - 1, e: 'h' }
+  }
+
+  /** Ce que ferait l'outil sur l'arête visée, avec son aperçu (vert, rouge, ou orange pour la gomme). */
+  private aimEdge(e: { clientX: number; clientY: number }) {
+    const at = this.edgeUnder(e)
+    if (!at) {
+      this.edge = null
+      this.edgeGhost.visible = false
+      this.setStatus(null)
+      return
+    }
+    const key = `${partitionKey(at)}|${this.tool}`
+    if (this.edge?.key !== key) {
+      const existing = this.partitions.find((q) => partitionKey(q) === partitionKey(at))
+      let why: string | null = null
+      let noop = false
+      if (this.tool === ERASE) {
+        noop = !existing
+        if (!existing) why = tr('Pas de cloison ici', 'No partition here')
+      } else if (existing && kindOf(existing) === this.tool) noop = true
+      else {
+        const next = this.nextPartitions(at, existing)
+        const p = next[next.length - 1]
+        const leaving = existing && this.tool !== 'wall' ? hangingOn(this.view, this.items, existing) : []
+        why = partitionRefusal(this.view, this.items, next, p, existing, leaving)
+      }
+      this.edge = { p: at, key, existing, refusal: why, noop }
+    }
+    const { cx, cz, alongX } = partitionCenter(at)
+    const erase = this.tool === ERASE
+    this.edgeGhost.visible = true
+    this.edgeGhost.position.set(cx, 0.5, cz)
+    this.edgeGhost.rotation.y = alongX ? 0 : Math.PI / 2
+    const door = PARTITION_KINDS.find((k) => k.id === this.tool)?.door
+    this.edgeGhost.scale.set(1.02, door ? 0.72 : 1.02, 1)
+    this.edgeGhost.position.y = door ? 0.36 : 0.5
+    ;(this.edgeGhost.material as THREE.MeshBasicMaterial).color.set(this.edge.refusal ? '#ff4f5e' : erase ? '#ffb03a' : this.edge.noop ? '#9fdcff' : '#7dffa8')
+    this.setStatus(this.edge.refusal)
+  }
+
+  /** Cloisons une fois l'outil passé sur l'arête `at` (qui remplace `existing`) ; la nouvelle en dernier. */
+  private nextPartitions(at: Partition, existing?: Partition): Partition[] {
+    const rest = this.partitions.filter((q) => q !== existing)
+    if (this.tool === ERASE) return rest
+    const p: Partition = { x: at.x, z: at.z, e: at.e }
+    if (this.tool !== 'wall') p.k = this.tool
+    return [...rest, p]
+  }
+
+  /** Passe l'outil sur l'arête visée ; `click` : premier appui (un refus s'affiche alors). */
+  private paintEdge(click: boolean) {
+    const edge = this.edge
+    const painting = this.painting
+    if (!edge || !painting || painting.done.has(edge.key)) return
+    painting.done.add(edge.key)
+    if (edge.noop) return
+    if (edge.refusal) {
+      if (click) this.refuse(edge.refusal)
+      return
+    }
+    // Les objets accrochés à l'ancien pan partent avec lui (Ctrl+Z pour tout récupérer).
+    const leaving = edge.existing && this.tool !== 'wall' ? new Set(hangingOn(this.view, this.items, edge.existing)) : new Set<number>()
+    const partitions = this.nextPartitions(edge.p, edge.existing)
+    const items = leaving.size ? this.items.filter((_, i) => !leaving.has(i)) : this.items
+    this.commitLayout({ ...this.layout, items, partitions }, -1, painting.committed)
+    painting.committed = true
+    this.host.sound.ui(this.tool === ERASE ? 'rotate' : 'drop')
+    if (leaving.size) this.toast(tr(`${leaving.size} objet(s) accroché(s) retiré(s) avec le mur (Ctrl+Z pour annuler)`, `${leaving.size} hanging item(s) removed with the wall (Ctrl+Z to undo)`))
+  }
+
+  /** Marques au sol des cloisons posées (onglet « Cloisons ») : bleu pour un mur, orange pour une porte. */
+  private refreshMarks() {
+    for (const m of this.marks.children) (m as THREE.Mesh).geometry.dispose()
+    this.marks.clear()
+    if (this.mode !== 'partitions') return
+    for (const p of this.partitions) {
+      const { cx, cz, alongX } = partitionCenter(p)
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(alongX ? 0.96 : 0.34, alongX ? 0.34 : 0.96), isDoor(p) ? MARK_DOOR : MARK_WALL)
+      m.rotation.x = -Math.PI / 2
+      m.position.set(cx, 0.03, cz)
+      m.renderOrder = 4
+      this.marks.add(m)
+    }
+  }
+
   // ---------------------------------------------------------------- pièces (extensions)
 
   /**
@@ -960,7 +1160,9 @@ export class CabinEditor {
     this.confirmShape = null
     const wings = cloneWings(this.wings ?? {})
     wings[id] = { ...wings[id]!, shape }
-    this.commitLayout({ ...this.layout, items: this.items.filter((it) => !inside.includes(it)), wings }, -1)
+    // Les cloisons de la pièce partent avec elle.
+    const partitions = this.partitions.filter((p) => this.view.roomAt(p.x, p.z) !== id)
+    this.commitLayout({ ...this.layout, items: this.items.filter((it) => !inside.includes(it)), wings, partitions }, -1)
     this.host.sound.ui('pick')
     this.showRooms()
     this.showPreview(id, shape)
@@ -995,6 +1197,12 @@ export class CabinEditor {
   pointerDown(e: PointerEvent) {
     this.lastPointer = e
     if (e.button !== 0) return
+    if (this.mode === 'partitions') {
+      this.painting = { done: new Set(), committed: false }
+      this.edge = null
+      this.aimEdge(e)
+      return this.paintEdge(true)
+    }
     // Un objet déjà en main (relâché hors de la fenêtre…) se pose là, comme un nouvel objet.
     if (this.held) {
       this.aimAt(e)
@@ -1018,6 +1226,7 @@ export class CabinEditor {
 
   pointerUp(e: PointerEvent) {
     this.press = null
+    this.painting = null
     if (this.held && this.held.index >= 0) {
       this.aimAt(e)
       this.drop()
@@ -1049,6 +1258,8 @@ export class CabinEditor {
       const y = p.y - this.view.deck.y
       const along = alongX ? p.x : p.z
       if (y < 0.05 || y > 1.05 || along < (alongX ? b.minX : b.minZ) - 0.2 || along > (alongX ? b.maxX : b.maxZ) + 0.2) continue
+      // Seulement là où le mur existe : une cloison au milieu de la pièce ne capte pas la visée des murs du fond.
+      if (!wall.cover.some(([u, v]) => along > u - 0.2 && along < v + 0.2)) continue
       const t = ray.origin.distanceTo(p)
       if (!best || t < best.t) best = { wall, along, t }
     }
@@ -1500,6 +1711,9 @@ export class CabinEditor {
     this.wall = next.wall
     this.floor = next.floor
     this.wings = next.wings
+    this.partitions = next.partitions ?? []
+    // L'arête visée est à réévaluer (la cloison posée, les meubles déplacés…).
+    this.edge = null
     this.view.setLayout(next)
     if (reshaped) this.refreshGrid()
     this.selected = select < next.items.length ? select : -1
@@ -1511,6 +1725,8 @@ export class CabinEditor {
       else this.refreshFinishes()
     }
     if (this.mode === 'rooms' && reshaped) this.showRooms()
+    if (this.mode === 'partitions') this.renderPartitionCount()
+    this.refreshMarks()
     this.host.onChange(cloneLayout(next))
   }
 
@@ -1592,6 +1808,17 @@ export class CabinEditor {
 
   update(t: number) {
     if (!this.open) return
+    if (this.mode === 'partitions') {
+      if (this.pointerDirty && this.lastPointer) {
+        this.pointerDirty = false
+        this.aimEdge(this.lastPointer)
+        if (this.painting) this.paintEdge(false)
+      } else if (!this.edge && this.lastPointer) this.aimEdge(this.lastPointer)
+      this.hoverBox.visible = this.selectBox.visible = false
+      this.tools.hidden = true
+      this.host.canvas.style.cursor = this.edge ? (this.edge.refusal ? 'not-allowed' : 'crosshair') : 'default'
+      return
+    }
     if (this.pointerDirty && this.lastPointer) {
       this.pointerDirty = false
       if (this.held) this.aimAt(this.lastPointer)
@@ -1628,7 +1855,11 @@ export class CabinEditor {
 
   private setHint() {
     this.keysEl.replaceChildren()
-    const parts: [string, string][] = this.held
+    const parts: [string, string][] = this.mode === 'partitions'
+      ? EN
+        ? [['Click', 'place'], ['Drag', 'draw a wall'], [tr('Gomme', 'Eraser'), 'remove'], ['Ctrl+Z', 'undo'], ['Esc', 'done']]
+        : [['Clic', 'poser'], ['Glisser', 'tracer un mur'], ['Gomme', 'retirer'], ['Ctrl+Z', 'annuler'], ['Échap', 'terminer']]
+      : this.held
       ? this.held.index < 0
         ? EN
           ? [['Click', 'place'], ['Shift+click', 'place several'], ['R', 'rotate'], ['Esc', 'cancel']]
@@ -1691,6 +1922,11 @@ export class CabinEditor {
 const GRID_DEPTH = { depthFunc: THREE.LessDepth, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }
 const GRID_HALO = new THREE.MeshBasicMaterial({ color: '#03121c', transparent: true, opacity: 0.5, ...GRID_DEPTH })
 const GRID_LINE = new THREE.MeshBasicMaterial({ color: '#8fe9ff', transparent: true, opacity: 0.75, ...GRID_DEPTH })
+
+/** Épaisseur de l'aperçu d'une cloison, et marques au sol des cloisons posées. */
+const WALL_GHOST = 0.32
+const MARK_WALL = new THREE.MeshBasicMaterial({ color: '#59d8ff', transparent: true, opacity: 0.55, depthWrite: false, depthTest: false })
+const MARK_DOOR = new THREE.MeshBasicMaterial({ color: '#ffb03a', transparent: true, opacity: 0.6, depthWrite: false, depthTest: false })
 
 /** Bandes plates au sol, de demi-largeur `half`, prolongées d'autant aux bouts pour fermer les angles. */
 function gridStrips(edges: [number, number, number, number][], half: number, y: number): THREE.BufferGeometry {
@@ -1776,4 +2012,96 @@ function paintThumb(canvas: HTMLCanvasElement, slot: Slot, finish: Finish | unde
     thumbs.set(key, src)
   }
   canvas.getContext('2d')!.drawImage(src, 0, 0)
+}
+
+// ---------------------------------------------------------------- vignettes des cloisons
+
+/**
+ * Vignette d'une cloison vue de face : un pan de mur du vaisseau, son hublot, ou l'encadrement
+ * d'une porte et son battant ; la gomme, une cloison barrée.
+ */
+function drawPartition(canvas: HTMLCanvasElement, kind: string) {
+  const g = canvas.getContext('2d')!
+  const W = canvas.width, H = canvas.height
+  g.clearRect(0, 0, W, H)
+  const wall = '#c9ccd6', band = '#9aa0ae', dark = '#2a2e36'
+  const x0 = W * 0.12, x1 = W * 0.88, y0 = H * 0.14, y1 = H * 0.9
+  g.fillStyle = wall
+  g.fillRect(x0, y0, x1 - x0, y1 - y0)
+  g.fillStyle = band
+  g.fillRect(x0, y1 - H * 0.12, x1 - x0, H * 0.12)
+  g.fillRect(x0, y0, x1 - x0, H * 0.08)
+  const ox0 = W * 0.33, ox1 = W * 0.67, oy = y0 + (y1 - y0) * 0.3
+  const rect = (x: number, y: number, w: number, h: number, c: string) => {
+    g.fillStyle = c
+    g.fillRect(x, y, w, h)
+  }
+  if (kind === 'window') {
+    g.fillStyle = dark
+    g.beginPath()
+    g.arc(W / 2, H * 0.48, W * 0.16, 0, Math.PI * 2)
+    g.fill()
+    g.fillStyle = '#6fd8ff'
+    g.beginPath()
+    g.arc(W / 2, H * 0.48, W * 0.12, 0, Math.PI * 2)
+    g.fill()
+    return
+  }
+  if (kind === 'wall') return
+  if (kind === ERASE) {
+    g.strokeStyle = '#ff4f5e'
+    g.lineWidth = W * 0.08
+    g.beginPath()
+    g.moveTo(W * 0.2, H * 0.2)
+    g.lineTo(W * 0.8, H * 0.82)
+    g.stroke()
+    return
+  }
+  // Ouverture de porte, et son battant.
+  rect(ox0, oy, ox1 - ox0, y1 - oy, '#1b1e26')
+  const w = ox1 - ox0, h = y1 - oy
+  switch (kind) {
+    case 'sliding':
+      rect(ox0 + w * 0.08, oy + 2, w * 0.84, h - 2, '#8f96a3')
+      rect(ox0 + w * 0.46, oy + h * 0.2, w * 0.08, h * 0.5, '#ff8a1c')
+      break
+    case 'wood':
+      rect(ox0 + 2, oy + 2, w - 4, h - 2, '#8a5a3a')
+      for (const [fx, fy] of [[0.12, 0.08], [0.56, 0.08], [0.12, 0.55], [0.56, 0.55]]) rect(ox0 + w * fx, oy + h * fy, w * 0.32, h * 0.38, '#5e3a24')
+      rect(ox0 + w * 0.8, oy + h * 0.48, w * 0.1, w * 0.1, '#c9a24a')
+      break
+    case 'saloon':
+      rect(ox0 + 2, oy + h * 0.25, w / 2 - 3, h * 0.45, '#8a5a3a')
+      rect(ox0 + w / 2 + 1, oy + h * 0.25, w / 2 - 3, h * 0.45, '#8a5a3a')
+      break
+    case 'airlock':
+      rect(ox0, oy, w, h / 2 - 1, '#5b626e')
+      rect(ox0, oy + h / 2 + 1, w, h / 2 - 1, '#5b626e')
+      for (let i = 0; i < 4; i++) rect(ox0 + (i * w) / 4, oy + h / 2 - 5, w / 8, 10, '#e9a917')
+      break
+    case 'shoji':
+      rect(ox0 + 2, oy + 2, w - 4, h - 2, '#f3ead2')
+      g.strokeStyle = '#b98a52'
+      g.lineWidth = 2
+      for (let i = 1; i < 3; i++) g.strokeRect(ox0 + 2, oy + 2, ((w - 4) * i) / 3, h - 2)
+      for (let i = 1; i < 5; i++) rect(ox0 + 2, oy + (i * h) / 5, w - 4, 2, '#b98a52')
+      break
+    case 'glass':
+      rect(ox0 + 2, oy + 2, w - 4, h - 2, '#b9c1cc')
+      rect(ox0 + 6, oy + 6, w - 12, h - 10, '#9fdcf0')
+      break
+    case 'beads':
+      for (let i = 0; i < 6; i++) {
+        for (let k = 0; k < 7; k++) rect(ox0 + 4 + (i * (w - 8)) / 5 - 2, oy + 4 + (k * (h - 8)) / 7, 4, 4, ['#ff6a5a', '#ffd23c', '#6ad8ff', '#ff6ad5'][(i + k) % 4])
+      }
+      break
+    case 'arch':
+      g.fillStyle = wall
+      g.fillRect(ox0, oy, w, w / 2)
+      g.fillStyle = '#1b1e26'
+      g.beginPath()
+      g.arc(W / 2, oy + w / 2, w / 2, Math.PI, 0)
+      g.fill()
+      break
+  }
 }

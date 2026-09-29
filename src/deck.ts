@@ -77,6 +77,13 @@ export interface DoorState {
    * entre les montants), et le rectangle qu'elle prend alors ; déverrouillée, elle est rangée au loin.
    */
   bar?: { box: Box2; gap: Box2 }
+  /**
+   * Porte qui ne glisse pas (battante, de saloon, rideau de perles… cf. cabin/partitions.ts) :
+   * place ses battants selon l'ouverture (0 fermée, 1 ouverte), à la place du glissement.
+   */
+  animate?: (open: number) => void
+  /** Porte sans chuintement pneumatique (bois, perles…). */
+  quiet?: boolean
 }
 
 /** Où se range la collision d'une porte ouverte : hors de portée de tout. */
@@ -987,10 +994,11 @@ export class Deck {
       const wanted = !locked && actors.some((a) => Math.hypot(a.x - d.center.x, a.z - d.center.z) < DOOR_RANGE)
       if (wanted !== d.wanted) {
         d.wanted = wanted
-        this.onDoor?.(new THREE.Vector3(d.center.x, this.y + 0.5, d.center.z), wanted)
+        if (!d.quiet) this.onDoor?.(new THREE.Vector3(d.center.x, this.y + 0.5, d.center.z), wanted)
       }
       d.open = THREE.MathUtils.damp(d.open, wanted ? 1 : 0, 10, dt)
-      if (d.pair) {
+      if (d.animate) d.animate(d.open)
+      else if (d.pair) {
         // Chaque battant (0,8 de large) part de son côté et rentre dans le mur.
         d.panel.position.copy(d.center).addScaledVector(d.axis, -0.4 - d.open * 0.78)
         d.pair.position.copy(d.center).addScaledVector(d.axis, 0.4 + d.open * 0.78)

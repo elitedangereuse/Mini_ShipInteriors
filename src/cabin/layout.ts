@@ -2,15 +2,20 @@ import type { Rot } from '../levels'
 import { entryOf, knownVariant } from './catalog'
 import { normalizeFinish } from './finishes'
 import { DEFAULT_PATTERN, WING_PATTERNS, WING_SLOTS, wingPlan, type PatternId, type WingId } from '../../shared/cabin-wings.js'
+import { DOOR_KINDS, partitionEdge, sanitizePartitions, WALL_KINDS, type Partition } from '../../shared/cabin-partitions.js'
+
+export type { Partition } from '../../shared/cabin-partitions.js'
 
 /*
  * Aménagement d'une cabine : la liste de ses objets, et les revêtements de ses murs et de son
  * sol. C'est ce qui est enregistré sur le site (outils/mini-shipinteriors-cabin.php) et envoyé
  * par le relais aux CMDR invités. Format compact, identique partout :
  * { v: 1, items: [{ m, x, z, r, v?, y?, s? }], wall?: { style, color }, floor?: { style, color },
- *   wings?: { left?: { shape, wall?, floor? }, middle?: …, right?: … } }.
+ *   wings?: { left?: { shape, wall?, floor? }, middle?: …, right?: … }, partitions?: [{ x, z, e, k? }] }.
  * `wings` : les pièces des extensions débloquées (cf. shared/cabin-wings.js), leur forme et leurs
  * revêtements ; leurs objets sont dans `items`, comme ceux des quartiers.
+ * `partitions` : les cloisons (murs et portes) posées sur les arêtes du quadrillage (cf.
+ * shared/cabin-partitions.js et partitions.ts) ; elles ne comptent pas parmi les objets.
  */
 
 export interface CabinItem {
@@ -50,6 +55,8 @@ export interface CabinLayout {
   wall?: Finish
   floor?: Finish
   wings?: CabinWings
+  /** Cloisons : murs et portes posés par le CMDR. */
+  partitions?: Partition[]
 }
 
 export const CABIN_FORMAT = 1
@@ -113,8 +120,13 @@ export function cloneLayout(layout: CabinLayout): CabinLayout {
   if (layout.wall) out.wall = { ...layout.wall }
   if (layout.floor) out.floor = { ...layout.floor }
   if (layout.wings) out.wings = cloneWings(layout.wings)
+  if (layout.partitions?.length) out.partitions = layout.partitions.map((p) => ({ ...p }))
   return out
 }
+
+/** Cloisons : même ensemble, même clé (l'ordre ne compte pas). */
+export const partitionsKey = (partitions: Partition[] | undefined) =>
+  (partitions ?? []).map((p) => `${p.x},${p.z},${p.e},${p.k ?? ''}`).sort().join('|')
 
 export function cloneWings(wings: CabinWings): CabinWings {
   const out: CabinWings = {}
@@ -136,11 +148,12 @@ export function sameLayout(a: CabinLayout, b: CabinLayout): boolean {
 }
 
 /** Ce qui part au site et au relais. */
-export function serializeLayout(layout: CabinLayout): { v: number; items: CabinItem[]; wall?: Finish; floor?: Finish; wings?: CabinWings } {
-  const out: { v: number; items: CabinItem[]; wall?: Finish; floor?: Finish; wings?: CabinWings } = { v: CABIN_FORMAT, items: layout.items }
+export function serializeLayout(layout: CabinLayout): { v: number; items: CabinItem[]; wall?: Finish; floor?: Finish; wings?: CabinWings; partitions?: Partition[] } {
+  const out: { v: number; items: CabinItem[]; wall?: Finish; floor?: Finish; wings?: CabinWings; partitions?: Partition[] } = { v: CABIN_FORMAT, items: layout.items }
   if (layout.wall) out.wall = layout.wall
   if (layout.floor) out.floor = layout.floor
   if (layout.wings && Object.keys(layout.wings).length) out.wings = layout.wings
+  if (layout.partitions?.length) out.partitions = layout.partitions
   return out
 }
 
@@ -163,7 +176,28 @@ export function normalizeLayout(raw: unknown, bounds: Rect): CabinLayout {
     if (f) layout.floor = f
   }
   if (wings) layout.wings = wings
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const partitions = normalizePartitions((raw as { partitions?: unknown }).partitions, bounds, wings)
+    if (partitions.length) layout.partitions = partitions
+  }
   return layout
+}
+
+/**
+ * Cloisons lisibles : bien formées (cf. sanitizePartitions), leurs deux tuiles dans la cabine,
+ * un modèle connu (une porte inconnue devient coulissante, un pan inconnu un mur plein). La
+ * cabine affichée ignore en plus celles qui ne tombent pas entre deux tuiles d'une même pièce.
+ */
+export function normalizePartitions(raw: unknown, bounds: Rect, wings?: CabinWings): Partition[] {
+  const annex = wingTiles(wings)
+  const inside = (x: number, z: number) =>
+    (x >= bounds.minX && x <= bounds.maxX && z >= bounds.minZ && z <= bounds.maxZ) || annex.has(`${x},${z}`)
+  return (sanitizePartitions(raw) ?? []).flatMap((p): Partition[] => {
+    const { x, z, nx, nz } = partitionEdge(p)
+    if (!inside(x, z) || !inside(nx, nz)) return []
+    if (p.k && !WALL_KINDS.includes(p.k) && !DOOR_KINDS.includes(p.k)) return [{ x: p.x, z: p.z, e: p.e, k: 'sliding' }]
+    return [p]
+  })
 }
 
 /** Pièces d'extension : espaces connus, formes connues (sinon celle par défaut), revêtements lisibles. */

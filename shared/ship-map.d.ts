@@ -36,6 +36,8 @@ export declare class ShipMap {
   readonly width: number
   readonly height: number
   readonly doors: Door[]
+  /** Arêtes murées à l'intérieur d'une pièce (cf. edgeKey) : labyrinthe de la zone, cloisons des quartiers. */
+  readonly walls: Set<string>
   constructor(layout: string[], options?: ShipMapOptions)
   /** Porte sur le bord `dir` de la tuile (x, z). */
   addDoor(x: number, z: number, dir: number): void

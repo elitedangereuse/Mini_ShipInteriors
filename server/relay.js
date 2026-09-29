@@ -46,6 +46,7 @@ import { createSalvage, GAME_ACTIONS, LOBBY_ACTIONS } from './salvage.js'
 import { createCinema } from './cinema.js'
 import { BOARD_TABLES, SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import { DIRS, ShipMap } from '../shared/ship-map.js'
+import { applyPartitions } from '../shared/cabin-partitions.js'
 import { applyWings } from '../shared/cabin-wings.js'
 import { canReach } from '../shared/sight.js'
 import { PATROL_LEVEL, PATROL_PERIOD, holdPatrol, patrolAt, patrolTime } from '../shared/patrol.js'
@@ -87,14 +88,18 @@ for (const d of voieMap.doors) {
   const step = DIRS[d.dir]
   if (voieMap.room(d.x, d.z) === 'v' || voieMap.room(d.x + step.dx, d.z + step.dz) === 'v') voieMap.lock(d.x, d.z, d.dir, false)
 }
-/** Plan du pont des quartiers avec les pièces d'extension d'un aménagement (gardé avec lui). */
+/**
+ * Plan du pont des quartiers avec les pièces d'extension et les cloisons d'un aménagement (gardé
+ * avec lui). Une cloison n'est posée que dans les quartiers et leurs extensions.
+ */
 const cabinMaps = new WeakMap()
 function cabinMap(layout) {
-  if (!layout?.wings) return MAPS.get(1)
+  if (!layout?.wings && !layout?.partitions) return MAPS.get(1)
   let map = cabinMaps.get(layout)
   if (!map) {
     map = new ShipMap(SHIP_LAYOUTS['1'], shipMapOptions(1))
-    applyWings(map, layout.wings)
+    if (layout.wings) applyWings(map, layout.wings)
+    applyPartitions(map, layout.partitions)
     cabinMaps.set(layout, map)
   }
   return map

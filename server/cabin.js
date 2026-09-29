@@ -2,11 +2,13 @@
 //
 // Le catalogue des objets et des revêtements vit dans le client (src/cabin/catalog.ts,
 // src/cabin/finishes.ts) : le relais ne vérifie que la forme, bornée (160 objets, identifiants
-// courts, nombres finis dans le vaisseau, couleurs #rrggbb, pièces d'extension connues), et chaque
-// client écarte à la lecture ce qu'il ne connaît pas. Mêmes règles que le site
+// courts, nombres finis dans le vaisseau, couleurs #rrggbb, pièces d'extension connues, 48
+// cloisons sur des arêtes du quadrillage), et chaque client écarte à la lecture ce qu'il ne
+// connaît pas. Mêmes règles que le site
 // (phputils/mini_shipinteriors/cabin.php), qui enregistre l'aménagement et ne garde que les pièces
 // des espaces débloqués.
 
+import { sanitizePartitions } from '../shared/cabin-partitions.js'
 import { WING_PATTERNS, WING_SLOTS } from '../shared/cabin-wings.js'
 
 /** Les quartiers (64 objets) et trois pièces d'extension (32 chacune). */
@@ -30,7 +32,7 @@ function finish(raw) {
 }
 
 /**
- * Aménagement propre à rediffuser ({ v: 1, items, wall?, floor? }), ou null s'il n'a pas la
+ * Aménagement propre à rediffuser ({ v: 1, items, wall?, floor?, wings?, partitions? }), ou null s'il n'a pas la
  * forme attendue. Les objets mal formés sont écartés un par un ; au-delà de 64, le reste est
  * ignoré ; un revêtement mal formé est oublié (le client pose alors celui d'origine).
  */
@@ -57,6 +59,8 @@ export function sanitizeLayout(raw) {
   if (floor) layout.floor = floor
   const wings = sanitizeWings(raw.wings)
   if (wings) layout.wings = wings
+  const partitions = sanitizePartitions(raw.partitions)
+  if (partitions) layout.partitions = partitions
   return layout
 }
 

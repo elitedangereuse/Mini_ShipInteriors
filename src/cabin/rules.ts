@@ -4,8 +4,10 @@ import { DIRS } from '../map'
 import { Pathfinder } from '../pathfinding'
 import { isPetHome, MAX_PETS } from '../pets'
 import { entryOf, isSolid, type CatalogEntry } from './catalog'
-import { ROOM_ITEMS, WING_ITEMS, type CabinItem } from './layout'
+import { ROOM_ITEMS, WING_ITEMS, type CabinItem, type Partition } from './layout'
+import { partitionCenter } from './partitions'
 import type { CabinView } from './view'
+import { isDoor, MAX_PARTITIONS, partitionEdge } from '../../shared/cabin-partitions.js'
 
 /*
  * Règles de pose du mode aménagement : un objet doit tenir dans la cabine (ou sur un pan de
@@ -157,7 +159,71 @@ export function refusal(view: CabinView, items: CabinItem[], i: number, moving: 
   if (entry.mount !== 'wall' && entry.mount !== 'flat' && !(item.y ?? 0) && box.min.y < HEADROOM) {
     const d = view.def.door
     if (overlapXZ(box, { minX: d.x - 0.45, maxX: d.x + 0.45, minZ: d.z - 0.45, maxZ: d.z + 0.45 })) return tr('Laissez le passage de la porte libre', 'Keep the doorway clear')
+    if (view.partitionDoorways.some((w) => overlapXZ(box, w))) return tr('Laissez le passage de la porte libre', 'Keep the doorway clear')
   }
   if ((isSolid(entry) || entry.fixed) && !holoReachable(view, items)) return tr('Le Holo-Me doit rester accessible depuis la porte', 'The Holo-Me must stay reachable from the door')
   return null
+}
+
+// ---------------------------------------------------------------- cloisons
+
+/** Emprise d'une cloison au sol (coordonnées du pont), poteaux d'angle compris. */
+export function partitionBox(p: Partition): { minX: number; maxX: number; minZ: number; maxZ: number } {
+  const { cx, cz, alongX } = partitionCenter(p)
+  const a = 0.5, t = 0.16
+  return alongX ? { minX: cx - a, maxX: cx + a, minZ: cz - t, maxZ: cz + t } : { minX: cx - t, maxX: cx + t, minZ: cz - a, maxZ: cz + a }
+}
+
+/** Objets accrochés au pan de la cloison `p` (et ce qui est posé dessus) : ils partent avec lui. */
+export function hangingOn(view: CabinView, items: CabinItem[], p: Partition): number[] {
+  const { cx, cz, alongX } = partitionCenter(p)
+  const out = new Set<number>()
+  const box = new THREE.Box3()
+  items.forEach((item, i) => {
+    if (entryOf(item.m)?.mount !== 'wall') return
+    const wall = view.wallOf(item)
+    if (!wall || (DIRS[wall.dir].dz !== 0) !== alongX || Math.abs(wall.edge - (alongX ? cz : cx)) > 1e-6 || !view.boxOf(item, box)) return
+    const c = alongX ? cx : cz
+    const [a0, a1] = alongX ? [box.min.x, box.max.x] : [box.min.z, box.max.z]
+    if (a1 <= c - 0.5 + EPS || a0 >= c + 0.5 - EPS) return
+    out.add(i)
+    for (const r of ridersOf(view, items, i)) out.add(r)
+  })
+  return [...out]
+}
+
+/**
+ * Raison pour laquelle on ne peut pas poser la cloison `p` (texte montré au joueur), ou null.
+ * @param next toutes les cloisons une fois `p` posée
+ * @param replacing la cloison qu'elle remplace sur la même arête (un mur devenu porte…)
+ * @param leaving objets qui partiront avec l'ancienne cloison (cf. hangingOn) : ils ne gênent pas
+ */
+export function partitionRefusal(view: CabinView, items: CabinItem[], next: Partition[], p: Partition, replacing?: Partition, leaving: number[] = []): string | null {
+  const map = view.deck.map
+  if (!replacing) {
+    const { x, z, dir, nx, nz } = partitionEdge(p)
+    if (!view.contains(x, z) || !view.contains(nx, nz) || map.room(x, z) !== map.room(nx, nz)) {
+      return tr('Posez-la entre deux tuiles d\'une même pièce', 'Place it between two tiles of the same room')
+    }
+    if (map.edge(x, z, dir) !== 'open') return tr('Il y a déjà un mur ici', 'There is already a wall here')
+    if (next.length > MAX_PARTITIONS) return tr(`${MAX_PARTITIONS} cloisons au plus`, `${MAX_PARTITIONS} partitions at most`)
+  }
+  const wall = partitionBox(p)
+  const door = isDoor(p) ? view.partitionDoorwayOf(p) : null
+  const box = new THREE.Box3()
+  const gone = new Set(leaving)
+  for (let i = 0; i < items.length; i++) {
+    const entry = entryOf(items[i].m)
+    if (!entry || gone.has(i) || entry.mount === 'flat' || !view.boxOf(items[i], box)) continue
+    if (overlapXZ(box, wall) && box.min.y < 1) return tr(`Un meuble est dans le passage (${entry.name.toLowerCase()})`, `A piece of furniture is in the way (${entry.name.toLowerCase()})`)
+    if (door && entry.mount !== 'wall' && !(items[i].y ?? 0) && box.min.y < HEADROOM && isSolid(entry) && overlapXZ(box, door)) {
+      return tr(`Laissez le passage de la porte libre (${entry.name.toLowerCase()})`, `Keep the doorway clear (${entry.name.toLowerCase()})`)
+    }
+  }
+  const kept = items.filter((_, i) => !gone.has(i))
+  return view.withPartitions(next, () => {
+    if (!view.reachableAll()) return tr('Chaque partie des quartiers doit rester accessible : ajoutez une porte', 'Every part of the quarters must stay reachable: add a door')
+    if (!holoReachable(view, kept)) return tr('Le Holo-Me doit rester accessible depuis la porte', 'The Holo-Me must stay reachable from the door')
+    return null
+  })
 }
