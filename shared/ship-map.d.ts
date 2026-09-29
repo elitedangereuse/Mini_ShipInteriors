@@ -28,6 +28,8 @@ export interface ShipMapOptions {
   closed?: string
   /** Portes en plus des '+', posées sur un bord de tuile ; verrouillées si `locked`. */
   doors?: (Door & { locked?: boolean })[]
+  /** Murs entre deux tuiles d'une même pièce (le labyrinthe de la zone thargoïde). */
+  walls?: Door[]
 }
 
 export declare class ShipMap {

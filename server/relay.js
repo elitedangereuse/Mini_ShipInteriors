@@ -19,18 +19,24 @@
 // siens (cf. cabin.js), et peut inviter un joueur connecté : celui-ci n'y entre qu'avec une
 // invitation, reçoit l'aménagement, puis chacun de ses changements. L'hôte peut raccompagner un
 // visiteur ; s'il quitte le vaisseau, ses visiteurs rentrent chez eux.
+//
+// Zone thargoïde (cf. salvage.js) : les équipes se forment au lobby de la cale, chaque partie a
+// son instance. Dans la baie infestée, un joueur ne voit et n'entend que son équipe ; le reste du
+// bord apprend seulement qu'il y est entré.
 import { Server } from 'socket.io'
 import { fightRelay } from './fights.js'
 import { BOARD_GAMES, applyBoardMove, boardColor, boardState, newBoardGame } from './boards.js'
 import { sanitizeLayout } from './cabin.js'
-import { hasSiteArtwork, siteArtworkAllowed } from './site.js'
-import { cleanCmdrName, cmdrIdentityFromCookie } from './cmdr.js'
+import { hasSiteArtwork, postSalvageResult, siteArtworkAllowed } from './site.js'
+import { COOKIE, cleanCmdrName, cmdrIdentityFromCookie, cookieValue } from './cmdr.js'
+import { createSalvage, GAME_ACTIONS, LOBBY_ACTIONS } from './salvage.js'
 import { createCinema } from './cinema.js'
 import { BOARD_TABLES, SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import { DIRS, ShipMap } from '../shared/ship-map.js'
 import { applyWings } from '../shared/cabin-wings.js'
 import { canReach } from '../shared/sight.js'
 import { HOME_SYSTEM, JUMP_CHARGE, JUMP_TRAVEL, PILOT_SEAT, nextSystem } from '../shared/systems.js'
+import { ZONE_LEVEL } from '../shared/salvage.js'
 
 /** Chemin de la socket, partagé avec le client (VITE_WS_PATH) et la conf nginx. */
 export const WS_PATH = '/ws/mini-shipinteriors'
@@ -124,7 +130,8 @@ function sameOrigin(req) {
 export function attachRelay(
   httpServer,
   { log = console.log, error = console.error, cmdrUrl = process.env.ED_CMDR_URL ?? '', path = process.env.WS_PATH || WS_PATH,
-    devCmdr = false, youtubeKey = process.env.YOUTUBE_API_KEY ?? '', youtubeFetch = fetch } = {},
+    devCmdr = false, youtubeKey = process.env.YOUTUBE_API_KEY ?? '', youtubeFetch = fetch, relaySecret = process.env.MSI_RELAY_SECRET ?? '',
+    salvageFetch = fetch } = {},
 ) {
   if (!cmdrUrl) error('[relais] ED_CMDR_URL absent : les comptes Élite Dangereuse ne peuvent pas être reconnus (tout le monde est invité).')
   const io = new Server(httpServer, {
@@ -169,6 +176,21 @@ export function attachRelay(
     return socket ? players.get(socket.id) : undefined
   }
   const fights = fightRelay(playerById, id => sockets.get(id))
+  const salvage = createSalvage({
+    playerById,
+    emit: (id, event, data) => sockets.get(id)?.emit(event, data),
+    broadcast: (event, data) => io.emit(event, data),
+    reward: (member, result) => postSalvageResult(member.cookie, result, { cmdrUrl, secret: relaySecret, error, fetcher: salvageFetch }),
+    log,
+  })
+  const salvageTimer = setInterval(() => salvage.tick(0.1), 100)
+  salvageTimer.unref?.()
+  httpServer.on('close', () => clearInterval(salvageTimer))
+  /**
+   * `to` entend `from` (chat, emotes) : dans la baie infestée, on ne parle qu'à son équipe ; au
+   * vaisseau, à tout le bord hors de la baie, et à son équipe en mission (un capturé la suit).
+   */
+  const hears = (from, to) => salvage.teammates(from).has(to.id) || (from.level !== ZONE_LEVEL && to.level !== ZONE_LEVEL)
   const boardKey = (game, table) => (BOARD_GAMES.has(game) && table === game ? table : null)
   const emitBoard = (state) => {
     const msg = boardState(state)
@@ -237,6 +259,8 @@ export function attachRelay(
       layout: null,
       invited: new Map(), // id de l'invité -> fin de validité
       boardKey: null,
+      // Cookie du site (lui seul) : le relais le présente au site pour payer une mission gagnée.
+      cookie: cmdr && cookieValue(socket.handshake.headers.cookie) ? `${COOKIE}=${cookieValue(socket.handshake.headers.cookie)}` : null,
     }
     player.cabin = player.id
     player.name = cmdr ? `CMDR ${cmdr}` : guestName(auth.name, player)
@@ -245,11 +269,13 @@ export function attachRelay(
     socket.emit('welcome', {
       id: player.id,
       you: { name: player.name, verified: player.verified, ljpc: player.ljpc, voie: player.voie },
+      // Ceux qui sont dans la baie infestée y sont annoncés (pont -2) : le client ne les montre pas.
       players: [...players.values()].filter((p) => p !== player).map(publicState),
       // Les jukebox du pont principal et de la cale, silence compris : après une reconnexion, on se recale.
       music: musicOf(0),
       hold: musicOf(-1),
       system,
+      salvage: salvage.snapshot(),
     })
     socket.emit('cinema:state', cinema.snapshot())
     void cinema.refresh().then(() => socket.connected && socket.emit('cinema:state', cinema.snapshot()))
@@ -265,6 +291,7 @@ export function attachRelay(
     let cinemaBudget = 3
     let lastCinemaSearch = 0
     let boardBudget = 30
+    let salvageBudget = 20
     const refill = setInterval(() => {
       chatBudget = Math.min(5, chatBudget + 1)
       inviteBudget = Math.min(3, inviteBudget + 0.25)
@@ -272,21 +299,40 @@ export function attachRelay(
       musicBudget = Math.min(3, musicBudget + 0.5)
       cinemaBudget = Math.min(3, cinemaBudget + 0.5)
       boardBudget = Math.min(30, boardBudget + 10)
+      salvageBudget = Math.min(20, salvageBudget + 10)
     }, 1000)
 
     socket.on('state', (raw) => {
       const m = obj(raw)
-      const x = num(m.x, -5, 50), z = num(m.z, -5, 20), yaw = num(m.yaw, -10, 10)
-      if (x === null || z === null || yaw === null || !LEVELS.has(m.level)) return
+      const x = num(m.x, -5, 50), z = num(m.z, -5, 30), yaw = num(m.yaw, -10, 10)
+      if (x === null || z === null || yaw === null || !(LEVELS.has(m.level) || m.level === ZONE_LEVEL)) return
       if (m.level === 0 && MAPS.get(0).room(Math.round(x), Math.round(z)) === 'l' && !player.ljpc) return
       if (m.level === -1 && MAPS.get(-1).room(Math.round(x), Math.round(z)) === 'v' && !player.voie) return
+      // La baie infestée : seulement en mission, sur son sol, et pas plus vite qu'on ne court.
+      if (m.level === ZONE_LEVEL && !salvage.accepts(player, x, z)) return
       // Une pose inconnue n'en est pas une ; sa hauteur reste à portée d'une couchette du haut.
-      const pose = POSES.has(m.pose) ? m.pose : ''
+      const pose = POSES.has(m.pose) && m.level !== ZONE_LEVEL ? m.pose : ''
       if (player.level !== m.level) fights.leave(player)
+      const wasZone = player.level === ZONE_LEVEL
       Object.assign(player, { x, z, yaw, level: m.level, anim: ANIMS.has(m.anim) ? m.anim : 'idle', pose, py: pose ? (num(m.py, 0, 1.2) ?? 0) : 0 })
-      socket.broadcast.emit('state', { id: player.id, ...motion(player) })
+      salvage.moved(player)
+      const msg = { id: player.id, ...motion(player) }
+      const team = salvage.teammates(player)
+      for (const p of players.values()) {
+        if (p === player) continue
+        // Dans la baie, seule l'équipe suit le joueur ; le reste du bord apprend seulement qu'il y est entré.
+        if (team.has(p.id) || (p.level !== ZONE_LEVEL && (player.level !== ZONE_LEVEL || !wasZone))) sockets.get(p.id)?.emit('state', msg)
+      }
       cinema.operatorChanged()
     })
+
+    for (const event of [...LOBBY_ACTIONS, ...GAME_ACTIONS]) {
+      socket.on(event, (raw) => {
+        if (salvageBudget < 1) return
+        salvageBudget--
+        salvage.handle(player, event, raw)
+      })
+    }
 
     socket.on('cinema:choose', async (raw) => {
       if (cinemaBudget < 1) return socket.emit('cinema:error', { reason: 'busy' })
@@ -320,12 +366,14 @@ export function attachRelay(
       const text = clean(obj(raw).text, MAX_TEXT)
       if (!text || chatBudget <= 0) return
       chatBudget--
-      socket.broadcast.emit('chat', { id: player.id, name: player.name, verified: player.verified, text })
+      const msg = { id: player.id, name: player.name, verified: player.verified, text }
+      for (const p of players.values()) if (p !== player && hears(player, p)) sockets.get(p.id)?.emit('chat', msg)
     })
 
     socket.on('emote', (raw) => {
       const emote = obj(raw).emote
-      if (EMOTES.has(emote)) socket.broadcast.emit('emote', { id: player.id, emote })
+      if (!EMOTES.has(emote)) return
+      for (const p of players.values()) if (p !== player && hears(player, p)) sockets.get(p.id)?.emit('emote', { id: player.id, emote })
     })
 
     socket.on('profile', (raw) => {
@@ -480,6 +528,7 @@ export function attachRelay(
     socket.on('disconnect', () => {
       clearInterval(refill)
       leaveBoard(player)
+      salvage.leave(player)
       players.delete(socket.id)
       sockets.delete(player.id)
       cinema.operatorChanged()

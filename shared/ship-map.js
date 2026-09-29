@@ -20,7 +20,8 @@ export class ShipMap {
    * @param {string[]} layout
    * @param {{ closed?: string, doors?: { x: number, z: number, dir: number, locked?: boolean }[] }} [options]
    *   closed : pièces fermées (leurs portes sont verrouillées) ; doors : portes en plus des '+',
-   *   posées sur un bord de tuile (elles peuvent donner sur le vide), verrouillées si `locked`
+   *   posées sur un bord de tuile (elles peuvent donner sur le vide), verrouillées si `locked` ;
+   *   walls : murs entre deux tuiles d'une même pièce (le labyrinthe de la zone thargoïde)
    */
   constructor(layout, options = {}) {
     /** Portes : tuile de la porte et direction (0..3) vers la tuile de l'autre côté. */
@@ -28,6 +29,8 @@ export class ShipMap {
     this.doorEdges = new Set()
     /** Arêtes des portes verrouillées. */
     this.locked = new Set()
+    /** Arêtes murées à l'intérieur d'une pièce. */
+    this.walls = new Set()
     this.height = layout.length
     this.width = Math.max(...layout.map((l) => l.length))
     this.rooms = layout.map((line) =>
@@ -37,6 +40,7 @@ export class ShipMap {
       }),
     )
     this.resolveDoors()
+    for (const w of options.walls ?? []) this.walls.add(this.edgeKey(w.x, w.z, w.dir))
     for (const d of options.doors ?? []) {
       this.addDoor(d.x, d.z, d.dir)
       if (d.locked) this.lock(d.x, d.z, d.dir)
@@ -133,8 +137,8 @@ export class ShipMap {
   edge(x, z, dir) {
     const a = this.room(x, z)
     const b = this.room(x + DIRS[dir].dx, z + DIRS[dir].dz)
-    if (a === b && a !== null) return 'open'
     const key = this.edgeKey(x, z, dir)
+    if (a === b && a !== null && !this.walls.has(key)) return 'open'
     if (this.doorEdges.has(key) && !this.locked.has(key)) return 'door'
     return 'wall'
   }

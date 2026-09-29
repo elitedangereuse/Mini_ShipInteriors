@@ -22,3 +22,37 @@ export async function siteArtworkAllowed(layout, cookie, cmdrUrl) {
     return items.every((i) => owned.get(i.v) === MODELS[i.m])
   } catch { return false }
 }
+
+/**
+ * Résultat d'une mission de récupération (zone thargoïde) gagnée, pour un membre CMDR : le site
+ * reconnaît le CMDR par son cookie, et le relais par la clé partagée (MSI_RELAY_SECRET des deux
+ * côtés) ; il paie une fois par partie et par CMDR, et compte la victoire au classement.
+ * @returns {Promise<{ earned: number, balance: number } | null>} null : pas de gain (invité, site injoignable, déjà payé)
+ */
+export async function postSalvageResult(cookie, result, { cmdrUrl, secret, error = console.error, fetcher = fetch, timeoutMs = 8000 }) {
+  const value = cookieValue(cookie)
+  if (!cmdrUrl || !value) return null
+  if (!secret) {
+    error('[salvage] MSI_RELAY_SECRET absent : les gains des missions ne peuvent pas être enregistrés.')
+    return null
+  }
+  try {
+    const url = new URL('/outils/mini-shipinteriors-salvage.php', cmdrUrl)
+    const response = await fetcher(url, {
+      method: 'POST',
+      headers: { Cookie: `${COOKIE}=${value}`, Accept: 'application/json', 'Content-Type': 'application/json', 'X-Relay-Key': secret },
+      body: JSON.stringify(result),
+      redirect: 'error',
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+    const data = await response.json().catch(() => null)
+    if (!response.ok || data?.status !== 'success') {
+      if (data?.error !== 'already') error(`[salvage] gain de la mission ${result.game} refusé par le site (${response.status} ${data?.error ?? ''})`)
+      return null
+    }
+    return { earned: Number(data.earned) || 0, balance: Number(data.balance) || 0 }
+  } catch (err) {
+    error(`[salvage] site injoignable pour la mission ${result.game} (${err?.message ?? err})`)
+    return null
+  }
+}
