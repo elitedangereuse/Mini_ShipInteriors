@@ -713,15 +713,16 @@ export const LEVELS: LevelDef[] = [
       },
 
       // --- Grande salle d'arcade : deux rangées de bornes jouables, les jeux de plateau à l'est, un coin salon ---
-      // Au sud, face au nord : Cargaison, Viper, Astéroïdes et Ruelle Fighter II.
+      // Au sud, face au nord : Cargaison, Viper, Astéroïdes et un deuxième Cargaison.
       { model: 'arcade', x: 16.7, z: 9.02, rot: 2, label: 'cargo' },
       { model: 'arcade', x: 17.95, z: 9.02, rot: 2, label: 'viper' },
       { model: 'arcade', x: 19.2, z: 9.02, rot: 2, label: 'asteroids' },
-      { model: 'arcade', x: 20.6, z: 9.02, rot: 2, label: 'fight' },
-      // Au nord, face au sud, de part et d'autre des portes : un deuxième exemplaire des jeux solo,
-      // pour que tout le monde joue quand l'équipage est nombreux (le duel de Ruelle Fighter II
-      // est unique sur le pont, cf. server/fights.js), Thargoid Invaders, et un flipper.
-      { model: 'arcade', x: 16.45, z: 5.98, label: 'cargo' },
+      { model: 'arcade', x: 20.6, z: 9.02, rot: 2, label: 'cargo' },
+      // Au nord, face au sud, de part et d'autre des portes : Ruelle Fighter II à gauche de la porte
+      // ouest (son duel est unique sur le pont, cf. server/fights.js), un deuxième exemplaire des
+      // jeux solo pour que tout le monde joue quand l'équipage est nombreux, Thargoid Invaders, et
+      // un flipper.
+      { model: 'arcade', x: 16.45, z: 5.98, label: 'fight' },
       { model: 'arcade', x: 19.35, z: 5.98, label: 'viper' },
       { model: 'arcade', x: 20.55, z: 5.98, label: 'asteroids' },
       { model: 'arcade', x: 21.75, z: 5.98, label: 'invaders' },
