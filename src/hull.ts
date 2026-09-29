@@ -19,6 +19,11 @@ const DEPTH = 1.1
 const BEVEL = 0.25
 /** Passes de lissage de la silhouette (cf. smooth). */
 const SMOOTHING = 3
+/**
+ * Un angle n'est pas rogné de plus de ça (tuiles) le long de chacun de ses côtés : la coque déborde
+ * d'une tuile, l'arrondi reste en deçà des pièces.
+ */
+const MAX_CUT = 1.5
 
 type Cell = string
 
@@ -126,7 +131,10 @@ function smooth(loop: THREE.Vector2[], iterations: number): THREE.Vector2[] {
     const out: THREE.Vector2[] = []
     for (let i = 0; i < pts.length; i++) {
       const p = pts[i], q = pts[(i + 1) % pts.length]
-      out.push(p.clone().lerp(q, 0.25), p.clone().lerp(q, 0.75))
+      // Sur un long côté droit, l'angle n'est pas rogné de plus de MAX_CUT : sinon l'arrondi
+      // mordrait sur les pièces du coin (le hangar de la cale, sous la proue).
+      const t = Math.min(0.25, MAX_CUT / p.distanceTo(q))
+      out.push(p.clone().lerp(q, t), p.clone().lerp(q, 1 - t))
     }
     pts = out
   }

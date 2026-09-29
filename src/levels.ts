@@ -1,5 +1,5 @@
 import type * as THREE from 'three'
-import type { StationModel, Theme } from './assets'
+import type { FloorFinish, StationModel, Theme } from './assets'
 import type { ShipMapOptions } from '../shared/ship-map.js'
 import type { ZoneKit } from './salvage/kit'
 import type { CabinDef } from './cabin/view'
@@ -31,6 +31,11 @@ export interface Prop {
   label?: string
   /** On y choisit la musique (le jukebox, cf. src/music.ts). */
   music?: boolean
+  /**
+   * Où l'on se tient pour agir sur un très grand meuble (le Krait du hangar) : son centre est hors
+   * de portée de main. Par défaut, le centre du meuble.
+   */
+  reach?: { x: number; z: number }
 }
 
 /** Lumière : x, z, couleur, intensité, et au besoin sa façon de vaciller (néon fatigué, feu de cheminée). */
@@ -68,6 +73,8 @@ export interface LevelDef {
   footsteps?: 'hard' | 'soft'
   /** Sol utilisé par pièce (défaut : 'floor'). */
   floors?: Record<string, StationModel>
+  /** Sol repeint par pièce, quel que soit le thème du pont (cf. floorFinishes dans assets.ts). */
+  floorFinish?: Record<string, FloorFinish>
   /** Proportion de murs extérieurs percés d'un hublot, par pièce (défaut : 1/3). */
   windows?: Record<string, number>
   /**
@@ -77,6 +84,11 @@ export interface LevelDef {
   areas?: { name: string; minX: number; maxX: number; minZ: number; maxZ: number }[]
   /** Verrières : par pièce, les côtés (0 nord, 1 est, 2 sud, 3 ouest) dont les murs extérieurs sont vitrés. */
   canopy?: Record<string, number[]>
+  /**
+   * Hangars ouverts sur l'espace : par pièce, les côtés (0 nord, 1 est, 2 sud, 3 ouest) dont le mur
+   * extérieur est un bouclier bleu (cf. src/shield.ts) ; on n'y passe pas plus qu'à travers un mur.
+   */
+  shield?: Record<string, number[]>
   /** Cloisons vitrées, comme les verrières : paires de pièces (deux lettres) dont le mur mitoyen est une vitre. */
   glazed?: string[]
   props: Prop[]
@@ -126,6 +138,12 @@ export const SPAWN = { level: 1, x: 11.2, z: 7.4 }
 /** Comète vit dans les quartiers, près de son panier (ou ici, s'il n'y en a pas). */
 export const CAT_SPAWN = { level: 1, x: 14.9, z: 7.3 }
 
+/** Ce qu'on lit aux balises du bouclier du hangar. */
+const SHIELD_TEXT = [
+  tr('Le bouclier retient l\'air du hangar et laisse passer les vaisseaux. Les commandants, non : il ne vaut mieux pas essayer.', 'The shield keeps the hangar\'s air in and lets ships through. Commanders, no: better not try.'),
+  tr('Derrière le champ de force, les étoiles. On sent un léger picotement au bout des doigts, et une odeur d\'ozone.', 'Beyond the force field, the stars. A faint tingle in your fingertips, and a smell of ozone.'),
+]
+
 export const LEVELS: LevelDef[] = [
   // ======================================================== Cale : minage, bricolage, réparation, et un bar clandestin
   {
@@ -143,6 +161,7 @@ export const LEVELS: LevelDef[] = [
       // Le nom du bar ne se traduit pas.
       b: 'Chez Jacques',
       h: tr('Lobby de la zone thargoïde', 'Thargoid zone lobby'),
+      k: tr('Hangar', 'Hangar'),
       e: tr('Salle des machines', 'Engine room'),
       v: tr('Sanctuaire de la Voie', 'Sanctuary of the Path'),
     },
@@ -153,8 +172,14 @@ export const LEVELS: LevelDef[] = [
       ),
     },
     // Le bar est tenu plus proprement que le reste de la cale : dalles lisses, pas un hublot.
-    floors: { a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', h: 'floor-panel' },
-    windows: { a: 0.1, j: 0, r: 0.12, m: 0, g: 0.1, b: 0, h: 0, e: 0, v: 0 },
+    floors: { a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', h: 'floor-panel', k: 'floor-panel' },
+    windows: { a: 0.1, j: 0, r: 0.12, m: 0, g: 0.1, b: 0, h: 0, e: 0, v: 0, k: 0.15 },
+    // Le hangar s'ouvre sur l'espace à la proue : son mur est est un bouclier (cf. src/shield.ts).
+    shield: { k: [1] },
+    // Et un sol d'acier brossé argenté, qui tranche avec l'acier noirci du reste de la cale.
+    floorFinish: { k: 'silver' },
+    // Du lobby de la zone thargoïde au hangar, une porte double (dans le mur est du lobby).
+    doubleDoors: [{ x: 26, z: 4, dir: 3 }],
     // Le cœur du réacteur, au milieu de la salle des machines.
     engine: { x: 1.5, z: 5 },
     // Le sanctuaire de la Voie n'est éclairé que par ses flammes et son portail.
@@ -525,6 +550,81 @@ export const LEVELS: LevelDef[] = [
       ) },
       { model: 'drums', x: 25, z: 7.9 },
       { model: 'cables', x: 23.6, z: 7.2, solid: false },
+
+      // --- Hangar, derrière le lobby de la zone thargoïde : le Krait Mk II sur son pad, nez vers le
+      // bouclier (à l\'est). Au nord, l\'atelier de Nico, le mécano (cf. src/mechanic.ts) ; au sud,
+      // le ravitaillement et le chariot à outils ; à l\'est, l\'escabeau du cockpit et le pupitre du
+      // hangar. Les postes de sa tournée, et les obstacles de ses trajets, sont dans
+      // shared/mechanic.js : à tenir à jour si l\'on déplace un meuble ici.
+      { model: 'hangar-pad', x: 31.4, z: 5, rot: 1, label: '7', solid: false },
+      { model: 'hangar-beacon', x: 28.05, z: 1.65 },
+      { model: 'hangar-beacon', x: 34.75, z: 1.65 },
+      { model: 'hangar-beacon', x: 28.05, z: 8.35 },
+      { model: 'hangar-beacon', x: 34.75, z: 8.35 },
+      {
+        model: 'krait-mk2', x: 31.4, z: 5, rot: 1, reach: { x: 31.4, z: 8.5 },
+        interact: [
+          tr(
+            'Krait Mk II de Faulcon DeLacy : un delta de soixante-treize mètres, trois places, un hangar à chasseur. Nico l\'appelle « la Princesse ».',
+            'Faulcon DeLacy Krait Mk II: a seventy-three-metre delta, three seats, a fighter bay. Nico calls her “the Princess”.',
+          ),
+          tr(
+            'La coque est encore tiède, les tuyères couvent. Sur le bord d\'attaque, gravé au tournevis : « Rayé = mort. Nico ».',
+            'The hull is still warm, the thrusters glowing. Scratched into the leading edge with a screwdriver: “Scratch it = dead. Nico”.',
+          ),
+          tr(
+            'Une étiquette sur le train avant : « NE PAS TOUCHER. JE SAIS QUE C\'EST TOI. » Tu retires ta main.',
+            'A label on the nose gear: “DO NOT TOUCH. I KNOW IT\'S YOU.” You take your hand back.',
+          ),
+        ],
+      },
+      { model: 'krait-ladder', x: 35.15, z: 5, rot: 3, solid: false },
+      { model: 'gear-chock', x: 30.45, z: 1.62, solid: false, label: 'port', interact: tr(
+        'Les cales du train bâbord, peintes en jaune. Quelqu\'un a écrit dessus au feutre : « À RETIRER AVANT LE DÉCOLLAGE (OUI, TOI) ».',
+        'The port gear chocks, painted yellow. Someone wrote on them in marker: “REMOVE BEFORE TAKE-OFF (YES, YOU)”.',
+      ) },
+      { model: 'gear-chock', x: 30.45, z: 8.38, rot: 2, solid: false, label: 'starboard', interact: tr(
+        'Les cales du train tribord. Une clé traîne à côté : Nico la cherche depuis ce matin.',
+        'The starboard gear chocks. A spanner lies next to them: Nico has been looking for it all morning.',
+      ) },
+      { model: 'workbench', x: 27.9, z: 0.05, interact: tr(
+        'L\'établi de Nico : un démarreur de propulseur en pièces, trois tournevis, et un dessin du Krait scotché, avec des cœurs.',
+        'Nico\'s workbench: a thruster starter in pieces, three screwdrivers, and a taped drawing of the Krait, with hearts.',
+      ) },
+      { model: 'tool-rack', x: 29.5, z: -0.15 },
+      { model: 'hangar-sign', x: 31, z: -0.35, solid: false },
+      { model: 'parts-rack', x: 32.6, z: -0.1, interact: tr(
+        'Joints de tuyère, bobines de câble, une tuyère de rechange. Sur l\'étiquette : « Tout est compté. Boulon compte. »',
+        'Thruster seals, cable reels, a spare nozzle. The label says: “Everything is counted. Bolt counts.”',
+      ) },
+      { model: 'welder', x: 34.4, z: 0.15, interact: tr(
+        'Le poste de soudure de Nico. Sur le masque, un autocollant : « Je ne suis pas en colère, je soude. »',
+        'Nico\'s welding station. A sticker on the mask: “I\'m not angry, I\'m welding.”',
+      ) },
+      {
+        // On y demande une révision du Krait à Nico (cf. src/hangar.ts).
+        model: 'hangar-console', x: 36.55, z: 1.2, rot: 3, action: tr('Demander une révision', 'Ask for a service job'),
+        interact: tr('Pupitre du hangar : carburant 100 %, bouclier actif, pad verrouillé. Autorisation de décollage : refusée (« demandez à Nico »).', 'Hangar console: fuel 100%, shield active, pad locked. Launch clearance: denied (“ask Nico”).'),
+      },
+      { model: 'shield-beacon', x: 37.05, z: 2.6, interact: SHIELD_TEXT },
+      { model: 'shield-beacon', x: 37.05, z: 7.4, interact: SHIELD_TEXT },
+      { model: 'thruster-stand', x: 26.75, z: 8.3, interact: tr(
+        'Une tuyère de rechange de Krait sur son berceau. Étiquette : « Pour la Princesse. Ne pas vendre. Ne PAS vendre. »',
+        'A spare Krait thruster on its cradle. The label says: “For the Princess. Do not sell. Do NOT sell.”',
+      ) },
+      { model: 'work-lamp', x: 26.4, z: 2.6, rot: 1 },
+      { model: 'cables', x: 27.2, z: 6.4, rot: 1, solid: false },
+      { model: 'tool-cart', x: 28.6, z: 9.25, interact: tr(
+        'Le chariot à outils de Nico : chaque tiroir a son étiquette, et aucune n\'est la bonne.',
+        'Nico\'s tool cart: every drawer has a label, and none of them is right.',
+      ) },
+      { model: 'fuel-station', x: 32.4, z: 10.1, rot: 2, label: '1,3.2', interact: tr(
+        'Station de ravitaillement : hydrogène raffiné, qualité Fleet Carrier. Le tuyau court jusque sous l\'aile du Krait.',
+        'Fuel station: refined hydrogen, Fleet Carrier grade. The hose runs all the way under the Krait\'s wing.',
+      ) },
+      { model: 'crate', x: 36.85, z: 9.85 },
+      { model: 'crate', x: 36.85, z: 9.85, y: 0.4 },
+      { model: 'crate', x: 36.3, z: 9.95 },
     ],
     lights: [
       [1.5, 5, '#4fd4ff', 4],
@@ -545,6 +645,13 @@ export const LEVELS: LevelDef[] = [
       [22.6, 5.6, '#cfe6ff', 2.4],
       [24.3, 2.5, '#ff3b2f', 2.2, 'neon'],
       [21.4, 2.6, '#6dff9a', 1.4],
+      // Hangar : projecteurs blancs aux quatre coins du pad, lueur bleue du bouclier, soudure.
+      [28.5, 1.4, '#e6f0ff', 2.6],
+      [34.3, 1.4, '#e6f0ff', 2.6],
+      [28.5, 8.6, '#e6f0ff', 2.6],
+      [34.3, 8.6, '#e6f0ff', 2.6],
+      [36.8, 5, '#3fa8ff', 3],
+      [34.4, 0.7, '#ffb45e', 1.2, 'neon'],
     ],
   },
 

@@ -68,6 +68,14 @@ export interface NurseState extends PatrolState {
   patched: [number, number][]
 }
 
+/**
+ * Tournée du mécano du hangar (cf. shared/mechanic.js) : comme la ronde du sergent, plus la
+ * révision en cours (s restantes) qui le retient au nez du Krait.
+ */
+export interface MechanicState extends PatrolState {
+  help: number
+}
+
 export interface CinemaTrailer { id: number; title: string; image: string; video: string }
 export interface CinemaVideo { video: string; title: string; image: string }
 export interface CinemaState {
@@ -186,7 +194,7 @@ export type SalvageAction = 'create' | 'join' | 'leave' | 'settings' | 'ready' |
 
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
-  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean }; players: PlayerState[]; music?: MusicState; hold?: MusicState; system?: SystemId; patrol?: PatrolState; chef?: ChefState; nurse?: NurseState; salvage?: SalvageLobby }
+  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean }; players: PlayerState[]; music?: MusicState; hold?: MusicState; system?: SystemId; patrol?: PatrolState; chef?: ChefState; nurse?: NurseState; mechanic?: MechanicState; salvage?: SalvageLobby }
   | { t: 'join'; player: PlayerState }
   | { t: 'leave'; id: number }
   | { t: 'state'; id: number; x: number; z: number; yaw: number; level: number; anim: string; pose?: string; py?: number }
@@ -215,6 +223,7 @@ export type ServerMessage =
   /** Le joueur `id` parle au sergent : la ronde s'arrête pour tout le bord. */
   | ({ t: 'patrol'; id: number } & PatrolState)
   | ({ t: 'chef'; id: number } & ChefState)
+  | ({ t: 'mechanic'; id: number } & MechanicState)
   | ({ t: 'nurse'; id: number } & NurseState)
   | ({ t: 'board:state' } & BoardState)
   | ({ t: 'fight:state' } & FightState)
@@ -240,7 +249,7 @@ type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin'>
 
 /** Chemin de la socket : le même que WS_PATH dans server/relay.js et que la conf nginx du site. */
 const WS_PATH = import.meta.env.VITE_WS_PATH || '/ws/mini-shipinteriors'
-const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'music', 'jump', 'patrol', 'chef', 'nurse', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error',
+const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'music', 'jump', 'patrol', 'chef', 'nurse', 'mechanic', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error',
   'salvage:lobby', 'salvage:start', 'salvage:state', 'salvage:event', 'salvage:end', 'salvage:reward', 'salvage:error']
 
 export class Net {
@@ -360,6 +369,16 @@ export class Net {
   /** On l'appelle depuis un lit (on), ou la consultation est finie (healed : menée à son terme). */
   sendNurseCare(on: boolean, healed = false) {
     this.send('nurse:care', { on, healed })
+  }
+
+  /** On parle au mécano : le relais arrête sa tournée pour tout le bord. */
+  sendMechTalk() {
+    this.send('mech:talk', {})
+  }
+
+  /** On aide le mécano (une étape de plus de la révision), ou on a fini : il attend au nez du Krait, ou repart. */
+  sendMechHelp(on: boolean) {
+    this.send('mech:help', { on })
   }
 
   sendCinemaChoice(id: number | null) {
