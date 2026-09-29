@@ -14,6 +14,10 @@
 // Le pilote, installé dans son siège, demande un saut ; le relais choisit la destination et
 // l'annonce à tous, qui le vivent ensemble. Un saut à la fois.
 //
+// Patrouille : le sergent Rourke fait sa ronde sur le pont principal (cf. shared/patrol.js). Le
+// relais tient l'horloge de la ronde, la même pour tous ; un joueur qui lui parle l'arrête
+// quelques secondes pour tout le bord, face à lui.
+//
 // Quartiers : chaque joueur a sa propre instance des quartiers du commandant (`cabin` : l'id du
 // joueur chez qui il se trouve, le sien par défaut). Un CMDR vérifié envoie l'aménagement des
 // siens (cf. cabin.js), et peut inviter un joueur connecté : celui-ci n'y entre qu'avec une
@@ -30,6 +34,7 @@ import { BOARD_TABLES, SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layou
 import { DIRS, ShipMap } from '../shared/ship-map.js'
 import { applyWings } from '../shared/cabin-wings.js'
 import { canReach } from '../shared/sight.js'
+import { PATROL_LEVEL, PATROL_PERIOD, holdPatrol, patrolAt, patrolTime } from '../shared/patrol.js'
 import { HOME_SYSTEM, JUMP_CHARGE, JUMP_TRAVEL, PILOT_SEAT, nextSystem } from '../shared/systems.js'
 
 /** Chemin de la socket, partagé avec le client (VITE_WS_PATH) et la conf nginx. */
@@ -149,6 +154,15 @@ export function attachRelay(
   /** Système où se trouve le vaisseau, et fin du saut en cours (aucun autre avant). */
   let system = HOME_SYSTEM
   let jumpEnds = 0
+  /** Horloge de la ronde du sergent, et le joueur vers qui il se tourne pendant un arrêt. */
+  let patrol = { tau: Math.random() * PATROL_PERIOD, at: Date.now(), holdUntil: 0 }
+  let patrolFace = null
+  /** Où en est la ronde : instant (s), arrêt restant (s), et vers qui il regarde. */
+  const patrolState = (now = Date.now()) => ({
+    tau: patrolTime(patrol, now),
+    hold: Math.max(0, patrol.holdUntil - now) / 1000,
+    ...(patrolFace && patrol.holdUntil > now ? { face: patrolFace } : {}),
+  })
   /** Ce que joue le jukebox d'une instance, pour un joueur qui y arrive (track null : il se tait). */
   const musicOf = (instance) => {
     const m = music.get(instance)
@@ -250,6 +264,7 @@ export function attachRelay(
       music: musicOf(0),
       hold: musicOf(-1),
       system,
+      patrol: patrolState(),
     })
     socket.emit('cinema:state', cinema.snapshot())
     void cinema.refresh().then(() => socket.connected && socket.emit('cinema:state', cinema.snapshot()))
@@ -265,6 +280,7 @@ export function attachRelay(
     let cinemaBudget = 3
     let lastCinemaSearch = 0
     let boardBudget = 30
+    let patrolBudget = 1
     const refill = setInterval(() => {
       chatBudget = Math.min(5, chatBudget + 1)
       inviteBudget = Math.min(3, inviteBudget + 0.25)
@@ -272,6 +288,7 @@ export function attachRelay(
       musicBudget = Math.min(3, musicBudget + 0.5)
       cinemaBudget = Math.min(3, cinemaBudget + 0.5)
       boardBudget = Math.min(30, boardBudget + 10)
+      patrolBudget = Math.min(1, patrolBudget + 0.5)
     }, 1000)
 
     socket.on('state', (raw) => {
@@ -405,6 +422,18 @@ export function attachRelay(
         // Les ponts communs s'entendent de tous (chacun n'écoute que celui de son pont) ; des quartiers, seulement de qui s'y trouve.
         if (p !== player && (instance <= 0 || p.cabin === instance)) sockets.get(p.id)?.emit('music', msg)
       }
+    })
+
+    // On parle au sergent : à portée de lui (sans mur entre les deux), une réplique toutes les 2 s au plus.
+    socket.on('patrol:talk', () => {
+      if (patrolBudget < 1) return
+      const now = Date.now()
+      const at = patrolAt(patrolTime(patrol, now))
+      if (!reaches(player, PATROL_LEVEL, at)) return
+      patrolBudget--
+      patrol = holdPatrol(patrol, now)
+      patrolFace = { x: player.x, z: player.z }
+      io.emit('patrol', { id: player.id, ...patrolState(now) })
     })
 
     // Saut FSD : installé dans le siège du pilote, et pas pendant un autre saut. Tout le bord le vit.

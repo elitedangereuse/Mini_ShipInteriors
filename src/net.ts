@@ -38,6 +38,16 @@ export interface MusicState {
   seed?: number
 }
 
+/**
+ * Ronde du sergent (cf. shared/patrol.js) : l'instant de la ronde (s), l'arrêt restant (s) et,
+ * pendant un arrêt, le joueur vers qui il se tourne.
+ */
+export interface PatrolState {
+  tau: number
+  hold: number
+  face?: { x: number; z: number }
+}
+
 export interface CinemaTrailer { id: number; title: string; image: string; video: string }
 export interface CinemaVideo { video: string; title: string; image: string }
 export interface CinemaState {
@@ -87,7 +97,7 @@ export interface FightState {
 
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
-  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean }; players: PlayerState[]; music?: MusicState; hold?: MusicState; system?: SystemId }
+  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean }; players: PlayerState[]; music?: MusicState; hold?: MusicState; system?: SystemId; patrol?: PatrolState }
   | { t: 'join'; player: PlayerState }
   | { t: 'leave'; id: number }
   | { t: 'state'; id: number; x: number; z: number; yaw: number; level: number; anim: string; pose?: string; py?: number }
@@ -113,6 +123,8 @@ export type ServerMessage =
   | ({ t: 'music'; id: number; busy?: boolean; far?: boolean } & MusicState)
   /** Saut FSD lancé par le pilote `id` : tout le bord part vers `system`. */
   | { t: 'jump'; id: number; name: string; system: SystemId }
+  /** Le joueur `id` parle au sergent : la ronde s'arrête pour tout le bord. */
+  | ({ t: 'patrol'; id: number } & PatrolState)
   | ({ t: 'board:state' } & BoardState)
   | ({ t: 'fight:state' } & FightState)
   | { t: 'fight:error'; code: 'full' | 'unavailable' | 'busy' }
@@ -130,7 +142,7 @@ type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin'>
 
 /** Chemin de la socket : le même que WS_PATH dans server/relay.js et que la conf nginx du site. */
 const WS_PATH = import.meta.env.VITE_WS_PATH || '/ws/mini-shipinteriors'
-const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'music', 'jump', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error']
+const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'music', 'jump', 'patrol', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error']
 
 export class Net {
   online = false
@@ -224,6 +236,11 @@ export class Net {
   /** Demande un saut FSD (installé dans le siège du pilote) : le relais choisit la destination. */
   sendJump() {
     this.send('jump', {})
+  }
+
+  /** On parle au sergent : le relais arrête sa ronde pour tout le bord. */
+  sendPatrolTalk() {
+    this.send('patrol:talk', {})
   }
 
   sendCinemaChoice(id: number | null) {

@@ -29,7 +29,7 @@ interface Choice {
 }
 
 /** Combinaison spatiale : couleurs du corps et du casque. */
-interface SuitStyle {
+export interface SuitStyle {
   /**
    * Dégradé appliqué au corps selon la luminosité d'origine : [position 0…1, couleur].
    * Les parties blanches des vêtements d'origine deviennent les liserés de la combinaison.
@@ -411,7 +411,7 @@ function addAntennae(root: THREE.Object3D) {
 }
 
 /** Boîte englobante d'un maillage (pose de repos), exprimée dans le repère d'un os. */
-function boxInBone(mesh: THREE.Mesh, bone: THREE.Object3D): THREE.Box3 {
+export function boxInBone(mesh: THREE.Mesh, bone: THREE.Object3D): THREE.Box3 {
   mesh.geometry.computeBoundingBox()
   const world = mesh.geometry.boundingBox!.clone().applyMatrix4(mesh.matrixWorld)
   const out = new THREE.Box3()
@@ -625,8 +625,19 @@ function addGuardianGear(root: THREE.Object3D, s: GuardianStyle) {
 }
 
 /** Instancie le modèle animé d'une apparence (mis à l'échelle, teinté, accessoirisé). */
-export async function lookRig(l: Look): Promise<LookRig> {
-  const s = spec(l)
+export function lookRig(l: Look): Promise<LookRig> {
+  return buildRig(spec(l))
+}
+
+/**
+ * Personnage en combinaison d'un style hors garde-robe (les PNJ de l'équipage, cf. patrol.ts),
+ * sur un Mini Character.
+ */
+export function suitRig(sex: Sex, variant: string, suit: SuitStyle): Promise<LookRig> {
+  return buildRig({ path: `characters/character-${sex}-${variant}.glb`, height: 0.67, suit })
+}
+
+async function buildRig(s: ModelSpec): Promise<LookRig> {
   const r = await rig(s.path)
   // Mise à l'échelle commune : chaque pack a sa propre unité.
   r.root.updateMatrixWorld(true)
