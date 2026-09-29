@@ -11,6 +11,8 @@ import raw from './economy.json'
  * - wings : prix des espaces d'extension des quartiers, du premier débloqué au dernier ;
  * - salvage : récompense d'une mission réussie en zone thargoïde, par membre (par colis, et bonus
  *   par ennemi au-delà du premier, cf. salvageReward dans shared/salvage.js) ;
+ * - kitchen : prime d'un plat envoyé avec Marcel (cf. kitchen.ts), au plus un toutes les `minGap`
+ *   secondes et `daily` par jour (heure de Paris) ;
  * - tasks, spots : les tâches de bord et leurs emplacements (cf. schedule.ts et tasks.ts) ;
  * - arcade : paliers de score des bornes, et prime du record du vaisseau.
  */
@@ -53,6 +55,7 @@ interface Economy {
   skins: Record<string, number>
   wings: number[]
   salvage: { parcel: number; enemyBonus: number }
+  kitchen: { reward: number; minGap: number; daily: number }
   drinks: Record<string, number>
   tasks: Record<TaskKind, TaskDef>
   spots: Spot[]
