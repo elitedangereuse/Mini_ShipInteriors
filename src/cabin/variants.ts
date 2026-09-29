@@ -2,7 +2,7 @@ import { tr } from '../i18n'
 
 /*
  * Variantes partagées par plusieurs parties du catalogue (catalog.ts et ses compléments) : tissus,
- * essences de bois, couleurs d'électroménager. Chaque identifiant est le `label` que reçoit le
+ * essences de bois, électroménager, sanitaires, métal, pelage. Chaque identifiant est le `label` que reçoit le
  * constructeur du meuble.
  */
 
@@ -29,14 +29,19 @@ export const FABRICS: Variant[] = [
 /** Les tissus, `first` en tête (la variante par défaut). */
 export const fabrics = (first: string): Variant[] => [FABRICS.find((f) => f.id === first)!, ...FABRICS.filter((f) => f.id !== first)]
 
-/** Essences et laques du mobilier du Furniture Kit (cf. WOODS dans furniture/kenney.ts). */
+/** Essences et laques du mobilier du Furniture Kit (cf. WOODS dans furniture/kenney.ts) ; la première, le bois du bord, par défaut. */
 export const WOOD_FINISHES: Variant[] = [
-  { id: 'oak', label: tr('Chêne clair', 'Light oak'), swatch: '#f0c9a4' },
+  { id: 'oak', label: tr('Bois du bord', 'Ship\'s timber'), swatch: '#9a6a45' },
   { id: 'honey', label: tr('Miel', 'Honey'), swatch: '#c98f4e' },
   { id: 'walnut', label: tr('Noyer', 'Walnut'), swatch: '#7a4e32' },
+  { id: 'light-oak', label: tr('Chêne clair', 'Light oak'), swatch: '#f0c9a4' },
+  { id: 'terracotta', label: tr('Laque terre cuite', 'Terracotta lacquer'), swatch: '#b8653f' },
+  { id: 'cream', label: tr('Laque crème', 'Cream lacquer'), swatch: '#e9dcc4' },
   { id: 'white', label: tr('Laque blanche', 'White lacquer'), swatch: '#eeeae2' },
-  { id: 'graphite', label: tr('Graphite', 'Graphite'), swatch: '#4a4f58' },
   { id: 'sage', label: tr('Vert sauge', 'Sage green'), swatch: '#9ab39a' },
+  { id: 'teal', label: tr('Bleu canard', 'Teal'), swatch: '#3f7f7c' },
+  { id: 'navy', label: tr('Marine', 'Navy'), swatch: '#34507a' },
+  { id: 'graphite', label: tr('Graphite', 'Graphite'), swatch: '#4a4f58' },
 ]
 
 /** Couleurs de l'électroménager du Furniture Kit (cf. APPLIANCES dans furniture/kenney.ts). */
@@ -45,6 +50,42 @@ export const APPLIANCE_COLORS: Variant[] = [
   { id: 'white', label: tr('Blanc', 'White'), swatch: '#f2f1ec' },
   { id: 'cream', label: tr('Crème rétro', 'Retro cream'), swatch: '#f1e3c2' },
   { id: 'mint', label: tr('Menthe rétro', 'Retro mint'), swatch: '#a8e0cc' },
+  { id: 'sky', label: tr('Bleu ciel', 'Sky blue'), swatch: '#8fb3c9' },
+  { id: 'orange', label: tr('Orange Elite', 'Elite orange'), swatch: '#e0782f' },
   { id: 'red', label: tr('Rouge rétro', 'Retro red'), swatch: '#d8453b' },
+  { id: 'graphite', label: tr('Graphite', 'Graphite'), swatch: '#4a4f58' },
   { id: 'black', label: tr('Noir', 'Black'), swatch: '#2b2d31' },
+]
+
+/** Émail des sanitaires du Furniture Kit (cf. PORCELAINS dans furniture/kenney.ts). */
+export const PORCELAIN_COLORS: Variant[] = [
+  { id: 'white', label: tr('Blanc', 'White'), swatch: '#f4f6f4' },
+  { id: 'cream', label: tr('Crème', 'Cream'), swatch: '#efe3cf' },
+  { id: 'sage', label: tr('Vert sauge', 'Sage green'), swatch: '#9fb59a' },
+  { id: 'rose', label: tr('Vieux rose', 'Dusty pink'), swatch: '#d9a0a0' },
+  { id: 'sky', label: tr('Bleu ciel', 'Sky blue'), swatch: '#8fb3c9' },
+  { id: 'teal', label: tr('Bleu canard', 'Teal'), swatch: '#3f7f7c' },
+  { id: 'black', label: tr('Noir', 'Black'), swatch: '#2f3136' },
+]
+
+/** Finitions du métal du Furniture Kit (cf. METALS dans furniture/kenney.ts). */
+export const METAL_FINISHES: Variant[] = [
+  { id: 'chrome', label: tr('Chrome', 'Chrome'), swatch: '#c8d2d6' },
+  { id: 'brass', label: tr('Laiton', 'Brass'), swatch: '#c9a24a' },
+  { id: 'copper', label: tr('Cuivre', 'Copper'), swatch: '#b8703f' },
+  { id: 'gunmetal', label: tr('Acier du bord', 'Gunmetal'), swatch: '#5a616b' },
+  { id: 'black', label: tr('Noir mat', 'Matt black'), swatch: '#2b2d31' },
+  { id: 'white', label: tr('Blanc', 'White'), swatch: '#eeeae2' },
+  { id: 'orange', label: tr('Orange Elite', 'Elite orange'), swatch: '#e0782f' },
+]
+
+/** Pelages du nounours (cf. FURS dans furniture/kenney.ts). */
+export const FUR_COLORS: Variant[] = [
+  { id: 'honey', label: tr('Caramel', 'Caramel'), swatch: '#b98a55' },
+  { id: 'beige', label: tr('Beige', 'Beige'), swatch: '#d1b393' },
+  { id: 'brown', label: tr('Chocolat', 'Chocolate'), swatch: '#6e4a32' },
+  { id: 'white', label: tr('Ours polaire', 'Polar bear'), swatch: '#efe8dc' },
+  { id: 'grey', label: tr('Gris', 'Grey'), swatch: '#8a8f98' },
+  { id: 'pink', label: tr('Rose', 'Pink'), swatch: '#e3a3b4' },
+  { id: 'blue', label: tr('Bleu', 'Blue'), swatch: '#7fa6cf' },
 ]

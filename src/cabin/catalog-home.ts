@@ -1,6 +1,6 @@
 import { tr } from '../i18n'
 import type { CatalogEntry } from './catalog'
-import { APPLIANCE_COLORS, fabrics, WOOD_FINISHES, type Variant } from './variants'
+import { APPLIANCE_COLORS, fabrics, FUR_COLORS, METAL_FINISHES, PORCELAIN_COLORS, WOOD_FINISHES, type Variant } from './variants'
 
 /*
  * Le Furniture Kit de Kenney dans le catalogue (cf. src/furniture/kenney.ts) : de quoi se faire
@@ -10,33 +10,46 @@ import { APPLIANCE_COLORS, fabrics, WOOD_FINISHES, type Variant } from './varian
 
 const woods = (first = 'oak'): Variant[] => [WOOD_FINISHES.find((w) => w.id === first)!, ...WOOD_FINISHES.filter((w) => w.id !== first)]
 
+/** Pots des plantes du kit : les essences et laques, en commençant par la terre cuite. */
+const POTS = woods('terracotta')
+
 /** Tapis du kit : les tissus, en commençant par une teinte chaude. */
 const RUG = fabrics('terracotta')
+
+/**
+ * Nappes des tables du kit (la teinte, sous l'essence du bois) : la nappe d'origine, la première,
+ * ne s'écrit pas dans la variante posée (cf. joinVariant) ; on la redonne au constructeur.
+ */
+const CLOTHS = fabrics('terracotta')
+const clothLabel = (variant: string | undefined) => {
+  const [wood, cloth] = (variant ?? '').split(':')
+  return `${wood}:${cloth ?? CLOTHS[0].id}`
+}
 
 export const HOME_ENTRIES: CatalogEntry[] = [
   // --- Salle de bain
   {
-    id: 'k-toilet', name: tr('Toilettes', 'Toilet'), category: 'bath', model: 'k-toilet', mount: 'floor',
+    id: 'k-toilet', name: tr('Toilettes', 'Toilet'), category: 'bath', model: 'k-toilet', mount: 'floor', variants: PORCELAIN_COLORS,
     interact: [
       tr('Toilettes : chasse d\'eau à recyclage intégral. Mieux vaut ne pas trop y penser.', 'Toilet: full-cycle water recycling. Best not to think about it too much.'),
       tr('Une étiquette : « Ne pas utiliser pendant un saut FSD. » Quelqu\'un a écrit dessous : « trop tard ».', 'A label: “Do not use during an FSD jump.” Someone has written underneath: “too late”.'),
     ],
   },
-  { id: 'k-toilet-square', name: tr('Toilettes design', 'Designer toilet'), category: 'bath', model: 'k-toilet-square', mount: 'floor' },
+  { id: 'k-toilet-square', name: tr('Toilettes design', 'Designer toilet'), category: 'bath', model: 'k-toilet-square', mount: 'floor', variants: PORCELAIN_COLORS },
   {
-    id: 'k-bathtub', name: tr('Baignoire', 'Bathtub'), category: 'bath', model: 'k-bathtub', mount: 'floor', action: tr('Prendre un bain', 'Take a bath'),
+    id: 'k-bathtub', name: tr('Baignoire', 'Bathtub'), category: 'bath', model: 'k-bathtub', mount: 'floor', variants: PORCELAIN_COLORS, action: tr('Prendre un bain', 'Take a bath'),
     interact: [
       tr('Un bain chaud dans l\'espace : le luxe ultime. L\'eau, elle, a déjà fait trois fois le tour du vaisseau.', 'A hot bath in space: the ultimate luxury. The water has already been round the ship three times.'),
       tr('Vous faites des bulles. Quelque part, un ingénieur du recyclage soupire.', 'You blow bubbles. Somewhere, a recycling engineer sighs.'),
     ],
   },
   {
-    id: 'k-shower', name: tr('Cabine de douche', 'Shower cubicle'), category: 'bath', model: 'k-shower', mount: 'floor',
+    id: 'k-shower', name: tr('Cabine de douche', 'Shower cubicle'), category: 'bath', model: 'k-shower', mount: 'floor', variants: PORCELAIN_COLORS,
     interact: tr('Douche : trois minutes d\'eau chaude, pas une de plus. Le chronomètre ne pardonne pas.', 'Shower: three minutes of hot water, not a second more. The timer is merciless.'),
   },
-  { id: 'k-shower-round', name: tr('Douche d\'angle', 'Corner shower'), category: 'bath', model: 'k-shower-round', mount: 'floor' },
-  { id: 'k-bathroom-sink', name: tr('Lavabo sur colonne', 'Pedestal basin'), category: 'bath', model: 'k-bathroom-sink', mount: 'floor' },
-  { id: 'k-bathroom-sink-square', name: tr('Lavabo carré', 'Square basin'), category: 'bath', model: 'k-bathroom-sink-square', mount: 'floor' },
+  { id: 'k-shower-round', name: tr('Douche d\'angle', 'Corner shower'), category: 'bath', model: 'k-shower-round', mount: 'floor', variants: PORCELAIN_COLORS },
+  { id: 'k-bathroom-sink', name: tr('Lavabo sur colonne', 'Pedestal basin'), category: 'bath', model: 'k-bathroom-sink', mount: 'floor', variants: PORCELAIN_COLORS },
+  { id: 'k-bathroom-sink-square', name: tr('Lavabo carré', 'Square basin'), category: 'bath', model: 'k-bathroom-sink-square', mount: 'floor', variants: PORCELAIN_COLORS },
   { id: 'k-bathroom-vanity', name: tr('Meuble vasque', 'Vanity unit'), category: 'bath', model: 'k-bathroom-vanity', mount: 'floor', variants: woods() },
   {
     id: 'k-bathroom-mirror', name: tr('Miroir', 'Mirror'), category: 'bath', model: 'k-bathroom-mirror', mount: 'wall', variants: woods(), action: tr('Se regarder', 'Look'),
@@ -47,12 +60,12 @@ export const HOME_ENTRIES: CatalogEntry[] = [
   },
   { id: 'k-bathroom-cabinet', name: tr('Armoire à pharmacie', 'Medicine cabinet'), category: 'bath', model: 'k-bathroom-cabinet', mount: 'wall', variants: woods() },
   {
-    id: 'k-washer', name: tr('Lave-linge', 'Washing machine'), category: 'bath', model: 'k-washer', mount: 'floor', surface: 0.587,
+    id: 'k-washer', name: tr('Lave-linge', 'Washing machine'), category: 'bath', model: 'k-washer', mount: 'floor', variants: APPLIANCE_COLORS, surface: 0.587,
     interact: tr('Lave-linge : programme « Combinaison de vol, taches de caféine ». 90 minutes.', 'Washing machine: “Flight suit, caffeine stains” cycle. 90 minutes.'),
   },
-  { id: 'k-dryer', name: tr('Sèche-linge', 'Tumble dryer'), category: 'bath', model: 'k-dryer', mount: 'floor', surface: 0.587 },
-  { id: 'k-washer-dryer', name: tr('Colonne lave-linge', 'Stacked washer-dryer'), category: 'bath', model: 'k-washer-dryer', mount: 'floor' },
-  { id: 'k-trashcan', name: tr('Poubelle', 'Bin'), category: 'bath', model: 'k-trashcan', mount: 'floor' },
+  { id: 'k-dryer', name: tr('Sèche-linge', 'Tumble dryer'), category: 'bath', model: 'k-dryer', mount: 'floor', variants: APPLIANCE_COLORS, surface: 0.587 },
+  { id: 'k-washer-dryer', name: tr('Colonne lave-linge', 'Stacked washer-dryer'), category: 'bath', model: 'k-washer-dryer', mount: 'floor', variants: APPLIANCE_COLORS },
+  { id: 'k-trashcan', name: tr('Poubelle', 'Bin'), category: 'bath', model: 'k-trashcan', mount: 'floor', variants: METAL_FINISHES },
   { id: 'k-bath-mat', name: tr('Paillasson', 'Doormat'), category: 'rugs', model: 'k-bath-mat', mount: 'flat' },
 
   // --- Cuisine
@@ -80,27 +93,27 @@ export const HOME_ENTRIES: CatalogEntry[] = [
   { id: 'k-kitchen-corner', name: tr('Meuble d\'angle', 'Corner unit'), category: 'kitchen', model: 'k-kitchen-corner', mount: 'floor', variants: woods(), surface: 0.546 },
   { id: 'k-kitchen-upper', name: tr('Meuble haut', 'Wall cupboard'), category: 'kitchen', model: 'k-kitchen-upper', mount: 'wall', variants: woods() },
   { id: 'k-kitchen-upper-double', name: tr('Meuble haut double', 'Double wall cupboard'), category: 'kitchen', model: 'k-kitchen-upper-double', mount: 'wall', variants: woods() },
-  { id: 'k-hood', name: tr('Hotte', 'Cooker hood'), category: 'kitchen', model: 'k-hood', mount: 'wall' },
+  { id: 'k-hood', name: tr('Hotte', 'Cooker hood'), category: 'kitchen', model: 'k-hood', mount: 'wall', variants: APPLIANCE_COLORS },
   { id: 'k-kitchen-bar', name: tr('Comptoir', 'Breakfast bar'), category: 'kitchen', model: 'k-kitchen-bar', mount: 'floor', variants: woods(), surface: 0.546 },
   { id: 'k-kitchen-bar-end', name: tr('Bout de comptoir', 'Bar end'), category: 'kitchen', model: 'k-kitchen-bar-end', mount: 'floor', variants: woods() },
   {
-    id: 'k-microwave', name: tr('Micro-ondes', 'Microwave'), category: 'kitchen', model: 'k-microwave', mount: 'top', action: tr('Réchauffer', 'Heat up'),
+    id: 'k-microwave', name: tr('Micro-ondes', 'Microwave'), category: 'kitchen', model: 'k-microwave', mount: 'top', variants: APPLIANCE_COLORS, action: tr('Réchauffer', 'Heat up'),
     interact: tr('Ding ! Votre ration de survie est chaude à l\'extérieur et gelée au milieu. Comme toujours.', 'Ding! Your survival ration is hot on the outside and frozen in the middle. As always.'),
   },
   {
-    id: 'k-coffee-machine', name: tr('Machine à café', 'Coffee machine'), category: 'kitchen', model: 'k-coffee-machine', mount: 'top', action: tr('Se servir un café', 'Pour a coffee'),
+    id: 'k-coffee-machine', name: tr('Machine à café', 'Coffee machine'), category: 'kitchen', model: 'k-coffee-machine', mount: 'top', variants: APPLIANCE_COLORS, action: tr('Se servir un café', 'Pour a coffee'),
     interact: [
       tr('Un café noir, serré. Le vrai carburant des pilotes.', 'A strong black coffee. The real fuel of pilots.'),
       tr('La machine gargouille comme un FSD qui charge. Le café arrive trois minutes plus tard.', 'The machine gurgles like a charging FSD. The coffee arrives three minutes later.'),
     ],
   },
-  { id: 'k-toaster', name: tr('Grille-pain', 'Toaster'), category: 'kitchen', model: 'k-toaster', mount: 'top', interact: tr('Le grille-pain éjecte deux tartines. L\'une d\'elles atteint la vitesse de libération.', 'The toaster ejects two slices. One of them reaches escape velocity.') },
-  { id: 'k-blender', name: tr('Blender', 'Blender'), category: 'kitchen', model: 'k-blender', mount: 'top' },
-  { id: 'k-bar-stool', name: tr('Tabouret de bar', 'Bar stool'), category: 'kitchen', model: 'k-bar-stool', mount: 'floor', variants: fabrics('terracotta') },
-  { id: 'k-bar-stool-square', name: tr('Tabouret carré', 'Square stool'), category: 'kitchen', model: 'k-bar-stool-square', mount: 'floor', variants: fabrics('teal') },
+  { id: 'k-toaster', name: tr('Grille-pain', 'Toaster'), category: 'kitchen', model: 'k-toaster', mount: 'top', variants: APPLIANCE_COLORS, interact: tr('Le grille-pain éjecte deux tartines. L\'une d\'elles atteint la vitesse de libération.', 'The toaster ejects two slices. One of them reaches escape velocity.') },
+  { id: 'k-blender', name: tr('Blender', 'Blender'), category: 'kitchen', model: 'k-blender', mount: 'top', variants: APPLIANCE_COLORS },
+  { id: 'k-bar-stool', name: tr('Tabouret de bar', 'Bar stool'), category: 'kitchen', model: 'k-bar-stool', mount: 'floor', variants: fabrics('terracotta'), tints: WOOD_FINISHES },
+  { id: 'k-bar-stool-square', name: tr('Tabouret carré', 'Square stool'), category: 'kitchen', model: 'k-bar-stool-square', mount: 'floor', variants: fabrics('teal'), tints: WOOD_FINISHES },
   { id: 'k-dining-table', name: tr('Table de ferme', 'Farmhouse table'), category: 'kitchen', model: 'k-dining-table', mount: 'floor', variants: woods(), surface: 0.452 },
-  { id: 'k-dining-table-cloth', name: tr('Table à nappe', 'Table with runner'), category: 'kitchen', model: 'k-dining-table-cloth', mount: 'floor', variants: woods(), surface: 0.452 },
-  { id: 'k-table-cloth', name: tr('Table de cuisine', 'Kitchen table'), category: 'kitchen', model: 'k-table-cloth', mount: 'floor', variants: woods(), surface: 0.425 },
+  { id: 'k-dining-table-cloth', name: tr('Table à nappe', 'Table with runner'), category: 'kitchen', model: 'k-dining-table-cloth', mount: 'floor', variants: woods(), tints: CLOTHS, label: clothLabel, surface: 0.452 },
+  { id: 'k-table-cloth', name: tr('Table de cuisine', 'Kitchen table'), category: 'kitchen', model: 'k-table-cloth', mount: 'floor', variants: woods(), tints: CLOTHS, label: clothLabel, surface: 0.425 },
   { id: 'k-round-table', name: tr('Table ronde', 'Round table'), category: 'kitchen', model: 'k-round-table', mount: 'floor', variants: woods(), surface: 0.458 },
 
   // --- Salon
@@ -119,14 +132,14 @@ export const HOME_ENTRIES: CatalogEntry[] = [
   { id: 'k-design-chair', name: tr('Fauteuil design', 'Designer armchair'), category: 'living', model: 'k-design-chair', mount: 'floor', variants: fabrics('navy') },
   { id: 'k-design-sofa', name: tr('Canapé design', 'Designer sofa'), category: 'living', model: 'k-design-sofa', mount: 'floor', variants: fabrics('navy') },
   { id: 'k-design-sofa-corner', name: tr('Grand canapé design', 'Large designer sofa'), category: 'living', model: 'k-design-sofa-corner', mount: 'floor', variants: fabrics('navy') },
-  { id: 'k-coffee-table-glass', name: tr('Table basse en verre', 'Glass coffee table'), category: 'living', model: 'k-coffee-table-glass', mount: 'floor', surface: 0.322 },
+  { id: 'k-coffee-table-glass', name: tr('Table basse en verre', 'Glass coffee table'), category: 'living', model: 'k-coffee-table-glass', mount: 'floor', variants: METAL_FINISHES, surface: 0.322 },
   { id: 'k-coffee-table-square', name: tr('Table basse carrée', 'Square coffee table'), category: 'living', model: 'k-coffee-table-square', mount: 'floor', variants: woods(), surface: 0.322 },
-  { id: 'k-glass-table', name: tr('Table en verre', 'Glass table'), category: 'living', model: 'k-glass-table', mount: 'floor', surface: 0.425 },
-  { id: 'k-chair-modern', name: tr('Chaise moderne', 'Modern chair'), category: 'living', model: 'k-chair-modern', mount: 'floor', variants: fabrics('navy') },
-  { id: 'k-chair-modern-frame', name: tr('Chaise à armature', 'Frame chair'), category: 'living', model: 'k-chair-modern-frame', mount: 'floor', variants: fabrics('teal') },
+  { id: 'k-glass-table', name: tr('Table en verre', 'Glass table'), category: 'living', model: 'k-glass-table', mount: 'floor', variants: METAL_FINISHES, surface: 0.425 },
+  { id: 'k-chair-modern', name: tr('Chaise moderne', 'Modern chair'), category: 'living', model: 'k-chair-modern', mount: 'floor', variants: fabrics('navy'), tints: METAL_FINISHES },
+  { id: 'k-chair-modern-frame', name: tr('Chaise à armature', 'Frame chair'), category: 'living', model: 'k-chair-modern-frame', mount: 'floor', variants: fabrics('teal'), tints: METAL_FINISHES },
   { id: 'k-chair-rounded', name: tr('Chaise en bois', 'Wooden chair'), category: 'living', model: 'k-chair-rounded', mount: 'floor', variants: woods() },
   { id: 'k-desk-chair', name: tr('Chaise de bureau', 'Desk chair'), category: 'living', model: 'k-desk-chair', mount: 'floor', variants: fabrics('terracotta') },
-  { id: 'k-low-bench', name: tr('Banquette basse', 'Low bench'), category: 'living', model: 'k-low-bench', mount: 'floor', variants: fabrics('sage') },
+  { id: 'k-low-bench', name: tr('Banquette basse', 'Low bench'), category: 'living', model: 'k-low-bench', mount: 'floor', variants: fabrics('sage'), tints: WOOD_FINISHES },
   { id: 'k-side-table-drawers', name: tr('Console à tiroirs', 'Drawer console'), category: 'living', model: 'k-side-table-drawers', mount: 'floor', variants: woods(), surface: 0.5 },
   { id: 'k-desk', name: tr('Bureau en bois', 'Wooden desk'), category: 'living', model: 'k-desk', mount: 'floor', variants: woods(), surface: 0.557 },
   { id: 'k-desk-corner', name: tr('Bureau d\'angle', 'Corner desk'), category: 'living', model: 'k-desk-corner', mount: 'floor', variants: woods() },
@@ -140,30 +153,30 @@ export const HOME_ENTRIES: CatalogEntry[] = [
     id: 'k-tv-modern', name: tr('Télévision plate', 'Flat-screen TV'), category: 'tech', model: 'k-tv-modern', mount: 'top', action: tr('Regarder', 'Watch'),
     interact: tr('Écran plat : 4 000 chaînes, et toujours rien à regarder à part le replay du dernier Buckyball Run.', 'Flat screen: 4,000 channels, and still nothing on except a replay of the last Buckyball Run.'),
   },
-  { id: 'k-tv-vintage', name: tr('Petit téléviseur', 'Small TV set'), category: 'tech', model: 'k-tv-vintage', mount: 'top' },
+  { id: 'k-tv-vintage', name: tr('Petit téléviseur', 'Small TV set'), category: 'tech', model: 'k-tv-vintage', mount: 'top', variants: woods() },
   { id: 'k-laptop', name: tr('Ordinateur portable', 'Laptop'), category: 'tech', model: 'k-laptop', mount: 'top', interact: tr('Le portable affiche Inara. Onze onglets de routes commerciales ouverts.', 'The laptop shows Inara. Eleven trade-route tabs open.') },
   { id: 'k-computer-screen', name: tr('Écran d\'ordinateur', 'Computer monitor'), category: 'tech', model: 'k-computer-screen', mount: 'top' },
   { id: 'k-keyboard', name: tr('Clavier', 'Keyboard'), category: 'tech', model: 'k-keyboard', mount: 'top' },
-  { id: 'k-speaker-tall', name: tr('Enceinte colonne', 'Tower speaker'), category: 'tech', model: 'k-speaker-tall', mount: 'floor' },
-  { id: 'k-speaker-small', name: tr('Petite enceinte', 'Bookshelf speaker'), category: 'tech', model: 'k-speaker-small', mount: 'top' },
+  { id: 'k-speaker-tall', name: tr('Enceinte colonne', 'Tower speaker'), category: 'tech', model: 'k-speaker-tall', mount: 'floor', variants: woods('graphite') },
+  { id: 'k-speaker-small', name: tr('Petite enceinte', 'Bookshelf speaker'), category: 'tech', model: 'k-speaker-small', mount: 'top', variants: woods('graphite') },
 
   // --- Lumières
-  { id: 'k-lamp-round-floor', name: tr('Lampadaire rond', 'Round floor lamp'), category: 'light', model: 'k-lamp-round-floor', mount: 'floor', light: { color: '#ffe0b0', intensity: 1, at: [0, 0.9, 0], priority: 3 } },
-  { id: 'k-lamp-square-floor', name: tr('Lampadaire carré', 'Square floor lamp'), category: 'light', model: 'k-lamp-square-floor', mount: 'floor', light: { color: '#ffe0b0', intensity: 1, at: [0, 0.9, 0], priority: 3 } },
-  { id: 'k-lamp-round-table', name: tr('Lampe de chevet', 'Bedside lamp'), category: 'light', model: 'k-lamp-round-table', mount: 'top', light: { color: '#ffe0b0', intensity: 0.55, at: [0, 0.28, 0], priority: 5 } },
-  { id: 'k-lamp-square-table', name: tr('Lampe carrée', 'Square lamp'), category: 'light', model: 'k-lamp-square-table', mount: 'top', light: { color: '#ffe0b0', intensity: 0.55, at: [0, 0.26, 0], priority: 5 } },
+  { id: 'k-lamp-round-floor', name: tr('Lampadaire rond', 'Round floor lamp'), category: 'light', model: 'k-lamp-round-floor', mount: 'floor', variants: METAL_FINISHES, light: { color: '#ffe0b0', intensity: 1, at: [0, 0.9, 0], priority: 3 } },
+  { id: 'k-lamp-square-floor', name: tr('Lampadaire carré', 'Square floor lamp'), category: 'light', model: 'k-lamp-square-floor', mount: 'floor', variants: METAL_FINISHES, light: { color: '#ffe0b0', intensity: 1, at: [0, 0.9, 0], priority: 3 } },
+  { id: 'k-lamp-round-table', name: tr('Lampe de chevet', 'Bedside lamp'), category: 'light', model: 'k-lamp-round-table', mount: 'top', variants: METAL_FINISHES, light: { color: '#ffe0b0', intensity: 0.55, at: [0, 0.28, 0], priority: 5 } },
+  { id: 'k-lamp-square-table', name: tr('Lampe carrée', 'Square lamp'), category: 'light', model: 'k-lamp-square-table', mount: 'top', variants: METAL_FINISHES, light: { color: '#ffe0b0', intensity: 0.55, at: [0, 0.26, 0], priority: 5 } },
   { id: 'k-lamp-wall', name: tr('Applique design', 'Designer wall light'), category: 'light', model: 'k-lamp-wall', mount: 'wall', light: { color: '#ffe0b0', intensity: 0.7, at: [0, 0.7, 0.2], priority: 4 } },
   {
-    id: 'k-ceiling-fan', name: tr('Ventilateur de plafond', 'Ceiling fan'), category: 'light', model: 'k-ceiling-fan', mount: 'floor', solid: false,
+    id: 'k-ceiling-fan', name: tr('Ventilateur de plafond', 'Ceiling fan'), category: 'light', model: 'k-ceiling-fan', mount: 'floor', variants: woods(), solid: false,
     light: { color: '#ffe6b8', intensity: 0.9, at: [0, 0.78, 0], priority: 3 },
     interact: tr('Ventilateur de plafond : il brasse l\'air recyclé. Il a l\'air plus frais, promis.', 'Ceiling fan: it stirs the recycled air. It feels fresher, honest.'),
   },
 
   // --- Plantes
-  { id: 'k-potted-plant', name: tr('Plante en pot', 'Potted plant'), category: 'plants', model: 'k-potted-plant', mount: 'floor' },
-  { id: 'k-plant-small-1', name: tr('Petite plante', 'Small plant'), category: 'plants', model: 'k-plant-small-1', mount: 'top' },
-  { id: 'k-plant-small-2', name: tr('Plante touffue', 'Bushy plant'), category: 'plants', model: 'k-plant-small-2', mount: 'top' },
-  { id: 'k-plant-small-3', name: tr('Jeune pousse', 'Seedling'), category: 'plants', model: 'k-plant-small-3', mount: 'top' },
+  { id: 'k-potted-plant', name: tr('Plante en pot', 'Potted plant'), category: 'plants', model: 'k-potted-plant', mount: 'floor', variants: POTS },
+  { id: 'k-plant-small-1', name: tr('Petite plante', 'Small plant'), category: 'plants', model: 'k-plant-small-1', mount: 'top', variants: POTS },
+  { id: 'k-plant-small-2', name: tr('Plante touffue', 'Bushy plant'), category: 'plants', model: 'k-plant-small-2', mount: 'top', variants: POTS },
+  { id: 'k-plant-small-3', name: tr('Jeune pousse', 'Seedling'), category: 'plants', model: 'k-plant-small-3', mount: 'top', variants: POTS },
 
   // --- Rangements
   { id: 'k-bookcase-open', name: tr('Étagère haute', 'Tall shelf'), category: 'storage', model: 'k-bookcase-open', mount: 'floor', variants: woods(), surface: 0.935 },
@@ -182,17 +195,17 @@ export const HOME_ENTRIES: CatalogEntry[] = [
   },
 
   // --- Chambre
-  { id: 'k-bed-double', name: tr('Lit double', 'Double bed'), category: 'rest', model: 'k-bed-double', mount: 'floor', variants: fabrics('rose') },
-  { id: 'k-bed-single', name: tr('Lit simple', 'Single bed'), category: 'rest', model: 'k-bed-single', mount: 'floor', variants: fabrics('teal') },
-  { id: 'k-bed-bunk', name: tr('Lits superposés en bois', 'Wooden bunk beds'), category: 'rest', model: 'k-bed-bunk', mount: 'floor', variants: fabrics('navy') },
+  { id: 'k-bed-double', name: tr('Lit double', 'Double bed'), category: 'rest', model: 'k-bed-double', mount: 'floor', variants: fabrics('rose'), tints: WOOD_FINISHES },
+  { id: 'k-bed-single', name: tr('Lit simple', 'Single bed'), category: 'rest', model: 'k-bed-single', mount: 'floor', variants: fabrics('teal'), tints: WOOD_FINISHES },
+  { id: 'k-bed-bunk', name: tr('Lits superposés en bois', 'Wooden bunk beds'), category: 'rest', model: 'k-bed-bunk', mount: 'floor', variants: fabrics('navy'), tints: WOOD_FINISHES },
   { id: 'k-nightstand', name: tr('Chevet', 'Nightstand'), category: 'rest', model: 'k-nightstand', mount: 'floor', variants: woods(), surface: 0.368 },
   { id: 'k-nightstand-drawers', name: tr('Chevet à tiroirs', 'Nightstand with drawers'), category: 'rest', model: 'k-nightstand-drawers', mount: 'floor', variants: woods(), surface: 0.368 },
   {
-    id: 'k-bear', name: tr('Ours en peluche', 'Teddy bear'), category: 'rest', model: 'k-bear', mount: 'top', action: tr('Câliner', 'Cuddle'),
+    id: 'k-bear', name: tr('Ours en peluche', 'Teddy bear'), category: 'rest', model: 'k-bear', mount: 'top', variants: FUR_COLORS, action: tr('Câliner', 'Cuddle'),
     interact: tr('Nounours : il a fait le tour de la bulle avec vous. Il n\'a jamais rien dit à personne.', 'Teddy: he\'s been all round the bubble with you. He has never told a soul.'),
   },
   {
-    id: 'k-bear-giant', name: tr('Nounours géant', 'Giant teddy bear'), category: 'rest', model: 'k-bear-giant', mount: 'floor', action: tr('Câliner', 'Cuddle'),
+    id: 'k-bear-giant', name: tr('Nounours géant', 'Giant teddy bear'), category: 'rest', model: 'k-bear-giant', mount: 'floor', variants: FUR_COLORS, action: tr('Câliner', 'Cuddle'),
     interact: tr('Nounours géant, gagné à la pince à peluches après 212 essais. Il en valait la peine.', 'Giant teddy, won at the claw machine after 212 attempts. Worth every one.'),
   },
 
