@@ -106,9 +106,16 @@ function paintRadioNeon(g: CanvasRenderingContext2D, logo: RadioLogo) {
   }, ED_ORANGE, '#fff0dc', 0.9)
 }
 
-/** « ON AIR » : un cadre de tube rouge, et les deux mots. */
+const AIR_W = 256, AIR_H = 160
+
+/** « ON AIR » allumé : la face rétroéclairée en rouge, un cadre de tube, et les deux mots. */
 function paintOnAir(g: CanvasRenderingContext2D) {
-  const w = 256, h = 160
+  const w = AIR_W, h = AIR_H
+  const light = g.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w * 0.6)
+  light.addColorStop(0, 'rgba(255, 50, 40, 0.75)')
+  light.addColorStop(1, 'rgba(200, 20, 20, 0.45)')
+  g.fillStyle = light
+  g.fillRect(0, 0, w, h)
   neonTube(g, (c) => {
     c.beginPath()
     c.roundRect(18, 16, w - 36, h - 32, 16)
@@ -127,20 +134,63 @@ function paintOnAir(g: CanvasRenderingContext2D) {
 }
 
 /**
+ * Face du caisson « ON AIR », éteint : le verre noir, le cadre et les mots en rouge sombre. On
+ * lit le panneau même hors antenne ; le tube allumé (paintOnAir) se pose par-dessus.
+ */
+function paintOnAirFace(g: CanvasRenderingContext2D) {
+  const w = AIR_W, h = AIR_H
+  g.fillStyle = '#101115'
+  g.fillRect(0, 0, w, h)
+  g.strokeStyle = '#5c1717'
+  g.lineWidth = 6
+  g.beginPath()
+  g.roundRect(18, 16, w - 36, h - 32, 16)
+  g.stroke()
+  g.font = '800 50px system-ui, sans-serif'
+  g.textAlign = 'center'
+  g.textBaseline = 'middle'
+  g.fillStyle = '#6a1a1a'
+  g.fillText('ON', w / 2, h / 2 - 22)
+  g.fillText('AIR', w / 2, h / 2 + 26)
+}
+
+/** Rectangle aux coins arrondis, dans le plan xy, centré sur l'origine. */
+function roundedPlate(w: number, h: number, r: number): THREE.ShapeGeometry {
+  const s = new THREE.Shape()
+  const x = -w / 2, y = -h / 2
+  s.moveTo(x + r, y)
+  s.lineTo(x + w - r, y)
+  s.quadraticCurveTo(x + w, y, x + w, y + r)
+  s.lineTo(x + w, y + h - r)
+  s.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
+  s.lineTo(x + r, y + h)
+  s.quadraticCurveTo(x, y + h, x, y + h - r)
+  s.lineTo(x, y + r)
+  s.quadraticCurveTo(x, y, x + r, y)
+  return new THREE.ShapeGeometry(s, 6)
+}
+
+/**
  * Néon de Radio Dangereuse, posé sur le linteau de la vitre du studio (origine sur l'axe du mur,
- * au sol ; les tubes regardent +z, côté salon) : le logo à gauche, « ON AIR » à droite. Pas de
- * plaque (on voit le studio au travers) : un rail sur le mur, des entretoises.
+ * au sol ; les tubes regardent +z, côté salon) : le logo à gauche, « ON AIR » à droite. Les tubes
+ * sont montés sur une plaque d'acrylique fumé (sans elle, leur lueur se perdait sur le studio clair,
+ * derrière) ; le « ON AIR » est un caisson noir, lisible même éteint. Un rail sur le mur, des
+ * entretoises.
  */
 const radioNeon: Builder = () => {
   const g = new THREE.Group()
   const top = LINTEL
   const neonW = 1.45, neonH = (neonW * NEON_H) / NEON_W
-  const airW = 0.46, airH = airW * (160 / 256)
+  const airW = 0.46, airH = airW * (AIR_H / AIR_W)
   const neonX = -0.2, airX = neonX + neonW / 2 + 0.06 + airW / 2
   const y = top + 0.05 + neonH / 2
+  const airY = top + 0.05 + airH / 2 + 0.02
   // Rail d'acier sur le linteau, et deux entretoises par pièce.
   g.add(box(neonW + airW + 0.16, 0.025, 0.05, lit(C.panel), (neonX - neonW / 2 + airX + airW / 2) / 2, top + 0.0125, 0))
   for (const x of [neonX - neonW * 0.35, neonX + neonW * 0.35, airX]) g.add(cylinder(0.006, 0.006, 0.07, lit(C.chrome), x, top + 0.06, 0.012, 6))
+  // Caisson « ON AIR » : un boîtier noir, sa face de verre (éteinte) devant.
+  g.add(box(airW + 0.04, airH + 0.04, 0.05, lit(C.black), airX, airY, 0, 0.012))
+  g.add(part(new THREE.PlaneGeometry(airW, airH), new THREE.MeshBasicMaterial({ map: drawnTexture(AIR_W, AIR_H, paintOnAirFace), toneMapped: false }), airX, airY, 0.026))
 
   const art = drawnTexture(NEON_W, NEON_H, () => {})
   const canvas = art.image as HTMLCanvasElement
@@ -149,9 +199,16 @@ const radioNeon: Builder = () => {
     art.needsUpdate = true
   }).catch(() => { /* Sans le logo, il reste le « ON AIR ». */ })
   const neon = new THREE.MeshBasicMaterial({ map: art, transparent: true, depthWrite: false, toneMapped: false })
-  const air = new THREE.MeshBasicMaterial({ map: drawnTexture(256, 160, paintOnAir), transparent: true, depthWrite: false, toneMapped: false })
+  // Mélange additif : la face noire s'illumine.
+  const air = new THREE.MeshBasicMaterial({ map: drawnTexture(AIR_W, AIR_H, paintOnAir), transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending })
+  // Plaque fumée, un peu plus grande que le logo : on devine encore le studio au travers.
+  const plate = part(roundedPlate(neonW + 0.05, neonH + 0.03, 0.035), new THREE.MeshBasicMaterial({ color: '#0b0c10', transparent: true, opacity: 0.85, depthWrite: false }), neonX, y, 0.008)
+  const tubes = part(new THREE.PlaneGeometry(neonW, neonH), neon, neonX, y, 0.02)
+  const lamp = part(new THREE.PlaneGeometry(airW, airH), air, airX, airY, 0.028)
+  // Les tubes après la plaque, quel que soit l'angle de vue.
+  tubes.renderOrder = lamp.renderOrder = 1
   const live = new THREE.Group()
-  live.add(part(new THREE.PlaneGeometry(neonW, neonH), neon, neonX, y, 0.02), part(new THREE.PlaneGeometry(airW, airH), air, airX, top + 0.05 + airH / 2 + 0.02, 0.02))
+  live.add(plate, tubes, lamp)
 
   // Le tube rouge s'amorce en clignotant quand on prend l'antenne, s'éteint quand on la rend.
   let onAir = false, since = -10
@@ -166,7 +223,7 @@ const radioNeon: Builder = () => {
         since = t
       }
       const strike = onAir && t - since < 0.6 && Math.sin((t - since) * 60) > 0
-      air.opacity = onAir ? (strike ? 0.3 : 1) : 0.16
+      air.opacity = onAir ? (strike ? 0.3 : 1) : 0
     },
   }
 }
