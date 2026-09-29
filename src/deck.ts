@@ -93,10 +93,10 @@ export const POST_H = 1.03
 export const FLOOR_Y = -0.3
 /**
  * Plafond (vue subjective seulement), bien au-dessus des têtes (0,72 pour le plus grand CMDR) :
- * les yeux sont à 0,59, un plafond posé sur les murs (1) écrasait la vue. Les murs montent
- * jusqu'à lui (cf. upperWalls), sous les lampes du pont (1,4).
+ * les yeux sont à 0,59, un plafond bas écrase la vue. Les murs montent jusqu'à lui (cf.
+ * upperWalls), et les lampes du pont (1,4) l'éclairent par en dessous.
  */
-export const CEILING_Y = 1.36
+export const CEILING_Y = 1.75
 /** Dessus des murs de la baie infestée (cf. salvage/kit.ts) ; ceux du vaisseau font 1. */
 const ZONE_WALL_TOP = 1.06
 const DOOR_RANGE = 1.3
