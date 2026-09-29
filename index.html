@@ -22,6 +22,9 @@
   </head>
   <body>
     <div id="app"></div>
+    <div id="view-curtain" aria-hidden="true"></div>
+    <div id="fps-crosshair" aria-hidden="true"></div>
+    <div id="fps-hint" aria-hidden="true"><span lang="fr">Clic : viser à la souris · Échap : libérer le curseur</span><span lang="en">Click: mouse aim · Esc: release the cursor</span></div>
     <div id="bubbles"></div>
 
     <!--
@@ -112,6 +115,7 @@
             <input id="volume" type="range" min="0" max="100" step="1" title="Volume" aria-label="Volume" />
             <button id="photo-toggle" title="Mode photo (P)" aria-label="Mode photo" data-en-title="Photo mode (P)" data-en-aria-label="Photo mode"><i data-icon="camera"></i></button>
             <button id="auto-sprint" title="Activer le sprint automatique" aria-label="Activer le sprint automatique" aria-pressed="false" data-en-title="Enable auto-sprint" data-en-aria-label="Enable auto-sprint"><i data-icon="person-simple-run"></i></button>
+            <button id="fps-view" title="Vue subjective (V)" aria-label="Vue subjective (V)" aria-pressed="false" data-en-title="First-person view (V)" data-en-aria-label="First-person view (V)"><i data-icon="eye"></i></button>
             <button id="light-mode" title="Activer le mode léger" aria-label="Activer le mode léger" aria-pressed="false" data-en-title="Enable light mode" data-en-aria-label="Enable light mode"><i data-icon="lightning"></i></button>
             <button id="help-toggle" title="Aide (H)" aria-label="Aide" data-en-title="Help (H)" data-en-aria-label="Help"><i data-icon="question"></i></button>
           </div>

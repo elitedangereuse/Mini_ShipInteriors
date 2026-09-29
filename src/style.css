@@ -3262,3 +3262,69 @@ body.photo #bubbles .gain-pop {
   #dialog { bottom: 70px; width: min(390px, 56vw); padding: 8px; font-size: 11px; }
   body.editing #touch-pad, body.photo #touch-pad { display: none; }
 }
+
+/* Vue subjective (src/fps.ts) : un bref fondu au noir cache la bascule de projection, un point
+   marque le centre du regard, et les commandes de la vue isométrique s'effacent. */
+#view-curtain {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+}
+#view-curtain.lift {
+  animation: view-curtain 0.4s ease-out;
+}
+@keyframes view-curtain {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+#fps-crosshair {
+  display: none;
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+body.fps-view #fps-crosshair {
+  display: block;
+}
+body.fps-view #rot-left,
+body.fps-view #rot-right,
+body.fps-view #zoom-in,
+body.fps-view #zoom-out {
+  display: none;
+}
+/* Mire allumée : elle vise un objet utilisable. */
+#fps-crosshair.aim {
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  background: var(--accent);
+}
+/* Curseur libre en vue subjective : comment le reprendre. Au doigt, on glisse, sans capture. */
+#fps-hint {
+  display: none;
+  position: fixed;
+  left: 50%;
+  top: calc(50% + 18px);
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  body.fps-view:not(.fps-locked) #fps-hint {
+    display: block;
+  }
+}
