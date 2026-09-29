@@ -754,6 +754,24 @@ body.camera-rotating #task-progress {
 .help .muted {
   opacity: 0.8;
 }
+/* Réglage dans l'aide : la sensibilité de la souris en vue subjective. */
+.help-setting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+.help-setting input {
+  flex: 1;
+  min-width: 80px;
+  accent-color: var(--cyan);
+  cursor: pointer;
+}
+.help-setting output {
+  min-width: 3.2em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 code {
   font: 11px ui-monospace, monospace;
   color: var(--text);

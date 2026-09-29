@@ -2330,8 +2330,26 @@ document.addEventListener('pointerlockchange', () => {
   if (cursorLocked()) relock = false
 })
 document.addEventListener('mousemove', (e) => {
-  if (cursorLocked() && fpsShown) fps.look(-e.movementX * 0.0025, -e.movementY * 0.0025)
+  if (cursorLocked() && fpsShown) fps.look(-e.movementX * mouseLook(), -e.movementY * mouseLook())
 })
+
+// Sensibilité de la souris en vue subjective, réglée dans l'aide : curseur capturé ou libre.
+const sensitivityInput = $<HTMLInputElement>('mouse-sensitivity')
+let mouseSensitivity = THREE.MathUtils.clamp(Number(store.get('mini-shipinteriors-mouse-sensitivity')) || 1, 0.2, 3)
+/** Angle (radians) par pixel de souris. */
+const mouseLook = () => 0.0025 * mouseSensitivity
+function updateSensitivity() {
+  sensitivityInput.value = String(mouseSensitivity)
+  const x = mouseSensitivity.toFixed(1)
+  $('mouse-sensitivity-value').textContent = `${tr(x.replace('.', ','), x)}×`
+}
+sensitivityInput.addEventListener('input', () => {
+  mouseSensitivity = Number(sensitivityInput.value)
+  store.set('mini-shipinteriors-mouse-sensitivity', String(mouseSensitivity))
+  updateSensitivity()
+})
+sensitivityInput.addEventListener('keydown', (e) => e.stopPropagation())
+updateSensitivity()
 
 // Curseur libre (pas encore capturé, ou libéré par Échap) : le regard suit quand même la souris,
 // sans bouton à tenir, et continue de tourner tant que le curseur reste près d'un bord de l'écran.
@@ -2342,7 +2360,7 @@ canvas.addEventListener('pointermove', (e) => {
     freeAim = null
     return
   }
-  if (freeAim) fps.look(-(e.clientX - freeAim.x) * 0.0025, -(e.clientY - freeAim.y) * 0.0025)
+  if (freeAim) fps.look(-(e.clientX - freeAim.x) * mouseLook(), -(e.clientY - freeAim.y) * mouseLook())
   freeAim = { x: e.clientX, y: e.clientY }
 })
 canvas.addEventListener('pointerleave', () => (freeAim = null))
