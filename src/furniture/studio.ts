@@ -85,25 +85,57 @@ function neonTube(g: CanvasRenderingContext2D, path: (g: CanvasRenderingContext2
 
 const NEON_W = 832, NEON_H = 320
 
+const PLANET_SCALE = 2.3, TEXT_SCALE = 2.1
+
+/** Place le tracé de la planète (`planet`) ou du nom dans le canvas du néon. */
+function logoFrame(c: CanvasRenderingContext2D, logo: RadioLogo, planet: boolean) {
+  const k = planet ? PLANET_SCALE : TEXT_SCALE
+  if (planet) c.translate(14, 34)
+  else c.translate(NEON_W - 14 - logo.textBox[0] * k, (NEON_H - logo.textBox[1] * k) / 2)
+  c.scale(k, k)
+  c.lineWidth /= k
+}
+
 /** La planète en jaune, le nom en orange Elite : les contours des tracés, en tubes. */
 function paintRadioNeon(g: CanvasRenderingContext2D, logo: RadioLogo) {
   g.clearRect(0, 0, NEON_W, NEON_H)
-  const ps = 2.3, ts = 2.1
   neonTube(g, (c) => {
-    c.translate(14, 34)
-    c.scale(ps, ps)
-    c.lineWidth /= ps
+    logoFrame(c, logo, true)
     c.stroke(logo.planet)
     c.beginPath()
     c.arc(logo.crater.x, logo.crater.y, logo.crater.r, 0, Math.PI * 2)
     c.stroke()
   }, '#ffbd14', '#fff4cf')
   neonTube(g, (c) => {
-    c.translate(NEON_W - 14 - logo.textBox[0] * ts, (NEON_H - logo.textBox[1] * ts) / 2)
-    c.scale(ts, ts)
-    c.lineWidth /= ts
+    logoFrame(c, logo, false)
     c.stroke(logo.text)
   }, ED_ORANGE, '#fff0dc', 0.9)
+}
+
+/**
+ * Support du néon, découpé au plus près des tubes (comme un plexi détouré) : la planète et les
+ * lettres pleines, en noir fumé, bordées d'une fine marge. Les tubes s'y détachent sans qu'une
+ * grande plaque masque le studio.
+ */
+function paintRadioBacker(g: CanvasRenderingContext2D, logo: RadioLogo) {
+  g.clearRect(0, 0, NEON_W, NEON_H)
+  g.fillStyle = g.strokeStyle = '#0b0c10'
+  g.lineJoin = g.lineCap = 'round'
+  for (const planet of [true, false]) {
+    g.save()
+    g.lineWidth = 22
+    logoFrame(g, logo, planet)
+    const path = planet ? logo.planet : logo.text
+    g.fill(path)
+    g.stroke(path)
+    if (planet) {
+      g.beginPath()
+      g.arc(logo.crater.x, logo.crater.y, logo.crater.r, 0, Math.PI * 2)
+      g.fill()
+      g.stroke()
+    }
+    g.restore()
+  }
 }
 
 const AIR_W = 256, AIR_H = 160
@@ -112,8 +144,8 @@ const AIR_W = 256, AIR_H = 160
 function paintOnAir(g: CanvasRenderingContext2D) {
   const w = AIR_W, h = AIR_H
   const light = g.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w * 0.6)
-  light.addColorStop(0, 'rgba(255, 50, 40, 0.75)')
-  light.addColorStop(1, 'rgba(200, 20, 20, 0.45)')
+  light.addColorStop(0, 'rgba(255, 60, 45, 0.95)')
+  light.addColorStop(1, 'rgba(220, 30, 25, 0.7)')
   g.fillStyle = light
   g.fillRect(0, 0, w, h)
   neonTube(g, (c) => {
@@ -121,61 +153,49 @@ function paintOnAir(g: CanvasRenderingContext2D) {
     c.roundRect(18, 16, w - 36, h - 32, 16)
     c.stroke()
   }, '#ff2a2a', '#ffe0dc')
-  g.font = '800 50px system-ui, sans-serif'
+  g.font = AIR_FONT
   g.textAlign = 'center'
   g.textBaseline = 'middle'
-  for (const [blur, color] of [[26, '#ff2a2a'], [8, '#ff2a2a'], [0, '#ffe0dc']] as const) {
+  for (const [blur, color] of [[26, '#ff2a2a'], [8, '#ff2a2a'], [0, '#fff4f2']] as const) {
     g.shadowColor = '#ff2a2a'
     g.shadowBlur = blur
     g.fillStyle = color
-    g.fillText('ON', w / 2, h / 2 - 22)
-    g.fillText('AIR', w / 2, h / 2 + 26)
+    airWords(g)
   }
 }
 
+const AIR_FONT = '800 58px system-ui, sans-serif'
+const airWords = (g: CanvasRenderingContext2D) => {
+  g.fillText('ON', AIR_W / 2, AIR_H / 2 - 25)
+  g.fillText('AIR', AIR_W / 2, AIR_H / 2 + 28)
+}
+
 /**
- * Face du caisson « ON AIR », éteint : le verre noir, le cadre et les mots en rouge sombre. On
- * lit le panneau même hors antenne ; le tube allumé (paintOnAir) se pose par-dessus.
+ * Face du caisson « ON AIR », éteint : le verre sombre, le cadre et les mots en tubes rouges non
+ * allumés, bien lisibles hors antenne ; le tube allumé (paintOnAir) se pose par-dessus.
  */
 function paintOnAirFace(g: CanvasRenderingContext2D) {
   const w = AIR_W, h = AIR_H
-  g.fillStyle = '#101115'
+  g.fillStyle = '#1c1d23'
   g.fillRect(0, 0, w, h)
-  g.strokeStyle = '#5c1717'
+  g.strokeStyle = '#b44646'
   g.lineWidth = 6
   g.beginPath()
   g.roundRect(18, 16, w - 36, h - 32, 16)
   g.stroke()
-  g.font = '800 50px system-ui, sans-serif'
+  g.font = AIR_FONT
   g.textAlign = 'center'
   g.textBaseline = 'middle'
-  g.fillStyle = '#6a1a1a'
-  g.fillText('ON', w / 2, h / 2 - 22)
-  g.fillText('AIR', w / 2, h / 2 + 26)
-}
-
-/** Rectangle aux coins arrondis, dans le plan xy, centré sur l'origine. */
-function roundedPlate(w: number, h: number, r: number): THREE.ShapeGeometry {
-  const s = new THREE.Shape()
-  const x = -w / 2, y = -h / 2
-  s.moveTo(x + r, y)
-  s.lineTo(x + w - r, y)
-  s.quadraticCurveTo(x + w, y, x + w, y + r)
-  s.lineTo(x + w, y + h - r)
-  s.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
-  s.lineTo(x + r, y + h)
-  s.quadraticCurveTo(x, y + h, x, y + h - r)
-  s.lineTo(x, y + r)
-  s.quadraticCurveTo(x, y, x + r, y)
-  return new THREE.ShapeGeometry(s, 6)
+  g.fillStyle = '#d86464'
+  airWords(g)
 }
 
 /**
  * Néon de Radio Dangereuse, posé sur le linteau de la vitre du studio (origine sur l'axe du mur,
  * au sol ; les tubes regardent +z, côté salon) : le logo à gauche, « ON AIR » à droite. Les tubes
- * sont montés sur une plaque d'acrylique fumé (sans elle, leur lueur se perdait sur le studio clair,
- * derrière) ; le « ON AIR » est un caisson noir, lisible même éteint. Un rail sur le mur, des
- * entretoises.
+ * sont montés sur un support noir détouré au plus près (sans lui, leur lueur se perdait sur le
+ * studio clair, derrière) ; le « ON AIR » est un caisson mince, lisible même éteint. Un rail sur le
+ * mur, des entretoises.
  */
 const radioNeon: Builder = () => {
   const g = new THREE.Group()
@@ -188,24 +208,24 @@ const radioNeon: Builder = () => {
   // Rail d'acier sur le linteau, et deux entretoises par pièce.
   g.add(box(neonW + airW + 0.16, 0.025, 0.05, lit(C.panel), (neonX - neonW / 2 + airX + airW / 2) / 2, top + 0.0125, 0))
   for (const x of [neonX - neonW * 0.35, neonX + neonW * 0.35, airX]) g.add(cylinder(0.006, 0.006, 0.07, lit(C.chrome), x, top + 0.06, 0.012, 6))
-  // Caisson « ON AIR » : un boîtier noir, sa face de verre (éteinte) devant.
-  g.add(box(airW + 0.04, airH + 0.04, 0.05, lit(C.black), airX, airY, 0, 0.012))
-  g.add(part(new THREE.PlaneGeometry(airW, airH), new THREE.MeshBasicMaterial({ map: drawnTexture(AIR_W, AIR_H, paintOnAirFace), toneMapped: false }), airX, airY, 0.026))
+  // Caisson « ON AIR » : un boîtier mince à fin liseré, sa face de verre (éteinte) devant.
+  g.add(box(airW + 0.014, airH + 0.014, 0.024, lit(C.black), airX, airY, 0, 0.004))
+  g.add(part(new THREE.PlaneGeometry(airW, airH), new THREE.MeshBasicMaterial({ map: drawnTexture(AIR_W, AIR_H, paintOnAirFace), toneMapped: false }), airX, airY, 0.013))
 
   const art = drawnTexture(NEON_W, NEON_H, () => {})
-  const canvas = art.image as HTMLCanvasElement
+  const backer = drawnTexture(NEON_W, NEON_H, () => {})
   void radioLogoPaths().then((logo) => {
-    paintRadioNeon(canvas.getContext('2d')!, logo)
-    art.needsUpdate = true
+    paintRadioNeon((art.image as HTMLCanvasElement).getContext('2d')!, logo)
+    paintRadioBacker((backer.image as HTMLCanvasElement).getContext('2d')!, logo)
+    art.needsUpdate = backer.needsUpdate = true
   }).catch(() => { /* Sans le logo, il reste le « ON AIR ». */ })
   const neon = new THREE.MeshBasicMaterial({ map: art, transparent: true, depthWrite: false, toneMapped: false })
   // Mélange additif : la face noire s'illumine.
   const air = new THREE.MeshBasicMaterial({ map: drawnTexture(AIR_W, AIR_H, paintOnAir), transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending })
-  // Plaque fumée, un peu plus grande que le logo : on devine encore le studio au travers.
-  const plate = part(roundedPlate(neonW + 0.05, neonH + 0.03, 0.035), new THREE.MeshBasicMaterial({ color: '#0b0c10', transparent: true, opacity: 0.85, depthWrite: false }), neonX, y, 0.008)
+  const plate = part(new THREE.PlaneGeometry(neonW, neonH), new THREE.MeshBasicMaterial({ map: backer, transparent: true, opacity: 0.9, depthWrite: false, toneMapped: false }), neonX, y, 0.008)
   const tubes = part(new THREE.PlaneGeometry(neonW, neonH), neon, neonX, y, 0.02)
-  const lamp = part(new THREE.PlaneGeometry(airW, airH), air, airX, airY, 0.028)
-  // Les tubes après la plaque, quel que soit l'angle de vue.
+  const lamp = part(new THREE.PlaneGeometry(airW, airH), air, airX, airY, 0.015)
+  // Les tubes après leur support, quel que soit l'angle de vue.
   tubes.renderOrder = lamp.renderOrder = 1
   const live = new THREE.Group()
   live.add(plate, tubes, lamp)
