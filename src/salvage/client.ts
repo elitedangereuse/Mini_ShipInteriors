@@ -547,11 +547,14 @@ export class SalvageClient {
       mesh.geometry.computeBoundingBox()
       box.union(mesh.geometry.boundingBox!.clone().applyMatrix4(mesh.matrixWorld).applyMatrix4(inv))
     })
-    const size = box.isEmpty() ? new THREE.Vector3(0.8, 0.9, 0.6) : box.getSize(new THREE.Vector3())
-    const scale = size.x / 0.3
-    c.scale.setScalar(scale * 0.95)
-    c.rotation.x = Math.PI / 2
-    c.position.set(0, box.isEmpty() ? 0.4 : (box.min.y + box.max.y) / 2 + 0.17 * scale * 0.95, (box.isEmpty() ? -0.3 : box.min.z) - 0.12 * scale)
+    if (box.isEmpty()) box.set(new THREE.Vector3(-0.4, 0, -0.3), new THREE.Vector3(0.4, 0.9, 0.3))
+    const size = box.getSize(new THREE.Vector3())
+    // Debout dans le dos, comme un sac : les deux tiers de la hauteur du torse, et jamais plus
+    // de 0,3 de haut dans le monde (le torse des humains compte leur tête).
+    const world = torso.getWorldScale(new THREE.Vector3()).y || 1
+    const scale = Math.min(size.y * 0.66, 0.3 / world) / 0.34
+    c.scale.setScalar(scale)
+    c.position.set((box.min.x + box.max.x) / 2, box.min.y + size.y * 0.1, box.min.z - 0.1 * scale)
     torso.add(c)
     g.carried.set(id, c)
   }

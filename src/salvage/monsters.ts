@@ -7,7 +7,7 @@ import type { SalvageSfx } from './sfx'
 /*
  * Les ennemis de la baie, tels que le relais les fait vivre (cf. server/salvage.js) : ici des
  * zombies en costume (en attendant un vrai modèle de Thargoïde), un peu plus grands que les
- * joueurs, aux yeux verts qui luisent dans le noir. Leur position est interpolée entre deux états
+ * joueurs, aux yeux orange qui luisent dans le noir. Leur position est interpolée entre deux états
  * du relais (dix par seconde) ; leur allure suit leur humeur : ils errent, pressent le pas quand
  * ils ont entendu quelque chose, courent en poursuite, fouillent un casier, frappent.
  */
@@ -23,8 +23,9 @@ export interface MonsterState {
 }
 
 const LOOK = 'creature.l'
-const EYE_GEO = new THREE.BoxGeometry(0.14, 0.07, 0.03)
-const EYE_MAT = new THREE.MeshBasicMaterial({ color: '#8dff6a' })
+const EYE_GEO = new THREE.BoxGeometry(0.17, 0.09, 0.04)
+/** Orange vif : la peau du zombie est déjà verte, les yeux doivent trancher dans le noir. */
+const EYE_MAT = new THREE.MeshBasicMaterial({ color: '#ff5a1f' })
 const SCALE = 1.18
 /** Distance entre deux pas, en marchant et en courant. */
 const STRIDE = { walk: 0.5, sprint: 0.8 }
