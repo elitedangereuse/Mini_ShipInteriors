@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { ceilingLamp, ceilingTile, FLOOR_Y, hash, makePostMesh, POST_H, POST_W, WALL_T, type Box2, type Deck, type DoorState, type WallSegment } from '../deck'
+import { ceilingLamp, ceilingTile, FLOOR_Y, upperWalls, hash, makePostMesh, POST_H, POST_W, WALL_T, type Box2, type Deck, type DoorState, type WallSegment } from '../deck'
 import { makeFadeable } from '../fade'
 import { DIRS } from '../map'
 import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type FadeFocus, type Occluder } from '../merge'
@@ -23,6 +23,9 @@ export class WingShell {
   readonly group = new THREE.Group()
   /** Son plafond, rangé avec celui du pont (affiché en vue subjective seulement). */
   private readonly ceiling = new THREE.Group()
+  /** Haut de ses murs (vue subjective), qui s'estompe avec eux. */
+  private ceilingOccluders: Occluder[] = []
+  private ceilingFades: FadeBuffer
   readonly colliders: Box2[] = []
   /** Pans de mur et portes posés par la pièce (le papier peint et les objets accrochés s'y fient). */
   readonly walls: WallSegment[] = []
@@ -123,7 +126,13 @@ export class WingShell {
     const cx = plan.tiles.reduce((s, t) => s + t.x, 0) / plan.tiles.length
     const cz = plan.tiles.reduce((s, t) => s + t.z, 0) / plan.tiles.length
     top.add(ceilingLamp(cx, cz, '#ffd9a8', deck.ceilingY), false)
-    for (const m of top.flush(this.ceiling, this.fades.texture)) this.owned.push(m.geometry)
+    this.ceilingOccluders = upperWalls(top, this.walls, this.posts, 1, POST_H, deck.ceilingY, deck.theme.shell)
+    this.ceilingFades = fadeBuffer(top.fadingCount)
+    for (const m of top.flush(this.ceiling, this.ceilingFades.texture)) {
+      m.castShadow = false
+      this.owned.push(m.geometry)
+      if (m.userData.ownMaterial) this.owned.push(m.material as THREE.Material)
+    }
     deck.ceiling.add(this.ceiling)
   }
 
@@ -170,6 +179,7 @@ export class WingShell {
   update(view: FadeFocus, dt: number) {
     if (updateOccluders(this.occluders, this.fades, view, dt)) this.fades.texture.needsUpdate = true
     updateOccluders(this.doorOccluders, this.fades, view, dt)
+    if (updateOccluders(this.ceilingOccluders, this.ceilingFades, view, dt)) this.ceilingFades.texture.needsUpdate = true
   }
 
   /** Retire la pièce ; les modèles du kit (géométries partagées) restent intacts. */
@@ -179,5 +189,6 @@ export class WingShell {
     this.ceiling.removeFromParent()
     for (const o of this.owned) o.dispose()
     this.fades.texture.dispose()
+    this.ceilingFades.texture.dispose()
   }
 }

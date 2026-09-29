@@ -92,12 +92,13 @@ export const POST_W = WALL_T + 0.05
 export const POST_H = 1.03
 export const FLOOR_Y = -0.3
 /**
- * Plafond (vue subjective seulement) : juste sous le dessus des murs (1), qui le percent sans
- * laisser de jour, et bien au-dessus des têtes (0,72 pour le plus grand CMDR).
+ * Plafond (vue subjective seulement), bien au-dessus des têtes (0,72 pour le plus grand CMDR) :
+ * les yeux sont à 0,59, un plafond posé sur les murs (1) écrasait la vue. Les murs montent
+ * jusqu'à lui (cf. upperWalls), sous les lampes du pont (1,4).
  */
-export const CEILING_Y = 0.99
-/** Dans la baie infestée, les murs font 1,06 (cf. salvage/kit.ts) : le Thargoïde tient debout. */
-const ZONE_CEILING_Y = 1.05
+export const CEILING_Y = 1.36
+/** Dessus des murs de la baie infestée (cf. salvage/kit.ts) ; ceux du vaisseau font 1. */
+const ZONE_WALL_TOP = 1.06
 const DOOR_RANGE = 1.3
 
 const PICK_MATERIAL = new THREE.MeshBasicMaterial()
@@ -172,6 +173,28 @@ export function ceilingTile(x: number, z: number, y: number, material: THREE.Mat
   tile.position.set(x, y, z)
   tile.updateMatrixWorld(true)
   return tile
+}
+
+/**
+ * Haut des murs, entre le dessus des murs et le plafond (vue subjective) : un pavé par pan de mur
+ * et par poteau d'angle, qui s'estompe avec eux quand ils cachent le joueur.
+ * @param wallTop dessus des murs, et `postTop` celui des poteaux (un peu plus hauts)
+ */
+export function upperWalls(merge: StaticMerge, walls: WallSegment[], posts: { x: number; z: number }[], wallTop: number, postTop: number, top: number, material: THREE.Material): Occluder[] {
+  const occluders: Occluder[] = []
+  // Un rien plus mince que le mur : pas de faces confondues là où il déborde (linteaux des verrières).
+  const t = WALL_T - 0.004
+  for (const w of walls) {
+    const m = solidBox(w.alongX ? 1 : t, top - wallTop, w.alongX ? t : 1, material)
+    m.position.set(w.x, (wallTop + top) / 2, w.z)
+    occluders.push(merge.addFading(m, new THREE.Vector3(w.x, 0.5, w.z)))
+  }
+  for (const p of posts) {
+    const m = solidBox(POST_W, top - postTop, POST_W, material)
+    m.position.set(p.x, (postTop + top) / 2, p.z)
+    occluders.push(merge.addFading(m, new THREE.Vector3(p.x, 0.5, p.z)))
+  }
+  return occluders
 }
 
 /** Plafonnier sous une lampe du pont : un disque qui brille de sa couleur. */
@@ -257,8 +280,11 @@ export class Deck {
   /** Plafond, affiché en vue subjective seulement (cf. main.ts) ; les pièces d'extension y ajoutent le leur. */
   readonly ceiling = new THREE.Group()
   /** Hauteur du plafond au-dessus du sol du pont, et son matériau. */
-  readonly ceilingY: number
+  readonly ceilingY = CEILING_Y
   readonly ceilingMaterial: THREE.MeshLambertMaterial
+  /** Haut des murs (vue subjective) : il s'estompe avec eux. */
+  private ceilingOccluders: Occluder[] = []
+  private ceilingFades!: FadeBuffer
   private ljpcCover?: THREE.Group
   private voieCover?: THREE.Group
 
@@ -273,7 +299,6 @@ export class Deck {
     }
     this.y = def.id * LEVEL_HEIGHT
     this.group.position.y = this.y
-    this.ceilingY = def.zone ? ZONE_CEILING_Y : CEILING_Y
     this.ceilingMaterial = ceilingMaterial(def.zone ? 'zone' : def.theme ?? 'station')
     this.glowMat = beamMaterial()
 
@@ -506,7 +531,13 @@ export class Deck {
     for (const [x, z, color] of this.def.lights) {
       if (this.map.room(Math.round(x), Math.round(z)) && !lift(x, z)) merge.add(ceilingLamp(x, z, color, this.ceilingY), false)
     }
-    merge.flush(this.ceiling, this.fades.texture)
+    const zone = this.def.zone
+    const postTop = zone ? new THREE.Box3().setFromObject(zone.kit.post(0, 0)).max.y : POST_H
+    const material = zone ? new THREE.MeshLambertMaterial({ color: '#1b2120' }) : this.theme.shell
+    this.ceilingOccluders = upperWalls(merge, this.walls, this.posts, zone ? ZONE_WALL_TOP : 1, postTop, this.ceilingY, material)
+    this.ceilingFades = fadeBuffer(merge.fadingCount)
+    // Pas d'ombres : le soleil éclaire les pièces comme en vue isométrique.
+    for (const m of merge.flush(this.ceiling, this.ceilingFades.texture)) m.castShadow = false
     this.ceiling.visible = false
     this.group.add(this.ceiling)
   }
@@ -972,6 +1003,7 @@ export class Deck {
 
     // Murs et gros meubles entre la caméra et le joueur : tramés.
     if (updateOccluders(this.occluders, this.fades, { focus, toCamera, cabin: editing, keep }, fade)) this.fades.texture.needsUpdate = true
+    if (this.ceiling.visible && updateOccluders(this.ceilingOccluders, this.ceilingFades, { focus, toCamera, cabin: editing, keep }, fade)) this.ceilingFades.texture.needsUpdate = true
 
     this.glowMat.uniforms.uTime.value = this.time
     if (this.liftBeam && this.liftHalo && this.liftSign) {
