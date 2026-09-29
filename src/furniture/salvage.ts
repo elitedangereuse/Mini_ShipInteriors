@@ -303,12 +303,14 @@ const blastDoor: Builder = () => {
   return { solid: g, live, update: (t) => (pivot.rotation.y = t * 3.2) }
 }
 
-/** Tableau des victoires (1 × 0,6, au mur, face à +z) : son écran appelle le classement du site. */
+/**
+ * Tableau des victoires (1 × 0,6, au mur, face à +z) : son écran invite à ouvrir le classement du
+ * site (il n'affiche aucun nom : le vrai classement est dans le panneau).
+ */
 const salvageBoard: Builder = () => {
   const g = new THREE.Group()
   g.add(box(1.04, 0.66, 0.05, lit(C.steelDark), 0, 0.72, 0, 0.01))
   g.add(box(1.04, 0.02, 0.06, glow(C.caustic), 0, 1.05, 0.005))
-  const crews = ['Rackam', 'Adam Fauster', 'Jameson', 'Ripley', 'Albator']
   const screen = animatedScreen(512, 320, 2, (c, t) => {
     c.fillStyle = '#081109'
     c.fillRect(0, 0, 512, 320)
@@ -322,20 +324,24 @@ const salvageBoard: Builder = () => {
     c.fillText(tr('MISSIONS RÉUSSIES', 'SUCCESSFUL MISSIONS'), 24, 36)
     c.fillStyle = '#9fd8b0'
     c.font = '18px sans-serif'
-    c.fillText(tr('Classement des CMDR · voir le détail', 'CMDR leaderboard · see details'), 24, 70)
-    const k = Math.floor(t) % crews.length
-    crews.forEach((name, i) => {
-      const y = 112 + i * 40
-      c.fillStyle = i === k ? 'rgba(109, 255, 154, 0.18)' : 'transparent'
-      c.fillRect(20, y - 17, 472, 34)
+    c.fillText(tr('Classement des CMDR', 'CMDR leaderboard'), 24, 70)
+    // Podium stylisé : trois marches qui s'allument l'une après l'autre.
+    const lit3 = Math.floor(t) % 3
+    const steps: [number, number, string][] = [[196, 150, '1'], [88, 110, '2'], [304, 80, '3']]
+    steps.forEach(([x, h, n], i) => {
+      c.fillStyle = i === lit3 ? 'rgba(109, 255, 154, 0.35)' : 'rgba(109, 255, 154, 0.12)'
+      c.fillRect(x, 270 - h, 112, h)
       c.fillStyle = i === 0 ? '#ffd166' : '#dfe7ee'
-      c.font = 'bold 22px sans-serif'
-      c.fillText(`${i + 1}.`, 30, y)
-      c.font = '22px sans-serif'
-      c.fillText(`CMDR ${name}`, 70, y)
-      c.fillStyle = '#6d7f75'
-      c.fillText('???', 440, y)
+      c.font = 'bold 34px sans-serif'
+      c.textAlign = 'center'
+      c.fillText(n, x + 56, 270 - h / 2)
+      c.textAlign = 'left'
     })
+    if (Math.floor(t * 2) % 2) {
+      c.fillStyle = C.caustic
+      c.font = 'bold 18px sans-serif'
+      c.fillText(tr('▶ E : VOIR LE CLASSEMENT', '▶ E: SEE THE LEADERBOARD'), 24, 296)
+    }
   })
   screen.texture.magFilter = THREE.LinearFilter
   const live = new THREE.Group()

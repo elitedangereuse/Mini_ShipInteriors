@@ -52,6 +52,8 @@ export interface SalvageHost {
   verified(): boolean
   /** Tuile survolée par la souris, s'il y en a une. */
   pointed(): { x: number; z: number } | null
+  /** Direction du regard au sol en vue subjective ; null en vue isométrique. */
+  aim(): { x: number; z: number } | null
   /** Position à l'écran (pixels) d'un point du monde. */
   project(p: THREE.Vector3): { x: number; y: number }
 }
@@ -389,14 +391,23 @@ export class SalvageClient {
     const pointed = this.host.pointed()
     if (pointed && Math.hypot(pointed.x - p.x, pointed.z - p.z) <= RULES.flare.range && walkable(g.zone, pointed.x, pointed.z) && !inAirlock(g.zone, pointed) && zoneSight(g.zone, p, pointed)) target = pointed
     if (!target) {
-      const yaw = this.host.player.heading
-      for (let d = RULES.flare.range; d >= 0.6; d -= 0.25) {
-        const t = { x: p.x + Math.sin(yaw) * d, z: p.z + Math.cos(yaw) * d }
-        if (walkable(g.zone, Math.round(t.x), Math.round(t.z)) && !inAirlock(g.zone, t) && zoneSight(g.zone, p, t)) {
-          target = t
-          break
+      // Droit devant (le regard en vue subjective, sinon le personnage), puis tout autour : au
+      // fond d'un cul-de-sac, la fusée repart dans le couloir. La première direction qui porte à
+      // 1,5 tuile au moins, sinon la plus lointaine.
+      const look = this.host.aim()
+      const yaw = look ? Math.atan2(look.x, look.z) : this.host.player.heading
+      let best: { x: number; z: number; d: number } | null = null
+      for (let k = 0; k < 16 && !(best && best.d >= 1.5); k++) {
+        const a = yaw + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 8)
+        for (let d = RULES.flare.range; d >= 0.6; d -= 0.25) {
+          const t = { x: p.x + Math.sin(a) * d, z: p.z + Math.cos(a) * d }
+          if (walkable(g.zone, Math.round(t.x), Math.round(t.z)) && !inAirlock(g.zone, t) && zoneSight(g.zone, p, t)) {
+            if (!best || d > best.d) best = { ...t, d }
+            break
+          }
         }
       }
+      if (best) target = { x: best.x, z: best.z }
     }
     if (!target) return this.sfx.click(false)
     this.host.player.interact()

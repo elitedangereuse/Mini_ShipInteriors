@@ -843,6 +843,8 @@ salvage = new SalvageClient({
   showView: (zone) => setView(zone ?? deck),
   verified: () => verified,
   pointed: () => (hover.visible ? { x: hover.position.x, z: hover.position.z } : null),
+  // Vue subjective : la caméra est du côté (sin yaw, cos yaw) du personnage, et regarde à l'opposé.
+  aim: () => (fpsShown ? { x: -Math.sin(fps.yaw), z: -Math.cos(fps.yaw) } : null),
   project: (p) => {
     screenPos.copy(p).project(activeCamera())
     return { x: ((screenPos.x + 1) / 2) * innerWidth, y: ((1 - screenPos.y) / 2) * innerHeight }

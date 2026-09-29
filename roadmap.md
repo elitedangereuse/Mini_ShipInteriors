@@ -546,8 +546,20 @@ Les quatre étapes du découpage sont livrées ensemble. Choix retenus :
 Vérifications : 29 tests Node (labyrinthe, relais de jeu, relais socket.io, gains), 4 tests
 PHP (dont un en base) ; parties jouées dans Chrome : victoire solo payée par le site local,
 partie à deux (chat d'équipe, capture, caméra alliée, fusée, casier, abandon, défaite).
-Reste à régler après de vraies parties : l'équilibre (vitesses, portées, nombre d'ennemis
-par défaut) et un vrai modèle de Thargoïde à la place des zombies.
+Reste à faire pour une version suivante :
+
+- **Équilibrage en vraies parties** : vitesses, portées de vue et d'ouïe, durée des casiers et
+  des fusées, nombre d'ennemis conseillé, montant des récompenses. Impossible à régler en
+  headless (le client y tourne à quelques images par seconde, les ennemis du relais non).
+- **Un vrai modèle de Thargoïde** à la place des zombies en costume.
+- **Reconnexion** : une déconnexion vaut abandon ; pas de retour dans une partie en cours.
+- **Écrans du lobby** : les six moniteurs montrent des images d'ambiance ; la vraie caméra
+  alliée s'ouvre depuis le mur (ou d'elle-même après une capture).
+- **Mesures** : coût du brouillard de guerre (une passe de rendu en plus) sur un PC ancien et
+  sous Safari ; le mode léger n'en retire que l'anticrénelage.
+- **Tactile** : la fusée se lance depuis la pastille « Fusées » du HUD, sans bouton dédié.
+- **Vue subjective** (`V`, arrivée entre-temps) : utilisable dans la baie, fusée lancée dans
+  le sens du regard ; les caméras alliées restent en vue isométrique. À éprouver en partie.
 
 Avant déploiement : jouer `docker/tables/mini_shipinteriors_salvage.sql` ; définir
 `MSI_RELAY_SECRET` (même valeur) pour le relais (unité systemd) et pour PHP ; redémarrer
