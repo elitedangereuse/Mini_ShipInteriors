@@ -48,6 +48,14 @@ export interface PatrolState {
   face?: { x: number; z: number }
 }
 
+/**
+ * Tournée du chef du mess (cf. shared/chef.js) : comme la ronde du sergent, plus la commande en
+ * cours (s restantes) qui le retient à la passe.
+ */
+export interface ChefState extends PatrolState {
+  cook: number
+}
+
 export interface CinemaTrailer { id: number; title: string; image: string; video: string }
 export interface CinemaVideo { video: string; title: string; image: string }
 export interface CinemaState {
@@ -166,7 +174,7 @@ export type SalvageAction = 'create' | 'join' | 'leave' | 'settings' | 'ready' |
 
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
-  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean }; players: PlayerState[]; music?: MusicState; hold?: MusicState; system?: SystemId; patrol?: PatrolState; salvage?: SalvageLobby }
+  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean }; players: PlayerState[]; music?: MusicState; hold?: MusicState; system?: SystemId; patrol?: PatrolState; chef?: ChefState; salvage?: SalvageLobby }
   | { t: 'join'; player: PlayerState }
   | { t: 'leave'; id: number }
   | { t: 'state'; id: number; x: number; z: number; yaw: number; level: number; anim: string; pose?: string; py?: number }
@@ -194,6 +202,7 @@ export type ServerMessage =
   | { t: 'jump'; id: number; name: string; system: SystemId }
   /** Le joueur `id` parle au sergent : la ronde s'arrête pour tout le bord. */
   | ({ t: 'patrol'; id: number } & PatrolState)
+  | ({ t: 'chef'; id: number } & ChefState)
   | ({ t: 'board:state' } & BoardState)
   | ({ t: 'fight:state' } & FightState)
   | { t: 'fight:error'; code: 'full' | 'unavailable' | 'busy' }
@@ -218,7 +227,7 @@ type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin'>
 
 /** Chemin de la socket : le même que WS_PATH dans server/relay.js et que la conf nginx du site. */
 const WS_PATH = import.meta.env.VITE_WS_PATH || '/ws/mini-shipinteriors'
-const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'music', 'jump', 'patrol', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error',
+const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'music', 'jump', 'patrol', 'chef', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error',
   'salvage:lobby', 'salvage:start', 'salvage:state', 'salvage:event', 'salvage:end', 'salvage:reward', 'salvage:error']
 
 export class Net {
@@ -318,6 +327,16 @@ export class Net {
   /** On parle au sergent : le relais arrête sa ronde pour tout le bord. */
   sendPatrolTalk() {
     this.send('patrol:talk', {})
+  }
+
+  /** On parle au chef : le relais arrête sa tournée pour tout le bord. */
+  sendChefTalk() {
+    this.send('chef:talk', {})
+  }
+
+  /** On cuisine avec le chef (une étape de plus), ou on a fini : il attend à la passe, ou repart. */
+  sendChefCook(on: boolean) {
+    this.send('chef:cook', { on })
   }
 
   sendCinemaChoice(id: number | null) {

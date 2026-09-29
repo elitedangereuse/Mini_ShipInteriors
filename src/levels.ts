@@ -722,20 +722,63 @@ export const LEVELS: LevelDef[] = [
       },
       { model: 'rug', x: 18.2, z: 1.9, label: 'rubber:1.6x1.1', solid: false },
 
-      // --- Mess ---
-      { model: 'table-large', x: 13, z: 8, rot: 0 },
-      { model: 'chair-cushion', x: 12.5, z: 7.2, rot: 0 },
-      { model: 'chair-cushion', x: 13.5, z: 7.2, rot: 0 },
-      { model: 'chair-cushion', x: 12.5, z: 8.8, rot: 2 },
-      { model: 'chair-cushion', x: 13.5, z: 8.8, rot: 2 },
+      // --- Mess : un self. Au nord, la salle et ses deux tables de cantine ; le comptoir la traverse
+      // d'ouest en est (plateaux, bain-marie, passe du chef, desserts, boissons) ; derrière, la
+      // cuisine de Marcel (cf. chef.ts), où l'on entre par le passage à l'est du comptoir. ---
+      { model: 'canteen-table', x: 10.2, z: 7.45, label: '1' },
+      { model: 'canteen-table', x: 13.8, z: 7.45, label: '2' },
       {
-        model: 'computer', x: 11, z: 9, rot: 2,
-        interact: tr(
-          'Terminal du mess : au menu, ragoût de protéines. L\'option « comme sur Terre » est en rupture.',
-          'Mess terminal: protein stew on the menu. The “just like on Earth” option is sold out.',
-        ),
+        model: 'menu-board', x: 8.66, z: 7.45, rot: 1, solid: false,
+        interact: tr('Le menu du jour.', 'Today\'s menu.'),
       },
-      { model: 'table-display-planet', x: 15, z: 7, rot: 3, solid: false },
+      {
+        model: 'water-fountain', x: 9.3, z: 5.8, action: tr('Boire un verre d\'eau', 'Drink a glass of water'),
+        interact: [
+          tr('Glou glou. Une eau recyclée cent fois, et toujours aussi fraîche.', 'Glug glug. Water recycled a hundred times, and still just as fresh.'),
+          tr('La bonbonne fait une grosse bulle. Vous faites semblant de ne pas avoir sursauté.', 'The water jug lets out a big bubble. You pretend you didn\'t jump.'),
+          tr('Un gobelet d\'eau. Au fond, un logo de Hutton Orbital à moitié effacé.', 'A cup of water. At the bottom, a half-worn Hutton Orbital logo.'),
+        ],
+      },
+      {
+        model: 'tray-return', x: 14.75, z: 5.84,
+        interact: tr('Retour plateaux : le tapis emporte tout vers la plonge. Enfin, en théorie.', 'Tray return: the belt carries everything to the dishwashing station. In theory.'),
+      },
+      { model: 'self-counter', x: 11.25, z: 10, rot: 2, label: '5.2' },
+      {
+        model: 'tray-stack', x: 9.05, z: 10, y: 0.46, rot: 2, solid: false, action: tr('Prendre un plateau', 'Take a tray'),
+        interact: tr('Plateaux, couverts, serviettes : le self commence ici.', 'Trays, cutlery, napkins: the line starts here.'),
+      },
+      {
+        model: 'order-rail', x: 11.5, z: 10, y: 0.46, rot: 2, solid: false, action: tr('Prendre une commande', 'Take an order'),
+        interact: tr('Le rail des bons de commande, à la passe du chef.', 'The order ticket rail, at the chef\'s pass.'),
+      },
+      { model: 'rug', x: 12, z: 11.33, label: 'bath:6.6x2', solid: false },
+      {
+        model: 'kitchen-fridge', x: 9.15, z: 12.075, rot: 2,
+        interact: [
+          tr('Le frigo : protéines, lapin de Ceti, et une ration marquée « SERGENT » qui a déjà un coin en moins.', 'The fridge: protein, Ceti rabbit, and a ration marked “SERGEANT” that already has a corner missing.'),
+          tr('Vous ouvrez le frigo. Il fait −4 °C. Un escargot d\'Irukama vous regarde. Vous refermez.', 'You open the fridge. It is −4 °C. An Irukama snail looks at you. You close it again.'),
+        ],
+      },
+      {
+        model: 'kitchen-prep', x: 10.35, z: 12.075, rot: 2,
+        interact: tr('Plan de travail : planche, couteaux bien affûtés. Marcel les compte tous les soirs.', 'Prep counter: board, well-sharpened knives. Marcel counts them every night.'),
+      },
+      {
+        model: 'kitchen-range', x: 11.8, z: 12.075, rot: 2,
+        interact: [
+          tr('Le fourneau : la marmite mijote depuis ce matin. Personne ne sait vraiment ce qu\'il y a dedans.', 'The range: the stockpot has been simmering since this morning. Nobody really knows what\'s in it.'),
+          tr('Quatre feux, un four, une hotte qui ronronne. Le cockpit de Marcel.', 'Four burners, an oven, a humming hood. Marcel\'s cockpit.'),
+        ],
+      },
+      {
+        model: 'kitchen-sink', x: 13.15, z: 12.075, rot: 2,
+        interact: tr('La plonge : eau chaude, éponge fatiguée, et un égouttoir plein.', 'The dishwashing station: hot water, a tired sponge, and a full drying rack.'),
+      },
+      {
+        model: 'kitchen-pantry', x: 14.65, z: 12.14, rot: 2,
+        interact: tr('Garde-manger : riz de Jaroua, farine, piments d\'Ochoeng. Et trois bidons de protéines « goût neutre ».', 'Pantry: Jaroua rice, flour, Ochoeng chillies. And three canisters of “neutral flavour” protein.'),
+      },
       {
         model: 'vending-machine', x: 11.3, z: 5.65, action: tr('Acheter un snack', 'Buy a snack'),
         interact: [
@@ -875,7 +918,10 @@ export const LEVELS: LevelDef[] = [
       [37.2, 4.5, '#9fd8ff', 2.4],
       [13, 1.5, '#e8f6ff', 3.2],
       [18, 1.5, '#fff4e4', 3],
-      [13, 8, '#ffe2b0', 3],
+      // Le mess : la salle, les lampes chauffantes de la passe, la cuisine.
+      [12, 7.5, '#ffe2b0', 3],
+      [11.5, 9.9, '#ff9a4a', 1.4],
+      [11.8, 11.4, '#fff4e0', 2.8],
       [18.3, 7.6, '#ff4fd8', 2.6, 'neon'],
       [16.8, 7.2, '#39d0ff', 2],
       [20.6, 7.5, '#39d0ff', 2],

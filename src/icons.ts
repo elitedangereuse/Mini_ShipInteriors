@@ -107,6 +107,9 @@ import lightning from '@phosphor-icons/core/bold/lightning-bold.svg?raw'
 import eye from '@phosphor-icons/core/bold/eye-bold.svg?raw'
 import personSimpleRun from '@phosphor-icons/core/bold/person-simple-run-bold.svg?raw'
 import wind from '@phosphor-icons/core/bold/wind-bold.svg?raw'
+import chefHat from '@phosphor-icons/core/bold/chef-hat-bold.svg?raw'
+import knife from '@phosphor-icons/core/bold/knife-bold.svg?raw'
+import bowlSteam from '@phosphor-icons/core/bold/bowl-steam-bold.svg?raw'
 import wrench from '@phosphor-icons/core/bold/wrench-bold.svg?raw'
 import lockSimple from '@phosphor-icons/core/bold/lock-simple-bold.svg?raw'
 import shoppingCart from '@phosphor-icons/core/bold/shopping-cart-bold.svg?raw'
@@ -229,11 +232,15 @@ const SVG = {
   eye,
   'person-simple-run': personSimpleRun,
   wind,
+  // le mess : étapes des commandes du chef (cf. kitchen.ts) ; la flamme sert aussi aux fusées de la zone thargoïde
+  flame,
+  'chef-hat': chefHat,
+  knife,
+  'bowl-steam': bowlSteam,
   // zone thargoïde : chef d'équipe, capturé, caché, fusée, caméras, bruit
   crown,
   skull,
   'eye-closed': eyeClosed,
-  flame,
   'video-camera': videoCamera,
   footprints,
 } as const

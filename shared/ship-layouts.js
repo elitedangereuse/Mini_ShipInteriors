@@ -27,7 +27,8 @@ export const SHIP_LAYOUTS = {
   ],
   // Pont principal. À la poupe, la salle commune ; la coursive file vers le poste de pilotage et ses
   // verrières, à la proue, et s'ouvre juste avant sur la Promenade, un atrium vitré autour de la
-  // maquette du Cobra. Au nord, le labo du LJPC ; au sud, la grande salle d'arcade (deux portes).
+  // maquette du Cobra. Au nord, le labo du LJPC ; au sud, la grande salle d'arcade (deux portes) et
+  // le mess, un self dont la cuisine occupe le fond.
   '0': [
     '  eeeeee   qqqqqrrrrrlllll ccc          ',
     ' eeeeeeee  qqqqqrrrrrlllllccccc bbb     ',
@@ -35,10 +36,13 @@ export const SHIP_LAYOUTS = {
     'eeeeeeeee  qq+qqrr+rrll+llccccc bbbbbbb ',
     'eeeeeeee+cccccccccccccccccccccc+bbbbbbb ',
     'eeeeeeee+cccccccccccccccccccccc+bbbbbbb ',
-    'eeeeeeeee  mm+mmss+ssss+ssccccc bbbbbbb ',
-    'eeeeeeeee  mmmmmssssssssssccccc bbbbb   ',
-    ' eeeeeeee  mmmmmssssssssssccccc bbb     ',
-    '  eeeeee   mmmmmssssssssss ccc          ',
+    'eeeeeeeeemmmm+mmss+ssss+ssccccc bbbbbbb ',
+    'eeeeeeeeemmmmmmmssssssssssccccc bbbbb   ',
+    ' eeeeeeeemmmmmmmssssssssssccccc bbb     ',
+    '  eeeeee mmmmmmmssssssssss ccc          ',
+    '         mmmmmmm                        ',
+    '         mmmmmmm                        ',
+    '         mmmmmmm                        ',
   ],
   // Pont supérieur : les quartiers ; derrière le salon d'écoute, le cinéma. Au nord du salon,
   // derrière une vitre, le studio de Radio Dangereuse (porte à l'est).

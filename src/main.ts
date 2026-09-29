@@ -19,7 +19,7 @@ import { ECONOMY, formatCredits, skinPrice, wingPrice } from './economy/data'
 import { CreditsHud } from './economy/hud'
 import { taskOf } from './economy/schedule'
 import { allLooks, lookOwned, skinProduct, starterLook } from './economy/skins'
-import { TASK_INFO, TaskBoard, type LiveTask } from './economy/tasks'
+import { TASK_INFO, TaskBoard, type LiveTask, type WorkSound } from './economy/tasks'
 import { Wallet } from './economy/wallet'
 import { Sound } from './audio'
 import { Avatar, EMOTES } from './avatar'
@@ -46,6 +46,9 @@ import { Player } from './player'
 import { renderQuality } from './quality'
 import { findReaction, REACTIONS, reactionImage } from './reactions'
 import { Patroller, SERGEANT, soldierRig, type ShipReport } from './patrol'
+import { CHEF, Chef, chefRig, type ChefReport } from './chef'
+import { Kitchen } from './kitchen'
+import { menuOf } from './menu'
 import { RemotePlayer } from './remote'
 import { Seating, type Seated } from './seating'
 import { Starfield } from './starfield'
@@ -653,6 +656,58 @@ sergeant.onStep = () => {
   if (patrolDeck === deck) sound.play('step', sergeant.root.getWorldPosition(new THREE.Vector3()), { volume: 0.08, rate: 0.8 })
 }
 
+// Marcel, le chef, fait la tournée de sa cuisine au mess (cf. chef.ts), et cuisine avec qui prend
+// une commande au rail de la passe ; le self sert des plateaux (cf. kitchen.ts).
+const chef = new Chef(await chefRig(), patrolDeck)
+/** Ce que le chef sait quand on lui parle : le système, le menu, nos plats. */
+function chefReport(): ChefReport {
+  return { system: SYSTEMS[systemView.id].name, menu: menuOf(), served: kitchen.served }
+}
+const kitchen = new Kitchen({
+  deck: patrolDeck,
+  chef,
+  player,
+  here: () => deck,
+  seat: () => seating.current,
+  show: (text) => dialog.show(text),
+  chefSays: (text) => {
+    if (patrolDeck === deck) bubbles.say('chef', text)
+  },
+  cook: (on) => {
+    chef.cook(player.position, on)
+    net.sendChefCook(on)
+  },
+  work: (job) => startWork({ ...job, deck: patrolDeck }),
+})
+patrolDeck.interactables.push({
+  object: chef.root,
+  position: chef.position,
+  label: tr('Parler au chef Marcel', 'Talk to Chef Marcel'),
+  onInteract: () => {
+    player.interact()
+    net.sendEmote('interact')
+    // Pendant une commande, il rappelle l'étape ; sinon il bavarde.
+    const line = kitchen.reminder() ?? chef.talk(player.position, chefReport())
+    if (!kitchen.cooking) net.sendChefTalk()
+    dialog.show(tr(`${CHEF} : « ${line} »`, `${CHEF}: “${line}”`))
+  },
+})
+bubbles.attach('chef', (out) => (patrolDeck.group.visible ? chef.avatar.head(out) : null))
+chef.onBark = (text) => {
+  if (patrolDeck === deck) bubbles.say('chef', text)
+}
+chef.onStep = () => {
+  if (patrolDeck === deck) sound.play('step', chef.root.getWorldPosition(new THREE.Vector3()), { volume: 0.06, rate: 1.05 })
+}
+chef.onWork = (work) => {
+  if (patrolDeck !== deck) return
+  const at = chef.root.getWorldPosition(new THREE.Vector3()).setY(patrolDeck.y + 0.45)
+  if (work === 'chop') sound.work('chop', at)
+  else if (work === 'stir') sound.work('sizzle', at)
+  else if (work === 'wash') sound.work('water', at)
+  else if (work === 'fetch') sound.work('wrench', at)
+}
+
 // ------------------------------------------------------------------ compagnons
 
 /**
@@ -974,6 +1029,8 @@ net.onMessage = (m) => {
       if (m.system && !jumping) systemView.set(m.system)
       // Le sergent en est au même point de sa ronde pour tout le bord.
       if (m.patrol) sergeant.sync(m.patrol)
+      // Le chef aussi, dans sa tournée (ou à la passe, si quelqu'un cuisine avec lui).
+      if (m.chef) chef.sync(m.chef)
       // Le relais oublie tout à chaque connexion : la musique de nos quartiers, on la lui rend.
       const own = cabinMusic.playing
       if (own) net.sendMusic('cabin', own.track.id, own.x, own.z, own.position, own)
@@ -1016,7 +1073,10 @@ net.onMessage = (m) => {
       }
       r.emote(m.emote)
       // Un salut à côté du sergent : il le rend (chacun le voit, le calcul est le même partout).
-      if (m.emote === 'o7' && r.level === patrolDeck.def.id) sergeant.greet(r.group.position, false)
+      if (m.emote === 'o7' && r.level === patrolDeck.def.id) {
+        sergeant.greet(r.group.position, false)
+        chef.greet(r.group.position, false)
+      }
       const def = EMOTES.find((e) => e.id === m.emote)
       if (def && r.level === deck.def.id) bubbles.emote(`p${m.id}`, def.icon)
       break
@@ -1046,6 +1106,11 @@ net.onMessage = (m) => {
       // Quelqu'un parle au sergent (nous aussi : le relais recale l'arrêt) ; les autres le voient répondre.
       sergeant.sync(m)
       if (m.id !== net.id && patrolDeck === deck) bubbles.say('sergeant', '…')
+      break
+    case 'chef':
+      // Quelqu'un parle au chef ou cuisine avec lui (nous aussi : le relais recale sa tournée).
+      chef.sync(m)
+      if (m.id !== net.id && patrolDeck === deck && m.hold > 0 && m.cook === 0) bubbles.say('chef', '…')
       break
     case 'jump':
       // Un pilote lance le saut FSD (nous, ou un autre) : tout le bord part. Dans la baie infestée,
@@ -2933,50 +2998,77 @@ const board = new TaskBoard(decks, wallet)
 wallet.subscribe(() => board.refresh())
 const progressEl = $('task-progress')
 const progressFill = $('task-progress-fill')
-/** Tâche en cours de règlement, où en est le geste, et quand vient le prochain. */
-let working: { task: LiveTask; t: number; duration: number; next: number } | null = null
 
-board.onInteract = (task) => {
-  if (working || riding || photo.active || editing()) return
+/**
+ * Un geste de quelques secondes, jauge au-dessus : régler une tâche de bord, ou une étape d'une
+ * commande du chef (cf. kitchen.ts).
+ */
+interface WorkJob {
+  /** Où l'on travaille, au sol (repère du pont). */
+  at: THREE.Vector3
+  deck: Deck
+  duration: number
+  label: string
+  sound: WorkSound
+  /** Faux : ce qu'on faisait a disparu (tâche réglée ailleurs, commande abandonnée), le geste s'arrête. */
+  alive: () => boolean
+  finish: () => void
+  /** Le geste s'arrête, fini ou non. */
+  stopped?: () => void
+}
+/** Geste en cours, où il en est, et quand vient le prochain mouvement. */
+let working: (WorkJob & { t: number; next: number }) | null = null
+
+function startWork(job: WorkJob): boolean {
+  if (working || riding || photo.active || editing()) return false
   player.cancelPath()
   marker.visible = false
-  player.lookAt(task.item.position)
-  working = { task, t: 0, duration: taskOf(task.spot).duration, next: 0 }
-  board.pin(task.spot.id)
-  $('task-progress-label').textContent = TASK_INFO[task.spot.task].doing
+  player.lookAt(job.at)
+  working = { ...job, t: 0, next: 0 }
+  $('task-progress-label').textContent = job.label
   progressFill.style.width = '0'
   progressEl.hidden = false
+  return true
+}
+
+board.onInteract = (task) => {
+  const { id } = task.spot
+  const info = TASK_INFO[task.spot.task]
+  const job = { at: task.item.position, deck: task.deck, duration: taskOf(task.spot).duration, label: info.doing, sound: info.sound }
+  if (startWork({ ...job, alive: () => board.live.has(id), finish: () => void finishTask(task), stopped: () => board.pin(null) })) board.pin(id)
 }
 
 function stopWork() {
-  if (!working) return
+  const w = working
+  if (!w) return
   working = null
-  board.pin(null)
   progressEl.hidden = true
+  w.stopped?.()
 }
 
 /** Le geste avance (à chaque image) : le personnage s'affaire, la jauge se remplit. */
 function workStep(dt: number) {
   const w = working
   if (!w) return
-  // Parti ailleurs, installé, en photo, ou la tâche a disparu : le geste s'arrête.
-  if (riding || seating.current || editing() || photo.active || player.moving || !board.live.has(w.task.spot.id)) return stopWork()
+  // Parti ailleurs, installé, en photo, ou ce qu'on faisait a disparu : le geste s'arrête.
+  if (riding || seating.current || editing() || photo.active || player.moving || !w.alive()) return stopWork()
   w.t += dt
   w.next -= dt
   if (w.next <= 0) {
     w.next = 0.65
     player.interact()
     net.sendEmote('interact')
-    const p = w.task.item.position
-    const at = new THREE.Vector3(p.x, w.task.deck.y + 0.4, p.z)
-    const noise = TASK_INFO[w.task.spot.task].sound
-    if (noise === 'sparks') sound.sparks(at)
-    else sound.work(noise, at)
+    const at = new THREE.Vector3(w.at.x, w.deck.y + 0.4, w.at.z)
+    if (w.sound === 'sparks') sound.sparks(at)
+    else sound.work(w.sound, at)
   }
   progressFill.style.width = `${Math.min(100, (w.t / w.duration) * 100).toFixed(1)}%`
-  screenPos.set(w.task.item.position.x, w.task.deck.y + 1.05, w.task.item.position.z).project(activeCamera())
+  screenPos.set(w.at.x, w.deck.y + 1.05, w.at.z).project(activeCamera())
   progressEl.style.transform = `translate(${(((screenPos.x + 1) / 2) * innerWidth).toFixed(1)}px, ${(((1 - screenPos.y) / 2) * innerHeight).toFixed(1)}px) translate(-50%, -100%)`
-  if (w.t >= w.duration) void finishTask(w.task)
+  if (w.t >= w.duration) {
+    stopWork()
+    w.finish()
+  }
 }
 
 /** Tâche réglée : elle disparaît pour soi, le site la paie. */
@@ -3141,6 +3233,7 @@ function frame() {
   for (const c of companions.values()) c.pet.update(world, cabinDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
   moustache.update(world, labDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
   sergeant.update(world, patrolDeck === deck ? player.position : null, player.avatar.emoteId)
+  chef.update(world, patrolDeck === deck ? player.position : null, player.avatar.emoteId)
 
   // Chez Jacques, on garde le joueur et le barman ensemble dans le cadre.
   if (barPanel.isOpen && deck.def.id === -1) {
@@ -3182,7 +3275,7 @@ function frame() {
   for (const list of actors.values()) list.length = 0
   actors.get(deck)?.push(player.position)
   if (cometeHere) actors.get(catDeck)!.push(cat.root.position)
-  actors.get(patrolDeck)!.push(sergeant.position)
+  actors.get(patrolDeck)!.push(sergeant.position, chef.position)
   for (const c of companions.values()) actors.get(cabinDeck)!.push(c.pet.root.position)
   // Un joueur d'une autre instance des quartiers n'ouvre pas nos portes.
   for (const r of remotes.values()) if (r.group.visible || r.level !== deck.def.id) actors.get(deckById(r.level))?.push(r.group.position)
@@ -3300,6 +3393,7 @@ function frame() {
   if (!photo.frozen && !deckMusic.syncTempo() && !holdMusic.syncTempo() && !cabinMusic.syncTempo()) syncTempo(null)
 
   workStep(dt)
+  kitchen.update(world)
   dialog.update(dt)
   seating.arbitrate()
   sendState()
@@ -3371,6 +3465,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, cat, moustache, sergeant, companions, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, salvage: zone, view: () => viewDeck },
+    __game: { renderer, sound, player, cat, moustache, sergeant, chef, kitchen, companions, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, salvage: zone, view: () => viewDeck },
   })
 }
