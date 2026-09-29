@@ -196,9 +196,9 @@ export class Player {
       const speed = sprint ? SPRINT_SPEED * this.speedMultiplier : WALK_SPEED
       const bx = this.position.x, bz = this.position.z
       const next = { x: bx + dir.x * speed * dt, z: bz + dir.z * speed * dt }
-      // Au clavier, on vise mal une ouverture étroite (et en diagonale, en vue isométrique) : de quoi
-      // compenser la dérive latérale d'une direction à 45°.
-      if (hasInput) funnelDoorway(this.position, next, dir, RADIUS, this.doorways(), speed * dt * 1.5)
+      // Au clavier, on vise mal une ouverture étroite (et en diagonale, en vue isométrique) : à peine
+      // plus que la dérive latérale d'une direction à 45° (0,71).
+      if (hasInput) funnelDoorway(this.position, next, dir, RADIUS, this.doorways(), speed * dt * 0.75)
       resolveCircle(next, RADIUS, this.colliders)
       this.position.x = next.x
       this.position.z = next.z

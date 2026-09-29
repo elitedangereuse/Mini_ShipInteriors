@@ -59,15 +59,22 @@ export interface Doorway {
   half: number
 }
 
-/** Jusqu'où, le long du mur, une porte attire celui qui fonce dedans : les montants et un peu plus. */
-const FUNNEL_REACH = 0.45
-/** Distance au mur (de part et d'autre) où l'on est guidé. */
-const FUNNEL_DEPTH = 0.8
+/** Jusqu'où, le long du mur, une porte attire celui qui fonce dedans : à peine plus que ses montants. */
+const FUNNEL_REACH = 0.3
+/**
+ * Distance au mur (de part et d'autre) où l'on est guidé : le guidage monte en douceur de
+ * FUNNEL_DEPTH jusqu'à FUNNEL_FULL (le personnage touche presque le mur), où il est entier.
+ */
+const FUNNEL_DEPTH = 0.6
+const FUNNEL_FULL = 0.35
+/** Il faut viser la porte franchement (cosinus de l'angle avec la normale du mur). */
+const FUNNEL_AIM = 0.5
 
 /**
  * Guidage dans l'embrasure : l'ouverture ne laisse que quelques centimètres de jeu de chaque côté
  * du personnage, qui bute sinon sur un montant. S'il avance vers une porte en la visant à peu près,
- * `next` glisse le long du mur vers l'axe de l'ouverture (de `maxShift` au plus). Modifie `next`.
+ * `next` glisse vers l'axe de l'ouverture (de `maxShift` au plus, et d'autant moins qu'on est loin
+ * du mur), juste assez pour passer. Modifie `next`.
  * @param p position actuelle ; `dir` direction voulue (normalisée)
  */
 export function funnelDoorway(p: { x: number; z: number }, next: { x: number; z: number }, dir: { x: number; z: number }, r: number, doorways: Doorway[], maxShift: number) {
@@ -80,7 +87,7 @@ export function funnelDoorway(p: { x: number; z: number }, next: { x: number; z:
     // On va vers le mur (ou on est dedans), franchement : pas en le longeant.
     const push = d.alongX ? dir.z : dir.x
     const toward = Math.abs(across) < 0.05 ? Math.abs(push) : -Math.sign(across) * push
-    if (toward < 0.35) continue
+    if (toward < FUNNEL_AIM) continue
     const dist = Math.hypot(across, lateral)
     if (dist < bestDist) {
       best = d
@@ -89,10 +96,13 @@ export function funnelDoorway(p: { x: number; z: number }, next: { x: number; z:
   }
   if (!best) return
   const lateral = best.alongX ? p.x - best.x : p.z - best.z
+  const across = best.alongX ? p.z - best.z : p.x - best.x
+  const t = Math.min(1, Math.max(0, (FUNNEL_DEPTH - Math.abs(across)) / (FUNNEL_DEPTH - FUNNEL_FULL)))
+  const strength = t * t * (3 - 2 * t)
   const slack = Math.max(0, best.half - r - 0.02)
   const excess = Math.abs(lateral) - slack
   if (excess <= 0) return
-  const shift = -Math.sign(lateral) * Math.min(excess, maxShift)
+  const shift = -Math.sign(lateral) * Math.min(excess, maxShift * strength)
   if (best.alongX) next.x += shift
   else next.z += shift
 }
