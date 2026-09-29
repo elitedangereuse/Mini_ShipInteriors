@@ -1,7 +1,8 @@
 // Page de debug : affiche chaque modèle du kit sur une grille, avec son nom,
 // une flèche +Z (rouge) pour repérer l'orientation d'origine et une tuile 1x1.
 // Avec ?mobilier : le mobilier fait main (src/furniture/), animé.
-// Avec ?catalogue : les vignettes du catalogue des cabines, toutes variantes (&variantes).
+// Avec ?catalogue : les vignettes du catalogue des cabines, toutes variantes (&variantes), ou de quelques
+// catégories (&cats=bath,kitchen).
 // Avec ?revetements : les motifs des murs et des sols, dans deux de leurs teintes (&x2 : répétés).
 // Avec ?poses : chaque meuble où l'on s'installe, un personnage à chacune de ses places
 // (&look=robot.g pour un autre modèle, &only=sofa,cozy-bed).
@@ -284,7 +285,9 @@ function showCatalogue() {
   renderer.domElement.remove()
   document.body.style.cssText = 'margin:0;padding:16px;background:#1b1d2a;color:#e6e8ff;font:12px system-ui;overflow:auto;height:auto'
   document.documentElement.style.overflow = 'auto'
+  const cats = params.get('cats')?.split(',')
   for (const cat of [...CATEGORIES, { id: undefined, label: 'Hors catalogue' }]) {
+    if (cats && !cats.includes(cat.id ?? '')) continue
     const h = document.createElement('h3')
     h.textContent = cat.label
     const grid = document.createElement('div')

@@ -28,6 +28,12 @@ export type StationModel = (typeof STATION_MODELS)[number]
 
 export const CAT_MODEL = 'pets/animal-cat.glb'
 
+/**
+ * Sélection du Furniture Kit (Kenney, CC0), en un seul fichier : un nœud racine par modèle (cf.
+ * scripts/import-kenney-furniture.mjs et src/furniture/kenney.ts).
+ */
+export const FURNITURE_PACK = 'furniture/kenney-furniture.glb'
+
 /** Tous les modèles du kit utilisent la même texture : un seul matériau partagé. */
 export let stationMaterial: THREE.MeshLambertMaterial
 
@@ -156,7 +162,7 @@ function load(path: string): Promise<GLTF> {
 
 /** @param extra modèles supplémentaires à charger d'emblée (personnage du joueur…) */
 export async function preload(extra: string[], onProgress: (ratio: number) => void): Promise<void> {
-  const paths = [...STATION_MODELS.map((m) => `station/${m}.glb`), ...extra, CAT_MODEL]
+  const paths = [...STATION_MODELS.map((m) => `station/${m}.glb`), ...extra, CAT_MODEL, FURNITURE_PACK]
   let done = 0
   await Promise.all(
     paths.map(async (p) => {
@@ -177,6 +183,13 @@ export function station(name: StationModel): THREE.Object3D {
   const gltf = cache.get(`station/${name}.glb`)
   if (!gltf) throw new Error(`Modèle non préchargé : ${name}`)
   return gltf.scene.clone(true)
+}
+
+/** Modèle du Furniture Kit (nœud du fichier commun, à cloner ; ses géométries sont partagées). */
+export function packModel(name: string): THREE.Object3D {
+  const o = cache.get(FURNITURE_PACK)?.scene.children.find((c) => c.name === name)
+  if (!o) throw new Error(`Modèle du Furniture Kit non préchargé : ${name}`)
+  return o
 }
 
 export interface Rig {

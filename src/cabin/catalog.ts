@@ -5,6 +5,12 @@ import { tr } from '../i18n'
 import { COATS, petItemId, SPECIES } from '../pets'
 import type { IconName } from '../icons'
 import type { Flicker } from '../levels'
+import { FUN_ENTRIES } from './catalog-fun'
+import { HOME_ENTRIES } from './catalog-home'
+import { SHIP_ENTRIES } from './catalog-ship'
+import { fabrics, type Variant } from './variants'
+
+export type { Variant } from './variants'
 
 /*
  * Catalogue du mode aménagement : tout ce qu'on peut poser dans sa cabine. Un objet de
@@ -21,29 +27,31 @@ import type { Flicker } from '../levels'
  */
 export type Mount = 'floor' | 'flat' | 'wall' | 'top'
 
-export interface Variant {
-  id: string
-  label: string
-  /** Pastille de couleur dans le sélecteur. */
-  swatch?: string
-}
-
-export type CategoryId = 'rest' | 'living' | 'storage' | 'light' | 'plants' | 'wall' | 'objects' | 'elite' | 'adventures' | 'pets' | 'leisure' | 'arcade' | 'party' | 'rugs'
+export type CategoryId =
+  | 'rest' | 'living' | 'bath' | 'kitchen' | 'storage' | 'light' | 'plants' | 'wall' | 'posters' | 'objects' | 'tech' | 'elite'
+  | 'adventures' | 'weapons' | 'pets' | 'leisure' | 'arcade' | 'party' | 'workshop' | 'medical' | 'rugs'
 
 export const CATEGORIES: { id: CategoryId; label: string; icon: IconName }[] = [
   { id: 'rest', label: tr('Chambre', 'Bedroom'), icon: 'bed' },
   { id: 'living', label: tr('Salon', 'Lounge'), icon: 'couch' },
+  { id: 'bath', label: tr('Salle de bain', 'Bathroom'), icon: 'bathtub' },
+  { id: 'kitchen', label: tr('Cuisine', 'Kitchen'), icon: 'cooking-pot' },
   { id: 'storage', label: tr('Rangements', 'Storage'), icon: 'books' },
   { id: 'light', label: tr('Lumières', 'Lighting'), icon: 'lamp' },
   { id: 'plants', label: tr('Plantes', 'Plants'), icon: 'potted-plant' },
   { id: 'wall', label: tr('Murs', 'Walls'), icon: 'frame-corners' },
+  { id: 'posters', label: tr('Affiches', 'Posters'), icon: 'film-slate' },
   { id: 'objects', label: tr('Objets', 'Objects'), icon: 'cube' },
+  { id: 'tech', label: tr('Écrans et consoles', 'Screens and consoles'), icon: 'television' },
   { id: 'elite', label: 'Elite', icon: 'rocket' },
   { id: 'adventures', label: tr('Aventures', 'Adventures'), icon: 'treasure-chest' },
+  { id: 'weapons', label: tr('Armurerie', 'Armoury'), icon: 'sword' },
   { id: 'pets', label: tr('Animaux', 'Pets'), icon: 'paw-print' },
   { id: 'leisure', label: tr('Sport', 'Fitness'), icon: 'barbell' },
   { id: 'arcade', label: 'Arcade', icon: 'joystick' },
   { id: 'party', label: tr('Soirée', 'Party'), icon: 'disco-ball' },
+  { id: 'workshop', label: tr('Atelier', 'Workshop'), icon: 'toolbox' },
+  { id: 'medical', label: tr('Infirmerie', 'Medical bay'), icon: 'first-aid-kit' },
   { id: 'rugs', label: tr('Tapis', 'Rugs'), icon: 'square-half' },
 ]
 
@@ -97,20 +105,6 @@ export interface CatalogEntry {
 }
 
 // ---------------------------------------------------------------- variantes
-
-/** Tissus du mobilier des quartiers (cf. FABRIC dans furniture/cozy.ts). */
-const FABRICS: Variant[] = [
-  { id: 'teal', label: tr('Bleu canard', 'Teal'), swatch: '#3f8f8c' },
-  { id: 'terracotta', label: tr('Terre cuite', 'Terracotta'), swatch: '#c0643f' },
-  { id: 'mustard', label: tr('Moutarde', 'Mustard'), swatch: '#d9a441' },
-  { id: 'navy', label: tr('Marine', 'Navy'), swatch: '#34507a' },
-  { id: 'sage', label: tr('Sauge', 'Sage'), swatch: '#8fae7e' },
-  { id: 'rose', label: tr('Vieux rose', 'Dusty pink'), swatch: '#d98b8b' },
-  { id: 'plum', label: tr('Prune', 'Plum'), swatch: '#7a4f7a' },
-  { id: 'purple', label: tr('Violet', 'Purple'), swatch: '#5a3a8a' },
-  { id: 'cream', label: tr('Crème', 'Cream'), swatch: '#e9dcc4' },
-]
-const fabrics = (first: string): Variant[] => [FABRICS.find((f) => f.id === first)!, ...FABRICS.filter((f) => f.id !== first)]
 
 /** Palettes des tapis (cf. RUGS dans furniture/cozy.ts). */
 const RUG_PALETTES: Variant[] = [
@@ -618,7 +612,7 @@ export const CATALOG: CatalogEntry[] = [
 
   // --- Murs
   {
-    id: 'poster', name: tr('Affiche', 'Poster'), category: 'wall', model: 'poster', mount: 'wall',
+    id: 'poster', name: tr('Affiche de voyage', 'Travel poster'), category: 'posters', model: 'poster', mount: 'wall',
     variants: Object.entries(POSTERS).map(([id, p]) => ({ id, label: p.label })),
     interact: (v) => POSTER_TEXTS[v ?? ''] ?? POSTER_TEXTS.colonia,
   },
@@ -1051,6 +1045,13 @@ export const CATALOG: CatalogEntry[] = [
     label: (v) => `${v ?? 'warm'}:2.6x1.7`,
   },
   { id: 'rug-round', name: tr('Tapis rond', 'Round rug'), category: 'rugs', model: 'rug-round', mount: 'flat', variants: RUG_PALETTES },
+
+  // --- Le Furniture Kit (salle de bain, cuisine, salon, chambre…), cf. catalog-home.ts
+  ...HOME_ENTRIES,
+  // --- Le mobilier des pièces du vaisseau (douches, mess, atelier, infirmerie, bar…), cf. catalog-ship.ts
+  ...SHIP_ENTRIES,
+  // --- Écrans et consoles, armurerie, affiches de films et pin-up, salle de bain, cf. catalog-fun.ts
+  ...FUN_ENTRIES,
 ]
 
 const BY_ID = new Map(CATALOG.map((e) => [e.id, e]))

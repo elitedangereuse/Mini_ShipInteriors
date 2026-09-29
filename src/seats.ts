@@ -84,6 +84,30 @@ export const SEATS: Partial<Record<CustomModel | StationModel, Seat[]>> = {
   // Fauteuil du studio, tourné vers la table : on s'y glisse par le côté (cf. Seating.approach).
   'studio-chair': [sit(0, 0.03, 0.3)],
   'floor-cushion': [sit(0, 0, 0.13, 'free')],
+  // Furniture Kit de Kenney (cf. furniture/kenney.ts) : hauteurs relevées sur les modèles remis à l'échelle.
+  'k-toilet': [sit(0, 0.04, 0.25)],
+  'k-toilet-square': [sit(0, 0.03, 0.25)],
+  // Dans l'eau, allongé le long de la baignoire, la tête côté -x.
+  'k-bathtub': [{ pose: 'lie', x: 0, z: 0, y: 0.12, yaw: Math.PI / 2, from: [0, 0.6] }],
+  'k-bar-stool': [sit(0, 0, 0.57, 'free')],
+  'k-bar-stool-square': [sit(0, 0, 0.53, 'free')],
+  'k-lounge-sofa': [sit(-0.36, 0.06, 0.32), sit(0, 0.06, 0.32), sit(0.36, 0.06, 0.32)],
+  'k-lounge-sofa-long': [sit(-0.36, -0.22, 0.32), sit(0, -0.22, 0.32), lie(0.22, 0.12, 0.32, [0.62, 0.2])],
+  'k-lounge-sofa-corner': [sit(-0.4, -0.34, 0.32), sit(-0.02, -0.34, 0.32), sit(0.34, 0.02, 0.32, -Math.PI / 2), sit(0.34, 0.4, 0.32, -Math.PI / 2)],
+  'k-ottoman': [sit(0, 0, 0.32, 'free')],
+  'k-lounge-chair': [sit(0, 0.06, 0.32)],
+  'k-lounge-chair-relax': [sit(0, 0, 0.3)],
+  'k-design-chair': [sit(0, 0.06, 0.32)],
+  'k-design-sofa': [sit(-0.4, 0.06, 0.32), sit(0, 0.06, 0.32), sit(0.4, 0.06, 0.32)],
+  'k-design-sofa-corner': [sit(-0.6, -0.56, 0.32), sit(-0.2, -0.56, 0.32), sit(0.56, -0.1, 0.32, -Math.PI / 2), sit(0.56, 0.34, 0.32, -Math.PI / 2)],
+  'k-chair-modern': [sit(0, 0.02, 0.3)],
+  'k-chair-modern-frame': [sit(0, 0.02, 0.3)],
+  'k-chair-rounded': [sit(0, 0.02, 0.275)],
+  'k-desk-chair': [sit(0, 0.02, 0.27)],
+  'k-low-bench': [sit(-0.14, 0, 0.28, 'both'), sit(0.14, 0, 0.28, 'both')],
+  'k-bed-double': [lie(-0.3, 0.06, 0.34, [-0.95, 0.12]), lie(0.3, 0.06, 0.34, [0.95, 0.12])],
+  'k-bed-single': [lie(0, 0.06, 0.34, [0.62, 0.12])],
+  'k-bed-bunk': [lie(0, 0.1, 0.28, [0.55, 0.2]), lie(0, 0.1, 0.85, [0.55, 0.2])],
 }
 
 const FIGHT_SEATS = [stand('arcade', 0.44, -0.2), stand('arcade', 0.44, 0.2)]

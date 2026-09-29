@@ -1,6 +1,8 @@
 import { ADVENTURES } from './adventures'
 import { ARCADE } from './arcade'
+import { ARMORY } from './armory'
 import { BAR } from './bar'
+import { BATH } from './bath'
 import { BOARD } from './board'
 import { CINEMA } from './cinema'
 import { COCKPIT } from './cockpit'
@@ -8,6 +10,7 @@ import { COZY } from './cozy'
 import { DECOR } from './decor'
 import { ELITE } from './elite'
 import { compact, rng, type Builder, type Furniture, type Room } from './kit'
+import { KENNEY } from './kenney'
 import { KITCHEN } from './kitchen'
 import { LEISURE } from './leisure'
 import { LIGHTS } from './lights'
@@ -16,6 +19,8 @@ import { LJPC } from './ljpc'
 import { MEDICAL } from './medical'
 import { PARTY } from './party'
 import { PETS } from './pets'
+import { POSTER_ART } from './posters'
+import { RETRO } from './retro'
 import { VOIE } from './voie'
 import { WORKSHOP } from './workshop'
 import { WORKS } from './works'
@@ -45,12 +50,17 @@ import { STUDIO } from './studio'
  * - studio.ts : le studio de Radio Dangereuse (table à trois micros, fauteuils, mousse acoustique, néon « ON AIR ») ;
  * - ljpc.ts : le labo du L.J.P.C. (tableau d'enquête, paillasse, échantillon, hologramme, James et Julia) ;
  * - voie.ts : le sanctuaire de la Voie (portail de Raxxla, Chroniques, icône de Salomé, Reliques, l'Adepte Supérieur) ;
- * - salvage.ts : la zone thargoïde (lobby du sas de la cale, casiers, colis, fusées, plateforme d'extraction).
+ * - salvage.ts : la zone thargoïde (lobby du sas de la cale, casiers, colis, fusées, plateforme d'extraction) ;
+ * - kenney.ts : le Furniture Kit de Kenney (salle de bain, cuisine, salon, chambre), pour les cabines ;
+ * - retro.ts : écrans et consoles des cabines (télé cathodique, consoles, micro 8 bits, PC, cassettes) ;
+ * - armory.ts : l'armurerie décorative des cabines (sabres laser, épées, katanas, armes d'Odyssey, armure) ;
+ * - posters.ts : les affiches des cabines (grands films, pin-up rétro) ;
+ * - bath.ts : les petits objets de salle de bain des cabines (canard, gobelet, dérouleur, tapis).
  * On les place dans levels.ts comme les modèles du kit : `{ model: 'fireplace', x, z, rot }`,
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...COCKPIT, ...WORKSHOP, ...BAR, ...LEISURE, ...MEDICAL, ...KITCHEN, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...LISTENING, ...STUDIO, ...LJPC, ...VOIE, ...SALVAGE } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...COCKPIT, ...WORKSHOP, ...BAR, ...LEISURE, ...MEDICAL, ...KITCHEN, ...ARCADE, ...BOARD, ...COZY, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...LISTENING, ...STUDIO, ...LJPC, ...VOIE, ...SALVAGE, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 

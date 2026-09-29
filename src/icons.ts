@@ -36,6 +36,16 @@ import paintRoller from '@phosphor-icons/core/duotone/paint-roller-duotone.svg?r
 import palette from '@phosphor-icons/core/duotone/palette-duotone.svg?raw'
 import coins from '@phosphor-icons/core/duotone/coins-duotone.svg?raw'
 import treasureChest from '@phosphor-icons/core/duotone/treasure-chest-duotone.svg?raw'
+import bathtub from '@phosphor-icons/core/duotone/bathtub-duotone.svg?raw'
+import cookingPot from '@phosphor-icons/core/duotone/cooking-pot-duotone.svg?raw'
+import television from '@phosphor-icons/core/duotone/television-duotone.svg?raw'
+import filmSlate from '@phosphor-icons/core/duotone/film-slate-duotone.svg?raw'
+import sword from '@phosphor-icons/core/duotone/sword-duotone.svg?raw'
+import toolbox from '@phosphor-icons/core/duotone/toolbox-duotone.svg?raw'
+import firstAidKit from '@phosphor-icons/core/duotone/first-aid-kit-duotone.svg?raw'
+import wall from '@phosphor-icons/core/duotone/wall-duotone.svg?raw'
+import door from '@phosphor-icons/core/duotone/door-duotone.svg?raw'
+import eraser from '@phosphor-icons/core/duotone/eraser-duotone.svg?raw'
 
 import arrowClockwise from '@phosphor-icons/core/bold/arrow-clockwise-bold.svg?raw'
 import crown from '@phosphor-icons/core/bold/crown-bold.svg?raw'
@@ -159,6 +169,17 @@ const SVG = {
   'envelope-simple': envelopeSimple,
   'door-open': doorOpen,
   'treasure-chest': treasureChest,
+  bathtub,
+  'cooking-pot': cookingPot,
+  television,
+  'film-slate': filmSlate,
+  sword,
+  toolbox,
+  'first-aid-kit': firstAidKit,
+  // cloisons des quartiers
+  wall,
+  door,
+  eraser,
   // commandes
   'arrow-clockwise': arrowClockwise,
   'arrow-counter-clockwise': arrowCounterClockwise,
