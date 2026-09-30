@@ -192,15 +192,13 @@ const krait: Builder = () => {
   for (let i = 0; i < 5; i++) ship.add(box(0.36, 0.05, 0.28, lit(i % 2 ? C.dark : C.edge), 0, 0.66, -2.2 + i * 0.62, 0.01))
   for (const s of [1, -1]) ship.add(barZ(0.025, 3.4, lit(C.black), s * 0.2, 0.68, -0.8, 6))
   // Bouts d'ailes : caissons sombres, feu bleu, et une antenne double qui part du bout de l'aile
-  // vers l'avant, en s'écartant un peu du fuselage.
+  // droit vers l'avant, parallèle à l'axe du vaisseau (et à celle de l'autre aile).
   for (const s of [1, -1]) {
     const tip = box(0.55, 0.14, 0.95, lit(C.dark), s * 2.62, 0.25, -2.12, 0.02)
     tip.rotation.y = s * -0.52
     ship.add(tip, sphere(0.035, glow('#7fd8ff'), s * 2.45, 0.33, -1.8, 8))
     const antenna = new THREE.Group()
     antenna.position.set(s * 2.93, 0.27, -2.08)
-    // +z de l'antenne : vers le nez, tourné vers l'extérieur.
-    antenna.rotation.y = s * 0.35
     antenna.add(box(0.1, 0.06, 0.14, lit(C.dark), 0, 0, 0.02))
     for (const o of [-0.03, 0.03]) antenna.add(barZ(0.012, 0.9, lit(C.chrome), o, 0.01, 0.5, 5))
     for (const z of [0.35, 0.7]) antenna.add(box(0.07, 0.012, 0.012, lit(C.chrome), 0, 0.01, z))
