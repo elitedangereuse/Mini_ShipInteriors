@@ -51,6 +51,7 @@ import { Kitchen } from './kitchen'
 import { NURSE, Nurse, nurseRig, type NurseReport } from './nurse'
 import { DROID, MECHANIC, Mechanic, mechanicRig, type MechanicReport } from './mechanic'
 import { Hangar } from './hangar'
+import { KRAIT_COCKPIT } from '../shared/mechanic.js'
 import { Infirmary, Plasters } from './infirmary'
 import { menuOf } from './menu'
 import { RemotePlayer } from './remote'
@@ -780,6 +781,8 @@ nurse.onWork = (work) => {
 // Nico, le mécano, fait le tour du Krait dans le hangar de la cale (cf. mechanic.ts), Boulon, son
 // drone, sur les talons ; au pupitre du hangar, on fait une révision avec lui (cf. hangar.ts).
 const holdDeck = deckById(-1)
+/** Le grondement des réacteurs du Krait, tant qu'ils tournent (et qu'on est dans la cale). */
+let kraitRoar: { stop: () => void } | undefined
 const mechanic = new Mechanic(await mechanicRig(), holdDeck)
 const hangar = new Hangar({
   deck: holdDeck,
@@ -801,6 +804,10 @@ const hangar = new Hangar({
     net.sendMechHelp(on)
   },
   work: (job) => startWork({ ...job, deck: holdDeck }),
+  engines: (on) => {
+    mechanic.panic(on)
+    net.sendKraitEngines(on)
+  },
 })
 /** Ce que le mécano sait quand on lui parle : le système, nos révisions, si l'on est dans le cockpit. */
 function mechanicReport(): MechanicReport {
@@ -820,12 +827,12 @@ holdDeck.interactables.push({
   },
 })
 bubbles.attach('mechanic', (out) => (holdDeck.group.visible ? mechanic.avatar.head(out) : null))
-bubbles.attach('droid', (out) => (holdDeck.group.visible ? mechanic.droid.getWorldPosition(out).setY(out.y + 0.18) : null))
 mechanic.onBark = (text) => {
   if (holdDeck === deck) bubbles.say('mechanic', text)
 }
 mechanic.onBeep = (text) => {
-  if (holdDeck === deck) bubbles.say('droid', `${DROID} : ${text}`)
+  // Dans la bulle de Nico, en dessous : Boulon tourne autour de sa tête, deux bulles s'y recouvriraient.
+  if (holdDeck === deck) bubbles.aside('mechanic', `${DROID} : ${text}`, 'say-droid')
 }
 mechanic.onStep = () => {
   if (holdDeck === deck) sound.play('step', mechanic.root.getWorldPosition(new THREE.Vector3()), { volume: 0.07, rate: 1.15 })
@@ -1254,11 +1261,18 @@ net.onMessage = (m) => {
       nurse.sync(m)
       if (m.id !== net.id && patrolDeck === deck && m.hold > 0 && m.care === 0 && m.face) bubbles.say('nurse', '…')
       break
-    case 'mechanic':
-      // Quelqu'un parle au mécano ou l'aide (nous aussi : le relais recale sa tournée).
+    case 'mechanic': {
+      // Quelqu'un parle au mécano, l'aide, ou met les réacteurs du Krait en route (nous aussi : le
+      // relais recale sa tournée) ; un autre qui les lance, on l'apprend dans le chat.
+      const burning = mechanic.panicking
       mechanic.sync(m)
-      if (m.id !== net.id && holdDeck === deck && m.hold > 0 && m.help === 0) bubbles.say('mechanic', '…')
+      if (!burning && m.panic > 0 && m.pilot !== undefined && m.pilot !== net.id) {
+        const pilot = remotes.get(m.pilot)?.name ?? tr('Quelqu\'un', 'Someone')
+        chat.add('system', tr(`${pilot} a mis en route les réacteurs du Krait. Nico panique.`, `${pilot} started the Krait's thrusters. Nico is panicking.`))
+      }
+      if (m.id !== net.id && holdDeck === deck && m.hold > 0 && m.help === 0 && m.panic === 0) bubbles.say('mechanic', '…')
       break
+    }
     case 'jump':
       // Un pilote lance le saut FSD (nous, ou un autre) : tout le bord part. Dans la baie infestée,
       // on ne le vit pas ; on retrouvera le vaisseau dans son nouveau système.
@@ -2853,6 +2867,7 @@ function bindPose() {
  * Aucune dans les rangées du cinéma : elle cacherait l'écran (E et Espace marchent toujours).
  */
 function seatPrompt(seat: Seated): { main: string; space?: string } | null {
+  if (hangar.aboardKrait) return { main: tr('Se lever', 'Stand up'), space: hangar.engines ? tr('Couper les réacteurs', 'Shut down the thrusters') : tr('Démarrer les réacteurs', 'Start the thrusters') }
   if (claw) return { main: tr('Quitter', 'Leave'), space: claw.control.busy ? undefined : tr('Lâcher la pince', 'Drop the claw') }
   if (canJump(seat)) return { main: tr('Se lever', 'Stand up'), space: jumping ? undefined : tr('Saut FSD', 'FSD jump') }
   // Devant une borne fermée (on sort du mode photo, ou elle n'a pas pu se charger).
@@ -2870,6 +2885,7 @@ function seatPrompt(seat: Seated): { main: string; space?: string } | null {
 
 /** Espace, installé sur un meuble. */
 function seatAction(seat: Seated) {
+  if (hangar.aboardKrait) return hangar.toggleEngines()
   if (claw) return dropClaw()
   if (canJump(seat)) return void fsdJump()
   const game = arcadeGame(seat)
@@ -3410,6 +3426,14 @@ function frame() {
   infirmary.update()
   mechanic.update(world, holdDeck === deck ? player.position : null, player.avatar.emoteId)
   hangar.update(world)
+  // Réacteurs du Krait en route : leur grondement dans la cale, et la vue qui tremble (vue isométrique).
+  const roaring = hangar.engines && holdDeck === deck
+  if (roaring && !kraitRoar) kraitRoar = sound.thrusters(new THREE.Vector3(KRAIT_COCKPIT.x - 3, holdDeck.y + 0.6, KRAIT_COCKPIT.z)) ?? undefined
+  else if (!roaring && kraitRoar) {
+    kraitRoar.stop()
+    kraitRoar = undefined
+  }
+  if (roaring) iso.shake(0.1)
   // Pansements de Betty : le nôtre, et ceux des autres.
   plasters.show(player.avatar, infirmary.patched(net.id))
   for (const r of remotes.values()) plasters.show(r.avatar, infirmary.patched(r.id))

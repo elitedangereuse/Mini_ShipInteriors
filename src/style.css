@@ -1236,6 +1236,23 @@ kbd .icon {
 .say-icon {
   color: #e8457c;
 }
+/* Réplique d'un compagnon sous la bulle principale (Boulon, sous Nico) : la bulle du dessus perd sa pointe. */
+.say-aside {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+.say:has(+ .say-aside)::after {
+  display: none;
+}
+.say-droid {
+  background: #0f2a3a;
+  color: #8fe3ff;
+  border: 1px solid rgba(57, 208, 255, 0.55);
+  font-family: ui-monospace, monospace;
+}
+.say-droid::after {
+  background: #0f2a3a;
+}
 .tag {
   padding: 1px 6px;
   border-radius: 6px;

@@ -20,7 +20,9 @@ import { MECH_HELP, MECH_ROOM } from '../shared/mechanic.js'
  * ce navigateur.
  *
  * Cockpit : installé aux commandes (l'escabeau, cf. seats.ts), le Krait ne s'estompe pas autour de
- * soi, ses tuyères s'allument, et Nico proteste s'il est dans le coin.
+ * soi, ses tuyères s'éveillent, et Nico proteste s'il est dans le coin. Espace met les réacteurs
+ * en route (quelques secondes au plus, cf. KRAIT_BURN) : ils rugissent, la cale tremble, et Nico
+ * panique, pour tout le bord ; Espace encore, ou se lever, les coupe.
  */
 
 type Station = 'parts' | 'thruster' | 'welder' | 'console' | 'cart' | 'fuel' | 'chock-port' | 'chock-starboard' | 'krait'
@@ -120,6 +122,12 @@ const ABOARD = [
   tr('Les pieds pas sur la console !', 'Feet off the console!'),
 ]
 
+/** Ce qu'on lit en mettant les réacteurs en route. */
+const IGNITION = [
+  tr('Tu appuies sur le gros bouton rouge. Les réacteurs du Krait s\'éveillent dans un sifflement, puis rugissent.', 'You press the big red button. The Krait\'s thrusters wake with a whine, then roar.'),
+  tr('Contact ! Le Krait vibre de la verrière au train, et le hangar avec lui. Quelque part, Nico hurle.', 'Ignition! The Krait shakes from canopy to landing gear, and the hangar with it. Somewhere, Nico screams.'),
+]
+
 /** Sans un geste pendant ce temps, la révision est abandonnée (Nico ne l'attend pas plus, cf. MECH_HELP). */
 const IDLE = MECH_HELP - 3
 /** Hors du hangar plus longtemps que ça, la révision est abandonnée. */
@@ -159,6 +167,8 @@ export interface HangarHost {
   show: (text: string) => void
   /** On aide le mécano (à chaque étape), ou on a fini : le relais et le mécano le savent. */
   help: (on: boolean) => void
+  /** On met les réacteurs du Krait en route, ou on les coupe : le relais et le mécano le savent. */
+  engines: (on: boolean) => void
   /** Se met à l'ouvrage (cf. startWork dans main.ts) ; false si le joueur est occupé ailleurs. */
   work: (job: { at: THREE.Vector3; duration: number; label: string; sound: WorkSound; alive: () => boolean; finish: () => void }) => boolean
 }
@@ -182,6 +192,8 @@ export class Hangar {
   private ladder?: Interactable
   /** Le joueur local était aux commandes à l'image précédente. */
   private aboard = false
+  /** C'est le joueur local qui a mis les réacteurs en route (il les coupe en se levant). */
+  private started = false
 
   constructor(private readonly host: HangarHost) {
     const { deck } = host
@@ -225,6 +237,22 @@ export class Hangar {
   get aboardKrait(): boolean {
     const seat = this.host.seat()
     return !!seat && seat.item === this.ladder && this.host.here() === this.host.deck
+  }
+
+  /** Les réacteurs du Krait tournent (le joueur local ou un autre les a mis en route). */
+  get engines(): boolean {
+    return this.host.mechanic.panicking
+  }
+
+  /** Aux commandes du Krait, Espace : les réacteurs démarrent, ou se coupent. */
+  toggleEngines() {
+    if (!this.aboardKrait) return
+    const on = !this.engines
+    // Un autre pilote les a lancés (une place à la fois, mais la latence…) : on ne les coupe pas.
+    if (!on && !this.started) return
+    this.started = on
+    this.host.engines(on)
+    if (on) this.host.show(pick(IGNITION))
   }
 
   /** Ce que Nico répond si on lui parle pendant une révision (null : il bavarde comme d'habitude). */
@@ -387,6 +415,12 @@ export class Hangar {
     const m = host.mechanic.position, p = host.player.position
     if (aboard && !this.aboard && Math.hypot(m.x - p.x, m.z - p.z) < 8) host.mechanic.say(pick(ABOARD))
     this.aboard = aboard
-    kraitPower.value = aboard || host.pilots() > 0 ? 1 : 0
+    // Descendu du cockpit (ou débarqué de la cale) : ses réacteurs se coupent avec lui.
+    if (this.started && (!aboard || !this.engines)) {
+      if (this.engines) host.engines(false)
+      this.started = false
+    }
+    // Réacteurs en route : pleine poussée ; quelqu'un aux commandes : les tuyères s'éveillent.
+    kraitPower.value = this.engines ? 1 : aboard || host.pilots() > 0 ? 0.3 : 0
   }
 }

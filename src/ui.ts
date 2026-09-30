@@ -26,6 +26,9 @@ interface Anchor {
   tag?: HTMLDivElement
   say?: HTMLDivElement
   sayTimer?: number
+  /** Réplique d'un compagnon, sous la bulle principale (cf. aside). */
+  aside?: HTMLDivElement
+  asideTimer?: number
   getHead: (out: THREE.Vector3) => THREE.Vector3 | null
 }
 
@@ -67,6 +70,7 @@ export class Bubbles {
     const a = this.anchors.get(key)
     if (!a) return
     clearTimeout(a.sayTimer)
+    clearTimeout(a.asideTimer)
     a.el.remove()
     this.anchors.delete(key)
   }
@@ -84,6 +88,24 @@ export class Bubbles {
     a.el.insertBefore(s, a.el.firstChild)
     a.say = s
     a.sayTimer = window.setTimeout(() => s.remove(), 4000 + text.length * 60)
+  }
+
+  /**
+   * Réplique d'un compagnon qui parle depuis la même place (Boulon, le drone de Nico) : une petite
+   * bulle à lui, juste sous la bulle principale, qu'elle ne remplace pas. Deux bulles accrochées
+   * à deux points voisins se recouvriraient.
+   */
+  aside(key: string, text: string, className: string) {
+    const a = this.anchors.get(key)
+    if (!a) return
+    a.aside?.remove()
+    clearTimeout(a.asideTimer)
+    const s = document.createElement('div')
+    s.className = `say say-aside ${className}`
+    s.textContent = text
+    a.el.appendChild(s)
+    a.aside = s
+    a.asideTimer = window.setTimeout(() => s.remove(), 3000 + text.length * 50)
   }
 
   /** Icône d'emote qui s'envole au-dessus de la tête. */

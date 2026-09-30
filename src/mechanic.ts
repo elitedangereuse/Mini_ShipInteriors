@@ -8,8 +8,8 @@ import { boxInBone, suitRig, type SuitStyle } from './looks'
 import type { MechanicState } from './net'
 import { dampAngle } from './player'
 import {
-  MECH_CATCH_UP, MECH_HELP, MECH_POSTS, MECH_SNAP, MECH_SPEED, MECH_WAIT, helpMech, holdMech, mechAt, mechStep, mechTime,
-  type MechClock, type MechWork,
+  KRAIT_BURN, MECH_CATCH_UP, MECH_HELP, MECH_PANIC, MECH_POSTS, MECH_RELIEF, MECH_RUSH, MECH_SNAP, MECH_SPEED, MECH_WAIT, helpMech, holdMech, mechAt,
+  mechStep, mechTime, panicMech, type MechClock, type MechWork,
 } from '../shared/mechanic.js'
 
 /*
@@ -21,6 +21,8 @@ import {
  * fait une révision avec lui (cf. hangar.ts), il l'attend devant le nez du Krait. Il est le même
  * pour tout le bord : sa tournée suit l'horloge que tient le relais (cf. shared/mechanic.js) ;
  * hors ligne, celle de l'appareil. Boulon, lui, n'est qu'une affaire d'affichage : il suit Nico.
+ * Et quand quelqu'un met les réacteurs du Krait en route, Nico panique : il court au pied de
+ * l'escabeau, fait « non » des bras, supplie qu'on coupe ; Boulon s'affole autour de lui.
  */
 
 export const MECHANIC = 'Nico'
@@ -204,6 +206,28 @@ const BARKS = [
   tr('Boulon, de la lumière !', 'Bolt, light!'),
   tr('Ça, ça va rouiller…', 'That\'s going to rust…'),
 ]
+/** Nico, pendant que les réacteurs tournent. */
+const PANIC = [
+  tr('NON NON NON ! COUPE ÇA !', 'NO NO NO! SHUT IT DOWN!'),
+  tr('Tu vas griller le hangar !', 'You\'ll fry the hangar!'),
+  tr('Le bouclier ! Pense au bouclier !', 'The shield! Think of the shield!'),
+  tr('Boulon, l\'extincteur ! L\'EXTINCTEUR !', 'Bolt, the extinguisher! THE EXTINGUISHER!'),
+  tr('Ma Princesse ! Doucement avec ma Princesse !', 'My Princess! Easy with my Princess!'),
+  tr('Le frein de parc ! Il est où le frein de parc ?!', 'The parking brake! Where\'s the parking brake?!'),
+  tr('Je vais me faire virer. Je vais me faire VIRER !', 'I\'m going to get fired. I\'m going to get FIRED!'),
+]
+/** Nico, quand les réacteurs se coupent. */
+const RELIEF = [
+  tr('… Plus jamais ça. PLUS JAMAIS.', '… Never again. NEVER AGAIN.'),
+  tr('Mon cœur. Mon pauvre cœur.', 'My heart. My poor heart.'),
+  tr('Bon. On dira que c\'était un test moteur. D\'accord ? UN TEST.', 'Right. We\'ll call it an engine test. OK? A TEST.'),
+]
+/** Ce que dit Nico si on lui parle pendant que ça tourne. */
+const PANIC_TALK = [
+  tr('TU CROIS QUE C\'EST LE MOMENT DE DISCUTER ?!', 'YOU THINK THIS IS THE TIME TO CHAT?!'),
+  tr('Le gros bouton rouge, là-haut ! Appuie dessus ! Encore !', 'The big red button, up there! Press it! Again!'),
+]
+
 /** Ce que dit Boulon, de temps en temps. */
 const BEEPS = [tr('Bip ?', 'Beep?'), tr('Bip-bip !', 'Beep-beep!'), tr('Brrzzt.', 'Brrzzt.'), tr('Bip-bop-bip.', 'Beep-boop-beep.')]
 
@@ -212,6 +236,9 @@ const BEEPS = [tr('Bip ?', 'Beep?'), tr('Bip-bip !', 'Beep-beep!'), tr('Brrzzt.'
 /** Voyant de l'antenne de Boulon, qui clignote. */
 const TIP_ON = new THREE.Color('#ff3b2f')
 const TIP_OFF = new THREE.Color('#4a1410')
+/** L'œil de Boulon : cyan, ou rouge qui clignote quand il s'affole. */
+const EYE = new THREE.Color('#39d0ff')
+const EYE_ALARM = new THREE.Color('#ff3b2f')
 
 /** Où Boulon se tient pendant chaque geste de Nico : devant lui (scan, soudure), ou à son épaule. */
 const DROID_WORK: Partial<Record<MechWork, { ahead: number; y: number; beam: boolean }>> = {
@@ -230,6 +257,11 @@ export class Mechanic {
   private clock: MechClock = { tau: Date.now() / 1000, at: Date.now(), holdUntil: 0 }
   /** Fin de la révision en cours (ms de l'appareil) : il attend au nez du Krait jusque-là. */
   private helpUntil = 0
+  /** Fin de l'allumage des réacteurs (ms de l'appareil) : il panique jusque-là, puis souffle un moment. */
+  private panicUntil = 0
+  /** Les réacteurs tournaient à l'image précédente (pour souffler une fois qu'ils s'arrêtent). */
+  private wasBurning = false
+  private shoutIn = 0
   /** Pendant un arrêt ou une révision : le joueur vers qui il se tourne. */
   private face: { x: number; z: number } | null = null
   private yaw = 0
@@ -266,6 +298,11 @@ export class Mechanic {
     return this.root.position
   }
 
+  /** Les réacteurs du Krait tournent (quelqu'un les a mis en route) : Nico panique. */
+  get panicking(): boolean {
+    return Date.now() < this.panicUntil
+  }
+
   /** Une révision est en cours (la sienne ou celle d'un autre joueur) : il attend au nez du Krait. */
   get helping(): boolean {
     return Date.now() < this.helpUntil
@@ -276,6 +313,8 @@ export class Mechanic {
     const now = Date.now()
     this.clock = { tau: s.tau, at: now, holdUntil: now + s.hold * 1000 }
     this.helpUntil = now + s.help * 1000
+    // Réacteurs coupés avant la fin : il souffle à partir de maintenant.
+    this.panicUntil = s.panic > 0 ? now + s.panic * 1000 : Math.min(this.panicUntil, now)
     this.face = s.face ?? null
   }
 
@@ -284,6 +323,7 @@ export class Mechanic {
     const now = Date.now()
     this.clock = holdMech(this.clock, now)
     this.face = { x: from.x, z: from.z }
+    if (this.panicking) return pick(PANIC_TALK)
     const pool = report.aboard || Math.random() < 0.45 ? reportLines(report) : DUTY
     const fresh = pool.filter((l) => !this.recent.includes(l))
     const line = pick(fresh.length ? fresh : pool)
@@ -300,6 +340,16 @@ export class Mechanic {
     this.helpUntil = on ? now + MECH_HELP * 1000 : 0
     if (on) this.face = { x: from.x, z: from.z }
     this.clock = helpMech(this.clock, now, this.helpUntil)
+  }
+
+  /**
+   * Le joueur local met les réacteurs en route (`on`) ou les coupe : comme le relais, sans attendre
+   * sa réponse (et hors ligne, sans relais du tout).
+   */
+  panic(on: boolean) {
+    const now = Date.now()
+    this.panicUntil = on ? now + KRAIT_BURN * 1000 : Math.min(this.panicUntil, now)
+    this.clock = panicMech(this.clock, now, on ? this.panicUntil : 0)
   }
 
   /** Pendant la révision, l'aide local bouge : le mécano le suit des yeux. */
@@ -330,15 +380,19 @@ export class Mechanic {
     const now = Date.now()
     this.time += dt
     const p = this.root.position
+    const burning = now < this.panicUntil
+    // Réacteurs coupés : il reste au pied de l'escabeau à souffler un moment.
+    const relieving = !burning && now < this.panicUntil + MECH_RELIEF * 1000
     const helping = now < this.helpUntil
     const holding = now < this.clock.holdUntil
     const routine = mechAt(mechTime(this.clock, now))
-    const goal = helping ? MECH_WAIT : routine
+    const goal = burning || relieving ? MECH_PANIC : helping ? MECH_WAIT : routine
     this.reactCooldown -= dt
 
     // Sa place : il suit sa tournée, ou y revient par l'allée qui fait le tour du Krait, un peu
-    // plus vite qu'il ne marche pour la rattraper ; trop loin (arrivée à bord), il y saute.
-    const step = mechStep(p, goal, MECH_SPEED * MECH_CATCH_UP * dt)
+    // plus vite qu'il ne marche pour la rattraper (il court, quand les réacteurs démarrent) ; trop
+    // loin (arrivée à bord), il y saute.
+    const step = mechStep(p, goal, MECH_SPEED * (burning ? MECH_RUSH : MECH_CATCH_UP) * dt)
     let moved = 0
     if (!this.placed || step.left > MECH_SNAP) {
       p.x = goal.x
@@ -362,10 +416,27 @@ export class Mechanic {
     // Où il regarde : en marche, devant lui ; à l'arrêt, vers qui lui parle ou l'aide, vers qui
     // le salue, sinon vers son poste.
     if (!walking) {
-      const toward = (holding || helping) && this.face ? this.face : this.greeting && now < this.greeting.until ? this.greeting : null
-      this.yaw = toward ? Math.atan2(toward.x - p.x, toward.z - p.z) : helping ? MECH_WAIT.yaw : routine.yaw
+      const toward = burning || relieving ? null
+        : (holding || helping) && this.face ? this.face : this.greeting && now < this.greeting.until ? this.greeting : null
+      this.yaw = toward ? Math.atan2(toward.x - p.x, toward.z - p.z) : burning || relieving ? MECH_PANIC.yaw : helping ? MECH_WAIT.yaw : routine.yaw
     }
-    this.avatar.setLocomotion(walking ? 'walk' : 'idle', walking ? MECH_SPEED : 0)
+    const running = walking && burning
+    this.avatar.setLocomotion(running ? 'sprint' : walking ? 'walk' : 'idle', walking ? MECH_SPEED * (running ? MECH_RUSH : 1) : 0)
+
+    // La panique : des « non » des bras face au cockpit, et des cris ; puis il souffle.
+    if (burning) {
+      this.shoutIn -= dt
+      if (this.shoutIn <= 0) {
+        this.shoutIn = 2.2 + Math.random() * 0.8
+        if (!walking) this.avatar.playEmote('non')
+        this.onBark?.(pick(PANIC))
+      }
+      if (!this.wasBurning) this.onBeep?.(tr('BIP BIP BIP BIP !', 'BEEP BEEP BEEP BEEP!'))
+    } else if (this.wasBurning) {
+      this.shoutIn = 0
+      this.onBark?.(pick(RELIEF))
+    }
+    this.wasBurning = burning
     if (walking) {
       this.stride += moved
       if (this.stride > 0.3) {
@@ -375,7 +446,7 @@ export class Mechanic {
     }
 
     // Au travail : un geste de temps en temps (clé, soudure, scan, plein…).
-    const atPost = !walking && !holding && !helping && !routine.walking
+    const atPost = !walking && !holding && !helping && !burning && !relieving && !routine.walking
     const work = atPost ? MECH_POSTS[routine.post].work : null
     if (atPost && work) {
       if (routine.post !== this.lastPost) {
@@ -393,28 +464,32 @@ export class Mechanic {
     this.barkIn -= dt
     if (this.barkIn <= 0) {
       this.barkIn = 25 + Math.random() * 25
-      if (distPlayer < 5 && !holding && !helping) this.onBark?.(pick(BARKS))
+      if (distPlayer < 5 && !holding && !helping && !burning) this.onBark?.(pick(BARKS))
     }
     this.beepIn -= dt
     if (this.beepIn <= 0) {
       this.beepIn = 30 + Math.random() * 30
-      if (distPlayer < 5) this.onBeep?.(pick(BEEPS))
+      if (distPlayer < 5 && !burning) this.onBeep?.(pick(BEEPS))
     }
 
     this.root.rotation.y = dampAngle(this.root.rotation.y, this.yaw, 8, dt)
     this.avatar.update(dt)
-    this.updateDroid(dt, work)
+    this.updateDroid(dt, work, burning)
   }
 
   /**
    * Boulon : il tourne autour de Nico à hauteur d'épaule ; pendant un geste, il vient se placer
    * devant lui, et son scanner s'allume. Il regarde toujours ce que Nico regarde.
    */
-  private updateDroid(dt: number, work: MechWork | null) {
+  private updateDroid(dt: number, work: MechWork | null, panic: boolean) {
     const p = this.root.position
     const at = work ? DROID_WORK[work] : undefined
     const target = new THREE.Vector3()
-    if (at) {
+    if (panic) {
+      // Il s'affole : des tours rapides et serrés au-dessus de la tête de Nico, l'œil au rouge.
+      this.droidAngle += dt * 7
+      target.set(p.x + Math.cos(this.droidAngle) * 0.3, 0.78 + Math.sin(this.time * 11) * 0.05, p.z + Math.sin(this.droidAngle) * 0.3)
+    } else if (at) {
       const yaw = this.root.rotation.y
       target.set(p.x + Math.sin(yaw) * at.ahead, at.y, p.z + Math.cos(yaw) * at.ahead)
     } else {
@@ -424,7 +499,8 @@ export class Mechanic {
     target.y += Math.sin(this.time * 2.3) * 0.025
     const d = this.droid.position
     if (!this.placed || d.distanceTo(target) > 4) d.copy(target)
-    else d.lerp(target, 1 - Math.exp(-dt * 3))
+    else d.lerp(target, 1 - Math.exp(-dt * (panic ? 9 : 3)))
+    this.bot.eyeMat.color.copy(panic && this.time % 0.4 < 0.2 ? EYE_ALARM : EYE)
     // Il regarde là où Nico travaille, sinon là où il va.
     const lookYaw = at ? this.root.rotation.y : Math.atan2(target.x - p.x, target.z - p.z) + Math.PI / 2
     this.droid.rotation.y = dampAngle(this.droid.rotation.y, lookYaw, 5, dt)

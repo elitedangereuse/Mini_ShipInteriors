@@ -5,6 +5,11 @@
 // parle. Quand un joueur l'aide (une révision du Krait, prise auprès de lui), il se poste devant
 // le nez du Krait et le suit des yeux : le relais fige sa tournée tant qu'il y a un aide au
 // travail, plus le temps de revenir là où il l'avait laissée.
+//
+// Et si quelqu'un, installé aux commandes du Krait, met les réacteurs en route, Nico panique :
+// il lâche tout, court au pied de l'escabeau et supplie qu'on coupe (le relais tient l'allumage,
+// pour tout le bord : la tournée reste figée tant que ça tourne, plus le temps de souffler et de
+// revenir).
 
 import { holdPatrol, patrolTime } from './patrol.js'
 
@@ -27,8 +32,26 @@ const NORTH = Math.PI
 const EAST = Math.PI / 2
 const WEST = -Math.PI / 2
 
+/** Le siège du pilote du Krait, sur le pont (cf. KRAIT_PILOT et l'escabeau dans levels.ts). */
+export const KRAIT_COCKPIT = { x: 33.45, z: 5 }
+
+/** Les réacteurs se coupent d'eux-mêmes au bout de ce temps (secondes) : la sécurité du hangar. */
+export const KRAIT_BURN = 8
+
+/** Réacteurs coupés, Nico reste là à souffler ce temps-là (secondes) avant de reprendre sa tournée. */
+export const MECH_RELIEF = 3
+
+/** Pas de course du mécano quand il panique (facteur de son pas). */
+export const MECH_RUSH = 2.2
+
 /** Où il attend son aide pendant une révision : devant le nez du Krait, à côté de l'escabeau. */
 export const MECH_WAIT = { x: 35.95, z: 3.9, yaw: WEST }
+
+/**
+ * Où il court quand les réacteurs démarrent : au pied de l'escabeau, côté sud, face au cockpit
+ * (il ne monte pas : il n'a pas envie de finir dans les tuyères).
+ */
+export const MECH_PANIC = { x: 35.95, z: 5.85, yaw: Math.atan2(KRAIT_COCKPIT.x - 35.95, KRAIT_COCKPIT.z - 5.85) }
 
 /**
  * Meubles du hangar (rectangles au sol, cf. levels.ts) : ses trajets ne les traversent pas.
@@ -232,10 +255,10 @@ export function mechAt(t) {
   return { x, z, yaw: s.heading, walking: s.walk, post: s.post }
 }
 
-/** Temps qu'il lui faut pour revenir du nez du Krait à sa place dans la tournée, à l'instant `t` (secondes). */
-export function mechReturn(t) {
+/** Temps qu'il lui faut pour revenir de `from` (le nez du Krait par défaut) à sa place dans la tournée, à l'instant `t` (secondes). */
+export function mechReturn(t, from = MECH_WAIT) {
   const at = mechAt(t)
-  return pathLength([[MECH_WAIT.x, MECH_WAIT.z], ...mechRoute(MECH_WAIT, at)]) / MECH_SPEED
+  return pathLength([[from.x, from.z], ...mechRoute(from, at)]) / MECH_SPEED
 }
 
 /** Horloge de la tournée (même forme que celle de la ronde, cf. patrol.js). */
@@ -253,4 +276,18 @@ export function holdMech(clock, now, seconds = MECH_HOLD) {
 export function helpMech(clock, now, until) {
   const t = patrolTime(clock, now)
   return { tau: t, at: now, holdUntil: Math.max(now, until) + mechReturn(t) * 1000 }
+}
+
+/**
+ * Les réacteurs du Krait tournent jusqu'à `until` (ms, ou 0 : ils viennent de s'arrêter) : la
+ * tournée reste figée jusque-là, plus le temps de souffler et de revenir du pied de l'escabeau.
+ */
+export function panicMech(clock, now, until) {
+  const t = patrolTime(clock, now)
+  return { tau: t, at: now, holdUntil: Math.max(now, until) + (MECH_RELIEF + mechReturn(t, MECH_PANIC)) * 1000 }
+}
+
+/** Un joueur est-il installé aux commandes du Krait ? (le siège, à la latence près) */
+export function inCockpit(p) {
+  return p.pose === 'pilot' && Math.hypot(p.x - KRAIT_COCKPIT.x, p.z - KRAIT_COCKPIT.z) < 0.6
 }
