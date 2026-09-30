@@ -271,13 +271,18 @@ export class Wallet {
 
   /** Requête au site ; null s'il ne répond pas. L'heure qu'il donne recale celle des tâches. */
   private async request(method: 'GET' | 'POST', body?: object): Promise<Reply | null> {
+    // `AbortSignal.timeout()` est encore absent de certains navigateurs. Dans ce cas, son appel
+    // levait une exception avant même le fetch et le Holo-Me croyait la boutique hors ligne alors
+    // que l'endpoint répondait correctement.
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 10000)
     try {
       const res = await fetch(CREDITS_URL, {
         method,
         credentials: 'same-origin',
         headers: body ? { 'Content-Type': 'application/json', Accept: 'application/json' } : { Accept: 'application/json' },
         body: body ? JSON.stringify(body) : undefined,
-        signal: AbortSignal.timeout(10000),
+        signal: controller.signal,
       })
       const reply = (await res.json().catch(() => null)) as Reply | null
       if (reply && typeof reply.now === 'number') {
@@ -288,6 +293,8 @@ export class Wallet {
       return reply
     } catch {
       return null
+    } finally {
+      clearTimeout(timeout)
     }
   }
 }
