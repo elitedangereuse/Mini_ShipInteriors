@@ -6,7 +6,7 @@ import { barX, barZ, box, cylinder, glass, glow, instanced, lit, mesh, part, sph
 /*
  * La serre hydroponique du pont supérieur, agrandie : bacs potagers surélevés, arbre fruitier,
  * bassin aux carpes, compost, grainothèque, récupérateur d'eau, caisses de récolte, arche fleurie,
- * pelouse et pas japonais, papillons. Ce sont aussi les postes du mini-jeu de
+ * pelouse et pas japonais, papillons, treille de vigne contre la verrière. Ce sont aussi les postes du mini-jeu de
  * Capucine, la jardinière (cf. src/greenhouse.ts).
  */
 
@@ -388,6 +388,56 @@ const steppingStones: Builder = ({ label, random }) => {
 }
 
 /**
+ * Treille contre la verrière : un treillage blanc en losanges où grimpe une vigne (sarments,
+ * feuilles, grappes de raisin) et quelques liserons. Dos au mur (z = 0), face à +z ; on voit la
+ * verrière à travers. Largeur : `label` (1,6 par défaut).
+ */
+const vineTrellis: Builder = ({ label, random }) => {
+  const width = Number(label) || 1.6
+  const g = new THREE.Group()
+  const white = lit('#f1efe8'), vine = lit('#6b4a32')
+  const height = 0.92
+  for (const x of [-width / 2, width / 2]) g.add(box(0.03, height, 0.03, white, x, height / 2, 0.03))
+  g.add(box(width, 0.025, 0.03, white, 0, height, 0.03), box(width, 0.025, 0.03, white, 0, 0.1, 0.03))
+  // Les lattes en losanges : deux nappes de diagonales.
+  const step = 0.3
+  for (let x0 = -width / 2 - height; x0 < width / 2; x0 += step) {
+    for (const dir of [1, -1]) {
+      const a = dir > 0 ? x0 : x0 + height
+      const x1 = Math.max(-width / 2, Math.min(width / 2, a)), x2 = Math.max(-width / 2, Math.min(width / 2, a + dir * height))
+      const y1 = 0.1 + Math.abs(x1 - a), y2 = 0.1 + Math.abs(x2 - a)
+      const len = Math.hypot(x2 - x1, y2 - y1)
+      if (len < 0.05) continue
+      const slat = box(0.012, len, 0.01, white, (x1 + x2) / 2, (y1 + y2) / 2, 0.02)
+      slat.rotation.z = -Math.atan2(x2 - x1, y2 - y1)
+      g.add(slat)
+    }
+  }
+  // Les ceps, qui montent en zigzag, et leur feuillage.
+  const vines = Math.max(2, Math.round(width / 0.55))
+  for (let v = 0; v < vines; v++) {
+    let x = -width / 2 + (v + 0.5) * (width / vines), y = 0
+    while (y < height - 0.05) {
+      const nx = Math.max(-width / 2 + 0.05, Math.min(width / 2 - 0.05, x + (random() - 0.5) * 0.3)), ny = y + 0.18
+      const len = Math.hypot(nx - x, ny - y)
+      const cane = cylinder(0.012, 0.016, len, vine, (x + nx) / 2, (y + ny) / 2, 0.06, 5)
+      cane.rotation.z = -Math.atan2(nx - x, ny - y)
+      g.add(cane)
+      for (let k = 0; k < 3; k++) g.add(leaf(0.05 + random() * 0.03, LEAVES[Math.floor(random() * 4)], nx + (random() - 0.5) * 0.18, ny + (random() - 0.5) * 0.1, 0.08 + random() * 0.05, 0.5))
+      if (y > 0.3 && random() < 0.45) {
+        // Une grappe : des grains en cône renversé.
+        const gx = nx + (random() - 0.5) * 0.1, gy = ny - 0.06, color = random() < 0.7 ? '#6a3a8a' : '#a8c85a'
+        for (let r = 0; r < 4; r++) for (let c = 0; c <= 3 - r; c++) g.add(sphere(0.016, lit(color), gx + (c - (3 - r) / 2) * 0.026, gy - r * 0.024, 0.12, 6))
+      }
+      if (random() < 0.2) g.add(sphere(0.02, lit(random() < 0.5 ? '#ffffff' : '#b27cff'), nx, ny + 0.04, 0.13, 6))
+      x = nx
+      y = ny
+    }
+  }
+  return { solid: g }
+}
+
+/**
  * Coccinelles et papillons qui volettent au-dessus d'un massif (décor vivant, sans collision) : une
  * nuée légère. Rayon : `label` (0,8 par défaut).
  */
@@ -430,4 +480,5 @@ export const GARDEN = {
   lawn,
   'stepping-stones': steppingStones,
   butterflies,
+  'vine-trellis': vineTrellis,
 } satisfies Record<string, Builder>

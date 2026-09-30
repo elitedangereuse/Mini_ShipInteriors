@@ -42,7 +42,7 @@ export const GARDEN_OBSTACLES = [
   { minX: 4.47, maxX: 5.63, minZ: -0.5, maxZ: 0.01 }, // bac hydroponique
   { minX: 5.73, maxX: 6.41, minZ: -0.5, maxZ: 0.14 }, // cuve de nutriments
   { minX: 6.45, maxX: 7.5, minZ: -0.5, maxZ: 0.16 }, // caisses de récolte
-  { minX: -0.5, maxX: -0.18, minZ: 1.7, maxZ: 5.3 }, // mur végétal
+  { minX: -0.5, maxX: -0.2, minZ: 1.6, maxZ: 5.4 }, // treille de vigne
   { minX: 0.88, maxX: 1.72, minZ: 0.88, maxZ: 1.72 }, // arbre fruitier
   { minX: 0.51, maxX: 1.99, minZ: 3.77, maxZ: 4.93 }, // bassin
   { minX: -0.5, maxX: 0.5, minZ: 4.78, maxZ: 5.62 }, // récupérateur d'eau
@@ -53,7 +53,13 @@ export const GARDEN_OBSTACLES = [
   { minX: 5.1, maxX: 6.1, minZ: 5.9, maxZ: 6.5 }, // établi de rempotage
   { minX: 6.64, maxX: 7.5, minZ: 5.78, maxZ: 6.5 }, // compost
   { minX: 0.98, maxX: 1.52, minZ: 5.8, maxZ: 6.5 }, // monstera
-  { minX: 2.45, maxX: 2.75, minZ: 5.95, maxZ: 6.5 }, // pot de fleurs
+  { minX: 2.1, maxX: 3.0, minZ: 5.84, maxZ: 6.5 }, // massif de cactus
+  { minX: 3.2, maxX: 4.3, minZ: 5.7, maxZ: 6.5 }, // citrouilles
+  { minX: -0.5, maxX: 0.5, minZ: 2.72, maxZ: 3.28 }, // palmier penché
+  { minX: 6.02, maxX: 6.58, minZ: 4.57, maxZ: 5.13 }, // palmier en éventail
+  { minX: 6.89, maxX: 7.5, minZ: 2.74, maxZ: 3.36 }, // bambous
+  { minX: -0.5, maxX: 0.64, minZ: 1.58, maxZ: 2.42 }, // buisson
+  { minX: -0.5, maxX: 0.47, minZ: 4.1, maxZ: 4.6 }, // fougère
   { minX: 5.95, maxX: 6.25, minZ: 3.3, maxZ: 3.6 }, // pot de fleurs
   { minX: 6.65, maxX: 7.5, minZ: 4.7, maxZ: 5.3 }, // plante exobiologique
   // Les coins cassés.

@@ -36,7 +36,7 @@ const STATION_MODEL: Record<Station, { model: string; label?: string }> = {
   racks: { model: 'hydro-rack' },
   compost: { model: 'compost-bin' },
   pond: { model: 'garden-pond' },
-  wall: { model: 'plant-wall' },
+  wall: { model: 'vine-trellis' },
 }
 
 /** Où est le poste, dans la bouche de Capucine. */
@@ -54,7 +54,7 @@ const WHERE: Record<Station, string> = {
   racks: tr('aux bacs hydroponiques', 'at the hydroponic racks'),
   compost: tr('au compost', 'at the compost bin'),
   pond: tr('au bassin des carpes', 'at the koi pond'),
-  wall: tr('au mur végétal', 'at the living wall'),
+  wall: tr('à la vigne, contre la verrière', 'at the vine, against the glass'),
 }
 
 interface Step {
@@ -111,12 +111,12 @@ const JOBS: Job[] = [
   },
   {
     name: tr('Tournée des fleurs', 'Flower round'),
-    intro: tr('Journée douceur : tu remplis l\'arrosoir, tu arroses le massif, tu nourris les carpes, et tu tailles un peu le mur végétal. Pas trop. Il est susceptible.', 'A gentle day: fill the watering can, water the flower bed, feed the koi, and trim the living wall a little. Not too much. It\'s touchy.'),
+    intro: tr('Journée douceur : tu remplis l\'arrosoir, tu arroses le massif, tu nourris les carpes, et tu tailles un peu la vigne. Pas trop. Elle est susceptible.', 'A gentle day: fill the watering can, water the flower bed, feed the koi, and trim the vine a little. Not too much. It\'s touchy.'),
     steps: [
       step('barrel', tr('Remplir l\'arrosoir', 'Fill the watering can'), tr('Remplissage…', 'Filling…'), 2, 'water', 'drop'),
       step('flowers', tr('Arroser le massif', 'Water the flower bed'), tr('Arrosage…', 'Watering…'), 2.8, 'water', 'drop', tr('Au pied, pas sur les pétales. Elles se maquillent pour la verrière.', 'At the roots, not on the petals. They\'re dressed up for the glass roof.')),
       step('pond', tr('Nourrir les carpes', 'Feed the koi'), tr('Distribution…', 'Feeding…'), 2, 'munch', 'paw-print', tr('Gutamaya d\'abord. Sinon elle boude toute la journée.', 'Gutamaya first. Otherwise she sulks all day.')),
-      step('wall', tr('Tailler le mur végétal', 'Trim the living wall'), tr('Taille…', 'Trimming…'), 3, 'chop', 'knife'),
+      step('wall', tr('Tailler la vigne', 'Prune the vine'), tr('Taille…', 'Pruning…'), 3, 'chop', 'knife'),
     ],
   },
 ]

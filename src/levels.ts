@@ -90,6 +90,12 @@ export interface LevelDef {
    * extérieur est un bouclier bleu (cf. src/shield.ts) ; on n'y passe pas plus qu'à travers un mur.
    */
   shield?: Record<string, number[]>
+  /**
+   * Serres : pièces dont tous les murs extérieurs sont vitrés à la façon d'une serre (allège de
+   * brique, montants blancs, verre à peine vert), comme leurs cloisons vitrées (cf. `glazed`), et
+   * qui ont une verrière pour plafond (vue subjective).
+   */
+  greenhouse?: string[]
   /** Cloisons vitrées, comme les verrières : paires de pièces (deux lettres) dont le mur mitoyen est une vitre. */
   glazed?: string[]
   props: Prop[]
@@ -1128,10 +1134,11 @@ export const LEVELS: LevelDef[] = [
       F: tr('Extension droite', 'Right extension'),
     },
     windows: { c: 0, k: 0.3, d: 0.2, p: 0.6, g: 0.5, o: 1, n: 0, s: 0 },
-    // La serre, sous verrière au nord : les plantes voient les étoiles.
-    canopy: { g: [0] },
-    // Le salon voit le studio par sa vitre.
-    glazed: ['os'],
+    // La serre, tout en verre : les plantes voient les étoiles. Sol de tomettes.
+    greenhouse: ['g'],
+    floorFinish: { g: 'terracotta' },
+    // Le salon voit le studio par sa vitre ; de la coursive, on voit la serre.
+    glazed: ['os', 'gc'],
     // On baisse les lumières au cinéma, un peu au salon d'écoute.
     dim: { n: 0.45, o: 0.7 },
     // Les quartiers du commandant : la cabine de chaque joueur, porte au nord sur la coursive.
@@ -1263,8 +1270,11 @@ export const LEVELS: LevelDef[] = [
         interact: tr('Récupérateur d\'eau : la condensation de la coque, filtrée trois fois. Le chef Marcel dit qu\'elle a un goût de vaisseau.', 'Water butt: condensation from the hull, filtered three times. Chef Marcel says it tastes of starship.'),
       },
       {
-        model: 'plant-wall', x: -0.35, z: 3.5, rot: 1, label: '3.6', solid: false,
-        interact: tr('Mur végétal : fougères, lierre et fraisiers, arrosés goutte à goutte. Il purifie l\'air du pont, et il le sait.', 'Living wall: ferns, ivy and strawberries on a drip feed. It purifies the deck\'s air, and it knows it.'),
+        model: 'vine-trellis', x: -0.42, z: 3.5, rot: 1, label: '3.8', solid: false,
+        interact: [
+          tr('Une vigne grimpe sur la verrière : du raisin de Lave, noir et sucré. Capucine rêve d\'en faire du vin. Marcel aussi.', 'A vine climbs up the glass: Lave grapes, dark and sweet. Capucine dreams of making wine. So does Marcel.'),
+          tr('Entre deux feuilles de vigne, on voit défiler les étoiles. Les grappes, elles, ne bougent pas.', 'Between two vine leaves, you watch the stars go by. The grapes stay put.'),
+        ],
       },
       {
         model: 'fruit-tree', x: 1.3, z: 1.3,
@@ -1316,7 +1326,41 @@ export const LEVELS: LevelDef[] = [
         interact: tr('Le compost : épluchures du mess, marc de café CD-75, et ce qu\'il reste des soufflés ratés de Marcel.', 'The compost: peelings from the mess, CD-75 coffee grounds, and what\'s left of Marcel\'s failed soufflés.'),
       },
       { model: 'monstera', x: 1.25, z: 6.05 },
-      { model: 'flowers', x: 2.6, z: 6.1 },
+      {
+        model: 'cactus-bed', x: 2.55, z: 6.1,
+        interact: tr('Le coin des cactus : ils ne demandent rien, sauf qu\'on ne s\'asseye pas dessus.', 'The cactus corner: they ask for nothing, except that you don\'t sit on them.'),
+      },
+      {
+        model: 'pumpkin-patch', x: 3.75, z: 6.05,
+        interact: tr('Citrouilles et melons, sur un lit de paille. La plus grosse est réservée pour une soirée à thème, au salon.', 'Pumpkins and melons on a bed of straw. The biggest one is saved for a themed party in the lounge.'),
+      },
+      // --- La verdure : palmiers en pot, bambous, buissons, fougères, herbes et fleurs sauvages (Nature Kit).
+      {
+        model: 'potted-palm', x: 0.2, z: 3.0, label: 'bend',
+        interact: tr('Un palmier qui penche au-dessus du bassin. Les carpes apprécient l\'ombre, Capucine un peu moins les feuilles mortes.', 'A palm leaning over the pond. The koi enjoy the shade; Capucine less so the dead leaves.'),
+      },
+      { model: 'potted-palm', x: 6.3, z: 4.85, label: 'fan' },
+      {
+        model: 'bamboo', x: 7.1, z: 3.05, rot: 1,
+        interact: tr('Du bambou : il pousse de trois centimètres par jour. Capucine le mesure. Tous les jours.', 'Bamboo: it grows three centimetres a day. Capucine measures it. Every day.'),
+      },
+      { model: 'bush', x: 0.2, z: 2.0, label: 'detailed' },
+      { model: 'fern', x: 0.2, z: 4.35 },
+      { model: 'mushrooms', x: 1.85, z: 1.6, solid: false },
+      { model: 'wildflowers', x: 0.7, z: 2.45, label: 'purple', solid: false },
+      { model: 'wildflowers', x: 2.15, z: 2.85, label: 'mixed', solid: false },
+      { model: 'wildflowers', x: 2.05, z: 5.45, label: 'yellow', solid: false },
+      { model: 'wildflowers', x: 0.85, z: 5.55, label: 'red', solid: false },
+      { model: 'grass-tuft', x: 2.05, z: 3.75, label: 'tall', solid: false },
+      { model: 'grass-tuft', x: 0.45, z: 3.7, label: 'leafs', solid: false },
+      { model: 'grass-tuft', x: 2.1, z: 4.95, label: 'wide', solid: false },
+      { model: 'grass-tuft', x: 3.1, z: 3.55, label: 'leafs', solid: false },
+      { model: 'grass-tuft', x: 5.35, z: 3.55, label: 'tall', solid: false },
+      { model: 'grass-tuft', x: 6.45, z: 3.95, label: 'wide', solid: false },
+      { model: 'wildflowers', x: 2.9, z: 4.5, label: 'mixed', solid: false },
+      { model: 'hanging-basket', x: 3.1, z: 6.45, rot: 2, solid: false },
+      { model: 'hanging-basket', x: 4.7, z: 6.45, rot: 2, solid: false },
+      { model: 'hanging-basket', x: 1.55, z: 0.05, rot: 1, solid: false },
       { model: 'flowers', x: 6.1, z: 3.45 },
       { model: 'exobio-plant', x: 6.95, z: 5.0, label: 'crystal' },
 

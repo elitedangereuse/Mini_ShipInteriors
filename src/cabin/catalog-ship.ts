@@ -97,6 +97,40 @@ export const SHIP_ENTRIES: CatalogEntry[] = [
   { id: 'harvest-crate', name: tr('Caisses de récolte', 'Harvest crates'), category: 'plants', model: 'harvest-crate', mount: 'floor' },
   { id: 'garden-arch', name: tr('Arche de rosiers', 'Rose arch'), category: 'plants', model: 'garden-arch', mount: 'floor', solid: false, label: () => '1.1' },
   { id: 'butterflies', name: tr('Papillons', 'Butterflies'), category: 'plants', model: 'butterflies', mount: 'floor', solid: false, label: () => '0.6' },
+  {
+    id: 'vine-trellis', name: tr('Treille de vigne', 'Vine trellis'), category: 'plants', model: 'vine-trellis', mount: 'wall',
+    variants: [{ id: '0.9', label: tr('Étroite', 'Narrow') }, { id: '1.6', label: tr('Large', 'Wide') }],
+  },
+  { id: 'hanging-basket', name: tr('Panier suspendu', 'Hanging basket'), category: 'plants', model: 'hanging-basket', mount: 'wall' },
+  {
+    id: 'potted-palm', name: tr('Palmier en pot', 'Potted palm'), category: 'plants', model: 'potted-palm', mount: 'floor',
+    variants: [
+      { id: 'bend', label: tr('Penché', 'Leaning') },
+      { id: 'short', label: tr('Trapu', 'Stocky') },
+      { id: 'fan', label: tr('En éventail', 'Fan') },
+    ],
+  },
+  { id: 'bamboo', name: tr('Bambous', 'Bamboo'), category: 'plants', model: 'bamboo', mount: 'floor' },
+  { id: 'fern', name: tr('Fougère', 'Fern'), category: 'plants', model: 'fern', mount: 'floor' },
+  {
+    id: 'bush', name: tr('Buisson', 'Bush'), category: 'plants', model: 'bush', mount: 'floor',
+    variants: [
+      { id: 'detailed', label: tr('Touffu', 'Leafy') },
+      { id: 'round', label: tr('Rond', 'Round') },
+      { id: 'triangle', label: tr('En cône', 'Cone') },
+    ],
+  },
+  {
+    id: 'wildflowers', name: tr('Fleurs sauvages', 'Wildflowers'), category: 'plants', model: 'wildflowers', mount: 'floor', solid: false,
+    variants: [
+      { id: 'mixed', label: tr('Mélange', 'Mixed') },
+      { id: 'purple', label: tr('Violettes', 'Purple') },
+      { id: 'red', label: tr('Rouges', 'Red') },
+      { id: 'yellow', label: tr('Jaunes', 'Yellow') },
+    ],
+  },
+  { id: 'cactus-bed', name: tr('Massif de cactus', 'Cactus bed'), category: 'plants', model: 'cactus-bed', mount: 'floor' },
+  { id: 'pumpkin-patch', name: tr('Carré de citrouilles', 'Pumpkin patch'), category: 'plants', model: 'pumpkin-patch', mount: 'floor' },
 
   // --- Elite
   {
