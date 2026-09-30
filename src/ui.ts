@@ -2,7 +2,9 @@ import * as THREE from 'three'
 import { formatCredits } from './economy/data'
 import { EN, tr } from './i18n'
 import { icon, type IconName } from './icons'
+import { FACE_CHOICES, HAIR_CHOICES, HAIR_COLOR_CHOICES, PAINT_CHOICES, styleFields, TRIM_CHOICES, type StyleChoice } from './holo-style'
 import { raceOf, RACES, variantsOf, type Look } from './looks'
+import { NO_STYLE, type LookStyle } from '../shared/look-style.js'
 
 export const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
 
@@ -432,6 +434,8 @@ export class WardrobePanel {
   /** Achat en cours, et le refus du dernier achat. */
   private pending = false
   private error = ''
+  /** Onglet : le modèle (espèce, sexe, teinte) ou son style (coiffure, visage, couleurs). */
+  private tab: 'model' | 'style' = 'model'
   rotating = true
   shop?: WardrobeShop
   onChange?: (look: Look) => void
@@ -443,6 +447,7 @@ export class WardrobePanel {
 
   open(look: Look) {
     this.look = { ...look }
+    this.tab = 'model'
     this.rotating = true
     this.pending = false
     this.error = ''
@@ -495,6 +500,13 @@ export class WardrobePanel {
     this.look = next
     this.render()
     this.onChange?.({ ...next })
+  }
+
+  private setStyle(patch: Partial<LookStyle>) {
+    this.error = ''
+    this.look = { ...this.look, style: { ...NO_STYLE, ...this.look.style, ...patch } }
+    this.render()
+    this.onChange?.({ ...this.look })
   }
 
   private cycle(step: number) {
@@ -559,50 +571,104 @@ export class WardrobePanel {
     )
     rotation.setAttribute('aria-pressed', String(!this.rotating))
     rows.push(rotation)
-    rows.push(
-      row(
-        tr('Espèce', 'Species'),
-        ...RACES.map((r) => {
-          const b = button(r.label, r.id === race.id, () => this.set({ race: r.id }), '', r.icon)
-          if (raceLocked(r.id)) b.append(icon('lock-simple', 'wr-lock'))
-          return b
-        }),
-      ),
-    )
-    if (race.sexed) {
-      rows.push(
-        row(
-          tr('Sexe', 'Sex'),
-          button(tr('Femme', 'Female'), this.look.sex === 'female', () => this.set({ sex: 'female' }), '', 'gender-female'),
-          button(tr('Homme', 'Male'), this.look.sex === 'male', () => this.set({ sex: 'male' }), '', 'gender-male'),
-        ),
-      )
+    // Onglet « Style » : seulement pour les Mini Characters (humains, combinaisons, aliens).
+    const fields = styleFields(race.id)
+    if (!fields.length) this.tab = 'model'
+    else {
+      const tabs = document.createElement('div')
+      tabs.className = 'wr-tabs'
+      tabs.setAttribute('role', 'tablist')
+      for (const [id, text, glyph] of [['model', tr('Modèle', 'Model'), 'user'], ['style', tr('Coiffure et couleurs', 'Hair and colours'), 'palette']] as const) {
+        const b = button(text, this.tab === id, () => { this.tab = id; this.render() }, 'wr-tab', glyph)
+        b.setAttribute('role', 'tab')
+        b.setAttribute('aria-selected', String(this.tab === id))
+        tabs.append(b)
+      }
+      rows.push(tabs)
     }
-    const variants = variantsOf(race, this.look.sex)
-    const variant = variants.find((v) => v.id === this.look.variant) ?? variants[0]
-    const name = document.createElement('span')
-    name.className = 'wr-variant'
-    name.textContent = variant.label
-    // Robots, créatures, Gardiens : chaque modèle s'achète.
-    const variantCost = race.tints ? null : price(this.look)
-    if (variantCost !== null) name.append(icon('lock-simple', 'wr-lock'))
-    const prev = button('', false, () => this.cycle(-1), 'wr-arrow', 'caret-left')
-    const next = button('', false, () => this.cycle(1), 'wr-arrow', 'caret-right')
-    prev.title = tr('Modèle précédent', 'Previous model')
-    next.title = tr('Modèle suivant', 'Next model')
-    rows.push(row(tr('Modèle', 'Model'), prev, name, next))
-    if (race.tints) {
+    if (this.tab === 'style') {
+      const style = { ...NO_STYLE, ...this.look.style }
+      /** Pastilles de couleur ; la première (celle d'origine) est barrée. */
+      const swatches = (key: keyof LookStyle, choices: StyleChoice[]) =>
+        choices.map((c) => {
+          const b = button('', style[key] === c.id, () => this.setStyle({ [key]: c.id }), c.swatch ? 'wr-dot' : 'wr-dot wr-dot-none')
+          if (c.swatch) b.style.setProperty('--swatch', c.swatch)
+          b.title = c.label
+          b.setAttribute('aria-label', c.label)
+          return b
+        })
+      if (fields.includes('hair')) {
+        const i = Math.max(0, HAIR_CHOICES.findIndex((c) => c.id === style.hair))
+        const n = HAIR_CHOICES.length
+        const cut = document.createElement('span')
+        cut.className = 'wr-variant'
+        cut.textContent = HAIR_CHOICES[i].label
+        const prevCut = button('', false, () => this.setStyle({ hair: HAIR_CHOICES[(i - 1 + n) % n].id }), 'wr-arrow', 'caret-left')
+        const nextCut = button('', false, () => this.setStyle({ hair: HAIR_CHOICES[(i + 1) % n].id }), 'wr-arrow', 'caret-right')
+        prevCut.title = tr('Coupe précédente', 'Previous haircut')
+        nextCut.title = tr('Coupe suivante', 'Next haircut')
+        rows.push(row(tr('Coiffure', 'Haircut'), prevCut, cut, nextCut))
+      }
+      if (fields.includes('hairColor')) rows.push(row(tr('Cheveux', 'Hair colour'), ...swatches('hairColor', HAIR_COLOR_CHOICES)))
+      if (fields.includes('face')) {
+        rows.push(row(tr('Expression', 'Expression'), ...FACE_CHOICES.map((c) => button(c.label, style.face === c.id, () => this.setStyle({ face: c.id })))))
+      }
+      if (fields.includes('paint')) rows.push(row(tr('Combinaison', 'Suit colour'), ...swatches('paint', PAINT_CHOICES)))
+      if (fields.includes('trim')) rows.push(row(tr('Liserés', 'Trim'), ...swatches('trim', TRIM_CHOICES)))
+      // Sous un casque fermé, la coiffure et le visage ne se voient pas.
+      if (race.tints?.find((t) => t.id === this.look.tint)?.suit?.helmet === 'visor') {
+        const note = document.createElement('div')
+        note.className = 'wr-note'
+        note.textContent = tr('Le casque de cette combinaison cache la coiffure et le visage.', 'This suit\'s helmet hides the haircut and the face.')
+        rows.push(note)
+      }
+    }
+    if (this.tab === 'model') {
       rows.push(
         row(
-          race.tintLabel ?? tr('Teinte', 'Colour'),
-          ...race.tints.map((t) => {
-            const b = button(t.label, t.id === this.look.tint, () => this.set({ tint: t.id }), 'wr-tint')
-            b.style.setProperty('--swatch', t.swatch)
-            // Combinaisons, teintes d'alien : chacune s'achète, pour tous les modèles.
-            return race.id === 'suit' || race.id === 'alien' ? lock(b, price({ ...this.look, tint: t.id })) : b
+          tr('Espèce', 'Species'),
+          ...RACES.map((r) => {
+            const b = button(r.label, r.id === race.id, () => this.set({ race: r.id }), '', r.icon)
+            if (raceLocked(r.id)) b.append(icon('lock-simple', 'wr-lock'))
+            return b
           }),
         ),
       )
+      if (race.sexed) {
+        rows.push(
+          row(
+            tr('Sexe', 'Sex'),
+            button(tr('Femme', 'Female'), this.look.sex === 'female', () => this.set({ sex: 'female' }), '', 'gender-female'),
+            button(tr('Homme', 'Male'), this.look.sex === 'male', () => this.set({ sex: 'male' }), '', 'gender-male'),
+          ),
+        )
+      }
+      const variants = variantsOf(race, this.look.sex)
+      const variant = variants.find((v) => v.id === this.look.variant) ?? variants[0]
+      const name = document.createElement('span')
+      name.className = 'wr-variant'
+      name.textContent = variant.label
+      // Robots, créatures, Gardiens : chaque modèle s'achète.
+      const variantCost = race.tints ? null : price(this.look)
+      if (variantCost !== null) name.append(icon('lock-simple', 'wr-lock'))
+      const prev = button('', false, () => this.cycle(-1), 'wr-arrow', 'caret-left')
+      const next = button('', false, () => this.cycle(1), 'wr-arrow', 'caret-right')
+      prev.title = tr('Modèle précédent', 'Previous model')
+      next.title = tr('Modèle suivant', 'Next model')
+      rows.push(row(tr('Modèle', 'Model'), prev, name, next))
+      if (race.tints) {
+        rows.push(
+          row(
+            race.tintLabel ?? tr('Teinte', 'Colour'),
+            ...race.tints.map((t) => {
+              const b = button(t.label, t.id === this.look.tint, () => this.set({ tint: t.id }), 'wr-tint')
+              b.style.setProperty('--swatch', t.swatch)
+              // Combinaisons, teintes d'alien : chacune s'achète, pour tous les modèles.
+              return race.id === 'suit' || race.id === 'alien' ? lock(b, price({ ...this.look, tint: t.id })) : b
+            }),
+          ),
+        )
+      }
     }
     // Apparence payante qu'on n'a pas : son prix, et l'achat à la place de « Valider ».
     const cost = price(this.look)

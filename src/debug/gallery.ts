@@ -13,6 +13,9 @@
 // Avec ?mechanic : Nico, le mécano du hangar, et le Mini Character dont il est fait (mêmes options que ?nurse).
 // Avec ?nurse : Betty, l'infirmière, à côté du modèle d'origine (&walk : en marche ; &emote=interact ;
 // &cam=0,0.3,1&target=0,0.1,0&zoom=0.5 : de face, de près).
+// Avec ?holo : les styles du Holo-Me (cf. src/holo-style.ts) : &looks=human.female.b.mo-pk-sm--,… (par
+// défaut : chaque coupe sur un même modèle), &style=--sm-- : ce style sur toutes, &play=joie : une emote
+// en boucle (son expression). window.snap() rend l'image (PNG en data URL).
 import * as THREE from 'three'
 import { preload, station, STATION_MODELS, type StationModel } from '../assets'
 import { Avatar, SALUTE } from '../avatar'
@@ -27,6 +30,7 @@ import { ThargoidBody, type ThargoidMood } from '../salvage/thargoid'
 import { nurseRig } from '../nurse'
 import { mechanicRig } from '../mechanic'
 import { Plasters } from '../infirmary'
+import { HAIR_STYLES } from '../../shared/look-style.js'
 
 const renderer = new THREE.WebGLRenderer({ antialias: true })
 renderer.setSize(innerWidth, innerHeight)
@@ -65,6 +69,17 @@ function label(text: string): THREE.Sprite {
   return s
 }
 
+// window.snap(w, h) : l'image, à une taille donnée (la page peut être cachée, de taille nulle).
+;(window as unknown as { snap: (w?: number, h?: number) => string }).snap = (w = 1200, h = 800) => {
+  renderer.setPixelRatio(1)
+  renderer.setSize(w, h, false)
+  cam.left = -ZOOM * (w / h)
+  cam.right = ZOOM * (w / h)
+  cam.updateProjectionMatrix()
+  renderer.render(scene, cam)
+  return renderer.domElement.toDataURL('image/png')
+}
+
 await preload([], () => {})
 if (params.has('catalogue')) showCatalogue()
 else if (params.has('revetements')) showFinishes()
@@ -73,7 +88,46 @@ else if (params.has('nurse')) await showNurse()
 else if (params.has('mechanic')) await showNurse(true)
 else if (params.has('emote')) await showEmote(params.get('emote')!)
 else if (params.has('thargoid')) await showThargoid()
+else if (params.has('holo')) await showHolo()
 else showModels()
+
+/** Styles du Holo-Me côte à côte, en grille. */
+async function showHolo() {
+  const base = params.get('base') ?? 'human.female.b'
+  const style = params.get('style')
+  const looks = (params.get('looks')?.split(',') ?? HAIR_STYLES.map((h) => `${base}.${h}----`)).map((id) => (style ? `${id.split('.').filter((p) => !p.includes('-')).join('.')}.${style}` : id))
+  const avatars: Avatar[] = []
+  const play = params.get('play')
+  for (const [i, id] of looks.entries()) {
+    const a = new Avatar(await lookRig(parseLook(id)))
+    a.root.position.set(((i % COLS) - (COLS - 1) / 2) * 0.8, -Math.floor(i / COLS) * 1.1, 0)
+    scene.add(a.root)
+    avatars.push(a)
+    const l = label(id.split('.').slice(-2).join('.'))
+    l.scale.multiplyScalar(0.35)
+    l.position.set(a.root.position.x, a.root.position.y - 0.08, 0.4)
+    scene.add(l)
+  }
+  const clock = new THREE.Timer()
+  // Avance les animations de `t` secondes (une page cachée n'a pas d'images d'animation).
+  ;(window as unknown as { tick: (t: number) => void }).tick = (t) => {
+    for (let k = 0; k < t * 30; k++) for (const a of avatars) {
+      if (play && !a.emoteId) a.playEmote(play)
+      a.update(1 / 30)
+    }
+  }
+  function frame() {
+    clock.update()
+    const dt = Math.min(clock.getDelta(), 0.05)
+    for (const a of avatars) {
+      if (play && !a.emoteId) a.playEmote(play)
+      a.update(dt)
+    }
+    renderer.render(scene, cam)
+    requestAnimationFrame(frame)
+  }
+  frame()
+}
 
 /** Betty, l'infirmière (cf. src/nurse.ts), et le Mini Character dont elle est faite. */
 async function showNurse(mechanic = false) {

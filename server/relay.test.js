@@ -164,6 +164,17 @@ describe('identité', () => {
     assert.equal(p.skin, 'robot.g')
   })
 
+  test('le style du Holo-Me passe, une valeur inconnue est refusée', async () => {
+    const socket = client({ auth: { skin: 'suit.female.b.artemis.po-pk-sm-nv-yl' } })
+    await welcome(socket)
+    socket.emit('profile', { name: 'CMDR Style', skin: 'human.male.c.mo-rx-se--' })
+    assert.equal((await once(socket, 'profile'))[0].skin, 'human.male.c.mo-rx-se--')
+    for (const skin of ['human.male.c.mo-zz-se--', 'human.male.c.mo-rx', 'human.male.c.----', 'human.male.c.mo-rx-se--.x']) {
+      socket.emit('profile', { name: 'CMDR Style', skin })
+      assert.equal((await once(socket, 'profile'))[0].skin, 'human.male.c.mo-rx-se--', skin)
+    }
+  })
+
   test('en WebSocket direct aussi, le cookie de la poignée de main identifie le CMDR', async () => {
     const w = await welcome(client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-adam', transports: ['websocket'] }))
     assert.equal(w.you.verified, true)

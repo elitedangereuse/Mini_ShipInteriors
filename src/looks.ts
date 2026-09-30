@@ -1,14 +1,19 @@
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { rig, type Rig } from './assets'
+import type { FaceControl } from './avatar'
+import { applyStyle, paintSuit, styleFor } from './holo-style'
 import { tr } from './i18n'
 import type { IconName } from './icons'
 import { recolored } from './recolor'
+import { isStyleSegment, parseStyle, styleSegment, type LookStyle } from '../shared/look-style.js'
 
 /**
  * Catalogue des apparences proposées par la garde-robe.
  * Une apparence s'écrit sous forme de chaîne (« human.female.b », « suit.male.c.artemis »,
  * « alien.male.c.blue », « robot.g »…) : c'est ce qui est sauvegardé et envoyé aux autres joueurs.
+ * Le style du Holo-Me (coiffure, expression, couleurs : cf. holo-style.ts) s'y ajoute en dernier
+ * segment, s'il y en a un : « human.female.b.mo-pk-sm-- ».
  */
 
 export type RaceId = 'human' | 'suit' | 'alien' | 'robot' | 'creature' | 'guardian'
@@ -19,6 +24,8 @@ export interface Look {
   sex: Sex
   variant: string
   tint: string
+  /** Coiffure, expression, couleurs (Mini Characters seulement) ; absent : tout comme le modèle. */
+  style?: LookStyle
 }
 
 interface Choice {
@@ -59,6 +66,8 @@ interface Tint extends Choice {
   /** Alien : rotation de teinte de toute la texture. */
   hue?: number
   suit?: SuitStyle
+  /** Combinaison : où commencent les liserés dans son dégradé (pour la repeindre). */
+  trimAt?: number
 }
 
 export interface Race {
@@ -93,6 +102,7 @@ export const RACES: Race[] = [
         id: 'flight',
         label: tr('Vol', 'Flight'),
         swatch: '#e07b2c',
+        trimAt: 0.86,
         suit: {
           ramp: [[0, '#101216'], [0.45, '#262a33'], [0.8, '#474d59'], [0.87, '#d9742a'], [1, '#ff9f55']],
           glove: '#2a2e37',
@@ -106,6 +116,7 @@ export const RACES: Race[] = [
         id: 'maverick',
         label: 'Maverick',
         swatch: '#f0a23a',
+        trimAt: 0.9,
         suit: {
           ramp: [[0, '#1c1a17'], [0.3, '#3a3630'], [0.5, '#b8741f'], [0.8, '#e89a32'], [1, '#ffd27a']],
           glove: '#3a3630',
@@ -119,6 +130,7 @@ export const RACES: Race[] = [
         id: 'dominator',
         label: 'Dominator',
         swatch: '#c8302c',
+        trimAt: 0.86,
         suit: {
           ramp: [[0, '#0a0b0e'], [0.45, '#1c1f25'], [0.8, '#383d47'], [0.87, '#b3221f'], [1, '#ff4a3a']],
           glove: '#1c1f25',
@@ -132,6 +144,7 @@ export const RACES: Race[] = [
         id: 'artemis',
         label: 'Artemis',
         swatch: '#dfe8f2',
+        trimAt: 0.89,
         suit: {
           ramp: [[0, '#2e3945'], [0.3, '#76869a'], [0.55, '#cfd8e2'], [0.87, '#f2f6fa'], [0.9, '#3fb8e8'], [1, '#8fdcff']],
           glove: '#aab6c4',
@@ -210,6 +223,8 @@ export function lookId(l: Look): string {
   if (race.sexed) parts.push(l.sex)
   parts.push(l.variant)
   if (race.tints) parts.push(l.tint)
+  const style = styleSegment(styleFor(race.id, l.style))
+  if (style) parts.push(style)
   return parts.join('.')
 }
 
@@ -218,6 +233,8 @@ export function parseLook(id: string | null | undefined): Look {
   if (!id) return { ...DEFAULT_LOOK }
   const legacy = /^(female|male)-([a-f])$/.exec(id)
   const parts = legacy ? ['human', legacy[1], legacy[2]] : id.split('.')
+  // Le style, s'il y en a un, est le dernier segment (un style inconnu est ignoré).
+  const style = isStyleSegment(parts[parts.length - 1]) ? parseStyle(parts.pop()!) : null
   const race = RACES.find((r) => r.id === parts[0])
   if (!race) return { ...DEFAULT_LOOK }
   const look: Look = { ...DEFAULT_LOOK, race: race.id, tint: race.tints?.[0].id ?? DEFAULT_LOOK.tint }
@@ -230,6 +247,7 @@ export function parseLook(id: string | null | undefined): Look {
   look.variant = variants.some((v) => v.id === parts[i]) ? parts[i] : variants[0].id
   i++
   if (race.tints?.some((t) => t.id === parts[i])) look.tint = parts[i]
+  if (style && styleSegment(styleFor(race.id, style))) look.style = styleFor(race.id, style)
   return look
 }
 
@@ -251,6 +269,9 @@ interface ModelSpec {
   antennae?: boolean
   suit?: SuitStyle
   guardian?: GuardianStyle
+  /** Mini Character coiffé au Holo-Me : son modèle (« female-b ») et son style. */
+  mini?: string
+  style?: LookStyle
 }
 
 const GUARDIAN_MODELS: Record<string, string> = { a: 'g', b: 'h', c: 'd', s: 'o' }
@@ -294,16 +315,26 @@ const GUARDIAN_STYLES: Record<string, GuardianStyle> = {
   },
 }
 
+/** Combinaisons repeintes au Holo-Me (une par teinte et couleurs : les matériaux se partagent). */
+const paintedSuits = new Map<string, SuitStyle>()
+function suitOf(tint: Tint, style: LookStyle): SuitStyle {
+  const key = `${tint.id}|${style.paint}|${style.trim}`
+  let s = paintedSuits.get(key)
+  if (!s) paintedSuits.set(key, (s = paintSuit(tint.suit!, tint.trimAt ?? 0.87, style.paint, style.trim)))
+  return s
+}
+
 function spec(l: Look): ModelSpec {
   const race = raceOf(l)
   const tint = race.tints?.find((t) => t.id === l.tint)
+  const mini = { path: `characters/character-${l.sex}-${l.variant}.glb`, height: 0.67, mini: `${l.sex}-${l.variant}`, style: styleFor(race.id, l.style) }
   switch (race.id) {
     case 'human':
-      return { path: `characters/character-${l.sex}-${l.variant}.glb`, height: 0.67 }
+      return mini
     case 'suit':
-      return { path: `characters/character-${l.sex}-${l.variant}.glb`, height: 0.67, suit: (tint ?? race.tints![0]).suit }
+      return { ...mini, suit: suitOf(tint ?? race.tints![0], mini.style) }
     case 'alien':
-      return { path: `characters/character-${l.sex}-${l.variant}.glb`, height: 0.67, hue: tint?.hue ?? 95, antennae: true }
+      return { ...mini, hue: tint?.hue ?? 95, antennae: true }
     case 'robot':
       return { path: `blocky/character-${l.variant}.glb`, height: 0.72 }
     case 'creature':
@@ -320,6 +351,8 @@ export function lookPath(l: Look): string {
 export interface LookRig extends Rig {
   /** Hauteur du personnage (pour placer les bulles au-dessus de la tête). */
   height: number
+  /** Visage des Mini Characters : les emotes y jouent une expression. */
+  face?: FaceControl
 }
 
 /** Rotation de teinte (aliens) : les gris (yeux, dents, métal) restent neutres, le reste pivote et gagne un peu en saturation. */
@@ -653,8 +686,10 @@ async function buildRig(s: ModelSpec): Promise<LookRig> {
     else if (s.suit && m.name === 'body-mesh') retexture(m, cache, (t) => suitTexture(t, s.suit!))
     else if (s.guardian && (m.material as THREE.MeshLambertMaterial).map) retexture(m, cache, (t) => guardianTexture(t, s.guardian!))
   })
+  // Coiffure et visage d'abord : le casque se taille sur la tête coiffée.
+  const face = s.mini && s.style ? await applyStyle(r.root, s.mini, s.style, s.suit?.helmet === 'visor') : undefined
   if (s.antennae) addAntennae(r.root)
   if (s.suit) addSuitGear(r.root, s.suit)
   if (s.guardian) addGuardianGear(r.root, s.guardian)
-  return { ...r, height: s.height + (s.suit && s.suit.helmet !== 'none' ? 0.05 : 0) + (s.guardian ? 0.08 : 0) }
+  return { ...r, face, height: s.height + (s.suit && s.suit.helmet !== 'none' ? 0.05 : 0) + (s.guardian ? 0.08 : 0) }
 }
