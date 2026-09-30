@@ -1,3 +1,4 @@
+import { ECONOMY, type JobKind } from './data'
 import { clock } from './schedule'
 import type { WingId } from '../../shared/cabin-wings.js'
 
@@ -25,7 +26,7 @@ export type Refusal = 'funds' | 'max' | 'owned' | 'claimed' | 'expired' | 'inact
 export type Outcome = { ok: true; earned: number } | { ok: false; reason: Refusal }
 
 /** D'où viennent des crédits gagnés. */
-export type GainKind = 'passive' | 'task' | 'arcade' | 'site'
+export type GainKind = 'passive' | 'task' | 'job' | 'arcade' | 'site'
 
 interface Reply {
   status?: string
@@ -40,6 +41,12 @@ interface Reply {
 /** Délais des nouveaux essais quand le site ne répond pas (en secondes), puis le dernier en boucle. */
 const RETRY = [15, 30, 60, 120, 300]
 
+/** Attend l'heure `t` (ms, horloge de l'appareil) si elle n'est pas encore passée. */
+async function waitUntil(t: number): Promise<void> {
+  const wait = t - Date.now()
+  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait))
+}
+
 export class Wallet {
   state: WalletState = 'loading'
   balance = 0
@@ -53,6 +60,14 @@ export class Wallet {
   readonly tasks = new Map<string, number>()
   /** Des crédits viennent d'être gagnés (le solde est déjà à jour). */
   onGain?: (amount: number, kind: GainKind) => void
+  /** Le revenu passif du jour est entièrement versé (cf. `passive.daily`) : prévenu une fois. */
+  onPassiveCap?: () => void
+  private passiveCapped = false
+  /** Heure (ms) de la dernière tâche payée : le site veut `taskRules.minGap` secondes entre deux. */
+  private lastTask = 0
+  /** Heure (ms) de la commande en cours, et de la dernière paie, de chaque travail (cf. finishJob). */
+  private readonly jobStarted = new Map<JobKind, number>()
+  private readonly jobPaid = new Map<JobKind, number>()
   private listeners = new Set<() => void>()
   private loading: Promise<void> | null = null
   private retries = 0
@@ -117,7 +132,14 @@ export class Wallet {
   async passive(): Promise<void> {
     if (!this.ready) return
     const reply = await this.request('POST', { action: 'passive' })
-    if (reply?.status === 'success') this.credit(reply, 'passive')
+    if (reply?.status === 'success') {
+      // Un nouveau jour : le plafond est reparti.
+      this.passiveCapped = false
+      this.credit(reply, 'passive')
+    } else if (reply?.error === 'max' && !this.passiveCapped) {
+      this.passiveCapped = true
+      this.onPassiveCap?.()
+    }
   }
 
   /** Tâche réglée : le site vérifie qu'elle était là, et la paie une fois. */
@@ -127,6 +149,11 @@ export class Wallet {
     // Réglée ici, tout de suite : elle ne réapparaît pas pendant la réponse.
     const before = this.tasks.get(spot)
     this.tasks.set(spot, Math.max(before ?? -1, cycle))
+    // Deux tâches voisines, réglées coup sur coup : la seconde attend son tour plutôt qu'un refus.
+    // Le créneau est réservé tout de suite : une troisième tâche prend le suivant.
+    const slot = Math.max(Date.now(), this.lastTask + (ECONOMY.taskRules.minGap + 0.5) * 1000)
+    this.lastTask = slot
+    await waitUntil(slot)
     const reply = await this.request('POST', { action: 'task', spot, cycle })
     if (reply?.status === 'success') {
       this.credit(reply, 'task')
@@ -134,11 +161,45 @@ export class Wallet {
     }
     const reason = this.refusal(reply)
     // Pas payée (site injoignable, tâche finie entre-temps) : on peut réessayer tant qu'elle est là.
-    if (reason !== 'claimed' && this.tasks.get(spot) === cycle) {
+    // Plafond du jour atteint : elle reste réglée, sans paie (la réessayer n'y changerait rien).
+    if (reason !== 'claimed' && reason !== 'max' && this.tasks.get(spot) === cycle) {
       if (before === undefined) this.tasks.delete(spot)
       else this.tasks.set(spot, before)
     }
     return { ok: false, reason }
+  }
+
+  /**
+   * Commande prise au rail de Marcel, révision demandée à Nico : le site note l'heure. Il ne paiera
+   * le travail qu'après `minTime` secondes (cf. finishJob) ; un invité n'est pas suivi.
+   */
+  startJob(job: JobKind) {
+    if (!this.ready) return
+    this.jobStarted.set(job, Date.now())
+    void this.request('POST', { action: 'job', job, phase: 'start' })
+  }
+
+  /**
+   * Plat envoyé, révision finie : le site vérifie la commande et ses délais, puis paie. Le jeu
+   * attend lui-même la fin des délais (`minTime` depuis la commande, `minGap` depuis la paie
+   * précédente) : un joueur rapide est payé quelques secondes plus tard, jamais refusé.
+   */
+  async finishJob(job: JobKind): Promise<Outcome> {
+    if (this.state === 'guest') return { ok: false, reason: 'guest' }
+    if (!this.ready) return { ok: false, reason: 'offline' }
+    const started = this.jobStarted.get(job)
+    if (started === undefined) return { ok: false, reason: 'inactive' }
+    this.jobStarted.delete(job)
+    const rules = ECONOMY[job]
+    // Une seconde de marge : l'heure du site n'est connue qu'à la seconde près.
+    await waitUntil(Math.max(started + (rules.minTime + 1) * 1000, (this.jobPaid.get(job) ?? 0) + (rules.minGap + 1) * 1000))
+    const reply = await this.request('POST', { action: 'job', job, phase: 'done' })
+    if (reply?.status === 'success') {
+      this.jobPaid.set(job, Date.now())
+      this.credit(reply, 'job')
+      return { ok: true, earned: Number(reply.earned) || 0 }
+    }
+    return { ok: false, reason: this.refusal(reply) }
   }
 
   /** Débloque un objet des quartiers ; il pourra ensuite être posé plusieurs fois. */
@@ -186,7 +247,7 @@ export class Wallet {
     this.credit(credits, 'arcade')
   }
 
-  site(credits: { earned: number; balance: number }) {
+  site(credits: { earned: number; balance?: number }) {
     this.credit(credits, 'site')
   }
 

@@ -17,8 +17,9 @@ import { CHEF_COOK, CHEF_ROOM } from '../shared/chef.js'
  * cf. shared/chef.js) et annonce la recette. Chaque étape a son poste (frigo, garde-manger, plan
  * de travail, fourneau, plonge, passe), marqué d'un hexagone cyan : on y va, on s'y met quelques
  * secondes (la même jauge que les tâches de bord), Marcel commente, et l'étape suivante
- * s'allume. Dressée à la passe, l'assiette part en salle. Les commandes ne rapportent pas encore
- * de crédits : seul le nombre de plats envoyés est gardé, dans ce navigateur.
+ * s'allume. Dressée à la passe, l'assiette part en salle, et le site paie le plat (prime et plafonds :
+ * `kitchen` dans economy.json, cf. Wallet.finishJob). Le nombre de plats envoyés est gardé dans ce
+ * navigateur.
  *
  * Plateaux : au début du self, on prend un plateau garni du menu du jour (Marcel souhaite bon
  * appétit) ; on le porte à deux mains jusqu'à une table de cantine, il se pose devant soi, et on
@@ -230,6 +231,11 @@ export interface KitchenHost {
   chefSays: (text: string) => void
   /** On cuisine avec le chef (à chaque étape), ou on a fini : le relais et le chef le savent. */
   cook: (on: boolean) => void
+  /** Prime d'un plat, écrite sur le bon (« +600 CR »). */
+  reward: string
+  /** Commande prise, puis plat envoyé : le site note l'heure, puis paie le plat. */
+  ordered: () => void
+  sent: () => void
   /** Se met à l'ouvrage (cf. startWork dans main.ts) ; false si le joueur est occupé ailleurs. */
   work: (job: {
     at: THREE.Vector3
@@ -344,6 +350,7 @@ export class Kitchen {
     const table = 1 + Math.floor(Math.random() * 2)
     this.order = { recipe, step: 0, table, idle: 0, away: 0 }
     host.cook(true)
+    host.ordered()
     const intro = recipe.intro.replace('{table}', String(table))
     const first = this.served ? '' : tr(' Passe derrière le comptoir, par le côté.', ' Come round behind the counter, by the side.')
     host.show(tr(`${CHEF} : « ${intro}${first} »`, `${CHEF}: “${intro}${first}”`))
@@ -424,6 +431,7 @@ export class Kitchen {
       : tr(`${this.served} plats envoyés avec Marcel.`, `${this.served} dishes sent out with Marcel.`)
     this.host.show(`${o.recipe.dish} · ${line} ${count}`)
     this.host.chefSays(tr('Service !', 'Service!'))
+    this.host.sent()
   }
 
   /** Commande abandonnée (parti trop loin, ou trop longtemps sans rien faire). */
@@ -443,7 +451,7 @@ export class Kitchen {
     el.replaceChildren()
     const head = document.createElement('div')
     head.className = 'ot-head'
-    head.textContent = tr(`Table ${o.table}`, `Table ${o.table}`)
+    head.textContent = tr(`Table ${o.table} · ${this.host.reward}`, `Table ${o.table} · ${this.host.reward}`)
     const dish = document.createElement('div')
     dish.className = 'ot-dish'
     dish.textContent = o.recipe.dish

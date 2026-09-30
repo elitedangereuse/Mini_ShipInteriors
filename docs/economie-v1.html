@@ -1,0 +1,345 @@
+<title>Économie de bord V1.0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Mise en page : un rapport en une colonne (72rem), façon fiche de bord ; tableaux défilants, graphique pleine largeur. */
+:root {
+  --bg: #f2f4f6; --surface: #ffffff; --fg: #14181d; --muted: #58616c; --line: #d6dce2; --soft: #e9edf1;
+  --accent: #b85c00; --accent-soft: #fbead6;
+  --good: #1d7a3e; --good-bg: #e2f3e8; --warn: #946000; --warn-bg: #fbf0d4; --bad: #b3261e; --bad-bg: #fbe3e1;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1115; --surface: #161a20; --fg: #e7eaee; --muted: #9ba4af; --line: #2b313a; --soft: #1d222a;
+  --accent: #ff9a2e; --accent-soft: #3a2710;
+  --good: #5cc98a; --good-bg: #13301f; --warn: #f0b93a; --warn-bg: #352a0e; --bad: #ff8a80; --bad-bg: #3a1614;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #0e1115; --surface: #161a20; --fg: #e7eaee; --muted: #9ba4af; --line: #2b313a; --soft: #1d222a;
+  --accent: #ff9a2e; --accent-soft: #3a2710;
+  --good: #5cc98a; --good-bg: #13301f; --warn: #f0b93a; --warn-bg: #352a0e; --bad: #ff8a80; --bad-bg: #3a1614;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; color-scheme: dark;
+}
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font: 15px/1.6 var(--body); padding-inline: 16px; padding-block: 32px 64px }
+main { max-width: 72rem; margin: 0 auto; display: grid; gap: 48px }
+h1, h2, h3 { font-family: var(--display); line-height: 1.15; text-wrap: balance; margin: 0 }
+h1 { font-size: clamp(2rem, 5vw, 3rem); font-weight: 700; letter-spacing: .01em }
+h2 { font-size: 1.5rem; font-weight: 600; display: flex; align-items: baseline; gap: 12px }
+h2 .tag { font: 500 .75rem var(--mono); color: var(--accent); letter-spacing: .08em }
+h3 { font-size: 1.05rem; font-weight: 600 }
+p { margin: 0; max-width: 68ch }
+.kicker { font: 600 .75rem var(--display); letter-spacing: .18em; text-transform: uppercase; color: var(--accent) }
+header { display: grid; gap: 12px; border-bottom: 2px solid var(--accent); padding-bottom: 24px }
+header .meta { color: var(--muted); font-size: .9rem }
+section { display: grid; gap: 16px; min-width: 0 }
+.lead { color: var(--muted) }
+code, .num { font-family: var(--mono); font-size: .85em }
+.num, td.n, th.n { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap }
+.verdicts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px }
+@media (min-width: 1100px) { .verdicts { grid-template-columns: repeat(4, minmax(0, 1fr)) } }
+@media (max-width: 600px) { .verdicts { grid-template-columns: 1fr } }
+.verdict { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 16px; display: grid; gap: 8px; align-content: start }
+.chip { display: inline-flex; align-items: center; gap: 6px; font: 600 .72rem var(--display); letter-spacing: .08em; text-transform: uppercase; padding: 2px 8px; border-radius: 3px; width: fit-content }
+.chip.good { color: var(--good); background: var(--good-bg) } .chip.warn { color: var(--warn); background: var(--warn-bg) } .chip.bad { color: var(--bad); background: var(--bad-bg) }
+.chip.muted { color: var(--muted); background: var(--soft) }
+.scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface) }
+table { border-collapse: collapse; width: 100%; font-size: .88rem }
+th, td { padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left }
+th { font: 600 .72rem var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); background: var(--soft); white-space: nowrap }
+tr:last-child td { border-bottom: 0 }
+td small { color: var(--muted); display: block; font-size: .8rem }
+td code { color: var(--muted); font-size: .76rem; white-space: nowrap }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; align-items: start }
+.cols > * { min-width: 0 }
+.chart-box { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 16px; display: grid; gap: 12px; min-width: 0 }
+.toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden }
+.seg button { font: 600 .8rem var(--display); letter-spacing: .04em; background: transparent; color: var(--muted); border: 0; padding: 6px 12px; cursor: pointer }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface) }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: .82rem; color: var(--muted) }
+.legend span { display: inline-flex; align-items: center; gap: 6px }
+.legend i { width: 12px; height: 12px; border-radius: 2px; display: inline-block }
+svg text { fill: var(--muted); font: 12px var(--body) }
+svg .lbl { fill: var(--fg); font-weight: 500 }
+svg .val { fill: var(--muted); font: 11px var(--mono) }
+svg .grid { stroke: var(--line); stroke-width: 1 }
+.tip { position: fixed; pointer-events: none; background: var(--fg); color: var(--bg); font-size: .8rem; padding: 6px 10px; border-radius: 4px; max-width: 260px; z-index: 5 }
+ol.adjust { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; counter-reset: a }
+ol.adjust li { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 16px; display: grid; gap: 6px; counter-increment: a }
+ol.adjust li h3::before { content: counter(a) ". "; color: var(--accent) }
+.where { font: 500 .72rem var(--mono); color: var(--muted) }
+.effect { color: var(--muted); font-size: .92rem }
+.effect b { color: var(--fg); font-weight: 600 }
+ul.plain { margin: 0; padding-left: 20px; display: grid; gap: 6px }
+.note { font-size: .85rem; color: var(--muted) }
+@media (prefers-reduced-motion: no-preference) { svg rect.bar { transition: width .35s ease } }
+</style>
+
+<main>
+<header>
+  <span class="kicker">Mini ShipInteriors · Chantier V1.0 · Économie</span>
+  <h1>Économie de bord V1.0</h1>
+  <p class="lead">Un CMDR peut-il se payer les extensions de ses quartiers et le catalogue avec les activités du bord, sans chemin de farm trop rentable ni progression trop lente ? Relevé fait sur le code de la branche <code>ptr</code> (à jour d'<code>origin/main</code>) le 30 septembre 2026. Les ajustements de la fin de page sont appliqués dans la branche <code>feature/economie-v1</code> ; les plafonds attendent le code du site.</p>
+  <p class="meta">Rythme de référence : <b>1 h de jeu par jour</b>, joueur moyen (pas optimal). Prime de bienvenue de 30 000 CR incluse dans les temps.</p>
+</header>
+
+<section aria-labelledby="bref">
+  <h2 id="bref">En bref</h2>
+  <div class="verdicts">
+    <div class="verdict"><span class="chip good">✓ Bien calibré</span><h3>Passif + tâches de bord</h3><p>15 à 24 k CR/h. Première extension en 3 à 5 h, les trois en 34 à 54 h (5 à 8 semaines à 1 h par jour). Un animal ou un souvenir en moins de 2 h.</p></div>
+    <div class="verdict"><span class="chip bad">✕ Trop rentable</span><h3>Zone thargoïde</h3><p>Aucun plafond dans ce dépôt, et chaque membre touche la prime entière. Une escouade de 4 en 6 colis / 6 ennemis gagne ~160 k CR/h, soit 7 fois les tâches : les trois extensions en 5 h.</p></div>
+    <div class="verdict"><span class="chip warn">! À verrouiller côté site</span><h3>Farm sans bouger</h3><p>Revenu passif (144 k/jour fenêtre ouverte 24 h/24) et tâches (36 k/h réclamables par script, sans se déplacer) : seuls les plafonds du PHP de Michael peuvent les borner. Inconnus d'ici.</p></div>
+    <div class="verdict"><span class="chip good">✓ Désormais payés</span><h3>Cuisine de Marcel, révisions de Nico</h3><p>Relevé : ni les plats ni les révisions ne payaient. Désormais 600 CR par plat (12 par jour) et 800 CR par révision (8 par jour), soit 13 600 CR par jour au plus.</p></div>
+  </div>
+</section>
+
+<section aria-labelledby="chart-h">
+  <h2 id="chart-h">Heures de jeu pour atteindre un achat <span class="tag">DEPUIS UN COMPTE NEUF</span></h2>
+  <p class="lead">Temps de jeu pour réunir la somme, prime de départ de 30 000 CR déduite. Quatre profils de joueur ; « Avec les ajustements » applique les changements de la fin de page : la zone thargoïde est plafonnée, et l'Équipage fait aussi les plats de Marcel et les révisions de Nico (à 1 h par jour, les autres plafonds ne mordent pas).</p>
+  <div class="chart-box">
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Valeurs">
+        <button type="button" id="mode-now" aria-pressed="true">Valeurs actuelles</button>
+        <button type="button" id="mode-new" aria-pressed="false">Avec les ajustements</button>
+      </div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="scroll" style="border:0"><svg id="chart" role="img" aria-label="Heures de jeu par achat et par profil"></svg></div>
+    <p class="note">Survolez une barre pour le détail. À 1 h par jour, une heure de jeu = un jour.</p>
+  </div>
+  <div class="scroll"><table id="hours-table"></table></div>
+</section>
+
+<section aria-labelledby="profils">
+  <h2 id="profils">Gain par heure, par profil</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Profil</th><th>Ce qu'il fait en 1 h</th><th class="n">Actuel</th><th class="n">Ajusté</th></tr></thead>
+    <tbody>
+      <tr><td><b>Flâneur</b></td><td>Revenu passif, et un quart des tâches qui apparaissent (celles qu'il croise).<small>6 000 + 25 % × 36 400</small></td><td class="n">15 100</td><td class="n">15 100</td></tr>
+      <tr><td><b>Équipage</b></td><td>Passif, et une tournée des trois ponts tous les quarts d'heure : la moitié des tâches.<small>6 000 + 50 % × 36 400. Ajusté : 40 min de plats et de révisions (13 600) puis 20 min de tâches.</small></td><td class="n">24 200</td><td class="n">29 000</td></tr>
+      <tr><td><b>Zone thargoïde, solo</b></td><td>Missions de 3 colis / 2 ennemis, ~6 min lobby compris, 3 sur 4 réussies.<small>Actuel : 10 × 0,75 × 6 800 + passif. Ajusté : 5 missions payées (3 900) puis tâches.</small></td><td class="n">57 000</td><td class="n">31 600</td></tr>
+      <tr><td><b>Escouade de 4</b></td><td>6 colis / 6 ennemis, ~6 min par mission (1,5 colis chacun), une sur deux réussie. Chaque membre touche la prime entière.<small>Actuel : 10 × 0,5 × 31 500 + passif. Ajusté : 5 × 15 000 + passif.</small></td><td class="n">163 500</td><td class="n">81 000</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">Les durées de mission sont estimées : trajets sas → colis de 20 à 39 tuiles (moyenne 28, calculée sur 200 baies générées par <code>generateZone</code>), marche 1,7 t/s, porteur × 0,62. Les vraies durées sont dans les journaux du relais (<code>[salvage] mission … n/n colis en X s</code>) : à relever après la soirée de test de charge.</p>
+  <p class="note">Hors profils : l'arcade paie une fois chaque palier franchi. Un joueur moyen passe 4 ou 5 paliers par borne (~19 000 CR), soit ~76 000 CR sur ses premières heures d'arcade ; le maximum est 364 000 CR.</p>
+</section>
+
+<section aria-labelledby="sources">
+  <h2 id="sources">Sources de crédits <span class="tag">RELEVÉ DU CODE</span></h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Source</th><th class="n">Gain unitaire</th><th>Durée</th><th>Plafonds et délais (dans ce dépôt)</th><th>Validé côté site (PHP)</th><th class="n">CR/h estimés</th></tr></thead>
+    <tbody>
+      <tr><td><b>Prime de bienvenue</b><code>economy.json:2</code></td><td class="n">30 000</td><td>une fois</td><td>À la création du compte.</td><td>Site</td><td class="n">—</td></tr>
+      <tr><td><b>Revenu passif</b><code>economy.json:3 · main.ts:3473-3478 · wallet.ts:117</code></td><td class="n">100 / min</td><td>battement de 60 s</td><td>Fenêtre visible et une action dans les 15 dernières minutes. <code>minGap</code> 50 s, <code>maxGap</code> 120 s. Pas de plafond journalier.</td><td>Le site paie le temps écoulé. Sens exact de minGap/maxGap et plafond journalier : <b>inconnus</b>.</td><td class="n">6 000</td></tr>
+      <tr><td><b>Tâches de bord</b> (12 types, 43 emplacements)<code>economy.json:89-141 · schedule.ts:44-58 · wallet.ts:124</code></td><td class="n">300 à 1 500</td><td>geste de 1,2 à 3,5 s + trajet</td><td>Chaque emplacement a une apparition toutes les 8 à 30 min (<code>period</code>), active avec une probabilité de 30 à 50 % : 64 apparitions par heure, ~18 présentes à tout instant (~11 000 CR en arrivant à bord). Une par apparition et par CMDR.</td><td>Le site refait le calcul du calendrier et paie une fois (<code>claimed</code>). Il ne peut pas savoir où est le joueur. Plafond journalier, délai entre deux tâches : <b>inconnus</b>.</td><td class="n">36 400 max<br>9 000 à 18 000 réalistes</td></tr>
+      <tr><td><b>Bornes d'arcade</b> (Cargaison, Viper, Astéroïdes, Invaders)<code>economy.json:142-152 · scores.ts:54-63 · cabinet.ts:741-747</code></td><td class="n">1 000 à 40 000 / palier</td><td>une partie : 2 à 15 min</td><td>8 paliers par jeu, payés une fois (record personnel). 91 000 CR par jeu, 364 000 au total. Prime de 10 000 CR en prenant le record du vaisseau. Le jeu de combat (<code>fight</code>) ne paie rien.</td><td>Le site calcule paliers et record. Répétition de la prime de record entre deux CMDR qui se le reprennent : <b>inconnue</b>.</td><td class="n">une fois : ~76 000 typique</td></tr>
+      <tr><td><b>Salle de sport</b> (tapis, vélo, sac)<code>economy.json:145-147 · gym.ts:128-141</code></td><td class="n">20 à 300 / palier</td><td>~3 min pour 60 000 pts</td><td>8 paliers par appareil, payés une fois : 925 CR par appareil, 2 775 au total. Score max 99 900.</td><td>Comme l'arcade.</td><td class="n">une fois : 2 775</td></tr>
+      <tr><td><b>Zone thargoïde</b> (récupération de colis)<code>economy.json:5 · shared/salvage.js:30-32, 61-64 · server/salvage.js:16-17, 329-335</code></td><td class="n">1 500 à 31 500 par membre</td><td>~2 à 10 min (max 30 min)</td><td><code>1 500 × colis × (1 + 0,5 × (ennemis − 1))</code>, arrondi à 100 : 1 colis / 1 ennemi = 1 500 ; 3 / 2 = 6 800 ; 6 / 1 = 9 000 ; 6 / 6 = 31 500. Équipe de 1 à 4, chaque membre touche tout, capturés compris. <b>Aucun délai ni plafond</b> côté relais.</td><td>Le relais envoie le résultat au site, qui paie une fois par partie et par CMDR (<code>already</code>). Plafond journalier, durée minimale : <b>inconnus</b>.</td><td class="n">57 000 solo<br>~160 000 à 4</td></tr>
+      <tr><td><b>Comptoir Weekly</b><code>site.ts:102-126 · levels.ts:746</code></td><td class="n">10 000</td><td>—</td><td>Par weekly validée sur le site : une par semaine.</td><td>Montant et validations décidés par le site.</td><td class="n">10 000 / semaine</td></tr>
+      <tr><td><b>Comptoir Chasse galactique</b><code>site.ts:102-126 · levels.ts:747</code></td><td class="n">10 000</td><td>—</td><td>Par cible validée (LJPC).</td><td>Montant et fréquence des cibles : site, <b>inconnus</b> ici.</td><td class="n">selon les cibles</td></tr>
+      <tr><td><b>Cuisine de Marcel</b><code>economy.json:6 · kitchen.ts:20-21</code></td><td class="n">600 (prévu)</td><td>4 à 5 étapes, ~1 à 2 min</td><td>Relevé : <b>pas payé</b>, seul le compteur local existait. Désormais : payé 15 s au moins après la commande, un toutes les 60 s, 12 par jour (7 200 CR/jour).</td><td>À coder : action <code>job</code> (voir plus bas).</td><td class="n">~18 000 jusqu'au plafond</td></tr>
+      <tr><td><b>Révisions de Nico</b> (hangar)<code>hangar.ts:19-20</code></td><td class="n">800 (nouveau)</td><td>4 ou 5 étapes, ~1 min 30</td><td>Relevé : ne payaient rien. Désormais : payée 15 s au moins après la demande, une toutes les 90 s, 8 par jour (6 400 CR/jour).</td><td>À coder : action <code>job</code>.</td><td class="n">~16 000 jusqu'au plafond</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section aria-labelledby="prix">
+  <h2 id="prix">Prix <span class="tag">ECONOMY.JSON</span></h2>
+  <div class="cols">
+    <div class="scroll"><table>
+      <thead><tr><th>Extensions des quartiers</th><th class="n">Prix</th><th class="n">Cumul</th></tr></thead>
+      <tbody>
+        <tr><td>Première (au choix)</td><td class="n">100 000</td><td class="n">100 000</td></tr>
+        <tr><td>Deuxième</td><td class="n">250 000</td><td class="n">350 000</td></tr>
+        <tr><td>Troisième</td><td class="n">500 000</td><td class="n">850 000</td></tr>
+      </tbody>
+    </table></div>
+    <div class="scroll"><table>
+      <thead><tr><th>Animaux (22)</th><th class="n">Prix</th></tr></thead>
+      <tbody>
+        <tr><td>Poussin, abeille, chenille, crabe</td><td class="n">15 000</td></tr>
+        <tr><td>Chien, renard, lapin, panda, manchot, koala, singe, perroquet, cochon, castor, cerf, sanglier</td><td class="n">30 000</td></tr>
+        <tr><td>Ours polaire, tigre, lion, vache, éléphant, girafe</td><td class="n">50 000</td></tr>
+        <tr><td>Accessoires (gamelle, arbre à chat, niche…)</td><td class="n">1 500 à 12 000</td></tr>
+      </tbody>
+    </table></div>
+    <div class="scroll"><table>
+      <thead><tr><th>Cocktails (consommés)</th><th class="n">Prix</th></tr></thead>
+      <tbody>
+        <tr><td>Caustic Sour, Colonia Dream</td><td class="n">500</td></tr>
+        <tr><td>Imperial Crush</td><td class="n">550</td></tr>
+        <tr><td>Night Conda</td><td class="n">600</td></tr>
+        <tr><td>Stellar Kick</td><td class="n">650</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+  <div class="cols">
+    <div class="scroll"><table>
+      <thead><tr><th>Souvenirs d'aventures (21)</th><th class="n">Prix</th></tr></thead>
+      <tbody>
+        <tr><td>Portail de Raxxla</td><td class="n">50 000</td></tr>
+        <tr><td>Hologramme de Jacob Scarlett</td><td class="n">45 000</td></tr>
+        <tr><td>Hologramme de Thargoïde, Capsule de l'Odysseus</td><td class="n">35 000</td></tr>
+        <tr><td>Autel de Salomé, Coffre de La Buse</td><td class="n">30 000</td></tr>
+        <tr><td>Capsule de confinement</td><td class="n">28 000</td></tr>
+        <tr><td>Relique de la Voie</td><td class="n">25 000</td></tr>
+        <tr><td>Pupitre des Chroniques, Sapin de la Quête de Noël</td><td class="n">20 000</td></tr>
+        <tr><td>Paillasse de labo, Maquette du FNS Damocles</td><td class="n">15 000</td></tr>
+        <tr><td>Portrait de la duchesse, Boîte noire du Thetis</td><td class="n">12 000</td></tr>
+        <tr><td>Robe d'Adepte, Bannière de la Voie</td><td class="n">10 000</td></tr>
+        <tr><td>Enseigne TAXI Corp., Tenture de la Voie</td><td class="n">9 000 · 8 000</td></tr>
+        <tr><td>Guide de survie, Bannière du L.J.P.C., Photo d'Amadioha</td><td class="n">6 000 · 5 000 · 4 000</td></tr>
+      </tbody>
+    </table></div>
+    <div class="scroll"><table>
+      <thead><tr><th>Apparences Holo-Me (20)</th><th class="n">Prix</th></tr></thead>
+      <tbody>
+        <tr><td>Combinaison Maverick · Dominator · Artemis</td><td class="n">30 000 · 40 000 · 45 000</td></tr>
+        <tr><td>Combinaison impériale, fédérale, de l'Alliance</td><td class="n">60 000</td></tr>
+        <tr><td>Combinaison Aegis</td><td class="n">75 000</td></tr>
+        <tr><td>Teinte d'alien (vert, bleu, violet)</td><td class="n">35 000</td></tr>
+        <tr><td>Robots G, H · D</td><td class="n">50 000 · 40 000</td></tr>
+        <tr><td>Créatures (orc, O, L)</td><td class="n">45 000</td></tr>
+        <tr><td>Gardiens A, B, C · S</td><td class="n">150 000 · 200 000</td></tr>
+        <tr><td colspan="2"><small>Humains et combinaison de vol offerts. Total : 1 400 000 CR. <code>economy.json:81-88 · skins.ts</code></small></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+  <div class="scroll"><table>
+    <thead><tr><th>Catalogue des quartiers par rayon</th><th class="n">Objets</th><th class="n">Moins cher</th><th class="n">Plus cher</th><th class="n">Tout le rayon</th></tr></thead>
+    <tbody id="catalog"></tbody>
+  </table></div>
+  <p class="note">Un objet s'achète une fois et se pose ensuite autant qu'on veut ; le mobilier d'origine reste offert. Quartier meublé type (grand lit, chevet, commode, canapé, table basse, lampadaire, grande plante, affiche, tapis, bibliothèque, bureau, fauteuil de bureau) : <b>111 000 CR</b>. Sans prix donc gratuits : Holo-Me, carte et badge du site, affiche d'aventure, panier du chat.</p>
+</section>
+
+<section aria-labelledby="ajust">
+  <h2 id="ajust">Ajustements <span class="tag">APPLIQUÉS LE 30/09 · BRANCHE FEATURE/ECONOMIE-V1</span></h2>
+  <ol class="adjust">
+    <li><h3>Zone thargoïde : baisser la prime et la plafonner</h3>
+      <span class="where">economy.json : salvage.parcel 1 500 → 1 000 · enemyBonus 0,5 → 0,3 · daily = 5 · minPerParcel = 15 s · relais + PHP</span>
+      <p class="effect">Barème : 1 / 1 = 1 000 ; 3 / 2 = 3 900 ; 6 / 1 = 6 000 ; 6 / 6 = 15 000 (au lieu de 31 500). Les 5 premières missions réussies du jour (heure de Paris, comme la cuisine) sont payées, les suivantes restent jouables pour le plaisir. <b>Effet : escouade 163 k → 81 k CR/h, solo 57 k → 32 k ; au plus 75 000 CR par jour.</b> La zone reste l'activité la plus payante (1,3 à 3 fois les tâches), mais les trois extensions passent de 5 h à 10 h pour la meilleure escouade. En plus, une victoire plus rapide que 15 s par tournée de colis (6 colis à 4 = 2 tournées = 30 s) n'est pas payée : le relais la bloque et la note au journal. Le plus court aller-retour réel dépasse 15 s.</p></li>
+    <li><h3>Revenu passif : 4 heures payées par jour</h3>
+      <span class="where">passive.daily = 240 (minutes) · PHP</span>
+      <p class="effect">Personne ne joue 4 h d'affilée sans le savoir. <b>Effet : une fenêtre laissée ouverte avec une souris qui bouge passe de 144 000 à 24 000 CR par jour ; aucun changement pour un joueur normal.</b></p></li>
+    <li><h3>Tâches de bord : plafond et délai entre deux tâches</h3>
+      <span class="where">taskRules.daily = 80 · taskRules.minGap = 3 (s) · PHP ; le jeu espace déjà ses demandes</span>
+      <p class="effect">80 tâches représentent ~45 000 CR, soit 3 h de tournées sérieuses. Le délai de 3 s entre deux tâches payées empêche de toutes les réclamer d'un coup par script (un geste dure déjà 1,2 à 3,5 s). <b>Effet : un script plafonne à 45 k CR/jour au lieu de ~870 k ; un joueur n'est pas touché.</b></p></li>
+    <li><h3>Prime de record du vaisseau : une par jeu et par jour</h3>
+      <span class="where">arcade.recordDaily = 1 · PHP</span>
+      <p class="effect">Deux CMDR qui se reprennent le record à tour de rôle toucheraient 10 000 CR à chaque fois. <b>Effet : au plus 40 000 CR de records par jour et par CMDR (4 jeux).</b> À ignorer si le site limite déjà.</p></li>
+    <li><h3>Salle de sport : paliers × 4</h3>
+      <span class="where">economy.json : arcade.tiers.gym-* 20…300 → 80…1 200</span>
+      <p class="effect">Aujourd'hui 925 CR par appareil, moins de 10 minutes de revenu passif pour trois minutes d'effort au clavier. <b>Effet : 3 700 CR par appareil, 11 100 au total, une fois.</b> Coût négligeable pour l'économie.</p></li>
+    <li><h3>Marcel et Nico paient</h3>
+      <span class="where">kitchen = 600 CR · minTime 15 s · minGap 60 s · daily 12 — hangar = 800 CR · 15 s · 90 s · 8 · jeu + PHP</span>
+      <p class="effect">Le bon de commande et la fiche de travail affichent la prime ; le plat ou la révision est payé à la fin. Les délais minimaux sont ceux d'un travail réel : le jeu attend lui-même avant de demander la paie, un joueur honnête n'est jamais refusé. Au plafond, Marcel ou Nico le disent et le chat explique. <b>Effet : 13 600 CR par jour au plus ; un « Équipage » à 1 h par jour passe de 24 000 à ~29 000 CR, première extension en 2,4 jours au lieu de 2,9, les trois en ~28 jours au lieu de 34.</b></p></li>
+    <li><h3>Ne pas toucher</h3>
+      <p class="effect">Prime de départ (30 000 : un animal tout de suite), extensions (100 k / 250 k / 500 k), catalogue, animaux, souvenirs, apparences et cocktails. Avec le passif et les tâches, la progression tient : première extension en une semaine à 1 h par jour, les trois en 5 à 8 semaines ; les Gardiens (150 à 200 k) et les 4,8 M CR du catalogue complet restent des objectifs de long terme. </p></li>
+  </ol>
+</section>
+
+<section aria-labelledby="site">
+  <h2 id="site">Pour Michael : ce qui se règle côté site</h2>
+  <ul class="plain">
+    <li>Le PHP relit economy.json : les nouvelles valeurs de <code>parcel</code>, <code>enemyBonus</code> et des paliers s'appliquent seules. Les nouvelles clés (<code>salvage.daily</code>, <code>salvage.minPerParcel</code>, <code>passive.daily</code>, <code>taskRules</code>, <code>arcade.recordDaily</code>, <code>kitchen</code>, <code>hangar</code>) demandent du code dans <code>credits.php</code> et <code>mini-shipinteriors-salvage.php</code>. Les jours sont ceux de Paris.</li>
+    <li>Nouvelle action <code>{"action":"job","job":"kitchen"|"hangar","phase":"start"|"done"}</code> : <code>start</code> note l'heure ; <code>done</code> paie <code>reward</code> si une commande existe (sinon <code>inactive</code>), si <code>minTime</code> est écoulé depuis elle et <code>minGap</code> depuis la dernière paie (sinon <code>early</code>), et sous <code>daily</code> (sinon <code>max</code>).</li>
+    <li>Plafond atteint : répondre <code>error: "max"</code> (passif, tâche, travail, mission) ; le jeu l'affiche. Délai entre deux tâches non respecté : <code>early</code>.</li>
+    <li>À confirmer : le sens exact de <code>passive.minGap</code> / <code>maxGap</code>, les plafonds déjà en place (tâches, passif, zone, records), la fréquence des cibles de la Chasse galactique.</li>
+    <li>Zone thargoïde : le relais ne transmet plus une victoire trop rapide ; le site peut refaire le même contrôle avec <code>duration</code>, <code>parcels</code> et <code>team</code> (formule : <code>minPerParcel × ⌈colis ÷ équipe⌉</code>).</li>
+  </ul>
+</section>
+</main>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+const TARGETS = [
+  { name: 'Un animal (grand)', sub: 'Ours, tigre, lion… 50 000', cost: 50000 },
+  { name: 'Un souvenir (haut de gamme)', sub: 'Hologramme de Scarlett, 45 000', cost: 45000 },
+  { name: 'Un quartier meublé', sub: '12 meubles, 111 000', cost: 111000 },
+  { name: 'Une forme de Gardien', sub: 'Holo-Me, 150 000', cost: 150000 },
+  { name: 'Première extension', sub: '100 000', cost: 100000 },
+  { name: 'Deux extensions', sub: '350 000 cumulés', cost: 350000 },
+  { name: 'Les trois extensions', sub: '850 000 cumulés', cost: 850000 },
+]
+const START = 30000
+const PROFILES = [
+  { id: 'flaneur', name: 'Flâneur', color: 'var(--s1)', now: 15100, next: 15100 },
+  { id: 'equipage', name: 'Équipage', color: 'var(--s2)', now: 24200, next: 29000 },
+  { id: 'solo', name: 'Zone thargoïde, solo', color: 'var(--s3)', now: 57000, next: 31600 },
+  { id: 'escouade', name: 'Escouade de 4', color: 'var(--s4)', now: 163500, next: 81000 },
+]
+const CATALOG = [
+  ['Salon', 36, 800, 40000, 390000], ['Elite', 17, 6000, 90000, 557000], ['Soirée', 20, 3000, 65000, 486000],
+  ['Aventures', 21, 4000, 50000, 424000], ['Arcade', 8, 25000, 80000, 418000], ['Cuisine', 33, 1500, 25000, 265000],
+  ['Salle de bain', 25, 600, 22000, 175700], ['Armurerie', 8, 12000, 35000, 162000], ['Atelier', 18, 1500, 30000, 148000],
+  ['Écrans et consoles', 18, 1000, 20000, 147000], ['Chambre', 12, 2500, 24000, 137000], ['Infirmerie', 13, 1500, 35000, 133500],
+  ['Plantes', 17, 1200, 20000, 113700], ['Objets', 12, 1500, 25000, 97500], ['Lumières', 17, 2500, 9000, 92500],
+  ['Rangements', 16, 800, 12000, 83100], ['Sport', 5, 8000, 25000, 80000], ['Tapis', 9, 2000, 9000, 48000],
+  ['Murs', 5, 4000, 12000, 38000], ['Accessoires d\'animaux', 6, 1500, 12000, 37500], ['Affiches', 5, 3000, 8000, 21000],
+]
+const fmt = (n) => Math.round(n).toLocaleString('fr-FR')
+const hours = (cost, rate) => Math.max(0, cost - START) / rate
+const fmtH = (h) => h === 0 ? 'tout de suite' : h < 0.99 ? `${Math.round(h * 60)} min` : `${h.toFixed(h < 10 ? 1 : 0).replace('.', ',')} h`
+
+// Catalogue.
+document.getElementById('catalog').innerHTML = CATALOG.map(([n, c, lo, hi, all]) => `<tr><td>${n}</td><td class="n">${c}</td><td class="n">${fmt(lo)}</td><td class="n">${fmt(hi)}</td><td class="n">${fmt(all)}</td></tr>`).join('')
+  + `<tr><td><b>Tout le catalogue</b> (sans les 22 animaux : 720 000)</td><td class="n"><b>321</b></td><td class="n">600</td><td class="n">90 000</td><td class="n"><b>4 054 500</b></td></tr>`
+
+document.getElementById('legend').innerHTML = PROFILES.map((p) => `<span><i style="background:${p.color}"></i>${p.name}</span>`).join('')
+
+let mode = 'now'
+const svg = document.getElementById('chart')
+const tip = document.getElementById('tip')
+const MAX = 60
+
+function draw() {
+  const W = Math.max(560, svg.parentElement.clientWidth), left = 190, right = 64, bar = 10, gap = 2, groupGap = 18, top = 24
+  const groupH = PROFILES.length * (bar + gap) - gap
+  const H = top + TARGETS.length * (groupH + groupGap) + 8
+  const x = (h) => left + (Math.min(h, MAX) / MAX) * (W - left - right)
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`)
+  svg.setAttribute('width', W); svg.setAttribute('height', H)
+  let out = ''
+  for (let t = 0; t <= MAX; t += 10) out += `<line class="grid" x1="${x(t)}" x2="${x(t)}" y1="${top - 6}" y2="${H - 8}"/><text x="${x(t)}" y="${top - 10}" text-anchor="middle">${t} h</text>`
+  TARGETS.forEach((tg, i) => {
+    const y0 = top + i * (groupH + groupGap)
+    out += `<text class="lbl" x="0" y="${y0 + 12}">${tg.name}</text><text x="0" y="${y0 + 28}">${tg.sub}</text>`
+    PROFILES.forEach((p, j) => {
+      const h = hours(tg.cost, p[mode])
+      const y = y0 + j * (bar + gap)
+      const w = Math.max(2, x(h) - left)
+      out += `<rect class="bar" x="${left}" y="${y}" width="${w}" height="${bar}" rx="3" fill="${p.color}" data-t="${i}" data-p="${j}"/>`
+      out += `<text class="val" x="${left + w + 6}" y="${y + bar - 1}">${h > MAX ? '▸ ' : ''}${fmtH(h)}</text>`
+    })
+  })
+  svg.innerHTML = out
+  // Tableau des heures (même données).
+  document.getElementById('hours-table').innerHTML = `<thead><tr><th>Achat</th>${PROFILES.map((p) => `<th class="n">${p.name}</th>`).join('')}</tr></thead><tbody>`
+    + TARGETS.map((tg) => `<tr><td>${tg.name}<small>${tg.sub}</small></td>${PROFILES.map((p) => `<td class="n">${fmtH(hours(tg.cost, p[mode]))}</td>`).join('')}</tr>`).join('') + '</tbody>'
+}
+svg.addEventListener('pointermove', (e) => {
+  const r = e.target.closest('rect.bar')
+  if (!r) { tip.hidden = true; return }
+  const tg = TARGETS[r.dataset.t], p = PROFILES[r.dataset.p]
+  const h = hours(tg.cost, p[mode])
+  tip.innerHTML = `<b>${tg.name}</b><br>${p.name} · ${fmt(p[mode])} CR/h<br>${fmtH(h)} de jeu, soit ${Math.ceil(h)} jour${Math.ceil(h) > 1 ? 's' : ''} à 1 h par jour`
+  tip.hidden = false
+  tip.style.left = Math.min(e.clientX + 12, innerWidth - 270) + 'px'; tip.style.top = e.clientY + 12 + 'px'
+})
+svg.addEventListener('pointerleave', () => (tip.hidden = true))
+for (const [id, m] of [['mode-now', 'now'], ['mode-new', 'next']]) document.getElementById(id).addEventListener('click', () => {
+  mode = m
+  document.getElementById('mode-now').setAttribute('aria-pressed', m === 'now')
+  document.getElementById('mode-new').setAttribute('aria-pressed', m === 'next')
+  draw()
+})
+addEventListener('resize', draw)
+draw()
+</script>

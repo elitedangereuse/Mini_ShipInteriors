@@ -27,7 +27,9 @@ export async function siteArtworkAllowed(layout, cookie, cmdrUrl) {
  * Résultat d'une mission de récupération (zone thargoïde) gagnée, pour un membre CMDR : le site
  * reconnaît le CMDR par son cookie, et le relais par la clé partagée (MSI_RELAY_SECRET des deux
  * côtés) ; il paie une fois par partie et par CMDR, et compte la victoire au classement.
- * @returns {Promise<{ earned: number, balance: number } | null>} null : pas de gain (invité, site injoignable, déjà payé)
+ * Au-delà des missions payées du jour, le site répond `max` : on le rend (`capped`) pour que
+ * l'équipe le sache.
+ * @returns {Promise<{ earned: number, balance?: number, capped?: boolean } | null>} null : pas de gain (invité, site injoignable, déjà payé)
  */
 export async function postSalvageResult(cookie, result, { cmdrUrl, secret, error = console.error, fetcher = fetch, timeoutMs = 8000 }) {
   const value = cookieValue(cookie)
@@ -46,6 +48,7 @@ export async function postSalvageResult(cookie, result, { cmdrUrl, secret, error
       signal: AbortSignal.timeout(timeoutMs),
     })
     const data = await response.json().catch(() => null)
+    if (data?.error === 'max') return { earned: 0, capped: true }
     if (!response.ok || data?.status !== 'success') {
       if (data?.error !== 'already') error(`[salvage] gain de la mission ${result.game} refusé par le site (${response.status} ${data?.error ?? ''})`)
       return null

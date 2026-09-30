@@ -225,6 +225,7 @@ export class LobbyPanel extends Modal {
     summary.append(
       el('span', `salvage-threat t${menace.level}`, tr(`Menace : ${menace.label}`, `Threat: ${menace.label}`)),
       el('span', 'salvage-reward', tr(`Récompense : ${formatCredits(rewardOf(t.parcels, t.enemies))} par CMDR`, `Reward: ${formatCredits(rewardOf(t.parcels, t.enemies))} per CMDR`)),
+      el('span', 'salvage-daily', tr(`${ECONOMY.salvage.daily} missions payées par jour`, `${ECONOMY.salvage.daily} paid missions a day`)),
     )
     card.append(summary)
     if (!leader) card.append(el('p', 'salvage-note', tr('Le chef d\'équipe règle la mission ; un changement remet tout le monde en attente.', 'The crew leader sets the mission; any change puts everyone back on standby.')))
@@ -484,6 +485,15 @@ export class MissionHud {
     reward.textContent = earned
       ? tr(`Récompense versée : ${formatCredits(earned)}.`, `Reward paid: ${formatCredits(earned)}.`)
       : tr('Le site n\'a pas encore versé la récompense.', 'The site hasn\'t paid the reward yet.')
+  }
+
+  /** La mission n'est pas payée : missions du jour déjà payées, ou bouclée trop vite pour être vraie. */
+  refused(why: 'max' | 'early') {
+    const reward = this.end.querySelector('.salvage-end-reward')
+    if (!reward) return
+    reward.textContent = why === 'max'
+      ? tr(`Pas de prime : vos ${ECONOMY.salvage.daily} missions payées du jour sont faites. Elles reprennent demain.`, `No reward: your ${ECONOMY.salvage.daily} paid missions for today are done. They resume tomorrow.`)
+      : tr('Pas de prime : mission bouclée trop vite, le relais ne l\'a pas transmise au site.', 'No reward: the mission ended too fast, the relay didn\'t pass it on to the site.')
   }
 
   get endOpen() {

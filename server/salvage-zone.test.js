@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
-  BAY, BAY_BOOTH, distances, sightOrigin, findPath, generateZone, inAirlock, lockerFront, lockerSpot, mulberry32, pickSpawns, RULES, salvageReward, smoothPath,
+  BAY, BAY_BOOTH, distances, sightOrigin, findPath, generateZone, inAirlock, lockerFront, lockerSpot, mulberry32, pickSpawns, RULES, salvageMinDuration, salvageReward, smoothPath,
   straightWalk, walkable, zoneSight,
 } from '../shared/salvage.js'
 
@@ -181,6 +181,23 @@ test('les joueurs apparaissent loin des ennemis et écartés les uns des autres'
       assert.equal(inAirlock(zone, s), false)
     }
   })
+})
+
+test('durée minimale d\'une mission payée : par tournée de colis, les membres portant ensemble', () => {
+  const e = { minPerParcel: 15 }
+  assert.equal(salvageMinDuration(e, 1, 1), 15)
+  assert.equal(salvageMinDuration(e, 6, 1), 90)
+  assert.equal(salvageMinDuration(e, 6, 4), 30, 'deux tournées à quatre')
+  assert.equal(salvageMinDuration(null, 6, 4), 30, 'valeur par défaut sans economy.json')
+  // Le plus court aller-retour sas → colis → sas, même en courant, prend plus d'une tournée minimale.
+  let shortest = Infinity
+  for (let s = 1; s < 60; s++) {
+    const zone = generateZone(s * 7919, { team: 1, parcels: 6, enemies: 1 })
+    const d = distances(zone, [zone.airlock.pad])
+    for (const c of zone.cargo) shortest = Math.min(shortest, d[Math.round(c.z) * zone.width + Math.round(c.x)])
+  }
+  const trip = shortest / RULES.sprint + shortest / (RULES.sprint * RULES.carry)
+  assert.ok(trip > e.minPerParcel, `aller-retour le plus court : ${trip.toFixed(1)} s`)
 })
 
 test('récompense : plus de colis et plus d\'ennemis, plus de crédits', () => {
