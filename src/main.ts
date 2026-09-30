@@ -3522,8 +3522,9 @@ function frame() {
 
   // Dans la baie infestée (ou par les caméras), ni étoiles ni système : on est hors du vaisseau.
   if (!viewDeck.def.zone) {
-    stars.update(world, iso.target, toCam, iso.tilt)
-    systemView.update(world, deck.y, iso.target, toCam, iso.tilt)
+    const eye = fpsShown ? fps.camera.position : null
+    stars.update(world, iso.target, toCam, iso.tilt, eye)
+    systemView.update(world, deck.y, iso.target, toCam, iso.tilt, eye)
   }
   sound.update(fpsShown ? fps.listener : iso.target, view().angle)
   ambience(dt)

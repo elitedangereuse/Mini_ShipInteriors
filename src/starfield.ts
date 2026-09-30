@@ -143,17 +143,19 @@ export class Starfield {
   /**
    * @param toCamera direction horizontale de la cible vers la caméra
    * @param elevation inclinaison de la caméra (radians)
+   * @param eye position de la caméra en vue subjective (null : vue isométrique)
    */
-  update(dt: number, target: THREE.Vector3, toCamera: THREE.Vector3, elevation: number) {
+  update(dt: number, target: THREE.Vector3, toCamera: THREE.Vector3, elevation: number, eye: THREE.Vector3 | null = null) {
     this.group.children[this.group.children.length - 1].visible = !renderQuality.light
     this.time += dt
     // On accélère franchement, on freine plus en douceur.
     this.speed = THREE.MathUtils.damp(this.speed, this.target, this.target > this.speed ? 1.6 : 1.1, dt)
     this.travel += dt * this.speed
-    // Point où le regard de la caméra traverse la couche d'étoiles.
+    // Point où le regard de la caméra traverse la couche d'étoiles ; en vue subjective, à l'aplomb
+    // des yeux : la boîte ne glisse pas quand on tourne la tête.
     const run = (target.y - (DEPTH - 10)) / Math.tan(elevation)
-    const cx = target.x - toCamera.x * run
-    const cz = target.z - toCamera.z * run
+    const cx = eye ? eye.x : target.x - toCamera.x * run
+    const cz = eye ? eye.z : target.z - toCamera.z * run
     for (const m of this.materials) {
       if (m.uniforms.uTime) m.uniforms.uTime.value = this.time
       m.uniforms.uTravel.value = this.travel

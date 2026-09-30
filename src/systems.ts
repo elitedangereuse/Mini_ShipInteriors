@@ -17,6 +17,13 @@ import { HOME_SYSTEM, SYSTEM_IDS, type SystemId } from '../shared/systems.js'
 const PORT_Z = -8
 /** Profondeur du décor sous le pont affiché. */
 const DEPTH = 16
+/**
+ * Vue subjective : le décor se tient au large de bâbord, un peu sous les yeux, dans le cadre
+ * des verrières. Il suit les yeux sans tourner avec le regard : on tourne la tête sur place,
+ * le système reste où il est.
+ */
+const EYE_AWAY = 40
+const EYE_RISE = -1.5
 
 interface PlanetDef {
   kind: 'rocky' | 'earth' | 'gas' | 'ice' | 'lava'
@@ -501,13 +508,17 @@ export class SystemView {
    * @param target point que regarde la caméra
    * @param toCamera direction horizontale de la cible vers la caméra
    * @param elevation inclinaison de la caméra (radians)
+   * @param eye position de la caméra en vue subjective (null : vue isométrique)
    */
-  update(dt: number, deckY: number, target: THREE.Vector3, toCamera: THREE.Vector3, elevation: number) {
+  update(dt: number, deckY: number, target: THREE.Vector3, toCamera: THREE.Vector3, elevation: number, eye: THREE.Vector3 | null = null) {
     this.time += dt
     this.shown = THREE.MathUtils.damp(this.shown, this.wanted, this.wanted > this.shown ? 1.5 : 6, dt)
-    // Là où le regard qui passe par ce point du pont traverse la profondeur du décor.
-    const run = DEPTH / Math.tan(elevation)
-    this.group.position.set(target.x - toCamera.x * run, deckY - DEPTH, PORT_Z - toCamera.z * run)
+    if (eye) this.group.position.set(eye.x, eye.y + EYE_RISE, eye.z - EYE_AWAY)
+    else {
+      // Là où le regard qui passe par ce point du pont traverse la profondeur du décor.
+      const run = DEPTH / Math.tan(elevation)
+      this.group.position.set(target.x - toCamera.x * run, deckY - DEPTH, PORT_Z - toCamera.z * run)
+    }
     this.group.scale.setScalar(0.4 + 0.6 * this.shown)
     this.group.visible = this.shown > 0.02
     this.current.update(renderQuality.light ? Math.floor(this.time * 4) / 4 : this.time)
