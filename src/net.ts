@@ -175,13 +175,17 @@ export interface SalvageState {
   lockers: number[]
   searching: number[]
   delivered: number
+  /** La ruche s'agite : 0 au départ, 1 quand il ne reste qu'un colis. */
+  hive?: number
   elapsed: number
 }
 /** Événement d'une partie, pour les sons, les messages et les animations. */
 export interface SalvageEvent {
   kind: 'arrive' | 'pickup' | 'drop' | 'deposit' | 'capture' | 'hide' | 'unhide' | 'eject' | 'search' | 'searched' | 'flare' | 'flare-out'
-    | 'flare-pickup' | 'quit' | 'gone' | 'spotted' | 'heard' | 'away' | 'back'
+    | 'flare-pickup' | 'quit' | 'gone' | 'spotted' | 'heard' | 'away' | 'back' | 'hive'
   id?: number
+  /** `hive` : l'agitation de la ruche (0 à 1). */
+  level?: number
   /** `back` : l'ancien id du joueur revenu. */
   old?: number
   /** `away` : combien de temps sa place l'attend (s). */
@@ -199,9 +203,16 @@ export interface SalvageEvent {
 }
 export interface SalvageEnd {
   game: string; won: boolean; reason: 'won' | 'lost' | 'timeout'; delivered: number; parcels: number; enemies: number; team: number; duration: number
+  /** Note de la mission (cf. salvageGrade), temps de référence (s) et captures de l'équipe. */
+  grade?: 'S' | 'A' | 'B' | 'C' | 'D'
+  par?: number
+  captures?: number
+  /** Les chiffres de chaque membre. */
+  stats?: SalvageMemberStats[]
   /** Partie finie pendant une déconnexion : le résultat, à qui revient avec son ticket. */
   late?: boolean
 }
+export interface SalvageMemberStats { id: number; name: string; delivered: number; spotted: number; flares: number; hides: number; captured: number }
 export type SalvageAction = 'create' | 'join' | 'leave' | 'settings' | 'ready' | 'pickup' | 'hide' | 'unhide' | 'flare' | 'quit' | 'resume'
 
 export type ServerMessage =

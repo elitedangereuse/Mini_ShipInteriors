@@ -1,13 +1,15 @@
 import { ECONOMY, formatCredits } from '../economy/data'
 import { EN, tr } from '../i18n'
 import { icon, type IconName } from '../icons'
-import type { SalvageEnd, SalvageLobby, SalvageStatus, SalvageTeam } from '../net'
+import type { SalvageEnd, SalvageLobby, SalvageMemberStats, SalvageStatus, SalvageTeam } from '../net'
 import { RULES, salvageReward } from '../../shared/salvage.js'
 
 /*
  * Interface de la zone thargoïde : le terminal de mission du lobby (équipes, réglages, « prêt »),
- * le classement des victoires, puis en mission la barre de l'équipe, l'endurance et le compte à
- * rebours du casier au-dessus du personnage, la caméra alliée des capturés et l'écran de fin.
+ * le classement des victoires, puis en mission la barre de l'équipe, l'agitation de la ruche,
+ * l'endurance et le compte à rebours du casier au-dessus du personnage, le moniteur de
+ * surveillance des capturés (caméras alliées et caméras de la baie) et l'écran de fin, avec la
+ * note de la mission.
  */
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] => {
@@ -310,6 +312,36 @@ export class LeaderboardPanel extends Modal {
   }
 }
 
+/** Ce que dit chaque note de fin de mission. */
+const GRADE_TEXT: Record<string, string> = {
+  S: tr('Fantôme : personne capturé, dans les temps.', 'Ghost: nobody caught, on time.'),
+  A: tr('Du travail propre.', 'Clean work.'),
+  B: tr('La cargaison est à bord, à l\'arraché.', 'The cargo is aboard, by the skin of your teeth.'),
+  C: tr('Une partie de la cargaison est sauvée.', 'Part of the cargo was saved.'),
+  D: tr('La baie a eu le dernier mot.', 'The bay had the last word.'),
+}
+
+/** Les chiffres de chacun : colis livrés, repéré, fusées lancées, casiers, capturé. */
+function statsTable(stats: SalvageMemberStats[], par?: number): HTMLElement {
+  const box = el('div', 'salvage-stats')
+  const table = el('table', 'salvage-table')
+  const head = el('tr')
+  for (const h of ['CMDR', tr('Colis', 'Crates'), tr('Repéré', 'Spotted'), tr('Fusées', 'Flares'), tr('Casiers', 'Lockers')]) head.append(el('th', '', h))
+  table.append(el('thead'), el('tbody'))
+  table.tHead!.append(head)
+  for (const m of stats) {
+    const row = el('tr', m.captured ? 'caught' : '')
+    const name = el('td')
+    if (m.captured) name.append(icon('skull', 'salvage-stat-icon'))
+    name.append(m.name)
+    row.append(name, el('td', '', String(m.delivered)), el('td', '', String(m.spotted)), el('td', '', String(m.flares)), el('td', '', String(m.hides)))
+    table.tBodies[0].append(row)
+  }
+  box.append(table)
+  if (par) box.append(el('p', 'salvage-note', tr(`Temps de référence : ${Math.floor(par / 60)} min ${par % 60} s.`, `Par time: ${Math.floor(par / 60)} min ${par % 60} s.`)))
+  return box
+}
+
 export const SALVAGE_URL = import.meta.env.VITE_ED_SALVAGE_URL || '/outils/mini-shipinteriors-salvage.php'
 
 export interface HudMember { id: number; name: string; status: SalvageStatus; carrying: boolean; hidden: boolean }
@@ -323,6 +355,7 @@ export class MissionHud {
   private readonly progress = el('div', 'salvage-hud-progress')
   private readonly crew = el('ul', 'salvage-hud-crew')
   private readonly flares = el('div', 'salvage-hud-flares')
+  private readonly hive = el('div', 'salvage-hud-hive')
   private readonly hint = el('div', 'salvage-hud-hint')
   private readonly quit: HTMLButtonElement
   readonly stamina = el('div', 'salvage-stamina')
@@ -330,6 +363,12 @@ export class MissionHud {
   readonly locker = el('div', 'salvage-locker')
   private readonly spectator = el('div', 'salvage-spectator')
   private readonly spectatorName = el('strong')
+  private readonly spectatorKind = el('span')
+  /** Habillage du moniteur : coins de visée, « REC », date et heure de la baie, temps de mission. */
+  private readonly cctv = el('div', 'salvage-cctv')
+  private readonly cctvClock = el('span', 'salvage-cctv-clock')
+  private readonly cctvElapsed = el('span', 'salvage-cctv-elapsed')
+  private cctvSecond = -1
   private readonly vignette = el('div', 'salvage-vignette')
   private readonly end = el('section', 'salvage-panel salvage-end')
   private crewKey = ''
@@ -346,7 +385,8 @@ export class MissionHud {
     this.flares.onclick = () => this.onThrow?.()
     this.flares.setAttribute('role', 'button')
     this.flares.tabIndex = -1
-    this.root.append(top, this.crew, this.flares, this.quit, this.hint)
+    this.hive.hidden = true
+    this.root.append(top, this.crew, this.flares, this.hive, this.quit, this.hint)
     this.stamina.hidden = true
     this.stamina.append(this.staminaFill)
     this.locker.hidden = true
@@ -357,12 +397,19 @@ export class MissionHud {
     next.setAttribute('aria-label', tr('Caméra suivante', 'Next camera'))
     const leave = button(tr('Quitter les caméras', 'Leave the cameras'), () => this.onCameraClose?.(), 'salvage-quiet', 'sign-out')
     const label = el('div', 'salvage-spectator-label')
-    label.append(icon('video-camera'), el('span', '', tr('CAMÉRA ALLIÉE', 'ALLY CAMERA')), this.spectatorName)
+    this.spectatorKind.textContent = tr('CAMÉRA ALLIÉE', 'ALLY CAMERA')
+    label.append(icon('video-camera'), this.spectatorKind, this.spectatorName)
     this.spectator.append(label, prev, next, leave)
+    this.cctv.hidden = true
+    this.cctv.setAttribute('aria-hidden', 'true')
+    const stamp = el('div', 'salvage-cctv-stamp')
+    stamp.append(el('span', 'salvage-cctv-rec', '● REC'), this.cctvClock, this.cctvElapsed)
+    for (const corner of ['tl', 'tr', 'bl', 'br']) this.cctv.append(el('i', `salvage-cctv-corner ${corner}`))
+    this.cctv.append(stamp, el('div', 'salvage-cctv-site', tr('BAIE 7 · ZONE THARGOÏDE · CIRCUIT FERMÉ', 'BAY 7 · THARGOID ZONE · CLOSED CIRCUIT')))
     this.vignette.hidden = true
     this.end.hidden = true
     this.end.setAttribute('role', 'dialog')
-    document.body.append(this.vignette, this.root, this.stamina, this.locker, this.spectator, this.end)
+    document.body.append(this.cctv, this.vignette, this.root, this.stamina, this.locker, this.spectator, this.end)
   }
 
   show(on: boolean) {
@@ -400,6 +447,19 @@ export class MissionHud {
     this.flares.classList.toggle('ready', canThrow && count > 0)
   }
 
+  /** La ruche s'agite (0 à 1) : un voyant qui monte avec les colis livrés. */
+  setHive(level: number) {
+    this.hive.hidden = level <= 0
+    if (level <= 0) return
+    const key = level.toFixed(2)
+    if (this.hive.dataset.level === key) return
+    this.hive.dataset.level = key
+    const pips = el('span', 'salvage-hive-pips')
+    for (let i = 0; i < 3; i++) pips.append(el('i', level >= (i + 1) / 3 - 0.01 ? 'on' : ''))
+    this.hive.replaceChildren(icon('shield-warning'), el('span', '', level >= 1 ? tr('Ruche en furie', 'Hive in a frenzy') : tr('La ruche s\'agite', 'The hive stirs')), pips)
+    this.hive.classList.toggle('max', level >= 1)
+  }
+
   setHint(text: string) {
     if (this.hint.textContent !== text) this.hint.textContent = text
   }
@@ -432,11 +492,30 @@ export class MissionHud {
     if (document.body.classList.contains('salvage-hidden') !== on) document.body.classList.toggle('salvage-hidden', on)
   }
 
-  /** Caméra alliée : le nom du coéquipier suivi, ou null pour la fermer. */
-  camera(name: string | null) {
+  /**
+   * Moniteur : le coéquipier suivi (`ally`) ou la caméra de la baie (`fixed`, et son numéro), ou
+   * null pour le fermer.
+   */
+  camera(name: string | null, kind: 'ally' | 'fixed' = 'ally', number = 0) {
     this.spectator.hidden = name === null
+    this.cctv.hidden = name === null
     document.body.classList.toggle('salvage-watching', name !== null)
-    if (name !== null) this.spectatorName.textContent = name
+    if (name === null) return
+    this.spectatorName.textContent = name
+    this.spectatorKind.textContent = kind === 'ally' ? tr('CAMÉRA ALLIÉE', 'ALLY CAMERA') : `CAM ${String(number).padStart(2, '0')}`
+    this.cctvSecond = -1
+  }
+
+  /** Horloge du moniteur : la date de la baie (l'an 3312 d'Elite) et le temps de mission. */
+  tickCamera(elapsed: number) {
+    if (this.cctv.hidden) return
+    const now = new Date()
+    const second = Math.floor(now.getTime() / 1000)
+    if (second === this.cctvSecond) return
+    this.cctvSecond = second
+    const two = (n: number) => String(n).padStart(2, '0')
+    this.cctvClock.textContent = `${two(now.getDate())}/${two(now.getMonth() + 1)}/${now.getFullYear() + 1286}  ${two(now.getHours())}:${two(now.getMinutes())}:${two(now.getSeconds())}`
+    this.cctvElapsed.textContent = `T+ ${two(Math.floor(elapsed / 60))}:${two(Math.floor(elapsed % 60))}`
   }
 
   /** Voile rouge d'une capture (ou d'un coéquipier capturé, plus léger). */
@@ -457,11 +536,17 @@ export class MissionHud {
     const body = el('div', 'salvage-body')
     const minutes = Math.floor(r.duration / 60), seconds = r.duration % 60
     const time = EN ? `${minutes} min ${seconds} s` : `${minutes} min ${seconds} s`
+    if (r.grade) {
+      const grade = el('div', `salvage-grade g${r.grade}`)
+      grade.append(el('strong', '', r.grade), el('span', '', GRADE_TEXT[r.grade]))
+      body.append(grade)
+    }
     body.append(el('p', 'salvage-intro', r.won
       ? r.parcels > 1
         ? tr(`Les ${r.parcels} colis sont à bord, en ${time}. Beau travail, CMDR.`, `All ${r.parcels} crates are aboard, in ${time}. Nice work, CMDR.`)
         : tr(`Le colis est à bord, en ${time}. Beau travail, CMDR.`, `The crate is aboard, in ${time}. Nice work, CMDR.`)
       : tr(`Colis rapportés : ${r.delivered} sur ${r.parcels}, en ${time}. La baie garde le reste.`, `Crates delivered: ${r.delivered} of ${r.parcels}, in ${time}. The bay keeps the rest.`)))
+    if (r.stats?.length) body.append(statsTable(r.stats, r.par))
     const reward = el('p', 'salvage-end-reward')
     if (r.won) reward.textContent = guest
       ? tr('Invité : pas de crédits, mais l\'honneur est sauf.', 'Guest: no credits, but honour is safe.')

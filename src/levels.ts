@@ -47,7 +47,8 @@ export interface Prop {
  */
 export type Flicker = 'neon' | 'fire' | 'disco' | 'pulse' | 'screen'
 
-export type LightDef = [number, number, string, number, ('neon' | 'fire' | 'screen')?]
+/** Lumière : x, z, couleur, intensité, vacillement, et portée (7 par défaut ; les projecteurs de la baie portent plus loin). */
+export type LightDef = [number, number, string, number, ('neon' | 'fire' | 'screen')?, number?]
 
 /** Éclairage d'ambiance d'un pont : ciel et sol (lumière hémisphérique), soleil. */
 export interface Ambience {
@@ -120,9 +121,10 @@ export interface LevelDef {
   cabin?: CabinDef
   /**
    * Baie infestée de la zone thargoïde (cf. src/salvage/) : son plan (murs du labyrinthe, portes
-   * du sas) et le kit de ses murs, sols et portes. Ni coque, ni ascenseur, ni tuyères.
+   * du sas), le kit de ses murs, sols et portes, et la couleur des projecteurs sur le sol des
+   * zones éclairées (`glow`). Ni coque, ni ascenseur, ni tuyères.
    */
-  zone?: { kit: ZoneKit; map: ShipMapOptions }
+  zone?: { kit: ZoneKit; map: ShipMapOptions; glow?: (x: number, z: number) => string | null }
   /**
    * Base au sol (cf. src/base/) : un plateau à ciel ouvert, sans murs (le bord arrête les pas, ses
    * falaises plongent dans le vide), ni coque, ni ascenseur, ni tuyères, ni plafond.

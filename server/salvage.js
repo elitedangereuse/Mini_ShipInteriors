@@ -13,6 +13,14 @@
 // n'est actif. Les clients n'envoient que leur position (l'événement « state » du relais) et
 // leurs actions.
 //
+// La ruche s'agite : à chaque colis livré, le monte-charge du sas fait du bruit, et les ennemis
+// patrouillent plus vite, rôdent plus souvent du côté des joueurs et entendent de plus loin
+// (RULES.hive, au complet au dernier colis). Un joueur dans une zone éclairée se voit de loin ; un
+// pas sur du verre brisé s'entend, même en marchant.
+//
+// Fin : chacun reçoit la note de la mission (S à D, cf. salvageGrade) et ses chiffres (captures,
+// repérages, fusées, casiers, colis de chacun).
+//
 // Gains : une victoire paie chaque membre CMDR, y compris ceux qui ont été capturés ; le relais
 // transmet le résultat au site (cf. `reward`), qui ne paie qu'une fois par partie et par CMDR, et
 // qu'un nombre de missions par jour (`salvage.daily` dans economy.json). Une victoire plus rapide que
@@ -27,8 +35,8 @@ import { randomBytes } from 'node:crypto'
 import { DIRS, ShipMap } from '../shared/ship-map.js'
 import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import {
-  distances, findPath, generateZone, inAirlock, LOBBY, lockerFront, lockerSpot, mulberry32, pickSpawns, RULES, smoothPath, tileOf,
-  walkable, ZONE_LEVEL, zoneSight,
+  distances, findPath, floorFx, FX, generateZone, inAirlock, isLit, LOBBY, lockerFront, lockerSpot, mulberry32, pickSpawns, RULES, salvageGrade,
+  salvagePar, smoothPath, tileOf, walkable, ZONE_LEVEL, zoneSight,
 } from '../shared/salvage.js'
 
 const HOLD = new ShipMap(SHIP_LAYOUTS[String(LOBBY.level)], shipMapOptions(LOBBY.level))
@@ -195,13 +203,16 @@ export function createSalvage({
       })),
       noises: [],
       step: 0,
+      captures: 0,
     }
     t.members.forEach((id, i) => {
       const p = playerById(id)
       game.members.set(id, {
         id, name: p?.name ?? '?', verified: !!p?.verified, cookie: p?.cookie ?? null, status: 'arriving',
         spawn: spawns[i], x: spawns[i].x, z: spawns[i].z, at: now(), carrying: null, hidden: null, hiddenAt: 0, seen: false,
-        cooldown: 0, flares: 0, noiseAt: 0, sprint: false,
+        cooldown: 0, flares: 0, noiseAt: 0, sprint: false, glass: null,
+        // Chiffres de fin de mission.
+        stats: { delivered: 0, spotted: 0, flares: 0, hides: 0, captured: 0 },
         // Reconnexion : le ticket (secret, donné à lui seul), la liaison, la fin du délai d'attente.
         ticket: randomBytes(12).toString('hex'), connected: true, awayUntil: 0, arrivingSince: now(),
       })
@@ -292,6 +303,8 @@ export function createSalvage({
     }
     drop(game, m)
     m.status = 'captured'
+    m.stats.captured++
+    game.captures++
     monster.mode = 'attack'
     monster.timer = M.attack
     monster.path = []
@@ -321,14 +334,22 @@ export function createSalvage({
       game: game.id, won, reason, delivered: game.delivered, parcels: game.settings.parcels, enemies: game.settings.enemies,
       team: game.settings.team, duration,
     }
-    toGame(game, 'salvage:end', result)
+    // Aux joueurs, la note et les chiffres de la mission ; au site, le résultat seul.
+    const report = {
+      ...result,
+      grade: salvageGrade({ ...result, captures: game.captures }),
+      par: salvagePar(game.settings.parcels, game.settings.team),
+      captures: game.captures,
+      stats: [...game.members.values()].map((m) => ({ id: m.id, name: m.name, ...m.stats })),
+    }
+    toGame(game, 'salvage:end', report)
     // Membres partis du vaisseau (ou pas encore revenus) : ils quittent l'équipe ; qui revient
     // plus tard apprendra le résultat.
     const absent = new Set([...game.members.values()].filter((m) => !m.connected).map((m) => m.id))
     t.members = t.members.filter((id) => !absent.has(id))
     if (absent.has(t.leader)) t.leader = t.members[0]
     if (!t.members.length) teams.delete(t.id)
-    finished.set(game.id, { result, tickets: new Set([...game.members.values()].map((m) => m.ticket)), until: now() + KEEP_RESULT })
+    finished.set(game.id, { result: report, tickets: new Set([...game.members.values()].map((m) => m.ticket)), until: now() + KEEP_RESULT })
     log(`[salvage] mission ${game.id} : ${won ? 'réussie' : reason === 'timeout' ? 'annulée' : 'échouée'}, ${game.delivered}/${game.settings.parcels} colis en ${duration} s`)
     announce()
     if (!won) return
@@ -385,6 +406,7 @@ export function createSalvage({
         game.lockers.set(locker.id, m.id)
         m.hidden = locker.id
         m.hiddenAt = now()
+        m.stats.hides++
         m.x = spot.x
         m.z = spot.z
         // Le casier protège : seul un poursuivant tout près (il l'a vu s'y glisser sous son nez)
@@ -422,6 +444,7 @@ export function createSalvage({
         if (!t || !walkable(zone, t.x, t.z) || inAirlock(zone, t)) return error(p, 'far')
         if (dist(here, target) > RULES.flare.range + 0.5 || !zoneSight(zone, here, target)) return error(p, 'far')
         m.flares--
+        m.stats.flares++
         game.flare = { x, z, until: now() + RULES.flare.burn * 1000, by: m.id, reach: distances(zone, [t], { monster: true, max: RULES.flare.radius }) }
         tell(game, { kind: 'flare', id: m.id, x, z, burn: RULES.flare.burn, count: m.flares })
         return
@@ -511,6 +534,13 @@ export function createSalvage({
     m.z = p.z
     m.at = now()
     m.sprint = p.anim === 'sprint'
+    // Du verre brisé crisse sous le pied qui s'y pose, même en marchant.
+    const step = tileOf(game.zone, m)
+    const tile = step ? step.z * game.zone.width + step.x : null
+    if (tile !== m.glass) {
+      m.glass = tile
+      if (floorFx(game.zone, m) === FX.glass) noise(game, m, RULES.noise.glass)
+    }
     // Au sas avec un colis : il est livré.
     if (m.carrying !== null && inAirlock(game.zone, m)) {
       const c = game.cargo[m.carrying]
@@ -518,8 +548,14 @@ export function createSalvage({
       c.state = 'delivered'
       c.by = null
       game.delivered++
+      m.stats.delivered++
       tell(game, { kind: 'deposit', id: m.id, cargo: c.id, delivered: game.delivered })
       checkEnd(game)
+      if (!game.ended) {
+        // Le monte-charge remonte le colis : ça s'entend devant le sas, et la ruche s'agite.
+        for (const d of game.zone.doors) noise(game, { x: d.x + DIRS[d.dir].dx, z: d.z + DIRS[d.dir].dz }, RULES.noise.lift)
+        tell(game, { kind: 'hive', level: agitation(game) })
+      }
     }
   }
 
@@ -609,10 +645,16 @@ export function createSalvage({
 
   // ------------------------------------------------------------------ ennemis
 
+  /** La ruche s'agite : 0 au départ, 1 quand il ne reste qu'un colis à livrer (et après). */
+  function agitation(game) {
+    return Math.min(1, game.delivered / Math.max(1, game.settings.parcels - 1))
+  }
+
   function visible(game, mon, m) {
     if (m.status !== 'alive' || m.hidden !== null || inAirlock(game.zone, m)) return false
     const d = dist(mon, m)
-    if (d > M.sight) return false
+    // Dans une zone éclairée, on se voit de loin.
+    if (d > (isLit(game.zone, m) ? M.litSight : M.sight)) return false
     if (d > M.sense) {
       const fx = Math.sin(mon.yaw), fz = Math.cos(mon.yaw)
       if (((m.x - mon.x) * fx + (m.z - mon.z) * fz) / d < M.fov) return false
@@ -623,8 +665,9 @@ export function createSalvage({
   function randomGoal(game, mon) {
     const zone = game.zone
     const alive = [...game.members.values()].filter((m) => m.status === 'alive' && m.hidden === null)
-    // Une fois sur trois, les ennemis rôdent du côté des joueurs (sans savoir où ils sont exactement).
-    const near = alive.length && random() < 0.33 ? alive[Math.floor(random() * alive.length)] : null
+    // Une fois sur trois, les ennemis rôdent du côté des joueurs (sans savoir où ils sont
+    // exactement) ; plus souvent quand la ruche s'agite.
+    const near = alive.length && random() < 0.33 + RULES.hive.roam * agitation(game) ? alive[Math.floor(random() * alive.length)] : null
     for (let i = 0; i < 40; i++) {
       const x = near ? Math.round(near.x + (random() - 0.5) * 12) : Math.floor(random() * zone.width)
       const z = near ? Math.round(near.z + (random() - 0.5) * 12) : Math.floor(random() * zone.height)
@@ -721,7 +764,10 @@ export function createSalvage({
       if (visible(game, mon, m) && (!seen || dist(mon, m) < dist(mon, seen))) seen = m
     }
     if (seen) {
-      if (mon.mode !== 'chase') tell(game, { kind: 'spotted', monster: mon.id, id: seen.id })
+      if (mon.mode !== 'chase') {
+        seen.stats.spotted++
+        tell(game, { kind: 'spotted', monster: mon.id, id: seen.id })
+      }
       mon.mode = 'chase'
       mon.target = seen.id
       mon.memory = M.memory
@@ -739,10 +785,12 @@ export function createSalvage({
     // Ouïe : un bruit à portée (en chemin dans le labyrinthe), s'il ne poursuit personne.
     if (mon.mode !== 'chase' && game.noises.length && mt) {
       let heard = null
+      const ears = 1 + RULES.hive.hearing * agitation(game)
       for (const n of game.noises) {
-        const d = n.reach ?? (n.reach = distances(zone, [n], { monster: true, max: Math.ceil(n.radius) }))
+        const radius = n.radius * ears
+        const d = n.reach ?? (n.reach = distances(zone, [n], { hear: true, max: Math.ceil(radius) }))
         const k = d[mt.z * zone.width + mt.x]
-        if (k >= 0 && k <= n.radius && (!heard || k < heard.k)) heard = { n, k }
+        if (k >= 0 && k <= radius && (!heard || k < heard.k)) heard = { n, k }
       }
       if (heard && mon.search === null) {
         if (mon.mode !== 'investigate') tell(game, { kind: 'heard', monster: mon.id })
@@ -780,7 +828,7 @@ export function createSalvage({
         break
       }
       case 'investigate':
-        if (walk(mon, mon.search !== null ? M.chase * 0.8 : M.investigate, dt)) {
+        if (walk(mon, mon.search !== null ? M.chase * 0.8 : M.investigate * (1 + RULES.hive.speed * agitation(game)), dt)) {
           if (mon.search !== null) {
             const locker = zone.lockers[mon.search]
             mon.yaw = Math.atan2(DIRS[locker.dir].dx, DIRS[locker.dir].dz)
@@ -802,7 +850,7 @@ export function createSalvage({
         break
       default: // patrouille
         if (!mon.path.length) routeTo(game, mon, randomGoal(game, mon))
-        walk(mon, M.patrol, dt)
+        walk(mon, M.patrol * (1 + RULES.hive.speed * agitation(game)), dt)
     }
 
     // Capture : au contact d'un joueur actif, visible, hors du sas.
@@ -862,6 +910,7 @@ export function createSalvage({
       lockers: [...game.lockers].filter(([, id]) => id !== null).map(([l]) => l),
       searching: game.monsters.filter((mon) => mon.mode === 'search').map((mon) => mon.search),
       delivered: game.delivered,
+      hive: Math.round(agitation(game) * 100) / 100,
       elapsed: Math.round((t - game.startedAt) / 100) / 10,
     })
   }

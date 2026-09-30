@@ -3616,8 +3616,29 @@ body.salvage-hidden #app::after { content: ''; position: fixed; inset: 0; pointe
 .salvage-spectator-label .icon { width: 16px; height: 16px; }
 .salvage-spectator button { display: inline-flex; align-items: center; gap: 5px; padding: 7px 10px; border: 1px solid #3f7a5a; border-radius: 8px; color: #dff3e6; background: #17302a; font: 600 12px system-ui, sans-serif; cursor: pointer; }
 .salvage-spectator button .icon { width: 14px; height: 14px; }
-body.salvage-watching #app::after { content: ''; position: fixed; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, #0000 0 3px, #00000038 3px 4px), radial-gradient(ellipse at center, #0000 55%, #000c 100%); }
-body.salvage-watching #app { filter: saturate(.55) sepia(.25) hue-rotate(70deg) contrast(1.08); }
+/* Le tube cathodique (courbure, lignes, grain, phosphore) est dessiné par le rendu (cf. salvage/fog.ts) ;
+   ici, l'habillage du moniteur : coins de visée, « REC » qui clignote, date et temps de mission. */
+.salvage-cctv { position: fixed; inset: 0; z-index: 36; pointer-events: none; color: #8dffb0; font: 600 13px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; text-shadow: 0 0 6px #3dff7a99; letter-spacing: .06em; }
+.salvage-cctv[hidden] { display: none; }
+.salvage-cctv-corner { position: absolute; width: 46px; height: 34px; border: 2px solid #8dffb0aa; filter: drop-shadow(0 0 4px #3dff7a88); }
+.salvage-cctv-corner.tl { top: 8vh; left: 5vw; border-right: 0; border-bottom: 0; }
+.salvage-cctv-corner.tr { top: 8vh; right: 5vw; border-left: 0; border-bottom: 0; }
+.salvage-cctv-corner.bl { bottom: 11vh; left: 5vw; border-right: 0; border-top: 0; }
+.salvage-cctv-corner.br { bottom: 11vh; right: 5vw; border-left: 0; border-top: 0; }
+.salvage-cctv-stamp { position: absolute; top: calc(8vh + 44px); right: calc(5vw + 10px); display: grid; justify-items: end; gap: 3px; }
+.salvage-cctv-rec { color: #ff5a4e; text-shadow: 0 0 8px #ff3b2f; animation: salvage-rec 1.2s steps(1) infinite; }
+@keyframes salvage-rec { 50% { opacity: 0; } }
+.salvage-cctv-site { position: absolute; bottom: calc(11vh + 42px); left: calc(5vw + 10px); font-size: 11px; opacity: .8; }
+body.salvage-watching .salvage-hud { background: #030b07d9; border-color: #3dff7a66; }
+
+/* La ruche s'agite : un voyant ambre, rouge au dernier colis. */
+.salvage-hud-hive { display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 8px; color: #ffd98a; background: #e9a9171f; font-size: 12px; font-weight: 700; }
+.salvage-hud-hive[hidden] { display: none; }
+.salvage-hud-hive .icon { width: 14px; height: 14px; }
+.salvage-hud-hive.max { color: #ffb3aa; background: #ff3b2f24; animation: salvage-pulse .8s ease-in-out infinite alternate; }
+.salvage-hive-pips { display: inline-flex; gap: 3px; }
+.salvage-hive-pips i { width: 7px; height: 7px; border-radius: 2px; background: #ffffff22; }
+.salvage-hive-pips i.on { background: currentColor; box-shadow: 0 0 6px currentColor; }
 
 /* Capture : voile rouge. */
 .salvage-vignette { position: fixed; inset: 0; z-index: 44; pointer-events: none; background: radial-gradient(ellipse at center, #0000 30%, #b0101099 100%); opacity: 0; }
@@ -3629,6 +3650,20 @@ body.salvage-watching #app { filter: saturate(.55) sepia(.25) hue-rotate(70deg) 
 .salvage-end.won { border-color: #6dff9a; }
 .salvage-end .salvage-head { padding-right: 0; }
 .salvage-end-reward { margin: 0; color: #ffd98a; font-weight: 700; }
+/* Note de la mission : une grande lettre, comme un tampon. */
+.salvage-grade { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.salvage-grade strong { display: grid; place-items: center; width: 58px; height: 58px; border: 3px solid currentColor; border-radius: 12px; font: 900 36px/1 system-ui, sans-serif; transform: rotate(-6deg); box-shadow: 0 0 18px -4px currentColor; }
+.salvage-grade span { max-width: 240px; text-align: left; color: #cfe9da; font-size: 13px; }
+.salvage-grade.gS { color: #ffd166; }
+.salvage-grade.gA { color: #6dff9a; }
+.salvage-grade.gB { color: #9fe8bc; }
+.salvage-grade.gC { color: #ffa25a; }
+.salvage-grade.gD { color: #ff6a5c; }
+.salvage-stats .salvage-table { font-size: 12px; text-align: left; }
+.salvage-stats .salvage-table td { padding: 6px 10px; }
+.salvage-stats .salvage-table td:first-child { width: auto; color: #f2fff6; font-weight: 600; }
+.salvage-stats .salvage-table tr.caught td:first-child { color: #ff8f86; }
+.salvage-stat-icon { width: 13px; height: 13px; margin-right: 4px; vertical-align: -2px; }
 
 /* Écran étroit : la barre de mission passe à droite, sous la barre d'outils (le cartouche du pont est à gauche). */
 @media (max-width: 1100px) {

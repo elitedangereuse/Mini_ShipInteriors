@@ -29,7 +29,8 @@ export class RemotePlayer {
   constructor(
     readonly id: number,
     s: PlayerState,
-    private levelY: (level: number) => number,
+    /** Hauteur du sol du pont `level` en (x, z) : celle du pont, ou de la passerelle de la baie infestée. */
+    private levelY: (level: number, x: number, z: number) => number,
   ) {
     this.name = s.name
     this.verified = !!s.verified
@@ -58,7 +59,7 @@ export class RemotePlayer {
     const changedLevel = s.level !== this.level
     this.level = s.level
     this.pose = POSE_IDS.includes(s.pose as PoseId) ? (s.pose as PoseId) : null
-    this.target.set(s.x, this.levelY(s.level) + (this.pose ? Math.min(1.2, Math.max(0, s.py ?? 0)) : 0), s.z)
+    this.target.set(s.x, this.levelY(s.level, s.x, s.z) + (this.pose ? Math.min(1.2, Math.max(0, s.py ?? 0)) : 0), s.z)
     this.yaw = s.yaw
     this.anim = (['idle', 'walk', 'sprint'].includes(s.anim) ? s.anim : 'idle') as Locomotion
     this.avatar?.setPose(this.pose)

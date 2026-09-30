@@ -22,8 +22,8 @@ export interface MonsterState {
   mode: MonsterMode
 }
 
-/** Au-delà (tuiles), un Thargoïde est hors de la vue du joueur : on ne le dessine pas. */
-const VISIBLE = 7
+/** Au-delà (tuiles), un Thargoïde est hors de la vue du joueur (zones éclairées comprises) : on ne le dessine pas. */
+const VISIBLE = 10
 /** Distance entre deux pas, en marchant et en courant. */
 const STRIDE = { walk: 0.5, sprint: 0.8 }
 
@@ -55,7 +55,7 @@ class Monster {
     const bx = p.x, bz = p.z
     p.x = THREE.MathUtils.damp(p.x, this.target.x, 9, dt)
     p.z = THREE.MathUtils.damp(p.z, this.target.z, 9, dt)
-    p.y = this.target.y
+    p.y = THREE.MathUtils.damp(p.y, this.target.y, 9, dt)
     if (Math.hypot(this.target.x - p.x, this.target.z - p.z) > 3) p.copy(this.target)
     const moved = Math.hypot(p.x - bx, p.z - bz)
     this.root.rotation.y = dampAngle(this.root.rotation.y, this.yaw, 10, dt)
@@ -86,18 +86,20 @@ export class MonsterView {
   private monsters = new Map<number, Monster>()
   private last = new Map<number, MonsterMode>()
 
-  constructor(private sfx: SalvageSfx, private y: number) {}
+  /** @param height hauteur du sol en un point de la baie (la passerelle, ses escaliers) */
+  constructor(private sfx: SalvageSfx, private y: number, private height: (p: { x: number; z: number }) => number = () => 0) {}
 
   /** État reçu du relais. */
   apply(states: MonsterState[]) {
     for (const s of states) {
       let m = this.monsters.get(s.id)
+      const y = this.y + this.height(s)
       if (!m) {
-        m = new Monster(s.id, s, this.y)
+        m = new Monster(s.id, s, y)
         this.monsters.set(s.id, m)
         this.group.add(m.root)
       }
-      m.apply(s, this.y)
+      m.apply(s, y)
       // Il vient de repérer quelqu'un : un cri.
       if (s.mode === 'chase' && this.last.get(s.id) !== 'chase') this.sfx.shriek(m.root.position.clone().setY(this.y + 0.6))
       this.last.set(s.id, s.mode)

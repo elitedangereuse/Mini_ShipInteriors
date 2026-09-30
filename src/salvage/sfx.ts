@@ -5,7 +5,8 @@ import type { Sound } from '../audio'
  * Bruitages de la baie infestée, synthétisés (Web Audio), sans musique : le chant métallique et
  * les pas des Thargoïdes (des indices de leur proximité), le cœur qui s'emballe quand l'un d'eux est
  * tout près, le chuintement d'une fusée, le claquement des casiers, le détecteur de cargaison,
- * le dépôt au sas, la capture. Les sons de la scène passent par l'écho (cf. Sound.setEcho).
+ * le dépôt au sas, la capture, le verre brisé qui crisse, la ruche qui s'agite, les parasites des
+ * caméras de surveillance. Les sons de la scène passent par l'écho (cf. Sound.setEcho).
  */
 
 export class SalvageSfx {
@@ -236,6 +237,60 @@ export class SalvageSfx {
     if (!out) return
     const t = this.ctx.currentTime + 0.005
     this.tone(out, 'square', ok ? 1200 : 300, ok ? 1500 : 220, t, 0.06)
+  }
+
+  /** Un pas sur du verre brisé : des éclats qui crissent et tintent (les ennemis l'entendent aussi). */
+  crunch(pos: THREE.Vector3) {
+    const out = this.sound.voice(pos, 0.26, 1.2, 1.3)
+    if (!out) return
+    const t = this.ctx.currentTime + 0.005
+    this.hiss(out, t, 0.12, 4200, 1.2, 0.9, 2600)
+    for (let i = 0; i < 4; i++) {
+      const f = 2800 + Math.random() * 2600
+      this.tone(out, 'triangle', f, f * 0.93, t + 0.01 + Math.random() * 0.09, 0.05, 0.28)
+    }
+  }
+
+  /**
+   * La ruche s'agite (un colis livré) : un grondement lointain qui roule dans toute la baie, et un
+   * chœur de chants métalliques qui lui répond.
+   */
+  hive() {
+    const out = this.sound.voice(null, 0.22)
+    if (!out) return
+    const ctx = this.ctx
+    const t = ctx.currentTime + 0.05
+    const len = 3.2
+    const env = ctx.createGain()
+    env.gain.setValueAtTime(0, t)
+    env.gain.linearRampToValueAtTime(1, t + 0.8)
+    env.gain.linearRampToValueAtTime(0, t + len)
+    env.connect(out)
+    const low = this.ring(env, t, len, 19, 27)
+    const lp = ctx.createBiquadFilter()
+    lp.type = 'lowpass'
+    lp.frequency.value = 420
+    lp.connect(low)
+    for (const f of [41, 44, 55]) {
+      const o = ctx.createOscillator()
+      o.type = 'sawtooth'
+      o.frequency.setValueAtTime(f, t)
+      o.frequency.linearRampToValueAtTime(f * 0.8, t + len)
+      o.connect(lp)
+      o.start(t)
+      o.stop(t + len + 0.1)
+    }
+    this.hiss(out, t, len, 180, 0.7, 0.5, 90)
+    for (let i = 0; i < 3; i++) this.tone(out, 'sine', 520 + i * 90, 300 + i * 40, t + 0.6 + i * 0.5, 1.1, 0.12)
+  }
+
+  /** Parasites d'un moniteur de surveillance qui change de caméra (non spatialisés). */
+  static(len = 0.35) {
+    const out = this.sound.voice(null, 0.08)
+    if (!out) return
+    const t = this.ctx.currentTime + 0.005
+    this.hiss(out, t, len, 3000, 0.4, 1)
+    this.tone(out, 'square', 60, 60, t, len * 0.8, 0.2)
   }
 
   /** Fin de mission : victoire (fanfare brève) ou défaite (trois notes qui tombent). */

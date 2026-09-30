@@ -620,7 +620,103 @@ const securityBooth: Builder = () => {
   }
 }
 
+/**
+ * Projecteur de chantier sur pied (face à +z) : une platine lestée, un mât, une tête inclinée vers
+ * le sol, sa vitre qui brille et le cône de lumière dans la poussière. `label` : la couleur de la
+ * lumière (les zones éclairées de la baie, cf. BAY_LIT).
+ */
+const floodlight: Builder = ({ label }) => {
+  const color = label && /^#[0-9a-f]{6}$/i.test(label) ? label : '#fff0d6'
+  const g = new THREE.Group()
+  const dark = lit(C.steelDark), steel = lit(C.steel)
+  g.add(box(0.36, 0.05, 0.36, dark, 0, 0.025, -0.06, 0.01))
+  for (const s of [-1, 1]) g.add(box(0.06, 0.04, 0.06, glow(C.hazard), s * 0.13, 0.06, 0.06))
+  g.add(cylinder(0.03, 0.035, 1.24, steel, 0, 0.66, -0.06, 8))
+  const head = new THREE.Group()
+  head.position.set(0, 1.28, -0.02)
+  head.rotation.x = 0.8
+  head.add(box(0.46, 0.28, 0.14, dark, 0, 0, 0, 0.02))
+  for (let k = -3; k <= 3; k++) head.add(box(0.012, 0.24, 0.06, lit('#101215'), k * 0.06, 0, -0.09))
+  head.add(part(new THREE.PlaneGeometry(0.4, 0.22), glow(color), 0, 0, 0.071))
+  head.add(box(0.48, 0.03, 0.18, dark, 0, 0.15, 0.02))
+  g.add(head)
+  g.add(box(0.26, 0.04, 0.04, steel, 0, 1.28, -0.07))
+  // Le cône de lumière dans la poussière : vif à la lampe, qui s'éteint au sol.
+  const live = new THREE.Group()
+  const beam = new THREE.ShaderMaterial({
+    uniforms: { uColor: { value: new THREE.Color(color) } },
+    vertexShader: 'varying float vK; void main() { vK = uv.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'uniform vec3 uColor; varying float vK; void main() { float a = pow(vK, 1.4) * 0.26; gl_FragColor = vec4(uColor * a, a); }',
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+  })
+  const cone = part(new THREE.ConeGeometry(0.85, 1.55, 24, 1, true), beam, 0, 0, 0)
+  cone.position.set(0, 0.66, 0.74)
+  cone.rotation.x = -0.8
+  live.add(cone)
+  return { solid: g, live }
+}
+
+/**
+ * Marquage d'une aire de chargement peint au sol (`label` : « largeur,profondeur », 2,4 × 1,4 par
+ * défaut) : un cadre jaune, des hachures aux coins.
+ */
+const dockMarking: Builder = ({ label }) => {
+  const [w, d] = (label ?? '2.4,1.4').split(',').map(Number)
+  const px = 96
+  const texture = drawnTexture(Math.round(w * px), Math.round(d * px), (c) => {
+    const W = c.canvas.width, H = c.canvas.height
+    c.clearRect(0, 0, W, H)
+    c.strokeStyle = 'rgba(233, 169, 23, 0.85)'
+    c.lineWidth = 10
+    c.strokeRect(8, 8, W - 16, H - 16)
+    c.fillStyle = 'rgba(233, 169, 23, 0.7)'
+    for (const [cx, cy] of [[0, 0], [W, 0], [0, H], [W, H]]) {
+      for (let k = 0; k < 4; k++) {
+        c.beginPath()
+        const o = 18 + k * 16
+        c.moveTo(cx === 0 ? o : W - o, cy === 0 ? 8 : H - 8)
+        c.lineTo(cx === 0 ? o + 8 : W - o - 8, cy === 0 ? 8 : H - 8)
+        c.lineTo(cx === 0 ? 8 : W - 8, cy === 0 ? o + 8 : H - o - 8)
+        c.lineTo(cx === 0 ? 8 : W - 8, cy === 0 ? o : H - o)
+        c.closePath()
+        c.fill()
+      }
+    }
+  })
+  return { live: decal(texture, w, d, 0.005) }
+}
+
+/**
+ * Flèche peinte au sol (0,8 × 0,8, vers +z) : « EXTRACTION », pour retrouver le sas dans le noir.
+ */
+const floorArrow: Builder = () => {
+  const texture = drawnTexture(256, 256, (c) => {
+    c.clearRect(0, 0, 256, 256)
+    c.fillStyle = 'rgba(233, 169, 23, 0.85)'
+    c.beginPath()
+    c.moveTo(128, 236)
+    c.lineTo(222, 130)
+    c.lineTo(162, 130)
+    c.lineTo(162, 60)
+    c.lineTo(94, 60)
+    c.lineTo(94, 130)
+    c.lineTo(34, 130)
+    c.closePath()
+    c.fill()
+    c.font = 'bold 30px sans-serif'
+    c.textAlign = 'center'
+    c.fillText(tr('EXTRACTION', 'EXTRACTION'), 128, 40)
+  })
+  // Le texte se lit en venant du nord : la flèche pointe vers +z, le haut du dessin vers -z.
+  const d = decal(texture, 0.8, 0.8)
+  d.rotation.z = Math.PI
+  return { live: d }
+}
+
 export const SALVAGE = {
+  floodlight,
+  'dock-marking': dockMarking,
+  'floor-arrow': floorArrow,
   'security-booth': securityBooth,
   'salvage-terminal': terminal,
   'surveillance-wall': surveillance,

@@ -264,7 +264,7 @@ export class Deck {
   /** Altitude du sol de ce pont. */
   readonly y: number
   /** Lumières du pont, en coordonnées monde. */
-  readonly lights: { position: THREE.Vector3; color: THREE.Color; intensity: number; flicker?: Flicker }[] = []
+  readonly lights: { position: THREE.Vector3; color: THREE.Color; intensity: number; flicker?: Flicker; distance?: number }[] = []
   /** Sources sonores (coordonnées monde). */
   readonly engineEmitters: THREE.Vector3[] = []
   /** Sons d'ambiance par type (bips, arcade, soudure, machines), en coordonnées monde. */
@@ -352,8 +352,8 @@ export class Deck {
     this.flushStatic()
     this.buildCeiling()
 
-    for (const [x, z, color, intensity, flicker] of def.lights) {
-      this.lights.push({ position: new THREE.Vector3(x, this.y + 1.4, z), color: new THREE.Color(color), intensity, flicker })
+    for (const [x, z, color, intensity, flicker, distance] of def.lights) {
+      this.lights.push({ position: new THREE.Vector3(x, this.y + 1.4, z), color: new THREE.Color(color), intensity, flicker, distance })
     }
     this.pathfinder = new Pathfinder(this.map, this.blockedTiles, this.colliders)
     // Ses meubles viennent de l'aménagement du joueur (cf. main.ts) : ils s'ajoutent au reste du pont.
@@ -572,7 +572,7 @@ export class Deck {
         const room = this.map.room(x, z)
         if (!room) continue
         if (this.def.zone) {
-          this.addStatic(this.def.zone.kit.floor(x, z, hash(x, z)), false)
+          this.addStatic(this.def.zone.kit.floor(x, z, hash(x, z), this.def.zone.glow?.(x, z)), false)
           continue
         }
         if (this.def.ground) {

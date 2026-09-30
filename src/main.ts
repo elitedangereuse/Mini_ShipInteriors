@@ -526,12 +526,16 @@ const lightsFrom = new THREE.Vector3(Infinity, 0, 0)
 function applyLights() {
   const focus = salvage?.watchTarget ?? player.position
   lightsFrom.copy(focus)
+  // Dans la baie infestée, les projecteurs des zones éclairées passent devant les lampes de
+  // secours plus proches : une zone éclairée se voit de loin (cf. RULES.litVision).
+  const weight = viewDeck.def.zone ? (d: Deck['lights'][number]) => d.position.distanceToSquared(focus) / d.intensity : (d: Deck['lights'][number]) => d.position.distanceToSquared(focus)
   const near = viewDeck.lights.length <= lightPool.length
     ? viewDeck.lights
-    : [...viewDeck.lights].sort((a, b) => a.position.distanceToSquared(focus) - b.position.distanceToSquared(focus)).slice(0, lightPool.length)
+    : [...viewDeck.lights].sort((a, b) => weight(a) - weight(b)).slice(0, lightPool.length)
   for (const [i, l] of lightPool.entries()) {
     const def = (pooled[i] = near[i])
     l.intensity = def ? def.intensity : 0
+    l.distance = def?.distance ?? 7
     if (def) {
       l.position.copy(def.position)
       l.color.copy(def.color)
@@ -1197,7 +1201,8 @@ function updateIdentity() {
     el.appendChild(w)
   }
 }
-const levelY = (level: number) => level * LEVEL_HEIGHT
+/** Sol du pont `level` en (x, z) : dans la baie infestée, la passerelle et ses escaliers montent. */
+const levelY = (level: number, x: number, z: number) => level * LEVEL_HEIGHT + (level === ZONE_LEVEL ? zone.groundHeight(x, z) : 0)
 
 function updateNetStatus() {
   const el = $('net')
