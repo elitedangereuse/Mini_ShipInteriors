@@ -557,10 +557,12 @@ export const LEVELS: LevelDef[] = [
       // hangar. Les postes de sa tournée, et les obstacles de ses trajets, sont dans
       // shared/mechanic.js : à tenir à jour si l\'on déplace un meuble ici.
       { model: 'hangar-pad', x: 31.4, z: 5, rot: 1, label: '7', solid: false },
-      { model: 'hangar-beacon', x: 28.05, z: 1.65 },
-      { model: 'hangar-beacon', x: 34.75, z: 1.65 },
-      { model: 'hangar-beacon', x: 28.05, z: 8.35 },
-      { model: 'hangar-beacon', x: 34.75, z: 8.35 },
+      // Gyrophares aux coins du carré peint du pad : franchissables, comme les balises du bouclier
+      // (posés entre deux centres de tuiles, ils arrêteraient un joueur en chemin).
+      { model: 'hangar-beacon', x: 28.05, z: 1.65, solid: false },
+      { model: 'hangar-beacon', x: 34.75, z: 1.65, solid: false },
+      { model: 'hangar-beacon', x: 28.05, z: 8.35, solid: false },
+      { model: 'hangar-beacon', x: 34.75, z: 8.35, solid: false },
       {
         model: 'krait-mk2', x: 31.4, z: 5, rot: 1, reach: { x: 31.4, z: 8.5 },
         interact: [
@@ -603,11 +605,11 @@ export const LEVELS: LevelDef[] = [
       ) },
       {
         // On y demande une révision du Krait à Nico (cf. src/hangar.ts).
-        model: 'hangar-console', x: 36.55, z: 1.2, rot: 3, action: tr('Demander une révision', 'Ask for a service job'),
+        model: 'hangar-console', x: 37, z: 1, rot: 3, action: tr('Demander une révision', 'Ask for a service job'),
         interact: tr('Pupitre du hangar : carburant 100 %, bouclier actif, pad verrouillé. Autorisation de décollage : refusée (« demandez à Nico »).', 'Hangar console: fuel 100%, shield active, pad locked. Launch clearance: denied (“ask Nico”).'),
       },
-      { model: 'shield-beacon', x: 37.05, z: 2.6, interact: SHIELD_TEXT },
-      { model: 'shield-beacon', x: 37.05, z: 7.4, interact: SHIELD_TEXT },
+      { model: 'shield-beacon', x: 37.05, z: 3.2, solid: false, interact: SHIELD_TEXT },
+      { model: 'shield-beacon', x: 37.05, z: 6.8, solid: false, interact: SHIELD_TEXT },
       { model: 'thruster-stand', x: 26.75, z: 8.3, interact: tr(
         'Une tuyère de rechange de Krait sur son berceau. Étiquette : « Pour la Princesse. Ne pas vendre. Ne PAS vendre. »',
         'A spare Krait thruster on its cradle. The label says: “For the Princess. Do not sell. Do NOT sell.”',

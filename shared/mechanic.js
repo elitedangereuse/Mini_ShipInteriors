@@ -42,9 +42,9 @@ export const MECH_OBSTACLES = [
   { minX: 29.02, maxX: 29.98, minZ: -0.35, maxZ: 0.21 }, // panneau à outils
   { minX: 32.03, maxX: 33.17, minZ: -0.35, maxZ: 0.08 }, // étagère à pièces
   { minX: 34, maxX: 34.82, minZ: -0.1, maxZ: 0.36 }, // poste de soudure
-  { minX: 36.31, maxX: 36.75, minZ: 0.84, maxZ: 1.56 }, // pupitre du hangar
-  { minX: 36.96, maxX: 37.14, minZ: 2.51, maxZ: 2.69 }, // balise du bouclier
-  { minX: 36.96, maxX: 37.14, minZ: 7.31, maxZ: 7.49 }, // balise du bouclier
+  { minX: 36.76, maxX: 37.24, minZ: 0.64, maxZ: 1.36 }, // pupitre du hangar
+  { minX: 36.96, maxX: 37.14, minZ: 3.11, maxZ: 3.29 }, // balise du bouclier
+  { minX: 36.96, maxX: 37.14, minZ: 6.71, maxZ: 6.89 }, // balise du bouclier
   { minX: 26.4, maxX: 27.1, minZ: 8.05, maxZ: 8.55 }, // support de propulseur
   { minX: 26.25, maxX: 26.6, minZ: 2.45, maxZ: 2.75 }, // projecteur
   { minX: 28.29, maxX: 28.91, minZ: 9.07, maxZ: 9.43 }, // chariot à outils
@@ -76,7 +76,7 @@ const POSTS = [
   { at: 'gear', x: 29.95, z: 1.45, yaw: SOUTH, watch: 6, work: 'wrench' },
   { at: 'parts', x: 32.6, z: 0.72, yaw: NORTH, watch: 5, work: 'fetch' },
   { at: 'welder', x: 34.4, z: 0.8, yaw: NORTH, watch: 7, work: 'weld' },
-  { at: 'console', x: 35.85, z: 1.2, yaw: EAST, watch: 6, work: 'type' },
+  { at: 'console', x: 36.3, z: 1, yaw: EAST, watch: 6, work: 'type' },
   { at: 'nose', x: MECH_WAIT.x, z: MECH_WAIT.z, yaw: WEST, watch: 6, work: 'look' },
   { at: 'shield', x: 36.75, z: 6.3, yaw: EAST, watch: 6, work: 'look' },
   { at: 'fuel', x: 32.4, z: 9.3, yaw: SOUTH, watch: 7, work: 'refuel' },

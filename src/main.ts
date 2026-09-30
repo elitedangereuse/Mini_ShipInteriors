@@ -2685,6 +2685,10 @@ function inSight(item: Interactable): boolean {
 }
 
 function nearestInteractable(): Interactable | null {
+  // Pendant une révision du Krait, le poste de l'étape passe avant les meubles voisins (une cale
+  // du train est plus près du chariot à outils que le chariot lui-même, d'où l'on se tient).
+  const job = deck === holdDeck ? hangar.target : null
+  if (job && distanceTo(job) < INTERACT_RANGE && inSight(job)) return job
   let best: Interactable | null = null
   let bestD = INTERACT_RANGE
   for (const i of deck.interactables) {
