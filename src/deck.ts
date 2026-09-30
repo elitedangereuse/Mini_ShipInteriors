@@ -109,7 +109,7 @@ export const FLOOR_Y = -0.3
  * les yeux sont à 0,59, un plafond bas écrase la vue. Les murs montent jusqu'à lui (cf.
  * upperWalls), et les lampes du pont (1,4) l'éclairent par en dessous.
  */
-export const CEILING_Y = 1.75
+export const CEILING_Y = 2.2
 /** Dessus des murs de la baie infestée (cf. salvage/kit.ts) ; ceux du vaisseau font 1. */
 const ZONE_WALL_TOP = 1.06
 const DOOR_RANGE = 1.3
@@ -534,18 +534,17 @@ export class Deck {
 
   /**
    * Plafond de toutes les pièces, en un maillage par matériau, avec un plafonnier sous chaque
-   * lampe. Au-dessus de l'ascenseur, un trou : son tube monte au travers.
+   * lampe. L'ascenseur tient dessous (tube de 1,7, panneau à 1,55) : pas de trou vers le ciel.
    */
   private buildCeiling() {
     const merge = new StaticMerge()
-    const lift = (x: number, z: number) => !this.def.zone && Math.round(x) === LIFT.x && Math.round(z) === LIFT.z
     for (let z = 0; z < this.map.height; z++) {
       for (let x = 0; x < this.map.width; x++) {
-        if (this.map.room(x, z) && !lift(x, z)) merge.add(ceilingTile(x, z, this.ceilingY, this.ceilingMaterial), false)
+        if (this.map.room(x, z)) merge.add(ceilingTile(x, z, this.ceilingY, this.ceilingMaterial), false)
       }
     }
     for (const [x, z, color] of this.def.lights) {
-      if (this.map.room(Math.round(x), Math.round(z)) && !lift(x, z)) merge.add(ceilingLamp(x, z, color, this.ceilingY), false)
+      if (this.map.room(Math.round(x), Math.round(z))) merge.add(ceilingLamp(x, z, color, this.ceilingY), false)
     }
     const zone = this.def.zone
     const postTop = zone ? new THREE.Box3().setFromObject(zone.kit.post(0, 0)).max.y : POST_H

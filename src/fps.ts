@@ -2,8 +2,15 @@ import * as THREE from 'three'
 
 /** Regard vers le haut ou vers le bas, au plus (radians). */
 const MAX_PITCH = THREE.MathUtils.degToRad(80)
-/** Hauteur des yeux sous le haut de la tête (cf. Avatar.head, qui vise le dessus du crâne). */
-const EYE_BELOW_HEAD = 0.36
+/**
+ * Hauteur des yeux sous Avatar.head (0,28 au-dessus du crâne) : un peu au-dessus du crâne. Le
+ * mobilier du kit est taillé pour des têtes de chibi (table 0,40, chaise 0,55) : des yeux à
+ * hauteur réelle (0,59) donnaient l'impression d'être un enfant. Les portes s'ouvrent jusqu'au
+ * haut du mur (1) : rien à heurter.
+ */
+const EYE_BELOW_HEAD = 0.21
+/** Point visé derrière le personnage (sa poitrine), sous Avatar.head. */
+const PIVOT_BELOW_HEAD = 0.46
 /** Vue à la troisième personne : distance au personnage et inclinaison de repos. */
 const THIRD_DISTANCE = 1.7
 const THIRD_ELEVATION = THREE.MathUtils.degToRad(22)
@@ -106,7 +113,7 @@ export class FirstPersonCamera {
     const eyeLook = _look.set(_eye.x - s * cp, _eye.y + sp, _eye.z - c * cp)
 
     // Derrière le personnage : en orbite autour de sa poitrine, le regard vers lui.
-    _pivot.set(head.x, head.y - EYE_BELOW_HEAD - 0.1, head.z)
+    _pivot.set(head.x, head.y - PIVOT_BELOW_HEAD, head.z)
     const elevation = THREE.MathUtils.clamp(THIRD_ELEVATION - this.pitch, THIRD_MIN_ELEVATION, THIRD_MAX_ELEVATION)
     const h = Math.cos(elevation) * THIRD_DISTANCE
     _third.set(_pivot.x + s * h, Math.min(_pivot.y + Math.sin(elevation) * THIRD_DISTANCE, top), _pivot.z + c * h)
