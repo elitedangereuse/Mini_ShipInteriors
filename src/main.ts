@@ -52,6 +52,8 @@ import { Kitchen } from './kitchen'
 import { NURSE, Nurse, nurseRig, type NurseReport } from './nurse'
 import { DROID, MECHANIC, Mechanic, mechanicRig, type MechanicReport } from './mechanic'
 import { Hangar } from './hangar'
+import { GARDENER, Gardener, gardenerRig, type GardenerReport } from './gardener'
+import { Greenhouse } from './greenhouse'
 import { KRAIT_COCKPIT } from '../shared/mechanic.js'
 import { GroundBase } from './base/client'
 import { CHIEF } from './base/chief'
@@ -430,7 +432,7 @@ const creditsHud = new CreditsHud(wallet)
 // Crédits gagnés : ils s'envolent du solde ; une tâche ou un record, aussi au-dessus de la tête.
 wallet.onPassiveCap = () => {
   const hours = ECONOMY.passive.daily / 60
-  chat.add('system', tr(`Revenu passif du jour versé (${hours} h de jeu payées). Les tâches, le mess, le hangar et la zone thargoïde paient toujours.`, `Today's passive income is paid (${hours} h of play). Chores, the mess, the hangar and the Thargoid zone still pay.`))
+  chat.add('system', tr(`Revenu passif du jour versé (${hours} h de jeu payées). Les tâches, le mess, le hangar, la serre et la zone thargoïde paient toujours.`, `Today's passive income is paid (${hours} h of play). Chores, the mess, the hangar, the greenhouse and the Thargoid zone still pay.`))
 }
 wallet.onGain = (amount, kind) => {
   creditsHud.gain(amount, kind === 'passive')
@@ -946,6 +948,57 @@ mechanic.onWork = (work) => {
   else sound.work('wrench', at)
 }
 
+// Capucine, la jardinière, fait la tournée de la serre du pont supérieur (cf. gardener.ts) ; à la
+// grainothèque, on prend une fiche de culture avec elle (cf. greenhouse.ts).
+const gardener = new Gardener(await gardenerRig(), cabinDeck)
+const greenhouse = new Greenhouse({
+  deck: cabinDeck,
+  gardener,
+  player,
+  here: () => deck,
+  show: (text) => dialog.show(text),
+  help: (on) => {
+    gardener.help(player.position, on)
+    net.sendGardenHelp(on)
+  },
+  reward: `+${formatCredits(ECONOMY.garden.reward)}`,
+  requested: () => wallet.startJob('garden'),
+  finished: () => void payJob('garden'),
+  work: (job) => startWork({ ...job, deck: cabinDeck }),
+})
+/** Ce que la jardinière sait quand on lui parle : le système, nos fiches de culture. */
+function gardenerReport(): GardenerReport {
+  return { system: SYSTEMS[systemView.id].name, done: greenhouse.done }
+}
+cabinDeck.interactables.push({
+  object: gardener.root,
+  position: gardener.position,
+  label: tr(`Parler à ${GARDENER}`, `Talk to ${GARDENER}`),
+  onInteract: () => {
+    player.interact()
+    net.sendEmote('interact')
+    // Pendant une fiche, elle rappelle l'étape ; sinon elle bavarde.
+    const line = greenhouse.reminder() ?? gardener.talk(player.position, gardenerReport())
+    if (!greenhouse.busy) net.sendGardenTalk()
+    dialog.show(tr(`${GARDENER} : « ${line} »`, `${GARDENER}: “${line}”`))
+  },
+})
+bubbles.attach('gardener', (out) => (cabinDeck.group.visible ? gardener.avatar.head(out) : null))
+gardener.onBark = (text) => {
+  if (cabinDeck === deck) bubbles.say('gardener', text)
+}
+gardener.onStep = () => {
+  if (cabinDeck === deck) sound.play('softStep', gardener.root.getWorldPosition(new THREE.Vector3()), { volume: 0.06, rate: 1.1 })
+}
+gardener.onWork = (work) => {
+  if (cabinDeck !== deck) return
+  const at = gardener.root.getWorldPosition(new THREE.Vector3()).setY(cabinDeck.y + 0.45)
+  if (work === 'water') sound.work('water', at)
+  else if (work === 'trim' || work === 'harvest') sound.work('chop', at)
+  else if (work === 'feed') sound.work('munch', at)
+  else sound.work('scrub', at)
+}
+
 // ------------------------------------------------------------------ compagnons
 
 /**
@@ -1273,6 +1326,8 @@ net.onMessage = (m) => {
       if (m.nurse) nurse.sync(m.nurse)
       // Et le mécano du hangar (ou devant le nez du Krait, si quelqu'un fait une révision avec lui).
       if (m.mechanic) mechanic.sync(m.mechanic)
+      // Et Capucine, dans sa serre (ou sur les pas japonais, si quelqu'un fait une fiche avec elle).
+      if (m.gardener) gardener.sync(m.gardener)
       // Et Ada, sur la base au sol (construite ou pas encore).
       if (m.chief) {
         if (groundBase.chief) groundBase.sync(m.chief, 0, net.id)
@@ -1326,6 +1381,7 @@ net.onMessage = (m) => {
         nurse.greet(r.group.position, false)
       }
       if (m.emote === 'o7' && r.level === holdDeck.def.id) mechanic.greet(r.group.position, false)
+      if (m.emote === 'o7' && r.level === cabinDeck.def.id) gardener.greet(r.group.position, false)
       const def = EMOTES.find((e) => e.id === m.emote)
       if (def && r.level === deck.def.id) bubbles.emote(`p${m.id}`, def.icon)
       break
@@ -1378,6 +1434,11 @@ net.onMessage = (m) => {
       if (m.id !== net.id && holdDeck === deck && m.hold > 0 && m.help === 0 && m.panic === 0) bubbles.say('mechanic', '…')
       break
     }
+    case 'gardener':
+      // Quelqu'un parle à la jardinière ou l'aide (nous aussi : le relais recale sa tournée).
+      gardener.sync(m)
+      if (m.id !== net.id && cabinDeck === deck && m.hold > 0 && m.help === 0) bubbles.say('gardener', '…')
+      break
     case 'chief':
       // Quelqu'un parle à Ada, ou met les gaz sur l'aire de la base (nous aussi : le relais recale sa ronde).
       if (groundBase.chief) groundBase.sync(m, m.id, net.id)
@@ -2859,7 +2920,7 @@ function inSight(item: Interactable): boolean {
 function nearestInteractable(): Interactable | null {
   // Pendant une révision du Krait, le poste de l'étape passe avant les meubles voisins (une cale
   // du train est plus près du chariot à outils que le chariot lui-même, d'où l'on se tient).
-  const job = deck === holdDeck ? hangar.target : null
+  const job = deck === holdDeck ? hangar.target : deck === cabinDeck ? greenhouse.target : null
   if (job && distanceTo(job) < INTERACT_RANGE && inSight(job)) return job
   let best: Interactable | null = null
   let bestD = INTERACT_RANGE
@@ -3510,9 +3571,15 @@ const JOB_TEXT: Record<JobKind, { done: string; say: (text: string) => void; cap
     capped: tr('Budget révisions épuisé pour aujourd\'hui. Là, tu bosses pour la gloire !', 'Service budget spent for today. You\'re working for glory now!'),
     cappedChat: (n) => tr(`Nico a payé ses ${n} révisions du jour. Les suivantes sont pour la gloire, jusqu'à demain.`, `Nico has paid his ${n} services for today. The rest are for glory, until tomorrow.`),
   },
+  garden: {
+    done: tr('Fiche de culture finie', 'Growing sheet done'),
+    say: (text) => gardener.say(text),
+    capped: tr('La caisse de la serre est vide pour aujourd\'hui. Les plantes te paient en sourires, maintenant !', 'The greenhouse budget is spent for today. The plants pay you in smiles now!'),
+    cappedChat: (n) => tr(`Capucine a payé ses ${n} fiches de culture du jour. Les suivantes sont pour la gloire, jusqu'à demain.`, `Capucine has paid her ${n} growing sheets for today. The rest are for glory, until tomorrow.`),
+  },
 }
 
-/** Plat envoyé avec Marcel, révision finie avec Nico : le site le paie (cf. Wallet.finishJob). */
+/** Plat envoyé avec Marcel, révision finie avec Nico, fiche de culture finie avec Capucine : le site le paie (cf. Wallet.finishJob). */
 async function payJob(job: JobKind) {
   const text = JOB_TEXT[job]
   const reward = formatCredits(ECONOMY[job].reward)
@@ -3670,6 +3737,8 @@ function frame() {
   infirmary.update()
   mechanic.update(world, holdDeck === deck ? player.position : null, player.avatar.emoteId)
   hangar.update(world)
+  gardener.update(world, cabinDeck === deck ? player.position : null, player.avatar.emoteId)
+  greenhouse.update(world)
   // Réacteurs du Krait en route : leur grondement dans la cale, et la vue qui tremble (vue isométrique).
   const roaring = hangar.engines && holdDeck === deck
   if (roaring && !kraitRoar) kraitRoar = sound.thrusters(new THREE.Vector3(KRAIT_COCKPIT.x - 3, holdDeck.y + 0.6, KRAIT_COCKPIT.z)) ?? undefined
@@ -3734,6 +3803,7 @@ function frame() {
   if (cometeHere) actors.get(catDeck)!.push(cat.root.position)
   actors.get(patrolDeck)!.push(sergeant.position, chef.position, nurse.position)
   actors.get(holdDeck)!.push(mechanic.position)
+  actors.get(cabinDeck)!.push(gardener.position)
   if (groundBase.deck && groundBase.chief) actors.get(groundBase.deck)?.push(groundBase.chief.position)
   for (const c of companions.values()) actors.get(cabinDeck)!.push(c.pet.root.position)
   // Un joueur d'une autre instance des quartiers n'ouvre pas nos portes.
@@ -3939,6 +4009,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, salvage: zone, view: () => viewDeck },
+    __game: { renderer, sound, player, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, salvage: zone, view: () => viewDeck },
   })
 }

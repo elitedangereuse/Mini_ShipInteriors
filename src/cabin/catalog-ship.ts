@@ -74,6 +74,29 @@ export const SHIP_ENTRIES: CatalogEntry[] = [
     label: () => '0.5',
     interact: tr('Le drone butine vos plantes. Il a pris les fleurs en plastique pour des vraies, et il insiste.', 'The drone pollinates your plants. It has mistaken the plastic flowers for real ones, and keeps at it.'),
   },
+  {
+    id: 'garden-bed', name: tr('Bac potager', 'Raised garden bed'), category: 'plants', model: 'garden-bed', mount: 'floor',
+    variants: [
+      { id: 'tomato', label: tr('Tomates', 'Tomatoes') },
+      { id: 'lettuce', label: tr('Salades', 'Lettuce') },
+      { id: 'herbs', label: tr('Herbes', 'Herbs') },
+      { id: 'flowers', label: tr('Fleurs', 'Flowers') },
+    ],
+  },
+  {
+    id: 'fruit-tree', name: tr('Pommier de Lave', 'Lave apple tree'), category: 'plants', model: 'fruit-tree', mount: 'floor',
+    interact: tr('Un pommier nain. Ses fruits luisent la nuit : plus besoin de veilleuse.', 'A dwarf apple tree. Its fruit glows at night: no need for a night light.'),
+  },
+  {
+    id: 'garden-pond', name: tr('Bassin aux carpes', 'Koi pond'), category: 'plants', model: 'garden-pond', mount: 'floor',
+    interact: tr('Trois carpes koï tournent en rond. Elles ont l\'air de méditer. Ou de s\'ennuyer.', 'Three koi swim in circles. They seem to be meditating. Or bored.'),
+  },
+  { id: 'seed-cabinet', name: tr('Grainothèque', 'Seed library'), category: 'plants', model: 'seed-cabinet', mount: 'floor' },
+  { id: 'water-barrel', name: tr('Récupérateur d\'eau', 'Water butt'), category: 'plants', model: 'water-barrel', mount: 'floor' },
+  { id: 'compost-bin', name: tr('Composteur', 'Compost bin'), category: 'plants', model: 'compost-bin', mount: 'floor' },
+  { id: 'harvest-crate', name: tr('Caisses de récolte', 'Harvest crates'), category: 'plants', model: 'harvest-crate', mount: 'floor' },
+  { id: 'garden-arch', name: tr('Arche de rosiers', 'Rose arch'), category: 'plants', model: 'garden-arch', mount: 'floor', solid: false, label: () => '1.1' },
+  { id: 'butterflies', name: tr('Papillons', 'Butterflies'), category: 'plants', model: 'butterflies', mount: 'floor', solid: false, label: () => '0.6' },
 
   // --- Elite
   {

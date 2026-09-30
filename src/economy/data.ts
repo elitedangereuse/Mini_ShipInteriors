@@ -12,8 +12,8 @@ import raw from './economy.json'
  * - salvage : récompense d'une mission réussie en zone thargoïde, par membre (par colis, et bonus
  *   par ennemi au-delà du premier, cf. salvageReward dans shared/salvage.js) ; `daily` missions
  *   payées par jour, et aucune bouclée en moins de `minPerParcel` secondes par colis ;
- * - kitchen, hangar : prime d'un plat envoyé avec Marcel (cf. kitchen.ts), d'une révision faite
- *   avec Nico (cf. hangar.ts) : payée `minTime` secondes au moins après la commande, au plus une
+ * - kitchen, hangar, garden : prime d'un plat envoyé avec Marcel (cf. kitchen.ts), d'une révision
+ *   faite avec Nico (cf. hangar.ts), d'une fiche de culture avec Capucine (cf. greenhouse.ts) : payée `minTime` secondes au moins après la commande, au plus une
  *   toutes les `minGap` secondes et `daily` par jour ;
  * - tasks, spots : les tâches de bord et leurs emplacements (cf. schedule.ts et tasks.ts) ;
  *   taskRules : au plus `daily` tâches payées par jour, espacées d'au moins `minGap` secondes ;
@@ -54,8 +54,8 @@ export interface Spot {
   variant?: string
 }
 
-/** Travail payé aux côtés d'un membre d'équipage : les plats de Marcel, les révisions de Nico. */
-export type JobKind = 'kitchen' | 'hangar'
+/** Travail payé aux côtés d'un membre d'équipage : les plats de Marcel, les révisions de Nico, les fiches de culture de Capucine. */
+export type JobKind = 'kitchen' | 'hangar' | 'garden'
 
 /** Prime d'un travail, et ses délais (s) : de la commande à la paie, entre deux paies ; payés par jour. */
 export interface JobRules {
@@ -74,6 +74,7 @@ interface Economy {
   salvage: { parcel: number; enemyBonus: number; daily: number; minPerParcel: number }
   kitchen: JobRules
   hangar: JobRules
+  garden: JobRules
   drinks: Record<string, number>
   tasks: Record<TaskKind, TaskDef>
   taskRules: { daily: number; minGap: number }

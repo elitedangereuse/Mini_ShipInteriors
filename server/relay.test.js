@@ -12,6 +12,7 @@ import { PILOT_SEAT, SYSTEM_IDS } from '../shared/systems.js'
 import { PATROL_HOLD, PATROL_LEVEL, patrolAt } from '../shared/patrol.js'
 import { CHEF_COOK, CHEF_HOLD, CHEF_LEVEL, chefAt } from '../shared/chef.js'
 import { KRAIT_BURN, KRAIT_COCKPIT, MECH_HELP, MECH_HOLD, MECH_LEVEL, mechAt } from '../shared/mechanic.js'
+import { GARDEN_HELP, GARDEN_HOLD, GARDEN_LEVEL, gardenAt } from '../shared/gardener.js'
 import { NURSE_BEDS, NURSE_CARE, NURSE_CARE_MIN, NURSE_HOLD, NURSE_LEVEL, NURSE_PATCH, nurseAt } from '../shared/nurse.js'
 import { BASE_ARRIVAL, BASE_BURN, BASE_COCKPIT, BASE_LEVEL, CHIEF_HOLD, chiefAt } from '../shared/ground-base.js'
 
@@ -578,6 +579,52 @@ describe('mécano du hangar', () => {
     helper.emit('mech:help', { on: true })
     await next(crew, 'mechanic', (m) => m.help > 0)
     const left = next(crew, 'mechanic', (m) => m.help === 0)
+    helper.disconnect()
+    await left
+  })
+})
+
+describe('jardinière de la serre', () => {
+  test('la jardinière est la même pour tous ; lui parler l\'arrête, l\'aider la retient sur les pas japonais', async () => {
+    const helper = client({ auth: { name: 'CMDR Main-Verte' } })
+    const crew = client({ auth: { name: 'CMDR Promeneur' } })
+    const first = (await welcome(helper)).gardener
+    const seen = (await welcome(crew)).gardener
+    assert.equal(first.hold, 0)
+    assert.equal(first.help, 0)
+    assert.ok(Math.abs(seen.tau - first.tau) < 0.5)
+    // Hors de la serre (dans la coursive), on ne l'aide pas, et on ne lui parle pas.
+    helper.emit('state', { x: 12, z: 4.5, yaw: 0, level: GARDEN_LEVEL, anim: 'idle' })
+    helper.emit('garden:help', { on: true })
+    helper.emit('garden:talk')
+    assert.equal(await receives(crew, 'gardener', 150), false)
+    // À côté d'elle : elle s'arrête, face au joueur, pour tous.
+    const at = gardenAt(first.tau + 0.4)
+    helper.emit('state', { x: at.x, z: at.z, yaw: 0, level: GARDEN_LEVEL, anim: 'idle' })
+    const talked = next(crew, 'gardener')
+    helper.emit('garden:talk')
+    const held = await talked
+    assert.ok(held.hold > GARDEN_HOLD - 0.5)
+    assert.deepEqual(held.face, { x: at.x, z: at.z })
+    // Une fiche, depuis la serre : elle attend sur les pas japonais, pour tous.
+    helper.emit('state', { x: 2.5, z: 0.6, yaw: 0, level: GARDEN_LEVEL, anim: 'idle' })
+    const helping = next(crew, 'gardener', (m) => m.help > 0)
+    helper.emit('garden:help', { on: true })
+    const job = await helping
+    assert.ok(job.help > GARDEN_HELP - 1)
+    assert.ok(job.hold >= job.help)
+    // Un nouveau venu la trouve sur les pas japonais.
+    const late = client({ auth: { name: 'CMDR Retardataire' } })
+    assert.ok((await welcome(late)).gardener.help > 0)
+    // La fiche finie, elle repart : plus de fiche, juste le temps de revenir.
+    const done = next(crew, 'gardener', (m) => m.help === 0)
+    helper.emit('garden:help', { on: false })
+    const back = await done
+    assert.ok(back.hold >= 0 && back.hold < 25)
+    // Un aide qui s'en va sans finir libère la jardinière aussi.
+    helper.emit('garden:help', { on: true })
+    await next(crew, 'gardener', (m) => m.help > 0)
+    const left = next(crew, 'gardener', (m) => m.help === 0)
     helper.disconnect()
     await left
   })

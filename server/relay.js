@@ -34,6 +34,11 @@
 // du Krait peut mettre les réacteurs en route (quelques secondes au plus) : Nico panique, pour tout
 // le bord, au pied de l'escabeau ; l'état de Nico dit aussi depuis quand ça tourne, et qui pilote.
 //
+// Serre : Capucine, la jardinière, fait la tournée de la serre hydroponique du pont supérieur (cf.
+// shared/gardener.js), sur une horloge que le relais tient de même. Un joueur qui l'aide (une
+// fiche de culture) l'attire au bout des pas japonais pour tout le bord, tant qu'il travaille
+// (chaque étape relance l'attente), puis la jardinière reprend sa tournée.
+//
 // Quartiers : chaque joueur a sa propre instance des quartiers du commandant (`cabin` : l'id du
 // joueur chez qui il se trouve, le sien par défaut). Un CMDR vérifié envoie l'aménagement des
 // siens (cf. cabin.js), et peut inviter un joueur connecté : celui-ci n'y entre qu'avec une
@@ -71,6 +76,9 @@ import {
 import {
   KRAIT_BURN, MECH_HELP, MECH_LEVEL, MECH_PANIC, MECH_PERIOD, MECH_ROOM, MECH_WAIT, helpMech, holdMech, inCockpit, mechAt, mechTime, panicMech,
 } from '../shared/mechanic.js'
+import {
+  GARDEN_HELP, GARDEN_LEVEL, GARDEN_PERIOD, GARDEN_ROOM, GARDEN_WAIT, gardenAt, gardenTime, helpGarden, holdGarden,
+} from '../shared/gardener.js'
 import { HOME_SYSTEM, JUMP_CHARGE, JUMP_TRAVEL, PILOT_SEAT, nextSystem } from '../shared/systems.js'
 import { ZONE_LEVEL } from '../shared/salvage.js'
 // Identifiant d'apparence (cf. src/looks.ts), ex. « human.female.b », « alien.male.c.blue », « robot.g »,
@@ -349,6 +357,41 @@ export function attachRelay(
     mech = helpUntil(now) ? helpMech(mech, now, helpUntil(now)) : panicMech(mech, now, 0)
     return true
   }
+  /** Horloge de la tournée de la jardinière, vers qui elle se tourne, et les fiches en cours (id du joueur -> fin, ms). */
+  let garden = { tau: Math.random() * GARDEN_PERIOD, at: Date.now(), holdUntil: 0 }
+  let gardenFace = null
+  const growers = new Map()
+  /** Fin de la dernière fiche de culture en cours (ms), 0 s'il n'y en a plus. */
+  const growUntil = (now = Date.now()) => {
+    let until = 0
+    for (const [id, end] of growers) {
+      if (end <= now) growers.delete(id)
+      else until = Math.max(until, end)
+    }
+    return until
+  }
+  /** Où en est la jardinière : instant de la tournée (s), arrêt restant (s), fiche en cours (s), et vers qui elle regarde. */
+  const gardenState = (now = Date.now()) => {
+    const help = growUntil(now)
+    return {
+      tau: gardenTime(garden, now),
+      hold: Math.max(0, garden.holdUntil - now) / 1000,
+      help: Math.max(0, help - now) / 1000,
+      ...(gardenFace && garden.holdUntil > now ? { face: gardenFace } : {}),
+    }
+  }
+  /**
+   * Un aide se met à la fiche de culture ou avance d'une étape (`on`), ou s'en va : la jardinière
+   * l'attend sur les pas japonais, ou repart. Rend false si rien n'a changé.
+   */
+  const setGrow = (player, on, now = Date.now()) => {
+    if (on) {
+      growers.set(player.id, now + GARDEN_HELP * 1000)
+      gardenFace = { x: player.x, z: player.z }
+    } else if (!growers.delete(player.id)) return false
+    garden = helpGarden(garden, now, growUntil(now))
+    return true
+  }
   /** Horloge de la ronde d'Ada, la cheffe de la base, et vers qui elle se tourne pendant un arrêt. */
   let chief = { tau: Math.random() * CHIEF_PERIOD, at: Date.now(), holdUntil: 0 }
   let chiefFace = null
@@ -507,6 +550,7 @@ export function attachRelay(
       chef: chefState(),
       nurse: nurseState(),
       mechanic: mechState(),
+      gardener: gardenState(),
       chief: chiefState(),
       salvage: salvage.snapshot(),
     })
@@ -528,6 +572,7 @@ export function attachRelay(
     let chefBudget = 3
     let nurseBudget = 3
     let mechBudget = 3
+    let gardenBudget = 3
     let chiefBudget = 3
     let salvageBudget = 20
     const refill = setInterval(() => {
@@ -541,6 +586,7 @@ export function attachRelay(
       chefBudget = Math.min(3, chefBudget + 1)
       nurseBudget = Math.min(3, nurseBudget + 1)
       mechBudget = Math.min(3, mechBudget + 1)
+      gardenBudget = Math.min(3, gardenBudget + 1)
       chiefBudget = Math.min(3, chiefBudget + 1)
       salvageBudget = Math.min(20, salvageBudget + 10)
     }, 1000)
@@ -794,6 +840,30 @@ export function attachRelay(
       if (setHelp(player, on)) io.emit('mechanic', { id: player.id, ...mechState() })
     })
 
+    // On parle à la jardinière : à portée d'elle (à sa place dans la tournée, ou sur les pas japonais
+    // si elle y attend un aide).
+    socket.on('garden:talk', () => {
+      if (gardenBudget < 1) return
+      const now = Date.now()
+      const at = growUntil(now) ? GARDEN_WAIT : gardenAt(gardenTime(garden, now))
+      if (!reaches(player, GARDEN_LEVEL, at) && !reaches(player, GARDEN_LEVEL, GARDEN_WAIT)) return
+      gardenBudget--
+      garden = holdGarden(garden, now)
+      gardenFace = { x: player.x, z: player.z }
+      io.emit('gardener', { id: player.id, ...gardenState(now) })
+    })
+
+    // On aide la jardinière (on : une étape de plus de la fiche), ou on a fini (off) : seulement
+    // depuis la serre ; finir ne coûte rien.
+    socket.on('garden:help', (raw) => {
+      const on = obj(raw).on === true
+      if (on) {
+        if (gardenBudget < 1 || player.level !== GARDEN_LEVEL || MAPS.get(GARDEN_LEVEL).room(Math.round(player.x), Math.round(player.z)) !== GARDEN_ROOM) return
+        gardenBudget--
+      }
+      if (setGrow(player, on)) io.emit('gardener', { id: player.id, ...gardenState() })
+    })
+
     // Réacteurs du Krait : on les met en route installé aux commandes (dans la cale), on les coupe
     // si c'est soi qui les a lancés ; tout le bord voit Nico paniquer.
     socket.on('krait:engines', (raw) => {
@@ -910,6 +980,8 @@ export function attachRelay(
       // Son aide parti, ou son pilote (les réacteurs se coupent), le mécano reprend sa tournée.
       const helped = setHelp(player, false)
       if (setBurn(player, false) || helped) socket.broadcast.emit('mechanic', { id: player.id, ...mechState() })
+      // Son aide parti, la jardinière reprend sa tournée.
+      if (setGrow(player, false)) socket.broadcast.emit('gardener', { id: player.id, ...gardenState() })
       // Son pilote parti, les réacteurs du Krait de la base se coupent.
       if (setBaseBurn(player, false)) socket.broadcast.emit('chief', { id: player.id, ...chiefState() })
       // Son patient parti, l'infirmière reprend sa tournée ; son pansement part avec lui.
