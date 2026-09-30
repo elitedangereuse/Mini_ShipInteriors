@@ -34,6 +34,8 @@ export class WingShell {
   private occluders: Occluder[] = []
   private fades: FadeBuffer
   private doors: DoorState[] = []
+  /** Cadres et battants de ses portes, grandis avec ceux du pont en vue subjective. */
+  private tallParts: THREE.Object3D[] = []
   private doorOccluders: Occluder[] = []
   /** Ce qui appartient à la pièce seule (géométrie fusionnée, matériaux tramables) : libéré avec elle. */
   private owned: { dispose(): void }[] = []
@@ -166,6 +168,8 @@ export class WingShell {
       lamp: new THREE.Object3D(),
     }
     this.deck.registerDoor(door)
+    this.deck.registerTall([frame, panel])
+    this.tallParts.push(frame, panel)
     this.doors.push(door)
     const g = DOOR_GAP / 2, t = WALL_T / 2
     if (alongX) {
@@ -185,6 +189,7 @@ export class WingShell {
   /** Retire la pièce ; les modèles du kit (géométries partagées) restent intacts. */
   dispose() {
     for (const d of this.doors) this.deck.unregisterDoor(d)
+    this.deck.unregisterTall(this.tallParts)
     this.group.removeFromParent()
     this.ceiling.removeFromParent()
     for (const o of this.owned) o.dispose()

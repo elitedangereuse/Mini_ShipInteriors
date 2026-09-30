@@ -3490,6 +3490,7 @@ function frame() {
     d.doorHints = !photo.active && !fpsShown
     // Le plafond cacherait tout, vu de haut : on ne le voit que de l'intérieur.
     d.ceiling.visible = fpsShown
+    d.tallDoors = fpsShown
     d.update(world, actors.get(d)!, d === viewDeck ? player.position : null, toCam, editing() && d === cabinDeck, keep, dt)
   }
   // Filet de sécurité : ni le joueur ni la vue ne restent sur une baie démontée (l'écran serait

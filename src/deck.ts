@@ -110,6 +110,11 @@ export const FLOOR_Y = -0.3
  * upperWalls), et les lampes du pont (1,4) l'éclairent par en dessous.
  */
 export const CEILING_Y = 2.2
+/**
+ * Portes grandies en vue subjective : leur ouverture (0,7) passait sous les yeux (0,74), on
+ * traversait le linteau. Cadre, battants et voyant montent d'autant ; l'ouverture atteint 1.
+ */
+export const TALL_DOOR = 1.43
 /** Dessus des murs de la baie infestée (cf. salvage/kit.ts) ; ceux du vaisseau font 1. */
 const ZONE_WALL_TOP = 1.06
 const DOOR_RANGE = 1.3
@@ -193,13 +198,15 @@ export function ceilingTile(x: number, z: number, y: number, material: THREE.Mat
  * et par poteau d'angle, qui s'estompe avec eux quand ils cachent le joueur.
  * @param wallTop dessus des murs, et `postTop` celui des poteaux (un peu plus hauts)
  */
-export function upperWalls(merge: StaticMerge, walls: WallSegment[], posts: { x: number; z: number }[], wallTop: number, postTop: number, top: number, material: THREE.Material): Occluder[] {
+export function upperWalls(merge: StaticMerge, walls: WallSegment[], posts: { x: number; z: number }[], wallTop: number, postTop: number, top: number, material: THREE.Material, tallDoors = true): Occluder[] {
   const occluders: Occluder[] = []
   // Un rien plus mince que le mur : pas de faces confondues là où il déborde (linteaux des verrières).
   const t = WALL_T - 0.004
   for (const w of walls) {
-    const m = solidBox(w.alongX ? 1 : t, top - wallTop, w.alongX ? t : 1, material)
-    m.position.set(w.x, (wallTop + top) / 2, w.z)
+    // Au-dessus d'une porte, le mur part du haut de son cadre grandi (cf. TALL_DOOR).
+    const from = w.model === 'door' && tallDoors ? TALL_DOOR : wallTop
+    const m = solidBox(w.alongX ? 1 : t, top - from, w.alongX ? t : 1, material)
+    m.position.set(w.x, (from + top) / 2, w.z)
     occluders.push(merge.addFading(m, new THREE.Vector3(w.x, 0.5, w.z)))
   }
   for (const p of posts) {
@@ -397,6 +404,37 @@ export class Deck {
     return this.place(name, x, y, z, rotY, material)
   }
 
+  /** Cadres, battants et voyants des portes du kit, grandis en vue subjective (cf. TALL_DOOR). */
+  private tallParts = new Set<THREE.Object3D>()
+  private tall = false
+
+  /** À grandir avec les portes (la hauteur et l'échelle d'origine sont retenues). */
+  registerTall(parts: THREE.Object3D[]) {
+    for (const o of parts) {
+      o.userData.baseY = o.position.y
+      o.userData.baseScaleY = o.scale.y
+      this.tallParts.add(o)
+      if (this.tall) this.stretch(o, true)
+    }
+  }
+
+  unregisterTall(parts: THREE.Object3D[]) {
+    for (const o of parts) this.tallParts.delete(o)
+  }
+
+  /** Vue subjective : les portes à la taille du regard. */
+  set tallDoors(on: boolean) {
+    if (on === this.tall) return
+    this.tall = on
+    for (const o of this.tallParts) this.stretch(o, on)
+  }
+
+  private stretch(o: THREE.Object3D, on: boolean) {
+    const k = on ? TALL_DOOR : 1
+    o.scale.y = o.userData.baseScaleY * k
+    o.position.y = o.userData.baseY * k
+  }
+
   /** Porte construite après coup (pièces des extensions de quartiers) : elle s'ouvre comme les autres. */
   registerDoor(door: DoorState) {
     this.doors.push(door)
@@ -549,7 +587,7 @@ export class Deck {
     const zone = this.def.zone
     const postTop = zone ? new THREE.Box3().setFromObject(zone.kit.post(0, 0)).max.y : POST_H
     const material = zone ? new THREE.MeshLambertMaterial({ color: '#1b2120' }) : this.theme.shell
-    this.ceilingOccluders = upperWalls(merge, this.walls, this.posts, zone ? ZONE_WALL_TOP : 1, postTop, this.ceilingY, material)
+    this.ceilingOccluders = upperWalls(merge, this.walls, this.posts, zone ? ZONE_WALL_TOP : 1, postTop, this.ceilingY, material, !zone)
     this.ceilingFades = fadeBuffer(merge.fadingCount)
     // Pas d'ombres : le soleil éclaire les pièces comme en vue isométrique.
     for (const m of merge.flush(this.ceiling, this.ceilingFades.texture)) m.castShadow = false
@@ -690,6 +728,7 @@ export class Deck {
     if (second) {
       const frame = this.place('wall-door-edge', cx, 0, cz, alongX ? Math.PI : Math.PI / 2)
       this.addOccluder([frame], new THREE.Vector3(cx, 0.5, cz), this.cabinOutward(cx, cz))
+      this.registerTall([frame])
       this.walls.push({ x: cx, z: cz, alongX, model: 'door' })
       // Le montant, au bout de l'ouverture (qui fait 1,6 sur les deux tuiles).
       if (alongX) this.colliders.push({ minX: cx + 0.3, maxX: cx + 0.5, minZ: cz - t, maxZ: cz + t })
@@ -716,6 +755,7 @@ export class Deck {
     lamp.visible = this.map.isLocked(x, z, dir)
     // Tramé avec la porte : il s'efface avec elle devant le joueur.
     this.addOccluder(pair ? [frame, panel, pair, lamp] : [frame, panel, lamp], new THREE.Vector3(cx, 0.5, cz), this.cabinOutward(cx, cz))
+    this.registerTall(pair ? [frame, panel, pair, lamp] : [frame, panel, lamp])
     this.walls.push({ x: cx, z: cz, alongX, model: 'door' })
     this.doors.push({
       panel,

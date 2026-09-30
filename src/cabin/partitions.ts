@@ -256,6 +256,8 @@ export class PartitionShell {
   private occluders: Occluder[] = []
   private fades: FadeBuffer
   private doors: DoorState[] = []
+  /** Ses portes, grandies avec celles du pont en vue subjective. */
+  private tallParts: THREE.Object3D[] = []
   private doorOccluders: Occluder[] = []
   private owned: { dispose(): void }[] = []
 
@@ -367,6 +369,9 @@ export class PartitionShell {
       })
     }
     this.group.add(holder)
+    // Grandie avec les portes du pont en vue subjective (cf. TALL_DOOR).
+    this.deck.registerTall([holder])
+    this.tallParts.push(holder)
     this.doorOccluders.push({ center: new THREE.Vector3(cx, 0.5, cz), value: 1, uniform: fade })
     this.walls.push({ x: cx, z: cz, alongX, model: 'door' })
     if (l.animate) {
@@ -411,6 +416,7 @@ export class PartitionShell {
 
   dispose() {
     for (const d of this.doors) this.deck.unregisterDoor(d)
+    this.deck.unregisterTall(this.tallParts)
     this.group.removeFromParent()
     this.ceiling.removeFromParent()
     for (const o of this.owned) o.dispose()
