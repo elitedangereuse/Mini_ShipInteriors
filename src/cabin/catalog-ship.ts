@@ -74,6 +74,63 @@ export const SHIP_ENTRIES: CatalogEntry[] = [
     label: () => '0.5',
     interact: tr('Le drone butine vos plantes. Il a pris les fleurs en plastique pour des vraies, et il insiste.', 'The drone pollinates your plants. It has mistaken the plastic flowers for real ones, and keeps at it.'),
   },
+  {
+    id: 'garden-bed', name: tr('Bac potager', 'Raised garden bed'), category: 'plants', model: 'garden-bed', mount: 'floor',
+    variants: [
+      { id: 'tomato', label: tr('Tomates', 'Tomatoes') },
+      { id: 'lettuce', label: tr('Salades', 'Lettuce') },
+      { id: 'herbs', label: tr('Herbes', 'Herbs') },
+      { id: 'flowers', label: tr('Fleurs', 'Flowers') },
+    ],
+  },
+  {
+    id: 'fruit-tree', name: tr('Pommier de Lave', 'Lave apple tree'), category: 'plants', model: 'fruit-tree', mount: 'floor',
+    interact: tr('Un pommier nain. Ses fruits luisent la nuit : plus besoin de veilleuse.', 'A dwarf apple tree. Its fruit glows at night: no need for a night light.'),
+  },
+  {
+    id: 'garden-pond', name: tr('Bassin aux carpes', 'Koi pond'), category: 'plants', model: 'garden-pond', mount: 'floor',
+    interact: tr('Trois carpes koï tournent en rond. Elles ont l\'air de méditer. Ou de s\'ennuyer.', 'Three koi swim in circles. They seem to be meditating. Or bored.'),
+  },
+  { id: 'seed-cabinet', name: tr('Grainothèque', 'Seed library'), category: 'plants', model: 'seed-cabinet', mount: 'floor' },
+  { id: 'water-barrel', name: tr('Récupérateur d\'eau', 'Water butt'), category: 'plants', model: 'water-barrel', mount: 'floor' },
+  { id: 'compost-bin', name: tr('Composteur', 'Compost bin'), category: 'plants', model: 'compost-bin', mount: 'floor' },
+  { id: 'harvest-crate', name: tr('Caisses de récolte', 'Harvest crates'), category: 'plants', model: 'harvest-crate', mount: 'floor' },
+  { id: 'garden-arch', name: tr('Arche de rosiers', 'Rose arch'), category: 'plants', model: 'garden-arch', mount: 'floor', solid: false, label: () => '1.1' },
+  { id: 'butterflies', name: tr('Papillons', 'Butterflies'), category: 'plants', model: 'butterflies', mount: 'floor', solid: false, label: () => '0.6' },
+  {
+    id: 'vine-trellis', name: tr('Treille de vigne', 'Vine trellis'), category: 'plants', model: 'vine-trellis', mount: 'wall',
+    variants: [{ id: '0.9', label: tr('Étroite', 'Narrow') }, { id: '1.6', label: tr('Large', 'Wide') }],
+  },
+  { id: 'hanging-basket', name: tr('Panier suspendu', 'Hanging basket'), category: 'plants', model: 'hanging-basket', mount: 'wall' },
+  {
+    id: 'potted-palm', name: tr('Palmier en pot', 'Potted palm'), category: 'plants', model: 'potted-palm', mount: 'floor',
+    variants: [
+      { id: 'bend', label: tr('Penché', 'Leaning') },
+      { id: 'short', label: tr('Trapu', 'Stocky') },
+      { id: 'fan', label: tr('En éventail', 'Fan') },
+    ],
+  },
+  { id: 'bamboo', name: tr('Bambous', 'Bamboo'), category: 'plants', model: 'bamboo', mount: 'floor' },
+  { id: 'fern', name: tr('Fougère', 'Fern'), category: 'plants', model: 'fern', mount: 'floor' },
+  {
+    id: 'bush', name: tr('Buisson', 'Bush'), category: 'plants', model: 'bush', mount: 'floor',
+    variants: [
+      { id: 'detailed', label: tr('Touffu', 'Leafy') },
+      { id: 'round', label: tr('Rond', 'Round') },
+      { id: 'triangle', label: tr('En cône', 'Cone') },
+    ],
+  },
+  {
+    id: 'wildflowers', name: tr('Fleurs sauvages', 'Wildflowers'), category: 'plants', model: 'wildflowers', mount: 'floor', solid: false,
+    variants: [
+      { id: 'mixed', label: tr('Mélange', 'Mixed') },
+      { id: 'purple', label: tr('Violettes', 'Purple') },
+      { id: 'red', label: tr('Rouges', 'Red') },
+      { id: 'yellow', label: tr('Jaunes', 'Yellow') },
+    ],
+  },
+  { id: 'cactus-bed', name: tr('Massif de cactus', 'Cactus bed'), category: 'plants', model: 'cactus-bed', mount: 'floor' },
+  { id: 'pumpkin-patch', name: tr('Carré de citrouilles', 'Pumpkin patch'), category: 'plants', model: 'pumpkin-patch', mount: 'floor' },
 
   // --- Elite
   {

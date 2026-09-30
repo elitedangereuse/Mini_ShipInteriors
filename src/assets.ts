@@ -34,6 +34,12 @@ export const CAT_MODEL = 'pets/animal-cat.glb'
  */
 export const FURNITURE_PACK = 'furniture/kenney-furniture.glb'
 
+/**
+ * Sélection du Nature Kit (Kenney, CC0), en un seul fichier de même forme : les plantes de la
+ * serre (cf. scripts/import-kenney-nature.mjs et src/furniture/nature.ts).
+ */
+export const NATURE_PACK = 'furniture/kenney-nature.glb'
+
 /** Tous les modèles du kit utilisent la même texture : un seul matériau partagé. */
 export let stationMaterial: THREE.MeshLambertMaterial
 
@@ -60,7 +66,7 @@ export const themes = {} as Record<Theme, ThemeMaterials>
  * Sols repeints d'une pièce, quel que soit le thème du pont (cf. `floorFinish` dans levels.ts) :
  * l'acier brossé argenté du hangar, qui accroche la lumière des projecteurs.
  */
-export type FloorFinish = 'silver'
+export type FloorFinish = 'silver' | 'terracotta'
 export const floorFinishes = {} as Record<FloorFinish, THREE.Material>
 
 type Paint = (hsl: { h: number; s: number; l: number }, c: THREE.Color) => void
@@ -169,7 +175,7 @@ function load(path: string): Promise<GLTF> {
 
 /** @param extra modèles supplémentaires à charger d'emblée (personnage du joueur…) */
 export async function preload(extra: string[], onProgress: (ratio: number) => void): Promise<void> {
-  const paths = [...STATION_MODELS.map((m) => `station/${m}.glb`), ...extra, CAT_MODEL, FURNITURE_PACK]
+  const paths = [...STATION_MODELS.map((m) => `station/${m}.glb`), ...extra, CAT_MODEL, FURNITURE_PACK, NATURE_PACK]
   let done = 0
   await Promise.all(
     paths.map(async (p) => {
@@ -194,6 +200,14 @@ export async function preload(extra: string[], onProgress: (ratio: number) => vo
     specular: '#8e9aab',
     shininess: 60,
   })
+  // Tomettes : les aciers deviennent terre cuite (du brun des joints à l'orange des carreaux).
+  const terracotta = paint({
+    steel: (l, c) => set(c, 16, 0.5, 0.2 + l * 0.42),
+    screen: (l, c) => set(c, 20, 0.3, 0.3 + l * 0.3),
+  })
+  floorFinishes.terracotta = new THREE.MeshLambertMaterial({
+    map: stationMaterial.map ? recolored(stationMaterial.map, 'terracotta-floor', terracotta) : null,
+  })
 }
 
 /** Instance d'un modèle statique (partage géométrie et matériau). */
@@ -203,10 +217,13 @@ export function station(name: StationModel): THREE.Object3D {
   return gltf.scene.clone(true)
 }
 
-/** Modèle du Furniture Kit (nœud du fichier commun, à cloner ; ses géométries sont partagées). */
-export function packModel(name: string): THREE.Object3D {
-  const o = cache.get(FURNITURE_PACK)?.scene.children.find((c) => c.name === name)
-  if (!o) throw new Error(`Modèle du Furniture Kit non préchargé : ${name}`)
+/**
+ * Modèle du Furniture Kit, ou d'un autre pack de même forme (le Nature Kit) : nœud du fichier
+ * commun, à cloner ; ses géométries sont partagées.
+ */
+export function packModel(name: string, pack = FURNITURE_PACK): THREE.Object3D {
+  const o = cache.get(pack)?.scene.children.find((c) => c.name === name)
+  if (!o) throw new Error(`Modèle ${name} non préchargé (${pack})`)
   return o
 }
 

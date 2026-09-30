@@ -125,26 +125,35 @@ const CANOPY_TRIM = new THREE.MeshBasicMaterial({ color: '#ff8a1c' })
 /** Verre des verrières, bleuté, à peine visible : on regarde l'espace à travers. */
 const CANOPY_GLASS = new THREE.MeshLambertMaterial({ color: '#9fd8ff', transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide })
 
+/** Serres (cf. `greenhouse` dans levels.ts) : verre à peine vert, montants blancs, allège de brique. */
+const GREENHOUSE_GLASS = new THREE.MeshLambertMaterial({ color: '#d4f5dc', transparent: true, opacity: 0.24, depthWrite: false, side: THREE.DoubleSide })
+const GREENHOUSE_FRAME = new THREE.MeshLambertMaterial({ color: '#f3f1ea' })
+const GREENHOUSE_BRICK = new THREE.MeshLambertMaterial({ color: '#a4553a' })
+/** Vitrage d'une serre : du haut de l'allège au rail du haut. */
+const GREENHOUSE_SILL = 0.22
+const GREENHOUSE_TOP = POST_H - 0.05
+
 /**
  * Vue subjective : le verre, qui remplit alors toute la fenêtre, n'est plus qu'un reflet. Teinté
  * et éclairé comme vu de haut, il posait un voile gris sur l'espace.
  */
 export function firstPersonGlass(on: boolean) {
   CANOPY_GLASS.opacity = on ? 0.05 : 0.2
+  GREENHOUSE_GLASS.opacity = on ? 0.08 : 0.24
 }
 
 /**
  * Tous les pans de verre d'un pont, en un maillage (un appel de dessin) : entre l'allège et le
  * linteau, ou (vue subjective) du linteau au plafond.
  */
-function canopyGlass(panes: { x: number; z: number; alongX: boolean }[], bottom = 0.27, top = POST_H - 0.1): THREE.Mesh {
+function canopyGlass(panes: { x: number; z: number; alongX: boolean }[], bottom = 0.27, top = POST_H - 0.1, material: THREE.Material = CANOPY_GLASS): THREE.Mesh {
   const geos = panes.map((p) => {
     const g = new THREE.PlaneGeometry(1, top - bottom)
     if (!p.alongX) g.rotateY(Math.PI / 2)
     g.translate(p.x, (bottom + top) / 2, p.z)
     return g
   })
-  const mesh = new THREE.Mesh(mergeGeometries(geos), CANOPY_GLASS)
+  const mesh = new THREE.Mesh(mergeGeometries(geos), material)
   for (const g of geos) g.dispose()
   mesh.renderOrder = 2
   return mesh
@@ -209,7 +218,7 @@ export function ceilingTile(x: number, z: number, y: number, material: THREE.Mat
  * et par poteau d'angle, qui s'estompe avec eux quand ils cachent le joueur.
  * @param wallTop dessus des murs, et `postTop` celui des poteaux (un peu plus hauts)
  */
-export function upperWalls(merge: StaticMerge, walls: WallSegment[], posts: { x: number; z: number }[], wallTop: number, postTop: number, top: number, material: THREE.Material, tallDoors = true): Occluder[] {
+export function upperWalls(merge: StaticMerge, walls: WallSegment[], posts: { x: number; z: number; green?: boolean }[], wallTop: number, postTop: number, top: number, material: THREE.Material, tallDoors = true): Occluder[] {
   const occluders: Occluder[] = []
   // Un rien plus mince que le mur : pas de faces confondues là où il déborde (linteaux des verrières).
   const t = WALL_T - 0.004
@@ -221,7 +230,9 @@ export function upperWalls(merge: StaticMerge, walls: WallSegment[], posts: { x:
     occluders.push(merge.addFading(m, new THREE.Vector3(w.x, 0.5, w.z)))
   }
   for (const p of posts) {
-    const m = solidBox(POST_W, top - postTop, POST_W, material)
+    // Le poteau d'une serre continue en montant blanc et fin jusqu'à sa verrière.
+    const w = p.green ? 0.06 : POST_W
+    const m = solidBox(w, top - postTop, w, p.green ? GREENHOUSE_FRAME : material)
     m.position.set(p.x, (postTop + top) / 2, p.z)
     occluders.push(merge.addFading(m, new THREE.Vector3(p.x, 0.5, p.z)))
   }
@@ -272,9 +283,11 @@ export class Deck {
   /** Pans de mur et portes, en coordonnées du pont. */
   readonly walls: WallSegment[] = []
   /** Poteaux d'angle (centre, en coordonnées du pont ; côté POST_WIDTH). */
-  readonly posts: { x: number; z: number }[] = []
+  /** Poteaux d'angle (centre) ; `green` : ceux d'une serre, blancs. */
+  readonly posts: { x: number; z: number; green?: boolean }[] = []
   /** Pans de verrière (milieu de l'arête). */
-  private readonly glass: { x: number; z: number; alongX: boolean }[] = []
+  /** Pans de verre des verrières et des cloisons vitrées ; `green` : ceux d'une serre. */
+  private readonly glass: { x: number; z: number; alongX: boolean; green?: boolean }[] = []
   /** Boucliers des hangars ouverts sur l'espace (cf. `shield` dans levels.ts). */
   private readonly shields: ForceShield[] = []
 
@@ -601,14 +614,20 @@ export class Deck {
       this.group.add(this.ceiling)
       return
     }
+    // Une serre a pour plafond une verrière : du verre, des chevrons blancs, les étoiles au-dessus.
+    const greenhouse = (x: number, z: number) => !!this.def.greenhouse?.includes(this.map.room(x, z) ?? '')
+    const roof: { x: number; z: number }[] = []
     for (let z = 0; z < this.map.height; z++) {
       for (let x = 0; x < this.map.width; x++) {
-        if (this.map.room(x, z)) merge.add(ceilingTile(x, z, this.ceilingY, this.ceilingMaterial), false)
+        if (!this.map.room(x, z)) continue
+        if (greenhouse(x, z)) roof.push({ x, z })
+        else merge.add(ceilingTile(x, z, this.ceilingY, this.ceilingMaterial), false)
       }
     }
     for (const [x, z, color] of this.def.lights) {
-      if (this.map.room(Math.round(x), Math.round(z))) merge.add(ceilingLamp(x, z, color, this.ceilingY), false)
+      if (this.map.room(Math.round(x), Math.round(z)) && !greenhouse(Math.round(x), Math.round(z))) merge.add(ceilingLamp(x, z, color, this.ceilingY), false)
     }
+    if (roof.length) this.ceiling.add(...greenhouseRoof(roof, this.ceilingY))
     const zone = this.def.zone
     const postTop = zone ? new THREE.Box3().setFromObject(zone.kit.post(0, 0)).max.y : POST_H
     const material = zone ? new THREE.MeshLambertMaterial({ color: '#1b2120' }) : this.theme.shell
@@ -616,7 +635,9 @@ export class Deck {
     const glazed = new Set(this.glass.map((g) => `${g.x},${g.z}`))
     const solid = this.walls.filter((w) => !glazed.has(`${w.x},${w.z}`))
     this.ceilingOccluders = upperWalls(merge, solid, this.posts, zone ? ZONE_WALL_TOP : 1, postTop, this.ceilingY, material, !zone)
-    if (this.glass.length) this.ceiling.add(canopyGlass(this.glass, POST_H - 0.02, this.ceilingY))
+    const [clear, greens] = [this.glass.filter((g) => !g.green), this.glass.filter((g) => g.green)]
+    if (clear.length) this.ceiling.add(canopyGlass(clear, POST_H - 0.02, this.ceilingY))
+    if (greens.length) this.ceiling.add(canopyGlass(greens, POST_H - 0.02, this.ceilingY, GREENHOUSE_GLASS))
     this.ceilingFades = fadeBuffer(merge.fadingCount)
     // Pas d'ombres : le soleil éclaire les pièces comme en vue isométrique.
     for (const m of merge.flush(this.ceiling, this.ceilingFades.texture)) m.castShadow = false
@@ -630,6 +651,8 @@ export class Deck {
     const shieldPanes = new Map<string, ShieldPane[]>()
     // Nombre de murs touchant chaque sommet de la grille, par axe.
     const vertex = new Map<string, { h: number; v: number }>()
+    /** Sommets touchés par un vitrage de serre : leurs poteaux sont blancs. */
+    const greenVertex = new Set<string>()
     const touch = (vx: number, vz: number, axis: 'h' | 'v') => {
       const k = `${vx},${vz}`
       const c = vertex.get(k) ?? { h: 0, v: 0 }
@@ -673,10 +696,18 @@ export class Deck {
           if (exterior && (hsh % 1000) / 1000 < windowRate && !this.doorPocket(x, z, dir)) model = 'wall-window'
           else if (!exterior && hsh % 5 === 0) model = 'wall-pillar'
           const glazed = !!other && this.def.glazed?.some((pair) => pair.includes(room) && pair.includes(other))
+          // Une serre : tous ses murs extérieurs sont vitrés, et ses cloisons vitrées ont le même cadre.
+          const green = !!this.def.greenhouse?.includes(room) || (!!other && !!this.def.greenhouse?.includes(other))
           if (exterior && this.def.shield?.[room]?.includes(dir)) {
             // Hangar ouvert sur l'espace : pas de mur, le champ de force (sa collision reste celle d'un mur).
             const key = `${room}:${dir}`
             shieldPanes.set(key, [...(shieldPanes.get(key) ?? []), { x: cx, z: cz, alongX }])
+          } else if (green && (exterior || glazed)) {
+            // Vitrage de serre : allège de brique, montants et traverses blancs, verre à peine vert.
+            this.addFading(greenhouseFrame(cx, cz, alongX), new THREE.Vector3(cx, 0.5, cz))
+            this.glass.push({ x: cx, z: cz, alongX, green: true })
+            this.walls.push({ x: cx, z: cz, alongX, model: 'wall-window' })
+            for (const s of [-0.5, 0.5]) greenVertex.add(alongX ? `${cx + s},${cz}` : `${cx},${cz + s}`)
           } else if ((exterior && this.def.canopy?.[room]?.includes(dir)) || glazed) {
             // Verrière, ou cloison vitrée : une allège, un bandeau, et du verre entre les deux.
             this.addFading(this.canopyFrame(cx, cz, alongX), new THREE.Vector3(cx, 0.5, cz))
@@ -703,18 +734,21 @@ export class Deck {
 
     // Poteaux aux angles, là où deux murs ne sont pas dans le prolongement l'un de l'autre.
     const post = makePostMesh(this.theme.shell)
+    const whitePost = makePostMesh(GREENHOUSE_FRAME)
     for (const [k, c] of vertex) {
       const straight = (c.h === 2 && c.v === 0) || (c.v === 2 && c.h === 0)
       if (straight) continue
       const [vx, vz] = k.split(',').map(Number)
-      const m = this.def.zone ? this.def.zone.kit.post(vx, vz) : post.clone()
+      const m = this.def.zone ? this.def.zone.kit.post(vx, vz) : greenVertex.has(k) ? whitePost.clone() : post.clone()
       if (!this.def.zone) m.position.set(vx, POST_H / 2, vz)
       this.addFading(m, new THREE.Vector3(vx, 0.5, vz), this.cabinOutward(vx, vz))
-      this.posts.push({ x: vx, z: vz })
+      this.posts.push(greenVertex.has(k) ? { x: vx, z: vz, green: true } : { x: vx, z: vz })
       const hs = POST_W / 2
       this.colliders.push({ minX: vx - hs, maxX: vx + hs, minZ: vz - hs, maxZ: vz + hs })
     }
-    if (this.glass.length) this.group.add(canopyGlass(this.glass))
+    const [clear, greens] = [this.glass.filter((g) => !g.green), this.glass.filter((g) => g.green)]
+    if (clear.length) this.group.add(canopyGlass(clear))
+    if (greens.length) this.group.add(canopyGlass(greens, GREENHOUSE_SILL, GREENHOUSE_TOP, GREENHOUSE_GLASS))
     for (const [key, panes] of shieldPanes) {
       const d = DIRS[Number(key.split(':')[1])]
       const shield = new ForceShield(panes, (d.dx + d.dz) as 1 | -1)
@@ -1173,6 +1207,46 @@ function solidBox(w: number, h: number, d: number, material: THREE.Material): TH
   m.castShadow = true
   m.receiveShadow = true
   return m
+}
+
+/**
+ * Pan de vitrage de serre (arête de milieu cx, cz) : allège de brique et son chaperon blanc, trois
+ * carreaux séparés par deux montants, une traverse aux deux tiers, le rail du haut. Le verre est
+ * posé à part (cf. canopyGlass).
+ */
+function greenhouseFrame(cx: number, cz: number, alongX: boolean): THREE.Object3D {
+  const g = new THREE.Group()
+  const t = WALL_T
+  const add = (w: number, h: number, depth: number, y: number, along: number, material: THREE.Material) => {
+    const m = solidBox(alongX ? w : depth, h, alongX ? depth : w, material)
+    m.position.set(cx + (alongX ? along : 0), y, cz + (alongX ? 0 : along))
+    g.add(m)
+  }
+  add(1, GREENHOUSE_SILL - 0.02, t, (GREENHOUSE_SILL - 0.02) / 2, 0, GREENHOUSE_BRICK)
+  add(1, 0.03, t + 0.03, GREENHOUSE_SILL - 0.005, 0, GREENHOUSE_FRAME)
+  add(1, 0.04, t * 0.6, 0.72, 0, GREENHOUSE_FRAME)
+  add(1, POST_H - GREENHOUSE_TOP + 0.01, t * 0.8, (GREENHOUSE_TOP + POST_H) / 2, 0, GREENHOUSE_FRAME)
+  for (const along of [-1 / 6, 1 / 6]) add(0.025, GREENHOUSE_TOP - GREENHOUSE_SILL, t * 0.5, (GREENHOUSE_SILL + GREENHOUSE_TOP) / 2, along, GREENHOUSE_FRAME)
+  g.updateMatrixWorld(true)
+  return g
+}
+
+/**
+ * Plafond d'une serre (vue subjective) : une verrière au-dessus de ses tuiles, et ses chevrons
+ * blancs, un par tuile dans chaque sens.
+ */
+function greenhouseRoof(tiles: { x: number; z: number }[], y: number): THREE.Object3D[] {
+  const glassGeos: THREE.BufferGeometry[] = [], ribGeos: THREE.BufferGeometry[] = []
+  for (const { x, z } of tiles) {
+    glassGeos.push(new THREE.PlaneGeometry(1, 1).rotateX(Math.PI / 2).translate(x, y + 0.01, z))
+    ribGeos.push(new THREE.BoxGeometry(1, 0.05, 0.04).translate(x, y - 0.02, z - 0.5), new THREE.BoxGeometry(0.04, 0.05, 1).translate(x - 0.5, y - 0.02, z))
+    ribGeos.push(new THREE.BoxGeometry(1, 0.03, 0.02).translate(x, y - 0.015, z))
+  }
+  const glass = new THREE.Mesh(mergeGeometries(glassGeos), GREENHOUSE_GLASS)
+  glass.renderOrder = 2
+  const ribs = new THREE.Mesh(mergeGeometries(ribGeos), GREENHOUSE_FRAME)
+  for (const geo of [...glassGeos, ...ribGeos]) geo.dispose()
+  return [glass, ribs]
 }
 
 /** Poteau d'angle qui réutilise le matériau (et la couleur exacte) des murs du pont. */
