@@ -247,8 +247,8 @@ function siteHomeScreen(): THREE.CanvasTexture {
     c.fillStyle = planet; c.beginPath(); c.arc(420, 175, 85, 0, Math.PI * 2); c.fill()
     c.restore()
     c.fillStyle = '#ffffff'; c.font = 'bold 22px sans-serif'; c.textBaseline = 'alphabetic'
-    c.fillText(tr('La communauté francophone', 'The French-speaking'), 26, 100)
-    c.fillText(tr('d\'Elite Dangerous', 'Elite Dangerous community'), 26, 126)
+    c.fillText(tr('Le BASTION francophone', 'The French-speaking BASTION'), 26, 100)
+    c.fillText(tr('d\'Elite Dangerous', 'of Elite Dangerous'), 26, 126)
     c.fillStyle = '#ff6600'; c.fillRect(26, 140, 110, 20)
     c.fillStyle = '#0d0f14'; c.font = 'bold 11px sans-serif'; c.fillText(tr('REJOINDRE', 'JOIN US'), 48, 154)
     // Trois cartes d'actualité.
