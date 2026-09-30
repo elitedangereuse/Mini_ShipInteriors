@@ -853,7 +853,7 @@ export class Sound {
    * Bruit d'une tâche de bord en cours (spatialisé) : frotter (ordures, flaque, vaisselle),
    * une clé sur du métal (réparations), un sifflement (vapeur, brèche), de l'eau (plantes).
    */
-  work(kind: 'scrub' | 'wrench' | 'hiss' | 'water' | 'chop' | 'sizzle', pos: THREE.Vector3) {
+  work(kind: 'scrub' | 'wrench' | 'hiss' | 'water' | 'chop' | 'sizzle' | 'munch', pos: THREE.Vector3) {
     if (!this.ready) return
     const ctx = this.ctx
     const t = ctx.currentTime + 0.01
@@ -885,6 +885,20 @@ export class Sound {
       for (let i = 0; i < 6; i++) noise('bandpass', 3500 + Math.random() * 2500, 3, 0.03, 0.9, t + Math.random() * 0.55)
     }
     else if (kind === 'hiss') noise('highpass', 3500, 0.7, 0.5, 0.8)
+    else if (kind === 'munch') {
+      // Une bouchée : la fourchette tinte sur l'assiette, puis on mâche (deux ou trois coups sourds).
+      const osc = ctx.createOscillator()
+      osc.type = 'sine'
+      osc.frequency.value = 2900 + Math.random() * 500
+      const env = ctx.createGain()
+      env.gain.setValueAtTime(0.18, t)
+      env.gain.exponentialRampToValueAtTime(0.001, t + 0.15)
+      osc.connect(env).connect(out)
+      osc.start(t)
+      osc.stop(t + 0.18)
+      const n = 2 + Math.floor(Math.random() * 2)
+      for (let i = 0; i < n; i++) noise('lowpass', 520 + Math.random() * 200, 0.9, 0.11, 0.55, t + 0.75 + i * 0.19)
+    }
     else if (kind === 'water') {
       // Glouglou : un bruit filtré dont la fréquence saute, comme des bulles.
       const f = noise('bandpass', 700, 6, 0.35)

@@ -19,7 +19,7 @@ import type { Wallet } from './wallet'
  */
 
 /** Bruit du geste en cours (cf. Sound.work, ou les étincelles de Sound.sparks). */
-export type WorkSound = 'scrub' | 'wrench' | 'hiss' | 'water' | 'sparks' | 'chop' | 'sizzle'
+export type WorkSound = 'scrub' | 'wrench' | 'hiss' | 'water' | 'sparks' | 'chop' | 'sizzle' | 'munch'
 
 /**
  * Ce qu'on fait de chaque tâche : le verbe de l'invite, le geste en cours, une phrase une fois
