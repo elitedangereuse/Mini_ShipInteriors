@@ -205,7 +205,11 @@ export class CinemaRoom {
     }, { passive: false })
     this.volumeControl.append(this.volumeIcon, this.volumeInput, this.volumeValue)
     this.updateVolumeControl()
-    document.body.append(this.stage, this.volumeControl, this.root)
+    // L'écran est un calque du décor : on le glisse avant le HUD, qui doit rester par-dessus.
+    const hud = document.getElementById('hud')
+    if (hud) hud.before(this.stage, this.volumeControl)
+    else document.body.append(this.stage, this.volumeControl)
+    document.body.append(this.root)
     this.stage.hidden = true
     this.volumeControl.hidden = true
     this.root.addEventListener('click', (event) => { if (event.target === this.root) this.close() })

@@ -3243,11 +3243,11 @@ body.photo #bubbles .gain-pop {
 .cinema-room-card img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; }
 .cinema-room-card strong { display: block; margin: 7px 3px 2px; font: 600 13px/1.25 system-ui,sans-serif; }
 .cinema-room-stop { padding: 10px; text-align: center; }
-.cinema-room-stage { position: fixed; top: 0; left: 0; z-index: 30; display: block; width: 640px; height: 360px; overflow: hidden; transform-origin: 0 0; background: #06080c; }
+.cinema-room-stage { position: fixed; top: 0; left: 0; display: block; width: 640px; height: 360px; overflow: hidden; transform-origin: 0 0; background: #06080c; }
 .cinema-room-stage iframe { display: block; width: 100%; height: 100%; border: 0; }
 .cinema-room-youtube { width: 100%; height: 100%; }
 .cinema-room-twitch { width: 100%; height: 100%; }
-.cinema-screen-volume { position: fixed; z-index: 31; display: flex; align-items: center; gap: 4px; padding: 2px 8px 2px 2px; transform: translateX(-50%); border-radius: 999px; color: #ffe1ad; background: #0a0f1680; opacity: .32; transition: opacity .25s, background-color .25s; }
+.cinema-screen-volume { position: fixed; display: flex; align-items: center; gap: 4px; padding: 2px 8px 2px 2px; transform: translateX(-50%); border-radius: 999px; color: #ffe1ad; background: #0a0f1680; opacity: .32; transition: opacity .25s, background-color .25s; }
 /* Discret sous l'écran : il ne s'affirme qu'au survol ou au clavier. */
 .cinema-screen-volume:hover, .cinema-screen-volume:focus-within { opacity: 1; background: #182535e6; }
 .cinema-screen-volume[hidden] { display: none; }
