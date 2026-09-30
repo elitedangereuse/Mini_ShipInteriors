@@ -47,15 +47,16 @@ export const SHIP_LAYOUTS = {
     '         mmmmmmm                        ',
   ],
   // Pont supérieur : les quartiers ; derrière le salon d'écoute, le cinéma. Au nord du salon,
-  // derrière une vitre, le studio de Radio Dangereuse (porte à l'est).
+  // derrière une vitre, le studio de Radio Dangereuse (porte à l'est). À l'ouest, la grande serre
+  // hydroponique de Capucine, sous verrière, aux coins cassés.
   '1': [
-    '                             ',
-    '        kkkkddddssss nnnnnnn ',
-    '        kkkkddddssss nnnnnnn ',
-    '     gggk+kkdd+dsss+ nnnnnnn ',
-    '     ggg+ccccccc+ooo nnnnnnn ',
-    '     gggccccccccoooo+nnnnnnn ',
-    '     gggppp+ppppoooo nnnnnnn ',
+    '  gggggg                     ',
+    ' gggggggkkkkddddssss nnnnnnn ',
+    'ggggggggkkkkddddssss nnnnnnn ',
+    'ggggggggk+kkdd+dsss+ nnnnnnn ',
+    'gggggggg+ccccccc+ooo nnnnnnn ',
+    'ggggggggccccccccoooo+nnnnnnn ',
+    ' gggggggppp+ppppoooo nnnnnnn ',
     '        pppppppp oo  nnnnnnn ',
     '        pppppppp     nnnnnnn ',
     '        pppppppp             ',

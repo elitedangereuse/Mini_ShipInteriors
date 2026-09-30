@@ -1128,6 +1128,8 @@ export const LEVELS: LevelDef[] = [
       F: tr('Extension droite', 'Right extension'),
     },
     windows: { c: 0, k: 0.3, d: 0.2, p: 0.6, g: 0.5, o: 1, n: 0, s: 0 },
+    // La serre, sous verrière au nord : les plantes voient les étoiles.
+    canopy: { g: [0] },
     // Le salon voit le studio par sa vitre.
     glazed: ['os'],
     // On baisse les lumières au cinéma, un peu au salon d'écoute.
@@ -1226,33 +1228,97 @@ export const LEVELS: LevelDef[] = [
       },
       { model: 'plant', x: 15.15, z: 3.15 },
 
-      // --- Serre hydroponique : cuve et bacs au nord, mur végétal à l'ouest, établi au milieu ---
+      // --- Serre hydroponique, sous verrière : grainothèque, bacs hydroponiques, cuve et récupérateur
+      // d\'eau au nord ; mur végétal à l\'ouest ; bacs potagers au milieu ; au sud-ouest, la pelouse,
+      // l\'arbre fruitier et le bassin aux carpes ; établi et compost au sud ; l\'arche fleurie à
+      // l\'entrée. Les postes du mini-jeu de Capucine sont ici (cf. src/greenhouse.ts), et ses
+      // trajets les contournent (cf. GARDEN_OBSTACLES dans shared/gardener.js).
+      { model: 'lawn', x: 1.3, z: 3.55, label: '2.6x3.9', solid: false },
+      { model: 'stepping-stones', x: 4.6, z: 4.0, label: '4.4', solid: false },
+      { model: 'garden-arch', x: 7.0, z: 4.0, rot: 1, label: '1.1', solid: false },
       {
-        model: 'hydro-rack', x: 6.2, z: 2.9,
+        model: 'seed-cabinet', x: 2.5, z: -0.28,
+        interact: [
+          tr('Grainothèque : cent vingt-cinq tiroirs, de la laitue de Sol au poivron d\'Achenar. Un tiroir est fermé à clé : « Ne pas planter. Jamais. »', 'Seed library: a hundred and twenty-five drawers, from Sol lettuce to Achenar peppers. One drawer is locked: “Do not plant. Ever.”'),
+          tr('Sur une étiquette, de la main de Capucine : « Graines de Colonia, récoltées à 22 000 années-lumière. Manipuler avec respect. »', 'On a label, in Capucine\'s hand: “Colonia seeds, harvested 22,000 light years away. Handle with respect.”'),
+        ],
+      },
+      {
+        model: 'hydro-rack', x: 3.75, z: -0.2,
         interact: [
           tr('Hydroponie : tomates, basilic et un piment de Lave.', 'Hydroponics: tomatoes, basil and a Lave chilli.'),
           tr('Les plantes poussent sous des LED roses. Elles ont l\'air heureuses.', 'The plants grow under pink LEDs. They look happy.'),
         ],
       },
-      { model: 'hydro-rack', x: 5.75, z: 6.1, rot: 2 },
       {
-        model: 'plant-wall', x: 4.65, z: 4.5, rot: 1, label: '1.6', solid: false,
+        model: 'hydro-rack', x: 5.05, z: -0.2,
+        interact: tr('Deuxième étage : des fraises. Il en manque trois. Comète nie tout.', 'Second tier: strawberries. Three are missing. Comète denies everything.'),
+      },
+      {
+        model: 'nutrient-tank', x: 5.95, z: -0.1,
+        interact: tr('Cuve de solution nutritive : azote, phosphore, potassium, et une pointe de poussière d\'astéroïde.', 'Nutrient tank: nitrogen, phosphorus, potassium, and a pinch of asteroid dust.'),
+      },
+      {
+        model: 'water-barrel', x: 0.2, z: 5.2, rot: 1,
+        interact: tr('Récupérateur d\'eau : la condensation de la coque, filtrée trois fois. Le chef Marcel dit qu\'elle a un goût de vaisseau.', 'Water butt: condensation from the hull, filtered three times. Chef Marcel says it tastes of starship.'),
+      },
+      {
+        model: 'plant-wall', x: -0.35, z: 3.5, rot: 1, label: '3.6', solid: false,
         interact: tr('Mur végétal : fougères, lierre et fraisiers, arrosés goutte à goutte. Il purifie l\'air du pont, et il le sait.', 'Living wall: ferns, ivy and strawberries on a drip feed. It purifies the deck\'s air, and it knows it.'),
       },
       {
-        model: 'potting-bench', x: 6.2, z: 4.8,
+        model: 'fruit-tree', x: 1.3, z: 1.3,
+        interact: [
+          tr('Un pommier de Lave, nain. Ses fruits luisent la nuit. Capucine jure qu\'ils sont comestibles. Elle n\'en a jamais mangé.', 'A dwarf Lave apple tree. Its fruit glows at night. Capucine swears it\'s edible. She\'s never eaten one.'),
+          tr('Gravé sur le bac : « Planté au départ de Jameson Memorial. » L\'arbre a vu plus de systèmes que la plupart des pilotes.', 'Carved on the planter: “Planted on leaving Jameson Memorial.” The tree has seen more systems than most pilots.'),
+        ],
+      },
+      {
+        model: 'garden-pond', x: 1.25, z: 4.35,
+        interact: [
+          tr('Trois carpes koï : Faulcon, DeLacy et Gutamaya. Gutamaya est la plus chère à nourrir.', 'Three koi: Faulcon, DeLacy and Gutamaya. Gutamaya is the most expensive to feed.'),
+          tr('La grenouille de pierre crache son filet d\'eau. En gravité artificielle, il retombe presque droit.', 'The stone frog spits its trickle of water. In artificial gravity, it falls almost straight.'),
+        ],
+      },
+      { model: 'butterflies', x: 1.3, z: 3.0, label: '0.9', solid: false },
+      {
+        model: 'garden-bed', x: 3.9, z: 1.5, label: 'tomato',
+        interact: tr('Bac à tomates : cœur-de-bœuf, cerises, et une « Anaconda » qui grimpe plus haut que les autres.', 'Tomato bed: beefsteak, cherry, and an “Anaconda” that climbs higher than the others.'),
+      },
+      {
+        model: 'garden-bed', x: 5.9, z: 1.5, label: 'herbs',
+        interact: tr('Herbes aromatiques : basilic, ciboulette, thym. Marcel en vole une poignée chaque matin et laisse un mot.', 'Herbs: basil, chives, thyme. Marcel steals a handful every morning and leaves a note.'),
+      },
+      {
+        model: 'garden-bed', x: 4.5, z: 2.9, label: 'lettuce',
+        interact: tr('Salades et carottes, en rangs impeccables. Capucine les compte le soir. Toutes.', 'Lettuce and carrots in perfect rows. Capucine counts them every evening. All of them.'),
+      },
+      {
+        model: 'garden-bed', x: 4.0, z: 5.2, label: 'flowers',
+        interact: tr('Massif de fleurs : elles ne se mangent pas, elles ne servent à rien, et c\'est le coin préféré de l\'équipage.', 'Flower bed: you can\'t eat them, they serve no purpose, and it\'s the crew\'s favourite spot.'),
+      },
+      { model: 'butterflies', x: 4.0, z: 5.2, label: '0.8', solid: false },
+      { model: 'pollinator-drone', x: 4.9, z: 1.5, label: '0.9' },
+      { model: 'pollinator-drone', x: 4.4, z: 0.2, label: '0.6' },
+      {
+        model: 'harvest-crate', x: 6.95, z: -0.05,
+        interact: tr('Caisses de récolte, pour le mess. Sur l\'étiquette : « Pour Marcel. Pas pour Jacques. Surtout pas pour Jacques. »', 'Harvest crates, for the mess. On the label: “For Marcel. Not for Jacques. Especially not for Jacques.”'),
+      },
+      {
+        model: 'potting-bench', x: 5.6, z: 6.12, rot: 2,
         interact: [
           tr('Établi de rempotage : des semis de laitue, de la terre sous les ongles, et un arrosoir qui fuit.', 'Potting bench: lettuce seedlings, soil under your nails, and a leaky watering can.'),
           tr('Un bocal étiqueté « graines de Colonia — NE PAS MANGER ». Quelqu\'un en a mangé.', 'A jar labelled “Colonia seeds — DO NOT EAT”. Someone ate some.'),
         ],
       },
       {
-        model: 'nutrient-tank', x: 5.0, z: 2.98,
-        interact: tr('Cuve de solution nutritive : azote, phosphore, potassium, et une pointe de poussière d\'astéroïde.', 'Nutrient tank: nitrogen, phosphorus, potassium, and a pinch of asteroid dust.'),
+        model: 'compost-bin', x: 6.95, z: 6.05,
+        interact: tr('Le compost : épluchures du mess, marc de café CD-75, et ce qu\'il reste des soufflés ratés de Marcel.', 'The compost: peelings from the mess, CD-75 coffee grounds, and what\'s left of Marcel\'s failed soufflés.'),
       },
-      { model: 'exobio-plant', x: 7.08, z: 3.0, label: 'crystal' },
-      { model: 'monstera', x: 4.92, z: 6.08 },
-      { model: 'pollinator-drone', x: 6.1, z: 4.4, label: '0.75' },
+      { model: 'monstera', x: 1.25, z: 6.05 },
+      { model: 'flowers', x: 2.6, z: 6.1 },
+      { model: 'flowers', x: 6.1, z: 3.45 },
+      { model: 'exobio-plant', x: 6.95, z: 5.0, label: 'crystal' },
 
       // --- Studio Radio Dangereuse : trois animateurs autour de la table ronde, face à la vitre ---
       { model: 'studio-table', x: 17.45, z: 2.0 },
@@ -1376,7 +1442,10 @@ export const LEVELS: LevelDef[] = [
       [9.6, 2, '#ffcf99', 2.2],
       [13.8, 2, '#e6f6ff', 2],
       [10.2, 8.4, '#ffc98f', 2.3],
-      [6, 4.5, '#ffb3e6', 2.6],
+      // La serre : les LED des bacs, le soleil de la pelouse, la lueur verte du massif.
+      [4.6, 1.3, '#ffb3e6', 2.4],
+      [1.4, 3.2, '#fff1c4', 2.3],
+      [4.6, 4.9, '#d8ffc8', 1.8],
       [17.4, 5.4, '#ffb36b', 1.9, 'fire'],
       // Le studio, et la lueur du néon sur la vitre.
       [17.45, 1.9, '#fff0dc', 1.8],
