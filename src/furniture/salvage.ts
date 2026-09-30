@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { animatedScreen, barX, box, cylinder, decal, drawnTexture, glass, glow, hazardTexture, holoMaterial, lit, mesh, part, sphere, type Builder } from './kit'
 import { tr } from '../i18n'
+import { BAY, BAY_AREAS, BAY_LIT } from '../../shared/salvage.js'
 
 /*
  * Récupération de cargaison en zone thargoïde (SOC-06) : le lobby du sas de la cale (terminal de
@@ -474,6 +475,174 @@ const dropZone: Builder = () => {
   return { live: decal(texture, 1.6, 1) }
 }
 
+/**
+ * Bureau du poste de sécurité (1,3 × 0,34, face à +z, la contrôleuse derrière, côté -z) : une
+ * console basse, son bandeau ambré, deux petits écrans tournés vers elle, le micro sur col de cygne,
+ * la tasse et le registre.
+ */
+const securityDesk: Builder = () => {
+  const g = new THREE.Group()
+  const dark = lit(C.steelDark), steel = lit(C.steel)
+  g.add(box(1.3, 0.4, 0.34, steel, 0, 0.2, 0, 0.01))
+  g.add(box(1.34, 0.03, 0.4, dark, 0, 0.415, -0.02))
+  g.add(box(1.3, 0.025, 0.012, glow(C.hazard), 0, 0.35, 0.172))
+  for (const x of [-0.38, 0.38]) {
+    const screen = new THREE.Group()
+    screen.position.set(x, 0.43, -0.06)
+    screen.rotation.x = -0.25
+    screen.add(box(0.3, 0.19, 0.025, lit('#101215'), 0, 0.1, 0, 0.006))
+    screen.add(part(new THREE.PlaneGeometry(0.26, 0.15), glow(x < 0 ? '#2e8f5a' : '#2b6f9e'), 0, 0.1, -0.014).rotateY(Math.PI))
+    g.add(screen)
+  }
+  g.add(box(0.36, 0.015, 0.12, lit('#15181c'), 0, 0.438, -0.08, 0.004))
+  // Micro sur col de cygne, tourné vers la vitre.
+  g.add(cylinder(0.025, 0.03, 0.02, dark, 0.12, 0.44, 0.06, 10))
+  const neck = cylinder(0.006, 0.006, 0.2, dark, 0.12, 0.54, 0.09, 6)
+  neck.rotation.x = 0.35
+  g.add(neck, sphere(0.018, lit('#15181c'), 0.12, 0.63, 0.13, 8), sphere(0.006, glow(C.red), 0.12, 0.45, 0.075, 6))
+  // La tasse et le registre.
+  g.add(cylinder(0.025, 0.022, 0.05, lit('#d9d4c8'), -0.56, 0.455, 0.05, 10))
+  g.add(box(0.16, 0.02, 0.12, lit('#6b3a2a'), 0.5, 0.44, 0.04))
+  return { solid: g }
+}
+
+/**
+ * Portique de décontamination (2,6 de large, face à +z) : deux montants rayés, la traverse et ses
+ * émetteurs verts, et la nappe de lumière qui balaie qui passe dessous.
+ */
+const deconArch: Builder = () => {
+  const g = new THREE.Group()
+  const dark = lit(C.steelDark)
+  const stripes = new THREE.MeshLambertMaterial({ map: hazardTexture(64, 512, 16) })
+  for (const s of [-1, 1]) {
+    g.add(mesh(new THREE.BoxGeometry(0.12, 1.12, 0.16), stripes, s * 1.28, 0.56, 0))
+    g.add(box(0.2, 0.04, 0.24, dark, s * 1.28, 0.02, 0))
+    for (let k = 0; k < 4; k++) g.add(box(0.02, 0.06, 0.1, glow(C.caustic), s * 1.215, 0.25 + k * 0.22, 0))
+  }
+  g.add(box(2.7, 0.12, 0.2, dark, 0, 1.15, 0, 0.01))
+  g.add(box(2.4, 0.02, 0.05, glow(C.caustic), 0, 1.085, 0.06))
+  const sign = drawnTexture(512, 64, (c) => {
+    c.fillStyle = '#0c1a12'
+    c.fillRect(0, 0, 512, 64)
+    c.fillStyle = C.caustic
+    c.font = 'bold 30px sans-serif'
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    c.fillText(tr('DÉCONTAMINATION', 'DECONTAMINATION'), 256, 34)
+  })
+  g.add(mesh(new THREE.PlaneGeometry(1.1, 0.1), new THREE.MeshBasicMaterial({ map: sign }), 0, 1.15, 0.101))
+  const live = new THREE.Group()
+  const sheet = part(new THREE.PlaneGeometry(2.44, 0.05), holoMaterial(null, C.caustic, 0.55, 0, true), 0, 0.5, 0)
+  sheet.rotation.x = -Math.PI / 2
+  const curtain = part(new THREE.PlaneGeometry(2.44, 1.05), holoMaterial(null, C.caustic, 0.07, 0, true), 0, 0.55, 0)
+  live.add(sheet, curtain)
+  return { solid: g, live, update: (t) => (sheet.position.y = 0.08 + (0.5 + 0.5 * Math.sin(t * 1.7)) * 0.95) }
+}
+
+/** Interphone du poste de sécurité (sur pied, face à +z) : une grille, un bouton d'appel vert. */
+const intercom: Builder = () => {
+  const g = new THREE.Group()
+  const dark = lit(C.steelDark)
+  g.add(box(0.14, 0.03, 0.14, dark, 0, 0.015, 0))
+  g.add(cylinder(0.02, 0.02, 0.62, lit(C.steel), 0, 0.33, 0, 8))
+  g.add(box(0.16, 0.22, 0.05, dark, 0, 0.72, 0, 0.01))
+  for (let k = 0; k < 5; k++) g.add(box(0.1, 0.008, 0.01, lit('#5a616b'), 0, 0.76 + (k - 2) * 0.018, 0.026))
+  g.add(cylinder(0.022, 0.022, 0.012, glow(C.caustic), 0, 0.66, 0.028, 12).rotateX(Math.PI / 2))
+  const label = drawnTexture(128, 32, (c) => {
+    c.fillStyle = C.hazard
+    c.fillRect(0, 0, 128, 32)
+    c.fillStyle = '#17181b'
+    c.font = 'bold 20px sans-serif'
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    c.fillText(tr('APPEL', 'CALL'), 64, 17)
+  })
+  g.add(mesh(new THREE.PlaneGeometry(0.12, 0.03), new THREE.MeshBasicMaterial({ map: label }), 0, 0.855, 0.026))
+  return { solid: g }
+}
+
+/**
+ * Table de briefing (1,5 × 0,9, face à +z) : au-dessus, le plan holographique de la baie, le vrai
+ * (cf. BAY) : cloisons, conteneurs, zones éclairées, le nid, la passerelle, le sas qui clignote,
+ * une ligne de balayage et un écho rouge qui rôde.
+ */
+const bayHolo: Builder = () => {
+  const g = new THREE.Group()
+  const dark = lit(C.steelDark)
+  g.add(box(1.2, 0.5, 0.6, lit(C.steel), 0, 0.25, 0, 0.02))
+  g.add(box(1.56, 0.06, 0.96, dark, 0, 0.53, 0, 0.02))
+  for (const s of [-1, 1]) g.add(box(1.5, 0.018, 0.02, glow('#5fd4ff'), 0, 0.515, s * 0.47))
+  g.add(box(1.44, 0.01, 0.86, lit('#0c1418'), 0, 0.565, 0))
+  const H = BAY.length, W = BAY[0].length, k = 12
+  const map = drawnTexture(W * k, H * k, (c) => {
+    c.clearRect(0, 0, W * k, H * k)
+    const areaTint: Record<string, string> = { nest: 'rgba(57, 255, 136, 0.35)', collapse: 'rgba(255, 170, 85, 0.18)' }
+    for (let z = 0; z < H; z++) {
+      for (let x = 0; x < W; x++) {
+        const ch = BAY[z][x]
+        const px = x * k, pz = z * k
+        const lit_ = BAY_LIT.find((l) => x >= l.x && z >= l.z && x < l.x + l.w && z < l.z + l.d)
+        const area = BAY_AREAS.find((a) => x >= a.x && z >= a.z && x < a.x + a.w && z < a.z + a.d)
+        if (ch === '#') {
+          c.fillStyle = 'rgba(140, 230, 255, 0.95)'
+          c.fillRect(px, pz, k, k)
+          continue
+        }
+        c.fillStyle = lit_ ? (lit_.id === 'greenhouse' ? 'rgba(224, 140, 255, 0.4)' : 'rgba(255, 220, 140, 0.35)') : (area && areaTint[area.id]) ?? 'rgba(80, 180, 230, 0.16)'
+        c.fillRect(px + 0.5, pz + 0.5, k - 1, k - 1)
+        if ('=Hcmpo'.includes(ch)) {
+          c.fillStyle = ch === 'o' ? 'rgba(57, 255, 136, 0.9)' : ch === 'p' ? 'rgba(224, 140, 255, 0.7)' : 'rgba(140, 230, 255, 0.6)'
+          c.fillRect(px + 2, pz + 2, k - 4, k - 4)
+        } else if (ch === 'u' || ch === 'r') {
+          c.strokeStyle = 'rgba(255, 170, 60, 0.9)'
+          c.lineWidth = 2
+          c.beginPath(); c.moveTo(px, pz + k); c.lineTo(px + k, pz); c.stroke()
+        } else if (ch === 'x') {
+          c.fillStyle = 'rgba(109, 255, 154, 0.95)'
+          c.fillRect(px + 1, pz + 1, k - 2, k - 2)
+        } else if (ch === 'g') {
+          c.fillStyle = 'rgba(255, 180, 70, 0.9)'
+          c.fillRect(px + 1, pz + 1, k - 2, k - 2)
+        }
+      }
+    }
+    c.strokeStyle = 'rgba(140, 230, 255, 0.95)'
+    c.lineWidth = 3
+    c.strokeRect(1.5, 1.5, W * k - 3, H * k - 3)
+  })
+  const plan = new THREE.MeshBasicMaterial({ map, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+  const live = new THREE.Group()
+  const holo = new THREE.Group()
+  holo.position.set(0, 0.68, 0)
+  const sheet = part(new THREE.PlaneGeometry(1.38, (1.38 * H) / W), plan, 0, 0, 0)
+  sheet.rotation.x = -Math.PI / 2
+  holo.add(sheet)
+  const scan = part(new THREE.PlaneGeometry(0.02, (1.38 * H) / W), holoMaterial(null, '#5fd4ff', 0.7, 0, true), 0, 0.01, 0)
+  scan.rotation.x = -Math.PI / 2
+  holo.add(scan)
+  // Le sas qui clignote, un écho qui rôde.
+  const toPlan = (x: number, z: number) => new THREE.Vector3(((x + 0.5) / W - 0.5) * 1.38, 0.02, ((z + 0.5) / H - 0.5) * ((1.38 * H) / W))
+  const airlock = part(new THREE.OctahedronGeometry(0.025), glow(C.caustic), 0, 0, 0)
+  airlock.position.copy(toPlan(17, 24.5))
+  const blip = part(new THREE.SphereGeometry(0.018, 8, 6), glow(C.red), 0, 0, 0)
+  holo.add(airlock, blip)
+  const cone = part(new THREE.CylinderGeometry(0.75, 0.62, 0.12, 24, 1, true), holoMaterial(null, '#5fd4ff', 0.1, 1, true), 0, 0.62, 0)
+  cone.scale.z = 0.62
+  live.add(holo, cone)
+  return {
+    solid: g,
+    live,
+    update: (t) => {
+      scan.position.x = (((t * 0.12) % 1) - 0.5) * 1.36
+      airlock.visible = Math.floor(t * 2) % 2 === 0
+      airlock.rotation.y = t * 2
+      const a = t * 0.13
+      blip.position.copy(toPlan(29 + Math.cos(a) * 4, 15 + Math.sin(a * 1.7) * 2))
+      blip.visible = Math.floor(t * 3) % 4 !== 0
+    },
+  }
+}
+
 // ---------------------------------------------------------------- baie infestée
 
 /**
@@ -715,6 +884,10 @@ const floorArrow: Builder = () => {
 
 export const SALVAGE = {
   floodlight,
+  'security-desk': securityDesk,
+  'decon-arch': deconArch,
+  intercom,
+  'bay-holo': bayHolo,
   'dock-marking': dockMarking,
   'floor-arrow': floorArrow,
   'security-booth': securityBooth,

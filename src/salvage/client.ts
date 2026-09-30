@@ -14,6 +14,7 @@ import {
   zoneSight, type Zone,
 } from '../../shared/salvage.js'
 import { DIRS } from '../../shared/ship-map.js'
+import { CONTROL_POST, CONTROLLER, Controller, controllerRig, type ControllerReport } from './controller'
 import { FogOfWar } from './fog'
 import { ZoneItems } from './items'
 import { loadZoneKit } from './kit'
@@ -61,6 +62,8 @@ export interface SalvageHost {
   aim(): { x: number; z: number } | null
   /** Position à l'écran (pixels) d'un point du monde. */
   project(p: THREE.Vector3): { x: number; y: number }
+  /** Odile parle dans le micro du lobby (une bulle au-dessus d'elle). */
+  bark?(text: string): void
 }
 
 interface Game {
@@ -187,6 +190,10 @@ export class SalvageClient {
   private leaving: Promise<void> | null = null
   private readonly tmp = new THREE.Vector3()
   private lastRender = performance.now()
+  /** Odile, au poste de sécurité du lobby (chargée à part). */
+  controller: Controller | null = null
+  /** Dernière mission finie, pour ce qu'en dit Odile. */
+  private lastEnd: SalvageEnd | null = null
 
   constructor(private host: SalvageHost) {
     this.sfx = new SalvageSfx(host.sound)
@@ -230,6 +237,42 @@ export class SalvageClient {
     this.hud.onThrow = () => this.throwFlare()
     this.hud.onCamera = (step) => this.cycle(step)
     this.hud.onCameraClose = () => this.stopWatching()
+    void this.buildController()
+  }
+
+  /** Odile, au poste de sécurité du lobby : derrière la vitre, on lui parle à l'interphone. */
+  private async buildController() {
+    const controller = new Controller(await controllerRig())
+    this.controller = controller
+    const hold = this.host.hold
+    hold.group.add(controller.root)
+    hold.interactables.push({
+      object: controller.root,
+      position: new THREE.Vector3(CONTROL_POST.intercom.x, 0, CONTROL_POST.intercom.z),
+      label: tr(`Parler à ${CONTROLLER} (interphone)`, `Talk to ${CONTROLLER} (intercom)`),
+      onInteract: () => this.talkToController(),
+    })
+  }
+
+  private talkToController() {
+    const c = this.controller
+    if (!c) return
+    this.host.player.interact()
+    const team = this.lobbyPanel.team
+    const g = this.game
+    const running = !!g && !g.end
+    const report: ControllerReport = {
+      phase: running ? (this.me?.status === 'captured' ? 'caught' : 'playing') : team ? 'forming' : 'none',
+      team: team?.members.length ?? 1,
+      parcels: g?.parcels ?? team?.parcels ?? 1,
+      enemies: g?.enemies ?? team?.enemies ?? 1,
+      delivered: g?.state?.delivered ?? 0,
+      alive: g?.state?.members.filter((m) => m.status === 'alive' || m.status === 'arriving').length ?? 0,
+      last: this.lastEnd && { won: this.lastEnd.won, grade: this.lastEnd.grade, delivered: this.lastEnd.delivered, parcels: this.lastEnd.parcels },
+      guest: !this.host.verified(),
+    }
+    const line = c.talk(report)
+    this.host.dialog.show(tr(`${CONTROLLER} : « ${line} »`, `${CONTROLLER}: “${line}”`))
   }
 
   // ------------------------------------------------------------------ état
@@ -945,6 +988,7 @@ export class SalvageClient {
   private finish(r: SalvageEnd) {
     const g = this.game!
     g.end = r
+    this.lastEnd = r
     ticketStore.clear()
     this.sfx.end(r.won)
     this.hud.mission(r.delivered, r.parcels)
@@ -972,6 +1016,15 @@ export class SalvageClient {
    * @param moving le joueur se déplace ; `running` : à la course
    */
   update(dt: number) {
+    // Odile, au lobby : elle se tourne vers qui s'approche de l'interphone, et parle au micro.
+    if (this.controller) {
+      const here = this.host.player.position
+      const hold = this.host.deck() === this.host.hold
+      const inLobby = hold && this.host.hold.map.room(Math.round(here.x), Math.round(here.z)) === 'h'
+      const near = hold && Math.hypot(here.x - CONTROL_POST.intercom.x, here.z - CONTROL_POST.intercom.z) < 2.4
+      const bark = this.controller.update(dt, near ? here : null, inLobby && this.phase === 'ship')
+      if (bark) this.host.bark?.(bark)
+    }
     const g = this.game
     if (!g) return
     const inZone = this.inZone

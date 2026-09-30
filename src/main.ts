@@ -1147,8 +1147,13 @@ salvage = new SalvageClient({
     screenPos.copy(p).project(activeCamera())
     return { x: ((screenPos.x + 1) / 2) * innerWidth, y: ((1 - screenPos.y) / 2) * innerHeight }
   },
+  bark: (text) => {
+    if (deck === deckById(-1)) bubbles.say('controller', text)
+  },
 })
 const zone = salvage
+// Odile, au poste de sécurité du lobby (cf. salvage/controller.ts) : sa bulle suit sa tête.
+bubbles.attach('controller', (out) => (deckById(-1).group.visible ? zone.controller?.avatar.head(out) ?? null : null))
 // Le lobby de la zone thargoïde : terminal de mission, caméras de surveillance, classement.
 for (const it of deckById(-1).interactables) {
   const model = it.furniture?.model

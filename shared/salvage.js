@@ -22,7 +22,7 @@ export const ZONE_LEVEL = -2
 /** Le lobby : le sas de la cale, pièce 'h' du pont -1 (cf. shared/ship-layouts.js). */
 export const LOBBY = { level: -1, room: 'h' }
 /** Où l'on revient dans le lobby (fin de partie, capture, abandon) : devant la porte blindée. */
-export const LOBBY_RETURN = { x: 24.2, z: 1.2 }
+export const LOBBY_RETURN = { x: 24, z: 0.9 }
 
 /**
  * Chiffres de la partie (tuiles et secondes). Le mode léger n'y change rien : même vue, même bruit.
