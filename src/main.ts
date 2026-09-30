@@ -1837,6 +1837,7 @@ function loadEditor(): Promise<void> {
       },
       onClose: () => closeEditor(),
       wallet,
+      player: player.position,
     })
   })
   return editorLoading

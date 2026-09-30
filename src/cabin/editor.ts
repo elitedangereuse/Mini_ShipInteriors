@@ -17,7 +17,7 @@ import { isDoor, MAX_PARTITIONS, partitionKey } from '../../shared/cabin-partiti
 import { thumbnail } from './thumbs'
 import { artChoice } from './art-choice'
 import { rotateLocal, type CabinView, type WallLine } from './view'
-import { DEFAULT_PATTERN, WING_PATTERNS, WING_SIZE, WING_SLOTS, wingPlan, type PatternId, type WingId } from '../../shared/cabin-wings.js'
+import { DEFAULT_PATTERN, WING_PATTERNS, WING_ROOMS, WING_SIZE, WING_SLOTS, wingPlan, type PatternId, type WingId } from '../../shared/cabin-wings.js'
 
 /*
  * Mode aménagement : dans ses quartiers, le CMDR pose, déplace, tourne et retire meubles et
@@ -62,6 +62,8 @@ export interface EditorHost {
   onClose: () => void
   /** Crédits du CMDR : les objets du catalogue se débloquent une fois. */
   wallet: Wallet
+  /** Position du joueur : l'onglet « Murs et sol » s'ouvre sur la pièce où il se trouve. */
+  player: THREE.Vector3
 }
 
 /** Objet en main : un objet de la cabine qu'on déplace, ou un nouvel objet du catalogue. */
@@ -289,7 +291,7 @@ export class CabinEditor {
       b.dataset.mode = mode
       b.title = label
       b.append(icon(glyph), document.createTextNode(label))
-      b.onclick = () => (mode === 'finish' ? this.showFinishes() : mode === 'rooms' ? this.showRooms() : mode === 'partitions' ? this.showPartitions() : this.showCategory(this.category))
+      b.onclick = () => (mode === 'finish' ? this.showFinishes(true) : mode === 'rooms' ? this.showRooms() : mode === 'partitions' ? this.showPartitions() : this.showCategory(this.category))
       this.modes.appendChild(b)
     }
     this.tabs = document.createElement('div')
@@ -450,7 +452,7 @@ export class CabinEditor {
     this.open = true
     this.root.hidden = false
     this.helpers.visible = true
-    if (this.mode === 'finish') this.showFinishes()
+    if (this.mode === 'finish') this.showFinishes(true)
     else if (this.mode === 'rooms') this.showRooms()
     else if (this.mode === 'partitions') this.showPartitions()
     else this.showCategory(this.category)
@@ -739,10 +741,11 @@ export class CabinEditor {
   // ---------------------------------------------------------------- revêtements
 
   /** Onglet des revêtements : pour les murs puis le sol, les motifs, puis les teintes du motif choisi. */
-  private showFinishes() {
+  private showFinishes(here = false) {
     this.cancelHeld()
     this.closeBuy()
     this.setMode('finish')
+    if (here) this.finishRoom = this.roomHere()
     this.cards.replaceChildren()
     this.cardTags.clear()
     this.finishEls = {}
@@ -853,6 +856,13 @@ export class CabinEditor {
     input.onchange = () => (this.lastTint = null)
     custom.append(icon('palette'), input)
     row.appendChild(custom)
+  }
+
+  /** Pièce où se tient le joueur : une extension, sinon les quartiers. */
+  private roomHere(): 'main' | WingId {
+    const letter = this.view.deck.map.room(Math.round(this.host.player.x), Math.round(this.host.player.z))
+    const slot = letter ? WING_SLOTS.find((s) => WING_ROOMS[s.id].includes(letter) && this.wings?.[s.id]) : undefined
+    return slot?.id ?? 'main'
   }
 
   /** Revêtement affiché de la pièce choisie (cf. finishRoom). */
