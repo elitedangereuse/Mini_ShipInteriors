@@ -10,13 +10,14 @@ import type { RemotePlayer } from '../remote'
 import type { Dialog } from '../ui'
 import { cargoCanister } from '../furniture'
 import {
-  generateZone, inAirlock, LOBBY_RETURN, lockerFront, lockerSpot, RULES, walkable, ZONE_LEVEL, zoneSight, type Zone,
+  BAY_BOOTH, generateZone, inAirlock, LOBBY_RETURN, lockerFront, lockerSpot, RULES, walkable, ZONE_LEVEL, zoneSight, type Zone,
 } from '../../shared/salvage.js'
 import { FogOfWar } from './fog'
 import { ZoneItems } from './items'
 import { loadZoneKit } from './kit'
 import { MonsterView } from './monsters'
 import { SalvageSfx } from './sfx'
+import { Technician, technicianRig, TECHNICIAN } from './technician'
 import { LeaderboardPanel, LobbyPanel, MissionHud, type HudMember } from './ui'
 import { zoneLevel } from './zone-deck'
 
@@ -71,6 +72,8 @@ interface Game {
   end: SalvageEnd | null
   /** Colis accrochés dans le dos des porteurs (joueur ou coéquipier). */
   carried: Map<number, THREE.Object3D>
+  /** Gaspard, barricadé dans le guichet de sécurité. */
+  technician: Technician
 }
 
 type Phase = 'ship' | 'loading' | 'zone' | 'caught' | 'watching'
@@ -374,9 +377,18 @@ export class SalvageClient {
     if (this.game) this.dispose()
     ticketStore.set(m.game, m.ticket)
     this.phase = 'loading'
-    const kit = await loadZoneKit()
+    const [kit, techRig] = await Promise.all([loadZoneKit(), technicianRig()])
     const zone = generateZone(m.seed, { team: m.team, parcels: m.parcels, enemies: m.enemies })
     const deck = new Deck(zoneLevel(zone, kit))
+    // Gaspard, derrière la vitre du guichet ; on lui parle au comptoir.
+    const technician = new Technician(techRig, BAY_BOOTH.technician, 0)
+    deck.group.add(technician.root)
+    deck.interactables.push({
+      object: technician.root,
+      position: new THREE.Vector3(BAY_BOOTH.counter.x, 0, BAY_BOOTH.counter.z - 0.25),
+      label: tr(`Parler à ${TECHNICIAN}`, `Talk to ${TECHNICIAN}`),
+      onInteract: () => this.talkToTechnician(),
+    })
     deck.group.visible = false
     this.host.scene.add(deck.group)
     const monsters = new MonsterView(this.sfx, deck.y)
@@ -386,7 +398,7 @@ export class SalvageClient {
       hide: (locker) => this.hide(locker),
     })
     deck.group.add(this.compass, ...this.rings.map((r) => r.mesh))
-    this.game = { id: m.game, zone, deck, monsters, items, members: m.members, parcels: m.parcels, enemies: m.enemies, state: null, end: null, carried: new Map() }
+    this.game = { id: m.game, zone, deck, monsters, items, members: m.members, parcels: m.parcels, enemies: m.enemies, state: null, end: null, carried: new Map(), technician }
     this.me = { id: this.host.net.id, status: m.status, carrying: null, hidden: null, flares: 0 }
     this.stamina = 1
     this.exhausted = false
@@ -451,6 +463,7 @@ export class SalvageClient {
     for (const o of g.carried.values()) o.removeFromParent()
     g.monsters.dispose()
     g.items.dispose()
+    g.technician.dispose()
     this.compass.removeFromParent()
     for (const r of this.rings) r.mesh.removeFromParent()
     g.deck.group.removeFromParent()
@@ -481,6 +494,21 @@ export class SalvageClient {
   }
 
   /** Lance une fusée : vers la tuile visée si elle est à portée et en vue, sinon droit devant. */
+  /** Quelques mots avec Gaspard, par l'hygiaphone : ça détend (lui un peu, nous surtout). */
+  private talkToTechnician() {
+    const g = this.game
+    if (!g) return
+    this.host.player.interact()
+    const line = g.technician.talk({
+      carrying: this.me?.carrying !== null && this.me?.carrying !== undefined,
+      danger: g.monsters.nearest(BAY_BOOTH.technician),
+      delivered: g.state?.delivered ?? 0,
+      parcels: g.parcels,
+      flares: this.me?.flares ?? 0,
+    })
+    this.host.dialog.show(tr(`${TECHNICIAN} : « ${line} »`, `${TECHNICIAN}: “${line}”`))
+  }
+
   /** Lance une fusée là où l'on vise ; `ahead` (manette, bouton tactile) : droit devant. */
   throwFlare(ahead = false) {
     const g = this.game
@@ -852,6 +880,7 @@ export class SalvageClient {
     g.monsters.group.visible = g.deck.group.visible
     g.monsters.update(dt, viewer ? this.tmp.copy(viewer) : null)
     g.items.update(dt)
+    g.technician.update(dt, g.monsters.nearest(BAY_BOOTH.technician))
     if (!viewer) {
       this.lantern.intensity = 0
       this.flareLight.intensity = 0

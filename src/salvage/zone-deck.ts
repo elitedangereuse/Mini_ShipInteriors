@@ -2,7 +2,7 @@ import { DIRS } from '../map'
 import { hash } from '../deck'
 import { tr } from '../i18n'
 import type { LevelDef, LightDef, Prop, Rot } from '../levels'
-import { ZONE_LEVEL, type Zone } from '../../shared/salvage.js'
+import { BAY_BOOTH, ZONE_LEVEL, type BayLight, type Zone } from '../../shared/salvage.js'
 import type { ZoneKit } from './kit'
 
 /*
@@ -29,6 +29,14 @@ export function zoneLevel(zone: Zone, kit: ZoneKit): LevelDef {
     props.push({ model: 'prebuilt', object: kit.decor(d.kind, i), x: d.x, z: d.z, rot: d.rot as Rot, solid: false })
   }
 
+  // Petites pièces : leurs meubles (cf. BAY_ROOMS) ; le guichet de sécurité, sa vitre et son comptoir.
+  for (const r of zone.rooms) {
+    for (const f of r.furniture) props.push({ model: f.model as Prop['model'], x: f.x, z: f.z, rot: f.rot ?? 0, y: f.y, solid: !!f.block })
+  }
+  props.push({
+    model: 'security-booth', x: BAY_BOOTH.x + (BAY_BOOTH.w - 1) / 2, z: BAY_BOOTH.z + (BAY_BOOTH.d - 1) / 2, rot: 0,
+  })
+
   // Sas d'extraction : la plateforme au fond, une lampe verte.
   const pad = zone.airlock.pad
   props.push({
@@ -36,6 +44,12 @@ export function zoneLevel(zone: Zone, kit: ZoneKit): LevelDef {
     interact: tr('Le monte-charge du sas : entrez avec un colis, il part vers le vaisseau.', 'The airlock cargo lift: walk in with a crate and it goes up to the ship.'),
   })
   const lights: LightDef[] = [[pad.x, pad.z, '#6dff9a', 2.4]]
+  const light = (l: BayLight): LightDef => [l.x, l.z, l.color, l.intensity, l.flicker]
+  // Une seule lampe de fortune par petite pièce, les lueurs de certains coins (cristaux du nid,
+  // câbles qui crachent), et la lampe ambrée du guichet, qu'on repère de loin dans le noir.
+  for (const r of zone.rooms) lights.push(light(r.light))
+  for (const a of zone.areas) for (const l of a.lights) lights.push(light(l))
+  lights.push([BAY_BOOTH.technician.x, BAY_BOOTH.technician.z - 0.2, '#ffb347', 1.3])
   for (const door of zone.doors) {
     const out = DIRS[door.dir]
     lights.push([door.x + out.dx * 0.9, door.z + out.dz * 0.9, '#4fdc84', 0.9])
@@ -52,6 +66,7 @@ export function zoneLevel(zone: Zone, kit: ZoneKit): LevelDef {
       const i = z * zone.width + x
       if (zone.room[i] !== 'z' || zone.blocked[i] || hash(x * 7 + 3, z * 5 + 1) % 7 !== 0) continue
       if (zone.lockers.some((l) => l.x === x && l.z === z)) continue
+      if (zone.rooms.some((r) => x >= r.x && z >= r.z && x < r.x + r.w && z < r.z + r.d)) continue
       const dir = [0, 3].find((d) => closed(x, z, d))
       if (dir === undefined) continue
       props.push({ model: 'emergency-lamp', x: x + DIRS[dir].dx * 0.34, z: z + DIRS[dir].dz * 0.34, rot: FACING[dir], solid: false })

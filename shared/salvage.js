@@ -84,45 +84,115 @@ function shuffle(list, random) {
 }
 
 /**
- * Plan de la baie, le même à chaque mission : trois bandes de halls séparées par des cloisons
- * percées de passages de deux tuiles ; au milieu, un grand hall dégagé semé d'îlots de
- * conteneurs ; le sas d'extraction au milieu du bord sud. Une lettre par tuile (colonne = x,
- * ligne = z) :
+ * Plan de la baie, le même à chaque mission : trois bandes séparées par des cloisons percées de
+ * passages de deux tuiles. Au nord, le hall de fret (conteneurs), deux petites pièces (salle de
+ * pause, local radio) et le nid (cristaux, flaques caustiques) ; au milieu, un grand hall dégagé
+ * semé d'îlots, avec le guichet de sécurité où s'est barricadé le technicien ; au sud, la salle
+ * des machines et son atelier, le sas d'extraction, la zone effondrée et l'infirmerie de fortune.
+ * Une lettre par tuile (colonne = x, ligne = z) :
  *   '.'  sol de la baie        'x'  sas d'extraction
  *   '#'  cloison (plein : ni sol, ni passage, ni vue)
  *   'L'  sol, avec un casier contre la paroi ou le conteneur voisin
  *   '='  conteneur couché (par paires, de gauche à droite)
  *   'H'  conteneur debout (par paires, de haut en bas)
- *   'c'  pile de caisses (une tuile)
+ *   'c'  pile de fûts ou de caisses (une tuile)   'm'  générateur (une tuile)
+ *   'g'  guichet de sécurité : on y voit par la vitre, on n'y entre pas
  */
 export const BAY = [
-  '...L....L.#..L..L..#..L....L..',
-  '..........#........#..........',
-  '......c.......H...............',
-  '...==.........H.........==...L',
-  'L.........#....c...#..c.......',
-  '..........#........#..........',
-  '.......L..#.L....L.#.L........',
+  'L...L.....#L......L#..L.....L.',
+  '..==..==..#........#..........',
+  '.........................H....',
+  '........c................H...L',
+  '.H..==....#........#.c........',
+  '.H........#....c...#..........',
+  '......L...#.L....L.#..L.....c.',
   '####..########..########..####',
-  '..L...............L...........',
-  '............H.................',
-  'L....==L....Hc.........LH.....',
+  '..L.......ggg.....L...........',
+  '..........ggg.................',
+  'L....==L........c......LH.....',
   '.....c............c.....Hc....',
   '.................==L.........L',
   '..............................',
   '...........L...............L..',
   '####..########..########..####',
-  '......L...#L......L#...L......',
+  'L.....L...#L......L#...L......',
   '..........#........#..........',
-  '............c....c............',
-  'L..==...................==...L',
-  '......c...#........#..c.......',
+  '............c....c...c.....c..',
+  '.....mm.................==....',
+  '.m.....m..#........#..c.......',
   '..........#........#..........',
   '..........#...xxx..#..........',
-  '...L....L.#L..xxx.L#..L....L..',
+  '...L....L.#L..xxx.L#..L.....L.',
 ]
 /** Le sas : adossé au bord sud (2), ouvert vers le nord (0) par deux portes, la plateforme au fond. */
 const BAY_AIRLOCK = { side: 2, inward: 0, pad: { x: 15, z: 23 }, doors: [{ x: 14, z: 22, dir: 0 }, { x: 16, z: 22, dir: 0 }] }
+
+/**
+ * Le guichet de sécurité : ses tuiles ('g'), la vitre (côté `window`, 2 : sud), où se tient le
+ * technicien derrière, et où l'on se met pour lui parler, devant le comptoir.
+ */
+export const BAY_BOOTH = { x: 10, z: 8, w: 3, d: 2, window: 2, technician: { x: 11, z: 8.85 }, counter: { x: 11, z: 10 } }
+
+/**
+ * Petites pièces à l'éclairage de fortune : un rectangle de tuiles entouré de cloisons fines
+ * (sauf aux portes : l'arête `dir` de la tuile x, z), une seule lampe qui vacille, et leurs
+ * meubles (modèles du jeu, cf. src/furniture/) ; un meuble `block` occupe sa tuile, ou les tuiles
+ * listées (ni colis, ni fusée, ni passage).
+ */
+export const BAY_ROOMS = [
+  {
+    id: 'pause', x: 11, z: 0, w: 4, d: 3, doors: [{ x: 12, z: 2, dir: 2 }, { x: 13, z: 2, dir: 2 }],
+    light: { x: 13, z: 1, color: '#ffc875', intensity: 1.1, flicker: 'neon' },
+    furniture: [
+      { model: 'canteen-table', x: 13, z: 1, rot: 1, block: [[12, 1], [13, 1], [14, 1]] },
+      { model: 'water-fountain', x: 14, z: 0.2, rot: 0, block: true },
+      { model: 'mug', x: 13.1, z: 0.95, y: 0.37 },
+    ],
+  },
+  {
+    id: 'radio', x: 15, z: 0, w: 4, d: 3, doors: [{ x: 16, z: 2, dir: 2 }, { x: 17, z: 2, dir: 2 }],
+    light: { x: 16.5, z: 0.6, color: '#5fb4ff', intensity: 0.9, flicker: 'neon' },
+    furniture: [
+      { model: 'computer-system', x: 16, z: 0.25, rot: 0, block: true },
+      { model: 'side-console', x: 17, z: 0.25, rot: 0, block: true },
+      { model: 'chair', x: 16.5, z: 1.1, rot: 2 },
+      { model: 'headphone-stand', x: 15.3, z: 0.3, rot: 0 },
+    ],
+  },
+  {
+    id: 'workshop', x: 0, z: 16, w: 4, d: 3, doors: [{ x: 3, z: 17, dir: 1 }],
+    light: { x: 1.8, z: 16.6, color: '#ff9a3c', intensity: 1.2, flicker: 'fire' },
+    furniture: [
+      { model: 'workbench', x: 2, z: 16.25, rot: 0, block: true },
+      { model: 'tool-rack', x: 0.25, z: 17.2, rot: 1, block: true },
+      { model: 'work-lamp', x: 2.8, z: 18.3, rot: 3 },
+      { model: 'crate', x: 2, z: 18.3, rot: 0, block: true },
+    ],
+  },
+  {
+    id: 'infirmary', x: 26, z: 20, w: 4, d: 4, doors: [{ x: 26, z: 21, dir: 3 }],
+    light: { x: 28, z: 21.5, color: '#cfe8ff', intensity: 0.9, flicker: 'neon' },
+    furniture: [
+      { model: 'bunk-bed', x: 28.5, z: 20.35, rot: 0, block: [[28, 20], [29, 20]] },
+      { model: 'wheelchair', x: 27.2, z: 22.4, rot: 1 },
+      { model: 'stain', x: 28, z: 21.8, rot: 0 },
+      { model: 'footlocker', x: 29.25, z: 22.3, rot: 3, block: true },
+    ],
+  },
+]
+
+/**
+ * Coins de la baie, chacun son décor au sol (tiré par la graine) et ses lueurs : fret en vrac au
+ * nord-ouest, nid thargoïde au nord-est, machines au sud-ouest, plafond effondré au sud-est.
+ */
+export const BAY_AREAS = [
+  { id: 'freight', x: 0, z: 0, w: 10, d: 7, density: 0.14, decor: ['cables', 'barrel', 'barrel', 'debris'], lights: [] },
+  { id: 'nest', x: 20, z: 0, w: 10, d: 7, density: 0.34, decor: ['crystals', 'crystals', 'crystals', 'goo', 'goo', 'bones'], lights: [{ x: 25.4, z: 1.4, color: '#39ff88', intensity: 0.9, flicker: 'neon' }, { x: 21.5, z: 5, color: '#2fd873', intensity: 0.7 }] },
+  { id: 'machines', x: 0, z: 16, w: 10, d: 8, density: 0.16, decor: ['cables', 'cables', 'barrel', 'goo'], lights: [{ x: 6, z: 19.6, color: '#ff5a36', intensity: 0.8, flicker: 'fire' }] },
+  { id: 'collapse', x: 20, z: 16, w: 10, d: 8, density: 0.26, decor: ['debris', 'debris', 'debris', 'bones', 'cables'], lights: [{ x: 22.4, z: 18.2, color: '#ffaa55', intensity: 0.8, flicker: 'neon' }] },
+]
+const DECOR = ['cables', 'bones', 'crystals', 'barrel', 'goo', 'debris']
+const areaOf = (x, z) => BAY_AREAS.find((a) => x >= a.x && z >= a.z && x < a.x + a.w && z < a.z + a.d) ?? null
 
 /**
  * La baie d'une mission : le plan fixe (BAY), et ce que la graine y dispose (colis, fusées,
@@ -142,6 +212,7 @@ export function generateZone(seed, settings) {
   const cell = (x, z) => (inside(x, z) ? BAY[z][x] : '#')
   const room = new Array(N)
   const blocked = new Uint8Array(N)
+  const booth = new Uint8Array(N)
   const hall = new Int16Array(N)
   const open = new Uint8Array(N * 4)
   const airlock = []
@@ -150,7 +221,8 @@ export function generateZone(seed, settings) {
       const c = cell(x, z)
       room[idx(x, z)] = c === 'x' ? 'x' : c === '#' ? ' ' : 'z'
       if (c === 'x') airlock.push({ x, z })
-      if (c === '=' || c === 'H' || c === 'c' || c === '#') blocked[idx(x, z)] = 1
+      if ('=Hcm#g'.includes(c)) blocked[idx(x, z)] = 1
+      if (c === 'g') booth[idx(x, z)] = 1
     }
   }
   // Sol d'un seul tenant dans une même pièce ; le sas ne s'ouvre que par ses portes.
@@ -168,6 +240,41 @@ export function generateZone(seed, settings) {
     open[idx(d.x + DIRS[d.dir].dx, d.z + DIRS[d.dir].dz) * 4 + ((d.dir + 2) % 4)] = 1
   }
   const isOpen = (x, z, dir) => open[idx(x, z) * 4 + dir] === 1
+  const walls = []
+  const wallUp = (x, z, dir) => {
+    const nx = x + DIRS[dir].dx, nz = z + DIRS[dir].dz
+    if (!inside(nx, nz) || !isOpen(x, z, dir)) return
+    open[idx(x, z) * 4 + dir] = 0
+    open[idx(nx, nz) * 4 + ((dir + 2) % 4)] = 0
+    walls.push(dir === 1 || dir === 2 ? { x, z, dir } : { x: nx, z: nz, dir: (dir + 2) % 4 })
+  }
+  // Petites pièces : cloisons fines tout autour, sauf aux portes ; leurs meubles occupent leur tuile.
+  for (const r of BAY_ROOMS) {
+    const within = (x, z) => x >= r.x && z >= r.z && x < r.x + r.w && z < r.z + r.d
+    for (let z = r.z; z < r.z + r.d; z++) {
+      for (let x = r.x; x < r.x + r.w; x++) {
+        for (let dir = 0; dir < 4; dir++) {
+          if (within(x + DIRS[dir].dx, z + DIRS[dir].dz)) continue
+          if (r.doors.some((d) => d.x === x && d.z === z && d.dir === dir)) continue
+          wallUp(x, z, dir)
+        }
+      }
+    }
+    for (const f of r.furniture) {
+      if (!f.block) continue
+      for (const [x, z] of f.block === true ? [[Math.round(f.x), Math.round(f.z)]] : f.block) blocked[idx(x, z)] = 1
+    }
+  }
+  // Le guichet : cloisonné, sauf la vitre (le passage reste fermé : ses tuiles sont bloquées).
+  for (let z = BAY_BOOTH.z; z < BAY_BOOTH.z + BAY_BOOTH.d; z++) {
+    for (let x = BAY_BOOTH.x; x < BAY_BOOTH.x + BAY_BOOTH.w; x++) {
+      for (let dir = 0; dir < 4; dir++) {
+        const nx = x + DIRS[dir].dx, nz = z + DIRS[dir].dz
+        if (inside(nx, nz) && booth[idx(nx, nz)]) continue
+        if (dir !== BAY_BOOTH.window) wallUp(x, z, dir)
+      }
+    }
+  }
 
   // Conteneurs : les paires de '=' (couchés) et de 'H' (debout), les piles de caisses. Couleurs
   // tirées de la position : la baie a toujours la même allure.
@@ -176,18 +283,19 @@ export function generateZone(seed, settings) {
   for (let z = 0; z < H; z++) {
     for (let x = 0; x < W; x++) {
       const c = cell(x, z)
-      if (done[idx(x, z)] || (c !== '=' && c !== 'H' && c !== 'c')) continue
+      if (done[idx(x, z)] || !'=Hcm'.includes(c)) continue
       const w = c === '=' ? 2 : 1, d = c === 'H' ? 2 : 1
       for (let tz = z; tz < z + d; tz++) for (let tx = x; tx < x + w; tx++) done[idx(tx, tz)] = 1
-      const tint = (x * 7 + z * 13) % 3
-      containers.push({ x, z, w, d, kind: c === 'c' ? 'crates' : 'container', color: tint, flip: (x + z) % 2 === 1 })
+      // Un générateur est la pile de variante 0 (cf. src/salvage/kit.ts).
+      const tint = c === 'm' ? 0 : (x * 7 + z * 13) % 3
+      containers.push({ x, z, w, d, kind: c === '=' || c === 'H' ? 'container' : 'crates', color: tint, flip: c !== 'm' && (x + z) % 2 === 1 })
     }
   }
 
   const layout = BAY.map((line) => line.replace(/#/g, ' ').replace(/[^x ]/g, 'z'))
   const zone = {
     seed, width: W, height: H, team, parcels, enemies,
-    layout, walls: [], doors,
+    layout, walls, doors, booth, rooms: BAY_ROOMS, areas: BAY_AREAS,
     airlock: { side: BAY_AIRLOCK.side, tiles: airlock, pad: { ...BAY_AIRLOCK.pad }, inward: BAY_AIRLOCK.inward },
     halls: [], containers, blocked, open, room, hall,
     lockers: [], flares: [], cargo: [], monsters: [], decor: [],
@@ -208,7 +316,9 @@ export function generateZone(seed, settings) {
   const dist = (t) => fromAirlock[idx(t.x, t.z)]
   const taken = new Set(zone.lockers.map((l) => `${l.x},${l.z}`))
   const key = (t) => `${t.x},${t.z}`
+  // Devant les portes du sas et devant le comptoir du guichet, on ne pose rien.
   const nearDoor = (t) => zone.doors.some((d) => Math.abs(t.x - d.x - DIRS[d.dir].dx) + Math.abs(t.z - d.z - DIRS[d.dir].dz) <= 1)
+    || (t.z === BAY_BOOTH.z + BAY_BOOTH.d && t.x >= BAY_BOOTH.x - 1 && t.x <= BAY_BOOTH.x + BAY_BOOTH.w)
   const free = (t) => room[idx(t.x, t.z)] === 'z' && !blocked[idx(t.x, t.z)] && !taken.has(key(t)) && !nearDoor(t)
   const tiles = (keep) => {
     const out = []
@@ -236,12 +346,15 @@ export function generateZone(seed, settings) {
   // Ennemis : loin du sas, répartis.
   for (const t of spread(tiles((t) => dist(t) >= 9), enemies, [BAY_AIRLOCK.pad], random)) zone.monsters.push({ id: zone.monsters.length, x: t.x, z: t.z })
 
-  // Décor : câbles, ossements, cristaux thargoïdes, fûts renversés, flaques ; jamais sur un passage.
-  const kinds = ['cables', 'bones', 'crystals', 'barrel', 'goo', 'debris']
+  // Décor : câbles, ossements, cristaux thargoïdes, fûts renversés, flaques ; celui de chaque coin
+  // (cf. BAY_AREAS), jamais sur un passage ni dans les petites pièces (elles ont leurs meubles).
+  const inRoom = (x, z) => BAY_ROOMS.some((r) => x >= r.x && z >= r.z && x < r.x + r.w && z < r.z + r.d)
   for (let z = 0; z < H; z++) {
     for (let x = 0; x < W; x++) {
-      if (room[idx(x, z)] !== 'z' || blocked[idx(x, z)] || taken.has(key({ x, z })) || nearDoor({ x, z }) || random() > 0.14) continue
+      const area = areaOf(x, z)
+      if (room[idx(x, z)] !== 'z' || blocked[idx(x, z)] || taken.has(key({ x, z })) || nearDoor({ x, z }) || inRoom(x, z) || random() > (area?.density ?? 0.1)) continue
       const walled = [0, 1, 2, 3].filter((dir) => !walkable(zone, x + DIRS[dir].dx, z + DIRS[dir].dz))
+      const kinds = area?.decor ?? DECOR
       const kind = kinds[Math.floor(random() * kinds.length)]
       // Contre une paroi ou un conteneur quand il y en a un : on passe au milieu.
       const dir = walled.length ? walled[Math.floor(random() * walled.length)] : -1
@@ -312,12 +425,17 @@ function buildGraph(zone) {
   // Lu dans les tableaux de la baie (des milliers de rayons à chaque image pour la vue du joueur) ;
   // une porte du sas y est un passage ouvert.
   zone.sightMap = {
-    isFloor: (x, z) => x >= 0 && z >= 0 && x < W && z < H && !zone.blocked[z * W + x],
+    isFloor: (x, z) => x >= 0 && z >= 0 && x < W && z < H && (!zone.blocked[z * W + x] || !!zone.booth?.[z * W + x]),
     room: (x, z) => (x >= 0 && z >= 0 && x < W && z < H ? zone.room[z * W + x] : null),
     edge: (x, z, dir) => {
       if (x < 0 || z < 0 || x >= W || z >= H) return 'wall'
       const i = z * W + x
-      return zone.adj[i * 4 + dir] >= 0 ? 'open' : 'wall'
+      if (zone.adj[i * 4 + dir] >= 0) return 'open'
+      // Le guichet se voit à travers sa vitre, et d'un bout à l'autre.
+      const nx = x + DIRS[dir].dx, nz = z + DIRS[dir].dz
+      const j = nz * W + nx
+      const glass = nx >= 0 && nz >= 0 && nx < W && nz < H && (zone.booth?.[i] || zone.booth?.[j]) && zone.open[i * 4 + dir] && !(zone.blocked[i] && !zone.booth[i]) && !(zone.blocked[j] && !zone.booth[j])
+      return glass ? 'open' : 'wall'
     },
   }
 }

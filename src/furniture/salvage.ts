@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { animatedScreen, barX, box, cylinder, decal, drawnTexture, glow, hazardTexture, holoMaterial, lit, mesh, part, sphere, type Builder } from './kit'
+import { animatedScreen, barX, box, cylinder, decal, drawnTexture, glass, glow, hazardTexture, holoMaterial, lit, mesh, part, sphere, type Builder } from './kit'
 import { tr } from '../i18n'
 
 /*
@@ -559,7 +559,69 @@ const exitSign: Builder = () => {
   return { solid: g }
 }
 
+/**
+ * Guichet de sécurité de la baie (3 × 2 tuiles, centré, la vitre face à +z) : un comptoir à
+ * bandes de chantier, une vitre blindée dans son cadre, l'hygiaphone, l'enseigne, et derrière,
+ * la console du technicien et un gyrophare orange qui tourne. Les cloisons des trois autres
+ * côtés sont celles du plan (cf. BAY_BOOTH dans shared/salvage.js).
+ */
+const securityBooth: Builder = () => {
+  const g = new THREE.Group()
+  const steel = lit(C.steel), dark = lit(C.steelDark)
+  const W = 3, front = 1
+  // Comptoir, côté baie : on s'y accoude pour parler au technicien.
+  g.add(box(W - 0.1, 0.4, 0.26, steel, 0, 0.2, front + 0.08, 0.01))
+  g.add(box(W - 0.1, 0.03, 0.3, dark, 0, 0.415, front + 0.07))
+  const stripes = hazardTexture(512, 32, 16)
+  g.add(mesh(new THREE.PlaneGeometry(W - 0.12, 0.06), new THREE.MeshLambertMaterial({ map: stripes }), 0, 0.33, front + 0.212))
+  // La vitre, ses montants et la traverse haute.
+  const pane = mesh(new THREE.PlaneGeometry(W - 0.12, 0.6), glass('#9fd8ff', 0.16), 0, 0.73, front)
+  g.add(pane)
+  for (const x of [-1.47, -0.5, 0.5, 1.47]) g.add(box(0.05, 0.62, 0.06, dark, x, 0.73, front))
+  g.add(box(W, 0.08, 0.1, dark, 0, 1.04, front))
+  // L'hygiaphone : une grille ronde au milieu de la vitre, et la fente sous la vitre.
+  g.add(cylinder(0.07, 0.07, 0.012, lit('#5a616b'), 0, 0.62, front + 0.004, 16).rotateX(Math.PI / 2))
+  for (let k = -2; k <= 2; k++) g.add(box(0.1, 0.006, 0.014, dark, 0, 0.62 + k * 0.022, front + 0.012))
+  g.add(box(0.5, 0.03, 0.2, lit('#101215'), 0, 0.44, front + 0.02))
+  // L'enseigne, au-dessus de la vitre.
+  const sign = drawnTexture(512, 64, (c) => {
+    c.fillStyle = '#1a1406'
+    c.fillRect(0, 0, 512, 64)
+    c.fillStyle = C.hazard
+    c.font = 'bold 34px sans-serif'
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    c.fillText(tr('GUICHET · SÉCURITÉ', 'SECURITY · DESK'), 256, 34)
+  })
+  g.add(mesh(new THREE.PlaneGeometry(1.2, 0.15), new THREE.MeshLambertMaterial({ map: sign, emissive: '#ffffff', emissiveMap: sign, emissiveIntensity: 0.6 }), 0, 1.04, front + 0.052))
+  // Derrière la vitre : la console et ses écrans, des classeurs, un fauteuil.
+  g.add(box(W - 0.2, 0.36, 0.3, dark, 0, 0.18, front - 0.2))
+  for (const x of [-0.9, 0.9]) {
+    g.add(box(0.32, 0.22, 0.03, lit('#15181c'), x, 0.5, front - 0.28))
+    g.add(box(0.28, 0.18, 0.005, glow(x < 0 ? '#3dd17a' : '#ff5a36'), x, 0.5, front - 0.262))
+  }
+  g.add(box(0.26, 0.16, 0.2, lit('#6d4a1e'), -1.25, 0.44, -0.8))
+  g.add(box(0.5, 0.7, 0.3, steel, 1.2, 0.35, -0.82))
+  // Gyrophare au plafond du guichet.
+  const live = new THREE.Group()
+  live.add(cylinder(0.06, 0.07, 0.05, dark, 1.3, 0.99, -0.8, 12))
+  const beacon = new THREE.Group()
+  beacon.position.set(1.3, 1.04, -0.8)
+  beacon.add(cylinder(0.05, 0.05, 0.07, glow('#ff8a1c'), 0, 0, 0, 12))
+  const beam = part(new THREE.ConeGeometry(0.22, 0.6, 12, 1, true).rotateZ(Math.PI / 2).translate(0.3, 0, 0), holoMaterial(null, '#ff8a1c', 0.18, 1, true), 0, 0, 0)
+  beacon.add(beam)
+  live.add(beacon)
+  return {
+    solid: g,
+    live,
+    update: (t) => {
+      beacon.rotation.y = t * 3.2
+    },
+  }
+}
+
 export const SALVAGE = {
+  'security-booth': securityBooth,
   'salvage-terminal': terminal,
   'surveillance-wall': surveillance,
   'blast-door': blastDoor,

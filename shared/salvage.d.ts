@@ -5,6 +5,14 @@ export declare const LOBBY: { level: -1; room: 'h' }
 export declare const LOBBY_RETURN: { x: number; z: number }
 /** Plan fixe de la baie (une lettre par tuile). */
 export declare const BAY: string[]
+export interface BayLight { x: number; z: number; color: string; intensity: number; flicker?: 'neon' | 'fire' }
+export interface BayFurniture { model: string; x: number; z: number; rot?: 0 | 1 | 2 | 3; y?: number; block?: true | [number, number][] }
+export interface BayRoom { id: string; x: number; z: number; w: number; d: number; doors: { x: number; z: number; dir: number }[]; light: BayLight; furniture: BayFurniture[] }
+export interface BayArea { id: string; x: number; z: number; w: number; d: number; density: number; decor: string[]; lights: BayLight[] }
+/** Le guichet de sécurité : tuiles, côté de la vitre, place du technicien et du comptoir. */
+export declare const BAY_BOOTH: { x: number; z: number; w: number; d: number; window: number; technician: { x: number; z: number }; counter: { x: number; z: number } }
+export declare const BAY_ROOMS: BayRoom[]
+export declare const BAY_AREAS: BayArea[]
 
 export declare const RULES: {
   team: number
@@ -50,6 +58,10 @@ export interface Zone {
   halls: { x: number; z: number; w: number; d: number }[]
   containers: ZoneContainer[]
   blocked: Uint8Array
+  /** Tuiles du guichet de sécurité (bloquées, mais on y voit par la vitre). */
+  booth: Uint8Array
+  rooms: BayRoom[]
+  areas: BayArea[]
   open: Uint8Array
   room: string[]
   hall: Int16Array

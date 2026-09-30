@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
-  BAY, distances, findPath, generateZone, inAirlock, lockerFront, lockerSpot, mulberry32, pickSpawns, RULES, salvageReward, smoothPath,
+  BAY, BAY_BOOTH, distances, findPath, generateZone, inAirlock, lockerFront, lockerSpot, mulberry32, pickSpawns, RULES, salvageReward, smoothPath,
   straightWalk, walkable, zoneSight,
 } from '../shared/salvage.js'
 
@@ -46,7 +46,38 @@ test('des couloirs d\'au moins deux tuiles entre les rangées de conteneurs', ()
   const zone = generateZone(1, { team: 1, parcels: 1, enemies: 1 })
   // Chaque passage d'une rangée pleine (lignes 7 et 15) fait deux tuiles de large.
   for (const z of [7, 15]) for (const gap of BAY[z].match(/\.+/g)) assert.ok(gap.length >= 2, `ligne ${z}`)
-  assert.equal(zone.walls.length, 0)
+  // Les cloisons fines ne ferment que les petites pièces et le guichet.
+  for (const w of zone.walls) {
+    const x = w.x + (w.dir === 1 ? 0.5 : 0), z = w.z + (w.dir === 2 ? 0.5 : 0)
+    const near = [...zone.rooms, { x: 10, z: 8, w: 3, d: 2 }].some((r) => x >= r.x - 0.5 && x <= r.x + r.w - 0.5 && z >= r.z - 0.5 && z <= r.z + r.d - 0.5)
+    assert.ok(near, `cloison isolée en ${w.x},${w.z}`)
+  }
+})
+
+test('les petites pièces : fermées, sauf leurs portes, éclairées, meublées', () => {
+  const zone = generateZone(1, { team: 1, parcels: 1, enemies: 1 })
+  assert.ok(zone.rooms.length >= 4)
+  for (const r of zone.rooms) {
+    assert.ok(r.light && r.furniture.length)
+    // On y entre par une porte (et une seule rangée d'arêtes ouvertes vers l'extérieur).
+    for (const d of r.doors) assert.equal(zone.map.edge(d.x, d.z, d.dir), 'open', r.id)
+    const door = r.doors[0]
+    const out = { x: door.x + [0, 1, 0, -1][door.dir], z: door.z + [-1, 0, 1, 0][door.dir] }
+    assert.ok(findPath(zone, zone.airlock.pad, door) && walkable(zone, out.x, out.z), r.id)
+  }
+})
+
+test('le guichet : on ne peut pas y entrer, mais on voit le technicien par la vitre', () => {
+  const zone = generateZone(1, { team: 1, parcels: 1, enemies: 1 })
+  const { technician, counter } = BAY_BOOTH
+  assert.equal(walkable(zone, Math.round(technician.x), Math.round(technician.z)), false)
+  assert.ok(walkable(zone, counter.x, counter.z))
+  assert.equal(findPath(zone, zone.airlock.pad, { x: Math.round(technician.x), z: Math.round(technician.z) }), null)
+  assert.equal(zoneSight(zone, counter, technician), true, 'par la vitre')
+  assert.equal(zoneSight(zone, { x: 8, z: 8 }, technician), false, 'pas à travers la cloison')
+  // Les ennemis n'y entrent pas non plus.
+  const d = distances(zone, [zone.monsters[0]], { monster: true })
+  assert.equal(d[Math.round(technician.z) * zone.width + Math.round(technician.x)], -1)
 })
 
 test('toute la baie est accessible depuis le sas, conteneurs compris', () => {

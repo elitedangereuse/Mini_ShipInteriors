@@ -556,6 +556,14 @@ dans Chrome : coupure du réseau et rechargement de la page en pleine course (re
 coupure d'un capturé (retour aux caméras), bouton de fusée en émulation tactile ; tests Node
 des reconnexions (deux coupures de suite, autre onglet, autre CMDR, partie finie entre-temps).
 
+Quatrième passe (2026-09-30) : une baie plus variée. Chaque coin a son décor et ses lueurs
+(`BAY_AREAS`) : fret, nid thargoïde, machines, zone effondrée. Quatre petites pièces
+(`BAY_ROOMS`) ont des cloisons fines, une porte, une lampe de fortune qui vacille et leurs
+meubles : salle de pause, local radio, atelier, infirmerie de fortune. Au centre, le guichet
+de sécurité (`BAY_BOOTH`) : ses tuiles sont bloquées, mais la vue passe par la vitre.
+Gaspard, le technicien barricadé, a un modèle, une nervosité animée et des répliques selon la
+mission (`src/salvage/technician.ts`). Il n'existe que dans l'affichage, sans état au relais.
+
 Troisième passe (2026-09-29), après des parties jouées : difficulté baissée (ennemis plus
 lents, plus vite semés, vue élargie, endurance plus longue), plan fixe aéré à la place du
 labyrinthe, plus de casiers, vue dehors depuis un casier ; l'écran de fin ne se ferme plus
