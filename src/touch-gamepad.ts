@@ -12,6 +12,8 @@ export class TouchGamepad {
   private direction = 0
   private flareButton = document.getElementById('touch-flare')!
   private flareShown = ''
+  /** Un doigt par bouton : un second contact ne doit pas relâcher le premier. */
+  private buttonPointers = new Map<string, number>()
 
   constructor() {
     const stick = document.getElementById('touch-stick')!
@@ -50,14 +52,23 @@ export class TouchGamepad {
       const button = document.getElementById(`touch-${name}`)!
       button.addEventListener('pointerdown', (e) => {
         e.preventDefault()
-        button.setPointerCapture(e.pointerId)
+        e.stopPropagation()
+        if (this.buttonPointers.has(name)) return
+        this.buttonPointers.set(name, e.pointerId)
+        try { button.setPointerCapture(e.pointerId) } catch { /* Le bouton reste utilisable sans capture. */ }
         if (name === 'sprint') this.sprint = true
         else this.pending.add(name)
         button.classList.add('pressed')
+        button.setAttribute('aria-pressed', 'true')
       })
-      const up = () => {
+      const up = (e: PointerEvent) => {
+        if (this.buttonPointers.get(name) !== e.pointerId) return
+        e.preventDefault()
+        e.stopPropagation()
+        this.buttonPointers.delete(name)
         if (name === 'sprint') this.sprint = false
         button.classList.remove('pressed')
+        button.setAttribute('aria-pressed', 'false')
       }
       button.addEventListener('pointerup', up)
       button.addEventListener('pointercancel', up)
@@ -72,9 +83,13 @@ export class TouchGamepad {
     this.stickId = null
     this.sprint = false
     this.pending.clear()
+    this.buttonPointers.clear()
     this.direction = 0
     document.querySelector<HTMLElement>('.touch-stick-knob')!.style.transform = ''
-    for (const b of document.querySelectorAll('#touch-pad .pressed')) b.classList.remove('pressed')
+    for (const b of document.querySelectorAll('#touch-pad .pressed')) {
+      b.classList.remove('pressed')
+      b.setAttribute('aria-pressed', 'false')
+    }
   }
 
   /**

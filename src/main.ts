@@ -128,9 +128,12 @@ let voieAdept = false
 
 // ------------------------------------------------------------------ rendu
 
-const MAX_DPR = Math.min(devicePixelRatio, 2)
+const coarsePointer = matchMedia('(pointer: coarse)').matches
+// Sur téléphone, 1,5 pixel physique par pixel CSS suffit et évite de remplir jusqu'à quatre
+// fois plus de fragments que nécessaire. La résolution adaptative continue d'affiner ce choix.
+const MAX_DPR = Math.min(devicePixelRatio, coarsePointer ? 1.5 : 2)
 renderQuality.light = store.get('mini-shipinteriors-light') === 'true'
-let dpr = Math.min(MAX_DPR, 1.5)
+let dpr = Math.min(MAX_DPR, coarsePointer ? 1.25 : 1.5)
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' })
 renderer.setPixelRatio(renderQuality.light ? Math.min(MAX_DPR, 0.75) : dpr)
 renderer.setSize(innerWidth, innerHeight)
@@ -2211,7 +2214,7 @@ function nearestCabinTile(p: { x: number; z: number }): { x: number; z: number }
 
 const keys = new Set<string>()
 const gamepad = new GamepadControls()
-const touchGamepad = matchMedia('(pointer: coarse)').matches ? new TouchGamepad() : null
+const touchGamepad = coarsePointer ? new TouchGamepad() : null
 let mobileStarted = false
 function syncMobileEntry() {
   if (!touchGamepad) return
@@ -2330,8 +2333,10 @@ function keyboardDirection(): THREE.Vector3 {
 function updateGamepad(dt: number): GamepadInput {
   const focus = document.activeElement
   const typing = focus instanceof HTMLElement && (focus.matches('input, textarea, select') || focus.isContentEditable)
-  const enabled = document.hasFocus() && !document.hidden && !typing && !chat.typing && !editing() && !photo.active && !arcade?.isOpen && !boardGames.isOpen && !barPanel.isOpen && !gameEmbed.isOpen && !mediaRoom.isOpen && !cinemaRoom.isOpen
-  const pad = gamepad.poll(enabled)
+  const enabled = !document.hidden && !typing && !chat.typing && !editing() && !photo.active && !arcade?.isOpen && !boardGames.isOpen && !barPanel.isOpen && !gameEmbed.isOpen && !mediaRoom.isOpen && !cinemaRoom.isOpen
+  // Certains navigateurs mobiles rapportent brièvement document.hasFocus() = false après le
+  // passage en plein écran. Cela ne doit pas couper le joystick ni ses boutons.
+  const pad = gamepad.poll(document.hasFocus() && enabled)
   let flare = false
   if (touchGamepad) {
     const touch = touchGamepad.poll(enabled)
@@ -2569,7 +2574,10 @@ canvas.addEventListener('mousedown', (e) => {
 canvas.addEventListener('pointerdown', (e) => {
   // Vue subjective à la souris : le curseur est capturé sur la mire (cf. lockCursor).
   if (fpsShown && e.pointerType === 'mouse') return
-  if (e.button !== 1 && e.button !== 2 && !(e.button === 0 && fpsShown)) return
+  // Au doigt, la scène entière devient le stick de caméra. Le joystick de marche capture un
+  // autre pointerId : les deux gestes restent donc actifs simultanément.
+  const touchLook = e.pointerType !== 'mouse' && e.button === 0 && !editing()
+  if (freeLook || (e.button !== 1 && e.button !== 2 && !(e.button === 0 && fpsShown) && !touchLook)) return
   e.preventDefault()
   freeLook = { id: e.pointerId, x: e.clientX, y: e.clientY, button: e.button, moved: 0 }
   try {
@@ -2590,11 +2598,13 @@ canvas.addEventListener('pointermove', (e) => {
 })
 function endFreeLook(e: PointerEvent) {
   if (!freeLook || e.pointerId !== freeLook.id) return
-  const tap = freeLook.button === 0 && freeLook.moved < 6
+  const tap = freeLook.button === 0 && freeLook.moved < (e.pointerType === 'mouse' ? 6 : 12)
   freeLook = null
   if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId)
   canvas.style.cursor = 'default'
-  if (tap && e.type === 'pointerup' && fpsShown) click(e)
+  // Le clic tactile est différé au relâchement : un glissé de caméra ne donne plus en même
+  // temps un ordre de marche ou d'interaction.
+  if (tap && e.type === 'pointerup' && (fpsShown || e.pointerType !== 'mouse')) click(e)
 }
 canvas.addEventListener('pointerup', endFreeLook)
 canvas.addEventListener('pointercancel', endFreeLook)
@@ -2606,6 +2616,9 @@ canvas.addEventListener('pointerup', (e) => {
 addEventListener(
   'pointerdown',
   (e) => {
+    // Les commandes tactiles pilotent les panneaux via updateGamepad ; elles ne sont pas un clic
+    // « dehors » qui doit fermer le panneau avant que le bouton A/X soit lu.
+    if (e.target instanceof Element && e.target.closest('#touch-pad')) return
     if (barPanel.isOpen) {
       if (!barPanel.contains(e.target)) { barPanel.close(); e.stopPropagation() }
       return
@@ -2632,7 +2645,7 @@ canvas.addEventListener('pointerdown', (e) => {
     return
   }
   // Vue subjective au doigt : le clic part au relâchement, s'il n'a pas servi à tourner le regard.
-  if (e.button === 0 && !fpsShown) click(e)
+  if (e.button === 0 && !fpsShown && e.pointerType === 'mouse') click(e)
 })
 
 // Vue subjective à la souris : le curseur disparaît, bloqué sur la mire, et la souris tourne

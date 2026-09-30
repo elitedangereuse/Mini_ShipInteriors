@@ -3330,6 +3330,7 @@ body.photo #bubbles .gain-pop {
 }
 .mobile-entry-card strong { color: var(--accent); font-size: 22px; }
 .mobile-entry-card p { color: var(--text); }
+.mobile-entry-card .mobile-entry-hint { color: var(--muted); font-size: 12px; }
 .mobile-entry-card button {
   min-height: 48px;
   padding: 8px 22px;
@@ -3377,6 +3378,9 @@ body.photo #bubbles .gain-pop {
     box-shadow: inset 0 0 22px #0008;
     pointer-events: auto;
     touch-action: none;
+    z-index: 6;
+    contain: layout paint;
+    -webkit-tap-highlight-color: transparent;
   }
   .touch-stick-knob {
     position: absolute;
@@ -3385,6 +3389,7 @@ body.photo #bubbles .gain-pop {
     border-radius: 50%;
     background: #ffb03ab8;
     box-shadow: 0 0 12px #ffb03a77;
+    will-change: transform;
   }
   .touch-actions {
     position: absolute;
@@ -3394,6 +3399,7 @@ body.photo #bubbles .gain-pop {
     grid-template-columns: repeat(2, 48px);
     gap: 8px;
     pointer-events: auto;
+    z-index: 6;
   }
   .touch-actions button {
     width: 48px; height: 48px;
@@ -3403,6 +3409,8 @@ body.photo #bubbles .gain-pop {
     color: #fff4d9;
     font: 800 20px system-ui, sans-serif;
     touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    will-change: transform;
   }
   .touch-actions button.pressed { background: #bd7628; transform: scale(.94); }
   #touch-interact { border-color: #ffbd58; background: #935519e8; }

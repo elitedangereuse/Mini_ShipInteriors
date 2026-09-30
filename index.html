@@ -176,14 +176,14 @@
 
       <div id="emotes" class="panel emotes"></div>
       <div id="touch-pad" aria-label="Commandes tactiles">
-        <div id="touch-stick" class="touch-stick" aria-label="Déplacement"><div class="touch-stick-knob"></div></div>
+        <div id="touch-stick" class="touch-stick" aria-label="Déplacement" data-en-aria-label="Movement"><div class="touch-stick-knob"></div></div>
         <!-- Zone thargoïde : lancer une fusée (affiché dans la baie seulement). -->
         <button id="touch-flare" class="touch-flare" hidden aria-label="Lancer une fusée" title="Lancer une fusée" data-en-aria-label="Throw a flare" data-en-title="Throw a flare"><i data-icon="flame"></i><b class="touch-flare-count">0</b></button>
         <div class="touch-actions">
-          <button id="touch-sprint" aria-label="Courir" title="Courir"><i data-icon="person-simple-run"></i></button>
-          <button id="touch-cancel" aria-label="Fermer" title="Fermer"><i data-icon="x"></i></button>
-          <button id="touch-action" aria-label="Action" title="Action">X</button>
-          <button id="touch-interact" aria-label="Interagir" title="Interagir">A</button>
+          <button id="touch-sprint" type="button" aria-label="Courir" aria-pressed="false" title="Courir" data-en-aria-label="Run" data-en-title="Run"><i data-icon="person-simple-run"></i></button>
+          <button id="touch-cancel" type="button" aria-label="Fermer" aria-pressed="false" title="Fermer" data-en-aria-label="Close" data-en-title="Close"><i data-icon="x"></i></button>
+          <button id="touch-action" type="button" aria-label="Action" aria-pressed="false" title="Action">X</button>
+          <button id="touch-interact" type="button" aria-label="Interagir" aria-pressed="false" title="Interagir" data-en-aria-label="Interact" data-en-title="Interact">A</button>
         </div>
       </div>
 
@@ -236,6 +236,8 @@
         <strong lang="fr">Mini Ship Interiors</strong><strong lang="en">Mini Ship Interiors</strong>
         <p lang="fr">Tournez votre téléphone en paysage, puis lancez le jeu.</p>
         <p lang="en">Rotate your phone to landscape, then enter the game.</p>
+        <p class="mobile-entry-hint" lang="fr">Joystick gauche pour marcher · faites glisser le décor pour regarder autour de vous.</p>
+        <p class="mobile-entry-hint" lang="en">Left stick to walk · drag the scene to look around.</p>
         <button id="mobile-enter"><span lang="fr">Jouer en plein écran</span><span lang="en">Play fullscreen</span></button>
       </div>
     </div>
