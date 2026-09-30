@@ -77,6 +77,7 @@ export interface Zone {
 }
 
 export declare function salvageReward(economy: { parcel: number; enemyBonus: number } | null | undefined, parcels: number, enemies: number): number
+export declare function salvageMinDuration(economy: { minPerParcel: number } | null | undefined, parcels: number, team: number): number
 export declare function mulberry32(seed: number): () => number
 export declare function generateZone(seed: number, settings: { team: number; parcels: number; enemies: number }): Zone
 export declare function tileOf(zone: Zone, p: { x: number; z: number }): Tile | null

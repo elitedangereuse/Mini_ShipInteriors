@@ -249,7 +249,8 @@ export type ServerMessage =
   | ({ t: 'salvage:state' } & SalvageState)
   | ({ t: 'salvage:event' } & SalvageEvent)
   | ({ t: 'salvage:end' } & SalvageEnd)
-  | { t: 'salvage:reward'; game: string; earned: number; balance: number }
+  /** Gain d'une mission ; `refused` : pas payée (missions du jour déjà payées, mission trop rapide). */
+  | { t: 'salvage:reward'; game: string; earned: number; balance?: number; refused?: 'max' | 'early' }
   | { t: 'salvage:error'; code: string }
 
 /**

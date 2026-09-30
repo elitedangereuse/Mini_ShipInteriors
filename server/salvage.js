@@ -14,7 +14,9 @@
 // leurs actions.
 //
 // Gains : une victoire paie chaque membre CMDR, y compris ceux qui ont été capturés ; le relais
-// transmet le résultat au site (cf. `reward`), qui ne paie qu'une fois par partie et par CMDR.
+// transmet le résultat au site (cf. `reward`), qui ne paie qu'une fois par partie et par CMDR, et
+// qu'un nombre de missions par jour (`salvage.daily` dans economy.json). Une victoire plus rapide que
+// possible (`minDuration`, cf. salvageMinDuration) n'est pas transmise : le relais la note au journal.
 //
 // Reconnexion : au départ, chaque membre reçoit un ticket. Déconnecté en pleine course, il lâche
 // son colis et sa place l'attend une minute (RULES.reconnect) ; avec son ticket, il revient au sas
@@ -61,10 +63,13 @@ export function inLobby(p) {
  * @param {(id: number) => any} o.playerById joueur du relais (id, name, verified, level, x, z, anim, cookie)
  * @param {(id: number, event: string, data: object) => void} o.emit envoie à un joueur
  * @param {(event: string, data: object) => void} o.broadcast envoie à tout le bord
- * @param {(member: object, result: object) => Promise<{ earned: number, balance: number } | null>} [o.reward]
+ * @param {(member: object, result: object) => Promise<{ earned: number, balance?: number, capped?: boolean } | null>} [o.reward]
+ *   paie un membre ; `capped` : le site a déjà payé ses missions du jour
+ * @param {(parcels: number, team: number) => number} [o.minDuration] durée (s) en deçà de laquelle
+ *   une victoire n'est pas payée
  */
 export function createSalvage({
-  playerById, emit, broadcast, reward = async () => null, now = Date.now, random = Math.random, log = () => {}, debug = false,
+  playerById, emit, broadcast, reward = async () => null, minDuration = () => 0, now = Date.now, random = Math.random, log = () => {}, debug = false,
   seed = () => randomBytes(4).readUInt32LE(0),
 }) {
   const teams = new Map() // id -> équipe
@@ -327,10 +332,17 @@ export function createSalvage({
     log(`[salvage] mission ${game.id} : ${won ? 'réussie' : reason === 'timeout' ? 'annulée' : 'échouée'}, ${game.delivered}/${game.settings.parcels} colis en ${duration} s`)
     announce()
     if (!won) return
+    const least = minDuration(game.settings.parcels, game.settings.team)
+    if (duration < least) {
+      log(`[salvage] mission ${game.id} trop rapide pour être payée (${duration} s, ${least} s au moins) : partie suspecte`)
+      for (const m of game.members.values()) if (m.verified && m.cookie) emit(m.id, 'salvage:reward', { game: game.id, earned: 0, refused: 'early' })
+      return
+    }
     for (const m of game.members.values()) {
       if (!m.verified || !m.cookie) continue
       void reward(m, result).then((r) => {
-        if (r) emit(m.id, 'salvage:reward', { game: game.id, earned: r.earned, balance: r.balance })
+        if (r?.capped) emit(m.id, 'salvage:reward', { game: game.id, earned: 0, refused: 'max' })
+        else if (r) emit(m.id, 'salvage:reward', { game: game.id, earned: r.earned, balance: r.balance })
       }).catch(() => {})
     }
   }

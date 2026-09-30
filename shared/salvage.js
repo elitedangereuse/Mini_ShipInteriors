@@ -59,8 +59,18 @@ export const RULES = {
 
 /** Récompense par membre d'une équipe victorieuse (cf. `salvage` dans economy.json, relu par le site). */
 export function salvageReward(economy, parcels, enemies) {
-  const e = economy ?? { parcel: 1500, enemyBonus: 0.5 }
+  const e = economy ?? { parcel: 1000, enemyBonus: 0.3 }
   return Math.round((e.parcel * parcels * (1 + e.enemyBonus * (enemies - 1))) / 100) * 100
+}
+
+/**
+ * Durée minimale (s) d'une mission réussie : plus rapide, ni le relais ni le site ne la paient.
+ * `minPerParcel` secondes par tournée de colis, les membres portant en même temps (6 colis à
+ * quatre : deux tournées). Le plus court aller-retour du sas à un colis prend déjà 20 s environ.
+ */
+export function salvageMinDuration(economy, parcels, team) {
+  const per = economy?.minPerParcel ?? 15
+  return per * Math.ceil(parcels / Math.max(1, team))
 }
 
 /** Générateur pseudo-aléatoire (mulberry32) : même graine, même suite, dans Node comme dans le navigateur. */

@@ -16,8 +16,8 @@ import { MECH_HELP, MECH_ROOM } from '../shared/mechanic.js'
  * a son poste (étagère à pièces, chariot à outils, propulseur de rechange, soudure, ravitaillement,
  * cales du train, coque du Krait, pupitre), marqué d'un hexagone cyan : on y va, on s'y met
  * quelques secondes (la même jauge que les tâches de bord), Nico commente, et l'étape suivante
- * s'allume. Les révisions ne rapportent pas encore de crédits : seul leur nombre est gardé, dans
- * ce navigateur.
+ * s'allume. Finie, la révision est payée par le site (prime et plafonds : `hangar` dans
+ * economy.json, cf. Wallet.finishJob). Leur nombre est gardé dans ce navigateur.
  *
  * Cockpit : installé aux commandes (l'escabeau, cf. seats.ts), le Krait ne s'estompe pas autour de
  * soi, ses tuyères s'éveillent, et Nico proteste s'il est dans le coin. Espace met les réacteurs
@@ -168,6 +168,11 @@ export interface HangarHost {
   show: (text: string) => void
   /** On aide le mécano (à chaque étape), ou on a fini : le relais et le mécano le savent. */
   help: (on: boolean) => void
+  /** Prime d'une révision, écrite sur la fiche (« +800 CR »). */
+  reward: string
+  /** Révision demandée, puis finie : le site note l'heure, puis paie la révision. */
+  requested: () => void
+  finished: () => void
   /** On met les réacteurs du Krait en route, ou on les coupe : le relais et le mécano le savent. */
   engines: (on: boolean) => void
   /** Se met à l'ouvrage (cf. startWork dans main.ts) ; false si le joueur est occupé ailleurs. */
@@ -279,6 +284,7 @@ export class Hangar {
     const job = pick(JOBS)
     this.service = { job, step: 0, idle: 0, away: 0 }
     host.help(true)
+    host.requested()
     const first = this.done ? '' : tr(' Les postes s\'allument au fur et à mesure, suis les hexagones.', ' The stations light up one after another, follow the hexagons.')
     host.show(tr(`${MECHANIC} : « ${job.intro}${first} »`, `${MECHANIC}: “${job.intro}${first}”`))
     host.mechanic.say(tr('Au boulot !', 'Let\'s get to work!'))
@@ -353,6 +359,7 @@ export class Hangar {
       : tr(`${this.done} révisions avec Nico.`, `${this.done} services with Nico.`)
     this.host.show(`${s.job.name} · ${pick(DONE)} ${count}`)
     this.host.mechanic.say(tr('Merci, l\'ami !', 'Thanks, friend!'))
+    this.host.finished()
   }
 
   /** Révision abandonnée (parti trop loin, ou trop longtemps sans rien faire). */
@@ -372,7 +379,7 @@ export class Hangar {
     el.replaceChildren()
     const head = document.createElement('div')
     head.className = 'ot-head'
-    head.textContent = tr('Krait Mk II · fiche de travail', 'Krait Mk II · work order')
+    head.textContent = tr(`Krait Mk II · fiche de travail · ${this.host.reward}`, `Krait Mk II · work order · ${this.host.reward}`)
     const name = document.createElement('div')
     name.className = 'ot-dish'
     name.textContent = s.job.name

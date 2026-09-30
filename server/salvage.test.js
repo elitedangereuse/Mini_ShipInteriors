@@ -7,7 +7,7 @@ import { createSalvage, inLobby } from './salvage.js'
 import { distances, findPath, inAirlock, lockerFront, lockerSpot, mulberry32, RULES, walkable, ZONE_LEVEL } from '../shared/salvage.js'
 
 /** Relais simulé : joueurs, horloge, messages envoyés et gains demandés au site. */
-function harness(seed = 20260929) {
+function harness(seed = 20260929, options = {}) {
   let t = 1_000_000
   let seeds = mulberry32(seed)
   const players = new Map()
@@ -25,6 +25,7 @@ function harness(seed = 20260929) {
     now: () => t,
     random: mulberry32(7),
     seed: () => Math.floor(seeds() * 0xffffffff),
+    ...options,
   })
   const add = (id, verified = true) => {
     const p = { id, name: `CMDR ${id}`, verified, level: -1, x: 22, z: 5, anim: 'idle', cookie: verified ? `ED_LOGGED_CMDR_ID=jeton-${id}` : null }
@@ -161,6 +162,43 @@ test('solo : ramasser le colis, le rapporter au sas, gagner et être payé une f
   assert.equal(h.last(1, 'salvage:reward').earned, 1500)
   // L'équipe revient au lobby, prête pour une autre mission.
   assert.equal(h.broadcasts.at(-1).data.teams[0].status, 'forming')
+})
+
+/** Une mission solo d'un colis, sans ennemi, gagnée d'une traite. */
+async function quickWin(h) {
+  const { members: [a] } = h.team(1)
+  const game = h.launch([a], { parcels: 1, enemies: 1 })
+  game.monsters.length = 0
+  h.arrive(a)
+  h.walk(a, game.zone.cargo[0])
+  h.salvage.handle(a, 'salvage:pickup', { kind: 'cargo', id: 0 })
+  h.walk(a, game.zone.airlock.pad)
+  assert.ok(h.last(1, 'salvage:end').won)
+  await new Promise((r) => setImmediate(r))
+}
+
+test('anti-triche : une victoire plus rapide que possible n\'est pas transmise au site', async () => {
+  const logs = []
+  const h = harness(20260929, { minDuration: () => 3600, log: (line) => logs.push(line) })
+  await quickWin(h)
+  assert.equal(h.rewards.length, 0, 'le site n\'est pas sollicité')
+  assert.equal(h.last(1, 'salvage:reward').refused, 'early')
+  assert.ok(logs.some((l) => l.includes('trop rapide')))
+})
+
+test('anti-triche : une durée plausible est payée normalement', async () => {
+  const h = harness(20260929, { minDuration: () => 0 })
+  await quickWin(h)
+  assert.equal(h.rewards.length, 1)
+  assert.equal(h.last(1, 'salvage:reward').earned, 1500)
+})
+
+test('plafond du jour : le site ne paie plus, l\'équipe le sait', async () => {
+  const h = harness(20260929, { reward: async () => ({ earned: 0, capped: true }) })
+  await quickWin(h)
+  const r = h.last(1, 'salvage:reward')
+  assert.equal(r.refused, 'max')
+  assert.equal(r.earned, 0)
 })
 
 test('un invité gagne avec son équipe, mais le site ne paie que les CMDR', async () => {

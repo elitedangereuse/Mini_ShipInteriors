@@ -15,7 +15,7 @@ import { CabinBar, InviteMenu, InviteToasts, type CrewEntry } from './cabin/hud'
 import { normalizeLayout, sameLayout, serializeLayout, type CabinItem, type CabinLayout } from './cabin/layout'
 import { CabinStore, requestCabin, type SiteCabin } from './cabin/storage'
 import { devCmdr, devLjpc, devVoie, fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
-import { ECONOMY, formatCredits, skinPrice, wingPrice } from './economy/data'
+import { ECONOMY, formatCredits, skinPrice, wingPrice, type JobKind } from './economy/data'
 import { CreditsHud } from './economy/hud'
 import { taskOf } from './economy/schedule'
 import { allLooks, lookOwned, skinProduct, starterLook } from './economy/skins'
@@ -428,6 +428,10 @@ hydrateIcons()
 localizeAttributes()
 const creditsHud = new CreditsHud(wallet)
 // Crédits gagnés : ils s'envolent du solde ; une tâche ou un record, aussi au-dessus de la tête.
+wallet.onPassiveCap = () => {
+  const hours = ECONOMY.passive.daily / 60
+  chat.add('system', tr(`Revenu passif du jour versé (${hours} h de jeu payées). Les tâches, le mess, le hangar et la zone thargoïde paient toujours.`, `Today's passive income is paid (${hours} h of play). Chores, the mess, the hangar and the Thargoid zone still pay.`))
+}
 wallet.onGain = (amount, kind) => {
   creditsHud.gain(amount, kind === 'passive')
   if (kind === 'passive') return
@@ -717,6 +721,9 @@ const kitchen = new Kitchen({
     chef.cook(player.position, on)
     net.sendChefCook(on)
   },
+  reward: `+${formatCredits(ECONOMY.kitchen.reward)}`,
+  ordered: () => wallet.startJob('kitchen'),
+  sent: () => void payJob('kitchen'),
   work: (job) => startWork({ ...job, deck: patrolDeck }),
 })
 patrolDeck.interactables.push({
@@ -839,6 +846,9 @@ const hangar = new Hangar({
     mechanic.help(player.position, on)
     net.sendMechHelp(on)
   },
+  reward: `+${formatCredits(ECONOMY.hangar.reward)}`,
+  requested: () => wallet.startJob('hangar'),
+  finished: () => void payJob('hangar'),
   work: (job) => startWork({ ...job, deck: holdDeck }),
   engines: (on) => {
     mechanic.panic(on)
@@ -3455,17 +3465,55 @@ async function finishTask(task: LiveTask) {
   if (result.reason === 'guest') return guestPaid(reward)
   if (result.reason === 'claimed') return chat.add('system', tr('Cette tâche était déjà réglée, dans une autre fenêtre du jeu.', 'That chore was already done, in another game window.'))
   if (result.reason === 'expired' || result.reason === 'inactive') return chat.add('system', tr('Trop tard : cette tâche n\'était plus là.', 'Too late: that chore was no longer there.'))
+  if (result.reason === 'max') {
+    const n = ECONOMY.taskRules.daily
+    return chat.add('system', tr(`Primes des tâches épuisées pour aujourd'hui (${n} tâches payées). Elles reprennent demain ; la tâche est tout de même réglée.`, `Chore bonuses used up for today (${n} chores paid). They resume tomorrow; the chore is still done.`))
+  }
   // Pas payée (site injoignable) : la tâche revient, on pourra réessayer.
   board.undo(task.spot, task.cycle)
   chat.add('system', tr('Crédits indisponibles : le site ne répond pas. La tâche reste à régler.', 'Credits unavailable: the site isn\'t responding. The chore is still there.'))
 }
 
-/** Un invité règle une tâche : il n'est pas payé, on lui dit comment l'être. */
-function guestPaid(reward: string) {
+/** Un invité règle une tâche (envoie un plat…) : il n'est pas payé, on lui dit comment l'être. */
+function guestPaid(reward: string, what = tr('Tâche réglée', 'Chore done')) {
   const a = document.createElement('a')
   a.href = loginUrl()
   a.textContent = tr('Connectez-vous au site', 'Log in to the site')
-  chat.add('system', [tr(`Tâche réglée (${reward} pour un CMDR). `, `Chore done (${reward} for a CMDR). `), a, tr(' pour être payé en crédits.', ' to be paid in credits.')])
+  chat.add('system', [tr(`${what} (${reward} pour un CMDR). `, `${what} (${reward} for a CMDR). `), a, tr(' pour être payé en crédits.', ' to be paid in credits.')])
+}
+
+/** Ce que dit le membre d'équipage d'un travail, et ce que le jeu en dit quand il ne le paie plus. */
+const JOB_TEXT: Record<JobKind, { done: string; say: (text: string) => void; capped: string; cappedChat: (n: number) => string }> = {
+  kitchen: {
+    done: tr('Plat envoyé', 'Dish sent'),
+    say: (text) => {
+      if (patrolDeck === deck) bubbles.say('chef', text)
+    },
+    capped: tr('La caisse est fermée pour aujourd\'hui. Tu cuisines pour la gloire, maintenant !', 'The till is closed for today. You\'re cooking for glory now!'),
+    cappedChat: (n) => tr(`Marcel a payé ses ${n} plats du jour. Les suivants sont pour la gloire, jusqu'à demain.`, `Marcel has paid his ${n} dishes for today. The rest are for glory, until tomorrow.`),
+  },
+  hangar: {
+    done: tr('Révision finie', 'Service done'),
+    say: (text) => mechanic.say(text),
+    capped: tr('Budget révisions épuisé pour aujourd\'hui. Là, tu bosses pour la gloire !', 'Service budget spent for today. You\'re working for glory now!'),
+    cappedChat: (n) => tr(`Nico a payé ses ${n} révisions du jour. Les suivantes sont pour la gloire, jusqu'à demain.`, `Nico has paid his ${n} services for today. The rest are for glory, until tomorrow.`),
+  },
+}
+
+/** Plat envoyé avec Marcel, révision finie avec Nico : le site le paie (cf. Wallet.finishJob). */
+async function payJob(job: JobKind) {
+  const text = JOB_TEXT[job]
+  const reward = formatCredits(ECONOMY[job].reward)
+  if (wallet.state === 'guest') return guestPaid(reward, text.done)
+  const result = await wallet.finishJob(job)
+  if (result.ok) return
+  if (result.reason === 'guest') return guestPaid(reward, text.done)
+  if (result.reason === 'max') {
+    text.say(text.capped)
+    return chat.add('system', text.cappedChat(ECONOMY[job].daily))
+  }
+  // Commande pas enregistrée (site injoignable au départ), délai refusé, site muet : pas de paie.
+  chat.add('system', tr('Crédits indisponibles : le site n\'a pas enregistré ce travail, il n\'est pas payé.', 'Credits unavailable: the site didn\'t record this job, so it isn\'t paid.'))
 }
 
 // Revenu passif : un battement par minute, tant qu'on joue (fenêtre visible, et une touche, un

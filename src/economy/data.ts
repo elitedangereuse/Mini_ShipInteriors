@@ -6,15 +6,21 @@ import raw from './economy.json'
  * economy.json, que le site relit pour tenir les comptes (phputils/mini_shipinteriors/credits.php,
  * repo elitedangereuselight) : le prix affiché ici est celui que le site débite.
  * - start : prime de bienvenue d'un nouveau compte ;
- * - passive : revenu passif, payé à chaque battement (une fois par minute) ;
+ * - passive : revenu passif, payé à chaque battement (une fois par minute), `daily` minutes par jour ;
  * - items, skins : prix de déblocage des objets des quartiers et des apparences (cf. skins.ts) ;
  * - wings : prix des espaces d'extension des quartiers, du premier débloqué au dernier ;
  * - salvage : récompense d'une mission réussie en zone thargoïde, par membre (par colis, et bonus
- *   par ennemi au-delà du premier, cf. salvageReward dans shared/salvage.js) ;
- * - kitchen : prime d'un plat envoyé avec Marcel (cf. kitchen.ts), au plus un toutes les `minGap`
- *   secondes et `daily` par jour (heure de Paris) ;
+ *   par ennemi au-delà du premier, cf. salvageReward dans shared/salvage.js) ; `daily` missions
+ *   payées par jour, et aucune bouclée en moins de `minPerParcel` secondes par colis ;
+ * - kitchen, hangar : prime d'un plat envoyé avec Marcel (cf. kitchen.ts), d'une révision faite
+ *   avec Nico (cf. hangar.ts) : payée `minTime` secondes au moins après la commande, au plus une
+ *   toutes les `minGap` secondes et `daily` par jour ;
  * - tasks, spots : les tâches de bord et leurs emplacements (cf. schedule.ts et tasks.ts) ;
- * - arcade : paliers de score des bornes, et prime du record du vaisseau.
+ *   taskRules : au plus `daily` tâches payées par jour, espacées d'au moins `minGap` secondes ;
+ * - arcade : paliers de score des bornes, et prime du record du vaisseau (`recordDaily` par jeu et
+ *   par jour).
+ * Les jours sont ceux de Paris. Les plafonds, c'est le site qui les tient ; le jeu les respecte (il
+ * espace ses demandes, cf. wallet.ts) et dit au joueur quand l'un est atteint.
  */
 
 /** Les tâches de bord (cf. src/furniture/tasks.ts pour leur décor). */
@@ -48,18 +54,31 @@ export interface Spot {
   variant?: string
 }
 
+/** Travail payé aux côtés d'un membre d'équipage : les plats de Marcel, les révisions de Nico. */
+export type JobKind = 'kitchen' | 'hangar'
+
+/** Prime d'un travail, et ses délais (s) : de la commande à la paie, entre deux paies ; payés par jour. */
+export interface JobRules {
+  reward: number
+  minTime: number
+  minGap: number
+  daily: number
+}
+
 interface Economy {
   start: number
-  passive: { perMinute: number; beat: number; minGap: number; maxGap: number }
+  passive: { perMinute: number; beat: number; minGap: number; maxGap: number; daily: number }
   items: Record<string, number>
   skins: Record<string, number>
   wings: number[]
-  salvage: { parcel: number; enemyBonus: number }
-  kitchen: { reward: number; minGap: number; daily: number }
+  salvage: { parcel: number; enemyBonus: number; daily: number; minPerParcel: number }
+  kitchen: JobRules
+  hangar: JobRules
   drinks: Record<string, number>
   tasks: Record<TaskKind, TaskDef>
+  taskRules: { daily: number; minGap: number }
   spots: Spot[]
-  arcade: { record: number; tiers: Record<string, [number, number][]> }
+  arcade: { record: number; recordDaily: number; tiers: Record<string, [number, number][]> }
 }
 
 export const ECONOMY = raw as unknown as Economy

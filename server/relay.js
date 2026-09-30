@@ -55,6 +55,8 @@ import { sanitizeLayout } from './cabin.js'
 import { hasSiteArtwork, postSalvageResult, siteArtworkAllowed } from './site.js'
 import { COOKIE, cleanCmdrName, cmdrIdentityFromCookie, cookieValue } from './cmdr.js'
 import { createSalvage, GAME_ACTIONS, LOBBY_ACTIONS } from './salvage.js'
+import { salvageMinDuration } from '../shared/salvage.js'
+import { readFileSync } from 'node:fs'
 import { createCinema } from './cinema.js'
 import { BOARD_TABLES, SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import { DIRS, ShipMap } from '../shared/ship-map.js'
@@ -80,6 +82,18 @@ import {
 
 /** Chemin de la socket, partagé avec le client (VITE_WS_PATH) et la conf nginx. */
 export const WS_PATH = '/ws/mini-shipinteriors'
+
+/**
+ * Règles de paie de la zone thargoïde (`salvage` d'economy.json, celui que relit le site). Un relais
+ * déployé sans src/ garde la durée minimale par défaut (cf. salvageMinDuration).
+ */
+const SALVAGE_ECONOMY = (() => {
+  try {
+    return JSON.parse(readFileSync(new URL('../src/economy/economy.json', import.meta.url), 'utf8')).salvage ?? null
+  } catch {
+    return null
+  }
+})()
 
 const MAX_PLAYERS = 32
 const MAX_TEXT = 200
@@ -392,6 +406,7 @@ export function attachRelay(
     emit: (id, event, data) => sockets.get(id)?.emit(event, data),
     broadcast: (event, data) => io.emit(event, data),
     reward: (member, result) => postSalvageResult(member.cookie, result, { cmdrUrl, secret: relaySecret, error, fetcher: salvageFetch }),
+    minDuration: (parcels, team) => salvageMinDuration(SALVAGE_ECONOMY, parcels, team),
     log,
     // Serveur de dev : les essais dans le navigateur peuvent figer ou placer les ennemis.
     debug: devCmdr,
