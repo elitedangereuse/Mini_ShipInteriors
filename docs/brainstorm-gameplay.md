@@ -82,3 +82,41 @@ version, il vaut mieux éviter de synchroniser chaque projectile ou chaque pixel
 4. Tester ensuite l'effet sur la fréquentation avant d'ajouter une deuxième monnaie ou des
    systèmes de progression plus lourds.
 
+
+## Zone thargoïde : rendre la récupération plus prenante
+
+Principe : garder la boucle (trouver, porter, rentrer sans se faire prendre) et ses trois
+touches, mais donner plus de décisions à prendre en chemin. Chaque idée doit se lire à l'écran
+sans explication, et se régler par un chiffre de `RULES`.
+
+### Livré avec la baie v1.1
+
+- **Zones éclairées** — on y voit de loin, on y est vu de loin : un raccourci éclairé ou un
+  détour dans le noir ? Le quai, juste avant le sas, force un dernier sprint à découvert.
+- **Passerelle** — un point de vue par-dessus les conteneurs, mais qu'on ne rejoint que par deux
+  escaliers (et d'où l'on est repéré). Idéale pour repérer un colis avant d'y descendre.
+- **Sols** — le verre brisé crisse même en marchant, les flaques caustiques ralentissent : il faut
+  regarder où l'on met les pieds, surtout avec un colis.
+- **La ruche s'agite** — chaque colis livré fait du bruit devant le sas et rend les ennemis plus
+  actifs : la fin de mission se tend, et l'ordre des colis devient un choix.
+- **Caméras de la baie pour les capturés** — un capturé devient la vigie de l'équipe (il voit par-
+  dessus les conteneurs et parle au chat), sur un moniteur cathodique.
+- **Note de mission et chiffres** — S à D, sans toucher aux gains : une raison de refaire mieux.
+- **Gaspard utile** — il indique la direction du colis le plus proche.
+
+### Pistes suivantes (non faites)
+
+- **Cocon et sauvetage** — un joueur attrapé reste une trentaine de secondes dans un cocon, là où
+  il est tombé ; un coéquipier qui le rejoint et maintient `E` le libère (bruyant). Sinon, il part
+  aux caméras. Fort en coopération, sans effet en solo ; demande un statut de plus au relais.
+- **Coupure de courant** — de temps en temps, les projecteurs d'une zone éclairée s'éteignent dix
+  secondes (grésillement, puis noir) : une zone sûre à la vue devient un piège, et inversement.
+  Un événement du relais, une lumière coupée côté client.
+- **Le hurleur** — à partir de trois ennemis, l'un d'eux est plus lent mais crie en repérant
+  quelqu'un : tous ceux à portée d'oreille accourent. Même IA, un réglage et un modèle repeint.
+- **Colis piégé** — une fois sur quatre, un colis bipe quand on le ramasse (quelques secondes de
+  bruit) : il faut s'éloigner vite, ou le reposer.
+- **Défi de la semaine** — une graine fixe pour tous pendant une semaine, et un classement du
+  meilleur temps (le site garde déjà le classement des victoires).
+- **Consignes d'Odile** — un objectif bonus tiré au départ (« ne pas utiliser de fusée »,
+  « personne capturé ») qui améliore la note ; sans crédits en plus, pour ne pas toucher au site.
