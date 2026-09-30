@@ -51,3 +51,18 @@ Si une colonne est ajoutée ou renommée, ces identifiants changent : les relire
 avec
 `gh api graphql -f query='query{organization(login:"elitedangereuse"){projectV2(number:6){field(name:"Status"){... on ProjectV2SingleSelectField{id options{id name}}}}}}'`
 et mettre ce tableau à jour.
+
+# Assets Kenney
+
+`assets/` contient la collection complète des packs de Kenney (achetée, tout en
+CC0) : `3D assets/` (Furniture Kit, Space Station Kit, Modular Space Kit, Mini
+Characters, Cube Pets…), `2D assets/`, `Audio/`, `Icons/`, `UI assets/`, etc.
+`assets/assets.json` indexe chaque pack et ses fichiers, et `Overview.html`
+permet de parcourir les aperçus.
+
+Quand il manque un modèle, un son, une icône ou une texture, piocher d'abord
+dans ce dossier avant de dessiner l'objet en code ou de chercher ailleurs.
+C'est une réserve source : le jeu ne la sert pas. Copier (ou convertir via un
+script de `scripts/`, cf. `import-kenney-furniture.mjs`) uniquement les
+fichiers utiles vers `public/assets/`, et ne jamais importer `assets/`
+directement depuis `src/`.
