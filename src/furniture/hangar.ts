@@ -106,8 +106,9 @@ export const KRAIT_PILOT = { z: 2.05, y: KRAIT_GEAR + 0.3 }
 export const KRAIT_LADDER_REACH = 1.7
 
 /**
- * Puissance des propulseurs du Krait (0 : au repos, 1 : quelqu'un est aux commandes) : les
- * tuyères s'allument et le vaisseau vrombit (cf. src/hangar.ts, qui la règle).
+ * Puissance des propulseurs du Krait (0 : au repos ; 0,3 : quelqu'un est aux commandes, les
+ * tuyères s'éveillent ; 1 : réacteurs en route, pleine poussée ; cf.
+ * src/hangar.ts, qui la règle).
  */
 export const kraitPower = { value: 0 }
 
@@ -281,21 +282,24 @@ const krait: Builder = () => {
     // Le delta et ses tuyères : les antennes, qui dépassent, n'arrêtent personne.
     extent: new THREE.Box3(new THREE.Vector3(-3.02, 0, STERN - 0.05), new THREE.Vector3(3.02, 1.12, 3.2)),
     update: (t) => {
-      // La puissance suit la consigne, sans à-coups (les images arrivent à peu près à 60 par seconde).
-      power += (kraitPower.value - power) * 0.04
+      // La puissance suit la consigne : les jets montent en un instant, et retombent aussi vite à l'arrêt.
+      power += (kraitPower.value - power) * (kraitPower.value > power ? 0.08 : 0.15)
       const idle = 0.12 + 0.05 * Math.sin(t * 1.3)
       const k = Math.max(idle, power)
       for (const m of cores) m.color.copy(dim).lerp(hot, k)
+      // Les jets ne sortent qu'au-delà de l'éveil des tuyères (quelqu'un aux commandes, 0,3) :
+      // réacteurs en route seulement, et ils s'éteignent avec eux.
+      const thrust = Math.max(0, (power - 0.3) / 0.7)
       for (const m of jets) {
         m.uniforms.uTime.value = t
-        m.uniforms.uIntensity.value = power * 0.95
+        m.uniforms.uIntensity.value = thrust * 0.95
       }
       for (const f of flames) {
-        f.visible = power > 0.02
-        f.scale.set(1, 0.5 + power * 0.6 + Math.random() * 0.05 * power, 1)
+        f.visible = thrust > 0.03
+        f.scale.set(1 + thrust * 0.25, 0.4 + thrust * 1.3 + Math.random() * 0.12 * thrust, 1 + thrust * 0.25)
       }
       nav[0].visible = nav[1].visible = t % 2 < 1.6
-      nav[2].visible = t % 1.4 < 0.12 || power > 0.5
+      nav[2].visible = t % 1.4 < 0.12 || thrust > 0.3
       beacon.visible = (t + 0.7) % 1.2 < 0.25
     },
   }

@@ -70,10 +70,13 @@ export interface NurseState extends PatrolState {
 
 /**
  * Tournée du mécano du hangar (cf. shared/mechanic.js) : comme la ronde du sergent, plus la
- * révision en cours (s restantes) qui le retient au nez du Krait.
+ * révision en cours (s restantes) qui le retient au nez du Krait, et les réacteurs du Krait (s
+ * restantes, et le pilote qui les a mis en route) qui le font paniquer.
  */
 export interface MechanicState extends PatrolState {
   help: number
+  panic: number
+  pilot?: number
 }
 
 export interface CinemaTrailer { id: number; title: string; image: string; video: string }
@@ -374,6 +377,11 @@ export class Net {
   /** On parle au mécano : le relais arrête sa tournée pour tout le bord. */
   sendMechTalk() {
     this.send('mech:talk', {})
+  }
+
+  /** Aux commandes du Krait, on met les réacteurs en route (on) ou on les coupe : Nico panique, ou souffle. */
+  sendKraitEngines(on: boolean) {
+    this.send('krait:engines', { on })
   }
 
   /** On aide le mécano (une étape de plus de la révision), ou on a fini : il attend au nez du Krait, ou repart. */

@@ -5,8 +5,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
-  MECH_CATCH_UP, MECH_HOLD, MECH_LEVEL, MECH_OBSTACLES, MECH_PERIOD, MECH_POSTS, MECH_ROOM, MECH_SNAP, MECH_SPEED, MECH_WAIT,
-  helpMech, holdMech, mechAt, mechClear, mechReturn, mechRoute, mechStep, mechTime,
+  KRAIT_BURN, KRAIT_COCKPIT, MECH_CATCH_UP, MECH_HOLD, MECH_LEVEL, MECH_OBSTACLES, MECH_PANIC, MECH_PERIOD, MECH_POSTS, MECH_RELIEF, MECH_ROOM, MECH_RUSH,
+  MECH_SNAP, MECH_SPEED, MECH_WAIT, helpMech, holdMech, inCockpit, mechAt, mechClear, mechReturn, mechRoute, mechStep, mechTime, panicMech,
 } from '../shared/mechanic.js'
 import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import { ShipMap } from '../shared/ship-map.js'
@@ -112,6 +112,45 @@ test('d\'où qu\'il parte, il rejoint le nez du Krait puis revient à sa place, 
     assert.ok(Math.hypot(pos.x - home.x, pos.z - home.z) < 0.01, `${when} : pas revenu à temps`)
     walk((t) => mechAt(t0 + t), 6)
   }
+})
+
+test('réacteurs en route : d\'où qu\'il parte, il court au pied de l\'escabeau, puis revient, sans rien traverser', () => {
+  assert.ok(inRoom(MECH_PANIC) && !inFurniture(MECH_PANIC))
+  // Face au cockpit.
+  assert.ok(Math.abs(Math.atan2(KRAIT_COCKPIT.x - MECH_PANIC.x, KRAIT_COCKPIT.z - MECH_PANIC.z) - MECH_PANIC.yaw) < 1e-9)
+  for (let t0 = 0; t0 < MECH_PERIOD; t0 += 1.3) {
+    let pos = mechAt(t0)
+    const when = `réacteurs à t = ${t0.toFixed(1)}`
+    const walk = (goalAt, seconds, rush) => {
+      for (let t = 0; t < seconds; t += DT) {
+        const s = mechStep(pos, goalAt(t), MECH_SPEED * (rush ? MECH_RUSH : MECH_CATCH_UP) * DT)
+        assert.ok(s.left <= MECH_SNAP, `${when} : il aurait sauté (${s.left.toFixed(2)})`)
+        pos = s
+        assert.ok(!inFurniture(pos), `${when} : dans un meuble en ${at(pos)}`)
+        assert.ok(inRoom(pos), `${when} : hors du hangar en ${at(pos)}`)
+      }
+    }
+    // Il arrive au pied de l'escabeau avant que les réacteurs ne se coupent d'eux-mêmes.
+    walk(() => MECH_PANIC, KRAIT_BURN, true)
+    assert.ok(Math.hypot(pos.x - MECH_PANIC.x, pos.z - MECH_PANIC.z) < 0.01, `${when} : pas arrivé au pied de l'escabeau`)
+    walk(() => mechAt(t0), mechReturn(t0, MECH_PANIC))
+    const home = mechAt(t0)
+    assert.ok(Math.hypot(pos.x - home.x, pos.z - home.z) < 0.01, `${when} : pas revenu à temps`)
+  }
+})
+
+test('réacteurs en route : la tournée reste figée tant que ça tourne, plus souffler et revenir', () => {
+  const start = { tau: 20, at: 0, holdUntil: 0 }
+  const back = (MECH_RELIEF + mechReturn(22, MECH_PANIC)) * 1000
+  const burning = panicMech(start, 2000, 14000)
+  assert.equal(mechTime(burning, 13000), 22)
+  assert.ok(Math.abs(burning.holdUntil - (14000 + back)) < 1e-6)
+  const cut = panicMech(burning, 5000, 0)
+  assert.ok(Math.abs(cut.holdUntil - (5000 + back)) < 1e-6)
+  // Aux commandes : assis dans le siège du pilote, pas à côté, pas debout.
+  assert.ok(inCockpit({ ...KRAIT_COCKPIT, pose: 'pilot' }))
+  assert.ok(!inCockpit({ x: KRAIT_COCKPIT.x + 1, z: KRAIT_COCKPIT.z, pose: 'pilot' }))
+  assert.ok(!inCockpit({ ...KRAIT_COCKPIT, pose: null }))
 })
 
 test('lui parler fige la tournée quelques secondes', () => {
