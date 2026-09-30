@@ -40,6 +40,11 @@
 // invitation, reçoit l'aménagement, puis chacun de ses changements. L'hôte peut raccompagner un
 // visiteur ; s'il quitte le vaisseau, ses visiteurs rentrent chez eux.
 //
+// Base au sol (cf. shared/ground-base.js) : on y descend en Krait depuis le hangar. C'est un lieu
+// commun, comme un pont. Ada, la cheffe de la base, y fait sa ronde sur une horloge que le relais
+// tient de même ; un joueur aux commandes du Krait de la base peut en mettre les réacteurs en route
+// (quelques secondes au plus) : tous ceux qui sont sur la base les voient cracher, et Ada salue.
+//
 // Zone thargoïde (cf. salvage.js) : les équipes se forment au lobby de la cale, chaque partie a
 // son instance. Dans la baie infestée, un joueur ne voit et n'entend que son équipe ; le reste du
 // bord apprend seulement qu'il y est entré.
@@ -66,6 +71,9 @@ import {
 } from '../shared/mechanic.js'
 import { HOME_SYSTEM, JUMP_CHARGE, JUMP_TRAVEL, PILOT_SEAT, nextSystem } from '../shared/systems.js'
 import { ZONE_LEVEL } from '../shared/salvage.js'
+import {
+  BASE_BURN, BASE_COCKPIT, BASE_LAYOUT, BASE_LEVEL, CHIEF_PERIOD, chiefAt, chiefTime, holdChief, inBaseCockpit,
+} from '../shared/ground-base.js'
 
 /** Chemin de la socket, partagé avec le client (VITE_WS_PATH) et la conf nginx. */
 export const WS_PATH = '/ws/mini-shipinteriors'
@@ -93,6 +101,7 @@ const INVITE_TTL = 60000
 const REACH = 2.5
 /** Plans des ponts : on n'agit pas à travers un mur (cf. shared/sight.js). */
 const MAPS = new Map(Object.entries(SHIP_LAYOUTS).map(([id, layout]) => [Number(id), new ShipMap(layout, shipMapOptions(id))]))
+MAPS.set(BASE_LEVEL, new ShipMap(BASE_LAYOUT))
 const voieMap = new ShipMap(SHIP_LAYOUTS['-1'], shipMapOptions(-1))
 for (const d of voieMap.doors) {
   const step = DIRS[d.dir]
@@ -326,6 +335,38 @@ export function attachRelay(
     mech = helpUntil(now) ? helpMech(mech, now, helpUntil(now)) : panicMech(mech, now, 0)
     return true
   }
+  /** Horloge de la ronde d'Ada, la cheffe de la base, et vers qui elle se tourne pendant un arrêt. */
+  let chief = { tau: Math.random() * CHIEF_PERIOD, at: Date.now(), holdUntil: 0 }
+  let chiefFace = null
+  /** Réacteurs du Krait de la base : qui les a mis en route (id du joueur), et jusqu'à quand ils tournent (ms). */
+  let baseBurn = { by: 0, until: 0 }
+  /** Où en est Ada : instant de la ronde (s), arrêt restant (s), réacteurs du Krait (s, et le pilote), vers qui elle regarde. */
+  const chiefState = (now = Date.now()) => {
+    const burn = Math.max(0, baseBurn.until - now) / 1000
+    return {
+      tau: chiefTime(chief, now),
+      hold: Math.max(0, chief.holdUntil - now) / 1000,
+      burn,
+      ...(burn > 0 ? { pilot: baseBurn.by } : {}),
+      ...(chiefFace && chief.holdUntil > now ? { face: chiefFace } : {}),
+    }
+  }
+  /**
+   * Un pilote met les réacteurs du Krait de la base en route (`on`), ou les coupe (les siens
+   * seulement), ou s'en va : Ada s'arrête et regarde le cockpit. Rend false si rien n'a changé.
+   */
+  const setBaseBurn = (player, on, now = Date.now()) => {
+    if (on) {
+      if (baseBurn.until > now) return false
+      baseBurn = { by: player.id, until: now + BASE_BURN * 1000 }
+      chief = holdChief(chief, now, BASE_BURN)
+      chiefFace = { x: BASE_COCKPIT.x, z: BASE_COCKPIT.z }
+      return true
+    }
+    if (baseBurn.by !== player.id || baseBurn.until <= now) return false
+    baseBurn = { by: 0, until: 0 }
+    return true
+  }
   /** Ce que joue le jukebox d'une instance, pour un joueur qui y arrive (track null : il se tait). */
   const musicOf = (instance) => {
     const m = music.get(instance)
@@ -451,6 +492,7 @@ export function attachRelay(
       chef: chefState(),
       nurse: nurseState(),
       mechanic: mechState(),
+      chief: chiefState(),
       salvage: salvage.snapshot(),
     })
     socket.emit('cinema:state', cinema.snapshot())
@@ -471,6 +513,7 @@ export function attachRelay(
     let chefBudget = 3
     let nurseBudget = 3
     let mechBudget = 3
+    let chiefBudget = 3
     let salvageBudget = 20
     const refill = setInterval(() => {
       chatBudget = Math.min(5, chatBudget + 1)
@@ -483,13 +526,16 @@ export function attachRelay(
       chefBudget = Math.min(3, chefBudget + 1)
       nurseBudget = Math.min(3, nurseBudget + 1)
       mechBudget = Math.min(3, mechBudget + 1)
+      chiefBudget = Math.min(3, chiefBudget + 1)
       salvageBudget = Math.min(20, salvageBudget + 10)
     }, 1000)
 
     socket.on('state', (raw) => {
       const m = obj(raw)
       const x = num(m.x, -5, 50), z = num(m.z, -5, 30), yaw = num(m.yaw, -10, 10)
-      if (x === null || z === null || yaw === null || !(LEVELS.has(m.level) || m.level === ZONE_LEVEL)) return
+      if (x === null || z === null || yaw === null || !(LEVELS.has(m.level) || m.level === ZONE_LEVEL || m.level === BASE_LEVEL)) return
+      // La base au sol : sur son plateau seulement.
+      if (m.level === BASE_LEVEL && !MAPS.get(BASE_LEVEL).isFloor(Math.round(x), Math.round(z))) return
       if (m.level === 0 && MAPS.get(0).room(Math.round(x), Math.round(z)) === 'l' && !player.ljpc) return
       if (m.level === -1 && MAPS.get(-1).room(Math.round(x), Math.round(z)) === 'v' && !player.voie) return
       // La baie infestée : seulement en mission, sur son sol, et pas plus vite qu'on ne court.
@@ -497,6 +543,8 @@ export function attachRelay(
       // Une pose inconnue n'en est pas une ; sa hauteur reste à portée d'une couchette du haut.
       const pose = POSES.has(m.pose) && m.level !== ZONE_LEVEL ? m.pose : ''
       if (player.level !== m.level) fights.leave(player)
+      // Le pilote quitte la base (il décolle) : les réacteurs du Krait de la base se coupent derrière lui.
+      if (player.level === BASE_LEVEL && m.level !== BASE_LEVEL && setBaseBurn(player, false)) io.emit('chief', { id: player.id, ...chiefState() })
       const wasZone = player.level === ZONE_LEVEL
       Object.assign(player, { x, z, yaw, level: m.level, anim: ANIMS.has(m.anim) ? m.anim : 'idle', pose, py: pose ? (num(m.py, 0, 1.2) ?? 0) : 0 })
       salvage.moved(player)
@@ -742,6 +790,28 @@ export function attachRelay(
       if (setBurn(player, on)) io.emit('mechanic', { id: player.id, ...mechState() })
     })
 
+    // On parle à Ada, la cheffe de la base : à portée d'elle, sur la base.
+    socket.on('chief:talk', () => {
+      if (chiefBudget < 1) return
+      const now = Date.now()
+      if (!reaches(player, BASE_LEVEL, chiefAt(chiefTime(chief, now)))) return
+      chiefBudget--
+      chief = holdChief(chief, now)
+      chiefFace = { x: player.x, z: player.z }
+      io.emit('chief', { id: player.id, ...chiefState(now) })
+    })
+
+    // Réacteurs du Krait de la base : on les met en route installé aux commandes, on les coupe si
+    // c'est soi qui les a lancés ; tous ceux qui sont sur la base les voient.
+    socket.on('base:engines', (raw) => {
+      const on = obj(raw).on === true
+      if (on) {
+        if (chiefBudget < 1 || !inBaseCockpit(player)) return
+        chiefBudget--
+      }
+      if (setBaseBurn(player, on)) io.emit('chief', { id: player.id, ...chiefState() })
+    })
+
     // Saut FSD : installé dans le siège du pilote, et pas pendant un autre saut. Tout le bord le vit.
     socket.on('jump', () => {
       const now = Date.now()
@@ -825,6 +895,8 @@ export function attachRelay(
       // Son aide parti, ou son pilote (les réacteurs se coupent), le mécano reprend sa tournée.
       const helped = setHelp(player, false)
       if (setBurn(player, false) || helped) socket.broadcast.emit('mechanic', { id: player.id, ...mechState() })
+      // Son pilote parti, les réacteurs du Krait de la base se coupent.
+      if (setBaseBurn(player, false)) socket.broadcast.emit('chief', { id: player.id, ...chiefState() })
       // Son patient parti, l'infirmière reprend sa tournée ; son pansement part avec lui.
       const hadPatch = patched.delete(player.id)
       if (endCare(player, false) || hadPatch) socket.broadcast.emit('nurse', { id: player.id, ...nurseState() })

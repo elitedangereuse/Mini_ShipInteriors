@@ -79,6 +79,15 @@ export interface MechanicState extends PatrolState {
   pilot?: number
 }
 
+/**
+ * Ronde d'Ada, la cheffe de la base au sol (cf. shared/ground-base.js) : comme celle du sergent,
+ * plus les réacteurs du Krait de la base (s restantes, et le pilote qui les a mis en route).
+ */
+export interface ChiefState extends PatrolState {
+  burn: number
+  pilot?: number
+}
+
 export interface CinemaTrailer { id: number; title: string; image: string; video: string }
 export interface CinemaVideo { video: string; title: string; image: string }
 export interface CinemaState {
@@ -197,7 +206,7 @@ export type SalvageAction = 'create' | 'join' | 'leave' | 'settings' | 'ready' |
 
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
-  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean }; players: PlayerState[]; music?: MusicState; hold?: MusicState; system?: SystemId; patrol?: PatrolState; chef?: ChefState; nurse?: NurseState; mechanic?: MechanicState; salvage?: SalvageLobby }
+  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean }; players: PlayerState[]; music?: MusicState; hold?: MusicState; system?: SystemId; patrol?: PatrolState; chef?: ChefState; nurse?: NurseState; mechanic?: MechanicState; chief?: ChiefState; salvage?: SalvageLobby }
   | { t: 'join'; player: PlayerState }
   | { t: 'leave'; id: number }
   | { t: 'state'; id: number; x: number; z: number; yaw: number; level: number; anim: string; pose?: string; py?: number }
@@ -227,6 +236,7 @@ export type ServerMessage =
   | ({ t: 'patrol'; id: number } & PatrolState)
   | ({ t: 'chef'; id: number } & ChefState)
   | ({ t: 'mechanic'; id: number } & MechanicState)
+  | ({ t: 'chief'; id: number } & ChiefState)
   | ({ t: 'nurse'; id: number } & NurseState)
   | ({ t: 'board:state' } & BoardState)
   | ({ t: 'fight:state' } & FightState)
@@ -252,7 +262,7 @@ type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin'>
 
 /** Chemin de la socket : le même que WS_PATH dans server/relay.js et que la conf nginx du site. */
 const WS_PATH = import.meta.env.VITE_WS_PATH || '/ws/mini-shipinteriors'
-const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'music', 'jump', 'patrol', 'chef', 'nurse', 'mechanic', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error',
+const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'music', 'jump', 'patrol', 'chef', 'nurse', 'mechanic', 'chief', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error',
   'salvage:lobby', 'salvage:start', 'salvage:state', 'salvage:event', 'salvage:end', 'salvage:reward', 'salvage:error']
 
 export class Net {
@@ -387,6 +397,16 @@ export class Net {
   /** On aide le mécano (une étape de plus de la révision), ou on a fini : il attend au nez du Krait, ou repart. */
   sendMechHelp(on: boolean) {
     this.send('mech:help', { on })
+  }
+
+  /** On parle à la cheffe de la base : le relais arrête sa ronde pour tous. */
+  sendChiefTalk() {
+    this.send('chief:talk', {})
+  }
+
+  /** Aux commandes du Krait de la base, on met les réacteurs en route (on) ou on les coupe : tous les voient. */
+  sendBaseEngines(on: boolean) {
+    this.send('base:engines', { on })
   }
 
   sendCinemaChoice(id: number | null) {

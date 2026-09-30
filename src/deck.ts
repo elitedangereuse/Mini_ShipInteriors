@@ -323,7 +323,7 @@ export class Deck {
 
   constructor(readonly def: LevelDef) {
     this.theme = themes[def.theme ?? 'station']
-    this.map = new ShipMap(def.layout, def.zone?.map ?? shipMapOptions(def.id))
+    this.map = new ShipMap(def.layout, def.zone?.map ?? (def.ground ? {} : shipMapOptions(def.id)))
     if (def.id === 0) for (const d of this.map.doors) {
       if (this.doorRoom(d.x, d.z, d.dir, 'l')) this.map.lock(d.x, d.z, d.dir)
     }
@@ -335,17 +335,20 @@ export class Deck {
     this.ceilingMaterial = ceilingMaterial(def.zone ? 'zone' : def.theme ?? 'station')
     this.glowMat = beamMaterial()
 
+    // Hors du vaisseau (la baie infestée, la base au sol) : ni coque, ni ascenseur, ni tuyères.
+    const aboard = !def.zone && !def.ground
     this.buildFloors()
     // La coque sous le pont : le corps du vaisseau, le même sous chaque pont (cf. hull.ts). La
-    // baie infestée n'en a pas : elle flotte dans le noir.
-    if (!def.zone) this.group.add(this.hull.group)
+    // baie infestée n'en a pas : elle flotte dans le noir. La base au sol repose sur ses falaises.
+    if (aboard) this.group.add(this.hull.group)
+    if (def.ground) this.addStatic(def.ground.skirt, false)
     this.buildWalls()
     this.buildProps()
     if (def.id === 0) this.ljpcCover = this.buildRoomCover('l', '#101722', '#263344')
     if (def.id === -1) this.voieCover = this.buildRoomCover('v', '#030303', '#080808')
-    if (!def.zone) this.buildLift()
+    if (aboard) this.buildLift()
     if (def.engine) this.buildCore(def.engine.x, def.engine.z)
-    if (!def.zone) this.buildNozzles(!!def.engine)
+    if (aboard) this.buildNozzles(!!def.engine)
     this.flushStatic()
     this.buildCeiling()
 
@@ -572,6 +575,10 @@ export class Deck {
           this.addStatic(this.def.zone.kit.floor(x, z, hash(x, z)), false)
           continue
         }
+        if (this.def.ground) {
+          this.addStatic(this.def.ground.floor(x, z), false)
+          continue
+        }
         let model: StationModel = this.def.floors?.[room] ?? 'floor'
         // Quelques dalles à picots pour varier, sauf dans les quartiers (les tapis y sont posés à plat).
         if (model === 'floor' && this.def.theme !== 'cozy' && hash(x, z) % 9 === 0) model = 'floor-detail'
@@ -587,6 +594,13 @@ export class Deck {
    */
   private buildCeiling() {
     const merge = new StaticMerge()
+    // À ciel ouvert : le ciel de la planète, pas de plafond.
+    if (this.def.ground) {
+      this.ceilingFades = fadeBuffer(0)
+      this.ceiling.visible = false
+      this.group.add(this.ceiling)
+      return
+    }
     for (let z = 0; z < this.map.height; z++) {
       for (let x = 0; x < this.map.width; x++) {
         if (this.map.room(x, z)) merge.add(ceilingTile(x, z, this.ceilingY, this.ceilingMaterial), false)
@@ -642,6 +656,14 @@ export class Deck {
           const cx = x + d.dx * 0.5
           const cz = z + d.dz * 0.5
           const alongX = d.dz !== 0
+          // Au bord du plateau de la base au sol, pas de mur : ses falaises (cf. GroundDef.skirt),
+          // et une collision qui retient au bord.
+          if (this.def.ground) {
+            this.colliders.push(alongX
+              ? { minX: cx - 0.5, maxX: cx + 0.5, minZ: cz - WALL_T / 2, maxZ: cz + WALL_T / 2 }
+              : { minX: cx - WALL_T / 2, maxX: cx + WALL_T / 2, minZ: cz - 0.5, maxZ: cz + 0.5 })
+            continue
+          }
           const other = this.map.room(x + d.dx, z + d.dz)
           const exterior = !other
           const hsh = hash(Math.round(cx * 2), Math.round(cz * 2))
