@@ -36,6 +36,14 @@ export const EMOTES: EmoteDef[] = [
   { id: 'o7', en: 'o7', icon: 'o7', label: tr('Salut militaire (o7)', 'Salute (o7)'), anims: ['idle'], mode: 'once', duration: 2.2, gesture: 'salute' },
 ]
 
+/** Visage d'un personnage (cf. holo-style.ts) : null rend son expression de tous les jours. */
+export interface FaceControl {
+  show(expression: string | null): void
+}
+
+/** L'expression que joue chaque emote, le temps du geste. */
+const EMOTE_FACES: Record<string, string> = { joie: 'gr', danse: 'gr', oui: 'sm', salut: 'wi', o7: 'wi', non: 'fr', dodo: 'zz' }
+
 /** Emote interne (non proposée dans la barre) : utiliser une console. */
 const INTERACT: EmoteDef = { id: 'interact', en: 'interact', icon: '', label: '', anims: ['interact-right'], mode: 'once' }
 
@@ -195,9 +203,11 @@ export class Avatar {
   private carryWeight = 0
   /** À chaque animation d'une pose (un coup de poing dans le sac, cf. main.ts). */
   onPoseStep?: (step: number) => void
+  private readonly face: FaceControl | null
 
-  constructor(rig: Rig & { height?: number }) {
+  constructor(rig: Rig & { height?: number; face?: FaceControl }) {
     this.height = rig.height ?? 0.67
+    this.face = rig.face ?? null
     this.model = rig.root
     this.root.add(this.model)
     this.mixer = new THREE.AnimationMixer(this.model)
@@ -405,6 +415,7 @@ export class Avatar {
       this.model.rotation.y = THREE.MathUtils.damp(this.model.rotation.y, sway, 8, dt)
     }
     this.mixer.update(dt)
+    this.face?.show((this.emote && EMOTE_FACES[this.emote.id]) ?? null)
     if (this.emote?.gesture === 'salute' && this.armRight) {
       const t = this.emoteTime, end = this.emote.duration ?? 2
       const w = THREE.MathUtils.smoothstep(t, 0, 0.25) * (1 - THREE.MathUtils.smoothstep(t, end - 0.3, end))

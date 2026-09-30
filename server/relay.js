@@ -71,6 +71,9 @@ import {
 } from '../shared/mechanic.js'
 import { HOME_SYSTEM, JUMP_CHARGE, JUMP_TRAVEL, PILOT_SEAT, nextSystem } from '../shared/systems.js'
 import { ZONE_LEVEL } from '../shared/salvage.js'
+// Identifiant d'apparence (cf. src/looks.ts), ex. « human.female.b », « alien.male.c.blue », « robot.g »,
+// suivi au besoin du style du Holo-Me (« suit.male.c.flight.mo-pk-sm-nv- ») dont chaque champ est vérifié.
+import { validLook } from '../shared/look-style.js'
 import {
   BASE_BURN, BASE_COCKPIT, BASE_LAYOUT, BASE_LEVEL, CHIEF_PERIOD, chiefAt, chiefTime, holdChief, inBaseCockpit,
 } from '../shared/ground-base.js'
@@ -81,8 +84,6 @@ export const WS_PATH = '/ws/mini-shipinteriors'
 const MAX_PLAYERS = 32
 const MAX_TEXT = 200
 const MAX_NAME = 32
-// Identifiant d'apparence (cf. src/looks.ts), ex. « human.female.b », « alien.male.c.blue », « robot.g ».
-const LOOK = /^[a-z]+(\.[a-z0-9-]+){1,3}$/
 // Emotes (src/avatar.ts), puis réactions (médaillons du site, src/reactions.ts).
 const EMOTES = new Set([
   'salut', 'oui', 'non', 'joie', 'danse', 'assis', 'dodo', 'o7', 'interact',
@@ -143,7 +144,6 @@ const clean = (s, max) =>
     .slice(0, max)
 const num = (v, lo, hi) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null)
 const obj = (v) => (v && typeof v === 'object' ? v : {})
-const validLook = (s) => typeof s === 'string' && s.length <= 40 && LOOK.test(s)
 
 /**
  * Même origine uniquement. Le cookie du site n'est pas SameSite : sans ce contrôle, une page

@@ -54,7 +54,7 @@ Mini Interior est un POC : un vaisseau sur trois ponts, vu de dessus en isométr
 - **Trois ponts, trois ambiances** : des quartiers chaleureux, un pont principal aux couleurs d'Elite, une cale rouillée à l'éclairage sodium.
 - **Multijoueur** : chaque onglet est un membre d'équipage, avec positions, emotes et chat en bulles, synchronisés par un petit relais socket.io.
 - **Comptes Élite Dangereuse** : un CMDR connecté à [elitedangereuse.fr](https://elitedangereuse.fr) arrive sous son nom, avec un badge « vérifié ».
-- **Holo-Me** : humain, combinaison spatiale, alien, robot ou créature, et chaque changement s'applique en direct.
+- **Holo-Me** : humain, combinaison spatiale, alien, robot ou créature, avec sa coiffure, son expression et les couleurs de sa combinaison, et chaque changement s'applique en direct.
 - **Quartiers personnalisables** : chaque joueur a sa propre instance des quartiers du commandant. Un CMDR connecté les aménage (348 meubles, objets et compagnons : salle de bain, cuisine, lits, plantes, affiches de films et pin-up, télé cathodique et consoles de jeu, armurerie, bornes d'arcade, piste de danse, tasse de Hutton Orbital…), choisit le papier peint et le sol, et y invite qui il veut.
 - **On s'installe** : s'asseoir sur les chaises, les canapés et les fauteuils, se coucher dans les lits (même la couchette du haut), prendre les commandes au poste de pilotage (et lancer un saut FSD, que tout le bord vit ensemble), pédaler, courir, frapper le sac, mixer, jouer à la pince à peluches, danser en rythme. Les autres voient la pose.
 - **Un vaisseau d'un seul tenant** : les ponts reposent sur une coque (tôles, feux de navigation, tuyères), et le système où l'on se trouve (étoile, planètes, station, trou noir…) se voit par les verrières du poste de pilotage.
@@ -143,6 +143,19 @@ Dans les quartiers du commandant (pont supérieur), monte sur la plateforme oran
 | Créature | Orque de Kepler, Troll des soutes, Zombie en costume |
 
 Un nouveau joueur arrive dans une combinaison tirée au hasard. Les combinaisons recolorent le corps du modèle par « carte de dégradé » (la peau devient des gants), et le casque, le col et le sac dorsal sont accrochés aux os de la tête et du torse : ils suivent les animations. La femme « a » des Mini Characters (avec des béquilles) est retirée du catalogue. Une apparence enregistrée qui l'utilisait passe au premier modèle disponible.
+
+L'onglet **Coiffure et couleurs** (humains, combinaisons, aliens) règle le style du personnage, gratuit sur tout ce qu'on porte :
+
+| Réglage | Choix |
+|---|---|
+| Coiffure | celle du modèle, les 11 têtes des autres Mini Characters (couettes, petit chignon, nœud haut, longs et lisses, longs et ondulés, courts à lunettes, chauve et barbu, casquette de police, en pointes, banane à lunettes, frange) et 4 coupes faites main : crâne rasé, crête, gros chignon, queue de cheval |
+| Cheveux (humains, combinaisons) | ceux du modèle, noirs, bruns, roux, blonds, platine, gris, bleus, roses. Les aliens gardent la teinte de leur espèce |
+| Expression | neutre (le visage du modèle), souriant, sérieux, surpris, malicieux. Les emotes en jouent une le temps du geste : grand sourire (joie, danse), clin d'œil (salut, o7), sourire (oui), moue (non), yeux fermés (dodo) |
+| Combinaison | la couleur d'origine ou 12 teintes (noir, graphite, blanc, rouge, orange, jaune, vert, kaki, bleu, marine, violet, rose), et les liserés : d'origine, orange, rouge, cyan, vert, or, blanc |
+
+Une coupe est la tête d'un autre modèle, recalée sur l'os de la tête et repeinte à la peau du porteur ; sans couleur choisie, elle garde les cheveux du porteur. Une couleur de cheveux envoie les UV des cheveux vers des cases libres de la palette, peintes de quatre nuances. Une expression cache les traits du modèle (ils passent à la couleur de la peau) et en dessine d'autres devant le visage, comme pour Betty. Sous le casque fermé des combinaisons Maverick et Dominator, coiffure et visage ne se voient pas ; la bulle d'Artemis les montre. Le code est dans `src/holo-style.ts`.
+
+Le style s'écrit à la fin de l'apparence, cinq champs séparés par des tirets (coiffure, cheveux, expression, combinaison, liserés ; vide : comme le modèle) : `human.female.b.mo-pk-sm--`, `suit.male.c.flight.--se-nv-yl`. Les apparences enregistrées avant restent valides. Le relais n'accepte que les valeurs connues (`shared/look-style.js`, partagé avec le jeu). La galerie `/gallery.html?holo` montre les coupes sur un modèle (`&base=human.male.f`), ou des apparences au choix (`&looks=…`, `&style=--sm--` : ce style sur toutes, `&play=joie` : une emote en boucle).
 
 Les robots ont des pas plus lourds. Pour ajouter une espèce ou un modèle, il suffit de compléter `RACES` dans `src/looks.ts` : les modèles sont remis à la même taille automatiquement, et une animation manquante est remplacée par une animation voisine.
 
