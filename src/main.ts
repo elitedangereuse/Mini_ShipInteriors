@@ -2615,27 +2615,43 @@ canvas.addEventListener('pointerdown', (e) => {
 
 // Vue subjective à la souris : le curseur disparaît, bloqué sur la mire, et la souris tourne
 // le regard sans limite. Échap le libère (le navigateur s'en charge) ; un panneau, le chat ou
-// le retour à la vue isométrique aussi (cf. frame).
+// le retour à la vue isométrique aussi (cf. frame). Curseur visible, la vue est figée : on s'en
+// sert pour cliquer, pas pour viser.
 const cursorLocked = () => document.pointerLockElement === canvas
 const screenCenter = () => ({ clientX: innerWidth / 2, clientY: innerHeight / 2 })
+/** Refus de capture d'affilée : au-delà de deux, le navigateur ne la permet pas (cf. freeAim). */
+let lockRefusals = 0
+/** Instant de la dernière capture : les premiers mouvements rapportés sont parfois un saut. */
+let lockedAt = 0
 function lockCursor() {
+  const refused = () => lockRefusals++
   try {
-    ;(canvas.requestPointerLock() as unknown as Promise<void> | undefined)?.catch?.(() => {})
-  } catch {}
+    ;(canvas.requestPointerLock() as unknown as Promise<void> | undefined)?.catch?.(refused)
+  } catch {
+    refused()
+  }
 }
+document.addEventListener('pointerlockerror', () => lockRefusals++)
 function unlockCursor() {
   if (cursorLocked()) document.exitPointerLock()
 }
 /** Ce qui se manipule au curseur : on le rend. */
 function needsCursor(): boolean {
-  return chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || inviteMenu.isOpen || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen
+  return chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || inviteMenu.isOpen || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || !reactionsPanel.hidden
 }
 document.addEventListener('pointerlockchange', () => {
   document.body.classList.toggle('fps-locked', cursorLocked())
-  if (cursorLocked()) relock = false
+  if (!cursorLocked()) return
+  relock = false
+  lockRefusals = 0
+  lockedAt = performance.now()
 })
 document.addEventListener('mousemove', (e) => {
-  if (cursorLocked() && fpsShown) fps.look(-e.movementX * mouseLook(), -e.movementY * mouseLook())
+  if (!cursorLocked() || !fpsShown) return
+  // Juste après la capture, ou d'un coup énorme : le navigateur rapporte le trajet du curseur
+  // jusqu'au centre (ou un sursaut), pas un geste. Sans ce filtre, la vue partait d'un bond.
+  if (performance.now() - lockedAt < 120 || Math.abs(e.movementX) > 300 || Math.abs(e.movementY) > 300) return
+  fps.look(-e.movementX * mouseLook(), -e.movementY * mouseLook())
 })
 
 // Sensibilité de la souris en vue subjective, réglée dans l'aide : curseur capturé ou libre.
@@ -2656,12 +2672,13 @@ sensitivityInput.addEventListener('input', () => {
 sensitivityInput.addEventListener('keydown', (e) => e.stopPropagation())
 updateSensitivity()
 
-// Curseur libre (pas encore capturé, ou libéré par Échap) : le regard suit quand même la souris,
-// sans bouton à tenir, et continue de tourner tant que le curseur reste près d'un bord de l'écran.
-// Sur la barre d'outils ou un panneau, le curseur ne compte plus (on va cliquer).
+// Secours, quand le navigateur refuse de capturer le curseur : le regard suit la souris sans
+// bouton à tenir, et tourne tant que le curseur reste près d'un bord de l'écran. Sinon, curseur
+// libre, la vue ne bouge pas (on va cliquer quelque chose).
+const lockUnavailable = () => !('requestPointerLock' in canvas) || lockRefusals >= 2
 let freeAim: { x: number; y: number } | null = null
 canvas.addEventListener('pointermove', (e) => {
-  if (e.pointerType !== 'mouse' || cursorLocked() || !fpsShown || needsCursor()) {
+  if (e.pointerType !== 'mouse' || cursorLocked() || !fpsShown || needsCursor() || !lockUnavailable()) {
     freeAim = null
     return
   }
@@ -2672,17 +2689,24 @@ canvas.addEventListener('pointerleave', () => (freeAim = null))
 /** Bord de l'écran où le regard tourne tout seul (part de la demi-largeur ou de la demi-hauteur). */
 const EDGE = 0.15
 function edgeLook(dt: number) {
-  if (!freeAim || cursorLocked() || needsCursor()) return
+  if (!freeAim || cursorLocked() || needsCursor() || !lockUnavailable()) return
   const edge = (u: number) => Math.sign(u) * THREE.MathUtils.clamp((Math.abs(u) - (1 - EDGE)) / EDGE, 0, 1)
   const ex = edge((freeAim.x / innerWidth) * 2 - 1), ey = edge((freeAim.y / innerHeight) * 2 - 1)
   if (ex || ey) fps.look(-ex * dt * 2.4, -ey * dt * 1.2)
 }
-// Le curseur rendu par un panneau (ou pas encore pris) se reprend dès qu'on se remet à marcher ;
-// Échap, lui, le laisse libre jusqu'au prochain clic.
+// Le curseur rendu par un panneau (ou pas encore pris) se reprend au clic qui ferme le panneau,
+// ou dès qu'on se remet à marcher ; Échap, lui, le laisse libre jusqu'au prochain clic sur la scène.
 let relock = fpsWanted
+const mayRelock = () => relock && fpsShown && !cursorLocked() && !needsCursor() && matchMedia('(pointer: fine)').matches
 addEventListener('keydown', (e) => {
-  if (relock && fpsShown && MOVE_KEYS.has(e.code) && !cursorLocked() && !needsCursor() && matchMedia('(pointer: fine)').matches) lockCursor()
+  if (MOVE_KEYS.has(e.code) && mayRelock()) lockCursor()
 })
+// Phase de bouillonnement : le bouton « Fermer » a déjà fermé son panneau.
+addEventListener('click', () => {
+  if (mayRelock()) lockCursor()
+})
+// Curseur rendu pour une interface : la mire et son aide s'effacent.
+const syncCursorUi = () => document.body.classList.toggle('fps-cursor-ui', fpsShown && needsCursor())
 const crosshair = $('fps-crosshair')
 /** Bas des invites et bulles posées à l'écran en vue subjective : au-dessus de la barre d'emotes. */
 const fpsBottom = () => innerHeight - 130
@@ -3447,6 +3471,7 @@ function frame() {
     relock = true
   }
   if (fpsShown) edgeLook(dt)
+  syncCursorUi()
   // Borne d'arcade ouverte : elle couvre l'écran, le vaisseau reste figé derrière (dernière image),
   // et la borne a toute la machine pour elle.
   if (arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen) {

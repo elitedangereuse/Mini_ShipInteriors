@@ -3591,6 +3591,10 @@ body.salvage-watching #app { filter: saturate(.55) sepia(.25) hue-rotate(70deg) 
 body.fps-view #fps-crosshair {
   display: block;
 }
+/* Curseur rendu pour une interface (panneau, chat, aide) : la vue est figée, pas de mire. */
+body.fps-view.fps-cursor-ui #fps-crosshair {
+  display: none;
+}
 body.fps-view #rot-left,
 body.fps-view #rot-right,
 body.fps-view #zoom-in,
@@ -3620,7 +3624,7 @@ body.fps-view #zoom-out {
   pointer-events: none;
 }
 @media (hover: hover) and (pointer: fine) {
-  body.fps-view:not(.fps-locked) #fps-hint {
+  body.fps-view:not(.fps-locked):not(.fps-cursor-ui) #fps-hint {
     display: block;
   }
 }
