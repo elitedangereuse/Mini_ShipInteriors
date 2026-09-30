@@ -122,17 +122,32 @@ export class Bubbles {
     e.addEventListener('animationend', () => e.remove())
   }
 
-  update(camera: THREE.Camera) {
-    for (const a of this.anchors.values()) {
+  /**
+   * @param pinned étiquette posée à l'écran plutôt qu'au-dessus d'une tête (la sienne, en vue
+   *   subjective : elle est dans la caméra) ; son nom est alors masqué, ses bulles restent
+   */
+  update(camera: THREE.Camera, pinned?: { key: string; x: number; y: number } | null) {
+    for (const [key, a] of this.anchors) {
       const head = a.getHead(this.v)
       const empty = !a.tag && !a.el.firstChild
       if (!head || empty) {
         a.el.style.display = 'none'
         continue
       }
-      head.project(camera)
-      const x = ((head.x + 1) / 2) * innerWidth
-      const y = ((1 - head.y) / 2) * innerHeight
+      const pin = pinned?.key === key
+      a.el.classList.toggle('pinned', pin)
+      let x: number, y: number
+      if (pin) ({ x, y } = pinned!)
+      else {
+        head.project(camera)
+        // Derrière la caméra (vue subjective), la projection renverrait la tête devant soi.
+        if (head.z > 1) {
+          a.el.style.display = 'none'
+          continue
+        }
+        x = ((head.x + 1) / 2) * innerWidth
+        y = ((1 - head.y) / 2) * innerHeight
+      }
       a.el.style.display = ''
       a.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`
     }

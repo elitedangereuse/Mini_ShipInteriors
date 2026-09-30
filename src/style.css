@@ -1236,6 +1236,9 @@ kbd .icon {
 .say-icon {
   color: #e8457c;
 }
+.anchor.pinned .tag {
+  display: none;
+}
 .tag {
   padding: 1px 6px;
   border-radius: 6px;

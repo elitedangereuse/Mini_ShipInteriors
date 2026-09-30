@@ -2592,6 +2592,8 @@ addEventListener('keydown', (e) => {
   if (relock && fpsShown && MOVE_KEYS.has(e.code) && !cursorLocked() && !needsCursor() && matchMedia('(pointer: fine)').matches) lockCursor()
 })
 const crosshair = $('fps-crosshair')
+/** Bas des invites et bulles posées à l'écran en vue subjective : au-dessus de la barre d'emotes. */
+const fpsBottom = () => innerHeight - 130
 
 function click(e: PointerEvent, at: { clientX: number; clientY: number } = e) {
   // Caché dans un casier, capturé, derrière les caméras : le clic ne fait rien.
@@ -3558,12 +3560,14 @@ function frame() {
         promptLabel.replaceChildren(sit.main, ' · ', k, ' ', sit.space)
       } else promptLabel.textContent = sit ? sit.main : label
     }
-    if (sitting) screenPos.set(player.position.x, player.position.y + 1.3, player.position.z).project(activeCamera())
-    else screenPos.set(near!.position.x, deck.y + 1.1, near!.position.z).project(activeCamera())
-    // Vue subjective : un objet derrière soi n'a pas d'invite à l'écran (la projection la renverrait devant).
-    if (screenPos.z > 1) screenPos.set(0, -0.55, 0)
-    const x = ((screenPos.x + 1) / 2) * innerWidth
-    const y = ((1 - screenPos.y) / 2) * innerHeight
+    let x = innerWidth / 2, y = fpsBottom()
+    // Vue subjective : l'invite reste devant soi, en bas de l'écran ; sinon, au-dessus de l'objet.
+    if (!fpsShown) {
+      if (sitting) screenPos.set(player.position.x, player.position.y + 1.3, player.position.z).project(activeCamera())
+      else screenPos.set(near!.position.x, deck.y + 1.1, near!.position.z).project(activeCamera())
+      x = ((screenPos.x + 1) / 2) * innerWidth
+      y = ((1 - screenPos.y) / 2) * innerHeight
+    }
     promptEl.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`
   }
   // On s'éloigne de l'ascenseur ou du jukebox : le panneau se ferme.
@@ -3599,7 +3603,8 @@ function frame() {
   cinemaRoom.placeScreen(activeCamera(), deck.def.id === 1,
     deck.def.id === 1 && deck.map.room(Math.round(player.position.x), Math.round(player.position.z)) === 'n',
     cinemaScreenProp.x, deckById(1).y, cinemaScreenProp.z)
-  bubbles.update(activeCamera())
+  // Vue subjective, dans sa tête : ses propres bulles au-dessus de l'invite, en bas de l'écran.
+  bubbles.update(activeCamera(), fpsShown && !fps.showsBody ? { key: 'me', x: innerWidth / 2, y: fpsBottom() - (promptEl.hidden ? 0 : 40) } : null)
 
   // Résolution adaptative : on baisse la densité de pixels si l'affichage peine,
   // on la remonte (sans dépasser le dernier niveau qui a peiné) s'il reste de la marge.
