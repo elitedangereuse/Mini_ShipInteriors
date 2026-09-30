@@ -113,6 +113,17 @@ const CARRY = new THREE.Vector3(0, -0.42, 0.9).normalize()
 const carryQ = new THREE.Quaternion()
 const carryDir = new THREE.Vector3()
 
+/**
+ * Manger, assis devant son plateau : le bras droit pique dans l'assiette (PLATE : droit devant,
+ * à hauteur du plateau ; le bras, court, n'irait pas plus bas sans passer sous la table), monte
+ * la fourchette à la bouche (MOUTH), et redescend ; une bouchée par EAT_BITE secondes. Même
+ * repère que CARRY (x vers l'intérieur).
+ */
+const PLATE = new THREE.Vector3(0.1, -0.1, 0.99).normalize()
+const MOUTH = new THREE.Vector3(0.62, 0.52, 0.6).normalize()
+export const EAT_BITE = 1.4
+const eatDir = new THREE.Vector3()
+
 /** Un bras : l'os, sa direction au repos (repère du parent, quaternion identité) et sa longueur. */
 interface Arm {
   bone: THREE.Object3D
@@ -201,6 +212,10 @@ export class Avatar {
   /** Porte quelque chose à deux mains devant soi (cf. hands) ; les bras s'y mettent en douceur. */
   carrying = false
   private carryWeight = 0
+  /** Mange (cf. PLATE, MOUTH) : le bras droit fait des allers-retours de l'assiette à la bouche. */
+  eating = false
+  private eatWeight = 0
+  private eatTime = 0
   /** À chaque animation d'une pose (un coup de poing dans le sac, cf. main.ts). */
   onPoseStep?: (step: number) => void
   private readonly face: FaceControl | null
@@ -415,7 +430,6 @@ export class Avatar {
       this.model.rotation.y = THREE.MathUtils.damp(this.model.rotation.y, sway, 8, dt)
     }
     this.mixer.update(dt)
-    this.face?.show((this.emote && EMOTE_FACES[this.emote.id]) ?? null)
     if (this.emote?.gesture === 'salute' && this.armRight) {
       const t = this.emoteTime, end = this.emote.duration ?? 2
       const w = THREE.MathUtils.smoothstep(t, 0, 0.25) * (1 - THREE.MathUtils.smoothstep(t, end - 0.3, end))
@@ -430,6 +444,18 @@ export class Avatar {
         arm.bone.quaternion.slerp(carryQ.setFromUnitVectors(arm.rest, carryDir), this.carryWeight)
       }
     }
+    // La fourchette : à l'assiette au début de chaque bouchée, puis à la bouche, et on redescend.
+    this.eatTime = this.eating ? this.eatTime + dt : 0
+    this.eatWeight = THREE.MathUtils.damp(this.eatWeight, this.eating ? 1 : 0, 8, dt)
+    const right = this.arms.find((a) => a.bone === this.armRight)
+    if (right && this.eatWeight > 0.001) {
+      const k = (this.eatTime % EAT_BITE) / EAT_BITE
+      const up = THREE.MathUtils.smoothstep(k, 0.25, 0.5) * (1 - THREE.MathUtils.smoothstep(k, 0.72, 0.95))
+      eatDir.copy(PLATE).lerp(MOUTH, up).normalize()
+      eatDir.x *= -right.side
+      right.bone.quaternion.slerp(carryQ.setFromUnitVectors(right.rest, eatDir), this.eatWeight)
+    }
+    this.face?.show(this.eating && this.eatTime % EAT_BITE > EAT_BITE * 0.55 ? 'sm' : (this.emote && EMOTE_FACES[this.emote.id]) ?? null)
     // Le fondu des clips et le décalage du modèle n'avancent pas à la même vitesse : empêcher
     // aussi l'enfoncement pendant la transition, particulièrement visible sur les Blocky.
     this.groundSit = this.emote?.id === 'assis' ? 0.6 : Math.max(0, this.groundSit - dt)
@@ -458,6 +484,14 @@ export class Avatar {
       out.add(arm.bone.localToWorld(tip.copy(arm.rest).multiplyScalar(arm.length)))
     }
     return out.multiplyScalar(0.5)
+  }
+
+  /** Bout de la main droite (monde), où tenir la fourchette ; null sans bras mesurable. */
+  rightHand(out: THREE.Vector3): THREE.Vector3 | null {
+    const arm = this.arms.find((a) => a.bone === this.armRight)
+    if (!arm) return null
+    arm.bone.updateWorldMatrix(true, false)
+    return arm.bone.localToWorld(out.copy(arm.rest).multiplyScalar(arm.length))
   }
 
   /** Position monde au-dessus de la tête (bulles, noms). */

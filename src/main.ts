@@ -2992,6 +2992,7 @@ function seated(seat: Seated) {
   if (deck.def.id === 1 && item.furniture?.model === 'projection-chair') return void cinemaRoom.open(true)
   const board = boardGame(seat)
   if (board) return boardGames.open(board.game, board.table)
+  if (kitchen.canEat(seat)) return kitchen.sat()
   if (item.onInteract) return item.onInteract()
   showText(item.text)
 }
@@ -3046,6 +3047,7 @@ function seatPrompt(seat: Seated): { main: string; space?: string } | null {
   if (seat.item.furniture?.model === 'bar-stool' && deck.def.id === -1) return { main: tr('Se lever', 'Stand up'), space: tr('Parler à Jacques', 'Talk to Jacques') }
   if (boardGame(seat)) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
   if (infirmary.canCall(seat)) return { main: tr('Se lever', 'Stand up'), space: infirmary.busy ? undefined : tr(`Appeler ${NURSE}`, `Call ${NURSE}`) }
+  if (kitchen.canEat(seat)) return { main: tr('Se lever', 'Stand up'), space: kitchen.eating ? undefined : tr('Manger', 'Eat') }
   return { main: tr('Se lever', 'Stand up') }
 }
 
@@ -3066,6 +3068,7 @@ function seatAction(seat: Seated) {
   const board = boardGame(seat)
   if (board) boardGames.open(board.game, board.table)
   if (infirmary.canCall(seat)) infirmary.call()
+  if (kitchen.canEat(seat)) kitchen.eat()
 }
 
 // ------------------------------------------------------------------ bornes d'arcade
@@ -3370,6 +3373,15 @@ interface WorkJob {
   finish: () => void
   /** Le geste s'arrête, fini ou non. */
   stopped?: () => void
+  /**
+   * Assis (manger à table, cf. kitchen.ts) : se relever arrête le geste, au lieu de l'interdire ;
+   * on ne se tourne pas, et le geste n'est pas celui des mains (kitchen.ts anime le bras).
+   */
+  seated?: boolean
+  /** Temps entre deux bruits du geste (0,65 s par défaut). */
+  every?: number
+  /** À chaque image : où en est le geste (0 à 1). */
+  progress?: (f: number) => void
 }
 /** Geste en cours, où il en est, et quand vient le prochain mouvement. */
 let working: (WorkJob & { t: number; next: number }) | null = null
@@ -3378,7 +3390,7 @@ function startWork(job: WorkJob): boolean {
   if (working || riding || photo.active || editing()) return false
   player.cancelPath()
   marker.visible = false
-  player.lookAt(job.at)
+  if (!job.seated) player.lookAt(job.at)
   working = { ...job, t: 0, next: 0 }
   $('task-progress-label').textContent = job.label
   progressFill.style.width = '0'
@@ -3406,17 +3418,20 @@ function workStep(dt: number) {
   const w = working
   if (!w) return
   // Parti ailleurs, installé, en photo, ou ce qu'on faisait a disparu : le geste s'arrête.
-  if (riding || seating.current || editing() || photo.active || player.moving || !w.alive()) return stopWork()
+  if (riding || !seating.current !== !w.seated || editing() || photo.active || player.moving || !w.alive()) return stopWork()
   w.t += dt
   w.next -= dt
   if (w.next <= 0) {
-    w.next = 0.65
-    player.interact()
-    net.sendEmote('interact')
+    w.next = w.every ?? 0.65
+    if (!w.seated) {
+      player.interact()
+      net.sendEmote('interact')
+    }
     const at = new THREE.Vector3(w.at.x, w.deck.y + 0.4, w.at.z)
     if (w.sound === 'sparks') sound.sparks(at)
     else sound.work(w.sound, at)
   }
+  w.progress?.(Math.min(1, w.t / w.duration))
   progressFill.style.width = `${Math.min(100, (w.t / w.duration) * 100).toFixed(1)}%`
   screenPos.set(w.at.x, w.deck.y + 1.05, w.at.z).project(activeCamera())
   progressEl.style.transform = `translate(${(((screenPos.x + 1) / 2) * innerWidth).toFixed(1)}px, ${(((1 - screenPos.y) / 2) * innerHeight).toFixed(1)}px) translate(-50%, -100%)`
