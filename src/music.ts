@@ -107,6 +107,28 @@ export const TRACKS: Track[] = [
       { title: 'The End', file: 'end-of-everything-04.mp3', duration: 257.16 },
     ],
   },
+  {
+    id: 'starlight-memories', title: 'Starlight Memories', artist: 'Ben Carter Jr', style: 'synthwave',
+    cover: 'starlight-memories.jpg', duration: 888.68, bpm: null, offset: 0,
+    mood: tr('Quatre souvenirs synthwave sous un ciel d’étoiles, du décollage à l’infini.', 'Four synthwave memories under a starlit sky, from liftoff to infinity.'),
+    songs: [
+      { title: 'Liftoff', file: 'starlight-memories-01.mp3', duration: 227.9 },
+      { title: 'Zero Gravity', file: 'starlight-memories-02.mp3', duration: 213.62 },
+      { title: 'Unknown Worlds', file: 'starlight-memories-03.mp3', duration: 214.34 },
+      { title: 'Infinite', file: 'starlight-memories-04.mp3', duration: 232.82 },
+    ],
+  },
+  {
+    id: 'journey-through-the-night', title: 'Journey Through the Night', artist: 'Ben Carter Jr', style: 'lofi',
+    cover: 'journey-through-the-night.jpg', duration: 736.79, bpm: null, offset: 0,
+    mood: tr('夜の旅 : quatre balades lo-fi hip-hop dans Tokyo, de la pluie du soir au premier train.', '夜の旅: four lo-fi hip-hop strolls through Tokyo, from the evening rain to the first train.'),
+    songs: [
+      { title: '雨の夜 — Ame no Yoru', file: 'journey-through-the-night-01.mp3', duration: 189.98 },
+      { title: 'ネオンの街 — Neon no Machi', file: 'journey-through-the-night-02.mp3', duration: 157.63 },
+      { title: '静かな寺 — Shizuka na Tera', file: 'journey-through-the-night-03.mp3', duration: 197.18 },
+      { title: '夜明けの電車 — Yoake no Densha', file: 'journey-through-the-night-04.mp3', duration: 192 },
+    ],
+  },
 ]
 
 export const trackById = (id: string | null | undefined) => TRACKS.find((t) => t.id === id) ?? null

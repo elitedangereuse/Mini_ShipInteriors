@@ -60,7 +60,7 @@ Mini Interior est un POC : un vaisseau sur trois ponts, vu de dessus en isométr
 - **Un vaisseau d'un seul tenant** : les ponts reposent sur une coque (tôles, feux de navigation, tuyères), et le système où l'on se trouve (étoile, planètes, station, trou noir…) se voit par les verrières du poste de pilotage.
 - **Arcade** : cinq bornes se jouent pour de vrai, Cargaison (un Tetris de conteneurs), Viper (un Snake), Astéroïdes, Thargoid Invaders et Ruelle Fighter II (combat solo ou duel en ligne), avec le tableau des meilleurs scores gardé par le site.
 - **Zone thargoïde** : un jeu d'horreur en équipe (un à quatre). Depuis le lobby de la cale, on part récupérer des colis dans une baie de stockage infestée, plongée dans le noir, où rôdent des Thargoïdes ; casiers pour se cacher, fusées pour les attirer ailleurs, caméras pour suivre son équipe après s'être fait prendre, crédits et classement des victoires.
-- **Jukebox** : neuf morceaux libres de droits, que tout le pont (ou toute la cabine) entend ensemble ; la piste de danse suit leur tempo quand il est établi, sinon celui de la soirée.
+- **Jukebox** : neuf morceaux libres de droits et quatre albums de Ben Carter Jr, que tout le pont (ou toute la cabine) entend ensemble ; la piste de danse suit leur tempo quand il est établi, sinon celui de la soirée.
 - **Mode photo** : la scène sans l'interface, jusqu'en 4K, à télécharger.
 - **Crédits** : comme dans Elite, le CR débloque les meubles des quartiers et les apparences du Holo-Me. Un meuble débloqué peut être posé autant de fois que souhaité. On gagne des crédits à bord : un revenu passif, lent, les tâches et les records aux bornes d'arcade. Le site tient les comptes.
 - **Tâches de bord** : ordures, flaques, plantes à arroser, pannes, fuites, brèches dans la coque… douze sortes de petites tâches apparaissent un peu partout, les mêmes pour tous, et chacun peut les régler : une tâche réglée ne disparaît que pour celui qui l'a réglée.
@@ -346,7 +346,7 @@ Un jeu d'horreur, en solo ou jusqu'à quatre : une baie de stockage infestée, p
   <img src="docs/images/jukebox.jpg" alt="Le panneau du jukebox : les morceaux, leur artiste, leur durée et leur ambiance" width="100%">
 </p>
 
-Le jukebox propose neuf morceaux libres de droits : celui du mess, au pont principal, celui de Chez Jacques, à la cale, et celui qu'on pose dans ses quartiers. On choisit au clavier (`↑` `↓`, `Entrée`) ou à la souris ; un morceau fini, le suivant enchaîne. Le son est spatialisé, et ne s'entend que sur le pont du jukebox. Le relais garde le morceau en cours, et depuis quand il joue, pour le pont principal, pour la cale et pour chaque instance des quartiers : ceux qui arrivent l'entendent au même endroit que les autres (chacun rattrape le temps de chargement du morceau), et la liste enchaîne à la même heure chez tous. Après une coupure, on retrouve le morceau du relais, ou son silence ; un hôte reconnecté lui rend celui de ses quartiers.
+Le jukebox propose neuf morceaux libres de droits et quatre albums : celui du mess, au pont principal, celui de Chez Jacques, à la cale, et celui qu'on pose dans ses quartiers. On choisit au clavier (`↑` `↓`, `Entrée`) ou à la souris ; un morceau fini, le suivant enchaîne. Le son est spatialisé, et ne s'entend que sur le pont du jukebox. Le relais garde le morceau en cours, et depuis quand il joue, pour le pont principal, pour la cale et pour chaque instance des quartiers : ceux qui arrivent l'entendent au même endroit que les autres (chacun rattrape le temps de chargement du morceau), et la liste enchaîne à la même heure chez tous. Après une coupure, on retrouve le morceau du relais, ou son silence ; un hôte reconnecté lui rend celui de ses quartiers.
 
 | Morceau | Artiste | Style | Licence |
 |---|---|---|---|
@@ -360,7 +360,18 @@ Le jukebox propose neuf morceaux libres de droits : celui du mess, au pont princ
 | All The Fight Left! | HoliznaCC0 | synthwave cinématique | CC0 |
 | Synesthesia | Zane Little Music | synthé pétillant et étrange | CC0 |
 
-Les MP3 (environ 24 Mo en tout, normalisés autour de -16 LUFS) ne sont chargés qu'à la demande. Leurs sources, la preuve de chaque licence et les montages sont dans `public/assets/music/CREDITS.txt`. Les platines, elles, gardent leurs quelques mesures de disco synthétisées.
+Les albums de Ben Carter Jr, créations de l'équipe, ont chacun leur pochette. On ouvre un album pour choisir le titre de départ ; ses titres s'enchaînent dans l'ordre (ou dans l'ordre aléatoire partagé), puis la liste passe au morceau suivant du catalogue.
+
+| Album | Style | Titres | Durée |
+|---|---|---|---|
+| Dangerous Spaces | ambient | Infinite Drift · Orbit of Glass · And beyond · H.O.P.E. | 18:43 |
+| The End of Everything | ambient | Abyssal Silence · Alone · No Safety · The End | 18:27 |
+| Starlight Memories | synthwave | Liftoff · Zero Gravity · Unknown Worlds · Infinite | 14:48 |
+| Journey Through the Night (夜の旅) | lo-fi hip-hop | 雨の夜 — Ame no Yoru · ネオンの街 — Neon no Machi · 静かな寺 — Shizuka na Tera · 夜明けの電車 — Yoake no Densha | 12:16 |
+
+Starlight Memories et Journey Through the Night ont été composés avec Suno, sous un abonnement payant qui en laisse la propriété à leur auteur.
+
+Les MP3 (environ 24 Mo pour les morceaux libres, normalisés autour de -16 LUFS, et 90 Mo pour les albums) ne sont chargés qu'à la demande. Leurs sources, la preuve de chaque licence et les montages sont dans `public/assets/music/CREDITS.txt`. Les platines, elles, gardent leurs quelques mesures de disco synthétisées.
 
 ## Mode photo
 
@@ -713,7 +724,7 @@ Modèles et sons par [Kenney](https://www.kenney.nl) :
 - [Space Kit](https://kenney.nl/assets/space-kit) — `public/assets/space/` (fûts, générateurs, ossements, cristaux, tuyaux ; et toute la base au sol : terrain, pistes, hangars, dômes, fusée, vaisseaux, rochers)
 - [Impact Sounds](https://kenney.nl/assets/impact-sounds), [Sci-fi Sounds](https://kenney.nl/assets/sci-fi-sounds), [Interface Sounds](https://kenney.nl/assets/interface-sounds) — `public/assets/sounds/`
 
-Musiques du jukebox, `public/assets/music/` (détail dans `CREDITS.txt`) : Le Beau Danube bleu par l'[U.S. Marine Band](https://commons.wikimedia.org/wiki/File:%22An_der_sch%C3%B6nen,_blauen_Donau%22_performed_by_the_U.S._Marine_Band.flac) (domaine public) ; en CC0 sur OpenGameArt, [Fupi](https://opengameart.org/content/funky-disco-beats-to-boogiewoogie-to), [HoliznaCC0](https://opengameart.org/content/retro-wave-collection) ([Chills](https://opengameart.org/content/chills), [All The Fight Left!](https://opengameart.org/content/all-the-fight-left)), [congusbongus](https://opengameart.org/content/ganymede) ([Two Left Socks](https://opengameart.org/content/two-left-socks)) et [Zane Little Music](https://opengameart.org/content/interstellar-fleet-1) ([Synesthesia](https://opengameart.org/content/synesthesia)).
+Musiques du jukebox, `public/assets/music/` (détail dans `CREDITS.txt`) : Le Beau Danube bleu par l'[U.S. Marine Band](https://commons.wikimedia.org/wiki/File:%22An_der_sch%C3%B6nen,_blauen_Donau%22_performed_by_the_U.S._Marine_Band.flac) (domaine public) ; en CC0 sur OpenGameArt, [Fupi](https://opengameart.org/content/funky-disco-beats-to-boogiewoogie-to), [HoliznaCC0](https://opengameart.org/content/retro-wave-collection) ([Chills](https://opengameart.org/content/chills), [All The Fight Left!](https://opengameart.org/content/all-the-fight-left)), [congusbongus](https://opengameart.org/content/ganymede) ([Two Left Socks](https://opengameart.org/content/two-left-socks)) et [Zane Little Music](https://opengameart.org/content/interstellar-fleet-1) ([Synesthesia](https://opengameart.org/content/synesthesia)). Les quatre albums de Ben Carter Jr sont des créations de l'équipe (Starlight Memories et Journey Through the Night, composés avec Suno).
 
 Sprites de Ruelle Fighter II : **Fantasy Martial Characters 2**, par [LuizMelo](https://luizmelo.itch.io/fantasy-martial-characters-2), sous **CC0 1.0**. Le pack a été acheté pour soutenir l’auteur. La licence originale est conservée avec les atlas ; les dessins ne sont pas repeints.
 
