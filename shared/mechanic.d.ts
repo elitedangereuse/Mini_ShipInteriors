@@ -9,6 +9,16 @@ export declare const MECH_SPEED: number
 export declare const MECH_HOLD: number
 /** Une révision en cours le retient ce temps-là (secondes). */
 export declare const MECH_HELP: number
+/** Le siège du pilote du Krait, sur le pont. */
+export declare const KRAIT_COCKPIT: { x: number; z: number }
+/** Les réacteurs se coupent d'eux-mêmes au bout de ce temps (secondes). */
+export declare const KRAIT_BURN: number
+/** Réacteurs coupés, Nico souffle ce temps-là (secondes) avant de reprendre sa tournée. */
+export declare const MECH_RELIEF: number
+/** Pas de course du mécano quand il panique (facteur de son pas). */
+export declare const MECH_RUSH: number
+/** Où il court quand les réacteurs démarrent : au pied de l'escabeau, face au cockpit. */
+export declare const MECH_PANIC: { x: number; z: number; yaw: number }
 /** Où il attend son aide pendant une révision : devant le nez du Krait. */
 export declare const MECH_WAIT: { x: number; z: number; yaw: number }
 
@@ -47,11 +57,15 @@ export declare const MECH_SNAP: number
 export declare function mechStep(from: { x: number; z: number }, goal: { x: number; z: number }, max: number): { x: number; z: number; heading: number | null; moved: number; left: number }
 /** Le mécano à l'instant `t` de sa tournée (secondes). */
 export declare function mechAt(t: number): MechPose
-/** Temps de retour du nez du Krait à sa place dans la tournée, à l'instant `t` (secondes). */
-export declare function mechReturn(t: number): number
+/** Temps de retour de `from` (le nez du Krait par défaut) à sa place dans la tournée, à l'instant `t` (secondes). */
+export declare function mechReturn(t: number, from?: { x: number; z: number }): number
 /** Instant de la tournée (secondes) à l'heure `now` (ms). */
 export declare function mechTime(clock: MechClock, now: number): number
 /** On lui parle à l'heure `now` (ms) : la tournée s'arrête pour `seconds`. */
 export declare function holdMech(clock: MechClock, now: number, seconds?: number): MechClock
 /** Les révisions en cours finissent à `until` (ms, 0 : plus aucune) : la tournée reste figée jusque-là, plus le retour. */
 export declare function helpMech(clock: MechClock, now: number, until: number): MechClock
+/** Les réacteurs tournent jusqu'à `until` (ms, 0 : ils viennent de s'arrêter) : la tournée reste figée jusque-là, plus souffler et revenir. */
+export declare function panicMech(clock: MechClock, now: number, until: number): MechClock
+/** Un joueur est-il installé aux commandes du Krait ? */
+export declare function inCockpit(p: { x: number; z: number; pose?: string | null }): boolean

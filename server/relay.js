@@ -30,7 +30,9 @@
 // Hangar : Nico, le mécano, fait la tournée du hangar de la cale autour du Krait (cf.
 // shared/mechanic.js), sur une horloge que le relais tient de même. Un joueur qui l'aide (une
 // révision du Krait) l'attire devant le nez du vaisseau pour tout le bord, tant qu'il travaille
-// (chaque étape relance l'attente), puis le mécano reprend sa tournée.
+// (chaque étape relance l'attente), puis le mécano reprend sa tournée. Un joueur aux commandes
+// du Krait peut mettre les réacteurs en route (quelques secondes au plus) : Nico panique, pour tout
+// le bord, au pied de l'escabeau ; l'état de Nico dit aussi depuis quand ça tourne, et qui pilote.
 //
 // Quartiers : chaque joueur a sa propre instance des quartiers du commandant (`cabin` : l'id du
 // joueur chez qui il se trouve, le sien par défaut). Un CMDR vérifié envoie l'aménagement des
@@ -59,7 +61,9 @@ import { CHEF_COOK, CHEF_LEVEL, CHEF_PERIOD, CHEF_ROOM, CHEF_WAIT, chefAt, chefT
 import {
   NURSE_BEDS, NURSE_CARE, NURSE_CARE_MIN, NURSE_LEVEL, NURSE_PATCH, NURSE_PERIOD, NURSE_ROOM, bedOf, careNurse, holdNurse, nurseAt, nurseTime,
 } from '../shared/nurse.js'
-import { MECH_HELP, MECH_LEVEL, MECH_PERIOD, MECH_ROOM, MECH_WAIT, helpMech, holdMech, mechAt, mechTime } from '../shared/mechanic.js'
+import {
+  KRAIT_BURN, MECH_HELP, MECH_LEVEL, MECH_PANIC, MECH_PERIOD, MECH_ROOM, MECH_WAIT, helpMech, holdMech, inCockpit, mechAt, mechTime, panicMech,
+} from '../shared/mechanic.js'
 import { HOME_SYSTEM, JUMP_CHARGE, JUMP_TRAVEL, PILOT_SEAT, nextSystem } from '../shared/systems.js'
 import { ZONE_LEVEL } from '../shared/salvage.js'
 
@@ -267,6 +271,8 @@ export function attachRelay(
   let mech = { tau: Math.random() * MECH_PERIOD, at: Date.now(), holdUntil: 0 }
   let mechFace = null
   const helpers = new Map()
+  /** Réacteurs du Krait : qui les a mis en route (id du joueur), et jusqu'à quand ils tournent (ms). */
+  let burn = { by: 0, until: 0 }
   /** Fin de la dernière révision en cours (ms), 0 s'il n'y en a plus. */
   const helpUntil = (now = Date.now()) => {
     let until = 0
@@ -279,10 +285,14 @@ export function attachRelay(
   /** Où en est le mécano : instant de la tournée (s), arrêt restant (s), révision en cours (s), et vers qui il regarde. */
   const mechState = (now = Date.now()) => {
     const help = helpUntil(now)
+    const panic = Math.max(0, burn.until - now) / 1000
     return {
       tau: mechTime(mech, now),
       hold: Math.max(0, mech.holdUntil - now) / 1000,
       help: Math.max(0, help - now) / 1000,
+      // Réacteurs en route : secondes restantes, et le pilote.
+      panic,
+      ...(panic > 0 ? { pilot: burn.by } : {}),
       ...(mechFace && mech.holdUntil > now ? { face: mechFace } : {}),
     }
   }
@@ -295,7 +305,25 @@ export function attachRelay(
       helpers.set(player.id, now + MECH_HELP * 1000)
       mechFace = { x: player.x, z: player.z }
     } else if (!helpers.delete(player.id)) return false
-    mech = helpMech(mech, now, helpUntil(now))
+    // Pendant que les réacteurs tournent, la panique passe avant la révision.
+    mech = burn.until > now ? panicMech(mech, now, burn.until) : helpMech(mech, now, helpUntil(now))
+    return true
+  }
+  /**
+   * Un pilote met les réacteurs du Krait en route (`on`), ou les coupe (le sien seulement), ou s'en
+   * va : Nico panique au pied de l'escabeau, ou souffle et repart. Rend false si rien n'a changé.
+   */
+  const setBurn = (player, on, now = Date.now()) => {
+    if (on) {
+      if (burn.until > now) return false
+      burn = { by: player.id, until: now + KRAIT_BURN * 1000 }
+      mechFace = { x: MECH_PANIC.x, z: MECH_PANIC.z }
+      mech = panicMech(mech, now, burn.until)
+      return true
+    }
+    if (burn.by !== player.id || burn.until <= now) return false
+    burn = { by: 0, until: 0 }
+    mech = helpUntil(now) ? helpMech(mech, now, helpUntil(now)) : panicMech(mech, now, 0)
     return true
   }
   /** Ce que joue le jukebox d'une instance, pour un joueur qui y arrive (track null : il se tait). */
@@ -684,8 +712,8 @@ export function attachRelay(
     socket.on('mech:talk', () => {
       if (mechBudget < 1) return
       const now = Date.now()
-      const at = helpUntil(now) ? MECH_WAIT : mechAt(mechTime(mech, now))
-      if (!reaches(player, MECH_LEVEL, at) && !reaches(player, MECH_LEVEL, MECH_WAIT)) return
+      const at = burn.until > now ? MECH_PANIC : helpUntil(now) ? MECH_WAIT : mechAt(mechTime(mech, now))
+      if (!reaches(player, MECH_LEVEL, at) && !reaches(player, MECH_LEVEL, MECH_WAIT) && !reaches(player, MECH_LEVEL, MECH_PANIC)) return
       mechBudget--
       mech = holdMech(mech, now)
       mechFace = { x: player.x, z: player.z }
@@ -701,6 +729,17 @@ export function attachRelay(
         mechBudget--
       }
       if (setHelp(player, on)) io.emit('mechanic', { id: player.id, ...mechState() })
+    })
+
+    // Réacteurs du Krait : on les met en route installé aux commandes (dans la cale), on les coupe
+    // si c'est soi qui les a lancés ; tout le bord voit Nico paniquer.
+    socket.on('krait:engines', (raw) => {
+      const on = obj(raw).on === true
+      if (on) {
+        if (mechBudget < 1 || player.level !== MECH_LEVEL || !inCockpit(player)) return
+        mechBudget--
+      }
+      if (setBurn(player, on)) io.emit('mechanic', { id: player.id, ...mechState() })
     })
 
     // Saut FSD : installé dans le siège du pilote, et pas pendant un autre saut. Tout le bord le vit.
@@ -783,8 +822,9 @@ export function attachRelay(
       music.delete(player.id)
       // Son commis parti, le chef reprend sa tournée.
       if (setCook(player, false)) socket.broadcast.emit('chef', { id: player.id, ...chefState() })
-      // Son aide parti, le mécano reprend sa tournée.
-      if (setHelp(player, false)) socket.broadcast.emit('mechanic', { id: player.id, ...mechState() })
+      // Son aide parti, ou son pilote (les réacteurs se coupent), le mécano reprend sa tournée.
+      const helped = setHelp(player, false)
+      if (setBurn(player, false) || helped) socket.broadcast.emit('mechanic', { id: player.id, ...mechState() })
       // Son patient parti, l'infirmière reprend sa tournée ; son pansement part avec lui.
       const hadPatch = patched.delete(player.id)
       if (endCare(player, false) || hadPatch) socket.broadcast.emit('nurse', { id: player.id, ...nurseState() })

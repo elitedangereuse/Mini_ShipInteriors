@@ -11,7 +11,7 @@ import { attachRelay, WS_PATH } from './relay.js'
 import { PILOT_SEAT, SYSTEM_IDS } from '../shared/systems.js'
 import { PATROL_HOLD, PATROL_LEVEL, patrolAt } from '../shared/patrol.js'
 import { CHEF_COOK, CHEF_HOLD, CHEF_LEVEL, chefAt } from '../shared/chef.js'
-import { MECH_HELP, MECH_HOLD, MECH_LEVEL, mechAt } from '../shared/mechanic.js'
+import { KRAIT_BURN, KRAIT_COCKPIT, MECH_HELP, MECH_HOLD, MECH_LEVEL, mechAt } from '../shared/mechanic.js'
 import { NURSE_BEDS, NURSE_CARE, NURSE_CARE_MIN, NURSE_HOLD, NURSE_LEVEL, NURSE_PATCH, nurseAt } from '../shared/nurse.js'
 
 /** Faux site : reconnaît deux cookies, comme outils/mini-shipinteriors-cmdr.php. */
@@ -567,6 +567,44 @@ describe('mécano du hangar', () => {
     await next(crew, 'mechanic', (m) => m.help > 0)
     const left = next(crew, 'mechanic', (m) => m.help === 0)
     helper.disconnect()
+    await left
+  })
+})
+
+describe('réacteurs du Krait', () => {
+  test('aux commandes, on met les réacteurs en route : Nico panique pour tout le bord, jusqu\'à ce que le pilote coupe ou s\'en aille', async () => {
+    const pilot = client({ auth: { name: 'CMDR Casse-cou' } })
+    const crew = client({ auth: { name: 'CMDR Témoin' } })
+    await welcome(pilot)
+    assert.equal((await welcome(crew)).mechanic.panic, 0)
+    const seated = { x: KRAIT_COCKPIT.x, z: KRAIT_COCKPIT.z, yaw: Math.PI / 2, level: MECH_LEVEL, anim: 'idle', pose: 'pilot', py: 0.64 }
+    // Debout à côté du Krait, ou assis ailleurs : rien.
+    pilot.emit('state', { ...seated, pose: undefined })
+    pilot.emit('krait:engines', { on: true })
+    crew.emit('state', { ...seated, x: 20, z: 5 })
+    crew.emit('krait:engines', { on: true })
+    assert.equal(await receives(crew, 'mechanic', 150), false)
+    // Aux commandes : les réacteurs tournent, pour tous, avec le pilote.
+    pilot.emit('state', seated)
+    const started = next(crew, 'mechanic', (m) => m.panic > 0)
+    pilot.emit('krait:engines', { on: true })
+    const burn = await started
+    assert.ok(burn.panic > KRAIT_BURN - 1 && burn.panic <= KRAIT_BURN)
+    assert.equal(burn.pilot, (await welcome(client({ auth: { name: 'CMDR Curieux' } }))).players.find((p) => p.name === 'CMDR Casse-cou').id)
+    assert.ok(burn.hold > burn.panic)
+    // Un autre ne coupe pas les réacteurs du pilote.
+    crew.emit('krait:engines', { on: false })
+    assert.equal(await receives(crew, 'mechanic', 150), false)
+    // Le pilote coupe : plus de réacteurs, Nico souffle puis revient.
+    const stopped = next(crew, 'mechanic', (m) => m.panic === 0)
+    pilot.emit('krait:engines', { on: false })
+    const calm = await stopped
+    assert.ok(calm.hold > 0 && calm.hold < 30)
+    // Il relance, puis s'en va sans couper : les réacteurs s'arrêtent avec lui.
+    pilot.emit('krait:engines', { on: true })
+    await next(crew, 'mechanic', (m) => m.panic > 0)
+    const left = next(crew, 'mechanic', (m) => m.panic === 0)
+    pilot.disconnect()
     await left
   })
 })

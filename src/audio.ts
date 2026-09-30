@@ -761,6 +761,57 @@ export class Sound {
   }
 
   /**
+   * Réacteurs d'un vaisseau qui tournent au point fixe : un sifflement de turbine qui monte, un
+   * grondement de souffle et une basse, en fondu. Rend de quoi les couper (ils retombent en 1,5 s).
+   */
+  thrusters(pos: THREE.Vector3): { stop: () => void } | null {
+    if (!this.ready) return null
+    const ctx = this.ctx
+    const t0 = ctx.currentTime + 0.02
+    const master = ctx.createGain()
+    master.gain.setValueAtTime(0, t0)
+    master.gain.linearRampToValueAtTime(1, t0 + 1.2)
+    master.connect(this.output(pos, { volume: 0.32, ref: 3, rolloff: 1 }).input)
+    const roar = ctx.createBufferSource()
+    roar.buffer = this.whiteNoise
+    roar.loop = true
+    const lp = ctx.createBiquadFilter()
+    lp.type = 'lowpass'
+    lp.frequency.setValueAtTime(180, t0)
+    lp.frequency.linearRampToValueAtTime(760, t0 + 1.6)
+    roar.connect(lp).connect(master)
+    const whine = ctx.createOscillator()
+    whine.type = 'sawtooth'
+    whine.frequency.setValueAtTime(160, t0)
+    whine.frequency.exponentialRampToValueAtTime(880, t0 + 2.2)
+    const bp = ctx.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.frequency.value = 1300
+    bp.Q.value = 2
+    const wg = ctx.createGain()
+    wg.gain.value = 0.1
+    whine.connect(bp).connect(wg).connect(master)
+    const sub = ctx.createOscillator()
+    sub.frequency.value = 46
+    const sg = ctx.createGain()
+    sg.gain.value = 0.45
+    sub.connect(sg).connect(master)
+    for (const s of [roar, whine, sub]) s.start(t0)
+    return {
+      stop: () => {
+        const t = ctx.currentTime
+        master.gain.cancelScheduledValues(t)
+        master.gain.setValueAtTime(master.gain.value, t)
+        master.gain.linearRampToValueAtTime(0, t + 1.5)
+        whine.frequency.cancelScheduledValues(t)
+        whine.frequency.setValueAtTime(whine.frequency.value, t)
+        whine.frequency.exponentialRampToValueAtTime(110, t + 1.5)
+        for (const s of [roar, whine, sub]) s.stop(t + 1.6)
+      },
+    }
+  }
+
+  /**
    * Crédits encaissés (non spatialisé) : le cliquetis d'une caisse enregistreuse, puis deux
    * notes de clochette qui montent (trois pour une grosse somme).
    */
