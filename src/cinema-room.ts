@@ -94,6 +94,13 @@ export class CinemaRoom {
   private readonly topLeft = new THREE.Vector3()
   private readonly topRight = new THREE.Vector3()
   private readonly bottomLeft = new THREE.Vector3()
+  private readonly bottomRight = new THREE.Vector3()
+  private readonly corner = new THREE.Vector4()
+  private readonly toClip = new THREE.Matrix4()
+  private readonly toScreen = new THREE.Matrix4()
+  private readonly toCanvas = new THREE.Matrix4()
+  private readonly frustum = new THREE.Frustum()
+  private readonly bounds = new THREE.Box3()
   private youtubePlayer: YouTubePlayer | null = null
   private twitchPlayer: TwitchPlayer | null = null
   private playerToken = 0
@@ -515,29 +522,58 @@ export class CinemaRoom {
     }
     const { width, height, centerY, depth } = CINEMA_SCREEN
     const screenZ = z + depth
-    if (camera.position.z <= screenZ) {
+    // En perspective (vue FPS), le lecteur HTML passe par-dessus tout le canvas : hors de la salle,
+    // les murs ne le cacheraient pas. La toile 3D (affiche de la séance) prend alors le relais.
+    const perspective = (camera as THREE.PerspectiveCamera).isPerspectiveCamera === true
+    if (camera.position.z <= screenZ || (perspective && !inCinemaRoom)) {
       this.stage.hidden = true
       this.volumeControl.hidden = true
       return
     }
-    const point = (v: THREE.Vector3) => ({ x: (v.x + 1) * innerWidth / 2, y: (1 - v.y) * innerHeight / 2 })
-    const a = point(this.topLeft.set(x - width / 2, y + centerY + height / 2, screenZ).project(camera))
-    const b = point(this.topRight.set(x + width / 2, y + centerY + height / 2, screenZ).project(camera))
-    const c = point(this.bottomLeft.set(x - width / 2, y + centerY - height / 2, screenZ).project(camera))
-    const w = Math.hypot(b.x - a.x, b.y - a.y)
-    const h = Math.hypot(c.x - a.x, c.y - a.y)
-    if (w < 30 || h < 12 || Math.max(a.x, b.x, c.x) < 0 || Math.min(a.x, b.x, c.x) > innerWidth
-      || Math.max(a.y, b.y, c.y) < 0 || Math.min(a.y, b.y, c.y) > innerHeight) {
+    const tl = this.topLeft.set(x - width / 2, y + centerY + height / 2, screenZ)
+    const tr = this.topRight.set(x + width / 2, y + centerY + height / 2, screenZ)
+    const bl = this.bottomLeft.set(x - width / 2, y + centerY - height / 2, screenZ)
+    const br = this.bottomRight.set(x + width / 2, y + centerY - height / 2, screenZ)
+    const clip = this.toClip.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
+    if (!this.frustum.setFromProjectionMatrix(clip).intersectsBox(this.bounds.setFromPoints([tl, tr, bl, br]))) {
       this.stage.hidden = true
       this.volumeControl.hidden = true
       return
     }
+    // Coin à l'écran, ou null s'il est derrière l'œil (sa projection 2D n'a alors plus de sens).
+    const point = (v: THREE.Vector3) => {
+      const p = this.corner.set(v.x, v.y, v.z, 1).applyMatrix4(clip)
+      return p.w > 1e-4 ? { x: (p.x / p.w + 1) * innerWidth / 2, y: (1 - p.y / p.w) * innerHeight / 2 } : null
+    }
+    const a = point(tl), b = point(tr), c = point(bl), d = point(br)
+    // Vu de trop loin pour y cliquer : la toile 3D suffit.
+    if (a && b && c && d && Math.max(Math.hypot(b.x - a.x, b.y - a.y), Math.hypot(d.x - c.x, d.y - c.y)) < 30
+      && Math.max(Math.hypot(c.x - a.x, c.y - a.y), Math.hypot(d.x - b.x, d.y - b.y)) < 12) {
+      this.stage.hidden = true
+      this.volumeControl.hidden = true
+      return
+    }
+    // Pixel du lecteur -> point de la toile -> caméra -> écran, en coordonnées homogènes : le navigateur
+    // fait lui-même la division perspective (et coupe ce qui passe derrière l'œil), comme le rendu 3D.
+    // L'ancienne matrix() affine, tirée de 3 coins projetés, ne tombait juste qu'en vue iso orthographique.
+    const film = this.toCanvas.set(
+      width / FILM_W, 0, 0, tl.x,
+      0, -height / FILM_H, 0, tl.y,
+      0, 0, 1, tl.z,
+      0, 0, 0, 1)
+    const m = this.toScreen.set(
+      innerWidth / 2, 0, 0, innerWidth / 2,
+      0, -innerHeight / 2, 0, innerHeight / 2,
+      0, 0, 1, 0,
+      0, 0, 0, 1).multiply(clip).multiply(film).elements
     this.stage.hidden = false
     this.stage.style.pointerEvents = inCinemaRoom ? 'auto' : 'none'
-    this.stage.style.transform = `matrix(${(b.x - a.x) / FILM_W}, ${(b.y - a.y) / FILM_W}, ${(c.x - a.x) / FILM_H}, ${(c.y - a.y) / FILM_H}, ${a.x}, ${a.y})`
-    this.volumeControl.hidden = !inCinemaRoom || (this.state.live ? !this.twitchPlayer : !this.youtubePlayer)
-    this.volumeControl.style.left = `${c.x + (b.x - a.x) / 2}px`
-    this.volumeControl.style.top = `${c.y + (b.y - a.y) / 2 + 4}px`
+    this.stage.style.transform = `matrix3d(${m.map((n) => +n.toPrecision(10)).join(', ')})`
+    this.volumeControl.hidden = !inCinemaRoom || !c || !d || (this.state.live ? !this.twitchPlayer : !this.youtubePlayer)
+    if (c && d) {
+      this.volumeControl.style.left = `${(c.x + d.x) / 2}px`
+      this.volumeControl.style.top = `${Math.max(c.y, d.y) + 4}px`
+    }
   }
 
   private syncYouTube(force = false) {
