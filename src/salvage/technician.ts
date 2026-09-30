@@ -111,7 +111,7 @@ const NERVES = [
 /** Des conseils, entre deux frissons. */
 const TIPS = [
   tr('Conseil de sécurité numéro un : ne courez pas. Ils entendent tout. Conseil numéro deux : COUREZ s\'ils vous voient.', 'Safety tip number one: don\'t run. They hear everything. Tip number two: RUN if they see you.'),
-  tr('Les casiers ! Dans un casier, ils vous perdent. Sauf s\'ils vous ont vu entrer. Alors là… ne vous faites pas voir.', 'Lockers! In a locker, they lose you. Unless they saw you get in. Then… don\'t get seen.'),
+  tr('Les casiers ! Dans un casier, ils vous perdent. Sauf s\'ils vous soufflent dans le cou quand vous entrez. Prenez un peu d\'avance.', 'Lockers! In a locker, they lose you. Unless they\'re breathing down your neck when you get in. Get a head start.'),
   tr('Les fusées rouges, ils adorent. Lancez-en une loin de vous, et ils y courent comme des papillons. De gros papillons.', 'They love the red flares. Throw one away from you and they run to it like moths. Big moths.'),
   tr('Le sas d\'extraction, au sud : ils n\'y entrent pas. C\'est écrit dans le règlement. Eux, ils l\'ont lu.', 'The extraction airlock, to the south: they don\'t go in. It\'s in the rules. They read them.'),
   tr('Le petit bip de votre détecteur, c\'est un colis tout près. Le grand chant grave, c\'est eux. Ne confondez pas.', 'The little beep of your detector is a crate nearby. The deep singing is them. Don\'t mix them up.'),

@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createSalvage, inLobby } from './salvage.js'
-import { distances, findPath, inAirlock, lockerFront, lockerSpot, mulberry32, RULES, ZONE_LEVEL } from '../shared/salvage.js'
+import { distances, findPath, inAirlock, lockerFront, lockerSpot, mulberry32, RULES, walkable, ZONE_LEVEL } from '../shared/salvage.js'
 
 /** Relais simulé : joueurs, horloge, messages envoyés et gains demandés au site. */
 function harness(seed = 20260929) {
@@ -291,6 +291,34 @@ test('casier : un ennemi qui a vu le joueur s\'y glisser le fouille et l\'en tir
   const searched = h.last(1, 'salvage:event', (e) => e.kind === 'searched')
   assert.equal(searched?.found, true)
   assert.equal(game.members.get(1)?.status ?? 'captured', 'captured')
+})
+
+test('casier : un poursuivant resté à distance perd la trace du joueur caché', () => {
+  const h = harness()
+  const { members: [a] } = h.team(1)
+  const game = h.launch([a])
+  h.arrive(a)
+  const locker = game.zone.lockers[0]
+  h.walk(a, locker)
+  h.advance(RULES.grace)
+  game.monsters.length = 1
+  const mon = game.monsters[0]
+  // À quatre tuiles devant le casier (moins, si un obstacle l'impose), en vue, en pleine poursuite.
+  const front = lockerFront(locker)
+  const back = { x: -[0, 1, 0, -1][locker.dir], z: -[-1, 0, 1, 0][locker.dir] }
+  let spot = front
+  for (let k = 1; k <= 4; k++) {
+    const next = { x: front.x + back.x * k, z: front.z + back.z * k }
+    if (!walkable(game.zone, Math.round(next.x), Math.round(next.z))) break
+    spot = next
+  }
+  assert.ok(Math.hypot(spot.x - front.x, spot.z - front.z) > RULES.locker.betray, 'assez de place devant ce casier')
+  Object.assign(mon, { x: spot.x, z: spot.z, mode: 'chase', target: 1, memory: 4, path: [], lastSeen: { x: a.x, z: a.z } })
+  h.salvage.handle(a, 'salvage:hide', { locker: locker.id })
+  assert.equal(mon.search, null)
+  assert.notEqual(mon.mode, 'chase')
+  h.advance(10)
+  assert.equal(game.members.get(1).status, 'alive', 'le casier l\'a protégé')
 })
 
 test('fusée : les ennemis à portée y courent et ignorent les joueurs le temps qu\'elle brûle', () => {

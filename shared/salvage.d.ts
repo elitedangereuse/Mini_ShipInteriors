@@ -25,7 +25,7 @@ export declare const RULES: {
   hiddenVision: number
   stamina: { drain: number; carryDrain: number; walkRegen: number; idleRegen: number; recover: number }
   noise: { sprint: number; carrySprint: number; locker: number; drop: number; eject: number }
-  locker: { max: number; cooldown: number; enter: number }
+  locker: { max: number; cooldown: number; enter: number; betray: number }
   flare: { carry: number; burn: number; radius: number; range: number }
   monster: {
     patrol: number; investigate: number; chase: number; lured: number
@@ -84,6 +84,7 @@ export declare function walkable(zone: Zone, x: number, z: number): boolean
 export declare function inAirlock(zone: Zone, p: { x: number; z: number }): boolean
 export declare function distances(zone: Zone, sources: { x: number; z: number }[], options?: { monster?: boolean; max?: number }): Int16Array
 export declare function findPath(zone: Zone, from: { x: number; z: number }, to: { x: number; z: number }, options?: { monster?: boolean }): Tile[] | null
+export declare function sightOrigin(zone: Zone, p: { x: number; z: number }): { x: number; z: number }
 export declare function zoneSight(zone: Zone, from: { x: number; z: number }, to: { x: number; z: number }): boolean
 export declare function straightWalk(zone: Zone, from: { x: number; z: number }, to: { x: number; z: number }, radius?: number): boolean
 export declare function smoothPath(zone: Zone, from: { x: number; z: number }, tiles: Tile[]): Tile[]

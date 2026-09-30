@@ -10,7 +10,7 @@ import type { RemotePlayer } from '../remote'
 import type { Dialog } from '../ui'
 import { cargoCanister } from '../furniture'
 import {
-  BAY_BOOTH, generateZone, inAirlock, LOBBY_RETURN, lockerFront, lockerSpot, RULES, walkable, ZONE_LEVEL, zoneSight, type Zone,
+  BAY_BOOTH, generateZone, inAirlock, LOBBY_RETURN, sightOrigin, lockerFront, lockerSpot, RULES, walkable, ZONE_LEVEL, zoneSight, type Zone,
 } from '../../shared/salvage.js'
 import { FogOfWar } from './fog'
 import { ZoneItems } from './items'
@@ -380,6 +380,15 @@ export class SalvageClient {
     const [kit, techRig] = await Promise.all([loadZoneKit(), technicianRig()])
     const zone = generateZone(m.seed, { team: m.team, parcels: m.parcels, enemies: m.enemies })
     const deck = new Deck(zoneLevel(zone, kit))
+    // Une tuile bloquée l'est tout entière, comme pour le relais : on ne se glisse pas au ras d'un
+    // meuble plus petit que sa tuile (le relais refuserait la position, et la vue partirait de dedans).
+    for (let z = 0; z < zone.height; z++) {
+      for (let x = 0; x < zone.width; x++) {
+        const i = z * zone.width + x
+        if (zone.blocked[i] && zone.room[i] !== ' ' && !zone.booth[i]) deck.colliders.push({ minX: x - 0.5, maxX: x + 0.5, minZ: z - 0.5, maxZ: z + 0.5 })
+      }
+    }
+    deck.pathfinder.invalidate()
     // Gaspard, derrière la vitre du guichet ; on lui parle au comptoir.
     const technician = new Technician(techRig, BAY_BOOTH.technician, 0)
     deck.group.add(technician.root)
@@ -517,7 +526,7 @@ export class SalvageClient {
       this.host.dialog.show(tr('Pas de fusée. Il en traîne dans les couloirs.', 'No flares. Some lie around in the corridors.'))
       return this.sfx.click(false)
     }
-    const p = this.host.player.position
+    const p = sightOrigin(g.zone, this.host.player.position)
     let target: { x: number; z: number } | null = null
     const pointed = ahead ? null : this.host.pointed()
     if (pointed && Math.hypot(pointed.x - p.x, pointed.z - p.z) <= RULES.flare.range && walkable(g.zone, pointed.x, pointed.z) && !inAirlock(g.zone, pointed) && zoneSight(g.zone, p, pointed)) target = pointed
@@ -695,13 +704,12 @@ export class SalvageClient {
       box.union(mesh.geometry.boundingBox!.clone().applyMatrix4(mesh.matrixWorld).applyMatrix4(inv))
     })
     if (box.isEmpty()) box.set(new THREE.Vector3(-0.4, 0, -0.3), new THREE.Vector3(0.4, 0.9, 0.3))
-    const size = box.getSize(new THREE.Vector3())
-    // Debout dans le dos, comme un sac : les deux tiers de la hauteur du torse, et jamais plus
-    // de 0,3 de haut dans le monde (le torse des humains compte leur tête).
+    // Plaqué dans le dos, à sa taille réelle (celle du colis posé au sol), le bas au niveau des
+    // hanches : le porteur le sent passer.
     const world = torso.getWorldScale(new THREE.Vector3()).y || 1
-    const scale = Math.min(size.y * 0.66, 0.3 / world) / 0.34
+    const scale = 1 / world
     c.scale.setScalar(scale)
-    c.position.set((box.min.x + box.max.x) / 2, box.min.y + size.y * 0.1, box.min.z - 0.1 * scale)
+    c.position.set((box.min.x + box.max.x) / 2, box.min.y, box.min.z - 0.1 * scale)
     torso.add(c)
     g.carried.set(id, c)
   }
@@ -745,7 +753,7 @@ export class SalvageClient {
         const pos = e.locker !== undefined ? g.items.lockerPosition(e.locker) : null
         if (pos && this.hearing()) this.sfx.locker(pos, e.kind === 'eject')
         if (e.kind === 'eject' && e.id === self) this.host.dialog.show(tr('Impossible de rester plus longtemps : vous sortez du casier.', 'You can\'t stay any longer: you step out of the locker.'))
-        if (e.kind === 'hide' && e.id === self) this.host.dialog.show(tr(`Caché. ${RULES.locker.max} secondes au plus ; E pour sortir. S'il vous a vu entrer, il viendra fouiller.`, `Hidden. ${RULES.locker.max} seconds at most; E to get out. If it saw you get in, it will search.`))
+        if (e.kind === 'hide' && e.id === self) this.host.dialog.show(tr(`Caché. ${RULES.locker.max} secondes au plus ; E pour sortir. Il ne vous trouvera que s'il était juste derrière vous.`, `Hidden. ${RULES.locker.max} seconds at most; E to get out. It will only find you if it was right behind you.`))
         break
       }
       case 'search': {

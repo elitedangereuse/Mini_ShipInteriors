@@ -375,14 +375,22 @@ export function createSalvage({
         m.hiddenAt = now()
         m.x = spot.x
         m.z = spot.z
-        // Vu en train de s'y glisser : l'ennemi viendra fouiller ce casier.
+        // Le casier protège : seul un poursuivant tout près (il l'a vu s'y glisser sous son nez)
+        // viendra le fouiller. Les autres perdent sa trace et vont voir où il était, sans fouiller
+        // ce casier-là de sitôt.
         for (const mon of game.monsters) {
-          if (mon.mode === 'chase' && mon.target === m.id && (dist(mon, here) <= M.sense || zoneSight(zone, mon, here))) {
+          if (mon.mode !== 'chase' || mon.target !== m.id) continue
+          if (dist(mon, here) <= RULES.locker.betray && zoneSight(zone, mon, here)) {
             mon.search = locker.id
             mon.mode = 'investigate'
             mon.goal = lockerFront(locker)
             mon.path = []
             mon.target = null
+          } else {
+            mon.tried.set(locker.id, now() + SEARCH_AGAIN * 1000)
+            mon.mode = 'investigate'
+            mon.target = null
+            routeTo(game, mon, mon.lastSeen ?? here)
           }
         }
         noise(game, spot, RULES.noise.locker)

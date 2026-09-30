@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
-  BAY, BAY_BOOTH, distances, findPath, generateZone, inAirlock, lockerFront, lockerSpot, mulberry32, pickSpawns, RULES, salvageReward, smoothPath,
+  BAY, BAY_BOOTH, distances, sightOrigin, findPath, generateZone, inAirlock, lockerFront, lockerSpot, mulberry32, pickSpawns, RULES, salvageReward, smoothPath,
   straightWalk, walkable, zoneSight,
 } from '../shared/salvage.js'
 
@@ -192,4 +192,15 @@ test('récompense : plus de colis et plus d\'ennemis, plus de crédits', () => {
   assert.ok(RULES.monster.chase < RULES.sprint, 'sans colis, on le sème en courant')
   assert.ok(RULES.monster.chase < RULES.sprint * RULES.carry * 1.1, 'un porteur qui court le tient à distance, à peine')
   assert.ok(RULES.hiddenVision >= RULES.vision * 0.7, 'caché, on voit encore dehors')
+})
+
+test('au ras d\'un meuble, la vue part de la tuile libre voisine, jamais à travers une cloison', () => {
+  const zone = generateZone(1, { team: 1, parcels: 1, enemies: 1 })
+  // La fontaine de la salle de pause (14, 0) : sa tuile est bloquée ; derrière la cloison est, le local radio.
+  const o = sightOrigin(zone, { x: 14.2, z: 0.35 })
+  assert.ok(walkable(zone, Math.round(o.x), Math.round(o.z)))
+  assert.ok(Math.round(o.x) <= 14, 'pas dans le local radio')
+  assert.ok(zoneSight(zone, o, { x: 12, z: 0 }))
+  // Sur une tuile libre, rien ne change.
+  assert.deepEqual(sightOrigin(zone, { x: 12.3, z: 2.1 }), { x: 12.3, z: 2.1 })
 })

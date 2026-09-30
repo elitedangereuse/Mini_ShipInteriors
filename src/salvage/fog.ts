@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { zoneSight, type Zone } from '../../shared/salvage.js'
+import { sightOrigin, zoneSight, type Zone } from '../../shared/salvage.js'
 
 /*
  * Brouillard de guerre de la baie infestée : on ne voit que ce qui est autour de soi, et en vue
@@ -134,6 +134,8 @@ export class FogOfWar {
   update(viewer: { x: number; z: number }, radius: number, dt: number, instant = false) {
     const zone = this.zone
     if (!zone) return
+    // Au ras d'un meuble, on ne regarde pas depuis l'intérieur de sa tuile.
+    viewer = sightOrigin(zone, viewer)
     const moved = Math.hypot(viewer.x - this.last.x, viewer.z - this.last.z) > 0.03 || radius !== this.last.r
     if (moved) {
       const old = this.last

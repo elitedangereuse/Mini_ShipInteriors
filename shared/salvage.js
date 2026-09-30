@@ -38,7 +38,8 @@ export const RULES = {
   hiddenVision: 4.2,
   stamina: { drain: 0.13, carryDrain: 0.2, walkRegen: 0.15, idleRegen: 0.3, recover: 0.25 },
   noise: { sprint: 6, carrySprint: 7, locker: 3, drop: 5, eject: 4.5 },
-  locker: { max: 30, cooldown: 4, enter: 0.55 },
+  /** betray : un poursuivant plus près que ça quand on s'y glisse le fouille ; plus loin, il perd sa trace. */
+  locker: { max: 30, cooldown: 4, enter: 0.55, betray: 2 },
   flare: { carry: 2, burn: 15, radius: 12, range: 6.5 },
   monster: {
     patrol: 0.8, investigate: 1.2, chase: 2.0, lured: 1.6,
@@ -517,6 +518,30 @@ export function findPath(zone, from, to, options = {}) {
     if (i === start) break
   }
   return path.reverse()
+}
+
+/**
+ * D'où l'on regarde : `p`, ou, s'il déborde sur une tuile bloquée (au ras d'un meuble plus petit
+ * que sa tuile), le point le plus proche d'une tuile libre voisine ; sans quoi la ligne de vue
+ * partirait de l'intérieur de l'obstacle, et l'on ne verrait plus rien.
+ */
+export function sightOrigin(zone, p) {
+  const x = Math.round(p.x), z = Math.round(p.z)
+  if (walkable(zone, x, z)) return p
+  if (x < 0 || z < 0 || x >= zone.width || z >= zone.height) return p
+  // Une voisine du même côté des cloisons (arête ouverte), jamais à travers une cloison.
+  let best = null, bestD = Infinity
+  for (let dir = 0; dir < 4; dir++) {
+    const tx = x + DIRS[dir].dx, tz = z + DIRS[dir].dz
+    if (!zone.open[(z * zone.width + x) * 4 + dir] || !walkable(zone, tx, tz)) continue
+    const q = { x: Math.min(tx + 0.45, Math.max(tx - 0.45, p.x)), z: Math.min(tz + 0.45, Math.max(tz - 0.45, p.z)) }
+    const d = Math.hypot(q.x - p.x, q.z - p.z)
+    if (d < bestD) {
+      bestD = d
+      best = q
+    }
+  }
+  return best ?? p
 }
 
 /** Rien ne sépare `from` de `to` : ni mur, ni conteneur (un conteneur visé se voit lui-même). */
