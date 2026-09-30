@@ -1,0 +1,25 @@
+<svg width="256" height="512" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <defs>
+    <linearGradient gradientUnits="userSpaceOnUse" x1="-819.2" x2="819.2" spreadMethod="pad" gradientTransform="matrix(0.0750579833984375 0.2801361083984375 -0.27825927734375 0.074554443359375 128 256)" id="gradient0">
+      <stop offset="0" stop-color="#F1F3FA"/>
+      <stop offset="1" stop-color="#D8DDEC"/>
+    </linearGradient>
+    <radialGradient gradientUnits="userSpaceOnUse" r="819.2" cx="0" cy="0" spreadMethod="pad" gradientTransform="matrix(0.048248291015625 0 0 0.048248291015625 128 396.5)" id="gradient1">
+      <stop offset="0" stop-color="#393941"/>
+      <stop offset="1"/>
+    </radialGradient>
+    <linearGradient gradientUnits="userSpaceOnUse" x1="-819.2" x2="819.2" spreadMethod="pad" gradientTransform="matrix(0 -0.01953125 0.01953125 0 128 259)" id="gradient2">
+      <stop offset="0" stop-color="#C5CAD9"/>
+      <stop offset="1" stop-color="#A5ACBF"/>
+    </linearGradient>
+  </defs>
+  <g>
+    <path stroke="none" fill="#FFFFFF" d="M240 12 L16 12 Q12 12 12 16 L12 496 Q12 500 16 500 L240 500 Q244 500 244 496 L244 16 Q244 12 240 12 M0 496 L0 16 Q0 0 16 0 L240 0 Q256 0 256 16 L256 496 Q256 512 240 512 L16 512 Q0 512 0 496"/>
+    <path stroke="none" fill="#D8DDEC" d="M240 12 Q244 12 244 16 L244 496 Q244 500 240 500 L16 500 Q12 500 12 496 L12 16 Q12 12 16 12 L240 12 M20 20 L20 492 236 492 236 20 20 20"/>
+    <path stroke="none" fill="url(#gradient0)" d="M20 20 L236 20 236 492 20 492 20 20"/>
+    <path stroke="none" fill="url(#gradient1)" d="M103.1 385.8 L103.05 385.55 103 384 Q103 373.6 110.3 366.3 117.6 359 128 359 138.4 359 145.65 366.3 153 373.6 153 384 L152.95 385.55 152.95 385.85 152.95 386.1 Q152.25 395.1 145.65 401.65 138.4 409 128 409 117.6 409 110.3 401.65 103.65 394.95 103.1 385.85 L103.1 385.8"/>
+    <path stroke="none" fill="#FFFFFF" d="M103.1 385.8 L103.1 385.85 Q103.65 394.95 110.3 401.65 117.6 409 128 409 138.4 409 145.65 401.65 152.25 395.1 152.95 386.1 L153 388 152.95 389.55 152.95 389.85 Q152.35 399 145.65 405.65 138.4 413 128 413 117.6 413 110.3 405.65 103.65 398.95 103.1 389.85 L103.05 389.55 103 388 103.1 385.8"/>
+    <path stroke="none" fill="url(#gradient2)" d="M32 265.1 L32 247 Q32 245.35 33.2 244.2 34.35 243 36 243 L220 243 Q221.65 243 222.85 244.2 224 245.35 224 247 L224 265.1 Q223.95 266.7 222.85 267.85 221.65 269 220 269 L36 269 Q34.35 269 33.2 267.85 32.05 266.7 32 265.1"/>
+    <path stroke="none" fill="#FFFFFF" d="M32 265.1 Q32.05 266.7 33.2 267.85 34.35 269 36 269 L220 269 Q221.65 269 222.85 267.85 223.95 266.7 224 265.1 L224 267 Q224 268.65 222.85 269.85 221.65 271 220 271 L36 271 Q34.35 271 33.2 269.85 32 268.65 32 267 L32 265.1"/>
+  </g>
+</svg>
