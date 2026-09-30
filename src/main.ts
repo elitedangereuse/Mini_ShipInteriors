@@ -789,7 +789,8 @@ const hangar = new Hangar({
   mechanic,
   player,
   here: () => deck,
-  seat: () => seating.current,
+  // Installé seulement : pendant la montée des marches, on n'est pas encore aux commandes.
+  seat: () => (seating.pose ? seating.current : null),
   // Les autres joueurs assis aux commandes du Krait (la place de l'escabeau).
   pilots: () => {
     const cockpit = holdDeck.interactables.find((it) => it.furniture?.model === 'krait-ladder')?.seats?.(player.position)[0]

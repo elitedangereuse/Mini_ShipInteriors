@@ -1,7 +1,7 @@
 import type { StationModel } from './assets'
 import type { CustomModel } from './furniture'
 import { CINEMA_ROW_SEATS, CINEMA_SEAT_PITCH } from './furniture/cinema'
-import { KRAIT_LADDER_REACH, KRAIT_PILOT } from './furniture/hangar'
+import { KRAIT_CLIMB, KRAIT_LADDER_REACH, KRAIT_PILOT } from './furniture/hangar'
 import { tr } from './i18n'
 
 /*
@@ -29,6 +29,11 @@ export interface Seat {
   yaw: number | 'free' | 'both'
   /** Où l'on se tient avant de s'installer (repère du meuble) ; par défaut, 0,5 devant la place. */
   from?: [number, number]
+  /**
+   * Chemin d'accès (repère du meuble, [x, hauteur, z]) : on le parcourt à pied depuis l'abord avant
+   * de s'installer, et à l'envers en se relevant (les marches de l'escabeau du Krait, puis le nez).
+   */
+  via?: [number, number, number][]
 }
 
 const sit = (x: number, z: number, y: number, yaw: Seat['yaw'] = 0, from?: [number, number]): Seat => ({ pose: 'sit', x, z, y, yaw, from })
@@ -59,8 +64,9 @@ export const SEATS: Partial<Record<CustomModel | StationModel, Seat[]>> = {
   // l'accoudoir et le HOTAS) : le siège est reculé d'autant (cf. PILOT_SEAT).
   'pilot-seat': [{ pose: 'pilot', x: 0, z: 0.06, y: 0.3, yaw: 0, from: [0, 0.5] }],
   'crew-seat': [sit(0, 0.05, 0.3)],
-  // Le cockpit du Krait du hangar : on grimpe sur l'escabeau, puis on se glisse dans le siège, face au nez.
-  'krait-ladder': [{ pose: 'pilot', x: 0, z: KRAIT_LADDER_REACH, y: KRAIT_PILOT.y, yaw: Math.PI, from: [0, 0.2] }],
+  // Le cockpit du Krait du hangar : on monte les marches de l'escabeau (du bas, -z, vers la
+  // plateforme), on avance sur le nez du Krait, puis on se glisse dans le siège, face au nez.
+  'krait-ladder': [{ pose: 'pilot', x: 0, z: KRAIT_LADDER_REACH, y: KRAIT_PILOT.y, yaw: Math.PI, from: [0, -0.75], via: KRAIT_CLIMB }],
   'command-chair': [sit(0, 0.06, 0.36)],
   'cozy-bed': [lie(-0.27, 0.02, 0.32, [-0.95, 0.12]), lie(0.27, 0.02, 0.32, [0.95, 0.12])],
   'bunk-bed': [lie(0, 0.1, 0.27, [0.55, 0.2]), lie(0, 0.1, 0.71, [0.55, 0.2])],
@@ -148,6 +154,8 @@ export interface SeatSpot {
   yaw: number
   /** Où se tenir avant de s'installer, et où l'on se relève. */
   from: { x: number; z: number }
+  /** Chemin d'accès, dans le repère du pont (y : hauteur au-dessus du pont), cf. Seat.via. */
+  via?: { x: number; y: number; z: number }[]
 }
 
 /**
@@ -172,6 +180,7 @@ export function placeSeats(seats: Seat[], px: number, pz: number, rot: number, t
       yaw = rot + side
       from = { x: at.x + Math.sin(yaw) * 0.45, z: at.z + Math.cos(yaw) * 0.45 }
     }
-    return { pose: seat.pose, x: at.x, z: at.z, y: seat.y, yaw, from }
+    const via = seat.via?.map(([x, y, z]) => ({ ...world(x, z), y }))
+    return { pose: seat.pose, x: at.x, z: at.z, y: seat.y, yaw, from, ...(via ? { via } : {}) }
   })
 }

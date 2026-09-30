@@ -580,7 +580,8 @@ export const LEVELS: LevelDef[] = [
           ),
         ],
       },
-      { model: 'krait-ladder', x: 35.15, z: 5, rot: 3, solid: false },
+      // Solide : on ne le traverse pas, on monte ses marches pour aller au cockpit (cf. SEATS).
+      { model: 'krait-ladder', x: 35.15, z: 5, rot: 3 },
       { model: 'gear-chock', x: 30.45, z: 1.62, solid: false, label: 'port', interact: tr(
         'Les cales du train bâbord, peintes en jaune. Quelqu\'un a écrit dessus au feutre : « À RETIRER AVANT LE DÉCOLLAGE (OUI, TOI) ».',
         'The port gear chocks, painted yellow. Someone wrote on them in marker: “REMOVE BEFORE TAKE-OFF (YES, YOU)”.',

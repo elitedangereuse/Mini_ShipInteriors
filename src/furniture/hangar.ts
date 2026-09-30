@@ -106,6 +106,19 @@ export const KRAIT_PILOT = { z: 2.05, y: KRAIT_GEAR + 0.3 }
 export const KRAIT_LADDER_REACH = 1.7
 
 /**
+ * Chemin du cockpit, dans le repère de l'escabeau ([x, hauteur, z], le Krait vers +z) : le pied des
+ * marches, les cinq marches (le dessus de chacune, cf. kraitLadder), la plateforme, puis le nez du
+ * Krait, qui remonte vers la verrière (le dessus de la coque, cf. BODY). Le siège est au bout.
+ */
+export const KRAIT_CLIMB: [number, number, number][] = [
+  [0, 0, -0.6],
+  ...[0, 1, 2, 3, 4].map((i) => [0, 0.155 + i * 0.085, -0.42 + i * 0.12] as [number, number, number]),
+  [0, 0.57, 0.22],
+  [0, 0.62, 0.6],
+  [0, 0.74, 1.15],
+]
+
+/**
  * Puissance des propulseurs du Krait (0 : au repos ; 0,3 : quelqu'un est aux commandes, les
  * tuyères s'éveillent ; 1 : réacteurs en route, pleine poussée ; cf.
  * src/hangar.ts, qui la règle).
