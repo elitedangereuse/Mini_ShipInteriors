@@ -87,7 +87,7 @@
       <div class="top-left">
         <img class="site-logo" src="/logo-elite-dangereuse.svg" alt="Élite Dangereuse" width="200" height="64" />
         <div class="panel">
-          <div class="ship-name">Fleet Carrier · <span id="deck"></span></div>
+          <div class="ship-name"><span id="ship-where">Fleet Carrier</span> · <span id="deck"></span></div>
           <div id="room" class="room"></div>
           <div id="net" class="net"><i data-icon="user-solo"></i>Solo</div>
           <div id="identity" class="identity"></div>
@@ -239,6 +239,15 @@
     </div>
 
     <div id="lift-ride" aria-hidden="true"><div class="lift-ride-label"></div></div>
+    <!-- Voyage en Krait entre le hangar et la base au sol (src/base/flight.ts). -->
+    <div id="flight" role="status" hidden>
+      <div class="flight-caption">
+        <p class="flight-dir"></p>
+        <h2 class="flight-title"></h2>
+        <p class="flight-where"></p>
+      </div>
+      <p class="flight-altitude"><span></span> <b></b></p>
+    </div>
     <div id="fade"></div>
     <div id="flash"></div>
 

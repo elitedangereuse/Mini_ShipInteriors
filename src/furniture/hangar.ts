@@ -124,6 +124,11 @@ export const KRAIT_CLIMB: [number, number, number][] = [
  * src/hangar.ts, qui la règle).
  */
 export const kraitPower = { value: 0 }
+/**
+ * Le Krait de la base au sol (variante « base », cf. src/base/) : ses tuyères ont leur propre
+ * consigne (cf. src/base/client.ts), celle du hangar ne le réveille pas.
+ */
+export const baseKraitPower = { value: 0 }
 
 /**
  * Corps : un delta très plat, aussi large que long, le nez en pointe et les bouts d'ailes loin
@@ -178,7 +183,8 @@ const STERN = -2.98
  * bâbord, vert à tribord), gyrophare dorsal. Au repos, les tuyères couvent ; quelqu'un aux
  * commandes (cf. `kraitPower`), elles s'allument.
  */
-const krait: Builder = () => {
+const krait: Builder = ({ label }) => {
+  const source = label === 'base' ? baseKraitPower : kraitPower
   const g = new THREE.Group()
   const ship = new THREE.Group()
   ship.position.y = KRAIT_GEAR
@@ -296,7 +302,7 @@ const krait: Builder = () => {
     extent: new THREE.Box3(new THREE.Vector3(-3.02, 0, STERN - 0.05), new THREE.Vector3(3.02, 1.12, 3.2)),
     update: (t) => {
       // La puissance suit la consigne : les jets montent en un instant, et retombent aussi vite à l'arrêt.
-      power += (kraitPower.value - power) * (kraitPower.value > power ? 0.08 : 0.15)
+      power += (source.value - power) * (source.value > power ? 0.08 : 0.15)
       const idle = 0.12 + 0.05 * Math.sin(t * 1.3)
       const k = Math.max(idle, power)
       for (const m of cores) m.color.copy(dim).lerp(hot, k)

@@ -13,6 +13,7 @@ import { PATROL_HOLD, PATROL_LEVEL, patrolAt } from '../shared/patrol.js'
 import { CHEF_COOK, CHEF_HOLD, CHEF_LEVEL, chefAt } from '../shared/chef.js'
 import { KRAIT_BURN, KRAIT_COCKPIT, MECH_HELP, MECH_HOLD, MECH_LEVEL, mechAt } from '../shared/mechanic.js'
 import { NURSE_BEDS, NURSE_CARE, NURSE_CARE_MIN, NURSE_HOLD, NURSE_LEVEL, NURSE_PATCH, nurseAt } from '../shared/nurse.js'
+import { BASE_ARRIVAL, BASE_BURN, BASE_COCKPIT, BASE_LEVEL, CHIEF_HOLD, chiefAt } from '../shared/ground-base.js'
 
 /** Faux site : reconnaît deux cookies, comme outils/mini-shipinteriors-cmdr.php. */
 const ACCOUNTS = { 'jeton-adam': 'Adam Fauster', 'jeton-rackam': 'Rackam' }
@@ -606,6 +607,69 @@ describe('réacteurs du Krait', () => {
     const left = next(crew, 'mechanic', (m) => m.panic === 0)
     pilot.disconnect()
     await left
+  })
+})
+
+describe('base au sol', () => {
+  test('on se croise sur la base : sur son plateau seulement', async () => {
+    const visitor = client({ auth: { name: 'CMDR Arpenteur' } })
+    const crew = client({ auth: { name: 'CMDR Guetteur' } })
+    const w = await welcome(visitor)
+    await welcome(crew)
+    const moved = next(crew, 'state', (m) => m.id === w.id)
+    visitor.emit('state', { x: BASE_ARRIVAL.x, z: BASE_ARRIVAL.z, yaw: 0, level: BASE_LEVEL, anim: 'walk' })
+    const m = await moved
+    assert.equal(m.level, BASE_LEVEL)
+    // Dans le vide, au-delà de la falaise (le coin nord-ouest du plan est vide) : refusé.
+    visitor.emit('state', { x: 0, z: 0, yaw: 0, level: BASE_LEVEL, anim: 'walk' })
+    assert.equal(await receives(crew, 'state', 150, (s) => s.id === w.id), false)
+  })
+
+  test('Ada est la même pour tous ; lui parler, sur la base et à côté d\'elle, l\'arrête', async () => {
+    const visitor = client({ auth: { name: 'CMDR Bavard' } })
+    const crew = client({ auth: { name: 'CMDR Témoin de Bradbury' } })
+    const first = (await welcome(visitor)).chief
+    const seen = (await welcome(crew)).chief
+    assert.equal(first.burn, 0)
+    assert.ok(Math.abs(seen.tau - first.tau) < 0.5)
+    // Depuis les quartiers : rien.
+    visitor.emit('chief:talk')
+    assert.equal(await receives(crew, 'chief', 150), false)
+    // À côté d'elle, sur la base : elle s'arrête, face au joueur, pour tous.
+    const at = chiefAt(first.tau + 0.4)
+    visitor.emit('state', { x: at.x, z: at.z, yaw: 0, level: BASE_LEVEL, anim: 'idle' })
+    const talked = next(crew, 'chief')
+    visitor.emit('chief:talk')
+    const held = await talked
+    assert.ok(held.hold > CHIEF_HOLD - 0.5)
+    assert.deepEqual(held.face, { x: at.x, z: at.z })
+  })
+
+  test('aux commandes du Krait de la base, les réacteurs tournent pour tous, jusqu\'au décollage', async () => {
+    const pilot = client({ auth: { name: 'CMDR Pressé' } })
+    const crew = client({ auth: { name: 'CMDR Spectateur' } })
+    const w = await welcome(pilot)
+    assert.equal((await welcome(crew)).chief.burn, 0)
+    const seated = { x: BASE_COCKPIT.x, z: BASE_COCKPIT.z, yaw: -Math.PI / 2, level: BASE_LEVEL, anim: 'idle', pose: 'pilot', py: 0.64 }
+    // Debout à côté du Krait : rien.
+    pilot.emit('state', { ...seated, pose: undefined })
+    pilot.emit('base:engines', { on: true })
+    assert.equal(await receives(crew, 'chief', 150), false)
+    // Aux commandes : les réacteurs tournent, pour tous, avec le pilote ; Ada regarde le cockpit.
+    pilot.emit('state', seated)
+    const started = next(crew, 'chief', (m) => m.burn > 0)
+    pilot.emit('base:engines', { on: true })
+    const burn = await started
+    assert.ok(burn.burn > BASE_BURN - 1 && burn.burn <= BASE_BURN)
+    assert.equal(burn.pilot, w.id)
+    assert.deepEqual(burn.face, { x: BASE_COCKPIT.x, z: BASE_COCKPIT.z })
+    // Un autre ne les coupe pas.
+    crew.emit('base:engines', { on: false })
+    assert.equal(await receives(crew, 'chief', 150), false)
+    // Le pilote décolle (il quitte la base) : les réacteurs se coupent derrière lui.
+    const gone = next(crew, 'chief', (m) => m.burn === 0)
+    pilot.emit('state', { x: 36.1, z: 4.2, yaw: 0, level: -1, anim: 'idle' })
+    await gone
   })
 })
 

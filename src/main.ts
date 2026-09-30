@@ -52,6 +52,10 @@ import { NURSE, Nurse, nurseRig, type NurseReport } from './nurse'
 import { DROID, MECHANIC, Mechanic, mechanicRig, type MechanicReport } from './mechanic'
 import { Hangar } from './hangar'
 import { KRAIT_COCKPIT } from '../shared/mechanic.js'
+import { GroundBase } from './base/client'
+import { CHIEF } from './base/chief'
+import { BASE_COCKPIT, BASE_LEVEL } from '../shared/ground-base.js'
+import type { ChiefState } from './net'
 import { Infirmary, Plasters } from './infirmary'
 import { menuOf } from './menu'
 import { RemotePlayer } from './remote'
@@ -547,6 +551,8 @@ function setDeck(next: Deck) {
   marker.position.y = deck.y + 0.02
   marker.visible = false
   $('deck').textContent = deck.def.name
+  // Sur la base au sol, on n'est plus à bord du Fleet Carrier.
+  $('ship-where').textContent = deck.def.ground ? tr('Au sol', 'Planetside') : 'Fleet Carrier'
 }
 
 /** Affiche un pont (celui du joueur, ou la baie suivie par les caméras) : ses murs, ses lumières, son ambiance. */
@@ -560,12 +566,16 @@ function setView(next: Deck) {
   hemi.groundColor.set(ambience.ground)
   sun.color.set(ambience.sun)
   applyAmbience()
-  sun.position.set(SHIP_CENTER.x - 6, viewDeck.y + 14, SHIP_CENTER.z + 4)
-  sun.target.position.set(SHIP_CENTER.x, viewDeck.y, SHIP_CENTER.z)
+  // Le soleil cadre ses ombres sur le vaisseau, ou sur le plateau de la base au sol.
+  const center = viewDeck.def.ground?.center ?? SHIP_CENTER
+  sun.position.set(center.x - 6, viewDeck.y + 14, center.z + 4)
+  sun.target.position.set(center.x, viewDeck.y, center.z)
   // Les machines d'un pont ne s'entendent que sur ce pont.
   for (const h of hums) sound.fade(h.gain, h.deck === viewDeck ? h.volume : 0)
-  // La baie infestée est hors du vaisseau : ni étoiles, ni système par les verrières.
-  stars.group.visible = systemView.group.visible = !viewDeck.def.zone
+  // La baie infestée est hors du vaisseau : ni étoiles, ni système par les verrières. Sur la base
+  // au sol, le ciel de la planète (un fond CSS, cf. body.planet).
+  stars.group.visible = systemView.group.visible = !viewDeck.def.zone && !viewDeck.def.ground
+  document.body.classList.toggle('planet', !!viewDeck.def.ground)
 }
 setDeck(deck)
 
@@ -828,6 +838,60 @@ holdDeck.interactables.push({
   },
 })
 bubbles.attach('mechanic', (out) => (holdDeck.group.visible ? mechanic.avatar.head(out) : null))
+
+// La base au sol : on y descend en Krait depuis le hangar de la cale (cf. base/client.ts). Elle
+// n'est construite qu'au premier voyage ; d'ici là, l'état d'Ada venu du relais attend.
+let chiefPending: { state: ChiefState; id: number } | null = null
+/** Le grondement des réacteurs du Krait de la base, tant qu'ils tournent (et qu'on y est). */
+let baseRoar: { stop: () => void } | undefined
+const groundBase = new GroundBase({
+  player,
+  here: () => deck,
+  hold: holdDeck,
+  seat: () => (seating.pose ? seating.current : null),
+  built: (baseDeck, chief) => {
+    decks.push(baseDeck)
+    scene.add(baseDeck.group)
+    baseDeck.group.visible = false
+    actors.set(baseDeck, [])
+    baseDeck.interactables.push({
+      object: chief.root,
+      position: chief.position,
+      label: tr(`Parler à ${CHIEF}`, `Talk to ${CHIEF}`),
+      onInteract: () => {
+        player.interact()
+        net.sendEmote('interact')
+        net.sendChiefTalk()
+        const visitors = [...remotes.values()].filter((r) => r.level === BASE_LEVEL).length
+        const line = groundBase.talk({ system: SYSTEMS[systemView.id].name, visitors })
+        if (line) dialog.show(line)
+      },
+    })
+    bubbles.attach('chief', (out) => (baseDeck.group.visible ? chief.avatar.head(out) : null))
+    chief.onBark = (text) => {
+      if (baseDeck === deck) bubbles.say('chief', text)
+    }
+    chief.onStep = () => {
+      if (baseDeck === deck) sound.play('softStep', chief.root.getWorldPosition(new THREE.Vector3()), { volume: 0.07, rate: 1.1 })
+    }
+    if (chiefPending) groundBase.sync(chiefPending.state, chiefPending.id, net.id)
+    chiefPending = null
+  },
+  arrive: (next, at) => {
+    setDeck(next)
+    player.cancelPath()
+    player.position.set(at.x, next.y, at.z)
+    player.setHeading(at.yaw)
+    player.root.rotation.y = at.yaw
+    iso.snapTo(player.position)
+    sendState(true)
+  },
+  engines: (on) => net.sendBaseEngines(on),
+  show: (text) => dialog.show(text),
+  system: () => SYSTEMS[systemView.id].name,
+  roar: () => sound.thrusters(iso.target.clone()) ?? undefined,
+  touchdown: () => sound.thud(iso.target.clone()),
+})
 mechanic.onBark = (text) => {
   if (holdDeck === deck) bubbles.say('mechanic', text)
 }
@@ -1174,6 +1238,11 @@ net.onMessage = (m) => {
       if (m.nurse) nurse.sync(m.nurse)
       // Et le mécano du hangar (ou devant le nez du Krait, si quelqu'un fait une révision avec lui).
       if (m.mechanic) mechanic.sync(m.mechanic)
+      // Et Ada, sur la base au sol (construite ou pas encore).
+      if (m.chief) {
+        if (groundBase.chief) groundBase.sync(m.chief, 0, net.id)
+        else chiefPending = { state: m.chief, id: 0 }
+      }
       // Le relais oublie tout à chaque connexion : la musique de nos quartiers, on la lui rend.
       const own = cabinMusic.playing
       if (own) net.sendMusic('cabin', own.track.id, own.x, own.z, own.position, own)
@@ -1274,10 +1343,15 @@ net.onMessage = (m) => {
       if (m.id !== net.id && holdDeck === deck && m.hold > 0 && m.help === 0 && m.panic === 0) bubbles.say('mechanic', '…')
       break
     }
+    case 'chief':
+      // Quelqu'un parle à Ada, ou met les gaz sur l'aire de la base (nous aussi : le relais recale sa ronde).
+      if (groundBase.chief) groundBase.sync(m, m.id, net.id)
+      else chiefPending = { state: m, id: m.id }
+      break
     case 'jump':
       // Un pilote lance le saut FSD (nous, ou un autre) : tout le bord part. Dans la baie infestée,
       // on ne le vit pas ; on retrouvera le vaisseau dans son nouveau système.
-      if (deck.def.zone || viewDeck.def.zone) systemView.set(m.system)
+      if (deck.def.zone || viewDeck.def.zone || deck.def.ground) systemView.set(m.system)
       else void playJump(m.system, m.id === net.id ? null : m.name)
       break
     case 'music': {
@@ -2154,6 +2228,8 @@ function liftKey(e: KeyboardEvent): boolean {
 }
 
 addEventListener('keydown', (e) => {
+  // En vol vers la base au sol (ou retour) : l'écran de voyage couvre tout, rien à faire.
+  if (groundBase.flying) return e.preventDefault()
   if (barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen) { if (e.code === 'Escape') { barPanel.close(); gameEmbed.close(); mediaRoom.close(); cinemaRoom.close() }; e.preventDefault(); return }
   if (gym.key(e)) return
   if (chat.typing) return
@@ -2220,7 +2296,7 @@ chat.onOpen = () => keys.clear()
 const inputDir = new THREE.Vector3()
 function keyboardDirection(): THREE.Vector3 {
   inputDir.set(0, 0, 0)
-  if (gym.active || chat.typing || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return inputDir
+  if (gym.active || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return inputDir
   const on = (...codes: string[]) => codes.some((c) => keys.has(c))
   // event.code = position physique : KeyW/KeyA correspondent à Z/Q sur un clavier AZERTY.
   const sx = (on('KeyD', 'ArrowRight') ? 1 : 0) - (on('KeyA', 'ArrowLeft') ? 1 : 0)
@@ -2305,6 +2381,7 @@ function updateGamepad(dt: number): GamepadInput {
     if (pad.lookX || pad.lookY) iso.orbit(-pad.lookX * dt * 1.8, pad.lookY * dt * 1.2)
     if (pad.zoom) iso.zoomBy(Math.exp(pad.zoom * dt))
   }
+  if (groundBase.flying) return pad
   if (seating.current) {
     if (pad.interact && seating.settled) seating.stand()
     else if (pad.action && seating.settled) seatAction(seating.current)
@@ -2315,7 +2392,7 @@ function updateGamepad(dt: number): GamepadInput {
 
 function movementDirection(pad: GamepadInput): THREE.Vector3 {
   const input = keyboardDirection()
-  if (chat.typing || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || wardrobe.isOpen || editing() || photo.active || zone.frozen || zone.panelOpen) return input
+  if (chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || wardrobe.isOpen || editing() || photo.active || zone.frozen || zone.panelOpen) return input
   // Le clavier reste prioritaire lorsqu'une touche de déplacement est maintenue.
   if (input.lengthSq() === 0) view().screenToGround(pad.moveX, -pad.moveY, input)
   return input
@@ -2870,7 +2947,9 @@ function bindPose() {
  * Aucune dans les rangées du cinéma : elle cacherait l'écran (E et Espace marchent toujours).
  */
 function seatPrompt(seat: Seated): { main: string; space?: string } | null {
-  if (hangar.aboardKrait) return { main: tr('Se lever', 'Stand up'), space: hangar.engines ? tr('Couper les réacteurs', 'Shut down the thrusters') : tr('Démarrer les réacteurs', 'Start the thrusters') }
+  // Aux commandes d'un Krait (au hangar, ou sur la base au sol) : les réacteurs, puis le décollage.
+  if (hangar.aboardKrait) return { main: tr('Se lever', 'Stand up'), space: hangar.engines ? tr('Décoller', 'Take off') : tr('Démarrer les réacteurs', 'Start the thrusters') }
+  if (groundBase.aboardKrait) return { main: tr('Se lever', 'Stand up'), space: groundBase.engines ? tr('Décoller', 'Take off') : tr('Démarrer les réacteurs', 'Start the thrusters') }
   if (claw) return { main: tr('Quitter', 'Leave'), space: claw.control.busy ? undefined : tr('Lâcher la pince', 'Drop the claw') }
   if (canJump(seat)) return { main: tr('Se lever', 'Stand up'), space: jumping ? undefined : tr('Saut FSD', 'FSD jump') }
   // Devant une borne fermée (on sort du mode photo, ou elle n'a pas pu se charger).
@@ -2888,7 +2967,8 @@ function seatPrompt(seat: Seated): { main: string; space?: string } | null {
 
 /** Espace, installé sur un meuble. */
 function seatAction(seat: Seated) {
-  if (hangar.aboardKrait) return hangar.toggleEngines()
+  if (hangar.aboardKrait) return hangar.engines ? void groundBase.fly(true) : hangar.toggleEngines()
+  if (groundBase.aboardKrait) return groundBase.seatAction()
   if (claw) return dropClaw()
   if (canJump(seat)) return void fsdJump()
   const game = arcadeGame(seat)
@@ -3437,6 +3517,15 @@ function frame() {
     kraitRoar = undefined
   }
   if (roaring) iso.shake(0.1)
+  // La base au sol : Ada, et les réacteurs du Krait de l'aire (leur grondement, la vue qui tremble).
+  groundBase.update(world)
+  const baseRoaring = groundBase.engines && groundBase.here && !groundBase.flying
+  if (baseRoaring && !baseRoar) baseRoar = sound.thrusters(new THREE.Vector3(BASE_COCKPIT.x + 3, deck.y + 0.6, BASE_COCKPIT.z)) ?? undefined
+  else if (!baseRoaring && baseRoar) {
+    baseRoar.stop()
+    baseRoar = undefined
+  }
+  if (baseRoaring) iso.shake(0.1)
   // Pansements de Betty : le nôtre, et ceux des autres.
   plasters.show(player.avatar, infirmary.patched(net.id))
   for (const r of remotes.values()) plasters.show(r.avatar, infirmary.patched(r.id))
@@ -3483,6 +3572,7 @@ function frame() {
   if (cometeHere) actors.get(catDeck)!.push(cat.root.position)
   actors.get(patrolDeck)!.push(sergeant.position, chef.position, nurse.position)
   actors.get(holdDeck)!.push(mechanic.position)
+  if (groundBase.deck && groundBase.chief) actors.get(groundBase.deck)?.push(groundBase.chief.position)
   for (const c of companions.values()) actors.get(cabinDeck)!.push(c.pet.root.position)
   // Un joueur d'une autre instance des quartiers n'ouvre pas nos portes.
   for (const r of remotes.values()) if (r.group.visible || r.level !== deck.def.id) actors.get(deckById(r.level))?.push(r.group.position)
@@ -3522,8 +3612,9 @@ function frame() {
   board.update(photo.frozen ? frozenAt : (frozenAt = timer.getElapsed()), deck, !photo.active)
   creditsHud.update(dt)
 
-  // Dans la baie infestée (ou par les caméras), ni étoiles ni système : on est hors du vaisseau.
-  if (!viewDeck.def.zone) {
+  // Dans la baie infestée (ou par les caméras), ni étoiles ni système : on est hors du vaisseau ; sur
+  // la base au sol, le ciel de la planète.
+  if (!viewDeck.def.zone && !viewDeck.def.ground) {
     const eye = fpsShown ? fps.camera.position : null
     stars.update(world, iso.target, toCam, iso.tilt, eye)
     systemView.update(world, deck.y, iso.target, toCam, iso.tilt, eye)
@@ -3686,6 +3777,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, companions, cabin, seating, sitOn, interactables: () => deck.interactables, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, salvage: zone, view: () => viewDeck },
+    __game: { renderer, sound, player, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, salvage: zone, view: () => viewDeck },
   })
 }

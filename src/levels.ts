@@ -2,6 +2,7 @@ import type * as THREE from 'three'
 import type { FloorFinish, StationModel, Theme } from './assets'
 import type { ShipMapOptions } from '../shared/ship-map.js'
 import type { ZoneKit } from './salvage/kit'
+import type { GroundDef } from './base/kit'
 import type { CabinDef } from './cabin/view'
 import type { CustomModel } from './furniture'
 import { tr } from './i18n'
@@ -122,6 +123,11 @@ export interface LevelDef {
    * du sas) et le kit de ses murs, sols et portes. Ni coque, ni ascenseur, ni tuyères.
    */
   zone?: { kit: ZoneKit; map: ShipMapOptions }
+  /**
+   * Base au sol (cf. src/base/) : un plateau à ciel ouvert, sans murs (le bord arrête les pas, ses
+   * falaises plongent dans le vide), ni coque, ni ascenseur, ni tuyères, ni plafond.
+   */
+  ground?: GroundDef
 }
 
 /** Écart vertical entre deux ponts. */
