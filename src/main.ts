@@ -259,7 +259,24 @@ function spawnPoint(): { x: number; z: number } {
   return { x: h.x, z: h.z }
 }
 
-let deck = cabinDeck
+/**
+ * Où l'on se tenait juste avant de recharger la page (cf. saveWhere), si c'est à bord et que la
+ * tuile est toujours libre : sinon, on se réveille dans ses quartiers.
+ */
+const WHERE_KEY = 'mini-shipinteriors-where'
+function resumePoint(): { deck: Deck; x: number; z: number; yaw: number } | null {
+  try {
+    const w = JSON.parse(sessionStorage.getItem(WHERE_KEY) ?? 'null')
+    const d = w && decks.find((d) => d.def.id === w.level && !d.def.zone && !d.def.ground)
+    if (!d || ![w.x, w.z, w.yaw].every(Number.isFinite)) return null
+    return d.pathfinder.walkable(Math.round(w.x), Math.round(w.z)) ? { deck: d, x: w.x, z: w.z, yaw: w.yaw } : null
+  } catch {
+    return null
+  }
+}
+const resumed = resumePoint()
+
+let deck = resumed?.deck ?? cabinDeck
 /**
  * Pont affiché : celui du joueur, ou la baie de la zone thargoïde quand un capturé suit son
  * équipe par les caméras (le joueur, lui, reste au lobby).
@@ -298,8 +315,12 @@ const cinemaRoom = new CinemaRoom({
 })
 const cinemaScreenProp = deckById(1).def.props.find((p) => p.model === 'cinema-screen')!
 const cinemaFocus = new THREE.Vector3()
-const spawn = spawnPoint()
+const spawn = resumed ?? spawnPoint()
 player.position.set(spawn.x, deck.y, spawn.z)
+if (resumed) {
+  player.setHeading(resumed.yaw)
+  player.root.rotation.y = resumed.yaw
+}
 scene.add(player.root)
 
 /** Place occupée sur un meuble : assis, couché, aux commandes, à une borne (cf. seating.ts). */
@@ -2874,6 +2895,21 @@ function sendState(now = false) {
     now ? Infinity : performance.now(),
   )
 }
+
+/**
+ * Retient pour cet onglet où l'on se tient, qu'un rechargement nous y ramène (cf. resumePoint).
+ * Assis, en trajet (ascenseur, fondu, toilettes), dans la zone thargoïde ou sur la base au sol :
+ * on garde la dernière place à bord.
+ */
+function saveWhere() {
+  if (riding || seating.current || deck.def.zone || deck.def.ground) return
+  const at = player.glideEnd ?? { x: player.position.x, z: player.position.z, yaw: player.heading }
+  try {
+    sessionStorage.setItem(WHERE_KEY, JSON.stringify({ level: deck.def.id, x: at.x, z: at.z, yaw: at.yaw }))
+  } catch {}
+}
+setInterval(saveWhere, 1000)
+addEventListener('pagehide', saveWhere)
 
 /** S'installer sur un meuble (la place libre la plus proche de `near`, là où l'on a cliqué). */
 function sitOn(item: Interactable, near?: { x: number; z: number }) {
