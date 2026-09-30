@@ -19,8 +19,15 @@ export class Starfield {
   private speed = 1
   private target = 1
   private streaks: THREE.ShaderMaterial
+  /**
+   * Vue subjective : une voûte d'étoiles autour des yeux, pour les verrières. Les couches du
+   * dessous (vues de haut en vue isométrique) passent sous l'horizon quand on regarde droit devant.
+   */
+  private readonly dome: THREE.Points
 
   constructor() {
+    this.dome = starDome()
+    this.group.add(this.dome)
     const layers = [
       { count: 1800, size: 2, speed: 1.5, color: '#9aa2d8' },
       { count: 700, size: 2.8, speed: 4, color: '#d4daff' },
@@ -156,6 +163,8 @@ export class Starfield {
     const run = (target.y - (DEPTH - 10)) / Math.tan(elevation)
     const cx = eye ? eye.x : target.x - toCamera.x * run
     const cz = eye ? eye.z : target.z - toCamera.z * run
+    this.dome.visible = !!eye
+    if (eye) this.dome.position.copy(eye)
     for (const m of this.materials) {
       if (m.uniforms.uTime) m.uniforms.uTime.value = this.time
       m.uniforms.uTravel.value = this.travel
@@ -165,4 +174,47 @@ export class Starfield {
     this.streaks.uniforms.uLength.value = Math.min(30, boost * 0.5)
     this.streaks.uniforms.uAlpha.value = Math.min(0.9, boost / 12)
   }
+}
+
+/** Voûte d'étoiles (vue subjective) : des points ronds sur une sphère, en deçà du plan lointain de la caméra (200). */
+function starDome(): THREE.Points {
+  const COUNT = 1600, RADIUS = 150
+  const positions = new Float32Array(COUNT * 3)
+  const colors = new Float32Array(COUNT * 3)
+  const sizes = new Float32Array(COUNT)
+  const palette = ['#9aa2d8', '#d4daff', '#ffffff', '#ffe6c4'].map((c) => new THREE.Color(c))
+  const v = new THREE.Vector3()
+  for (let i = 0; i < COUNT; i++) {
+    v.randomDirection().multiplyScalar(RADIUS).toArray(positions, i * 3)
+    palette[Math.floor(Math.random() * palette.length)].toArray(colors, i * 3)
+    sizes[i] = (Math.random() < 0.08 ? 3.2 : 1.4 + Math.random() * 1.2) * Math.min(devicePixelRatio, 2)
+  }
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+  geo.setAttribute('aSize', new THREE.Float32BufferAttribute(sizes, 1))
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: `
+      attribute float aSize;
+      attribute vec3 color;
+      varying vec3 vColor;
+      void main() {
+        vColor = color;
+        gl_PointSize = aSize;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: `
+      varying vec3 vColor;
+      void main() {
+        float a = smoothstep(0.5, 0.15, length(gl_PointCoord - 0.5));
+        gl_FragColor = vec4(vColor, a * 0.9);
+      }`,
+    transparent: true,
+    depthWrite: false,
+  })
+  const dome = new THREE.Points(geo, mat)
+  dome.frustumCulled = false
+  dome.renderOrder = -1
+  dome.visible = false
+  return dome
 }

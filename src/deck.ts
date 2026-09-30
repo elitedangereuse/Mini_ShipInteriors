@@ -125,12 +125,23 @@ const CANOPY_TRIM = new THREE.MeshBasicMaterial({ color: '#ff8a1c' })
 /** Verre des verrières, bleuté, à peine visible : on regarde l'espace à travers. */
 const CANOPY_GLASS = new THREE.MeshLambertMaterial({ color: '#9fd8ff', transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide })
 
-/** Tous les pans de verre d'un pont, en un maillage (un appel de dessin). */
-function canopyGlass(panes: { x: number; z: number; alongX: boolean }[]): THREE.Mesh {
+/**
+ * Vue subjective : le verre, qui remplit alors toute la fenêtre, n'est plus qu'un reflet. Teinté
+ * et éclairé comme vu de haut, il posait un voile gris sur l'espace.
+ */
+export function firstPersonGlass(on: boolean) {
+  CANOPY_GLASS.opacity = on ? 0.05 : 0.2
+}
+
+/**
+ * Tous les pans de verre d'un pont, en un maillage (un appel de dessin) : entre l'allège et le
+ * linteau, ou (vue subjective) du linteau au plafond.
+ */
+function canopyGlass(panes: { x: number; z: number; alongX: boolean }[], bottom = 0.27, top = POST_H - 0.1): THREE.Mesh {
   const geos = panes.map((p) => {
-    const g = new THREE.PlaneGeometry(1, POST_H - 0.37)
+    const g = new THREE.PlaneGeometry(1, top - bottom)
     if (!p.alongX) g.rotateY(Math.PI / 2)
-    g.translate(p.x, 0.27 + (POST_H - 0.37) / 2, p.z)
+    g.translate(p.x, (bottom + top) / 2, p.z)
     return g
   })
   const mesh = new THREE.Mesh(mergeGeometries(geos), CANOPY_GLASS)
@@ -587,7 +598,11 @@ export class Deck {
     const zone = this.def.zone
     const postTop = zone ? new THREE.Box3().setFromObject(zone.kit.post(0, 0)).max.y : POST_H
     const material = zone ? new THREE.MeshLambertMaterial({ color: '#1b2120' }) : this.theme.shell
-    this.ceilingOccluders = upperWalls(merge, this.walls, this.posts, zone ? ZONE_WALL_TOP : 1, postTop, this.ceilingY, material, !zone)
+    // Au-dessus des verrières et des cloisons vitrées, du verre jusqu'au plafond.
+    const glazed = new Set(this.glass.map((g) => `${g.x},${g.z}`))
+    const solid = this.walls.filter((w) => !glazed.has(`${w.x},${w.z}`))
+    this.ceilingOccluders = upperWalls(merge, solid, this.posts, zone ? ZONE_WALL_TOP : 1, postTop, this.ceilingY, material, !zone)
+    if (this.glass.length) this.ceiling.add(canopyGlass(this.glass, POST_H - 0.02, this.ceilingY))
     this.ceilingFades = fadeBuffer(merge.fadingCount)
     // Pas d'ombres : le soleil éclaire les pièces comme en vue isométrique.
     for (const m of merge.flush(this.ceiling, this.ceilingFades.texture)) m.castShadow = false

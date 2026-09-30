@@ -27,7 +27,7 @@ import { IsoCamera } from './camera'
 import { FirstPersonCamera } from './fps'
 import { Cat } from './cat'
 import { MAX_PETS, petRig, speciesOfItem, type Species } from './pets'
-import { Deck, type Interactable } from './deck'
+import { Deck, firstPersonGlass, type Interactable } from './deck'
 import { beatAt, beatPulse, film, filmGlow, holoMeGlow, holoTime, studio, type ClawControl, type ClawResult } from './furniture'
 import { GamepadControls, type GamepadInput } from '../shared/gamepad.js'
 import { TouchGamepad } from './touch-gamepad'
@@ -3494,6 +3494,7 @@ function frame() {
     d.tallDoors = fpsShown
     d.update(world, actors.get(d)!, d === viewDeck ? player.position : null, toCam, editing() && d === cabinDeck, keep, dt)
   }
+  firstPersonGlass(fpsShown)
   // Filet de sécurité : ni le joueur ni la vue ne restent sur une baie démontée (l'écran serait
   // vide, sans rien à dessiner) ; on rentre au lobby.
   if (deck.def.zone && deck !== zone.deck) {
