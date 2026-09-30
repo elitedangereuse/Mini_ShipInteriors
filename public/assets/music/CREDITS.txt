@@ -212,11 +212,11 @@ Ambiance    : « Synthés pétillants et un brin étranges : la nuit prend une
 ALBUMS DE BEN CARTER JR
 =====================================================================
 
-Deux mini-albums et leurs pochettes, fournis dans le projet par l'équipe.
-Ils sont présentés comme deux albums dans le jukebox. Ces créations ne sont
+Quatre mini-albums et leurs pochettes, fournis dans le projet par l'équipe.
+Ils sont présentés comme quatre albums dans le jukebox. Ces créations ne sont
 pas couvertes par les licences CC0/domaine public indiquées plus haut.
-Les huit MP3 de jeu sont des copies audio sans réencodage, sans image ID3.
-Les originaux restent dans le dossier musiques/ du projet.
+Les huit MP3 des deux premiers albums sont des copies audio sans réencodage,
+sans image ID3 ; leurs originaux restent dans le dossier musiques/ du projet.
 
 Dangerous Spaces — Ben Carter Jr — pochette dangerous-spaces.png
   01 Infinite Drift       dangerous-spaces-01.mp3      5:03
@@ -229,6 +229,30 @@ The End of Everything — Ben Carter Jr — pochette end-of-everything.png
   02 Alone               end-of-everything-02.mp3     4:14
   03 No Safety           end-of-everything-03.mp3     4:47
   04 The End             end-of-everything-04.mp3     4:17
+
+Starlight Memories — Ben Carter Jr — synthwave — pochette starlight-memories.jpg
+  01 Liftoff                         starlight-memories-01.mp3          3:48
+  02 Zero Gravity                    starlight-memories-02.mp3          3:34
+  03 Unknown Worlds                  starlight-memories-03.mp3          3:34
+  04 Infinite                        starlight-memories-04.mp3          3:53
+
+Journey Through the Night (夜の旅 Yoru no Tabi) — Ben Carter Jr — lo-fi hip-hop
+— pochette journey-through-the-night.jpg
+  01 雨の夜 — Ame no Yoru             journey-through-the-night-01.mp3   3:10
+  02 ネオンの街 — Neon no Machi       journey-through-the-night-02.mp3   2:38
+  03 静かな寺 — Shizuka na Tera       journey-through-the-night-03.mp3   3:17
+  04 夜明けの電車 — Yoake no Densha   journey-through-the-night-04.mp3   3:12
+
+Starlight Memories et Journey Through the Night ont été composés par Ben
+Carter Jr avec Suno (suno.com) le 30/09/2026, sous un abonnement payant
+(Pro ou Premier) : selon les conditions de Suno, les morceaux créés avec un
+abonnement payant appartiennent à leur auteur, usage commercial compris.
+Les identifiants Suno de chaque morceau figuraient dans les tags ID3 des
+originaux (commentaire « made with suno; id=… »).
+Traitement : copies audio sans réencodage (MP3 48 kHz, VBR jusqu'à 320 kbit/s),
+tags ID3 retirés (titre, image, données Suno). Durées mesurées au centième en
+comptant les trames MP3. Pochettes : PNG 1254 px d'origine réduits en JPEG
+512 px (qualité 86).
 
 Les pochettes SVG des neuf morceaux individuels sont des illustrations
 originales créées pour le jukebox par scripts/generate_jukebox_covers.py.
