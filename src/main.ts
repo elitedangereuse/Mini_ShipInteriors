@@ -1575,7 +1575,22 @@ chat.add(
 
 // ------------------------------------------------------------------ garde-robe
 
-const wardrobe = new WardrobePanel()
+const wardrobe = new WardrobePanel({
+  price: (look) => (lookOwned(look, wallet) ? null : skinPrice(skinProduct(look)!)),
+  blocked: shopBlocked,
+  balance: () => wallet.balance,
+  buy: async (look) => {
+    const product = skinProduct(look)
+    if (!product) return null
+    const result = await wallet.buySkin(product)
+    if (result.ok) {
+      sound.credits(true)
+      chat.add('system', tr(`Apparence achetée : ${describe(look)}.`, `Look bought: ${describe(look)}.`))
+      return null
+    }
+    return result.reason === 'funds' ? tr('Crédits insuffisants.', 'Not enough credits.') : (shopBlocked() ?? tr('Achat non abouti : le site ne répond pas.', 'Purchase failed: the site isn\'t responding.'))
+  },
+})
 let dressing: { original: string; zoom: number } | null = null
 let lookRequest = 0
 let spin = 0
@@ -1635,23 +1650,6 @@ function shopBlocked(): string | null {
   if (wallet.state === 'loading') return tr('Chargement de vos crédits…', 'Loading your credits…')
   return null
 }
-wardrobe.shop = {
-  price: (look) => (lookOwned(look, wallet) ? null : skinPrice(skinProduct(look)!)),
-  blocked: shopBlocked,
-  balance: () => wallet.balance,
-  buy: async (look) => {
-    const product = skinProduct(look)
-    if (!product) return null
-    const result = await wallet.buySkin(product)
-    if (result.ok) {
-      sound.credits(true)
-      chat.add('system', tr(`Apparence achetée : ${describe(look)}.`, `Look bought: ${describe(look)}.`))
-      return null
-    }
-    return result.reason === 'funds' ? tr('Crédits insuffisants.', 'Not enough credits.') : (shopBlocked() ?? tr('Achat non abouti : le site ne répond pas.', 'Purchase failed: the site isn\'t responding.'))
-  },
-}
-
 /**
  * Apparence portée sans être à soi (choisie avant les crédits, ou sur un autre appareil comme
  * invité) : retour à la combinaison de vol, offerte. Rien tant qu'on ne sait pas (site injoignable).

@@ -429,7 +429,7 @@ export interface WardrobeShop {
  * Tout s'essaie ; une apparence payante qu'on n'a pas s'achète avant d'être portée.
  */
 export class WardrobePanel {
-  private el = $('wardrobe')
+  private readonly el = $('wardrobe')
   private look!: Look
   /** Achat en cours, et le refus du dernier achat. */
   private pending = false
@@ -437,9 +437,10 @@ export class WardrobePanel {
   /** Onglet : le modèle (espèce, sexe, teinte) ou son style (coiffure, visage, couleurs). */
   private tab: 'model' | 'style' = 'model'
   rotating = true
-  shop?: WardrobeShop
   onChange?: (look: Look) => void
   onClose?: (confirmed: boolean, look: Look) => void
+
+  constructor(private readonly shop: WardrobeShop) {}
 
   get isOpen(): boolean {
     return !this.el.hidden
@@ -468,7 +469,7 @@ export class WardrobePanel {
 
   /** Achète l'apparence essayée, puis la porte. */
   private async buy() {
-    if (!this.shop || this.pending) return
+    if (this.pending) return
     this.pending = true
     this.error = ''
     this.render()
@@ -540,7 +541,7 @@ export class WardrobePanel {
     }
 
     const shop = this.shop
-    const price = (look: Look) => shop?.price(look) ?? null
+    const price = (look: Look) => shop.price(look)
     /** Cadenas, et le prix en info-bulle, sur un choix qu'on n'a pas. */
     const lock = (b: HTMLButtonElement, cost: number | null) => {
       if (cost === null) return b
@@ -677,8 +678,8 @@ export class WardrobePanel {
     const cancel = button(tr('Annuler', 'Cancel'), false, () => this.close(false), 'wr-cancel')
     if (cost === null) actions.append(cancel, button(tr('Valider', 'Confirm'), false, () => this.close(true), 'wr-ok'))
     else {
-      const blocked = shop?.blocked() ?? tr('Boutique indisponible.', 'Shop unavailable.')
-      const short = !blocked && cost > shop!.balance() ? cost - shop!.balance() : 0
+      const blocked = shop.blocked()
+      const short = !blocked && cost > shop.balance() ? cost - shop.balance() : 0
       const note = document.createElement('div')
       note.className = 'wr-price'
       note.append(icon('lock-simple'), document.createTextNode(tr(`À acheter : ${formatCredits(cost)}`, `To buy: ${formatCredits(cost)}`)))
