@@ -28,6 +28,7 @@ import { FirstPersonCamera } from './fps'
 import { Cat } from './cat'
 import { MAX_PETS, petRig, speciesOfItem, type Species } from './pets'
 import { Deck, firstPersonGlass, type Interactable } from './deck'
+import { Minimap } from './minimap'
 import { beatAt, beatPulse, film, filmGlow, holoMeGlow, holoTime, studio, type ClawControl, type ClawResult } from './furniture'
 import { GamepadControls, type GamepadInput } from '../shared/gamepad.js'
 import { TouchGamepad } from './touch-gamepad'
@@ -2708,6 +2709,16 @@ addEventListener('click', () => {
 // Curseur rendu pour une interface : la mire et son aide s'effacent.
 const syncCursorUi = () => document.body.classList.toggle('fps-cursor-ui', fpsShown && needsCursor())
 const crosshair = $('fps-crosshair')
+// Mini-carte de la vue subjective ; pas dans la baie infestée (elle en trahirait le labyrinthe).
+const minimapEl = $<HTMLCanvasElement>('minimap')
+const minimap = new Minimap(minimapEl)
+function drawMinimap() {
+  const shown = fpsShown && viewDeck === deck && !deck.def.zone
+  if (minimapEl.hidden !== !shown) minimapEl.hidden = !shown
+  if (!shown) return
+  const others = [...remotes.values()].filter((r) => r.group.visible && r.level === deck.def.id).map((r) => r.group.position)
+  minimap.draw(deck.map, deck.def.id, player.position.x, player.position.z, fps.yaw, liftTile, others, timer.getElapsed())
+}
 /** Bas des invites et bulles posées à l'écran en vue subjective : au-dessus de la barre d'emotes. */
 const fpsBottom = () => innerHeight - 130
 
@@ -3589,6 +3600,7 @@ function frame() {
     fps.toCamera(toCam)
   } else iso.toCamera(toCam)
   player.avatar.root.visible = !fpsShown || fps.showsBody
+  drawMinimap()
   document.body.classList.toggle('camera-rotating', !fpsShown && iso.rotating)
 
   // Qui se trouve sur quel pont (pour ouvrir les portes).

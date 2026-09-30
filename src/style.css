@@ -754,6 +754,24 @@ body.camera-rotating #task-progress {
 .help .muted {
   opacity: 0.8;
 }
+/* Mini-carte de la vue subjective, sous la barre d'outils. */
+.minimap {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+.minimap[hidden] {
+  display: none;
+}
+@media (max-width: 900px) {
+  .minimap {
+    width: 104px;
+    height: 104px;
+  }
+}
 /* Réglage dans l'aide : la sensibilité de la souris en vue subjective. Le HUD laisse passer
    les clics (pointer-events: none) : le réglage, lui, doit les prendre. */
 .help-setting {
