@@ -12,6 +12,8 @@ import type { PoseId, SeatSpot } from './seats'
 
 /** Rayon d'un personnage, un peu élargi : l'abord d'une place ne doit toucher aucun meuble. */
 const CLEARANCE = 0.19
+/** Pas sur un chemin d'accès (unités par seconde) : on monte des marches, on ne court pas. */
+const CLIMB_SPEED = 0.9
 
 export interface Seated {
   item: Interactable
@@ -41,16 +43,21 @@ export class Seating {
   /** Place occupée (y compris pendant qu'on s'y installe), ou null. */
   current: Seated | null = null
   private pending = 0
+  /**
+   * En chemin vers sa place par un chemin d'accès (cf. Seat.via) : l'indice du prochain point, ou
+   * -1 une fois arrivé (la pose n'est prise qu'au bout).
+   */
+  private climb = -1
 
   constructor(private host: SeatingHost) {}
 
   get pose(): PoseId | null {
-    return this.current?.spot.pose ?? null
+    return this.climb >= 0 ? null : this.current?.spot.pose ?? null
   }
 
   /** Hauteur de la place au-dessus du pont. */
   get height(): number {
-    return this.current?.spot.y ?? 0
+    return this.climb >= 0 ? 0 : this.current?.spot.y ?? 0
   }
 
   /** Installé, pose tenue, trajet fini. */
@@ -173,12 +180,35 @@ export class Seating {
     const player = this.host.player
     const seat: Seated = { item, spot, exit }
     this.current = seat
-    player.avatar.setPose(spot.pose)
-    const d = Math.hypot(spot.x - player.position.x, spot.z - player.position.z)
-    player.glideTo({ x: spot.x, y: this.host.deck().y + spot.y, z: spot.z, yaw: spot.yaw }, 0.35 + d * 0.4, false, () => {
-      if (this.current === seat) this.host.settled(seat)
-    })
+    const sitDown = () => {
+      this.climb = -1
+      player.avatar.setPose(spot.pose)
+      const d = Math.hypot(spot.x - player.position.x, spot.z - player.position.z)
+      player.glideTo({ x: spot.x, y: this.host.deck().y + spot.y, z: spot.z, yaw: spot.yaw }, 0.35 + d * 0.4, false, () => {
+        if (this.current === seat) this.host.settled(seat)
+      })
+      this.host.changed()
+    }
+    if (!spot.via?.length) return sitDown()
+    // Un chemin d'accès : on le parcourt à pied, point par point (une marche à la fois), puis on s'installe.
+    const climb = (i: number) => {
+      if (this.current !== seat) return
+      if (i >= spot.via!.length) return sitDown()
+      this.climb = i
+      this.walkLeg(spot.via![i], () => climb(i + 1))
+    }
+    climb(0)
     this.host.changed()
+  }
+
+  /** Un pas du chemin d'accès, à pied, vers le point `to` (repère du pont, y : hauteur au-dessus). */
+  private walkLeg(to: { x: number; y: number; z: number }, done: () => void) {
+    const player = this.host.player
+    const p = player.position
+    const y = this.host.deck().y + to.y
+    const d = Math.hypot(to.x - p.x, y - p.y, to.z - p.z)
+    const yaw = d > 1e-3 ? Math.atan2(to.x - p.x, to.z - p.z) : player.heading
+    player.glideTo({ x: to.x, y, z: to.z, yaw }, Math.max(0.12, d / CLIMB_SPEED), true, done)
   }
 
   /** Se relève en douceur, vers l'abord de la place, puis `then`. */
@@ -189,7 +219,22 @@ export class Seating {
     this.current = null
     const player = this.host.player
     player.avatar.setPose(null)
-    player.glideTo({ x: seat.exit.x, y: this.host.deck().y, z: seat.exit.z, yaw: player.heading }, 0.3, false, () => then?.())
+    const via = seat.spot.via ?? []
+    if (!via.length) {
+      player.glideTo({ x: seat.exit.x, y: this.host.deck().y, z: seat.exit.z, yaw: player.heading }, 0.3, false, () => then?.())
+      return this.host.changed()
+    }
+    // Par le même chemin, à l'envers : depuis le siège (ou depuis la marche où l'on en était), jusqu'à l'abord.
+    const reached = this.climb >= 0 ? this.climb - 1 : via.length - 1
+    this.climb = -1
+    const back = [...via.slice(0, reached + 1).reverse(), { x: seat.exit.x, y: 0, z: seat.exit.z }]
+    const ticket = this.pending
+    const down = (i: number) => {
+      if (ticket !== this.pending) return
+      if (i >= back.length) return then?.()
+      this.walkLeg(back[i], () => down(i + 1))
+    }
+    down(0)
     this.host.changed()
   }
 
@@ -199,6 +244,7 @@ export class Seating {
     if (!this.current) return
     const { exit } = this.current
     this.current = null
+    this.climb = -1
     const player = this.host.player
     player.stopGlide()
     player.avatar.setPose(null)

@@ -862,7 +862,7 @@ export class Deck {
         const label = p.action ?? (seats ? seatAction(seats) : tr('Examiner', 'Examine'))
         const position = p.reach ? new THREE.Vector3(p.reach.x, 0, p.reach.z) : center.clone().setY(0)
         const it: Interactable = { object: this.pickVolume(box), position, label, text: p.interact, control, furniture: { model: p.model, label: p.label } }
-        if (seats) it.seats = (toward) => placeSeats(seats, p.x, p.z, rotY, toward).map((s) => ({ ...s, y: s.y + (p.y ?? 0) }))
+        if (seats) it.seats = (toward) => placeSeats(seats, p.x, p.z, rotY, toward).map((s) => ({ ...s, y: s.y + (p.y ?? 0), ...(s.via ? { via: s.via.map((v) => ({ ...v, y: v.y + (p.y ?? 0) })) } : {}) }))
         this.interactables.push(it)
       }
       // Les consoles du poste de pilotage bipent.
