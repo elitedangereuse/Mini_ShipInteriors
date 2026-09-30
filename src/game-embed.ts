@@ -1,12 +1,15 @@
 import { tr } from './i18n'
 
-type Game = 'cards' | 'cqc' | 'edgis'
+type Game = 'cards' | 'cqc' | 'edgis' | 'site'
 const EDGIS_URL = 'https://edgis.elitedangereuse.fr/static/galaxymap.html?x=0&y=0&z=0&radius=20'
+const SITE_HOME = 'https://elitedangereuse.fr/'
 const GAMES: Record<Game, { title: string; url: string; fullUrl: string; hint: string; kicker?: string }> = {
   cards: { title: 'Galactic Clash', url: '/galactic_clash.php', fullUrl: '/galactic_clash.php', hint: tr('Choisissez une partie solo ou un duel dans le jeu.', 'Choose a solo game or a duel in the game.') },
   cqc: { title: 'Mini-CQC', url: '/cqc.php?mini_embed=1', fullUrl: '/cqc.php', hint: tr('Jouez en solo ou rejoignez d’autres pilotes.', 'Play solo or join other pilots.') },
   edgis: { title: tr('Carte galactique · EDGIS', 'Galaxy map · EDGIS'), url: EDGIS_URL, fullUrl: EDGIS_URL,
     hint: tr('Explorez la galaxie avec EDGIS.', 'Explore the galaxy with EDGIS.'), kicker: tr('POSTE DE PILOTAGE · NAVIGATION', 'BRIDGE · NAVIGATION') },
+  site: { title: 'elitedangereuse.fr', url: SITE_HOME, fullUrl: SITE_HOME,
+    hint: tr('Le site de la communauté, depuis le bureau des quartiers.', 'The community website, from the quarters desk.'), kicker: tr('QUARTIERS · BUREAU', 'QUARTERS · DESK') },
 }
 
 /** Fenêtre des jeux du site et de la carte galactique EDGIS. */

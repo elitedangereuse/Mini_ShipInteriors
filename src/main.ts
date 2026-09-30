@@ -2996,6 +2996,7 @@ function seated(seat: Seated) {
   if (game) return void openArcade(seat, game)
   if (seat.item.furniture?.model === 'bar-table' && seat.item.furniture.label === 'galactic-clash') return gameEmbed.open('cards')
   if (seat.item.furniture?.model === 'pinball' && deck.def.id === -1) return gameEmbed.open('cqc')
+  if (atDesk(seat)) return gameEmbed.open('site')
   if (deck.def.id === 1 && deck.map.room(Math.round(item.position.x), Math.round(item.position.z)) === 'o') return mediaRoom.open()
   if (deck.def.id === 1 && item.furniture?.model === 'cinema-row') return void cinemaRoom.open(false)
   if (deck.def.id === 1 && item.furniture?.model === 'projection-chair') return void cinemaRoom.open(true)
@@ -3004,6 +3005,17 @@ function seated(seat: Seated) {
   if (kitchen.canEat(seat)) return kitchen.sat()
   if (item.onInteract) return item.onInteract()
   showText(item.text)
+}
+
+/** Assis face au bureau des quartiers (sur sa chaise, ou toute autre place juste devant son écran). */
+function atDesk(seat: Seated): boolean {
+  if (seat.spot.pose !== 'sit') return false
+  const ahead = { x: Math.sin(seat.spot.yaw), z: Math.cos(seat.spot.yaw) }
+  return deck.interactables.some((it) => {
+    if (it.furniture?.model !== 'desk') return false
+    const dx = it.position.x - seat.spot.x, dz = it.position.z - seat.spot.z
+    return Math.hypot(dx, dz) < 0.9 && dx * ahead.x + dz * ahead.z > 0.3
+  })
 }
 
 /** Pose prise ou quittée : les autres le voient tout de suite ; la pince et le sac, eux, sont lâchés. */
@@ -3050,6 +3062,7 @@ function seatPrompt(seat: Seated): { main: string; space?: string } | null {
   if (arcadeGame(seat)) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
   if (seat.item.furniture?.model === 'bar-table' && seat.item.furniture.label === 'galactic-clash') return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
   if (seat.item.furniture?.model === 'pinball' && deck.def.id === -1) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
+  if (atDesk(seat)) return { main: tr('Se lever', 'Stand up'), space: tr('Ouvrir le site', 'Open the website') }
   if (deck.def.id === 1 && deck.map.room(Math.round(seat.item.position.x), Math.round(seat.item.position.z)) === 'o') return { main: tr('Se lever', 'Stand up'), space: tr('Écouter', 'Listen') }
   if (deck.def.id === 1 && seat.item.furniture?.model === 'cinema-row') return null
   if (deck.def.id === 1 && seat.item.furniture?.model === 'projection-chair') return { main: tr('Se lever', 'Stand up'), space: tr('Régie', 'Controls') }
@@ -3070,6 +3083,7 @@ function seatAction(seat: Seated) {
   if (game) void openArcade(seat, game)
   if (seat.item.furniture?.model === 'bar-table' && seat.item.furniture.label === 'galactic-clash') return gameEmbed.open('cards')
   if (seat.item.furniture?.model === 'pinball' && deck.def.id === -1) return gameEmbed.open('cqc')
+  if (atDesk(seat)) return gameEmbed.open('site')
   if (deck.def.id === 1 && deck.map.room(Math.round(seat.item.position.x), Math.round(seat.item.position.z)) === 'o') return mediaRoom.open()
   if (deck.def.id === 1 && seat.item.furniture?.model === 'cinema-row') return void cinemaRoom.open(false)
   if (deck.def.id === 1 && seat.item.furniture?.model === 'projection-chair') return void cinemaRoom.open(true)

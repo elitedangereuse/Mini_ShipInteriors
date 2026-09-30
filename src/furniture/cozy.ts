@@ -212,15 +212,72 @@ const bookshelf: Builder = ({ random }) => {
   return { solid: g }
 }
 
-/** Bureau : écran aux couleurs d'Elite, clavier, tasse, lampe, et une maquette de Cobra Mk III. */
+/**
+ * Écran du bureau : la page d'accueil d'elitedangereuse.fr, dessinée (bandeau et logo du site,
+ * menu, grande bannière, trois cartes d'actualité). Le logo arrive après coup : on redessine.
+ */
+function siteHomeScreen(): THREE.CanvasTexture {
+  const W = 512, H = 294
+  const paint = (c: CanvasRenderingContext2D, logo?: HTMLImageElement) => {
+    c.fillStyle = '#0d0f14'; c.fillRect(0, 0, W, H)
+    // Bandeau : logo, menu, bouton de connexion.
+    c.fillStyle = '#16191f'; c.fillRect(0, 0, W, 44)
+    c.fillStyle = '#ff6600'; c.fillRect(0, 44, W, 2)
+    if (logo) c.drawImage(logo, 10, 5, 107, 34)
+    else { c.fillStyle = '#ff6600'; c.font = 'bold 16px sans-serif'; c.textBaseline = 'middle'; c.fillText('ÉLITE DANGEREUSE', 12, 22) }
+    c.font = '11px sans-serif'; c.textBaseline = 'middle'; c.fillStyle = '#c8ccd4'
+    const menu = [tr('Actus', 'News'), tr('Guides', 'Guides'), tr('Aventures', 'Adventures'), 'Radio', 'Discord']
+    let x = 136
+    for (const m of menu) { c.fillText(m, x, 23); x += c.measureText(m).width + 16 }
+    c.font = 'bold 10px sans-serif'
+    const login = tr('CONNEXION', 'LOG IN'), lw = c.measureText(login).width + 14
+    c.fillStyle = '#ff6600'; c.fillRect(W - 10 - lw, 13, lw, 20)
+    c.fillStyle = '#0d0f14'; c.fillText(login, W - 3 - lw, 23)
+    // Bannière : un ciel étoilé, une planète, le titre.
+    const sky = c.createLinearGradient(0, 52, 0, 168)
+    sky.addColorStop(0, '#1a1030'); sky.addColorStop(1, '#3a1a10')
+    c.fillStyle = sky; c.fillRect(10, 54, W - 20, 116)
+    for (let i = 0; i < 70; i++) {
+      c.fillStyle = i % 5 ? 'rgba(255, 255, 255, 0.55)' : '#ffd8a8'
+      c.fillRect(12 + ((i * 97.3) % (W - 24)), 56 + ((i * 53.7) % 110), 1.4, 1.4)
+    }
+    const planet = c.createRadialGradient(400, 150, 10, 420, 170, 90)
+    planet.addColorStop(0, '#ffb070'); planet.addColorStop(0.6, '#c0501a'); planet.addColorStop(1, 'rgba(60, 20, 10, 0)')
+    c.save(); c.beginPath(); c.rect(10, 54, W - 20, 116); c.clip()
+    c.fillStyle = planet; c.beginPath(); c.arc(420, 175, 85, 0, Math.PI * 2); c.fill()
+    c.restore()
+    c.fillStyle = '#ffffff'; c.font = 'bold 22px sans-serif'; c.textBaseline = 'alphabetic'
+    c.fillText(tr('La communauté francophone', 'The French-speaking'), 26, 100)
+    c.fillText(tr('d\'Elite Dangerous', 'Elite Dangerous community'), 26, 126)
+    c.fillStyle = '#ff6600'; c.fillRect(26, 140, 110, 20)
+    c.fillStyle = '#0d0f14'; c.font = 'bold 11px sans-serif'; c.fillText(tr('REJOINDRE', 'JOIN US'), 48, 154)
+    // Trois cartes d'actualité.
+    const cards = [['#2a4a6a', tr('Actualités', 'News')], ['#5a3a1a', tr('Guides', 'Guides')], ['#3a2a5a', tr('Aventures', 'Adventures')]] as const
+    cards.forEach(([color, label], i) => {
+      const x = 10 + i * 166
+      c.fillStyle = '#1b1f27'; c.fillRect(x, 180, 158, 104)
+      c.fillStyle = color; c.fillRect(x, 180, 158, 52)
+      c.fillStyle = '#ff6600'; c.font = 'bold 11px sans-serif'; c.fillText(label.toUpperCase(), x + 8, 250)
+      c.fillStyle = '#8a909c'
+      for (let l = 0; l < 2; l++) c.fillRect(x + 8, 260 + l * 10, 130 - l * 40, 4)
+    })
+  }
+  const texture = drawnTexture(W, H, (c) => paint(c))
+  const context = (texture.image as HTMLCanvasElement).getContext('2d')!
+  const logo = new Image()
+  logo.onload = () => { paint(context, logo); texture.needsUpdate = true }
+  logo.src = import.meta.env.BASE_URL + 'logo-elite-dangereuse.svg'
+  return texture
+}
+
+/** Bureau : écran affichant elitedangereuse.fr, clavier, tasse, lampe, et une maquette de Cobra Mk III. */
 const desk: Builder = () => {
   const g = new THREE.Group()
   g.add(box(1.1, 0.04, 0.55, lit(C.wood), 0, 0.38, 0, 0.012), box(0.3, 0.36, 0.5, lit(C.woodDark), -0.38, 0.18, 0))
   for (const z of [-0.2, 0.2]) g.add(box(0.04, 0.36, 0.04, lit(C.woodDark), 0.5, 0.18, z))
   for (const y of [0.12, 0.26]) g.add(box(0.26, 0.01, 0.01, lit(C.wood), -0.38, y, 0.252))
   g.add(box(0.05, 0.08, 0.05, lit('#2a2e36'), 0.05, 0.44, -0.16), box(0.44, 0.27, 0.025, lit('#2a2e36'), 0.05, 0.6, -0.17, 0.01))
-  g.add(box(0.4, 0.23, 0.005, glow('#e0701e'), 0.05, 0.6, -0.156))
-  for (let i = 0; i < 4; i++) g.add(box(0.28 - i * 0.04, 0.012, 0.004, glow('#ffc27a'), -0.01, 0.68 - i * 0.04, -0.152))
+  g.add(part(new THREE.PlaneGeometry(0.4, 0.23), new THREE.MeshBasicMaterial({ map: siteHomeScreen() }), 0.05, 0.6, -0.156))
   g.add(box(0.3, 0.015, 0.1, lit('#2a2e36'), 0.05, 0.408, 0.08), cylinder(0.03, 0.03, 0.06, lit(C.white), -0.3, 0.43, 0.12, 10))
   const handle = mesh(new THREE.TorusGeometry(0.018, 0.006, 4, 10), lit(C.white), -0.27, 0.43, 0.12)
   handle.rotation.y = Math.PI / 2
