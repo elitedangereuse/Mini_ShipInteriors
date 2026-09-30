@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import {
-  animatedScreen, beamMaterial, box, cylinder, drawnTexture, glass, glow, instanced, keepShared, lit, mesh, part, rng, setInstance, type Builder,
+  animatedScreen, beamMaterial, box, cylinder, drawnTexture, glass, glow, instanced, keepShared, lit, mesh, part, rng, setInstance, sphere, type Builder,
 } from './kit'
 import { beatAt, beatPhase } from '../tempo'
 
@@ -332,86 +332,209 @@ const djBooth: Builder = () => {
 
 // ---------------------------------------------------------------- jukebox
 
-let grille: THREE.MeshLambertMaterial | null = null
+/**
+ * Arche du jukebox : deux montants verticaux (x = ±r, de y0 à y1) reliés par un demi-cercle
+ * de centre (0, y1), parcourus de bas à gauche à bas à droite, à vitesse constante.
+ */
+class ArchCurve extends THREE.Curve<THREE.Vector3> {
+  constructor(private r: number, private y0: number, private y1: number, private z: number) {
+    super()
+  }
+  override getPoint(t: number, target = new THREE.Vector3()): THREE.Vector3 {
+    const { r, y0, y1, z } = this
+    const leg = y1 - y0, arc = Math.PI * r
+    const s = t * (2 * leg + arc)
+    if (s < leg) return target.set(-r, y0 + s, z)
+    if (s < leg + arc) {
+      const a = Math.PI - (s - leg) / r
+      return target.set(Math.cos(a) * r, y1 + Math.sin(a) * r, z)
+    }
+    return target.set(r, y1 - (s - leg - arc), z)
+  }
+}
 
-/** Grille chromée du haut-parleur (partagée). */
-function grilleMaterial(): THREE.MeshLambertMaterial {
-  grille ??= keepShared(
-    new THREE.MeshLambertMaterial({
-      map: keepShared(
-        drawnTexture(64, 64, (g) => {
-          g.fillStyle = '#3a2418'
-          g.fillRect(0, 0, 64, 64)
-          g.strokeStyle = '#d9dde3'
-          g.lineWidth = 3
-          for (let x = -64; x < 128; x += 10) {
-            g.beginPath()
-            g.moveTo(x, 0)
-            g.lineTo(x + 64, 64)
-            g.moveTo(x + 64, 0)
-            g.lineTo(x, 64)
-            g.stroke()
-          }
-        }),
-      ),
-    }),
-  )
-  return grille
+/** Contour en arche (montants de y0 à y1, demi-cercle de rayon r au-dessus), pour les extrusions. */
+function archShape(r: number, y0: number, y1: number, into: THREE.Path = new THREE.Shape()): THREE.Path {
+  into.moveTo(-r, y0)
+  into.lineTo(r, y0)
+  into.lineTo(r, y1)
+  into.absarc(0, y1, r, 0, Math.PI, false)
+  into.lineTo(-r, y0)
+  return into
+}
+
+let jukeboxTextures: { grille: THREE.Material; cards: THREE.Material; backlight: THREE.Material } | null = null
+
+/** Textures du jukebox (partagées) : grille rétroéclairée, cartes des titres, fond de la vitrine. */
+function jukeboxMaterials() {
+  jukeboxTextures ??= {
+    // Grille du haut-parleur : plastique ambré éclairé par derrière, barreaux chromés.
+    grille: keepShared(
+      new THREE.MeshBasicMaterial({
+        map: keepShared(
+          drawnTexture(128, 96, (g) => {
+            const bg = g.createLinearGradient(0, 0, 0, 96)
+            bg.addColorStop(0, '#ff9a3c')
+            bg.addColorStop(0.55, '#ff5f7e')
+            bg.addColorStop(1, '#b8327a')
+            g.fillStyle = bg
+            g.fillRect(0, 0, 128, 96)
+            const halo = g.createRadialGradient(64, 48, 4, 64, 48, 60)
+            halo.addColorStop(0, '#ffe7b0cc')
+            halo.addColorStop(1, '#ffe7b000')
+            g.fillStyle = halo
+            g.fillRect(0, 0, 128, 96)
+            for (let x = 6; x < 128; x += 10) {
+              g.fillStyle = '#3a1a2a'
+              g.fillRect(x - 1, 0, 6, 96)
+              g.fillStyle = '#e8ebf0'
+              g.fillRect(x, 0, 3, 96)
+            }
+          }),
+        ),
+      }),
+    ),
+    // Cartes des titres : deux rangées, bandeau rouge et deux lignes de texte chacune.
+    cards: keepShared(
+      new THREE.MeshLambertMaterial({
+        map: keepShared(
+          drawnTexture(256, 72, (g) => {
+            g.fillStyle = '#2a1c18'
+            g.fillRect(0, 0, 256, 72)
+            for (let row = 0; row < 2; row++) {
+              for (let col = 0; col < 5; col++) {
+                const x = 4 + col * 50.4, y = 4 + row * 34
+                g.fillStyle = '#f4ead6'
+                g.fillRect(x, y, 46, 30)
+                g.fillStyle = col % 2 ? '#2f6fc0' : '#c8323c'
+                g.fillRect(x, y + 13, 46, 4)
+                g.fillStyle = '#6b5a4a'
+                g.fillRect(x + 5, y + 5, 30 - ((row + col) % 3) * 6, 3)
+                g.fillRect(x + 5, y + 22, 34 - ((row * 2 + col) % 3) * 7, 3)
+              }
+            }
+          }),
+        ),
+      }),
+    ),
+    // Fond de la vitrine : lueur chaude autour du disque.
+    backlight: keepShared(
+      new THREE.MeshBasicMaterial({
+        map: keepShared(
+          drawnTexture(64, 64, (g) => {
+            const halo = g.createRadialGradient(32, 38, 2, 32, 38, 40)
+            halo.addColorStop(0, '#ffd9a0')
+            halo.addColorStop(0.45, '#c2447e')
+            halo.addColorStop(1, '#241030')
+            g.fillStyle = halo
+            g.fillRect(0, 0, 64, 64)
+          }),
+        ),
+      }),
+    ),
+  }
+  return jukeboxTextures
 }
 
 /**
- * Jukebox des années 1950 : arche de tubes lumineux aux couleurs qui défilent, bulles qui
- * montent dans les colonnes, disques derrière la vitre.
+ * Jukebox des années 1950, façon Wurlitzer : meuble en arche au bois verni, tubes lumineux
+ * aux couleurs qui défilent tout le long de l'arche, bulles qui montent dans les montants,
+ * vitrine bombée cerclée de chrome où tourne le disque, cartes des titres, touches de sélection
+ * et grille ambrée du haut-parleur.
  */
 const jukebox: Builder = ({ random }) => {
   const g = new THREE.Group()
-  const wood = lit(C.wood)
-  g.add(box(0.5, 0.6, 0.3, wood, 0, 0.3, 0, 0.02))
-  // Demi-cylindre couché : la moitié du haut forme l'arche.
-  const arch = mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.3, 24, 1, false, Math.PI / 2, Math.PI), wood, 0, 0.6, 0)
-  arch.rotation.x = Math.PI / 2
-  g.add(arch)
-  // Vitrine : fond sombre et carrousel de disques ; grille du haut-parleur en bas.
-  g.add(box(0.34, 0.2, 0.02, lit('#1a1420'), 0, 0.64, 0.14))
-  for (let i = 0; i < 5; i++) {
-    const disc = mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.004, 16), lit(i % 2 ? '#15151a' : '#1f1f26'), -0.1 + i * 0.05, 0.63 + (i % 2) * 0.02, 0.15)
-    disc.rotation.x = Math.PI / 2
-    g.add(disc)
+  const wood = lit(C.wood), dark = lit(C.woodDark), chrome = lit(C.chrome)
+  const { grille, cards, backlight } = jukeboxMaterials()
+  const FRONT = 0.15
+  // Socle et meuble : une arche extrudée aux arêtes arrondies (0,52 × 0,30, 0,88 de haut).
+  g.add(box(0.54, 0.05, 0.32, dark, 0, 0.025, 0, 0.01), box(0.545, 0.012, 0.325, chrome, 0, 0.052, 0))
+  const cabinet = mesh(
+    new THREE.ExtrudeGeometry(archShape(0.25, 0.058, 0.62) as THREE.Shape, { depth: 0.28, bevelSize: 0.01, bevelThickness: 0.01, bevelSegments: 2, curveSegments: 24 }),
+    wood, 0, 0, -0.14,
+  )
+  g.add(cabinet)
+  // Flancs : bandeau de bois sombre en bas, jonc chromé au-dessus.
+  for (const side of [-1, 1]) g.add(box(0.006, 0.26, 0.26, dark, side * 0.259, 0.2, 0), box(0.008, 0.012, 0.26, chrome, side * 0.259, 0.336, 0))
+  // Filet chromé sur le bord de l'arche, et cimier.
+  g.add(mesh(new THREE.TubeGeometry(new ArchCurve(0.252, 0.06, 0.62, FRONT), 64, 0.007, 6), chrome))
+  g.add(box(0.07, 0.03, 0.05, chrome, 0, 0.875, 0.1, 0.012), sphere(0.018, lit('#ffd35a'), 0, 0.9, 0.11, 12))
+
+  // Vitrine : fond éclairé, disque sur sa platine, piles de disques de part et d'autre, bras de lecture.
+  const win = archShape(0.15, 0.52, 0.64) as THREE.Shape
+  g.add(part(new THREE.ShapeGeometry(win, 20), backlight, 0, 0, FRONT + 0.001))
+  const bezel = archShape(0.168, 0.505, 0.64) as THREE.Shape
+  bezel.holes.push(archShape(0.15, 0.52, 0.64, new THREE.Path()))
+  g.add(mesh(new THREE.ExtrudeGeometry(bezel, { depth: 0.035, bevelSize: 0.004, bevelThickness: 0.004, bevelSegments: 1, curveSegments: 20 }), chrome, 0, 0, FRONT))
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 6; i++) {
+      const d = mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.004, 16), lit(i % 2 ? '#15151a' : '#23232b'), side * (0.075 + i * 0.009), 0.6, FRONT - 0.004)
+      d.rotation.z = Math.PI / 2
+      g.add(d)
+    }
   }
-  g.add(mesh(new THREE.PlaneGeometry(0.34, 0.2), grilleMaterial(), 0, 0.2, 0.151))
-  g.add(box(0.4, 0.03, 0.05, lit(C.chrome), 0, 0.48, 0.14), box(0.52, 0.03, 0.32, lit(C.chrome), 0, 0.015, 0))
-  for (let i = 0; i < 8; i++) g.add(box(0.03, 0.02, 0.012, lit(C.cream), -0.14 + i * 0.04, 0.49, 0.17))
+  g.add(box(0.14, 0.01, 0.04, chrome, 0, 0.535, FRONT + 0.012))
+  const arm = box(0.124, 0.008, 0.008, chrome, 0.07, 0.688, FRONT + 0.03)
+  arm.rotation.z = 0.87
+  g.add(arm, sphere(0.012, chrome, 0.11, 0.735, FRONT + 0.03, 8))
+
+  // Cartes des titres, inclinées, sous leur cadre chromé ; touches de sélection en dessous.
+  const strip = new THREE.Group()
+  strip.position.set(0, 0.45, FRONT + 0.02)
+  strip.rotation.x = -0.45
+  strip.add(box(0.34, 0.085, 0.04, chrome, 0, 0, -0.02))
+  strip.add(part(new THREE.PlaneGeometry(0.32, 0.07), cards, 0, 0, 0.0005))
+  g.add(strip)
+  g.add(box(0.34, 0.03, 0.04, chrome, 0, 0.385, FRONT + 0.012, 0.008))
+  for (let i = 0; i < 10; i++) g.add(box(0.022, 0.016, 0.014, lit(i === 4 || i === 5 ? '#d8363f' : C.cream), -0.135 + i * 0.03, 0.387, FRONT + 0.034, 0.004))
+
+  // Grille du haut-parleur dans son cadre, médaillon doré au centre.
+  g.add(box(0.33, 0.25, 0.02, chrome, 0, 0.22, FRONT, 0.01))
+  g.add(part(new THREE.PlaneGeometry(0.3, 0.22), grille, 0, 0.22, FRONT + 0.011))
+  const medal = mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.012, 24), lit('#ffd35a'), 0, 0.22, FRONT + 0.016)
+  medal.rotation.x = Math.PI / 2
+  const star = mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.006, 5), lit('#b8327a'), 0, 0.22, FRONT + 0.023)
+  star.rotation.x = Math.PI / 2
+  g.add(medal, star)
 
   const live = new THREE.Group()
-  live.add(part(new THREE.PlaneGeometry(0.34, 0.2), glass('#bfe8ff', 0.18), 0, 0.64, 0.152))
-  // Arche lumineuse : douze segments le long d'un demi-cercle, deux colonnes de six.
-  const SEG = 12, COL = 6
-  const lights = instanced(new THREE.BoxGeometry(1, 1, 1), Array.from({ length: SEG + COL * 2 }, () => '#fff'))
-  for (let i = 0; i < SEG; i++) {
-    const a = (i / (SEG - 1)) * Math.PI
-    lights.setMatrixAt(i, new THREE.Matrix4().compose(
-      new THREE.Vector3(Math.cos(a) * 0.235, 0.6 + Math.sin(a) * 0.235, 0.152),
-      new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), a),
-      new THREE.Vector3(0.03, 0.062, 0.012),
-    ))
-  }
-  for (let i = 0; i < COL * 2; i++) setInstance(lights, SEG + i, i < COL ? -0.235 : 0.235, 0.08 + (i % COL) * 0.09, 0.152, new THREE.Vector3(0.03, 0.085, 0.012))
-  lights.instanceMatrix.needsUpdate = true
-  // Bulles qui montent dans les colonnes.
-  const BUBBLES = 8
+  // Le disque qui tourne, étiquette rouge, et la vitre bombée devant.
+  const record = new THREE.Group()
+  record.position.set(0, 0.6, FRONT + 0.022)
+  const vinyl = part(new THREE.CylinderGeometry(0.06, 0.06, 0.004, 28), lit('#111116'))
+  const label = part(new THREE.CylinderGeometry(0.022, 0.022, 0.005, 16), lit('#d8363f'))
+  const mark = part(new THREE.BoxGeometry(0.018, 0.0055, 0.004), lit(C.cream), 0.008, 0, 0)
+  for (const p of [vinyl, label, mark]) p.rotation.x = Math.PI / 2
+  record.add(vinyl, label, mark)
+  live.add(record)
+  live.add(part(new THREE.ShapeGeometry(win, 20), glass('#dff4ff', 0.16), 0, 0, FRONT + 0.036))
+
+  // Tubes lumineux le long de l'arche : leurs couleurs défilent (couleurs aux sommets).
+  const TUBE = 96, RADIAL = 8
+  const tubeGeo = new THREE.TubeGeometry(new ArchCurve(0.21, 0.08, 0.62, FRONT + 0.006), TUBE, 0.019, RADIAL)
+  const tubeColors = new Float32Array(tubeGeo.attributes.position.count * 3)
+  tubeGeo.setAttribute('color', new THREE.BufferAttribute(tubeColors, 3))
+  live.add(part(tubeGeo, new THREE.MeshBasicMaterial({ vertexColors: true })))
+  // Bulles qui montent dans les montants.
+  const BUBBLES = 10
   const bubbles = instanced(new THREE.SphereGeometry(1, 8, 6), Array.from({ length: BUBBLES }, () => '#ffffff'))
-  const seeds = Array.from({ length: BUBBLES }, (_, i) => ({ side: i % 2 ? 1 : -1, phase: random(), speed: 0.25 + random() * 0.2 }))
-  live.add(lights, bubbles)
+  const seeds = Array.from({ length: BUBBLES }, (_, i) => ({ side: i % 2 ? 1 : -1, phase: random(), speed: 0.18 + random() * 0.16 }))
+  live.add(bubbles)
+
   const c = new THREE.Color()
   const update = (t: number) => {
-    for (let i = 0; i < SEG + COL * 2; i++) {
-      const k = i < SEG ? i / SEG : ((i - SEG) % COL) / COL
-      lights.setColorAt(i, c.setHSL(mod(k * 0.6 - t * 0.12, 1), 0.9, 0.6))
+    const pulse = Math.exp(-beatPhase(t) * 4)
+    for (let i = 0; i <= TUBE; i++) {
+      const u = i / TUBE
+      // Bagues plus sombres tous les quelques centimètres, comme les tubes gravés d'origine.
+      c.setHSL(mod(u * 0.9 - t * 0.1, 1), 0.95, 0.52 + 0.08 * pulse - (i % 4 === 0 ? 0.12 : 0))
+      for (let j = 0; j <= RADIAL; j++) c.toArray(tubeColors, (i * (RADIAL + 1) + j) * 3)
     }
-    lights.instanceColor!.needsUpdate = true
+    tubeGeo.attributes.color.needsUpdate = true
+    record.rotation.z = -t * 3.5
     for (const [i, s] of seeds.entries()) {
       const y = mod(s.phase + t * s.speed, 1)
-      setInstance(bubbles, i, s.side * 0.235, 0.06 + y * 0.52, 0.16, 0.008 + 0.004 * Math.sin(i + t))
+      setInstance(bubbles, i, s.side * 0.21, 0.09 + y * 0.5, FRONT + 0.027, 0.005 + 0.002 * Math.sin(i * 1.7 + t * 3))
     }
     bubbles.instanceMatrix.needsUpdate = true
   }
