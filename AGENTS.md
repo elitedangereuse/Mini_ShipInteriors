@@ -11,6 +11,10 @@ livrée ; c'est un humain qui la passe en `Terminé` après essai en jeu.
 La plupart des cartes sont des brouillons (draft issues) ; les bugs sont des
 issues du dépôt `elitedangereuse/Mini_ShipInteriors`.
 
+En session cloud (Claude Code sur le web), le tableau est inaccessible (GraphQL
+et API des projets d'organisation bloqués) : ne pas essayer de le lire ni de le
+mettre à jour, travailler directement sur la tâche demandée.
+
 ## Lire et mettre à jour le tableau
 
 Il faut `gh` connecté avec le scope `project`
