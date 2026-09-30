@@ -185,8 +185,11 @@ export class Hangar {
 
   constructor(private readonly host: HangarHost) {
     const { deck } = host
+    // Les postes sont ceux du hangar : la cale a d'autres meubles du même modèle (le poste de
+    // soudure de l'atelier, près de la salle des machines).
+    const inHangar = (it: Interactable) => deck.map.room(Math.round(it.position.x), Math.round(it.position.z)) === MECH_ROOM
     for (const [station, { model, label }] of Object.entries(STATION_MODEL) as [Station, { model: string; label?: string }][]) {
-      const item = deck.interactables.find((it) => it.furniture?.model === model && (label === undefined || it.furniture.label === label))
+      const item = deck.interactables.find((it) => it.furniture?.model === model && (label === undefined || it.furniture.label === label) && inHangar(it))
       if (item) this.stations.set(station, { item, label: item.label, onInteract: item.onInteract })
     }
     this.marker.scale.setScalar(0.34)
@@ -210,6 +213,12 @@ export class Hangar {
   /** Une révision est en cours. */
   get busy(): boolean {
     return this.service !== null
+  }
+
+  /** Le meuble de l'étape en cours, s'il y en a une : la touche E le préfère à ses voisins (cf. main.ts). */
+  get target(): Interactable | null {
+    const s = this.service
+    return s ? this.stations.get(s.job.steps[s.step].at)?.item ?? null : null
   }
 
   /** Le joueur local est aux commandes du Krait. */
