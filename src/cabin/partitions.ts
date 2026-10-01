@@ -4,6 +4,7 @@ import { makeFadeable } from '../fade'
 import { box, compact, cylinder, glass, glow, lit, sphere } from '../furniture/kit'
 import { tr } from '../i18n'
 import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type FadeFocus, type Occluder } from '../merge'
+import { DIRS } from '../map'
 import { DOOR_GAP } from '../../shared/sight.js'
 import { isDoor, partitionEdge, type Partition } from '../../shared/cabin-partitions.js'
 
@@ -255,7 +256,84 @@ function leaves(kind: string, deck: Deck, random: () => number): Leaves {
   }
 }
 
+// ---------------------------------------------------------------- papier peint
+
+/**
+ * Papier peint : sur le panneau en retrait des murs du kit (0,10 de l'axe du mur, entre le
+ * bandeau du bas, jusqu'à 0,2, et le chanfrein du haut, à partir de 0,7), à côté des
+ * encadrements (hublot, pilier, porte) mesurés dans les modèles.
+ */
+export const PANEL = { depth: 0.103, bottom: 0.2, top: 0.7 }
+export const PANEL_SPANS: Record<WallSegment['model'], [number, number][]> = {
+  wall: [[-0.5, 0.5]],
+  'wall-window': [[-0.5, -0.4], [0.4, 0.5]],
+  'wall-pillar': [[-0.5, -0.2], [0.2, 0.5]],
+  door: [[-0.5, -0.3], [0.3, 0.5]],
+}
+/**
+ * Papier peint d'un demi-mur : sur toute sa face (un muret uni, cf. halfWall), sous le chaperon.
+ * Calculé à l'usage : deck.ts (WALL_T) et ce module se chargent l'un l'autre.
+ */
+const halfPanel = () => ({ depth: WALL_T / 2 + 0.003, bottom: 0.04, top: HALF_H - 0.06 })
+
+/**
+ * Panneaux de papier peint d'un pan de mur (arête de milieu (cx, cz), côté cabine opposé à
+ * `d`), aux intervalles `spans` le long du mur, à la profondeur et à la hauteur de `panel`.
+ * Coordonnées de texture en mètres, continues d'un pan à l'autre, de gauche à droite vu depuis la
+ * pièce.
+ */
+export function panelGeometry(cx: number, cz: number, d: { dx: number; dz: number }, spans: [number, number][], panel: { depth: number; bottom: number; top: number } = PANEL): THREE.BufferGeometry {
+  const along = d.dz !== 0 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1)
+  // Vu depuis la pièce (regard vers le mur, direction d), la droite est d × haut.
+  const right = new THREE.Vector3(-d.dz, 0, d.dx)
+  const inward = new THREE.Vector3(-d.dx, 0, -d.dz)
+  const base = new THREE.Vector3(cx, 0, cz).addScaledVector(inward, panel.depth)
+  const pos: number[] = [], uv: number[] = [], normal: number[] = [], index: number[] = []
+  const p = new THREE.Vector3()
+  for (const [a, b] of spans) {
+    const i = pos.length / 3
+    for (const [s, y] of [[a, panel.bottom], [b, panel.bottom], [b, panel.top], [a, panel.top]]) {
+      p.copy(base).addScaledVector(along, s).setY(y)
+      pos.push(p.x, p.y, p.z)
+      normal.push(inward.x, 0, inward.z)
+      uv.push(p.dot(right), y)
+    }
+    // Face tournée vers la pièce : on retourne les triangles s'il le faut.
+    const facing = new THREE.Vector3().crossVectors(along, new THREE.Vector3(0, 1, 0)).dot(inward) > 0
+    if (facing) index.push(i, i + 1, i + 2, i, i + 2, i + 3)
+    else index.push(i, i + 2, i + 1, i, i + 3, i + 2)
+  }
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(normal, 3))
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+  geo.setIndex(index)
+  return geo
+}
+
 // ---------------------------------------------------------------- les cloisons d'une cabine
+
+/** Papier peint d'une face de cloison (`a` : vers sa tuile, au nord ou à l'ouest ; `b` : vers la voisine), ou rien. */
+export type PaperOf = (p: Partition, side: 'a' | 'b') => THREE.Material | undefined
+
+/**
+ * Panneaux de papier peint d'une cloison, face par face, aux intervalles `spans` (et à la
+ * hauteur de `panel`) : un maillage par face revêtue.
+ */
+function papersOf(p: Partition, paper: PaperOf | undefined, spans: [number, number][], panel = PANEL): THREE.Mesh[] {
+  if (!paper) return []
+  const { cx, cz } = partitionCenter(p)
+  const d = DIRS[partitionEdge(p).dir]
+  const out: THREE.Mesh[] = []
+  for (const [side, dir] of [['a', d], ['b', { dx: -d.dx, dz: -d.dz }]] as const) {
+    const material = paper(p, side)
+    if (!material) continue
+    const mesh = new THREE.Mesh(panelGeometry(cx, cz, dir, spans, panel), material)
+    mesh.castShadow = false
+    out.push(mesh)
+  }
+  return out
+}
 
 export class PartitionShell {
   readonly group = new THREE.Group()
@@ -284,12 +362,14 @@ export class PartitionShell {
    * @param partitions cloisons posées sur le plan (cf. applyPartitions)
    * @param existing murs et poteaux déjà là (le pont, les pièces d'extension) : pour les poteaux d'angle
    * @param upper haut des murs jusqu'au plafond en vue subjective (pas sous le ciel d'une parcelle)
+   * @param paper papier peint de chaque face (parcelle des quartiers) : il s'estompe avec son mur
    */
   constructor(
     private deck: Deck,
     partitions: Partition[],
     existing: { walls: WallSegment[]; posts: { x: number; z: number }[] },
     upper = true,
+    private paper?: PaperOf,
   ) {
     const merge = new StaticMerge()
     const random = mulberry(partitions.length * 7919 + 17)
@@ -310,7 +390,12 @@ export class PartitionShell {
       if (alongX) touch(cx - 0.5, cz, 'h', high), touch(cx + 0.5, cz, 'h', high)
       else touch(cx, cz - 0.5, 'v', high), touch(cx, cz + 0.5, 'v', high)
       if (!high) {
-        this.occluders.push(merge.addFading(halfWall(deck.theme.shell, cx, cz, alongX), new THREE.Vector3(cx, 0.25, cz)))
+        const occ = merge.addFading(halfWall(deck.theme.shell, cx, cz, alongX), new THREE.Vector3(cx, 0.25, cz))
+        this.occluders.push(occ)
+        for (const m of papersOf(p, paper, [[-0.5, 0.5]], halfPanel())) {
+          merge.add(m, false, occ.index)
+          m.geometry.dispose()
+        }
         this.lows.push({ x: cx, z: cz, alongX })
         this.colliders.push(alongX ? { minX: cx - 0.5, maxX: cx + 0.5, minZ: cz - t, maxZ: cz + t } : { minX: cx - t, maxX: cx + t, minZ: cz - 0.5, maxZ: cz + 0.5 })
         continue
@@ -321,7 +406,13 @@ export class PartitionShell {
       }
       const model = p.k === 'window' ? 'wall-window' : 'wall'
       const wall = deck.placeModel(model, cx, 0, cz, rot)
-      this.occluders.push(merge.addFading(wall, new THREE.Vector3(cx, 0.5, cz)))
+      const occ = merge.addFading(wall, new THREE.Vector3(cx, 0.5, cz))
+      this.occluders.push(occ)
+      // Le papier peint, sur le panneau en retrait du pan : il s'estompe avec lui.
+      for (const m of papersOf(p, paper, PANEL_SPANS[model])) {
+        merge.add(m, false, occ.index)
+        m.geometry.dispose()
+      }
       this.walls.push({ x: cx, z: cz, alongX, model })
       this.colliders.push(alongX ? { minX: cx - 0.5, maxX: cx + 0.5, minZ: cz - t, maxZ: cz + t } : { minX: cx - t, maxX: cx + t, minZ: cz - 0.5, maxZ: cz + 0.5 })
     }
@@ -377,6 +468,14 @@ export class PartitionShell {
     const l = leaves(p.k ?? 'sliding', this.deck, random)
     holder.add(frame, ...l.parts)
     if (l.trim) holder.add(l.trim)
+    // Papier peint de l'encadrement, de part et d'autre de l'ouverture (repère de la porte).
+    holder.updateMatrix()
+    const local = holder.matrix.clone().invert()
+    for (const m of papersOf(p, this.paper, PANEL_SPANS.door)) {
+      m.geometry.applyMatrix4(local)
+      holder.add(m)
+      this.owned.push(m.geometry)
+    }
     l.animate?.(0)
     // Tout se trame ensemble : un matériau tramable par matériau d'origine.
     const fade = { value: 1 }

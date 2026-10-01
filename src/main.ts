@@ -238,7 +238,7 @@ const cabin = cabinDeck.cabin!
  */
 const homeDeck = decks.find((d) => d.home)
 let homeStore = new HomeStore(account?.name ?? null)
-homeDeck?.home!.set(0, homeStore.load().walls ?? [])
+homeDeck?.home!.set(0, homeStore.load())
 
 /** Réponse du site (ou son absence) : l'aménagement à montrer, envoyé au site s'il vient de ce navigateur. */
 function connectStore(store: CabinStore, site: SiteCabin | null): CabinLayout {
@@ -1951,7 +1951,7 @@ function adoptAccount() {
   const name = profile.name.replace(/^CMDR /, '')
   if (homeDeck && !builder?.active) {
     homeStore = new HomeStore(name)
-    homeDeck.home!.set(homeDeck.home!.stage, homeStore.load().walls ?? [])
+    homeDeck.home!.set(homeDeck.home!.stage, homeStore.load())
   }
   if (cabinStore) return
   const store = (cabinStore = new CabinStore(profile.name.replace(/^CMDR /, '')))
@@ -2022,9 +2022,9 @@ async function openBuilder() {
       canvas: renderer.domElement,
       iso,
       sound,
-      onChange: (walls) => {
-        homeDeck.home!.set(homeDeck.home!.stage, walls)
-        homeStore.save({ v: 2, walls })
+      onChange: (plan) => {
+        homeDeck.home!.set(homeDeck.home!.stage, plan)
+        homeStore.save(plan)
       },
       onClose: () => closeEditor(),
     })
@@ -2039,7 +2039,7 @@ async function openBuilder() {
   editZoom = iso.zoomLevel
   iso.setRestElevation(editElevation)
   document.body.classList.add('editing')
-  builder.start(homeDeck.home!.walls, homeDeck.home!.stage)
+  builder.start(homeDeck.home!.plan, homeDeck.home!.stage)
   const z = builder.fitZoom()
   iso.zoomMax = Math.max(iso.zoomMax, z)
   iso.zoomTo(z)
@@ -2366,7 +2366,7 @@ function unstickHome(p: THREE.Vector3, r: number) {
     return
   }
   let best: { x: number; z: number } | null = null
-  for (const t of homeDeck.home!.plan.tiles) {
+  for (const t of homeDeck.home!.plotPlan.tiles) {
     if (homeDeck.pathfinder.walkable(t.x, t.z) && !overlapsAny(t, r, colliders) && (!best || Math.hypot(t.x - p.x, t.z - p.z) < Math.hypot(best.x - p.x, best.z - p.z))) best = t
   }
   if (best) {

@@ -102,3 +102,41 @@ test('le relais garde la parcelle avec l\'aménagement, au format 2 seulement', 
   assert.equal(sanitizeLayout({ items: [], home: { v: 1, walls: [] } }).home, undefined)
   assert.equal(sanitizeLayout({ items: [] }).home, undefined)
 })
+
+test('revêtements : cases encodées par plages, palettes compactées, mal formés oubliés', async () => {
+  const { CELLS, cellAt, cellIndex, decodeCells, encodeCells, finishCounts, packHome, sanitizeHome: clean, unpackHome } = await import('../shared/housing-home.js')
+  assert.equal(cellIndex(O.x, O.z), 0)
+  assert.equal(cellIndex(O.x + 29, O.z + 29), CELLS - 1)
+  assert.equal(cellIndex(O.x - 1, O.z), -1)
+  assert.deepEqual(cellAt(cellIndex(O.x + 3, O.z + 7)), { x: O.x + 3, z: O.z + 7 })
+  const letters = 'aab' + '.'.repeat(CELLS - 4) + 'c'
+  assert.equal(encodeCells(letters), `a2b1.${CELLS - 4}c1`)
+  assert.equal(decodeCells(encodeCells(letters)), letters)
+  assert.equal(decodeCells('n'), '.'.repeat(CELLS), 'illisible : dalles nues')
+  assert.equal(decodeCells(`a${CELLS + 50}`), 'a'.repeat(CELLS), 'trop long : coupé')
+
+  const parquet = { style: 'parquet', color: '#aa7744' }, tiles = { style: 'tiles', color: '#ffffff' }, paint = { style: 'paint', color: '#336699' }
+  const floor = Array(CELLS).fill(null)
+  floor[cellIndex(O.x, O.z)] = parquet
+  floor[cellIndex(O.x + 1, O.z)] = { ...parquet }
+  floor[cellIndex(O.x + 9, O.z + 9)] = tiles
+  const plan = { walls: [{ x: O.x + 2, z: O.z + 2, e: 'v', k: 'half', a: paint }, { x: O.x + 2, z: O.z + 3, e: 'v', b: { ...paint } }], floor }
+  assert.deepEqual(finishCounts(plan), { floor: 2, paper: 1 })
+  const home = packHome(plan)
+  assert.deepEqual(home.papers, [paint])
+  assert.deepEqual(home.walls, [{ x: O.x + 2, z: O.z + 2, e: 'v', k: 'half', a: 0 }, { x: O.x + 2, z: O.z + 3, e: 'v', b: 0 }])
+  assert.deepEqual(home.floor.palette, [parquet, tiles])
+  assert.deepEqual(clean(home), home, 'déjà propre')
+  assert.deepEqual(unpackHome(home), plan)
+
+  // Revêtement mal formé : ses faces et ses cases redeviennent nues ; ce qui ne sert pas disparaît.
+  const messy = clean({
+    v: 2,
+    walls: [{ x: O.x + 2, z: O.z + 2, e: 'v', a: 1, b: 7 }],
+    papers: [{ style: 'paint', color: 'bleu' }, paint, tiles],
+    floor: { palette: [{ style: 'PARQUET', color: '#aa7744' }, tiles], cells: `a1b1.${CELLS - 2}` },
+  })
+  assert.deepEqual(messy.walls, [{ x: O.x + 2, z: O.z + 2, e: 'v', a: 0 }])
+  assert.deepEqual(messy.papers, [paint])
+  assert.deepEqual(messy.floor, { palette: [tiles], cells: `.1a1.${CELLS - 2}` })
+})

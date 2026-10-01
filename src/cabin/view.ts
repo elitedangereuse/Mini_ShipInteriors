@@ -11,7 +11,7 @@ import { placeSeats, seatAction, seatsOf } from '../seats'
 import { builderLabel, entryOf, interactText, isSolid, type CatalogEntry } from './catalog'
 import { FinishTexture } from './finishes'
 import { partitionsKey, sameItems, wingShapes, type CabinItem, type CabinLayout, type CabinWings, type Finish, type Partition, type Rect } from './layout'
-import { partitionCenter, PartitionShell } from './partitions'
+import { panelGeometry, PANEL_SPANS, partitionCenter, PartitionShell } from './partitions'
 import { WingShell } from './wings'
 import { applyWings, WING_ROOMS, WING_SLOTS, type WingId, type WingPlan } from '../../shared/cabin-wings.js'
 import { applyPartitions, clearPartitions } from '../../shared/cabin-partitions.js'
@@ -39,18 +39,6 @@ const MAX_OCCLUDERS = 96
 
 const PICK_MATERIAL = keepShared(new THREE.MeshBasicMaterial())
 
-/**
- * Papier peint : sur le panneau en retrait des murs du kit (0,10 de l'axe du mur, entre le
- * bandeau du bas, jusqu'à 0,2, et le chanfrein du haut, à partir de 0,7), à côté des
- * encadrements (hublot, pilier, porte) mesurés dans les modèles.
- */
-const PANEL = { depth: 0.103, bottom: 0.2, top: 0.7 }
-const PANEL_SPANS: Record<WallSegment['model'], [number, number][]> = {
-  wall: [[-0.5, 0.5]],
-  'wall-window': [[-0.5, -0.4], [0.4, 0.5]],
-  'wall-pillar': [[-0.5, -0.2], [0.2, 0.5]],
-  door: [[-0.5, -0.3], [0.3, 0.5]],
-}
 /** Revêtement du sol, juste au-dessus des dalles (les tapis, plus hauts, restent dessus). */
 const FLOORING_Y = 0.002
 
@@ -952,38 +940,4 @@ export class CabinView {
     for (const wing of this.wings.values()) wing.shell.update(view, dt)
     this.partitionShell?.update(view, dt, this.solidPartitions)
   }
-}
-
-/**
- * Panneaux de papier peint d'un pan de mur (arête de milieu (cx, cz), côté cabine opposé à
- * `d`), aux intervalles `spans` le long du mur. Coordonnées de texture en mètres, continues
- * d'un pan à l'autre, de gauche à droite vu depuis la pièce.
- */
-function panelGeometry(cx: number, cz: number, d: { dx: number; dz: number }, spans: [number, number][]): THREE.BufferGeometry {
-  const along = d.dz !== 0 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1)
-  // Vu depuis la pièce (regard vers le mur, direction d), la droite est d × haut.
-  const right = new THREE.Vector3(-d.dz, 0, d.dx)
-  const inward = new THREE.Vector3(-d.dx, 0, -d.dz)
-  const base = new THREE.Vector3(cx, 0, cz).addScaledVector(inward, PANEL.depth)
-  const pos: number[] = [], uv: number[] = [], normal: number[] = [], index: number[] = []
-  const p = new THREE.Vector3()
-  for (const [a, b] of spans) {
-    const i = pos.length / 3
-    for (const [s, y] of [[a, PANEL.bottom], [b, PANEL.bottom], [b, PANEL.top], [a, PANEL.top]]) {
-      p.copy(base).addScaledVector(along, s).setY(y)
-      pos.push(p.x, p.y, p.z)
-      normal.push(inward.x, 0, inward.z)
-      uv.push(p.dot(right), y)
-    }
-    // Face tournée vers la pièce : on retourne les triangles s'il le faut.
-    const facing = new THREE.Vector3().crossVectors(along, new THREE.Vector3(0, 1, 0)).dot(inward) > 0
-    if (facing) index.push(i, i + 1, i + 2, i, i + 2, i + 3)
-    else index.push(i, i + 2, i + 1, i, i + 3, i + 2)
-  }
-  const geo = new THREE.BufferGeometry()
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
-  geo.setAttribute('normal', new THREE.Float32BufferAttribute(normal, 3))
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
-  geo.setIndex(index)
-  return geo
 }

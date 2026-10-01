@@ -1,5 +1,15 @@
 // Aménagement d'une parcelle des quartiers (housing v2, cf. docs/housing-v2.md), format 2 : ce que
-// le joueur y a bâti. Pour l'instant, ses murs ; le sol, le papier peint et le mobilier suivront.
+// le joueur y a bâti. Ses murs, le papier peint de chacune de leurs faces, et le revêtement de
+// chaque case du sol ; le mobilier suivra.
+//
+//   { v: 2,
+//     walls?: [{ x, z, e, k?, a?, b? }],        // a, b : papier peint des deux faces (index dans papers)
+//     papers?: [{ style, color }],              // 16 au plus
+//     floor?: { palette: [{ style, color }],    // 16 au plus
+//               cells: 'a12.18b3…' } }          // une lettre par case (cf. encodeCells), '.' : dalle nue
+//
+// La face `a` d'un mur est tournée vers sa tuile (x, z), au nord ou à l'ouest de l'arête ; la face
+// `b` vers la voisine (à l'est pour 'v', au sud pour 'h').
 //
 // Tous les murs de la parcelle sont des tuiles posées sur les arêtes du quadrillage, comme les
 // cloisons des anciens quartiers (même forme : { x, z, e, k? }, cf. cabin-partitions.js) : un mur
@@ -33,6 +43,18 @@ const KIND = /^[a-z0-9-]{1,24}$/
 
 /** Bornes des arêtes : celles de la plus grande parcelle, pourtour compris (tuile au nord ou à l'ouest). */
 const MAX_SIZE = PLOT_SIZES[PLOT_SIZES.length - 1]
+
+/** Revêtements au plus dans chaque palette (sol, papier peint) : une lettre chacun. */
+export const MAX_FINISHES = 16
+const LETTERS = 'abcdefghijklmnop'
+/** Case sans revêtement : la dalle du vaisseau. */
+const BARE = '.'
+/** Côté de la grille des cases (celle de la plus grande parcelle), et nombre de cases. */
+export const GRID = MAX_SIZE
+export const CELLS = GRID * GRID
+
+const STYLE = /^[a-z0-9-]{1,24}$/
+const COLOR = /^#[0-9a-f]{6}$/
 const BOUNDS = { minX: PLOT_ORIGIN.x - 1, maxX: PLOT_ORIGIN.x + MAX_SIZE - 1, minZ: PLOT_ORIGIN.z - 1, maxZ: PLOT_ORIGIN.z + MAX_SIZE - 1 }
 
 /** Le mur laisse-t-il passer (porte, arche) ? */
@@ -57,6 +79,7 @@ export function sanitizeWalls(raw) {
     if (x < BOUNDS.minX || x > BOUNDS.maxX || z < BOUNDS.minZ || z > BOUNDS.maxZ) continue
     const clean = { x, z, e }
     if (typeof k === 'string' && KIND.test(k) && k !== 'wall') clean.k = k
+    for (const side of ['a', 'b']) if (Number.isInteger(w[side]) && w[side] >= 0 && w[side] < MAX_FINISHES) clean[side] = w[side]
     const key = `${x},${z},${e}`
     byEdge.delete(key)
     byEdge.set(key, clean)
@@ -64,16 +87,139 @@ export function sanitizeWalls(raw) {
   return [...byEdge.values()]
 }
 
+// ---------------------------------------------------------------- revêtements
+
+/** Revêtement bien formé ({ style, color } : identifiant court, #rrggbb), ou null. */
+export function sanitizeFinish(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const { style, color } = raw
+  return typeof style === 'string' && STYLE.test(style) && typeof color === 'string' && COLOR.test(color) ? { style, color } : null
+}
+
+const finishKey = (f) => `${f.style}:${f.color}`
+
+/** Index de la case (x, z) dans la grille, ou -1 hors de la plus grande parcelle. */
+export function cellIndex(x, z) {
+  const i = x - PLOT_ORIGIN.x, j = z - PLOT_ORIGIN.z
+  return Number.isInteger(i) && Number.isInteger(j) && i >= 0 && j >= 0 && i < GRID && j < GRID ? j * GRID + i : -1
+}
+
+/** Case d'un index de la grille. */
+export const cellAt = (index) => ({ x: PLOT_ORIGIN.x + (index % GRID), z: PLOT_ORIGIN.z + Math.floor(index / GRID) })
+
+/** Cases (une lettre chacune, CELLS en tout) encodées par plages : « a12.18b3 » (lettre, puis longueur). */
+export function encodeCells(letters) {
+  let out = ''
+  for (let i = 0; i < letters.length; ) {
+    let j = i
+    while (j < letters.length && letters[j] === letters[i]) j++
+    out += letters[i] + (j - i)
+    i = j
+  }
+  return out
+}
+
+/** Cases décodées (CELLS lettres) ; ce qui manque, ou ne se lit pas, est une dalle nue. */
+export function decodeCells(code) {
+  const out = []
+  if (typeof code === 'string' && code.length <= CELLS * 5) {
+    for (const [, c, n] of code.matchAll(/([.a-p])(\d{1,4})/g)) {
+      for (let k = Number(n); k > 0 && out.length < CELLS; k--) out.push(c)
+    }
+  }
+  while (out.length < CELLS) out.push(BARE)
+  return out.join('')
+}
+
 /**
- * Aménagement d'une parcelle propre à enregistrer et à rediffuser ({ v: 2, walls? }), ou null
- * s'il n'a pas la forme attendue.
+ * Plan d'une parcelle, sous une forme commode à modifier : les murs avec le revêtement de leurs
+ * faces, et celui de chaque case (null : dalle nue), CELLS en tout (cf. cellIndex).
+ * @param {unknown} raw aménagement au format 2 (vérifié ici)
+ * @returns {{ walls: object[], floor: ({ style: string, color: string } | null)[] }}
+ */
+export function unpackHome(raw) {
+  const home = sanitizeHome(raw)
+  const papers = home?.papers ?? []
+  const walls = (home?.walls ?? []).map((w) => {
+    const out = { x: w.x, z: w.z, e: w.e }
+    if (w.k) out.k = w.k
+    if (w.a !== undefined) out.a = { ...papers[w.a] }
+    if (w.b !== undefined) out.b = { ...papers[w.b] }
+    return out
+  })
+  const palette = home?.floor?.palette ?? []
+  const cells = decodeCells(home?.floor?.cells)
+  const floor = [...cells].map((c) => (c === BARE ? null : { ...palette[LETTERS.indexOf(c)] }))
+  return { walls, floor }
+}
+
+/** Nombre de revêtements différents du sol et du papier peint d'un plan (16 au plus chacun). */
+export function finishCounts(plan) {
+  const floor = new Set(plan.floor.filter(Boolean).map(finishKey))
+  const paper = new Set()
+  for (const w of plan.walls) for (const f of [w.a, w.b]) if (f) paper.add(finishKey(f))
+  return { floor: floor.size, paper: paper.size }
+}
+
+/**
+ * Aménagement au format 2 d'un plan (cf. unpackHome) : palettes des revêtements utilisés (dans
+ * l'ordre où on les rencontre), cases encodées. Au-delà de 16 revêtements, le reste est ignoré.
+ */
+export function packHome(plan) {
+  const home = { v: HOME_FORMAT }
+  const papers = new Map()
+  const paperOf = (f) => {
+    const key = finishKey(f)
+    if (!papers.has(key) && papers.size < MAX_FINISHES) papers.set(key, { index: papers.size, finish: { style: f.style, color: f.color } })
+    return papers.get(key)?.index
+  }
+  const walls = plan.walls.map((w) => {
+    const out = { x: w.x, z: w.z, e: w.e }
+    if (w.k && w.k !== 'wall') out.k = w.k
+    for (const side of ['a', 'b']) {
+      const i = w[side] ? paperOf(w[side]) : undefined
+      if (i !== undefined) out[side] = i
+    }
+    return out
+  })
+  if (walls.length) home.walls = walls
+  if (papers.size) home.papers = [...papers.values()].map((p) => p.finish)
+  const palette = new Map()
+  let letters = ''
+  for (let i = 0; i < CELLS; i++) {
+    const f = plan.floor[i]
+    let c = BARE
+    if (f) {
+      const key = finishKey(f)
+      if (!palette.has(key) && palette.size < MAX_FINISHES) palette.set(key, { letter: LETTERS[palette.size], finish: { style: f.style, color: f.color } })
+      c = palette.get(key)?.letter ?? BARE
+    }
+    letters += c
+  }
+  if (palette.size) home.floor = { palette: [...palette.values()].map((p) => p.finish), cells: encodeCells(letters) }
+  return home
+}
+
+/**
+ * Aménagement d'une parcelle propre à enregistrer et à rediffuser ({ v: 2, walls?, papers?,
+ * floor? }), ou null s'il n'a pas la forme attendue. Les revêtements mal formés sont oubliés (les
+ * faces et les cases qui s'en servaient redeviennent nues), les palettes ne gardent que ce qui
+ * sert, dans l'ordre (cf. packHome).
  */
 export function sanitizeHome(raw) {
   if (!raw || typeof raw !== 'object' || raw.v !== HOME_FORMAT) return null
-  const home = { v: HOME_FORMAT }
-  const walls = sanitizeWalls(raw.walls)
-  if (walls.length) home.walls = walls
-  return home
+  const papers = Array.isArray(raw.papers) ? raw.papers.slice(0, MAX_FINISHES).map(sanitizeFinish) : []
+  const walls = sanitizeWalls(raw.walls).map((w) => {
+    const out = { x: w.x, z: w.z, e: w.e }
+    if (w.k) out.k = w.k
+    if (papers[w.a]) out.a = papers[w.a]
+    if (papers[w.b]) out.b = papers[w.b]
+    return out
+  })
+  const palette = raw.floor && typeof raw.floor === 'object' && Array.isArray(raw.floor.palette) ? raw.floor.palette.slice(0, MAX_FINISHES).map(sanitizeFinish) : []
+  const cells = decodeCells(raw.floor?.cells)
+  const floor = [...cells].map((c) => (c === BARE ? null : palette[LETTERS.indexOf(c)] ?? null))
+  return packHome({ walls, floor })
 }
 
 /**

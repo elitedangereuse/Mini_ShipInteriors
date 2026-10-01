@@ -1,4 +1,4 @@
-import { HOME_FORMAT, sanitizeHome, type HomeLayout } from '../../shared/housing-home.js'
+import { HOME_FORMAT, packHome, sanitizeHome, unpackHome, type HomePlan } from '../../shared/housing-home.js'
 
 /*
  * Enregistrement de la parcelle (housing v2) : en attendant que le site garde l'aménagement au
@@ -16,19 +16,19 @@ export class HomeStore {
     this.key = PREFIX + (owner ?? '~guest')
   }
 
-  /** La parcelle gardée ici, ou une parcelle vide. */
-  load(): HomeLayout {
+  /** Le plan de la parcelle gardée ici, ou celui d'une parcelle vide. */
+  load(): HomePlan {
     try {
       const raw = localStorage.getItem(this.key)
-      return (raw && sanitizeHome(JSON.parse(raw))) || { v: HOME_FORMAT }
+      return unpackHome(raw ? JSON.parse(raw) : { v: HOME_FORMAT })
     } catch {
-      return { v: HOME_FORMAT }
+      return unpackHome({ v: HOME_FORMAT })
     }
   }
 
-  save(home: HomeLayout) {
+  save(plan: HomePlan) {
     try {
-      localStorage.setItem(this.key, JSON.stringify(sanitizeHome(home) ?? { v: HOME_FORMAT }))
+      localStorage.setItem(this.key, JSON.stringify(sanitizeHome(packHome(plan))))
     } catch {}
   }
 }

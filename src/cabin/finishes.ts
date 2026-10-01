@@ -856,3 +856,50 @@ export class FinishTexture {
     this.texture.dispose()
   }
 }
+
+// ---------------------------------------------------------------- vignettes des revêtements
+
+/** Côté des vignettes des revêtements (px) : un pan de mur de 1 m de haut, ou 0,8 m de sol. */
+export const FINISH_THUMB = 128
+/** Canvas de travail des vignettes, créé à la première (le module se charge aussi hors navigateur, dans les tests). */
+let offscreen: HTMLCanvasElement | null = null
+const thumbs = new Map<string, HTMLCanvasElement>()
+
+/**
+ * Dessine la vignette d'un revêtement dans `canvas` (FINISH_THUMB × FINISH_THUMB) : un pan de mur de 1 m de
+ * haut (bandeaux du kit en bas et en haut, motif entre les deux) ou 0,8 m de sol, à l'échelle.
+ * Sans revêtement : l'allure d'origine du vaisseau.
+ */
+export function paintThumb(canvas: HTMLCanvasElement, slot: Slot, finish: Finish | undefined) {
+  const key = finish ? `${slot}:${finish.style}:${finish.color}` : `${slot}:origin`
+  let src = thumbs.get(key)
+  if (!src) {
+    src = document.createElement('canvas')
+    src.width = src.height = FINISH_THUMB
+    const g = src.getContext('2d')!
+    offscreen ??= document.createElement('canvas')
+    const style = finish && drawFinish(offscreen, slot, finish)
+    if (style) {
+      const pattern = g.createPattern(offscreen, 'repeat')!
+      const k = (FINISH_THUMB / (slot === 'wall' ? 1 : 0.8)) * (style.size / offscreen.width)
+      pattern.setTransform(new DOMMatrix().scale(k, k))
+      g.fillStyle = pattern
+    } else g.fillStyle = slot === 'wall' ? '#efe6d6' : '#d9d3de'
+    g.fillRect(0, 0, FINISH_THUMB, FINISH_THUMB)
+    if (slot === 'wall') {
+      // Bandeaux du kit : plein en bas (0 à 0,2), chanfrein puis plein en haut (0,7 à 1).
+      g.fillStyle = '#e4d8c2'
+      g.fillRect(0, FINISH_THUMB * 0.8, FINISH_THUMB, FINISH_THUMB * 0.2)
+      g.fillRect(0, 0, FINISH_THUMB, FINISH_THUMB * 0.2)
+      g.fillStyle = '#d6c7ad'
+      g.fillRect(0, FINISH_THUMB * 0.2, FINISH_THUMB, FINISH_THUMB * 0.1)
+    } else if (!style) {
+      g.strokeStyle = '#c3bccb'
+      g.lineWidth = 3
+      g.strokeRect(FINISH_THUMB * 0.1, FINISH_THUMB * 0.1, FINISH_THUMB * 0.8, FINISH_THUMB * 0.8)
+    }
+    if (thumbs.size > 200) thumbs.delete(thumbs.keys().next().value!)
+    thumbs.set(key, src)
+  }
+  canvas.getContext('2d')!.drawImage(src, 0, 0)
+}

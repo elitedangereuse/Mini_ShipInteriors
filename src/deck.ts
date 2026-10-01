@@ -17,7 +17,7 @@ import { DOOR_GAP } from '../shared/sight.js'
 import { shipMapOptions } from '../shared/ship-layouts.js'
 import { placeSeats, seatAction, seatsOf, type SeatSpot } from './seats'
 import { ForceShield, type ShieldPane } from './shield'
-import { HomeView } from './housing/home'
+import { emptyPlan, HomeView } from './housing/home'
 
 /** Rectangle de collision dans le plan XZ. */
 export interface Box2 {
@@ -376,7 +376,7 @@ export class Deck {
     this.pathfinder = new Pathfinder(this.map, this.blockedTiles, this.colliders)
     if (def.bubble) {
       this.home = new HomeView(this)
-      this.home.set(0, [])
+      this.home.set(0, emptyPlan())
     }
     // Ses meubles viennent de l'aménagement du joueur (cf. main.ts) : ils s'ajoutent au reste du pont.
     if (def.cabin) this.cabin = new CabinView(this, def.cabin)

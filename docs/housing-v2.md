@@ -174,18 +174,25 @@ point d'arrivée.
 (`outils/mini-shipinteriors-cabin.php`, dépôt du site) et leurs tests. À poser avant les murs : ce
 sont eux qui y écrivent les premiers (la bulle vide du lot 1 n'enregistre rien).
 
-État (lot 2) : `shared/housing-home.js` définit le format 2 tel qu'il existe aujourd'hui,
-`{ v: 2, walls? }`, et sa vérification (`sanitizeHome`). Le relais le garde dans le champ `home`
-de l'aménagement (`server/cabin.js`). **Reste le site**, dont le dépôt n'était pas accessible
-depuis la session : en attendant, la parcelle est gardée dans le navigateur
-(`src/housing/storage.ts`). Ce que le site doit accepter et rendre, dans le champ `home` de
-l'aménagement :
+État (lots 2 et 3) : `shared/housing-home.js` définit le format 2 et sa vérification
+(`sanitizeHome`), le relais le garde dans le champ `home` de l'aménagement (`server/cabin.js`).
+**Reste le site**, dont le dépôt n'était pas accessible depuis la session : en attendant, la
+parcelle est gardée dans le navigateur (`src/housing/storage.ts`). Ce que le site doit accepter
+et rendre, dans le champ `home` de l'aménagement (le plus simple : porter `sanitizeHome` tel quel) :
 
 - `v` vaut 2, sinon le champ est ignoré ;
-- `walls` : 512 murs au plus, chacun `{ x, z, e, k? }`, `x` et `z` entiers, `x` entre 11 et 41,
-  `z` entre -1 et 29, `e` vaut `v` ou `h` ;
+- `walls` : 512 murs au plus, chacun `{ x, z, e, k?, a?, b? }`, `x` et `z` entiers, `x` entre 11
+  et 41, `z` entre -1 et 29, `e` vaut `v` ou `h` ; une arête en double n'est gardée qu'une fois,
+  la dernière ;
 - `k` : chaîne de 1 à 24 caractères `[a-z0-9-]`, jamais `wall`, qui s'écrit sans `k` ;
-- une arête en double n'est gardée qu'une fois, la dernière.
+- `a`, `b` : papier peint des deux faces du mur, entiers de 0 à 15, index dans `papers` ;
+- `papers` : 16 revêtements au plus, `{ style, color }`, `style` de 1 à 24 caractères
+  `[a-z0-9-]`, `color` en `#rrggbb` ;
+- `floor` : `{ palette, cells }`, `palette` comme `papers`, `cells` les 900 cases de la plus
+  grande parcelle (30 × 30, ligne par ligne depuis son coin nord-ouest), en plages `[.a-p]\d{1,4}`
+  (`.` : dalle nue, `a` à `p` : index dans `palette`) ;
+- un revêtement mal formé est oublié (ses faces et ses cases redeviennent nues) ; les palettes
+  ne gardent que ce qui sert, dans l'ordre où on le rencontre.
 
 **G2. Migration v1 → v2.** Les quartiers actuels ne doivent pas être perdus : transposer la cabine
 `p` et ses extensions dans la parcelle (coordonnées des objets, murs de la pièce et des extensions
@@ -212,7 +219,7 @@ captures.
 2. **Construire** (fait) : G1 (côté jeu et relais), D1, D2, D3, B4, E1, E2. On pose ses murs, le
    champ de force recule. D5 en partie : une partie coupée de l'ascenseur est signalée (« ajoutez
    une porte ») sans bloquer, le reste (règles de pose des meubles) vient avec le mobilier.
-3. **Habiller** : C1, C2, C3, D4. Sol et papier peint par case.
+3. **Habiller** (fait) : C1, C2, C3, D4. Sol et papier peint par case.
 4. **Partager** : F1 à F4.
 5. **Basculer** : A4, A5, D5, G2, G3, B5. On quitte l'ancienne cabine, migration, achats.
 6. **Finir** : E3, E4, H1 à H3.

@@ -9,7 +9,7 @@ import type { Rot } from '../levels'
 import { DIRS } from '../map'
 import { $ } from '../ui'
 import { CATALOG, CATEGORIES, entryOf, joinVariant, splitVariant, type CatalogEntry, type CategoryId } from './catalog'
-import { drawFinish, stylesOf, styleOf, type Slot } from './finishes'
+import { paintThumb, stylesOf, styleOf, type Slot } from './finishes'
 import { cloneItems, cloneLayout, cloneWings, DEFAULT_CABIN, defaultLayout, ROOM_ITEMS, sameItems, sameLayout, WING_ITEMS, wingShapes, type CabinItem, type CabinLayout, type CabinWings, type Finish, type Partition } from './layout'
 import { drawPartition, kindOf, PARTITION_KINDS, partitionCenter } from './partitions'
 import { hangingOn, partitionRefusal, refusal, ridersOf, surfacesOf, type Surface } from './rules'
@@ -1979,47 +1979,4 @@ function drawPattern(canvas: HTMLCanvasElement, id: PatternId) {
     if (vertical) g.fillRect(ex - 2, ez - cell * 0.3, 4, cell * 0.6)
     else g.fillRect(ex - cell * 0.3, ez - 2, cell * 0.6, 4)
   }
-}
-
-// ---------------------------------------------------------------- vignettes des revêtements
-
-const offscreen = document.createElement('canvas')
-const thumbs = new Map<string, HTMLCanvasElement>()
-
-/**
- * Dessine la vignette d'un revêtement dans `canvas` (THUMB × THUMB) : un pan de mur de 1 m de
- * haut (bandeaux du kit en bas et en haut, motif entre les deux) ou 0,8 m de sol, à l'échelle.
- * Sans revêtement : l'allure d'origine du vaisseau.
- */
-function paintThumb(canvas: HTMLCanvasElement, slot: Slot, finish: Finish | undefined) {
-  const key = finish ? `${slot}:${finish.style}:${finish.color}` : `${slot}:${ORIGIN}`
-  let src = thumbs.get(key)
-  if (!src) {
-    src = document.createElement('canvas')
-    src.width = src.height = THUMB
-    const g = src.getContext('2d')!
-    const style = finish && drawFinish(offscreen, slot, finish)
-    if (style) {
-      const pattern = g.createPattern(offscreen, 'repeat')!
-      const k = (THUMB / (slot === 'wall' ? 1 : 0.8)) * (style.size / offscreen.width)
-      pattern.setTransform(new DOMMatrix().scale(k, k))
-      g.fillStyle = pattern
-    } else g.fillStyle = slot === 'wall' ? '#efe6d6' : '#d9d3de'
-    g.fillRect(0, 0, THUMB, THUMB)
-    if (slot === 'wall') {
-      // Bandeaux du kit : plein en bas (0 à 0,2), chanfrein puis plein en haut (0,7 à 1).
-      g.fillStyle = '#e4d8c2'
-      g.fillRect(0, THUMB * 0.8, THUMB, THUMB * 0.2)
-      g.fillRect(0, 0, THUMB, THUMB * 0.2)
-      g.fillStyle = '#d6c7ad'
-      g.fillRect(0, THUMB * 0.2, THUMB, THUMB * 0.1)
-    } else if (!style) {
-      g.strokeStyle = '#c3bccb'
-      g.lineWidth = 3
-      g.strokeRect(THUMB * 0.1, THUMB * 0.1, THUMB * 0.8, THUMB * 0.8)
-    }
-    if (thumbs.size > 200) thumbs.delete(thumbs.keys().next().value!)
-    thumbs.set(key, src)
-  }
-  canvas.getContext('2d')!.drawImage(src, 0, 0)
 }
