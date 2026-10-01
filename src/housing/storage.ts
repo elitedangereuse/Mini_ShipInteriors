@@ -16,6 +16,15 @@ export class HomeStore {
     this.key = PREFIX + (owner ?? '~guest')
   }
 
+  /** Une parcelle est-elle gardée ici (sinon, elle naîtra de ses anciens quartiers, cf. housing-migrate.js) ? */
+  has(): boolean {
+    try {
+      return localStorage.getItem(this.key) !== null
+    } catch {
+      return false
+    }
+  }
+
   /** Le plan de la parcelle gardée ici, ou celui d'une parcelle vide. */
   load(): HomePlan {
     try {

@@ -13,9 +13,22 @@ export interface HomeWall extends Partition {
   b?: number
 }
 
+/** Objet de la parcelle : la même forme que ceux des anciens quartiers (cf. src/cabin/layout.ts). */
+export interface HomeItem {
+  m: string
+  x: number
+  z: number
+  r: 0 | 1 | 2 | 3
+  v?: string
+  y?: number
+  s?: number
+}
+
 /** Aménagement d'une parcelle, format 2. */
 export interface HomeLayout {
   v: 2
+  stage?: number
+  items?: HomeItem[]
   /** Quartiers ouverts : on y entre sans invitation. */
   open?: true
   walls?: HomeWall[]
@@ -33,6 +46,10 @@ export interface PlanWall extends Partition {
 export interface HomePlan {
   /** Quartiers ouverts : on y entre sans invitation. */
   open?: boolean
+  /** Palier d'agrandissement (absent : la parcelle de départ). */
+  stage?: number
+  /** Le mobilier. */
+  items?: HomeItem[]
   walls: PlanWall[]
   floor: (HomeFinish | null)[]
 }
@@ -63,3 +80,6 @@ export declare function decodeCells(code: unknown): string
 export declare function unpackHome(raw: unknown): HomePlan
 export declare function packHome(plan: HomePlan): HomeLayout
 export declare function finishCounts(plan: HomePlan): { floor: number; paper: number }
+export declare const MAX_HOME_ITEMS: number
+export declare const STAGE_ITEMS: number[]
+export declare function sanitizeItems(raw: unknown): HomeItem[]

@@ -4,6 +4,8 @@
 //
 //   { v: 2,
 //     open?: true,                              // quartiers ouverts : on y entre sans invitation
+//     stage?: 1 | 2,                            // palier d'agrandissement (cf. housing-plot.js)
+//     items?: [{ m, x, z, r, v?, y?, s? }],     // le mobilier, comme celui des anciens quartiers
 //     walls?: [{ x, z, e, k?, a?, b? }],        // a, b : papier peint des deux faces (index dans papers)
 //     papers?: [{ style, color }],              // 16 au plus
 //     floor?: { palette: [{ style, color }],    // 16 au plus
@@ -56,6 +58,42 @@ export const CELLS = GRID * GRID
 
 const STYLE = /^[a-z0-9-]{1,24}$/
 const COLOR = /^#[0-9a-f]{6}$/
+
+/** Objets au plus sur la parcelle (autant que dans les anciens quartiers et leurs trois extensions). */
+export const MAX_HOME_ITEMS = 160
+/** Objets au plus à chaque palier d'agrandissement : la parcelle de départ, puis 20 × 20, 30 × 30. */
+export const STAGE_ITEMS = [64, 128, 160]
+const MODEL = /^[a-z0-9-]{1,32}$/
+const VARIANT = /^[a-z0-9.:-]{1,24}$/
+
+/** Nombre fini compris entre min et max, arrondi au millimètre, ou null. */
+function bounded(v, min, max) {
+  return typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? Math.round(v * 1000) / 1000 : null
+}
+
+/**
+ * Objets bien formés ({ m, x, z, r, v?, y?, s? }) : identifiants courts, position sur la plus grande
+ * parcelle (un objet accroché déborde sur la face du mur du pourtour), orientation en quarts de
+ * tour, hauteur de pose, graine. Les objets mal formés sont écartés un par un ; au-delà de
+ * MAX_HOME_ITEMS, le reste est ignoré. Le catalogue est au client : il écarte ce qu'il ne connaît pas.
+ */
+export function sanitizeItems(raw) {
+  if (!Array.isArray(raw)) return []
+  const out = []
+  for (const it of raw) {
+    if (out.length >= MAX_HOME_ITEMS) break
+    if (!it || typeof it !== 'object' || typeof it.m !== 'string' || !MODEL.test(it.m)) continue
+    const x = bounded(it.x, PLOT_ORIGIN.x - 1, PLOT_ORIGIN.x + MAX_SIZE), z = bounded(it.z, PLOT_ORIGIN.z - 1, PLOT_ORIGIN.z + MAX_SIZE)
+    if (x === null || z === null) continue
+    const item = { m: it.m, x, z, r: [0, 1, 2, 3].includes(it.r) ? it.r : 0 }
+    if (typeof it.v === 'string' && VARIANT.test(it.v)) item.v = it.v
+    const y = bounded(it.y, 0, 2)
+    if (y) item.y = y
+    if (Number.isInteger(it.s) && it.s >= 0 && it.s < 100000) item.s = it.s
+    out.push(item)
+  }
+  return out
+}
 const BOUNDS = { minX: PLOT_ORIGIN.x - 1, maxX: PLOT_ORIGIN.x + MAX_SIZE - 1, minZ: PLOT_ORIGIN.z - 1, maxZ: PLOT_ORIGIN.z + MAX_SIZE - 1 }
 
 /** Le mur laisse-t-il passer (porte, arche) ? */
@@ -151,7 +189,7 @@ export function unpackHome(raw) {
   const palette = home?.floor?.palette ?? []
   const cells = decodeCells(home?.floor?.cells)
   const floor = [...cells].map((c) => (c === BARE ? null : { ...palette[LETTERS.indexOf(c)] }))
-  return { walls, floor, ...(home?.open ? { open: true } : {}) }
+  return { walls, floor, items: (home?.items ?? []).map((it) => ({ ...it })), ...(home?.stage ? { stage: home.stage } : {}), ...(home?.open ? { open: true } : {}) }
 }
 
 /** Nombre de revêtements différents du sol et du papier peint d'un plan (16 au plus chacun). */
@@ -169,6 +207,8 @@ export function finishCounts(plan) {
 export function packHome(plan) {
   const home = { v: HOME_FORMAT }
   if (plan.open) home.open = true
+  if (Number.isInteger(plan.stage) && plan.stage > 0) home.stage = Math.min(plan.stage, PLOT_SIZES.length - 1)
+  if (plan.items?.length) home.items = plan.items.map((it) => ({ ...it }))
   const papers = new Map()
   const paperOf = (f) => {
     const key = finishKey(f)
@@ -221,7 +261,8 @@ export function sanitizeHome(raw) {
   const palette = raw.floor && typeof raw.floor === 'object' && Array.isArray(raw.floor.palette) ? raw.floor.palette.slice(0, MAX_FINISHES).map(sanitizeFinish) : []
   const cells = decodeCells(raw.floor?.cells)
   const floor = [...cells].map((c) => (c === BARE ? null : palette[LETTERS.indexOf(c)] ?? null))
-  return packHome({ walls, floor, open: raw.open === true })
+  const stage = Number.isInteger(raw.stage) && raw.stage > 0 && raw.stage < PLOT_SIZES.length ? raw.stage : 0
+  return packHome({ walls, floor, items: sanitizeItems(raw.items), stage, open: raw.open === true })
 }
 
 /**

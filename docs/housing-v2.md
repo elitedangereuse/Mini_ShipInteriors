@@ -216,7 +216,7 @@ captures.
 ## Ordre proposé
 
 1. **Socle** (fait) : A1, A2, A3, B1, B2, B3. On prend l'ascenseur, on arrive dans une bulle vide de
-   10 × 10. Derrière `?housing-v2` ; `Deck.setPlot(stage)` construit déjà les trois tailles.
+   10 × 10. Derrière `?housing-v2` ; la parcelle se construit déjà aux trois tailles (`HomeView`).
 2. **Construire** (fait) : G1 (côté jeu et relais), D1, D2, D3, B4, E1, E2. On pose ses murs, le
    champ de force recule. D5 en partie : une partie coupée de l'ascenseur est signalée (« ajoutez
    une porte ») sans bloquer, le reste (règles de pose des meubles) vient avec le mobilier.
@@ -225,11 +225,34 @@ captures.
    sans invitation des quartiers ouverts, à l'ascenseur (« Mes quartiers », « Chez … ») et depuis la
    liste de l'équipage ; invitations, retour et raccompagnement arrivent et repartent du palier.
    Fermer pendant une visite laisse les visiteurs (proposition Q5, appliquée en attendant votre avis).
-5. **Basculer** : A4, A5, D5, G2, G3, B5. On quitte l'ancienne cabine, migration, achats.
+5. **Basculer** (fait, derrière `?housing-v2`) : A4, A5, D5, G2, G3, B5.
+   - On se réveille sur le pont des quartiers, à côté de son Holo-Me ; Comète et les compagnons
+     y vivent ; au pont supérieur, la « Pièce vierge » a pris la place des quartiers, sans les
+     portes des extensions.
+   - La première fois, les anciens quartiers deviennent une construction de la parcelle
+     (`shared/housing-migrate.js`) : leurs murs, leurs portes (les battants des cloisons compris),
+     leur papier peint et leur sol en tuiles, leurs objets décalés d'un bloc. Les extensions
+     achetées offrent les agrandissements (Q4) : la construction tient toujours.
+   - Le mobilier se pose sur la parcelle avec le mode aménagement (`CabinView` en mode parcelle :
+     murs d'accroche tirés des murs posés, limite de 64, 128 puis 160 objets selon la taille) ;
+     « Construction » et « Mobilier » passent de l'un à l'autre. Un mur ne traverse pas un meuble,
+     et retirer un mur décroche ce qui y était accroché (Ctrl+Z le raccroche).
+   - Onglet « Parcelle » : la taille, les deux agrandissements et leur prix (`plot` dans
+     `economy.json`), l'achat (`wallet.buyPlot`).
+   - Les anciens quartiers (format 1, sur le site) ne sont plus modifiés : retirer le drapeau les
+     rend tels qu'ils étaient.
 6. **Finir** : E3, E4, H1 à H3.
 
-Le lot 5 est le seul qui casse l'existant : jusque-là, l'ancienne cabine reste en place et le
-pont 2 peut rester derrière un drapeau (`?housing-v2`).
+Pour basculer pour de bon, il reste ce qui ne se fait pas dans ce dépôt, puis un ménage :
+
+1. **Le site** (dépôt du site) : garder le champ `home` au format 2 (G1, cf. plus haut, objets et
+   palier compris) ; vendre les agrandissements (`buy` avec `plot: 1 | 2`, prix de `economy.json`)
+   et rendre `wallet.plot` ; faire la migration une fois pour toutes à la première lecture (la
+   logique est `migrateCabin`, à porter telle quelle ou à confier au jeu, qui la fait déjà).
+2. **Le jeu** : enregistrer la parcelle sur le site plutôt que dans le navigateur
+   (`housing/storage.ts`), réserver de nouveau l'aménagement aux CMDR connectés, puis retirer le
+   drapeau (`housing/flag.ts`) et le code des anciens quartiers devenu inutile (extensions,
+   cloisons, onglets « Murs et sol », « Cloisons » et « Pièces »).
 
 ## Décisions
 
@@ -245,7 +268,7 @@ Prises :
 
 | | Question | Proposition |
 |---|---|---|
-| Q4 | Extensions déjà achetées, objets hors de la parcelle | Une extension ou plus = premier agrandissement offert (deux ou trois = les deux) ; objets hors parcelle retirés (ils restent débloqués, à reposer) |
+| Q4 | Extensions déjà achetées, objets hors de la parcelle | Une extension ou plus = premier agrandissement offert (deux ou trois = les deux) ; objets hors parcelle retirés (ils restent débloqués, à reposer). Appliqué au lot 5 : la migration fait tenir la construction, rien n'est retiré |
 | Q5 | Fermer ses quartiers pendant une visite | Les visiteurs restent jusqu'à leur départ ; « raccompagner » reste possible (appliqué au lot 4) |
 | Q6 | Sol sans revêtement | Dalle de base du vaisseau ; pas de vide (on marche partout dans la bulle) |
 | Q7 | Murs et revêtements payants ? | Gratuits, comme les cloisons et les revêtements aujourd'hui |

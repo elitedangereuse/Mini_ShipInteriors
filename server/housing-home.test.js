@@ -127,7 +127,7 @@ test('revêtements : cases encodées par plages, palettes compactées, mal form�
   assert.deepEqual(home.walls, [{ x: O.x + 2, z: O.z + 2, e: 'v', k: 'half', a: 0 }, { x: O.x + 2, z: O.z + 3, e: 'v', b: 0 }])
   assert.deepEqual(home.floor.palette, [parquet, tiles])
   assert.deepEqual(clean(home), home, 'déjà propre')
-  assert.deepEqual(unpackHome(home), plan)
+  assert.deepEqual(unpackHome(home), { ...plan, items: [] })
 
   // Revêtement mal formé : ses faces et ses cases redeviennent nues ; ce qui ne sert pas disparaît.
   const messy = clean({
@@ -148,4 +148,26 @@ test('quartiers ouverts : gardés avec la parcelle, seulement s\'ils le sont vra
   assert.equal(unpackHome({ v: 2, open: true }).open, true)
   assert.equal(unpackHome({ v: 2 }).open, undefined)
   assert.deepEqual(packHome({ ...unpackHome({ v: 2 }), open: false }), { v: 2 })
+})
+
+test('mobilier et palier : gardés avec la parcelle, bornés', async () => {
+  const { MAX_HOME_ITEMS, sanitizeHome: clean, unpackHome } = await import('../shared/housing-home.js')
+  const home = clean({
+    v: 2,
+    stage: 1,
+    items: [
+      { m: 'holo-me', x: O.x + 2, z: O.z + 3, r: 0 },
+      { m: 'sofa', x: O.x + 4.25, z: O.z + 1.5, r: 2, v: 'teal', s: 42 },
+      { m: 'lamp', x: O.x + 4.25, z: O.z + 1.5, r: 5, y: 0.6 }, // orientation inconnue : 0
+      { m: 'Canapé', x: O.x, z: O.z, r: 0 },
+      { m: 'sofa', x: 2, z: O.z, r: 0 }, // hors de la parcelle
+    ],
+  })
+  assert.equal(home.stage, 1)
+  assert.deepEqual(home.items.map((i) => i.m), ['holo-me', 'sofa', 'lamp'])
+  assert.deepEqual(home.items[2], { m: 'lamp', x: O.x + 4.25, z: O.z + 1.5, r: 0, y: 0.6 })
+  assert.equal(unpackHome(home).stage, 1)
+  assert.equal(clean({ v: 2, stage: 7 }).stage, undefined)
+  const many = Array.from({ length: MAX_HOME_ITEMS + 20 }, (_, i) => ({ m: 'plant', x: O.x + (i % 30), z: O.z + Math.floor(i / 30), r: 0 }))
+  assert.equal(clean({ v: 2, items: many }).items.length, MAX_HOME_ITEMS)
 })

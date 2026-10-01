@@ -339,7 +339,7 @@ export class Deck {
 
   constructor(readonly def: LevelDef) {
     this.theme = themes[def.theme ?? 'station']
-    this.map = new ShipMap(def.layout, def.zone?.map ?? (def.ground ? {} : shipMapOptions(def.id)))
+    this.map = new ShipMap(def.layout, def.zone?.map ?? def.mapOptions ?? (def.ground ? {} : shipMapOptions(def.id)))
     if (def.id === 0) for (const d of this.map.doors) {
       if (this.doorRoom(d.x, d.z, d.dir, 'l')) this.map.lock(d.x, d.z, d.dir)
     }
@@ -374,12 +374,11 @@ export class Deck {
       this.lights.push({ position: new THREE.Vector3(x, this.y + 1.4, z), color: new THREE.Color(color), intensity, flicker, distance })
     }
     this.pathfinder = new Pathfinder(this.map, this.blockedTiles, this.colliders)
-    if (def.bubble) {
-      this.home = new HomeView(this)
-      this.home.set(0, emptyPlan())
-    }
+    if (def.bubble) this.home = new HomeView(this)
     // Ses meubles viennent de l'aménagement du joueur (cf. main.ts) : ils s'ajoutent au reste du pont.
     if (def.cabin) this.cabin = new CabinView(this, def.cabin)
+    // La parcelle se pose après la cabine : celle-ci reprend alors ses tuiles, ses murs et ses collisions.
+    this.home?.set(0, emptyPlan())
   }
 
   roomName(x: number, z: number): string {

@@ -1071,6 +1071,22 @@ describe('quartiers', () => {
     guest.disconnect()
   })
 
+  test('sur la parcelle, le jukebox se règle de près, pas à travers un mur de l\'hôte', async () => {
+    const { host } = await hostAndGuest()
+    // Un mur plein entre les colonnes O.x + 4 et O.x + 5, sur toute la parcelle de départ.
+    const walls = Array.from({ length: 10 }, (_, i) => ({ x: PLOT_ORIGIN.x + 4, z: PLOT_ORIGIN.z + i, e: 'v' }))
+    host.emit('cabin', { layout: { ...LAYOUT, home: { v: 2, walls, items: [{ m: 'jukebox', x: PLOT_ORIGIN.x + 3, z: PLOT_ORIGIN.z + 5, r: 0 }] } } })
+    host.emit('state', { x: PLOT_ORIGIN.x + 2, z: PLOT_ORIGIN.z + 5, yaw: 0, level: HOUSING_LEVEL, anim: 'idle' })
+    await new Promise((r) => setTimeout(r, 100))
+    // De près : accepté (le relais ne répond qu'en cas de refus).
+    const refused = receives(host, 'music', 300, (m) => m.far)
+    host.emit('music', { where: 'cabin', track: 'lounge', x: PLOT_ORIGIN.x + 3, z: PLOT_ORIGIN.z + 5 })
+    assert.equal(await refused, false)
+    const far = next(host, 'music', (m) => m.far)
+    host.emit('music', { where: 'cabin', track: 'lofi', x: PLOT_ORIGIN.x + 5.5, z: PLOT_ORIGIN.z + 5 })
+    assert.equal((await far).far, true)
+  })
+
   test('un hôte reconnecté rend au relais sa musique, là où elle en était', async () => {
     const { host, wh, guest, wg } = await hostAndGuest()
     host.emit('music', { where: 'cabin', track: 'lofi', x: 13, z: 8, at: 42 })

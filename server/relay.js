@@ -70,6 +70,7 @@ import { DIRS, ShipMap } from '../shared/ship-map.js'
 import { applyPartitions } from '../shared/cabin-partitions.js'
 import { applyWings } from '../shared/cabin-wings.js'
 import { applyPlot, HOUSING_LEVEL } from '../shared/housing-plot.js'
+import { applyWalls, unpackHome } from '../shared/housing-home.js'
 import { canReach } from '../shared/sight.js'
 import { PATROL_LEVEL, PATROL_PERIOD, holdPatrol, patrolAt, patrolTime } from '../shared/patrol.js'
 import { CHEF_COOK, CHEF_LEVEL, CHEF_PERIOD, CHEF_ROOM, CHEF_WAIT, chefAt, chefTime, cookChef, holdChef } from '../shared/chef.js'
@@ -151,9 +152,23 @@ function cabinMap(layout) {
   }
   return map
 }
-/** `host` : dans des quartiers, leur hôte (ses pièces d'extension comptent). */
+/** Plan du pont des quartiers avec la parcelle d'un aménagement : sa taille et ses murs (gardé avec lui). */
+const homeMaps = new WeakMap()
+function homeMap(layout) {
+  if (!layout?.home) return MAPS.get(HOUSING_LEVEL)
+  let map = homeMaps.get(layout)
+  if (!map) {
+    const plan = unpackHome(layout.home)
+    map = new ShipMap(SHIP_LAYOUTS[String(HOUSING_LEVEL)], shipMapOptions(HOUSING_LEVEL))
+    applyPlot(map, plan.stage ?? 0)
+    applyWalls(map, plan.walls, plan.stage ?? 0)
+    homeMaps.set(layout, map)
+  }
+  return map
+}
+/** `host` : dans des quartiers, leur hôte (ses pièces d'extension, ou sa parcelle, comptent). */
 const reaches = (player, level, at, host) => player.level === level && canReach(
-  host && level === 1 ? cabinMap(host.layout) : level === -1 && player.voie ? voieMap : MAPS.get(level), player, at, REACH,
+  host && level === 1 ? cabinMap(host.layout) : host && level === HOUSING_LEVEL ? homeMap(host.layout) : level === -1 && player.voie ? voieMap : MAPS.get(level), player, at, REACH,
 )
 /** Pont de chaque jukebox : la salle commune (pont principal), le bar (la cale), les quartiers. */
 const JUKEBOX_LEVEL = new Map([['deck', 0], ['hold', -1], ['cabin', 1]])
@@ -735,7 +750,7 @@ export function attachRelay(
       const instance = m.where === 'cabin' ? player.cabin : m.where === 'deck' ? 0 : -1
       if (musicBudget < 1) return socket.emit('music', { id: 0, ...musicOf(instance), busy: true })
       const track = m.track === null ? null : TRACK.test(String(m.track)) ? String(m.track) : undefined
-      const x = num(m.x, -5, 50), z = num(m.z, -5, 20)
+      const x = num(m.x, -5, 50), z = num(m.z, -5, 32)
       if (track === undefined || x === null || z === null) return
       const song = Number.isInteger(m.song) && m.song >= 0 && m.song <= 3 ? m.song : 0
       const loop = m.loop === true
@@ -744,7 +759,9 @@ export function attachRelay(
       // Au jukebox, et de ce côté du mur ; sauf l'hôte reconnecté qui rend sa musique (`at`).
       const restore = m.where === 'cabin' && m.at !== undefined
       const host = m.where === 'cabin' ? playerById(player.cabin) : undefined
-      if (!restore && !reaches(player, JUKEBOX_LEVEL.get(m.where), { x, z }, host)) return socket.emit('music', { id: 0, ...musicOf(instance), far: true })
+      // Le jukebox des quartiers : dans les anciens (pont supérieur), ou sur la parcelle (pont des quartiers).
+      const level = m.where === 'cabin' && player.level === HOUSING_LEVEL ? HOUSING_LEVEL : JUKEBOX_LEVEL.get(m.where)
+      if (!restore && !reaches(player, level, { x, z }, host)) return socket.emit('music', { id: 0, ...musicOf(instance), far: true })
       musicBudget--
       if (track) music.set(instance, { track, since: Date.now() - (num(m.at, 0, 86400) ?? 0) * 1000, x, z, song, loop, shuffle, seed })
       else music.delete(instance)

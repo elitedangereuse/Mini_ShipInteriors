@@ -64,6 +64,11 @@ export interface EditorHost {
   wallet: Wallet
   /** Position du joueur : l'onglet « Murs et sol » s'ouvre sur la pièce où il se trouve. */
   player: THREE.Vector3
+  /**
+   * Sur la parcelle du pont des quartiers (housing v2) : murs, revêtements et taille se règlent en
+   * mode construction (cf. housing/builder.ts) ; l'onglet « Construction » y passe.
+   */
+  build?: () => void
 }
 
 /** Objet en main : un objet de la cabine qu'on déplace, ou un nouvel objet du catalogue. */
@@ -287,12 +292,22 @@ export class CabinEditor {
       ['partitions', tr('Cloisons', 'Partitions'), 'wall'], ['rooms', tr('Pièces', 'Rooms'), 'grid-four'],
     ] as const
     for (const [mode, label, glyph] of MODES) {
+      // Sur la parcelle, seuls les meubles se posent ici.
+      if (host.build && mode !== 'objects') continue
       const b = document.createElement('button')
       b.dataset.mode = mode
       b.title = label
       b.append(icon(glyph), document.createTextNode(label))
       b.onclick = () => (mode === 'finish' ? this.showFinishes(true) : mode === 'rooms' ? this.showRooms() : mode === 'partitions' ? this.showPartitions() : this.showCategory(this.category))
       this.modes.appendChild(b)
+    }
+    if (host.build) {
+      const b = document.createElement('button')
+      b.title = tr('Construction : murs, papier peint, sol', 'Building: walls, wallpaper, floor')
+      b.append(icon('wall'), document.createTextNode(tr('Construction', 'Building')))
+      b.onclick = () => host.build?.()
+      this.modes.appendChild(b)
+      this.resetBtn.hidden = true
     }
     this.tabs = document.createElement('div')
     this.tabs.className = 'ed-tabs'
@@ -501,8 +516,9 @@ export class CabinEditor {
     return layout
   }
 
-  /** Objets au plus : les quartiers, et chaque pièce d'extension. */
+  /** Objets au plus : les quartiers, et chaque pièce d'extension ; sur la parcelle, selon sa taille. */
   private get capacity(): number {
+    if (this.view.def.home) return this.view.roomCap('main')
     return ROOM_ITEMS + WING_ITEMS * Object.keys(this.wings ?? {}).length
   }
 

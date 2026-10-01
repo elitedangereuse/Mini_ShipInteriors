@@ -29,8 +29,10 @@ export const emptyPlan = (): HomePlan => ({ walls: [], floor: Array(CELLS).fill(
 /** Copie d'un plan, à modifier sans toucher l'original. */
 export function clonePlan(plan: HomePlan): HomePlan {
   return {
+    ...plan,
     walls: plan.walls.map((w) => ({ ...w, ...(w.a ? { a: { ...w.a } } : {}), ...(w.b ? { b: { ...w.b } } : {}) })),
     floor: plan.floor.map((f) => f && { ...f }),
+    items: (plan.items ?? []).map((i) => ({ ...i })),
   }
 }
 
@@ -56,9 +58,12 @@ export class HomeView {
   private shell?: PartitionShell
   private field?: ForceField
   private floors: THREE.Mesh[] = []
-  /** Collisions et lumières ajoutées à celles du pont. */
-  private colliders: Box2[] = []
-  private lights: Deck['lights'] = []
+  /**
+   * Collisions et lumières de la parcelle : ajoutées à celles du pont, par elle, ou par la cabine
+   * du pont s'il en a une (cf. CabinView.rebuild, qui refait la fin de ces listes).
+   */
+  colliders: Box2[] = []
+  lights: Deck['lights'] = []
   private wallsKey = ''
   private floorKey = ''
   /** Revêtements en usage, par emplacement, motif et couleur. */
@@ -69,6 +74,16 @@ export class HomeView {
   /** Tuiles et arêtes de la parcelle affichée. */
   get plotPlan() {
     return this.plot!.plan
+  }
+
+  /** Pans de mur et portes posés (murs d'accroche de la cabine, cf. CabinView.findWalls). */
+  get segments() {
+    return this.shell?.walls ?? []
+  }
+
+  /** Poteaux d'angle des murs posés. */
+  get posts() {
+    return this.shell?.posts ?? []
   }
 
   /** Affiche la parcelle à ce palier, avec ce plan ; seul ce qui change se reconstruit. */
@@ -86,9 +101,11 @@ export class HomeView {
       const plot = (this.plot = new PlotShell(deck, stage))
       deck.group.add(plot.group)
       this.stage = stage
-      drop(deck.lights, this.lights)
+      if (!deck.cabin) {
+        drop(deck.lights, this.lights)
+        deck.lights.push(...plot.lights)
+      }
       this.lights = plot.lights
-      deck.lights.push(...this.lights)
     }
     if (rewall) {
       this.wallsKey = wk
@@ -99,6 +116,8 @@ export class HomeView {
       this.buildFloors(plan.floor)
     }
     this.collect()
+    // La cabine de la parcelle reprend tuiles, murs d'accroche, collisions et lumières.
+    if (rewall) deck.cabin?.reshape()
     if (restage) this.onLights?.()
   }
 
@@ -122,9 +141,9 @@ export class HomeView {
     const field = (this.field = new ForceField(free, [...deck.posts, ...shell.posts]))
     deck.group.add(field.group)
 
-    drop(deck.colliders, this.colliders)
+    if (!deck.cabin) drop(deck.colliders, this.colliders)
     this.colliders = [...shell.colliders, ...field.colliders]
-    deck.colliders.push(...this.colliders)
+    if (!deck.cabin) deck.colliders.push(...this.colliders)
     deck.pathfinder.invalidate()
   }
 

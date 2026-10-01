@@ -8,12 +8,15 @@ import { DIRS } from '../map'
 import { drawPartition, HALF_H, PARTITION_KINDS, partitionCenter } from '../cabin/partitions'
 import { FINISH_THUMB, paintThumb, stylesOf, styleOf, type Slot } from '../cabin/finishes'
 import { clonePlan, sameFinish } from './home'
+import { entryOf } from '../cabin/catalog'
+import { hangingOn, partitionBox } from '../cabin/rules'
 import { partitionEdge, partitionKey } from '../../shared/cabin-partitions.js'
 import {
-  cellAt, cellIndex, finishCounts, HOME_DOOR_KINDS, isHomeDoor, MAX_FINISHES, MAX_HOME_WALLS, wallRefusal,
+  cellAt, cellIndex, finishCounts, HOME_DOOR_KINDS, isHomeDoor, MAX_FINISHES, MAX_HOME_WALLS, STAGE_ITEMS, wallRefusal,
   type HomeFinish, type HomePlan, type PlanWall, type WallRefusal,
 } from '../../shared/housing-home.js'
-import { inPlot, LANDING_ROOM, plotRect, type PlotRect } from '../../shared/housing-plot.js'
+import { inPlot, LANDING_ROOM, PLOT_SIZES, plotRect, type PlotRect } from '../../shared/housing-plot.js'
+import { formatCredits } from '../economy/data'
 
 /*
  * Mode construction de la parcelle (housing v2, cf. docs/housing-v2.md) : sur le pont des
@@ -41,7 +44,7 @@ import { inPlot, LANDING_ROOM, plotRect, type PlotRect } from '../../shared/hous
  * Seize revêtements au plus pour le sol, seize pour le papier peint (cf. shared/housing-home.js).
  */
 
-type Mode = 'walls' | 'paper' | 'floor'
+type Mode = 'walls' | 'paper' | 'floor' | 'plot'
 
 /** Vue plongeante, comme le mode aménagement des anciens quartiers. */
 export const BUILD_ELEVATION = THREE.MathUtils.degToRad(56)
@@ -59,6 +62,13 @@ export interface BuilderHost {
   onChange: (plan: HomePlan) => void
   /** Le joueur quitte le mode construction (Terminer, Échap, B). */
   onClose: () => void
+  /** Onglet « Mobilier » : passer au mode aménagement (les meubles de la parcelle). */
+  furnish?: () => void
+  /**
+   * Onglet « Parcelle » : prix de l'agrandissement qui mène au palier `stage` (null : il n'y en a
+   * plus), solde, et l'achat (vrai s'il a abouti ; sinon, la raison à montrer).
+   */
+  plot?: { price: (stage: number) => number | null; balance: () => number | null; buy: (stage: number) => Promise<true | string> }
 }
 
 /** Noms des types de murs, dans l'ordre de l'onglet. */
@@ -80,6 +90,7 @@ interface ToolDef {
 const ERASE: ToolDef = { id: 'erase', name: tr('Gomme', 'Eraser'), glyph: 'eraser' }
 const PICK: ToolDef = { id: 'pick', name: tr('Pipette', 'Picker'), glyph: 'eyedropper' }
 const TOOLS: Record<Mode, ToolDef[]> = {
+  plot: [],
   walls: [{ id: 'line', name: tr('Tracer', 'Draw'), glyph: 'line-segment' }, { id: 'rect', name: tr('Pièce', 'Room'), glyph: 'rectangle' }, ERASE, PICK],
   paper: [{ id: 'face', name: tr('Pinceau', 'Brush'), glyph: 'paint-brush' }, { id: 'room', name: tr('Pièce', 'Room'), glyph: 'rectangle' }, ERASE, PICK],
   floor: [{ id: 'brush', name: tr('Pinceau', 'Brush'), glyph: 'paint-brush' }, { id: 'fill', name: tr('Remplir', 'Fill'), glyph: 'paint-roller' }, ERASE, PICK],
@@ -140,7 +151,7 @@ export class HomeBuilder {
   private past: HomePlan[] = []
   private future: HomePlan[] = []
   private mode: Mode = 'walls'
-  private tools: Record<Mode, string> = { walls: 'line', paper: 'face', floor: 'brush' }
+  private tools: Record<Mode, string> = { walls: 'line', paper: 'face', floor: 'brush', plot: '' }
   private kind = 'wall'
   private paper: HomeFinish
   private flooring: HomeFinish
@@ -148,6 +159,8 @@ export class HomeBuilder {
   private stroke: { edge?: PlanWall; corner?: { x: number; z: number }; cell?: { x: number; z: number }; faces?: Map<string, Face> } | null = null
   private steps: Step[] = []
   private pending: Pending = { plan: null, refusal: null }
+  /** Objets accrochés qui partiraient avec les murs du changement en attente. */
+  private leaving = 0
   private lastPointer: { clientX: number; clientY: number } | null = null
   private pointerDirty = false
 
@@ -181,6 +194,8 @@ export class HomeBuilder {
   private readonly hint: HTMLElement
   private readonly status: HTMLElement
   private readonly keysEl: HTMLElement
+  private readonly toastEl = document.createElement('div')
+  private toastTimer = 0
 
   constructor(
     private deck: Deck,
@@ -250,17 +265,19 @@ export class HomeBuilder {
       ['walls', tr('Murs', 'Walls'), 'wall'],
       ['paper', tr('Papier peint', 'Wallpaper'), 'paint-roller'],
       ['floor', tr('Sol', 'Floor'), 'square-half'],
+      ...(host.plot ? [['plot', tr('Parcelle', 'Plot'), 'frame-corners'] as [Mode, string, IconName]] : []),
       [null, tr('Mobilier', 'Furniture'), 'couch'],
     ]
     for (const [mode, label, glyph] of MODES) {
       const b = document.createElement('button')
       b.append(icon(glyph), document.createTextNode(label))
-      b.title = mode ? label : tr(`${label} : bientôt`, `${label}: coming soon`)
-      b.disabled = !mode
+      const furnish = !mode && host.furnish
+      b.title = mode || furnish ? label : tr(`${label} : bientôt`, `${label}: coming soon`)
+      b.disabled = !mode && !furnish
       if (mode) {
         b.onclick = () => this.setMode(mode)
         this.modeEls.set(mode, b)
-      }
+      } else if (furnish) b.onclick = () => host.furnish?.()
       modes.appendChild(b)
     }
     this.body = document.createElement('div')
@@ -274,7 +291,9 @@ export class HomeBuilder {
     this.status.className = 'ed-status'
     this.keysEl = document.createElement('span')
     this.hint.append(this.status, this.keysEl)
-    this.root.append(bar, panel, this.hint)
+    this.toastEl.className = 'ed-toast'
+    this.toastEl.hidden = true
+    this.root.append(bar, panel, this.hint, this.toastEl)
     for (const el of [bar, panel]) el.addEventListener('pointerdown', (e) => e.stopPropagation())
     const editor = document.getElementById('editor')
     if (editor) editor.after(this.root)
@@ -404,6 +423,10 @@ export class HomeBuilder {
         'Posez un revêtement case par case, en rectangle (glisser), ou sur toute une pièce (Remplir). La gomme rend la dalle du vaisseau.',
         'Lay a flooring tile by tile, as a rectangle (drag), or over a whole room (Fill). The eraser brings back the ship\'s deck plates.',
       ),
+      plot: tr(
+        'Votre parcelle grandit vers l\'est et le sud : ce que vous avez bâti reste en place, le champ de force recule.',
+        'Your plot grows to the east and south: what you built stays put, the force field moves back.',
+      ),
     }[mode]
     const tools = document.createElement('div')
     tools.className = 'ed-room-chips hb-tools'
@@ -416,6 +439,13 @@ export class HomeBuilder {
       tools.appendChild(b)
       this.toolEls.set(t.id, b)
     })
+    if (mode === 'plot') {
+      this.body.append(intro)
+      this.renderPlot()
+      this.setTool('')
+      this.renderBar()
+      return
+    }
     this.body.append(intro, tools)
     if (mode === 'walls') {
       const group = (label: string, kinds: string[]) => {
@@ -478,6 +508,62 @@ export class HomeBuilder {
 
   private refreshKinds() {
     for (const [id, b] of this.kindEls) b.classList.toggle('active', id === this.kind)
+  }
+
+  // ---------------------------------------------------------------- parcelle
+
+  /** Taille actuelle, agrandissements suivants et leur prix (onglet « Parcelle »). */
+  private renderPlot() {
+    const plot = this.host.plot!
+    const head = document.createElement('div')
+    head.className = 'ed-cat-title'
+    const size = PLOT_SIZES[this.stage]
+    head.textContent = tr(`Votre parcelle : ${size} × ${size}`, `Your plot: ${size} × ${size}`)
+    this.body.append(head)
+    for (let stage = this.stage + 1; stage < PLOT_SIZES.length; stage++) {
+      const box = document.createElement('div')
+      box.className = 'ed-wing'
+      const s = PLOT_SIZES[stage]
+      const title = document.createElement('div')
+      title.className = 'ed-wing-name'
+      title.textContent = tr(`${s} × ${s} cases, ${STAGE_ITEMS[stage]} objets`, `${s} × ${s} tiles, ${STAGE_ITEMS[stage]} items`)
+      const price = plot.price(stage)
+      const balance = plot.balance()
+      const b = document.createElement('button')
+      b.className = 'hb-all'
+      const next = stage === this.stage + 1
+      b.append(icon('frame-corners'), document.createTextNode(price === null ? tr('Indisponible', 'Unavailable') : tr(`Agrandir · ${formatCredits(price)}`, `Expand · ${formatCredits(price)}`)))
+      b.disabled = !next || price === null || balance === null || balance < price
+      b.title = !next ? tr('D\'abord l\'agrandissement précédent', 'The previous expansion first') : balance === null ? tr('Réservé aux CMDR connectés au site', 'For CMDRs logged in to the site') : price !== null && balance < price ? tr('Crédits insuffisants', 'Not enough credits') : ''
+      b.onclick = async () => {
+        b.disabled = true
+        const done = await plot.buy(stage)
+        if (done === true) this.host.sound.ui('drop')
+        else {
+          this.refuse(done)
+          b.disabled = false
+        }
+      }
+      box.append(title, b)
+      this.body.append(box)
+    }
+    if (this.stage === PLOT_SIZES.length - 1) {
+      const note = document.createElement('div')
+      note.className = 'ed-rooms-intro'
+      note.textContent = tr('Votre parcelle a atteint sa plus grande taille.', 'Your plot has reached its largest size.')
+      this.body.append(note)
+    }
+  }
+
+  /** La parcelle a grandi (achat) : quadrillage, cadrage et onglet suivent. */
+  setStage(stage: number) {
+    if (stage === this.stage) return
+    this.stage = stage
+    this.buildGrid()
+    const z = this.fitZoom()
+    this.host.iso.zoomMax = Math.max(this.host.iso.zoomMax, z)
+    this.host.iso.zoomTo(z)
+    if (this.mode === 'plot') this.setMode('plot')
   }
 
   // ---------------------------------------------------------------- revêtements
@@ -667,6 +753,8 @@ export class HomeBuilder {
   private aim(e: { clientX: number; clientY: number }) {
     this.clearPreview()
     this.pending = { plan: null, refusal: null }
+    this.leaving = 0
+    if (this.mode === 'plot') return
     if (this.mode === 'walls') this.aimWalls(e)
     else if (this.mode === 'paper') this.aimPaper(e)
     else this.aimFloor(e)
@@ -712,14 +800,33 @@ export class HomeBuilder {
     }
     const next = clonePlan(this.plan)
     const byKey = new Map(next.walls.map((w) => [keyOf(w), w]))
+    // Ce qui était accroché à un mur plein qui part (ou devient porte, hublot, demi-mur) part avec lui.
+    const leaving = new Set<number>()
     for (const s of changes) {
       const old = byKey.get(s.key)
+      if (old && !old.k && this.deck.cabin && (s.effect === 'remove' || s.wall.k)) for (const i of hangingOn(this.deck.cabin, this.plan.items ?? [], old)) leaving.add(i)
       if (s.effect === 'remove') byKey.delete(s.key)
       // Un mur remplacé garde son papier peint.
       else byKey.set(s.key, { ...s.wall, ...(old?.a ? { a: old.a } : {}), ...(old?.b ? { b: old.b } : {}) })
     }
     next.walls = [...byKey.values()]
+    if (leaving.size) next.items = (next.items ?? []).filter((_, i) => !leaving.has(i))
+    this.leaving = leaving.size
     this.pending.plan = next
+  }
+
+  /** Meuble posé au sol sous l'arête (son nom), qu'un mur traverserait. */
+  private furnitureOn(w: PlanWall): string | null {
+    const view = this.deck.cabin
+    if (!view) return null
+    const b = partitionBox(w)
+    const box = new THREE.Box3()
+    for (const item of this.plan.items ?? []) {
+      const entry = entryOf(item.m)
+      if (!entry || entry.mount === 'wall' || !view.boxOf(item, box)) continue
+      if (box.max.x > b.minX + 0.02 && box.min.x < b.maxX - 0.02 && box.max.z > b.minZ + 0.02 && box.min.z < b.maxZ - 0.02) return entry.name.toLowerCase()
+    }
+    return null
   }
 
   /** Mur du type choisi sur l'arête (`solid` : jamais de passage, pour l'outil Pièce). */
@@ -783,6 +890,11 @@ export class HomeBuilder {
       }
       if (!existing && ++count > MAX_HOME_WALLS) {
         steps.push({ wall, key, effect: 'refused', refusal: REFUSALS.full })
+        continue
+      }
+      const furniture = this.furnitureOn(wall)
+      if (furniture) {
+        steps.push({ wall, key, effect: 'refused', refusal: tr(`Un meuble est sur le passage (${furniture})`, `Furniture in the way (${furniture})`) })
         continue
       }
       steps.push({ wall, key, effect: 'set' })
@@ -957,8 +1069,18 @@ export class HomeBuilder {
     this.past.push(this.plan)
     if (this.past.length > HISTORY) this.past.shift()
     this.future = []
+    const leaving = this.leaving
     this.apply(next)
     this.host.sound.ui(this.tool === 'erase' ? 'rotate' : 'drop')
+    if (leaving) this.toast(tr(`${leaving} objet(s) accroché(s) retiré(s) avec le mur (Ctrl+Z pour annuler)`, `${leaving} hanging item(s) removed with the wall (Ctrl+Z to undo)`))
+  }
+
+  /** Message bref, en haut de l'écran. */
+  private toast(text: string) {
+    this.toastEl.textContent = text
+    this.toastEl.hidden = false
+    clearTimeout(this.toastTimer)
+    this.toastTimer = window.setTimeout(() => (this.toastEl.hidden = true), 3500)
   }
 
   private refuse(text: string) {
@@ -1012,7 +1134,7 @@ export class HomeBuilder {
 
   pointerDown(e: PointerEvent) {
     this.lastPointer = e
-    if (e.button !== 0) return
+    if (e.button !== 0 || this.mode === 'plot') return
     const tool = this.tool
     if (tool === 'pick') return this.pick(e)
     const p = this.ground(e)
@@ -1066,7 +1188,7 @@ export class HomeBuilder {
         this.stroke = null
         this.pointerDirty = true
       } else this.host.onClose()
-    } else if (!ctrl && /^Digit[1-4]$/.test(e.code)) this.setTool(TOOLS[this.mode][+e.code.slice(5) - 1].id)
+    } else if (!ctrl && /^Digit[1-4]$/.test(e.code) && TOOLS[this.mode].length) this.setTool(TOOLS[this.mode][+e.code.slice(5) - 1].id)
     else return false
     e.preventDefault()
     return true
@@ -1087,7 +1209,10 @@ export class HomeBuilder {
   // ---------------------------------------------------------------- barre et aide
 
   private renderBar() {
-    if (this.mode === 'walls') {
+    if (this.mode === 'plot') {
+      const size = PLOT_SIZES[this.stage], items = this.plan.items?.length ?? 0
+      this.countEl.textContent = tr(`Parcelle de ${size} × ${size} · ${items} / ${STAGE_ITEMS[this.stage]} objets`, `${size} × ${size} plot · ${items} / ${STAGE_ITEMS[this.stage]} items`)
+    } else if (this.mode === 'walls') {
       const doors = this.plan.walls.filter(isHomeDoor).length
       this.countEl.textContent = tr(
         `${this.plan.walls.length} / ${MAX_HOME_WALLS} murs · ${doors} porte${doors > 1 ? 's' : ''}`,
