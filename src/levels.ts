@@ -7,6 +7,8 @@ import type { CabinDef } from './cabin/view'
 import type { CustomModel } from './furniture'
 import { tr } from './i18n'
 import { BOARD_TABLES, SHIP_LAYOUTS } from '../shared/ship-layouts.js'
+import { HOUSING_LEVEL, LANDING_ROOM, PLOT_ROOM } from '../shared/housing-plot.js'
+import { HOUSING_V2 } from './housing/flag'
 import { PILOT_SEAT } from '../shared/systems.js'
 
 /** Orientation en quarts de tour : 0 = face +z (sud), 1 = +x (est), 2 = -z (nord), 3 = -x (ouest). */
@@ -136,6 +138,12 @@ export interface LevelDef {
    * falaises plongent dans le vide), ni coque, ni ascenseur, ni tuyères, ni plafond.
    */
   ground?: GroundDef
+  /**
+   * Pont des quartiers (housing v2, cf. src/housing/) : le palier de l'ascenseur, et la parcelle du
+   * joueur, une bulle sous champ de force construite à la volée (cf. Deck.setPlot). Pas de coque ni
+   * de tuyères : la parcelle repose sur son socle.
+   */
+  bubble?: boolean
 }
 
 /** Écart vertical entre deux ponts. */
@@ -157,6 +165,30 @@ const SHIELD_TEXT = [
   tr('Le bouclier retient l\'air du hangar et laisse passer les vaisseaux. Les commandants, non : il ne vaut mieux pas essayer.', 'The shield keeps the hangar\'s air in and lets ships through. Commanders, no: better not try.'),
   tr('Derrière le champ de force, les étoiles. On sent un léger picotement au bout des doigts, et une odeur d\'ozone.', 'Beyond the force field, the stars. A faint tingle in your fingertips, and a smell of ozone.'),
 ]
+
+/**
+ * Pont des quartiers (housing v2, cf. docs/housing-v2.md), au-dessus du pont supérieur : le palier
+ * de l'ascenseur, et derrière sa porte, la parcelle de chacun (cf. shared/housing-plot.js).
+ */
+const QUARTERS_DECK: LevelDef = {
+  id: HOUSING_LEVEL,
+  name: tr('Quartiers', 'Quarters'),
+  theme: 'cozy',
+  footsteps: 'soft',
+  ambience: { sky: '#ffe6cc', ground: '#3a2a20', hemi: 1.3, sun: '#ffd9b0', sunIntensity: 1.9 },
+  layout: SHIP_LAYOUTS[String(HOUSING_LEVEL) as '2'],
+  rooms: {
+    [LANDING_ROOM]: tr('Palier des quartiers', 'Quarters landing'),
+    [PLOT_ROOM]: tr('Quartiers', 'Quarters'),
+  },
+  windows: { [LANDING_ROOM]: 0.5 },
+  bubble: true,
+  props: [
+    { model: 'plant-tall', x: 8.25, z: 3.25 },
+    { model: 'plant-tall', x: 8.25, z: 6.75 },
+  ],
+  lights: [[9.6, 5, '#ffe2bf', 1.6]],
+}
 
 export const LEVELS: LevelDef[] = [
   // ======================================================== Cale : minage, bricolage, réparation, et un bar clandestin
@@ -1538,4 +1570,5 @@ export const LEVELS: LevelDef[] = [
       // Les deux dernières lumières sont celles des objets de la cabine (Holo-Me, cheminée…).
     ],
   },
+  ...(HOUSING_V2 ? [QUARTERS_DECK] : []),
 ]

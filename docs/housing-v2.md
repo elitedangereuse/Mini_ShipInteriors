@@ -171,8 +171,8 @@ point d'arrivée.
 
 **G1. Format v2 de l'aménagement.** `{ v: 2, plot, items, floor: { palette, cells }, walls:
 [{ x, z, e, k?, a?, b? }], open? }` : `layout.ts`, `server/cabin.js`, le site
-(`outils/mini-shipinteriors-cabin.php`, dépôt du site) et leurs tests. À poser en premier : les
-autres blocs écrivent dedans.
+(`outils/mini-shipinteriors-cabin.php`, dépôt du site) et leurs tests. À poser avant les murs : ce
+sont eux qui y écrivent les premiers (la bulle vide du lot 1 n'enregistre rien).
 
 **G2. Migration v1 → v2.** Les quartiers actuels ne doivent pas être perdus : transposer la cabine
 `p` et ses extensions dans la parcelle (coordonnées des objets, murs de la pièce et des extensions
@@ -194,12 +194,12 @@ captures.
 
 ## Ordre proposé
 
-1. **Socle** : G1, A1, A3, B1, B2, B3. On prend l'ascenseur, on arrive dans une bulle vide de
-   10 × 10.
-2. **Construire** : D1, D2, D3, B4, D5, E1, E2. On pose ses murs, le champ de force recule.
+1. **Socle** (fait) : A1, A2, A3, B1, B2, B3. On prend l'ascenseur, on arrive dans une bulle vide de
+   10 × 10. Derrière `?housing-v2` ; `Deck.setPlot(stage)` construit déjà les trois tailles.
+2. **Construire** : G1, D1, D2, D3, B4, D5, E1, E2. On pose ses murs, le champ de force recule.
 3. **Habiller** : C1, C2, C3, D4. Sol et papier peint par case.
 4. **Partager** : F1 à F4.
-5. **Basculer** : A4, A5, A2, G2, G3, B5. On quitte l'ancienne cabine, migration, achats.
+5. **Basculer** : A4, A5, G2, G3, B5. On quitte l'ancienne cabine, migration, achats.
 6. **Finir** : E3, E4, H1 à H3.
 
 Le lot 5 est le seul qui casse l'existant : jusque-là, l'ancienne cabine reste en place et le

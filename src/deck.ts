@@ -17,6 +17,7 @@ import { DOOR_GAP } from '../shared/sight.js'
 import { shipMapOptions } from '../shared/ship-layouts.js'
 import { placeSeats, seatAction, seatsOf, type SeatSpot } from './seats'
 import { ForceShield, type ShieldPane } from './shield'
+import { PlotShell } from './housing/plot'
 
 /** Rectangle de collision dans le plan XZ. */
 export interface Box2 {
@@ -322,6 +323,8 @@ export class Deck {
   readonly theme: ThemeMaterials
   /** Cabine personnalisable du pont (les quartiers du commandant), dont chaque joueur a son exemplaire. */
   readonly cabin?: CabinView
+  /** Parcelle affichée sur le pont des quartiers (cf. `bubble` dans levels.ts, setPlot). */
+  plot?: PlotShell
   private readonly hull = new Hull()
   /** Plafond, affiché en vue subjective seulement (cf. main.ts) ; les pièces d'extension y ajoutent le leur. */
   readonly ceiling = new THREE.Group()
@@ -348,12 +351,14 @@ export class Deck {
     this.ceilingMaterial = ceilingMaterial(def.zone ? 'zone' : def.theme ?? 'station')
     this.glowMat = beamMaterial()
 
-    // Hors du vaisseau (la baie infestée, la base au sol) : ni coque, ni ascenseur, ni tuyères.
+    // Hors du vaisseau (la baie infestée, la base au sol) : ni coque, ni ascenseur, ni tuyères. Le
+    // pont des quartiers a son ascenseur, mais ses parcelles flottent sur leur propre socle.
     const aboard = !def.zone && !def.ground
+    const hulled = aboard && !def.bubble
     this.buildFloors()
     // La coque sous le pont : le corps du vaisseau, le même sous chaque pont (cf. hull.ts). La
     // baie infestée n'en a pas : elle flotte dans le noir. La base au sol repose sur ses falaises.
-    if (aboard) this.group.add(this.hull.group)
+    if (hulled) this.group.add(this.hull.group)
     if (def.ground) this.addStatic(def.ground.skirt, false)
     this.buildWalls()
     this.buildProps()
@@ -361,7 +366,7 @@ export class Deck {
     if (def.id === -1) this.voieCover = this.buildRoomCover('v', '#030303', '#080808')
     if (aboard) this.buildLift()
     if (def.engine) this.buildCore(def.engine.x, def.engine.z)
-    if (aboard) this.buildNozzles(!!def.engine)
+    if (hulled) this.buildNozzles(!!def.engine)
     this.flushStatic()
     this.buildCeiling()
 
@@ -369,8 +374,32 @@ export class Deck {
       this.lights.push({ position: new THREE.Vector3(x, this.y + 1.4, z), color: new THREE.Color(color), intensity, flicker, distance })
     }
     this.pathfinder = new Pathfinder(this.map, this.blockedTiles, this.colliders)
+    if (def.bubble) this.setPlot(0)
     // Ses meubles viennent de l'aménagement du joueur (cf. main.ts) : ils s'ajoutent au reste du pont.
     if (def.cabin) this.cabin = new CabinView(this, def.cabin)
+  }
+
+  /**
+   * Parcelle du pont des quartiers à ce palier d'agrandissement (cf. shared/housing-plot.js) :
+   * posée sur le plan, construite, ses collisions et ses lumières ajoutées à celles du pont.
+   * Renvoie vrai si elle a changé (les lumières du pont sont alors à réaffecter).
+   */
+  setPlot(stage: number): boolean {
+    if (this.plot?.plan.stage === stage) return false
+    const old = this.plot
+    if (old) {
+      old.dispose()
+      const gone = new Set<object>([...old.colliders, ...old.lights])
+      const keep = <T extends object>(list: T[]) => list.splice(0, list.length, ...list.filter((o) => !gone.has(o)))
+      keep(this.colliders)
+      keep(this.lights)
+    }
+    const plot = (this.plot = new PlotShell(this, stage))
+    this.group.add(plot.group)
+    this.colliders.push(...plot.colliders)
+    this.lights.push(...plot.lights)
+    this.pathfinder.invalidate()
+    return true
   }
 
   roomName(x: number, z: number): string {
@@ -1147,6 +1176,7 @@ export class Deck {
 
     this.glowMat.uniforms.uTime.value = this.time
     for (const s of this.shields) s.update(dt, toCamera, this.ceiling.visible ? this.ceilingY : null)
+    this.plot?.update(dt, toCamera, this.ceiling.visible ? this.ceilingY : null)
     if (this.liftBeam && this.liftHalo && this.liftSign) {
       const beam = this.liftBeam.material as THREE.ShaderMaterial
       this.liftBoost = Math.max(0, this.liftBoost - dt * 0.8)

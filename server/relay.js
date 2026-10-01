@@ -40,7 +40,8 @@
 // (chaque étape relance l'attente), puis la jardinière reprend sa tournée.
 //
 // Quartiers : chaque joueur a sa propre instance des quartiers du commandant (`cabin` : l'id du
-// joueur chez qui il se trouve, le sien par défaut). Un CMDR vérifié envoie l'aménagement des
+// joueur chez qui il se trouve, le sien par défaut). Sur le pont des quartiers (housing v2, cf.
+// shared/housing-plot.js), tout le pont est instancié : chacun y est dans sa bulle. Un CMDR vérifié envoie l'aménagement des
 // siens (cf. cabin.js), et peut inviter un joueur connecté : celui-ci n'y entre qu'avec une
 // invitation, reçoit l'aménagement, puis chacun de ses changements. L'hôte peut raccompagner un
 // visiteur ; s'il quitte le vaisseau, ses visiteurs rentrent chez eux.
@@ -67,6 +68,7 @@ import { BOARD_TABLES, SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layou
 import { DIRS, ShipMap } from '../shared/ship-map.js'
 import { applyPartitions } from '../shared/cabin-partitions.js'
 import { applyWings } from '../shared/cabin-wings.js'
+import { applyPlot, HOUSING_LEVEL } from '../shared/housing-plot.js'
 import { canReach } from '../shared/sight.js'
 import { PATROL_LEVEL, PATROL_PERIOD, holdPatrol, patrolAt, patrolTime } from '../shared/patrol.js'
 import { CHEF_COOK, CHEF_LEVEL, CHEF_PERIOD, CHEF_ROOM, CHEF_WAIT, chefAt, chefTime, cookChef, holdChef } from '../shared/chef.js'
@@ -114,7 +116,7 @@ const EMOTES = new Set([
 const ANIMS = new Set(['idle', 'walk', 'sprint'])
 // Poses tenues sur un meuble (cf. src/seats.ts) : assis, couché, aux commandes, à une borne…
 const POSES = new Set(['sit', 'lie', 'pilot', 'arcade', 'claw', 'punch', 'run', 'pedal', 'mix'])
-const LEVELS = new Set([-1, 0, 1])
+const LEVELS = new Set([-1, 0, 1, HOUSING_LEVEL])
 /** Une invitation dans des quartiers vaut une minute. */
 const INVITE_TTL = 60000
 /**
@@ -125,6 +127,8 @@ const REACH = 2.5
 /** Plans des ponts : on n'agit pas à travers un mur (cf. shared/sight.js). */
 const MAPS = new Map(Object.entries(SHIP_LAYOUTS).map(([id, layout]) => [Number(id), new ShipMap(layout, shipMapOptions(id))]))
 MAPS.set(BASE_LEVEL, new ShipMap(BASE_LAYOUT))
+// Pont des quartiers : chacun y est dans sa bulle (son instance, cf. `cabin`), une parcelle de départ.
+applyPlot(MAPS.get(HOUSING_LEVEL), 0)
 const voieMap = new ShipMap(SHIP_LAYOUTS['-1'], shipMapOptions(-1))
 for (const d of voieMap.doors) {
   const step = DIRS[d.dir]

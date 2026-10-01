@@ -20,6 +20,13 @@ export interface ShieldPane {
   alongX: boolean
 }
 
+/** Ce qui accompagne le champ (tout, par défaut) : pylônes aux deux bouts, étoiles derrière, trafic au loin. */
+export interface ShieldOptions {
+  pylons?: boolean
+  stars?: boolean
+  traffic?: boolean
+}
+
 /** Hauteur du champ en vue isométrique (les murs y font 1) ; en vue subjective, celle du plafond. */
 const ISO_HEIGHT = 1.25
 
@@ -113,7 +120,8 @@ export class ForceShield {
    * @param panes pans du champ, alignés (un côté d'une pièce)
    * @param outward côté de l'espace (1 : +x ou +z, -1 : -x ou -z)
    */
-  constructor(panes: ShieldPane[], outward: 1 | -1) {
+  constructor(panes: ShieldPane[], outward: 1 | -1, options: ShieldOptions = {}) {
+    const { pylons = true, stars = true, traffic = true } = options
     const alongX = panes[0].alongX
     const along = panes.map((p) => (alongX ? p.x : p.z))
     const a0 = Math.min(...along) - 0.5, a1 = Math.max(...along) + 0.5
@@ -164,19 +172,9 @@ export class ForceShield {
       this.group.add(stud)
     }
     // Pylônes émetteurs aux deux bouts : une colonne, trois bagues bleues.
-    for (const a of [a0 + 0.12, a1 - 0.12]) {
-      const pylon = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.7, 0.22), dark)
-      pylon.position.copy(at(a, 0.85))
-      pylon.castShadow = true
-      this.group.add(pylon)
-      for (const y of [0.35, 0.8, 1.25]) {
-        const ring = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.05, 0.25), new THREE.MeshBasicMaterial({ color: '#6fd0ff' }))
-        ring.position.copy(at(a, y))
-        this.group.add(ring)
-      }
-    }
+    if (pylons) for (const a of [a0 + 0.12, a1 - 0.12]) this.group.add(shieldPylon(at(a, 0)))
 
-    this.group.add(starBox(line, a0, a1, 60, outward, alongX))
+    if (stars) this.group.add(starBox(line, a0, a1, 60, outward, alongX))
 
     // Un vaisseau au loin (une Cobra, feux allumés), qui file le long du vaisseau.
     this.traffic = new THREE.Group()
@@ -187,7 +185,7 @@ export class ForceShield {
     engine.position.set(0, 0.02, -0.28)
     this.traffic.add(hull, engine)
     this.traffic.visible = false
-    this.group.add(this.traffic)
+    if (traffic) this.group.add(this.traffic)
     this.trafficLine = { line, a0: a0 - 30, a1: a1 + 30, alongX, outward }
   }
 
@@ -213,7 +211,7 @@ export class ForceShield {
     const tl = this.trafficLine
     if (!this.trafficRun) {
       this.trafficAt -= dt
-      if (this.trafficAt <= 0) {
+      if (this.trafficAt <= 0 && this.traffic.parent) {
         const forward = Math.random() < 0.5
         this.trafficRun = { from: forward ? tl.a0 : tl.a1, to: forward ? tl.a1 : tl.a0, off: 7 + Math.random() * 8, y: -1 + Math.random() * 3, t: 0, duration: 7 + Math.random() * 4 }
         this.traffic.visible = true
@@ -237,4 +235,31 @@ export class ForceShield {
       }
     }
   }
+
+  /** Retire le champ (une parcelle qui change de taille) : ses géométries et ses matériaux. */
+  dispose() {
+    this.group.removeFromParent()
+    this.group.traverse((o) => {
+      const m = o as THREE.Mesh
+      if (!m.geometry) return
+      m.geometry.dispose()
+      for (const mat of [m.material].flat()) (mat as THREE.Material).dispose()
+    })
+  }
+}
+
+/** Pylône émetteur, posé au sol en `at` : une colonne sombre, trois bagues bleues. */
+export function shieldPylon(at: THREE.Vector3): THREE.Group {
+  const g = new THREE.Group()
+  g.position.copy(at)
+  const pylon = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.7, 0.22), new THREE.MeshLambertMaterial({ color: '#2a2e36' }))
+  pylon.position.y = 0.85
+  pylon.castShadow = true
+  g.add(pylon)
+  for (const y of [0.35, 0.8, 1.25]) {
+    const ring = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.05, 0.25), new THREE.MeshBasicMaterial({ color: '#6fd0ff' }))
+    ring.position.y = y
+    g.add(ring)
+  }
+  return g
 }

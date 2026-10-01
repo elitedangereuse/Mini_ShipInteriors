@@ -15,6 +15,7 @@ import { KRAIT_BURN, KRAIT_COCKPIT, MECH_HELP, MECH_HOLD, MECH_LEVEL, mechAt } f
 import { GARDEN_HELP, GARDEN_HOLD, GARDEN_LEVEL, gardenAt } from '../shared/gardener.js'
 import { NURSE_BEDS, NURSE_CARE, NURSE_CARE_MIN, NURSE_HOLD, NURSE_LEVEL, NURSE_PATCH, nurseAt } from '../shared/nurse.js'
 import { BASE_ARRIVAL, BASE_BURN, BASE_COCKPIT, BASE_LEVEL, CHIEF_HOLD, chiefAt } from '../shared/ground-base.js'
+import { HOUSING_LEVEL, PLOT_ORIGIN } from '../shared/housing-plot.js'
 
 /** Faux site : reconnaît deux cookies, comme outils/mini-shipinteriors-cmdr.php. */
 const ACCOUNTS = { 'jeton-adam': 'Adam Fauster', 'jeton-rackam': 'Rackam' }
@@ -884,6 +885,22 @@ describe('quartiers', () => {
     const { wh, wg } = await hostAndGuest()
     const seen = wg.players.find((p) => p.id === wh.id)
     assert.equal(seen.cabin, wh.id)
+  })
+
+  test('le pont des quartiers : chacun dans sa bulle, le relais suit les pas', async () => {
+    const { host, wh, guest, wg } = await hostAndGuest()
+    // Sur la parcelle de départ, puis sur le palier de l'ascenseur.
+    const onPlot = { x: PLOT_ORIGIN.x + 4, z: PLOT_ORIGIN.z + 4, yaw: 0, level: HOUSING_LEVEL, anim: 'idle' }
+    host.emit('state', onPlot)
+    assert.deepEqual(await next(guest, 'state', (m) => m.id === wh.id), { id: wh.id, ...onPlot })
+    const landing = { x: 10, z: 5, yaw: 0, level: HOUSING_LEVEL, anim: 'walk' }
+    guest.emit('state', landing)
+    assert.deepEqual(await next(host, 'state', (m) => m.id === wg.id), { id: wg.id, ...landing })
+    // Chacun reste dans sa propre instance : rien ne les réunit sans invitation.
+    const late = client({ auth: { name: 'CMDR Tardif' } })
+    const seen = (await welcome(late)).players
+    assert.equal(seen.find((p) => p.id === wh.id).cabin, wh.id)
+    assert.equal(seen.find((p) => p.id === wg.id).cabin, wg.id)
   })
 
   test('sur invitation, le visiteur entre, reçoit l\'aménagement, puis chacun de ses changements', async () => {

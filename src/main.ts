@@ -58,6 +58,7 @@ import { KRAIT_COCKPIT } from '../shared/mechanic.js'
 import { GroundBase } from './base/client'
 import { CHIEF } from './base/chief'
 import { BASE_COCKPIT, BASE_LEVEL } from '../shared/ground-base.js'
+import { HOUSING_LEVEL } from '../shared/housing-plot.js'
 import type { ChiefState } from './net'
 import { Infirmary, Plasters } from './infirmary'
 import { menuOf } from './menu'
@@ -2079,11 +2080,15 @@ const inviteToasts = new InviteToasts()
 /** Instance des quartiers où se trouve le joueur local (id de l'hôte). */
 const myCabin = () => visiting?.host ?? net.id
 
-/** Un autre joueur est-il visible ? Dans des quartiers, seulement s'il est dans la même instance. */
+/**
+ * Un autre joueur est-il visible ? Dans des quartiers, seulement s'il est dans la même instance,
+ * et de même partout sur le pont des quartiers (chacun y est dans sa bulle).
+ */
 function sees(r: RemotePlayer): boolean {
   // Dans la baie infestée (ou par les caméras) : seulement ses coéquipiers, hors des casiers.
   if (r.level === ZONE_LEVEL) return !!viewDeck.def.zone && !!salvage?.sees(r.id)
   if (r.level !== viewDeck.def.id || viewDeck !== deck) return false
+  if (r.level === HOUSING_LEVEL) return r.cabin === myCabin()
   return !inCabin(r.level, r.group.position.x, r.group.position.z) || r.cabin === myCabin()
 }
 
