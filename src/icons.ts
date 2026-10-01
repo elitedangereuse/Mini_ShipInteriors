@@ -68,6 +68,10 @@ import paintBrush from '@phosphor-icons/core/bold/paint-brush-bold.svg?raw'
 import signOut from '@phosphor-icons/core/bold/sign-out-bold.svg?raw'
 import trash from '@phosphor-icons/core/bold/trash-bold.svg?raw'
 import userPlus from '@phosphor-icons/core/bold/user-plus-bold.svg?raw'
+// mode construction des quartiers : tracer, pièce, pipette (la gomme est plus haut)
+import lineSegment from '@phosphor-icons/core/bold/line-segment-bold.svg?raw'
+import rectangleBold from '@phosphor-icons/core/bold/rectangle-bold.svg?raw'
+import eyedropper from '@phosphor-icons/core/bold/eyedropper-bold.svg?raw'
 import warningCircle from '@phosphor-icons/core/bold/warning-circle-bold.svg?raw'
 import x from '@phosphor-icons/core/bold/x-bold.svg?raw'
 import arrowUp from '@phosphor-icons/core/bold/arrow-up-bold.svg?raw'
@@ -197,6 +201,9 @@ const SVG = {
   'sign-out': signOut,
   trash,
   'user-plus': userPlus,
+  'line-segment': lineSegment,
+  rectangle: rectangleBold,
+  eyedropper,
   'warning-circle': warningCircle,
   x,
   'caret-left': caretLeft,

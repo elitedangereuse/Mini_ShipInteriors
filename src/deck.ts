@@ -17,7 +17,7 @@ import { DOOR_GAP } from '../shared/sight.js'
 import { shipMapOptions } from '../shared/ship-layouts.js'
 import { placeSeats, seatAction, seatsOf, type SeatSpot } from './seats'
 import { ForceShield, type ShieldPane } from './shield'
-import { PlotShell } from './housing/plot'
+import { HomeView } from './housing/home'
 
 /** Rectangle de collision dans le plan XZ. */
 export interface Box2 {
@@ -323,8 +323,8 @@ export class Deck {
   readonly theme: ThemeMaterials
   /** Cabine personnalisable du pont (les quartiers du commandant), dont chaque joueur a son exemplaire. */
   readonly cabin?: CabinView
-  /** Parcelle affichée sur le pont des quartiers (cf. `bubble` dans levels.ts, setPlot). */
-  plot?: PlotShell
+  /** Parcelle affichée sur le pont des quartiers (cf. `bubble` dans levels.ts) : sa taille, ses murs. */
+  readonly home?: HomeView
   private readonly hull = new Hull()
   /** Plafond, affiché en vue subjective seulement (cf. main.ts) ; les pièces d'extension y ajoutent le leur. */
   readonly ceiling = new THREE.Group()
@@ -374,32 +374,12 @@ export class Deck {
       this.lights.push({ position: new THREE.Vector3(x, this.y + 1.4, z), color: new THREE.Color(color), intensity, flicker, distance })
     }
     this.pathfinder = new Pathfinder(this.map, this.blockedTiles, this.colliders)
-    if (def.bubble) this.setPlot(0)
+    if (def.bubble) {
+      this.home = new HomeView(this)
+      this.home.set(0, [])
+    }
     // Ses meubles viennent de l'aménagement du joueur (cf. main.ts) : ils s'ajoutent au reste du pont.
     if (def.cabin) this.cabin = new CabinView(this, def.cabin)
-  }
-
-  /**
-   * Parcelle du pont des quartiers à ce palier d'agrandissement (cf. shared/housing-plot.js) :
-   * posée sur le plan, construite, ses collisions et ses lumières ajoutées à celles du pont.
-   * Renvoie vrai si elle a changé (les lumières du pont sont alors à réaffecter).
-   */
-  setPlot(stage: number): boolean {
-    if (this.plot?.plan.stage === stage) return false
-    const old = this.plot
-    if (old) {
-      old.dispose()
-      const gone = new Set<object>([...old.colliders, ...old.lights])
-      const keep = <T extends object>(list: T[]) => list.splice(0, list.length, ...list.filter((o) => !gone.has(o)))
-      keep(this.colliders)
-      keep(this.lights)
-    }
-    const plot = (this.plot = new PlotShell(this, stage))
-    this.group.add(plot.group)
-    this.colliders.push(...plot.colliders)
-    this.lights.push(...plot.lights)
-    this.pathfinder.invalidate()
-    return true
   }
 
   roomName(x: number, z: number): string {
@@ -1176,7 +1156,7 @@ export class Deck {
 
     this.glowMat.uniforms.uTime.value = this.time
     for (const s of this.shields) s.update(dt, toCamera, this.ceiling.visible ? this.ceilingY : null)
-    this.plot?.update(dt, toCamera, this.ceiling.visible ? this.ceilingY : null)
+    this.home?.update(dt, fade, { focus, toCamera, cabin: editing, keep }, toCamera, this.ceiling.visible ? this.ceilingY : null)
     if (this.liftBeam && this.liftHalo && this.liftSign) {
       const beam = this.liftBeam.material as THREE.ShaderMaterial
       this.liftBoost = Math.max(0, this.liftBoost - dt * 0.8)
@@ -1217,7 +1197,7 @@ let wallTexel: [number, number] | null = null
  * Pavé uni de la couleur exacte des murs du pont : toutes ses coordonnées de texture pointent
  * sur le texel du dessus du mur (poteaux d'angle, cadres des verrières).
  */
-function solidBox(w: number, h: number, d: number, material: THREE.Material): THREE.Mesh {
+export function solidBox(w: number, h: number, d: number, material: THREE.Material): THREE.Mesh {
   if (!wallTexel) {
     let src: THREE.Mesh | undefined
     station('wall').traverse((o) => {

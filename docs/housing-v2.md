@@ -157,7 +157,7 @@ pourquoi pas deux ou trois plans tout faits (« studio », « deux pièces ») �
 
 **F2. Visiter sans invitation.** Le relais accepte `visit` vers un hôte ouvert sans invitation en
 cours ; l'invitation reste pour les quartiers fermés. Fermer pendant une visite : cf. décisions
-D5. Tests relais.
+Q5. Tests relais.
 
 **F3. Choisir où aller.** À l'ascenseur, l'étage des quartiers propose « Mes quartiers » et la
 liste des quartiers ouverts des joueurs connectés (et ceux où l'on est invité) ; on arrive sur le
@@ -173,6 +173,19 @@ point d'arrivée.
 [{ x, z, e, k?, a?, b? }], open? }` : `layout.ts`, `server/cabin.js`, le site
 (`outils/mini-shipinteriors-cabin.php`, dépôt du site) et leurs tests. À poser avant les murs : ce
 sont eux qui y écrivent les premiers (la bulle vide du lot 1 n'enregistre rien).
+
+État (lot 2) : `shared/housing-home.js` définit le format 2 tel qu'il existe aujourd'hui,
+`{ v: 2, walls? }`, et sa vérification (`sanitizeHome`). Le relais le garde dans le champ `home`
+de l'aménagement (`server/cabin.js`). **Reste le site**, dont le dépôt n'était pas accessible
+depuis la session : en attendant, la parcelle est gardée dans le navigateur
+(`src/housing/storage.ts`). Ce que le site doit accepter et rendre, dans le champ `home` de
+l'aménagement :
+
+- `v` vaut 2, sinon le champ est ignoré ;
+- `walls` : 512 murs au plus, chacun `{ x, z, e, k? }`, `x` et `z` entiers, `x` entre 11 et 41,
+  `z` entre -1 et 29, `e` vaut `v` ou `h` ;
+- `k` : chaîne de 1 à 24 caractères `[a-z0-9-]`, jamais `wall`, qui s'écrit sans `k` ;
+- une arête en double n'est gardée qu'une fois, la dernière.
 
 **G2. Migration v1 → v2.** Les quartiers actuels ne doivent pas être perdus : transposer la cabine
 `p` et ses extensions dans la parcelle (coordonnées des objets, murs de la pièce et des extensions
@@ -196,10 +209,12 @@ captures.
 
 1. **Socle** (fait) : A1, A2, A3, B1, B2, B3. On prend l'ascenseur, on arrive dans une bulle vide de
    10 × 10. Derrière `?housing-v2` ; `Deck.setPlot(stage)` construit déjà les trois tailles.
-2. **Construire** : G1, D1, D2, D3, B4, D5, E1, E2. On pose ses murs, le champ de force recule.
+2. **Construire** (fait) : G1 (côté jeu et relais), D1, D2, D3, B4, E1, E2. On pose ses murs, le
+   champ de force recule. D5 en partie : une partie coupée de l'ascenseur est signalée (« ajoutez
+   une porte ») sans bloquer, le reste (règles de pose des meubles) vient avec le mobilier.
 3. **Habiller** : C1, C2, C3, D4. Sol et papier peint par case.
 4. **Partager** : F1 à F4.
-5. **Basculer** : A4, A5, G2, G3, B5. On quitte l'ancienne cabine, migration, achats.
+5. **Basculer** : A4, A5, D5, G2, G3, B5. On quitte l'ancienne cabine, migration, achats.
 6. **Finir** : E3, E4, H1 à H3.
 
 Le lot 5 est le seul qui casse l'existant : jusque-là, l'ancienne cabine reste en place et le

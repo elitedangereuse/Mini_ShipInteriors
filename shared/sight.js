@@ -15,7 +15,8 @@ const EPS = 1e-9
 function passes(map, x, z, dir, a, b, t) {
   const kind = map.edge(x, z, dir)
   if (kind === 'open') return true
-  if (kind === 'wall') return false
+  // Un demi-mur arrête les pas, pas le regard.
+  if (kind === 'wall') return !!map.low?.has(map.edgeKey(x, z, dir))
   // Porte : le point de passage doit tomber dans l'ouverture, pas sur les montants.
   const along = dir === 1 || dir === 3 ? a.z + (b.z - a.z) * t - z : a.x + (b.x - a.x) * t - x
   return Math.abs(along) <= DOOR_GAP / 2

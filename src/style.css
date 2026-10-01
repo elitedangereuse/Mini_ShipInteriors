@@ -2029,6 +2029,22 @@ body.editing .top-left {
   border-color: var(--cyan);
   background: rgba(89, 216, 255, 0.14);
 }
+/* Mode construction de la parcelle (housing v2) : onglets à venir, outils, types de murs. */
+.ed-modes button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.hb-tools button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.hb-tools .icon {
+  font-size: 14px;
+}
+.ed-finish.dim {
+  opacity: 0.45;
+}
 /* Pièces : les trois espaces d'extension, leur prix ou leurs formes de plan. */
 .ed-rooms-intro {
   font-size: 12px;

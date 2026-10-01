@@ -1,7 +1,8 @@
 import type { ShipMap } from './ship-map.js'
 
 type Point = { x: number; z: number }
-type SightMap = Pick<ShipMap, 'room' | 'isFloor' | 'edge'>
+/** Un plan : ses pièces, ses arêtes, et au besoin ses murs bas, qui laissent voir. */
+type SightMap = Pick<ShipMap, 'room' | 'isFloor' | 'edge'> & Partial<Pick<ShipMap, 'low' | 'edgeKey'>>
 
 /** Largeur de l'ouverture d'une porte. */
 export declare const DOOR_GAP: number

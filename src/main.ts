@@ -11,6 +11,8 @@ import { MediaRoom } from './media-room'
 import { CinemaRoom } from './cinema-room'
 import { CAT_MODEL, preload, rig } from './assets'
 import type { CabinEditor } from './cabin/editor'
+import type { HomeBuilder } from './housing/builder'
+import { HomeStore } from './housing/storage'
 import { CabinBar, InviteMenu, InviteToasts, type CrewEntry } from './cabin/hud'
 import { normalizeLayout, sameLayout, serializeLayout, type CabinItem, type CabinLayout } from './cabin/layout'
 import { CabinStore, requestCabin, type SiteCabin } from './cabin/storage'
@@ -230,6 +232,13 @@ const jacquesAt = deckById(-1).interactables.find((it) => it.furniture?.model ==
 // Les quartiers du commandant : la cabine du joueur, meublée selon son aménagement.
 const cabinDeck = decks.find((d) => d.cabin)!
 const cabin = cabinDeck.cabin!
+/**
+ * Pont des quartiers (housing v2, derrière ?housing-v2) : la parcelle du joueur, bâtie en mode
+ * construction (cf. housing/builder.ts) et gardée dans ce navigateur (cf. housing/storage.ts).
+ */
+const homeDeck = decks.find((d) => d.home)
+let homeStore = new HomeStore(account?.name ?? null)
+homeDeck?.home!.set(0, homeStore.load().walls ?? [])
 
 /** Réponse du site (ou son absence) : l'aménagement à montrer, envoyé au site s'il vient de ce navigateur. */
 function connectStore(store: CabinStore, site: SiteCabin | null): CabinLayout {
@@ -547,6 +556,11 @@ function applyLights() {
 }
 cabin.onLights = () => {
   if (viewDeck === cabinDeck) applyLights()
+}
+if (homeDeck) {
+  homeDeck.home!.onLights = () => {
+    if (viewDeck === homeDeck) applyLights()
+  }
 }
 /** Phrase d'une interaction (une au hasard dans une liste). */
 function showText(text: Interactable['text']) {
@@ -1901,7 +1915,12 @@ let editor: CabinEditor | null = null
 let editorLoading: Promise<void> | null = null
 /** Vue plongeante du mode aménagement (cf. cabin/editor.ts). */
 let editElevation = 0
-const editing = () => editor?.active === true
+/** Mode construction de la parcelle (pont des quartiers), chargé lui aussi à la première ouverture. */
+let builder: HomeBuilder | null = null
+let builderLoading: Promise<void> | null = null
+const editing = () => editor?.active === true || builder?.active === true
+/** Le mode ouvert (aménagement des quartiers ou construction de la parcelle) : il reçoit souris et clavier. */
+const activeEditor = () => (builder?.active ? builder : editor?.active ? editor : null)
 
 function loadEditor(): Promise<void> {
   editorLoading ??= import('./cabin/editor').then(({ CabinEditor, EDIT_ELEVATION }) => {
@@ -1929,6 +1948,11 @@ function loadEditor(): Promise<void> {
  */
 function adoptAccount() {
   if (!wallet.ready) void wallet.load()
+  const name = profile.name.replace(/^CMDR /, '')
+  if (homeDeck && !builder?.active) {
+    homeStore = new HomeStore(name)
+    homeDeck.home!.set(homeDeck.home!.stage, homeStore.load().walls ?? [])
+  }
   if (cabinStore) return
   const store = (cabinStore = new CabinStore(profile.name.replace(/^CMDR /, '')))
   setOwnLayout(normalizeLayout(store.localCopy, cabin.bounds))
@@ -1958,6 +1982,7 @@ function inCabin(level: number, x: number, z: number): boolean {
 /** @param tab onglet à ouvrir : « Pièces » depuis la porte d'un espace d'extension */
 async function openEditor(tab?: 'rooms') {
   if (editing() || riding || photo.active) return
+  if (homeDeck && deck === homeDeck) return openBuilder()
   if (visiting) return chat.add('system', tr(`Vous êtes en visite chez ${visiting.name} : on n'aménage que chez soi.`, `You're visiting ${visiting.name}: you can only decorate your own quarters.`))
   if (!linked) return chat.add('system', tr('Aménager ses quartiers est réservé aux CMDR connectés à elitedangereuse.fr.', 'Only CMDRs logged in to elitedangereuse.fr can decorate their quarters.'))
   if (!cabinStore?.ready) return chat.add('system', tr('Vos quartiers arrivent du site, encore un instant…', 'Your quarters are on their way from the site, just a moment…'))
@@ -1988,7 +2013,49 @@ async function openEditor(tab?: 'rooms') {
   store.onState = (state) => ed.setSaveState(state)
 }
 
+/** Mode construction : sur le pont des quartiers, chez soi. */
+async function openBuilder() {
+  if (!homeDeck || editing() || riding || photo.active || deck !== homeDeck) return
+  builderLoading ??= import('./housing/builder').then(({ HomeBuilder, BUILD_ELEVATION }) => {
+    editElevation = BUILD_ELEVATION
+    builder = new HomeBuilder(homeDeck, {
+      canvas: renderer.domElement,
+      iso,
+      sound,
+      onChange: (walls) => {
+        homeDeck.home!.set(homeDeck.home!.stage, walls)
+        homeStore.save({ v: 2, walls })
+      },
+      onClose: () => closeEditor(),
+    })
+  })
+  await builderLoading
+  if (!builder || editing() || riding || photo.active || deck !== homeDeck) return
+  lift.close()
+  jukebox.close()
+  seating.leave()
+  player.cancelPath()
+  marker.visible = hover.visible = false
+  editZoom = iso.zoomLevel
+  iso.setRestElevation(editElevation)
+  document.body.classList.add('editing')
+  builder.start(homeDeck.home!.walls, homeDeck.home!.stage)
+  const z = builder.fitZoom()
+  iso.zoomMax = Math.max(iso.zoomMax, z)
+  iso.zoomTo(z)
+}
+
 function closeEditor() {
+  if (builder?.active) {
+    builder.stop()
+    iso.setRestElevation(null)
+    iso.zoomMax = 14
+    iso.zoomTo(editZoom)
+    document.body.classList.remove('editing')
+    renderer.domElement.style.cursor = 'default'
+    unstickHome(player.position, 0.18)
+    return
+  }
   if (!editor?.active) return
   editor.stop()
   iso.setRestElevation(null)
@@ -2286,6 +2353,28 @@ function unstick(p: THREE.Vector3, r: number) {
   }
 }
 
+/** Un mur posé sur le joueur (mode construction) : on le pousse hors du mur, ou sur la case libre la plus proche. */
+function unstickHome(p: THREE.Vector3, r: number) {
+  if (!homeDeck || deck !== homeDeck) return
+  const colliders = homeDeck.colliders
+  if (!overlapsAny(p, r, colliders)) return
+  const q = { x: p.x, z: p.z }
+  resolveCircle(q, r, colliders)
+  if (!overlapsAny(q, r, colliders)) {
+    p.x = q.x
+    p.z = q.z
+    return
+  }
+  let best: { x: number; z: number } | null = null
+  for (const t of homeDeck.home!.plan.tiles) {
+    if (homeDeck.pathfinder.walkable(t.x, t.z) && !overlapsAny(t, r, colliders) && (!best || Math.hypot(t.x - p.x, t.z - p.z) < Math.hypot(best.x - p.x, best.z - p.z))) best = t
+  }
+  if (best) {
+    p.x = best.x
+    p.z = best.z
+  }
+}
+
 /** Tuile libre des quartiers (hors extensions) la plus proche. */
 function nearestCabinTile(p: { x: number; z: number }): { x: number; z: number } | null {
   let best: { x: number; z: number } | null = null
@@ -2350,7 +2439,7 @@ addEventListener('keydown', (e) => {
     return
   }
   // Mode aménagement : ses touches d'abord (les flèches se répètent pour ajuster un objet).
-  if (editing() && editor!.keyDown(e)) return
+  if (editing() && activeEditor()!.keyDown(e)) return
   if (e.repeat) return
   // Mode photo : ses touches (déclencheur, options) ; on garde les déplacements, les poses, R et M.
   if (photo.keyDown(e)) return
@@ -2634,7 +2723,7 @@ function pick(e: { clientX: number; clientY: number }): { tile: Tile | null; ite
 let pendingMove: PointerEvent | null = null
 canvas.addEventListener('pointermove', (e) => {
   if (freeLook) return
-  if (editing()) editor!.pointerMove(e)
+  if (editing()) activeEditor()!.pointerMove(e)
   else pendingMove = e
 })
 function processHover() {
@@ -2694,7 +2783,7 @@ function endFreeLook(e: PointerEvent) {
 canvas.addEventListener('pointerup', endFreeLook)
 canvas.addEventListener('pointercancel', endFreeLook)
 canvas.addEventListener('pointerup', (e) => {
-  if (e.button === 0 && editing()) editor!.pointerUp(e)
+  if (e.button === 0 && editing()) activeEditor()!.pointerUp(e)
 })
 
 // Clic en dehors du panneau d'ascenseur : il se ferme, et le clic ne fait rien d'autre.
@@ -2849,7 +2938,7 @@ function click(e: PointerEvent, at: { clientX: number; clientY: number } = e) {
     try {
       canvas.setPointerCapture(e.pointerId)
     } catch {}
-    return editor!.pointerDown(e)
+    return activeEditor()!.pointerDown(e)
   }
   if (wardrobe.isOpen) return wardrobe.close(false)
   stopWork()
@@ -3781,11 +3870,11 @@ function frame() {
     if (innerWidth <= 900) barFocus.add(iso.screenToGround(0, -1.1))
   }
   // Mode aménagement : le joueur au milieu de la zone que le catalogue laisse visible.
-  if (editing()) editor!.frameCamera()
+  if (editing()) activeEditor()!.frameCamera()
   else iso.frameCenter(0, 0, innerHeight)
   const cinemaSeat = deck.def.id === 1 && ['cinema-row', 'projection-chair'].includes(seating.current?.item.furniture?.model ?? '')
   if (cinemaSeat) cinemaFocus.set(cinemaScreenProp.x, deck.y, (player.position.z + cinemaScreenProp.z) / 2)
-  iso.update(dt, zone.watchTarget ?? (claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : cinemaSeat ? cinemaFocus : player.position))
+  iso.update(dt, zone.watchTarget ?? (claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : cinemaSeat ? cinemaFocus : builder?.active ? builder.focus : player.position))
   if (barPanel.isOpen) {
     iso.camera.updateMatrixWorld()
     barPanel.place(iso.camera, player.position, jacquesAt)
@@ -3829,7 +3918,7 @@ function frame() {
     // Le plafond cacherait tout, vu de haut : on ne le voit que de l'intérieur.
     d.ceiling.visible = fpsShown
     d.tallDoors = fpsShown
-    d.update(world, actors.get(d)!, d === viewDeck ? player.position : null, toCam, editing() && d === cabinDeck, keep, dt)
+    d.update(world, actors.get(d)!, d === viewDeck ? player.position : null, toCam, editing() && (d === cabinDeck || d === homeDeck), keep, dt)
   }
   firstPersonGlass(fpsShown)
   // Filet de sécurité : ni le joueur ni la vue ne restent sur une baie démontée (l'écran serait
@@ -3850,6 +3939,7 @@ function frame() {
     bay.update(world, inside, viewDeck === bay ? (zone.watchTarget ?? player.position) : null, toCam, false, null, dt)
   }
   editor?.update(timer.getElapsed())
+  builder?.update()
   // Tâches de bord : à l'heure chaque seconde, animées sur le pont affiché.
   if ((taskClock -= dt) <= 0) {
     taskClock = 1
@@ -3904,7 +3994,7 @@ function frame() {
 
   // Dans ses quartiers : de quoi les aménager. En visite, jusque dans la coursive : de quoi rentrer.
   cabinBar.set(
-    editing() ? null : visiting ? { kind: 'visit', host: visiting.name, inside: here } : !here ? null : { kind: 'own', canEdit: linked, canInvite: verified && net.online, loginUrl: loginUrl() },
+    editing() ? null : visiting ? { kind: 'visit', host: visiting.name, inside: here } : homeDeck && deck === homeDeck ? { kind: 'own', canEdit: true, canInvite: false } : !here ? null : { kind: 'own', canEdit: linked, canInvite: verified && net.online, loginUrl: loginUrl() },
   )
   if (!here && inviteMenu.isOpen) inviteMenu.close()
 
@@ -4024,6 +4114,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, salvage: zone, view: () => viewDeck },
+    __game: { renderer, sound, player, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder } },
   })
 }

@@ -31,6 +31,8 @@ export class ShipMap {
     this.locked = new Set()
     /** Arêtes murées à l'intérieur d'une pièce. */
     this.walls = new Set()
+    /** Murs bas (demi-murs des quartiers) : ils arrêtent les pas, pas la vue (cf. sight.js). */
+    this.low = new Set()
     this.height = layout.length
     this.width = Math.max(...layout.map((l) => l.length))
     this.rooms = layout.map((line) =>
