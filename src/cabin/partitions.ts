@@ -464,18 +464,24 @@ export class PartitionShell {
     const holder = new THREE.Group()
     holder.position.set(cx, 0, cz)
     holder.rotation.y = alongX ? 0 : Math.PI / 2
-    const frame = this.deck.placeModel('wall-door', 0, 0, 0)
     const l = leaves(p.k ?? 'sliding', this.deck, random)
-    holder.add(frame, ...l.parts)
-    if (l.trim) holder.add(l.trim)
-    // Papier peint de l'encadrement, de part et d'autre de l'ouverture (repère de la porte).
+    if (l.parts.length) holder.add(...l.parts)
+    // Ce qui ne bouge pas (encadrement, décor, papier peint de part et d'autre de l'ouverture) :
+    // fusionné dans le repère de la porte, un maillage par matériau.
+    const still = new StaticMerge()
+    still.add(this.deck.placeModel('wall-door', 0, 0, 0), true)
+    if (l.trim) {
+      still.add(l.trim, true)
+      disposeMeshes(l.trim)
+    }
     holder.updateMatrix()
     const local = holder.matrix.clone().invert()
     for (const m of papersOf(p, this.paper, PANEL_SPANS.door)) {
       m.geometry.applyMatrix4(local)
-      holder.add(m)
-      this.owned.push(m.geometry)
+      still.add(m, true)
+      m.geometry.dispose()
     }
+    for (const m of still.flush(holder)) this.owned.push(m.geometry)
     l.animate?.(0)
     // Tout se trame ensemble : un matériau tramable par matériau d'origine.
     const fade = { value: 1 }
@@ -493,9 +499,9 @@ export class PartitionShell {
       m.castShadow = true
       m.receiveShadow = true
     })
-    // Les géométries du kit du vaisseau (encadrement, porte coulissante) sont partagées ; celles
-    // des battants et du décor faits main appartiennent à la porte.
-    for (const part of [...(l.kit ? [] : l.parts), ...(l.trim ? [l.trim] : [])]) {
+    // Les géométries du kit du vaisseau (la porte coulissante) sont partagées ; celles des
+    // battants faits main appartiennent à la porte.
+    for (const part of l.kit ? [] : l.parts) {
       part.traverse((c) => {
         if ((c as THREE.Mesh).isMesh) this.owned.push((c as THREE.Mesh).geometry)
       })
@@ -555,6 +561,13 @@ export class PartitionShell {
     this.fades.texture.dispose()
     this.ceilingFades.texture.dispose()
   }
+}
+
+/** Libère les géométries d'un décor fait main, une fois fusionné ailleurs. */
+function disposeMeshes(o: THREE.Object3D) {
+  o.traverse((c) => {
+    if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).geometry.dispose()
+  })
 }
 
 function mulberry(seed: number): () => number {

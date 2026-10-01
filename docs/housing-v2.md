@@ -241,7 +241,26 @@ captures.
      `economy.json`), l'achat (`wallet.buyPlot`).
    - Les anciens quartiers (format 1, sur le site) ne sont plus modifiés : retirer le drapeau les
      rend tels qu'ils étaient.
-6. **Finir** : E3, E4, H1 à H3.
+6. **Finir** (fait, derrière `?housing-v2`) : E3, E4, H1 à H3.
+   - Manette (E3) : un curseur au stick gauche, `A` maintenu trace, `X` annule, `B` abandonne le
+     trait ou ferme, `LB` / `RB` changent d'outil, `Y` passe au type, au motif ou au plan suivant,
+     `R3` tourne le plan, `Start` change d'onglet ; stick droit et gâchettes pour la caméra. Au
+     doigt, on trace comme à la souris.
+   - Plans tout faits (E4, `shared/housing-templates.js`) : studio, deux pièces, suite, véranda,
+     coin salon ; outil « Plans » de l'onglet Murs, `R` pour tourner, posés en entier ou refusés
+     (sur un meuble, hors de la parcelle, sur le palier).
+   - Galerie (H1) : `/gallery.html?parcelle`, les onze murs et portes, des revêtements, trois plans.
+   - Perfs (H2), parcelle de 30 × 30 pleine (512 murs dont 68 portes, papier peint sur chaque face,
+     sol partout, 160 objets), mesurées en rendu logiciel (swiftshader), en qualité normale comme
+     en qualité basse : un mur de plus, qui reconstruit les murs, le champ et les liaisons de la
+     cabine, autour de 100 ms (une fois par trait, au lâcher) ; une case de sol, 3 ms ; une image
+     du pont, 0,15 ms hors rendu ; la visée du mode construction, moins de 1 ms ; 670 maillages
+     dessinés (plus leur ombre en qualité normale). Gagné en route : les objets ne se refusionnent
+     plus quand seuls les murs changent (`CabinView.relink`), les plots du champ de force sont
+     instanciés, et l'encadrement, le décor et le papier peint d'une porte sont fusionnés (avec
+     une porte sur trois murs, de 1 661 à 1 127 maillages). Pas encore essayé sur un vrai
+     téléphone.
+   - README (H3) : section « Quartiers v2 », captures, architecture.
 
 Pour basculer pour de bon, il reste ce qui ne se fait pas dans ce dépôt, puis un ménage :
 
@@ -270,5 +289,5 @@ Prises :
 |---|---|---|
 | Q4 | Extensions déjà achetées, objets hors de la parcelle | Une extension ou plus = premier agrandissement offert (deux ou trois = les deux) ; objets hors parcelle retirés (ils restent débloqués, à reposer). Appliqué au lot 5 : la migration fait tenir la construction, rien n'est retiré |
 | Q5 | Fermer ses quartiers pendant une visite | Les visiteurs restent jusqu'à leur départ ; « raccompagner » reste possible (appliqué au lot 4) |
-| Q6 | Sol sans revêtement | Dalle de base du vaisseau ; pas de vide (on marche partout dans la bulle) |
-| Q7 | Murs et revêtements payants ? | Gratuits, comme les cloisons et les revêtements aujourd'hui |
+| Q6 | Sol sans revêtement | Dalle de base du vaisseau ; pas de vide (on marche partout dans la bulle). Appliqué au lot 3 |
+| Q7 | Murs et revêtements payants ? | Gratuits, comme les cloisons et les revêtements aujourd'hui. Appliqué aux lots 2 et 3 |

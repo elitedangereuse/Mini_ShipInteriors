@@ -178,6 +178,9 @@ export class CabinView {
   onMusic?: (position: THREE.Vector3, text: Interactable['text'], model: string) => void
 
   private built: Built[] = []
+  /** Collisions et lumières des objets (cf. rebuild, relink). */
+  private itemColliders: Box2[] = []
+  private itemLights: Deck['lights'] = []
   private decorationFrame = -1
   /** Boîtes locales par modèle, variante et graine (vérifications du mode aménagement). */
   private boxes = new Map<string, THREE.Box3>()
@@ -245,7 +248,10 @@ export class CabinView {
   reshape() {
     this.measure()
     this.findWalls()
-    this.rebuild()
+    // Les objets n'ont pas bougé : leur géométrie fusionnée reste ; seules leurs collisions et
+    // lumières se rangent de nouveau derrière celles de la parcelle.
+    if (this.built.length) this.relink()
+    else this.rebuild()
   }
 
   /** Objets au plus dans une pièce : la parcelle selon sa taille, les quartiers, une pièce d'extension. */
@@ -930,19 +936,28 @@ export class CabinView {
     this.fades.texture.needsUpdate = true
     this.meshes = this.merge.flush(this.group, this.fades.texture)
 
-    // Le reste du pont, puis la parcelle (ses murs, son champ de force), puis ce qui est à la cabine.
-    deck.colliders.length = this.baseColliders
-    deck.colliders.push(...(this.def.home ? deck.home?.colliders ?? [] : []), ...this.wingColliders(), ...(this.partitionShell?.colliders ?? []), ...colliders)
+    lights.sort((a, b) => a.priority - b.priority)
+    this.itemColliders = colliders
+    this.itemLights = lights.map((l) => l.light)
     for (const k of this.blocked) deck.blockedTiles.delete(k)
     this.blocked = [...tiles]
     for (const k of this.blocked) deck.blockedTiles.add(k)
-    deck.pathfinder.invalidate()
+    this.relink()
+  }
 
+  /**
+   * Collisions et lumières du pont : le reste du pont, puis la parcelle (ses murs, son champ de
+   * force), les pièces d'extension et les cloisons, puis les objets (cf. rebuild).
+   */
+  private relink() {
+    const { deck } = this
+    deck.colliders.length = this.baseColliders
+    deck.colliders.push(...(this.def.home ? deck.home?.colliders ?? [] : []), ...this.wingColliders(), ...(this.partitionShell?.colliders ?? []), ...this.itemColliders)
+    deck.pathfinder.invalidate()
     deck.lights.length = this.baseLights
     if (this.def.home) deck.lights.push(...(deck.home?.lights ?? []))
     for (const w of this.wings.values()) deck.lights.push(w.light)
-    lights.sort((a, b) => a.priority - b.priority)
-    for (const l of lights) deck.lights.push(l.light)
+    deck.lights.push(...this.itemLights)
     this.onLights?.()
   }
 

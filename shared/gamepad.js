@@ -11,8 +11,8 @@ function stick(x = 0, y = 0) {
 function neutral(connected = false) {
   return {
     connected, active: false, moveX: 0, moveY: 0, lookX: 0, lookY: 0, zoom: 0,
-    sprint: false, interact: false, action: false, cancel: false,
-    rotateLeft: false, rotateRight: false, help: false, up: false, down: false,
+    sprint: false, interact: false, action: false, cancel: false, next: false,
+    rotateLeft: false, rotateRight: false, help: false, turn: false, up: false, down: false,
   }
 }
 
@@ -65,8 +65,8 @@ export class GamepadControls {
     const result = {
       connected: true, active: moving(pad), moveX, moveY, lookX, lookY,
       zoom: (pad.buttons[6]?.value ?? 0) - (pad.buttons[7]?.value ?? 0),
-      sprint: on(10), interact: press('0'), cancel: press('1'), action: press('2'),
-      rotateLeft: press('4'), rotateRight: press('5'), help: press('9'),
+      sprint: on(10), interact: press('0'), cancel: press('1'), action: press('2'), next: press('3'),
+      rotateLeft: press('4'), rotateRight: press('5'), help: press('9'), turn: press('11'),
       up: press('up'), down: press('down'),
     }
     // La croix complète le stick sans accélérer les diagonales.

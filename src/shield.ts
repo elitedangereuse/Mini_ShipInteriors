@@ -103,7 +103,9 @@ export class ForceShield {
   readonly group = new THREE.Group()
   private readonly field: THREE.Mesh
   private readonly material: THREE.ShaderMaterial
-  private readonly lamps: THREE.MeshBasicMaterial[] = []
+  private readonly studs: THREE.InstancedMesh
+  /** Plot allumé. */
+  private lit = -1
   /** Direction du champ vers l'espace (horizontale). */
   private readonly outward: THREE.Vector3
   private readonly length: number
@@ -164,13 +166,16 @@ export class ForceShield {
     )
     strip.position.copy(at(mid, 0.085, -0.1))
     this.group.add(sill, strip)
-    for (let a = a0 + 0.5; a < a1; a += 1) {
-      const m = new THREE.MeshBasicMaterial({ color: '#40b4ff' })
-      this.lamps.push(m)
-      const stud = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.03, 0.1), m)
-      stud.position.copy(at(a, 0.09, 0.08))
-      this.group.add(stud)
+    // Un seul appel de dessin pour tous les plots : une instance (et une couleur) chacun.
+    const count = Math.max(1, Math.round(a1 - a0))
+    this.studs = new THREE.InstancedMesh(new THREE.BoxGeometry(0.1, 0.03, 0.1), new THREE.MeshBasicMaterial(), count)
+    const place = new THREE.Matrix4()
+    for (let i = 0; i < count; i++) {
+      this.studs.setMatrixAt(i, place.setPosition(at(a0 + 0.5 + i, 0.09, 0.08)))
+      this.studs.setColorAt(i, LAMP_OFF)
     }
+    this.studs.computeBoundingSphere()
+    this.group.add(this.studs)
     // Pylônes émetteurs aux deux bouts : une colonne, trois bagues bleues.
     if (pylons) for (const a of [a0 + 0.12, a1 - 0.12]) this.group.add(shieldPylon(at(a, 0)))
 
@@ -204,8 +209,13 @@ export class ForceShield {
     this.field.scale.y = h
     this.material.uniforms.uSize.value.y = h
     // Les plots s'allument l'un après l'autre, de gauche à droite.
-    const n = this.lamps.length
-    this.lamps.forEach((m, i) => m.color.copy(Math.floor(this.time * 4) % n === i ? LAMP_ON : LAMP_OFF))
+    const lit = Math.floor(this.time * 4) % this.studs.count
+    if (lit !== this.lit) {
+      if (this.lit >= 0) this.studs.setColorAt(this.lit, LAMP_OFF)
+      this.studs.setColorAt(lit, LAMP_ON)
+      this.studs.instanceColor!.needsUpdate = true
+      this.lit = lit
+    }
 
     // Le trafic : un passage de temps en temps, à quelques unités du champ.
     const tl = this.trafficLine
@@ -239,6 +249,7 @@ export class ForceShield {
   /** Retire le champ (une parcelle qui change de taille) : ses géométries et ses matériaux. */
   dispose() {
     this.group.removeFromParent()
+    this.studs.dispose()
     this.group.traverse((o) => {
       const m = o as THREE.Mesh
       if (!m.geometry) return

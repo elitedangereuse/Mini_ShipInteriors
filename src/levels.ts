@@ -172,7 +172,7 @@ const SHIELD_TEXT = [
  * Pont des quartiers (housing v2, cf. docs/housing-v2.md), au-dessus du pont supérieur : le palier
  * de l'ascenseur, et derrière sa porte, la parcelle de chacun (cf. shared/housing-plot.js).
  */
-const QUARTERS_DECK: LevelDef = {
+export const QUARTERS_DECK: LevelDef = {
   id: HOUSING_LEVEL,
   name: tr('Quartiers', 'Quarters'),
   theme: 'cozy',

@@ -30,14 +30,14 @@ test('zone morte radiale, vitesse progressive et diagonales limitées', () => {
 
 test('actions au nouvel appui ; course et gâchettes maintenues', () => {
   const p = pad(), controls = new GamepadControls(() => [p])
-  for (const i of [0, 1, 2, 4, 5, 9, 10]) button(p, i, true)
+  for (const i of [0, 1, 2, 3, 4, 5, 9, 10, 11]) button(p, i, true)
   p.buttons[7].value = 0.7
   let input = controls.poll()
-  for (const action of ['interact', 'cancel', 'action', 'rotateLeft', 'rotateRight', 'help']) assert.equal(input[action], true)
+  for (const action of ['interact', 'cancel', 'action', 'next', 'rotateLeft', 'rotateRight', 'help', 'turn']) assert.equal(input[action], true)
   assert.equal(input.sprint, true)
   assert.equal(input.zoom, -0.7)
   input = controls.poll()
-  for (const action of ['interact', 'cancel', 'action', 'rotateLeft', 'rotateRight', 'help']) assert.equal(input[action], false)
+  for (const action of ['interact', 'cancel', 'action', 'next', 'rotateLeft', 'rotateRight', 'help', 'turn']) assert.equal(input[action], false)
   assert.equal(input.sprint, true)
   button(p, 0, false)
   controls.poll()

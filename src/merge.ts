@@ -79,14 +79,17 @@ export class StaticMerge {
     return occluder
   }
 
-  /** Fusionne ce qui a été ajouté et place les maillages dans `parent`. */
-  flush(parent: THREE.Object3D, fades: THREE.DataTexture): THREE.Mesh[] {
+  /**
+   * Fusionne ce qui a été ajouté et place les maillages dans `parent`.
+   * @param fades texture de fondu des occulteurs fusionnés (inutile s'il n'y en a pas)
+   */
+  flush(parent: THREE.Object3D, fades?: THREE.DataTexture): THREE.Mesh[] {
     const meshes: THREE.Mesh[] = []
     for (const part of this.parts.values()) {
       const merged = mergeGeometries(part.geos, false)
       for (const g of part.geos) g.dispose()
       if (!merged) continue
-      const material = part.fading ? makeIndexedFadeable(part.material, fades) : part.material
+      const material = part.fading ? makeIndexedFadeable(part.material, fades!) : part.material
       const mesh = new THREE.Mesh(merged, material)
       mesh.castShadow = part.cast
       mesh.receiveShadow = true

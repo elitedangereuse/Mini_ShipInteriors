@@ -2708,7 +2708,13 @@ function updateGamepad(dt: number): GamepadInput {
   const enabled = !document.hidden && !typing && !chat.typing && !editing() && !photo.active && !arcade?.isOpen && !boardGames.isOpen && !barPanel.isOpen && !gameEmbed.isOpen && !mediaRoom.isOpen && !cinemaRoom.isOpen
   // Certains navigateurs mobiles rapportent brièvement document.hasFocus() = false après le
   // passage en plein écran. Cela ne doit pas couper le joystick ni ses boutons.
-  const pad = gamepad.poll(document.hasFocus() && enabled)
+  // Mode construction : la manette mène son curseur (cf. HomeBuilder.gamepad).
+  const building = builder?.active === true && !document.hidden && !typing && !chat.typing
+  const pad = gamepad.poll(document.hasFocus() && (enabled || building))
+  if (building) {
+    builder!.gamepad(pad, gamepad.held.has('0'), dt)
+    return pad
+  }
   let flare = false
   if (touchGamepad) {
     const touch = touchGamepad.poll(enabled)
@@ -3017,7 +3023,8 @@ canvas.addEventListener('pointerdown', (e) => {
     return
   }
   // Vue subjective au doigt : le clic part au relâchement, s'il n'a pas servi à tourner le regard.
-  if (e.button === 0 && !fpsShown && e.pointerType === 'mouse') click(e)
+  // En mode construction, le doigt trace comme la souris : l'appui part tout de suite.
+  if (e.button === 0 && !fpsShown && (e.pointerType === 'mouse' || builder?.active)) click(e)
 })
 
 // Vue subjective à la souris : le curseur disparaît, bloqué sur la mire, et la souris tourne

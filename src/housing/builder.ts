@@ -16,6 +16,8 @@ import {
   type HomeFinish, type HomePlan, type PlanWall, type WallRefusal,
 } from '../../shared/housing-home.js'
 import { inPlot, LANDING_ROOM, PLOT_SIZES, plotRect, type PlotRect } from '../../shared/housing-plot.js'
+import { HOME_TEMPLATES, placeTemplate, templateOf } from '../../shared/housing-templates.js'
+import type { GamepadInput } from '../../shared/gamepad.js'
 import { formatCredits } from '../economy/data'
 
 /*
@@ -80,6 +82,15 @@ const NAMES: Record<string, string> = {
   ...Object.fromEntries(PARTITION_KINDS.filter((k) => k.door && k.id !== 'arch').map((k) => [k.id, k.name])),
 }
 const WALL_GROUP = ['wall', 'half', 'window', 'arch']
+
+/** Noms des plans tout faits (cf. shared/housing-templates.js). */
+const TEMPLATE_NAMES: Record<string, string> = {
+  studio: tr('Studio', 'Studio'),
+  'deux-pieces': tr('Deux pièces', 'Two rooms'),
+  suite: tr('Suite', 'Suite'),
+  veranda: tr('Véranda', 'Veranda'),
+  'coin-salon': tr('Coin salon', 'Lounge corner'),
+}
 const DOOR_GROUP = HOME_DOOR_KINDS.filter((k) => k !== 'arch')
 
 interface ToolDef {
@@ -91,7 +102,7 @@ const ERASE: ToolDef = { id: 'erase', name: tr('Gomme', 'Eraser'), glyph: 'erase
 const PICK: ToolDef = { id: 'pick', name: tr('Pipette', 'Picker'), glyph: 'eyedropper' }
 const TOOLS: Record<Mode, ToolDef[]> = {
   plot: [],
-  walls: [{ id: 'line', name: tr('Tracer', 'Draw'), glyph: 'line-segment' }, { id: 'rect', name: tr('Pièce', 'Room'), glyph: 'rectangle' }, ERASE, PICK],
+  walls: [{ id: 'line', name: tr('Tracer', 'Draw'), glyph: 'line-segment' }, { id: 'rect', name: tr('Pièce', 'Room'), glyph: 'rectangle' }, ERASE, PICK, { id: 'plan', name: tr('Plans', 'Plans'), glyph: 'frame-corners' }],
   paper: [{ id: 'face', name: tr('Pinceau', 'Brush'), glyph: 'paint-brush' }, { id: 'room', name: tr('Pièce', 'Room'), glyph: 'rectangle' }, ERASE, PICK],
   floor: [{ id: 'brush', name: tr('Pinceau', 'Brush'), glyph: 'paint-brush' }, { id: 'fill', name: tr('Remplir', 'Fill'), glyph: 'paint-roller' }, ERASE, PICK],
 }
@@ -161,6 +172,14 @@ export class HomeBuilder {
   private pending: Pending = { plan: null, refusal: null }
   /** Objets accrochés qui partiraient avec les murs du changement en attente. */
   private leaving = 0
+  /** Outil « Plans » : le plan choisi, et ses quarts de tour (R). */
+  private template = HOME_TEMPLATES[0].id
+  private turns = 0
+  private templateEls = new Map<string, HTMLButtonElement>()
+  /** Manette : le curseur à l'écran (null : la souris ou le doigt mènent), et A tenu. */
+  private padCursor: { x: number; y: number } | null = null
+  private padHeld = false
+  private readonly cursorEl = document.createElement('div')
   private lastPointer: { clientX: number; clientY: number } | null = null
   private pointerDirty = false
 
@@ -293,7 +312,9 @@ export class HomeBuilder {
     this.hint.append(this.status, this.keysEl)
     this.toastEl.className = 'ed-toast'
     this.toastEl.hidden = true
-    this.root.append(bar, panel, this.hint, this.toastEl)
+    this.cursorEl.className = 'hb-cursor'
+    this.cursorEl.hidden = true
+    this.root.append(bar, panel, this.hint, this.toastEl, this.cursorEl)
     for (const el of [bar, panel]) el.addEventListener('pointerdown', (e) => e.stopPropagation())
     const editor = document.getElementById('editor')
     if (editor) editor.after(this.root)
@@ -471,6 +492,32 @@ export class HomeBuilder {
         return [head, grid]
       }
       this.body.append(...group(tr('Murs', 'Walls'), WALL_GROUP), ...group(tr('Portes', 'Doors'), DOOR_GROUP))
+      // Plans tout faits : une pièce entière d'un clic (R la tourne).
+      const head = document.createElement('div')
+      head.className = 'ed-cat-title'
+      head.textContent = tr('Plans tout faits', 'Ready-made plans')
+      const grid = document.createElement('div')
+      grid.className = 'ed-finishes'
+      this.templateEls = new Map()
+      for (const t of HOME_TEMPLATES) {
+        const b = document.createElement('button')
+        b.className = 'ed-finish'
+        b.title = `${TEMPLATE_NAMES[t.id]} (${t.size[0]} × ${t.size[1]})`
+        const canvas = document.createElement('canvas')
+        canvas.width = canvas.height = THUMB
+        drawTemplate(canvas, t.id)
+        const name = document.createElement('span')
+        name.textContent = TEMPLATE_NAMES[t.id]
+        b.append(canvas, name)
+        b.onclick = () => {
+          this.template = t.id
+          this.setTool('plan')
+          this.host.sound.ui('pick')
+        }
+        grid.appendChild(b)
+        this.templateEls.set(t.id, b)
+      }
+      this.body.append(head, grid)
       this.refreshKinds()
     } else {
       if (mode === 'paper') {
@@ -492,7 +539,8 @@ export class HomeBuilder {
     this.stroke = null
     for (const [id, b] of this.toolEls) b.classList.toggle('active', id === tool)
     const passive = tool === 'erase' || tool === 'pick'
-    for (const b of this.kindEls.values()) b.classList.toggle('dim', passive)
+    for (const b of this.kindEls.values()) b.classList.toggle('dim', passive || tool === 'plan')
+    for (const [id, b] of this.templateEls) b.classList.toggle('active', tool === 'plan' && id === this.template)
     for (const b of this.finishEls?.cards.values() ?? []) b.classList.toggle('dim', passive)
     this.pointerDirty = true
     this.setHint()
@@ -779,6 +827,21 @@ export class HomeBuilder {
       this.corner.visible = true
       this.corner.position.set(c.x, 0.03, c.z)
       if (this.stroke?.corner) edges = this.rectFrom(this.stroke.corner, c)
+    } else if (this.tool === 'plan') {
+      // Le plan suit le curseur par son coin nord-ouest ; tout ou rien.
+      const c = this.cornerAt(p)
+      this.corner.visible = true
+      this.corner.position.set(c.x, 0.03, c.z)
+      const t = templateOf(this.template)
+      if (!t) return
+      this.steps = this.wallSteps(placeTemplate(t, { x: c.x + 0.5, z: c.z + 0.5 }, this.turns), true)
+      this.showGhosts(this.steps)
+      const refused = this.steps.find((s) => s.effect === 'refused')
+      if (refused) {
+        this.pending.refusal = refused.refusal ?? null
+        return
+      }
+      edges = this.steps.map((s) => s.wall)
     } else if (this.tool === 'pick') {
       const at = this.edgeAt(p)
       const existing = at && this.plan.walls.find((w) => keyOf(w) === keyOf(at))
@@ -790,8 +853,10 @@ export class HomeBuilder {
       const at = this.edgeAt(p)
       edges = start ? this.lineFrom(start, p) : at ? [at] : []
     }
-    this.steps = this.wallSteps(edges)
-    this.showGhosts(this.steps)
+    if (this.tool !== 'plan') {
+      this.steps = this.wallSteps(edges)
+      this.showGhosts(this.steps)
+    }
     const changes = this.steps.filter((s) => s.effect === 'set' || s.effect === 'remove')
     // Un refus s'affiche seulement s'il n'y a rien d'autre à faire (un trait qui longe le palier pose le reste).
     if (!changes.length) {
@@ -864,7 +929,8 @@ export class HomeBuilder {
   }
 
   /** Ce que ferait l'outil « Murs » sur ces arêtes. */
-  private wallSteps(edges: PlanWall[]): Step[] {
+  /** @param fixed les arêtes portent déjà leur type (plans tout faits) : on ne prend pas celui choisi */
+  private wallSteps(edges: PlanWall[], fixed = false): Step[] {
     const byKey = new Map(this.plan.walls.map((w) => [keyOf(w), w]))
     let count = this.plan.walls.length
     const seen = new Set<string>()
@@ -878,7 +944,7 @@ export class HomeBuilder {
         steps.push({ wall: existing ?? at, key, effect: existing ? 'remove' : 'same' })
         continue
       }
-      const wall = this.wallOn(at, this.tool === 'rect')
+      const wall = fixed ? { x: at.x, z: at.z, e: at.e, ...(at.k && at.k !== 'wall' ? { k: at.k } : {}) } : this.wallOn(at, this.tool === 'rect')
       const why = wallRefusal(this.deck.map, this.stage, wall)
       if (why) {
         steps.push({ wall, key, effect: 'refused', refusal: REFUSALS[why] })
@@ -1140,6 +1206,10 @@ export class HomeBuilder {
     const p = this.ground(e)
     if (this.mode === 'walls') {
       if (!p) return
+      if (tool === 'plan') {
+        this.aim(e)
+        return this.commit()
+      }
       if (tool === 'rect') this.stroke = { corner: this.cornerAt(p) }
       else {
         const edge = this.edgeAt(p)
@@ -1166,6 +1236,11 @@ export class HomeBuilder {
   }
 
   pointerMove(e: PointerEvent) {
+    // La souris (ou le doigt) reprend la main sur le curseur de la manette.
+    if (e instanceof PointerEvent && this.padCursor) {
+      this.padCursor = null
+      this.cursorEl.hidden = true
+    }
     this.lastPointer = e
     this.pointerDirty = true
   }
@@ -1188,10 +1263,85 @@ export class HomeBuilder {
         this.stroke = null
         this.pointerDirty = true
       } else this.host.onClose()
-    } else if (!ctrl && /^Digit[1-4]$/.test(e.code) && TOOLS[this.mode].length) this.setTool(TOOLS[this.mode][+e.code.slice(5) - 1].id)
+    } else if (!ctrl && /^Digit[1-5]$/.test(e.code) && TOOLS[this.mode][+e.code.slice(5) - 1]) this.setTool(TOOLS[this.mode][+e.code.slice(5) - 1].id)
+    else if (!ctrl && e.code === 'KeyR' && this.tool === 'plan') this.turnPlan(e.shiftKey ? 3 : 1)
     else return false
     e.preventDefault()
     return true
+  }
+
+  // ---------------------------------------------------------------- manette
+
+  /**
+   * Manette (sans souris) : un curseur à l'écran, mené par le stick gauche ou la croix ; A tenu
+   * trace comme le bouton de la souris, B termine, X annule, LB et RB changent d'outil, Y de type
+   * de mur ou de revêtement, Start d'onglet ; stick droit et gâchettes pour la caméra.
+   * @param held A enfoncé
+   */
+  gamepad(pad: GamepadInput, held: boolean, dt: number) {
+    if (!this.open || !pad.connected) return
+    const iso = this.host.iso
+    if (pad.lookX || pad.lookY) iso.orbit(-pad.lookX * dt * 1.8, pad.lookY * dt * 1.2)
+    if (pad.zoom) iso.zoomBy(Math.exp(pad.zoom * dt))
+    if (pad.cancel) {
+      if (this.stroke) {
+        this.stroke = null
+        this.padHeld = held
+        this.pointerDirty = true
+      } else this.host.onClose()
+      return
+    }
+    if (pad.action) this.undo()
+    const tools = TOOLS[this.mode]
+    if ((pad.rotateLeft || pad.rotateRight) && tools.length) {
+      const i = tools.findIndex((t) => t.id === this.tool)
+      this.setTool(tools[(i + (pad.rotateRight ? 1 : tools.length - 1)) % tools.length].id)
+    }
+    if (pad.next) this.cycleChoice()
+    if (pad.turn && this.tool === 'plan') this.turnPlan(1)
+    if (pad.help) {
+      const modes: Mode[] = ['walls', 'paper', 'floor', ...(this.host.plot ? ['plot' as Mode] : [])]
+      this.setMode(modes[(modes.indexOf(this.mode) + 1) % modes.length])
+    }
+    const moving = pad.moveX || pad.moveY
+    if (!this.padCursor && (moving || held)) this.padCursor = { x: innerWidth / 2, y: innerHeight / 2 }
+    const c = this.padCursor
+    if (!c) return
+    const speed = 620 * (pad.sprint ? 1.8 : 1)
+    c.x = Math.max(0, Math.min(innerWidth, c.x + pad.moveX * speed * dt))
+    c.y = Math.max(0, Math.min(innerHeight, c.y + pad.moveY * speed * dt))
+    this.cursorEl.hidden = false
+    this.cursorEl.style.transform = `translate(${c.x}px, ${c.y}px)`
+    const e = { clientX: c.x, clientY: c.y, button: 0 } as PointerEvent
+    if (moving) this.pointerMove(e)
+    if (held && !this.padHeld) this.pointerDown(e)
+    else if (!held && this.padHeld) this.pointerUp(e)
+    this.padHeld = held
+  }
+
+  /** Le plan tout fait d'un quart de tour (R, R3), dans le sens des aiguilles d'une montre. */
+  private turnPlan(quarters: number) {
+    this.turns = (this.turns + quarters) % 4
+    this.pointerDirty = true
+    this.host.sound.ui('rotate')
+  }
+
+  /** Y : type de mur suivant, ou revêtement suivant (motif), ou plan suivant. */
+  private cycleChoice() {
+    if (this.mode === 'walls' && this.tool === 'plan') {
+      const i = HOME_TEMPLATES.findIndex((t) => t.id === this.template)
+      this.template = HOME_TEMPLATES[(i + 1) % HOME_TEMPLATES.length].id
+      this.setTool('plan')
+    } else if (this.mode === 'walls') {
+      const kinds = [...WALL_GROUP, ...DOOR_GROUP]
+      this.setKind(kinds[(kinds.indexOf(this.kind) + 1) % kinds.length])
+    } else if (this.mode === 'paper' || this.mode === 'floor') {
+      const slot: Slot = this.mode === 'paper' ? 'wall' : 'floor'
+      const styles = stylesOf(slot)
+      const i = styles.findIndex((s) => s.id === this.finishOf(slot).style)
+      const next = styles[(i + 1) % styles.length]
+      this.setFinish(slot, { style: next.id, color: next.palette[0] })
+    }
   }
 
   // ---------------------------------------------------------------- image
@@ -1250,10 +1400,12 @@ export class HomeBuilder {
     this.keysEl.replaceChildren()
     const done: [string, string] = EN ? ['Esc', 'done'] : ['Échap', 'terminer']
     const undo: [string, string] = EN ? ['Ctrl+Z', 'undo'] : ['Ctrl+Z', 'annuler']
-    const tools: [string, string] = EN ? ['1–4', 'tools'] : ['1–4', 'outils']
+    const tools: [string, string] = EN ? [`1–${TOOLS[this.mode].length}`, 'tools'] : [`1–${TOOLS[this.mode].length}`, 'outils']
     const t = this.tool
     const parts: [string, string][] =
-      t === 'pick'
+      t === 'plan'
+        ? [EN ? ['Click', 'place the plan'] : ['Clic', 'poser le plan'], EN ? ['R', 'rotate'] : ['R', 'tourner'], tools, undo, done]
+        : t === 'pick'
         ? [EN ? ['Click', 'to reuse what is there'] : ['Clic', 'pour reprendre ce qui est là'], tools, done]
         : t === 'rect'
           ? this.mode === 'walls'
@@ -1307,4 +1459,36 @@ export function unreachable(deck: Deck): number {
     }
   }
   return home.plotPlan.tiles.filter((t) => !seen.has(`${t.x},${t.z}`)).length
+}
+
+/** Vignette d'un plan tout fait, vu de dessus : son quadrillage, ses murs, ses portes. */
+function drawTemplate(canvas: HTMLCanvasElement, id: string) {
+  const t = templateOf(id)
+  const g = canvas.getContext('2d')!
+  const W = canvas.width
+  g.clearRect(0, 0, W, W)
+  if (!t) return
+  const [w, h] = t.size
+  const cell = (W * 0.8) / Math.max(w, h)
+  const ox = (W - w * cell) / 2, oz = (W - h * cell) / 2
+  g.fillStyle = '#d9d3de'
+  g.fillRect(ox, oz, w * cell, h * cell)
+  g.strokeStyle = 'rgba(89, 216, 255, 0.35)'
+  g.lineWidth = 1
+  for (let i = 1; i < w; i++) g.strokeRect(ox + i * cell, oz, 0, h * cell)
+  for (let j = 1; j < h; j++) g.strokeRect(ox, oz + j * cell, w * cell, 0)
+  for (const e of t.walls) {
+    const door = !!e.k && !['wall', 'half', 'window'].includes(e.k)
+    g.strokeStyle = door ? '#ffb03a' : e.k === 'half' ? '#b9a27c' : e.k === 'window' ? '#6fd8ff' : '#5b626e'
+    g.lineWidth = door ? 3 : 4
+    g.beginPath()
+    if (e.e === 'v') {
+      g.moveTo(ox + (e.x + 1) * cell, oz + e.z * cell)
+      g.lineTo(ox + (e.x + 1) * cell, oz + (e.z + 1) * cell)
+    } else {
+      g.moveTo(ox + e.x * cell, oz + (e.z + 1) * cell)
+      g.lineTo(ox + (e.x + 1) * cell, oz + (e.z + 1) * cell)
+    }
+    g.stroke()
+  }
 }
