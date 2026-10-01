@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import type { Deck, Interactable } from '../deck'
 import { cargoCanister, flareStick, lockerParts } from '../furniture'
 import { tr } from '../i18n'
-import { lockerFront, lockerSpot, type Zone } from '../../shared/salvage.js'
+import { groundHeight, lockerFront, lockerSpot, type Zone } from '../../shared/salvage.js'
 import { DIRS } from '../map'
 import type { SalvageState } from '../net'
 import { FACING } from './zone-deck'
@@ -79,7 +79,7 @@ export class ZoneItems {
       halo.rotation.x = -Math.PI / 2
       halo.position.y = 0.01
       object.add(halo)
-      object.position.set(c.x, 0, c.z)
+      object.position.set(c.x, groundHeight(zone, c), c.z)
       this.group.add(object)
       const item: Interactable = { object, position: object.position, label: tr('Ramasser le colis', 'Pick up the crate'), onInteract: () => actions.pickup('cargo', c.id) }
       deck.interactables.push(item)
@@ -91,7 +91,7 @@ export class ZoneItems {
       stick.position.y = 0.022
       stick.rotation.y = (f.id * 1.7) % Math.PI
       object.add(stick)
-      object.position.set(f.x + ((f.id % 3) - 1) * 0.12, 0, f.z + ((f.id % 2) - 0.5) * 0.14)
+      object.position.set(f.x + ((f.id % 3) - 1) * 0.12, groundHeight(zone, f), f.z + ((f.id % 2) - 0.5) * 0.14)
       this.group.add(object)
       const item: Interactable = { object, position: object.position, label: tr('Prendre la fusée', 'Take the flare'), onInteract: () => actions.pickup('flare', f.id) }
       deck.interactables.push(item)
@@ -113,7 +113,7 @@ export class ZoneItems {
       if (c.state === 'delivered' && cargo.state !== 'delivered') this.stackDelivered()
       cargo.state = c.state
       cargo.object.visible = c.state === 'ground'
-      cargo.object.position.set(c.x, 0, c.z)
+      cargo.object.position.set(c.x, groundHeight(this.zone, c), c.z)
       this.setInteractable(cargo.item, c.state === 'ground')
     }
     const available = new Set(state.flares)
@@ -157,7 +157,7 @@ export class ZoneItems {
     const glow = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 8), new THREE.MeshBasicMaterial({ color: '#ff3b2f', transparent: true, opacity: 0.6, depthWrite: false }))
     object.add(glow)
     this.group.add(object)
-    this.burning = { object, glow, at: new THREE.Vector3(to.x, 0.03, to.z), from: new THREE.Vector3(from.x, 0.7, from.z), until: this.time + burn, t: 0 }
+    this.burning = { object, glow, at: new THREE.Vector3(to.x, groundHeight(this.zone, to) + 0.03, to.z), from: new THREE.Vector3(from.x, groundHeight(this.zone, from) + 0.7, from.z), until: this.time + burn, t: 0 }
     object.position.copy(this.burning.from)
   }
 

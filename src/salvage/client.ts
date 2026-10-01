@@ -10,8 +10,11 @@ import type { RemotePlayer } from '../remote'
 import type { Dialog } from '../ui'
 import { cargoCanister } from '../furniture'
 import {
-  BAY_BOOTH, generateZone, inAirlock, LOBBY_RETURN, sightOrigin, lockerFront, lockerSpot, RULES, walkable, ZONE_LEVEL, zoneSight, type Zone,
+  BAY_BOOTH, BAY_CAMERAS, floorFx, FX, generateZone, groundHeight, inAirlock, LOBBY_RETURN, sightOrigin, lockerFront, lockerSpot, RULES, walkable, ZONE_LEVEL,
+  zoneSight, type Zone,
 } from '../../shared/salvage.js'
+import { DIRS } from '../../shared/ship-map.js'
+import { CONTROL_POST, CONTROLLER, Controller, controllerRig, type ControllerReport } from './controller'
 import { FogOfWar } from './fog'
 import { ZoneItems } from './items'
 import { loadZoneKit } from './kit'
@@ -26,8 +29,10 @@ import { zoneLevel } from './zone-deck'
  * la mission. Le relais fait autorité (cf. server/salvage.js) ; ici, on construit la baie tirée
  * de sa graine (cf. shared/salvage.js), on y téléporte l'équipe, on montre ce qu'il envoie
  * (ennemis, colis, casiers, fusée), on lui envoie nos actions, et l'on gère ce qui est propre à
- * chacun : la vue réduite (cf. fog.ts), l'endurance, le bruit de nos pas, le détecteur de
- * cargaison, le cœur qui s'emballe, la caméra alliée des capturés.
+ * chacun : la vue réduite (cf. fog.ts), l'endurance, le bruit de nos pas (le verre qui crisse),
+ * les flaques qui ralentissent, la hauteur de la passerelle, le détecteur de cargaison, le cœur
+ * qui s'emballe, et les caméras des capturés : celles de leurs coéquipiers et celles de la baie,
+ * sur un vieux moniteur de surveillance.
  */
 
 /** Ce que le jeu prête au mode (cf. main.ts). */
@@ -57,6 +62,8 @@ export interface SalvageHost {
   aim(): { x: number; z: number } | null
   /** Position à l'écran (pixels) d'un point du monde. */
   project(p: THREE.Vector3): { x: number; y: number }
+  /** Odile parle dans le micro du lobby (une bulle au-dessus d'elle). */
+  bark?(text: string): void
 }
 
 interface Game {
@@ -77,6 +84,30 @@ interface Game {
 }
 
 type Phase = 'ship' | 'loading' | 'zone' | 'caught' | 'watching'
+
+/** Ce que montre le moniteur : la caméra d'un coéquipier, ou une caméra de la baie (cf. BAY_CAMERAS). */
+type Feed = { kind: 'ally'; id: number } | { kind: 'fixed'; index: number }
+
+/** Nom de chaque caméra de la baie, sur le moniteur. */
+const CAMERA_NAMES: Record<string, string> = {
+  dock: tr('Quai de chargement', 'Loading dock'),
+  'avenue-west': tr('Grande allée ouest', 'Main avenue west'),
+  crossroads: tr('Carrefour du guichet', 'Security desk crossroads'),
+  'avenue-east': tr('Grande allée est', 'Main avenue east'),
+  freight: tr('Hall de fret', 'Freight hall'),
+  greenhouse: tr('Serre hydroponique', 'Hydroponics bay'),
+  machines: tr('Salle des machines', 'Machine room'),
+  storage: tr('Aire de stockage', 'Storage yard'),
+  nest: tr('Le nid', 'The nest'),
+  collapse: tr('Zone effondrée', 'Collapsed zone'),
+}
+
+/** Direction d'un point vu d'un autre, en mots (le nord est en haut du plan). */
+function heading(from: { x: number; z: number }, to: { x: number; z: number }): string {
+  const a = Math.atan2(to.x - from.x, -(to.z - from.z))
+  const names = [tr('au nord', 'north'), tr('au nord-est', 'north-east'), tr('à l\'est', 'east'), tr('au sud-est', 'south-east'), tr('au sud', 'south'), tr('au sud-ouest', 'south-west'), tr('à l\'ouest', 'west'), tr('au nord-ouest', 'north-west')]
+  return names[((Math.round(a / (Math.PI / 4)) % 8) + 8) % 8]
+}
 
 /**
  * Ticket de reconnexion de la mission en cours, gardé dans le navigateur : après une coupure,
@@ -140,7 +171,11 @@ export class SalvageClient {
   private me: SalvageMember | null = null
   private stamina = 1
   private exhausted = false
-  private watching: number | null = null
+  private watching: Feed | null = null
+  /** Position des caméras de la baie (au sol de la baie, pour la lumière et la caméra du jeu). */
+  private readonly cameraSpots = BAY_CAMERAS.map((c) => new THREE.Vector3(c.x, 0, c.z))
+  /** Dernière tuile de chacun (soi, coéquipiers) : un pas sur du verre brisé crisse. */
+  private readonly lastTiles = new Map<number, number>()
   private ringClock = 0
   private beatClock = 0
   private beepClock = 0
@@ -154,6 +189,11 @@ export class SalvageClient {
   /** Retour au lobby en cours : un seul trajet à la fois. */
   private leaving: Promise<void> | null = null
   private readonly tmp = new THREE.Vector3()
+  private lastRender = performance.now()
+  /** Odile, au poste de sécurité du lobby (chargée à part). */
+  controller: Controller | null = null
+  /** Dernière mission finie, pour ce qu'en dit Odile. */
+  private lastEnd: SalvageEnd | null = null
 
   constructor(private host: SalvageHost) {
     this.sfx = new SalvageSfx(host.sound)
@@ -197,6 +237,42 @@ export class SalvageClient {
     this.hud.onThrow = () => this.throwFlare()
     this.hud.onCamera = (step) => this.cycle(step)
     this.hud.onCameraClose = () => this.stopWatching()
+    void this.buildController()
+  }
+
+  /** Odile, au poste de sécurité du lobby : derrière la vitre, on lui parle à l'interphone. */
+  private async buildController() {
+    const controller = new Controller(await controllerRig())
+    this.controller = controller
+    const hold = this.host.hold
+    hold.group.add(controller.root)
+    hold.interactables.push({
+      object: controller.root,
+      position: new THREE.Vector3(CONTROL_POST.intercom.x, 0, CONTROL_POST.intercom.z),
+      label: tr(`Parler à ${CONTROLLER} (interphone)`, `Talk to ${CONTROLLER} (intercom)`),
+      onInteract: () => this.talkToController(),
+    })
+  }
+
+  private talkToController() {
+    const c = this.controller
+    if (!c) return
+    this.host.player.interact()
+    const team = this.lobbyPanel.team
+    const g = this.game
+    const running = !!g && !g.end
+    const report: ControllerReport = {
+      phase: running ? (this.me?.status === 'captured' ? 'caught' : 'playing') : team ? 'forming' : 'none',
+      team: team?.members.length ?? 1,
+      parcels: g?.parcels ?? team?.parcels ?? 1,
+      enemies: g?.enemies ?? team?.enemies ?? 1,
+      delivered: g?.state?.delivered ?? 0,
+      alive: g?.state?.members.filter((m) => m.status === 'alive' || m.status === 'arriving').length ?? 0,
+      last: this.lastEnd && { won: this.lastEnd.won, grade: this.lastEnd.grade, delivered: this.lastEnd.delivered, parcels: this.lastEnd.parcels },
+      guest: !this.host.verified(),
+    }
+    const line = c.talk(report)
+    this.host.dialog.show(tr(`${CONTROLLER} : « ${line} »`, `${CONTROLLER}: “${line}”`))
   }
 
   // ------------------------------------------------------------------ état
@@ -240,10 +316,16 @@ export class SalvageClient {
     this.boardPanel.close()
   }
 
-  /** Position du coéquipier suivi par la caméra alliée, s'il y en a un. */
+  /** Ce que suit la caméra : le coéquipier, ou la caméra de la baie ; null hors des caméras. */
   get watchTarget(): THREE.Vector3 | null {
     if (this.phase !== 'watching' || this.watching === null) return null
-    return this.host.remotes.get(this.watching)?.group.position ?? null
+    if (this.watching.kind === 'fixed') return this.cameraSpots[this.watching.index] ?? null
+    return this.host.remotes.get(this.watching.id)?.group.position ?? null
+  }
+
+  /** Hauteur du sol de la baie en (x, z) : la passerelle et ses escaliers (0 hors de la baie). */
+  groundHeight(x: number, z: number): number {
+    return this.game ? groundHeight(this.game.zone, { x, z }) : 0
   }
 
   /** Un autre joueur de la baie se voit-il ? Seulement un coéquipier, pas caché dans un casier. */
@@ -277,13 +359,13 @@ export class SalvageClient {
     void this.boardPanel.open()
   }
 
-  /** Le mur des caméras : suivre ses coéquipiers encore en mission. */
+  /** Le mur des caméras : suivre ses coéquipiers encore en mission, ou les caméras de la baie. */
   openCameras(): boolean {
     const g = this.game
     if (!g || g.end || this.inZone) return false
-    const alive = this.watchable()
-    if (!alive.length) return false
-    this.watch(alive[0])
+    const feeds = this.feeds()
+    if (!feeds.length) return false
+    this.watch(feeds[0], true)
     return true
   }
 
@@ -392,6 +474,12 @@ export class SalvageClient {
         if (zone.blocked[i] && zone.room[i] !== ' ' && !zone.booth[i]) deck.colliders.push({ minX: x - 0.5, maxX: x + 0.5, minZ: z - 0.5, maxZ: z + 0.5 })
       }
     }
+    // Garde-corps de la passerelle : on ne les enjambe pas (le relais non plus, cf. zone.rail).
+    for (const r of zone.rails) {
+      const d = DIRS[r.dir]
+      const cx = r.x + d.dx * 0.5, cz = r.z + d.dz * 0.5, t = 0.05
+      deck.colliders.push(d.dz ? { minX: cx - 0.5, maxX: cx + 0.5, minZ: cz - t, maxZ: cz + t } : { minX: cx - t, maxX: cx + t, minZ: cz - 0.5, maxZ: cz + 0.5 })
+    }
     deck.pathfinder.invalidate()
     // Gaspard, derrière la vitre du guichet ; on lui parle au comptoir.
     const technician = new Technician(techRig, BAY_BOOTH.technician, 0)
@@ -404,7 +492,7 @@ export class SalvageClient {
     })
     deck.group.visible = false
     this.host.scene.add(deck.group)
-    const monsters = new MonsterView(this.sfx, deck.y)
+    const monsters = new MonsterView(this.sfx, deck.y, (p) => groundHeight(zone, p))
     this.host.scene.add(monsters.group)
     const items = new ZoneItems(zone, deck, {
       pickup: (kind, id) => this.host.net.sendSalvage('pickup', { kind, id }),
@@ -413,6 +501,9 @@ export class SalvageClient {
     deck.group.add(this.compass, ...this.rings.map((r) => r.mesh))
     this.game = { id: m.game, zone, deck, monsters, items, members: m.members, parcels: m.parcels, enemies: m.enemies, state: null, end: null, carried: new Map(), technician }
     this.me = { id: this.host.net.id, status: m.status, carrying: null, hidden: null, flares: 0 }
+    this.lastTiles.clear()
+    for (const spot of this.cameraSpots) spot.y = deck.y
+    this.hud.setHive(0)
     this.stamina = 1
     this.exhausted = false
     this.fog.setZone(zone)
@@ -487,6 +578,7 @@ export class SalvageClient {
       if (mesh.userData.ownMaterial) (mesh.material as THREE.Material).dispose()
     })
     this.fog.setZone(null)
+    this.fog.crt = false
     this.lantern.intensity = 0
     this.flareLight.intensity = 0
     this.game = null
@@ -512,12 +604,22 @@ export class SalvageClient {
     const g = this.game
     if (!g) return
     this.host.player.interact()
+    // Sur ses écrans, le colis au sol le plus proche du comptoir.
+    let cargo: { dir: string; dist: number } | null = null
+    const here = this.host.player.position
+    for (const c of g.state?.cargo ?? []) {
+      if (c.state !== 'ground') continue
+      const d = Math.hypot(c.x - here.x, c.z - here.z)
+      if (!cargo || d < cargo.dist) cargo = { dir: heading(here, c), dist: d }
+    }
     const line = g.technician.talk({
       carrying: this.me?.carrying !== null && this.me?.carrying !== undefined,
       danger: g.monsters.nearest(BAY_BOOTH.technician),
       delivered: g.state?.delivered ?? 0,
       parcels: g.parcels,
       flares: this.me?.flares ?? 0,
+      cargo: cargo && { dir: cargo.dir, dist: Math.round(cargo.dist) },
+      hive: g.state?.hive ?? 0,
     })
     this.host.dialog.show(tr(`${TECHNICIAN} : « ${line} »`, `${TECHNICIAN}: “${line}”`))
   }
@@ -600,37 +702,62 @@ export class SalvageClient {
 
   // ------------------------------------------------------------------ caméras alliées
 
+  /** Coéquipiers encore en course, qu'on peut suivre. */
   private watchable(): number[] {
     const g = this.game
     if (!g?.state) return []
     return g.state.members.filter((m) => m.id !== this.host.net.id && (m.status === 'alive' || m.status === 'arriving') && this.host.remotes.has(m.id)).map((m) => m.id)
   }
 
-  private watch(id: number) {
+  /** Tout ce que montre le moniteur : les coéquipiers d'abord, puis les caméras de la baie. */
+  private feeds(): Feed[] {
+    if (!this.game?.state) return []
+    return [...this.watchable().map((id): Feed => ({ kind: 'ally', id })), ...BAY_CAMERAS.map((_, index): Feed => ({ kind: 'fixed', index }))]
+  }
+
+  private sameFeed(a: Feed | null, b: Feed | null): boolean {
+    return !!a && !!b && a.kind === b.kind && (a.kind === 'ally' ? a.id === (b as typeof a).id : a.index === (b as typeof a).index)
+  }
+
+  /** Passe le moniteur sur une caméra ; `fresh` : le signal arrive (plus de parasites). */
+  private watch(feed: Feed, fresh = false) {
     const g = this.game
     if (!g) return
-    this.watching = id
+    const changed = !this.sameFeed(this.watching, feed)
+    this.watching = feed
     this.phase = 'watching'
     this.host.showView(g.deck)
-    const r = this.host.remotes.get(id)
-    if (r) this.host.iso.snapTo(r.group.position)
-    this.fog.update(r?.group.position ?? { x: 0, z: 0 }, RULES.vision, 0, true)
+    const at = this.watchTarget
+    if (at) this.host.iso.snapTo(at)
+    if (feed.kind === 'fixed') this.fog.update(at ?? { x: 0, z: 0 }, RULES.camera, 0, true, true)
+    else this.fog.update(at ?? { x: 0, z: 0 }, RULES.vision, 0, true)
+    this.fog.crt = true
+    if (changed || fresh) {
+      this.fog.noise = fresh ? 1.2 : 0.7
+      this.sfx.static(fresh ? 0.6 : 0.3)
+    }
     this.hud.show(true)
     this.hud.canQuit(false)
-    this.hud.camera(g.members.find((m) => m.id === id)?.name ?? '?')
+    if (feed.kind === 'ally') {
+      this.hud.camera(g.members.find((m) => m.id === feed.id)?.name ?? '?', 'ally', 0)
+    } else {
+      const cam = BAY_CAMERAS[feed.index]
+      this.hud.camera(CAMERA_NAMES[cam.id] ?? cam.id, 'fixed', feed.index + 1)
+    }
   }
 
   private cycle(step: 1 | -1) {
-    const ids = this.watchable()
-    if (!ids.length) return
-    const i = this.watching === null ? -1 : ids.indexOf(this.watching)
-    this.watch(ids[(i + step + ids.length) % ids.length])
+    const feeds = this.feeds()
+    if (!feeds.length) return
+    const i = feeds.findIndex((f) => this.sameFeed(f, this.watching))
+    this.watch(feeds[(i + step + feeds.length) % feeds.length])
   }
 
   private stopWatching(restore = true) {
     if (this.phase !== 'watching') return
     this.watching = null
     this.phase = 'ship'
+    this.fog.crt = false
     this.hud.camera(null)
     this.hud.show(false)
     if (restore) {
@@ -657,7 +784,6 @@ export class SalvageClient {
     }), self)
     if (mine) {
       this.hud.setFlares(mine.flares, !g.state.flare)
-      this.host.player.load = mine.carrying !== null ? RULES.carry : 1
       // Caché, ou sorti du casier : le personnage suit (le relais l'a posé au fond, ou devant).
       if (this.inZone && mine.hidden !== wasHidden) {
         const player = this.host.player
@@ -680,9 +806,10 @@ export class SalvageClient {
       }
     }
     for (const id of carriers) this.carry(id)
+    this.hud.setHive(s.hive ?? 0)
     // Fusée qui brûle (le relais la tient ; on la rattrape si on l'a manquée).
     if (!s.flare) g.items.stopFlare()
-    if (this.resumeWatch && this.watchable().length) {
+    if (this.resumeWatch && this.feeds().length) {
       this.resumeWatch = false
       this.openCameras()
     }
@@ -791,12 +918,25 @@ export class SalvageClient {
       case 'quit':
       case 'gone':
         if (e.id !== self) this.host.dialog.show(tr(`${name(e.id)} a quitté la mission.`, `${name(e.id)} left the mission.`))
-        if (this.watching === e.id) this.cycle(1)
+        if (this.watchingAlly(e.id)) this.cycle(1)
         break
       case 'away':
         if (e.id !== self) this.host.dialog.show(tr(`${name(e.id)} a perdu la liaison : sa place l'attend ${e.wait ?? RULES.reconnect} secondes.`, `${name(e.id)} lost contact: their place is kept for ${e.wait ?? RULES.reconnect} seconds.`))
-        if (this.watching === e.id) this.cycle(1)
+        if (this.watchingAlly(e.id)) this.cycle(1)
         break
+      case 'hive': {
+        // Un colis livré : le monte-charge s'entend, et la ruche lui répond.
+        if (this.hearing()) {
+          this.sfx.hive()
+          this.host.iso.shake(0.12)
+        }
+        const level = e.level ?? 0
+        this.hud.setHive(level)
+        this.host.dialog.show(level >= 1
+          ? tr('La ruche est en furie : ils rôdent partout, plus vite, l\'oreille tendue. Plus qu\'un colis !', 'The hive is in a frenzy: they prowl everywhere, faster, listening hard. One crate left!')
+          : tr('Le monte-charge a réveillé la ruche : ils s\'agitent, et vont voir du côté du sas.', 'The cargo lift woke the hive: they\'re stirring, and heading towards the airlock.'))
+        break
+      }
       case 'back': {
         // Revenu sous un nouvel id : l'équipe le retrouve.
         const member = g.members.find((m) => m.id === e.old)
@@ -833,12 +973,22 @@ export class SalvageClient {
     if (pos && this.hearing()) this.sfx.capture(pos.clone().setY(g.deck.y + 0.5))
     this.hud.flash(false)
     this.host.dialog.show(tr(`${g.members.find((m) => m.id === e.id)?.name ?? '?'} a été capturé !`, `${g.members.find((m) => m.id === e.id)?.name ?? '?'} was caught!`))
-    if (this.watching === e.id) window.setTimeout(() => this.cycle(1), 1800)
+    if (this.watchingAlly(e.id ?? -1)) {
+      // Le signal de sa caméra se brouille, puis on passe à la suivante.
+      this.fog.noise = 1.5
+      window.setTimeout(() => this.cycle(1), 1800)
+    }
+  }
+
+  /** Le moniteur suit-il ce coéquipier ? */
+  private watchingAlly(id?: number): boolean {
+    return this.watching?.kind === 'ally' && this.watching.id === id
   }
 
   private finish(r: SalvageEnd) {
     const g = this.game!
     g.end = r
+    this.lastEnd = r
     ticketStore.clear()
     this.sfx.end(r.won)
     this.hud.mission(r.delivered, r.parcels)
@@ -866,6 +1016,15 @@ export class SalvageClient {
    * @param moving le joueur se déplace ; `running` : à la course
    */
   update(dt: number) {
+    // Odile, au lobby : elle se tourne vers qui s'approche de l'interphone, et parle au micro.
+    if (this.controller) {
+      const here = this.host.player.position
+      const hold = this.host.deck() === this.host.hold
+      const inLobby = hold && this.host.hold.map.room(Math.round(here.x), Math.round(here.z)) === 'h'
+      const near = hold && Math.hypot(here.x - CONTROL_POST.intercom.x, here.z - CONTROL_POST.intercom.z) < 2.4
+      const bark = this.controller.update(dt, near ? here : null, inLobby && this.phase === 'ship')
+      if (bark) this.host.bark?.(bark)
+    }
     const g = this.game
     if (!g) return
     const inZone = this.inZone
@@ -884,8 +1043,8 @@ export class SalvageClient {
         if (!this.openCameras()) this.host.dialog.show(tr('Plus personne à suivre : la mission se termine.', 'Nobody left to follow: the mission is ending.'))
       })
     }
-    if (this.phase === 'watching' && this.watching !== null && !this.watchable().includes(this.watching)) {
-      const next = this.watchable()
+    if (this.phase === 'watching' && this.watching?.kind === 'ally' && !this.watchable().includes(this.watching.id)) {
+      const next = this.feeds()
       if (next.length) this.watch(next[0])
     }
 
@@ -899,17 +1058,21 @@ export class SalvageClient {
       return
     }
 
-    // Vue : autour de soi (ou du coéquipier suivi), réduite dans un casier.
+    // Vue : autour de soi (ou du coéquipier suivi), réduite dans un casier ; d'en haut pour une
+    // caméra de la baie.
     const hidden = inZone && this.me?.hidden !== null && this.me?.hidden !== undefined
-    this.fog.update(viewer, hidden ? RULES.hiddenVision : RULES.vision, dt)
+    const fixed = this.phase === 'watching' && this.watching?.kind === 'fixed'
+    if (fixed) this.fog.update(viewer, RULES.camera, dt, false, true)
+    else this.fog.update(viewer, hidden ? RULES.hiddenVision : RULES.vision, dt)
     this.hud.peek(hidden)
-    this.lantern.position.set(viewer.x, g.deck.y + 1.05, viewer.z)
+    this.hud.tickCamera(g.state?.elapsed ?? 0)
+    this.lantern.position.set(viewer.x, g.deck.y + groundHeight(g.zone, viewer) + 1.05, viewer.z)
     // Caché, la lampe baisse un peu, mais éclaire encore devant le casier : on voit venir.
     this.lantern.intensity = hidden ? 3.2 : 4.5
     this.lantern.distance = hidden ? 8 : 9
     const flare = g.items.flare
     this.flareLight.intensity = flare ? 4 * flare.k : 0
-    if (flare) this.flareLight.position.set(flare.x, g.deck.y + 0.35, flare.z)
+    if (flare) this.flareLight.position.set(flare.x, g.deck.y + groundHeight(g.zone, flare) + 0.35, flare.z)
 
     // Cœur qui bat : un ennemi tout près.
     const near = g.monsters.nearest(viewer)
@@ -917,10 +1080,24 @@ export class SalvageClient {
       this.beatClock = 0.42 + (near / 5) * 0.75
       this.sfx.heartbeat(1 - near / 5)
     }
+    // Verre brisé : chaque pied qui s'y pose crisse (soi, et les coéquipiers qu'on entend).
+    for (const m of g.members) {
+      const pos = m.id === this.host.net.id ? (inZone ? this.host.player.position : null) : this.sees(m.id) ? this.host.remotes.get(m.id)?.group.position ?? null : null
+      if (!pos) continue
+      const tile = Math.round(pos.z) * g.zone.width + Math.round(pos.x)
+      if (this.lastTiles.get(m.id) === tile) continue
+      const first = !this.lastTiles.has(m.id)
+      this.lastTiles.set(m.id, tile)
+      if (!first && floorFx(g.zone, pos) === FX.glass && Math.hypot(pos.x - viewer.x, pos.z - viewer.z) < 12) this.sfx.crunch(pos.clone())
+    }
     if (!inZone) return
 
     const player = this.host.player
     const alive = this.me?.status === 'alive' && !hidden
+    // La passerelle et ses escaliers : on monte ; une flaque caustique ralentit, un colis aussi.
+    if (!player.gliding) player.position.y = g.deck.y + groundHeight(g.zone, player.position)
+    const goo = alive && floorFx(g.zone, player.position) === FX.goo
+    player.load = (this.me?.carrying !== null && this.me?.carrying !== undefined ? RULES.carry : 1) * (goo ? RULES.goo : 1)
     // Endurance : la course la vide (plus vite avec un colis), la marche et l'arrêt la rendent.
     const running = alive && player.avatar.locomotion === 'sprint'
     const walking = player.avatar.locomotion === 'walk'
@@ -945,12 +1122,13 @@ export class SalvageClient {
       const ring = this.rings.find((r) => r.t >= 1)
       if (ring) {
         ring.t = 0
-        ring.mesh.position.set(player.position.x, 0.02, player.position.z)
+        ring.mesh.position.set(player.position.x, player.position.y - g.deck.y + 0.02, player.position.z)
         ring.mesh.visible = true
       }
     }
     for (const r of this.rings) {
       if (r.t >= 1) continue
+      r.mesh.position.y = groundHeight(g.zone, r.mesh.position) + 0.02
       r.t = Math.min(1, r.t + dt / 0.7)
       r.mesh.scale.setScalar(1 + r.t * (carrying ? 5.5 : 4.5))
       ;(r.mesh.material as THREE.MeshBasicMaterial).opacity = (1 - r.t) * 0.55
@@ -962,7 +1140,7 @@ export class SalvageClient {
     this.compass.visible = alive && carrying
     if (this.compass.visible) {
       const yaw = Math.atan2(pad.x - player.position.x, pad.z - player.position.z)
-      this.compass.position.set(player.position.x + Math.sin(yaw) * 0.5, 0.03, player.position.z + Math.cos(yaw) * 0.5)
+      this.compass.position.set(player.position.x + Math.sin(yaw) * 0.5, player.position.y - g.deck.y + 0.03, player.position.z + Math.cos(yaw) * 0.5)
       this.compass.rotation.y = yaw
     }
 
@@ -978,16 +1156,20 @@ export class SalvageClient {
 
     this.hud.setHint(hidden
       ? tr('E : sortir du casier', 'E: leave the locker')
-      : carrying
-        ? tr('Rapportez le colis au sas (flèche verte) · Maj : courir, bruyant', 'Bring the crate to the airlock (green arrow) · Shift: run, noisy')
-        : tr('E : ramasser, se cacher · Maj : courir (bruyant) · F : fusée · le détecteur bipe près d\'un colis', 'E: pick up, hide · Shift: run (noisy) · F: flare · the detector beeps near a crate'))
+      : goo
+        ? tr('Flaque caustique : vous pataugez, sortez-en vite', 'Caustic puddle: you\'re wading, get out quick')
+        : carrying
+          ? tr('Rapportez le colis au sas (flèche verte) · Maj : courir, bruyant', 'Bring the crate to the airlock (green arrow) · Shift: run, noisy')
+          : tr('E : ramasser, se cacher · Maj : courir (bruyant) · F : fusée · le détecteur bipe près d\'un colis', 'E: pick up, hide · Shift: run (noisy) · F: flare · the detector beeps near a crate'))
   }
 
   /** Rend la scène à travers le brouillard (dans la baie, ou par les caméras) ; false sinon. */
   render(scene: THREE.Scene, camera: THREE.Camera, light: boolean): boolean {
     if (!this.game || !(this.inZone || this.phase === 'watching')) return false
     this.fog.resize(light)
-    this.fog.render(scene, camera)
+    const now = performance.now()
+    this.fog.render(scene, camera, Math.min(1, (now - this.lastRender) / 1000))
+    this.lastRender = now
     return true
   }
 

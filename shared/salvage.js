@@ -6,6 +6,13 @@
 // (générateur pseudo-aléatoire, entiers seulement). Une lettre par tuile, comme les ponts (cf.
 // ship-map.js) : 'z' la baie, 'x' le sas d'extraction ; les conteneurs bloquent des tuiles
 // entières (`blocked`), la vue comme le passage.
+//
+// Trois choses changent la façon de s'y déplacer :
+// - les zones éclairées (BAY_LIT) : on y voit de loin, mais on y est vu de loin ;
+// - la passerelle du hall de fret, surélevée : on n'y monte que par ses escaliers, et de là-haut,
+//   on voit par-dessus les conteneurs (eux aussi voient qui s'y tient) ;
+// - les sols : le verre brisé crisse sous les pas (un bruit, même en marchant), les flaques
+//   caustiques ralentissent.
 
 import { DIRS, ShipMap } from './ship-map.js'
 import { lineOfSight } from './sight.js'
@@ -15,16 +22,18 @@ export const ZONE_LEVEL = -2
 /** Le lobby : le sas de la cale, pièce 'h' du pont -1 (cf. shared/ship-layouts.js). */
 export const LOBBY = { level: -1, room: 'h' }
 /** Où l'on revient dans le lobby (fin de partie, capture, abandon) : devant la porte blindée. */
-export const LOBBY_RETURN = { x: 24.2, z: 2.7 }
+export const LOBBY_RETURN = { x: 24, z: 0.9 }
 
 /**
  * Chiffres de la partie (tuiles et secondes). Le mode léger n'y change rien : même vue, même bruit.
  * - vitesses du joueur (celles de src/player.ts) et ralentissement du porteur ;
- * - vue : rayon autour du joueur (il ne grandit pas avec le zoom), réduit dans un casier ;
+ * - vue : rayon autour du joueur (il ne grandit pas avec le zoom), réduit dans un casier, et
+ *   portée du regard sur une zone éclairée ;
  * - endurance : dépense en courant (plus en portant), récupération en marchant ou à l'arrêt,
  *   seuil à retrouver après l'épuisement ;
- * - bruit : portée d'écoute des ennemis (en chemin dans le labyrinthe) ;
- * - casiers, fusées d'appel, ennemis (vitesses, vue, cône, portée de capture, mémoire).
+ * - bruit : portée d'écoute des ennemis (en chemin dans le labyrinthe, par-dessus les garde-corps) ;
+ * - casiers, fusées d'appel, ennemis (vitesses, vue, cône, portée de capture, mémoire) ;
+ * - la ruche : à chaque colis livré, les ennemis s'agitent un peu plus (jusqu'à `hive` au dernier).
  */
 export const RULES = {
   team: 4,
@@ -36,15 +45,32 @@ export const RULES = {
   vision: 5.2,
   /** Caché : on voit dehors par les fentes du casier, un peu moins loin. */
   hiddenVision: 4.2,
+  /** Une zone éclairée se voit de plus loin (en ligne de vue) que le reste de la baie. */
+  litVision: 8.5,
+  /** Hauteur de la passerelle ; au-delà de `high`, on voit (et l'on est vu) par-dessus les conteneurs. */
+  deck: 0.5,
+  high: 0.35,
+  /** Flaque caustique : on y avance moins vite. */
+  goo: 0.68,
   stamina: { drain: 0.13, carryDrain: 0.2, walkRegen: 0.15, idleRegen: 0.3, recover: 0.25 },
-  noise: { sprint: 6, carrySprint: 7, locker: 3, drop: 5, eject: 4.5 },
+  /** glass : un pas sur du verre brisé ; lift : le monte-charge du sas, à chaque colis livré. */
+  noise: { sprint: 6, carrySprint: 7, locker: 3, drop: 5, eject: 4.5, glass: 3.5, lift: 6 },
   /** betray : un poursuivant plus près que ça quand on s'y glisse le fouille ; plus loin, il perd sa trace. */
   locker: { max: 30, cooldown: 4, enter: 0.55, betray: 2 },
   flare: { carry: 2, burn: 15, radius: 12, range: 6.5 },
   monster: {
     patrol: 0.8, investigate: 1.2, chase: 2.0, lured: 1.6,
     sight: 4.2, fov: 0.5, sense: 1.1, touch: 0.45, memory: 2.5, attack: 1.6, search: 2.2, look: 3,
+    /** Un joueur dans une zone éclairée se voit de plus loin (toujours dans le cône). */
+    litSight: 6.5,
   },
+  /**
+   * La ruche s'agite : au dernier colis, patrouille et enquête plus rapides (speed), rôde plus
+   * souvent du côté des joueurs (roam), oreille plus fine (hearing). La poursuite, elle, ne change pas.
+   */
+  hive: { speed: 0.3, roam: 0.35, hearing: 0.3 },
+  /** Portée de la vue d'une caméra de surveillance (spectateurs), montée haut : par-dessus les conteneurs. */
+  camera: 6,
   /** Portée pour ramasser un colis ou une fusée, se cacher dans un casier. */
   reach: 1.15,
   /** Au départ, personne n'est capturé tout de suite (le temps d'arriver et de se repérer). */
@@ -73,6 +99,28 @@ export function salvageMinDuration(economy, parcels, team) {
   return per * Math.ceil(parcels / Math.max(1, team))
 }
 
+/**
+ * Temps de référence (s) d'une mission, pour la note : une minute pour se repérer, puis 50 s par
+ * tournée de colis (les membres portant ensemble).
+ */
+export function salvagePar(parcels, team) {
+  return 60 + 50 * Math.ceil(parcels / Math.max(1, team))
+}
+
+/**
+ * Note de fin de mission (S, A, B, C ou D) : S sans capture sous le temps de référence, A avec
+ * au plus une capture sous une fois et demie ce temps, B pour toute autre victoire ; C pour une
+ * défaite qui a rapporté au moins la moitié des colis, D sinon.
+ * @param {{ won: boolean, delivered: number, parcels: number, team: number, duration: number, captures: number }} r
+ */
+export function salvageGrade(r) {
+  if (!r.won) return r.delivered * 2 >= r.parcels && r.delivered > 0 ? 'C' : 'D'
+  const par = salvagePar(r.parcels, r.team)
+  if (r.captures === 0 && r.duration <= par) return 'S'
+  if (r.captures <= 1 && r.duration <= par * 1.5) return 'A'
+  return 'B'
+}
+
 /** Générateur pseudo-aléatoire (mulberry32) : même graine, même suite, dans Node comme dans le navigateur. */
 export function mulberry32(seed) {
   let a = seed >>> 0
@@ -95,11 +143,16 @@ function shuffle(list, random) {
 }
 
 /**
- * Plan de la baie, le même à chaque mission : trois bandes séparées par des cloisons percées de
- * passages de deux tuiles. Au nord, le hall de fret (conteneurs), deux petites pièces (salle de
- * pause, local radio) et le nid (cristaux, flaques caustiques) ; au milieu, un grand hall dégagé
- * semé d'îlots, avec le guichet de sécurité où s'est barricadé le technicien ; au sud, la salle
- * des machines et son atelier, le sas d'extraction, la zone effondrée et l'infirmerie de fortune.
+ * Plan de la baie, le même à chaque mission (36 × 26) : trois bandes séparées par des cloisons
+ * percées de passages larges, et, au milieu, la grande allée qui la traverse d'ouest en est.
+ * - Au nord : le hall de fret et sa passerelle surélevée (deux escaliers), les bureaux (salle de
+ *   pause, local radio, open space) et la serre hydroponique, sous ses rampes violettes (éclairée).
+ * - La grande allée, trois tuiles de large ; au milieu, le guichet de sécurité où s'est barricadé
+ *   le technicien, sous la lumière ambrée du carrefour (éclairé).
+ * - Au milieu : la salle des machines, l'aire de stockage (conteneurs) et le nid thargoïde
+ *   (excroissances, flaques caustiques, cristaux), le coin le plus noir.
+ * - Au sud : l'atelier, le quai de chargement et ses projecteurs (éclairé), le sas d'extraction
+ *   au milieu du bord sud, et la zone effondrée (verre brisé) avec l'infirmerie de fortune.
  * Une lettre par tuile (colonne = x, ligne = z) :
  *   '.'  sol de la baie        'x'  sas d'extraction
  *   '#'  cloison (plein : ni sol, ni passage, ni vue)
@@ -107,42 +160,47 @@ function shuffle(list, random) {
  *   '='  conteneur couché (par paires, de gauche à droite)
  *   'H'  conteneur debout (par paires, de haut en bas)
  *   'c'  pile de fûts ou de caisses (une tuile)   'm'  générateur (une tuile)
+ *   'p'  bac de culture de la serre : il bloque le passage, pas la vue
+ *   'o'  excroissance thargoïde : haute, elle arrête tout, même le regard d'en haut
+ *   'u'  passerelle (surélevée de RULES.deck)     'r'  escalier : monte vers la passerelle voisine
  *   'g'  guichet de sécurité : on y voit par la vitre, on n'y entre pas
  */
 export const BAY = [
-  'L...L.....#L......L#..L.....L.',
-  '..==..==..#........#..........',
-  '.........................H....',
-  '........c................H...L',
-  '.H..==....#........#.c........',
-  '.H........#....c...#..........',
-  '......L...#.L....L.#..L.....c.',
-  '####..########..########..####',
-  '..L.......ggg.....L...........',
-  '..........ggg.................',
-  'L....==L........c......LH.....',
-  '.....c............c.....Hc....',
-  '.................==L.........L',
-  '..............................',
-  '...........L...............L..',
-  '####..########..########..####',
-  'L.....L...#L......L#...L......',
-  '..........#........#..........',
-  '............c....c...c.....c..',
-  '.....mm.................==....',
-  '.m.....m..#........#..c.......',
-  '..........#........#..........',
-  '..........#...xxx..#..........',
-  '...L....L.#L..xxx.L#..L.....L.',
+  'L...L....L..L#........#L...........L',
+  '.==.==..==.==#........#.............',
+  '.............#........#..pp..pp..pp.',
+  '.ruuuuuuuuur.#........#.............',
+  '.ruuuuuuuuur.#...........pp..pp..pp.',
+  '....................................',
+  '.H.==..==.H...........#..pp..pp..pp.',
+  '.H........H.L#..ggg...#L...L....L..L',
+  '###...##########ggg#########...#####',
+  'L.......L..............L..........L.',
+  '....................................',
+  '..L.......L..c........L..c........L.',
+  '#####...########...##########...####',
+  'L...m..m...L#.==..H..==.#...o....o..',
+  '.mm......mm.#.....H.......o....o....',
+  '..............H.......H......o....o.',
+  '.m..mm..m.....H..==...H.#..o....o...',
+  'L.....L....L#L.........L#L......o..L',
+  '####..##########...##########..#####',
+  '........L.#L...........L#...c......L',
+  '..........#.........................',
+  '.....cc......cc.....cc....c.....c...',
+  '........................#....c......',
+  '.c........#.............#..c........',
+  '..........#L....xxx....L#...........',
+  'L...L...L.#.c...xxx...c.#L...L......',
 ]
 /** Le sas : adossé au bord sud (2), ouvert vers le nord (0) par deux portes, la plateforme au fond. */
-const BAY_AIRLOCK = { side: 2, inward: 0, pad: { x: 15, z: 23 }, doors: [{ x: 14, z: 22, dir: 0 }, { x: 16, z: 22, dir: 0 }] }
+const BAY_AIRLOCK = { side: 2, inward: 0, pad: { x: 17, z: 25 }, doors: [{ x: 16, z: 24, dir: 0 }, { x: 18, z: 24, dir: 0 }] }
 
 /**
  * Le guichet de sécurité : ses tuiles ('g'), la vitre (côté `window`, 2 : sud), où se tient le
  * technicien derrière, et où l'on se met pour lui parler, devant le comptoir.
  */
-export const BAY_BOOTH = { x: 10, z: 8, w: 3, d: 2, window: 2, technician: { x: 11, z: 8.85 }, counter: { x: 11, z: 10 } }
+export const BAY_BOOTH = { x: 16, z: 7, w: 3, d: 2, window: 2, technician: { x: 17, z: 7.85 }, counter: { x: 17, z: 9 } }
 
 /**
  * Petites pièces à l'éclairage de fortune : un rectangle de tuiles entouré de cloisons fines
@@ -152,57 +210,132 @@ export const BAY_BOOTH = { x: 10, z: 8, w: 3, d: 2, window: 2, technician: { x: 
  */
 export const BAY_ROOMS = [
   {
-    id: 'pause', x: 11, z: 0, w: 4, d: 3, doors: [{ x: 12, z: 2, dir: 2 }, { x: 13, z: 2, dir: 2 }],
-    light: { x: 13, z: 1, color: '#ffc875', intensity: 1.1, flicker: 'neon' },
+    id: 'pause', x: 14, z: 0, w: 4, d: 3, doors: [{ x: 15, z: 2, dir: 2 }, { x: 16, z: 2, dir: 2 }],
+    light: { x: 16, z: 1, color: '#ffc875', intensity: 1.1, flicker: 'neon' },
     furniture: [
-      { model: 'canteen-table', x: 13, z: 1, rot: 1, block: [[12, 1], [13, 1], [14, 1]] },
-      { model: 'water-fountain', x: 14, z: 0.2, rot: 0, block: true },
-      { model: 'mug', x: 13.1, z: 0.95, y: 0.37 },
+      { model: 'canteen-table', x: 16, z: 1, rot: 1, block: [[15, 1], [16, 1], [17, 1]] },
+      { model: 'water-fountain', x: 17, z: 0.2, rot: 0, block: true },
+      { model: 'mug', x: 16.1, z: 0.95, y: 0.37 },
     ],
   },
   {
-    id: 'radio', x: 15, z: 0, w: 4, d: 3, doors: [{ x: 16, z: 2, dir: 2 }, { x: 17, z: 2, dir: 2 }],
-    light: { x: 16.5, z: 0.6, color: '#5fb4ff', intensity: 0.9, flicker: 'neon' },
+    id: 'radio', x: 18, z: 0, w: 4, d: 3, doors: [{ x: 19, z: 2, dir: 2 }, { x: 20, z: 2, dir: 2 }],
+    light: { x: 19.5, z: 0.6, color: '#5fb4ff', intensity: 0.9, flicker: 'neon' },
     furniture: [
-      { model: 'computer-system', x: 16, z: 0.25, rot: 0, block: true },
-      { model: 'side-console', x: 17, z: 0.25, rot: 0, block: true },
-      { model: 'chair', x: 16.5, z: 1.1, rot: 2 },
-      { model: 'headphone-stand', x: 15.3, z: 0.3, rot: 0 },
+      { model: 'computer-system', x: 19, z: 0.25, rot: 0, block: true },
+      { model: 'side-console', x: 20, z: 0.25, rot: 0, block: true },
+      { model: 'chair', x: 19.5, z: 1.1, rot: 2 },
+      { model: 'headphone-stand', x: 18.3, z: 0.3, rot: 0 },
     ],
   },
   {
-    id: 'workshop', x: 0, z: 16, w: 4, d: 3, doors: [{ x: 3, z: 17, dir: 1 }],
-    light: { x: 1.8, z: 16.6, color: '#ff9a3c', intensity: 1.2, flicker: 'fire' },
+    id: 'workshop', x: 0, z: 19, w: 4, d: 3, doors: [{ x: 3, z: 20, dir: 1 }],
+    light: { x: 1.8, z: 19.6, color: '#ff9a3c', intensity: 1.2, flicker: 'fire' },
     furniture: [
-      { model: 'workbench', x: 2, z: 16.25, rot: 0, block: true },
-      { model: 'tool-rack', x: 0.25, z: 17.2, rot: 1, block: true },
-      { model: 'work-lamp', x: 2.8, z: 18.3, rot: 3 },
-      { model: 'crate', x: 2, z: 18.3, rot: 0, block: true },
+      { model: 'workbench', x: 2, z: 19.25, rot: 0, block: true },
+      { model: 'tool-rack', x: 0.25, z: 20.2, rot: 1, block: true },
+      { model: 'work-lamp', x: 2.8, z: 21.3, rot: 3 },
+      { model: 'crate', x: 2, z: 21.3, rot: 0, block: true },
     ],
   },
   {
-    id: 'infirmary', x: 26, z: 20, w: 4, d: 4, doors: [{ x: 26, z: 21, dir: 3 }],
-    light: { x: 28, z: 21.5, color: '#cfe8ff', intensity: 0.9, flicker: 'neon' },
+    id: 'infirmary', x: 32, z: 22, w: 4, d: 4, doors: [{ x: 32, z: 23, dir: 3 }],
+    light: { x: 34, z: 23.5, color: '#cfe8ff', intensity: 0.9, flicker: 'neon' },
     furniture: [
-      { model: 'bunk-bed', x: 28.5, z: 20.35, rot: 0, block: [[28, 20], [29, 20]] },
-      { model: 'wheelchair', x: 27.2, z: 22.4, rot: 1 },
-      { model: 'stain', x: 28, z: 21.8, rot: 0 },
-      { model: 'footlocker', x: 29.25, z: 22.3, rot: 3, block: true },
+      { model: 'bunk-bed', x: 34.5, z: 22.35, rot: 0, block: [[34, 22], [35, 22]] },
+      { model: 'wheelchair', x: 33.2, z: 24.4, rot: 1 },
+      { model: 'stain', x: 34, z: 23.8, rot: 0 },
+      { model: 'footlocker', x: 35.25, z: 24.3, rot: 3, block: true },
     ],
   },
 ]
 
 /**
- * Coins de la baie, chacun son décor au sol (tiré par la graine) et ses lueurs : fret en vrac au
- * nord-ouest, nid thargoïde au nord-est, machines au sud-ouest, plafond effondré au sud-est.
+ * Meubles posés dans les grands espaces (comme ceux des petites pièces) : l'open space des
+ * bureaux, les rampes et la cuve de la serre, les établis et la vapeur de la salle des machines,
+ * les bâches de l'aire de stockage, les marquages au sol et les projecteurs du quai.
+ */
+export const BAY_PROPS = [
+  // Open space des bureaux, entre les petites pièces et le guichet.
+  { model: 'computer-wide', x: 14.2, z: 4, rot: 1, block: true },
+  { model: 'chair', x: 14.95, z: 4.1, rot: 3 },
+  { model: 'computer-wide', x: 20.8, z: 3, rot: 3, block: true },
+  { model: 'chair', x: 20.05, z: 3.1, rot: 1 },
+  { model: 'crew-board', x: 17.5, z: 2.7, rot: 0 },
+  { model: 'k-box-open', x: 21.2, z: 6.2, rot: 1, block: true },
+  // La serre : rampes de culture et cuve nutritive contre le mur nord.
+  { model: 'hydro-rack', x: 27.5, z: 0.25, rot: 0, block: [[27, 0], [28, 0]] },
+  { model: 'nutrient-tank', x: 30, z: 0.3, rot: 0, block: true },
+  { model: 'hydro-rack', x: 32.5, z: 0.25, rot: 0, block: [[32, 0], [33, 0]] },
+  { model: 'potting-bench', x: 24, z: 6.7, rot: 1, block: true },
+  // Salle des machines.
+  { model: 'engineer-bench', x: 3, z: 12.75, rot: 0, block: true },
+  { model: 'steam-vent', x: 6, z: 15, rot: 0 },
+  { model: 'pipe-run', x: 9, z: 12.6, rot: 0 },
+  // Aire de stockage.
+  { model: 'tarp-crates', x: 20, z: 15, rot: 1, block: true },
+  // Le quai de chargement : aires de chargement et flèches peintes vers le sas, projecteurs aux quatre coins.
+  { model: 'dock-marking', x: 13.5, z: 21, rot: 0, label: '2.8,1.6' },
+  { model: 'dock-marking', x: 20.5, z: 21, rot: 0, label: '2.8,1.6' },
+  { model: 'floor-arrow', x: 17, z: 19.5, rot: 0 },
+  { model: 'floor-arrow', x: 17, z: 22, rot: 0 },
+  { model: 'floor-arrow', x: 17, z: 14.2, rot: 0 },
+  { model: 'floodlight', x: 11.25, z: 20.2, rot: 1, label: '#fff0d6' },
+  { model: 'floodlight', x: 22.75, z: 20.2, rot: 3, label: '#fff0d6' },
+  { model: 'floodlight', x: 11.25, z: 23.6, rot: 1, label: '#fff0d6' },
+  { model: 'floodlight', x: 22.75, z: 23.6, rot: 3, label: '#fff0d6' },
+  // Le carrefour du guichet, dans la grande allée.
+  { model: 'floodlight', x: 13.3, z: 9.25, rot: 0, label: '#ffcf7a' },
+  { model: 'floodlight', x: 20.7, z: 9.25, rot: 0, label: '#ffcf7a' },
+]
+
+/**
+ * Coins de la baie, chacun son décor au sol (tiré par la graine) et ses lueurs. Le premier qui
+ * contient une tuile la nomme (cf. le cartouche du pont côté client).
  */
 export const BAY_AREAS = [
-  { id: 'freight', x: 0, z: 0, w: 10, d: 7, density: 0.14, decor: ['cables', 'barrel', 'barrel', 'debris'], lights: [] },
-  { id: 'nest', x: 20, z: 0, w: 10, d: 7, density: 0.34, decor: ['crystals', 'crystals', 'crystals', 'goo', 'goo', 'bones'], lights: [{ x: 25.4, z: 1.4, color: '#39ff88', intensity: 0.9, flicker: 'neon' }, { x: 21.5, z: 5, color: '#2fd873', intensity: 0.7 }] },
-  { id: 'machines', x: 0, z: 16, w: 10, d: 8, density: 0.16, decor: ['cables', 'cables', 'barrel', 'goo'], lights: [{ x: 6, z: 19.6, color: '#ff5a36', intensity: 0.8, flicker: 'fire' }] },
-  { id: 'collapse', x: 20, z: 16, w: 10, d: 8, density: 0.26, decor: ['debris', 'debris', 'debris', 'bones', 'cables'], lights: [{ x: 22.4, z: 18.2, color: '#ffaa55', intensity: 0.8, flicker: 'neon' }] },
+  { id: 'freight', x: 0, z: 0, w: 13, d: 8, density: 0.12, decor: ['cables', 'barrel', 'barrel', 'debris'], lights: [{ x: 6, z: 0.4, color: '#7fa6d6', intensity: 0.7, flicker: 'neon' }] },
+  { id: 'offices', x: 14, z: 3, w: 8, d: 5, density: 0.22, decor: ['papers', 'papers', 'cables'], lights: [{ x: 17.5, z: 4.6, color: '#dfe9ff', intensity: 0.8, flicker: 'neon' }] },
+  { id: 'greenhouse', x: 23, z: 0, w: 13, d: 8, density: 0.16, decor: ['soil', 'soil', 'debris'], lights: [] },
+  { id: 'avenue', x: 0, z: 9, w: 36, d: 3, density: 0.05, decor: ['cables', 'barrel', 'debris'], lights: [{ x: 3, z: 9.2, color: '#ff3322', intensity: 0.7, flicker: 'neon' }, { x: 31, z: 9.2, color: '#ff3322', intensity: 0.7, flicker: 'neon' }] },
+  { id: 'machines', x: 0, z: 13, w: 12, d: 5, density: 0.16, decor: ['cables', 'cables', 'barrel', 'debris'], lights: [{ x: 6, z: 15.6, color: '#ff5a36', intensity: 0.9, flicker: 'fire' }] },
+  { id: 'storage', x: 13, z: 13, w: 11, d: 5, density: 0.1, decor: ['barrel', 'debris', 'cables'], lights: [] },
+  { id: 'nest', x: 25, z: 13, w: 11, d: 5, density: 0.4, decor: ['crystals', 'crystals', 'goo', 'goo', 'goo', 'bones'], lights: [{ x: 30.5, z: 14.4, color: '#39ff88', intensity: 0.9, flicker: 'neon' }, { x: 27, z: 16.6, color: '#2fd873', intensity: 0.7 }] },
+  { id: 'workshop', x: 0, z: 19, w: 10, d: 7, density: 0.12, decor: ['cables', 'debris', 'barrel'], lights: [{ x: 6.5, z: 23, color: '#ffaa55', intensity: 0.6, flicker: 'neon' }] },
+  { id: 'dock', x: 11, z: 19, w: 13, d: 7, density: 0.04, decor: ['barrel', 'cables'], lights: [] },
+  { id: 'collapse', x: 25, z: 19, w: 11, d: 7, density: 0.3, decor: ['glass', 'glass', 'glass', 'debris', 'debris', 'bones', 'cables'], lights: [{ x: 28.4, z: 21.2, color: '#ffaa55', intensity: 0.8, flicker: 'neon' }] },
 ]
-const DECOR = ['cables', 'bones', 'crystals', 'barrel', 'goo', 'debris']
+
+/**
+ * Zones éclairées : des projecteurs qui marchent encore. On y voit de loin (RULES.litVision), et
+ * un ennemi y voit de loin qui s'y tient (RULES.monster.litSight). Leurs lampes sont fortes : le
+ * client les allume en priorité.
+ */
+export const BAY_LIT = [
+  { id: 'greenhouse', x: 23, z: 0, w: 13, d: 8, color: '#e08cff', intensity: 2.6, lamps: [{ x: 26, z: 2 }, { x: 32, z: 2 }, { x: 26, z: 5.6 }, { x: 32, z: 5.6 }] },
+  { id: 'crossroads', x: 13, z: 9, w: 9, d: 3, color: '#ffcf7a', intensity: 3, lamps: [{ x: 14.5, z: 10 }, { x: 19.5, z: 10 }] },
+  { id: 'dock', x: 11, z: 19, w: 13, d: 7, color: '#fff0d6', intensity: 4, lamps: [{ x: 13, z: 20.6 }, { x: 21, z: 20.6 }, { x: 13, z: 23.4 }, { x: 21, z: 23.4 }] },
+]
+
+/**
+ * Caméras de surveillance de la baie : ceux qui ont été capturés les suivent du lobby, en plus
+ * des caméras de leurs coéquipiers. Montées haut, elles voient par-dessus les conteneurs.
+ */
+export const BAY_CAMERAS = [
+  { id: 'dock', x: 17, z: 21.6 },
+  { id: 'avenue-west', x: 7, z: 10 },
+  { id: 'crossroads', x: 17, z: 10.4 },
+  { id: 'avenue-east', x: 28, z: 10 },
+  { id: 'freight', x: 6, z: 3.5 },
+  { id: 'greenhouse', x: 28, z: 3 },
+  { id: 'machines', x: 6, z: 15.2 },
+  { id: 'storage', x: 18, z: 15.4 },
+  { id: 'nest', x: 30, z: 15 },
+  { id: 'collapse', x: 30, z: 21 },
+]
+
+/** Sols qui comptent : le verre brisé crisse (FX.glass), la flaque caustique ralentit (FX.goo). */
+export const FX = { none: 0, glass: 1, goo: 2 }
 const areaOf = (x, z) => BAY_AREAS.find((a) => x >= a.x && z >= a.z && x < a.x + a.w && z < a.z + a.d) ?? null
 
 /**
@@ -224,16 +357,41 @@ export function generateZone(seed, settings) {
   const room = new Array(N)
   const blocked = new Uint8Array(N)
   const booth = new Uint8Array(N)
+  const low = new Uint8Array(N)
+  const tall = new Uint8Array(N)
+  const elev = new Float32Array(N)
+  const stairs = new Int8Array(N).fill(-1)
+  const lit = new Uint8Array(N)
+  const fx = new Uint8Array(N)
   const hall = new Int16Array(N)
   const open = new Uint8Array(N * 4)
+  const rail = new Uint8Array(N * 4)
   const airlock = []
   for (let z = 0; z < H; z++) {
     for (let x = 0; x < W; x++) {
       const c = cell(x, z)
-      room[idx(x, z)] = c === 'x' ? 'x' : c === '#' ? ' ' : 'z'
+      const i = idx(x, z)
+      room[i] = c === 'x' ? 'x' : c === '#' ? ' ' : 'z'
       if (c === 'x') airlock.push({ x, z })
-      if ('=Hcm#g'.includes(c)) blocked[idx(x, z)] = 1
-      if (c === 'g') booth[idx(x, z)] = 1
+      if ('=Hcm#gpo'.includes(c)) blocked[i] = 1
+      if (c === 'g') booth[i] = 1
+      if (c === 'p') low[i] = 1
+      if (c === '#' || c === 'o') tall[i] = 1
+      if (c === 'u') elev[i] = RULES.deck
+      if (c === 'r') elev[i] = RULES.deck / 2
+    }
+  }
+  for (const l of BAY_LIT) {
+    for (let z = l.z; z < l.z + l.d; z++) for (let x = l.x; x < l.x + l.w; x++) if (inside(x, z) && room[idx(x, z)] !== ' ') lit[idx(x, z)] = 1
+  }
+  // Escaliers : ils montent vers la passerelle voisine ; le bas donne sur le sol de la baie.
+  for (let z = 0; z < H; z++) {
+    for (let x = 0; x < W; x++) {
+      if (cell(x, z) !== 'r') continue
+      const up = [0, 1, 2, 3].find((d) => cell(x + DIRS[d].dx, z + DIRS[d].dz) === 'u')
+      const down = up === undefined ? '#' : cell(x - DIRS[up].dx, z - DIRS[up].dz)
+      if (up === undefined || !'.L'.includes(down)) throw new Error(`Escalier mal placé en (${x}, ${z})`)
+      stairs[idx(x, z)] = up
     }
   }
   // Sol d'un seul tenant dans une même pièce ; le sas ne s'ouvre que par ses portes.
@@ -271,10 +429,10 @@ export function generateZone(seed, settings) {
         }
       }
     }
-    for (const f of r.furniture) {
-      if (!f.block) continue
-      for (const [x, z] of f.block === true ? [[Math.round(f.x), Math.round(f.z)]] : f.block) blocked[idx(x, z)] = 1
-    }
+  }
+  for (const f of [...BAY_ROOMS.flatMap((r) => r.furniture), ...BAY_PROPS]) {
+    if (!f.block) continue
+    for (const [x, z] of f.block === true ? [[Math.round(f.x), Math.round(f.z)]] : f.block) blocked[idx(x, z)] = 1
   }
   // Le guichet : cloisonné, sauf la vitre (le passage reste fermé : ses tuiles sont bloquées).
   for (let z = BAY_BOOTH.z; z < BAY_BOOTH.z + BAY_BOOTH.d; z++) {
@@ -286,29 +444,60 @@ export function generateZone(seed, settings) {
       }
     }
   }
+  // Garde-corps : la passerelle ne se rejoint que par ses escaliers (et un escalier que par son
+  // bas et son haut, ou par l'escalier jumeau d'à côté). La vue et le bruit passent au-dessus.
+  const tier = (x, z) => (cell(x, z) === 'u' ? 'u' : cell(x, z) === 'r' ? 'r' : 'g')
+  const joins = (x, z, dir) => {
+    const nx = x + DIRS[dir].dx, nz = z + DIRS[dir].dz
+    const a = tier(x, z), b = tier(nx, nz)
+    const sa = stairs[idx(x, z)], sb = inside(nx, nz) ? stairs[idx(nx, nz)] : -1
+    if (a === b && a !== 'r') return true
+    if (a === 'r' && b === 'u') return sa === dir
+    if (a === 'u' && b === 'r') return sb === (dir + 2) % 4
+    if (a === 'r' && b === 'g') return sa === (dir + 2) % 4
+    if (a === 'g' && b === 'r') return sb === dir
+    return a === 'r' && b === 'r' && sa === sb && dir % 2 !== sa % 2
+  }
+  const rails = []
+  for (let z = 0; z < H; z++) {
+    for (let x = 0; x < W; x++) {
+      if (tier(x, z) === 'g') continue
+      for (let dir = 0; dir < 4; dir++) {
+        const nx = x + DIRS[dir].dx, nz = z + DIRS[dir].dz
+        if (!inside(nx, nz) || !isOpen(x, z, dir) || joins(x, z, dir)) continue
+        const back = idx(nx, nz) * 4 + ((dir + 2) % 4)
+        if (rail[back]) continue
+        rail[idx(x, z) * 4 + dir] = 1
+        rail[back] = 1
+        rails.push({ x, z, dir })
+      }
+    }
+  }
 
-  // Conteneurs : les paires de '=' (couchés) et de 'H' (debout), les piles de caisses. Couleurs
-  // tirées de la position : la baie a toujours la même allure.
+  // Conteneurs : les paires de '=' (couchés) et de 'H' (debout), les piles de caisses, les bacs de
+  // la serre et les excroissances du nid. Couleurs tirées de la position : la baie a toujours la
+  // même allure.
   const containers = []
   const done = new Uint8Array(N)
+  const KIND = { '=': 'container', H: 'container', c: 'crates', m: 'crates', p: 'planter', o: 'growth' }
   for (let z = 0; z < H; z++) {
     for (let x = 0; x < W; x++) {
       const c = cell(x, z)
-      if (done[idx(x, z)] || !'=Hcm'.includes(c)) continue
+      if (done[idx(x, z)] || !KIND[c]) continue
       const w = c === '=' ? 2 : 1, d = c === 'H' ? 2 : 1
       for (let tz = z; tz < z + d; tz++) for (let tx = x; tx < x + w; tx++) done[idx(tx, tz)] = 1
       // Un générateur est la pile de variante 0 (cf. src/salvage/kit.ts).
       const tint = c === 'm' ? 0 : (x * 7 + z * 13) % 3
-      containers.push({ x, z, w, d, kind: c === '=' || c === 'H' ? 'container' : 'crates', color: tint, flip: c !== 'm' && (x + z) % 2 === 1 })
+      containers.push({ x, z, w, d, kind: KIND[c], color: tint, flip: c !== 'm' && (x + z) % 2 === 1 })
     }
   }
 
   const layout = BAY.map((line) => line.replace(/#/g, ' ').replace(/[^x ]/g, 'z'))
   const zone = {
     seed, width: W, height: H, team, parcels, enemies,
-    layout, walls, doors, booth, rooms: BAY_ROOMS, areas: BAY_AREAS,
+    layout, walls, doors, booth, rooms: BAY_ROOMS, areas: BAY_AREAS, props: BAY_PROPS, lights: BAY_LIT, cameras: BAY_CAMERAS,
     airlock: { side: BAY_AIRLOCK.side, tiles: airlock, pad: { ...BAY_AIRLOCK.pad }, inward: BAY_AIRLOCK.inward },
-    halls: [], containers, blocked, open, room, hall,
+    halls: [], containers, blocked, low, tall, elev, stairs, lit, fx, open, rail, rails, room, hall,
     lockers: [], flares: [], cargo: [], monsters: [], decor: [],
   }
   buildGraph(zone)
@@ -338,18 +527,19 @@ export function generateZone(seed, settings) {
   }
   // Un coin à l'abri : au moins deux côtés fermés (paroi, conteneur), pas au milieu d'un passage.
   const sheltered = (t) => [0, 1, 2, 3].filter((dir) => !walkable(zone, t.x + DIRS[dir].dx, t.z + DIRS[dir].dz)).length >= 2
+  const flat = (t) => stairs[idx(t.x, t.z)] < 0
 
   // Colis : loin du sas (le retour est le plus risqué), à l'abri contre une paroi, écartés.
   const far = Math.max(...Array.from(fromAirlock).filter((d) => d >= 0))
-  let cargoSpots = tiles((t) => dist(t) >= far * 0.45 && sheltered(t))
-  if (cargoSpots.length < parcels) cargoSpots = tiles((t) => dist(t) >= 4)
+  let cargoSpots = tiles((t) => dist(t) >= far * 0.45 && sheltered(t) && flat(t))
+  if (cargoSpots.length < parcels) cargoSpots = tiles((t) => dist(t) >= 4 && flat(t))
   for (const t of spread(cargoSpots, parcels, [BAY_AIRLOCK.pad], random)) {
     zone.cargo.push({ id: zone.cargo.length, x: t.x, z: t.z })
     taken.add(key(t))
   }
 
   // Fusées d'appel : réparties dans toute la baie.
-  for (const t of spread(tiles(() => true), 3 + team + Math.floor(parcels / 2), [BAY_AIRLOCK.pad, ...zone.cargo], random)) {
+  for (const t of spread(tiles(flat), 4 + team + Math.floor(parcels / 2), [BAY_AIRLOCK.pad, ...zone.cargo], random)) {
     zone.flares.push({ id: zone.flares.length, x: t.x, z: t.z })
     taken.add(key(t))
   }
@@ -357,22 +547,27 @@ export function generateZone(seed, settings) {
   // Ennemis : loin du sas, répartis.
   for (const t of spread(tiles((t) => dist(t) >= 9), enemies, [BAY_AIRLOCK.pad], random)) zone.monsters.push({ id: zone.monsters.length, x: t.x, z: t.z })
 
-  // Décor : câbles, ossements, cristaux thargoïdes, fûts renversés, flaques ; celui de chaque coin
-  // (cf. BAY_AREAS), jamais sur un passage ni dans les petites pièces (elles ont leurs meubles).
+  // Décor : câbles, ossements, cristaux thargoïdes, fûts renversés, papiers, terreau, verre brisé,
+  // flaques ; celui de chaque coin (cf. BAY_AREAS), jamais sur un passage entre deux coins, sur la
+  // passerelle, ni dans les petites pièces (elles ont leurs meubles). Le verre et les flaques couvrent leur tuile,
+  // et comptent (FX) : les autres se rangent contre une paroi.
   const inRoom = (x, z) => BAY_ROOMS.some((r) => x >= r.x && z >= r.z && x < r.x + r.w && z < r.z + r.d)
   for (let z = 0; z < H; z++) {
     for (let x = 0; x < W; x++) {
       const area = areaOf(x, z)
-      if (room[idx(x, z)] !== 'z' || blocked[idx(x, z)] || taken.has(key({ x, z })) || nearDoor({ x, z }) || inRoom(x, z) || random() > (area?.density ?? 0.1)) continue
+      const i = idx(x, z)
+      if (!area || room[i] !== 'z' || blocked[i] || elev[i] > 0 || taken.has(key({ x, z })) || nearDoor({ x, z }) || inRoom(x, z) || random() > area.density) continue
       const walled = [0, 1, 2, 3].filter((dir) => !walkable(zone, x + DIRS[dir].dx, z + DIRS[dir].dz))
-      const kinds = area?.decor ?? DECOR
-      const kind = kinds[Math.floor(random() * kinds.length)]
+      const kind = area.decor[Math.floor(random() * area.decor.length)]
+      const covers = kind === 'glass' || kind === 'goo'
       // Contre une paroi ou un conteneur quand il y en a un : on passe au milieu.
-      const dir = walled.length ? walled[Math.floor(random() * walled.length)] : -1
+      const dir = walled.length && !covers ? walled[Math.floor(random() * walled.length)] : -1
       const lateral = (random() - 0.5) * 0.4
       const px = dir < 0 ? x + (random() - 0.5) * 0.3 : x + DIRS[dir].dx * 0.26 + (DIRS[dir].dz ? lateral : 0)
       const pz = dir < 0 ? z + (random() - 0.5) * 0.3 : z + DIRS[dir].dz * 0.26 + (DIRS[dir].dx ? lateral : 0)
-      zone.decor.push({ kind, x: round3(px), z: round3(pz), rot: int(random, 0, 3), wall: dir })
+      zone.decor.push({ kind, x: round3(covers ? x : px), z: round3(covers ? z : pz), rot: int(random, 0, 3), wall: dir })
+      if (kind === 'glass') fx[i] = FX.glass
+      else if (kind === 'goo') fx[i] = FX.goo
     }
   }
   return zone
@@ -411,43 +606,60 @@ function spread(spots, count, away, random) {
 
 /**
  * Graphe de la baie : voisins accessibles de chaque tuile (4 directions ; -1 : mur, bord,
- * conteneur), pour les joueurs et pour les ennemis (qui n'entrent pas dans le sas).
+ * conteneur, garde-corps), pour les joueurs et pour les ennemis (qui n'entrent pas dans le sas),
+ * et pour le bruit, qui passe par-dessus les garde-corps.
  */
 function buildGraph(zone) {
   const { width: W, height: H } = zone
   const N = W * H
+  const inside = (x, z) => x >= 0 && z >= 0 && x < W && z < H
   zone.adj = new Int32Array(N * 4).fill(-1)
   zone.monsterAdj = new Int32Array(N * 4).fill(-1)
+  zone.hearAdj = new Int32Array(N * 4).fill(-1)
   for (let z = 0; z < H; z++) {
     for (let x = 0; x < W; x++) {
       const i = z * W + x
       if (zone.blocked[i]) continue
       for (let dir = 0; dir < 4; dir++) {
-        if (!zone.open[i * 4 + dir]) continue
+        const e = i * 4 + dir
+        if (!zone.open[e]) continue
         const j = (z + DIRS[dir].dz) * W + x + DIRS[dir].dx
         if (zone.blocked[j]) continue
-        zone.adj[i * 4 + dir] = j
-        if (zone.room[i] === 'z' && zone.room[j] === 'z') zone.monsterAdj[i * 4 + dir] = j
+        const bay = zone.room[i] === 'z' && zone.room[j] === 'z'
+        if (bay) zone.hearAdj[e] = j
+        if (zone.rail[e]) continue
+        zone.adj[e] = j
+        if (bay) zone.monsterAdj[e] = j
       }
     }
   }
   zone.map = new ShipMap(zone.layout, { walls: zone.walls, doors: zone.doors })
-  // Plan « de vue » : un conteneur arrête le regard comme un mur (il se voit, pas ce qu'il cache).
-  // Lu dans les tableaux de la baie (des milliers de rayons à chaque image pour la vue du joueur) ;
-  // une porte du sas y est un passage ouvert.
+  const room = (x, z) => (inside(x, z) ? zone.room[z * W + x] : null)
+  const edgeOf = (pass) => (x, z, dir) => {
+    const nx = x + DIRS[dir].dx, nz = z + DIRS[dir].dz
+    if (!inside(x, z) || !inside(nx, nz)) return 'wall'
+    return pass(z * W + x, nz * W + nx, (z * W + x) * 4 + dir) ? 'open' : 'wall'
+  }
+  // Plans « de vue » (des milliers de rayons à chaque image pour la vue du joueur, lus dans les
+  // tableaux de la baie). Au sol, un conteneur arrête le regard comme un mur (il se voit, pas ce
+  // qu'il cache) ; la vitre du guichet, un bac de la serre ou un garde-corps, non. D'en haut (la
+  // passerelle), seuls les cloisons et les excroissances du nid l'arrêtent.
+  const seeThrough = (i) => !zone.blocked[i] || !!zone.booth[i] || !!zone.low[i]
   zone.sightMap = {
-    isFloor: (x, z) => x >= 0 && z >= 0 && x < W && z < H && (!zone.blocked[z * W + x] || !!zone.booth?.[z * W + x]),
-    room: (x, z) => (x >= 0 && z >= 0 && x < W && z < H ? zone.room[z * W + x] : null),
-    edge: (x, z, dir) => {
-      if (x < 0 || z < 0 || x >= W || z >= H) return 'wall'
-      const i = z * W + x
-      if (zone.adj[i * 4 + dir] >= 0) return 'open'
-      // Le guichet se voit à travers sa vitre, et d'un bout à l'autre.
-      const nx = x + DIRS[dir].dx, nz = z + DIRS[dir].dz
-      const j = nz * W + nx
-      const glass = nx >= 0 && nz >= 0 && nx < W && nz < H && (zone.booth?.[i] || zone.booth?.[j]) && zone.open[i * 4 + dir] && !(zone.blocked[i] && !zone.booth[i]) && !(zone.blocked[j] && !zone.booth[j])
-      return glass ? 'open' : 'wall'
-    },
+    isFloor: (x, z) => inside(x, z) && seeThrough(z * W + x),
+    room,
+    edge: edgeOf((i, j, e) => zone.open[e] && seeThrough(i) && seeThrough(j)),
+  }
+  zone.highSightMap = {
+    isFloor: (x, z) => inside(x, z) && !zone.tall[z * W + x],
+    room,
+    edge: edgeOf((i, j, e) => zone.open[e] && !zone.tall[i] && !zone.tall[j]),
+  }
+  // Plan « de marche » : pour filer tout droit, chaque arête franchie doit être un passage.
+  zone.walkMap = {
+    isFloor: (x, z) => walkable(zone, x, z),
+    room,
+    edge: edgeOf((i, j, e) => zone.adj[e] >= 0),
   }
 }
 
@@ -468,12 +680,41 @@ export function inAirlock(zone, p) {
   return !!t && zone.room[t.z * zone.width + t.x] === 'x'
 }
 
+/** Hauteur du sol en `p` : celle de la passerelle, qui monte le long d'un escalier. */
+export function groundHeight(zone, p) {
+  const t = tileOf(zone, p)
+  if (!t) return 0
+  const i = t.z * zone.width + t.x
+  const up = zone.stairs[i]
+  if (up < 0) return zone.elev[i]
+  const s = (p.x - t.x) * DIRS[up].dx + (p.z - t.z) * DIRS[up].dz
+  return RULES.deck * Math.min(1, Math.max(0, s + 0.5))
+}
+
+/** En hauteur (sur la passerelle, ou en haut de ses escaliers) : on y voit par-dessus les conteneurs. */
+export function elevated(zone, p) {
+  return groundHeight(zone, p) > RULES.high
+}
+
+/** Tuile d'une zone éclairée ? */
+export function isLit(zone, p) {
+  const t = tileOf(zone, p)
+  return !!t && zone.lit[t.z * zone.width + t.x] === 1
+}
+
+/** Ce que le sol fait sous les pieds en `p` (cf. FX) : verre qui crisse, flaque qui ralentit. */
+export function floorFx(zone, p) {
+  const t = tileOf(zone, p)
+  return t ? zone.fx[t.z * zone.width + t.x] : FX.none
+}
+
 /**
  * Distances (en tuiles de chemin) depuis `sources` ; -1 : inaccessible.
- * @param {{ monster?: boolean, max?: number }} [options] monster : sans entrer dans le sas
+ * @param {{ monster?: boolean, hear?: boolean, max?: number }} [options] monster : sans entrer dans
+ *   le sas ; hear : le chemin du bruit (sans entrer dans le sas, par-dessus les garde-corps)
  */
 export function distances(zone, sources, options = {}) {
-  const adj = options.monster ? zone.monsterAdj : zone.adj
+  const adj = options.hear ? zone.hearAdj : options.monster ? zone.monsterAdj : zone.adj
   const max = options.max ?? Infinity
   const out = new Int16Array(zone.width * zone.height).fill(-1)
   const queue = []
@@ -554,14 +795,19 @@ export function sightOrigin(zone, p) {
   return best ?? p
 }
 
-/** Rien ne sépare `from` de `to` : ni mur, ni conteneur (un conteneur visé se voit lui-même). */
-export function zoneSight(zone, from, to) {
-  return lineOfSight(zone.sightMap, from, to)
+/**
+ * Rien ne sépare `from` de `to` : ni mur, ni conteneur (un conteneur visé se voit lui-même). Si
+ * l'un des deux est en hauteur (ou `high` : une caméra montée au plafond), les conteneurs
+ * n'arrêtent plus le regard.
+ */
+export function zoneSight(zone, from, to, high) {
+  const up = high ?? (elevated(zone, from) || elevated(zone, to))
+  return lineOfSight(up ? zone.highSightMap : zone.sightMap, from, to)
 }
 
 /**
- * Ligne droite praticable (pour lisser un chemin) : la vue passe au centre et de part et d'autre,
- * à la largeur d'un marcheur.
+ * Ligne droite praticable (pour lisser un chemin) : chaque arête franchie est un passage, au
+ * centre et de part et d'autre, à la largeur d'un marcheur.
  */
 export function straightWalk(zone, from, to, radius = 0.2) {
   const dx = to.x - from.x, dz = to.z - from.z
@@ -571,7 +817,7 @@ export function straightWalk(zone, from, to, radius = 0.2) {
   for (const k of [0, 1, -1]) {
     const a = { x: from.x + ox * k, z: from.z + oz * k }, b = { x: to.x + ox * k, z: to.z + oz * k }
     if (!walkable(zone, Math.round(a.x), Math.round(a.z)) || !walkable(zone, Math.round(b.x), Math.round(b.z))) return false
-    if (!lineOfSight(zone.sightMap, a, b)) return false
+    if (!lineOfSight(zone.walkMap, a, b)) return false
   }
   return true
 }
@@ -606,7 +852,7 @@ export function pickSpawns(zone, count, monsters, random) {
     for (let z = 0; z < zone.height; z++) {
       for (let x = 0; x < W; x++) {
         const i = z * W + x
-        if (zone.room[i] !== 'z' || zone.blocked[i] || lockerTiles.has(`${x},${z}`)) continue
+        if (zone.room[i] !== 'z' || zone.blocked[i] || zone.stairs[i] >= 0 || lockerTiles.has(`${x},${z}`)) continue
         if (fromMonsters[i] >= 0 && fromMonsters[i] < min) continue
         spots.push({ x, z })
       }

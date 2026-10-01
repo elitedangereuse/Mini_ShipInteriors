@@ -3,8 +3,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
-  BAY, BAY_BOOTH, distances, sightOrigin, findPath, generateZone, inAirlock, lockerFront, lockerSpot, mulberry32, pickSpawns, RULES, salvageMinDuration, salvageReward, smoothPath,
-  straightWalk, walkable, zoneSight,
+  BAY, BAY_BOOTH, BAY_CAMERAS, BAY_LIT, distances, elevated, floorFx, FX, sightOrigin, findPath, generateZone, groundHeight, inAirlock, isLit, lockerFront, lockerSpot,
+  mulberry32, pickSpawns, RULES, salvageGrade, salvageMinDuration, salvagePar, salvageReward, smoothPath, straightWalk, walkable, zoneSight,
 } from '../shared/salvage.js'
 
 const SETTINGS = [
@@ -42,14 +42,17 @@ test('le plan : rectangulaire, conteneurs par paires, un sas de six tuiles au bo
   assert.ok(zone.lockers.length >= 30, 'des casiers partout')
 })
 
-test('des couloirs d\'au moins deux tuiles entre les rangées de conteneurs', () => {
+test('des passages larges dans les cloisons, et la grande allée de trois tuiles', () => {
   const zone = generateZone(1, { team: 1, parcels: 1, enemies: 1 })
-  // Chaque passage d'une rangée pleine (lignes 7 et 15) fait deux tuiles de large.
-  for (const z of [7, 15]) for (const gap of BAY[z].match(/\.+/g)) assert.ok(gap.length >= 2, `ligne ${z}`)
+  // Chaque passage d'une cloison pleine (lignes 8, 12 et 18) fait deux tuiles de large au moins.
+  for (const z of [8, 12, 18]) for (const gap of BAY[z].match(/\.+/g)) assert.ok(gap.length >= 2, `ligne ${z}`)
+  // La grande allée traverse la baie d'ouest en est, sur trois tuiles de large.
+  for (const z of [9, 10, 11]) assert.ok([...BAY[z]].filter((c) => '.L'.includes(c)).length >= 32, `ligne ${z}`)
+  assert.ok(findPath(zone, { x: 0, z: 10 }, { x: 35, z: 10 }).length === 36, 'tout droit')
   // Les cloisons fines ne ferment que les petites pièces et le guichet.
   for (const w of zone.walls) {
     const x = w.x + (w.dir === 1 ? 0.5 : 0), z = w.z + (w.dir === 2 ? 0.5 : 0)
-    const near = [...zone.rooms, { x: 10, z: 8, w: 3, d: 2 }].some((r) => x >= r.x - 0.5 && x <= r.x + r.w - 0.5 && z >= r.z - 0.5 && z <= r.z + r.d - 0.5)
+    const near = [...zone.rooms, BAY_BOOTH].some((r) => x >= r.x - 0.5 && x <= r.x + r.w - 0.5 && z >= r.z - 0.5 && z <= r.z + r.d - 0.5)
     assert.ok(near, `cloison isolée en ${w.x},${w.z}`)
   }
 })
@@ -74,7 +77,7 @@ test('le guichet : on ne peut pas y entrer, mais on voit le technicien par la vi
   assert.ok(walkable(zone, counter.x, counter.z))
   assert.equal(findPath(zone, zone.airlock.pad, { x: Math.round(technician.x), z: Math.round(technician.z) }), null)
   assert.equal(zoneSight(zone, counter, technician), true, 'par la vitre')
-  assert.equal(zoneSight(zone, { x: 8, z: 8 }, technician), false, 'pas à travers la cloison')
+  assert.equal(zoneSight(zone, { x: 14, z: 7 }, technician), false, 'pas à travers la cloison')
   // Les ennemis n'y entrent pas non plus.
   const d = distances(zone, [zone.monsters[0]], { monster: true })
   assert.equal(d[Math.round(technician.z) * zone.width + Math.round(technician.x)], -1)
@@ -138,13 +141,17 @@ test('un casier se dresse contre une paroi ou un conteneur, et l\'on en sort du 
 test('la vue s\'arrête aux parois et aux conteneurs', () => {
   const zone = generateZone(42, { team: 1, parcels: 2, enemies: 1 })
   // Une rangée de conteneurs : de part et d'autre, on ne se voit pas ; par un passage, si.
-  assert.equal(zoneSight(zone, { x: 8, z: 6 }, { x: 8, z: 8 }), false)
-  assert.equal(zoneSight(zone, { x: 4, z: 6 }, { x: 4, z: 8 }), true)
+  assert.equal(zoneSight(zone, { x: 8, z: 2 }, { x: 8, z: 0 }), false)
+  assert.equal(zoneSight(zone, { x: 3, z: 2 }, { x: 3, z: 0 }), true)
+  // Une cloison pleine arrête le regard.
+  assert.equal(zoneSight(zone, { x: 10, z: 9 }, { x: 10, z: 7 }), false)
   // Le sas : on n'y voit que par ses portes.
-  assert.equal(zoneSight(zone, { x: 15, z: 21 }, { x: 15, z: 22 }), false)
+  assert.equal(zoneSight(zone, { x: 17, z: 23 }, { x: 17, z: 24 }), false)
+  assert.equal(zoneSight(zone, { x: 16, z: 23 }, { x: 16, z: 24 }), true)
   // Un conteneur de hall : la tuile de derrière est cachée.
   let checked = 0
   for (const c of zone.containers) {
+    if (c.kind !== 'container') continue
     const before = { x: c.x - 1, z: c.z }, after = { x: c.x + c.w, z: c.z }
     if (!walkable(zone, before.x, before.z) || !walkable(zone, after.x, after.z)) continue
     if (zone.map.edge(before.x, before.z, 1) !== 'open' || zone.map.edge(after.x - 1, after.z, 1) !== 'open') continue
@@ -213,11 +220,96 @@ test('récompense : plus de colis et plus d\'ennemis, plus de crédits', () => {
 
 test('au ras d\'un meuble, la vue part de la tuile libre voisine, jamais à travers une cloison', () => {
   const zone = generateZone(1, { team: 1, parcels: 1, enemies: 1 })
-  // La fontaine de la salle de pause (14, 0) : sa tuile est bloquée ; derrière la cloison est, le local radio.
-  const o = sightOrigin(zone, { x: 14.2, z: 0.35 })
+  // La fontaine de la salle de pause (17, 0) : sa tuile est bloquée ; derrière la cloison est, le local radio.
+  const o = sightOrigin(zone, { x: 17.2, z: 0.35 })
   assert.ok(walkable(zone, Math.round(o.x), Math.round(o.z)))
-  assert.ok(Math.round(o.x) <= 14, 'pas dans le local radio')
-  assert.ok(zoneSight(zone, o, { x: 12, z: 0 }))
+  assert.ok(Math.round(o.x) <= 17, 'pas dans le local radio')
+  assert.ok(zoneSight(zone, o, { x: 15, z: 0 }))
   // Sur une tuile libre, rien ne change.
   assert.deepEqual(sightOrigin(zone, { x: 12.3, z: 2.1 }), { x: 12.3, z: 2.1 })
+})
+
+test('les zones éclairées : la serre, le carrefour du guichet et le quai de chargement', () => {
+  const zone = generateZone(3, { team: 1, parcels: 1, enemies: 1 })
+  assert.deepEqual(BAY_LIT.map((l) => l.id), ['greenhouse', 'crossroads', 'dock'])
+  assert.ok(isLit(zone, { x: 28, z: 3 }), 'la serre')
+  assert.ok(isLit(zone, zone.airlock.pad), 'le quai, jusqu\'au sas')
+  assert.ok(isLit(zone, BAY_BOOTH.counter), 'devant le guichet')
+  assert.equal(isLit(zone, { x: 30, z: 15 }), false, 'le nid reste noir')
+  for (const l of BAY_LIT) for (const lamp of l.lamps) assert.ok(isLit(zone, lamp), l.id)
+  assert.ok(RULES.litVision > RULES.vision && RULES.monster.litSight > RULES.monster.sight)
+})
+
+test('la passerelle : on n\'y monte que par ses escaliers, et l\'on y voit par-dessus les conteneurs', () => {
+  const zone = generateZone(5, { team: 1, parcels: 1, enemies: 1 })
+  // Garde-corps : de la tuile d'à côté, pas de passage direct ; le chemin passe par un escalier.
+  assert.equal(zone.adj[(2 * zone.width + 5) * 4 + 2], -1, 'garde-corps au nord')
+  const path = findPath(zone, { x: 5, z: 2 }, { x: 5, z: 3 })
+  assert.ok(path.length > 4 && path.some((t) => zone.stairs[t.z * zone.width + t.x] >= 0), 'par un escalier')
+  // Les ennemis aussi.
+  assert.ok(findPath(zone, { x: 5, z: 5 }, { x: 5, z: 4 }, { monster: true }).length > 2)
+  // Hauteurs : le sol, le haut de l'escalier, la passerelle.
+  assert.equal(groundHeight(zone, { x: 0, z: 3 }), 0)
+  assert.ok(groundHeight(zone, { x: 1, z: 3 }) > 0 && groundHeight(zone, { x: 1, z: 3 }) < RULES.deck)
+  assert.equal(groundHeight(zone, { x: 6, z: 4 }), RULES.deck)
+  assert.ok(elevated(zone, { x: 6, z: 4 }) && !elevated(zone, { x: 6, z: 6 }))
+  // Par-dessus la rangée de conteneurs du nord (8, 1) : de la passerelle, oui ; du sol, non.
+  assert.equal(zoneSight(zone, { x: 8, z: 3 }, { x: 8, z: 0 }), true)
+  assert.equal(zoneSight(zone, { x: 8, z: 2 }, { x: 8, z: 0 }), false)
+  // Symétrique : qui est en bas voit qui est en haut, et le bruit passe par-dessus le garde-corps.
+  assert.equal(zoneSight(zone, { x: 8, z: 0 }, { x: 8, z: 3 }), true)
+  assert.equal(distances(zone, [{ x: 5, z: 2 }], { hear: true })[3 * zone.width + 5], 1)
+  // Une cloison pleine arrête même le regard d'en haut.
+  assert.equal(zoneSight(zone, { x: 10, z: 4 }, { x: 15, z: 4 }), false)
+  // Jamais de casier, de colis ni de fusée sur un escalier.
+  each((z) => {
+    for (const t of [...z.cargo, ...z.flares, ...z.lockers]) assert.ok(z.stairs[t.z * z.width + t.x] < 0)
+  })
+})
+
+test('la serre : ses bacs bloquent le passage, pas la vue ; les excroissances du nid arrêtent tout', () => {
+  const zone = generateZone(9, { team: 1, parcels: 1, enemies: 1 })
+  assert.equal(walkable(zone, 25, 2), false)
+  assert.equal(zoneSight(zone, { x: 25, z: 1 }, { x: 25, z: 3 }), true, 'par-dessus un bac')
+  assert.equal(walkable(zone, 28, 13), false)
+  assert.equal(zoneSight(zone, { x: 27, z: 13 }, { x: 29, z: 13 }), false, 'derrière une excroissance')
+  assert.equal(zoneSight(zone, { x: 27, z: 13 }, { x: 29, z: 13 }, true), false, 'même d\'en haut')
+})
+
+test('les sols : verre brisé dans la zone effondrée, flaques caustiques dans le nid', () => {
+  let glass = 0, goo = 0
+  each((zone) => {
+    for (let i = 0; i < zone.width * zone.height; i++) {
+      const x = i % zone.width, z = Math.floor(i / zone.width)
+      if (zone.fx[i] === FX.glass) {
+        glass++
+        assert.ok(x >= 25 && z >= 19, `verre en ${x},${z}`)
+      } else if (zone.fx[i] === FX.goo) {
+        goo++
+        assert.ok(x >= 25 && z >= 13 && z < 18, `flaque en ${x},${z}`)
+      }
+      if (zone.fx[i]) assert.equal(floorFx(zone, { x: x + 0.3, z: z - 0.2 }), zone.fx[i])
+    }
+    for (const t of [...zone.cargo, ...zone.flares, ...zone.lockers]) assert.equal(zone.fx[t.z * zone.width + t.x], FX.none)
+  })
+  assert.ok(glass > 0 && goo > 0)
+  assert.ok(RULES.goo < 1 && RULES.noise.glass < RULES.noise.sprint)
+})
+
+test('les caméras de surveillance filment des tuiles de la baie', () => {
+  const zone = generateZone(1, { team: 1, parcels: 1, enemies: 1 })
+  assert.ok(BAY_CAMERAS.length >= 6)
+  for (const c of BAY_CAMERAS) assert.ok(walkable(zone, Math.round(c.x), Math.round(c.z)) && !inAirlock(zone, c), c.id)
+})
+
+test('la note de mission : S sans capture et vite, jusqu\'à D', () => {
+  const base = { won: true, delivered: 3, parcels: 3, team: 2, captures: 0 }
+  const par = salvagePar(3, 2)
+  assert.equal(salvageGrade({ ...base, duration: par - 1 }), 'S')
+  assert.equal(salvageGrade({ ...base, duration: par + 1 }), 'A')
+  assert.equal(salvageGrade({ ...base, duration: par * 2 }), 'B')
+  assert.equal(salvageGrade({ ...base, captures: 1, duration: par }), 'A')
+  assert.equal(salvageGrade({ ...base, captures: 2, duration: par }), 'B')
+  assert.equal(salvageGrade({ ...base, won: false, delivered: 2, duration: 99 }), 'C')
+  assert.equal(salvageGrade({ ...base, won: false, delivered: 0, duration: 99 }), 'D')
 })

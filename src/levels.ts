@@ -47,7 +47,8 @@ export interface Prop {
  */
 export type Flicker = 'neon' | 'fire' | 'disco' | 'pulse' | 'screen'
 
-export type LightDef = [number, number, string, number, ('neon' | 'fire' | 'screen')?]
+/** Lumière : x, z, couleur, intensité, vacillement, et portée (7 par défaut ; les projecteurs de la baie portent plus loin). */
+export type LightDef = [number, number, string, number, ('neon' | 'fire' | 'screen')?, number?]
 
 /** Éclairage d'ambiance d'un pont : ciel et sol (lumière hémisphérique), soleil. */
 export interface Ambience {
@@ -126,9 +127,10 @@ export interface LevelDef {
   cabin?: CabinDef
   /**
    * Baie infestée de la zone thargoïde (cf. src/salvage/) : son plan (murs du labyrinthe, portes
-   * du sas) et le kit de ses murs, sols et portes. Ni coque, ni ascenseur, ni tuyères.
+   * du sas), le kit de ses murs, sols et portes, et la couleur des projecteurs sur le sol des
+   * zones éclairées (`glow`). Ni coque, ni ascenseur, ni tuyères.
    */
-  zone?: { kit: ZoneKit; map: ShipMapOptions }
+  zone?: { kit: ZoneKit; map: ShipMapOptions; glow?: (x: number, z: number) => string | null }
   /**
    * Base au sol (cf. src/base/) : un plateau à ciel ouvert, sans murs (le bord arrête les pas, ses
    * falaises plongent dans le vide), ni coque, ni ascenseur, ni tuyères, ni plafond.
@@ -173,19 +175,26 @@ export const LEVELS: LevelDef[] = [
       // Le nom du bar ne se traduit pas.
       b: 'Chez Jacques',
       h: tr('Lobby de la zone thargoïde', 'Thargoid zone lobby'),
+      t: tr('Poste de sécurité de la zone', 'Zone security post'),
       k: tr('Hangar', 'Hangar'),
       e: tr('Salle des machines', 'Engine room'),
       v: tr('Sanctuaire de la Voie', 'Sanctuary of the Path'),
     },
     closed: {
+      t: [
+        tr('Poste de sécurité de la zone thargoïde : accès réservé au personnel. La porte ne s\'ouvre que de l\'intérieur, et Odile ne l\'ouvre jamais.', 'Thargoid zone security post: staff only. The door only opens from inside, and Odile never opens it.'),
+        tr('Sur la porte, un autocollant : « Pour parler à la sécurité, utilisez l\'interphone. Pour le café, non. »', 'A sticker on the door: “To talk to security, use the intercom. For coffee, don\'t.”'),
+      ],
       v: tr(
         'Une porte sans poignée, cachée derrière les machines. Sur le panneau, un symbole gravé : six pétales autour d’un hexagone. « Seuls les Adeptes peuvent trouver la Voie. » Terminez L’Épreuve de la Voie pour entrer.',
         'A door with no handle, hidden behind the machinery. A symbol is carved into the panel: six petals around a hexagon. “Only Adepts can find the Path.” Complete The Trial of the Path to enter.',
       ),
     },
     // Le bar est tenu plus proprement que le reste de la cale : dalles lisses, pas un hublot.
-    floors: { a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', h: 'floor-panel', k: 'floor-panel' },
-    windows: { a: 0.1, j: 0, r: 0.12, m: 0, g: 0.1, b: 0, h: 0, e: 0, v: 0, k: 0.15 },
+    floors: { a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', h: 'floor-panel', k: 'floor-panel', t: 'floor-panel' },
+    windows: { a: 0.1, j: 0, r: 0.12, m: 0, g: 0.1, b: 0, h: 0, e: 0, v: 0, k: 0.15, t: 0 },
+    // Le poste de sécurité du lobby : des vitres blindées côté lobby (sa porte reste verrouillée).
+    glazed: ['ht'],
     // Le hangar s'ouvre sur l'espace à la proue : son mur est est un bouclier (cf. src/shield.ts).
     shield: { k: [1] },
     // Et un sol d'acier brossé argenté, qui tranche avec l'acier noirci du reste de la cale.
@@ -530,38 +539,62 @@ export const LEVELS: LevelDef[] = [
       { model: 'plant-tall', x: 17.95, z: 12.95 },
 
       // --- Lobby de la zone thargoïde (SOC-06) : on y forme son équipe au terminal, on suit les
-      // coéquipiers sur les caméras, et la porte blindée du mur nord mène à la baie infestée ---
+      // coéquipiers sur les caméras, et la porte blindée, au fond de l'alcôve nord, mène à la baie
+      // infestée. Derrière les vitres du poste de sécurité (au nord-ouest), Odile, la contrôleuse
+      // de la zone (cf. src/salvage/controller.ts), devant le mur des caméras de la baie ; on lui
+      // parle à l'interphone. Au sud, la table de briefing (le plan de la baie) et le vestiaire ---
       {
-        model: 'salvage-terminal', x: 22.6, z: 5.3, action: tr('Préparer une mission', 'Prepare a mission'),
+        model: 'salvage-terminal', x: 22.6, z: 4.4, action: tr('Préparer une mission', 'Prepare a mission'),
         interact: tr('Terminal de mission : récupération de cargaison en zone thargoïde.', 'Mission terminal: cargo recovery in a Thargoid zone.'),
       },
-      {
-        model: 'surveillance-wall', x: 21.4, z: 1.88, action: tr('Caméras', 'Cameras'),
-        interact: [
-          tr('Six caméras dans la baie de stockage. Sur la trois, quelque chose vient de passer. Ou pas.', 'Six cameras in the storage bay. On number three, something just walked past. Or not.'),
-          tr('Les caméras filment la baie infestée. En mission, elles suivent l\'équipe.', 'The cameras watch the infested bay. During a mission, they follow the crew.'),
-        ],
-      },
-      { model: 'blast-door', x: 24.2, z: 1.54, solid: false, interact: tr(
+      // Le poste de sécurité : les écrans de la baie au mur, le bureau d'Odile, ses classeurs.
+      { model: 'surveillance-wall', x: 21, z: -0.16, solid: false },
+      { model: 'security-desk', x: 21, z: 1.12 },
+      { model: 'k-side-table-drawers', x: 19.85, z: 1.15, rot: 1 },
+      { model: 'k-potted-plant', x: 22.2, z: -0.15 },
+      { model: 'intercom', x: 21.75, z: 1.78, solid: false },
+      // L'alcôve : la porte blindée, sa zone de dépôt, le portique de décontamination.
+      { model: 'blast-door', x: 24, z: -0.46, solid: false, interact: tr(
         'La porte blindée ne s\'ouvre qu\'au départ d\'une mission. Derrière, on entend gratter.',
         'The blast door only opens when a mission starts. Something is scratching on the other side.',
       ) },
-      { model: 'drop-zone', x: 24.2, z: 2.55, solid: false },
-      { model: 'bio-sign', x: 22.88, z: 1.67, solid: false, interact: tr(
+      { model: 'drop-zone', x: 24, z: 0.55, solid: false },
+      { model: 'bio-sign', x: 25.15, z: -0.44, solid: false, interact: tr(
         '« Contamination caustique. Tout colis rapporté passe au scanner avant de quitter le sas. »',
         '“Caustic contamination. Every recovered crate is scanned before it leaves the airlock.”',
       ) },
+      { model: 'decon-arch', x: 24, z: 1.55, solid: false, interact: tr(
+        'Portique de décontamination : il balaie tout ce qui revient de la baie. Il a déjà sonné pour une chaussette.',
+        'Decontamination gate: it scans everything coming back from the bay. It once went off for a sock.',
+      ) },
+      // Le mur ouest : le classement, les caméras pour suivre son équipe, le vestiaire.
       { model: 'salvage-board', x: 19.68, z: 3.2, rot: 1, action: tr('Classement', 'Leaderboard') },
-      { model: 'locker-row', x: 19.8, z: 7.2, rot: 1, interact: tr(
+      {
+        model: 'surveillance-wall', x: 19.62, z: 7, rot: 1, action: tr('Caméras', 'Cameras'),
+        interact: [
+          tr('Dix caméras dans la baie de stockage. Sur la trois, quelque chose vient de passer. Ou pas.', 'Ten cameras in the storage bay. On number three, something just walked past. Or not.'),
+          tr('Les caméras filment la baie infestée. En mission, elles suivent l\'équipe.', 'The cameras watch the infested bay. During a mission, they follow the crew.'),
+        ],
+      },
+      { model: 'locker-row', x: 19.8, z: 9.3, rot: 1, interact: tr(
         'Vestiaire du sas : combinaisons, lampes frontales, et un mot scotché : « Dans la baie, ne restez jamais plus de vingt secondes dans un casier. »',
         'Airlock locker room: suits, head torches, and a taped note: “In the bay, never stay in a locker for more than twenty seconds.”',
       ) },
-      { model: 'flare-crate', x: 21.1, z: 7.8, interact: tr(
+      // La table de briefing, et ce qui traîne au sud.
+      { model: 'bay-holo', x: 22.9, z: 8.2, action: tr('Étudier le plan', 'Study the map'), interact: [
+        tr('Le plan de la baie 7. Au nord, le hall de fret et sa passerelle, les bureaux, la serre (violette : éclairée). La grande allée la traverse d\'ouest en est.', 'The map of bay 7. North: the freight hall and its catwalk, the offices, the hydroponics (purple: lit). The main avenue crosses it west to east.'),
+        tr('Au milieu, la salle des machines, l\'aire de stockage et le nid, en vert. Au sud, le quai de chargement éclairé, le sas d\'extraction, et la zone effondrée.', 'In the middle, the machine room, the storage yard and the nest, in green. South, the lit loading dock, the extraction airlock, and the collapsed zone.'),
+        tr('Un écho rouge tourne autour du nid. La légende dit « échos simulés ». La légende ment peut-être.', 'A red echo circles the nest. The legend says “simulated echoes”. The legend may be lying.'),
+      ] },
+      { model: 'flare-crate', x: 24.95, z: 10.05, interact: tr(
         'Des fusées d\'appel rouges. Lancées dans la baie, elles attirent ce qui y rôde pendant quelques secondes.',
         'Red decoy flares. Thrown in the bay, they draw whatever prowls there for a few seconds.',
       ) },
-      { model: 'drums', x: 25, z: 7.9 },
-      { model: 'cables', x: 23.6, z: 7.2, solid: false },
+      { model: 'dock-marking', x: 22.9, z: 8.2, label: '2.4,1.7', solid: false },
+      { model: 'k-low-bench', x: 20.65, z: 9.3, rot: 1 },
+      { model: 'drums', x: 25.05, z: 9.15 },
+      { model: 'cables', x: 21.3, z: 6, solid: false },
+      { model: 'crate', x: 20.3, z: 10.1 },
 
       // --- Hangar, derrière le lobby de la zone thargoïde : le Krait Mk II sur son pad, nez vers le
       // bouclier (à l\'est). Au nord, l\'atelier de Nico, le mécano (cf. src/mechanic.ts) ; au sud,
@@ -656,10 +689,15 @@ export const LEVELS: LevelDef[] = [
       [17.9, 4.6, '#ffb060', 2.2, 'neon'],
       [12.4, 9.7, '#ffb45e', 3.4],
       [14.2, 11.8, '#ff9f5a', 3, 'fire'],
-      // Lobby de la zone thargoïde : lumière froide, gyrophare de la porte blindée, écrans verts.
-      [22.6, 5.6, '#cfe6ff', 2.4],
-      [24.3, 2.5, '#ff3b2f', 2.2, 'neon'],
-      [21.4, 2.6, '#6dff9a', 1.4],
+      // Lobby de la zone thargoïde : lumière froide, gyrophare de la porte blindée, écrans verts
+      // des caméras, le bleu du poste de sécurité, la table de briefing, le portique.
+      [22.6, 4.6, '#cfe6ff', 2.4],
+      [24.2, 0.4, '#ff3b2f', 2.2, 'neon'],
+      [20.4, 7, '#6dff9a', 1.3],
+      [21, 0.4, '#8fd0ff', 1.8],
+      [22.9, 8.2, '#5fd4ff', 1.6],
+      [21.6, 9.6, '#ffd9a0', 1.2, 'neon'],
+      [24, 1.6, '#6dff9a', 1],
       // Hangar : projecteurs blancs aux quatre coins du pad, lueur bleue du bouclier, soudure.
       [28.5, 1.4, '#e6f0ff', 2.6],
       [34.3, 1.4, '#e6f0ff', 2.6],

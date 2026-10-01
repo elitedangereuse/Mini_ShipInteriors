@@ -164,6 +164,74 @@ test('solo : ramasser le colis, le rapporter au sas, gagner et être payé une f
   assert.equal(h.broadcasts.at(-1).data.teams[0].status, 'forming')
 })
 
+test('fin de mission : la note et les chiffres pour l\'équipe, le résultat seul pour le site', async () => {
+  const h = harness()
+  const { members: [a] } = h.team(1)
+  const game = h.launch([a], { parcels: 1, enemies: 1 })
+  game.monsters.length = 0
+  h.arrive(a)
+  h.walk(a, game.zone.cargo[0])
+  h.salvage.handle(a, 'salvage:pickup', { kind: 'cargo', id: 0 })
+  h.walk(a, game.zone.airlock.pad)
+  const end = h.last(1, 'salvage:end')
+  assert.ok(['S', 'A', 'B'].includes(end.grade))
+  assert.equal(end.captures, 0)
+  assert.ok(end.par > 0)
+  assert.deepEqual(end.stats.map((m) => [m.id, m.delivered, m.captured]), [[1, 1, 0]])
+  await new Promise((r) => setImmediate(r))
+  assert.deepEqual(Object.keys(h.rewards[0].result).sort(), ['delivered', 'duration', 'enemies', 'game', 'parcels', 'reason', 'team', 'won'])
+})
+
+test('la ruche s\'agite : un colis livré fait du bruit devant le sas, les ennemis pressent le pas', () => {
+  const h = harness()
+  const { members: [a] } = h.team(1)
+  const game = h.launch([a], { parcels: 2, enemies: 1 })
+  game.monsters.length = 0
+  h.arrive(a)
+  h.walk(a, game.zone.cargo[0])
+  h.salvage.handle(a, 'salvage:pickup', { kind: 'cargo', id: 0 })
+  h.walk(a, game.zone.airlock.pad)
+  assert.equal(h.last(1, 'salvage:event', (e) => e.kind === 'hive')?.level, 1)
+  assert.ok(game.noises.some((n) => n.radius === RULES.noise.lift && !inAirlock(game.zone, n)), 'devant le sas')
+  h.advance(0.1)
+  assert.equal(h.last(1, 'salvage:state').hive, 1)
+})
+
+test('zone éclairée : un ennemi y voit de plus loin qui s\'y tient', () => {
+  const spot = (x, z, mx, lit) => {
+    const h = harness()
+    const { members: [a] } = h.team(1)
+    const game = h.launch([a])
+    h.arrive(a)
+    h.advance(RULES.grace)
+    game.monsters.length = 1
+    Object.assign(game.members.get(1), { x, z })
+    const mon = game.monsters[0]
+    Object.assign(mon, { x: mx, z, yaw: -Math.PI / 2, mode: 'look', timer: 100, path: [] })
+    h.advance(0.1)
+    assert.equal(mon.mode === 'chase', lit, `(${x}, ${z})`)
+  }
+  // À 5,5 tuiles, face à lui : repéré sur le quai éclairé, pas dans le noir de la grande allée.
+  spot(12, 20, 17.5, true)
+  spot(1, 10, 6.5, false)
+})
+
+test('le verre brisé crisse sous les pas, même en marchant', () => {
+  for (let seed = 1; seed < 40; seed++) {
+    const h = harness(seed)
+    const { members: [a] } = h.team(1)
+    const game = h.launch([a])
+    game.monsters.length = 0
+    const i = game.zone.fx.findIndex((f) => f === 1)
+    if (i < 0) continue
+    h.arrive(a)
+    h.walk(a, { x: i % game.zone.width, z: Math.floor(i / game.zone.width) })
+    assert.ok(game.noises.some((n) => n.radius === RULES.noise.glass))
+    return
+  }
+  assert.fail('pas de verre dans la baie')
+})
+
 /** Une mission solo d'un colis, sans ennemi, gagnée d'une traite. */
 async function quickWin(h) {
   const { members: [a] } = h.team(1)

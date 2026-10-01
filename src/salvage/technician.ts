@@ -86,6 +86,10 @@ export interface TechnicianReport {
   parcels: number
   /** Fusées en poche. */
   flares: number
+  /** Le colis au sol le plus proche, sur ses écrans : sa direction (en mots) et sa distance (tuiles). */
+  cargo?: { dir: string; dist: number } | null
+  /** La ruche s'agite (0 à 1). */
+  hive?: number
 }
 
 const pick = <T,>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)]
@@ -116,6 +120,11 @@ const TIPS = [
   tr('Le sas d\'extraction, au sud : ils n\'y entrent pas. C\'est écrit dans le règlement. Eux, ils l\'ont lu.', 'The extraction airlock, to the south: they don\'t go in. It\'s in the rules. They read them.'),
   tr('Le petit bip de votre détecteur, c\'est un colis tout près. Le grand chant grave, c\'est eux. Ne confondez pas.', 'The little beep of your detector is a crate nearby. The deep singing is them. Don\'t mix them up.'),
   tr('Les colis, c\'est lourd. Avec un colis sur le dos, vous traînez. Prévoyez le chemin du retour avant de le ramasser.', 'Crates are heavy. With one on your back, you drag. Plan the way back before you pick it up.'),
+  tr('Sous les projecteurs, on y voit loin. Eux aussi. Traversez la lumière vite, ou pas du tout.', 'Under the floodlights, you see far. So do they. Cross the light fast, or not at all.'),
+  tr('Montez sur la passerelle du hall de fret : de là-haut, on voit par-dessus les conteneurs. Et ils vous voient aussi, hein.', 'Climb the freight hall catwalk: from up there you can see over the containers. And they can see you too, mind.'),
+  tr('Dans la zone effondrée, le sol est couvert de verre. Ça crisse. Ils adorent ce bruit. Regardez où vous mettez les pieds.', 'In the collapsed zone the floor is covered in glass. It crunches. They love that sound. Watch your step.'),
+  tr('Les flaques vertes du nid, ça colle. On y avance comme dans de la purée. Contournez-les, surtout avec un colis.', 'The green puddles in the nest are sticky. Like wading through mash. Go around them, especially with a crate.'),
+  tr('Chaque colis que vous livrez, le monte-charge fait un boucan terrible. Après, ils sont plus nerveux. Gardez le plus proche pour la fin.', 'Every crate you deliver, the cargo lift makes a terrible racket. After that they\'re jumpier. Save the closest one for last.'),
 ]
 
 function reportLines(r: TechnicianReport): string[] {
@@ -134,6 +143,15 @@ function reportLines(r: TechnicianReport): string[] {
   }
   if (r.delivered > 0 && r.delivered < r.parcels) {
     lines.push(tr(`${r.delivered} sur ${r.parcels} ! On y arrive ! Je coche ma liste. Ça me calme, de cocher.`, `${r.delivered} of ${r.parcels}! We\'re getting there! I\'m ticking my list. Ticking calms me down.`))
+  }
+  if (r.cargo && !r.carrying) {
+    lines.push(
+      tr(`Sur mon écran, il y a un colis ${r.cargo.dir}, à ${r.cargo.dist} tuiles d'ici. Enfin je crois. L'écran est gras.`, `On my screen there's a crate ${r.cargo.dir}, ${r.cargo.dist} tiles from here. I think. The screen is greasy.`),
+      tr(`Le détecteur du guichet capte un colis ${r.cargo.dir}. ${r.cargo.dist} tuiles. Ne me remerciez pas, rapportez-le.`, `The desk detector picks up a crate ${r.cargo.dir}. ${r.cargo.dist} tiles. Don't thank me, bring it back.`),
+    )
+  }
+  if ((r.hive ?? 0) > 0) {
+    lines.push(tr('Vous avez entendu ce grondement ? Chaque colis qui remonte les rend fous. Ils courent partout, maintenant.', 'Did you hear that rumble? Every crate that goes up drives them mad. They\'re running everywhere now.'))
   }
   if (!r.flares) lines.push(tr('Pas de fusée ? Il en traîne partout, des caisses entières se sont renversées. Ramassez, ramassez !', 'No flares? They\'re lying everywhere, whole crates got knocked over. Pick them up!'))
   return lines
@@ -159,7 +177,9 @@ export class Technician {
 
   /** Une réplique (pas deux fois la même de suite), selon la mission ; il sursaute en parlant. */
   talk(report: TechnicianReport): string {
-    const pool = [...reportLines(report), ...reportLines(report), ...NERVES, ...TIPS].filter((l) => !this.recent.includes(l))
+    // Ce qu'il voit de la mission (un colis sur ses écrans, un Thargoïde tout près) d'abord, souvent.
+    const news = reportLines(report).filter((l) => !this.recent.includes(l))
+    const pool = news.length && Math.random() < 0.55 ? news : [...news, ...news, ...NERVES, ...TIPS].filter((l) => !this.recent.includes(l))
     const line = pick(pool.length ? pool : NERVES)
     this.recent = [...this.recent, line].slice(-6)
     this.avatar.playEmote(report.danger < 4 ? 'non' : pick(['non', 'oui', 'salut']))

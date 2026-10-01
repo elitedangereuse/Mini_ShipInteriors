@@ -7,11 +7,13 @@ import { wingDoors } from './cabin-wings.js'
 export const SHIP_LAYOUTS = {
   // Cale ; à la poupe, la salle des machines, derrière l'atelier, et cachée derrière elle, le
   // sanctuaire de la Voie. Chez Jacques, le bar clandestin, ne s'ouvre que depuis le fond de la soute. À
-  // l'est de la soute, le lobby de la zone thargoïde (SOC-06), d'où partent les missions ; collé à
-  // lui, le hangar du Krait, ouvert sur l'espace à la proue.
+  // l'est de la soute, le lobby de la zone thargoïde (SOC-06), d'où partent les missions : au nord,
+  // l'alcôve de la porte blindée et, derrière ses vitres, le poste de sécurité de la zone ('t',
+  // verrouillé) ; au sud, le vestiaire et la table de briefing. Collé à lui, le hangar du Krait,
+  // ouvert sur l'espace à la proue.
   '-1': [
-    '                          kkkkkkkkkkkk  ',
-    '            rrrrr         kkkkkkkkkkkk  ',
+    '                    ttthhhkkkkkkkkkkkk  ',
+    '            rrrrr   ttthhhkkkkkkkkkkkk  ',
     '    aaaa    rrrrrgg hhhhhhkkkkkkkkkkkk  ',
     'eeeeaaaa    rrrrr+g hhhhhhkkkkkkkkkkkk  ',
     'eeeeaaaa jjj+rr+rgg hhhhhh+kkkkkkkkkkk  ',
@@ -19,8 +21,8 @@ export const SHIP_LAYOUTS = {
     'eeeeaaaa jjj+mmmm+g hhhhhhkkkkkkkkkkkk  ',
     'eeeeaaaa    mmmmmgg hhhhhhkkkkkkkkkkkk  ',
     'vv+vv       mmmmm+  hhhhhhkkkkkkkkkkkk  ',
-    'vvvvv    bbbbbbbbbb       kkkkkkkkkkkk  ',
-    'vvvvv    bbbbbbbbbb       kkkkkkkkkkkk  ',
+    'vvvvv    bbbbbbbbbb hhhhhhkkkkkkkkkkkk  ',
+    'vvvvv    bbbbbbbbbb hhhhhhkkkkkkkkkkkk  ',
     'vvvvv    bbbbbbbbbb                     ',
     'vvvvv    bbbbbbbbbb                     ',
     '         bbbbbbbbbb                     ',
@@ -78,8 +80,12 @@ export const CLOSED_ROOMS = {
  * applyWings).
  */
 export function shipMapOptions(level) {
-  return { closed: CLOSED_ROOMS[level] ?? '', doors: String(level) === '1' ? wingDoors().map((d) => ({ ...d, locked: true })) : [] }
+  const doors = String(level) === '1' ? wingDoors().map((d) => ({ ...d, locked: true })) : String(level) === '-1' ? [SECURITY_DOOR] : []
+  return { closed: CLOSED_ROOMS[level] ?? '', doors }
 }
+
+/** La porte du poste de sécurité du lobby (cale), côté alcôve : toujours verrouillée. */
+export const SECURITY_DOOR = { x: 22, z: 0, dir: 1, locked: true }
 
 /** Tables de jeux de plateau (pont principal), par jeu : une table par jeu. */
 export const BOARD_TABLES = {
