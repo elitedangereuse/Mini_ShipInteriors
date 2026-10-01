@@ -15,10 +15,10 @@ Une fois les cartes créées, il peut ne garder que la partie « Cible » et les
 - La parcelle est **ouverte** au départ, entourée d'un **champ de force** (celui du hangar,
   `src/shield.ts`). Un mur posé sur le champ de force le remplace.
 - **Sol en tuiles** : on pose un revêtement sur une zone d'une case à plusieurs.
-- **Murs en tuiles** : on pose un type de mur (simple, demi-mur, avec porte, avec hublot, cassé,
-  avec arche) sur les arêtes du quadrillage, puis on applique le papier peint case par case ou
+- **Murs en tuiles** : on pose un type de mur (simple, demi-mur, avec porte, avec hublot, avec
+  arche) sur les arêtes du quadrillage, puis on applique le papier peint case par case ou
   d'un coup. C'est l'actuelle feature des cloisons, étendue à tous les murs.
-- Parcelle de **10 × 10** au départ, **deux agrandissements** à acheter.
+- Parcelle de **10 × 10** au départ, **deux agrandissements** à acheter : 20 × 20, puis 30 × 30.
 - Quartiers **ouverts ou fermés** : ouverts, n'importe quel joueur peut venir les visiter sans
   invitation.
 
@@ -38,8 +38,6 @@ Modèles Kenney utiles (cf. `assets/`) : `Furniture Kit` (`wallHalf`, `wallDoorw
 `wallDoorwayWide`, `wallWindow`, `floorHalf`), `Building Kit` (`wall-half`, `wall-low`,
 `wall-doorway-round` pour l'arche, `wall-window-*`), `Modular Space Kit`
 (`template-wall-half`), `Space Station Kit` (les murs actuels du vaisseau, `wall-door-wide`).
-Le mur cassé n'existe dans aucun kit : à dessiner en code (`src/furniture/kit.ts`) ou à dériver
-d'un mur du kit.
 
 ---
 
@@ -52,7 +50,7 @@ palier d'ascenseur à `LIFT` (10, 5). Le pont n'a que le palier en dur ; la parc
 `lift-ride.ts`), « Vous êtes ici » compris.
 
 **A2. Un pont sans coque.** La coque (`src/hull.ts`) épouse l'union des plans : la parcelle
-(jusqu'à 18 cases) la déformerait. Le pont 2 sort de `footprint()` et reçoit son propre socle
+(jusqu'à 30 cases de côté) la déformerait. Le pont 2 sort de `footprint()` et reçoit son propre socle
 (plateforme sous la bulle, rebord, feux), étoiles tout autour ; vu du pont 1, rien ne change.
 
 **A3. Instancier tout le pont 2.** Aujourd'hui seule la pièce `p` du pont 1 l'est. Côté relais :
@@ -66,12 +64,13 @@ objet de la parcelle, accessible depuis le palier (`holoReachable`).
 **A5. Libérer le pont supérieur.** Retirer la cabine `p`, les trois espaces d'extension et leurs
 portes (`wingDoors`, `shipMapOptions`), l'éclairage réservé aux objets de la cabine, les tâches de
 bord qui y tombent (`economy.json`, entrées `deck: 1`), l'emplacement de Comète si besoin.
-Décider de l'usage de la place (cf. décisions Q2).
+La place libérée devient une pièce vide, « Pièce vierge » (« Blank room »), qu'on aménagera
+plus tard (cf. décisions Q2).
 
 ## Bloc B · La parcelle et sa bulle
 
 **B1. Modèle de parcelle partagé.** Nouveau `shared/housing-plot.js` (+ `.d.ts`, tests) : tailles
-par palier (10, puis cf. décisions Q1), position sur le pont 2 (ancrée du côté du palier, pour que
+par palier (10, 20, 30 ; cf. décisions Q1), position sur le pont 2 (ancrée du côté du palier, pour que
 les coordonnées des objets restent valables quand elle grandit), cases, arêtes intérieures et
 arêtes du périmètre, `applyPlot(map, layout)` qui pose les cases, les murs et les portes sur le
 `ShipMap` (comme `applyWings` / `applyPartitions`). Utilisé par le client, le relais (ligne de
@@ -79,7 +78,8 @@ vue) et à reproduire sur le site.
 
 **B2. Construire la parcelle à la volée.** Équivalent de `WingShell` (`src/cabin/wings.ts`) pour
 toute la parcelle : sol de base, murs posés, portes animées, collisions, pathfinding, fondu des
-murs côté caméra. Relever `MAX_OCCLUDERS` (96) de `view.ts` et vérifier les perfs à 18 × 18.
+murs côté caméra. Relever `MAX_OCCLUDERS` (96) de `view.ts` et vérifier les perfs à 30 × 30 (900 cases : découper la géométrie fusionnée par
+blocs, pour ne reconstruire que le bloc touché).
 
 **B3. La bulle : champ de force sur le périmètre.** Généraliser `src/shield.ts` (un pan sur un
 bord de pont) à une liste d'arêtes : un seul maillage (ou instancié) pour tout le périmètre, coins
@@ -89,8 +89,8 @@ propres, fondu en vue isométrique, collision de mur. Les pylônes deviennent de
 D1) ; le champ de force n'est tendu que sur les arêtes restées libres. Retirer le mur rend le
 champ. Étendre `applyPartitions`, qui exige aujourd'hui deux cases de la même pièce.
 
-**B5. Acheter les agrandissements.** `economy.json` : `plot: [prix 1, prix 2]` à la place de
-`wings` ; `wallet.buyPlot()` (`src/economy/wallet.ts`) ; l'achat et la taille gardée par le site.
+**B5. Acheter les agrandissements.** `economy.json` : `plot: [100000, 250000]` à la place de
+`wings` (cf. décisions Q1) ; `wallet.buyPlot()` (`src/economy/wallet.ts`) ; l'achat et la taille gardée par le site.
 Interface : onglet « Parcelle » du mode aménagement (remplace « Pièces »), aperçu au sol de la
 surface gagnée, le champ de force recule.
 
@@ -111,28 +111,26 @@ annuler / rétablir.
 
 **D1. Tous les murs sont des tuiles.** Les cloisons deviennent l'unique façon de bâtir : plus de
 pièces dessinées en ASCII, plus de murs « d'origine ». Arêtes intérieures et périmètre (B4).
-Limite relevée (48 → de quoi faire le tour d'une parcelle de 18 et la cloisonner, p. ex. 256) dans
+Limite relevée (48 → de quoi faire le tour d'une parcelle de 30, 120 arêtes, et la cloisonner,
+p. ex. 512) dans
 `shared/cabin-partitions.js`, `server/cabin.js`, le site ; bornes de coordonnées élargies au
 pont 2.
 
-**D2. Six types de murs.** Mur simple, demi-mur, mur avec porte (les huit battants actuels restent
-une variante de la porte), mur avec hublot, mur cassé, mur avec arche. Modèles à prendre dans les
-kits Kenney (cf. plus haut), à part le mur cassé (D4). `WALL_KINDS` / `DOOR_KINDS`,
+**D2. Cinq types de murs.** Mur simple, demi-mur, mur avec porte (les huit battants actuels restent
+une variante de la porte), mur avec hublot, mur avec arche. Modèles à prendre dans les kits
+Kenney (cf. plus haut). `WALL_KINDS` / `DOOR_KINDS`,
 `PARTITION_KINDS` (`partitions.ts`).
 
 **D3. Ce que chaque type bloque.** Passage, vue (`shared/sight.js`, tests `server/sight.test.js`)
 et accroche d'objets : le demi-mur bloque le passage mais pas la vue, on peut y poser de petits
-objets ; l'arche et la porte laissent passer ; le mur cassé, cf. décisions Q3.
+objets ; l'arche et la porte laissent passer.
 
-**D4. Le mur cassé.** Modèle fait main : pan du vaisseau éventré, câbles, débris au pied ; tient
-dans le même encadrement que les autres pour les raccords et les poteaux d'angle.
-
-**D5. Papier peint par face.** Chaque face d'un mur a son revêtement (`a` / `b` dans la cloison,
+**D4. Papier peint par face.** Chaque face d'un mur a son revêtement (`a` / `b` dans la cloison,
 indices de la même palette que le sol). Outils : pinceau case par case, toute la pièce (faces
 tournées vers une zone fermée), tous les murs d'un coup, pipette. Le panneau en retrait
-(`PANEL_SPANS` de `view.ts`) à décliner pour les nouveaux types (demi-mur, arche, mur cassé).
+(`PANEL_SPANS` de `view.ts`) à décliner pour les nouveaux types (demi-mur, arche).
 
-**D6. Pièces déduites des murs.** Les règles de pose (`rules.ts`) parlent de « pièces » tirées du
+**D5. Pièces déduites des murs.** Les règles de pose (`rules.ts`) parlent de « pièces » tirées du
 plan ASCII : les déduire des murs (remplissage depuis le palier), garder les règles (pas à cheval
 sur un mur, passage des portes libre, tout accessible depuis le palier, Holo-Me compris).
 Remplacer la limite par pièce (64 / 32) par une limite par parcelle, qui grandit avec elle.
@@ -187,8 +185,8 @@ remboursés en crédits, côté site.
 
 ## Bloc H · Finitions
 
-**H1. Galerie.** `/gallery.html` : les six types de murs, la bulle, une parcelle exemple.
-**H2. Perfs.** Parcelle de 18 × 18 meublée au maximum, sur mobile et en qualité basse.
+**H1. Galerie.** `/gallery.html` : les cinq types de murs, la bulle, une parcelle exemple.
+**H2. Perfs.** Parcelle de 30 × 30 meublée au maximum, sur mobile et en qualité basse.
 **H3. README.** Sections « Quartiers personnalisables », « Le vaisseau », « Architecture »,
 captures.
 
@@ -198,8 +196,8 @@ captures.
 
 1. **Socle** : G1, A1, A3, B1, B2, B3. On prend l'ascenseur, on arrive dans une bulle vide de
    10 × 10.
-2. **Construire** : D1, D2, D3, B4, D6, E1, E2. On pose ses murs, le champ de force recule.
-3. **Habiller** : C1, C2, C3, D5, D4. Sol et papier peint par case.
+2. **Construire** : D1, D2, D3, B4, D5, E1, E2. On pose ses murs, le champ de force recule.
+3. **Habiller** : C1, C2, C3, D4. Sol et papier peint par case.
 4. **Partager** : F1 à F4.
 5. **Basculer** : A4, A5, A2, G2, G3, B5. On quitte l'ancienne cabine, migration, achats.
 6. **Finir** : E3, E4, H1 à H3.
@@ -207,13 +205,20 @@ captures.
 Le lot 5 est le seul qui casse l'existant : jusque-là, l'ancienne cabine reste en place et le
 pont 2 peut rester derrière un drapeau (`?housing-v2`).
 
-## Décisions à prendre
+## Décisions
+
+Prises :
+
+| | Question | Décision |
+|---|---|---|
+| Q1 | Tailles et prix des agrandissements | 10 × 10, puis 20 × 20, puis 30 × 30 ; les prix des extensions actuelles, dans l'ordre : 100 000 puis 250 000 CR |
+| Q2 | Que devient la place libérée sur le pont supérieur ? | Une pièce vide, « Pièce vierge », pour plus tard |
+| Q3 | Mur cassé | Abandonné |
+
+À prendre (propositions) :
 
 | | Question | Proposition |
 |---|---|---|
-| Q1 | Tailles et prix des agrandissements | 10 → 14 → 18 cases de côté ; 250 000 et 750 000 CR |
-| Q2 | Que devient la place libérée sur le pont supérieur ? | Une pièce commune (salon, bibliothèque) ou un pont plus court |
-| Q3 | Le mur cassé laisse-t-il passer ? | Non : décoratif, il laisse voir à travers la brèche mais pas passer |
 | Q4 | Extensions déjà achetées, objets hors de la parcelle | Une extension ou plus = premier agrandissement offert (deux ou trois = les deux) ; objets hors parcelle retirés (ils restent débloqués, à reposer) |
 | Q5 | Fermer ses quartiers pendant une visite | Les visiteurs restent jusqu'à leur départ ; « raccompagner » reste possible |
 | Q6 | Sol sans revêtement | Dalle de base du vaisseau ; pas de vide (on marche partout dans la bulle) |
