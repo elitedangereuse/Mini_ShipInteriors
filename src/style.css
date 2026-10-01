@@ -1125,6 +1125,16 @@ kbd .icon {
   display: grid;
   gap: 6px;
 }
+/* Arrêts du pont des quartiers (housing v2) : les siens, ceux qui sont ouverts ou où l'on est invité. */
+#lift-buttons button.lift-sub {
+  margin-left: 14px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.lift-note {
+  color: var(--muted);
+  font-size: 11px;
+}
 #lift-buttons button,
 .lift-close {
   display: flex;
@@ -2033,6 +2043,11 @@ body.editing .top-left {
 .ed-modes button:disabled {
   opacity: 0.4;
   cursor: default;
+}
+/* Barre des quartiers : bascule ouverts / sur invitation. */
+.cabin-bar .cb-open {
+  border-color: #7dffa8;
+  color: #7dffa8;
 }
 .hb-tools button {
   display: inline-flex;

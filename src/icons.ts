@@ -126,6 +126,7 @@ import knife from '@phosphor-icons/core/bold/knife-bold.svg?raw'
 import bowlSteam from '@phosphor-icons/core/bold/bowl-steam-bold.svg?raw'
 import wrench from '@phosphor-icons/core/bold/wrench-bold.svg?raw'
 import lockSimple from '@phosphor-icons/core/bold/lock-simple-bold.svg?raw'
+import lockSimpleOpen from '@phosphor-icons/core/bold/lock-simple-open-bold.svg?raw'
 import shoppingCart from '@phosphor-icons/core/bold/shopping-cart-bold.svg?raw'
 import minus from '@phosphor-icons/core/bold/minus-bold.svg?raw'
 import plus from '@phosphor-icons/core/bold/plus-bold.svg?raw'
@@ -243,6 +244,7 @@ const SVG = {
   // crédits, boutique, tâches de bord (leurs marqueurs sont dessinés avec, cf. economy/tasks.ts)
   coins,
   'lock-simple': lockSimple,
+  'lock-simple-open': lockSimpleOpen,
   'shopping-cart': shoppingCart,
   minus,
   plus,

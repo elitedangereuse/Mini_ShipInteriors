@@ -9,7 +9,8 @@ import { $, nameTag } from '../ui'
  */
 
 export type CabinBarState =
-  | { kind: 'own'; canEdit: boolean; canInvite: boolean; loginUrl?: string }
+  /** `open` : quartiers ouverts ou sur invitation (housing v2, absent : pas de bascule). */
+  | { kind: 'own'; canEdit: boolean; canInvite: boolean; loginUrl?: string; open?: boolean }
   | { kind: 'visit'; host: string; inside: boolean }
   | null
 
@@ -19,6 +20,8 @@ export class CabinBar {
   onEdit?: () => void
   onInvite?: () => void
   onLeave?: () => void
+  /** Ouvrir ou fermer ses quartiers (housing v2). */
+  onToggleOpen?: () => void
 
   set(state: CabinBarState) {
     const key = JSON.stringify(state)
@@ -49,6 +52,14 @@ export class CabinBar {
       title.append(icon('bed'), document.createTextNode(tr('Vos quartiers', 'Your quarters')))
       actions.append(button(tr('Aménager', 'Decorate'), 'paint-brush', () => this.onEdit?.(), 'B'))
       if (state.canInvite) actions.append(button(tr('Inviter', 'Invite'), 'user-plus', () => this.onInvite?.()))
+      if (state.open !== undefined) {
+        const b = button(state.open ? tr('Ouverts', 'Open') : tr('Sur invitation', 'Invite only'), state.open ? 'lock-simple-open' : 'lock-simple', () => this.onToggleOpen?.())
+        b.classList.toggle('cb-open', state.open)
+        b.title = state.open
+          ? tr('Quartiers ouverts : chacun peut venir les visiter. Cliquer pour les réserver aux invités.', 'Open quarters: anyone can drop by. Click to make them invite-only.')
+          : tr('Quartiers sur invitation. Cliquer pour les ouvrir : chacun pourra venir les visiter.', 'Invite-only quarters. Click to open them: anyone will be able to drop by.')
+        actions.append(b)
+      }
     } else {
       title.append(icon('bed'), document.createTextNode(tr('Vos quartiers', 'Your quarters')))
       const a = document.createElement('a')
@@ -68,6 +79,8 @@ export interface CrewEntry {
   verified?: boolean
   /** free : on peut l'inviter · invited : invitation envoyée · visiting : dans nos quartiers. */
   state: 'free' | 'invited' | 'visiting'
+  /** Ses quartiers sont ouverts (housing v2) : on peut aller les visiter. */
+  open?: boolean
 }
 
 /** Liste des membres d'équipage : les inviter dans ses quartiers, ou raccompagner ses visiteurs. */
@@ -75,6 +88,7 @@ export class InviteMenu {
   private el = $('invite-menu')
   onInvite?: (id: number) => void
   onKick?: (id: number) => void
+  onVisit?: (id: number) => void
 
   get isOpen(): boolean {
     return !this.el.hidden
@@ -125,6 +139,9 @@ export class InviteMenu {
     }
     section(tr('Dans vos quartiers', 'In your quarters'), crew.filter((c) => c.state === 'visiting'), (c) =>
       button(tr('Raccompagner', 'Show out'), 'sign-out', () => this.onKick?.(c.id)),
+    )
+    section(tr('Quartiers ouverts', 'Open quarters'), crew.filter((c) => c.open), (c) =>
+      button(tr('Visiter', 'Visit'), 'door-open', () => this.onVisit?.(c.id)),
     )
     section(tr('Inviter dans vos quartiers', 'Invite to your quarters'), crew.filter((c) => c.state !== 'visiting'), (c) =>
       c.state === 'invited'

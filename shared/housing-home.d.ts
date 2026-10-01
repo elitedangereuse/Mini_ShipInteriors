@@ -16,6 +16,8 @@ export interface HomeWall extends Partition {
 /** Aménagement d'une parcelle, format 2. */
 export interface HomeLayout {
   v: 2
+  /** Quartiers ouverts : on y entre sans invitation. */
+  open?: true
   walls?: HomeWall[]
   papers?: HomeFinish[]
   floor?: { palette: HomeFinish[]; cells: string }
@@ -29,6 +31,8 @@ export interface PlanWall extends Partition {
 
 /** Plan d'une parcelle, commode à modifier : murs, et revêtement de chaque case (null : dalle nue). */
 export interface HomePlan {
+  /** Quartiers ouverts : on y entre sans invitation. */
+  open?: boolean
   walls: PlanWall[]
   floor: (HomeFinish | null)[]
 }

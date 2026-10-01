@@ -44,7 +44,8 @@
 // shared/housing-plot.js), tout le pont est instancié : chacun y est dans sa bulle. Un CMDR vérifié envoie l'aménagement des
 // siens (cf. cabin.js), et peut inviter un joueur connecté : celui-ci n'y entre qu'avec une
 // invitation, reçoit l'aménagement, puis chacun de ses changements. L'hôte peut raccompagner un
-// visiteur ; s'il quitte le vaisseau, ses visiteurs rentrent chez eux.
+// visiteur ; s'il quitte le vaisseau, ses visiteurs rentrent chez eux. Des quartiers ouverts
+// (housing v2) se visitent sans invitation ; les fermer ne met pas dehors ceux qui y sont.
 //
 // Base au sol (cf. shared/ground-base.js) : on y descend en Krait depuis le hangar. C'est un lieu
 // commun, comme un pont. Ada, la cheffe de la base, y fait sa ronde sur une horloge que le relais
@@ -442,7 +443,7 @@ export function attachRelay(
 
   /** Position et animation d'un joueur, avec sa pose s'il est installé sur un meuble. */
   const motion = (p) => ({ x: p.x, z: p.z, yaw: p.yaw, level: p.level, anim: p.anim, ...(p.pose ? { pose: p.pose, py: p.py } : {}) })
-  const publicState = (p) => ({ id: p.id, name: p.name, verified: p.verified, skin: p.skin, ...motion(p), cabin: p.cabin })
+  const publicState = (p) => ({ id: p.id, name: p.name, verified: p.verified, skin: p.skin, ...motion(p), cabin: p.cabin, ...(p.open ? { open: true } : {}) })
   const playerById = (id) => {
     const socket = sockets.get(id)
     return socket ? players.get(socket.id) : undefined
@@ -532,6 +533,8 @@ export function attachRelay(
       // Instance des quartiers : les siens (id du joueur qui reçoit), son aménagement, ses invitations.
       cabin: 0,
       layout: null,
+      // Quartiers ouverts (housing v2, cf. shared/housing-home.js) : on y entre sans invitation.
+      open: false,
       invited: new Map(), // id de l'invité -> fin de validité
       boardKey: null,
       // Cookie du site (lui seul) : le relais le présente au site pour payer une mission gagnée.
@@ -925,6 +928,12 @@ export function attachRelay(
       for (const p of players.values()) {
         if (p !== player && p.cabin === player.id) sockets.get(p.id)?.emit('cabin', { id: player.id, layout })
       }
+      // Quartiers ouverts (housing v2) : tout le bord l'apprend. Les fermer ne met personne dehors.
+      const open = layout.home?.open === true
+      if (open !== player.open) {
+        player.open = open
+        io.emit('open', { id: player.id, open })
+      }
     })
 
     // Invitation dans ses quartiers (CMDR vérifiés seulement), valable une minute. L'hôte apprend
@@ -949,14 +958,15 @@ export function attachRelay(
       sockets.get(host.id)?.emit('decline', { id: player.id, name: player.name })
     })
 
-    // Entrer dans les quartiers d'un hôte (sur invitation), ou rentrer chez soi (host absent).
+    // Entrer dans les quartiers d'un hôte (sur invitation, ou sans s'ils sont ouverts), ou rentrer
+    // chez soi (host absent).
     socket.on('visit', (raw) => {
       const hostId = obj(raw).host
       if (hostId === null || hostId === undefined || hostId === player.id) return moveTo(player, player.id)
       const host = playerById(hostId)
       const until = host?.invited.get(player.id) ?? 0
-      if (!host || until < Date.now()) {
-        // Invitation expirée ou inconnue : le client apprend qu'il reste où il est.
+      if (!host || (until < Date.now() && !host.open)) {
+        // Invitation expirée ou inconnue, quartiers fermés : le client apprend qu'il reste où il est.
         return socket.emit('visit', { id: player.id, cabin: player.cabin, expired: true })
       }
       host.invited.delete(player.id)

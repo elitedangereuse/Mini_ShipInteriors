@@ -140,3 +140,12 @@ test('revêtements : cases encodées par plages, palettes compactées, mal form�
   assert.deepEqual(messy.papers, [paint])
   assert.deepEqual(messy.floor, { palette: [tiles], cells: `.1a1.${CELLS - 2}` })
 })
+
+test('quartiers ouverts : gardés avec la parcelle, seulement s\'ils le sont vraiment', async () => {
+  const { packHome, unpackHome, sanitizeHome: clean } = await import('../shared/housing-home.js')
+  assert.deepEqual(clean({ v: 2, open: true }), { v: 2, open: true })
+  assert.deepEqual(clean({ v: 2, open: 'oui' }), { v: 2 })
+  assert.equal(unpackHome({ v: 2, open: true }).open, true)
+  assert.equal(unpackHome({ v: 2 }).open, undefined)
+  assert.deepEqual(packHome({ ...unpackHome({ v: 2 }), open: false }), { v: 2 })
+})

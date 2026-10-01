@@ -181,6 +181,7 @@ parcelle est gardée dans le navigateur (`src/housing/storage.ts`). Ce que le si
 et rendre, dans le champ `home` de l'aménagement (le plus simple : porter `sanitizeHome` tel quel) :
 
 - `v` vaut 2, sinon le champ est ignoré ;
+- `open` : `true` si les quartiers sont ouverts (on y entre sans invitation), absent sinon ;
 - `walls` : 512 murs au plus, chacun `{ x, z, e, k?, a?, b? }`, `x` et `z` entiers, `x` entre 11
   et 41, `z` entre -1 et 29, `e` vaut `v` ou `h` ; une arête en double n'est gardée qu'une fois,
   la dernière ;
@@ -220,7 +221,10 @@ captures.
    champ de force recule. D5 en partie : une partie coupée de l'ascenseur est signalée (« ajoutez
    une porte ») sans bloquer, le reste (règles de pose des meubles) vient avec le mobilier.
 3. **Habiller** (fait) : C1, C2, C3, D4. Sol et papier peint par case.
-4. **Partager** : F1 à F4.
+4. **Partager** (fait) : F1 à F4. Quartiers ouverts ou sur invitation (barre des quartiers), visite
+   sans invitation des quartiers ouverts, à l'ascenseur (« Mes quartiers », « Chez … ») et depuis la
+   liste de l'équipage ; invitations, retour et raccompagnement arrivent et repartent du palier.
+   Fermer pendant une visite laisse les visiteurs (proposition Q5, appliquée en attendant votre avis).
 5. **Basculer** : A4, A5, D5, G2, G3, B5. On quitte l'ancienne cabine, migration, achats.
 6. **Finir** : E3, E4, H1 à H3.
 
@@ -242,6 +246,6 @@ Prises :
 | | Question | Proposition |
 |---|---|---|
 | Q4 | Extensions déjà achetées, objets hors de la parcelle | Une extension ou plus = premier agrandissement offert (deux ou trois = les deux) ; objets hors parcelle retirés (ils restent débloqués, à reposer) |
-| Q5 | Fermer ses quartiers pendant une visite | Les visiteurs restent jusqu'à leur départ ; « raccompagner » reste possible |
+| Q5 | Fermer ses quartiers pendant une visite | Les visiteurs restent jusqu'à leur départ ; « raccompagner » reste possible (appliqué au lot 4) |
 | Q6 | Sol sans revêtement | Dalle de base du vaisseau ; pas de vide (on marche partout dans la bulle) |
 | Q7 | Murs et revêtements payants ? | Gratuits, comme les cloisons et les revêtements aujourd'hui |

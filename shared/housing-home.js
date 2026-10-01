@@ -3,6 +3,7 @@
 // chaque case du sol ; le mobilier suivra.
 //
 //   { v: 2,
+//     open?: true,                              // quartiers ouverts : on y entre sans invitation
 //     walls?: [{ x, z, e, k?, a?, b? }],        // a, b : papier peint des deux faces (index dans papers)
 //     papers?: [{ style, color }],              // 16 au plus
 //     floor?: { palette: [{ style, color }],    // 16 au plus
@@ -150,7 +151,7 @@ export function unpackHome(raw) {
   const palette = home?.floor?.palette ?? []
   const cells = decodeCells(home?.floor?.cells)
   const floor = [...cells].map((c) => (c === BARE ? null : { ...palette[LETTERS.indexOf(c)] }))
-  return { walls, floor }
+  return { walls, floor, ...(home?.open ? { open: true } : {}) }
 }
 
 /** Nombre de revêtements différents du sol et du papier peint d'un plan (16 au plus chacun). */
@@ -167,6 +168,7 @@ export function finishCounts(plan) {
  */
 export function packHome(plan) {
   const home = { v: HOME_FORMAT }
+  if (plan.open) home.open = true
   const papers = new Map()
   const paperOf = (f) => {
     const key = finishKey(f)
@@ -219,7 +221,7 @@ export function sanitizeHome(raw) {
   const palette = raw.floor && typeof raw.floor === 'object' && Array.isArray(raw.floor.palette) ? raw.floor.palette.slice(0, MAX_FINISHES).map(sanitizeFinish) : []
   const cells = decodeCells(raw.floor?.cells)
   const floor = [...cells].map((c) => (c === BARE ? null : palette[LETTERS.indexOf(c)] ?? null))
-  return packHome({ walls, floor })
+  return packHome({ walls, floor, open: raw.open === true })
 }
 
 /**

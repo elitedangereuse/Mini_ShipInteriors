@@ -932,6 +932,40 @@ describe('quartiers', () => {
     assert.deepEqual(await left, { id: wg.id, cabin: wg.id })
   })
 
+  test('des quartiers ouverts se visitent sans invitation ; fermés, il en faut une, mais on n\'est pas mis dehors', async () => {
+    const { host, wh, guest, wg } = await hostAndGuest()
+    // Fermés (par défaut) : la visite est refusée.
+    const refused = next(guest, 'visit', (m) => m.id === wg.id)
+    guest.emit('visit', { host: wh.id })
+    assert.deepEqual(await refused, { id: wg.id, cabin: wg.id, expired: true })
+
+    // Ouverts : tout le bord l'apprend, un nouveau venu aussi.
+    const home = { v: 2, open: true, walls: [{ x: PLOT_ORIGIN.x + 2, z: PLOT_ORIGIN.z + 2, e: 'v' }] }
+    const opened = next(guest, 'open')
+    host.emit('cabin', { layout: { ...LAYOUT, home } })
+    assert.deepEqual(await opened, { id: wh.id, open: true })
+    const late = client({ auth: { name: 'CMDR Tardif' } })
+    const wl = await welcome(late)
+    assert.equal(wl.players.find((p) => p.id === wh.id).open, true)
+
+    // On y entre sans invitation, aménagement compris.
+    const layout = next(guest, 'cabin')
+    const entered = next(host, 'visit', (m) => m.id === wg.id)
+    guest.emit('visit', { host: wh.id })
+    assert.deepEqual((await layout).layout.home, home)
+    assert.deepEqual(await entered, { id: wg.id, cabin: wh.id })
+
+    // Refermés : le visiteur reste, mais un autre ne peut plus entrer.
+    const closed = next(guest, 'open')
+    const stays = receives(guest, 'visit')
+    host.emit('cabin', { layout: { ...LAYOUT, home: { v: 2 } } })
+    assert.deepEqual(await closed, { id: wh.id, open: false })
+    assert.equal(await stays, false)
+    const shut = next(late, 'visit', (m) => m.id === wl.id)
+    late.emit('visit', { host: wh.id })
+    assert.deepEqual(await shut, { id: wl.id, cabin: wl.id, expired: true })
+  })
+
   test('un visiteur voit les cartes possédées, sans recevoir une décoration usurpée', async () => {
     const { host, wh, guest, wg } = await hostAndGuest()
     host.emit('cabin', { layout: LAYOUT })

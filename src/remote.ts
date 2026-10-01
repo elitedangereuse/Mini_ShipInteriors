@@ -16,6 +16,8 @@ export class RemotePlayer {
   level: number
   /** Instance des quartiers où il se trouve (id du joueur qui reçoit). */
   cabin: number
+  /** Ses quartiers sont ouverts (housing v2) : on y entre sans invitation. */
+  open: boolean
   /** Pose tenue sur un meuble (assis, couché, à une borne…), ou null. */
   pose: PoseId | null = null
   /** Position visée (celle que le joueur a envoyée), hauteur de la pose comprise. */
@@ -37,6 +39,7 @@ export class RemotePlayer {
     this.skin = s.skin
     this.level = s.level
     this.cabin = s.cabin ?? id
+    this.open = !!s.open
     this.apply(s)
     this.group.position.copy(this.target)
     void this.load()
