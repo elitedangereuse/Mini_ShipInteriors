@@ -182,7 +182,7 @@ en murs posés, revêtements par pièce en revêtements par case et par face, cl
 à la lecture côté client, et une fois pour toutes sur le site. Ce qui ne tient pas dans 10 × 10 :
 cf. décisions Q4.
 
-**G3. Achats d'extensions déjà faits.** Cf. décisions D4 : convertis en agrandissements ou
+**G3. Achats d'extensions déjà faits.** Cf. décisions Q4 : convertis en agrandissements ou
 remboursés en crédits, côté site.
 
 ## Bloc H · Finitions
@@ -214,7 +214,7 @@ pont 2 peut rester derrière un drapeau (`?housing-v2`).
 | Q1 | Tailles et prix des agrandissements | 10 → 14 → 18 cases de côté ; 250 000 et 750 000 CR |
 | Q2 | Que devient la place libérée sur le pont supérieur ? | Une pièce commune (salon, bibliothèque) ou un pont plus court |
 | Q3 | Le mur cassé laisse-t-il passer ? | Non : décoratif, il laisse voir à travers la brèche mais pas passer |
-| Q4 | Extensions déjà achetées, objets hors de la parcelle | Une extension ou plus = premier agrandissement offert (deux ou trois = les deux) ; objets hors parcelle remis à l'inventaire (toujours débloqués) |
+| Q4 | Extensions déjà achetées, objets hors de la parcelle | Une extension ou plus = premier agrandissement offert (deux ou trois = les deux) ; objets hors parcelle retirés (ils restent débloqués, à reposer) |
 | Q5 | Fermer ses quartiers pendant une visite | Les visiteurs restent jusqu'à leur départ ; « raccompagner » reste possible |
 | Q6 | Sol sans revêtement | Dalle de base du vaisseau ; pas de vide (on marche partout dans la bulle) |
 | Q7 | Murs et revêtements payants ? | Gratuits, comme les cloisons et les revêtements aujourd'hui |
