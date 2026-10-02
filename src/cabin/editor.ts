@@ -9,9 +9,9 @@ import type { Rot } from '../levels'
 import { DIRS } from '../map'
 import { $ } from '../ui'
 import { CATALOG, CATEGORIES, entryOf, joinVariant, splitVariant, type CatalogEntry, type CategoryId } from './catalog'
-import { drawFinish, stylesOf, styleOf, type Slot } from './finishes'
+import { paintThumb, stylesOf, styleOf, type Slot } from './finishes'
 import { cloneItems, cloneLayout, cloneWings, DEFAULT_CABIN, defaultLayout, ROOM_ITEMS, sameItems, sameLayout, WING_ITEMS, wingShapes, type CabinItem, type CabinLayout, type CabinWings, type Finish, type Partition } from './layout'
-import { kindOf, PARTITION_KINDS, partitionCenter } from './partitions'
+import { drawPartition, kindOf, PARTITION_KINDS, partitionCenter } from './partitions'
 import { hangingOn, partitionRefusal, refusal, ridersOf, surfacesOf, type Surface } from './rules'
 import { isDoor, MAX_PARTITIONS, partitionKey } from '../../shared/cabin-partitions.js'
 import { thumbnail } from './thumbs'
@@ -64,6 +64,11 @@ export interface EditorHost {
   wallet: Wallet
   /** Position du joueur : l'onglet « Murs et sol » s'ouvre sur la pièce où il se trouve. */
   player: THREE.Vector3
+  /**
+   * Sur la parcelle du pont des quartiers (housing v2) : murs, revêtements et taille se règlent en
+   * mode construction (cf. housing/builder.ts) ; l'onglet « Construction » y passe.
+   */
+  build?: () => void
 }
 
 /** Objet en main : un objet de la cabine qu'on déplace, ou un nouvel objet du catalogue. */
@@ -287,12 +292,22 @@ export class CabinEditor {
       ['partitions', tr('Cloisons', 'Partitions'), 'wall'], ['rooms', tr('Pièces', 'Rooms'), 'grid-four'],
     ] as const
     for (const [mode, label, glyph] of MODES) {
+      // Sur la parcelle, seuls les meubles se posent ici.
+      if (host.build && mode !== 'objects') continue
       const b = document.createElement('button')
       b.dataset.mode = mode
       b.title = label
       b.append(icon(glyph), document.createTextNode(label))
       b.onclick = () => (mode === 'finish' ? this.showFinishes(true) : mode === 'rooms' ? this.showRooms() : mode === 'partitions' ? this.showPartitions() : this.showCategory(this.category))
       this.modes.appendChild(b)
+    }
+    if (host.build) {
+      const b = document.createElement('button')
+      b.title = tr('Construction : murs, papier peint, sol', 'Building: walls, wallpaper, floor')
+      b.append(icon('wall'), document.createTextNode(tr('Construction', 'Building')))
+      b.onclick = () => host.build?.()
+      this.modes.appendChild(b)
+      this.resetBtn.hidden = true
     }
     this.tabs = document.createElement('div')
     this.tabs.className = 'ed-tabs'
@@ -501,8 +516,9 @@ export class CabinEditor {
     return layout
   }
 
-  /** Objets au plus : les quartiers, et chaque pièce d'extension. */
+  /** Objets au plus : les quartiers, et chaque pièce d'extension ; sur la parcelle, selon sa taille. */
   private get capacity(): number {
+    if (this.view.def.home) return this.view.roomCap('main')
     return ROOM_ITEMS + WING_ITEMS * Object.keys(this.wings ?? {}).length
   }
 
@@ -1978,140 +1994,5 @@ function drawPattern(canvas: HTMLCanvasElement, id: PatternId) {
     const ex = cx + (d.dir === 1 ? cell / 2 : d.dir === 3 ? -cell / 2 : 0), ez = cz + (d.dir === 2 ? cell / 2 : d.dir === 0 ? -cell / 2 : 0)
     if (vertical) g.fillRect(ex - 2, ez - cell * 0.3, 4, cell * 0.6)
     else g.fillRect(ex - cell * 0.3, ez - 2, cell * 0.6, 4)
-  }
-}
-
-// ---------------------------------------------------------------- vignettes des revêtements
-
-const offscreen = document.createElement('canvas')
-const thumbs = new Map<string, HTMLCanvasElement>()
-
-/**
- * Dessine la vignette d'un revêtement dans `canvas` (THUMB × THUMB) : un pan de mur de 1 m de
- * haut (bandeaux du kit en bas et en haut, motif entre les deux) ou 0,8 m de sol, à l'échelle.
- * Sans revêtement : l'allure d'origine du vaisseau.
- */
-function paintThumb(canvas: HTMLCanvasElement, slot: Slot, finish: Finish | undefined) {
-  const key = finish ? `${slot}:${finish.style}:${finish.color}` : `${slot}:${ORIGIN}`
-  let src = thumbs.get(key)
-  if (!src) {
-    src = document.createElement('canvas')
-    src.width = src.height = THUMB
-    const g = src.getContext('2d')!
-    const style = finish && drawFinish(offscreen, slot, finish)
-    if (style) {
-      const pattern = g.createPattern(offscreen, 'repeat')!
-      const k = (THUMB / (slot === 'wall' ? 1 : 0.8)) * (style.size / offscreen.width)
-      pattern.setTransform(new DOMMatrix().scale(k, k))
-      g.fillStyle = pattern
-    } else g.fillStyle = slot === 'wall' ? '#efe6d6' : '#d9d3de'
-    g.fillRect(0, 0, THUMB, THUMB)
-    if (slot === 'wall') {
-      // Bandeaux du kit : plein en bas (0 à 0,2), chanfrein puis plein en haut (0,7 à 1).
-      g.fillStyle = '#e4d8c2'
-      g.fillRect(0, THUMB * 0.8, THUMB, THUMB * 0.2)
-      g.fillRect(0, 0, THUMB, THUMB * 0.2)
-      g.fillStyle = '#d6c7ad'
-      g.fillRect(0, THUMB * 0.2, THUMB, THUMB * 0.1)
-    } else if (!style) {
-      g.strokeStyle = '#c3bccb'
-      g.lineWidth = 3
-      g.strokeRect(THUMB * 0.1, THUMB * 0.1, THUMB * 0.8, THUMB * 0.8)
-    }
-    if (thumbs.size > 200) thumbs.delete(thumbs.keys().next().value!)
-    thumbs.set(key, src)
-  }
-  canvas.getContext('2d')!.drawImage(src, 0, 0)
-}
-
-// ---------------------------------------------------------------- vignettes des cloisons
-
-/**
- * Vignette d'une cloison vue de face : un pan de mur du vaisseau, son hublot, ou l'encadrement
- * d'une porte et son battant ; la gomme, une cloison barrée.
- */
-function drawPartition(canvas: HTMLCanvasElement, kind: string) {
-  const g = canvas.getContext('2d')!
-  const W = canvas.width, H = canvas.height
-  g.clearRect(0, 0, W, H)
-  const wall = '#c9ccd6', band = '#9aa0ae', dark = '#2a2e36'
-  const x0 = W * 0.12, x1 = W * 0.88, y0 = H * 0.14, y1 = H * 0.9
-  g.fillStyle = wall
-  g.fillRect(x0, y0, x1 - x0, y1 - y0)
-  g.fillStyle = band
-  g.fillRect(x0, y1 - H * 0.12, x1 - x0, H * 0.12)
-  g.fillRect(x0, y0, x1 - x0, H * 0.08)
-  const ox0 = W * 0.33, ox1 = W * 0.67, oy = y0 + (y1 - y0) * 0.3
-  const rect = (x: number, y: number, w: number, h: number, c: string) => {
-    g.fillStyle = c
-    g.fillRect(x, y, w, h)
-  }
-  if (kind === 'window') {
-    g.fillStyle = dark
-    g.beginPath()
-    g.arc(W / 2, H * 0.48, W * 0.16, 0, Math.PI * 2)
-    g.fill()
-    g.fillStyle = '#6fd8ff'
-    g.beginPath()
-    g.arc(W / 2, H * 0.48, W * 0.12, 0, Math.PI * 2)
-    g.fill()
-    return
-  }
-  if (kind === 'wall') return
-  if (kind === ERASE) {
-    g.strokeStyle = '#ff4f5e'
-    g.lineWidth = W * 0.08
-    g.beginPath()
-    g.moveTo(W * 0.2, H * 0.2)
-    g.lineTo(W * 0.8, H * 0.82)
-    g.stroke()
-    return
-  }
-  // Ouverture de porte, et son battant.
-  rect(ox0, oy, ox1 - ox0, y1 - oy, '#1b1e26')
-  const w = ox1 - ox0, h = y1 - oy
-  switch (kind) {
-    case 'sliding':
-      rect(ox0 + w * 0.08, oy + 2, w * 0.84, h - 2, '#8f96a3')
-      rect(ox0 + w * 0.46, oy + h * 0.2, w * 0.08, h * 0.5, '#ff8a1c')
-      break
-    case 'wood':
-      rect(ox0 + 2, oy + 2, w - 4, h - 2, '#8a5a3a')
-      for (const [fx, fy] of [[0.12, 0.08], [0.56, 0.08], [0.12, 0.55], [0.56, 0.55]]) rect(ox0 + w * fx, oy + h * fy, w * 0.32, h * 0.38, '#5e3a24')
-      rect(ox0 + w * 0.8, oy + h * 0.48, w * 0.1, w * 0.1, '#c9a24a')
-      break
-    case 'saloon':
-      rect(ox0 + 2, oy + h * 0.25, w / 2 - 3, h * 0.45, '#8a5a3a')
-      rect(ox0 + w / 2 + 1, oy + h * 0.25, w / 2 - 3, h * 0.45, '#8a5a3a')
-      break
-    case 'airlock':
-      rect(ox0, oy, w, h / 2 - 1, '#5b626e')
-      rect(ox0, oy + h / 2 + 1, w, h / 2 - 1, '#5b626e')
-      for (let i = 0; i < 4; i++) rect(ox0 + (i * w) / 4, oy + h / 2 - 5, w / 8, 10, '#e9a917')
-      break
-    case 'shoji':
-      rect(ox0 + 2, oy + 2, w - 4, h - 2, '#f3ead2')
-      g.strokeStyle = '#b98a52'
-      g.lineWidth = 2
-      for (let i = 1; i < 3; i++) g.strokeRect(ox0 + 2, oy + 2, ((w - 4) * i) / 3, h - 2)
-      for (let i = 1; i < 5; i++) rect(ox0 + 2, oy + (i * h) / 5, w - 4, 2, '#b98a52')
-      break
-    case 'glass':
-      rect(ox0 + 2, oy + 2, w - 4, h - 2, '#b9c1cc')
-      rect(ox0 + 6, oy + 6, w - 12, h - 10, '#9fdcf0')
-      break
-    case 'beads':
-      for (let i = 0; i < 6; i++) {
-        for (let k = 0; k < 7; k++) rect(ox0 + 4 + (i * (w - 8)) / 5 - 2, oy + 4 + (k * (h - 8)) / 7, 4, 4, ['#ff6a5a', '#ffd23c', '#6ad8ff', '#ff6ad5'][(i + k) % 4])
-      }
-      break
-    case 'arch':
-      g.fillStyle = wall
-      g.fillRect(ox0, oy, w, w / 2)
-      g.fillStyle = '#1b1e26'
-      g.beginPath()
-      g.arc(W / 2, oy + w / 2, w / 2, Math.PI, 0)
-      g.fill()
-      break
   }
 }

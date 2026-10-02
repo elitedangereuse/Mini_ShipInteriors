@@ -1125,6 +1125,16 @@ kbd .icon {
   display: grid;
   gap: 6px;
 }
+/* Arrêts du pont des quartiers (housing v2) : les siens, ceux qui sont ouverts ou où l'on est invité. */
+#lift-buttons button.lift-sub {
+  margin-left: 14px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.lift-note {
+  color: var(--muted);
+  font-size: 11px;
+}
 #lift-buttons button,
 .lift-close {
   display: flex;
@@ -2028,6 +2038,49 @@ body.editing .top-left {
   color: var(--cyan);
   border-color: var(--cyan);
   background: rgba(89, 216, 255, 0.14);
+}
+/* Mode construction de la parcelle (housing v2) : onglets à venir, outils, types de murs. */
+.ed-modes button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+/* Barre des quartiers : bascule ouverts / sur invitation. */
+.cabin-bar .cb-open {
+  border-color: #7dffa8;
+  color: #7dffa8;
+}
+.hb-tools button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.hb-tools .icon {
+  font-size: 14px;
+}
+/* Curseur de la manette, en mode construction. */
+.hb-cursor {
+  position: fixed;
+  left: -11px;
+  top: -11px;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--cyan);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  z-index: 30;
+}
+.hb-cursor::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  width: 2px;
+  height: 2px;
+  background: var(--cyan);
+}
+.ed-finish.dim {
+  opacity: 0.45;
 }
 /* Pièces : les trois espaces d'extension, leur prix ou leurs formes de plan. */
 .ed-rooms-intro {

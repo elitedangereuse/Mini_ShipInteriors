@@ -35,7 +35,7 @@ interface Reply {
   balance?: number
   earned?: number
   owned?: number
-  wallet?: { balance?: unknown; items?: unknown; skins?: unknown; wings?: unknown; tasks?: unknown } | null
+  wallet?: { balance?: unknown; items?: unknown; skins?: unknown; wings?: unknown; plot?: unknown; tasks?: unknown } | null
 }
 
 /** Délais des nouveaux essais quand le site ne répond pas (en secondes), puis le dernier en boucle. */
@@ -56,6 +56,8 @@ export class Wallet {
   readonly skins = new Set<string>()
   /** Espaces d'extension des quartiers débloqués (cf. shared/cabin-wings.js). */
   readonly wings = new Set<WingId>()
+  /** Agrandissements de la parcelle achetés (housing v2) : 0, 1 ou 2. */
+  plot = 0
   /** Dernière apparition réglée de chaque emplacement de tâche (cf. schedule.ts). */
   readonly tasks = new Map<string, number>()
   /** Des crédits viennent d'être gagnés (le solde est déjà à jour). */
@@ -120,6 +122,7 @@ export class Wallet {
     for (const s of Array.isArray(w.skins) ? w.skins : []) if (typeof s === 'string') this.skins.add(s)
     this.wings.clear()
     for (const id of Array.isArray(w.wings) ? w.wings : []) if (id === 'left' || id === 'middle' || id === 'right') this.wings.add(id)
+    this.plot = Number.isInteger(w.plot) ? Math.max(0, Math.min(2, w.plot as number)) : 0
     for (const [spot, cycle] of Object.entries((w.tasks as Record<string, unknown>) ?? {})) {
       // Une tâche réglée pendant la réponse (un autre onglet) : on garde la plus récente.
       if (Number.isInteger(cycle)) this.tasks.set(spot, Math.max(this.tasks.get(spot) ?? -1, cycle as number))
@@ -215,6 +218,11 @@ export class Wallet {
   /** Débloque un espace d'extension des quartiers (son prix dépend du nombre déjà débloqué). */
   buyWing(id: WingId): Promise<Outcome> {
     return this.buy({ wing: id }, () => this.wings.add(id))
+  }
+
+  /** Agrandissement de la parcelle jusqu'au palier `stage` (housing v2 ; le site doit le connaître). */
+  buyPlot(stage: number): Promise<Outcome> {
+    return this.buy({ plot: stage }, () => (this.plot = Math.max(this.plot, stage)))
   }
 
   /** Cocktail consommable : le site débite le verre, sans l'ajouter aux objets possédés. */

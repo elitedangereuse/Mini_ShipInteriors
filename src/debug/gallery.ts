@@ -13,6 +13,8 @@
 // Avec ?mechanic : Nico, le mécano du hangar, et le Mini Character dont il est fait (mêmes options que ?nurse).
 // Avec ?nurse : Betty, l'infirmière, à côté du modèle d'origine (&walk : en marche ; &emote=interact ;
 // &cam=0,0.3,1&target=0,0.1,0&zoom=0.5 : de face, de près).
+// Avec ?parcelle : la parcelle du pont des quartiers (housing v2) : les types de murs et de portes,
+// des papiers peints et des sols, trois plans tout faits, sous la bulle (&zoom=15 par défaut).
 // Avec ?holo : les styles du Holo-Me (cf. src/holo-style.ts) : &looks=human.female.b.mo-pk-sm--,… (par
 // défaut : chaque coupe sur un même modèle), &style=--sm-- : ce style sur toutes, &play=joie : une emote
 // en boucle (son expression). window.snap() rend l'image (PNG en data URL).
@@ -31,6 +33,12 @@ import { nurseRig } from '../nurse'
 import { mechanicRig } from '../mechanic'
 import { Plasters } from '../infirmary'
 import { HAIR_STYLES } from '../../shared/look-style.js'
+import { Deck } from '../deck'
+import { QUARTERS_DECK } from '../levels'
+import { PARTITION_KINDS } from '../cabin/partitions'
+import { cellIndex, CELLS, type HomePlan, type PlanWall } from '../../shared/housing-home.js'
+import { PLOT_ORIGIN, plotRect } from '../../shared/housing-plot.js'
+import { placeTemplate, templateOf, templateSize } from '../../shared/housing-templates.js'
 
 const renderer = new THREE.WebGLRenderer({ antialias: true })
 renderer.setSize(innerWidth, innerHeight)
@@ -45,7 +53,7 @@ scene.add(sun)
 
 const params = new URLSearchParams(location.search)
 const COLS = +(params.get('cols') ?? 8)
-const ZOOM = +(params.get('zoom') ?? 12)
+const ZOOM = +(params.get('zoom') ?? (params.has('parcelle') ? 15 : 12))
 const aspect = innerWidth / innerHeight
 const cam = new THREE.OrthographicCamera(-ZOOM * aspect, ZOOM * aspect, ZOOM, -ZOOM, -100, 100)
 cam.position.set(params.has('back') ? -1 : 1, 1, params.has('back') ? -1 : 1).multiplyScalar(20)
@@ -89,6 +97,7 @@ else if (params.has('mechanic')) await showNurse(true)
 else if (params.has('emote')) await showEmote(params.get('emote')!)
 else if (params.has('thargoid')) await showThargoid()
 else if (params.has('holo')) await showHolo()
+else if (params.has('parcelle')) showPlot()
 else showModels()
 
 /** Styles du Holo-Me côte à côte, en grille. */
@@ -408,6 +417,57 @@ function showModels() {
     for (const u of updates) u(t)
     renderer.render(scene, cam)
     if (updates.length) requestAnimationFrame(frame)
+  }
+  frame()
+}
+
+/**
+ * La parcelle du pont des quartiers, en 20 × 20 : sur deux rangées, chaque type de mur et de porte
+ * (son nom au-dessus), habillé d'un papier peint différent sur chaque face, sur un sol différent ;
+ * plus bas, une suite, une véranda et un coin salon. Le champ de force court sur le reste du bord.
+ */
+function showPlot() {
+  const deck = new Deck(QUARTERS_DECK)
+  deck.group.position.y = 0
+  scene.add(deck.group)
+  const O = PLOT_ORIGIN
+  const papers = stylesOf('wall'), floors = stylesOf('floor')
+  const paper = (i: number) => ({ style: papers[i % papers.length].id, color: papers[i % papers.length].palette[1] ?? papers[i % papers.length].palette[0] })
+  const flooring = (i: number) => ({ style: floors[i % floors.length].id, color: floors[i % floors.length].palette[0] })
+  const plan: HomePlan = { walls: [], floor: Array(CELLS).fill(null), items: [] }
+  const kinds = ['wall', 'half', 'window', 'arch', 'sliding', 'wood', 'saloon', 'airlock', 'shoji', 'glass', 'beads']
+  const names: Record<string, string> = { wall: 'Mur', half: 'Demi-mur', window: 'Mur à hublot', ...Object.fromEntries(PARTITION_KINDS.map((k) => [k.id, k.name])) }
+  kinds.forEach((k, i) => {
+    const row = i < 6 ? 0 : 1
+    const x = O.x + 2 + (row ? i - 6 : i) * 3, z = O.z + 3 + row * 5
+    const wall: PlanWall = { x, z, e: 'h', a: paper(i), b: paper(i + 5) }
+    if (k !== 'wall') wall.k = k
+    plan.walls.push(wall)
+    for (let dz = -1; dz <= 2; dz++) for (let dx = -1; dx <= 1; dx++) plan.floor[cellIndex(x + dx, z + dz)] = flooring(i)
+    const l = label(names[k] ?? k)
+    l.scale.multiplyScalar(1.25)
+    l.position.set(x + 0.5, 1.6, z + 0.5)
+    scene.add(l)
+  })
+  // Trois plans tout faits, habillés dedans comme dehors.
+  ;([['suite', 2, 12, 3], ['veranda', 12, 12, 7], ['coin-salon', 13, 17, 9]] as const).forEach(([id, x, z, n]) => {
+    const t = templateOf(id)!
+    for (const w of placeTemplate(t, { x: O.x + x, z: O.z + z })) plan.walls.push({ ...w, a: paper(n), b: paper(n + 1) })
+    const [w, h] = templateSize(t)
+    for (let dz = 0; dz < h; dz++) for (let dx = 0; dx < w; dx++) plan.floor[cellIndex(O.x + x + dx, O.z + z + dz)] = flooring(n)
+  })
+  deck.home!.set(1, plan)
+  const r = plotRect(1)
+  const center = new THREE.Vector3((r.minX + r.maxX) / 2, 0, (r.minZ + r.maxZ) / 2)
+  cam.position.sub(target).add(center)
+  cam.lookAt(center)
+  const toCamera = cam.position.clone().sub(center).setY(0).normalize()
+  const clock = new THREE.Timer()
+  function frame() {
+    clock.update()
+    deck.update(clock.getDelta(), [], center, toCamera)
+    renderer.render(scene, cam)
+    requestAnimationFrame(frame)
   }
   frame()
 }

@@ -11,11 +11,13 @@ import { MediaRoom } from './media-room'
 import { CinemaRoom } from './cinema-room'
 import { CAT_MODEL, preload, rig } from './assets'
 import type { CabinEditor } from './cabin/editor'
+import type { HomeBuilder } from './housing/builder'
+import { HomeStore } from './housing/storage'
 import { CabinBar, InviteMenu, InviteToasts, type CrewEntry } from './cabin/hud'
-import { normalizeLayout, sameLayout, serializeLayout, type CabinItem, type CabinLayout } from './cabin/layout'
+import { defaultLayout, LEGACY_BOUNDS, normalizeLayout, sameLayout, serializeLayout, type CabinItem, type CabinLayout } from './cabin/layout'
 import { CabinStore, requestCabin, type SiteCabin } from './cabin/storage'
 import { devCmdr, devLjpc, devVoie, fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
-import { ECONOMY, formatCredits, skinPrice, wingPrice, type JobKind } from './economy/data'
+import { ECONOMY, formatCredits, skinPrice, wingPrice, type JobKind, plotPrice } from './economy/data'
 import { CreditsHud } from './economy/hud'
 import { taskOf } from './economy/schedule'
 import { allLooks, lookOwned, skinProduct, starterLook } from './economy/skins'
@@ -58,6 +60,10 @@ import { KRAIT_COCKPIT } from '../shared/mechanic.js'
 import { GroundBase } from './base/client'
 import { CHIEF } from './base/chief'
 import { BASE_COCKPIT, BASE_LEVEL } from '../shared/ground-base.js'
+import { HOUSING_LEVEL } from '../shared/housing-plot.js'
+import { packHome, unpackHome, type HomePlan } from '../shared/housing-home.js'
+import { migrateCabin, stageFromWings } from '../shared/housing-migrate.js'
+import { entryOf } from './cabin/catalog'
 import type { ChiefState } from './net'
 import { Infirmary, Plasters } from './infirmary'
 import { menuOf } from './menu'
@@ -71,7 +77,7 @@ import { syncTempo, tempo } from './tempo'
 import { ToiletFlushes } from './toilet-flush'
 import { SalvageClient } from './salvage/client'
 import { LOBBY_RETURN, ZONE_LEVEL } from '../shared/salvage.js'
-import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel } from './ui'
+import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel, type LiftStop } from './ui'
 import { LiftRide } from './lift-ride'
 
 // ------------------------------------------------------------------ profil
@@ -229,11 +235,19 @@ const jacquesAt = deckById(-1).interactables.find((it) => it.furniture?.model ==
 // Les quartiers du commandant : la cabine du joueur, meublée selon son aménagement.
 const cabinDeck = decks.find((d) => d.cabin)!
 const cabin = cabinDeck.cabin!
+/**
+ * Pont des quartiers (housing v2, derrière ?housing-v2) : la parcelle du joueur, bâtie en mode
+ * construction (cf. housing/builder.ts) et gardée dans ce navigateur (cf. housing/storage.ts).
+ */
+const homeDeck = decks.find((d) => d.home)
+let homeStore = new HomeStore(account?.name ?? null)
+/** Sa parcelle (pendant une visite, le pont des quartiers montre celle de l'hôte, cf. showHome). */
+let homePlan: HomePlan = homeStore.load()
 
 /** Réponse du site (ou son absence) : l'aménagement à montrer, envoyé au site s'il vient de ce navigateur. */
 function connectStore(store: CabinStore, site: SiteCabin | null): CabinLayout {
   const { layout: raw, upload } = store.connect(site)
-  const layout = normalizeLayout(raw, cabin.bounds)
+  const layout = normalizeLayout(raw, LEGACY_BOUNDS)
   if (upload) store.save(layout)
   return layout
 }
@@ -243,15 +257,22 @@ function connectStore(store: CabinStore, site: SiteCabin | null): CabinLayout {
  * celui gardé dans ce navigateur) ; sinon, celui d'origine.
  */
 let ownLayout: CabinLayout = !cabinStore
-  ? normalizeLayout(null, cabin.bounds)
+  ? normalizeLayout(null, LEGACY_BOUNDS)
   : siteCabin !== undefined
     ? connectStore(cabinStore, siteCabin)
-    : normalizeLayout(cabinStore.localCopy, cabin.bounds)
+    : normalizeLayout(cabinStore.localCopy, LEGACY_BOUNDS)
 if (cabinStore && siteCabin === undefined) {
   const store = cabinStore
   void cabinRequest.then((site) => siteAnswered(store, site))
 }
-cabin.setLayout(ownLayout)
+// Housing v2 : la première fois, ses anciens quartiers deviennent une construction de la parcelle
+// (un CMDR dont le site n'a pas encore répondu l'enregistre à sa réponse, cf. siteAnswered).
+if (homeDeck && !homeStore.has()) {
+  homePlan = migrateCabin(ownLayout)
+  if (!cabinStore || cabinStore.ready) homeStore.save(homePlan)
+}
+homeDeck?.home!.set(homePlan.stage ?? 0, homePlan)
+cabin.setLayout(homeDeck ? homeCabin(homePlan) : ownLayout)
 
 /** On se réveille à deux pas du Holo-Me : sur une tuile libre voisine, sinon sur sa plateforme. */
 function spawnPoint(): { x: number; z: number } {
@@ -546,6 +567,11 @@ function applyLights() {
 }
 cabin.onLights = () => {
   if (viewDeck === cabinDeck) applyLights()
+}
+if (homeDeck) {
+  homeDeck.home!.onLights = () => {
+    if (viewDeck === homeDeck) applyLights()
+  }
 }
 /** Phrase d'une interaction (une au hasard dans une liste). */
 function showText(text: Interactable['text']) {
@@ -1319,7 +1345,7 @@ net.onMessage = (m) => {
         linked = true
         adoptAccount()
         // Ses quartiers, pour ceux qu'il invitera (le relais oublie tout à chaque connexion).
-        net.sendCabin(serializeLayout(ownLayout))
+        net.sendCabin(cabinPayload())
       }
       updateIdentity()
       for (const p of m.players) addRemote(p)
@@ -1489,7 +1515,14 @@ net.onMessage = (m) => {
       hostLayouts.set(m.id, m.layout)
       if (visiting?.host === m.id) showCabin()
       break
+    case 'open': {
+      const r = remotes.get(m.id)
+      if (r) r.open = m.open
+      refreshInviteMenu()
+      break
+    }
     case 'invite':
+      invitesFrom.set(m.id, Date.now() + 60000)
       inviteToasts.add(m.id, m.name, m.verified)
       sound.play('ding', null, { volume: 0.12, rate: 1.25 })
       break
@@ -1503,7 +1536,9 @@ net.onMessage = (m) => {
         const host = visiting?.name ?? remotes.get(entering ?? -1)?.name ?? tr('Votre hôte', 'Your host')
         // Entrée refusée : on reste où l'on est (chez soi, ou chez un autre hôte).
         if (m.expired) {
-          if (joining !== null) chat.add('system', tr('Cette invitation a expiré.', 'This invitation has expired.'))
+          if (joining !== null && (invitesFrom.get(joining) ?? 0) < Date.now() && homeDeck) {
+            chat.add('system', tr('Ces quartiers sont sur invitation : il faut y être invité.', 'These quarters are invite-only: you need an invitation.'))
+          } else if (joining !== null) chat.add('system', tr('Cette invitation a expiré.', 'This invitation has expired.'))
         } else if (m.cabin !== net.id) void enterVisit(m.cabin)
         else if (visiting || entering !== null) {
           leaveVisit(m.by ? tr(`${host} vous a raccompagné : retour dans vos quartiers.`, `${host} showed you out: back to your quarters.`) : BACK_HOME, true)
@@ -1852,7 +1887,8 @@ const liftRide = new LiftRide()
 scene.add(liftRide.group)
 
 function openLift() {
-  lift.open(LEVELS, deck.def.id, (id) => void ride(id))
+  // Au pont des quartiers, ses quartiers et ceux qu'on peut visiter.
+  lift.open(LEVELS, deck.def.id, (id) => void ride(id), homeDeck ? { under: HOUSING_LEVEL, list: homeStops() } : undefined)
 }
 for (const d of decks) if (d.liftInteractable) d.liftInteractable.onInteract = openLift
 
@@ -1901,7 +1937,12 @@ let editor: CabinEditor | null = null
 let editorLoading: Promise<void> | null = null
 /** Vue plongeante du mode aménagement (cf. cabin/editor.ts). */
 let editElevation = 0
-const editing = () => editor?.active === true
+/** Mode construction de la parcelle (pont des quartiers), chargé lui aussi à la première ouverture. */
+let builder: HomeBuilder | null = null
+let builderLoading: Promise<void> | null = null
+const editing = () => editor?.active === true || builder?.active === true
+/** Le mode ouvert (aménagement des quartiers ou construction de la parcelle) : il reçoit souris et clavier. */
+const activeEditor = () => (builder?.active ? builder : editor?.active ? editor : null)
 
 function loadEditor(): Promise<void> {
   editorLoading ??= import('./cabin/editor').then(({ CabinEditor, EDIT_ELEVATION }) => {
@@ -1911,13 +1952,20 @@ function loadEditor(): Promise<void> {
       iso,
       sound,
       onChange: (layout) => {
-        ownLayout = layout
-        cabinStore?.save(layout)
-        if (verified) net.sendCabin(serializeLayout(layout))
+        // Housing v2 : le mobilier de la parcelle, gardé avec elle (les anciens quartiers ne bougent plus).
+        if (homeDeck) {
+          homePlan = { ...homePlan, items: layout.items }
+          homeStore.save(homePlan)
+        } else {
+          ownLayout = layout
+          cabinStore?.save(layout)
+        }
+        if (verified) net.sendCabin(cabinPayload())
       },
       onClose: () => closeEditor(),
       wallet,
       player: player.position,
+      build: homeDeck ? () => switchHomeMode('build') : undefined,
     })
   })
   return editorLoading
@@ -1929,9 +1977,15 @@ function loadEditor(): Promise<void> {
  */
 function adoptAccount() {
   if (!wallet.ready) void wallet.load()
+  const name = profile.name.replace(/^CMDR /, '')
+  if (homeDeck && !builder?.active && !editing()) {
+    homeStore = new HomeStore(name)
+    homePlan = homeStore.has() ? homeStore.load() : migrateCabin(ownLayout)
+    if (!visiting) showCabin()
+  }
   if (cabinStore) return
   const store = (cabinStore = new CabinStore(profile.name.replace(/^CMDR /, '')))
-  setOwnLayout(normalizeLayout(store.localCopy, cabin.bounds))
+  setOwnLayout(normalizeLayout(store.localCopy, LEGACY_BOUNDS))
   void requestCabin().then((site) => siteAnswered(store, site))
 }
 
@@ -1939,6 +1993,13 @@ function adoptAccount() {
 function siteAnswered(store: CabinStore, site: SiteCabin | null) {
   if (cabinStore !== store) return
   setOwnLayout(connectStore(store, site))
+  // Housing v2 : ses quartiers du site deviennent sa parcelle, s'ils ne l'étaient pas encore.
+  if (homeDeck && !homeStore.has() && !editing()) {
+    homePlan = migrateCabin(ownLayout)
+    homeStore.save(homePlan)
+    if (!visiting) showCabin()
+    if (verified) net.sendCabin(cabinPayload())
+  }
   reconcileWings()
 }
 
@@ -1946,7 +2007,7 @@ function siteAnswered(store: CabinStore, site: SiteCabin | null) {
 function setOwnLayout(layout: CabinLayout) {
   if (sameLayout(layout, ownLayout)) return
   ownLayout = layout
-  if (verified) net.sendCabin(serializeLayout(layout))
+  if (verified) net.sendCabin(cabinPayload())
   if (!visiting) showCabin()
 }
 
@@ -1958,20 +2019,25 @@ function inCabin(level: number, x: number, z: number): boolean {
 /** @param tab onglet à ouvrir : « Pièces » depuis la porte d'un espace d'extension */
 async function openEditor(tab?: 'rooms') {
   if (editing() || riding || photo.active) return
+  // Housing v2 : sur le pont des quartiers, on rouvre le dernier mode (mobilier ou construction).
+  if (homeDeck && deck === homeDeck && homeMode === 'build') return openBuilder()
   if (visiting) return chat.add('system', tr(`Vous êtes en visite chez ${visiting.name} : on n'aménage que chez soi.`, `You're visiting ${visiting.name}: you can only decorate your own quarters.`))
-  if (!linked) return chat.add('system', tr('Aménager ses quartiers est réservé aux CMDR connectés à elitedangereuse.fr.', 'Only CMDRs logged in to elitedangereuse.fr can decorate their quarters.'))
-  if (!cabinStore?.ready) return chat.add('system', tr('Vos quartiers arrivent du site, encore un instant…', 'Your quarters are on their way from the site, just a moment…'))
+  // La parcelle est gardée dans ce navigateur (en attendant le site) : chacun l'aménage.
+  if (!homeDeck && !linked) return chat.add('system', tr('Aménager ses quartiers est réservé aux CMDR connectés à elitedangereuse.fr.', 'Only CMDRs logged in to elitedangereuse.fr can decorate their quarters.'))
+  if (!homeDeck && !cabinStore?.ready) return chat.add('system', tr('Vos quartiers arrivent du site, encore un instant…', 'Your quarters are on their way from the site, just a moment…'))
   await loadSiteArt()
   if (editing() || riding || visiting || photo.active) return
   if (!editor) {
     await loadEditor()
     // On a pu partir (ascenseur, invitation) pendant le chargement.
-    if (!editor || editing() || riding || visiting || photo.active || !inCabin(deck.def.id, player.position.x, player.position.z)) return
+    if (!editor || editing() || riding || visiting || photo.active || !(inCabin(deck.def.id, player.position.x, player.position.z) || deck === homeDeck)) return
   }
   const store = cabinStore
   const ed = editor
-  if (!inCabin(deck.def.id, player.position.x, player.position.z)) {
-    return chat.add('system', tr('On aménage ses quartiers depuis ses quartiers, sur le pont supérieur.', 'You decorate your quarters from inside them, on the upper deck.'))
+  if (!inCabin(deck.def.id, player.position.x, player.position.z) && !(homeDeck && deck === homeDeck)) {
+    return chat.add('system', homeDeck
+      ? tr('On aménage ses quartiers depuis ses quartiers, sur le pont des quartiers.', 'You decorate your quarters from inside them, on the quarters deck.')
+      : tr('On aménage ses quartiers depuis ses quartiers, sur le pont supérieur.', 'You decorate your quarters from inside them, on the upper deck.'))
   }
   lift.close()
   jukebox.close()
@@ -1982,13 +2048,90 @@ async function openEditor(tab?: 'rooms') {
   editZoom = iso.zoomLevel
   iso.setRestElevation(editElevation)
   document.body.classList.add('editing')
-  ed.start(ownLayout, tab)
+  ed.start(homeDeck ? homeCabin(homePlan) : ownLayout, tab)
   ed.reframe(player.position)
-  ed.setSaveState(store.state)
-  store.onState = (state) => ed.setSaveState(state)
+  // La parcelle est gardée dans ce navigateur (en attendant le site).
+  if (homeDeck || !store) ed.setSaveState('local')
+  else {
+    ed.setSaveState(store.state)
+    store.onState = (state) => ed.setSaveState(state)
+  }
+}
+
+/** Dernier mode ouvert sur la parcelle : le mobilier (mode aménagement) ou la construction. */
+let homeMode: 'furnish' | 'build' = 'furnish'
+
+/** Passer du mobilier à la construction, ou l'inverse, sans quitter la vue d'architecte. */
+function switchHomeMode(mode: 'furnish' | 'build') {
+  homeMode = mode
+  closeEditor()
+  void (mode === 'build' ? openBuilder() : openEditor())
+}
+
+/** Mode construction : sur le pont des quartiers, chez soi. */
+async function openBuilder() {
+  if (!homeDeck || editing() || riding || photo.active || deck !== homeDeck) return
+  if (visiting) return chat.add('system', tr(`Vous êtes en visite chez ${visiting.name} : on n'aménage que chez soi.`, `You're visiting ${visiting.name}: you can only decorate your own quarters.`))
+  builderLoading ??= import('./housing/builder').then(({ HomeBuilder, BUILD_ELEVATION }) => {
+    editElevation = BUILD_ELEVATION
+    builder = new HomeBuilder(homeDeck, {
+      canvas: renderer.domElement,
+      iso,
+      sound,
+      onChange: (plan) => {
+        // L'ouverture et la taille de ses quartiers ne se règlent pas ici (cf. toggleOpen, syncStage).
+        homePlan = { ...plan, open: homePlan.open, stage: homePlan.stage }
+        showCabin()
+        homeStore.save(homePlan)
+        // Ses visiteurs voient chaque changement.
+        if (verified) net.sendCabin(cabinPayload())
+      },
+      onClose: () => closeEditor(),
+      furnish: () => switchHomeMode('furnish'),
+      plot: {
+        price: plotPrice,
+        balance: () => (wallet.ready ? wallet.balance : null),
+        buy: async (stage) => {
+          const outcome = await wallet.buyPlot(stage)
+          if (outcome.ok) {
+            syncStage()
+            return true
+          }
+          return outcome.reason === 'funds' ? tr('Crédits insuffisants.', 'Not enough credits.')
+            : outcome.reason === 'guest' ? tr('Réservé aux CMDR connectés au site.', 'For CMDRs logged in to the site.')
+            : tr('Achat refusé : le site ne propose pas encore les agrandissements.', 'Purchase refused: the site does not offer expansions yet.')
+        },
+      },
+    })
+  })
+  await builderLoading
+  if (!builder || editing() || riding || photo.active || deck !== homeDeck) return
+  lift.close()
+  jukebox.close()
+  seating.leave()
+  player.cancelPath()
+  marker.visible = hover.visible = false
+  editZoom = iso.zoomLevel
+  iso.setRestElevation(editElevation)
+  document.body.classList.add('editing')
+  builder.start(homePlan, homeDeck.home!.stage)
+  homeMode = 'build'
+  const z = builder.fitZoom()
+  iso.zoomMax = Math.max(iso.zoomMax, z)
+  iso.zoomTo(z)
 }
 
 function closeEditor() {
+  if (builder?.active) {
+    builder.stop()
+    iso.setRestElevation(null)
+    iso.zoomMax = 14
+    iso.zoomTo(editZoom)
+    document.body.classList.remove('editing')
+    renderer.domElement.style.cursor = 'default'
+    unstickHome(player.position, 0.18)
+    return
+  }
   if (!editor?.active) return
   editor.stop()
   iso.setRestElevation(null)
@@ -2074,23 +2217,33 @@ let visitSeq = 0
 const hostLayouts = new Map<number, unknown>()
 /** Invitations envoyées (id de l'invité → fin de validité), pour la liste d'équipage. */
 const invitedAt = new Map<number, number>()
+/** Invitations reçues (id de l'hôte → fin de validité), pour l'ascenseur du pont des quartiers. */
+const invitesFrom = new Map<number, number>()
 const inviteMenu = new InviteMenu()
 const inviteToasts = new InviteToasts()
 
 /** Instance des quartiers où se trouve le joueur local (id de l'hôte). */
 const myCabin = () => visiting?.host ?? net.id
 
-/** Un autre joueur est-il visible ? Dans des quartiers, seulement s'il est dans la même instance. */
+/**
+ * Un autre joueur est-il visible ? Dans des quartiers, seulement s'il est dans la même instance,
+ * et de même partout sur le pont des quartiers (chacun y est dans sa bulle).
+ */
 function sees(r: RemotePlayer): boolean {
   // Dans la baie infestée (ou par les caméras) : seulement ses coéquipiers, hors des casiers.
   if (r.level === ZONE_LEVEL) return !!viewDeck.def.zone && !!salvage?.sees(r.id)
   if (r.level !== viewDeck.def.id || viewDeck !== deck) return false
+  if (r.level === HOUSING_LEVEL) return r.cabin === myCabin()
   return !inCabin(r.level, r.group.position.x, r.group.position.z) || r.cabin === myCabin()
 }
 
 /** Aménagement affiché : celui de l'hôte pendant une visite, le sien sinon. */
 function showCabin() {
-  cabin.setLayout(visiting ? normalizeLayout(hostLayouts.get(visiting.host) ?? null, cabin.bounds) : ownLayout)
+  // Housing v2 : la parcelle (sa taille, ses murs) d'abord, puis son mobilier.
+  if (homeDeck) {
+    showHome()
+    cabin.setLayout(homeCabin(shownPlan()))
+  } else cabin.setLayout(visiting ? normalizeLayout(hostLayouts.get(visiting.host) ?? null, LEGACY_BOUNDS) : ownLayout)
   // Le jukebox du panneau a pu bouger, disparaître, ou être celui de l'hôte qui nous raccompagne.
   if (jukeboxWhere === 'cabin') jukebox.close()
   // Assis sur un meuble des quartiers : on retrouve sa place, ou l'on se relève s'il a bougé.
@@ -2111,12 +2264,114 @@ function showCabin() {
   for (const c of companions.values()) unstick(c.pet.root.position, 0.12)
 }
 
+/**
+ * Parcelle affichée sur le pont des quartiers (housing v2) : celle de l'hôte pendant une visite
+ * (reçue avec son aménagement), la sienne sinon.
+ */
+function showHome() {
+  if (!homeDeck) return
+  const plan = shownPlan()
+  homeDeck.home!.set(plan.stage ?? 0, plan)
+  // Un mur a pu pousser sous nos pieds.
+  if (deck === homeDeck && !riding) unstickHome(player.position, 0.18)
+}
+
+/**
+ * Mobilier d'une parcelle, lu comme celui d'une cabine (objets connus, dans la parcelle affichée),
+ * avec un Holo-Me s'il manque : celui des quartiers d'origine, à sa place dans la parcelle.
+ */
+function homeCabin(plan: HomePlan): CabinLayout {
+  const items = plan.items ?? []
+  const holo = items.some((i) => entryOf(i.m)?.fixed) ? [] : (migrateCabin(defaultLayout()).items ?? []).filter((i) => entryOf(i.m)?.fixed)
+  return { items: normalizeLayout({ items: [...holo, ...items] }, cabin.bounds).items }
+}
+
+/** Parcelle à montrer : celle de l'hôte pendant une visite, la sienne sinon. */
+function shownPlan(): HomePlan {
+  if (!visiting) return homePlan
+  const host = hostLayouts.get(visiting.host) as { home?: unknown } | null | undefined
+  return unpackHome(host?.home ?? null)
+}
+
+/**
+ * Palier d'agrandissement de sa parcelle : le plus grand de ceux achetés sur le site et de ceux
+ * qu'offrent ses extensions déjà achetées (décision Q4, cf. shared/housing-migrate.js).
+ */
+function ownStage(): number {
+  return Math.max(homePlan.stage ?? 0, wallet.plot, stageFromWings(wallet.wings.size))
+}
+
+/** Le palier a changé (achat, extensions reconnues) : la parcelle grandit, chez soi et chez ses visiteurs. */
+function syncStage() {
+  if (!homeDeck) return
+  const stage = ownStage()
+  if (stage === (homePlan.stage ?? 0)) return
+  homePlan = { ...homePlan, stage }
+  homeStore.save(homePlan)
+  if (!visiting) showCabin()
+  builder?.setStage(stage)
+  if (verified) net.sendCabin(cabinPayload())
+}
+wallet.subscribe(syncStage)
+
+/** Ce que le relais garde de ses quartiers : l'aménagement, et la parcelle (housing v2). */
+function cabinPayload() {
+  return homeDeck ? { ...serializeLayout(ownLayout), home: packHome(homePlan) } : serializeLayout(ownLayout)
+}
+
+/** Ouvrir ses quartiers (chacun peut venir) ou les remettre sur invitation (ceux qui y sont restent). */
+function toggleOpen() {
+  if (!homeDeck || !verified) return
+  homePlan = { ...homePlan, open: !homePlan.open }
+  homeStore.save(homePlan)
+  net.sendCabin(cabinPayload())
+  chat.add('system', homePlan.open
+    ? tr('Vos quartiers sont ouverts : chacun peut venir les visiter, sans invitation.', 'Your quarters are open: anyone can drop by, no invitation needed.')
+    : tr('Vos quartiers sont sur invitation. Ceux qui y sont déjà restent jusqu\'à leur départ.', 'Your quarters are invite-only. Anyone already inside stays until they leave.'))
+}
+cabinBar.onToggleOpen = toggleOpen
+
+/** Aller voir des quartiers ouverts (ou où l'on est invité) : le relais nous y fait entrer. */
+function visitHost(host: number) {
+  if (!homeDeck || visiting?.host === host) return
+  if (!net.online) return chat.add('system', tr('Hors ligne : pas de visite sans liaison avec le relais.', 'Offline: no visits without the relay.'))
+  joining = host
+  net.sendVisit(host)
+}
+
+/** Rentrer dans ses quartiers, sur le pont des quartiers : la visite prend fin, l'ascenseur y monte. */
+function goHomeQuarters() {
+  if (!homeDeck) return
+  if (visiting) {
+    net.sendVisit(null)
+    leaveVisit(BACK_HOME)
+  }
+  if (deck !== homeDeck) void ride(HOUSING_LEVEL)
+}
+
+/** Arrêts du pont des quartiers, à l'ascenseur : les siens, puis ceux qui sont ouverts ou où l'on est invité. */
+function homeStops(): LiftStop[] {
+  const here = deck === homeDeck
+  const hosts = [...remotes.values()].filter((r) => (r.open || (invitesFrom.get(r.id) ?? 0) > Date.now()) && (!verified || r.name !== profile.name))
+  return [
+    { label: tr('Mes quartiers', 'My quarters'), current: here && !visiting, go: goHomeQuarters },
+    ...hosts.map((r) => ({
+      label: tr(`Chez ${r.name}`, `${r.name}'s`),
+      note: r.open ? tr('ouverts', 'open') : tr('invitation', 'invitation'),
+      current: here && visiting?.host === r.id,
+      go: () => visitHost(r.id),
+    })),
+  ]
+}
+
 function crew(): CrewEntry[] {
   // Ses propres autres onglets (même CMDR) ne s'invitent pas.
   return [...remotes.values()].filter((r) => !verified || r.name !== profile.name).map((r) => ({
     id: r.id,
     name: r.name,
     state: r.cabin === net.id ? 'visiting' : (invitedAt.get(r.id) ?? 0) > Date.now() ? 'invited' : 'free',
+    // Sur le pont des quartiers, on peut aller voir ceux qui sont ouverts.
+    open: !!homeDeck && r.open && visiting?.host !== r.id,
   }))
 }
 
@@ -2177,11 +2432,18 @@ async function enterVisit(host: number) {
   await fadeScreen(true)
   // Raccompagné (ou hôte parti) pendant le fondu : on n'entre pas.
   if (seq === visitSeq) {
-    if (deck !== cabinDeck) setDeck(cabinDeck)
     visiting = { host, name }
-    const door = cabin.def.door
-    player.position.set(door.x, cabinDeck.y, door.z + 0.25)
-    player.setHeading(0)
+    if (homeDeck) {
+      // Housing v2 : sur le palier de l'ascenseur, au pont des quartiers, face à la porte de la parcelle.
+      if (deck !== homeDeck) setDeck(homeDeck)
+      player.position.set(LIFT.x, homeDeck.y, LIFT.z)
+      player.setHeading(Math.PI / 2)
+    } else {
+      if (deck !== cabinDeck) setDeck(cabinDeck)
+      const door = cabin.def.door
+      player.position.set(door.x, cabinDeck.y, door.z + 0.25)
+      player.setHeading(0)
+    }
     showCabin()
     iso.snapTo(player.position)
     net.sendState({ x: player.position.x, z: player.position.z, yaw: player.heading, level: deck.def.id, anim: 'idle' }, Infinity)
@@ -2211,7 +2473,8 @@ function leaveVisit(message?: string, home = false) {
     showCabin()
   }
   if (was && message) chat.add('system', message)
-  if (inside && home) void bringHome()
+  // Sur le pont des quartiers, sa propre parcelle a remplacé celle de l'hôte : on repart du palier.
+  if (inside && (home || (!!homeDeck && deck === homeDeck))) void bringHome()
 }
 
 /** Retour dans ses quartiers, à deux pas du Holo-Me, le temps d'un fondu. */
@@ -2229,9 +2492,12 @@ async function bringHome() {
   await fadeScreen(true)
   // Invité ailleurs pendant le fondu : on laisse faire l'entrée.
   if (seq === visitSeq && !visiting) {
-    if (deck !== cabinDeck) setDeck(cabinDeck)
-    const s = spawnPoint()
-    player.position.set(s.x, cabinDeck.y, s.z)
+    if (homeDeck && deck === homeDeck) player.position.set(LIFT.x, homeDeck.y, LIFT.z)
+    else {
+      if (deck !== cabinDeck) setDeck(cabinDeck)
+      const s = spawnPoint()
+      player.position.set(s.x, cabinDeck.y, s.z)
+    }
     iso.snapTo(player.position)
     sendState(true)
   }
@@ -2250,6 +2516,10 @@ cabinBar.onLeave = () => {
 }
 inviteMenu.onInvite = (id) => void invite(id)
 inviteMenu.onKick = (id) => net.sendKick(id)
+inviteMenu.onVisit = (id) => {
+  inviteMenu.close()
+  visitHost(id)
+}
 inviteToasts.onAccept = acceptInvite
 inviteToasts.onDecline = (id) => net.sendDecline(id)
 // Clic en dehors de la liste d'équipage : elle se ferme.
@@ -2276,6 +2546,28 @@ function unstick(p: THREE.Vector3, r: number) {
     return
   }
   const best = nearestCabinTile(p)
+  if (best) {
+    p.x = best.x
+    p.z = best.z
+  }
+}
+
+/** Un mur posé sur le joueur (mode construction) : on le pousse hors du mur, ou sur la case libre la plus proche. */
+function unstickHome(p: THREE.Vector3, r: number) {
+  if (!homeDeck || deck !== homeDeck) return
+  const colliders = homeDeck.colliders
+  if (!overlapsAny(p, r, colliders)) return
+  const q = { x: p.x, z: p.z }
+  resolveCircle(q, r, colliders)
+  if (!overlapsAny(q, r, colliders)) {
+    p.x = q.x
+    p.z = q.z
+    return
+  }
+  let best: { x: number; z: number } | null = null
+  for (const t of homeDeck.home!.plotPlan.tiles) {
+    if (homeDeck.pathfinder.walkable(t.x, t.z) && !overlapsAny(t, r, colliders) && (!best || Math.hypot(t.x - p.x, t.z - p.z) < Math.hypot(best.x - p.x, best.z - p.z))) best = t
+  }
   if (best) {
     p.x = best.x
     p.z = best.z
@@ -2346,7 +2638,7 @@ addEventListener('keydown', (e) => {
     return
   }
   // Mode aménagement : ses touches d'abord (les flèches se répètent pour ajuster un objet).
-  if (editing() && editor!.keyDown(e)) return
+  if (editing() && activeEditor()!.keyDown(e)) return
   if (e.repeat) return
   // Mode photo : ses touches (déclencheur, options) ; on garde les déplacements, les poses, R et M.
   if (photo.keyDown(e)) return
@@ -2417,7 +2709,13 @@ function updateGamepad(dt: number): GamepadInput {
   const enabled = !document.hidden && !typing && !chat.typing && !editing() && !photo.active && !arcade?.isOpen && !boardGames.isOpen && !barPanel.isOpen && !gameEmbed.isOpen && !mediaRoom.isOpen && !cinemaRoom.isOpen
   // Certains navigateurs mobiles rapportent brièvement document.hasFocus() = false après le
   // passage en plein écran. Cela ne doit pas couper le joystick ni ses boutons.
-  const pad = gamepad.poll(document.hasFocus() && enabled)
+  // Mode construction : la manette mène son curseur (cf. HomeBuilder.gamepad).
+  const building = builder?.active === true && !document.hidden && !typing && !chat.typing
+  const pad = gamepad.poll(document.hasFocus() && (enabled || building))
+  if (building) {
+    builder!.gamepad(pad, gamepad.held.has('0'), dt)
+    return pad
+  }
   let flare = false
   if (touchGamepad) {
     const touch = touchGamepad.poll(enabled)
@@ -2630,7 +2928,7 @@ function pick(e: { clientX: number; clientY: number }): { tile: Tile | null; ite
 let pendingMove: PointerEvent | null = null
 canvas.addEventListener('pointermove', (e) => {
   if (freeLook) return
-  if (editing()) editor!.pointerMove(e)
+  if (editing()) activeEditor()!.pointerMove(e)
   else pendingMove = e
 })
 function processHover() {
@@ -2690,7 +2988,7 @@ function endFreeLook(e: PointerEvent) {
 canvas.addEventListener('pointerup', endFreeLook)
 canvas.addEventListener('pointercancel', endFreeLook)
 canvas.addEventListener('pointerup', (e) => {
-  if (e.button === 0 && editing()) editor!.pointerUp(e)
+  if (e.button === 0 && editing()) activeEditor()!.pointerUp(e)
 })
 
 // Clic en dehors du panneau d'ascenseur : il se ferme, et le clic ne fait rien d'autre.
@@ -2726,7 +3024,8 @@ canvas.addEventListener('pointerdown', (e) => {
     return
   }
   // Vue subjective au doigt : le clic part au relâchement, s'il n'a pas servi à tourner le regard.
-  if (e.button === 0 && !fpsShown && e.pointerType === 'mouse') click(e)
+  // En mode construction, le doigt trace comme la souris : l'appui part tout de suite.
+  if (e.button === 0 && !fpsShown && (e.pointerType === 'mouse' || builder?.active)) click(e)
 })
 
 // Vue subjective à la souris : le curseur disparaît, bloqué sur la mire, et la souris tourne
@@ -2845,7 +3144,7 @@ function click(e: PointerEvent, at: { clientX: number; clientY: number } = e) {
     try {
       canvas.setPointerCapture(e.pointerId)
     } catch {}
-    return editor!.pointerDown(e)
+    return activeEditor()!.pointerDown(e)
   }
   if (wardrobe.isOpen) return wardrobe.close(false)
   stopWork()
@@ -3777,11 +4076,11 @@ function frame() {
     if (innerWidth <= 900) barFocus.add(iso.screenToGround(0, -1.1))
   }
   // Mode aménagement : le joueur au milieu de la zone que le catalogue laisse visible.
-  if (editing()) editor!.frameCamera()
+  if (editing()) activeEditor()!.frameCamera()
   else iso.frameCenter(0, 0, innerHeight)
   const cinemaSeat = deck.def.id === 1 && ['cinema-row', 'projection-chair'].includes(seating.current?.item.furniture?.model ?? '')
   if (cinemaSeat) cinemaFocus.set(cinemaScreenProp.x, deck.y, (player.position.z + cinemaScreenProp.z) / 2)
-  iso.update(dt, zone.watchTarget ?? (claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : cinemaSeat ? cinemaFocus : player.position))
+  iso.update(dt, zone.watchTarget ?? (claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : cinemaSeat ? cinemaFocus : builder?.active ? builder.focus : player.position))
   if (barPanel.isOpen) {
     iso.camera.updateMatrixWorld()
     barPanel.place(iso.camera, player.position, jacquesAt)
@@ -3825,7 +4124,7 @@ function frame() {
     // Le plafond cacherait tout, vu de haut : on ne le voit que de l'intérieur.
     d.ceiling.visible = fpsShown
     d.tallDoors = fpsShown
-    d.update(world, actors.get(d)!, d === viewDeck ? player.position : null, toCam, editing() && d === cabinDeck, keep, dt)
+    d.update(world, actors.get(d)!, d === viewDeck ? player.position : null, toCam, editing() && (d === cabinDeck || d === homeDeck), keep, dt)
   }
   firstPersonGlass(fpsShown)
   // Filet de sécurité : ni le joueur ni la vue ne restent sur une baie démontée (l'écran serait
@@ -3846,6 +4145,7 @@ function frame() {
     bay.update(world, inside, viewDeck === bay ? (zone.watchTarget ?? player.position) : null, toCam, false, null, dt)
   }
   editor?.update(timer.getElapsed())
+  builder?.update()
   // Tâches de bord : à l'heure chaque seconde, animées sur le pont affiché.
   if ((taskClock -= dt) <= 0) {
     taskClock = 1
@@ -3892,7 +4192,9 @@ function frame() {
 
   // Pièce courante.
   const here = inCabin(deck.def.id, player.position.x, player.position.z)
-  const name = visiting && here ? tr(`Quartiers de ${visiting.name}`, `${visiting.name}'s quarters`) : deck.roomName(player.position.x, player.position.z)
+  // Sur le pont des quartiers, on est chez soi (ou chez son hôte) partout.
+  const onHome = !!homeDeck && deck === homeDeck
+  const name = visiting && (here || onHome) ? tr(`Quartiers de ${visiting.name}`, `${visiting.name}'s quarters`) : deck.roomName(player.position.x, player.position.z)
   if (name !== currentRoom) {
     currentRoom = name
     roomEl.textContent = name
@@ -3900,9 +4202,9 @@ function frame() {
 
   // Dans ses quartiers : de quoi les aménager. En visite, jusque dans la coursive : de quoi rentrer.
   cabinBar.set(
-    editing() ? null : visiting ? { kind: 'visit', host: visiting.name, inside: here } : !here ? null : { kind: 'own', canEdit: linked, canInvite: verified && net.online, loginUrl: loginUrl() },
+    editing() ? null : visiting ? { kind: 'visit', host: visiting.name, inside: here || onHome } : onHome ? { kind: 'own', canEdit: true, canInvite: verified && net.online, open: verified ? !!homePlan.open : undefined } : !here ? null : { kind: 'own', canEdit: linked, canInvite: verified && net.online, loginUrl: loginUrl() },
   )
-  if (!here && inviteMenu.isOpen) inviteMenu.close()
+  if (!here && !onHome && inviteMenu.isOpen) inviteMenu.close()
 
   // Invite « E » au-dessus de l'objet le plus proche ; installé sur un meuble, au-dessus du
   // personnage : se relever (et ce que permet la place).
@@ -4020,6 +4322,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, salvage: zone, view: () => viewDeck },
+    __game: { renderer, sound, player, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder } },
   })
 }

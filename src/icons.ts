@@ -68,6 +68,10 @@ import paintBrush from '@phosphor-icons/core/bold/paint-brush-bold.svg?raw'
 import signOut from '@phosphor-icons/core/bold/sign-out-bold.svg?raw'
 import trash from '@phosphor-icons/core/bold/trash-bold.svg?raw'
 import userPlus from '@phosphor-icons/core/bold/user-plus-bold.svg?raw'
+// mode construction des quartiers : tracer, pièce, pipette (la gomme est plus haut)
+import lineSegment from '@phosphor-icons/core/bold/line-segment-bold.svg?raw'
+import rectangleBold from '@phosphor-icons/core/bold/rectangle-bold.svg?raw'
+import eyedropper from '@phosphor-icons/core/bold/eyedropper-bold.svg?raw'
 import warningCircle from '@phosphor-icons/core/bold/warning-circle-bold.svg?raw'
 import x from '@phosphor-icons/core/bold/x-bold.svg?raw'
 import arrowUp from '@phosphor-icons/core/bold/arrow-up-bold.svg?raw'
@@ -122,6 +126,7 @@ import knife from '@phosphor-icons/core/bold/knife-bold.svg?raw'
 import bowlSteam from '@phosphor-icons/core/bold/bowl-steam-bold.svg?raw'
 import wrench from '@phosphor-icons/core/bold/wrench-bold.svg?raw'
 import lockSimple from '@phosphor-icons/core/bold/lock-simple-bold.svg?raw'
+import lockSimpleOpen from '@phosphor-icons/core/bold/lock-simple-open-bold.svg?raw'
 import shoppingCart from '@phosphor-icons/core/bold/shopping-cart-bold.svg?raw'
 import minus from '@phosphor-icons/core/bold/minus-bold.svg?raw'
 import plus from '@phosphor-icons/core/bold/plus-bold.svg?raw'
@@ -197,6 +202,9 @@ const SVG = {
   'sign-out': signOut,
   trash,
   'user-plus': userPlus,
+  'line-segment': lineSegment,
+  rectangle: rectangleBold,
+  eyedropper,
   'warning-circle': warningCircle,
   x,
   'caret-left': caretLeft,
@@ -236,6 +244,7 @@ const SVG = {
   // crédits, boutique, tâches de bord (leurs marqueurs sont dessinés avec, cf. economy/tasks.ts)
   coins,
   'lock-simple': lockSimple,
+  'lock-simple-open': lockSimpleOpen,
   'shopping-cart': shoppingCart,
   minus,
   plus,

@@ -121,7 +121,7 @@ export class TouchGamepad {
       lookX: 0, lookY: 0, zoom: 0,
       sprint: enabled && this.sprint,
       interact: enabled && pressed.has('interact'), action: enabled && pressed.has('action'), cancel: enabled && pressed.has('cancel'),
-      rotateLeft: false, rotateRight: false, help: false,
+      next: false, turn: false, rotateLeft: false, rotateRight: false, help: false,
       up: enabled && up, down: enabled && down,
       flare: enabled && pressed.has('flare'),
     }

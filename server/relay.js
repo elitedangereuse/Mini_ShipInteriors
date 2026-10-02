@@ -40,10 +40,12 @@
 // (chaque étape relance l'attente), puis la jardinière reprend sa tournée.
 //
 // Quartiers : chaque joueur a sa propre instance des quartiers du commandant (`cabin` : l'id du
-// joueur chez qui il se trouve, le sien par défaut). Un CMDR vérifié envoie l'aménagement des
+// joueur chez qui il se trouve, le sien par défaut). Sur le pont des quartiers (housing v2, cf.
+// shared/housing-plot.js), tout le pont est instancié : chacun y est dans sa bulle. Un CMDR vérifié envoie l'aménagement des
 // siens (cf. cabin.js), et peut inviter un joueur connecté : celui-ci n'y entre qu'avec une
 // invitation, reçoit l'aménagement, puis chacun de ses changements. L'hôte peut raccompagner un
-// visiteur ; s'il quitte le vaisseau, ses visiteurs rentrent chez eux.
+// visiteur ; s'il quitte le vaisseau, ses visiteurs rentrent chez eux. Des quartiers ouverts
+// (housing v2) se visitent sans invitation ; les fermer ne met pas dehors ceux qui y sont.
 //
 // Base au sol (cf. shared/ground-base.js) : on y descend en Krait depuis le hangar. C'est un lieu
 // commun, comme un pont. Ada, la cheffe de la base, y fait sa ronde sur une horloge que le relais
@@ -67,6 +69,8 @@ import { BOARD_TABLES, SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layou
 import { DIRS, ShipMap } from '../shared/ship-map.js'
 import { applyPartitions } from '../shared/cabin-partitions.js'
 import { applyWings } from '../shared/cabin-wings.js'
+import { applyPlot, HOUSING_LEVEL } from '../shared/housing-plot.js'
+import { applyWalls, unpackHome } from '../shared/housing-home.js'
 import { canReach } from '../shared/sight.js'
 import { PATROL_LEVEL, PATROL_PERIOD, holdPatrol, patrolAt, patrolTime } from '../shared/patrol.js'
 import { CHEF_COOK, CHEF_LEVEL, CHEF_PERIOD, CHEF_ROOM, CHEF_WAIT, chefAt, chefTime, cookChef, holdChef } from '../shared/chef.js'
@@ -114,7 +118,7 @@ const EMOTES = new Set([
 const ANIMS = new Set(['idle', 'walk', 'sprint'])
 // Poses tenues sur un meuble (cf. src/seats.ts) : assis, couché, aux commandes, à une borne…
 const POSES = new Set(['sit', 'lie', 'pilot', 'arcade', 'claw', 'punch', 'run', 'pedal', 'mix'])
-const LEVELS = new Set([-1, 0, 1])
+const LEVELS = new Set([-1, 0, 1, HOUSING_LEVEL])
 /** Une invitation dans des quartiers vaut une minute. */
 const INVITE_TTL = 60000
 /**
@@ -125,6 +129,8 @@ const REACH = 2.5
 /** Plans des ponts : on n'agit pas à travers un mur (cf. shared/sight.js). */
 const MAPS = new Map(Object.entries(SHIP_LAYOUTS).map(([id, layout]) => [Number(id), new ShipMap(layout, shipMapOptions(id))]))
 MAPS.set(BASE_LEVEL, new ShipMap(BASE_LAYOUT))
+// Pont des quartiers : chacun y est dans sa bulle (son instance, cf. `cabin`), une parcelle de départ.
+applyPlot(MAPS.get(HOUSING_LEVEL), 0)
 const voieMap = new ShipMap(SHIP_LAYOUTS['-1'], shipMapOptions(-1))
 for (const d of voieMap.doors) {
   const step = DIRS[d.dir]
@@ -146,9 +152,23 @@ function cabinMap(layout) {
   }
   return map
 }
-/** `host` : dans des quartiers, leur hôte (ses pièces d'extension comptent). */
+/** Plan du pont des quartiers avec la parcelle d'un aménagement : sa taille et ses murs (gardé avec lui). */
+const homeMaps = new WeakMap()
+function homeMap(layout) {
+  if (!layout?.home) return MAPS.get(HOUSING_LEVEL)
+  let map = homeMaps.get(layout)
+  if (!map) {
+    const plan = unpackHome(layout.home)
+    map = new ShipMap(SHIP_LAYOUTS[String(HOUSING_LEVEL)], shipMapOptions(HOUSING_LEVEL))
+    applyPlot(map, plan.stage ?? 0)
+    applyWalls(map, plan.walls, plan.stage ?? 0)
+    homeMaps.set(layout, map)
+  }
+  return map
+}
+/** `host` : dans des quartiers, leur hôte (ses pièces d'extension, ou sa parcelle, comptent). */
 const reaches = (player, level, at, host) => player.level === level && canReach(
-  host && level === 1 ? cabinMap(host.layout) : level === -1 && player.voie ? voieMap : MAPS.get(level), player, at, REACH,
+  host && level === 1 ? cabinMap(host.layout) : host && level === HOUSING_LEVEL ? homeMap(host.layout) : level === -1 && player.voie ? voieMap : MAPS.get(level), player, at, REACH,
 )
 /** Pont de chaque jukebox : la salle commune (pont principal), le bar (la cale), les quartiers. */
 const JUKEBOX_LEVEL = new Map([['deck', 0], ['hold', -1], ['cabin', 1]])
@@ -438,7 +458,7 @@ export function attachRelay(
 
   /** Position et animation d'un joueur, avec sa pose s'il est installé sur un meuble. */
   const motion = (p) => ({ x: p.x, z: p.z, yaw: p.yaw, level: p.level, anim: p.anim, ...(p.pose ? { pose: p.pose, py: p.py } : {}) })
-  const publicState = (p) => ({ id: p.id, name: p.name, verified: p.verified, skin: p.skin, ...motion(p), cabin: p.cabin })
+  const publicState = (p) => ({ id: p.id, name: p.name, verified: p.verified, skin: p.skin, ...motion(p), cabin: p.cabin, ...(p.open ? { open: true } : {}) })
   const playerById = (id) => {
     const socket = sockets.get(id)
     return socket ? players.get(socket.id) : undefined
@@ -528,6 +548,8 @@ export function attachRelay(
       // Instance des quartiers : les siens (id du joueur qui reçoit), son aménagement, ses invitations.
       cabin: 0,
       layout: null,
+      // Quartiers ouverts (housing v2, cf. shared/housing-home.js) : on y entre sans invitation.
+      open: false,
       invited: new Map(), // id de l'invité -> fin de validité
       boardKey: null,
       // Cookie du site (lui seul) : le relais le présente au site pour payer une mission gagnée.
@@ -728,7 +750,7 @@ export function attachRelay(
       const instance = m.where === 'cabin' ? player.cabin : m.where === 'deck' ? 0 : -1
       if (musicBudget < 1) return socket.emit('music', { id: 0, ...musicOf(instance), busy: true })
       const track = m.track === null ? null : TRACK.test(String(m.track)) ? String(m.track) : undefined
-      const x = num(m.x, -5, 50), z = num(m.z, -5, 20)
+      const x = num(m.x, -5, 50), z = num(m.z, -5, 32)
       if (track === undefined || x === null || z === null) return
       const song = Number.isInteger(m.song) && m.song >= 0 && m.song <= 3 ? m.song : 0
       const loop = m.loop === true
@@ -737,7 +759,9 @@ export function attachRelay(
       // Au jukebox, et de ce côté du mur ; sauf l'hôte reconnecté qui rend sa musique (`at`).
       const restore = m.where === 'cabin' && m.at !== undefined
       const host = m.where === 'cabin' ? playerById(player.cabin) : undefined
-      if (!restore && !reaches(player, JUKEBOX_LEVEL.get(m.where), { x, z }, host)) return socket.emit('music', { id: 0, ...musicOf(instance), far: true })
+      // Le jukebox des quartiers : dans les anciens (pont supérieur), ou sur la parcelle (pont des quartiers).
+      const level = m.where === 'cabin' && player.level === HOUSING_LEVEL ? HOUSING_LEVEL : JUKEBOX_LEVEL.get(m.where)
+      if (!restore && !reaches(player, level, { x, z }, host)) return socket.emit('music', { id: 0, ...musicOf(instance), far: true })
       musicBudget--
       if (track) music.set(instance, { track, since: Date.now() - (num(m.at, 0, 86400) ?? 0) * 1000, x, z, song, loop, shuffle, seed })
       else music.delete(instance)
@@ -921,6 +945,12 @@ export function attachRelay(
       for (const p of players.values()) {
         if (p !== player && p.cabin === player.id) sockets.get(p.id)?.emit('cabin', { id: player.id, layout })
       }
+      // Quartiers ouverts (housing v2) : tout le bord l'apprend. Les fermer ne met personne dehors.
+      const open = layout.home?.open === true
+      if (open !== player.open) {
+        player.open = open
+        io.emit('open', { id: player.id, open })
+      }
     })
 
     // Invitation dans ses quartiers (CMDR vérifiés seulement), valable une minute. L'hôte apprend
@@ -945,14 +975,15 @@ export function attachRelay(
       sockets.get(host.id)?.emit('decline', { id: player.id, name: player.name })
     })
 
-    // Entrer dans les quartiers d'un hôte (sur invitation), ou rentrer chez soi (host absent).
+    // Entrer dans les quartiers d'un hôte (sur invitation, ou sans s'ils sont ouverts), ou rentrer
+    // chez soi (host absent).
     socket.on('visit', (raw) => {
       const hostId = obj(raw).host
       if (hostId === null || hostId === undefined || hostId === player.id) return moveTo(player, player.id)
       const host = playerById(hostId)
       const until = host?.invited.get(player.id) ?? 0
-      if (!host || until < Date.now()) {
-        // Invitation expirée ou inconnue : le client apprend qu'il reste où il est.
+      if (!host || (until < Date.now() && !host.open)) {
+        // Invitation expirée ou inconnue, quartiers fermés : le client apprend qu'il reste où il est.
         return socket.emit('visit', { id: player.id, cabin: player.cabin, expired: true })
       }
       host.invited.delete(player.id)

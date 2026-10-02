@@ -1,9 +1,10 @@
 import * as THREE from 'three'
-import { makePostMesh, POST_H, POST_W, upperWalls, WALL_T, type Box2, type Deck, type DoorState, type WallSegment } from '../deck'
+import { makePostMesh, POST_H, POST_W, solidBox, upperWalls, WALL_T, type Box2, type Deck, type DoorState, type WallSegment } from '../deck'
 import { makeFadeable } from '../fade'
 import { box, compact, cylinder, glass, glow, lit, sphere } from '../furniture/kit'
 import { tr } from '../i18n'
 import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type FadeFocus, type Occluder } from '../merge'
+import { DIRS } from '../map'
 import { DOOR_GAP } from '../../shared/sight.js'
 import { isDoor, partitionEdge, type Partition } from '../../shared/cabin-partitions.js'
 
@@ -38,6 +39,23 @@ export const PARTITION_KINDS: PartitionKind[] = [
 ]
 
 export const kindOf = (p: Partition) => p.k ?? 'wall'
+
+/** Hauteur d'un demi-mur (les murs font 1) : il arrête les pas, pas le regard. */
+export const HALF_H = 0.5
+
+/** Demi-mur sur l'arête de milieu (cx, cz) : un muret de la couleur des murs, et son chaperon. */
+function halfWall(material: THREE.Material, cx: number, cz: number, alongX: boolean): THREE.Group {
+  const g = new THREE.Group()
+  const body = solidBox(1, HALF_H - 0.04, WALL_T, material)
+  body.position.y = (HALF_H - 0.04) / 2
+  const cap = solidBox(1, 0.05, WALL_T + 0.05, material)
+  cap.position.y = HALF_H - 0.025
+  g.add(body, cap)
+  g.position.set(cx, 0, cz)
+  g.rotation.y = alongX ? 0 : Math.PI / 2
+  g.updateMatrixWorld(true)
+  return g
+}
 
 /** Milieu de l'arête d'une cloison, et son sens. */
 export function partitionCenter(p: Partition): { cx: number; cz: number; alongX: boolean } {
@@ -238,7 +256,84 @@ function leaves(kind: string, deck: Deck, random: () => number): Leaves {
   }
 }
 
+// ---------------------------------------------------------------- papier peint
+
+/**
+ * Papier peint : sur le panneau en retrait des murs du kit (0,10 de l'axe du mur, entre le
+ * bandeau du bas, jusqu'à 0,2, et le chanfrein du haut, à partir de 0,7), à côté des
+ * encadrements (hublot, pilier, porte) mesurés dans les modèles.
+ */
+export const PANEL = { depth: 0.103, bottom: 0.2, top: 0.7 }
+export const PANEL_SPANS: Record<WallSegment['model'], [number, number][]> = {
+  wall: [[-0.5, 0.5]],
+  'wall-window': [[-0.5, -0.4], [0.4, 0.5]],
+  'wall-pillar': [[-0.5, -0.2], [0.2, 0.5]],
+  door: [[-0.5, -0.3], [0.3, 0.5]],
+}
+/**
+ * Papier peint d'un demi-mur : sur toute sa face (un muret uni, cf. halfWall), sous le chaperon.
+ * Calculé à l'usage : deck.ts (WALL_T) et ce module se chargent l'un l'autre.
+ */
+const halfPanel = () => ({ depth: WALL_T / 2 + 0.003, bottom: 0.04, top: HALF_H - 0.06 })
+
+/**
+ * Panneaux de papier peint d'un pan de mur (arête de milieu (cx, cz), côté cabine opposé à
+ * `d`), aux intervalles `spans` le long du mur, à la profondeur et à la hauteur de `panel`.
+ * Coordonnées de texture en mètres, continues d'un pan à l'autre, de gauche à droite vu depuis la
+ * pièce.
+ */
+export function panelGeometry(cx: number, cz: number, d: { dx: number; dz: number }, spans: [number, number][], panel: { depth: number; bottom: number; top: number } = PANEL): THREE.BufferGeometry {
+  const along = d.dz !== 0 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1)
+  // Vu depuis la pièce (regard vers le mur, direction d), la droite est d × haut.
+  const right = new THREE.Vector3(-d.dz, 0, d.dx)
+  const inward = new THREE.Vector3(-d.dx, 0, -d.dz)
+  const base = new THREE.Vector3(cx, 0, cz).addScaledVector(inward, panel.depth)
+  const pos: number[] = [], uv: number[] = [], normal: number[] = [], index: number[] = []
+  const p = new THREE.Vector3()
+  for (const [a, b] of spans) {
+    const i = pos.length / 3
+    for (const [s, y] of [[a, panel.bottom], [b, panel.bottom], [b, panel.top], [a, panel.top]]) {
+      p.copy(base).addScaledVector(along, s).setY(y)
+      pos.push(p.x, p.y, p.z)
+      normal.push(inward.x, 0, inward.z)
+      uv.push(p.dot(right), y)
+    }
+    // Face tournée vers la pièce : on retourne les triangles s'il le faut.
+    const facing = new THREE.Vector3().crossVectors(along, new THREE.Vector3(0, 1, 0)).dot(inward) > 0
+    if (facing) index.push(i, i + 1, i + 2, i, i + 2, i + 3)
+    else index.push(i, i + 2, i + 1, i, i + 3, i + 2)
+  }
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(normal, 3))
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+  geo.setIndex(index)
+  return geo
+}
+
 // ---------------------------------------------------------------- les cloisons d'une cabine
+
+/** Papier peint d'une face de cloison (`a` : vers sa tuile, au nord ou à l'ouest ; `b` : vers la voisine), ou rien. */
+export type PaperOf = (p: Partition, side: 'a' | 'b') => THREE.Material | undefined
+
+/**
+ * Panneaux de papier peint d'une cloison, face par face, aux intervalles `spans` (et à la
+ * hauteur de `panel`) : un maillage par face revêtue.
+ */
+function papersOf(p: Partition, paper: PaperOf | undefined, spans: [number, number][], panel = PANEL): THREE.Mesh[] {
+  if (!paper) return []
+  const { cx, cz } = partitionCenter(p)
+  const d = DIRS[partitionEdge(p).dir]
+  const out: THREE.Mesh[] = []
+  for (const [side, dir] of [['a', d], ['b', { dx: -d.dx, dz: -d.dz }]] as const) {
+    const material = paper(p, side)
+    if (!material) continue
+    const mesh = new THREE.Mesh(panelGeometry(cx, cz, dir, spans, panel), material)
+    mesh.castShadow = false
+    out.push(mesh)
+  }
+  return out
+}
 
 export class PartitionShell {
   readonly group = new THREE.Group()
@@ -251,6 +346,8 @@ export class PartitionShell {
   readonly walls: WallSegment[] = []
   /** Poteaux ajoutés (centre). */
   readonly posts: { x: number; z: number }[] = []
+  /** Demi-murs posés (milieu de l'arête) : ni papier peint, ni objets accrochés. */
+  readonly lows: { x: number; z: number; alongX: boolean }[] = []
   /** Passage de chaque porte, à laisser libre de meubles. */
   readonly doorways: Box2[] = []
   private occluders: Occluder[] = []
@@ -264,40 +361,65 @@ export class PartitionShell {
   /**
    * @param partitions cloisons posées sur le plan (cf. applyPartitions)
    * @param existing murs et poteaux déjà là (le pont, les pièces d'extension) : pour les poteaux d'angle
+   * @param upper haut des murs jusqu'au plafond en vue subjective (pas sous le ciel d'une parcelle)
+   * @param paper papier peint de chaque face (parcelle des quartiers) : il s'estompe avec son mur
    */
   constructor(
     private deck: Deck,
     partitions: Partition[],
     existing: { walls: WallSegment[]; posts: { x: number; z: number }[] },
+    upper = true,
+    private paper?: PaperOf,
   ) {
     const merge = new StaticMerge()
     const random = mulberry(partitions.length * 7919 + 17)
-    const vertex = new Map<string, { h: number; v: number }>()
-    const touch = (vx: number, vz: number, axis: 'h' | 'v') => {
+    // Murs qui touchent chaque sommet, par axe ; `high` : au moins un mur pleine hauteur.
+    const vertex = new Map<string, { h: number; v: number; high: boolean }>()
+    const touch = (vx: number, vz: number, axis: 'h' | 'v', high = true) => {
       const k = `${vx},${vz}`
-      const c = vertex.get(k) ?? { h: 0, v: 0 }
+      const c = vertex.get(k) ?? { h: 0, v: 0, high: false }
       c[axis]++
+      c.high ||= high
       vertex.set(k, c)
     }
     const t = WALL_T / 2
     for (const p of partitions) {
       const { cx, cz, alongX } = partitionCenter(p)
       const rot = alongX ? 0 : Math.PI / 2
-      if (alongX) touch(cx - 0.5, cz, 'h'), touch(cx + 0.5, cz, 'h')
-      else touch(cx, cz - 0.5, 'v'), touch(cx, cz + 0.5, 'v')
+      const high = p.k !== 'half'
+      if (alongX) touch(cx - 0.5, cz, 'h', high), touch(cx + 0.5, cz, 'h', high)
+      else touch(cx, cz - 0.5, 'v', high), touch(cx, cz + 0.5, 'v', high)
+      if (!high) {
+        const occ = merge.addFading(halfWall(deck.theme.shell, cx, cz, alongX), new THREE.Vector3(cx, 0.25, cz))
+        this.occluders.push(occ)
+        for (const m of papersOf(p, paper, [[-0.5, 0.5]], halfPanel())) {
+          merge.add(m, false, occ.index)
+          m.geometry.dispose()
+        }
+        this.lows.push({ x: cx, z: cz, alongX })
+        this.colliders.push(alongX ? { minX: cx - 0.5, maxX: cx + 0.5, minZ: cz - t, maxZ: cz + t } : { minX: cx - t, maxX: cx + t, minZ: cz - 0.5, maxZ: cz + 0.5 })
+        continue
+      }
       if (isDoor(p)) {
         this.buildDoor(p, cx, cz, alongX, random)
         continue
       }
       const model = p.k === 'window' ? 'wall-window' : 'wall'
       const wall = deck.placeModel(model, cx, 0, cz, rot)
-      this.occluders.push(merge.addFading(wall, new THREE.Vector3(cx, 0.5, cz)))
+      const occ = merge.addFading(wall, new THREE.Vector3(cx, 0.5, cz))
+      this.occluders.push(occ)
+      // Le papier peint, sur le panneau en retrait du pan : il s'estompe avec lui.
+      for (const m of papersOf(p, paper, PANEL_SPANS[model])) {
+        merge.add(m, false, occ.index)
+        m.geometry.dispose()
+      }
       this.walls.push({ x: cx, z: cz, alongX, model })
       this.colliders.push(alongX ? { minX: cx - 0.5, maxX: cx + 0.5, minZ: cz - t, maxZ: cz + t } : { minX: cx - t, maxX: cx + t, minZ: cz - 0.5, maxZ: cz + 0.5 })
     }
 
     // Poteaux : là où une cloison tourne, rejoint un mur, ou s'arrête au milieu de la pièce.
     const post = makePostMesh(deck.theme.shell)
+    const lowPost = solidBox(POST_W, HALF_H + 0.02, POST_W, deck.theme.shell)
     for (const [k, c] of vertex) {
       const [vx, vz] = k.split(',').map(Number)
       for (const w of existing.walls) {
@@ -306,15 +428,17 @@ export class PartitionShell {
       }
       const straight = (c.h === 2 && c.v === 0) || (c.v === 2 && c.h === 0)
       if (straight || existing.posts.some((p) => Math.abs(p.x - vx) < 1e-6 && Math.abs(p.z - vz) < 1e-6)) continue
-      const m = post.clone()
-      m.position.set(vx, POST_H / 2, vz)
+      // Entre demi-murs seulement, un poteau à leur hauteur.
+      const m = c.high ? post.clone() : lowPost.clone()
+      m.position.set(vx, c.high ? POST_H / 2 : HALF_H / 2 + 0.01, vz)
       m.updateMatrixWorld(true)
       this.occluders.push(merge.addFading(m, new THREE.Vector3(vx, 0.5, vz)))
-      this.posts.push({ x: vx, z: vz })
+      if (c.high) this.posts.push({ x: vx, z: vz })
       const hs = POST_W / 2
       this.colliders.push({ minX: vx - hs, maxX: vx + hs, minZ: vz - hs, maxZ: vz + hs })
     }
     post.geometry.dispose()
+    lowPost.geometry.dispose()
 
     this.fades = fadeBuffer(merge.fadingCount)
     for (const m of merge.flush(this.group, this.fades.texture)) {
@@ -324,7 +448,7 @@ export class PartitionShell {
 
     // Haut des murs, jusqu'au plafond (vue subjective).
     const top = new StaticMerge()
-    this.ceilingOccluders = upperWalls(top, this.walls, this.posts, 1, POST_H, deck.ceilingY, deck.theme.shell)
+    if (upper) this.ceilingOccluders = upperWalls(top, this.walls, this.posts, 1, POST_H, deck.ceilingY, deck.theme.shell)
     this.ceilingFades = fadeBuffer(top.fadingCount)
     for (const m of top.flush(this.ceiling, this.ceilingFades.texture)) {
       m.castShadow = false
@@ -340,10 +464,24 @@ export class PartitionShell {
     const holder = new THREE.Group()
     holder.position.set(cx, 0, cz)
     holder.rotation.y = alongX ? 0 : Math.PI / 2
-    const frame = this.deck.placeModel('wall-door', 0, 0, 0)
     const l = leaves(p.k ?? 'sliding', this.deck, random)
-    holder.add(frame, ...l.parts)
-    if (l.trim) holder.add(l.trim)
+    if (l.parts.length) holder.add(...l.parts)
+    // Ce qui ne bouge pas (encadrement, décor, papier peint de part et d'autre de l'ouverture) :
+    // fusionné dans le repère de la porte, un maillage par matériau.
+    const still = new StaticMerge()
+    still.add(this.deck.placeModel('wall-door', 0, 0, 0), true)
+    if (l.trim) {
+      still.add(l.trim, true)
+      disposeMeshes(l.trim)
+    }
+    holder.updateMatrix()
+    const local = holder.matrix.clone().invert()
+    for (const m of papersOf(p, this.paper, PANEL_SPANS.door)) {
+      m.geometry.applyMatrix4(local)
+      still.add(m, true)
+      m.geometry.dispose()
+    }
+    for (const m of still.flush(holder)) this.owned.push(m.geometry)
     l.animate?.(0)
     // Tout se trame ensemble : un matériau tramable par matériau d'origine.
     const fade = { value: 1 }
@@ -361,9 +499,9 @@ export class PartitionShell {
       m.castShadow = true
       m.receiveShadow = true
     })
-    // Les géométries du kit du vaisseau (encadrement, porte coulissante) sont partagées ; celles
-    // des battants et du décor faits main appartiennent à la porte.
-    for (const part of [...(l.kit ? [] : l.parts), ...(l.trim ? [l.trim] : [])]) {
+    // Les géométries du kit du vaisseau (la porte coulissante) sont partagées ; celles des
+    // battants faits main appartiennent à la porte.
+    for (const part of l.kit ? [] : l.parts) {
       part.traverse((c) => {
         if ((c as THREE.Mesh).isMesh) this.owned.push((c as THREE.Mesh).geometry)
       })
@@ -425,6 +563,13 @@ export class PartitionShell {
   }
 }
 
+/** Libère les géométries d'un décor fait main, une fois fusionné ailleurs. */
+function disposeMeshes(o: THREE.Object3D) {
+  o.traverse((c) => {
+    if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).geometry.dispose()
+  })
+}
+
 function mulberry(seed: number): () => number {
   let a = seed >>> 0
   return () => {
@@ -432,5 +577,106 @@ function mulberry(seed: number): () => number {
     let t = Math.imul(a ^ (a >>> 15), 1 | a)
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+// ---------------------------------------------------------------- vignettes des cloisons
+
+/**
+ * Vignette d'une cloison vue de face : un pan de mur du vaisseau, son hublot, un demi-mur, ou
+ * l'encadrement d'une porte et son battant ; la gomme (« erase »), une cloison barrée.
+ */
+export function drawPartition(canvas: HTMLCanvasElement, kind: string) {
+  const g = canvas.getContext('2d')!
+  const W = canvas.width, H = canvas.height
+  g.clearRect(0, 0, W, H)
+  const wall = '#c9ccd6', band = '#9aa0ae', dark = '#2a2e36'
+  const x0 = W * 0.12, x1 = W * 0.88, y0 = H * 0.14, y1 = H * 0.9
+  if (kind === 'half') {
+    const top = y1 - (y1 - y0) * 0.45
+    g.fillStyle = wall
+    g.fillRect(x0, top, x1 - x0, y1 - top)
+    g.fillStyle = band
+    g.fillRect(x0 - W * 0.02, top - H * 0.04, x1 - x0 + W * 0.04, H * 0.05)
+    g.fillRect(x0, y1 - H * 0.1, x1 - x0, H * 0.1)
+    return
+  }
+  g.fillStyle = wall
+  g.fillRect(x0, y0, x1 - x0, y1 - y0)
+  g.fillStyle = band
+  g.fillRect(x0, y1 - H * 0.12, x1 - x0, H * 0.12)
+  g.fillRect(x0, y0, x1 - x0, H * 0.08)
+  const ox0 = W * 0.33, ox1 = W * 0.67, oy = y0 + (y1 - y0) * 0.3
+  const rect = (x: number, y: number, w: number, h: number, c: string) => {
+    g.fillStyle = c
+    g.fillRect(x, y, w, h)
+  }
+  if (kind === 'window') {
+    g.fillStyle = dark
+    g.beginPath()
+    g.arc(W / 2, H * 0.48, W * 0.16, 0, Math.PI * 2)
+    g.fill()
+    g.fillStyle = '#6fd8ff'
+    g.beginPath()
+    g.arc(W / 2, H * 0.48, W * 0.12, 0, Math.PI * 2)
+    g.fill()
+    return
+  }
+  if (kind === 'wall') return
+  if (kind === 'erase') {
+    g.strokeStyle = '#ff4f5e'
+    g.lineWidth = W * 0.08
+    g.beginPath()
+    g.moveTo(W * 0.2, H * 0.2)
+    g.lineTo(W * 0.8, H * 0.82)
+    g.stroke()
+    return
+  }
+  // Ouverture de porte, et son battant.
+  rect(ox0, oy, ox1 - ox0, y1 - oy, '#1b1e26')
+  const w = ox1 - ox0, h = y1 - oy
+  switch (kind) {
+    case 'sliding':
+      rect(ox0 + w * 0.08, oy + 2, w * 0.84, h - 2, '#8f96a3')
+      rect(ox0 + w * 0.46, oy + h * 0.2, w * 0.08, h * 0.5, '#ff8a1c')
+      break
+    case 'wood':
+      rect(ox0 + 2, oy + 2, w - 4, h - 2, '#8a5a3a')
+      for (const [fx, fy] of [[0.12, 0.08], [0.56, 0.08], [0.12, 0.55], [0.56, 0.55]]) rect(ox0 + w * fx, oy + h * fy, w * 0.32, h * 0.38, '#5e3a24')
+      rect(ox0 + w * 0.8, oy + h * 0.48, w * 0.1, w * 0.1, '#c9a24a')
+      break
+    case 'saloon':
+      rect(ox0 + 2, oy + h * 0.25, w / 2 - 3, h * 0.45, '#8a5a3a')
+      rect(ox0 + w / 2 + 1, oy + h * 0.25, w / 2 - 3, h * 0.45, '#8a5a3a')
+      break
+    case 'airlock':
+      rect(ox0, oy, w, h / 2 - 1, '#5b626e')
+      rect(ox0, oy + h / 2 + 1, w, h / 2 - 1, '#5b626e')
+      for (let i = 0; i < 4; i++) rect(ox0 + (i * w) / 4, oy + h / 2 - 5, w / 8, 10, '#e9a917')
+      break
+    case 'shoji':
+      rect(ox0 + 2, oy + 2, w - 4, h - 2, '#f3ead2')
+      g.strokeStyle = '#b98a52'
+      g.lineWidth = 2
+      for (let i = 1; i < 3; i++) g.strokeRect(ox0 + 2, oy + 2, ((w - 4) * i) / 3, h - 2)
+      for (let i = 1; i < 5; i++) rect(ox0 + 2, oy + (i * h) / 5, w - 4, 2, '#b98a52')
+      break
+    case 'glass':
+      rect(ox0 + 2, oy + 2, w - 4, h - 2, '#b9c1cc')
+      rect(ox0 + 6, oy + 6, w - 12, h - 10, '#9fdcf0')
+      break
+    case 'beads':
+      for (let i = 0; i < 6; i++) {
+        for (let k = 0; k < 7; k++) rect(ox0 + 4 + (i * (w - 8)) / 5 - 2, oy + 4 + (k * (h - 8)) / 7, 4, 4, ['#ff6a5a', '#ffd23c', '#6ad8ff', '#ff6ad5'][(i + k) % 4])
+      }
+      break
+    case 'arch':
+      g.fillStyle = wall
+      g.fillRect(ox0, oy, w, w / 2)
+      g.fillStyle = '#1b1e26'
+      g.beginPath()
+      g.arc(W / 2, oy + w / 2, w / 2, Math.PI, 0)
+      g.fill()
+      break
   }
 }

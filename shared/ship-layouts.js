@@ -3,6 +3,7 @@
 // Une lettre par tuile (colonne = x, ligne = z), une lettre par pièce, '+' pour une porte.
 
 import { wingDoors } from './cabin-wings.js'
+import { PLOT_DOOR } from './housing-plot.js'
 
 export const SHIP_LAYOUTS = {
   // Cale ; à la poupe, la salle des machines, derrière l'atelier, et cachée derrière elle, le
@@ -64,6 +65,18 @@ export const SHIP_LAYOUTS = {
     '        pppppppp             ',
     '        pppppppp             ',
   ],
+  // Pont des quartiers (housing v2) : le palier de l'ascenseur, seul. La parcelle de chacun s'y
+  // accole à l'est, derrière la porte du palier, et se construit à la volée (cf. housing-plot.js).
+  '2': [
+    '            ',
+    '            ',
+    '            ',
+    '        aaaa',
+    '        aaaa',
+    '        aaaa',
+    '        aaaa',
+    '        aaaa',
+  ],
 }
 
 /**
@@ -77,10 +90,11 @@ export const CLOSED_ROOMS = {
 /**
  * Plan d'un pont : portes des pièces en travaux verrouillées ; au pont supérieur, les portes des
  * trois espaces d'extension des quartiers (verrouillées tant qu'aucune pièce n'y est posée, cf.
- * applyWings).
+ * applyWings) ; au pont des quartiers, la porte du palier vers la parcelle (cf. applyPlot).
  */
 export function shipMapOptions(level) {
-  const doors = String(level) === '1' ? wingDoors().map((d) => ({ ...d, locked: true })) : String(level) === '-1' ? [SECURITY_DOOR] : []
+  const id = String(level)
+  const doors = id === '1' ? wingDoors().map((d) => ({ ...d, locked: true })) : id === '-1' ? [SECURITY_DOOR] : id === '2' ? [PLOT_DOOR] : []
   return { closed: CLOSED_ROOMS[level] ?? '', doors }
 }
 

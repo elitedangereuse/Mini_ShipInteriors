@@ -2,11 +2,14 @@ import { COOKIE, cookieValue } from './cmdr.js'
 
 const MODELS = { 'site-card': 'card', 'site-badge': 'badge', 'adventure-poster': 'adv' }
 
-export const hasSiteArtwork = (layout) => layout.items.some((i) => Object.hasOwn(MODELS, i.m))
+/** Objets d'un aménagement : ceux des quartiers, et ceux de la parcelle (housing v2). */
+const itemsOf = (layout) => [...layout.items, ...(layout.home?.items ?? [])]
+
+export const hasSiteArtwork = (layout) => itemsOf(layout).some((i) => Object.hasOwn(MODELS, i.m))
 
 /** The site confirms ownership before the relay shows earned artwork to guests. */
 export async function siteArtworkAllowed(layout, cookie, cmdrUrl) {
-  const items = layout.items.filter((i) => Object.hasOwn(MODELS, i.m))
+  const items = itemsOf(layout).filter((i) => Object.hasOwn(MODELS, i.m))
   if (!items.length) return true
   const value = cookieValue(cookie)
   if (!cmdrUrl || !value) return false

@@ -83,7 +83,7 @@ Les futurs espaces communautaires sont déjà là, **en travaux** : LJPC et La V
 
 La réserve de huit lumières du moteur de rendu suit le joueur : un pont peut en avoir davantage, les plus proches s'allument.
 
-On se réveille dans ses quartiers, sur le pont supérieur, à deux pas du Holo-Me. Dans le sélecteur de l’ascenseur, **Vous êtes ici** indique le pont actuel.
+On se réveille dans ses quartiers, sur le pont supérieur, à deux pas du Holo-Me. Dans le sélecteur de l’ascenseur, **Vous êtes ici** indique le pont actuel. En test, avec `?housing-v2`, les quartiers ont leur propre pont au-dessus du pont supérieur, et on s'y réveille (cf. [Quartiers v2](#quartiers-v2--la-parcelle-en-test)).
 
 | Pont | Ambiance | Pièces |
 |---|---|---|
@@ -210,6 +210,30 @@ L'aménagement est **enregistré sur le site** (cf. [Comptes Élite Dangereuse](
 </p>
 
 Un CMDR **invite** un membre d'équipage connecté : « Inviter » dans la barre de ses quartiers (la liste de l'équipage), ou `/inviter CMDR Nom`. L'invitation vaut une minute ; si l'invité la rejoint, où qu'il soit à bord, il est téléporté devant la porte, dans des quartiers meublés comme chez son hôte, et voit chacun de ses changements en direct. La visite dure même s'il sort dans la coursive : il peut revenir chez son hôte tant qu'il reste sur le pont supérieur. Il rentre chez lui avec « Rentrer chez moi » (dans la barre, jusque dans la coursive), en prenant l'ascenseur, quand l'hôte le raccompagne (depuis la liste de l'équipage), ou quand l'hôte quitte le vaisseau. Quand la visite est interrompue (liaison perdue avec le relais, hôte parti, raccompagné), il est ramené dans ses quartiers, à deux pas du Holo-Me, où qu'il soit ; s'il la quitte lui-même depuis une pièce d'extension de son hôte, il revient dans ses propres quartiers, au plus près.
+
+### Quartiers v2 : la parcelle (en test)
+
+<p align="center">
+  <img src="docs/images/parcelle.jpg" alt="Un CMDR dans une suite construite sur sa parcelle : murs tapissés, parquet en point de Hongrie, portes ; au fond, les anciens quartiers devenus une pièce de la parcelle, et le champ de force bleu qui borde la bulle" width="100%">
+</p>
+
+Une refonte des quartiers est en test derrière le drapeau `?housing-v2`, à ajouter à l'adresse du jeu (`src/housing/flag.ts`). Le découpage en tâches, les décisions et ce qui reste à faire côté site sont dans [docs/housing-v2.md](docs/housing-v2.md).
+
+- **Un étage à soi.** Les quartiers quittent le pont supérieur pour un pont à eux, au-dessus, que dessert l'ascenseur (« Mes quartiers », ou « Chez … » pour les quartiers ouverts d'un autre). On arrive sur un palier, au bord de sa **parcelle** : un plancher de 10 × 10 tuiles dans une bulle ouverte sur l'espace, bordée par le champ de force du hangar. Au pont supérieur, la place libérée devient la « Pièce vierge ».
+- **Construire.** `B`, puis « Construction » : vue plongeante sur la parcelle, et quatre onglets. **Murs** : on trace sur les lignes du quadrillage (une ligne, ou le pourtour d'une pièce d'un coin à l'autre), avec trois pans (plein, demi-mur, à hublot) et les huit portes des cloisons, arche comprise ; un mur posé au bord de la parcelle prend la place du champ de force, qui se referme sur les côtés restés libres. **Papier peint** : sur une face, sur toute une pièce ou sur tous les murs d'un coup, avec pipette et gomme. **Sol** : un revêtement par tuile, au pinceau ou en remplissant une pièce ; une tuile nue garde la dalle du vaisseau. **Parcelle** : sa taille et ses agrandissements. « Mobilier » revient au catalogue : les objets se posent comme avant, et s'accrochent aux murs qu'on a construits. Murs et revêtements sont gratuits.
+- **Plans tout faits** (outil « Plans » de l'onglet Murs) : studio, deux pièces, suite, véranda (hublots et arche) et coin salon (demi-murs), posés d'un clic et tournés d'un quart de tour avec `R` ; un plan se pose en entier, ou pas du tout.
+- **Règles.** Un mur ne traverse pas un meuble ; retirer un mur décroche ce qui y était accroché (`Ctrl+Z` le raccroche) ; une partie de la parcelle qu'on ne peut plus rejoindre depuis le palier est signalée (« ajoutez une porte »). 512 murs au plus, 16 papiers peints et 16 revêtements de sol différents, 64 objets (128, puis 160 sur une parcelle agrandie).
+- **Agrandir.** 20 × 20 pour 100 000 CR, puis 30 × 30 pour 250 000 CR (`plot` dans `economy.json`), dans l'onglet « Parcelle ».
+- **Ouverts ou sur invitation.** Le bouton de la barre des quartiers : des quartiers ouverts se visitent sans invitation, depuis l'ascenseur ou la liste de l'équipage. Les fermer pendant une visite laisse les visiteurs finir la leur. Les invitations marchent comme avant, et arrivent sur le palier.
+- **Les anciens quartiers** deviennent, la première fois, une construction de la parcelle : leurs murs, leurs portes et leurs cloisons, leur papier peint, leur sol et leurs objets. Les extensions achetées offrent les agrandissements, pour que tout tienne.
+
+<p align="center">
+  <img src="docs/images/construction.jpg" alt="Le mode construction : vue plongeante sur une parcelle de 20 × 20 avec les anciens quartiers meublés, une suite, une véranda et un coin salon ; à droite, l'onglet « Papier peint » et ses douze motifs" width="100%">
+</p>
+
+À la manette, le stick gauche déplace un curseur (`L3` : plus vite), `A` maintenu trace, `X` annule, `B` abandonne le trait ou ferme, `LB` / `RB` changent d'outil, `Y` passe au type de mur, au motif ou au plan suivant, `R3` tourne le plan et `Start` change d'onglet ; le stick droit et les gâchettes règlent la caméra. Sur écran tactile, on trace au doigt comme à la souris. Les chiffres `1` à `5` choisissent l'outil au clavier.
+
+En test, la parcelle est gardée dans le navigateur et pas encore sur le site, et le mode construction est ouvert à tous ; retirer le drapeau rend les anciens quartiers tels qu'ils étaient. La galerie `/gallery.html?parcelle` montre les onze murs et portes, des revêtements, et trois plans tout faits.
 
 ## Mobilier fait main
 
@@ -693,6 +717,7 @@ Les bips, les mélodies d'arcade, les étincelles, le miaulement, le ronronnemen
 | `shared/sight.js` | Ligne de vue sur un plan : l'invite, `E` et le relais (tables de jeux, jukebox) refusent un objet derrière un mur ; tests dans `server/sight.test.js`. |
 | `src/deck.ts` · `src/merge.ts` | Construit un pont : sols, murs sur les arêtes, hublots, poteaux, portes automatiques, meubles, ascenseur, réacteur, tuyères. Fusion de géométrie et fondu tramé (`merge.ts`, partagé avec les quartiers). |
 | `src/cabin/` | **Quartiers personnalisables** : catalogue des objets (`catalog.ts`, et ses compléments `catalog-home.ts`, `catalog-ship.ts`, `catalog-fun.ts`), revêtements des murs et du sol (`finishes.ts`), cloisons (`partitions.ts`, et `shared/cabin-partitions.js`), aménagement et sa normalisation (`layout.ts`), construction et fusion dans le pont (`view.ts`), règles de pose (`rules.ts`), mode aménagement (`editor.ts`), vignettes (`thumbs.ts`), barre des quartiers et invitations (`hud.ts`), enregistrement sur le site (`storage.ts`). |
+| `src/housing/` · `shared/housing-*.js` | **Quartiers v2** (en test, `?housing-v2`, cf. [la parcelle](#quartiers-v2--la-parcelle-en-test)) : le drapeau (`flag.ts`), le plancher et le champ de force (`plot.ts`), la parcelle construite dans le pont (`home.ts`), le mode construction (`builder.ts`), l'enregistrement (`storage.ts`) ; partagés avec le relais, la parcelle et ses tailles (`shared/housing-plot.js`), son plan au format 2, murs, papier peint, sol et objets, et sa validation (`shared/housing-home.js`), la migration des anciens quartiers (`shared/housing-migrate.js`) et les plans tout faits (`shared/housing-templates.js`) ; tests dans `server/housing-*.test.js`. |
 | `src/fade.ts` | Shaders de transparence tramée (par objet ou indexée pour la géométrie fusionnée). |
 | `src/avatar.ts` | Personnage animé : locomotion, emotes, poses sur les meubles, danse au tempo. Partagé par le joueur local et les joueurs distants. |
 | `src/seats.ts` · `src/seating.ts` | Les places de chaque meuble (pose, hauteur, orientation) ; s'y installer (choix d'une place libre, abord, trajet) et s'en relever. |

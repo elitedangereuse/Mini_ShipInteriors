@@ -11,10 +11,12 @@ import { placeSeats, seatAction, seatsOf } from '../seats'
 import { builderLabel, entryOf, interactText, isSolid, type CatalogEntry } from './catalog'
 import { FinishTexture } from './finishes'
 import { partitionsKey, sameItems, wingShapes, type CabinItem, type CabinLayout, type CabinWings, type Finish, type Partition, type Rect } from './layout'
-import { partitionCenter, PartitionShell } from './partitions'
+import { panelGeometry, PANEL_SPANS, partitionCenter, PartitionShell } from './partitions'
 import { WingShell } from './wings'
 import { applyWings, WING_ROOMS, WING_SLOTS, type WingId, type WingPlan } from '../../shared/cabin-wings.js'
 import { applyPartitions, clearPartitions } from '../../shared/cabin-partitions.js'
+import { STAGE_ITEMS } from '../../shared/housing-home.js'
+import { ROOM_ITEMS, WING_ITEMS } from './layout'
 
 /*
  * La cabine telle qu'on la voit : les objets d'un aménagement, construits et fusionnés dans
@@ -28,6 +30,11 @@ export interface CabinDef {
   room: string
   /** Tuile intérieure devant la porte : toujours libre, et reliée au Holo-Me. */
   door: { x: number; z: number }
+  /**
+   * La parcelle du pont des quartiers (housing v2, cf. src/housing/) : ses murs, ses revêtements
+   * et sa taille viennent d'elle (Deck.home), pas d'extensions ni de cloisons.
+   */
+  home?: boolean
 }
 
 /** Demi-épaisseur d'un mur : sa face intérieure est à 0,15 de l'arête. */
@@ -39,18 +46,6 @@ const MAX_OCCLUDERS = 96
 
 const PICK_MATERIAL = keepShared(new THREE.MeshBasicMaterial())
 
-/**
- * Papier peint : sur le panneau en retrait des murs du kit (0,10 de l'axe du mur, entre le
- * bandeau du bas, jusqu'à 0,2, et le chanfrein du haut, à partir de 0,7), à côté des
- * encadrements (hublot, pilier, porte) mesurés dans les modèles.
- */
-const PANEL = { depth: 0.103, bottom: 0.2, top: 0.7 }
-const PANEL_SPANS: Record<WallSegment['model'], [number, number][]> = {
-  wall: [[-0.5, 0.5]],
-  'wall-window': [[-0.5, -0.4], [0.4, 0.5]],
-  'wall-pillar': [[-0.5, -0.2], [0.2, 0.5]],
-  door: [[-0.5, -0.3], [0.3, 0.5]],
-}
 /** Revêtement du sol, juste au-dessus des dalles (les tapis, plus hauts, restent dessus). */
 const FLOORING_Y = 0.002
 
@@ -152,8 +147,8 @@ export function rotateLocal(r: Rot, x: number, z: number): { x: number; z: numbe
 export class CabinView {
   /** Objets de la cabine (enfant du groupe du pont). */
   readonly group = new THREE.Group()
-  /** Rectangle intérieur de la cabine (faces intérieures des murs). */
-  readonly bounds: Rect
+  /** Rectangle intérieur de la cabine (faces intérieures des murs) ; celui de la parcelle suit sa taille. */
+  bounds: Rect = { minX: 0, maxX: 0, minZ: 0, maxZ: 0 }
   /** Tuiles des quartiers (hors extensions). */
   readonly tiles: { x: number; z: number }[] = []
   /** Murs où l'on peut accrocher des objets, extensions comprises. */
@@ -183,6 +178,9 @@ export class CabinView {
   onMusic?: (position: THREE.Vector3, text: Interactable['text'], model: string) => void
 
   private built: Built[] = []
+  /** Collisions et lumières des objets (cf. rebuild, relink). */
+  private itemColliders: Box2[] = []
+  private itemLights: Deck['lights'] = []
   private decorationFrame = -1
   /** Boîtes locales par modèle, variante et graine (vérifications du mode aménagement). */
   private boxes = new Map<string, THREE.Box3>()
@@ -220,8 +218,20 @@ export class CabinView {
     this.baseColliders = deck.colliders.length
     this.baseLights = deck.lights.length
 
-    const map = deck.map
-    for (let z = 0; z < map.height; z++) for (let x = 0; x < map.width; x++) if (map.room(x, z) === def.room) this.tiles.push({ x, z })
+    this.measure()
+    this.letters.add(def.room)
+    this.findWalls()
+    // La parcelle a ses propres revêtements (cf. housing/home.ts) : ceux d'une cabine y restent vides.
+    this.wallpaper = this.buildWallpaper(def.home ? [] : this.tiles)
+    this.flooring = this.buildFlooring(def.home ? [] : this.tiles)
+  }
+
+  /** Tuiles de la pièce sur le plan, et le rectangle qui les englobe. */
+  private measure() {
+    const map = this.deck.map
+    this.tiles.length = 0
+    for (let z = 0; z < map.height; z++) for (let x = 0; x < map.width; x++) if (map.room(x, z) === this.def.room) this.tiles.push({ x, z })
+    if (!this.tiles.length) return
     const xs = this.tiles.map((t) => t.x), zs = this.tiles.map((t) => t.z)
     this.bounds = {
       minX: Math.min(...xs) - 0.5 + WALL_HALF,
@@ -229,10 +239,25 @@ export class CabinView {
       minZ: Math.min(...zs) - 0.5 + WALL_HALF,
       maxZ: Math.max(...zs) + 0.5 - WALL_HALF,
     }
-    this.letters.add(def.room)
+  }
+
+  /**
+   * La parcelle a changé (murs, taille) : tuiles, murs d'accroche, collisions et lumières sont à
+   * refaire ; les objets, eux, restent où ils sont.
+   */
+  reshape() {
+    this.measure()
     this.findWalls()
-    this.wallpaper = this.buildWallpaper(this.tiles)
-    this.flooring = this.buildFlooring(this.tiles)
+    // Les objets n'ont pas bougé : leur géométrie fusionnée reste ; seules leurs collisions et
+    // lumières se rangent de nouveau derrière celles de la parcelle.
+    if (this.built.length) this.relink()
+    else this.rebuild()
+  }
+
+  /** Objets au plus dans une pièce : la parcelle selon sa taille, les quartiers, une pièce d'extension. */
+  roomCap(room: 'main' | WingId): number {
+    if (this.def.home) return STAGE_ITEMS[Math.max(0, this.deck.home?.stage ?? 0)] ?? STAGE_ITEMS[0]
+    return room === 'main' ? ROOM_ITEMS : WING_ITEMS
   }
 
   /** Cloisons affichées. */
@@ -363,7 +388,7 @@ export class CabinView {
   /** Pan de mur (ou porte) posé sur l'arête de milieu (cx, cz) : par une pièce d'extension, ou par le pont. */
   private segmentAt(cx: number, cz: number): WallSegment | undefined {
     const at = (w: WallSegment) => Math.abs(w.x - cx) < 1e-6 && Math.abs(w.z - cz) < 1e-6
-    const inner = this.partitionShell?.walls.find(at)
+    const inner = this.partitionShell?.walls.find(at) ?? this.deck.home?.segments.find(at)
     if (inner) return inner
     for (const wing of this.wings.values()) {
       const seg = wing.shell.walls.find(at)
@@ -450,7 +475,7 @@ export class CabinView {
     this.walls.length = 0
     this.posts.length = 0
     const tiles = this.allTiles()
-    const posts = [...deck.posts, ...[...this.wings.values()].flatMap((w) => w.shell.posts), ...(this.partitionShell?.posts ?? [])]
+    const posts = [...deck.posts, ...[...this.wings.values()].flatMap((w) => w.shell.posts), ...(this.partitionShell?.posts ?? []), ...(deck.home?.posts ?? [])]
     const lines = new Map<string, { dir: number; edge: number; segments: { at: number; free: boolean }[] }>()
     for (const t of tiles) {
       for (let dir = 0; dir < 4; dir++) {
@@ -717,13 +742,17 @@ export class CabinView {
    */
   setLayout(layout: CabinLayout) {
     const shapes = this.wingKey
-    // Les cloisons quittent le plan le temps de refaire les pièces d'extension (elles ne doivent
-    // pas passer pour des murs de leurs pièces), puis y reviennent.
-    clearPartitions(this.deck.map, this.placed)
-    this.setWings(layout.wings)
-    const walled = this.setPartitions(layout.partitions, shapes !== this.wingKey)
-    this.setWingFinishes(layout.wings)
-    this.setFinish(layout.wall, layout.floor)
+    let walled = false
+    // Sur la parcelle, ni extensions ni cloisons : ses murs et ses revêtements sont les siens.
+    if (!this.def.home) {
+      // Les cloisons quittent le plan le temps de refaire les pièces d'extension (elles ne doivent
+      // pas passer pour des murs de leurs pièces), puis y reviennent.
+      clearPartitions(this.deck.map, this.placed)
+      this.setWings(layout.wings)
+      walled = this.setPartitions(layout.partitions, shapes !== this.wingKey)
+      this.setWingFinishes(layout.wings)
+      this.setFinish(layout.wall, layout.floor)
+    }
     const items = layout.items
     // Les pièces ont changé : collisions, lumières et murs d'accroche sont à refaire, objets inchangés ou non.
     if (!this.detached.size && this.built.length && sameItems(items, this.items) && shapes === this.wingKey && !walled) return
@@ -907,17 +936,28 @@ export class CabinView {
     this.fades.texture.needsUpdate = true
     this.meshes = this.merge.flush(this.group, this.fades.texture)
 
-    deck.colliders.length = this.baseColliders
-    deck.colliders.push(...this.wingColliders(), ...(this.partitionShell?.colliders ?? []), ...colliders)
+    lights.sort((a, b) => a.priority - b.priority)
+    this.itemColliders = colliders
+    this.itemLights = lights.map((l) => l.light)
     for (const k of this.blocked) deck.blockedTiles.delete(k)
     this.blocked = [...tiles]
     for (const k of this.blocked) deck.blockedTiles.add(k)
-    deck.pathfinder.invalidate()
+    this.relink()
+  }
 
+  /**
+   * Collisions et lumières du pont : le reste du pont, puis la parcelle (ses murs, son champ de
+   * force), les pièces d'extension et les cloisons, puis les objets (cf. rebuild).
+   */
+  private relink() {
+    const { deck } = this
+    deck.colliders.length = this.baseColliders
+    deck.colliders.push(...(this.def.home ? deck.home?.colliders ?? [] : []), ...this.wingColliders(), ...(this.partitionShell?.colliders ?? []), ...this.itemColliders)
+    deck.pathfinder.invalidate()
     deck.lights.length = this.baseLights
+    if (this.def.home) deck.lights.push(...(deck.home?.lights ?? []))
     for (const w of this.wings.values()) deck.lights.push(w.light)
-    lights.sort((a, b) => a.priority - b.priority)
-    for (const l of lights) deck.lights.push(l.light)
+    deck.lights.push(...this.itemLights)
     this.onLights?.()
   }
 
@@ -952,38 +992,4 @@ export class CabinView {
     for (const wing of this.wings.values()) wing.shell.update(view, dt)
     this.partitionShell?.update(view, dt, this.solidPartitions)
   }
-}
-
-/**
- * Panneaux de papier peint d'un pan de mur (arête de milieu (cx, cz), côté cabine opposé à
- * `d`), aux intervalles `spans` le long du mur. Coordonnées de texture en mètres, continues
- * d'un pan à l'autre, de gauche à droite vu depuis la pièce.
- */
-function panelGeometry(cx: number, cz: number, d: { dx: number; dz: number }, spans: [number, number][]): THREE.BufferGeometry {
-  const along = d.dz !== 0 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1)
-  // Vu depuis la pièce (regard vers le mur, direction d), la droite est d × haut.
-  const right = new THREE.Vector3(-d.dz, 0, d.dx)
-  const inward = new THREE.Vector3(-d.dx, 0, -d.dz)
-  const base = new THREE.Vector3(cx, 0, cz).addScaledVector(inward, PANEL.depth)
-  const pos: number[] = [], uv: number[] = [], normal: number[] = [], index: number[] = []
-  const p = new THREE.Vector3()
-  for (const [a, b] of spans) {
-    const i = pos.length / 3
-    for (const [s, y] of [[a, PANEL.bottom], [b, PANEL.bottom], [b, PANEL.top], [a, PANEL.top]]) {
-      p.copy(base).addScaledVector(along, s).setY(y)
-      pos.push(p.x, p.y, p.z)
-      normal.push(inward.x, 0, inward.z)
-      uv.push(p.dot(right), y)
-    }
-    // Face tournée vers la pièce : on retourne les triangles s'il le faut.
-    const facing = new THREE.Vector3().crossVectors(along, new THREE.Vector3(0, 1, 0)).dot(inward) > 0
-    if (facing) index.push(i, i + 1, i + 2, i, i + 2, i + 3)
-    else index.push(i, i + 2, i + 1, i, i + 3, i + 2)
-  }
-  const geo = new THREE.BufferGeometry()
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
-  geo.setAttribute('normal', new THREE.Float32BufferAttribute(normal, 3))
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
-  geo.setIndex(index)
-  return geo
 }

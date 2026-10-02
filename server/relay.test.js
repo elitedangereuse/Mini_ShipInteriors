@@ -15,6 +15,7 @@ import { KRAIT_BURN, KRAIT_COCKPIT, MECH_HELP, MECH_HOLD, MECH_LEVEL, mechAt } f
 import { GARDEN_HELP, GARDEN_HOLD, GARDEN_LEVEL, gardenAt } from '../shared/gardener.js'
 import { NURSE_BEDS, NURSE_CARE, NURSE_CARE_MIN, NURSE_HOLD, NURSE_LEVEL, NURSE_PATCH, nurseAt } from '../shared/nurse.js'
 import { BASE_ARRIVAL, BASE_BURN, BASE_COCKPIT, BASE_LEVEL, CHIEF_HOLD, chiefAt } from '../shared/ground-base.js'
+import { HOUSING_LEVEL, PLOT_ORIGIN } from '../shared/housing-plot.js'
 
 /** Faux site : reconnaît deux cookies, comme outils/mini-shipinteriors-cmdr.php. */
 const ACCOUNTS = { 'jeton-adam': 'Adam Fauster', 'jeton-rackam': 'Rackam' }
@@ -886,6 +887,22 @@ describe('quartiers', () => {
     assert.equal(seen.cabin, wh.id)
   })
 
+  test('le pont des quartiers : chacun dans sa bulle, le relais suit les pas', async () => {
+    const { host, wh, guest, wg } = await hostAndGuest()
+    // Sur la parcelle de départ, puis sur le palier de l'ascenseur.
+    const onPlot = { x: PLOT_ORIGIN.x + 4, z: PLOT_ORIGIN.z + 4, yaw: 0, level: HOUSING_LEVEL, anim: 'idle' }
+    host.emit('state', onPlot)
+    assert.deepEqual(await next(guest, 'state', (m) => m.id === wh.id), { id: wh.id, ...onPlot })
+    const landing = { x: 10, z: 5, yaw: 0, level: HOUSING_LEVEL, anim: 'walk' }
+    guest.emit('state', landing)
+    assert.deepEqual(await next(host, 'state', (m) => m.id === wg.id), { id: wg.id, ...landing })
+    // Chacun reste dans sa propre instance : rien ne les réunit sans invitation.
+    const late = client({ auth: { name: 'CMDR Tardif' } })
+    const seen = (await welcome(late)).players
+    assert.equal(seen.find((p) => p.id === wh.id).cabin, wh.id)
+    assert.equal(seen.find((p) => p.id === wg.id).cabin, wg.id)
+  })
+
   test('sur invitation, le visiteur entre, reçoit l\'aménagement, puis chacun de ses changements', async () => {
     const { host, wh, guest, wg } = await hostAndGuest()
     const other = client({ auth: { name: 'CMDR Kirk' } })
@@ -913,6 +930,40 @@ describe('quartiers', () => {
     const left = next(host, 'visit', (m) => m.id === wg.id)
     guest.emit('visit', { host: null })
     assert.deepEqual(await left, { id: wg.id, cabin: wg.id })
+  })
+
+  test('des quartiers ouverts se visitent sans invitation ; fermés, il en faut une, mais on n\'est pas mis dehors', async () => {
+    const { host, wh, guest, wg } = await hostAndGuest()
+    // Fermés (par défaut) : la visite est refusée.
+    const refused = next(guest, 'visit', (m) => m.id === wg.id)
+    guest.emit('visit', { host: wh.id })
+    assert.deepEqual(await refused, { id: wg.id, cabin: wg.id, expired: true })
+
+    // Ouverts : tout le bord l'apprend, un nouveau venu aussi.
+    const home = { v: 2, open: true, walls: [{ x: PLOT_ORIGIN.x + 2, z: PLOT_ORIGIN.z + 2, e: 'v' }] }
+    const opened = next(guest, 'open')
+    host.emit('cabin', { layout: { ...LAYOUT, home } })
+    assert.deepEqual(await opened, { id: wh.id, open: true })
+    const late = client({ auth: { name: 'CMDR Tardif' } })
+    const wl = await welcome(late)
+    assert.equal(wl.players.find((p) => p.id === wh.id).open, true)
+
+    // On y entre sans invitation, aménagement compris.
+    const layout = next(guest, 'cabin')
+    const entered = next(host, 'visit', (m) => m.id === wg.id)
+    guest.emit('visit', { host: wh.id })
+    assert.deepEqual((await layout).layout.home, home)
+    assert.deepEqual(await entered, { id: wg.id, cabin: wh.id })
+
+    // Refermés : le visiteur reste, mais un autre ne peut plus entrer.
+    const closed = next(guest, 'open')
+    const stays = receives(guest, 'visit')
+    host.emit('cabin', { layout: { ...LAYOUT, home: { v: 2 } } })
+    assert.deepEqual(await closed, { id: wh.id, open: false })
+    assert.equal(await stays, false)
+    const shut = next(late, 'visit', (m) => m.id === wl.id)
+    late.emit('visit', { host: wh.id })
+    assert.deepEqual(await shut, { id: wl.id, cabin: wl.id, expired: true })
   })
 
   test('un visiteur voit les cartes possédées, sans recevoir une décoration usurpée', async () => {
@@ -1018,6 +1069,22 @@ describe('quartiers', () => {
     assert.equal((await home).track, null)
     host.disconnect()
     guest.disconnect()
+  })
+
+  test('sur la parcelle, le jukebox se règle de près, pas à travers un mur de l\'hôte', async () => {
+    const { host } = await hostAndGuest()
+    // Un mur plein entre les colonnes O.x + 4 et O.x + 5, sur toute la parcelle de départ.
+    const walls = Array.from({ length: 10 }, (_, i) => ({ x: PLOT_ORIGIN.x + 4, z: PLOT_ORIGIN.z + i, e: 'v' }))
+    host.emit('cabin', { layout: { ...LAYOUT, home: { v: 2, walls, items: [{ m: 'jukebox', x: PLOT_ORIGIN.x + 3, z: PLOT_ORIGIN.z + 5, r: 0 }] } } })
+    host.emit('state', { x: PLOT_ORIGIN.x + 2, z: PLOT_ORIGIN.z + 5, yaw: 0, level: HOUSING_LEVEL, anim: 'idle' })
+    await new Promise((r) => setTimeout(r, 100))
+    // De près : accepté (le relais ne répond qu'en cas de refus).
+    const refused = receives(host, 'music', 300, (m) => m.far)
+    host.emit('music', { where: 'cabin', track: 'lounge', x: PLOT_ORIGIN.x + 3, z: PLOT_ORIGIN.z + 5 })
+    assert.equal(await refused, false)
+    const far = next(host, 'music', (m) => m.far)
+    host.emit('music', { where: 'cabin', track: 'lofi', x: PLOT_ORIGIN.x + 5.5, z: PLOT_ORIGIN.z + 5 })
+    assert.equal((await far).far, true)
   })
 
   test('un hôte reconnecté rend au relais sa musique, là où elle en était', async () => {

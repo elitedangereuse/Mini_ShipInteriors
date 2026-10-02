@@ -7,6 +7,8 @@ import type { CabinDef } from './cabin/view'
 import type { CustomModel } from './furniture'
 import { tr } from './i18n'
 import { BOARD_TABLES, SHIP_LAYOUTS } from '../shared/ship-layouts.js'
+import { HOUSING_LEVEL, LANDING_ROOM, PLOT_DOOR, PLOT_ORIGIN, PLOT_ROOM } from '../shared/housing-plot.js'
+import { HOUSING_V2 } from './housing/flag'
 import { PILOT_SEAT } from '../shared/systems.js'
 
 /** Orientation en quarts de tour : 0 = face +z (sud), 1 = +x (est), 2 = -z (nord), 3 = -x (ouest). */
@@ -136,6 +138,14 @@ export interface LevelDef {
    * falaises plongent dans le vide), ni coque, ni ascenseur, ni tuyères, ni plafond.
    */
   ground?: GroundDef
+  /**
+   * Pont des quartiers (housing v2, cf. src/housing/) : le palier de l'ascenseur, et la parcelle du
+   * joueur, une bulle sous champ de force construite à la volée (cf. Deck.setPlot). Pas de coque ni
+   * de tuyères : la parcelle repose sur son socle.
+   */
+  bubble?: boolean
+  /** Plan du pont : portes et pièces fermées, à la place de celles de shipMapOptions. */
+  mapOptions?: ShipMapOptions
 }
 
 /** Écart vertical entre deux ponts. */
@@ -148,15 +158,41 @@ export const LIFT = { x: 10, z: 5 }
  * On se réveille dans ses quartiers, à deux pas du Holo-Me (cf. main.ts) ; à défaut, ici
  * (même valeur que dans server/relay.js).
  */
-export const SPAWN = { level: 1, x: 11.2, z: 7.4 }
+export const SPAWN = HOUSING_V2 ? { level: HOUSING_LEVEL, x: PLOT_ORIGIN.x + 1, z: PLOT_DOOR.z } : { level: 1, x: 11.2, z: 7.4 }
 /** Comète vit dans les quartiers, près de son panier (ou ici, s'il n'y en a pas). */
-export const CAT_SPAWN = { level: 1, x: 14.9, z: 7.3 }
+export const CAT_SPAWN = HOUSING_V2 ? { level: HOUSING_LEVEL, x: PLOT_ORIGIN.x + 2, z: PLOT_DOOR.z + 2 } : { level: 1, x: 14.9, z: 7.3 }
 
 /** Ce qu'on lit aux balises du bouclier du hangar. */
 const SHIELD_TEXT = [
   tr('Le bouclier retient l\'air du hangar et laisse passer les vaisseaux. Les commandants, non : il ne vaut mieux pas essayer.', 'The shield keeps the hangar\'s air in and lets ships through. Commanders, no: better not try.'),
   tr('Derrière le champ de force, les étoiles. On sent un léger picotement au bout des doigts, et une odeur d\'ozone.', 'Beyond the force field, the stars. A faint tingle in your fingertips, and a smell of ozone.'),
 ]
+
+/**
+ * Pont des quartiers (housing v2, cf. docs/housing-v2.md), au-dessus du pont supérieur : le palier
+ * de l'ascenseur, et derrière sa porte, la parcelle de chacun (cf. shared/housing-plot.js).
+ */
+export const QUARTERS_DECK: LevelDef = {
+  id: HOUSING_LEVEL,
+  name: tr('Quartiers', 'Quarters'),
+  theme: 'cozy',
+  footsteps: 'soft',
+  ambience: { sky: '#ffe6cc', ground: '#3a2a20', hemi: 1.3, sun: '#ffd9b0', sunIntensity: 1.9 },
+  layout: SHIP_LAYOUTS[String(HOUSING_LEVEL) as '2'],
+  rooms: {
+    [LANDING_ROOM]: tr('Palier des quartiers', 'Quarters landing'),
+    [PLOT_ROOM]: tr('Quartiers', 'Quarters'),
+  },
+  windows: { [LANDING_ROOM]: 0.5 },
+  bubble: true,
+  // La cabine de chaque joueur : sa parcelle, son entrée derrière la porte du palier (cf. src/housing/).
+  cabin: { room: PLOT_ROOM, door: { x: PLOT_ORIGIN.x, z: PLOT_DOOR.z }, home: true },
+  props: [
+    { model: 'plant-tall', x: 8.25, z: 3.25 },
+    { model: 'plant-tall', x: 8.25, z: 6.75 },
+  ],
+  lights: [[9.6, 5, '#ffe2bf', 1.6]],
+}
 
 export const LEVELS: LevelDef[] = [
   // ======================================================== Cale : minage, bricolage, réparation, et un bar clandestin
@@ -1538,4 +1574,17 @@ export const LEVELS: LevelDef[] = [
       // Les deux dernières lumières sont celles des objets de la cabine (Holo-Me, cheminée…).
     ],
   },
+  ...(HOUSING_V2 ? [QUARTERS_DECK] : []),
 ]
+
+/*
+ * Housing v2 : les quartiers ont quitté le pont supérieur pour le pont des quartiers. Leur place
+ * devient la « Pièce vierge », vide, où l'on travaillera plus tard ; les portes des trois espaces
+ * d'extension disparaissent avec eux.
+ */
+if (HOUSING_V2) {
+  const upper = LEVELS.find((l) => l.id === 1)!
+  delete upper.cabin
+  upper.rooms.p = tr('Pièce vierge', 'Blank room')
+  upper.mapOptions = { closed: '', doors: [] }
+}

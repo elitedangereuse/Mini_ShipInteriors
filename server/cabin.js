@@ -10,6 +10,7 @@
 
 import { sanitizePartitions } from '../shared/cabin-partitions.js'
 import { WING_PATTERNS, WING_SLOTS } from '../shared/cabin-wings.js'
+import { sanitizeHome } from '../shared/housing-home.js'
 
 /** Les quartiers (64 objets) et trois pièces d'extension (32 chacune). */
 export const MAX_ITEMS = 64 + 32 * WING_SLOTS.length
@@ -32,7 +33,7 @@ function finish(raw) {
 }
 
 /**
- * Aménagement propre à rediffuser ({ v: 1, items, wall?, floor?, wings?, partitions? }), ou null s'il n'a pas la
+ * Aménagement propre à rediffuser ({ v: 1, items, wall?, floor?, wings?, partitions?, home? }), ou null s'il n'a pas la
  * forme attendue. Les objets mal formés sont écartés un par un ; au-delà de 64, le reste est
  * ignoré ; un revêtement mal formé est oublié (le client pose alors celui d'origine).
  */
@@ -61,6 +62,9 @@ export function sanitizeLayout(raw) {
   if (wings) layout.wings = wings
   const partitions = sanitizePartitions(raw.partitions)
   if (partitions) layout.partitions = partitions
+  // La parcelle du pont des quartiers (housing v2), au format 2 (cf. shared/housing-home.js).
+  const home = sanitizeHome(raw.home)
+  if (home) layout.home = home
   return layout
 }
 

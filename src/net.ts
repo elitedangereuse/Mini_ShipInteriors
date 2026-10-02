@@ -20,6 +20,8 @@ export interface PlayerState {
   py?: number
   /** Instance des quartiers où il se trouve : l'id du joueur qui reçoit (le sien, chez lui). */
   cabin: number
+  /** Ses quartiers sont ouverts (housing v2) : on y entre sans invitation. */
+  open?: boolean
 }
 
 /** Où est un jukebox : à la salle commune du pont principal, au bar de la cale, ou dans des quartiers. */
@@ -240,10 +242,12 @@ export type ServerMessage =
   | { t: 'decline'; id: number; name: string }
   /**
    * Le joueur `id` est désormais dans les quartiers de `cabin` (les siens s'il rentre) ; `by` :
-   * raccompagné par l'hôte. `expired` : notre demande d'entrée est refusée (invitation expirée),
-   * on reste dans `cabin`.
+   * raccompagné par l'hôte. `expired` : notre demande d'entrée est refusée (invitation expirée,
+   * quartiers fermés), on reste dans `cabin`.
    */
   | { t: 'visit'; id: number; cabin: number; by?: number; expired?: boolean }
+  /** Le joueur `id` ouvre ses quartiers (on y entre sans invitation) ou les ferme. */
+  | { t: 'open'; id: number; open: boolean }
   /**
    * Jukebox du pont principal ou des quartiers où l'on est ; `id` : qui l'a choisi (0 : le
    * relais, à l'arrivée) ; `busy` : notre choix est refusé (trop d'un coup), voici celui de tous.
@@ -279,11 +283,11 @@ export type ServerMessage =
  */
 export type InviteReply = { ok: true } | { ok: false; reason: 'guest' | 'gone' | 'here' | 'busy' }
 
-type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin'>
+type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin' | 'open'>
 
 /** Chemin de la socket : le même que WS_PATH dans server/relay.js et que la conf nginx du site. */
 const WS_PATH = import.meta.env.VITE_WS_PATH || '/ws/mini-shipinteriors'
-const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'music', 'jump', 'patrol', 'chef', 'nurse', 'mechanic', 'gardener', 'chief', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error',
+const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'open', 'music', 'jump', 'patrol', 'chef', 'nurse', 'mechanic', 'gardener', 'chief', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error',
   'salvage:lobby', 'salvage:start', 'salvage:state', 'salvage:event', 'salvage:end', 'salvage:reward', 'salvage:error']
 
 export class Net {

@@ -4,7 +4,7 @@ import { DIRS } from '../map'
 import { Pathfinder } from '../pathfinding'
 import { isPetHome, MAX_PETS } from '../pets'
 import { entryOf, isSolid, type CatalogEntry } from './catalog'
-import { ROOM_ITEMS, WING_ITEMS, type CabinItem, type Partition } from './layout'
+import type { CabinItem, Partition } from './layout'
 import { partitionCenter } from './partitions'
 import type { CabinView } from './view'
 import { isDoor, MAX_PARTITIONS, partitionEdge } from '../../shared/cabin-partitions.js'
@@ -132,7 +132,7 @@ export function refusal(view: CabinView, items: CabinItem[], i: number, moving: 
   // Chaque pièce a son plafond d'objets : les quartiers, et chaque pièce d'extension.
   const room = view.roomAt(item.x, item.z)
   if (room) {
-    const cap = room === 'main' ? ROOM_ITEMS : WING_ITEMS
+    const cap = view.roomCap(room)
     const count = items.filter((it) => view.roomAt(it.x, it.z) === room).length
     if (count > cap) return tr(`Pièce pleine : ${cap} objets au plus`, `Room full: ${cap} items at most`)
   }
