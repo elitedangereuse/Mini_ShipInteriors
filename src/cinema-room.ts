@@ -10,23 +10,6 @@ const ENDPOINT = '/outils/mini-shipinteriors-cinema.php'
 /** La chaîne du site : son direct passe avant tout le reste. */
 const SITE_CHANNEL = 'elitedangereuse'
 type Tab = 'trailers' | 'youtube' | 'twitch'
-/**
- * Safari (et tous les navigateurs d'iOS). Le lecteur Twitch piloté par son API y cale après la pub
- * d'ouverture : roue sans fin, que ni play(), ni un rechargement de la chaîne, ni un clic ne
- * relancent (constaté hors du jeu, sur une page nue, le 2 octobre 2026). L'iframe simple, elle, se
- * met en pause à la fin de la pub et repart d'un clic sur lecture. Là, on projette donc Twitch par
- * l'iframe simple, dans la salle seulement (hors de la salle on ne peut pas cliquer dedans), et
- * le joueur règle le son dans le lecteur lui-même.
- */
-const WEBKIT = /AppleWebKit/.test(navigator.userAgent) && !/Chrome|Chromium|Edg|Android/.test(navigator.userAgent)
-/** En développement, `?twitchlog` affiche à l'écran ce que fait le lecteur Twitch (diagnostic). */
-const trace: ((line: string) => void) | null = import.meta.env.DEV && new URLSearchParams(location.search).has('twitchlog') ? (() => {
-  const pre = document.createElement('pre')
-  pre.style.cssText = 'position:fixed;left:8px;top:230px;z-index:999;width:430px;max-height:50vh;overflow:auto;margin:0;padding:8px;background:#000d;color:#7f7;font:11px/1.35 monospace;white-space:pre-wrap;user-select:text;-webkit-user-select:text'
-  document.body.append(pre)
-  const start = performance.now()
-  return (line: string) => { pre.textContent += `${((performance.now() - start) / 1000).toFixed(1)}s ${line}\n`; pre.scrollTop = pre.scrollHeight }
-})() : null
 
 interface YouTubePlayer {
   destroy(): void
@@ -108,7 +91,6 @@ export class CinemaRoom {
   private volumeIcon = document.createElement('button')
   private volumeInput = document.createElement('input')
   private volumeValue = document.createElement('output')
-  private twitchHint = document.createElement('p')
   private volume = 0
   /** Volume rétabli par l'icône après une coupure. */
   private lastVolume = 50
@@ -126,8 +108,6 @@ export class CinemaRoom {
   private readonly bounds = new THREE.Box3()
   private youtubePlayer: YouTubePlayer | null = null
   private twitchPlayer: TwitchPlayer | null = null
-  /** On a demandé du son au lecteur Twitch (il naît muet). */
-  private twitchSound = false
   private twitchChat = new TwitchChat()
   private playerToken = 0
   private closeButton = document.createElement('button')
@@ -237,11 +217,8 @@ export class CinemaRoom {
     this.updateVolumeControl()
     // L'écran est un calque du décor : on le glisse avant le HUD, qui doit rester par-dessus.
     const hud = document.getElementById('hud')
-    this.twitchHint.className = 'cinema-screen-hint'
-    this.twitchHint.textContent = tr('Safari : après la pub, cliquez sur lecture dans le lecteur. Le son se règle là aussi.', 'Safari: after the ad, press play in the player. Sound is set there too.')
-    this.twitchHint.hidden = true
-    if (hud) hud.before(this.stage, this.volumeControl, this.twitchHint)
-    else document.body.append(this.stage, this.volumeControl, this.twitchHint)
+    if (hud) hud.before(this.stage, this.volumeControl)
+    else document.body.append(this.stage, this.volumeControl)
     document.body.append(this.root)
     this.stage.hidden = true
     this.volumeControl.hidden = true
@@ -253,18 +230,6 @@ export class CinemaRoom {
     // Hors relais, le même catalogue reste disponible pour une séance solo.
     setInterval(() => { if (!this.network.online()) void this.refreshSolo() }, 30000)
     setInterval(() => this.syncYouTube(), 5000)
-    if (trace) {
-      let hidden: boolean | null = null, tick = 0
-      setInterval(() => {
-        if (!!this.stage.hidden !== hidden) { hidden = !!this.stage.hidden; trace(`écran ${hidden ? 'caché' : 'affiché'} (pont=${this.onCinemaDeck} salle=${this.inCinemaRoom})`) }
-        if (++tick % 12 === 0 && this.twitchPlayer) {
-          try {
-            const state = (this.twitchPlayer as unknown as { getPlayerState(): { playback?: string; muted?: boolean; volume?: number; currentTime?: number } }).getPlayerState()
-            trace(`état ${state.playback} · muet=${state.muted} · volume=${state.volume} · t=${Number(state.currentTime).toFixed(1)}`)
-          } catch (e) { trace(`état illisible : ${e}`) }
-        }
-      }, 250)
-    }
   }
 
   get isOpen() { return !this.root.hidden }
@@ -312,13 +277,8 @@ export class CinemaRoom {
       this.youtubePlayer?.setVolume(this.volume)
       if (audible) this.youtubePlayer?.unMute()
       else this.youtubePlayer?.mute()
-      // Le lecteur Twitch naît muet : tant qu'il doit le rester, on ne lui envoie rien.
-      if (this.twitchPlayer && (audible || this.twitchSound)) {
-        if (audible) this.twitchPlayer.setVolume(this.volume / 100)
-        this.twitchPlayer.setMuted(!audible)
-        this.twitchSound = audible
-        trace?.(`jeu : ${audible ? `son rétabli (volume ${this.volume})` : 'son coupé'}`)
-      }
+      this.twitchPlayer?.setVolume(this.volume / 100)
+      this.twitchPlayer?.setMuted(!audible)
     } catch { /* Un lecteur externe peut être en cours de chargement. */ }
   }
 
@@ -511,7 +471,6 @@ export class CinemaRoom {
     this.youtubePlayer = null
     try { this.twitchPlayer?.setMuted(true); this.twitchPlayer?.pause() } catch { /* Le lecteur se ferme. */ }
     this.twitchPlayer = null
-    this.twitchSound = false
     this.frame.removeAttribute('src')
     this.frame.remove()
     if (key === 'none') {
@@ -520,11 +479,7 @@ export class CinemaRoom {
       this.volumeControl.hidden = true
       return
     }
-    if (stream && WEBKIT) {
-      this.frame.src = this.inCinemaRoom ? this.twitchSource(stream) : 'about:blank'
-      this.stage.replaceChildren(this.frame)
-      trace?.(`iframe simple (Safari) : ${stream}, ${this.inCinemaRoom ? 'chargée' : 'en attente hors de la salle'}`)
-    } else if (stream) {
+    if (stream) {
       const token = this.playerToken
       const holder = document.createElement('div')
       holder.className = 'cinema-room-twitch'
@@ -537,21 +492,13 @@ export class CinemaRoom {
           parent: [location.hostname || 'elitedangereuse.fr'], muted: true, autoplay: true,
         })
         this.twitchPlayer = player
-        if (trace) {
-          trace(`lecteur créé : ${stream} (écran ${this.stage.hidden ? 'caché' : 'affiché'})`)
-          for (const name of ['CAPTIONS', 'ENDED', 'PAUSE', 'PLAY', 'PLAYBACK_BLOCKED', 'PLAYING', 'OFFLINE', 'ONLINE', 'READY', 'SEEK']) {
-            const event = (api.Player as unknown as Record<string, unknown>)[name]
-            if (typeof event === 'string') player.addEventListener(event, () => trace(`Twitch : ${name}`))
-          }
-        }
         player.addEventListener(api.Player.READY, () => {
           if (token !== this.playerToken) return
           this.applySound()
-          if (!this.onCinemaDeck) { player.pause(); trace?.('jeu : pause (hors du pont)') }
+          if (!this.onCinemaDeck) player.pause()
         })
-      }).catch((e) => {
+      }).catch(() => {
         if (token !== this.playerToken) return
-        trace?.(`lecteur JS indisponible (${e}) : iframe simple`)
         this.frame.src = this.twitchSource(stream)
         this.stage.replaceChildren(this.frame)
       })
@@ -603,9 +550,9 @@ export class CinemaRoom {
       if (onCinemaDeck) {
         if (stream) {
           if (this.twitchPlayer) {
-            try { this.twitchPlayer.play(); trace?.('jeu : lecture (arrivée sur le pont)') } catch { /* Le lecteur charge. */ }
+            try { this.twitchPlayer.play() } catch { /* Le lecteur charge. */ }
           }
-          else if (this.frame.isConnected && !WEBKIT) this.frame.src = this.twitchSource(stream)
+          else if (this.frame.isConnected) this.frame.src = this.twitchSource(stream)
         } else if (this.frame.isConnected) {
           const current = this.state.youtube ?? this.state.trailers.find((t) => t.id === this.state.selected)
           if (current) this.frame.src = this.youtubeSource(current.video)
@@ -613,7 +560,7 @@ export class CinemaRoom {
         this.syncYouTube(true)
       } else {
         if (stream) {
-          try { this.twitchPlayer?.pause(); trace?.('jeu : pause (départ du pont)') } catch { /* Le lecteur charge. */ }
+          try { this.twitchPlayer?.pause() } catch { /* Le lecteur charge. */ }
         }
         this.frame.removeAttribute('src')
         this.youtubePlayer?.mute()
@@ -624,19 +571,13 @@ export class CinemaRoom {
       this.inCinemaRoom = inCinemaRoom
       this.applySound()
       this.twitchChat.show(inCinemaRoom ? stream : null)
-      if (WEBKIT && stream && this.frame.isConnected) {
-        this.frame.src = inCinemaRoom ? this.twitchSource(stream) : 'about:blank'
-        trace?.(`iframe simple (Safari) : ${inCinemaRoom ? 'chargée' : 'vidée'}`)
-      }
       // Le lecteur simple de secours n'a pas d'API de volume : le recharger muet en sortant.
-      else if (!inCinemaRoom && onCinemaDeck && this.frame.isConnected) {
+      if (!inCinemaRoom && onCinemaDeck && this.frame.isConnected) {
         const current = this.state.youtube ?? this.state.trailers.find((t) => t.id === this.state.selected)
         this.frame.src = stream ? this.twitchSource(stream) : current ? this.youtubeSource(current.video) : ''
       }
     }
-    this.twitchHint.hidden = true
-    // Safari, hors de la salle : l'iframe Twitch est vide, la toile 3D (affiche du direct) suffit.
-    if (this.playing === 'none' || !this.playing || !onCinemaDeck || (WEBKIT && stream && !inCinemaRoom)) {
+    if (this.playing === 'none' || !this.playing || !onCinemaDeck) {
       this.stage.hidden = true
       this.volumeControl.hidden = true
       return
@@ -691,10 +632,7 @@ export class CinemaRoom {
     this.stage.style.pointerEvents = inCinemaRoom ? 'auto' : 'none'
     this.stage.style.transform = `matrix3d(${m.map((n) => +n.toPrecision(10)).join(', ')})`
     this.volumeControl.hidden = !inCinemaRoom || !c || !d || (stream ? !this.twitchPlayer : !this.youtubePlayer)
-    this.twitchHint.hidden = !(WEBKIT && stream && c && d)
     if (c && d) {
-      this.twitchHint.style.left = `${(c.x + d.x) / 2}px`
-      this.twitchHint.style.top = `${Math.max(c.y, d.y) + 4}px`
       this.volumeControl.style.left = `${(c.x + d.x) / 2}px`
       this.volumeControl.style.top = `${Math.max(c.y, d.y) + 4}px`
     }
