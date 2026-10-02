@@ -1,19 +1,21 @@
 import * as THREE from 'three'
-import type { Box2, Deck } from '../deck'
+import { ceilingLamp, ceilingSlab, greenhouseRoof, type Box2, type Deck } from '../deck'
+import { DIRS } from '../map'
 import type { FadeFocus } from '../merge'
 import { PartitionShell } from '../cabin/partitions'
 import { FinishTexture, type Slot } from '../cabin/finishes'
 import { ForceField, PlotShell } from './plot'
-import { applyWalls, cellAt, CELLS, clearWalls, type HomeFinish, type HomePlan, type PlanWall } from '../../shared/housing-home.js'
-import { inPlot } from '../../shared/housing-plot.js'
+import { applyWalls, cellAt, CELLS, clearWalls, isLow, type HomeFinish, type HomePlan, type PlanWall } from '../../shared/housing-home.js'
+import { inPlot, type PlotEdge } from '../../shared/housing-plot.js'
 import { partitionEdge, partitionKey } from '../../shared/cabin-partitions.js'
 
 /*
  * La parcelle affichée sur le pont des quartiers (housing v2) : sa taille (palier
  * d'agrandissement), ses murs, posés sur le plan du pont (cf. shared/housing-home.js) et
  * construits comme les cloisons des quartiers (cf. cabin/partitions.ts ; en vue subjective, ils
- * montent jusqu'à la verrière de la bulle, cf. plot.ts), le papier peint de chacune de leurs
- * faces, et le revêtement de chaque case du sol. Le champ de force n'est tendu que sur les arêtes
+ * montent jusqu'au toit), le papier peint de chacune de leurs faces, et le revêtement de chaque
+ * case du sol. Le toit (vue subjective) : un plafond au-dessus des pièces fermées, comme dans le
+ * reste du vaisseau, et la verrière de la bulle au-dessus de ce qui reste ouvert (cf. buildRoof). Le champ de force n'est tendu que sur les arêtes
  * du pourtour qu'aucun mur ne remplace.
  *
  * Les revêtements sont dessinés par le jeu (cf. cabin/finishes.ts) : une texture et un matériau
@@ -22,6 +24,10 @@ import { partitionEdge, partitionKey } from '../../shared/cabin-partitions.js'
 
 /** Revêtement du sol, juste au-dessus des dalles (comme dans les anciens quartiers). */
 const FLOORING_Y = 0.002
+
+/** Plafonniers des pièces fermées : un toutes les LAMP_STEP tuiles, de la couleur des lumières de la parcelle. */
+const LAMP_STEP = 3
+const LAMP_COLOR = '#ffd9b0'
 
 /** Plan vide : ni murs ni revêtements. */
 export const emptyPlan = (): HomePlan => ({ walls: [], floor: Array(CELLS).fill(null) })
@@ -58,6 +64,9 @@ export class HomeView {
   private shell?: PartitionShell
   private field?: ForceField
   private floors: THREE.Mesh[] = []
+  /** Toit, dans le plafond du pont (vue subjective), et ses géométries, libérées avec lui. */
+  private readonly roof = new THREE.Group()
+  private roofGeos: THREE.BufferGeometry[] = []
   /**
    * Collisions et lumières de la parcelle : ajoutées à celles du pont, par elle, ou par la cabine
    * du pont s'il en a une (cf. CabinView.rebuild, qui refait la fin de ces listes).
@@ -140,11 +149,85 @@ export class HomeView {
     const free = this.plot!.plan.field.filter((e) => !walled.has(deck.map.edgeKey(e.x, e.z, e.dir)))
     const field = (this.field = new ForceField(free, [...deck.posts, ...shell.posts]))
     deck.group.add(field.group)
+    this.buildRoof(free)
 
     if (!deck.cabin) drop(deck.colliders, this.colliders)
     this.colliders = [...shell.colliders, ...field.colliders]
     if (!deck.cabin) deck.colliders.push(...this.colliders)
     deck.pathfinder.invalidate()
+  }
+
+  /**
+   * Toit de la parcelle (vue subjective) : un plafond et ses plafonniers au-dessus des pièces
+   * fermées, la verrière au-dessus du reste.
+   */
+  private buildRoof(free: PlotEdge[]) {
+    const deck = this.deck
+    this.roof.clear()
+    for (const g of this.roofGeos) g.dispose()
+    this.roofGeos = []
+    const key = (t: { x: number; z: number }) => `${t.x},${t.z}`
+    const rooms = this.closedRooms(free)
+    const covered = new Set(rooms.flat().map(key))
+    const glazed = this.plot!.plan.tiles.filter((t) => !covered.has(key(t)))
+    const meshes = glazed.length ? greenhouseRoof(glazed, deck.ceilingY) : []
+    if (covered.size) meshes.push(ceilingSlab(rooms.flat(), deck.ceilingY, deck.ceilingMaterial))
+    for (const m of meshes) {
+      m.castShadow = false
+      this.roof.add(m)
+      this.roofGeos.push(m.geometry)
+    }
+    for (const room of rooms) {
+      let lit = room.filter((t) => t.x % LAMP_STEP === 1 && t.z % LAMP_STEP === 1)
+      if (!lit.length) {
+        // Petite pièce : un seul plafonnier, au plus près de son milieu.
+        const cx = room.reduce((s, t) => s + t.x, 0) / room.length, cz = room.reduce((s, t) => s + t.z, 0) / room.length
+        const d = (t: { x: number; z: number }) => (t.x - cx) ** 2 + (t.z - cz) ** 2
+        lit = [room.reduce((a, b) => (d(b) < d(a) ? b : a))]
+      }
+      for (const t of lit) this.roof.add(ceilingLamp(t.x, t.z, LAMP_COLOR, deck.ceilingY))
+    }
+    deck.ceiling.add(this.roof)
+  }
+
+  /**
+   * Pièces fermées de la parcelle : les cases qu'on rejoint l'une de l'autre sans franchir de mur
+   * ni de porte (un demi-mur ne ferme rien), quand aucune ne touche le champ de force.
+   * @param free arêtes du pourtour où le champ de force est tendu
+   */
+  private closedRooms(free: PlotEdge[]): { x: number; z: number }[][] {
+    const map = this.deck.map
+    const edgeOf = (w: PlanWall) => {
+      const { x, z, dir } = partitionEdge(w)
+      return map.edgeKey(x, z, dir)
+    }
+    const low = new Set(this.placed.filter(isLow).map(edgeOf))
+    const sky = new Set(free.map((e) => map.edgeKey(e.x, e.z, e.dir)))
+    const seen = new Set<string>()
+    const rooms: { x: number; z: number }[][] = []
+    for (const start of this.plot!.plan.tiles) {
+      if (seen.has(`${start.x},${start.z}`)) continue
+      seen.add(`${start.x},${start.z}`)
+      const room = [start]
+      let open = false
+      for (let i = 0; i < room.length; i++) {
+        const { x, z } = room[i]
+        for (let dir = 0; dir < 4; dir++) {
+          const nx = x + DIRS[dir].dx, nz = z + DIRS[dir].dz
+          const edge = map.edgeKey(x, z, dir)
+          const through = map.edge(x, z, dir) === 'open' || low.has(edge)
+          if (!inPlot(this.stage, nx, nz)) {
+            if (through || sky.has(edge)) open = true
+            continue
+          }
+          if (!through || seen.has(`${nx},${nz}`)) continue
+          seen.add(`${nx},${nz}`)
+          room.push({ x: nx, z: nz })
+        }
+      }
+      if (!open) rooms.push(room)
+    }
+    return rooms
   }
 
   /** Sol : une dalle par case revêtue, un maillage par revêtement, coordonnées de texture en mètres. */

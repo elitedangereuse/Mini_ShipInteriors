@@ -633,7 +633,7 @@ export class Deck {
     for (const [x, z, color] of this.def.lights) {
       if (this.map.room(Math.round(x), Math.round(z)) && !greenhouse(Math.round(x), Math.round(z))) merge.add(ceilingLamp(x, z, color, this.ceilingY), false)
     }
-    if (roof.length) this.ceiling.add(...greenhouseRoof(roof, this.ceilingY))
+    if (roof.length) this.ceiling.add(...greenhouseRoof(roof, this.ceilingY, '#d2ffdc'))
     const zone = this.def.zone
     const postTop = zone ? new THREE.Box3().setFromObject(zone.kit.post(0, 0)).max.y : POST_H
     const material = zone ? new THREE.MeshLambertMaterial({ color: '#1b2120' }) : this.theme.shell
@@ -1239,17 +1239,98 @@ function greenhouseFrame(cx: number, cz: number, alongX: boolean): THREE.Object3
 }
 
 /**
- * Plafond d'une serre (vue subjective) : une verrière au-dessus de ses tuiles, et ses chevrons
- * blancs, un par tuile dans chaque sens. La parcelle des quartiers a la même (cf. housing/plot.ts).
+ * Verre d'une verrière de plafond, dessiné : presque transparent (les étoiles passent), avec un
+ * voile froid, des reflets en biais, un liseré clair le long des chevrons et quelques poussières.
+ * La texture couvre deux carreaux sur deux et se répète : deux carreaux voisins ne se ressemblent
+ * pas, et les reflets filent de l'un à l'autre.
  */
-export function greenhouseRoof(tiles: { x: number; z: number }[], y: number): THREE.Mesh[] {
+function roofGlassTexture(): THREE.CanvasTexture {
+  const S = 256, P = S / 2
+  const c = document.createElement('canvas')
+  c.width = c.height = S
+  const g = c.getContext('2d')!
+  g.fillStyle = 'rgba(170, 215, 255, 0.07)'
+  g.fillRect(0, 0, S, S)
+  // Chaque carreau : plus clair vers un coin, et un liseré là où le verre entre dans son cadre.
+  for (const [px, py] of [[0, 0], [P, 0], [0, P], [P, P]]) {
+    const shade = g.createLinearGradient(px, py, px + P, py + P)
+    shade.addColorStop(0, 'rgba(225, 242, 255, 0.10)')
+    shade.addColorStop(0.55, 'rgba(225, 242, 255, 0)')
+    shade.addColorStop(1, 'rgba(120, 170, 220, 0.06)')
+    g.fillStyle = shade
+    g.fillRect(px, py, P, P)
+    g.strokeStyle = 'rgba(235, 248, 255, 0.16)'
+    g.lineWidth = 5
+    g.strokeRect(px + 5, py + 5, P - 10, P - 10)
+  }
+  // Reflets : des bandes en biais, d'un bord à l'autre (x + y constant, à S près : elles se raccordent).
+  g.lineCap = 'butt'
+  for (const [at, width, alpha] of [[58, 26, 0.1], [84, 5, 0.22], [150, 12, 0.13], [214, 40, 0.06], [238, 3, 0.2]]) {
+    for (const o of [at, at + S]) {
+      for (const [w, a] of [[width, alpha * 0.5], [width * 0.5, alpha]]) {
+        g.strokeStyle = `rgba(255, 255, 255, ${a})`
+        g.lineWidth = w
+        g.beginPath()
+        g.moveTo(o + 20, -20)
+        g.lineTo(-20, o + 20)
+        g.stroke()
+      }
+    }
+  }
+  // Poussières et petites rayures, toujours aux mêmes endroits.
+  for (let i = 0; i < 46; i++) {
+    const x = hash(i, 7) % S, y = hash(i, 13) % S
+    g.fillStyle = `rgba(255, 255, 255, ${0.1 + (hash(i, 3) % 12) / 100})`
+    if (i % 6 === 0) g.fillRect(x, y, 5 + (hash(i, 5) % 9), 1)
+    else g.fillRect(x, y, 1.5, 1.5)
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.anisotropy = 8
+  return t
+}
+let roofGlass: THREE.CanvasTexture | null = null
+const roofGlassMaterials = new Map<string, THREE.MeshBasicMaterial>()
+/** Matériau du verre d'une verrière de plafond, de cette teinte (il ne dépend pas des lampes, qui sont au-dessus). */
+function roofGlassMaterial(tint: string): THREE.MeshBasicMaterial {
+  let m = roofGlassMaterials.get(tint)
+  if (!m) {
+    roofGlass ??= roofGlassTexture()
+    roofGlassMaterials.set(tint, (m = new THREE.MeshBasicMaterial({ color: tint, map: roofGlass, transparent: true, depthWrite: false, side: THREE.DoubleSide })))
+  }
+  return m
+}
+
+/**
+ * Plafond plein au-dessus de ces tuiles, en un maillage (pièces fermées de la parcelle des
+ * quartiers, cf. housing/home.ts) : les mêmes dalles que celles du pont (cf. ceilingTile).
+ */
+export function ceilingSlab(tiles: { x: number; z: number }[], y: number, material: THREE.Material): THREE.Mesh {
+  const geos = tiles.map(({ x, z }) => new THREE.PlaneGeometry(1, 1).rotateX(Math.PI / 2).translate(x, y, z))
+  const mesh = new THREE.Mesh(mergeGeometries(geos), material)
+  for (const geo of geos) geo.dispose()
+  return mesh
+}
+
+/**
+ * Plafond d'une serre (vue subjective) : une verrière au-dessus de ses tuiles, et ses chevrons
+ * blancs, un par tuile dans chaque sens. La parcelle des quartiers a la même au-dessus de ses
+ * parties ouvertes (cf. housing/home.ts).
+ * @param tint teinte du verre (à peine vert dans une serre)
+ */
+export function greenhouseRoof(tiles: { x: number; z: number }[], y: number, tint = '#ffffff'): THREE.Mesh[] {
   const glassGeos: THREE.BufferGeometry[] = [], ribGeos: THREE.BufferGeometry[] = []
   for (const { x, z } of tiles) {
-    glassGeos.push(new THREE.PlaneGeometry(1, 1).rotateX(Math.PI / 2).translate(x, y + 0.01, z))
+    const pane = new THREE.PlaneGeometry(1, 1).rotateX(Math.PI / 2).translate(x, y + 0.01, z)
+    // Coordonnées de texture en tuiles : deux carreaux par répétition (cf. roofGlassTexture).
+    const pos = pane.getAttribute('position'), uv = pane.getAttribute('uv')
+    for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) + 0.5) / 2, (pos.getZ(i) + 0.5) / 2)
+    glassGeos.push(pane)
     ribGeos.push(new THREE.BoxGeometry(1, 0.05, 0.04).translate(x, y - 0.02, z - 0.5), new THREE.BoxGeometry(0.04, 0.05, 1).translate(x - 0.5, y - 0.02, z))
     ribGeos.push(new THREE.BoxGeometry(1, 0.03, 0.02).translate(x, y - 0.015, z))
   }
-  const glass = new THREE.Mesh(mergeGeometries(glassGeos), GREENHOUSE_GLASS)
+  const glass = new THREE.Mesh(mergeGeometries(glassGeos), roofGlassMaterial(tint))
   glass.renderOrder = 2
   const ribs = new THREE.Mesh(mergeGeometries(ribGeos), GREENHOUSE_FRAME)
   for (const geo of [...glassGeos, ...ribGeos]) geo.dispose()

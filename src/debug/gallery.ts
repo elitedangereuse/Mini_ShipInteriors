@@ -464,11 +464,23 @@ function showPlot() {
   cam.position.sub(target).add(center)
   cam.lookAt(center)
   const toCamera = cam.position.clone().sub(center).setY(0).normalize()
+  // &fps=x,z (tuile de la parcelle, depuis son coin nord-ouest) : vue subjective depuis cette
+  // tuile, toit affiché (plafond des pièces fermées, verrière ailleurs) ; &look=cap,hauteur en degrés.
+  let view: THREE.Camera = cam
+  if (params.get('fps')) {
+    const [x, z] = params.get('fps')!.split(',').map(Number)
+    const [yaw, pitch] = (params.get('look') ?? '0,35').split(',').map((d) => THREE.MathUtils.degToRad(+d))
+    const eye = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 200)
+    eye.position.set(O.x + x, 1.3, O.z + z)
+    eye.lookAt(eye.position.clone().add(new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch))))
+    deck.ceiling.visible = true
+    view = eye
+  }
   const clock = new THREE.Timer()
   function frame() {
     clock.update()
-    deck.update(clock.getDelta(), [], center, toCamera)
-    renderer.render(scene, cam)
+    deck.update(clock.getDelta(), [], view === cam ? center : view.position, toCamera)
+    renderer.render(scene, view)
     requestAnimationFrame(frame)
   }
   frame()

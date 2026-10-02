@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { FLOOR_Y, greenhouseRoof, WALL_T, type Box2, type Deck } from '../deck'
+import { FLOOR_Y, WALL_T, type Box2, type Deck } from '../deck'
 import { DIRS } from '../map'
 import { fadeBuffer, StaticMerge, type FadeBuffer } from '../merge'
 import { ForceShield, shieldPylon, type ShieldPane } from '../shield'
@@ -11,7 +11,7 @@ import { applyPlot, LANDING_ROOM, straightRuns, type PlotEdge, type PlotPlan, ty
  * palier de l'ascenseur (PlotShell, reconstruit quand la parcelle change de taille) ; et le champ
  * de force tendu sur son pourtour, là où aucun mur ne le remplace (ForceField, celui du hangar,
  * cf. shield.ts), avec un pylône à chaque bout. En vue subjective, une verrière la couvre, comme
- * les serres : au-dessus, les étoiles ; murs et champ de force montent jusqu'à elle.
+ * les serres, sauf au-dessus des pièces fermées, qui ont un plafond (cf. HomeView, home.ts).
  */
 
 /** Lumières de la parcelle : une tous les LIGHT_STEP tuiles, chaudes et douces. */
@@ -28,10 +28,8 @@ export class PlotShell {
   /** Lumières ajoutées à celles du pont (coordonnées monde). */
   readonly lights: Deck['lights'] = []
   private readonly fades: FadeBuffer
-  /** Ce qui appartient à la parcelle seule (géométrie fusionnée, socle, verrière) : libéré avec elle. */
+  /** Ce qui appartient à la parcelle seule (géométrie fusionnée, socle) : libéré avec elle. */
   private owned: { dispose(): void }[] = []
-  /** Verrière, dans le plafond du pont (vue subjective). */
-  private readonly roof = new THREE.Group()
 
   constructor(deck: Deck, stage: number) {
     this.plan = applyPlot(deck.map, stage)
@@ -48,13 +46,6 @@ export class PlotShell {
     // Le socle : sous la parcelle, et sous le palier de l'ascenseur.
     this.slab(rect)
     this.slab(landingRect(deck))
-
-    for (const m of greenhouseRoof(tiles, deck.ceilingY)) {
-      m.castShadow = false
-      this.roof.add(m)
-      this.owned.push(m.geometry)
-    }
-    deck.ceiling.add(this.roof)
 
     for (let z = rect.minZ + 2; z <= rect.maxZ; z += LIGHT_STEP) {
       for (let x = rect.minX + 2; x <= rect.maxX; x += LIGHT_STEP) {
@@ -83,7 +74,6 @@ export class PlotShell {
   /** Retire la parcelle ; les modèles du kit (géométries partagées) restent intacts. */
   dispose() {
     this.group.removeFromParent()
-    this.roof.removeFromParent()
     for (const o of this.owned) o.dispose()
     this.fades.texture.dispose()
   }
