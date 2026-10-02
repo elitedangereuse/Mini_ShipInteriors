@@ -824,6 +824,8 @@ export const LEVELS: LevelDef[] = [
       // un grand salon de canapés au milieu, un coin lecture au sud, des plantes partout ---
       { model: 'reward-counter', x: 3.7, z: 0.35, label: 'weekly', interact: tr('Officier de liaison · Weekly', 'Liaison officer · Weekly'), action: tr('Récupérer les crédits', 'Collect credits') },
       { model: 'reward-counter', x: 5.3, z: 0.35, label: 'hunt', interact: tr('Scientifique du LJPC · Chasse galactique', 'LJPC scientist · Galactic Hunt'), action: tr('Récupérer les crédits', 'Collect credits') },
+      // Le tableau d'honneur de l'équipage, à droite des comptoirs : employés du mois, classements du site.
+      { model: 'employee-board', x: 6.85, z: -0.35, solid: false, interact: tr('Tableau d’honneur', 'Hall of honour'), action: tr('Consulter les classements', 'View rankings') },
       // Le jukebox de la salle commune : tout le pont l'entend (cf. src/music.ts).
       { model: 'jukebox', x: 1, z: 0.82, action: tr('Choisir un morceau', 'Pick a song'), music: true },
       { model: 'plant-tall', x: 7.9, z: 1.05 },
@@ -931,7 +933,8 @@ export const LEVELS: LevelDef[] = [
       },
 
       // --- Salle de sport ---
-      { model: 'employee-board', x: 18.7, z: -0.35, solid: false, interact: 'Employés du mois', action: tr('Consulter les classements', 'View rankings') },
+      // Au mur nord : les records des trois appareils (cf. src/gym.ts).
+      { model: 'score-board', x: 18.7, z: -0.35, label: 'gym', solid: false, interact: tr('Records de la salle de sport', 'Gym records'), action: tr('Consulter les records', 'View records') },
       {
         model: 'treadmill', x: 16.05, z: 0.7, action: tr('Courir', 'Run'),
         interact: [
@@ -1045,7 +1048,9 @@ export const LEVELS: LevelDef[] = [
       { model: 'arcade', x: 21.75, z: 5.98, label: 'invaders' },
       { model: 'pinball', x: 24.05, z: 6.1, label: 'thargoid' },
       { model: 'claw-machine', x: 25.0, z: 6.2, rot: 3, label: 'cyan' },
-      { model: 'neon-sign', x: 15.72, z: 7.5, rot: 1, label: 'ARCADE' },
+      { model: 'neon-sign', x: 15.72, z: 6.75, rot: 1, label: 'ARCADE' },
+      // Au mur ouest, sous le néon : les high scores de chaque borne.
+      { model: 'score-board', x: 15.65, z: 8.2, rot: 1, label: 'arcade', solid: false, interact: 'High scores', action: tr('Consulter les high scores', 'View high scores') },
       // Tapis colorés : l'allée entre les deux rangées, et le coin des jeux de plateau.
       { model: 'rug', x: 18.6, z: 7.5, label: 'arcade:5.2x1.5', solid: false },
       { model: 'rug', x: 23.3, z: 7.95, label: 'neon:3.9x2.3', solid: false },

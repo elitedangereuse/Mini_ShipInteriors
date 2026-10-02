@@ -8,7 +8,29 @@ export const artUrl = (id: string) => `${SITE_URL}?image=${encodeURIComponent(id
 export const SITE_MODELS: Record<string, string> = { 'site-card': 'card', 'site-badge': 'badge', 'adventure-poster': 'adv' }
 interface Artwork { id: string; kind: string; label: string }
 interface Reward { reward: string; label: string; amount: number }
-interface Ranking { id: string; label: string; unit: string; rows: { rank: number; name: string; url: string; score: number }[] }
+interface RankingRow { rank: number; name: string; url: string; avatar?: string; score: number }
+interface Ranking { id: string; label: string; unit: string; rows: RankingRow[] }
+/** Familles de classements du site (cf. msi_site_rankings) : équipage, bornes d'arcade, salle de sport. */
+export type RankingKind = 'crew' | 'arcade' | 'gym'
+const RANKING_PANELS: Record<RankingKind, { title: string; subtitle: string }> = {
+  crew: { title: tr('Tableau d’honneur', 'Hall of honour'), subtitle: tr('Les meilleurs commandants de la communauté.', 'The community’s leading commanders.') },
+  arcade: { title: tr('High scores', 'High scores'), subtitle: tr('Les dix meilleurs scores de chaque borne du vaisseau.', 'The ten best scores on each of the ship’s cabinets.') },
+  gym: { title: tr('Records de la salle de sport', 'Gym records'), subtitle: tr('Les dix meilleures séances sur chaque appareil.', 'The ten best sessions on each machine.') },
+}
+/** Noms des classements et de leurs unités ; le site les envoie en français. */
+const RANKING_LABELS: Record<string, string> = {
+  month: tr('Employés du mois', 'Employees of the month'), general: tr('Classement général', 'Overall ranking'),
+  days30: tr('30 derniers jours', 'Last 30 days'), cards: tr('Collectionneurs', 'Collectors'), podiums: tr('Podiums d’aventures', 'Adventure podiums'),
+  cargo: tr('Cargaison', 'Cargo'), asteroids: tr('Astéroïdes', 'Asteroids'),
+  'gym-run': tr('Tapis de course', 'Treadmill'), 'gym-bike': tr('Vélo', 'Bike'), 'gym-punch': tr('Sac de frappe', 'Punching bag'),
+}
+const RANKING_UNITS: Record<string, string> = { 'tâches': tr('tâches', 'tasks'), cartes: tr('cartes', 'cards') }
+const RANKING_NOTES: Record<string, string> = {
+  month: tr('Tâches de bord réglées ce mois-ci à bord du vaisseau.', 'Ship chores completed aboard this month.'),
+  days30: tr('Points gagnés sur le site ces 30 derniers jours.', 'Points earned on the site over the last 30 days.'),
+}
+/** En développement, le site (profils, images) est servi ailleurs que le jeu. */
+const siteHref = (path: string) => import.meta.env.DEV ? new URL(path, import.meta.env.VITE_ED_SITE_ORIGIN || 'http://localhost:8080').href : path
 interface Reply {
   status: string; error?: string; art?: Artwork[]; pending?: Record<string, Reward[]>;
   rankings?: Ranking[]; earned?: number; balance?: number; count?: number
@@ -80,10 +102,10 @@ export class SitePanel {
     this.buttons[this.selected]?.focus()
   }
   confirm() { this.buttons[this.selected]?.click() }
-  private open(title: string, rankings = false) {
-    this.el.classList.toggle('site-rankings', rankings)
+  private open(title: string, rankings?: RankingKind) {
+    this.el.classList.toggle('site-rankings', !!rankings)
     this.subtitle.textContent = rankings
-      ? tr('Les meilleurs commandants de la communauté.', 'The community’s leading commanders.')
+      ? RANKING_PANELS[rankings].subtitle
       : tr('Vos missions accomplies méritent une récompense.', 'Your completed missions deserve a reward.')
     this.revision++
     this.previousFocus = document.activeElement as HTMLElement
@@ -135,53 +157,52 @@ export class SitePanel {
     this.buttons = [claim]; this.selected = 0
     if (!claim.disabled) claim.focus()
   }
-  async rankings() {
-    const token = this.open(tr('Employés du mois', 'Employees of the month'), true)
-    const reply = await siteRequest('?rankings=1')
+  async rankings(kind: RankingKind = 'crew') {
+    const token = this.open(RANKING_PANELS[kind].title, kind)
+    const reply = await siteRequest(`?rankings=${kind}`)
     if (token !== this.revision) return
     if (reply?.status !== 'success') return this.error(reply)
     this.content.replaceChildren()
     const tabs = document.createElement('nav')
     tabs.setAttribute('aria-label', tr('Classements', 'Rankings'))
-    const table = document.createElement('table')
-    const caption = document.createElement('caption')
-    const head = document.createElement('thead')
-    const row = document.createElement('tr')
-    for (const title of [tr('Rang', 'Rank'), 'CMDR', tr('Score', 'Score')]) {
-      const th = document.createElement('th'); th.scope = 'col'; th.textContent = title; row.append(th)
+    const caption = document.createElement('p'); caption.className = 'site-caption'
+    const podium = document.createElement('ol'); podium.className = 'site-podium'
+    const list = document.createElement('ol'); list.className = 'site-ranks'
+    const entry = (cmdr: RankingRow, unit: string) => {
+      const li = document.createElement('li'); li.dataset.rank = String(cmdr.rank)
+      const rank = document.createElement('span'); rank.className = 'site-rank'; rank.textContent = String(cmdr.rank)
+      if (cmdr.rank <= 3) rank.dataset.podium = String(cmdr.rank)
+      const avatar = document.createElement('img'); avatar.className = 'site-avatar'; avatar.alt = ''; avatar.loading = 'lazy'
+      avatar.onerror = () => { avatar.onerror = null; avatar.src = siteHref('/assets/images/common/CMDR_inconnu.png') }
+      avatar.src = siteHref(cmdr.avatar || '/assets/images/common/CMDR_inconnu.png')
+      const link = document.createElement('a')
+      link.textContent = cmdr.name; link.href = siteHref(cmdr.url); link.target = '_blank'; link.rel = 'noopener'
+      const score = document.createElement('span'); score.className = 'site-score'
+      const value = document.createElement('strong'); value.textContent = cmdr.score.toLocaleString()
+      const label = document.createElement('span'); label.className = 'site-unit'; label.textContent = RANKING_UNITS[unit] ?? unit
+      score.append(value, label)
+      li.append(rank, avatar, link, score)
+      return li
     }
-    head.append(row)
-    const body = document.createElement('tbody')
-    table.append(caption, head, body)
     const show = (board: Ranking) => {
-      caption.textContent = `${board.label} · Top 10`
-      body.replaceChildren()
-      for (const cmdr of board.rows) {
-        const row = document.createElement('tr')
-        const rank = document.createElement('td')
-        const badge = document.createElement('span'); badge.className = 'site-rank'; badge.textContent = String(cmdr.rank)
-        if (cmdr.rank <= 3) badge.dataset.podium = String(cmdr.rank)
-        rank.append(badge)
-        const name = document.createElement('td'); const link = document.createElement('a')
-        link.textContent = cmdr.name; link.href = import.meta.env.DEV ? new URL(cmdr.url, import.meta.env.VITE_ED_SITE_ORIGIN || 'http://localhost:8080').href : cmdr.url; link.target = '_blank'; link.rel = 'noopener'
-        name.append(link)
-        const score = document.createElement('td')
-        const value = document.createElement('strong'); value.textContent = cmdr.score.toLocaleString()
-        const unit = document.createElement('span'); unit.className = 'site-unit'; unit.textContent = board.unit
-        score.append(value, unit)
-        row.append(rank, name, score); body.append(row)
-      }
+      const note = RANKING_NOTES[board.id]
+      caption.textContent = `${RANKING_LABELS[board.id] ?? board.label} · Top 10${note ? ` · ${note}` : ''}`
+      // Le podium : les trois premières lignes (à égalité, plusieurs CMDR portent le même rang).
+      podium.replaceChildren(...board.rows.slice(0, 3).map((cmdr) => entry(cmdr, board.unit)))
+      list.replaceChildren(...board.rows.slice(3).map((cmdr) => entry(cmdr, board.unit)))
+      podium.hidden = !board.rows.length
       for (const button of this.buttons) button.setAttribute('aria-pressed', String(button.dataset.board === board.id))
       if (!board.rows.length) {
-        const row = document.createElement('tr'); const cell = document.createElement('td'); cell.colSpan = 3; cell.className = 'site-empty'
-        cell.textContent = tr('Aucun résultat pour cette période.', 'No results for this period.'); row.append(cell); body.append(row)
+        const empty = document.createElement('li'); empty.className = 'site-empty'
+        empty.textContent = kind === 'crew' ? tr('Aucun résultat pour cette période.', 'No results for this period.') : tr('Aucun score : la première place est à prendre.', 'No scores yet: first place is up for grabs.')
+        list.append(empty)
       }
     }
     this.buttons = (reply.rankings ?? []).map((board) => {
-      const b = document.createElement('button'); b.textContent = board.label; b.dataset.board = board.id
+      const b = document.createElement('button'); b.textContent = RANKING_LABELS[board.id] ?? board.label; b.dataset.board = board.id
       b.onclick = () => show(board); tabs.append(b); return b
     })
-    this.content.append(tabs, table)
+    this.content.append(tabs, caption, podium, list)
     if (reply.rankings?.[0]) show(reply.rankings[0])
     this.buttons[0]?.focus()
   }

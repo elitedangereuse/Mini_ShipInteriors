@@ -645,8 +645,17 @@ cible de Chasse galactique validée**. Chaque comptoir permet de tout récupére
 son activité. Le site recherche les validations réelles ; une transaction verrouille
 le compte et inscrit chaque récompense une seule fois. Les validations historiques
 ne paient pas de crédits : seule la première installation de la migration fixe le
-lancement. Dans la salle de sport, le panneau « Employés du mois » affiche les top 10
-mensuel (30 jours), général, collectionneurs et podiums, avec les liens de profil.
+lancement.
+
+Trois écrans muraux ouvrent les classements, dix lignes chacun, avec l'image de profil
+ronde et le lien du profil de chaque CMDR (`?rankings=` de `mini-shipinteriors-site.php`) :
+
+- **salle commune**, le tableau d'honneur (`crew`) : « Employés du mois » (les CMDR qui ont
+  réglé le plus de tâches de bord dans le mois, table `mini_shipinteriors_task_month`),
+  classement général, 30 derniers jours, collectionneurs et podiums d'aventures ;
+- **salon d'arcade**, les high scores (`arcade`) : Cargaison, Viper, Astéroïdes, Thargoid
+  Invaders ; l'écran affiche le record de chaque borne ;
+- **salle de sport**, les records (`gym`) : tapis de course, vélo, sac de frappe.
 
 Installation côté site : jouer **`docker/tables/mini_shipinteriors_site.sql`** après
 `mini_shipinteriors.sql` et `system_hunts.sql`. La migration est idempotente ; la jouer

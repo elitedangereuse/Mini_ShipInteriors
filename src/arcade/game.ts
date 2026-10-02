@@ -17,6 +17,12 @@ export const isGameId = (id: string | undefined): id is GameId => GAME_IDS.inclu
  */
 export const records: Partial<Record<GameId, { cmdr: string; score: number }>> = {}
 
+/** Appareils de la salle de sport : leurs séances s'inscrivent comme les scores des bornes (cf. gym.ts). */
+export const SPORT_IDS = ['gym-run', 'gym-bike', 'gym-punch'] as const
+export type SportId = (typeof SPORT_IDS)[number]
+/** Record de chaque appareil : le tableau de la salle de sport l'affiche. */
+export const sportRecords: Partial<Record<SportId, { cmdr: string; score: number }>> = {}
+
 export type Button = 'left' | 'right' | 'up' | 'down' | 'a' | 'b' | 'c'
 
 /** Manette : boutons tenus, et ceux appuyés depuis l'image précédente. */

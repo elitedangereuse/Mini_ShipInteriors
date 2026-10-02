@@ -460,8 +460,9 @@ for (const it of decks[LEVELS.findIndex((l) => l.id === 0)].interactables) {
   if (it.furniture?.model === 'reward-counter') {
     const kind = it.furniture.label === 'weekly' ? 'weekly' : 'hunt'
     it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; void sitePanel.counter(kind) }
-  } else if (it.furniture?.model === 'employee-board') {
-    it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; void sitePanel.rankings() }
+  } else if (it.furniture?.model === 'employee-board' || it.furniture?.model === 'score-board') {
+    const kind = it.furniture.model === 'employee-board' ? 'crew' : it.furniture.label === 'gym' ? 'gym' : 'arcade'
+    it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; void sitePanel.rankings(kind) }
   }
 }
 const promptEl = $('prompt')
@@ -3855,16 +3856,16 @@ async function playJump(system: SystemId, by: string | null) {
   flash()
   stars.warp(55)
   systemView.hide(true)
-  iso.shake(0.16)
   traffic.hide(true)
+  iso.shake(0.16)
   dialog.show(tr('Saut !', 'Jump!'))
   flushCrew()
   await wait(JUMP_TRAVEL * 1000)
   stars.warp(1)
   systemView.set(system)
   systemView.hide(false)
-  flash(true)
   traffic.hide(false)
+  flash(true)
   dialog.show(flushLanded
     ? tr(`Arrivée : ${name}… et vous, dans la cale. ${FLUSH_MORAL}`, `Arrived: ${name}… and you, in the hold. ${FLUSH_MORAL}`)
     : tr(`Arrivée : ${name}. ${arrival}`, `Arrived: ${name}. ${arrival}`))

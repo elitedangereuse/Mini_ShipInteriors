@@ -1,10 +1,11 @@
 import { fetchBoard, localBest, saveLocalBest, submitScore } from './arcade/scores'
+import type { SportId } from './arcade/game'
 import { formatCredits } from './economy/data'
 import type { Wallet } from './economy/wallet'
 import { tr } from './i18n'
 import type { Bubbles, Dialog } from './ui'
 
-export type Sport = 'gym-run' | 'gym-bike' | 'gym-punch'
+export type Sport = SportId
 
 const TITLES: Record<Sport, string> = {
   'gym-run': tr('Tapis de course', 'Treadmill'),
