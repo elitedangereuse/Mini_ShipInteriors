@@ -1,0 +1,767 @@
+/*
+ * Combiné de bord (annuaire des joueurs, cf. crew/phone.ts) : un téléphone aux coins chanfreinés,
+ * qui flotte à gauche de l'écran et se réduit à une languette contre le bord.
+ * --cut : la taille du chanfrein, en haut à gauche et en bas à droite.
+ */
+#phone {
+  --cut: 20px;
+  --ph-ink: #0b0d1f;
+  --ph-line: rgba(140, 150, 255, 0.22);
+  --ph-green: #7dffa8;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  z-index: 8;
+  pointer-events: none;
+  /* L'ombre suit le chanfrein (un box-shadow serait rogné par clip-path). */
+  filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.55));
+}
+body.editing #phone {
+  display: none;
+}
+
+/* ---------- languette (combiné réduit) ---------- */
+/* Au bas de la colonne de gauche du HUD, ramenée contre le bord de l'écran (--edge : la marge de la colonne). */
+.top-left {
+  --edge: 16px;
+}
+.ph-tab {
+  margin-left: calc(-1 * var(--edge));
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  width: 44px;
+  padding: 14px 0 12px;
+  border: 0;
+  border-left: 3px solid var(--accent);
+  background: linear-gradient(160deg, rgba(34, 38, 78, 0.96), rgba(11, 13, 31, 0.96));
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.5));
+  -webkit-tap-highlight-color: transparent;
+}
+.ph-tab .icon {
+  font-size: 21px;
+  color: var(--accent);
+}
+.ph-tab b {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.ph-tab b:empty {
+  display: none;
+}
+.ph-tab:hover {
+  background: linear-gradient(160deg, rgba(48, 54, 108, 0.98), rgba(16, 19, 44, 0.98));
+}
+.ph-tab:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: -2px;
+}
+#phone button:focus-visible,
+#phone a:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: -2px;
+}
+/* Combiné ouvert : la languette garde sa place (la colonne ne saute pas), sans se montrer. */
+.ph-tab[aria-expanded='true'] {
+  visibility: hidden;
+}
+.ph-badge {
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #1a1204;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.ph-badge:empty {
+  display: none;
+}
+.ph-tab.alert .ph-badge {
+  animation: ph-ping 1.6s ease-in-out 3;
+}
+@keyframes ph-ping {
+  50% {
+    transform: scale(1.25);
+    box-shadow: 0 0 12px var(--accent);
+  }
+}
+
+/* ---------- combiné ---------- */
+.ph-body {
+  position: absolute;
+  left: 14px;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  width: min(324px, calc(100vw - 28px));
+  height: min(600px, calc(100dvh - 28px));
+  padding: 1.5px;
+  /* Le liseré : ambre côté antenne, puis la bordure des panneaux. */
+  background: linear-gradient(150deg, var(--accent) 0, rgba(255, 176, 58, 0.25) 22%, var(--ph-line) 55%, rgba(89, 216, 255, 0.5) 100%);
+  clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut));
+  color: var(--text);
+  pointer-events: auto;
+  transform: translate(calc(-100% - 20px), -50%);
+  opacity: 0;
+  visibility: hidden;
+  transition: transform 0.26s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s, visibility 0s 0.26s;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#phone.open .ph-body {
+  transform: translate(0, -50%);
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
+}
+.ph-body > * {
+  position: relative;
+}
+/* Le fond de l'écran, dans le liseré. */
+.ph-body::before {
+  content: '';
+  position: absolute;
+  inset: 1.5px;
+  background:
+    radial-gradient(120% 60% at 0 0, rgba(255, 176, 58, 0.1), transparent 60%),
+    linear-gradient(180deg, #171a3a, var(--ph-ink) 70%);
+  clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut));
+}
+
+.ph-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 8px 6px calc(var(--cut) + 6px);
+  font-size: 12px;
+  color: var(--muted);
+}
+.ph-time {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.ph-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.ph-signal {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 11px;
+}
+.ph-signal i {
+  width: 3px;
+  background: rgba(255, 255, 255, 0.2);
+}
+.ph-signal i:nth-child(1) { height: 4px; }
+.ph-signal i:nth-child(2) { height: 6px; }
+.ph-signal i:nth-child(3) { height: 9px; }
+.ph-signal i:nth-child(4) { height: 11px; }
+.ph-link.on .ph-signal i {
+  background: var(--ph-green);
+}
+.ph-close,
+.ph-back {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--ph-line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font-size: 15px;
+  cursor: pointer;
+}
+.ph-close:hover,
+.ph-back:hover {
+  border-color: var(--cyan);
+  background: rgba(89, 216, 255, 0.14);
+}
+
+.ph-screen {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.ph-view {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.ph-head {
+  padding: 2px 16px 10px;
+}
+.ph-head h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+.ph-summary {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Onglets : l'annuaire, les messages laissés. */
+.ph-segs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 0 16px;
+  border-bottom: 1px solid var(--ph-line);
+}
+.ph-seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 4px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ph-seg:hover {
+  color: var(--text);
+}
+.ph-seg[aria-selected='true'] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.ph-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px 10px calc(var(--cut) + 2px);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(140, 150, 255, 0.35) transparent;
+}
+
+/* Soi, en tête. */
+.ph-me {
+  padding: 4px 6px 8px;
+  border: 1px solid var(--ph-line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.ph-me .ph-row-main {
+  cursor: default;
+}
+.ph-you {
+  padding: 1px 7px;
+  border: 1px solid var(--ph-line);
+  border-radius: 9px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.ph-me .ph-actions {
+  padding: 0 4px 0 30px;
+}
+.ph-me .ph-actions:empty {
+  display: none;
+}
+.ph-login {
+  font-size: 12px;
+  color: var(--cyan);
+}
+
+.ph-find {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 2px;
+  padding: 0 10px;
+  border: 1px solid var(--ph-line);
+  border-radius: 9px;
+  background: rgba(5, 6, 15, 0.5);
+  color: var(--muted);
+}
+.ph-find:focus-within {
+  border-color: var(--cyan);
+}
+.ph-search,
+.ph-input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.ph-search::placeholder,
+.ph-input::placeholder {
+  color: var(--muted);
+}
+.ph-search::-webkit-search-cancel-button {
+  filter: invert(0.8);
+}
+
+.ph-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 6px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.ph-section::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--ph-line);
+}
+.ph-empty,
+.ph-hint {
+  margin: 14px 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.ph-hint {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  font-size: 12px;
+}
+
+/* Une rangée : la jauge des ponts, le nom et le lieu, la porte ouverte, les non-lus. */
+.ph-row {
+  border-radius: 10px;
+}
+.ph-row.expanded {
+  background: rgba(89, 216, 255, 0.07);
+  box-shadow: inset 2px 0 0 var(--cyan);
+}
+.ph-row-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+button.ph-row-main:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.ph-who {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}
+.ph-name,
+.ph-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ph-name {
+  font-weight: 600;
+}
+.ph-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+.ph-row.away .ph-name {
+  font-weight: 500;
+  color: #c3c7ec;
+}
+
+/* Coupe du vaisseau : quatre ponts, celui du joueur allumé. */
+.ph-decks {
+  flex: none;
+  display: grid;
+  gap: 2px;
+  width: 16px;
+}
+.ph-decks i {
+  height: 4px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.16);
+}
+.ph-decks i.on {
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(255, 176, 58, 0.9);
+}
+/* Hors du vaisseau (base au sol, zone thargoïde) : toute la coupe en veille. */
+.ph-decks.away i {
+  background: rgba(89, 216, 255, 0.4);
+}
+/* Hors ligne : un voyant éteint. */
+.ph-decks.off {
+  justify-items: center;
+}
+.ph-decks.off::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid rgba(154, 160, 208, 0.55);
+  border-radius: 50%;
+}
+.ph-door {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: rgba(125, 255, 168, 0.12);
+  color: var(--ph-green);
+  font-size: 16px;
+}
+
+.ph-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px 8px 10px 34px;
+}
+.ph-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid var(--ph-line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ph-actions button .icon {
+  font-size: 15px;
+  color: var(--cyan);
+}
+.ph-actions button:hover:not(:disabled) {
+  border-color: var(--cyan);
+  background: rgba(89, 216, 255, 0.16);
+}
+.ph-actions button.primary {
+  border-color: rgba(255, 176, 58, 0.6);
+  background: rgba(255, 176, 58, 0.16);
+  font-weight: 600;
+}
+.ph-actions button.primary .icon {
+  color: var(--accent);
+}
+.ph-actions button.primary:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: rgba(255, 176, 58, 0.28);
+}
+.ph-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ph-actions .ph-switch {
+  white-space: normal;
+  text-align: left;
+}
+.ph-actions .ph-switch.on {
+  border-color: rgba(125, 255, 168, 0.5);
+  background: rgba(125, 255, 168, 0.1);
+}
+.ph-actions .ph-switch.on .icon {
+  color: var(--ph-green);
+}
+
+/* ---------- messages laissés ---------- */
+.ph-letters {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+.ph-letter {
+  padding: 9px 10px 2px;
+  border: 1px solid var(--ph-line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.ph-letter.new {
+  border-color: rgba(255, 176, 58, 0.6);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.ph-letter header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ph-letter time {
+  flex: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+.ph-letter p {
+  margin: 4px 0 8px;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.ph-letter .ph-actions {
+  padding: 0 0 8px;
+}
+
+/* ---------- conversation ---------- */
+.ph-thread-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 12px 10px;
+  border-bottom: 1px solid var(--ph-line);
+}
+.ph-thread {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(140, 150, 255, 0.35) transparent;
+}
+.ph-thread > :first-child {
+  margin-top: auto;
+}
+.ph-bubble {
+  align-self: flex-start;
+  max-width: 86%;
+  padding: 7px 10px 5px;
+  border: 1px solid rgba(89, 216, 255, 0.35);
+  border-radius: 4px 12px 12px 12px;
+  background: rgba(89, 216, 255, 0.1);
+}
+.ph-bubble.mine {
+  align-self: flex-end;
+  border-color: rgba(255, 176, 58, 0.45);
+  border-radius: 12px 4px 12px 12px;
+  background: rgba(255, 176, 58, 0.14);
+}
+.ph-bubble.letter {
+  border-style: dashed;
+}
+.ph-bubble.sending {
+  opacity: 0.6;
+}
+.ph-bubble.failed {
+  border-color: #ff7a7a;
+  background: rgba(255, 90, 90, 0.12);
+}
+.ph-bubble p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.ph-bubble small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.ph-bubble.failed small {
+  color: #ffb0b0;
+}
+.ph-thread-note {
+  margin: 0;
+  padding: 0 14px 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.ph-compose {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 10px calc(var(--cut) - 6px);
+  padding: 0 4px 0 12px;
+  border: 1px solid var(--ph-line);
+  border-radius: 10px;
+  background: rgba(5, 6, 15, 0.6);
+}
+.ph-compose:focus-within {
+  border-color: var(--accent);
+}
+.ph-input {
+  height: 40px;
+}
+.ph-send {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #1a1204;
+  font-size: 16px;
+  cursor: pointer;
+}
+.ph-send:disabled,
+.ph-input:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Chuchotements, dans le chat du jeu. */
+.msg.whisper {
+  color: #d9c8ff;
+  font-style: italic;
+  box-shadow: inset 2px 0 0 #b596ff;
+}
+.msg.whisper .who {
+  color: #b596ff;
+}
+
+/* ---------- écran large, peu haut ---------- */
+/* Le combiné ouvert recouvrirait le bloc du vaisseau : la colonne de gauche se pousse à côté de lui. */
+@media (min-width: 1200px) and (max-height: 900px) {
+  .top-left {
+    transition: left 0.26s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  body.phone-open:not(.editing) .top-left {
+    left: 354px;
+  }
+}
+
+/* ---------- petits écrans ---------- */
+/* Écran bas (téléphone en paysage, fenêtre réduite) : le combiné prend toute la hauteur. */
+@media (max-height: 520px) {
+  #phone {
+    --cut: 14px;
+  }
+  .ph-body {
+    height: calc(100dvh - 12px);
+    width: min(312px, 58vw);
+    left: max(6px, env(safe-area-inset-left));
+  }
+  /* L'heure et la liaison s'effacent : il ne reste que le bouton pour réduire, dans le coin. */
+  .ph-body > .ph-status {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 1;
+    padding: 5px 6px;
+  }
+  .ph-time,
+  .ph-link {
+    display: none;
+  }
+  .ph-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 10px 54px 6px calc(var(--cut) + 4px);
+  }
+  .ph-thread-head {
+    padding: 6px 54px 6px 10px;
+  }
+  .ph-me .ph-actions {
+    padding-left: 4px;
+  }
+  .ph-find {
+    margin-top: 6px;
+  }
+  .ph-head h2 {
+    font-size: 18px;
+  }
+  .ph-summary {
+    margin: 0;
+  }
+  .ph-seg {
+    padding: 5px 4px;
+  }
+  .ph-list {
+    padding-top: 6px;
+  }
+  .ph-section {
+    margin-top: 8px;
+  }
+}
+/* Au doigt : la languette quitte le joystick et le bloc du vaisseau, les cibles grandissent. */
+@media (pointer: coarse) {
+  .ph-tab {
+    width: 46px;
+  }
+  .ph-row-main {
+    min-height: 50px;
+  }
+  .ph-actions button {
+    min-height: 40px;
+    padding: 6px 12px;
+  }
+  .ph-close,
+  .ph-back {
+    width: 40px;
+    height: 40px;
+  }
+  .ph-search,
+  .ph-input {
+    /* 16 px : sans quoi iOS zoome sur le champ. */
+    font-size: 16px;
+  }
+}
+/* Écran étroit (portrait) : le combiné occupe presque toute la largeur. */
+@media (max-width: 480px) {
+  .ph-body {
+    left: 8px;
+    width: calc(100vw - 16px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ph-body,
+  .top-left {
+    transition: none;
+  }
+  .ph-tab.alert .ph-badge {
+    animation: none;
+  }
+}
+@media (pointer: coarse) and (orientation: landscape) {
+  .top-left {
+    --edge: max(8px, env(safe-area-inset-left));
+  }
+  .ph-tab {
+    grid-auto-flow: column;
+    align-items: center;
+    gap: 6px;
+    width: auto;
+    padding: 7px 14px 7px calc(var(--edge) + 4px);
+  }
+}

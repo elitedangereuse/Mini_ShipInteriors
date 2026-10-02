@@ -62,3 +62,21 @@ export async function postSalvageResult(cookie, result, { cmdrUrl, secret, error
     return null
   }
 }
+
+/**
+ * Quartiers ouverts d'un CMDR absent (nom sous sa forme stockée, donnée par l'annuaire du site) :
+ * son nom à afficher et son aménagement tel que le site le garde, ou null s'ils sont fermés (ou
+ * si le site ne répond pas). Sans cookie : des quartiers ouverts le sont pour tout le monde.
+ * @returns {Promise<{ name: string, layout: unknown } | null>}
+ */
+export async function fetchQuarters(stored, { cmdrUrl, fetcher = fetch, timeoutMs = 5000 }) {
+  if (!cmdrUrl) return null
+  try {
+    const url = new URL('/outils/mini-shipinteriors-crew.php', cmdrUrl)
+    url.searchParams.set('quarters', stored)
+    const response = await fetcher(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(timeoutMs), redirect: 'error' })
+    if (!response.ok) return null
+    const data = await response.json()
+    return data?.status === 'success' && typeof data.name === 'string' && data.name ? { name: data.name, layout: data.cabin } : null
+  } catch { return null }
+}

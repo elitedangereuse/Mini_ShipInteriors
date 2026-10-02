@@ -220,7 +220,7 @@ export class Chat {
   }
 
   /** @param text texte, ou morceaux de texte et de nœuds (noms avec badge…) */
-  add(kind: 'me' | 'other' | 'system', text: string | (string | Node)[], who?: string | Node) {
+  add(kind: 'me' | 'other' | 'system' | 'whisper', text: string | (string | Node)[], who?: string | Node) {
     const row = document.createElement('div')
     row.className = `msg ${kind}`
     if (who) {
@@ -287,19 +287,6 @@ export class Dialog {
  * Panneau de l'ascenseur. Au clavier : flèches (ou Z/S, W/S) pour choisir l'étage,
  * Entrée ou Espace pour y aller ; E, Échap ou un clic en dehors pour fermer (cf. main.ts).
  */
-/**
- * Arrêt de plus, sous un étage du panneau (le pont des quartiers : ses quartiers, ceux qui sont
- * ouverts ou où l'on est invité).
- */
-export interface LiftStop {
-  label: string
-  /** Précision, en petit (« ouverts », « invitation »). */
-  note?: string
-  /** On y est déjà : l'arrêt est grisé. */
-  current?: boolean
-  go: () => void
-}
-
 export class LiftPanel {
   private el = $('lift')
   private buttons = $('lift-buttons')
@@ -319,15 +306,11 @@ export class LiftPanel {
     return target instanceof Node && this.el.contains(target)
   }
 
-  /**
-   * @param stops arrêts de plus sous l'étage `under` (cf. LiftStop)
-   */
-  open(levels: { id: number; name: string }[], current: number, onPick: (id: number) => void, stops?: { under: number; list: LiftStop[] }) {
+  open(levels: { id: number; name: string }[], current: number, onPick: (id: number) => void) {
     this.buttons.replaceChildren()
     this.choices = []
-    const add = (label: HTMLElement, key: HTMLElement, here: boolean, go: () => void, sub = false, disabled = here) => {
+    const add = (label: HTMLElement, key: HTMLElement, here: boolean, go: () => void) => {
       const b = document.createElement('button')
-      if (sub) b.className = 'lift-sub'
       if (here) {
         const tag = document.createElement('small')
         tag.className = 'lift-current'
@@ -336,7 +319,7 @@ export class LiftPanel {
         b.setAttribute('aria-current', 'location')
       }
       b.append(label, key)
-      b.disabled = disabled
+      b.disabled = here
       const i = this.choices.length
       b.onclick = () => this.pick(go)
       b.onpointerenter = () => this.select(i)
@@ -350,21 +333,10 @@ export class LiftPanel {
       label.textContent = l.name
       const n = document.createElement('kbd')
       n.textContent = l.id > 0 ? `+${l.id}` : String(l.id)
-      // Un étage aux arrêts de plus : on y est « ici » seulement sur l'un d'eux.
-      const sub = stops?.under === l.id ? stops.list : null
       if (l.id === current) start = this.choices.length
-      add(label, n, l.id === current && !sub?.length, () => onPick(l.id), false, l.id === current)
-      for (const s of sub ?? []) {
-        const label = document.createElement('span')
-        label.textContent = s.label
-        const note = document.createElement('small')
-        note.className = 'lift-note'
-        note.textContent = s.note ?? ''
-        if (s.current) start = this.choices.length
-        add(label, note, !!s.current, s.go, true)
-      }
+      add(label, n, l.id === current, () => onPick(l.id))
     }
-    // Sélection de départ : l'arrêt juste au-dessus, sinon juste en dessous.
+    // Sélection de départ : l'étage juste au-dessus, sinon juste en dessous.
     this.selected = start
     this.move(this.selected > 0 ? -1 : 1)
     this.el.hidden = false

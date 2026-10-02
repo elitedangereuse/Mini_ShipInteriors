@@ -227,15 +227,22 @@ export type SalvageAction = 'create' | 'join' | 'leave' | 'settings' | 'ready' |
 
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
-  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean }; players: PlayerState[]; music?: MusicState; hold?: MusicState; system?: SystemId; patrol?: PatrolState; chef?: ChefState; nurse?: NurseState; mechanic?: MechanicState; gardener?: GardenerState; chief?: ChiefState; salvage?: SalvageLobby }
+  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean }; players: PlayerState[]; homes?: { id: number; name: string }[]; music?: MusicState; hold?: MusicState; system?: SystemId; patrol?: PatrolState; chef?: ChefState; nurse?: NurseState; mechanic?: MechanicState; gardener?: GardenerState; chief?: ChiefState; salvage?: SalvageLobby }
   | { t: 'join'; player: PlayerState }
   | { t: 'leave'; id: number }
   | { t: 'state'; id: number; x: number; z: number; yaw: number; level: number; anim: string; pose?: string; py?: number }
   | { t: 'chat'; id: number; name: string; verified?: boolean; text: string }
   | { t: 'emote'; id: number; emote: string }
   | { t: 'profile'; id: number; name: string; verified?: boolean; skin: string }
-  /** Aménagement des quartiers du joueur `id` (on s'y trouve, ou l'on vient d'y entrer). */
-  | { t: 'cabin'; id: number; layout: unknown }
+  /** Le joueur `id` nous chuchote un message : nous seuls le recevons. */
+  | { t: 'whisper'; id: number; name: string; verified?: boolean; text: string }
+  /** Le joueur `id` sonne à la porte de nos quartiers : à nous de l'inviter. */
+  | { t: 'ring'; id: number; name: string; verified?: boolean }
+  /**
+   * Aménagement des quartiers du joueur `id` (on s'y trouve, ou l'on vient d'y entrer) ; `name` :
+   * ce sont ceux d'un CMDR absent (`id` : leur instance), que l'on visite sans lui.
+   */
+  | { t: 'cabin'; id: number; layout: unknown; name?: string }
   /** Le joueur `id` nous invite dans ses quartiers. */
   | { t: 'invite'; id: number; name: string; verified?: boolean }
   /** Le joueur `id` a décliné notre invitation. */
@@ -243,9 +250,10 @@ export type ServerMessage =
   /**
    * Le joueur `id` est désormais dans les quartiers de `cabin` (les siens s'il rentre) ; `by` :
    * raccompagné par l'hôte. `expired` : notre demande d'entrée est refusée (invitation expirée,
-   * quartiers fermés), on reste dans `cabin`.
+   * quartiers fermés), on reste dans `cabin`. `host` : ce sont les quartiers d'un CMDR absent,
+   * voici son nom.
    */
-  | { t: 'visit'; id: number; cabin: number; by?: number; expired?: boolean }
+  | { t: 'visit'; id: number; cabin: number; by?: number; expired?: boolean; host?: string }
   /** Le joueur `id` ouvre ses quartiers (on y entre sans invitation) ou les ferme. */
   | { t: 'open'; id: number; open: boolean }
   /**
@@ -282,12 +290,14 @@ export type ServerMessage =
  * gone : l'invité n'est plus à bord, here : il est déjà chez nous, busy : trop d'invitations).
  */
 export type InviteReply = { ok: true } | { ok: false; reason: 'guest' | 'gone' | 'here' | 'busy' }
+/** Réponse du relais à un chuchotement : parti, ou pourquoi pas (gone : il n'est plus à bord, busy : trop d'un coup). */
+export type WhisperReply = { ok: true } | { ok: false; reason: 'gone' | 'busy' | 'empty' }
 
 type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin' | 'open'>
 
 /** Chemin de la socket : le même que WS_PATH dans server/relay.js et que la conf nginx du site. */
 const WS_PATH = import.meta.env.VITE_WS_PATH || '/ws/mini-shipinteriors'
-const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'open', 'music', 'jump', 'patrol', 'chef', 'nurse', 'mechanic', 'gardener', 'chief', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error',
+const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'open', 'whisper', 'ring', 'music', 'jump', 'patrol', 'chef', 'nurse', 'mechanic', 'gardener', 'chief', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error',
   'salvage:lobby', 'salvage:start', 'salvage:state', 'salvage:event', 'salvage:end', 'salvage:reward', 'salvage:error']
 
 export class Net {
@@ -492,6 +502,26 @@ export class Net {
     }
   }
 
+  /** Sonne chez `to` (un CMDR à bord) ; null : pas de réponse du relais. Mêmes refus qu'une invitation (guest : il n'a pas de quartiers). */
+  async sendRing(to: number): Promise<InviteReply | null> {
+    if (!this.online || !this.socket?.connected) return null
+    try {
+      return (await this.socket.timeout(5000).emitWithAck('ring', { to })) as InviteReply
+    } catch {
+      return null
+    }
+  }
+
+  /** Chuchote à `to` ; null : pas de réponse du relais (liaison perdue). */
+  async sendWhisper(to: number, text: string): Promise<WhisperReply | null> {
+    if (!this.online || !this.socket?.connected) return null
+    try {
+      return (await this.socket.timeout(5000).emitWithAck('whisper', { to, text })) as WhisperReply
+    } catch {
+      return null
+    }
+  }
+
   sendDecline(to: number) {
     this.send('decline', { to })
   }
@@ -499,6 +529,11 @@ export class Net {
   /** Entrer dans les quartiers de `host` (sur invitation), ou rentrer chez soi (null). */
   sendVisit(host: number | null) {
     this.send('visit', { host })
+  }
+
+  /** Entrer dans les quartiers ouverts d'un CMDR absent (`cmdr` : son identifiant dans l'annuaire du site). */
+  sendVisitAbsent(cmdr: string) {
+    this.send('visit', { cmdr })
   }
 
   /**

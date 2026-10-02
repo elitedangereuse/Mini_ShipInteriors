@@ -91,6 +91,10 @@ import speakerLow from '@phosphor-icons/core/bold/speaker-low-bold.svg?raw'
 import speakerSlash from '@phosphor-icons/core/bold/speaker-slash-bold.svg?raw'
 import userSolo from '@phosphor-icons/core/bold/user-bold.svg?raw'
 import usersThree from '@phosphor-icons/core/bold/users-three-bold.svg?raw'
+import bellRinging from '@phosphor-icons/core/bold/bell-ringing-bold.svg?raw'
+import chatCircleDots from '@phosphor-icons/core/bold/chat-circle-dots-bold.svg?raw'
+import paperPlaneRight from '@phosphor-icons/core/bold/paper-plane-right-bold.svg?raw'
+import magnifyingGlass from '@phosphor-icons/core/bold/magnifying-glass-bold.svg?raw'
 import caretUp from '@phosphor-icons/core/bold/caret-up-bold.svg?raw'
 import caretDown from '@phosphor-icons/core/bold/caret-down-bold.svg?raw'
 import camera from '@phosphor-icons/core/bold/camera-bold.svg?raw'
@@ -225,6 +229,11 @@ const SVG = {
   'speaker-slash': speakerSlash,
   'user-solo': userSolo,
   'users-three': usersThree,
+  // annuaire des joueurs (cf. crew/phone.ts) : sonner, chuchoter, envoyer, chercher
+  'bell-ringing': bellRinging,
+  'chat-circle-dots': chatCircleDots,
+  'paper-plane-right': paperPlaneRight,
+  'magnifying-glass': magnifyingGlass,
   // bornes d'arcade, jukebox, mode photo
   'caret-up': caretUp,
   'caret-down': caretDown,

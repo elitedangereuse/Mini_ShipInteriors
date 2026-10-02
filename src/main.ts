@@ -13,7 +13,9 @@ import { CAT_MODEL, preload, rig } from './assets'
 import type { CabinEditor } from './cabin/editor'
 import type { HomeBuilder } from './housing/builder'
 import { HomeStore } from './housing/storage'
-import { CabinBar, InviteMenu, InviteToasts, type CrewEntry } from './cabin/hud'
+import { CabinBar, InviteToasts } from './cabin/hud'
+import { contactKey, CrewPhone, type Contact, type PhoneData } from './crew/phone'
+import { deleteLetter, fetchCrew, markLettersRead, sendLetter, type CrewDirectory, type LetterRefusal } from './crew/site'
 import { defaultLayout, LEGACY_BOUNDS, normalizeLayout, serializeLayout, type CabinItem, type CabinLayout } from './cabin/layout'
 import { CabinStore, requestCabin, type SiteCabin } from './cabin/storage'
 import { devCmdr, devLjpc, devVoie, fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
@@ -77,7 +79,7 @@ import { syncTempo, tempo } from './tempo'
 import { ToiletFlushes } from './toilet-flush'
 import { SalvageClient } from './salvage/client'
 import { LOBBY_RETURN, ZONE_LEVEL } from '../shared/salvage.js'
-import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel, type LiftStop } from './ui'
+import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel } from './ui'
 import { LiftRide } from './lift-ride'
 
 // ------------------------------------------------------------------ profil
@@ -1339,7 +1341,8 @@ net.onStatus = (online) => {
     arcade?.disconnected()
     for (const id of [...remotes.keys()]) removeRemote(id)
     inviteToasts.clear()
-    inviteMenu.close()
+    rangAt.clear()
+    absentHosts.clear()
     leaveVisit(tr('Liaison perdue avec le relais : retour dans vos quartiers.', 'Lost contact with the relay: back to your quarters.'), true)
   }
   updateNetStatus()
@@ -1366,7 +1369,10 @@ net.onMessage = (m) => {
       }
       updateIdentity()
       for (const p of m.players) addRemote(p)
+      for (const h of m.homes ?? []) absentHosts.set(h.id, h.name)
       chat.add('system', welcomeOnline(m.players.length))
+      // Reconnu (ou non) par le relais : l'annuaire et notre boîte, tels que le site les tient.
+      void loadDirectory(true)
       // Les jukebox du pont principal et de la cale, tels que le relais les connaît (après une reconnexion aussi).
       if (m.music) applyMusic(m.music)
       if (m.hold) applyMusic(m.hold)
@@ -1405,8 +1411,10 @@ net.onMessage = (m) => {
       removeRemote(m.id)
       hostLayouts.delete(m.id)
       invitedAt.delete(m.id)
+      invitesFrom.delete(m.id)
+      rangAt.delete(m.id)
       inviteToasts.remove(m.id)
-      refreshInviteMenu()
+      refreshPhone()
       break
     }
     case 'state':
@@ -1530,25 +1538,48 @@ net.onMessage = (m) => {
     case 'cabin':
       // Aménagement d'un hôte : à l'entrée dans ses quartiers, puis à chacun de ses changements.
       hostLayouts.set(m.id, m.layout)
+      // Les quartiers d'un CMDR absent : son nom arrive avec eux.
+      if (m.name) absentHosts.set(m.id, m.name)
       if (visiting?.host === m.id) showCabin()
       break
     case 'open': {
       const r = remotes.get(m.id)
       if (r) r.open = m.open
-      refreshInviteMenu()
+      refreshPhone()
       break
     }
     case 'invite':
       invitesFrom.set(m.id, Date.now() + 60000)
+      // On venait de sonner chez lui : il nous ouvre, on entre.
+      if ((rangAt.get(m.id) ?? 0) > Date.now() && canTravel(false)) {
+        rangAt.delete(m.id)
+        chat.add('system', tr(`${m.name} vous ouvre.`, `${m.name} lets you in.`))
+        acceptInvite(m.id)
+        break
+      }
       inviteToasts.add(m.id, m.name, m.verified)
       sound.play('ding', null, { volume: 0.12, rate: 1.25 })
+      refreshPhone()
+      break
+    case 'ring':
+      // Quelqu'un sonne à la porte de nos quartiers : à nous d'ouvrir (une invitation).
+      inviteToasts.add(m.id, m.name, m.verified, true)
+      chat.add('system', [nameTag(m.name, m.verified), tr(' sonne à la porte de vos quartiers.', ' is ringing at your quarters.')])
+      sound.play('ding', null, { volume: 0.14, rate: 1.5 })
+      setTimeout(() => sound.play('ding', null, { volume: 0.14, rate: 1.2 }), 260)
+      break
+    case 'whisper':
+      phone.receive(remoteKey(m.name, m.verified), m.name, m.text)
+      chat.add('whisper', m.text, whisperTag(m.name, m.verified, false))
+      sound.play('chat', null, { volume: 0.14, rate: 0.85 })
       break
     case 'decline':
       invitedAt.delete(m.id)
       chat.add('system', tr(`${m.name} a décliné votre invitation.`, `${m.name} declined your invitation.`))
-      refreshInviteMenu()
+      refreshPhone()
       break
     case 'visit': {
+      if (m.host) absentHosts.set(m.cabin, m.host)
       if (m.id === net.id) {
         const host = visiting?.name ?? remotes.get(entering ?? -1)?.name ?? tr('Votre hôte', 'Your host')
         // Entrée refusée : on reste où l'on est (chez soi, ou chez un autre hôte).
@@ -1569,7 +1600,8 @@ net.onMessage = (m) => {
       else if (r.cabin === net.id && m.cabin !== net.id) chat.add('system', tr(`${r.name} a quitté vos quartiers.`, `${r.name} left your quarters.`))
       r.cabin = m.cabin
       invitedAt.delete(m.id)
-      refreshInviteMenu()
+      if (m.cabin === net.id) inviteToasts.remove(m.id)
+      refreshPhone()
       break
     }
   }
@@ -1648,6 +1680,19 @@ async function command(text: string) {
       if (!r) return chat.add('system', tr(`Personne à bord ne s'appelle ${arg}.`, `Nobody aboard is called ${arg}.`))
       return invite(r.id)
     }
+    case 'w':
+    case 'chuchoter':
+    case 'whisper': {
+      // Le nom peut contenir des espaces : le plus long nom d'un joueur à bord qui commence le texte.
+      const key = (n: string) => contactKey(n).replace(/\s+\(invité\)$/, '')
+      const said = contactKey(arg)
+      const r = [...remotes.values()].filter((x) => said.startsWith(key(x.name) + ' ')).sort((a, b) => b.name.length - a.name.length)[0]
+      if (!r) return chat.add('system', tr('Usage : /w CMDR Nom message (à un joueur à bord).', 'Usage: /w CMDR Name message (to a player aboard).'))
+      const message = arg.replace(/^cmdr\s+/i, '').trim().slice(key(r.name).length).trim()
+      const refusal = await whisper(r.id, message)
+      if (refusal) return chat.add('system', refusal)
+      return phone.sent(remoteKey(r.name, r.verified), r.name, message)
+    }
     case 'credits':
     case 'crédits':
     case 'solde':
@@ -1674,8 +1719,8 @@ async function command(text: string) {
       return chat.add(
         'system',
         tr(
-          `Commandes : /nom CMDR Pseudo (invités) · /perso · /inviter CMDR Nom · /credits · /taches · ${emotes}`,
-          `Commands: /name CMDR Nickname (guests) · /random · /invite CMDR Name · /credits · /chores · ${emotes}`,
+          `Commandes : /nom CMDR Pseudo (invités) · /perso · /inviter CMDR Nom · /w CMDR Nom message · /credits · /taches · ${emotes}`,
+          `Commands: /name CMDR Nickname (guests) · /random · /invite CMDR Name · /w CMDR Name message · /credits · /chores · ${emotes}`,
         ),
       )
     }
@@ -1904,8 +1949,7 @@ const liftRide = new LiftRide()
 scene.add(liftRide.group)
 
 function openLift() {
-  // Au pont des quartiers, ses quartiers et ceux qu'on peut visiter.
-  lift.open(LEVELS, deck.def.id, (id) => void ride(id), { under: HOUSING_LEVEL, list: homeStops() })
+  lift.open(LEVELS, deck.def.id, (id) => void ride(id))
 }
 for (const d of decks) if (d.liftInteractable) d.liftInteractable.onInteract = openLift
 
@@ -2164,6 +2208,10 @@ cabinBar.onEdit = () => void openEditor()
  * en direct. La visite dure même s'il sort dans la coursive (il peut revenir) : il rentre chez
  * lui avec « Rentrer chez moi », en changeant de pont, ou quand l'hôte le raccompagne ou quitte
  * le vaisseau.
+ *
+ * Des quartiers ouverts se visitent sans invitation, même en l'absence de leur CMDR : le relais
+ * leur ouvre alors une instance à part (son id tient lieu d'hôte), meublée d'après le site.
+ * Tout cela se demande depuis le combiné de bord (cf. plus bas, « annuaire »).
  */
 
 /** Hôte dont on visite les quartiers, qu'on y soit ou dans la coursive (null : chez soi). */
@@ -2178,10 +2226,15 @@ let visitSeq = 0
 const hostLayouts = new Map<number, unknown>()
 /** Invitations envoyées (id de l'invité → fin de validité), pour la liste d'équipage. */
 const invitedAt = new Map<number, number>()
-/** Invitations reçues (id de l'hôte → fin de validité), pour l'ascenseur du pont des quartiers. */
+/** Invitations reçues (id de l'hôte → fin de validité), pour l'annuaire. */
 const invitesFrom = new Map<number, number>()
-const inviteMenu = new InviteMenu()
+/** Coups de sonnette donnés (id de l'hôte → fin de l'attente) : s'il nous invite d'ici là, on entre. */
+const rangAt = new Map<number, number>()
+/** CMDR absents dont des quartiers sont visités (id de leur instance → nom). */
+const absentHosts = new Map<number, string>()
+const hostName = (id: number) => remotes.get(id)?.name ?? absentHosts.get(id)
 const inviteToasts = new InviteToasts()
+let phoneClock = 0
 
 /** Instance des quartiers où se trouve le joueur local (id de l'hôte). */
 const myCabin = () => visiting?.host ?? net.id
@@ -2288,51 +2341,32 @@ function toggleOpen() {
 }
 cabinBar.onToggleOpen = toggleOpen
 
+/**
+ * Peut-on partir en visite d'ici ? Pas en mission dans la baie infestée, ni au sol, ni en plein
+ * trajet : on y laisserait une partie en plan.
+ */
+function canTravel(explain = true): boolean {
+  const ok = !riding && !groundBase.flying && !deck.def.zone && !deck.def.ground && !zone.frozen
+  if (!ok && explain) chat.add('system', tr('Pas de visite d\'ici : revenez d\'abord à bord du vaisseau.', 'No visiting from here: come back aboard the ship first.'))
+  return ok
+}
+
 /** Aller voir des quartiers ouverts (ou où l'on est invité) : le relais nous y fait entrer. */
 function visitHost(host: number) {
   if (visiting?.host === host) return
   if (!net.online) return chat.add('system', tr('Hors ligne : pas de visite sans liaison avec le relais.', 'Offline: no visits without the relay.'))
+  if (!canTravel()) return
   joining = host
   net.sendVisit(host)
 }
 
-/** Rentrer dans ses quartiers, sur le pont des quartiers : la visite prend fin, l'ascenseur y monte. */
-function goHomeQuarters() {
-  if (visiting) {
-    net.sendVisit(null)
-    leaveVisit(BACK_HOME)
-  }
-  if (deck !== homeDeck) void ride(HOUSING_LEVEL)
-}
-
-/** Arrêts du pont des quartiers, à l'ascenseur : les siens, puis ceux qui sont ouverts ou où l'on est invité. */
-function homeStops(): LiftStop[] {
-  const here = deck === homeDeck
-  const hosts = [...remotes.values()].filter((r) => (r.open || (invitesFrom.get(r.id) ?? 0) > Date.now()) && (!verified || r.name !== profile.name))
-  return [
-    { label: tr('Mes quartiers', 'My quarters'), current: here && !visiting, go: goHomeQuarters },
-    ...hosts.map((r) => ({
-      label: tr(`Chez ${r.name}`, `${r.name}'s`),
-      note: r.open ? tr('ouverts', 'open') : tr('invitation', 'invitation'),
-      current: here && visiting?.host === r.id,
-      go: () => visitHost(r.id),
-    })),
-  ]
-}
-
-function crew(): CrewEntry[] {
-  // Ses propres autres onglets (même CMDR) ne s'invitent pas.
-  return [...remotes.values()].filter((r) => !verified || r.name !== profile.name).map((r) => ({
-    id: r.id,
-    name: r.name,
-    state: r.cabin === net.id ? 'visiting' : (invitedAt.get(r.id) ?? 0) > Date.now() ? 'invited' : 'free',
-    // Sur le pont des quartiers, on peut aller voir ceux qui sont ouverts.
-    open: r.open && visiting?.host !== r.id,
-  }))
-}
-
-function refreshInviteMenu() {
-  inviteMenu.refresh(crew())
+/** Aller voir les quartiers ouverts d'un CMDR absent (`stored` : son identifiant dans l'annuaire). */
+function visitAbsent(stored: string) {
+  if (!net.online) return chat.add('system', tr('Hors ligne : pas de visite sans liaison avec le relais.', 'Offline: no visits without the relay.'))
+  if (!canTravel()) return
+  // Aucun joueur ne porte l'id 0 : un refus dira que ces quartiers ne sont plus ouverts.
+  joining = 0
+  net.sendVisitAbsent(stored)
 }
 
 const alreadyHere = (name: string) => tr(`${name} est déjà dans vos quartiers.`, `${name} is already in your quarters.`)
@@ -2345,12 +2379,12 @@ async function invite(id: number) {
   // une invitation envoyée avant reste valable.
   const previous = invitedAt.get(id)
   invitedAt.set(id, Date.now() + 60000)
-  refreshInviteMenu()
+  refreshPhone()
   const reply = await net.sendInvite(id)
   if (reply?.ok) return chat.add('system', tr(`Invitation envoyée à ${r.name}.`, `Invitation sent to ${r.name}.`))
   if (previous) invitedAt.set(id, previous)
   else invitedAt.delete(id)
-  refreshInviteMenu()
+  refreshPhone()
   if (!reply) return chat.add('system', tr('Invitation non envoyée : liaison perdue avec le relais.', 'Invitation not sent: lost contact with the relay.'))
   chat.add(
     'system',
@@ -2365,7 +2399,7 @@ async function invite(id: number) {
 
 /** Invitation acceptée : on demande au relais d'entrer (il vérifie qu'elle est valable). */
 function acceptInvite(host: number) {
-  if (!net.online || visiting?.host === host) return
+  if (!net.online || visiting?.host === host || !canTravel()) return
   joining = host
   net.sendVisit(host)
 }
@@ -2373,13 +2407,14 @@ function acceptInvite(host: number) {
 /** Le relais nous fait entrer : téléportation devant la porte des quartiers de l'hôte. */
 async function enterVisit(host: number) {
   const seq = ++visitSeq
-  const name = remotes.get(host)?.name ?? tr('un CMDR', 'a CMDR')
+  const name = hostName(host) ?? tr('un CMDR', 'a CMDR')
   entering = host
   if (editing()) closeEditor()
   wardrobe.close(false)
   lift.close()
   jukebox.close()
-  inviteMenu.close()
+  // Au doigt, le combiné couvre le joystick : il se range.
+  if (COARSE.matches) phone.close()
   inviteToasts.remove(host)
   seating.leave()
   player.cancelPath()
@@ -2455,30 +2490,214 @@ async function bringHome() {
   if (seq === visitSeq) riding = false
 }
 
-cabinBar.onInvite = () => {
-  if (inviteMenu.isOpen) return inviteMenu.close()
-  inviteMenu.open(crew())
-}
-cabinBar.onLeave = () => {
+function goHome() {
   net.sendVisit(null)
   leaveVisit(BACK_HOME)
 }
-inviteMenu.onInvite = (id) => void invite(id)
-inviteMenu.onKick = (id) => net.sendKick(id)
-inviteMenu.onVisit = (id) => {
-  inviteMenu.close()
-  visitHost(id)
-}
+cabinBar.onLeave = goHome
 inviteToasts.onAccept = acceptInvite
 inviteToasts.onDecline = (id) => net.sendDecline(id)
-// Clic en dehors de la liste d'équipage : elle se ferme.
+inviteToasts.onOpenDoor = (id) => void invite(id)
+
+// ------------------------------------------------------------------ annuaire
+
+/*
+ * Combiné de bord (cf. crew/phone.ts) : tous les joueurs, à bord ou non, et tout ce qu'on fait
+ * avec eux. Ceux qui sont à bord viennent du relais (où ils sont, leurs quartiers ouverts) ; les
+ * autres, et les messages laissés en notre absence, de l'annuaire du site (cf. crew/site.ts).
+ */
+
+/** Écran tactile : le combiné ouvert couvre le joystick, il se range dès qu'on touche ailleurs. */
+const COARSE = matchMedia('(pointer: coarse)')
+const phone = new CrewPhone(store.get('phone') === '1' && !COARSE.matches)
+/** Annuaire du site (null : pas encore reçu, ou site injoignable), et l'heure de la dernière demande. */
+let directory: CrewDirectory | null = null
+let directoryAt = 0
+
+/** Clé d'un joueur à bord dans l'annuaire : un invité ne se confond pas avec le CMDR dont il porte le nom. */
+const remoteKey = (name: string, isVerified?: boolean) => (isVerified ? '' : '~') + contactKey(name)
+
+/** Demande l'annuaire au site (au plus toutes les 30 s, sauf `force`), et annonce les nouveaux messages. */
+async function loadDirectory(force = false) {
+  if (!force && Date.now() - directoryAt < 30000) return
+  directoryAt = Date.now()
+  const reply = await fetchCrew()
+  if (!reply) return
+  const known = new Set(directory?.inbox?.map((l) => l.id))
+  const fresh = reply.inbox?.filter((l) => !l.read && !known.has(l.id)).length ?? 0
+  directory = reply
+  if (fresh) {
+    chat.add('system', EN
+      ? `${fresh === 1 ? 'A message was' : `${fresh} messages were`} left for you: open the directory (Tab).`
+      : `${fresh === 1 ? 'Un message vous attend' : `${fresh} messages vous attendent`} : ouvrez l'annuaire (Tab).`)
+    sound.play('ding', null, { volume: 0.1, rate: 1.4 })
+  }
+  refreshPhone()
+}
+
+/** Où est un joueur à bord : son pont (pour la jauge ; aucun hors du vaisseau) et le lieu en toutes lettres. */
+function whereIs(r: RemotePlayer): { deck?: number; where: string } {
+  if (r.level === ZONE_LEVEL) return { where: tr('Zone thargoïde', 'Thargoid zone') }
+  if (r.level === HOUSING_LEVEL) {
+    const host = hostName(r.cabin)
+    const where = r.cabin === r.id
+      ? tr('Dans ses quartiers', 'In their quarters')
+      : r.cabin === net.id ? tr('Dans vos quartiers', 'In your quarters') : host ? tr(`Chez ${host}`, `At ${host}'s`) : tr('En visite', 'Visiting')
+    return { deck: HOUSING_LEVEL, where }
+  }
+  const d = decks.find((x) => x.def.id === r.level)
+  if (!d) return { where: tr('Au sol', 'Planetside') }
+  const room = d.roomName(r.target.x, r.target.z)
+  return { deck: d.def.ground ? undefined : r.level, where: room && room !== d.def.name ? `${d.def.name} · ${room}` : d.def.name }
+}
+
+function phoneData(): PhoneData {
+  const now = Date.now()
+  const contacts = new Map<string, Contact>()
+  const mine = contactKey(profile.name)
+  for (const m of directory?.players ?? []) {
+    const key = contactKey(m.name)
+    if (linked && key === mine) continue
+    contacts.set(key, { key, name: `CMDR ${m.name}`, verified: true, stored: m.id, open: m.open, seen: m.seen, host: !!visiting && visiting.name === `CMDR ${m.name}` })
+  }
+  // L'auteur d'un message laissé reste joignable, même hors des plus récemment vus.
+  for (const l of directory?.inbox ?? []) {
+    const key = contactKey(l.from)
+    if (key !== mine && !contacts.has(key)) contacts.set(key, { key, name: `CMDR ${l.from}`, verified: true, stored: l.key, open: false })
+  }
+  const aboard: Contact[] = []
+  for (const r of remotes.values()) {
+    // Ses propres autres onglets (même CMDR) ne sont pas des contacts.
+    if (verified && r.name === profile.name) continue
+    const key = remoteKey(r.name, r.verified)
+    const stored = contacts.get(key)?.stored
+    contacts.delete(key)
+    aboard.push({
+      key, name: r.name, verified: r.verified, id: r.id, stored, ...whereIs(r), open: r.open,
+      guest: r.cabin === net.id, host: visiting?.host === r.id,
+      invited: (invitedAt.get(r.id) ?? 0) > now, inviting: (invitesFrom.get(r.id) ?? 0) > now, rung: (rangAt.get(r.id) ?? 0) > now,
+    })
+  }
+  aboard.sort((a, b) => a.name.localeCompare(b.name))
+  const zoned = !!deck.def.zone || !!deck.def.ground
+  return {
+    self: {
+      name: profile.name, verified, linked, online: net.online,
+      where: currentRoom && currentRoom !== deck.def.name ? `${deck.def.name} · ${currentRoom}` : deck.def.name,
+      deck: zoned ? undefined : deck.def.id,
+      open: verified ? !!homePlan.open : undefined,
+      canHost: verified && net.online,
+      visiting: visiting?.name,
+      loginUrl: loginUrl(),
+    },
+    // À bord d'abord (par nom), puis les absents, du plus récemment vu au plus ancien.
+    contacts: [...aboard, ...contacts.values()],
+    letters: directory?.inbox ?? null,
+  }
+}
+
+function refreshPhone() {
+  phone.update(phoneData())
+}
+
+/** Nom d'un chuchotement dans le chat : « à CMDR X » pour les nôtres, « CMDR X chuchote » pour les siens. */
+function whisperTag(name: string, isVerified: boolean | undefined, mine: boolean): DocumentFragment {
+  const f = document.createDocumentFragment()
+  if (mine) f.append(tr('à ', 'to '), nameTag(name, isVerified))
+  else f.append(nameTag(name, isVerified), tr(' chuchote', ' whispers'))
+  return f
+}
+
+/** Chuchote à un joueur à bord : null si c'est parti, sinon pourquoi pas. */
+async function whisper(id: number, text: string): Promise<string | null> {
+  const r = remotes.get(id)
+  if (!r) return tr('Ce joueur n\'est plus à bord.', 'This player is no longer aboard.')
+  const reply = await net.sendWhisper(id, text)
+  if (reply?.ok) {
+    chat.add('whisper', text, whisperTag(r.name, r.verified, true))
+    sound.play('chat', null, { volume: 0.1, rate: 1.2 })
+    return null
+  }
+  if (!reply) return tr('Non envoyé : liaison perdue avec le relais.', 'Not sent: lost contact with the relay.')
+  return {
+    gone: tr(`${r.name} n'est plus à bord.`, `${r.name} is no longer aboard.`),
+    busy: tr('Doucement : trop de messages d\'un coup.', 'Easy there: too many messages at once.'),
+    empty: tr('Message vide.', 'Empty message.'),
+  }[reply.reason]
+}
+
+const LETTER_REFUSALS: Record<LetterRefusal, string> = {
+  auth: tr('Connectez-vous au site pour laisser un message.', 'Log in to the site to leave a message.'),
+  self: tr('C\'est vous.', 'That is you.'),
+  unknown: tr('Ce CMDR n\'a jamais lancé le jeu.', 'This CMDR never started the game.'),
+  pending: tr('Il a déjà plusieurs messages de vous à lire : attendez son retour.', 'They already have several of your messages to read: wait for them to come back.'),
+  full: tr('Sa boîte est pleine.', 'Their inbox is full.'),
+  busy: tr('Trop de messages aujourd\'hui : réessayez demain.', 'Too many messages today: try again tomorrow.'),
+  format: tr('Message refusé par le site.', 'Message refused by the site.'),
+  unavailable: tr('Non envoyé : le site ne répond pas.', 'Not sent: the site isn\'t responding.'),
+}
+
+/** Sonne chez un CMDR à bord dont les quartiers sont fermés : s'il nous invite dans la minute, on entre. */
+async function ring(id: number) {
+  const r = remotes.get(id)
+  if (!r || !canTravel()) return
+  rangAt.set(id, Date.now() + 60000)
+  refreshPhone()
+  const reply = await net.sendRing(id)
+  if (reply?.ok) {
+    sound.play('ding', null, { volume: 0.12, rate: 1.5 })
+    return chat.add('system', tr(`Vous sonnez chez ${r.name}. S'il vous ouvre, vous entrerez.`, `You ring at ${r.name}'s. If they let you in, you'll enter.`))
+  }
+  rangAt.delete(id)
+  refreshPhone()
+  if (!reply) return chat.add('system', tr('Liaison perdue avec le relais.', 'Lost contact with the relay.'))
+  chat.add('system', {
+    guest: tr(`${r.name} est un invité : il n'a pas de quartiers où recevoir.`, `${r.name} is a guest: they have no quarters to host in.`),
+    gone: tr(`${r.name} n'est plus à bord.`, `${r.name} is no longer aboard.`),
+    here: tr('Vous y êtes déjà.', 'You are already there.'),
+    busy: tr('Doucement avec la sonnette. Réessayez dans quelques secondes.', 'Easy on the doorbell. Try again in a few seconds.'),
+  }[reply.reason])
+}
+
+phone.onSend = async (c, text) => {
+  if (c.id !== undefined) return whisper(c.id, text)
+  if (!c.stored) return LETTER_REFUSALS.unknown
+  const refusal = await sendLetter(c.stored, text)
+  return refusal ? LETTER_REFUSALS[refusal] ?? LETTER_REFUSALS.unavailable : null
+}
+phone.onVisit = (c) => (c.id !== undefined ? visitHost(c.id) : c.stored ? visitAbsent(c.stored) : undefined)
+phone.onRing = (c) => void (c.id !== undefined && ring(c.id))
+phone.onInvite = (c) => void (c.id !== undefined && invite(c.id))
+phone.onKick = (c) => c.id !== undefined && net.sendKick(c.id)
+phone.onToggleOpen = toggleOpen
+phone.onGoHome = goHome
+phone.onLettersRead = () => {
+  if (!directory?.inbox) return
+  markLettersRead()
+  directory.inbox = directory.inbox.map((l) => ({ ...l, read: true }))
+  refreshPhone()
+}
+phone.onDeleteLetter = (id) => {
+  if (!directory?.inbox) return
+  directory.inbox = directory.inbox.filter((l) => l.id !== id)
+  refreshPhone()
+  void deleteLetter(id)
+}
+phone.onToggle = (open) => {
+  store.set('phone', open ? '1' : '0')
+  if (open) {
+    refreshPhone()
+    void loadDirectory()
+  }
+}
 addEventListener(
   'pointerdown',
   (e) => {
-    if (inviteMenu.isOpen && !inviteMenu.contains(e.target) && !(e.target instanceof Node && $('cabin-bar').contains(e.target))) inviteMenu.close()
+    if (COARSE.matches && phone.isOpen && !phone.contains(e.target)) phone.close()
   },
   { capture: true },
 )
+void loadDirectory(true)
 
 /**
  * Un meuble vient d'être posé là où se tient un personnage : il en sort par le côté le plus
@@ -2593,6 +2812,10 @@ addEventListener('keydown', (e) => {
   if (photo.keyDown(e)) return
   if (e.code === 'KeyP' && !editing()) return openPhoto()
   if (liftKey(e) || jukeboxKey(e)) return
+  if (e.code === 'Tab' && !editing() && !photo.active) {
+    e.preventDefault()
+    return phone.toggle()
+  }
   if (e.code === 'Enter') {
     e.preventDefault()
     return chat.open()
@@ -2600,7 +2823,6 @@ addEventListener('keydown', (e) => {
   if (e.code === 'Escape') {
     toggleAbout(false)
     toggleReactions(false)
-    inviteMenu.close()
     stopWork()
     // Devant la pince : on quitte la partie.
     if (claw && seating.settled) seating.stand()
@@ -2712,7 +2934,7 @@ function updateGamepad(dt: number): GamepadInput {
   }
   if (pad.cancel) {
     toggleAbout(false)
-    inviteMenu.close()
+    phone.back()
     stopWork()
     wardrobe.close(false)
     if (claw && seating.settled) seating.stand()
@@ -3001,7 +3223,7 @@ function unlockCursor() {
 }
 /** Ce qui se manipule au curseur : on le rend. */
 function needsCursor(): boolean {
-  return chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || inviteMenu.isOpen || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || !reactionsPanel.hidden
+  return chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || phone.isOpen || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || !reactionsPanel.hidden
 }
 document.addEventListener('pointerlockchange', () => {
   document.body.classList.toggle('fps-locked', cursorLocked())
@@ -3896,7 +4118,6 @@ function openPhoto() {
   lift.close()
   jukebox.close()
   wardrobe.close(false)
-  inviteMenu.close()
   toggleAbout(false)
   photo.toggle()
 }
@@ -4150,9 +4371,15 @@ function frame() {
   // Dans ses quartiers : de quoi les aménager (un invité : de quoi se connecter). En visite, sur les autres ponts aussi : de quoi rentrer.
   const onHome = deck === homeDeck
   cabinBar.set(
-    editing() ? null : visiting ? { kind: 'visit', host: visiting.name, inside: onHome } : !onHome ? null : { kind: 'own', canEdit: linked, canInvite: verified && net.online, open: verified ? !!homePlan.open : undefined, loginUrl: loginUrl() },
+    editing() ? null : visiting ? { kind: 'visit', host: visiting.name, inside: onHome } : !onHome ? null : { kind: 'own', canEdit: linked, open: verified ? !!homePlan.open : undefined, loginUrl: loginUrl() },
   )
-  if (!onHome && inviteMenu.isOpen) inviteMenu.close()
+  // Le combiné suit ce qui bouge à bord (où est chacun) : deux fois par seconde ouvert, sinon son compteur.
+  phoneClock += dt
+  if (phoneClock > (phone.isOpen ? 0.5 : 2)) {
+    phoneClock = 0
+    refreshPhone()
+    if (phone.isOpen && Date.now() - directoryAt > 120000) void loadDirectory()
+  }
 
   // Invite « E » au-dessus de l'objet le plus proche ; installé sur un meuble, au-dessus du
   // personnage : se relever (et ce que permet la place).

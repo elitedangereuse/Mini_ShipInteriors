@@ -1125,16 +1125,6 @@ kbd .icon {
   display: grid;
   gap: 6px;
 }
-/* Arrêts du pont des quartiers (housing v2) : les siens, ceux qui sont ouverts ou où l'on est invité. */
-#lift-buttons button.lift-sub {
-  margin-left: 14px;
-  padding: 6px 10px;
-  font-size: 13px;
-}
-.lift-note {
-  color: var(--muted);
-  font-size: 11px;
-}
 #lift-buttons button,
 .lift-close {
   display: flex;
@@ -2334,39 +2324,7 @@ body.editing .top-left {
   }
 }
 
-/* ---------- invitations dans les quartiers ---------- */
-.invite-menu {
-  display: grid;
-  gap: 6px;
-  width: min(340px, calc(100vw - 32px));
-  max-height: 40vh;
-  overflow-y: auto;
-  pointer-events: auto;
-  border-color: var(--cyan);
-}
-.im-title {
-  margin-top: 2px;
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.im-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.im-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.im-empty {
-  font-size: 12px;
-  color: var(--muted);
-}
-.invite-menu button,
+/* ---------- invitations et coups de sonnette reçus ---------- */
 .invite-toast button {
   display: inline-flex;
   align-items: center;
@@ -2380,14 +2338,9 @@ body.editing .top-left {
   cursor: pointer;
   white-space: nowrap;
 }
-.invite-menu button:hover:not(:disabled),
 .invite-toast button:hover {
   background: rgba(89, 216, 255, 0.16);
   border-color: var(--cyan);
-}
-.invite-menu button:disabled {
-  opacity: 0.55;
-  cursor: default;
 }
 .invites {
   display: grid;

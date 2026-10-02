@@ -46,6 +46,11 @@
 // invitation, reçoit l'aménagement, puis chacun de ses changements. L'hôte peut raccompagner un
 // visiteur ; s'il quitte le vaisseau, ses visiteurs rentrent chez eux. Des quartiers ouverts
 // (housing v2) se visitent sans invitation ; les fermer ne met pas dehors ceux qui y sont.
+// Ils se visitent aussi en l'absence de leur CMDR : le relais demande l'aménagement au site (cf.
+// fetchQuarters) et leur ouvre une instance à part, où se retrouvent ceux qui viennent les voir.
+// On peut sonner chez un CMDR à bord dont les quartiers sont fermés : à lui d'inviter.
+//
+// Chuchoter : un message pour un seul joueur à bord, où qu'il soit.
 //
 // Base au sol (cf. shared/ground-base.js) : on y descend en Krait depuis le hangar. C'est un lieu
 // commun, comme un pont. Ada, la cheffe de la base, y fait sa ronde sur une horloge que le relais
@@ -59,7 +64,7 @@ import { Server } from 'socket.io'
 import { fightRelay } from './fights.js'
 import { BOARD_GAMES, applyBoardMove, boardColor, boardState, newBoardGame } from './boards.js'
 import { sanitizeLayout } from './cabin.js'
-import { hasSiteArtwork, postSalvageResult, siteArtworkAllowed } from './site.js'
+import { fetchQuarters, hasSiteArtwork, postSalvageResult, siteArtworkAllowed } from './site.js'
 import { COOKIE, cleanCmdrName, cmdrIdentityFromCookie, cookieValue } from './cmdr.js'
 import { createSalvage, GAME_ACTIONS, LOBBY_ACTIONS } from './salvage.js'
 import { salvageMinDuration } from '../shared/salvage.js'
@@ -119,6 +124,8 @@ const POSES = new Set(['sit', 'lie', 'pilot', 'arcade', 'claw', 'punch', 'run', 
 const LEVELS = new Set([-1, 0, 1, HOUSING_LEVEL])
 /** Une invitation dans des quartiers vaut une minute. */
 const INVITE_TTL = 60000
+/** L'aménagement d'un CMDR absent est redemandé au site passé ce délai (ms). */
+const ABSENT_TTL = 60000
 /**
  * Portée d'une action arbitrée par le relais (table de jeu, jukebox) : celle du client (1,45),
  * plus la place assise autour de la table et le retard de la dernière position reçue.
@@ -197,7 +204,7 @@ export function attachRelay(
   httpServer,
   { log = console.log, error = console.error, cmdrUrl = process.env.ED_CMDR_URL ?? '', path = process.env.WS_PATH || WS_PATH,
     devCmdr = false, youtubeKey = process.env.YOUTUBE_API_KEY ?? '', youtubeFetch = fetch, relaySecret = process.env.MSI_RELAY_SECRET ?? '',
-    salvageFetch = fetch } = {},
+    salvageFetch = fetch, quartersFetch = fetch } = {},
 ) {
   if (!cmdrUrl) error('[relais] ED_CMDR_URL absent : les comptes Élite Dangereuse ne peuvent pas être reconnus (tout le monde est invité).')
   const io = new Server(httpServer, {
@@ -214,6 +221,12 @@ export function attachRelay(
   httpServer.on('close', () => cinema.dispose())
   const boards = new Map() // table -> partie de plateau
   let nextId = 1
+  /**
+   * Quartiers ouverts de CMDR absents : forme stockée du nom -> { id (de l'instance), key, name,
+   * layout, at (dernière lecture sur le site) } ; et les mêmes par id d'instance.
+   */
+  const absent = new Map()
+  const absentById = new Map()
   /**
    * Jukebox qui jouent : 0 pour le pont principal (la salle commune), -1 pour la cale (le bar), sinon
    * l'id de l'hôte des quartiers.
@@ -445,6 +458,8 @@ export function attachRelay(
     const socket = sockets.get(id)
     return socket ? players.get(socket.id) : undefined
   }
+  /** Hôte d'une instance des quartiers : le joueur à bord, ou les quartiers d'un absent (son aménagement compte). */
+  const hostOf = (id) => playerById(id) ?? absentById.get(id)
   const fights = fightRelay(playerById, id => sockets.get(id))
   const salvage = createSalvage({
     playerById,
@@ -492,7 +507,9 @@ export function attachRelay(
     if (p.cabin === cabin) return
     fights.leave(p)
     p.cabin = cabin
-    io.emit('visit', by ? { id: p.id, cabin, by } : { id: p.id, cabin })
+    // Chez un absent : son nom accompagne l'annonce (personne à bord ne le porte).
+    const away = absentById.get(cabin)
+    io.emit('visit', { id: p.id, cabin, ...(by ? { by } : {}), ...(away ? { host: `CMDR ${away.name}` } : {}) })
     // La musique de ces quartiers-là (ou le silence).
     sockets.get(p.id)?.emit('music', { id: 0, ...musicOf(cabin) })
   }
@@ -557,6 +574,8 @@ export function attachRelay(
       gardener: gardenState(),
       chief: chiefState(),
       salvage: salvage.snapshot(),
+      // Quartiers d'absents où se trouvent des visiteurs : de quoi dire chez qui ils sont.
+      homes: [...absentById.values()].map((h) => ({ id: h.id, name: `CMDR ${h.name}` })),
     })
     socket.emit('cinema:state', cinema.snapshot())
     void cinema.refresh().then(() => socket.connected && socket.emit('cinema:state', cinema.snapshot()))
@@ -567,6 +586,7 @@ export function attachRelay(
 
     let chatBudget = 5
     let inviteBudget = 3
+    let visitBudget = 3
     let cabinBudget = 10
     let musicBudget = 3
     let cinemaBudget = 3
@@ -582,6 +602,7 @@ export function attachRelay(
     const refill = setInterval(() => {
       chatBudget = Math.min(5, chatBudget + 1)
       inviteBudget = Math.min(3, inviteBudget + 0.25)
+      visitBudget = Math.min(3, visitBudget + 0.25)
       cabinBudget = Math.min(10, cabinBudget + 5)
       musicBudget = Math.min(3, musicBudget + 0.5)
       cinemaBudget = Math.min(3, cinemaBudget + 0.5)
@@ -667,6 +688,21 @@ export function attachRelay(
       for (const p of players.values()) if (p !== player && hears(player, p)) sockets.get(p.id)?.emit('chat', msg)
     })
 
+    // Chuchoter à un joueur à bord, où qu'il soit : lui seul le reçoit. L'expéditeur apprend si le
+    // message est parti, ou pourquoi (gone : il n'est plus à bord, busy : trop de messages d'un coup).
+    socket.on('whisper', (raw, ack) => {
+      const reply = typeof ack === 'function' ? ack : () => {}
+      const m = obj(raw)
+      const text = clean(m.text, MAX_TEXT)
+      const to = playerById(m.to)
+      if (!text) return reply({ ok: false, reason: 'empty' })
+      if (!to || to === player) return reply({ ok: false, reason: 'gone' })
+      if (chatBudget <= 0) return reply({ ok: false, reason: 'busy' })
+      chatBudget--
+      sockets.get(to.id)?.emit('whisper', { id: player.id, name: player.name, verified: player.verified, text })
+      reply({ ok: true })
+    })
+
     socket.on('emote', (raw) => {
       const emote = obj(raw).emote
       if (!EMOTES.has(emote)) return
@@ -740,7 +776,7 @@ export function attachRelay(
       const seed = Number.isInteger(m.seed) && m.seed >= 0 && m.seed <= 0xffffffff ? m.seed : 0
       // Au jukebox, et de ce côté du mur ; sauf l'hôte reconnecté qui rend sa musique (`at`).
       const restore = m.where === 'cabin' && m.at !== undefined
-      const host = m.where === 'cabin' ? playerById(player.cabin) : undefined
+      const host = m.where === 'cabin' ? hostOf(player.cabin) : undefined
       if (!restore && !reaches(player, JUKEBOX_LEVEL.get(m.where), { x, z }, host)) return socket.emit('music', { id: 0, ...musicOf(instance), far: true })
       musicBudget--
       if (track) music.set(instance, { track, since: Date.now() - (num(m.at, 0, 86400) ?? 0) * 1000, x, z, song, loop, shuffle, seed })
@@ -949,23 +985,82 @@ export function attachRelay(
       reply({ ok: true })
     })
 
+    // Sonner chez un CMDR à bord : il l'apprend, à lui d'inviter. Le visiteur apprend si ça a
+    // sonné, ou pourquoi pas (gone : il n'est plus à bord, guest : un invité n'a pas de quartiers
+    // où recevoir, here : on y est déjà, busy : trop de coups de sonnette).
+    socket.on('ring', (raw, ack) => {
+      const reply = typeof ack === 'function' ? ack : () => {}
+      const host = playerById(obj(raw).to)
+      if (!host || host === player) return reply({ ok: false, reason: 'gone' })
+      if (!host.verified) return reply({ ok: false, reason: 'guest' })
+      if (player.cabin === host.id) return reply({ ok: false, reason: 'here' })
+      if (inviteBudget < 1) return reply({ ok: false, reason: 'busy' })
+      inviteBudget--
+      sockets.get(host.id)?.emit('ring', { id: player.id, name: player.name, verified: player.verified })
+      reply({ ok: true })
+    })
+
     socket.on('decline', (raw) => {
       const host = playerById(obj(raw).to)
       if (!host?.invited.delete(player.id)) return
       sockets.get(host.id)?.emit('decline', { id: player.id, name: player.name })
     })
 
-    // Entrer dans les quartiers d'un hôte (sur invitation, ou sans s'ils sont ouverts), ou rentrer
-    // chez soi (host absent).
+    /** Notre demande d'entrée est refusée : le client apprend qu'il reste où il est. */
+    const refuseVisit = () => socket.emit('visit', { id: player.id, cabin: player.cabin, expired: true })
+
+    // Quartiers ouverts d'un CMDR absent (`stored` : son nom tel que l'annuaire du site le donne) :
+    // le site dit s'ils le sont toujours et donne leur aménagement, relu au plus une fois par minute.
+    const visitAbsent = async (stored) => {
+      const key = clean(stored, 200)
+      if (!key || visitBudget < 1) return refuseVisit()
+      visitBudget--
+      let home = absent.get(key)
+      if (!home || Date.now() - home.at > ABSENT_TTL) {
+        const found = await fetchQuarters(key, { cmdrUrl, fetcher: quartersFetch })
+        if (!players.has(socket.id)) return
+        const layout = found ? sanitizeLayout(found.layout) : null
+        const name = found ? cleanCmdrName(found.name) : null
+        // Fermés depuis, ou site injoignable : on n'entre plus (ceux qui y sont restent).
+        if (!layout || !name) return refuseVisit()
+        home = absent.get(key)
+        if (home) {
+          Object.assign(home, { name, layout, at: Date.now() })
+          // Réaménagés depuis la dernière visite : ceux qui s'y trouvent le voient.
+          for (const p of players.values()) if (p.cabin === home.id && p !== player) sockets.get(p.id)?.emit('cabin', { id: home.id, layout })
+        } else {
+          // Les instances que plus personne ne visite sont oubliées.
+          for (const old of absent.values()) {
+            if (Date.now() - old.at <= ABSENT_TTL || [...players.values()].some((p) => p.cabin === old.id)) continue
+            absent.delete(old.key)
+            absentById.delete(old.id)
+            music.delete(old.id)
+          }
+          home = { id: nextId++, key, name, layout, at: Date.now() }
+          absent.set(key, home)
+          absentById.set(home.id, home)
+        }
+      }
+      // Monté à bord entre-temps : ses quartiers sont ceux qu'il tient lui-même.
+      const aboard = [...players.values()].find((p) => p.verified && p.name === `CMDR ${home.name}`)
+      if (aboard === player) return moveTo(player, player.id)
+      if (aboard && !aboard.open) return refuseVisit()
+      const host = aboard ?? home
+      // L'aménagement d'abord : le visiteur entre dans des quartiers déjà meublés.
+      socket.emit('cabin', { id: host.id, layout: host.layout, ...(aboard ? {} : { name: `CMDR ${home.name}` }) })
+      moveTo(player, host.id)
+    }
+
+    // Entrer dans les quartiers d'un hôte (sur invitation, ou sans s'ils sont ouverts), dans ceux,
+    // ouverts, d'un CMDR absent (`cmdr`), ou rentrer chez soi (host absent).
     socket.on('visit', (raw) => {
+      if (typeof obj(raw).cmdr === 'string') return void visitAbsent(obj(raw).cmdr)
       const hostId = obj(raw).host
       if (hostId === null || hostId === undefined || hostId === player.id) return moveTo(player, player.id)
       const host = playerById(hostId)
       const until = host?.invited.get(player.id) ?? 0
-      if (!host || (until < Date.now() && !host.open)) {
-        // Invitation expirée ou inconnue, quartiers fermés : le client apprend qu'il reste où il est.
-        return socket.emit('visit', { id: player.id, cabin: player.cabin, expired: true })
-      }
+      // Invitation expirée ou inconnue, quartiers fermés.
+      if (!host || (until < Date.now() && !host.open)) return refuseVisit()
       host.invited.delete(player.id)
       // L'aménagement d'abord : le visiteur entre dans des quartiers déjà meublés.
       socket.emit('cabin', { id: host.id, layout: host.layout })
