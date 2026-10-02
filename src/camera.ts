@@ -17,7 +17,7 @@ const MAX_PAN = 4
  * Zoom le plus éloigné en jeu : la pièce où l'on est et un bout de ses voisines, jamais le vaisseau
  * entier. Vaut pour un écran large ; plus étroit, on garde la même surface de pont (cf. farthest).
  */
-export const ZOOM_MAX = 6
+export const ZOOM_MAX = 5
 const WIDE_ASPECT = 16 / 9
 const DISTANCE = 60
 
@@ -37,8 +37,8 @@ export class IsoCamera {
   private elevationGoal = ISO_ELEVATION
   /** Inclinaison de repos : celle de la vue isométrique, ou la vue plongeante du mode aménagement. */
   private restElevation = ISO_ELEVATION
-  private zoom = 5.5
-  private zoomGoal = 5.5
+  private zoom = 4.5
+  private zoomGoal = 4.5
   /** Décalage de la vue par rapport au personnage (caméra libre). */
   private offset = new THREE.Vector3()
   /** Délai pendant lequel le décalage tient, même si le personnage bouge (on est en train de le faire glisser). */

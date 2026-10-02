@@ -158,7 +158,7 @@ $('app').appendChild(renderer.domElement)
 const scene = new THREE.Scene()
 const iso = new IsoCamera(innerWidth / innerHeight)
 const zoomParam = Number(new URLSearchParams(location.search).get('zoom'))
-if (zoomParam) iso.zoomBy(zoomParam / 5.5)
+if (zoomParam) iso.zoomBy(zoomParam / 4.5)
 // Vue subjective (bouton à côté du mode léger) : la vue isométrique reprend la main là où il faut
 // voir la scène de haut (aménagement, photo, pince, bar, cinéma), cf. `isoOnly`.
 const fps = new FirstPersonCamera(innerWidth / innerHeight)
