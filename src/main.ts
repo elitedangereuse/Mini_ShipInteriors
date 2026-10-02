@@ -73,8 +73,8 @@ import { menuOf } from './menu'
 import { RemotePlayer } from './remote'
 import { Seating, type Seated } from './seating'
 import { Starfield } from './starfield'
-import { SystemView, SYSTEMS, type HullSides } from './systems'
-import { Traffic } from './traffic'
+import { SystemView, SYSTEMS } from './systems'
+import { Traffic, type HullSides } from './traffic'
 import { nextSystem, JUMP_CHARGE, JUMP_TRAVEL, type SystemId } from '../shared/systems.js'
 import { syncTempo, tempo } from './tempo'
 import { ToiletFlushes } from './toilet-flush'
@@ -4377,9 +4377,8 @@ function frame() {
   if (!viewDeck.def.zone && !viewDeck.def.ground) {
     const eye = fpsShown ? fps.camera.position : null
     stars.update(world, iso.target, toCam, iso.tilt, eye)
-    const sides = hullSides()
-    systemView.update(world, deck.y, sides, iso.target, toCam, iso.tilt, eye)
-    traffic.update(world, deck.y, sides, eye ?? iso.target)
+    systemView.update(world, deck.y, iso.camera, iso.target, eye)
+    traffic.update(world, deck.y, hullSides(), eye ?? iso.target)
   }
   sound.update(fpsShown ? fps.listener : iso.target, view().angle)
   ambience(dt)

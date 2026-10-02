@@ -1,57 +1,53 @@
 import * as THREE from 'three'
-import { cobraGeometry, wedgeGeometry } from './furniture/cobra'
+import { rig } from './assets'
 import { renderQuality } from './quality'
-import type { HullSides } from './systems'
 
 /*
- * Le trafic autour du vaisseau : des vaisseaux d'Elite qui croisent le long de la coque, de chaque
- * bord, à hauteur du pont. La vue isométrique reste serrée (cf. ZOOM_MAX dans camera.ts) : loin
- * sous la coque, on ne les verrait pas ; ils passent donc tout près, mais toujours au large, jamais
- * au-dessus des pièces. Le vaisseau file vers l'est (cf. starfield.ts), eux aussi : les plus rapides
- * le doublent, il rattrape les plus lents.
+ * Le trafic autour du vaisseau : des appareils (les « craft » du Space Kit de Kenney) qui croisent
+ * le long de la coque, de chaque bord, à hauteur du pont. La vue isométrique reste serrée (cf.
+ * ZOOM_MAX dans camera.ts) : loin sous la coque, on ne les verrait pas ; ils passent donc tout
+ * près, mais toujours au large, jamais au-dessus des pièces.
+ *
+ * Chacun avance, nez devant : ceux qui vont vers l'est (comme le vaisseau, cf. starfield.ts) le
+ * doublent, les autres le croisent. Aucun ne recule à l'écran. Les deux sens ont leurs couloirs,
+ * les uns au ras de la coque, les autres plus au large : ils ne se rentrent pas dedans.
  */
+
+/** Bords de la coque sous le pont affiché (z du bord bâbord, au nord, et du bord tribord, au sud). */
+export interface HullSides {
+  north: number
+  south: number
+}
 
 /** Demi-longueur du couloir, de part et d'autre du point que regarde la caméra : au-delà du cadre le plus large. */
 const SPAN = 30
 
-interface Model {
-  geometry: THREE.BufferGeometry
-  color: string
-  /** Envergure en tuiles (la géométrie fait deux unités de large). */
-  size: number
-  /** Tuyères : position (x, y, z) et largeur, dans le repère de la géométrie (nez à +z). */
-  engines: [number, number, number, number][]
-  /** Verrière : position (x, y, z), largeur et longueur. */
-  cockpit: [number, number, number, number, number]
-  /** Les gros passent plus au large, et plus rarement. */
-  heavy?: boolean
-}
+/** Appareils du Space Kit (environ deux tuiles) et leur échelle ; les cargos sont plus gros et plus lents. */
+const MODELS: { name: string; scale: number; heavy?: boolean }[] = [
+  { name: 'craft_speederA', scale: 0.8 },
+  { name: 'craft_speederB', scale: 0.8 },
+  { name: 'craft_speederC', scale: 0.75 },
+  { name: 'craft_speederD', scale: 0.75 },
+  { name: 'craft_racer', scale: 0.85 },
+  { name: 'craft_miner', scale: 1.05 },
+  { name: 'craft_cargoA', scale: 1.3, heavy: true },
+  { name: 'craft_cargoB', scale: 1.3, heavy: true },
+]
 
-function models(): Model[] {
-  return [
-    // Cobra Mk III : l'hexagone plat de 1984.
-    { geometry: cobraGeometry(), color: '#6f7a8c', size: 1.25, engines: [[-0.2, 0.02, -0.45, 0.22], [0.2, 0.02, -0.45, 0.22]], cockpit: [0, 0.1, 0.32, 0.2, 0.3] },
-    // Sidewinder : un coin trapu.
-    {
-      geometry: wedgeGeometry([[-0.35, 0, 0.6], [0.35, 0, 0.6], [1, 0, -0.45], [-1, 0, -0.45]], [0, 0.26, -0.2], [0, -0.12, -0.1]),
-      color: '#9c8f76', size: 0.85, engines: [[0, 0.03, -0.46, 0.5]], cockpit: [0, 0.13, 0.22, 0.26, 0.3],
-    },
-    // Viper : une flèche de chasse.
-    {
-      geometry: wedgeGeometry([[-0.14, 0, 1.2], [0.14, 0, 1.2], [1, -0.02, -0.5], [0.34, 0, -0.62], [-0.34, 0, -0.62], [-1, -0.02, -0.5]], [0, 0.2, -0.25], [0, -0.12, -0.1]),
-      color: '#5f7396', size: 1, engines: [[-0.17, 0.02, -0.63, 0.2], [0.17, 0.02, -0.63, 0.2]], cockpit: [0, 0.1, 0.5, 0.12, 0.34],
-    },
-    // Anaconda : la longue dague des grands convois.
-    {
-      geometry: wedgeGeometry([[-0.1, 0, 2.9], [0.1, 0, 2.9], [0.62, 0, -0.5], [1, 0.02, -1.5], [0.5, 0, -1.9], [-0.5, 0, -1.9], [-1, 0.02, -1.5], [-0.62, 0, -0.5]], [0, 0.46, -1.1], [0, -0.36, -0.7]),
-      color: '#8c877c', size: 1.6, engines: [[-0.28, 0.03, -1.92, 0.3], [0.28, 0.03, -1.92, 0.3], [0, 0.12, -1.92, 0.2]], cockpit: [0, 0.22, 0.9, 0.16, 0.5], heavy: true,
-    },
-  ]
+interface Proto {
+  root: THREE.Object3D
+  scale: number
+  heavy: boolean
+  /** Arrière de l'appareil (z de la poupe), demi-largeur et mi-hauteur : là où luisent les réacteurs. */
+  tail: number
+  width: number
+  mid: number
 }
 
 interface Ship {
   root: THREE.Group
-  /** Vitesse par rapport au vaisseau (tuiles/s) : positive, il nous double ; négative, on le rattrape. */
+  /** Sens de marche le long de la coque (1 : vers l'est, -1 : vers l'ouest), et vitesse (tuiles/s, toujours positive). */
+  dir: 1 | -1
   speed: number
   /** Écart au bord de coque (tuiles), et côté (-1 : bâbord, au nord ; 1 : tribord, au sud). */
   off: number
@@ -63,14 +59,8 @@ interface Ship {
 
 export class Traffic {
   readonly group = new THREE.Group()
-  private readonly models = models()
-  private readonly hulls: THREE.MeshLambertMaterial[]
-  private readonly flame = new THREE.MeshBasicMaterial({ color: '#9fdcff' })
-  private readonly glass = new THREE.MeshBasicMaterial({ color: '#16283d' })
-  private readonly glassGeometry = new THREE.BoxGeometry(1, 0.08, 1)
-  private readonly wake: THREE.MeshBasicMaterial
-  private readonly wakeGeometry: THREE.BufferGeometry
-  private readonly flameGeometry = new THREE.BoxGeometry(1, 0.07, 0.06)
+  private protos: Proto[] = []
+  private readonly flare: THREE.SpriteMaterial
   private ships: Ship[] = []
   private next = 0
   private hidden = false
@@ -78,16 +68,37 @@ export class Traffic {
   private filled = false
 
   constructor() {
-    this.hulls = this.models.map((m) => new THREE.MeshLambertMaterial({ color: m.color, flatShading: true, emissive: m.color, emissiveIntensity: 0.08 }))
-    // Sillage des tuyères : un ruban qui s'éteint vers l'arrière.
-    const wake = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(0, 0, -0.5)
-    const fade = new Float32Array([0, 0, 0, 0, 0, 0, 0.2, 0.42, 0.6, 0.2, 0.42, 0.6])
-    wake.setAttribute('color', new THREE.BufferAttribute(fade, 3))
-    this.wakeGeometry = wake
-    this.wake = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })
+    // Lueur des réacteurs, à la poupe : un halo bleuté.
+    const c = document.createElement('canvas')
+    c.width = c.height = 64
+    const g = c.getContext('2d')!
+    const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32)
+    grad.addColorStop(0, 'rgba(255,255,255,1)')
+    grad.addColorStop(0.3, 'rgba(255,255,255,0.45)')
+    grad.addColorStop(1, 'rgba(255,255,255,0)')
+    g.fillStyle = grad
+    g.fillRect(0, 0, 64, 64)
+    this.flare = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), color: '#7fc8ff', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
+    void this.load()
   }
 
-  /** Le trafic disparaît pendant la traversée d'un saut FSD : à l'arrivée, d'autres vaisseaux. */
+  /** Les modèles arrivent après le reste du bord : le trafic commence quand ils sont là. */
+  private async load() {
+    this.protos = await Promise.all(MODELS.map(async (m) => {
+      const model = (await rig(`space/${m.name}.glb`)).root
+      model.traverse((o) => (o.castShadow = o.receiveShadow = false))
+      // Dans son fichier, chaque appareil est posé à l'écart de l'origine : on le recentre.
+      model.getObjectByName(m.name)?.position.set(0, 0, 0)
+      // Les modèles de Kenney ont le nez à -z : on les retourne, nez à +z.
+      model.rotation.y = Math.PI
+      const root = new THREE.Group()
+      root.add(model)
+      const box = new THREE.Box3().setFromObject(root)
+      return { root, scale: m.scale, heavy: !!m.heavy, tail: box.min.z, width: (box.max.x - box.min.x) / 2, mid: (box.min.y + box.max.y) / 2 }
+    }))
+  }
+
+  /** Le trafic disparaît pendant la traversée d'un saut FSD : à l'arrivée, d'autres appareils. */
   hide(on: boolean) {
     this.hidden = on
     if (on) this.clear()
@@ -100,39 +111,28 @@ export class Traffic {
   }
 
   private spawn(centerX: number, anywhere: boolean) {
-    const heavy = Math.random() < 0.15
-    const pool = this.models.filter((m) => !!m.heavy === heavy)
-    const model = pool[Math.floor(Math.random() * pool.length)]
+    const proto = this.protos[Math.floor(Math.random() * this.protos.length)]
     const root = new THREE.Group()
-    const hull = new THREE.Mesh(model.geometry, this.hulls[this.models.indexOf(model)])
-    const [cx, cy, cz, cw, cl] = model.cockpit
-    const cockpit = new THREE.Mesh(this.glassGeometry, this.glass)
-    cockpit.position.set(cx, cy, cz)
-    cockpit.scale.set(cw, 1, cl)
-    root.add(hull, cockpit)
-    for (const [x, y, z, w] of model.engines) {
-      const flame = new THREE.Mesh(this.flameGeometry, this.flame)
-      flame.position.set(x, y, z)
-      flame.scale.x = w
-      const wake = new THREE.Mesh(this.wakeGeometry, this.wake)
-      wake.position.set(x, y, z)
-      wake.scale.set(w * 0.8, 1, heavy ? 1.3 : 0.8)
-      root.add(flame, wake)
-    }
-    root.scale.setScalar(model.size)
-    // Nez (+z de la géométrie) vers l'est, comme le vaisseau.
-    root.rotation.y = Math.PI / 2
-    const slow = Math.random() < 0.35
-    const speed = (slow ? -1 : 1) * (heavy ? 0.9 + Math.random() * 0.8 : 1.6 + Math.random() * 2.6)
+    const flare = new THREE.Sprite(this.flare)
+    flare.position.set(0, proto.mid, proto.tail)
+    flare.scale.setScalar(proto.width * 1.3)
+    root.add(proto.root.clone(true), flare)
+    root.scale.setScalar(proto.scale)
+    // La plupart vont vers l'est, comme le vaisseau, et le doublent ; les autres le croisent, plus vite.
+    const dir = Math.random() < 0.7 ? 1 : -1
+    // Nez (+z) dans le sens de la marche.
+    root.rotation.y = (dir * Math.PI) / 2
     const ship: Ship = {
       root,
-      speed,
-      off: heavy ? 4.5 + Math.random() * 2.5 : 1.8 + Math.random() * 3.2,
+      dir,
+      speed: (proto.heavy ? 1.2 + Math.random() * 0.8 : 2 + Math.random() * 2.5) * (dir > 0 ? 1 : 1.6),
+      // Ceux qui croisent passent plus au large que ceux qui doublent.
+      off: dir > 0 ? 2 + Math.random() * 1.8 : 5 + Math.random() * 1.8,
       side: Math.random() < 0.5 ? -1 : 1,
-      height: -0.3 - Math.random() * 1.2,
+      height: -0.6 - Math.random() * 1.2,
       phase: Math.random() * Math.PI * 2,
     }
-    root.position.x = anywhere ? centerX + (Math.random() * 2 - 1) * SPAN * 0.8 : centerX - Math.sign(speed) * SPAN
+    root.position.x = anywhere ? centerX + (Math.random() * 2 - 1) * SPAN * 0.8 : centerX - dir * SPAN
     this.group.add(root)
     this.ships.push(ship)
   }
@@ -144,7 +144,7 @@ export class Traffic {
    */
   update(dt: number, deckY: number, sides: HullSides, target: THREE.Vector3) {
     this.group.visible = !this.hidden
-    if (this.hidden) return
+    if (this.hidden || !this.protos.length) return
     this.time += dt
     const wanted = renderQuality.light ? 1 : 3
     if (!this.filled) {
@@ -157,10 +157,10 @@ export class Traffic {
     }
     for (const s of this.ships) {
       const p = s.root.position
-      p.x += s.speed * dt
+      p.x += s.dir * s.speed * dt
       p.y = deckY + s.height + Math.sin(this.time * 0.7 + s.phase) * 0.08
       p.z = s.side < 0 ? sides.north - s.off : sides.south + s.off
-      s.root.rotation.z = Math.sin(this.time * 0.5 + s.phase) * 0.12
+      s.root.rotation.z = Math.sin(this.time * 0.5 + s.phase) * 0.1
     }
     const gone = this.ships.filter((s) => Math.abs(s.root.position.x - target.x) > SPAN + 4)
     for (const s of gone) s.root.removeFromParent()

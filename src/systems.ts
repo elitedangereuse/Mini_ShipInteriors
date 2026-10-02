@@ -1,140 +1,184 @@
 import * as THREE from 'three'
 import { renderQuality } from './quality'
 import { tr } from './i18n'
+import { ZOOM_MAX } from './camera'
 import { HOME_SYSTEM, SYSTEM_IDS, type SystemId } from '../shared/systems.js'
 
 /*
- * Le système où se trouve le vaisseau : étoiles, planètes, anneaux, stations, trou noir ou nébuleuse,
- * dessinés loin sous le pont (ils passent derrière le vaisseau), entre lui et le champ d'étoiles.
+ * Le système où se trouve le vaisseau : étoiles, planètes, lunes, anneaux, stations, trou noir ou
+ * nébuleuse. C'est un ciel : chaque astre a sa direction autour du vaisseau (un azimut, une hauteur
+ * sous l'horizon), fixe tant qu'on reste dans le système. Ce qu'on voit dépend donc de là où
+ * regarde la caméra : en tournant d'un quart de tour, on découvre d'autres astres ; en marchant le
+ * long de la coque, ils ne bougent pas (ils sont loin), c'est la coque qui les cache ou les révèle.
  *
- * La vue isométrique reste serrée sur une ou deux pièces (cf. ZOOM_MAX dans camera.ts) : on ne voit
- * l'espace que par-dessus le bord de la coque. Le décor est donc grand, et il se tient au ras des
- * deux bords : une moitié au large de bâbord (au nord), l'autre au large de tribord (au sud), à la
- * hauteur du point que regarde la caméra. Le vaisseau est long et étroit : dès qu'un bord de coque
- * entre dans le cadre, il y a une planète, une étoile ou une station derrière, sous tous les angles
- * (accroché devant la proue, le décor tournait autour d'elle et passait sous le vaisseau). Le saut
- * FSD (cf. main.ts) le remplace par celui de la destination.
+ * La vue isométrique est orthographique : rien n'y a de direction. Le décor y est donc posé comme
+ * le verrait un objectif qui regarderait dans l'axe de la caméra (cf. SystemView.update), loin sous
+ * le pont, entre la coque et le champ d'étoiles. En vue subjective, les astres sont vraiment dans
+ * leur direction, autour des yeux. L'étoile principale éclaire tous les autres : selon l'angle, une
+ * planète est pleine, en quartier ou en croissant. Le saut FSD (cf. main.ts) change de système.
  */
 
-/** Profondeur du décor sous le pont affiché : les plus grosses planètes restent au-dessus des étoiles (cf. starfield.ts). */
-const DEPTH = 19
-/** Largeur de coque retenue pour éclairer les planètes : l'écart entre les deux moitiés du décor. */
-const BEAM = 15
+/** Vue isométrique : un astre à 45° de l'axe du regard est à cette distance (tuiles) du centre du cadre. */
+const FOCAL = 12
+/** Vue isométrique : profondeur du centre des astres sous le pont, entre la coque et les étoiles (cf. starfield.ts). */
+const DEPTH = 17
+/** Vue subjective : distance des astres aux yeux, en deçà du plan lointain de la caméra (200). */
+const EYE_DISTANCE = 150
 /**
- * Vue subjective : chaque moitié du décor se tient au large de son bord, un peu sous les yeux, dans
- * le cadre des verrières. Elle suit les yeux sans tourner avec le regard : on tourne la tête sur
- * place, le système reste où il est.
+ * Vue subjective : les hauteurs sous l'horizon sont resserrées, pour que le ciel que la vue
+ * isométrique voit d'en haut passe dans le cadre des verrières.
  */
-const EYE_AWAY = 30
-const EYE_RISE = -1.5
+const EYE_SQUEEZE = 0.25
 
 type PlanetKind = 'rocky' | 'earth' | 'gas' | 'ice' | 'lava'
 const KINDS: PlanetKind[] = ['rocky', 'earth', 'gas', 'ice', 'lava']
 
 /**
- * Place d'un astre : `x` le long de la coque, par rapport au point que regarde la caméra ; `z` au
- * large d'un bord, en tuiles : négatif à bâbord (au nord de la coque), positif à tribord (au sud).
+ * Place d'un astre dans le ciel, en degrés : `az`, l'azimut (0 : au nord, par le travers bâbord ;
+ * 90 : à l'est, droit devant la proue), et `el`, la hauteur sous l'horizon. La vue isométrique
+ * regarde à 35° sous l'horizon, vers le nord-ouest (315), le nord-est, le sud-est ou le sud-ouest :
+ * la coque occupe le centre du cadre, les astres se voient mieux à 20-40° de ces axes.
+ * `size` : rayon apparent, en degrés.
  */
 interface Spot {
-  x: number
-  z: number
+  az: number
+  el: number
+  size: number
 }
 
 interface PlanetDef extends Spot {
   kind: PlanetKind
-  radius: number
   /** Deux couleurs de la surface (bandes, continents…) et celle de l'atmosphère. */
   colors: [string, string]
   atmosphere?: string
+  /** Anneaux : rayons en rayons de la planète, inclinaison (radians). */
   ring?: { inner: number; outer: number; color: string; tilt: number }
-  /** Lune : un rocher gris, de son côté. */
-  moon?: Spot & { radius: number }
 }
 
 interface SystemDef {
   name: string
   /** Texte à l'arrivée. */
   arrival: string
-  stars: (Spot & { radius: number; color: string; glow: number })[]
+  /** La première éclaire le système ; `glow` : taille du halo, en rayons de l'étoile. */
+  stars: (Spot & { color: string; glow: number })[]
   planets: PlanetDef[]
   /** Station : Coriolis (le cube à facettes d'Elite) ou Orbis (un anneau). */
-  station?: Spot & { kind: 'coriolis' | 'orbis'; size: number }
-  blackHole?: Spot & { radius: number }
-  nebula?: (Spot & { color: string; size: number })[]
+  station?: Spot & { kind: 'coriolis' | 'orbis' }
+  blackHole?: Spot
+  nebula?: (Spot & { color: string })[]
 }
+
+const MOON: Pick<PlanetDef, 'kind' | 'colors'> = { kind: 'rocky', colors: ['#5d5d61', '#a9a9ad'] }
 
 export const SYSTEMS: Record<SystemId, SystemDef> = {
   shinrarta: {
     name: 'Shinrarta Dezhra',
     arrival: tr('Jameson Memorial en vue. Les pilotes Elite vous saluent.', 'Jameson Memorial in sight. The Elite pilots salute you.'),
-    stars: [{ x: 5, z: 8, radius: 2.2, color: '#ffd9a0', glow: 17 }],
-    planets: [{ kind: 'rocky', radius: 8, x: -5, z: -7, colors: ['#8a6d52', '#c9a27a'], atmosphere: '#ffcf9a', moon: { radius: 1.7, x: -5, z: 5 } }],
-    station: { kind: 'orbis', x: 8, z: -4.5, size: 2.6 },
+    stars: [{ az: 200, el: 18, size: 4, color: '#ffd9a0', glow: 9 }],
+    planets: [
+      { kind: 'rocky', az: 350, el: 22, size: 27, colors: ['#6e4f3a', '#b98d68'], atmosphere: '#ffb98a' },
+      { ...MOON, az: 280, el: 56, size: 7 },
+      { kind: 'gas', az: 112, el: 54, size: 13, colors: ['#7d6a52', '#cdb893'], ring: { inner: 1.35, outer: 2.1, color: '#cbb89a', tilt: 0.45 } },
+      { kind: 'ice', az: 160, el: 24, size: 5, colors: ['#8fa9bd', '#dfeaf2'], atmosphere: '#bfe4ff' },
+      { kind: 'lava', az: 250, el: 30, size: 3, colors: ['#3a2a26', '#ff7a2a'] },
+    ],
+    station: { kind: 'orbis', az: 22, el: 20, size: 9 },
   },
   sol: {
     name: 'Sol',
     arrival: tr('La Terre, bleue et lointaine. Pas de permis : demi-tour poli.', 'Earth, blue and distant. No permit: polite U-turn.'),
-    stars: [{ x: 6, z: 9, radius: 2.3, color: '#fff2c4', glow: 18 }],
-    planets: [{ kind: 'earth', radius: 8.5, x: -4, z: -7.5, colors: ['#1f5fae', '#4f8a3c'], atmosphere: '#8fd0ff', moon: { radius: 2.3, x: -5, z: 5.5 } }],
+    stars: [{ az: 165, el: 20, size: 4.5, color: '#fff2c4', glow: 9 }],
+    planets: [
+      { kind: 'earth', az: 345, el: 22, size: 28, colors: ['#123f7a', '#3f6b34'], atmosphere: '#7fbfff' },
+      { ...MOON, az: 22, el: 26, size: 8 },
+      { kind: 'rocky', az: 255, el: 54, size: 5, colors: ['#8a4a30', '#c47a52'], atmosphere: '#e8a070' },
+      { kind: 'gas', az: 78, el: 55, size: 10, colors: ['#9a7a5a', '#e0cdb0'] },
+      { kind: 'gas', az: 205, el: 20, size: 6, colors: ['#a89468', '#e6d8b0'], ring: { inner: 1.4, outer: 2.3, color: '#d8c8a0', tilt: 0.5 } },
+    ],
   },
   colonia: {
     name: 'Colonia',
     arrival: tr('22 000 al plus tard, les Colons vous offrent un café.', '22,000 ly later, the Colonists offer you a coffee.'),
-    stars: [{ x: 11, z: -11, radius: 2.4, color: '#fff7e8', glow: 19 }],
-    planets: [{ kind: 'ice', radius: 7, x: -6, z: -6.5, colors: ['#a9c4d9', '#e9f2f8'], atmosphere: '#bfe4ff' }],
-    station: { kind: 'orbis', x: 1, z: 6, size: 3 },
+    stars: [{ az: 100, el: 22, size: 4.5, color: '#fff7e8', glow: 10 }],
+    planets: [
+      { kind: 'ice', az: 340, el: 24, size: 24, colors: ['#7f9fb8', '#e3eef5'], atmosphere: '#bfe4ff' },
+      { kind: 'earth', az: 195, el: 22, size: 12, colors: ['#1d5a6a', '#6b7a3a'], atmosphere: '#9fe0d0' },
+      { ...MOON, az: 282, el: 55, size: 6 },
+    ],
+    station: { kind: 'orbis', az: 18, el: 22, size: 10 },
     nebula: [
-      { color: '#b04fd0', x: -8, z: 14, size: 46 },
-      { color: '#ff6fa8', x: 12, z: -16, size: 38 },
+      { color: '#b04fd0', az: 240, el: 40, size: 60 },
+      { color: '#ff6fa8', az: 60, el: 45, size: 50 },
     ],
   },
   'alpha-centauri': {
     name: 'Alpha Centauri',
     arrival: tr('Hutton Orbital est à 0,22 al. Courage.', 'Hutton Orbital is 0.22 ly away. Chin up.'),
     stars: [
-      { x: 4, z: 9, radius: 2.3, color: '#fff0c0', glow: 16 },
-      { x: -4, z: 6, radius: 1.7, color: '#ffc98a', glow: 11 },
-      { x: 14, z: -13, radius: 0.8, color: '#ff6a4a', glow: 6 },
+      { az: 170, el: 20, size: 4.5, color: '#fff0c0', glow: 9 },
+      { az: 192, el: 26, size: 3.2, color: '#ffc98a', glow: 8 },
+      { az: 40, el: 18, size: 1, color: '#ff6a4a', glow: 10 },
     ],
-    planets: [{ kind: 'rocky', radius: 5.5, x: -6, z: -5.5, colors: ['#6b6258', '#9a8f80'] }],
-    station: { kind: 'coriolis', x: 6, z: -4.5, size: 1.5 },
+    planets: [
+      { kind: 'rocky', az: 345, el: 24, size: 20, colors: ['#4f4840', '#8f8474'] },
+      { kind: 'lava', az: 108, el: 54, size: 8, colors: ['#33241f', '#ff6a1f'] },
+      { kind: 'rocky', az: 262, el: 52, size: 6, colors: ['#6a5a4a', '#a89880'] },
+    ],
+    station: { kind: 'coriolis', az: 15, el: 22, size: 6 },
   },
   lave: {
     name: 'Lave',
     arrival: tr('Lave Station, comme en 1984. Le Brandy de Lave est hors de prix.', 'Lave Station, just like in 1984. Lavian Brandy is outrageously priced.'),
-    stars: [{ x: 11, z: -11, radius: 2, color: '#ffe3b0', glow: 15 }],
-    planets: [{ kind: 'earth', radius: 8, x: -5, z: -7, colors: ['#2d6f6a', '#8a8a3c'], atmosphere: '#a8f0d0' }],
-    station: { kind: 'coriolis', x: 1, z: 6, size: 2.2 },
+    stars: [{ az: 215, el: 20, size: 4, color: '#ffe3b0', glow: 9 }],
+    planets: [
+      { kind: 'earth', az: 348, el: 22, size: 27, colors: ['#17504d', '#6f6f30'], atmosphere: '#a8f0d0' },
+      { ...MOON, az: 290, el: 54, size: 5 },
+      { kind: 'gas', az: 150, el: 22, size: 11, colors: ['#5a6a8a', '#b0bcd0'] },
+      { kind: 'rocky', az: 80, el: 56, size: 6, colors: ['#7a5a40', '#b08a68'] },
+    ],
+    station: { kind: 'coriolis', az: 20, el: 20, size: 8 },
   },
   sagittarius: {
     name: 'Sagittarius A*',
     arrival: tr('Le trou noir au cœur de la galaxie. Ne regardez pas trop longtemps.', 'The black hole at the heart of the galaxy. Don\'t stare too long.'),
-    stars: [],
+    stars: [
+      { az: 160, el: 20, size: 1.6, color: '#cfe0ff', glow: 9 },
+      { az: 205, el: 30, size: 1.2, color: '#ffd0a0', glow: 9 },
+      { az: 100, el: 52, size: 1, color: '#ff9a7a', glow: 9 },
+      { az: 262, el: 55, size: 1.3, color: '#fff0d0', glow: 9 },
+    ],
     planets: [],
-    blackHole: { x: -2, z: -9, radius: 3.6 },
+    blackHole: { az: 348, el: 24, size: 13 },
     nebula: [
-      { color: '#ffb36a', x: 6, z: -14, size: 50 },
-      { color: '#ff8a5a', x: -4, z: 14, size: 44 },
+      { color: '#ffb36a', az: 0, el: 35, size: 70 },
+      { color: '#ff8a5a', az: 180, el: 40, size: 60 },
     ],
   },
   maia: {
     name: 'Maia',
     arrival: tr('Nébuleuse des Pléiades. Rien à signaler… presque rien.', 'Pleiades Nebula. Nothing to report… almost nothing.'),
     stars: [
-      { x: 5, z: 9, radius: 2.5, color: '#cfe0ff', glow: 19 },
-      { x: -5, z: 6, radius: 1.3, color: '#bcd4ff', glow: 9 },
+      { az: 195, el: 20, size: 5, color: '#cfe0ff', glow: 10 },
+      { az: 105, el: 52, size: 2, color: '#bcd4ff', glow: 9 },
+      { az: 30, el: 16, size: 1.4, color: '#dfe8ff', glow: 9 },
     ],
-    planets: [{ kind: 'gas', radius: 6.5, x: -4, z: -9, colors: ['#4a6fa8', '#9ab8e0'], ring: { inner: 8.2, outer: 11.5, color: '#c8d8f0', tilt: 0.5 } }],
+    planets: [
+      { kind: 'gas', az: 345, el: 24, size: 19, colors: ['#3a5a8a', '#8fb0d8'], ring: { inner: 1.3, outer: 2, color: '#c8d8f0', tilt: 0.5 } },
+      { kind: 'ice', az: 280, el: 55, size: 7, colors: ['#8fa9c8', '#e6eef8'] },
+    ],
     nebula: [
-      { color: '#4f8dff', x: -6, z: -14, size: 50 },
-      { color: '#7fd4ff', x: 10, z: 15, size: 40 },
+      { color: '#4f8dff', az: 320, el: 40, size: 70 },
+      { color: '#7fd4ff', az: 140, el: 40, size: 55 },
     ],
   },
   'beagle-point': {
     name: 'Beagle Point',
     arrival: tr('Au bout de la galaxie. Il y a encore des étoiles.', 'The far end of the galaxy. There are still more stars.'),
-    stars: [{ x: 3, z: 8, radius: 1.5, color: '#ff9a6a', glow: 11 }],
-    planets: [{ kind: 'gas', radius: 7, x: -3, z: -9.5, colors: ['#8a5a3c', '#d8b48a'], ring: { inner: 9, outer: 13, color: '#d9c3a0', tilt: 0.4 } }],
+    stars: [{ az: 160, el: 22, size: 2.6, color: '#ff9a6a', glow: 10 }],
+    planets: [
+      { kind: 'gas', az: 350, el: 24, size: 21, colors: ['#6f4630', '#c9a47a'], ring: { inner: 1.35, outer: 2.05, color: '#d9c3a0', tilt: 0.4 } },
+      { kind: 'rocky', az: 260, el: 54, size: 6, colors: ['#5a4a40', '#94806c'] },
+    ],
   },
 }
 
@@ -206,12 +250,15 @@ function cloudTexture(seed: number): THREE.CanvasTexture {
   return new THREE.CanvasTexture(c)
 }
 
+
 // ---------------------------------------------------------------- matériaux
 
 /**
- * Planète éclairée par son étoile (et non par le soleil de la scène) : jour, nuit, terminateur
- * doux, et un liseré d'atmosphère sur le bord. La surface est calculée dans le shader (bruit en 3D
- * sur la sphère, sans texture) : vue de près, sur tout un coin de l'écran, elle reste nette.
+ * Planète éclairée par l'étoile du système (et non par le soleil de la scène) : sa phase dépend de
+ * l'angle sous lequel on la voit. La surface est calculée dans le shader (bruit en 3D sur la
+ * sphère, sans texture), avec son relief (les pentes face à l'étoile sont plus claires), le reflet
+ * de l'étoile sur les océans, des nuages, un bord assombri et une atmosphère qui rougit au
+ * terminateur.
  */
 function planetMaterial(p: Pick<PlanetDef, 'kind' | 'colors' | 'atmosphere'>, light: THREE.Vector3, seed: number): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
@@ -227,12 +274,16 @@ function planetMaterial(p: Pick<PlanetDef, 'kind' | 'colors' | 'atmosphere'>, li
       uAtmoOn: { value: p.atmosphere ? 1 : 0 },
     },
     vertexShader: `
+      uniform vec3 uLight;
       varying vec3 vLocal;
       varying vec3 vNormal;
       varying vec3 vView;
+      varying vec3 vSun;
       void main() {
         vLocal = normalize(position);
         vNormal = normalize(mat3(modelMatrix) * normal);
+        // L'étoile, vue de la surface qui tourne.
+        vSun = normalize(uLight * mat3(modelMatrix));
         vec4 world = modelMatrix * vec4(position, 1.0);
         // Vers l'œil : le même partout en orthographique, celui de chaque point en vue subjective.
         vView = projectionMatrix[3][3] == 1.0 ? normalize((inverse(viewMatrix) * vec4(0.0, 0.0, 1.0, 0.0)).xyz) : normalize(cameraPosition - world.xyz);
@@ -245,6 +296,7 @@ function planetMaterial(p: Pick<PlanetDef, 'kind' | 'colors' | 'atmosphere'>, li
       varying vec3 vLocal;
       varying vec3 vNormal;
       varying vec3 vView;
+      varying vec3 vSun;
 
       float hash(vec3 p) {
         p = fract(p * 0.3183099 + 0.1);
@@ -269,63 +321,100 @@ function planetMaterial(p: Pick<PlanetDef, 'kind' | 'colors' | 'atmosphere'>, li
         }
         return sum / total;
       }
+      // Relief : un second relevé du terrain, un pas plus loin vers l'étoile. Les pentes qui lui font
+      // face s'éclaircissent, les autres s'assombrissent (sans dérivées d'écran : elles pixellisent).
+      float slope(vec3 p, float h, float scale) {
+        vec3 toSun = vSun - dot(vSun, vLocal) * vLocal;
+        return clamp(1.0 + (fbm((p + toSun * 0.025) * scale) - h) * 16.0, 0.45, 1.6);
+      }
 
       void main() {
         vec3 n = normalize(vNormal);
+        vec3 L = normalize(uLight);
+        vec3 V = normalize(vView);
         vec3 p = vLocal + uSeed;
-        float lit = dot(n, normalize(uLight));
-        float day = smoothstep(-0.15, 0.35, lit);
         float cap = abs(vLocal.y);
-        vec3 ice = vec3(0.93, 0.96, 0.98);
+        vec3 ice = vec3(0.9, 0.94, 0.97);
         vec3 col;
         vec3 glow = vec3(0.0);
+        float shade = 1.0;
+        float gloss = 0.0;
         if (uKind == 1) {
-          // Tellurique : océans, continents (côtes, reliefs, déserts), calottes, nuages, villes la nuit.
+          // Tellurique : océans (plus clairs sur les hauts-fonds), continents (plaines, reliefs, déserts),
+          // calottes, deux couches de nuages, villes sur la face nocturne.
           float h = fbm(p * 1.7);
-          float land = smoothstep(0.5, 0.52, h);
-          vec3 sea = mix(uA * 0.55, uA * 1.15, smoothstep(0.3, 0.5, h));
-          vec3 ground = mix(uB, mix(uB * 0.5, vec3(0.72, 0.62, 0.42), fbm(p * 5.0 + 3.0)), smoothstep(0.52, 0.7, h));
+          float land = smoothstep(0.5, 0.515, h);
+          vec3 sea = mix(uA * 0.45, uA * 1.25 + vec3(0.0, 0.05, 0.04), smoothstep(0.36, 0.5, h));
+          float dry = fbm(p * 4.0 + 3.0);
+          vec3 ground = mix(uB, vec3(0.62, 0.52, 0.34), smoothstep(0.45, 0.7, dry) * (1.0 - cap));
+          ground = mix(ground, uB * 0.45, smoothstep(0.56, 0.72, h));
           col = mix(sea, ground, land);
-          col = mix(col, ice, smoothstep(0.78, 0.9, cap + (h - 0.5) * 0.4));
-          float clouds = smoothstep(0.52, 0.72, fbm(p * 2.6 + vec3(uTime * 0.01, 0.0, 7.0)));
-          glow = vec3(1.0, 0.75, 0.4) * land * step(0.74, noise(p * 26.0)) * (1.0 - day) * (1.0 - clouds) * 0.9;
-          col = mix(col, vec3(1.0), clouds * 0.85);
+          float frost = smoothstep(0.74, 0.88, cap + (h - 0.5) * 0.5);
+          col = mix(col, ice, frost);
+          float clouds = smoothstep(0.5, 0.74, fbm(p * 2.4 + vec3(uTime * 0.008, 0.0, 7.0))) * (0.55 + 0.45 * fbm(p * 9.0 + 1.0));
+          gloss = (1.0 - land) * (1.0 - frost) * (1.0 - clouds);
+          glow = vec3(1.0, 0.72, 0.36) * land * (1.0 - frost) * smoothstep(0.7, 0.78, noise(p * 30.0)) * smoothstep(0.45, 0.6, fbm(p * 6.0 + 2.0)) * (1.0 - clouds);
+          col = mix(col, vec3(0.96), clouds);
+          shade = mix(slope(p, h, 1.7), 1.0, max(1.0 - land, clouds));
         } else if (uKind == 2) {
-          // Géante gazeuse : des bandes que la turbulence froisse, et quelques ovales de tempête.
-          float swirl = fbm(p * vec3(1.6, 5.0, 1.6));
-          float bands = 0.5 + 0.5 * sin(vLocal.y * 15.0 + swirl * 4.5);
-          col = mix(uA, uB, bands);
-          col = mix(col, uB * 1.15, smoothstep(0.62, 0.8, fbm(p * vec3(2.5, 9.0, 2.5) + 4.0)) * 0.6);
-          col *= 0.86 + 0.28 * fbm(p * vec3(3.0, 24.0, 3.0));
+          // Géante gazeuse : des bandes que la turbulence froisse, des ovales de tempête.
+          vec3 q = p + 0.12 * vec3(fbm(p * 3.0), 0.0, fbm(p * 3.0 + 5.0));
+          float swirl = fbm(q * vec3(1.4, 6.0, 1.4));
+          float bands = 0.5 + 0.5 * sin(vLocal.y * 13.0 + swirl * 5.0 + sin(vLocal.y * 31.0) * 0.6);
+          col = mix(uA, uB, smoothstep(0.15, 0.85, bands));
+          col = mix(col, mix(uA, vec3(0.75, 0.42, 0.3), 0.5), smoothstep(0.7, 0.82, fbm(q * vec3(2.2, 7.0, 2.2) + 4.0)) * 0.7);
+          col *= 0.8 + 0.4 * fbm(q * vec3(4.0, 30.0, 4.0));
+          col = mix(col, (uA + uB) * 0.35, smoothstep(0.75, 0.98, cap));
         } else if (uKind == 3) {
           // Glace : une banquise parcourue de failles sombres.
           float h = fbm(p * 2.2);
           col = mix(uA, uB, smoothstep(0.3, 0.7, h));
-          float crack = 1.0 - smoothstep(0.0, 0.035, abs(fbm(p * 3.4 + 9.0) - 0.5));
-          col = mix(col, uA * 0.55, crack * 0.7);
+          float crack = 1.0 - smoothstep(0.0, 0.03, abs(fbm(p * 3.4 + 9.0) - 0.5));
+          crack = max(crack, (1.0 - smoothstep(0.0, 0.02, abs(fbm(p * 7.0 + 4.0) - 0.5))) * 0.6);
+          col = mix(col, uA * 0.45, crack * 0.75);
           col = mix(col, ice, smoothstep(0.7, 0.9, cap));
+          shade = slope(p, h, 2.2);
+          gloss = 0.35;
         } else if (uKind == 4) {
           // Lave : une croûte sombre, des coulées qui luisent de jour comme de nuit.
           float h = fbm(p * 2.4);
-          col = mix(uA * 0.4, uA, h);
-          glow = uB * (1.0 - smoothstep(0.0, 0.06, abs(fbm(p * 3.0 + 5.0) - 0.5)));
+          col = mix(uA * 0.35, uA, h);
+          float flow = 1.0 - smoothstep(0.0, 0.07, abs(fbm(p * 3.0 + 5.0) - 0.5));
+          glow = mix(uB, vec3(1.0, 0.9, 0.6), flow * flow) * flow * 1.3;
+          shade = slope(p, h, 2.4);
         } else {
-          // Rocheuse : plaines sombres et hauts plateaux clairs, grain fin, semis de cratères.
+          // Rocheuse : mers sombres et hauts plateaux clairs, grain fin, cratères en creux.
           float h = fbm(p * 2.3);
-          col = mix(uA * 0.7, uB * 1.05, smoothstep(0.3, 0.7, h));
-          col *= 0.72 + 0.56 * fbm(p * 11.0);
-          col *= 1.0 - 0.28 * smoothstep(0.78, 0.84, noise(p * 13.0 + 2.0));
+          float fine = fbm(p * 11.0);
+          col = mix(uA * 0.75, uB, smoothstep(0.34, 0.66, h));
+          col *= 0.75 + 0.5 * fine;
+          float c1 = smoothstep(0.7, 0.9, noise(p * 9.0 + 2.0));
+          float c2 = smoothstep(0.72, 0.92, noise(p * 21.0 + 6.0));
+          col *= 1.0 - 0.22 * c1 - 0.15 * c2;
+          col = mix(col, ice, uAtmoOn * smoothstep(0.86, 0.95, cap + (h - 0.5) * 0.3));
+          shade = slope(p, h, 2.3) * (0.85 + 0.3 * fine);
         }
-        col = col * (0.04 + 0.96 * day) + glow;
-        float rim = pow(1.0 - max(dot(n, normalize(vView)), 0.0), 2.5);
-        col += uAtmo * rim * uAtmoOn * (0.2 + 0.8 * day);
-        gl_FragColor = vec4(col, 1.0);
+        // Terminateur : net sans atmosphère, étalé avec.
+        float facing = dot(n, L);
+        float day = smoothstep(-0.02 - 0.16 * uAtmoOn, 0.1 + 0.22 * uAtmoOn, facing);
+        float diffuse = clamp(facing + 0.08, 0.0, 1.0) * shade;
+        float view = max(dot(n, V), 0.0);
+        // Bord assombri : la lumière y traverse plus d'atmosphère (géantes), ou rase le sol.
+        float limb = uKind == 2 ? 0.35 + 0.65 * pow(view, 0.6) : 0.75 + 0.25 * pow(view, 0.4);
+        vec3 lit = col * diffuse * day * limb * 1.15;
+        lit += vec3(1.0, 0.95, 0.85) * gloss * pow(max(dot(reflect(-L, n), V), 0.0), 140.0) * day * 0.7;
+        lit += col * 0.012 + glow * (uKind == 4 ? 1.0 : 1.0 - day);
+        // Atmosphère : un voile sur le bord, bleu (ou de sa couleur) de jour, rouge au terminateur.
+        float rim = pow(1.0 - view, 3.0);
+        vec3 haze = mix(vec3(1.0, 0.42, 0.18), uAtmo, smoothstep(0.0, 0.35, facing));
+        lit = mix(lit, haze * (0.15 + 0.85 * day), uAtmoOn * rim * 0.8 * smoothstep(-0.25, 0.1, facing));
+        gl_FragColor = vec4(lit, 1.0);
         #include <colorspace_fragment>
       }`,
   })
 }
 
-/** Halo d'atmosphère : une coquille autour de la planète, qui luit au-delà du bord, du côté du jour. */
+/** Halo d'atmosphère : une coquille autour de la planète, qui luit au-delà du bord, du côté du jour (rouge au terminateur). */
 function atmosphereMaterial(color: string, light: THREE.Vector3): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: { uColor: { value: new THREE.Color(color) }, uLight: { value: light } },
@@ -345,9 +434,10 @@ function atmosphereMaterial(color: string, light: THREE.Vector3): THREE.ShaderMa
       void main() {
         vec3 n = normalize(vNormal);
         // Face arrière de la coquille : nul au bord extérieur, le plus fort au ras de la planète.
-        float edge = pow(clamp(-dot(n, normalize(vView)) * 2.6, 0.0, 1.0), 2.0);
-        float day = smoothstep(-0.5, 0.4, dot(n, normalize(uLight)));
-        gl_FragColor = vec4(uColor * edge * (0.1 + 0.9 * day) * 0.75, 1.0);
+        float edge = pow(clamp(-dot(n, normalize(vView)) * 3.4, 0.0, 1.0), 2.5);
+        float facing = dot(n, normalize(uLight));
+        vec3 tint = mix(vec3(1.0, 0.4, 0.15), uColor, smoothstep(-0.05, 0.3, facing));
+        gl_FragColor = vec4(tint * edge * smoothstep(-0.3, 0.2, facing) * 0.7, 1.0);
         #include <colorspace_fragment>
       }`,
     transparent: true,
@@ -357,25 +447,37 @@ function atmosphereMaterial(color: string, light: THREE.Vector3): THREE.ShaderMa
   })
 }
 
-/** Anneaux : bandes concentriques translucides, plus sombres du côté de l'ombre de la planète. */
-function ringMaterial(color: string, inner: number, outer: number, seed: number): THREE.ShaderMaterial {
+/**
+ * Anneaux : des bandes concentriques translucides, avec leurs divisions, éteintes dans l'ombre que
+ * la planète (au centre du repère de l'anneau, de rayon 1) projette à l'opposé de l'étoile.
+ */
+function ringMaterial(color: string, inner: number, outer: number, seed: number, light: THREE.Vector3): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
-    uniforms: { uColor: { value: new THREE.Color(color) }, uInner: { value: inner }, uOuter: { value: outer }, uSeed: { value: seed } },
+    uniforms: { uColor: { value: new THREE.Color(color) }, uInner: { value: inner }, uOuter: { value: outer }, uSeed: { value: seed }, uLight: { value: light } },
     vertexShader: `
       varying vec3 vLocal;
+      varying vec3 vAround;
       void main() {
         vLocal = position;
+        // Autour de la planète, dans les axes du monde, en rayons de la planète.
+        vAround = mat3(modelMatrix) * position / length(modelMatrix[0].xyz);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }`,
     fragmentShader: `
-      uniform vec3 uColor;
+      uniform vec3 uColor, uLight;
       uniform float uInner, uOuter, uSeed;
       varying vec3 vLocal;
+      varying vec3 vAround;
       void main() {
         float r = (length(vLocal.xy) - uInner) / (uOuter - uInner);
-        float bands = 0.55 + 0.45 * sin(r * 40.0 + uSeed) * sin(r * 13.0 + uSeed * 2.0);
-        float edge = smoothstep(0.0, 0.08, r) * smoothstep(1.0, 0.9, r);
-        gl_FragColor = vec4(uColor, bands * edge * 0.75);
+        float bands = 0.6 + 0.4 * sin(r * 46.0 + uSeed) * sin(r * 17.0 + uSeed * 2.0);
+        bands *= 0.75 + 0.25 * sin(r * 140.0 + uSeed * 3.0);
+        float gap = smoothstep(0.0, 0.02, abs(r - 0.62)) * smoothstep(0.0, 0.012, abs(r - 0.3));
+        float edge = smoothstep(0.0, 0.06, r) * smoothstep(1.0, 0.94, r);
+        vec3 L = normalize(uLight);
+        float along = dot(vAround, L);
+        float shadow = along < 0.0 ? smoothstep(0.92, 1.06, length(vAround - along * L)) : 1.0;
+        gl_FragColor = vec4(uColor * (0.08 + 0.92 * shadow), bands * gap * edge * 0.85);
         #include <colorspace_fragment>
       }`,
     transparent: true,
@@ -461,12 +563,28 @@ function orbis(size: number): THREE.Group {
   return g
 }
 
+
 // ---------------------------------------------------------------- vue
 
-/** Un système construit : ses deux moitiés (bâbord, tribord), et ses animations. */
+const RAD = Math.PI / 180
+
+/** Direction d'un point du ciel (vers lui) ; `squeeze` resserre les hauteurs sous l'horizon. */
+function direction(at: Spot, squeeze = 1): THREE.Vector3 {
+  const az = at.az * RAD, el = at.el * squeeze * RAD
+  return new THREE.Vector3(Math.sin(az) * Math.cos(el), -Math.sin(el), -Math.cos(az) * Math.cos(el))
+}
+
+/** Un astre : son objet (à l'échelle de la vue isométrique), et sa direction dans chaque vue. */
+interface Body {
+  holder: THREE.Group
+  iso: THREE.Vector3
+  eye: THREE.Vector3
+}
+
+/** Un système construit : ses astres, et ses animations. */
 interface Built {
-  port: THREE.Group
-  starboard: THREE.Group
+  group: THREE.Group
+  bodies: Body[]
   /** @param light mode léger : surfaces moins détaillées */
   update: (t: number, light: boolean) => void
   dispose: () => void
@@ -474,66 +592,66 @@ interface Built {
 
 function build(id: SystemId): Built {
   const def = SYSTEMS[id]
-  const port = new THREE.Group(), starboard = new THREE.Group()
+  const group = new THREE.Group()
+  const bodies: Body[] = []
   const disposables: { dispose(): void }[] = []
   const keep = <T extends { dispose(): void }>(o: T) => (disposables.push(o), o)
   const spinners: { o: THREE.Object3D; speed: number }[] = []
   const surfaces: THREE.ShaderMaterial[] = []
   const seed = SYSTEM_IDS.indexOf(id) + 1
-  /** Pose un astre de son côté de la coque, à la hauteur `y` au-dessus du plan du décor. */
-  const place = (o: THREE.Object3D, at: Spot, y = 0) => {
-    o.position.set(at.x, y, at.z)
-    ;(at.z < 0 ? port : starboard).add(o)
+  /** Rayon (tuiles, en vue isométrique) d'un astre de rayon apparent `size`. */
+  const radius = (size: number) => FOCAL * Math.tan(size * RAD)
+  /** Nouvel astre dans la direction `at`. */
+  const body = (at: Spot) => {
+    const holder = new THREE.Group()
+    group.add(holder)
+    bodies.push({ holder, iso: direction(at), eye: direction(at, EYE_SQUEEZE) })
+    return holder
   }
-  /** Position d'un astre dans un repère commun aux deux moitiés, pour orienter la lumière. */
-  const across = (at: Spot) => new THREE.Vector3(at.x, 0, at.z < 0 ? at.z : at.z + BEAM)
 
   for (const n of def.nebula ?? []) {
-    const sprite = new THREE.Sprite(keep(new THREE.SpriteMaterial({ map: keep(cloudTexture(seed * 11 + n.size)), color: n.color, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending })))
-    sprite.scale.setScalar(n.size)
-    sprite.renderOrder = -1
-    place(sprite, n, -10)
+    const sprite = new THREE.Sprite(keep(new THREE.SpriteMaterial({ map: keep(cloudTexture(seed * 11 + n.size)), color: n.color, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending })))
+    sprite.scale.setScalar(radius(n.size / 2) * 2)
+    sprite.renderOrder = -2
+    body(n).add(sprite)
   }
   const halo = keep(glowTexture(0.25))
   const corona = keep(glowTexture(0.5, 0.8))
   for (const s of def.stars) {
     // Un cœur presque blanc, une couronne vive au ras du disque, et un grand halo.
-    const core = new THREE.Mesh(keep(new THREE.SphereGeometry(s.radius, 32, 20)), keep(new THREE.MeshBasicMaterial({ color: new THREE.Color(s.color).lerp(new THREE.Color('#ffffff'), 0.45) })))
-    place(core, s)
-    for (const [map, size] of [[corona, s.radius * 4.4], [halo, s.glow]] as const) {
+    const r = radius(s.size)
+    const holder = body(s)
+    holder.add(new THREE.Mesh(keep(new THREE.SphereGeometry(r, 32, 20)), keep(new THREE.MeshBasicMaterial({ color: new THREE.Color(s.color).lerp(new THREE.Color('#ffffff'), 0.7) }))))
+    for (const [map, size] of [[corona, r * 4.4], [halo, r * 2 * s.glow]] as const) {
       const glow = new THREE.Sprite(keep(new THREE.SpriteMaterial({ map, color: s.color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })))
       glow.scale.setScalar(size)
-      place(glow, s)
+      holder.add(glow)
     }
   }
-  // Lumière des planètes : l'étoile principale, sinon de biais.
-  const main = def.stars[0]
-  const planet = (p: Pick<PlanetDef, 'kind' | 'colors' | 'atmosphere' | 'radius'>, at: Spot, light: THREE.Vector3, salt: number) => {
-    const surface = keep(planetMaterial(p, light, salt))
-    surfaces.push(surface)
-    const mesh = new THREE.Mesh(keep(new THREE.SphereGeometry(p.radius, 64, 40)), surface)
-    mesh.rotation.z = 0.35
-    place(mesh, at)
-    spinners.push({ o: mesh, speed: 0.012 })
-    if (p.atmosphere) place(new THREE.Mesh(keep(new THREE.SphereGeometry(p.radius * 1.07, 64, 40)), keep(atmosphereMaterial(p.atmosphere, light))), at)
-  }
+  // Lumière des planètes : vers l'étoile principale ; sans étoile, de biais.
+  const light = def.stars[0] ? direction(def.stars[0]) : new THREE.Vector3(1, 0.5, -1).normalize()
   for (const [i, p] of def.planets.entries()) {
-    // D'un bord à l'autre de la coque, l'étoile éclairerait la planète de face : on rabat sa lumière
-    // sur le côté, pour garder un terminateur.
-    const light = main ? across(main).sub(across(p)).multiply(new THREE.Vector3(1, 0, 0.3)).setY(BEAM * 0.3).normalize() : new THREE.Vector3(1, 0.5, -1).normalize()
-    planet(p, p, light, seed * 5 + i)
+    const r = radius(p.size)
+    const holder = body(p)
+    const surface = keep(planetMaterial(p, light, seed * 5 + i))
+    surfaces.push(surface)
+    const segments = r > 3 ? 96 : 48
+    const mesh = new THREE.Mesh(keep(new THREE.SphereGeometry(r, segments, segments * 0.6)), surface)
+    mesh.rotation.z = 0.2 + ((seed + i * 3) % 5) * 0.09
+    holder.add(mesh)
+    spinners.push({ o: mesh, speed: 0.01 })
+    if (p.atmosphere) holder.add(new THREE.Mesh(keep(new THREE.SphereGeometry(r * 1.045, segments, segments * 0.6)), keep(atmosphereMaterial(p.atmosphere, light))))
     if (p.ring) {
-      const ring = new THREE.Mesh(keep(new THREE.RingGeometry(p.ring.inner, p.ring.outer, 96, 1)), keep(ringMaterial(p.ring.color, p.ring.inner, p.ring.outer, seed)))
+      const ring = new THREE.Mesh(keep(new THREE.RingGeometry(p.ring.inner, p.ring.outer, 128, 1)), keep(ringMaterial(p.ring.color, p.ring.inner, p.ring.outer, seed, light)))
+      ring.scale.setScalar(r)
       ring.rotation.set(-Math.PI / 2 + p.ring.tilt, 0, 0.3)
-      place(ring, p)
+      holder.add(ring)
     }
-    if (p.moon) planet({ kind: 'rocky', radius: p.moon.radius, colors: ['#7d7d80', '#b9b9bd'] }, p.moon, light, seed + 99)
   }
   if (def.station) {
-    const s = def.station.kind === 'coriolis' ? coriolis(def.station.size) : orbis(def.station.size)
+    const s = def.station.kind === 'coriolis' ? coriolis(radius(def.station.size)) : orbis(radius(def.station.size))
     s.rotation.x = -0.6
-    // Plus haute que les planètes : elle passe devant leur disque.
-    place(s, def.station, DEPTH * 0.55)
+    body(def.station).add(s)
     s.traverse((o) => {
       const m = o as THREE.Mesh
       if (m.isMesh) keep(m.geometry), keep(m.material as THREE.Material)
@@ -542,21 +660,21 @@ function build(id: SystemId): Built {
   }
   let disk: THREE.ShaderMaterial | undefined
   if (def.blackHole) {
-    const { radius } = def.blackHole
-    disk = keep(diskMaterial(radius * 1.2, radius * 3.3))
-    const ring = new THREE.Mesh(keep(new THREE.RingGeometry(radius * 1.2, radius * 3.3, 96, 1)), disk)
+    const r = radius(def.blackHole.size)
+    const holder = body(def.blackHole)
+    disk = keep(diskMaterial(r * 1.2, r * 3.3))
+    const ring = new THREE.Mesh(keep(new THREE.RingGeometry(r * 1.2, r * 3.3, 96, 1)), disk)
     ring.rotation.set(-Math.PI / 2 + 0.35, 0, 0.2)
-    const hole = new THREE.Mesh(keep(new THREE.SphereGeometry(radius, 48, 32)), keep(new THREE.MeshBasicMaterial({ color: '#000000' })))
+    const hole = new THREE.Mesh(keep(new THREE.SphereGeometry(r, 48, 32)), keep(new THREE.MeshBasicMaterial({ color: '#000000' })))
     // Anneau de photons : un mince halo tout autour de l'horizon.
     const lens = new THREE.Sprite(keep(new THREE.SpriteMaterial({ map: halo, color: '#ffd9a8', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.8 })))
-    lens.scale.setScalar(radius * 3.2)
-    place(lens, def.blackHole, -0.5)
-    place(ring, def.blackHole)
-    place(hole, def.blackHole)
+    lens.scale.setScalar(r * 3.2)
+    lens.position.y = -0.5
+    holder.add(lens, ring, hole)
   }
   return {
-    port,
-    starboard,
+    group,
+    bodies,
     update: (t, light) => {
       for (const s of spinners) s.o.rotation.y = t * s.speed
       for (const m of surfaces) {
@@ -566,18 +684,13 @@ function build(id: SystemId): Built {
       if (disk) disk.uniforms.uTime.value = t
     },
     dispose: () => {
-      port.removeFromParent()
-      starboard.removeFromParent()
+      group.removeFromParent()
       for (const d of disposables) d.dispose()
     },
   }
 }
 
-/** Bords de la coque sous le pont affiché : le décor commence au-delà (z du bord bâbord, au nord, et du bord tribord, au sud). */
-export interface HullSides {
-  north: number
-  south: number
-}
+const _x = new THREE.Vector3(), _y = new THREE.Vector3(), _z = new THREE.Vector3()
 
 /** Le décor du système en cours, et le fondu d'un système à l'autre pendant un saut. */
 export class SystemView {
@@ -591,7 +704,7 @@ export class SystemView {
 
   constructor() {
     this.current = build(this.id)
-    this.group.add(this.current.port, this.current.starboard)
+    this.group.add(this.current.group)
   }
 
   /** Arrive dans le système `id` (sans animation si on y est déjà). */
@@ -600,7 +713,7 @@ export class SystemView {
     this.id = id
     this.current.dispose()
     this.current = build(id)
-    this.group.add(this.current.port, this.current.starboard)
+    this.group.add(this.current.group)
   }
 
   /** Le décor s'efface pendant la traversée d'un saut, et revient à l'arrivée. */
@@ -610,27 +723,41 @@ export class SystemView {
 
   /**
    * @param deckY altitude du pont affiché
-   * @param sides bords de la coque sous ce pont
-   * @param target point que regarde la caméra
-   * @param toCamera direction horizontale de la cible vers la caméra
-   * @param elevation inclinaison de la caméra (radians)
+   * @param camera caméra de la vue isométrique
+   * @param target point qu'elle regarde
    * @param eye position de la caméra en vue subjective (null : vue isométrique)
    */
-  update(dt: number, deckY: number, sides: HullSides, target: THREE.Vector3, toCamera: THREE.Vector3, elevation: number, eye: THREE.Vector3 | null = null) {
+  update(dt: number, deckY: number, camera: THREE.OrthographicCamera, target: THREE.Vector3, eye: THREE.Vector3 | null = null) {
     this.time += dt
     this.shown = THREE.MathUtils.damp(this.shown, this.wanted, this.wanted > this.shown ? 1.5 : 6, dt)
-    const { port, starboard } = this.current
+    const grow = 0.4 + 0.6 * this.shown
     if (eye) {
-      port.position.set(eye.x, eye.y + EYE_RISE, eye.z - EYE_AWAY)
-      starboard.position.set(eye.x, eye.y + EYE_RISE, eye.z + EYE_AWAY)
+      // Chaque astre est vraiment dans sa direction, autour des yeux.
+      for (const b of this.current.bodies) {
+        b.holder.visible = true
+        b.holder.position.copy(eye).addScaledVector(b.eye, EYE_DISTANCE)
+        b.holder.scale.setScalar((EYE_DISTANCE / FOCAL) * grow)
+      }
     } else {
-      // Là où le regard qui passe par ce point du pont traverse la profondeur du décor.
-      const run = DEPTH / Math.tan(elevation)
-      port.position.set(target.x - toCamera.x * run, deckY - DEPTH, sides.north - toCamera.z * run)
-      starboard.position.set(target.x - toCamera.x * run, deckY - DEPTH, sides.south - toCamera.z * run)
+      // Axes de la caméra : la droite, le haut du cadre, et l'arrière (vers elle).
+      _x.set(1, 0, 0).applyQuaternion(camera.quaternion)
+      _y.set(0, 1, 0).applyQuaternion(camera.quaternion)
+      _z.set(0, 0, 1).applyQuaternion(camera.quaternion)
+      // Les astres sont loin : en zoomant, ils grossissent moins vite que le pont.
+      const lens = Math.sqrt((camera.top - camera.bottom) / 2 / ZOOM_MAX)
+      for (const b of this.current.bodies) {
+        // Devant l'objectif ? Sa place dans le cadre est celle d'une projection en perspective.
+        const ahead = -b.iso.dot(_z)
+        b.holder.visible = ahead > 0.3
+        if (!b.holder.visible) continue
+        const sx = (b.iso.dot(_x) / ahead) * FOCAL * lens
+        const sy = (b.iso.dot(_y) / ahead) * FOCAL * lens
+        // Sur le rayon de la caméra qui passe par ce point du cadre, à la profondeur du décor.
+        const back = (target.y - deckY + DEPTH + sy * _y.y) / _z.y
+        b.holder.position.copy(target).addScaledVector(_x, sx).addScaledVector(_y, sy).addScaledVector(_z, -back)
+        b.holder.scale.setScalar(lens * grow)
+      }
     }
-    port.scale.setScalar(0.4 + 0.6 * this.shown)
-    starboard.scale.setScalar(0.4 + 0.6 * this.shown)
     this.group.visible = this.shown > 0.02
     this.current.update(renderQuality.light ? Math.floor(this.time * 4) / 4 : this.time, renderQuality.light)
   }
