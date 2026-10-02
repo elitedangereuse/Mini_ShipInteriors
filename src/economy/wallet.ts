@@ -54,9 +54,12 @@ export class Wallet {
   readonly items = new Map<string, number>()
   /** Apparences achetées (clés de skins.ts). */
   readonly skins = new Set<string>()
-  /** Espaces d'extension des quartiers débloqués (cf. shared/cabin-wings.js). */
+  /**
+   * Espaces d'extension des anciens quartiers, achetés avant le pont des quartiers : ils offrent
+   * les agrandissements de la parcelle (cf. stageFromWings, shared/housing-migrate.js).
+   */
   readonly wings = new Set<WingId>()
-  /** Agrandissements de la parcelle achetés (housing v2) : 0, 1 ou 2. */
+  /** Palier d'agrandissement de la parcelle (acheté, ou offert par les anciennes extensions) : 0, 1 ou 2. */
   plot = 0
   /** Dernière apparition réglée de chaque emplacement de tâche (cf. schedule.ts). */
   readonly tasks = new Map<string, number>()
@@ -215,12 +218,7 @@ export class Wallet {
     return this.buy({ skin: product }, () => this.skins.add(product))
   }
 
-  /** Débloque un espace d'extension des quartiers (son prix dépend du nombre déjà débloqué). */
-  buyWing(id: WingId): Promise<Outcome> {
-    return this.buy({ wing: id }, () => this.wings.add(id))
-  }
-
-  /** Agrandissement de la parcelle jusqu'au palier `stage` (housing v2), l'un après l'autre. */
+  /** Agrandissement de la parcelle jusqu'au palier `stage`, l'un après l'autre. */
   buyPlot(stage: number): Promise<Outcome> {
     return this.buy({ plot: stage }, () => (this.plot = Math.max(this.plot, stage)))
   }

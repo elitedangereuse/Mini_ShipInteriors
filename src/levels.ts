@@ -185,7 +185,7 @@ export const QUARTERS_DECK: LevelDef = {
   windows: { [LANDING_ROOM]: 0.5 },
   bubble: true,
   // La cabine de chaque joueur : sa parcelle, son entrée derrière la porte du palier (cf. src/housing/).
-  cabin: { room: PLOT_ROOM, door: { x: PLOT_ORIGIN.x, z: PLOT_DOOR.z }, home: true },
+  cabin: { room: PLOT_ROOM, door: { x: PLOT_ORIGIN.x, z: PLOT_DOOR.z } },
   props: [
     { model: 'plant-tall', x: 8.25, z: 3.25 },
     { model: 'plant-tall', x: 8.25, z: 6.75 },

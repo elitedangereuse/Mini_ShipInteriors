@@ -6,35 +6,25 @@ import { buildFurniture, disposeFurniture, isCustomModel, keepShared, type Custo
 import { tr } from '../i18n'
 import type { Rot } from '../levels'
 import { DIRS } from '../map'
-import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type FadeFocus, type Occluder } from '../merge'
+import { fadeBuffer, StaticMerge, updateOccluders, type FadeFocus, type Occluder } from '../merge'
 import { placeSeats, seatAction, seatsOf } from '../seats'
 import { builderLabel, entryOf, interactText, isSolid, type CatalogEntry } from './catalog'
-import { FinishTexture } from './finishes'
-import { partitionsKey, sameItems, wingShapes, type CabinItem, type CabinLayout, type CabinWings, type Finish, type Partition, type Rect } from './layout'
-import { panelGeometry, PANEL_SPANS, partitionCenter, PartitionShell } from './partitions'
-import { WingShell } from './wings'
-import { applyWings, WING_ROOMS, WING_SLOTS, type WingId, type WingPlan } from '../../shared/cabin-wings.js'
-import { applyPartitions, clearPartitions } from '../../shared/cabin-partitions.js'
+import { sameItems, type CabinItem, type CabinLayout, type Rect } from './layout'
 import { STAGE_ITEMS } from '../../shared/housing-home.js'
-import { ROOM_ITEMS, WING_ITEMS } from './layout'
 
 /*
- * La cabine telle qu'on la voit : les objets d'un aménagement, construits et fusionnés dans
+ * La cabine telle qu'on la voit : le mobilier d'une parcelle du pont des quartiers (ses murs, ses
+ * revêtements et sa taille sont à elle, cf. housing/home.ts), construit et fusionné dans
  * le pont (un appel de dessin par matériau, comme le reste du vaisseau), avec leurs collisions,
  * leurs interactions, leurs lumières et leurs sons. Un nouvel aménagement réutilise les objets
  * déjà construits : déplacer un meuble ne reconstruit que la géométrie fusionnée.
  */
 
 export interface CabinDef {
-  /** Lettre de la pièce dans le plan du pont. */
+  /** Lettre de la parcelle dans le plan du pont. */
   room: string
   /** Tuile intérieure devant la porte : toujours libre, et reliée au Holo-Me. */
   door: { x: number; z: number }
-  /**
-   * La parcelle du pont des quartiers (housing v2, cf. src/housing/) : ses murs, ses revêtements
-   * et sa taille viennent d'elle (Deck.home), pas d'extensions ni de cloisons.
-   */
-  home?: boolean
 }
 
 /** Demi-épaisseur d'un mur : sa face intérieure est à 0,15 de l'arête. */
@@ -45,9 +35,6 @@ const POST_HALF = 0.175
 const MAX_OCCLUDERS = 96
 
 const PICK_MATERIAL = keepShared(new THREE.MeshBasicMaterial())
-
-/** Revêtement du sol, juste au-dessus des dalles (les tapis, plus hauts, restent dessus). */
-const FLOORING_Y = 0.002
 
 /** Mur de la cabine auquel on peut accrocher des objets. */
 export interface WallLine {
@@ -63,32 +50,6 @@ export interface WallLine {
   cover: [number, number][]
   /** Orientation des objets accrochés : face à la pièce. */
   rot: Rot
-}
-
-/** Papier peint de murs : un maillage, tramé pan par pan avec ses murs. */
-interface Wallpaper {
-  mesh: THREE.Mesh
-  texture: FinishTexture
-  occluders: Occluder[]
-  /** Panneaux posés sur une cloison : ils s'estompent avec elle en mode aménagement. */
-  inner: Occluder[]
-  fades: FadeBuffer
-}
-
-/** Revêtement d'un sol. */
-interface Flooring {
-  mesh: THREE.Mesh
-  texture: FinishTexture
-}
-
-/** Pièce d'extension affichée : sa coque, ses tuiles, ses revêtements. */
-interface Wing {
-  plan: WingPlan
-  shell: WingShell
-  wallpaper: Wallpaper
-  flooring: Flooring
-  /** Lumière douce au milieu de la pièce. */
-  light: Deck['lights'][number]
 }
 
 /** Un objet construit, prêt à être placé. */
@@ -149,23 +110,14 @@ export class CabinView {
   readonly group = new THREE.Group()
   /** Rectangle intérieur de la cabine (faces intérieures des murs) ; celui de la parcelle suit sa taille. */
   bounds: Rect = { minX: 0, maxX: 0, minZ: 0, maxZ: 0 }
-  /** Tuiles des quartiers (hors extensions). */
+  /** Tuiles de la parcelle. */
   readonly tiles: { x: number; z: number }[] = []
-  /** Murs où l'on peut accrocher des objets, extensions comprises. */
+  /** Murs où l'on peut accrocher des objets. */
   readonly walls: WallLine[] = []
-  /** Poteaux qui débordent dans la cabine (extensions comprises) : les meubles ne s'y posent pas. */
+  /** Poteaux qui débordent dans la cabine : les meubles ne s'y posent pas. */
   readonly posts: Box2[] = []
-  /** Pièces d'extension affichées, par espace (cf. setWings). */
-  private readonly wings = new Map<WingId, Wing>()
-  /** Formes affichées (cf. wingShapes). */
-  private wingKey = wingShapes(undefined)
-  /** Lettres des pièces de la cabine sur le plan : les quartiers, et les pièces d'extension. */
-  private letters = new Set<string>()
-  /** Aménagement affiché. */
+  /** Mobilier affiché. */
   items: CabinItem[] = []
-  /** Revêtements affichés (absents : murs et sol d'origine). */
-  wall?: Finish
-  floor?: Finish
   /** Holo-Me de la cabine (interaction : cf. onHoloMe). */
   holoMe: Interactable | null = null
   /** Interaction avec le Holo-Me (ouvrir la garde-robe, cf. main.ts). */
@@ -196,19 +148,6 @@ export class CabinView {
   /** Objets montrés à part, hors de la géométrie fusionnée (déplacés en mode aménagement). */
   private detached = new Set<number>()
   private readonly frame = new THREE.Matrix4()
-  /** Papier peint des murs de la cabine : un maillage, tramé pan par pan avec ses murs. */
-  private wallpaper: Wallpaper
-  /** Revêtement du sol. */
-  private readonly flooring: Flooring
-  /**
-   * Mode aménagement, onglet « Cloisons » : les cloisons restent pleines (ailleurs dans le mode
-   * aménagement, elles s'estompent pour qu'on voie ce qu'il y a derrière).
-   */
-  solidPartitions = false
-  /** Cloisons affichées (murs et portes posés par le CMDR), leur clé, et celles posées sur le plan. */
-  private partitionShell: PartitionShell | null = null
-  private partitionKey = ''
-  private placed: Partition[] = []
 
   constructor(
     readonly deck: Deck,
@@ -219,11 +158,7 @@ export class CabinView {
     this.baseLights = deck.lights.length
 
     this.measure()
-    this.letters.add(def.room)
     this.findWalls()
-    // La parcelle a ses propres revêtements (cf. housing/home.ts) : ceux d'une cabine y restent vides.
-    this.wallpaper = this.buildWallpaper(def.home ? [] : this.tiles)
-    this.flooring = this.buildFlooring(def.home ? [] : this.tiles)
   }
 
   /** Tuiles de la pièce sur le plan, et le rectangle qui les englobe. */
@@ -254,106 +189,24 @@ export class CabinView {
     else this.rebuild()
   }
 
-  /** Objets au plus dans une pièce : la parcelle selon sa taille, les quartiers, une pièce d'extension. */
-  roomCap(room: 'main' | WingId): number {
-    if (this.def.home) return STAGE_ITEMS[Math.max(0, this.deck.home?.stage ?? 0)] ?? STAGE_ITEMS[0]
-    return room === 'main' ? ROOM_ITEMS : WING_ITEMS
-  }
-
-  /** Cloisons affichées. */
-  get partitions(): Partition[] {
-    return this.placed
-  }
-
-  /** Passage d'une porte posée sur l'arête de la cloison `p` (qu'elle y soit déjà ou non). */
-  partitionDoorwayOf(p: Partition): Box2 {
-    const { cx, cz, alongX } = partitionCenter(p)
-    return alongX ? { minX: cx - 0.3, maxX: cx + 0.3, minZ: cz - 0.6, maxZ: cz + 0.6 } : { minX: cx - 0.6, maxX: cx + 0.6, minZ: cz - 0.3, maxZ: cz + 0.3 }
-  }
-
-  /** Passage des portes des cloisons, à laisser libre de meubles. */
-  get partitionDoorways(): Box2[] {
-    return this.partitionShell?.doorways ?? []
+  /** Objets au plus sur la parcelle, selon sa taille. */
+  get capacity(): number {
+    return STAGE_ITEMS[Math.max(0, this.deck.home?.stage ?? 0)] ?? STAGE_ITEMS[0]
   }
 
   /**
-   * Le plan avec ces cloisons à la place de celles affichées, le temps de `fn` (règles de pose :
-   * chaque partie de la cabine reste-t-elle accessible ?). Les murs construits ne changent pas.
-   */
-  withPartitions<T>(partitions: Partition[], fn: () => T): T {
-    const map = this.deck.map
-    clearPartitions(map, this.placed)
-    const trial = applyPartitions(map, partitions, (room) => this.letters.has(room))
-    this.deck.pathfinder.invalidate()
-    try {
-      return fn()
-    } finally {
-      clearPartitions(map, trial)
-      applyPartitions(map, this.placed, (room) => this.letters.has(room))
-      this.deck.pathfinder.invalidate()
-    }
-  }
-
-  /** Toutes les tuiles de la cabine sont-elles atteintes à pied depuis la porte (meubles ignorés) ? */
-  reachableAll(): boolean {
-    const map = this.deck.map
-    const tiles = this.allTiles()
-    const own = new Set(tiles.map((t) => `${t.x},${t.z}`))
-    const start = this.def.door
-    const seen = new Set([`${start.x},${start.z}`])
-    const todo = [start]
-    while (todo.length) {
-      const t = todo.pop()!
-      for (let dir = 0; dir < 4; dir++) {
-        const n = { x: t.x + DIRS[dir].dx, z: t.z + DIRS[dir].dz }
-        const k = `${n.x},${n.z}`
-        if (seen.has(k) || !own.has(k) || map.edge(t.x, t.z, dir) === 'wall') continue
-        seen.add(k)
-        todo.push(n)
-      }
-    }
-    return tiles.every((t) => seen.has(`${t.x},${t.z}`))
-  }
-
-  /** Rectangle qui englobe la cabine et ses pièces d'extension (faces intérieures des murs). */
-  get extent(): Rect {
-    const b = { ...this.bounds }
-    for (const w of this.wings.values()) {
-      for (const t of w.plan.tiles) {
-        b.minX = Math.min(b.minX, t.x - 0.5 + WALL_HALF)
-        b.maxX = Math.max(b.maxX, t.x + 0.5 - WALL_HALF)
-        b.minZ = Math.min(b.minZ, t.z - 0.5 + WALL_HALF)
-        b.maxZ = Math.max(b.maxZ, t.z + 0.5 - WALL_HALF)
-      }
-    }
-    return b
-  }
-
-  /** Espaces dont une pièce est affichée. */
-  get wingIds(): WingId[] {
-    return [...this.wings.keys()]
-  }
-
-  /** Pièce de la position : 'main' (les quartiers), un espace d'extension, ou null (hors cabine). */
-  roomAt(x: number, z: number): 'main' | WingId | null {
-    const r = this.deck.map.room(Math.round(x), Math.round(z))
-    if (r === this.def.room) return 'main'
-    return r ? ((Object.keys(WING_ROOMS) as WingId[]).find((id) => this.wings.has(id) && WING_ROOMS[id].includes(r)) ?? null) : null
-  }
-
-  /**
-   * La boîte (coordonnées du pont) tient-elle dans une seule pièce de la cabine, contre la face
-   * intérieure de ses murs ? Elle ne chevauche ni un mur, ni une porte, ni le vide.
+   * La boîte (coordonnées du pont) tient-elle sur la parcelle, contre la face intérieure de ses
+   * murs ? Elle ne chevauche ni un mur, ni une porte, ni le vide.
    */
   fits(box: { min: { x: number; z: number }; max: { x: number; z: number } }): boolean {
     const map = this.deck.map
     const e = 0.004
     const room = map.room(Math.round((box.min.x + box.max.x) / 2), Math.round((box.min.z + box.max.z) / 2))
-    if (!room || !this.letters.has(room)) return false
+    if (room !== this.def.room) return false
     for (let tz = Math.round(box.min.z + e); tz <= Math.round(box.max.z - e); tz++) {
       for (let tx = Math.round(box.min.x + e); tx <= Math.round(box.max.x - e); tx++) {
         if (map.room(tx, tz) !== room) return false
-        // Un mur (du vaisseau, ou une cloison) ou une porte sur un bord de la tuile : on reste de ce côté.
+        // Un mur ou une porte sur un bord de la tuile : on reste de ce côté.
         if (map.edge(tx, tz, 1) !== 'open' && box.max.x > tx + 0.5 - WALL_HALF + e) return false
         if (map.edge(tx, tz, 3) !== 'open' && box.min.x < tx - 0.5 + WALL_HALF - e) return false
         if (map.edge(tx, tz, 2) !== 'open' && box.max.z > tz + 0.5 - WALL_HALF + e) return false
@@ -363,110 +216,21 @@ export class CabinView {
     return true
   }
 
-  /**
-   * Rectangle englobant la pièce de la position (faces intérieures des murs) : les quartiers,
-   * ou une des pièces d'une extension ; à défaut, toute la cabine.
-   */
-  roomRect(x: number, z: number): Rect {
-    const room = this.deck.map.room(Math.round(x), Math.round(z))
-    if (room === this.def.room) return this.bounds
-    const tiles = [...this.wings.values()].flatMap((w) => w.plan.tiles).filter((t) => t.room === room)
-    if (!tiles.length) return this.extent
-    return {
-      minX: Math.min(...tiles.map((t) => t.x)) - 0.5 + WALL_HALF,
-      maxX: Math.max(...tiles.map((t) => t.x)) + 0.5 - WALL_HALF,
-      minZ: Math.min(...tiles.map((t) => t.z)) - 0.5 + WALL_HALF,
-      maxZ: Math.max(...tiles.map((t) => t.z)) + 0.5 - WALL_HALF,
-    }
-  }
-
-  /** Tuiles de la cabine, extensions comprises (quadrillage du mode aménagement). */
-  get floorTiles(): { x: number; z: number }[] {
-    return this.allTiles()
-  }
-
-  /** Pan de mur (ou porte) posé sur l'arête de milieu (cx, cz) : par une pièce d'extension, ou par le pont. */
+  /** Pan de mur (ou porte) posé sur l'arête de milieu (cx, cz) : par la parcelle, ou par le pont (le palier). */
   private segmentAt(cx: number, cz: number): WallSegment | undefined {
     const at = (w: WallSegment) => Math.abs(w.x - cx) < 1e-6 && Math.abs(w.z - cz) < 1e-6
-    const inner = this.partitionShell?.walls.find(at) ?? this.deck.home?.segments.find(at)
-    if (inner) return inner
-    for (const wing of this.wings.values()) {
-      const seg = wing.shell.walls.find(at)
-      if (seg) return seg
-    }
-    return this.deck.walls.find(at)
+    return this.deck.home?.segments.find(at) ?? this.deck.walls.find(at)
   }
 
-  /** Tuiles de la cabine, extensions comprises. */
-  private allTiles(): { x: number; z: number }[] {
-    return [...this.tiles, ...[...this.wings.values()].flatMap((w) => w.plan.tiles)]
-  }
-
-  // ---------------------------------------------------------------- extensions
-
-  /**
-   * Pièces d'extension de l'aménagement affiché : posées sur le plan du pont (cf. applyWings),
-   * construites (sols, murs, portes), avec leurs revêtements. Une forme inchangée ne reconstruit
-   * rien ; un revêtement se repeint sur place.
-   */
-  private setWings(wings: CabinWings | undefined) {
-    const key = wingShapes(wings)
-    if (key !== this.wingKey) {
-      this.wingKey = key
-      for (const w of this.wings.values()) {
-        w.shell.dispose()
-        for (const part of [w.wallpaper, w.flooring]) {
-          part.mesh.removeFromParent()
-          part.mesh.geometry.dispose()
-          ;(part.mesh.material as THREE.Material).dispose()
-          part.texture.dispose()
-        }
-        w.wallpaper.fades.texture.dispose()
-      }
-      this.wings.clear()
-      const placed = applyWings(this.deck.map, wings)
-      this.deck.syncLocks()
-      this.letters = new Set([this.def.room])
-      for (const slot of WING_SLOTS) {
-        const plan = placed[slot.id]
-        if (!plan) continue
-        const shell = new WingShell(this.deck, plan)
-        this.group.add(shell.group)
-        const wing: Wing = { plan, shell, wallpaper: undefined!, flooring: this.buildFlooring(plan.tiles), light: undefined! }
-        this.wings.set(slot.id, wing)
-        for (const t of plan.tiles) this.letters.add(t.room)
-        const cx = plan.tiles.reduce((s, t) => s + t.x, 0) / plan.tiles.length
-        const cz = plan.tiles.reduce((s, t) => s + t.z, 0) / plan.tiles.length
-        wing.light = { position: new THREE.Vector3(cx, this.deck.y + 1.4, cz), color: new THREE.Color('#ffd9a8'), intensity: 2 }
-      }
-      // Le papier peint se pose une fois tous les murs connus (ceux de chaque pièce, et du pont).
-      for (const w of this.wings.values()) w.wallpaper = this.buildWallpaper(w.plan.tiles)
-      this.findWalls()
-      this.deck.pathfinder.invalidate()
-    }
-  }
-
-  /** Revêtements des pièces d'extension (repeints sur place). */
-  private setWingFinishes(wings: CabinWings | undefined) {
-    for (const [id, w] of this.wings) {
-      const f = wings?.[id]
-      w.wallpaper.mesh.visible = !!f?.wall
-      if (f?.wall) w.wallpaper.texture.set('wall', f.wall)
-      w.flooring.mesh.visible = !!f?.floor
-      if (f?.floor) w.flooring.texture.set('floor', f.floor)
-    }
-  }
-
-  /** Centre de la cabine, extensions comprises (caméra du mode aménagement). */
+  /** Centre de la cabine (caméra du mode aménagement). */
   get center(): THREE.Vector3 {
-    const b = this.extent
+    const b = this.bounds
     return new THREE.Vector3((b.minX + b.maxX) / 2, this.deck.y, (b.minZ + b.maxZ) / 2)
   }
 
   /** La position (coordonnées du pont) est-elle dans la cabine ? */
   contains(x: number, z: number): boolean {
-    const r = this.deck.map.room(Math.round(x), Math.round(z))
-    return !!r && this.letters.has(r)
+    return this.deck.map.room(Math.round(x), Math.round(z)) === this.def.room
   }
 
   /** Murs de la cabine qui acceptent un objet accroché, et poteaux qui débordent à l'intérieur. */
@@ -474,8 +238,8 @@ export class CabinView {
     const { deck } = this
     this.walls.length = 0
     this.posts.length = 0
-    const tiles = this.allTiles()
-    const posts = [...deck.posts, ...[...this.wings.values()].flatMap((w) => w.shell.posts), ...(this.partitionShell?.posts ?? []), ...(deck.home?.posts ?? [])]
+    const tiles = this.tiles
+    const posts = [...deck.posts, ...(deck.home?.posts ?? [])]
     const lines = new Map<string, { dir: number; edge: number; segments: { at: number; free: boolean }[] }>()
     for (const t of tiles) {
       for (let dir = 0; dir < 4; dir++) {
@@ -544,117 +308,6 @@ export class CabinView {
     return best
   }
 
-  // ---------------------------------------------------------------- revêtements
-
-  /** Panneaux de papier peint des tuiles `tiles`, un par pan de mur, chacun tramé avec son mur. */
-  private buildWallpaper(tiles: { x: number; z: number }[]): Wallpaper {
-    const texture = new FinishTexture()
-    const material = new THREE.MeshLambertMaterial({ map: texture.texture })
-    const merge = new StaticMerge()
-    const occluders: Occluder[] = []
-    const inner: Occluder[] = []
-    const partitions = new Set(this.partitionShell?.walls)
-    for (const t of tiles) {
-      for (let dir = 0; dir < 4; dir++) {
-        if (this.deck.map.edge(t.x, t.z, dir) === 'open') continue
-        const d = DIRS[dir]
-        const cx = t.x + d.dx * 0.5, cz = t.z + d.dz * 0.5
-        const seg = this.segmentAt(cx, cz)
-        if (!seg) continue
-        const geo = panelGeometry(cx, cz, d, PANEL_SPANS[seg.model])
-        // Même centre et même côté extérieur que le mur (cf. deck.ts) : même fondu.
-        const o = merge.addFading(new THREE.Mesh(geo, material), new THREE.Vector3(cx, 0.5, cz), undefined, { x: d.dx, z: d.dz })
-        occluders.push(o)
-        if (partitions.has(seg)) inner.push(o)
-        geo.dispose()
-      }
-    }
-    const fades = fadeBuffer(merge.fadingCount)
-    const [mesh] = merge.flush(this.group, fades.texture) as (THREE.Mesh | undefined)[]
-    const out = mesh ?? new THREE.Mesh(new THREE.BufferGeometry(), material)
-    out.castShadow = false
-    out.visible = false
-    if (!mesh) this.group.add(out)
-    return { mesh: out, texture, occluders, inner, fades }
-  }
-
-  private disposeWallpaper(w: Wallpaper) {
-    w.mesh.removeFromParent()
-    w.mesh.geometry.dispose()
-    ;(w.mesh.material as THREE.Material).dispose()
-    w.texture.dispose()
-    w.fades.texture.dispose()
-  }
-
-  /**
-   * Cloisons de l'aménagement : posées sur le plan à chaque aménagement (le plan des pièces
-   * d'extension a pu être refait), reconstruites seulement si elles ou les pièces ont changé,
-   * avec les murs d'accroche et le papier peint de toutes les pièces.
-   * @returns vrai si elles ont été reconstruites
-   */
-  private setPartitions(partitions: Partition[] | undefined, reshaped: boolean): boolean {
-    const map = this.deck.map
-    this.placed = applyPartitions(map, partitions, (room) => this.letters.has(room))
-    const key = partitionsKey(this.placed)
-    if (key === this.partitionKey && !reshaped) return false
-    this.partitionKey = key
-    this.partitionShell?.dispose()
-    this.partitionShell = null
-    if (this.placed.length) {
-      const existing = {
-        walls: [...this.deck.walls, ...[...this.wings.values()].flatMap((w) => w.shell.walls)],
-        posts: [...this.deck.posts, ...[...this.wings.values()].flatMap((w) => w.shell.posts)],
-      }
-      this.partitionShell = new PartitionShell(this.deck, this.placed, existing)
-      this.group.add(this.partitionShell.group)
-    }
-    this.findWalls()
-    // Le papier peint se pose sur les cloisons comme sur les autres murs de leur pièce.
-    this.disposeWallpaper(this.wallpaper)
-    this.wallpaper = this.buildWallpaper(this.tiles)
-    for (const w of this.wings.values()) {
-      this.disposeWallpaper(w.wallpaper)
-      w.wallpaper = this.buildWallpaper(w.plan.tiles)
-    }
-    this.deck.pathfinder.invalidate()
-    return true
-  }
-
-  /** Revêtement du sol : une dalle par tuile, coordonnées de texture en mètres. */
-  private buildFlooring(tiles: { x: number; z: number }[]): Flooring {
-    const texture = new FinishTexture()
-    const pos: number[] = [], uv: number[] = [], index: number[] = []
-    for (const t of tiles) {
-      const i = pos.length / 3
-      for (const [dx, dz] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]) {
-        pos.push(t.x + dx, FLOORING_Y, t.z + dz)
-        uv.push(t.x + dx, -(t.z + dz))
-      }
-      index.push(i, i + 3, i + 2, i, i + 2, i + 1)
-    }
-    const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
-    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
-    geo.setIndex(index)
-    geo.computeVertexNormals()
-    const material = new THREE.MeshLambertMaterial({ map: texture.texture, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })
-    const mesh = new THREE.Mesh(geo, material)
-    mesh.receiveShadow = true
-    mesh.visible = false
-    this.group.add(mesh)
-    return { mesh, texture }
-  }
-
-  /** Revêtements des murs et du sol (absents : ceux d'origine), redessinés sur place. */
-  private setFinish(wall: Finish | undefined, floor: Finish | undefined) {
-    this.wall = wall && { ...wall }
-    this.floor = floor && { ...floor }
-    this.wallpaper.mesh.visible = !!wall
-    if (wall) this.wallpaper.texture.set('wall', wall)
-    this.flooring.mesh.visible = !!floor
-    if (floor) this.flooring.texture.set('floor', floor)
-  }
-
   // ---------------------------------------------------------------- construction
 
   private keyOf(item: Pick<CabinItem, 'm' | 'v' | 's'>): string {
@@ -672,7 +325,7 @@ export class CabinView {
     let control: FurnitureControl | undefined
     const custom = isCustomModel(entry.model)
     if (custom) {
-      const f = buildFurniture(entry.model as CustomModel, builderLabel(entry, item.v), seedOf(item), this.roomRect(item.x, item.z))
+      const f = buildFurniture(entry.model as CustomModel, builderLabel(entry, item.v), seedOf(item), this.bounds)
       if (f.solid) holder.add((solid = f.solid))
       if (f.live) holder.add(f.live)
       // Pièces animées placées avant la mesure : une instance pas encore posée compte à sa
@@ -737,25 +390,12 @@ export class CabinView {
   }
 
   /**
-   * Affiche un nouvel aménagement ; les objets inchangés (modèle, variante, graine) sont
-   * réutilisés, et si seuls les revêtements changent, rien n'est refondu.
+   * Affiche un nouveau mobilier ; les objets inchangés (modèle, variante, graine) sont réutilisés,
+   * et rien n'est refondu si rien n'a changé.
    */
-  setLayout(layout: CabinLayout) {
-    const shapes = this.wingKey
-    let walled = false
-    // Sur la parcelle, ni extensions ni cloisons : ses murs et ses revêtements sont les siens.
-    if (!this.def.home) {
-      // Les cloisons quittent le plan le temps de refaire les pièces d'extension (elles ne doivent
-      // pas passer pour des murs de leurs pièces), puis y reviennent.
-      clearPartitions(this.deck.map, this.placed)
-      this.setWings(layout.wings)
-      walled = this.setPartitions(layout.partitions, shapes !== this.wingKey)
-      this.setWingFinishes(layout.wings)
-      this.setFinish(layout.wall, layout.floor)
-    }
+  setLayout(layout: Pick<CabinLayout, 'items'>) {
     const items = layout.items
-    // Les pièces ont changé : collisions, lumières et murs d'accroche sont à refaire, objets inchangés ou non.
-    if (!this.detached.size && this.built.length && sameItems(items, this.items) && shapes === this.wingKey && !walled) return
+    if (!this.detached.size && this.built.length && sameItems(items, this.items)) return
     const pool = new Map<string, Built[]>()
     for (const b of this.built) {
       const list = pool.get(b.key) ?? []
@@ -845,12 +485,7 @@ export class CabinView {
   /** Collisions et tuiles bloquées du reste du pont (tout sauf la cabine). */
   staticBlockers(): { colliders: Box2[]; tiles: Set<string> } {
     const own = new Set(this.blocked)
-    return { colliders: [...this.deck.colliders.slice(0, this.baseColliders), ...this.wingColliders()], tiles: new Set([...this.deck.blockedTiles].filter((k) => !own.has(k))) }
-  }
-
-  /** Murs, portes et poteaux des pièces d'extension. */
-  private wingColliders(): Box2[] {
-    return [...this.wings.values()].flatMap((w) => w.shell.colliders)
+    return { colliders: this.deck.colliders.slice(0, this.baseColliders), tiles: new Set([...this.deck.blockedTiles].filter((k) => !own.has(k))) }
   }
 
   // ---------------------------------------------------------------- fusion et câblage
@@ -947,17 +582,15 @@ export class CabinView {
 
   /**
    * Collisions et lumières du pont : le reste du pont, puis la parcelle (ses murs, son champ de
-   * force), les pièces d'extension et les cloisons, puis les objets (cf. rebuild).
+   * force), puis les objets (cf. rebuild).
    */
   private relink() {
     const { deck } = this
     deck.colliders.length = this.baseColliders
-    deck.colliders.push(...(this.def.home ? deck.home?.colliders ?? [] : []), ...this.wingColliders(), ...(this.partitionShell?.colliders ?? []), ...this.itemColliders)
+    deck.colliders.push(...(deck.home?.colliders ?? []), ...this.itemColliders)
     deck.pathfinder.invalidate()
     deck.lights.length = this.baseLights
-    if (this.def.home) deck.lights.push(...(deck.home?.lights ?? []))
-    for (const w of this.wings.values()) deck.lights.push(w.light)
-    deck.lights.push(...this.itemLights)
+    deck.lights.push(...(deck.home?.lights ?? []), ...this.itemLights)
     this.onLights?.()
   }
 
@@ -983,13 +616,5 @@ export class CabinView {
     this.decorationFrame = frame
     for (const b of this.built) if (decorate || b.control) b.update?.(t)
     if (updateOccluders(this.occluders, this.fades, view, dt)) this.fades.texture.needsUpdate = true
-    // Le papier peint d'une cloison s'estompe avec elle (cf. PartitionShell.update).
-    const outward = view.cabin && !this.solidPartitions ? { x: view.toCamera.x, z: view.toCamera.z } : undefined
-    for (const w of [this.wallpaper, ...[...this.wings.values()].map((wing) => wing.wallpaper)]) {
-      for (const o of w.inner) o.outward = outward
-      if (w.mesh.visible && updateOccluders(w.occluders, w.fades, view, dt)) w.fades.texture.needsUpdate = true
-    }
-    for (const wing of this.wings.values()) wing.shell.update(view, dt)
-    this.partitionShell?.update(view, dt, this.solidPartitions)
   }
 }

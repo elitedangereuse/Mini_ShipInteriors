@@ -9,9 +9,9 @@ import { DOOR_GAP } from '../../shared/sight.js'
 import { isDoor, partitionEdge, type Partition } from '../../shared/cabin-partitions.js'
 
 /*
- * Cloisons des quartiers : les murs et les portes que le CMDR pose sur les arêtes du quadrillage
- * (cf. shared/cabin-partitions.js pour le plan, cabin/view.ts pour le papier peint, qui s'y pose
- * comme sur les autres murs de la pièce, et editor.ts pour l'onglet « Cloisons »). Les murs sont
+ * Murs et portes posés sur les arêtes du quadrillage : ceux de la parcelle de chaque joueur (cf.
+ * housing/home.ts, qui les bâtit, et shared/housing-home.js pour le plan), nés des cloisons des
+ * anciens quartiers, dont ils gardent le nom. Les murs sont
  * ceux du vaisseau (pan plein ou à hublot) ; les portes, un encadrement du vaisseau et un battant
  * au choix, qui s'ouvre quand quelqu'un approche (cf. Deck.update). Comme une pièce d'extension,
  * tout est fusionné (un appel de dessin par matériau) et s'estompe devant le joueur ; en mode
@@ -37,8 +37,6 @@ export const PARTITION_KINDS: PartitionKind[] = [
   { id: 'beads', name: tr('Rideau de perles', 'Bead curtain'), door: true },
   { id: 'arch', name: tr('Arche', 'Archway'), door: true },
 ]
-
-export const kindOf = (p: Partition) => p.k ?? 'wall'
 
 /** Hauteur d'un demi-mur (les murs font 1) : il arrête les pas, pas le regard. */
 export const HALF_H = 0.5

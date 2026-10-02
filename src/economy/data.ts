@@ -8,8 +8,7 @@ import raw from './economy.json'
  * - start : prime de bienvenue d'un nouveau compte ;
  * - passive : revenu passif, payé à chaque battement (une fois par minute), `daily` minutes par jour ;
  * - items, skins : prix de déblocage des objets des quartiers et des apparences (cf. skins.ts) ;
- * - wings : prix des espaces d'extension des quartiers, du premier débloqué au dernier ;
- * - plot : prix des deux agrandissements de la parcelle du pont des quartiers (housing v2), dans l'ordre ;
+ * - plot : prix des deux agrandissements de la parcelle du pont des quartiers, dans l'ordre ;
  * - salvage : récompense d'une mission réussie en zone thargoïde, par membre (par colis, et bonus
  *   par ennemi au-delà du premier, cf. salvageReward dans shared/salvage.js) ; `daily` missions
  *   payées par jour, et aucune bouclée en moins de `minPerParcel` secondes par colis ;
@@ -71,7 +70,6 @@ interface Economy {
   passive: { perMinute: number; beat: number; minGap: number; maxGap: number; daily: number }
   items: Record<string, number>
   skins: Record<string, number>
-  wings: number[]
   plot?: number[]
   salvage: { parcel: number; enemyBonus: number; daily: number; minPerParcel: number }
   kitchen: JobRules
@@ -87,7 +85,6 @@ interface Economy {
 export const ECONOMY = raw as unknown as Economy
 
 /** Prix du prochain espace d'extension des quartiers, `owned` étant déjà débloqués ; null : plus rien à débloquer. */
-export const wingPrice = (owned: number): number | null => ECONOMY.wings?.[owned] ?? null
 
 /** Prix de l'agrandissement de la parcelle qui mène au palier `stage` (1 ou 2), ou null. */
 export const plotPrice = (stage: number): number | null => ECONOMY.plot?.[stage - 1] ?? null

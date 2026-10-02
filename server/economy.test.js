@@ -59,14 +59,14 @@ test('paliers d\'arcade et de sport : scores et primes croissants', () => {
   for (const sport of ['gym-run', 'gym-bike', 'gym-punch']) assert.equal(E.arcade.tiers[sport].reduce((n, [, cr]) => n + cr, 0), 3700)
 })
 
-test('progression : un équipage moyen se paie une extension en une semaine, les trois en deux mois', () => {
+test('progression : un équipage moyen se paie le premier agrandissement de sa parcelle en une semaine, les deux en un mois', () => {
   // Joueur « Équipage » : revenu passif, et la moitié des tâches qui apparaissent.
   const perHour = E.passive.perMinute * 60 + tasksPerHour() / 2
   const hours = (cost) => (cost - E.start) / perHour
-  const [first, second, third] = E.wings
-  assert.ok(hours(first) >= 2 && hours(first) <= 7, `première extension : ${hours(first).toFixed(1)} h`)
-  const all = hours(first + second + third)
-  assert.ok(all >= 20 && all <= 60, `trois extensions : ${all.toFixed(1)} h`)
+  const [first, second] = E.plot
+  assert.ok(hours(first) >= 2 && hours(first) <= 7, `premier agrandissement : ${hours(first).toFixed(1)} h`)
+  const all = hours(first + second)
+  assert.ok(all >= 8 && all <= 30, `les deux agrandissements : ${all.toFixed(1)} h`)
   // Et la prime de départ paie un animal tout de suite.
   assert.ok(E.start >= E.items['pet-chien'])
 })

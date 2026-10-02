@@ -8,8 +8,10 @@ import { SHIP_LAYOUTS } from '../../shared/ship-layouts.js'
 export type { Partition } from '../../shared/cabin-partitions.js'
 
 /*
- * Aménagement d'une cabine : la liste de ses objets, et les revêtements de ses murs et de son
- * sol. C'est ce qui est enregistré sur le site (outils/mini-shipinteriors-cabin.php) et envoyé
+ * Aménagement des anciens quartiers (format 1, du temps où ils étaient sur le pont supérieur) : la
+ * liste de leurs objets, et les revêtements de leurs murs et de leur sol. Plus rien ne les
+ * modifie, mais la parcelle de chacun en naît la première fois (cf. shared/housing-migrate.js),
+ * et son mobilier garde la forme de leurs objets (`CabinItem`). C'est ce qui est enregistré sur le site (outils/mini-shipinteriors-cabin.php) et envoyé
  * par le relais aux CMDR invités. Format compact, identique partout :
  * { v: 1, items: [{ m, x, z, r, v?, y?, s? }], wall?: { style, color }, floor?: { style, color },
  *   wings?: { left?: { shape, wall?, floor? }, middle?: …, right?: … }, partitions?: [{ x, z, e, k? }] }.
@@ -62,8 +64,8 @@ export interface CabinLayout {
 
 export const CABIN_FORMAT = 1
 /** Objets au plus dans les quartiers, Holo-Me compris, et dans chaque pièce d'extension. */
-export const ROOM_ITEMS = 64
-export const WING_ITEMS = 32
+const ROOM_ITEMS = 64
+const WING_ITEMS = 32
 /** Objets au plus en tout : les quartiers et trois extensions (même limite dans le relais et sur le site). */
 export const MAX_ITEMS = ROOM_ITEMS + WING_ITEMS * WING_SLOTS.length
 
@@ -78,7 +80,7 @@ export interface Rect {
 /**
  * Rectangle intérieur des anciens quartiers, sur le pont supérieur : c'est là que vivent les
  * aménagements au format 1, même quand les quartiers ont déménagé sur le pont des quartiers
- * (housing v2, cf. shared/housing-migrate.js).
+ * (cf. shared/housing-migrate.js).
  */
 export const LEGACY_BOUNDS: Rect = (() => {
   const tiles: { x: number; z: number }[] = []
@@ -129,36 +131,8 @@ export function cloneItems(items: CabinItem[]): CabinItem[] {
   return items.map((i) => ({ ...i }))
 }
 
-export function cloneLayout(layout: CabinLayout): CabinLayout {
-  const out: CabinLayout = { items: cloneItems(layout.items) }
-  if (layout.wall) out.wall = { ...layout.wall }
-  if (layout.floor) out.floor = { ...layout.floor }
-  if (layout.wings) out.wings = cloneWings(layout.wings)
-  if (layout.partitions?.length) out.partitions = layout.partitions.map((p) => ({ ...p }))
-  return out
-}
-
-/** Cloisons : même ensemble, même clé (l'ordre ne compte pas). */
-export const partitionsKey = (partitions: Partition[] | undefined) =>
-  (partitions ?? []).map((p) => `${p.x},${p.z},${p.e},${p.k ?? ''}`).sort().join('|')
-
-export function cloneWings(wings: CabinWings): CabinWings {
-  const out: CabinWings = {}
-  for (const [id, w] of Object.entries(wings) as [WingId, WingLayout][]) {
-    out[id] = { shape: w.shape, ...(w.wall ? { wall: { ...w.wall } } : {}), ...(w.floor ? { floor: { ...w.floor } } : {}) }
-  }
-  return out
-}
-
-/** Formes des pièces : même clé, mêmes pièces sur le plan (les revêtements n'y changent rien). */
-export const wingShapes = (wings: CabinWings | undefined) => WING_SLOTS.map((s) => wings?.[s.id]?.shape ?? '').join('|')
-
 export function sameItems(a: CabinItem[], b: CabinItem[]): boolean {
   return JSON.stringify(a) === JSON.stringify(b)
-}
-
-export function sameLayout(a: CabinLayout, b: CabinLayout): boolean {
-  return JSON.stringify(serializeLayout(a)) === JSON.stringify(serializeLayout(b))
 }
 
 /** Ce qui part au site et au relais. */

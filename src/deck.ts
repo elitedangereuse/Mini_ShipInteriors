@@ -294,8 +294,6 @@ export class Deck {
 
   /** Appelé quand une porte s'ouvre ou se ferme (position monde). */
   onDoor?: (position: THREE.Vector3, open: boolean) => void
-  /** Texte d'une porte verrouillée, s'il ne vient pas d'une pièce en travaux (extensions des quartiers). */
-  lockedText?: (x: number, z: number, dir: number) => string | undefined
   /** Repères des portes cachées par un mur ou un meuble (cf. door-hints.ts) ; faux en mode photo. */
   doorHints = true
 
@@ -856,7 +854,7 @@ export class Deck {
         object: panel,
         position: new THREE.Vector3(mx, 0, mz),
         label: tr('Examiner', 'Examine'),
-        text: () => this.lockedText?.(x, z, dir) ?? this.closedText(x, z, dir) ?? tr('Porte verrouillée.', 'Locked door.'),
+        text: () => this.closedText(x, z, dir) ?? tr('Porte verrouillée.', 'Locked door.'),
       }
       this.interactables.push(state.examine)
     }

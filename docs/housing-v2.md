@@ -275,8 +275,14 @@ Fait depuis, pour basculer :
    navigateur, lui sont confiées la première fois (`housing/storage.ts`) ; mobilier et
    construction sont de nouveau réservés aux CMDR connectés.
 
-Il reste à retirer le drapeau (`housing/flag.ts`), puis le code des anciens quartiers devenu
-inutile (extensions, cloisons, onglets « Murs et sol », « Cloisons » et « Pièces »).
+3. **La bascule** : le drapeau `?housing-v2` est retiré, le pont des quartiers est ouvert à tous.
+   Le code des anciens quartiers est parti avec lui : extensions (`src/cabin/wings.ts`, leurs
+   portes, leur prix), onglets « Murs et sol », « Cloisons » et « Pièces » du mode aménagement,
+   instance de la cabine du pont supérieur dans le relais. Restent, pour la migration des CMDR qui
+   ne sont pas encore revenus : le format 1 (`src/cabin/layout.ts`, et sa vérification sur le
+   site et dans le relais), `shared/cabin-wings.js` et `shared/cabin-partitions.js` (dont les murs
+   de la parcelle reprennent aussi la forme). Les mentions « derrière `?housing-v2` » plus haut
+   racontent l'histoire des lots.
 
 ## Décisions
 

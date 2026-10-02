@@ -14,10 +14,10 @@ import type { CabinEditor } from './cabin/editor'
 import type { HomeBuilder } from './housing/builder'
 import { HomeStore } from './housing/storage'
 import { CabinBar, InviteMenu, InviteToasts, type CrewEntry } from './cabin/hud'
-import { defaultLayout, LEGACY_BOUNDS, normalizeLayout, sameLayout, serializeLayout, type CabinItem, type CabinLayout } from './cabin/layout'
+import { defaultLayout, LEGACY_BOUNDS, normalizeLayout, serializeLayout, type CabinItem, type CabinLayout } from './cabin/layout'
 import { CabinStore, requestCabin, type SiteCabin } from './cabin/storage'
 import { devCmdr, devLjpc, devVoie, fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
-import { ECONOMY, formatCredits, skinPrice, wingPrice, type JobKind, plotPrice } from './economy/data'
+import { ECONOMY, formatCredits, skinPrice, type JobKind, plotPrice } from './economy/data'
 import { CreditsHud } from './economy/hud'
 import { taskOf } from './economy/schedule'
 import { allLooks, lookOwned, skinProduct, starterLook } from './economy/skins'
@@ -55,6 +55,7 @@ import { NURSE, Nurse, nurseRig, type NurseReport } from './nurse'
 import { DROID, MECHANIC, Mechanic, mechanicRig, type MechanicReport } from './mechanic'
 import { Hangar } from './hangar'
 import { GARDENER, Gardener, gardenerRig, type GardenerReport } from './gardener'
+import { GARDEN_LEVEL } from '../shared/gardener.js'
 import { Greenhouse } from './greenhouse'
 import { KRAIT_COCKPIT } from '../shared/mechanic.js'
 import { GroundBase } from './base/client'
@@ -72,7 +73,6 @@ import { Seating, type Seated } from './seating'
 import { Starfield } from './starfield'
 import { SystemView, SYSTEMS } from './systems'
 import { nextSystem, JUMP_CHARGE, JUMP_TRAVEL, type SystemId } from '../shared/systems.js'
-import { DEFAULT_PATTERN, WING_SLOTS, type WingId } from '../shared/cabin-wings.js'
 import { syncTempo, tempo } from './tempo'
 import { ToiletFlushes } from './toilet-flush'
 import { SalvageClient } from './salvage/client'
@@ -232,22 +232,20 @@ const voieEntrance = deckById(-1).map.doors.find((door) => {
 const voieDoorItem = voieEntrance && deckById(-1).doorExamine(voieEntrance.x, voieEntrance.z, voieEntrance.dir)
 const jacquesAt = deckById(-1).interactables.find((it) => it.furniture?.model === 'bartender')!.position
 
-// Les quartiers du commandant : la cabine du joueur, meublée selon son aménagement.
-const cabinDeck = decks.find((d) => d.cabin)!
-const cabin = cabinDeck.cabin!
 /**
- * Pont des quartiers (housing v2, derrière ?housing-v2) : la parcelle du joueur, bâtie en mode
- * construction (cf. housing/builder.ts) et gardée par le site avec ses quartiers (champ `home`,
- * cf. cabin/storage.ts).
+ * Pont des quartiers : la parcelle du joueur, bâtie en mode construction (cf. housing/builder.ts),
+ * meublée en mode aménagement (`cabin`, cf. cabin/editor.ts), et gardée par le site dans le champ
+ * `home` de ses anciens quartiers (cf. cabin/storage.ts).
  */
-const homeDeck = decks.find((d) => d.home)
+const homeDeck = decks.find((d) => d.home)!
+const cabin = homeDeck.cabin!
 /**
  * Sa parcelle (pendant une visite, le pont des quartiers montre celle de l'hôte, cf. showHome).
  * Celle d'un invité naît des quartiers d'origine, et ne s'enregistre pas.
  */
 let homePlan: HomePlan = unpackHome({ v: HOME_FORMAT })
-/** La parcelle à enregistrer avec ses quartiers (rien sans le pont des quartiers : le site garde la sienne). */
-const homePayload = () => (homeDeck ? packHome(homePlan) : undefined)
+/** La parcelle à enregistrer avec ses anciens quartiers. */
+const homePayload = () => packHome(homePlan)
 if (cabinStore) cabinStore.home = homePayload
 
 /**
@@ -269,15 +267,17 @@ function homeOf(raw: unknown, layout: CabinLayout, owner: string): { plan: HomeP
 function connectStore(store: CabinStore, site: SiteCabin | null): CabinLayout {
   const { layout: raw, upload } = store.connect(site)
   const layout = normalizeLayout(raw, LEGACY_BOUNDS)
-  const home = homeDeck ? homeOf(raw, layout, store.account) : null
-  if (home) homePlan = home.plan
-  if (upload || home?.fresh) store.save(layout)
+  const home = homeOf(raw, layout, store.account)
+  homePlan = home.plan
+  if (upload || home.fresh) store.save(layout)
   return layout
 }
 
 /**
- * Aménagement des quartiers du joueur : pour un CMDR, celui du site (en attendant sa réponse,
- * celui gardé dans ce navigateur) ; sinon, celui d'origine.
+ * Anciens quartiers du joueur (format 1, sur le pont supérieur d'avant le pont des quartiers) : ils
+ * ne changent plus, mais sa parcelle en naît la première fois, et le site les garde avec elle. Pour
+ * un CMDR, ceux du site (en attendant sa réponse, ceux gardés dans ce navigateur) ; sinon, ceux
+ * d'origine.
  */
 let ownLayout: CabinLayout = !cabinStore
   ? normalizeLayout(null, LEGACY_BOUNDS)
@@ -288,11 +288,11 @@ if (cabinStore && siteCabin === undefined) {
   const store = cabinStore
   void cabinRequest.then((site) => siteAnswered(store, site))
 }
-// Housing v2 : en attendant le site, la parcelle que ce navigateur connaît (elle n'est enregistrée
-// qu'à sa réponse, cf. siteAnswered) ; pour un invité, les quartiers d'origine transposés.
-if (homeDeck && !cabinStore?.ready) homePlan = cabinStore ? homeOf(cabinStore.localCopy, ownLayout, cabinStore.account).plan : migrateCabin(ownLayout)
-homeDeck?.home!.set(homePlan.stage ?? 0, homePlan)
-cabin.setLayout(homeDeck ? homeCabin(homePlan) : ownLayout)
+// En attendant le site, la parcelle que ce navigateur connaît (elle n'est enregistrée qu'à sa
+// réponse, cf. siteAnswered) ; pour un invité, les quartiers d'origine transposés.
+if (!cabinStore?.ready) homePlan = cabinStore ? homeOf(cabinStore.localCopy, ownLayout, cabinStore.account).plan : migrateCabin(ownLayout)
+homeDeck.home!.set(homePlan.stage ?? 0, homePlan)
+cabin.setLayout(homeCabin(homePlan))
 
 /** On se réveille à deux pas du Holo-Me : sur une tuile libre voisine, sinon sur sa plateforme. */
 function spawnPoint(): { x: number; z: number } {
@@ -300,7 +300,7 @@ function spawnPoint(): { x: number; z: number } {
   if (!h) return SPAWN
   const hx = Math.round(h.x), hz = Math.round(h.z)
   for (const [dx, dz] of [[-1, -1], [0, -1], [-1, 0], [1, -1], [-1, 1], [1, 0], [0, 1], [1, 1]]) {
-    if (cabinDeck.pathfinder.walkable(hx + dx, hz + dz)) return { x: hx + dx, z: hz + dz }
+    if (homeDeck.pathfinder.walkable(hx + dx, hz + dz)) return { x: hx + dx, z: hz + dz }
   }
   return { x: h.x, z: h.z }
 }
@@ -322,12 +322,12 @@ function resumePoint(): { deck: Deck; x: number; z: number; yaw: number } | null
 }
 const resumed = resumePoint()
 
-let deck = resumed?.deck ?? cabinDeck
+let deck = resumed?.deck ?? homeDeck
 /**
  * Pont affiché : celui du joueur, ou la baie de la zone thargoïde quand un capturé suit son
  * équipe par les caméras (le joueur, lui, reste au lobby).
  */
-let viewDeck = cabinDeck
+let viewDeck = homeDeck
 /** Zone thargoïde : lobby, mission, caméras (créée une fois le relais prêt, cf. plus bas). */
 let salvage: SalvageClient | null = null
 
@@ -383,7 +383,7 @@ const seating = new Seating({
 
 // Comète vit près de son panier ; sans panier dans les quartiers affichés, il n'est pas là
 // (on peut le remplacer par un autre compagnon, cf. syncCompanions).
-const catDeck = cabinDeck
+const catDeck = homeDeck
 const basket = cabin.items.find((i) => i.m === 'cat-bed') ?? CAT_SPAWN
 /** Gamelles posées dans les quartiers affichés : les animaux y passent manger. */
 const petBowls = () => cabin.items.filter((i) => i.m === 'pet-bowl').map(({ x, z }) => ({ x, z }))
@@ -585,13 +585,8 @@ function applyLights() {
     }
   }
 }
-cabin.onLights = () => {
-  if (viewDeck === cabinDeck) applyLights()
-}
-if (homeDeck) {
-  homeDeck.home!.onLights = () => {
-    if (viewDeck === homeDeck) applyLights()
-  }
+cabin.onLights = homeDeck.home!.onLights = () => {
+  if (viewDeck === homeDeck) applyLights()
 }
 /** Phrase d'une interaction (une au hasard dans une liste). */
 function showText(text: Interactable['text']) {
@@ -609,7 +604,7 @@ cabin.onEmote = (id, text) => {
 cabin.onMusic = (position, text, model) => {
   if (model === 'jukebox') return openJukebox('cabin', position)
   const b = beatAt(holoTime.value)
-  sound.groove(new THREE.Vector3(position.x, cabinDeck.y + 0.6, position.z), ((Math.ceil(b) - b) * 60) / tempo.bpm, tempo.bpm)
+  sound.groove(new THREE.Vector3(position.x, homeDeck.y + 0.6, position.z), ((Math.ceil(b) - b) * 60) / tempo.bpm, tempo.bpm)
   showText(text)
 }
 
@@ -723,12 +718,12 @@ const sergeant = new Patroller(await soldierRig(), patrolDeck)
 /** Ce que le sergent sait du bord : le système, et les tâches en attente sur les ponts. */
 function shipReport(): ShipReport {
   const tasks = [...board.live.values()]
-  const quarters = cabinDeck.def.cabin?.room
+  const quarters = homeDeck.def.cabin?.room
   return {
     system: SYSTEMS[systemView.id].name,
     room: patrolDeck.roomName(sergeant.position.x, sergeant.position.z),
     deck: tasks.filter((t) => t.deck === patrolDeck).map((t) => ({ kind: t.spot.task, room: patrolDeck.roomName(t.item.position.x, t.item.position.z) })),
-    quarters: tasks.filter((t) => t.deck === cabinDeck && cabinDeck.map.room(Math.round(t.item.position.x), Math.round(t.item.position.z)) === quarters).map((t) => t.spot.task),
+    quarters: tasks.filter((t) => t.deck === homeDeck && homeDeck.map.room(Math.round(t.item.position.x), Math.round(t.item.position.z)) === quarters).map((t) => t.spot.task),
     hold: tasks.filter((t) => t.deck.def.id === -1).length,
   }
 }
@@ -1000,9 +995,11 @@ mechanic.onWork = (work) => {
 
 // Capucine, la jardinière, fait la tournée de la serre du pont supérieur (cf. gardener.ts) ; à la
 // grainothèque, on prend une fiche de culture avec elle (cf. greenhouse.ts).
-const gardener = new Gardener(await gardenerRig(), cabinDeck)
+/** Pont de la serre (le pont supérieur). */
+const gardenDeck = deckById(GARDEN_LEVEL)
+const gardener = new Gardener(await gardenerRig(), gardenDeck)
 const greenhouse = new Greenhouse({
-  deck: cabinDeck,
+  deck: gardenDeck,
   gardener,
   player,
   here: () => deck,
@@ -1014,13 +1011,13 @@ const greenhouse = new Greenhouse({
   reward: `+${formatCredits(ECONOMY.garden.reward)}`,
   requested: () => wallet.startJob('garden'),
   finished: () => void payJob('garden'),
-  work: (job) => startWork({ ...job, deck: cabinDeck }),
+  work: (job) => startWork({ ...job, deck: gardenDeck }),
 })
 /** Ce que la jardinière sait quand on lui parle : le système, nos fiches de culture. */
 function gardenerReport(): GardenerReport {
   return { system: SYSTEMS[systemView.id].name, done: greenhouse.done }
 }
-cabinDeck.interactables.push({
+gardenDeck.interactables.push({
   object: gardener.root,
   position: gardener.position,
   label: tr(`Parler à ${GARDENER}`, `Talk to ${GARDENER}`),
@@ -1033,16 +1030,16 @@ cabinDeck.interactables.push({
     dialog.show(tr(`${GARDENER} : « ${line} »`, `${GARDENER}: “${line}”`))
   },
 })
-bubbles.attach('gardener', (out) => (cabinDeck.group.visible ? gardener.avatar.head(out) : null))
+bubbles.attach('gardener', (out) => (gardenDeck.group.visible ? gardener.avatar.head(out) : null))
 gardener.onBark = (text) => {
-  if (cabinDeck === deck) bubbles.say('gardener', text)
+  if (gardenDeck === deck) bubbles.say('gardener', text)
 }
 gardener.onStep = () => {
-  if (cabinDeck === deck) sound.play('softStep', gardener.root.getWorldPosition(new THREE.Vector3()), { volume: 0.06, rate: 1.1 })
+  if (gardenDeck === deck) sound.play('softStep', gardener.root.getWorldPosition(new THREE.Vector3()), { volume: 0.06, rate: 1.1 })
 }
 gardener.onWork = (work) => {
-  if (cabinDeck !== deck) return
-  const at = gardener.root.getWorldPosition(new THREE.Vector3()).setY(cabinDeck.y + 0.45)
+  if (gardenDeck !== deck) return
+  const at = gardener.root.getWorldPosition(new THREE.Vector3()).setY(gardenDeck.y + 0.45)
   if (work === 'water') sound.work('water', at)
   else if (work === 'trim' || work === 'harvest') sound.work('chop', at)
   else if (work === 'feed') sound.work('munch', at)
@@ -1114,17 +1111,17 @@ async function addCompanion(key: string, item: CabinItem) {
   if (!r || companions.has(key) || !wantedCompanions().has(key)) return
   // Perchoir et ruche ont un mât au milieu : l'animal apparaît au pied.
   const aside = species.home === 'perch' || species.home === 'hive' ? 0.3 : 0
-  const pet = new Cat(r, cabinDeck, item.x, item.z + aside, { name: species.name, scale: species.scale, bowls: petBowls })
+  const pet = new Cat(r, homeDeck, item.x, item.z + aside, { name: species.name, scale: species.scale, bowls: petBowls })
   unstick(pet.root.position, 0.12)
   const bubble = `pet:${key}`
   const say = (happy: boolean) => {
-    if (cabinDeck !== deck) return
-    sound.critter(species.voice, pet.root.getWorldPosition(new THREE.Vector3()).setY(cabinDeck.y + 0.3))
+    if (homeDeck !== deck) return
+    sound.critter(species.voice, pet.root.getWorldPosition(new THREE.Vector3()).setY(homeDeck.y + 0.3))
     bubbles.say(bubble, species.says[happy ? species.says.length - 1 : 0], happy ? 'heart' : undefined)
   }
   pet.onMeow = say
   pet.onStep = () => {
-    if (cabinDeck === deck) sound.play('catStep', pet.root.getWorldPosition(new THREE.Vector3()), { volume: 0.03, rate: 1.6 * (0.26 / species.scale) })
+    if (homeDeck === deck) sound.play('catStep', pet.root.getWorldPosition(new THREE.Vector3()), { volume: 0.03, rate: 1.6 * (0.26 / species.scale) })
   }
   const interactable: Interactable = {
     object: pet.root,
@@ -1136,8 +1133,8 @@ async function addCompanion(key: string, item: CabinItem) {
       pet.pet(player.position)
     },
   }
-  cabinDeck.interactables.push(interactable)
-  bubbles.attach(bubble, (out) => (cabinDeck.group.visible ? pet.root.getWorldPosition(out).setY(out.y + 0.5) : null))
+  homeDeck.interactables.push(interactable)
+  bubbles.attach(bubble, (out) => (homeDeck.group.visible ? pet.root.getWorldPosition(out).setY(out.y + 0.5) : null))
   companions.set(key, { species, pet, interactable })
 }
 
@@ -1145,8 +1142,8 @@ function removeCompanion(key: string) {
   const c = companions.get(key)
   if (!c) return
   c.pet.root.removeFromParent()
-  const i = cabinDeck.interactables.indexOf(c.interactable)
-  if (i >= 0) cabinDeck.interactables.splice(i, 1)
+  const i = homeDeck.interactables.indexOf(c.interactable)
+  if (i >= 0) homeDeck.interactables.splice(i, 1)
   bubbles.detach(`pet:${key}`)
   companions.delete(key)
 }
@@ -1438,7 +1435,7 @@ net.onMessage = (m) => {
         nurse.greet(r.group.position, false)
       }
       if (m.emote === 'o7' && r.level === holdDeck.def.id) mechanic.greet(r.group.position, false)
-      if (m.emote === 'o7' && r.level === cabinDeck.def.id) gardener.greet(r.group.position, false)
+      if (m.emote === 'o7' && r.level === gardenDeck.def.id) gardener.greet(r.group.position, false)
       const def = EMOTES.find((e) => e.id === m.emote)
       if (def && r.level === deck.def.id) bubbles.emote(`p${m.id}`, def.icon)
       break
@@ -1494,7 +1491,7 @@ net.onMessage = (m) => {
     case 'gardener':
       // Quelqu'un parle à la jardinière ou l'aide (nous aussi : le relais recale sa tournée).
       gardener.sync(m)
-      if (m.id !== net.id && cabinDeck === deck && m.hold > 0 && m.help === 0) bubbles.say('gardener', '…')
+      if (m.id !== net.id && gardenDeck === deck && m.hold > 0 && m.help === 0) bubbles.say('gardener', '…')
       break
     case 'chief':
       // Quelqu'un parle à Ada, ou met les gaz sur l'aire de la base (nous aussi : le relais recale sa ronde).
@@ -1556,7 +1553,7 @@ net.onMessage = (m) => {
         const host = visiting?.name ?? remotes.get(entering ?? -1)?.name ?? tr('Votre hôte', 'Your host')
         // Entrée refusée : on reste où l'on est (chez soi, ou chez un autre hôte).
         if (m.expired) {
-          if (joining !== null && (invitesFrom.get(joining) ?? 0) < Date.now() && homeDeck) {
+          if (joining !== null && (invitesFrom.get(joining) ?? 0) < Date.now()) {
             chat.add('system', tr('Ces quartiers sont sur invitation : il faut y être invité.', 'These quarters are invite-only: you need an invitation.'))
           } else if (joining !== null) chat.add('system', tr('Cette invitation a expiré.', 'This invitation has expired.'))
         } else if (m.cabin !== net.id) void enterVisit(m.cabin)
@@ -1828,7 +1825,7 @@ let jukeboxWhere: JukeboxWhere = 'deck'
 
 /** Place (monde) d'un jukebox : au pont principal, à la cale, ou dans les quartiers. */
 function jukeboxAt(where: JukeboxWhere, x: number, z: number): THREE.Vector3 {
-  return new THREE.Vector3(x, (where === 'cabin' ? cabinDeck.y : deckById(JUKEBOX_DECKS[where]).y) + 0.7, z)
+  return new THREE.Vector3(x, (where === 'cabin' ? homeDeck.y : deckById(JUKEBOX_DECKS[where]).y) + 0.7, z)
 }
 
 /** Ce que joue un jukebox selon le relais : un morceau, à sa position et à sa place, ou le silence. */
@@ -1908,7 +1905,7 @@ scene.add(liftRide.group)
 
 function openLift() {
   // Au pont des quartiers, ses quartiers et ceux qu'on peut visiter.
-  lift.open(LEVELS, deck.def.id, (id) => void ride(id), homeDeck ? { under: HOUSING_LEVEL, list: homeStops() } : undefined)
+  lift.open(LEVELS, deck.def.id, (id) => void ride(id), { under: HOUSING_LEVEL, list: homeStops() })
 }
 for (const d of decks) if (d.liftInteractable) d.liftInteractable.onInteract = openLift
 
@@ -1972,20 +1969,14 @@ function loadEditor(): Promise<void> {
       iso,
       sound,
       onChange: (layout) => {
-        // Housing v2 : le mobilier de la parcelle, gardé avec elle (les anciens quartiers ne bougent plus).
-        if (homeDeck) {
-          homePlan = { ...homePlan, items: layout.items }
-          saveHome()
-        } else {
-          ownLayout = layout
-          cabinStore?.save(layout)
-        }
+        // Le mobilier de la parcelle est gardé avec elle.
+        homePlan = { ...homePlan, items: layout.items }
+        saveHome()
         if (verified) net.sendCabin(cabinPayload())
       },
       onClose: () => closeEditor(),
       wallet,
-      player: player.position,
-      build: homeDeck ? () => switchHomeMode('build') : undefined,
+      build: () => switchHomeMode('build'),
     })
   })
   return editorLoading
@@ -2001,7 +1992,7 @@ function adoptAccount() {
   const store = (cabinStore = new CabinStore(profile.name.replace(/^CMDR /, '')))
   store.home = homePayload
   const layout = normalizeLayout(store.localCopy, LEGACY_BOUNDS)
-  if (homeDeck) homePlan = homeOf(store.localCopy, layout, store.account).plan
+  homePlan = homeOf(store.localCopy, layout, store.account).plan
   setOwnLayout(layout)
   void requestCabin().then((site) => siteAnswered(store, site))
 }
@@ -2009,34 +2000,24 @@ function adoptAccount() {
 /** Le site répond en cours de partie : ses quartiers remplacent ceux montrés en attendant. */
 function siteAnswered(store: CabinStore, site: SiteCabin | null) {
   if (cabinStore !== store) return
-  // Housing v2 : sa parcelle arrive avec eux (cf. connectStore).
+  // Sa parcelle arrive avec eux (cf. connectStore).
   setOwnLayout(connectStore(store, site))
   // Un agrandissement acheté avant cette réponse s'applique à la parcelle arrivée.
   syncStage()
-  reconcileWings()
 }
 
-/**
- * Aménagement de ses quartiers venu d'ailleurs que du mode aménagement (qui attend le site). Sur
- * le pont des quartiers, sa parcelle a pu changer avec lui : on la montre dans tous les cas.
- */
+/** Ses anciens quartiers, et sa parcelle avec eux, viennent d'arriver (du site, ou de ce navigateur). */
 function setOwnLayout(layout: CabinLayout) {
-  if (!homeDeck && sameLayout(layout, ownLayout)) return
   ownLayout = layout
   if (verified) net.sendCabin(cabinPayload())
   if (!visiting) showCabin()
 }
 
-/** Position dans la cabine (le bon pont, la bonne pièce) ? */
-function inCabin(level: number, x: number, z: number): boolean {
-  return level === cabinDeck.def.id && cabin.contains(x, z)
-}
-
-/** @param tab onglet à ouvrir : « Pièces » depuis la porte d'un espace d'extension */
-async function openEditor(tab?: 'rooms') {
+/** Mode aménagement : le mobilier de sa parcelle. */
+async function openEditor() {
   if (editing() || riding || photo.active) return
-  // Housing v2 : sur le pont des quartiers, on rouvre le dernier mode (mobilier ou construction).
-  if (homeDeck && deck === homeDeck && homeMode === 'build') return openBuilder()
+  // On rouvre le dernier mode (mobilier ou construction).
+  if (deck === homeDeck && homeMode === 'build') return openBuilder()
   if (visiting) return chat.add('system', tr(`Vous êtes en visite chez ${visiting.name} : on n'aménage que chez soi.`, `You're visiting ${visiting.name}: you can only decorate your own quarters.`))
   if (!canDecorate()) return
   await loadSiteArt()
@@ -2044,15 +2025,11 @@ async function openEditor(tab?: 'rooms') {
   if (!editor) {
     await loadEditor()
     // On a pu partir (ascenseur, invitation) pendant le chargement.
-    if (!editor || editing() || riding || visiting || photo.active || !(inCabin(deck.def.id, player.position.x, player.position.z) || deck === homeDeck)) return
+    if (!editor || editing() || riding || visiting || photo.active || deck !== homeDeck) return
   }
   const store = cabinStore
   const ed = editor
-  if (!inCabin(deck.def.id, player.position.x, player.position.z) && !(homeDeck && deck === homeDeck)) {
-    return chat.add('system', homeDeck
-      ? tr('On aménage ses quartiers depuis ses quartiers, sur le pont des quartiers.', 'You decorate your quarters from inside them, on the quarters deck.')
-      : tr('On aménage ses quartiers depuis ses quartiers, sur le pont supérieur.', 'You decorate your quarters from inside them, on the upper deck.'))
-  }
+  if (deck !== homeDeck) return chat.add('system', tr('On aménage ses quartiers depuis ses quartiers, sur le pont des quartiers.', 'You decorate your quarters from inside them, on the quarters deck.'))
   lift.close()
   jukebox.close()
   wardrobe.close(false)
@@ -2062,7 +2039,7 @@ async function openEditor(tab?: 'rooms') {
   editZoom = iso.zoomLevel
   iso.setRestElevation(editElevation)
   document.body.classList.add('editing')
-  ed.start(homeDeck ? homeCabin(homePlan) : ownLayout, tab)
+  ed.start(homeCabin(homePlan))
   ed.reframe(player.position)
   if (!store) ed.setSaveState('local')
   else {
@@ -2100,7 +2077,7 @@ function switchHomeMode(mode: 'furnish' | 'build') {
 
 /** Mode construction : sur le pont des quartiers, chez soi. */
 async function openBuilder() {
-  if (!homeDeck || editing() || riding || photo.active || deck !== homeDeck) return
+  if (editing() || riding || photo.active || deck !== homeDeck) return
   if (visiting) return chat.add('system', tr(`Vous êtes en visite chez ${visiting.name} : on n'aménage que chez soi.`, `You're visiting ${visiting.name}: you can only decorate your own quarters.`))
   if (!canDecorate()) return
   builderLoading ??= import('./housing/builder').then(({ HomeBuilder, BUILD_ELEVATION }) => {
@@ -2171,60 +2148,12 @@ function closeEditor() {
   iso.zoomTo(editZoom)
   document.body.classList.remove('editing')
   renderer.domElement.style.cursor = 'default'
-  unstick(player.position, 0.18)
+  unstickHome(player.position, 0.18)
   unstick(cat.root.position, 0.12)
   for (const c of companions.values()) unstick(c.pet.root.position, 0.12)
   void cabinStore?.flush()
 }
 cabinBar.onEdit = () => void openEditor()
-
-// ------------------------------------------------------------------ extensions des quartiers
-
-/** Espace d'extension dont la porte est sur ce bord de tuile. */
-const wingAtDoor = (x: number, z: number, dir: number) => WING_SLOTS.find((s) => s.door.x === x && s.door.z === z && s.door.dir === dir)
-const WING_DOOR_NAMES: Record<WingId, string> = { left: tr('gauche', 'left'), middle: tr('du milieu', 'middle'), right: tr('droite', 'right') }
-
-/** Porte fermée d'un espace : chez un hôte, un espace qu'il n'a pas aménagé ; chez soi, l'extension à débloquer. */
-cabinDeck.lockedText = (x, z, dir) => {
-  const slot = wingAtDoor(x, z, dir)
-  if (!slot) return undefined
-  if (visiting) return tr('Porte fermée : votre hôte n\'a pas encore aménagé cet espace.', 'Closed door: your host has not fitted out this space yet.')
-  if (!linked) return tr('Porte fermée : une extension des quartiers, réservée aux CMDR connectés à elitedangereuse.fr.', 'Closed door: a quarters extension, for CMDRs logged in to elitedangereuse.fr.')
-  const price = wingPrice(wallet.wings.size)
-  return tr(
-    `Extension ${WING_DOOR_NAMES[slot.id]} de vos quartiers${price ? ` : ${formatCredits(price)}` : ''}. Débloquez-la depuis le mode aménagement, onglet « Pièces ».`,
-    `Your quarters' ${WING_DOOR_NAMES[slot.id]} extension${price ? `: ${formatCredits(price)}` : ''}. Unlock it from the decorating mode, “Rooms” tab.`,
-  )
-}
-for (const slot of WING_SLOTS) {
-  const it = cabinDeck.doorExamine(slot.door.x, slot.door.z, slot.door.dir)
-  // Chez soi, la porte mène droit à l'onglet « Pièces » ; ailleurs, on lit ce qu'elle dit.
-  if (it) it.onInteract = () => (!visiting && linked ? void openEditor('rooms') : showText(it.text))
-}
-
-/**
- * Les pièces de ses quartiers suivent les espaces débloqués sur le site : un espace acheté
- * (ailleurs, ou avant un enregistrement manqué) reçoit une pièce de la forme par défaut, une pièce
- * sans espace débloqué disparaît (le site la refuserait).
- */
-function reconcileWings() {
-  if (!wallet.ready || !cabinStore?.ready || editing()) return
-  const wings = { ...(ownLayout.wings ?? {}) }
-  let changed = false
-  for (const slot of WING_SLOTS) {
-    const owned = wallet.wings.has(slot.id)
-    if (owned === !!wings[slot.id]) continue
-    if (owned) wings[slot.id] = { shape: DEFAULT_PATTERN }
-    else delete wings[slot.id]
-    changed = true
-  }
-  if (!changed) return
-  const next: CabinLayout = { ...ownLayout, wings }
-  if (!Object.keys(wings).length) delete next.wings
-  cabinStore.save(next)
-  setOwnLayout(next)
-}
-wallet.subscribe(reconcileWings)
 
 // ------------------------------------------------------------------ visites
 
@@ -2258,50 +2187,46 @@ const inviteToasts = new InviteToasts()
 const myCabin = () => visiting?.host ?? net.id
 
 /**
- * Un autre joueur est-il visible ? Dans des quartiers, seulement s'il est dans la même instance,
- * et de même partout sur le pont des quartiers (chacun y est dans sa bulle).
+ * Un autre joueur est-il visible ? Sur le pont des quartiers, seulement s'il est dans la même
+ * instance (chacun y est dans sa bulle).
  */
 function sees(r: RemotePlayer): boolean {
   // Dans la baie infestée (ou par les caméras) : seulement ses coéquipiers, hors des casiers.
   if (r.level === ZONE_LEVEL) return !!viewDeck.def.zone && !!salvage?.sees(r.id)
   if (r.level !== viewDeck.def.id || viewDeck !== deck) return false
-  if (r.level === HOUSING_LEVEL) return r.cabin === myCabin()
-  return !inCabin(r.level, r.group.position.x, r.group.position.z) || r.cabin === myCabin()
+  return r.level !== HOUSING_LEVEL || r.cabin === myCabin()
 }
 
 /** Aménagement affiché : celui de l'hôte pendant une visite, le sien sinon. */
 function showCabin() {
-  // Housing v2 : la parcelle (sa taille, ses murs) d'abord, puis son mobilier.
-  if (homeDeck) {
-    showHome()
-    cabin.setLayout(homeCabin(shownPlan()))
-  } else cabin.setLayout(visiting ? normalizeLayout(hostLayouts.get(visiting.host) ?? null, LEGACY_BOUNDS) : ownLayout)
+  // La parcelle (sa taille, ses murs) d'abord, puis son mobilier.
+  showHome()
+  cabin.setLayout(homeCabin(shownPlan()))
   // Le jukebox du panneau a pu bouger, disparaître, ou être celui de l'hôte qui nous raccompagne.
   if (jukeboxWhere === 'cabin') jukebox.close()
   // Assis sur un meuble des quartiers : on retrouve sa place, ou l'on se relève s'il a bougé.
   seating.relink()
-  // La pièce d'extension où l'on se tenait (celle de l'hôte, ou une forme changée) n'existe plus :
-  // on revient dans les quartiers, au plus près, plutôt que de flotter dans le vide.
-  if (deck === cabinDeck && !cabinDeck.map.isFloor(Math.round(player.position.x), Math.round(player.position.z))) {
+  // La parcelle affichée est plus petite que celle où l'on se tenait (celle de l'hôte, la sienne) :
+  // on revient dessus, au plus près, plutôt que de flotter dans le vide.
+  if (deck === homeDeck && !homeDeck.map.isFloor(Math.round(player.position.x), Math.round(player.position.z))) {
     seating.leave()
     player.cancelPath()
     marker.visible = false
     const t = nearestCabinTile(player.position)
-    if (t) player.position.set(t.x, cabinDeck.y, t.z)
+    if (t) player.position.set(t.x, homeDeck.y, t.z)
   }
   // Un meuble a pu apparaître sous nos pieds (ou sous les pattes de Comète).
-  if (deck === cabinDeck && !seating.current) unstick(player.position, 0.18)
+  if (deck === homeDeck && !seating.current) unstick(player.position, 0.18)
   unstick(cat.root.position, 0.12)
   syncCompanions()
   for (const c of companions.values()) unstick(c.pet.root.position, 0.12)
 }
 
 /**
- * Parcelle affichée sur le pont des quartiers (housing v2) : celle de l'hôte pendant une visite
+ * Parcelle affichée sur le pont des quartiers : celle de l'hôte pendant une visite
  * (reçue avec son aménagement), la sienne sinon.
  */
 function showHome() {
-  if (!homeDeck) return
   const plan = shownPlan()
   homeDeck.home!.set(plan.stage ?? 0, plan)
   // Un mur a pu pousser sous nos pieds.
@@ -2335,7 +2260,6 @@ function ownStage(): number {
 
 /** Le palier a changé (achat, extensions reconnues) : la parcelle grandit, chez soi et chez ses visiteurs. */
 function syncStage() {
-  if (!homeDeck) return
   const stage = ownStage()
   if (stage === (homePlan.stage ?? 0)) return
   homePlan = { ...homePlan, stage }
@@ -2346,15 +2270,15 @@ function syncStage() {
 }
 wallet.subscribe(syncStage)
 
-/** Ce que le relais garde de ses quartiers : l'aménagement, et la parcelle (housing v2). */
+/** Ce que le relais garde de ses quartiers : ses anciens quartiers, et sa parcelle. */
 function cabinPayload() {
   const home = homePayload()
-  return home ? { ...serializeLayout(ownLayout), home } : serializeLayout(ownLayout)
+  return { ...serializeLayout(ownLayout), home }
 }
 
 /** Ouvrir ses quartiers (chacun peut venir) ou les remettre sur invitation (ceux qui y sont restent). */
 function toggleOpen() {
-  if (!homeDeck || !verified) return
+  if (!verified) return
   homePlan = { ...homePlan, open: !homePlan.open }
   saveHome()
   net.sendCabin(cabinPayload())
@@ -2366,7 +2290,7 @@ cabinBar.onToggleOpen = toggleOpen
 
 /** Aller voir des quartiers ouverts (ou où l'on est invité) : le relais nous y fait entrer. */
 function visitHost(host: number) {
-  if (!homeDeck || visiting?.host === host) return
+  if (visiting?.host === host) return
   if (!net.online) return chat.add('system', tr('Hors ligne : pas de visite sans liaison avec le relais.', 'Offline: no visits without the relay.'))
   joining = host
   net.sendVisit(host)
@@ -2374,7 +2298,6 @@ function visitHost(host: number) {
 
 /** Rentrer dans ses quartiers, sur le pont des quartiers : la visite prend fin, l'ascenseur y monte. */
 function goHomeQuarters() {
-  if (!homeDeck) return
   if (visiting) {
     net.sendVisit(null)
     leaveVisit(BACK_HOME)
@@ -2404,7 +2327,7 @@ function crew(): CrewEntry[] {
     name: r.name,
     state: r.cabin === net.id ? 'visiting' : (invitedAt.get(r.id) ?? 0) > Date.now() ? 'invited' : 'free',
     // Sur le pont des quartiers, on peut aller voir ceux qui sont ouverts.
-    open: !!homeDeck && r.open && visiting?.host !== r.id,
+    open: r.open && visiting?.host !== r.id,
   }))
 }
 
@@ -2466,17 +2389,10 @@ async function enterVisit(host: number) {
   // Raccompagné (ou hôte parti) pendant le fondu : on n'entre pas.
   if (seq === visitSeq) {
     visiting = { host, name }
-    if (homeDeck) {
-      // Housing v2 : sur le palier de l'ascenseur, au pont des quartiers, face à la porte de la parcelle.
-      if (deck !== homeDeck) setDeck(homeDeck)
-      player.position.set(LIFT.x, homeDeck.y, LIFT.z)
-      player.setHeading(Math.PI / 2)
-    } else {
-      if (deck !== cabinDeck) setDeck(cabinDeck)
-      const door = cabin.def.door
-      player.position.set(door.x, cabinDeck.y, door.z + 0.25)
-      player.setHeading(0)
-    }
+    // Sur le palier de l'ascenseur, au pont des quartiers, face à la porte de la parcelle.
+    if (deck !== homeDeck) setDeck(homeDeck)
+    player.position.set(LIFT.x, homeDeck.y, LIFT.z)
+    player.setHeading(Math.PI / 2)
     showCabin()
     iso.snapTo(player.position)
     net.sendState({ x: player.position.x, z: player.position.z, yaw: player.heading, level: deck.def.id, anim: 'idle' }, Infinity)
@@ -2507,7 +2423,7 @@ function leaveVisit(message?: string, home = false) {
   }
   if (was && message) chat.add('system', message)
   // Sur le pont des quartiers, sa propre parcelle a remplacé celle de l'hôte : on repart du palier.
-  if (inside && (home || (!!homeDeck && deck === homeDeck))) void bringHome()
+  if (inside && (home || deck === homeDeck)) void bringHome()
 }
 
 /** Retour dans ses quartiers, à deux pas du Holo-Me, le temps d'un fondu. */
@@ -2525,11 +2441,11 @@ async function bringHome() {
   await fadeScreen(true)
   // Invité ailleurs pendant le fondu : on laisse faire l'entrée.
   if (seq === visitSeq && !visiting) {
-    if (homeDeck && deck === homeDeck) player.position.set(LIFT.x, homeDeck.y, LIFT.z)
+    if (deck === homeDeck) player.position.set(LIFT.x, homeDeck.y, LIFT.z)
     else {
-      if (deck !== cabinDeck) setDeck(cabinDeck)
+      setDeck(homeDeck)
       const s = spawnPoint()
-      player.position.set(s.x, cabinDeck.y, s.z)
+      player.position.set(s.x, homeDeck.y, s.z)
     }
     iso.snapTo(player.position)
     sendState(true)
@@ -2569,7 +2485,7 @@ addEventListener(
  * proche, ou, à défaut, rejoint la tuile libre la plus proche de la cabine.
  */
 function unstick(p: THREE.Vector3, r: number) {
-  const colliders = cabinDeck.colliders
+  const colliders = homeDeck.colliders
   if (!overlapsAny(p, r, colliders)) return
   const q = { x: p.x, z: p.z }
   resolveCircle(q, r, colliders)
@@ -2587,7 +2503,7 @@ function unstick(p: THREE.Vector3, r: number) {
 
 /** Un mur posé sur le joueur (mode construction) : on le pousse hors du mur, ou sur la case libre la plus proche. */
 function unstickHome(p: THREE.Vector3, r: number) {
-  if (!homeDeck || deck !== homeDeck) return
+  if (deck !== homeDeck) return
   const colliders = homeDeck.colliders
   if (!overlapsAny(p, r, colliders)) return
   const q = { x: p.x, z: p.z }
@@ -2611,7 +2527,7 @@ function unstickHome(p: THREE.Vector3, r: number) {
 function nearestCabinTile(p: { x: number; z: number }): { x: number; z: number } | null {
   let best: { x: number; z: number } | null = null
   for (const t of cabin.tiles) {
-    if (cabinDeck.pathfinder.walkable(t.x, t.z) && (!best || Math.hypot(t.x - p.x, t.z - p.z) < Math.hypot(best.x - p.x, best.z - p.z))) best = t
+    if (homeDeck.pathfinder.walkable(t.x, t.z) && (!best || Math.hypot(t.x - p.x, t.z - p.z) < Math.hypot(best.x - p.x, best.z - p.z))) best = t
   }
   return best
 }
@@ -3263,7 +3179,7 @@ function inSight(item: Interactable): boolean {
 function nearestInteractable(): Interactable | null {
   // Pendant une révision du Krait, le poste de l'étape passe avant les meubles voisins (une cale
   // du train est plus près du chariot à outils que le chariot lui-même, d'où l'on se tient).
-  const job = deck === holdDeck ? hangar.target : deck === cabinDeck ? greenhouse.target : null
+  const job = deck === holdDeck ? hangar.target : deck === gardenDeck ? greenhouse.target : null
   if (job && distanceTo(job) < INTERACT_RANGE && inSight(job)) return job
   let best: Interactable | null = null
   let bestD = INTERACT_RANGE
@@ -4072,7 +3988,7 @@ function frame() {
   studio.onAir = studioLive()
   if (cometeHere) cat.update(world, catDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
   syncCompanions()
-  for (const c of companions.values()) c.pet.update(world, cabinDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
+  for (const c of companions.values()) c.pet.update(world, homeDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
   moustache.update(world, labDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
   sergeant.update(world, patrolDeck === deck ? player.position : null, player.avatar.emoteId)
   chef.update(world, patrolDeck === deck ? player.position : null, player.avatar.emoteId)
@@ -4080,7 +3996,7 @@ function frame() {
   infirmary.update()
   mechanic.update(world, holdDeck === deck ? player.position : null, player.avatar.emoteId)
   hangar.update(world)
-  gardener.update(world, cabinDeck === deck ? player.position : null, player.avatar.emoteId)
+  gardener.update(world, gardenDeck === deck ? player.position : null, player.avatar.emoteId)
   greenhouse.update(world)
   // Réacteurs du Krait en route : leur grondement dans la cale, et la vue qui tremble (vue isométrique).
   const roaring = hangar.engines && holdDeck === deck
@@ -4146,9 +4062,9 @@ function frame() {
   if (cometeHere) actors.get(catDeck)!.push(cat.root.position)
   actors.get(patrolDeck)!.push(sergeant.position, chef.position, nurse.position)
   actors.get(holdDeck)!.push(mechanic.position)
-  actors.get(cabinDeck)!.push(gardener.position)
+  actors.get(gardenDeck)!.push(gardener.position)
   if (groundBase.deck && groundBase.chief) actors.get(groundBase.deck)?.push(groundBase.chief.position)
-  for (const c of companions.values()) actors.get(cabinDeck)!.push(c.pet.root.position)
+  for (const c of companions.values()) actors.get(homeDeck)!.push(c.pet.root.position)
   // Un joueur d'une autre instance des quartiers n'ouvre pas nos portes.
   for (const r of remotes.values()) if (r.group.visible || r.level !== deck.def.id) actors.get(deckById(r.level))?.push(r.group.position)
   const keep = seating.current ? (seating.current.item.keep ?? seating.current.item.position) : null
@@ -4157,7 +4073,7 @@ function frame() {
     // Le plafond cacherait tout, vu de haut : on ne le voit que de l'intérieur.
     d.ceiling.visible = fpsShown
     d.tallDoors = fpsShown
-    d.update(world, actors.get(d)!, d === viewDeck ? player.position : null, toCam, editing() && (d === cabinDeck || d === homeDeck), keep, dt)
+    d.update(world, actors.get(d)!, d === viewDeck ? player.position : null, toCam, editing() && d === homeDeck, keep, dt)
   }
   firstPersonGlass(fpsShown)
   // Filet de sécurité : ni le joueur ni la vue ne restent sur une baie démontée (l'écran serait
@@ -4224,20 +4140,19 @@ function frame() {
   }
 
   // Pièce courante.
-  const here = inCabin(deck.def.id, player.position.x, player.position.z)
   // Sur le pont des quartiers, on est chez soi (ou chez son hôte) partout.
-  const onHome = !!homeDeck && deck === homeDeck
-  const name = visiting && (here || onHome) ? tr(`Quartiers de ${visiting.name}`, `${visiting.name}'s quarters`) : deck.roomName(player.position.x, player.position.z)
+  const name = visiting && deck === homeDeck ? tr(`Quartiers de ${visiting.name}`, `${visiting.name}'s quarters`) : deck.roomName(player.position.x, player.position.z)
   if (name !== currentRoom) {
     currentRoom = name
     roomEl.textContent = name
   }
 
-  // Dans ses quartiers : de quoi les aménager. En visite, jusque dans la coursive : de quoi rentrer.
+  // Dans ses quartiers : de quoi les aménager (un invité : de quoi se connecter). En visite, sur les autres ponts aussi : de quoi rentrer.
+  const onHome = deck === homeDeck
   cabinBar.set(
-    editing() ? null : visiting ? { kind: 'visit', host: visiting.name, inside: here || onHome } : onHome ? { kind: 'own', canEdit: true, canInvite: verified && net.online, open: verified ? !!homePlan.open : undefined } : !here ? null : { kind: 'own', canEdit: linked, canInvite: verified && net.online, loginUrl: loginUrl() },
+    editing() ? null : visiting ? { kind: 'visit', host: visiting.name, inside: onHome } : !onHome ? null : { kind: 'own', canEdit: linked, canInvite: verified && net.online, open: verified ? !!homePlan.open : undefined, loginUrl: loginUrl() },
   )
-  if (!here && !onHome && inviteMenu.isOpen) inviteMenu.close()
+  if (!onHome && inviteMenu.isOpen) inviteMenu.close()
 
   // Invite « E » au-dessus de l'objet le plus proche ; installé sur un meuble, au-dessus du
   // personnage : se relever (et ce que permet la place).
@@ -4272,7 +4187,7 @@ function frame() {
   if (jukebox.isOpen && jukeboxNear && Math.hypot(player.position.x - jukeboxNear.x, player.position.z - jukeboxNear.z) > 2) jukebox.close()
   // Chaque jukebox remplit sa pièce en stéréo ; derrière une cloison, il reste sourd et lointain.
   // Un autre pont est silencieux. Le repère des pièces suit la carte du pont, portes comprises.
-  for (const [music, source] of [[deckMusic, deckById(0)], [holdMusic, deckById(-1)], [cabinMusic, cabinDeck]] as const) {
+  for (const [music, source] of [[deckMusic, deckById(0)], [holdMusic, deckById(-1)], [cabinMusic, homeDeck]] as const) {
     const playing = music.playing
     const jukeboxRoom = playing && source.map.room(Math.round(playing.x), Math.round(playing.z))
     const playerRoom = source === deck ? source.map.room(Math.round(player.position.x), Math.round(player.position.z)) : null

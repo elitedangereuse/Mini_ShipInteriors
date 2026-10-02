@@ -7,10 +7,9 @@ import { entryOf, isSolid, type CatalogEntry } from './catalog'
 import type { CabinItem, Partition } from './layout'
 import { partitionCenter } from './partitions'
 import type { CabinView } from './view'
-import { isDoor, MAX_PARTITIONS, partitionEdge } from '../../shared/cabin-partitions.js'
 
 /*
- * Règles de pose du mode aménagement : un objet doit tenir dans la cabine (ou sur un pan de
+ * Règles de pose du mode aménagement : un objet doit tenir sur la parcelle (ou sur un pan de
  * mur libre), ne pas en traverser un autre, laisser la porte dégagée, et le Holo-Me doit rester
  * accessible depuis la porte. Quelques tolérances rendent l'aménagement naturel : un tapis
  * passe sous les meubles, un objet se pose sur le dessus d'un meuble, une affiche peut dépasser
@@ -129,13 +128,8 @@ export function refusal(view: CabinView, items: CabinItem[], i: number, moving: 
     if (view.posts.some((p) => overlapXZ(box, p))) return tr('Pas de place contre ce poteau', 'No room against this post')
   }
 
-  // Chaque pièce a son plafond d'objets : les quartiers, et chaque pièce d'extension.
-  const room = view.roomAt(item.x, item.z)
-  if (room) {
-    const cap = view.roomCap(room)
-    const count = items.filter((it) => view.roomAt(it.x, it.z) === room).length
-    if (count > cap) return tr(`Pièce pleine : ${cap} objets au plus`, `Room full: ${cap} items at most`)
-  }
+  // La parcelle a son plafond d'objets, qui grandit avec elle.
+  if (items.length > view.capacity) return tr(`Quartiers pleins : ${view.capacity} objets au plus`, `Quarters full: ${view.capacity} items at most`)
 
   const surfaces = surfacesOf(view, items)
   const base = baseOf(view, items, i, surfaces)
@@ -159,22 +153,21 @@ export function refusal(view: CabinView, items: CabinItem[], i: number, moving: 
   if (entry.mount !== 'wall' && entry.mount !== 'flat' && !(item.y ?? 0) && box.min.y < HEADROOM) {
     const d = view.def.door
     if (overlapXZ(box, { minX: d.x - 0.45, maxX: d.x + 0.45, minZ: d.z - 0.45, maxZ: d.z + 0.45 })) return tr('Laissez le passage de la porte libre', 'Keep the doorway clear')
-    if (view.partitionDoorways.some((w) => overlapXZ(box, w))) return tr('Laissez le passage de la porte libre', 'Keep the doorway clear')
   }
   if ((isSolid(entry) || entry.fixed) && !holoReachable(view, items)) return tr('Le Holo-Me doit rester accessible depuis la porte', 'The Holo-Me must stay reachable from the door')
   return null
 }
 
-// ---------------------------------------------------------------- cloisons
+// ---------------------------------------------------------------- murs de la parcelle
 
-/** Emprise d'une cloison au sol (coordonnées du pont), poteaux d'angle compris. */
+/** Emprise d'un mur au sol (coordonnées du pont), poteaux d'angle compris. */
 export function partitionBox(p: Partition): { minX: number; maxX: number; minZ: number; maxZ: number } {
   const { cx, cz, alongX } = partitionCenter(p)
   const a = 0.5, t = 0.16
   return alongX ? { minX: cx - a, maxX: cx + a, minZ: cz - t, maxZ: cz + t } : { minX: cx - t, maxX: cx + t, minZ: cz - a, maxZ: cz + a }
 }
 
-/** Objets accrochés au pan de la cloison `p` (et ce qui est posé dessus) : ils partent avec lui. */
+/** Objets accrochés au pan du mur `p` (et ce qui est posé dessus) : ils partent avec lui. */
 export function hangingOn(view: CabinView, items: CabinItem[], p: Partition): number[] {
   const { cx, cz, alongX } = partitionCenter(p)
   const out = new Set<number>()
@@ -190,40 +183,4 @@ export function hangingOn(view: CabinView, items: CabinItem[], p: Partition): nu
     for (const r of ridersOf(view, items, i)) out.add(r)
   })
   return [...out]
-}
-
-/**
- * Raison pour laquelle on ne peut pas poser la cloison `p` (texte montré au joueur), ou null.
- * @param next toutes les cloisons une fois `p` posée
- * @param replacing la cloison qu'elle remplace sur la même arête (un mur devenu porte…)
- * @param leaving objets qui partiront avec l'ancienne cloison (cf. hangingOn) : ils ne gênent pas
- */
-export function partitionRefusal(view: CabinView, items: CabinItem[], next: Partition[], p: Partition, replacing?: Partition, leaving: number[] = []): string | null {
-  const map = view.deck.map
-  if (!replacing) {
-    const { x, z, dir, nx, nz } = partitionEdge(p)
-    if (!view.contains(x, z) || !view.contains(nx, nz) || map.room(x, z) !== map.room(nx, nz)) {
-      return tr('Posez-la entre deux tuiles d\'une même pièce', 'Place it between two tiles of the same room')
-    }
-    if (map.edge(x, z, dir) !== 'open') return tr('Il y a déjà un mur ici', 'There is already a wall here')
-    if (next.length > MAX_PARTITIONS) return tr(`${MAX_PARTITIONS} cloisons au plus`, `${MAX_PARTITIONS} partitions at most`)
-  }
-  const wall = partitionBox(p)
-  const door = isDoor(p) ? view.partitionDoorwayOf(p) : null
-  const box = new THREE.Box3()
-  const gone = new Set(leaving)
-  for (let i = 0; i < items.length; i++) {
-    const entry = entryOf(items[i].m)
-    if (!entry || gone.has(i) || entry.mount === 'flat' || !view.boxOf(items[i], box)) continue
-    if (overlapXZ(box, wall) && box.min.y < 1) return tr(`Un meuble est dans le passage (${entry.name.toLowerCase()})`, `A piece of furniture is in the way (${entry.name.toLowerCase()})`)
-    if (door && entry.mount !== 'wall' && !(items[i].y ?? 0) && box.min.y < HEADROOM && isSolid(entry) && overlapXZ(box, door)) {
-      return tr(`Laissez le passage de la porte libre (${entry.name.toLowerCase()})`, `Keep the doorway clear (${entry.name.toLowerCase()})`)
-    }
-  }
-  const kept = items.filter((_, i) => !gone.has(i))
-  return view.withPartitions(next, () => {
-    if (!view.reachableAll()) return tr('Chaque partie des quartiers doit rester accessible : ajoutez une porte', 'Every part of the quarters must stay reachable: add a door')
-    if (!holoReachable(view, kept)) return tr('Le Holo-Me doit rester accessible depuis la porte', 'The Holo-Me must stay reachable from the door')
-    return null
-  })
 }
