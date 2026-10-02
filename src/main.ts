@@ -27,7 +27,7 @@ import { TASK_INFO, TaskBoard, type LiveTask, type WorkSound } from './economy/t
 import { Wallet } from './economy/wallet'
 import { Sound } from './audio'
 import { Avatar, EMOTES } from './avatar'
-import { IsoCamera } from './camera'
+import { IsoCamera, ZOOM_MAX } from './camera'
 import { FirstPersonCamera } from './fps'
 import { Cat } from './cat'
 import { MAX_PETS, petRig, speciesOfItem, type Species } from './pets'
@@ -63,7 +63,7 @@ import { KRAIT_COCKPIT } from '../shared/mechanic.js'
 import { GroundBase } from './base/client'
 import { CHIEF } from './base/chief'
 import { BASE_COCKPIT, BASE_LEVEL } from '../shared/ground-base.js'
-import { HOUSING_LEVEL } from '../shared/housing-plot.js'
+import { HOUSING_LEVEL, plotRect } from '../shared/housing-plot.js'
 import { HOME_FORMAT, packHome, unpackHome, type HomePlan } from '../shared/housing-home.js'
 import { migrateCabin, stageFromWings } from '../shared/housing-migrate.js'
 import { entryOf } from './cabin/catalog'
@@ -73,7 +73,8 @@ import { menuOf } from './menu'
 import { RemotePlayer } from './remote'
 import { Seating, type Seated } from './seating'
 import { Starfield } from './starfield'
-import { SystemView, SYSTEMS } from './systems'
+import { SystemView, SYSTEMS, type HullSides } from './systems'
+import { Traffic } from './traffic'
 import { nextSystem, JUMP_CHARGE, JUMP_TRAVEL, type SystemId } from '../shared/systems.js'
 import { syncTempo, tempo } from './tempo'
 import { ToiletFlushes } from './toilet-flush'
@@ -338,6 +339,17 @@ scene.add(stars.group)
 /** Le système où se trouve le vaisseau, vu par les verrières (il change au saut FSD). */
 const systemView = new SystemView()
 scene.add(systemView.group)
+/** Les vaisseaux qui croisent le long de la coque. */
+const traffic = new Traffic()
+scene.add(traffic.group)
+/** Bords de la coque sous les ponts : elle déborde d'une tuile autour du plus large (cf. hull.ts). */
+const SHIP_SIDES = { north: -1.5, south: Math.max(...decks.filter((d) => !d.home).map((d) => d.map.height)) + 0.5 }
+/** Bords de ce qui porte le pont affiché : la coque, ou le socle de la parcelle aux quartiers. */
+function hullSides(): HullSides {
+  if (!deck.home) return SHIP_SIDES
+  const r = plotRect(deck.home.stage)
+  return { north: r.minZ - 1.5, south: r.maxZ + 1.5 }
+}
 
 const player = new Player(new Avatar(await lookRig(parseLook(profile.skin))), deck.colliders)
 player.doorways = () => deck.doorways()
@@ -652,7 +664,7 @@ function setView(next: Deck) {
   for (const h of hums) sound.fade(h.gain, h.deck === viewDeck ? h.volume : 0)
   // La baie infestée est hors du vaisseau : ni étoiles, ni système par les verrières. Sur la base
   // au sol, le ciel de la planète (un fond CSS, cf. body.planet).
-  stars.group.visible = systemView.group.visible = !viewDeck.def.zone && !viewDeck.def.ground
+  stars.group.visible = systemView.group.visible = traffic.group.visible = !viewDeck.def.zone && !viewDeck.def.ground
   document.body.classList.toggle('planet', !!viewDeck.def.ground)
 }
 setDeck(deck)
@@ -2186,7 +2198,7 @@ function closeEditor() {
   if (builder?.active) {
     builder.stop()
     iso.setRestElevation(null)
-    iso.zoomMax = 14
+    iso.zoomMax = ZOOM_MAX
     iso.zoomTo(editZoom)
     document.body.classList.remove('editing')
     renderer.domElement.style.cursor = 'default'
@@ -2197,7 +2209,7 @@ function closeEditor() {
   if (!editor?.active) return
   editor.stop()
   iso.setRestElevation(null)
-  iso.zoomMax = 14
+  iso.zoomMax = ZOOM_MAX
   iso.zoomTo(editZoom)
   document.body.classList.remove('editing')
   renderer.domElement.style.cursor = 'default'
@@ -3844,6 +3856,7 @@ async function playJump(system: SystemId, by: string | null) {
   stars.warp(55)
   systemView.hide(true)
   iso.shake(0.16)
+  traffic.hide(true)
   dialog.show(tr('Saut !', 'Jump!'))
   flushCrew()
   await wait(JUMP_TRAVEL * 1000)
@@ -3851,6 +3864,7 @@ async function playJump(system: SystemId, by: string | null) {
   systemView.set(system)
   systemView.hide(false)
   flash(true)
+  traffic.hide(false)
   dialog.show(flushLanded
     ? tr(`Arrivée : ${name}… et vous, dans la cale. ${FLUSH_MORAL}`, `Arrived: ${name}… and you, in the hold. ${FLUSH_MORAL}`)
     : tr(`Arrivée : ${name}. ${arrival}`, `Arrived: ${name}. ${arrival}`))
@@ -4134,10 +4148,9 @@ const photo = new PhotoMode({
   rotate: (step) => iso.rotate(step),
   zoom: (factor) => iso.zoomBy(factor),
   onToggle: (on) => {
-    // Plus près en photo (jusqu'au visage), plus loin aussi (tout le pont).
+    // Plus près en photo (jusqu'au visage) ; pas plus loin qu'en jeu.
     iso.zoomMin = on ? 1.1 : 2.5
-    iso.zoomMax = on ? 18 : 14
-    if (!on) iso.zoomTo(THREE.MathUtils.clamp(iso.zoomLevel, 2.5, 14))
+    if (!on) iso.zoomBy(1)
     // Un trajet commencé avant s'arrête là : à l'arrivée, une borne ou un panneau s'ouvrirait
     // par-dessus le mode photo.
     if (on) player.cancelPath()
@@ -4363,7 +4376,9 @@ function frame() {
   if (!viewDeck.def.zone && !viewDeck.def.ground) {
     const eye = fpsShown ? fps.camera.position : null
     stars.update(world, iso.target, toCam, iso.tilt, eye)
-    systemView.update(world, deck.y, iso.target, toCam, iso.tilt, eye)
+    const sides = hullSides()
+    systemView.update(world, deck.y, sides, iso.target, toCam, iso.tilt, eye)
+    traffic.update(world, deck.y, sides, eye ?? iso.target)
   }
   sound.update(fpsShown ? fps.listener : iso.target, view().angle)
   ambience(dt)
@@ -4530,6 +4545,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder } },
+    __game: { renderer, sound, player, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder } },
   })
 }

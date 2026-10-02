@@ -25,24 +25,30 @@ export const COBRA_EDGES: [number, number][] = [
   [0, 7], [1, 7], [3, 7], [4, 7],
 ]
 
-/** Géométrie en facettes (normales à plat), faces tournées vers l'extérieur. */
-export function cobraGeometry(): THREE.BufferGeometry {
-  const v = COBRA_VERTICES.map(([x, y, z]) => new THREE.Vector3(x, y, z))
-  const inside = new THREE.Vector3(0, 0.03, -0.05)
+/**
+ * Coque en facettes (normales à plat, faces tournées vers l'extérieur) : un contour à plat, relié
+ * à une arête dessus et une dessous. Sert aussi aux vaisseaux du trafic (cf. traffic.ts).
+ */
+export function wedgeGeometry(outline: [number, number, number][], top: [number, number, number], bottom: [number, number, number]): THREE.BufferGeometry {
+  const v = [...outline, top, bottom].map(([x, y, z]) => new THREE.Vector3(x, y, z))
+  const n = outline.length
+  const inside = new THREE.Vector3().addVectors(v[n], v[n + 1]).multiplyScalar(0.5)
   const pos: number[] = []
   const tri = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3) => {
-    const n = new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a))
+    const normal = new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a))
     const centroid = new THREE.Vector3().add(a).add(b).add(c).divideScalar(3)
-    if (n.dot(centroid.sub(inside)) < 0) [b, c] = [c, b]
+    if (normal.dot(centroid.sub(inside)) < 0) [b, c] = [c, b]
     pos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z)
   }
-  for (let i = 0; i < OUTLINE.length; i++) {
-    const j = (i + 1) % OUTLINE.length
-    tri(v[i], v[j], v[6])
-    tri(v[i], v[j], v[7])
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n
+    tri(v[i], v[j], v[n])
+    tri(v[i], v[j], v[n + 1])
   }
   const g = new THREE.BufferGeometry()
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
   g.computeVertexNormals()
   return g
 }
+
+export const cobraGeometry = () => wedgeGeometry(OUTLINE, TOP, BOTTOM)

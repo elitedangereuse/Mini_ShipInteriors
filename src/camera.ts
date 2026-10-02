@@ -8,8 +8,17 @@ const MAX_ELEVATION = THREE.MathUtils.degToRad(80)
 /** Azimut des vues isométriques : 45° + un quart de tour entier. */
 const ISO_AZIMUTH = Math.PI / 4
 const QUARTER = Math.PI / 2
-/** Caméra libre : on ne s'éloigne pas du personnage de plus de ce rayon (en tuiles). */
-const MAX_PAN = 14
+/**
+ * Caméra libre : on ne s'éloigne pas du personnage de plus de ce rayon (en tuiles), le reste du pont
+ * reste hors champ.
+ */
+const MAX_PAN = 4
+/**
+ * Zoom le plus éloigné en jeu : la pièce où l'on est et un bout de ses voisines, jamais le vaisseau
+ * entier. Vaut pour un écran large ; plus étroit, on garde la même surface de pont (cf. farthest).
+ */
+export const ZOOM_MAX = 6
+const WIDE_ASPECT = 16 / 9
 const DISTANCE = 60
 
 const _v = new THREE.Vector3()
@@ -57,6 +66,7 @@ export class IsoCamera {
 
   resize(aspect: number) {
     this.aspect = aspect
+    this.zoomGoal = Math.min(this.zoomGoal, this.farthest)
     this.applyFrustum()
   }
 
@@ -132,16 +142,27 @@ export class IsoCamera {
     return this.zoomGoal
   }
 
-  /** Zoom le plus rapproché à la molette (le mode photo va plus près), et le plus éloigné. */
+  /**
+   * Zoom le plus rapproché à la molette (le mode photo va plus près), et le plus éloigné (le mode
+   * aménagement va plus loin, pour cadrer la parcelle).
+   */
   zoomMin = 2.5
-  zoomMax = 14
+  zoomMax = ZOOM_MAX
+
+  /**
+   * Zoom le plus éloigné sur cet écran : le zoom est une demi-hauteur, un écran en hauteur
+   * (téléphone) ne verrait que trois tuiles de large ; il recule jusqu'à voir autant de pont.
+   */
+  private get farthest(): number {
+    return this.zoomMax * Math.max(1, Math.sqrt(WIDE_ASPECT / this.aspect))
+  }
 
   zoomTo(z: number) {
-    this.zoomGoal = THREE.MathUtils.clamp(z, Math.min(2, this.zoomMin), this.zoomMax)
+    this.zoomGoal = THREE.MathUtils.clamp(z, Math.min(2, this.zoomMin), this.farthest)
   }
 
   zoomBy(factor: number) {
-    this.zoomGoal = THREE.MathUtils.clamp(this.zoomGoal * factor, this.zoomMin, this.zoomMax)
+    this.zoomGoal = THREE.MathUtils.clamp(this.zoomGoal * factor, this.zoomMin, this.farthest)
   }
 
   /** Direction horizontale (normalisée) de la scène vers la caméra. */
