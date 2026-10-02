@@ -5,24 +5,66 @@
 // quels, décalés d'un bloc. La porte des quartiers, qui donnait au nord sur la coursive, donne
 // maintenant sur la parcelle, qu'on rejoint par le palier de l'ascenseur.
 //
-// Les extensions achetées offrent les agrandissements (décision Q4) : une, le premier ; deux ou
-// trois, les deux. La construction tient alors toujours dans la parcelle.
+// Les extensions achetées offrent un agrandissement (décision Q4) : la plus petite parcelle où les
+// quartiers et ces extensions tiennent avec leur accès, quelle que soit la forme de leurs pièces
+// (cf. stageFromWings). Rien n'est retiré.
 
-import { applyWings, WING_ROOMS, WING_SLOTS } from './cabin-wings.js'
+import { applyWings, slotOf, WING_ROOMS, WING_SIZE, WING_SLOTS } from './cabin-wings.js'
 import { applyPartitions, CABIN_ROOM, partitionKey } from './cabin-partitions.js'
 import { CELLS, cellIndex } from './housing-home.js'
+import { PLOT_DOOR, PLOT_ORIGIN, PLOT_SIZES, plotStage } from './housing-plot.js'
 import { SHIP_LAYOUTS, shipMapOptions } from './ship-layouts.js'
 import { ShipMap } from './ship-map.js'
 
-/** Palier d'agrandissement offert par les extensions achetées : une → 1, deux ou trois → 2. */
-export const stageFromWings = (count) => (count >= 2 ? 2 : count >= 1 ? 1 : 0)
+/** Emprise des anciens quartiers sans extension (tuiles), sur le pont supérieur. */
+const CABIN_BOX = { minX: 8, maxX: 15, minZ: 6, maxZ: 10 }
 
 /**
- * Décalage des anciens quartiers dans la parcelle : sans extension, au milieu de la parcelle de
- * départ ; avec, assez loin à l'est pour que l'extension de gauche tienne. Dans les deux cas, un
- * couloir libre longe le palier et mène à la porte, au nord.
+ * Palier offert par les extensions achetées : le plus petit où les quartiers et ces extensions
+ * tiennent avec leur accès, chaque pièce d'extension prise pleine (WING_SIZE de côté), quelle que
+ * soit sa forme. Seuls, les quartiers tiennent dans la parcelle de départ ; avec l'extension du
+ * milieu, 12 × 12 ; avec celle de gauche ou de droite (le milieu en plus ou non), 15 × 15 ; avec
+ * les deux, 20 × 20. Le site applique le même tableau.
+ * @param {Iterable<string>} ids extensions achetées ('left', 'middle', 'right')
  */
-export const migrationOffset = (wings) => ({ dx: wings ? 10 : 5, dz: -3 })
+export function stageFromWings(ids) {
+  const box = { ...CABIN_BOX }
+  for (const id of ids) {
+    const slot = slotOf(id)
+    if (!slot) continue
+    box.minX = Math.min(box.minX, slot.x0), box.maxX = Math.max(box.maxX, slot.x0 + WING_SIZE - 1)
+    box.minZ = Math.min(box.minZ, slot.z0), box.maxZ = Math.max(box.maxZ, slot.z0 + WING_SIZE - 1)
+  }
+  return migrationPlace(box, 0).stage
+}
+
+/**
+ * Où poser les anciens quartiers (emprise `box`, en tuiles), et sur quelle parcelle : la plus
+ * petite, à partir du palier `stage` (celui des extensions), où ils tiennent avec leur accès.
+ * D'abord tels quels : une colonne libre longe le palier, une rangée libre passe au nord devant
+ * la porte des quartiers (la rangée du haut de l'emprise), la construction est centrée dans le
+ * reste. Sinon, tournés d'un demi-tour (`half`) contre le bord nord, s'ils laissent libre la
+ * rangée du palier : leur porte donne alors au sud, sur la bande où arrive l'ascenseur. C'est le
+ * cas des quartiers seuls (8 × 5) dans la parcelle de départ (8 × 8).
+ * Le demi-tour se fait autour du centre de l'emprise, puis le décalage (dx, dz).
+ * @param {{ minX: number, maxX: number, minZ: number, maxZ: number }} box
+ */
+export function migrationPlace(box, stage) {
+  const w = box.maxX - box.minX + 1, h = box.maxZ - box.minZ + 1
+  for (let s = plotStage(stage); ; s++) {
+    const size = PLOT_SIZES[s]
+    if (Math.max(w, h) + 1 <= size || s === PLOT_SIZES.length - 1) {
+      const free = size - 1
+      const left = PLOT_ORIGIN.x + 1 + Math.max(0, Math.floor((free - w) / 2))
+      const top = PLOT_ORIGIN.z + 1 + Math.max(0, Math.floor((free - h) / 2))
+      return { dx: left - box.minX, dz: top - box.minZ, stage: s, half: false }
+    }
+    if (w <= size && h <= PLOT_DOOR.z - PLOT_ORIGIN.z) {
+      const left = PLOT_ORIGIN.x + Math.floor((size - w) / 2)
+      return { dx: left - box.minX, dz: PLOT_ORIGIN.z - box.minZ, stage: s, half: true }
+    }
+  }
+}
 
 /** Porte des quartiers sur la coursive (tuile des quartiers, et bord nord). */
 const CABIN_DOOR = { x: 11, z: 6, dir: 0 }
@@ -52,7 +94,19 @@ export function migrateCabin(layout) {
   const letters = new Set([CABIN_ROOM, ...owned.map((s) => WING_ROOMS[s.id]).join('')])
   const partitions = applyPartitions(map, layout.partitions ?? [], (room) => letters.has(room))
   const kinds = new Map(partitions.map((p) => [partitionKey(p), p.k]))
-  const { dx, dz } = migrationOffset(owned.length > 0)
+  const box = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity }
+  for (let z = 0; z < map.height; z++) {
+    for (let x = 0; x < map.width; x++) {
+      if (!letters.has(map.room(x, z) ?? '')) continue
+      box.minX = Math.min(box.minX, x), box.maxX = Math.max(box.maxX, x)
+      box.minZ = Math.min(box.minZ, z), box.maxZ = Math.max(box.maxZ, z)
+    }
+  }
+  const { dx, dz, stage, half } = migrationPlace(box, stageFromWings(owned.map((s) => s.id)))
+  // Une tuile, un point et un bord des anciens quartiers, une fois posés (cf. migrationPlace).
+  const sx = box.minX + box.maxX, sz = box.minZ + box.maxZ
+  const at = (x, z) => (half ? { x: sx - x + dx, z: sz - z + dz } : { x: x + dx, z: z + dz })
+  const turn = (dir) => (half ? (dir + 2) % 4 : dir)
 
   /** Revêtements de la pièce d'une lettre : les quartiers, ou la pièce d'une extension. */
   const finishes = (room) => {
@@ -68,12 +122,13 @@ export function migrateCabin(layout) {
       const room = map.room(x, z)
       if (!room || !letters.has(room)) continue
       const f = finishes(room)
-      if (f.floor) floor[cellIndex(x + dx, z + dz)] = { style: f.floor.style, color: f.floor.color }
+      const t = at(x, z)
+      if (f.floor) floor[cellIndex(t.x, t.z)] = { style: f.floor.style, color: f.floor.color }
       for (let dir = 0; dir < 4; dir++) {
         const kind = map.edge(x, z, dir)
         if (kind === 'open') continue
         const old = edgeOf(x, z, dir)
-        const { wall, side } = edgeOf(x + dx, z + dz, dir)
+        const { wall, side } = edgeOf(t.x, t.z, turn(dir))
         const key = partitionKey(wall)
         let w = walls.get(key)
         if (!w) {
@@ -87,10 +142,15 @@ export function migrateCabin(layout) {
     }
   }
   // La porte des quartiers, qui donnait sur la coursive : coulissante, comme toutes celles du vaisseau.
-  const door = edgeOf(CABIN_DOOR.x + dx, CABIN_DOOR.z + dz, CABIN_DOOR.dir).wall
+  const entry = at(CABIN_DOOR.x, CABIN_DOOR.z)
+  const door = edgeOf(entry.x, entry.z, turn(CABIN_DOOR.dir)).wall
   walls.get(partitionKey(door)).k ??= 'sliding'
 
-  const items = layout.items.map((it) => ({ ...it, x: Math.round((it.x + dx) * 1000) / 1000, z: Math.round((it.z + dz) * 1000) / 1000 }))
-  const stage = stageFromWings(owned.length)
+  const items = layout.items.map((it) => {
+    const p = at(it.x, it.z)
+    return { ...it, x: Math.round(p.x * 1000) / 1000, z: Math.round(p.z * 1000) / 1000, r: half ? (it.r + 2) % 4 : it.r }
+  })
+  // Contre le palier, c'est son mur qui tient lieu de celui des quartiers (cf. applyWalls) ; on
+  // garde le leur, qui revient si on les éloigne (cf. moveBlock).
   return { walls: [...walls.values()], floor, items, ...(stage ? { stage } : {}) }
 }

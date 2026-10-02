@@ -1,7 +1,7 @@
 {
   "start": 30000,
   "passive": { "perMinute": 100, "beat": 60, "minGap": 50, "maxGap": 120, "daily": 240 },
-  "plot": [100000, 250000],
+  "plot": [100000, 250000, 500000],
   "salvage": { "parcel": 1000, "enemyBonus": 0.3, "daily": 5, "minPerParcel": 15 },
   "kitchen": { "reward": 600, "minGap": 60, "minTime": 15, "daily": 12 },
   "hangar": { "reward": 800, "minGap": 90, "minTime": 15, "daily": 8 },

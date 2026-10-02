@@ -11,10 +11,10 @@ import { partitionEdge, partitionKey } from '../../shared/cabin-partitions.js'
 /*
  * La parcelle affichée sur le pont des quartiers (housing v2) : sa taille (palier
  * d'agrandissement), ses murs, posés sur le plan du pont (cf. shared/housing-home.js) et
- * construits comme les cloisons des quartiers (cf. cabin/partitions.ts, sans haut de mur : il n'y
- * a pas de plafond sous la bulle), le papier peint de chacune de leurs faces, et le revêtement de
- * chaque case du sol. Le champ de force n'est tendu que sur les arêtes du pourtour qu'aucun mur ne
- * remplace.
+ * construits comme les cloisons des quartiers (cf. cabin/partitions.ts ; en vue subjective, ils
+ * montent jusqu'à la verrière de la bulle, cf. plot.ts), le papier peint de chacune de leurs
+ * faces, et le revêtement de chaque case du sol. Le champ de force n'est tendu que sur les arêtes
+ * du pourtour qu'aucun mur ne remplace.
  *
  * Les revêtements sont dessinés par le jeu (cf. cabin/finishes.ts) : une texture et un matériau
  * par motif et couleur en usage, partagés par toutes les faces et les cases qui les portent.
@@ -131,7 +131,7 @@ export class HomeView {
       const f = p[side]
       return f ? this.material('wall', f) : undefined
     }
-    const shell = (this.shell = new PartitionShell(deck, this.placed, { walls: deck.walls, posts: deck.posts }, false, paper))
+    const shell = (this.shell = new PartitionShell(deck, this.placed, { walls: deck.walls, posts: deck.posts }, true, paper))
     deck.group.add(shell.group)
     const walled = new Set(this.placed.map((w) => {
       const { x, z, dir } = partitionEdge(w)

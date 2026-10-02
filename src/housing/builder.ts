@@ -9,13 +9,13 @@ import { drawPartition, HALF_H, PARTITION_KINDS, partitionCenter } from '../cabi
 import { FINISH_THUMB, paintThumb, stylesOf, styleOf, type Slot } from '../cabin/finishes'
 import { clonePlan, sameFinish } from './home'
 import { entryOf } from '../cabin/catalog'
-import { hangingOn, partitionBox } from '../cabin/rules'
+import { baseOf, clash, hangingOn, partitionBox, surfacesOf } from '../cabin/rules'
 import { partitionEdge, partitionKey } from '../../shared/cabin-partitions.js'
 import {
-  cellAt, cellIndex, finishCounts, HOME_DOOR_KINDS, isHomeDoor, MAX_FINISHES, MAX_HOME_WALLS, STAGE_ITEMS, wallRefusal,
-  type HomeFinish, type HomePlan, type PlanWall, type WallRefusal,
+  blockOf, blockRefusal, cellAt, cellIndex, finishCounts, HOME_DOOR_KINDS, isHomeDoor, MAX_FINISHES, MAX_HOME_WALLS, moveBlock, shiftBlock,
+  STAGE_ITEMS, wallRefusal, type HomeBlock, type HomeFinish, type HomeItem, type HomePlan, type PlanWall, type WallRefusal,
 } from '../../shared/housing-home.js'
-import { inPlot, LANDING_ROOM, PLOT_SIZES, plotRect, type PlotRect } from '../../shared/housing-plot.js'
+import { inPlot, LANDING_ROOM, PLOT_DOOR, PLOT_SIZES, plotRect, type PlotRect } from '../../shared/housing-plot.js'
 import { HOME_TEMPLATES, placeTemplate, templateOf } from '../../shared/housing-templates.js'
 import type { GamepadInput } from '../../shared/gamepad.js'
 import { formatCredits } from '../economy/data'
@@ -23,13 +23,17 @@ import { formatCredits } from '../economy/data'
 /*
  * Mode construction de la parcelle (housing v2, cf. docs/housing-v2.md) : sur le pont des
  * quartiers, chez soi, `B` ou « Aménager » ouvre la vue d'architecte sur sa bulle. Trois onglets,
- * chacun avec ses outils (touches 1 à 4), et un seul historique (Ctrl+Z, Ctrl+Y) :
+ * chacun avec ses outils (touches 1 à 6), et un seul historique (Ctrl+Z, Ctrl+Y) :
  *
  * « Murs » : un type de mur (plein, demi-mur, à hublot, arche, ou l'une des portes), puis
  *   - Tracer : un clic pose un mur sur la ligne du quadrillage visée, glisser en trace une ligne ;
  *   - Pièce : glisser d'un coin à l'autre pose les quatre murs d'une pièce (pleins, ou du type
  *     choisi s'il n'a pas de passage : on y perce ensuite ses portes) ;
- *   - Gomme, et Pipette (reprend le type d'un mur posé).
+ *   - Gomme, et Pipette (reprend le type d'un mur posé) ;
+ *   - Plans : une pièce toute faite, d'un clic (R la tourne) ;
+ *   - Déplacer : un bloc de la construction (un rectangle tiré, une pièce cliquée, ou « Toute la
+ *     construction »), ses murs, son papier peint, son sol et ses meubles d'un seul tenant ; on le
+ *     fait glisser, ou on le pousse case par case (flèches).
  *   Sur le pourtour, un mur remplace le champ de force (et le rend s'il est gommé). Une partie de
  *   la parcelle qu'on ne rejoint plus depuis l'ascenseur est signalée : il lui manque une porte.
  *
@@ -102,7 +106,10 @@ const ERASE: ToolDef = { id: 'erase', name: tr('Gomme', 'Eraser'), glyph: 'erase
 const PICK: ToolDef = { id: 'pick', name: tr('Pipette', 'Picker'), glyph: 'eyedropper' }
 const TOOLS: Record<Mode, ToolDef[]> = {
   plot: [],
-  walls: [{ id: 'line', name: tr('Tracer', 'Draw'), glyph: 'line-segment' }, { id: 'rect', name: tr('Pièce', 'Room'), glyph: 'rectangle' }, ERASE, PICK, { id: 'plan', name: tr('Plans', 'Plans'), glyph: 'frame-corners' }],
+  walls: [
+    { id: 'line', name: tr('Tracer', 'Draw'), glyph: 'line-segment' }, { id: 'rect', name: tr('Pièce', 'Room'), glyph: 'rectangle' }, ERASE, PICK,
+    { id: 'plan', name: tr('Plans', 'Plans'), glyph: 'frame-corners' }, { id: 'move', name: tr('Déplacer', 'Move'), glyph: 'arrows-out-cardinal' },
+  ],
   paper: [{ id: 'face', name: tr('Pinceau', 'Brush'), glyph: 'paint-brush' }, { id: 'room', name: tr('Pièce', 'Room'), glyph: 'rectangle' }, ERASE, PICK],
   floor: [{ id: 'brush', name: tr('Pinceau', 'Brush'), glyph: 'paint-brush' }, { id: 'fill', name: tr('Remplir', 'Fill'), glyph: 'paint-roller' }, ERASE, PICK],
 }
@@ -112,6 +119,12 @@ const REFUSALS: Record<WallRefusal | 'full', string> = {
   landing: tr('C\'est le mur du palier de l\'ascenseur', 'That is the lift landing\'s wall'),
   void: tr('Une porte sur le pourtour donnerait sur le vide', 'A door on the edge would open onto the void'),
   full: tr(`${MAX_HOME_WALLS} murs au plus`, `${MAX_HOME_WALLS} walls at most`),
+}
+/** Pourquoi un bloc ne se déplace pas là (cf. blockRefusal). */
+const MOVE_REFUSALS: Record<WallRefusal, string> = {
+  outside: tr('Le bloc sortirait de votre parcelle', 'The block would leave your plot'),
+  landing: tr('Un mur du bloc tomberait sur celui du palier', 'A wall of the block would land on the lift landing\'s wall'),
+  void: tr('Une porte du bloc donnerait sur le vide', 'A door of the block would open onto the void'),
 }
 const TOO_MANY: Record<Slot, string> = {
   floor: tr(`${MAX_FINISHES} revêtements de sol au plus : réutilisez-en un (pipette)`, `${MAX_FINISHES} floorings at most: reuse one (picker)`),
@@ -176,6 +189,13 @@ export class HomeBuilder {
   private template = HOME_TEMPLATES[0].id
   private turns = 0
   private templateEls = new Map<string, HTMLButtonElement>()
+  /**
+   * Outil « Déplacer » : le bloc choisi et ses cases au sol (pour le saisir et le montrer), la case
+   * où on l'a saisi, et le dernier aperçu (décalage, plan ou refus qui en résulte).
+   */
+  private block: { parts: HomeBlock; cells: { x: number; z: number }[] } | null = null
+  private grab: { x: number; z: number } | null = null
+  private moveCache: { dx: number; dz: number; plan: HomePlan | null; refusal: string | null } | null = null
   /** Manette : le curseur à l'écran (null : la souris ou le doigt mènent), et A tenu. */
   private padCursor: { x: number; y: number } | null = null
   private padHeld = false
@@ -433,8 +453,8 @@ export class HomeBuilder {
     intro.className = 'ed-rooms-intro'
     intro.textContent = {
       walls: tr(
-        'Bâtissez vos pièces sur le quadrillage : choisissez un type de mur, puis tracez. Sur le bord, un mur remplace le champ de force. C\'est gratuit.',
-        'Build your rooms on the grid: pick a wall type, then draw. On the edge, a wall replaces the force field. It\'s free.',
+        'Bâtissez vos pièces sur le quadrillage : choisissez un type de mur, puis tracez. Sur le bord, un mur remplace le champ de force. « Déplacer » emmène une pièce, ou tout, d\'un bloc. C\'est gratuit.',
+        'Build your rooms on the grid: pick a wall type, then draw. On the edge, a wall replaces the force field. “Move” carries a room, or everything, as one block. It\'s free.',
       ),
       paper: tr(
         'Habillez chaque face de mur : un papier peint, puis une face, une pièce entière, ou tous les murs d\'un coup.',
@@ -445,8 +465,8 @@ export class HomeBuilder {
         'Lay a flooring tile by tile, as a rectangle (drag), or over a whole room (Fill). The eraser brings back the ship\'s deck plates.',
       ),
       plot: tr(
-        'Votre parcelle grandit vers l\'est et le sud : ce que vous avez bâti reste en place, le champ de force recule.',
-        'Your plot grows to the east and south: what you built stays put, the force field moves back.',
+        'Votre parcelle grandit vers l\'est et le sud : ce que vous avez bâti reste en place, le champ de force recule. « Déplacer » (onglet Murs) la recentre ensuite.',
+        'Your plot grows to the east and south: what you built stays put, the force field moves back. “Move” (Walls tab) re-centres it afterwards.',
       ),
     }[mode]
     const tools = document.createElement('div')
@@ -469,6 +489,12 @@ export class HomeBuilder {
     }
     this.body.append(intro, tools)
     if (mode === 'walls') {
+      const all = document.createElement('button')
+      all.className = 'hb-all'
+      all.append(icon('selection-all'), document.createTextNode(tr('Toute la construction', 'Everything built')))
+      all.title = tr('Choisir tout ce qui est bâti, pour le déplacer d\'un bloc', 'Pick everything you built, to move it as one block')
+      all.onclick = () => this.selectAll()
+      tools.appendChild(all)
       const group = (label: string, kinds: string[]) => {
         const head = document.createElement('div')
         head.className = 'ed-cat-title'
@@ -537,8 +563,9 @@ export class HomeBuilder {
   private setTool(tool: string) {
     this.tools[this.mode] = tool
     this.stroke = null
+    this.setBlock(null)
     for (const [id, b] of this.toolEls) b.classList.toggle('active', id === tool)
-    const passive = tool === 'erase' || tool === 'pick'
+    const passive = tool === 'erase' || tool === 'pick' || tool === 'move'
     for (const b of this.kindEls.values()) b.classList.toggle('dim', passive || tool === 'plan')
     for (const [id, b] of this.templateEls) b.classList.toggle('active', tool === 'plan' && id === this.template)
     for (const b of this.finishEls?.cards.values() ?? []) b.classList.toggle('dim', passive)
@@ -550,7 +577,7 @@ export class HomeBuilder {
     this.kind = kind
     this.refreshKinds()
     // Une porte se perce dans un mur : on la pose au trait, pas en traçant une pièce.
-    if (this.tool === 'erase' || this.tool === 'pick' || (this.tool === 'rect' && HOME_DOOR_KINDS.includes(kind))) this.setTool('line')
+    if (this.tool === 'erase' || this.tool === 'pick' || this.tool === 'move' || (this.tool === 'rect' && HOME_DOOR_KINDS.includes(kind))) this.setTool('line')
     this.host.sound.ui('pick')
   }
 
@@ -803,7 +830,7 @@ export class HomeBuilder {
     this.pending = { plan: null, refusal: null }
     this.leaving = 0
     if (this.mode === 'plot') return
-    if (this.mode === 'walls') this.aimWalls(e)
+    if (this.mode === 'walls') this.tool === 'move' ? this.aimMove(e) : this.aimWalls(e)
     else if (this.mode === 'paper') this.aimPaper(e)
     else this.aimFloor(e)
     this.setStatus(this.pending.plan ? null : this.pending.refusal)
@@ -880,13 +907,14 @@ export class HomeBuilder {
     this.pending.plan = next
   }
 
-  /** Meuble posé au sol sous l'arête (son nom), qu'un mur traverserait. */
-  private furnitureOn(w: PlanWall): string | null {
+  /** Meuble posé au sol sous l'arête (son nom), qu'un mur traverserait ; `skip` : objets qui ne comptent pas. */
+  private furnitureOn(w: PlanWall, skip?: Set<number>): string | null {
     const view = this.deck.cabin
     if (!view) return null
     const b = partitionBox(w)
     const box = new THREE.Box3()
-    for (const item of this.plan.items ?? []) {
+    for (const [i, item] of (this.plan.items ?? []).entries()) {
+      if (skip?.has(i)) continue
       const entry = entryOf(item.m)
       if (!entry || entry.mount === 'wall' || !view.boxOf(item, box)) continue
       if (box.max.x > b.minX + 0.02 && box.min.x < b.maxX - 0.02 && box.max.z > b.minZ + 0.02 && box.min.z < b.maxZ - 0.02) return entry.name.toLowerCase()
@@ -987,6 +1015,219 @@ export class HomeBuilder {
       m.scale.set(1.02, low ? 0.5 : door ? 0.72 : 1.02, 1)
       ;(m.material as THREE.MeshBasicMaterial).color.copy(s.effect === 'set' && this.tool === 'erase' ? GHOST_ERASE : effectColor(s.effect))
     })
+  }
+
+  // -- déplacer
+
+  /** Choisit le bloc (null : aucun) ; l'aperçu et l'aide suivent. */
+  private setBlock(block: { parts: HomeBlock; cells: { x: number; z: number }[] } | null) {
+    this.block = block
+    this.grab = null
+    this.moveCache = null
+    this.pointerDirty = true
+    this.setHint()
+  }
+
+  /** Bloc de ces cases : les murs qui les bordent, leurs revêtements, les objets posés ou accrochés là. */
+  private choose(cells: { x: number; z: number }[]) {
+    const parts = blockOf(this.plan, cells)
+    this.blockItems(parts, new Set(cells.map((c) => `${c.x},${c.z}`)))
+    if (!parts.walls.size && !parts.cells.size && !parts.items.size) {
+      this.setBlock(null)
+      return this.deny(tr('Rien à déplacer ici', 'Nothing to move here'))
+    }
+    this.setBlock({ parts, cells })
+    this.host.sound.ui('pick')
+  }
+
+  /**
+   * « Toute la construction » : tout ce qui est bâti sur la parcelle, d'un bloc. On le montre, et
+   * on le saisit, sur le rectangle qui l'englobe (murs, sol, meubles).
+   */
+  private selectAll() {
+    if (this.tool !== 'move') this.setTool('move')
+    const r = plotRect(this.stage)
+    const all: { x: number; z: number }[] = []
+    for (let z = r.minZ; z <= r.maxZ; z++) for (let x = r.minX; x <= r.maxX; x++) all.push({ x, z })
+    const parts = blockOf(this.plan, all)
+    this.blockItems(parts, new Set(all.map((c) => `${c.x},${c.z}`)))
+    const box = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity }
+    const take = (x: number, z: number) => {
+      if (!inPlot(this.stage, x, z)) return
+      box.minX = Math.min(box.minX, x), box.maxX = Math.max(box.maxX, x)
+      box.minZ = Math.min(box.minZ, z), box.maxZ = Math.max(box.maxZ, z)
+    }
+    for (const w of this.plan.walls) {
+      if (!parts.walls.has(keyOf(w))) continue
+      const { x, z, nx, nz } = partitionEdge(w)
+      take(x, z)
+      take(nx, nz)
+    }
+    for (const i of parts.cells) take(cellAt(i).x, cellAt(i).z)
+    for (const i of parts.items) take(Math.round(this.plan.items![i].x), Math.round(this.plan.items![i].z))
+    if (box.minX > box.maxX) return this.deny(tr('Rien à déplacer : la parcelle est vide', 'Nothing to move: the plot is empty'))
+    const cells: { x: number; z: number }[] = []
+    for (let z = box.minZ; z <= box.maxZ; z++) for (let x = box.minX; x <= box.maxX; x++) cells.push({ x, z })
+    this.setBlock({ parts, cells })
+    this.host.sound.ui('pick')
+  }
+
+  /** Clic sans glisser : la pièce fermée sous le curseur (le dehors, qui mène au palier, n'en est pas une). */
+  private chooseRoom(cell: { x: number; z: number }) {
+    const cells = this.room(cell)
+    const entry = { x: PLOT_DOOR.x + DIRS[PLOT_DOOR.dir].dx, z: PLOT_DOOR.z + DIRS[PLOT_DOOR.dir].dz }
+    if (cells.some((c) => c.x === entry.x && c.z === entry.z)) {
+      this.setBlock(null)
+      return this.deny(tr('Cliquez dans une pièce fermée, ou tirez un rectangle', 'Click inside a closed room, or drag a rectangle'))
+    }
+    this.choose(cells)
+  }
+
+  /**
+   * Objets du bloc : ceux posés sur ses cases, ceux accrochés à ses murs, et ce qui est posé sur
+   * eux ; un objet posé sur un meuble resté dehors reste avec lui.
+   */
+  private blockItems(parts: HomeBlock, inside: Set<string>) {
+    const view = this.deck.cabin
+    const items = this.plan.items ?? []
+    if (!view) return
+    items.forEach((item, i) => {
+      if (entryOf(item.m)?.mount === 'wall') {
+        const key = this.hangKey(item)
+        if (key && parts.walls.has(key)) parts.items.add(i)
+      } else if (inside.has(`${Math.round(item.x)},${Math.round(item.z)}`)) parts.items.add(i)
+    })
+    const surfaces = surfacesOf(view, items)
+    items.forEach((_, i) => {
+      const base = baseOf(view, items, i, surfaces)
+      if (base < 0) return
+      if (parts.items.has(base)) parts.items.add(i)
+      else parts.items.delete(i)
+    })
+  }
+
+  /** Mur de la parcelle auquel est accroché l'objet (clé d'arête), ou null (au palier, ou nulle part). */
+  private hangKey(item: HomeItem): string | null {
+    const w = this.deck.cabin?.wallOf(item)
+    if (!w) return null
+    const line = Math.floor(w.edge)
+    return DIRS[w.dir].dz !== 0 ? keyOf({ x: Math.round(item.x), z: line, e: 'h' }) : keyOf({ x: line, z: Math.round(item.z), e: 'v' })
+  }
+
+  /** Outil « Déplacer » : un rectangle en cours de tracé, ou le bloc choisi, là où on le fait glisser. */
+  private aimMove(e: { clientX: number; clientY: number } | null) {
+    const p = e && this.ground(e)
+    if (!p) {
+      if (this.block) this.previewMove(0, 0)
+      return
+    }
+    const block = this.block
+    if (this.stroke?.corner || !block) {
+      const c = this.cornerAt(p)
+      this.corner.visible = true
+      this.corner.position.set(c.x, 0.03, c.z)
+      if (this.stroke?.corner) this.showCells(cellsBetween(this.stroke.corner, c), 'same')
+      return
+    }
+    let dx = 0, dz = 0
+    const cell = this.grab && this.cellUnder(this.clampToPlot(p))
+    if (this.grab && cell) {
+      dx = cell.x - this.grab.x
+      dz = cell.z - this.grab.z
+    }
+    this.previewMove(dx, dz)
+  }
+
+  /** Aperçu du bloc décalé de (dx, dz) : bleu sur place, vert s'il peut aller là, rouge sinon. */
+  private previewMove(dx: number, dz: number) {
+    const { parts, cells } = this.block!
+    let effect: Effect = 'same'
+    if (dx || dz) {
+      const r = this.moveResult(dx, dz)
+      this.pending = { plan: r.plan, refusal: r.refusal }
+      effect = r.plan ? 'set' : 'refused'
+    }
+    const walls = this.plan.walls.filter((w) => parts.walls.has(keyOf(w))).map((w) => ({ ...w, x: w.x + dx, z: w.z + dz }))
+    this.showGhosts(walls.map((wall) => ({ wall, key: keyOf(wall), effect })))
+    const items = this.plan.items ?? []
+    const box = new THREE.Box3()
+    const feet = [...parts.items].flatMap((i) => (this.deck.cabin?.boxOf({ ...items[i], x: items[i].x + dx, z: items[i].z + dz }, box) ? [{ minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z }] : []))
+    this.showCells(cells.map((c) => ({ x: c.x + dx, z: c.z + dz })), effect, undefined, feet)
+  }
+
+  /** Le plan une fois le bloc décalé de (dx, dz), ou pourquoi il ne peut pas l'être (gardé pour le même décalage). */
+  private moveResult(dx: number, dz: number): { plan: HomePlan | null; refusal: string | null } {
+    const c = this.moveCache
+    if (c && c.dx === dx && c.dz === dz) return c
+    const refusal = this.moveRefusal(dx, dz)
+    this.moveCache = { dx, dz, plan: refusal ? null : moveBlock(this.plan, this.block!.parts, dx, dz), refusal }
+    return this.moveCache
+  }
+
+  /**
+   * Pourquoi le bloc ne peut pas aller là : il sortirait de la parcelle (cf. blockRefusal), un de
+   * ses murs traverserait un meuble resté là ou remplacerait un mur qui porte un objet resté
+   * accroché, un de ses objets traverserait un mur resté là ou en gênerait un autre.
+   */
+  private moveRefusal(dx: number, dz: number): string | null {
+    const { parts } = this.block!
+    const why = blockRefusal(this.deck.map, this.stage, this.plan, parts, dx, dz)
+    if (why) return MOVE_REFUSALS[why]
+    const view = this.deck.cabin
+    if (!view) return null
+    const items = this.plan.items ?? []
+    const staying = this.plan.walls.filter((w) => !parts.walls.has(keyOf(w)))
+    const byKey = new Map(staying.map((w) => [keyOf(w), w]))
+    for (const w of this.plan.walls) {
+      if (!parts.walls.has(keyOf(w))) continue
+      const moved = { ...w, x: w.x + dx, z: w.z + dz }
+      const furniture = this.furnitureOn(moved, parts.items)
+      if (furniture) return tr(`Un meuble est sur le passage (${furniture})`, `Furniture in the way (${furniture})`)
+      const there = byKey.get(keyOf(moved))
+      if (there && !there.k && moved.k && hangingOn(view, items, there).some((i) => !parts.items.has(i))) {
+        return tr('Un objet est accroché au mur où il arriverait', 'Something hangs on the wall where it would land')
+      }
+    }
+    const r = plotRect(this.stage)
+    const inner = WALL_T / 2 - 0.004
+    const box = new THREE.Box3()
+    for (const i of parts.items) {
+      const item = { ...items[i], x: items[i].x + dx, z: items[i].z + dz }
+      const entry = entryOf(item.m)
+      if (!entry || !view.boxOf(item, box)) continue
+      const name = entry.name.toLowerCase()
+      if (entry.mount !== 'wall') {
+        if (box.min.x < r.minX - 0.5 + inner || box.max.x > r.maxX + 0.5 - inner || box.min.z < r.minZ - 0.5 + inner || box.max.z > r.maxZ + 0.5 - inner) return MOVE_REFUSALS.outside
+        for (const w of staying) {
+          const b = partitionBox(w)
+          if (box.max.x > b.minX + 0.02 && box.min.x < b.maxX - 0.02 && box.max.z > b.minZ + 0.02 && box.min.z < b.maxZ - 0.02) return tr(`À cheval sur un mur (${name})`, `Straddling a wall (${name})`)
+        }
+      }
+      for (const [j, other] of items.entries()) {
+        if (parts.items.has(j) || !clash(view, item, other)) continue
+        return tr(`Pas la place à l'arrivée (${name}, ${entryOf(other.m)?.name.toLowerCase() ?? '?'})`, `No room where it lands (${name}, ${entryOf(other.m)?.name.toLowerCase() ?? '?'})`)
+      }
+    }
+    return null
+  }
+
+  /** Flèches : le bloc d'une case, le long de l'axe du sol le plus proche de la flèche à l'écran. */
+  private nudgeBlock(sx: number, sy: number) {
+    const g = this.host.iso.screenToGround(sx, sy, new THREE.Vector3())
+    const dx = Math.abs(g.x) > Math.abs(g.z) ? Math.sign(g.x) : 0
+    const dz = dx ? 0 : Math.sign(g.z)
+    this.placeBlock(dx, dz)
+  }
+
+  /** Pose le bloc décalé de (dx, dz), s'il le peut : un pas d'annulation ; il reste choisi, à sa nouvelle place. */
+  private placeBlock(dx: number, dz: number) {
+    const block = this.block
+    if (!block || (!dx && !dz)) return
+    const r = this.moveResult(dx, dz)
+    this.pending = { plan: r.plan, refusal: r.refusal }
+    if (!r.plan) return this.refuse(r.refusal ?? '')
+    this.commit()
+    this.setBlock({ parts: shiftBlock(block.parts, dx, dz), cells: block.cells.map((c) => ({ x: c.x + dx, z: c.z + dz })) })
   }
 
   // -- papier peint
@@ -1102,25 +1343,29 @@ export class HomeBuilder {
     return p.set(Math.max(r.minX, Math.min(r.maxX, p.x)), p.y, Math.max(r.minZ, Math.min(r.maxZ, p.z)))
   }
 
-  /** Aperçu des cases : `effect` pour celles qui changent (`changed`), bleu pour les autres. */
-  private showCells(cells: { x: number; z: number }[], effect: Effect, changed?: Set<string>) {
+  /**
+   * Aperçu des cases : `effect` pour celles qui changent (`changed`), bleu pour les autres ; et des
+   * emprises (`rects` : les meubles d'un bloc qu'on déplace), par-dessus, de la couleur de `effect`.
+   */
+  private showCells(cells: { x: number; z: number }[], effect: Effect, changed?: Set<string>, rects: { minX: number; maxX: number; minZ: number; maxZ: number }[] = []) {
     const pos: number[] = [], col: number[] = [], index: number[] = []
-    for (const c of cells) {
-      const color = effectColor(changed && !changed.has(`${c.x},${c.z}`) ? 'same' : effect)
+    const quad = (x0: number, z0: number, x1: number, z1: number, y: number, color: THREE.Color) => {
       const i = pos.length / 3
-      for (const [dx, dz] of [[-0.46, -0.46], [0.46, -0.46], [0.46, 0.46], [-0.46, 0.46]]) {
-        pos.push(c.x + dx, 0.02, c.z + dz)
+      for (const [x, z] of [[x0, z0], [x1, z0], [x1, z1], [x0, z1]]) {
+        pos.push(x, y, z)
         col.push(color.r, color.g, color.b)
       }
       index.push(i, i + 3, i + 2, i, i + 2, i + 1)
     }
+    for (const c of cells) quad(c.x - 0.46, c.z - 0.46, c.x + 0.46, c.z + 0.46, 0.02, effectColor(changed && !changed.has(`${c.x},${c.z}`) ? 'same' : effect))
+    for (const r of rects) quad(r.minX, r.minZ, r.maxX, r.maxZ, 0.03, effectColor(effect))
     const geo = new THREE.BufferGeometry()
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
     geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3))
     geo.setIndex(index)
     this.cells.geometry.dispose()
     this.cells.geometry = geo
-    this.cells.visible = cells.length > 0
+    this.cells.visible = cells.length + rects.length > 0
   }
 
   // ---------------------------------------------------------------- changements
@@ -1154,9 +1399,16 @@ export class HomeBuilder {
     this.setStatus(text)
   }
 
+  /** Refus d'un geste fini (le statut, lui, suit le curseur) : un message bref. */
+  private deny(text: string) {
+    this.host.sound.ui('deny')
+    this.toast(text)
+  }
+
   private apply(next: HomePlan) {
     this.plan = next
     this.pending = { plan: null, refusal: null }
+    this.moveCache = null
     this.host.onChange(next)
     this.renderBar()
     this.pointerDirty = true
@@ -1165,6 +1417,7 @@ export class HomeBuilder {
   undo() {
     const prev = this.past.pop()
     if (!prev) return
+    if (this.block) this.setBlock(null)
     this.future.push(this.plan)
     this.apply(prev)
     this.host.sound.ui('rotate')
@@ -1173,6 +1426,7 @@ export class HomeBuilder {
   redo() {
     const next = this.future.pop()
     if (!next) return
+    if (this.block) this.setBlock(null)
     this.past.push(this.plan)
     this.apply(next)
     this.host.sound.ui('rotate')
@@ -1210,6 +1464,13 @@ export class HomeBuilder {
         this.aim(e)
         return this.commit()
       }
+      if (tool === 'move') {
+        // Sur le bloc choisi, on le saisit ; ailleurs, on en choisit un autre.
+        const cell = this.cellUnder(p)
+        if (cell && this.block?.cells.some((c) => c.x === cell.x && c.z === cell.z)) this.grab = cell
+        else this.stroke = { corner: this.cornerAt(p) }
+        return this.aim(e)
+      }
       if (tool === 'rect') this.stroke = { corner: this.cornerAt(p) }
       else {
         const edge = this.edgeAt(p)
@@ -1246,11 +1507,32 @@ export class HomeBuilder {
   }
 
   pointerUp(e: PointerEvent) {
+    if (this.mode === 'walls' && this.tool === 'move') return this.releaseMove(e)
     if (!this.stroke) return
     this.aim(e)
     this.commit()
     this.stroke = null
     this.aim(e)
+  }
+
+  /** Outil « Déplacer », bouton relâché : le rectangle tiré (ou la pièce cliquée) devient le bloc ; le bloc saisi se pose là. */
+  private releaseMove(e: { clientX: number; clientY: number }) {
+    const p = this.ground(e)
+    const start = this.stroke?.corner
+    if (start) {
+      this.stroke = null
+      const cells = p ? cellsBetween(start, this.cornerAt(p)) : []
+      const cell = this.cellUnder(p)
+      if (cells.length) this.choose(cells)
+      else if (cell) this.chooseRoom(cell)
+      else this.setBlock(null)
+    } else if (this.grab) {
+      const grab = this.grab
+      this.grab = null
+      const cell = this.cellUnder(this.clampToPlot(p))
+      if (cell) this.placeBlock(cell.x - grab.x, cell.z - grab.z)
+    }
+    this.pointerDirty = true
   }
 
   /** Touches du mode construction ; vrai si la touche est prise. */
@@ -1262,10 +1544,15 @@ export class HomeBuilder {
       if (this.stroke) {
         this.stroke = null
         this.pointerDirty = true
-      } else this.host.onClose()
-    } else if (!ctrl && /^Digit[1-5]$/.test(e.code) && TOOLS[this.mode][+e.code.slice(5) - 1]) this.setTool(TOOLS[this.mode][+e.code.slice(5) - 1].id)
+      } else if (this.block) this.setBlock(null)
+      else this.host.onClose()
+    } else if (!ctrl && /^Digit[1-6]$/.test(e.code) && TOOLS[this.mode][+e.code.slice(5) - 1]) this.setTool(TOOLS[this.mode][+e.code.slice(5) - 1].id)
     else if (!ctrl && e.code === 'KeyR' && this.tool === 'plan') this.turnPlan(e.shiftKey ? 3 : 1)
-    else return false
+    else if (!ctrl && this.block && !this.grab && /^(Arrow(Up|Down|Left|Right)|Key[WASD])$/.test(e.code)) {
+      const up = e.code === 'ArrowUp' || e.code === 'KeyW', down = e.code === 'ArrowDown' || e.code === 'KeyS'
+      const left = e.code === 'ArrowLeft' || e.code === 'KeyA', right = e.code === 'ArrowRight' || e.code === 'KeyD'
+      this.nudgeBlock(right ? 1 : left ? -1 : 0, up ? 1 : down ? -1 : 0)
+    } else return false
     e.preventDefault()
     return true
   }
@@ -1284,11 +1571,13 @@ export class HomeBuilder {
     if (pad.lookX || pad.lookY) iso.orbit(-pad.lookX * dt * 1.8, pad.lookY * dt * 1.2)
     if (pad.zoom) iso.zoomBy(Math.exp(pad.zoom * dt))
     if (pad.cancel) {
-      if (this.stroke) {
+      if (this.stroke || this.grab) {
         this.stroke = null
+        this.grab = null
         this.padHeld = held
         this.pointerDirty = true
-      } else this.host.onClose()
+      } else if (this.block) this.setBlock(null)
+      else this.host.onClose()
       return
     }
     if (pad.action) this.undo()
@@ -1351,9 +1640,15 @@ export class HomeBuilder {
     if (this.pointerDirty && this.lastPointer) {
       this.pointerDirty = false
       this.aim(this.lastPointer)
+    } else if (this.pointerDirty && this.block) {
+      // Bloc choisi au panneau, la souris pas encore sur la parcelle : on le montre quand même.
+      this.pointerDirty = false
+      this.clearPreview()
+      this.aimMove(null)
     }
     const aiming = this.pending.plan || this.stroke || this.tool === 'rect'
-    this.host.canvas.style.cursor = this.pending.refusal && !this.pending.plan ? 'not-allowed' : aiming ? 'crosshair' : 'default'
+    const moving = this.mode === 'walls' && this.tool === 'move' && !this.stroke && this.block
+    this.host.canvas.style.cursor = this.pending.refusal && !this.pending.plan ? 'not-allowed' : moving ? (this.grab ? 'grabbing' : 'grab') : aiming ? 'crosshair' : 'default'
   }
 
   // ---------------------------------------------------------------- barre et aide
@@ -1403,7 +1698,11 @@ export class HomeBuilder {
     const tools: [string, string] = EN ? [`1–${TOOLS[this.mode].length}`, 'tools'] : [`1–${TOOLS[this.mode].length}`, 'outils']
     const t = this.tool
     const parts: [string, string][] =
-      t === 'plan'
+      t === 'move'
+        ? this.block
+          ? [EN ? ['Drag', 'move the block'] : ['Glisser', 'déplacer le bloc'], EN ? ['Arrows', 'one tile'] : ['Flèches', 'd\'une case'], EN ? ['Esc', 'deselect'] : ['Échap', 'désélectionner'], undo]
+          : [EN ? ['Drag', 'pick a block'] : ['Glisser', 'choisir un bloc'], EN ? ['Click', 'a room'] : ['Clic', 'une pièce'], tools, undo, done]
+        : t === 'plan'
         ? [EN ? ['Click', 'place the plan'] : ['Clic', 'poser le plan'], EN ? ['R', 'rotate'] : ['R', 'tourner'], tools, undo, done]
         : t === 'pick'
         ? [EN ? ['Click', 'to reuse what is there'] : ['Clic', 'pour reprendre ce qui est là'], tools, done]
@@ -1425,6 +1724,15 @@ export class HomeBuilder {
       this.keysEl.append(kbd, ` ${label}`)
     })
   }
+}
+
+/** Cases entre deux sommets du quadrillage (demi-entiers) ; aucune s'ils sont sur une même ligne. */
+function cellsBetween(a: { x: number; z: number }, b: { x: number; z: number }): { x: number; z: number }[] {
+  const out: { x: number; z: number }[] = []
+  for (let z = Math.min(a.z, b.z) + 0.5; z < Math.max(a.z, b.z); z++) {
+    for (let x = Math.min(a.x, b.x) + 0.5; x < Math.max(a.x, b.x); x++) out.push({ x, z })
+  }
+  return out
 }
 
 /** Tuiles du palier de l'ascenseur. */

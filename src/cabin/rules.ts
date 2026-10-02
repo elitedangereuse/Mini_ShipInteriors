@@ -84,6 +84,13 @@ function conflict(ea: CatalogEntry, a: THREE.Box3, eb: CatalogEntry, b: THREE.Bo
   return true
 }
 
+/** Les objets `a` et `b`, où qu'ils soient posés, se gênent-ils ? */
+export function clash(view: CabinView, a: CabinItem, b: CabinItem): boolean {
+  const ea = entryOf(a.m), eb = entryOf(b.m)
+  const ba = view.boxOf(a), bb = view.boxOf(b)
+  return !!ea && !!eb && !!ba && !!bb && conflict(ea, ba, eb, bb)
+}
+
 /** Le Holo-Me reste-t-il accessible depuis la porte, avec ces meubles ? */
 export function holoReachable(view: CabinView, items: CabinItem[]): boolean {
   const holo = items.find((i) => entryOf(i.m)?.fixed)

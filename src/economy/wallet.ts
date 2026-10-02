@@ -1,6 +1,7 @@
 import { ECONOMY, type JobKind } from './data'
 import { clock } from './schedule'
 import type { WingId } from '../../shared/cabin-wings.js'
+import { plotStage } from '../../shared/housing-plot.js'
 
 /*
  * Crédits du CMDR connecté, tenus par le site (outils/mini-shipinteriors-credits.php, repo
@@ -125,7 +126,7 @@ export class Wallet {
     for (const s of Array.isArray(w.skins) ? w.skins : []) if (typeof s === 'string') this.skins.add(s)
     this.wings.clear()
     for (const id of Array.isArray(w.wings) ? w.wings : []) if (id === 'left' || id === 'middle' || id === 'right') this.wings.add(id)
-    this.plot = Number.isInteger(w.plot) ? Math.max(0, Math.min(2, w.plot as number)) : 0
+    this.plot = Number.isInteger(w.plot) ? plotStage(w.plot) : 0
     for (const [spot, cycle] of Object.entries((w.tasks as Record<string, unknown>) ?? {})) {
       // Une tâche réglée pendant la réponse (un autre onglet) : on garde la plus récente.
       if (Number.isInteger(cycle)) this.tasks.set(spot, Math.max(this.tasks.get(spot) ?? -1, cycle as number))

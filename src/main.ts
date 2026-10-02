@@ -2255,7 +2255,7 @@ function shownPlan(): HomePlan {
  * qu'offrent ses extensions déjà achetées (décision Q4, cf. shared/housing-migrate.js).
  */
 function ownStage(): number {
-  return Math.max(homePlan.stage ?? 0, wallet.plot, stageFromWings(wallet.wings.size))
+  return Math.max(homePlan.stage ?? 0, wallet.plot, stageFromWings(wallet.wings))
 }
 
 /** Le palier a changé (achat, extensions reconnues) : la parcelle grandit, chez soi et chez ses visiteurs. */
