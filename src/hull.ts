@@ -29,7 +29,7 @@ type Cell = string
 
 /**
  * Tuiles occupées par au moins un pont. Le pont des
- * quartiers n'en est pas : ses parcelles reposent sur leur propre socle (cf. housing/plot.ts).
+ * quartiers n'en est pas : ses parcelles reposent sur leur propre corps (cf. housing/plot.ts).
  */
 function footprint(): Set<Cell> {
   const cells = new Set<Cell>()
@@ -126,7 +126,7 @@ function outlines(cells: Set<Cell>): THREE.Vector2[][] {
  * Lissage de Chaikin : chaque côté est remplacé par ses points au quart et aux trois quarts. Les
  * escaliers de tuiles deviennent des pans obliques, les angles s'arrondissent.
  */
-function smooth(loop: THREE.Vector2[], iterations: number): THREE.Vector2[] {
+function smooth(loop: THREE.Vector2[], iterations: number, maxCut = MAX_CUT): THREE.Vector2[] {
   let pts = loop
   for (let k = 0; k < iterations; k++) {
     const out: THREE.Vector2[] = []
@@ -134,7 +134,7 @@ function smooth(loop: THREE.Vector2[], iterations: number): THREE.Vector2[] {
       const p = pts[i], q = pts[(i + 1) % pts.length]
       // Sur un long côté droit, l'angle n'est pas rogné de plus de MAX_CUT : sinon l'arrondi
       // mordrait sur les pièces du coin (le hangar de la cale, sous la proue).
-      const t = Math.min(0.25, MAX_CUT / p.distanceTo(q))
+      const t = Math.min(0.25, maxCut / p.distanceTo(q))
       out.push(p.clone().lerp(q, t), p.clone().lerp(q, 1 - t))
     }
     pts = out
@@ -192,14 +192,19 @@ interface HullParts {
   stern: number
 }
 
-let parts: HullParts | null = null
+let plating: THREE.Material | null = null
+/** Tôles de la coque : le même matériau pour tous les corps de vaisseau. */
+export const hullMaterial = (): THREE.Material => (plating ??= new THREE.MeshLambertMaterial({ map: platingTexture() }))
 
-/** Corps de la coque, construit une fois pour tous les ponts. */
-function hullParts(): HullParts {
-  if (parts) return parts
-  // Silhouette : l'empreinte des ponts, élargie d'une tuile, creux comblés (fermeture).
-  const cells = erode(dilate(dilate(footprint(), 1), 1), 1)
-  const loops = outlines(cells).map((l) => smooth(l, SMOOTHING))
+/**
+ * Corps de coque sous ces tuiles : leur silhouette élargie de `margin` tuiles, creux comblés
+ * (fermeture), angles arrondis (cf. smooth), extrudée sous le plancher, biseautée. Rend aussi son
+ * contour extérieur (coordonnées du pont).
+ * @param maxCut un angle n'est pas rogné de plus de ça (tuiles) : à garder sous ce qui sépare le
+ *   coin de la silhouette de celui des pièces
+ */
+export function hullBody(cells: Set<Cell>, margin = 1, maxCut = MAX_CUT): { geometry: THREE.BufferGeometry; outer: THREE.Vector2[] } {
+  const loops = outlines(erode(dilate(dilate(cells, margin), 1), 1)).map((l) => smooth(l, SMOOTHING, maxCut))
   loops.sort((a, b) => Math.abs(area(b)) - Math.abs(area(a)))
   const [outer, ...holes] = loops
   // Forme dans le plan (x, -z) : extrudée vers le haut une fois tournée (cf. plus bas).
@@ -212,7 +217,17 @@ function hullParts(): HullParts {
   // Coordonnées de texture en mètres, une plaque toutes les deux tuiles.
   const uv = geometry.getAttribute('uv')
   for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / 2, uv.getY(i) / 2)
-  const material = new THREE.MeshLambertMaterial({ map: platingTexture() })
+  return { geometry, outer }
+}
+
+let parts: HullParts | null = null
+
+/** Corps de la coque, construit une fois pour tous les ponts. */
+function hullParts(): HullParts {
+  if (parts) return parts
+  // Silhouette : l'empreinte des ponts, élargie d'une tuile.
+  const { geometry, outer } = hullBody(footprint())
+  const material = hullMaterial()
 
   // Feux : un tous les ~4 m sur le pourtour, rouge au nord, vert au sud, blanc à la poupe.
   const xs = outer.map((p) => p.x), zs = outer.map((p) => p.y)

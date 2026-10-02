@@ -1,14 +1,15 @@
 import * as THREE from 'three'
 import { FLOOR_Y, WALL_T, type Box2, type Deck } from '../deck'
+import { hullBody, hullMaterial } from '../hull'
 import { DIRS } from '../map'
 import { fadeBuffer, StaticMerge, type FadeBuffer } from '../merge'
 import { ForceShield, shieldPylon, type ShieldPane } from '../shield'
-import { applyPlot, LANDING_ROOM, straightRuns, type PlotEdge, type PlotPlan, type PlotRect } from '../../shared/housing-plot.js'
+import { applyPlot, straightRuns, type PlotEdge, type PlotPlan } from '../../shared/housing-plot.js'
 
 /*
  * La bulle d'un joueur sur le pont des quartiers (housing v2, cf. shared/housing-plot.js) : sa
- * parcelle, posée sur le plan du pont, ses dalles, et le socle sur lequel elle flotte avec le
- * palier de l'ascenseur (PlotShell, reconstruit quand la parcelle change de taille) ; et le champ
+ * parcelle, posée sur le plan du pont, ses dalles, et le corps de vaisseau arrondi sur lequel
+ * elle repose avec le palier de l'ascenseur, dans les tôles de la coque des autres ponts (PlotShell, reconstruit quand la parcelle change de taille) ; et le champ
  * de force tendu sur son pourtour, là où aucun mur ne le remplace (ForceField, celui du hangar,
  * cf. shield.ts), avec un pylône à chaque bout. En vue subjective, une verrière la couvre, comme
  * les serres, sauf au-dessus des pièces fermées, qui ont un plafond (cf. HomeView, home.ts).
@@ -18,9 +19,12 @@ import { applyPlot, LANDING_ROOM, straightRuns, type PlotEdge, type PlotPlan, ty
 const LIGHT_STEP = 5
 const LIGHT_COLOR = new THREE.Color('#ffd9b0')
 
-const SLAB = new THREE.MeshLambertMaterial({ color: '#3a3f4b' })
-const SLAB_UNDER = new THREE.MeshLambertMaterial({ color: '#272b33' })
-const SLAB_RIM = new THREE.MeshBasicMaterial({ color: '#59d8ff' })
+/**
+ * Corps sous la parcelle : il déborde de BODY_MARGIN tuiles, et ses angles sont rognés de
+ * BODY_CUT tuiles au plus le long de chaque côté (l'arrondi reste hors des tuiles).
+ */
+const BODY_MARGIN = 2
+const BODY_CUT = 3
 
 export class PlotShell {
   readonly group = new THREE.Group()
@@ -28,7 +32,7 @@ export class PlotShell {
   /** Lumières ajoutées à celles du pont (coordonnées monde). */
   readonly lights: Deck['lights'] = []
   private readonly fades: FadeBuffer
-  /** Ce qui appartient à la parcelle seule (géométrie fusionnée, socle) : libéré avec elle. */
+  /** Ce qui appartient à la parcelle seule (géométrie fusionnée, corps) : libéré avec elle. */
   private owned: { dispose(): void }[] = []
 
   constructor(deck: Deck, stage: number) {
@@ -43,31 +47,20 @@ export class PlotShell {
       if (m.userData.ownMaterial) this.owned.push(m.material as THREE.Material)
     }
 
-    // Le socle : sous la parcelle, et sous le palier de l'ascenseur.
-    this.slab(rect)
-    this.slab(landingRect(deck))
+    // Le corps du vaisseau, sous tout le pont : la parcelle, le palier, l'ascenseur.
+    const cells = new Set<string>()
+    for (let z = 0; z < deck.map.height; z++) {
+      for (let x = 0; x < deck.map.width; x++) if (deck.map.isFloor(x, z)) cells.add(`${x},${z}`)
+    }
+    const body = new THREE.Mesh(hullBody(cells, BODY_MARGIN, BODY_CUT).geometry, hullMaterial())
+    body.receiveShadow = true
+    this.group.add(body)
+    this.owned.push(body.geometry)
 
     for (let z = rect.minZ + 2; z <= rect.maxZ; z += LIGHT_STEP) {
       for (let x = rect.minX + 2; x <= rect.maxX; x += LIGHT_STEP) {
         this.lights.push({ position: new THREE.Vector3(x, deck.y + 1.4, z), color: LIGHT_COLOR, intensity: 1.4 })
       }
-    }
-  }
-
-  /** Dalle du socle sous un rectangle de tuiles : un plateau qui déborde, un liseré, un dessous en retrait. */
-  private slab(r: PlotRect) {
-    const w = r.maxX - r.minX + 1, d = r.maxZ - r.minZ + 1
-    const cx = (r.minX + r.maxX) / 2, cz = (r.minZ + r.maxZ) / 2
-    const top = new THREE.Mesh(new THREE.BoxGeometry(w + 0.6, 0.22, d + 0.6), SLAB)
-    top.position.set(cx, FLOOR_Y - 0.12, cz)
-    top.receiveShadow = true
-    const rim = new THREE.Mesh(new THREE.BoxGeometry(w + 0.64, 0.03, d + 0.64), SLAB_RIM)
-    rim.position.set(cx, FLOOR_Y - 0.1, cz)
-    const under = new THREE.Mesh(new THREE.BoxGeometry(w - 0.4, 0.45, d - 0.4), SLAB_UNDER)
-    under.position.set(cx, FLOOR_Y - 0.45, cz)
-    for (const m of [top, rim, under]) {
-      this.group.add(m)
-      this.owned.push(m.geometry)
     }
   }
 
@@ -132,17 +125,4 @@ export class ForceField {
     this.group.removeFromParent()
     for (const o of this.owned) o.dispose()
   }
-}
-
-/** Tuiles du palier de l'ascenseur. */
-function landingRect(deck: Deck): PlotRect {
-  const r = { minX: Infinity, minZ: Infinity, maxX: -Infinity, maxZ: -Infinity }
-  for (let z = 0; z < deck.map.height; z++) {
-    for (let x = 0; x < deck.map.width; x++) {
-      if (deck.map.room(x, z) !== LANDING_ROOM) continue
-      r.minX = Math.min(r.minX, x), r.maxX = Math.max(r.maxX, x)
-      r.minZ = Math.min(r.minZ, z), r.maxZ = Math.max(r.maxZ, z)
-    }
-  }
-  return r
 }

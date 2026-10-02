@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { ceilingLamp, ceilingSlab, greenhouseRoof, type Box2, type Deck } from '../deck'
+import { ceilingLamp, ceilingSlab, domeRoof, type Box2, type Deck } from '../deck'
 import { DIRS } from '../map'
 import type { FadeFocus } from '../merge'
 import { PartitionShell } from '../cabin/partitions'
@@ -15,7 +15,8 @@ import { partitionEdge, partitionKey } from '../../shared/cabin-partitions.js'
  * construits comme les cloisons des quartiers (cf. cabin/partitions.ts ; en vue subjective, ils
  * montent jusqu'au toit), le papier peint de chacune de leurs faces, et le revêtement de chaque
  * case du sol. Le toit (vue subjective) : un plafond au-dessus des pièces fermées, comme dans le
- * reste du vaisseau, et la verrière de la bulle au-dessus de ce qui reste ouvert (cf. buildRoof). Le champ de force n'est tendu que sur les arêtes
+ * reste du vaisseau, et le dôme de verre de la bulle au-dessus de ce qui reste ouvert (cf.
+ * buildRoof). Le champ de force n'est tendu que sur les arêtes
  * du pourtour qu'aucun mur ne remplace.
  *
  * Les revêtements sont dessinés par le jeu (cf. cabin/finishes.ts) : une texture et un matériau
@@ -28,6 +29,10 @@ const FLOORING_Y = 0.002
 /** Plafonniers des pièces fermées : un toutes les LAMP_STEP tuiles, de la couleur des lumières de la parcelle. */
 const LAMP_STEP = 3
 const LAMP_COLOR = '#ffd9b0'
+
+/** Le dôme de verre monte de ça en son milieu, au-dessus du plafond : une base, plus tant par tuile de côté. */
+const DOME_RISE = 1
+const DOME_RISE_PER_TILE = 0.2
 
 /** Plan vide : ni murs ni revêtements. */
 export const emptyPlan = (): HomePlan => ({ walls: [], floor: Array(CELLS).fill(null) })
@@ -158,20 +163,20 @@ export class HomeView {
   }
 
   /**
-   * Toit de la parcelle (vue subjective) : un plafond et ses plafonniers au-dessus des pièces
-   * fermées, la verrière au-dessus du reste.
+   * Toit de la parcelle (vue subjective) : un dôme de verre sur toute la bulle, et dessous, un
+   * plafond et ses plafonniers au-dessus des pièces fermées.
    */
   private buildRoof(free: PlotEdge[]) {
     const deck = this.deck
     this.roof.clear()
     for (const g of this.roofGeos) g.dispose()
     this.roofGeos = []
-    const key = (t: { x: number; z: number }) => `${t.x},${t.z}`
     const rooms = this.closedRooms(free)
-    const covered = new Set(rooms.flat().map(key))
-    const glazed = this.plot!.plan.tiles.filter((t) => !covered.has(key(t)))
-    const meshes = glazed.length ? greenhouseRoof(glazed, deck.ceilingY) : []
-    if (covered.size) meshes.push(ceilingSlab(rooms.flat(), deck.ceilingY, deck.ceilingMaterial))
+    const { rect } = this.plot!.plan
+    // Une parcelle sous plafond d'un bout à l'autre n'a pas besoin de dôme.
+    const covered = rooms.flat().length
+    const meshes = covered < this.plot!.plan.tiles.length ? domeRoof(rect, deck.ceilingY, DOME_RISE + DOME_RISE_PER_TILE * (rect.maxX - rect.minX + 1)) : []
+    if (covered) meshes.push(ceilingSlab(rooms.flat(), deck.ceilingY, deck.ceilingMaterial))
     for (const m of meshes) {
       m.castShadow = false
       this.roof.add(m)

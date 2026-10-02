@@ -1315,8 +1315,8 @@ export function ceilingSlab(tiles: { x: number; z: number }[], y: number, materi
 
 /**
  * Plafond d'une serre (vue subjective) : une verrière au-dessus de ses tuiles, et ses chevrons
- * blancs, un par tuile dans chaque sens. La parcelle des quartiers a la même au-dessus de ses
- * parties ouvertes (cf. housing/home.ts).
+ * blancs, un par tuile dans chaque sens. La parcelle des quartiers a le même verre, en dôme (cf.
+ * domeRoof).
  * @param tint teinte du verre (à peine vert dans une serre)
  */
 export function greenhouseRoof(tiles: { x: number; z: number }[], y: number, tint = '#ffffff'): THREE.Mesh[] {
@@ -1334,6 +1334,55 @@ export function greenhouseRoof(tiles: { x: number; z: number }[], y: number, tin
   glass.renderOrder = 2
   const ribs = new THREE.Mesh(mergeGeometries(ribGeos), GREENHOUSE_FRAME)
   for (const geo of [...glassGeos, ...ribGeos]) geo.dispose()
+  return [glass, ribs]
+}
+
+/**
+ * Dôme de verre au-dessus d'un rectangle de tuiles (vue subjective, parcelle des quartiers, cf.
+ * housing/home.ts) : il part du plafond sur le pourtour, où s'arrêtent les murs et le champ de
+ * force, et monte de `rise` en son milieu. Une facette par tuile, un chevron blanc le long de
+ * chaque ligne du quadrillage ; le verre des verrières (cf. roofGlassTexture).
+ */
+export function domeRoof(rect: { minX: number; maxX: number; minZ: number; maxZ: number }, y: number, rise: number): THREE.Mesh[] {
+  const x0 = rect.minX - 0.5, z0 = rect.minZ - 0.5
+  const w = rect.maxX - rect.minX + 1, d = rect.maxZ - rect.minZ + 1
+  // Hauteur au coin de tuile (i, j) : nulle sur le pourtour, tangente presque verticale au départ.
+  const height = (i: number, j: number) => {
+    const u = (2 * i) / w - 1, v = (2 * j) / d - 1
+    return y + rise * Math.sqrt(Math.max(0, (1 - u * u) * (1 - v * v)))
+  }
+  const pos: number[] = [], uv: number[] = [], index: number[] = []
+  for (let j = 0; j <= d; j++) {
+    for (let i = 0; i <= w; i++) {
+      pos.push(x0 + i, height(i, j) + 0.01, z0 + j)
+      // Coordonnées de texture en tuiles : deux carreaux par répétition.
+      uv.push((x0 + i + 0.5) / 2, (z0 + j + 0.5) / 2)
+    }
+  }
+  const ribGeos: THREE.BufferGeometry[] = []
+  const at = (i: number, j: number) => j * (w + 1) + i
+  for (let j = 0; j <= d; j++) {
+    for (let i = 0; i <= w; i++) {
+      if (i < w && j < d) index.push(at(i, j), at(i + 1, j), at(i + 1, j + 1), at(i, j), at(i + 1, j + 1), at(i, j + 1))
+      const h = height(i, j)
+      if (i < w) {
+        const dy = height(i + 1, j) - h
+        ribGeos.push(new THREE.BoxGeometry(Math.hypot(1, dy) + 0.03, 0.05, 0.04).rotateZ(Math.atan2(dy, 1)).translate(x0 + i + 0.5, h + dy / 2 - 0.02, z0 + j))
+      }
+      if (j < d) {
+        const dy = height(i, j + 1) - h
+        ribGeos.push(new THREE.BoxGeometry(0.04, 0.05, Math.hypot(1, dy) + 0.03).rotateX(-Math.atan2(dy, 1)).translate(x0 + i, h + dy / 2 - 0.02, z0 + j + 0.5))
+      }
+    }
+  }
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+  geo.setIndex(index)
+  const glass = new THREE.Mesh(geo, roofGlassMaterial('#ffffff'))
+  glass.renderOrder = 2
+  const ribs = new THREE.Mesh(mergeGeometries(ribGeos), GREENHOUSE_FRAME)
+  for (const g of ribGeos) g.dispose()
   return [glass, ribs]
 }
 
