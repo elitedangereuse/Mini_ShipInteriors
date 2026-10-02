@@ -18,7 +18,10 @@ Une fois les cartes créées, il peut ne garder que la partie « Cible » et les
 - **Murs en tuiles** : on pose un type de mur (simple, demi-mur, avec porte, avec hublot, avec
   arche) sur les arêtes du quadrillage, puis on applique le papier peint case par case ou
   d'un coup. C'est l'actuelle feature des cloisons, étendue à tous les murs.
-- Parcelle de **10 × 10** au départ, **deux agrandissements** à acheter : 20 × 20, puis 30 × 30.
+- Parcelle de **8 × 8** au départ, **trois agrandissements** à acheter : 12 × 12, 15 × 15, puis
+  20 × 20 (revu après le lot 6 : d'abord 10, 20 et 30).
+- En vue subjective, un **toit** sur la bulle : une verrière, comme celle de la serre.
+- **Déplacer** ce qu'on a bâti d'un seul bloc (une pièce, une partie, ou tout).
 - Quartiers **ouverts ou fermés** : ouverts, n'importe quel joueur peut venir les visiter sans
   invitation.
 
@@ -70,7 +73,7 @@ plus tard (cf. décisions Q2).
 ## Bloc B · La parcelle et sa bulle
 
 **B1. Modèle de parcelle partagé.** Nouveau `shared/housing-plot.js` (+ `.d.ts`, tests) : tailles
-par palier (10, 20, 30 ; cf. décisions Q1), position sur le pont 2 (ancrée du côté du palier, pour que
+par palier (8, 12, 15, 20 ; cf. décisions Q1), position sur le pont 2 (ancrée du côté du palier, pour que
 les coordonnées des objets restent valables quand elle grandit), cases, arêtes intérieures et
 arêtes du périmètre, `applyPlot(map, layout)` qui pose les cases, les murs et les portes sur le
 `ShipMap` (comme `applyWings` / `applyPartitions`). Utilisé par le client, le relais (ligne de
@@ -78,8 +81,8 @@ vue) et à reproduire sur le site.
 
 **B2. Construire la parcelle à la volée.** Équivalent de `WingShell` (`src/cabin/wings.ts`) pour
 toute la parcelle : sol de base, murs posés, portes animées, collisions, pathfinding, fondu des
-murs côté caméra. Relever `MAX_OCCLUDERS` (96) de `view.ts` et vérifier les perfs à 30 × 30 (900 cases : découper la géométrie fusionnée par
-blocs, pour ne reconstruire que le bloc touché).
+murs côté caméra. Relever `MAX_OCCLUDERS` (96) de `view.ts` et vérifier les perfs à la plus grande taille (mesurées à 30 × 30, 900 cases ; 20 × 20 depuis le lot 7) : découper la géométrie fusionnée par
+blocs, pour ne reconstruire que le bloc touché.
 
 **B3. La bulle : champ de force sur le périmètre.** Généraliser `src/shield.ts` (un pan sur un
 bord de pont) à une liste d'arêtes : un seul maillage (ou instancié) pour tout le périmètre, coins
@@ -89,7 +92,7 @@ propres, fondu en vue isométrique, collision de mur. Les pylônes deviennent de
 D1) ; le champ de force n'est tendu que sur les arêtes restées libres. Retirer le mur rend le
 champ. Étendre `applyPartitions`, qui exige aujourd'hui deux cases de la même pièce.
 
-**B5. Acheter les agrandissements.** `economy.json` : `plot: [100000, 250000]` à la place de
+**B5. Acheter les agrandissements.** `economy.json` : `plot: [100000, 250000, 500000]` à la place de
 `wings` (cf. décisions Q1) ; `wallet.buyPlot()` (`src/economy/wallet.ts`) ; l'achat et la taille gardée par le site.
 Interface : onglet « Parcelle » du mode aménagement (remplace « Pièces »), aperçu au sol de la
 surface gagnée, le champ de force recule.
@@ -184,14 +187,14 @@ l'aménagement :
 - `v` vaut 2, sinon le champ est ignoré ;
 - `open` : `true` si les quartiers sont ouverts (on y entre sans invitation), absent sinon ;
 - `walls` : 512 murs au plus, chacun `{ x, z, e, k?, a?, b? }`, `x` et `z` entiers, `x` entre 11
-  et 41, `z` entre -1 et 29, `e` vaut `v` ou `h` ; une arête en double n'est gardée qu'une fois,
+  et 31, `z` entre -1 et 19, `e` vaut `v` ou `h` ; une arête en double n'est gardée qu'une fois,
   la dernière ;
 - `k` : chaîne de 1 à 24 caractères `[a-z0-9-]`, jamais `wall`, qui s'écrit sans `k` ;
 - `a`, `b` : papier peint des deux faces du mur, entiers de 0 à 15, index dans `papers` ;
 - `papers` : 16 revêtements au plus, `{ style, color }`, `style` de 1 à 24 caractères
   `[a-z0-9-]`, `color` en `#rrggbb` ;
-- `floor` : `{ palette, cells }`, `palette` comme `papers`, `cells` les 900 cases de la plus
-  grande parcelle (30 × 30, ligne par ligne depuis son coin nord-ouest), en plages `[.a-p]\d{1,4}`
+- `floor` : `{ palette, cells }`, `palette` comme `papers`, `cells` les 400 cases de la plus
+  grande parcelle (20 × 20, ligne par ligne depuis son coin nord-ouest), en plages `[.a-p]\d{1,4}`
   (`.` : dalle nue, `a` à `p` : index dans `palette`) ;
 - un revêtement mal formé est oublié (ses faces et ses cases redeviennent nues) ; les palettes
   ne gardent que ce qui sert, dans l'ordre où on le rencontre.
@@ -199,7 +202,7 @@ l'aménagement :
 **G2. Migration v1 → v2.** Les quartiers actuels ne doivent pas être perdus : transposer la cabine
 `p` et ses extensions dans la parcelle (coordonnées des objets, murs de la pièce et des extensions
 en murs posés, revêtements par pièce en revêtements par case et par face, cloisons gardées). Faite
-à la lecture côté client, et une fois pour toutes sur le site. Ce qui ne tient pas dans 10 × 10 :
+à la lecture côté client, et une fois pour toutes sur le site. Ce qui ne tient pas dans 8 × 8 :
 cf. décisions Q4.
 
 **G3. Achats d'extensions déjà faits.** Cf. décisions Q4 : convertis en agrandissements ou
@@ -208,7 +211,7 @@ remboursés en crédits, côté site.
 ## Bloc H · Finitions
 
 **H1. Galerie.** `/gallery.html` : les cinq types de murs, la bulle, une parcelle exemple.
-**H2. Perfs.** Parcelle de 30 × 30 meublée au maximum, sur mobile et en qualité basse.
+**H2. Perfs.** La plus grande parcelle meublée au maximum, sur mobile et en qualité basse.
 **H3. README.** Sections « Quartiers personnalisables », « Le vaisseau », « Architecture »,
 captures.
 
@@ -262,6 +265,29 @@ captures.
      une porte sur trois murs, de 1 661 à 1 127 maillages). Pas encore essayé sur un vrai
      téléphone.
    - README (H3) : section « Quartiers v2 », captures, architecture.
+7. **Retouches** (fait) : tailles, toit, déplacer d'un bloc. Ce lot remplace
+   ce que les lots précédents disent des tailles, des limites d'objets et des agrandissements.
+   - Tailles (Q1) : 8 × 8 au départ, puis 12 × 12, 15 × 15 et 20 × 20, pour 100 000, 250 000 et
+     500 000 CR ; 64, 96, 128 puis 160 objets, comme les anciens quartiers avec zéro à trois
+     extensions. La grille des cases (format 2) passe de 30 à 20 de côté : un sol enregistré
+     avant dans le navigateur, pendant les essais, se décale (rien n'était encore sur le site).
+   - Migration (Q4) : un agrandissement par extension achetée, un de plus si la construction ne
+     tient pas avec une colonne libre le long du palier et une rangée libre devant sa porte. Seuls,
+     les quartiers (8 × 5) tiennent dans 8 × 8, tournés d'un demi-tour contre le bord nord : leur
+     porte donne au sud, sur la bande où arrive l'ascenseur ; contre le palier, c'est son mur qui
+     tient lieu du leur (ils le retrouvent si on les éloigne). Une extension à gauche ou à droite
+     demande 15 × 15, les deux 20 × 20.
+   - Toit : en vue subjective, la verrière de la serre couvre la parcelle (`greenhouseRoof`, posée
+     par `PlotShell` dans le plafond du pont) ; les murs bâtis montent jusqu'à elle, comme le
+     champ de force.
+   - Déplacer (outil 6 de l'onglet Murs) : un bloc se choisit en tirant un rectangle, en cliquant
+     dans une pièce fermée, ou avec « Toute la construction » ; on le fait glisser, ou on le pousse
+     d'une case avec les flèches. Ses murs, son papier peint, son sol et ses objets (posés sur ses
+     cases, accrochés à ses murs, ou posés sur un meuble du bloc) suivent ; ce qui arrive remplace
+     ce qui était là, un mur gardant le papier peint de la face que le bloc n'habille pas. Refusé
+     s'il sortirait de la parcelle, poserait un mur sur le palier ou une porte sur le vide,
+     traverserait un meuble ou un mur restés en place, ou remplacerait un mur qui porte un objet
+     resté accroché (`blockOf`, `blockRefusal`, `moveBlock` dans `shared/housing-home.js`).
 
 Fait depuis, pour basculer :
 
@@ -290,7 +316,7 @@ Prises :
 
 | | Question | Décision |
 |---|---|---|
-| Q1 | Tailles et prix des agrandissements | 10 × 10, puis 20 × 20, puis 30 × 30 ; les prix des extensions actuelles, dans l'ordre : 100 000 puis 250 000 CR |
+| Q1 | Tailles et prix des agrandissements | 8 × 8, puis 12 × 12, 15 × 15 et 20 × 20 ; les prix des trois extensions actuelles, dans l'ordre : 100 000, 250 000 puis 500 000 CR (d'abord 10, 20, 30 pour 100 000 et 250 000) |
 | Q2 | Que devient la place libérée sur le pont supérieur ? | Une pièce vide, « Pièce vierge », pour plus tard |
 | Q3 | Mur cassé | Abandonné |
 
@@ -298,7 +324,7 @@ Prises :
 
 | | Question | Proposition |
 |---|---|---|
-| Q4 | Extensions déjà achetées, objets hors de la parcelle | Une extension ou plus = premier agrandissement offert (deux ou trois = les deux) ; objets hors parcelle retirés (ils restent débloqués, à reposer). Appliqué au lot 5 : la migration fait tenir la construction, rien n'est retiré |
+| Q4 | Extensions déjà achetées, objets hors de la parcelle | Chaque extension achetée offre un agrandissement, et un de plus si la construction ne tient pas avec son accès ; seuls, les quartiers (8 × 5) tiennent dans 8 × 8, tournés d'un demi-tour. Rien n'est retiré (appliqué aux lots 5 et 7) |
 | Q5 | Fermer ses quartiers pendant une visite | Les visiteurs restent jusqu'à leur départ ; « raccompagner » reste possible (appliqué au lot 4) |
 | Q6 | Sol sans revêtement | Dalle de base du vaisseau ; pas de vide (on marche partout dans la bulle). Appliqué au lot 3 |
 | Q7 | Murs et revêtements payants ? | Gratuits, comme les cloisons et les revêtements aujourd'hui. Appliqué aux lots 2 et 3 |

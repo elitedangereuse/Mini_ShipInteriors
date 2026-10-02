@@ -13,8 +13,8 @@ export const HOUSING_LEVEL = 2
 export const PLOT_ROOM = 'q'
 export const LANDING_ROOM = 'a'
 
-/** Côté de la parcelle, en tuiles : au départ, puis après chacun des deux agrandissements. */
-export const PLOT_SIZES = [10, 20, 30]
+/** Côté de la parcelle, en tuiles : au départ, puis après chacun des trois agrandissements. */
+export const PLOT_SIZES = [8, 12, 15, 20]
 
 /** Coin nord-ouest de la parcelle : la tuile qui touche la porte du palier. */
 export const PLOT_ORIGIN = { x: 12, z: 0 }

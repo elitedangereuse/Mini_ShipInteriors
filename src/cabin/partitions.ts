@@ -359,7 +359,7 @@ export class PartitionShell {
   /**
    * @param partitions cloisons posées sur le plan (cf. applyPartitions)
    * @param existing murs et poteaux déjà là (le pont, les pièces d'extension) : pour les poteaux d'angle
-   * @param upper haut des murs jusqu'au plafond en vue subjective (pas sous le ciel d'une parcelle)
+   * @param upper haut des murs jusqu'au plafond en vue subjective
    * @param paper papier peint de chaque face (parcelle des quartiers) : il s'estompe avec son mur
    */
   constructor(

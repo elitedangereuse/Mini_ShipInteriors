@@ -11,5 +11,5 @@ export interface LegacyCabin {
 }
 
 export declare function stageFromWings(count: number): number
-export declare function migrationOffset(wings: boolean): { dx: number; dz: number }
+export declare function migrationPlace(box: { minX: number; maxX: number; minZ: number; maxZ: number }, stage: number): { dx: number; dz: number; stage: number; half: boolean }
 export declare function migrateCabin(layout: LegacyCabin): HomePlan

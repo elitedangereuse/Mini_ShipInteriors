@@ -68,10 +68,12 @@ import paintBrush from '@phosphor-icons/core/bold/paint-brush-bold.svg?raw'
 import signOut from '@phosphor-icons/core/bold/sign-out-bold.svg?raw'
 import trash from '@phosphor-icons/core/bold/trash-bold.svg?raw'
 import userPlus from '@phosphor-icons/core/bold/user-plus-bold.svg?raw'
-// mode construction des quartiers : tracer, pièce, pipette (la gomme est plus haut)
+// mode construction des quartiers : tracer, pièce, pipette, déplacer, tout choisir (la gomme est plus haut)
 import lineSegment from '@phosphor-icons/core/bold/line-segment-bold.svg?raw'
 import rectangleBold from '@phosphor-icons/core/bold/rectangle-bold.svg?raw'
 import eyedropper from '@phosphor-icons/core/bold/eyedropper-bold.svg?raw'
+import arrowsOutCardinal from '@phosphor-icons/core/bold/arrows-out-cardinal-bold.svg?raw'
+import selectionAll from '@phosphor-icons/core/bold/selection-all-bold.svg?raw'
 import warningCircle from '@phosphor-icons/core/bold/warning-circle-bold.svg?raw'
 import x from '@phosphor-icons/core/bold/x-bold.svg?raw'
 import arrowUp from '@phosphor-icons/core/bold/arrow-up-bold.svg?raw'
@@ -205,6 +207,8 @@ const SVG = {
   'line-segment': lineSegment,
   rectangle: rectangleBold,
   eyedropper,
+  'arrows-out-cardinal': arrowsOutCardinal,
+  'selection-all': selectionAll,
   'warning-circle': warningCircle,
   x,
   'caret-left': caretLeft,

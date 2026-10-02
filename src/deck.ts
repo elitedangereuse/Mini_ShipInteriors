@@ -1240,9 +1240,9 @@ function greenhouseFrame(cx: number, cz: number, alongX: boolean): THREE.Object3
 
 /**
  * Plafond d'une serre (vue subjective) : une verrière au-dessus de ses tuiles, et ses chevrons
- * blancs, un par tuile dans chaque sens.
+ * blancs, un par tuile dans chaque sens. La parcelle des quartiers a la même (cf. housing/plot.ts).
  */
-function greenhouseRoof(tiles: { x: number; z: number }[], y: number): THREE.Object3D[] {
+export function greenhouseRoof(tiles: { x: number; z: number }[], y: number): THREE.Mesh[] {
   const glassGeos: THREE.BufferGeometry[] = [], ribGeos: THREE.BufferGeometry[] = []
   for (const { x, z } of tiles) {
     glassGeos.push(new THREE.PlaneGeometry(1, 1).rotateX(Math.PI / 2).translate(x, y + 0.01, z))

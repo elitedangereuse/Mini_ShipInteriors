@@ -40,7 +40,7 @@ test('cinq plans, chacun dans son emprise, sans arête en double', () => {
 })
 
 test('posé et tourné dans la parcelle : tout tient, et chaque pièce se rejoint depuis l\'ascenseur', () => {
-  const at = { x: PLOT_ORIGIN.x + 6, z: PLOT_ORIGIN.z + 6 }
+  const at = { x: PLOT_ORIGIN.x + 3, z: PLOT_ORIGIN.z + 3 }
   for (const t of HOME_TEMPLATES) {
     for (let turns = 0; turns < 4; turns++) {
       const map = quarters(1)
