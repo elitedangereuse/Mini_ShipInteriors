@@ -217,8 +217,9 @@ Un **combiné de bord** flotte à gauche de l'écran ; réduit, c'est une langue
 - **Qui est là, et où.** Les joueurs à bord d'abord, avec le pont et la pièce où ils se trouvent (la petite coupe du vaisseau allume leur pont), puis ceux qui ne le sont pas : tous les CMDR qui ont déjà lancé le jeu, du plus récemment vu au plus ancien. Une porte verte signale des quartiers ouverts.
 - **Visiter.** Des quartiers ouverts se visitent d'un clic, même si leur CMDR est hors ligne : le relais demande l'aménagement au site et ouvre une instance à part, où se retrouvent ceux qui viennent les voir.
 - **Sonner.** Chez un CMDR à bord dont les quartiers sont fermés. Il reçoit la sonnette en haut à gauche ; s'il ouvre, on entre aussitôt.
-- **Chuchoter.** Un message pour un seul joueur à bord, dans une conversation du combiné (ou `/w CMDR Nom message`) ; il s'affiche aussi dans le chat, en violet.
-- **Laisser un message.** À un CMDR hors ligne (280 caractères) : il le trouve à son retour, dans l'onglet « Messages », et peut y répondre ou l'effacer. Réservé aux CMDR connectés au site.
+- **Chuchoter.** Un message pour un seul joueur à bord, dans une conversation du combiné (ou `/w CMDR Nom message`) ; il s'affiche aussi dans le chat, en violet. Les chuchotements ne durent que le temps de la session.
+- **Laisser un message.** À un CMDR hors ligne (280 caractères) : il le trouve à son retour, dans la conversation, et peut y répondre ou l'effacer.
+- **Messages.** L'onglet liste les conversations, une par joueur, la plus récente en haut : chuchotements et messages laissés s'y suivent. Réservé aux CMDR connectés au site.
 - **Recevoir.** Inviter chez soi, raccompagner un visiteur, ouvrir ou fermer ses quartiers.
 
 Côté site, l'annuaire et les messages passent par `outils/mini-shipinteriors-crew.php` (table `mini_shipinteriors_message`) ; sans le site, le combiné ne montre que les joueurs à bord.

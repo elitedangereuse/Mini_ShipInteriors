@@ -9,6 +9,10 @@ import type { Letter } from './site'
  * sont ouverts ; on y chuchote, on y sonne chez les autres, on y invite chez soi, et on y laisse
  * un message à un absent. Tout ce qui touche aux quartiers des autres passe par lui.
  *
+ * L'onglet « Messages » liste les conversations, une par joueur : les chuchotements de la session
+ * (ils ne sont gardés nulle part : recharger la page les efface) et les messages laissés en
+ * notre absence, que le site garde jusqu'à ce qu'on les efface.
+ *
  * Le combiné n'affiche que ce qu'on lui donne (cf. update) et rend la main par ses `on…` : c'est
  * main.ts qui connaît le relais, le site et les visites.
  */
@@ -75,6 +79,9 @@ interface Entry {
   at: number
   /** Laissé à un absent (il le lira à son retour) plutôt que chuchoté. */
   letter?: boolean
+  /** Message qu'on nous a laissé : son identifiant sur le site (pour l'effacer), et s'il est encore à lire. */
+  letterId?: number
+  unread?: boolean
   state?: 'sending' | 'failed'
   note?: string
 }
@@ -345,7 +352,7 @@ export class CrewPhone {
     const lettersKey = JSON.stringify(data.letters)
     if (lettersKey !== this.keys.letters) {
       this.keys.letters = lettersKey
-      this.renderLetters()
+      this.syncLetters()
     }
     if (this.thread) this.renderThreadHead()
     this.badges()
@@ -361,7 +368,7 @@ export class CrewPhone {
     for (const n of this.unread.values()) whispers += n
     const letters = this.unreadLetters
     this.tabBadge.textContent = whispers + letters ? String(whispers + letters) : ''
-    this.lettersBadge.textContent = letters ? String(letters) : ''
+    this.lettersBadge.textContent = this.tabBadge.textContent
     this.tab.classList.toggle('alert', whispers + letters > 0)
   }
 
@@ -531,28 +538,51 @@ export class CrewPhone {
     return box
   }
 
-  // ------------------------------------------------------------- messages laissés
+  // ------------------------------------------------------------- conversations
 
-  private renderLetters() {
-    const letters = this.data.letters
+  /** Les messages laissés en notre absence rejoignent la conversation de leur auteur. */
+  private syncLetters() {
+    for (const t of this.threads.values()) t.entries = t.entries.filter((e) => e.letterId === undefined)
+    for (const l of this.data.letters ?? []) {
+      const key = contactKey(l.from)
+      let t = this.threads.get(key)
+      if (!t) this.threads.set(key, (t = { name: `CMDR ${l.from}`, entries: [] }))
+      t.entries.push({ mine: false, text: l.text, at: l.at * 1000, letter: true, letterId: l.id, unread: !l.read })
+    }
+    for (const t of this.threads.values()) t.entries.sort((a, b) => a.at - b.at)
+    this.renderConversations()
+    if (this.thread) this.renderThread()
+  }
+
+  /** Onglet « Messages » : une ligne par joueur avec qui l'on a échangé, la plus récente en haut. */
+  private renderConversations() {
+    const list = [...this.threads].filter(([, t]) => t.entries.length).sort((a, b) => b[1].entries.at(-1)!.at - a[1].entries.at(-1)!.at)
     this.box.replaceChildren()
-    if (!letters?.length) {
-      this.box.append(el('p', 'ph-empty', letters
-        ? tr('Aucun message. Ceux qu\'on vous laisse en votre absence arrivent ici.', 'No messages. Those left while you are away land here.')
-        : tr('Les messages sont réservés aux CMDR connectés au site.', 'Messages are for CMDRs logged in to the site.')))
+    if (!list.length) {
+      this.box.append(el('p', 'ph-empty', tr(
+        'Aucune conversation. Vos chuchotements et les messages qu\'on vous laisse en votre absence arrivent ici.',
+        'No conversations. Your whispers and the messages left while you are away land here.',
+      )))
       return
     }
-    for (const l of letters) {
-      const card = el('article', l.read ? 'ph-letter' : 'ph-letter new')
-      const head = el('header')
-      head.append(el('strong', 'ph-name', `CMDR ${l.from}`), el('time', '', ago(l.at)))
-      const actions = el('div', 'ph-actions')
-      actions.append(
-        button(tr('Répondre', 'Reply'), 'chat-circle-dots', () => this.openThread(contactKey(l.from), `CMDR ${l.from}`)),
-        button(tr('Effacer', 'Delete'), 'trash', () => this.onDeleteLetter?.(l.id)),
-      )
-      card.append(head, el('p', '', l.text), actions)
-      this.box.append(card)
+    for (const [key, t] of list) {
+      const last = t.entries.at(-1)!
+      const c = this.byKey.get(key)
+      const unread = (this.unread.get(key) ?? 0) + t.entries.filter((e) => e.unread).length
+      const row = el('button', unread ? 'ph-conv new' : 'ph-conv')
+      row.type = 'button'
+      const head = el('span', 'ph-conv-head')
+      const name = el('strong', 'ph-name')
+      // Un message laissé vient toujours d'un CMDR du site.
+      name.append(nameTag(t.name, c?.verified ?? !key.startsWith('~')))
+      head.append(name, el('time', '', ago(last.at / 1000)))
+      const text = el('span', 'ph-sub', (last.mine ? tr('Vous : ', 'You: ') : '') + last.text)
+      const line = el('span', 'ph-conv-line')
+      line.append(text)
+      if (unread) line.append(el('span', 'ph-badge', String(unread)))
+      row.append(head, line)
+      row.onclick = () => this.openThread(key)
+      this.box.append(row)
     }
   }
 
@@ -581,6 +611,7 @@ export class CrewPhone {
     if (!this.unread.delete(key)) return
     this.badges()
     this.renderList()
+    this.renderConversations()
   }
 
   private renderThreadHead() {
@@ -629,8 +660,21 @@ export class CrewPhone {
       ...t.entries.map((e) => {
         const b = el('div', `ph-bubble${e.mine ? ' mine' : ''}${e.letter ? ' letter' : ''}${e.state ? ` ${e.state}` : ''}`)
         b.append(el('p', '', e.text))
-        const meta = e.state === 'failed' ? e.note ?? '' : e.state === 'sending' ? tr('envoi…', 'sending…') : `${clock(e.at)}${e.letter ? tr(' · message laissé', ' · message left') : ''}`
-        b.append(el('small', '', meta))
+        const when = Date.now() - e.at < 43200000 ? clock(e.at) : ago(e.at / 1000)
+        const meta = e.state === 'failed' ? e.note ?? '' : e.state === 'sending' ? tr('envoi…', 'sending…') : `${when}${e.letter ? tr(' · message laissé', ' · message left') : ''}`
+        const foot = el('small', '', meta)
+        // Un message qu'on nous a laissé reste sur le site tant qu'on ne l'efface pas.
+        if (e.letterId !== undefined) {
+          const id = e.letterId
+          const del = el('button', 'ph-del')
+          del.type = 'button'
+          del.title = tr('Effacer ce message', 'Delete this message')
+          del.setAttribute('aria-label', del.title)
+          del.append(icon('trash'))
+          del.onclick = () => this.onDeleteLetter?.(id)
+          foot.append(del)
+        }
+        b.append(foot)
         return b
       }),
     )
@@ -644,6 +688,7 @@ export class CrewPhone {
     t.entries.push(entry)
     if (t.entries.length > 80) t.entries.shift()
     if (this.thread === key) this.renderThread()
+    this.renderConversations()
     return entry
   }
 
@@ -667,6 +712,7 @@ export class CrewPhone {
     this.unread.set(key, (this.unread.get(key) ?? 0) + 1)
     this.badges()
     this.renderList()
+    this.renderConversations()
   }
 
   /** Un chuchotement parti d'ailleurs (commande du chat) : il rejoint la conversation. */
