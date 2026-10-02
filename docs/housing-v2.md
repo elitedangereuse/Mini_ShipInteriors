@@ -187,14 +187,15 @@ l'aménagement :
 - `v` vaut 2, sinon le champ est ignoré ;
 - `open` : `true` si les quartiers sont ouverts (on y entre sans invitation), absent sinon ;
 - `walls` : 512 murs au plus, chacun `{ x, z, e, k?, a?, b? }`, `x` et `z` entiers, `x` entre 11
-  et 31, `z` entre -1 et 19, `e` vaut `v` ou `h` ; une arête en double n'est gardée qu'une fois,
+  et 41, `z` entre -1 et 29, `e` vaut `v` ou `h` ; une arête en double n'est gardée qu'une fois,
   la dernière ;
 - `k` : chaîne de 1 à 24 caractères `[a-z0-9-]`, jamais `wall`, qui s'écrit sans `k` ;
 - `a`, `b` : papier peint des deux faces du mur, entiers de 0 à 15, index dans `papers` ;
 - `papers` : 16 revêtements au plus, `{ style, color }`, `style` de 1 à 24 caractères
   `[a-z0-9-]`, `color` en `#rrggbb` ;
-- `floor` : `{ palette, cells }`, `palette` comme `papers`, `cells` les 400 cases de la plus
-  grande parcelle (20 × 20, ligne par ligne depuis son coin nord-ouest), en plages `[.a-p]\d{1,4}`
+- `floor` : `{ palette, cells }`, `palette` comme `papers`, `cells` les 900 cases d'un carré de
+  30 × 30 (la plus grande parcelle d'avant le lot 7 ; celle de 20 × 20 y tient), ligne par ligne
+  depuis son coin nord-ouest, en plages `[.a-p]\d{1,4}`
   (`.` : dalle nue, `a` à `p` : index dans `palette`) ;
 - un revêtement mal formé est oublié (ses faces et ses cases redeviennent nues) ; les palettes
   ne gardent que ce qui sert, dans l'ordre où on le rencontre.
@@ -269,14 +270,19 @@ captures.
    ce que les lots précédents disent des tailles, des limites d'objets et des agrandissements.
    - Tailles (Q1) : 8 × 8 au départ, puis 12 × 12, 15 × 15 et 20 × 20, pour 100 000, 250 000 et
      500 000 CR ; 64, 96, 128 puis 160 objets, comme les anciens quartiers avec zéro à trois
-     extensions. La grille des cases (format 2) passe de 30 à 20 de côté : un sol enregistré
-     avant dans le navigateur, pendant les essais, se décale (rien n'était encore sur le site).
-   - Migration (Q4) : un agrandissement par extension achetée, un de plus si la construction ne
-     tient pas avec une colonne libre le long du palier et une rangée libre devant sa porte. Seuls,
-     les quartiers (8 × 5) tiennent dans 8 × 8, tournés d'un demi-tour contre le bord nord : leur
-     porte donne au sud, sur la bande où arrive l'ascenseur ; contre le palier, c'est son mur qui
-     tient lieu du leur (ils le retrouvent si on les éloigne). Une extension à gauche ou à droite
-     demande 15 × 15, les deux 20 × 20.
+     extensions. Le format 2 ne change pas : sa grille reste un carré de 30 × 30, et `stage` va
+     maintenant jusqu'à 3.
+   - Parcelles enregistrées avant (avec 10, 20 et 30) : à la lecture, le palier monte jusqu'au
+     plus petit qui contient tout ce qui est bâti (`fitStage`, dans `unpackHome`) ; rien ne sort
+     de la parcelle. Une construction faite sur 30 × 30 au-delà de 20 tuiles ne se montre plus en
+     entier (elle reste enregistrée).
+   - Palier offert par les extensions (Q4, `stageFromWings`) : le plus petit où les quartiers et
+     ces extensions tiennent avec leur accès (une colonne libre le long du palier, une rangée libre
+     devant leur porte), chaque extension prise pleine, quelle que soit sa forme. Aucune : 8 × 8 ;
+     milieu : 12 × 12 ; gauche ou droite, avec ou sans le milieu : 15 × 15 ; gauche et droite :
+     20 × 20. Seuls, les quartiers (8 × 5) tiennent dans 8 × 8 tournés d'un demi-tour contre le
+     bord nord : leur porte donne au sud, sur la bande où arrive l'ascenseur ; contre le palier,
+     c'est son mur qui tient lieu du leur (ils le retrouvent si on les éloigne).
    - Toit : en vue subjective, la verrière de la serre couvre la parcelle (`greenhouseRoof`, posée
      par `PlotShell` dans le plafond du pont) ; les murs bâtis montent jusqu'à elle, comme le
      champ de force.
@@ -310,6 +316,20 @@ Fait depuis, pour basculer :
    de la parcelle reprennent aussi la forme). Les mentions « derrière `?housing-v2` » plus haut
    racontent l'histoire des lots.
 
+À faire sur le site pour le lot 7 (dépôt du site, `phputils/mini_shipinteriors/cabin.php`) :
+
+1. `msi_home_sanitize` : accepter `stage` de 1 à 3 (comme `sanitizeHome`) ; le reste du format ne
+   change pas.
+2. Agrandissements : vendre `plot: 1 | 2 | 3`, dans l'ordre, à 100 000, 250 000 et 500 000 CR
+   (`plot` dans `economy.json`), et rendre `wallet.plot` jusqu'à 3.
+3. Palier offert par les extensions, et palier auquel le site ramène `stage` : le tableau de
+   `stageFromWings` (aucune 0, milieu 1, gauche ou droite avec ou sans le milieu 2, gauche et
+   droite 3).
+4. Achats faits avant le lot 7 : `wallet.plot` 1 voulait dire 20 × 20 (100 000 CR), 2 voulait dire
+   30 × 30 (250 000 CR). À convertir une fois (proposition : 3, la plus grande parcelle, pour l'un
+   comme pour l'autre), sinon ces CMDR retombent sur 12 × 12 ou 15 × 15 (ce qu'ils ont bâti reste
+   affiché, cf. `fitStage`).
+
 ## Décisions
 
 Prises :
@@ -324,7 +344,7 @@ Prises :
 
 | | Question | Proposition |
 |---|---|---|
-| Q4 | Extensions déjà achetées, objets hors de la parcelle | Chaque extension achetée offre un agrandissement, et un de plus si la construction ne tient pas avec son accès ; seuls, les quartiers (8 × 5) tiennent dans 8 × 8, tournés d'un demi-tour. Rien n'est retiré (appliqué aux lots 5 et 7) |
+| Q4 | Extensions déjà achetées, objets hors de la parcelle | Les extensions achetées offrent la plus petite parcelle où elles tiennent avec les quartiers, quelle que soit leur forme (aucune 8 × 8, milieu 12 × 12, gauche ou droite 15 × 15, les deux 20 × 20) ; seuls, les quartiers tiennent dans 8 × 8, tournés d'un demi-tour. Rien n'est retiré (appliqué aux lots 5 et 7) |
 | Q5 | Fermer ses quartiers pendant une visite | Les visiteurs restent jusqu'à leur départ ; « raccompagner » reste possible (appliqué au lot 4) |
 | Q6 | Sol sans revêtement | Dalle de base du vaisseau ; pas de vide (on marche partout dans la bulle). Appliqué au lot 3 |
 | Q7 | Murs et revêtements payants ? | Gratuits, comme les cloisons et les revêtements aujourd'hui. Appliqué aux lots 2 et 3 |

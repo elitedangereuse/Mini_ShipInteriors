@@ -78,6 +78,7 @@ export declare function cellAt(index: number): { x: number; z: number }
 export declare function encodeCells(letters: string): string
 export declare function decodeCells(code: unknown): string
 export declare function unpackHome(raw: unknown): HomePlan
+export declare function fitStage(plan: HomePlan): number
 export declare function packHome(plan: HomePlan): HomeLayout
 export declare function finishCounts(plan: HomePlan): { floor: number; paper: number }
 export declare const MAX_HOME_ITEMS: number

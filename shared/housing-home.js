@@ -44,15 +44,20 @@ export const HOME_WALL_KINDS = [...SOLID_KINDS, ...HOME_DOOR_KINDS]
 
 const KIND = /^[a-z0-9-]{1,24}$/
 
-/** Bornes des arêtes : celles de la plus grande parcelle, pourtour compris (tuile au nord ou à l'ouest). */
-const MAX_SIZE = PLOT_SIZES[PLOT_SIZES.length - 1]
+/**
+ * Côté du carré que couvre le format, depuis le coin nord-ouest de la parcelle : 30, fixe. Le
+ * format 2 est né avec une plus grande parcelle de 30 × 30 ; celle de 20 × 20 (cf. PLOT_SIZES) y
+ * tient, et ce qui a été enregistré avant se lit toujours de même (le site en a le portage).
+ * Bornes des arêtes et des objets, pourtour compris, et grille des cases.
+ */
+const MAX_SIZE = 30
 
 /** Revêtements au plus dans chaque palette (sol, papier peint) : une lettre chacun. */
 export const MAX_FINISHES = 16
 const LETTERS = 'abcdefghijklmnop'
 /** Case sans revêtement : la dalle du vaisseau. */
 const BARE = '.'
-/** Côté de la grille des cases (celle de la plus grande parcelle), et nombre de cases. */
+/** Côté de la grille des cases, et nombre de cases. */
 export const GRID = MAX_SIZE
 export const CELLS = GRID * GRID
 
@@ -174,6 +179,29 @@ export function decodeCells(code) {
 }
 
 /**
+ * Plus petit palier dont la parcelle contient tout ce qui est bâti : chaque mur (sur son pourtour,
+ * s'il n'est pas une porte), chaque case revêtue, chaque objet. Une parcelle enregistrée avant le
+ * passage aux tailles de 8, 12, 15 et 20 tuiles (lot 7 de docs/housing-v2.md) garde ainsi tout ce
+ * qu'elle porte.
+ * @param {{ walls: object[], floor: object[], items?: object[] }} plan
+ */
+export function fitStage(plan) {
+  const side = (x, z) => Math.max(x - PLOT_ORIGIN.x + 1, z - PLOT_ORIGIN.z + 1, 0)
+  let need = 0
+  for (const w of plan.walls) {
+    const { x, z, nx, nz } = partitionEdge(w)
+    const a = side(x, z), b = side(nx, nz)
+    need = Math.max(need, isHomeDoor(w) ? Math.max(a, b) : Math.min(a, b))
+  }
+  plan.floor.forEach((f, i) => {
+    if (f) need = Math.max(need, side(cellAt(i).x, cellAt(i).z))
+  })
+  for (const it of plan.items ?? []) need = Math.max(need, side(Math.round(it.x), Math.round(it.z)))
+  const stage = PLOT_SIZES.findIndex((size) => size >= need)
+  return stage < 0 ? PLOT_SIZES.length - 1 : stage
+}
+
+/**
  * Plan d'une parcelle, sous une forme commode à modifier : les murs avec le revêtement de leurs
  * faces, et celui de chaque case (null : dalle nue), CELLS en tout (cf. cellIndex).
  * @param {unknown} raw aménagement au format 2 (vérifié ici)
@@ -192,7 +220,10 @@ export function unpackHome(raw) {
   const palette = home?.floor?.palette ?? []
   const cells = decodeCells(home?.floor?.cells)
   const floor = [...cells].map((c) => (c === BARE ? null : { ...palette[LETTERS.indexOf(c)] }))
-  return { walls, floor, items: (home?.items ?? []).map((it) => ({ ...it })), ...(home?.stage ? { stage: home.stage } : {}), ...(home?.open ? { open: true } : {}) }
+  const plan = { walls, floor, items: (home?.items ?? []).map((it) => ({ ...it })), ...(home?.open ? { open: true } : {}) }
+  // La parcelle contient toujours ce qu'on y a bâti (cf. fitStage).
+  const stage = Math.max(home?.stage ?? 0, fitStage(plan))
+  return stage ? { ...plan, stage } : plan
 }
 
 /** Nombre de revêtements différents du sol et du papier peint d'un plan (16 au plus chacun). */

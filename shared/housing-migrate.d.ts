@@ -10,6 +10,6 @@ export interface LegacyCabin {
   partitions?: Partition[]
 }
 
-export declare function stageFromWings(count: number): number
+export declare function stageFromWings(ids: Iterable<string>): number
 export declare function migrationPlace(box: { minX: number; maxX: number; minZ: number; maxZ: number }, stage: number): { dx: number; dz: number; stage: number; half: boolean }
 export declare function migrateCabin(layout: LegacyCabin): HomePlan

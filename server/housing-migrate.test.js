@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { applyWalls, cellAt, packHome, sanitizeHome } from '../shared/housing-home.js'
+import { WING_PATTERNS } from '../shared/cabin-wings.js'
 import { migrateCabin, migrationPlace, stageFromWings } from '../shared/housing-migrate.js'
 import { applyPlot, HOUSING_LEVEL, inPlot, plotRect } from '../shared/housing-plot.js'
 import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
@@ -39,8 +40,23 @@ function reach(map, x, z) {
   return seen
 }
 
-test('extensions achetées : chacune offre un agrandissement', () => {
-  assert.deepEqual([0, 1, 2, 3, 4].map(stageFromWings), [0, 1, 2, 3, 3])
+test('extensions achetées : la parcelle où elles tiennent, quelle que soit leur forme', () => {
+  const table = [[], ['middle'], ['left'], ['right'], ['left', 'middle'], ['middle', 'right'], ['left', 'right'], ['left', 'middle', 'right']]
+  assert.deepEqual(table.map(stageFromWings), [0, 1, 2, 2, 2, 2, 3, 3])
+  // Les quartiers seuls sont bien là où les compte stageFromWings.
+  const map = new ShipMap(SHIP_LAYOUTS['1'], shipMapOptions(1))
+  const tiles = []
+  for (let z = 0; z < map.height; z++) for (let x = 0; x < map.width; x++) if (map.room(x, z) === 'p') tiles.push({ x, z })
+  assert.deepEqual([Math.min(...tiles.map((t) => t.x)), Math.max(...tiles.map((t) => t.x)), Math.min(...tiles.map((t) => t.z)), Math.max(...tiles.map((t) => t.z))], [8, 15, 6, 10])
+  // Toutes les formes, dans chaque jeu d'extensions : la migration tient dans la parcelle offerte.
+  for (const ids of table) {
+    for (const shape of Object.keys(WING_PATTERNS)) {
+      const plan = migrateCabin({ ...CABIN, wings: Object.fromEntries(ids.map((id) => [id, { shape }])) })
+      assert.equal(plan.stage ?? 0, stageFromWings(ids), `${ids.join('+')} ${shape}`)
+      const { walls } = placed(plan)
+      assert.ok(walls.length >= plan.walls.length - 2, `${ids.join('+')} ${shape} : murs posés`)
+    }
+  }
 })
 
 test('la parcelle grandit tant que la construction n\'y tient pas avec son couloir', () => {

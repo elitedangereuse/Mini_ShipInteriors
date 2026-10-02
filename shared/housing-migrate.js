@@ -5,18 +5,38 @@
 // quels, décalés d'un bloc. La porte des quartiers, qui donnait au nord sur la coursive, donne
 // maintenant sur la parcelle, qu'on rejoint par le palier de l'ascenseur.
 //
-// Chaque extension achetée offre un agrandissement (décision Q4). Si la construction ne tient pas
-// dans cette parcelle avec son accès, la parcelle grandit encore : rien n'est retiré.
+// Les extensions achetées offrent un agrandissement (décision Q4) : la plus petite parcelle où les
+// quartiers et ces extensions tiennent avec leur accès, quelle que soit la forme de leurs pièces
+// (cf. stageFromWings). Rien n'est retiré.
 
-import { applyWings, WING_ROOMS, WING_SLOTS } from './cabin-wings.js'
+import { applyWings, slotOf, WING_ROOMS, WING_SIZE, WING_SLOTS } from './cabin-wings.js'
 import { applyPartitions, CABIN_ROOM, partitionKey } from './cabin-partitions.js'
 import { CELLS, cellIndex } from './housing-home.js'
 import { PLOT_DOOR, PLOT_ORIGIN, PLOT_SIZES, plotStage } from './housing-plot.js'
 import { SHIP_LAYOUTS, shipMapOptions } from './ship-layouts.js'
 import { ShipMap } from './ship-map.js'
 
-/** Palier d'agrandissement offert par les extensions achetées : un par extension. */
-export const stageFromWings = (count) => plotStage(count)
+/** Emprise des anciens quartiers sans extension (tuiles), sur le pont supérieur. */
+const CABIN_BOX = { minX: 8, maxX: 15, minZ: 6, maxZ: 10 }
+
+/**
+ * Palier offert par les extensions achetées : le plus petit où les quartiers et ces extensions
+ * tiennent avec leur accès, chaque pièce d'extension prise pleine (WING_SIZE de côté), quelle que
+ * soit sa forme. Seuls, les quartiers tiennent dans la parcelle de départ ; avec l'extension du
+ * milieu, 12 × 12 ; avec celle de gauche ou de droite (le milieu en plus ou non), 15 × 15 ; avec
+ * les deux, 20 × 20. Le site applique le même tableau.
+ * @param {Iterable<string>} ids extensions achetées ('left', 'middle', 'right')
+ */
+export function stageFromWings(ids) {
+  const box = { ...CABIN_BOX }
+  for (const id of ids) {
+    const slot = slotOf(id)
+    if (!slot) continue
+    box.minX = Math.min(box.minX, slot.x0), box.maxX = Math.max(box.maxX, slot.x0 + WING_SIZE - 1)
+    box.minZ = Math.min(box.minZ, slot.z0), box.maxZ = Math.max(box.maxZ, slot.z0 + WING_SIZE - 1)
+  }
+  return migrationPlace(box, 0).stage
+}
 
 /**
  * Où poser les anciens quartiers (emprise `box`, en tuiles), et sur quelle parcelle : la plus
@@ -82,7 +102,7 @@ export function migrateCabin(layout) {
       box.minZ = Math.min(box.minZ, z), box.maxZ = Math.max(box.maxZ, z)
     }
   }
-  const { dx, dz, stage, half } = migrationPlace(box, stageFromWings(owned.length))
+  const { dx, dz, stage, half } = migrationPlace(box, stageFromWings(owned.map((s) => s.id)))
   // Une tuile, un point et un bord des anciens quartiers, une fois posés (cf. migrationPlace).
   const sx = box.minX + box.maxX, sz = box.minZ + box.maxZ
   const at = (x, z) => (half ? { x: sx - x + dx, z: sz - z + dz } : { x: x + dx, z: z + dz })

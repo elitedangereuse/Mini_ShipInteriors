@@ -106,7 +106,7 @@ test('le relais garde la parcelle avec l\'aménagement, au format 2 seulement', 
 test('revêtements : cases encodées par plages, palettes compactées, mal formés oubliés', async () => {
   const { CELLS, cellAt, cellIndex, decodeCells, encodeCells, finishCounts, packHome, sanitizeHome: clean, unpackHome } = await import('../shared/housing-home.js')
   assert.equal(cellIndex(O.x, O.z), 0)
-  assert.equal(cellIndex(O.x + 19, O.z + 19), CELLS - 1)
+  assert.equal(cellIndex(O.x + 29, O.z + 29), CELLS - 1, 'la grille du format reste de 30 × 30')
   assert.equal(cellIndex(O.x - 1, O.z), -1)
   assert.deepEqual(cellAt(cellIndex(O.x + 3, O.z + 7)), { x: O.x + 3, z: O.z + 7 })
   const letters = 'aab' + '.'.repeat(CELLS - 4) + 'c'
@@ -119,7 +119,7 @@ test('revêtements : cases encodées par plages, palettes compactées, mal form�
   const floor = Array(CELLS).fill(null)
   floor[cellIndex(O.x, O.z)] = parquet
   floor[cellIndex(O.x + 1, O.z)] = { ...parquet }
-  floor[cellIndex(O.x + 9, O.z + 9)] = tiles
+  floor[cellIndex(O.x + 7, O.z + 7)] = tiles
   const plan = { walls: [{ x: O.x + 2, z: O.z + 2, e: 'v', k: 'half', a: paint }, { x: O.x + 2, z: O.z + 3, e: 'v', b: { ...paint } }], floor }
   assert.deepEqual(finishCounts(plan), { floor: 2, paper: 1 })
   const home = packHome(plan)
@@ -214,4 +214,26 @@ test('déplacer un bloc : murs, sol et objets d\'un seul tenant, ce qui reste ne
   const neighbour = { x: wall.x + 3, z: wall.z, e: 'v', a: oak, b: blue }
   const merged = moveBlock({ walls: [wall, neighbour], floor, items: [] }, { walls: new Set([key(wall)]), cells: new Set(), items: new Set() }, 3, 0)
   assert.deepEqual(merged.walls, [{ x: wall.x + 3, z: wall.z, e: 'v', a: red, b: blue }])
+})
+
+test('une parcelle lue contient ce qu\'on y a bâti, même enregistrée avec les anciennes tailles', async () => {
+  const { CELLS, cellIndex, fitStage, packHome, unpackHome } = await import('../shared/housing-home.js')
+  const empty = { walls: [], floor: Array(CELLS).fill(null), items: [] }
+  assert.equal(fitStage(empty), 0)
+  // Un mur plein sur le pourtour est de 8 × 8 ; une porte au même endroit demande la case d'à côté.
+  assert.equal(fitStage({ ...empty, walls: [{ x: O.x + 7, z: O.z + 2, e: 'v' }] }), 0)
+  assert.equal(fitStage({ ...empty, walls: [{ x: O.x + 7, z: O.z + 2, e: 'v', k: 'sliding' }] }), 1)
+  // Contre le palier : la tuile du palier ne compte pas.
+  assert.equal(fitStage({ ...empty, walls: [{ x: O.x - 1, z: O.z + 6, e: 'v' }] }), 0)
+  const floor = Array(CELLS).fill(null)
+  floor[cellIndex(O.x + 13, O.z)] = { style: 'planks', color: '#b07a45' }
+  assert.equal(fitStage({ ...empty, floor }), 2)
+  assert.equal(fitStage({ ...empty, items: [{ m: 'sofa', x: O.x + 19.2, z: O.z + 3, r: 0 }] }), 3)
+  // Au-delà de 20 × 20 (une parcelle de 30 × 30 d'avant le lot 7) : la plus grande.
+  assert.equal(fitStage({ ...empty, walls: [{ x: O.x + 25, z: O.z + 25, e: 'h' }] }), 3)
+  // Enregistrée au palier 1 (20 × 20 à l'époque) avec des murs jusqu'à la 18e colonne : 20 × 20.
+  const legacy = packHome({ ...empty, stage: 1, walls: [{ x: O.x + 17, z: O.z + 4, e: 'v' }] })
+  assert.equal(legacy.stage, 1)
+  assert.equal(unpackHome(legacy).stage, 3)
+  assert.equal(unpackHome(packHome({ ...empty, stage: 2 })).stage, 2, 'un palier acheté reste')
 })
