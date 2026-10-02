@@ -12,6 +12,9 @@ import { serializeLayout, type CabinLayout } from './layout'
  *
  * Chaque page du jeu numérote ses envois (session, seq) : le site ignore un envoi plus ancien
  * arrivé après un plus récent (page fermée en plein enregistrement, cf. leave()).
+ *
+ * La parcelle du pont des quartiers (housing v2, cf. shared/housing-home.js) voyage avec les
+ * quartiers, dans leur champ `home` : même envoi, même copie dans le navigateur.
  * Surcharge possible au build : VITE_ED_CABIN_URL=… npm run build
  */
 
@@ -65,6 +68,8 @@ export async function requestCabin(timeoutMs = 10000): Promise<SiteCabin | null>
 
 export class CabinStore {
   onState?: (state: SaveState) => void
+  /** Parcelle à joindre à chaque enregistrement (format 2), ou rien : le site garde alors la sienne. */
+  home?: () => unknown
   /** Le site a répondu : on y enregistre ; false : dans ce navigateur ; null : réponse attendue. */
   private remote: boolean | null = null
   /** Dernier aménagement pas encore parti au site. */
@@ -83,7 +88,7 @@ export class CabinStore {
   private readonly localKey: string
 
   /** @param account nom du CMDR (clé de la copie locale) */
-  constructor(account: string) {
+  constructor(readonly account: string) {
     this.localKey = `cabin:${account.toLowerCase()}`
     // Page fermée, ou passée en arrière-plan (sur mobile, souvent fermée ensuite sans pagehide).
     addEventListener('pagehide', () => this.leave())
@@ -180,7 +185,7 @@ export class CabinStore {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ cabin: serializeLayout(layout), session: this.session, seq: version }),
+        body: JSON.stringify({ cabin: this.payload(layout), session: this.session, seq: version }),
         // La page se ferme : la requête doit partir quand même.
         keepalive,
       })
@@ -196,6 +201,12 @@ export class CabinStore {
       clearTimeout(this.timer)
       this.timer = window.setTimeout(() => void this.flush(), RETRY)
     }
+  }
+
+  /** Ce qui s'enregistre : les quartiers, et la parcelle qui les accompagne. */
+  private payload(layout: CabinLayout) {
+    const home = this.home?.()
+    return home ? { ...serializeLayout(layout), home } : serializeLayout(layout)
   }
 
   private report(state: SaveState) {
@@ -221,7 +232,7 @@ export class CabinStore {
 
   private writeLocal(layout: CabinLayout, seq: number) {
     try {
-      localStorage.setItem(this.localKey, JSON.stringify({ ...serializeLayout(layout), t: Date.now(), session: this.session, seq }))
+      localStorage.setItem(this.localKey, JSON.stringify({ ...this.payload(layout), t: Date.now(), session: this.session, seq }))
     } catch {}
   }
 

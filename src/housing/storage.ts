@@ -1,9 +1,9 @@
-import { HOME_FORMAT, packHome, sanitizeHome, unpackHome, type HomePlan } from '../../shared/housing-home.js'
+import { HOME_FORMAT, unpackHome, type HomePlan } from '../../shared/housing-home.js'
 
 /*
- * Enregistrement de la parcelle (housing v2) : en attendant que le site garde l'aménagement au
- * format 2 (cf. docs/housing-v2.md, G1), il reste dans ce navigateur, un par CMDR (ou un pour les
- * invités du site). Même forme que ce que vérifieront le site et le relais (sanitizeHome).
+ * Parcelles des essais de housing v2 : avant que le site ne les garde (champ `home` des quartiers,
+ * cf. cabin/storage.ts), elles restaient dans ce navigateur, une par CMDR. On ne fait plus que
+ * les relire, pour les confier au site la première fois ; rien ne s'y écrit plus.
  */
 
 const PREFIX = 'mini-interior:home:'
@@ -11,12 +11,12 @@ const PREFIX = 'mini-interior:home:'
 export class HomeStore {
   private readonly key: string
 
-  /** @param owner nom du CMDR connecté, ou null pour un invité */
-  constructor(owner: string | null) {
-    this.key = PREFIX + (owner ?? '~guest')
+  /** @param owner nom du CMDR connecté */
+  constructor(owner: string) {
+    this.key = PREFIX + owner
   }
 
-  /** Une parcelle est-elle gardée ici (sinon, elle naîtra de ses anciens quartiers, cf. housing-migrate.js) ? */
+  /** Une parcelle des essais est-elle gardée ici ? */
   has(): boolean {
     try {
       return localStorage.getItem(this.key) !== null
@@ -25,7 +25,7 @@ export class HomeStore {
     }
   }
 
-  /** Le plan de la parcelle gardée ici, ou celui d'une parcelle vide. */
+  /** Son plan, ou celui d'une parcelle vide. */
   load(): HomePlan {
     try {
       const raw = localStorage.getItem(this.key)
@@ -33,11 +33,5 @@ export class HomeStore {
     } catch {
       return unpackHome({ v: HOME_FORMAT })
     }
-  }
-
-  save(plan: HomePlan) {
-    try {
-      localStorage.setItem(this.key, JSON.stringify(sanitizeHome(packHome(plan))))
-    } catch {}
   }
 }

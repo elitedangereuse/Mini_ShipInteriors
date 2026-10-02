@@ -176,9 +176,10 @@ sont eux qui y écrivent les premiers (la bulle vide du lot 1 n'enregistre rien)
 
 État (lots 2 et 3) : `shared/housing-home.js` définit le format 2 et sa vérification
 (`sanitizeHome`), le relais le garde dans le champ `home` de l'aménagement (`server/cabin.js`).
-**Reste le site**, dont le dépôt n'était pas accessible depuis la session : en attendant, la
-parcelle est gardée dans le navigateur (`src/housing/storage.ts`). Ce que le site doit accepter
-et rendre, dans le champ `home` de l'aménagement (le plus simple : porter `sanitizeHome` tel quel) :
+Le site le garde aussi (`msi_home_sanitize` dans `phputils/mini_shipinteriors/cabin.php`, portage
+de `sanitizeHome` : les deux doivent rester identiques), et le jeu l'y enregistre avec les
+quartiers (`src/cabin/storage.ts`). Ce que le site accepte et rend, dans le champ `home` de
+l'aménagement :
 
 - `v` vaut 2, sinon le champ est ignoré ;
 - `open` : `true` si les quartiers sont ouverts (on y entre sans invitation), absent sinon ;
@@ -262,16 +263,20 @@ captures.
      téléphone.
    - README (H3) : section « Quartiers v2 », captures, architecture.
 
-Pour basculer pour de bon, il reste ce qui ne se fait pas dans ce dépôt, puis un ménage :
+Fait depuis, pour basculer :
 
-1. **Le site** (dépôt du site) : garder le champ `home` au format 2 (G1, cf. plus haut, objets et
-   palier compris) ; vendre les agrandissements (`buy` avec `plot: 1 | 2`, prix de `economy.json`)
-   et rendre `wallet.plot` ; faire la migration une fois pour toutes à la première lecture (la
-   logique est `migrateCabin`, à porter telle quelle ou à confier au jeu, qui la fait déjà).
-2. **Le jeu** : enregistrer la parcelle sur le site plutôt que dans le navigateur
-   (`housing/storage.ts`), réserver de nouveau l'aménagement aux CMDR connectés, puis retirer le
-   drapeau (`housing/flag.ts`) et le code des anciens quartiers devenu inutile (extensions,
-   cloisons, onglets « Murs et sol », « Cloisons » et « Pièces »).
+1. **Le site** (dépôt du site) : il garde le champ `home` au format 2 (G1, cf. plus haut, objets et
+   palier compris, le palier ramené à celui du CMDR), vend les agrandissements (`buy` avec
+   `plot: 1 | 2`, dans l'ordre, prix de `economy.json`) et rend `wallet.plot` (les extensions déjà
+   achetées offrent les paliers, Q4). Un envoi sans `home` (page sans le drapeau) garde la
+   parcelle enregistrée. La migration reste au jeu, qui la fait à la première lecture.
+2. **Le jeu** : la parcelle s'enregistre sur le site avec les quartiers (`cabin/storage.ts`, repli
+   dans le navigateur si le site ne répond pas) ; les parcelles des essais, restées dans le
+   navigateur, lui sont confiées la première fois (`housing/storage.ts`) ; mobilier et
+   construction sont de nouveau réservés aux CMDR connectés.
+
+Il reste à retirer le drapeau (`housing/flag.ts`), puis le code des anciens quartiers devenu
+inutile (extensions, cloisons, onglets « Murs et sol », « Cloisons » et « Pièces »).
 
 ## Décisions
 

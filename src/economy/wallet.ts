@@ -220,7 +220,7 @@ export class Wallet {
     return this.buy({ wing: id }, () => this.wings.add(id))
   }
 
-  /** Agrandissement de la parcelle jusqu'au palier `stage` (housing v2 ; le site doit le connaître). */
+  /** Agrandissement de la parcelle jusqu'au palier `stage` (housing v2), l'un après l'autre. */
   buyPlot(stage: number): Promise<Outcome> {
     return this.buy({ plot: stage }, () => (this.plot = Math.max(this.plot, stage)))
   }

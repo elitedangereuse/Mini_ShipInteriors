@@ -233,7 +233,7 @@ Une refonte des quartiers est en test derrière le drapeau `?housing-v2`, à ajo
 
 À la manette, le stick gauche déplace un curseur (`L3` : plus vite), `A` maintenu trace, `X` annule, `B` abandonne le trait ou ferme, `LB` / `RB` changent d'outil, `Y` passe au type de mur, au motif ou au plan suivant, `R3` tourne le plan et `Start` change d'onglet ; le stick droit et les gâchettes règlent la caméra. Sur écran tactile, on trace au doigt comme à la souris. Les chiffres `1` à `5` choisissent l'outil au clavier.
 
-En test, la parcelle est gardée dans le navigateur et pas encore sur le site, et le mode construction est ouvert à tous ; retirer le drapeau rend les anciens quartiers tels qu'ils étaient. La galerie `/gallery.html?parcelle` montre les onze murs et portes, des revêtements, et trois plans tout faits.
+La parcelle est gardée par le site avec les quartiers (champ `home` de l'aménagement), qui vend aussi ses agrandissements ; la bâtir et la meubler est réservé aux CMDR connectés ; retirer le drapeau rend les anciens quartiers tels qu'ils étaient. La galerie `/gallery.html?parcelle` montre les onze murs et portes, des revêtements, et trois plans tout faits.
 
 ## Mobilier fait main
 

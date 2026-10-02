@@ -61,7 +61,7 @@ import { GroundBase } from './base/client'
 import { CHIEF } from './base/chief'
 import { BASE_COCKPIT, BASE_LEVEL } from '../shared/ground-base.js'
 import { HOUSING_LEVEL } from '../shared/housing-plot.js'
-import { packHome, unpackHome, type HomePlan } from '../shared/housing-home.js'
+import { HOME_FORMAT, packHome, unpackHome, type HomePlan } from '../shared/housing-home.js'
 import { migrateCabin, stageFromWings } from '../shared/housing-migrate.js'
 import { entryOf } from './cabin/catalog'
 import type { ChiefState } from './net'
@@ -237,18 +237,41 @@ const cabinDeck = decks.find((d) => d.cabin)!
 const cabin = cabinDeck.cabin!
 /**
  * Pont des quartiers (housing v2, derrière ?housing-v2) : la parcelle du joueur, bâtie en mode
- * construction (cf. housing/builder.ts) et gardée dans ce navigateur (cf. housing/storage.ts).
+ * construction (cf. housing/builder.ts) et gardée par le site avec ses quartiers (champ `home`,
+ * cf. cabin/storage.ts).
  */
 const homeDeck = decks.find((d) => d.home)
-let homeStore = new HomeStore(account?.name ?? null)
-/** Sa parcelle (pendant une visite, le pont des quartiers montre celle de l'hôte, cf. showHome). */
-let homePlan: HomePlan = homeStore.load()
+/**
+ * Sa parcelle (pendant une visite, le pont des quartiers montre celle de l'hôte, cf. showHome).
+ * Celle d'un invité naît des quartiers d'origine, et ne s'enregistre pas.
+ */
+let homePlan: HomePlan = unpackHome({ v: HOME_FORMAT })
+/** La parcelle à enregistrer avec ses quartiers (rien sans le pont des quartiers : le site garde la sienne). */
+const homePayload = () => (homeDeck ? packHome(homePlan) : undefined)
+if (cabinStore) cabinStore.home = homePayload
 
-/** Réponse du site (ou son absence) : l'aménagement à montrer, envoyé au site s'il vient de ce navigateur. */
+/**
+ * Sa parcelle, d'après ce que le site (ou ce navigateur) garde de ses quartiers : celle qui les
+ * accompagne ; sinon celle des essais, restée dans ce navigateur (cf. housing/storage.ts) ; sinon
+ * ses anciens quartiers, transposés (cf. shared/housing-migrate.js). `fresh` : le site ne l'a pas encore.
+ */
+function homeOf(raw: unknown, layout: CabinLayout, owner: string): { plan: HomePlan; fresh: boolean } {
+  const home = raw && typeof raw === 'object' ? (raw as { home?: { v?: unknown } }).home : null
+  if (home && home.v === HOME_FORMAT) return { plan: unpackHome(home), fresh: false }
+  const trial = new HomeStore(owner)
+  return { plan: trial.has() ? trial.load() : migrateCabin(layout), fresh: true }
+}
+
+/**
+ * Réponse du site (ou son absence) : l'aménagement à montrer, et la parcelle qui l'accompagne,
+ * envoyés au site s'ils viennent de ce navigateur ou si la parcelle vient de naître.
+ */
 function connectStore(store: CabinStore, site: SiteCabin | null): CabinLayout {
   const { layout: raw, upload } = store.connect(site)
   const layout = normalizeLayout(raw, LEGACY_BOUNDS)
-  if (upload) store.save(layout)
+  const home = homeDeck ? homeOf(raw, layout, store.account) : null
+  if (home) homePlan = home.plan
+  if (upload || home?.fresh) store.save(layout)
   return layout
 }
 
@@ -265,12 +288,9 @@ if (cabinStore && siteCabin === undefined) {
   const store = cabinStore
   void cabinRequest.then((site) => siteAnswered(store, site))
 }
-// Housing v2 : la première fois, ses anciens quartiers deviennent une construction de la parcelle
-// (un CMDR dont le site n'a pas encore répondu l'enregistre à sa réponse, cf. siteAnswered).
-if (homeDeck && !homeStore.has()) {
-  homePlan = migrateCabin(ownLayout)
-  if (!cabinStore || cabinStore.ready) homeStore.save(homePlan)
-}
+// Housing v2 : en attendant le site, la parcelle que ce navigateur connaît (elle n'est enregistrée
+// qu'à sa réponse, cf. siteAnswered) ; pour un invité, les quartiers d'origine transposés.
+if (homeDeck && !cabinStore?.ready) homePlan = cabinStore ? homeOf(cabinStore.localCopy, ownLayout, cabinStore.account).plan : migrateCabin(ownLayout)
 homeDeck?.home!.set(homePlan.stage ?? 0, homePlan)
 cabin.setLayout(homeDeck ? homeCabin(homePlan) : ownLayout)
 
@@ -1955,7 +1975,7 @@ function loadEditor(): Promise<void> {
         // Housing v2 : le mobilier de la parcelle, gardé avec elle (les anciens quartiers ne bougent plus).
         if (homeDeck) {
           homePlan = { ...homePlan, items: layout.items }
-          homeStore.save(homePlan)
+          saveHome()
         } else {
           ownLayout = layout
           cabinStore?.save(layout)
@@ -1977,35 +1997,31 @@ function loadEditor(): Promise<void> {
  */
 function adoptAccount() {
   if (!wallet.ready) void wallet.load()
-  const name = profile.name.replace(/^CMDR /, '')
-  if (homeDeck && !builder?.active && !editing()) {
-    homeStore = new HomeStore(name)
-    homePlan = homeStore.has() ? homeStore.load() : migrateCabin(ownLayout)
-    if (!visiting) showCabin()
-  }
   if (cabinStore) return
   const store = (cabinStore = new CabinStore(profile.name.replace(/^CMDR /, '')))
-  setOwnLayout(normalizeLayout(store.localCopy, LEGACY_BOUNDS))
+  store.home = homePayload
+  const layout = normalizeLayout(store.localCopy, LEGACY_BOUNDS)
+  if (homeDeck) homePlan = homeOf(store.localCopy, layout, store.account).plan
+  setOwnLayout(layout)
   void requestCabin().then((site) => siteAnswered(store, site))
 }
 
 /** Le site répond en cours de partie : ses quartiers remplacent ceux montrés en attendant. */
 function siteAnswered(store: CabinStore, site: SiteCabin | null) {
   if (cabinStore !== store) return
+  // Housing v2 : sa parcelle arrive avec eux (cf. connectStore).
   setOwnLayout(connectStore(store, site))
-  // Housing v2 : ses quartiers du site deviennent sa parcelle, s'ils ne l'étaient pas encore.
-  if (homeDeck && !homeStore.has() && !editing()) {
-    homePlan = migrateCabin(ownLayout)
-    homeStore.save(homePlan)
-    if (!visiting) showCabin()
-    if (verified) net.sendCabin(cabinPayload())
-  }
+  // Un agrandissement acheté avant cette réponse s'applique à la parcelle arrivée.
+  syncStage()
   reconcileWings()
 }
 
-/** Aménagement de ses quartiers venu d'ailleurs que du mode aménagement (qui attend le site). */
+/**
+ * Aménagement de ses quartiers venu d'ailleurs que du mode aménagement (qui attend le site). Sur
+ * le pont des quartiers, sa parcelle a pu changer avec lui : on la montre dans tous les cas.
+ */
 function setOwnLayout(layout: CabinLayout) {
-  if (sameLayout(layout, ownLayout)) return
+  if (!homeDeck && sameLayout(layout, ownLayout)) return
   ownLayout = layout
   if (verified) net.sendCabin(cabinPayload())
   if (!visiting) showCabin()
@@ -2022,9 +2038,7 @@ async function openEditor(tab?: 'rooms') {
   // Housing v2 : sur le pont des quartiers, on rouvre le dernier mode (mobilier ou construction).
   if (homeDeck && deck === homeDeck && homeMode === 'build') return openBuilder()
   if (visiting) return chat.add('system', tr(`Vous êtes en visite chez ${visiting.name} : on n'aménage que chez soi.`, `You're visiting ${visiting.name}: you can only decorate your own quarters.`))
-  // La parcelle est gardée dans ce navigateur (en attendant le site) : chacun l'aménage.
-  if (!homeDeck && !linked) return chat.add('system', tr('Aménager ses quartiers est réservé aux CMDR connectés à elitedangereuse.fr.', 'Only CMDRs logged in to elitedangereuse.fr can decorate their quarters.'))
-  if (!homeDeck && !cabinStore?.ready) return chat.add('system', tr('Vos quartiers arrivent du site, encore un instant…', 'Your quarters are on their way from the site, just a moment…'))
+  if (!canDecorate()) return
   await loadSiteArt()
   if (editing() || riding || visiting || photo.active) return
   if (!editor) {
@@ -2050,12 +2064,28 @@ async function openEditor(tab?: 'rooms') {
   document.body.classList.add('editing')
   ed.start(homeDeck ? homeCabin(homePlan) : ownLayout, tab)
   ed.reframe(player.position)
-  // La parcelle est gardée dans ce navigateur (en attendant le site).
-  if (homeDeck || !store) ed.setSaveState('local')
+  if (!store) ed.setSaveState('local')
   else {
     ed.setSaveState(store.state)
     store.onState = (state) => ed.setSaveState(state)
   }
+}
+
+/**
+ * Aménager ses quartiers (mobilier, construction de la parcelle) est réservé aux CMDR connectés,
+ * une fois que le site a rendu ce qu'il garde : sinon, le refus est dit dans le chat.
+ */
+function canDecorate(): boolean {
+  if (linked && cabinStore?.ready) return true
+  chat.add('system', linked
+    ? tr('Vos quartiers arrivent du site, encore un instant…', 'Your quarters are on their way from the site, just a moment…')
+    : tr('Aménager ses quartiers est réservé aux CMDR connectés à elitedangereuse.fr.', 'Only CMDRs logged in to elitedangereuse.fr can decorate their quarters.'))
+  return false
+}
+
+/** Enregistre sa parcelle avec ses quartiers (jamais avant la réponse du site : on écraserait celle qu'il garde). */
+function saveHome() {
+  if (cabinStore?.ready) cabinStore.save(ownLayout)
 }
 
 /** Dernier mode ouvert sur la parcelle : le mobilier (mode aménagement) ou la construction. */
@@ -2072,6 +2102,7 @@ function switchHomeMode(mode: 'furnish' | 'build') {
 async function openBuilder() {
   if (!homeDeck || editing() || riding || photo.active || deck !== homeDeck) return
   if (visiting) return chat.add('system', tr(`Vous êtes en visite chez ${visiting.name} : on n'aménage que chez soi.`, `You're visiting ${visiting.name}: you can only decorate your own quarters.`))
+  if (!canDecorate()) return
   builderLoading ??= import('./housing/builder').then(({ HomeBuilder, BUILD_ELEVATION }) => {
     editElevation = BUILD_ELEVATION
     builder = new HomeBuilder(homeDeck, {
@@ -2082,7 +2113,7 @@ async function openBuilder() {
         // L'ouverture et la taille de ses quartiers ne se règlent pas ici (cf. toggleOpen, syncStage).
         homePlan = { ...plan, open: homePlan.open, stage: homePlan.stage }
         showCabin()
-        homeStore.save(homePlan)
+        saveHome()
         // Ses visiteurs voient chaque changement.
         if (verified) net.sendCabin(cabinPayload())
       },
@@ -2099,7 +2130,7 @@ async function openBuilder() {
           }
           return outcome.reason === 'funds' ? tr('Crédits insuffisants.', 'Not enough credits.')
             : outcome.reason === 'guest' ? tr('Réservé aux CMDR connectés au site.', 'For CMDRs logged in to the site.')
-            : tr('Achat refusé : le site ne propose pas encore les agrandissements.', 'Purchase refused: the site does not offer expansions yet.')
+            : tr('Achat refusé : le site ne répond pas, réessayez dans un instant.', 'Purchase refused: the site is not answering, try again in a moment.')
         },
       },
     })
@@ -2130,6 +2161,7 @@ function closeEditor() {
     document.body.classList.remove('editing')
     renderer.domElement.style.cursor = 'default'
     unstickHome(player.position, 0.18)
+    void cabinStore?.flush()
     return
   }
   if (!editor?.active) return
@@ -2307,7 +2339,7 @@ function syncStage() {
   const stage = ownStage()
   if (stage === (homePlan.stage ?? 0)) return
   homePlan = { ...homePlan, stage }
-  homeStore.save(homePlan)
+  saveHome()
   if (!visiting) showCabin()
   builder?.setStage(stage)
   if (verified) net.sendCabin(cabinPayload())
@@ -2316,14 +2348,15 @@ wallet.subscribe(syncStage)
 
 /** Ce que le relais garde de ses quartiers : l'aménagement, et la parcelle (housing v2). */
 function cabinPayload() {
-  return homeDeck ? { ...serializeLayout(ownLayout), home: packHome(homePlan) } : serializeLayout(ownLayout)
+  const home = homePayload()
+  return home ? { ...serializeLayout(ownLayout), home } : serializeLayout(ownLayout)
 }
 
 /** Ouvrir ses quartiers (chacun peut venir) ou les remettre sur invitation (ceux qui y sont restent). */
 function toggleOpen() {
   if (!homeDeck || !verified) return
   homePlan = { ...homePlan, open: !homePlan.open }
-  homeStore.save(homePlan)
+  saveHome()
   net.sendCabin(cabinPayload())
   chat.add('system', homePlan.open
     ? tr('Vos quartiers sont ouverts : chacun peut venir les visiter, sans invitation.', 'Your quarters are open: anyone can drop by, no invitation needed.')
