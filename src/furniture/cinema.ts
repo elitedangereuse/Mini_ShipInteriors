@@ -37,6 +37,8 @@ const C = {
  */
 export const film = { time: 0 }
 /** La toile, en 16:9 comme les vidéos de la régie (cf. FILM_W, FILM_H). */
+/** Profondeur interdite devant la toile : à cette distance, la tête d'un personnage passe sous l'écran en vue iso. */
+const SCREEN_CLEARANCE = 1.1
 export const CINEMA_SCREEN = { width: 3.2, height: 1.8, centerY: 1.2, depth: 0.075 } as const
 let projection: { mode: 'trailer' | 'twitch'; title: string; image: HTMLImageElement | null } | null = null
 let projectionRequest = 0
@@ -140,6 +142,9 @@ const cinemaScreen: Builder = () => {
   return {
     solid: g,
     live,
+    // Le lecteur vidéo est un calque posé par-dessus le rendu 3D : un personnage qui longe la
+    // toile disparaîtrait dessous, comme s'il passait derrière. On le tient à un bon mètre.
+    extent: new THREE.Box3(new THREE.Vector3(-2.3, 0, -0.1), new THREE.Vector3(2.3, 2.42, SCREEN_CLEARANCE)),
     update(t) {
       filmOffset ??= Date.now() / 1000 - t
       film.time = t + filmOffset
