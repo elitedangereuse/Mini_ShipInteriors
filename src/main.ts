@@ -1203,6 +1203,7 @@ salvage = new SalvageClient({
   bark: (text) => {
     if (deck === deckById(-1)) bubbles.say('controller', text)
   },
+  seated: () => seating.current !== null,
 })
 const zone = salvage
 // Odile, au poste de sécurité du lobby (cf. salvage/controller.ts) : sa bulle suit sa tête.

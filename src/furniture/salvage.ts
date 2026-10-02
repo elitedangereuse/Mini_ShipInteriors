@@ -1,5 +1,6 @@
 import * as THREE from 'three'
-import { animatedScreen, barX, box, cylinder, decal, drawnTexture, glass, glow, hazardTexture, holoMaterial, lit, mesh, part, sphere, type Builder } from './kit'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { animatedScreen, barX, box, cylinder, decal, drawnTexture, glass, glow, hazardTexture, holoMaterial, keepShared, lit, mesh, part, pointCloud, sphere, type Builder } from './kit'
 import { tr } from '../i18n'
 import { BAY, BAY_AREAS, BAY_LIT } from '../../shared/salvage.js'
 
@@ -643,6 +644,269 @@ const bayHolo: Builder = () => {
   }
 }
 
+// ---------------------------------------------------------------- le nid thargoïde
+
+/**
+ * Résine thargoïde : un noir verdâtre, parcouru d'un fin réseau d'hexagones qui luit à peine
+ * (la même texture sert de couleur et de lueur : le fond reste sombre, les arêtes brillent).
+ */
+let resinMats: { solid: THREE.MeshLambertMaterial; double: THREE.MeshLambertMaterial } | null = null
+function resin() {
+  if (resinMats) return resinMats
+  const hex = drawnTexture(256, 256, (c) => {
+    c.fillStyle = '#2a2f2c'
+    c.fillRect(0, 0, 256, 256)
+    const r = 22, h = r * Math.sqrt(3)
+    c.strokeStyle = '#e8fff0'
+    c.lineWidth = 2.2
+    for (let row = -1; row < 256 / h + 1; row++) {
+      for (let col = -1; col < 256 / (r * 1.5) + 1; col++) {
+        const cx = col * r * 1.5, cy = row * h + (col % 2 ? h / 2 : 0)
+        c.beginPath()
+        for (let k = 0; k <= 6; k++) {
+          const a = (k / 6) * Math.PI * 2
+          c.lineTo(cx + Math.cos(a) * r * 0.92, cy + Math.sin(a) * r * 0.92)
+        }
+        c.stroke()
+      }
+    }
+  })
+  hex.wrapS = hex.wrapT = THREE.RepeatWrapping
+  hex.repeat.set(3, 1)
+  const solid = keepShared(new THREE.MeshLambertMaterial({ color: '#1a231e', map: hex, emissive: '#22ff7a', emissiveMap: hex, emissiveIntensity: 0.14 }))
+  const double = keepShared(solid.clone())
+  double.side = THREE.DoubleSide
+  resinMats = { solid, double }
+  return resinMats
+}
+
+/** Tube de `r` le long des points donnés (racines, brins, veines). */
+const tube = (points: THREE.Vector3[], r: number, m: THREE.Material, seg = 12) =>
+  mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), seg, r, 6), m)
+
+/** Cristal thargoïde : un prisme hexagonal pointu, vert (fusionné avec la spire : couleur pleine). */
+const crystalMat = () => keepShared(new THREE.MeshLambertMaterial({ color: '#25b866' }))
+let crystalShared: THREE.MeshLambertMaterial | null = null
+
+/**
+ * Spire de la ruche (une tuile, une excroissance du nid) : des racines qui s'étalent sur le sol,
+ * trois brins de résine torsadés en tronc, veinés de vert, des cristaux à leur pied, et en haut un
+ * bouton aux pétales entrouverts sur un cœur lumineux, qui respire et bat (plus fort par moments).
+ * La même fleur que la tête des Thargoïdes de la baie.
+ */
+const thargoidSpire: Builder = ({ random }) => {
+  const g = new THREE.Group()
+  const { solid: res, double } = resin()
+  const vein = glow('#39ff88')
+  // Racines : elles partent du pied et s'étalent jusqu'au bord de la tuile.
+  const roots = 5 + Math.floor(random() * 3)
+  for (let i = 0; i < roots; i++) {
+    const a = (i / roots) * Math.PI * 2 + random() * 0.6
+    const r1 = 0.34 + random() * 0.12
+    const bend = (random() - 0.5) * 0.5
+    const at = (rr: number, y: number, b = 0) => new THREE.Vector3(Math.cos(a + b) * rr, y, Math.sin(a + b) * rr)
+    const path = [at(0.06, 0.34), at(0.17, 0.2, bend * 0.3), at(r1 * 0.75, 0.06, bend * 0.7), at(r1, 0.012, bend)]
+    g.add(tube(path, 0.045 - (i % 3) * 0.008, res, 10))
+    if (i % 2 === 0) g.add(tube(path.map((p) => p.clone().setY(p.y + 0.035)), 0.009, vein, 10))
+  }
+  // Tronc : trois brins qui s'enroulent en se resserrant, autour d'une âme sombre.
+  const strands = 3
+  for (let k = 0; k < strands; k++) {
+    const pts: THREE.Vector3[] = []
+    const veinPts: THREE.Vector3[] = []
+    for (let s = 0; s <= 12; s++) {
+      const t = s / 12
+      const y = 0.08 + t * 0.86
+      const rr = 0.15 * (1 - t) + 0.05
+      const ang = (k / strands) * Math.PI * 2 + t * Math.PI * 1.7
+      pts.push(new THREE.Vector3(Math.cos(ang) * rr, y, Math.sin(ang) * rr))
+      veinPts.push(new THREE.Vector3(Math.cos(ang) * (rr + 0.045), y, Math.sin(ang) * (rr + 0.045)))
+    }
+    g.add(tube(pts, 0.052 - k * 0.006, res, 24))
+    if (k === 0) g.add(tube(veinPts, 0.01, vein, 24))
+  }
+  g.add(cylinder(0.05, 0.11, 0.86, res, 0, 0.5, 0, 7))
+  // Cristaux au pied.
+  crystalShared ??= crystalMat()
+  const crystals = 3 + Math.floor(random() * 3)
+  for (let i = 0; i < crystals; i++) {
+    const a = random() * Math.PI * 2, rr = 0.2 + random() * 0.18, h = 0.12 + random() * 0.16
+    const c = mesh(new THREE.CylinderGeometry(0, 0.035 + random() * 0.02, h, 6), crystalShared, Math.cos(a) * rr, h / 2 - 0.01, Math.sin(a) * rr)
+    c.rotation.set((random() - 0.5) * 0.8, random() * Math.PI, (random() - 0.5) * 0.8)
+    g.add(c)
+  }
+  // Le bouton : une corolle de six pétales (une seule géométrie) qui s'évase vers le haut, leur
+  // doublure qui luit, et au fond le cœur.
+  const live = new THREE.Group()
+  const bud = new THREE.Group()
+  bud.position.y = 0.92
+  bud.rotation.y = random() * Math.PI
+  const petal = (inset: number) => Array.from({ length: 6 }, (_, i) => {
+    const width = ((Math.PI * 2) / 6) * 0.72
+    const geo = new THREE.CylinderGeometry(0.2 - inset, 0.05 - inset * 0.5, 0.26, 4, 3, true, (i / 6) * Math.PI * 2 - width / 2, width)
+    // Le bout des pétales se recourbe vers l'extérieur.
+    const pos = geo.attributes.position as THREE.BufferAttribute
+    for (let v = 0; v < pos.count; v++) {
+      const y = pos.getY(v) + 0.13
+      const k = 1 + Math.max(0, y - 0.12) * 1.6
+      pos.setXYZ(v, pos.getX(v) * k, pos.getY(v) + 0.13 - Math.max(0, y - 0.18) * 0.4, pos.getZ(v) * k)
+    }
+    geo.computeVertexNormals()
+    return geo
+  })
+  const petals = part(mergeGeometries(petal(0))!, double, 0, 0, 0)
+  const liningMat = new THREE.MeshBasicMaterial({ color: '#2fd873', transparent: true, opacity: 0.45, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false })
+  const glowLining = part(mergeGeometries(petal(0.015))!, liningMat, 0, 0, 0)
+  const coreMat = new THREE.MeshBasicMaterial({ color: '#8dffbf' })
+  const core = part(new THREE.SphereGeometry(0.06, 14, 10), coreMat, 0, 0.07, 0)
+  const haloMat = new THREE.MeshBasicMaterial({ color: '#39ff88', transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false })
+  const halo = part(new THREE.SphereGeometry(0.1, 14, 10), haloMat, 0, 0.08, 0)
+  // Les étamines : de fins filaments lumineux qui sortent du cœur.
+  const stamens = new THREE.Group()
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + random()
+    stamens.add(tube([new THREE.Vector3(0, 0.07, 0), new THREE.Vector3(Math.cos(a) * 0.05, 0.15, Math.sin(a) * 0.05), new THREE.Vector3(Math.cos(a) * 0.09, 0.2 + random() * 0.04, Math.sin(a) * 0.09)], 0.006, vein, 6))
+  }
+  bud.add(petals, glowLining, core, halo, stamens)
+  live.add(bud)
+  const phase = random() * 10
+  const deep = new THREE.Color('#1f9a55'), bright = new THREE.Color('#c9ffe0')
+  return {
+    solid: g,
+    live,
+    update: (t) => {
+      const k = t + phase
+      // Les pétales s'ouvrent et se referment lentement ; le cœur bat, deux coups, puis repos.
+      const open = 1 + 0.14 * Math.sin(k * 0.7)
+      petals.scale.set(open, 1 - (open - 1) * 0.5, open)
+      glowLining.scale.copy(petals.scale)
+      const beat = Math.max(0, Math.sin(k * 3.1)) ** 6 + 0.6 * Math.max(0, Math.sin(k * 3.1 - 0.9)) ** 6
+      coreMat.color.lerpColors(deep, bright, 0.3 + 0.7 * beat)
+      liningMat.opacity = 0.3 + 0.3 * beat
+      haloMat.opacity = 0.1 + 0.25 * beat
+      halo.scale.setScalar(1 + 0.35 * beat)
+    },
+  }
+}
+
+/** Contour irrégulier (flaque) : un cercle de rayon `r` qui ondule de `wobble`, couché au sol. */
+function puddle(r: number, wobble: number, random: () => number, seg = 16): THREE.ShapeGeometry {
+  const shape = new THREE.Shape()
+  const k = Array.from({ length: 3 }, () => random() * Math.PI * 2)
+  for (let i = 0; i <= seg; i++) {
+    const a = (i / seg) * Math.PI * 2
+    const rr = r * (1 + wobble * (Math.sin(a * 2 + k[0]) * 0.5 + Math.sin(a * 3 + k[1]) * 0.35 + Math.sin(a * 5 + k[2]) * 0.15))
+    if (i === 0) shape.moveTo(Math.cos(a) * rr, Math.sin(a) * rr)
+    else shape.lineTo(Math.cos(a) * rr, Math.sin(a) * rr)
+  }
+  const geo = new THREE.ShapeGeometry(shape)
+  geo.rotateX(-Math.PI / 2)
+  return geo
+}
+
+/** Reflets caustiques : des cellules claires aux bords flous (la surface de la flaque). */
+let causticTex: THREE.CanvasTexture | null = null
+let mistTex: THREE.CanvasTexture | null = null
+let poolMats: { crust: THREE.Material; liquid: THREE.Material } | null = null
+
+/**
+ * Flaque caustique (une tuile, elle colle aux semelles) : une croûte sombre, le liquide vert
+ * translucide, des reflets qui tournent lentement, deux bulles qui montent et crèvent, et une
+ * brume verte qui respire au-dessus.
+ */
+const causticPool: Builder = ({ random }) => {
+  poolMats ??= {
+    // Opaques, et un peu au-dessus du sol : ils passent devant la biomasse du nid (transparente,
+    // dessinée après eux). Dans `live` : la fusion des meubles (cf. compact) les aplatirait.
+    crust: keepShared(new THREE.MeshBasicMaterial({ color: '#0b2615' })),
+    liquid: keepShared(new THREE.MeshBasicMaterial({ color: '#23a35a' })),
+  }
+  causticTex ??= keepShared(drawnTexture(256, 256, (c) => {
+    c.clearRect(0, 0, 256, 256)
+    let seed = 7
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646
+    for (let i = 0; i < 46; i++) {
+      const x = rnd() * 256, y = rnd() * 256, r = 10 + rnd() * 26
+      const grad = c.createRadialGradient(x, y, r * 0.55, x, y, r)
+      grad.addColorStop(0, 'rgba(0, 0, 0, 0)')
+      grad.addColorStop(0.8, 'rgba(180, 255, 210, 0.75)')
+      grad.addColorStop(1, 'rgba(180, 255, 210, 0)')
+      c.fillStyle = grad
+      c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill()
+    }
+  }))
+  mistTex ??= keepShared(drawnTexture(128, 128, (c) => {
+    const grad = c.createRadialGradient(64, 64, 4, 64, 64, 64)
+    grad.addColorStop(0, 'rgba(120, 255, 170, 0.9)')
+    grad.addColorStop(1, 'rgba(120, 255, 170, 0)')
+    c.fillStyle = grad
+    c.fillRect(0, 0, 128, 128)
+  }))
+  const live = new THREE.Group()
+  live.add(part(puddle(0.43, 0.2, random), poolMats.crust, 0, 0.012, 0), part(puddle(0.37, 0.22, random), poolMats.liquid, 0, 0.018, 0))
+  const surface = part(puddle(0.32, 0.2, random), new THREE.MeshBasicMaterial({ map: causticTex, color: '#a8ffcc', transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false }), 0, 0.022, 0)
+  const mistMat = new THREE.MeshBasicMaterial({ map: mistTex, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false })
+  const mist = part(new THREE.PlaneGeometry(1, 1), mistMat, 0, 0.06, 0)
+  mist.rotation.x = -Math.PI / 2
+  const bubbleMat = glow('#b5ffd0')
+  const bubbles = [0, 1].map(() => part(new THREE.SphereGeometry(0.022, 8, 6), bubbleMat, 0, 0, 0))
+  live.add(surface, mist, ...bubbles)
+  const phase = random() * 10
+  const spots = Array.from({ length: 8 }, () => ({ x: (random() - 0.5) * 0.4, z: (random() - 0.5) * 0.4 }))
+  return {
+    live,
+    update: (t) => {
+      const k = t + phase
+      surface.rotation.y = k * 0.12
+      surface.scale.setScalar(1 + 0.04 * Math.sin(k * 1.3))
+      mistMat.opacity = 0.14 + 0.08 * Math.sin(k * 0.8)
+      bubbles.forEach((b, i) => {
+        const cycle = k * 0.55 + i * 0.5
+        const p = cycle % 1
+        const spot = spots[Math.floor(cycle) % spots.length]
+        b.position.set(spot.x, 0.024 + p * 0.03, spot.z)
+        b.scale.setScalar(p < 0.85 ? 0.3 + p : (1 - p) * 7)
+      })
+    },
+  }
+}
+
+/**
+ * Spores du nid (`label` : « largeur,profondeur » de la zone, en tuiles) : des points verts qui
+ * flottent, montent lentement et ondulent dans le noir.
+ */
+const causticMotes: Builder = ({ label, random }) => {
+  const [w, d] = (label ?? '4,4').split(',').map(Number)
+  const n = Math.round(w * d * 1.6)
+  const base = new Float32Array(n * 3)
+  const positions = new Float32Array(n * 3)
+  const colors = new Float32Array(n * 3)
+  const sizes = new Float32Array(n)
+  for (let i = 0; i < n; i++) {
+    base[i * 3] = (random() - 0.5) * w
+    base[i * 3 + 1] = random()
+    base[i * 3 + 2] = (random() - 0.5) * d
+    const c = new THREE.Color().setHSL(0.38 + random() * 0.05, 1, 0.55 + random() * 0.2)
+    colors.set([c.r, c.g, c.b], i * 3)
+    sizes[i] = 0.012 + random() * 0.018
+  }
+  positions.set(base)
+  const points = pointCloud(positions, colors, sizes)
+  const attr = points.geometry.getAttribute('position') as THREE.BufferAttribute
+  return {
+    live: points,
+    update: (t) => {
+      for (let i = 0; i < n; i++) {
+        const y = (base[i * 3 + 1] + t * 0.03 * (0.5 + (i % 5) * 0.2)) % 1
+        positions[i * 3] = base[i * 3] + Math.sin(t * 0.4 + i) * 0.08
+        positions[i * 3 + 1] = 0.08 + y * 0.95
+        positions[i * 3 + 2] = base[i * 3 + 2] + Math.cos(t * 0.33 + i * 1.7) * 0.08
+      }
+      attr.needsUpdate = true
+    },
+  }
+}
+
 // ---------------------------------------------------------------- baie infestée
 
 /**
@@ -884,6 +1148,9 @@ const floorArrow: Builder = () => {
 
 export const SALVAGE = {
   floodlight,
+  'thargoid-spire': thargoidSpire,
+  'caustic-pool': causticPool,
+  'caustic-motes': causticMotes,
   'security-desk': securityDesk,
   'decon-arch': deconArch,
   intercom,

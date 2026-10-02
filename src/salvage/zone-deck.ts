@@ -48,13 +48,28 @@ export function zoneLevel(zone: Zone, kit: ZoneKit): LevelDef {
     } else if (c.kind === 'planter') {
       props.push({ model: 'prebuilt', object: kit.planter(variant), x: cx, z: cz, rot: (variant % 4) as Rot })
     } else if (c.kind === 'growth') {
-      props.push({ model: 'prebuilt', object: kit.growth(variant), x: cx, z: cz })
+      // Une spire de la ruche : racines, brins torsadés, bouton qui bat (cf. furniture/salvage.ts).
+      props.push({ model: 'thargoid-spire', x: cx, z: cz, solid: false })
     } else {
       props.push({ model: 'prebuilt', object: kit.crates(c.color + (c.flip ? 1 : 0)), x: cx, z: cz, rot: (c.color % 4) as Rot })
     }
   }
   for (const [i, d] of zone.decor.entries()) {
-    props.push({ model: 'prebuilt', object: kit.decor(d.kind, i), x: d.x, z: d.z, rot: d.rot as Rot, solid: false })
+    // Une flaque caustique est vivante (reflets, bulles, brume) ; le reste du décor est fixe.
+    if (d.kind === 'goo') props.push({ model: 'caustic-pool', x: d.x, z: d.z, rot: d.rot as Rot, solid: false })
+    else props.push({ model: 'prebuilt', object: kit.decor(d.kind, i), x: d.x, z: d.z, rot: d.rot as Rot, solid: false })
+  }
+  // Le nid : la biomasse étalée sous ses excroissances et ses flaques, et ses spores qui flottent.
+  const nest = zone.areas.find((a) => a.id === 'nest')
+  if (nest) {
+    const inNest = (p: { x: number; z: number }) => p.x >= nest.x && p.z >= nest.z && p.x < nest.x + nest.w && p.z < nest.z + nest.d
+    const sources = [
+      ...zone.containers.filter((c) => c.kind === 'growth' && inNest(c)),
+      ...zone.decor.filter((d) => (d.kind === 'goo' || d.kind === 'crystals') && inNest(d)),
+    ].map((p) => ({ x: p.x - nest.x, z: p.z - nest.z }))
+    const cx = nest.x + (nest.w - 1) / 2, cz = nest.z + (nest.d - 1) / 2
+    props.push({ model: 'prebuilt', object: kit.creep(nest.w, nest.d, sources, zone.seed), x: cx, z: cz, solid: false })
+    props.push({ model: 'caustic-motes', x: cx, z: cz, label: `${nest.w},${nest.d}`, solid: false })
   }
 
   // La passerelle du hall de fret : ses dalles, ses escaliers et ses garde-corps (un poteau par
@@ -88,7 +103,7 @@ export function zoneLevel(zone: Zone, kit: ZoneKit): LevelDef {
   // Petites pièces : leurs meubles (cf. BAY_ROOMS) ; les meubles des grands espaces (BAY_PROPS) ;
   // le guichet de sécurité, sa vitre et son comptoir.
   for (const f of [...zone.rooms.flatMap((r) => r.furniture), ...zone.props]) {
-    props.push({ model: f.model as Prop['model'], x: f.x, z: f.z, rot: f.rot ?? 0, y: f.y, label: f.label, solid: !!f.block })
+    props.push({ model: f.model as Prop['model'], x: f.x, z: f.z, rot: f.rot ?? 0, y: f.y, label: f.label, solid: f.solid !== false })
   }
   props.push({
     model: 'security-booth', x: BAY_BOOTH.x + (BAY_BOOTH.w - 1) / 2, z: BAY_BOOTH.z + (BAY_BOOTH.d - 1) / 2, rot: 0,

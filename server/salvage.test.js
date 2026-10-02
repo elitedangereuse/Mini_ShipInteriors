@@ -335,7 +335,7 @@ test('un ennemi qui voit un joueur le poursuit, et celui qui entend courir vient
   const mon = game.monsters[0]
   // Dans la même tuile qu'un joueur, tourné vers lui, mais pas au contact.
   Object.assign(mon, { x: a.x - 0.8, z: a.z, yaw: Math.PI / 2, mode: 'patrol', path: [] })
-  if (game.zone.map.edge(a.x - 1, a.z, 1) === 'open') {
+  if (game.zone.map.edge(a.x - 1, a.z, 1) === 'open' && walkable(game.zone, a.x - 1, a.z)) {
     h.advance(0.1)
     assert.ok(['chase', 'attack'].includes(mon.mode))
   }

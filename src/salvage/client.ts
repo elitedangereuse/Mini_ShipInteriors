@@ -64,6 +64,8 @@ export interface SalvageHost {
   project(p: THREE.Vector3): { x: number; y: number }
   /** Odile parle dans le micro du lobby (une bulle au-dessus d'elle). */
   bark?(text: string): void
+  /** Installé sur un meuble (assis, couché) : la hauteur du personnage est celle de sa place. */
+  seated?(): boolean
 }
 
 interface Game {
@@ -466,12 +468,15 @@ export class SalvageClient {
     const [kit, techRig] = await Promise.all([loadZoneKit(), technicianRig()])
     const zone = generateZone(m.seed, { team: m.team, parcels: m.parcels, enemies: m.enemies })
     const deck = new Deck(zoneLevel(zone, kit))
-    // Une tuile bloquée l'est tout entière, comme pour le relais : on ne se glisse pas au ras d'un
-    // meuble plus petit que sa tuile (le relais refuserait la position, et la vue partirait de dedans).
+    // Une tuile de conteneur, de caisses, de bac ou d'excroissance est bloquée tout entière, comme
+    // pour le relais (leurs modèles la remplissent). Un meuble, lui, arrête à sa taille réelle (cf.
+    // Deck.buildProps) : à toute sa tuile, il ferait un mur invisible autour de lui. On peut alors
+    // s'avancer un peu sur sa tuile ; le relais garde la dernière position acceptée, à deux pas, et
+    // la vue part de la tuile libre voisine (cf. sightOrigin).
     for (let z = 0; z < zone.height; z++) {
       for (let x = 0; x < zone.width; x++) {
         const i = z * zone.width + x
-        if (zone.blocked[i] && zone.room[i] !== ' ' && !zone.booth[i]) deck.colliders.push({ minX: x - 0.5, maxX: x + 0.5, minZ: z - 0.5, maxZ: z + 0.5 })
+        if (zone.blocked[i] && zone.room[i] !== ' ' && !zone.booth[i] && !zone.furnished[i]) deck.colliders.push({ minX: x - 0.5, maxX: x + 0.5, minZ: z - 0.5, maxZ: z + 0.5 })
       }
     }
     // Garde-corps de la passerelle : on ne les enjambe pas (le relais non plus, cf. zone.rail).
@@ -1095,7 +1100,7 @@ export class SalvageClient {
     const player = this.host.player
     const alive = this.me?.status === 'alive' && !hidden
     // La passerelle et ses escaliers : on monte ; une flaque caustique ralentit, un colis aussi.
-    if (!player.gliding) player.position.y = g.deck.y + groundHeight(g.zone, player.position)
+    if (!player.gliding && !this.host.seated?.()) player.position.y = g.deck.y + groundHeight(g.zone, player.position)
     const goo = alive && floorFx(g.zone, player.position) === FX.goo
     player.load = (this.me?.carrying !== null && this.me?.carrying !== undefined ? RULES.carry : 1) * (goo ? RULES.goo : 1)
     // Endurance : la course la vide (plus vite avec un colis), la marche et l'arrêt la rendent.

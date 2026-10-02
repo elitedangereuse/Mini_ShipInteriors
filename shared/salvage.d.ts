@@ -6,7 +6,7 @@ export declare const LOBBY_RETURN: { x: number; z: number }
 /** Plan fixe de la baie (une lettre par tuile). */
 export declare const BAY: string[]
 export interface BayLight { x: number; z: number; color: string; intensity: number; flicker?: 'neon' | 'fire' }
-export interface BayFurniture { model: string; x: number; z: number; rot?: 0 | 1 | 2 | 3; y?: number; block?: true | [number, number][]; label?: string }
+export interface BayFurniture { model: string; x: number; z: number; rot?: 0 | 1 | 2 | 3; y?: number; block?: true | [number, number][]; label?: string; /** false : on passe à travers (marquage au sol, tuyau, panneau). */ solid?: boolean }
 export interface BayRoom { id: string; x: number; z: number; w: number; d: number; doors: { x: number; z: number; dir: number }[]; light: BayLight; furniture: BayFurniture[] }
 export interface BayArea { id: string; x: number; z: number; w: number; d: number; density: number; decor: string[]; lights: BayLight[] }
 /** Zone éclairée : son rectangle, la couleur et la force de ses projecteurs, et leur place. */
@@ -95,6 +95,8 @@ export interface Zone {
   lit: Uint8Array
   /** Ce que fait le sol de chaque tuile (cf. FX). */
   fx: Uint8Array
+  /** Tuiles des meubles (bloquants ou non) : on n'y pose rien, et le client les arrête à leur taille réelle. */
+  furnished: Uint8Array
   open: Uint8Array
   /** Garde-corps sur l'arête (tuile * 4 + direction) : on ne passe pas, on voit et l'on entend. */
   rail: Uint8Array

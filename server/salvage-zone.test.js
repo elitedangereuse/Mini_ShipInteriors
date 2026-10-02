@@ -224,7 +224,7 @@ test('au ras d\'un meuble, la vue part de la tuile libre voisine, jamais à trav
   const o = sightOrigin(zone, { x: 17.2, z: 0.35 })
   assert.ok(walkable(zone, Math.round(o.x), Math.round(o.z)))
   assert.ok(Math.round(o.x) <= 17, 'pas dans le local radio')
-  assert.ok(zoneSight(zone, o, { x: 15, z: 0 }))
+  assert.ok(zoneSight(zone, o, { x: 17, z: 2 }))
   // Sur une tuile libre, rien ne change.
   assert.deepEqual(sightOrigin(zone, { x: 12.3, z: 2.1 }), { x: 12.3, z: 2.1 })
 })
@@ -274,6 +274,17 @@ test('la serre : ses bacs bloquent le passage, pas la vue ; les excroissances du
   assert.equal(walkable(zone, 28, 13), false)
   assert.equal(zoneSight(zone, { x: 27, z: 13 }, { x: 29, z: 13 }), false, 'derrière une excroissance')
   assert.equal(zoneSight(zone, { x: 27, z: 13 }, { x: 29, z: 13 }, true), false, 'même d\'en haut')
+})
+
+test('les meubles : rien ne se pose sur leur tuile, et la table de la salle de pause laisse ses portes libres', () => {
+  each((zone) => {
+    for (const t of [...zone.cargo, ...zone.flares, ...zone.monsters]) assert.equal(zone.furnished[t.z * zone.width + t.x], 0, `${t.x},${t.z}`)
+    for (const d of zone.decor) assert.equal(zone.furnished[Math.round(d.z) * zone.width + Math.round(d.x)], 0)
+  })
+  const zone = generateZone(1, { team: 1, parcels: 1, enemies: 1 })
+  for (const t of [[15, 2], [16, 2], [15, 0], [16, 0], [14, 1]]) assert.ok(walkable(zone, t[0], t[1]), `${t}`)
+  assert.ok(!walkable(zone, 15, 1) && !walkable(zone, 16, 1), 'la table')
+  assert.ok(walkable(zone, 17, 1), 'pas de mur invisible à côté')
 })
 
 test('les sols : verre brisé dans la zone effondrée, flaques caustiques dans le nid', () => {

@@ -13,14 +13,14 @@ import { recolored } from '../recolor'
  * l'orange du kit modulaire sont repeints en acier noirci et en ambre terni.
  *
  * Et, faits main : la passerelle du hall de fret (caillebotis sur poteaux, escaliers, garde-corps
- * ambrés), les bacs de culture de la serre, les excroissances du nid, le verre brisé, les papiers,
- * le terreau renversé et les flaques caustiques ; le sol des zones éclairées, qui prend la couleur
- * de ses projecteurs.
+ * ambrés), les bacs de culture de la serre, la biomasse veinée du nid, le verre brisé, les papiers
+ * et le terreau renversé ; le sol des zones éclairées, qui prend la couleur de ses projecteurs. Les
+ * spires et les flaques du nid, qui bougent, sont des meubles (cf. src/furniture/salvage.ts).
  */
 
 const MODULAR = ['template-wall', 'template-detail', 'template-floor', 'template-floor-detail', 'template-floor-detail-a', 'gate', 'gate-door', 'cables'] as const
 const TRAIN = ['train-carriage-container-red', 'train-carriage-container-blue', 'train-carriage-container-green', 'train-carriage-tank'] as const
-const SPACE = ['barrel', 'barrels', 'machine_barrel', 'machine_generator', 'bones', 'rock_crystals', 'rock_crystalsLargeA', 'rock_crystalsLargeB', 'supports_low', 'pipe_straight'] as const
+const SPACE = ['barrel', 'barrels', 'machine_barrel', 'machine_generator', 'bones', 'rock_crystals', 'rock_crystalsLargeA', 'supports_low', 'pipe_straight'] as const
 
 export interface ZoneKit {
   /** Pan de mur d'une arête (milieu cx, cz), décoré des deux côtés, 0,3 d'épais. */
@@ -35,18 +35,21 @@ export interface ZoneKit {
   container(color: number): THREE.Object3D
   /** Pile encombrante d'une tuile (fûts, générateur), centrée. */
   crates(variant: number): THREE.Object3D
-  /** Petit décor (non bloquant), centré au sol. */
-  decor(kind: DecorKind, variant: number): THREE.Object3D
+  /** Petit décor (non bloquant), centré au sol (les flaques caustiques sont des meubles animés). */
+  decor(kind: Exclude<DecorKind, 'goo'>, variant: number): THREE.Object3D
   /** Bac de culture de la serre (une tuile), centré : bas, on voit par-dessus. */
   planter(variant: number): THREE.Object3D
-  /** Excroissance thargoïde (une tuile), centrée : une colonne de résine noire veinée de vert. */
-  growth(variant: number): THREE.Object3D
   /** Dalle de caillebotis de la passerelle, à `height`, sur son poteau (tuile x, z). */
   deck(x: number, z: number, height: number): THREE.Object3D
   /** Escalier de la tuile x, z, qui monte de 0 à `height` vers la direction `up` (0 à 3). */
   stairs(x: number, z: number, up: number, height: number): THREE.Object3D
   /** Garde-corps de `a` à `b` (au sol de hauteur h en chaque bout) ; poteaux aux bouts demandés. */
   rail(a: { x: number; z: number; h: number }, b: { x: number; z: number; h: number }, posts: [boolean, boolean]): THREE.Object3D
+  /**
+   * Nappe organique du nid, `w` × `d` tuiles, centrée : la biomasse thargoïde qui s'étale autour
+   * de ses sources (excroissances, flaques ; coordonnées depuis le coin de la zone), veinée de vert.
+   */
+  creep(w: number, d: number, sources: { x: number; z: number }[], seed: number): THREE.Object3D
 }
 
 const deg = (d: number) => d / 360
@@ -77,7 +80,7 @@ export function loadZoneKit(): Promise<ZoneKit> {
  * couleurs : un seul matériau repeint pour tous (`key`), donc une seule fusion, un seul appel de dessin.
  */
 const painted = new Map<string, THREE.Material>()
-function prepare(root: THREE.Object3D, paint: (hsl: { h: number; s: number; l: number }, c: THREE.Color) => void, key: string): THREE.Object3D {
+function prepare(root: THREE.Object3D, paint: (hsl: { h: number; s: number; l: number }, c: THREE.Color) => void, key: string, glow?: string): THREE.Object3D {
   root.traverse((o) => {
     const mesh = o as THREE.Mesh
     if (!mesh.isMesh) return
@@ -91,6 +94,13 @@ function prepare(root: THREE.Object3D, paint: (hsl: { h: number; s: number; l: n
         const hsl = { h: 0, s: 0, l: 0 }
         copy.color.getHSL(hsl, THREE.SRGBColorSpace)
         paint(hsl, copy.color)
+      }
+      // Les cristaux thargoïdes luisent dans le noir.
+      if (glow && 'emissive' in copy) {
+        const lambert = copy as THREE.MeshLambertMaterial
+        lambert.emissive = new THREE.Color(glow)
+        lambert.emissiveMap = lambert.map
+        lambert.emissiveIntensity = 0.2
       }
       painted.set(id, (m = copy))
     }
@@ -221,20 +231,16 @@ async function build(): Promise<ZoneKit> {
     fit(sp.barrels.clone(true), [0.86, null, null]),
     fit(sp.machine_barrel.clone(true), [0.8, null, null]),
   ]
-  const crystalPaint = (hsl: { h: number; s: number; l: number }, c: THREE.Color) => set(c, 140, 0.9, 0.3 + hsl.l * 0.35)
-  const growthCrystals = fit(prepare(sp.rock_crystalsLargeB.clone(true), crystalPaint, 'crystals-growth'), [0.5, null, null])
+  const crystalPaint = (hsl: { h: number; s: number; l: number }, c: THREE.Color) => set(c, 148, 0.8, 0.1 + hsl.l * 0.26)
   const decor = {
     cables: fit(mod.cables.clone(true), [0.5, null, null]),
     bones: fit(sp.bones.clone(true), [0.42, null, null]),
-    crystals: fit(prepare(sp.rock_crystals.clone(true), crystalPaint, 'crystals'), [0.4, null, null]),
-    crystalsLarge: fit(prepare(sp.rock_crystalsLargeA.clone(true), crystalPaint, 'crystals-large'), [0.46, null, null]),
+    crystals: fit(prepare(sp.rock_crystals.clone(true), crystalPaint, 'crystals', '#14b85c'), [0.4, null, null]),
+    crystalsLarge: fit(prepare(sp.rock_crystalsLargeA.clone(true), crystalPaint, 'crystals-large', '#14b85c'), [0.46, null, null]),
     barrel: fit(sp.barrel.clone(true), [0.2, null, null]),
     debris: fit(sp.supports_low.clone(true), [0.44, null, null]),
     pipe: fit(sp.pipe_straight.clone(true), [0.34, null, null]),
   }
-  // Flaque caustique : une nappe verte translucide qui couvre sa tuile, lumineuse dans le noir.
-  const gooMat = new THREE.MeshBasicMaterial({ color: '#2f9a55', transparent: true, opacity: 0.72, depthWrite: false })
-  const gooCore = new THREE.MeshBasicMaterial({ color: '#5dff9a', transparent: true, opacity: 0.5, depthWrite: false })
   // Verre brisé : des éclats bleutés qui accrochent la lumière.
   const shardMat = new THREE.MeshLambertMaterial({ color: '#cfeeff', emissive: '#3a6a80', transparent: true, opacity: 0.8, side: THREE.DoubleSide })
   const shard = new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(0, 0.05), new THREE.Vector2(0.03, -0.03), new THREE.Vector2(-0.025, -0.02)]))
@@ -256,9 +262,6 @@ async function build(): Promise<ZoneKit> {
   const rimMat = new THREE.MeshLambertMaterial({ color: '#434a53' })
   const growLed = new THREE.MeshBasicMaterial({ color: '#e27bff' })
   const plantMats = ['#3f8f3a', '#5aa84a', '#2f6b33', '#4f9d5c', '#8a8a3a', '#6b4f2a'].map((color) => new THREE.MeshLambertMaterial({ color }))
-  // Excroissances : résine noire, veines vertes.
-  const resin = new THREE.MeshLambertMaterial({ color: '#0f1a15', emissive: '#06301a', emissiveIntensity: 0.6 })
-  const vein = new THREE.MeshBasicMaterial({ color: '#39ff88' })
 
   return {
     wall(cx, cz, alongX) {
@@ -305,15 +308,6 @@ async function build(): Promise<ZoneKit> {
     },
     decor(kind, variant) {
       const random = rng(variant * 7919 + 17)
-      if (kind === 'goo') {
-        const g = new THREE.Group()
-        const m = new THREE.Mesh(blob(0.36, 0.22, random), gooMat)
-        m.position.y = 0.004
-        const core = new THREE.Mesh(blob(0.16, 0.3, random), gooCore)
-        core.position.set((random() - 0.5) * 0.2, 0.006, (random() - 0.5) * 0.2)
-        g.add(m, core)
-        return g
-      }
       if (kind === 'glass') {
         const g = new THREE.Group()
         for (let i = 0; i < 14; i++) {
@@ -389,38 +383,6 @@ async function build(): Promise<ZoneKit> {
       }
       return g
     },
-    growth(variant) {
-      const random = rng(variant * 15485863 + 11)
-      const g = new THREE.Group()
-      const geo = new THREE.CylinderGeometry(0.1, 0.36, 1.3, 8, 6)
-      const pos = geo.attributes.position as THREE.BufferAttribute
-      for (let i = 0; i < pos.count; i++) {
-        const y = pos.getY(i)
-        const k = 1 + (Math.sin(y * 7 + variant) * 0.12 + (random() - 0.5) * 0.18)
-        pos.setXYZ(i, pos.getX(i) * k + Math.sin(y * 3 + variant) * 0.05, y, pos.getZ(i) * k)
-      }
-      geo.computeVertexNormals()
-      const column = new THREE.Mesh(geo, resin)
-      column.position.y = 0.65
-      column.rotation.y = random() * Math.PI
-      g.add(column)
-      // Veines lumineuses qui montent en spirale.
-      for (let i = 0; i < 3; i++) {
-        const a0 = random() * Math.PI * 2
-        for (let k = 0; k < 5; k++) {
-          const y0 = 0.1 + k * 0.22, r0 = 0.33 - k * 0.05
-          const a = a0 + k * 0.5
-          const p0 = new THREE.Vector3(Math.cos(a) * r0, y0, Math.sin(a) * r0)
-          const p1 = new THREE.Vector3(Math.cos(a + 0.5) * (r0 - 0.05), y0 + 0.22, Math.sin(a + 0.5) * (r0 - 0.05))
-          g.add(beam(p0, p1, 0.018, 0.018, vein))
-        }
-      }
-      const crystals = cloneOf(growthCrystals)
-      crystals.position.set((random() - 0.5) * 0.2, 0, (random() - 0.5) * 0.2)
-      crystals.rotation.y = random() * Math.PI * 2
-      g.add(crystals)
-      return g
-    },
     deck(x, z, height) {
       const g = new THREE.Group()
       const plate = new THREE.Mesh(new THREE.BoxGeometry(1, 0.06, 1), grating)
@@ -458,6 +420,79 @@ async function build(): Promise<ZoneKit> {
       placed.add(g)
       placed.updateMatrixWorld(true)
       return placed
+    },
+    creep(w, d, sources, seed) {
+      const px = 96
+      const random = rng(seed * 2654435761 + 1)
+      const map = drawnTexture(w * px, d * px, (c) => {
+        c.clearRect(0, 0, w * px, d * px)
+        const at = (p: { x: number; z: number }) => [(p.x + 0.5) * px, (p.z + 0.5) * px] as const
+        // La biomasse : des nappes sombres autour de chaque source, et quelques taches éparses.
+        const blot = (x: number, y: number, r: number, a: number) => {
+          const grad = c.createRadialGradient(x, y, r * 0.15, x, y, r)
+          grad.addColorStop(0, `rgba(6, 18, 12, ${a})`)
+          grad.addColorStop(0.7, `rgba(8, 26, 16, ${a * 0.6})`)
+          grad.addColorStop(1, 'rgba(8, 26, 16, 0)')
+          c.fillStyle = grad
+          c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill()
+        }
+        for (const s of sources) {
+          const [x, y] = at(s)
+          blot(x, y, px * (1.3 + random() * 0.5), 0.92)
+        }
+        for (let i = 0; i < w * d * 0.5; i++) blot(random() * w * px, random() * d * px, px * (0.4 + random() * 0.7), 0.6)
+        // Les veines : des branches qui partent des sources en serpentant, et se divisent.
+        const branches: { x: number; y: number; a: number; len: number; width: number }[] = []
+        for (const s of sources) {
+          const [x, y] = at(s)
+          const n = 3 + Math.floor(random() * 2)
+          for (let k = 0; k < n; k++) branches.push({ x, y, a: (k / n) * Math.PI * 2 + random(), len: px * (0.9 + random() * 1.4), width: 1 })
+        }
+        const ends: [number, number][] = []
+        while (branches.length) {
+          const b = branches.pop()!
+          const pts: [number, number][] = [[b.x, b.y]]
+          let { x, y, a } = b
+          const step = px * 0.1
+          for (let walked = 0; walked < b.len; walked += step) {
+            a += (random() - 0.5) * 0.7
+            x += Math.cos(a) * step
+            y += Math.sin(a) * step
+            pts.push([x, y])
+            if (b.width > 0.5 && random() < 0.035) branches.push({ x, y, a: a + (random() < 0.5 ? 0.8 : -0.8), len: (b.len - walked) * 0.6, width: b.width * 0.6 })
+          }
+          ends.push([x, y])
+          const stroke = (color: string, lw: number) => {
+            c.strokeStyle = color
+            c.lineWidth = lw
+            c.lineCap = 'round'
+            c.lineJoin = 'round'
+            c.beginPath()
+            pts.forEach(([px_, py], i) => (i ? c.lineTo(px_, py) : c.moveTo(px_, py)))
+            c.stroke()
+          }
+          stroke('rgba(4, 18, 10, 0.92)', 10 * b.width)
+          stroke('rgba(30, 150, 80, 0.4)', 3.6 * b.width)
+          stroke('rgba(140, 255, 190, 0.55)', 1.1 * b.width)
+        }
+        // Des nœuds lumineux au bout des veines.
+        for (const [x, y] of ends) {
+          const grad = c.createRadialGradient(x, y, 0, x, y, 6)
+          grad.addColorStop(0, 'rgba(180, 255, 210, 0.7)')
+          grad.addColorStop(1, 'rgba(57, 255, 136, 0)')
+          c.fillStyle = grad
+          c.beginPath(); c.arc(x, y, 6, 0, Math.PI * 2); c.fill()
+        }
+      })
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshLambertMaterial({
+        map, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1,
+        emissive: '#ffffff', emissiveMap: map, emissiveIntensity: 0.3,
+      }))
+      m.rotation.x = -Math.PI / 2
+      m.position.y = 0.002
+      const g = new THREE.Group()
+      g.add(m)
+      return g
     },
     rail(a, b, posts) {
       const g = new THREE.Group()

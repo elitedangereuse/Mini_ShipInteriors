@@ -206,16 +206,19 @@ export const BAY_BOOTH = { x: 16, z: 7, w: 3, d: 2, window: 2, technician: { x: 
  * Petites pièces à l'éclairage de fortune : un rectangle de tuiles entouré de cloisons fines
  * (sauf aux portes : l'arête `dir` de la tuile x, z), une seule lampe qui vacille, et leurs
  * meubles (modèles du jeu, cf. src/furniture/) ; un meuble `block` occupe sa tuile, ou les tuiles
- * listées (ni colis, ni fusée, ni passage).
+ * listées (ni passage, ni vue au sol). Côté client, un meuble arrête le joueur à sa taille réelle,
+ * pas à celle de sa tuile ; sauf `solid: false` (marquages au sol, tuyaux, panneaux), il est solide.
+ * Sur la tuile d'un meuble, bloquant ou non, on ne pose rien (ni colis, ni fusée, ni décor).
  */
 export const BAY_ROOMS = [
   {
     id: 'pause', x: 14, z: 0, w: 4, d: 3, doors: [{ x: 15, z: 2, dir: 2 }, { x: 16, z: 2, dir: 2 }],
     light: { x: 16, z: 1, color: '#ffc875', intensity: 1.1, flicker: 'neon' },
     furniture: [
-      { model: 'canteen-table', x: 16, z: 1, rot: 1, block: [[15, 1], [16, 1], [17, 1]] },
+      // La table et ses bancs, en longueur le long de x : on passe derrière, et les portes restent libres.
+      { model: 'canteen-table', x: 15.5, z: 1, rot: 0, block: [[15, 1], [16, 1]] },
       { model: 'water-fountain', x: 17, z: 0.2, rot: 0, block: true },
-      { model: 'mug', x: 16.1, z: 0.95, y: 0.37 },
+      { model: 'mug', x: 15.9, z: 1.05, y: 0.418, solid: false },
     ],
   },
   {
@@ -225,7 +228,7 @@ export const BAY_ROOMS = [
       { model: 'computer-system', x: 19, z: 0.25, rot: 0, block: true },
       { model: 'side-console', x: 20, z: 0.25, rot: 0, block: true },
       { model: 'chair', x: 19.5, z: 1.1, rot: 2 },
-      { model: 'headphone-stand', x: 18.3, z: 0.3, rot: 0 },
+      { model: 'headphone-stand', x: 18.3, z: 0.3, rot: 0, solid: false },
     ],
   },
   {
@@ -234,7 +237,7 @@ export const BAY_ROOMS = [
     furniture: [
       { model: 'workbench', x: 2, z: 19.25, rot: 0, block: true },
       { model: 'tool-rack', x: 0.25, z: 20.2, rot: 1, block: true },
-      { model: 'work-lamp', x: 2.8, z: 21.3, rot: 3 },
+      { model: 'work-lamp', x: 2.8, z: 21.3, rot: 3, solid: false },
       { model: 'crate', x: 2, z: 21.3, rot: 0, block: true },
     ],
   },
@@ -242,10 +245,11 @@ export const BAY_ROOMS = [
     id: 'infirmary', x: 32, z: 22, w: 4, d: 4, doors: [{ x: 32, z: 23, dir: 3 }],
     light: { x: 34, z: 23.5, color: '#cfe8ff', intensity: 0.9, flicker: 'neon' },
     furniture: [
-      { model: 'bunk-bed', x: 34.5, z: 22.35, rot: 0, block: [[34, 22], [35, 22]] },
+      // Le lit (en longueur le long de z) contre le mur est, la cantine à son pied.
+      { model: 'bunk-bed', x: 35.15, z: 22.1, rot: 0, block: [[35, 22]] },
+      { model: 'footlocker', x: 35.1, z: 23, rot: 0 },
       { model: 'wheelchair', x: 33.2, z: 24.4, rot: 1 },
-      { model: 'stain', x: 34, z: 23.8, rot: 0 },
-      { model: 'footlocker', x: 35.25, z: 24.3, rot: 3, block: true },
+      { model: 'stain', x: 34, z: 23.8, rot: 0, solid: false },
     ],
   },
 ]
@@ -261,32 +265,32 @@ export const BAY_PROPS = [
   { model: 'chair', x: 14.95, z: 4.1, rot: 3 },
   { model: 'computer-wide', x: 20.8, z: 3, rot: 3, block: true },
   { model: 'chair', x: 20.05, z: 3.1, rot: 1 },
-  { model: 'crew-board', x: 17.5, z: 2.7, rot: 0 },
+  { model: 'crew-board', x: 17.5, z: 2.7, rot: 0, solid: false },
   { model: 'k-box-open', x: 21.2, z: 6.2, rot: 1, block: true },
   // La serre : rampes de culture et cuve nutritive contre le mur nord.
   { model: 'hydro-rack', x: 27.5, z: 0.25, rot: 0, block: [[27, 0], [28, 0]] },
   { model: 'nutrient-tank', x: 30, z: 0.3, rot: 0, block: true },
   { model: 'hydro-rack', x: 32.5, z: 0.25, rot: 0, block: [[32, 0], [33, 0]] },
-  { model: 'potting-bench', x: 24, z: 6.7, rot: 1, block: true },
+  { model: 'potting-bench', x: 24, z: 6.98, rot: 1, block: true },
   // Salle des machines.
   { model: 'engineer-bench', x: 3, z: 12.75, rot: 0, block: true },
-  { model: 'steam-vent', x: 6, z: 15, rot: 0 },
-  { model: 'pipe-run', x: 9, z: 12.6, rot: 0 },
+  { model: 'steam-vent', x: 6, z: 15, rot: 0, solid: false },
+  { model: 'pipe-run', x: 9, z: 12.6, rot: 0, solid: false },
   // Aire de stockage.
   { model: 'tarp-crates', x: 20, z: 15, rot: 1, block: true },
   // Le quai de chargement : aires de chargement et flèches peintes vers le sas, projecteurs aux quatre coins.
-  { model: 'dock-marking', x: 13.5, z: 21, rot: 0, label: '2.8,1.6' },
-  { model: 'dock-marking', x: 20.5, z: 21, rot: 0, label: '2.8,1.6' },
-  { model: 'floor-arrow', x: 17, z: 19.5, rot: 0 },
-  { model: 'floor-arrow', x: 17, z: 22, rot: 0 },
-  { model: 'floor-arrow', x: 17, z: 14.2, rot: 0 },
-  { model: 'floodlight', x: 11.25, z: 20.2, rot: 1, label: '#fff0d6' },
-  { model: 'floodlight', x: 22.75, z: 20.2, rot: 3, label: '#fff0d6' },
-  { model: 'floodlight', x: 11.25, z: 23.6, rot: 1, label: '#fff0d6' },
-  { model: 'floodlight', x: 22.75, z: 23.6, rot: 3, label: '#fff0d6' },
+  { model: 'dock-marking', x: 13.5, z: 21, rot: 0, label: '2.8,1.6', solid: false },
+  { model: 'dock-marking', x: 20.5, z: 21, rot: 0, label: '2.8,1.6', solid: false },
+  { model: 'floor-arrow', x: 17, z: 19.5, rot: 0, solid: false },
+  { model: 'floor-arrow', x: 17, z: 22, rot: 0, solid: false },
+  { model: 'floor-arrow', x: 17, z: 14.2, rot: 0, solid: false },
+  { model: 'floodlight', x: 11.25, z: 20.2, rot: 1, label: '#fff0d6', solid: false },
+  { model: 'floodlight', x: 22.75, z: 20.2, rot: 3, label: '#fff0d6', solid: false },
+  { model: 'floodlight', x: 11.25, z: 23.6, rot: 1, label: '#fff0d6', solid: false },
+  { model: 'floodlight', x: 22.75, z: 23.6, rot: 3, label: '#fff0d6', solid: false },
   // Le carrefour du guichet, dans la grande allée.
-  { model: 'floodlight', x: 13.3, z: 9.25, rot: 0, label: '#ffcf7a' },
-  { model: 'floodlight', x: 20.7, z: 9.25, rot: 0, label: '#ffcf7a' },
+  { model: 'floodlight', x: 13.3, z: 9.25, rot: 0, label: '#ffcf7a', solid: false },
+  { model: 'floodlight', x: 20.7, z: 9.25, rot: 0, label: '#ffcf7a', solid: false },
 ]
 
 /**
@@ -363,6 +367,7 @@ export function generateZone(seed, settings) {
   const stairs = new Int8Array(N).fill(-1)
   const lit = new Uint8Array(N)
   const fx = new Uint8Array(N)
+  const furnished = new Uint8Array(N)
   const hall = new Int16Array(N)
   const open = new Uint8Array(N * 4)
   const rail = new Uint8Array(N * 4)
@@ -431,8 +436,12 @@ export function generateZone(seed, settings) {
     }
   }
   for (const f of [...BAY_ROOMS.flatMap((r) => r.furniture), ...BAY_PROPS]) {
+    if (f.solid !== false) furnished[idx(Math.round(f.x), Math.round(f.z))] = 1
     if (!f.block) continue
-    for (const [x, z] of f.block === true ? [[Math.round(f.x), Math.round(f.z)]] : f.block) blocked[idx(x, z)] = 1
+    for (const [x, z] of f.block === true ? [[Math.round(f.x), Math.round(f.z)]] : f.block) {
+      blocked[idx(x, z)] = 1
+      furnished[idx(x, z)] = 1
+    }
   }
   // Le guichet : cloisonné, sauf la vitre (le passage reste fermé : ses tuiles sont bloquées).
   for (let z = BAY_BOOTH.z; z < BAY_BOOTH.z + BAY_BOOTH.d; z++) {
@@ -497,7 +506,7 @@ export function generateZone(seed, settings) {
     seed, width: W, height: H, team, parcels, enemies,
     layout, walls, doors, booth, rooms: BAY_ROOMS, areas: BAY_AREAS, props: BAY_PROPS, lights: BAY_LIT, cameras: BAY_CAMERAS,
     airlock: { side: BAY_AIRLOCK.side, tiles: airlock, pad: { ...BAY_AIRLOCK.pad }, inward: BAY_AIRLOCK.inward },
-    halls: [], containers, blocked, low, tall, elev, stairs, lit, fx, open, rail, rails, room, hall,
+    halls: [], containers, blocked, low, tall, elev, stairs, lit, fx, furnished, open, rail, rails, room, hall,
     lockers: [], flares: [], cargo: [], monsters: [], decor: [],
   }
   buildGraph(zone)
@@ -519,7 +528,7 @@ export function generateZone(seed, settings) {
   // Devant les portes du sas et devant le comptoir du guichet, on ne pose rien.
   const nearDoor = (t) => zone.doors.some((d) => Math.abs(t.x - d.x - DIRS[d.dir].dx) + Math.abs(t.z - d.z - DIRS[d.dir].dz) <= 1)
     || (t.z === BAY_BOOTH.z + BAY_BOOTH.d && t.x >= BAY_BOOTH.x - 1 && t.x <= BAY_BOOTH.x + BAY_BOOTH.w)
-  const free = (t) => room[idx(t.x, t.z)] === 'z' && !blocked[idx(t.x, t.z)] && !taken.has(key(t)) && !nearDoor(t)
+  const free = (t) => room[idx(t.x, t.z)] === 'z' && !blocked[idx(t.x, t.z)] && !furnished[idx(t.x, t.z)] && !taken.has(key(t)) && !nearDoor(t)
   const tiles = (keep) => {
     const out = []
     for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) if (free({ x, z }) && keep({ x, z })) out.push({ x, z })
@@ -556,7 +565,7 @@ export function generateZone(seed, settings) {
     for (let x = 0; x < W; x++) {
       const area = areaOf(x, z)
       const i = idx(x, z)
-      if (!area || room[i] !== 'z' || blocked[i] || elev[i] > 0 || taken.has(key({ x, z })) || nearDoor({ x, z }) || inRoom(x, z) || random() > area.density) continue
+      if (!area || room[i] !== 'z' || blocked[i] || furnished[i] || elev[i] > 0 || taken.has(key({ x, z })) || nearDoor({ x, z }) || inRoom(x, z) || random() > area.density) continue
       const walled = [0, 1, 2, 3].filter((dir) => !walkable(zone, x + DIRS[dir].dx, z + DIRS[dir].dz))
       const kind = area.decor[Math.floor(random() * area.decor.length)]
       const covers = kind === 'glass' || kind === 'goo'
@@ -852,7 +861,7 @@ export function pickSpawns(zone, count, monsters, random) {
     for (let z = 0; z < zone.height; z++) {
       for (let x = 0; x < W; x++) {
         const i = z * W + x
-        if (zone.room[i] !== 'z' || zone.blocked[i] || zone.stairs[i] >= 0 || lockerTiles.has(`${x},${z}`)) continue
+        if (zone.room[i] !== 'z' || zone.blocked[i] || zone.furnished[i] || zone.stairs[i] >= 0 || lockerTiles.has(`${x},${z}`)) continue
         if (fromMonsters[i] >= 0 && fromMonsters[i] < min) continue
         spots.push({ x, z })
       }
