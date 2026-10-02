@@ -1593,7 +1593,7 @@ kbd .icon {
   align-items: center;
   gap: 8px 12px;
   max-width: min(340px, calc(100vw - 32px));
-  padding: 6px 6px 6px 14px;
+  padding: 8px 10px;
   pointer-events: auto;
 }
 .cb-title {
@@ -1608,13 +1608,18 @@ kbd .icon {
 }
 .cb-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
+  min-width: 0;
 }
 .cabin-bar button {
   display: inline-flex;
+  flex: 1 1 auto;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 6px 10px;
+  white-space: nowrap;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.06);
@@ -2027,13 +2032,59 @@ body.editing .top-left {
   border-color: #7dffa8;
   color: #7dffa8;
 }
-.hb-tools button {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+/* Outils d'un onglet : une grille de boutons égaux, comme les onglets au-dessus. */
+.hb-tools {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
 }
-.hb-tools .icon {
-  font-size: 14px;
+.hb-tools button,
+.hb-all {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+}
+.hb-tools button:hover,
+.hb-all:hover:not(:disabled) {
+  color: var(--text);
+  background: rgba(89, 216, 255, 0.12);
+  border-color: var(--cyan);
+}
+.hb-tools button.active {
+  color: var(--cyan);
+  border-color: var(--cyan);
+  background: rgba(89, 216, 255, 0.18);
+  box-shadow: 0 0 0 1px var(--cyan) inset;
+}
+.hb-tools .icon,
+.hb-all .icon {
+  flex: none;
+  font-size: 15px;
+}
+/* « Toute la construction », « Tous les murs » : sur toute la largeur. */
+.hb-all {
+  width: 100%;
+  color: var(--text);
+}
+.hb-tools .hb-all {
+  grid-column: 1 / -1;
+}
+.hb-all:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 /* Curseur de la manette, en mode construction. */
 .hb-cursor {
