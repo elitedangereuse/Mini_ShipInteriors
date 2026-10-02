@@ -8,7 +8,6 @@ import type { CustomModel } from './furniture'
 import { tr } from './i18n'
 import { BOARD_TABLES, SHIP_LAYOUTS } from '../shared/ship-layouts.js'
 import { HOUSING_LEVEL, LANDING_ROOM, PLOT_DOOR, PLOT_ORIGIN, PLOT_ROOM } from '../shared/housing-plot.js'
-import { HOUSING_V2 } from './housing/flag'
 import { PILOT_SEAT } from '../shared/systems.js'
 
 /** Orientation en quarts de tour : 0 = face +z (sud), 1 = +x (est), 2 = -z (nord), 3 = -x (ouest). */
@@ -155,12 +154,12 @@ export const LEVEL_HEIGHT = 1.6
 export const LIFT = { x: 10, z: 5 }
 
 /**
- * On se réveille dans ses quartiers, à deux pas du Holo-Me (cf. main.ts) ; à défaut, ici
- * (même valeur que dans server/relay.js).
+ * On se réveille dans ses quartiers, à deux pas du Holo-Me (cf. main.ts) ; à défaut, ici, à
+ * l'entrée de sa parcelle (même valeur que dans server/relay.js).
  */
-export const SPAWN = HOUSING_V2 ? { level: HOUSING_LEVEL, x: PLOT_ORIGIN.x + 1, z: PLOT_DOOR.z } : { level: 1, x: 11.2, z: 7.4 }
+export const SPAWN = { level: HOUSING_LEVEL, x: PLOT_ORIGIN.x + 1, z: PLOT_DOOR.z }
 /** Comète vit dans les quartiers, près de son panier (ou ici, s'il n'y en a pas). */
-export const CAT_SPAWN = HOUSING_V2 ? { level: HOUSING_LEVEL, x: PLOT_ORIGIN.x + 2, z: PLOT_DOOR.z + 2 } : { level: 1, x: 14.9, z: 7.3 }
+export const CAT_SPAWN = { level: HOUSING_LEVEL, x: PLOT_ORIGIN.x + 2, z: PLOT_DOOR.z + 2 }
 
 /** Ce qu'on lit aux balises du bouclier du hangar. */
 const SHIELD_TEXT = [
@@ -169,7 +168,7 @@ const SHIELD_TEXT = [
 ]
 
 /**
- * Pont des quartiers (housing v2, cf. docs/housing-v2.md), au-dessus du pont supérieur : le palier
+ * Pont des quartiers (cf. docs/housing-v2.md), au-dessus du pont supérieur : le palier
  * de l'ascenseur, et derrière sa porte, la parcelle de chacun (cf. shared/housing-plot.js).
  */
 export const QUARTERS_DECK: LevelDef = {
@@ -1194,18 +1193,12 @@ export const LEVELS: LevelDef[] = [
       c: tr('Coursive', 'Corridor'),
       k: tr('Cabines d\'équipage', 'Crew cabins'),
       d: tr('Douches', 'Showers'),
-      p: tr('Quartiers du commandant', 'Commander\'s quarters'),
+      // Les quartiers du commandant étaient ici, avant le pont des quartiers : la pièce attend son emploi.
+      p: tr('Pièce vierge', 'Blank room'),
       g: tr('Serre hydroponique', 'Hydroponics bay'),
       o: tr('Salon d\'écoute', 'Listening lounge'),
       s: tr('Studio Radio Dangereuse', 'Radio Dangereuse studio'),
       n: tr('Cinéma', 'Cinema'),
-      // Pièces des extensions des quartiers (cf. shared/cabin-wings.js).
-      A: tr('Extension gauche', 'Left extension'),
-      B: tr('Extension gauche', 'Left extension'),
-      C: tr('Extension du milieu', 'Middle extension'),
-      D: tr('Extension du milieu', 'Middle extension'),
-      E: tr('Extension droite', 'Right extension'),
-      F: tr('Extension droite', 'Right extension'),
     },
     windows: { c: 0, k: 0.3, d: 0.2, p: 0.6, g: 0.5, o: 1, n: 0, s: 0 },
     // La serre, tout en verre : les plantes voient les étoiles. Sol de tomettes.
@@ -1215,8 +1208,8 @@ export const LEVELS: LevelDef[] = [
     glazed: ['os', 'gc'],
     // On baisse les lumières au cinéma, un peu au salon d'écoute.
     dim: { n: 0.45, o: 0.7 },
-    // Les quartiers du commandant : la cabine de chaque joueur, porte au nord sur la coursive.
-    cabin: { room: 'p', door: { x: 11, z: 6 } },
+    // Sans les portes des anciennes extensions des quartiers (cf. shipMapOptions, gardées pour la migration).
+    mapOptions: { closed: '', doors: [] },
     props: [
       // --- Coursive ---
       { model: 'rug', x: 12.9, z: 5, label: 'warm:3.8x0.7', solid: false },
@@ -1571,20 +1564,7 @@ export const LEVELS: LevelDef[] = [
       [24.2, 1.8, '#9fb8ff', 1.8, 'screen'],
       [21.4, 7.4, '#ffb45e', 0.9],
       [26.4, 5.4, '#ff9a5a', 0.5],
-      // Les deux dernières lumières sont celles des objets de la cabine (Holo-Me, cheminée…).
     ],
   },
-  ...(HOUSING_V2 ? [QUARTERS_DECK] : []),
+  QUARTERS_DECK,
 ]
-
-/*
- * Housing v2 : les quartiers ont quitté le pont supérieur pour le pont des quartiers. Leur place
- * devient la « Pièce vierge », vide, où l'on travaillera plus tard ; les portes des trois espaces
- * d'extension disparaissent avec eux.
- */
-if (HOUSING_V2) {
-  const upper = LEVELS.find((l) => l.id === 1)!
-  delete upper.cabin
-  upper.rooms.p = tr('Pièce vierge', 'Blank room')
-  upper.mapOptions = { closed: '', doors: [] }
-}

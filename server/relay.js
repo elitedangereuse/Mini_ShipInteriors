@@ -40,8 +40,8 @@
 // (chaque étape relance l'attente), puis la jardinière reprend sa tournée.
 //
 // Quartiers : chaque joueur a sa propre instance des quartiers du commandant (`cabin` : l'id du
-// joueur chez qui il se trouve, le sien par défaut). Sur le pont des quartiers (housing v2, cf.
-// shared/housing-plot.js), tout le pont est instancié : chacun y est dans sa bulle. Un CMDR vérifié envoie l'aménagement des
+// joueur chez qui il se trouve, le sien par défaut). Le pont des quartiers (cf.
+// shared/housing-plot.js) est instancié en entier : chacun y est dans sa bulle. Un CMDR vérifié envoie l'aménagement des
 // siens (cf. cabin.js), et peut inviter un joueur connecté : celui-ci n'y entre qu'avec une
 // invitation, reçoit l'aménagement, puis chacun de ses changements. L'hôte peut raccompagner un
 // visiteur ; s'il quitte le vaisseau, ses visiteurs rentrent chez eux. Des quartiers ouverts
@@ -67,9 +67,7 @@ import { readFileSync } from 'node:fs'
 import { createCinema } from './cinema.js'
 import { BOARD_TABLES, SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import { DIRS, ShipMap } from '../shared/ship-map.js'
-import { applyPartitions } from '../shared/cabin-partitions.js'
-import { applyWings } from '../shared/cabin-wings.js'
-import { applyPlot, HOUSING_LEVEL } from '../shared/housing-plot.js'
+import { applyPlot, HOUSING_LEVEL, PLOT_DOOR, PLOT_ORIGIN } from '../shared/housing-plot.js'
 import { applyWalls, unpackHome } from '../shared/housing-home.js'
 import { canReach } from '../shared/sight.js'
 import { PATROL_LEVEL, PATROL_PERIOD, holdPatrol, patrolAt, patrolTime } from '../shared/patrol.js'
@@ -136,22 +134,6 @@ for (const d of voieMap.doors) {
   const step = DIRS[d.dir]
   if (voieMap.room(d.x, d.z) === 'v' || voieMap.room(d.x + step.dx, d.z + step.dz) === 'v') voieMap.lock(d.x, d.z, d.dir, false)
 }
-/**
- * Plan du pont des quartiers avec les pièces d'extension et les cloisons d'un aménagement (gardé
- * avec lui). Une cloison n'est posée que dans les quartiers et leurs extensions.
- */
-const cabinMaps = new WeakMap()
-function cabinMap(layout) {
-  if (!layout?.wings && !layout?.partitions) return MAPS.get(1)
-  let map = cabinMaps.get(layout)
-  if (!map) {
-    map = new ShipMap(SHIP_LAYOUTS['1'], shipMapOptions(1))
-    if (layout.wings) applyWings(map, layout.wings)
-    applyPartitions(map, layout.partitions)
-    cabinMaps.set(layout, map)
-  }
-  return map
-}
 /** Plan du pont des quartiers avec la parcelle d'un aménagement : sa taille et ses murs (gardé avec lui). */
 const homeMaps = new WeakMap()
 function homeMap(layout) {
@@ -166,12 +148,12 @@ function homeMap(layout) {
   }
   return map
 }
-/** `host` : dans des quartiers, leur hôte (ses pièces d'extension, ou sa parcelle, comptent). */
+/** `host` : dans des quartiers, leur hôte (sa parcelle et ses murs comptent). */
 const reaches = (player, level, at, host) => player.level === level && canReach(
-  host && level === 1 ? cabinMap(host.layout) : host && level === HOUSING_LEVEL ? homeMap(host.layout) : level === -1 && player.voie ? voieMap : MAPS.get(level), player, at, REACH,
+  host && level === HOUSING_LEVEL ? homeMap(host.layout) : level === -1 && player.voie ? voieMap : MAPS.get(level), player, at, REACH,
 )
 /** Pont de chaque jukebox : la salle commune (pont principal), le bar (la cale), les quartiers. */
-const JUKEBOX_LEVEL = new Map([['deck', 0], ['hold', -1], ['cabin', 1]])
+const JUKEBOX_LEVEL = new Map([['deck', 0], ['hold', -1], ['cabin', HOUSING_LEVEL]])
 /** Jukebox d'une instance commune (cf. `music` plus bas) ; les autres sont des quartiers. */
 const JUKEBOX_WHERE = new Map([[0, 'deck'], [-1, 'hold']])
 /** Morceaux du jukebox (cf. src/music.ts) : un identifiant court. */
@@ -543,8 +525,8 @@ export function attachRelay(
       ljpc: !!cmdr && identity.ljpc === true,
       voie: !!cmdr && identity.voie === true,
       skin: validLook(auth.skin) ? auth.skin : 'human.female.b',
-      // Point d'apparition : les quartiers du commandant (cf. SPAWN dans src/levels.ts).
-      x: 11.2, z: 7.4, level: 1, yaw: 0, anim: 'idle', pose: '', py: 0,
+      // Point d'apparition : l'entrée de sa parcelle, sur le pont des quartiers (cf. SPAWN dans src/levels.ts).
+      x: PLOT_ORIGIN.x + 1, z: PLOT_DOOR.z, level: HOUSING_LEVEL, yaw: 0, anim: 'idle', pose: '', py: 0,
       // Instance des quartiers : les siens (id du joueur qui reçoit), son aménagement, ses invitations.
       cabin: 0,
       layout: null,
@@ -759,9 +741,7 @@ export function attachRelay(
       // Au jukebox, et de ce côté du mur ; sauf l'hôte reconnecté qui rend sa musique (`at`).
       const restore = m.where === 'cabin' && m.at !== undefined
       const host = m.where === 'cabin' ? playerById(player.cabin) : undefined
-      // Le jukebox des quartiers : dans les anciens (pont supérieur), ou sur la parcelle (pont des quartiers).
-      const level = m.where === 'cabin' && player.level === HOUSING_LEVEL ? HOUSING_LEVEL : JUKEBOX_LEVEL.get(m.where)
-      if (!restore && !reaches(player, level, { x, z }, host)) return socket.emit('music', { id: 0, ...musicOf(instance), far: true })
+      if (!restore && !reaches(player, JUKEBOX_LEVEL.get(m.where), { x, z }, host)) return socket.emit('music', { id: 0, ...musicOf(instance), far: true })
       musicBudget--
       if (track) music.set(instance, { track, since: Date.now() - (num(m.at, 0, 86400) ?? 0) * 1000, x, z, song, loop, shuffle, seed })
       else music.delete(instance)

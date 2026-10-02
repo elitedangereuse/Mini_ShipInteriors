@@ -1,13 +1,11 @@
 import * as THREE from 'three'
 import { renderQuality } from './quality'
 import { SHIP_LAYOUTS } from '../shared/ship-layouts.js'
-import { WING_SIZE, WING_SLOTS } from '../shared/cabin-wings.js'
 import { HOUSING_LEVEL } from '../shared/housing-plot.js'
-import { HOUSING_V2 } from './housing/flag'
 
 /*
  * La coque (SHIP-03) : un seul corps de vaisseau, dont la silhouette épouse les trois ponts à la
- * fois (et la place des extensions de quartiers), débordant d'une tuile. Chaque pont se pose
+ * fois, débordant d'une tuile. Chaque pont se pose
  * dessus, un cran plus haut : on voit le pont affiché sur le dos du vaisseau, et non des pièces
  * qui flottent dans l'espace. Le dessus du corps reste sous le plancher, il ne cache jamais rien.
  * Tôles, feux de navigation (rouge à bâbord, au nord ; vert à tribord, au sud ; blanc à la poupe)
@@ -30,7 +28,7 @@ const MAX_CUT = 1.5
 type Cell = string
 
 /**
- * Tuiles occupées par au moins un pont, ou réservées à une extension de quartiers. Le pont des
+ * Tuiles occupées par au moins un pont. Le pont des
  * quartiers n'en est pas : ses parcelles reposent sur leur propre socle (cf. housing/plot.ts).
  */
 function footprint(): Set<Cell> {
@@ -40,10 +38,6 @@ function footprint(): Set<Cell> {
     rows.forEach((row, z) => {
       for (let x = 0; x < row.length; x++) if (row[x] !== ' ') cells.add(`${x},${z}`)
     })
-  }
-  // Les extensions des quartiers sont parties avec eux sur le pont des quartiers (housing v2).
-  if (!HOUSING_V2) for (const s of WING_SLOTS) {
-    for (let z = s.z0; z < s.z0 + WING_SIZE; z++) for (let x = s.x0; x < s.x0 + WING_SIZE; x++) cells.add(`${x},${z}`)
   }
   return cells
 }

@@ -15,7 +15,7 @@ import { KRAIT_BURN, KRAIT_COCKPIT, MECH_HELP, MECH_HOLD, MECH_LEVEL, mechAt } f
 import { GARDEN_HELP, GARDEN_HOLD, GARDEN_LEVEL, gardenAt } from '../shared/gardener.js'
 import { NURSE_BEDS, NURSE_CARE, NURSE_CARE_MIN, NURSE_HOLD, NURSE_LEVEL, NURSE_PATCH, nurseAt } from '../shared/nurse.js'
 import { BASE_ARRIVAL, BASE_BURN, BASE_COCKPIT, BASE_LEVEL, CHIEF_HOLD, chiefAt } from '../shared/ground-base.js'
-import { HOUSING_LEVEL, PLOT_ORIGIN } from '../shared/housing-plot.js'
+import { HOUSING_LEVEL, PLOT_DOOR, PLOT_ORIGIN } from '../shared/housing-plot.js'
 
 /** Faux site : reconnaît deux cookies, comme outils/mini-shipinteriors-cmdr.php. */
 const ACCOUNTS = { 'jeton-adam': 'Adam Fauster', 'jeton-rackam': 'Rackam' }
@@ -1055,14 +1055,14 @@ describe('quartiers', () => {
     const wh = await welcome(host)
     const guest = client({ auth: { name: 'CMDR Voisin' } })
     const wg = await welcome(guest)
-    host.emit('music', { where: 'cabin', track: 'lounge', x: 13, z: 8 })
+    host.emit('music', { where: 'cabin', track: 'lounge', x: PLOT_ORIGIN.x + 2, z: PLOT_DOOR.z })
     assert.equal(await receives(guest, 'music'), false, 'hors des quartiers, le voisin n\'entend rien')
     host.emit('invite', { to: wg.id })
     await next(guest, 'invite')
     const heard = next(guest, 'music')
     guest.emit('visit', { host: wh.id })
     const m = await heard
-    assert.deepEqual([m.where, m.track, m.x, m.z], ['cabin', 'lounge', 13, 8])
+    assert.deepEqual([m.where, m.track, m.x, m.z], ['cabin', 'lounge', PLOT_ORIGIN.x + 2, PLOT_DOOR.z])
     // Il rentre chez lui : ses quartiers à lui se taisent.
     const home = next(guest, 'music')
     guest.emit('visit', { host: null })
