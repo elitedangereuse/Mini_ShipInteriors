@@ -9,9 +9,10 @@ import type { Letter } from './site'
  * sont ouverts ; on y chuchote, on y sonne chez les autres, on y invite chez soi, et on y laisse
  * un message à un absent. Tout ce qui touche aux quartiers des autres passe par lui.
  *
- * L'onglet « Messages » liste les conversations, une par joueur : les chuchotements de la session
- * (ils ne sont gardés nulle part : recharger la page les efface) et les messages laissés en
- * notre absence, que le site garde jusqu'à ce qu'on les efface.
+ * L'onglet « Messages » liste les conversations, une par joueur. Entre CMDR, les chuchotements
+ * sont gardés par le site (`letters`) : on écrit à un joueur qu'il soit à bord ou non, et l'on
+ * retrouve la conversation d'une session à l'autre. Avec un invité (ou sans compte), ils passent
+ * par le relais, à bord seulement, et ne durent que le temps de la session.
  *
  * Le combiné n'affiche que ce qu'on lui donne (cf. update) et rend la main par ses `on…` : c'est
  * main.ts qui connaît le relais, le site et les visites.
@@ -69,7 +70,7 @@ export interface PhoneSelf {
 export interface PhoneData {
   self: PhoneSelf
   contacts: Contact[]
-  /** Messages laissés en notre absence (null : invité, ou site injoignable). */
+  /** Chuchotements gardés par le site, reçus et envoyés (null : invité, ou site injoignable). */
   letters: Letter[] | null
 }
 
@@ -77,11 +78,9 @@ interface Entry {
   mine: boolean
   text: string
   at: number
-  /** Laissé à un absent (il le lira à son retour) plutôt que chuchoté. */
-  letter?: boolean
-  /** Message qu'on nous a laissé : son identifiant sur le site (pour l'effacer), et s'il est encore à lire. */
+  /** Gardé par le site : son identifiant (pour l'effacer), et si son destinataire l'a lu. */
   letterId?: number
-  unread?: boolean
+  read?: boolean
   state?: 'sending' | 'failed'
   note?: string
 }
@@ -161,25 +160,27 @@ export class CrewPhone {
 
   private data: PhoneData = { self: { name: '', verified: false, linked: false, online: false, where: '', canHost: false, loginUrl: '/' }, contacts: [], letters: null }
   private byKey = new Map<string, Contact>()
-  private pane: 'crew' | 'letters' = 'crew'
   private expanded: string | null = null
   private filter = ''
   private thread: string | null = null
-  private threads = new Map<string, { name: string; entries: Entry[] }>()
+  private threads = new Map<string, { name: string; entries: Entry[]; stored?: string }>()
   private unread = new Map<string, number>()
   private keys = { self: '', letters: '', thread: '' }
   private ticker = 0
 
-  /** Chuchoter (à bord) ou laisser un message (absent) : null si c'est parti, sinon pourquoi pas. */
-  onSend?: (contact: Contact, text: string) => Promise<string | null>
+  /**
+   * Chuchoter à un joueur. `refusal` : pourquoi ce n'est pas parti ; `stored` : le site le garde,
+   * il est déjà revenu dans `letters`.
+   */
+  onSend?: (contact: Contact, text: string) => Promise<{ refusal?: string; stored?: boolean }>
   onVisit?: (contact: Contact) => void
   onRing?: (contact: Contact) => void
   onInvite?: (contact: Contact) => void
   onKick?: (contact: Contact) => void
   onToggleOpen?: () => void
   onGoHome?: () => void
-  /** La boîte des messages est à l'écran : ils sont lus. */
-  onLettersRead?: () => void
+  /** La conversation avec ce CMDR (son identifiant dans l'annuaire) est à l'écran : ses messages sont lus. */
+  onRead?: (stored: string) => void
   onDeleteLetter?: (id: number) => void
   /** Ouvert ou réduit (à retenir d'une visite à l'autre ; ouvert : l'annuaire est à rafraîchir). */
   onToggle?: (open: boolean) => void
@@ -225,7 +226,6 @@ export class CrewPhone {
       this.tick()
       this.ticker = window.setInterval(() => this.tick(), 20000)
       if (this.thread) this.read(this.thread)
-      if (this.pane === 'letters') this.lettersShown()
     } else if (this.root.contains(document.activeElement)) (document.activeElement as HTMLElement).blur()
     this.badges()
     if (announce) this.onToggle?.(open)
@@ -291,7 +291,7 @@ export class CrewPhone {
     // Conversation.
     const form = el('form', 'ph-compose')
     form.autocomplete = 'off'
-    this.input.maxLength = 200
+    this.input.maxLength = 280
     this.send.type = 'submit'
     this.send.append(icon('paper-plane-right'))
     this.send.setAttribute('aria-label', tr('Envoyer', 'Send'))
@@ -359,7 +359,7 @@ export class CrewPhone {
   }
 
   private get unreadLetters(): number {
-    return this.data.letters?.filter((l) => !l.read).length ?? 0
+    return this.data.letters?.filter((l) => !l.mine && !l.read).length ?? 0
   }
 
   /** Pastilles : chuchotements et messages pas encore lus. */
@@ -373,15 +373,9 @@ export class CrewPhone {
   }
 
   private showPane(pane: 'crew' | 'letters') {
-    this.pane = pane
     for (const [id, b] of Object.entries(this.tabs)) b.setAttribute('aria-selected', String(id === pane))
     this.list.hidden = pane !== 'crew'
     this.box.hidden = pane !== 'letters'
-    if (pane === 'letters' && this.isOpen) this.lettersShown()
-  }
-
-  private lettersShown() {
-    if (this.unreadLetters) this.onLettersRead?.()
   }
 
   // ------------------------------------------------------------- soi
@@ -468,7 +462,7 @@ export class CrewPhone {
   private row(c: Contact): HTMLElement {
     const open = this.expanded === c.key
     const self = this.data.self
-    const json = JSON.stringify([c, open, this.unread.get(c.key) ?? 0, self.canHost, self.linked, self.online])
+    const json = JSON.stringify([c, open, this.unreadFrom(c.key), self.canHost, self.linked, self.online])
     const cached = this.rows.get(c.key)
     if (cached?.json === json) return cached.el
 
@@ -494,7 +488,7 @@ export class CrewPhone {
       door.append(icon('door-open'))
       main.append(door)
     }
-    const unread = this.unread.get(c.key)
+    const unread = this.unreadFrom(c.key)
     if (unread) main.append(el('span', 'ph-badge', String(unread)))
     main.onclick = () => {
       this.expanded = open ? null : c.key
@@ -516,10 +510,10 @@ export class CrewPhone {
       if (why) b.title = why
       return b
     }
-    if (aboard) box.append(button(tr('Chuchoter', 'Whisper'), 'chat-circle-dots', () => this.openThread(c.key), 'primary'))
-    else if (c.stored) {
-      const b = button(tr('Laisser un message', 'Leave a message'), 'envelope-simple', () => this.openThread(c.key), 'primary')
-      box.append(self.linked ? b : off(b, tr('Réservé aux CMDR connectés au site.', 'Only for CMDRs logged in to the site.')))
+    // À bord ou non, on chuchote : un absent lira le message à son retour.
+    if (aboard || c.stored) {
+      const b = button(tr('Chuchoter', 'Whisper'), 'chat-circle-dots', () => this.openThread(c.key), 'primary')
+      box.append(aboard || self.linked ? b : off(b, tr('Écrire à un absent est réservé aux CMDR connectés au site.', 'Writing to someone away is only for CMDRs logged in to the site.')))
     }
     // Aller chez lui.
     if (c.host) box.append(off(button(tr('Vous y êtes', 'You are there'), 'check', () => {})))
@@ -540,18 +534,29 @@ export class CrewPhone {
 
   // ------------------------------------------------------------- conversations
 
-  /** Les messages laissés en notre absence rejoignent la conversation de leur auteur. */
+  /** Les chuchotements gardés par le site, rangés par conversation (ceux de la session y restent). */
   private syncLetters() {
     for (const t of this.threads.values()) t.entries = t.entries.filter((e) => e.letterId === undefined)
     for (const l of this.data.letters ?? []) {
-      const key = contactKey(l.from)
+      const key = contactKey(l.name)
       let t = this.threads.get(key)
-      if (!t) this.threads.set(key, (t = { name: `CMDR ${l.from}`, entries: [] }))
-      t.entries.push({ mine: false, text: l.text, at: l.at * 1000, letter: true, letterId: l.id, unread: !l.read })
+      if (!t) this.threads.set(key, (t = { name: `CMDR ${l.name}`, entries: [] }))
+      t.stored = l.key
+      t.entries.push({ mine: l.mine, text: l.text, at: l.at * 1000, letterId: l.id, read: l.read })
     }
-    for (const t of this.threads.values()) t.entries.sort((a, b) => a.at - b.at)
+    for (const t of this.threads.values()) t.entries.sort((a, b) => a.at - b.at || (a.letterId ?? 0) - (b.letterId ?? 0))
     this.renderConversations()
-    if (this.thread) this.renderThread()
+    this.renderList()
+    if (this.thread) {
+      this.renderThread()
+      // Arrivé pendant que la conversation est à l'écran : c'est lu.
+      if (this.isOpen) this.read(this.thread)
+    }
+  }
+
+  /** Ce qu'un joueur nous a écrit et qu'on n'a pas lu : sur le site, et de la session. */
+  private unreadFrom(key: string): number {
+    return (this.unread.get(key) ?? 0) + (this.threads.get(key)?.entries.filter((e) => e.letterId !== undefined && !e.mine && !e.read).length ?? 0)
   }
 
   /** Onglet « Messages » : une ligne par joueur avec qui l'on a échangé, la plus récente en haut. */
@@ -560,20 +565,20 @@ export class CrewPhone {
     this.box.replaceChildren()
     if (!list.length) {
       this.box.append(el('p', 'ph-empty', tr(
-        'Aucune conversation. Vos chuchotements et les messages qu\'on vous laisse en votre absence arrivent ici.',
-        'No conversations. Your whispers and the messages left while you are away land here.',
+        'Aucune conversation. Chuchotez à un joueur depuis l\'annuaire, à bord ou non : vos échanges se retrouvent ici.',
+        'No conversations. Whisper to a player from the directory, aboard or not: your exchanges show up here.',
       )))
       return
     }
     for (const [key, t] of list) {
       const last = t.entries.at(-1)!
       const c = this.byKey.get(key)
-      const unread = (this.unread.get(key) ?? 0) + t.entries.filter((e) => e.unread).length
+      const unread = this.unreadFrom(key)
       const row = el('button', unread ? 'ph-conv new' : 'ph-conv')
       row.type = 'button'
       const head = el('span', 'ph-conv-head')
       const name = el('strong', 'ph-name')
-      // Un message laissé vient toujours d'un CMDR du site.
+      // Une conversation gardée par le site est toujours avec un CMDR.
       name.append(nameTag(t.name, c?.verified ?? !key.startsWith('~')))
       head.append(name, el('time', '', ago(last.at / 1000)))
       const text = el('span', 'ph-sub', (last.mine ? tr('Vous : ', 'You: ') : '') + last.text)
@@ -608,7 +613,13 @@ export class CrewPhone {
   }
 
   private read(key: string) {
-    if (!this.unread.delete(key)) return
+    const t = this.threads.get(key)
+    const stored = t?.stored
+    const letters = t?.entries.filter((e) => e.letterId !== undefined && !e.mine && !e.read) ?? []
+    if (!this.unread.delete(key) && !letters.length) return
+    // Lus tout de suite ici ; le site l'apprend (cf. onRead), et le confirmera.
+    for (const e of letters) e.read = true
+    if (letters.length && stored) this.onRead?.(stored)
     this.badges()
     this.renderList()
     this.renderConversations()
@@ -621,19 +632,22 @@ export class CrewPhone {
     if (c) t.name = c.name
     const self = this.data.self
     const aboard = c?.id !== undefined
-    // À qui l'on peut écrire : à bord, on chuchote ; absent et connu du site, on laisse un message.
-    const can = aboard ? self.online : !!c?.stored && self.linked
+    // À qui l'on peut écrire : entre CMDR, le site garde le message (à bord ou non) ; sinon, à bord seulement, par le relais.
+    const kept = !!c?.stored && self.linked
+    const can = kept || (aboard && self.online)
     const status = aboard
       ? c!.where ?? ''
       : !c
         ? tr('N\'est plus à bord', 'No longer aboard')
         : c.seen ? tr(`Hors ligne, vu ${ago(c.seen)}`, `Away, seen ${ago(c.seen)}`) : tr('Hors ligne', 'Away')
     const note = aboard
-      ? tr('Chuchoté : lui seul le lit.', 'Whispered: only they read it.')
+      ? kept
+        ? tr('Chuchoté : lui seul le lit.', 'Whispered: only they read it.')
+        : tr('Chuchoté : lui seul le lit. Avec un invité, la conversation s\'efface en quittant le jeu.', 'Whispered: only they read it. With a guest, the conversation is gone when you leave the game.')
       : can
-        ? tr('Il lira votre message à son retour à bord.', 'They will read your message when they come back aboard.')
+        ? tr('Hors ligne : il lira vos messages à son retour à bord.', 'Away: they will read your messages when they come back aboard.')
         : c?.stored
-          ? tr('Connectez-vous au site pour lui laisser un message.', 'Log in to the site to leave them a message.')
+          ? tr('Connectez-vous au site pour écrire à un joueur hors ligne.', 'Log in to the site to write to a player who is away.')
           : tr('Ce joueur a quitté le bord : on ne peut plus lui écrire.', 'This player left the ship: you can no longer write to them.')
     const json = JSON.stringify([t.name, c?.verified, aboard, c?.deck, status, note, can])
     if (json === this.keys.thread) return
@@ -650,20 +664,20 @@ export class CrewPhone {
     this.threadHead.replaceChildren(back, aboard ? deckGauge(c!.deck, status) : el('span', 'ph-decks off'), who)
     this.threadNote.textContent = note
     this.input.disabled = this.send.disabled = !can
-    this.input.maxLength = aboard ? 200 : 280
-    this.input.placeholder = !can ? '' : aboard ? tr('Chuchoter…', 'Whisper…') : tr('Votre message…', 'Your message…')
+    this.input.maxLength = kept ? 280 : 200
+    this.input.placeholder = can ? tr('Chuchoter…', 'Whisper…') : ''
   }
 
   private renderThread() {
     const t = this.threads.get(this.thread!)!
     this.threadLog.replaceChildren(
       ...t.entries.map((e) => {
-        const b = el('div', `ph-bubble${e.mine ? ' mine' : ''}${e.letter ? ' letter' : ''}${e.state ? ` ${e.state}` : ''}`)
+        const b = el('div', `ph-bubble${e.mine ? ' mine' : ''}${e.state ? ` ${e.state}` : ''}`)
         b.append(el('p', '', e.text))
         const when = Date.now() - e.at < 43200000 ? clock(e.at) : ago(e.at / 1000)
-        const meta = e.state === 'failed' ? e.note ?? '' : e.state === 'sending' ? tr('envoi…', 'sending…') : `${when}${e.letter ? tr(' · message laissé', ' · message left') : ''}`
+        const meta = e.state === 'failed' ? e.note ?? '' : e.state === 'sending' ? tr('envoi…', 'sending…') : `${when}${e.mine && e.letterId !== undefined ? (e.read ? tr(' · lu', ' · read') : tr(' · pas encore lu', ' · not read yet')) : ''}`
         const foot = el('small', '', meta)
-        // Un message qu'on nous a laissé reste sur le site tant qu'on ne l'efface pas.
+        // Gardé par le site : il s'efface des deux côtés.
         if (e.letterId !== undefined) {
           const id = e.letterId
           const del = el('button', 'ph-del')
@@ -698,14 +712,18 @@ export class CrewPhone {
     const text = this.input.value.trim()
     if (!key || !c || !text) return
     this.input.value = ''
-    const entry = this.push(key, c.name, { mine: true, text, at: Date.now(), letter: c.id === undefined, state: 'sending' })
-    const refusal = (await this.onSend?.(c, text)) ?? null
+    const entry = this.push(key, c.name, { mine: true, text, at: Date.now(), state: 'sending' })
+    const { refusal, stored } = (await this.onSend?.(c, text)) ?? {}
     entry.state = refusal ? 'failed' : undefined
-    entry.note = refusal ?? undefined
+    entry.note = refusal
+    // Gardé par le site : il est revenu avec les autres, cette bulle d'attente s'efface.
+    const t = this.threads.get(key)
+    if (stored && t) t.entries = t.entries.filter((e) => e !== entry)
     if (this.thread === key) this.renderThread()
+    this.renderConversations()
   }
 
-  /** Un chuchotement reçu : dans sa conversation, avec une pastille si elle n'est pas à l'écran. */
+  /** Un chuchotement reçu par le relais (d'un invité, ou sans le site) : dans sa conversation, avec une pastille si elle n'est pas à l'écran. */
   receive(key: string, name: string, text: string) {
     this.push(key, name, { mine: false, text, at: Date.now() })
     if (this.isOpen && this.thread === key) return

@@ -1568,6 +1568,10 @@ net.onMessage = (m) => {
       sound.play('ding', null, { volume: 0.14, rate: 1.5 })
       setTimeout(() => sound.play('ding', null, { volume: 0.14, rate: 1.2 }), 260)
       break
+    case 'nudge':
+      // Un CMDR vient de nous écrire sur le site : on relit nos messages.
+      void loadDirectory(true)
+      break
     case 'whisper':
       phone.receive(remoteKey(m.name, m.verified), m.name, m.text)
       chat.add('whisper', m.text, whisperTag(m.name, m.verified, false))
@@ -1689,9 +1693,14 @@ async function command(text: string) {
       const r = [...remotes.values()].filter((x) => said.startsWith(key(x.name) + ' ')).sort((a, b) => b.name.length - a.name.length)[0]
       if (!r) return chat.add('system', tr('Usage : /w CMDR Nom message (à un joueur à bord).', 'Usage: /w CMDR Name message (to a player aboard).'))
       const message = arg.replace(/^cmdr\s+/i, '').trim().slice(key(r.name).length).trim()
-      const refusal = await whisper(r.id, message)
+      if (!message) return chat.add('system', tr('Usage : /w CMDR Nom message (à un joueur à bord).', 'Usage: /w CMDR Name message (to a player aboard).'))
+      const contact = phoneData().contacts.find((c) => c.id === r.id)
+      if (!contact) return
+      const { refusal, stored } = await whisperTo(contact, message)
       if (refusal) return chat.add('system', refusal)
-      return phone.sent(remoteKey(r.name, r.verified), r.name, message)
+      // Gardé par le site, il est déjà dans la conversation ; sinon, on l'y ajoute.
+      if (!stored) phone.sent(contact.key, r.name, message)
+      return
     }
     case 'credits':
     case 'crédits':
@@ -2517,20 +2526,28 @@ let directoryAt = 0
 /** Clé d'un joueur à bord dans l'annuaire : un invité ne se confond pas avec le CMDR dont il porte le nom. */
 const remoteKey = (name: string, isVerified?: boolean) => (isVerified ? '' : '~') + contactKey(name)
 
-/** Demande l'annuaire au site (au plus toutes les 30 s, sauf `force`), et annonce les nouveaux messages. */
+/**
+ * Demande l'annuaire et nos conversations au site (au plus toutes les 30 s, sauf `force`). Ce qu'on
+ * nous a écrit depuis la dernière fois s'affiche dans le chat ; à l'arrivée à bord, on annonce
+ * seulement combien de messages attendent.
+ */
 async function loadDirectory(force = false) {
   if (!force && Date.now() - directoryAt < 30000) return
   directoryAt = Date.now()
   const reply = await fetchCrew()
   if (!reply) return
-  const known = new Set(directory?.inbox?.map((l) => l.id))
-  const fresh = reply.inbox?.filter((l) => !l.read && !known.has(l.id)).length ?? 0
+  const first = !directory?.messages
+  const known = new Set(directory?.messages?.map((l) => l.id))
+  const fresh = reply.messages?.filter((l) => !l.mine && !l.read && !known.has(l.id)) ?? []
   directory = reply
-  if (fresh) {
+  if (fresh.length && first) {
     chat.add('system', EN
-      ? `${fresh === 1 ? 'A message was' : `${fresh} messages were`} left for you: open the directory (Tab).`
-      : `${fresh === 1 ? 'Un message vous attend' : `${fresh} messages vous attendent`} : ouvrez l'annuaire (Tab).`)
+      ? `${fresh.length === 1 ? 'A message is' : `${fresh.length} messages are`} waiting for you: open the directory (Tab).`
+      : `${fresh.length === 1 ? 'Un message vous attend' : `${fresh.length} messages vous attendent`} : ouvrez l'annuaire (Tab).`)
     sound.play('ding', null, { volume: 0.1, rate: 1.4 })
+  } else if (fresh.length) {
+    for (const l of fresh.reverse()) chat.add('whisper', l.text, whisperTag(`CMDR ${l.name}`, true, false))
+    sound.play('chat', null, { volume: 0.14, rate: 0.85 })
   }
   refreshPhone()
 }
@@ -2560,10 +2577,10 @@ function phoneData(): PhoneData {
     if (linked && key === mine) continue
     contacts.set(key, { key, name: `CMDR ${m.name}`, verified: true, stored: m.id, open: m.open, seen: m.seen, host: !!visiting && visiting.name === `CMDR ${m.name}` })
   }
-  // L'auteur d'un message laissé reste joignable, même hors des plus récemment vus.
-  for (const l of directory?.inbox ?? []) {
-    const key = contactKey(l.from)
-    if (key !== mine && !contacts.has(key)) contacts.set(key, { key, name: `CMDR ${l.from}`, verified: true, stored: l.key, open: false })
+  // Un CMDR avec qui l'on a une conversation reste joignable, même hors des plus récemment vus.
+  for (const l of directory?.messages ?? []) {
+    const key = contactKey(l.name)
+    if (key !== mine && !contacts.has(key)) contacts.set(key, { key, name: `CMDR ${l.name}`, verified: true, stored: l.key, open: false })
   }
   const aboard: Contact[] = []
   for (const r of remotes.values()) {
@@ -2592,7 +2609,7 @@ function phoneData(): PhoneData {
     },
     // À bord d'abord (par nom), puis les absents, du plus récemment vu au plus ancien.
     contacts: [...aboard, ...contacts.values()],
-    letters: directory?.inbox ?? null,
+    letters: directory?.messages ?? null,
   }
 }
 
@@ -2608,7 +2625,7 @@ function whisperTag(name: string, isVerified: boolean | undefined, mine: boolean
   return f
 }
 
-/** Chuchote à un joueur à bord : null si c'est parti, sinon pourquoi pas. */
+/** Chuchote par le relais à un joueur à bord (un invité, ou sans le site) : null si c'est parti, sinon pourquoi pas. */
 async function whisper(id: number, text: string): Promise<string | null> {
   const r = remotes.get(id)
   if (!r) return tr('Ce joueur n\'est plus à bord.', 'This player is no longer aboard.')
@@ -2627,10 +2644,10 @@ async function whisper(id: number, text: string): Promise<string | null> {
 }
 
 const LETTER_REFUSALS: Record<LetterRefusal, string> = {
-  auth: tr('Connectez-vous au site pour laisser un message.', 'Log in to the site to leave a message.'),
+  auth: tr('Connectez-vous au site pour écrire à un joueur hors ligne.', 'Log in to the site to write to a player who is away.'),
   self: tr('C\'est vous.', 'That is you.'),
   unknown: tr('Ce CMDR n\'a jamais lancé le jeu.', 'This CMDR never started the game.'),
-  pending: tr('Il a déjà plusieurs messages de vous à lire : attendez son retour.', 'They already have several of your messages to read: wait for them to come back.'),
+  pending: tr('Il a déjà beaucoup de messages de vous à lire : attendez qu\'il les lise.', 'They already have many of your messages to read: wait until they read them.'),
   full: tr('Sa boîte est pleine.', 'Their inbox is full.'),
   busy: tr('Trop de messages aujourd\'hui : réessayez demain.', 'Too many messages today: try again tomorrow.'),
   format: tr('Message refusé par le site.', 'Message refused by the site.'),
@@ -2659,27 +2676,43 @@ async function ring(id: number) {
   }[reply.reason])
 }
 
-phone.onSend = async (c, text) => {
-  if (c.id !== undefined) return whisper(c.id, text)
-  if (!c.stored) return LETTER_REFUSALS.unknown
-  const refusal = await sendLetter(c.stored, text)
-  return refusal ? LETTER_REFUSALS[refusal] ?? LETTER_REFUSALS.unavailable : null
+/**
+ * Chuchote à un joueur. Entre CMDR, le site garde le message (`stored`) : le destinataire le lit
+ * aussitôt s'il est à bord (le relais le prévient), sinon à son retour. Avec un invité, ou sans
+ * compte, il passe par le relais, à bord seulement.
+ */
+async function whisperTo(c: Contact, text: string): Promise<{ refusal?: string; stored?: boolean }> {
+  if (c.stored && linked) {
+    const refusal = await sendLetter(c.stored, text)
+    if (refusal) return { refusal: LETTER_REFUSALS[refusal] ?? LETTER_REFUSALS.unavailable }
+    if (c.id !== undefined) net.sendNudge(c.id)
+    chat.add('whisper', text, whisperTag(c.name, c.verified, true))
+    sound.play('chat', null, { volume: 0.1, rate: 1.2 })
+    await loadDirectory(true)
+    return { stored: true }
+  }
+  if (c.id === undefined) return { refusal: c.stored ? LETTER_REFUSALS.auth : LETTER_REFUSALS.unknown }
+  return { refusal: (await whisper(c.id, text)) ?? undefined }
 }
+phone.onSend = whisperTo
 phone.onVisit = (c) => (c.id !== undefined ? visitHost(c.id) : c.stored ? visitAbsent(c.stored) : undefined)
 phone.onRing = (c) => void (c.id !== undefined && ring(c.id))
 phone.onInvite = (c) => void (c.id !== undefined && invite(c.id))
 phone.onKick = (c) => c.id !== undefined && net.sendKick(c.id)
 phone.onToggleOpen = toggleOpen
 phone.onGoHome = goHome
-phone.onLettersRead = () => {
-  if (!directory?.inbox) return
-  markLettersRead()
-  directory.inbox = directory.inbox.map((l) => ({ ...l, read: true }))
+phone.onRead = (stored) => {
+  if (!directory?.messages) return
+  markLettersRead(stored)
+  directory.messages = directory.messages.map((l) => (!l.mine && l.key === stored ? { ...l, read: true } : l))
   refreshPhone()
+  // S'il est à bord, il voit que c'est lu.
+  const id = phoneData().contacts.find((c) => c.stored === stored)?.id
+  if (id !== undefined) setTimeout(() => net.sendNudge(id), 800)
 }
 phone.onDeleteLetter = (id) => {
-  if (!directory?.inbox) return
-  directory.inbox = directory.inbox.filter((l) => l.id !== id)
+  if (!directory?.messages) return
+  directory.messages = directory.messages.filter((l) => l.id !== id)
   refreshPhone()
   void deleteLetter(id)
 }

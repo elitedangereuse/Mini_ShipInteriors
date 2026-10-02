@@ -599,9 +599,6 @@ button.ph-row-main:hover {
   border-radius: 12px 4px 12px 12px;
   background: rgba(255, 176, 58, 0.14);
 }
-.ph-bubble.letter {
-  border-style: dashed;
-}
 .ph-bubble.sending {
   opacity: 0.6;
 }

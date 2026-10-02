@@ -236,6 +236,8 @@ export type ServerMessage =
   | { t: 'profile'; id: number; name: string; verified?: boolean; skin: string }
   /** Le joueur `id` nous chuchote un message : nous seuls le recevons. */
   | { t: 'whisper'; id: number; name: string; verified?: boolean; text: string }
+  /** Le joueur `id` nous a écrit sur le site (cf. crew/site.ts) : nos messages sont à relire. */
+  | { t: 'nudge'; id: number }
   /** Le joueur `id` sonne à la porte de nos quartiers : à nous de l'inviter. */
   | { t: 'ring'; id: number; name: string; verified?: boolean }
   /**
@@ -297,7 +299,7 @@ type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin' | 'open'>
 
 /** Chemin de la socket : le même que WS_PATH dans server/relay.js et que la conf nginx du site. */
 const WS_PATH = import.meta.env.VITE_WS_PATH || '/ws/mini-shipinteriors'
-const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'open', 'whisper', 'ring', 'music', 'jump', 'patrol', 'chef', 'nurse', 'mechanic', 'gardener', 'chief', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error',
+const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'open', 'whisper', 'nudge', 'ring', 'music', 'jump', 'patrol', 'chef', 'nurse', 'mechanic', 'gardener', 'chief', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error',
   'salvage:lobby', 'salvage:start', 'salvage:state', 'salvage:event', 'salvage:end', 'salvage:reward', 'salvage:error']
 
 export class Net {
@@ -520,6 +522,11 @@ export class Net {
     } catch {
       return null
     }
+  }
+
+  /** On vient d'écrire à `to` sur le site : il relira ses messages aussitôt. */
+  sendNudge(to: number) {
+    this.send('nudge', { to })
   }
 
   sendDecline(to: number) {

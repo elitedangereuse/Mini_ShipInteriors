@@ -50,7 +50,9 @@
 // fetchQuarters) et leur ouvre une instance à part, où se retrouvent ceux qui viennent les voir.
 // On peut sonner chez un CMDR à bord dont les quartiers sont fermés : à lui d'inviter.
 //
-// Chuchoter : un message pour un seul joueur à bord, où qu'il soit.
+// Chuchoter : entre CMDR, les messages sont gardés par le site (le destinataire peut être absent) ;
+// l'expéditeur prévient le destinataire à bord (`nudge`), qui les relit aussitôt. Un invité n'a pas
+// de compte sur le site : son chuchotement passe par le relais, pour un joueur à bord seulement.
 //
 // Base au sol (cf. shared/ground-base.js) : on y descend en Krait depuis le hangar. C'est un lieu
 // commun, comme un pont. Ada, la cheffe de la base, y fait sa ronde sur une horloge que le relais
@@ -701,6 +703,14 @@ export function attachRelay(
       chatBudget--
       sockets.get(to.id)?.emit('whisper', { id: player.id, name: player.name, verified: player.verified, text })
       reply({ ok: true })
+    })
+
+    // « J'ai écrit à ce CMDR sur le site » : le destinataire à bord relit ses messages aussitôt.
+    socket.on('nudge', (raw) => {
+      const to = playerById(obj(raw).to)
+      if (!to || to === player || chatBudget <= 0) return
+      chatBudget--
+      sockets.get(to.id)?.emit('nudge', { id: player.id })
     })
 
     socket.on('emote', (raw) => {

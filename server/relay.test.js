@@ -1195,6 +1195,12 @@ describe('annuaire', () => {
     assert.deepEqual(await a.timeout(2000).emitWithAck('whisper', { to: 9999, text: 'psst' }), { ok: false, reason: 'gone' })
     assert.deepEqual(await a.timeout(2000).emitWithAck('whisper', { to: wa.id, text: 'psst' }), { ok: false, reason: 'gone' })
     assert.deepEqual(await a.timeout(2000).emitWithAck('whisper', { to: wb.id, text: ' ' }), { ok: false, reason: 'empty' })
+    // Entre CMDR, le message est sur le site : le destinataire est seulement prévenu.
+    const nudged = next(b, 'nudge')
+    const others = receives(c, 'nudge')
+    a.emit('nudge', { to: wb.id })
+    assert.deepEqual(await nudged, { id: wa.id })
+    assert.equal(await others, false)
   })
 
   test('sonner : chez un CMDR à bord seulement, qui l\'apprend', async () => {
