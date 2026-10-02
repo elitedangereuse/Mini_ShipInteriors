@@ -371,6 +371,7 @@ const mediaRoom = new MediaRoom({ get: () => iso.zoomLevel, set: (value) => iso.
 const cinemaRoom = new CinemaRoom({
   online: () => net.online, self: () => net.id, choose: (id) => net.sendCinemaChoice(id),
   search: (query) => net.searchCinema(query), video: (id) => net.sendCinemaVideo(id),
+  streams: (query) => net.searchCinemaStreams(query), stream: (channel) => net.sendCinemaStream(channel),
   duration: (id, since, duration) => net.sendCinemaDuration(id, since, duration),
 })
 const cinemaScreenProp = deckById(1).def.props.find((p) => p.model === 'cinema-screen')!
@@ -4545,6 +4546,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder } },
+    __game: { renderer, sound, player, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, toDeck: (id: number) => setDeck(deckById(id)) },
   })
 }

@@ -35,7 +35,7 @@ const siteProxy: ProxyOptions = {
     })
   },
 }
-const SITE_PROXY = Object.fromEntries([CMDR_ENDPOINT, CABIN_ENDPOINT, SCORES_ENDPOINT, CREDITS_ENDPOINT, SALVAGE_ENDPOINT, '/outils/mini-shipinteriors-site.php', '/outils/mini-shipinteriors-cinema.php', '/outils/mini-shipinteriors-crew.php'].map((path) => [path, siteProxy]))
+const SITE_PROXY = Object.fromEntries([CMDR_ENDPOINT, CABIN_ENDPOINT, SCORES_ENDPOINT, CREDITS_ENDPOINT, SALVAGE_ENDPOINT, '/outils/mini-shipinteriors-site.php', '/outils/mini-shipinteriors-cinema.php', '/outils/mini-shipinteriors-crew.php', '/outils/mini-shipinteriors-twitch.php'].map((path) => [path, siteProxy]))
 
 /**
  * Branche le relais multijoueur sur le serveur de dev (et de preview) de Vite, sur /ws/mini-shipinteriors.

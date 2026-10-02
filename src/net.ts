@@ -100,12 +100,15 @@ export interface ChiefState extends PatrolState {
 
 export interface CinemaTrailer { id: number; title: string; image: string; video: string }
 export interface CinemaVideo { video: string; title: string; image: string }
+/** Direct d'une chaîne Twitch : son login, son nom affiché, le titre du direct, un aperçu. */
+export interface CinemaStream { channel: string; name: string; title: string; image: string; game?: string }
 export interface CinemaState {
   trailers: CinemaTrailer[]
   live: boolean
   liveTitle: string
   selected: number | null
   youtube: CinemaVideo | null
+  twitch: CinemaStream | null
   since: number
   operator: number | null
   now: number
@@ -470,6 +473,19 @@ export class Net {
       return await this.socket.timeout(8500).emitWithAck('cinema:search', { query }) as { videos: CinemaVideo[]; reason?: string }
     } catch {
       return { videos: [], reason: 'unavailable' }
+    }
+  }
+
+  sendCinemaStream(channel: string) {
+    this.send('cinema:stream', { channel })
+  }
+
+  async searchCinemaStreams(query: string): Promise<{ streams: CinemaStream[]; reason?: string }> {
+    if (!this.online || !this.socket?.connected) return { streams: [], reason: 'unavailable' }
+    try {
+      return await this.socket.timeout(8500).emitWithAck('cinema:streams', { query }) as { streams: CinemaStream[]; reason?: string }
+    } catch {
+      return { streams: [], reason: 'unavailable' }
     }
   }
 

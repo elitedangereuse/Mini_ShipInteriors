@@ -219,7 +219,7 @@ export function attachRelay(
   const players = new Map() // socket.id -> joueur
   const sockets = new Map() // id du joueur -> socket
   const cinema = createCinema({ cmdrUrl, players: () => [...players.values()], emit: (event, state) => io.emit(event, state), error,
-    youtubeKey, fetcher: youtubeFetch })
+    youtubeKey, fetcher: youtubeFetch, relaySecret })
   httpServer.on('close', () => cinema.dispose())
   const boards = new Map() // table -> partie de plateau
   let nextId = 1
@@ -673,6 +673,20 @@ export function attachRelay(
       if (cinemaBudget < 1) return socket.emit('cinema:error', { reason: 'busy' })
       cinemaBudget--
       const reason = await cinema.chooseVideo(player, obj(raw).video)
+      if (reason) socket.emit('cinema:error', { reason })
+    })
+
+    socket.on('cinema:streams', async (raw, reply) => {
+      if (typeof reply !== 'function') return
+      if (Date.now() - lastCinemaSearch < 2000) return reply({ reason: 'busy', streams: [] })
+      lastCinemaSearch = Date.now()
+      reply(await cinema.searchStreams(player, obj(raw).query))
+    })
+
+    socket.on('cinema:stream', async (raw) => {
+      if (cinemaBudget < 1) return socket.emit('cinema:error', { reason: 'busy' })
+      cinemaBudget--
+      const reason = await cinema.chooseStream(player, obj(raw).channel)
       if (reason) socket.emit('cinema:error', { reason })
     })
 

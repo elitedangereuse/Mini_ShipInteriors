@@ -1,4 +1,7 @@
-/** Séance commune du cinéma. Le site fournit le catalogue et la priorité du direct Twitch. */
+/**
+ * Séance commune du cinéma. Le site fournit le catalogue et la priorité du direct Twitch de la
+ * chaîne du site ; la régie peut aussi projeter une vidéo YouTube, ou le direct d'une autre chaîne.
+ */
 export const PROJECTION_SEAT = { level: 1, x: 26.65, z: 7.55 }
 
 export function cinemaOperator(players) {
@@ -23,13 +26,26 @@ function youtubeLinkId(value) {
   } catch { return null }
 }
 
+const twitchLogin = (s) => typeof s === 'string' && /^[a-z0-9_]{1,25}$/.test(s)
+/** Login d'une chaîne dans un lien twitch.tv, ou null. */
+function twitchLinkLogin(value) {
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'https:' || !['twitch.tv', 'www.twitch.tv', 'm.twitch.tv'].includes(url.hostname.toLowerCase())) return null
+    const login = url.pathname.split('/')[1]?.toLowerCase()
+    return twitchLogin(login) ? login : null
+  } catch { return null }
+}
+
 export function createCinema({ cmdrUrl, players, emit, error = console.error, now = Date.now, schedule = setTimeout, cancel = clearTimeout,
-  youtubeKey = process.env.YOUTUBE_API_KEY ?? '', fetcher = fetch }) {
+  youtubeKey = process.env.YOUTUBE_API_KEY ?? '', fetcher = fetch, relaySecret = process.env.MSI_RELAY_SECRET ?? '' }) {
   let trailers = []
   let live = false
   let liveTitle = ''
   let selected = null
   let youtube = null
+  /** Direct d'une autre chaîne Twitch, choisi par la régie. */
+  let twitch = null
   let since = 0
   let lastCheck = 0
   let checking = null
@@ -37,15 +53,29 @@ export function createCinema({ cmdrUrl, players, emit, error = console.error, no
   let endTimer = null
   const foundVideos = new Map()
   const searchCache = new Map()
+  const foundStreams = new Map()
+  const streamCache = new Map()
 
-  const snapshot = () => ({ trailers, live, liveTitle, selected, youtube, since, operator: cinemaOperator(players()), now: now() })
+  const snapshot = () => ({ trailers, live, liveTitle, selected, youtube, twitch, since, operator: cinemaOperator(players()), now: now() })
   const broadcast = () => emit('cinema:state', snapshot())
   const clearSelection = () => {
     if (endTimer !== null) cancel(endTimer)
     endTimer = null
     selected = null
     youtube = null
+    twitch = null
     since = 0
+  }
+
+  /** Le site cherche sur Twitch avec ses identifiants ; il ne répond qu'au relais (clé partagée). */
+  const twitchSite = async (params) => {
+    if (!cmdrUrl || !relaySecret) return null
+    const url = new URL('/outils/mini-shipinteriors-twitch.php', cmdrUrl)
+    for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
+    const response = await fetch(url, { headers: { Accept: 'application/json', 'X-Relay-Key': relaySecret }, signal: AbortSignal.timeout(6000), redirect: 'error' })
+    if (!response.ok) throw new Error(`site HTTP ${response.status}`)
+    const data = await response.json()
+    return data?.status === 'success' ? data : null
   }
 
   const refresh = async (force = false) => {
@@ -70,7 +100,14 @@ export function createCinema({ cmdrUrl, players, emit, error = console.error, no
         live = nextLive
         liveTitle = nextTitle
         if (live || (selected !== null && !trailers.some((t) => t.id === selected))) clearSelection()
-        if (changed) broadcast()
+        // La chaîne projetée a coupé son direct : la salle retrouve son écran d'attente.
+        let ended = false
+        if (twitch) {
+          const channel = twitch.channel
+          const state = await twitchSite({ live: channel }).catch(() => null)
+          if (state?.live === false && twitch?.channel === channel) { clearSelection(); ended = true }
+        }
+        if (changed || ended) broadcast()
       } catch (e) { error(`[cinéma] catalogue indisponible : ${e?.message ?? e}`) }
       finally { checking = null }
     })()
@@ -141,6 +178,48 @@ export function createCinema({ cmdrUrl, players, emit, error = console.error, no
     return null
   }
 
+  /** Directs Twitch qui répondent à des mots, ou à un lien twitch.tv. */
+  const searchStreams = async (player, query) => {
+    await refresh()
+    if (live) return { reason: 'live', streams: [] }
+    if (cinemaOperator(players()) !== player.id) return { reason: 'seat', streams: [] }
+    if (typeof query !== 'string' || query.trim().length < 2 || query.length > 500) return { reason: 'invalid', streams: [] }
+    const words = twitchLinkLogin(query.trim()) ?? query.trim()
+    if (words.length > 100) return { reason: 'invalid', streams: [] }
+    const normalized = words.toLocaleLowerCase()
+    const cached = streamCache.get(normalized)
+    if (cached && now() - cached.at < 60000) return { streams: cached.streams }
+    try {
+      const data = await twitchSite({ search: words })
+      if (!data || !Array.isArray(data.streams)) return { reason: 'unavailable', streams: [] }
+      const streams = data.streams.filter((s) => twitchLogin(s?.channel) && typeof s.name === 'string' && typeof s.title === 'string')
+        .slice(0, 12).map((s) => ({ channel: s.channel, name: s.name.slice(0, 64), title: s.title.slice(0, 140),
+          game: typeof s.game === 'string' ? s.game.slice(0, 80) : '',
+          image: `https://static-cdn.jtvnw.net/previews-ttv/live_user_${s.channel}-320x180.jpg` }))
+      for (const stream of streams) foundStreams.set(stream.channel, { ...stream, foundAt: now() })
+      for (const [id, stream] of foundStreams) if (now() - stream.foundAt > 600000) foundStreams.delete(id)
+      streamCache.set(normalized, { at: now(), streams })
+      for (const [key, value] of streamCache) if (now() - value.at > 60000) streamCache.delete(key)
+      return { streams }
+    } catch (e) {
+      error(`[cinéma] recherche Twitch indisponible : ${e?.message ?? e}`)
+      return { reason: 'unavailable', streams: [] }
+    }
+  }
+
+  const chooseStream = async (player, channel) => {
+    await refresh()
+    if (live) return 'live'
+    if (cinemaOperator(players()) !== player.id) return 'seat'
+    const stream = foundStreams.get(channel)
+    if (!stream || now() - stream.foundAt > 600000) return 'invalid'
+    clearSelection()
+    twitch = { channel: stream.channel, name: stream.name, title: stream.title, image: stream.image }
+    since = now()
+    broadcast()
+    return null
+  }
+
   /** La durée réelle vient du lecteur YouTube ; le relais arrête la séance pour tout le bord. */
   const reportDuration = (id, started, duration) => {
     if (live || (selected === null && youtube === null) || id !== (youtube?.video ?? selected) || started !== since || endTimer !== null
@@ -163,6 +242,6 @@ export function createCinema({ cmdrUrl, players, emit, error = console.error, no
 
   const timer = setInterval(() => { if (players().length) void refresh(true) }, 30000)
   timer.unref?.()
-  return { snapshot, refresh, choose, search, chooseVideo, reportDuration, operatorChanged,
+  return { snapshot, refresh, choose, search, chooseVideo, searchStreams, chooseStream, reportDuration, operatorChanged,
     dispose: () => { clearInterval(timer); if (endTimer !== null) cancel(endTimer) } }
 }
