@@ -3,7 +3,7 @@ import { entryOf, knownVariant } from './catalog'
 import { normalizeFinish } from './finishes'
 import { DEFAULT_PATTERN, WING_PATTERNS, WING_SLOTS, wingPlan, type PatternId, type WingId } from '../../shared/cabin-wings.js'
 import { CABIN_ROOM, DOOR_KINDS, partitionEdge, sanitizePartitions, WALL_KINDS, type Partition } from '../../shared/cabin-partitions.js'
-import { SHIP_LAYOUTS } from '../../shared/ship-layouts.js'
+import { LEGACY_UPPER_LAYOUT } from '../../shared/ship-layouts.js'
 
 export type { Partition } from '../../shared/cabin-partitions.js'
 
@@ -84,7 +84,7 @@ export interface Rect {
  */
 export const LEGACY_BOUNDS: Rect = (() => {
   const tiles: { x: number; z: number }[] = []
-  SHIP_LAYOUTS['1'].forEach((row, z) => [...row].forEach((c, x) => c === CABIN_ROOM && tiles.push({ x, z })))
+  LEGACY_UPPER_LAYOUT.forEach((row, z) => [...row].forEach((c, x) => c === CABIN_ROOM && tiles.push({ x, z })))
   const xs = tiles.map((t) => t.x), zs = tiles.map((t) => t.z)
   const half = 0.15
   return { minX: Math.min(...xs) - 0.5 + half, maxX: Math.max(...xs) + 0.5 - half, minZ: Math.min(...zs) - 0.5 + half, maxZ: Math.max(...zs) + 0.5 - half }

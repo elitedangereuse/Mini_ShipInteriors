@@ -29,7 +29,7 @@ const EAST = Math.PI / 2
 const WEST = -Math.PI / 2
 
 /** Où elle attend son aide pendant une fiche : sur les pas japonais, entre les bacs et l'arche, face aux bacs. */
-export const GARDEN_WAIT = { x: 5.75, z: 4.05, yaw: NORTH }
+export const GARDEN_WAIT = { x: 5.75, z: 5.05, yaw: NORTH }
 
 /**
  * Meubles de la serre (rectangles au sol, cf. levels.ts) : ses trajets ne les traversent pas.
@@ -37,39 +37,40 @@ export const GARDEN_WAIT = { x: 5.75, z: 4.05, yaw: NORTH }
  * serre (hors du plan) : elle ne coupe pas à travers leurs murs.
  */
 export const GARDEN_OBSTACLES = [
-  { minX: 2.03, maxX: 2.97, minZ: -0.5, maxZ: -0.09 }, // grainothèque
-  { minX: 3.17, maxX: 4.33, minZ: -0.5, maxZ: 0.01 }, // bac hydroponique
-  { minX: 4.47, maxX: 5.63, minZ: -0.5, maxZ: 0.01 }, // bac hydroponique
-  { minX: 5.73, maxX: 6.41, minZ: -0.5, maxZ: 0.14 }, // cuve de nutriments
-  { minX: 6.45, maxX: 7.5, minZ: -0.5, maxZ: 0.16 }, // caisses de récolte
-  { minX: -0.5, maxX: -0.2, minZ: 1.6, maxZ: 5.4 }, // treille de vigne
-  { minX: 0.88, maxX: 1.72, minZ: 0.88, maxZ: 1.72 }, // arbre fruitier
-  { minX: 0.51, maxX: 1.99, minZ: 3.77, maxZ: 4.93 }, // bassin
-  { minX: -0.5, maxX: 0.5, minZ: 4.78, maxZ: 5.62 }, // récupérateur d'eau
-  { minX: 3.13, maxX: 4.67, minZ: 1.13, maxZ: 1.87 }, // bac à tomates
-  { minX: 5.13, maxX: 6.67, minZ: 1.13, maxZ: 1.87 }, // bac d'herbes
-  { minX: 3.73, maxX: 5.27, minZ: 2.53, maxZ: 3.27 }, // bac de salades
-  { minX: 3.23, maxX: 4.77, minZ: 4.83, maxZ: 5.57 }, // massif de fleurs
-  { minX: 5.1, maxX: 6.1, minZ: 5.9, maxZ: 6.5 }, // établi de rempotage
-  { minX: 6.64, maxX: 7.5, minZ: 5.78, maxZ: 6.5 }, // compost
-  { minX: 0.98, maxX: 1.52, minZ: 5.8, maxZ: 6.5 }, // monstera
-  { minX: 2.1, maxX: 3.0, minZ: 5.84, maxZ: 6.5 }, // massif de cactus
-  { minX: 3.2, maxX: 4.3, minZ: 5.7, maxZ: 6.5 }, // citrouilles
-  { minX: -0.5, maxX: 0.5, minZ: 2.72, maxZ: 3.28 }, // palmier penché
-  { minX: 6.02, maxX: 6.58, minZ: 4.57, maxZ: 5.13 }, // palmier en éventail
-  { minX: 6.89, maxX: 7.5, minZ: 2.74, maxZ: 3.36 }, // bambous
-  { minX: -0.5, maxX: 0.64, minZ: 1.58, maxZ: 2.42 }, // buisson
-  { minX: -0.5, maxX: 0.47, minZ: 4.1, maxZ: 4.6 }, // fougère
-  { minX: 5.95, maxX: 6.25, minZ: 3.3, maxZ: 3.6 }, // pot de fleurs
-  { minX: 6.65, maxX: 7.5, minZ: 4.7, maxZ: 5.3 }, // plante exobiologique
+  { minX: 2.03, maxX: 2.97, minZ: 0.5, maxZ: 0.91 }, // grainothèque
+  { minX: 3.17, maxX: 4.33, minZ: 0.5, maxZ: 1.01 }, // bac hydroponique
+  { minX: 4.47, maxX: 5.63, minZ: 0.5, maxZ: 1.01 }, // bac hydroponique
+  { minX: 5.73, maxX: 6.41, minZ: 0.5, maxZ: 1.14 }, // cuve de nutriments
+  { minX: 6.45, maxX: 7.5, minZ: 0.5, maxZ: 1.16 }, // caisses de récolte
+  { minX: -0.5, maxX: -0.2, minZ: 2.6, maxZ: 6.4 }, // treille de vigne
+  { minX: 0.88, maxX: 1.72, minZ: 1.88, maxZ: 2.72 }, // arbre fruitier
+  { minX: 0.51, maxX: 1.99, minZ: 4.77, maxZ: 5.93 }, // bassin
+  { minX: -0.5, maxX: 0.5, minZ: 5.78, maxZ: 6.62 }, // récupérateur d'eau
+  { minX: 3.13, maxX: 4.67, minZ: 2.13, maxZ: 2.87 }, // bac à tomates
+  { minX: 5.13, maxX: 6.67, minZ: 2.13, maxZ: 2.87 }, // bac d'herbes
+  { minX: 3.73, maxX: 5.27, minZ: 3.53, maxZ: 4.27 }, // bac de salades
+  { minX: 3.23, maxX: 4.77, minZ: 5.83, maxZ: 6.57 }, // massif de fleurs
+  { minX: 5.1, maxX: 6.1, minZ: 7.9, maxZ: 8.5 }, // établi de rempotage
+  { minX: 6.64, maxX: 7.5, minZ: 7.78, maxZ: 8.5 }, // compost
+  { minX: 0.98, maxX: 1.52, minZ: 6.8, maxZ: 7.5 }, // monstera
+  { minX: 2.1, maxX: 3.0, minZ: 7.84, maxZ: 8.5 }, // massif de cactus
+  { minX: 3.2, maxX: 4.3, minZ: 7.7, maxZ: 8.5 }, // citrouilles
+  { minX: -0.5, maxX: 0.5, minZ: 3.72, maxZ: 4.28 }, // palmier penché
+  { minX: 6.02, maxX: 6.58, minZ: 5.57, maxZ: 6.13 }, // palmier en éventail
+  { minX: 6.89, maxX: 7.5, minZ: 3.74, maxZ: 4.36 }, // bambous
+  { minX: -0.5, maxX: 0.64, minZ: 2.58, maxZ: 3.42 }, // buisson
+  { minX: -0.5, maxX: 0.47, minZ: 5.1, maxZ: 5.6 }, // fougère
+  { minX: 5.95, maxX: 6.25, minZ: 4.3, maxZ: 4.6 }, // pot de fleurs
+  { minX: 6.65, maxX: 7.5, minZ: 5.7, maxZ: 6.3 }, // plante exobiologique
   // Les coins cassés.
-  { minX: -1, maxX: 1.5, minZ: -1, maxZ: 0.5 },
-  { minX: -1, maxX: 0.5, minZ: -1, maxZ: 1.5 },
-  { minX: -1, maxX: 0.5, minZ: 5.5, maxZ: 7 },
+  { minX: -1, maxX: 1.5, minZ: 0, maxZ: 1.5 },
+  { minX: -1, maxX: 0.5, minZ: 0, maxZ: 2.5 },
+  { minX: -1, maxX: 0.5, minZ: 6.5, maxZ: 9 },
+  { minX: -1, maxX: 1.5, minZ: 7.5, maxZ: 9 },
 ]
 
 /** Les murs de la serre (faces intérieures) : elle reste dedans. */
-const ROOM = { minX: -0.5, maxX: 7.5, minZ: -0.5, maxZ: 6.5 }
+const ROOM = { minX: -0.5, maxX: 7.5, minZ: 0.5, maxZ: 8.5 }
 
 /** Sa carrure, avec une marge. */
 const RADIUS = 0.17
@@ -80,19 +81,19 @@ const RADIUS = 0.17
  * calculé (cf. gardenRoute) : elle contourne les bacs.
  */
 const POSTS = [
-  { at: 'seeds', x: 2.5, z: 0.35, yaw: NORTH, watch: 6, work: 'sort' },
-  { at: 'racks', x: 4.4, z: 0.45, yaw: NORTH, watch: 7, work: 'water' },
-  { at: 'tomato', x: 3.9, z: 2.2, yaw: NORTH, watch: 8, work: 'harvest' },
-  { at: 'tree', x: 1.3, z: 2.2, yaw: NORTH, watch: 6, work: 'harvest' },
-  { at: 'pond', x: 2.3, z: 4.35, yaw: WEST, watch: 7, work: 'feed' },
-  { at: 'barrel', x: 0.85, z: 5.35, yaw: WEST, watch: 4, work: 'water' },
-  { at: 'flowers', x: 4.0, z: 4.45, yaw: SOUTH, watch: 7, work: 'water' },
-  { at: 'bench', x: 5.6, z: 5.5, yaw: SOUTH, watch: 8, work: 'dig' },
-  { at: 'compost', x: 6.35, z: 5.45, yaw: EAST, watch: 5, work: 'dig' },
-  { at: 'lettuce', x: 4.5, z: 3.65, yaw: NORTH, watch: 6, work: 'water' },
-  { at: 'herbs', x: 5.9, z: 2.2, yaw: NORTH, watch: 6, work: 'trim' },
-  { at: 'tank', x: 5.95, z: 0.6, yaw: NORTH, watch: 5, work: 'look' },
-  { at: 'crate', x: 6.95, z: 0.65, yaw: NORTH, watch: 5, work: 'sort' },
+  { at: 'seeds', x: 2.5, z: 1.35, yaw: NORTH, watch: 6, work: 'sort' },
+  { at: 'racks', x: 4.4, z: 1.45, yaw: NORTH, watch: 7, work: 'water' },
+  { at: 'tomato', x: 3.9, z: 3.2, yaw: NORTH, watch: 8, work: 'harvest' },
+  { at: 'tree', x: 1.3, z: 3.2, yaw: NORTH, watch: 6, work: 'harvest' },
+  { at: 'pond', x: 2.3, z: 5.35, yaw: WEST, watch: 7, work: 'feed' },
+  { at: 'barrel', x: 0.85, z: 6.35, yaw: WEST, watch: 4, work: 'water' },
+  { at: 'flowers', x: 4.0, z: 5.45, yaw: SOUTH, watch: 7, work: 'water' },
+  { at: 'bench', x: 5.6, z: 7.5, yaw: SOUTH, watch: 8, work: 'dig' },
+  { at: 'compost', x: 6.35, z: 7.45, yaw: EAST, watch: 5, work: 'dig' },
+  { at: 'lettuce', x: 4.5, z: 4.65, yaw: NORTH, watch: 6, work: 'water' },
+  { at: 'herbs', x: 5.9, z: 3.2, yaw: NORTH, watch: 6, work: 'trim' },
+  { at: 'tank', x: 5.95, z: 1.6, yaw: NORTH, watch: 5, work: 'look' },
+  { at: 'crate', x: 6.95, z: 1.65, yaw: NORTH, watch: 5, work: 'sort' },
 ]
 
 /** Longueur d'une ligne brisée. */

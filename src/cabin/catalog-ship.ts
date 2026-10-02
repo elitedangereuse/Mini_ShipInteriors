@@ -3,9 +3,9 @@ import type { CatalogEntry } from './catalog'
 import { fabrics, type Variant } from './variants'
 
 /*
- * Le mobilier du vaisseau, qu'on croise dans ses pièces (les douches, le mess, l'atelier de la
- * cale, l'infirmerie de Betty, le bar de Jacques, le studio, le labo du L.J.P.C., le sanctuaire
- * de la Voie…), désormais proposé pour les quartiers. Les constructeurs sont ceux des pièces
+ * Le mobilier du vaisseau, qu'on croise dans ses pièces (le mess, l'atelier de la cale,
+ * l'infirmerie de Betty, le bar de Jacques, le studio, le labo du L.J.P.C., le sanctuaire de la
+ * Voie…) ou qu'on y croisait (les douches), désormais proposé pour les quartiers. Les constructeurs sont ceux des pièces
  * (src/furniture/) ; leurs places, celles de src/seats.ts.
  */
 
@@ -24,7 +24,7 @@ const SIGNS: Record<string, string> = {
 }
 
 export const SHIP_ENTRIES: CatalogEntry[] = [
-  // --- Salle de bain : les douches du pont supérieur
+  // --- Salle de bain : celle des anciennes douches du pont supérieur
   {
     id: 'ship-shower', name: tr('Douche du vaisseau', 'Ship\'s shower'), category: 'bath', model: 'shower', mount: 'floor',
     interact: tr('Douche sonique réglementaire : on en ressort propre et un peu sourd.', 'Regulation sonic shower: you come out clean and slightly deaf.'),

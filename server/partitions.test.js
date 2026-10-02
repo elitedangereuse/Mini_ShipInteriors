@@ -4,12 +4,12 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { applyPartitions, CABIN_ROOM, clearPartitions, MAX_PARTITIONS, sanitizePartitions } from '../shared/cabin-partitions.js'
 import { applyWings } from '../shared/cabin-wings.js'
-import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
+import { LEGACY_UPPER_LAYOUT, shipMapOptions } from '../shared/ship-layouts.js'
 import { ShipMap } from '../shared/ship-map.js'
 import { lineOfSight } from '../shared/sight.js'
 import { sanitizeLayout } from './cabin.js'
 
-const upper = () => new ShipMap(SHIP_LAYOUTS['1'], shipMapOptions(1))
+const upper = () => new ShipMap(LEGACY_UPPER_LAYOUT, shipMapOptions(1))
 
 test('la forme des cloisons est vérifiée, une par arête, 48 au plus', () => {
   assert.equal(sanitizePartitions('toutes'), null)

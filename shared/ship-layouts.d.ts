@@ -1,6 +1,9 @@
 /** Plans des ponts, par identifiant de pont (cf. ShipMap). */
 export declare const SHIP_LAYOUTS: Record<'-1' | '0' | '1' | '2', string[]>
 
+/** Le pont supérieur du temps des anciens quartiers, figé pour leur migration. */
+export declare const LEGACY_UPPER_LAYOUT: string[]
+
 /** Pièces en travaux de chaque pont (lettres) : leurs portes sont verrouillées. */
 export declare const CLOSED_ROOMS: Record<'-1' | '0' | '1', string>
 

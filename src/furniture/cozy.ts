@@ -8,7 +8,8 @@ import {
 
 /*
  * Pont supérieur, les quartiers : bois chaud, tissus, plantes, lumières douces. Le dortoir de
- * l'équipage, les douches et la serre y ont aussi leurs petits objets du quotidien.
+ * l'équipage, les douches (vidées depuis, leurs meubles restent au catalogue des quartiers) et la
+ * serre y avaient aussi leurs petits objets du quotidien.
  */
 
 const C = {

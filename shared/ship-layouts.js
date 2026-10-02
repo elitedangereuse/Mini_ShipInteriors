@@ -51,17 +51,17 @@ export const SHIP_LAYOUTS = {
   ],
   // Pont supérieur : les quartiers ; derrière le salon d'écoute, le cinéma. Au nord du salon,
   // derrière une vitre, le studio de Radio Dangereuse (porte à l'est). À l'ouest, la grande serre
-  // hydroponique de Capucine, sous verrière, aux coins cassés.
+  // hydroponique de Capucine, sous verrière, aux coins cassés, centrée sur la coursive.
   '1': [
-    '  gggggg                     ',
+    '                             ',
+    '  ggggggkkkkddddssss nnnnnnn ',
     ' gggggggkkkkddddssss nnnnnnn ',
-    'ggggggggkkkkddddssss nnnnnnn ',
     'ggggggggk+kkdd+dsss+ nnnnnnn ',
-    'gggggggg+ccccccc+ooo nnnnnnn ',
-    'ggggggggccccccccoooo+nnnnnnn ',
-    ' gggggggppp+ppppoooo nnnnnnn ',
-    '        pppppppp oo  nnnnnnn ',
-    '        pppppppp     nnnnnnn ',
+    'ggggggggcccccccc+ooo nnnnnnn ',
+    'gggggggg+cccccccoooo+nnnnnnn ',
+    'ggggggggppp+ppppoooo nnnnnnn ',
+    ' gggggggpppppppp oo  nnnnnnn ',
+    '  ggggggpppppppp     nnnnnnn ',
     '        pppppppp             ',
     '        pppppppp             ',
   ],
@@ -78,6 +78,26 @@ export const SHIP_LAYOUTS = {
     '        aaaa',
   ],
 }
+
+/**
+ * Le pont supérieur du temps des anciens quartiers (format 1) : la migration vers la parcelle y
+ * pose encore leurs pièces, leurs extensions et leurs cloisons (cf. housing-migrate.js). Figé, pour
+ * qu'un ancien plan se migre toujours de la même façon : le pont, lui, a changé depuis (la serre,
+ * centrée sur la coursive, déborde sur l'espace de l'extension de gauche).
+ */
+export const LEGACY_UPPER_LAYOUT = [
+  '  gggggg                     ',
+  ' gggggggkkkkddddssss nnnnnnn ',
+  'ggggggggkkkkddddssss nnnnnnn ',
+  'ggggggggk+kkdd+dsss+ nnnnnnn ',
+  'gggggggg+ccccccc+ooo nnnnnnn ',
+  'ggggggggccccccccoooo+nnnnnnn ',
+  ' gggggggppp+ppppoooo nnnnnnn ',
+  '        pppppppp oo  nnnnnnn ',
+  '        pppppppp     nnnnnnn ',
+  '        pppppppp             ',
+  '        pppppppp             ',
+]
 
 /**
  * Pièces en travaux de chaque pont : on les voit, meublées de caisses et d'échafaudages, mais
