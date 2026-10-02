@@ -3215,6 +3215,8 @@ body.photo #bubbles .gain-pop {
 /* Discret sous l'écran : il ne s'affirme qu'au survol ou au clavier. */
 .cinema-screen-volume:hover, .cinema-screen-volume:focus-within { opacity: 1; background: #182535e6; }
 .cinema-screen-volume[hidden] { display: none; }
+.cinema-screen-hint { position: fixed; margin: 0; padding: 4px 10px; transform: translateX(-50%); border-radius: 999px; color: #ffe1ad; background: #0a0f16cc; font: 600 11px/1.3 system-ui,sans-serif; white-space: nowrap; pointer-events: none; }
+.cinema-screen-hint[hidden] { display: none; }
 .cinema-screen-volume-icon { display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; color: inherit; background: none; cursor: pointer; }
 .cinema-screen-volume-icon:hover { color: #fff; background: #34445b; }
 .cinema-screen-volume-icon .icon { width: 14px; height: 14px; }
