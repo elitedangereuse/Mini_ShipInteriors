@@ -14,8 +14,6 @@ import { applyPartitions, CABIN_ROOM, partitionKey } from './cabin-partitions.js
 import { CELLS, cellIndex } from './housing-home.js'
 import { LEGACY_UPPER_LAYOUT, shipMapOptions } from './ship-layouts.js'
 import { PLOT_DOOR, PLOT_ORIGIN, PLOT_SIZES, plotStage } from './housing-plot.js'
-import { SHIP_LAYOUTS, shipMapOptions } from './ship-layouts.js'
-
 import { ShipMap } from './ship-map.js'
 
 /** Emprise des anciens quartiers sans extension (tuiles), sur le pont supérieur. */
