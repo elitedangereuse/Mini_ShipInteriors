@@ -9,6 +9,8 @@ export declare const CLOSED_ROOMS: Record<'-1' | '0' | '1', string>
 
 /** Le Zorb, la boîte de nuit de la cale (lettre de sa pièce) : réservée aux aliens. */
 export declare const CLUB_ROOM: 'n'
+/** Chez Jacques, le bar de la cale : réservé aux habitués (cf. vents.js). */
+export declare const BAR_ROOM: 'b'
 /** Apparence d'alien (identifiant du Holo-Me, ex. « alien.male.c.blue ») ? */
 export declare function isAlienLook(skin: unknown): boolean
 

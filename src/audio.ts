@@ -646,6 +646,28 @@ export class Sound {
     slurp.stop(end + 0.32)
   }
 
+  /** Couinement d'un rat qui détale (les conduits de ventilation, cf. src/vents.ts) : deux petits cris aigus qui montent. */
+  squeak(pos: THREE.Vector3) {
+    if (!this.ready) return
+    const ctx = this.ctx
+    const out = this.output(pos, { volume: 0.12, ref: 1, rolloff: 1.8 }).input
+    for (let i = 0; i < 2; i++) {
+      const t = ctx.currentTime + 0.01 + i * (0.09 + Math.random() * 0.04)
+      const f = 2600 + Math.random() * 900
+      const cry = ctx.createOscillator()
+      cry.type = 'triangle'
+      cry.frequency.setValueAtTime(f, t)
+      cry.frequency.exponentialRampToValueAtTime(f * 1.5, t + 0.05)
+      const env = ctx.createGain()
+      env.gain.setValueAtTime(0.0001, t)
+      env.gain.exponentialRampToValueAtTime(0.6, t + 0.012)
+      env.gain.exponentialRampToValueAtTime(0.001, t + 0.07)
+      cry.connect(env).connect(out)
+      cry.start(t)
+      cry.stop(t + 0.08)
+    }
+  }
+
   /** Coup de poing dans le sac : un souffle grave et une sinusoïde qui plonge. */
   thud(pos: THREE.Vector3) {
     if (!this.ready) return

@@ -66,13 +66,14 @@ import { Server } from 'socket.io'
 import { fightRelay } from './fights.js'
 import { BOARD_GAMES, applyBoardMove, boardColor, boardState, newBoardGame } from './boards.js'
 import { sanitizeLayout } from './cabin.js'
-import { fetchQuarters, hasSiteArtwork, postSalvageResult, siteArtworkAllowed } from './site.js'
+import { fetchQuarters, hasSiteArtwork, postBarRegular, postSalvageResult, siteArtworkAllowed } from './site.js'
 import { COOKIE, cleanCmdrName, cmdrIdentityFromCookie, cookieValue } from './cmdr.js'
 import { createSalvage, GAME_ACTIONS, LOBBY_ACTIONS } from './salvage.js'
 import { salvageMinDuration } from '../shared/salvage.js'
 import { readFileSync } from 'node:fs'
 import { createCinema } from './cinema.js'
-import { BOARD_TABLES, CLUB_ROOM, SHIP_LAYOUTS, isAlienLook, shipMapOptions } from '../shared/ship-layouts.js'
+import { BAR_ROOM, BOARD_TABLES, CLUB_ROOM, SHIP_LAYOUTS, isAlienLook, shipMapOptions } from '../shared/ship-layouts.js'
+import { TOILET_ROOM, VENT_LAYOUT, VENT_LEVEL, atVentGrate } from '../shared/vents.js'
 import { DIRS, ShipMap } from '../shared/ship-map.js'
 import { applyPlot, HOUSING_LEVEL, PLOT_DOOR, PLOT_ORIGIN } from '../shared/housing-plot.js'
 import { applyWalls, unpackHome } from '../shared/housing-home.js'
@@ -136,13 +137,22 @@ const REACH = 2.5
 /** Plans des ponts : on n'agit pas à travers un mur (cf. shared/sight.js). */
 const MAPS = new Map(Object.entries(SHIP_LAYOUTS).map(([id, layout]) => [Number(id), new ShipMap(layout, shipMapOptions(id))]))
 MAPS.set(BASE_LEVEL, new ShipMap(BASE_LAYOUT))
+// Les conduits de ventilation, où tombent ceux qu'aspirent les toilettes pendant un saut FSD.
+MAPS.set(VENT_LEVEL, new ShipMap(VENT_LAYOUT))
+/**
+ * Aspiré par des toilettes pendant la traversée d'un saut, un joueur a ce délai pour arriver dans
+ * les conduits (ms) : le temps du tourbillon et de la chute, long sur un appareil qui peine.
+ */
+const FLUSH_TICKET = 180000
 // Pont des quartiers : chacun y est dans sa bulle (son instance, cf. `cabin`), une parcelle de départ.
 applyPlot(MAPS.get(HOUSING_LEVEL), 0)
 /**
  * Plans de la cale selon ce que le joueur peut ouvrir : le sanctuaire de la Voie ('v') pour un
- * adepte, le Zorb (CLUB_ROOM) pour qui porte une apparence d'alien.
+ * adepte, le Zorb (CLUB_ROOM) pour qui porte une apparence d'alien, Chez Jacques (BAR_ROOM) pour
+ * un habitué.
  */
-const holdMaps = new Map(['', 'v', CLUB_ROOM, 'v' + CLUB_ROOM].map((open) => {
+const holdKey = (voie, alien, bar) => (voie ? 'v' : '') + (alien ? CLUB_ROOM : '') + (bar ? BAR_ROOM : '')
+const holdMaps = new Map([0, 1, 2, 3, 4, 5, 6, 7].map((n) => holdKey(n & 1, n & 2, n & 4)).map((open) => {
   const map = new ShipMap(SHIP_LAYOUTS['-1'], shipMapOptions(-1))
   for (const d of map.doors) {
     const step = DIRS[d.dir]
@@ -150,7 +160,7 @@ const holdMaps = new Map(['', 'v', CLUB_ROOM, 'v' + CLUB_ROOM].map((open) => {
   }
   return [open, map]
 }))
-const holdMap = (player) => holdMaps.get((player.voie ? 'v' : '') + (isAlienLook(player.skin) ? CLUB_ROOM : ''))
+const holdMap = (player) => holdMaps.get(holdKey(player.voie, isAlienLook(player.skin), player.bar))
 /** Plan du pont des quartiers avec la parcelle d'un aménagement : sa taille et ses murs (gardé avec lui). */
 const homeMaps = new WeakMap()
 function homeMap(layout) {
@@ -214,7 +224,7 @@ export function attachRelay(
   httpServer,
   { log = console.log, error = console.error, cmdrUrl = process.env.ED_CMDR_URL ?? '', path = process.env.WS_PATH || WS_PATH,
     devCmdr = false, youtubeKey = process.env.YOUTUBE_API_KEY ?? '', youtubeFetch = fetch, relaySecret = process.env.MSI_RELAY_SECRET ?? '',
-    salvageFetch = fetch, quartersFetch = fetch } = {},
+    salvageFetch = fetch, quartersFetch = fetch, barFetch = fetch } = {},
 ) {
   if (!cmdrUrl) error('[relais] ED_CMDR_URL absent : les comptes Élite Dangereuse ne peuvent pas être reconnus (tout le monde est invité).')
   const io = new Server(httpServer, {
@@ -245,6 +255,8 @@ export function attachRelay(
   /** Système où se trouve le vaisseau, et fin du saut en cours (aucun autre avant). */
   let system = HOME_SYSTEM
   let jumpEnds = 0
+  /** Traversée du dernier saut (ms) : pendant ce temps, les toilettes du pont supérieur aspirent leurs occupants dans les conduits. */
+  let jumpTravel = { from: 0, to: 0 }
   /** Horloge de la ronde du sergent, et le joueur vers qui il se tourne pendant un arrêt. */
   let patrol = { tau: Math.random() * PATROL_PERIOD, at: Date.now(), holdUntil: 0 }
   let patrolFace = null
@@ -536,7 +548,7 @@ export function attachRelay(
     if (players.size >= MAX_PLAYERS) return next(new Error('Vaisseau complet'))
     const auth = obj(socket.handshake.auth)
     socket.data.identity = devCmdr && auth.cmdr
-      ? { name: cleanCmdrName(auth.cmdr), ljpc: auth.ljpc === true, voie: auth.voie === true }
+      ? { name: cleanCmdrName(auth.cmdr), ljpc: auth.ljpc === true, voie: auth.voie === true, bar: auth.bar === true }
       : await cmdrIdentityFromCookie(socket.handshake.headers.cookie, { url: cmdrUrl, error })
     next()
   })
@@ -551,6 +563,10 @@ export function attachRelay(
       verified: !!cmdr,
       ljpc: !!cmdr && identity.ljpc === true,
       voie: !!cmdr && identity.voie === true,
+      // Habitué de Chez Jacques : le badge du site, ou la grille des conduits atteinte pendant cette session.
+      bar: !!cmdr && identity.bar === true,
+      // Aspiré par des toilettes pendant un saut : jusqu'à quand il peut entrer dans les conduits (ms, 0 : non).
+      flushed: 0,
       skin: validLook(auth.skin) ? auth.skin : 'human.female.b',
       // Point d'apparition : l'entrée de sa parcelle, sur le pont des quartiers (cf. SPAWN dans src/levels.ts).
       x: PLOT_ORIGIN.x + 1, z: PLOT_DOOR.z, level: HOUSING_LEVEL, yaw: 0, anim: 'idle', pose: '', py: 0,
@@ -570,7 +586,7 @@ export function attachRelay(
     sockets.set(player.id, socket)
     socket.emit('welcome', {
       id: player.id,
-      you: { name: player.name, verified: player.verified, ljpc: player.ljpc, voie: player.voie },
+      you: { name: player.name, verified: player.verified, ljpc: player.ljpc, voie: player.voie, bar: player.bar },
       // Ceux qui sont dans la baie infestée y sont annoncés (pont -2) : le client ne les montre pas.
       players: [...players.values()].filter((p) => p !== player).map(publicState),
       // Les jukebox du pont principal et de la cale, silence compris : après une reconnexion, on se recale.
@@ -629,13 +645,24 @@ export function attachRelay(
     socket.on('state', (raw) => {
       const m = obj(raw)
       const x = num(m.x, -5, 50), z = num(m.z, -5, 30), yaw = num(m.yaw, -10, 10)
-      if (x === null || z === null || yaw === null || !(LEVELS.has(m.level) || m.level === ZONE_LEVEL || m.level === BASE_LEVEL)) return
+      if (x === null || z === null || yaw === null || !(LEVELS.has(m.level) || m.level === ZONE_LEVEL || m.level === BASE_LEVEL || m.level === VENT_LEVEL)) return
+      // Les conduits de ventilation : sur leur sol, et l'on n'y entre qu'aspiré par des toilettes du
+      // pont supérieur pendant la traversée d'un saut FSD (cf. flushed, plus bas).
+      if (m.level === VENT_LEVEL) {
+        if (!MAPS.get(VENT_LEVEL).isFloor(Math.round(x), Math.round(z))) return
+        if (player.level !== VENT_LEVEL) {
+          if (!(player.flushed > Date.now())) return
+          player.flushed = 0
+        }
+      }
       // La base au sol : sur son plateau seulement.
       if (m.level === BASE_LEVEL && !MAPS.get(BASE_LEVEL).isFloor(Math.round(x), Math.round(z))) return
       if (m.level === 0 && MAPS.get(0).room(Math.round(x), Math.round(z)) === 'l' && !player.ljpc) return
       if (m.level === -1 && MAPS.get(-1).room(Math.round(x), Math.round(z)) === 'v' && !player.voie) return
       // Le Zorb : le videur ne laisse passer que les aliens.
       if (m.level === -1 && MAPS.get(-1).room(Math.round(x), Math.round(z)) === CLUB_ROOM && !isAlienLook(player.skin)) return
+      // Chez Jacques : seulement pour les habitués.
+      if (m.level === -1 && MAPS.get(-1).room(Math.round(x), Math.round(z)) === BAR_ROOM && !player.bar) return
       // La baie infestée : seulement en mission, sur son sol, et pas plus vite qu'on ne court.
       if (m.level === ZONE_LEVEL && !salvage.accepts(player, x, z)) return
       // Une pose inconnue n'en est pas une ; sa hauteur reste à portée d'une couchette du haut.
@@ -645,6 +672,13 @@ export function attachRelay(
       if (player.level === BASE_LEVEL && m.level !== BASE_LEVEL && setBaseBurn(player, false)) io.emit('chief', { id: player.id, ...chiefState() })
       const wasZone = player.level === ZONE_LEVEL
       Object.assign(player, { x, z, yaw, level: m.level, anim: ANIMS.has(m.anim) ? m.anim : 'idle', pose, py: pose ? (num(m.py, 0, 1.2) ?? 0) : 0 })
+      // Assis dans les toilettes du pont supérieur pendant la traversée d'un saut (un joueur installé
+      // redit sa position toutes les 2 s) : la cuvette l'aspire, il est attendu dans les conduits.
+      if (pose === 'sit' && m.level === TOILET_ROOM.level && MAPS.get(TOILET_ROOM.level).room(Math.round(x), Math.round(z)) === TOILET_ROOM.room) {
+        const now = Date.now()
+        // Un peu de marge à la fin : le client vit le saut avec le retard de l'annonce.
+        if (now >= jumpTravel.from && now <= jumpTravel.to + 3000) player.flushed = now + FLUSH_TICKET
+      }
       salvage.moved(player)
       const msg = { id: player.id, ...motion(player) }
       const team = salvage.teammates(player)
@@ -978,7 +1012,25 @@ export function attachRelay(
       if (Math.hypot(player.x - PILOT_SEAT.x, player.z - PILOT_SEAT.z) > 1) return
       system = nextSystem(system)
       jumpEnds = now + (JUMP_CHARGE + JUMP_TRAVEL) * 1000 + FSD_COOLDOWN
+      jumpTravel = { from: now + JUMP_CHARGE * 1000, to: now + (JUMP_CHARGE + JUMP_TRAVEL) * 1000 }
       io.emit('jump', { id: player.id, name: player.name, system })
+    })
+
+    // La grille au bout des conduits de ventilation : qui l'atteint tombe Chez Jacques, et en
+    // devient un habitué. Un CMDR le reste (le site lui donne le badge du bar) ; un invité, le temps
+    // de sa session. Réponse : { ok, badge } (badge : 'new' s'il vient d'être décerné, 'had' sinon).
+    let barPending = false
+    socket.on('vents:exit', async (_raw, ack) => {
+      const reply = typeof ack === 'function' ? ack : () => {}
+      if (player.level !== VENT_LEVEL || !atVentGrate(player)) return reply({ ok: false })
+      if (barPending) return
+      player.bar = true
+      barPending = true
+      const badge = player.cookie
+        ? await postBarRegular(player.cookie, { cmdrUrl, secret: relaySecret, error, fetcher: barFetch })
+        : null
+      barPending = false
+      reply({ ok: true, badge })
     })
 
     // Aménagement de ses quartiers (CMDR vérifiés seulement), transmis à ceux qui s'y trouvent.

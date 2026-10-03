@@ -18,7 +18,7 @@ import { contactKey, CrewPhone, type Contact, type PhoneData } from './crew/phon
 import { deleteLetter, fetchCrew, markLettersRead, sendLetter, type CrewDirectory, type LetterRefusal } from './crew/site'
 import { defaultLayout, LEGACY_BOUNDS, normalizeLayout, serializeLayout, type CabinItem, type CabinLayout } from './cabin/layout'
 import { CabinStore, requestCabin, type SiteCabin } from './cabin/storage'
-import { devCmdr, devLjpc, devVoie, fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
+import { devBar, devCmdr, devLjpc, devVoie, fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
 import { ECONOMY, formatCredits, skinPrice, type JobKind, plotPrice } from './economy/data'
 import { CreditsHud } from './economy/hud'
 import { taskOf } from './economy/schedule'
@@ -78,8 +78,10 @@ import { Traffic, type HullSides } from './traffic'
 import { nextSystem, JUMP_CHARGE, JUMP_TRAVEL, type SystemId } from '../shared/systems.js'
 import { syncTempo, tempo } from './tempo'
 import { ClubCrowd, ClubMusic, clubProximity } from './club'
-import { CLUB_ROOM, isAlienLook } from '../shared/ship-layouts.js'
+import { BAR_ROOM, CLUB_ROOM, isAlienLook } from '../shared/ship-layouts.js'
 import { ToiletFlushes } from './toilet-flush'
+import { Vents } from './vents'
+import { BAR_DROP, VENT_DROP } from '../shared/vents.js'
 import { SalvageClient } from './salvage/client'
 import { LOBBY_RETURN, ZONE_LEVEL } from '../shared/salvage.js'
 import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel } from './ui'
@@ -138,6 +140,8 @@ let verified = false
 let ljpcMember = false
 /** Première épreuve de la Voie accomplie : accès individuel au sanctuaire de la cale. */
 let voieAdept = false
+/** Habitué de Chez Jacques, le bar de la cale : on y est déjà entré par les conduits de ventilation (cf. liftGrate). */
+let barRegular = false
 
 // ------------------------------------------------------------------ rendu
 
@@ -206,6 +210,7 @@ if (account) {
   profile.name = `CMDR ${account.name}`
   ljpcMember = account.ljpc
   voieAdept = account.voie
+  barRegular = account.bar
 }
 /** Réponse du site sur les quartiers du CMDR, si elle est arrivée à temps (undefined : pas encore). */
 const siteCabin = account ? await within<SiteCabin | null | undefined>(cabinRequest, 3000, undefined) : undefined
@@ -216,6 +221,9 @@ const siteCabin = account ? await within<SiteCabin | null | undefined>(cabinRequ
 let cabinStore = account ? new CabinStore(account.name) : null
 
 const decks = LEVELS.map((def) => new Deck(def))
+/** Les conduits de ventilation, hors des ponts de l'ascenseur : on y tombe par les toilettes (cf. flushToVents). */
+const vents = new Vents({ renderer, scene, squeak: (at) => sound.squeak(at) })
+decks.push(vents.deck)
 for (const d of decks) scene.add(d.group)
 const deckById = (id: number) => decks.find((d) => d.def.id === id)!
 /** Aspirés par les toilettes pendant un saut FSD (cf. flushCrew). */
@@ -235,6 +243,17 @@ const voieEntrance = deckById(-1).map.doors.find((door) => {
   return map.room(door.x, door.z) === 'v' || map.room(door.x + d.dx, door.z + d.dz) === 'v'
 })
 const voieDoorItem = voieEntrance && deckById(-1).doorExamine(voieEntrance.x, voieEntrance.z, voieEntrance.dir)
+// Chez Jacques, le bar clandestin de la cale : l'IA de sa porte n'ouvre qu'aux habitués.
+deckById(-1).setBarAccess(barRegular)
+const barEntrance = deckById(-1).map.doors.find((door) => {
+  const d = DIRS[door.dir]
+  const map = deckById(-1).map
+  return map.room(door.x, door.z) === BAR_ROOM || map.room(door.x + d.dx, door.z + d.dz) === BAR_ROOM
+})
+const barDoorItem = barEntrance && deckById(-1).doorExamine(barEntrance.x, barEntrance.z, barEntrance.dir)
+if (barDoorItem) barDoorItem.label = tr('Accès réservé', 'Restricted access')
+/** L'IA de la porte du bar a déjà refoulé le joueur qui s'en approchait (une fois par visite). */
+let barWarned = false
 // Le Zorb, la boîte de nuit de la cale : son videur n'ouvre qu'à qui porte une apparence d'alien
 // (cf. clubStep). Aux autres, il répète ce qu'on lit sur la porte.
 let clubAlien = isAlienLook(profile.skin)
@@ -341,8 +360,10 @@ const WHERE_KEY = 'mini-shipinteriors-where'
 function resumePoint(): { deck: Deck; x: number; z: number; yaw: number } | null {
   try {
     const w = JSON.parse(sessionStorage.getItem(WHERE_KEY) ?? 'null')
-    const d = w && decks.find((d) => d.def.id === w.level && !d.def.zone && !d.def.ground)
+    const d = w && decks.find((d) => d.def.id === w.level && !d.def.zone && !d.def.ground && !d.def.vents)
     if (!d || ![w.x, w.z, w.yaw].every(Number.isFinite)) return null
+    // Un invité devenu habitué du bar ne l'est plus après un rechargement : il se réveille chez lui.
+    if (d.def.id === -1 && !barRegular && d.map.room(Math.round(w.x), Math.round(w.z)) === BAR_ROOM) return null
     return d.pathfinder.walkable(Math.round(w.x), Math.round(w.z)) ? { deck: d, x: w.x, z: w.z, yaw: w.yaw } : null
   } catch {
     return null
@@ -659,8 +680,16 @@ function applyAmbience() {
   sun.intensity = ambience.sunIntensity * dimming
 }
 
+/** Zoom d'avant les conduits de ventilation (cf. setDeck). */
+let ventZoom = iso.zoomLevel
 function setDeck(next: Deck) {
   seating.leave()
+  // Dans les conduits de ventilation, tout résonne, et l'on regarde de près ; le zoom d'avant revient à la sortie.
+  if (!!next.def.vents !== !!deck.def.vents) {
+    sound.setEcho(next.def.vents ? 0.8 : 0)
+    if (next.def.vents) ventZoom = iso.zoomLevel
+    iso.zoomTo(next.def.vents ? Math.min(ventZoom, 3) : ventZoom)
+  }
   deck = next
   player.colliders = deck.colliders
   player.position.y = deck.y
@@ -693,7 +722,7 @@ function setView(next: Deck) {
   for (const h of hums) sound.fade(h.gain, h.deck === viewDeck ? h.volume : 0)
   // La baie infestée est hors du vaisseau : ni étoiles, ni système par les verrières. Sur la base
   // au sol, le ciel de la planète (un fond CSS, cf. body.planet).
-  stars.group.visible = systemView.group.visible = traffic.group.visible = !viewDeck.def.zone && !viewDeck.def.ground
+  stars.group.visible = systemView.group.visible = traffic.group.visible = !viewDeck.def.zone && !viewDeck.def.ground && !viewDeck.def.vents
   document.body.classList.toggle('planet', !!viewDeck.def.ground)
 }
 setDeck(deck)
@@ -1260,7 +1289,7 @@ function ambience(dt: number) {
 // ------------------------------------------------------------------ réseau
 
 const remotes = new Map<number, RemotePlayer>()
-const net = new Net(profile, devCmdr(), devLjpc(), devVoie())
+const net = new Net(profile, devCmdr(), devLjpc(), devVoie(), devBar())
 salvage = new SalvageClient({
   scene, renderer, iso, player, sound, net, dialog, wallet, remotes,
   deck: () => deck,
@@ -1398,8 +1427,10 @@ net.onMessage = (m) => {
       verified = m.you.verified
       ljpcMember = m.you.ljpc
       voieAdept = m.you.voie
+      barRegular = m.you.bar === true
       deckById(0).setLjpcAccess(ljpcMember)
       deckById(-1).setVoieAccess(voieAdept)
+      deckById(-1).setBarAccess(barRegular)
       // Reconnu par le site via le relais : le compte est lié, même si la demande faite au
       // chargement n'avait pas abouti.
       if (verified) {
@@ -2396,7 +2427,7 @@ cabinBar.onToggleOpen = toggleOpen
  * trajet : on y laisserait une partie en plan.
  */
 function canTravel(explain = true): boolean {
-  const ok = !riding && !groundBase.flying && !deck.def.zone && !deck.def.ground && !zone.frozen
+  const ok = !riding && !groundBase.flying && !deck.def.zone && !deck.def.ground && !deck.def.vents && !zone.frozen
   if (!ok && explain) chat.add('system', tr('Pas de visite d\'ici : revenez d\'abord à bord du vaisseau.', 'No visiting from here: come back aboard the ship first.'))
   return ok
 }
@@ -2606,7 +2637,7 @@ function whereIs(r: RemotePlayer): { deck?: number; where: string } {
   const d = decks.find((x) => x.def.id === r.level)
   if (!d) return { where: tr('Au sol', 'Planetside') }
   const room = d.roomName(r.target.x, r.target.z)
-  return { deck: d.def.ground ? undefined : r.level, where: room && room !== d.def.name ? `${d.def.name} · ${room}` : d.def.name }
+  return { deck: d.def.ground || d.def.vents ? undefined : r.level, where: room && room !== d.def.name ? `${d.def.name} · ${room}` : d.def.name }
 }
 
 function phoneData(): PhoneData {
@@ -2637,7 +2668,7 @@ function phoneData(): PhoneData {
     })
   }
   aboard.sort((a, b) => a.name.localeCompare(b.name))
-  const zoned = !!deck.def.zone || !!deck.def.ground
+  const zoned = !!deck.def.zone || !!deck.def.ground || !!deck.def.vents
   return {
     self: {
       name: profile.name, verified, linked, online: net.online,
@@ -3372,7 +3403,8 @@ const crosshair = $('fps-crosshair')
 const minimapEl = $<HTMLCanvasElement>('minimap')
 const minimap = new Minimap(minimapEl)
 function drawMinimap() {
-  const shown = fpsShown && viewDeck === deck && !deck.def.zone
+  // Pas de plan dans la baie infestée, ni dans les conduits : on y cherche son chemin.
+  const shown = fpsShown && viewDeck === deck && !deck.def.zone && !deck.def.vents
   if (minimapEl.hidden !== !shown) minimapEl.hidden = !shown
   if (!shown) return
   const others = [...remotes.values()].filter((r) => r.group.visible && r.level === deck.def.id).map((r) => r.group.position)
@@ -3495,6 +3527,7 @@ function hiddenRestrictedItem(item: Interactable): boolean {
   return (!ljpcMember && deck.def.id === 0 && room === 'l')
     || (!voieAdept && deck.def.id === -1 && room === 'v' && item !== voieDoorItem)
     || (!clubAlien && deck.def.id === -1 && room === CLUB_ROOM && item !== clubDoorItem)
+    || (!barRegular && deck.def.id === -1 && room === BAR_ROOM && item !== barDoorItem)
 }
 
 function tryInteract() {
@@ -3537,11 +3570,11 @@ function sendState(now = false) {
 
 /**
  * Retient pour cet onglet où l'on se tient, qu'un rechargement nous y ramène (cf. resumePoint).
- * Assis, en trajet (ascenseur, fondu, toilettes), dans la zone thargoïde ou sur la base au sol :
+ * Assis, en trajet (ascenseur, fondu, toilettes), dans la zone thargoïde, les conduits ou sur la base au sol :
  * on garde la dernière place à bord.
  */
 function saveWhere() {
-  if (riding || seating.current || deck.def.zone || deck.def.ground) return
+  if (riding || seating.current || deck.def.zone || deck.def.ground || deck.def.vents) return
   const at = player.glideEnd ?? { x: player.position.x, z: player.position.z, yaw: player.heading }
   try {
     sessionStorage.setItem(WHERE_KEY, JSON.stringify({ level: deck.def.id, x: at.x, z: at.z, yaw: at.yaw }))
@@ -3608,7 +3641,7 @@ function seated(seat: Seated) {
   // Passé en mode photo pendant qu'on s'installait : on tient la pose, sans rien lancer.
   if (photo.active) return
   // Assis sur des toilettes en pleine traversée : aspiré sur-le-champ.
-  if (jumpTravel && onToilet(seat) && !riding && !editing()) return void flushToHold(seat)
+  if (jumpTravel && onToilet(seat) && !riding && !editing()) return void flushToVents(seat)
   if (deck.def.id === -1 && item.furniture?.model === 'bar-stool') return barPanel.open()
   if (seat.spot.pose === 'claw' && item.control?.kind === 'claw') return startClaw(seat, item.control)
   const game = arcadeGame(seat)
@@ -3835,7 +3868,7 @@ function studioLive(): boolean {
 // ------------------------------------------------------------------ saut FSD
 
 let jumping = false
-/** Aspirés par les toilettes, déjà dans la cale avant la fin du saut (cf. flushToHold). */
+/** Aspirés par les toilettes, déjà dans les conduits avant la fin du saut (cf. flushToVents). */
 let flushLanded = false
 /** Traversée d'un saut FSD en cours : les toilettes aspirent quiconque s'y assoit (cf. flushCrew). */
 let jumpTravel = false
@@ -3903,7 +3936,7 @@ async function playJump(system: SystemId, by: string | null) {
   traffic.hide(false)
   flash(true)
   dialog.show(flushLanded
-    ? tr(`Arrivée : ${name}… et vous, dans la cale. ${FLUSH_MORAL}`, `Arrived: ${name}… and you, in the hold. ${FLUSH_MORAL}`)
+    ? tr(`Arrivée : ${name}… et vous, dans les conduits de ventilation. ${FLUSH_MORAL}`, `Arrived: ${name}… and you, in the ventilation ducts. ${FLUSH_MORAL}`)
     : tr(`Arrivée : ${name}. ${arrival}`, `Arrived: ${name}. ${arrival}`))
   flushLanded = false
   jumping = false
@@ -3920,7 +3953,7 @@ const onToilet = (seat: Seated | null) => !!seat && deck.def.id === 1 && isToile
 
 /**
  * Au moment du saut, et tant que dure la traversée, les toilettes du pont supérieur aspirent
- * leurs occupants (« Ne pas utiliser pendant un saut FSD ») : nous, qui retombons dans la cale
+ * leurs occupants (« Ne pas utiliser pendant un saut FSD ») : nous, qui tombons dans les conduits
  * (ici, ou en nous asseyant en plein saut, cf. seated), et les autres joueurs assis dessus (leur
  * propre client les y envoie, cf. flushLatecomers).
  */
@@ -3928,7 +3961,7 @@ function flushCrew() {
   flushed.clear()
   jumpTravel = true
   const seat = seating.current
-  if (onToilet(seat) && seating.settled && !riding && !photo.active && !editing()) void flushToHold(seat!)
+  if (onToilet(seat) && seating.settled && !riding && !photo.active && !editing()) void flushToVents(seat!)
   flushLatecomers()
 }
 
@@ -3948,7 +3981,7 @@ function flushLatecomers() {
     const bowl = new THREE.Vector3(r.target.x, deck.y + 0.25, r.target.z)
     flushes.start(r.avatar.root, bowl, () => r.level !== 1)
     sound.flush(bowl)
-    chat.add('system', tr(`Les toilettes à dépression ont aspiré ${r.name} en plein saut FSD. Direction : la cale.`, `The vacuum toilet sucked ${r.name} down mid-jump. Next stop: the hold.`))
+    chat.add('system', tr(`Les toilettes à dépression ont aspiré ${r.name} en plein saut FSD. Direction : les conduits de ventilation.`, `The vacuum toilet sucked ${r.name} down mid-jump. Next stop: the ventilation ducts.`))
   }
 }
 
@@ -3990,8 +4023,8 @@ function updateStalls() {
   if (inside) for (const r of remotes.values()) hide(r)
 }
 
-/** Aspirés par la cuvette, on tourne, on rétrécit, et l'on retombe dans la cale, juste en dessous. */
-async function flushToHold(seat: Seated) {
+/** Aspirés par la cuvette, on tourne, on rétrécit, et l'on tombe dans les conduits de ventilation (cf. vents.ts). */
+async function flushToVents(seat: Seated) {
   riding = true
   player.cancelPath()
   marker.visible = false
@@ -3999,7 +4032,7 @@ async function flushToHold(seat: Seated) {
   jukebox.close()
   const bowl = new THREE.Vector3(seat.spot.x, deck.y + 0.25, seat.spot.z)
   sound.flush(bowl)
-  await new Promise<void>((done) => flushes.start(player.avatar.root, bowl, () => deck.def.id === -1, done))
+  await new Promise<void>((done) => flushes.start(player.avatar.root, bowl, () => deck === vents.deck, done))
   await fadeScreen(true)
   // Aspirés chez un autre : la visite s'arrête là.
   if (visiting) {
@@ -4007,34 +4040,84 @@ async function flushToHold(seat: Seated) {
     leaveVisit()
   }
   flushes.reset(player.avatar.root)
-  const hold = deckById(-1)
-  setDeck(hold)
-  const at = landingSpot(hold, seat.spot.x, seat.spot.z)
-  player.position.set(at.x, hold.y, at.z)
+  setDeck(vents.deck)
+  player.position.set(VENT_DROP.x, vents.deck.y, VENT_DROP.z)
   iso.snapTo(player.position)
   sendState(true)
-  flushes.drop(player.root, player.avatar.root, hold.y, () => {
-    sound.thud(player.position.clone())
-    iso.shake(0.05)
-    // Sonné, par terre : le moindre pas le relève.
-    player.avatar.playEmote('dodo')
-    net.sendEmote('dodo')
-    riding = false
+  dropIn(vents.deck, () => {
     // Arrivés avant la fin du saut, la morale vient avec l'arrivée ; sinon, tout de suite.
     if (jumping) flushLanded = true
-    else dialog.show(tr(`Vous voilà dans la cale. ${FLUSH_MORAL}`, `Here you are, in the hold. ${FLUSH_MORAL}`))
+    else dialog.show(tr(`Vous voilà dans les conduits de ventilation. ${FLUSH_MORAL}`, `Here you are, in the ventilation ducts. ${FLUSH_MORAL}`))
   })
   await fadeScreen(false)
 }
 
+/** On tombe du plafond sur le pont `on`, où l'on vient d'être posé, et l'on reste sonné par terre : le moindre pas relève. */
+function dropIn(on: Deck, landed: () => void) {
+  flushes.drop(player.root, player.avatar.root, on.y, () => {
+    sound.thud(player.position.clone())
+    iso.shake(0.05)
+    player.avatar.playEmote('dodo')
+    net.sendEmote('dodo')
+    riding = false
+    landed()
+  })
+}
+
 /**
- * Où l'on tombe dans la cale : à la verticale de la cuvette si le sol y est libre, sinon au centre
- * de la tuile libre la plus proche (jamais dans une pièce fermée, ni au sanctuaire de la Voie).
+ * Au bout des conduits, on soulève la grille : on tombe Chez Jacques, dont on devient un habitué.
+ * C'est le relais, qui nous a suivis jusque-là, qui en décide (et le site, qui décerne le badge à
+ * un CMDR) ; sans relais, on l'est pour soi. S'il ne nous a pas vus passer, la grille donne sur
+ * la raffinerie, devant le bar : on retentera au prochain saut.
  */
-function landingSpot(hold: Deck, x: number, z: number): { x: number; z: number } {
+async function liftGrate() {
+  if (riding) return
+  riding = true
+  player.cancelPath()
+  marker.visible = false
+  player.interact()
+  net.sendEmote('interact')
+  const reply = net.online ? await net.ventsExit() : { ok: true, badge: null }
+  const regular = reply?.ok === true
+  const known = barRegular
+  await fadeScreen(true)
+  const hold = deckById(-1)
+  if (regular && !barRegular) {
+    barRegular = true
+    hold.setBarAccess(true)
+  }
+  setDeck(hold)
+  const at = regular ? landingSpot(hold, BAR_DROP.x, BAR_DROP.z, BAR_ROOM) : landingSpot(hold, BAR_DROP.x, 7)
+  player.position.set(at.x, hold.y, at.z)
+  iso.snapTo(player.position)
+  sendState(true)
+  dropIn(hold, () => {
+    if (!regular) {
+      return dialog.show(tr(
+        'La grille cède du mauvais côté : vous voilà dans la raffinerie, juste devant le bar. La liaison avec le bord a flanché ; retentez au prochain saut.',
+        'The grate gives way on the wrong side: here you are in the refinery, right outside the bar. The link with the ship faltered; try again at the next jump.',
+      ))
+    }
+    if (known) return dialog.show(tr('Jacques, sans lever les yeux de son verre : « Encore toi ? La porte marche, tu sais. »', 'Jacques, without looking up from his glass: “You again? The door works, you know.”'))
+    const welcome = tr('Jacques : « Par la ventilation ! Voilà un habitué. La porte t\'est ouverte, désormais. »', 'Jacques: “Through the vents! Now that\'s a regular. The door is open to you from now on.”')
+    if (reply?.badge) return dialog.show(`${welcome} ${tr('Badge « Chez Jacques » obtenu.', '“Chez Jacques” badge earned.')}`)
+    dialog.show(verified
+      ? `${welcome} ${tr('(Le site n\'a pas pu noter votre badge : l\'accès vaut pour cette session.)', '(The site could not record your badge: access lasts for this session.)')}`
+      : `${welcome} ${tr('(Invité : l\'accès vaut pour cette session. Connectez-vous au site pour rester habitué, et gagner le badge.)', '(Guest: access lasts for this session. Log in to the site to stay a regular, and earn the badge.)')}`)
+  })
+  await fadeScreen(false)
+}
+for (const it of vents.deck.interactables) if (it.furniture?.model === 'vent-grate') it.onInteract = () => void liftGrate()
+
+/**
+ * Où l'on tombe dans la cale : en (x, z) si le sol y est libre, sinon au centre de la tuile libre
+ * la plus proche. Dans la pièce `room` si elle est donnée ; sinon, jamais dans une pièce fermée ou
+ * réservée (le sanctuaire de la Voie, le Zorb, le bar).
+ */
+function landingSpot(hold: Deck, x: number, z: number, room?: string): { x: number; z: number } {
   const open = (tx: number, tz: number) => {
-    const room = hold.map.room(tx, tz)
-    return !!room && room !== 'v' && hold.def.closed?.[room] === undefined && hold.pathfinder.walkable(tx, tz)
+    const r = hold.map.room(tx, tz)
+    return !!r && (room ? r === room : hold.def.closed?.[r] === undefined) && hold.pathfinder.walkable(tx, tz)
   }
   if (open(Math.round(x), Math.round(z)) && !overlapsAny({ x, z }, 0.2, hold.colliders)) return { x, z }
   let best: { x: number; z: number } | null = null
@@ -4251,6 +4334,7 @@ const photo = new PhotoMode({
 
 function openPhoto() {
   if (editing() || arcade?.isOpen || boardGames.isOpen || barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || riding) return
+  if (deck.def.vents) return dialog.show(tr('Pas de photo dans les conduits : il fait bien trop noir.', 'No photos in the ducts: it\'s far too dark.'))
   lift.close()
   jukebox.close()
   wardrobe.close(false)
@@ -4335,12 +4419,15 @@ function frame() {
     r.update(world)
     const room = r.level === ZONE_LEVEL ? null : deckById(r.level)?.map.room(Math.round(r.group.position.x), Math.round(r.group.position.z))
     r.group.visible = sees(r) && (ljpcMember || r.level !== 0 || room !== 'l') && (voieAdept || r.level !== -1 || room !== 'v') && (clubAlien || r.level !== -1 || room !== CLUB_ROOM)
+      && (barRegular || r.level !== -1 || room !== BAR_ROOM)
   }
   updateStalls()
   flushLatecomers()
   // Zone thargoïde : la mission (ennemis, objets, vue, endurance) ; le joueur caché dans un casier,
   // ou resté au lobby pendant qu'il suit son équipe, ne se voit pas.
   zone.update(dt)
+  // Les conduits de ventilation : la lampe, ce qu'on voit, les rats.
+  vents.update(world, deck === vents.deck ? player.position : null)
   player.root.visible = viewDeck === deck && !zone.hiding
   flushes.update(world)
   // Quelqu'un au micro du studio (nous, ou un autre) : le néon « ON AIR » s'allume.
@@ -4465,7 +4552,7 @@ function frame() {
 
   // Dans la baie infestée (ou par les caméras), ni étoiles ni système : on est hors du vaisseau ; sur
   // la base au sol, le ciel de la planète.
-  if (!viewDeck.def.zone && !viewDeck.def.ground) {
+  if (!viewDeck.def.zone && !viewDeck.def.ground && !viewDeck.def.vents) {
     const eye = fpsShown ? fps.camera.position : null
     stars.update(world, iso.target, toCam, iso.tilt, eye)
     systemView.update(world, deck.y, iso.camera, iso.target, eye)
@@ -4569,6 +4656,26 @@ function frame() {
     }
   }
   const inClub = clubAlien && holdRoom === CLUB_ROOM
+  // Chez Jacques : l'IA de la porte refoule celui qui s'en approche sans être un habitué (une fois
+  // par visite) ; et celui qui ne l'est plus (un invité, après une reconnexion au relais) est
+  // raccompagné à la porte, où le relais l'accepte de nouveau.
+  if (onHold && !barRegular && barDoorItem && !riding) {
+    const near = Math.hypot(player.position.x - barDoorItem.position.x, player.position.z - barDoorItem.position.z) < 1.2
+    if (holdRoom === BAR_ROOM) {
+      player.cancelPath()
+      marker.visible = false
+      barPanel.close()
+      const out = landingSpot(deck, barDoorItem.position.x, barDoorItem.position.z - 1)
+      player.position.set(out.x, deck.y, out.z)
+      iso.snapTo(player.position)
+      sendState(true)
+      dialog.show(tr('L\'IA de la porte : « Seulement pour les habitués. » Deux bras articulés vous reposent, délicatement, dans la soute.', 'The door AI: “Regulars only.” Two robot arms set you down, gently, in the cargo bay.'))
+    } else if (near && !barWarned) {
+      barWarned = true
+      const lines = deck.def.closed?.[BAR_ROOM]
+      dialog.show(Array.isArray(lines) ? lines[0] : lines ?? '')
+    } else if (!near && barWarned && Math.hypot(player.position.x - barDoorItem.position.x, player.position.z - barDoorItem.position.z) > 4) barWarned = false
+  }
   if (deckById(-1).group.visible) clubCrowd?.update(world)
   // Chaque jukebox remplit sa pièce en stéréo ; derrière une cloison, il reste sourd et lointain.
   // Un autre pont est silencieux. Le repère des pièces suit la carte du pont, portes comprises.
@@ -4577,7 +4684,9 @@ function frame() {
     const jukeboxRoom = playing && source.map.room(Math.round(playing.x), Math.round(playing.z))
     const playerRoom = source === deck ? source.map.room(Math.round(player.position.x), Math.round(player.position.z)) : null
     // Dans la boîte de nuit, on n'entend plus le jukebox du bar.
-    music.setRoom(source === deck && viewDeck === deck && !(inClub && music === holdMusic), !!jukeboxRoom && jukeboxRoom === playerRoom)
+    // Des conduits de ventilation, celui du bar s'entend, étouffé : il est juste en dessous.
+    const below = music === holdMusic && deck === vents.deck
+    music.setRoom(below || (source === deck && viewDeck === deck && !(inClub && music === holdMusic)), !!jukeboxRoom && jukeboxRoom === playerRoom)
   }
   clubMusic.update(inClub, onHold && viewDeck === deck ? clubProximity(holdRoom, player.position.x, player.position.z) : 0)
   // La soirée bat sur le morceau entendu dans la pièce, sauf quand le mode photo fige l'instant.
@@ -4598,7 +4707,8 @@ function frame() {
 
   liftRide.update(dt, activeCamera())
   // Dans la baie (ou par les caméras), tout passe par le brouillard de guerre (cf. salvage/fog.ts).
-  if (!zone.render(scene, activeCamera(), renderQuality.light)) renderer.render(scene, activeCamera())
+  // Dans les conduits de ventilation aussi (cf. vents.ts).
+  if (!zone.render(scene, activeCamera(), renderQuality.light) && !vents.render(scene, activeCamera(), renderQuality.light)) renderer.render(scene, activeCamera())
   cinemaRoom.placeScreen(activeCamera(), deck.def.id === 1,
     deck.def.id === 1 && deck.map.room(Math.round(player.position.x), Math.round(player.position.z)) === 'n',
     cinemaScreenProp.x, deckById(1).y, cinemaScreenProp.z)
@@ -4657,6 +4767,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, profile, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, toDeck: (id: number) => setDeck(deckById(id)) },
+    __game: { renderer, sound, player, profile, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular },
   })
 }

@@ -14,7 +14,7 @@ import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type Occlude
 import { Pathfinder } from './pathfinding'
 import type { Doorway } from './physics'
 import { DOOR_GAP } from '../shared/sight.js'
-import { CLUB_ROOM, shipMapOptions } from '../shared/ship-layouts.js'
+import { BAR_ROOM, CLUB_ROOM, shipMapOptions } from '../shared/ship-layouts.js'
 import { placeSeats, seatAction, seatsOf, type SeatSpot } from './seats'
 import { ForceShield, type ShieldPane } from './shield'
 import { emptyPlan, HomeView } from './housing/home'
@@ -332,9 +332,8 @@ export class Deck {
   /** Haut des murs (vue subjective) : il s'estompe avec eux. */
   private ceilingOccluders: Occluder[] = []
   private ceilingFades!: FadeBuffer
-  private ljpcCover?: THREE.Group
-  private voieCover?: THREE.Group
-  private clubCover?: THREE.Group
+  /** Couvercles des pièces réservées (labo, sanctuaire, Zorb, bar), par lettre de pièce : posés tant qu'on n'y a pas accès. */
+  private readonly covers = new Map<string, THREE.Group>()
   /** Ce qui bouge dans le Zorb (danseurs, reflets de la boule, lasers) : caché avec la salle. */
   private readonly clubLive: THREE.Object3D[] = []
 
@@ -345,7 +344,7 @@ export class Deck {
       if (this.doorRoom(d.x, d.z, d.dir, 'l')) this.map.lock(d.x, d.z, d.dir)
     }
     if (def.id === -1) for (const d of this.map.doors) {
-      if (this.doorRoom(d.x, d.z, d.dir, 'v') || this.doorRoom(d.x, d.z, d.dir, CLUB_ROOM)) this.map.lock(d.x, d.z, d.dir)
+      if (['v', CLUB_ROOM, BAR_ROOM].some((room) => this.doorRoom(d.x, d.z, d.dir, room))) this.map.lock(d.x, d.z, d.dir)
     }
     this.y = def.id * LEVEL_HEIGHT
     this.group.position.y = this.y
@@ -354,7 +353,7 @@ export class Deck {
 
     // Hors du vaisseau (la baie infestée, la base au sol) : ni coque, ni ascenseur, ni tuyères. Le
     // pont des quartiers a son ascenseur, mais ses parcelles flottent sur leur propre socle.
-    const aboard = !def.zone && !def.ground
+    const aboard = !def.zone && !def.ground && !def.vents
     const hulled = aboard && !def.bubble
     this.buildFloors()
     // La coque sous le pont : le corps du vaisseau, le même sous chaque pont (cf. hull.ts). La
@@ -363,9 +362,12 @@ export class Deck {
     if (def.ground) this.addStatic(def.ground.skirt, false)
     this.buildWalls()
     this.buildProps()
-    if (def.id === 0) this.ljpcCover = this.buildRoomCover('l', '#101722', '#263344')
-    if (def.id === -1) this.voieCover = this.buildRoomCover('v', '#030303', '#080808')
-    if (def.id === -1) this.clubCover = this.buildRoomCover(CLUB_ROOM, '#0b0612', '#2a1238')
+    if (def.id === 0) this.buildRoomCover('l', '#101722', '#263344')
+    if (def.id === -1) {
+      this.buildRoomCover('v', '#030303', '#080808')
+      this.buildRoomCover(CLUB_ROOM, '#0b0612', '#2a1238')
+      this.buildRoomCover(BAR_ROOM, '#120b08', '#3a2416')
+    }
     if (aboard) this.buildLift()
     if (def.engine) this.buildCore(def.engine.x, def.engine.z)
     if (hulled) this.buildNozzles(!!def.engine)
@@ -393,30 +395,33 @@ export class Deck {
 
   /** L'accès au labo est individuel : la porte et le plafond restent fermés sans badge. */
   setLjpcAccess(member: boolean) {
-    if (this.def.id !== 0) return
-    for (const d of this.map.doors) if (this.doorRoom(d.x, d.z, d.dir, 'l')) this.map.lock(d.x, d.z, d.dir, !member)
-    this.syncLocks()
-    this.pathfinder.invalidate()
-    if (this.ljpcCover) this.ljpcCover.visible = !member
+    if (this.def.id === 0) this.setRoomAccess('l', member)
   }
 
   /** L'épreuve de la Voie ouvre le sanctuaire uniquement à son adepte. */
   setVoieAccess(adept: boolean) {
-    if (this.def.id !== -1) return
-    for (const d of this.map.doors) if (this.doorRoom(d.x, d.z, d.dir, 'v')) this.map.lock(d.x, d.z, d.dir, !adept)
-    this.syncLocks()
-    this.pathfinder.invalidate()
-    if (this.voieCover) this.voieCover.visible = !adept
+    if (this.def.id === -1) this.setRoomAccess('v', adept)
   }
 
   /** Le videur du Zorb n'ouvre sa porte qu'aux aliens : pour les autres, elle et le plafond restent fermés. */
   setClubAccess(alien: boolean) {
     if (this.def.id !== -1) return
-    for (const d of this.map.doors) if (this.doorRoom(d.x, d.z, d.dir, CLUB_ROOM)) this.map.lock(d.x, d.z, d.dir, !alien)
+    this.setRoomAccess(CLUB_ROOM, alien)
+    for (const o of this.clubLive) o.visible = alien
+  }
+
+  /** Chez Jacques n'ouvre qu'à ses habitués, ceux qui y sont déjà entrés par les conduits (cf. shared/vents.js). */
+  setBarAccess(regular: boolean) {
+    if (this.def.id === -1) this.setRoomAccess(BAR_ROOM, regular)
+  }
+
+  /** Ouvre ou ferme une pièce réservée : ses portes, et le couvercle qui la cache. */
+  private setRoomAccess(room: string, open: boolean) {
+    for (const d of this.map.doors) if (this.doorRoom(d.x, d.z, d.dir, room)) this.map.lock(d.x, d.z, d.dir, !open)
     this.syncLocks()
     this.pathfinder.invalidate()
-    if (this.clubCover) this.clubCover.visible = !alien
-    for (const o of this.clubLive) o.visible = alien
+    const cover = this.covers.get(room)
+    if (cover) cover.visible = !open
   }
 
   private doorRoom(x: number, z: number, dir: number, room: string) {
@@ -424,12 +429,12 @@ export class Deck {
     return this.map.room(x, z) === room || this.map.room(x + d.dx, z + d.dz) === room
   }
 
-  private buildRoomCover(room: string, slabColor: string, rimColor: string): THREE.Group | undefined {
+  private buildRoomCover(room: string, slabColor: string, rimColor: string) {
     const tiles: { x: number; z: number }[] = []
     for (let z = 0; z < this.map.height; z++) for (let x = 0; x < this.map.width; x++) {
       if (this.map.room(x, z) === room) tiles.push({ x, z })
     }
-    if (!tiles.length) return undefined
+    if (!tiles.length) return
     const x0 = Math.min(...tiles.map((t) => t.x)), x1 = Math.max(...tiles.map((t) => t.x))
     const z0 = Math.min(...tiles.map((t) => t.z)), z1 = Math.max(...tiles.map((t) => t.z))
     const w = x1 - x0 + 1.18, h = z1 - z0 + 1.18
@@ -441,7 +446,7 @@ export class Deck {
     rim.position.copy(slab.position).y += 0.08
     cover.add(rim)
     this.group.add(cover)
-    return cover
+    this.covers.set(room, cover)
   }
 
   // ------------------------------------------------------------------ build

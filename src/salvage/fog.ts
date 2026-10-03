@@ -1,6 +1,39 @@
 import * as THREE from 'three'
 import { RULES, sightOrigin, zoneSight, type Zone } from '../../shared/salvage.js'
 
+/**
+ * Ce que le brouillard couvre : la baie infestée (cf. setZone), ou les conduits de ventilation
+ * (cf. src/vents.ts). Une grille de tuiles, ce qu'on y voit d'un point, et ses tuiles éclairées.
+ */
+export interface FogField {
+  width: number
+  height: number
+  /** Point d'où l'on regarde : au ras d'un meuble, pas depuis l'intérieur de sa tuile. */
+  origin(p: { x: number; z: number }): { x: number; z: number }
+  /** Rien ne sépare `from` de `to` ; `high` : vu d'en haut, par-dessus les obstacles bas. */
+  sight(from: { x: number; z: number }, to: { x: number; z: number }, high?: boolean): boolean
+  /** Tuile de sol ? */
+  floor(x: number, z: number): boolean
+  /** Tuile d'une zone éclairée ? */
+  lit(x: number, z: number): boolean
+  /** Portée du regard sur une zone éclairée. */
+  litVision: number
+}
+
+/** La baie infestée, vue par le brouillard. */
+const zoneField = (zone: Zone): FogField => {
+  const inside = (x: number, z: number) => x >= 0 && z >= 0 && x < zone.width && z < zone.height
+  return {
+    width: zone.width,
+    height: zone.height,
+    origin: (p) => sightOrigin(zone, p),
+    sight: (from, to, high) => zoneSight(zone, from, to, high),
+    floor: (x, z) => inside(x, z) && zone.room[z * zone.width + x] !== ' ',
+    lit: (x, z) => inside(x, z) && zone.lit[z * zone.width + x] === 1,
+    litVision: RULES.litVision,
+  }
+}
+
 /*
  * Brouillard de guerre de la baie infestée : on ne voit que ce qui est autour de soi, et en vue
  * (ni à travers un mur, ni derrière un conteneur) ; le reste est noir, quel que soit le zoom.
@@ -36,7 +69,7 @@ export class FogOfWar {
   private goal = new Float32Array(1)
   private width = 1
   private height = 1
-  private zone: Zone | null = null
+  private field: FogField | null = null
   private readonly invViewProj = new THREE.Matrix4()
   /** Dernier point de vue (pour ne recalculer que ce qui a pu changer) : rayon, portée tracée, vue d'en haut. */
   private last = { x: Infinity, z: Infinity, r: 0, reach: 0, high: false as boolean | undefined }
@@ -143,11 +176,16 @@ export class FogOfWar {
 
   /** La baie à couvrir (null : plus de brouillard). */
   setZone(zone: Zone | null) {
-    this.zone = zone
+    this.setField(zone && zoneField(zone))
+  }
+
+  /** Ce que le brouillard couvre (null : plus de brouillard). */
+  setField(field: FogField | null) {
+    this.field = field
     this.last.x = Infinity
-    if (!zone) return
-    this.width = (zone.width + MARGIN * 2) * RES
-    this.height = (zone.height + MARGIN * 2) * RES
+    if (!field) return
+    this.width = (field.width + MARGIN * 2) * RES
+    this.height = (field.height + MARGIN * 2) * RES
     this.values = new Float32Array(this.width * this.height)
     this.goal = new Float32Array(this.width * this.height)
     const data = new Uint8Array(this.width * this.height)
@@ -171,12 +209,10 @@ export class FogOfWar {
 
   /** Point d'une zone éclairée (ou la paroi qui la borde) ? */
   private litAt(px: number, pz: number): boolean {
-    const zone = this.zone!
+    const field = this.field!
     const x = Math.round(px), z = Math.round(pz)
-    const at = (tx: number, tz: number) => tx >= 0 && tz >= 0 && tx < zone.width && tz < zone.height && zone.lit[tz * zone.width + tx] === 1
-    if (at(x, z)) return true
-    const floor = x >= 0 && z >= 0 && x < zone.width && z < zone.height && zone.room[z * zone.width + x] !== ' '
-    return !floor && (at(x + 1, z) || at(x - 1, z) || at(x, z + 1) || at(x, z - 1))
+    if (field.lit(x, z)) return true
+    return !field.floor(x, z) && (field.lit(x + 1, z) || field.lit(x - 1, z) || field.lit(x, z + 1) || field.lit(x, z - 1))
   }
 
   /**
@@ -185,23 +221,23 @@ export class FogOfWar {
    * caméra montée haut, par-dessus les conteneurs (sinon, selon la hauteur du point de vue).
    */
   update(viewer: { x: number; z: number }, radius: number, dt: number, instant = false, high?: boolean) {
-    const zone = this.zone
-    if (!zone) return
+    const field = this.field
+    if (!field) return
     // Au ras d'un meuble, on ne regarde pas depuis l'intérieur de sa tuile.
-    viewer = sightOrigin(zone, viewer)
+    viewer = field.origin(viewer)
     const moved = Math.hypot(viewer.x - this.last.x, viewer.z - this.last.z) > 0.03 || radius !== this.last.r || high !== this.last.high
     if (moved) {
       const old = this.last
       // Efface l'ancien disque, puis trace le nouveau (le reste de la grille est déjà à zéro).
       this.fill(old.x, old.z, old.reach, () => 0)
-      const far = Math.max(radius, RULES.litVision)
+      const far = Math.max(radius, field.litVision)
       this.last = { x: viewer.x, z: viewer.z, r: radius, reach: far, high }
       const edge = Math.min(1, radius * 0.35)
       this.fill(viewer.x, viewer.z, far, (px, pz, d) => {
         const near = d <= radius
         const lit = d <= far && this.litAt(px, pz)
         if (!near && !lit) return 0
-        if (!zoneSight(zone, viewer, { x: px, z: pz }, high)) return 0
+        if (!field.sight(viewer, { x: px, z: pz }, high)) return 0
         const t = THREE.MathUtils.clamp((radius - d) / edge, 0, 1)
         const k = lit ? THREE.MathUtils.clamp((far - d) / 1.2, 0, 1) : 0
         return Math.max(t * t * (3 - 2 * t), k * k * (3 - 2 * k))

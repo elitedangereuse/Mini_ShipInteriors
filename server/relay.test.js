@@ -16,6 +16,8 @@ import { GARDEN_HELP, GARDEN_HOLD, GARDEN_LEVEL, gardenAt } from '../shared/gard
 import { NURSE_BEDS, NURSE_CARE, NURSE_CARE_MIN, NURSE_HOLD, NURSE_LEVEL, NURSE_PATCH, nurseAt } from '../shared/nurse.js'
 import { BASE_ARRIVAL, BASE_BURN, BASE_COCKPIT, BASE_LEVEL, CHIEF_HOLD, chiefAt } from '../shared/ground-base.js'
 import { HOUSING_LEVEL, PLOT_DOOR, PLOT_ORIGIN } from '../shared/housing-plot.js'
+import { JUMP_CHARGE } from '../shared/systems.js'
+import { VENT_DROP, VENT_GRATE, VENT_LEVEL } from '../shared/vents.js'
 
 /** Faux site : reconnaît deux cookies, comme outils/mini-shipinteriors-cmdr.php. */
 const ACCOUNTS = { 'jeton-adam': 'Adam Fauster', 'jeton-rackam': 'Rackam' }
@@ -32,7 +34,7 @@ const site = createServer((req, res) => {
   res.setHeader('Content-Type', 'application/json')
   if (req.url === '/outils/mini-shipinteriors-site.php?ownership=1') {
     res.end(JSON.stringify({ status: 'success', art: name ? [{ id: 'card:3598ce6f965b2481', kind: 'card' }] : [] }))
-  } else res.end(JSON.stringify({ cmdr: name, ljpc: name === 'Adam Fauster', voie: name === 'Adam Fauster' }))
+  } else res.end(JSON.stringify({ cmdr: name, ljpc: name === 'Adam Fauster', voie: name === 'Adam Fauster', bar: name === 'Adam Fauster' }))
 })
 
 test('cinéma : seul le fauteuil de régie programme le trailer reçu par tout le bord', async () => {
@@ -89,6 +91,8 @@ const QUARTERS = {
   'Adam+Fauster': { name: 'Adam Fauster', cabin: { v: 1, items: [{ m: 'bed', x: 9, z: 7, r: 0 }], home: { v: 2, open: true } } },
 }
 const quartersAsked = []
+/** Ce que le relais a demandé au site pour le badge du bar. */
+const barAsked = []
 
 /** Devant le jukebox du mess (pont principal). */
 const AT_JUKEBOX = { x: 11.3, z: 6.6, yaw: 0, level: 0, anim: 'idle' }
@@ -106,6 +110,12 @@ before(async () => {
       quartersAsked.push(target.searchParams.get('quarters'))
       const found = QUARTERS[target.searchParams.get('quarters')]
       return { ok: !!found, json: async () => ({ status: 'success', ...found }) }
+    },
+    // Le badge de Chez Jacques : le site le décerne une fois par CMDR (cf. postBarRegular).
+    relaySecret: 'clé-du-relais',
+    barFetch: async (target, init) => {
+      barAsked.push({ path: target.pathname, key: init.headers['X-Relay-Key'], cookie: init.headers.Cookie })
+      return { ok: true, status: 200, json: async () => ({ status: 'success', granted: barAsked.length === 1 }) }
     },
     youtubeKey: 'test', youtubeFetch: async () => ({ ok: true, json: async () => ({ items: [
       { id: { videoId: 'dQw4w9WgXcQ' }, snippet: { title: 'Cobra Mk III', liveBroadcastContent: 'none' } },
@@ -139,7 +149,7 @@ const welcome = (socket) =>
 describe('identité', () => {
   test('un cookie reconnu par le site donne un CMDR vérifié', async () => {
     const w = await welcome(client({ cookie: 'autre=1; ED_LOGGED_CMDR_ID=jeton-adam', auth: { name: 'CMDR Usurpateur' } }))
-    assert.deepEqual(w.you, { name: 'CMDR Adam Fauster', verified: true, ljpc: true, voie: true })
+    assert.deepEqual(w.you, { name: 'CMDR Adam Fauster', verified: true, ljpc: true, voie: true, bar: true })
     // Seul le cookie du site est relayé, pas les autres cookies du navigateur.
     assert.equal(seen.at(-1), 'ED_LOGGED_CMDR_ID=jeton-adam')
   })
@@ -147,24 +157,24 @@ describe('identité', () => {
   test('sans cookie, invité avec le nom de son choix', async () => {
     const before = seen.length
     const w = await welcome(client({ auth: { name: 'CMDR Ripley' } }))
-    assert.deepEqual(w.you, { name: 'CMDR Ripley', verified: false, ljpc: false, voie: false })
+    assert.deepEqual(w.you, { name: 'CMDR Ripley', verified: false, ljpc: false, voie: false, bar: false })
     assert.equal(seen.length, before, 'le site n\'est pas interrogé sans cookie')
   })
 
   test('un cookie inconnu du site reste invité', async () => {
     const w = await welcome(client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-bidon', auth: { name: 'CMDR Solo' } }))
-    assert.deepEqual(w.you, { name: 'CMDR Solo', verified: false, ljpc: false, voie: false })
+    assert.deepEqual(w.you, { name: 'CMDR Solo', verified: false, ljpc: false, voie: false, bar: false })
   })
 
   test('hors serveur de dev, le nom de CMDR envoyé par le client est ignoré', async () => {
     const w = await welcome(client({ auth: { name: 'CMDR Kirk', cmdr: 'Adam Fauster' } }))
-    assert.deepEqual(w.you, { name: 'CMDR Kirk', verified: false, ljpc: false, voie: false })
+    assert.deepEqual(w.you, { name: 'CMDR Kirk', verified: false, ljpc: false, voie: false, bar: false })
   })
 
   test('un invité ne prend pas le nom d\'un CMDR vérifié à bord', async () => {
     await welcome(client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-rackam' }))
     const w = await welcome(client({ auth: { name: 'cmdr rackam' } }))
-    assert.deepEqual(w.you, { name: 'cmdr rackam (invité)', verified: false, ljpc: false, voie: false })
+    assert.deepEqual(w.you, { name: 'cmdr rackam (invité)', verified: false, ljpc: false, voie: false, bar: false })
   })
 
   test('un CMDR vérifié ne change pas de nom en jeu', async () => {
@@ -370,7 +380,8 @@ describe('rediffusion', () => {
   })
 
   test('le jukebox du bar de la cale joue à part de celui du mess, et se choisit depuis la cale', async () => {
-    const a = client({ auth: { name: 'CMDR Comptoir' } })
+    // Un habitué de Chez Jacques (le badge du site) : le bar n'ouvre qu'à eux.
+    const a = client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-adam' })
     const wa = await welcome(a)
     assert.equal(wa.hold.track, null)
     const b = client({ auth: { name: 'CMDR Habitué' } })
@@ -485,6 +496,89 @@ describe('saut FSD', () => {
     assert.equal(await receives(crew, 'jump', 150), false)
     const late = client({ auth: { name: 'CMDR Retardataire' } })
     assert.equal((await welcome(late)).system, jump.system)
+  })
+
+  test('aspiré par les toilettes pendant un saut, on tombe dans les conduits ; leur grille fait un habitué de Chez Jacques', async () => {
+    // L'horloge du relais, avancée à la main : le saut précédent est fini, la traversée du nôtre vient quand on veut.
+    mock.timers.enable({ apis: ['Date'], now: Date.now() + 60000 })
+    try {
+      const observer = client()
+      await welcome(observer)
+      const pilot = client({ auth: { name: 'CMDR Pilote' } })
+      await welcome(pilot)
+      const guest = client({ auth: { name: 'CMDR Invité' } })
+      const gw = await welcome(guest)
+      const cmdr = client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-rackam' })
+      const cw = await welcome(cmdr)
+      assert.equal(gw.you.bar, false)
+      assert.equal(cw.you.bar, false)
+      const seen = (id) => next(observer, 'state', (m) => m.id === id)
+      const inBar = { x: 13, z: 11, level: -1, yaw: 0, anim: 'idle' }
+      const onToilet = { x: 14, z: 1, level: 1, yaw: 0, anim: 'idle', pose: 'sit', py: 0.3 }
+      const inVents = { x: VENT_DROP.x, z: VENT_DROP.z, level: VENT_LEVEL, yaw: 0, anim: 'idle' }
+      const atGrate = { x: VENT_GRATE.x, z: VENT_GRATE.z, level: VENT_LEVEL, yaw: 0, anim: 'idle' }
+
+      // Le bar est fermé à tous ; les conduits aussi, hors d'un saut, même assis sur la cuvette.
+      let state = seen(gw.id)
+      guest.emit('state', inBar)
+      guest.emit('state', onToilet)
+      assert.equal((await state).level, 1)
+      state = seen(gw.id)
+      guest.emit('state', inVents)
+      guest.emit('state', { ...onToilet, yaw: 1 })
+      assert.equal((await state).level, 1)
+      assert.deepEqual(await guest.timeout(3000).emitWithAck('vents:exit', {}), { ok: false })
+
+      // Le saut part ; pendant la traversée, les toilettes aspirent ceux qui y sont assis, pas celui de la coursive.
+      pilot.emit('state', { x: PILOT_SEAT.x, z: PILOT_SEAT.z, yaw: 0, level: 0, anim: 'idle', pose: 'pilot', py: 0.3 })
+      const jumped = next(observer, 'jump')
+      pilot.emit('jump')
+      await jumped
+      mock.timers.tick((JUMP_CHARGE + 1) * 1000)
+      state = seen(cw.id)
+      const seated = next(observer, 'state', (m) => m.id === cw.id && (m.level !== 1 || m.pose === 'sit'))
+      cmdr.emit('state', { x: 10, z: 4, level: 1, yaw: 0, anim: 'idle' })
+      cmdr.emit('state', inVents)
+      cmdr.emit('state', onToilet)
+      assert.equal((await state).x, 10)
+      assert.equal((await seated).level, 1)
+      // L'invité, assis depuis avant le saut, redit sa position pendant la traversée : aspiré lui aussi.
+      state = seen(gw.id)
+      guest.emit('state', onToilet)
+      await state
+      for (const [socket, id] of [[guest, gw.id], [cmdr, cw.id]]) {
+        state = seen(id)
+        socket.emit('state', inVents)
+        assert.equal((await state).level, VENT_LEVEL)
+      }
+      // Hors des gaines, la position est refusée ; loin de la grille, on ne la soulève pas.
+      state = seen(gw.id)
+      guest.emit('state', { ...inVents, x: 1, z: 1 })
+      guest.emit('state', { ...inVents, x: 2 })
+      assert.equal((await state).x, 2)
+      assert.deepEqual(await guest.timeout(3000).emitWithAck('vents:exit', {}), { ok: false })
+
+      // À la grille : un invité devient habitué pour sa session, un CMDR reçoit le badge du site.
+      guest.emit('state', atGrate)
+      cmdr.emit('state', atGrate)
+      assert.deepEqual(await guest.timeout(3000).emitWithAck('vents:exit', {}), { ok: true, badge: null })
+      assert.deepEqual(await cmdr.timeout(3000).emitWithAck('vents:exit', {}), { ok: true, badge: 'new' })
+      assert.deepEqual(barAsked, [{ path: '/outils/mini-shipinteriors-bar.php', key: 'clé-du-relais', cookie: 'ED_LOGGED_CMDR_ID=jeton-rackam' }])
+      for (const [socket, id] of [[guest, gw.id], [cmdr, cw.id]]) {
+        state = seen(id)
+        socket.emit('state', inBar)
+        assert.deepEqual([(await state).level, inBar.x], [-1, 13])
+      }
+      // Le badge du site ouvre le bar dès l'arrivée à bord.
+      const regular = client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-adam' })
+      const rw = await welcome(regular)
+      assert.equal(rw.you.bar, true)
+      state = seen(rw.id)
+      regular.emit('state', inBar)
+      assert.equal((await state).x, 13)
+    } finally {
+      mock.timers.reset()
+    }
   })
 })
 

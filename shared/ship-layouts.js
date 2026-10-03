@@ -7,7 +7,8 @@ import { PLOT_DOOR } from './housing-plot.js'
 
 export const SHIP_LAYOUTS = {
   // Cale ; à la poupe, la salle des machines, derrière l'atelier, et cachée derrière elle, le
-  // sanctuaire de la Voie. Chez Jacques, le bar clandestin, ne s'ouvre que depuis le fond de la soute. À
+  // sanctuaire de la Voie. Chez Jacques, le bar clandestin, ne s'ouvre que depuis le fond de la soute, et
+  // aux seuls habitués (cf. BAR_ROOM). À
   // l'est de la soute, le lobby de la zone thargoïde (SOC-06), d'où partent les missions : au nord,
   // l'alcôve de la porte blindée et, derrière ses vitres, le poste de sécurité de la zone ('t',
   // verrouillé) ; au sud, le vestiaire et la table de briefing. Collé à lui, le hangar du Krait,
@@ -111,8 +112,9 @@ export const LEGACY_UPPER_LAYOUT = [
  * leurs portes restent verrouillées (cf. ShipMap).
  */
 export const CLOSED_ROOMS = {
-  // Le sanctuaire de la Voie et le Zorb ne sont pas en travaux : leur porte ne s'ouvre qu'à certains.
-  '-1': 'vn',
+  // Le sanctuaire de la Voie, le Zorb et Chez Jacques ne sont pas en travaux : leur porte ne
+  // s'ouvre qu'à certains.
+  '-1': 'vnb',
 }
 
 /**
@@ -120,6 +122,12 @@ export const CLOSED_ROOMS = {
  * portée, cf. isAlienLook). Sa porte est verrouillée pour tous les autres.
  */
 export const CLUB_ROOM = 'n'
+
+/**
+ * Chez Jacques, le bar clandestin de la cale : sa porte ne s'ouvre qu'aux habitués, ceux qui y sont
+ * déjà entrés par les conduits de ventilation (cf. vents.js).
+ */
+export const BAR_ROOM = 'b'
 
 /** Apparence d'alien (identifiant du Holo-Me, ex. « alien.male.c.blue », cf. src/looks.ts). */
 export const isAlienLook = (skin) => typeof skin === 'string' && skin.startsWith('alien.')

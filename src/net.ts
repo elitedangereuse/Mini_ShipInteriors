@@ -230,7 +230,7 @@ export type SalvageAction = 'create' | 'join' | 'leave' | 'settings' | 'ready' |
 
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
-  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean }; players: PlayerState[]; homes?: { id: number; name: string }[]; music?: MusicState; hold?: MusicState; system?: SystemId; patrol?: PatrolState; chef?: ChefState; nurse?: NurseState; mechanic?: MechanicState; gardener?: GardenerState; chief?: ChiefState; salvage?: SalvageLobby }
+  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean; bar?: boolean }; players: PlayerState[]; homes?: { id: number; name: string }[]; music?: MusicState; hold?: MusicState; system?: SystemId; patrol?: PatrolState; chef?: ChefState; nurse?: NurseState; mechanic?: MechanicState; gardener?: GardenerState; chief?: ChiefState; salvage?: SalvageLobby }
   | { t: 'join'; player: PlayerState }
   | { t: 'leave'; id: number }
   | { t: 'state'; id: number; x: number; z: number; yaw: number; level: number; anim: string; pose?: string; py?: number }
@@ -329,13 +329,14 @@ export class Net {
     private devCmdr?: string,
     private devLjpc = false,
     private devVoie = false,
+    private devBar = false,
   ) {}
 
   connect() {
     const socket = io({
       path: WS_PATH,
       // Relu à chaque (re)connexion : le relais reçoit le nom et l'apparence du moment.
-      auth: (cb) => cb({ ...this.profile, cmdr: this.devCmdr, ljpc: this.devLjpc, voie: this.devVoie }),
+      auth: (cb) => cb({ ...this.profile, cmdr: this.devCmdr, ljpc: this.devLjpc, voie: this.devVoie, bar: this.devBar }),
       // Délai croissant (hébergement statique sans relais : on insiste de moins en moins).
       reconnectionDelay: 2000,
       reconnectionDelayMax: 30000,
@@ -397,6 +398,20 @@ export class Net {
   /** Demande un saut FSD (installé dans le siège du pilote) : le relais choisit la destination. */
   sendJump() {
     this.send('jump', {})
+  }
+
+  /**
+   * Au bout des conduits de ventilation, on soulève la grille du bar : le relais, qui nous y a
+   * suivis, fait de nous un habitué de Chez Jacques (`badge` : 'new' si le site vient de décerner
+   * le badge, 'had' s'il l'était déjà, null pour un invité). null : pas de réponse (hors ligne).
+   */
+  async ventsExit(): Promise<{ ok: boolean; badge?: 'new' | 'had' | null } | null> {
+    if (!this.socket?.connected) return null
+    try {
+      return (await this.socket.timeout(10000).emitWithAck('vents:exit', {})) as { ok: boolean; badge?: 'new' | 'had' | null }
+    } catch {
+      return null
+    }
   }
 
   /** On parle au sergent : le relais arrête sa ronde pour tout le bord. */

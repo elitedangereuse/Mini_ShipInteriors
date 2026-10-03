@@ -149,6 +149,11 @@ export interface LevelDef {
   bubble?: boolean
   /** Plan du pont : portes et pièces fermées, à la place de celles de shipMapOptions. */
   mapOptions?: ShipMapOptions
+  /**
+   * Conduits de ventilation (cf. src/vents.ts) : des gaines hors des ponts du vaisseau. Ni coque,
+   * ni ascenseur, ni tuyères ; on n'y voit qu'autour de soi.
+   */
+  vents?: boolean
 }
 
 /** Écart vertical entre deux ponts. */
@@ -198,7 +203,7 @@ export const QUARTERS_DECK: LevelDef = {
 }
 
 export const LEVELS: LevelDef[] = [
-  // ======================================================== Cale : minage, bricolage, réparation, un bar clandestin, et une boîte de nuit d'aliens
+  // ======================================================== Cale : minage, bricolage, réparation, un bar clandestin réservé à ses habitués, et une boîte de nuit d'aliens
   {
     id: -1,
     name: tr('Cale', 'Hold'),
@@ -231,6 +236,13 @@ export const LEVELS: LevelDef[] = [
         'Une porte sans poignée, cachée derrière les machines. Sur le panneau, un symbole gravé : six pétales autour d’un hexagone. « Seuls les Adeptes peuvent trouver la Voie. » Terminez L’Épreuve de la Voie pour entrer.',
         'A door with no handle, hidden behind the machinery. A symbol is carved into the panel: six petals around a hexagon. “Only Adepts can find the Path.” Complete The Trial of the Path to enter.',
       ),
+      // Chez Jacques : l'IA de la porte ne l'ouvre qu'aux habitués (cf. BAR_ROOM) ; les autres l'entendent
+      // dire ceci. On ne devient habitué qu'en y entrant par les conduits de ventilation (cf. src/vents.ts).
+      b: [
+        tr('Un œil rouge s\'allume au-dessus de la porte. Une voix synthétique, polie et sans appel : « Seulement pour les habitués. »', 'A red eye lights up above the door. A synthetic voice, polite and final: “Regulars only.”'),
+        tr('L\'IA de la porte : « Identification… Inconnu au comptoir. Seulement pour les habitués. » L\'œil rouge s\'éteint. La porte, elle, n\'a pas bougé.', 'The door AI: “Identifying… Not known at the counter. Regulars only.” The red eye goes dark. The door has not moved.'),
+        tr('L\'IA de la porte : « Seulement pour les habitués. » Puis, plus bas : « Aucun d\'eux n\'est entré par ici la première fois. »', 'The door AI: “Regulars only.” Then, more quietly: “None of them came in this way the first time.”'),
+      ],
       // Le Zorb : sa porte ne s'ouvre qu'aux aliens (cf. CLUB_ROOM) ; les autres lisent ceci.
       n: [
         tr('La porte vibre sous les basses. Le videur pose une main dessus, sans te regarder : « Soirée privée. Pas d\'humains. »', 'The door throbs with the bass. The bouncer rests a hand on it without looking at you: “Private party. No humans.”'),

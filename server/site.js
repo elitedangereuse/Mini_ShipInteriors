@@ -64,6 +64,38 @@ export async function postSalvageResult(cookie, result, { cmdrUrl, secret, error
 }
 
 /**
+ * Un CMDR est entré Chez Jacques par les conduits de ventilation : le site lui décerne le badge du
+ * bar, qui en fait un habitué pour de bon (cf. mini-shipinteriors-bar.php). Le site reconnaît le
+ * CMDR par son cookie, et le relais par la clé partagée (MSI_RELAY_SECRET).
+ * @returns {Promise<'new' | 'had' | null>} 'new' : badge décerné ; 'had' : il l'avait déjà ; null : rien d'enregistré
+ */
+export async function postBarRegular(cookie, { cmdrUrl, secret, error = console.error, fetcher = fetch, timeoutMs = 8000 }) {
+  const value = cookieValue(cookie)
+  if (!cmdrUrl || !value) return null
+  if (!secret) {
+    error('[bar] MSI_RELAY_SECRET absent : le badge de Chez Jacques ne peut pas être décerné.')
+    return null
+  }
+  try {
+    const response = await fetcher(new URL('/outils/mini-shipinteriors-bar.php', cmdrUrl), {
+      method: 'POST',
+      headers: { Cookie: `${COOKIE}=${value}`, Accept: 'application/json', 'X-Relay-Key': secret },
+      redirect: 'error',
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+    const data = await response.json().catch(() => null)
+    if (!response.ok || data?.status !== 'success') {
+      error(`[bar] badge de Chez Jacques refusé par le site (${response.status} ${data?.error ?? ''})`)
+      return null
+    }
+    return data.granted === true ? 'new' : 'had'
+  } catch (err) {
+    error(`[bar] site injoignable pour le badge de Chez Jacques (${err?.message ?? err})`)
+    return null
+  }
+}
+
+/**
  * Quartiers ouverts d'un CMDR absent (nom sous sa forme stockée, donnée par l'annuaire du site) :
  * son nom à afficher et son aménagement tel que le site le garde, ou null s'ils sont fermés (ou
  * si le site ne répond pas). Sans cookie : des quartiers ouverts le sont pour tout le monde.
