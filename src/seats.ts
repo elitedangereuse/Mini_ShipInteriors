@@ -60,6 +60,8 @@ export const SEATS: Partial<Record<CustomModel | StationModel, Seat[]>> = {
   // Table de cantine du mess : trois places par banc, face au plateau ; on enjambe le banc par derrière.
   'canteen-table': [-0.62, 0, 0.62].flatMap((x) => [sit(x, 0.6, 0.27, Math.PI, [x, 0.98]), sit(x, -0.6, 0.27, 0, [x, -0.98])]),
   toilet: [sit(0, 0.06, 0.235)],
+  // La cuvette est au fond de la cabine : on y entre depuis le pas de la porte.
+  'toilet-stall': [sit(0, -0.18, 0.235, 0, [0, 0.8])],
   // On s'y glisse de face, entre le siège et le tableau de bord (de côté, on traverserait
   // l'accoudoir et le HOTAS) : le siège est reculé d'autant (cf. PILOT_SEAT).
   'pilot-seat': [{ pose: 'pilot', x: 0, z: 0.06, y: 0.3, yaw: 0, from: [0, 0.5] }],

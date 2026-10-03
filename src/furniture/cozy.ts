@@ -3,7 +3,7 @@ import { cobraGeometry } from './cobra'
 import { tr } from '../i18n'
 import { renderQuality } from '../quality'
 import {
-  barX, barZ, box, cylinder, drawnTexture, ED_ORANGE, glass, glow, holoMaterial, instanced, lit, mesh, part, setInstance, sphere, type Builder,
+  barX, barZ, box, cylinder, drawnTexture, ED_ORANGE, glass, glow, holoMaterial, instanced, lit, mesh, part, setInstance, sphere, type Builder, type StallControl,
 } from './kit'
 
 /*
@@ -654,6 +654,56 @@ const toilet: Builder = () => {
   return { solid: g }
 }
 
+/** Porte d'une cabine de toilettes, grande ouverte (vers l'extérieur). */
+const STALL_OPEN = -1.75
+
+/**
+ * Cabine de toilettes : cloisons sur pieds, cuvette à dépression, dérouleur, et une porte qui se
+ * referme sur son occupant (cf. StallControl) ; son voyant passe alors du vert au rouge.
+ */
+const toiletStall: Builder = (o) => {
+  const g = new THREE.Group()
+  const panel = lit(C.cream), chrome = lit(C.chrome)
+  const W = 0.9, D = 1, H = 0.92, GAP = 0.07, T = 0.03, LEAF = 0.5
+  const jamb = (W - LEAF) / 2, h = H - GAP, y = GAP + h / 2, front = (D - T) / 2
+  for (const s of [-1, 1]) {
+    g.add(box(T, h, D, panel, (s * (W - T)) / 2, y, 0), box(jamb, h, T, panel, (s * (W - jamb)) / 2, y, front))
+    for (const z of [-0.42, 0.42]) g.add(cylinder(0.012, 0.012, GAP, chrome, (s * (W - T)) / 2, GAP / 2, z, 6))
+  }
+  g.add(box(W, 0.05, T, panel, 0, H + 0.025, front))
+  const bowl = toilet(o).solid!
+  bowl.position.z = -0.24
+  const roll = cylinder(0.04, 0.04, 0.09, lit('#f6f4ee'), W / 2 - T - 0.045, 0.36, -0.02, 12)
+  roll.rotation.z = Math.PI / 2
+  g.add(bowl, roll)
+
+  const live = new THREE.Group()
+  const hinge = new THREE.Group()
+  hinge.position.set(-LEAF / 2, 0, front)
+  hinge.rotation.y = STALL_OPEN
+  hinge.add(box(LEAF - 0.01, h, T, lit(C.wood), LEAF / 2, y, 0), box(0.02, 0.07, 0.03, chrome, LEAF - 0.06, 0.45, 0.025))
+  const free = box(0.05, 0.05, 0.01, glow('#7dffa8'), (W - jamb) / 2, 0.66, D / 2)
+  const busy = box(0.05, 0.05, 0.01, glow('#ff5a5a'), (W - jamb) / 2, 0.66, D / 2)
+  busy.visible = false
+  live.add(hinge, free, busy)
+
+  const control: StallControl = { kind: 'stall', shut: false }
+  let angle = STALL_OPEN, last = 0
+  return {
+    solid: g,
+    live,
+    control,
+    update: (t) => {
+      const dt = Math.min(0.1, Math.max(0, t - last))
+      last = t
+      angle += ((control.shut ? 0 : STALL_OPEN) - angle) * (1 - Math.exp(-dt * 9))
+      hinge.rotation.y = angle
+      busy.visible = control.shut
+      free.visible = !control.shut
+    },
+  }
+}
+
 // ---------------------------------------------------------------- serre et coins détente
 
 /** Bac hydroponique à deux étages, sous LED roses. */
@@ -853,6 +903,7 @@ export const COZY = {
   shower,
   sink,
   toilet,
+  'toilet-stall': toiletStall,
   'towel-rail': towelRail,
   'bath-cabinet': bathCabinet,
   'bath-scale': bathScale,

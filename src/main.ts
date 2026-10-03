@@ -388,7 +388,7 @@ scene.add(player.root)
 const seating = new Seating({
   player,
   deck: () => deck,
-  visible: () => [...remotes.values()].filter((r) => r.group.visible),
+  visible: () => [...remotes.values()].filter(aboard),
   self: () => net.id,
   walk: (to, arrived) => walkTo(to, arrived),
   settled: (seat) => seated(seat),
@@ -3579,6 +3579,8 @@ function seated(seat: Seated) {
   bindPose()
   // Passé en mode photo pendant qu'on s'installait : on tient la pose, sans rien lancer.
   if (photo.active) return
+  // Assis sur des toilettes en pleine traversée : aspiré sur-le-champ.
+  if (jumpTravel && onToilet(seat) && !riding && !editing()) return void flushToHold(seat)
   if (deck.def.id === -1 && item.furniture?.model === 'bar-stool') return barPanel.open()
   if (seat.spot.pose === 'claw' && item.control?.kind === 'claw') return startClaw(seat, item.control)
   const game = arcadeGame(seat)
@@ -3807,6 +3809,10 @@ function studioLive(): boolean {
 let jumping = false
 /** Aspirés par les toilettes, déjà dans la cale avant la fin du saut (cf. flushToHold). */
 let flushLanded = false
+/** Traversée d'un saut FSD en cours : les toilettes aspirent quiconque s'y assoit (cf. flushCrew). */
+let jumpTravel = false
+/** Joueurs déjà aspirés pendant ce saut (identifiants). */
+const flushed = new Set<number>()
 
 /** Le saut n'est possible que depuis le vrai poste de pilotage (pas d'un siège recyclé en fauteuil). */
 function canJump(seat: Seated): boolean {
@@ -3862,6 +3868,7 @@ async function playJump(system: SystemId, by: string | null) {
   dialog.show(tr('Saut !', 'Jump!'))
   flushCrew()
   await wait(JUMP_TRAVEL * 1000)
+  jumpTravel = false
   stars.warp(1)
   systemView.set(system)
   systemView.hide(false)
@@ -3878,28 +3885,81 @@ async function playJump(system: SystemId, by: string | null) {
 
 const FLUSH_MORAL = tr('Les toilettes à dépression n\'aiment pas les sauts FSD : c\'était pourtant écrit dessus.', 'Vacuum toilets don\'t like FSD jumps: it said so right on the lid.')
 
-/** Assis sur des toilettes du pont supérieur (les nôtres, ou celles des quartiers) ? */
-const onToilet = (seat: Seated | null) => !!seat && deck.def.id === 1 && seat.item.furniture?.model === 'toilet'
+const isToilet = (model?: string) => model === 'toilet' || model === 'toilet-stall'
+
+/** Assis sur des toilettes du pont supérieur ? */
+const onToilet = (seat: Seated | null) => !!seat && deck.def.id === 1 && isToilet(seat.item.furniture?.model)
 
 /**
- * Au moment du saut, les toilettes du pont supérieur aspirent leurs occupants (« Ne pas utiliser
- * pendant un saut FSD ») : nous, qui retombons dans la cale, et les autres joueurs que l'on voit
- * assis dessus (leur propre client les y envoie).
+ * Au moment du saut, et tant que dure la traversée, les toilettes du pont supérieur aspirent
+ * leurs occupants (« Ne pas utiliser pendant un saut FSD ») : nous, qui retombons dans la cale
+ * (ici, ou en nous asseyant en plein saut, cf. seated), et les autres joueurs assis dessus (leur
+ * propre client les y envoie, cf. flushLatecomers).
  */
 function flushCrew() {
+  flushed.clear()
+  jumpTravel = true
   const seat = seating.current
-  if (onToilet(seat) && !riding && !photo.active && !editing()) void flushToHold(seat!)
-  if (deck.def.id !== 1) return
-  const toilets = deck.interactables.filter((it) => it.furniture?.model === 'toilet')
+  if (onToilet(seat) && seating.settled && !riding && !photo.active && !editing()) void flushToHold(seat!)
+  flushLatecomers()
+}
+
+/**
+ * Pendant la traversée, aspire les autres joueurs assis sur des toilettes du pont supérieur, une
+ * fois chacun : derrière la porte de sa cabine, on ne le voit pas, mais on entend la chasse.
+ */
+function flushLatecomers() {
+  if (!jumpTravel || deck.def.id !== 1) return
+  let toilets: Interactable[] | null = null
   for (const r of remotes.values()) {
-    if (!r.avatar || !r.group.visible || r.level !== 1 || r.pose !== 'sit') continue
+    if (flushed.has(r.id) || !r.avatar || !aboard(r) || r.level !== 1 || r.pose !== 'sit') continue
+    toilets ??= deck.interactables.filter((it) => isToilet(it.furniture?.model))
     const on = toilets.some((it) => it.seats?.(r.target).some((s) => Math.hypot(s.x - r.target.x, s.z - r.target.z) < 0.25))
     if (!on) continue
+    flushed.add(r.id)
     const bowl = new THREE.Vector3(r.target.x, deck.y + 0.25, r.target.z)
     flushes.start(r.avatar.root, bowl, () => r.level !== 1)
     sound.flush(bowl)
     chat.add('system', tr(`Les toilettes à dépression ont aspiré ${r.name} en plein saut FSD. Direction : la cale.`, `The vacuum toilet sucked ${r.name} down mid-jump. Next stop: the hold.`))
   }
+}
+
+// ------------------------------------------------------------------ cabines des toilettes
+
+/** Joueurs que seule la porte d'une cabine de toilettes nous cache (la leur, ou la nôtre). */
+const stallHidden = new Set<RemotePlayer>()
+/** À bord pour nous : visible, ou caché par une porte de cabine (sa place reste prise). */
+const aboard = (r: RemotePlayer) => r.group.visible || stallHidden.has(r)
+let stallItems: Interactable[] | null = null
+
+/**
+ * Cabines des toilettes du pont supérieur : la porte se referme sur celui qui s'y est assis, et
+ * on ne le voit plus du dehors ; enfermés dans la nôtre, on ne voit plus personne. À appeler à
+ * chaque image, une fois la visibilité des autres joueurs décidée.
+ */
+function updateStalls() {
+  stallHidden.clear()
+  if (deck.def.id !== 1) return
+  stallItems ??= deck.interactables.filter((it) => it.control?.kind === 'stall')
+  const mine = seating.settled ? seating.current!.item : null
+  const inside = !!mine && stallItems.includes(mine)
+  const hide = (r: RemotePlayer) => {
+    if (!r.group.visible) return
+    r.group.visible = false
+    stallHidden.add(r)
+  }
+  for (const it of stallItems) {
+    if (it.control?.kind !== 'stall') continue
+    let shut = it === mine
+    const spot = it.seats!(it.position)[0]
+    for (const r of remotes.values()) {
+      if (r.level !== 1 || r.pose !== 'sit' || Math.hypot(r.group.position.x - spot.x, r.group.position.z - spot.z) > 0.08) continue
+      shut = true
+      hide(r)
+    }
+    it.control.shut = shut
+  }
+  if (inside) for (const r of remotes.values()) hide(r)
 }
 
 /** Aspirés par la cuvette, on tourne, on rétrécit, et l'on retombe dans la cale, juste en dessous. */
@@ -4248,6 +4308,8 @@ function frame() {
     const room = r.level === ZONE_LEVEL ? null : deckById(r.level)?.map.room(Math.round(r.group.position.x), Math.round(r.group.position.z))
     r.group.visible = sees(r) && (ljpcMember || r.level !== 0 || room !== 'l') && (voieAdept || r.level !== -1 || room !== 'v')
   }
+  updateStalls()
+  flushLatecomers()
   // Zone thargoïde : la mission (ennemis, objets, vue, endurance) ; le joueur caché dans un casier,
   // ou resté au lobby pendant qu'il suit son équipe, ne se voit pas.
   zone.update(dt)

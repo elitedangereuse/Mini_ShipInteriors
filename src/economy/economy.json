@@ -142,7 +142,7 @@
     { "id": "ps-fur-salon", "task": "fur", "deck": 1, "x": 19.05, "z": 5.7 },
     { "id": "ps-trash-cabines", "task": "trash", "deck": 1, "x": 10.6, "z": 3.05 },
     { "id": "ps-spill-douches", "task": "spill", "deck": 1, "x": 13.4, "z": 2.6, "variant": "water" },
-    { "id": "ps-broken-douches", "task": "broken", "deck": 1, "x": 12, "z": 2, "wall": 3 },
+    { "id": "ps-broken-douches", "task": "broken", "deck": 1, "x": 15, "z": 2, "wall": 1 },
     { "id": "ps-dishes-salon", "task": "dishes", "deck": 1, "x": 17.65, "z": 2.3, "y": 0.415 },
     { "id": "ps-steam-cabines", "task": "steam", "deck": 1, "x": 10, "z": 3, "wall": 2 }
   ],

@@ -52,11 +52,12 @@ export const SHIP_LAYOUTS = {
   // Pont supérieur : les quartiers ; derrière le salon d'écoute, le cinéma. Au nord du salon,
   // derrière une vitre, le studio de Radio Dangereuse (porte à l'est). À l'ouest, la grande serre
   // hydroponique de Capucine, sous verrière, aux coins cassés, centrée sur la coursive.
+  // Entre les cabines d'équipage et le studio, les toilettes ('d') : trois cabines contre le mur nord.
   '1': [
     '                             ',
-    '  ggggggkkkkddddssss nnnnnnn ',
-    ' gggggggkkkkddddssss nnnnnnn ',
-    'ggggggggk+kkdd+dsss+ nnnnnnn ',
+    '  ggggggkkkkkdddssss nnnnnnn ',
+    ' gggggggkkkkkdddssss nnnnnnn ',
+    'ggggggggk+kkkd+dsss+ nnnnnnn ',
     'ggggggggcccccccc+ooo nnnnnnn ',
     'gggggggg+cccccccoooo+nnnnnnn ',
     'ggggggggppp+ppppoooo nnnnnnn ',

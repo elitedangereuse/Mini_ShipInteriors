@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/pont-superieur.jpg" alt="Le pont supérieur en vue isométrique : la serre centrée sur la coursive, la pièce vierge, les cabines d'équipage et les douches (vides), le studio, le salon d'écoute et le cinéma" width="100%">
+  <img src="docs/images/pont-superieur.jpg" alt="Le pont supérieur en vue isométrique : la serre centrée sur la coursive, la pièce vierge, les cabines d'équipage (vides), les toilettes, le studio, le salon d'écoute et le cinéma" width="100%">
 </p>
 
 ---
@@ -88,7 +88,7 @@ On se réveille dans ses quartiers, sur le pont des quartiers, à deux pas du Ho
 | Pont | Ambiance | Pièces |
 |---|---|---|
 | **Quartiers** · chacun chez soi | *cozy*, dans une bulle ouverte sur l'espace | le palier de l'ascenseur, et derrière sa porte la **parcelle** de chaque joueur, [bâtie et meublée par lui](#quartiers-personnalisables) (au départ : ses quartiers d'origine, avec grand lit, cheminée holographique, canapé, aquarium, bureau, bibliothèque, casier à combinaisons, **Holo-Me**) |
-| **Pont supérieur** · la vie à bord | *cozy* : crème et bois miel, tissus, plantes, lumière chaude, pas feutrés | « pièce vierge » (les quartiers du commandant s'y trouvaient, elle attend son emploi), cabines d'équipage et douches (vidées, elles aussi attendent leur emploi), grande **serre hydroponique** tout en verre, centrée sur la coursive, et Capucine, la jardinière (cf. [La serre](#la-serre)), salon d'écoute (fauteuils et poufs tournés vers la vitre du studio), studio de Radio Dangereuse (trois micros, néon « ON AIR »), cinéma, coursive |
+| **Pont supérieur** · la vie à bord | *cozy* : crème et bois miel, tissus, plantes, lumière chaude, pas feutrés | « pièce vierge » (les quartiers du commandant s'y trouvaient, elle attend son emploi), cabines d'équipage (vidées, elles aussi attendent leur emploi), **toilettes** (trois cabines dont la porte se referme sur l'occupant : on ne le voit plus du dehors, et lui ne voit plus personne), grande **serre hydroponique** tout en verre, centrée sur la coursive, et Capucine, la jardinière (cf. [La serre](#la-serre)), salon d'écoute (fauteuils et poufs tournés vers la vitre du studio), studio de Radio Dangereuse (trois micros, néon « ON AIR »), cinéma, coursive |
 | **Pont principal** | la station d'origine, mobilier aux couleurs d'Elite | **poste de pilotage** à la proue, sous verrières (siège du pilote et HOTAS face au tableau de bord, postes du navigateur et du copilote, fauteuil du commandant, scanner, panneaux holographiques, carte galactique), salles de LJPC, de La Voie et du Mini-CQC (en travaux), salle des machines (centrale, réacteur FSD, tuyères), **infirmerie** de Betty, l'infirmière (trois lits en box, scanner corporel, poste de soins, quarantaine ; cf. [L'infirmerie](#linfirmerie)), **salle de sport**, grand **salon d'arcade** (deux rangées de bornes, dont cinq jouables : Cargaison, Viper, Astéroïdes, Thargoid Invaders, Ruelle Fighter II ; un flipper, une pince à peluches, les tables de dames, de Puissance 4 et d'échecs, un coin salon sur des tapis colorés), **mess**, un self avec sa cuisine et son chef (cf. [Le mess](#le-mess)), coursive |
 | **Cale** | *brute* : acier noirci et rouillé, jaune de chantier, lumière sodium, néons qui grésillent | **lobby de la zone thargoïde** (terminal de mission, poste de sécurité vitré d'Odile, la contrôleuse, alcôve de la porte blindée et son portique de décontamination, mur des caméras de surveillance, table de briefing au plan holographique, vestiaire, classement), et derrière lui le **hangar** : un Krait Mk II sur son pad, face au bouclier bleu qui ouvre le hangar sur l'espace, et Nico, le mécano (cf. [Le hangar](#le-hangar)), **atelier** (établis, poste de soudure, établi d'ingénieur, ferraille), **baie de réparation** (SRV Scarab sur pont élévateur, bras robotisé qui soude, AFMU), **raffinerie** (fusion, tapis roulant de minerai, cristaux, drones collecteurs, laser minier), soute, palier de l'ascenseur ; au fond de la soute, **Chez Jacques**, le bar clandestin, plus soigné que le reste (arrière-bar chargé de bouteilles sous son enseigne au néon, comptoir capitonné et tabourets, tables de bistro, banquette, son propre jukebox) où sert **Jacques**, un robot barman à béret et nœud papillon qui essuie les verres, secoue le shaker et fait des clins d'œil |
 
@@ -281,7 +281,7 @@ Les meubles ont des places (`src/seats.ts`). `E`, ou un clic sur le meuble, y em
 
 | Meuble | Ce qu'on y fait |
 |---|---|
-| Chaises, fauteuils, canapés (trois places), pouf, banc (des deux côtés), toilettes | s'asseoir ; aux fauteuils du studio, on prend le micro et le néon « ON AIR » s'allume pour tout le bord. Assis sur des toilettes du pont supérieur pendant un saut FSD, on est aspiré dans la cuvette et l'on retombe dans la cale (`src/toilet-flush.ts`) |
+| Chaises, fauteuils, canapés (trois places), pouf, banc (des deux côtés), toilettes | s'asseoir ; aux fauteuils du studio, on prend le micro et le néon « ON AIR » s'allume pour tout le bord. Assis sur des toilettes du pont supérieur pendant un saut FSD (ou en s'y asseyant pendant la traversée), on est aspiré dans la cuvette et l'on retombe dans la cale (`src/toilet-flush.ts`) ; les autres entendent la chasse, même à travers la porte de la cabine |
 | Grand lit (deux places), lits superposés (en haut aussi), lits médicaux, banc de musculation | s'allonger, et dormir (de petits « Zzz ») |
 | Siège du pilote | prendre les commandes ; au poste de pilotage, `Espace` lance un **saut FSD** vers une destination d'Elite (Shinrarta Dezhra, Sol, Colonia, Alpha Centauri, Lave, Sagittarius A*, Maia, Beagle Point) : charge du réacteur, compte à rebours, étoiles en traînées, secousse, éclair. Le relais choisit la destination et tout le bord part avec le pilote (un saut à la fois) ; le système d'arrivée se dessine hors du vaisseau, autour de la coque et par les verrières (étoiles, planètes et lunes dont la surface est calculée par un shader, en phase selon l'angle avec leur étoile, anneaux, Coriolis ou Orbis, disque d'accrétion, nébuleuses ; cf. `src/systems.ts`) |
 | Vélo, tapis de course, sac de frappe | pédaler, courir, frapper (le sac encaisse chaque coup) |
@@ -471,7 +471,7 @@ Des incidents apparaissent aux quatre coins du vaisseau, hors des quartiers : un
 | Tâche | Où | Crédits | Geste |
 |---|---|---|---|
 | Ramasser des ordures | coursives, cabines d'équipage, salle de sport, salon d'arcade, atelier, palier de la cale | 400 CR | 1,5 s |
-| Éponger une flaque (huile, liquide de refroidissement, eau) | salle des machines, infirmerie, douches, atelier, raffinerie | 500 CR | 2 s |
+| Éponger une flaque (huile, liquide de refroidissement, eau) | salle des machines, infirmerie, toilettes, atelier, raffinerie | 500 CR | 2 s |
 | Arroser une plante | serre, coursive, salon panoramique | 450 CR | 2 s |
 | Balayer les poils de Comète | coursives, salon panoramique | 300 CR | 1,2 s |
 | Débarrasser la vaisselle | table basse du salon panoramique | 450 CR | 1,8 s |
@@ -480,7 +480,7 @@ Des incidents apparaissent aux quatre coins du vaisseau, hors des quartiers : un
 | Recalibrer une console | salle des machines, poste de pilotage | 800 CR | 2,5 s |
 | Changer le filtre du support vital | salle des machines | 900 CR | 2,5 s |
 | Resserrer une vanne qui fuit | baie de réparation, raffinerie, salle des machines, cabines d'équipage | 900 CR | 2,5 s |
-| Réparer un panneau électrique | atelier, soute, coursive, douches | 1 100 CR | 3 s |
+| Réparer un panneau électrique | atelier, soute, coursive, toilettes | 1 100 CR | 3 s |
 | Colmater une brèche dans la coque | baie de réparation, salle des machines, poste de pilotage | 1 500 CR | 3,5 s |
 
 Leur calendrier ne dépend que de l'heure (`src/economy/schedule.ts`) : tous les joueurs voient les mêmes tâches aux mêmes endroits, sans que le relais ni le site aient à les annoncer. Chacun des 35 emplacements découpe le temps en apparitions de 8 à 30 minutes selon la tâche, décalées d'un emplacement à l'autre ; chaque apparition a une tâche avec la probabilité de sa sorte (de 30 à 50 %), tirée d'un hachage de l'emplacement et du numéro d'apparition. Une quinzaine de tâches attendent ainsi à bord à tout moment. Le site refait le même calcul (même hachage, testé des deux côtés) : il sait si une tâche qu'on lui dit réglée était bien là, et ne la paie qu'une fois par apparition et par CMDR. L'heure du site, donnée à chaque réponse, cale celle du jeu.

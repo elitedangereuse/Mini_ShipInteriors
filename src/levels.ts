@@ -1197,7 +1197,7 @@ export const LEVELS: LevelDef[] = [
     rooms: {
       c: tr('Coursive', 'Corridor'),
       k: tr('Cabines d\'équipage', 'Crew cabins'),
-      d: tr('Douches', 'Showers'),
+      d: tr('Toilettes', 'Restrooms'),
       // Les quartiers du commandant étaient ici, avant le pont des quartiers : la pièce attend son emploi.
       p: tr('Pièce vierge', 'Blank room'),
       g: tr('Serre hydroponique', 'Hydroponics bay'),
@@ -1205,7 +1205,7 @@ export const LEVELS: LevelDef[] = [
       s: tr('Studio Radio Dangereuse', 'Radio Dangereuse studio'),
       n: tr('Cinéma', 'Cinema'),
     },
-    windows: { c: 0, k: 0.3, d: 0.2, p: 0.6, g: 0.5, o: 1, n: 0, s: 0 },
+    windows: { c: 0, k: 0.3, d: 0, p: 0.6, g: 0.5, o: 1, n: 0, s: 0 },
     // La serre, tout en verre : les plantes voient les étoiles. Sol de tomettes.
     greenhouse: ['g'],
     floorFinish: { g: 'terracotta' },
@@ -1220,6 +1220,27 @@ export const LEVELS: LevelDef[] = [
       { model: 'rug', x: 12.9, z: 5, label: 'warm:3.8x0.7', solid: false },
       { model: 'bench', x: 12.3, z: 3.9, label: 'teal' },
       { model: 'plant-tall', x: 15.1, z: 5.2 },
+
+      // --- Toilettes : trois cabines contre le mur nord, dont la porte se referme sur l'occupant
+      // (cf. updateStalls dans main.ts) ; deux lavabos de part et d'autre de l'entrée.
+      ...([13.1, 14, 14.9] as const).map((x): Prop => ({
+        model: 'toilet-stall', x, z: 1.15,
+        interact: [
+          tr('Toilettes à dépression. Ne pas utiliser pendant un saut FSD.', 'Vacuum toilet. Do not use during an FSD jump.'),
+          tr('La porte se referme. Enfin seul : personne ne vous voit, et vous ne voyez plus personne.', 'The door swings shut. Alone at last: nobody can see you, and you can\'t see anybody.'),
+          tr('Gravé sur la porte : « CMDR Jameson était ici. » Et dessous : « Moi aussi, pendant un saut. Mauvaise idée. »', 'Carved on the door: “CMDR Jameson was here.” And below: “So was I, mid-jump. Bad idea.”'),
+        ],
+      })),
+      {
+        model: 'sink', x: 12.88, z: 2.85, rot: 1,
+        interact: tr('Lavabo : le miroir affiche la météo de la station la plus proche.', 'Washbasin: the mirror shows the weather at the nearest station.'),
+      },
+      {
+        model: 'sink', x: 15.12, z: 2.85, rot: 3,
+        interact: tr('Lavabo : un filet d\'eau recyclée, tiède. Mieux vaut ne pas demander recyclée d\'où.', 'Washbasin: a trickle of lukewarm recycled water. Best not to ask recycled from where.'),
+      },
+      { model: 'rug', x: 14, z: 2.45, label: 'bath:1.2x0.7', solid: false },
+      { model: 'towel-rail', x: 12.65, z: 2.05, rot: 1, solid: false, interact: tr('Porte-serviettes chauffant : les serviettes sont tièdes, et sentent la lavande de synthèse.', 'Heated towel rail: the towels are warm, and smell of synthetic lavender.') },
 
       // --- Serre hydroponique, sous verrière : grainothèque, bacs hydroponiques, cuve et récupérateur
       // d\'eau au nord ; mur végétal à l\'ouest ; bacs potagers au milieu ; au sud-ouest, la pelouse,
@@ -1474,7 +1495,7 @@ export const LEVELS: LevelDef[] = [
     lights: [
       [12, 4.6, '#ffd9a8', 2],
       [9.6, 2, '#ffcf99', 2.2],
-      [13.8, 2, '#e6f6ff', 2],
+      [14, 2.2, '#e6f6ff', 2],
       [10.2, 8.4, '#ffc98f', 2.3],
       // La serre : les LED des bacs, le soleil de la pelouse, la lueur verte du massif.
       [4.6, 2.3, '#ffb3e6', 2.4],

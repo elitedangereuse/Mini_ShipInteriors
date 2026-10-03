@@ -52,7 +52,13 @@ export interface BagControl {
   hit(): void
 }
 
-export type FurnitureControl = ClawControl | BagControl
+/** Cabine de toilettes (cf. cozy.ts) : sa porte se referme sur son occupant (cf. main.ts). */
+export interface StallControl {
+  kind: 'stall'
+  shut: boolean
+}
+
+export type FurnitureControl = ClawControl | BagControl | StallControl
 
 /** Bips d'arcade, crépitements de soudure, grondement de machine. */
 export type Emitter = 'arcade' | 'sparks' | 'hum'
