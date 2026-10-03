@@ -13,8 +13,9 @@ import { SPORT_COURTS } from '../shared/ship-layouts.js'
  * Mini-jeux de la zone sportive : tirs au panier et tirs au but. Le joueur reste sur sa marque,
  * vu de dos ; il vise à la souris (ou au doigt, aux flèches, au stick), garde le tir appuyé pour
  * doser sa force (la jauge monte) et relâche pour tirer. Chaque panier, chaque but rapporte des
- * points ; à chaque palier de score, le compte à rebours regagne du temps, et la cible (le panier,
- * ou le gardien en carton) se met à glisser le long de son mur, de plus en plus vite.
+ * points ; à chaque palier de score, le compte à rebours regagne du temps, et la cible va plus
+ * vite : le panier se met à glisser le long de son mur ; le gardien en carton, lui, patrouille dès
+ * le début et se jette vers le ballon.
  *
  * Tout se joue chez le joueur : les autres le voient sur sa marque, pas ses ballons.
  */
@@ -26,8 +27,13 @@ const START_TIME = 45
 const BONUS_TIME = 10
 /** Score du palier `n` (1, 2, 3…) : 500, 1 200, 2 100, 3 200… ; de plus en plus loin l'un de l'autre. */
 export const courtTier = (n: number) => 100 * n * (n + 4)
-/** Vitesse de la cible (tuiles par seconde) au palier atteint : immobile, puis lente, puis de plus en plus vive. */
+/** Vitesse du panier (tuiles par seconde) au palier atteint : immobile, puis lent, puis de plus en plus vif. */
 export const targetSpeed = (level: number) => (level < 1 ? 0 : Math.min(2.4, 0.45 + 0.4 * (level - 1)))
+/**
+ * Le gardien, lui, ne reste jamais en place : il fait les cent pas devant sa cage dès le début
+ * (`patrol`), et se jette vers le ballon dès qu'il part (`dive`), de plus en plus vite.
+ */
+export const keeperSpeed = (level: number) => ({ patrol: Math.min(2.2, 1 + 0.25 * level), dive: Math.min(3.2, 1.7 + 0.3 * level) })
 const POINTS = 100
 /** Tir parfait : panier sans toucher le cercle ni la planche, but en pleine lucarne. */
 const PERFECT = 150
@@ -222,6 +228,9 @@ export class CourtGame {
   private readonly shaft: THREE.Mesh
   private readonly tip: THREE.Mesh
   private readonly held = new Set<string>()
+  /** Musique de la partie (cf. main.ts) : rend de quoi l'arrêter. */
+  onMusic?: (id: CourtId) => { stop: () => void }
+  private music?: { stop: () => void }
   /** Bruitages (cf. main.ts) : `at`, là où cela se passe, dans le repère du pont. */
   onSound?: (sound: CourtSound, at: THREE.Vector3) => void
   /** Le joueur tire : geste du personnage. */
@@ -272,6 +281,7 @@ export class CourtGame {
     }
     this.held.clear()
     this.arrow.visible = true
+    this.music = this.onMusic?.(id)
     void fetchBoard(id).then((board) => {
       if (revision !== this.revision || !this.session) return
       if (board?.me) this.session.best = Math.max(this.session.best, board.me.score)
@@ -376,9 +386,29 @@ export class CourtGame {
     if (s.timeLeft <= 0 && s.charging) this.release()
 
     // La cible glisse le long de son mur.
-    const travel = s.id === 'gym-basket' ? TARGET_TRAVEL : GOAL.half - GOAL.keeperW / 2
-    s.phase += (targetSpeed(s.level) / travel) * dt
-    s.physics.shift = Math.sin(s.phase) * travel
+    if (s.id === 'gym-basket') {
+      s.phase += (targetSpeed(s.level) / TARGET_TRAVEL) * dt
+      s.physics.shift = Math.sin(s.phase) * TARGET_TRAVEL
+    } else {
+      // Le gardien : il va là où le ballon le plus proche de sa ligne va passer ; sinon, il patrouille.
+      const travel = GOAL.half - GOAL.keeperW / 2, plane = s.physics.wall + GOAL.keeperZ, speed = keeperSpeed(s.level)
+      let threat: Ball | undefined
+      for (const ball of s.balls) {
+        if (ball.done || ball.v.x > -0.3 || ball.mesh.position.x < plane) continue
+        if (!threat || ball.mesh.position.x < threat.mesh.position.x) threat = ball
+      }
+      let goal: number, pace = speed.patrol
+      if (threat) {
+        const p = threat.mesh.position
+        goal = p.z + threat.v.z * ((p.x - plane) / -threat.v.x) - s.physics.center
+        pace = speed.dive
+      } else {
+        s.phase += (speed.patrol / travel) * dt
+        goal = Math.sin(s.phase) * travel
+      }
+      goal = THREE.MathUtils.clamp(goal, -travel, travel)
+      s.physics.shift += THREE.MathUtils.clamp(goal - s.physics.shift, -pace * dt, pace * dt)
+    }
     // Repère du meuble, tourné d'un quart de tour : son axe x est le -z du pont.
     s.target.slide(-s.physics.shift)
 
@@ -451,6 +481,8 @@ export class CourtGame {
     this.held.clear()
     this.padFire = false
     this.arrow.visible = false
+    this.music?.stop()
+    this.music = undefined
     s.target.slide(0)
     s.hud.root.remove()
     for (const ball of s.balls) { this.group.remove(ball.mesh); ball.mesh.geometry.dispose() }

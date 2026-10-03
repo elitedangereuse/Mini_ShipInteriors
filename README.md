@@ -579,9 +579,11 @@ Au pont supérieur, le foyer (le couloir du cinéma) file au sud jusqu'à un pet
 | Tir réussi | panier : 100 points | but : 100 points |
 | Tir parfait | « swish », sans toucher ni le cercle ni la planche : 150 | lucarne : 150 |
 | Ce que dose la force | la portée du tir (trop court, dans le cercle, sur la planche, trop long) | la vitesse et la hauteur du ballon (trop fort : au-dessus de la barre) |
-| La cible | le panier | le gardien, qui renvoie ce qu'il touche |
+| La cible | le panier, immobile au départ | le gardien, qui renvoie ce qu'il touche : il patrouille devant sa cage dès le début, et se jette vers le ballon dès qu'il part (`keeperSpeed`). Il faut viser le coin qu'il laisse libre, et frapper assez fort pour qu'il n'y arrive pas |
 
-Un compte à rebours de 45 s court dès le départ. Les **paliers** de score (500, 1 200, 2 100, 3 200… : `courtTier`) rendent chacun 10 s, et réveillent la cible : immobile au départ, elle glisse lentement le long de son mur au premier palier, puis de plus en plus vite (`targetSpeed`). Quand le temps est écoulé, les ballons en l'air comptent encore.
+Un compte à rebours de 45 s court dès le départ. Les **paliers** de score (500, 1 200, 2 100, 3 200… : `courtTier`) rendent chacun 10 s, et pressent la cible : le panier, immobile au départ, glisse lentement le long de son mur au premier palier, puis de plus en plus vite (`targetSpeed`) ; le gardien patrouille et plonge plus vite à chaque palier. Quand le temps est écoulé, les ballons en l'air comptent encore.
+
+Une musique accompagne chaque jeu (deux boucles du pack Music Loops de Kenney, CC0 : `court-basket.ogg` et `court-foot.ogg` dans `public/assets/music/`, jouées par `Sound.music`) ; elle suit le volume et la sourdine du jeu.
 
 Les ballons, les rebonds (cercle, planche, poteaux, sol, murs, plafond) et le décompte des points sont dans `CourtPhysics`, sans affichage : on peut rejouer des tirs hors du navigateur pour régler la jauge. Tout se joue chez le joueur : les autres le voient sur sa marque, pas ses ballons, et la cible ne bouge que pour lui.
 

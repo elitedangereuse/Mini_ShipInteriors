@@ -288,6 +288,43 @@ export class Sound {
     return gain
   }
 
+  private tunes = new Map<string, Promise<AudioBuffer | null>>()
+
+  /**
+   * Musique de fond, en boucle, non spatialisée (les mini-jeux de la zone sportive) : un fichier
+   * de `music/`, chargé à la première écoute ; elle entre et sort en fondu.
+   */
+  music(file: string, volume = 0.3): { stop: () => void } {
+    let stopped = false
+    let voice: { src: AudioBufferSourceNode; gain: GainNode } | undefined
+    let tune = this.tunes.get(file)
+    if (!tune) {
+      tune = fetch(`${BASE}music/${file}`).then(async (res) => (res.ok ? await this.ctx.decodeAudioData(await res.arrayBuffer()) : null)).catch(() => null)
+      this.tunes.set(file, tune)
+    }
+    void tune.then((buffer) => {
+      if (stopped || !buffer || !this.ready) return
+      const src = this.ctx.createBufferSource()
+      src.buffer = buffer
+      src.loop = true
+      const { input, gain } = this.output(null, { volume: 0 })
+      src.connect(input)
+      gain.gain.linearRampToValueAtTime(volume, this.ctx.currentTime + 0.6)
+      src.start()
+      voice = { src, gain }
+    })
+    return {
+      stop: () => {
+        stopped = true
+        if (!voice) return
+        const now = this.ctx.currentTime
+        voice.gain.gain.cancelScheduledValues(now)
+        voice.gain.gain.setTargetAtTime(0, now, 0.25)
+        voice.src.stop(now + 1.2)
+      },
+    }
+  }
+
   /** « Bip bip » d'ordinateur de bord : sinusoïdes douces, attaque et relâche arrondies. */
   beep(pos: THREE.Vector3) {
     if (!this.ready) return

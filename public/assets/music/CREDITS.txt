@@ -332,3 +332,11 @@ Bonne licence (CC0) mais écartés pour la qualité, la durée ou le tempo :
     plus courtes.
   - tricksntraps, « Flying Temple » (trance à 128 BPM, 2:17) : alternative
     électro.
+
+
+---------------------------------------------------------------------
+Zone sportive (mini-jeux de basket et de foot, hors jukebox)
+---------------------------------------------------------------------
+court-basket.ogg : « Alpha Dance », court-foot.ogg : « Drumming Sticks ».
+Kenney (www.kenney.nl), pack Music Loops 1.1, CC0 1.0. Boucles de 15 s,
+fichiers d'origine, non retraités ; jouées en boucle par Sound.music.

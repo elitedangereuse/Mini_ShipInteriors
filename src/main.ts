@@ -575,6 +575,7 @@ function startCourt(id: CourtId) {
     court.start(id, target)
   })
 }
+court.onMusic = (id) => sound.music(id === 'gym-basket' ? 'court-basket.ogg' : 'court-foot.ogg', 0.28)
 court.onShoot = () => { player.avatar.playEmote('interact'); net.sendEmote('interact') }
 court.onSound = (kind, at) => {
   if (kind === 'bounce' || kind === 'save') sound.thud(at.clone().setY(at.y + deck.y))
