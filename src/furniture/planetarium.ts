@@ -4,12 +4,13 @@ import { beamMaterial, box, cylinder, decal, drawnTexture, glow, keepShared, lit
 /*
  * Le planétarium de Bugenhagen, au pont supérieur, à la place des anciens quartiers : un clin
  * d'œil à l'observatoire de Cosmo Canyon, dans le Final Fantasy VII d'origine (PS1). Au centre, le
- * projecteur ; tout autour, l'hologramme du système qui emplit la pièce : une sphère céleste
- * quadrillée de blanc, les orbites en anneaux rouges, le soleil au milieu, des planètes et de gros
- * astres de cristal, taillés à facettes, qui tournent lentement. On marche dedans, entre les
- * planètes. Bugenhagen y flotte, sur sa boule verte. Autour : la carte du ciel au sol, la lunette,
- * la bibliothèque du vieux sage.
- * Les modèles « PS1 » (Bugenhagen, les astres de cristal) sont à facettes, sans lissage.
+ * projecteur ; tout autour, l'hologramme du système qui emplit la pièce : une sphère céleste à
+ * peine quadrillée, les orbites en fins anneaux rouges, le soleil au milieu et huit mondes ronds,
+ * peints (océans, déserts, bandes de gaz, cratères), qui tournent lentement. On marche dedans,
+ * entre les planètes. Bugenhagen y flotte, sur sa boule verte. Autour : la carte du ciel au sol,
+ * la lunette, la bibliothèque du vieux sage.
+ * Au repos, la pièce reste calme : peu d'étoiles, des traits fins, pour que les planètes se lisent.
+ * Seul Bugenhagen garde ses facettes de la PS1.
  */
 
 const C = {
@@ -61,21 +62,93 @@ function strand(geo: THREE.BufferGeometry, color: string, from: THREE.Vector3, t
   return m
 }
 
-/** Rocher de cristal à facettes : un icosaèdre aux sommets déplacés (les faces restent jointives). */
-function crystalGeometry(random: () => number, size: number, stretch = 1): THREE.BufferGeometry {
-  const geo = new THREE.IcosahedronGeometry(size, 0)
-  const pos = geo.attributes.position
-  const bumps = new Map<string, number>()
-  const v = new THREE.Vector3()
-  for (let i = 0; i < pos.count; i++) {
-    v.fromBufferAttribute(pos, i)
-    const key = `${v.x.toFixed(3)},${v.y.toFixed(3)},${v.z.toFixed(3)}`
-    let k = bumps.get(key)
-    if (k === undefined) bumps.set(key, (k = 0.72 + random() * 0.5))
-    pos.setXYZ(i, v.x * k, v.y * k * stretch, v.z * k)
+type RGB = [number, number, number]
+const rgb = (hex: string): RGB => [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)]
+const mix = (a: RGB, b: RGB, t: number): RGB => {
+  const k = Math.min(1, Math.max(0, t))
+  return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k]
+}
+/** Dégradé à plusieurs couleurs, de 0 à 1. */
+const ramp = (stops: RGB[], t: number): RGB => {
+  const x = Math.min(0.9999, Math.max(0, t)) * (stops.length - 1), i = Math.floor(x)
+  return mix(stops[i], stops[i + 1], x - i)
+}
+
+/**
+ * Bruit de valeur à quatre octaves, entre 0 et 1, qui boucle en longitude : la texture d'une
+ * planète n'a pas de couture. `u` : longitude, `v` : latitude, de 0 à 1.
+ */
+function terrain(random: () => number): (u: number, v: number) => number {
+  const grids = [0, 1, 2, 3].map((o) => {
+    const w = 8 << o, h = 4 << o
+    return { w, h, values: Float32Array.from({ length: w * (h + 1) }, () => random()) }
+  })
+  const ease = (t: number) => t * t * (3 - 2 * t)
+  return (u, v) => {
+    let sum = 0, amp = 0.5, total = 0
+    for (const { w, h, values } of grids) {
+      const x = u * w, y = v * h
+      const x0 = Math.floor(x), y0 = Math.min(h - 1, Math.floor(y))
+      const fx = ease(x - x0), fy = ease(y - y0)
+      const at = (i: number, j: number) => values[j * w + (((i % w) + w) % w)]
+      const top = at(x0, y0) + (at(x0 + 1, y0) - at(x0, y0)) * fx
+      const bottom = at(x0, y0 + 1) + (at(x0 + 1, y0 + 1) - at(x0, y0 + 1)) * fx
+      sum += amp * (top + (bottom - top) * fy)
+      total += amp
+      amp *= 0.5
+    }
+    return sum / total
   }
-  geo.computeVertexNormals()
-  return geo
+}
+
+/** Peint la surface d'une planète : `paint` donne la couleur d'un point (`n` : relief, `m` : second bruit). */
+function planetTexture(random: () => number, paint: (u: number, v: number, n: number, m: number) => RGB): THREE.CanvasTexture {
+  const W = 256, H = 128
+  const relief = terrain(random), second = terrain(random)
+  return drawnTexture(W, H, (c) => {
+    const image = c.createImageData(W, H)
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const u = x / W, v = (y + 0.5) / H
+        const [r, g, b] = paint(u, v, relief(u, v), second(u, v))
+        image.data.set([r, g, b, 255], (y * W + x) * 4)
+      }
+    }
+    c.putImageData(image, 0, 0)
+  })
+}
+
+/** Monde rocheux : un relief entre deux teintes, creusé de cratères. */
+const rocky = (dark: string, light: string): Parameters<typeof planetTexture>[1] => {
+  const a = rgb(dark), b = rgb(light)
+  return (_u, _v, n, m) => mix(a, b, (n - 0.3) * 2.2 - (m > 0.66 ? 0.35 : 0))
+}
+
+/** Géante gazeuse : des bandes le long des parallèles, que la turbulence fait onduler, et un œil de tempête. */
+const gaseous = (colors: string[], bands: number, swirl: number): Parameters<typeof planetTexture>[1] => {
+  const stops = colors.map(rgb)
+  return (u, v, n, m) => {
+    const lat = v + (n - 0.5) * swirl
+    const band = 0.5 + 0.5 * Math.sin(lat * bands * Math.PI + m * 1.5)
+    const storm = Math.hypot((u - 0.3) * 5, (v - 0.62) * 9)
+    return mix(ramp(stops, band), stops[0], storm < 1 ? (1 - storm) * 0.8 : 0)
+  }
+}
+
+/** Calottes polaires, par-dessus une surface. */
+const capped = (paint: Parameters<typeof planetTexture>[1], size: number): Parameters<typeof planetTexture>[1] =>
+  (u, v, n, m) => mix(paint(u, v, n, m), [240, 246, 255], (Math.abs(v - 0.5) * 2 - (1 - size) + (n - 0.5) * 0.25) * 12)
+
+/**
+ * Une planète ronde, à la surface peinte, qui luit assez pour se lire dans le noir. Elle tourne
+ * sur un axe penché : `tilt` l'incline, `spinner` est ce qui tourne (cf. Body).
+ */
+function planet(radius: number, map: THREE.Texture, tilt = 0.2): { object: THREE.Group; spinner: THREE.Mesh } {
+  const object = new THREE.Group()
+  object.rotation.z = tilt
+  const spinner = part(new THREE.SphereGeometry(radius, 28, 18), new THREE.MeshLambertMaterial({ map, emissive: '#ffffff', emissiveMap: map, emissiveIntensity: 0.5 }))
+  object.add(spinner)
+  return { object, spinner }
 }
 
 /** Halo rond, en dégradé (le soleil, la lentille du projecteur). */
@@ -99,9 +172,10 @@ function halo(color: string, size: number, opacity = 1): THREE.Sprite {
 // ---------------------------------------------------------------- le sol
 
 /**
- * La carte du ciel, de mur à mur (7,6 × 7,6) : bleu de nuit, étoiles semées, constellations
- * reliées d'un trait, et au centre, autour du projecteur, l'anneau des douze signes en laiton,
- * une rose des vents dont la pointe nord montre la porte.
+ * La carte du ciel, de mur à mur (7,6 × 7,6) : un bleu de nuit presque uni, quelques étoiles pâles,
+ * cinq constellations discrètes, et au centre, autour du projecteur, l'anneau des douze signes en
+ * laiton et une rose des vents estompée, dont la pointe nord montre la porte. Elle reste en
+ * retrait : ce sont les planètes, au-dessus, qu'on regarde.
  */
 const planetariumFloor: Builder = ({ random }) => {
   const S = 7.6, PX = 1024, K = PX / S
@@ -112,17 +186,17 @@ const planetariumFloor: Builder = ({ random }) => {
     c.fillStyle = bg
     c.fillRect(0, 0, PX, PX)
     // Les étoiles, et quelques constellations.
-    for (let i = 0; i < 520; i++) {
-      const r = random() < 0.92 ? 0.6 + random() * 1.2 : 2 + random() * 1.6
-      c.fillStyle = ['#ffffff', '#cfe0ff', '#fff2c4', '#ffd0d0'][Math.floor(random() * 4)]
-      c.globalAlpha = 0.35 + random() * 0.6
+    for (let i = 0; i < 150; i++) {
+      const r = random() < 0.94 ? 0.6 + random() * 0.9 : 1.8 + random() * 1.2
+      c.fillStyle = ['#ffffff', '#cfe0ff', '#fff2c4'][Math.floor(random() * 3)]
+      c.globalAlpha = 0.18 + random() * 0.32
       c.beginPath()
       c.arc(random() * PX, random() * PX, r, 0, Math.PI * 2)
       c.fill()
     }
     c.globalAlpha = 1
-    for (let n = 0; n < 9; n++) {
-      const a = (n / 9) * Math.PI * 2 + random()
+    for (let n = 0; n < 5; n++) {
+      const a = (n / 5) * Math.PI * 2 + random()
       const d = PX * (0.36 + random() * 0.08)
       let x = PX / 2 + Math.cos(a) * d, y = PX / 2 + Math.sin(a) * d
       const pts: [number, number][] = [[x, y]]
@@ -131,22 +205,23 @@ const planetariumFloor: Builder = ({ random }) => {
         y += (random() - 0.5) * 90
         pts.push([x, y])
       }
-      c.strokeStyle = 'rgba(190,210,255,0.45)'
-      c.lineWidth = 1.5
+      c.strokeStyle = 'rgba(190,210,255,0.22)'
+      c.lineWidth = 1.2
       c.beginPath()
       for (const [px, py] of pts) c.lineTo(px, py)
       c.stroke()
-      c.fillStyle = '#ffffff'
+      c.fillStyle = 'rgba(255,255,255,0.6)'
       for (const [px, py] of pts) {
         c.beginPath()
-        c.arc(px, py, 3, 0, Math.PI * 2)
+        c.arc(px, py, 2.2, 0, Math.PI * 2)
         c.fill()
       }
     }
     // L'anneau des signes, en laiton.
     const cx = PX / 2, cy = PX / 2
+    c.globalAlpha = 0.7
     c.strokeStyle = C.gold
-    for (const [r, w] of [[2.0, 5], [1.62, 3], [1.1, 2]] as const) {
+    for (const [r, w] of [[2.0, 3], [1.62, 2]] as const) {
       c.lineWidth = w
       c.beginPath()
       c.arc(cx, cy, r * K, 0, Math.PI * 2)
@@ -159,22 +234,16 @@ const planetariumFloor: Builder = ({ random }) => {
       c.moveTo(cx + Math.cos(a) * 1.62 * K, cy + Math.sin(a) * 1.62 * K)
       c.lineTo(cx + Math.cos(a) * 2.0 * K, cy + Math.sin(a) * 2.0 * K)
       c.stroke()
-      // Un signe par case : un petit astre et ses rayons.
-      const m = a + Math.PI / 12, gx = cx + Math.cos(m) * 1.81 * K, gy = cy + Math.sin(m) * 1.81 * K
+      // Un signe par case : un petit astre.
+      const m = a + Math.PI / 12
       c.fillStyle = C.gold
       c.beginPath()
-      c.arc(gx, gy, 6, 0, Math.PI * 2)
+      c.arc(cx + Math.cos(m) * 1.81 * K, cy + Math.sin(m) * 1.81 * K, 5, 0, Math.PI * 2)
       c.fill()
-      for (let k = 0; k < (i % 4) + 2; k++) {
-        const b = (k / ((i % 4) + 2)) * Math.PI * 2 + i
-        c.beginPath()
-        c.moveTo(gx + Math.cos(b) * 9, gy + Math.sin(b) * 9)
-        c.lineTo(gx + Math.cos(b) * 16, gy + Math.sin(b) * 16)
-        c.stroke()
-      }
     }
+    c.globalAlpha = 1
     // La rose des vents : sa pointe nord vers la porte.
-    c.fillStyle = 'rgba(216,178,90,0.55)'
+    c.fillStyle = 'rgba(216,178,90,0.22)'
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2 - Math.PI / 2, l = (i % 2 ? 0.75 : 1.45) * K
       c.beginPath()
@@ -243,7 +312,10 @@ const planetariumProjector: Builder = () => {
 // ---------------------------------------------------------------- l'hologramme
 
 interface Body {
+  /** Ce qui suit l'orbite (axe penché compris). */
   object: THREE.Object3D
+  /** Ce qui tourne sur lui-même. */
+  spinner: THREE.Object3D
   radius: number
   speed: number
   phase: number
@@ -251,11 +323,12 @@ interface Body {
 }
 
 /**
- * Le système qui emplit la pièce, comme dans l'observatoire de Bugenhagen : la sphère céleste,
- * quadrillée de blanc, qui tourne lentement ; les orbites en anneaux rouges, à peine inclinées ;
- * le soleil, et autour de lui une planète tellurique, une planète bleue et sa lune, une rouge,
- * la géante aux anneaux, et trois gros astres de cristal (vert pâle, bleu, émeraude) à facettes.
- * Des étoiles flottent partout. Rien n'y est solide : on traverse l'hologramme.
+ * Le système qui emplit la pièce, comme dans l'observatoire de Bugenhagen : la sphère céleste, à
+ * peine quadrillée, qui tourne lentement ; les orbites en fins anneaux rouges, à peine inclinées ;
+ * le soleil, et autour de lui huit mondes ronds : une petite planète grise à cratères, une planète
+ * bleue et sa lune, une rouge à calottes, une géante vert pâle, la géante aux anneaux, une géante
+ * de glace, un monde émeraude et la lune brune qui le suit. Quelques étoiles flottent sur la
+ * coupole. Rien n'y est solide : on traverse l'hologramme.
  */
 const planetariumSky: Builder = ({ random }) => {
   const live = new THREE.Group()
@@ -263,29 +336,29 @@ const planetariumSky: Builder = ({ random }) => {
   const R = 3.4, V = 1.6, Y0 = 0.15
   const pts: THREE.Vector3[] = []
   const at = (phi: number, theta: number) => new THREE.Vector3(R * Math.cos(phi) * Math.cos(theta), Y0 + V * Math.sin(phi), R * Math.cos(phi) * Math.sin(theta))
-  for (let m = 0; m < 16; m++) {
-    const theta = (m / 16) * Math.PI * 2
+  for (let m = 0; m < 12; m++) {
+    const theta = (m / 12) * Math.PI * 2
     for (let i = 0; i < 12; i++) pts.push(at((i / 12) * (Math.PI / 2), theta), at(((i + 1) / 12) * (Math.PI / 2), theta))
   }
-  for (const phi of [0.12, 0.38, 0.66, 0.96, 1.26]) {
+  for (const phi of [0.12, 0.66, 1.2]) {
     for (let i = 0; i < 64; i++) pts.push(at(phi, (i / 64) * Math.PI * 2), at(phi, ((i + 1) / 64) * Math.PI * 2))
   }
-  const gridMat = new THREE.LineBasicMaterial({ color: C.grid, transparent: true, opacity: 0.3, depthWrite: false })
+  const gridMat = new THREE.LineBasicMaterial({ color: C.grid, transparent: true, opacity: 0.12, depthWrite: false })
   const grid = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), gridMat)
   live.add(grid)
 
-  // Les étoiles : sur la coupole, et quelques-unes en suspens dans la pièce.
-  const N = 320
+  // Les étoiles : sur la coupole, et une poignée en suspens dans la pièce.
+  const N = 180
   const positions = new Float32Array(N * 3), colors = new Float32Array(N * 3), sizes = new Float32Array(N)
   const tint = new THREE.Color()
   for (let i = 0; i < N; i++) {
-    const inside = i % 4 === 0
+    const inside = i % 9 === 0
     const phi = Math.asin(random()) * (inside ? 0.9 : 1), theta = random() * Math.PI * 2, k = inside ? 0.25 + random() * 0.65 : 0.985
     const p = at(phi, theta)
     positions.set([p.x * k, Y0 + (p.y - Y0) * k + (inside ? 0.5 : 0), p.z * k], i * 3)
     tint.set(['#ffffff', '#cfe0ff', '#fff1c0', '#ffc8c8'][Math.floor(random() * 4)])
     colors.set([tint.r, tint.g, tint.b], i * 3)
-    sizes[i] = 0.025 + random() * random() * 0.06
+    sizes[i] = 0.022 + random() * random() * 0.05
   }
   live.add(pointCloud(positions, colors, sizes))
 
@@ -296,66 +369,63 @@ const planetariumSky: Builder = ({ random }) => {
   live.add(system)
   const orbits = [0.45, 0.8, 1.15, 1.55, 2.0, 2.45, 2.85]
   const rings = orbits.map((r) => {
-    const t = new THREE.TorusGeometry(r, 0.011, 4, Math.round(40 + r * 30))
+    const t = new THREE.TorusGeometry(r, 0.006, 4, Math.round(48 + r * 36))
     t.rotateX(Math.PI / 2)
     return t
   })
-  const ringMat = new THREE.MeshBasicMaterial({ color: C.orbit, transparent: true, opacity: 0.9, depthWrite: false })
+  const ringMat = new THREE.MeshBasicMaterial({ color: C.orbit, transparent: true, opacity: 0.42, depthWrite: false })
   for (const geo of rings) system.add(part(geo, ringMat))
 
   // Le soleil : une boule blanche et sa couronne.
-  const sun = part(new THREE.IcosahedronGeometry(0.13, 1), new THREE.MeshBasicMaterial({ color: C.sun }))
-  const corona = halo('#ffe08a', 0.95)
+  const sun = part(new THREE.SphereGeometry(0.13, 24, 16), new THREE.MeshBasicMaterial({ color: C.sun }))
+  const corona = halo('#ffe08a', 0.8)
   const glare = halo('#ffffff', 0.4)
   system.add(sun, corona, glare)
 
   const bodies: Body[] = []
-  const add = (object: THREE.Object3D, orbit: number, speed: number, spin = 0.4) => {
-    bodies.push({ object, radius: orbits[orbit], speed, phase: random() * Math.PI * 2, spin })
+  const add = ({ object, spinner }: { object: THREE.Object3D; spinner: THREE.Object3D }, orbit: number, speed: number, spin = 0.4) => {
+    bodies.push({ object, spinner, radius: orbits[orbit], speed, phase: random() * Math.PI * 2, spin })
     system.add(object)
   }
-  // Une petite planète tellurique, grise.
-  add(part(new THREE.IcosahedronGeometry(0.045, 0), faceted('#a59a8c', 0.35)), 0, 0.42)
-  // La planète bleue et sa lune.
-  const blue = new THREE.Group()
-  blue.add(part(new THREE.IcosahedronGeometry(0.075, 1), faceted('#3f86d8', 0.4)))
-  const moon = part(new THREE.IcosahedronGeometry(0.022, 0), faceted('#d8d8d0', 0.4), 0.13, 0.02, 0)
-  blue.add(moon)
+  // Une petite planète tellurique, grise, à cratères.
+  add(planet(0.05, planetTexture(random, rocky('#5f5850', '#c9c0b2')), 0.05), 0, 0.42)
+  // La planète bleue (océans, continents, calottes, nuages) et sa lune.
+  const sea = rgb('#1c4f9e'), shallows = rgb('#3f93d8'), land = [rgb('#4f8a3f'), rgb('#9a8a52'), rgb('#6f5a3c')]
+  const blue = planet(0.085, planetTexture(random, capped((_u, _v, n, m) => {
+    const ground = n > 0.52 ? ramp(land, (n - 0.52) * 5) : mix(sea, shallows, (n - 0.3) * 4)
+    return mix(ground, [255, 255, 255], (m - 0.58) * 5)
+  }, 0.14)), 0.4)
+  const moon = part(new THREE.SphereGeometry(0.022, 14, 10), new THREE.MeshLambertMaterial({ color: '#d8d8d0', emissive: '#56564f' }), 0.15, 0.02, 0)
+  blue.object.add(moon)
   add(blue, 1, 0.3, 1.2)
-  // La rouge.
-  add(part(new THREE.IcosahedronGeometry(0.06, 1), faceted('#c8502e', 0.4)), 2, 0.22)
-  // Le gros astre de cristal vert pâle.
-  add(part(crystalGeometry(random, 0.22, 1.25), faceted('#cfdc8e', 0.3)), 3, 0.15, 0.25)
+  // La rouge : déserts de rouille, plaines sombres, calottes.
+  add(planet(0.065, planetTexture(random, capped(rocky('#7a2c16', '#e2925a'), 0.1)), 0.44), 2, 0.22)
+  // La géante vert pâle.
+  add(planet(0.2, planetTexture(random, gaseous(['#eef0c0', '#b9c878', '#dfe6a4', '#93a85a'], 9, 0.1)), 0.1), 3, 0.15, 0.5)
   // La géante aux anneaux, à bandes.
-  const giant = new THREE.Group()
-  const bands = drawnTexture(64, 128, (c) => {
-    const cols = ['#c98a4a', '#e0b07a', '#a8683a', '#d8a066', '#8a5230', '#e8c08a']
-    for (let y = 0; y < 128; y += 8) {
-      c.fillStyle = cols[Math.floor(random() * cols.length)]
-      c.fillRect(0, y, 64, 8 + random() * 8)
-    }
-  })
-  giant.add(part(new THREE.SphereGeometry(0.2, 18, 12), new THREE.MeshLambertMaterial({ map: bands, emissive: '#ffffff', emissiveMap: bands, emissiveIntensity: 0.4 })))
+  const giant = planet(0.21, planetTexture(random, gaseous(['#e8c08a', '#c98a4a', '#e0b07a', '#8a5230', '#d8a066'], 11, 0.06)), 0.42)
   const ringTex = drawnTexture(128, 4, (c) => {
-    for (let x = 0; x < 128; x += 4) {
-      c.fillStyle = `rgba(232,208,160,${0.3 + random() * 0.6})`
-      c.fillRect(x, 0, 4, 4)
+    for (let x = 0; x < 128; x += 2) {
+      // Une division sombre aux deux tiers, comme chez Saturne.
+      c.fillStyle = `rgba(232,208,160,${x > 78 && x < 88 ? 0.05 : 0.3 + random() * 0.55})`
+      c.fillRect(x, 0, 2, 4)
     }
   })
-  const ringGeo = new THREE.RingGeometry(0.27, 0.46, 48, 1)
+  const ringGeo = new THREE.RingGeometry(0.28, 0.47, 64, 1)
   // La texture court du bord intérieur au bord extérieur.
   const uv = ringGeo.attributes.uv, rp = ringGeo.attributes.position
-  for (let i = 0; i < uv.count; i++) uv.setXY(i, (Math.hypot(rp.getX(i), rp.getY(i)) - 0.27) / 0.19, 0.5)
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, (Math.hypot(rp.getX(i), rp.getY(i)) - 0.28) / 0.19, 0.5)
   const giantRing = part(ringGeo, new THREE.MeshBasicMaterial({ map: ringTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }))
-  giantRing.rotation.set(-Math.PI / 2 + 0.45, 0, 0.2)
-  giant.add(giantRing)
+  giantRing.rotation.x = -Math.PI / 2
+  giant.object.add(giantRing)
   add(giant, 4, 0.11, 0.6)
-  // Le grand astre de cristal bleu.
-  add(part(crystalGeometry(random, 0.26, 1.15), faceted('#8ea4ff', 0.3)), 5, 0.085, 0.2)
-  // L'émeraude, et un caillou brun qui la suit sur la dernière orbite.
-  add(part(crystalGeometry(random, 0.13, 1.1), faceted('#3fbf96', 0.35)), 6, 0.065, 0.5)
-  add(part(crystalGeometry(random, 0.08, 0.9), faceted('#9a6a4a', 0.3)), 6, 0.065, 0.7)
-  bodies[bodies.length - 1].phase = bodies[bodies.length - 2].phase + 0.5
+  // La géante de glace, bleu pâle, presque unie.
+  add(planet(0.17, planetTexture(random, gaseous(['#bfe4f4', '#7fb6e8', '#a8d4f0'], 5, 0.03)), 1.2), 5, 0.085, 0.35)
+  // Le monde émeraude, et la lune brune qui le suit sur la dernière orbite.
+  const deep = rgb('#0c4a3e'), jade = rgb('#7fe8c0')
+  add(planet(0.11, planetTexture(random, (_u, _v, n, m) => mix(mix(deep, jade, (n - 0.3) * 2.4), [230, 255, 245], (m - 0.62) * 4)), 0.3), 6, 0.065, 0.5)
+  add(planet(0.055, planetTexture(random, rocky('#4a3424', '#b08a62')), 0.1), 6, 0.065, 0.7)
+  bodies[bodies.length - 1].phase = bodies[bodies.length - 2].phase + 0.42
 
   return {
     live,
@@ -364,12 +434,12 @@ const planetariumSky: Builder = ({ random }) => {
       for (const b of bodies) {
         const a = b.phase + t * b.speed
         b.object.position.set(Math.cos(a) * b.radius, 0, -Math.sin(a) * b.radius)
-        b.object.rotation.y = t * b.spin
+        b.spinner.rotation.y = t * b.spin
       }
-      moon.position.set(Math.cos(t * 1.4) * 0.13, 0.02, -Math.sin(t * 1.4) * 0.13)
+      moon.position.set(Math.cos(t * 1.4) * 0.15, 0.02, -Math.sin(t * 1.4) * 0.15)
       sun.rotation.y = t * 0.3
       const pulse = 1 + 0.06 * Math.sin(t * 1.7) + 0.03 * Math.sin(t * 4.1)
-      corona.scale.setScalar(0.95 * pulse)
+      corona.scale.setScalar(0.8 * pulse)
     },
   }
 }

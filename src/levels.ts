@@ -1553,7 +1553,7 @@ export const LEVELS: LevelDef[] = [
         model: 'planetarium-projector', x: 11.5, z: 9.5,
         interact: [
           tr('Le projecteur du planétarium : une lentille de cristal, une monture de laiton, et tout un système qui en sort.', 'The planetarium projector: a crystal lens, a brass mount, and a whole star system pouring out of it.'),
-          tr('Un soleil, sept orbites, des astres de cristal. Bugenhagen assure que ce système existe. Il ne dit pas où.', 'One sun, seven orbits, crystal worlds. Bugenhagen swears this system exists. He won\'t say where.'),
+          tr('Un soleil, sept orbites, huit mondes. Bugenhagen assure que ce système existe. Il ne dit pas où.', 'One sun, seven orbits, eight worlds. Bugenhagen swears this system exists. He won\'t say where.'),
           tr('Gravé sur la colonne : « Observatoire de Cosmo Canyon. » Et dessous, au feutre : « Déménagé à bord. Ne pas toucher à la lentille. »', 'Engraved on the column: “Cosmo Canyon Observatory.” And below, in marker: “Moved aboard. Do not touch the lens.”'),
         ],
       },
