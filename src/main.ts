@@ -3024,7 +3024,7 @@ addEventListener('keydown', (e) => {
   if (gym.key(e)) return
   if (!chat.typing && court.key(e)) return
   if (!chat.typing && fishBook.isOpen) {
-    if (e.code === 'Escape' || e.code === 'KeyE') fishBook.close()
+    fishBook.key(e)
     return e.preventDefault()
   }
   if (!chat.typing && fishing.key(e)) return

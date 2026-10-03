@@ -8,7 +8,7 @@ import { fishModel } from './models'
  * sont rendus d'un coup, à la première demande, dans un petit rendu hors écran aussitôt libéré.
  */
 
-const SIZE = 256
+const SIZE = 384
 let portraits: Map<string, string> | null = null
 
 function renderAll(): Map<string, string> {
