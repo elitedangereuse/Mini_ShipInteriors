@@ -68,10 +68,9 @@ export const GARDEN_OBSTACLES = [
   { minX: 6.65, maxX: 7.5, minZ: 5.7, maxZ: 6.3 }, // plante exobiologique
   // Le jardin exotique : l'étang, et ce qui borde le chemin qui y mène.
   { minX: FISHING_POND.x - FISHING_POND.w / 2, maxX: FISHING_POND.x + FISHING_POND.w / 2, minZ: FISHING_POND.z - FISHING_POND.d / 2, maxZ: FISHING_POND.z + FISHING_POND.d / 2 }, // étang
-  { minX: 0.4, maxX: 1.0, minZ: 9.45, maxZ: 10.05 }, // palmier penché de l'étang
-  { minX: -0.5, maxX: 0.4, minZ: 10.6, maxZ: 11.2 }, // fougère
+  { minX: -0.5, maxX: 0.4, minZ: 9.7, maxZ: 10.1 }, // palmier penché de l'étang
+  { minX: -0.5, maxX: 0.45, minZ: 10.6, maxZ: 11.2 }, // fougère
   { minX: -0.5, maxX: 0.45, minZ: 12.2, maxZ: 12.8 }, // anémone d'exobiologie
-  { minX: 0.85, maxX: 1.45, minZ: 13.25, maxZ: 13.85 }, // palmier trapu
   // Les coins cassés.
   { minX: -1, maxX: 1.5, minZ: 0, maxZ: 1.5 },
   { minX: -1, maxX: 0.5, minZ: 0, maxZ: 2.5 },

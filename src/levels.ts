@@ -1492,7 +1492,9 @@ export const LEVELS: LevelDef[] = [
       // entre les citrouilles et l'établi) : une plage de sable, le grand étang et ses carpes, le
       // ponton d'où l'on pêche et le livre des prises (cf. src/fishing/ et shared/fishing.js),
       // des palmiers en pleine terre, des bambous, des plantes d'exobiologie.
-      { model: 'sand-patch', x: 3.6, z: 11.55, label: '7.6x5.5', solid: false },
+      // Une rangée de tuiles reste libre tout autour de l'étang (cf. FISHING_POND) : le décor qui
+      // arrête le passage se range contre les murs (x = 0 et 7, z = 14).
+      { model: 'sand-patch', x: 3.55, z: 11.5, label: '7.6x5.6', solid: false },
       { model: 'garden-arch', x: 1.35, z: 8.2, label: '1.3', solid: false },
       {
         model: 'fishing-pond', x: FISHING_POND.x, z: FISHING_POND.z, reach: FISHING_FEED,
@@ -1502,40 +1504,46 @@ export const LEVELS: LevelDef[] = [
           tr('L\'étang est bien plus profond qu\'il n\'en a l\'air. Capucine dit qu\'il communique avec les ballasts. Nico dit que non. Personne n\'est allé voir.', 'The pond is much deeper than it looks. Capucine says it connects to the ballast tanks. Nico says it doesn\'t. Nobody has gone to check.'),
         ],
       },
-      { model: 'fishing-dock', x: FISHING_DOCK.x, z: FISHING_DOCK.z, solid: false, action: tr('Pêcher', 'Fish') },
-      { model: 'fish-book', x: 6.95, z: 10.6, rot: 3, action: tr('Ouvrir le livre des prises', 'Open the catch book') },
+      // Le ponton et le livre : leur texte fait d'eux des objets qu'on actionne (touche E), la
+      // pêche et le livre s'y branchent (cf. main.ts).
       {
-        model: 'jungle-palm', x: 0.7, z: 9.75, label: 'bend',
+        model: 'fishing-dock', x: FISHING_DOCK.x, z: FISHING_DOCK.z, solid: false, action: tr('Pêcher', 'Fish'),
+        interact: tr('Le ponton de pêche : des cannes, des appâts, et un étang plein d\'ombres.', 'The fishing dock: rods, bait, and a pond full of shadows.'),
+      },
+      {
+        model: 'fish-book', x: 7.12, z: 11.35, rot: 3, action: tr('Ouvrir le livre des prises', 'Open the catch book'),
+        interact: tr('Le livre des prises : chaque poisson sorti de l\'étang y a sa page.', 'The catch book: every fish landed from the pond has its page.'),
+      },
+      {
+        model: 'jungle-palm', x: 0.15, z: 9.9, label: 'bend',
         interact: tr('Un palmier qui penche au-dessus de l\'étang. Les carpes apprécient l\'ombre, Capucine un peu moins les feuilles mortes.', 'A palm leaning over the pond. The koi enjoy the shade; Capucine less so the dead leaves.'),
       },
-      { model: 'jungle-palm', x: 7.0, z: 9.3, label: 'fan' },
-      { model: 'jungle-palm', x: 1.15, z: 13.55, label: 'short' },
-      { model: 'jungle-palm', x: 6.95, z: 13.95, label: 'bend' },
+      { model: 'jungle-palm', x: 7.2, z: 9.9, label: 'fan' },
+      { model: 'jungle-palm', x: 2.0, z: 14.2, label: 'short' },
+      { model: 'jungle-palm', x: 7.1, z: 14.15, label: 'bend' },
       {
-        model: 'bamboo', x: 7.15, z: 12.3, rot: 3,
+        model: 'bamboo', x: 7.15, z: 12.75, rot: 3,
         interact: tr('Encore du bambou. Capucine jure qu\'elle n\'en a planté qu\'un pied, de l\'autre côté de la serre.', 'More bamboo. Capucine swears she only planted one, on the other side of the greenhouse.'),
       },
       {
         model: 'exobio-plant', x: 0.15, z: 12.5, label: 'anemone',
         interact: tr('Une anémone d\'exobiologie, rapportée d\'une lune sans nom. Elle se tourne vers ceux qui pêchent. Par curiosité, sans doute.', 'An exobiology anemone, brought back from a nameless moon. It turns towards whoever is fishing. Out of curiosity, no doubt.'),
       },
-      { model: 'exobio-plant', x: 4.3, z: 14.15, label: 'brain' },
-      { model: 'bush', x: 2.5, z: 14.1, label: 'large' },
-      { model: 'bush', x: 5.6, z: 14.1, label: 'triangle' },
+      { model: 'exobio-plant', x: 4.5, z: 14.2, label: 'brain' },
+      { model: 'bush', x: 2.9, z: 14.15, label: 'large' },
+      { model: 'bush', x: 5.5, z: 14.15, label: 'triangle' },
       { model: 'fern', x: 0.1, z: 10.9 },
-      { model: 'fern', x: 7.15, z: 11.3 },
-      { model: 'fern', x: 3.4, z: 14.15 },
-      { model: 'butterflies', x: 2.4, z: 12.4, label: '1.1', solid: false },
-      { model: 'butterflies', x: 5.2, z: 10.8, label: '1', solid: false },
-      { model: 'wildflowers', x: 0.5, z: 11.6, label: 'red', solid: false },
-      { model: 'wildflowers', x: 6.55, z: 13.2, label: 'purple', solid: false },
-      { model: 'wildflowers', x: 2.2, z: 9.35, label: 'yellow', solid: false },
-      { model: 'wildflowers', x: 5.3, z: 9.35, label: 'mixed', solid: false },
-      { model: 'grass-tuft', x: 1.0, z: 12.6, label: 'tall', solid: false },
-      { model: 'grass-tuft', x: 6.5, z: 9.9, label: 'leafs', solid: false },
-      { model: 'grass-tuft', x: 1.9, z: 13.75, label: 'wide', solid: false },
-      { model: 'grass-tuft', x: 6.35, z: 12.6, label: 'tall', solid: false },
-      { model: 'mushrooms', x: 1.5, z: 13.2, solid: false },
+      { model: 'fern', x: 3.7, z: 14.2 },
+      { model: 'butterflies', x: 2.4, z: 12.1, label: '1.1', solid: false },
+      { model: 'butterflies', x: 5.0, z: 10.6, label: '1', solid: false },
+      { model: 'wildflowers', x: 0.3, z: 11.7, label: 'red', solid: false },
+      { model: 'wildflowers', x: 7.1, z: 13.5, label: 'purple', solid: false },
+      { model: 'wildflowers', x: 2.2, z: 9.3, label: 'yellow', solid: false },
+      { model: 'wildflowers', x: 5.2, z: 9.3, label: 'mixed', solid: false },
+      { model: 'grass-tuft', x: 0.3, z: 13.0, label: 'tall', solid: false },
+      { model: 'grass-tuft', x: 7.1, z: 10.6, label: 'leafs', solid: false },
+      { model: 'grass-tuft', x: 6.3, z: 14.2, label: 'wide', solid: false },
+      { model: 'mushrooms', x: 1.3, z: 14.1, solid: false },
 
       // --- Studio Radio Dangereuse : trois animateurs autour de la table ronde, face à la vitre ---
       { model: 'studio-table', x: 17.45, z: 2.0 },
@@ -1788,7 +1796,7 @@ export const LEVELS: LevelDef[] = [
       [1.4, 4.2, '#fff1c4', 2.3],
       [4.6, 6.2, '#d8ffc8', 1.8],
       // Le jardin exotique : le reflet de l'étang, le soleil de la plage.
-      [3.7, 11.6, '#c4f2ff', 2.1],
+      [3.55, 11.35, '#c4f2ff', 2.1],
       [1.2, 13, '#ffe2a8', 1.7],
       [6.4, 9.6, '#fff1c4', 1.6],
       [17.4, 5.4, '#ffb36b', 1.9, 'fire'],

@@ -10,14 +10,18 @@ export const FISHING_LEVEL = 1
 /**
  * L'étang : son centre, sa largeur (x) et sa profondeur (z) hors tout, margelle comprise, le rayon
  * de ses coins et la largeur de la margelle. L'eau est à `water` du sol.
+ *
+ * Sa taille et sa place laissent une rangée de tuiles libre tout autour (x = 1 et 6, z = 9 et 13) :
+ * une tuile dont le centre est sous un meuble est fermée aux trajets (cf. Deck), et l'on doit
+ * pouvoir faire le tour de l'étang en cliquant. Le décor, lui, va contre les murs (x = 0 et 7, z = 14).
  */
-export const FISHING_POND = { x: 3.7, z: 11.6, w: 4.8, d: 3.4, corner: 1.2, rim: 0.2, water: 0.075 }
+export const FISHING_POND = { x: 3.55, z: 11.35, w: 4.6, d: 3, corner: 1.1, rim: 0.2, water: 0.075 }
 
 /** Le ponton, sur la rive nord : là où l'on se tient pour pêcher, face au sud (+z). */
-export const FISHING_DOCK = { x: 3.7, z: 9.45 }
+export const FISHING_DOCK = { x: 3.55, z: 9.42 }
 
 /** Là où l'on nourrit les carpes, sur la rive ouest (cf. src/greenhouse.ts et gardener.js). */
-export const FISHING_FEED = { x: 0.95, z: 11.6 }
+export const FISHING_FEED = { x: 0.95, z: 11.35 }
 
 /** On lance au moins à cette distance du bord de l'eau : le bouchon ne se pose pas sur la margelle. */
 const CAST_MARGIN = 0.22

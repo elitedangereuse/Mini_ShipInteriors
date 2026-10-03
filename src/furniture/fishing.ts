@@ -136,6 +136,9 @@ const fishingPond: Builder = ({ random }) => {
   return {
     solid: g,
     live,
+    // L'emprise de l'étang, sans le débord des pierres de la margelle : il fermait aux trajets la
+    // rangée de tuiles qui fait le tour de l'étang (cf. FISHING_POND).
+    extent: new THREE.Box3(new THREE.Vector3(-hw + 0.06, 0, -hd + 0.06), new THREE.Vector3(hw - 0.06, 0.3, hd - 0.06)),
     update(t) {
       const still = renderQuality.light
       for (const k of all) {
