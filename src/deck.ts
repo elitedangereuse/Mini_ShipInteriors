@@ -15,7 +15,9 @@ import { Pathfinder } from './pathfinding'
 import { roomCover } from './room-cover'
 import type { Doorway } from './physics'
 import { DOOR_GAP } from '../shared/sight.js'
-import { BAR_ROOM, CLUB_ROOM, shipMapOptions } from '../shared/ship-layouts.js'
+import { BAR_ROOM, CLUB_ROOM, mezzanineOf, shipMapOptions } from '../shared/ship-layouts.js'
+import { mezzanineHeight, mezzanineTile, type Mezzanine } from '../shared/mezzanine.js'
+import { BAY_BOTTOM, BAY_FRAME_TOP, BAY_TOP, bayFrame, buildMezzanine } from './mezzanine'
 import { placeSeats, seatAction, seatsOf, type SeatSpot } from './seats'
 import { ForceShield, type ShieldPane } from './shield'
 import { emptyPlan, HomeView } from './housing/home'
@@ -369,6 +371,13 @@ export class Deck {
   private readonly glass: { x: number; z: number; alongX: boolean; green?: boolean }[] = []
   /** Boucliers des hangars ouverts sur l'espace (cf. `shield` dans levels.ts). */
   private readonly shields: ForceShield[] = []
+  /**
+   * Mezzanine du pont (cf. shared/mezzanine.js) : un étage dans une pièce, ses escaliers ; ses
+   * garde-corps sont des murs du plan, que buildMezzanine dessine à sa façon.
+   */
+  readonly mezzanine: (Mezzanine & { room: string }) | null
+  /** Baies vitrées au-dessus des murs extérieurs de la mezzanine (milieu de l'arête). */
+  private readonly bays: { x: number; z: number; alongX: boolean }[] = []
 
   /** Appelé quand une porte s'ouvre ou se ferme (position monde). */
   onDoor?: (position: THREE.Vector3, open: boolean) => void
@@ -418,6 +427,7 @@ export class Deck {
   constructor(readonly def: LevelDef) {
     this.theme = themes[def.theme ?? 'station']
     this.map = new ShipMap(def.layout, def.zone?.map ?? def.mapOptions ?? (def.ground ? {} : shipMapOptions(def.id)))
+    this.mezzanine = def.zone || def.mapOptions || def.ground ? null : mezzanineOf(def.id)
     if (def.id === 0) for (const d of this.map.doors) {
       if (this.doorRoom(d.x, d.z, d.dir, 'l')) this.map.lock(d.x, d.z, d.dir)
     }
@@ -440,6 +450,7 @@ export class Deck {
     if (def.ground) this.addStatic(def.ground.skirt, false)
     this.buildWalls()
     this.buildProps()
+    this.buildMezzanine()
     if (def.id === 0) this.buildRoomCover('l', '#2a3648', '#5aa2f0')
     if (def.id === -1) {
       // Le sanctuaire de la Voie se cache : une plaque nue, noire.
@@ -454,7 +465,7 @@ export class Deck {
     this.buildCeiling()
 
     for (const [x, z, color, intensity, flicker, distance] of def.lights) {
-      this.lights.push({ position: new THREE.Vector3(x, this.y + 1.4, z), color: new THREE.Color(color), intensity, flicker, distance })
+      this.lights.push({ position: new THREE.Vector3(x, this.y + 1.4 + this.ground(x, z), z), color: new THREE.Color(color), intensity, flicker, distance })
     }
     this.pathfinder = new Pathfinder(this.map, this.blockedTiles, this.colliders)
     if (def.bubble) this.home = new HomeView(this)
@@ -464,8 +475,29 @@ export class Deck {
     this.home?.set(0, emptyPlan())
   }
 
+  /**
+   * Hauteur du sol en (x, z), au-dessus de celui du pont : le plancher de la mezzanine, ses
+   * escaliers ; 0 ailleurs.
+   */
+  ground(x: number, z: number): number {
+    return this.mezzanine ? mezzanineHeight(this.mezzanine, x, z) : 0
+  }
+
+  /** Tuile du plancher ou des escaliers de la mezzanine : on y est en hauteur. */
+  raised(x: number, z: number): boolean {
+    return !!this.mezzanine && !!mezzanineTile(this.mezzanine, x, z)
+  }
+
+  /** Hauteurs du sol au centre des tuiles, de la plus haute à la plus basse (0 compris) : pour viser une tuile au clic. */
+  groundLevels(): number[] {
+    const levels = new Set([0])
+    if (this.mezzanine) for (const t of this.mezzanine.tiles.values()) levels.add(this.ground(t.x, t.z))
+    return [...levels].sort((a, b) => b - a)
+  }
+
   roomName(x: number, z: number): string {
     const tx = Math.round(x), tz = Math.round(z)
+    if (this.mezzanine && this.def.mezzanine && this.mezzanine.tiles.get(`${tx},${tz}`)?.stair === -1) return this.def.mezzanine
     const area = this.def.areas?.find((a) => tx >= a.minX && tx <= a.maxX && tz >= a.minZ && tz <= a.maxZ && this.map.room(tx, tz))
     if (area) return area.name
     const r = this.map.room(Math.round(x), Math.round(z))
@@ -736,12 +768,13 @@ export class Deck {
     const postTop = zone ? new THREE.Box3().setFromObject(zone.kit.post(0, 0)).max.y : POST_H
     const material = zone ? new THREE.MeshLambertMaterial({ color: '#1b2120' }) : this.theme.shell
     // Au-dessus des verrières et des cloisons vitrées, du verre jusqu'au plafond.
-    const glazed = new Set(this.glass.map((g) => `${g.x},${g.z}`))
+    const glazed = new Set([...this.glass, ...this.bays].map((g) => `${g.x},${g.z}`))
     const solid = this.walls.filter((w) => !glazed.has(`${w.x},${w.z}`))
     this.ceilingOccluders = upperWalls(merge, solid, this.posts, zone ? ZONE_WALL_TOP : 1, postTop, this.ceilingY, material, !zone)
     const [clear, greens] = [this.glass.filter((g) => !g.green), this.glass.filter((g) => g.green)]
     if (clear.length) this.ceiling.add(canopyGlass(clear, POST_H - 0.02, this.ceilingY))
     if (greens.length) this.ceiling.add(canopyGlass(greens, POST_H - 0.02, this.ceilingY, GREENHOUSE_GLASS))
+    if (this.bays.length) this.ceiling.add(canopyGlass(this.bays, BAY_FRAME_TOP, this.ceilingY))
     this.ceilingFades = fadeBuffer(merge.fadingCount)
     // Pas d'ombres : le soleil éclaire les pièces comme en vue isométrique.
     for (const m of merge.flush(this.ceiling, this.ceilingFades.texture)) m.castShadow = false
@@ -778,6 +811,8 @@ export class Deck {
           const key = this.map.edgeKey(x, z, dir)
           if (built.has(key)) continue
           built.add(key)
+          // Garde-corps de la mezzanine : ni mur ni collision de mur (cf. buildMezzanine).
+          if (this.mezzanine && this.map.walls.has(key)) continue
 
           const d = DIRS[dir]
           const cx = x + d.dx * 0.5
@@ -802,7 +837,14 @@ export class Deck {
           const glazed = !!other && this.def.glazed?.some((pair) => pair.includes(room) && pair.includes(other))
           // Une serre : tous ses murs extérieurs sont vitrés, et ses cloisons vitrées ont le même cadre.
           const green = !!this.def.greenhouse?.includes(room) || (!!other && !!this.def.greenhouse?.includes(other))
-          if (exterior && this.def.shield?.[room]?.includes(dir)) {
+          if (exterior && this.mezzanine?.tiles.get(`${x},${z}`)?.stair === -1) {
+            // Mur extérieur de la mezzanine : plein (son plancher le couvre presque), et au-dessus,
+            // une grande baie vitrée sur l'espace.
+            this.addFading(this.place('wall', cx, 0, cz, alongX ? 0 : Math.PI / 2), new THREE.Vector3(cx, 0.5, cz))
+            this.addFading(bayFrame(cx, cz, alongX, this.theme.shell), new THREE.Vector3(cx, 0.5, cz))
+            this.bays.push({ x: cx, z: cz, alongX })
+            this.walls.push({ x: cx, z: cz, alongX, model: 'wall-window' })
+          } else if (exterior && this.def.shield?.[room]?.includes(dir)) {
             // Hangar ouvert sur l'espace : pas de mur, le champ de force (sa collision reste celle d'un mur).
             const key = `${room}:${dir}`
             shieldPanes.set(key, [...(shieldPanes.get(key) ?? []), { x: cx, z: cz, alongX }])
@@ -853,6 +895,7 @@ export class Deck {
     const [clear, greens] = [this.glass.filter((g) => !g.green), this.glass.filter((g) => g.green)]
     if (clear.length) this.group.add(canopyGlass(clear))
     if (greens.length) this.group.add(canopyGlass(greens, GREENHOUSE_SILL, GREENHOUSE_TOP, GREENHOUSE_GLASS))
+    if (this.bays.length) this.group.add(canopyGlass(this.bays, BAY_BOTTOM, BAY_TOP))
     for (const [key, panes] of shieldPanes) {
       const d = DIRS[Number(key.split(':')[1])]
       const shield = new ForceShield(panes, (d.dx + d.dz) as 1 | -1)
@@ -1022,13 +1065,16 @@ export class Deck {
     const box = new THREE.Box3()
     for (const p of this.def.props) {
       const rotY = ((p.rot ?? 0) * Math.PI) / 2
+      // Sur la mezzanine, le meuble est posé sur son plancher.
+      const lift = this.ground(p.x, p.z)
+      const y = (p.y ?? 0) + lift
       let o: THREE.Object3D
       let control: FurnitureControl | undefined
       let extent: THREE.Box3 | undefined
       if (p.model === 'prebuilt') {
         if (!p.object) continue
         o = p.object
-        o.position.set(p.x, p.y ?? 0, p.z)
+        o.position.set(p.x, y, p.z)
         o.rotation.y = rotY
         o.updateMatrixWorld(true)
       } else if (isCustomModel(p.model)) {
@@ -1037,21 +1083,21 @@ export class Deck {
         control = f.control
         extent = f.extent
         if (f.live) {
-          f.live.position.set(p.x, p.y ?? 0, p.z)
+          f.live.position.set(p.x, y, p.z)
           f.live.rotation.y = rotY
           this.group.add(f.live)
           if (this.def.id === -1 && this.map.room(Math.round(p.x), Math.round(p.z)) === CLUB_ROOM) this.clubLive.push(f.live)
         }
         if (f.update) this.animated.push({ update: f.update, interactive: !!f.control })
-        if (f.emitter) this.addEmitter(f.emitter, new THREE.Vector3(p.x, this.y + 0.6, p.z))
+        if (f.emitter) this.addEmitter(f.emitter, new THREE.Vector3(p.x, this.y + y + 0.6, p.z))
         // Hologramme pur : ni collision, ni interaction.
         if (!f.solid) continue
         o = f.solid
-        o.position.set(p.x, p.y ?? 0, p.z)
+        o.position.set(p.x, y, p.z)
         o.rotation.y = rotY
         o.updateMatrixWorld(true)
       } else {
-        o = this.place(p.model, p.x, p.y ?? 0, p.z, rotY, this.theme.furniture)
+        o = this.place(p.model, p.x, y, p.z, rotY, this.theme.furniture)
       }
       box.setFromObject(o)
       if (extent) box.copy(extent).applyMatrix4(o.matrixWorld)
@@ -1072,7 +1118,7 @@ export class Deck {
 
       // Tout le mobilier est fusionné avec le pont (les grands meubles restent tramables un par un) ;
       // un meuble interactif se clique grâce à un volume invisible.
-      if (box.max.y > 0.6) this.addFading(o, center)
+      if (box.max.y - lift > 0.6) this.addFading(o, center)
       else this.addStatic(o, true)
 
       const seats = p.seats === false ? undefined : seatsOf(p.model, p.label)
@@ -1088,6 +1134,25 @@ export class Deck {
         this.addEmitter('beep', new THREE.Vector3(center.x, this.y + 0.6, center.z))
       }
     }
+  }
+
+  /** Mezzanine du pont (cf. src/mezzanine.ts) : plancher, façade, escaliers, garde-corps. */
+  private buildMezzanine() {
+    if (!this.mezzanine) return
+    // Les garde-corps : les murs du plan autour de ses tuiles (cf. shipMapOptions), chacun une fois.
+    const rails = new Map<string, { x: number; z: number; dir: number }>()
+    for (const t of this.mezzanine.tiles.values()) {
+      for (let dir = 0; dir < 4; dir++) {
+        const key = this.map.edgeKey(t.x, t.z, dir)
+        if (this.map.walls.has(key) && !rails.has(key)) rails.set(key, { x: t.x, z: t.z, dir })
+      }
+    }
+    const floor = (x: number, y: number, z: number) => this.place(hash(x, z) % 9 === 0 ? 'floor-detail' : 'floor', x, y, z)
+    const parts = buildMezzanine(this.mezzanine, [...rails.values()], this.theme.shell, floor)
+    for (const o of parts.statics) this.addStatic(o, true)
+    for (const f of parts.fading) this.addFading(f.object, f.center)
+    if (parts.glass) this.group.add(parts.glass)
+    this.colliders.push(...parts.colliders)
   }
 
   /**

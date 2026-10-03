@@ -87,6 +87,8 @@ export interface LevelDef {
    * Promenade, qui s'ouvre sur la coursive sans mur, n'est pas « la coursive ».
    */
   areas?: { name: string; minX: number; maxX: number; minZ: number; maxZ: number }[]
+  /** Nom de l'étage de la mezzanine du pont (cf. MEZZANINES dans shared/ship-layouts.js). */
+  mezzanine?: string
   /** Cloisons sans pilier (milieu de l'arête) : là où un meuble s'adosse au mur. */
   plainWalls?: { x: number; z: number }[]
   /** Verrières : par pièce, les côtés (0 nord, 1 est, 2 sud, 3 ouest) dont les murs extérieurs sont vitrés. */
@@ -853,9 +855,12 @@ export const LEVELS: LevelDef[] = [
       l: tr('Accès réservé aux membres du L.J.P.C. Terminez l’aventure « Connais ton ennemi » pour entrer.', 'Access reserved for L.J.P.C. members. Complete the “Know Your Enemy” adventure to enter.'),
     },
     areas: [{ name: tr('Promenade', 'Promenade deck'), minX: 26, maxX: 30, minZ: 0, maxZ: 9 }],
+    // L'étage de la salle commune (cf. MEZZANINES).
+    mezzanine: tr('Mezzanine de la salle commune', 'Common room mezzanine'),
     floors: { c: 'floor-panel', b: 'floor-detail', l: 'floor-panel' },
-    // Le poste de pilotage et la Promenade sont vitrés sur l'espace.
-    canopy: { b: [0, 1, 2], c: [0, 1, 2] },
+    // Le poste de pilotage et la Promenade sont vitrés sur l'espace ; le hall de la salle commune
+    // aussi, au nord et au sud (la mezzanine, à la poupe, a ses grandes baies).
+    canopy: { b: [0, 1, 2], c: [0, 1, 2], e: [0, 2] },
     // Le poste de pilotage et la salle commune s'ouvrent sur la coursive par une porte double,
     // sur ses deux tuiles.
     doubleDoors: [{ x: 31, z: 4, dir: 1 }, { x: 8, z: 4, dir: 1 }],
@@ -911,43 +916,56 @@ export const LEVELS: LevelDef[] = [
       { model: 'computer-screen', x: 33, z: 8, rot: 2, interact: tr('Journal de bord : « Jour 1 : on a agrandi le poste de pilotage. Jour 2 : on cherche encore le café. »', 'Ship\'s log: “Day 1: we enlarged the cockpit. Day 2: still looking for the coffee.”') },
       { model: 'plant-tall', x: 32.1, z: 7.25 },
 
-      // --- Salle commune, à la poupe : les deux comptoirs côte à côte au nord, le jukebox dans l'angle,
-      // un grand salon de canapés au milieu, un coin lecture au sud, des plantes partout ---
-      { model: 'reward-counter', x: 3.7, z: 0.35, label: 'weekly', interact: tr('Officier de liaison · Weekly', 'Liaison officer · Weekly'), action: tr('Récupérer les crédits', 'Collect credits') },
-      { model: 'reward-counter', x: 5.3, z: 0.35, label: 'hunt', interact: tr('Scientifique du LJPC · Chasse galactique', 'LJPC scientist · Galactic Hunt'), action: tr('Récupérer les crédits', 'Collect credits') },
-      // Le tableau d'honneur de l'équipage, à droite des comptoirs : employés du mois, classements du site.
-      { model: 'employee-board', x: 6.85, z: -0.35, solid: false, interact: tr('Tableau d’honneur', 'Hall of honour'), action: tr('Consulter les classements', 'View rankings') },
-      // Le jukebox de la salle commune : tout le pont l'entend (cf. src/music.ts).
-      { model: 'jukebox', x: 1, z: 0.82, action: tr('Choisir un morceau', 'Pick a song'), music: true },
-      { model: 'plant-tall', x: 7.9, z: 1.05 },
-      { model: 'monstera', x: 0.05, z: 2.15 },
-      { model: 'rug', x: 4, z: 5.3, label: 'warm:4.4x3.2', solid: false },
+      // --- Salle commune, à la poupe : le hall du vaisseau, comme le concourse d'une station
+      // Coriolis. Au milieu, l'îlot du hall (banquette ronde, plantes, la galaxie en hologramme) ;
+      // au nord et au sud, face à face, les comptoirs de l'officier de liaison et de la
+      // scientifique du LJPC ; dans l'axe des portes, la façade de la mezzanine, son tableau
+      // d'honneur, et ses deux volées d'escalier. À l'étage, sous les grandes baies : le jukebox,
+      // deux salons qui donnent sur le hall, des plantes (cf. MEZZANINES). ---
       {
-        model: 'sofa', x: 4, z: 6.75, rot: 2, label: 'teal',
-        interact: tr('Canapé de la salle commune : on s\'y retrouve entre deux missions, et on refait la galaxie.', 'Common room sofa: where the crew meets between missions to put the galaxy to rights.'),
+        model: 'concourse-planter', x: 5.75, z: 4.5,
+        interact: tr(
+          'L\'îlot du hall : des fougères, des buissons fleuris, et au-dessus des têtes, la galaxie qui tourne. Quelqu\'un a collé une gommette « vous êtes ici » à 22 000 al de Colonia.',
+          'The hall island: ferns, flowering shrubs, and above everyone\'s heads, the turning galaxy. Someone has stuck a “you are here” sticker 22,000 ly from Colonia.',
+        ),
       },
-      { model: 'sofa', x: 2.05, z: 5.3, rot: 1, label: 'terracotta' },
-      { model: 'sofa', x: 5.95, z: 5.3, rot: 3, label: 'mustard' },
-      { model: 'coffee-table', x: 4, z: 5.3 },
-      { model: 'floor-lamp', x: 2.05, z: 6.6 },
-      { model: 'plant', x: 5.95, z: 6.55 },
-      { model: 'bookshelf', x: -0.2, z: 4.6, rot: 1, interact: tr('Bibliothèque commune : guides de minage, romans de Drew Wagar, et un manuel du Cobra annoté au crayon.', 'Shared bookshelf: mining guides, Drew Wagar novels, and a Cobra manual annotated in pencil.') },
-      { model: 'plant-tall', x: 0.05, z: 7.1 },
-      // Coin lecture, au sud : deux fauteuils tournés vers le salon.
-      { model: 'rug-round', x: 4.5, z: 8.6, solid: false },
-      { model: 'armchair', x: 3.7, z: 9, rot: 2, label: 'sage' },
-      { model: 'armchair', x: 5.3, z: 9, rot: 2, label: 'plum' },
-      { model: 'side-table', x: 4.5, z: 9.1 },
-      { model: 'books', x: 4.5, z: 9.1, y: 0.3125, solid: false },
-      { model: 'plant-tall', x: 1.3, z: 8.25 },
-      // À l'est, près de la porte : un petit coin de poufs autour d'un canapé.
-      { model: 'rug', x: 7.1, z: 7, label: 'blue:2.4x2', solid: false },
-      { model: 'sofa', x: 8.05, z: 7, rot: 3, label: 'navy' },
-      { model: 'beanbag', x: 6.55, z: 6.5, label: 'rose' },
-      { model: 'beanbag', x: 6.55, z: 7.5, label: 'teal' },
-      { model: 'monstera', x: 7.9, z: 8.35 },
-      { model: 'plant-tall', x: 7.9, z: 2.6 },
-      { model: 'plant', x: 2.2, z: 1.1 },
+      { model: 'reward-counter', x: 5.9, z: 0.35, label: 'weekly', interact: tr('Officier de liaison · Weekly', 'Liaison officer · Weekly'), action: tr('Récupérer les crédits', 'Collect credits') },
+      { model: 'reward-counter', x: 5.9, z: 8.65, rot: 2, label: 'hunt', interact: tr('Scientifique du LJPC · Chasse galactique', 'LJPC scientist · Galactic Hunt'), action: tr('Récupérer les crédits', 'Collect credits') },
+      // Le tableau d'honneur de l'équipage, sur la façade de la mezzanine, face aux portes.
+      { model: 'employee-board', x: 2.57, z: 4.5, y: -0.53, rot: 1, solid: false, interact: tr('Tableau d’honneur', 'Hall of honour'), action: tr('Consulter les classements', 'View rankings') },
+      // Deux canapés tournés vers l'îlot, adossés aux escaliers.
+      {
+        model: 'sofa', x: 4.17, z: 1.95, rot: 1, label: 'teal',
+        interact: tr('Canapé du hall : on s\'y retrouve entre deux missions, et on refait la galaxie.', 'Hall sofa: where the crew meets between missions to put the galaxy to rights.'),
+      },
+      { model: 'sofa', x: 4.17, z: 7.05, rot: 1, label: 'terracotta' },
+      // Des plantes partout : aux coins, de part et d'autre des portes.
+      { model: 'monstera', x: 4.1, z: 0.05 },
+      { model: 'plant-tall', x: 7.3, z: 1.05 },
+      { model: 'plant-tall', x: 8.05, z: 2.85 },
+      { model: 'plant-tall', x: 8.05, z: 6.75 },
+      { model: 'plant-tall', x: 7.95, z: 7.95 },
+      { model: 'monstera', x: 4.1, z: 8.95 },
+      { model: 'plant', x: 7.1, z: 0.0 },
+      { model: 'plant', x: 7.1, z: 9.0 },
+
+      // À l'étage : le jukebox au milieu des baies (tout le pont l'entend, cf. src/music.ts), deux
+      // salons de part et d'autre, tournés vers le hall, et des plantes aux paliers.
+      { model: 'jukebox', x: -0.17, z: 4.5, rot: 1, action: tr('Choisir un morceau', 'Pick a song'), music: true },
+      { model: 'rug-round', x: 1.05, z: 4.5, solid: false },
+      { model: 'plant-tall', x: -0.08, z: 3.62 },
+      { model: 'plant-tall', x: -0.08, z: 5.38 },
+      { model: 'sofa', x: 0.0, z: 2.35, rot: 1, label: 'mustard', interact: tr('Le salon de la mezzanine : d\'ici, on voit tout le hall, et derrière soi, toute la galaxie.', 'The mezzanine lounge: from here you can see the whole hall, and behind you, the whole galaxy.') },
+      { model: 'coffee-table', x: 1.3, z: 2.35, rot: 1 },
+      { model: 'sofa', x: 0.0, z: 6.65, rot: 1, label: 'navy' },
+      { model: 'coffee-table', x: 1.3, z: 6.65, rot: 1 },
+      { model: 'bookshelf', x: 2.0, z: -0.2, interact: tr('Bibliothèque commune : guides de minage, romans de Drew Wagar, et un manuel du Cobra annoté au crayon.', 'Shared bookshelf: mining guides, Drew Wagar novels, and a Cobra manual annotated in pencil.') },
+      { model: 'monstera', x: 1.1, z: 1.1 },
+      { model: 'floor-lamp', x: 0.05, z: 1.55 },
+      { model: 'monstera', x: 1.1, z: 7.9 },
+      { model: 'floor-lamp', x: 0.05, z: 7.45 },
+      { model: 'beanbag', x: 2.1, z: 8.95, label: 'rose' },
+      { model: 'beanbag', x: 2.95, z: 9.05, label: 'teal' },
 
       // --- Infirmerie : le domaine de Betty (cf. src/nurse.ts). Trois lits en box le long du mur
       // nord (on s'y allonge, et Betty vient en consultation, cf. src/infirmary.ts), le scanner, le
@@ -1248,9 +1266,14 @@ export const LEVELS: LevelDef[] = [
       { model: 'telescope', x: 26.15, z: 6.4, rot: 3 },
     ],
     lights: [
-      [4, 5, '#ffd9a8', 3],
-      [4.5, 1.4, '#fff1dd', 2.4],
-      [4.5, 8.5, '#ffc98a', 2],
+      // La salle commune : l'îlot du hall, les deux comptoirs, les salons de la mezzanine et le
+      // jukebox (cf. Deck : à l'étage, les lampes montent avec le plancher).
+      [5.75, 4.5, '#fff1dd', 3],
+      [5.9, 1.5, '#d6ecff', 1.8],
+      [5.9, 7.5, '#bff7ec', 1.8],
+      [0.7, 2.4, '#ffd9a8', 1.8],
+      [0.7, 6.6, '#ffd9a8', 1.8],
+      [0.5, 4.5, '#ff7ad9', 1.4, 'neon'],
       [34.5, 4.5, '#ffa04a', 3.4],
       [37.2, 4.5, '#9fd8ff', 2.4],
       // L'infirmerie : lumière clinique sur les lits, et la lampe rosée du poste de Betty.

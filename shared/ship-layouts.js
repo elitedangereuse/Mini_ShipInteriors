@@ -4,6 +4,8 @@
 
 import { wingDoors } from './cabin-wings.js'
 import { PLOT_DOOR } from './housing-plot.js'
+import { mezzanineRails, parseMezzanine } from './mezzanine.js'
+import { ShipMap } from './ship-map.js'
 
 export const SHIP_LAYOUTS = {
   // Cale ; à la poupe, la salle des machines, derrière l'atelier, et cachée derrière elle, le
@@ -31,7 +33,8 @@ export const SHIP_LAYOUTS = {
     '         bbbbbbbbbb                     ',
     '                                        ',
   ],
-  // Pont principal. À la poupe, la salle commune ; la coursive file vers le poste de pilotage et ses
+  // Pont principal. À la poupe, la salle commune, le hall du vaisseau, avec sa mezzanine (cf.
+  // MEZZANINES) ; la coursive file vers le poste de pilotage et ses
   // verrières, à la proue, et s'ouvre juste avant sur la Promenade, un atrium vitré autour de la
   // maquette du Cobra. Au nord, le labo du LJPC ; au sud, la grande salle d'arcade (deux portes) et
   // le mess, un self dont la cuisine occupe le fond. Au nord, contre la salle commune, l'infirmerie
@@ -140,13 +143,56 @@ export const isAlienLook = (skin) => typeof skin === 'string' && skin.startsWith
 export const PLANETARIUM_ROOM = 'p'
 
 /**
+ * Mezzanines des ponts (cf. shared/mezzanine.js) : un étage dans une pièce, par pont.
+ * Au pont principal, celle de la salle commune : à la poupe, sous les grandes baies vitrées,
+ * trois tuiles de profondeur. On y monte par deux volées qui partent du pied de sa façade, dans
+ * l'axe des portes du hall, et débouchent chacune sur un palier, au nord et au sud.
+ */
+export const MEZZANINES = {
+  '0': {
+    room: 'e',
+    height: 0.8,
+    plan: [
+      '  MM',
+      ' MMM',
+      'MMM^',
+      'MMM^',
+      'MMM ',
+      'MMM ',
+      'MMMv',
+      'MMMv',
+      ' MMM',
+      '  MM',
+    ],
+  },
+}
+
+/** Mezzanine du pont `level` (lue une fois), ou null. */
+const parsed = new Map()
+export function mezzanineOf(level) {
+  const id = String(level)
+  if (!MEZZANINES[id]) return null
+  if (!parsed.has(id)) parsed.set(id, { ...MEZZANINES[id], ...parseMezzanine(MEZZANINES[id]) })
+  return parsed.get(id)
+}
+
+/** Garde-corps de la mezzanine d'un pont : des murs à l'intérieur de sa pièce (cf. ShipMap). */
+function mezzanineWalls(level) {
+  const mezz = mezzanineOf(level)
+  if (!mezz) return []
+  const map = new ShipMap(SHIP_LAYOUTS[String(level)])
+  return mezzanineRails(mezz, (x, z) => map.room(x, z) === mezz.room)
+}
+
+/**
  * Plan d'un pont : portes des pièces en travaux verrouillées ; dans la cale, celle du poste de
- * sécurité ; au pont des quartiers, la porte du palier vers la parcelle (cf. applyPlot).
+ * sécurité ; au pont des quartiers, la porte du palier vers la parcelle (cf. applyPlot) ; au
+ * pont principal, les garde-corps de la mezzanine.
  */
 export function shipMapOptions(level) {
   const id = String(level)
   const doors = id === '-1' ? [SECURITY_DOOR] : id === '2' ? [PLOT_DOOR] : []
-  return { closed: CLOSED_ROOMS[level] ?? '', doors }
+  return { closed: CLOSED_ROOMS[level] ?? '', doors, walls: mezzanineWalls(id) }
 }
 
 /**
