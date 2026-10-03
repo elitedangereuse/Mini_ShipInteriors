@@ -3873,3 +3873,38 @@ body.planet {
     radial-gradient(ellipse 60% 45% at 78% 12%, rgba(255, 196, 140, 0.55) 0%, rgba(255, 150, 96, 0.18) 45%, transparent 75%),
     linear-gradient(180deg, #3b1a2a 0%, #7a3530 38%, #b5593c 70%, #d98a5c 100%);
 }
+
+/* Séance du planétarium (cf. src/planetarium.ts) : vignette, bandes de cinéma, et la fenêtre de
+   dialogue de Bugenhagen, bleue à liseré clair, clin d'œil au jeu d'origine. */
+.planetarium-show {
+  position: fixed; inset: 0; z-index: 45; pointer-events: none; opacity: 0; transition: opacity 1.4s ease;
+  background: radial-gradient(ellipse at center, #0000 42%, #02030ccc 100%);
+}
+.planetarium-show.on { opacity: 1; }
+.planetarium-show::before, .planetarium-show::after {
+  content: ''; position: absolute; left: 0; right: 0; height: 7vh; background: #000;
+  transform: scaleY(0); transition: transform 1.4s ease;
+}
+.planetarium-show::before { top: 0; transform-origin: top; }
+.planetarium-show::after { bottom: 0; transform-origin: bottom; }
+.planetarium-show.on::before, .planetarium-show.on::after { transform: scaleY(1); }
+.planetarium-box {
+  position: absolute; left: 50%; bottom: calc(7vh + 18px); transform: translateX(-50%);
+  width: min(620px, calc(100vw - 32px)); box-sizing: border-box; padding: 12px 34px 14px 18px;
+  border: 2px solid #dfe6ff; border-radius: 8px; color: #fff; cursor: pointer; pointer-events: auto;
+  background: linear-gradient(160deg, #2038c8f2, #0a0f66f2 60%, #050736f2);
+  box-shadow: 0 0 0 2px #14163c, 0 12px 40px #000a;
+  font: 14px/1.55 ui-monospace, 'SF Mono', Menlo, monospace; text-shadow: 1px 1px 0 #000a;
+}
+.planetarium-box[hidden] { display: none; }
+.planetarium-name { display: block; margin-bottom: 4px; color: #8fe8ff; letter-spacing: 0.06em; }
+.planetarium-text { margin: 0; min-height: 3.1em; }
+.planetarium-more { position: absolute; right: 12px; bottom: 8px; font-size: 11px; animation: planetarium-more 0.9s ease-in-out infinite; }
+.planetarium-more[hidden] { display: none; }
+@keyframes planetarium-more { 50% { transform: translateY(3px); } }
+@media (max-width: 900px) {
+  .planetarium-box { bottom: calc(7vh + 64px); padding: 9px 28px 10px 12px; font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .planetarium-more { animation: none; }
+}

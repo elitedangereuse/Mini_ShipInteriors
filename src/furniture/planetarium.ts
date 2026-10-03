@@ -13,6 +13,13 @@ import { beamMaterial, box, cylinder, decal, drawnTexture, glow, keepShared, lit
  * Seul Bugenhagen garde ses facettes de la PS1.
  */
 
+/**
+ * La séance du planétarium (cf. src/planetarium.ts), que suivent le projecteur, l'hologramme et
+ * Bugenhagen : `level` va de 0 (repos) à 1 (nuit tombée, le ciel tourne) ; `star`, de 0 à 1,
+ * allume l'étoile que désigne Bugenhagen.
+ */
+export const planetariumShow = { level: 0, star: 0 }
+
 const C = {
   wood: '#5a3b22',
   woodDark: '#3a2516',
@@ -302,9 +309,13 @@ const planetariumProjector: Builder = () => {
     solid: g,
     live,
     update(t) {
-      lens.rotation.y = t * 0.6
-      flare.material.opacity = 0.55 + 0.15 * Math.sin(t * 2.3)
+      // En séance, la lentille s'emballe et le faisceau s'intensifie.
+      const k = planetariumShow.level
+      lens.rotation.y = t * (0.6 + k * 3)
+      flare.material.opacity = Math.min(1, 0.55 + 0.15 * Math.sin(t * 2.3) + k * 0.3)
+      flare.scale.setScalar(0.42 + k * 0.3)
       beamMat.uniforms.uTime.value = t
+      beamMat.uniforms.uIntensity.value = 0.35 + k * 0.5
     },
   }
 }
@@ -360,7 +371,8 @@ const planetariumSky: Builder = ({ random }) => {
     colors.set([tint.r, tint.g, tint.b], i * 3)
     sizes[i] = 0.022 + random() * random() * 0.05
   }
-  live.add(pointCloud(positions, colors, sizes))
+  const cloud = pointCloud(positions, colors, sizes)
+  live.add(cloud)
 
   // Le système, sur son plan à peine incliné.
   const system = new THREE.Group()
@@ -427,19 +439,62 @@ const planetariumSky: Builder = ({ random }) => {
   add(planet(0.055, planetTexture(random, rocky('#4a3424', '#b08a62')), 0.1), 6, 0.065, 0.7)
   bodies[bodies.length - 1].phase = bodies[bodies.length - 2].phase + 0.42
 
+  // La séance : des étoiles filantes sous la coupole, et l'étoile que désigne Bugenhagen, au
+  // nord-ouest, derrière lui.
+  const up = new THREE.Vector3(0, 1, 0)
+  const meteors = [0, 1, 2, 3].map((i) => {
+    const theta = random() * Math.PI * 2
+    const from = at(0.95 + random() * 0.3, theta), to = at(0.2 + random() * 0.25, theta + 0.9 + random() * 0.8)
+    const material = new THREE.MeshBasicMaterial({ color: '#dff0ff', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })
+    const streak = part(new THREE.CylinderGeometry(0.012, 0.002, 0.6, 5), material)
+    streak.quaternion.setFromUnitVectors(up, to.clone().sub(from).normalize())
+    streak.visible = false
+    live.add(streak)
+    return { streak, material, from, to, period: 2.6 + i * 0.9, offset: random() * 3 }
+  })
+  const guide = halo('#ffe9a8', 0.5, 0)
+  guide.position.copy(at(0.7, -Math.PI * 0.75)).multiplyScalar(0.97)
+  live.add(guide)
+
+  // Le temps de l'hologramme : il s'emballe pendant la séance, et tout le ciel se met à tourner.
+  let last = -1, clock = random() * 100, turn = 0, show = 0
   return {
     live,
     update(t) {
-      grid.rotation.y = t * 0.02
+      const dt = last < 0 ? 0 : Math.min(0.1, Math.max(0, t - last))
+      last = t
+      const k = planetariumShow.level
+      clock += dt * (1 + k * 7)
+      turn += dt * k * 0.3
+      show = k > 0 ? show + dt : 0
+      grid.rotation.y = clock * 0.02 + turn
+      cloud.rotation.y = -turn * 0.6
+      gridMat.opacity = 0.12 + k * 0.3
+      ringMat.opacity = 0.42 + k * 0.45
+      // Le système se soulève, se penche et grandit un peu : on le voit mieux de sa place.
+      system.position.y = SKY_Y + k * 0.25
+      system.rotation.set(0.09 + k * 0.14, turn * 0.15, -0.05)
+      system.scale.setScalar(1 + k * 0.1)
       for (const b of bodies) {
-        const a = b.phase + t * b.speed
+        const a = b.phase + clock * b.speed
         b.object.position.set(Math.cos(a) * b.radius, 0, -Math.sin(a) * b.radius)
-        b.spinner.rotation.y = t * b.spin
+        b.spinner.rotation.y = clock * b.spin
       }
-      moon.position.set(Math.cos(t * 1.4) * 0.15, 0.02, -Math.sin(t * 1.4) * 0.15)
+      moon.position.set(Math.cos(clock * 1.4) * 0.15, 0.02, -Math.sin(clock * 1.4) * 0.15)
       sun.rotation.y = t * 0.3
       const pulse = 1 + 0.06 * Math.sin(t * 1.7) + 0.03 * Math.sin(t * 4.1)
-      corona.scale.setScalar(0.8 * pulse)
+      corona.scale.setScalar((0.8 + k * 0.5) * pulse)
+      for (const m of meteors) {
+        const u = ((show + m.offset) % m.period) / 0.8
+        m.streak.visible = k > 0.6 && u < 1
+        if (!m.streak.visible) continue
+        m.streak.position.lerpVectors(m.from, m.to, u)
+        m.material.opacity = Math.sin(u * Math.PI) * 0.9
+      }
+      const star = planetariumShow.star
+      guide.visible = star > 0.01
+      guide.material.opacity = star
+      guide.scale.setScalar((0.3 + star * 0.35) * (1 + 0.12 * Math.sin(t * 5)))
     },
   }
 }
@@ -550,11 +605,13 @@ const bugenhagen: Builder = ({ random }) => {
       // Un rire toutes les 11 s environ : les épaules sautillent, la tête part en arrière.
       const u = (t + phase) % 11
       const laugh = u < 1.4 ? Math.sin((u / 1.4) * Math.PI) : 0
-      body.position.y = 0.075 + Math.sin(t * 1.1 + phase) * 0.025 + laugh * Math.abs(Math.sin(t * 16)) * 0.018
-      body.rotation.y = Math.PI / 4 + Math.sin(t * 0.27 + phase) * 0.35
+      // En séance, il s'élève parmi les planètes et cesse de regarder autour de lui : il fait face à la salle.
+      const k = planetariumShow.level
+      body.position.y = 0.075 + k * 0.4 + Math.sin(t * 1.1 + phase) * 0.025 + laugh * Math.abs(Math.sin(t * 16)) * 0.018
+      body.rotation.y = Math.PI / 4 + Math.sin(t * 0.27 + phase) * 0.35 * (1 - k)
       head.rotation.x = -0.12 - laugh * 0.22 + Math.sin(t * 0.4 + phase) * 0.05
       beard.rotation.x = laugh * 0.15
-      auraMat.opacity = 0.18 + 0.1 * Math.sin(t * 1.1 + phase)
+      auraMat.opacity = 0.18 + k * 0.25 + 0.1 * Math.sin(t * 1.1 + phase)
       aura.scale.setScalar(1 - Math.sin(t * 1.1 + phase) * 0.12)
     },
   }

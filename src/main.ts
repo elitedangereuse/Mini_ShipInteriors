@@ -78,8 +78,9 @@ import { Traffic, type HullSides } from './traffic'
 import { nextSystem, JUMP_CHARGE, JUMP_TRAVEL, type SystemId } from '../shared/systems.js'
 import { syncTempo, tempo } from './tempo'
 import { ClubCrowd, ClubMusic, clubProximity } from './club'
-import { BAR_ROOM, CLUB_ROOM, isAlienLook } from '../shared/ship-layouts.js'
+import { BAR_ROOM, CLUB_ROOM, PLANETARIUM_ROOM, isAlienLook } from '../shared/ship-layouts.js'
 import { ToiletFlushes } from './toilet-flush'
+import { PlanetariumShow } from './planetarium'
 import { Vents } from './vents'
 import { BAR_DROP, VENT_DROP } from '../shared/vents.js'
 import { SalvageClient } from './salvage/client'
@@ -422,6 +423,20 @@ const cinemaRoom = new CinemaRoom({
 })
 const cinemaScreenProp = deckById(1).def.props.find((p) => p.model === 'cinema-screen')!
 const cinemaFocus = new THREE.Vector3()
+/** Séance du planétarium : la vue recule sur la pièce, centrée sur le projecteur, puis revient. */
+const planetariumProp = deckById(1).def.props.find((p) => p.model === 'planetarium-projector')!
+const planetariumFocus = new THREE.Vector3(planetariumProp.x, deckById(1).y, planetariumProp.z)
+let planetariumZoom: number | null = null
+const planetarium = new PlanetariumShow({
+  enter: () => {
+    planetariumZoom = iso.zoomLevel
+    iso.zoomTo(Math.max(planetariumZoom, 4.3))
+  },
+  leave: () => {
+    if (planetariumZoom !== null) iso.zoomTo(planetariumZoom)
+    planetariumZoom = null
+  },
+})
 const spawn = resumed ?? spawnPoint()
 player.position.set(spawn.x, deck.y, spawn.z)
 if (resumed) {
@@ -630,6 +645,8 @@ const lightsFrom = new THREE.Vector3(Infinity, 0, 0)
  * Lumières du pont affiché dans la réserve (celles de la cabine suivent ses meubles) : les plus
  * proches du joueur, un grand pont en ayant plus que la réserve.
  */
+/** Les lampes du pont baissent pendant la séance du planétarium (1 : pleine lumière). */
+let lightDim = 1
 function applyLights() {
   const focus = salvage?.watchTarget ?? player.position
   lightsFrom.copy(focus)
@@ -641,7 +658,7 @@ function applyLights() {
     : [...viewDeck.lights].sort((a, b) => weight(a) - weight(b)).slice(0, lightPool.length)
   for (const [i, l] of lightPool.entries()) {
     const def = (pooled[i] = near[i])
-    l.intensity = def ? def.intensity : 0
+    l.intensity = def ? def.intensity * lightDim : 0
     l.distance = def?.distance ?? 7
     if (def) {
       l.position.copy(def.position)
@@ -2931,6 +2948,8 @@ addEventListener('keydown', (e) => {
     stopWork()
     // Devant la pince : on quitte la partie.
     if (claw && seating.settled) seating.stand()
+    // Séance du planétarium, debout : la lumière revient.
+    if (!seating.current) planetarium.stop()
     return wardrobe.close(false)
   }
   keys.add(e.code)
@@ -3136,7 +3155,7 @@ updateFpsButton()
 function isoOnly(): boolean {
   // Les caméras alliées de la zone thargoïde suivent un coéquipier, de haut.
   // Caché dans un casier aussi : en vue subjective, on ne verrait que l'intérieur de la porte.
-  return editing() || photo.active || !!claw || barPanel.isOpen || cinemaRoom.isOpen || mediaRoom.isOpen || !!zone.watchTarget || zone.hiding
+  return editing() || photo.active || !!claw || barPanel.isOpen || cinemaRoom.isOpen || mediaRoom.isOpen || planetarium.active || !!zone.watchTarget || zone.hiding
 }
 /** Occupé (installé, en emote, au travail…) : en vue subjective, la caméra passe derrière le personnage. */
 function busyBody(): boolean {
@@ -3531,6 +3550,8 @@ function hiddenRestrictedItem(item: Interactable): boolean {
 }
 
 function tryInteract() {
+  // Bugenhagen parle : on passe à la phrase suivante.
+  if (planetarium.talking) return planetarium.next()
   if (gym.active || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return
   const item = nearestInteractable()
   if (item) interactWith(item)
@@ -3543,6 +3564,14 @@ function interactWith(item: Interactable) {
   if (deck.def.id === 1) {
     if (item.furniture?.model === 'podcast-console' || item.furniture?.model === 'podcast-poster') return mediaRoom.open()
     if (item.furniture?.model === 'cinema-screen') return void cinemaRoom.open(false)
+    if (item.furniture?.model === 'planetarium-projector') {
+      stopWork()
+      player.cancelPath()
+      marker.visible = false
+      player.interact()
+      net.sendEmote('interact')
+      return planetarium.start(false)
+    }
   }
   if (item.onInteract) return item.onInteract()
   player.interact()
@@ -3652,6 +3681,8 @@ function seated(seat: Seated) {
   if (deck.def.id === 1 && deck.map.room(Math.round(item.position.x), Math.round(item.position.z)) === 'o') return mediaRoom.open()
   if (deck.def.id === 1 && item.furniture?.model === 'cinema-row') return void cinemaRoom.open(false)
   if (deck.def.id === 1 && item.furniture?.model === 'projection-chair') return void cinemaRoom.open(true)
+  // Un coussin du planétarium : la séance commence.
+  if (deck.def.id === 1 && deck.map.room(Math.round(item.position.x), Math.round(item.position.z)) === PLANETARIUM_ROOM) return planetarium.start(true)
   const board = boardGame(seat)
   if (board) return boardGames.open(board.game, board.table)
   if (kitchen.canEat(seat)) return kitchen.sat()
@@ -3680,6 +3711,7 @@ function poseChanged() {
     gameEmbed.close()
     mediaRoom.close()
     cinemaRoom.close()
+    planetarium.stop()
     player.avatar.onPoseStep = undefined
   }
   sendState(true)
@@ -3727,6 +3759,7 @@ function seatPrompt(seat: Seated): { main: string; space?: string } | null {
 
 /** Espace, installé sur un meuble. */
 function seatAction(seat: Seated) {
+  if (planetarium.talking) return planetarium.next()
   if (hangar.aboardKrait) return hangar.engines ? void groundBase.fly(true) : hangar.toggleEngines()
   if (groundBase.aboardKrait) return groundBase.seatAction()
   if (claw) return dropClaw()
@@ -4396,6 +4429,17 @@ function frame() {
     if (input.lengthSq() > 0 && seating.settled) seating.stand()
     input.set(0, 0, 0)
   }
+  // Séance du planétarium : elle s'arrête si l'on quitte la pièce ; debout, au premier pas (une
+  // demi-seconde de grâce : on vient d'arriver au projecteur).
+  if (planetarium.active) {
+    const inRoom = deck.def.id === 1 && viewDeck === deck && deck.map.room(Math.round(player.position.x), Math.round(player.position.z)) === PLANETARIUM_ROOM
+    if (!inRoom || riding || photo.active || editing() || (!seating.current && (input.lengthSq() > 0 || (player.moving && planetarium.age > 0.5)))) planetarium.stop()
+  }
+  planetarium.update(dt)
+  if (lightDim !== 1 - planetarium.level * 0.7) {
+    lightDim = 1 - planetarium.level * 0.7
+    applyLights()
+  }
   if (input.lengthSq() > 0) {
     marker.visible = false
     stopWork()
@@ -4475,7 +4519,7 @@ function frame() {
   else iso.frameCenter(0, 0, innerHeight)
   const cinemaSeat = deck.def.id === 1 && ['cinema-row', 'projection-chair'].includes(seating.current?.item.furniture?.model ?? '')
   if (cinemaSeat) cinemaFocus.set(cinemaScreenProp.x, deck.y, (player.position.z + cinemaScreenProp.z) / 2)
-  iso.update(dt, zone.watchTarget ?? (claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : cinemaSeat ? cinemaFocus : builder?.active ? builder.focus : player.position))
+  iso.update(dt, zone.watchTarget ?? (claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : cinemaSeat ? cinemaFocus : planetarium.active ? planetariumFocus : builder?.active ? builder.focus : player.position))
   if (barPanel.isOpen) {
     iso.camera.updateMatrixWorld()
     barPanel.place(iso.camera, player.position, jacquesAt)
@@ -4580,7 +4624,8 @@ function frame() {
   }
   marker.scale.setScalar(1 + Math.sin(timer.getElapsed() * 6) * 0.12)
   // Pièce tamisée (cinéma, salon d'écoute) : l'ambiance baisse en fondu quand on y entre, remonte quand on en sort.
-  const dimTo = deck.def.dim?.[deck.map.room(Math.round(player.position.x), Math.round(player.position.z)) ?? ''] ?? 1
+  // Pendant la séance du planétarium, la nuit tombe tout à fait.
+  const dimTo = planetarium.active ? 0.05 : deck.def.dim?.[deck.map.room(Math.round(player.position.x), Math.round(player.position.z)) ?? ''] ?? 1
   if (dimming !== dimTo) {
     dimming = Math.abs(dimTo - dimming) < 0.005 ? dimTo : dimming + (dimTo - dimming) * Math.min(1, dt * 2.5)
     applyAmbience()
@@ -4610,7 +4655,7 @@ function frame() {
   // Invite « E » au-dessus de l'objet le plus proche ; installé sur un meuble, au-dessus du
   // personnage : se relever (et ce que permet la place).
   const sitting = seating.settled && !gym.active && !riding && !editing() && !barPanel.isOpen
-  const near = gym.active || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || zone.frozen || zone.panelOpen ? null : nearestInteractable()
+  const near = gym.active || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen ? null : nearestInteractable()
   const sit = sitting ? seatPrompt(seating.current!) : null
   const label = sit ? `${sit.main}|${sit.space ?? ''}` : near?.label
   promptEl.querySelector('kbd')!.textContent = usingGamepad ? 'A / ×' : 'E'
@@ -4767,6 +4812,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, profile, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular },
+    __game: { renderer, sound, player, profile, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular },
   })
 }

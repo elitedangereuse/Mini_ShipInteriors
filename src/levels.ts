@@ -1547,15 +1547,13 @@ export const LEVELS: LevelDef[] = [
       // à Cosmo Canyon dans Final Fantasy VII. La carte du ciel au sol ; au centre, le projecteur et
       // l'hologramme du système, qui emplit la pièce et qu'on traverse ; Bugenhagen y flotte, au
       // nord-ouest du soleil. Les bibliothèques aux murs, la lunette près de la porte, des
-      // coussins au sud pour regarder tourner les planètes (cf. src/furniture/planetarium.ts).
+      // coussins au sud pour regarder tourner les planètes (cf. src/furniture/planetarium.ts) : s'y
+      // asseoir, ou observer au projecteur, lance la séance (cf. src/planetarium.ts).
       { model: 'planetarium-floor', x: 11.5, z: 9.5, solid: false },
+      // « Observer » lance la séance (cf. src/planetarium.ts), comme de s'asseoir sur un coussin.
       {
-        model: 'planetarium-projector', x: 11.5, z: 9.5,
-        interact: [
-          tr('Le projecteur du planétarium : une lentille de cristal, une monture de laiton, et tout un système qui en sort.', 'The planetarium projector: a crystal lens, a brass mount, and a whole star system pouring out of it.'),
-          tr('Un soleil, sept orbites, huit mondes. Bugenhagen assure que ce système existe. Il ne dit pas où.', 'One sun, seven orbits, eight worlds. Bugenhagen swears this system exists. He won\'t say where.'),
-          tr('Gravé sur la colonne : « Observatoire de Cosmo Canyon. » Et dessous, au feutre : « Déménagé à bord. Ne pas toucher à la lentille. »', 'Engraved on the column: “Cosmo Canyon Observatory.” And below, in marker: “Moved aboard. Do not touch the lens.”'),
-        ],
+        model: 'planetarium-projector', x: 11.5, z: 9.5, action: tr('Observer', 'Observe'),
+        interact: tr('Le projecteur du planétarium : une lentille de cristal, une monture de laiton, et tout un système qui en sort.', 'The planetarium projector: a crystal lens, a brass mount, and a whole star system pouring out of it.'),
       },
       { model: 'planetarium-sky', x: 11.5, z: 9.5, solid: false },
       {
