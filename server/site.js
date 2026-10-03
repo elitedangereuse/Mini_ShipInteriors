@@ -91,6 +91,8 @@ export async function postBarRegular(cookie, { cmdrUrl, secret, error = console.
       error(`[bar] badge de Chez Jacques refusé par le site (${response.status} ${data?.error ?? ''})`)
       return null
     }
+    // Badges du jeu coupés côté site (avant sa sortie) : rien n'est noté, l'accès vaut pour la session.
+    if (data.off === true) return null
     return data.granted === true ? 'new' : 'had'
   } catch (err) {
     error(`[bar] site injoignable pour le badge de Chez Jacques (${err?.message ?? err})`)
