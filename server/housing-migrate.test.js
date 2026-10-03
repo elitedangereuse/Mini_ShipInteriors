@@ -6,7 +6,7 @@ import { applyWalls, cellAt, packHome, sanitizeHome } from '../shared/housing-ho
 import { WING_PATTERNS } from '../shared/cabin-wings.js'
 import { migrateCabin, migrationPlace, stageFromWings } from '../shared/housing-migrate.js'
 import { applyPlot, HOUSING_LEVEL, inPlot, plotRect } from '../shared/housing-plot.js'
-import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
+import { LEGACY_UPPER_LAYOUT, SHIP_LAYOUTS, legacyUpperMapOptions, shipMapOptions } from '../shared/ship-layouts.js'
 import { DIRS, ShipMap } from '../shared/ship-map.js'
 
 const LIFT = { x: 10, z: 5 }
@@ -44,7 +44,7 @@ test('extensions achetées : la parcelle où elles tiennent, quelle que soit leu
   const table = [[], ['middle'], ['left'], ['right'], ['left', 'middle'], ['middle', 'right'], ['left', 'right'], ['left', 'middle', 'right']]
   assert.deepEqual(table.map(stageFromWings), [0, 1, 2, 2, 2, 2, 3, 3])
   // Les quartiers seuls sont bien là où les compte stageFromWings.
-  const map = new ShipMap(SHIP_LAYOUTS['1'], shipMapOptions(1))
+  const map = new ShipMap(LEGACY_UPPER_LAYOUT, legacyUpperMapOptions())
   const tiles = []
   for (let z = 0; z < map.height; z++) for (let x = 0; x < map.width; x++) if (map.room(x, z) === 'p') tiles.push({ x, z })
   assert.deepEqual([Math.min(...tiles.map((t) => t.x)), Math.max(...tiles.map((t) => t.x)), Math.min(...tiles.map((t) => t.z)), Math.max(...tiles.map((t) => t.z))], [8, 15, 6, 10])

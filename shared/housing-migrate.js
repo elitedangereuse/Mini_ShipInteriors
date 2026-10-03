@@ -12,7 +12,7 @@
 import { applyWings, slotOf, WING_ROOMS, WING_SIZE, WING_SLOTS } from './cabin-wings.js'
 import { applyPartitions, CABIN_ROOM, partitionKey } from './cabin-partitions.js'
 import { CELLS, cellIndex } from './housing-home.js'
-import { LEGACY_UPPER_LAYOUT, shipMapOptions } from './ship-layouts.js'
+import { LEGACY_UPPER_LAYOUT, legacyUpperMapOptions } from './ship-layouts.js'
 import { PLOT_DOOR, PLOT_ORIGIN, PLOT_SIZES, plotStage } from './housing-plot.js'
 import { ShipMap } from './ship-map.js'
 
@@ -89,7 +89,7 @@ function edgeOf(x, z, dir) {
 export function migrateCabin(layout) {
   const wings = layout.wings ?? {}
   const owned = WING_SLOTS.filter((s) => wings[s.id])
-  const map = new ShipMap(LEGACY_UPPER_LAYOUT, shipMapOptions(1))
+  const map = new ShipMap(LEGACY_UPPER_LAYOUT, legacyUpperMapOptions())
   applyWings(map, wings)
   const letters = new Set([CABIN_ROOM, ...owned.map((s) => WING_ROOMS[s.id]).join('')])
   const partitions = applyPartitions(map, layout.partitions ?? [], (room) => letters.has(room))

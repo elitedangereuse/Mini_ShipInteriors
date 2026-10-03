@@ -1259,7 +1259,7 @@ export const LEVELS: LevelDef[] = [
     ],
   },
 
-  // ======================================================== Pont supérieur : les quartiers
+  // ======================================================== Pont supérieur : la vie à bord
   {
     id: 1,
     name: tr('Pont supérieur', 'Upper deck'),
@@ -1271,23 +1271,21 @@ export const LEVELS: LevelDef[] = [
       c: tr('Coursive', 'Corridor'),
       k: tr('Cabines d\'équipage', 'Crew cabins'),
       d: tr('Toilettes', 'Restrooms'),
-      // Les quartiers du commandant étaient ici, avant le pont des quartiers : la pièce attend son emploi.
-      p: tr('Pièce vierge', 'Blank room'),
+      // À la place des anciens quartiers du commandant.
+      p: tr('Planétarium', 'Planetarium'),
       g: tr('Serre hydroponique', 'Hydroponics bay'),
       o: tr('Salon d\'écoute', 'Listening lounge'),
       s: tr('Studio Radio Dangereuse', 'Radio Dangereuse studio'),
       n: tr('Cinéma', 'Cinema'),
     },
-    windows: { c: 0, k: 0.3, d: 0, p: 0.6, g: 0.5, o: 1, n: 0, s: 0 },
+    windows: { c: 0, k: 0.3, d: 0, p: 0, g: 0.5, o: 1, n: 0, s: 0 },
     // La serre, tout en verre : les plantes voient les étoiles. Sol de tomettes.
     greenhouse: ['g'],
     floorFinish: { g: 'terracotta' },
     // Le salon voit le studio par sa vitre ; de la coursive, on voit la serre.
     glazed: ['os', 'gc'],
-    // On baisse les lumières au cinéma, un peu au salon d'écoute.
-    dim: { n: 0.45, o: 0.7 },
-    // Sans les portes des anciennes extensions des quartiers (cf. shipMapOptions, gardées pour la migration).
-    mapOptions: { closed: '', doors: [] },
+    // On baisse les lumières au cinéma, un peu au salon d'écoute ; au planétarium, la nuit tombe.
+    dim: { n: 0.45, o: 0.7, p: 0.3 },
     props: [
       // --- Coursive ---
       { model: 'rug', x: 12.9, z: 5, label: 'warm:3.8x0.7', solid: false },
@@ -1530,6 +1528,66 @@ export const LEVELS: LevelDef[] = [
         ),
       },
 
+      // --- Planétarium (8 × 8), à la place des anciens quartiers : l'observatoire de Bugenhagen, comme
+      // à Cosmo Canyon dans Final Fantasy VII. La carte du ciel au sol ; au centre, le projecteur et
+      // l'hologramme du système, qui emplit la pièce et qu'on traverse ; Bugenhagen y flotte, au
+      // nord-ouest du soleil. Les bibliothèques aux murs, la lunette près de la porte, des
+      // coussins au sud pour regarder tourner les planètes (cf. src/furniture/planetarium.ts).
+      { model: 'planetarium-floor', x: 11.5, z: 9.5, solid: false },
+      {
+        model: 'planetarium-projector', x: 11.5, z: 9.5,
+        interact: [
+          tr('Le projecteur du planétarium : une lentille de cristal, une monture de laiton, et tout un système qui en sort.', 'The planetarium projector: a crystal lens, a brass mount, and a whole star system pouring out of it.'),
+          tr('Un soleil, sept orbites, des astres de cristal. Bugenhagen assure que ce système existe. Il ne dit pas où.', 'One sun, seven orbits, crystal worlds. Bugenhagen swears this system exists. He won\'t say where.'),
+          tr('Gravé sur la colonne : « Observatoire de Cosmo Canyon. » Et dessous, au feutre : « Déménagé à bord. Ne pas toucher à la lentille. »', 'Engraved on the column: “Cosmo Canyon Observatory.” And below, in marker: “Moved aboard. Do not touch the lens.”'),
+        ],
+      },
+      { model: 'planetarium-sky', x: 11.5, z: 9.5, solid: false },
+      {
+        model: 'bugenhagen', x: 10.0, z: 8.3, action: tr('Parler à Bugenhagen', 'Talk to Bugenhagen'),
+        interact: [
+          tr('Bugenhagen : « Hou hou houuu ! Un visiteur ! Approche, approche… Les étoiles n\'attendent personne, mais elles aiment qu\'on les regarde. »', 'Bugenhagen: “Ho ho hooo! A visitor! Come closer, come closer… The stars wait for no one, but they like being looked at.”'),
+          tr('Bugenhagen : « Tu entends ? Non ? Écoute mieux. La galaxie gémit. Quatre cents milliards d\'étoiles, et chacune a sa voix. »', 'Bugenhagen: “Do you hear it? No? Listen harder. The galaxy is groaning. Four hundred billion stars, and every one has a voice.”'),
+          tr('Bugenhagen : « Cent trente ans que j\'observe le ciel. J\'en sais beaucoup… et surtout, je sais tout ce que j\'ignore. Hou hou hou ! »', 'Bugenhagen: “A hundred and thirty years watching the sky. I know a great deal… and above all, I know everything I don\'t. Ho ho ho!”'),
+          tr('Bugenhagen : « Savoir, c\'est compter les étoiles. Comprendre, c\'est savoir pourquoi on les compte. »', 'Bugenhagen: “Knowing is counting the stars. Understanding is knowing why you count them.”'),
+          tr('Bugenhagen : « Tout ce qui vit retourne aux étoiles, un jour. Ton vaisseau, toi, moi… La galaxie n\'oublie rien : elle recommence. »', 'Bugenhagen: “Everything that lives returns to the stars, one day. Your ship, you, me… The galaxy forgets nothing: it begins again.”'),
+          tr('Bugenhagen : « Les jeunes pilotes filent vers Sagittarius A* pour dire qu\'ils y sont allés. Les vieux y vont pour en revenir. »', 'Bugenhagen: “Young pilots rush to Sagittarius A* to say they\'ve been. Old ones go there to come back.”'),
+          tr('Bugenhagen : « Les Thargoïdes ? Ni bons ni mauvais. Ils étaient là bien avant nous, voilà tout. Celui qui ne comprend pas cela ne comprend pas le ciel. »', 'Bugenhagen: “The Thargoids? Neither good nor evil. They were here long before us, that\'s all. Whoever can\'t grasp that can\'t grasp the sky.”'),
+          tr('Bugenhagen : « Raxxla, la Voie… On cherche toujours une porte au bout du ciel. J\'ai trouvé la mienne : c\'est cette pièce. Hou hou ! »', 'Bugenhagen: “Raxxla, the Path… Everyone looks for a door at the end of the sky. I found mine: this room. Ho ho!”'),
+          tr('Bugenhagen : « Assieds-toi et regarde-les tourner. Celui qui se presse ne voit que des lignes rouges ; celui qui attend voit des orbites. »', 'Bugenhagen: “Sit down and watch them turn. Those in a hurry see only red lines; those who wait see orbits.”'),
+          tr('Bugenhagen : « Un jour, toi aussi, tu seras vieux. Si tu as bien regardé le ciel, tu ne le regretteras pas. Hou hou houuu ! »', 'Bugenhagen: “One day you too will be old. If you have looked well at the sky, you won\'t regret it. Ho ho hooo!”'),
+          tr('Bugenhagen plisse les yeux derrière ses lunettes noires, montre du doigt la géante aux anneaux, et sourit. Il n\'a rien besoin de dire.', 'Bugenhagen squints behind his dark glasses, points at the ringed giant, and smiles. He doesn\'t need to say a thing.'),
+        ],
+      },
+      {
+        model: 'brass-telescope', x: 8.55, z: 6.45,
+        interact: [
+          tr('La lunette de Bugenhagen, braquée sur la coupole et non sur le ciel. « Le vrai, je le connais par cœur », dit-il.', 'Bugenhagen\'s telescope, trained on the dome rather than the sky. “The real one I know by heart,” he says.'),
+          tr('Dans l\'oculaire, la géante aux anneaux passe, énorme. Elle ne fait que trente centimètres, en vrai.', 'Through the eyepiece, the ringed giant drifts by, enormous. It\'s barely a foot across, really.'),
+        ],
+      },
+      {
+        model: 'star-shelf', x: 7.82, z: 7.6, rot: 1,
+        interact: [
+          tr('Des grimoires d\'astronomie, reliés de cuir. L\'un s\'intitule « Les étoiles de la galaxie, tome 1 sur 400 milliards ».', 'Leather-bound astronomy tomes. One is titled “The Stars of the Galaxy, volume 1 of 400 billion”.'),
+          tr('Un carnet de Bugenhagen, ouvert : des orbites calculées à la main, et dans la marge, « Ne pas oublier de manger ».', 'One of Bugenhagen\'s notebooks, open: orbits worked out by hand, and in the margin, “Remember to eat”.'),
+        ],
+      },
+      {
+        model: 'star-shelf', x: 7.82, z: 11.4, rot: 1,
+        interact: tr('Des cartes du ciel roulées, des registres d\'observations, et un crâne de bête dont personne ne connaît l\'espèce. Pas même Bugenhagen, qui trouve ça très drôle.', 'Rolled-up star charts, observation logs, and a beast\'s skull of unknown species. Not even Bugenhagen knows, and he finds that hilarious.'),
+      },
+      {
+        model: 'star-shelf', x: 13.6, z: 5.82,
+        interact: tr('Sur le dos d\'un vieux livre : « Le Cycle de la vie des étoiles ». Les pages les plus usées parlent de la fin… et du recommencement.', 'On the spine of an old book: “The Life Cycle of Stars”. The most worn pages are about the end… and the new beginning.'),
+      },
+      { model: 'candles', x: 7.95, z: 9.5, solid: false },
+      { model: 'candles', x: 14.75, z: 5.95, solid: false },
+      // Les coussins des spectateurs, au sud du projecteur.
+      { model: 'floor-cushion', x: 10.3, z: 12.0, label: 'plum' },
+      { model: 'floor-cushion', x: 11.5, z: 12.45, label: 'mustard' },
+      { model: 'floor-cushion', x: 12.7, z: 12.0, label: 'teal' },
+
       // --- Cinéma : le grand écran au nord, quatre rangées face à lui, le projecteur au fond ---
       { model: 'rug', x: 24, z: 4.5, label: 'cinema:6.7x7.7', solid: false },
       {
@@ -1569,7 +1627,10 @@ export const LEVELS: LevelDef[] = [
       [12, 4.6, '#ffd9a8', 2],
       [9.6, 2, '#ffcf99', 2.2],
       [14, 2.2, '#e6f6ff', 2],
-      [10.2, 8.4, '#ffc98f', 2.3],
+      // Le planétarium : le soleil de l'hologramme, et les lueurs bleue et violette de la coupole.
+      [11.5, 9.5, '#ffd58a', 2],
+      [8.7, 12.4, '#7a80ff', 1.1],
+      [14.3, 7.1, '#b07bff', 0.9],
       // La serre : les LED des bacs, le soleil de la pelouse, la lueur verte du massif.
       [4.6, 2.3, '#ffb3e6', 2.4],
       [1.4, 4.2, '#fff1c4', 2.3],

@@ -12,8 +12,13 @@ export declare const CLUB_ROOM: 'n'
 /** Apparence d'alien (identifiant du Holo-Me, ex. « alien.male.c.blue ») ? */
 export declare function isAlienLook(skin: unknown): boolean
 
+/** Le planétarium de Bugenhagen, au pont supérieur (lettre de sa pièce). */
+export declare const PLANETARIUM_ROOM: 'p'
+
 /** Options du plan d'un pont (cf. ShipMap). */
 export declare function shipMapOptions(level: number | string): import('./ship-map.js').ShipMapOptions
+/** Options du plan du pont supérieur des anciens quartiers : les portes de leurs extensions, verrouillées. */
+export declare function legacyUpperMapOptions(): import('./ship-map.js').ShipMapOptions
 /** La porte du poste de sécurité du lobby (cale), toujours verrouillée. */
 export declare const SECURITY_DOOR: { x: number; z: number; dir: number; locked: true }
 

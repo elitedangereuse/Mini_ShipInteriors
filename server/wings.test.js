@@ -3,11 +3,11 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { applyWings, WING_PATTERNS, WING_ROOMS, WING_SIZE, WING_SLOTS, wingPlan } from '../shared/cabin-wings.js'
-import { LEGACY_UPPER_LAYOUT, shipMapOptions } from '../shared/ship-layouts.js'
+import { LEGACY_UPPER_LAYOUT, legacyUpperMapOptions } from '../shared/ship-layouts.js'
 import { DIRS, ShipMap } from '../shared/ship-map.js'
 import { lineOfSight } from '../shared/sight.js'
 
-const upper = () => new ShipMap(LEGACY_UPPER_LAYOUT, shipMapOptions(1))
+const upper = () => new ShipMap(LEGACY_UPPER_LAYOUT, legacyUpperMapOptions())
 
 /** Tuiles atteintes à pied depuis (x, z), en passant par les ouvertures et les portes. */
 function reach(map, x, z) {
