@@ -1547,7 +1547,7 @@ export const LEVELS: LevelDef[] = [
       // à Cosmo Canyon dans Final Fantasy VII. La carte du ciel au sol ; au centre, le projecteur et
       // l'hologramme du système, qui emplit la pièce et qu'on traverse ; Bugenhagen y flotte, au
       // nord-ouest du soleil. Les bibliothèques aux murs, la lunette près de la porte, des
-      // coussins au sud pour regarder tourner les planètes (cf. src/furniture/planetarium.ts) : s'y
+      // coussins tout autour pour regarder tourner les planètes (cf. src/furniture/planetarium.ts) : s'y
       // asseoir, ou observer au projecteur, lance la séance (cf. src/planetarium.ts).
       { model: 'planetarium-floor', x: 11.5, z: 9.5, solid: false },
       // « Observer » lance la séance (cf. src/planetarium.ts), comme de s'asseoir sur un coussin.
@@ -1596,10 +1596,12 @@ export const LEVELS: LevelDef[] = [
       },
       { model: 'candles', x: 7.95, z: 9.5, solid: false },
       { model: 'candles', x: 14.75, z: 5.95, solid: false },
-      // Les coussins des spectateurs, au sud du projecteur.
-      { model: 'floor-cushion', x: 10.3, z: 12.0, label: 'plum' },
-      { model: 'floor-cushion', x: 11.5, z: 12.45, label: 'mustard' },
-      { model: 'floor-cushion', x: 12.7, z: 12.0, label: 'teal' },
+      // Les coussins des spectateurs, en cercle autour de l'hologramme (rayon 2,95, un tous les
+      // 36°) ; aucun au nord : c'est le passage de la porte.
+      ...(['mustard', 'teal', 'plum', 'rose', 'navy', 'terracotta', 'plum', 'teal', 'rose'] as const).map((label, i): Prop => {
+        const a = ((i < 5 ? i : i + 1) * Math.PI) / 5
+        return { model: 'floor-cushion', x: +(11.5 + 2.95 * Math.sin(a)).toFixed(2), z: +(9.5 + 2.95 * Math.cos(a)).toFixed(2), label }
+      }),
 
       // --- Cinéma : le grand écran au nord, quatre rangées face à lui, le projecteur au fond ---
       { model: 'rug', x: 24, z: 4.5, label: 'cinema:6.7x7.7', solid: false },
