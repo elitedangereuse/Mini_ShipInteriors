@@ -7,6 +7,11 @@ export declare const LEGACY_UPPER_LAYOUT: string[]
 /** Pièces en travaux de chaque pont (lettres) : leurs portes sont verrouillées. */
 export declare const CLOSED_ROOMS: Record<'-1' | '0' | '1', string>
 
+/** Le Zorb, la boîte de nuit de la cale (lettre de sa pièce) : réservée aux aliens. */
+export declare const CLUB_ROOM: 'n'
+/** Apparence d'alien (identifiant du Holo-Me, ex. « alien.male.c.blue ») ? */
+export declare function isAlienLook(skin: unknown): boolean
+
 /** Options du plan d'un pont (cf. ShipMap). */
 export declare function shipMapOptions(level: number | string): import('./ship-map.js').ShipMapOptions
 /** La porte du poste de sécurité du lobby (cale), toujours verrouillée. */

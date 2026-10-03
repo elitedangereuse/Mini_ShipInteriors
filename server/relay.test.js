@@ -230,6 +230,23 @@ describe('identité', () => {
     adept.emit('state', { x: 2, z: 9, level: -1, yaw: 0, anim: 'idle' })
     assert.equal((await adeptState).z, 9)
   })
+
+  test('le videur du Zorb refoule les humains et laisse passer les apparences d’alien', async () => {
+    const observer = client()
+    await welcome(observer)
+    const human = client({ auth: { skin: 'human.female.b' } })
+    const humanWelcome = await welcome(human)
+    const humanState = next(observer, 'state', (m) => m.id === humanWelcome.id)
+    human.emit('state', { x: 1, z: 1, level: -1, yaw: 0, anim: 'idle' })
+    human.emit('state', { x: 5, z: 1, level: -1, yaw: 0, anim: 'idle' })
+    assert.equal((await humanState).x, 5)
+
+    const alien = client({ auth: { skin: 'alien.male.c.blue' } })
+    const alienWelcome = await welcome(alien)
+    const alienState = next(observer, 'state', (m) => m.id === alienWelcome.id)
+    alien.emit('state', { x: 1, z: 1, level: -1, yaw: 0, anim: 'idle' })
+    assert.equal((await alienState).x, 1)
+  })
 })
 
 describe('origine', () => {

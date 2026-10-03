@@ -77,6 +77,8 @@ import { SystemView, SYSTEMS } from './systems'
 import { Traffic, type HullSides } from './traffic'
 import { nextSystem, JUMP_CHARGE, JUMP_TRAVEL, type SystemId } from '../shared/systems.js'
 import { syncTempo, tempo } from './tempo'
+import { ClubMusic, clubProximity } from './club'
+import { CLUB_ROOM, isAlienLook } from '../shared/ship-layouts.js'
 import { ToiletFlushes } from './toilet-flush'
 import { SalvageClient } from './salvage/client'
 import { LOBBY_RETURN, ZONE_LEVEL } from '../shared/salvage.js'
@@ -233,6 +235,21 @@ const voieEntrance = deckById(-1).map.doors.find((door) => {
   return map.room(door.x, door.z) === 'v' || map.room(door.x + d.dx, door.z + d.dz) === 'v'
 })
 const voieDoorItem = voieEntrance && deckById(-1).doorExamine(voieEntrance.x, voieEntrance.z, voieEntrance.dir)
+// Le Zorb, la boîte de nuit de la cale : son videur n'ouvre qu'à qui porte une apparence d'alien
+// (cf. clubStep). Aux autres, il répète ce qu'on lit sur la porte.
+let clubAlien = isAlienLook(profile.skin)
+deckById(-1).setClubAccess(clubAlien)
+const clubEntrance = deckById(-1).map.doors.find((door) => {
+  const d = DIRS[door.dir]
+  const map = deckById(-1).map
+  return map.room(door.x, door.z) === CLUB_ROOM || map.room(door.x + d.dx, door.z + d.dz) === CLUB_ROOM
+})
+const clubDoorItem = clubEntrance && deckById(-1).doorExamine(clubEntrance.x, clubEntrance.z, clubEntrance.dir)
+for (const it of deckById(-1).interactables) {
+  if (it.furniture?.model !== 'club-bouncer') continue
+  const welcome = it.text
+  it.text = () => (clubAlien ? (typeof welcome === 'function' ? welcome() : welcome) : LEVELS.find((l) => l.id === -1)?.closed?.[CLUB_ROOM]) ?? ''
+}
 const jacquesAt = deckById(-1).interactables.find((it) => it.furniture?.model === 'bartender')!.position
 
 /**
@@ -424,6 +441,8 @@ scene.add(sound.rig)
 const deckMusic = new JukeboxPlayer(sound, 0.4)
 const holdMusic = new JukeboxPlayer(sound, 0.4)
 const cabinMusic = new JukeboxPlayer(sound, 0.4)
+/** La boîte de nuit de la cale : son morceau tourne tout seul (cf. src/club.ts). */
+const clubMusic = new ClubMusic(sound, 0.5)
 const jukeboxes: Record<JukeboxWhere, JukeboxPlayer> = { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }
 /** Pont des jukebox communs (ceux des quartiers vont avec leur aménagement). */
 const JUKEBOX_DECKS = { deck: 0, hold: -1 } as const
@@ -3467,6 +3486,7 @@ function hiddenRestrictedItem(item: Interactable): boolean {
   const room = deck.map.room(Math.round(item.position.x), Math.round(item.position.z))
   return (!ljpcMember && deck.def.id === 0 && room === 'l')
     || (!voieAdept && deck.def.id === -1 && room === 'v' && item !== voieDoorItem)
+    || (!clubAlien && deck.def.id === -1 && room === CLUB_ROOM && item !== clubDoorItem)
 }
 
 function tryInteract() {
@@ -4306,7 +4326,7 @@ function frame() {
   for (const r of remotes.values()) {
     r.update(world)
     const room = r.level === ZONE_LEVEL ? null : deckById(r.level)?.map.room(Math.round(r.group.position.x), Math.round(r.group.position.z))
-    r.group.visible = sees(r) && (ljpcMember || r.level !== 0 || room !== 'l') && (voieAdept || r.level !== -1 || room !== 'v')
+    r.group.visible = sees(r) && (ljpcMember || r.level !== 0 || room !== 'l') && (voieAdept || r.level !== -1 || room !== 'v') && (clubAlien || r.level !== -1 || room !== CLUB_ROOM)
   }
   updateStalls()
   flushLatecomers()
@@ -4523,16 +4543,35 @@ function frame() {
   // On s'éloigne de l'ascenseur ou du jukebox : le panneau se ferme.
   if (lift.isOpen && Math.hypot(player.position.x - liftTile.x, player.position.z - liftTile.z) > 1.6) lift.close()
   if (jukebox.isOpen && jukeboxNear && Math.hypot(player.position.x - jukeboxNear.x, player.position.z - jukeboxNear.z) > 2) jukebox.close()
+  // Le Zorb : sa porte suit l'apparence portée ; un alien qui redevient humain dans la salle est
+  // raccompagné au couloir (le relais ne l'y accepterait plus).
+  const onHold = deck.def.id === -1
+  const holdRoom = onHold ? deck.map.room(Math.round(player.position.x), Math.round(player.position.z)) : null
+  if (clubAlien !== isAlienLook(profile.skin)) {
+    clubAlien = !clubAlien
+    deckById(-1).setClubAccess(clubAlien)
+    if (!clubAlien && holdRoom === CLUB_ROOM) {
+      player.cancelPath()
+      marker.visible = false
+      player.position.set(4.4, deck.y, 1)
+      iso.snapTo(player.position)
+      sendState(true)
+      dialog.show(tr('Le videur te soulève par le col et te repose dans le couloir : « Je le savais. Les antennes étaient fausses. »', 'The bouncer lifts you by the collar and sets you down in the corridor: “I knew it. The antennae were fake.”'))
+    }
+  }
+  const inClub = clubAlien && holdRoom === CLUB_ROOM
   // Chaque jukebox remplit sa pièce en stéréo ; derrière une cloison, il reste sourd et lointain.
   // Un autre pont est silencieux. Le repère des pièces suit la carte du pont, portes comprises.
   for (const [music, source] of [[deckMusic, deckById(0)], [holdMusic, deckById(-1)], [cabinMusic, homeDeck]] as const) {
     const playing = music.playing
     const jukeboxRoom = playing && source.map.room(Math.round(playing.x), Math.round(playing.z))
     const playerRoom = source === deck ? source.map.room(Math.round(player.position.x), Math.round(player.position.z)) : null
-    music.setRoom(source === deck && viewDeck === deck, !!jukeboxRoom && jukeboxRoom === playerRoom)
+    // Dans la boîte de nuit, on n'entend plus le jukebox du bar.
+    music.setRoom(source === deck && viewDeck === deck && !(inClub && music === holdMusic), !!jukeboxRoom && jukeboxRoom === playerRoom)
   }
+  clubMusic.update(inClub, onHold && viewDeck === deck ? clubProximity(holdRoom, player.position.x, player.position.z) : 0)
   // La soirée bat sur le morceau entendu dans la pièce, sauf quand le mode photo fige l'instant.
-  if (!photo.frozen && !deckMusic.syncTempo() && !holdMusic.syncTempo() && !cabinMusic.syncTempo()) syncTempo(null)
+  if (!photo.frozen && !clubMusic.syncTempo() && !deckMusic.syncTempo() && !holdMusic.syncTempo() && !cabinMusic.syncTempo()) syncTempo(null)
 
   workStep(dt)
   kitchen.update(world)
@@ -4608,6 +4647,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, toDeck: (id: number) => setDeck(deckById(id)) },
+    __game: { renderer, sound, player, profile, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, toDeck: (id: number) => setDeck(deckById(id)) },
   })
 }

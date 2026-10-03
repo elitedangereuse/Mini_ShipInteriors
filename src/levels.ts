@@ -49,7 +49,7 @@ export interface Prop {
 export type Flicker = 'neon' | 'fire' | 'disco' | 'pulse' | 'screen'
 
 /** Lumière : x, z, couleur, intensité, vacillement, et portée (7 par défaut ; les projecteurs de la baie portent plus loin). */
-export type LightDef = [number, number, string, number, ('neon' | 'fire' | 'screen')?, number?]
+export type LightDef = [number, number, string, number, Flicker?, number?]
 
 /** Éclairage d'ambiance d'un pont : ciel et sol (lumière hémisphérique), soleil. */
 export interface Ambience {
@@ -194,7 +194,7 @@ export const QUARTERS_DECK: LevelDef = {
 }
 
 export const LEVELS: LevelDef[] = [
-  // ======================================================== Cale : minage, bricolage, réparation, et un bar clandestin
+  // ======================================================== Cale : minage, bricolage, réparation, un bar clandestin, et une boîte de nuit d'aliens
   {
     id: -1,
     name: tr('Cale', 'Hold'),
@@ -214,6 +214,9 @@ export const LEVELS: LevelDef[] = [
       k: tr('Hangar', 'Hangar'),
       e: tr('Salle des machines', 'Engine room'),
       v: tr('Sanctuaire de la Voie', 'Sanctuary of the Path'),
+      u: tr('Couloir de service', 'Service corridor'),
+      // Le nom de la boîte de nuit ne se traduit pas.
+      n: 'Le Zorb',
     },
     closed: {
       t: [
@@ -224,10 +227,16 @@ export const LEVELS: LevelDef[] = [
         'Une porte sans poignée, cachée derrière les machines. Sur le panneau, un symbole gravé : six pétales autour d’un hexagone. « Seuls les Adeptes peuvent trouver la Voie. » Terminez L’Épreuve de la Voie pour entrer.',
         'A door with no handle, hidden behind the machinery. A symbol is carved into the panel: six petals around a hexagon. “Only Adepts can find the Path.” Complete The Trial of the Path to enter.',
       ),
+      // Le Zorb : sa porte ne s'ouvre qu'aux aliens (cf. CLUB_ROOM) ; les autres lisent ceci.
+      n: [
+        tr('La porte vibre sous les basses. Le videur pose une main dessus, sans te regarder : « Soirée privée. Pas d\'humains. »', 'The door throbs with the bass. The bouncer rests a hand on it without looking at you: “Private party. No humans.”'),
+        tr('Tu pousses la porte. Elle ne bouge pas. Le videur, lui, a bougé : il est maintenant entre elle et toi.', 'You push the door. It does not move. The bouncer did: he is now between it and you.'),
+        tr('Sur la porte, un pictogramme : un humain, barré. En dessous, au feutre : « même déguisés » ; puis, d\'une autre écriture : « surtout mal déguisés ».', 'A pictogram on the door: a human, crossed out. Below, in marker: “even in disguise”; then, in another hand: “especially in a bad disguise”.'),
+      ],
     },
     // Le bar est tenu plus proprement que le reste de la cale : dalles lisses, pas un hublot.
-    floors: { a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', h: 'floor-panel', k: 'floor-panel', t: 'floor-panel' },
-    windows: { a: 0.1, j: 0, r: 0.12, m: 0, g: 0.1, b: 0, h: 0, e: 0, v: 0, k: 0.15, t: 0 },
+    floors: { u: 'floor-panel', a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', h: 'floor-panel', k: 'floor-panel', t: 'floor-panel' },
+    windows: { n: 0, u: 0, a: 0.1, j: 0, r: 0.12, m: 0, g: 0.1, b: 0, h: 0, e: 0, v: 0, k: 0.15, t: 0 },
     // Le poste de sécurité du lobby : des vitres blindées côté lobby (sa porte reste verrouillée).
     glazed: ['ht'],
     // Le hangar s'ouvre sur l'espace à la proue : son mur est est un bouclier (cf. src/shield.ts).
@@ -238,8 +247,9 @@ export const LEVELS: LevelDef[] = [
     doubleDoors: [{ x: 26, z: 4, dir: 3 }],
     // Le cœur du réacteur, au milieu de la salle des machines.
     engine: { x: 1.5, z: 5 },
-    // Le sanctuaire de la Voie n'est éclairé que par ses flammes et son portail.
-    dim: { v: 0.5 },
+    // Le sanctuaire de la Voie n'est éclairé que par ses flammes et son portail ; le Zorb, par sa
+    // piste de danse ; son couloir, par deux néons.
+    dim: { v: 0.5, n: 0.3, u: 0.6 },
     props: [
       // --- Sanctuaire de la Voie, caché derrière la salle des machines : d'après L'Épreuve, La
       // Cérémonie et Les Reliques de la Voie. On entre au nord ; le portail de Raxxla est au mur
@@ -357,6 +367,64 @@ export const LEVELS: LevelDef[] = [
         ),
       },
       { model: 'path-banner', x: -0.3, z: 8.55, rot: 1, solid: false, interact: tr('« Que la lumière te guide, Adepte o7. »', '“May the light guide you, Adept o7.”') },
+
+      // --- Le Zorb, la boîte de nuit des aliens, au-dessus de la salle des machines : on y vient du
+      // palier par le couloir de service. Le videur garde la porte (à l'ouest du couloir) et ne
+      // laisse entrer que ceux qui portent une apparence d'alien (cf. CLUB_ROOM, src/club.ts, qui
+      // lui donne aussi ses répliques). Platines contre le mur nord, piste au milieu ---
+      { model: 'dance-floor', x: 1.5, z: 1.3, label: 'neon:2.5x1.75', solid: false },
+      { model: 'disco-ball', x: 1.5, z: 1.3, solid: false },
+      { model: 'dj-booth', x: 1.5, z: 0.02, interact: tr('Les platines de DJ Glorp. Sur le disque de gauche : « Sewer Nightclub ». Sur celui de droite : le même, mais à l\'envers.', 'DJ Glorp\'s decks. On the left record: “Sewer Nightclub”. On the right one: the same, backwards.') },
+      {
+        model: 'club-dancer', x: 1.5, z: -0.3, label: 'dj', action: tr('Parler', 'Talk'),
+        interact: [
+          tr('DJ Glorp : « Zblorp ! » Il lève une main à trois doigts. La salle hurle.', 'DJ Glorp: “Zblorp!” He raises a three-fingered hand. The room roars.'),
+          tr('DJ Glorp te tend un casque. Dedans, exactement la même musique, mais plus fort.', 'DJ Glorp hands you a headset. Inside, exactly the same music, only louder.'),
+          tr('DJ Glorp : « Ce morceau ? Enregistré dans les égouts de Zorb Prime. L\'acoustique y est incroyable. »', 'DJ Glorp: “This track? Recorded in the sewers of Zorb Prime. The acoustics there are incredible.”'),
+        ],
+      },
+      { model: 'speaker', x: -0.22, z: -0.2, rot: 0 },
+      { model: 'speaker', x: 3.22, z: -0.2, rot: 0 },
+      { model: 'laser', x: -0.22, z: -0.2, y: 0.58, label: 'green', solid: false },
+      { model: 'laser', x: 3.22, z: -0.2, y: 0.58, label: 'rgb', solid: false },
+      {
+        model: 'club-dancer', x: 0.75, z: 0.95, label: 'green', solid: false, action: tr('Parler', 'Talk'),
+        interact: [
+          tr('Le Zorblien te détaille de la tête aux pieds : « Jolies antennes. Elles sont vraies ? » Tu hoches la tête. Elles tiennent.', 'The Zorblian looks you up and down: “Nice antennae. Are they real?” You nod. They stay on.'),
+          tr('« Tu viens d\'où ? » Tu réponds « de loin ». Il a l\'air de trouver ça très drôle.', '“Where are you from?” You say “far away”. He seems to find that hilarious.'),
+        ],
+      },
+      {
+        model: 'club-dancer', x: 2.3, z: 0.9, label: 'blue', solid: false, action: tr('Parler', 'Talk'),
+        interact: [
+          tr('La Cryonienne danse sans s\'arrêter : « Trois jours que je suis là. Ou trois semaines. Le DJ n\'a pas changé de disque. »', 'The Cryonian keeps dancing: “I\'ve been here three days. Or three weeks. The DJ hasn\'t changed the record.”'),
+          tr('« Les humains ? Jamais vu un seul ici. On dit qu\'ils dansent très mal. » Tu ralentis un peu.', '“Humans? Never seen one in here. They say they are terrible dancers.” You slow down a bit.'),
+        ],
+      },
+      {
+        model: 'club-dancer', x: 1.15, z: 1.85, label: 'violet', solid: false, action: tr('Parler', 'Talk'),
+        interact: [
+          tr('Le Nébulien te crie à l\'oreille : « C\'EST MA CHANSON ! » C\'est la seule chanson.', 'The Nebulian shouts in your ear: “THIS IS MY SONG!” It is the only song.'),
+          tr('« Le videur ? Un amour. Il a refoulé un Thargoïde la semaine dernière. Tenue incorrecte. »', '“The bouncer? A sweetheart. He turned a Thargoid away last week. Dress code.”'),
+        ],
+      },
+      { model: 'club-dancer', x: 2.2, z: 1.9, solid: false },
+      { model: 'club-dancer', x: 0.2, z: 1.95, solid: false },
+      // Le couloir : le videur à côté de la porte, l'enseigne au mur nord, le cordon de la file.
+      { model: 'club-sign', x: 5.35, z: -0.36, solid: false },
+      {
+        // Ce qu'il dit à un alien ; à un humain, il répète ce qu'on lit sur la porte (cf. main.ts).
+        model: 'club-bouncer', x: 4.2, z: 0.3, rot: 1, action: tr('Parler au videur', 'Talk to the bouncer'),
+        interact: [
+          tr('Le videur baisse ses lunettes, compte tes antennes, hoche la tête : « Deux. C\'est bon. Entre. »', 'The bouncer lowers his shades, counts your antennae, nods: “Two. Fine. Go in.”'),
+          tr('Le videur : « Bonne soirée. Si tu vois un humain à l\'intérieur, tu me le signales. Ils se déguisent, maintenant. »', 'The bouncer: “Have a good night. If you see a human inside, tell me. They wear disguises now.”'),
+          tr('Le videur te renifle longuement. « Tu sens le Holo-Me. » Un silence. « Comme tout le monde ici. Entre. »', 'The bouncer sniffs you for a long time. “You smell of Holo-Me.” A pause. “Like everyone here. Go in.”'),
+        ],
+      },
+      { model: 'club-rope', x: 5.6, z: 0.5, label: '1.6' },
+      { model: 'crate', x: 6.15, z: -0.1 },
+      { model: 'cables', x: 8.2, z: 1, solid: false },
+      { model: 'stain', x: 6.9, z: 1.1, solid: false },
 
       // --- Palier : l'ascenseur au centre (cf. LIFT) ---
       { model: 'hazard-floor', x: 10, z: 5, solid: false },
@@ -711,6 +779,11 @@ export const LEVELS: LevelDef[] = [
     ],
     lights: [
       [1.5, 5, '#4fd4ff', 4],
+      // Le Zorb : la piste, les platines ; dans le couloir, l'enseigne et un néon fatigué.
+      [1.5, 1.3, '#b04cff', 3.2, 'disco'],
+      [1.5, -0.1, '#39ff9a', 1.8, 'pulse'],
+      [4.3, 0.4, '#ff3df0', 2, 'neon'],
+      [8.5, 1, '#ffa24a', 1.6, 'neon'],
       // Sanctuaire de la Voie : le portail, les bougies autour de l'emblème, les cierges de Salomé, les Reliques.
       [0.3, 10, '#3dffb0', 2.8],
       [2, 10, '#b8ffd9', 2, 'fire'],

@@ -11,12 +11,13 @@ export const SHIP_LAYOUTS = {
   // l'est de la soute, le lobby de la zone thargoïde (SOC-06), d'où partent les missions : au nord,
   // l'alcôve de la porte blindée et, derrière ses vitres, le poste de sécurité de la zone ('t',
   // verrouillé) ; au sud, le vestiaire et la table de briefing. Collé à lui, le hangar du Krait,
-  // ouvert sur l'espace à la proue.
+  // ouvert sur l'espace à la proue. Au-dessus de la salle des machines, au bout d'un couloir de
+  // service qui part du palier, le Zorb, la boîte de nuit des aliens ('n', cf. CLUB_ROOM).
   '-1': [
-    '                    ttthhhkkkkkkkkkkkk  ',
-    '            rrrrr   ttthhhkkkkkkkkkkkk  ',
-    '    aaaa    rrrrrgg hhhhhhkkkkkkkkkkkk  ',
-    'eeeeaaaa    rrrrr+g hhhhhhkkkkkkkkkkkk  ',
+    'nnnnuuu             ttthhhkkkkkkkkkkkk  ',
+    'nnn+uuuuuuu rrrrr   ttthhhkkkkkkkkkkkk  ',
+    'nnnnaaaa  u rrrrrgg hhhhhhkkkkkkkkkkkk  ',
+    'eeeeaaaa  + rrrrr+g hhhhhhkkkkkkkkkkkk  ',
     'eeeeaaaa jjj+rr+rgg hhhhhh+kkkkkkkkkkk  ',
     'eee+aaaa+jjjmmmmmgg+hhhhhh+kkkkkkkkkkk  ',
     'eeeeaaaa jjj+mmmm+g hhhhhhkkkkkkkkkkkk  ',
@@ -105,8 +106,18 @@ export const LEGACY_UPPER_LAYOUT = [
  * leurs portes restent verrouillées (cf. ShipMap).
  */
 export const CLOSED_ROOMS = {
-  '-1': 'v',
+  // Le sanctuaire de la Voie et le Zorb ne sont pas en travaux : leur porte ne s'ouvre qu'à certains.
+  '-1': 'vn',
 }
+
+/**
+ * Le Zorb, la boîte de nuit de la cale : son videur ne laisse entrer que les aliens (l'apparence
+ * portée, cf. isAlienLook). Sa porte est verrouillée pour tous les autres.
+ */
+export const CLUB_ROOM = 'n'
+
+/** Apparence d'alien (identifiant du Holo-Me, ex. « alien.male.c.blue », cf. src/looks.ts). */
+export const isAlienLook = (skin) => typeof skin === 'string' && skin.startsWith('alien.')
 
 /**
  * Plan d'un pont : portes des pièces en travaux verrouillées ; au pont supérieur, les portes des

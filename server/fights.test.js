@@ -91,7 +91,7 @@ test('deux clients rejoignent le même duel, partagent la simulation et libèren
   const left = next(a, 'fight:state', s => s.status === 'waiting'); b.disconnect(); const state = await left
   assert.equal(state.snapshot, null); assert.equal(state.players[0].id, a.playerId)
   const joined = next(a, 'fight:state', s => s.status === 'playing'); c.emit('fight:join'); await joined
-  const movedDeck = next(c, 'fight:state', s => s.status === 'waiting'); a.emit('state', { x: 1, z: 1, yaw: 0, level: -1 }); await movedDeck
+  const movedDeck = next(c, 'fight:state', s => s.status === 'waiting'); a.emit('state', { x: 10, z: 5, yaw: 0, level: -1 }); await movedDeck
   a.disconnect(); c.disconnect()
 })
 

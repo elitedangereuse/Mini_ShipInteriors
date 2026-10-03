@@ -14,7 +14,7 @@ import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type Occlude
 import { Pathfinder } from './pathfinding'
 import type { Doorway } from './physics'
 import { DOOR_GAP } from '../shared/sight.js'
-import { shipMapOptions } from '../shared/ship-layouts.js'
+import { CLUB_ROOM, shipMapOptions } from '../shared/ship-layouts.js'
 import { placeSeats, seatAction, seatsOf, type SeatSpot } from './seats'
 import { ForceShield, type ShieldPane } from './shield'
 import { emptyPlan, HomeView } from './housing/home'
@@ -334,6 +334,9 @@ export class Deck {
   private ceilingFades!: FadeBuffer
   private ljpcCover?: THREE.Group
   private voieCover?: THREE.Group
+  private clubCover?: THREE.Group
+  /** Ce qui bouge dans le Zorb (danseurs, reflets de la boule, lasers) : caché avec la salle. */
+  private readonly clubLive: THREE.Object3D[] = []
 
   constructor(readonly def: LevelDef) {
     this.theme = themes[def.theme ?? 'station']
@@ -342,7 +345,7 @@ export class Deck {
       if (this.doorRoom(d.x, d.z, d.dir, 'l')) this.map.lock(d.x, d.z, d.dir)
     }
     if (def.id === -1) for (const d of this.map.doors) {
-      if (this.doorRoom(d.x, d.z, d.dir, 'v')) this.map.lock(d.x, d.z, d.dir)
+      if (this.doorRoom(d.x, d.z, d.dir, 'v') || this.doorRoom(d.x, d.z, d.dir, CLUB_ROOM)) this.map.lock(d.x, d.z, d.dir)
     }
     this.y = def.id * LEVEL_HEIGHT
     this.group.position.y = this.y
@@ -362,6 +365,7 @@ export class Deck {
     this.buildProps()
     if (def.id === 0) this.ljpcCover = this.buildRoomCover('l', '#101722', '#263344')
     if (def.id === -1) this.voieCover = this.buildRoomCover('v', '#030303', '#080808')
+    if (def.id === -1) this.clubCover = this.buildRoomCover(CLUB_ROOM, '#0b0612', '#2a1238')
     if (aboard) this.buildLift()
     if (def.engine) this.buildCore(def.engine.x, def.engine.z)
     if (hulled) this.buildNozzles(!!def.engine)
@@ -403,6 +407,16 @@ export class Deck {
     this.syncLocks()
     this.pathfinder.invalidate()
     if (this.voieCover) this.voieCover.visible = !adept
+  }
+
+  /** Le videur du Zorb n'ouvre sa porte qu'aux aliens : pour les autres, elle et le plafond restent fermés. */
+  setClubAccess(alien: boolean) {
+    if (this.def.id !== -1) return
+    for (const d of this.map.doors) if (this.doorRoom(d.x, d.z, d.dir, CLUB_ROOM)) this.map.lock(d.x, d.z, d.dir, !alien)
+    this.syncLocks()
+    this.pathfinder.invalidate()
+    if (this.clubCover) this.clubCover.visible = !alien
+    for (const o of this.clubLive) o.visible = alien
   }
 
   private doorRoom(x: number, z: number, dir: number, room: string) {
@@ -940,6 +954,7 @@ export class Deck {
           f.live.position.set(p.x, p.y ?? 0, p.z)
           f.live.rotation.y = rotY
           this.group.add(f.live)
+          if (this.def.id === -1 && this.map.room(Math.round(p.x), Math.round(p.z)) === CLUB_ROOM) this.clubLive.push(f.live)
         }
         if (f.update) this.animated.push({ update: f.update, interactive: !!f.control })
         if (f.emitter) this.addEmitter(f.emitter, new THREE.Vector3(p.x, this.y + 0.6, p.z))

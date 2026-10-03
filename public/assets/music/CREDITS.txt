@@ -208,6 +208,33 @@ Ambiance    : « Synthés pétillants et un brin étranges : la nuit prend une
               autre couleur. »
 
 
+---------------------------------------------------------------------
+10. alien-club.mp3 (hors jukebox : la musique du Zorb, la boîte de nuit
+    des aliens de la cale, cf. src/club.ts)
+---------------------------------------------------------------------
+Titre       : « Sewer Nightclub »
+Artiste     : section31 (Section 31 -Tech, http://s31tech.org ; crédit
+              suggéré, pas exigé)
+Licence     : CC0 1.0, vérifiée sur la page source le 03/10/2026
+Preuve      : https://opengameart.org/content/sewer-nightclub
+Téléchargé  : https://opengameart.org/sites/default/files/S31-Sewer%20Nightclub.ogg
+              (Ogg Vorbis, 2:19,6, sha1 01797287f03fd3e18ebc0a47a6e534aa96e420ca)
+Montage     : aucun (ni coupe ni fondu : le morceau tourne en boucle).
+Durée       : 2:19,6 (139,64 s)      Taille : 2 021 163 octets (2,02 Mo)
+Loudness    : source à -11,1 LUFS, crête +0,8 dBFS ; atténuée de 4,9 dB
+              (gain linéaire, sans limiteur). MP3 décodé : -16,0 LUFS,
+              crête vraie -3,7 dBTP.
+Tempo       : 110,35 BPM, premier temps à 0,171 s (mesurés sur le MP3
+              final, par autocorrélation de l'enveloppe des graves ; pas
+              vérifiés à l'oreille).
+Ambiance    : techno d'égout pour aliens : on l'entend étouffée du couloir,
+              en plein dans la salle.
+Remarque    : choisi sur sa fiche (titre, tags, licence) et ses mesures,
+              sans écoute. Écartés : mrpoly, « tEcHNo gEeK » (CC0, 1:24,
+              tempo instable à la détection) ; EZduzziteh, « Alien Invasion
+              Track » (CC0, boucle de 24 s seulement).
+
+
 =====================================================================
 ALBUMS DE BEN CARTER JR
 =====================================================================

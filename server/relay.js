@@ -72,7 +72,7 @@ import { createSalvage, GAME_ACTIONS, LOBBY_ACTIONS } from './salvage.js'
 import { salvageMinDuration } from '../shared/salvage.js'
 import { readFileSync } from 'node:fs'
 import { createCinema } from './cinema.js'
-import { BOARD_TABLES, SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
+import { BOARD_TABLES, CLUB_ROOM, SHIP_LAYOUTS, isAlienLook, shipMapOptions } from '../shared/ship-layouts.js'
 import { DIRS, ShipMap } from '../shared/ship-map.js'
 import { applyPlot, HOUSING_LEVEL, PLOT_DOOR, PLOT_ORIGIN } from '../shared/housing-plot.js'
 import { applyWalls, unpackHome } from '../shared/housing-home.js'
@@ -138,11 +138,19 @@ const MAPS = new Map(Object.entries(SHIP_LAYOUTS).map(([id, layout]) => [Number(
 MAPS.set(BASE_LEVEL, new ShipMap(BASE_LAYOUT))
 // Pont des quartiers : chacun y est dans sa bulle (son instance, cf. `cabin`), une parcelle de départ.
 applyPlot(MAPS.get(HOUSING_LEVEL), 0)
-const voieMap = new ShipMap(SHIP_LAYOUTS['-1'], shipMapOptions(-1))
-for (const d of voieMap.doors) {
-  const step = DIRS[d.dir]
-  if (voieMap.room(d.x, d.z) === 'v' || voieMap.room(d.x + step.dx, d.z + step.dz) === 'v') voieMap.lock(d.x, d.z, d.dir, false)
-}
+/**
+ * Plans de la cale selon ce que le joueur peut ouvrir : le sanctuaire de la Voie ('v') pour un
+ * adepte, le Zorb (CLUB_ROOM) pour qui porte une apparence d'alien.
+ */
+const holdMaps = new Map(['', 'v', CLUB_ROOM, 'v' + CLUB_ROOM].map((open) => {
+  const map = new ShipMap(SHIP_LAYOUTS['-1'], shipMapOptions(-1))
+  for (const d of map.doors) {
+    const step = DIRS[d.dir]
+    if ([map.room(d.x, d.z), map.room(d.x + step.dx, d.z + step.dz)].some((r) => r && open.includes(r))) map.lock(d.x, d.z, d.dir, false)
+  }
+  return [open, map]
+}))
+const holdMap = (player) => holdMaps.get((player.voie ? 'v' : '') + (isAlienLook(player.skin) ? CLUB_ROOM : ''))
 /** Plan du pont des quartiers avec la parcelle d'un aménagement : sa taille et ses murs (gardé avec lui). */
 const homeMaps = new WeakMap()
 function homeMap(layout) {
@@ -159,7 +167,7 @@ function homeMap(layout) {
 }
 /** `host` : dans des quartiers, leur hôte (sa parcelle et ses murs comptent). */
 const reaches = (player, level, at, host) => player.level === level && canReach(
-  host && level === HOUSING_LEVEL ? homeMap(host.layout) : level === -1 && player.voie ? voieMap : MAPS.get(level), player, at, REACH,
+  host && level === HOUSING_LEVEL ? homeMap(host.layout) : level === -1 ? holdMap(player) : MAPS.get(level), player, at, REACH,
 )
 /** Pont de chaque jukebox : la salle commune (pont principal), le bar (la cale), les quartiers. */
 const JUKEBOX_LEVEL = new Map([['deck', 0], ['hold', -1], ['cabin', HOUSING_LEVEL]])
@@ -626,6 +634,8 @@ export function attachRelay(
       if (m.level === BASE_LEVEL && !MAPS.get(BASE_LEVEL).isFloor(Math.round(x), Math.round(z))) return
       if (m.level === 0 && MAPS.get(0).room(Math.round(x), Math.round(z)) === 'l' && !player.ljpc) return
       if (m.level === -1 && MAPS.get(-1).room(Math.round(x), Math.round(z)) === 'v' && !player.voie) return
+      // Le Zorb : le videur ne laisse passer que les aliens.
+      if (m.level === -1 && MAPS.get(-1).room(Math.round(x), Math.round(z)) === CLUB_ROOM && !isAlienLook(player.skin)) return
       // La baie infestée : seulement en mission, sur son sol, et pas plus vite qu'on ne court.
       if (m.level === ZONE_LEVEL && !salvage.accepts(player, x, z)) return
       // Une pose inconnue n'en est pas une ; sa hauteur reste à portée d'une couchette du haut.
