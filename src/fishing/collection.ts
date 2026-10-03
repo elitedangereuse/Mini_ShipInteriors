@@ -8,6 +8,8 @@ import { FISH, fishById } from '../../shared/fishing.js'
 
 const FISH_URL = import.meta.env.VITE_ED_FISH_URL || '/outils/mini-shipinteriors-fish.php'
 const LOCAL_KEY = 'mini-shipinteriors-fish'
+/** Espèces dont le joueur a déjà vu la page dans le livre des prises (dans ce navigateur). */
+const SEEN_KEY = 'mini-shipinteriors-fish-seen'
 
 /** Une espèce prise : combien de fois, la plus grande (cm), la date de la première (secondes Unix). */
 export interface Caught {
@@ -45,6 +47,15 @@ function loadLocal(): Collection {
   }
 }
 
+function loadSeen(): Set<string> {
+  try {
+    const list = JSON.parse(localStorage.getItem(SEEN_KEY) ?? '[]') as unknown
+    return new Set(Array.isArray(list) ? list.filter((id): id is string => typeof id === 'string') : [])
+  } catch {
+    return new Set()
+  }
+}
+
 function saveLocal(c: Collection) {
   try {
     localStorage.setItem(LOCAL_KEY, JSON.stringify(c))
@@ -70,6 +81,25 @@ class FishCollection {
   private local: Collection = loadLocal()
   /** Appelé quand la collection change (le livre, le choix du tableau). */
   onChange?: () => void
+  private seen = loadSeen()
+
+  /**
+   * Espèces prises dont le joueur n'a pas encore vu la page : le livre des prises le signale, sur
+   * son lutrin (cf. main.ts) et sur leurs cases.
+   */
+  get fresh(): string[] {
+    return FISH.filter((f) => this.caught[f.id] && !this.seen.has(f.id)).map((f) => f.id)
+  }
+
+  /** Le livre a été lu : plus rien de nouveau à signaler. */
+  markSeen() {
+    for (const id of Object.keys(this.caught)) this.seen.add(id)
+    try {
+      localStorage.setItem(SEEN_KEY, JSON.stringify([...this.seen]))
+    } catch {
+      // Stockage indisponible : le signal reviendra à la prochaine visite.
+    }
+  }
 
   /** Nombre d'espèces prises, sur le nombre d'espèces de l'étang. */
   get progress(): { caught: number; total: number } {

@@ -20,6 +20,7 @@ import thumbsUp from '@phosphor-icons/core/duotone/thumbs-up-duotone.svg?raw'
 import user from '@phosphor-icons/core/duotone/user-duotone.svg?raw'
 import bed from '@phosphor-icons/core/duotone/bed-duotone.svg?raw'
 import books from '@phosphor-icons/core/duotone/books-duotone.svg?raw'
+import fish from '@phosphor-icons/core/duotone/fish-duotone.svg?raw'
 import couch from '@phosphor-icons/core/duotone/couch-duotone.svg?raw'
 import cube from '@phosphor-icons/core/duotone/cube-duotone.svg?raw'
 import doorOpen from '@phosphor-icons/core/duotone/door-open-duotone.svg?raw'
@@ -166,6 +167,7 @@ const SVG = {
   bed,
   couch,
   books,
+  fish,
   lamp,
   'potted-plant': pottedPlant,
   'frame-corners': frameCorners,

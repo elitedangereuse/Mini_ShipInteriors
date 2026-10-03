@@ -30,14 +30,18 @@ export class FishBook {
     // Un clic à côté du livre le referme.
     this.root.onpointerdown = (e) => { if (e.target === this.root) this.close() }
     document.body.append(this.root)
-    this.selected = FISH.find((f) => this.collection.has(f.id))?.id ?? null
+    // La page ouverte : une espèce nouvelle s'il y en a, sinon la première prise.
+    this.selected = this.collection.fresh[0] ?? FISH.find((f) => this.collection.has(f.id))?.id ?? null
     this.render()
     void this.collection.load()
   }
 
   close() {
-    this.root?.remove()
+    if (!this.root) return
+    this.root.remove()
     this.root = undefined
+    // Les pages nouvelles ont été vues : leur pastille, et le signal du lutrin, s'éteignent.
+    this.collection.markSeen()
   }
 
   private render() {
@@ -83,6 +87,12 @@ export class FishBook {
       count.className = 'fish-cell-count'
       count.textContent = `×${got.count}`
       cell.append(count)
+      if (this.collection.fresh.includes(fish.id)) {
+        const fresh = document.createElement('span')
+        fresh.className = 'fish-cell-new'
+        fresh.textContent = tr('Nouveau', 'New')
+        cell.append(fresh)
+      }
     }
     cell.setAttribute('aria-label', got ? fishName(fish) : tr(`Espèce inconnue (${RARITY_NAME[fish.rarity]})`, `Unknown species (${RARITY_NAME[fish.rarity]})`))
     cell.onclick = () => { this.selected = fish.id; this.render() }

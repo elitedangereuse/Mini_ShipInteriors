@@ -3980,3 +3980,4 @@ body.planet {
   .fish-cell img { width: 60px; height: 60px; }
   .fish-book-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
 }
+.fish-cell-new { position: absolute; top: 4px; left: 6px; padding: 1px 6px; border-radius: 999px; background: #76f0c2; color: #0b1724; font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; animation: court-pulse .7s ease-in-out infinite alternate; }

@@ -28,7 +28,7 @@ import { ECONOMY, formatCredits, skinPrice, type JobKind, plotPrice } from './ec
 import { CreditsHud } from './economy/hud'
 import { taskOf } from './economy/schedule'
 import { allLooks, lookOwned, skinProduct, starterLook } from './economy/skins'
-import { TASK_INFO, TaskBoard, type LiveTask, type WorkSound } from './economy/tasks'
+import { markerMaterial, TASK_INFO, TaskBoard, type LiveTask, type WorkSound } from './economy/tasks'
 import { Wallet } from './economy/wallet'
 import { Sound } from './audio'
 import { Avatar, EMOTES } from './avatar'
@@ -621,6 +621,15 @@ for (const it of deckById(FISHING_LEVEL).interactables) {
   else if (it.furniture?.model === 'fish-book') it.onInteract = openFishBook
 }
 fishing.onBook = openFishBook
+// Une espèce nouvelle dans le livre des prises : une pastille flotte au-dessus du lutrin, jusqu'à
+// ce qu'on l'ouvre (cf. FishCollection.fresh).
+const fishBookItem = deckById(FISHING_LEVEL).interactables.find((it) => it.furniture?.model === 'fish-book')
+const fishBookMarker = new THREE.Sprite(markerMaterial('fish', '#76f0c2'))
+fishBookMarker.scale.setScalar(0.34)
+fishBookMarker.renderOrder = 4
+fishBookMarker.visible = false
+if (fishBookItem) fishBookMarker.position.set(fishBookItem.position.x, 1.25, fishBookItem.position.z)
+deckById(FISHING_LEVEL).group.add(fishBookMarker)
 fishing.onGesture = () => { player.avatar.playEmote('interact'); net.sendEmote('interact') }
 fishing.onSound = (kind, at) => {
   const here = at.clone().setY(at.y + deck.y)
@@ -4551,6 +4560,8 @@ function frame() {
   if (fishing.active && deck.def.id !== FISHING_LEVEL) fishing.stop()
   fishing.update(dt)
   if (fishing.active) player.setHeading(fishing.heading)
+  fishBookMarker.visible = !!fishBookItem && !fishBook.isOpen && fishCollection.fresh.length > 0
+  if (fishBookMarker.visible) fishBookMarker.position.y = 1.25 + Math.sin(performance.now() / 450) * 0.04
   const pad = updateGamepad(dt)
   if (cursorLocked() && (!fpsWanted || isoOnly() || needsCursor())) {
     unlockCursor()
