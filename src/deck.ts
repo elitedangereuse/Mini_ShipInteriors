@@ -989,7 +989,7 @@ export class Deck {
       if (box.max.y > 0.6) this.addFading(o, center)
       else this.addStatic(o, true)
 
-      const seats = seatsOf(p.model, p.label)
+      const seats = p.seats === false ? undefined : seatsOf(p.model, p.label)
       if (p.interact || seats || p.music) {
         const label = p.action ?? (seats ? seatAction(seats) : tr('Examiner', 'Examine'))
         const position = p.reach ? new THREE.Vector3(p.reach.x, 0, p.reach.z) : center.clone().setY(0)

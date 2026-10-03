@@ -77,7 +77,7 @@ import { SystemView, SYSTEMS } from './systems'
 import { Traffic, type HullSides } from './traffic'
 import { nextSystem, JUMP_CHARGE, JUMP_TRAVEL, type SystemId } from '../shared/systems.js'
 import { syncTempo, tempo } from './tempo'
-import { ClubMusic, clubProximity } from './club'
+import { ClubCrowd, ClubMusic, clubProximity } from './club'
 import { CLUB_ROOM, isAlienLook } from '../shared/ship-layouts.js'
 import { ToiletFlushes } from './toilet-flush'
 import { SalvageClient } from './salvage/client'
@@ -245,7 +245,15 @@ const clubEntrance = deckById(-1).map.doors.find((door) => {
   return map.room(door.x, door.z) === CLUB_ROOM || map.room(door.x + d.dx, door.z + d.dz) === CLUB_ROOM
 })
 const clubDoorItem = clubEntrance && deckById(-1).doorExamine(clubEntrance.x, clubEntrance.z, clubEntrance.dir)
+/** Le videur, le DJ et les habitués : des personnages du Holo-Me, chargés après le reste. */
+let clubCrowd: ClubCrowd | null = null
+void ClubCrowd.load(deckById(-1)).then((crowd) => {
+  clubCrowd = crowd
+  crowd.setAccess(clubAlien)
+})
 for (const it of deckById(-1).interactables) {
+  // Sur la piste du Zorb, on danse.
+  if (it.furniture?.model === 'dance-floor') it.onInteract = () => emote('danse')
   if (it.furniture?.model !== 'club-bouncer') continue
   const welcome = it.text
   it.text = () => (clubAlien ? (typeof welcome === 'function' ? welcome() : welcome) : LEVELS.find((l) => l.id === -1)?.closed?.[CLUB_ROOM]) ?? ''
@@ -4550,6 +4558,7 @@ function frame() {
   if (clubAlien !== isAlienLook(profile.skin)) {
     clubAlien = !clubAlien
     deckById(-1).setClubAccess(clubAlien)
+    clubCrowd?.setAccess(clubAlien)
     if (!clubAlien && holdRoom === CLUB_ROOM) {
       player.cancelPath()
       marker.visible = false
@@ -4560,6 +4569,7 @@ function frame() {
     }
   }
   const inClub = clubAlien && holdRoom === CLUB_ROOM
+  if (deckById(-1).group.visible) clubCrowd?.update(world)
   // Chaque jukebox remplit sa pièce en stéréo ; derrière une cloison, il reste sourd et lointain.
   // Un autre pont est silencieux. Le repère des pièces suit la carte du pont, portes comprises.
   for (const [music, source] of [[deckMusic, deckById(0)], [holdMusic, deckById(-1)], [cabinMusic, homeDeck]] as const) {

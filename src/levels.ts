@@ -31,6 +31,8 @@ export interface Prop {
   action?: string
   /** Texte libre d'un meuble fait main : titre d'un panneau (« TITRE|ligne|ligne »), jeu d'une borne, couleur d'un tissu… */
   label?: string
+  /** false : on ne s'y installe pas, même si le meuble a une place (les platines du DJ du Zorb). */
+  seats?: false
   /** On y choisit la musique (le jukebox, cf. src/music.ts). */
   music?: boolean
   /**
@@ -372,13 +374,14 @@ export const LEVELS: LevelDef[] = [
 
       // --- Le Zorb, la boîte de nuit des aliens, au-dessus de la salle des machines : on y vient du
       // palier par le couloir de service. Le videur garde la porte (à l'ouest du couloir) et ne
-      // laisse entrer que ceux qui portent une apparence d'alien (cf. CLUB_ROOM, src/club.ts, qui
-      // lui donne aussi ses répliques). Platines contre le mur nord, piste au milieu ---
-      { model: 'dance-floor', x: 1.5, z: 1.3, label: 'neon:2.5x1.75', solid: false },
+      // laisse entrer que ceux qui portent une apparence d'alien (cf. CLUB_ROOM). Platines contre le
+      // mur nord, piste au milieu : on y danse (cf. main.ts). Le videur, le DJ et les habitués sont
+      // des personnages du Holo-Me (`label` : leur apparence), posés par src/club.ts ---
+      { model: 'dance-floor', x: 1.5, z: 1.3, label: 'neon:2.5x1.75', solid: false, action: tr('Danser', 'Dance'), interact: tr('La piste du Zorb.', 'The Zorb dance floor.') },
       { model: 'disco-ball', x: 1.5, z: 1.3, solid: false },
-      { model: 'dj-booth', x: 1.5, z: 0.02, interact: tr('Les platines de DJ Glorp. Sur le disque de gauche : « Sewer Nightclub ». Sur celui de droite : le même, mais à l\'envers.', 'DJ Glorp\'s decks. On the left record: “Sewer Nightclub”. On the right one: the same, backwards.') },
+      { model: 'dj-booth', x: 1.5, z: 0.02, seats: false, interact: tr('Les platines de DJ Glorp. Sur le disque de gauche : « Sewer Nightclub ». Sur celui de droite : le même, mais à l\'envers.', 'DJ Glorp\'s decks. On the left record: “Sewer Nightclub”. On the right one: the same, backwards.') },
       {
-        model: 'club-dancer', x: 1.5, z: -0.3, label: 'dj', action: tr('Parler', 'Talk'),
+        model: 'club-dj', x: 1.5, z: -0.3, label: 'alien.male.e.violet', action: tr('Parler', 'Talk'),
         interact: [
           tr('DJ Glorp : « Zblorp ! » Il lève une main à trois doigts. La salle hurle.', 'DJ Glorp: “Zblorp!” He raises a three-fingered hand. The room roars.'),
           tr('DJ Glorp te tend un casque. Dedans, exactement la même musique, mais plus fort.', 'DJ Glorp hands you a headset. Inside, exactly the same music, only louder.'),
@@ -390,33 +393,33 @@ export const LEVELS: LevelDef[] = [
       { model: 'laser', x: -0.22, z: -0.2, y: 0.58, label: 'green', solid: false },
       { model: 'laser', x: 3.22, z: -0.2, y: 0.58, label: 'rgb', solid: false },
       {
-        model: 'club-dancer', x: 0.75, z: 0.95, label: 'green', solid: false, action: tr('Parler', 'Talk'),
+        model: 'club-dancer', x: 0.75, z: 0.95, label: 'alien.male.b.green', solid: false, action: tr('Parler', 'Talk'),
         interact: [
           tr('Le Zorblien te détaille de la tête aux pieds : « Jolies antennes. Elles sont vraies ? » Tu hoches la tête. Elles tiennent.', 'The Zorblian looks you up and down: “Nice antennae. Are they real?” You nod. They stay on.'),
           tr('« Tu viens d\'où ? » Tu réponds « de loin ». Il a l\'air de trouver ça très drôle.', '“Where are you from?” You say “far away”. He seems to find that hilarious.'),
         ],
       },
       {
-        model: 'club-dancer', x: 2.3, z: 0.9, label: 'blue', solid: false, action: tr('Parler', 'Talk'),
+        model: 'club-dancer', x: 2.3, z: 0.9, label: 'alien.female.d.blue', solid: false, action: tr('Parler', 'Talk'),
         interact: [
           tr('La Cryonienne danse sans s\'arrêter : « Trois jours que je suis là. Ou trois semaines. Le DJ n\'a pas changé de disque. »', 'The Cryonian keeps dancing: “I\'ve been here three days. Or three weeks. The DJ hasn\'t changed the record.”'),
           tr('« Les humains ? Jamais vu un seul ici. On dit qu\'ils dansent très mal. » Tu ralentis un peu.', '“Humans? Never seen one in here. They say they are terrible dancers.” You slow down a bit.'),
         ],
       },
       {
-        model: 'club-dancer', x: 1.15, z: 1.85, label: 'violet', solid: false, action: tr('Parler', 'Talk'),
+        model: 'club-dancer', x: 1.15, z: 1.85, label: 'alien.male.c.violet', solid: false, action: tr('Parler', 'Talk'),
         interact: [
           tr('Le Nébulien te crie à l\'oreille : « C\'EST MA CHANSON ! » C\'est la seule chanson.', 'The Nebulian shouts in your ear: “THIS IS MY SONG!” It is the only song.'),
           tr('« Le videur ? Un amour. Il a refoulé un Thargoïde la semaine dernière. Tenue incorrecte. »', '“The bouncer? A sweetheart. He turned a Thargoid away last week. Dress code.”'),
         ],
       },
-      { model: 'club-dancer', x: 2.2, z: 1.9, solid: false },
-      { model: 'club-dancer', x: 0.2, z: 1.95, solid: false },
+      { model: 'club-dancer', x: 2.2, z: 1.9, label: 'alien.female.e.green', solid: false },
+      { model: 'club-dancer', x: 0.2, z: 1.95, label: 'alien.female.a.violet', solid: false },
       // Le couloir : le videur à côté de la porte, l'enseigne au mur nord, le cordon de la file.
       { model: 'club-sign', x: 5.35, z: -0.36, solid: false },
       {
         // Ce qu'il dit à un alien ; à un humain, il répète ce qu'on lit sur la porte (cf. main.ts).
-        model: 'club-bouncer', x: 4.2, z: 0.3, rot: 1, action: tr('Parler au videur', 'Talk to the bouncer'),
+        model: 'club-bouncer', x: 4.2, z: 0.3, rot: 1, label: 'alien.male.a.green', action: tr('Parler au videur', 'Talk to the bouncer'),
         interact: [
           tr('Le videur baisse ses lunettes, compte tes antennes, hoche la tête : « Deux. C\'est bon. Entre. »', 'The bouncer lowers his shades, counts your antennae, nods: “Two. Fine. Go in.”'),
           tr('Le videur : « Bonne soirée. Si tu vois un humain à l\'intérieur, tu me le signales. Ils se déguisent, maintenant. »', 'The bouncer: “Have a good night. If you see a human inside, tell me. They wear disguises now.”'),
