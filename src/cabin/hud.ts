@@ -4,13 +4,13 @@ import { $, nameTag } from '../ui'
 
 /*
  * Barre de la cabine, en haut de l'écran, quand on est dans des quartiers : les siens (aménager,
- * inviter), ou ceux d'un autre CMDR (qui reçoit, repartir), et tant que dure la visite, même dans
- * la coursive.
+ * ouvrir), ou ceux d'un autre CMDR (qui reçoit, repartir), et tant que dure la visite, même dans
+ * la coursive. Inviter, visiter, sonner : c'est le combiné de bord (cf. crew/phone.ts).
  */
 
 export type CabinBarState =
   /** `open` : quartiers ouverts ou sur invitation (housing v2, absent : pas de bascule). */
-  | { kind: 'own'; canEdit: boolean; canInvite: boolean; loginUrl?: string; open?: boolean }
+  | { kind: 'own'; canEdit: boolean; loginUrl?: string; open?: boolean }
   | { kind: 'visit'; host: string; inside: boolean }
   | null
 
@@ -18,7 +18,6 @@ export class CabinBar {
   private el = $('cabin-bar')
   private key = ''
   onEdit?: () => void
-  onInvite?: () => void
   onLeave?: () => void
   /** Ouvrir ou fermer ses quartiers (housing v2). */
   onToggleOpen?: () => void
@@ -51,7 +50,6 @@ export class CabinBar {
     } else if (state.canEdit) {
       title.append(icon('bed'), document.createTextNode(tr('Vos quartiers', 'Your quarters')))
       actions.append(button(tr('Aménager', 'Decorate'), 'paint-brush', () => this.onEdit?.(), 'B'))
-      if (state.canInvite) actions.append(button(tr('Inviter', 'Invite'), 'user-plus', () => this.onInvite?.()))
       if (state.open !== undefined) {
         const b = button(state.open ? tr('Ouverts', 'Open') : tr('Sur invitation', 'Invite only'), state.open ? 'lock-simple-open' : 'lock-simple', () => this.onToggleOpen?.())
         b.classList.toggle('cb-open', state.open)
@@ -73,140 +71,73 @@ export class CabinBar {
 
 // ---------------------------------------------------------------- invitations
 
-export interface CrewEntry {
-  id: number
-  name: string
-  verified?: boolean
-  /** free : on peut l'inviter · invited : invitation envoyée · visiting : dans nos quartiers. */
-  state: 'free' | 'invited' | 'visiting'
-  /** Ses quartiers sont ouverts (housing v2) : on peut aller les visiter. */
-  open?: boolean
-}
-
-/** Liste des membres d'équipage : les inviter dans ses quartiers, ou raccompagner ses visiteurs. */
-export class InviteMenu {
-  private el = $('invite-menu')
-  onInvite?: (id: number) => void
-  onKick?: (id: number) => void
-  onVisit?: (id: number) => void
-
-  get isOpen(): boolean {
-    return !this.el.hidden
-  }
-
-  contains(target: EventTarget | null): boolean {
-    return target instanceof Node && this.el.contains(target)
-  }
-
-  open(crew: CrewEntry[]) {
-    this.el.hidden = false
-    this.render(crew)
-  }
-
-  close() {
-    this.el.hidden = true
-  }
-
-  /** Met la liste à jour si elle est ouverte (arrivées, départs, visites). */
-  refresh(crew: CrewEntry[]) {
-    if (this.isOpen) this.render(crew)
-  }
-
-  private render(crew: CrewEntry[]) {
-    this.el.replaceChildren()
-    const section = (title: string, list: CrewEntry[], action: (c: CrewEntry) => HTMLElement) => {
-      if (!list.length) return
-      const h = document.createElement('div')
-      h.className = 'im-title'
-      h.textContent = title
-      this.el.appendChild(h)
-      for (const c of list) {
-        const row = document.createElement('div')
-        row.className = 'im-row'
-        const name = document.createElement('span')
-        name.className = 'im-name'
-        name.append(nameTag(c.name, c.verified))
-        row.append(name, action(c))
-        this.el.appendChild(row)
-      }
-    }
-    const button = (label: string, glyph: Parameters<typeof icon>[0], onClick: () => void, disabled = false) => {
-      const b = document.createElement('button')
-      b.append(icon(glyph), document.createTextNode(label))
-      b.disabled = disabled
-      b.onclick = onClick
-      return b
-    }
-    section(tr('Dans vos quartiers', 'In your quarters'), crew.filter((c) => c.state === 'visiting'), (c) =>
-      button(tr('Raccompagner', 'Show out'), 'sign-out', () => this.onKick?.(c.id)),
-    )
-    section(tr('Quartiers ouverts', 'Open quarters'), crew.filter((c) => c.open), (c) =>
-      button(tr('Visiter', 'Visit'), 'door-open', () => this.onVisit?.(c.id)),
-    )
-    section(tr('Inviter dans vos quartiers', 'Invite to your quarters'), crew.filter((c) => c.state !== 'visiting'), (c) =>
-      c.state === 'invited'
-        ? button(tr('Invité', 'Invited'), 'check', () => {}, true)
-        : button(tr('Inviter', 'Invite'), 'envelope-simple', () => this.onInvite?.(c.id)),
-    )
-    if (!crew.length) {
-      const empty = document.createElement('div')
-      empty.className = 'im-empty'
-      empty.textContent = tr('Personne d\'autre à bord pour l\'instant.', 'Nobody else aboard for now.')
-      this.el.appendChild(empty)
-    }
-  }
-}
-
-/** Invitations reçues : rejoindre les quartiers d'un CMDR, ou décliner. Chacune vaut une minute. */
+/**
+ * Invitations reçues (rejoindre les quartiers d'un CMDR, ou décliner) et coups de sonnette (`ring` :
+ * quelqu'un demande à entrer chez nous, lui ouvrir ou non). Chacun vaut une minute.
+ */
 export class InviteToasts {
   private el = $('invites')
-  private toasts = new Map<number, { el: HTMLElement; timer: number }>()
+  private toasts = new Map<string, { el: HTMLElement; timer: number }>()
   onAccept?: (id: number, name: string) => void
   onDecline?: (id: number) => void
+  /** On ouvre à celui qui a sonné. */
+  onOpenDoor?: (id: number) => void
 
-  add(id: number, name: string, verified?: boolean) {
-    this.remove(id)
+  add(id: number, name: string, verified?: boolean, ring = false) {
+    const key = `${ring ? 'r' : 'i'}${id}`
+    this.drop(key)
     const el = document.createElement('div')
     el.className = 'panel invite-toast'
     const text = document.createElement('div')
     text.className = 'it-text'
     const who = document.createElement('strong')
     who.append(nameTag(name, verified))
-    text.append(icon('envelope-simple', 'it-icon'), who, document.createTextNode(tr(' vous invite dans ses quartiers.', ' invites you to their quarters.')))
+    text.append(
+      icon(ring ? 'bell-ringing' : 'envelope-simple', 'it-icon'),
+      who,
+      document.createTextNode(ring ? tr(' sonne à la porte de vos quartiers.', ' is ringing at your quarters.') : tr(' vous invite dans ses quartiers.', ' invites you to their quarters.')),
+    )
     const actions = document.createElement('div')
     actions.className = 'it-actions'
     const join = document.createElement('button')
     join.className = 'it-join'
-    join.append(icon('door-open'), document.createTextNode(tr('Rejoindre', 'Join')))
+    join.append(icon('door-open'), document.createTextNode(ring ? tr('Ouvrir', 'Let in') : tr('Rejoindre', 'Join')))
     join.onclick = () => {
-      this.remove(id)
-      this.onAccept?.(id, name)
+      this.drop(key)
+      if (ring) this.onOpenDoor?.(id)
+      else this.onAccept?.(id, name)
     }
     const no = document.createElement('button')
-    no.textContent = tr('Non merci', 'No thanks')
+    no.textContent = ring ? tr('Ignorer', 'Ignore') : tr('Non merci', 'No thanks')
     no.onclick = () => {
-      this.remove(id)
-      this.onDecline?.(id)
+      this.drop(key)
+      if (!ring) this.onDecline?.(id)
     }
     actions.append(join, no)
     const bar = document.createElement('div')
     bar.className = 'it-timer'
     el.append(text, actions, bar)
     this.el.prepend(el)
-    // Trois invitations au plus à l'écran : la plus ancienne s'efface.
-    while (this.toasts.size >= 3) this.remove(this.toasts.keys().next().value!)
-    this.toasts.set(id, { el, timer: window.setTimeout(() => this.remove(id), 60000) })
+    // Trois au plus à l'écran : la plus ancienne s'efface.
+    while (this.toasts.size >= 3) this.drop(this.toasts.keys().next().value!)
+    this.toasts.set(key, { el, timer: window.setTimeout(() => this.drop(key), 60000) })
   }
 
+  /** Ce joueur n'a plus rien à nous demander (parti, entré) : son invitation et sa sonnette s'effacent. */
   remove(id: number) {
-    const t = this.toasts.get(id)
+    this.drop(`i${id}`)
+    this.drop(`r${id}`)
+  }
+
+  private drop(key: string) {
+    const t = this.toasts.get(key)
     if (!t) return
     clearTimeout(t.timer)
     t.el.remove()
-    this.toasts.delete(id)
+    this.toasts.delete(key)
   }
 
   clear() {
-    for (const id of [...this.toasts.keys()]) this.remove(id)
+    for (const key of [...this.toasts.keys()]) this.drop(key)
   }
 }

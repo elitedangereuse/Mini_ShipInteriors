@@ -8,7 +8,7 @@ import raw from './economy.json'
  * - start : prime de bienvenue d'un nouveau compte ;
  * - passive : revenu passif, payé à chaque battement (une fois par minute), `daily` minutes par jour ;
  * - items, skins : prix de déblocage des objets des quartiers et des apparences (cf. skins.ts) ;
- * - plot : prix des deux agrandissements de la parcelle du pont des quartiers, dans l'ordre ;
+ * - plot : prix des trois agrandissements de la parcelle du pont des quartiers, dans l'ordre ;
  * - salvage : récompense d'une mission réussie en zone thargoïde, par membre (par colis, et bonus
  *   par ennemi au-delà du premier, cf. salvageReward dans shared/salvage.js) ; `daily` missions
  *   payées par jour, et aucune bouclée en moins de `minPerParcel` secondes par colis ;

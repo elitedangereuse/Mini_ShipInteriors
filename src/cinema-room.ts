@@ -3,9 +3,13 @@ import { tr } from './i18n'
 import { icon } from './icons'
 import { CINEMA_SCREEN, setProjection } from './furniture/cinema'
 import { FILM_H, FILM_W } from './furniture/cinema-film'
-import type { CinemaState, CinemaTrailer, CinemaVideo } from './net'
+import type { CinemaState, CinemaStream, CinemaTrailer, CinemaVideo } from './net'
+import { TwitchChat } from './twitch-chat'
 
 const ENDPOINT = '/outils/mini-shipinteriors-cinema.php'
+/** La chaîne du site : son direct passe avant tout le reste. */
+const SITE_CHANNEL = 'elitedangereuse'
+type Tab = 'trailers' | 'youtube' | 'twitch'
 
 interface YouTubePlayer {
   destroy(): void
@@ -73,6 +77,7 @@ export class CinemaRoom {
   private tabs = document.createElement('div')
   private trailersTab = document.createElement('button')
   private youtubeTab = document.createElement('button')
+  private twitchTab = document.createElement('button')
   private cards = document.createElement('div')
   private searchPanel = document.createElement('div')
   private searchForm = document.createElement('form')
@@ -103,21 +108,23 @@ export class CinemaRoom {
   private readonly bounds = new THREE.Box3()
   private youtubePlayer: YouTubePlayer | null = null
   private twitchPlayer: TwitchPlayer | null = null
+  private twitchChat = new TwitchChat()
   private playerToken = 0
   private closeButton = document.createElement('button')
   private previousFocus: HTMLElement | null = null
   private controller = false
   private playing = ''
   private catalogKey = ''
-  private tab: 'trailers' | 'youtube' = 'trailers'
+  private tab: Tab = 'trailers'
   private searchSerial = 0
   private searching = false
-  private state: CinemaState = { trailers: [], live: false, liveTitle: '', selected: null, youtube: null, since: 0, operator: null, now: Date.now() }
+  private state: CinemaState = { trailers: [], live: false, liveTitle: '', selected: null, youtube: null, twitch: null, since: 0, operator: null, now: Date.now() }
   private receivedAt = performance.now()
 
   constructor(
     private network: { online: () => boolean; self: () => number; choose: (id: number | null) => void;
       search: (query: string) => Promise<{ videos: CinemaVideo[]; reason?: string }>; video: (id: string) => void;
+      streams: (query: string) => Promise<{ streams: CinemaStream[]; reason?: string }>; stream: (channel: string) => void;
       duration: (id: number | string, since: number, duration: number) => void },
   ) {
     try {
@@ -149,11 +156,14 @@ export class CinemaRoom {
     this.tabs.className = 'cinema-room-tabs'
     this.trailersTab.type = 'button'
     this.trailersTab.textContent = tr('Trailers', 'Trailers')
-    this.trailersTab.onclick = () => { this.tab = 'trailers'; this.renderControls() }
+    this.trailersTab.onclick = () => this.setTab('trailers')
     this.youtubeTab.type = 'button'
     this.youtubeTab.textContent = 'YouTube'
-    this.youtubeTab.onclick = () => { this.tab = 'youtube'; this.renderControls() }
-    this.tabs.append(this.trailersTab, this.youtubeTab)
+    this.youtubeTab.onclick = () => this.setTab('youtube')
+    this.twitchTab.type = 'button'
+    this.twitchTab.textContent = 'Twitch'
+    this.twitchTab.onclick = () => this.setTab('twitch')
+    this.tabs.append(this.trailersTab, this.youtubeTab, this.twitchTab)
     this.cards.className = 'cinema-room-cards'
     this.searchPanel.className = 'cinema-room-search'
     this.searchForm.className = 'cinema-room-search-form'
@@ -223,6 +233,24 @@ export class CinemaRoom {
   }
 
   get isOpen() { return !this.root.hidden }
+  /** Chaîne Twitch à l'écran : celle du site en direct, sinon celle que la régie a choisie. */
+  private get stream(): string | null { return this.state.live ? SITE_CHANNEL : this.state.twitch?.channel ?? null }
+
+  /** YouTube et Twitch partagent le panneau de recherche : ses résultats ne passent pas d'un onglet à l'autre. */
+  private setTab(tab: Tab) {
+    if (tab !== this.tab) {
+      this.searchSerial++
+      this.searching = false
+      this.searchInput.value = ''
+      this.searchStatus.textContent = ''
+      this.searchResults.replaceChildren()
+    }
+    this.tab = tab
+    const label = tab === 'twitch' ? tr('Chaîne, jeu ou lien Twitch', 'Channel, game or Twitch link') : tr('Recherche ou lien YouTube', 'Search or YouTube link')
+    this.searchInput.placeholder = `${label}…`
+    this.searchInput.setAttribute('aria-label', label)
+    this.renderControls()
+  }
   get isController() { return this.isOpen && this.controller }
 
   /** Volume propre à chaque spectateur, gardé d'une visite à l'autre. */
@@ -258,9 +286,11 @@ export class CinemaRoom {
     this.state = state
     this.receivedAt = performance.now()
     const current = state.youtube ?? state.trailers.find((t) => t.id === state.selected)
-    setProjection(state.live ? 'twitch' : current ? 'trailer' : null,
-      state.live ? (state.liveTitle || 'Élite Dangereuse') : current?.title ?? '', state.youtube ? '' : current?.image ?? '')
+    setProjection(this.stream ? 'twitch' : current ? 'trailer' : null,
+      state.live ? (state.liveTitle || 'Élite Dangereuse') : state.twitch ? `${state.twitch.name} · ${state.twitch.title}` : current?.title ?? '',
+      state.youtube || this.stream ? '' : current?.image ?? '')
     this.renderScreen()
+    this.twitchChat.show(this.inCinemaRoom ? this.stream : null)
     if (this.isOpen) this.renderControls()
   }
 
@@ -286,7 +316,7 @@ export class CinemaRoom {
       if (data.status !== 'success' || !Array.isArray(data.trailers)) return
       const live = data.live === true
       this.receive({ ...this.state, trailers: data.trailers, live, liveTitle: data.liveTitle ?? '',
-        selected: live ? null : this.state.selected, youtube: live ? null : this.state.youtube,
+        selected: live ? null : this.state.selected, youtube: live ? null : this.state.youtube, twitch: live ? null : this.state.twitch,
         operator: this.controller ? this.network.self() : null, now: Date.now() })
     } catch { /* Le faux film reste disponible sans le site. */ }
   }
@@ -294,7 +324,7 @@ export class CinemaRoom {
   private choose(id: number | null) {
     if (!this.controller || this.state.live) return
     if (this.network.online()) this.network.choose(id)
-    else this.receive({ ...this.state, selected: id, youtube: null, since: id === null ? 0 : Date.now(), now: Date.now() })
+    else this.receive({ ...this.state, selected: id, youtube: null, twitch: null, since: id === null ? 0 : Date.now(), now: Date.now() })
   }
 
   private async search() {
@@ -305,18 +335,21 @@ export class CinemaRoom {
     this.searching = true
     this.searchButton.disabled = true
     this.searchStatus.textContent = tr('Recherche en cours…', 'Searching…')
-    const result = await this.network.search(query)
+    const twitch = this.tab === 'twitch'
+    const result = twitch ? await this.network.streams(query) : await this.network.search(query)
     if (serial !== this.searchSerial) return
     this.searching = false
     this.searchButton.disabled = false
-    this.searchResults.replaceChildren(...result.videos.map((video) => this.videoCard(video)))
+    const cards = 'streams' in result ? result.streams.map((stream) => this.streamCard(stream)) : result.videos.map((video) => this.videoCard(video))
+    this.searchResults.replaceChildren(...cards)
     this.searchStatus.textContent = result.reason === 'seat'
       ? tr('Installez-vous dans le fauteuil de régie.', 'Sit in the projection chair.')
       : result.reason === 'live' ? tr('Le direct Twitch est prioritaire.', 'Twitch live takes priority.')
       : result.reason === 'busy' ? tr('Patientez avant une nouvelle recherche.', 'Wait before searching again.')
-      : result.reason ? tr('Recherche indisponible. Vous pouvez coller un lien YouTube.', 'Search unavailable. You can paste a YouTube link.')
-      : result.videos.length ? tr('Choisissez une vidéo à diffuser.', 'Choose a video to screen.')
-      : tr('Aucune vidéo trouvée.', 'No videos found.')
+      : result.reason ? twitch ? tr('Recherche Twitch indisponible.', 'Twitch search unavailable.')
+        : tr('Recherche indisponible. Vous pouvez coller un lien YouTube.', 'Search unavailable. You can paste a YouTube link.')
+      : cards.length ? twitch ? tr('Choisissez un direct à diffuser.', 'Choose a stream to screen.') : tr('Choisissez une vidéo à diffuser.', 'Choose a video to screen.')
+      : twitch ? tr('Aucun direct trouvé.', 'No live streams found.') : tr('Aucune vidéo trouvée.', 'No videos found.')
     this.renderControls()
   }
 
@@ -338,11 +371,31 @@ export class CinemaRoom {
     return button
   }
 
+  private streamCard(stream: CinemaStream): HTMLButtonElement {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'cinema-room-card'
+    button.dataset.stream = stream.channel
+    const image = document.createElement('img')
+    image.src = stream.image
+    image.alt = ''
+    image.loading = 'lazy'
+    const name = document.createElement('strong')
+    name.textContent = stream.name
+    const title = document.createElement('small')
+    title.textContent = stream.game ? `${stream.title} · ${stream.game}` : stream.title
+    button.append(image, name, title)
+    button.onclick = () => {
+      if (this.network.online() && !this.state.live && this.state.operator === this.network.self()) this.network.stream(stream.channel)
+    }
+    return button
+  }
+
   error(reason: string) {
     this.status.textContent = reason === 'live'
       ? tr('Le direct Twitch a commencé : les vidéos sont suspendues.', 'Twitch is live: videos are paused.')
       : reason === 'busy' ? tr('Un instant entre deux changements de séance.', 'Wait a moment between screenings.')
-      : reason === 'invalid' ? tr('Cette vidéo n’est plus disponible dans la recherche. Relancez-la.', 'This video is no longer in the search results. Search again.')
+      : reason === 'invalid' ? tr('Ce choix n’est plus dans les résultats de la recherche. Relancez-la.', 'This choice is no longer in the search results. Search again.')
       : tr('Installez-vous dans le fauteuil de régie pour choisir.', 'Sit in the projection chair to choose.')
   }
 
@@ -361,7 +414,7 @@ export class CinemaRoom {
     }
     for (const button of this.cards.querySelectorAll<HTMLButtonElement>('.cinema-room-card')) {
       button.disabled = this.state.live || (this.network.online() && this.state.operator !== this.network.self())
-      button.setAttribute('aria-pressed', (button.dataset.id ? Number(button.dataset.id) === this.state.selected : this.state.selected === null && !this.state.youtube) ? 'true' : 'false')
+      button.setAttribute('aria-pressed', (button.dataset.id ? Number(button.dataset.id) === this.state.selected : this.state.selected === null && !this.state.youtube && !this.state.twitch) ? 'true' : 'false')
     }
   }
 
@@ -385,9 +438,10 @@ export class CinemaRoom {
     this.shell.classList.toggle('cinema-room-control', this.controller)
     this.selector.hidden = !this.controller || this.state.live
     this.cards.hidden = this.tab !== 'trailers'
-    this.searchPanel.hidden = this.tab !== 'youtube'
+    this.searchPanel.hidden = this.tab === 'trailers'
     this.trailersTab.setAttribute('aria-selected', String(this.tab === 'trailers'))
     this.youtubeTab.setAttribute('aria-selected', String(this.tab === 'youtube'))
+    this.twitchTab.setAttribute('aria-selected', String(this.tab === 'twitch'))
     if (this.controller) this.renderCards()
     const canChoose = this.network.online() && this.state.operator === this.network.self() && !this.state.live
     this.searchInput.disabled = !canChoose
@@ -395,19 +449,21 @@ export class CinemaRoom {
     this.searchPanel.querySelector<HTMLButtonElement>('.cinema-room-stop')!.disabled = this.state.live || (this.network.online() && !canChoose)
     for (const button of this.searchResults.querySelectorAll<HTMLButtonElement>('.cinema-room-card')) {
       button.disabled = !canChoose
-      button.setAttribute('aria-pressed', String(button.dataset.video === this.state.youtube?.video))
+      button.setAttribute('aria-pressed', String(button.dataset.stream ? button.dataset.stream === this.state.twitch?.channel : button.dataset.video === this.state.youtube?.video))
     }
-    if (!this.network.online() && this.tab === 'youtube') this.searchStatus.textContent = tr('La recherche demande une connexion au relais.', 'Search requires a relay connection.')
+    if (!this.network.online() && this.tab !== 'trailers') this.searchStatus.textContent = tr('La recherche demande une connexion au relais.', 'Search requires a relay connection.')
     const current = this.state.youtube ?? this.state.trailers.find((t) => t.id === this.state.selected)
     this.title.textContent = this.controller ? tr('Régie de projection', 'Projection booth') : tr('Séance en cours', 'Now showing')
     this.status.textContent = this.state.live
       ? tr('🔴 Direct Twitch · la sélection des vidéos est suspendue.', '🔴 Twitch live · video selection is paused.')
+      : this.state.twitch ? `🔴 ${this.state.twitch.name} · ${this.state.twitch.title}`
       : current ? current.title : tr('La salle attend une séance.', 'Waiting for a screening.')
   }
 
   private renderScreen() {
     const current = this.state.youtube ?? this.state.trailers.find((t) => t.id === this.state.selected)
-    const key = this.state.live ? 'twitch' : current ? `youtube:${current.video}:${this.state.since}` : 'none'
+    const stream = this.stream
+    const key = stream ? `twitch:${stream}` : current ? `youtube:${current.video}:${this.state.since}` : 'none'
     if (key === this.playing) return
     this.playing = key
     this.playerToken++
@@ -423,7 +479,7 @@ export class CinemaRoom {
       this.volumeControl.hidden = true
       return
     }
-    if (this.state.live) {
+    if (stream) {
       const token = this.playerToken
       const holder = document.createElement('div')
       holder.className = 'cinema-room-twitch'
@@ -432,7 +488,7 @@ export class CinemaRoom {
       void twitchApi().then((api) => {
         if (token !== this.playerToken) return
         const player = new api.Player(holder.id, {
-          width: FILM_W, height: FILM_H, channel: 'elitedangereuse',
+          width: FILM_W, height: FILM_H, channel: stream,
           parent: [location.hostname || 'elitedangereuse.fr'], muted: true, autoplay: true,
         })
         this.twitchPlayer = player
@@ -443,7 +499,7 @@ export class CinemaRoom {
         })
       }).catch(() => {
         if (token !== this.playerToken) return
-        this.frame.src = this.twitchSource()
+        this.frame.src = this.twitchSource(stream)
         this.stage.replaceChildren(this.frame)
       })
     } else if (current) {
@@ -481,28 +537,29 @@ export class CinemaRoom {
     return `https://www.youtube.com/embed/${video}?autoplay=1&mute=1&start=${elapsed}`
   }
 
-  private twitchSource() {
+  private twitchSource(channel: string) {
     const parent = location.hostname || 'elitedangereuse.fr'
-    return `https://player.twitch.tv/?channel=elitedangereuse&parent=${encodeURIComponent(parent)}&muted=true&autoplay=true`
+    return `https://player.twitch.tv/?channel=${channel}&parent=${encodeURIComponent(parent)}&muted=true&autoplay=true`
   }
 
   /** Aligne le lecteur HTML sur la toile 3D de la salle, même pendant les mouvements de caméra. */
   placeScreen(camera: THREE.Camera, onCinemaDeck: boolean, inCinemaRoom: boolean, x: number, y: number, z: number) {
+    const stream = this.stream
     if (onCinemaDeck !== this.onCinemaDeck) {
       this.onCinemaDeck = onCinemaDeck
       if (onCinemaDeck) {
-        if (this.state.live) {
+        if (stream) {
           if (this.twitchPlayer) {
             try { this.twitchPlayer.play() } catch { /* Le lecteur charge. */ }
           }
-          else if (this.frame.isConnected) this.frame.src = this.twitchSource()
+          else if (this.frame.isConnected) this.frame.src = this.twitchSource(stream)
         } else if (this.frame.isConnected) {
           const current = this.state.youtube ?? this.state.trailers.find((t) => t.id === this.state.selected)
           if (current) this.frame.src = this.youtubeSource(current.video)
         }
         this.syncYouTube(true)
       } else {
-        if (this.state.live) {
+        if (stream) {
           try { this.twitchPlayer?.pause() } catch { /* Le lecteur charge. */ }
         }
         this.frame.removeAttribute('src')
@@ -513,10 +570,11 @@ export class CinemaRoom {
     if (inCinemaRoom !== this.inCinemaRoom) {
       this.inCinemaRoom = inCinemaRoom
       this.applySound()
+      this.twitchChat.show(inCinemaRoom ? stream : null)
       // Le lecteur simple de secours n'a pas d'API de volume : le recharger muet en sortant.
       if (!inCinemaRoom && onCinemaDeck && this.frame.isConnected) {
         const current = this.state.youtube ?? this.state.trailers.find((t) => t.id === this.state.selected)
-        this.frame.src = this.state.live ? this.twitchSource() : current ? this.youtubeSource(current.video) : ''
+        this.frame.src = stream ? this.twitchSource(stream) : current ? this.youtubeSource(current.video) : ''
       }
     }
     if (this.playing === 'none' || !this.playing || !onCinemaDeck) {
@@ -573,7 +631,7 @@ export class CinemaRoom {
     this.stage.hidden = false
     this.stage.style.pointerEvents = inCinemaRoom ? 'auto' : 'none'
     this.stage.style.transform = `matrix3d(${m.map((n) => +n.toPrecision(10)).join(', ')})`
-    this.volumeControl.hidden = !inCinemaRoom || !c || !d || (this.state.live ? !this.twitchPlayer : !this.youtubePlayer)
+    this.volumeControl.hidden = !inCinemaRoom || !c || !d || (stream ? !this.twitchPlayer : !this.youtubePlayer)
     if (c && d) {
       this.volumeControl.style.left = `${(c.x + d.x) / 2}px`
       this.volumeControl.style.top = `${Math.max(c.y, d.y) + 4}px`

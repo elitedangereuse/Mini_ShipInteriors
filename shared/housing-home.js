@@ -4,7 +4,7 @@
 //
 //   { v: 2,
 //     open?: true,                              // quartiers ouverts : on y entre sans invitation
-//     stage?: 1 | 2,                            // palier d'agrandissement (cf. housing-plot.js)
+//     stage?: 1 | 2 | 3,                        // palier d'agrandissement (cf. housing-plot.js)
 //     items?: [{ m, x, z, r, v?, y?, s? }],     // le mobilier, comme celui des anciens quartiers
 //     walls?: [{ x, z, e, k?, a?, b? }],        // a, b : papier peint des deux faces (index dans papers)
 //     papers?: [{ style, color }],              // 16 au plus
@@ -24,13 +24,13 @@
 // n'en vérifient que la forme (cf. sanitizeHome), et chaque client écarte ce qu'il ne sait pas
 // poser (cf. wallRefusal).
 
-import { DOOR_KINDS, partitionEdge } from './cabin-partitions.js'
-import { inPlot, PLOT_ORIGIN, PLOT_SIZES } from './housing-plot.js'
+import { DOOR_KINDS, partitionEdge, partitionKey } from './cabin-partitions.js'
+import { inPlot, PLOT_ORIGIN, PLOT_SIZES, plotRect } from './housing-plot.js'
 
 /** Format de l'aménagement d'une parcelle. */
 export const HOME_FORMAT = 2
 
-/** Murs au plus : de quoi faire le tour de la plus grande parcelle (120) et la cloisonner. */
+/** Murs au plus : de quoi faire le tour de la plus grande parcelle (80) et la cloisonner. */
 export const MAX_HOME_WALLS = 512
 
 /** Pans sans passage : plein (sans `k`), demi-mur, à hublot. */
@@ -44,15 +44,20 @@ export const HOME_WALL_KINDS = [...SOLID_KINDS, ...HOME_DOOR_KINDS]
 
 const KIND = /^[a-z0-9-]{1,24}$/
 
-/** Bornes des arêtes : celles de la plus grande parcelle, pourtour compris (tuile au nord ou à l'ouest). */
-const MAX_SIZE = PLOT_SIZES[PLOT_SIZES.length - 1]
+/**
+ * Côté du carré que couvre le format, depuis le coin nord-ouest de la parcelle : 30, fixe. Le
+ * format 2 est né avec une plus grande parcelle de 30 × 30 ; celle de 20 × 20 (cf. PLOT_SIZES) y
+ * tient, et ce qui a été enregistré avant se lit toujours de même (le site en a le portage).
+ * Bornes des arêtes et des objets, pourtour compris, et grille des cases.
+ */
+const MAX_SIZE = 30
 
 /** Revêtements au plus dans chaque palette (sol, papier peint) : une lettre chacun. */
 export const MAX_FINISHES = 16
 const LETTERS = 'abcdefghijklmnop'
 /** Case sans revêtement : la dalle du vaisseau. */
 const BARE = '.'
-/** Côté de la grille des cases (celle de la plus grande parcelle), et nombre de cases. */
+/** Côté de la grille des cases, et nombre de cases. */
 export const GRID = MAX_SIZE
 export const CELLS = GRID * GRID
 
@@ -61,8 +66,11 @@ const COLOR = /^#[0-9a-f]{6}$/
 
 /** Objets au plus sur la parcelle (autant que dans les anciens quartiers et leurs trois extensions). */
 export const MAX_HOME_ITEMS = 160
-/** Objets au plus à chaque palier d'agrandissement : la parcelle de départ, puis 20 × 20, 30 × 30. */
-export const STAGE_ITEMS = [64, 128, 160]
+/**
+ * Objets au plus à chaque palier d'agrandissement : la parcelle de départ, puis 12 × 12, 15 × 15,
+ * 20 × 20 ; comme les anciens quartiers, puis avec une, deux ou trois extensions.
+ */
+export const STAGE_ITEMS = [64, 96, 128, 160]
 const MODEL = /^[a-z0-9-]{1,32}$/
 const VARIANT = /^[a-z0-9.:-]{1,24}$/
 
@@ -171,6 +179,29 @@ export function decodeCells(code) {
 }
 
 /**
+ * Plus petit palier dont la parcelle contient tout ce qui est bâti : chaque mur (sur son pourtour,
+ * s'il n'est pas une porte), chaque case revêtue, chaque objet. Une parcelle enregistrée avant le
+ * passage aux tailles de 8, 12, 15 et 20 tuiles (lot 7 de docs/housing-v2.md) garde ainsi tout ce
+ * qu'elle porte.
+ * @param {{ walls: object[], floor: object[], items?: object[] }} plan
+ */
+export function fitStage(plan) {
+  const side = (x, z) => Math.max(x - PLOT_ORIGIN.x + 1, z - PLOT_ORIGIN.z + 1, 0)
+  let need = 0
+  for (const w of plan.walls) {
+    const { x, z, nx, nz } = partitionEdge(w)
+    const a = side(x, z), b = side(nx, nz)
+    need = Math.max(need, isHomeDoor(w) ? Math.max(a, b) : Math.min(a, b))
+  }
+  plan.floor.forEach((f, i) => {
+    if (f) need = Math.max(need, side(cellAt(i).x, cellAt(i).z))
+  })
+  for (const it of plan.items ?? []) need = Math.max(need, side(Math.round(it.x), Math.round(it.z)))
+  const stage = PLOT_SIZES.findIndex((size) => size >= need)
+  return stage < 0 ? PLOT_SIZES.length - 1 : stage
+}
+
+/**
  * Plan d'une parcelle, sous une forme commode à modifier : les murs avec le revêtement de leurs
  * faces, et celui de chaque case (null : dalle nue), CELLS en tout (cf. cellIndex).
  * @param {unknown} raw aménagement au format 2 (vérifié ici)
@@ -189,7 +220,10 @@ export function unpackHome(raw) {
   const palette = home?.floor?.palette ?? []
   const cells = decodeCells(home?.floor?.cells)
   const floor = [...cells].map((c) => (c === BARE ? null : { ...palette[LETTERS.indexOf(c)] }))
-  return { walls, floor, items: (home?.items ?? []).map((it) => ({ ...it })), ...(home?.stage ? { stage: home.stage } : {}), ...(home?.open ? { open: true } : {}) }
+  const plan = { walls, floor, items: (home?.items ?? []).map((it) => ({ ...it })), ...(home?.open ? { open: true } : {}) }
+  // La parcelle contient toujours ce qu'on y a bâti (cf. fitStage).
+  const stage = Math.max(home?.stage ?? 0, fitStage(plan))
+  return stage ? { ...plan, stage } : plan
 }
 
 /** Nombre de revêtements différents du sol et du papier peint d'un plan (16 au plus chacun). */
@@ -310,4 +344,103 @@ export function clearWalls(map, placed) {
     map.low.delete(key)
     if (isHomeDoor(w)) map.removeDoor(x, z, dir)
   }
+}
+
+// ---------------------------------------------------------------- déplacer un bloc
+
+/**
+ * Bloc de la construction sur ces cases (un rectangle, une pièce, toute la parcelle) : les murs qui
+ * bordent l'une d'elles, et celles qui sont revêtues. Les objets sont au client (il sait lesquels
+ * sont posés là, accrochés à ces murs, ou posés sur un meuble du bloc).
+ * @param {{ walls: object[], floor: object[] }} plan (cf. unpackHome)
+ * @param {{ x: number, z: number }[]} cells
+ * @returns {{ walls: Set<string>, cells: Set<number>, items: Set<number> }} clés d'arête (cf. partitionKey), index des cases et des objets
+ */
+export function blockOf(plan, cells) {
+  const inside = new Set(cells.map((c) => `${c.x},${c.z}`))
+  const walls = new Set()
+  for (const w of plan.walls) {
+    const { x, z, nx, nz } = partitionEdge(w)
+    if (inside.has(`${x},${z}`) || inside.has(`${nx},${nz}`)) walls.add(partitionKey(w))
+  }
+  const covered = new Set()
+  for (const c of cells) {
+    const i = cellIndex(c.x, c.z)
+    if (i >= 0 && plan.floor[i]) covered.add(i)
+  }
+  return { walls, cells: covered, items: new Set() }
+}
+
+/**
+ * Pourquoi le bloc ne peut pas être déplacé de (dx, dz) tuiles, ou null s'il le peut : 'outside'
+ * (un mur, une case revêtue ou un objet sortirait de la parcelle), 'landing' (un mur tomberait
+ * sur celui du palier), 'void' (une porte arriverait sur le pourtour). Ce qui l'attend à l'arrivée
+ * (murs, meubles) est au client.
+ * @param {import('./ship-map.js').ShipMap} map plan du pont des quartiers, parcelle posée
+ */
+export function blockRefusal(map, stage, plan, block, dx, dz) {
+  for (const w of plan.walls) {
+    if (!block.walls.has(partitionKey(w))) continue
+    const why = wallRefusal(map, stage, { ...w, x: w.x + dx, z: w.z + dz })
+    if (why) return why
+  }
+  for (const i of block.cells) {
+    const c = cellAt(i)
+    if (plan.floor[i] && !inPlot(stage, c.x + dx, c.z + dz)) return 'outside'
+  }
+  // Un objet accroché au pourtour déborde un peu sur la face de son mur.
+  const r = plotRect(stage)
+  for (const i of block.items) {
+    const it = plan.items?.[i]
+    if (!it) continue
+    const x = it.x + dx, z = it.z + dz
+    if (x < r.minX - 0.5 || x > r.maxX + 0.5 || z < r.minZ - 0.5 || z > r.maxZ + 0.5) return 'outside'
+  }
+  return null
+}
+
+/**
+ * Plan où le bloc est déplacé de (dx, dz) tuiles, d'un seul tenant : ses murs, ses cases revêtues
+ * et ses objets. Ses murs et ses revêtements remplacent ce qui était à l'arrivée (un mur y garde
+ * le papier peint de la face que le bloc n'habille pas) ; les cases qu'il quitte redeviennent
+ * nues. Les objets gardent leur ordre. À vérifier d'abord avec blockRefusal.
+ */
+export function moveBlock(plan, block, dx, dz) {
+  const byKey = new Map()
+  for (const w of plan.walls) if (!block.walls.has(partitionKey(w))) byKey.set(partitionKey(w), w)
+  for (const w of plan.walls) {
+    if (!block.walls.has(partitionKey(w))) continue
+    const moved = { ...w, x: w.x + dx, z: w.z + dz }
+    const there = byKey.get(partitionKey(moved))
+    for (const side of ['a', 'b']) if (!moved[side] && there?.[side]) moved[side] = there[side]
+    byKey.set(partitionKey(moved), moved)
+  }
+  const floor = plan.floor.slice()
+  const carried = []
+  for (const i of block.cells) {
+    if (!plan.floor[i]) continue
+    carried.push([i, plan.floor[i]])
+    floor[i] = null
+  }
+  for (const [i, f] of carried) {
+    const c = cellAt(i)
+    const j = cellIndex(c.x + dx, c.z + dz)
+    if (j >= 0) floor[j] = f
+  }
+  const round = (v) => Math.round(v * 1000) / 1000
+  const items = (plan.items ?? []).map((it, i) => (block.items.has(i) ? { ...it, x: round(it.x + dx), z: round(it.z + dz) } : it))
+  return { ...plan, walls: [...byKey.values()], floor, items }
+}
+
+/** Le bloc, une fois déplacé de (dx, dz) tuiles (mêmes objets, cf. moveBlock). */
+export function shiftBlock(block, dx, dz) {
+  const walls = new Set([...block.walls].map((k) => {
+    const [x, z, e] = k.split(',')
+    return partitionKey({ x: Number(x) + dx, z: Number(z) + dz, e })
+  }))
+  const cells = new Set([...block.cells].map((i) => {
+    const c = cellAt(i)
+    return cellIndex(c.x + dx, c.z + dz)
+  }).filter((i) => i >= 0))
+  return { walls, cells, items: new Set(block.items) }
 }

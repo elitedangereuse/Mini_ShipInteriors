@@ -1,4 +1,4 @@
-import { isGameId, records, type GameId } from './game'
+import { isGameId, records, sportRecords, SPORT_IDS, type GameId, type SportId } from './game'
 
 /*
  * Tableaux des scores, gardés par le site (outils/mini-shipinteriors-scores.php, table
@@ -7,7 +7,14 @@ import { isGameId, records, type GameId } from './game'
  * aussi gardé dans le navigateur (celui d'un invité ne vit que là).
  */
 
-export type ScoreGame = GameId | 'gym-run' | 'gym-bike' | 'gym-punch'
+export type ScoreGame = GameId | SportId
+
+/** Retient le record d'un jeu ou d'un appareil, pour les écrans du vaisseau. */
+function keepRecord(game: string, row: { cmdr: string; score: number }) {
+  const best = { cmdr: row.cmdr, score: row.score }
+  if (isGameId(game)) records[game] = best
+  else if ((SPORT_IDS as readonly string[]).includes(game)) sportRecords[game as SportId] = best
+}
 
 const SCORES_URL = import.meta.env.VITE_ED_SCORES_URL || '/outils/mini-shipinteriors-scores.php'
 
@@ -44,7 +51,7 @@ export async function fetchBoard(game: ScoreGame): Promise<Board | null> {
     const res = await fetch(`${SCORES_URL}?game=${game}`, { signal: AbortSignal.timeout(8000), headers: { Accept: 'application/json' } })
     if (!res.ok) return null
     const b = board(await res.json())
-    if (b?.top[0] && isGameId(game)) records[game] = { cmdr: b.top[0].cmdr, score: b.top[0].score }
+    if (b?.top[0]) keepRecord(game, b.top[0])
     return b
   } catch {
     return null
@@ -82,7 +89,7 @@ export async function submitScore(game: ScoreGame, score: number, level: number,
     const data = (await res.json()) as { best?: unknown; credits?: Partial<ArcadeCredits> | null }
     const b = board(data)
     if (!b) return { kind: 'error' }
-    if (b.top[0] && isGameId(game)) records[game] = { cmdr: b.top[0].cmdr, score: b.top[0].score }
+    if (b.top[0]) keepRecord(game, b.top[0])
     const c = data.credits
     const credits =
       c && Number.isFinite(c.earned) && Number.isFinite(c.balance)
@@ -94,7 +101,7 @@ export async function submitScore(game: ScoreGame, score: number, level: number,
   }
 }
 
-/** Le meilleur score de chaque jeu, pour les écrans des bornes du vaisseau (« HI 12340 »). */
+/** Le meilleur score de chaque jeu, pour les écrans des bornes du vaisseau (« HI 12340 ») et les tableaux des scores. */
 export async function fetchRecords() {
   try {
     const res = await fetch(SCORES_URL, { signal: AbortSignal.timeout(8000), headers: { Accept: 'application/json' } })
@@ -102,7 +109,7 @@ export async function fetchRecords() {
     const data = (await res.json()) as { best?: Record<string, unknown> }
     for (const [game, row] of Object.entries(data.best ?? {})) {
       const r = row as { cmdr?: unknown; score?: unknown } | null
-      if (isGameId(game) && r && typeof r.cmdr === 'string' && Number.isFinite(r.score)) records[game] = { cmdr: r.cmdr, score: r.score as number }
+      if (r && typeof r.cmdr === 'string' && Number.isFinite(r.score)) keepRecord(game, { cmdr: r.cmdr, score: r.score as number })
     }
   } catch {}
 }

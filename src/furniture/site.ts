@@ -1,9 +1,10 @@
 import * as THREE from 'three'
-import { box, mesh, lit, glow, drawnTexture, keepShared, type Builder } from './kit'
+import { box, mesh, part, lit, glow, drawnTexture, animatedScreen, keepShared, type Builder } from './kit'
 import { wallScreenHousing } from './decor'
 import { tr } from '../i18n'
 import { REWARD_COUNTER } from './reward-counter'
 import { renderQuality } from '../quality'
+import { records, sportRecords } from '../arcade/game'
 
 const prints = new Map<string, THREE.MeshBasicMaterial>()
 const printLoads = new Map<string, Promise<void>>()
@@ -153,9 +154,9 @@ const employeeBoard: Builder = () => {
     grad.addColorStop(0, '#173a52'); grad.addColorStop(1, '#0b182c')
     c.fillStyle = grad; c.fillRect(0, 0, 960, 520)
     c.fillStyle = '#ffd58b'; c.fillRect(38, 38, 5, 72)
-    c.font = '600 20px sans-serif'; c.fillText(tr('ÉQUIPAGE / TABLEAU D’HONNEUR', 'CREW / HALL OF HONOUR'), 65, 58)
+    c.font = '600 20px sans-serif'; c.fillText(tr('ÉQUIPAGE / CLASSEMENTS', 'CREW / RANKINGS'), 65, 58)
     c.fillStyle = '#edf6ff'; c.font = 'bold 42px sans-serif'
-    c.fillText(tr('EMPLOYÉS DU MOIS', 'EMPLOYEES OF THE MONTH'), 65, 106)
+    c.fillText(tr('TABLEAU D’HONNEUR', 'HALL OF HONOUR'), 65, 106)
     c.fillStyle = '#74c8e8'; c.font = '18px sans-serif'; c.textAlign = 'right'; c.fillText('TOP 10', 916, 58)
     // Three luminous podium cards, with the winning silhouette in the middle.
     for (const [x, y, rank, accent] of [[260, 232, '02', '#b9d7ec'], [480, 192, '01', '#ffd58b'], [700, 252, '03', '#dca382']] as const) {
@@ -167,7 +168,7 @@ const employeeBoard: Builder = () => {
     }
     c.fillStyle = '#77b5d1'; c.fillRect(38, 428, 884, 1)
     c.fillStyle = '#cbe0ee'; c.font = '19px sans-serif'; c.textAlign = 'center'
-    c.fillText(tr('POINTS   /   COLLECTIONS   /   AVENTURES', 'POINTS   /   COLLECTIONS   /   ADVENTURES'), 480, 463)
+    c.fillText(tr('EMPLOYÉS DU MOIS   /   POINTS   /   COLLECTIONS   /   AVENTURES', 'EMPLOYEES OF THE MONTH   /   POINTS   /   COLLECTIONS   /   ADVENTURES'), 480, 463)
     c.fillStyle = '#ffd58b'; c.font = '17px sans-serif'
     c.fillText(tr('CONSULTER LES CLASSEMENTS  ›', 'VIEW RANKINGS  ›'), 480, 500)
   })
@@ -177,4 +178,57 @@ const employeeBoard: Builder = () => {
   g.position.y = -0.08
   return { solid: g }
 }
-export const SITE = { 'site-art': artFrame, ...REWARD_COUNTER, 'employee-board': employeeBoard }
+/** Tableaux des scores : le record de chaque jeu (cf. src/arcade/scores.ts), relu à chaque image. */
+const SCORE_BOARDS = {
+  arcade: {
+    kicker: tr('SALON D’ARCADE / RECORDS DU VAISSEAU', 'ARCADE LOUNGE / SHIP RECORDS'), title: 'HIGH SCORES', accent: '#ff5fd2', from: '#2a0f3d', to: '#0a0716',
+    rows: [['cargo', tr('CARGAISON', 'CARGO')], ['viper', 'VIPER'], ['asteroids', tr('ASTÉROÏDES', 'ASTEROIDS')], ['invaders', 'THARGOID INVADERS']],
+    best: (id: string) => records[id as keyof typeof records],
+  },
+  gym: {
+    kicker: tr('SALLE DE SPORT / RECORDS DU VAISSEAU', 'GYM / SHIP RECORDS'), title: tr('RECORDS', 'RECORDS'), accent: '#7dff9b', from: '#12382c', to: '#07141a',
+    rows: [['gym-run', tr('TAPIS DE COURSE', 'TREADMILL')], ['gym-bike', tr('VÉLO', 'BIKE')], ['gym-punch', tr('SAC DE FRAPPE', 'PUNCHING BAG')]],
+    best: (id: string) => sportRecords[id as keyof typeof sportRecords],
+  },
+}
+/** Écran mural des scores (`label` : `arcade` ou `gym`), du gabarit du tableau d'honneur. */
+const scoreBoard: Builder = ({ label }) => {
+  const board = SCORE_BOARDS[label === 'gym' ? 'gym' : 'arcade']
+  const g = wallScreenHousing(1.42, 0.82, 0.90)
+  g.add(box(1.35, 0.75, 0.012, lit('#97abb7'), 0, 0.90, 0.034, 0.01),
+    box(0.26, 0.007, 0.008, glow(board.accent), 0, 0.503, 0.034))
+  const screen = animatedScreen(960, 520, 1, (c, t) => {
+    const grad = c.createLinearGradient(0, 0, 960, 520)
+    grad.addColorStop(0, board.from); grad.addColorStop(1, board.to)
+    c.fillStyle = grad; c.fillRect(0, 0, 960, 520)
+    c.textAlign = 'left'; c.textBaseline = 'alphabetic'
+    c.fillStyle = board.accent; c.fillRect(38, 38, 5, 72)
+    c.font = '600 20px sans-serif'; c.fillText(board.kicker, 65, 58)
+    c.fillStyle = '#edf6ff'; c.font = 'bold 42px sans-serif'; c.fillText(board.title, 65, 106)
+    c.fillStyle = '#ffd58b'; c.font = '18px sans-serif'; c.textAlign = 'right'; c.fillText('TOP 10', 916, 58)
+    const step = 300 / board.rows.length
+    board.rows.forEach(([id, name], i) => {
+      const y = 150 + i * step, best = board.best(id)
+      c.fillStyle = i % 2 ? '#ffffff08' : '#ffffff12'; c.fillRect(38, y, 884, step - 10)
+      c.fillStyle = board.accent; c.fillRect(38, y, 4, step - 10)
+      const base = y + (step - 10) / 2 + 9
+      c.textAlign = 'left'; c.font = 'bold 24px sans-serif'; c.fillStyle = '#cbe0ee'; c.fillText(name, 62, base)
+      c.font = '24px sans-serif'; c.fillStyle = best ? '#edf6ff' : '#7f93a6'
+      const cmdr = best ? best.cmdr.toUpperCase() : tr('PLACE À PRENDRE', 'UP FOR GRABS')
+      c.fillText(cmdr.length > 20 ? cmdr.slice(0, 19) + '…' : cmdr, 380, base)
+      if (best) { c.textAlign = 'right'; c.font = 'bold 28px monospace'; c.fillStyle = '#ffd58b'; c.fillText(best.score.toLocaleString(), 900, base) }
+    })
+    c.fillStyle = '#ffffff30'; c.fillRect(38, 462, 884, 1)
+    if (Math.floor(t) % 2) {
+      c.fillStyle = '#ffd58b'; c.font = '17px sans-serif'; c.textAlign = 'center'
+      c.fillText(tr('CONSULTER LES CLASSEMENTS  ›', 'VIEW RANKINGS  ›'), 480, 498)
+    }
+  })
+  screen.texture.magFilter = THREE.LinearFilter
+  // Même gabarit que le tableau d'honneur. L'écran, redessiné, reste à part du boîtier, un peu en
+  // avant de sa dalle.
+  const live = new THREE.Group()
+  live.add(part(new THREE.PlaneGeometry(1.30, 0.704), new THREE.MeshBasicMaterial({ map: screen.texture }), 0, 0.90, 0.045))
+  return { solid: g, live, update: (t) => screen.tick(t) }
+}
+export const SITE = { 'site-art': artFrame, ...REWARD_COUNTER, 'employee-board': employeeBoard, 'score-board': scoreBoard }

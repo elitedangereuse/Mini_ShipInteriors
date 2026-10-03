@@ -37,7 +37,7 @@ import { Deck } from '../deck'
 import { QUARTERS_DECK } from '../levels'
 import { PARTITION_KINDS } from '../cabin/partitions'
 import { cellIndex, CELLS, type HomePlan, type PlanWall } from '../../shared/housing-home.js'
-import { PLOT_ORIGIN, plotRect } from '../../shared/housing-plot.js'
+import { PLOT_ORIGIN, PLOT_SIZES, plotRect } from '../../shared/housing-plot.js'
 import { placeTemplate, templateOf, templateSize } from '../../shared/housing-templates.js'
 
 const renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -422,7 +422,7 @@ function showModels() {
 }
 
 /**
- * La parcelle du pont des quartiers, en 20 × 20 : sur deux rangées, chaque type de mur et de porte
+ * La parcelle du pont des quartiers, la plus grande (20 × 20) : sur deux rangées, chaque type de mur et de porte
  * (son nom au-dessus), habillé d'un papier peint différent sur chaque face, sur un sol différent ;
  * plus bas, une suite, une véranda et un coin salon. Le champ de force court sur le reste du bord.
  */
@@ -456,17 +456,31 @@ function showPlot() {
     const [w, h] = templateSize(t)
     for (let dz = 0; dz < h; dz++) for (let dx = 0; dx < w; dx++) plan.floor[cellIndex(O.x + x + dx, O.z + z + dz)] = flooring(n)
   })
-  deck.home!.set(1, plan)
-  const r = plotRect(1)
+  // La plus grande parcelle : 20 × 20.
+  const stage = PLOT_SIZES.length - 1
+  deck.home!.set(stage, plan)
+  const r = plotRect(stage)
   const center = new THREE.Vector3((r.minX + r.maxX) / 2, 0, (r.minZ + r.maxZ) / 2)
   cam.position.sub(target).add(center)
   cam.lookAt(center)
   const toCamera = cam.position.clone().sub(center).setY(0).normalize()
+  // &fps=x,z (tuile de la parcelle, depuis son coin nord-ouest) : vue subjective depuis cette
+  // tuile, toit affiché (plafond des pièces fermées, verrière ailleurs) ; &look=cap,hauteur en degrés.
+  let view: THREE.Camera = cam
+  if (params.get('fps')) {
+    const [x, z] = params.get('fps')!.split(',').map(Number)
+    const [yaw, pitch] = (params.get('look') ?? '0,35').split(',').map((d) => THREE.MathUtils.degToRad(+d))
+    const eye = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 200)
+    eye.position.set(O.x + x, 1.3, O.z + z)
+    eye.lookAt(eye.position.clone().add(new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch))))
+    deck.ceiling.visible = true
+    view = eye
+  }
   const clock = new THREE.Timer()
   function frame() {
     clock.update()
-    deck.update(clock.getDelta(), [], center, toCamera)
-    renderer.render(scene, cam)
+    deck.update(clock.getDelta(), [], view === cam ? center : view.position, toCamera)
+    renderer.render(scene, view)
     requestAnimationFrame(frame)
   }
   frame()

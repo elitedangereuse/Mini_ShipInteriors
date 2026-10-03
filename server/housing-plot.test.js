@@ -38,8 +38,8 @@ test('le palier porte l\'ascenseur et donne sur la parcelle par sa porte', () =>
   assert.equal(map.edge(PLOT_DOOR.x, PLOT_DOOR.z, PLOT_DOOR.dir), 'door')
 })
 
-test('trois tailles, de 10, 20 puis 30 tuiles de côté, qui grandissent sans rien déplacer', () => {
-  assert.deepEqual(PLOT_SIZES, [10, 20, 30])
+test('quatre tailles, de 8, 12, 15 puis 20 tuiles de côté, qui grandissent sans rien déplacer', () => {
+  assert.deepEqual(PLOT_SIZES, [8, 12, 15, 20])
   const corner = plotRect(0)
   for (const [stage, size] of PLOT_SIZES.entries()) {
     const r = plotRect(stage)
@@ -48,7 +48,7 @@ test('trois tailles, de 10, 20 puis 30 tuiles de côté, qui grandissent sans ri
     assert.equal(r.maxZ - r.minZ + 1, size)
     assert.ok(inPlot(stage, r.maxX, r.maxZ) && !inPlot(stage, r.maxX + 1, r.maxZ))
   }
-  assert.equal(plotStage(7), 2)
+  assert.equal(plotStage(7), 3)
   assert.equal(plotStage(-1), 0)
   assert.equal(plotStage('1'), 0)
 })
@@ -66,13 +66,13 @@ test('toute la parcelle est accessible depuis l\'ascenseur, et rien d\'autre', (
 
 test('agrandir puis réduire : la parcelle retrouve sa taille, le palier ne bouge pas', () => {
   const map = quarters()
-  applyPlot(map, 2)
+  applyPlot(map, 3)
   const plan = applyPlot(map, 0)
-  assert.equal(plan.tiles.length, 100)
-  const r = plotRect(2)
+  assert.equal(plan.tiles.length, 64)
+  const r = plotRect(3)
   let left = 0
   for (let z = r.minZ; z <= r.maxZ; z++) for (let x = r.minX; x <= r.maxX; x++) if (map.room(x, z) === PLOT_ROOM) left++
-  assert.equal(left, 100)
+  assert.equal(left, 64)
   assert.equal(map.room(LIFT.x, LIFT.z), LANDING_ROOM)
 })
 
@@ -88,9 +88,9 @@ test('le champ de force fait le tour de la parcelle, sauf contre le palier', () 
       assert.equal(map.isFloor(e.x + d.dx, e.z + d.dz), false)
       assert.equal(map.edge(e.x, e.z, e.dir), 'wall')
     }
-    // Quatre côtés droits ; l'ouest est coupé par le palier en deux pans.
+    // Quatre côtés droits ; à l'ouest, le palier en prend le bas (8 × 8), puis le coupe en deux pans.
     const runs = straightRuns(plan.field)
-    assert.equal(runs.length, 5)
+    assert.equal(runs.length, size > 8 ? 5 : 4)
     assert.equal(runs.reduce((n, r) => n + r.edges.length, 0), plan.field.length)
   }
 })

@@ -84,6 +84,12 @@ const listen = async (server) => {
 
 let game, url, relay
 
+/** Faux annuaire du site : les quartiers ouverts des CMDR absents, par nom stocké (cf. fetchQuarters). */
+const QUARTERS = {
+  'Adam+Fauster': { name: 'Adam Fauster', cabin: { v: 1, items: [{ m: 'bed', x: 9, z: 7, r: 0 }], home: { v: 2, open: true } } },
+}
+const quartersAsked = []
+
 /** Devant le jukebox du mess (pont principal). */
 const AT_JUKEBOX = { x: 11.3, z: 6.6, yaw: 0, level: 0, anim: 'idle' }
 const clients = []
@@ -96,6 +102,11 @@ before(async () => {
   const siteUrl = await listen(site)
   game = createServer()
   relay = attachRelay(game, { log: () => {}, error: () => {}, cmdrUrl: `${siteUrl}/outils/mini-shipinteriors-cmdr.php`,
+    quartersFetch: async (target) => {
+      quartersAsked.push(target.searchParams.get('quarters'))
+      const found = QUARTERS[target.searchParams.get('quarters')]
+      return { ok: !!found, json: async () => ({ status: 'success', ...found }) }
+    },
     youtubeKey: 'test', youtubeFetch: async () => ({ ok: true, json: async () => ({ items: [
       { id: { videoId: 'dQw4w9WgXcQ' }, snippet: { title: 'Cobra Mk III', liveBroadcastContent: 'none' } },
     ] }) }) })
@@ -1165,5 +1176,103 @@ describe('quartiers', () => {
     for (const bad of [{ style: 'Damask', color: '#7a2e3a' }, { style: 'damask', color: 'red' }, { style: 'damask', color: '#7A2E3A' }, { style: 'damask' }, 'damask', null]) {
       assert.deepEqual(sanitizeLayout({ items, wall: bad, floor: bad }), { v: 1, items })
     }
+  })
+})
+
+describe('annuaire', () => {
+  test('chuchoter : seul le destinataire reçoit le message', async () => {
+    const a = client({ auth: { name: 'CMDR Solo' } })
+    const wa = await welcome(a)
+    const b = client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-rackam' })
+    const wb = await welcome(b)
+    const c = client({ auth: { name: 'CMDR Curieux' } })
+    await welcome(c)
+    const got = next(b, 'whisper')
+    const leaked = receives(c, 'whisper')
+    assert.deepEqual(await a.timeout(2000).emitWithAck('whisper', { to: wb.id, text: '  psst\n ' }), { ok: true })
+    assert.deepEqual(await got, { id: wa.id, name: 'CMDR Solo', verified: false, text: 'psst' })
+    assert.equal(await leaked, false)
+    assert.deepEqual(await a.timeout(2000).emitWithAck('whisper', { to: 9999, text: 'psst' }), { ok: false, reason: 'gone' })
+    assert.deepEqual(await a.timeout(2000).emitWithAck('whisper', { to: wa.id, text: 'psst' }), { ok: false, reason: 'gone' })
+    assert.deepEqual(await a.timeout(2000).emitWithAck('whisper', { to: wb.id, text: ' ' }), { ok: false, reason: 'empty' })
+    // Entre CMDR, le message est sur le site : le destinataire est seulement prévenu.
+    const nudged = next(b, 'nudge')
+    const others = receives(c, 'nudge')
+    a.emit('nudge', { to: wb.id })
+    assert.deepEqual(await nudged, { id: wa.id })
+    assert.equal(await others, false)
+  })
+
+  test('sonner : chez un CMDR à bord seulement, qui l\'apprend', async () => {
+    const host = client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-rackam' })
+    const wh = await welcome(host)
+    const guest = client({ auth: { name: 'CMDR Solo' } })
+    const wg = await welcome(guest)
+    const rung = next(host, 'ring')
+    assert.deepEqual(await guest.timeout(2000).emitWithAck('ring', { to: wh.id }), { ok: true })
+    assert.deepEqual(await rung, { id: wg.id, name: 'CMDR Solo', verified: false })
+    // Un invité n'a pas de quartiers où recevoir ; un absent ne répond pas.
+    assert.deepEqual(await host.timeout(2000).emitWithAck('ring', { to: wg.id }), { ok: false, reason: 'guest' })
+    assert.deepEqual(await guest.timeout(2000).emitWithAck('ring', { to: 9999 }), { ok: false, reason: 'gone' })
+    // L'hôte ouvre : son invitation fait entrer le visiteur, qui n'a plus à sonner.
+    host.emit('invite', { to: wg.id })
+    await next(guest, 'invite')
+    const entered = next(guest, 'visit', (m) => m.id === wg.id && m.cabin === wh.id)
+    guest.emit('visit', { host: wh.id })
+    await entered
+    assert.deepEqual(await guest.timeout(2000).emitWithAck('ring', { to: wh.id }), { ok: false, reason: 'here' })
+  })
+
+  test('les quartiers ouverts d\'un absent se visitent : une instance à part, où l\'on se retrouve', async () => {
+    const a = client({ auth: { name: 'CMDR Solo' } })
+    const wa = await welcome(a)
+    const b = client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-rackam' })
+    const wb = await welcome(b)
+    // Fermés (ou inconnus du site) : on reste chez soi.
+    const refused = next(a, 'visit', (m) => m.id === wa.id)
+    a.emit('visit', { cmdr: 'Personne' })
+    assert.deepEqual(await refused, { id: wa.id, cabin: wa.id, expired: true })
+
+    const layout = next(a, 'cabin')
+    const entered = next(b, 'visit', (m) => m.id === wa.id)
+    a.emit('visit', { cmdr: 'Adam+Fauster' })
+    const cabin = await layout
+    assert.equal(cabin.name, 'CMDR Adam Fauster')
+    assert.deepEqual(cabin.layout.items, QUARTERS['Adam+Fauster'].cabin.items)
+    assert.deepEqual(await entered, { id: wa.id, cabin: cabin.id, host: 'CMDR Adam Fauster' })
+    assert.ok(cabin.id !== wa.id && cabin.id !== wb.id)
+
+    // Le second visiteur arrive dans la même instance, sans que le site soit redemandé.
+    const asked = quartersAsked.length
+    const joined = next(a, 'visit', (m) => m.id === wb.id)
+    b.emit('visit', { cmdr: 'Adam+Fauster' })
+    assert.equal((await joined).cabin, cabin.id)
+    assert.equal(quartersAsked.length, asked)
+    // Un nouveau venu sait chez qui ils sont.
+    const late = client({ auth: { name: 'CMDR Tardif' } })
+    const wl = await welcome(late)
+    assert.deepEqual(wl.homes, [{ id: cabin.id, name: 'CMDR Adam Fauster' }])
+    assert.equal(wl.players.find((p) => p.id === wa.id).cabin, cabin.id)
+
+    // Il rentre chez lui.
+    const back = next(b, 'visit', (m) => m.id === wa.id)
+    a.emit('visit', { host: null })
+    assert.deepEqual(await back, { id: wa.id, cabin: wa.id })
+  })
+
+  test('monté à bord entre-temps, le CMDR reçoit lui-même : ses quartiers fermés le restent', async () => {
+    const adam = client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-adam' })
+    const wad = await welcome(adam)
+    const a = client({ auth: { name: 'CMDR Solo' } })
+    const wa = await welcome(a)
+    const refused = next(a, 'visit', (m) => m.id === wa.id)
+    a.emit('visit', { cmdr: 'Adam+Fauster' })
+    assert.deepEqual(await refused, { id: wa.id, cabin: wa.id, expired: true })
+    const opened = next(a, 'open')
+    adam.emit('cabin', { layout: { v: 1, items: [], home: { v: 2, open: true } } })
+    await opened
+    const entered = next(adam, 'visit', (m) => m.id === wa.id)
+    a.emit('visit', { cmdr: 'Adam+Fauster' })
+    assert.deepEqual(await entered, { id: wa.id, cabin: wad.id })
   })
 })
