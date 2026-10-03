@@ -918,7 +918,7 @@ export const LEVELS: LevelDef[] = [
       { model: 'plant-tall', x: 32.1, z: 7.25 },
 
       // --- Salle commune, à la poupe : le hall du vaisseau, comme le concourse d'une station
-      // Coriolis. Au milieu, l'îlot du hall (banquette ronde, plantes, la galaxie en hologramme) ;
+      // Coriolis. Au milieu, l'îlot du hall (banquette ronde, plantes, le monument du vaisseau) ;
       // au nord et au sud, face à face, les comptoirs de l'officier de liaison et de la
       // scientifique du LJPC ; dans l'axe des portes, la façade de la mezzanine, son tableau
       // d'honneur, et ses deux volées d'escalier. À l'étage, sous les grandes baies : le jukebox,
@@ -926,8 +926,8 @@ export const LEVELS: LevelDef[] = [
       {
         model: 'concourse-planter', x: 5.75, z: 4.5,
         interact: tr(
-          'L\'îlot du hall : des fougères, des buissons fleuris, et au-dessus des têtes, la galaxie qui tourne. Quelqu\'un a collé une gommette « vous êtes ici » à 22 000 al de Colonia.',
-          'The hall island: ferns, flowering shrubs, and above everyone\'s heads, the turning galaxy. Someone has stuck a “you are here” sticker 22,000 ly from Colonia.',
+          'L\'îlot du hall : des fougères, des buissons fleuris, et au-dessus des têtes, le blason du vaisseau en lévitation : « MINI SHIP INTERIORS ». Quelqu\'un a collé une gommette « vous êtes ici » sur le petit vaisseau entre les ailes.',
+          'The hall island: ferns, flowering shrubs, and above everyone\'s heads, the ship\'s crest hovering in mid-air: “MINI SHIP INTERIORS”. Someone has stuck a “you are here” sticker on the little ship between the wings.',
         ),
       },
       { model: 'reward-counter', x: 5.9, z: 0.35, label: 'weekly', interact: tr('Officier de liaison · Weekly', 'Liaison officer · Weekly'), action: tr('Récupérer les crédits', 'Collect credits') },
