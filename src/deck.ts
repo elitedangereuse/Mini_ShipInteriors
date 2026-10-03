@@ -12,6 +12,7 @@ import { DIRS, ShipMap } from './map'
 import { Hull } from './hull'
 import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type Occluder } from './merge'
 import { Pathfinder } from './pathfinding'
+import { roomCover } from './room-cover'
 import type { Doorway } from './physics'
 import { DOOR_GAP } from '../shared/sight.js'
 import { BAR_ROOM, CLUB_ROOM, shipMapOptions } from '../shared/ship-layouts.js'
@@ -362,11 +363,12 @@ export class Deck {
     if (def.ground) this.addStatic(def.ground.skirt, false)
     this.buildWalls()
     this.buildProps()
-    if (def.id === 0) this.buildRoomCover('l', '#101722', '#263344')
+    if (def.id === 0) this.buildRoomCover('l', '#2a3648', '#5aa2f0')
     if (def.id === -1) {
-      this.buildRoomCover('v', '#030303', '#080808')
-      this.buildRoomCover(CLUB_ROOM, '#0b0612', '#2a1238')
-      this.buildRoomCover(BAR_ROOM, '#120b08', '#3a2416')
+      // Le sanctuaire de la Voie se cache : une plaque nue, noire.
+      this.buildRoomCover('v', '#070707')
+      this.buildRoomCover(CLUB_ROOM, '#2b1a3d', '#b860ff')
+      this.buildRoomCover(BAR_ROOM, '#33261c', '#ff9a3c')
     }
     if (aboard) this.buildLift()
     if (def.engine) this.buildCore(def.engine.x, def.engine.z)
@@ -429,7 +431,11 @@ export class Deck {
     return this.map.room(x, z) === room || this.map.room(x + d.dx, z + d.dz) === room
   }
 
-  private buildRoomCover(room: string, slabColor: string, rimColor: string) {
+  /**
+   * Couvercle d'une pièce réservée (cf. room-cover.ts) : une plaque posée sur ses murs, à la
+   * couleur `tint`, signalée par un liseré `glow` (sans lui, la pièce reste cachée).
+   */
+  private buildRoomCover(room: string, tint: string, glow?: string) {
     const tiles: { x: number; z: number }[] = []
     for (let z = 0; z < this.map.height; z++) for (let x = 0; x < this.map.width; x++) {
       if (this.map.room(x, z) === room) tiles.push({ x, z })
@@ -437,14 +443,10 @@ export class Deck {
     if (!tiles.length) return
     const x0 = Math.min(...tiles.map((t) => t.x)), x1 = Math.max(...tiles.map((t) => t.x))
     const z0 = Math.min(...tiles.map((t) => t.z)), z1 = Math.max(...tiles.map((t) => t.z))
-    const w = x1 - x0 + 1.18, h = z1 - z0 + 1.18
-    const cover = new THREE.Group()
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(w, 0.14, h), new THREE.MeshBasicMaterial({ color: slabColor }))
-    slab.position.set((x0 + x1) / 2, 1.13, (z0 + z1) / 2)
-    cover.add(slab)
-    const rim = new THREE.Mesh(new THREE.BoxGeometry(w + 0.04, 0.025, h + 0.04), new THREE.MeshBasicMaterial({ color: rimColor }))
-    rim.position.copy(slab.position).y += 0.08
-    cover.add(rim)
+    // Jusqu'à la face extérieure des murs : la plaque les coiffe.
+    const { cover, update } = roomCover(x1 - x0 + 1 + WALL_T, z1 - z0 + 1 + WALL_T, tint, glow)
+    cover.position.set((x0 + x1) / 2, 0, (z0 + z1) / 2)
+    if (update) this.animated.push({ update: (t) => cover.visible && update(t), interactive: false })
     this.group.add(cover)
     this.covers.set(room, cover)
   }
