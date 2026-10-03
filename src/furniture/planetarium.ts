@@ -34,8 +34,9 @@ const C = {
   lens: '#bfe8ff',
   // Bugenhagen, d'après son modèle du jeu.
   skin: '#e2894b',
-  robe: '#2b2c7e',
-  robeDark: '#20206a',
+  // Un bleu plus clair que celui du jeu : la pièce est noire, il doit s'en détacher.
+  robe: '#6672e8',
+  robeDark: '#4854c4',
   band: '#d69b3a',
   bandDark: '#6b3a16',
   beard: '#ecebe4',
@@ -58,8 +59,11 @@ function faceted(color: string, emissive = 0): THREE.MeshLambertMaterial {
   return m
 }
 
-/** Pièce à facettes d'un personnage animé (dans `live` : pas de fusion, pas d'ombre). */
-const facet = (geo: THREE.BufferGeometry, color: string, x = 0, y = 0, z = 0) => part(geo, faceted(color), x, y, z)
+/**
+ * Pièce à facettes d'un personnage animé (dans `live` : pas de fusion, pas d'ombre). Elle luit un
+ * peu : Bugenhagen reste lisible quand la nuit tombe.
+ */
+const facet = (geo: THREE.BufferGeometry, color: string, x = 0, y = 0, z = 0) => part(geo, faceted(color, 0.3), x, y, z)
 
 /** Pièce allongée de `from` à `to` (un cône a sa pointe en `to`). */
 function strand(geo: THREE.BufferGeometry, color: string, from: THREE.Vector3, to: THREE.Vector3): THREE.Mesh {
@@ -506,7 +510,7 @@ const planetariumSky: Builder = ({ random }) => {
 /**
  * Bugenhagen, le vieux sage de Cosmo Canyon, à la façon de son modèle du jeu sur PS1 : crâne
  * chauve couleur de cuivre, lunettes rondes aux verres noirs, couronne de cheveux blancs,
- * immense moustache qui retombe jusqu'au torse, longue robe bleu nuit à haut col et bande dorée
+ * immense moustache qui retombe jusqu'au torse, longue robe bleu roi à haut col et bande dorée
  * sur le devant. En guise de jambes, sa boule verte : il flotte, et ne touche jamais le sol. Il
  * regarde les étoiles autour de lui, et de temps en temps rit tout seul (« Hou hou hou ! »).
  * Construit face à +z, tourné d'un huitième de tour vers +x (vers la caméra au départ).
