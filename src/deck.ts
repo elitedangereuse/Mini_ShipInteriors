@@ -714,7 +714,7 @@ export class Deck {
 
           let model: 'wall' | 'wall-window' | 'wall-pillar' = 'wall'
           if (exterior && (hsh % 1000) / 1000 < windowRate && !this.doorPocket(x, z, dir)) model = 'wall-window'
-          else if (!exterior && hsh % 5 === 0) model = 'wall-pillar'
+          else if (!exterior && hsh % 5 === 0 && !this.def.plainWalls?.some((w) => w.x === cx && w.z === cz)) model = 'wall-pillar'
           const glazed = !!other && this.def.glazed?.some((pair) => pair.includes(room) && pair.includes(other))
           // Une serre : tous ses murs extérieurs sont vitrés, et ses cloisons vitrées ont le même cadre.
           const green = !!this.def.greenhouse?.includes(room) || (!!other && !!this.def.greenhouse?.includes(other))

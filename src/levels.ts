@@ -85,6 +85,8 @@ export interface LevelDef {
    * Promenade, qui s'ouvre sur la coursive sans mur, n'est pas « la coursive ».
    */
   areas?: { name: string; minX: number; maxX: number; minZ: number; maxZ: number }[]
+  /** Cloisons sans pilier (milieu de l'arête) : là où un meuble s'adosse au mur. */
+  plainWalls?: { x: number; z: number }[]
   /** Verrières : par pièce, les côtés (0 nord, 1 est, 2 sud, 3 ouest) dont les murs extérieurs sont vitrés. */
   canopy?: Record<string, number[]>
   /**
@@ -1278,7 +1280,9 @@ export const LEVELS: LevelDef[] = [
       s: tr('Studio Radio Dangereuse', 'Radio Dangereuse studio'),
       n: tr('Cinéma', 'Cinema'),
     },
-    windows: { c: 0, k: 0.3, d: 0, p: 0, g: 0.5, o: 1, n: 0, s: 0 },
+    windows: { c: 0, k: 0.3, d: 0, p: 0.6, g: 0.5, o: 1, n: 0, s: 0 },
+    // Derrière le lavabo ouest des toilettes : un pilier lui passait au travers.
+    plainWalls: [{ x: 12.5, z: 3 }],
     // La serre, tout en verre : les plantes voient les étoiles. Sol de tomettes.
     greenhouse: ['g'],
     floorFinish: { g: 'terracotta' },
@@ -1296,11 +1300,7 @@ export const LEVELS: LevelDef[] = [
       // (cf. updateStalls dans main.ts) ; deux lavabos de part et d'autre de l'entrée.
       ...([13.1, 14, 14.9] as const).map((x): Prop => ({
         model: 'toilet-stall', x, z: 1.15,
-        interact: [
-          tr('Toilettes à dépression. Ne pas utiliser pendant un saut FSD.', 'Vacuum toilet. Do not use during an FSD jump.'),
-          tr('La porte se referme. Enfin seul : personne ne vous voit, et vous ne voyez plus personne.', 'The door swings shut. Alone at last: nobody can see you, and you can\'t see anybody.'),
-          tr('Gravé sur la porte : « CMDR Jameson était ici. » Et dessous : « Moi aussi, pendant un saut. Mauvaise idée. »', 'Carved on the door: “CMDR Jameson was here.” And below: “So was I, mid-jump. Bad idea.”'),
-        ],
+        interact: tr('Toilettes à dépression. Ne pas utiliser pendant un saut FSD.', 'Vacuum toilet. Do not use during an FSD jump.'),
       })),
       {
         model: 'sink', x: 12.88, z: 2.85, rot: 1,
