@@ -41,7 +41,7 @@ import { STUDIO } from './studio'
  * Mobilier fait main, en primitives Three.js, rangé par zone :
  * - elite.ts : poste de pilotage, cartes holographiques, FSD, SRV, drones, maquette du Cobra… (clins d'œil à Elite Dangerous) ;
  * - cockpit.ts : le poste de pilotage agrandi (tableau de bord, consoles, sièges d'équipage, fauteuil du commandant) ;
- * - concourse.ts : le hall de la salle commune, façon station Coriolis (l'îlot du hall et sa galaxie) ;
+ * - concourse.ts : le hall de la salle commune, façon station Coriolis (l'îlot du hall et son monument, cf. monument.ts) ;
  * - workshop.ts : la cale (minage, bricolage, réparation) ;
  * - bar.ts : Chez Jacques, le bar clandestin de la cale (comptoir, bouteilles, Jacques le robot barman) ;
  * - club.ts : le Zorb, la boîte de nuit des aliens de la cale (enseigne, cordon, videur, danseurs) ;
