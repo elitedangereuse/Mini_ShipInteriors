@@ -17,6 +17,11 @@ export declare function isAlienLook(skin: unknown): boolean
 /** Le planétarium de Bugenhagen, au pont supérieur (lettre de sa pièce). */
 export declare const PLANETARIUM_ROOM: 'p'
 
+/** Mezzanines des ponts (cf. shared/mezzanine.js), par identifiant de pont. */
+export declare const MEZZANINES: Partial<Record<'-1' | '0' | '1' | '2', import('./mezzanine.js').MezzanineDef>>
+/** Mezzanine d'un pont, son plan lu (tuiles hautes, volées), ou null. */
+export declare function mezzanineOf(level: number | string): (import('./mezzanine.js').MezzanineDef & import('./mezzanine.js').Mezzanine) | null
+
 /** Options du plan d'un pont (cf. ShipMap). */
 export declare function shipMapOptions(level: number | string): import('./ship-map.js').ShipMapOptions
 /** Options du plan du pont supérieur des anciens quartiers : les portes de leurs extensions, verrouillées. */

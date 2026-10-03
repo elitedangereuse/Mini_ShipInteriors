@@ -1392,8 +1392,11 @@ function updateIdentity() {
     el.appendChild(w)
   }
 }
-/** Sol du pont `level` en (x, z) : dans la baie infestée, la passerelle et ses escaliers montent. */
-const levelY = (level: number, x: number, z: number) => level * LEVEL_HEIGHT + (level === ZONE_LEVEL ? zone.groundHeight(x, z) : 0)
+/**
+ * Sol du pont `level` en (x, z) : dans la baie infestée, la passerelle et ses escaliers montent ;
+ * au pont principal, la mezzanine de la salle commune.
+ */
+const levelY = (level: number, x: number, z: number) => level * LEVEL_HEIGHT + (level === ZONE_LEVEL ? zone.groundHeight(x, z) : decks.find((d) => d.def.id === level)?.ground(x, z) ?? 0)
 
 function updateNetStatus() {
   const el = $('net')
@@ -1970,7 +1973,9 @@ let jukeboxWhere: JukeboxWhere = 'deck'
 
 /** Place (monde) d'un jukebox : au pont principal, à la cale, ou dans les quartiers. */
 function jukeboxAt(where: JukeboxWhere, x: number, z: number): THREE.Vector3 {
-  return new THREE.Vector3(x, (where === 'cabin' ? homeDeck.y : deckById(JUKEBOX_DECKS[where]).y) + 0.7, z)
+  const d = where === 'cabin' ? homeDeck : deckById(JUKEBOX_DECKS[where])
+  // Celui de la salle commune est à l'étage, sur la mezzanine.
+  return new THREE.Vector3(x, d.y + d.ground(x, z) + 0.7, z)
 }
 
 /** Ce que joue un jukebox selon le relais : un morceau, à sa position et à sa place, ou le silence. */
@@ -3215,10 +3220,23 @@ function pick(e: { clientX: number; clientY: number }): { tile: Tile | null; ite
         return false
       }) ?? null
   }
-  groundPlane.constant = -deck.y
-  const p = raycaster.ray.intersectPlane(groundPlane, groundHit)
-  const tile = p ? { x: Math.round(p.x), z: Math.round(p.z) } : null
-  return { tile: tile && deck.map.isFloor(tile.x, tile.z) ? tile : null, item, point: item ? hits[0].point : null }
+  return { tile: pickTile(), item, point: item ? hits[0].point : null }
+}
+
+/**
+ * Tuile sous le rayon de la souris : la plus haute qu'il touche à sa hauteur (le plancher de la
+ * mezzanine, une marche), sinon celle du sol du pont.
+ */
+function pickTile(): Tile | null {
+  for (const h of deck.groundLevels()) {
+    groundPlane.constant = -(deck.y + h)
+    const p = raycaster.ray.intersectPlane(groundPlane, groundHit)
+    if (!p) continue
+    const tile = { x: Math.round(p.x), z: Math.round(p.z) }
+    if (!deck.map.isFloor(tile.x, tile.z)) continue
+    if (Math.abs(deck.ground(tile.x, tile.z) - h) < 0.01) return tile
+  }
+  return null
 }
 
 // Survol traité une fois par image (les souris 1000 Hz enverraient des centaines de lancers de rayon).
@@ -3234,7 +3252,7 @@ function processHover() {
   pendingMove = null
   canvas.style.cursor = item ? 'pointer' : 'default'
   hover.visible = !fpsShown && !!tile && deck.pathfinder.walkable(tile.x, tile.z)
-  if (tile) hover.position.set(tile.x, deck.y + 0.01, tile.z)
+  if (tile) hover.position.set(tile.x, deck.y + deck.ground(tile.x, tile.z) + 0.01, tile.z)
 }
 
 // Caméra libre : clic droit ou clic molette maintenu, puis glisser. Horizontalement on tourne
@@ -3477,7 +3495,7 @@ function goTo(tile: Tile, onArrive?: () => void): boolean {
     marker.visible = false
     onArrive?.()
   }
-  marker.position.set(tile.x, deck.y + 0.02, tile.z)
+  marker.position.set(tile.x, deck.y + deck.ground(tile.x, tile.z) + 0.02, tile.z)
   marker.visible = true
   return true
 }
@@ -3657,7 +3675,7 @@ function walkTo(to: { x: number; z: number }, arrived: () => void): boolean {
     marker.visible = false
     arrived()
   }
-  marker.position.set(to.x, deck.y + 0.02, to.z)
+  marker.position.set(to.x, deck.y + deck.ground(to.x, to.z) + 0.02, to.z)
   marker.visible = true
   return true
 }
@@ -4459,6 +4477,8 @@ function frame() {
   // Mire sur un objet utilisable : elle s'allume.
   crosshair.classList.toggle('aim', fpsShown && cursorLocked() && !!pick(screenCenter()).item)
   player.update(world, input, zone.sprint(autoSprint !== (pad.sprint || keys.has('ShiftLeft') || keys.has('ShiftRight'))))
+  // La mezzanine et ses escaliers : on monte (installé sur un meuble, la place donne la hauteur).
+  if (deck.mezzanine && !player.gliding && !seating.current) player.position.y = deck.y + deck.ground(player.position.x, player.position.z)
   cocktailEffects.update(world)
 
   for (const r of remotes.values()) {
@@ -4676,7 +4696,7 @@ function frame() {
     // Vue subjective : l'invite reste devant soi, en bas de l'écran ; sinon, au-dessus de l'objet.
     if (!fpsShown) {
       if (sitting) screenPos.set(player.position.x, player.position.y + 1.3, player.position.z).project(activeCamera())
-      else screenPos.set(near!.position.x, deck.y + 1.1, near!.position.z).project(activeCamera())
+      else screenPos.set(near!.position.x, deck.y + deck.ground(near!.position.x, near!.position.z) + 1.1, near!.position.z).project(activeCamera())
       x = ((screenPos.x + 1) / 2) * innerWidth
       y = ((1 - screenPos.y) / 2) * innerHeight
     }

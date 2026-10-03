@@ -33,6 +33,7 @@
 - [Mode photo](#mode-photo)
 - [Crédits](#crédits)
 - [Tâches de bord](#tâches-de-bord)
+- [La salle commune](#la-salle-commune)
 - [Le mess](#le-mess)
 - [L'infirmerie](#linfirmerie)
 - [Le hangar](#le-hangar)
@@ -91,7 +92,7 @@ On se réveille dans ses quartiers, sur le pont des quartiers, à deux pas du Ho
 |---|---|---|
 | **Quartiers** · chacun chez soi | *cozy*, dans une bulle ouverte sur l'espace | le palier de l'ascenseur, et derrière sa porte la **parcelle** de chaque joueur, [bâtie et meublée par lui](#quartiers-personnalisables) (au départ : ses quartiers d'origine, avec grand lit, cheminée holographique, canapé, aquarium, bureau, bibliothèque, casier à combinaisons, **Holo-Me**) |
 | **Pont supérieur** · la vie à bord | *cozy* : crème et bois miel, tissus, plantes, lumière chaude, pas feutrés | **planétarium** de Bugenhagen, à la place des anciens quartiers du commandant (cf. [Le planétarium](#le-planétarium)), cabines d'équipage (vidées, elles aussi attendent leur emploi), **toilettes** (trois cabines dont la porte se referme sur l'occupant : on ne le voit plus du dehors, et lui ne voit plus personne), grande **serre hydroponique** tout en verre, centrée sur la coursive, et Capucine, la jardinière (cf. [La serre](#la-serre)), salon d'écoute (fauteuils et poufs tournés vers la vitre du studio), studio de Radio Dangereuse (trois micros, néon « ON AIR »), cinéma, coursive |
-| **Pont principal** | la station d'origine, mobilier aux couleurs d'Elite | **poste de pilotage** à la proue, sous verrières (siège du pilote et HOTAS face au tableau de bord, postes du navigateur et du copilote, fauteuil du commandant, scanner, panneaux holographiques, carte galactique), salles de LJPC, de La Voie et du Mini-CQC (en travaux), salle des machines (centrale, réacteur FSD, tuyères), **infirmerie** de Betty, l'infirmière (trois lits en box, scanner corporel, poste de soins, quarantaine ; cf. [L'infirmerie](#linfirmerie)), **salle de sport**, grand **salon d'arcade** (deux rangées de bornes, dont cinq jouables : Cargaison, Viper, Astéroïdes, Thargoid Invaders, Ruelle Fighter II ; un flipper, une pince à peluches, les tables de dames, de Puissance 4 et d'échecs, un coin salon sur des tapis colorés), **mess**, un self avec sa cuisine et son chef (cf. [Le mess](#le-mess)), coursive |
+| **Pont principal** | la station d'origine, mobilier aux couleurs d'Elite | **poste de pilotage** à la proue, sous verrières (siège du pilote et HOTAS face au tableau de bord, postes du navigateur et du copilote, fauteuil du commandant, scanner, panneaux holographiques, carte galactique), salles de LJPC, de La Voie et du Mini-CQC (en travaux), **salle commune** à la poupe, le hall du vaisseau façon station Coriolis (cf. [La salle commune](#la-salle-commune)), **infirmerie** de Betty, l'infirmière (trois lits en box, scanner corporel, poste de soins, quarantaine ; cf. [L'infirmerie](#linfirmerie)), **salle de sport**, grand **salon d'arcade** (deux rangées de bornes, dont cinq jouables : Cargaison, Viper, Astéroïdes, Thargoid Invaders, Ruelle Fighter II ; un flipper, une pince à peluches, les tables de dames, de Puissance 4 et d'échecs, un coin salon sur des tapis colorés), **mess**, un self avec sa cuisine et son chef (cf. [Le mess](#le-mess)), coursive |
 | **Cale** | *brute* : acier noirci et rouillé, jaune de chantier, lumière sodium, néons qui grésillent | **lobby de la zone thargoïde** (terminal de mission, poste de sécurité vitré d'Odile, la contrôleuse, alcôve de la porte blindée et son portique de décontamination, mur des caméras de surveillance, table de briefing au plan holographique, vestiaire, classement), et derrière lui le **hangar** : un Krait Mk II sur son pad, face au bouclier bleu qui ouvre le hangar sur l'espace, et Nico, le mécano (cf. [Le hangar](#le-hangar)), **atelier** (établis, poste de soudure, établi d'ingénieur, ferraille), **baie de réparation** (SRV Scarab sur pont élévateur, bras robotisé qui soude, AFMU), **raffinerie** (fusion, tapis roulant de minerai, cristaux, drones collecteurs, laser minier), soute, palier de l'ascenseur ; au fond de la soute, **Chez Jacques**, le bar clandestin, plus soigné que le reste (arrière-bar chargé de bouteilles sous son enseigne au néon, comptoir capitonné et tabourets, tables de bistro, banquette, son propre jukebox) où sert **Jacques**, un robot barman à béret et nœud papillon qui essuie les verres, secoue le shaker et fait des clins d'œil ; au-dessus de la salle des machines, au bout d'un **couloir de service** qui part du palier, **le Zorb**, la boîte de nuit des aliens (cf. [Le Zorb](#le-zorb)) |
 
 ### Pont supérieur · les quartiers
@@ -103,7 +104,7 @@ On se réveille dans ses quartiers, sur le pont des quartiers, à deux pas du Ho
 ### Pont principal
 
 <p align="center">
-  <img src="docs/images/pont-principal.jpg" alt="Vue d'ensemble du pont principal : salle des machines, infirmerie, salle de sport, mess, arcade et poste de pilotage" width="100%">
+  <img src="docs/images/pont-principal.jpg" alt="Vue d'ensemble du pont principal : salle commune, infirmerie, salle de sport, mess, arcade et poste de pilotage" width="100%">
 </p>
 
 <table>
@@ -112,7 +113,7 @@ On se réveille dans ses quartiers, sur le pont des quartiers, à deux pas du Ho
     <td width="50%"><img src="docs/images/arcade.jpg" alt="Le salon d'arcade : trois bornes, la pince à peluches ; le jukebox du mess au fond"><br><sub><b>Salon d'arcade</b> : quatre bornes jouables (Cargaison, Viper, Astéroïdes, Ruelle Fighter II) et une pince à peluches, à côté du mess et de son jukebox.</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/images/machines.jpg" alt="La salle des machines : réacteur, FSD et tuyères"><br><sub><b>Salle des machines</b> : centrale, réacteur FSD, et les tuyères à la poupe.</sub></td>
+    <td width="50%"><img src="docs/images/salle-commune.jpg" alt="La salle commune : l'îlot du hall sous l'hologramme de la galaxie, les deux comptoirs, la mezzanine et ses escaliers"><br><sub><b>Salle commune</b> : le hall et son îlot, les comptoirs Weekly et Chasse galactique, la mezzanine (jukebox, salons) sous ses baies.</sub></td>
     <td width="50%"><img src="docs/images/infirmerie-sport.jpg" alt="L'infirmerie et la salle de sport"><br><sub><b>Infirmerie et salle de sport</b> : lit médical, scanner corporel, tapis de course, sac de frappe.</sub></td>
   </tr>
 </table>
@@ -404,7 +405,7 @@ Les petites pièces n'ont qu'une lampe de fortune qui vacille. On apprend le pla
   <img src="docs/images/jukebox.jpg" alt="Le panneau du jukebox : les morceaux, leur artiste, leur durée et leur ambiance" width="100%">
 </p>
 
-Le jukebox propose neuf morceaux libres de droits et quatre albums : celui du mess, au pont principal, celui de Chez Jacques, à la cale, et celui qu'on pose dans ses quartiers. On choisit au clavier (`↑` `↓`, `Entrée`) ou à la souris ; un morceau fini, le suivant enchaîne. Le son est spatialisé, et ne s'entend que sur le pont du jukebox. Le relais garde le morceau en cours, et depuis quand il joue, pour le pont principal, pour la cale et pour chaque instance des quartiers : ceux qui arrivent l'entendent au même endroit que les autres (chacun rattrape le temps de chargement du morceau), et la liste enchaîne à la même heure chez tous. Après une coupure, on retrouve le morceau du relais, ou son silence ; un hôte reconnecté lui rend celui de ses quartiers.
+Le jukebox propose neuf morceaux libres de droits et quatre albums : celui de la salle commune, au pont principal (à l'étage, sur sa mezzanine), celui de Chez Jacques, à la cale, et celui qu'on pose dans ses quartiers. On choisit au clavier (`↑` `↓`, `Entrée`) ou à la souris ; un morceau fini, le suivant enchaîne. Le son est spatialisé, et ne s'entend que sur le pont du jukebox. Le relais garde le morceau en cours, et depuis quand il joue, pour le pont principal, pour la cale et pour chaque instance des quartiers : ceux qui arrivent l'entendent au même endroit que les autres (chacun rattrape le temps de chargement du morceau), et la liste enchaîne à la même heure chez tous. Après une coupure, on retrouve le morceau du relais, ou son silence ; un hôte reconnecté lui rend celui de ses quartiers.
 
 | Morceau | Artiste | Style | Licence |
 |---|---|---|---|
@@ -488,6 +489,15 @@ Des incidents apparaissent aux quatre coins du vaisseau, hors des quartiers : un
 Leur calendrier ne dépend que de l'heure (`src/economy/schedule.ts`) : tous les joueurs voient les mêmes tâches aux mêmes endroits, sans que le relais ni le site aient à les annoncer. Chacun des 35 emplacements découpe le temps en apparitions de 8 à 30 minutes selon la tâche, décalées d'un emplacement à l'autre ; chaque apparition a une tâche avec la probabilité de sa sorte (de 30 à 50 %), tirée d'un hachage de l'emplacement et du numéro d'apparition. Une quinzaine de tâches attendent ainsi à bord à tout moment. Le site refait le même calcul (même hachage, testé des deux côtés) : il sait si une tâche qu'on lui dit réglée était bien là, et ne la paie qu'une fois par apparition et par CMDR. L'heure du site, donnée à chaque réponse, cale celle du jeu.
 
 Les emplacements sont notés à la main dans `economy.json`, mais le jeu vérifie chaque place avant d'y poser une tâche (`src/economy/placement.ts`) : au sol, dans une pièce ouverte (ni en travaux, ni dans les quartiers), à l'écart des murs, des meubles, des comptoirs, des portes et des affiches ; au mur, sur un pan lisse (ni porte, ni hublot, ni pilier) que rien ne masque ; sur un meuble (la vaisselle), seulement s'il est toujours là. Une place prise fait glisser la tâche à la plus proche qui convient, dans la même pièce, la même chez tous ; en dev, la console le signale, pour corriger `economy.json`.
+
+## La salle commune
+
+À la poupe du pont principal, la salle commune est le hall du vaisseau, pensé comme le concourse d'une station Coriolis. On y entre par la porte double de la coursive, face à la façade de la **mezzanine** : son tableau d'honneur, et de part et d'autre, deux volées d'escalier qui montent vers le nord et vers le sud.
+
+- **Le hall** : au milieu, l'îlot (fougères et buissons fleuris dans une jardinière ronde, une banquette tout autour où l'on s'assoit, et au-dessus des têtes, la galaxie en hologramme qui tourne) ; deux canapés tournés vers lui ; au nord et au sud, face à face, les comptoirs de l'officier de liaison (Weekly) et de la scientifique du LJPC (Chasse galactique, cf. [Comptes Élite Dangereuse](#comptes-élite-dangereuse)) ; des plantes aux coins et autour des portes. Les murs extérieurs sont des verrières.
+- **La mezzanine**, à 0,8 au-dessus du hall, sur les trois tuiles de la poupe : le jukebox au milieu (cf. [Jukebox](#jukebox)), deux salons de part et d'autre, une bibliothèque, et derrière, de grandes baies vitrées sur l'espace.
+
+L'étage est une couche du même pont, pas un pont à part : ses tuiles et ses escaliers sont marqués dans `MEZZANINES` (`shared/ship-layouts.js`) ; le sol monte le long des marches (`shared/mezzanine.js`), et les garde-corps sont des murs du plan, qui arrêtent le pas et la vue (d'en bas, on n'atteint pas le jukebox à travers le plancher). Le dessous de la mezzanine est plein. Plancher, façade, marches, garde-corps et baies sont fusionnés avec le reste du pont (`src/mezzanine.ts`) : l'étage ne coûte que quelques appels de dessin, et le verre un seul.
 
 ## Le mess
 
@@ -671,7 +681,7 @@ Les identifiants compacts sont persistés dans la variante des objets ; les visi
 les voient même sans posséder les mêmes collections. Le site valide les possessions
 avant enregistrement, et le relais avant diffusion aux invités.
 
-Dans la salle des machines du pont principal, deux comptoirs distincts donnent les
+Dans la salle commune du pont principal, deux comptoirs, face à face de part et d'autre de l'îlot du hall, donnent les
 gains en attente : **10 000 CR par Weekly entièrement terminée**, ou **10 000 CR par
 cible de Chasse galactique validée**. Chaque comptoir permet de tout récupérer pour
 son activité. Le site recherche les validations réelles ; une transaction verrouille
@@ -781,6 +791,7 @@ Les bips, les mélodies d'arcade, les étincelles, le miaulement, le ronronnemen
 |---|---|
 | `src/levels.ts` | **Les trois ponts** : plans ASCII (une lettre par pièce, `+` pour une porte), noms des pièces, ambiance (peinture, éclairage, pas), meubles, lumières, position de l'ascenseur, pièce des quartiers personnalisables. C'est ici qu'on modifie le vaisseau. |
 | `shared/ship-map.js` · `shared/ship-layouts.js` | Plans des ponts et leur lecture : pièces, portes, arêtes (mur / porte / ouvert) ; partagés avec le relais (`src/map.ts` les réexporte). |
+| `shared/mezzanine.js` · `src/mezzanine.ts` | Mezzanines (un étage dans une pièce, cf. `MEZZANINES`) : hauteur du sol le long des escaliers, garde-corps (des murs du plan, partagés avec le relais) ; plancher, façade, marches, garde-corps vitrés et grandes baies, fusionnés avec le pont. Tests dans `server/mezzanine.test.js`. |
 | `shared/sight.js` | Ligne de vue sur un plan : l'invite, `E` et le relais (tables de jeux, jukebox) refusent un objet derrière un mur ; tests dans `server/sight.test.js`. |
 | `shared/twitch-irc.js` | Chat Twitch du cinéma : découpe des lignes IRC reçues (auteur, couleur, emotes, « /me », modération) ; tests dans `server/twitch-irc.test.js`. |
 | `src/twitch-chat.ts` | Chat flottant du direct Twitch dans le cinéma : lecture anonyme, liaison du compte Twitch et envoi des messages par le site. |

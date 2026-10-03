@@ -70,7 +70,13 @@ export class Seating {
    * installer (cf. sendState dans main.ts).
    */
   private holds(r: RemotePlayer, spot: SeatSpot): boolean {
-    return !!r.pose && Math.hypot(r.target.x - spot.x, r.target.z - spot.z) < 0.25 && Math.abs(r.target.y - (this.host.deck().y + spot.y)) < 0.2
+    return !!r.pose && Math.hypot(r.target.x - spot.x, r.target.z - spot.z) < 0.25 && Math.abs(r.target.y - (this.floor(spot) + spot.y)) < 0.2
+  }
+
+  /** Hauteur du sol sous un point du pont (le plancher de la mezzanine, cf. Deck.ground). */
+  private floor(p: { x: number; z: number }): number {
+    const deck = this.host.deck()
+    return deck.y + deck.ground(p.x, p.z)
   }
 
   /** Une place est-elle déjà prise par un autre joueur ? */
@@ -184,7 +190,7 @@ export class Seating {
       this.climb = -1
       player.avatar.setPose(spot.pose)
       const d = Math.hypot(spot.x - player.position.x, spot.z - player.position.z)
-      player.glideTo({ x: spot.x, y: this.host.deck().y + spot.y, z: spot.z, yaw: spot.yaw }, 0.35 + d * 0.4, false, () => {
+      player.glideTo({ x: spot.x, y: this.floor(spot) + spot.y, z: spot.z, yaw: spot.yaw }, 0.35 + d * 0.4, false, () => {
         if (this.current === seat) this.host.settled(seat)
       })
       this.host.changed()
@@ -205,7 +211,7 @@ export class Seating {
   private walkLeg(to: { x: number; y: number; z: number }, done: () => void) {
     const player = this.host.player
     const p = player.position
-    const y = this.host.deck().y + to.y
+    const y = this.floor(to) + to.y
     const d = Math.hypot(to.x - p.x, y - p.y, to.z - p.z)
     const yaw = d > 1e-3 ? Math.atan2(to.x - p.x, to.z - p.z) : player.heading
     player.glideTo({ x: to.x, y, z: to.z, yaw }, Math.max(0.12, d / CLIMB_SPEED), true, done)
@@ -221,7 +227,7 @@ export class Seating {
     player.avatar.setPose(null)
     const via = seat.spot.via ?? []
     if (!via.length) {
-      player.glideTo({ x: seat.exit.x, y: this.host.deck().y, z: seat.exit.z, yaw: player.heading }, 0.3, false, () => then?.())
+      player.glideTo({ x: seat.exit.x, y: this.floor(seat.exit), z: seat.exit.z, yaw: player.heading }, 0.3, false, () => then?.())
       return this.host.changed()
     }
     // Par le même chemin, à l'envers : depuis le siège (ou depuis la marche où l'on en était), jusqu'à l'abord.
@@ -248,7 +254,7 @@ export class Seating {
     const player = this.host.player
     player.stopGlide()
     player.avatar.setPose(null)
-    player.position.set(exit.x, this.host.deck().y, exit.z)
+    player.position.set(exit.x, this.floor(exit), exit.z)
     this.host.changed()
   }
 

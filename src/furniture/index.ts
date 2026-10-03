@@ -7,6 +7,7 @@ import { BOARD } from './board'
 import { CINEMA } from './cinema'
 import { CLUB } from './club'
 import { COCKPIT } from './cockpit'
+import { CONCOURSE } from './concourse'
 import { COZY } from './cozy'
 import { DECOR } from './decor'
 import { ELITE } from './elite'
@@ -38,6 +39,7 @@ import { STUDIO } from './studio'
  * Mobilier fait main, en primitives Three.js, rangé par zone :
  * - elite.ts : poste de pilotage, cartes holographiques, FSD, SRV, drones, maquette du Cobra… (clins d'œil à Elite Dangerous) ;
  * - cockpit.ts : le poste de pilotage agrandi (tableau de bord, consoles, sièges d'équipage, fauteuil du commandant) ;
+ * - concourse.ts : le hall de la salle commune, façon station Coriolis (l'îlot du hall et sa galaxie) ;
  * - workshop.ts : la cale (minage, bricolage, réparation) ;
  * - bar.ts : Chez Jacques, le bar clandestin de la cale (comptoir, bouteilles, Jacques le robot barman) ;
  * - club.ts : le Zorb, la boîte de nuit des aliens de la cale (enseigne, cordon, videur, danseurs) ;
@@ -72,7 +74,7 @@ import { STUDIO } from './studio'
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...COCKPIT, ...WORKSHOP, ...BAR, ...CLUB, ...LEISURE, ...MEDICAL, ...KITCHEN, ...ARCADE, ...BOARD, ...COZY, ...GARDEN, ...NATURE, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...LISTENING, ...STUDIO, ...LJPC, ...PLANETARIUM, ...VENTS, ...VOIE, ...SALVAGE, ...HANGAR, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...COCKPIT, ...CONCOURSE, ...WORKSHOP, ...BAR, ...CLUB, ...LEISURE, ...MEDICAL, ...KITCHEN, ...ARCADE, ...BOARD, ...COZY, ...GARDEN, ...NATURE, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...LISTENING, ...STUDIO, ...LJPC, ...PLANETARIUM, ...VENTS, ...VOIE, ...SALVAGE, ...HANGAR, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 
