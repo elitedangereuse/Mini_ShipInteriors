@@ -54,6 +54,8 @@ export const SHIP_LAYOUTS = {
   // derrière une vitre, le studio de Radio Dangereuse (porte à l'est). À l'ouest, la grande serre
   // hydroponique de Capucine, sous verrière, aux coins cassés, centrée sur la coursive.
   // Entre les cabines d'équipage et le studio, les toilettes ('d') : trois cabines contre le mur nord.
+  // Au sud de la coursive, à la place des anciens quartiers, le planétarium de Bugenhagen ('p',
+  // 8 × 8, cf. PLANETARIUM_ROOM).
   '1': [
     '                             ',
     '  ggggggkkkkkdddssss nnnnnnn ',
@@ -64,6 +66,9 @@ export const SHIP_LAYOUTS = {
     'ggggggggppp+ppppoooo nnnnnnn ',
     ' gggggggpppppppp oo  nnnnnnn ',
     '  ggggggpppppppp     nnnnnnn ',
+    '        pppppppp             ',
+    '        pppppppp             ',
+    '        pppppppp             ',
     '        pppppppp             ',
     '        pppppppp             ',
   ],
@@ -119,15 +124,25 @@ export const CLUB_ROOM = 'n'
 /** Apparence d'alien (identifiant du Holo-Me, ex. « alien.male.c.blue », cf. src/looks.ts). */
 export const isAlienLook = (skin) => typeof skin === 'string' && skin.startsWith('alien.')
 
+/** Le planétarium de Bugenhagen, au pont supérieur, à la place des anciens quartiers (lettre de sa pièce). */
+export const PLANETARIUM_ROOM = 'p'
+
 /**
- * Plan d'un pont : portes des pièces en travaux verrouillées ; au pont supérieur, les portes des
- * trois espaces d'extension des quartiers (verrouillées tant qu'aucune pièce n'y est posée, cf.
- * applyWings) ; au pont des quartiers, la porte du palier vers la parcelle (cf. applyPlot).
+ * Plan d'un pont : portes des pièces en travaux verrouillées ; dans la cale, celle du poste de
+ * sécurité ; au pont des quartiers, la porte du palier vers la parcelle (cf. applyPlot).
  */
 export function shipMapOptions(level) {
   const id = String(level)
-  const doors = id === '1' ? wingDoors().map((d) => ({ ...d, locked: true })) : id === '-1' ? [SECURITY_DOOR] : id === '2' ? [PLOT_DOOR] : []
+  const doors = id === '-1' ? [SECURITY_DOOR] : id === '2' ? [PLOT_DOOR] : []
   return { closed: CLOSED_ROOMS[level] ?? '', doors }
+}
+
+/**
+ * Plan du pont supérieur du temps des anciens quartiers (cf. LEGACY_UPPER_LAYOUT) : les portes des
+ * trois espaces d'extension, verrouillées tant qu'aucune pièce n'y est posée (cf. applyWings).
+ */
+export function legacyUpperMapOptions() {
+  return { closed: '', doors: wingDoors().map((d) => ({ ...d, locked: true })) }
 }
 
 /** La porte du poste de sécurité du lobby (cale), côté alcôve : toujours verrouillée. */

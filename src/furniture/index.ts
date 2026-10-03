@@ -23,6 +23,7 @@ import { MEDICAL } from './medical'
 import { NATURE } from './nature'
 import { PARTY } from './party'
 import { PETS } from './pets'
+import { PLANETARIUM } from './planetarium'
 import { POSTER_ART } from './posters'
 import { RETRO } from './retro'
 import { VOIE } from './voie'
@@ -53,6 +54,7 @@ import { STUDIO } from './studio'
  * - pets.ts : les paniers des compagnons et les objets pour animaux (gamelles, arbre à chat…) ;
  * - works.ts : les pièces en travaux (échafaudage, panneau « Bientôt », cônes, bâches) ;
  * - cinema.ts : le cinéma du pont supérieur (écran à rideaux, fauteuils, projecteur, pop-corn) ;
+ * - planetarium.ts : le planétarium de Bugenhagen, au pont supérieur (carte du ciel, projecteur, hologramme du système, lunette, bibliothèque, Bugenhagen) ;
  * - listening.ts : le salon d'écoute (casques, affiches de Radio Dangereuse et des Galères Galactiques, poste d'écoute) ;
  * - studio.ts : le studio de Radio Dangereuse (table à trois micros, fauteuils, mousse acoustique, néon « ON AIR ») ;
  * - ljpc.ts : le labo du L.J.P.C. (tableau d'enquête, paillasse, échantillon, hologramme, James et Julia) ;
@@ -68,7 +70,7 @@ import { STUDIO } from './studio'
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...COCKPIT, ...WORKSHOP, ...BAR, ...CLUB, ...LEISURE, ...MEDICAL, ...KITCHEN, ...ARCADE, ...BOARD, ...COZY, ...GARDEN, ...NATURE, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...LISTENING, ...STUDIO, ...LJPC, ...VOIE, ...SALVAGE, ...HANGAR, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...COCKPIT, ...WORKSHOP, ...BAR, ...CLUB, ...LEISURE, ...MEDICAL, ...KITCHEN, ...ARCADE, ...BOARD, ...COZY, ...GARDEN, ...NATURE, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...LISTENING, ...PLANETARIUM, ...STUDIO, ...LJPC, ...VOIE, ...SALVAGE, ...HANGAR, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 
