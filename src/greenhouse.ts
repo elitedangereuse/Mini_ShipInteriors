@@ -12,7 +12,7 @@ import { GARDEN_HELP, GARDEN_ROOM } from '../shared/gardener.js'
  *
  * À la grainothèque, on prend une fiche ; Capucine vient se poster sur les pas japonais (pour tout
  * le bord, cf. shared/gardener.js) et explique le travail. Chaque étape a son poste (grainothèque,
- * établi, récupérateur d'eau, bacs potagers, arbre, bassin, compost, cuve, caisses de récolte…),
+ * établi, récupérateur d'eau, bacs potagers, arbre, étang du jardin exotique, compost, cuve, caisses de récolte…),
  * marqué d'un hexagone vert : on y va, on s'y met quelques secondes (la même jauge que les tâches
  * de bord), Capucine commente, et l'étape suivante s'allume. Finie, la fiche est payée par le site
  * (prime et plafonds : `garden` dans economy.json, cf. Wallet.finishJob). Leur nombre est gardé
@@ -35,7 +35,7 @@ const STATION_MODEL: Record<Station, { model: string; label?: string }> = {
   tank: { model: 'nutrient-tank' },
   racks: { model: 'hydro-rack' },
   compost: { model: 'compost-bin' },
-  pond: { model: 'garden-pond' },
+  pond: { model: 'fishing-pond' },
   wall: { model: 'vine-trellis' },
 }
 
@@ -43,7 +43,7 @@ const STATION_MODEL: Record<Station, { model: string; label?: string }> = {
 const WHERE: Record<Station, string> = {
   seeds: tr('à la grainothèque', 'at the seed library'),
   bench: tr('à l\'établi de rempotage', 'at the potting bench'),
-  barrel: tr('au récupérateur d\'eau, près du bassin', 'at the water butt, by the pond'),
+  barrel: tr('au récupérateur d\'eau, contre la verrière', 'at the water butt, against the glass'),
   tomato: tr('au bac à tomates', 'at the tomato bed'),
   herbs: tr('au bac d\'herbes aromatiques', 'at the herb bed'),
   lettuce: tr('au bac de salades', 'at the lettuce bed'),
@@ -53,7 +53,7 @@ const WHERE: Record<Station, string> = {
   tank: tr('à la cuve de nutriments', 'at the nutrient tank'),
   racks: tr('aux bacs hydroponiques', 'at the hydroponic racks'),
   compost: tr('au compost', 'at the compost bin'),
-  pond: tr('au bassin des carpes', 'at the koi pond'),
+  pond: tr('à l\'étang des carpes, au jardin exotique', 'at the koi pond, in the exotic garden'),
   wall: tr('à la vigne, contre la verrière', 'at the vine, against the glass'),
 }
 

@@ -9,6 +9,7 @@ import { tr } from './i18n'
 import { BOARD_TABLES, SHIP_LAYOUTS, SPORT_COURTS } from '../shared/ship-layouts.js'
 import { HOUSING_LEVEL, LANDING_ROOM, PLOT_DOOR, PLOT_ORIGIN, PLOT_ROOM } from '../shared/housing-plot.js'
 import { PILOT_SEAT } from '../shared/systems.js'
+import { FISHING_DOCK, FISHING_FEED, FISHING_POND } from '../shared/fishing.js'
 
 /** Orientation en quarts de tour : 0 = face +z (sud), 1 = +x (est), 2 = -z (nord), 3 = -x (ouest). */
 export type Rot = 0 | 1 | 2 | 3
@@ -1323,6 +1324,8 @@ export const LEVELS: LevelDef[] = [
       f: tr('Terrain de foot', 'Football pitch'),
     },
     windows: { c: 0, k: 0.3, d: 0, p: 0.6, g: 0.5, o: 1, n: 0, s: 0, h: 0, b: 0, f: 0.4 },
+    // Le sud de la serre, sans mur entre les deux : le jardin exotique et son étang.
+    areas: [{ name: tr('Jardin exotique', 'Exotic garden'), minX: 0, maxX: 7, minZ: 9, maxZ: 14 }],
     // Du foyer, on entre au cinéma par une porte double, capitonnée de rouge.
     doubleDoors: [{ x: 22, z: 4, dir: 1, padded: true }],
     // Derrière le lavabo ouest des toilettes : un pilier lui passait au travers.
@@ -1358,10 +1361,11 @@ export const LEVELS: LevelDef[] = [
       { model: 'towel-rail', x: 12.65, z: 2.05, rot: 1, solid: false, interact: tr('Porte-serviettes chauffant : les serviettes sont tièdes, et sentent la lavande de synthèse.', 'Heated towel rail: the towels are warm, and smell of synthetic lavender.') },
 
       // --- Serre hydroponique, sous verrière : grainothèque, bacs hydroponiques, cuve et récupérateur
-      // d\'eau au nord ; mur végétal à l\'ouest ; bacs potagers au milieu ; au sud-ouest, la pelouse,
-      // l\'arbre fruitier et le bassin aux carpes ; établi et compost au sud ; l\'arche fleurie à
-      // l\'entrée. Les postes du mini-jeu de Capucine sont ici (cf. src/greenhouse.ts), et ses
-      // trajets les contournent (cf. GARDEN_OBSTACLES dans shared/gardener.js).
+      // d\'eau au nord ; mur végétal à l\'ouest ; bacs potagers au milieu ; à l\'ouest, la pelouse,
+      // l\'arbre fruitier et son banc ; l\'arche fleurie à l\'entrée. L\'établi, le compost, les
+      // cactus et les citrouilles font la limite avec le jardin exotique, au sud (plus bas). Les
+      // postes du mini-jeu de Capucine sont ici (cf. src/greenhouse.ts), et ses trajets les
+      // contournent (cf. GARDEN_OBSTACLES dans shared/gardener.js).
       { model: 'lawn', x: 1.3, z: 4.55, label: '2.6x3.9', solid: false },
       { model: 'stepping-stones', x: 4.6, z: 5, label: '4.4', solid: false },
       { model: 'garden-arch', x: 7.0, z: 5, rot: 1, label: '1.1', solid: false },
@@ -1406,11 +1410,8 @@ export const LEVELS: LevelDef[] = [
         ],
       },
       {
-        model: 'garden-pond', x: 1.25, z: 5.35,
-        interact: [
-          tr('Trois carpes koï : Faulcon, DeLacy et Gutamaya. Gutamaya est la plus chère à nourrir.', 'Three koi: Faulcon, DeLacy and Gutamaya. Gutamaya is the most expensive to feed.'),
-          tr('La grenouille de pierre crache son filet d\'eau. En gravité artificielle, il retombe presque droit.', 'The stone frog spits its trickle of water. In artificial gravity, it falls almost straight.'),
-        ],
+        model: 'bench', x: 1.3, z: 5.5, rot: 2, label: 'teal',
+        interact: tr('Un banc sous le pommier. Le bassin des carpes était ici, avant de déménager au jardin exotique : Capucine a gardé le banc, « pour les regretter assis ».', 'A bench under the apple tree. The koi pond used to be here before it moved to the exotic garden: Capucine kept the bench, “to miss them sitting down”.'),
       },
       { model: 'butterflies', x: 1.3, z: 4, label: '0.9', solid: false },
       {
@@ -1447,7 +1448,7 @@ export const LEVELS: LevelDef[] = [
         model: 'compost-bin', x: 6.95, z: 8.05,
         interact: tr('Le compost : épluchures du mess, marc de café CD-75, et ce qu\'il reste des soufflés ratés de Marcel.', 'The compost: peelings from the mess, CD-75 coffee grounds, and what\'s left of Marcel\'s failed soufflés.'),
       },
-      { model: 'monstera', x: 1.25, z: 7.05 },
+      { model: 'monstera', x: 0.25, z: 7.45 },
       {
         model: 'cactus-bed', x: 2.55, z: 8.1,
         interact: tr('Le coin des cactus : ils ne demandent rien, sauf qu\'on ne s\'asseye pas dessus.', 'The cactus corner: they ask for nothing, except that you don\'t sit on them.'),
@@ -1457,10 +1458,7 @@ export const LEVELS: LevelDef[] = [
         interact: tr('Citrouilles et melons, sur un lit de paille. La plus grosse est réservée pour une soirée à thème, au salon.', 'Pumpkins and melons on a bed of straw. The biggest one is saved for a themed party in the lounge.'),
       },
       // --- La verdure : palmiers en pot, bambous, buissons, fougères, herbes et fleurs sauvages (Nature Kit).
-      {
-        model: 'potted-palm', x: 0.2, z: 4, label: 'bend',
-        interact: tr('Un palmier qui penche au-dessus du bassin. Les carpes apprécient l\'ombre, Capucine un peu moins les feuilles mortes.', 'A palm leaning over the pond. The koi enjoy the shade; Capucine less so the dead leaves.'),
-      },
+      { model: 'potted-palm', x: 0.2, z: 4, label: 'bend' },
       { model: 'potted-palm', x: 6.3, z: 5.85, label: 'fan' },
       {
         model: 'bamboo', x: 7.1, z: 4.05, rot: 1,
@@ -1484,11 +1482,60 @@ export const LEVELS: LevelDef[] = [
       { model: 'grass-tuft', x: 3.05, z: 7.15, label: 'leafs', solid: false },
       { model: 'wildflowers', x: 4.95, z: 7.05, label: 'purple', solid: false },
       { model: 'grass-tuft', x: 6.4, z: 7.1, label: 'wide', solid: false },
-      { model: 'hanging-basket', x: 3.1, z: 8.45, rot: 2, solid: false },
-      { model: 'hanging-basket', x: 4.7, z: 8.45, rot: 2, solid: false },
+      { model: 'hanging-basket', x: -0.45, z: 7.0, rot: 1, solid: false },
+      { model: 'hanging-basket', x: -0.45, z: 9.0, rot: 1, solid: false },
       { model: 'hanging-basket', x: 1.55, z: 1.05, rot: 1, solid: false },
       { model: 'flowers', x: 6.1, z: 4.45 },
       { model: 'exobio-plant', x: 6.95, z: 6, label: 'crystal' },
+
+      // --- Jardin exotique, au sud de la serre (sans mur : on y passe sous l'arche, à l'ouest, ou
+      // entre les citrouilles et l'établi) : une plage de sable, le grand étang et ses carpes, le
+      // ponton d'où l'on pêche et le livre des prises (cf. src/fishing/ et shared/fishing.js),
+      // des palmiers en pleine terre, des bambous, des plantes d'exobiologie.
+      { model: 'sand-patch', x: 3.6, z: 11.55, label: '7.6x5.5', solid: false },
+      { model: 'garden-arch', x: 1.35, z: 8.2, label: '1.3', solid: false },
+      {
+        model: 'fishing-pond', x: FISHING_POND.x, z: FISHING_POND.z, reach: FISHING_FEED,
+        interact: [
+          tr('Trois carpes koï : Faulcon, DeLacy et Gutamaya. Gutamaya est la plus chère à nourrir. Sous elles, des ombres bien plus grosses passent lentement.', 'Three koi: Faulcon, DeLacy and Gutamaya. Gutamaya is the most expensive to feed. Beneath them, much larger shadows drift slowly by.'),
+          tr('La grenouille de pierre crache son filet d\'eau. En gravité artificielle, il retombe presque droit.', 'The stone frog spits its trickle of water. In artificial gravity, it falls almost straight.'),
+          tr('L\'étang est bien plus profond qu\'il n\'en a l\'air. Capucine dit qu\'il communique avec les ballasts. Nico dit que non. Personne n\'est allé voir.', 'The pond is much deeper than it looks. Capucine says it connects to the ballast tanks. Nico says it doesn\'t. Nobody has gone to check.'),
+        ],
+      },
+      { model: 'fishing-dock', x: FISHING_DOCK.x, z: FISHING_DOCK.z, solid: false, action: tr('Pêcher', 'Fish') },
+      { model: 'fish-book', x: 6.95, z: 10.6, rot: 3, action: tr('Ouvrir le livre des prises', 'Open the catch book') },
+      {
+        model: 'jungle-palm', x: 0.7, z: 9.75, label: 'bend',
+        interact: tr('Un palmier qui penche au-dessus de l\'étang. Les carpes apprécient l\'ombre, Capucine un peu moins les feuilles mortes.', 'A palm leaning over the pond. The koi enjoy the shade; Capucine less so the dead leaves.'),
+      },
+      { model: 'jungle-palm', x: 7.0, z: 9.3, label: 'fan' },
+      { model: 'jungle-palm', x: 1.15, z: 13.55, label: 'short' },
+      { model: 'jungle-palm', x: 6.95, z: 13.95, label: 'bend' },
+      {
+        model: 'bamboo', x: 7.15, z: 12.3, rot: 3,
+        interact: tr('Encore du bambou. Capucine jure qu\'elle n\'en a planté qu\'un pied, de l\'autre côté de la serre.', 'More bamboo. Capucine swears she only planted one, on the other side of the greenhouse.'),
+      },
+      {
+        model: 'exobio-plant', x: 0.15, z: 12.5, label: 'anemone',
+        interact: tr('Une anémone d\'exobiologie, rapportée d\'une lune sans nom. Elle se tourne vers ceux qui pêchent. Par curiosité, sans doute.', 'An exobiology anemone, brought back from a nameless moon. It turns towards whoever is fishing. Out of curiosity, no doubt.'),
+      },
+      { model: 'exobio-plant', x: 4.3, z: 14.15, label: 'brain' },
+      { model: 'bush', x: 2.5, z: 14.1, label: 'large' },
+      { model: 'bush', x: 5.6, z: 14.1, label: 'triangle' },
+      { model: 'fern', x: 0.1, z: 10.9 },
+      { model: 'fern', x: 7.15, z: 11.3 },
+      { model: 'fern', x: 3.4, z: 14.15 },
+      { model: 'butterflies', x: 2.4, z: 12.4, label: '1.1', solid: false },
+      { model: 'butterflies', x: 5.2, z: 10.8, label: '1', solid: false },
+      { model: 'wildflowers', x: 0.5, z: 11.6, label: 'red', solid: false },
+      { model: 'wildflowers', x: 6.55, z: 13.2, label: 'purple', solid: false },
+      { model: 'wildflowers', x: 2.2, z: 9.35, label: 'yellow', solid: false },
+      { model: 'wildflowers', x: 5.3, z: 9.35, label: 'mixed', solid: false },
+      { model: 'grass-tuft', x: 1.0, z: 12.6, label: 'tall', solid: false },
+      { model: 'grass-tuft', x: 6.5, z: 9.9, label: 'leafs', solid: false },
+      { model: 'grass-tuft', x: 1.9, z: 13.75, label: 'wide', solid: false },
+      { model: 'grass-tuft', x: 6.35, z: 12.6, label: 'tall', solid: false },
+      { model: 'mushrooms', x: 1.5, z: 13.2, solid: false },
 
       // --- Studio Radio Dangereuse : trois animateurs autour de la table ronde, face à la vitre ---
       { model: 'studio-table', x: 17.45, z: 2.0 },
@@ -1740,6 +1787,10 @@ export const LEVELS: LevelDef[] = [
       [4.6, 2.3, '#ffb3e6', 2.4],
       [1.4, 4.2, '#fff1c4', 2.3],
       [4.6, 6.2, '#d8ffc8', 1.8],
+      // Le jardin exotique : le reflet de l'étang, le soleil de la plage.
+      [3.7, 11.6, '#c4f2ff', 2.1],
+      [1.2, 13, '#ffe2a8', 1.7],
+      [6.4, 9.6, '#fff1c4', 1.6],
       [17.4, 5.4, '#ffb36b', 1.9, 'fire'],
       // Le studio, et la lueur du néon sur la vitre.
       [17.45, 1.9, '#fff0dc', 1.8],

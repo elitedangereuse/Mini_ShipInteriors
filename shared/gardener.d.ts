@@ -12,6 +12,9 @@ export declare const GARDEN_HELP: number
 /** Où elle attend son aide pendant une fiche : sur les pas japonais, face aux bacs. */
 export declare const GARDEN_WAIT: { x: number; z: number; yaw: number }
 
+/** Le jardin exotique commence ici (z), au sud de la serre. */
+export declare const GARDEN_SOUTH: number
+
 export type GardenStation = 'seeds' | 'racks' | 'tomato' | 'tree' | 'pond' | 'barrel' | 'flowers' | 'bench' | 'compost' | 'lettuce' | 'herbs' | 'tank' | 'crate'
 export type GardenWork = 'sort' | 'water' | 'harvest' | 'feed' | 'dig' | 'trim' | 'look'
 

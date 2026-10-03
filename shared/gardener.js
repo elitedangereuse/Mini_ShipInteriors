@@ -7,6 +7,7 @@
 // des yeux : le relais fige sa tournée tant qu'il y a un aide au travail, plus le temps de revenir
 // là où elle l'avait laissée.
 
+import { FISHING_FEED, FISHING_POND } from './fishing.js'
 import { holdPatrol, patrolTime } from './patrol.js'
 
 /** Pont et pièce de la jardinière. */
@@ -31,10 +32,13 @@ const WEST = -Math.PI / 2
 /** Où elle attend son aide pendant une fiche : sur les pas japonais, entre les bacs et l'arche, face aux bacs. */
 export const GARDEN_WAIT = { x: 5.75, z: 5.05, yaw: NORTH }
 
+/** Le jardin exotique commence ici (z) : au sud de la rangée de l'établi, du compost, des cactus et des citrouilles. */
+export const GARDEN_SOUTH = 8.5
+
 /**
- * Meubles de la serre (rectangles au sol, cf. levels.ts) : ses trajets ne les traversent pas.
- * Chaque rectangle est élargi de sa carrure (cf. RADIUS). Les derniers sont les coins cassés de la
- * serre (hors du plan) : elle ne coupe pas à travers leurs murs.
+ * Meubles de la serre et du jardin exotique (rectangles au sol, cf. levels.ts) : ses trajets ne
+ * les traversent pas. Chaque rectangle est élargi de sa carrure (cf. RADIUS). Les derniers sont
+ * les coins cassés de la serre (hors du plan) : elle ne coupe pas à travers leurs murs.
  */
 export const GARDEN_OBSTACLES = [
   { minX: 2.03, maxX: 2.97, minZ: 0.5, maxZ: 0.91 }, // grainothèque
@@ -44,7 +48,7 @@ export const GARDEN_OBSTACLES = [
   { minX: 6.45, maxX: 7.5, minZ: 0.5, maxZ: 1.16 }, // caisses de récolte
   { minX: -0.5, maxX: -0.2, minZ: 2.6, maxZ: 6.4 }, // treille de vigne
   { minX: 0.88, maxX: 1.72, minZ: 1.88, maxZ: 2.72 }, // arbre fruitier
-  { minX: 0.51, maxX: 1.99, minZ: 4.77, maxZ: 5.93 }, // bassin
+  { minX: 0.7, maxX: 1.9, minZ: 5.25, maxZ: 5.75 }, // banc sous le pommier
   { minX: -0.5, maxX: 0.5, minZ: 5.78, maxZ: 6.62 }, // récupérateur d'eau
   { minX: 3.13, maxX: 4.67, minZ: 2.13, maxZ: 2.87 }, // bac à tomates
   { minX: 5.13, maxX: 6.67, minZ: 2.13, maxZ: 2.87 }, // bac d'herbes
@@ -52,7 +56,7 @@ export const GARDEN_OBSTACLES = [
   { minX: 3.23, maxX: 4.77, minZ: 5.83, maxZ: 6.57 }, // massif de fleurs
   { minX: 5.1, maxX: 6.1, minZ: 7.9, maxZ: 8.5 }, // établi de rempotage
   { minX: 6.64, maxX: 7.5, minZ: 7.78, maxZ: 8.5 }, // compost
-  { minX: 0.98, maxX: 1.52, minZ: 6.8, maxZ: 7.5 }, // monstera
+  { minX: -0.5, maxX: 0.52, minZ: 7.1, maxZ: 7.8 }, // monstera
   { minX: 2.1, maxX: 3.0, minZ: 7.84, maxZ: 8.5 }, // massif de cactus
   { minX: 3.2, maxX: 4.3, minZ: 7.7, maxZ: 8.5 }, // citrouilles
   { minX: -0.5, maxX: 0.5, minZ: 3.72, maxZ: 4.28 }, // palmier penché
@@ -62,15 +66,21 @@ export const GARDEN_OBSTACLES = [
   { minX: -0.5, maxX: 0.47, minZ: 5.1, maxZ: 5.6 }, // fougère
   { minX: 5.95, maxX: 6.25, minZ: 4.3, maxZ: 4.6 }, // pot de fleurs
   { minX: 6.65, maxX: 7.5, minZ: 5.7, maxZ: 6.3 }, // plante exobiologique
+  // Le jardin exotique : l'étang, et ce qui borde le chemin qui y mène.
+  { minX: FISHING_POND.x - FISHING_POND.w / 2, maxX: FISHING_POND.x + FISHING_POND.w / 2, minZ: FISHING_POND.z - FISHING_POND.d / 2, maxZ: FISHING_POND.z + FISHING_POND.d / 2 }, // étang
+  { minX: 0.4, maxX: 1.0, minZ: 9.45, maxZ: 10.05 }, // palmier penché de l'étang
+  { minX: -0.5, maxX: 0.4, minZ: 10.6, maxZ: 11.2 }, // fougère
+  { minX: -0.5, maxX: 0.45, minZ: 12.2, maxZ: 12.8 }, // anémone d'exobiologie
+  { minX: 0.85, maxX: 1.45, minZ: 13.25, maxZ: 13.85 }, // palmier trapu
   // Les coins cassés.
   { minX: -1, maxX: 1.5, minZ: 0, maxZ: 1.5 },
   { minX: -1, maxX: 0.5, minZ: 0, maxZ: 2.5 },
-  { minX: -1, maxX: 0.5, minZ: 6.5, maxZ: 9 },
-  { minX: -1, maxX: 1.5, minZ: 7.5, maxZ: 9 },
+  { minX: -1, maxX: 0.5, minZ: 12.5, maxZ: 15 },
+  { minX: -1, maxX: 1.5, minZ: 13.5, maxZ: 15 },
 ]
 
 /** Les murs de la serre (faces intérieures) : elle reste dedans. */
-const ROOM = { minX: -0.5, maxX: 7.5, minZ: 0.5, maxZ: 8.5 }
+const ROOM = { minX: -0.5, maxX: 7.5, minZ: 0.5, maxZ: 14.5 }
 
 /** Sa carrure, avec une marge. */
 const RADIUS = 0.17
@@ -85,8 +95,9 @@ const POSTS = [
   { at: 'racks', x: 4.4, z: 1.45, yaw: NORTH, watch: 7, work: 'water' },
   { at: 'tomato', x: 3.9, z: 3.2, yaw: NORTH, watch: 8, work: 'harvest' },
   { at: 'tree', x: 1.3, z: 3.2, yaw: NORTH, watch: 6, work: 'harvest' },
-  { at: 'pond', x: 2.3, z: 5.35, yaw: WEST, watch: 7, work: 'feed' },
   { at: 'barrel', x: 0.85, z: 6.35, yaw: WEST, watch: 4, work: 'water' },
+  // Les carpes ont déménagé au jardin exotique : elle y descend par l'arche, à l'ouest.
+  { at: 'pond', x: FISHING_FEED.x, z: FISHING_FEED.z, yaw: EAST, watch: 7, work: 'feed' },
   { at: 'flowers', x: 4.0, z: 5.45, yaw: SOUTH, watch: 7, work: 'water' },
   { at: 'bench', x: 5.6, z: 7.5, yaw: SOUTH, watch: 8, work: 'dig' },
   { at: 'compost', x: 6.35, z: 7.45, yaw: EAST, watch: 5, work: 'dig' },
@@ -189,10 +200,10 @@ const NEAR = 0.3
 export const GARDEN_CATCH_UP = 1.3
 /**
  * Au-delà de cet écart avec sa place, par le chemin, elle y saute : plus long que n'importe quel
- * trajet de la serre (d'un coin à l'autre, une douzaine d'unités au plus), elle ne saute donc que
- * si elle est vraiment perdue.
+ * trajet de la serre (d'un coin à l'autre, jardin exotique compris, une vingtaine d'unités au
+ * plus), elle ne saute donc que si elle est vraiment perdue.
  */
-export const GARDEN_SNAP = 14
+export const GARDEN_SNAP = 24
 
 /**
  * Un pas de la jardinière vers sa place `goal`, d'au plus `max` : sa nouvelle position, son cap

@@ -143,16 +143,30 @@ const GREENHOUSE_TOP = POST_H - 0.05
  */
 export function firstPersonGlass(on: boolean) {
   CANOPY_GLASS.opacity = on ? 0.05 : 0.2
-  GREENHOUSE_GLASS.opacity = on ? 0.08 : 0.24
+  // Les cloisons d'une serre, elles, sont à hauteur d'yeux, carreau par carreau : un verre uni si
+  // pâle laissait croire à des baies vides. Il prend le verre dessiné des verrières (reflets en
+  // biais, liseré au bord du cadre, cf. roofGlassTexture), dont la transparence fait le reste.
+  const map = on ? (roofGlass ??= roofGlassTexture()) : null
+  if (GREENHOUSE_GLASS.map !== map) {
+    GREENHOUSE_GLASS.map = map
+    GREENHOUSE_GLASS.needsUpdate = true
+  }
+  GREENHOUSE_GLASS.opacity = on ? 1 : 0.24
 }
 
 /**
  * Tous les pans de verre d'un pont, en un maillage (un appel de dessin) : entre l'allège et le
- * linteau, ou (vue subjective) du linteau au plafond.
+ * linteau, ou (vue subjective) du linteau au plafond. Le verre d'une serre est texturé en vue
+ * subjective (cf. firstPersonGlass) : ses coordonnées de texture suivent ses carreaux, trois par
+ * pan (la texture en couvre deux par répétition), et sa hauteur.
  */
 function canopyGlass(panes: { x: number; z: number; alongX: boolean }[], bottom = 0.27, top = POST_H - 0.1, material: THREE.Material = CANOPY_GLASS): THREE.Mesh {
   const geos = panes.map((p) => {
     const g = new THREE.PlaneGeometry(1, top - bottom)
+    if (material === GREENHOUSE_GLASS) {
+      const uv = g.getAttribute('uv')
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 1.5, (bottom + uv.getY(i) * (top - bottom)) * 1.5)
+    }
     if (!p.alongX) g.rotateY(Math.PI / 2)
     g.translate(p.x, (bottom + top) / 2, p.z)
     return g

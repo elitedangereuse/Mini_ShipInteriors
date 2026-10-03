@@ -112,6 +112,22 @@ const pottedPalm: Builder = ({ label, random }) => {
   return { solid: g }
 }
 
+/**
+ * Palmier en pleine terre, au jardin exotique : plus haut qu'en pot, des galets et des herbes au
+ * pied. Espèce : `label` (comme les palmiers en pot).
+ */
+const junglePalm: Builder = ({ label, random }) => {
+  const [file, s] = variant(PALMS, label)
+  const g = new THREE.Group()
+  g.add(model(file, s * 1.55, 0, 0, random() * 6))
+  for (let i = 0; i < 3; i++) {
+    const a = random() * Math.PI * 2
+    g.add(model(i % 2 ? 'stone_smallFlatA' : 'stone_smallFlatB', 0.3 + random() * 0.15, Math.cos(a) * 0.2, Math.sin(a) * 0.2, random() * 6))
+  }
+  g.add(model('grass_leafs', 0.9, 0.14, -0.12, random() * 6), model('plant_flatShort', 0.9, -0.15, 0.1, random() * 6))
+  return { solid: g }
+}
+
 /** Petit pot du kit, planté. Plante : `label` (fern, cactus, flowers, bush, mushrooms). */
 const POTTED: Record<string, [string, number][]> = {
   fern: [['plant_flatTall', 1.4]],
@@ -197,6 +213,7 @@ export const NATURE = {
   'grass-tuft': grassTuft,
   wildflowers,
   'potted-palm': pottedPalm,
+  'jungle-palm': junglePalm,
   'nature-pot': naturePot,
   bamboo,
   'cactus-bed': cactusBed,

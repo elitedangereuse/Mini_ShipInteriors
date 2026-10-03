@@ -5,9 +5,10 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
-  GARDEN_CATCH_UP, GARDEN_HOLD, GARDEN_LEVEL, GARDEN_OBSTACLES, GARDEN_PERIOD, GARDEN_POSTS, GARDEN_ROOM, GARDEN_SNAP, GARDEN_SPEED, GARDEN_WAIT,
+  GARDEN_CATCH_UP, GARDEN_HOLD, GARDEN_LEVEL, GARDEN_OBSTACLES, GARDEN_PERIOD, GARDEN_POSTS, GARDEN_ROOM, GARDEN_SNAP, GARDEN_SOUTH, GARDEN_SPEED, GARDEN_WAIT,
   gardenAt, gardenClear, gardenReturn, gardenRoute, gardenStep, gardenTime, helpGarden, holdGarden,
 } from '../shared/gardener.js'
+import { FISHING_POND } from '../shared/fishing.js'
 import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import { ShipMap } from '../shared/ship-map.js'
 
@@ -16,30 +17,33 @@ const map = new ShipMap(SHIP_LAYOUTS[GARDEN_LEVEL], shipMapOptions(GARDEN_LEVEL)
 /** Dans un meuble, à sa carrure près (un peu moins que celle des trajets) : elle n'y passe jamais. */
 const inFurniture = ({ x, z }) => GARDEN_OBSTACLES.find((r) => x > r.minX - 0.12 && x < r.maxX + 0.12 && z > r.minZ - 0.12 && z < r.maxZ + 0.12)
 /** Dans la serre, à distance des murs (faces intérieures à 0,15 des bords des tuiles). */
-const inRoom = ({ x, z }) => map.room(Math.round(x), Math.round(z)) === GARDEN_ROOM && x > -0.35 && x < 7.35 && z > 0.65 && z < 8.35
+const inRoom = ({ x, z }) => map.room(Math.round(x), Math.round(z)) === GARDEN_ROOM && x > -0.35 && x < 7.35 && z > 0.65 && z < 14.35
 const at = ({ x, z }) => `(${x.toFixed(2)}, ${z.toFixed(2)})`
 
-test('la serre, agrandie vers la poupe, s\'ouvre sur la coursive par sa porte', () => {
+test('la serre, agrandie vers la poupe puis vers le sud, s\'ouvre sur la coursive par sa porte', () => {
   let tiles = 0
-  for (let z = 1; z <= 8; z++) for (let x = 0; x <= 7; x++) if (map.room(x, z) === GARDEN_ROOM) tiles++
-  assert.equal(tiles, 58)
+  for (let z = 0; z < map.height; z++) for (let x = 0; x <= 7; x++) if (map.room(x, z) === GARDEN_ROOM) tiles++
+  assert.equal(tiles, 106)
   // Les coins cassés, les mêmes au nord et au sud.
-  for (const [x, z] of [[0, 1], [1, 1], [0, 2], [0, 7], [0, 8], [1, 8]]) assert.equal(map.room(x, z), null, `tuile (${x}, ${z})`)
+  for (const [x, z] of [[0, 1], [1, 1], [0, 2], [0, 13], [0, 14], [1, 14]]) assert.equal(map.room(x, z), null, `tuile (${x}, ${z})`)
   // La porte, entre la serre et la coursive.
   assert.equal(map.room(7, 5), GARDEN_ROOM)
   assert.equal(map.room(9, 5), 'c')
   assert.ok(map.doors.some((d) => d.x === 8 && d.z === 5))
 })
 
-test('la serre est centrée sur la coursive', () => {
-  /** Milieu (en z) des tuiles de la pièce `room` dans la colonne `x`. */
-  const middle = (room, x) => {
-    const rows = []
-    for (let z = 0; z < map.height; z++) if (map.room(x, z) === room) rows.push(z)
-    return (Math.min(...rows) + Math.max(...rows)) / 2
+test('le jardin exotique prolonge la serre au sud, sans mur, le long du planétarium', () => {
+  // La même pièce de part et d'autre de la limite : aucun mur entre la serre et le jardin.
+  const south = Math.round(GARDEN_SOUTH)
+  for (let x = 0; x <= 7; x++) {
+    assert.equal(map.room(x, south - 1), GARDEN_ROOM)
+    assert.equal(map.room(x, south), GARDEN_ROOM)
+    assert.equal(map.edge(x, south - 1, 2), 'open', `mur en (${x}, ${south - 1})`)
   }
-  assert.equal(middle(GARDEN_ROOM, 7), middle('c', 9))
-  assert.equal(middle(GARDEN_ROOM, 0), middle('c', 9))
+  for (let z = south; z <= 13; z++) assert.equal(map.room(8, z), 'p')
+  // L'étang tient dans le jardin, et l'on en fait le tour.
+  const pond = { minX: FISHING_POND.x - FISHING_POND.w / 2, maxX: FISHING_POND.x + FISHING_POND.w / 2, minZ: FISHING_POND.z - FISHING_POND.d / 2, maxZ: FISHING_POND.z + FISHING_POND.d / 2 }
+  assert.ok(pond.minZ > GARDEN_SOUTH + 1 && pond.maxZ < 14.5 - 1 && pond.minX > -0.5 + 1 && pond.maxX < 7.5 - 1)
 })
 
 test('elle avance sans jamais sauter, y compris d\'un tour au suivant', () => {

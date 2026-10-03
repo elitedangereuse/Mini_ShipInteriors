@@ -56,7 +56,9 @@ export const SHIP_LAYOUTS = {
   ],
   // Pont supérieur : les quartiers ; derrière le salon d'écoute, le cinéma. Au nord du salon,
   // derrière une vitre, le studio de Radio Dangereuse (porte à l'est). À l'ouest, la grande serre
-  // hydroponique de Capucine, sous verrière, aux coins cassés, centrée sur la coursive.
+  // de Capucine, sous verrière, aux coins cassés : au nord, la serre hydroponique, face à la
+  // coursive ; au sud, sans mur entre les deux, le jardin exotique et son étang (cf. GARDEN_SOUTH
+  // dans gardener.js), le long du planétarium.
   // Entre les cabines d'équipage et le studio, les toilettes ('d') : trois cabines contre le mur nord.
   // Au sud de la coursive, à la place des anciens quartiers, le planétarium de Bugenhagen ('p',
   // 8 × 8, cf. PLANETARIUM_ROOM). Après le salon d'écoute, le foyer ('h') : un couloir qui donne à
@@ -70,14 +72,14 @@ export const SHIP_LAYOUTS = {
     'ggggggggcccccccc+ooo h+nnnnnnn ',
     'gggggggg+cccccccoooo+h+nnnnnnn ',
     'ggggggggppp+ppppoooo hhnnnnnnn ',
-    ' gggggggpppppppp oo  hhnnnnnnn ',
-    '  ggggggpppppppp     hhnnnnnnn ',
-    '        pppppppp  hhhhhhhhhh   ',
-    '        ppppppppbbb+bbbfff+fff ',
-    '        ppppppppbbbbbbbfffffff ',
-    '        ppppppppbbbbbbbfffffff ',
-    '        ppppppppbbbbbbbfffffff ',
-    '                bbbbbbbfffffff ',
+    'ggggggggpppppppp oo  hhnnnnnnn ',
+    'ggggggggpppppppp     hhnnnnnnn ',
+    'ggggggggpppppppp  hhhhhhhhhh   ',
+    'ggggggggppppppppbbb+bbbfff+fff ',
+    'ggggggggppppppppbbbbbbbfffffff ',
+    'ggggggggppppppppbbbbbbbfffffff ',
+    ' gggggggppppppppbbbbbbbfffffff ',
+    '  gggggg        bbbbbbbfffffff ',
     '                bbbbbbbfffffff ',
   ],
   // Pont des quartiers (housing v2) : le palier de l'ascenseur, seul. La parcelle de chacun s'y
@@ -97,8 +99,8 @@ export const SHIP_LAYOUTS = {
 /**
  * Le pont supérieur du temps des anciens quartiers (format 1) : la migration vers la parcelle y
  * pose encore leurs pièces, leurs extensions et leurs cloisons (cf. housing-migrate.js). Figé, pour
- * qu'un ancien plan se migre toujours de la même façon : le pont, lui, a changé depuis (la serre,
- * centrée sur la coursive, déborde sur l'espace de l'extension de gauche).
+ * qu'un ancien plan se migre toujours de la même façon : le pont, lui, a changé depuis (la serre
+ * déborde sur l'espace de l'extension de gauche, et file au sud le long du planétarium).
  */
 export const LEGACY_UPPER_LAYOUT = [
   '  gggggg                     ',
