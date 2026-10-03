@@ -93,6 +93,26 @@ const fishingPond: Builder = ({ random }) => {
       if (i % 3 === 0) g.add(cylinder(0.018, 0.018, 0.09, lit('#6b4630'), reed.position.x, water + h - 0.04, reed.position.z, 6))
     }
   }
+  // Deux flamants roses, les pattes dans l'eau, parmi les roseaux du nord-ouest.
+  for (const [x, z, turn, s] of [[-hw + 0.7, -hd + 0.55, 0.6, 1], [-hw + 0.98, -hd + 0.42, -1.9, 0.85]] as const) {
+    const bird = new THREE.Group()
+    const pink = lit('#ff8fb0'), pale = lit('#ffc2d4')
+    bird.add(cylinder(0.006, 0.006, 0.24, lit('#e86a8a'), -0.015, 0.12, 0, 4), cylinder(0.006, 0.006, 0.24, lit('#e86a8a'), 0.02, 0.12, 0.01, 4))
+    const body = sphere(0.07, pink, 0, 0.29, 0, 8)
+    body.scale.set(0.8, 0.75, 1.25)
+    const tail = mesh(new THREE.ConeGeometry(0.035, 0.09, 5), pale, 0, 0.3, -0.1)
+    tail.rotation.x = -1.9
+    // Le cou en S : trois tronçons, puis la tête et le bec noir au bout.
+    const neck1 = cylinder(0.014, 0.018, 0.12, pink, 0, 0.35, 0.08, 5)
+    neck1.rotation.x = 0.7
+    const neck2 = cylinder(0.012, 0.014, 0.1, pink, 0, 0.42, 0.1, 5)
+    neck2.rotation.x = -0.35
+    bird.add(body, tail, neck1, neck2, sphere(0.024, pink, 0, 0.475, 0.1, 6), box(0.014, 0.014, 0.04, lit('#f4f1e8'), 0, 0.468, 0.13), box(0.012, 0.012, 0.022, lit('#1f1f24'), 0, 0.462, 0.156))
+    bird.scale.setScalar(s)
+    bird.rotation.y = turn
+    bird.position.set(x, water - 0.02, z)
+    g.add(bird)
+  }
   // Nénuphars, et deux lotus.
   for (const [x, z, s, big] of [[-1.3, 0.75, 1.5, 1], [-0.7, 1.05, 1.2, 0], [0.9, 0.9, 1.4, 1], [1.55, -0.55, 1.3, 1], [-1.6, -0.6, 1.2, 0], [0.25, -1.05, 1.1, 0], [-0.4, -0.85, 1.4, 1]] as const) {
     g.add(nature(big ? 'lily_large' : 'lily_small', s, x, water + 0.004, z, random() * 6))
@@ -111,7 +131,17 @@ const fishingPond: Builder = ({ random }) => {
   const surface = part(flat(roundedRect(hw - rim - 0.02, hd - rim - 0.02, corner - rim)), glass('#6fd6e8', 0.5), 0, water, 0)
   const jet = part(new THREE.CylinderGeometry(0.008, 0.014, 0.42, 5), glass('#bff6ff', 0.6), rockX - 0.22, 0.26, rockZ - 0.2)
   jet.rotation.set(-0.55, 0, 0.75)
-  live.add(surface, jet)
+  // La cascade : une nappe d'eau qui glisse du grand rocher, et l'écume à son pied.
+  const fall = part(new THREE.PlaneGeometry(0.3, 0.42, 1, 6), glass('#d6fbff', 0.55), rockX - 0.06, 0.25, rockZ - 0.34)
+  fall.rotation.set(0.5, 0.25, 0)
+  const sheet = fall.geometry.getAttribute('position') as THREE.BufferAttribute
+  const rest = Float32Array.from(sheet.array as Float32Array)
+  const foam = [0, 1, 2].map((i) => {
+    const ring = part(new THREE.RingGeometry(0.75, 1, 20).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.5, depthWrite: false }), rockX - 0.1, water + 0.006 + i * 0.001, rockZ - 0.52)
+    live.add(ring)
+    return ring
+  })
+  live.add(surface, jet, fall)
   // Les carpes de Capucine (Faulcon, DeLacy, Gutamaya), et les ombres de ce qui nage plus bas.
   const swimmer = (color: string, tailColor: string, size: number) => {
     const fish = new THREE.Group()
@@ -151,6 +181,14 @@ const fishingPond: Builder = ({ random }) => {
         k.tail.rotation.y = still ? 0 : Math.sin(t * 8 + k.phase) * 0.4
       }
       jet.visible = !still
+      // La nappe ondule en tombant ; l'écume s'élargit et s'efface, un anneau après l'autre.
+      for (let i = 0; i < sheet.count; i++) sheet.setZ(i, rest[i * 3 + 2] + (still ? 0 : Math.sin(t * 9 + rest[i * 3 + 1] * 22 + rest[i * 3] * 8) * 0.012))
+      sheet.needsUpdate = true
+      foam.forEach((ring, i) => {
+        const life = still ? (i + 1) / 4 : (t * 0.7 + i / 3) % 1
+        ring.scale.setScalar(0.08 + life * 0.3)
+        ;(ring.material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - life)
+      })
     },
   }
 }
@@ -347,7 +385,72 @@ const fishFrame: Builder = ({ label }) => {
   return { solid: g }
 }
 
+/**
+ * Torche de jardin (sans collision) : une canne de bambou, une coupe de fibre tressée, une flamme
+ * qui danse.
+ */
+const tikiTorch: Builder = ({ random }) => {
+  const g = new THREE.Group()
+  g.add(cylinder(0.014, 0.018, 0.78, lit('#b89a5a'), 0, 0.39, 0, 6))
+  for (const y of [0.2, 0.45]) g.add(cylinder(0.02, 0.02, 0.012, lit('#8a7040'), 0, y, 0, 6))
+  g.add(cylinder(0.05, 0.022, 0.09, lit('#7a5636'), 0, 0.82, 0, 8), cylinder(0.046, 0.046, 0.012, lit('#2a2018'), 0, 0.862, 0, 8))
+  const live = new THREE.Group()
+  const flame = part(new THREE.ConeGeometry(0.032, 0.11, 6), new THREE.MeshBasicMaterial({ color: '#ffb02e' }), 0, 0.925, 0)
+  const core = part(new THREE.ConeGeometry(0.016, 0.06, 5), new THREE.MeshBasicMaterial({ color: '#fff2b0' }), 0, 0.905, 0)
+  live.add(flame, core)
+  const phase = random() * 6
+  return {
+    solid: g,
+    live,
+    update(t) {
+      const f = renderQuality.light ? 1 : 1 + 0.18 * Math.sin(t * 11 + phase) + 0.1 * Math.sin(t * 23 + phase * 2)
+      flame.scale.set(1 / Math.sqrt(f), f, 1 / Math.sqrt(f))
+      flame.position.y = 0.87 + 0.055 * f
+      flame.rotation.z = renderQuality.light ? 0 : Math.sin(t * 5 + phase) * 0.12
+    },
+  }
+}
+
+/**
+ * Transat de plage, les pieds vers +z : un cadre de bois, une toile rayée, un dossier relevé. On
+ * s'y allonge (cf. SEATS).
+ */
+const beachLounger: Builder = ({ label }) => {
+  const g = new THREE.Group()
+  const wood = lit(C.woodLight), [a, b] = label === 'blue' ? ['#3f8fc8', '#f4f1e8'] : ['#ff7a5a', '#f4f1e8']
+  for (const x of [-0.24, 0.24]) g.add(box(0.04, 0.04, 1.1, wood, x, 0.2, 0.05))
+  for (const [x, z] of [[-0.24, -0.4], [0.24, -0.4], [-0.24, 0.5], [0.24, 0.5]]) g.add(box(0.04, 0.2, 0.04, wood, x, 0.1, z))
+  // La toile : des bandes de couleur, à plat, puis le dossier relevé.
+  for (let i = 0; i < 6; i++) g.add(box(0.44, 0.02, 0.125, lit(i % 2 ? b : a), 0, 0.225, -0.1 + i * 0.125))
+  const back = new THREE.Group()
+  back.position.set(0, 0.225, -0.16)
+  back.rotation.x = -0.75
+  for (let i = 0; i < 4; i++) back.add(box(0.44, 0.02, 0.125, lit(i % 2 ? a : b), 0, 0, -0.0625 - i * 0.125))
+  g.add(back, box(0.04, 0.3, 0.04, wood, -0.24, 0.3, -0.42), box(0.04, 0.3, 0.04, wood, 0.24, 0.3, -0.42))
+  return { solid: g }
+}
+
+/** Parasol de plage (sans collision) : un mât blanc, une toile à huit pans de deux couleurs, un peu penchée. */
+const parasol: Builder = ({ label }) => {
+  const g = new THREE.Group()
+  const [a, b] = label === 'blue' ? ['#3f8fc8', '#f4f1e8'] : ['#ff7a5a', '#f4f1e8']
+  g.add(cylinder(0.014, 0.014, 1.25, lit('#f1efe8'), 0, 0.625, 0, 6), cylinder(0.07, 0.09, 0.04, lit('#8a8a84'), 0, 0.02, 0, 10))
+  const top = new THREE.Group()
+  top.position.set(0, 1.2, 0)
+  top.rotation.set(0.12, 0, -0.1)
+  for (let i = 0; i < 8; i++) {
+    const pane = mesh(new THREE.ConeGeometry(0.62, 0.2, 8, 1, true, (i / 8) * Math.PI * 2, Math.PI / 4), new THREE.MeshLambertMaterial({ color: i % 2 ? b : a, side: THREE.DoubleSide }), 0, 0, 0)
+    top.add(pane)
+  }
+  top.add(sphere(0.022, lit('#f1efe8'), 0, 0.11, 0, 6))
+  g.add(top)
+  return { solid: g }
+}
+
 export const FISHING = {
+  'tiki-torch': tikiTorch,
+  'beach-lounger': beachLounger,
+  parasol,
   'fish-frame': fishFrame,
   'fishing-pond': fishingPond,
   'fishing-dock': fishingDock,

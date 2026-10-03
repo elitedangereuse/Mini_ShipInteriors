@@ -1526,14 +1526,27 @@ export const LEVELS: LevelDef[] = [
         interact: tr('Encore du bambou. Capucine jure qu\'elle n\'en a planté qu\'un pied, de l\'autre côté de la serre.', 'More bamboo. Capucine swears she only planted one, on the other side of the greenhouse.'),
       },
       {
-        model: 'exobio-plant', x: 0.15, z: 12.5, label: 'anemone',
+        model: 'exobio-plant', x: 0.15, z: 12.75, label: 'anemone',
         interact: tr('Une anémone d\'exobiologie, rapportée d\'une lune sans nom. Elle se tourne vers ceux qui pêchent. Par curiosité, sans doute.', 'An exobiology anemone, brought back from a nameless moon. It turns towards whoever is fishing. Out of curiosity, no doubt.'),
       },
       { model: 'exobio-plant', x: 4.5, z: 14.2, label: 'brain' },
       { model: 'bush', x: 2.9, z: 14.15, label: 'large' },
       { model: 'bush', x: 5.5, z: 14.15, label: 'triangle' },
-      { model: 'fern', x: 0.1, z: 10.9 },
+      { model: 'fern', x: 0.1, z: 10.75 },
       { model: 'fern', x: 3.7, z: 14.2 },
+      // La plage, côté ouest : un transat sous son parasol, face à l'étang.
+      { model: 'beach-lounger', x: 0.2, z: 11.75, rot: 1 },
+      { model: 'parasol', x: 0.0, z: 12.15, solid: false },
+      // Quatre torches aux coins de l'étang, une treille sur le mur du planétarium, des pas
+      // japonais de l'arche au ponton.
+      { model: 'tiki-torch', x: 1.52, z: 10.08, solid: false },
+      { model: 'tiki-torch', x: 5.58, z: 10.08, solid: false },
+      { model: 'tiki-torch', x: 1.52, z: 12.62, solid: false },
+      { model: 'tiki-torch', x: 5.58, z: 12.62, solid: false },
+      { model: 'vine-trellis', x: 7.42, z: 11.3, rot: 3, label: '3.2', solid: false },
+      { model: 'hanging-basket', x: 7.45, z: 9.2, rot: 3, solid: false },
+      { model: 'hanging-basket', x: 7.45, z: 13.3, rot: 3, solid: false },
+      { model: 'stepping-stones', x: 2.25, z: 9.0, label: '1.7', solid: false },
       { model: 'butterflies', x: 2.4, z: 12.1, label: '1.1', solid: false },
       { model: 'butterflies', x: 5.0, z: 10.6, label: '1', solid: false },
       { model: 'wildflowers', x: 0.3, z: 11.7, label: 'red', solid: false },
@@ -1797,6 +1810,8 @@ export const LEVELS: LevelDef[] = [
       [4.6, 6.2, '#d8ffc8', 1.8],
       // Le jardin exotique : le reflet de l'étang, le soleil de la plage.
       [3.55, 11.35, '#c4f2ff', 2.1],
+      [1.52, 10.08, '#ffb36b', 1.3, 'fire'],
+      [5.58, 12.62, '#ffb36b', 1.3, 'fire'],
       [1.2, 13, '#ffe2a8', 1.7],
       [6.4, 9.6, '#fff1c4', 1.6],
       [17.4, 5.4, '#ffb36b', 1.9, 'fire'],

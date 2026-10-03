@@ -75,6 +75,8 @@ export const SEATS: Partial<Record<CustomModel | StationModel, Seat[]>> = {
   // plateforme), on avance sur le nez du Krait, puis on se glisse dans le siège, face au nez.
   'krait-ladder': [{ pose: 'pilot', x: 0, z: KRAIT_LADDER_REACH, y: KRAIT_PILOT.y, yaw: Math.PI, from: [0, -0.75], via: KRAIT_CLIMB }],
   'command-chair': [sit(0, 0.06, 0.36)],
+  // Le transat du jardin exotique : on s'y allonge depuis son côté, la tête sur le dossier.
+  'beach-lounger': [lie(0, 0.12, 0.25, [0.5, 0.15])],
   'cozy-bed': [lie(-0.27, 0.02, 0.32, [-0.95, 0.12]), lie(0.27, 0.02, 0.32, [0.95, 0.12])],
   'bunk-bed': [lie(0, 0.1, 0.27, [0.55, 0.2]), lie(0, 0.1, 0.71, [0.55, 0.2])],
   'med-bed': [lie(0, 0.08, 0.3)],
