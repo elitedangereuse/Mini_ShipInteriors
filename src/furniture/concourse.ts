@@ -79,6 +79,7 @@ const concoursePlanter: Builder = ({ random }) => {
   const monument = eliteMonument()
   monument.position.y = 1.03
   monument.rotation.y = Math.PI / 2
+  monument.scale.setScalar(1.5)
   live.add(monument)
   return {
     solid: g,
