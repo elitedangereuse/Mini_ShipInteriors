@@ -10,6 +10,8 @@ import { eliteMonument } from './monument'
 
 /** Rayon de la banquette (l'îlot fait 2 × 2). */
 const R = 0.98
+/** Hauteur du monument au-dessus du projecteur (le bas de sa boule). */
+const MONUMENT_Y = 0.62
 
 /** Anneau plein (vue de profil : `profile`, en rayon et hauteur), tourné autour de l'axe y. */
 function ring(profile: [number, number][], material: THREE.Material, seg = 40): THREE.Mesh {
@@ -59,33 +61,35 @@ const concoursePlanter: Builder = ({ random }) => {
     g.add(bush)
     g.add(mesh(new THREE.IcosahedronGeometry(0.028, 0), lit(['#ff8fb1', '#ffd36b', '#c9a2ff'][i % 3]), Math.cos(b) * 0.52, 0.65, Math.sin(b) * 0.52))
   }
-  // Au pied du projecteur, des plantes plus hautes : des tiges et leurs grandes feuilles.
+  // Au pied du projecteur, des plantes plus hautes : des tiges et leurs grandes feuilles, qui
+  // encadrent la pointe du monument sans cacher son bandeau.
   for (let k = 0; k < 4; k++) {
     const a = (k / 4) * Math.PI * 2 + Math.PI / 4
     const x = Math.cos(a) * 0.25, z = Math.sin(a) * 0.25
-    g.add(cylinder(0.012, 0.016, 0.42, lit('#4f7a3a'), x, 0.72, z, 5))
-    const leaf = mesh(new THREE.SphereGeometry(0.11, 8, 5), lit(LEAVES[k % 4]), x * 1.25, 0.95, z * 1.25)
+    g.add(cylinder(0.012, 0.016, 0.24, lit('#4f7a3a'), x, 0.63, z, 5))
+    const leaf = mesh(new THREE.SphereGeometry(0.11, 8, 5), lit(LEAVES[k % 4]), x * 1.25, 0.76, z * 1.25)
     leaf.scale.set(1, 0.32, 0.7)
     leaf.rotation.y = -a
     g.add(leaf)
   }
-  // Le projecteur, et le monument qu'il tient en lévitation, face aux portes (à l'est) : la
-  // caméra tournant par quarts de tour à 45° de ses axes, on le voit de trois quarts, de face ou de
-  // dos, dans toutes les vues ; il ne fait que monter et descendre d'un rien.
-  g.add(cylinder(0.13, 0.17, 0.5, mat.steel, 0, 0.75, 0, 16))
-  const lens = mesh(new THREE.TorusGeometry(0.13, 0.016, 6, 24), mat.lamp, 0, 1.0, 0)
+  // Le projecteur, un plot au ras de la terre, et le monument qu'il tient en lévitation, face aux
+  // portes (à l'est) : la caméra tournant par quarts de tour à 45° de ses axes, on le voit de trois
+  // quarts, de face ou de dos, dans toutes les vues ; il ne fait que monter et descendre d'un rien.
+  // Agrandi de 40 %, il monte jusqu'à 2,16, sous le plafond (2,2 : on le voit en vue subjective).
+  g.add(cylinder(0.13, 0.17, 0.1, mat.steel, 0, 0.55, 0, 16))
+  const lens = mesh(new THREE.TorusGeometry(0.13, 0.016, 6, 24), mat.lamp, 0, 0.6, 0)
   lens.rotation.x = Math.PI / 2
   g.add(lens)
   const monument = eliteMonument()
-  monument.position.y = 1.03
+  monument.position.y = MONUMENT_Y
   monument.rotation.y = Math.PI / 2
-  monument.scale.setScalar(1.5)
+  monument.scale.setScalar(1.4)
   live.add(monument)
   return {
     solid: g,
     live,
     update: (t) => {
-      monument.position.y = 1.03 + Math.sin(t * 0.9) * 0.006
+      monument.position.y = MONUMENT_Y + Math.sin(t * 0.9) * 0.006
     },
   }
 }
