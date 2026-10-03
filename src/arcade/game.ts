@@ -25,6 +25,12 @@ export const sportRecords: Partial<Record<SportId, { cmdr: string; score: number
 
 export type Button = 'left' | 'right' | 'up' | 'down' | 'a' | 'b' | 'c'
 
+/** Terrains de la zone sportive (basket, tirs au but) : leurs parties s'inscrivent de même (cf. court.ts). */
+export const COURT_IDS = ['gym-basket', 'gym-foot'] as const
+export type CourtId = (typeof COURT_IDS)[number]
+/** Les meilleurs de chaque terrain : l'écran de sa salle les affiche. */
+export const courtBoards: Partial<Record<CourtId, { cmdr: string; score: number }[]>> = {}
+
 /** Manette : boutons tenus, et ceux appuyés depuis l'image précédente. */
 export interface Pad {
   held: Set<Button>

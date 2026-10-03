@@ -26,3 +26,6 @@ export declare const SECURITY_DOOR: { x: number; z: number; dir: number; locked:
 
 /** Tables de jeux de plateau (pont principal), par jeu. */
 export declare const BOARD_TABLES: Record<'draughts' | 'guardian-connect' | 'imperial-chess', { level: number; x: number; z: number }>
+
+/** Terrains de la zone sportive (pont supérieur), par jeu : pièce, marque de tir, mur visé (x de sa face) et milieu de la cible le long de ce mur. */
+export declare const SPORT_COURTS: Record<'gym-basket' | 'gym-foot', { level: number; room: string; spot: { x: number; z: number }; wall: number; center: number }>

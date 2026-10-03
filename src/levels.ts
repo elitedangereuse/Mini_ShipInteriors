@@ -6,7 +6,7 @@ import type { GroundDef } from './base/kit'
 import type { CabinDef } from './cabin/view'
 import type { CustomModel } from './furniture'
 import { tr } from './i18n'
-import { BOARD_TABLES, SHIP_LAYOUTS } from '../shared/ship-layouts.js'
+import { BOARD_TABLES, SHIP_LAYOUTS, SPORT_COURTS } from '../shared/ship-layouts.js'
 import { HOUSING_LEVEL, LANDING_ROOM, PLOT_DOOR, PLOT_ORIGIN, PLOT_ROOM } from '../shared/housing-plot.js'
 import { PILOT_SEAT } from '../shared/systems.js'
 
@@ -118,8 +118,9 @@ export interface LevelDef {
    * Portes doubles, sur deux tuiles (deux battants, ouverture de 1,6) : la première arête (tuile et
    * bord, comme ShipMap.addDoor) ; la seconde est sa voisine le long du mur (x + 1 pour un bord
    * nord ou sud, z + 1 pour un bord est ou ouest). Les deux sont des portes du plan ('+').
+   * `padded` : battants capitonnés de velours rouge (le cinéma).
    */
-  doubleDoors?: { x: number; z: number; dir: number }[]
+  doubleDoors?: { x: number; z: number; dir: number; padded?: boolean }[]
   /**
    * Pièces en travaux (cf. CLOSED_ROOMS) : ce qu'on lit en examinant leur porte verrouillée,
    * par lettre de pièce.
@@ -1294,8 +1295,13 @@ export const LEVELS: LevelDef[] = [
       o: tr('Salon d\'écoute', 'Listening lounge'),
       s: tr('Studio Radio Dangereuse', 'Radio Dangereuse studio'),
       n: tr('Cinéma', 'Cinema'),
+      h: tr('Foyer', 'Foyer'),
+      b: tr('Terrain de basket', 'Basketball court'),
+      f: tr('Terrain de foot', 'Football pitch'),
     },
-    windows: { c: 0, k: 0.3, d: 0, p: 0.6, g: 0.5, o: 1, n: 0, s: 0 },
+    windows: { c: 0, k: 0.3, d: 0, p: 0.6, g: 0.5, o: 1, n: 0, s: 0, h: 0, b: 0, f: 0.4 },
+    // Du foyer, on entre au cinéma par une porte double, capitonnée de rouge.
+    doubleDoors: [{ x: 22, z: 4, dir: 1, padded: true }],
     // Derrière le lavabo ouest des toilettes : un pilier lui passait au travers.
     plainWalls: [{ x: 12.5, z: 3 }],
     // La serre, tout en verre : les plantes voient les étoiles. Sol de tomettes.
@@ -1604,39 +1610,100 @@ export const LEVELS: LevelDef[] = [
       }),
 
       // --- Cinéma : le grand écran au nord, quatre rangées face à lui, le projecteur au fond ---
-      { model: 'rug', x: 24, z: 4.5, label: 'cinema:6.7x7.7', solid: false },
+      { model: 'rug', x: 26, z: 4.5, label: 'cinema:6.7x7.7', solid: false },
       {
-        model: 'cinema-screen', x: 24.2, z: 0.65, action: tr('Regarder', 'Watch'),
+        model: 'cinema-screen', x: 26.2, z: 0.65, action: tr('Regarder', 'Watch'),
         interact: [
           tr('Ce soir : la bande-annonce en boucle. Le film ? Prochainement. Comme toujours.', 'Tonight: the trailer, on a loop. The film? Coming soon. As always.'),
           tr('Le Cobra passe devant la géante gazeuse. Toute la salle retient son souffle.', 'The Cobra crosses the gas giant. The whole room holds its breath.'),
           tr('Quelqu\'un chuchote : « C\'est tourné dans Colonia, en vrai. »', 'Someone whispers: “They actually shot it in Colonia.”'),
         ],
       },
-      { model: 'cinema-row', x: 24.2, z: 3.46, rot: 2 },
-      { model: 'cinema-row', x: 24.2, z: 4.46, rot: 2 },
-      { model: 'cinema-row', x: 24.2, z: 5.46, rot: 2 },
-      { model: 'cinema-row', x: 24.2, z: 6.46, rot: 2 },
-      { model: 'projection-chair', x: 26.65, z: 7.55, rot: 2, action: tr('Prendre la régie', 'Take the controls'),
+      { model: 'cinema-row', x: 26.2, z: 3.46, rot: 2 },
+      { model: 'cinema-row', x: 26.2, z: 4.46, rot: 2 },
+      { model: 'cinema-row', x: 26.2, z: 5.46, rot: 2 },
+      { model: 'cinema-row', x: 26.2, z: 6.46, rot: 2 },
+      { model: 'projection-chair', x: 28.65, z: 7.55, rot: 2, action: tr('Prendre la régie', 'Take the controls'),
         interact: tr('Fauteuil de diffusion : choisissez la séance pour tout le bord.', 'Projection chair: choose the screening for everyone aboard.') },
       // Le projecteur, perché au mur du fond : son faisceau file jusqu'à la toile.
-      { model: 'film-projector', x: 24.2, z: 8.35, rot: 2, label: '7.62', solid: false },
+      { model: 'film-projector', x: 26.2, z: 8.35, rot: 2, label: '7.62', solid: false },
       {
-        model: 'popcorn-machine', x: 21.1, z: 7.8, rot: 1, action: tr('Se servir', 'Help yourself'),
+        model: 'popcorn-machine', x: 23.1, z: 7.8, rot: 1, action: tr('Se servir', 'Help yourself'),
         interact: [
           tr('Un cornet de pop-corn, bien beurré. Il en tombe la moitié entre les fauteuils.', 'A cone of popcorn, well buttered. Half of it ends up between the seats.'),
           tr('Pop-corn sucré-salé : le seul compromis accepté par tout l\'équipage.', 'Sweet and salty popcorn: the only compromise the whole crew accepts.'),
           tr('La machine claque et crépite. Comète regarde les grains sauter, fascinée.', 'The machine pops and crackles. Comète watches the kernels jump, spellbound.'),
         ],
       },
-      { model: 'movie-poster', x: 20.65, z: 1.6, rot: 1, label: 'hutton', solid: false },
-      { model: 'sconce', x: 20.65, z: 2.3, rot: 1, solid: false },
-      { model: 'movie-poster', x: 20.65, z: 3.0, rot: 1, label: 'thargoid', solid: false },
-      { model: 'exit-sign', x: 20.65, z: 5.9, rot: 1, solid: false },
-      { model: 'sconce', x: 20.65, z: 6.6, rot: 1, solid: false },
-      { model: 'movie-poster', x: 20.65, z: 7.35, rot: 1, label: 'jameson', solid: false },
-      { model: 'sconce', x: 27.35, z: 2.3, rot: 3, solid: false },
-      { model: 'sconce', x: 27.35, z: 6.6, rot: 3, solid: false },
+      { model: 'movie-poster', x: 22.65, z: 1.6, rot: 1, label: 'hutton', solid: false },
+      { model: 'sconce', x: 22.65, z: 2.3, rot: 1, solid: false },
+      { model: 'movie-poster', x: 22.65, z: 3.0, rot: 1, label: 'thargoid', solid: false },
+      { model: 'exit-sign', x: 22.65, z: 5.9, rot: 1, solid: false },
+      { model: 'sconce', x: 22.65, z: 6.6, rot: 1, solid: false },
+      { model: 'movie-poster', x: 22.65, z: 7.35, rot: 1, label: 'jameson', solid: false },
+      { model: 'sconce', x: 29.35, z: 2.3, rot: 3, solid: false },
+      { model: 'sconce', x: 29.35, z: 6.6, rot: 3, solid: false },
+
+      // --- Foyer : le couloir du cinéma, tapis rouge et films à l'affiche ; au sud, le hall de la
+      // zone sportive, d'où l'on entre sur les deux terrains ---
+      { model: 'rug', x: 21.5, z: 5.5, label: 'cinema:1.5x5.6', solid: false },
+      { model: 'neon-sign', x: 21.5, z: 2.68, label: tr('CINÉMA', 'CINEMA') },
+      { model: 'plant-tall', x: 20.92, z: 2.92 },
+      { model: 'movie-poster', x: 20.65, z: 3.6, rot: 1, label: 'jameson', solid: false },
+      { model: 'sconce', x: 20.65, z: 6.3, rot: 1, solid: false },
+      { model: 'movie-poster', x: 20.65, z: 7.1, rot: 1, label: 'hutton', solid: false },
+      { model: 'movie-poster', x: 20.65, z: 7.9, rot: 1, label: 'thargoid', solid: false },
+      {
+        model: 'water-fountain', x: 17.92, z: 9, rot: 1,
+        interact: tr('Fontaine à eau du hall : fraîche, et presque sans goût de vaisseau. On s\'y bouscule après un match.', 'The hall water cooler: cold, and almost free of that starship taste. There\'s a queue after every game.'),
+      },
+      {
+        model: 'vending-machine', x: 27.28, z: 9, rot: 3,
+        interact: [
+          tr('Le distributeur du hall : boissons isotoniques, barres de céréales, et une canette de Lavian Brandy coincée depuis des mois.', 'The hall vending machine: isotonic drinks, cereal bars, and a can of Lavian Brandy that has been stuck for months.'),
+          tr('Une affichette : « Après le sport, on s\'hydrate. Pas chez Jacques. »', 'A notice: “After sport, hydrate. Not at Jacques\'.”'),
+        ],
+      },
+
+      // --- Terrain de basket : un demi-terrain, le panier sur sa glissière au mur ouest ; on tire
+      // depuis la marque, face au panier (cf. src/court.ts, SPORT_COURTS) ---
+      { model: 'court-floor', x: 19, z: 12.5, rot: 1, label: 'basket:5.7x6.7', solid: false },
+      {
+        model: 'basket-hoop', x: 15.66, z: SPORT_COURTS['gym-basket'].center, rot: 1, solid: false,
+        interact: tr('Le panier coulisse sur sa glissière : plus le score monte, plus il se promène. Le filet a déjà été recousu trois fois.', 'The hoop slides along its rail: the higher the score, the more it wanders. The net has been stitched back up three times.'),
+      },
+      {
+        model: 'shoot-spot', ...SPORT_COURTS['gym-basket'].spot, label: 'basket', solid: false, action: tr('Tirer au panier', 'Shoot hoops'),
+        interact: tr('La marque du tireur.', 'The shooter\'s mark.'),
+      },
+      {
+        model: 'ball-rack', x: 21.3, z: 13.7, rot: 3, label: 'basket', action: tr('Tirer au panier', 'Shoot hoops'),
+        interact: tr('Le chariot à ballons.', 'The ball cart.'),
+      },
+      { model: 'score-board', x: 16.9, z: 9.65, label: 'basket', solid: false, interact: tr('Les meilleurs tireurs du bord', 'The ship\'s top shooters'), action: tr('Consulter le classement', 'View rankings') },
+      { model: 'neon-sign', x: 21.15, z: 9.68, label: 'BASKET' },
+      { model: 'bench', x: 21.15, z: 9.9, label: 'terracotta' },
+
+      // --- Terrain de foot : la cage au mur ouest, et son gardien, une silhouette de carton sur un rail ---
+      { model: 'court-floor', x: 26, z: 12.5, rot: 1, label: 'foot:5.7x6.7', solid: false },
+      {
+        model: 'foot-goal', x: 22.66, z: SPORT_COURTS['gym-foot'].center, rot: 1,
+        interact: [
+          tr('Le gardien est en carton. Il a pourtant arrêté plus de tirs que la moitié de l\'équipage.', 'The keeper is made of cardboard. He has still saved more shots than half the crew.'),
+          tr('Sur le dos du carton, au feutre : « Propriété de Marcel. Ne pas viser la tête. »', 'On the back of the cutout, in marker: “Property of Marcel. Do not aim at the head.”'),
+        ],
+      },
+      {
+        model: 'shoot-spot', ...SPORT_COURTS['gym-foot'].spot, label: 'foot', solid: false, action: tr('Tirer au but', 'Take penalties'),
+        interact: tr('Le point de penalty.', 'The penalty spot.'),
+      },
+      {
+        model: 'ball-rack', x: 28.5, z: 13.7, rot: 3, label: 'foot', action: tr('Tirer au but', 'Take penalties'),
+        interact: tr('Le chariot à ballons.', 'The ball cart.'),
+      },
+      { model: 'score-board', x: 24.1, z: 9.65, label: 'foot', solid: false, interact: tr('Les meilleurs buteurs du bord', 'The ship\'s top scorers'), action: tr('Consulter le classement', 'View rankings') },
+      { model: 'neon-sign', x: 28.15, z: 9.68, label: 'FOOT' },
+      { model: 'bench', x: 28.15, z: 9.9, label: 'teal' },
     ],
     lights: [
       [12, 4.6, '#ffd9a8', 2],
@@ -1654,9 +1721,14 @@ export const LEVELS: LevelDef[] = [
       // Le studio, et la lueur du néon sur la vitre.
       [17.45, 1.9, '#fff0dc', 1.8],
       [17.2, 3.9, '#ff9a3c', 1.1, 'neon'],
-      [24.2, 1.8, '#9fb8ff', 1.8, 'screen'],
-      [21.4, 7.4, '#ffb45e', 0.9],
-      [26.4, 5.4, '#ff9a5a', 0.5],
+      [26.2, 1.8, '#9fb8ff', 1.8, 'screen'],
+      [23.4, 7.4, '#ffb45e', 0.9],
+      [28.4, 5.4, '#ff9a5a', 0.5],
+      // Le foyer et son hall, puis les projecteurs des deux terrains.
+      [21.5, 5.6, '#ffb070', 1.3],
+      [22.5, 9, '#fff0dc', 1.2],
+      [19, 12.5, '#fff4e0', 2.4],
+      [26, 12.5, '#f2fff4', 2.4],
     ],
   },
   QUARTERS_DECK,

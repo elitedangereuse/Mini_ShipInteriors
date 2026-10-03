@@ -1,9 +1,11 @@
 import { GymGame, type Sport } from './gym'
+import { CourtGame } from './court'
+import type { CourtId } from './arcade/game'
 import { loadSiteArt, SitePanel } from './site'
 import * as THREE from 'three'
 import type { ArcadeCabinet } from './arcade/cabinet'
 import { isGameId, type GameId } from './arcade/game'
-import { fetchRecords } from './arcade/scores'
+import { fetchBoard, fetchRecords } from './arcade/scores'
 import { BoardGames } from './board/games'
 import { BarPanel, CocktailEffects } from './bar'
 import { GameEmbed } from './game-embed'
@@ -78,7 +80,7 @@ import { Traffic, type HullSides } from './traffic'
 import { nextSystem, JUMP_CHARGE, JUMP_TRAVEL, type SystemId } from '../shared/systems.js'
 import { syncTempo, tempo } from './tempo'
 import { ClubCrowd, ClubMusic, clubProximity } from './club'
-import { BAR_ROOM, CLUB_ROOM, PLANETARIUM_ROOM, isAlienLook } from '../shared/ship-layouts.js'
+import { BAR_ROOM, CLUB_ROOM, PLANETARIUM_ROOM, SPORT_COURTS, isAlienLook } from '../shared/ship-layouts.js'
 import { ToiletFlushes } from './toilet-flush'
 import { PlanetariumShow } from './planetarium'
 import { Vents } from './vents'
@@ -544,6 +546,41 @@ for (const d of decks) for (const it of d.interactables) {
   const sport = ({ treadmill: 'gym-run', 'exercise-bike': 'gym-bike', 'punching-bag': 'gym-punch' } as Record<string, Sport>)[model ?? '']
   // seated() appelle cette action une fois le personnage installé sur l'appareil.
   if (sport) it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; gym.start(sport) }
+}
+// Zone sportive (pont supérieur) : on tire depuis la marque, ou en prenant un ballon au chariot ;
+// l'écran de chaque terrain ouvre son classement.
+const court = new CourtGame(deckById(1).group, dialog, wallet)
+for (const it of deckById(1).interactables) {
+  const model = it.furniture?.model, label = it.furniture?.label
+  if (label !== 'basket' && label !== 'foot') continue
+  if (model === 'score-board') it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; void sitePanel.rankings(label) }
+  else if (model === 'shoot-spot' || model === 'ball-rack') it.onInteract = () => startCourt(label === 'basket' ? 'gym-basket' : 'gym-foot')
+}
+/** Le personnage va se placer sur la marque, face à la cible, et la partie commence. */
+function startCourt(id: CourtId) {
+  if (court.active || player.gliding || deck.def.id !== 1) return
+  const target = deck.interactables.find((it) => it.furniture?.model === (id === 'gym-basket' ? 'basket-hoop' : 'foot-goal'))?.control
+  if (target?.kind !== 'target') return
+  stopWork()
+  player.cancelPath()
+  keys.clear()
+  marker.visible = false
+  const { spot } = SPORT_COURTS[id]
+  const far = Math.hypot(spot.x - player.position.x, spot.z - player.position.z)
+  player.glideTo({ x: spot.x, y: deck.y, z: spot.z, yaw: -Math.PI / 2 }, far / 2.2, far > 0.05, () => {
+    unlockCursor()
+    curtain()
+    // Le résumé de la partie précédente ne reste pas sous la jauge.
+    $('dialog').hidden = true
+    court.start(id, target)
+  })
+}
+court.onShoot = () => { player.avatar.playEmote('interact'); net.sendEmote('interact') }
+court.onSound = (kind, at) => {
+  if (kind === 'bounce' || kind === 'save') sound.thud(at.clone().setY(at.y + deck.y))
+  else if (kind === 'shoot') sound.ui('drop')
+  else if (kind === 'end') sound.jingle('lose')
+  else sound.jingle(kind === 'score' ? 'coin' : 'win')
 }
 
 hydrateIcons()
@@ -2922,6 +2959,7 @@ addEventListener('keydown', (e) => {
   if (groundBase.flying) return e.preventDefault()
   if (barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen) { if (e.code === 'Escape') { barPanel.close(); gameEmbed.close(); mediaRoom.close(); cinemaRoom.close() }; e.preventDefault(); return }
   if (gym.key(e)) return
+  if (!chat.typing && court.key(e)) return
   if (chat.typing) return
   if (zone.keyDown(e)) return
   if (sitePanel.isOpen) {
@@ -2984,14 +3022,14 @@ addEventListener('keydown', (e) => {
   if (+digit[1] === REACTION_KEY) return toggleReactions()
   if (EMOTES[+digit[1] - 1]) emote(EMOTES[+digit[1] - 1].id)
 })
-addEventListener('keyup', (e) => keys.delete(e.code))
+addEventListener('keyup', (e) => { keys.delete(e.code); court.keyUp(e) })
 addEventListener('blur', () => keys.clear())
 chat.onOpen = () => keys.clear()
 
 const inputDir = new THREE.Vector3()
 function keyboardDirection(): THREE.Vector3 {
   inputDir.set(0, 0, 0)
-  if (gym.active || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return inputDir
+  if (gym.active || court.active || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return inputDir
   const on = (...codes: string[]) => codes.some((c) => keys.has(c))
   // event.code = position physique : KeyW/KeyA correspondent à Z/Q sur un clavier AZERTY.
   const sx = (on('KeyD', 'ArrowRight') ? 1 : 0) - (on('KeyA', 'ArrowLeft') ? 1 : 0)
@@ -3037,6 +3075,12 @@ function updateGamepad(dt: number): GamepadInput {
   if (gym.active) {
     pad.moveX = pad.moveY = 0
     if (pad.cancel) gym.stop()
+    return pad
+  }
+  if (court.active) {
+    court.pad(pad.moveX, gamepad.held.has('0'), dt)
+    pad.moveX = pad.moveY = 0
+    if (pad.cancel) court.stop()
     return pad
   }
   if (barPanel.isOpen) {
@@ -3161,7 +3205,7 @@ function isoOnly(): boolean {
 }
 /** Occupé (installé, en emote, au travail…) : en vue subjective, la caméra passe derrière le personnage. */
 function busyBody(): boolean {
-  return !!seating.current || player.gliding || !!working || gym.active || riding || wardrobe.isOpen || player.avatar.emoteId !== null
+  return !!seating.current || player.gliding || !!working || gym.active || court.active || riding || wardrobe.isOpen || player.avatar.emoteId !== null
 }
 /** Passage d'une vue à l'autre : un bref fondu au noir cache la bascule de projection. */
 function curtain() {
@@ -3248,6 +3292,8 @@ canvas.addEventListener('mousedown', (e) => {
   if (e.button === 1) e.preventDefault()
 })
 canvas.addEventListener('pointerdown', (e) => {
+  // Sur un terrain de sport, le pointeur vise et tire (cf. plus bas) : la vue ne tourne pas.
+  if (court.active) return
   // Vue subjective à la souris : le curseur est capturé sur la mire (cf. lockCursor).
   if (fpsShown && e.pointerType === 'mouse') return
   // Au doigt, la scène entière devient le stick de caméra. Le joystick de marche capture un
@@ -3313,7 +3359,17 @@ addEventListener(
   { capture: true },
 )
 
+// Terrain de sport : le pointeur vise le mur, l'appui dose le tir, le relâchement tire.
+canvas.addEventListener('pointermove', (e) => {
+  if (court.active) court.aimAt(activeCamera(), e.clientX, e.clientY)
+})
+for (const type of ['pointerup', 'pointercancel'] as const) addEventListener(type, () => court.release())
 canvas.addEventListener('pointerdown', (e) => {
+  if (court.active) {
+    if (e.button !== 0) return
+    court.aimAt(activeCamera(), e.clientX, e.clientY)
+    return court.press()
+  }
   if (fpsShown && e.pointerType === 'mouse') {
     // Premier clic : le curseur est capturé ; ensuite, le clic gauche vise ce qui est sous la mire.
     if (!cursorLocked()) lockCursor()
@@ -3349,7 +3405,7 @@ function unlockCursor() {
 }
 /** Ce qui se manipule au curseur : on le rend. */
 function needsCursor(): boolean {
-  return chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || phone.isOpen || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || !reactionsPanel.hidden
+  return court.active || chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || phone.isOpen || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || !reactionsPanel.hidden
 }
 document.addEventListener('pointerlockchange', () => {
   document.body.classList.toggle('fps-locked', cursorLocked())
@@ -3436,7 +3492,7 @@ const fpsBottom = () => innerHeight - 130
 
 function click(e: PointerEvent, at: { clientX: number; clientY: number } = e) {
   // Caché dans un casier, capturé, derrière les caméras : le clic ne fait rien.
-  if (riding || gym.active || zone.frozen) return
+  if (riding || gym.active || court.active || zone.frozen) return
   if (editing()) {
     // Objet glissé jusque sous le catalogue : il le relâche quand même dans le mode aménagement.
     try {
@@ -3554,7 +3610,7 @@ function hiddenRestrictedItem(item: Interactable): boolean {
 function tryInteract() {
   // Bugenhagen parle : on passe à la phrase suivante.
   if (planetarium.talking) return planetarium.next()
-  if (gym.active || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return
+  if (gym.active || court.active || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return
   const item = nearestInteractable()
   if (item) interactWith(item)
 }
@@ -4403,6 +4459,10 @@ function frame() {
   timer.update()
   const dt = Math.min(timer.getDelta(), 0.05)
   gym.update()
+  // Changement de pont en pleine partie (saut FSD, téléportation) : elle s'arrête.
+  if (court.active && deck.def.id !== 1) court.stop()
+  court.update(dt)
+  if (court.active) player.setHeading(court.heading)
   const pad = updateGamepad(dt)
   if (cursorLocked() && (!fpsWanted || isoOnly() || needsCursor())) {
     unlockCursor()
@@ -4527,7 +4587,8 @@ function frame() {
     barPanel.place(iso.camera, player.position, jacquesAt)
   }
   // Vue subjective : dans les yeux du personnage, derrière lui quand il est occupé.
-  const subjective = fpsWanted && !isoOnly()
+  // Les terrains de sport se jouent vus de dos, quelle que soit la vue choisie (cf. src/court.ts).
+  const subjective = (fpsWanted || court.active) && !isoOnly()
   if (subjective !== fpsShown) {
     fpsShown = subjective
     curtain()
@@ -4541,6 +4602,10 @@ function frame() {
   }
   if (fpsShown) {
     fps.thirdPerson = busyBody()
+    if (court.active) {
+      fps.yaw = court.viewYaw
+      fps.pitch = court.viewPitch
+    }
     fps.update(dt, player.avatar.head(fpsHead), deck.y + deck.ceilingY)
     fps.toCamera(toCam)
   } else iso.toCamera(toCam)
@@ -4657,7 +4722,7 @@ function frame() {
   // Invite « E » au-dessus de l'objet le plus proche ; installé sur un meuble, au-dessus du
   // personnage : se relever (et ce que permet la place).
   const sitting = seating.settled && !gym.active && !riding && !editing() && !barPanel.isOpen
-  const near = gym.active || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen ? null : nearestInteractable()
+  const near = gym.active || court.active || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen ? null : nearestInteractable()
   const sit = sitting ? seatPrompt(seating.current!) : null
   const label = sit ? `${sit.main}|${sit.space ?? ''}` : near?.label
   promptEl.querySelector('kbd')!.textContent = usingGamepad ? 'A / ×' : 'E'
@@ -4805,6 +4870,7 @@ syncMobileEntry()
 checkLook()
 // Les records des bornes, pour leurs écrans (« HI 12340 »).
 void fetchRecords()
+for (const id of Object.keys(SPORT_COURTS) as CourtId[]) void fetchBoard(id)
 updateNetStatus()
 updateIdentity()
 frame()
@@ -4814,6 +4880,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, profile, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular },
+    __game: { renderer, sound, player, profile, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt },
   })
 }

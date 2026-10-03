@@ -3387,6 +3387,33 @@ body:has(.cinema-room-overlay:not([hidden])) .twitch-chat { right: 372px; }
 .gym-controls button:active { background: #5ab6a1; }
 .gym-cancel { position: absolute; top: 3px; right: 5px; padding: 0 5px; font: 18px/1.2 system-ui, sans-serif; }
 
+/* Terrains de sport (cf. src/court.ts) : score et compte à rebours à droite, sous la mini-carte ; jauge de force en bas. */
+.court-hud { position: fixed; inset: 0; z-index: 30; pointer-events: none; color: #f5fbff; font: 13px/1.25 ui-monospace, 'SF Mono', Menlo, monospace; }
+.court-top { position: absolute; top: 244px; right: 16px; display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: 168px; }
+.court-box { padding: 8px 12px; border: 1px solid #79c8dc; border-radius: 12px; background: #0b1724e0; text-align: center; box-shadow: 0 8px 24px #0008; }
+.court-label { display: block; color: #a7c6d4; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.court-score, .court-time { display: block; font: 700 30px/1.1 system-ui, sans-serif; color: #ffbd70; font-variant-numeric: tabular-nums; }
+.court-time.low { color: #ff6b5e; animation: court-pulse .5s ease-in-out infinite alternate; }
+.court-best, .court-tier { display: block; color: #a7c6d4; font-size: 11px; }
+.court-quit { pointer-events: auto; padding: 7px 10px; border: 1px solid #6b98a9; border-radius: 10px; background: #233c50; color: #fff; font: 12px/1.2 system-ui, sans-serif; cursor: pointer; }
+.court-quit:hover { background: #2f5068; }
+.court-flash { position: absolute; top: 30%; left: 50%; transform: translate(-50%, 8px); padding: 6px 16px; border-radius: 10px; background: #0b1724d0; color: #ffbd70; font: 700 22px/1.2 system-ui, sans-serif; white-space: nowrap; opacity: 0; transition: opacity .25s, transform .25s; }
+.court-flash.show { opacity: 1; transform: translate(-50%, 0); }
+.court-flash.good { color: #76f0c2; }
+.court-power { position: absolute; left: 50%; bottom: max(86px, calc(env(safe-area-inset-bottom) + 86px)); transform: translateX(-50%); width: min(420px, 78vw); padding: 8px 12px 9px; border: 1px solid #79c8dc; border-radius: 12px; background: #0b1724e0; text-align: center; }
+.court-gauge { height: 14px; margin: 5px 0 6px; border-radius: 7px; background: #24394a; overflow: hidden; }
+.court-gauge-fill { width: 0; height: 100%; border-radius: 7px; background: linear-gradient(90deg, #76f0c2, #ffd24a 55%, #ff5a3c); background-size: min(396px, calc(78vw - 24px)) 100%; }
+.court-help { display: block; color: #a7c6d4; font-size: 11px; }
+.court-hud.charging .court-power { border-color: #ffd24a; box-shadow: 0 0 18px #ffd24a55; }
+@keyframes court-pulse { from { opacity: 1; } to { opacity: .55; } }
+@media (max-width: 760px) {
+  .court-top { top: max(64px, calc(env(safe-area-inset-top) + 64px)); right: 50%; transform: translateX(50%); flex-direction: row; width: auto; }
+  .court-box { padding: 5px 10px; }
+  .court-score, .court-time { font-size: 20px; }
+  .court-tier, .court-best { display: none; }
+  .court-flash { font-size: 17px; }
+}
+
 /* Interface de jeu tactile en paysage. Le navigateur conserve ses propres limites de plein écran. */
 #touch-pad, #mobile-fullscreen, .mobile-emotes-toggle { display: none; }
 #mobile-entry {

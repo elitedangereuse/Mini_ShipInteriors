@@ -10,12 +10,14 @@ interface Artwork { id: string; kind: string; label: string }
 interface Reward { reward: string; label: string; amount: number }
 interface RankingRow { rank: number; name: string; url: string; avatar?: string; score: number }
 interface Ranking { id: string; label: string; unit: string; rows: RankingRow[] }
-/** Familles de classements du site (cf. msi_site_rankings) : équipage, bornes d'arcade, salle de sport. */
-export type RankingKind = 'crew' | 'arcade' | 'gym'
+/** Familles de classements du site (cf. msi_site_rankings) : équipage, bornes d'arcade, salle de sport, terrains de basket et de foot. */
+export type RankingKind = 'crew' | 'arcade' | 'gym' | 'basket' | 'foot'
 const RANKING_PANELS: Record<RankingKind, { title: string; subtitle: string }> = {
   crew: { title: tr('Tableau d’honneur', 'Hall of honour'), subtitle: tr('Les meilleurs commandants de la communauté.', 'The community’s leading commanders.') },
   arcade: { title: tr('High scores', 'High scores'), subtitle: tr('Les dix meilleurs scores de chaque borne du vaisseau.', 'The ten best scores on each of the ship’s cabinets.') },
   gym: { title: tr('Records de la salle de sport', 'Gym records'), subtitle: tr('Les dix meilleures séances sur chaque appareil.', 'The ten best sessions on each machine.') },
+  basket: { title: tr('Meilleurs tireurs', 'Top shooters'), subtitle: tr('Les dix meilleures parties sur le terrain de basket.', 'The ten best games on the basketball court.') },
+  foot: { title: tr('Meilleurs buteurs', 'Top scorers'), subtitle: tr('Les dix meilleures séances de tirs au but.', 'The ten best penalty shootouts.') },
 }
 /** Noms des classements et de leurs unités ; le site les envoie en français. */
 const RANKING_LABELS: Record<string, string> = {
@@ -23,6 +25,7 @@ const RANKING_LABELS: Record<string, string> = {
   days30: tr('30 derniers jours', 'Last 30 days'), cards: tr('Collectionneurs', 'Collectors'), podiums: tr('Podiums d’aventures', 'Adventure podiums'),
   cargo: tr('Cargaison', 'Cargo'), asteroids: tr('Astéroïdes', 'Asteroids'),
   'gym-run': tr('Tapis de course', 'Treadmill'), 'gym-bike': tr('Vélo', 'Bike'), 'gym-punch': tr('Sac de frappe', 'Punching bag'),
+  'gym-basket': tr('Basket', 'Basketball'), 'gym-foot': tr('Tirs au but', 'Penalty shootout'),
 }
 const RANKING_UNITS: Record<string, string> = { 'tâches': tr('tâches', 'tasks'), cartes: tr('cartes', 'cards') }
 const RANKING_NOTES: Record<string, string> = {
@@ -226,6 +229,8 @@ export class SitePanel {
       const b = document.createElement('button'); b.textContent = RANKING_LABELS[board.id] ?? board.label; b.dataset.board = board.id
       b.onclick = () => show(board); tabs.append(b); return b
     })
+    // Un seul classement (un terrain de sport) : pas d'onglets.
+    tabs.hidden = this.buttons.length < 2
     this.content.append(tabs, caption, podium, list)
     if (reply.rankings?.[0]) show(reply.rankings[0])
     this.buttons[0]?.focus()

@@ -58,7 +58,16 @@ export interface StallControl {
   shut: boolean
 }
 
-export type FurnitureControl = ClawControl | BagControl | StallControl
+/** Cible d'un terrain de sport (cf. sport.ts) : le panier, ou le gardien de but, glisse le long de son mur. */
+export interface TargetControl {
+  kind: 'target'
+  /** Décalage par rapport au milieu, le long du mur (axe x du meuble). */
+  slide(offset: number): void
+  /** Le ballon passe dans le filet, ou frappe le gardien. */
+  hit(): void
+}
+
+export type FurnitureControl = ClawControl | BagControl | StallControl | TargetControl
 
 /** Bips d'arcade, crépitements de soudure, grondement de machine. */
 export type Emitter = 'arcade' | 'sparks' | 'hum'

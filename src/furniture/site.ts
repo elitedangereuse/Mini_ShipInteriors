@@ -4,7 +4,7 @@ import { wallScreenHousing } from './decor'
 import { tr } from '../i18n'
 import { REWARD_COUNTER } from './reward-counter'
 import { renderQuality } from '../quality'
-import { records, sportRecords } from '../arcade/game'
+import { courtBoards, records, sportRecords, type CourtId } from '../arcade/game'
 
 const prints = new Map<string, THREE.MeshBasicMaterial>()
 const printLoads = new Map<string, Promise<void>>()
@@ -191,9 +191,20 @@ const SCORE_BOARDS = {
     best: (id: string) => sportRecords[id as keyof typeof sportRecords],
   },
 }
-/** Écran mural des scores (`label` : `arcade` ou `gym`), du gabarit du tableau d'honneur. */
+/** Classements des terrains de sport : les cinq meilleurs de la salle (cf. src/court.ts). */
+const COURT_BOARDS: Record<string, { id: CourtId; kicker: string; title: string; accent: string; from: string; to: string }> = {
+  basket: { id: 'gym-basket', kicker: tr('TERRAIN DE BASKET / MEILLEURS TIREURS', 'BASKETBALL COURT / TOP SHOOTERS'), title: 'BASKET', accent: '#ff8a3c', from: '#3d1d0c', to: '#120a07' },
+  foot: { id: 'gym-foot', kicker: tr('TERRAIN DE FOOT / MEILLEURS BUTEURS', 'FOOTBALL PITCH / TOP SCORERS'), title: tr('TIRS AU BUT', 'PENALTY SHOOTOUT'), accent: '#7dff9b', from: '#12382c', to: '#07141a' },
+}
+/**
+ * Écran mural des scores (`label` : `arcade` ou `gym`, ou un terrain, `basket` ou `foot`), du
+ * gabarit du tableau d'honneur.
+ */
 const scoreBoard: Builder = ({ label }) => {
-  const board = SCORE_BOARDS[label === 'gym' ? 'gym' : 'arcade']
+  const court = COURT_BOARDS[label ?? '']
+  const board = court
+    ? { ...court, rows: [1, 2, 3, 4, 5].map((n) => [String(n), `${n}.`]), best: (n: string) => courtBoards[court.id]?.[Number(n) - 1] }
+    : SCORE_BOARDS[label === 'gym' ? 'gym' : 'arcade']
   const g = wallScreenHousing(1.42, 0.82, 0.90)
   g.add(box(1.35, 0.75, 0.012, lit('#97abb7'), 0, 0.90, 0.034, 0.01),
     box(0.26, 0.007, 0.008, glow(board.accent), 0, 0.503, 0.034))
@@ -205,7 +216,7 @@ const scoreBoard: Builder = ({ label }) => {
     c.fillStyle = board.accent; c.fillRect(38, 38, 5, 72)
     c.font = '600 20px sans-serif'; c.fillText(board.kicker, 65, 58)
     c.fillStyle = '#edf6ff'; c.font = 'bold 42px sans-serif'; c.fillText(board.title, 65, 106)
-    c.fillStyle = '#ffd58b'; c.font = '18px sans-serif'; c.textAlign = 'right'; c.fillText('TOP 10', 916, 58)
+    c.fillStyle = '#ffd58b'; c.font = '18px sans-serif'; c.textAlign = 'right'; c.fillText(court ? 'TOP 5' : 'TOP 10', 916, 58)
     const step = 300 / board.rows.length
     board.rows.forEach(([id, name], i) => {
       const y = 150 + i * step, best = board.best(id)
@@ -215,7 +226,7 @@ const scoreBoard: Builder = ({ label }) => {
       c.textAlign = 'left'; c.font = 'bold 24px sans-serif'; c.fillStyle = '#cbe0ee'; c.fillText(name, 62, base)
       c.font = '24px sans-serif'; c.fillStyle = best ? '#edf6ff' : '#7f93a6'
       const cmdr = best ? best.cmdr.toUpperCase() : tr('PLACE À PRENDRE', 'UP FOR GRABS')
-      c.fillText(cmdr.length > 20 ? cmdr.slice(0, 19) + '…' : cmdr, 380, base)
+      c.fillText(cmdr.length > 20 ? cmdr.slice(0, 19) + '…' : cmdr, court ? 130 : 380, base)
       if (best) { c.textAlign = 'right'; c.font = 'bold 28px monospace'; c.fillStyle = '#ffd58b'; c.fillText(best.score.toLocaleString(), 900, base) }
     })
     c.fillStyle = '#ffffff30'; c.fillRect(38, 462, 884, 1)

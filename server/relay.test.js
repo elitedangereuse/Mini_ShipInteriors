@@ -57,7 +57,7 @@ test('cinéma : seul le fauteuil de régie programme le trailer reçu par tout l
   audience.emit('cinema:choose', { id: cinemaTrailer.id })
   assert.equal((await denied).reason, 'seat')
   const occupied = next(operator, 'cinema:state', (m) => m.operator === ow.id)
-  operator.emit('state', { x: 26.65, z: 7.51, level: 1, yaw: 0, anim: 'idle', pose: 'sit', py: 0.31 })
+  operator.emit('state', { x: 28.65, z: 7.51, level: 1, yaw: 0, anim: 'idle', pose: 'sit', py: 0.31 })
   await occupied
   const shown = next(audience, 'cinema:state', (m) => m.selected === cinemaTrailer.id)
   operator.emit('cinema:choose', { id: cinemaTrailer.id })
@@ -76,7 +76,7 @@ test('cinéma : une vidéo cherchée par la régie est reçue par toute la salle
   await welcome(operator)
   await welcome(audience)
   const occupied = next(operator, 'cinema:state', (m) => m.operator !== null)
-  operator.emit('state', { x: 26.65, z: 7.51, level: 1, yaw: 0, anim: 'idle', pose: 'sit', py: 0.31 })
+  operator.emit('state', { x: 28.65, z: 7.51, level: 1, yaw: 0, anim: 'idle', pose: 'sit', py: 0.31 })
   await occupied
   const denied = await audience.timeout(3000).emitWithAck('cinema:search', { query: 'cobra' })
   assert.equal(denied.reason, 'seat')

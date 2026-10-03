@@ -255,6 +255,83 @@ export function ceilingLamp(x: number, z: number, color: THREE.ColorRepresentati
   return lamp
 }
 
+/** Capitonnage d'une porte de cinéma : velours rouge piqué en losanges, clous dorés, liseré de laiton. */
+let padding: THREE.MeshLambertMaterial | undefined
+function paddingMaterial(): THREE.MeshLambertMaterial {
+  if (padding) return padding
+  const W = 256, H = 512, canvas = document.createElement('canvas')
+  canvas.width = W
+  canvas.height = H
+  const c = canvas.getContext('2d')!
+  const velvet = c.createLinearGradient(0, 0, W, 0)
+  velvet.addColorStop(0, '#8e1420')
+  velvet.addColorStop(0.5, '#c22634')
+  velvet.addColorStop(1, '#8e1420')
+  c.fillStyle = velvet
+  c.fillRect(0, 0, W, H)
+  // Les piqûres : un quadrillage en losanges, ombré d'un côté et éclairé de l'autre.
+  const step = 64
+  for (const [dx, color] of [[0, '#5c0a14'], [3, '#e2505a']] as const) {
+    c.strokeStyle = color
+    c.lineWidth = dx ? 2 : 5
+    c.beginPath()
+    for (let i = -H; i < W + H; i += step) {
+      c.moveTo(i + dx, 0)
+      c.lineTo(i + dx + H / 2, H)
+      c.moveTo(i + dx, 0)
+      c.lineTo(i + dx - H / 2, H)
+    }
+    c.stroke()
+  }
+  // Un clou de tapissier à chaque croisement.
+  for (let y = 0; y <= H; y += step) {
+    for (let x = (y / step) % 2 ? step / 4 : -step / 4; x <= W + step; x += step / 2) {
+      if (Math.round((x + step / 4) / (step / 2)) % 2) continue
+      c.fillStyle = '#6b4a12'
+      c.beginPath()
+      c.arc(x, y, 7, 0, Math.PI * 2)
+      c.fill()
+      c.fillStyle = '#f2c860'
+      c.beginPath()
+      c.arc(x - 1.5, y - 1.5, 4.5, 0, Math.PI * 2)
+      c.fill()
+    }
+  }
+  c.strokeStyle = '#d9a441'
+  c.lineWidth = 12
+  c.strokeRect(6, 6, W - 12, H - 12)
+  const map = new THREE.CanvasTexture(canvas)
+  map.colorSpace = THREE.SRGBColorSpace
+  map.anisotropy = 4
+  return (padding = new THREE.MeshLambertMaterial({ map }))
+}
+
+/** Habille les deux faces d'un battant de porte du kit (repère du battant : il suit sa taille et sa glissière). */
+function padDoor(leaf: THREE.Object3D) {
+  leaf.updateMatrixWorld(true)
+  const inverse = new THREE.Matrix4().copy(leaf.matrixWorld).invert()
+  const bounds = new THREE.Box3(), local = new THREE.Matrix4()
+  leaf.traverse((o) => {
+    const m = o as THREE.Mesh
+    if (!m.isMesh) return
+    m.geometry.computeBoundingBox()
+    bounds.union(m.geometry.boundingBox!.clone().applyMatrix4(local.multiplyMatrices(inverse, m.matrixWorld)))
+  })
+  const size = bounds.getSize(new THREE.Vector3()), center = bounds.getCenter(new THREE.Vector3())
+  const alongX = size.x >= size.z
+  const geo = new THREE.PlaneGeometry((alongX ? size.x : size.z) * 0.94, size.y * 0.95)
+  for (const side of [1, -1]) {
+    const pad = new THREE.Mesh(geo, paddingMaterial())
+    const out = (alongX ? size.z : size.x) / 2 + 0.006
+    if (alongX) pad.position.set(center.x, center.y, center.z + side * out)
+    else pad.position.set(center.x + side * out, center.y, center.z)
+    pad.rotation.y = alongX ? (side > 0 ? 0 : Math.PI) : (side * Math.PI) / 2
+    pad.castShadow = false
+    leaf.add(pad)
+  }
+  leaf.updateMatrixWorld(true)
+}
+
 /** Voyant d'une porte verrouillée : une barrette rouge qui dépasse des deux faces du linteau. */
 const LOCK_LAMP_GEO = new THREE.BoxGeometry(0.16, 0.035, 0.33)
 const LOCK_LAMP_MAT = new THREE.MeshBasicMaterial({ color: '#ff3b2f' })
@@ -846,6 +923,8 @@ export class Deck {
     panel.scale.set(first ? 1.3 : 0.98, 0.99, 0.9)
     const pair = first ? this.place('door-double', mx, 0, mz, rot) : undefined
     pair?.scale.set(1.3, 0.99, 0.9)
+    // Porte capitonnée (le cinéma) : du velours rouge sur les deux faces de chaque battant.
+    if (pair && this.def.doubleDoors?.some((e) => e.padded && this.map.edgeKey(e.x, e.z, e.dir) === key)) for (const leaf of [panel, pair]) padDoor(leaf)
     // Voyant rouge au-dessus de l'ouverture, des deux côtés : la porte est verrouillée.
     const lamp = new THREE.Mesh(LOCK_LAMP_GEO, LOCK_LAMP_MAT)
     lamp.position.set(mx, 0.84, mz)

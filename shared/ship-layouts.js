@@ -56,22 +56,26 @@ export const SHIP_LAYOUTS = {
   // hydroponique de Capucine, sous verrière, aux coins cassés, centrée sur la coursive.
   // Entre les cabines d'équipage et le studio, les toilettes ('d') : trois cabines contre le mur nord.
   // Au sud de la coursive, à la place des anciens quartiers, le planétarium de Bugenhagen ('p',
-  // 8 × 8, cf. PLANETARIUM_ROOM).
+  // 8 × 8, cf. PLANETARIUM_ROOM). Après le salon d'écoute, le foyer ('h') : un couloir qui donne à
+  // l'est sur le cinéma, par une porte double, et file au sud jusqu'au hall de la zone sportive,
+  // d'où l'on entre sur le terrain de basket ('b') et sur celui de foot ('f'), cf. SPORT_COURTS.
   '1': [
-    '                             ',
-    '  ggggggkkkkkdddssss nnnnnnn ',
-    ' gggggggkkkkkdddssss nnnnnnn ',
-    'ggggggggk+kkkd+dsss+ nnnnnnn ',
-    'ggggggggcccccccc+ooo nnnnnnn ',
-    'gggggggg+cccccccoooo+nnnnnnn ',
-    'ggggggggppp+ppppoooo nnnnnnn ',
-    ' gggggggpppppppp oo  nnnnnnn ',
-    '  ggggggpppppppp     nnnnnnn ',
-    '        pppppppp             ',
-    '        pppppppp             ',
-    '        pppppppp             ',
-    '        pppppppp             ',
-    '        pppppppp             ',
+    '                               ',
+    '  ggggggkkkkkdddssss   nnnnnnn ',
+    ' gggggggkkkkkdddssss   nnnnnnn ',
+    'ggggggggk+kkkd+dsss+ hhnnnnnnn ',
+    'ggggggggcccccccc+ooo h+nnnnnnn ',
+    'gggggggg+cccccccoooo+h+nnnnnnn ',
+    'ggggggggppp+ppppoooo hhnnnnnnn ',
+    ' gggggggpppppppp oo  hhnnnnnnn ',
+    '  ggggggpppppppp     hhnnnnnnn ',
+    '        pppppppp  hhhhhhhhhh   ',
+    '        ppppppppbbb+bbbfff+fff ',
+    '        ppppppppbbbbbbbfffffff ',
+    '        ppppppppbbbbbbbfffffff ',
+    '        ppppppppbbbbbbbfffffff ',
+    '                bbbbbbbfffffff ',
+    '                bbbbbbbfffffff ',
   ],
   // Pont des quartiers (housing v2) : le palier de l'ascenseur, seul. La parcelle de chacun s'y
   // accole à l'est, derrière la porte du palier, et se construit à la volée (cf. housing-plot.js).
@@ -155,6 +159,15 @@ export function legacyUpperMapOptions() {
 
 /** La porte du poste de sécurité du lobby (cale), côté alcôve : toujours verrouillée. */
 export const SECURITY_DOOR = { x: 22, z: 0, dir: 1, locked: true }
+
+/**
+ * Terrains de la zone sportive (pont supérieur), par jeu : la pièce, la marque d'où l'on tire, le
+ * mur visé (à l'ouest : x de sa face) et le milieu de la cible le long de ce mur (cf. src/court.ts).
+ */
+export const SPORT_COURTS = {
+  'gym-basket': { level: 1, room: 'b', spot: { x: 20.4, z: 12.5 }, wall: 15.65, center: 12.5 },
+  'gym-foot': { level: 1, room: 'f', spot: { x: 27.6, z: 12.5 }, wall: 22.65, center: 12.5 },
+}
 
 /** Tables de jeux de plateau (pont principal), par jeu : une table par jeu. */
 export const BOARD_TABLES = {

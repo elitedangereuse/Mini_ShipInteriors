@@ -1,4 +1,4 @@
-import { isGameId, records, sportRecords, SPORT_IDS, type GameId, type SportId } from './game'
+import { COURT_IDS, courtBoards, isGameId, records, sportRecords, SPORT_IDS, type CourtId, type GameId, type SportId } from './game'
 
 /*
  * Tableaux des scores, gardés par le site (outils/mini-shipinteriors-scores.php, table
@@ -7,13 +7,18 @@ import { isGameId, records, sportRecords, SPORT_IDS, type GameId, type SportId }
  * aussi gardé dans le navigateur (celui d'un invité ne vit que là).
  */
 
-export type ScoreGame = GameId | SportId
+export type ScoreGame = GameId | SportId | CourtId
 
 /** Retient le record d'un jeu ou d'un appareil, pour les écrans du vaisseau. */
 function keepRecord(game: string, row: { cmdr: string; score: number }) {
   const best = { cmdr: row.cmdr, score: row.score }
   if (isGameId(game)) records[game] = best
   else if ((SPORT_IDS as readonly string[]).includes(game)) sportRecords[game as SportId] = best
+}
+
+/** Retient le haut du tableau d'un terrain de sport, pour l'écran de sa salle. */
+function keepCourt(game: string, b: Board) {
+  if ((COURT_IDS as readonly string[]).includes(game)) courtBoards[game as CourtId] = b.top.slice(0, 5).map((r) => ({ cmdr: r.cmdr, score: r.score }))
 }
 
 const SCORES_URL = import.meta.env.VITE_ED_SCORES_URL || '/outils/mini-shipinteriors-scores.php'
@@ -52,6 +57,7 @@ export async function fetchBoard(game: ScoreGame): Promise<Board | null> {
     if (!res.ok) return null
     const b = board(await res.json())
     if (b?.top[0]) keepRecord(game, b.top[0])
+    if (b) keepCourt(game, b)
     return b
   } catch {
     return null
@@ -90,6 +96,7 @@ export async function submitScore(game: ScoreGame, score: number, level: number,
     const b = board(data)
     if (!b) return { kind: 'error' }
     if (b.top[0]) keepRecord(game, b.top[0])
+    keepCourt(game, b)
     const c = data.credits
     const credits =
       c && Number.isFinite(c.earned) && Number.isFinite(c.balance)

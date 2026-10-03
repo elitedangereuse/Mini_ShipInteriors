@@ -32,6 +32,7 @@ import { WORKSHOP } from './workshop'
 import { WORKS } from './works'
 import { SALVAGE } from './salvage'
 import { SITE } from './site'
+import { SPORT } from './sport'
 import { STUDIO } from './studio'
 
 /*
@@ -67,12 +68,13 @@ import { STUDIO } from './studio'
  * - retro.ts : écrans et consoles des cabines (télé cathodique, consoles, micro 8 bits, PC, cassettes) ;
  * - armory.ts : l'armurerie décorative des cabines (sabres laser, épées, katanas, armes d'Odyssey, armure) ;
  * - posters.ts : les affiches des cabines (grands films, pin-up rétro) ;
- * - bath.ts : les petits objets de salle de bain des cabines (canard, gobelet, dérouleur, tapis).
+ * - bath.ts : les petits objets de salle de bain des cabines (canard, gobelet, dérouleur, tapis) ;
+ * - sport.ts : la zone sportive du pont supérieur (panier sur glissière, cage et gardien en carton, marquages, ballons).
  * On les place dans levels.ts comme les modèles du kit : `{ model: 'fireplace', x, z, rot }`,
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...COCKPIT, ...WORKSHOP, ...BAR, ...CLUB, ...LEISURE, ...MEDICAL, ...KITCHEN, ...ARCADE, ...BOARD, ...COZY, ...GARDEN, ...NATURE, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...LISTENING, ...STUDIO, ...LJPC, ...PLANETARIUM, ...VENTS, ...VOIE, ...SALVAGE, ...HANGAR, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...COCKPIT, ...WORKSHOP, ...BAR, ...CLUB, ...LEISURE, ...MEDICAL, ...KITCHEN, ...ARCADE, ...BOARD, ...COZY, ...GARDEN, ...NATURE, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...LISTENING, ...STUDIO, ...LJPC, ...PLANETARIUM, ...VENTS, ...VOIE, ...SALVAGE, ...HANGAR, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH, ...SPORT } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 

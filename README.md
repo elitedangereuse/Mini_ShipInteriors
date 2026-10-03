@@ -39,6 +39,7 @@
 - [Le Zorb](#le-zorb)
 - [La serre](#la-serre)
 - [Le planétarium](#le-planétarium)
+- [La zone sportive](#la-zone-sportive)
 - [La base au sol](#la-base-au-sol)
 - [Lancer en local](#lancer-en-local)
 - [Commandes](#commandes)
@@ -90,7 +91,7 @@ On se réveille dans ses quartiers, sur le pont des quartiers, à deux pas du Ho
 | Pont | Ambiance | Pièces |
 |---|---|---|
 | **Quartiers** · chacun chez soi | *cozy*, dans une bulle ouverte sur l'espace | le palier de l'ascenseur, et derrière sa porte la **parcelle** de chaque joueur, [bâtie et meublée par lui](#quartiers-personnalisables) (au départ : ses quartiers d'origine, avec grand lit, cheminée holographique, canapé, aquarium, bureau, bibliothèque, casier à combinaisons, **Holo-Me**) |
-| **Pont supérieur** · la vie à bord | *cozy* : crème et bois miel, tissus, plantes, lumière chaude, pas feutrés | **planétarium** de Bugenhagen, à la place des anciens quartiers du commandant (cf. [Le planétarium](#le-planétarium)), cabines d'équipage (vidées, elles aussi attendent leur emploi), **toilettes** (trois cabines dont la porte se referme sur l'occupant : on ne le voit plus du dehors, et lui ne voit plus personne), grande **serre hydroponique** tout en verre, centrée sur la coursive, et Capucine, la jardinière (cf. [La serre](#la-serre)), salon d'écoute (fauteuils et poufs tournés vers la vitre du studio), studio de Radio Dangereuse (trois micros, néon « ON AIR »), cinéma, coursive |
+| **Pont supérieur** · la vie à bord | *cozy* : crème et bois miel, tissus, plantes, lumière chaude, pas feutrés | **planétarium** de Bugenhagen, à la place des anciens quartiers du commandant (cf. [Le planétarium](#le-planétarium)), cabines d'équipage (vidées, elles aussi attendent leur emploi), **toilettes** (trois cabines dont la porte se referme sur l'occupant : on ne le voit plus du dehors, et lui ne voit plus personne), grande **serre hydroponique** tout en verre, centrée sur la coursive, et Capucine, la jardinière (cf. [La serre](#la-serre)), salon d'écoute (fauteuils et poufs tournés vers la vitre du studio), studio de Radio Dangereuse (trois micros, néon « ON AIR »), **foyer** (le couloir du cinéma, après le salon d'écoute : tapis rouge, films à l'affiche, porte double capitonnée de rouge), cinéma, et au sud du foyer la **zone sportive** : un hall, le **terrain de basket** et le **terrain de foot** (cf. [La zone sportive](#la-zone-sportive)), coursive |
 | **Pont principal** | la station d'origine, mobilier aux couleurs d'Elite | **poste de pilotage** à la proue, sous verrières (siège du pilote et HOTAS face au tableau de bord, postes du navigateur et du copilote, fauteuil du commandant, scanner, panneaux holographiques, carte galactique), salles de LJPC, de La Voie et du Mini-CQC (en travaux), salle des machines (centrale, réacteur FSD, tuyères), **infirmerie** de Betty, l'infirmière (trois lits en box, scanner corporel, poste de soins, quarantaine ; cf. [L'infirmerie](#linfirmerie)), **salle de sport**, grand **salon d'arcade** (deux rangées de bornes, dont cinq jouables : Cargaison, Viper, Astéroïdes, Thargoid Invaders, Ruelle Fighter II ; un flipper, une pince à peluches, les tables de dames, de Puissance 4 et d'échecs, un coin salon sur des tapis colorés), **mess**, un self avec sa cuisine et son chef (cf. [Le mess](#le-mess)), coursive |
 | **Cale** | *brute* : acier noirci et rouillé, jaune de chantier, lumière sodium, néons qui grésillent | **lobby de la zone thargoïde** (terminal de mission, poste de sécurité vitré d'Odile, la contrôleuse, alcôve de la porte blindée et son portique de décontamination, mur des caméras de surveillance, table de briefing au plan holographique, vestiaire, classement), et derrière lui le **hangar** : un Krait Mk II sur son pad, face au bouclier bleu qui ouvre le hangar sur l'espace, et Nico, le mécano (cf. [Le hangar](#le-hangar)), **atelier** (établis, poste de soudure, établi d'ingénieur, ferraille), **baie de réparation** (SRV Scarab sur pont élévateur, bras robotisé qui soude, AFMU), **raffinerie** (fusion, tapis roulant de minerai, cristaux, drones collecteurs, laser minier), soute, palier de l'ascenseur ; au fond de la soute, **Chez Jacques**, le bar clandestin, plus soigné que le reste (arrière-bar chargé de bouteilles sous son enseigne au néon, comptoir capitonné et tabourets, tables de bistro, banquette, son propre jukebox) où sert **Jacques**, un robot barman à béret et nœud papillon qui essuie les verres, secoue le shaker et fait des clins d'œil ; au-dessus de la salle des machines, au bout d'un **couloir de service** qui part du palier, **le Zorb**, la boîte de nuit des aliens (cf. [Le Zorb](#le-zorb)) |
 
@@ -557,6 +558,25 @@ Au sud de la coursive du pont supérieur, à la place des anciens quartiers du c
 
 L'ancienne pièce vide faisait 8 × 5 : elle a gagné trois rangées au sud. Les portes des anciennes extensions des quartiers ne sont plus posées sur le pont : seule la migration des anciens quartiers s'en sert encore, sur le plan figé du pont d'alors (`LEGACY_UPPER_LAYOUT` et `legacyUpperMapOptions`, cf. `shared/housing-migrate.js`).
 
+## La zone sportive
+
+Au pont supérieur, le foyer (le couloir du cinéma) file au sud jusqu'à un petit hall, d'où l'on entre sur deux demi-terrains de 7 × 6 tuiles (pièces `b` et `f`, `SPORT_COURTS` dans `shared/ship-layouts.js`) : le **basket**, sur parquet, dont le panier coulisse sur une glissière au mur ouest, et le **foot**, sur pelouse, avec sa cage et un gardien de carton sur un rail, comme aux stands de tir au but. Le mobilier est dans `src/furniture/sport.ts`, le jeu dans `src/court.ts`.
+
+**Le jeu.** On le lance depuis la marque de tir (ou en prenant un ballon au chariot) : le personnage se place sur la marque et ne la quitte plus. La partie se joue **vue de dos**, à la troisième personne, quelle que soit la vue choisie (la vue d'origine revient à la fin). La souris vise le point du mur sous le curseur ; on garde le clic appuyé pour doser la force (la jauge monte), et on relâche pour tirer. Au doigt : toucher pour viser, garder appuyé, relâcher. Au clavier : `←` `→` (ou `A` `D`) pour viser, `Espace` (ou `E`) pour tirer. À la manette : le stick vise, le bouton d'action tire. `Échap` arrête.
+
+| | Basket | Foot |
+|---|---|---|
+| Tir réussi | panier : 100 points | but : 100 points |
+| Tir parfait | « swish », sans toucher ni le cercle ni la planche : 150 | lucarne : 150 |
+| Ce que dose la force | la portée du tir (trop court, dans le cercle, sur la planche, trop long) | la vitesse et la hauteur du ballon (trop fort : au-dessus de la barre) |
+| La cible | le panier | le gardien, qui renvoie ce qu'il touche |
+
+Un compte à rebours de 45 s court dès le départ. Les **paliers** de score (500, 1 200, 2 100, 3 200… : `courtTier`) rendent chacun 10 s, et réveillent la cible : immobile au départ, elle glisse lentement le long de son mur au premier palier, puis de plus en plus vite (`targetSpeed`). Quand le temps est écoulé, les ballons en l'air comptent encore.
+
+Les ballons, les rebonds (cercle, planche, poteaux, sol, murs, plafond) et le décompte des points sont dans `CourtPhysics`, sans affichage : on peut rejouer des tirs hors du navigateur pour régler la jauge. Tout se joue chez le joueur : les autres le voient sur sa marque, pas ses ballons, et la cible ne bouge que pour lui.
+
+**Scores.** Chaque terrain a son jeu (`gym-basket`, `gym-foot`) dans la table des scores du site : record local pour un invité ; meilleur score, classement et paliers de crédits (cf. `arcade.tiers` dans `economy.json`) pour un CMDR, sans prime de record d'arcade. Le site écarte un score qui dépasse 130 points par seconde. Dans chaque salle, un écran affiche les cinq meilleurs et ouvre le classement complet (`?rankings=basket` ou `foot`).
+
 ## La base au sol
 
 Le Krait ne reste pas au hangar. Aux commandes, `Espace` met les réacteurs en route, puis `Espace` encore, réacteurs allumés, fait décoller : le Krait quitte le hangar, et un écran de voyage (`src/base/flight.ts`) couvre la descente vers l'**avant-poste Bradbury**, sur la quatrième planète du système où se trouve le vaisseau. La trajectoire, un arc du vaisseau au sol, sert de jauge : le Krait la parcourt, s'embrase à la rentrée atmosphérique, la planète rouge monte et remplit l'écran, l'altitude défile jusqu'au posé. Au premier voyage, l'écran couvre aussi le chargement de la base (le Krait attend en fin d'approche qu'elle soit prête) : elle n'est construite qu'alors. On pose le pied au pied de l'escabeau d'un Krait garé sur l'aire d'atterrissage ; pour rentrer, on y remonte, et la même manœuvre ramène au hangar du vaisseau.
@@ -687,7 +707,8 @@ ronde et le lien du profil de chaque CMDR (`?rankings=` de `mini-shipinteriors-s
   classement général, 30 derniers jours, collectionneurs et podiums d'aventures ;
 - **salon d'arcade**, les high scores (`arcade`) : Cargaison, Viper, Astéroïdes, Thargoid
   Invaders ; l'écran affiche le record de chaque borne ;
-- **salle de sport**, les records (`gym`) : tapis de course, vélo, sac de frappe.
+- **salle de sport**, les records (`gym`) : tapis de course, vélo, sac de frappe ;
+- **terrains de basket et de foot**, les meilleurs tireurs et buteurs (`basket`, `foot`) : l'écran de chaque salle affiche les cinq premiers.
 
 Installation côté site : jouer **`docker/tables/mini_shipinteriors_site.sql`** après
 `mini_shipinteriors.sql` et `system_hunts.sql`. La migration est idempotente ; la jouer
@@ -784,6 +805,7 @@ Les bips, les mélodies d'arcade, les étincelles, le miaulement, le ronronnemen
 | `shared/sight.js` | Ligne de vue sur un plan : l'invite, `E` et le relais (tables de jeux, jukebox) refusent un objet derrière un mur ; tests dans `server/sight.test.js`. |
 | `shared/twitch-irc.js` | Chat Twitch du cinéma : découpe des lignes IRC reçues (auteur, couleur, emotes, « /me », modération) ; tests dans `server/twitch-irc.test.js`. |
 | `src/twitch-chat.ts` | Chat flottant du direct Twitch dans le cinéma : lecture anonyme, liaison du compte Twitch et envoi des messages par le site. |
+| `src/court.ts` | Mini-jeux de la zone sportive (tirs au panier, tirs au but) : visée, jauge de force, trajectoire et rebonds des ballons (`CourtPhysics`), paliers, compte à rebours, inscription du score. |
 | `src/deck.ts` · `src/merge.ts` | Construit un pont : sols, murs sur les arêtes, hublots, poteaux, portes automatiques, meubles, ascenseur, réacteur, tuyères. Fusion de géométrie et fondu tramé (`merge.ts`, partagé avec les quartiers). |
 | `src/cabin/` | **Quartiers personnalisables** : catalogue des objets (`catalog.ts`, et ses compléments `catalog-home.ts`, `catalog-ship.ts`, `catalog-fun.ts`), revêtements des murs et du sol (`finishes.ts`), cloisons (`partitions.ts`, et `shared/cabin-partitions.js`), aménagement et sa normalisation (`layout.ts`), construction et fusion dans le pont (`view.ts`), règles de pose (`rules.ts`), mode aménagement (`editor.ts`), vignettes (`thumbs.ts`), barre des quartiers et invitations (`hud.ts`), enregistrement sur le site (`storage.ts`). |
 | `src/crew/` | **Annuaire des joueurs** : le combiné de bord (`phone.ts`, `phone.css`) et l'annuaire du site, avec les messages laissés aux absents (`site.ts`). |

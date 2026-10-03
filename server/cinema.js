@@ -2,7 +2,7 @@
  * Séance commune du cinéma. Le site fournit le catalogue et la priorité du direct Twitch de la
  * chaîne du site ; la régie peut aussi projeter une vidéo YouTube, ou le direct d'une autre chaîne.
  */
-export const PROJECTION_SEAT = { level: 1, x: 26.65, z: 7.55 }
+export const PROJECTION_SEAT = { level: 1, x: 28.65, z: 7.55 }
 
 export function cinemaOperator(players) {
   return [...players].filter((p) => p.level === PROJECTION_SEAT.level && p.pose === 'sit'
