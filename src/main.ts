@@ -1,5 +1,8 @@
 import { GymGame, type Sport } from './gym'
 import { CourtGame } from './court'
+import { FishBook } from './fishing/book'
+import { fishCollection } from './fishing/collection'
+import { FishingGame } from './fishing/game'
 import type { CourtId } from './arcade/game'
 import { loadSiteArt, SitePanel } from './site'
 import * as THREE from 'three'
@@ -81,6 +84,7 @@ import { nextSystem, JUMP_CHARGE, JUMP_TRAVEL, type SystemId } from '../shared/s
 import { syncTempo, tempo } from './tempo'
 import { ClubCrowd, ClubMusic, clubProximity } from './club'
 import { BAR_ROOM, CLUB_ROOM, PLANETARIUM_ROOM, SPORT_COURTS, isAlienLook } from '../shared/ship-layouts.js'
+import { FISHING_DOCK, FISHING_LEVEL } from '../shared/fishing.js'
 import { ToiletFlushes } from './toilet-flush'
 import { PlanetariumShow } from './planetarium'
 import { Vents } from './vents'
@@ -582,6 +586,50 @@ court.onSound = (kind, at) => {
   else if (kind === 'shoot') sound.ui('drop')
   else if (kind === 'end') sound.jingle('lose')
   else sound.jingle(kind === 'score' ? 'coin' : 'win')
+}
+
+// Jardin exotique (pont supérieur) : on pêche depuis le ponton de l'étang ; le livre des prises,
+// sur son lutrin, montre la collection du joueur (cf. src/fishing/).
+void fishCollection.load()
+const fishBook = new FishBook(fishCollection)
+const fishing = new FishingGame(deckById(FISHING_LEVEL).group, fishCollection)
+/** Canne en main, ou le nez dans le livre des prises : le personnage ne bouge pas, le curseur est rendu. */
+const fishBusy = () => fishing.active || fishBook.isOpen
+function openFishBook() {
+  stopWork()
+  player.cancelPath()
+  keys.clear()
+  marker.visible = false
+  fishBook.open()
+}
+/** Le personnage va se placer sur le ponton, face à l'étang, et sort sa canne. */
+function startFishing() {
+  if (fishing.active || player.gliding || deck.def.id !== FISHING_LEVEL) return
+  stopWork()
+  player.cancelPath()
+  keys.clear()
+  marker.visible = false
+  const far = Math.hypot(FISHING_DOCK.x - player.position.x, FISHING_DOCK.z - player.position.z)
+  player.glideTo({ x: FISHING_DOCK.x, y: deck.y, z: FISHING_DOCK.z, yaw: 0 }, far / 2.2, far > 0.05, () => {
+    unlockCursor()
+    $('dialog').hidden = true
+    fishing.start()
+  })
+}
+for (const it of deckById(FISHING_LEVEL).interactables) {
+  if (it.furniture?.model === 'fishing-dock') it.onInteract = startFishing
+  else if (it.furniture?.model === 'fish-book') it.onInteract = openFishBook
+}
+fishing.onBook = openFishBook
+fishing.onGesture = () => { player.avatar.playEmote('interact'); net.sendEmote('interact') }
+fishing.onSound = (kind, at) => {
+  const here = at.clone().setY(at.y + deck.y)
+  if (kind === 'cast') sound.ui('drop')
+  else if (kind === 'splash') sound.work('water', here)
+  else if (kind === 'nibble') sound.ui('rotate')
+  else if (kind === 'bite') { sound.ui('pick'); sound.thud(here) }
+  else if (kind === 'miss') sound.ui('deny')
+  else sound.jingle(kind === 'rare' ? 'win' : 'coin')
 }
 
 hydrateIcons()
@@ -2966,6 +3014,11 @@ addEventListener('keydown', (e) => {
   if (barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen) { if (e.code === 'Escape') { barPanel.close(); gameEmbed.close(); mediaRoom.close(); cinemaRoom.close() }; e.preventDefault(); return }
   if (gym.key(e)) return
   if (!chat.typing && court.key(e)) return
+  if (!chat.typing && fishBook.isOpen) {
+    if (e.code === 'Escape' || e.code === 'KeyE') fishBook.close()
+    return e.preventDefault()
+  }
+  if (!chat.typing && fishing.key(e)) return
   if (chat.typing) return
   if (zone.keyDown(e)) return
   if (sitePanel.isOpen) {
@@ -3035,7 +3088,7 @@ chat.onOpen = () => keys.clear()
 const inputDir = new THREE.Vector3()
 function keyboardDirection(): THREE.Vector3 {
   inputDir.set(0, 0, 0)
-  if (gym.active || court.active || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return inputDir
+  if (gym.active || court.active || fishBusy() || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return inputDir
   const on = (...codes: string[]) => codes.some((c) => keys.has(c))
   // event.code = position physique : KeyW/KeyA correspondent à Z/Q sur un clavier AZERTY.
   const sx = (on('KeyD', 'ArrowRight') ? 1 : 0) - (on('KeyA', 'ArrowLeft') ? 1 : 0)
@@ -3087,6 +3140,12 @@ function updateGamepad(dt: number): GamepadInput {
     court.pad(pad.moveX, gamepad.held.has('0'), dt)
     pad.moveX = pad.moveY = 0
     if (pad.cancel) court.stop()
+    return pad
+  }
+  if (fishing.active) {
+    fishing.pad(pad.moveX, pad.moveY, gamepad.held.has('0'), dt)
+    pad.moveX = pad.moveY = 0
+    if (pad.cancel) fishing.stop()
     return pad
   }
   if (barPanel.isOpen) {
@@ -3211,7 +3270,7 @@ function isoOnly(): boolean {
 }
 /** Occupé (installé, en emote, au travail…) : en vue subjective, la caméra passe derrière le personnage. */
 function busyBody(): boolean {
-  return !!seating.current || player.gliding || !!working || gym.active || court.active || riding || wardrobe.isOpen || player.avatar.emoteId !== null
+  return !!seating.current || player.gliding || !!working || gym.active || court.active || fishing.active || riding || wardrobe.isOpen || player.avatar.emoteId !== null
 }
 /** Passage d'une vue à l'autre : un bref fondu au noir cache la bascule de projection. */
 function curtain() {
@@ -3311,8 +3370,8 @@ canvas.addEventListener('mousedown', (e) => {
   if (e.button === 1) e.preventDefault()
 })
 canvas.addEventListener('pointerdown', (e) => {
-  // Sur un terrain de sport, le pointeur vise et tire (cf. plus bas) : la vue ne tourne pas.
-  if (court.active) return
+  // Sur un terrain de sport, ou canne en main, le pointeur vise et tire (cf. plus bas) : la vue ne tourne pas.
+  if (court.active || fishing.active) return
   // Vue subjective à la souris : le curseur est capturé sur la mire (cf. lockCursor).
   if (fpsShown && e.pointerType === 'mouse') return
   // Au doigt, la scène entière devient le stick de caméra. Le joystick de marche capture un
@@ -3381,6 +3440,8 @@ addEventListener(
 // Terrain de sport : le pointeur vise le mur, l'appui dose le tir, le relâchement tire.
 canvas.addEventListener('pointermove', (e) => {
   if (court.active) court.aimAt(activeCamera(), e.clientX, e.clientY)
+  // À l'étang, le pointeur choisit où lancer.
+  else if (fishing.active) fishing.aimAt(activeCamera(), e.clientX, e.clientY)
 })
 for (const type of ['pointerup', 'pointercancel'] as const) addEventListener(type, () => court.release())
 canvas.addEventListener('pointerdown', (e) => {
@@ -3388,6 +3449,11 @@ canvas.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return
     court.aimAt(activeCamera(), e.clientX, e.clientY)
     return court.press()
+  }
+  if (fishing.active) {
+    if (e.button !== 0) return
+    fishing.aimAt(activeCamera(), e.clientX, e.clientY)
+    return fishing.press()
   }
   if (fpsShown && e.pointerType === 'mouse') {
     // Premier clic : le curseur est capturé ; ensuite, le clic gauche vise ce qui est sous la mire.
@@ -3424,7 +3490,7 @@ function unlockCursor() {
 }
 /** Ce qui se manipule au curseur : on le rend. */
 function needsCursor(): boolean {
-  return court.active || chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || phone.isOpen || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || !reactionsPanel.hidden
+  return court.active || fishBusy() || chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || phone.isOpen || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || !reactionsPanel.hidden
 }
 document.addEventListener('pointerlockchange', () => {
   document.body.classList.toggle('fps-locked', cursorLocked())
@@ -3511,7 +3577,7 @@ const fpsBottom = () => innerHeight - 130
 
 function click(e: PointerEvent, at: { clientX: number; clientY: number } = e) {
   // Caché dans un casier, capturé, derrière les caméras : le clic ne fait rien.
-  if (riding || gym.active || court.active || zone.frozen) return
+  if (riding || gym.active || court.active || fishBusy() || zone.frozen) return
   if (editing()) {
     // Objet glissé jusque sous le catalogue : il le relâche quand même dans le mode aménagement.
     try {
@@ -3629,7 +3695,7 @@ function hiddenRestrictedItem(item: Interactable): boolean {
 function tryInteract() {
   // Bugenhagen parle : on passe à la phrase suivante.
   if (planetarium.talking) return planetarium.next()
-  if (gym.active || court.active || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return
+  if (gym.active || court.active || fishBusy() || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return
   const item = nearestInteractable()
   if (item) interactWith(item)
 }
@@ -4482,6 +4548,9 @@ function frame() {
   if (court.active && deck.def.id !== 1) court.stop()
   court.update(dt)
   if (court.active) player.setHeading(court.heading)
+  if (fishing.active && deck.def.id !== FISHING_LEVEL) fishing.stop()
+  fishing.update(dt)
+  if (fishing.active) player.setHeading(fishing.heading)
   const pad = updateGamepad(dt)
   if (cursorLocked() && (!fpsWanted || isoOnly() || needsCursor())) {
     unlockCursor()
@@ -4626,6 +4695,10 @@ function frame() {
     if (court.active) {
       fps.yaw = court.viewYaw
       fps.pitch = court.viewPitch
+    } else if (fishing.active) {
+      // Canne en main, la vue reste derrière le pêcheur, face à l'étang : le curseur vise.
+      fps.yaw = fishing.viewYaw
+      fps.pitch = fishing.viewPitch
     }
     fps.update(dt, player.avatar.head(fpsHead), deck.y + deck.ceilingY)
     fps.toCamera(toCam)
@@ -4743,7 +4816,7 @@ function frame() {
   // Invite « E » au-dessus de l'objet le plus proche ; installé sur un meuble, au-dessus du
   // personnage : se relever (et ce que permet la place).
   const sitting = seating.settled && !gym.active && !riding && !editing() && !barPanel.isOpen
-  const near = gym.active || court.active || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen ? null : nearestInteractable()
+  const near = gym.active || court.active || fishBusy() || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen ? null : nearestInteractable()
   const sit = sitting ? seatPrompt(seating.current!) : null
   const label = sit ? `${sit.main}|${sit.space ?? ''}` : near?.label
   promptEl.querySelector('kbd')!.textContent = usingGamepad ? 'A / ×' : 'E'
@@ -4901,6 +4974,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, profile, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt },
+    __game: { renderer, sound, player, profile, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt, fishing, fishBook, fishCollection, startFishing },
   })
 }

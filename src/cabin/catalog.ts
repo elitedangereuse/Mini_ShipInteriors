@@ -8,6 +8,9 @@ import type { Flicker } from '../levels'
 import { FUN_ENTRIES } from './catalog-fun'
 import { HOME_ENTRIES } from './catalog-home'
 import { SHIP_ENTRIES } from './catalog-ship'
+import { fishCollection } from '../fishing/collection'
+import { fishAbout, fishName, RARITY_NAME } from '../fishing/species'
+import { FISH, fishById } from '../../shared/fishing.js'
 import { fabrics, type Variant } from './variants'
 
 export type { Variant } from './variants'
@@ -102,6 +105,13 @@ export interface CatalogEntry {
   light?: CatalogLight | ((variant: string | undefined) => CatalogLight)
   /** Unique et indispensable : on le déplace, on ne le retire pas (le Holo-Me). */
   fixed?: boolean
+  /**
+   * Variantes à gagner : l'aménagement ne propose que celles que le joueur possède (les poissons
+   * de sa collection, pour le trophée de pêche). Les quartiers des autres, eux, montrent les leurs.
+   */
+  owned?: (variant: string) => boolean
+  /** Ce qu'on dit à qui n'en possède aucune. */
+  locked?: string
 }
 
 // ---------------------------------------------------------------- variantes
@@ -619,6 +629,24 @@ export const CATALOG: CatalogEntry[] = [
   {
     id: 'frame', name: tr('Tableau', 'Painting'), category: 'wall', model: 'frame', mount: 'wall',
     variants: Object.entries(FRAMES).map(([id, f]) => ({ id, label: f.label })),
+  },
+  {
+    // Un poisson de sa collection (cf. src/fishing/), sur le fond de son choix.
+    id: 'fish-frame', name: tr('Trophée de pêche', 'Fishing trophy'), category: 'wall', model: 'fish-frame', mount: 'wall',
+    variants: FISH.map((f) => ({ id: f.id, label: fishName(f) })),
+    tints: [
+      { id: 'white', label: tr('Fond blanc', 'White background'), swatch: '#f4f1e8' },
+      { id: 'water', label: tr('Fond d\'eau', 'Water background'), swatch: '#3f9ac0' },
+      { id: 'sand', label: tr('Fond de sable', 'Sand background'), swatch: '#e2c98f' },
+      { id: 'night', label: tr('Fond de nuit étoilée', 'Starry night background'), swatch: '#1a1440' },
+      { id: 'wood', label: tr('Fond de bois', 'Wood background'), swatch: '#b98a58' },
+    ],
+    owned: (id) => fishCollection.has(id),
+    locked: tr('Pêchez d\'abord un poisson à l\'étang du jardin exotique (pont supérieur) : ce trophée montre vos prises.', 'Catch a fish at the exotic garden pond first (upper deck): this trophy shows your catches.'),
+    interact: (v) => {
+      const fish = fishById((v ?? '').split(':')[0])
+      return fish ? `${fishName(fish)} (${RARITY_NAME[fish.rarity]}). ${fishAbout(fish)}` : ''
+    },
   },
   {
     id: 'wall-clock', name: tr('Horloge', 'Wall clock'), category: 'wall', model: 'wall-clock', mount: 'wall', action: tr('Lire l\'heure', 'Check the time'),

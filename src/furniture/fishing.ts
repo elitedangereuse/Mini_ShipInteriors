@@ -1,13 +1,15 @@
 import * as THREE from 'three'
 import { NATURE_PACK, packModel } from '../assets'
 import { renderQuality } from '../quality'
-import { box, cylinder, glass, lit, mesh, part, sphere, type Builder } from './kit'
-import { FISHING_POND } from '../../shared/fishing.js'
+import { fishModel } from '../fishing/models'
+import { box, cylinder, drawnTexture, glass, keepShared, lit, mesh, part, sphere, type Builder } from './kit'
+import { fishById, FISH, FISHING_POND } from '../../shared/fishing.js'
 
 /*
  * Le jardin exotique, au sud de la serre du pont supérieur : le grand étang où l'on pêche (cf.
  * src/fishing/game.ts), son ponton, le livre des prises sur son lutrin, et la plage de sable qui
- * les entoure.
+ * les entoure. Et, pour les quartiers, le trophée de pêche : un poisson de sa collection, monté
+ * sur un panneau.
  */
 
 const C = {
@@ -50,7 +52,9 @@ function nature(file: string, s: number, x: number, y: number, z: number, turn: 
 /**
  * Le grand étang du jardin exotique (taille : FISHING_POND) : une margelle de pierres, des
  * rochers, des roseaux et des nénuphars, la grenouille de pierre et son filet d'eau ; dans l'eau,
- * les trois carpes de Capucine et les ombres des poissons qu'on pêche.
+ * les trois carpes de Capucine et les ombres des poissons qu'on pêche. Rien n'y dépasse 0,6 de
+ * haut : au-delà, le pont trame un meuble qui cache le joueur (cf. Deck), et l'étang entier
+ * s'estompait dès qu'on montait sur le ponton.
  */
 const fishingPond: Builder = ({ random }) => {
   const { w, d, corner, rim, water } = FISHING_POND
@@ -78,11 +82,11 @@ const fishingPond: Builder = ({ random }) => {
     g.add(rock)
   }
   g.add(sphere(0.07, lit(C.stone), rockX - 0.02, 0.36, rockZ - 0.04, 8), sphere(0.024, lit(C.stone), rockX - 0.06, 0.42, rockZ - 0.08, 5), sphere(0.024, lit(C.stone), rockX - 0.07, 0.42, rockZ, 5))
-  g.add(nature('plant_flatTall', 0.8, rockX + 0.2, 0.1, rockZ + 0.1, random() * 6), nature('hanging_moss', 0.7, rockX - 0.3, 0.1, rockZ + 0.2, random() * 6))
+  g.add(nature('plant_flatShort', 0.8, rockX + 0.2, 0.1, rockZ + 0.1, random() * 6), nature('hanging_moss', 0.5, rockX - 0.3, 0.1, rockZ + 0.2, random() * 6))
   // Roseaux, par touffes, au bord de l'eau.
   for (const [x, z] of [[-hw + 0.55, -hd + 0.75], [-hw + 0.45, hd - 0.9], [hw - 0.5, -hd + 0.8], [-0.9, hd - 0.42], [1.2, hd - 0.4]] as const) {
     for (let i = 0; i < 6; i++) {
-      const h = 0.35 + random() * 0.35
+      const h = 0.25 + random() * 0.22
       const reed = mesh(new THREE.CylinderGeometry(0.006, 0.01, h, 4), lit(i % 2 ? '#5f9a4a' : '#7ab05a'), x + (random() - 0.5) * 0.26, water + h / 2 - 0.02, z + (random() - 0.5) * 0.26)
       reed.rotation.set((random() - 0.5) * 0.25, 0, (random() - 0.5) * 0.25)
       g.add(reed)
@@ -150,7 +154,8 @@ const fishingPond: Builder = ({ random }) => {
 
 /**
  * Le ponton de pêche, sur la rive de l'étang (devant, +z) : un plancher de bois sur lequel on
- * monte, deux pieux, des cannes dans leur râtelier, la boîte à appâts et le seau.
+ * monte, deux pieux, des cannes dans leur râtelier, la boîte à appâts et le seau. Bas, lui aussi
+ * (cf. l'étang) : on se tient dessus, il ne doit pas se tramer.
  */
 const fishingDock: Builder = () => {
   const g = new THREE.Group()
@@ -161,9 +166,9 @@ const fishingDock: Builder = () => {
   // Le râtelier et ses deux cannes.
   g.add(box(0.05, 0.42, 0.05, dark, -0.52, 0.26, -0.3), box(0.3, 0.04, 0.05, dark, -0.4, 0.4, -0.3))
   for (const [x, lean] of [[-0.44, 0.1], [-0.33, -0.06]] as const) {
-    const rod = cylinder(0.006, 0.012, 0.95, lit('#3a2e28'), x, 0.52, -0.28, 5)
+    const rod = cylinder(0.006, 0.012, 0.5, lit('#3a2e28'), x, 0.3, -0.28, 5)
     rod.rotation.z = lean
-    g.add(rod, cylinder(0.02, 0.02, 0.03, lit('#c8ccd2'), x + lean * 0.3, 0.22, -0.265, 8))
+    g.add(rod, cylinder(0.02, 0.02, 0.03, lit('#c8ccd2'), x + lean * 0.12, 0.17, -0.265, 8))
   }
   // La boîte à appâts, ouverte, et le seau.
   g.add(box(0.2, 0.08, 0.13, lit('#3f6f8a'), 0.42, 0.09, -0.28, 0.01), box(0.2, 0.012, 0.13, lit('#2f556c'), 0.42, 0.19, -0.345))
@@ -231,7 +236,116 @@ const sandPatch: Builder = ({ label, random }) => {
   return { solid: g }
 }
 
+/** Fonds du trophée de pêche : leur dessin, sur un panneau de 256 × 172. */
+const BACKGROUNDS: Record<string, (g: CanvasRenderingContext2D, w: number, h: number) => void> = {
+  white: (g, w, h) => {
+    g.fillStyle = '#f4f1e8'
+    g.fillRect(0, 0, w, h)
+  },
+  water: (g, w, h) => {
+    const sea = g.createLinearGradient(0, 0, 0, h)
+    sea.addColorStop(0, '#7fd8ea')
+    sea.addColorStop(1, '#1f6f9a')
+    g.fillStyle = sea
+    g.fillRect(0, 0, w, h)
+    g.strokeStyle = 'rgba(255, 255, 255, 0.35)'
+    g.lineWidth = 2
+    for (let y = 18; y < h; y += 26) {
+      g.beginPath()
+      for (let x = -10; x <= w + 10; x += 10) g.lineTo(x, y + Math.sin((x + y * 3) / 18) * 4)
+      g.stroke()
+    }
+    g.fillStyle = 'rgba(255, 255, 255, 0.5)'
+    for (const [x, y, r] of [[30, 120, 5], [42, 96, 3], [216, 60, 4], [226, 38, 2.5], [120, 150, 3]]) {
+      g.beginPath()
+      g.arc(x, y, r, 0, Math.PI * 2)
+      g.fill()
+    }
+  },
+  sand: (g, w, h) => {
+    g.fillStyle = '#e2c98f'
+    g.fillRect(0, 0, w, h)
+    g.strokeStyle = '#cdb27a'
+    g.lineWidth = 2
+    for (let y = 14; y < h; y += 20) {
+      g.beginPath()
+      for (let x = -10; x <= w + 10; x += 12) g.lineTo(x, y + Math.sin(x / 26 + y) * 3)
+      g.stroke()
+    }
+  },
+  night: (g, w, h) => {
+    const sky = g.createLinearGradient(0, 0, w, h)
+    sky.addColorStop(0, '#0a1030')
+    sky.addColorStop(1, '#2a1648')
+    g.fillStyle = sky
+    g.fillRect(0, 0, w, h)
+    g.fillStyle = '#ffffff'
+    for (let i = 0; i < 60; i++) {
+      const x = (i * 97) % w, y = (i * 57 + (i % 7) * 13) % h
+      g.globalAlpha = 0.35 + ((i * 31) % 60) / 100
+      g.fillRect(x, y, i % 9 === 0 ? 2.5 : 1.5, i % 9 === 0 ? 2.5 : 1.5)
+    }
+    g.globalAlpha = 1
+  },
+  wood: (g, w, h) => {
+    g.fillStyle = '#b98a58'
+    g.fillRect(0, 0, w, h)
+    for (let y = 0; y < h; y += 43) {
+      g.fillStyle = (y / 43) % 2 ? '#b08050' : '#c4955f'
+      g.fillRect(0, y, w, 41)
+      g.fillStyle = '#7a5636'
+      g.fillRect(0, y + 41, w, 2)
+      g.strokeStyle = 'rgba(90, 60, 30, 0.25)'
+      g.lineWidth = 1
+      for (let k = 0; k < 3; k++) {
+        g.beginPath()
+        g.moveTo(0, y + 8 + k * 12)
+        g.bezierCurveTo(w * 0.3, y + 4 + k * 12, w * 0.6, y + 14 + k * 12, w, y + 9 + k * 12)
+        g.stroke()
+      }
+    }
+  },
+}
+const backgrounds = new Map<string, THREE.Material>()
+function background(id: string): THREE.Material {
+  let m = backgrounds.get(id)
+  if (!m) {
+    m = keepShared(new THREE.MeshBasicMaterial({ map: keepShared(drawnTexture(256, 172, (g) => BACKGROUNDS[id](g, 256, 172))) }))
+    backgrounds.set(id, m)
+  }
+  return m
+}
+
+/**
+ * Trophée de pêche, à accrocher : un poisson de l'étang, en volume, monté sur un panneau encadré
+ * de bois, le nez à droite, et sa plaque de laiton. `label` : « espèce » ou « espèce:fond » (white,
+ * water, sand, night, wood ; cf. shared/fishing.js et le catalogue). Dos au mur (z = 0), face à +z.
+ */
+const fishFrame: Builder = ({ label }) => {
+  const [id, tint] = (label ?? '').split(':')
+  const fish = fishById(id) ?? FISH[0]
+  const g = new THREE.Group()
+  const wood = lit(C.woodDark)
+  g.add(box(0.6, 0.42, 0.02, wood, 0, 0.62, 0.01))
+  for (const y of [0.42, 0.82]) g.add(box(0.6, 0.025, 0.035, wood, 0, y, 0.0175))
+  for (const x of [-0.29, 0.29]) g.add(box(0.025, 0.42, 0.035, wood, x, 0.62, 0.0175))
+  g.add(mesh(new THREE.PlaneGeometry(0.555, 0.375), background(BACKGROUNDS[tint] ? tint : 'white'), 0, 0.62, 0.0215))
+  g.add(box(0.14, 0.03, 0.006, lit('#c9a24a'), 0, 0.455, 0.035))
+  // La raie se montre à plat, vue de dessus ; les autres de profil. Tous le nez à droite.
+  const flat = fish.model === 'manta'
+  const mount = fishModel(fish, flat ? 0.4 : 0.42)
+  if (flat) mount.quaternion.setFromEuler(new THREE.Euler(Math.PI / 2, 0, Math.PI / 2, 'ZXY'))
+  else mount.rotation.y = Math.PI / 2
+  mount.updateMatrixWorld(true)
+  // Posé contre le panneau : son point le plus proche du mur à fleur du fond.
+  const b = new THREE.Box3().setFromObject(mount)
+  mount.position.set(-(b.min.x + b.max.x) / 2, 0.64 - (b.min.y + b.max.y) / 2, 0.026 - b.min.z)
+  g.add(mount)
+  return { solid: g }
+}
+
 export const FISHING = {
+  'fish-frame': fishFrame,
   'fishing-pond': fishingPond,
   'fishing-dock': fishingDock,
   'fish-book': fishBook,

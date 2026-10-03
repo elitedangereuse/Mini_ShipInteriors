@@ -21,7 +21,7 @@
     "string-lights": 6000, "led-strip": 7000, "desk-lamp": 4000, "lava-lamp": 5000, "candles": 2500, "plasma-ball": 8000,
     "plant": 3000, "plant-tall": 5000, "monstera": 6000, "exobio-plant": 20000, "succulent": 2000, "cactus": 2000,
     "bonsai": 6000, "flowers": 3000, "hydro-rack": 12000,
-    "poster": 3000, "frame": 4000, "wall-clock": 5000, "wall-screen": 12000, "wall-neon": 8000, "neon-shape": 9000,
+    "poster": 3000, "frame": 4000, "fish-frame": 6000, "wall-clock": 5000, "wall-screen": 12000, "wall-neon": 8000, "neon-shape": 9000,
     "mug": 1500, "globe": 6000, "books": 2000, "plush": 3000, "trophy": 12000, "radio": 4000, "record-player": 8000,
     "photo-frame": 2000, "ship-model": 9000, "telescope": 15000, "guitar": 10000, "display-case": 25000,
     "thargoid-sensor": 25000, "guardian-relic": 30000, "terrarium": 15000, "holo-panel": 20000, "orrery": 45000,

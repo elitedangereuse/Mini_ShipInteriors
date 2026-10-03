@@ -569,10 +569,13 @@ export class CabinEditor {
   private startPlacing(entry: CatalogEntry) {
     this.cancelHeld()
     if (this.items.length >= this.capacity) return this.refuse(tr(`Cabine pleine : ${this.capacity} objets au plus`, `Quarters full: ${this.capacity} items at most`))
+    // Variantes à gagner : rien à poser tant qu'on n'en possède aucune (le trophée de pêche).
+    const first = entry.owned ? entry.variants?.find((v) => entry.owned!(v.id)) : entry.variants?.[0]
+    if (entry.owned && !first) return this.refuse(entry.locked ?? '')
     if (this.stock(entry.id) <= 0) return this.openBuy(entry)
     this.closeBuy()
     const item: CabinItem = { m: entry.id, x: this.view.center.x, z: this.view.center.z, r: 0, s: Math.floor(Math.random() * 100000) }
-    if (entry.variants?.length) item.v = entry.variants[0].id
+    if (first) item.v = first.id
     const ghost = this.view.makeGhost(item)
     if (!ghost) return
     ghost.visible = false
@@ -950,6 +953,8 @@ export class CabinEditor {
       const variants = document.createElement('div')
       variants.className = 'ed-variants'
       for (const v of entry.variants) {
+        // Variantes à gagner : celles du joueur, et celle qui est posée.
+        if (entry.owned && v.id !== base && !entry.owned(v.id)) continue
         const b = document.createElement('button')
         b.title = v.label
         b.setAttribute('aria-label', v.label)

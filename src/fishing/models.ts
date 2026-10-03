@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { FISH_PACK, packModel } from '../assets'
+import { keepShared } from '../furniture/kit'
 import type { FishSpecies } from '../../shared/fishing.js'
 
 /*
@@ -14,7 +15,7 @@ function paint(color: string, glow = 0): THREE.MeshLambertMaterial {
   const key = `${color}:${glow}`
   let m = paints.get(key)
   if (!m) {
-    m = new THREE.MeshLambertMaterial({ color, flatShading: true })
+    m = keepShared(new THREE.MeshLambertMaterial({ color, flatShading: true }))
     if (glow) m.emissive.set(color).multiplyScalar(glow)
     paints.set(key, m)
   }
