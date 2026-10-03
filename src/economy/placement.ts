@@ -37,11 +37,14 @@ export function placeTask(deck: Deck, spot: Spot): TaskPlace | null {
   return spot.wall !== undefined ? placeOnWall(deck, spot, spot.wall) : placeOnFloor(deck, spot)
 }
 
-/** Pièce où une tâche peut vivre : ni vide, ni en travaux, ni dans les quartiers (instanciés). */
+/**
+ * Pièce où une tâche peut vivre : ni vide, ni en travaux, ni dans les quartiers (instanciés), ni
+ * en hauteur (la mezzanine et ses escaliers : elle s'y poserait au sol, sous le plancher).
+ */
 function openRoom(deck: Deck, x: number, z: number): string | null {
   const room = deck.map.room(Math.round(x), Math.round(z))
   if (!room || deck.def.closed?.[room] !== undefined) return null
-  if (deck.cabin?.contains(x, z)) return null
+  if (deck.cabin?.contains(x, z) || deck.raised(x, z)) return null
   return room
 }
 

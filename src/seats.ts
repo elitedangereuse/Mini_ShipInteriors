@@ -57,6 +57,11 @@ export const SEATS: Partial<Record<CustomModel | StationModel, Seat[]>> = {
   'bar-stool': [sit(0, 0, 0.43, 0, [0, -0.45])],
   beanbag: [sit(0, 0, 0.24, 'free')],
   bench: [sit(-0.24, 0, 0.3, 'both'), sit(0.24, 0, 0.3, 'both')],
+  // L'îlot du hall : une place de chaque côté de la banquette ronde, dos aux plantes.
+  'concourse-planter': [0, 1, 2, 3].map((k) => {
+    const a = (k * Math.PI) / 2
+    return sit(Math.sin(a) * 0.84, Math.cos(a) * 0.84, 0.29, a, [Math.sin(a) * 1.32, Math.cos(a) * 1.32])
+  }),
   // Table de cantine du mess : trois places par banc, face au plateau ; on enjambe le banc par derrière.
   'canteen-table': [-0.62, 0, 0.62].flatMap((x) => [sit(x, 0.6, 0.27, Math.PI, [x, 0.98]), sit(x, -0.6, 0.27, 0, [x, -0.98])]),
   toilet: [sit(0, 0.06, 0.235)],
