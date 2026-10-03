@@ -1221,220 +1221,138 @@ export const LEVELS: LevelDef[] = [
       { model: 'bench', x: 12.3, z: 3.9, label: 'teal' },
       { model: 'plant-tall', x: 15.1, z: 5.2 },
 
-      // --- Cabines d'équipage ---
-      {
-        model: 'bunk-bed', x: 8.05, z: 1.24, label: 'navy',
-        interact: tr(
-          'Couchette. Sous l\'oreiller, un journal : « Jour 214. Toujours en supercroisière vers Hutton Orbital. »',
-          'Bunk. Under the pillow, a diary: “Day 214. Still in supercruise to Hutton Orbital.”',
-        ),
-      },
-      { model: 'bunk-bed', x: 11, z: 1.24, label: 'sage' },
-      {
-        model: 'locker', x: 9.55, z: 0.84,
-        interact: tr(
-          'Casiers de l\'équipage : chaussettes de rechange, barres protéinées, une photo de famille prise à Achenar.',
-          'Crew lockers: spare socks, protein bars, a family photo taken at Achenar.',
-        ),
-      },
-      { model: 'rug', x: 9.9, z: 2.35, label: 'blue:1.3x0.8', solid: false },
-      { model: 'nightstand', x: 8.6, z: 0.83 },
-      { model: 'string-lights', x: 7.65, z: 1.25, rot: 1, label: 'warm', solid: false },
-      {
-        model: 'footlocker', x: 8.15, z: 2.02,
-        interact: tr(
-          'Malle de pied de lit, bourrée d\'autocollants. Sur le couvercle, au feutre : « Ne pas s\'asseoir. Si. Même toi. »',
-          'Footlocker, covered in stickers. On the lid, in marker: “Do not sit. Yes. You too.”',
-        ),
-      },
-      {
-        model: 'coat-hooks', x: 10.32, z: 0.65, solid: false,
-        interact: tr(
-          'Deux blousons de vol et un casque. Le blouson orange sent encore le carburant de la dernière escale.',
-          'Two flight jackets and a helmet. The orange one still smells of fuel from the last stopover.',
-        ),
-      },
-      {
-        model: 'crew-board', x: 7.65, z: 2.95, rot: 1, solid: false,
-        interact: [
-          tr('Tableau des corvées : cette semaine, Comète est de quart. Personne n\'a osé lui dire non.', 'Chore board: this week, Comète is on watch. Nobody dared to say no.'),
-          tr('Un post-it : « Rendre le casque de Jacques ». Un autre, en dessous : « Quel casque ? »', 'A sticky note: “Return Jacques’s helmet”. Another, underneath: “What helmet?”'),
-          tr('Sur la carte, un itinéraire au feutre rouge. Il finit à Hutton Orbital. Évidemment.', 'On the map, a route in red marker. It ends at Hutton Orbital. Of course.'),
-        ],
-      },
-      { model: 'laundry-basket', x: 8.1, z: 3.12 },
-      { model: 'footlocker', x: 11.05, z: 3.18, rot: 2 },
-
-      // --- Douches ---
-      {
-        model: 'shower', x: 12.45, z: 1.07, action: tr('Se doucher', 'Shower'),
-        interact: [
-          tr(
-            'Douche sonique : 30 secondes, zéro goutte d\'eau. Le recyclage vous remercie.',
-            'Sonic shower: 30 seconds, not a single drop of water. The recycling system thanks you.',
-          ),
-          tr('Vous chantez sous la douche sonique. L\'équipage aussi, malgré lui.', 'You sing in the sonic shower. So does the crew, against its will.'),
-        ],
-      },
-      {
-        model: 'shower', x: 13.35, z: 1.07, action: tr('Se doucher', 'Shower'),
-        interact: tr('Douche sonique : réglage « comme sur Terre », vapeur comprise.', 'Sonic shower: “just like on Earth” setting, steam included.'),
-      },
-      {
-        model: 'toilet', x: 15.05, z: 0.95,
-        interact: tr('Toilettes à dépression. Ne pas utiliser pendant un saut FSD.', 'Vacuum toilet. Do not use during an FSD jump.'),
-      },
-      {
-        model: 'sink', x: 15.12, z: 2.25, rot: 3,
-        interact: tr('Lavabo : le miroir affiche la météo de la station la plus proche.', 'Washbasin: the mirror shows the weather at the nearest station.'),
-      },
-      { model: 'rug', x: 13.2, z: 2.3, label: 'bath:1.2x0.7', solid: false },
-      { model: 'towel-rail', x: 11.65, z: 3.0, rot: 1, solid: false, interact: tr('Porte-serviettes chauffant : les serviettes sont tièdes, et sentent la lavande de synthèse.', 'Heated towel rail: the towels are warm, and smell of synthetic lavender.') },
-      {
-        model: 'bath-cabinet', x: 14.3, z: 0.65, solid: false,
-        interact: [
-          tr('Armoire de toilette : dentifrice, pansements, et un flacon d\'anti-mal de l\'espace à moitié vide.', 'Bathroom cabinet: toothpaste, plasters, and a half-empty bottle of space-sickness pills.'),
-          tr('Deux brosses à dents. La troisième, avec des poils de chat, n\'appartient à personne.', 'Two toothbrushes. The third one, with cat hair on it, belongs to nobody.'),
-        ],
-      },
-      { model: 'laundry-basket', x: 13.3, z: 3.22 },
-      {
-        model: 'bath-scale', x: 12.3, z: 3.05, solid: false, action: tr('Se peser', 'Weigh yourself'),
-        interact: [
-          tr('Le pèse-personne affiche votre masse… en tonnes de cargo. 0,08 t. Pas de quoi remplir une soute.', 'The scale shows your mass… in tonnes of cargo. 0.08 t. Not enough to fill a hold.'),
-          tr('« Gravité du pont : 0,97 G. » Vous avez donc perdu trois pour cent. Bravo.', '“Deck gravity: 0.97 G.” So you have lost three percent. Well done.'),
-        ],
-      },
-      { model: 'plant', x: 15.15, z: 3.15 },
-
       // --- Serre hydroponique, sous verrière : grainothèque, bacs hydroponiques, cuve et récupérateur
       // d\'eau au nord ; mur végétal à l\'ouest ; bacs potagers au milieu ; au sud-ouest, la pelouse,
       // l\'arbre fruitier et le bassin aux carpes ; établi et compost au sud ; l\'arche fleurie à
       // l\'entrée. Les postes du mini-jeu de Capucine sont ici (cf. src/greenhouse.ts), et ses
       // trajets les contournent (cf. GARDEN_OBSTACLES dans shared/gardener.js).
-      { model: 'lawn', x: 1.3, z: 3.55, label: '2.6x3.9', solid: false },
-      { model: 'stepping-stones', x: 4.6, z: 4.0, label: '4.4', solid: false },
-      { model: 'garden-arch', x: 7.0, z: 4.0, rot: 1, label: '1.1', solid: false },
+      { model: 'lawn', x: 1.3, z: 4.55, label: '2.6x3.9', solid: false },
+      { model: 'stepping-stones', x: 4.6, z: 5, label: '4.4', solid: false },
+      { model: 'garden-arch', x: 7.0, z: 5, rot: 1, label: '1.1', solid: false },
       {
-        model: 'seed-cabinet', x: 2.5, z: -0.28,
+        model: 'seed-cabinet', x: 2.5, z: 0.72,
         interact: [
           tr('Grainothèque : cent vingt-cinq tiroirs, de la laitue de Sol au poivron d\'Achenar. Un tiroir est fermé à clé : « Ne pas planter. Jamais. »', 'Seed library: a hundred and twenty-five drawers, from Sol lettuce to Achenar peppers. One drawer is locked: “Do not plant. Ever.”'),
           tr('Sur une étiquette, de la main de Capucine : « Graines de Colonia, récoltées à 22 000 années-lumière. Manipuler avec respect. »', 'On a label, in Capucine\'s hand: “Colonia seeds, harvested 22,000 light years away. Handle with respect.”'),
         ],
       },
       {
-        model: 'hydro-rack', x: 3.75, z: -0.2,
+        model: 'hydro-rack', x: 3.75, z: 0.8,
         interact: [
           tr('Hydroponie : tomates, basilic et un piment de Lave.', 'Hydroponics: tomatoes, basil and a Lave chilli.'),
           tr('Les plantes poussent sous des LED roses. Elles ont l\'air heureuses.', 'The plants grow under pink LEDs. They look happy.'),
         ],
       },
       {
-        model: 'hydro-rack', x: 5.05, z: -0.2,
+        model: 'hydro-rack', x: 5.05, z: 0.8,
         interact: tr('Deuxième étage : des fraises. Il en manque trois. Comète nie tout.', 'Second tier: strawberries. Three are missing. Comète denies everything.'),
       },
       {
-        model: 'nutrient-tank', x: 5.95, z: -0.1,
+        model: 'nutrient-tank', x: 5.95, z: 0.9,
         interact: tr('Cuve de solution nutritive : azote, phosphore, potassium, et une pointe de poussière d\'astéroïde.', 'Nutrient tank: nitrogen, phosphorus, potassium, and a pinch of asteroid dust.'),
       },
       {
-        model: 'water-barrel', x: 0.2, z: 5.2, rot: 1,
+        model: 'water-barrel', x: 0.2, z: 6.2, rot: 1,
         interact: tr('Récupérateur d\'eau : la condensation de la coque, filtrée trois fois. Le chef Marcel dit qu\'elle a un goût de vaisseau.', 'Water butt: condensation from the hull, filtered three times. Chef Marcel says it tastes of starship.'),
       },
       {
-        model: 'vine-trellis', x: -0.42, z: 3.5, rot: 1, label: '3.8', solid: false,
+        model: 'vine-trellis', x: -0.42, z: 4.5, rot: 1, label: '3.8', solid: false,
         interact: [
           tr('Une vigne grimpe sur la verrière : du raisin de Lave, noir et sucré. Capucine rêve d\'en faire du vin. Marcel aussi.', 'A vine climbs up the glass: Lave grapes, dark and sweet. Capucine dreams of making wine. So does Marcel.'),
           tr('Entre deux feuilles de vigne, on voit défiler les étoiles. Les grappes, elles, ne bougent pas.', 'Between two vine leaves, you watch the stars go by. The grapes stay put.'),
         ],
       },
       {
-        model: 'fruit-tree', x: 1.3, z: 1.3,
+        model: 'fruit-tree', x: 1.3, z: 2.3,
         interact: [
           tr('Un pommier de Lave, nain. Ses fruits luisent la nuit. Capucine jure qu\'ils sont comestibles. Elle n\'en a jamais mangé.', 'A dwarf Lave apple tree. Its fruit glows at night. Capucine swears it\'s edible. She\'s never eaten one.'),
           tr('Gravé sur le bac : « Planté au départ de Jameson Memorial. » L\'arbre a vu plus de systèmes que la plupart des pilotes.', 'Carved on the planter: “Planted on leaving Jameson Memorial.” The tree has seen more systems than most pilots.'),
         ],
       },
       {
-        model: 'garden-pond', x: 1.25, z: 4.35,
+        model: 'garden-pond', x: 1.25, z: 5.35,
         interact: [
           tr('Trois carpes koï : Faulcon, DeLacy et Gutamaya. Gutamaya est la plus chère à nourrir.', 'Three koi: Faulcon, DeLacy and Gutamaya. Gutamaya is the most expensive to feed.'),
           tr('La grenouille de pierre crache son filet d\'eau. En gravité artificielle, il retombe presque droit.', 'The stone frog spits its trickle of water. In artificial gravity, it falls almost straight.'),
         ],
       },
-      { model: 'butterflies', x: 1.3, z: 3.0, label: '0.9', solid: false },
+      { model: 'butterflies', x: 1.3, z: 4, label: '0.9', solid: false },
       {
-        model: 'garden-bed', x: 3.9, z: 1.5, label: 'tomato',
+        model: 'garden-bed', x: 3.9, z: 2.5, label: 'tomato',
         interact: tr('Bac à tomates : cœur-de-bœuf, cerises, et une « Anaconda » qui grimpe plus haut que les autres.', 'Tomato bed: beefsteak, cherry, and an “Anaconda” that climbs higher than the others.'),
       },
       {
-        model: 'garden-bed', x: 5.9, z: 1.5, label: 'herbs',
+        model: 'garden-bed', x: 5.9, z: 2.5, label: 'herbs',
         interact: tr('Herbes aromatiques : basilic, ciboulette, thym. Marcel en vole une poignée chaque matin et laisse un mot.', 'Herbs: basil, chives, thyme. Marcel steals a handful every morning and leaves a note.'),
       },
       {
-        model: 'garden-bed', x: 4.5, z: 2.9, label: 'lettuce',
+        model: 'garden-bed', x: 4.5, z: 3.9, label: 'lettuce',
         interact: tr('Salades et carottes, en rangs impeccables. Capucine les compte le soir. Toutes.', 'Lettuce and carrots in perfect rows. Capucine counts them every evening. All of them.'),
       },
       {
-        model: 'garden-bed', x: 4.0, z: 5.2, label: 'flowers',
+        model: 'garden-bed', x: 4.0, z: 6.2, label: 'flowers',
         interact: tr('Massif de fleurs : elles ne se mangent pas, elles ne servent à rien, et c\'est le coin préféré de l\'équipage.', 'Flower bed: you can\'t eat them, they serve no purpose, and it\'s the crew\'s favourite spot.'),
       },
-      { model: 'butterflies', x: 4.0, z: 5.2, label: '0.8', solid: false },
-      { model: 'pollinator-drone', x: 4.9, z: 1.5, label: '0.9' },
-      { model: 'pollinator-drone', x: 4.4, z: 0.2, label: '0.6' },
+      { model: 'butterflies', x: 4.0, z: 6.2, label: '0.8', solid: false },
+      { model: 'pollinator-drone', x: 4.9, z: 2.5, label: '0.9' },
+      { model: 'pollinator-drone', x: 4.4, z: 1.2, label: '0.6' },
       {
-        model: 'harvest-crate', x: 6.95, z: -0.05,
+        model: 'harvest-crate', x: 6.95, z: 0.95,
         interact: tr('Caisses de récolte, pour le mess. Sur l\'étiquette : « Pour Marcel. Pas pour Jacques. Surtout pas pour Jacques. »', 'Harvest crates, for the mess. On the label: “For Marcel. Not for Jacques. Especially not for Jacques.”'),
       },
       {
-        model: 'potting-bench', x: 5.6, z: 6.12, rot: 2,
+        model: 'potting-bench', x: 5.6, z: 8.12, rot: 2,
         interact: [
           tr('Établi de rempotage : des semis de laitue, de la terre sous les ongles, et un arrosoir qui fuit.', 'Potting bench: lettuce seedlings, soil under your nails, and a leaky watering can.'),
           tr('Un bocal étiqueté « graines de Colonia — NE PAS MANGER ». Quelqu\'un en a mangé.', 'A jar labelled “Colonia seeds — DO NOT EAT”. Someone ate some.'),
         ],
       },
       {
-        model: 'compost-bin', x: 6.95, z: 6.05,
+        model: 'compost-bin', x: 6.95, z: 8.05,
         interact: tr('Le compost : épluchures du mess, marc de café CD-75, et ce qu\'il reste des soufflés ratés de Marcel.', 'The compost: peelings from the mess, CD-75 coffee grounds, and what\'s left of Marcel\'s failed soufflés.'),
       },
-      { model: 'monstera', x: 1.25, z: 6.05 },
+      { model: 'monstera', x: 1.25, z: 7.05 },
       {
-        model: 'cactus-bed', x: 2.55, z: 6.1,
+        model: 'cactus-bed', x: 2.55, z: 8.1,
         interact: tr('Le coin des cactus : ils ne demandent rien, sauf qu\'on ne s\'asseye pas dessus.', 'The cactus corner: they ask for nothing, except that you don\'t sit on them.'),
       },
       {
-        model: 'pumpkin-patch', x: 3.75, z: 6.05,
+        model: 'pumpkin-patch', x: 3.75, z: 8.05,
         interact: tr('Citrouilles et melons, sur un lit de paille. La plus grosse est réservée pour une soirée à thème, au salon.', 'Pumpkins and melons on a bed of straw. The biggest one is saved for a themed party in the lounge.'),
       },
       // --- La verdure : palmiers en pot, bambous, buissons, fougères, herbes et fleurs sauvages (Nature Kit).
       {
-        model: 'potted-palm', x: 0.2, z: 3.0, label: 'bend',
+        model: 'potted-palm', x: 0.2, z: 4, label: 'bend',
         interact: tr('Un palmier qui penche au-dessus du bassin. Les carpes apprécient l\'ombre, Capucine un peu moins les feuilles mortes.', 'A palm leaning over the pond. The koi enjoy the shade; Capucine less so the dead leaves.'),
       },
-      { model: 'potted-palm', x: 6.3, z: 4.85, label: 'fan' },
+      { model: 'potted-palm', x: 6.3, z: 5.85, label: 'fan' },
       {
-        model: 'bamboo', x: 7.1, z: 3.05, rot: 1,
+        model: 'bamboo', x: 7.1, z: 4.05, rot: 1,
         interact: tr('Du bambou : il pousse de trois centimètres par jour. Capucine le mesure. Tous les jours.', 'Bamboo: it grows three centimetres a day. Capucine measures it. Every day.'),
       },
-      { model: 'bush', x: 0.2, z: 2.0, label: 'detailed' },
-      { model: 'fern', x: 0.2, z: 4.35 },
-      { model: 'mushrooms', x: 1.85, z: 1.6, solid: false },
-      { model: 'wildflowers', x: 0.7, z: 2.45, label: 'purple', solid: false },
-      { model: 'wildflowers', x: 2.15, z: 2.85, label: 'mixed', solid: false },
-      { model: 'wildflowers', x: 2.05, z: 5.45, label: 'yellow', solid: false },
-      { model: 'wildflowers', x: 0.85, z: 5.55, label: 'red', solid: false },
-      { model: 'grass-tuft', x: 2.05, z: 3.75, label: 'tall', solid: false },
-      { model: 'grass-tuft', x: 0.45, z: 3.7, label: 'leafs', solid: false },
-      { model: 'grass-tuft', x: 2.1, z: 4.95, label: 'wide', solid: false },
-      { model: 'grass-tuft', x: 3.1, z: 3.55, label: 'leafs', solid: false },
-      { model: 'grass-tuft', x: 5.35, z: 3.55, label: 'tall', solid: false },
-      { model: 'grass-tuft', x: 6.45, z: 3.95, label: 'wide', solid: false },
-      { model: 'wildflowers', x: 2.9, z: 4.5, label: 'mixed', solid: false },
-      { model: 'hanging-basket', x: 3.1, z: 6.45, rot: 2, solid: false },
-      { model: 'hanging-basket', x: 4.7, z: 6.45, rot: 2, solid: false },
-      { model: 'hanging-basket', x: 1.55, z: 0.05, rot: 1, solid: false },
-      { model: 'flowers', x: 6.1, z: 3.45 },
-      { model: 'exobio-plant', x: 6.95, z: 5.0, label: 'crystal' },
+      { model: 'bush', x: 0.2, z: 3, label: 'detailed' },
+      { model: 'fern', x: 0.2, z: 5.35 },
+      { model: 'mushrooms', x: 1.85, z: 2.6, solid: false },
+      { model: 'wildflowers', x: 0.7, z: 3.45, label: 'purple', solid: false },
+      { model: 'wildflowers', x: 2.15, z: 3.85, label: 'mixed', solid: false },
+      { model: 'wildflowers', x: 2.05, z: 6.45, label: 'yellow', solid: false },
+      { model: 'wildflowers', x: 0.85, z: 6.55, label: 'red', solid: false },
+      { model: 'grass-tuft', x: 2.05, z: 4.75, label: 'tall', solid: false },
+      { model: 'grass-tuft', x: 0.45, z: 4.7, label: 'leafs', solid: false },
+      { model: 'grass-tuft', x: 2.1, z: 5.95, label: 'wide', solid: false },
+      { model: 'grass-tuft', x: 3.1, z: 4.55, label: 'leafs', solid: false },
+      { model: 'grass-tuft', x: 5.35, z: 4.55, label: 'tall', solid: false },
+      { model: 'grass-tuft', x: 6.45, z: 4.95, label: 'wide', solid: false },
+      { model: 'wildflowers', x: 2.9, z: 5.5, label: 'mixed', solid: false },
+      // La rangée du sud, entre le massif et l'établi.
+      { model: 'grass-tuft', x: 3.05, z: 7.15, label: 'leafs', solid: false },
+      { model: 'wildflowers', x: 4.95, z: 7.05, label: 'purple', solid: false },
+      { model: 'grass-tuft', x: 6.4, z: 7.1, label: 'wide', solid: false },
+      { model: 'hanging-basket', x: 3.1, z: 8.45, rot: 2, solid: false },
+      { model: 'hanging-basket', x: 4.7, z: 8.45, rot: 2, solid: false },
+      { model: 'hanging-basket', x: 1.55, z: 1.05, rot: 1, solid: false },
+      { model: 'flowers', x: 6.1, z: 4.45 },
+      { model: 'exobio-plant', x: 6.95, z: 6, label: 'crystal' },
 
       // --- Studio Radio Dangereuse : trois animateurs autour de la table ronde, face à la vitre ---
       { model: 'studio-table', x: 17.45, z: 2.0 },
@@ -1559,9 +1477,9 @@ export const LEVELS: LevelDef[] = [
       [13.8, 2, '#e6f6ff', 2],
       [10.2, 8.4, '#ffc98f', 2.3],
       // La serre : les LED des bacs, le soleil de la pelouse, la lueur verte du massif.
-      [4.6, 1.3, '#ffb3e6', 2.4],
-      [1.4, 3.2, '#fff1c4', 2.3],
-      [4.6, 4.9, '#d8ffc8', 1.8],
+      [4.6, 2.3, '#ffb3e6', 2.4],
+      [1.4, 4.2, '#fff1c4', 2.3],
+      [4.6, 6.2, '#d8ffc8', 1.8],
       [17.4, 5.4, '#ffb36b', 1.9, 'fire'],
       // Le studio, et la lueur du néon sur la vitre.
       [17.45, 1.9, '#fff0dc', 1.8],

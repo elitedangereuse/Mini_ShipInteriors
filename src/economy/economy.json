@@ -134,8 +134,8 @@
     { "id": "pp-trash-sport", "task": "trash", "deck": 0, "x": 19.35, "z": 2.75 },
     { "id": "pp-trash-arcade", "task": "trash", "deck": 0, "x": 18.7, "z": 7.1, "variant": "snacks" },
 
-    { "id": "ps-plant-serre-1", "task": "plant", "deck": 1, "x": 2.6, "z": 2.35 },
-    { "id": "ps-plant-serre-2", "task": "plant", "deck": 1, "x": 5.1, "z": 4.7 },
+    { "id": "ps-plant-serre-1", "task": "plant", "deck": 1, "x": 2.6, "z": 3.35 },
+    { "id": "ps-plant-serre-2", "task": "plant", "deck": 1, "x": 5.1, "z": 5.7 },
     { "id": "ps-plant-coursive", "task": "plant", "deck": 1, "x": 14.4, "z": 5.05 },
     { "id": "ps-plant-salon", "task": "plant", "deck": 1, "x": 18.01, "z": 6.61 },
     { "id": "ps-fur-coursive", "task": "fur", "deck": 1, "x": 12.74, "z": 5.09 },

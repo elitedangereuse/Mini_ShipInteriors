@@ -16,19 +16,30 @@ const map = new ShipMap(SHIP_LAYOUTS[GARDEN_LEVEL], shipMapOptions(GARDEN_LEVEL)
 /** Dans un meuble, à sa carrure près (un peu moins que celle des trajets) : elle n'y passe jamais. */
 const inFurniture = ({ x, z }) => GARDEN_OBSTACLES.find((r) => x > r.minX - 0.12 && x < r.maxX + 0.12 && z > r.minZ - 0.12 && z < r.maxZ + 0.12)
 /** Dans la serre, à distance des murs (faces intérieures à 0,15 des bords des tuiles). */
-const inRoom = ({ x, z }) => map.room(Math.round(x), Math.round(z)) === GARDEN_ROOM && x > -0.35 && x < 7.35 && z > -0.35 && z < 6.35
+const inRoom = ({ x, z }) => map.room(Math.round(x), Math.round(z)) === GARDEN_ROOM && x > -0.35 && x < 7.35 && z > 0.65 && z < 8.35
 const at = ({ x, z }) => `(${x.toFixed(2)}, ${z.toFixed(2)})`
 
 test('la serre, agrandie vers la poupe, s\'ouvre sur la coursive par sa porte', () => {
   let tiles = 0
-  for (let z = 0; z <= 6; z++) for (let x = 0; x <= 7; x++) if (map.room(x, z) === GARDEN_ROOM) tiles++
-  assert.ok(tiles >= 50, `${tiles} tuiles`)
-  // Les coins cassés.
-  for (const [x, z] of [[0, 0], [1, 0], [0, 1], [0, 6]]) assert.equal(map.room(x, z), null, `tuile (${x}, ${z})`)
+  for (let z = 1; z <= 8; z++) for (let x = 0; x <= 7; x++) if (map.room(x, z) === GARDEN_ROOM) tiles++
+  assert.equal(tiles, 58)
+  // Les coins cassés, les mêmes au nord et au sud.
+  for (const [x, z] of [[0, 1], [1, 1], [0, 2], [0, 7], [0, 8], [1, 8]]) assert.equal(map.room(x, z), null, `tuile (${x}, ${z})`)
   // La porte, entre la serre et la coursive.
-  assert.equal(map.room(7, 4), GARDEN_ROOM)
-  assert.equal(map.room(9, 4), 'c')
-  assert.ok(map.doors.some((d) => d.x === 8 && d.z === 4))
+  assert.equal(map.room(7, 5), GARDEN_ROOM)
+  assert.equal(map.room(9, 5), 'c')
+  assert.ok(map.doors.some((d) => d.x === 8 && d.z === 5))
+})
+
+test('la serre est centrée sur la coursive', () => {
+  /** Milieu (en z) des tuiles de la pièce `room` dans la colonne `x`. */
+  const middle = (room, x) => {
+    const rows = []
+    for (let z = 0; z < map.height; z++) if (map.room(x, z) === room) rows.push(z)
+    return (Math.min(...rows) + Math.max(...rows)) / 2
+  }
+  assert.equal(middle(GARDEN_ROOM, 7), middle('c', 9))
+  assert.equal(middle(GARDEN_ROOM, 0), middle('c', 9))
 })
 
 test('elle avance sans jamais sauter, y compris d\'un tour au suivant', () => {
@@ -64,8 +75,8 @@ test('elle travaille à chaque poste le temps prévu', () => {
 
 test('ses trajets contournent les bacs', () => {
   // Du pied de l'arbre (ouest) à la cuve (nord-est) : les bacs potagers sont entre les deux.
-  const from = { x: 1.3, z: 2.2 }, to = { x: 5.95, z: 0.6 }
-  for (const [a, b] of [[from, to], [{ x: 4.0, z: 4.45 }, { x: 3.9, z: 0.7 }]]) {
+  const from = { x: 1.3, z: 3.2 }, to = { x: 5.95, z: 1.6 }
+  for (const [a, b] of [[from, to], [{ x: 4.0, z: 5.45 }, { x: 3.9, z: 1.7 }]]) {
     const route = gardenRoute(a, b)
     let prev = [a.x, a.z]
     for (const p of route) {
@@ -75,7 +86,7 @@ test('ses trajets contournent les bacs', () => {
     assert.deepEqual(route.at(-1), [b.x, b.z])
   }
   // Le long des pas japonais : tout droit.
-  assert.deepEqual(gardenRoute({ x: 2.6, z: 4.0 }, { x: 6.8, z: 4.0 }), [[6.8, 4.0]])
+  assert.deepEqual(gardenRoute({ x: 2.6, z: 5.0 }, { x: 6.8, z: 5.0 }), [[6.8, 5.0]])
 })
 
 /** Une image du jeu : elle avance vers sa place comme dans src/gardener.ts. */
