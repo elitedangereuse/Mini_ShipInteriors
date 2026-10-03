@@ -30,10 +30,19 @@ const RANKING_NOTES: Record<string, string> = {
   days30: tr('Points gagnés sur le site ces 30 derniers jours.', 'Points earned on the site over the last 30 days.'),
 }
 /** En développement, le site (profils, images) est servi ailleurs que le jeu. */
-const siteHref = (path: string) => import.meta.env.DEV ? new URL(path, import.meta.env.VITE_ED_SITE_ORIGIN || 'http://localhost:8080').href : path
+export const siteHref = (path: string) => import.meta.env.DEV ? new URL(path, import.meta.env.VITE_ED_SITE_ORIGIN || 'http://localhost:8080').href : path
+/**
+ * L'aventure du site à faire la plus proche du CMDR dans Elite (cf. msi_site_nearest_adventure) :
+ * `done` s'il les a toutes terminées ; `located` à false si sa position est inconnue (la distance
+ * part alors de Sol) ; `system` manque quand l'aventure ne dit pas où elle commence.
+ */
+export interface NearestAdventure {
+  state: 'nearest' | 'done'; located?: boolean; from?: string; title?: { fr: string; en: string }
+  url?: string; system?: string | null; distance?: number
+}
 interface Reply {
   status: string; error?: string; art?: Artwork[]; pending?: Record<string, Reward[]>;
-  rankings?: Ranking[]; earned?: number; balance?: number; count?: number
+  rankings?: Ranking[]; earned?: number; balance?: number; count?: number; adventure?: NearestAdventure
 }
 export async function siteRequest(query = '', body?: object): Promise<Reply | null> {
   try {
@@ -42,6 +51,21 @@ export async function siteRequest(query = '', body?: object): Promise<Reply | nu
       body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(15000) })
     return await res.json()
   } catch { return null }
+}
+
+/**
+ * L'aventure la plus proche du CMDR, pour Bugenhagen ; `auth` : personne n'est connecté au site ;
+ * null : le site ne répond pas. Une réponse sert trois minutes : le site interroge Frontier à chaque fois.
+ */
+let nearest: { at: number; adventure: NearestAdventure } | null = null
+export async function nearestAdventure(): Promise<NearestAdventure | 'auth' | null> {
+  if (nearest && Date.now() - nearest.at < 180000) return nearest.adventure
+  const reply = await siteRequest('?adventure=1')
+  if (reply?.status === 'success' && reply.adventure) {
+    nearest = { at: Date.now(), adventure: reply.adventure }
+    return reply.adventure
+  }
+  return reply?.error === 'auth' ? 'auth' : null
 }
 
 /** Only owned artwork is offered, but visiting cabins can render any valid artwork ID. */

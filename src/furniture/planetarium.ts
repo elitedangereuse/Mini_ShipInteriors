@@ -454,6 +454,8 @@ const planetariumSky: Builder = ({ random }) => {
   })
   const guide = halo('#ffe9a8', 0.5, 0)
   guide.position.copy(at(0.7, -Math.PI * 0.75)).multiplyScalar(0.97)
+  // Elle passe devant tout : sans cela, elle ne se dessinait pas (essai en jeu).
+  guide.material.depthTest = false
   live.add(guide)
 
   // Le temps de l'hologramme : il s'emballe pendant la séance, et tout le ciel se met à tourner.

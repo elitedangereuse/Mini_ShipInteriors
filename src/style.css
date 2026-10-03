@@ -3899,6 +3899,8 @@ body.planet {
 .planetarium-box[hidden] { display: none; }
 .planetarium-name { display: block; margin-bottom: 4px; color: #8fe8ff; letter-spacing: 0.06em; }
 .planetarium-text { margin: 0; min-height: 3.1em; }
+.planetarium-link { display: inline-block; margin-top: 8px; color: #ffe9a8; font-weight: 700; text-underline-offset: 3px; }
+.planetarium-link[hidden] { display: none; }
 .planetarium-more { position: absolute; right: 12px; bottom: 8px; font-size: 11px; animation: planetarium-more 0.9s ease-in-out infinite; }
 .planetarium-more[hidden] { display: none; }
 @keyframes planetarium-more { 50% { transform: translateY(3px); } }
