@@ -35,10 +35,12 @@ export function cleanCmdrName(name) {
 }
 
 /**
- * Demande au site quel CMDR porte ce cookie.
- * @returns {Promise<{name: string, ljpc: boolean, voie: boolean, bar: boolean} | null>} identité vérifiée, ou null (invité, site injoignable)
+ * Demande au site quel CMDR porte ce cookie. Avec la clé du relais (`secret`, MSI_RELAY_SECRET),
+ * le site sait que le joueur embarque pour de bon : à sa première connexion, il lui décerne le
+ * badge du jeu, et le dit (`welcome`).
+ * @returns {Promise<{name: string, ljpc: boolean, voie: boolean, bar: boolean, welcome: boolean} | null>} identité vérifiée, ou null (invité, site injoignable)
  */
-export async function cmdrIdentityFromCookie(cookieHeader, { url, timeoutMs = 3000, error = console.error } = {}) {
+export async function cmdrIdentityFromCookie(cookieHeader, { url, secret = '', timeoutMs = 3000, error = console.error } = {}) {
   const value = cookieValue(cookieHeader)
   // Sans cookie, inutile d'interroger le site : c'est un invité. (En local, le site connecte
   // d'office tout visiteur : il répondrait un CMDR même pour une requête sans cookie.)
@@ -46,7 +48,7 @@ export async function cmdrIdentityFromCookie(cookieHeader, { url, timeoutMs = 30
   try {
     const res = await fetch(url, {
       // Seul le cookie du site part : pas les autres cookies du navigateur.
-      headers: { Cookie: `${COOKIE}=${value}`, Accept: 'application/json' },
+      headers: { Cookie: `${COOKIE}=${value}`, Accept: 'application/json', ...(secret ? { 'X-Relay-Key': secret } : {}) },
       redirect: 'error',
       signal: AbortSignal.timeout(timeoutMs),
     })
@@ -56,7 +58,7 @@ export async function cmdrIdentityFromCookie(cookieHeader, { url, timeoutMs = 30
     }
     const data = await res.json()
     const name = cleanCmdrName(data?.cmdr)
-    return name ? { name, ljpc: data?.ljpc === true, voie: data?.voie === true, bar: data?.bar === true } : null
+    return name ? { name, ljpc: data?.ljpc === true, voie: data?.voie === true, bar: data?.bar === true, welcome: data?.welcome === true } : null
   } catch (err) {
     error(`[relais] identité : site injoignable (${err?.message ?? err}), joueur traité en invité`)
     return null

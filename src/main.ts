@@ -1460,6 +1460,8 @@ net.onMessage = (m) => {
       for (const p of m.players) addRemote(p)
       for (const h of m.homes ?? []) absentHosts.set(h.id, h.name)
       chat.add('system', welcomeOnline(m.players.length))
+      // Première connexion d'un CMDR : le site vient de lui décerner le badge du jeu.
+      if (m.you.welcome) chat.add('system', tr('Première visite à bord : badge « Bienvenue à bord » obtenu sur le site.', 'First time aboard: “Welcome Aboard” badge earned on the site.'))
       // Reconnu (ou non) par le relais : l'annuaire et notre boîte, tels que le site les tient.
       void loadDirectory(true)
       // Les jukebox du pont principal et de la cale, tels que le relais les connaît (après une reconnexion aussi).

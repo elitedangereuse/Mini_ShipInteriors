@@ -230,7 +230,7 @@ export type SalvageAction = 'create' | 'join' | 'leave' | 'settings' | 'ready' |
 
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
-  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean; bar?: boolean }; players: PlayerState[]; homes?: { id: number; name: string }[]; music?: MusicState; hold?: MusicState; system?: SystemId; patrol?: PatrolState; chef?: ChefState; nurse?: NurseState; mechanic?: MechanicState; gardener?: GardenerState; chief?: ChiefState; salvage?: SalvageLobby }
+  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean; bar?: boolean; welcome?: boolean }; players: PlayerState[]; homes?: { id: number; name: string }[]; music?: MusicState; hold?: MusicState; system?: SystemId; patrol?: PatrolState; chef?: ChefState; nurse?: NurseState; mechanic?: MechanicState; gardener?: GardenerState; chief?: ChiefState; salvage?: SalvageLobby }
   | { t: 'join'; player: PlayerState }
   | { t: 'leave'; id: number }
   | { t: 'state'; id: number; x: number; z: number; yaw: number; level: number; anim: string; pose?: string; py?: number }
@@ -286,8 +286,12 @@ export type ServerMessage =
   | ({ t: 'salvage:state' } & SalvageState)
   | ({ t: 'salvage:event' } & SalvageEvent)
   | ({ t: 'salvage:end' } & SalvageEnd)
-  /** Gain d'une mission ; `refused` : pas payée (missions du jour déjà payées, mission trop rapide). */
-  | { t: 'salvage:reward'; game: string; earned: number; balance?: number; refused?: 'max' | 'early' }
+  /**
+   * Gain d'une mission ; `refused` : pas payée (missions du jour déjà payées, mission trop rapide).
+   * `boosters` : boosters de cartes du site gagnés (première victoire de la semaine) ; `badge` : le
+   * badge de la zone vient d'être décerné sur le site.
+   */
+  | { t: 'salvage:reward'; game: string; earned: number; balance?: number; refused?: 'max' | 'early'; boosters?: number; badge?: boolean }
   | { t: 'salvage:error'; code: string }
 
 /**

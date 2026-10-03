@@ -581,6 +581,21 @@ export class MissionHud {
       : tr('Pas de prime : mission bouclée trop vite, le relais ne l\'a pas transmise au site.', 'No reward: the mission ended too fast, the relay didn\'t pass it on to the site.')
   }
 
+  /** Ce que la victoire rapporte sur le site : boosters de cartes de la semaine, badge de la zone. */
+  siteRewards(boosters: number, badge: boolean) {
+    const reward = this.end.querySelector('.salvage-end-reward')
+    if (!reward || (boosters < 1 && !badge)) return
+    this.end.querySelector('.salvage-end-site')?.remove()
+    const lines: string[] = []
+    if (boosters > 0) lines.push(boosters > 1
+      ? tr(`Première récupération de la semaine : ${boosters} boosters de Cartes Dangereuses vous attendent sur le site.`, `First recovery of the week: ${boosters} Cartes Dangereuses boosters are waiting for you on the site.`)
+      : tr('Première récupération de la semaine : un booster de Cartes Dangereuses vous attend sur le site.', 'First recovery of the week: a Cartes Dangereuses booster is waiting for you on the site.'))
+    if (badge) lines.push(tr('Badge « Récupérateur » obtenu.', '“Salvager” badge earned.'))
+    const site = el('p', 'salvage-end-reward salvage-end-site')
+    site.textContent = lines.join(' ')
+    reward.after(site)
+  }
+
   get endOpen() {
     return !this.end.hidden
   }

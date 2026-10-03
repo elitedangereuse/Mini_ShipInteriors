@@ -22,6 +22,9 @@ import { VENT_DROP, VENT_GRATE, VENT_LEVEL } from '../shared/vents.js'
 /** Faux site : reconnaît deux cookies, comme outils/mini-shipinteriors-cmdr.php. */
 const ACCOUNTS = { 'jeton-adam': 'Adam Fauster', 'jeton-rackam': 'Rackam' }
 const seen = []
+/** Clé présentée par le relais à chaque demande d'identité (le site y reconnaît une vraie connexion au jeu). */
+const relayKeys = []
+const welcomed = new Set(['Adam Fauster'])
 const cinemaTrailer = { id: 42, title: 'Le Détournement', image: '/outils/mini-shipinteriors-cinema.php?image=42', video: 'JMo_6uawuBg' }
 const site = createServer((req, res) => {
   if (req.url === '/outils/mini-shipinteriors-cinema.php') {
@@ -30,11 +33,17 @@ const site = createServer((req, res) => {
     return
   }
   seen.push(req.headers.cookie)
+  relayKeys.push(req.headers['x-relay-key'])
   const name = ACCOUNTS[cookieValue(req.headers.cookie)] ?? null
   res.setHeader('Content-Type', 'application/json')
   if (req.url === '/outils/mini-shipinteriors-site.php?ownership=1') {
     res.end(JSON.stringify({ status: 'success', art: name ? [{ id: 'card:3598ce6f965b2481', kind: 'card' }] : [] }))
-  } else res.end(JSON.stringify({ cmdr: name, ljpc: name === 'Adam Fauster', voie: name === 'Adam Fauster', bar: name === 'Adam Fauster' }))
+  } else {
+    // Première connexion de Rackam : le site lui décerne le badge du jeu, une fois, et le dit.
+    const welcome = name === 'Rackam' && !welcomed.has(name)
+    if (welcome) welcomed.add(name)
+    res.end(JSON.stringify({ cmdr: name, ljpc: name === 'Adam Fauster', voie: name === 'Adam Fauster', bar: name === 'Adam Fauster', welcome }))
+  }
 })
 
 test('cinéma : seul le fauteuil de régie programme le trailer reçu par tout le bord', async () => {
@@ -149,32 +158,40 @@ const welcome = (socket) =>
 describe('identité', () => {
   test('un cookie reconnu par le site donne un CMDR vérifié', async () => {
     const w = await welcome(client({ cookie: 'autre=1; ED_LOGGED_CMDR_ID=jeton-adam', auth: { name: 'CMDR Usurpateur' } }))
-    assert.deepEqual(w.you, { name: 'CMDR Adam Fauster', verified: true, ljpc: true, voie: true, bar: true })
+    assert.deepEqual(w.you, { name: 'CMDR Adam Fauster', verified: true, ljpc: true, voie: true, bar: true, welcome: false })
     // Seul le cookie du site est relayé, pas les autres cookies du navigateur.
     assert.equal(seen.at(-1), 'ED_LOGGED_CMDR_ID=jeton-adam')
+  })
+
+  test('le relais se présente au site avec sa clé : la première connexion vaut le badge du jeu', async () => {
+    const first = await welcome(client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-rackam' }))
+    assert.equal(relayKeys.at(-1), 'clé-du-relais')
+    assert.equal(first.you.welcome, true)
+    const again = await welcome(client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-rackam' }))
+    assert.equal(again.you.welcome, false)
   })
 
   test('sans cookie, invité avec le nom de son choix', async () => {
     const before = seen.length
     const w = await welcome(client({ auth: { name: 'CMDR Ripley' } }))
-    assert.deepEqual(w.you, { name: 'CMDR Ripley', verified: false, ljpc: false, voie: false, bar: false })
+    assert.deepEqual(w.you, { name: 'CMDR Ripley', verified: false, ljpc: false, voie: false, bar: false, welcome: false })
     assert.equal(seen.length, before, 'le site n\'est pas interrogé sans cookie')
   })
 
   test('un cookie inconnu du site reste invité', async () => {
     const w = await welcome(client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-bidon', auth: { name: 'CMDR Solo' } }))
-    assert.deepEqual(w.you, { name: 'CMDR Solo', verified: false, ljpc: false, voie: false, bar: false })
+    assert.deepEqual(w.you, { name: 'CMDR Solo', verified: false, ljpc: false, voie: false, bar: false, welcome: false })
   })
 
   test('hors serveur de dev, le nom de CMDR envoyé par le client est ignoré', async () => {
     const w = await welcome(client({ auth: { name: 'CMDR Kirk', cmdr: 'Adam Fauster' } }))
-    assert.deepEqual(w.you, { name: 'CMDR Kirk', verified: false, ljpc: false, voie: false, bar: false })
+    assert.deepEqual(w.you, { name: 'CMDR Kirk', verified: false, ljpc: false, voie: false, bar: false, welcome: false })
   })
 
   test('un invité ne prend pas le nom d\'un CMDR vérifié à bord', async () => {
     await welcome(client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-rackam' }))
     const w = await welcome(client({ auth: { name: 'cmdr rackam' } }))
-    assert.deepEqual(w.you, { name: 'cmdr rackam (invité)', verified: false, ljpc: false, voie: false, bar: false })
+    assert.deepEqual(w.you, { name: 'cmdr rackam (invité)', verified: false, ljpc: false, voie: false, bar: false, welcome: false })
   })
 
   test('un CMDR vérifié ne change pas de nom en jeu', async () => {

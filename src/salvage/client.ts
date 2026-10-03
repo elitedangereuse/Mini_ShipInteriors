@@ -427,12 +427,12 @@ export class SalvageClient {
         }
         break
       case 'salvage:reward':
-        if (m.refused) {
-          this.hud.refused(m.refused)
-          break
+        if (m.refused) this.hud.refused(m.refused)
+        else {
+          this.host.wallet.site({ earned: m.earned, balance: m.balance })
+          this.hud.paid(m.earned)
         }
-        this.host.wallet.site({ earned: m.earned, balance: m.balance })
-        this.hud.paid(m.earned)
+        this.hud.siteRewards(m.boosters ?? 0, m.badge === true)
         break
     }
   }

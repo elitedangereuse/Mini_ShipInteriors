@@ -71,7 +71,7 @@ export function inLobby(p) {
  * @param {(id: number) => any} o.playerById joueur du relais (id, name, verified, level, x, z, anim, cookie)
  * @param {(id: number, event: string, data: object) => void} o.emit envoie à un joueur
  * @param {(event: string, data: object) => void} o.broadcast envoie à tout le bord
- * @param {(member: object, result: object) => Promise<{ earned: number, balance?: number, capped?: boolean } | null>} [o.reward]
+ * @param {(member: object, result: object) => Promise<{ earned: number, balance?: number, capped?: boolean, boosters?: number, badge?: boolean } | null>} [o.reward]
  *   paie un membre ; `capped` : le site a déjà payé ses missions du jour
  * @param {(parcels: number, team: number) => number} [o.minDuration] durée (s) en deçà de laquelle
  *   une victoire n'est pas payée
@@ -362,8 +362,11 @@ export function createSalvage({
     for (const m of game.members.values()) {
       if (!m.verified || !m.cookie) continue
       void reward(m, result).then((r) => {
-        if (r?.capped) emit(m.id, 'salvage:reward', { game: game.id, earned: 0, refused: 'max' })
-        else if (r) emit(m.id, 'salvage:reward', { game: game.id, earned: r.earned, balance: r.balance })
+        if (!r) return
+        // Ce que la victoire rapporte sur le site, payée ou non : boosters de la semaine, badge de la zone.
+        const site = { boosters: r.boosters || 0, badge: r.badge === true }
+        if (r.capped) emit(m.id, 'salvage:reward', { game: game.id, earned: 0, refused: 'max', ...site })
+        else emit(m.id, 'salvage:reward', { game: game.id, earned: r.earned, balance: r.balance, ...site })
       }).catch(() => {})
     }
   }

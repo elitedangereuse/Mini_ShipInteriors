@@ -549,7 +549,7 @@ export function attachRelay(
     const auth = obj(socket.handshake.auth)
     socket.data.identity = devCmdr && auth.cmdr
       ? { name: cleanCmdrName(auth.cmdr), ljpc: auth.ljpc === true, voie: auth.voie === true, bar: auth.bar === true }
-      : await cmdrIdentityFromCookie(socket.handshake.headers.cookie, { url: cmdrUrl, error })
+      : await cmdrIdentityFromCookie(socket.handshake.headers.cookie, { url: cmdrUrl, secret: relaySecret, error })
     next()
   })
 
@@ -586,7 +586,8 @@ export function attachRelay(
     sockets.set(player.id, socket)
     socket.emit('welcome', {
       id: player.id,
-      you: { name: player.name, verified: player.verified, ljpc: player.ljpc, voie: player.voie, bar: player.bar },
+      // `welcome` : première connexion du CMDR, le site vient de lui décerner le badge du jeu.
+      you: { name: player.name, verified: player.verified, ljpc: player.ljpc, voie: player.voie, bar: player.bar, welcome: !!cmdr && identity.welcome === true },
       // Ceux qui sont dans la baie infestée y sont annoncés (pont -2) : le client ne les montre pas.
       players: [...players.values()].filter((p) => p !== player).map(publicState),
       // Les jukebox du pont principal et de la cale, silence compris : après une reconnexion, on se recale.

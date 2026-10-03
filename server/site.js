@@ -31,8 +31,10 @@ export async function siteArtworkAllowed(layout, cookie, cmdrUrl) {
  * reconnaît le CMDR par son cookie, et le relais par la clé partagée (MSI_RELAY_SECRET des deux
  * côtés) ; il paie une fois par partie et par CMDR, et compte la victoire au classement.
  * Au-delà des missions payées du jour, le site répond `max` : on le rend (`capped`) pour que
- * l'équipe le sache.
- * @returns {Promise<{ earned: number, balance?: number, capped?: boolean } | null>} null : pas de gain (invité, site injoignable, déjà payé)
+ * l'équipe le sache. La victoire rapporte aussi, sur le site, les boosters de cartes de la semaine
+ * (`boosters`, à la première victoire de la semaine) et le badge de la zone (`badge`, à la toute
+ * première) : payée ou non, on les rend avec.
+ * @returns {Promise<{ earned: number, balance?: number, capped?: boolean, boosters: number, badge: boolean } | null>} null : pas de gain (invité, site injoignable, déjà payé)
  */
 export async function postSalvageResult(cookie, result, { cmdrUrl, secret, error = console.error, fetcher = fetch, timeoutMs = 8000 }) {
   const value = cookieValue(cookie)
@@ -51,12 +53,13 @@ export async function postSalvageResult(cookie, result, { cmdrUrl, secret, error
       signal: AbortSignal.timeout(timeoutMs),
     })
     const data = await response.json().catch(() => null)
-    if (data?.error === 'max') return { earned: 0, capped: true }
+    const site = { boosters: Math.max(0, Math.floor(Number(data?.boosters) || 0)), badge: typeof data?.badge === 'string' && data.badge !== '' }
+    if (data?.error === 'max') return { earned: 0, capped: true, ...site }
     if (!response.ok || data?.status !== 'success') {
       if (data?.error !== 'already') error(`[salvage] gain de la mission ${result.game} refusé par le site (${response.status} ${data?.error ?? ''})`)
       return null
     }
-    return { earned: Number(data.earned) || 0, balance: Number(data.balance) || 0 }
+    return { earned: Number(data.earned) || 0, balance: Number(data.balance) || 0, ...site }
   } catch (err) {
     error(`[salvage] site injoignable pour la mission ${result.game} (${err?.message ?? err})`)
     return null

@@ -118,11 +118,12 @@ test('le résultat part au site avec le cookie du CMDR et la clé du relais', as
   const calls = []
   const fetcher = async (u, init) => {
     calls.push({ url: String(u), init })
-    return { ok: true, json: async () => ({ status: 'success', earned: 4500, balance: 34500 }) }
+    return { ok: true, json: async () => ({ status: 'success', earned: 4500, balance: 34500, boosters: 1, badge: 'zone-thargoide' }) }
   }
   const result = { game: 'abc', won: true, parcels: 2, enemies: 2, team: 1, delivered: 2, duration: 300 }
   const r = await postSalvageResult('ED_LOGGED_CMDR_ID=jeton-adam', result, { cmdrUrl: 'https://site.test/outils/mini-shipinteriors-cmdr.php', secret: 'clé', fetcher })
-  assert.deepEqual(r, { earned: 4500, balance: 34500 })
+  // Avec les crédits, ce que la victoire rapporte sur le site : booster de la semaine, badge de la zone.
+  assert.deepEqual(r, { earned: 4500, balance: 34500, boosters: 1, badge: true })
   assert.equal(calls[0].url, 'https://site.test/outils/mini-shipinteriors-salvage.php')
   assert.equal(calls[0].init.headers['X-Relay-Key'], 'clé')
   assert.equal(calls[0].init.headers.Cookie, 'ED_LOGGED_CMDR_ID=jeton-adam')
@@ -131,4 +132,12 @@ test('le résultat part au site avec le cookie du CMDR et la clé du relais', as
   assert.equal(await postSalvageResult('ED_LOGGED_CMDR_ID=x', result, { cmdrUrl: 'https://site.test/', secret: '', fetcher, error: () => {} }), null)
   assert.equal(await postSalvageResult(null, result, { cmdrUrl: 'https://site.test/', secret: 'clé', fetcher }), null)
   assert.equal(calls.length, 1)
+  // Missions payées du jour faites : pas de prime, mais le booster de la semaine reste dû.
+  const capped = async () => ({ ok: false, status: 409, json: async () => ({ status: 'error', error: 'max', boosters: 1, badge: null }) })
+  assert.deepEqual(await postSalvageResult('ED_LOGGED_CMDR_ID=jeton-adam', result, { cmdrUrl: 'https://site.test/', secret: 'clé', fetcher: capped }),
+    { earned: 0, capped: true, boosters: 1, badge: false })
+  // Un site d'avant les boosters ne les annonce pas : zéro, pas de badge.
+  const old = async () => ({ ok: true, json: async () => ({ status: 'success', earned: 1500, balance: 31500 }) })
+  assert.deepEqual(await postSalvageResult('ED_LOGGED_CMDR_ID=jeton-adam', result, { cmdrUrl: 'https://site.test/', secret: 'clé', fetcher: old }),
+    { earned: 1500, balance: 31500, boosters: 0, badge: false })
 })

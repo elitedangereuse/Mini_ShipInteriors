@@ -262,11 +262,19 @@ test('anti-triche : une durée plausible est payée normalement', async () => {
 })
 
 test('plafond du jour : le site ne paie plus, l\'équipe le sait', async () => {
-  const h = harness(20260929, { reward: async () => ({ earned: 0, capped: true }) })
+  const h = harness(20260929, { reward: async () => ({ earned: 0, capped: true, boosters: 1, badge: false }) })
   await quickWin(h)
   const r = h.last(1, 'salvage:reward')
   assert.equal(r.refused, 'max')
   assert.equal(r.earned, 0)
+  // Sans prime, la première victoire de la semaine rapporte quand même son booster sur le site.
+  assert.equal(r.boosters, 1)
+})
+
+test('une victoire annonce ce qu\'elle rapporte sur le site : boosters de la semaine, badge de la zone', async () => {
+  const h = harness(20260929, { reward: async () => ({ earned: 1500, balance: 31500, boosters: 1, badge: true }) })
+  await quickWin(h)
+  assert.deepEqual(h.last(1, 'salvage:reward'), { game: h.last(1, 'salvage:end').game, earned: 1500, balance: 31500, boosters: 1, badge: true })
 })
 
 test('un invité gagne avec son équipe, mais le site ne paie que les CMDR', async () => {
