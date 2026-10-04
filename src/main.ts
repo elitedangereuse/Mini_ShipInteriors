@@ -1220,20 +1220,16 @@ gardenDeck.interactables.push({
   onInteract: () => {
     player.interact()
     net.sendEmote('interact')
-    // Au jardinier installé (un cabanon dans ses quartiers), elle ouvre son étal (cf. gardening/panel.ts).
-    if (!greenhouse.busy && garden.ready && wallet.items.has('garden-shed')) {
+    // À un CMDR connecté, elle ouvre son étal (cf. gardening/panel.ts) : sans cabanon dans ses
+    // quartiers, l'étal dit ce qu'il lui manque pour acheter ; un invité, lui, n'a que la conversation.
+    if (!greenhouse.busy && garden.state !== 'guest') {
       net.sendGardenTalk()
       return gardenPanel.open('shop')
     }
     // Pendant une fiche, elle rappelle l'étape ; sinon elle bavarde.
     const line = greenhouse.reminder() ?? gardener.talk(player.position, gardenerReport())
     if (!greenhouse.busy) net.sendGardenTalk()
-    // Une fois par visite, elle parle de son étal à qui n'a pas encore de potager.
-    const pitch = !greenhouse.busy && garden.ready && !gardenPitched
-      ? tr(' Et si tu veux ton potager à toi : pose un cabanon de jardinage et des tuiles de terre dans tes quartiers, puis reviens me voir. J\'ai des graines.', ' And if you want a vegetable patch of your own: put a garden shed and some plots of soil in your quarters, then come back to me. I have seeds.')
-      : ''
-    if (pitch) gardenPitched = true
-    dialog.show(tr(`${GARDENER} : « ${line}${pitch} »`, `${GARDENER}: “${line}${pitch}”`))
+    dialog.show(tr(`${GARDENER} : « ${line} »`, `${GARDENER}: “${line}”`))
   },
 })
 bubbles.attach('gardener', (out) => (gardenDeck.group.visible ? gardener.avatar.head(out) : null))
@@ -2213,8 +2209,6 @@ async function ride(target: number) {
 // jardinage et ses outils, l'étal de Capucine, la récolte que Marcel achète. Le site tient le jardin.
 const garden = new GardenStore(wallet)
 void garden.load()
-/** Capucine a déjà parlé de son étal pendant cette visite. */
-let gardenPitched = false
 const gardenView = new GardenView(homeDeck, () => cabin.items, () => garden.now())
 const gardenPanel = new GardenPanel({
   store: garden,

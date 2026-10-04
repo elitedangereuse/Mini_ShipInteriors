@@ -1,4 +1,4 @@
-import { formatCredits } from '../economy/data'
+import { formatCredits, itemPrice } from '../economy/data'
 import type { Wallet } from '../economy/wallet'
 import { tr } from '../i18n'
 import { icon, type IconName } from '../icons'
@@ -181,9 +181,10 @@ export class GardenPanel {
     const { store, wallet } = this.host
     const { garden } = store
     if (!this.host.shed()) {
+      const shed = formatCredits(itemPrice('garden-shed') ?? 0), tile = formatCredits(itemPrice('soil-tile') ?? 0)
       this.body.append(el('p', 'gp-empty', tr(
-        'Capucine ne vend qu\'aux jardiniers installés : il vous faut un cabanon de jardinage dans vos quartiers, et des tuiles de terre cultivable (Aménager, catégorie Jardinage).',
-        'Capucine only sells to settled gardeners: you need a garden shed in your quarters, and plots of soil (Decorate, Gardening category).',
+        `Capucine ne vend qu'aux jardiniers installés. Pour acheter ici, débloquez d'abord le cabanon de jardinage (${shed}) dans vos quartiers : Aménager (B), catégorie Jardinage. Vous y trouverez aussi la tuile de terre cultivable (${tile}), sur laquelle on sème.`,
+        `Capucine only sells to settled gardeners. To buy here, first unlock the garden shed (${shed}) in your quarters: Decorate (B), Gardening category. You will also find the plot of soil there (${tile}), which is what you sow on.`,
       )))
       this.status.textContent = ''
       return
