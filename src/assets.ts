@@ -46,6 +46,12 @@ export const NATURE_PACK = 'furniture/kenney-nature.glb'
  */
 export const FISH_PACK = 'fish/quaternius-fish.glb'
 
+/**
+ * Sélection du « Cute Fish Pack » du même auteur (CC0), en un fichier de même forme : les autres
+ * poissons de l'étang (cf. scripts/import-quaternius-cute-fish.mjs). Sans normales : à facettes.
+ */
+export const CUTE_FISH_PACK = 'fish/quaternius-cute-fish.glb'
+
 /** Tous les modèles du kit utilisent la même texture : un seul matériau partagé. */
 export let stationMaterial: THREE.MeshLambertMaterial
 
@@ -181,7 +187,7 @@ function load(path: string): Promise<GLTF> {
 
 /** @param extra modèles supplémentaires à charger d'emblée (personnage du joueur…) */
 export async function preload(extra: string[], onProgress: (ratio: number) => void): Promise<void> {
-  const paths = [...STATION_MODELS.map((m) => `station/${m}.glb`), ...extra, CAT_MODEL, FURNITURE_PACK, NATURE_PACK, FISH_PACK]
+  const paths = [...STATION_MODELS.map((m) => `station/${m}.glb`), ...extra, CAT_MODEL, FURNITURE_PACK, NATURE_PACK, FISH_PACK, CUTE_FISH_PACK]
   let done = 0
   await Promise.all(
     paths.map(async (p) => {

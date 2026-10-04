@@ -70,13 +70,15 @@ export const FISH_RARITY = {
 }
 
 /**
- * Les espèces de l'étang. `model` : le modèle du pack de Quaternius (cf.
- * scripts/import-quaternius-fish.mjs) ; `colors` : la couleur de chacune de ses parties (le nom de
- * ses matériaux) ; `glow` : la part de cette couleur qu'il émet (les poissons qui luisent) ;
- * `size` : la taille des prises, de la plus petite à la plus grande (cm).
+ * Les espèces de l'étang. `model` : le modèle d'un des deux packs de Quaternius (cf.
+ * scripts/import-quaternius-fish.mjs et import-quaternius-cute-fish.mjs) ; `colors` : la couleur
+ * de ses parties (le nom de ses matériaux), celles qu'on ne nomme pas gardant la couleur du pack ;
+ * `glow` : la part de cette couleur qu'une partie émet (les poissons qui luisent) ; `size` : la
+ * taille des prises, de la plus petite à la plus grande (cm).
  *
- * Le pack compte sept modèles : chacun donne plusieurs espèces, par ses couleurs. Trois
- * légendaires seulement.
+ * Le premier pack compte sept modèles sans couleurs propres : chacun donne plusieurs espèces, par
+ * ses couleurs. Les vingt-cinq du second ont les leurs : une espèce par modèle. Cinq légendaires
+ * seulement.
  */
 export const FISH = [
   // --- Communs
@@ -85,20 +87,45 @@ export const FISH = [
   { id: 'sol-bluefin', model: 'fish2', rarity: 'common', size: [12, 30], colors: { Body: '#2f5fd0', Front: '#5aa2ee', Fins: '#f0d878' } },
   { id: 'hydro-grazer', model: 'fish2', rarity: 'common', size: [8, 19], colors: { Body: '#3f8f4a', Front: '#8fce6a', Fins: '#d8f0a0' } },
   { id: 'jameson-clown', model: 'fish3', rarity: 'common', size: [6, 14], colors: { Body: '#f07a1c', Stripes: '#fbf6ea', Outline: '#1f1f24' } },
+  { id: 'pilot-goldfish', model: 'goldfish', rarity: 'common', size: [5, 16], colors: {} },
+  { id: 'cargo-tetra', model: 'tetra', rarity: 'common', size: [3, 8], colors: {} },
+  { id: 'coolant-catfish', model: 'catfish', rarity: 'common', size: [20, 48], colors: {} },
+  { id: 'sidewinder-tang', model: 'tang', rarity: 'common', size: [10, 26], colors: {} },
+  { id: 'eravate-butterfly', model: 'butterfly', rarity: 'common', size: [8, 20], colors: {} },
+  { id: 'hauler-cowfish', model: 'cowfish', rarity: 'common', size: [12, 30], colors: {} },
+  { id: 'paintjob-gramma', model: 'gramma', rarity: 'common', size: [5, 12], colors: {} },
+  { id: 'limpet-parrot', model: 'parrot', rarity: 'common', size: [20, 50], colors: {} },
+  { id: 'onionhead-horn', model: 'flowerhorn', rarity: 'common', size: [15, 35], colors: {} },
   // --- Rares
   { id: 'runaway-koi', model: 'fish1', rarity: 'rare', size: [35, 70], colors: { Top: '#f4f1e8', Bottom: '#fbf8f0', Fins: '#ff6a1f' } },
   { id: 'federal-fighter', model: 'fish2', rarity: 'rare', size: [10, 24], colors: { Body: '#c0262d', Front: '#f4f4f4', Fins: '#2b4ea8' } },
   { id: 'achenar-angel', model: 'fish3', rarity: 'rare', size: [12, 28], colors: { Body: '#2a5fc4', Stripes: '#ffd24a', Outline: '#f4f1e8' } },
   { id: 'dwarf-manta', model: 'manta', rarity: 'rare', size: [40, 85], colors: { Top: '#27406e', Bottom: '#e8ecf0' } },
+  { id: 'imperial-betta', model: 'betta', rarity: 'rare', size: [5, 11], colors: {} },
+  { id: 'kumo-koi', model: 'koi', rarity: 'rare', size: [30, 75], colors: {} },
+  { id: 'pirate-piranha', model: 'piranha', rarity: 'rare', size: [12, 30], colors: {} },
+  { id: 'heatsink-puffer', model: 'puffer', rarity: 'rare', size: [10, 28], colors: {} },
+  { id: 'cubeo-idol', model: 'idol', rarity: 'rare', size: [10, 23], colors: {} },
+  { id: 'colonia-mandarin', model: 'mandarin', rarity: 'rare', size: [4, 9], colors: {} },
+  { id: 'anaconda-wrasse', model: 'humphead', rarity: 'rare', size: [45, 110], colors: {} },
+  { id: 'type9-tuna', model: 'tuna', rarity: 'rare', size: [80, 170], colors: {} },
+  { id: 'interdictor-sole', model: 'flatfish', rarity: 'rare', size: [20, 45], colors: {} },
   // --- Épiques
   { id: 'diso-dolphin', model: 'dolphin', rarity: 'epic', size: [60, 110], colors: { Top: '#6f8da6', Bottom: '#e6eef2' } },
   { id: 'archon-shark', model: 'shark', rarity: 'epic', size: [70, 140], colors: { Top: '#3c4350', Bottom: '#cfd5da' } },
   { id: 'caustic-fish', model: 'fish3', rarity: 'epic', size: [15, 33], colors: { Body: '#1f3a2a', Stripes: '#7dff5a', Outline: '#0c1410' }, glow: { Stripes: 0.8 } },
   { id: 'nebula-ray', model: 'manta', rarity: 'epic', size: [55, 120], colors: { Top: '#6a2fb0', Bottom: '#ff8ad8' }, glow: { Bottom: 0.35 } },
+  { id: 'fdl-lionfish', model: 'lionfish', rarity: 'epic', size: [18, 40], colors: {} },
+  { id: 'stealth-lionfish', model: 'lionfish-black', rarity: 'epic', size: [18, 40], colors: { Light: '#55626e' } },
+  { id: 'railgun-swordfish', model: 'swordfish', rarity: 'epic', size: [90, 190], colors: {} },
+  { id: 'witch-goblin', model: 'goblin', rarity: 'epic', size: [100, 190], colors: {} },
+  { id: 'explorer-blobfish', model: 'blobfish', rarity: 'epic', size: [20, 38], colors: {} },
   // --- Légendaires
   { id: 'pocket-whale', model: 'whale', rarity: 'legendary', size: [90, 180], colors: { Top: '#2c3f78', Bottom: '#e9d9b0' } },
   { id: 'raxxla-shark', model: 'shark', rarity: 'legendary', size: [120, 200], colors: { Top: '#e8b838', Bottom: '#fff4c8' }, glow: { Top: 0.3 } },
   { id: 'guardian-fish', model: 'fish1', rarity: 'legendary', size: [25, 50], colors: { Top: '#12202c', Bottom: '#1c3444', Fins: '#5ff0ff' }, glow: { Fins: 1 } },
+  { id: 'beagle-sunfish', model: 'sunfish', rarity: 'legendary', size: [100, 200], colors: {} },
+  { id: 'void-angler', model: 'angler', rarity: 'legendary', size: [20, 60], colors: { Lamp: '#5ff0ff' }, glow: { Lamp: 1 } },
 ]
 
 /** Espèce de cet identifiant, ou undefined. */

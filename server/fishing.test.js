@@ -10,6 +10,13 @@ import { GARDEN_ROOM, GARDEN_SOUTH } from '../shared/gardener.js'
 import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import { ShipMap } from '../shared/ship-map.js'
 
+/** Modèles d'un pack de poissons (public/assets/fish/) et les parties de chacun : les nœuds du fichier, leurs matériaux. */
+function packModels(file) {
+  const glb = readFileSync(new URL(`../public/assets/fish/${file}`, import.meta.url))
+  const json = JSON.parse(glb.subarray(20, 20 + glb.readUInt32LE(12)).toString())
+  return new Map(json.nodes.map((n) => [n.name, json.meshes[n.mesh].primitives.map((p) => json.materials[p.material].name)]))
+}
+
 /** Aléatoire déterministe (mulberry32). */
 function rng(seed) {
   return () => {
@@ -48,11 +55,12 @@ test('on lance dans l\'eau : le centre y est, les coins arrondis et la margelle 
   }
 })
 
-test('les espèces : sept modèles tous utilisés, quatre raretés, trois légendaires, des identifiants uniques', () => {
+test('les espèces : les modèles des deux packs tous utilisés, quatre raretés, cinq légendaires, des identifiants uniques', () => {
   assert.deepEqual(FISH_RARITIES, ['common', 'rare', 'epic', 'legendary'])
   assert.equal(new Set(FISH.map((f) => f.id)).size, FISH.length)
-  assert.deepEqual([...new Set(FISH.map((f) => f.model))].sort(), ['dolphin', 'fish1', 'fish2', 'fish3', 'manta', 'shark', 'whale'])
-  assert.equal(FISH.filter((f) => f.rarity === 'legendary').length, 3)
+  const models = new Map([...packModels('quaternius-fish.glb'), ...packModels('quaternius-cute-fish.glb')])
+  assert.deepEqual([...new Set(FISH.map((f) => f.model))].sort(), [...models.keys()].sort())
+  assert.equal(FISH.filter((f) => f.rarity === 'legendary').length, 5)
   for (const rarity of FISH_RARITIES) assert.ok(FISH.some((f) => f.rarity === rarity), rarity)
   for (const f of FISH) {
     assert.ok(FISH_RARITIES.includes(f.rarity))
@@ -62,6 +70,7 @@ test('les espèces : sept modèles tous utilisés, quatre raretés, trois légen
     assert.match(f.id, /^[a-z0-9-]{1,18}$/)
     assert.equal(fishById(f.id), f)
     for (const color of Object.values(f.colors)) assert.match(color, /^#[0-9a-f]{6}$/)
+    for (const part of Object.keys(f.colors)) assert.ok(models.get(f.model).includes(part), `${f.id} : ${part}`)
     for (const part of Object.keys(f.glow ?? {})) assert.ok(f.colors[part], `${f.id} : ${part}`)
   }
 })

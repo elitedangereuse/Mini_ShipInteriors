@@ -378,8 +378,15 @@ const fishFrame: Builder = ({ label }) => {
   if (flat) mount.quaternion.setFromEuler(new THREE.Euler(Math.PI / 2, 0, Math.PI / 2, 'ZXY'))
   else mount.rotation.y = Math.PI / 2
   mount.updateMatrixWorld(true)
-  // Posé contre le panneau : son point le plus proche du mur à fleur du fond.
+  // Posé contre le panneau : son point le plus proche du mur à fleur du fond. Un poisson plus haut
+  // que le panneau (le poisson-lune) est réduit pour y tenir.
   const b = new THREE.Box3().setFromObject(mount)
+  const tall = b.max.y - b.min.y
+  if (tall > 0.33) {
+    mount.scale.setScalar(0.33 / tall)
+    mount.updateMatrixWorld(true)
+    b.setFromObject(mount)
+  }
   mount.position.set(-(b.min.x + b.max.x) / 2, 0.64 - (b.min.y + b.max.y) / 2, 0.026 - b.min.z)
   g.add(mount)
   return { solid: g }

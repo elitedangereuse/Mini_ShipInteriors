@@ -13,7 +13,13 @@ export declare function inPond(x: number, z: number, margin?: number): boolean
 export declare function castPoint(x: number, z: number): { x: number; z: number }
 
 export type FishRarity = 'common' | 'rare' | 'epic' | 'legendary'
-export type FishModel = 'fish1' | 'fish2' | 'fish3' | 'dolphin' | 'manta' | 'shark' | 'whale'
+export type FishModel =
+  // « Animated Fish Pack »
+  | 'fish1' | 'fish2' | 'fish3' | 'dolphin' | 'manta' | 'shark' | 'whale'
+  // « Cute Fish Pack »
+  | 'angler' | 'catfish' | 'betta' | 'lionfish-black' | 'blobfish' | 'tang' | 'butterfly' | 'cowfish' | 'flatfish' | 'flowerhorn'
+  | 'goblin' | 'goldfish' | 'humphead' | 'koi' | 'lionfish' | 'mandarin' | 'idol' | 'parrot' | 'piranha' | 'puffer'
+  | 'gramma' | 'sunfish' | 'swordfish' | 'tetra' | 'tuna'
 
 export declare const FISH_RARITIES: FishRarity[]
 /** Part des touches, feintes (de… à…), temps laissé pour ferrer (secondes). */
@@ -25,7 +31,7 @@ export interface FishSpecies {
   rarity: FishRarity
   /** Taille des prises, de la plus petite à la plus grande (cm). */
   size: [number, number]
-  /** Couleur de chaque partie du modèle (nom de ses matériaux). */
+  /** Couleur des parties du modèle (nom de ses matériaux) ; les autres gardent celle du pack. */
   colors: Record<string, string>
   /** Part de sa couleur qu'une partie émet (les poissons qui luisent). */
   glow?: Record<string, number>
