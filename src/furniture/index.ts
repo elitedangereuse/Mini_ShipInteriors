@@ -12,6 +12,7 @@ import { COZY } from './cozy'
 import { DECOR } from './decor'
 import { ELITE } from './elite'
 import { GARDEN } from './garden'
+import { GARDENING } from './gardening'
 import { HANGAR } from './hangar'
 import { compact, rng, type Builder, type Furniture, type Room } from './kit'
 import { KENNEY } from './kenney'
@@ -52,6 +53,7 @@ import { STUDIO } from './studio'
  * - cozy.ts : les quartiers (chambres, douches, serre, salon) ;
  * - nature.ts : les plantes du Nature Kit de Kenney pour la serre (buissons, fougères, palmiers en pot, bambous, cactus, paniers suspendus) ;
  * - garden.ts : la serre agrandie (bacs potagers, arbre fruitier, bassin, compost, grainothèque, arche fleurie, pelouse) ;
+ * - gardening.ts : le jardinage dans les quartiers (tuile de terre cultivable, cabanon, brouette, épouvantail, nain, clôture, ruche) ;
  * - decor.ts : la décoration des cabines (affiches, cadres, plantes, petits objets…) ;
  * - lights.ts : les luminaires des cabines (guirlande, bandeau LED, néons, lampadaire arc, suspensions…) ;
  * - party.ts : la soirée dans les quartiers (piste de danse, boule à facettes, platines…) ;
@@ -77,7 +79,7 @@ import { STUDIO } from './studio'
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...COCKPIT, ...CONCOURSE, ...WORKSHOP, ...BAR, ...CLUB, ...LEISURE, ...MEDICAL, ...KITCHEN, ...ARCADE, ...BOARD, ...COZY, ...GARDEN, ...NATURE, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...LISTENING, ...STUDIO, ...LJPC, ...PLANETARIUM, ...VENTS, ...VOIE, ...SALVAGE, ...HANGAR, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH, ...SPORT, ...FISHING } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...COCKPIT, ...CONCOURSE, ...WORKSHOP, ...BAR, ...CLUB, ...LEISURE, ...MEDICAL, ...KITCHEN, ...ARCADE, ...BOARD, ...COZY, ...GARDEN, ...GARDENING, ...NATURE, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...LISTENING, ...STUDIO, ...LJPC, ...PLANETARIUM, ...VENTS, ...VOIE, ...SALVAGE, ...HANGAR, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH, ...SPORT, ...FISHING } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 

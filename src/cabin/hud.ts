@@ -10,7 +10,8 @@ import { $, nameTag } from '../ui'
 
 export type CabinBarState =
   /** `open` : quartiers ouverts ou sur invitation (housing v2, absent : pas de bascule). */
-  | { kind: 'own'; canEdit: boolean; loginUrl?: string; open?: boolean }
+  /** `garden` : le mode jardinage est ouvert (absent : pas de tuile de terre débloquée, pas de bouton). */
+  | { kind: 'own'; canEdit: boolean; loginUrl?: string; open?: boolean; garden?: boolean }
   | { kind: 'visit'; host: string; inside: boolean }
   | null
 
@@ -18,6 +19,8 @@ export class CabinBar {
   private el = $('cabin-bar')
   private key = ''
   onEdit?: () => void
+  /** Sortir ou ranger les outils de jardinage (cf. gardening/mode.ts). */
+  onGarden?: () => void
   onLeave?: () => void
   /** Ouvrir ou fermer ses quartiers (housing v2). */
   onToggleOpen?: () => void
@@ -50,6 +53,11 @@ export class CabinBar {
     } else if (state.canEdit) {
       title.append(icon('bed'), document.createTextNode(tr('Vos quartiers', 'Your quarters')))
       actions.append(button(tr('Aménager', 'Decorate'), 'paint-brush', () => this.onEdit?.(), 'B'))
+      if (state.garden !== undefined) {
+        const b = button(state.garden ? tr('Ranger les outils', 'Put tools away') : tr('Jardiner', 'Garden'), 'shovel', () => this.onGarden?.(), 'G')
+        b.classList.toggle('cb-open', state.garden)
+        actions.append(b)
+      }
       if (state.open !== undefined) {
         const b = button(state.open ? tr('Ouverts', 'Open') : tr('Sur invitation', 'Invite only'), state.open ? 'lock-simple-open' : 'lock-simple', () => this.onToggleOpen?.())
         b.classList.toggle('cb-open', state.open)

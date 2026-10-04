@@ -67,15 +67,15 @@ export const SHIP_ENTRIES: CatalogEntry[] = [
     id: 'plant-wall', name: tr('Mur végétal', 'Living wall'), category: 'plants', model: 'plant-wall', mount: 'wall',
     variants: [{ id: '0.9', label: tr('Étroit', 'Narrow') }, { id: '1.6', label: tr('Large', 'Wide') }],
   },
-  { id: 'potting-bench', name: tr('Établi de rempotage', 'Potting bench'), category: 'plants', model: 'potting-bench', mount: 'floor' },
-  { id: 'nutrient-tank', name: tr('Cuve de nutriments', 'Nutrient tank'), category: 'plants', model: 'nutrient-tank', mount: 'floor' },
+  { id: 'potting-bench', name: tr('Établi de rempotage', 'Potting bench'), category: 'gardening', model: 'potting-bench', mount: 'floor' },
+  { id: 'nutrient-tank', name: tr('Cuve de nutriments', 'Nutrient tank'), category: 'gardening', model: 'nutrient-tank', mount: 'floor' },
   {
     id: 'pollinator-drone', name: tr('Drone pollinisateur', 'Pollinator drone'), category: 'plants', model: 'pollinator-drone', mount: 'floor', solid: false,
     label: () => '0.5',
     interact: tr('Le drone butine vos plantes. Il a pris les fleurs en plastique pour des vraies, et il insiste.', 'The drone pollinates your plants. It has mistaken the plastic flowers for real ones, and keeps at it.'),
   },
   {
-    id: 'garden-bed', name: tr('Bac potager', 'Raised garden bed'), category: 'plants', model: 'garden-bed', mount: 'floor',
+    id: 'garden-bed', name: tr('Bac potager', 'Raised garden bed'), category: 'gardening', model: 'garden-bed', mount: 'floor',
     variants: [
       { id: 'tomato', label: tr('Tomates', 'Tomatoes') },
       { id: 'lettuce', label: tr('Salades', 'Lettuce') },
@@ -91,10 +91,9 @@ export const SHIP_ENTRIES: CatalogEntry[] = [
     id: 'garden-pond', name: tr('Bassin aux carpes', 'Koi pond'), category: 'plants', model: 'garden-pond', mount: 'floor',
     interact: tr('Trois carpes koï tournent en rond. Elles ont l\'air de méditer. Ou de s\'ennuyer.', 'Three koi swim in circles. They seem to be meditating. Or bored.'),
   },
-  { id: 'seed-cabinet', name: tr('Grainothèque', 'Seed library'), category: 'plants', model: 'seed-cabinet', mount: 'floor' },
-  { id: 'water-barrel', name: tr('Récupérateur d\'eau', 'Water butt'), category: 'plants', model: 'water-barrel', mount: 'floor' },
-  { id: 'compost-bin', name: tr('Composteur', 'Compost bin'), category: 'plants', model: 'compost-bin', mount: 'floor' },
-  { id: 'harvest-crate', name: tr('Caisses de récolte', 'Harvest crates'), category: 'plants', model: 'harvest-crate', mount: 'floor' },
+  { id: 'seed-cabinet', name: tr('Grainothèque', 'Seed library'), category: 'gardening', model: 'seed-cabinet', mount: 'floor' },
+  { id: 'water-barrel', name: tr('Récupérateur d\'eau', 'Water butt'), category: 'gardening', model: 'water-barrel', mount: 'floor' },
+  { id: 'compost-bin', name: tr('Composteur', 'Compost bin'), category: 'gardening', model: 'compost-bin', mount: 'floor' },
   { id: 'garden-arch', name: tr('Arche de rosiers', 'Rose arch'), category: 'plants', model: 'garden-arch', mount: 'floor', solid: false, label: () => '1.1' },
   { id: 'butterflies', name: tr('Papillons', 'Butterflies'), category: 'plants', model: 'butterflies', mount: 'floor', solid: false, label: () => '0.6' },
   {

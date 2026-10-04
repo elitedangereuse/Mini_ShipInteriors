@@ -163,7 +163,7 @@ export class CrewPhone {
   private expanded: string | null = null
   private filter = ''
   private thread: string | null = null
-  private threads = new Map<string, { name: string; entries: Entry[]; stored?: string }>()
+  private threads = new Map<string, { name: string; entries: Entry[]; stored?: string; npc?: { status: string; note: string } }>()
   private unread = new Map<string, number>()
   private keys = { self: '', letters: '', thread: '' }
   private ticker = 0
@@ -630,6 +630,7 @@ export class CrewPhone {
     const c = this.byKey.get(key)
     const t = this.threads.get(key)!
     if (c) t.name = c.name
+    if (t.npc) return this.renderNpcHead(t.name, t.npc)
     const self = this.data.self
     const aboard = c?.id !== undefined
     // À qui l'on peut écrire : entre CMDR, le site garde le message (à bord ou non) ; sinon, à bord seulement, par le relais.
@@ -666,6 +667,24 @@ export class CrewPhone {
     this.input.disabled = this.send.disabled = !can
     this.input.maxLength = kept ? 280 : 200
     this.input.placeholder = can ? tr('Chuchoter…', 'Whisper…') : ''
+  }
+
+  /** En-tête d'une conversation avec un membre d'équipage : il écrit, on ne lui répond pas. */
+  private renderNpcHead(name: string, npc: { status: string; note: string }) {
+    const json = JSON.stringify([name, npc])
+    if (json === this.keys.thread) return
+    this.keys.thread = json
+    const back = el('button', 'ph-back')
+    back.type = 'button'
+    back.setAttribute('aria-label', tr('Retour à l\'annuaire', 'Back to the directory'))
+    back.append(icon('caret-left'))
+    back.onclick = () => this.showThread(null)
+    const who = el('div', 'ph-who')
+    who.append(el('strong', 'ph-name', name), el('span', 'ph-sub', npc.status))
+    this.threadHead.replaceChildren(back, el('span', 'ph-decks off'), who)
+    this.threadNote.textContent = npc.note
+    this.input.disabled = this.send.disabled = true
+    this.input.placeholder = ''
   }
 
   private renderThread() {
@@ -731,6 +750,18 @@ export class CrewPhone {
     this.badges()
     this.renderList()
     this.renderConversations()
+  }
+
+  /**
+   * Un message d'un membre d'équipage (Capucine, qui rappelle au jardinier ce qui l'attend, cf.
+   * gardening/notices.ts) : dans sa conversation, où l'on ne répond pas. `about` : où il est, et
+   * pourquoi il n'attend pas de réponse.
+   */
+  npc(key: string, name: string, text: string, about: { status: string; note: string }) {
+    const t = this.threads.get(key)
+    if (t) t.npc = about
+    else this.threads.set(key, { name, entries: [], npc: about })
+    this.receive(key, name, text)
   }
 
   /** Un chuchotement parti d'ailleurs (commande du chat) : il rejoint la conversation. */

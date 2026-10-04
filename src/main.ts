@@ -65,6 +65,12 @@ import { Hangar } from './hangar'
 import { GARDENER, Gardener, gardenerRig, type GardenerReport } from './gardener'
 import { GARDEN_LEVEL } from '../shared/gardener.js'
 import { Greenhouse } from './greenhouse'
+import { GardenMode } from './gardening/mode'
+import { GardenNotices } from './gardening/notices'
+import { GardenPanel } from './gardening/panel'
+import { GardenStore } from './gardening/store'
+import { GardenView, SOIL_ITEM } from './gardening/view'
+import { plotKey, stockTotal, type Plot } from '../shared/gardening.js'
 import { KRAIT_COCKPIT } from '../shared/mechanic.js'
 import { GroundBase } from './base/client'
 import { CHIEF } from './base/chief'
@@ -965,6 +971,11 @@ patrolDeck.interactables.push({
   onInteract: () => {
     player.interact()
     net.sendEmote('interact')
+    // Une récolte en réserve : il l'achète (cf. gardening/panel.ts).
+    if (!kitchen.cooking && garden.ready && stockTotal(garden.garden.stock) > 0) {
+      net.sendChefTalk()
+      return gardenPanel.open('sell')
+    }
     // Pendant une commande, il rappelle l'étape ; sinon il bavarde.
     const line = kitchen.reminder() ?? chef.talk(player.position, chefReport())
     if (!kitchen.cooking) net.sendChefTalk()
@@ -1209,10 +1220,20 @@ gardenDeck.interactables.push({
   onInteract: () => {
     player.interact()
     net.sendEmote('interact')
+    // Au jardinier installé (un cabanon dans ses quartiers), elle ouvre son étal (cf. gardening/panel.ts).
+    if (!greenhouse.busy && garden.ready && wallet.items.has('garden-shed')) {
+      net.sendGardenTalk()
+      return gardenPanel.open('shop')
+    }
     // Pendant une fiche, elle rappelle l'étape ; sinon elle bavarde.
     const line = greenhouse.reminder() ?? gardener.talk(player.position, gardenerReport())
     if (!greenhouse.busy) net.sendGardenTalk()
-    dialog.show(tr(`${GARDENER} : « ${line} »`, `${GARDENER}: “${line}”`))
+    // Une fois par visite, elle parle de son étal à qui n'a pas encore de potager.
+    const pitch = !greenhouse.busy && garden.ready && !gardenPitched
+      ? tr(' Et si tu veux ton potager à toi : pose un cabanon de jardinage et des tuiles de terre dans tes quartiers, puis reviens me voir. J\'ai des graines.', ' And if you want a vegetable patch of your own: put a garden shed and some plots of soil in your quarters, then come back to me. I have seeds.')
+      : ''
+    if (pitch) gardenPitched = true
+    dialog.show(tr(`${GARDENER} : « ${line}${pitch} »`, `${GARDENER}: “${line}${pitch}”`))
   },
 })
 bubbles.attach('gardener', (out) => (gardenDeck.group.visible ? gardener.avatar.head(out) : null))
@@ -2188,6 +2209,91 @@ async function ride(target: number) {
 
 // ------------------------------------------------------------------ aménagement
 
+// Le jardinage dans ses quartiers (cf. src/gardening/) : des tuiles de terre cultivable, le mode
+// jardinage et ses outils, l'étal de Capucine, la récolte que Marcel achète. Le site tient le jardin.
+const garden = new GardenStore(wallet)
+void garden.load()
+/** Capucine a déjà parlé de son étal pendant cette visite. */
+let gardenPitched = false
+const gardenView = new GardenView(homeDeck, () => cabin.items, () => garden.now())
+const gardenPanel = new GardenPanel({
+  store: garden,
+  wallet,
+  shed: () => wallet.items.has('garden-shed'),
+  crate: () => wallet.items.has('harvest-crate'),
+  line: (kind) => (kind === 'shop' ? gardener.talk(player.position, gardenerReport()) : chef.talk(player.position, chefReport())),
+  sound: (kind) => (kind === 'win' ? sound.jingle('coin') : sound.ui(kind)),
+  onOpen: () => {
+    stopWork()
+    player.cancelPath()
+    keys.clear()
+    marker.visible = false
+  },
+  onClose: () => {},
+})
+const gardenMode = new GardenMode({
+  store: garden,
+  view: gardenView,
+  refusal: () =>
+    visiting ? tr(`Vous êtes en visite chez ${visiting.name} : on ne jardine que chez soi.`, `You're visiting ${visiting.name}: you can only garden at home.`)
+      : deck !== homeDeck ? tr('On jardine dans ses quartiers, sur le pont des quartiers.', 'You garden in your quarters, on the quarters deck.')
+        : garden.state === 'guest' ? tr('Le jardinage est réservé aux CMDR connectés au site.', 'Gardening is for CMDRs logged in to the site.')
+          : !garden.ready ? tr('Le jardin est indisponible : le site ne répond pas.', 'The garden is unavailable: the site isn\'t responding.')
+            : null,
+  work: (job) => startWork({ at: new THREE.Vector3(job.x, 0, job.z), deck: homeDeck, duration: job.duration, label: job.label, sound: job.sound, alive: job.alive, finish: job.finish }),
+  show: (text) => dialog.show(text),
+  log: (text) => chat.add('system', text),
+  sound: (kind) => (kind === 'win' ? sound.jingle('coin') : sound.ui(kind)),
+  onToggle: (on) => {
+    toggleReactions(false)
+    if (on) chat.add('system', tr('Mode jardinage : 1 à 5 pour choisir un outil, E pour s\'en servir sur la tuile la plus proche, G pour ranger.', 'Gardening mode: 1 to 5 to pick a tool, E to use it on the nearest plot, G to put the tools away.'))
+  },
+})
+gardenMode.crate = () => wallet.items.has('harvest-crate')
+// Le cabanon et les caisses de récolte : son sac, ses outils, sa réserve (chez un hôte, on regarde).
+cabin.onUse = (use) => {
+  if (visiting) {
+    return dialog.show(use === 'garden-shed'
+      ? tr(`Le cabanon de ${visiting.name}. Ça sent le terreau et la ficelle.`, `${visiting.name}'s shed. It smells of compost and twine.`)
+      : tr(`La récolte de ${visiting.name}. On regarde avec les yeux.`, `${visiting.name}'s harvest. Look, don't touch.`))
+  }
+  player.interact()
+  net.sendEmote('interact')
+  gardenPanel.open(use === 'garden-shed' ? 'shed' : 'stock')
+}
+/** Ce qui pousse sur les tuiles affichées : son jardin, ou celui de l'hôte pendant une visite. */
+function showGarden() {
+  if (!visiting) return gardenView.setPlots(garden.ready ? garden.garden.plots : {}, garden.ready)
+  gardenView.setPlots({}, false)
+  const host = visiting
+  const stored = phoneData().contacts.find((c) => c.name === host.name)?.stored
+  if (stored) void garden.plotsOf(stored).then((plots: Record<string, Plot> | null) => void (plots && visiting === host && gardenView.setPlots(plots, false)))
+}
+garden.subscribe(() => {
+  if (!visiting) showGarden()
+})
+/**
+ * En quittant le mode aménagement : les cultures des tuiles retirées ou déplacées sont perdues
+ * (une culture tient à la place de sa tuile), le site les oublie.
+ */
+function tidyGarden() {
+  if (visiting || !garden.ready) return
+  const keys = cabin.items.filter((i) => i.m === SOIL_ITEM).map((i) => plotKey(i.x, i.z))
+  const lost = Object.entries(garden.garden.plots).filter(([key]) => !keys.includes(key))
+  if (!lost.length) return
+  void garden.act({ action: 'tidy', plots: keys })
+  const crops = lost.filter(([, plot]) => plot.c).length
+  if (crops) chat.add('system', tr(`${crops} culture${crops > 1 ? 's arrachées' : ' arrachée'} avec ${crops > 1 ? 'leurs tuiles' : 'sa tuile'} (une tuile déplacée perd ce qui y poussait).`, `${crops} crop${crops > 1 ? 's' : ''} uprooted with ${crops > 1 ? 'their plots' : 'its plot'} (a moved plot loses what was growing on it).`))
+}
+// Capucine rappelle au jardinier ce qui l'attend, dans leur conversation du combiné de bord.
+const gardenNotices = new GardenNotices(garden, (text) => {
+  phone.npc('~npc:capucine', GARDENER, text, {
+    status: tr('Jardinière · serre du pont supérieur', 'Gardener · upper deck greenhouse'),
+    note: tr('Capucine a les mains dans la terre : elle écrit, elle ne lit pas ses messages.', 'Capucine has her hands in the soil: she writes, she does not read her messages.'),
+  })
+  if (!phone.isOpen) chat.add('system', tr(`${GARDENER} vous a écrit à propos de votre jardin (combiné de bord, Tab).`, `${GARDENER} wrote to you about your garden (crew phone, Tab).`))
+})
+
 let editZoom = 0
 const loginUrl = () => `/auth-redirect.php?redirect=${encodeURIComponent(location.pathname + location.search)}`
 const cabinBar = new CabinBar()
@@ -2233,6 +2339,7 @@ function loadEditor(): Promise<void> {
  */
 function adoptAccount() {
   if (!wallet.ready) void wallet.load()
+  if (!garden.ready) void garden.load()
   if (cabinStore) return
   const store = (cabinStore = new CabinStore(profile.name.replace(/^CMDR /, '')))
   store.home = homePayload
@@ -2284,6 +2391,7 @@ async function openEditor() {
   editZoom = iso.zoomLevel
   iso.setRestElevation(editElevation)
   document.body.classList.add('editing')
+  if (Object.values(garden.garden.plots).some((plot) => plot.c)) chat.add('system', tr('Jardin en culture : déplacer ou retirer une tuile de terre arrache ce qui y pousse.', 'Crops growing: moving or removing a plot of soil uproots what grows on it.'))
   ed.start(homeCabin(homePlan))
   ed.reframe(player.position)
   if (!store) ed.setSaveState('local')
@@ -2377,6 +2485,8 @@ async function openBuilder() {
 function closeEditor() {
   if (builder?.active) {
     builder.stop()
+    // Un bloc déplacé emporte ses tuiles de terre : ce qui y poussait est perdu, comme en aménagement.
+    tidyGarden()
     iso.setRestElevation(null)
     iso.zoomMax = ZOOM_MAX
     iso.zoomTo(editZoom)
@@ -2388,6 +2498,7 @@ function closeEditor() {
   }
   if (!editor?.active) return
   editor.stop()
+  tidyGarden()
   iso.setRestElevation(null)
   iso.zoomMax = ZOOM_MAX
   iso.zoomTo(editZoom)
@@ -2399,6 +2510,7 @@ function closeEditor() {
   void cabinStore?.flush()
 }
 cabinBar.onEdit = () => void openEditor()
+cabinBar.onGarden = () => gardenMode.toggle()
 
 // ------------------------------------------------------------------ visites
 
@@ -2456,6 +2568,7 @@ function showCabin() {
   // La parcelle (sa taille, ses murs) d'abord, puis son mobilier.
   showHome()
   cabin.setLayout(homeCabin(shownPlan()))
+  showGarden()
   // Le jukebox du panneau a pu bouger, disparaître, ou être celui de l'hôte qui nous raccompagne.
   if (jukeboxWhere === 'cabin') jukebox.close()
   // Assis sur un meuble des quartiers : on retrouve sa place, ou l'on se relève s'il a bougé.
@@ -3042,6 +3155,7 @@ addEventListener('keydown', (e) => {
     toggleAbout(false)
     toggleReactions(false)
     stopWork()
+    gardenPanel.close()
     // Devant la pince : on quitte la partie.
     if (claw && seating.settled) seating.stand()
     // Séance du planétarium, debout : la lumière revient.
@@ -3052,6 +3166,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyR' && !fpsShown) iso.rotate(e.shiftKey ? -1 : 1)
   if (e.code === 'KeyV' && !editing()) return toggleFps()
   if (e.code === 'KeyB') return editing() ? closeEditor() : void openEditor()
+  if (e.code === 'KeyG' && !editing() && !photo.active && deck === homeDeck) return gardenMode.toggle()
   if (e.code === 'KeyM') {
     sound.toggleMute()
     updateMuteButton()
@@ -3070,6 +3185,8 @@ addEventListener('keydown', (e) => {
   } else if (e.code === 'KeyE' || e.code === 'Space') tryInteract()
   const digit = /^Digit([1-9])$/.exec(e.code)
   if (!digit) return
+  // Mode jardinage : les chiffres choisissent un outil.
+  if (gardenMode.key(+digit[1])) return
   // Palette des réactions ouverte : les chiffres choisissent une réaction.
   if (!reactionsPanel.hidden && REACTIONS[+digit[1] - 1]) {
     react(REACTIONS[+digit[1] - 1].id)
@@ -3085,7 +3202,7 @@ chat.onOpen = () => keys.clear()
 const inputDir = new THREE.Vector3()
 function keyboardDirection(): THREE.Vector3 {
   inputDir.set(0, 0, 0)
-  if (gym.active || court.active || fishBusy() || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return inputDir
+  if (gym.active || court.active || fishBusy() || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return inputDir
   const on = (...codes: string[]) => codes.some((c) => keys.has(c))
   // event.code = position physique : KeyW/KeyA correspondent à Z/Q sur un clavier AZERTY.
   const sx = (on('KeyD', 'ArrowRight') ? 1 : 0) - (on('KeyA', 'ArrowLeft') ? 1 : 0)
@@ -3097,7 +3214,7 @@ function keyboardDirection(): THREE.Vector3 {
 function updateGamepad(dt: number): GamepadInput {
   const focus = document.activeElement
   const typing = focus instanceof HTMLElement && (focus.matches('input, textarea, select') || focus.isContentEditable)
-  const enabled = !document.hidden && $('mobile-entry').hidden === true && !typing && !chat.typing && !editing() && !photo.active && !arcade?.isOpen && !boardGames.isOpen && !barPanel.isOpen && !gameEmbed.isOpen && !mediaRoom.isOpen && !cinemaRoom.isOpen
+  const enabled = !document.hidden && $('mobile-entry').hidden === true && !typing && !chat.typing && !editing() && !photo.active && !arcade?.isOpen && !boardGames.isOpen && !barPanel.isOpen && !gardenPanel.isOpen && !gameEmbed.isOpen && !mediaRoom.isOpen && !cinemaRoom.isOpen
   // Certains navigateurs mobiles rapportent brièvement document.hasFocus() = false après le
   // passage en plein écran. Cela ne doit pas couper le joystick ni ses boutons.
   // Mode construction : la manette mène son curseur (cf. HomeBuilder.gamepad).
@@ -3148,6 +3265,11 @@ function updateGamepad(dt: number): GamepadInput {
   if (barPanel.isOpen) {
     pad.moveX = pad.moveY = 0
     if (pad.cancel) barPanel.close()
+    return pad
+  }
+  if (gardenPanel.isOpen) {
+    pad.moveX = pad.moveY = 0
+    if (pad.cancel) gardenPanel.close()
     return pad
   }
   // Les panneaux prennent les commandes avant le personnage.
@@ -3201,7 +3323,7 @@ function updateGamepad(dt: number): GamepadInput {
 
 function movementDirection(pad: GamepadInput): THREE.Vector3 {
   const input = keyboardDirection()
-  if (chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || wardrobe.isOpen || editing() || photo.active || zone.frozen || zone.panelOpen) return input
+  if (chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || photo.active || zone.frozen || zone.panelOpen) return input
   // Le clavier reste prioritaire lorsqu'une touche de déplacement est maintenue.
   if (input.lengthSq() === 0) view().screenToGround(pad.moveX, -pad.moveY, input)
   return input
@@ -3420,6 +3542,10 @@ addEventListener(
       if (!barPanel.contains(e.target)) { barPanel.close(); e.stopPropagation() }
       return
     }
+    if (gardenPanel.isOpen) {
+      if (!gardenPanel.contains(e.target)) { gardenPanel.close(); e.stopPropagation() }
+      return
+    }
     // Terminal ou classement de la zone thargoïde : un clic à côté les ferme (l'écran de fin, lui, attend son bouton).
     if (zone.panelOpen && !zone.contains(e.target) && !(e.target instanceof Element && e.target.closest('.salvage-end'))) {
       zone.closePanels()
@@ -3487,7 +3613,7 @@ function unlockCursor() {
 }
 /** Ce qui se manipule au curseur : on le rend. */
 function needsCursor(): boolean {
-  return court.active || fishBusy() || chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || phone.isOpen || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || !reactionsPanel.hidden
+  return gardenPanel.isOpen || court.active || fishBusy() || chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || phone.isOpen || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || !reactionsPanel.hidden
 }
 document.addEventListener('pointerlockchange', () => {
   document.body.classList.toggle('fps-locked', cursorLocked())
@@ -3668,6 +3794,12 @@ function nearestInteractable(): Interactable | null {
   // du train est plus près du chariot à outils que le chariot lui-même, d'où l'on se tient).
   const job = deck === holdDeck ? hangar.target : deck === gardenDeck ? greenhouse.target : null
   if (job && distanceTo(job) < INTERACT_RANGE && inSight(job)) return job
+  // En mode jardinage, la tuile de terre la plus proche passe avant les meubles voisins.
+  if (deck === homeDeck && gardenMode.active) {
+    let tile: Interactable | null = null
+    for (const t of gardenView.tiles) if (distanceTo(t.item) < (tile ? distanceTo(tile) : INTERACT_RANGE) && inSight(t.item)) tile = t.item
+    if (tile) return tile
+  }
   let best: Interactable | null = null
   let bestD = INTERACT_RANGE
   for (const i of deck.interactables) {
@@ -3692,7 +3824,7 @@ function hiddenRestrictedItem(item: Interactable): boolean {
 function tryInteract() {
   // Bugenhagen parle : on passe à la phrase suivante.
   if (planetarium.talking) return planetarium.next()
-  if (gym.active || court.active || fishBusy() || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return
+  if (gym.active || court.active || fishBusy() || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return
   const item = nearestInteractable()
   if (item) interactWith(item)
 }
@@ -4639,6 +4771,10 @@ function frame() {
   hangar.update(world)
   gardener.update(world, gardenDeck === deck ? player.position : null, player.avatar.emoteId)
   greenhouse.update(world)
+  // Le jardin des quartiers : la pousse, les rappels de Capucine ; le mode jardinage ne se garde que chez soi.
+  if (gardenMode.active && (deck !== homeDeck || visiting || editing() || photo.active)) gardenMode.stop()
+  if (homeDeck === viewDeck) gardenView.update(dt)
+  gardenNotices.update(dt)
   // Réacteurs du Krait en route : leur grondement dans la cale, et la vue qui tremble (vue isométrique).
   const roaring = hangar.engines && holdDeck === deck
   if (roaring && !kraitRoar) kraitRoar = sound.thrusters(new THREE.Vector3(KRAIT_COCKPIT.x - 3, holdDeck.y + 0.6, KRAIT_COCKPIT.z)) ?? undefined
@@ -4803,7 +4939,7 @@ function frame() {
   // Dans ses quartiers : de quoi les aménager (un invité : de quoi se connecter). En visite, sur les autres ponts aussi : de quoi rentrer.
   const onHome = deck === homeDeck
   cabinBar.set(
-    editing() ? null : visiting ? { kind: 'visit', host: visiting.name, inside: onHome } : !onHome ? null : { kind: 'own', canEdit: linked, open: verified ? !!homePlan.open : undefined, loginUrl: loginUrl() },
+    editing() ? null : visiting ? { kind: 'visit', host: visiting.name, inside: onHome } : !onHome ? null : { kind: 'own', canEdit: linked, open: verified ? !!homePlan.open : undefined, loginUrl: loginUrl(), garden: wallet.items.has(SOIL_ITEM) ? gardenMode.active : undefined },
   )
   // Le combiné suit ce qui bouge à bord (où est chacun) : deux fois par seconde ouvert, sinon son compteur.
   phoneClock += dt
@@ -4816,7 +4952,7 @@ function frame() {
   // Invite « E » au-dessus de l'objet le plus proche ; installé sur un meuble, au-dessus du
   // personnage : se relever (et ce que permet la place).
   const sitting = seating.settled && !gym.active && !riding && !editing() && !barPanel.isOpen
-  const near = gym.active || court.active || fishBusy() || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen ? null : nearestInteractable()
+  const near = gym.active || court.active || fishBusy() || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen ? null : nearestInteractable()
   const sit = sitting ? seatPrompt(seating.current!) : null
   const label = sit ? `${sit.main}|${sit.space ?? ''}` : near?.label
   promptEl.querySelector('kbd')!.textContent = usingGamepad ? 'A / ×' : 'E'
@@ -4980,6 +5116,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, profile, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt, fishing, fishBook, fishCollection, startFishing },
+    __game: { renderer, sound, player, profile, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, garden, gardenView, gardenMode, gardenPanel, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt, fishing, fishBook, fishCollection, startFishing },
   })
 }

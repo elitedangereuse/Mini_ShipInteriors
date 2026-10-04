@@ -1,5 +1,6 @@
 import { EN } from '../i18n'
 import raw from './economy.json'
+import type { GardenRules } from '../../shared/gardening.js'
 
 /*
  * Économie du jeu : les crédits (CR), comme dans Elite Dangerous. Tous les chiffres vivent dans
@@ -17,6 +18,8 @@ import raw from './economy.json'
  *   toutes les `minGap` secondes et `daily` par jour ;
  * - tasks, spots : les tâches de bord et leurs emplacements (cf. schedule.ts et tasks.ts) ;
  *   taskRules : au plus `daily` tâches payées par jour, espacées d'au moins `minGap` secondes ;
+ * - gardening : le jardinage dans les quartiers (cf. shared/gardening.js) : cultures, outils,
+ *   terreaux et engrais vendus par Capucine, et ce que Marcel paie par jour pour les récoltes ;
  * - arcade : paliers de score des bornes, et prime du record du vaisseau (`recordDaily` par jeu et
  *   par jour).
  * Les jours sont ceux de Paris. Les plafonds, c'est le site qui les tient ; le jeu les respecte (il
@@ -76,6 +79,7 @@ interface Economy {
   hangar: JobRules
   garden: JobRules
   drinks: Record<string, number>
+  gardening: GardenRules
   tasks: Record<TaskKind, TaskDef>
   taskRules: { daily: number; minGap: number }
   spots: Spot[]

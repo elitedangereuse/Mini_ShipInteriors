@@ -39,6 +39,7 @@
 - [Le hangar](#le-hangar)
 - [Le Zorb](#le-zorb)
 - [La serre](#la-serre)
+- [Le jardinage](#le-jardinage)
 - [Le planétarium](#le-planétarium)
 - [La zone sportive](#la-zone-sportive)
 - [La base au sol](#la-base-au-sol)
@@ -557,6 +558,20 @@ Les modèles viennent de deux packs de Quaternius (CC0). L'« Animated Fish Pack
 **La collection** (`src/fishing/collection.ts`). Chaque prise rejoint la collection du joueur : nombre de prises et record de taille par espèce. Le site la garde pour les CMDR connectés (`outils/mini-shipinteriors-fish.php`, table `mini_shipinteriors_fish`) ; il n'écarte que les prises impossibles (espèce inconnue, taille hors de celles de l'espèce, deux prises à moins de 3 s). Celle d'un invité reste dans son navigateur, comme les prises que le site n'a pas pu noter. Le **livre des prises**, sur son lutrin au bord de l'étang (`src/fishing/book.ts`), la montre : une case par espèce, une ombre sans nom pour celles qu'on n'a jamais prises ; un clic ouvre la page de l'espèce en grand (portrait, rareté, prises, record, description), et les flèches tournent les pages. Une espèce nouvelle s'y signale : une pastille flotte au-dessus du lutrin jusqu'à ce qu'on ouvre le livre, et sa case porte « Nouveau » (pages vues gardées dans le navigateur).
 
 **Le trophée de pêche** (`fish-frame`, catégorie Murs, 6 000 CR) s'accroche dans ses quartiers : un poisson de sa collection, en volume, sur un panneau encadré, au fond de son choix (blanc, eau, sable, nuit étoilée, bois). L'aménagement ne propose que les espèces qu'on a prises (`owned` dans le catalogue) ; les visiteurs voient le trophée tel qu'il est posé.
+
+## Le jardinage
+
+Un potager dans ses quartiers (`src/gardening/`, `shared/gardening.js`). La catégorie **Jardinage** du mode aménagement propose la **tuile de terre cultivable** (`soil-tile`, posée à plat comme un tapis, autant qu'on veut une fois débloquée), le **cabanon de jardinage**, les **caisses de récolte**, et du mobilier de jardin (brouette, épouvantail, nain, clôture, ruche ; `src/furniture/gardening.ts`) ; les bacs, l'établi, le compost et la grainothèque de la serre y sont rangés aussi.
+
+**Le mode jardinage** (`G`, ou « Jardiner » dans la barre des quartiers ; `src/gardening/mode.ts`). La barre des emotes laisse la place aux outils : bêche (préparer la terre, désherber, arracher), plantoir (semer), arrosoir, engrais, sécateur (récolter), de `1` à `5`. `E` fait, sur la tuile la plus proche, ce que fait l'outil en main ; avec le mauvais outil, la touche prend d'abord le bon. Au-dessus de la barre, ce que l'outil utilise : le terreau de la bêche, la graine du plantoir, l'engrais. Chaque geste prend quelques secondes (la jauge des tâches de bord).
+
+**La pousse** se fait en temps réel, à l'heure du site, que le joueur soit en jeu ou non : de 20 minutes (radis) à 12 heures (Onionhead). Une culture ne pousse qu'**arrosée** (un arrosage tient 2 h, 4 h ou 8 h selon l'arrosoir) ; celles qui poussent au moins 2 h se couvrent une fois de **mauvaises herbes**, qui arrêtent la pousse jusqu'au désherbage. Négligée, une culture ne meurt pas : elle attend, et sa récolte y perd (une qualité et une unité au-delà d'un certain temps passé sans pousser, deux au-delà du triple). La **qualité** (★ à ★★★) vient du terreau (terre du bord, gratuite ; terreau riche ; terreau de Colonia) et fait le prix de vente (×1, ×1,5, ×2,25). Un **engrais** par culture accélère la pousse (×1,5 ou ×2). Un hexagone flotte au-dessus des tuiles qui attendent un geste (`src/gardening/view.ts`).
+
+**Capucine** vend, à la serre, à qui a débloqué le cabanon (`E` sur elle ouvre son étal, `src/gardening/panel.ts`) : graines, terreaux, engrais, et les deux niveaux suivants de chaque outil. Une meilleure bêche et un meilleur plantoir vont plus vite ; l'arrosoir tient plus longtemps ; le sécateur donne une unité de plus par récolte ; le plantoir ouvre les graines rares (fraise, thé de Fujin, piment d'Ochoeng, citrouille au niveau 1 ; rose d'Achenar, baie de Neritus, Onionhead au niveau 2). Elle **rappelle au jardinier ce qui l'attend** (soif, mauvaises herbes, récolte mûre) dans une conversation du combiné de bord, où l'on ne répond pas (`src/gardening/notices.ts`, `CrewPhone.npc`).
+
+**La récolte** va dans la réserve (30 unités avec le cabanon, 150 une fois les caisses de récolte débloquées) ; le cabanon et les caisses la montrent, avec le sac et les outils. **Le chef Marcel**, au mess, l'achète (`E` sur lui quand la réserve n'est pas vide), jusqu'à 30 000 CR par jour.
+
+**Le site tient le jardin** (`outils/mini-shipinteriors-gardening.php`, règles dans `phputils/mini_shipinteriors/gardening.php`, table `mini_shipinteriors_gardening`, dépôt du site) : le jeu demande un geste, le site vérifie, écrit, débite ou verse les crédits, et rend le jardin. Tous les chiffres (cultures, outils, prix, plafonds) sont dans la section `gardening` de `economy.json`. Les règles de pousse existent des deux côtés (`shared/gardening.js` et le PHP) : `server/gardening.test.js` et `GardeningTest.php` rejouent les mêmes cas. Une culture tient à la place de sa tuile : déplacer ou retirer une tuile plantée arrache ce qui y pousse (le jeu prévient en ouvrant le mode aménagement). En visite, on voit ce qui pousse chez son hôte, sans y toucher. 24 tuiles travaillées au plus. Réservé aux CMDR connectés.
 
 ## Le planétarium
 

@@ -128,6 +128,8 @@ export class CabinView {
   onEmote?: (emote: string, text: Interactable['text']) => void
   /** Interaction avec un objet qui joue de la musique (jukebox, platines), à sa position (pont). */
   onMusic?: (position: THREE.Vector3, text: Interactable['text'], model: string) => void
+  /** Interaction avec un objet que le jeu prend en charge (`use` du catalogue : le cabanon, les caisses de récolte). */
+  onUse?: (use: NonNullable<CatalogEntry['use']>) => void
 
   private built: Built[] = []
   /** Collisions et lumières des objets (cf. rebuild, relink). */
@@ -533,7 +535,7 @@ export class CabinView {
       if (apart) return
       const text = interactText(b.entry, item.v)
       const seats = seatsOf(b.entry.model, builderLabel(b.entry, item.v))
-      if (b.entry.fixed || text || b.entry.emote || seats) {
+      if (b.entry.fixed || text || b.entry.emote || seats || b.entry.use) {
         const label = b.entry.action ?? (seats ? seatAction(seats) : tr('Examiner', 'Examine'))
         const it: Interactable = { object: b.pick, position: center.clone().setY(0), label, text, control: b.control, furniture: { model: b.entry.model, label: builderLabel(b.entry, item.v) } }
         if (seats) {
@@ -547,6 +549,7 @@ export class CabinView {
           this.holoMe = it
         } else if (emote) it.onInteract = () => this.onEmote?.(emote, text)
         else if (b.entry.music) it.onInteract = () => this.onMusic?.(it.position, text, b.entry.model)
+        else if (b.entry.use) it.onInteract = () => this.onUse?.(b.entry.use!)
         this.interactables.push(it)
         deck.interactables.push(it)
       }

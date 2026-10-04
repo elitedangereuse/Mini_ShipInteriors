@@ -6,6 +6,7 @@ import { COATS, petItemId, SPECIES } from '../pets'
 import type { IconName } from '../icons'
 import type { Flicker } from '../levels'
 import { FUN_ENTRIES } from './catalog-fun'
+import { GARDEN_ENTRIES } from './catalog-garden'
 import { HOME_ENTRIES } from './catalog-home'
 import { SHIP_ENTRIES } from './catalog-ship'
 import { fishCollection } from '../fishing/collection'
@@ -32,7 +33,7 @@ export type Mount = 'floor' | 'flat' | 'wall' | 'top'
 
 export type CategoryId =
   | 'rest' | 'living' | 'bath' | 'kitchen' | 'storage' | 'light' | 'plants' | 'wall' | 'posters' | 'objects' | 'tech' | 'elite'
-  | 'adventures' | 'weapons' | 'pets' | 'leisure' | 'arcade' | 'party' | 'workshop' | 'medical' | 'rugs'
+  | 'adventures' | 'weapons' | 'pets' | 'leisure' | 'arcade' | 'party' | 'workshop' | 'medical' | 'rugs' | 'gardening'
 
 export const CATEGORIES: { id: CategoryId; label: string; icon: IconName }[] = [
   { id: 'rest', label: tr('Chambre', 'Bedroom'), icon: 'bed' },
@@ -42,6 +43,7 @@ export const CATEGORIES: { id: CategoryId; label: string; icon: IconName }[] = [
   { id: 'storage', label: tr('Rangements', 'Storage'), icon: 'books' },
   { id: 'light', label: tr('Lumières', 'Lighting'), icon: 'lamp' },
   { id: 'plants', label: tr('Plantes', 'Plants'), icon: 'potted-plant' },
+  { id: 'gardening', label: tr('Jardinage', 'Gardening'), icon: 'carrot' },
   { id: 'wall', label: tr('Murs', 'Walls'), icon: 'frame-corners' },
   { id: 'posters', label: tr('Affiches', 'Posters'), icon: 'film-slate' },
   { id: 'objects', label: tr('Objets', 'Objects'), icon: 'cube' },
@@ -103,6 +105,11 @@ export interface CatalogEntry {
   music?: boolean
   /** Lumière de l'objet, ou de chacune de ses variantes. */
   light?: CatalogLight | ((variant: string | undefined) => CatalogLight)
+  /**
+   * Interaction que le jeu prend en charge (cf. `onUse` de CabinView et main.ts) : le cabanon et
+   * les caisses de récolte ouvrent le sac et la réserve du jardinier.
+   */
+  use?: 'garden-shed' | 'garden-stock'
   /** Unique et indispensable : on le déplace, on ne le retire pas (le Holo-Me). */
   fixed?: boolean
   /**
@@ -1076,6 +1083,9 @@ export const CATALOG: CatalogEntry[] = [
 
   // --- Le Furniture Kit (salle de bain, cuisine, salon, chambre…), cf. catalog-home.ts
   ...HOME_ENTRIES,
+  // --- Le jardinage : tuiles de terre cultivable, cabanon, mobilier de jardin, cf. catalog-garden.ts
+  // (avant le mobilier de la serre, rangé dans la même catégorie : la tuile et le cabanon d'abord)
+  ...GARDEN_ENTRIES,
   // --- Le mobilier des pièces du vaisseau (douches, mess, atelier, infirmerie, bar…), cf. catalog-ship.ts
   ...SHIP_ENTRIES,
   // --- Écrans et consoles, armurerie, affiches de films et pin-up, salle de bain, cf. catalog-fun.ts

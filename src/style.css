@@ -1639,6 +1639,7 @@ kbd .icon {
 body.editing .top-left > :not(#invites),
 body.editing #help,
 body.editing #emotes,
+body.editing #garden-tools,
 body.editing #prompt,
 body.editing #dialog,
 body.editing #cabin-bar,
@@ -3990,3 +3991,147 @@ body.planet {
 }
 .fish-cell-new { position: absolute; top: 4px; left: 6px; padding: 1px 6px; border-radius: 999px; background: #76f0c2; color: #0b1724; font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; animation: court-pulse .7s ease-in-out infinite alternate; }
 .fish-sheet-foot .fish-book-count { text-align: right; }
+
+/* ------------------------------------------------------------------ jardinage */
+
+/* Mode jardinage : la barre des outils prend la place de celle des emotes (cf. gardening/mode.ts). */
+body.gardening #emotes { display: none; }
+.garden-tools {
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  padding: 5px;
+  pointer-events: auto;
+  border-color: #7dffa866;
+}
+.garden-tools[hidden] { display: none; }
+.gt-hands { display: flex; gap: 4px; }
+.gt-hands button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 23px;
+  cursor: pointer;
+}
+.gt-hands button:hover, .gt-hands button.active {
+  background: rgba(125, 255, 168, 0.12);
+  border-color: #7dffa888;
+  color: #7dffa8;
+}
+.gt-hands button span {
+  position: absolute;
+  right: 3px;
+  bottom: 1px;
+  font: 600 9px ui-monospace, monospace;
+  color: var(--muted);
+}
+.gt-hands .gt-tier {
+  position: absolute;
+  left: 3px;
+  top: -2px;
+  font: 700 12px/1 ui-monospace, monospace;
+  font-style: normal;
+  letter-spacing: -1px;
+  color: #ffd23c;
+}
+.gt-hands .gt-quit { margin-left: 6px; font-size: 17px; color: var(--muted); }
+.gt-choices { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-width: min(420px, 86vw); }
+.gt-choices button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.gt-choices button b { font: 600 11px ui-monospace, monospace; color: var(--muted); }
+.gt-choices button.active { border-color: #7dffa8; background: rgba(125, 255, 168, 0.14); color: #7dffa8; }
+.gt-empty { padding: 3px 8px; font-size: 12px; color: var(--muted); }
+
+/* Panneaux du jardinier : l'étal de Capucine, le chef qui achète, le cabanon (cf. gardening/panel.ts). */
+.garden-overlay {
+  position: fixed;
+  z-index: 130;
+  right: max(16px, env(safe-area-inset-right));
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(400px, calc(100vw - 24px));
+}
+.garden-overlay[hidden] { display: none; }
+.gp-panel {
+  display: flex;
+  flex-direction: column;
+  max-height: min(680px, 86dvh);
+  padding: 16px;
+  color: #eef4e6;
+  border: 1px solid #8fc98a80;
+  border-radius: 20px;
+  background: linear-gradient(150deg, #22392c 0%, #15262a 55%, #171d27 100%);
+  box-shadow: 0 28px 80px #000b, inset 0 1px #fff3;
+}
+.gp-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+.gp-heading small, .gp-section span { font-size: 11px; font-weight: 800; letter-spacing: .18em; color: #a8e08c; }
+.gp-heading h2 { margin: 4px 0 0; font: 500 28px/1 Georgia, serif; }
+.garden-overlay button {
+  border: 1px solid #a8e08c66;
+  border-radius: 9px;
+  background: #3f7a44;
+  color: #f4ffe9;
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.garden-overlay button:hover { background: #56a05a; }
+.garden-overlay button:focus-visible { outline: 2px solid #e8ffd0; outline-offset: 2px; }
+.garden-overlay button:disabled { opacity: .4; cursor: default; background: #3f7a44; }
+.gp-heading .gp-close { width: 38px; height: 38px; padding: 0; font-size: 26px; line-height: 1; background: #fff1; }
+.gp-speech { margin: 12px 0 0; padding: 10px 12px; border-left: 3px solid #a8e08c; border-radius: 0 12px 12px 0; background: #0b172999; }
+.gp-speech[hidden] { display: none; }
+.gp-speech p { margin: 0; font: italic 14px/1.4 Georgia, serif; }
+.gp-speech button { margin-top: 7px; padding: 4px 8px; background: transparent; }
+.gp-tabs { display: flex; gap: 5px; margin-top: 12px; }
+.gp-tabs:empty { display: none; }
+.gp-tabs button { flex: 1; background: #ffffff0d; white-space: normal; }
+.gp-tabs button[aria-selected="true"] { background: #3f7a44; border-color: #a8e08c; }
+.gp-body { display: grid; align-content: start; gap: 7px; margin-top: 12px; min-height: 0; overflow: auto; padding-right: 4px; scrollbar-width: thin; scrollbar-color: #8fc98a66 transparent; }
+.gp-section { display: flex; justify-content: space-between; margin-top: 4px; padding-bottom: 6px; border-bottom: 1px solid #8fc98a55; }
+.gp-section small { color: #b7c8cf; font-size: 12px; }
+.gp-row { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 7px 8px; border: 1px solid #ffffff1a; border-radius: 12px; background: #ffffff0a; }
+.gp-row.locked { opacity: .55; }
+.gp-dot { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: color-mix(in srgb, var(--gp-color), transparent 80%); color: var(--gp-color); font-size: 17px; }
+.gp-row strong { display: block; color: #f6ffe9; font: 600 15px/1.2 Georgia, serif; }
+.gp-row small { display: block; margin-top: 3px; color: #b7c8cf; font-size: 12px; line-height: 1.35; }
+.gp-actions { display: flex; gap: 4px; }
+.gp-actions:empty { display: none; }
+.gp-wide { justify-self: stretch; padding: 10px; }
+.gp-empty { margin: 4px 0; color: #c9d6cf; font-size: 13px; line-height: 1.45; }
+.gp-status { min-height: 20px; margin: 12px 0 0; color: #cfe8b4; font-size: 13px; }
+@media (max-width: 700px), (pointer: coarse) {
+  /* Sur un écran tactile, le bas est pris par le manche, le chat et les boutons : les outils prennent la place des emotes, sous les boutons du haut. */
+  .garden-tools { top: calc(var(--mobile-top, 6px) + 50px); right: var(--mobile-right, 8px); bottom: auto; left: auto; transform: none; justify-items: end; padding: 3px; gap: 3px; z-index: 9; }
+  .gt-choices { order: 2; justify-content: flex-end; max-width: min(330px, 46vw); }
+  .gt-choices button { padding: 2px 7px; font-size: 11px; }
+  .gt-hands button { width: 38px; height: 38px; font-size: 20px; }
+  .gt-hands button span { display: none; }
+  .garden-overlay { right: max(8px, env(safe-area-inset-right)); }
+  .gp-panel { max-height: 92dvh; padding: 12px; }
+  .gp-row { grid-template-columns: 26px minmax(0, 1fr); }
+  .gp-actions { grid-column: 1 / -1; justify-content: flex-end; }
+}

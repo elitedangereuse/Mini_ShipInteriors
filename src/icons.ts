@@ -116,6 +116,14 @@ import musicNotes from '@phosphor-icons/core/bold/music-notes-bold.svg?raw'
 import vinylRecord from '@phosphor-icons/core/bold/vinyl-record-bold.svg?raw'
 import trophy from '@phosphor-icons/core/bold/trophy-bold.svg?raw'
 import drop from '@phosphor-icons/core/bold/drop-bold.svg?raw'
+// jardinage : la catégorie du catalogue, les outils du mode jardinage, l'étal de Capucine
+import shovel from '@phosphor-icons/core/bold/shovel-bold.svg?raw'
+import grains from '@phosphor-icons/core/bold/grains-bold.svg?raw'
+import scissors from '@phosphor-icons/core/bold/scissors-bold.svg?raw'
+import basket from '@phosphor-icons/core/bold/basket-bold.svg?raw'
+import sparkle from '@phosphor-icons/core/bold/sparkle-bold.svg?raw'
+import storefront from '@phosphor-icons/core/bold/storefront-bold.svg?raw'
+import carrot from '@phosphor-icons/core/duotone/carrot-duotone.svg?raw'
 import plant from '@phosphor-icons/core/bold/plant-bold.svg?raw'
 import pawPrint from '@phosphor-icons/core/bold/paw-print-bold.svg?raw'
 import forkKnife from '@phosphor-icons/core/bold/fork-knife-bold.svg?raw'
@@ -265,6 +273,13 @@ const SVG = {
   plus,
   wrench,
   drop,
+  shovel,
+  grains,
+  scissors,
+  basket,
+  sparkle,
+  storefront,
+  carrot,
   plant,
   'paw-print': pawPrint,
   'fork-knife': forkKnife,

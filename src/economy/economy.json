@@ -7,6 +7,44 @@
   "hangar": { "reward": 800, "minGap": 90, "minTime": 15, "daily": 8 },
   "garden": { "reward": 700, "minGap": 75, "minTime": 15, "daily": 10 },
   "taskRules": { "daily": 80, "minGap": 3 },
+  "gardening": {
+    "maxPlots": 24,
+    "stock": { "base": 30, "crate": 150 },
+    "bagMax": 99,
+    "saleDaily": 30000,
+    "grades": [1, 1.5, 2.25],
+    "weedsFrom": 7200,
+    "neglect": { "floor": [3600, 14400], "factor": [1, 3] },
+    "tools": {
+      "hoe": { "prices": [12000, 45000], "time": [3, 2, 1.2] },
+      "trowel": { "prices": [15000, 60000], "time": [2.4, 1.6, 1] },
+      "can": { "prices": [15000, 50000], "time": [2.4, 1.6, 1], "wet": [7200, 14400, 28800] },
+      "shears": { "prices": [18000, 70000], "time": [2.4, 1.6, 1], "bonus": [0, 1, 2] }
+    },
+    "soils": {
+      "plain": { "price": 0, "grade": 0 },
+      "rich": { "price": 150, "grade": 1 },
+      "colonia": { "price": 600, "grade": 2 }
+    },
+    "fertilizers": {
+      "compost": { "price": 200, "speed": 1.5 },
+      "bradbury": { "price": 900, "speed": 2 }
+    },
+    "crops": {
+      "radish": { "tier": 0, "grow": 1200, "seed": 40, "price": 30, "yield": 3 },
+      "lettuce": { "tier": 0, "grow": 2700, "seed": 80, "price": 60, "yield": 3 },
+      "carrot": { "tier": 0, "grow": 5400, "seed": 120, "price": 110, "yield": 3 },
+      "sunflower": { "tier": 0, "grow": 7200, "seed": 150, "price": 240, "yield": 2 },
+      "tomato": { "tier": 0, "grow": 10800, "seed": 200, "price": 150, "yield": 4 },
+      "strawberry": { "tier": 1, "grow": 14400, "seed": 400, "price": 260, "yield": 4 },
+      "fujin-tea": { "tier": 1, "grow": 18000, "seed": 500, "price": 420, "yield": 3 },
+      "ochoeng-chilli": { "tier": 1, "grow": 21600, "seed": 600, "price": 520, "yield": 3 },
+      "pumpkin": { "tier": 1, "grow": 28800, "seed": 700, "price": 900, "yield": 2 },
+      "achenar-rose": { "tier": 2, "grow": 32400, "seed": 1500, "price": 1500, "yield": 2 },
+      "neritus-berry": { "tier": 2, "grow": 36000, "seed": 1800, "price": 1000, "yield": 4 },
+      "onionhead": { "tier": 2, "grow": 43200, "seed": 2500, "price": 1900, "yield": 3 }
+    }
+  },
   "drinks": {
     "night-conda": 600, "caustic-sour": 500, "imperial-crush": 550,
     "stellar-kick": 650, "colonia-dream": 500
@@ -67,6 +105,7 @@
     "harvest-crate": 5000, "garden-arch": 9000, "butterflies": 8000,
     "vine-trellis": 9000, "hanging-basket": 3000, "potted-palm": 12000, "bamboo": 8000, "fern": 3000, "bush": 3000, "wildflowers": 2000,
     "cactus-bed": 7000, "pumpkin-patch": 6000,
+    "soil-tile": 5000, "garden-shed": 20000, "wheelbarrow": 6000, "scarecrow": 8000, "garden-gnome": 4000, "garden-fence": 2500, "beehive": 12000,
     "fsd": 60000, "srv": 90000, "afmu": 25000, "crew-seat": 15000, "command-chair": 45000, "side-console": 20000, "limpets": 18000,
     "holo-thargoid": 35000, "containment-pod": 28000, "lab-bench": 15000, "ljpc-banner": 5000, "amadioha-photo": 4000,
     "chronicles-lectern": 20000, "voie-relic": 25000, "salome-shrine": 30000, "raxxla-gate": 50000, "voie-drape": 8000, "adept-robes": 10000,
