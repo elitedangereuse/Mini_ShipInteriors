@@ -651,6 +651,32 @@ Les manettes reconnues par le navigateur avec la disposition [Gamepad « standar
 
 Une zone morte évite la dérive des sticks. Les boutons d'action ne se répètent pas quand on les maintient. Les invites près des meubles affichent les boutons de la manette après son utilisation. Les commandes manette sont suspendues pendant la saisie, en mode aménagement, en mode photo, dans les jeux de table et les bornes d'arcade, ou lorsque la fenêtre n'a plus le focus. Pour activer le son, un premier clic ou une touche du clavier peut être nécessaire selon le navigateur.
 
+### Mobile et tablette
+
+Au démarrage, **Jouer en plein écran** demande le plein écran sans barre de navigation,
+puis le verrouillage en paysage. Si le navigateur ne permet pas l’une de ces opérations,
+le jeu occupe l’espace disponible et demande de tourner l’appareil manuellement. Le bouton
+⛶ permet de réessayer ou de sortir du plein écran ; revenir en portrait affiche la carte
+de rotation jusqu’au retour en paysage.
+
+Le bandeau affiche la pièce et les crédits. Son bouton **ⓘ** déplie le pont, l’identité,
+les tâches et les actions des quartiers. Le téléphone reste accessible en dessous. En
+haut à droite : retour au site, plein écran, son, vue subjective et **☰** (rotation, zoom,
+photo, sprint auto, mode léger, aide et volume). Les emotes se déplient avec le sourire.
+
+Le joystick gauche déplace le personnage ; glisser le décor tourne la caméra. Les quatre
+boutons droits permettent de courir, fermer, effectuer l’action du siège et interagir.
+Les panneaux respectent la hauteur disponible et les encoches de l’écran ; les listes
+défilent à l’intérieur. Le Holo-Me conserve ses boutons Annuler / Valider visibles et
+cadre le personnage dans la moitié libre de l’écran. Le jukebox utilise deux colonnes en
+paysage. Les commandes tactiles se relâchent lors d’une rotation, d’un redimensionnement
+ou de l’ouverture d’une interface qui suspend le déplacement.
+
+Vérification mobile : tester le démarrage depuis le portrait, le retour du plein écran,
+le joystick à deux doigts avec les boutons, le menu, le téléphone, les deux onglets du
+Holo-Me, l’ascenseur et les albums du jukebox. Inclure un paysage court (568 × 320) et
+un appareil avec encoche ; essayer aussi le chat avec le clavier logiciel ouvert.
+
 ### Clavier et souris
 
 | Action | Clavier / souris |

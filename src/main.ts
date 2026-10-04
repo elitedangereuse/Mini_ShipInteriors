@@ -41,6 +41,7 @@ import { Minimap } from './minimap'
 import { beatAt, beatPulse, film, filmGlow, holoMeGlow, holoTime, studio, type ClawControl, type ClawResult } from './furniture'
 import { GamepadControls, type GamepadInput } from '../shared/gamepad.js'
 import { TouchGamepad } from './touch-gamepad'
+import { setupMobile } from './mobile'
 import { lineOfSight } from '../shared/sight.js'
 import { DIRS } from './map'
 import { EN, localizeAttributes, tr } from './i18n'
@@ -2980,20 +2981,7 @@ function nearestCabinTile(p: { x: number; z: number }): { x: number; z: number }
 const keys = new Set<string>()
 const gamepad = new GamepadControls()
 const touchGamepad = coarsePointer ? new TouchGamepad() : null
-let mobileStarted = false
-function syncMobileEntry() {
-  if (!touchGamepad) return
-  $('mobile-entry').hidden = mobileStarted && innerWidth > innerHeight
-}
-async function enterMobile() {
-  mobileStarted = true
-  try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen?.() } catch { /* Plein écran indisponible. */ }
-  try { await (screen.orientation as ScreenOrientation & { lock?: (orientation: 'landscape') => Promise<void> }).lock?.('landscape') } catch { /* Rotation manuelle requise. */ }
-  syncMobileEntry()
-}
-$('mobile-enter').onclick = () => void enterMobile()
-$('mobile-fullscreen').onclick = () => void enterMobile()
-addEventListener('orientationchange', syncMobileEntry)
+const syncMobileEntry = setupMobile(coarsePointer)
 let usingGamepad = false
 for (const type of ['keydown', 'pointerdown']) addEventListener(type, () => (usingGamepad = false), { capture: true })
 addEventListener('blur', () => gamepad.suspend())
@@ -3109,7 +3097,7 @@ function keyboardDirection(): THREE.Vector3 {
 function updateGamepad(dt: number): GamepadInput {
   const focus = document.activeElement
   const typing = focus instanceof HTMLElement && (focus.matches('input, textarea, select') || focus.isContentEditable)
-  const enabled = !document.hidden && !typing && !chat.typing && !editing() && !photo.active && !arcade?.isOpen && !boardGames.isOpen && !barPanel.isOpen && !gameEmbed.isOpen && !mediaRoom.isOpen && !cinemaRoom.isOpen
+  const enabled = !document.hidden && $('mobile-entry').hidden === true && !typing && !chat.typing && !editing() && !photo.active && !arcade?.isOpen && !boardGames.isOpen && !barPanel.isOpen && !gameEmbed.isOpen && !mediaRoom.isOpen && !cinemaRoom.isOpen
   // Certains navigateurs mobiles rapportent brièvement document.hasFocus() = false après le
   // passage en plein écran. Cela ne doit pas couper le joystick ni ses boutons.
   // Mode construction : la manette mène son curseur (cf. HomeBuilder.gamepad).
@@ -4679,6 +4667,7 @@ function frame() {
   }
   // Mode aménagement : le joueur au milieu de la zone que le catalogue laisse visible.
   if (editing()) activeEditor()!.frameCamera()
+  else if (coarsePointer && wardrobe.isOpen) iso.frameCenter((innerWidth - $('wardrobe').getBoundingClientRect().left) / 2, 0, innerHeight)
   else iso.frameCenter(0, 0, innerHeight)
   const cinemaSeat = deck.def.id === 1 && ['cinema-row', 'projection-chair'].includes(seating.current?.item.furniture?.model ?? '')
   if (cinemaSeat) cinemaFocus.set(cinemaScreenProp.x, deck.y, (player.position.z + cinemaScreenProp.z) / 2)
@@ -4849,6 +4838,12 @@ function frame() {
       else screenPos.set(near!.position.x, deck.y + deck.ground(near!.position.x, near!.position.z) + 1.1, near!.position.z).project(activeCamera())
       x = ((screenPos.x + 1) / 2) * innerWidth
       y = ((1 - screenPos.y) / 2) * innerHeight
+    }
+    if (coarsePointer) {
+      // Keep long interaction labels on screen, clear of the top bar and thumb controls.
+      const halfWidth = promptEl.offsetWidth / 2 + 12
+      x = Math.max(halfWidth, Math.min(innerWidth - halfWidth, x))
+      y = Math.max(promptEl.offsetHeight + 64, Math.min(innerHeight - 120, y))
     }
     promptEl.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`
   }

@@ -1,0 +1,159 @@
+/* Loaded after all desktop styles. Safe areas apply to controls as well as interaction panels. */
+.mobile-status-toggle, #mobile-menu-toggle { display: none; }
+@media (pointer: coarse) {
+  :root {
+    --mobile-top: max(8px, env(safe-area-inset-top));
+    --mobile-bottom: max(8px, env(safe-area-inset-bottom));
+    --mobile-left: max(10px, env(safe-area-inset-left));
+    --mobile-right: max(10px, env(safe-area-inset-right));
+    --mobile-height: calc(100dvh - var(--mobile-top) - var(--mobile-bottom));
+  }
+  button, a, input { -webkit-tap-highlight-color: transparent; }
+  input[type='text'], input[type='search'], textarea, #chat-input { font-size: 16px; }
+  #mobile-entry { padding: var(--mobile-top) var(--mobile-right) var(--mobile-bottom) var(--mobile-left); overflow: auto; }
+  .mobile-entry-card { max-height: var(--mobile-height); overflow: auto; padding: clamp(14px, 4dvh, 24px); }
+  .mobile-entry-card button:disabled { opacity: .65; }
+  .mobile-notice { position: fixed; z-index: 150; left: 50%; top: var(--mobile-top); transform: translateX(-50%); width: min(440px, 80vw); padding: 10px 14px; border: 1px solid var(--accent); border-radius: 12px; background: #111b2af5; color: var(--text); font-size: 13px; text-align: center; pointer-events: none; }
+
+  /* Short landscape screens need height constraints even when wider than desktop breakpoints. */
+  .lift, .wardrobe, .site-panel, .salvage-panel, .fish-book-panel, .boardgame-panel, .photo-preview {
+    max-height: var(--mobile-height);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+  .lift, .wardrobe { z-index: 12; background: #101a2af5; }
+  .lift { padding: 10px; gap: 6px; }
+  #lift-buttons button, .lift-close, .wardrobe button, .site-panel button, .salvage-panel button,
+  .fish-book-close, .boardgame-close { min-height: 44px; }
+  .lift-hint { display: none; }
+  .wardrobe { top: var(--mobile-top); right: var(--mobile-right); bottom: auto; transform: none; width: min(360px, 48vw); gap: 8px; padding: 10px; }
+  .wardrobe .wr-dot { width: 44px; height: 44px; }
+  .wr-tabs { position: sticky; top: -10px; z-index: 1; flex: none; background: #172033; }
+  .wr-actions { position: sticky; bottom: -10px; z-index: 1; margin: 0 -10px -10px; padding: 8px 10px; background: #172033; border-top: 1px solid var(--border); }
+  .site-panel, .salvage-panel { padding: 16px; }
+  .site-panel .site-close, .salvage-close { width: 44px; height: 44px; }
+  .bar-game-overlay, .media-room-overlay, .cinema-room-overlay { padding: var(--mobile-top) var(--mobile-right) var(--mobile-bottom) var(--mobile-left); }
+  .bar-game-shell, .media-room-shell, .cinema-room-shell { height: var(--mobile-height); }
+  .bar-game-header { padding: 8px 12px; gap: 8px; }
+  .bar-game-header small, .bar-game-hint { display: none; }
+  .bar-game-header h2 { font-size: 19px; }
+  .bar-game-actions button, .bar-game-actions a { min-height: 44px; padding: 8px; font-size: 12px; }
+  .media-room-header, .cinema-room-header { padding: 10px; }
+  .media-room-actions button, .cinema-room-actions button { min-height: 44px; }
+  .jacques-panel { max-height: var(--mobile-height); padding: 12px; }
+  .jacques-heading .jacques-close { width: 44px; height: 44px; }
+  .fish-book { padding: var(--mobile-top) var(--mobile-right) var(--mobile-bottom) var(--mobile-left); }
+}
+
+@media (pointer: coarse) and (orientation: landscape) {
+  .top-left { top: var(--mobile-top); left: var(--mobile-left); gap: 6px; max-width: min(300px, calc(100vw - 270px - var(--mobile-left) - var(--mobile-right))); }
+  .top-left > .ship-status.panel:first-of-type { position: relative; width: 100%; max-width: none; min-height: 44px; grid-template-columns: minmax(0, 1fr); padding: 7px 48px 7px 10px; gap: 2px; background: #101a2ad9; }
+  .room { grid-column: auto; min-height: 0; font-size: 14px; line-height: 1.2; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .credits { font-size: 12px; }
+  .ship-status > .net, .ship-status > .ship-name, .ship-status > .identity, .ship-status > .tasks-here { display: none; }
+  .mobile-status-toggle { position: absolute; right: 0; top: 0; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-left: 1px solid var(--border); border-radius: 0 10px 10px 0; background: transparent; color: var(--cyan); font-size: 22px; pointer-events: auto; }
+  .mobile-status-toggle[aria-expanded='true'] { color: var(--accent); }
+  .top-left > #cabin-bar, .top-left > .order-ticket { display: none; }
+  .top-left.details-open { z-index: 10; max-height: calc(var(--mobile-height) - 110px); overflow-y: auto; overscroll-behavior: contain; pointer-events: auto; }
+  .top-left.details-open > * { flex-shrink: 0; }
+  .details-open .ship-status > .ship-name { display: block; grid-column: 1; letter-spacing: .05em; font-size: 10px; }
+  .details-open .ship-status > .net, .details-open .ship-status > .identity, .details-open .ship-status > .tasks-here { display: flex; font-size: 12px; }
+  .details-open > #cabin-bar, .details-open > .order-ticket { display: block; width: 100%; background: #101a2af5; }
+  .details-open .ship-status { background: #101a2af5 !important; }
+  .cb-actions { flex-wrap: wrap; }
+  .cb-actions button, .cb-actions a { min-height: 44px; display: inline-flex; align-items: center; }
+  .cb-actions kbd { display: none; }
+  .ph-tab { margin-left: 0; width: 44px; height: 44px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; clip-path: none; }
+  .ph-tab b { display: none; }
+  .ph-tab .ph-badge { position: absolute; top: -3px; right: -3px; }
+  .ph-body { left: var(--mobile-left); height: var(--mobile-height); }
+  .top-right { top: var(--mobile-top); right: var(--mobile-right); gap: 6px; }
+  .top-row { gap: 6px; }
+  .site-link { width: 44px; min-height: 44px; padding: 0; }
+  .buttons { gap: 4px; padding: 0; border: 0; background: transparent; backdrop-filter: none; }
+  .buttons button { width: 44px; height: 44px; font-size: 20px; background: #101a2ad9; }
+  #mobile-menu-toggle { display: grid; }
+  .top-right > .mobile-tools { position: absolute; top: 50px; right: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 280px; padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: #101a2af5; max-height: calc(var(--mobile-height) - 56px); overflow-y: auto; overscroll-behavior: contain; z-index: 11; }
+  .mobile-tools button { display: flex !important; width: auto; min-height: 44px; height: auto; padding: 8px; gap: 8px; font-size: 17px; text-align: left; }
+  .mobile-tools button span { font-size: 12px; }
+  body.fps-view .mobile-tools :is(#rot-left, #rot-right, #zoom-in, #zoom-out) { display: none !important; }
+  .mobile-volume { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 8px; font-size: 12px; }
+  .mobile-volume #volume { display: block; flex: 1; width: 100%; min-width: 0; }
+  .help { display: grid; width: min(420px, 65vw); max-height: calc(var(--mobile-height) - 56px); overflow: auto; pointer-events: auto; background: #101a2af5; }
+  .minimap { width: 80px; height: 80px; margin-right: 50px; }
+  .emotes { top: calc(var(--mobile-top) + 50px); right: var(--mobile-right); max-width: 244px; z-index: 9; }
+  .emotes button { width: 44px; height: 44px; font-size: 23px; }
+  .emotes.expanded { background: #101a2af5; }
+  .reactions { max-height: calc(var(--mobile-height) - 150px); overflow-y: auto; }
+  .about-toggle { top: calc(var(--mobile-top) + 100px); right: var(--mobile-right); width: 44px; height: 44px; }
+  .about { top: calc(var(--mobile-top) + 148px); right: var(--mobile-right); max-height: calc(var(--mobile-height) - 148px); background: #101a2af5; z-index: 10; }
+  .touch-stick { left: var(--mobile-left); bottom: var(--mobile-bottom); }
+  .touch-actions { right: var(--mobile-right); bottom: var(--mobile-bottom); }
+  .touch-flare { right: var(--mobile-right); bottom: calc(var(--mobile-bottom) + 116px); }
+  .chat { bottom: var(--mobile-bottom); width: min(240px, calc(100vw - 270px - var(--mobile-left) - var(--mobile-right))); }
+  #chat-input { min-height: 40px; font-size: 16px; background: #101a2ad9; }
+  #chat-log { font-size: 12px; max-height: 44px; }
+  #dialog { bottom: calc(var(--mobile-bottom) + 58px); width: min(480px, calc(100vw - 260px - var(--mobile-left) - var(--mobile-right))); max-height: min(112px, 32dvh); overflow-y: auto; overscroll-behavior: contain; padding: 9px 12px; font-size: 13px; line-height: 1.4; pointer-events: auto; background: #101a2aeb; }
+  #prompt { bottom: auto; max-width: min(360px, calc(100vw - 260px)); white-space: normal; font-size: 12px; }
+  .toast { top: auto; bottom: calc(var(--mobile-bottom) + 50px); max-width: 55vw; }
+  .lift { width: min(310px, calc(100vw - 260px)); }
+  .wardrobe { width: min(380px, 48vw); }
+  /* The preview stays visible to the left; tabs and confirmation stay reachable while scrolling. */
+  .wardrobe button { font-size: 12px; }
+  .jukebox { z-index: 12; width: min(960px, calc(100vw - var(--mobile-left) - var(--mobile-right))); height: var(--mobile-height); max-height: var(--mobile-height); grid-template-columns: minmax(180px, .8fr) minmax(0, 1.5fr); grid-template-rows: auto minmax(0, 1fr) auto; gap: 8px 14px; padding: 12px; }
+  .jb-heading { grid-column: 1 / -1; }
+  .jb-heading h2 { font-size: 25px; }
+  .jb-heading p, .jb-hint, .jb-eyebrow { display: none; }
+  .jb-close { width: 44px; height: 44px; }
+  .jb-hero { grid-column: 1; grid-row: 2; min-height: 0; align-self: start; padding: 8px; gap: 8px; }
+  .jb-hero > img { width: 64px; height: 64px; }
+  .jb-hero-body > strong { font-size: 19px; }
+  .jb-transport { grid-column: 1; grid-row: 3; flex-wrap: wrap; gap: 4px; }
+  .jb-transport button { min-height: 44px; padding: 6px 8px; }
+  .jb-transport button span { display: none; }
+  .jb-catalogue { grid-column: 2; grid-row: 2; overflow: hidden; }
+  .jb-list { grid-template-columns: minmax(0, 1fr); }
+  .jb-filter { min-height: 44px; }
+  .jb-actions { grid-column: 2; grid-row: 3; margin: 0; }
+  .jb-actions button { min-width: 0; min-height: 44px; padding: 6px; }
+  .jb-library-title { margin-top: 4px; }
+  .jb-section-title { margin-bottom: 4px; }
+  .jukebox .jb-list button.jb-card { min-height: 64px; gap: 8px; padding: 6px; }
+  .jb-cover { width: 48px; height: 48px; }
+  .salvage-hud { top: calc(var(--mobile-top) + 52px); left: 50%; right: auto; transform: translateX(-50%); max-width: calc(100vw - 360px); padding: 5px 8px; gap: 4px 8px; font-size: 12px; }
+  .court-top { top: calc(var(--mobile-top) + 52px); right: calc(var(--mobile-right) + 50px); width: 144px; transform: none; flex-direction: column; }
+  .court-power { bottom: calc(var(--mobile-bottom) + 52px); width: min(360px, calc(100vw - 270px)); }
+  .ed-bar { top: var(--mobile-top); left: var(--mobile-left); max-width: calc(100vw - 260px); padding: 6px; gap: 6px; }
+  .ed-title, .ed-hint:not(.refused) { display: none; }
+  .ed-actions button, .ed-tabs button, .ed-tool-row button { min-height: 44px; min-width: 44px; }
+  .ed-catalog { top: calc(var(--mobile-top) + 52px); bottom: var(--mobile-bottom); right: var(--mobile-right); left: auto; height: auto; width: min(310px, 40vw); }
+  .ed-tools { bottom: var(--mobile-bottom); left: var(--mobile-left); transform: none; max-width: calc(60vw - 24px); flex-wrap: wrap; }
+  .photo-bar { max-width: calc(100vw - var(--mobile-left) - var(--mobile-right)); flex-wrap: wrap; top: var(--mobile-top); left: var(--mobile-left); transform: none; }
+  .photo-preview { top: var(--mobile-top); bottom: auto; right: var(--mobile-right); }
+  .photo-preview img { max-height: 48dvh; object-fit: contain; }
+}
+
+/* A physical portrait screen stays behind the rotation card. A keyboard must not remove controls. */
+@media (pointer: coarse) and (orientation: portrait) {
+  .top-right > .mobile-tools { display: none; }
+}
+
+/* Landscape arcade: reserve the side gutters for the gamepad, not 290 px below the screen. */
+@media (pointer: coarse) and (orientation: landscape) {
+  .arcade { --sw: min(calc(100vw - 300px - var(--mobile-left) - var(--mobile-right)), calc((100dvh - 130px - var(--mobile-top) - var(--mobile-bottom)) * 4 / 3), 860px); padding: var(--mobile-top) var(--mobile-right) var(--mobile-bottom) var(--mobile-left); place-items: center; }
+  .arc-cab { width: calc(var(--sw) + 40px); }
+  .arc-touch { left: var(--mobile-left); right: var(--mobile-right); bottom: var(--mobile-bottom); }
+  .arc-touch button { width: 44px; height: 44px; }
+  .arc-abc { max-width: 140px; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+  .arc-abc [data-b='a'] { width: 56px; height: 56px; }
+  .arc-marquee { padding: 5px; margin-bottom: 5px; }
+  .arc-deck { margin-top: 5px; padding: 5px; }
+  .arc-marquee { font-size: 22px; }
+  .arc-quit { min-height: 44px; }
+  .arcade.arc-fighting { overflow: hidden; }
+  .arc-fighting .arc-cab { max-height: var(--mobile-height); overflow-y: auto; overscroll-behavior: contain; }
+  .arc-fighting .arc-deck { position: sticky; bottom: -10px; z-index: 1; }
+  .arc-fight-menu button, .arc-fight-roster button { min-height: 44px; }
+  .arc-fight-roster { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}

@@ -75,6 +75,8 @@ export class TouchGamepad {
       button.addEventListener('lostpointercapture', up)
     }
     addEventListener('blur', () => this.reset())
+    addEventListener('resize', () => this.reset())
+    addEventListener('orientationchange', () => this.reset())
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.reset() })
   }
 
@@ -108,6 +110,7 @@ export class TouchGamepad {
   }
 
   poll(enabled: boolean): GamepadInput & { flare: boolean } {
+    if (!enabled && (this.stickId !== null || this.sprint || this.pending.size || this.buttonPointers.size)) this.reset()
     const pressed = this.pending
     this.pending = new Set()
     const direction = this.y < -0.55 ? -1 : this.y > 0.55 ? 1 : 0

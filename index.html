@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/src/style.css" />
     <link rel="stylesheet" href="/src/music.css" />
     <link rel="stylesheet" href="/src/crew/phone.css" />
+    <link rel="stylesheet" href="/src/mobile.css" />
     <script>
       // Langue du jeu : celle du site, lue comme le fait le site (?lang=, sinon son cookie LANG,
       // sinon le français, cf. phputils/gettext_setup.php). Le jeu n'est traduit qu'en anglais :
@@ -87,7 +88,7 @@
     <div id="hud" hidden>
       <div class="top-left">
         <img class="site-logo" src="/logo-elite-dangereuse.svg" alt="Élite Dangereuse" width="200" height="64" />
-        <div class="panel">
+        <div class="panel ship-status">
           <div class="ship-name"><span id="ship-where">Fleet Carrier</span> · <span id="deck"></span></div>
           <div id="room" class="room"></div>
           <div id="net" class="net"><i data-icon="user-solo"></i>Solo</div>
@@ -243,11 +244,11 @@
     <div id="mobile-entry" hidden>
       <div class="mobile-entry-card">
         <strong lang="fr">Mini Ship Interiors</strong><strong lang="en">Mini Ship Interiors</strong>
-        <p lang="fr">Tournez votre téléphone en paysage, puis lancez le jeu.</p>
-        <p lang="en">Rotate your phone to landscape, then enter the game.</p>
+        <p id="mobile-entry-message"><span lang="fr">Lancez le jeu en plein écran paysage.</span><span lang="en">Start the game in landscape fullscreen.</span></p>
         <p class="mobile-entry-hint" lang="fr">Joystick gauche pour marcher · faites glisser le décor pour regarder autour de vous.</p>
         <p class="mobile-entry-hint" lang="en">Left stick to walk · drag the scene to look around.</p>
         <button id="mobile-enter"><span lang="fr">Jouer en plein écran</span><span lang="en">Play fullscreen</span></button>
+        <p id="mobile-entry-status" class="mobile-entry-hint" role="status" hidden></p>
       </div>
     </div>
 
