@@ -12,6 +12,8 @@ import { eliteMonument } from './monument'
 const R = 0.98
 /** Hauteur du monument au-dessus du projecteur (le bas de sa boule). */
 const MONUMENT_Y = 0.62
+/** Vitesse de rotation du monument sur lui-même (rad/s : un tour en 10 s). */
+const SPIN = (Math.PI * 2) / 10
 
 /** Anneau plein (vue de profil : `profile`, en rayon et hauteur), tourné autour de l'axe y. */
 function ring(profile: [number, number][], material: THREE.Material, seg = 40): THREE.Mesh {
@@ -72,10 +74,11 @@ const concoursePlanter: Builder = ({ random }) => {
     leaf.rotation.y = -a
     g.add(leaf)
   }
-  // Le projecteur, un plot au ras de la terre, et le monument qu'il tient en lévitation, face aux
-  // portes (à l'est) : la caméra tournant par quarts de tour à 45° de ses axes, on le voit de trois
-  // quarts, de face ou de dos, dans toutes les vues ; il ne fait que monter et descendre d'un rien.
-  // Agrandi de 40 %, il monte jusqu'à 2,16, sous le plafond (2,2 : on le voit en vue subjective).
+  // Le projecteur, un plot au ras de la terre, et le monument qu'il tient en lévitation : il tourne
+  // sur lui-même (un tour en dix secondes, en partant face aux portes, à
+  // l'est) en montant et descendant d'un rien ; il se lit des deux côtés, on le voit donc de face
+  // la moitié du temps dans toutes les vues. Agrandi de 40 %, il monte jusqu'à 2,16, sous le
+  // plafond (2,2 : on le voit en vue subjective).
   g.add(cylinder(0.13, 0.17, 0.1, mat.steel, 0, 0.55, 0, 16))
   const lens = mesh(new THREE.TorusGeometry(0.13, 0.016, 6, 24), mat.lamp, 0, 0.6, 0)
   lens.rotation.x = Math.PI / 2
@@ -90,6 +93,7 @@ const concoursePlanter: Builder = ({ random }) => {
     live,
     update: (t) => {
       monument.position.y = MONUMENT_Y + Math.sin(t * 0.9) * 0.006
+      monument.rotation.y = Math.PI / 2 + t * SPIN
     },
   }
 }
