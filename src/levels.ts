@@ -1502,6 +1502,8 @@ export const LEVELS: LevelDef[] = [
           tr('Trois carpes koï : Faulcon, DeLacy et Gutamaya. Gutamaya est la plus chère à nourrir. Sous elles, des ombres bien plus grosses passent lentement.', 'Three koi: Faulcon, DeLacy and Gutamaya. Gutamaya is the most expensive to feed. Beneath them, much larger shadows drift slowly by.'),
           tr('La grenouille de pierre crache son filet d\'eau. En gravité artificielle, il retombe presque droit.', 'The stone frog spits its trickle of water. In artificial gravity, it falls almost straight.'),
           tr('L\'étang est bien plus profond qu\'il n\'en a l\'air. Capucine dit qu\'il communique avec les ballasts. Nico dit que non. Personne n\'est allé voir.', 'The pond is much deeper than it looks. Capucine says it connects to the ballast tanks. Nico says it doesn\'t. Nobody has gone to check.'),
+          tr('Trois grenouilles se disputent les nénuphars. Capucine jure qu\'elle n\'en a jamais commandé : elles seraient arrivées avec une caisse de bambous de Lave.', 'Three frogs squabble over the lily pads. Capucine swears she never ordered any: they apparently came in with a crate of bamboo from Lave.'),
+          tr('Une libellule se pose une seconde sur l\'eau, puis file. Les gerris, eux, patinent comme si la gravité artificielle ne les concernait pas.', 'A dragonfly touches the water for a second, then darts away. The pond skaters glide about as if artificial gravity were none of their business.'),
         ],
       },
       // Le ponton et le livre : leur texte fait d'eux des objets qu'on actionne (touche E), la
