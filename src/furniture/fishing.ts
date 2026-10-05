@@ -2,7 +2,8 @@ import * as THREE from 'three'
 import { NATURE_PACK, packModel } from '../assets'
 import { renderQuality } from '../quality'
 import { fishModel } from '../fishing/models'
-import { box, cylinder, drawnTexture, glass, keepShared, lit, mesh, part, sphere, type Builder } from './kit'
+import { box, cylinder, drawnTexture, keepShared, lit, mesh, part, sphere, type Builder } from './kit'
+import { fallingWater, pondLife } from './pond-life'
 import { fishById, FISH, FISHING_POND } from '../../shared/fishing.js'
 
 /*
@@ -40,9 +41,20 @@ function roundedRect(hw: number, hd: number, r: number): THREE.Shape {
 /** La forme, à plat sur le sol (y = 0). */
 const flat = (shape: THREE.Shape) => new THREE.ShapeGeometry(shape, 10).rotateX(-Math.PI / 2)
 
-/** Un modèle du Nature Kit, à l'échelle `s`, le pied à `y`, posé en (x, z). */
+/**
+ * Verts du Nature Kit, teints d'un turquoise qui ne va pas à l'étang : feuilles et mousses y
+ * prennent un vert de feuille (le reste, la fleur rouge du nénuphar, ne change pas).
+ */
+const GREENS: Record<string, string> = { leafsGreen: '#5c9e48', leafsDark: '#3f7a36', grass: '#6a9a3e' }
+
+/** Un modèle du Nature Kit, à l'échelle `s`, le pied à `y`, posé en (x, z), ses verts repeints. */
 function nature(file: string, s: number, x: number, y: number, z: number, turn: number): THREE.Object3D {
   const o = packModel(file, NATURE_PACK).clone(true)
+  o.traverse((c) => {
+    const m = c as THREE.Mesh
+    const green = m.isMesh && GREENS[(m.material as THREE.Material).name]
+    if (green) m.material = lit(green)
+  })
   o.scale.setScalar(s)
   o.rotation.y = turn
   o.position.set(x, y, z)
@@ -52,7 +64,8 @@ function nature(file: string, s: number, x: number, y: number, z: number, turn: 
 /**
  * Le grand étang du jardin exotique (taille : FISHING_POND) : une margelle de pierres, des
  * rochers, des roseaux et des nénuphars, la grenouille de pierre et son filet d'eau ; dans l'eau,
- * les trois carpes de Capucine et les ombres des poissons qu'on pêche. Rien n'y dépasse 0,6 de
+ * les trois carpes de Capucine et les ombres des poissons qu'on pêche. L'eau, ses rides, les
+ * grenouilles, les libellules et les gerris vivent dans pond-life.ts. Rien n'y dépasse 0,6 de
  * haut : au-delà, le pont trame un meuble qui cache le joueur (cf. Deck), et l'étang entier
  * s'estompait dès qu'on montait sur le ponton.
  */
@@ -66,6 +79,8 @@ const fishingPond: Builder = ({ random }) => {
   bottom.castShadow = false
   g.add(bottom)
   const edge = roundedRect(hw - rim / 2, hd - rim / 2, corner - rim / 2).getSpacedPoints(54)
+  // Quelques pierres de la margelle, où les grenouilles viennent s'asseoir (loin du ponton, au nord).
+  const stones = edge.filter((p, i) => i % 9 === 4 && -p.y > -hd + 0.3).map((p) => ({ x: p.x, z: -p.y, y: 0.115 }))
   edge.forEach((p, i) => {
     const next = edge[(i + 1) % edge.length]
     const stone = mesh(new THREE.DodecahedronGeometry(0.13 + random() * 0.04, 0), lit(i % 3 ? C.stone : C.stoneDark), p.x, 0.055, -p.y)
@@ -114,10 +129,20 @@ const fishingPond: Builder = ({ random }) => {
     g.add(bird)
   }
   // Nénuphars, et deux lotus.
-  for (const [x, z, s, big] of [[-1.3, 0.75, 1.5, 1], [-0.7, 1.05, 1.2, 0], [0.9, 0.9, 1.4, 1], [1.55, -0.55, 1.3, 1], [-1.6, -0.6, 1.2, 0], [0.25, -1.05, 1.1, 0], [-0.4, -0.85, 1.4, 1]] as const) {
-    g.add(nature(big ? 'lily_large' : 'lily_small', s, x, water + 0.004, z, random() * 6))
+  const lilies = [[-1.3, 0.75, 1.5, 1], [-0.7, 1.05, 1.2, 0], [0.9, 0.9, 1.4, 1], [1.55, -0.55, 1.3, 1], [-1.6, -0.6, 1.2, 0], [0.25, -1.05, 1.1, 0], [-0.4, -0.85, 1.4, 1]] as const
+  // Le modèle du kit a son pivot 5 cm sous la feuille : remontée à fleur d'eau, sinon l'eau la voile.
+  // Le modèle du kit est épais, son pivot 5 cm sous la feuille (qui passait sous l'eau) : aplati, et
+  // posé à fleur d'eau.
+  const FLAT = 0.3
+  for (const [x, z, s, big] of lilies) {
+    const pad = nature(big ? 'lily_large' : 'lily_small', s, x, water + 0.05 * s * FLAT - 0.003, z, random() * 6)
+    pad.scale.y *= FLAT
+    g.add(pad)
   }
-  for (const [x, z] of [[-1.28, 0.78], [0.92, 0.88]] as const) {
+  // Les lotus fleurissent sur deux nénuphars : les grenouilles se posent sur les autres.
+  const lotus = [[-1.3, 0.75], [0.9, 0.9]] as const
+  for (const [lx, lz] of lotus) {
+    const x = lx + 0.02, z = lz + (lx < 0 ? 0.03 : -0.02)
     for (let p = 0; p < 6; p++) {
       const a = (p / 6) * Math.PI * 2
       const petal = mesh(new THREE.ConeGeometry(0.03, 0.085, 4), lit(p % 2 ? '#ffc2e0' : '#ff8ac8'), x + Math.cos(a) * 0.036, water + 0.05, z + Math.sin(a) * 0.036)
@@ -128,11 +153,18 @@ const fishingPond: Builder = ({ random }) => {
   }
 
   const live = new THREE.Group()
-  const surface = part(flat(roundedRect(hw - rim - 0.02, hd - rim - 0.02, corner - rim)), glass('#6fd6e8', 0.5), 0, water, 0)
-  const jet = part(new THREE.CylinderGeometry(0.008, 0.014, 0.42, 5), glass('#bff6ff', 0.6), rockX - 0.22, 0.26, rockZ - 0.2)
+  // L'eau et ce qui y vit ; les grenouilles se posent sur les grands nénuphars (pas sur les lotus).
+  const shape = { hw: hw - rim - 0.02, hd: hd - rim - 0.02, r: corner - rim }
+  const pads = lilies.filter(([x, z]) => !lotus.some(([lx, lz]) => lx === x && lz === z)).map(([x, z]) => ({ x, z }))
+  const life = pondLife({ shape, water, pads, stones, random })
+  const surface = part(flat(roundedRect(shape.hw, shape.hd, shape.r)), life.surface.material, 0, water, 0)
+  surface.renderOrder = 1
+  live.add(life.group)
+  const flowing = { value: 0 }
+  const jet = part(new THREE.CylinderGeometry(0.008, 0.014, 0.42, 5), fallingWater(flowing), rockX - 0.22, 0.26, rockZ - 0.2)
   jet.rotation.set(-0.55, 0, 0.75)
   // La cascade : une nappe d'eau qui glisse du grand rocher, et l'écume à son pied.
-  const fall = part(new THREE.PlaneGeometry(0.3, 0.42, 1, 6), glass('#d6fbff', 0.55), rockX - 0.06, 0.25, rockZ - 0.34)
+  const fall = part(new THREE.PlaneGeometry(0.3, 0.42, 1, 6), fallingWater(flowing), rockX - 0.06, 0.25, rockZ - 0.34)
   fall.rotation.set(0.5, 0.25, 0)
   const sheet = fall.geometry.getAttribute('position') as THREE.BufferAttribute
   const rest = Float32Array.from(sheet.array as Float32Array)
@@ -157,12 +189,17 @@ const fishingPond: Builder = ({ random }) => {
   }
   const koi = [['#ff7a2a', '#ff7a2a'], ['#f4f4f0', '#ff7a2a'], ['#2a2a2e', '#2a2a2e']].map(([color, tail], i) => ({
     ...swimmer(color, tail, 1.5), speed: 0.3 + i * 0.07, phase: i * 2.1, rx: 0.5 + i * 0.16, rz: 0.75 - i * 0.12, y: 0.055,
+    // Prochaine fois qu'elle vient gober à la surface (une ride).
+    gulp: 2 + i * 1.7,
   }))
   const shadows = [1.6, 2.1, 1.3, 2.6, 1.8].map((size, i) => ({
     ...swimmer('#143436', '#143436', size), speed: -(0.14 + i * 0.045), phase: i * 1.37, rx: 0.3 + ((i * 37) % 60) / 100, rz: 0.35 + ((i * 53) % 55) / 100, y: 0.035,
   }))
   const all = [...koi, ...shadows]
   const reachX = hw - rim - 0.35, reachZ = hd - rim - 0.3
+  // La cascade tombe en continu : une ride à son pied, régulièrement.
+  const fallFoot = { x: rockX - 0.1, z: rockZ - 0.52 }
+  let nextDrop = 0
   return {
     solid: g,
     live,
@@ -171,6 +208,20 @@ const fishingPond: Builder = ({ random }) => {
     extent: new THREE.Box3(new THREE.Vector3(-hw + 0.06, 0, -hd + 0.06), new THREE.Vector3(hw - 0.06, 0.3, hd - 0.06)),
     update(t) {
       const still = renderQuality.light
+      const now = still ? 0 : t
+      flowing.value = now
+      life.update(now)
+      if (!still) {
+        if (now > nextDrop + 3) nextDrop = now
+        for (; nextDrop <= now; nextDrop += 0.55) life.ripple(fallFoot.x + Math.sin(nextDrop * 7) * 0.05, fallFoot.z + Math.cos(nextDrop * 5) * 0.05, nextDrop, 0.35)
+        for (const k of koi) {
+          if (now > k.gulp + 10) k.gulp = now
+          if (now >= k.gulp) {
+            life.ripple(k.fish.position.x, k.fish.position.z, k.gulp, 0.75)
+            k.gulp += 4 + ((k.gulp * 7.3) % 5)
+          }
+        }
+      }
       for (const k of all) {
         const a = (still ? 0 : t) * k.speed + k.phase
         // Une boucle qui se déforme lentement : ils ne repassent pas deux fois au même endroit.

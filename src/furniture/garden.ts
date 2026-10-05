@@ -1,7 +1,8 @@
 import * as THREE from 'three'
 import { renderQuality } from '../quality'
 import { LEAVES } from './cozy'
-import { barX, barZ, box, cylinder, glass, glow, instanced, lit, mesh, part, sphere, type Builder } from './kit'
+import { barX, barZ, box, cylinder, glow, instanced, lit, mesh, part, sphere, type Builder } from './kit'
+import { fallingWater, PondWater } from './pond-life'
 
 /*
  * La serre hydroponique du pont supérieur, agrandie : bacs potagers surélevés, arbre fruitier,
@@ -173,9 +174,12 @@ const gardenPond: Builder = ({ random }) => {
   // Une grenouille de pierre qui crache un filet d'eau.
   g.add(sphere(0.06, lit(C.stoneDark), rx - 0.05, 0.13, -0.05, 8), sphere(0.02, lit(C.stoneDark), rx - 0.08, 0.18, -0.08, 5), sphere(0.02, lit(C.stoneDark), rx - 0.08, 0.18, -0.02, 5))
   const live = new THREE.Group()
-  const water = part(new THREE.CylinderGeometry(1, 1, 0.01, 24), glass('#6fd6e8', 0.55), 0, 0.075, 0)
-  water.scale.set(rx - 0.04, 1, rz - 0.04)
-  const jet = part(new THREE.CylinderGeometry(0.006, 0.01, 0.2, 5), glass('#bff6ff', 0.6), rx - 0.2, 0.12, -0.05)
+  // L'eau de l'étang du jardin exotique (cf. pond-life.ts), en ellipse : elle ondule, et les carpes
+  // et le filet d'eau y laissent des rides.
+  const pond = new PondWater({ hw: rx - 0.04, hd: rz - 0.04, r: -1 })
+  const water = part(new THREE.CircleGeometry(1, 32).scale(rx - 0.04, rz - 0.04, 1).rotateX(-Math.PI / 2), pond.material, 0, 0.08, 0)
+  const flowing = { value: 0 }
+  const jet = part(new THREE.CylinderGeometry(0.006, 0.01, 0.2, 5), fallingWater(flowing), rx - 0.2, 0.12, -0.05)
   jet.rotation.z = 1.2
   live.add(water, jet)
   // Les carpes : corps allongé, queue ; blanc et orange, une noire.
@@ -188,13 +192,27 @@ const gardenPond: Builder = ({ random }) => {
     tail.scale.set(1, 1, 0.3)
     fish.add(body, tail)
     live.add(fish)
-    return { fish, tail, speed: 0.5 + i * 0.13, phase: i * 2.1, r: 0.55 + i * 0.12 }
+    return { fish, tail, speed: 0.5 + i * 0.13, phase: i * 2.1, r: 0.55 + i * 0.12, gulp: 1.5 + i * 2.3 }
   })
+  let nextDrop = 0
   return {
     solid: g,
     live,
     update(t) {
       const still = renderQuality.light
+      const now = still ? 0 : t
+      pond.time = flowing.value = now
+      if (!still) {
+        if (now > nextDrop + 3) nextDrop = now
+        for (; nextDrop <= now; nextDrop += 0.6) pond.spawn(rx - 0.32, -0.05, nextDrop, 0.25)
+        for (const k of koi) {
+          if (now > k.gulp + 10) k.gulp = now
+          if (now >= k.gulp) {
+            pond.spawn(k.fish.position.x, k.fish.position.z, k.gulp, 0.5)
+            k.gulp += 3.5 + ((k.gulp * 7.3) % 4)
+          }
+        }
+      }
       for (const k of koi) {
         const a = (still ? 0 : t) * k.speed + k.phase
         const x = Math.cos(a) * (rx - 0.18) * k.r, z = Math.sin(a) * (rz - 0.14) * k.r
