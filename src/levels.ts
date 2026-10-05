@@ -1511,7 +1511,10 @@ export const LEVELS: LevelDef[] = [
         interact: tr('Le ponton de pêche : des cannes, des appâts, et un étang plein d\'ombres.', 'The fishing dock: rods, bait, and a pond full of shadows.'),
       },
       {
-        model: 'fish-book', x: 7.12, z: 11.35, rot: 3, action: tr('Ouvrir le livre des prises', 'Open the catch book'),
+        // À l'ouest du ponton, au bord de l'eau, tourné vers le nord : entre deux centres de tuiles
+        // (x = 2 et 3, z = 9 et 10), il ne ferme pas la rangée libre au nord de l'étang. Pas à
+        // l'est : il serait entre la caméra et le pêcheur, donc tramé (cf. updateOccluders).
+        model: 'fish-book', x: 2.48, z: 9.55, rot: 2, action: tr('Ouvrir le livre des prises', 'Open the catch book'),
         interact: tr('Le livre des prises : chaque poisson sorti de l\'étang y a sa page.', 'The catch book: every fish landed from the pond has its page.'),
       },
       {
