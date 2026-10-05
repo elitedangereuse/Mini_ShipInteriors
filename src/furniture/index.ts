@@ -96,7 +96,7 @@ export function isCustomModel(name: string): name is CustomModel {
  */
 export function buildFurniture(model: CustomModel, label: string | undefined, seed: number, room?: Room): Furniture {
   const f = BUILDERS[model]({ label, random: rng(seed), room })
-  if (f.solid) f.solid = compact(f.solid)
+  if (f.solid) f.solid = compact(f.solid, true)
   return f
 }
 

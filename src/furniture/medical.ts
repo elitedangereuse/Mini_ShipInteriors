@@ -37,7 +37,7 @@ function cross(size: number, m: THREE.Material, x: number, y: number, z: number)
  */
 const medCurtain: Builder = () => {
   const g = new THREE.Group()
-  const rail = lit(C.chrome)
+  const rail = lit(C.chrome, 'metal')
   g.add(box(0.025, 0.02, 1.25, rail, 0, 0.95, 0.27), box(0.02, 0.1, 0.02, rail, 0, 0.99, -0.33), box(0.02, 0.1, 0.02, rail, 0, 0.99, 0.88))
   // Plis du rideau, repoussé vers le mur (-z).
   const fabric = [lit('#bfe4df'), lit('#a9d8d1')]
@@ -52,7 +52,7 @@ const medCurtain: Builder = () => {
 /** Pied à perfusion : poche de soluté, tubulure, pompe à l'écran vert. */
 const ivStand: Builder = () => {
   const g = new THREE.Group()
-  const chrome = lit(C.chrome)
+  const chrome = lit(C.chrome, 'metal')
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * Math.PI * 2
     const leg = box(0.12, 0.012, 0.018, lit(C.whiteDark), Math.cos(a) * 0.05, 0.012, Math.sin(a) * 0.05)
@@ -137,7 +137,7 @@ const nurseStation: Builder = () => {
   clip.rotation.y = 0.2
   const sheet = box(0.11, 0.004, 0.15, lit('#f7f5ef'), 0.02, 0.461, -0.058)
   sheet.rotation.y = 0.2
-  g.add(clip, sheet, box(0.05, 0.012, 0.015, lit(C.chrome), 0.005, 0.466, -0.13))
+  g.add(clip, sheet, box(0.05, 0.012, 0.015, lit(C.chrome, 'metal'), 0.005, 0.466, -0.13))
   // Sonnette de comptoir.
   g.add(cylinder(0.025, 0.03, 0.012, lit(C.rubber), 0.38, 0.456, 0.12, 10), sphere(0.024, lit('#d9b24a'), 0.38, 0.465, 0.12, 10))
   // Tasse de café, marquée de rouge à lèvres.
@@ -175,7 +175,7 @@ const medFridge: Builder = () => {
     g.add(box(0.4, 0.008, 0.3, lit(C.whiteDark), 0, y, 0.03))
     for (let i = 0; i < 6; i++) g.add(cylinder(0.014, 0.014, 0.06, lit(colors[(i + row) % colors.length]), -0.16 + i * 0.064, y + 0.034, 0.1, 6))
   }
-  g.add(box(0.1, 0.035, 0.01, lit(C.screen), 0.12, 0.575, 0.216), box(0.02, 0.2, 0.02, lit(C.chrome), 0.18, 0.34, 0.225))
+  g.add(box(0.1, 0.035, 0.01, lit(C.screen), 0.12, 0.575, 0.216), box(0.02, 0.2, 0.02, lit(C.chrome, 'metal'), 0.18, 0.34, 0.225))
   const live = new THREE.Group()
   const temp = drawnTexture(64, 24, (c) => {
     c.fillStyle = C.screen
@@ -238,7 +238,7 @@ const xrayBoard: Builder = () => {
       }
     }
   })
-  g.add(box(0.03, 0.03, 0.02, lit(C.chrome), -0.26, 0.86, 0.045), box(0.03, 0.03, 0.02, lit(C.chrome), 0.26, 0.86, 0.045))
+  g.add(box(0.03, 0.03, 0.02, lit(C.chrome, 'metal'), -0.26, 0.86, 0.045), box(0.03, 0.03, 0.02, lit(C.chrome, 'metal'), 0.26, 0.86, 0.045))
   const live = new THREE.Group()
   live.add(part(new THREE.PlaneGeometry(0.56, 0.3), new THREE.MeshBasicMaterial({ map: film }), 0, 0.66, 0.042))
   return { live, solid: g }
@@ -270,7 +270,7 @@ const medScale: Builder = () => {
   const g = new THREE.Group()
   const white = lit(C.white)
   g.add(box(0.3, 0.05, 0.3, white, 0, 0.025, 0.05, 0.015), box(0.26, 0.008, 0.24, lit('#3a3f48'), 0, 0.054, 0.06))
-  g.add(box(0.04, 0.82, 0.03, white, 0, 0.41, -0.1), box(0.18, 0.02, 0.05, lit(C.chrome), 0, 0.72, -0.07))
+  g.add(box(0.04, 0.82, 0.03, white, 0, 0.41, -0.1), box(0.18, 0.02, 0.05, lit(C.chrome, 'metal'), 0, 0.72, -0.07))
   // Graduations de la toise.
   for (let i = 0; i < 9; i++) g.add(box(i % 2 ? 0.012 : 0.022, 0.004, 0.004, lit(C.rubber), 0.022, 0.12 + i * 0.075, -0.083))
   // Cadran.
@@ -303,7 +303,7 @@ const medScale: Builder = () => {
 /** Fauteuil roulant, face à +z. */
 const wheelchair: Builder = () => {
   const g = new THREE.Group()
-  const frame = lit(C.chrome), seat = lit('#2d5a8a'), tyre = lit(C.rubber)
+  const frame = lit(C.chrome, 'metal'), seat = lit('#2d5a8a'), tyre = lit(C.rubber)
   for (const s of [-1, 1]) {
     // Grandes roues et main courante.
     const wheel = mesh(new THREE.TorusGeometry(0.15, 0.018, 6, 20), tyre, s * 0.2, 0.16, -0.04)
@@ -353,7 +353,7 @@ const defibrillator: Builder = () => {
 /** Lavabo chirurgical : cuve, robinet à coude, distributeur de gel, boîte de gants. Dos au mur (-z). */
 const medSink: Builder = () => {
   const g = new THREE.Group()
-  const white = lit(C.white), chrome = lit(C.chrome)
+  const white = lit(C.white), chrome = lit(C.chrome, 'metal')
   g.add(box(0.5, 0.36, 0.34, white, 0, 0.18, 0.17, 0.02), box(0.52, 0.03, 0.36, lit(C.whiteDark), 0, 0.375, 0.17, 0.01))
   g.add(box(0.3, 0.02, 0.2, lit('#cfd8e0'), 0, 0.385, 0.19))
   g.add(cylinder(0.01, 0.01, 0.14, chrome, 0, 0.45, 0.05, 6), box(0.02, 0.02, 0.1, chrome, 0, 0.52, 0.09))
@@ -364,7 +364,7 @@ const medSink: Builder = () => {
   g.add(box(0.08, 0.14, 0.06, white, 0.19, 0.58, 0.03, 0.01), box(0.05, 0.02, 0.01, lit(C.teal), 0.19, 0.52, 0.062))
   g.add(box(0.14, 0.07, 0.07, lit('#8fd6ff'), -0.16, 0.62, 0.035, 0.008), box(0.06, 0.02, 0.005, lit('#f7f5ef'), -0.16, 0.64, 0.072))
   // Miroir.
-  g.add(box(0.26, 0.2, 0.01, lit(C.chrome), 0, 0.72, 0.005))
+  g.add(box(0.26, 0.2, 0.01, lit(C.chrome, 'metal'), 0, 0.72, 0.005))
   const live = new THREE.Group()
   live.add(part(new THREE.PlaneGeometry(0.24, 0.18), glass('#e8f6ff', 0.55), 0, 0.72, 0.012))
   return { solid: g, live }

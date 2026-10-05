@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { renderQuality } from './quality'
+import { withSurface } from './surfaces'
 import { floorFinishes, station, themes, type StationModel, type Theme, type ThemeMaterials } from './assets'
 import { CabinView } from './cabin/view'
 import { DoorHints } from './door-hints'
@@ -127,12 +128,12 @@ const PICK_MATERIAL = new THREE.MeshBasicMaterial()
 /** Bandeau lumineux au pied des verrières. */
 const CANOPY_TRIM = new THREE.MeshBasicMaterial({ color: '#ff8a1c' })
 /** Verre des verrières, bleuté, à peine visible : on regarde l'espace à travers. */
-const CANOPY_GLASS = new THREE.MeshLambertMaterial({ color: '#9fd8ff', transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide })
+const CANOPY_GLASS = withSurface(new THREE.MeshLambertMaterial({ color: '#9fd8ff', transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide }), 'glass')
 
 /** Serres (cf. `greenhouse` dans levels.ts) : verre à peine vert, montants blancs, allège de brique. */
-const GREENHOUSE_GLASS = new THREE.MeshLambertMaterial({ color: '#d4f5dc', transparent: true, opacity: 0.24, depthWrite: false, side: THREE.DoubleSide })
-const GREENHOUSE_FRAME = new THREE.MeshLambertMaterial({ color: '#f3f1ea' })
-const GREENHOUSE_BRICK = new THREE.MeshLambertMaterial({ color: '#a4553a' })
+const GREENHOUSE_GLASS = withSurface(new THREE.MeshLambertMaterial({ color: '#d4f5dc', transparent: true, opacity: 0.24, depthWrite: false, side: THREE.DoubleSide }), 'glass')
+const GREENHOUSE_FRAME = withSurface(new THREE.MeshLambertMaterial({ color: '#f3f1ea' }), 'grain')
+const GREENHOUSE_BRICK = withSurface(new THREE.MeshLambertMaterial({ color: '#a4553a' }), 'tile')
 /** Vitrage d'une serre : du haut de l'allège au rail du haut. */
 const GREENHOUSE_SILL = 0.22
 const GREENHOUSE_TOP = POST_H - 0.05

@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js'
 import { recolored } from './recolor'
+import { withSurface, type Surface } from './surfaces'
 
 export const BASE = import.meta.env.BASE_URL + 'assets/'
 
@@ -134,6 +135,17 @@ const PAINTS: Record<Theme, { shell?: Paint; furniture: Paint }> = {
   },
 }
 
+/**
+ * Matière de chaque ambiance (cf. surfaces.ts) : la coque d'origine en tôles brossées et sol rayé,
+ * la cale sale et rouillée, les quartiers en murs enduits et parquet ; le mobilier du kit en métal
+ * brossé, rouillé dans la cale, d'un grain fin dans les quartiers.
+ */
+const MATTERS: Record<Theme, { shell: Surface; furniture: Surface }> = {
+  station: { shell: 'hull', furniture: 'metal' },
+  raw: { shell: 'rust', furniture: 'rust' },
+  cozy: { shell: 'cozy', furniture: 'grain' },
+}
+
 function painted(name: string, p: Paint): THREE.MeshLambertMaterial {
   const m = stationMaterial.clone()
   if (stationMaterial.map) m.map = recolored(stationMaterial.map, name, p)
@@ -196,9 +208,10 @@ export async function preload(extra: string[], onProgress: (ratio: number) => vo
     }),
   )
   for (const [theme, p] of Object.entries(PAINTS) as [Theme, (typeof PAINTS)[Theme]][]) {
+    const matter = MATTERS[theme]
     themes[theme] = {
-      shell: p.shell ? painted(`${theme}-shell`, p.shell) : stationMaterial,
-      furniture: painted(`${theme}-furniture`, p.furniture),
+      shell: withSurface(p.shell ? painted(`${theme}-shell`, p.shell) : stationMaterial, matter.shell),
+      furniture: withSurface(painted(`${theme}-furniture`, p.furniture), matter.furniture),
     }
   }
   // Argent : les aciers clairs et bleutés, le jaune de chantier gardé, des reflets (Phong).
@@ -207,19 +220,19 @@ export async function preload(extra: string[], onProgress: (ratio: number) => vo
     accent: (l, c) => set(c, 44, 0.88, l * 0.82),
     screen: (l, c) => set(c, 205, 0.2, 0.3 + l * 0.3),
   })
-  floorFinishes.silver = new THREE.MeshPhongMaterial({
+  floorFinishes.silver = withSurface(new THREE.MeshPhongMaterial({
     map: stationMaterial.map ? recolored(stationMaterial.map, 'silver-floor', silver) : null,
     specular: '#8e9aab',
     shininess: 60,
-  })
+  }), 'hull')
   // Tomettes : les aciers deviennent terre cuite (du brun des joints à l'orange des carreaux).
   const terracotta = paint({
     steel: (l, c) => set(c, 16, 0.5, 0.2 + l * 0.42),
     screen: (l, c) => set(c, 20, 0.3, 0.3 + l * 0.3),
   })
-  floorFinishes.terracotta = new THREE.MeshLambertMaterial({
+  floorFinishes.terracotta = withSurface(new THREE.MeshLambertMaterial({
     map: stationMaterial.map ? recolored(stationMaterial.map, 'terracotta-floor', terracotta) : null,
-  })
+  }), 'tile')
 }
 
 /** Instance d'un modèle statique (partage géométrie et matériau). */

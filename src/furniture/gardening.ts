@@ -31,7 +31,7 @@ export const SOIL_TOP = 0.05
  */
 const soilTile: Builder = () => {
   const g = new THREE.Group()
-  const s = SOIL_SIZE, plank = lit(C.wood)
+  const s = SOIL_SIZE, plank = lit(C.wood, 'wood')
   // Des planches fines : deux tuiles voisines se touchent, leurs bordures font une seule latte.
   const t = 0.028
   for (const z of [-1, 1]) g.add(box(s, SOIL_TOP + 0.012, t, plank, 0, (SOIL_TOP + 0.012) / 2, (z * (s - t)) / 2))
@@ -48,7 +48,7 @@ const soilTile: Builder = () => {
 const gardenShed: Builder = () => {
   const g = new THREE.Group()
   const w = 1.3, d = 1, h = 1.05
-  const plank = lit(C.wood), dark = lit(C.woodDark), light = lit(C.woodLight)
+  const plank = lit(C.wood, 'wood'), dark = lit(C.woodDark, 'wood'), light = lit(C.woodLight, 'wood')
   g.add(box(w, h, d, plank, 0, h / 2, 0))
   // Les joints des planches, sur les quatre faces.
   for (let i = 1; i < 7; i++) {
@@ -80,12 +80,12 @@ const gardenShed: Builder = () => {
   }
   // Contre le mur de droite : une bêche et un râteau.
   const spade = new THREE.Group()
-  spade.add(cylinder(0.012, 0.012, 0.7, light, 0, 0.45, 0, 6), box(0.1, 0.16, 0.012, lit(C.steel), 0, 0.08, 0), box(0.08, 0.02, 0.02, dark, 0, 0.8, 0))
+  spade.add(cylinder(0.012, 0.012, 0.7, light, 0, 0.45, 0, 6), box(0.1, 0.16, 0.012, lit(C.steel, 'metal'), 0, 0.08, 0), box(0.08, 0.02, 0.02, dark, 0, 0.8, 0))
   spade.position.set(w / 2 + 0.05, 0, 0.18)
   spade.rotation.z = -0.12
   const rake = new THREE.Group()
-  rake.add(cylinder(0.011, 0.011, 0.86, light, 0, 0.43, 0, 6), box(0.02, 0.02, 0.2, lit(C.steel), 0, 0.86, 0))
-  for (let i = 0; i < 5; i++) rake.add(box(0.012, 0.05, 0.012, lit(C.steel), 0.02, 0.85, -0.08 + i * 0.04))
+  rake.add(cylinder(0.011, 0.011, 0.86, light, 0, 0.43, 0, 6), box(0.02, 0.02, 0.2, lit(C.steel, 'metal'), 0, 0.86, 0))
+  for (let i = 0; i < 5; i++) rake.add(box(0.012, 0.05, 0.012, lit(C.steel, 'metal'), 0.02, 0.85, -0.08 + i * 0.04))
   rake.position.set(w / 2 + 0.05, 0, -0.16)
   rake.rotation.z = -0.1
   g.add(spade, rake)
@@ -99,7 +99,7 @@ const wheelbarrow: Builder = () => {
   const tray = box(0.5, 0.16, 0.36, green, 0, 0.3, 0)
   g.add(tray, box(0.44, 0.04, 0.3, lit(C.tilled), 0, 0.38, 0))
   for (const z of [-0.13, 0.13]) {
-    const handle = barX(0.012, 0.86, lit(C.woodLight), 0.12, 0.27, z, 6)
+    const handle = barX(0.012, 0.86, lit(C.woodLight, 'wood'), 0.12, 0.27, z, 6)
     handle.rotation.y = 0
     g.add(handle, box(0.02, 0.2, 0.02, dark, 0.2, 0.1, z))
   }
@@ -109,7 +109,7 @@ const wheelbarrow: Builder = () => {
   hub.rotation.x = Math.PI / 2
   g.add(wheel, hub)
   const shovel = new THREE.Group()
-  shovel.add(cylinder(0.01, 0.01, 0.42, lit(C.woodLight), 0, 0.21, 0, 6), box(0.07, 0.1, 0.01, lit(C.steel), 0, 0, 0))
+  shovel.add(cylinder(0.01, 0.01, 0.42, lit(C.woodLight, 'wood'), 0, 0.21, 0, 6), box(0.07, 0.1, 0.01, lit(C.steel, 'metal'), 0, 0, 0))
   shovel.position.set(0.08, 0.4, 0.04)
   shovel.rotation.z = 0.35
   g.add(shovel)
@@ -120,8 +120,8 @@ const wheelbarrow: Builder = () => {
 const scarecrow: Builder = ({ random }) => {
   const g = new THREE.Group()
   const straw = lit(C.straw)
-  g.add(cylinder(0.022, 0.026, 1.1, lit(C.woodDark), 0, 0.55, 0, 6))
-  g.add(barX(0.018, 0.86, lit(C.woodDark), 0, 0.82, 0, 6))
+  g.add(cylinder(0.022, 0.026, 1.1, lit(C.woodDark, 'wood'), 0, 0.55, 0, 6))
+  g.add(barX(0.018, 0.86, lit(C.woodDark, 'wood'), 0, 0.82, 0, 6))
   g.add(box(0.3, 0.36, 0.14, lit('#d9741f'), 0, 0.72, 0, 0.03), box(0.31, 0.05, 0.145, lit('#2a2e36'), 0, 0.58, 0))
   for (const s of [-1, 1]) {
     g.add(box(0.26, 0.09, 0.09, lit('#d9741f'), s * 0.27, 0.82, 0, 0.02))
@@ -170,10 +170,10 @@ const gardenFence: Builder = ({ label }) => {
 /** Ruche de bord : trois hausses, un toit de tôle, et les abeilles de Capucine sur la planche d'envol. */
 const beehive: Builder = ({ random }) => {
   const g = new THREE.Group()
-  for (const x of [-1, 1]) for (const z of [-1, 1]) g.add(box(0.04, 0.16, 0.04, lit(C.woodDark), x * 0.17, 0.08, z * 0.17))
+  for (const x of [-1, 1]) for (const z of [-1, 1]) g.add(box(0.04, 0.16, 0.04, lit(C.woodDark, 'wood'), x * 0.17, 0.08, z * 0.17))
   const colors = ['#f1efe8', '#ffd23c', '#f1efe8']
-  colors.forEach((color, i) => g.add(box(0.42, 0.16, 0.42, lit(color), 0, 0.24 + i * 0.165, 0), box(0.43, 0.012, 0.43, lit(C.woodDark), 0, 0.325 + i * 0.165, 0)))
-  g.add(box(0.5, 0.05, 0.5, lit(C.steel), 0, 0.68, 0, 0.015), box(0.3, 0.012, 0.1, lit(C.woodLight), 0, 0.165, 0.25), box(0.16, 0.02, 0.012, lit('#2a2e36'), 0, 0.185, 0.212))
+  colors.forEach((color, i) => g.add(box(0.42, 0.16, 0.42, lit(color), 0, 0.24 + i * 0.165, 0), box(0.43, 0.012, 0.43, lit(C.woodDark, 'wood'), 0, 0.325 + i * 0.165, 0)))
+  g.add(box(0.5, 0.05, 0.5, lit(C.steel, 'metal'), 0, 0.68, 0, 0.015), box(0.3, 0.012, 0.1, lit(C.woodLight, 'wood'), 0, 0.165, 0.25), box(0.16, 0.02, 0.012, lit('#2a2e36'), 0, 0.185, 0.212))
   for (let i = 0; i < 5; i++) g.add(sphere(0.012, lit(i % 2 ? '#ffd23c' : '#2a2e36'), (random() - 0.5) * 0.24, 0.18 + random() * 0.02, 0.24 + random() * 0.06, 5))
   return { solid: g }
 }

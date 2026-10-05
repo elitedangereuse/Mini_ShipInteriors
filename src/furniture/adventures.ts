@@ -69,7 +69,7 @@ function holoBody(pieces: THREE.BufferGeometry[], height: number): THREE.BufferG
  */
 const scarlettHolo: Builder = () => {
   const g = new THREE.Group()
-  g.add(cylinder(0.19, 0.22, 0.07, lit(C.steelDark), 0, 0.035, 0, 20), cylinder(0.17, 0.17, 0.012, lit(C.steel), 0, 0.076, 0, 20))
+  g.add(cylinder(0.19, 0.22, 0.07, lit(C.steelDark, 'metal'), 0, 0.035, 0, 20), cylinder(0.17, 0.17, 0.012, lit(C.steel, 'metal'), 0, 0.076, 0, 20))
   const ring = mesh(new THREE.TorusGeometry(0.2, 0.008, 4, 32), glow('#6fd8ff'), 0, 0.055, 0)
   ring.rotation.x = Math.PI / 2
   g.add(ring)
@@ -137,11 +137,11 @@ const scarlettHolo: Builder = () => {
 /** Le coffre de La Buse, ouvert sur ses doublons, ses rubis et ses émeraudes (qui scintillent). */
 const treasureChest: Builder = ({ random }) => {
   const g = new THREE.Group()
-  const wood = lit(C.wood), brass = lit(C.brass), gold = lit(C.gold)
+  const wood = lit(C.wood, 'wood'), brass = lit(C.brass, 'metal'), gold = lit(C.gold, 'metal')
   const W = 0.42, D = 0.26, H = 0.2
   g.add(box(W, H, D, wood, 0, H / 2, 0, 0.01))
   for (const x of [-0.14, 0.14]) g.add(box(0.03, H + 0.004, D + 0.006, brass, x, H / 2, 0))
-  g.add(box(W + 0.006, 0.02, D + 0.006, lit(C.woodDark), 0, 0.012, 0))
+  g.add(box(W + 0.006, 0.02, D + 0.006, lit(C.woodDark, 'wood'), 0, 0.012, 0))
   // Serrure et tête de mort.
   g.add(box(0.07, 0.08, 0.012, brass, 0, 0.14, D / 2 + 0.006, 0.006))
   g.add(sphere(0.02, lit('#f4efe2'), 0, 0.15, D / 2 + 0.014, 10), box(0.018, 0.012, 0.01, lit('#f4efe2'), 0, 0.128, D / 2 + 0.014))
@@ -197,7 +197,7 @@ const treasureChest: Builder = ({ random }) => {
 /** Capsule de survie de l'expédition Odysseus : coque blanche cabossée, hublot éclairé, balise qui clignote. */
 const escapePod: Builder = () => {
   const g = new THREE.Group()
-  const hull = lit('#dfe3e8'), orange = lit('#e0701e'), dark = lit(C.steelDark)
+  const hull = lit('#dfe3e8'), orange = lit('#e0701e'), dark = lit(C.steelDark, 'metal')
   const R = 0.17, L = 0.5
   const shell = mesh(new THREE.CapsuleGeometry(R, L, 6, 18), hull, 0, R + 0.04, 0)
   shell.rotation.z = Math.PI / 2
@@ -316,12 +316,12 @@ const survivalGuide: Builder = () => {
 /** Maquette du croiseur fédéral FNS Damocles (classe Farragut) sur son socle, réacteurs allumés. */
 const damoclesModel: Builder = () => {
   const g = new THREE.Group()
-  g.add(box(0.14, 0.022, 0.08, lit(C.woodDark), 0, 0.011, 0, 0.006), box(0.07, 0.014, 0.003, lit(C.brass), 0, 0.012, 0.041))
+  g.add(box(0.14, 0.022, 0.08, lit(C.woodDark, 'wood'), 0, 0.011, 0, 0.006), box(0.07, 0.014, 0.003, lit(C.brass, 'metal'), 0, 0.012, 0.041))
   g.add(cylinder(0.004, 0.004, 0.08, lit('#b9c1cc'), 0, 0.06, 0, 6))
   const ship = new THREE.Group()
   ship.position.set(0, 0.11, 0)
   ship.rotation.set(0, 0.35, 0.05)
-  const navy = lit('#2c3f63'), pale = lit('#c9d2de'), dark = lit(C.steelDark)
+  const navy = lit('#2c3f63'), pale = lit('#c9d2de'), dark = lit(C.steelDark, 'metal')
   // Coque : longue et étroite, proue en biseau, pont supérieur clair.
   ship.add(box(0.28, 0.036, 0.07, navy, -0.02, 0, 0))
   // Proue en coin : un tronc de pyramide aplati, pointé vers +x.
@@ -436,7 +436,7 @@ const ORNAMENTS = ['#d6263a', '#e8b33a', '#3a7bd5', '#e8ecf0', '#d6263a', '#e8b3
 /** Le sapin de la Quête de Noël : boules, guirlande qui clignote, étoile, et les jouets de Sandra Corrs au pied. */
 const christmasTree: Builder = ({ random }) => {
   const g = new THREE.Group()
-  g.add(cylinder(0.09, 0.075, 0.1, lit('#a0282e'), 0, 0.05, 0, 12), cylinder(0.03, 0.03, 0.1, lit(C.woodDark), 0, 0.14, 0, 8))
+  g.add(cylinder(0.09, 0.075, 0.1, lit('#a0282e'), 0, 0.05, 0, 12), cylinder(0.03, 0.03, 0.1, lit(C.woodDark, 'wood'), 0, 0.14, 0, 8))
   const tiers: [number, number, number][] = [[0.25, 0.3, 0.3], [0.2, 0.26, 0.5], [0.14, 0.22, 0.68]]
   const green = [lit(LEAVES[1] ?? '#2f6b3a'), lit('#2a5e34'), lit('#34743f')]
   tiers.forEach(([r, h, y], i) => g.add(mesh(new THREE.ConeGeometry(r, h, 10), green[i], 0, y, 0)))
@@ -496,8 +496,8 @@ const christmasTree: Builder = ({ random }) => {
 const pathBanner: Builder = () => {
   const g = new THREE.Group()
   // Tout reste sous 1 m, la hauteur des murs des cabines (cf. rules.ts).
-  g.add(barX(0.01, 0.44, lit(C.brass), 0, 0.96, 0.03, 8))
-  for (const x of [-0.22, 0.22]) g.add(sphere(0.018, lit(C.brass), x, 0.96, 0.03, 8), box(0.012, 0.03, 0.03, lit(C.brass), x * 0.8, 0.96, 0.015))
+  g.add(barX(0.01, 0.44, lit(C.brass, 'metal'), 0, 0.96, 0.03, 8))
+  for (const x of [-0.22, 0.22]) g.add(sphere(0.018, lit(C.brass, 'metal'), x, 0.96, 0.03, 8), box(0.012, 0.03, 0.03, lit(C.brass, 'metal'), x * 0.8, 0.96, 0.015))
   // Étoffe à pointe, tracée en forme : ses uv suivent la position.
   const shape = new THREE.Shape()
   shape.moveTo(-0.18, 0)
@@ -581,8 +581,8 @@ const thetisBlackbox: Builder = () => {
     c.fillText(tr('NE PAS OUVRIR', 'DO NOT OPEN'), 64, 56)
   })
   g.add(mesh(new THREE.PlaneGeometry(0.076, 0.07), stencil, 0, 0.05, 0.0561))
-  const handle = mesh(new THREE.TorusGeometry(0.03, 0.006, 5, 12, Math.PI), lit(C.steel), 0, 0.1, 0)
-  g.add(handle, box(0.02, 0.012, 0.012, lit(C.steel), -0.065, 0.02, 0.056))
+  const handle = mesh(new THREE.TorusGeometry(0.03, 0.006, 5, 12, Math.PI), lit(C.steel, 'metal'), 0, 0.1, 0)
+  g.add(handle, box(0.02, 0.012, 0.012, lit(C.steel, 'metal'), -0.065, 0.02, 0.056))
   const live = new THREE.Group()
   const led = part(new THREE.SphereGeometry(0.008, 8, 6), new THREE.MeshBasicMaterial({ color: '#ff3b2f' }), 0.062, 0.088, 0.057)
   live.add(led)
@@ -613,8 +613,8 @@ const thetisBlackbox: Builder = () => {
 /** Enseigne lumineuse de TAXI Corp., jaune et damier, comme sur le toit des taxis. */
 const taxiSign: Builder = () => {
   const g = new THREE.Group()
-  g.add(box(0.56, 0.2, 0.08, lit(C.steelDark), 0, 0.8, 0.04, 0.02))
-  for (const x of [-0.2, 0.2]) g.add(box(0.03, 0.05, 0.03, lit(C.steel), x, 0.68, 0.02))
+  g.add(box(0.56, 0.2, 0.08, lit(C.steelDark, 'metal'), 0, 0.8, 0.04, 0.02))
+  for (const x of [-0.2, 0.2]) g.add(box(0.03, 0.05, 0.03, lit(C.steel, 'metal'), x, 0.68, 0.02))
   const face = print('taxi', 256, 80, (c) => {
     c.fillStyle = '#ffd23a'
     c.fillRect(0, 0, 256, 80)

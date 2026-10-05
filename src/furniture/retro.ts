@@ -186,7 +186,7 @@ function crt(label: string | undefined, standing: boolean) {
   inner.add(box(0.31, 0.26, 0.02, face, -0.055, H / 2 + 0.02, D / 2 + 0.005, 0.02))
   inner.add(box(0.08, 0.26, 0.012, face, 0.165, H / 2 + 0.02, D / 2 + 0.002))
   for (const [y, r] of [[0.28, 0.018], [0.22, 0.014]] as const) {
-    const knob = cylinder(r, r, 0.02, lit(C.chrome), 0.165, y, D / 2 + 0.014, 12)
+    const knob = cylinder(r, r, 0.02, lit(C.chrome, 'metal'), 0.165, y, D / 2 + 0.014, 12)
     knob.rotation.x = Math.PI / 2
     inner.add(knob)
   }
@@ -196,7 +196,7 @@ function crt(label: string | undefined, standing: boolean) {
   for (const x of [-0.17, 0.17]) for (const z of [-0.1, 0.1]) inner.add(box(0.04, 0.02, 0.04, black, x, 0.01, z))
   inner.add(sphere(0.035, black, 0.02, H + 0.03, -0.04, 10))
   for (const a of [-0.45, 0.5]) {
-    const rod = cylinder(0.004, 0.004, 0.3, lit(C.chrome), 0.02 + Math.sin(a) * 0.15, H + 0.03 + Math.cos(a) * 0.15, -0.04, 5)
+    const rod = cylinder(0.004, 0.004, 0.3, lit(C.chrome, 'metal'), 0.02 + Math.sin(a) * 0.15, H + 0.03 + Math.cos(a) * 0.15, -0.04, 5)
     rod.rotation.z = -a
     inner.add(rod)
   }
@@ -205,7 +205,7 @@ function crt(label: string | undefined, standing: boolean) {
   inner.position.y = bottom
   if (standing) {
     // Meuble télé des années 60 : plateau et quatre pieds fuselés, évasés.
-    const wood = lit(C.woodLight)
+    const wood = lit(C.woodLight, 'wood')
     g.add(box(W * s + 0.04, 0.03, D * s + 0.02, wood, 0, bottom - 0.015, 0, 0.01))
     for (const x of [-1, 1]) {
       for (const z of [-1, 1]) {

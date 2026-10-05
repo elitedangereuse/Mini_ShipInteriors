@@ -124,9 +124,9 @@ const treadmill: Builder = () => {
   const g = new THREE.Group()
   g.add(box(0.5, 0.08, 1.2, lit(C.rubber), 0, 0.06, 0, 0.02), box(0.4, 0.02, 1.08, lit(C.black), 0, 0.11, -0.02))
   for (const x of [-0.23, 0.23]) {
-    const post = box(0.04, 0.62, 0.05, lit(C.chrome), x, 0.39, 0.5)
+    const post = box(0.04, 0.62, 0.05, lit(C.chrome, 'metal'), x, 0.39, 0.5)
     post.rotation.x = -0.18
-    g.add(post, box(0.03, 0.03, 0.4, lit(C.chrome), x, 0.55, 0.36))
+    g.add(post, box(0.03, 0.03, 0.4, lit(C.chrome, 'metal'), x, 0.55, 0.36))
   }
   const console_ = box(0.46, 0.05, 0.16, lit(C.rubber), 0, 0.7, 0.55, 0.02)
   console_.rotation.x = 0.5
@@ -142,7 +142,7 @@ const exerciseBike: Builder = () => {
   const frame = box(0.06, 0.5, 0.06, lit(C.gymRed), 0, 0.3, -0.05)
   frame.rotation.x = -0.35
   g.add(frame, box(0.05, 0.3, 0.05, lit(C.gymRed), 0, 0.2, 0.3))
-  g.add(box(0.16, 0.04, 0.2, lit(C.padding), 0, 0.5, -0.12, 0.02), box(0.3, 0.03, 0.03, lit(C.chrome), 0, 0.56, 0.3))
+  g.add(box(0.16, 0.04, 0.2, lit(C.padding, 'cloth'), 0, 0.5, -0.12, 0.02), box(0.3, 0.03, 0.03, lit(C.chrome, 'metal'), 0, 0.56, 0.3))
   g.add(box(0.12, 0.08, 0.02, lit(C.rubber), 0, 0.52, 0.34), box(0.08, 0.04, 0.004, glow('#39e0ff'), 0, 0.53, 0.352))
   return { solid: g }
 }
@@ -150,9 +150,9 @@ const exerciseBike: Builder = () => {
 /** Banc de développé couché, barre et disques sur le rack. */
 const weightBench: Builder = () => {
   const g = new THREE.Group()
-  g.add(box(0.28, 0.08, 0.9, lit(C.padding), 0, 0.3, 0.1, 0.03), box(0.2, 0.26, 0.06, lit(C.chrome), 0, 0.13, 0.45), box(0.2, 0.26, 0.06, lit(C.chrome), 0, 0.13, -0.25))
-  for (const x of [-0.22, 0.22]) g.add(box(0.05, 0.78, 0.05, lit(C.chrome), x, 0.39, -0.42), box(0.07, 0.04, 0.08, lit(C.gymRed), x, 0.7, -0.4))
-  g.add(barX(0.015, 1.1, lit(C.chrome), 0, 0.73, -0.4, 8))
+  g.add(box(0.28, 0.08, 0.9, lit(C.padding, 'cloth'), 0, 0.3, 0.1, 0.03), box(0.2, 0.26, 0.06, lit(C.chrome, 'metal'), 0, 0.13, 0.45), box(0.2, 0.26, 0.06, lit(C.chrome, 'metal'), 0, 0.13, -0.25))
+  for (const x of [-0.22, 0.22]) g.add(box(0.05, 0.78, 0.05, lit(C.chrome, 'metal'), x, 0.39, -0.42), box(0.07, 0.04, 0.08, lit(C.gymRed), x, 0.7, -0.4))
+  g.add(barX(0.015, 1.1, lit(C.chrome, 'metal'), 0, 0.73, -0.4, 8))
   for (const x of [-0.45, -0.39, 0.39, 0.45]) g.add(barX(Math.abs(x) > 0.42 ? 0.1 : 0.13, 0.04, lit(Math.abs(x) > 0.42 ? C.gymRed : C.black), x, 0.73, -0.4, 16))
   return { solid: g }
 }
@@ -167,7 +167,7 @@ const dumbbellRack: Builder = () => {
     g.add(shelf)
     for (let i = 0; i < 4; i++) {
       const x = -0.3 + i * 0.2, r = 0.035 + i * 0.006
-      g.add(barX(0.01, 0.16, lit(C.chrome), x, y + 0.05, z, 6))
+      g.add(barX(0.01, 0.16, lit(C.chrome, 'metal'), x, y + 0.05, z, 6))
       for (const dx of [-0.07, 0.07]) g.add(barX(r, 0.04, lit(i % 2 ? C.black : C.gymRed), x + dx, y + 0.05, z, 8))
     }
   }
@@ -177,11 +177,11 @@ const dumbbellRack: Builder = () => {
 /** Sac de frappe sur potence ; il se balance doucement. */
 const punchingBag: Builder = () => {
   const g = new THREE.Group()
-  g.add(box(0.5, 0.03, 0.5, lit(C.rubber), 0, 0.015, -0.2), box(0.06, 1.05, 0.06, lit(C.chrome), 0, 0.525, -0.38), box(0.05, 0.05, 0.42, lit(C.chrome), 0, 1.02, -0.18))
+  g.add(box(0.5, 0.03, 0.5, lit(C.rubber), 0, 0.015, -0.2), box(0.06, 1.05, 0.06, lit(C.chrome, 'metal'), 0, 0.525, -0.38), box(0.05, 0.05, 0.42, lit(C.chrome, 'metal'), 0, 1.02, -0.18))
   const live = new THREE.Group()
   const pivot = new THREE.Group()
   pivot.position.set(0, 1.0, 0)
-  pivot.add(part(new THREE.CylinderGeometry(0.006, 0.006, 0.2, 4), lit(C.chrome), 0, -0.1, 0))
+  pivot.add(part(new THREE.CylinderGeometry(0.006, 0.006, 0.2, 4), lit(C.chrome, 'metal'), 0, -0.1, 0))
   const model = new THREE.Group()
   model.add(mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.45, 14), lit(C.gymRed)))
   for (const y of [-0.16, 0.16]) model.add(mesh(new THREE.CylinderGeometry(0.143, 0.143, 0.04, 14), lit(C.black), 0, y, 0))
@@ -254,7 +254,7 @@ const neonSign: Builder = ({ label = 'ARCADE' }) => {
  */
 const vendingMachine: Builder = ({ random }) => {
   const g = new THREE.Group()
-  const body = lit('#e0701e'), dark = lit(C.black), chrome = lit(C.chrome)
+  const body = lit('#e0701e'), dark = lit(C.black), chrome = lit(C.chrome, 'metal')
   g.add(box(0.66, 0.96, 0.42, body, 0, 0.48, 0.21, 0.02), box(0.5, 0.74, 0.02, dark, -0.06, 0.55, 0.42))
   // Fronton.
   const sign = drawnTexture(256, 48, (c) => {

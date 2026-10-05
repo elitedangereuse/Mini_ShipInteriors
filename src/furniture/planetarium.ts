@@ -281,10 +281,10 @@ const SKY_Y = 1.3
  */
 const planetariumProjector: Builder = () => {
   const g = new THREE.Group()
-  const brass = lit(C.brass), brassDark = lit(C.brassDark)
-  g.add(cylinder(0.44, 0.48, 0.1, lit(C.wood), 0, 0.05, 0, 20))
+  const brass = lit(C.brass, 'metal'), brassDark = lit(C.brassDark, 'metal')
+  g.add(cylinder(0.44, 0.48, 0.1, lit(C.wood, 'wood'), 0, 0.05, 0, 20))
   g.add(cylinder(0.49, 0.49, 0.025, brassDark, 0, 0.012, 0, 20), cylinder(0.445, 0.445, 0.02, brass, 0, 0.105, 0, 20))
-  g.add(cylinder(0.16, 0.2, 0.08, lit(C.woodDark), 0, 0.14, 0, 12))
+  g.add(cylinder(0.16, 0.2, 0.08, lit(C.woodDark, 'wood'), 0, 0.14, 0, 12))
   g.add(cylinder(0.06, 0.08, 0.26, brass, 0, 0.3, 0, 10))
   g.add(cylinder(0.11, 0.07, 0.05, brassDark, 0, 0.44, 0, 12))
   // Les trois arcs de la monture, autour de la lentille.
@@ -628,7 +628,7 @@ const bugenhagen: Builder = ({ random }) => {
 /** La lunette de Bugenhagen : un tube de laiton sur trépied de bois, pointé vers la coupole. */
 const brassTelescope: Builder = () => {
   const g = new THREE.Group()
-  const wood = lit(C.wood), brass = lit(C.brass), brassDark = lit(C.brassDark)
+  const wood = lit(C.wood, 'wood'), brass = lit(C.brass, 'metal'), brassDark = lit(C.brassDark, 'metal')
   for (let i = 0; i < 3; i++) {
     const a = (i / 3) * Math.PI * 2 + Math.PI / 6
     const leg = cylinder(0.014, 0.018, 0.62, wood, Math.cos(a) * 0.12, 0.3, Math.sin(a) * 0.12, 6)
@@ -654,7 +654,7 @@ const brassTelescope: Builder = () => {
 const starShelf: Builder = ({ random }) => {
   const g = new THREE.Group()
   const W = 1.1, D = 0.32, H = 1.5
-  const wood = lit(C.wood), dark = lit(C.woodDark)
+  const wood = lit(C.wood, 'wood'), dark = lit(C.woodDark, 'wood')
   g.add(box(W, H, 0.03, dark, 0, H / 2, -D / 2 + 0.015))
   for (const x of [-W / 2 + 0.02, W / 2 - 0.02]) g.add(box(0.04, H, D, wood, x, H / 2, 0))
   const shelves = [0.04, 0.4, 0.76, 1.12, H - 0.02]
@@ -679,20 +679,20 @@ const starShelf: Builder = ({ random }) => {
       const b = box(w, h, 0.2 + random() * 0.04, lit(spines[Math.floor(random() * spines.length)]), x + w / 2, y + h / 2, 0.01)
       b.rotation.z = lean
       g.add(b)
-      if (random() < 0.3) g.add(box(w + 0.002, 0.012, 0.18, lit(C.gold), x + w / 2, y + h * 0.75, 0.012))
+      if (random() < 0.3) g.add(box(w + 0.002, 0.012, 0.18, lit(C.gold, 'metal'), x + w / 2, y + h * 0.75, 0.012))
       x += w + 0.004 + (lean ? 0.06 : 0)
     }
   }
   // Sur l'étagère du haut, un crâne de bête et un bocal ; au sommet, la sphère armillaire.
   g.add(sphere(0.06, lit('#e8dcc0'), 0.28, shelves[3] + 0.07, 0.02, 8), box(0.05, 0.03, 0.05, lit('#e8dcc0'), 0.28, shelves[3] + 0.03, 0.07))
   g.add(cylinder(0.05, 0.05, 0.14, lit('#5a7a6a'), -0.3, shelves[3] + 0.09, 0, 10))
-  g.add(cylinder(0.05, 0.07, 0.04, lit(C.brassDark), 0, H + 0.02, 0, 10), cylinder(0.012, 0.012, 0.08, lit(C.brass), 0, H + 0.08, 0, 6))
+  g.add(cylinder(0.05, 0.07, 0.04, lit(C.brassDark, 'metal'), 0, H + 0.02, 0, 10), cylinder(0.012, 0.012, 0.08, lit(C.brass, 'metal'), 0, H + 0.08, 0, 6))
   for (const [rx, ry] of [[0, 0], [Math.PI / 2, 0], [Math.PI / 2, Math.PI / 2], [0.4, 0.7]]) {
-    const ring = mesh(new THREE.TorusGeometry(0.11, 0.006, 4, 24), lit(C.brass), 0, H + 0.2, 0)
+    const ring = mesh(new THREE.TorusGeometry(0.11, 0.006, 4, 24), lit(C.brass, 'metal'), 0, H + 0.2, 0)
     ring.rotation.set(rx, ry, 0)
     g.add(ring)
   }
-  g.add(sphere(0.025, lit(C.brassDark), 0, H + 0.2, 0, 8))
+  g.add(sphere(0.025, lit(C.brassDark, 'metal'), 0, H + 0.2, 0, 8))
   return { solid: g }
 }
 

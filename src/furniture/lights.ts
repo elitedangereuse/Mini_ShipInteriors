@@ -202,9 +202,9 @@ const ledStrip: Builder = ({ label }) => {
   const g = new THREE.Group()
   const y = 0.78, len = 0.9
   // Profilé d'aluminium, embouts, et le câble qui file dans le bandeau du mur.
-  g.add(box(len, 0.02, 0.014, lit(C.alu), 0, y + 0.002, 0.007))
-  for (const x of [-len / 2, len / 2]) g.add(box(0.01, 0.024, 0.016, lit(C.steelDark), x, y + 0.002, 0.008))
-  g.add(box(0.005, 0.05, 0.005, lit(C.wire), -0.42, y + 0.037, 0.004), box(0.045, 0.024, 0.01, lit(C.steelDark), -0.42, y + 0.074, 0.005, 0.003))
+  g.add(box(len, 0.02, 0.014, lit(C.alu, 'metal'), 0, y + 0.002, 0.007))
+  for (const x of [-len / 2, len / 2]) g.add(box(0.01, 0.024, 0.016, lit(C.steelDark, 'metal'), x, y + 0.002, 0.008))
+  g.add(box(0.005, 0.05, 0.005, lit(C.wire), -0.42, y + 0.037, 0.004), box(0.045, 0.024, 0.01, lit(C.steelDark, 'metal'), -0.42, y + 0.074, 0.005, 0.003))
   const live = new THREE.Group()
   const map = rainbow ? rainbowTexture() : null
   live.add(part(washGeometry(len, len - 0.02), haloMaterial(map ? '#ffffff' : c.wash, 0.7, map, true), 0, 0, 0.002))
@@ -352,15 +352,15 @@ const arcLamp: Builder = () => {
     vein.rotation.y = a
     g.add(vein)
   }
-  g.add(cylinder(0.022, 0.026, 0.03, lit(C.steelDark), 0, 0.094, bz, 10))
+  g.add(cylinder(0.022, 0.026, 0.03, lit(C.steelDark, 'metal'), 0, 0.094, bz, 10))
   const arc = new THREE.CubicBezierCurve3(
     new THREE.Vector3(0, 0.09, bz), new THREE.Vector3(0, 1.26, bz - 0.02), new THREE.Vector3(0, 1.2, 0.28), new THREE.Vector3(0, 1.0, 0.3),
   )
-  g.add(mesh(new THREE.TubeGeometry(arc, 40, 0.011, 6, false), lit(C.chrome)))
+  g.add(mesh(new THREE.TubeGeometry(arc, 40, 0.011, 6, false), lit(C.chrome, 'metal')))
   // Dôme : un liseré lumineux au bord, l'ampoule qui dépasse, le dessous qui luit.
-  const shade = mesh(new THREE.SphereGeometry(0.13, 16, 6, 0, Math.PI * 2, 0, Math.PI / 2), lit(C.steel), 0, 0.9, 0.3)
+  const shade = mesh(new THREE.SphereGeometry(0.13, 16, 6, 0, Math.PI * 2, 0, Math.PI / 2), lit(C.steel, 'metal'), 0, 0.9, 0.3)
   shade.scale.y = 0.8
-  g.add(shade, sphere(0.016, lit(C.chrome), 0, 1.0, 0.3, 8))
+  g.add(shade, sphere(0.016, lit(C.chrome, 'metal'), 0, 1.0, 0.3, 8))
   const rim = mesh(new THREE.TorusGeometry(0.13, 0.008, 4, 24), glow(C.bulb), 0, 0.9, 0.3)
   rim.rotation.x = Math.PI / 2
   g.add(rim, mesh(new THREE.CircleGeometry(0.126, 16), glow(C.lamp), 0, 0.898, 0.3).rotateX(Math.PI / 2))
@@ -378,7 +378,7 @@ const PAPER = ['#f0b468', '#ffd494', '#ffe6bd', '#fff4dc']
 /** Lampe de papier de riz sur un pied de bois fin : trois boules empilées (`round`) ou une colonne (`tall`). */
 const paperLantern: Builder = ({ label }) => {
   const g = new THREE.Group()
-  const rib = glow(C.rib), wood = lit(C.woodDark)
+  const rib = glow(C.rib), wood = lit(C.woodDark, 'wood')
   const ring = (r: number, y: number, tube: number, m: THREE.Material) => {
     const o = mesh(new THREE.TorusGeometry(r, tube, 3, 16), m, 0, y, 0)
     o.rotation.x = Math.PI / 2
@@ -426,16 +426,16 @@ const WEAVE = [[0, 1, PHI], [0, 1, -PHI], [1, PHI, 0], [1, -PHI, 0], [PHI, 0, 1]
 const pendantLamp: Builder = ({ label }) => {
   const g = new THREE.Group()
   const live = new THREE.Group()
-  g.add(cylinder(0.04, 0.045, 0.012, lit(C.steelDark), 0, 0.994, 0, 14))
+  g.add(cylinder(0.04, 0.045, 0.012, lit(C.steelDark, 'metal'), 0, 0.994, 0, 14))
   const cable = (bottom: number) => g.add(cylinder(0.003, 0.003, 0.988 - bottom, lit(C.wire), 0, (0.988 + bottom) / 2, 0, 4))
   if (label === 'globe') {
     cable(0.9)
-    g.add(cylinder(0.02, 0.028, 0.03, lit(C.brass), 0, 0.89, 0, 12), sphere(0.074, glow(C.paperHot), 0, 0.8, 0, 14))
+    g.add(cylinder(0.02, 0.028, 0.03, lit(C.brass, 'metal'), 0, 0.89, 0, 12), sphere(0.074, glow(C.paperHot), 0, 0.8, 0, 14))
     live.add(part(new THREE.SphereGeometry(0.09, 18, 12), glass('#fff3dc', 0.22), 0, 0.8, 0))
   } else if (label === 'rattan') {
     const y = 0.826
     cable(y + 0.126)
-    const cane = lit(C.rattan)
+    const cane = lit(C.rattan, 'wood')
     for (const axis of WEAVE) {
       const strip = mesh(new THREE.TorusGeometry(0.12, 0.0045, 4, 24), cane, 0, y, 0)
       strip.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), axis)
@@ -445,7 +445,7 @@ const pendantLamp: Builder = ({ label }) => {
     live.add(part(new THREE.SphereGeometry(0.105, 16, 12), holoMaterial(null, '#ff9a3c', 0.3, 0, true), 0, y, 0))
   } else {
     cable(0.84)
-    g.add(cylinder(0.016, 0.02, 0.03, lit(C.brass), 0, 0.826, 0, 10))
+    g.add(cylinder(0.016, 0.02, 0.03, lit(C.brass, 'metal'), 0, 0.826, 0, 10))
     const shade = mesh(new THREE.SphereGeometry(0.12, 16, 6, 0, Math.PI * 2, 0, Math.PI / 2), lit(C.graphite), 0, 0.73, 0)
     shade.scale.y = 0.72
     const rim = mesh(new THREE.TorusGeometry(0.12, 0.008, 4, 24), glow(C.bulb), 0, 0.73, 0)
@@ -499,7 +499,7 @@ let filamentMaterial: THREE.LineBasicMaterial | null = null
 const plasmaBall: Builder = ({ random }) => {
   const g = new THREE.Group()
   const cy = 0.145, R = 0.066
-  g.add(cylinder(0.045, 0.06, 0.07, lit('#141519'), 0, 0.035, 0, 16), cylinder(0.047, 0.047, 0.01, lit(C.steelDark), 0, 0.075, 0, 16))
+  g.add(cylinder(0.045, 0.06, 0.07, lit('#141519'), 0, 0.035, 0, 16), cylinder(0.047, 0.047, 0.01, lit(C.steelDark, 'metal'), 0, 0.075, 0, 16))
   g.add(box(0.012, 0.007, 0.004, glow('#ff5ad2'), 0, 0.03, 0.054), cylinder(0.006, 0.01, cy - 0.08, lit('#2a2233'), 0, (0.08 + cy) / 2, 0, 6))
   g.add(sphere(0.014, glow('#ffd6fb'), 0, cy, 0, 10))
   const live = new THREE.Group()

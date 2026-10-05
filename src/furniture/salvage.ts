@@ -82,7 +82,7 @@ function mazeSketch(seed: number, cols: number, rows: number) {
  */
 const terminal: Builder = () => {
   const g = new THREE.Group()
-  const dark = lit(C.steelDark), steel = lit(C.steel), accent = glow(C.hazard)
+  const dark = lit(C.steelDark, 'metal'), steel = lit(C.steel, 'metal'), accent = glow(C.hazard)
   g.add(box(0.62, 0.05, 0.5, dark, 0, 0.025, 0, 0.01))
   g.add(box(0.36, 0.5, 0.3, steel, 0, 0.3, -0.02, 0.02))
   g.add(box(0.37, 0.02, 0.31, accent, 0, 0.1, -0.02))
@@ -186,7 +186,7 @@ const terminal: Builder = () => {
  */
 const surveillance: Builder = () => {
   const g = new THREE.Group()
-  const dark = lit(C.steelDark), steel = lit(C.steel)
+  const dark = lit(C.steelDark, 'metal'), steel = lit(C.steel, 'metal')
   g.add(box(1.9, 0.72, 0.06, dark, 0, 0.68, -0.2, 0.01))
   g.add(box(1.9, 0.03, 0.09, glow(C.hazard), 0, 1.05, -0.19))
   // Console : un plan de travail, deux claviers, un micro.
@@ -250,7 +250,7 @@ const surveillance: Builder = () => {
  */
 const blastDoor: Builder = () => {
   const g = new THREE.Group()
-  const dark = lit(C.steelDark), steel = lit('#4b5059')
+  const dark = lit(C.steelDark, 'metal'), steel = lit('#4b5059')
   const stripes = hazardTexture(512, 64, 24)
   const frameMat = new THREE.MeshLambertMaterial({ map: stripes })
   // Cadre : deux montants et un linteau rayés.
@@ -311,7 +311,7 @@ const blastDoor: Builder = () => {
  */
 const salvageBoard: Builder = () => {
   const g = new THREE.Group()
-  g.add(box(1.04, 0.66, 0.05, lit(C.steelDark), 0, 0.72, 0, 0.01))
+  g.add(box(1.04, 0.66, 0.05, lit(C.steelDark, 'metal'), 0, 0.72, 0, 0.01))
   g.add(box(1.04, 0.02, 0.06, glow(C.caustic), 0, 1.05, 0.005))
   const screen = animatedScreen(512, 320, 2, (c, t) => {
     c.fillStyle = '#081109'
@@ -456,7 +456,7 @@ const bioSign: Builder = () => {
     c.fillStyle = '#f2f2ee'
     c.fillText(tr('Ne rien ramener sans scan', 'Bring nothing back unscanned'), 192, 228)
   })
-  g.add(box(0.6, 0.4, 0.02, lit(C.steelDark), 0, 0.75, 0))
+  g.add(box(0.6, 0.4, 0.02, lit(C.steelDark, 'metal'), 0, 0.75, 0))
   g.add(mesh(new THREE.PlaneGeometry(0.58, 0.38), new THREE.MeshLambertMaterial({ map: face, emissive: '#ffffff', emissiveMap: face, emissiveIntensity: 0.35 }), 0, 0.75, 0.011))
   return { solid: g }
 }
@@ -483,7 +483,7 @@ const dropZone: Builder = () => {
  */
 const securityDesk: Builder = () => {
   const g = new THREE.Group()
-  const dark = lit(C.steelDark), steel = lit(C.steel)
+  const dark = lit(C.steelDark, 'metal'), steel = lit(C.steel, 'metal')
   g.add(box(1.3, 0.4, 0.34, steel, 0, 0.2, 0, 0.01))
   g.add(box(1.34, 0.03, 0.4, dark, 0, 0.415, -0.02))
   g.add(box(1.3, 0.025, 0.012, glow(C.hazard), 0, 0.35, 0.172))
@@ -513,7 +513,7 @@ const securityDesk: Builder = () => {
  */
 const deconArch: Builder = () => {
   const g = new THREE.Group()
-  const dark = lit(C.steelDark)
+  const dark = lit(C.steelDark, 'metal')
   const stripes = new THREE.MeshLambertMaterial({ map: hazardTexture(64, 512, 16) })
   for (const s of [-1, 1]) {
     g.add(mesh(new THREE.BoxGeometry(0.12, 1.12, 0.16), stripes, s * 1.28, 0.56, 0))
@@ -543,9 +543,9 @@ const deconArch: Builder = () => {
 /** Interphone du poste de sécurité (sur pied, face à +z) : une grille, un bouton d'appel vert. */
 const intercom: Builder = () => {
   const g = new THREE.Group()
-  const dark = lit(C.steelDark)
+  const dark = lit(C.steelDark, 'metal')
   g.add(box(0.14, 0.03, 0.14, dark, 0, 0.015, 0))
-  g.add(cylinder(0.02, 0.02, 0.62, lit(C.steel), 0, 0.33, 0, 8))
+  g.add(cylinder(0.02, 0.02, 0.62, lit(C.steel, 'metal'), 0, 0.33, 0, 8))
   g.add(box(0.16, 0.22, 0.05, dark, 0, 0.72, 0, 0.01))
   for (let k = 0; k < 5; k++) g.add(box(0.1, 0.008, 0.01, lit('#5a616b'), 0, 0.76 + (k - 2) * 0.018, 0.026))
   g.add(cylinder(0.022, 0.022, 0.012, glow(C.caustic), 0, 0.66, 0.028, 12).rotateX(Math.PI / 2))
@@ -569,8 +569,8 @@ const intercom: Builder = () => {
  */
 const bayHolo: Builder = () => {
   const g = new THREE.Group()
-  const dark = lit(C.steelDark)
-  g.add(box(1.2, 0.5, 0.6, lit(C.steel), 0, 0.25, 0, 0.02))
+  const dark = lit(C.steelDark, 'metal')
+  g.add(box(1.2, 0.5, 0.6, lit(C.steel, 'metal'), 0, 0.25, 0, 0.02))
   g.add(box(1.56, 0.06, 0.96, dark, 0, 0.53, 0, 0.02))
   for (const s of [-1, 1]) g.add(box(1.5, 0.018, 0.02, glow('#5fd4ff'), 0, 0.515, s * 0.47))
   g.add(box(1.44, 0.01, 0.86, lit('#0c1418'), 0, 0.565, 0))
@@ -929,7 +929,7 @@ export function cargoCanister(scale = 1): THREE.Group {
  */
 const extractionPad: Builder = () => {
   const g = new THREE.Group()
-  const dark = lit(C.steelDark)
+  const dark = lit(C.steelDark, 'metal')
   g.add(cylinder(0.55, 0.58, 0.05, dark, 0, 0.025, 0, 32))
   const grid = drawnTexture(256, 256, (c) => {
     c.fillStyle = '#1b2a22'
@@ -947,7 +947,7 @@ const extractionPad: Builder = () => {
   g.add(top)
   for (let k = 0; k < 4; k++) {
     const a = (k / 4) * Math.PI * 2 + Math.PI / 4
-    g.add(box(0.08, 0.34, 0.08, lit(C.steel), Math.cos(a) * 0.58, 0.17, Math.sin(a) * 0.58, 0.01))
+    g.add(box(0.08, 0.34, 0.08, lit(C.steel, 'metal'), Math.cos(a) * 0.58, 0.17, Math.sin(a) * 0.58, 0.01))
     g.add(box(0.084, 0.03, 0.084, glow(C.caustic), Math.cos(a) * 0.58, 0.3, Math.sin(a) * 0.58))
   }
   const live = new THREE.Group()
@@ -969,7 +969,7 @@ const extractionPad: Builder = () => {
 /** Lampe de secours au mur (face à +z) : une grille, un tube rouge qui grésille. */
 const emergencyLamp: Builder = () => {
   const g = new THREE.Group()
-  g.add(box(0.22, 0.08, 0.06, lit(C.steelDark), 0, 0.86, 0, 0.01))
+  g.add(box(0.22, 0.08, 0.06, lit(C.steelDark, 'metal'), 0, 0.86, 0, 0.01))
   g.add(box(0.18, 0.04, 0.04, glow('#ff4433'), 0, 0.86, 0.02))
   for (let k = 0; k < 3; k++) g.add(box(0.012, 0.07, 0.07, lit('#101215'), -0.06 + k * 0.06, 0.86, 0.02))
   return { solid: g }
@@ -987,7 +987,7 @@ const exitSign: Builder = () => {
     c.textBaseline = 'middle'
     c.fillText(tr('▲ EXTRACTION', '▲ EXTRACTION'), 128, 48)
   })
-  g.add(box(0.46, 0.18, 0.03, lit(C.steelDark), 0, 0.98, 0))
+  g.add(box(0.46, 0.18, 0.03, lit(C.steelDark, 'metal'), 0, 0.98, 0))
   g.add(mesh(new THREE.PlaneGeometry(0.42, 0.15), new THREE.MeshBasicMaterial({ map: face }), 0, 0.98, 0.016))
   return { solid: g }
 }
@@ -1000,7 +1000,7 @@ const exitSign: Builder = () => {
  */
 const securityBooth: Builder = () => {
   const g = new THREE.Group()
-  const steel = lit(C.steel), dark = lit(C.steelDark)
+  const steel = lit(C.steel, 'metal'), dark = lit(C.steelDark, 'metal')
   const W = 3, front = 1
   // Comptoir, côté baie : on s'y accoude pour parler au technicien.
   g.add(box(W - 0.1, 0.4, 0.26, steel, 0, 0.2, front + 0.08, 0.01))
@@ -1061,7 +1061,7 @@ const securityBooth: Builder = () => {
 const floodlight: Builder = ({ label }) => {
   const color = label && /^#[0-9a-f]{6}$/i.test(label) ? label : '#fff0d6'
   const g = new THREE.Group()
-  const dark = lit(C.steelDark), steel = lit(C.steel)
+  const dark = lit(C.steelDark, 'metal'), steel = lit(C.steel, 'metal')
   g.add(box(0.36, 0.05, 0.36, dark, 0, 0.025, -0.06, 0.01))
   for (const s of [-1, 1]) g.add(box(0.06, 0.04, 0.06, glow(C.hazard), s * 0.13, 0.06, 0.06))
   g.add(cylinder(0.03, 0.035, 1.24, steel, 0, 0.66, -0.06, 8))

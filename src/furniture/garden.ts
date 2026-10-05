@@ -39,12 +39,12 @@ function leaf(r: number, color: string, x: number, y: number, z: number, squash 
 const gardenBed: Builder = ({ label = 'tomato', random }) => {
   const g = new THREE.Group()
   const w = 1.5, d = 0.7, h = 0.3
-  const plank = lit(C.wood), dark = lit(C.woodDark)
+  const plank = lit(C.wood, 'wood'), dark = lit(C.woodDark, 'wood')
   // Planches, poteaux d'angle, liseré du haut.
   for (const z of [-d / 2, d / 2]) g.add(box(w, h, 0.05, plank, 0, h / 2, z))
   for (const x of [-w / 2, w / 2]) g.add(box(0.05, h, d, plank, x, h / 2, 0))
   for (const x of [-w / 2, w / 2]) for (const z of [-d / 2, d / 2]) g.add(box(0.07, h + 0.04, 0.07, dark, x, (h + 0.04) / 2, z))
-  for (const z of [-d / 2, d / 2]) g.add(box(w + 0.04, 0.02, 0.08, lit(C.woodLight), 0, h + 0.01, z))
+  for (const z of [-d / 2, d / 2]) g.add(box(w + 0.04, 0.02, 0.08, lit(C.woodLight, 'wood'), 0, h + 0.01, z))
   g.add(box(w - 0.06, 0.03, d - 0.06, lit(C.soil), 0, h - 0.03, 0))
   const top = h - 0.015
   if (label === 'tomato') {
@@ -210,7 +210,7 @@ const gardenPond: Builder = ({ random }) => {
 /** Composteur en lattes de bois : épluchures, marc de café, et un panneau « Nourrir le compost ». */
 const compostBin: Builder = ({ random }) => {
   const g = new THREE.Group()
-  const slat = lit(C.woodLight), post = lit(C.woodDark)
+  const slat = lit(C.woodLight, 'wood'), post = lit(C.woodDark, 'wood')
   for (const x of [-0.3, 0.3]) for (const z of [-0.25, 0.25]) g.add(box(0.05, 0.5, 0.05, post, x, 0.25, z))
   for (let i = 0; i < 4; i++) {
     const y = 0.08 + i * 0.12
@@ -222,10 +222,10 @@ const compostBin: Builder = ({ random }) => {
   for (let i = 0; i < 12; i++) g.add(box(0.05, 0.02, 0.04, lit(scraps[i % scraps.length]), (random() - 0.5) * 0.44, 0.46, (random() - 0.5) * 0.36))
   // Le panneau, et une fourche plantée.
   g.add(box(0.28, 0.12, 0.012, lit('#f4ecd8'), 0, 0.42, 0.27), box(0.2, 0.012, 0.004, lit('#3c7a44'), 0, 0.44, 0.278), box(0.14, 0.012, 0.004, lit('#3c7a44'), 0, 0.41, 0.278))
-  const fork = cylinder(0.01, 0.01, 0.55, lit(C.wood), 0.18, 0.62, -0.08, 6)
+  const fork = cylinder(0.01, 0.01, 0.55, lit(C.wood, 'wood'), 0.18, 0.62, -0.08, 6)
   fork.rotation.z = -0.25
   g.add(fork)
-  for (let i = 0; i < 3; i++) g.add(box(0.008, 0.1, 0.008, lit(C.steel), 0.1 + i * 0.025, 0.36, -0.08))
+  for (let i = 0; i < 3; i++) g.add(box(0.008, 0.1, 0.008, lit(C.steel, 'metal'), 0.1 + i * 0.025, 0.36, -0.08))
   return { solid: g }
 }
 
@@ -235,19 +235,19 @@ const compostBin: Builder = ({ random }) => {
  */
 const seedCabinet: Builder = ({ random }) => {
   const g = new THREE.Group()
-  const wood = lit(C.wood), dark = lit(C.woodDark)
+  const wood = lit(C.wood, 'wood'), dark = lit(C.woodDark, 'wood')
   g.add(box(0.9, 0.96, 0.34, wood, 0, 0.48, 0, 0.015), box(0.94, 0.04, 0.38, dark, 0, 0.98, 0))
   const tags = ['#d9a441', '#86c46a', '#e0453a', '#b27cff', '#6fa8ff', '#ff8ac8']
   for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) {
     const x = -0.34 + c * 0.17, y = 0.13 + r * 0.17
-    g.add(box(0.15, 0.14, 0.02, lit(C.woodLight), x, y, 0.17, 0.01))
+    g.add(box(0.15, 0.14, 0.02, lit(C.woodLight, 'wood'), x, y, 0.17, 0.01))
     g.add(box(0.06, 0.03, 0.006, lit(tags[(r * 5 + c) % tags.length]), x, y + 0.03, 0.182), box(0.04, 0.012, 0.012, dark, x, y - 0.03, 0.185))
   }
   // Bocaux de graines et petit pot de semis, la lampe verte.
   const seeds = ['#d9a441', '#8a5a3a', '#e9dcc4', '#5aa35a', '#c0643f']
   seeds.forEach((col, i) => {
     const x = -0.36 + i * 0.12
-    g.add(cylinder(0.04, 0.04, 0.1 + random() * 0.04, lit(col), x, 1.06, 0.02, 8), cylinder(0.042, 0.042, 0.015, lit(C.steel), x, 1.13, 0.02, 8))
+    g.add(cylinder(0.04, 0.04, 0.1 + random() * 0.04, lit(col), x, 1.06, 0.02, 8), cylinder(0.042, 0.042, 0.015, lit(C.steel, 'metal'), x, 1.13, 0.02, 8))
   })
   g.add(cylinder(0.012, 0.012, 0.22, lit(C.dark), 0.38, 1.11, -0.08, 6), cylinder(0.05, 0.08, 0.06, glow('#9dff9a'), 0.38, 1.23, -0.04, 10))
   g.add(box(0.5, 0.07, 0.01, lit('#2f3a2a'), 0, 0.93, 0.182), box(0.44, 0.015, 0.004, glow('#9dff9a'), 0, 0.935, 0.188))
@@ -260,7 +260,7 @@ const seedCabinet: Builder = ({ random }) => {
  */
 const waterBarrel: Builder = () => {
   const g = new THREE.Group()
-  const blue = lit('#3f7fb8'), steel = lit(C.steel)
+  const blue = lit('#3f7fb8'), steel = lit(C.steel, 'metal')
   g.add(cylinder(0.23, 0.21, 0.7, blue, 0, 0.35, 0, 16), cylinder(0.235, 0.235, 0.04, lit('#2f6090'), 0, 0.72, 0, 16))
   for (const y of [0.18, 0.52]) g.add(cylinder(0.235, 0.235, 0.025, lit('#2f6090'), 0, y, 0, 16))
   // Le tuyau qui descend de la coque, la jauge, le robinet.
@@ -291,7 +291,7 @@ const waterBarrel: Builder = () => {
  */
 const harvestCrate: Builder = ({ random }) => {
   const g = new THREE.Group()
-  const slat = lit(C.woodLight), dark = lit(C.woodDark)
+  const slat = lit(C.woodLight, 'wood'), dark = lit(C.woodDark, 'wood')
   const crate = (x: number, y: number, z: number, produce: string, round: boolean) => {
     for (const s of [-1, 1]) g.add(box(0.46, 0.2, 0.02, slat, x, y + 0.1, z + s * 0.16), box(0.02, 0.2, 0.34, slat, x + s * 0.22, y + 0.1, z))
     g.add(box(0.44, 0.02, 0.32, dark, x, y + 0.01, z), box(0.12, 0.04, 0.005, dark, x, y + 0.14, z + 0.172))

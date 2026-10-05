@@ -32,7 +32,7 @@ const LEGS: [number, number][] = [[-0.55, -0.25], [0.55, -0.25], [-0.55, 0.25], 
 function tripod(g: THREE.Group, height: number) {
   for (let i = 0; i < 3; i++) {
     const a = (i * Math.PI * 2) / 3
-    const leg = box(0.03, height, 0.03, lit(C.steelDark), Math.cos(a) * 0.12, height / 2, Math.sin(a) * 0.12)
+    const leg = box(0.03, height, 0.03, lit(C.steelDark, 'metal'), Math.cos(a) * 0.12, height / 2, Math.sin(a) * 0.12)
     leg.rotation.set(-Math.sin(a) * 0.3, 0, Math.cos(a) * 0.3)
     g.add(leg)
   }
@@ -89,28 +89,28 @@ function puffs(count: number, color: string, opacity: number) {
 /** Établi : plateau d'acier, panneau à outils, étau, caisse à outils, lampe articulée. */
 const workbench: Builder = ({ random }) => {
   const g = new THREE.Group()
-  for (const [x, z] of LEGS) g.add(box(0.06, 0.36, 0.06, lit(C.steelDark), x, 0.18, z))
+  for (const [x, z] of LEGS) g.add(box(0.06, 0.36, 0.06, lit(C.steelDark, 'metal'), x, 0.18, z))
   g.add(box(1.2, 0.06, 0.6, lit('#57514a'), 0, 0.39, 0))
-  g.add(box(1.1, 0.03, 0.5, lit(C.steelDark), 0, 0.1, 0))
+  g.add(box(1.1, 0.03, 0.5, lit(C.steelDark, 'metal'), 0, 0.1, 0))
   g.add(box(0.3, 0.1, 0.25, lit(C.blue), -0.3, 0.165, 0), box(0.25, 0.08, 0.25, lit(C.red), 0.25, 0.155, 0.05))
   // Panneau à outils : clés, marteau, scie.
   g.add(box(1.2, 0.42, 0.03, lit('#3d3a35'), 0, 0.64, -0.285))
-  for (let i = 0; i < 4; i++) g.add(box(0.025, 0.14 + i * 0.03, 0.01, lit(C.chrome), -0.5 + i * 0.07, 0.66, -0.265))
-  g.add(box(0.1, 0.035, 0.03, lit(C.steelDark), 0.02, 0.76, -0.262), box(0.025, 0.18, 0.02, lit(C.wood), 0.02, 0.67, -0.262))
-  g.add(box(0.22, 0.09, 0.008, lit(C.chrome), 0.3, 0.7, -0.265), box(0.05, 0.06, 0.012, lit(C.red), 0.17, 0.7, -0.263))
+  for (let i = 0; i < 4; i++) g.add(box(0.025, 0.14 + i * 0.03, 0.01, lit(C.chrome, 'metal'), -0.5 + i * 0.07, 0.66, -0.265))
+  g.add(box(0.1, 0.035, 0.03, lit(C.steelDark, 'metal'), 0.02, 0.76, -0.262), box(0.025, 0.18, 0.02, lit(C.wood, 'wood'), 0.02, 0.67, -0.262))
+  g.add(box(0.22, 0.09, 0.008, lit(C.chrome, 'metal'), 0.3, 0.7, -0.265), box(0.05, 0.06, 0.012, lit(C.red), 0.17, 0.7, -0.263))
   // Étau.
   g.add(box(0.14, 0.06, 0.12, lit(C.blue), 0.42, 0.45, 0.2))
-  for (const z of [0.16, 0.24]) g.add(box(0.12, 0.07, 0.03, lit(C.steel), 0.42, 0.51, z))
+  for (const z of [0.16, 0.24]) g.add(box(0.12, 0.07, 0.03, lit(C.steel, 'metal'), 0.42, 0.51, z))
   // Caisse à outils rouge.
   g.add(box(0.28, 0.12, 0.14, lit(C.red), -0.36, 0.48, -0.08, 0.01), box(0.2, 0.02, 0.02, lit(C.black), -0.36, 0.555, -0.08))
   // Un drone collecteur démonté, des boulons, un engrenage.
   g.add(cylinder(0.075, 0.085, 0.05, mat.steelLight, 0.0, 0.445, 0.08, 8), box(0.05, 0.02, 0.05, mat.lampCyan, 0.1, 0.43, 0.14))
-  for (let i = 0; i < 5; i++) g.add(cylinder(0.012, 0.012, 0.03, lit(C.chrome), -0.18 + random() * 0.4, 0.435, 0.12 + random() * 0.14, 6))
+  for (let i = 0; i < 5; i++) g.add(cylinder(0.012, 0.012, 0.03, lit(C.chrome, 'metal'), -0.18 + random() * 0.4, 0.435, 0.12 + random() * 0.14, 6))
   const gear = mesh(new THREE.TorusGeometry(0.045, 0.015, 4, 10), lit(C.worn), 0.2, 0.43, -0.02)
   gear.rotation.x = Math.PI / 2
   g.add(gear)
   // Lampe articulée.
-  const arm = cylinder(0.01, 0.01, 0.32, lit(C.steelDark), -0.5, 0.56, -0.18, 6)
+  const arm = cylinder(0.01, 0.01, 0.32, lit(C.steelDark, 'metal'), -0.5, 0.56, -0.18, 6)
   arm.rotation.x = 0.5
   g.add(arm, cylinder(0.03, 0.06, 0.06, lit(C.hazard), -0.5, 0.7, -0.05, 10), sphere(0.024, glow('#ffe2a0'), -0.5, 0.67, -0.05, 8))
   return { solid: g }
@@ -119,15 +119,15 @@ const workbench: Builder = ({ random }) => {
 /** Panneau à outils sur pieds, avec une étagère de pots de peinture. */
 const toolRack: Builder = () => {
   const g = new THREE.Group()
-  for (const x of [-0.46, 0.46]) g.add(box(0.05, 0.9, 0.05, lit(C.steelDark), x, 0.45, 0), box(0.06, 0.03, 0.3, lit(C.steelDark), x, 0.015, 0))
+  for (const x of [-0.46, 0.46]) g.add(box(0.05, 0.9, 0.05, lit(C.steelDark, 'metal'), x, 0.45, 0), box(0.06, 0.03, 0.3, lit(C.steelDark, 'metal'), x, 0.015, 0))
   g.add(box(0.9, 0.58, 0.03, lit('#4a4640'), 0, 0.6, 0))
-  for (let i = 0; i < 5; i++) g.add(box(0.025, 0.14 + i * 0.025, 0.012, lit(C.chrome), -0.38 + i * 0.06, 0.72, 0.022))
+  for (let i = 0; i < 5; i++) g.add(box(0.025, 0.14 + i * 0.025, 0.012, lit(C.chrome, 'metal'), -0.38 + i * 0.06, 0.72, 0.022))
   ;[C.red, C.hazard, C.blue, C.olive].forEach((col, i) => {
-    g.add(cylinder(0.006, 0.006, 0.1, lit(C.chrome), -0.02 + i * 0.05, 0.76, 0.022, 5), cylinder(0.014, 0.014, 0.06, lit(col), -0.02 + i * 0.05, 0.84, 0.022, 6))
+    g.add(cylinder(0.006, 0.006, 0.1, lit(C.chrome, 'metal'), -0.02 + i * 0.05, 0.76, 0.022, 5), cylinder(0.014, 0.014, 0.06, lit(col), -0.02 + i * 0.05, 0.84, 0.022, 6))
   })
   g.add(mesh(new THREE.TorusGeometry(0.08, 0.022, 5, 14), lit(C.hazard), 0.3, 0.72, 0.03))
-  g.add(box(0.14, 0.035, 0.03, lit(C.steelDark), 0.3, 0.5, 0.025), box(0.025, 0.14, 0.02, lit(C.wood), 0.3, 0.42, 0.025))
-  g.add(box(0.9, 0.025, 0.22, lit(C.steelDark), 0, 0.22, 0.1))
+  g.add(box(0.14, 0.035, 0.03, lit(C.steelDark, 'metal'), 0.3, 0.5, 0.025), box(0.025, 0.14, 0.02, lit(C.wood, 'wood'), 0.3, 0.42, 0.025))
+  g.add(box(0.9, 0.025, 0.22, lit(C.steelDark, 'metal'), 0, 0.22, 0.1))
   ;[C.red, C.blue, C.hazard, '#dfe3e8'].forEach((col, i) => g.add(cylinder(0.05, 0.05, 0.09, lit(col), -0.3 + i * 0.18, 0.28, 0.1, 10)))
   g.add(box(0.26, 0.12, 0.2, lit(C.red), 0.1, 0.075, 0.1, 0.01))
   return { solid: g }
@@ -136,21 +136,21 @@ const toolRack: Builder = () => {
 /** Poste de soudure : bouteilles de gaz sur leur chariot, pièce chauffée à blanc, étincelles par rafales. */
 const welder: Builder = ({ random }) => {
   const g = new THREE.Group()
-  g.add(box(0.36, 0.04, 0.28, lit(C.steelDark), -0.12, 0.12, 0))
+  g.add(box(0.36, 0.04, 0.28, lit(C.steelDark, 'metal'), -0.12, 0.12, 0))
   for (const [x, z] of [[-0.27, -0.12], [0.03, -0.12], [-0.27, 0.12], [0.03, 0.12]]) g.add(barZ(0.04, 0.03, lit(C.rubber), x, 0.04, z, 8))
-  g.add(box(0.02, 0.5, 0.02, lit(C.steelDark), -0.3, 0.37, 0))
+  g.add(box(0.02, 0.5, 0.02, lit(C.steelDark, 'metal'), -0.3, 0.37, 0))
   for (const [x, col] of [[-0.2, C.red], [-0.05, '#4d6b58']] as const) {
     g.add(cylinder(0.07, 0.07, 0.48, lit(col), x, 0.38, 0, 12), sphere(0.07, lit(col), x, 0.62, 0, 10))
-    g.add(cylinder(0.02, 0.02, 0.06, lit(C.chrome), x, 0.7, 0, 6), cylinder(0.022, 0.022, 0.012, lit('#e8ecf0'), x + 0.03, 0.72, 0.04, 8))
+    g.add(cylinder(0.02, 0.02, 0.06, lit(C.chrome, 'metal'), x, 0.7, 0, 6), cylinder(0.022, 0.022, 0.012, lit('#e8ecf0'), x + 0.03, 0.72, 0.04, 8))
   }
   // Petite table de soudure et pièce en cours.
-  g.add(box(0.36, 0.04, 0.32, lit(C.steel), 0.24, 0.34, 0.02))
-  for (const [x, z] of [[0.1, -0.1], [0.38, -0.1], [0.1, 0.14], [0.38, 0.14]]) g.add(box(0.03, 0.32, 0.03, lit(C.steelDark), x, 0.16, z))
+  g.add(box(0.36, 0.04, 0.32, lit(C.steel, 'metal'), 0.24, 0.34, 0.02))
+  for (const [x, z] of [[0.1, -0.1], [0.38, -0.1], [0.1, 0.14], [0.38, 0.14]]) g.add(box(0.03, 0.32, 0.03, lit(C.steelDark, 'metal'), x, 0.16, z))
   g.add(box(0.22, 0.03, 0.14, lit(C.worn), 0.24, 0.375, 0.02), box(0.05, 0.012, 0.1, glow('#ff9a3a'), 0.24, 0.392, 0.02))
   const hose = new THREE.CatmullRomCurve3([
     new THREE.Vector3(-0.12, 0.62, 0.05), new THREE.Vector3(-0.05, 0.3, 0.18), new THREE.Vector3(0.12, 0.2, 0.2), new THREE.Vector3(0.22, 0.4, 0.12),
   ])
-  g.add(mesh(new THREE.TubeGeometry(hose, 20, 0.012, 5, false), lit(C.black)), barX(0.014, 0.12, lit(C.chrome), 0.28, 0.41, 0.12, 6))
+  g.add(mesh(new THREE.TubeGeometry(hose, 20, 0.012, 5, false), lit(C.black)), barX(0.014, 0.12, lit(C.chrome, 'metal'), 0.28, 0.41, 0.12, 6))
   // Masque de soudeur posé sur le chariot.
   g.add(box(0.12, 0.1, 0.06, lit(C.black), -0.12, 0.19, 0.06, 0.02), box(0.07, 0.03, 0.005, lit('#2a4a3a'), -0.12, 0.2, 0.092))
 
@@ -181,14 +181,14 @@ const engineerBench: Builder = ({
   label = tr('Farseer Inc.|FSD · grade 5|Portée augmentée|Effet : charge profonde', 'Farseer Inc.|FSD · grade 5|Increased range|Effect: Deep Charge'),
 }) => {
   const g = new THREE.Group()
-  for (const [x, z] of LEGS) g.add(box(0.06, 0.36, 0.06, lit(C.steelDark), x, 0.18, z))
+  for (const [x, z] of LEGS) g.add(box(0.06, 0.36, 0.06, lit(C.steelDark, 'metal'), x, 0.18, z))
   g.add(box(1.2, 0.06, 0.6, lit('#4b4f57'), 0, 0.39, 0), box(1.2, 0.025, 0.02, lit(C.hazard), 0, 0.41, 0.3))
-  g.add(box(0.36, 0.2, 0.26, lit(C.steel), -0.05, 0.52, -0.05, 0.02))
-  for (let i = 0; i < 5; i++) g.add(box(0.012, 0.16, 0.28, lit(C.steelDark), -0.19 + i * 0.07, 0.53, -0.05))
-  g.add(box(0.2, 0.12, 0.14, lit(C.steelDark), 0.42, 0.48, 0.05, 0.01), box(0.14, 0.06, 0.005, glow('#b07aff'), 0.42, 0.5, 0.123))
+  g.add(box(0.36, 0.2, 0.26, lit(C.steel, 'metal'), -0.05, 0.52, -0.05, 0.02))
+  for (let i = 0; i < 5; i++) g.add(box(0.012, 0.16, 0.28, lit(C.steelDark, 'metal'), -0.19 + i * 0.07, 0.53, -0.05))
+  g.add(box(0.2, 0.12, 0.14, lit(C.steelDark, 'metal'), 0.42, 0.48, 0.05, 0.01), box(0.14, 0.06, 0.005, glow('#b07aff'), 0.42, 0.5, 0.123))
   const cable = new THREE.CatmullRomCurve3([new THREE.Vector3(0.13, 0.5, 0.05), new THREE.Vector3(0.22, 0.44, 0.16), new THREE.Vector3(0.33, 0.45, 0.08)])
   g.add(mesh(new THREE.TubeGeometry(cable, 12, 0.01, 5, false), lit(C.black)))
-  g.add(box(0.12, 0.02, 0.05, lit(C.chrome), -0.42, 0.43, 0.15), box(0.03, 0.08, 0.03, lit(C.hazard), -0.36, 0.46, -0.2))
+  g.add(box(0.12, 0.02, 0.05, lit(C.chrome, 'metal'), -0.42, 0.43, 0.15), box(0.03, 0.08, 0.03, lit(C.hazard), -0.36, 0.46, -0.2))
 
   const live = new THREE.Group()
   const coreMat = new THREE.MeshBasicMaterial({ color: '#b07aff' })
@@ -238,7 +238,7 @@ const drums: Builder = ({ random }) => {
     const b = new THREE.Group()
     b.add(cylinder(0.14, 0.14, 0.42, lit(col), 0, 0.21, 0, 14))
     for (const y of [0.1, 0.32]) b.add(cylinder(0.146, 0.146, 0.025, lit(C.rustDark), 0, y, 0, 14))
-    b.add(cylinder(0.02, 0.02, 0.02, lit(C.steelDark), 0.07, 0.425, 0.03, 6))
+    b.add(cylinder(0.02, 0.02, 0.02, lit(C.steelDark, 'metal'), 0.07, 0.425, 0.03, 6))
     b.rotation.y = random() * Math.PI
     if (lying) {
       b.rotation.z = Math.PI / 2
@@ -256,11 +256,11 @@ const drums: Builder = ({ random }) => {
 const pipeRun: Builder = () => {
   const g = new THREE.Group()
   g.add(barX(0.05, 2, lit(C.worn), 0, 0.78, 0, 12), barX(0.035, 2, lit(C.rust), 0, 0.56, 0.02, 10))
-  for (const x of [-0.8, 0, 0.8]) g.add(box(0.05, 0.8, 0.05, lit(C.steelDark), x, 0.4, -0.07), barX(0.058, 0.04, lit(C.steelDark), x, 0.78, 0, 10))
-  for (const x of [-0.45, 0.45]) g.add(barX(0.064, 0.06, lit(C.steelDark), x, 0.78, 0, 10))
+  for (const x of [-0.8, 0, 0.8]) g.add(box(0.05, 0.8, 0.05, lit(C.steelDark, 'metal'), x, 0.4, -0.07), barX(0.058, 0.04, lit(C.steelDark, 'metal'), x, 0.78, 0, 10))
+  for (const x of [-0.45, 0.45]) g.add(barX(0.064, 0.06, lit(C.steelDark, 'metal'), x, 0.78, 0, 10))
   const valve = mesh(new THREE.TorusGeometry(0.06, 0.012, 5, 14), lit(C.red), 0.3, 0.9, 0)
   valve.rotation.x = Math.PI / 2
-  g.add(cylinder(0.012, 0.012, 0.1, lit(C.steelDark), 0.3, 0.84, 0, 6), valve)
+  g.add(cylinder(0.012, 0.012, 0.1, lit(C.steelDark, 'metal'), 0.3, 0.84, 0, 6), valve)
   g.add(barZ(0.04, 0.02, lit('#dfe3e8'), -0.3, 0.56, 0.06, 12), box(0.004, 0.03, 0.004, glow('#ff3b2f'), -0.3, 0.57, 0.072))
   g.add(cylinder(0.035, 0.035, 0.58, lit(C.rust), 1.0, 0.27, 0.02, 10))
   return { solid: g }
@@ -269,7 +269,7 @@ const pipeRun: Builder = () => {
 /** Grille d'évacuation qui crache de la vapeur. */
 const steamVent: Builder = () => {
   const g = new THREE.Group()
-  g.add(box(0.5, 0.03, 0.5, lit(C.steelDark), 0, 0.015, 0))
+  g.add(box(0.5, 0.03, 0.5, lit(C.steelDark, 'metal'), 0, 0.015, 0))
   for (let i = 0; i < 5; i++) g.add(box(0.42, 0.01, 0.035, lit(C.black), 0, 0.034, -0.16 + i * 0.08))
   const steam = puffs(10, '#d4d8dc', 0.26)
   const live = new THREE.Group()
@@ -326,7 +326,7 @@ const stain: Builder = ({ random }) => {
 const workLamp: Builder = () => {
   const g = new THREE.Group()
   tripod(g, 0.45)
-  g.add(cylinder(0.014, 0.014, 0.5, lit(C.steelDark), 0, 0.68, 0, 6))
+  g.add(cylinder(0.014, 0.014, 0.5, lit(C.steelDark, 'metal'), 0, 0.68, 0, 6))
   const head = new THREE.Group()
   head.position.y = 0.93
   head.rotation.x = 0.55
@@ -353,7 +353,7 @@ const repairLift: Builder = () => {
   edge(W, (s) => [s, D / 2 - 0.03], true)
   edge(D - 0.12, (s) => [-W / 2 + 0.03, s], false)
   edge(D - 0.12, (s) => [W / 2 - 0.03, s], false)
-  g.add(box(0.12, 0.5, 0.1, lit(C.steelDark), W / 2 + 0.1, 0.25, D / 2 - 0.1))
+  g.add(box(0.12, 0.5, 0.1, lit(C.steelDark, 'metal'), W / 2 + 0.1, 0.25, D / 2 - 0.1))
   g.add(box(0.1, 0.06, 0.01, glow('#39d98a'), W / 2 + 0.1, 0.45, D / 2 - 0.045), box(0.03, 0.03, 0.01, glow('#ff3b2f'), W / 2 + 0.1, 0.38, D / 2 - 0.045))
   return { solid: g }
 }
@@ -361,8 +361,8 @@ const repairLift: Builder = () => {
 /** Bras robotisé de maintenance : il se déplace, puis soude (étincelles au bout de la torche). */
 const robotArm: Builder = ({ random }) => {
   const g = new THREE.Group()
-  g.add(cylinder(0.2, 0.22, 0.1, lit(C.steelDark), 0, 0.05, 0, 16), cylinder(0.215, 0.215, 0.025, lit(C.hazard), 0, 0.1, 0, 16))
-  const yellow = lit('#e5a21a'), dark = lit(C.steelDark)
+  g.add(cylinder(0.2, 0.22, 0.1, lit(C.steelDark, 'metal'), 0, 0.05, 0, 16), cylinder(0.215, 0.215, 0.025, lit(C.hazard), 0, 0.1, 0, 16))
+  const yellow = lit('#e5a21a'), dark = lit(C.steelDark, 'metal')
   const live = new THREE.Group()
   const turret = new THREE.Group()
   turret.position.y = 0.12
@@ -375,7 +375,7 @@ const robotArm: Builder = ({ random }) => {
   elbow.add(barX(0.055, 0.16, dark, 0, 0, 0, 10), box(0.08, 0.42, 0.08, yellow, 0, 0.21, 0, 0.02))
   const wrist = new THREE.Group()
   wrist.position.y = 0.42
-  wrist.add(cylinder(0.04, 0.05, 0.08, dark, 0, 0.04, 0, 8), cylinder(0.012, 0.02, 0.12, lit(C.chrome), 0, 0.14, 0, 6))
+  wrist.add(cylinder(0.04, 0.05, 0.08, dark, 0, 0.04, 0, 8), cylinder(0.012, 0.02, 0.12, lit(C.chrome, 'metal'), 0, 0.14, 0, 6))
   const tip = part(new THREE.SphereGeometry(0.022, 8, 6), glow('#e8f4ff'), 0, 0.21, 0)
   wrist.add(tip)
   elbow.add(wrist)
@@ -404,13 +404,13 @@ const robotArm: Builder = ({ random }) => {
 /** AFMU (unité de maintenance automatique) : écran d'état, bande jaune, bras replié. */
 const afmu: Builder = () => {
   const g = new THREE.Group()
-  g.add(box(0.6, 0.04, 0.48, lit(C.steelDark), 0, 0.02, 0), box(0.56, 0.62, 0.44, lit(C.steel), 0, 0.35, 0, 0.03))
+  g.add(box(0.6, 0.04, 0.48, lit(C.steelDark, 'metal'), 0, 0.02, 0), box(0.56, 0.62, 0.44, lit(C.steel, 'metal'), 0, 0.35, 0, 0.03))
   g.add(box(0.3, 0.16, 0.01, glow('#39d98a'), -0.08, 0.47, 0.225), box(0.56, 0.05, 0.01, lit(C.hazard), 0, 0.15, 0.222))
   g.add(barZ(0.03, 0.01, glow(ED_ORANGE), 0.18, 0.47, 0.226, 10))
   for (let i = 0; i < 4; i++) g.add(box(0.4, 0.015, 0.03, lit(C.black), 0, 0.665, -0.12 + i * 0.08))
-  const arm = cylinder(0.02, 0.02, 0.3, lit(C.chrome), 0.31, 0.45, 0.05, 6)
+  const arm = cylinder(0.02, 0.02, 0.3, lit(C.chrome, 'metal'), 0.31, 0.45, 0.05, 6)
   arm.rotation.x = 0.4
-  g.add(arm, box(0.05, 0.05, 0.05, lit(C.steelDark), 0.31, 0.58, 0.1))
+  g.add(arm, box(0.05, 0.05, 0.05, lit(C.steelDark, 'metal'), 0.31, 0.58, 0.1))
   return { solid: g }
 }
 
@@ -429,7 +429,7 @@ const tireStack: Builder = ({ random }) => {
 /** Raffinerie : trémie pleine de minerai, fenêtre de fusion qui rougeoie, cheminée qui fume. */
 const refinery: Builder = ({ random }) => {
   const g = new THREE.Group()
-  const body = lit('#565a60'), dark = lit(C.steelDark)
+  const body = lit('#565a60'), dark = lit(C.steelDark, 'metal')
   g.add(box(1.8, 0.1, 1.0, dark, 0, 0.05, 0), box(1.2, 0.62, 0.8, body, -0.15, 0.41, 0, 0.03))
   g.add(box(0.3, 0.2, 0.01, lit(C.rust), -0.52, 0.28, 0.405), box(0.18, 0.12, 0.01, lit(C.rustDark), 0.25, 0.58, 0.405))
   for (let i = 0; i < 12; i++) g.add(box(0.1, 0.05, 0.012, lit(i % 2 ? C.black : C.hazard), -0.7 + i * 0.1, 0.68, 0.405))
@@ -472,8 +472,8 @@ const conveyor: Builder = ({ random }) => {
   const g = new THREE.Group()
   const L = 2
   for (const z of [-0.2, 0.2]) g.add(box(L, 0.07, 0.04, lit('#b8860b'), 0, 0.3, z))
-  for (const x of [-0.85, 0, 0.85]) for (const z of [-0.2, 0.2]) g.add(box(0.05, 0.27, 0.05, lit(C.steelDark), x, 0.135, z))
-  for (let i = 0; i < 11; i++) g.add(barZ(0.04, 0.38, lit(C.chrome), -0.95 + i * 0.19, 0.29, 0, 8))
+  for (const x of [-0.85, 0, 0.85]) for (const z of [-0.2, 0.2]) g.add(box(0.05, 0.27, 0.05, lit(C.steelDark, 'metal'), x, 0.135, z))
+  for (let i = 0; i < 11; i++) g.add(barZ(0.04, 0.38, lit(C.chrome, 'metal'), -0.95 + i * 0.19, 0.29, 0, 8))
   g.add(box(L, 0.02, 0.36, lit(C.rubber), 0, 0.335, 0))
   const N = 7
   const ore = instanced(
@@ -522,9 +522,9 @@ const orePile: Builder = ({ random }) => {
 const miningLaser: Builder = () => {
   const g = new THREE.Group()
   tripod(g, 0.5)
-  g.add(cylinder(0.05, 0.06, 0.06, lit(C.steelDark), 0, 0.52, 0, 10), box(0.06, 0.12, 0.06, lit(C.steel), 0, 0.6, 0))
-  g.add(box(0.2, 0.16, 0.42, lit('#3d4148'), 0, 0.72, -0.02, 0.03), barZ(0.05, 0.3, lit(C.steelDark), 0, 0.72, 0.33, 12), barZ(0.07, 0.05, mat.trim, 0, 0.72, 0.2, 12))
-  for (let i = 0; i < 3; i++) g.add(box(0.012, 0.05, 0.26, lit(C.steelDark), -0.05 + i * 0.05, 0.82, -0.04))
+  g.add(cylinder(0.05, 0.06, 0.06, lit(C.steelDark, 'metal'), 0, 0.52, 0, 10), box(0.06, 0.12, 0.06, lit(C.steel, 'metal'), 0, 0.6, 0))
+  g.add(box(0.2, 0.16, 0.42, lit('#3d4148'), 0, 0.72, -0.02, 0.03), barZ(0.05, 0.3, lit(C.steelDark, 'metal'), 0, 0.72, 0.33, 12), barZ(0.07, 0.05, mat.trim, 0, 0.72, 0.2, 12))
+  for (let i = 0; i < 3; i++) g.add(box(0.012, 0.05, 0.26, lit(C.steelDark, 'metal'), -0.05 + i * 0.05, 0.82, -0.04))
   g.add(mesh(new THREE.CircleGeometry(0.035, 12), glow(ED_ORANGE), 0, 0.72, 0.482))
   return { solid: g }
 }

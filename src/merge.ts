@@ -58,10 +58,11 @@ export class StaticMerge {
       const matrix = frame ? this.local.multiplyMatrices(frame, mesh.matrixWorld) : mesh.matrixWorld
       const g = mesh.geometry.clone().applyMatrix4(matrix)
       const material = mesh.material as THREE.Material
-      // Couleurs par sommet : seulement pour les matériaux qui s'en servent (mobilier fait main).
+      // Couleurs et matières par sommet : seulement pour les matériaux qui s'en servent (mobilier fait main).
       const keepColor = material.vertexColors
+      const keepSurface = !!material.userData.surfaceAttribute
       for (const name of Object.keys(g.attributes)) {
-        if (name !== 'position' && name !== 'normal' && name !== 'uv' && !(keepColor && name === 'color')) g.deleteAttribute(name)
+        if (name !== 'position' && name !== 'normal' && name !== 'uv' && !(keepColor && name === 'color') && !(keepSurface && name === 'aSurf')) g.deleteAttribute(name)
       }
       const fading = occ !== undefined
       if (fading) g.setAttribute('aOcc', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count).fill(occ), 1))

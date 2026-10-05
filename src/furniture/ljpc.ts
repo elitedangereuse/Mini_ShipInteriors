@@ -88,7 +88,7 @@ const ljpcBoard: Builder = () => {
   const g = new THREE.Group()
   const Wd = 1.7, Hd = 0.8, Y = 0.6
   g.add(box(Wd + 0.06, Hd + 0.06, 0.03, lit(C.tealDark), 0, Y, 0.015, 0.01))
-  g.add(box(Wd - 0.2, 0.02, 0.05, lit(C.steel), 0, Y - Hd / 2 - 0.01, 0.04))
+  g.add(box(Wd - 0.2, 0.02, 0.05, lit(C.steel, 'metal'), 0, Y - Hd / 2 - 0.01, 0.04))
   // Feutres posés sur la rigole.
   for (const [x, col] of [[-0.3, C.red], [-0.22, C.marker], [-0.14, C.tealDark]] as const) g.add(barX(0.008, 0.07, lit(col), x, Y - Hd / 2 + 0.01, 0.05, 6))
   const map = drawnTexture(768, 360, (c) => {
@@ -210,7 +210,7 @@ const ljpcBanner: Builder = () => {
     c.fillText(tr('Laboratoire des Jeunes', 'Laboratory of Young'), 138, 106)
     c.fillText(tr('Prodiges Cosmiques', 'Cosmic Prodigies'), 138, 126)
   })
-  g.add(box(0.62, 0.28, 0.025, lit(C.steelDark), 0, 0.78, 0.0125, 0.008))
+  g.add(box(0.62, 0.28, 0.025, lit(C.steelDark, 'metal'), 0, 0.78, 0.0125, 0.008))
   g.add(part(new THREE.PlaneGeometry(0.58, 0.24), new THREE.MeshBasicMaterial({ map }), 0, 0.78, 0.027))
   return { solid: g }
 }
@@ -265,7 +265,7 @@ const amadiohaPhoto: Builder = () => {
  */
 const labBench: Builder = ({ random }) => {
   const g = new THREE.Group()
-  const white = lit(C.bench), steel = lit(C.steel), dark = lit(C.steelDark)
+  const white = lit(C.bench), steel = lit(C.steel, 'metal'), dark = lit(C.steelDark, 'metal')
   g.add(box(1.1, 0.04, 0.5, lit(C.white), 0, 0.42, 0, 0.01), box(1.06, 0.36, 0.46, white, 0, 0.2, -0.01, 0.01))
   g.add(box(1.1, 0.012, 0.012, glow(C.teal), 0, 0.395, 0.25))
   for (let i = 0; i < 3; i++) g.add(box(0.33, 0.3, 0.005, lit('#cdd9dc'), -0.36 + i * 0.36, 0.2, 0.222), box(0.06, 0.012, 0.012, steel, -0.36 + i * 0.36, 0.3, 0.228))
@@ -334,12 +334,12 @@ const labBench: Builder = ({ random }) => {
  */
 const containmentPod: Builder = () => {
   const g = new THREE.Group()
-  const dark = lit(C.steelDark)
+  const dark = lit(C.steelDark, 'metal')
   g.add(cylinder(0.22, 0.24, 0.14, dark, 0, 0.07, 0, 18), cylinder(0.225, 0.225, 0.02, lit('#e9a917'), 0, 0.12, 0, 18))
   g.add(cylinder(0.21, 0.21, 0.05, dark, 0, 0.8, 0, 18), cylinder(0.16, 0.16, 0.012, glow(C.thargoidGlow), 0, 0.14, 0, 18))
   for (let i = 0; i < 3; i++) {
     const a = (i / 3) * Math.PI * 2
-    g.add(box(0.02, 0.66, 0.02, lit(C.steel), Math.cos(a) * 0.2, 0.47, Math.sin(a) * 0.2))
+    g.add(box(0.02, 0.66, 0.02, lit(C.steel, 'metal'), Math.cos(a) * 0.2, 0.47, Math.sin(a) * 0.2))
   }
   // Étiquette « NE PAS TOUCHER ».
   const label = drawnTexture(128, 48, (c) => {
@@ -383,7 +383,7 @@ const containmentPod: Builder = () => {
 const holoThargoid: Builder = () => {
   const g = new THREE.Group()
   g.add(cylinder(0.28, 0.3, 0.05, lit(C.white), 0, 0.36, 0, 24), cylinder(0.08, 0.12, 0.34, lit(C.bench), 0, 0.17, 0, 12))
-  g.add(cylinder(0.22, 0.22, 0.01, glow(C.teal), 0, 0.39, 0, 24), cylinder(0.2, 0.24, 0.03, lit(C.steelDark), 0, 0.015, 0, 18))
+  g.add(cylinder(0.22, 0.22, 0.01, glow(C.teal), 0, 0.39, 0, 24), cylinder(0.2, 0.24, 0.03, lit(C.steelDark, 'metal'), 0, 0.015, 0, 18))
   const live = new THREE.Group()
   const ship = new THREE.Group()
   ship.position.y = 0.62
@@ -494,7 +494,7 @@ function james(phase: number) {
   // La tablette, dans la main droite.
   const tablet = new THREE.Group()
   tablet.position.set(0, -0.11, 0.04)
-  tablet.add(box(0.1, 0.07, 0.008, lit(C.steelDark), 0, 0, 0, 0.004), box(0.085, 0.055, 0.004, glow('#8ff0ff'), 0, 0, 0.005))
+  tablet.add(box(0.1, 0.07, 0.008, lit(C.steelDark, 'metal'), 0, 0, 0, 0.004), box(0.085, 0.055, 0.004, glow('#8ff0ff'), 0, 0, 0.005))
   tablet.rotation.x = -1
   right.elbow.add(tablet)
   const update = (time: number) => {

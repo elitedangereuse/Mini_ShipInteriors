@@ -111,11 +111,11 @@ function hinged(leaf: THREE.Object3D, x: number, flip = false): THREE.Group {
 function woodLeaf(): THREE.Object3D {
   const g = new THREE.Group()
   const w = OPEN_W * 2 - 0.02
-  g.add(box(w, OPEN_H - 0.01, 0.035, lit(C.wood), w / 2, (OPEN_H - 0.01) / 2, 0))
+  g.add(box(w, OPEN_H - 0.01, 0.035, lit(C.wood, 'wood'), w / 2, (OPEN_H - 0.01) / 2, 0))
   // Quatre panneaux moulurés, sur les deux faces.
   for (const z of [-0.02, 0.02]) {
-    for (const [x, y, h] of [[0.15, 0.49, 0.26], [0.41, 0.49, 0.26], [0.15, 0.17, 0.22], [0.41, 0.17, 0.22]]) g.add(box(0.2, h, 0.008, lit(C.woodDark), x * (w / 0.56), y, z))
-    g.add(sphere(0.018, lit(C.brass), w - 0.05, 0.33, z * 1.6, 8))
+    for (const [x, y, h] of [[0.15, 0.49, 0.26], [0.41, 0.49, 0.26], [0.15, 0.17, 0.22], [0.41, 0.17, 0.22]]) g.add(box(0.2, h, 0.008, lit(C.woodDark, 'wood'), x * (w / 0.56), y, z))
+    g.add(sphere(0.018, lit(C.brass, 'metal'), w - 0.05, 0.33, z * 1.6, 8))
   }
   return compact(g)
 }
@@ -123,9 +123,9 @@ function woodLeaf(): THREE.Object3D {
 function saloonLeaf(): THREE.Object3D {
   const g = new THREE.Group()
   const w = OPEN_W - 0.01
-  g.add(box(w, 0.04, 0.03, lit(C.wood), w / 2, 0.53, 0), box(w, 0.04, 0.03, lit(C.wood), w / 2, 0.22, 0))
-  g.add(box(0.03, 0.35, 0.03, lit(C.wood), 0.015, 0.375, 0), box(0.03, 0.35, 0.03, lit(C.wood), w - 0.015, 0.375, 0))
-  for (let i = 1; i < 5; i++) g.add(box(0.035, 0.28, 0.018, lit(C.woodDark), (i * w) / 5, 0.375, 0))
+  g.add(box(w, 0.04, 0.03, lit(C.wood, 'wood'), w / 2, 0.53, 0), box(w, 0.04, 0.03, lit(C.wood, 'wood'), w / 2, 0.22, 0))
+  g.add(box(0.03, 0.35, 0.03, lit(C.wood, 'wood'), 0.015, 0.375, 0), box(0.03, 0.35, 0.03, lit(C.wood, 'wood'), w - 0.015, 0.375, 0))
+  for (let i = 1; i < 5; i++) g.add(box(0.035, 0.28, 0.018, lit(C.woodDark, 'wood'), (i * w) / 5, 0.375, 0))
   return compact(g)
 }
 
@@ -133,7 +133,7 @@ function saloonLeaf(): THREE.Object3D {
 function airlockHalf(top: boolean): THREE.Object3D {
   const g = new THREE.Group()
   const h = OPEN_H / 2
-  g.add(box(OPEN_W * 2, h, 0.06, lit(C.steel), 0, 0, 0))
+  g.add(box(OPEN_W * 2, h, 0.06, lit(C.steel, 'metal'), 0, 0, 0))
   for (const z of [-0.032, 0.032]) {
     for (let i = -3; i <= 3; i++) {
       const stripe = box(0.05, 0.14, 0.006, lit(i % 2 ? '#1c1d21' : C.hazard), i * 0.08, top ? -h / 2 + 0.05 : h / 2 - 0.05, z)
@@ -162,7 +162,7 @@ function shojiLeaf(): THREE.Object3D {
 function glassLeaf(): THREE.Object3D {
   const g = new THREE.Group()
   const w = OPEN_W * 2 - 0.02
-  const alu = lit(C.alu)
+  const alu = lit(C.alu, 'metal')
   for (const x of [-w / 2 + 0.015, w / 2 - 0.015]) g.add(box(0.03, OPEN_H - 0.01, 0.035, alu, x, OPEN_H / 2, 0))
   for (const y of [0.02, OPEN_H - 0.02]) g.add(box(w, 0.035, 0.035, alu, 0, y, 0))
   g.add(box(0.015, 0.16, 0.06, alu, w / 2 - 0.06, 0.34, 0))
@@ -238,10 +238,10 @@ function leaves(kind: string, deck: Deck, random: () => number): Leaves {
       // Pas de battant : une arche de bois dans l'encadrement.
       const trim = new THREE.Group()
       for (const z of [-0.14, 0.14]) {
-        const arc = new THREE.Mesh(new THREE.TorusGeometry(OPEN_W - 0.02, 0.03, 6, 16, Math.PI), lit(C.woodDark))
+        const arc = new THREE.Mesh(new THREE.TorusGeometry(OPEN_W - 0.02, 0.03, 6, 16, Math.PI), lit(C.woodDark, 'wood'))
         arc.position.set(0, OPEN_H - OPEN_W + 0.01, z)
         trim.add(arc)
-        for (const x of [-OPEN_W + 0.02, OPEN_W - 0.02]) trim.add(box(0.05, OPEN_H - OPEN_W, 0.04, lit(C.woodDark), x, (OPEN_H - OPEN_W) / 2, z))
+        for (const x of [-OPEN_W + 0.02, OPEN_W - 0.02]) trim.add(box(0.05, OPEN_H - OPEN_W, 0.04, lit(C.woodDark, 'wood'), x, (OPEN_H - OPEN_W) / 2, z))
       }
       return { parts: [], trim }
     }

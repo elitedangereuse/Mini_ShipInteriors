@@ -67,7 +67,7 @@ const clubRope: Builder = ({ label }) => {
   const g = new THREE.Group()
   for (const side of [-1, 1]) {
     const x = (side * len) / 2
-    g.add(cylinder(0.06, 0.07, 0.015, lit(C.brass), x, 0.008, 0, 14), cylinder(0.012, 0.012, 0.36, lit(C.brass), x, 0.19, 0, 8), sphere(0.024, lit(C.brass), x, 0.38, 0, 8))
+    g.add(cylinder(0.06, 0.07, 0.015, lit(C.brass, 'metal'), x, 0.008, 0, 14), cylinder(0.012, 0.012, 0.36, lit(C.brass, 'metal'), x, 0.19, 0, 8), sphere(0.024, lit(C.brass, 'metal'), x, 0.38, 0, 8))
   }
   // La corde pend entre les deux : une chaînette, en six tronçons.
   const n = 6
@@ -75,7 +75,7 @@ const clubRope: Builder = ({ label }) => {
   for (let i = 0; i < n; i++) {
     const k0 = i / n, k1 = (i + 1) / n
     const x0 = (k0 - 0.5) * len, x1 = (k1 - 0.5) * len
-    const seg = cylinder(0.014, 0.014, Math.hypot(x1 - x0, y(k1) - y(k0)), lit(C.rope), (x0 + x1) / 2, (y(k0) + y(k1)) / 2, 0, 6)
+    const seg = cylinder(0.014, 0.014, Math.hypot(x1 - x0, y(k1) - y(k0)), lit(C.rope, 'cloth'), (x0 + x1) / 2, (y(k0) + y(k1)) / 2, 0, 6)
     seg.rotation.z = Math.atan2(y(k1) - y(k0), x1 - x0) + Math.PI / 2
     g.add(seg)
   }
