@@ -59,7 +59,7 @@ export const MECH_PANIC = { x: 35.95, z: 5.85, yaw: Math.atan2(KRAIT_COCKPIT.x -
  * occupe le milieu ; l'escabeau, qui n'arrête pas les joueurs, l'arrête lui.
  */
 export const MECH_OBSTACLES = [
-  { minX: 28.37, maxX: 34.6, minZ: 1.98, maxZ: 8.02 }, // Krait Mk II
+  { minX: 28.03, maxX: 34.6, minZ: 1.98, maxZ: 8.02 }, // Krait Mk II (ses moteurs dépassent à l'arrière)
   { minX: 34.78, maxX: 35.65, minZ: 4.75, maxZ: 5.25 }, // escabeau
   { minX: 27.3, maxX: 28.5, minZ: -0.35, maxZ: 0.35 }, // établi
   { minX: 29.02, maxX: 29.98, minZ: -0.35, maxZ: 0.21 }, // panneau à outils
