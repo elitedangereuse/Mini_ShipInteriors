@@ -9,8 +9,9 @@ import type { CatalogEntry } from './catalog'
  */
 
 export const GARDEN_ENTRIES: CatalogEntry[] = [
-  // La tuile se pose à plat, comme un tapis : on marche dessus, et on la travaille en mode jardinage.
-  { id: 'soil-tile', name: tr('Tuile de terre cultivable', 'Plot of soil'), category: 'gardening', model: 'soil-tile', mount: 'flat' },
+  // La tuile se pose comme un sol : calée sur le quadrillage, plusieurs d'un trait en glissant ; on
+  // marche dessus, et on la travaille en mode jardinage.
+  { id: 'soil-tile', name: tr('Tuile de terre cultivable', 'Plot of soil'), category: 'gardening', model: 'soil-tile', mount: 'flat', grid: true },
   {
     id: 'garden-shed', name: tr('Cabanon de jardinage', 'Garden shed'), category: 'gardening', model: 'garden-shed', mount: 'floor',
     use: 'garden-shed', action: tr('Ouvrir le cabanon', 'Open the shed'),

@@ -10,7 +10,8 @@ import { DIRS } from '../map'
 import { $ } from '../ui'
 import { CATALOG, CATEGORIES, entryOf, joinVariant, splitVariant, type CatalogEntry, type CategoryId } from './catalog'
 import { cloneItems, DEFAULT_CABIN, sameItems, type CabinItem, type CabinLayout } from './layout'
-import { refusal, ridersOf, surfacesOf, type Surface } from './rules'
+import { furnitureCount, refusal, ridersOf, surfacesOf, type Surface } from './rules'
+import { MAX_HOME_ITEMS } from '../../shared/housing-home.js'
 import { thumbnail } from './thumbs'
 import { artChoice } from './art-choice'
 import { rotateLocal, type CabinView, type WallLine } from './view'
@@ -94,6 +95,8 @@ export class CabinEditor {
   private press: { index: number; x: number; y: number } | null = null
   /** Nouvel objet saisi sur une carte du catalogue : on le pose en relâchant au-dessus de la cabine. */
   private placeOnRelease = false
+  /** Bouton enfoncé avec un sol en main (`grid` du catalogue) : chaque tuile survolée en reçoit un. */
+  private painting = false
   private lastPointer: { clientX: number; clientY: number } | null = null
   private pointerDirty = false
   /** Dernier petit pas au clavier : les suivants, sur le même objet, s'y ajoutent dans l'historique. */
@@ -261,6 +264,8 @@ export class CabinEditor {
         this.place(e.shiftKey)
       }
     })
+    addEventListener('pointerup', () => (this.painting = false))
+    addEventListener('blur', () => (this.painting = false))
   }
 
   get active(): boolean {
@@ -568,7 +573,7 @@ export class CabinEditor {
 
   private startPlacing(entry: CatalogEntry) {
     this.cancelHeld()
-    if (this.items.length >= this.capacity) return this.refuse(tr(`Cabine pleine : ${this.capacity} objets au plus`, `Quarters full: ${this.capacity} items at most`))
+    if (entry.grid ? this.items.length >= MAX_HOME_ITEMS : furnitureCount(this.items) >= this.capacity) return this.refuse(tr(`Cabine pleine : ${this.capacity} objets au plus`, `Quarters full: ${this.capacity} items at most`))
     // Variantes à gagner : rien à poser tant qu'on n'en possède aucune (le trophée de pêche).
     const first = entry.owned ? entry.variants?.find((v) => entry.owned!(v.id)) : entry.variants?.[0]
     if (entry.owned && !first) return this.refuse(entry.locked ?? '')
@@ -603,6 +608,8 @@ export class CabinEditor {
     // Un objet déjà en main (relâché hors de la fenêtre…) se pose là, comme un nouvel objet.
     if (this.held) {
       this.aimAt(e)
+      // Un sol se pose d'un trait : tant que le bouton reste enfoncé, les tuiles survolées suivent.
+      this.painting = this.held.index === -1 && !!this.held.entry.grid
       return this.held.index === -1 ? this.place(e.shiftKey) : this.drop()
     }
     const index = this.view.pickItem(this.ray(e))
@@ -742,10 +749,17 @@ export class CabinEditor {
     } else {
       const p = this.atHeight(ray, 0)
       if (!p) return this.showHeld(false)
-      item.x = snap(p.x + held.grab.x)
-      item.z = snap(p.z + held.grab.z)
-      this.magnet(held)
-      this.keepInside(held, this.view.bounds)
+      if (entry.grid) {
+        // Un sol : la tuile du quadrillage sous le curseur, sans orientation.
+        item.x = Math.round(p.x)
+        item.z = Math.round(p.z)
+        item.r = 0
+      } else {
+        item.x = snap(p.x + held.grab.x)
+        item.z = snap(p.z + held.grab.z)
+        this.magnet(held)
+        this.keepInside(held, this.view.bounds)
+      }
     }
     held.aimed = true
     this.validate()
@@ -850,15 +864,19 @@ export class CabinEditor {
     }
   }
 
-  /** Pose le nouvel objet en main (Maj : on en garde un autre en main). */
-  private place(keep: boolean) {
+  /**
+   * Pose le nouvel objet en main (Maj : on en garde un autre en main ; un sol, toujours).
+   * `stroke` : la suite d'un trait de sol, qui ne fait qu'une étape de l'historique.
+   */
+  private place(keep: boolean, stroke = false) {
     const held = this.held
     if (!held || held.index !== -1 || !held.aimed) return
     if (held.refusal) return this.refuse(held.refusal)
     const c = this.candidate(held)
     const entry = held.entry
+    keep ||= !!entry.grid
     this.clearHeld()
-    this.commit(c.items, keep ? -1 : c.index)
+    this.commit(c.items, keep ? -1 : c.index, stroke)
     this.host.sound.ui('drop')
     // Maj+clic : garder la carte en main pour poser un autre exemplaire.
     if (keep && this.stock(entry.id) > 0) this.startPlacing(entry)
@@ -1055,8 +1073,8 @@ export class CabinEditor {
     const entry = item && entryOf(item.m)
     if (!entry) return
     const g = this.host.iso.screenToGround(sx, sy, new THREE.Vector3())
-    // On suit l'axe du sol le plus proche de la direction de la flèche.
-    const step = fine ? SNAP : 0.25
+    // On suit l'axe du sol le plus proche de la direction de la flèche ; un sol avance d'une tuile.
+    const step = entry.grid ? 1 : fine ? SNAP : 0.25
     const dx = Math.abs(g.x) > Math.abs(g.z) ? Math.sign(g.x) * step : 0
     const dz = dx ? 0 : Math.sign(g.z) * step
     const riders = ridersOf(this.view, this.items, i)
@@ -1128,7 +1146,7 @@ export class CabinEditor {
   }
 
   private renderBar() {
-    this.countEl.textContent = tr(`${this.items.length} / ${this.capacity} objets`, `${this.items.length} / ${this.capacity} items`)
+    this.countEl.textContent = tr(`${furnitureCount(this.items)} / ${this.capacity} objets`, `${furnitureCount(this.items)} / ${this.capacity} items`)
     this.undoBtn.disabled = !this.past.length
     this.redoBtn.disabled = !this.future.length
   }
@@ -1165,8 +1183,14 @@ export class CabinEditor {
     if (!this.open) return
     if (this.pointerDirty && this.lastPointer) {
       this.pointerDirty = false
-      if (this.held) this.aimAt(this.lastPointer)
-      else {
+      if (this.held) {
+        this.aimAt(this.lastPointer)
+        // Un trait de sol : la tuile survolée est posée si elle est libre (sinon on passe, sans refus).
+        if (this.painting && this.held.index === -1 && this.held.aimed && !this.held.refusal) {
+          this.place(true, true)
+          if (this.held) this.aimAt(this.lastPointer)
+        }
+      } else {
         const i = this.view.pickItem(this.ray(this.lastPointer))
         this.hovered = i
         this.host.canvas.style.cursor = i >= 0 ? 'grab' : 'default'
@@ -1202,8 +1226,8 @@ export class CabinEditor {
     const parts: [string, string][] = this.held
       ? this.held.index < 0
         ? EN
-          ? [['Click', 'place'], ['Shift+click', 'place several'], ['R', 'rotate'], ['Esc', 'cancel']]
-          : [['Clic', 'poser'], ['Maj+clic', 'en poser plusieurs'], ['R', 'tourner'], ['Échap', 'annuler']]
+          ? this.held.entry.grid ? [['Click', 'place'], ['Drag', 'place several'], ['Esc', 'done']] : [['Click', 'place'], ['Shift+click', 'place several'], ['R', 'rotate'], ['Esc', 'cancel']]
+          : this.held.entry.grid ? [['Clic', 'poser'], ['Glisser', 'en poser plusieurs'], ['Échap', 'terminer']] : [['Clic', 'poser'], ['Maj+clic', 'en poser plusieurs'], ['R', 'tourner'], ['Échap', 'annuler']]
         : EN
           ? [['Release', 'place'], ['R', 'rotate'], ['Esc', 'cancel']]
           : [['Relâcher', 'poser'], ['R', 'tourner'], ['Échap', 'annuler']]

@@ -106,6 +106,11 @@ export interface CatalogEntry {
   /** Lumière de l'objet, ou de chacune de ses variantes. */
   light?: CatalogLight | ((variant: string | undefined) => CatalogLight)
   /**
+   * Se pose comme un sol : une tuile du quadrillage par exemplaire, jusque contre les murs, et
+   * plusieurs d'un trait en glissant la souris (la tuile de terre cultivable).
+   */
+  grid?: boolean
+  /**
    * Interaction que le jeu prend en charge (cf. `onUse` de CabinView et main.ts) : le cabanon et
    * les caisses de récolte ouvrent le sac et la réserve du jardinier.
    */

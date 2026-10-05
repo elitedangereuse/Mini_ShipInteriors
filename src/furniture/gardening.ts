@@ -21,8 +21,8 @@ const C = {
   roof: '#4f6a52',
 }
 
-/** Côté d'une tuile de terre, et hauteur de sa terre. */
-export const SOIL_SIZE = 0.96
+/** Côté d'une tuile de terre (une tuile du quadrillage, bord à bord avec ses voisines), et hauteur de sa terre. */
+export const SOIL_SIZE = 1
 export const SOIL_TOP = 0.05
 
 /**
@@ -32,9 +32,11 @@ export const SOIL_TOP = 0.05
 const soilTile: Builder = () => {
   const g = new THREE.Group()
   const s = SOIL_SIZE, plank = lit(C.wood)
-  for (const z of [-1, 1]) g.add(box(s, SOIL_TOP + 0.012, 0.045, plank, 0, (SOIL_TOP + 0.012) / 2, (z * (s - 0.045)) / 2))
-  for (const x of [-1, 1]) g.add(box(0.045, SOIL_TOP + 0.012, s - 0.09, plank, (x * (s - 0.045)) / 2, (SOIL_TOP + 0.012) / 2, 0))
-  g.add(box(s - 0.09, SOIL_TOP, s - 0.09, lit(C.soil), 0, SOIL_TOP / 2, 0))
+  // Des planches fines : deux tuiles voisines se touchent, leurs bordures font une seule latte.
+  const t = 0.028
+  for (const z of [-1, 1]) g.add(box(s, SOIL_TOP + 0.012, t, plank, 0, (SOIL_TOP + 0.012) / 2, (z * (s - t)) / 2))
+  for (const x of [-1, 1]) g.add(box(t, SOIL_TOP + 0.012, s - 2 * t, plank, (x * (s - t)) / 2, (SOIL_TOP + 0.012) / 2, 0))
+  g.add(box(s - 2 * t, SOIL_TOP, s - 2 * t, lit(C.soil), 0, SOIL_TOP / 2, 0))
   return { solid: g }
 }
 
@@ -206,7 +208,7 @@ function leaf(r: number, color: string, x: number, y: number, z: number, squash 
 export function tilledSoil(wet: boolean): THREE.Group {
   const g = new THREE.Group()
   const soil = lit(wet ? C.wet : C.tilled)
-  const side = SOIL_SIZE - 0.1
+  const side = SOIL_SIZE - 0.08
   g.add(box(side, 0.012, side, soil, 0, SOIL_TOP + 0.004, 0))
   for (let i = 0; i < 4; i++) {
     const ridge = barX(0.045, side - 0.02, soil, 0, SOIL_TOP + 0.002, -side / 2 + (i + 0.5) * (side / 4), 6)

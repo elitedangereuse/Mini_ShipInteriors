@@ -7,6 +7,7 @@ import { entryOf, isSolid, type CatalogEntry } from './catalog'
 import type { CabinItem, Partition } from './layout'
 import { partitionCenter } from './partitions'
 import type { CabinView } from './view'
+import { MAX_HOME_ITEMS } from '../../shared/housing-home.js'
 
 /*
  * Règles de pose du mode aménagement : un objet doit tenir sur la parcelle (ou sur un pan de
@@ -63,6 +64,9 @@ export function ridersOf(view: CabinView, items: CabinItem[], i: number): number
   })
   return out
 }
+
+/** Objets qui comptent au plafond de la parcelle : tout, sauf les sols (`grid` du catalogue). */
+export const furnitureCount = (items: CabinItem[]): number => items.filter((it) => !entryOf(it.m)?.grid).length
 
 const overlapXZ = (a: THREE.Box3, b: { minX: number; maxX: number; minZ: number; maxZ: number }) =>
   a.min.x < b.maxX - EPS && a.max.x > b.minX + EPS && a.min.z < b.maxZ - EPS && a.max.z > b.minZ + EPS
@@ -130,13 +134,18 @@ export function refusal(view: CabinView, items: CabinItem[], i: number, moving: 
     const a0 = alongX ? box.min.x : box.min.z, a1 = alongX ? box.max.x : box.max.z
     if (!wall.spans.some(([u, v]) => a0 >= u - EPS && a1 <= v + EPS)) return tr('Pas de place sur ce pan de mur (porte, hublot, pilier)', 'No room on this stretch of wall (door, porthole, pillar)')
     if (box.max.y > 1 + EPS) return tr('Trop haut pour ce mur', 'Too tall for this wall')
+  } else if (entry.grid) {
+    // Un sol : une tuile entière du quadrillage, jusque sous le pied des murs.
+    if (!Number.isInteger(item.x) || !Number.isInteger(item.z) || !view.contains(item.x, item.z)) return tr('Hors des quartiers', 'Outside the quarters')
   } else {
     if (!view.fits(box)) return view.contains(item.x, item.z) ? tr('À cheval sur un mur ou une porte', 'Straddling a wall or a door') : tr('Hors des quartiers', 'Outside the quarters')
     if (view.posts.some((p) => overlapXZ(box, p))) return tr('Pas de place contre ce poteau', 'No room against this post')
   }
 
-  // La parcelle a son plafond d'objets, qui grandit avec elle.
-  if (items.length > view.capacity) return tr(`Quartiers pleins : ${view.capacity} objets au plus`, `Quarters full: ${view.capacity} items at most`)
+  // La parcelle a son plafond d'objets, qui grandit avec elle. Les sols (tuiles de terre) n'y
+  // comptent pas : seul le plafond de ce que le site garde les arrête.
+  if (items.length > MAX_HOME_ITEMS) return tr(`Quartiers pleins : ${MAX_HOME_ITEMS} objets et tuiles au plus`, `Quarters full: ${MAX_HOME_ITEMS} items and tiles at most`)
+  if (!entry.grid && furnitureCount(items) > view.capacity) return tr(`Quartiers pleins : ${view.capacity} objets au plus`, `Quarters full: ${view.capacity} items at most`)
 
   const surfaces = surfacesOf(view, items)
   const base = baseOf(view, items, i, surfaces)
