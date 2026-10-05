@@ -216,7 +216,7 @@ function patternTexture(data: Uint8Array): THREE.DataTexture {
   t.magFilter = THREE.LinearFilter
   t.minFilter = THREE.LinearMipmapLinearFilter
   t.generateMipmaps = true
-  t.anisotropy = 4
+  t.anisotropy = 8
   t.needsUpdate = true
   return t
 }
@@ -284,12 +284,12 @@ float surfParquet(vec3 p) {
   float u = p.x + shift;
   float plank = floor(u / 1.25);
   float tone = surfHash(vec2(row, plank));
-  float grain = texture2D(uSurfA, vec2(u * 0.9 + tone * 7.0, p.z * 1.6 + row * 0.37) / 0.5).g;
+  float grain = texture2D(uSurfA, vec2(u * 0.9 + tone * 7.0, p.z * 1.6 + row * 0.37) / 0.65).g;
   float across = fract(p.z * 5.0);
-  float seam = smoothstep(0.0, 0.035, min(across, 1.0 - across));
+  float seam = smoothstep(0.0, 0.05, min(across, 1.0 - across));
   float along = fract(u / 1.25) * 1.25;
-  seam *= smoothstep(0.0, 0.006, min(along, 1.25 - along));
-  return (1.0 + 0.36 * (grain - 0.5) + 0.16 * (tone - 0.5)) * mix(0.7, 1.0, seam);
+  seam *= smoothstep(0.0, 0.01, min(along, 1.25 - along));
+  return (1.0 + 0.5 * (grain - 0.5) + 0.26 * (tone - 0.5)) * mix(0.6, 1.0, seam);
 }
 `
 
@@ -313,56 +313,56 @@ const FRAGMENT_BODY = `#include <color_fragment>
       bool up = sn.y > 0.6;
       float m = 1.0;
       if (sk == 1) {
-        m += 0.11 * (surfTri(uSurfA, sp, sw, 0.45).a - 0.5);
+        m += 0.22 * (surfTri(uSurfA, sp, sw, 0.7).a - 0.5);
       } else if (sk == 2) {
-        vec4 a = surfTri(uSurfA, sp, sw, 0.3);
-        m += 0.24 * (a.b - 0.5) + 0.08 * (a.a - 0.5);
+        vec4 a = surfTri(uSurfA, sp, sw, 0.45);
+        m += 0.4 * (a.b - 0.5) + 0.14 * (a.a - 0.5);
       } else if (sk == 3) {
-        vec4 a = surfTri(uSurfA, sp, sw, 0.42);
-        m += 0.42 * (a.g - 0.5);
+        vec4 a = surfTri(uSurfA, sp, sw, 0.6);
+        m += 0.6 * (a.g - 0.5);
       } else if (sk == 4) {
-        float weave = surfTri(uSurfA, sp, sw, 0.18).r;
-        float mottle = surfTri(uSurfA, sp, sw, 0.5).a;
-        m += 0.32 * (weave - 0.5) + 0.18 * (mottle - 0.5);
+        float weave = surfTri(uSurfA, sp, sw, 0.28).r;
+        float mottle = surfTri(uSurfA, sp, sw, 0.6).a;
+        m += 0.42 * (weave - 0.5) + 0.3 * (mottle - 0.5);
       } else if (sk == 5) {
-        float pebble = surfTri(uSurfB, sp, sw, 0.26).r;
-        float wear = surfTri(uSurfA, sp, sw, 0.6).a;
-        m += 0.32 * (pebble - 0.5) + 0.16 * (wear - 0.5);
+        float pebble = surfTri(uSurfB, sp, sw, 0.4).r;
+        float wear = surfTri(uSurfA, sp, sw, 0.7).a;
+        m += 0.45 * (pebble - 0.5) + 0.26 * (wear - 0.5);
       } else if (sk == 6) {
         #ifndef USE_MAP
           // Reflets presque effacés quand le verre l'est (vue subjective, cf. firstPersonGlass).
           float sheen = surfTri(uSurfB, sp, sw, 1.7).b;
           surfSheen = clamp(sheen, 0.0, 1.0) * smoothstep(0.03, 0.17, opacity);
-          diffuseColor.a = min(1.0, diffuseColor.a + surfSheen * 0.32);
+          diffuseColor.a = min(1.0, diffuseColor.a + surfSheen * 0.45);
         #endif
       } else if (sk >= 7) {
         float dirt = surfTri(uSurfB, sp, sw, 3.2).a;
         if (up && sk == 9) {
           m *= surfParquet(sp);
-          m -= 0.06 * dirt;
+          m -= 0.1 * dirt;
         } else if (up) {
-          vec4 b = surfTri(uSurfB, sp, sw, 1.6);
-          float wear = sk == 8 ? 0.4 : 0.28;
-          m += wear * (b.g - 0.5) + 0.06 * (surfTri(uSurfA, sp, sw, 0.5).a - 0.5);
-          m -= (sk == 8 ? 0.22 : sk == 10 ? 0.04 : 0.1) * dirt;
-          if (sk == 10) m += 0.14 * (surfTri(uSurfB, sp, sw, 0.9).a - 0.3);
+          vec4 b = surfTri(uSurfB, sp, sw, 2.2);
+          float wear = sk == 8 ? 0.6 : 0.45;
+          m += wear * (b.g - 0.5) + 0.12 * (surfTri(uSurfA, sp, sw, 0.7).a - 0.5);
+          m -= (sk == 8 ? 0.32 : sk == 10 ? 0.08 : 0.18) * dirt;
+          if (sk == 10) m += 0.24 * (surfTri(uSurfB, sp, sw, 0.9).a - 0.3);
         } else if (sk >= 9) {
           // Enduit des quartiers, brique ou terre cuite : un grain, sans brossage.
-          m += (sk == 10 ? 0.16 : 0.1) * (surfTri(uSurfA, sp, sw, 0.35).a - 0.5) - 0.04 * dirt;
+          m += (sk == 10 ? 0.26 : 0.18) * (surfTri(uSurfA, sp, sw, 0.5).a - 0.5) - 0.08 * dirt;
         } else {
-          vec4 a = surfTri(uSurfA, sp, sw, 0.7);
-          m += 0.16 * (a.b - 0.5) + 0.07 * (a.a - 0.5);
-          m -= (sk == 8 ? 0.2 : 0.08) * dirt;
+          vec4 a = surfTri(uSurfA, sp, sw, 1.0);
+          m += 0.3 * (a.b - 0.5) + 0.12 * (a.a - 0.5);
+          m -= (sk == 8 ? 0.3 : 0.16) * dirt;
         }
         // La cale : coulures et plaques de rouille, plus chaudes que l'acier.
-        if (sk == 8) diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.35, 0.82, 0.52), clamp(dirt * 0.75, 0.0, 1.0));
+        if (sk == 8) diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.35, 0.82, 0.52), clamp(dirt * 0.9, 0.0, 1.0));
       }
       diffuseColor.rgb *= max(m, 0.0);
     }
   }
 `
 
-const FRAGMENT_SHEEN = `outgoingLight += vec3(surfSheen * 0.7);
+const FRAGMENT_SHEEN = `outgoingLight += vec3(surfSheen * 0.9);
 #include <opaque_fragment>`
 
 /** Raccroche les morceaux de shader d'une matière (`kind`), ou de celle de chaque sommet (`attr`). */
