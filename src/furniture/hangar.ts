@@ -108,7 +108,7 @@ export const KRAIT_LADDER_REACH = 1.7
 /**
  * Chemin du cockpit, dans le repère de l'escabeau ([x, hauteur, z], le Krait vers +z) : le pied des
  * marches, les cinq marches (le dessus de chacune, cf. kraitLadder), la plateforme, puis le nez du
- * Krait, qui remonte vers la verrière (le dessus de la coque, cf. BODY). Le siège est au bout.
+ * Krait, qui remonte vers la verrière (le dessus du nez, cf. FUSELAGE). Le siège est au bout.
  */
 export const KRAIT_CLIMB: [number, number, number][] = [
   [0, 0, -0.6],
@@ -131,9 +131,9 @@ export const kraitPower = { value: 0 }
 export const baseKraitPower = { value: 0 }
 
 /**
- * Corps : un delta très plat, aussi large que long, le nez en pointe et les bouts d'ailes loin
- * à l'arrière. Au milieu, une tranchée sombre ; plus loin, les ailes blanches, bord d'attaque
- * sombre (le bord d'attaque va du nez, z = 3,2, au bout d'aile, x = 3, z = -2).
+ * Le delta : très plat, aussi large que long, le nez en pointe et les bouts d'ailes loin à
+ * l'arrière ; ailes blanches, bord d'attaque sombre (il va du nez, z = 3,2, au bout d'aile, x = 3,
+ * z = -2). Le fuselage central se pose dessus (cf. FUSELAGE).
  */
 const BODY: Section[] = [
   { z: -2.6, pts: [[0, 0.6, 0.2], [0.34, 0.6, 0.2], [1.0, 0.5, 0.18], [1.8, 0.34, 0.2], [2.75, 0.24, 0.21]] },
@@ -145,15 +145,27 @@ const BODY: Section[] = [
 ]
 
 /**
- * Les deux arêtes dorsales, de part et d'autre de la tranchée : elles partent des blocs moteurs
- * et plongent vers le nez, où elles encadrent la verrière (centrées sur x = ±0,62).
+ * Fuselage central, posé sur le delta : section en trapèze (dessus plat, flancs inclinés sombres),
+ * massif de la naissance des moteurs jusqu'au pare-brise, puis le nez en coin qui plonge vers la
+ * pointe (la hauteur du nez porte le chemin de l'escabeau, cf. KRAIT_CLIMB). Demi-profil : le
+ * milieu du dessus, le bord du dessus, le pied du flanc.
  */
-const RIDGE: Section[] = [
-  { z: -2.6, pts: [[0, 0.98, 0.5], [0.27, 0.9, 0.5]] },
-  { z: -0.4, pts: [[0, 0.9, 0.5], [0.25, 0.83, 0.5]] },
-  { z: 1.2, pts: [[0, 0.74, 0.46], [0.19, 0.68, 0.46]] },
-  { z: 1.95, pts: [[0, 0.56, 0.42], [0.08, 0.53, 0.42]] },
+const FUSELAGE: Section[] = [
+  { z: -1.7, pts: [[0, 0.96, 0.3], [0.55, 0.96, 0.3], [0.95, 0.6, 0.3]] },
+  { z: 1.1, pts: [[0, 0.96, 0.3], [0.55, 0.96, 0.3], [0.95, 0.58, 0.3]] },
+  { z: 1.4, pts: [[0, 0.88, 0.3], [0.5, 0.86, 0.3], [0.82, 0.55, 0.3]] },
+  { z: 1.75, pts: [[0, 0.56, 0.3], [0.42, 0.55, 0.3], [0.62, 0.46, 0.3]] },
+  { z: 2.5, pts: [[0, 0.43, 0.25], [0.3, 0.42, 0.25], [0.42, 0.36, 0.25]] },
+  { z: 3.2, pts: [[0, 0.27, 0.22], [0.03, 0.27, 0.22], [0.05, 0.26, 0.22]] },
 ]
+
+/** Les deux blocs moteurs, à l'arrière du fuselage, de part et d'autre d'une tranchée sombre. */
+const ENGINE = { x: 0.55, w: 0.66, bottom: 0.32, top: 1.02, front: -1.6 }
+/** Arrière des blocs moteurs (et des tuyères). */
+const STERN = -3.25
+/** Tuyères rectangulaires, 2 × 2 à l'arrière de chaque bloc moteur (x, y du centre). */
+const NOZZLES = [-1, 1].flatMap((s) => [-0.15, 0.15].flatMap((dx) => [0.5, 0.82].map((y) => [s * ENGINE.x + dx, y] as const)))
+const NOZZLE = { w: 0.24, h: 0.22 }
 
 /** Jambe de train : fût, vérin, patin au sol (repère du Krait posé sur son train). */
 function gearLeg(g: THREE.Group, x: number, z: number, big: boolean) {
@@ -171,17 +183,15 @@ function gearLeg(g: THREE.Group, x: number, z: number, big: boolean) {
   g.add(door)
 }
 
-/** Tuyères : sur l'arrière des deux blocs moteurs, et deux plus petites sous les ailes (x, y, rayon). */
-const NOZZLES = [[0.62, 0.74, 0.2], [-0.62, 0.74, 0.2], [1.55, 0.3, 0.12], [-1.55, 0.3, 0.12]] as const
-/** Arrière des blocs moteurs (et des tuyères). */
-const STERN = -2.98
-
 /**
- * Krait Mk II de Faulcon DeLacy (nez vers +z), sur son train : delta blanc très plat, deux
- * arêtes dorsales sombres qui mènent aux deux gros blocs moteurs, bouts d'ailes sombres et
- * leurs antennes, verrière du cockpit entre les arêtes, à l'avant. Feux de navigation (rouge à
- * bâbord, vert à tribord), gyrophare dorsal. Au repos, les tuyères couvent ; quelqu'un aux
- * commandes (cf. `kraitPower`), elles s'allument.
+ * Krait Mk II de Faulcon DeLacy (nez vers +z), sur son train, d'après les rendus du modèle 3D : un
+ * delta blanc très plat ; dessus, un fuselage central massif en trapèze, flancs sombres, coiffé de
+ * la grande trappe dorsale claire à liseré ; à l'arrière, deux gros blocs moteurs aux fentes
+ * d'aération, chacun avec 2 × 2 tuyères rectangulaires ; bouts d'ailes sombres et leurs longues
+ * antennes doubles, droites vers l'avant ; le nez en coin, ses capteurs ronds et la verrière du
+ * cockpit. Feux de navigation (rouge à bâbord, vert à tribord), gyrophare dorsal. Au repos, les
+ * tuyères couvent ; quelqu'un aux commandes (cf. `kraitPower`), elles s'éveillent ; réacteurs en
+ * route, les jets sortent.
  */
 const krait: Builder = ({ label }) => {
   const source = label === 'base' ? baseKraitPower : kraitPower
@@ -189,40 +199,73 @@ const krait: Builder = ({ label }) => {
   const ship = new THREE.Group()
   ship.position.y = KRAIT_GEAR
   g.add(ship)
+  // Le delta.
   ship.add(...loft(BODY, (face, j) => {
     if (face === 'top') return j === 0 ? C.panel : j === 2 ? C.hullShade : C.hull
     return face === 'bottom' ? C.belly : face === 'edge' ? C.dark : C.panel
   }))
-  for (const s of [1, -1]) ship.add(...loft(RIDGE, (face) => (face === 'top' ? C.ridge : C.dark), s * 0.62))
+  // Le fuselage central : dessus clair, flancs inclinés sombres.
+  ship.add(...loft(FUSELAGE, (face, j) => (face === 'top' ? (j === 0 ? C.hull : C.ridge) : face === 'bottom' ? C.belly : C.dark)))
 
-  // Blocs moteurs au bout des arêtes : un gros caisson, sa marche, et la tuyère derrière.
+  // La grande trappe dorsale : une plaque claire, son liseré, son joint central et ses verrous.
+  const deck = { minZ: -1.55, maxZ: 1.0, half: 0.47, y: 0.965 }
+  const deckLen = deck.maxZ - deck.minZ, deckMid = (deck.maxZ + deck.minZ) / 2
+  ship.add(box(deck.half * 2 + 0.08, 0.015, deckLen + 0.08, lit(C.edge), 0, deck.y, deckMid))
+  ship.add(box(deck.half * 2, 0.025, deckLen, lit(C.hull), 0, deck.y + 0.01, deckMid))
+  ship.add(box(0.02, 0.028, deckLen - 0.1, lit(C.hullShade), 0, deck.y + 0.012, deckMid))
+  for (const s of [1, -1]) for (const z of [deck.minZ + 0.25, deckMid, deck.maxZ - 0.25]) ship.add(box(0.06, 0.03, 0.12, lit(C.panel), s * (deck.half - 0.08), deck.y + 0.013, z))
+  // Le long des flancs : une bande claire sous l'arête du dessus, des portes de soute dessinées.
   for (const s of [1, -1]) {
-    ship.add(box(0.6, 0.62, 0.8, lit(C.dark), s * 0.62, 0.72, -2.58, 0.03))
-    ship.add(box(0.5, 0.06, 0.6, lit(C.ridge), s * 0.62, 1.05, -2.62, 0.02))
-    const cowl = box(0.56, 0.3, 0.3, lit(C.dark), s * 0.62, 0.86, -2.12)
-    cowl.rotation.x = -0.6
+    const band = box(0.04, 0.03, 2.75, lit(C.hullShade), s * 0.6, 0.93, -0.3)
+    band.rotation.z = s * 0.73
+    ship.add(band)
+    for (const z of [-1.0, 0.25]) {
+      const door = box(0.012, 0.18, 0.7, lit(C.edge), s * 0.79, 0.75, z)
+      door.rotation.z = s * 0.73
+      ship.add(door)
+    }
+    // Les capteurs ronds du nez, sur ses flancs.
+    const eye = cylinder(0.075, 0.075, 0.03, lit(C.black), s * 0.66, 0.6, 1.5, 16)
+    eye.rotation.z = Math.PI / 2 + s * 0.55
+    ship.add(eye, sphere(0.04, glow('#7fd8ff'), s * 0.68, 0.61, 1.5, 8))
+  }
+
+  // Les deux blocs moteurs, de part et d'autre d'une tranchée sombre où courent des conduits.
+  const engineLen = ENGINE.front - STERN, engineMid = (ENGINE.front + STERN) / 2, engineH = ENGINE.top - ENGINE.bottom
+  for (const s of [1, -1]) {
+    const x = s * ENGINE.x
+    ship.add(box(ENGINE.w, engineH, engineLen, lit(C.dark), x, ENGINE.bottom + engineH / 2, engineMid, 0.03))
+    // Capot clair, et les fentes d'aération sur le dessus.
+    ship.add(box(ENGINE.w - 0.1, 0.03, engineLen - 0.45, lit(C.ridge), x, ENGINE.top + 0.01, engineMid + 0.1))
+    for (let i = 0; i < 6; i++) ship.add(box(0.035, 0.07, 0.42, lit(C.black), x - 0.22 + i * 0.088, ENGINE.top + 0.04, STERN + 0.45))
+    // L'avant du bloc, en pente, qui rejoint le dessus du fuselage.
+    const cowl = box(ENGINE.w - 0.04, 0.3, 0.4, lit(C.dark), x, 0.88, ENGINE.front + 0.05)
+    cowl.rotation.x = -0.55
     ship.add(cowl)
+    // Plaques d'armure claires sur le flanc extérieur.
+    ship.add(box(0.015, 0.3, engineLen - 0.5, lit(C.hullShade), x + s * (ENGINE.w / 2 + 0.006), 0.72, engineMid))
   }
-  for (const [x, y, r] of NOZZLES) {
-    const housing = cylinder(r * 1.2, r * 1.3, 0.2, lit(C.black), x, y, STERN + 0.06, 16)
-    housing.rotation.x = Math.PI / 2
-    ship.add(housing, mesh(new THREE.TorusGeometry(r * 1.12, 0.022, 6, 20), lit(C.chrome, 'metal'), x, y, STERN - 0.04))
+  ship.add(box(ENGINE.x * 2 - ENGINE.w, 0.22, engineLen - 0.2, lit(C.black), 0, 0.5, engineMid - 0.05))
+  for (const s of [1, -1]) ship.add(barZ(0.03, engineLen - 0.3, lit(C.chrome, 'metal'), s * 0.08, 0.64, engineMid, 8))
+  // Les tuyères : un encadrement sombre, un liseré de métal autour de chacune.
+  for (const [x, y] of NOZZLES) {
+    ship.add(box(NOZZLE.w + 0.04, NOZZLE.h + 0.04, 0.16, lit(C.black), x, y, STERN - 0.02))
+    ship.add(box(NOZZLE.w + 0.06, 0.02, 0.04, lit(C.chrome, 'metal'), x, y + NOZZLE.h / 2 + 0.03, STERN - 0.09))
   }
-  // Dans la tranchée : des caissons et des conduits, sombres.
-  for (let i = 0; i < 5; i++) ship.add(box(0.36, 0.05, 0.28, lit(i % 2 ? C.dark : C.edge), 0, 0.66, -2.2 + i * 0.62, 0.01))
-  for (const s of [1, -1]) ship.add(barZ(0.025, 3.4, lit(C.black), s * 0.2, 0.68, -0.8, 6))
-  // Bouts d'ailes : caissons sombres, feu bleu, et une antenne double qui part du bout de l'aile
-  // droit vers l'avant, parallèle à l'axe du vaisseau (et à celle de l'autre aile).
+
+  // Bouts d'ailes : caissons sombres, feu bleu, et une longue antenne double qui part du bout de
+  // l'aile droit vers l'avant, parallèle à l'axe du vaisseau (et à celle de l'autre aile).
   for (const s of [1, -1]) {
     const tip = box(0.55, 0.14, 0.95, lit(C.dark), s * 2.62, 0.25, -2.12, 0.02)
     tip.rotation.y = s * -0.52
     ship.add(tip, sphere(0.035, glow('#7fd8ff'), s * 2.45, 0.33, -1.8, 8))
     const antenna = new THREE.Group()
     antenna.position.set(s * 2.93, 0.27, -2.08)
-    antenna.add(box(0.1, 0.06, 0.14, lit(C.dark), 0, 0, 0.02))
-    for (const o of [-0.03, 0.03]) antenna.add(barZ(0.012, 0.9, lit(C.chrome, 'metal'), o, 0.01, 0.5, 5))
-    for (const z of [0.35, 0.7]) antenna.add(box(0.07, 0.012, 0.012, lit(C.chrome, 'metal'), 0, 0.01, z))
-    antenna.add(sphere(0.018, glow('#7fd8ff'), 0, 0.01, 0.96, 6))
+    antenna.add(box(0.1, 0.07, 0.2, lit(C.dark), 0, 0, 0.04))
+    for (const o of [-0.03, 0.03]) antenna.add(barZ(0.012, 1.5, lit(C.chrome, 'metal'), o, 0.01, 0.8, 5))
+    for (const z of [0.3, 0.6, 0.9, 1.2]) antenna.add(box(0.07, 0.012, 0.012, lit(C.chrome, 'metal'), 0, 0.01, z))
+    antenna.add(box(0.05, 0.05, 0.16, lit(C.dark), 0, 0.01, 0.55))
+    antenna.add(sphere(0.018, glow('#7fd8ff'), 0, 0.01, 1.56, 6))
     ship.add(antenna)
     // Capteurs ronds sur le bord d'attaque, et quelques panneaux sombres sur l'aile.
     ship.add(sphere(0.045, glow('#7fd8ff'), s * 1.35, 0.3, 0.3, 8))
@@ -235,7 +278,7 @@ const krait: Builder = ({ label }) => {
   for (const [x, z] of [[1.0, 1.0], [-1.0, 1.0], [2.0, -0.9], [-2.0, -0.9]] as const) {
     ship.add(box(0.16, 0.1, 0.36, lit(C.dark), x, 0.06, z - 0.1, 0.02), barZ(0.03, 0.4, lit(C.chrome, 'metal'), x, 0.06, z + 0.25, 8))
   }
-  // Cockpit, entre les arêtes : siège, tableau de bord, manches (la verrière est dans `live`).
+  // Cockpit, à l'avant du fuselage : siège, tableau de bord, manches (la verrière est dans `live`).
   ship.add(box(0.34, 0.08, 0.3, lit(C.dark), 0, 0.26, KRAIT_PILOT.z - 0.02))
   ship.add(box(0.34, 0.34, 0.08, lit(C.dark), 0, 0.42, KRAIT_PILOT.z - 0.19))
   ship.add(box(0.5, 0.08, 0.16, lit(C.dark), 0, 0.46, 2.55), box(0.36, 0.012, 0.08, glow(ED_ORANGE), 0, 0.505, 2.53))
@@ -253,7 +296,7 @@ const krait: Builder = ({ label }) => {
   const lifted = new THREE.Group()
   lifted.position.y = KRAIT_GEAR
   live.add(lifted)
-  // Verrière du cockpit, basse et allongée, et ses arceaux.
+  // Verrière du cockpit, basse et allongée, au pied du pare-brise, et ses arceaux.
   const bubble = { x: 0.4, y: 0.44, z: 0.66, at: 2.15, base: 0.4 }
   const canopy = part(new THREE.SphereGeometry(1, 22, 10, 0, Math.PI * 2, 0, Math.PI / 2), glass(C.glass, 0.28), 0, bubble.base, bubble.at)
   canopy.scale.set(bubble.x, bubble.y, bubble.z)
@@ -268,20 +311,22 @@ const krait: Builder = ({ label }) => {
     hoop.scale.set(bubble.x * w, bubble.y * w, 1)
     lifted.add(hoop)
   }
-  // Tuyères : un disque qui couve, et un jet qui s'allume quand quelqu'un est aux commandes.
+  // Tuyères : un rectangle qui couve, et un jet qui s'allume quand les réacteurs tournent.
   const cores: THREE.MeshBasicMaterial[] = []
   const jets: THREE.ShaderMaterial[] = []
   const flames: THREE.Mesh[] = []
-  for (const [x, y, r] of NOZZLES) {
+  const coreGeo = new THREE.PlaneGeometry(NOZZLE.w, NOZZLE.h)
+  for (const [x, y] of NOZZLES) {
     const coreMat = new THREE.MeshBasicMaterial({ color: '#23405a' })
     cores.push(coreMat)
-    const core = part(new THREE.CircleGeometry(r * 1.05, 20), coreMat, x, y, STERN - 0.02)
+    const core = part(coreGeo, coreMat, x, y, STERN - 0.105)
     core.rotation.y = Math.PI
     const jetMat = beamMaterial()
     jetMat.uniforms.uColor.value.set(C.thruster)
     jets.push(jetMat)
-    const flame = part(new THREE.ConeGeometry(r * 1.05, 1.4, 16, 1, true), jetMat, x, y, STERN - 0.72)
+    const flame = part(new THREE.ConeGeometry(NOZZLE.h * 0.55, 1.2, 4, 1, true), jetMat, x, y, STERN - 0.7)
     flame.rotation.x = -Math.PI / 2
+    flame.rotation.y = Math.PI / 4
     flames.push(flame)
     lifted.add(core, flame)
   }
@@ -289,17 +334,17 @@ const krait: Builder = ({ label }) => {
   const nav = [
     part(new THREE.SphereGeometry(0.05, 8, 6), glow('#ff3b2f'), 3.0, 0.26, -2.0),
     part(new THREE.SphereGeometry(0.05, 8, 6), glow('#4dff8a'), -3.0, 0.26, -2.0),
-    part(new THREE.SphereGeometry(0.045, 8, 6), glow('#ffffff'), 0, 0.64, -2.64),
+    part(new THREE.SphereGeometry(0.045, 8, 6), glow('#ffffff'), 0, 0.72, STERN + 0.05),
   ]
-  const beacon = part(new THREE.SphereGeometry(0.05, 10, 6), glow(ED_ORANGE), 0.62, 1.1, -2.62)
+  const beacon = part(new THREE.SphereGeometry(0.05, 10, 6), glow(ED_ORANGE), 0, 1.02, -1.35)
   lifted.add(...nav, beacon)
   const dim = new THREE.Color('#23405a'), hot = new THREE.Color('#d8f2ff')
   let power = 0
   return {
     solid: g,
     live,
-    // Le delta et ses tuyères : les antennes, qui dépassent, n'arrêtent personne.
-    extent: new THREE.Box3(new THREE.Vector3(-3.02, 0, STERN - 0.05), new THREE.Vector3(3.02, 1.12, 3.2)),
+    // Le delta et ses moteurs : les antennes, qui dépassent, n'arrêtent personne.
+    extent: new THREE.Box3(new THREE.Vector3(-3.02, 0, STERN - 0.12), new THREE.Vector3(3.02, 1.12, 3.2)),
     update: (t) => {
       // La puissance suit la consigne : les jets montent en un instant, et retombent aussi vite à l'arrêt.
       power += (source.value - power) * (source.value > power ? 0.08 : 0.15)

@@ -57,9 +57,9 @@ test('il travaille à chaque poste le temps prévu, et fait le tour du Krait', (
     }
     assert.ok(Math.abs(worked - post.watch) < 0.11, `poste ${index} (${post.at}) : ${worked.toFixed(2)} s`)
   }
-  // Des postes des quatre côtés du Krait (x de 28,37 à 34,6, z de 1,98 à 8,02).
+  // Des postes des quatre côtés du Krait (x de 28,03 à 34,6, z de 1,98 à 8,02).
   assert.ok(MECH_POSTS.some((p) => p.z < 1.98) && MECH_POSTS.some((p) => p.z > 8.02))
-  assert.ok(MECH_POSTS.some((p) => p.x < 28.37) && MECH_POSTS.some((p) => p.x > 34.6))
+  assert.ok(MECH_POSTS.some((p) => p.x < 28.03) && MECH_POSTS.some((p) => p.x > 34.6))
   assert.ok(MECH_POSTS.some((p) => p.x === MECH_WAIT.x && p.z === MECH_WAIT.z))
 })
 
