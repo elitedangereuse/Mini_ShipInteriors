@@ -160,7 +160,7 @@ function gearLeg(g: THREE.Group, x: number, z: number, big: boolean) {
   const h = KRAIT_GEAR + 0.12
   const r = big ? 0.05 : 0.04
   g.add(box(big ? 0.34 : 0.26, 0.04, big ? 0.24 : 0.2, lit(C.dark), x, 0.02, z, 0.01))
-  g.add(cylinder(r, r, h, lit(C.chrome), x, h / 2 + 0.02, z, 10))
+  g.add(cylinder(r, r, h, lit(C.chrome, 'metal'), x, h / 2 + 0.02, z, 10))
   g.add(cylinder(r * 1.6, r * 1.6, h * 0.4, lit(C.dark), x, h * 0.72, z, 10))
   const brace = box(0.03, h * 0.9, 0.03, lit(C.hazard), x, h * 0.5, z - 0.1)
   brace.rotation.x = 0.35
@@ -206,7 +206,7 @@ const krait: Builder = ({ label }) => {
   for (const [x, y, r] of NOZZLES) {
     const housing = cylinder(r * 1.2, r * 1.3, 0.2, lit(C.black), x, y, STERN + 0.06, 16)
     housing.rotation.x = Math.PI / 2
-    ship.add(housing, mesh(new THREE.TorusGeometry(r * 1.12, 0.022, 6, 20), lit(C.chrome), x, y, STERN - 0.04))
+    ship.add(housing, mesh(new THREE.TorusGeometry(r * 1.12, 0.022, 6, 20), lit(C.chrome, 'metal'), x, y, STERN - 0.04))
   }
   // Dans la tranchée : des caissons et des conduits, sombres.
   for (let i = 0; i < 5; i++) ship.add(box(0.36, 0.05, 0.28, lit(i % 2 ? C.dark : C.edge), 0, 0.66, -2.2 + i * 0.62, 0.01))
@@ -220,8 +220,8 @@ const krait: Builder = ({ label }) => {
     const antenna = new THREE.Group()
     antenna.position.set(s * 2.93, 0.27, -2.08)
     antenna.add(box(0.1, 0.06, 0.14, lit(C.dark), 0, 0, 0.02))
-    for (const o of [-0.03, 0.03]) antenna.add(barZ(0.012, 0.9, lit(C.chrome), o, 0.01, 0.5, 5))
-    for (const z of [0.35, 0.7]) antenna.add(box(0.07, 0.012, 0.012, lit(C.chrome), 0, 0.01, z))
+    for (const o of [-0.03, 0.03]) antenna.add(barZ(0.012, 0.9, lit(C.chrome, 'metal'), o, 0.01, 0.5, 5))
+    for (const z of [0.35, 0.7]) antenna.add(box(0.07, 0.012, 0.012, lit(C.chrome, 'metal'), 0, 0.01, z))
     antenna.add(sphere(0.018, glow('#7fd8ff'), 0, 0.01, 0.96, 6))
     ship.add(antenna)
     // Capteurs ronds sur le bord d'attaque, et quelques panneaux sombres sur l'aile.
@@ -233,7 +233,7 @@ const krait: Builder = ({ label }) => {
   }
   // Canons sous les ailes.
   for (const [x, z] of [[1.0, 1.0], [-1.0, 1.0], [2.0, -0.9], [-2.0, -0.9]] as const) {
-    ship.add(box(0.16, 0.1, 0.36, lit(C.dark), x, 0.06, z - 0.1, 0.02), barZ(0.03, 0.4, lit(C.chrome), x, 0.06, z + 0.25, 8))
+    ship.add(box(0.16, 0.1, 0.36, lit(C.dark), x, 0.06, z - 0.1, 0.02), barZ(0.03, 0.4, lit(C.chrome, 'metal'), x, 0.06, z + 0.25, 8))
   }
   // Cockpit, entre les arêtes : siège, tableau de bord, manches (la verrière est dans `live`).
   ship.add(box(0.34, 0.08, 0.3, lit(C.dark), 0, 0.26, KRAIT_PILOT.z - 0.02))
@@ -334,8 +334,8 @@ const kraitLadder: Builder = () => {
   g.add(box(0.5, 0.06, 0.95, dark, 0, 0.08, -0.05))
   for (const [x, z] of [[-0.2, -0.45], [0.2, -0.45], [-0.2, 0.35], [0.2, 0.35]] as const) g.add(barX(0.04, 0.04, lit(C.rubber), x, 0.04, z, 10))
   // Marches, de l'arrière (-z) jusqu'à la plateforme (+z).
-  for (let i = 0; i < 5; i++) g.add(box(0.42, 0.03, 0.12, lit(C.chrome), 0, 0.14 + i * 0.085, -0.42 + i * 0.12))
-  g.add(box(0.46, 0.04, 0.3, lit(C.chrome), 0, 0.55, 0.22))
+  for (let i = 0; i < 5; i++) g.add(box(0.42, 0.03, 0.12, lit(C.chrome, 'metal'), 0, 0.14 + i * 0.085, -0.42 + i * 0.12))
+  g.add(box(0.46, 0.04, 0.3, lit(C.chrome, 'metal'), 0, 0.55, 0.22))
   for (const s of [1, -1]) {
     const stringer = box(0.04, 0.05, 0.8, yellow, s * 0.23, 0.33, -0.18)
     stringer.rotation.x = -0.62
@@ -456,13 +456,13 @@ const toolCart: Builder = ({ random }) => {
   const g = new THREE.Group()
   const red = lit(C.red)
   g.add(box(0.56, 0.4, 0.34, red, 0, 0.26, 0, 0.02))
-  for (let i = 0; i < 4; i++) g.add(box(0.5, 0.012, 0.02, lit(C.black), 0, 0.14 + i * 0.085, 0.172), box(0.14, 0.015, 0.02, lit(C.chrome), 0, 0.17 + i * 0.085, 0.176))
+  for (let i = 0; i < 4; i++) g.add(box(0.5, 0.012, 0.02, lit(C.black), 0, 0.14 + i * 0.085, 0.172), box(0.14, 0.015, 0.02, lit(C.chrome, 'metal'), 0, 0.17 + i * 0.085, 0.176))
   for (const [x, z] of [[-0.22, -0.12], [0.22, -0.12], [-0.22, 0.12], [0.22, 0.12]] as const) g.add(barX(0.035, 0.03, lit(C.rubber), x, 0.035, z, 8))
   g.add(box(0.58, 0.03, 0.36, lit(C.dark), 0, 0.475, 0))
-  for (const s of [1, -1]) g.add(box(0.02, 0.12, 0.02, lit(C.chrome), s * 0.3, 0.52, 0.12), box(0.02, 0.12, 0.02, lit(C.chrome), s * 0.3, 0.52, -0.12))
-  g.add(barZ(0.012, 0.3, lit(C.chrome), 0.31, 0.58, 0, 6))
+  for (const s of [1, -1]) g.add(box(0.02, 0.12, 0.02, lit(C.chrome, 'metal'), s * 0.3, 0.52, 0.12), box(0.02, 0.12, 0.02, lit(C.chrome, 'metal'), s * 0.3, 0.52, -0.12))
+  g.add(barZ(0.012, 0.3, lit(C.chrome, 'metal'), 0.31, 0.58, 0, 6))
   for (let i = 0; i < 5; i++) {
-    const w = box(0.03, 0.012, 0.16 + random() * 0.08, lit(C.chrome), -0.2 + i * 0.07, 0.5, random() * 0.06)
+    const w = box(0.03, 0.012, 0.16 + random() * 0.08, lit(C.chrome, 'metal'), -0.2 + i * 0.07, 0.5, random() * 0.06)
     w.rotation.y = (random() - 0.5) * 0.5
     g.add(w)
   }
@@ -482,7 +482,7 @@ const partsRack: Builder = ({ random }) => {
   // Rayon du bas : une tuyère de rechange couchée.
   const nozzle = cylinder(0.13, 0.17, 0.32, lit(C.panel), -0.25, 0.25, 0, 14)
   nozzle.rotation.z = Math.PI / 2
-  g.add(nozzle, mesh(new THREE.TorusGeometry(0.15, 0.02, 6, 16), lit(C.chrome), -0.09, 0.25, 0))
+  g.add(nozzle, mesh(new THREE.TorusGeometry(0.15, 0.02, 6, 16), lit(C.chrome, 'metal'), -0.09, 0.25, 0))
   g.add(box(0.3, 0.2, 0.26, lit('#6b5a3a'), 0.3, 0.195, 0, 0.01))
   // Rayon du milieu : joints, bobines, caisses.
   for (let i = 0; i < 3; i++) {
@@ -543,7 +543,7 @@ const gearChock: Builder = () => {
     g.add(wedge, box(0.122, 0.02, 0.05, lit(C.black), x, 0.06, 0))
   }
   g.add(barX(0.008, 0.18, lit(C.red), 0, 0.05, 0.02, 5))
-  const wrench = box(0.03, 0.012, 0.2, lit(C.chrome), 0.05, 0.008, 0.18)
+  const wrench = box(0.03, 0.012, 0.2, lit(C.chrome, 'metal'), 0.05, 0.008, 0.18)
   wrench.rotation.y = 0.6
   g.add(wrench)
   return { solid: g }
@@ -557,11 +557,11 @@ const thrusterStand: Builder = () => {
   for (const x of [-0.22, 0.22]) g.add(box(0.06, 0.2, 0.3, lit(C.hazard), x, 0.22, 0))
   const body = cylinder(0.17, 0.22, 0.55, lit(C.panel), 0, 0.42, 0, 16)
   body.rotation.x = Math.PI / 2
-  g.add(body, mesh(new THREE.TorusGeometry(0.2, 0.025, 6, 18), lit(C.chrome), 0, 0.42, -0.28))
+  g.add(body, mesh(new THREE.TorusGeometry(0.2, 0.025, 6, 18), lit(C.chrome, 'metal'), 0, 0.42, -0.28))
   g.add(mesh(new THREE.TorusGeometry(0.16, 0.02, 6, 18), lit(ED_ORANGE), 0, 0.42, 0.26))
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2
-    g.add(box(0.02, 0.02, 0.5, lit(C.chrome), Math.cos(a) * 0.2, 0.42 + Math.sin(a) * 0.2, 0))
+    g.add(box(0.02, 0.02, 0.5, lit(C.chrome, 'metal'), Math.cos(a) * 0.2, 0.42 + Math.sin(a) * 0.2, 0))
   }
   return { solid: g }
 }

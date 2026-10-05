@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { solidBox, type Box2 } from './deck'
 import { DIRS } from './map'
+import { withSurface } from './surfaces'
 import type { Mezzanine, MezzanineTile } from '../shared/mezzanine.js'
 
 /*
@@ -28,7 +29,7 @@ const TRIM = new THREE.MeshBasicMaterial({ color: '#ff8a1c' })
 /** Nez de marche, orange mat. */
 const NOSING = new THREE.MeshLambertMaterial({ color: '#d9741f' })
 /** Verre des garde-corps, comme celui des verrières. */
-const RAIL_GLASS = new THREE.MeshLambertMaterial({ color: '#9fd8ff', transparent: true, opacity: 0.26, depthWrite: false, side: THREE.DoubleSide })
+const RAIL_GLASS = withSurface(new THREE.MeshLambertMaterial({ color: '#9fd8ff', transparent: true, opacity: 0.26, depthWrite: false, side: THREE.DoubleSide }), 'glass')
 
 export interface MezzanineParts {
   /** Plancher et marches : fusionnés avec le pont. */

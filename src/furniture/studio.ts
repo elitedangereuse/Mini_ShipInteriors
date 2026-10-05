@@ -207,7 +207,7 @@ const radioNeon: Builder = () => {
   const airY = top + 0.05 + airH / 2 + 0.02
   // Rail d'acier sur le linteau, et deux entretoises par pièce.
   g.add(box(neonW + airW + 0.16, 0.025, 0.05, lit(C.panel), (neonX - neonW / 2 + airX + airW / 2) / 2, top + 0.0125, 0))
-  for (const x of [neonX - neonW * 0.35, neonX + neonW * 0.35, airX]) g.add(cylinder(0.006, 0.006, 0.07, lit(C.chrome), x, top + 0.06, 0.012, 6))
+  for (const x of [neonX - neonW * 0.35, neonX + neonW * 0.35, airX]) g.add(cylinder(0.006, 0.006, 0.07, lit(C.chrome, 'metal'), x, top + 0.06, 0.012, 6))
   // Caisson « ON AIR » : un boîtier mince à fin liseré, sa face de verre (éteinte) devant.
   g.add(box(airW + 0.014, airH + 0.014, 0.024, lit(C.black), airX, airY, 0, 0.004))
   g.add(part(new THREE.PlaneGeometry(airW, airH), new THREE.MeshBasicMaterial({ map: drawnTexture(AIR_W, AIR_H, paintOnAirFace), toneMapped: false }), airX, airY, 0.013))
@@ -256,7 +256,7 @@ const radioNeon: Builder = () => {
  */
 function micArm(): THREE.Group {
   const g = new THREE.Group()
-  const black = lit(C.black), chrome = lit(C.chrome)
+  const black = lit(C.black), chrome = lit(C.chrome, 'metal')
   g.add(box(0.06, 0.06, 0.06, black, 0.15, 0.44, 0.36, 0.01), cylinder(0.012, 0.012, 0.26, black, 0.15, 0.58, 0.36, 8))
   g.add(barX(0.011, 0.16, black, 0.075, 0.71, 0.36, 8), barZ(0.011, 0.2, black, 0, 0.71, 0.46, 8))
   g.add(cylinder(0.008, 0.008, 0.05, black, 0, 0.685, 0.56, 6))
@@ -282,13 +282,13 @@ function micArm(): THREE.Group {
 const studioTable: Builder = () => {
   const g = new THREE.Group()
   g.add(cylinder(0.46, 0.46, 0.03, lit(C.top), 0, 0.4, 0, 40), cylinder(0.465, 0.465, 0.012, lit(ED_ORANGE), 0, 0.386, 0, 40))
-  g.add(cylinder(0.05, 0.06, 0.37, lit(C.black), 0, 0.2, 0, 12), cylinder(0.24, 0.26, 0.025, lit(C.walnut), 0, 0.0125, 0, 24))
+  g.add(cylinder(0.05, 0.06, 0.37, lit(C.black), 0, 0.2, 0, 12), cylinder(0.24, 0.26, 0.025, lit(C.walnut, 'wood'), 0, 0.0125, 0, 24))
   // Console de mixage, tournée vers l'animateur du nord.
   const desk = new THREE.Group()
   desk.add(box(0.3, 0.03, 0.17, lit(C.panel), 0, 0.43, 0, 0.006))
   for (let i = 0; i < 6; i++) {
     const x = -0.11 + i * 0.044
-    desk.add(box(0.006, 0.004, 0.07, lit(C.black), x, 0.447, 0.02), box(0.016, 0.008, 0.012, lit(C.chrome), x, 0.45, 0.02 + ((i * 37) % 5) * 0.01 - 0.02))
+    desk.add(box(0.006, 0.004, 0.07, lit(C.black), x, 0.447, 0.02), box(0.016, 0.008, 0.012, lit(C.chrome, 'metal'), x, 0.45, 0.02 + ((i * 37) % 5) * 0.01 - 0.02))
     desk.add(cylinder(0.007, 0.007, 0.01, lit(i % 3 ? C.grille : ED_ORANGE), x, 0.45, -0.05, 8))
   }
   for (const x of [-0.05, 0.05]) desk.add(box(0.07, 0.003, 0.018, glow(x < 0 ? '#7dffa8' : '#ffc46a'), x, 0.447, -0.072))
@@ -317,14 +317,14 @@ const studioTable: Builder = () => {
  */
 const studioChair: Builder = () => {
   const g = new THREE.Group()
-  const black = lit(C.black), cushion = lit(C.cushion), orange = lit(ED_ORANGE)
+  const black = lit(C.black), cushion = lit(C.cushion, 'cloth'), orange = lit(ED_ORANGE)
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * Math.PI * 2
     const leg = box(0.16, 0.02, 0.028, black, Math.cos(a) * 0.08, 0.035, Math.sin(a) * 0.08)
     leg.rotation.y = -a
     g.add(leg, sphere(0.016, black, Math.cos(a) * 0.16, 0.016, Math.sin(a) * 0.16, 6))
   }
-  g.add(cylinder(0.016, 0.02, 0.21, lit(C.chrome), 0, 0.15, 0, 10))
+  g.add(cylinder(0.016, 0.02, 0.21, lit(C.chrome, 'metal'), 0, 0.15, 0, 10))
   g.add(box(0.36, 0.045, 0.34, cushion, 0, 0.278, 0.01, 0.018), box(0.37, 0.01, 0.35, orange, 0, 0.256, 0.01))
   const back = new THREE.Group()
   back.add(box(0.32, 0.22, 0.05, cushion, 0, 0.11, 0, 0.02), box(0.24, 0.01, 0.052, orange, 0, 0.19, 0))

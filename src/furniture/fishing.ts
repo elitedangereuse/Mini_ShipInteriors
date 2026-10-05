@@ -200,8 +200,8 @@ const fishingPond: Builder = ({ random }) => {
  */
 const fishingDock: Builder = () => {
   const g = new THREE.Group()
-  const plank = lit(C.woodLight), dark = lit(C.woodDark)
-  for (let i = 0; i < 6; i++) g.add(box(0.19, 0.03, 0.82, i % 2 ? plank : lit(C.wood), -0.5 + i * 0.2, 0.035, 0, 0.006))
+  const plank = lit(C.woodLight, 'wood'), dark = lit(C.woodDark, 'wood')
+  for (let i = 0; i < 6; i++) g.add(box(0.19, 0.03, 0.82, i % 2 ? plank : lit(C.wood, 'wood'), -0.5 + i * 0.2, 0.035, 0, 0.006))
   for (const z of [-0.36, 0.36]) g.add(box(1.24, 0.03, 0.06, dark, 0, 0.018, z))
   for (const x of [-0.58, 0.58]) g.add(cylinder(0.035, 0.04, 0.32, dark, x, 0.16, 0.38, 8), cylinder(0.042, 0.042, 0.02, lit('#d8d4c8'), x, 0.325, 0.38, 8))
   // Le râtelier et ses deux cannes.
@@ -224,7 +224,7 @@ const fishingDock: Builder = () => {
  */
 const fishBook: Builder = () => {
   const g = new THREE.Group()
-  const wood = lit(C.wood), dark = lit(C.woodDark)
+  const wood = lit(C.wood, 'wood'), dark = lit(C.woodDark, 'wood')
   g.add(box(0.34, 0.04, 0.3, dark, 0, 0.02, 0, 0.01), box(0.07, 0.6, 0.07, wood, 0, 0.33, -0.02))
   const top = new THREE.Group()
   top.position.set(0, 0.66, 0.02)
@@ -366,7 +366,7 @@ const fishFrame: Builder = ({ label }) => {
   const [id, tint] = (label ?? '').split(':')
   const fish = fishById(id) ?? FISH[0]
   const g = new THREE.Group()
-  const wood = lit(C.woodDark)
+  const wood = lit(C.woodDark, 'wood')
   g.add(box(0.6, 0.42, 0.02, wood, 0, 0.62, 0.01))
   for (const y of [0.42, 0.82]) g.add(box(0.6, 0.025, 0.035, wood, 0, y, 0.0175))
   for (const x of [-0.29, 0.29]) g.add(box(0.025, 0.42, 0.035, wood, x, 0.62, 0.0175))
@@ -424,7 +424,7 @@ const tikiTorch: Builder = ({ random }) => {
  */
 const beachLounger: Builder = ({ label }) => {
   const g = new THREE.Group()
-  const wood = lit(C.woodLight), [a, b] = label === 'blue' ? ['#3f8fc8', '#f4f1e8'] : ['#ff7a5a', '#f4f1e8']
+  const wood = lit(C.woodLight, 'wood'), [a, b] = label === 'blue' ? ['#3f8fc8', '#f4f1e8'] : ['#ff7a5a', '#f4f1e8']
   for (const x of [-0.24, 0.24]) g.add(box(0.04, 0.04, 1.1, wood, x, 0.2, 0.05))
   for (const [x, z] of [[-0.24, -0.4], [0.24, -0.4], [-0.24, 0.5], [0.24, 0.5]]) g.add(box(0.04, 0.2, 0.04, wood, x, 0.1, z))
   // La toile : des bandes de couleur, à plat, puis le dossier relevé.

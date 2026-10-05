@@ -104,13 +104,13 @@ function curtain(g: THREE.Group, x: number, w: number, h: number, side: -1 | 1) 
   const folds = 6, r = w / folds / 2
   for (let i = 0; i < folds; i++) {
     const fx = x + side * (i - (folds - 1) / 2) * r * 2
-    const fold = mesh(new THREE.CylinderGeometry(r, r, h, 8, 1, false, 0, Math.PI), lit(i % 2 ? C.velvet : C.velvetDark), fx, h / 2, 0.06)
+    const fold = mesh(new THREE.CylinderGeometry(r, r, h, 8, 1, false, 0, Math.PI), lit(i % 2 ? C.velvet : C.velvetDark, 'cloth'), fx, h / 2, 0.06)
     fold.rotation.y = -Math.PI / 2
     g.add(fold)
   }
   // Embrasse : le rideau se resserre, une corde dorée et son pompon.
-  g.add(box(w * 0.9, 0.035, 0.14, lit(C.gold), x, h * 0.42, 0.07, 0.015))
-  g.add(cylinder(0.02, 0.035, 0.08, lit(C.gold), x - side * w * 0.45, h * 0.37, 0.14, 8))
+  g.add(box(w * 0.9, 0.035, 0.14, lit(C.gold, 'metal'), x, h * 0.42, 0.07, 0.015))
+  g.add(cylinder(0.02, 0.035, 0.08, lit(C.gold, 'metal'), x - side * w * 0.45, h * 0.37, 0.14, 8))
 }
 
 /**
@@ -122,15 +122,15 @@ const cinemaScreen: Builder = () => {
   const g = new THREE.Group()
   const { width: SW, height: SH, centerY: SY } = CINEMA_SCREEN
   // Mur de fond en velours sombre, cadre noir mat autour de la toile.
-  g.add(box(4.6, 2.42, 0.03, lit(C.velvetDeep), 0, 1.21, 0.015))
+  g.add(box(4.6, 2.42, 0.03, lit(C.velvetDeep, 'cloth'), 0, 1.21, 0.015))
   g.add(box(SW + 0.16, SH + 0.14, 0.05, lit(C.black), 0, SY, 0.045))
   // Lambrequin : un bandeau plissé et sa frange dorée.
-  g.add(box(4.6, 0.2, 0.12, lit(C.velvet), 0, 2.34, 0.08, 0.02), box(4.62, 0.035, 0.13, lit(C.gold), 0, 2.23, 0.085))
-  for (let i = 0; i < 23; i++) g.add(box(0.1, 0.16, 0.02, lit(i % 2 ? C.velvet : C.velvetDark), -2.2 + i * 0.2, 2.32, 0.15))
+  g.add(box(4.6, 0.2, 0.12, lit(C.velvet, 'cloth'), 0, 2.34, 0.08, 0.02), box(4.62, 0.035, 0.13, lit(C.gold, 'metal'), 0, 2.23, 0.085))
+  for (let i = 0; i < 23; i++) g.add(box(0.1, 0.16, 0.02, lit(i % 2 ? C.velvet : C.velvetDark, 'cloth'), -2.2 + i * 0.2, 2.32, 0.15))
   curtain(g, -2.0, 0.6, 2.24, -1)
   curtain(g, 2.0, 0.6, 2.24, 1)
   // Petite scène en bois sombre, bordée de veilleuses.
-  g.add(box(4.2, 0.1, 0.44, lit(C.wood), 0, 0.05, 0.22, 0.01), box(4.22, 0.02, 0.02, lit(C.goldDark), 0, 0.1, 0.44))
+  g.add(box(4.2, 0.1, 0.44, lit(C.wood, 'wood'), 0, 0.05, 0.22, 0.01), box(4.22, 0.02, 0.02, lit(C.goldDark, 'metal'), 0, 0.1, 0.44))
   for (let i = 0; i < 12; i++) g.add(box(0.05, 0.02, 0.01, glow('#ffc67a'), -1.93 + i * 0.35, 0.05, 0.445))
   // Haut-parleurs de façade, sous la toile, derrière la toile tendue.
   for (const x of [-1.2, 0, 1.2]) g.add(box(0.36, 0.1, 0.04, lit(C.frame), x, 0.16, 0.06, 0.01))
@@ -169,9 +169,9 @@ export const CINEMA_ROW_SEATS = 6
 const cinemaRow: Builder = ({ label }) => {
   const g = new THREE.Group()
   const n = CINEMA_ROW_SEATS, p = CINEMA_SEAT_PITCH, width = n * p
-  const velvet = lit(label === 'blue' ? '#243a6b' : C.velvet), velvetDark = lit(label === 'blue' ? '#182848' : C.velvetDark)
+  const velvet = lit(label === 'blue' ? '#243a6b' : C.velvet, 'cloth'), velvetDark = lit(label === 'blue' ? '#182848' : C.velvetDark, 'cloth')
   // Dans la pénombre, des dos noirs feraient des rangées noires : coques et accoudoirs restent bordeaux.
-  const frame = lit(label === 'blue' ? '#1a2238' : '#3a1a20'), gold = lit(C.gold)
+  const frame = lit(label === 'blue' ? '#1a2238' : '#3a1a20'), gold = lit(C.gold, 'metal')
   // Piétement : une poutre au sol, un pied par accoudoir.
   g.add(box(width, 0.04, 0.1, frame, 0, 0.02, -0.12))
   for (let i = 0; i < n; i++) {
@@ -201,7 +201,7 @@ const cinemaRow: Builder = ({ label }) => {
  */
 const projectionChair: Builder = () => {
   const g = new THREE.Group()
-  const blue = lit('#244a73'), dark = lit('#152b48'), gold = lit(C.gold)
+  const blue = lit('#244a73'), dark = lit('#152b48'), gold = lit(C.gold, 'metal')
   g.add(box(0.72, 0.13, 0.47, blue, 0, 0.24, 0.02, 0.045))
   g.add(box(0.72, 0.56, 0.13, dark, 0, 0.52, -0.25, 0.04))
   g.add(box(0.72, 0.035, 0.06, gold, 0, 0.79, -0.25, 0.01))
@@ -257,7 +257,7 @@ const projectionChair: Builder = () => {
  */
 const popcornMachine: Builder = ({ random }) => {
   const g = new THREE.Group()
-  const red = lit('#c0262d'), gold = lit(C.gold), chrome = lit(C.chrome), black = lit(C.black)
+  const red = lit('#c0262d'), gold = lit(C.gold, 'metal'), chrome = lit(C.chrome, 'metal'), black = lit(C.black)
   // Chariot : caisse, portillon, roues, poignée.
   g.add(box(0.5, 0.42, 0.38, red, 0, 0.27, 0, 0.02), box(0.52, 0.03, 0.4, gold, 0, 0.495, 0))
   g.add(box(0.3, 0.26, 0.01, lit('#a01e25'), 0, 0.27, 0.195, 0.01), box(0.06, 0.012, 0.012, gold, 0.1, 0.3, 0.205))
@@ -338,7 +338,7 @@ const popcornMachine: Builder = ({ random }) => {
 const filmProjector: Builder = ({ label, random }) => {
   const reach = Number(label) || 7.4
   const g = new THREE.Group()
-  const dark = lit(C.steel), black = lit(C.black), chrome = lit(C.chrome)
+  const dark = lit(C.steel, 'metal'), black = lit(C.black), chrome = lit(C.chrome, 'metal')
   // Console : deux équerres et une tablette.
   g.add(box(0.5, 0.04, 0.34, lit(C.frame), 0, 1.0, 0.17))
   for (const x of [-0.2, 0.2]) {
@@ -450,7 +450,7 @@ const BULBS = (() => {
  */
 const moviePoster: Builder = ({ label }) => {
   const g = new THREE.Group()
-  g.add(box(0.5, 0.68, 0.04, lit(C.goldDark), 0, 0.62, 0.02, 0.01), box(0.44, 0.62, 0.02, lit(C.gold), 0, 0.62, 0.035, 0.005))
+  g.add(box(0.5, 0.68, 0.04, lit(C.goldDark, 'metal'), 0, 0.62, 0.02, 0.01), box(0.44, 0.62, 0.02, lit(C.gold, 'metal'), 0, 0.62, 0.035, 0.005))
   g.add(box(0.4, 0.58, 0.02, lit(C.black), 0, 0.62, 0.045))
   const art = drawnTexture(POSTER_W, POSTER_H, (c) => drawPoster(c, label ?? 'hutton'))
   g.add(part(new THREE.PlaneGeometry(0.38, 0.555), new THREE.MeshBasicMaterial({ map: art, toneMapped: false }), 0, 0.62, 0.057))

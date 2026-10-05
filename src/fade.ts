@@ -18,16 +18,22 @@ const BAYER = `
 const DISCARD = `#include <clipping_planes_fragment>
   if (vFade < 0.999 && vFade < bayer4(gl_FragCoord.xy)) discard;`
 
+/*
+ * Les deux variantes reprennent le shader modifié du matériau d'origine (la matière de ses
+ * surfaces, cf. surfaces.ts), que material.clone() ne copie pas.
+ */
+
 /** Un seul niveau de fondu pour tout l'objet (`fade.value`, 1 = opaque). */
 export function makeFadeable(material: THREE.Material, fade: { value: number }): THREE.Material {
   const m = material.clone()
-  m.onBeforeCompile = (shader) => {
+  m.onBeforeCompile = (shader, renderer) => {
+    material.onBeforeCompile(shader, renderer)
     shader.uniforms.uFade = fade
     shader.fragmentShader = shader.fragmentShader
       .replace('void main() {', `uniform float uFade;\n${BAYER}\nvoid main() {\n  float vFade = uFade;`)
       .replace('#include <clipping_planes_fragment>', DISCARD)
   }
-  m.customProgramCacheKey = () => 'fade-uniform'
+  m.customProgramCacheKey = () => `fade-uniform|${material.customProgramCacheKey()}`
   return m
 }
 
@@ -38,7 +44,8 @@ export function makeFadeable(material: THREE.Material, fade: { value: number }):
  */
 export function makeIndexedFadeable(material: THREE.Material, fades: THREE.DataTexture): THREE.Material {
   const m = material.clone()
-  m.onBeforeCompile = (shader) => {
+  m.onBeforeCompile = (shader, renderer) => {
+    material.onBeforeCompile(shader, renderer)
     shader.uniforms.uFades = { value: fades }
     shader.vertexShader = shader.vertexShader
       .replace('void main() {', 'uniform sampler2D uFades;\nattribute float aOcc;\nvarying float vFade;\nvoid main() {\n  vFade = texelFetch(uFades, ivec2(int(aOcc + 0.5), 0), 0).r;')
@@ -46,6 +53,6 @@ export function makeIndexedFadeable(material: THREE.Material, fades: THREE.DataT
       .replace('void main() {', `varying float vFade;\n${BAYER}\nvoid main() {`)
       .replace('#include <clipping_planes_fragment>', DISCARD)
   }
-  m.customProgramCacheKey = () => 'fade-indexed'
+  m.customProgramCacheKey = () => `fade-indexed|${material.customProgramCacheKey()}`
   return m
 }

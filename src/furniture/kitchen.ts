@@ -41,9 +41,9 @@ function splashback(g: THREE.Group, w: number, d: number, from = 0.46, to = 0.86
 
 /** Caisson inox d'un meuble de cuisine : corps, socle noir, plan de travail (dessus à 0,46). */
 function carcass(g: THREE.Group, w: number, d: number) {
-  g.add(box(w, 0.4, d - 0.02, lit(C.steelMid), 0, 0.23, -0.01))
+  g.add(box(w, 0.4, d - 0.02, lit(C.steelMid, 'metal'), 0, 0.23, -0.01))
   g.add(box(w - 0.02, 0.05, d - 0.06, lit(C.black), 0, 0.025, -0.02))
-  g.add(box(w + 0.02, 0.03, d, lit(C.steel), 0, 0.445, 0))
+  g.add(box(w + 0.02, 0.03, d, lit(C.steel, 'metal'), 0, 0.445, 0))
 }
 
 /** Assiette posée (dessus à y), avec de quoi manger dessus si `food`. */
@@ -62,7 +62,7 @@ function plate(g: THREE.Group, x: number, y: number, z: number, food?: string) {
 const canteenTable: Builder = ({ label, random }) => {
   const L = 2
   const g = new THREE.Group()
-  const frame = lit(C.steelDark), orange = lit(C.orange)
+  const frame = lit(C.steelDark, 'metal'), orange = lit(C.orange)
   g.add(box(L, 0.035, 0.62, lit(C.laminate), 0, 0.4, 0, 0.01))
   for (const z of [-0.315, 0.315]) g.add(box(L + 0.01, 0.014, 0.012, orange, 0, 0.395, z))
   for (const x of [-L / 2 + 0.28, L / 2 - 0.28]) {
@@ -71,11 +71,11 @@ const canteenTable: Builder = ({ label, random }) => {
   }
   // Les bancs : assise orange, chant inox.
   for (const z of [-0.6, 0.6]) {
-    g.add(box(L, 0.04, 0.22, orange, 0, 0.245, z, 0.01), box(L, 0.012, 0.012, lit(C.steel), 0, 0.23, z + Math.sign(z) * 0.105))
+    g.add(box(L, 0.04, 0.22, orange, 0, 0.245, z, 0.01), box(L, 0.012, 0.012, lit(C.steel, 'metal'), 0, 0.23, z + Math.sign(z) * 0.105))
   }
   // Huilier : serviettes, sel, poivre, sauce piquante d'Ochoeng.
   const cx = (random() - 0.5) * 0.3
-  g.add(box(0.09, 0.07, 0.04, lit(C.steel), cx, 0.452, 0), box(0.07, 0.05, 0.03, lit(C.white), cx, 0.455, 0))
+  g.add(box(0.09, 0.07, 0.04, lit(C.steel, 'metal'), cx, 0.452, 0), box(0.07, 0.05, 0.03, lit(C.white), cx, 0.455, 0))
   g.add(cylinder(0.012, 0.014, 0.05, lit(C.white), cx + 0.08, 0.442, 0.02, 8), cylinder(0.012, 0.014, 0.05, lit(C.black), cx + 0.08, 0.442, -0.02, 8))
   g.add(cylinder(0.014, 0.016, 0.08, lit('#c8321e'), cx - 0.08, 0.457, 0, 8), cylinder(0.006, 0.01, 0.025, lit(C.white), cx - 0.08, 0.51, 0, 6))
   // Chevalet au numéro de la table, lisible des deux bancs.
@@ -107,10 +107,10 @@ const canteenTable: Builder = ({ label, random }) => {
  */
 const waterFountain: Builder = () => {
   const g = new THREE.Group()
-  g.add(box(0.36, 0.55, 0.3, lit(C.white), 0, 0.275, 0, 0.02), box(0.3, 0.1, 0.02, lit(C.steelMid), 0, 0.42, 0.151))
-  g.add(box(0.2, 0.012, 0.08, lit(C.steelDark), 0, 0.33, 0.13), box(0.14, 0.03, 0.03, lit('#27c6ff'), 0, 0.49, 0.155))
+  g.add(box(0.36, 0.55, 0.3, lit(C.white), 0, 0.275, 0, 0.02), box(0.3, 0.1, 0.02, lit(C.steelMid, 'metal'), 0, 0.42, 0.151))
+  g.add(box(0.2, 0.012, 0.08, lit(C.steelDark, 'metal'), 0, 0.33, 0.13), box(0.14, 0.03, 0.03, lit('#27c6ff'), 0, 0.49, 0.155))
   for (const [x, c] of [[-0.06, '#2f7de0'], [0.06, '#d8323c']] as const) g.add(box(0.03, 0.035, 0.04, lit(c), x, 0.4, 0.17))
-  g.add(cylinder(0.035, 0.035, 0.22, lit(C.steel), 0.2, 0.36, 0.05, 10))
+  g.add(cylinder(0.035, 0.035, 0.22, lit(C.steel, 'metal'), 0.2, 0.36, 0.05, 10))
   for (let i = 0; i < 5; i++) g.add(cylinder(0.032, 0.026, 0.02, lit(C.white), 0.2, 0.24 - i * 0.012, 0.05, 10))
   // La bonbonne, translucide, et l'eau dedans.
   const live = new THREE.Group()
@@ -125,7 +125,7 @@ const waterFountain: Builder = () => {
  */
 const trayReturn: Builder = ({ random }) => {
   const g = new THREE.Group()
-  const steel = lit(C.steel), dark = lit(C.steelDark)
+  const steel = lit(C.steel, 'metal'), dark = lit(C.steelDark, 'metal')
   const W = 0.86, D = 0.38
   for (const x of [-W / 2, W / 2]) g.add(box(0.03, 0.78, D, steel, x, 0.39, 0))
   g.add(box(W, 0.03, D, steel, 0, 0.78, 0), box(W, 0.6, 0.02, dark, 0, 0.42, -D / 2 + 0.01))
@@ -204,7 +204,7 @@ const menuBoard: Builder = () => {
 const selfCounter: Builder = ({ label, random }) => {
   const W = Number(label) >= 2 && Number(label) <= 8 ? Number(label) : 5.2
   const g = new THREE.Group()
-  const steel = lit(C.steel), dark = lit(C.steelDark), black = lit(C.black), orange = lit(C.orange)
+  const steel = lit(C.steel, 'metal'), dark = lit(C.steelDark, 'metal'), black = lit(C.black), orange = lit(C.orange)
   const top = 0.45
   // Caisson, façade orange à baguettes inox, socle noir, dessus inox.
   g.add(box(W, 0.4, 0.54, dark, 0, 0.22, 0), box(W, 0.05, 0.52, black, 0, 0.025, -0.005))
@@ -233,8 +233,8 @@ const selfCounter: Builder = ({ label, random }) => {
   const hot = [FOOD[0], FOOD[1], FOOD[2], FOOD[3]].sort(() => random() - 0.5)
   for (let i = 0; i < pans; i++) {
     const x = hot0 + (i + 0.5) * pw
-    g.add(box(pw - 0.04, 0.02, 0.32, lit(C.steel), x, top + 0.012, 0.02), box(pw - 0.07, 0.014, 0.28, lit(hot[i]), x, top + 0.022, 0.02))
-    const ladle = barZ(0.006, 0.2, lit(C.steel), x + 0.05, top + 0.05, -0.05, 5)
+    g.add(box(pw - 0.04, 0.02, 0.32, lit(C.steel, 'metal'), x, top + 0.012, 0.02), box(pw - 0.07, 0.014, 0.28, lit(hot[i]), x, top + 0.022, 0.02))
+    const ladle = barZ(0.006, 0.2, lit(C.steel, 'metal'), x + 0.05, top + 0.05, -0.05, 5)
     ladle.rotation.x = Math.PI / 2 - 0.5
     g.add(ladle)
   }
@@ -273,11 +273,11 @@ const selfCounter: Builder = ({ label, random }) => {
 
   // Pain et boissons : corbeille de miches, pichets de jus, gobelets.
   const drink0 = -W / 2 + 0.05, drink1 = -1.9
-  g.add(box(0.3, 0.05, 0.2, lit(C.wood), drink1 - 0.2, top + 0.025, 0.08, 0.01))
+  g.add(box(0.3, 0.05, 0.2, lit(C.wood, 'wood'), drink1 - 0.2, top + 0.025, 0.08, 0.01))
   for (let i = 0; i < 4; i++) g.add(sphere(0.045, lit('#c98a4a'), drink1 - 0.3 + i * 0.065, top + 0.06, 0.08, 8))
   for (const [i, c] of (['#ff9a2a', '#b25adf'] as const).entries()) {
     const x = drink0 + 0.12 + i * 0.16
-    g.add(box(0.12, 0.04, 0.14, lit(C.steelDark), x, top + 0.02, -0.06), cylinder(0.045, 0.045, 0.14, lit(c), x, top + 0.11, -0.06, 10))
+    g.add(box(0.12, 0.04, 0.14, lit(C.steelDark, 'metal'), x, top + 0.02, -0.06), cylinder(0.045, 0.045, 0.14, lit(c), x, top + 0.11, -0.06, 10))
     live.add(part(new THREE.CylinderGeometry(0.052, 0.052, 0.18, 12), glass('#ffffff', 0.25), x, top + 0.13, -0.06))
   }
   for (let i = 0; i < 4; i++) g.add(cylinder(0.022, 0.018, 0.05, lit('#c9dde6'), drink0 + 0.1 + i * 0.05, top + 0.025, 0.12, 8))
@@ -306,11 +306,11 @@ const selfCounter: Builder = ({ label, random }) => {
 /** Pile de plateaux au début du self, bacs à couverts et à serviettes (posée sur le comptoir). */
 const trayStack: Builder = () => {
   const g = new THREE.Group()
-  g.add(box(0.5, 0.02, 0.4, lit(C.steelDark), 0, 0.01, 0))
+  g.add(box(0.5, 0.02, 0.4, lit(C.steelDark, 'metal'), 0, 0.01, 0))
   for (let i = 0; i < 9; i++) g.add(box(0.36, 0.016, 0.27, lit(i % 3 ? C.tray : C.orange), 0.04, 0.03 + i * 0.018, 0.02, 0.006))
   for (const [k, c] of ['#c6ccd4', '#c6ccd4', '#c6ccd4', '#f4f6f8'].entries()) {
     const z = -0.14 + k * 0.095
-    g.add(box(0.08, 0.05, 0.085, lit(C.steel), -0.19, 0.035, z))
+    g.add(box(0.08, 0.05, 0.085, lit(C.steel, 'metal'), -0.19, 0.035, z))
     for (let j = 0; j < 4; j++) g.add(box(0.008, 0.06, 0.008, lit(c), -0.21 + j * 0.013, 0.08, z))
   }
   return { solid: g }
@@ -322,7 +322,7 @@ const trayStack: Builder = () => {
  */
 const orderRail: Builder = ({ random }) => {
   const g = new THREE.Group()
-  const steel = lit(C.steel)
+  const steel = lit(C.steel, 'metal')
   g.add(box(0.14, 0.08, 0.11, lit(C.black), 0.26, 0.04, 0.02, 0.01), box(0.1, 0.006, 0.02, glow('#7dffa8'), 0.26, 0.082, 0.07))
   for (const x of [-0.34, 0.34]) g.add(cylinder(0.008, 0.008, 0.46, steel, x, 0.23, -0.08, 6))
   g.add(barX(0.01, 0.72, steel, 0, 0.45, -0.08, 6))
@@ -344,9 +344,9 @@ const orderRail: Builder = ({ random }) => {
 const kitchenFridge: Builder = () => {
   const g = new THREE.Group()
   const W = 0.9, D = 0.55, H = 0.95
-  g.add(box(W, H, D, lit(C.steelMid), 0, H / 2, 0, 0.015))
+  g.add(box(W, H, D, lit(C.steelMid, 'metal'), 0, H / 2, 0, 0.015))
   for (const x of [-W / 4, W / 4]) {
-    g.add(box(W / 2 - 0.02, H - 0.1, 0.02, lit(C.steel), x, H / 2 + 0.02, D / 2 + 0.005))
+    g.add(box(W / 2 - 0.02, H - 0.1, 0.02, lit(C.steel, 'metal'), x, H / 2 + 0.02, D / 2 + 0.005))
     g.add(cylinder(0.01, 0.01, 0.4, lit(C.black), x > 0 ? x - W / 4 + 0.05 : x + W / 4 - 0.05, 0.62, D / 2 + 0.04, 6))
   }
   g.add(box(W, 0.05, D - 0.02, lit(C.black), 0, 0.025, 0), box(0.12, 0.04, 0.01, glow('#8ff0ff'), W / 4, H - 0.12, D / 2 + 0.02))
@@ -377,9 +377,9 @@ const kitchenPrep: Builder = ({ random }) => {
   const W = 1.3, D = 0.55
   const g = new THREE.Group()
   carcass(g, W, D)
-  for (const x of [-W / 3, 0, W / 3]) g.add(box(W / 3 - 0.03, 0.14, 0.01, lit(C.steel), x, 0.34, D / 2 - 0.005), box(0.1, 0.012, 0.012, lit(C.black), x, 0.36, D / 2 + 0.005))
+  for (const x of [-W / 3, 0, W / 3]) g.add(box(W / 3 - 0.03, 0.14, 0.01, lit(C.steel, 'metal'), x, 0.34, D / 2 - 0.005), box(0.1, 0.012, 0.012, lit(C.black), x, 0.36, D / 2 + 0.005))
   const top = 0.46
-  g.add(box(0.46, 0.025, 0.3, lit(C.wood), -0.15, top + 0.012, 0.03, 0.006))
+  g.add(box(0.46, 0.025, 0.3, lit(C.wood, 'wood'), -0.15, top + 0.012, 0.03, 0.006))
   for (let i = 0; i < 4; i++) {
     const carrot = cylinder(0.012, 0.004, 0.13, lit('#e8772a'), -0.3 + i * 0.05, top + 0.035, 0.08 - i * 0.02, 6)
     carrot.rotation.z = Math.PI / 2
@@ -388,14 +388,14 @@ const kitchenPrep: Builder = ({ random }) => {
   }
   g.add(sphere(0.045, lit('#7a2a6b'), -0.02, top + 0.06, -0.03, 8))
   for (let i = 0; i < 6; i++) g.add(box(0.018, 0.012, 0.018, lit(i % 2 ? '#e8772a' : '#7a2a6b'), 0.02 + random() * 0.06, top + 0.03, 0.05 + random() * 0.05))
-  g.add(box(0.16, 0.004, 0.035, lit(C.steel), 0.02, top + 0.028, 0.12), box(0.07, 0.014, 0.022, lit(C.black), -0.09, top + 0.03, 0.12))
+  g.add(box(0.16, 0.004, 0.035, lit(C.steel, 'metal'), 0.02, top + 0.028, 0.12), box(0.07, 0.014, 0.022, lit(C.black), -0.09, top + 0.03, 0.12))
   g.add(cylinder(0.1, 0.06, 0.07, lit(C.white), 0.38, top + 0.035, 0.02, 14), cylinder(0.085, 0.085, 0.01, lit('#6fb04a'), 0.38, top + 0.06, 0.02, 12))
   splashback(g, W, D)
   // Barre aimantée : quatre couteaux, lames vers le bas.
   g.add(box(0.5, 0.025, 0.015, lit(C.black), -0.25, 0.8, -D / 2 + 0.015))
-  for (let i = 0; i < 4; i++) g.add(box(0.025, 0.12, 0.006, lit(C.steel), -0.43 + i * 0.12, 0.72, -D / 2 + 0.028), box(0.022, 0.05, 0.012, lit(C.black), -0.43 + i * 0.12, 0.8, -D / 2 + 0.03))
+  for (let i = 0; i < 4; i++) g.add(box(0.025, 0.12, 0.006, lit(C.steel, 'metal'), -0.43 + i * 0.12, 0.72, -D / 2 + 0.028), box(0.022, 0.05, 0.012, lit(C.black), -0.43 + i * 0.12, 0.8, -D / 2 + 0.03))
   // Épices sur leur étagère.
-  g.add(box(0.5, 0.015, 0.08, lit(C.steel), 0.33, 0.7, -D / 2 + 0.05))
+  g.add(box(0.5, 0.015, 0.08, lit(C.steel, 'metal'), 0.33, 0.7, -D / 2 + 0.05))
   for (let i = 0; i < 6; i++) g.add(cylinder(0.018, 0.018, 0.06, lit(pick(random, ['#c8321e', '#d9a441', '#6fb04a', '#8a4a24', '#f3eddc'])), 0.13 + i * 0.075, 0.738, -D / 2 + 0.05, 8))
   return { solid: g }
 }
@@ -408,9 +408,9 @@ const kitchenRange: Builder = () => {
   const W = 1.4, D = 0.55
   const g = new THREE.Group()
   const top = 0.46
-  g.add(box(W, 0.43, D - 0.02, lit(C.steelDark), 0, 0.235, -0.01), box(W - 0.02, 0.05, D - 0.06, lit(C.black), 0, 0.025, -0.02))
+  g.add(box(W, 0.43, D - 0.02, lit(C.steelDark, 'metal'), 0, 0.235, -0.01), box(W - 0.02, 0.05, D - 0.06, lit(C.black), 0, 0.025, -0.02))
   // Four : porte vitrée, lueur de la cuisson, poignée.
-  g.add(box(0.7, 0.26, 0.02, lit(C.steel), 0, 0.2, D / 2 - 0.005), box(0.54, 0.14, 0.012, glow('#ff9a4a'), 0, 0.19, D / 2 + 0.006))
+  g.add(box(0.7, 0.26, 0.02, lit(C.steel, 'metal'), 0, 0.2, D / 2 - 0.005), box(0.54, 0.14, 0.012, glow('#ff9a4a'), 0, 0.19, D / 2 + 0.006))
   g.add(barX(0.01, 0.56, lit(C.black), 0, 0.31, D / 2 + 0.03, 6))
   for (let i = 0; i < 6; i++) g.add(cylinder(0.018, 0.018, 0.02, lit(C.black), -0.5 + i * 0.2, 0.39, D / 2 + 0.005, 10).rotateX(Math.PI / 2))
   g.add(box(W + 0.02, 0.03, D, lit(C.black), 0, top - 0.015, 0))
@@ -421,14 +421,14 @@ const kitchenRange: Builder = () => {
     g.add(ring)
   }
   // Marmite (arrière gauche), sauteuse (avant gauche), casserole (arrière droit) ; l'avant droit reste libre.
-  g.add(cylinder(0.13, 0.12, 0.2, lit(C.steel), -0.35, top + 0.1, -0.12, 16), cylinder(0.125, 0.125, 0.01, lit('#9a4a24'), -0.35, top + 0.19, -0.12, 14))
-  for (const s of [-1, 1]) g.add(box(0.04, 0.02, 0.02, lit(C.steelDark), -0.35 + s * 0.14, top + 0.16, -0.12))
+  g.add(cylinder(0.13, 0.12, 0.2, lit(C.steel, 'metal'), -0.35, top + 0.1, -0.12, 16), cylinder(0.125, 0.125, 0.01, lit('#9a4a24'), -0.35, top + 0.19, -0.12, 14))
+  for (const s of [-1, 1]) g.add(box(0.04, 0.02, 0.02, lit(C.steelDark, 'metal'), -0.35 + s * 0.14, top + 0.16, -0.12))
   g.add(cylinder(0.1, 0.09, 0.03, lit(C.black), -0.35, top + 0.02, 0.12, 14), cylinder(0.08, 0.08, 0.008, lit('#d9861e'), -0.35, top + 0.033, 0.12, 12))
   g.add(barZ(0.01, 0.18, lit(C.black), -0.35, top + 0.03, 0.3, 6))
-  g.add(cylinder(0.07, 0.065, 0.1, lit(C.steel), 0.3, top + 0.05, -0.12, 14), barX(0.01, 0.14, lit(C.black), 0.44, top + 0.08, -0.12, 6))
+  g.add(cylinder(0.07, 0.065, 0.1, lit(C.steel, 'metal'), 0.3, top + 0.05, -0.12, 14), barX(0.01, 0.14, lit(C.black), 0.44, top + 0.08, -0.12, 6))
   splashback(g, W, D, top, 0.84)
   // Hotte, feux de travail dessous, gaine vers le plafond.
-  g.add(box(W, 0.1, 0.46, lit(C.steel), 0, 0.9, -0.04), box(W - 0.3, 0.04, 0.3, lit(C.steelMid), 0, 0.965, -0.1))
+  g.add(box(W, 0.1, 0.46, lit(C.steel, 'metal'), 0, 0.9, -0.04), box(W - 0.3, 0.04, 0.3, lit(C.steelMid, 'metal'), 0, 0.965, -0.1))
   g.add(box(W - 0.1, 0.008, 0.03, glow('#fff1d6'), 0, 0.848, 0.12))
   g.add(box(W - 0.04, 0.02, 0.02, lit(C.orange), 0, 0.93, 0.19))
 
@@ -463,16 +463,16 @@ const kitchenSink: Builder = ({ random }) => {
   const W = 1.1, D = 0.55
   const g = new THREE.Group()
   carcass(g, W, D)
-  g.add(box(0.2, 0.3, 0.01, lit(C.steel), -0.2, 0.25, D / 2 - 0.005), box(0.2, 0.3, 0.01, lit(C.steel), 0.02, 0.25, D / 2 - 0.005))
+  g.add(box(0.2, 0.3, 0.01, lit(C.steel, 'metal'), -0.2, 0.25, D / 2 - 0.005), box(0.2, 0.3, 0.01, lit(C.steel, 'metal'), 0.02, 0.25, D / 2 - 0.005))
   const top = 0.46
   for (const x of [-0.3, 0.02]) g.add(box(0.28, 0.02, 0.34, lit('#2c3138'), x, top - 0.005, 0.02), box(0.26, 0.004, 0.3, lit('#7fb8d8'), x, top - 0.012, 0.02))
-  g.add(cylinder(0.012, 0.015, 0.22, lit(C.steel), -0.14, top + 0.11, -0.2, 8))
-  const neck = mesh(new THREE.TorusGeometry(0.07, 0.01, 6, 12, Math.PI), lit(C.steel), -0.14, top + 0.22, -0.13)
+  g.add(cylinder(0.012, 0.015, 0.22, lit(C.steel, 'metal'), -0.14, top + 0.11, -0.2, 8))
+  const neck = mesh(new THREE.TorusGeometry(0.07, 0.01, 6, 12, Math.PI), lit(C.steel, 'metal'), -0.14, top + 0.22, -0.13)
   neck.rotation.y = Math.PI / 2
   g.add(neck)
-  g.add(cylinder(0.08, 0.07, 0.08, lit(C.steelDark), 0.05, top - 0.01, 0.04, 12))
+  g.add(cylinder(0.08, 0.07, 0.08, lit(C.steelDark, 'metal'), 0.05, top - 0.01, 0.04, 12))
   // Égouttoir.
-  g.add(box(0.3, 0.02, 0.3, lit(C.steel), 0.36, top + 0.01, 0.02))
+  g.add(box(0.3, 0.02, 0.3, lit(C.steel, 'metal'), 0.36, top + 0.01, 0.02))
   for (let i = 0; i < 5; i++) {
     const p = mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.01, 12), lit(C.plate), 0.26 + i * 0.05, top + 0.08, 0.02)
     p.rotation.z = Math.PI / 2 + (random() - 0.5) * 0.1
@@ -480,7 +480,7 @@ const kitchenSink: Builder = ({ random }) => {
   }
   g.add(box(0.06, 0.025, 0.04, lit('#ffd35a'), -0.46, top + 0.012, 0.15), box(0.06, 0.008, 0.04, lit('#39a85a'), -0.46, top + 0.028, 0.15))
   splashback(g, W, D)
-  g.add(box(W - 0.1, 0.015, 0.1, lit(C.steel), 0, 0.72, -D / 2 + 0.06))
+  g.add(box(W - 0.1, 0.015, 0.1, lit(C.steel, 'metal'), 0, 0.72, -D / 2 + 0.06))
   for (let i = 0; i < 6; i++) g.add(cylinder(0.022, 0.018, 0.05, lit('#c9dde6'), -0.4 + i * 0.16, 0.753, -D / 2 + 0.06, 8))
   return { solid: g }
 }
@@ -492,11 +492,11 @@ const kitchenSink: Builder = ({ random }) => {
 const kitchenPantry: Builder = ({ random }) => {
   const W = 1.2, D = 0.42, H = 0.95
   const g = new THREE.Group()
-  const steel = lit(C.steel)
+  const steel = lit(C.steel, 'metal')
   for (const x of [-W / 2 + 0.02, W / 2 - 0.02]) for (const z of [-D / 2 + 0.02, D / 2 - 0.02]) g.add(box(0.03, H, 0.03, steel, x, H / 2, z))
   const shelves = [0.06, 0.38, 0.7, 0.94]
   for (const y of shelves) g.add(box(W, 0.02, D, steel, 0, y, 0))
-  g.add(box(W, H - 0.1, 0.01, lit(C.steelDark), 0, H / 2, -D / 2 + 0.005))
+  g.add(box(W, H - 0.1, 0.01, lit(C.steelDark, 'metal'), 0, H / 2, -D / 2 + 0.005))
   // En bas : sacs de farine et de protéines.
   for (let x = -W / 2 + 0.15; x < W / 2 - 0.1; x += 0.24) {
     const c = pick(random, ['#e8dcc0', '#d9c9a3', '#c9b58a'])
@@ -504,11 +504,11 @@ const kitchenPantry: Builder = ({ random }) => {
   }
   // Au milieu : bocaux et conserves.
   for (let x = -W / 2 + 0.08; x < W / 2 - 0.06; x += 0.09) {
-    if (random() < 0.5) g.add(cylinder(0.035, 0.035, 0.12, lit(pick(random, FOOD)), x, 0.45, 0.04, 10), cylinder(0.037, 0.037, 0.02, lit(C.steelDark), x, 0.52, 0.04, 10))
-    else g.add(cylinder(0.03, 0.03, 0.08, lit(C.steel), x, 0.43, 0.06, 10), cylinder(0.031, 0.031, 0.05, lit(pick(random, ['#d8323c', '#ffd35a', '#39a85a', '#2f7de0'])), x, 0.43, 0.06, 10))
+    if (random() < 0.5) g.add(cylinder(0.035, 0.035, 0.12, lit(pick(random, FOOD)), x, 0.45, 0.04, 10), cylinder(0.037, 0.037, 0.02, lit(C.steelDark, 'metal'), x, 0.52, 0.04, 10))
+    else g.add(cylinder(0.03, 0.03, 0.08, lit(C.steel, 'metal'), x, 0.43, 0.06, 10), cylinder(0.031, 0.031, 0.05, lit(pick(random, ['#d8323c', '#ffd35a', '#39a85a', '#2f7de0'])), x, 0.43, 0.06, 10))
   }
   // En haut : cagette de fruits et bidons du ravitaillement.
-  g.add(box(0.36, 0.1, 0.26, lit(C.wood), -0.3, 0.76, 0.03))
+  g.add(box(0.36, 0.1, 0.26, lit(C.wood, 'wood'), -0.3, 0.76, 0.03))
   for (let i = 0; i < 8; i++) g.add(sphere(0.035, lit(pick(random, ['#d8323c', '#ffd35a', '#6fb04a', '#e8772a'])), -0.42 + (i % 4) * 0.08, 0.83, -0.02 + Math.floor(i / 4) * 0.1, 8))
   for (let i = 0; i < 3; i++) g.add(box(0.14, 0.2, 0.14, lit(C.orange), 0.1 + i * 0.17, 0.81, 0.03, 0.02), box(0.06, 0.03, 0.06, lit(C.black), 0.1 + i * 0.17, 0.925, 0.03))
   return { solid: g }

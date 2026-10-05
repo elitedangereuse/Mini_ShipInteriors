@@ -218,7 +218,7 @@ const voieFloor: Builder = ({ random }) => {
   const flames: { f: THREE.Object3D; phase: number }[] = []
   for (const [bx, bz] of CANDLES) {
     const spots: [number, number, number][] = [[-0.04, 0.16, 0.01], [0.035, 0.22, -0.02], [0.01, 0.11, 0.045], [-0.03, 0.08, -0.04]]
-    g.add(cylinder(0.09, 0.1, 0.012, lit(C.goldDark), bx, 0.006, bz, 16))
+    g.add(cylinder(0.09, 0.1, 0.012, lit(C.goldDark, 'metal'), bx, 0.006, bz, 16))
     for (const [x, h, z] of spots) {
       g.add(cylinder(0.021, 0.024, h, lit(C.wax), bx + x, 0.012 + h / 2, bz + z, 10))
       const f = flame(C.pale, bx + x, 0.012 + h, bz + z, 1.4)
@@ -256,8 +256,8 @@ const voieDrape: Builder = ({ label, random }) => {
     const deep = i % 2 === 0
     g.add(box(fw * 1.02, 0.9, deep ? 0.03 : 0.05, lit(deep ? C.velvetDark : C.velvet), x, 0.47, deep ? 0.02 : 0.03))
   }
-  g.add(cylinder(0.012, 0.012, w + 0.06, lit(C.gold), 0, 0.95, 0.04, 8).rotateZ(Math.PI / 2))
-  for (const x of [-w / 2 - 0.03, w / 2 + 0.03]) g.add(sphere(0.02, lit(C.gold), x, 0.95, 0.04, 8))
+  g.add(cylinder(0.012, 0.012, w + 0.06, lit(C.gold, 'metal'), 0, 0.95, 0.04, 8).rotateZ(Math.PI / 2))
+  for (const x of [-w / 2 - 0.03, w / 2 + 0.03]) g.add(sphere(0.02, lit(C.gold, 'metal'), x, 0.95, 0.04, 8))
   const runes = drawnTexture(512, 32, (c) => {
     c.fillStyle = C.velvetDark
     c.fillRect(0, 0, 512, 32)
@@ -283,7 +283,7 @@ const voieDrape: Builder = ({ label, random }) => {
 const raxxlaGate: Builder = ({ random }) => {
   const g = new THREE.Group()
   const R = 0.47, Y = 0.5, D = 0.09
-  const stone = lit(C.stone), gold = lit(C.gold)
+  const stone = lit(C.stone), gold = lit(C.gold, 'metal')
   // Les pétales : l'emblème en relief.
   const shape = new THREE.Shape()
   PETAL.forEach(([u, v], i) => (i ? shape.lineTo(u * R, v * R) : shape.moveTo(u * R, v * R)))
@@ -425,7 +425,7 @@ const raxxlaGate: Builder = ({ random }) => {
  */
 const chroniclesLectern: Builder = ({ random }) => {
   const g = new THREE.Group()
-  const stone = lit(C.stone), gold = lit(C.gold)
+  const stone = lit(C.stone), gold = lit(C.gold, 'metal')
   g.add(cylinder(0.2, 0.24, 0.05, stone, 0, 0.025, 0, 6), cylinder(0.07, 0.1, 0.44, stone, 0, 0.27, 0, 6))
   g.add(cylinder(0.075, 0.075, 0.012, gold, 0, 0.3, 0, 6), cylinder(0.205, 0.205, 0.008, gold, 0, 0.052, 0, 6))
   // Le pupitre incliné vers le lecteur.
@@ -527,7 +527,7 @@ const chroniclesLectern: Builder = ({ random }) => {
  */
 const salomeShrine: Builder = ({ random }) => {
   const g = new THREE.Group()
-  const gold = lit(C.gold), dark = lit(C.stone)
+  const gold = lit(C.gold, 'metal'), dark = lit(C.stone)
   const icon = drawnTexture(256, 320, (c) => {
     // Fond d'or martelé.
     const bg = c.createLinearGradient(0, 0, 256, 320)
@@ -618,7 +618,7 @@ const salomeShrine: Builder = ({ random }) => {
   })
   // Cadre ouvragé : moulure d'or, fronton pointu.
   const Y = 0.64
-  g.add(box(0.4, 0.49, 0.03, lit(C.goldDark), 0, Y, 0.015, 0.006))
+  g.add(box(0.4, 0.49, 0.03, lit(C.goldDark, 'metal'), 0, Y, 0.015, 0.006))
   g.add(part(new THREE.PlaneGeometry(0.34, 0.425), new THREE.MeshLambertMaterial({ map: icon }), 0, Y, 0.031))
   for (const [w, h, x, y] of [[0.42, 0.025, 0, Y + 0.245], [0.42, 0.025, 0, Y - 0.245], [0.025, 0.5, -0.2, Y], [0.025, 0.5, 0.2, Y]] as const) {
     g.add(box(w, h, 0.04, gold, x, y, 0.02))
@@ -668,7 +668,7 @@ const salomeShrine: Builder = ({ random }) => {
  */
 const voieTerminal: Builder = () => {
   const g = new THREE.Group()
-  const iron = lit(C.iron), dark = lit('#141617')
+  const iron = lit(C.iron, 'metal'), dark = lit('#141617')
   g.add(box(0.72, 0.03, 0.38, iron, 0, 0.4, 0, 0.006))
   for (const x of [-0.33, 0.33]) for (const z of [-0.16, 0.16]) g.add(box(0.03, 0.39, 0.03, dark, x, 0.195, z))
   g.add(box(0.66, 0.02, 0.3, dark, 0, 0.12, 0))
@@ -741,7 +741,7 @@ const voieTerminal: Builder = () => {
  */
 const voieRelic: Builder = ({ label }) => {
   const g = new THREE.Group()
-  const stone = lit(C.stone), gold = lit(C.gold)
+  const stone = lit(C.stone), gold = lit(C.gold, 'metal')
   g.add(cylinder(0.15, 0.17, 0.05, stone, 0, 0.025, 0, 6), cylinder(0.1, 0.12, 0.42, stone, 0, 0.26, 0, 6))
   g.add(cylinder(0.14, 0.12, 0.04, stone, 0, 0.49, 0, 6), cylinder(0.142, 0.142, 0.008, gold, 0, 0.508, 0, 6), cylinder(0.128, 0.128, 0.01, stone, 0, 0.512, 0, 6))
   g.add(cylinder(0.105, 0.105, 0.006, gold, 0, 0.36, 0, 6))
@@ -781,7 +781,7 @@ const voieRelic: Builder = ({ label }) => {
     })
     const faceMat = new THREE.MeshLambertMaterial({ map: face })
     // Tranche d'or, l'emblème frappé sur les deux faces.
-    const coin = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.01, 6), [lit(C.gold), faceMat, faceMat])
+    const coin = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.01, 6), [lit(C.gold, 'metal'), faceMat, faceMat])
     coin.rotation.x = Math.PI / 2
     relic.add(coin)
   } else {
@@ -816,15 +816,15 @@ const adeptRobes: Builder = () => {
   const g = new THREE.Group()
   g.add(box(0.78, 0.06, 0.025, lit('#140f0c'), 0, 0.86, 0.0125, 0.006))
   for (const x of [-0.25, 0, 0.25]) {
-    g.add(cylinder(0.01, 0.01, 0.06, lit(C.gold), x, 0.86, 0.05, 6).rotateX(Math.PI / 2))
+    g.add(cylinder(0.01, 0.01, 0.06, lit(C.gold, 'metal'), x, 0.86, 0.05, 6).rotateX(Math.PI / 2))
     // Robe : cône aplati qui tombe du crochet, capuche retombant dans le dos.
-    const robe = mesh(new THREE.CylinderGeometry(0.05, 0.13, 0.62, 10), lit(C.robe), x, 0.54, 0.07)
+    const robe = mesh(new THREE.CylinderGeometry(0.05, 0.13, 0.62, 10), lit(C.robe, 'cloth'), x, 0.54, 0.07)
     robe.scale.z = 0.45
     g.add(robe)
-    const hood = sphere(0.06, lit(C.velvetDark), x, 0.8, 0.075, 10)
+    const hood = sphere(0.06, lit(C.velvetDark, 'cloth'), x, 0.8, 0.075, 10)
     hood.scale.set(1, 1.1, 0.7)
     g.add(hood)
-    g.add(box(0.2, 0.012, 0.004, lit(C.gold), x, 0.25, 0.1308), sphere(0.012, glow(C.ember), x, 0.72, 0.103, 6))
+    g.add(box(0.2, 0.012, 0.004, lit(C.gold, 'metal'), x, 0.25, 0.1308), sphere(0.012, glow(C.ember), x, 0.72, 0.103, 6))
   }
   return { solid: g }
 }
@@ -835,7 +835,7 @@ const adeptRobes: Builder = () => {
  */
 const darkWheelDagger: Builder = () => {
   const g = new THREE.Group()
-  const iron = lit(C.iron), Y = 0.6
+  const iron = lit(C.iron, 'metal'), Y = 0.6
   const wheel = mesh(new THREE.TorusGeometry(0.15, 0.018, 6, 24, Math.PI * 1.8), iron, 0, Y, 0.025)
   wheel.rotation.z = 0.5
   g.add(wheel, cylinder(0.035, 0.035, 0.03, iron, 0, Y, 0.025, 12).rotateX(Math.PI / 2))
@@ -854,7 +854,7 @@ const darkWheelDagger: Builder = () => {
   const dagger = new THREE.Group()
   dagger.position.set(0.01, Y + 0.01, 0.04)
   dagger.rotation.set(-0.5, 0, 0.35)
-  dagger.add(box(0.018, 0.008, 0.12, lit('#b8c0c8'), 0, 0, 0.02), box(0.08, 0.012, 0.014, lit(C.gold), 0, 0, 0.085), cylinder(0.009, 0.009, 0.07, lit('#1a1210'), 0, 0, 0.125, 6).rotateX(Math.PI / 2), sphere(0.014, lit(C.gold), 0, 0, 0.165, 8))
+  dagger.add(box(0.018, 0.008, 0.12, lit('#b8c0c8'), 0, 0, 0.02), box(0.08, 0.012, 0.014, lit(C.gold, 'metal'), 0, 0, 0.085), cylinder(0.009, 0.009, 0.07, lit('#1a1210'), 0, 0, 0.125, 6).rotateX(Math.PI / 2), sphere(0.014, lit(C.gold, 'metal'), 0, 0, 0.165, 8))
   g.add(dagger)
   return { solid: g }
 }
@@ -872,7 +872,7 @@ const voieAdept: Builder = ({ random }) => {
   const live = new THREE.Group()
   const body = new THREE.Group()
   live.add(body)
-  const robe = lit(C.robe), velvet = lit(C.velvetDark)
+  const robe = lit(C.robe, 'cloth'), velvet = lit(C.velvetDark, 'cloth')
   // La robe : une cloche qui s'évase jusqu'au sol.
   const profile = [
     new THREE.Vector2(0.001, 0.62),

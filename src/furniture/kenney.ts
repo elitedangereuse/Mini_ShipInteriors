@@ -1,7 +1,8 @@
 import * as THREE from 'three'
 import { packModel } from '../assets'
 import { FABRIC } from './cozy'
-import { compact, cylinder, glass, glow, lit, part, type Builder } from './kit'
+import { withSurface, type Surface } from '../surfaces'
+import { compact, cylinder, glass, glow, keepShared, lit, part, type Builder } from './kit'
 
 /*
  * Le Furniture Kit de Kenney (CC0) : salle de bain, cuisine, salon, chambre. Ses modèles sont
@@ -112,15 +113,40 @@ const darker = (hex: string, k = 0.72) => '#' + new THREE.Color(hex).multiplySca
 const pick = <T>(table: Record<string, T>, label: string | undefined): T => (label !== undefined && label in table ? table[label] : Object.values(table)[0])
 
 /**
+ * Matière d'une pièce du modèle, d'après son matériau dans le kit (cf. surfaces.ts) : le bois, les
+ * tissus (« carpet », y compris le blanc des coussins et des draps), le métal ; l'émail des
+ * sanitaires et la carrosserie de l'électroménager gardent un grain fin, comme le pelage clair du
+ * nounours (son « bois ») prend celui du tissu.
+ */
+function surfaceOf(name: string, def: KitDef, has: (p: Paint) => boolean): Surface {
+  if (has('appliance') && name === (def.body ?? 'metalLight')) return 'grain'
+  if (has('porcelain') && (name === 'carpetWhite' || name === '_defaultMat')) return 'grain'
+  if (name === 'wood' || name === 'woodDark') return has('fur') ? 'cloth' : 'wood'
+  if (name.startsWith('carpet') || name === 'fur') return 'cloth'
+  if (name.startsWith('metal')) return 'metal'
+  return 'grain'
+}
+
+/** Matériau du kit, tel quel, avec sa matière (une copie par matériau et par matière). */
+const tagged = new Map<string, THREE.Material>()
+function withMatter(source: THREE.Material, surface: Surface): THREE.Material {
+  const key = `${source.uuid}:${surface}`
+  let m = tagged.get(key)
+  if (!m) tagged.set(key, (m = keepShared(withSurface(source.clone(), surface))))
+  return m
+}
+
+/**
  * Matériau d'une pièce du modèle, selon son nom dans le kit et le `label` du meuble : sa variante
  * repeint ce que dit `paint`, sa teinte (après « : », cf. `tints` au catalogue) ce que dit `tint`.
  */
 function paint(source: THREE.Material, def: KitDef, label: string | undefined): THREE.Material {
   const name = source.name
   if (name === 'lamp') return glow('#fff0c8')
-  if (def.raw) return source
   const [variant, tint] = (label ?? '').split(':')
   const has = (p: Paint) => def.paint === p || def.tint === p
+  const surface = surfaceOf(name, def, has)
+  if (def.raw) return withMatter(source, surface)
   const choice = (p: Paint) => (def.paint === p ? variant : def.tint === p ? tint : undefined)
   let color: string | null | undefined
   if (has('appliance') && name === (def.body ?? 'metalLight')) {
@@ -145,7 +171,7 @@ function paint(source: THREE.Material, def: KitDef, label: string | undefined): 
   } else if (has('fur') && name === 'fur') {
     color = pick(FURS, choice('fur'))
   }
-  return color ? lit(color) : source
+  return color ? lit(color, surface) : withMatter(source, surface)
 }
 
 /** Verre des cabines de douche, des vitrines de four, des tables basses. */

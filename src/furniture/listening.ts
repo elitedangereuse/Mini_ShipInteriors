@@ -69,7 +69,7 @@ export function headphones(color: string | undefined): THREE.Group {
   g.add(mesh(new THREE.TorusGeometry(0.058, 0.006, 6, 14, Math.PI * 0.7), lit(C.black), 0, 0, 0))
   for (const s of [-1, 1]) {
     g.add(barX(0.036, 0.03, lit(shell), s * 0.074, -0.012, 0, 14), barX(0.03, 0.014, lit(pad), s * 0.054, -0.012, 0, 12))
-    g.add(barX(0.02, 0.004, lit(C.chrome), s * 0.09, -0.012, 0, 10))
+    g.add(barX(0.02, 0.004, lit(C.chrome, 'metal'), s * 0.09, -0.012, 0, 10))
   }
   return g
 }
@@ -77,8 +77,8 @@ export function headphones(color: string | undefined): THREE.Group {
 /** Casque sur son pied : socle de bois, tige, crochet. Coloris : `label` (orange, navy, teal, cream). */
 const headphoneStand: Builder = ({ label }) => {
   const g = new THREE.Group()
-  g.add(cylinder(0.055, 0.06, 0.018, lit(C.woodDark), 0, 0.009, 0, 16), cylinder(0.007, 0.007, 0.2, lit(C.chrome), 0, 0.11, 0, 8))
-  g.add(barX(0.009, 0.05, lit(C.woodDark), 0, 0.21, 0, 8))
+  g.add(cylinder(0.055, 0.06, 0.018, lit(C.woodDark, 'wood'), 0, 0.009, 0, 16), cylinder(0.007, 0.007, 0.2, lit(C.chrome, 'metal'), 0, 0.11, 0, 8))
+  g.add(barX(0.009, 0.05, lit(C.woodDark, 'wood'), 0, 0.21, 0, 8))
   const h = headphones(label)
   h.position.y = 0.146
   g.add(h)
@@ -104,8 +104,8 @@ const headphonesFlat: Builder = ({ label }) => {
  */
 const headphoneRack: Builder = () => {
   const g = new THREE.Group()
-  g.add(box(0.86, 0.08, 0.03, lit(C.wood), 0, 0.76, 0.015, 0.01))
-  g.add(box(0.2, 0.035, 0.004, lit(C.brass), 0, 0.78, 0.032))
+  g.add(box(0.86, 0.08, 0.03, lit(C.wood, 'wood'), 0, 0.76, 0.015, 0.01))
+  g.add(box(0.2, 0.035, 0.004, lit(C.brass, 'metal'), 0, 0.78, 0.032))
   const plate = drawnTexture(128, 24, (c) => {
     c.fillStyle = C.brass
     c.fillRect(0, 0, 128, 24)
@@ -117,7 +117,7 @@ const headphoneRack: Builder = () => {
   })
   g.add(part(new THREE.PlaneGeometry(0.19, 0.032), new THREE.MeshBasicMaterial({ map: plate }), 0, 0.78, 0.035))
   for (const [x, color] of [[-0.28, 'orange'], [0, 'teal'], [0.28, 'navy']] as const) {
-    g.add(barZ(0.008, 0.08, lit(C.chrome), x, 0.73, 0.06, 8), cylinder(0.008, 0.008, 0.03, lit(C.chrome), x, 0.742, 0.1, 8))
+    g.add(barZ(0.008, 0.08, lit(C.chrome, 'metal'), x, 0.73, 0.06, 8), cylinder(0.008, 0.008, 0.03, lit(C.chrome, 'metal'), x, 0.742, 0.1, 8))
     const h = headphones(color)
     h.rotation.y = Math.PI / 2
     h.position.set(x, 0.66, 0.09)
@@ -134,7 +134,7 @@ const headphoneRack: Builder = () => {
 const podcastPoster: Builder = ({ label }) => {
   const show = label === 'galeres' || label === 'gg' ? label : 'radio'
   const g = new THREE.Group()
-  g.add(box(0.54, 0.74, 0.03, lit(C.woodDark), 0, 0.56, 0.015, 0.01))
+  g.add(box(0.54, 0.74, 0.03, lit(C.woodDark, 'wood'), 0, 0.56, 0.015, 0.01))
   const paint = (c: CanvasRenderingContext2D, logo?: HTMLImageElement, ship?: HTMLImageElement, t = 0) => {
     c.clearRect(0, 0, 320, 440)
     const gradient = c.createLinearGradient(0, 0, 320, 440)
@@ -186,7 +186,7 @@ const podcastPoster: Builder = ({ label }) => {
   }
   g.add(part(new THREE.PlaneGeometry(0.48, 0.66), new THREE.MeshBasicMaterial({ map: art }), 0, 0.56, 0.032))
   // Rampe : un bras, une réglette lumineuse au-dessus du cadre.
-  g.add(barZ(0.006, 0.08, lit(C.brass), 0, 0.95, 0.04, 6), box(0.26, 0.022, 0.03, lit(C.brass), 0, 0.95, 0.08, 0.006))
+  g.add(barZ(0.006, 0.08, lit(C.brass, 'metal'), 0, 0.95, 0.04, 6), box(0.26, 0.022, 0.03, lit(C.brass, 'metal'), 0, 0.95, 0.08, 0.006))
   g.add(box(0.22, 0.004, 0.02, glow('#fff0cf'), 0, 0.938, 0.08))
   let frame = -1
   return {
@@ -207,7 +207,7 @@ const podcastPoster: Builder = ({ label }) => {
  */
 const podcastConsole: Builder = () => {
   const g = new THREE.Group()
-  const wood = lit(C.wood), dark = lit(C.woodDark), panel = lit(C.panel), chrome = lit(C.chrome)
+  const wood = lit(C.wood, 'wood'), dark = lit(C.woodDark, 'wood'), panel = lit(C.panel), chrome = lit(C.chrome, 'metal')
   // Buffet : caisse, façade à lattes, pieds fuselés.
   g.add(box(0.92, 0.34, 0.36, wood, 0, 0.27, 0, 0.015), box(0.94, 0.025, 0.38, dark, 0, 0.45, 0))
   for (let i = 0; i < 14; i++) g.add(box(0.035, 0.28, 0.01, dark, -0.4 + i * 0.0615, 0.27, 0.184))
@@ -275,7 +275,7 @@ const podcastConsole: Builder = () => {
 const floorCushion: Builder = ({ label }) => {
   const g = new THREE.Group()
   g.add(box(0.46, 0.13, 0.46, fabric(label, 'plum'), 0, 0.065, 0, 0.05))
-  g.add(sphere(0.014, lit(C.cushion), 0, 0.131, 0, 6))
+  g.add(sphere(0.014, lit(C.cushion, 'cloth'), 0, 0.131, 0, 6))
   return { solid: g }
 }
 

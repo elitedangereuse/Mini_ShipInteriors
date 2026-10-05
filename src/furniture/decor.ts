@@ -419,7 +419,7 @@ export const FRAMES: Record<string, { label: string; draw: (g: CanvasRenderingCo
 const frame: Builder = ({ label }) => {
   const id = FRAMES[label ?? ''] ? label! : 'ringed'
   const g = new THREE.Group()
-  const wood = lit(C.woodDark)
+  const wood = lit(C.woodDark, 'wood')
   g.add(box(0.46, 0.34, 0.02, wood, 0, 0.62, 0.01))
   g.add(box(0.4, 0.28, 0.004, lit(C.cream), 0, 0.62, 0.022))
   g.add(mesh(new THREE.PlaneGeometry(0.36, 0.24), printMaterial(`frame:${id}`, 256, 172, (c, random) => FRAMES[id].draw(c, 256, 172, random)), 0, 0.62, 0.0245))
@@ -429,7 +429,7 @@ const frame: Builder = ({ label }) => {
 /** Horloge murale : elle donne l'heure de l'appareil du joueur. */
 const wallClock: Builder = () => {
   const g = new THREE.Group()
-  const rim = barZ(0.13, 0.03, lit(C.steelDark), 0, 0.72, 0.015, 28)
+  const rim = barZ(0.13, 0.03, lit(C.steelDark, 'metal'), 0, 0.72, 0.015, 28)
   g.add(rim, barZ(0.118, 0.032, lit(C.cream), 0, 0.72, 0.017, 28))
   for (let i = 0; i < 12; i++) {
     const a = (i / 12) * Math.PI * 2
@@ -475,7 +475,7 @@ const HEADLINES = [
 export function wallScreenHousing(w = 0.64, h = 0.38, y = 0.56): THREE.Group {
   const g = new THREE.Group()
   g.add(box(w, h, 0.03, lit(C.black), 0, y, 0.015, 0.01),
-    box(0.1, 0.04, 0.02, lit(C.steelDark), 0, y, 0.005))
+    box(0.1, 0.04, 0.02, lit(C.steelDark, 'metal'), 0, y, 0.005))
   return g
 }
 
@@ -537,10 +537,10 @@ const wallScreen: Builder = () => {
 /** Étagère murale : une planche sur deux équerres, prête à recevoir des objets. */
 const wallShelf: Builder = () => {
   const g = new THREE.Group()
-  g.add(box(0.62, 0.025, 0.16, lit(C.wood), 0, 0.5, 0.08, 0.006))
+  g.add(box(0.62, 0.025, 0.16, lit(C.wood, 'wood'), 0, 0.5, 0.08, 0.006))
   for (const x of [-0.24, 0.24]) {
-    g.add(box(0.02, 0.1, 0.012, lit(C.steelDark), x, 0.44, 0.006))
-    const strut = box(0.012, 0.13, 0.012, lit(C.steelDark), x, 0.445, 0.06)
+    g.add(box(0.02, 0.1, 0.012, lit(C.steelDark, 'metal'), x, 0.44, 0.006))
+    const strut = box(0.012, 0.13, 0.012, lit(C.steelDark, 'metal'), x, 0.445, 0.06)
     strut.rotation.x = -0.9
     g.add(strut)
   }
@@ -550,7 +550,7 @@ const wallShelf: Builder = () => {
 /** Applique murale : une demi-coupe lumineuse. */
 const sconce: Builder = () => {
   const g = new THREE.Group()
-  g.add(box(0.06, 0.12, 0.012, lit(C.brass), 0, 0.72, 0.006), barZ(0.008, 0.06, lit(C.brass), 0, 0.7, 0.04, 6))
+  g.add(box(0.06, 0.12, 0.012, lit(C.brass, 'metal'), 0, 0.72, 0.006), barZ(0.008, 0.06, lit(C.brass, 'metal'), 0, 0.7, 0.04, 6))
   g.add(mesh(new THREE.CylinderGeometry(0.06, 0.035, 0.07, 14, 1, false, 0, Math.PI), glow(C.lamp), 0, 0.74, 0.06))
   return { solid: g }
 }
@@ -594,7 +594,7 @@ const wallNeon: Builder = ({ label = 'o7' }) => {
   const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false })
   // Pas de plaque : deux fixations discrètes suffisent à accrocher le tube au mur.
   const g = new THREE.Group()
-  for (const x of [-0.3, 0.3]) g.add(barZ(0.008, 0.02, lit(C.steelDark), x, 0.74, 0.01, 6))
+  for (const x of [-0.3, 0.3]) g.add(barZ(0.008, 0.02, lit(C.steelDark, 'metal'), x, 0.74, 0.01, 6))
   const live = new THREE.Group()
   live.add(part(new THREE.PlaneGeometry(0.8, 0.3), material, 0, 0.74, 0.02))
   return {
@@ -616,28 +616,28 @@ const armchair: Builder = ({ label }) => {
   g.add(box(0.56, 0.14, 0.52, cloth, 0, 0.13, 0.02, 0.04), box(0.4, 0.09, 0.4, cloth, 0, 0.24, 0.06, 0.04))
   g.add(box(0.56, 0.36, 0.14, cloth, 0, 0.34, -0.2, 0.05))
   for (const x of [-0.24, 0.24]) g.add(box(0.1, 0.24, 0.5, cloth, x, 0.25, 0.02, 0.04))
-  g.add(box(0.2, 0.16, 0.06, lit(FABRIC.cream), 0.05, 0.36, -0.1, 0.03))
-  for (const x of [-0.22, 0.22]) for (const z of [-0.19, 0.22]) g.add(cylinder(0.018, 0.014, 0.06, lit(C.woodDark), x, 0.03, z, 6))
+  g.add(box(0.2, 0.16, 0.06, lit(FABRIC.cream, 'cloth'), 0.05, 0.36, -0.1, 0.03))
+  for (const x of [-0.22, 0.22]) for (const z of [-0.19, 0.22]) g.add(cylinder(0.018, 0.014, 0.06, lit(C.woodDark, 'wood'), x, 0.03, z, 6))
   return { solid: g }
 }
 
 /** Guéridon rond, plateau nu. */
 const sideTable: Builder = () => {
   const g = new THREE.Group()
-  g.add(cylinder(0.17, 0.17, 0.025, lit(C.wood), 0, 0.3, 0, 20), cylinder(0.02, 0.025, 0.28, lit(C.woodDark), 0, 0.15, 0, 8))
-  g.add(cylinder(0.1, 0.12, 0.02, lit(C.woodDark), 0, 0.01, 0, 14))
+  g.add(cylinder(0.17, 0.17, 0.025, lit(C.wood, 'wood'), 0, 0.3, 0, 20), cylinder(0.02, 0.025, 0.28, lit(C.woodDark, 'wood'), 0, 0.15, 0, 8))
+  g.add(cylinder(0.1, 0.12, 0.02, lit(C.woodDark, 'wood'), 0, 0.01, 0, 14))
   return { solid: g }
 }
 
 /** Commode à trois tiroirs, dessus nu. */
 const dresser: Builder = () => {
   const g = new THREE.Group()
-  g.add(box(0.8, 0.42, 0.36, lit(C.wood), 0, 0.23, 0, 0.015), box(0.84, 0.03, 0.38, lit(C.woodDark), 0, 0.455, 0, 0.01))
+  g.add(box(0.8, 0.42, 0.36, lit(C.wood, 'wood'), 0, 0.23, 0, 0.015), box(0.84, 0.03, 0.38, lit(C.woodDark, 'wood'), 0, 0.455, 0, 0.01))
   for (let i = 0; i < 3; i++) {
     const y = 0.1 + i * 0.12
-    g.add(box(0.74, 0.1, 0.01, lit(C.woodLight), 0, y, 0.182), box(0.1, 0.015, 0.015, lit(C.brass), 0, y, 0.192))
+    g.add(box(0.74, 0.1, 0.01, lit(C.woodLight, 'wood'), 0, y, 0.182), box(0.1, 0.015, 0.015, lit(C.brass, 'metal'), 0, y, 0.192))
   }
-  for (const x of [-0.36, 0.36]) g.add(box(0.04, 0.03, 0.3, lit(C.woodDark), x, 0.015, 0))
+  for (const x of [-0.36, 0.36]) g.add(box(0.04, 0.03, 0.3, lit(C.woodDark, 'wood'), x, 0.015, 0))
   return { solid: g }
 }
 
@@ -683,7 +683,7 @@ const EXOBIO: Record<string, { stem: string; bulb: string }> = {
 const exobioPlant: Builder = ({ label, random }) => {
   const c = EXOBIO[label ?? ''] ?? EXOBIO.anemone
   const g = new THREE.Group()
-  g.add(cylinder(0.15, 0.12, 0.22, lit(C.steelDark), 0, 0.11, 0, 14), cylinder(0.14, 0.14, 0.02, lit('#22182a'), 0, 0.215, 0, 14))
+  g.add(cylinder(0.15, 0.12, 0.22, lit(C.steelDark, 'metal'), 0, 0.11, 0, 14), cylinder(0.14, 0.14, 0.02, lit('#22182a'), 0, 0.215, 0, 14))
   g.add(cylinder(0.152, 0.152, 0.02, glow(c.bulb), 0, 0.17, 0, 14))
   const tips: [number, number, number][] = []
   for (let i = 0; i < 7; i++) {
@@ -711,15 +711,15 @@ const telescope: Builder = () => {
   const g = new THREE.Group()
   for (let i = 0; i < 3; i++) {
     const a = (i / 3) * Math.PI * 2
-    const leg = box(0.02, 0.5, 0.02, lit(C.woodDark), Math.cos(a) * 0.1, 0.24, Math.sin(a) * 0.1)
+    const leg = box(0.02, 0.5, 0.02, lit(C.woodDark, 'wood'), Math.cos(a) * 0.1, 0.24, Math.sin(a) * 0.1)
     leg.rotation.set(-Math.sin(a) * 0.35, 0, Math.cos(a) * 0.35)
     g.add(leg)
   }
-  g.add(sphere(0.03, lit(C.brass), 0, 0.5, 0, 8))
+  g.add(sphere(0.03, lit(C.brass, 'metal'), 0, 0.5, 0, 8))
   const tube = new THREE.Group()
   tube.position.set(0, 0.52, 0)
   tube.rotation.x = -0.5
-  tube.add(barZ(0.04, 0.5, lit(C.brass), 0, 0, 0.05, 14), barZ(0.05, 0.08, lit(C.woodDark), 0, 0, 0.3, 14), barZ(0.018, 0.08, lit(C.black), 0, 0, -0.22, 8))
+  tube.add(barZ(0.04, 0.5, lit(C.brass, 'metal'), 0, 0, 0.05, 14), barZ(0.05, 0.08, lit(C.woodDark, 'wood'), 0, 0, 0.3, 14), barZ(0.018, 0.08, lit(C.black), 0, 0, -0.22, 8))
   g.add(tube)
   return { solid: g }
 }
@@ -727,14 +727,14 @@ const telescope: Builder = () => {
 /** Guitare folk sur son support. */
 const guitar: Builder = () => {
   const g = new THREE.Group()
-  g.add(box(0.26, 0.02, 0.2, lit(C.steelDark), 0, 0.01, 0), box(0.02, 0.3, 0.02, lit(C.steelDark), 0, 0.15, -0.08))
+  g.add(box(0.26, 0.02, 0.2, lit(C.steelDark, 'metal'), 0, 0.01, 0), box(0.02, 0.3, 0.02, lit(C.steelDark, 'metal'), 0, 0.15, -0.08))
   const body = new THREE.Group()
   body.position.set(0, 0.03, 0)
   body.rotation.x = -0.18
   const wood = lit('#c98a4a')
   body.add(cylinder(0.11, 0.11, 0.07, wood, 0, 0.14, 0, 18).rotateX(Math.PI / 2), cylinder(0.085, 0.085, 0.07, wood, 0, 0.3, 0, 18).rotateX(Math.PI / 2))
   body.add(cylinder(0.035, 0.035, 0.072, lit(C.black), 0, 0.24, 0, 12).rotateX(Math.PI / 2))
-  body.add(box(0.04, 0.34, 0.025, lit(C.woodDark), 0, 0.52, 0.02), box(0.06, 0.08, 0.025, lit(C.woodDark), 0, 0.72, 0.02))
+  body.add(box(0.04, 0.34, 0.025, lit(C.woodDark, 'wood'), 0, 0.52, 0.02), box(0.06, 0.08, 0.025, lit(C.woodDark, 'wood'), 0, 0.72, 0.02))
   body.add(box(0.1, 0.012, 0.012, lit(C.black), 0, 0.12, 0.04))
   g.add(body)
   return { solid: g }
@@ -744,10 +744,10 @@ const guitar: Builder = () => {
 const displayCase: Builder = ({ label }) => {
   const hull = SHIP_COLORS[label ?? ''] ?? SHIP_COLORS.silver
   const g = new THREE.Group()
-  g.add(box(0.4, 0.4, 0.4, lit(C.steelDark), 0, 0.2, 0, 0.02), box(0.42, 0.02, 0.42, lit(ED_ORANGE), 0, 0.41, 0))
-  g.add(box(0.42, 0.03, 0.42, lit(C.steelDark), 0, 0.88, 0), box(0.3, 0.012, 0.012, glow(C.lamp), 0, 0.862, 0.18))
-  for (const [x, z] of [[-0.195, -0.195], [0.195, -0.195], [-0.195, 0.195], [0.195, 0.195]]) g.add(box(0.015, 0.46, 0.015, lit(C.chrome), x, 0.64, z))
-  g.add(box(0.14, 0.03, 0.005, lit(C.brass), 0, 0.3, 0.202))
+  g.add(box(0.4, 0.4, 0.4, lit(C.steelDark, 'metal'), 0, 0.2, 0, 0.02), box(0.42, 0.02, 0.42, lit(ED_ORANGE), 0, 0.41, 0))
+  g.add(box(0.42, 0.03, 0.42, lit(C.steelDark, 'metal'), 0, 0.88, 0), box(0.3, 0.012, 0.012, glow(C.lamp), 0, 0.862, 0.18))
+  for (const [x, z] of [[-0.195, -0.195], [0.195, -0.195], [-0.195, 0.195], [0.195, 0.195]]) g.add(box(0.015, 0.46, 0.015, lit(C.chrome, 'metal'), x, 0.64, z))
+  g.add(box(0.14, 0.03, 0.005, lit(C.brass, 'metal'), 0, 0.3, 0.202))
   const live = new THREE.Group()
   live.add(part(new THREE.BoxGeometry(0.38, 0.45, 0.38), glass('#d8ecff', 0.14), 0, 0.64, 0))
   const ship = part(cobraGeometry(), lit(hull), 0, 0.62, 0)
@@ -801,7 +801,7 @@ const LAVA: Record<string, { liquid: string; blob: string }> = {
 const lavaLamp: Builder = ({ label, random }) => {
   const c = LAVA[label ?? ''] ?? LAVA.orange
   const g = new THREE.Group()
-  g.add(cylinder(0.035, 0.055, 0.08, lit(C.chrome), 0, 0.04, 0, 14), cylinder(0.02, 0.035, 0.05, lit(C.chrome), 0, 0.31, 0, 14))
+  g.add(cylinder(0.035, 0.055, 0.08, lit(C.chrome, 'metal'), 0, 0.04, 0, 14), cylinder(0.02, 0.035, 0.05, lit(C.chrome, 'metal'), 0, 0.31, 0, 14))
   const live = new THREE.Group()
   live.add(part(new THREE.CylinderGeometry(0.028, 0.045, 0.2, 16, 1, true), holoMaterial(null, c.liquid, 0.35, 0, true), 0, 0.18, 0))
   const blobs = instanced(new THREE.SphereGeometry(1, 10, 8), [c.blob, c.blob, c.blob, c.blob])
@@ -874,8 +874,8 @@ export const GLOBES: Record<string, { label: string; draw: (g: CanvasRenderingCo
 const globe: Builder = ({ label }) => {
   const id = GLOBES[label ?? ''] ? label! : 'earth'
   const g = new THREE.Group()
-  g.add(cylinder(0.05, 0.06, 0.02, lit(C.woodDark), 0, 0.01, 0, 14), cylinder(0.008, 0.008, 0.06, lit(C.brass), 0, 0.05, 0, 6))
-  const arc = mesh(new THREE.TorusGeometry(0.085, 0.005, 5, 24, Math.PI), lit(C.brass), 0, 0.16, 0)
+  g.add(cylinder(0.05, 0.06, 0.02, lit(C.woodDark, 'wood'), 0, 0.01, 0, 14), cylinder(0.008, 0.008, 0.06, lit(C.brass, 'metal'), 0, 0.05, 0, 6))
+  const arc = mesh(new THREE.TorusGeometry(0.085, 0.005, 5, 24, Math.PI), lit(C.brass, 'metal'), 0, 0.16, 0)
   arc.rotation.set(0, Math.PI / 2, 0.41)
   g.add(arc)
   const live = new THREE.Group()
@@ -959,7 +959,7 @@ const books: Builder = ({ random }) => {
 /** Trois bougies dont les flammes vacillent. */
 const candles: Builder = ({ random }) => {
   const g = new THREE.Group()
-  g.add(cylinder(0.08, 0.08, 0.01, lit(C.brass), 0, 0.005, 0, 18))
+  g.add(cylinder(0.08, 0.08, 0.01, lit(C.brass, 'metal'), 0, 0.005, 0, 18))
   const spots: [number, number, number][] = [[-0.035, 0.07, 0.01], [0.03, 0.1, -0.015], [0.01, 0.055, 0.035]]
   for (const [x, h, z] of spots) g.add(cylinder(0.018, 0.018, h, lit(C.cream), x, 0.01 + h / 2, z, 10))
   const live = new THREE.Group()
@@ -1013,10 +1013,10 @@ const trophy: Builder = () => {
 /** Radio de bord : cadran lumineux et haut-parleur. */
 const radio: Builder = () => {
   const g = new THREE.Group()
-  g.add(box(0.16, 0.1, 0.07, lit('#7a3a2a'), 0, 0.05, 0, 0.012), box(0.16, 0.012, 0.072, lit(C.woodDark), 0, 0.1, 0))
+  g.add(box(0.16, 0.1, 0.07, lit('#7a3a2a'), 0, 0.05, 0, 0.012), box(0.16, 0.012, 0.072, lit(C.woodDark, 'wood'), 0, 0.1, 0))
   g.add(barZ(0.028, 0.004, lit('#3a2014'), -0.035, 0.05, 0.036, 14), box(0.06, 0.028, 0.004, glow('#ffc27a'), 0.04, 0.06, 0.036))
-  g.add(barZ(0.008, 0.012, lit(C.chrome), 0.025, 0.03, 0.038, 8), barZ(0.008, 0.012, lit(C.chrome), 0.055, 0.03, 0.038, 8))
-  const antenna = cylinder(0.002, 0.002, 0.12, lit(C.chrome), 0.06, 0.16, -0.02, 4)
+  g.add(barZ(0.008, 0.012, lit(C.chrome, 'metal'), 0.025, 0.03, 0.038, 8), barZ(0.008, 0.012, lit(C.chrome, 'metal'), 0.055, 0.03, 0.038, 8))
+  const antenna = cylinder(0.002, 0.002, 0.12, lit(C.chrome, 'metal'), 0.06, 0.16, -0.02, 4)
   antenna.rotation.z = -0.4
   g.add(antenna)
   return { solid: g }
@@ -1027,7 +1027,7 @@ const SHIP_COLORS: Record<string, string> = { silver: '#c9cdd4', orange: '#e0701
 /** Maquette de Cobra Mk III sur son socle. Coque : `label` (silver, orange, black, white). */
 const shipModel: Builder = ({ label }) => {
   const g = new THREE.Group()
-  g.add(cylinder(0.04, 0.05, 0.02, lit(C.woodDark), 0, 0.01, 0, 12), cylinder(0.005, 0.005, 0.07, lit(C.chrome), 0, 0.055, 0, 4))
+  g.add(cylinder(0.04, 0.05, 0.02, lit(C.woodDark, 'wood'), 0, 0.01, 0, 12), cylinder(0.005, 0.005, 0.07, lit(C.chrome, 'metal'), 0, 0.055, 0, 4))
   const cobra = mesh(cobraGeometry(), lit(SHIP_COLORS[label ?? ''] ?? SHIP_COLORS.silver), 0, 0.1, 0)
   cobra.scale.setScalar(0.1)
   cobra.rotation.set(-0.15, 0.5, 0.08)
@@ -1038,7 +1038,7 @@ const shipModel: Builder = ({ label }) => {
 /** Capteur thargoïde : coque sombre et cœur vert qui palpite. On évite de le secouer. */
 const thargoidSensor: Builder = () => {
   const g = new THREE.Group()
-  g.add(cylinder(0.05, 0.06, 0.02, lit(C.steelDark), 0, 0.01, 0, 12))
+  g.add(cylinder(0.05, 0.06, 0.02, lit(C.steelDark, 'metal'), 0, 0.01, 0, 12))
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * Math.PI * 2
     const petal = mesh(new THREE.ConeGeometry(0.028, 0.1, 5), lit('#1c2a24'), Math.cos(a) * 0.035, 0.07, Math.sin(a) * 0.035)
@@ -1076,7 +1076,7 @@ const guardianRelic: Builder = () => {
 /** Terrarium : un petit organisme luminescent sous cloche. */
 const terrarium: Builder = () => {
   const g = new THREE.Group()
-  g.add(cylinder(0.07, 0.075, 0.025, lit(C.woodDark), 0, 0.0125, 0, 16), cylinder(0.065, 0.065, 0.02, lit('#3a2a1e'), 0, 0.03, 0, 16))
+  g.add(cylinder(0.07, 0.075, 0.025, lit(C.woodDark, 'wood'), 0, 0.0125, 0, 16), cylinder(0.065, 0.065, 0.02, lit('#3a2a1e'), 0, 0.03, 0, 16))
   g.add(mesh(new THREE.ConeGeometry(0.012, 0.05, 5), lit(LEAVES[0]), -0.03, 0.06, 0.01), mesh(new THREE.ConeGeometry(0.01, 0.04, 5), lit(LEAVES[2]), 0.025, 0.055, -0.02))
   const live = new THREE.Group()
   live.add(part(new THREE.SphereGeometry(0.07, 18, 12, 0, Math.PI * 2, 0, Math.PI / 1.6), glass('#e0f4ff', 0.18), 0, 0.045, 0))
@@ -1088,10 +1088,10 @@ const terrarium: Builder = () => {
 /** Platine vinyle : le disque tourne. */
 const recordPlayer: Builder = () => {
   const g = new THREE.Group()
-  g.add(box(0.2, 0.04, 0.16, lit(C.woodDark), 0, 0.02, 0, 0.008), box(0.2, 0.004, 0.16, lit(C.steelDark), 0, 0.042, 0))
-  const arm = box(0.008, 0.008, 0.09, lit(C.chrome), 0.07, 0.06, -0.01)
+  g.add(box(0.2, 0.04, 0.16, lit(C.woodDark, 'wood'), 0, 0.02, 0, 0.008), box(0.2, 0.004, 0.16, lit(C.steelDark, 'metal'), 0, 0.042, 0))
+  const arm = box(0.008, 0.008, 0.09, lit(C.chrome, 'metal'), 0.07, 0.06, -0.01)
   arm.rotation.y = 0.35
-  g.add(cylinder(0.01, 0.01, 0.02, lit(C.chrome), 0.075, 0.05, -0.05, 6), arm, box(0.02, 0.004, 0.012, glow('#ff6a3c'), -0.08, 0.044, 0.065))
+  g.add(cylinder(0.01, 0.01, 0.02, lit(C.chrome, 'metal'), 0.075, 0.05, -0.05, 6), arm, box(0.02, 0.004, 0.012, glow('#ff6a3c'), -0.08, 0.044, 0.065))
   const live = new THREE.Group()
   const disc = new THREE.Group()
   disc.position.set(-0.015, 0.047, 0)
@@ -1106,7 +1106,7 @@ const photoFrame: Builder = () => {
   const f = new THREE.Group()
   f.position.set(0, 0.06, 0)
   f.rotation.x = -0.18
-  f.add(box(0.1, 0.12, 0.012, lit(C.woodLight), 0, 0, 0, 0.004))
+  f.add(box(0.1, 0.12, 0.012, lit(C.woodLight, 'wood'), 0, 0, 0, 0.004))
   f.add(mesh(new THREE.PlaneGeometry(0.08, 0.1), printMaterial('photo', 96, 120, (c, random) => {
     c.fillStyle = '#081018'
     c.fillRect(0, 0, 96, 120)
@@ -1123,7 +1123,7 @@ const photoFrame: Builder = () => {
     c.fillStyle = '#e0701e'
     c.fillRect(52, 70, 7, 16)
   }), 0, 0, 0.0065))
-  g.add(f, box(0.012, 0.09, 0.012, lit(C.woodLight), 0, 0.045, -0.04))
+  g.add(f, box(0.012, 0.09, 0.012, lit(C.woodLight, 'wood'), 0, 0.045, -0.04))
   return { solid: g }
 }
 

@@ -97,7 +97,7 @@ const cobweb: Builder = ({ label, random }) => {
  */
 const ventGrate: Builder = () => {
   const g = new THREE.Group()
-  const steel = lit(C.steel), dark = lit(C.steelDark)
+  const steel = lit(C.steel, 'metal'), dark = lit(C.steelDark, 'metal')
   for (const s of [-1, 1]) {
     g.add(box(0.84, 0.035, 0.05, steel, 0, 0.02, s * 0.395))
     g.add(box(0.05, 0.035, 0.84, steel, s * 0.395, 0.02, 0))
@@ -130,14 +130,14 @@ const ventGrate: Builder = () => {
 /** Ventilateur, dans le mur du fond d'une gaine (adossé au nord, face à +z) : il tourne, lentement, en grinçant. */
 const ventFan: Builder = ({ random }) => {
   const g = new THREE.Group()
-  const dark = lit(C.steelDark)
+  const dark = lit(C.steelDark, 'metal')
   g.add(box(0.9, 0.9, 0.04, dark, 0, 0.5, -0.46))
-  const ring = mesh(new THREE.TorusGeometry(0.36, 0.035, 8, 24), lit(C.steel), 0, 0.5, -0.42)
+  const ring = mesh(new THREE.TorusGeometry(0.36, 0.035, 8, 24), lit(C.steel, 'metal'), 0, 0.5, -0.42)
   g.add(ring)
   // Derrière les pales, une lueur froide : le reste du vaisseau, très loin.
   g.add(mesh(new THREE.CircleGeometry(0.34, 24), glow('#18303a'), 0, 0.5, -0.435))
   for (const a of [0, Math.PI / 2]) {
-    const bar = box(0.74, 0.02, 0.02, lit(C.steel), 0, 0.5, -0.38)
+    const bar = box(0.74, 0.02, 0.02, lit(C.steel, 'metal'), 0, 0.5, -0.38)
     bar.rotation.z = a + Math.PI / 4
     g.add(bar)
   }
@@ -152,7 +152,7 @@ const ventFan: Builder = ({ random }) => {
     arm.rotation.z = (k / 5) * Math.PI * 2
     blades.add(arm)
   }
-  blades.add(cylinder(0.05, 0.05, 0.05, lit(C.steel), 0, 0, 0, 12).rotateX(Math.PI / 2))
+  blades.add(cylinder(0.05, 0.05, 0.05, lit(C.steel, 'metal'), 0, 0, 0, 12).rotateX(Math.PI / 2))
   live.add(blades)
   const phase = random() * 6
   return { solid: g, live, emitter: 'hum', update: (t) => (blades.rotation.z = t * 1.3 + phase) }

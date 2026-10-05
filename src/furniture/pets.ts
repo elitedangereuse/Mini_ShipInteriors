@@ -29,7 +29,7 @@ const CUSHIONS = [FABRIC.teal, FABRIC.terracotta, FABRIC.mustard, FABRIC.navy, F
 
 /** Coussin rond sur un cadre de bois, bordé d'un boudin ; l'écuelle au nom de la robe. */
 function cushion(g: THREE.Group, fabric: string, accent: string) {
-  g.add(cylinder(0.22, 0.2, 0.06, lit(C.woodLight), 0, 0.03, 0, 16), cylinder(0.16, 0.16, 0.03, lit(fabric), 0, 0.07, 0, 16))
+  g.add(cylinder(0.22, 0.2, 0.06, lit(C.woodLight, 'wood'), 0, 0.03, 0, 16), cylinder(0.16, 0.16, 0.03, lit(fabric), 0, 0.07, 0, 16))
   const rim = mesh(new THREE.TorusGeometry(0.18, 0.045, 6, 18), lit(fabric), 0, 0.085, 0)
   rim.rotation.x = Math.PI / 2
   g.add(rim)
@@ -42,21 +42,21 @@ const homes: Record<Home, (g: THREE.Group, fabric: string, accent: string) => vo
   bamboo: (g, fabric, accent) => {
     cushion(g, fabric, accent)
     for (const [x, z, h] of [[-0.2, -0.17, 0.42], [-0.15, -0.21, 0.32], [-0.24, -0.1, 0.26]]) {
-      for (let y = 0; y < h; y += 0.1) g.add(cylinder(0.014, 0.014, 0.095, lit(C.bamboo), x, y + 0.05, z, 6), cylinder(0.017, 0.017, 0.008, lit('#6f9a36'), x, y + 0.1, z, 6))
+      for (let y = 0; y < h; y += 0.1) g.add(cylinder(0.014, 0.014, 0.095, lit(C.bamboo, 'wood'), x, y + 0.05, z, 6), cylinder(0.017, 0.017, 0.008, lit('#6f9a36'), x, y + 0.1, z, 6))
       const leaf = mesh(new THREE.ConeGeometry(0.02, 0.09, 3), lit(LEAVES[1] ?? '#3f7a3a'), x + 0.03, h, z)
       leaf.rotation.z = -1
       g.add(leaf)
     }
   },
   perch: (g, _fabric, accent) => {
-    g.add(cylinder(0.17, 0.19, 0.04, lit(C.woodDark), 0, 0.02, 0, 16), cylinder(0.15, 0.15, 0.005, lit(C.sand), 0, 0.043, 0, 16))
-    g.add(cylinder(0.018, 0.02, 0.5, lit(C.wood), 0, 0.29, 0, 8), barX(0.014, 0.34, lit(C.wood), 0, 0.53, 0, 8))
+    g.add(cylinder(0.17, 0.19, 0.04, lit(C.woodDark, 'wood'), 0, 0.02, 0, 16), cylinder(0.15, 0.15, 0.005, lit(C.sand), 0, 0.043, 0, 16))
+    g.add(cylinder(0.018, 0.02, 0.5, lit(C.wood, 'wood'), 0, 0.29, 0, 8), barX(0.014, 0.34, lit(C.wood, 'wood'), 0, 0.53, 0, 8))
     g.add(cylinder(0.035, 0.028, 0.03, lit(accent), 0.14, 0.53, 0, 10))
-    const swing = mesh(new THREE.TorusGeometry(0.06, 0.006, 5, 16), lit(C.steel), -0.1, 0.45, 0)
+    const swing = mesh(new THREE.TorusGeometry(0.06, 0.006, 5, 16), lit(C.steel, 'metal'), -0.1, 0.45, 0)
     g.add(swing)
   },
   hive: (g, _fabric, accent) => {
-    g.add(box(0.26, 0.05, 0.26, lit(C.woodDark), 0, 0.025, 0))
+    g.add(box(0.26, 0.05, 0.26, lit(C.woodDark, 'wood'), 0, 0.025, 0))
     for (let i = 0; i < 4; i++) g.add(cylinder(0.12 - i * 0.012, 0.125 - i * 0.012, 0.055, lit(i % 2 ? C.honey : '#d99a30'), 0, 0.08 + i * 0.055, 0, 16))
     g.add(sphere(0.07, lit('#d99a30'), 0, 0.28, 0, 12))
     g.add(box(0.05, 0.03, 0.02, lit('#3a2a1e'), 0, 0.075, 0.12), sphere(0.012, lit(accent), 0, 0.33, 0, 6))
@@ -93,7 +93,7 @@ const homes: Record<Home, (g: THREE.Group, fabric: string, accent: string) => vo
     g.add(sphere(0.018, lit(accent), 0.15, 0.06, 0.08, 6))
   },
   sand: (g, _fabric, accent) => {
-    g.add(box(0.42, 0.05, 0.32, lit(C.wood), 0, 0.025, 0), box(0.38, 0.012, 0.28, lit(C.sand), 0, 0.052, 0))
+    g.add(box(0.42, 0.05, 0.32, lit(C.wood, 'wood'), 0, 0.025, 0), box(0.38, 0.012, 0.28, lit(C.sand), 0, 0.052, 0))
     for (const [x, z, color] of [[-0.12, 0.06, '#f4d6c8'], [0.1, -0.06, '#ffffff'], [0.05, 0.08, accent]] as [number, number, string][]) {
       const shell = mesh(new THREE.SphereGeometry(0.022, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), lit(color), x, 0.058, z)
       shell.scale.set(1, 0.5, 1.2)
@@ -138,7 +138,7 @@ const petBowl: Builder = () => {
 /** Arbre à chat : poteaux gainés de corde, plateformes moquettées, une niche et une balle. */
 const catTree: Builder = () => {
   const g = new THREE.Group()
-  const carpet = lit(C.carpet), rope = lit(C.rope)
+  const carpet = lit(C.carpet, 'cloth'), rope = lit(C.rope, 'cloth')
   g.add(box(0.46, 0.05, 0.42, carpet, 0, 0.025, 0, 0.01))
   g.add(cylinder(0.035, 0.035, 0.5, rope, -0.13, 0.3, -0.1, 10), cylinder(0.035, 0.035, 0.75, rope, 0.13, 0.42, 0.05, 10))
   for (let y = 0.1; y < 0.78; y += 0.05) g.add(cylinder(0.037, 0.037, 0.008, lit('#c4ae80'), 0.13, y, 0.05, 10))
@@ -186,10 +186,10 @@ const petToys: Builder = () => {
 /** Griffoir : un poteau de corde sur son socle, et une balle au bout d'un ressort. */
 const scratchingPost: Builder = () => {
   const g = new THREE.Group()
-  g.add(box(0.26, 0.04, 0.26, lit(C.carpet), 0, 0.02, 0, 0.01), cylinder(0.045, 0.045, 0.42, lit(C.rope), 0, 0.25, 0, 12))
+  g.add(box(0.26, 0.04, 0.26, lit(C.carpet, 'cloth'), 0, 0.02, 0, 0.01), cylinder(0.045, 0.045, 0.42, lit(C.rope, 'cloth'), 0, 0.25, 0, 12))
   for (let y = 0.06; y < 0.46; y += 0.04) g.add(cylinder(0.047, 0.047, 0.007, lit('#c4ae80'), 0, y, 0, 12))
-  g.add(box(0.14, 0.03, 0.14, lit(C.carpet), 0, 0.475, 0, 0.008))
-  g.add(cylinder(0.004, 0.004, 0.14, lit(C.steel), 0.05, 0.56, 0, 4), sphere(0.024, lit('#e8b33a'), 0.05, 0.64, 0, 8))
+  g.add(box(0.14, 0.03, 0.14, lit(C.carpet, 'cloth'), 0, 0.475, 0, 0.008))
+  g.add(cylinder(0.004, 0.004, 0.14, lit(C.steel, 'metal'), 0.05, 0.56, 0, 4), sphere(0.024, lit('#e8b33a'), 0.05, 0.64, 0, 8))
   return { solid: g }
 }
 

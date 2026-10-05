@@ -26,7 +26,7 @@ const scaffold: Builder = () => {
   for (const x of [-W / 2, W / 2]) {
     for (const z of [-D / 2, D / 2]) {
       g.add(cylinder(0.022, 0.022, H, tube, x, H / 2 + 0.05, z, 8))
-      g.add(cylinder(0.035, 0.035, 0.04, lit(C.steelDark), x, 0.03, z, 10))
+      g.add(cylinder(0.035, 0.035, 0.04, lit(C.steelDark, 'metal'), x, 0.03, z, 10))
     }
   }
   for (const y of [0.1, 0.55, 1.1]) {
@@ -34,11 +34,11 @@ const scaffold: Builder = () => {
     for (const x of [-W / 2, W / 2]) g.add(barZ(0.016, D, tube, x, y, 0, 6))
   }
   // Croisillons sur la face arrière.
-  const brace = barX(0.012, Math.hypot(W, 0.45), lit(C.steel), 0, 0.33, -D / 2, 6)
+  const brace = barX(0.012, Math.hypot(W, 0.45), lit(C.steel, 'metal'), 0, 0.33, -D / 2, 6)
   brace.rotation.z = Math.PI / 2 + Math.atan2(0.45, W)
   g.add(brace)
   // Planchers en bois, un seau et une caisse à outils dessus.
-  for (const y of [0.57, 1.12]) g.add(box(W - 0.04, 0.03, D - 0.06, lit(C.plank), 0, y, 0))
+  for (const y of [0.57, 1.12]) g.add(box(W - 0.04, 0.03, D - 0.06, lit(C.plank, 'wood'), 0, y, 0))
   g.add(cylinder(0.06, 0.05, 0.1, lit('#c8ccd2'), 0.3, 0.64, 0.05, 10))
   g.add(box(0.2, 0.08, 0.1, lit('#b1302a'), -0.25, 0.63, -0.05, 0.01))
   // Bâche bleue tendue sur le côté gauche.
@@ -85,7 +85,7 @@ const worksSign: Builder = ({ label = tr('Bientôt', 'Coming soon') }) => {
   const board = new THREE.MeshLambertMaterial({ map: face, emissive: '#ffffff', emissiveMap: face, emissiveIntensity: 0.45 })
   // Panneau sur deux pieds lestés, lisible des deux côtés, un peu incliné vers l'arrière.
   const sign = new THREE.Group()
-  sign.add(box(0.64, 0.49, 0.03, lit(C.steelDark)))
+  sign.add(box(0.64, 0.49, 0.03, lit(C.steelDark, 'metal')))
   for (const side of [1, -1]) {
     const p = mesh(new THREE.PlaneGeometry(0.6, 0.45), board, 0, 0, side * 0.017)
     if (side < 0) p.rotation.y = Math.PI
@@ -95,7 +95,7 @@ const worksSign: Builder = ({ label = tr('Bientôt', 'Coming soon') }) => {
   sign.rotation.x = -0.08
   g.add(sign)
   for (const x of [-0.26, 0.26]) {
-    g.add(box(0.03, 0.3, 0.03, lit(C.steelDark), x, 0.15, 0))
+    g.add(box(0.03, 0.3, 0.03, lit(C.steelDark, 'metal'), x, 0.15, 0))
     g.add(box(0.07, 0.04, 0.3, lit(C.hazard), x, 0.02, 0, 0.01))
   }
   return { solid: g }
@@ -125,11 +125,11 @@ const cones: Builder = ({ random }) => {
 /** Palette bâchée : des caisses sous une toile tendue par des sangles. */
 const tarpCrates: Builder = ({ random }) => {
   const g = new THREE.Group()
-  g.add(box(0.8, 0.08, 0.6, lit(C.plank), 0, 0.04, 0))
+  g.add(box(0.8, 0.08, 0.6, lit(C.plank, 'wood'), 0, 0.04, 0))
   const h = 0.42 + random() * 0.12
-  g.add(box(0.78, h, 0.58, lit(C.tarp), 0, 0.08 + h / 2, 0, 0.05))
+  g.add(box(0.78, h, 0.58, lit(C.tarp, 'cloth'), 0, 0.08 + h / 2, 0, 0.05))
   for (const x of [-0.22, 0.22]) g.add(box(0.04, h + 0.01, 0.6, lit(C.hazard), x, 0.08 + h / 2, 0))
-  g.add(box(0.5, 0.06, 0.3, lit(C.tarpDark), 0.08, 0.1 + h, -0.05, 0.03))
+  g.add(box(0.5, 0.06, 0.3, lit(C.tarpDark, 'cloth'), 0.08, 0.1 + h, -0.05, 0.03))
   return { solid: g }
 }
 

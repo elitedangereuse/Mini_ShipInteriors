@@ -711,7 +711,7 @@ const arcade: Builder = ({ label = 'cargo' }) => {
 const arcadeTable: Builder = ({ label = 'cargo', random }) => {
   const game = GAMES[label] ?? GAMES.cargo
   const g = new THREE.Group()
-  const side = lit(game.side), black = lit(C.black), chrome = lit(C.chrome)
+  const side = lit(game.side), black = lit(C.black), chrome = lit(C.chrome, 'metal')
   g.add(box(0.34, 0.05, 0.36, black, 0, 0.025, 0), box(0.44, 0.29, 0.42, side, 0, 0.195, 0, 0.012))
   g.add(box(0.45, 0.03, 0.43, black, 0, 0.355, 0, 0.006))
   // Liseré chromé autour de la vitre ; néon et monnayeur sur les grands côtés.
@@ -1198,7 +1198,7 @@ const pinball: Builder = ({ label, random }) => {
   const id = PINBALLS[label ?? ''] ? label! : 'thargoid'
   const def = PINBALLS[id], print = pinballPrint(id)
   const g = new THREE.Group()
-  const body = lit(def.body), black = lit(C.black), chrome = lit(C.chrome), white = lit('#eef0f2'), trim = glow(def.trim)
+  const body = lit(def.body), black = lit(C.black), chrome = lit(C.chrome, 'metal'), white = lit('#eef0f2'), trim = glow(def.trim)
   // Caisse inclinée (l'arrière plus haut) ; tout ce qui est sur le plateau suit son repère.
   const tub = new THREE.Group()
   tub.position.set(0, TUB.y, TUB.z)
@@ -1232,7 +1232,7 @@ const pinball: Builder = ({ label, random }) => {
   tub.add(box(0.12, 0.05, 0.006, lit(C.panel), 0, -0.03, 0.282))
   for (const x of [-0.025, 0.025]) tub.add(box(0.02, 0.012, 0.004, glow('#ff3b2f'), x, -0.025, 0.2855))
   tub.add(barZ(0.008, 0.008, glow('#ffe14f'), -0.13, 0.045, 0.283, 10), barZ(0.005, 0.026, chrome, 0.13, 0.045, 0.293, 6))
-  tub.add(sphere(0.009, lit(C.seat), 0.13, 0.045, 0.309, 8))
+  tub.add(sphere(0.009, lit(C.seat, 'cloth'), 0.13, 0.045, 0.309, 8))
   g.add(tub)
   // Pieds : plus longs à l'arrière, sous la caisse inclinée.
   for (const lz of [-0.24, 0.24]) {
@@ -1247,7 +1247,7 @@ const pinball: Builder = ({ label, random }) => {
   g.add(box(0.34, 0.45, 0.08, body, 0, 0.675, -0.27, 0.01), box(0.35, 0.014, 0.088, chrome, 0, 0.905, -0.27))
   g.add(mesh(new THREE.PlaneGeometry(0.3, 0.2625), print.art, 0, 0.72, -0.2295))
   g.add(box(0.32, 0.1, 0.014, black, 0, 0.515, -0.223), box(0.34, 0.008, 0.006, trim, 0, 0.47, -0.214))
-  for (const x of [-0.128, 0.128]) g.add(barZ(0.022, 0.004, lit('#2a2e36'), x, 0.515, -0.214, 12), barZ(0.008, 0.006, lit(C.steel), x, 0.515, -0.213, 8))
+  for (const x of [-0.128, 0.128]) g.add(barZ(0.022, 0.004, lit('#2a2e36'), x, 0.515, -0.214, 12), barZ(0.008, 0.006, lit(C.steel, 'metal'), x, 0.515, -0.213, 8))
 
   const live = new THREE.Group()
   const top = new THREE.Group()
@@ -1432,13 +1432,13 @@ const RACERS: Record<string, { body: string; dark: string; stripe: string; neon:
 const arcadeRacer: Builder = ({ label, random }) => {
   const paint = RACERS[label ?? ''] ?? RACERS.red
   const g = new THREE.Group()
-  const body = lit(paint.body), dark = lit(paint.dark), stripe = lit(paint.stripe), black = lit(C.black), seat = lit(C.seat)
+  const body = lit(paint.body), dark = lit(paint.dark), stripe = lit(paint.stripe), black = lit(C.black), seat = lit(C.seat, 'cloth')
   // Plancher, socle du siège (bandes de course), néons au ras du sol, pédalier.
   g.add(box(0.6, 0.05, 0.9, dark, 0, 0.025, 0, 0.01), box(0.46, 0.15, 0.34, body, 0, 0.125, 0.24, 0.015))
   for (const x of [-0.232, 0.232]) g.add(box(0.004, 0.028, 0.3, stripe, x, 0.13, 0.24))
   for (const x of [-0.301, 0.301]) g.add(box(0.004, 0.012, 0.84, glow(paint.neon), x, 0.03, 0))
   for (const x of [-0.06, 0.06]) {
-    const pedal = box(0.05, 0.012, 0.08, lit(C.chrome), x, 0.075, -0.04)
+    const pedal = box(0.05, 0.012, 0.08, lit(C.chrome, 'metal'), x, 0.075, -0.04)
     pedal.rotation.x = -0.5
     g.add(pedal)
   }
@@ -1452,7 +1452,7 @@ const arcadeRacer: Builder = ({ label, random }) => {
   for (const x of [-0.145, 0.145]) back.add(box(0.05, 0.3, 0.09, body, x, 0.15, -0.01, 0.02))
   back.add(box(0.2, 0.09, 0.05, seat, 0, 0.42, 0.005, 0.02))
   g.add(back)
-  g.add(box(0.05, 0.06, 0.08, black, 0.21, 0.23, 0.1), cylinder(0.006, 0.006, 0.1, lit(C.chrome), 0.21, 0.3, 0.1, 6), sphere(0.018, lit(C.seat), 0.21, 0.355, 0.1, 8))
+  g.add(box(0.05, 0.06, 0.08, black, 0.21, 0.23, 0.1), cylinder(0.006, 0.006, 0.1, lit(C.chrome, 'metal'), 0.21, 0.3, 0.1, 6), sphere(0.018, lit(C.seat, 'cloth'), 0.21, 0.355, 0.1, 8))
   // Caisson de l'écran : flancs peints, dos noir, visière, fronton.
   for (const s of [-1, 1]) g.add(box(0.04, 0.9, 0.36, body, s * 0.28, 0.45, -0.27, 0.012), box(0.004, 0.62, 0.05, stripe, s * 0.3015, 0.47, -0.2))
   g.add(box(0.52, 0.86, 0.3, black, 0, 0.43, -0.3))
@@ -1473,7 +1473,7 @@ const arcadeRacer: Builder = ({ label, random }) => {
     dash.add(cylinder(0.034, 0.034, 0.006, lit('#0b0c10'), x, 0.052, 0.01, 14), cylinder(0.028, 0.028, 0.008, glow(col), x, 0.053, 0.01, 14))
     dash.add(box(0.004, 0.009, 0.024, lit('#0b0c10'), x + 0.006, 0.058, 0.004))
   }
-  dash.add(barZ(0.018, 0.1, lit(C.steel), 0, 0.03, 0.08, 10))
+  dash.add(barZ(0.018, 0.1, lit(C.steel, 'metal'), 0, 0.03, 0.08, 10))
   g.add(dash)
 
   const screen = animatedScreen(RW, RH, 12, drawCanyon)
@@ -1485,13 +1485,13 @@ const arcadeRacer: Builder = ({ label, random }) => {
   face.add(part(new THREE.PlaneGeometry(0.46, 0.345), new THREE.MeshBasicMaterial({ map: screen.texture }), 0, 0, 0.0155))
   // Volant : il suit les virages de la route à l'écran.
   const model = new THREE.Group()
-  model.add(mesh(new THREE.TorusGeometry(0.075, 0.011, 6, 18), lit(C.seat)))
+  model.add(mesh(new THREE.TorusGeometry(0.075, 0.011, 6, 18), lit(C.seat, 'cloth')))
   for (const a of [0, (Math.PI * 2) / 3, (Math.PI * 4) / 3]) {
-    const spoke = mesh(new THREE.BoxGeometry(0.07, 0.012, 0.008), lit(C.steel), Math.cos(a - Math.PI / 2) * 0.035, Math.sin(a - Math.PI / 2) * 0.035, 0)
+    const spoke = mesh(new THREE.BoxGeometry(0.07, 0.012, 0.008), lit(C.steel, 'metal'), Math.cos(a - Math.PI / 2) * 0.035, Math.sin(a - Math.PI / 2) * 0.035, 0)
     spoke.rotation.z = a - Math.PI / 2
     model.add(spoke)
   }
-  model.add(barZ(0.02, 0.02, lit(C.steel), 0, 0, 0, 10), barZ(0.008, 0.022, glow(paint.body), 0, 0, 0.002, 8))
+  model.add(barZ(0.02, 0.02, lit(C.steel, 'metal'), 0, 0, 0, 10), barZ(0.008, 0.022, glow(paint.body), 0, 0, 0.002, 8))
   const wheel = compact(model)
   const column = new THREE.Group()
   column.position.set(0, 0.44, 0.045)
@@ -1554,7 +1554,7 @@ const CLAW = { hx: -0.155, hz: 0.155, up: 0.74, down: 0.59, rest: 0.458, period:
 const clawMachine: Builder = ({ label, random }) => {
   const paint = CLAWS[label ?? ''] ?? CLAWS.pink
   const g = new THREE.Group()
-  const body = lit(paint.body), black = lit(C.black), chrome = lit(C.chrome), neon = glow(paint.neon)
+  const body = lit(paint.body), black = lit(C.black), chrome = lit(C.chrome, 'metal'), neon = glow(paint.neon)
   // Meuble du bas : trappe à lots (cadre lumineux), monnayeur, pupitre.
   g.add(box(0.46, 0.04, 0.46, black, 0, 0.02, 0), box(0.5, 0.38, 0.5, body, 0, 0.23, 0, 0.015), box(0.506, 0.012, 0.506, neon, 0, 0.405, 0))
   g.add(box(0.15, 0.12, 0.02, lit('#0b0c10'), -0.11, 0.16, 0.245), box(0.13, 0.055, 0.006, lit('#3a3e46'), -0.11, 0.185, 0.254))

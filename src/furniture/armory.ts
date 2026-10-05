@@ -24,7 +24,7 @@ const C = {
 /** Plaque murale de présentation (bois sombre, liseré doré), centrée en (0, y). */
 function plaque(g: THREE.Group, w: number, h: number, y: number) {
   g.add(box(w, h, 0.025, lit(C.plaque), 0, y, 0.0125, 0.01), box(w - 0.04, h - 0.04, 0.004, lit('#3a302b'), 0, y, 0.026))
-  g.add(box(w - 0.02, 0.008, 0.006, lit(C.gold), 0, y + h / 2 - 0.012, 0.027), box(w - 0.02, 0.008, 0.006, lit(C.gold), 0, y - h / 2 + 0.012, 0.027))
+  g.add(box(w - 0.02, 0.008, 0.006, lit(C.gold, 'metal'), 0, y + h / 2 - 0.012, 0.027), box(w - 0.02, 0.008, 0.006, lit(C.gold, 'metal'), 0, y - h / 2 + 0.012, 0.027))
 }
 
 /** Pièce tournée d'un angle `a` autour de z, puis posée en (x, y, z). */
@@ -50,7 +50,7 @@ export const SABER_COLORS: Record<string, [string, string]> = {
 /** Sabre laser couché le long de x : poignée en -x, lame lumineuse vers +x (longueur totale ~0,55). */
 function saber(color: string): THREE.Group {
   const g = new THREE.Group()
-  const hilt = cylinder(0.017, 0.017, 0.13, lit(C.steel), -0.2, 0, 0, 10)
+  const hilt = cylinder(0.017, 0.017, 0.13, lit(C.steel, 'metal'), -0.2, 0, 0, 10)
   hilt.rotation.z = Math.PI / 2
   g.add(hilt)
   for (const x of [-0.24, -0.22, -0.2, -0.18]) {
@@ -58,7 +58,7 @@ function saber(color: string): THREE.Group {
     ring.rotation.z = Math.PI / 2
     g.add(ring)
   }
-  const emitter = cylinder(0.02, 0.017, 0.025, lit(C.steelDark), -0.125, 0, 0, 10)
+  const emitter = cylinder(0.02, 0.017, 0.025, lit(C.steelDark, 'metal'), -0.125, 0, 0, 10)
   emitter.rotation.z = Math.PI / 2
   g.add(emitter, box(0.012, 0.01, 0.008, glow('#ff3b2f'), -0.19, 0.018, 0))
   const blade = cylinder(0.009, 0.011, 0.42, glow('#ffffff'), 0.1, 0, 0, 8)
@@ -76,7 +76,7 @@ const saberDisplay: Builder = ({ label }) => {
   plaque(g, 0.6, 0.34, 0.6)
   g.add(tilted(saber(a), 0.42, 0, 0.6, 0.05), tilted(saber(b), Math.PI - 0.42, 0, 0.6, 0.07))
   // Crochets de laiton.
-  for (const [x, y] of [[-0.14, 0.53], [0.14, 0.53], [-0.14, 0.67], [0.14, 0.67]]) g.add(cylinder(0.007, 0.007, 0.06, lit(C.gold), x, y, 0.05, 6).rotateX(Math.PI / 2))
+  for (const [x, y] of [[-0.14, 0.53], [0.14, 0.53], [-0.14, 0.67], [0.14, 0.67]]) g.add(cylinder(0.007, 0.007, 0.06, lit(C.gold, 'metal'), x, y, 0.05, 6).rotateX(Math.PI / 2))
   return { solid: g }
 }
 
@@ -85,7 +85,7 @@ const saberDisplay: Builder = ({ label }) => {
 /** Épée longue le long de +y (garde en 0, lame vers le haut). */
 function sword(len = 0.5, curved = false): THREE.Group {
   const g = new THREE.Group()
-  const steel = lit(C.steel)
+  const steel = lit(C.steel, 'metal')
   if (curved) {
     // Sabre d'abordage : une lame courbe, extrudée.
     const s = new THREE.Shape()
@@ -94,25 +94,25 @@ function sword(len = 0.5, curved = false): THREE.Group {
     s.quadraticCurveTo(0.02, len * 0.55, 0.018, 0)
     s.closePath()
     const blade = mesh(new THREE.ExtrudeGeometry(s, { depth: 0.006, bevelEnabled: false }), steel, 0, 0.02, -0.003)
-    g.add(blade, box(0.07, 0.012, 0.02, lit(C.gold), 0, 0.012, 0))
-    const bow = mesh(new THREE.TorusGeometry(0.035, 0.005, 5, 12, Math.PI), lit(C.gold), 0, -0.02, 0)
+    g.add(blade, box(0.07, 0.012, 0.02, lit(C.gold, 'metal'), 0, 0.012, 0))
+    const bow = mesh(new THREE.TorusGeometry(0.035, 0.005, 5, 12, Math.PI), lit(C.gold, 'metal'), 0, -0.02, 0)
     bow.rotation.z = Math.PI / 2
     g.add(bow)
   } else {
-    g.add(box(0.034, len, 0.008, steel, 0, 0.02 + len / 2, 0), box(0.008, len - 0.04, 0.009, lit(C.steelDark), 0, 0.02 + len / 2 - 0.02, 0))
+    g.add(box(0.034, len, 0.008, steel, 0, 0.02 + len / 2, 0), box(0.008, len - 0.04, 0.009, lit(C.steelDark, 'metal'), 0, 0.02 + len / 2 - 0.02, 0))
     const tip = mesh(new THREE.ConeGeometry(0.024, 0.06, 4), steel, 0, 0.02 + len + 0.03, 0)
     tip.scale.z = 0.3
     tip.rotation.y = Math.PI / 4
-    g.add(tip, box(0.13, 0.02, 0.025, lit(C.gold), 0, 0.012, 0, 0.004))
+    g.add(tip, box(0.13, 0.02, 0.025, lit(C.gold, 'metal'), 0, 0.012, 0, 0.004))
   }
-  g.add(cylinder(0.013, 0.013, 0.1, lit(C.leather), 0, -0.05, 0, 8), sphere(0.02, lit(C.gold), 0, -0.105, 0, 8))
+  g.add(cylinder(0.013, 0.013, 0.1, lit(C.leather, 'leather'), 0, -0.05, 0, 8), sphere(0.02, lit(C.gold, 'metal'), 0, -0.105, 0, 8))
   return g
 }
 
 /** Hache viking le long de +y : manche, fer en demi-lune en haut. */
 function axe(): THREE.Group {
   const g = new THREE.Group()
-  g.add(cylinder(0.012, 0.014, 0.5, lit(C.wood), 0, 0.25, 0, 8))
+  g.add(cylinder(0.012, 0.014, 0.5, lit(C.wood, 'wood'), 0, 0.25, 0, 8))
   const s = new THREE.Shape()
   s.moveTo(0, 0)
   s.lineTo(0.05, 0.02)
@@ -120,7 +120,7 @@ function axe(): THREE.Group {
   s.quadraticCurveTo(0.08, -0.05, 0.03, -0.06)
   s.lineTo(0, -0.04)
   s.closePath()
-  g.add(mesh(new THREE.ExtrudeGeometry(s, { depth: 0.01, bevelEnabled: false }), lit(C.steel), 0.005, 0.48, -0.005))
+  g.add(mesh(new THREE.ExtrudeGeometry(s, { depth: 0.01, bevelEnabled: false }), lit(C.steel, 'metal'), 0.005, 0.48, -0.005))
   return g
 }
 
@@ -144,8 +144,8 @@ function roundShield(): THREE.Group {
   const g = new THREE.Group()
   const disc = cylinder(0.17, 0.17, 0.02, lit('#9b3a2a'), 0, 0, 0.01, 24)
   disc.rotation.x = Math.PI / 2
-  const rim = mesh(new THREE.TorusGeometry(0.17, 0.01, 6, 28), lit(C.steelDark), 0, 0, 0.012)
-  g.add(disc, rim, sphere(0.045, lit(C.steel), 0, 0, 0.022, 12))
+  const rim = mesh(new THREE.TorusGeometry(0.17, 0.01, 6, 28), lit(C.steelDark, 'metal'), 0, 0, 0.012)
+  g.add(disc, rim, sphere(0.045, lit(C.steel, 'metal'), 0, 0, 0.022, 12))
   for (let i = 0; i < 4; i++) g.add(box(0.012, 0.32, 0.004, lit('#d9c7a0'), 0, 0, 0.021).rotateZ((i * Math.PI) / 4))
   return g
 }
@@ -187,7 +187,7 @@ function katana(len: number, lacquer: string): THREE.Group {
   s.quadraticCurveTo(len * 0.5, 0.013 + 0.012, 0, 0.013)
   s.closePath()
   g.add(mesh(new THREE.ExtrudeGeometry(s, { depth: 0.018, bevelEnabled: false }), lit(lacquer), 0, 0, -0.009))
-  const tsuba = cylinder(0.024, 0.024, 0.006, lit(C.gold), -0.004, 0.001, 0, 12)
+  const tsuba = cylinder(0.024, 0.024, 0.006, lit(C.gold, 'metal'), -0.004, 0.001, 0, 12)
   tsuba.rotation.z = Math.PI / 2
   const grip = cylinder(0.011, 0.012, len * 0.3, lit('#ece4d2'), -len * 0.15 - 0.008, 0.001, 0, 8)
   grip.rotation.z = Math.PI / 2
@@ -201,7 +201,7 @@ function katana(len: number, lacquer: string): THREE.Group {
 const katanaStand: Builder = ({ label }) => {
   const lacquer = label === 'red' ? '#8e1f1c' : '#15151a'
   const g = new THREE.Group()
-  const base = lit(lacquer), gold = lit(C.gold)
+  const base = lit(lacquer), gold = lit(C.gold, 'metal')
   g.add(box(0.36, 0.025, 0.11, base, 0, 0.0125, 0, 0.006), box(0.36, 0.004, 0.11, gold, 0, 0.027, 0))
   for (const x of [-0.12, 0.12]) {
     g.add(box(0.025, 0.2, 0.06, base, x, 0.12, 0, 0.004))
@@ -220,7 +220,7 @@ const katanaStand: Builder = ({ label }) => {
 /** Fusil couché le long de x, canon vers +x, crosse vers -x (longueur ~0,5) ; `kind` : son modèle. */
 function rifle(kind: string): THREE.Group {
   const g = new THREE.Group()
-  const dark = lit(C.gunmetal), black = lit(C.black)
+  const dark = lit(C.gunmetal, 'metal'), black = lit(C.black)
   if (kind === 'karma-l6') {
     // Karma L-6 : un lance-roquettes, gros tube cerclé d'orange.
     const tube = cylinder(0.042, 0.042, 0.52, lit('#4b5058'), 0, 0.02, 0, 14)
@@ -274,7 +274,7 @@ const odysseyRack: Builder = ({ label }) => {
 /** Râtelier au sol : trois fusils debout, une caisse de munitions au pied. */
 const weaponRack: Builder = () => {
   const g = new THREE.Group()
-  const frame = lit(C.gunmetal)
+  const frame = lit(C.gunmetal, 'metal')
   g.add(box(0.7, 0.05, 0.26, frame, 0, 0.025, 0, 0.01), box(0.7, 0.04, 0.05, frame, 0, 0.62, -0.08, 0.01))
   for (const x of [-0.33, 0.33]) g.add(box(0.04, 0.62, 0.05, frame, x, 0.33, -0.08))
   ODYSSEY_GUNS.filter((k) => k !== 'karma-l6').forEach((kind, i) => {
@@ -301,12 +301,12 @@ function pistol(kind: string): THREE.Group {
     g.add(box(0.03, 0.06, 0.02, lit('#8a93a0'), -0.04, -0.02, 0, 0.006))
   } else {
     // Blaster de contrebandier : canon cannelé, lunette, cache-flamme.
-    const barrel = cylinder(0.012, 0.012, 0.15, lit(C.gunmetal), 0.03, 0.025, 0, 10)
+    const barrel = cylinder(0.012, 0.012, 0.15, lit(C.gunmetal, 'metal'), 0.03, 0.025, 0, 10)
     barrel.rotation.z = Math.PI / 2
-    g.add(barrel, box(0.07, 0.035, 0.024, black, -0.02, 0.02, 0, 0.006), box(0.03, 0.065, 0.02, lit(C.leather), -0.045, -0.02, 0, 0.006))
+    g.add(barrel, box(0.07, 0.035, 0.024, black, -0.02, 0.02, 0, 0.006), box(0.03, 0.065, 0.02, lit(C.leather, 'leather'), -0.045, -0.02, 0, 0.006))
     const scope = cylinder(0.007, 0.007, 0.06, black, -0.01, 0.055, 0, 8)
     scope.rotation.z = Math.PI / 2
-    g.add(scope, cylinder(0.016, 0.014, 0.02, lit(C.steelDark), 0.1, 0.025, 0, 8).rotateZ(Math.PI / 2))
+    g.add(scope, cylinder(0.016, 0.014, 0.02, lit(C.steelDark, 'metal'), 0.1, 0.025, 0, 8).rotateZ(Math.PI / 2))
   }
   return g
 }
@@ -314,8 +314,8 @@ function pistol(kind: string): THREE.Group {
 /** Pistolet de collection sur un socle, sous une cloche de verre. Modèle : `label`. */
 const blasterStand: Builder = ({ label }) => {
   const g = new THREE.Group()
-  g.add(cylinder(0.1, 0.11, 0.03, lit(C.woodDark), 0, 0.015, 0, 20), cylinder(0.103, 0.103, 0.006, lit(C.gold), 0, 0.033, 0, 20))
-  g.add(box(0.02, 0.06, 0.02, lit(C.gold), 0, 0.066, 0))
+  g.add(cylinder(0.1, 0.11, 0.03, lit(C.woodDark, 'wood'), 0, 0.015, 0, 20), cylinder(0.103, 0.103, 0.006, lit(C.gold, 'metal'), 0, 0.033, 0, 20))
+  g.add(box(0.02, 0.06, 0.02, lit(C.gold, 'metal'), 0, 0.066, 0))
   const gun = pistol(label ?? 'blaster')
   gun.position.set(0, 0.11, 0)
   gun.rotation.set(0, -0.6, 0.15)
@@ -334,7 +334,7 @@ export const ARMOR_METALS: Record<string, [string, string]> = { steel: ['#c7ced8
 const armorStand: Builder = ({ label }) => {
   const [light, dark] = ARMOR_METALS[label ?? ''] ?? ARMOR_METALS.steel
   const g = new THREE.Group()
-  const m = lit(light), d = lit(dark), wood = lit(C.woodDark)
+  const m = lit(light), d = lit(dark), wood = lit(C.woodDark, 'wood')
   g.add(cylinder(0.16, 0.18, 0.04, wood, 0, 0.02, 0, 16), cylinder(0.015, 0.015, 0.2, wood, 0, 0.12, 0, 6))
   // Jambes, cuissots, solerets.
   for (const x of [-0.055, 0.055]) {
@@ -360,7 +360,7 @@ const armorStand: Builder = ({ label }) => {
   g.add(sphere(0.03, lit('#b8322a'), 0, 0.86, -0.02, 8))
   // L'épée, pointe au sol, mains du mannequin sur le pommeau.
   const sw = new THREE.Group()
-  sw.add(box(0.03, 0.34, 0.006, lit('#d6dce4'), 0, 0.17, 0), box(0.11, 0.016, 0.02, d, 0, 0.35, 0), cylinder(0.01, 0.01, 0.07, lit(C.leather), 0, 0.395, 0, 6))
+  sw.add(box(0.03, 0.34, 0.006, lit('#d6dce4'), 0, 0.17, 0), box(0.11, 0.016, 0.02, d, 0, 0.35, 0), cylinder(0.01, 0.01, 0.07, lit(C.leather, 'leather'), 0, 0.395, 0, 6))
   sw.position.set(0, 0.03, 0.12)
   g.add(sw)
   return { solid: g }

@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { renderQuality } from '../quality'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { guessSurface, surfaceKind, withSurface, withSurfaceAttribute, type Surface } from '../surfaces'
 
 /*
  * Boîte à outils commune du mobilier fait main : matériaux partagés, primitives,
@@ -138,22 +139,29 @@ export function disposeFurniture(root: THREE.Object3D) {
   })
 }
 
-/** Matériau mat, éclairé, d'une couleur (partagé). */
-export const lit = (color: string) => sharedMaterial(`lit:${color}`, () => new THREE.MeshLambertMaterial({ color }))
+/**
+ * Matériau mat, éclairé, d'une couleur (partagé) ; `surface` : sa matière (bois, tissu, cuir…,
+ * cf. surfaces.ts). Sans matière, le mobilier fusionné en devine une d'après la couleur (cf. compact).
+ */
+export const lit = (color: string, surface?: Surface) =>
+  sharedMaterial(surface ? `lit:${color}:${surface}` : `lit:${color}`, () => {
+    const m = new THREE.MeshLambertMaterial({ color })
+    return surface ? withSurface(m, surface) : m
+  })
 
 /** Matériau lumineux, insensible à l'éclairage, d'une couleur (partagé). */
 export const glow = (color: string) => sharedMaterial(`glow:${color}`, () => new THREE.MeshBasicMaterial({ color }))
 
-/** Verre ou liquide translucide (jamais fusionné : reste dans `live`). */
+/** Verre ou liquide translucide, avec ses reflets (jamais fusionné : reste dans `live`). */
 export const glass = (color: string, opacity = 0.22) =>
-  sharedMaterial(`glass:${color}:${opacity}`, () => new THREE.MeshLambertMaterial({ color, transparent: true, opacity, depthWrite: false }))
+  sharedMaterial(`glass:${color}:${opacity}`, () => withSurface(new THREE.MeshLambertMaterial({ color, transparent: true, opacity, depthWrite: false }), 'glass'))
 
 /** Couleurs communes aux meubles d'inspiration Elite. */
 export const mat = {
-  steel: lit('#4a505c'),
-  steelDark: lit('#2a2e36'),
-  steelLight: lit('#7a8292'),
-  seat: lit('#1c1f25'),
+  steel: lit('#4a505c', 'metal'),
+  steelDark: lit('#2a2e36', 'metal'),
+  steelLight: lit('#7a8292', 'metal'),
+  seat: lit('#1c1f25', 'leather'),
   trim: lit('#d9741f'),
   canopy: glow('#e0701e'),
   lamp: glow(ED_ORANGE),
@@ -162,8 +170,8 @@ export const mat = {
   lampRed: glow('#ff3b2f'),
 }
 
-/** Matériaux des meubles fusionnés : la couleur de chaque pièce est portée par ses sommets. */
-const litVertex = keepShared(new THREE.MeshLambertMaterial({ vertexColors: true }))
+/** Matériaux des meubles fusionnés : la couleur de chaque pièce, et sa matière, sont portées par ses sommets. */
+const litVertex = keepShared(withSurfaceAttribute(new THREE.MeshLambertMaterial({ vertexColors: true })))
 const glowVertex = keepShared(new THREE.MeshBasicMaterial({ vertexColors: true }))
 
 // ---------------------------------------------------------------- primitives
@@ -225,8 +233,11 @@ export function rng(seed: number): () => number {
  * ainsi 2 appels de dessin, et les meubles non interactifs rejoignent la géométrie du pont.
  * Les pièces texturées (affiches, cadres) restent à part, avec leur matériau : la fusion
  * du pont les regroupe ensuite par texture.
+ * La matière de chaque pièce éclairée (cf. lit) passe aussi dans ses sommets (`aSurf`) ;
+ * @param guess celle des pièces qui n'en ont pas est devinée d'après leur couleur (le mobilier, mais
+ * pas les personnages, dont la peau n'est ni du bois ni du métal)
  */
-export function compact(group: THREE.Object3D): THREE.Group {
+export function compact(group: THREE.Object3D, guess = false): THREE.Group {
   group.updateMatrixWorld(true)
   const parts: Record<'lit' | 'glow', THREE.BufferGeometry[]> = { lit: [], glow: [] }
   const inverse = group.matrixWorld.clone().invert()
@@ -245,11 +256,16 @@ export function compact(group: THREE.Object3D): THREE.Group {
       textured.push(t)
       return
     }
-    for (const name of Object.keys(g.attributes)) if (name !== 'position' && name !== 'normal') g.deleteAttribute(name)
+    for (const name of Object.keys(g.attributes)) if (name !== 'position' && name !== 'normal' && name !== 'aSurf') g.deleteAttribute(name)
     const n = g.attributes.position.count
     const colors = new Float32Array(n * 3)
     for (let i = 0; i < n; i++) colors.set([src.color.r, src.color.g, src.color.b], i * 3)
     g.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+    // Une pièce déjà fusionnée garde ses matières.
+    if (!g.getAttribute('aSurf')) {
+      const surface: Surface | undefined = src.userData.surface ?? (guess && !(src as THREE.MeshBasicMaterial).isMeshBasicMaterial ? guessSurface(src.color) : undefined)
+      g.setAttribute('aSurf', new THREE.BufferAttribute(new Float32Array(n).fill(surfaceKind(surface)), 1))
+    }
     parts[(src as THREE.MeshBasicMaterial).isMeshBasicMaterial ? 'glow' : 'lit'].push(g)
   })
   const out = new THREE.Group()

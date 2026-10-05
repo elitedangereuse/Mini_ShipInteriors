@@ -92,20 +92,20 @@ function neonSign(w: number, h: number) {
 const backBar: Builder = ({ label, random }) => {
   const W = widthOf(label)
   const g = new THREE.Group()
-  const wood = lit(C.wood), dark = lit(C.woodDark)
+  const wood = lit(C.wood, 'wood'), dark = lit(C.woodDark, 'wood')
   // Buffet bas : portes à panneaux, poignées en laiton, dessus ciré.
-  g.add(box(W, 0.32, 0.3, dark, 0, 0.16, 0, 0.01), box(W + 0.02, 0.025, 0.31, lit(C.woodTop), 0, 0.33, 0.005))
+  g.add(box(W, 0.32, 0.3, dark, 0, 0.16, 0, 0.01), box(W + 0.02, 0.025, 0.31, lit(C.woodTop, 'wood'), 0, 0.33, 0.005))
   const doors = Math.max(2, Math.round(W / 0.45))
   for (let i = 0; i < doors; i++) {
     const x = -W / 2 + (i + 0.5) * (W / doors)
-    g.add(box(W / doors - 0.04, 0.24, 0.01, wood, x, 0.16, 0.152), box(0.012, 0.05, 0.012, lit(C.brass), x + (i % 2 ? -1 : 1) * (W / doors / 2 - 0.05), 0.2, 0.162))
+    g.add(box(W / doors - 0.04, 0.24, 0.01, wood, x, 0.16, 0.152), box(0.012, 0.05, 0.012, lit(C.brass, 'metal'), x + (i % 2 ? -1 : 1) * (W / doors / 2 - 0.05), 0.2, 0.162))
   }
   // Miroir du fond et montants.
   g.add(box(W, 0.56, 0.02, lit(C.mirror), 0, 0.62, -0.14))
   for (const x of [-W / 2, 0, W / 2]) g.add(box(0.05, 0.56, 0.18, wood, x - Math.sign(x) * 0.025, 0.62, -0.06))
   // Étagères, liseré de laiton, néon ambré dessous ; les bouteilles se serrent dessus.
   for (const [y, tall] of [[0.47, 0.17], [0.66, 0.14]]) {
-    g.add(box(W - 0.04, 0.02, 0.16, wood, 0, y, -0.06), box(W - 0.04, 0.008, 0.006, lit(C.brass), 0, y + 0.006, 0.022))
+    g.add(box(W - 0.04, 0.02, 0.16, wood, 0, y, -0.06), box(W - 0.04, 0.008, 0.006, lit(C.brass, 'metal'), 0, y + 0.006, 0.022))
     g.add(box(W - 0.1, 0.006, 0.01, glow(C.amber), 0, y - 0.014, 0.0))
     for (let x = -W / 2 + 0.08; x < W / 2 - 0.06; x += 0.055 + random() * 0.03) {
       if (Math.abs(x) < 0.05 || random() < 0.1) continue
@@ -114,13 +114,13 @@ const backBar: Builder = ({ label, random }) => {
   }
   // Sur le buffet : des verres retournés, une caisse enregistreuse, encore quelques bouteilles.
   for (let x = -W / 2 + 0.12; x < -W / 2 + 0.7; x += 0.06) tumbler(g, x, 0.343, 0.06, (x * 100) % 2 < 1)
-  g.add(box(0.2, 0.1, 0.16, lit(C.steel), W / 2 - 0.3, 0.395, 0.04, 0.01), box(0.16, 0.06, 0.01, glow('#7dffa8'), W / 2 - 0.3, 0.42, 0.122))
+  g.add(box(0.2, 0.1, 0.16, lit(C.steel, 'metal'), W / 2 - 0.3, 0.395, 0.04, 0.01), box(0.16, 0.06, 0.01, glow('#7dffa8'), W / 2 - 0.3, 0.42, 0.122))
   for (let x = -W / 2 + 0.78; x < W / 2 - 0.48; x += 0.06 + random() * 0.05) {
     if (random() < 0.15) continue
     bottle(g, x, 0.343, -0.02 + random() * 0.06, BOTTLES[Math.floor(random() * BOTTLES.length)], random, 0.13)
   }
   // Couronne : planche de bois qui porte l'enseigne.
-  g.add(box(W, 0.13, 0.05, dark, 0, 0.965, -0.11, 0.008), box(W, 0.012, 0.06, lit(C.brass), 0, 0.9, -0.11))
+  g.add(box(W, 0.13, 0.05, dark, 0, 0.965, -0.11, 0.008), box(W, 0.012, 0.06, lit(C.brass, 'metal'), 0, 0.9, -0.11))
   const neon = neonSign(Math.min(W * 0.6, 1.4), 0.2)
   neon.sign.position.set(0, 0.965, -0.08)
   const live = new THREE.Group()
@@ -140,30 +140,30 @@ const barCounter: Builder = ({ label, random }) => {
   const g = new THREE.Group()
   // Tapis de service, de 0,25 à 0,85 derrière le comptoir.
   g.add(box(W, 0.01, 0.6, lit(C.rubber), 0, 0.005, -0.55))
-  g.add(box(W - 0.04, 0.46, 0.44, lit(C.woodDark), 0, 0.23, 0, 0.01))
+  g.add(box(W - 0.04, 0.46, 0.44, lit(C.woodDark, 'wood'), 0, 0.23, 0, 0.01))
   // Façade : panneaux de cuir capitonné entre des baguettes de laiton.
   const panels = Math.max(2, Math.round(W / 0.5))
   for (let i = 0; i < panels; i++) {
     const x = -W / 2 + (i + 0.5) * (W / panels)
-    g.add(box(W / panels - 0.05, 0.3, 0.02, lit(C.leather), x, 0.25, 0.225, 0.008))
-    for (const dx of [-0.06, 0.06]) for (const y of [0.2, 0.3]) g.add(sphere(0.008, lit(C.leatherDark), x + dx, y, 0.237, 5))
+    g.add(box(W / panels - 0.05, 0.3, 0.02, lit(C.leather, 'leather'), x, 0.25, 0.225, 0.008))
+    for (const dx of [-0.06, 0.06]) for (const y of [0.2, 0.3]) g.add(sphere(0.008, lit(C.leatherDark, 'leather'), x + dx, y, 0.237, 5))
   }
-  for (let i = 0; i <= panels; i++) g.add(box(0.014, 0.34, 0.014, lit(C.brass), -W / 2 + i * (W / panels), 0.25, 0.235))
-  g.add(box(W - 0.04, 0.06, 0.02, lit(C.woodTop), 0, 0.04, 0.225))
+  for (let i = 0; i <= panels; i++) g.add(box(0.014, 0.34, 0.014, lit(C.brass, 'metal'), -W / 2 + i * (W / panels), 0.25, 0.235))
+  g.add(box(W - 0.04, 0.06, 0.02, lit(C.woodTop, 'wood'), 0, 0.04, 0.225))
   // Dessus ciré, débordant côté clients ; néon ambré sous le rebord.
-  g.add(box(W + 0.06, 0.04, 0.56, lit(C.woodTop), 0, 0.48, 0.03, 0.008))
-  g.add(box(W + 0.07, 0.012, 0.012, lit(C.brass), 0, 0.47, 0.315), box(W - 0.1, 0.008, 0.008, glow(C.amber), 0, 0.45, 0.285))
+  g.add(box(W + 0.06, 0.04, 0.56, lit(C.woodTop, 'wood'), 0, 0.48, 0.03, 0.008))
+  g.add(box(W + 0.07, 0.012, 0.012, lit(C.brass, 'metal'), 0, 0.47, 0.315), box(W - 0.1, 0.008, 0.008, glow(C.amber), 0, 0.45, 0.285))
   // Repose-pieds en laiton sur ses consoles.
-  g.add(barX(0.012, W - 0.1, lit(C.brass), 0, 0.08, 0.3, 8))
-  for (let x = -W / 2 + 0.2; x < W / 2 - 0.1; x += 0.8) g.add(box(0.015, 0.02, 0.08, lit(C.brass), x, 0.08, 0.26))
+  g.add(barX(0.012, W - 0.1, lit(C.brass, 'metal'), 0, 0.08, 0.3, 8))
+  for (let x = -W / 2 + 0.2; x < W / 2 - 0.1; x += 0.8) g.add(box(0.015, 0.02, 0.08, lit(C.brass, 'metal'), x, 0.08, 0.26))
   const top = 0.5
   // Tireuse à bière : colonne chromée, trois becs aux poignées orange Elite.
   const tapX = -W / 2 + 0.45
-  g.add(cylinder(0.03, 0.035, 0.18, lit(C.chrome), tapX, top + 0.09, -0.08, 10), box(0.26, 0.04, 0.06, lit(C.chrome), tapX, top + 0.19, -0.08, 0.01))
+  g.add(cylinder(0.03, 0.035, 0.18, lit(C.chrome, 'metal'), tapX, top + 0.09, -0.08, 10), box(0.26, 0.04, 0.06, lit(C.chrome, 'metal'), tapX, top + 0.19, -0.08, 0.01))
   for (const dx of [-0.08, 0, 0.08]) {
-    g.add(cylinder(0.006, 0.006, 0.04, lit(C.chrome), tapX + dx, top + 0.15, -0.05, 6), box(0.018, 0.07, 0.018, lit('#ff8a1c'), tapX + dx, top + 0.25, -0.08, 0.004))
+    g.add(cylinder(0.006, 0.006, 0.04, lit(C.chrome, 'metal'), tapX + dx, top + 0.15, -0.05, 6), box(0.018, 0.07, 0.018, lit('#ff8a1c'), tapX + dx, top + 0.25, -0.08, 0.004))
   }
-  g.add(box(0.3, 0.01, 0.1, lit(C.steelDark), tapX, top + 0.005, -0.03))
+  g.add(box(0.3, 0.01, 0.1, lit(C.steelDark, 'metal'), tapX, top + 0.005, -0.03))
   // Verres, sous-bocks, un seau à glace et sa bouteille.
   for (let x = -W / 2 + 0.8; x < W / 2 - 0.3; x += 0.35 + random() * 0.4) {
     if (random() < 0.35) continue
@@ -171,7 +171,7 @@ const barCounter: Builder = ({ label, random }) => {
     tumbler(g, x, top + 0.004, 0.14, random() < 0.4)
   }
   const bucketX = W / 2 - 0.45
-  g.add(cylinder(0.06, 0.05, 0.1, lit(C.chrome), bucketX, top + 0.05, -0.06, 12), cylinder(0.055, 0.055, 0.01, lit('#dff2f8'), bucketX, top + 0.095, -0.06, 12))
+  g.add(cylinder(0.06, 0.05, 0.1, lit(C.chrome, 'metal'), bucketX, top + 0.05, -0.06, 12), cylinder(0.055, 0.055, 0.01, lit('#dff2f8'), bucketX, top + 0.095, -0.06, 12))
   bottle(g, bucketX + 0.01, top + 0.03, -0.06, '#2f6b3a', random)
   // Chevalet au nom du barman, tourné vers les clients.
   const card = drawnTexture(256, 96, (c) => {
@@ -192,8 +192,8 @@ const barCounter: Builder = ({ label, random }) => {
 /** Tabouret de bar : pied chromé, repose-pieds, assise de cuir (`label` : 'black' pour du noir). */
 const barStool: Builder = ({ label }) => {
   const g = new THREE.Group()
-  const chrome = lit(C.chrome)
-  const leather = lit(label === 'black' ? '#1f1d1f' : C.leather)
+  const chrome = lit(C.chrome, 'metal')
+  const leather = lit(label === 'black' ? '#1f1d1f' : C.leather, 'leather')
   g.add(cylinder(0.14, 0.15, 0.025, chrome, 0, 0.012, 0, 16), cylinder(0.018, 0.022, 0.36, chrome, 0, 0.19, 0, 8))
   const ring = mesh(new THREE.TorusGeometry(0.1, 0.008, 5, 18), chrome, 0, 0.14, 0)
   ring.rotation.x = Math.PI / 2
@@ -206,7 +206,7 @@ const barStool: Builder = ({ label }) => {
 const barTable: Builder = ({ random, label }) => {
   const g = new THREE.Group()
   const iron = lit(C.black)
-  g.add(cylinder(0.3, 0.3, 0.03, lit(C.woodTop), 0, 0.42, 0, 24), cylinder(0.305, 0.305, 0.012, lit(C.brass), 0, 0.41, 0, 24))
+  g.add(cylinder(0.3, 0.3, 0.03, lit(C.woodTop, 'wood'), 0, 0.42, 0, 24), cylinder(0.305, 0.305, 0.012, lit(C.brass, 'metal'), 0, 0.41, 0, 24))
   g.add(cylinder(0.025, 0.03, 0.4, iron, 0, 0.2, 0, 8))
   for (const a of [0, Math.PI / 2]) {
     const foot = box(0.42, 0.025, 0.04, iron, 0, 0.013, 0)
@@ -226,7 +226,7 @@ const barTable: Builder = ({ random, label }) => {
   }
   // Bougie dans son photophore : la flamme luit.
   g.add(cylinder(0.018, 0.018, 0.04, lit(C.cream), 0, top + 0.02, 0, 8), sphere(0.01, glow('#ffcf6a'), 0, top + 0.05, 0, 6))
-  g.add(cylinder(0.03, 0.028, 0.006, lit(C.brass), 0, top + 0.003, 0, 10))
+  g.add(cylinder(0.03, 0.028, 0.006, lit(C.brass, 'metal'), 0, top + 0.003, 0, 10))
   const seats = 2 + Math.floor(random() * 2)
   for (let i = 0; i < seats; i++) {
     const a = random() * Math.PI * 2
@@ -239,7 +239,7 @@ const barTable: Builder = ({ random, label }) => {
 /** Chaise de bistro : bois sombre, assise de cuir, dossier cintré (côté -z). */
 const barChair: Builder = () => {
   const g = new THREE.Group()
-  const wood = lit(C.woodDark)
+  const wood = lit(C.woodDark, 'wood')
   for (const x of [-0.14, 0.14]) {
     for (const z of [-0.13, 0.13]) {
       const leg = cylinder(0.014, 0.012, 0.24, wood, x, 0.12, z, 6)
@@ -247,7 +247,7 @@ const barChair: Builder = () => {
       g.add(leg)
     }
   }
-  g.add(cylinder(0.18, 0.17, 0.03, wood, 0, 0.235, 0, 16), cylinder(0.165, 0.165, 0.025, lit(C.leather), 0, 0.26, 0, 16))
+  g.add(cylinder(0.18, 0.17, 0.03, wood, 0, 0.235, 0, 16), cylinder(0.165, 0.165, 0.025, lit(C.leather, 'leather'), 0, 0.26, 0, 16))
   // Dossier : deux montants et une traverse courbe.
   for (const x of [-0.13, 0.13]) {
     const post = cylinder(0.012, 0.012, 0.3, wood, x, 0.4, -0.15, 6)
@@ -311,7 +311,7 @@ function jacquesFace() {
  */
 const bartender: Builder = ({ random }) => {
   const g = new THREE.Group()
-  const chrome = lit(C.chrome), enamel = lit('#e3ddcf'), dark = lit(C.steelDark)
+  const chrome = lit(C.chrome, 'metal'), enamel = lit('#e3ddcf'), dark = lit(C.steelDark, 'metal')
   g.add(cylinder(0.16, 0.18, 0.04, dark, 0, 0.02, 0, 16), cylinder(0.12, 0.12, 0.012, glow('#ffb45e'), 0, 0.045, 0, 16))
   g.add(cylinder(0.045, 0.06, 0.28, chrome, 0, 0.18, 0, 10), cylinder(0.07, 0.07, 0.04, dark, 0, 0.32, 0, 12))
 
@@ -329,8 +329,8 @@ const bartender: Builder = ({ random }) => {
     body.add(bow)
   }
   body.add(sphere(0.012, lit('#b0202a'), 0, 0.215, 0.1, 6))
-  for (let i = 0; i < 3; i++) body.add(sphere(0.007, lit(C.brass), 0.035, 0.12 - i * 0.035, 0.093, 5))
-  body.add(box(0.05, 0.016, 0.004, lit(C.brass), -0.06, 0.16, 0.092))
+  for (let i = 0; i < 3; i++) body.add(sphere(0.007, lit(C.brass, 'metal'), 0.035, 0.12 - i * 0.035, 0.093, 5))
+  body.add(box(0.05, 0.016, 0.004, lit(C.brass, 'metal'), -0.06, 0.16, 0.092))
   body.add(cylinder(0.035, 0.04, 0.05, dark, 0, 0.26, 0, 10))
   upper.add(compact(body))
   // Tête : un écran pour visage, des oreilles d'antenne, un béret.
@@ -360,7 +360,7 @@ const bartender: Builder = ({ random }) => {
     elbow.position.y = -0.13
     shoulder.add(elbow)
     const fore = new THREE.Group()
-    fore.add(sphere(0.028, dark, 0, 0, 0, 8), box(0.045, 0.11, 0.045, lit(C.chrome), 0, -0.06, 0, 0.012))
+    fore.add(sphere(0.028, dark, 0, 0, 0, 8), box(0.045, 0.11, 0.045, lit(C.chrome, 'metal'), 0, -0.06, 0, 0.012))
     for (const dx of [-0.018, 0.018]) fore.add(box(0.012, 0.035, 0.03, dark, dx, -0.13, 0))
     elbow.add(compact(fore))
     const hand = new THREE.Group()
@@ -371,7 +371,7 @@ const bartender: Builder = ({ random }) => {
   const [left, right] = arms
   // Shaker : timbale chromée et son couvercle.
   const shaker = new THREE.Group()
-  shaker.add(cylinder(0.03, 0.024, 0.09, lit(C.chrome), 0, -0.03, 0, 10), cylinder(0.022, 0.03, 0.04, lit('#dfe4ea'), 0, 0.03, 0, 10))
+  shaker.add(cylinder(0.03, 0.024, 0.09, lit(C.chrome, 'metal'), 0, -0.03, 0, 10), cylinder(0.022, 0.03, 0.04, lit('#dfe4ea'), 0, 0.03, 0, 10))
   right.hand.add(shaker)
   const rag = box(0.07, 0.012, 0.07, lit('#f2efe6'), 0, -0.01, 0.02)
   right.hand.add(rag)

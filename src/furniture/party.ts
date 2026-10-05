@@ -62,8 +62,8 @@ const danceFloor: Builder = ({ label = 'disco' }) => {
   const g = new THREE.Group()
   g.add(box(W + 0.04, 0.012, D + 0.04, lit(C.black), 0, 0.006, 0))
   for (const s of [-1, 1]) {
-    g.add(box(W + 0.06, 0.02, 0.025, lit(C.chrome), 0, 0.01, s * (D / 2 + 0.02)))
-    g.add(box(0.025, 0.02, D + 0.06, lit(C.chrome), s * (W / 2 + 0.02), 0.01, 0))
+    g.add(box(W + 0.06, 0.02, 0.025, lit(C.chrome, 'metal'), 0, 0.01, s * (D / 2 + 0.02)))
+    g.add(box(0.025, 0.02, D + 0.06, lit(C.chrome, 'metal'), s * (W / 2 + 0.02), 0.01, 0))
   }
   const tiles = new THREE.InstancedMesh(new THREE.BoxGeometry(tile - 0.022, 0.006, tile - 0.022), new THREE.MeshBasicMaterial(), nx * nz)
   tiles.frustumCulled = false
@@ -142,8 +142,8 @@ const SPECKS = 96
  */
 const discoBall: Builder = ({ random, room }) => {
   const g = new THREE.Group()
-  g.add(cylinder(0.035, 0.035, 0.012, lit(C.steel), 0, 1.0, 0, 12), box(0.045, 0.035, 0.045, lit(C.steel), 0, 0.975, 0))
-  g.add(cylinder(0.003, 0.003, 0.05, lit(C.chrome), 0, 0.93, 0, 4))
+  g.add(cylinder(0.035, 0.035, 0.012, lit(C.steel, 'metal'), 0, 1.0, 0, 12), box(0.045, 0.035, 0.045, lit(C.steel, 'metal'), 0, 0.975, 0))
+  g.add(cylinder(0.003, 0.003, 0.05, lit(C.chrome, 'metal'), 0, 0.93, 0, 4))
   const live = new THREE.Group()
   const ball = part(new THREE.SphereGeometry(BALL_R, 24, 16), new THREE.MeshBasicMaterial({ map: mirrorTexture() }), 0, BALL_Y, 0)
   live.add(ball)
@@ -274,11 +274,11 @@ const djBooth: Builder = () => {
   g.add(box(0.92, 0.42, 0.38, lit(C.black), 0, 0.21, 0, 0.01), box(0.96, 0.025, 0.42, lit(C.panel), 0, 0.432, 0))
   const decks: THREE.Group[] = []
   for (const [x, color] of [[-0.29, '#ff4fd8'], [0.29, '#39e0ff']] as const) {
-    g.add(box(0.3, 0.035, 0.3, lit(C.steel), x, 0.462, 0, 0.006))
+    g.add(box(0.3, 0.035, 0.3, lit(C.steel, 'metal'), x, 0.462, 0, 0.006))
     // Bras de lecture.
-    const arm = box(0.012, 0.012, 0.13, lit(C.chrome), x + 0.11, 0.49, 0.02)
+    const arm = box(0.012, 0.012, 0.13, lit(C.chrome, 'metal'), x + 0.11, 0.49, 0.02)
     arm.rotation.y = 0.35
-    g.add(arm, cylinder(0.014, 0.014, 0.02, lit(C.chrome), x + 0.12, 0.49, -0.05, 8))
+    g.add(arm, cylinder(0.014, 0.014, 0.02, lit(C.chrome, 'metal'), x + 0.12, 0.49, -0.05, 8))
     const platter = new THREE.Group()
     platter.position.set(x - 0.02, 0.482, 0)
     platter.add(part(new THREE.CylinderGeometry(0.115, 0.115, 0.006, 32), vinylMaterial(color)))
@@ -286,8 +286,8 @@ const djBooth: Builder = () => {
   }
   // Table de mixage : curseurs et boutons.
   g.add(box(0.2, 0.045, 0.28, lit('#1c1c24'), 0, 0.466, 0))
-  for (let i = 0; i < 3; i++) g.add(box(0.01, 0.006, 0.07, lit('#0c0c10'), -0.05 + i * 0.05, 0.491, 0.07), box(0.022, 0.012, 0.014, lit(C.chrome), -0.05 + i * 0.05, 0.495, 0.07 - i * 0.02))
-  for (let i = 0; i < 4; i++) g.add(cylinder(0.011, 0.011, 0.012, lit(C.chrome), -0.06 + i * 0.04, 0.494, -0.02, 10))
+  for (let i = 0; i < 3; i++) g.add(box(0.01, 0.006, 0.07, lit('#0c0c10'), -0.05 + i * 0.05, 0.491, 0.07), box(0.022, 0.012, 0.014, lit(C.chrome, 'metal'), -0.05 + i * 0.05, 0.495, 0.07 - i * 0.02))
+  for (let i = 0; i < 4; i++) g.add(cylinder(0.011, 0.011, 0.012, lit(C.chrome, 'metal'), -0.06 + i * 0.04, 0.494, -0.02, 10))
   // Casque posé sur le bord.
   const band = mesh(new THREE.TorusGeometry(0.05, 0.008, 6, 16, Math.PI), lit('#2a2a33'), 0.4, 0.46, 0.12)
   band.rotation.set(-Math.PI / 2, 0, 0.4)
@@ -444,7 +444,7 @@ function jukeboxMaterials() {
  */
 const jukebox: Builder = ({ random }) => {
   const g = new THREE.Group()
-  const wood = lit(C.wood), dark = lit(C.woodDark), chrome = lit(C.chrome)
+  const wood = lit(C.wood, 'wood'), dark = lit(C.woodDark, 'wood'), chrome = lit(C.chrome, 'metal')
   const { grille, cards, backlight } = jukeboxMaterials()
   const FRONT = 0.15
   // Socle et meuble : une arche extrudée aux arêtes arrondies (0,52 × 0,30, 0,88 de haut).
@@ -569,7 +569,7 @@ const speaker: Builder = ({ label = 'black' }) => {
   cone.rotation.x = -Math.PI / 2
   const dust = part(new THREE.SphereGeometry(0.028, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), lit('#1c1c22'), 0, 0.2, -0.012)
   dust.rotation.x = Math.PI / 2
-  const tweeter = part(new THREE.SphereGeometry(0.026, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), lit(C.chrome), 0, 0.44, -0.004)
+  const tweeter = part(new THREE.SphereGeometry(0.026, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), lit(C.chrome, 'metal'), 0, 0.44, -0.004)
   tweeter.rotation.x = Math.PI / 2
   const ringMat = new THREE.MeshBasicMaterial({ color: s.ring })
   const ring = part(new THREE.TorusGeometry(0.102, 0.004, 6, 32), ringMat, 0, 0.2, 0)
@@ -608,7 +608,7 @@ const laser: Builder = ({ label = 'green' }) => {
   const color = LASERS[label] ?? LASERS.green
   const g = new THREE.Group()
   g.add(box(0.12, 0.07, 0.13, lit(C.black), 0, 0.035, 0, 0.008))
-  for (const x of [-0.035, 0.035]) g.add(box(0.01, 0.03, 0.06, lit(C.steel), x, 0.075, -0.02))
+  for (const x of [-0.035, 0.035]) g.add(box(0.01, 0.03, 0.06, lit(C.steel, 'metal'), x, 0.075, -0.02))
   const lens = cylinder(0.014, 0.014, 0.01, glow(color), 0, 0.04, 0.066, 12)
   lens.rotation.x = Math.PI / 2
   g.add(lens)
@@ -648,11 +648,11 @@ const stageLight: Builder = ({ random }) => {
   for (let i = 0; i < 3; i++) {
     const a = (i / 3) * Math.PI * 2
     // Pieds écartés en bas, réunis sous le mât.
-    const leg = cylinder(0.008, 0.008, 0.36, lit(C.steel), Math.cos(a) * 0.1, 0.17, Math.sin(a) * 0.1, 6)
+    const leg = cylinder(0.008, 0.008, 0.36, lit(C.steel, 'metal'), Math.cos(a) * 0.1, 0.17, Math.sin(a) * 0.1, 6)
     leg.rotation.set(-Math.sin(a) * 0.5, 0, Math.cos(a) * 0.5)
     g.add(leg)
   }
-  g.add(cylinder(0.012, 0.012, 0.22, lit(C.steel), 0, 0.42, 0, 8), box(0.14, 0.05, 0.12, lit(C.black), 0, 0.555, 0, 0.01))
+  g.add(cylinder(0.012, 0.012, 0.22, lit(C.steel, 'metal'), 0, 0.42, 0, 8), box(0.14, 0.05, 0.12, lit(C.black), 0, 0.555, 0, 0.01))
   const live = new THREE.Group()
   const yoke = new THREE.Group()
   yoke.position.y = 0.58

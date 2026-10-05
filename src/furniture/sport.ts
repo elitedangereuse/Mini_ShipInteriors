@@ -94,7 +94,7 @@ const NET = () => drawnTexture(128, 64, (c) => {
  */
 const basketHoop: Builder = () => {
   const solid = new THREE.Group(), live = new THREE.Group(), cart = new THREE.Group()
-  const steel = lit(C.steel), dark = lit(C.steelDark)
+  const steel = lit(C.steel, 'metal'), dark = lit(C.steelDark, 'metal')
   const rail = TARGET_TRAVEL * 2 + 0.5
   for (const y of [0.62, 0.92]) solid.add(box(rail, 0.045, 0.05, steel, 0, y, 0.03))
   for (const x of [-rail / 2, rail / 2]) solid.add(box(0.06, 0.4, 0.07, dark, x, 0.77, 0.035))
@@ -202,7 +202,7 @@ const GOAL_NET = () => {
  */
 const footGoal: Builder = () => {
   const solid = new THREE.Group(), live = new THREE.Group(), cart = new THREE.Group()
-  const white = lit(C.white), steel = lit(C.steel)
+  const white = lit(C.white), steel = lit(C.steel, 'metal')
   const { half, height, lineZ, post } = GOAL
   for (const x of [-half - post, half + post]) {
     solid.add(cylinder(post, post, height + post, white, x, (height + post) / 2, lineZ, 10))
@@ -235,7 +235,7 @@ const footGoal: Builder = () => {
     new THREE.MeshLambertMaterial({ map: KEEPER(), transparent: true, alphaTest: 0.5, side: THREE.DoubleSide }),
     0, keeperH / 2 + 0.05, 0,
   )
-  cart.add(card, box(0.3, 0.05, 0.14, lit(C.steelDark), 0, 0.045, 0), box(0.04, 0.34, 0.03, lit(C.cardboard), 0, 0.2, -0.02))
+  cart.add(card, box(0.3, 0.05, 0.14, lit(C.steelDark, 'metal'), 0, 0.045, 0), box(0.04, 0.34, 0.03, lit(C.cardboard), 0, 0.2, -0.02))
   cart.position.z = keeperZ
   live.add(cart)
   let now = 0, struck = -10
@@ -335,8 +335,8 @@ const shootSpot: Builder = ({ label }) => {
 const ballRack: Builder = ({ label }) => {
   const game = label === 'foot' ? 'gym-foot' : 'gym-basket'
   const g = new THREE.Group()
-  const steel = lit(C.steel), r = BALL_RADIUS[game]
-  for (const x of [-0.3, 0.3]) for (const z of [-0.11, 0.11]) g.add(cylinder(0.014, 0.014, 0.5, steel, x, 0.27, z, 6), cylinder(0.025, 0.025, 0.03, lit(C.steelDark), x, 0.015, z, 8))
+  const steel = lit(C.steel, 'metal'), r = BALL_RADIUS[game]
+  for (const x of [-0.3, 0.3]) for (const z of [-0.11, 0.11]) g.add(cylinder(0.014, 0.014, 0.5, steel, x, 0.27, z, 6), cylinder(0.025, 0.025, 0.03, lit(C.steelDark, 'metal'), x, 0.015, z, 8))
   for (const y of [0.16, 0.42]) {
     for (const z of [-0.11, 0.11]) g.add(barX(0.012, 0.6, steel, 0, y, z, 6))
     for (let i = 0; i < 3; i++) {
