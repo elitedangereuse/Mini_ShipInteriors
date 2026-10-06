@@ -1418,17 +1418,27 @@ export const LEVELS: LevelDef[] = [
       },
 
       // --- Toilettes : trois cabines contre le mur nord, dont la porte se referme sur l'occupant
-      // (cf. updateStalls dans main.ts) ; deux lavabos de part et d'autre de l'entrée.
+      // (cf. updateStalls dans main.ts) ; deux lavabos de part et d'autre de l'entrée. Tout est
+      // blanc : carrelage en damier au sol, faïence à mi-hauteur aux murs ouest et est, cabines,
+      // portes et meubles peints.
+      { model: 'tile-floor', x: 14, z: 2, label: '2.7x2.7', solid: false },
+      { model: 'tile-wall', x: 12.65, z: 2.6, rot: 1, label: '1.75', solid: false },
+      { model: 'tile-wall', x: 15.35, z: 2.6, rot: 3, label: '1.75', solid: false },
+      {
+        model: 'hand-dryer', x: 15.35, z: 2.05, rot: 3, solid: false,
+        interact: tr('Le sèche-mains souffle un air tiède, puis s\'arrête exactement une seconde trop tôt.', 'The hand dryer blows warm air, then stops exactly one second too soon.'),
+      },
+      { model: 'bath-bin', x: 13.02, z: 3.25, solid: false },
       ...([13.1, 14, 14.9] as const).map((x): Prop => ({
-        model: 'toilet-stall', x, z: 1.15,
+        model: 'toilet-stall', x, z: 1.15, label: 'white',
         interact: tr('Toilettes à dépression. Ne pas utiliser pendant un saut FSD.', 'Vacuum toilet. Do not use during an FSD jump.'),
       })),
       {
-        model: 'sink', x: 12.88, z: 2.85, rot: 1,
+        model: 'sink', x: 12.88, z: 2.85, rot: 1, label: 'white',
         interact: tr('Lavabo : le miroir affiche la météo de la station la plus proche.', 'Washbasin: the mirror shows the weather at the nearest station.'),
       },
       {
-        model: 'sink', x: 15.12, z: 2.85, rot: 3,
+        model: 'sink', x: 15.12, z: 2.85, rot: 3, label: 'white',
         interact: tr('Lavabo : un filet d\'eau recyclée, tiède. Mieux vaut ne pas demander recyclée d\'où.', 'Washbasin: a trickle of lukewarm recycled water. Best not to ask recycled from where.'),
       },
       { model: 'rug', x: 14, z: 2.45, label: 'bath:1.2x0.7', solid: false },

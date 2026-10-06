@@ -3,7 +3,7 @@ import { cobraGeometry } from './cobra'
 import { tr } from '../i18n'
 import { renderQuality } from '../quality'
 import {
-  barX, barZ, box, cylinder, drawnTexture, ED_ORANGE, glass, glow, holoMaterial, instanced, lit, mesh, part, setInstance, sphere, type Builder, type StallControl,
+  barX, barZ, box, cylinder, decal, drawnTexture, ED_ORANGE, glass, glow, holoMaterial, instanced, lit, mesh, part, setInstance, sphere, type Builder, type StallControl,
 } from './kit'
 
 /*
@@ -633,10 +633,12 @@ const bathScale: Builder = () => {
   return { solid: g }
 }
 
-/** Lavabo sur meuble, miroir, gobelet. */
-const sink: Builder = () => {
+/** Lavabo sur meuble, miroir, gobelet. `label` « white » : meuble laqué blanc, poignées chromées (les toilettes). */
+const sink: Builder = ({ label }) => {
   const g = new THREE.Group()
-  g.add(box(0.6, 0.34, 0.4, lit(C.wood, 'wood'), 0, 0.17, 0, 0.02), box(0.62, 0.04, 0.42, lit(C.white), 0, 0.36, 0))
+  const white = label === 'white'
+  g.add(box(0.6, 0.34, 0.4, white ? lit('#ffffff') : lit(C.wood, 'wood'), 0, 0.17, 0, 0.02), box(0.62, 0.04, 0.42, lit(C.white), 0, 0.36, 0))
+  if (white) for (const x of [-0.15, 0.15]) g.add(box(0.26, 0.26, 0.006, lit('#f4f6f8'), x, 0.17, 0.2), box(0.012, 0.07, 0.012, lit(C.chrome, 'metal'), x * 0.2, 0.2, 0.208))
   g.add(box(0.36, 0.05, 0.24, lit(C.white), 0, 0.395, 0.03, 0.02), box(0.28, 0.01, 0.18, lit('#8ec5cf'), 0, 0.42, 0.03))
   g.add(cylinder(0.01, 0.01, 0.08, lit(C.chrome, 'metal'), 0, 0.42, -0.12, 6), barZ(0.008, 0.08, lit(C.chrome, 'metal'), 0, 0.46, -0.09, 6))
   g.add(box(0.46, 0.4, 0.03, lit('#dfe3e8'), 0, 0.68, -0.18), box(0.4, 0.34, 0.005, lit('#bcd7e3'), 0, 0.68, -0.163))
@@ -663,7 +665,9 @@ const STALL_OPEN = -1.75
  */
 const toiletStall: Builder = (o) => {
   const g = new THREE.Group()
-  const panel = lit(C.cream), chrome = lit(C.chrome, 'metal')
+  // `label` « white » : cloisons et porte peintes en blanc, plaque chromée (les toilettes du pont supérieur).
+  const white = o.label === 'white'
+  const panel = lit(white ? '#f7f8fa' : C.cream), chrome = lit(C.chrome, 'metal')
   const W = 0.9, D = 1, H = 0.92, GAP = 0.07, T = 0.03, LEAF = 0.5
   const jamb = (W - LEAF) / 2, h = H - GAP, y = GAP + h / 2, front = (D - T) / 2
   for (const s of [-1, 1]) {
@@ -681,7 +685,14 @@ const toiletStall: Builder = (o) => {
   const hinge = new THREE.Group()
   hinge.position.set(-LEAF / 2, 0, front)
   hinge.rotation.y = STALL_OPEN
-  hinge.add(box(LEAF - 0.01, h, T, lit(C.wood, 'wood'), LEAF / 2, y, 0), box(0.02, 0.07, 0.03, chrome, LEAF - 0.06, 0.45, 0.025))
+  hinge.add(box(LEAF - 0.01, h, T, white ? lit('#ffffff') : lit(C.wood, 'wood'), LEAF / 2, y, 0), box(0.02, 0.07, 0.03, chrome, LEAF - 0.06, 0.45, 0.025))
+  // Peinte : un cadre en creux, comme une porte à panneau, et sa plaque.
+  if (white) {
+    const groove = lit('#dfe4ea')
+    for (const dy of [-0.3, 0.3]) hinge.add(box(LEAF - 0.11, 0.008, 0.004, groove, LEAF / 2, y + dy, T / 2 + 0.001))
+    for (const dx of [-0.2, 0.2]) hinge.add(box(0.008, 0.6, 0.004, groove, LEAF / 2 + dx, y, T / 2 + 0.001))
+    hinge.add(box(0.1, 0.05, 0.006, chrome, LEAF / 2, 0.72, T / 2 + 0.003))
+  }
   const free = box(0.05, 0.05, 0.01, glow('#7dffa8'), (W - jamb) / 2, 0.66, D / 2)
   const busy = box(0.05, 0.05, 0.01, glow('#ff5a5a'), (W - jamb) / 2, 0.66, D / 2)
   busy.visible = false
@@ -702,6 +713,75 @@ const toiletStall: Builder = (o) => {
       free.visible = !control.shut
     },
   }
+}
+
+/**
+ * Carrelage de sol (`label` : largeur × profondeur) : petits carreaux blancs en damier avec un
+ * carreau bleu pâle, joints gris, et une frise bleue le long des murs.
+ */
+const tileFloor: Builder = ({ label = '2.7x2.7' }) => {
+  const [w, d] = label.split('x').map(Number)
+  const W = Math.round(w * 100), H = Math.round(d * 100), cell = 15
+  const floor = decal(drawnTexture(W, H, (c) => {
+    c.fillStyle = '#b9c4cc'
+    c.fillRect(0, 0, W, H)
+    for (let j = 0; j * cell < H; j++) {
+      for (let i = 0; i * cell < W; i++) {
+        c.fillStyle = (i + j) % 2 ? '#f4f7f9' : '#cfe6ee'
+        c.fillRect(i * cell + 1, j * cell + 1, cell - 1.5, cell - 1.5)
+      }
+    }
+    c.strokeStyle = '#5f9db3'
+    c.lineWidth = 5
+    c.strokeRect(9, 9, W - 18, H - 18)
+  }), w, d)
+  ;(floor.material as THREE.MeshLambertMaterial).transparent = false
+  const g = new THREE.Group()
+  g.add(floor)
+  return { solid: g }
+}
+
+let wallTiles: THREE.Texture | undefined
+
+/**
+ * Faïence murale, à mi-hauteur (`label` : longueur) : carreaux blancs posés en brique, une
+ * frise bleue et une baguette au-dessus. Accrochée, dos au mur.
+ */
+const tileWall: Builder = ({ label }) => {
+  const len = Math.min(4, Math.max(0.4, Number(label) || 1))
+  wallTiles ??= drawnTexture(128, 128, (c) => {
+    c.fillStyle = '#c3cdd4'
+    c.fillRect(0, 0, 128, 128)
+    for (let j = 0; j < 8; j++) {
+      for (let i = -1; i < 4; i++) {
+        c.fillStyle = j === 7 ? '#5f9db3' : '#fbfcfd'
+        c.fillRect(i * 32 + (j % 2 ? 16 : 0) + 1, 128 - (j + 1) * 16 + 1, 30, 14)
+      }
+    }
+  })
+  wallTiles.wrapS = THREE.RepeatWrapping
+  const map = wallTiles.clone()
+  map.repeat.set(len / 0.64, 1)
+  map.needsUpdate = true
+  const g = new THREE.Group()
+  g.add(mesh(new THREE.PlaneGeometry(len, 0.64), new THREE.MeshLambertMaterial({ map }), 0, 0.34, 0.006))
+  g.add(box(len, 0.025, 0.02, lit('#ffffff'), 0, 0.67, 0.01, 0.006))
+  return { solid: g }
+}
+
+/** Sèche-mains mural : coque blanche, buse chromée, voyant bleu. */
+const handDryer: Builder = () => {
+  const g = new THREE.Group()
+  g.add(box(0.24, 0.26, 0.13, lit('#ffffff'), 0, 0.62, 0.065, 0.03), box(0.12, 0.03, 0.06, lit(C.chrome, 'metal'), 0, 0.485, 0.08, 0.01))
+  g.add(sphere(0.012, glow('#8ff0ff'), 0.07, 0.7, 0.132, 6), box(0.1, 0.012, 0.004, lit('#dfe4ea'), -0.02, 0.66, 0.132))
+  return { solid: g }
+}
+
+/** Poubelle à pédale, chromée. */
+const bathBin: Builder = () => {
+  const g = new THREE.Group()
+  g.add(cylinder(0.085, 0.075, 0.22, lit(C.chrome, 'metal'), 0, 0.11, 0, 14), cylinder(0.09, 0.09, 0.02, lit('#ffffff'), 0, 0.23, 0, 14), box(0.06, 0.012, 0.05, lit('#2a2e36'), 0, 0.01, 0.09))
+  return { solid: g }
 }
 
 // ---------------------------------------------------------------- serre et coins détente
@@ -907,6 +987,10 @@ export const COZY = {
   'towel-rail': towelRail,
   'bath-cabinet': bathCabinet,
   'bath-scale': bathScale,
+  'tile-floor': tileFloor,
+  'tile-wall': tileWall,
+  'hand-dryer': handDryer,
+  'bath-bin': bathBin,
   'hydro-rack': hydroRack,
   'plant-wall': plantWall,
   'potting-bench': pottingBench,
