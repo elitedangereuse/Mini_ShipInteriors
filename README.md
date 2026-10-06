@@ -2,7 +2,6 @@
 
 <p align="center">
   <strong>Un vaisseau spatial isométrique et multijoueur, jouable directement dans le navigateur.</strong><br>
-  Trois ponts à explorer entre CMDR, des quartiers à aménager et où recevoir, des crédits à gagner (tâches de bord, bornes d'arcade) et à dépenser, un jukebox, un mode photo, un Holo-Me pour changer d'apparence, et Comète, le chat du bord.
 </p>
 
 <p align="center">
