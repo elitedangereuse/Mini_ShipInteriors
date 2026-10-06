@@ -1353,7 +1353,25 @@ export const LEVELS: LevelDef[] = [
         model: 'class-board', x: 7.65, z: 2, rot: 1, solid: false, action: tr('Lire le tableau', 'Read the board'),
         interact: tr('« Leçon du jour », souligné deux fois. Et dans un coin, à la craie jaune : « Interro surprise ».', '“Today\'s lesson”, underlined twice. And in a corner, in yellow chalk: “Pop quiz”.'),
       },
-      { model: 'wall-clock', x: 7.65, z: 2, rot: 1, y: 0.5, solid: false },
+      { model: 'wall-clock', x: 7.65, z: 2.7, rot: 1, y: 0.5, solid: false },
+      {
+        model: 'class-speaker', x: 7.65, z: 1.3, rot: 1, solid: false,
+        interact: tr('Le haut-parleur grésille : « Les élèves surpris à lancer des avions en papier en supercruise seront convoqués sur la passerelle. »', 'The speaker crackles: “Students caught throwing paper planes in supercruise will be summoned to the bridge.”'),
+      },
+      // Le parquet, son estrade et le soleil des fenêtres ; un rideau à chaque trumeau du mur nord.
+      { model: 'class-floor', x: 10, z: 2, label: '4.7x2.7', solid: false },
+      ...([7.62, 8.5, 9.5, 10.5, 11.5, 12.38] as const).map((x): Prop => ({ model: 'class-curtain', x, z: 0.65, solid: false })),
+      {
+        model: 'class-notice', x: 11, z: 3.35, rot: 2, solid: false,
+        interact: [
+          tr('L\'emploi du temps : lundi, navigation ; mardi, histoire de la Bulle ; mercredi, thargoïde deuxième langue.', 'The timetable: Monday, navigation; Tuesday, history of the Bubble; Wednesday, Thargoid as a second language.'),
+          tr('Un avis punaisé : « Le club d\'exobiologie cherche des volontaires. Et son hamster. »', 'A pinned notice: “The exobiology club is looking for volunteers. And for its hamster.”'),
+        ],
+      },
+      {
+        model: 'class-locker', x: 12.24, z: 0.84, rot: 3,
+        interact: tr('L\'armoire à balais. De corvée cette semaine, d\'après la liste : « Tom ». Toutes les semaines, d\'après la liste.', 'The broom cupboard. On cleaning duty this week, according to the list: “Tom”. Every week, according to the list.'),
+      },
       { model: 'class-podium', x: 8.6, z: 2, rot: 1 },
       {
         model: 'class-teacher', x: 8.1, z: 2, rot: 1, label: 'human.female.e', action: tr('Parler à la professeure Kepler', 'Talk to Professor Kepler'),
@@ -1860,6 +1878,8 @@ export const LEVELS: LevelDef[] = [
     lights: [
       [12, 4.6, '#ffd9a8', 2],
       [9.6, 2, '#ffcf99', 2.2],
+      // Le soleil des fenêtres de la salle de classe.
+      [11, 1.2, '#ffe6b8', 1.8],
       [14, 2.2, '#e6f6ff', 2],
       // Le planétarium : le soleil de l'hologramme, et les lueurs bleue et violette de la coupole.
       [11.5, 9.5, '#ffd58a', 2],
