@@ -11,6 +11,7 @@
 // Avec ?thargoid : le Thargoïde de la zone thargoïde dans chacune de ses humeurs, sur place, à côté
 // d'un CMDR pour l'échelle (&dark : dans le noir, à la lampe frontale ; &at=1.2 : figé ; &only=chase,attack).
 // Avec ?mechanic : Nico, le mécano du hangar, et le Mini Character dont il est fait (mêmes options que ?nurse).
+// Avec ?gardener : Capucine, la jardinière de la serre, et le Mini Character dont elle est faite (mêmes options que ?nurse).
 // Avec ?nurse : Betty, l'infirmière, à côté du modèle d'origine (&walk : en marche ; &emote=interact ;
 // &cam=0,0.3,1&target=0,0.1,0&zoom=0.5 : de face, de près).
 // Avec ?parcelle : la parcelle du pont des quartiers (housing v2) : les types de murs et de portes,
@@ -31,6 +32,7 @@ import { tempo } from '../tempo'
 import { ThargoidBody, type ThargoidMood } from '../salvage/thargoid'
 import { nurseRig } from '../nurse'
 import { mechanicRig } from '../mechanic'
+import { gardenerRig } from '../gardener'
 import { Plasters } from '../infirmary'
 import { HAIR_STYLES } from '../../shared/look-style.js'
 import { Deck } from '../deck'
@@ -93,7 +95,8 @@ if (params.has('catalogue')) showCatalogue()
 else if (params.has('revetements')) showFinishes()
 else if (params.has('poses')) await showPoses()
 else if (params.has('nurse')) await showNurse()
-else if (params.has('mechanic')) await showNurse(true)
+else if (params.has('mechanic')) await showNurse(mechanicRig, 'human.male.d')
+else if (params.has('gardener')) await showNurse(gardenerRig, 'human.female.d')
 else if (params.has('emote')) await showEmote(params.get('emote')!)
 else if (params.has('thargoid')) await showThargoid()
 else if (params.has('holo')) await showHolo()
@@ -139,9 +142,9 @@ async function showHolo() {
 }
 
 /** Betty, l'infirmière (cf. src/nurse.ts), et le Mini Character dont elle est faite. */
-async function showNurse(mechanic = false) {
-  const betty = new Avatar(mechanic ? await mechanicRig() : await nurseRig())
-  const base = new Avatar(await lookRig(parseLook(mechanic ? 'human.male.d' : 'human.female.f')))
+async function showNurse(rig: () => ReturnType<typeof nurseRig> = nurseRig, look = 'human.female.f') {
+  const betty = new Avatar(await rig())
+  const base = new Avatar(await lookRig(parseLook(look)))
   betty.root.position.set(-0.45, -0.35, 0)
   base.root.position.set(0.45, -0.35, 0)
   scene.add(betty.root, base.root)

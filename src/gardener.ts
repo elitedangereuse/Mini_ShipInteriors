@@ -85,20 +85,31 @@ function addGardenGear(root: THREE.Object3D) {
     const hb = boxInBone(headMesh, head)
     const size = hb.getSize(new THREE.Vector3())
     const center = hb.getCenter(new THREE.Vector3())
-    // Chapeau de paille : large bord, calotte, ruban terracotta et deux fleurs.
-    const brim = new THREE.Mesh(new THREE.CylinderGeometry(size.x * 0.74, size.x * 0.78, size.y * 0.04, 24), straw)
-    brim.position.set(center.x, hb.max.y - size.y * 0.02, center.z)
-    brim.rotation.x = -0.08
-    const crown = new THREE.Mesh(new THREE.CylinderGeometry(size.x * 0.42, size.x * 0.5, size.y * 0.3, 18), straw)
-    crown.position.set(center.x, hb.max.y + size.y * 0.13, center.z)
-    const ribbon = new THREE.Mesh(new THREE.CylinderGeometry(size.x * 0.505, size.x * 0.505, size.y * 0.07, 18), band)
-    ribbon.position.set(center.x, hb.max.y + size.y * 0.02, center.z)
-    head.add(brim, crown, ribbon)
-    for (const [dx, color] of [[0.3, '#ff6ad5'], [0.42, '#ffffff']] as const) {
-      const flower = new THREE.Mesh(new THREE.SphereGeometry(size.x * 0.09, 8, 6), new THREE.MeshLambertMaterial({ color }))
-      flower.position.set(center.x + size.x * dx, hb.max.y + size.y * 0.05, center.z + size.z * 0.3)
-      head.add(flower)
+    // Le modèle porte un chignon, plus haut que le crâne et en arrière : le chapeau se pose sur le
+    // crâne (le haut de la moitié avant de la tête), et sa calotte, reculée, coiffe le chignon.
+    const pos = headMesh.geometry.getAttribute('position'), v = new THREE.Vector3()
+    let skull = hb.min.y
+    for (let i = 0; i < pos.count; i++) {
+      head.worldToLocal(v.fromBufferAttribute(pos, i).applyMatrix4(headMesh.matrixWorld))
+      if (v.z > center.z) skull = Math.max(skull, v.y)
     }
+    const hat = new THREE.Group()
+    hat.position.set(center.x, skull - size.y * 0.05, center.z - size.z * 0.04)
+    hat.rotation.x = -0.1
+    // Chapeau de paille : large bord, calotte, ruban terracotta et deux fleurs.
+    const tall = hb.max.y - skull + size.y * 0.12
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(size.x * 0.72, size.x * 0.76, size.y * 0.035, 24), straw)
+    const crown = new THREE.Mesh(new THREE.CylinderGeometry(size.x * 0.44, size.x * 0.49, tall, 18), straw)
+    crown.position.set(0, tall / 2, -size.z * 0.05)
+    const ribbon = new THREE.Mesh(new THREE.CylinderGeometry(size.x * 0.488, size.x * 0.496, size.y * 0.07, 18), band)
+    ribbon.position.set(0, size.y * 0.05, -size.z * 0.05)
+    hat.add(brim, crown, ribbon)
+    for (const [a, color] of [[0.55, '#ff6ad5'], [0.95, '#ffffff']] as const) {
+      const flower = new THREE.Mesh(new THREE.SphereGeometry(size.x * 0.085, 8, 6), new THREE.MeshLambertMaterial({ color }))
+      flower.position.set(Math.sin(a) * size.x * 0.5, size.y * 0.06, Math.cos(a) * size.x * 0.5 - size.z * 0.05)
+      hat.add(flower)
+    }
+    head.add(hat)
     // Une trace de terre sur la joue.
     const smudge = new THREE.Mesh(new THREE.BoxGeometry(size.x * 0.1, size.y * 0.035, 0.004), new THREE.MeshLambertMaterial({ color: '#5a3a24' }))
     smudge.position.set(center.x + size.x * 0.24, center.y - size.y * 0.12, hb.max.z + 0.002)
