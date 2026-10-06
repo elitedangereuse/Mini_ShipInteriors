@@ -1,6 +1,7 @@
 import type { StationModel } from './assets'
 import type { CustomModel } from './furniture'
 import { CINEMA_ROW_SEATS, CINEMA_SEAT_PITCH } from './furniture/cinema'
+import { DESK_SEAT } from './furniture/classroom'
 import { KRAIT_CLIMB, KRAIT_LADDER_REACH, KRAIT_PILOT } from './furniture/hangar'
 import { tr } from './i18n'
 
@@ -107,6 +108,8 @@ export const SEATS: Partial<Record<CustomModel | StationModel, Seat[]>> = {
   // Fauteuil du studio, tourné vers la table : on s'y glisse par le côté (cf. Seating.approach).
   'studio-chair': [sit(0, 0.03, 0.3)],
   'floor-cushion': [sit(0, 0, 0.13, 'free')],
+  // Table d'élève de la salle de classe : on se glisse sur la chaise par l'allée, de côté.
+  'class-desk': [sit(0, DESK_SEAT.z, DESK_SEAT.y, 0, [0.45, DESK_SEAT.z])],
   // Furniture Kit de Kenney (cf. furniture/kenney.ts) : hauteurs relevées sur les modèles remis à l'échelle.
   'k-toilet': [sit(0, 0.04, 0.25)],
   'k-toilet-square': [sit(0, 0.03, 0.25)],

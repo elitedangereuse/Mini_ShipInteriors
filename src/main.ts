@@ -90,6 +90,8 @@ import { Traffic, type HullSides } from './traffic'
 import { nextSystem, JUMP_CHARGE, JUMP_TRAVEL, type SystemId } from '../shared/systems.js'
 import { syncTempo, tempo } from './tempo'
 import { ClubCrowd, ClubMusic, clubProximity } from './club'
+import { ClassCrowd } from './classroom'
+import { QuizPanel } from './quiz/panel'
 import { BAR_ROOM, CLUB_ROOM, PLANETARIUM_ROOM, SPORT_COURTS, isAlienLook } from '../shared/ship-layouts.js'
 import { FISHING_DOCK, FISHING_LEVEL } from '../shared/fishing.js'
 import { ToiletFlushes } from './toilet-flush'
@@ -628,6 +630,34 @@ for (const it of deckById(FISHING_LEVEL).interactables) {
   else if (it.furniture?.model === 'fish-book') it.onInteract = openFishBook
 }
 fishing.onBook = openFishBook
+
+// Salle de classe (pont supérieur) : parler à la professeure Kepler, lire le tableau ou s'asseoir à
+// une table libre ouvre l'interrogation (cf. src/quiz/). La professeure et les élèves sont des
+// personnages du Holo-Me, chargés après le reste (cf. src/classroom.ts).
+let classCrowd: ClassCrowd | null = null
+void ClassCrowd.load(deckById(1)).then((crowd) => { classCrowd = crowd })
+const quiz = new QuizPanel({
+  sound: (kind) => {
+    if (kind === 'pick') sound.ui('pick')
+    else if (kind === 'wrong') sound.ui('deny')
+    else sound.jingle(kind === 'right' ? 'coin' : kind === 'good' ? 'win' : 'lose')
+  },
+  answered: (right) => classCrowd?.react(right),
+})
+function openQuiz() {
+  stopWork()
+  player.cancelPath()
+  keys.clear()
+  marker.visible = false
+  unlockCursor()
+  $('dialog').hidden = true
+  quiz.open()
+}
+for (const it of deckById(1).interactables) {
+  const model = it.furniture?.model
+  // Une table d'élève : seated() appelle cette action une fois le personnage assis.
+  if (model === 'class-teacher' || model === 'class-board' || model === 'class-desk') it.onInteract = openQuiz
+}
 // Une espèce nouvelle dans le livre des prises : une pastille flotte au-dessus du lutrin, jusqu'à
 // ce qu'on l'ouvre (cf. FishCollection.fresh).
 const fishBookItem = deckById(FISHING_LEVEL).interactables.find((it) => it.furniture?.model === 'fish-book')
@@ -3123,6 +3153,10 @@ addEventListener('keydown', (e) => {
     fishBook.key(e)
     return e.preventDefault()
   }
+  if (!chat.typing && quiz.isOpen) {
+    quiz.key(e)
+    return e.preventDefault()
+  }
   if (!chat.typing && fishing.key(e)) return
   if (chat.typing) return
   if (zone.keyDown(e)) return
@@ -3197,7 +3231,7 @@ chat.onOpen = () => keys.clear()
 const inputDir = new THREE.Vector3()
 function keyboardDirection(): THREE.Vector3 {
   inputDir.set(0, 0, 0)
-  if (gym.active || court.active || fishBusy() || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return inputDir
+  if (gym.active || court.active || fishBusy() || quiz.isOpen || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return inputDir
   const on = (...codes: string[]) => codes.some((c) => keys.has(c))
   // event.code = position physique : KeyW/KeyA correspondent à Z/Q sur un clavier AZERTY.
   const sx = (on('KeyD', 'ArrowRight') ? 1 : 0) - (on('KeyA', 'ArrowLeft') ? 1 : 0)
@@ -3209,7 +3243,7 @@ function keyboardDirection(): THREE.Vector3 {
 function updateGamepad(dt: number): GamepadInput {
   const focus = document.activeElement
   const typing = focus instanceof HTMLElement && (focus.matches('input, textarea, select') || focus.isContentEditable)
-  const enabled = !document.hidden && $('mobile-entry').hidden === true && !typing && !chat.typing && !editing() && !photo.active && !arcade?.isOpen && !boardGames.isOpen && !barPanel.isOpen && !gardenPanel.isOpen && !gameEmbed.isOpen && !mediaRoom.isOpen && !cinemaRoom.isOpen
+  const enabled = !document.hidden && $('mobile-entry').hidden === true && !typing && !chat.typing && !editing() && !photo.active && !arcade?.isOpen && !boardGames.isOpen && !barPanel.isOpen && !gardenPanel.isOpen && !gameEmbed.isOpen && !mediaRoom.isOpen && !cinemaRoom.isOpen && !quiz.isOpen
   // Certains navigateurs mobiles rapportent brièvement document.hasFocus() = false après le
   // passage en plein écran. Cela ne doit pas couper le joystick ni ses boutons.
   // Mode construction : la manette mène son curseur (cf. HomeBuilder.gamepad).
@@ -3608,7 +3642,7 @@ function unlockCursor() {
 }
 /** Ce qui se manipule au curseur : on le rend. */
 function needsCursor(): boolean {
-  return gardenPanel.isOpen || court.active || fishBusy() || chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || phone.isOpen || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || !reactionsPanel.hidden
+  return gardenPanel.isOpen || court.active || fishBusy() || quiz.isOpen || chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || phone.isOpen || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || !reactionsPanel.hidden
 }
 document.addEventListener('pointerlockchange', () => {
   document.body.classList.toggle('fps-locked', cursorLocked())
@@ -3695,7 +3729,7 @@ const fpsBottom = () => innerHeight - 130
 
 function click(e: PointerEvent, at: { clientX: number; clientY: number } = e) {
   // Caché dans un casier, capturé, derrière les caméras : le clic ne fait rien.
-  if (riding || gym.active || court.active || fishBusy() || zone.frozen) return
+  if (riding || gym.active || court.active || fishBusy() || quiz.isOpen || zone.frozen) return
   if (editing()) {
     // Objet glissé jusque sous le catalogue : il le relâche quand même dans le mode aménagement.
     try {
@@ -3819,7 +3853,7 @@ function hiddenRestrictedItem(item: Interactable): boolean {
 function tryInteract() {
   // Bugenhagen parle : on passe à la phrase suivante.
   if (planetarium.talking) return planetarium.next()
-  if (gym.active || court.active || fishBusy() || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return
+  if (gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return
   const item = nearestInteractable()
   if (item) interactWith(item)
 }
@@ -4021,6 +4055,7 @@ function seatPrompt(seat: Seated): { main: string; space?: string } | null {
   if (boardGame(seat)) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
   if (infirmary.canCall(seat)) return { main: tr('Se lever', 'Stand up'), space: infirmary.busy ? undefined : tr(`Appeler ${NURSE}`, `Call ${NURSE}`) }
   if (kitchen.canEat(seat)) return { main: tr('Se lever', 'Stand up'), space: kitchen.eating ? undefined : tr('Manger', 'Eat') }
+  if (seat.item.furniture?.model === 'class-desk') return { main: tr('Se lever', 'Stand up'), space: tr('Passer l\'interro', 'Take the quiz') }
   return { main: tr('Se lever', 'Stand up') }
 }
 
@@ -4040,6 +4075,7 @@ function seatAction(seat: Seated) {
   if (deck.def.id === 1 && seat.item.furniture?.model === 'cinema-row') return void cinemaRoom.open(false)
   if (deck.def.id === 1 && seat.item.furniture?.model === 'projection-chair') return void cinemaRoom.open(true)
   if (seat.item.furniture?.model === 'bar-stool' && deck.def.id === -1) return barPanel.open()
+  if (seat.item.furniture?.model === 'class-desk') return openQuiz()
   const board = boardGame(seat)
   if (board) boardGames.open(board.game, board.table)
   if (infirmary.canCall(seat)) infirmary.call()
@@ -4947,7 +4983,7 @@ function frame() {
   // Invite « E » au-dessus de l'objet le plus proche ; installé sur un meuble, au-dessus du
   // personnage : se relever (et ce que permet la place).
   const sitting = seating.settled && !gym.active && !riding && !editing() && !barPanel.isOpen
-  const near = gym.active || court.active || fishBusy() || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen ? null : nearestInteractable()
+  const near = gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen ? null : nearestInteractable()
   const sit = sitting ? seatPrompt(seating.current!) : null
   const label = sit ? `${sit.main}|${sit.space ?? ''}` : near?.label
   promptEl.querySelector('kbd')!.textContent = usingGamepad ? 'A / ×' : 'E'
@@ -5020,6 +5056,7 @@ function frame() {
     } else if (!near && barWarned && Math.hypot(player.position.x - barDoorItem.position.x, player.position.z - barDoorItem.position.z) > 4) barWarned = false
   }
   if (deckById(-1).group.visible) clubCrowd?.update(world)
+  if (deckById(1).group.visible) classCrowd?.update(world)
   // Chaque jukebox remplit sa pièce en stéréo ; derrière une cloison, il reste sourd et lointain.
   // Un autre pont est silencieux. Le repère des pièces suit la carte du pont, portes comprises.
   for (const [music, source] of [[deckMusic, deckById(0)], [holdMusic, deckById(-1)], [cabinMusic, homeDeck]] as const) {
@@ -5111,6 +5148,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, profile, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, garden, gardenView, gardenMode, gardenPanel, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt, fishing, fishBook, fishCollection, startFishing },
+    __game: { renderer, sound, player, profile, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, garden, gardenView, gardenMode, gardenPanel, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt, fishing, fishBook, fishCollection, startFishing, quiz, openQuiz },
   })
 }

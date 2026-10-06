@@ -1311,7 +1311,7 @@ export const LEVELS: LevelDef[] = [
     layout: SHIP_LAYOUTS['1'],
     rooms: {
       c: tr('Coursive', 'Corridor'),
-      k: tr('Cabines d\'équipage', 'Crew cabins'),
+      k: tr('Salle de classe', 'Classroom'),
       d: tr('Toilettes', 'Restrooms'),
       // À la place des anciens quartiers du commandant.
       p: tr('Planétarium', 'Planetarium'),
@@ -1323,7 +1323,7 @@ export const LEVELS: LevelDef[] = [
       b: tr('Terrain de basket', 'Basketball court'),
       f: tr('Terrain de foot', 'Football pitch'),
     },
-    windows: { c: 0, k: 0.3, d: 0, p: 0.6, g: 0.5, o: 1, n: 0, s: 0, h: 0, b: 0, f: 0.4 },
+    windows: { c: 0, k: 1, d: 0, p: 0.6, g: 0.5, o: 1, n: 0, s: 0, h: 0, b: 0, f: 0.4 },
     // Le sud de la serre, sans mur entre les deux : le jardin exotique et son étang.
     areas: [{ name: tr('Jardin exotique', 'Exotic garden'), minX: 0, maxX: 7, minZ: 9, maxZ: 14 }],
     // Du foyer, on entre au cinéma par une porte double, capitonnée de rouge.
@@ -1342,6 +1342,62 @@ export const LEVELS: LevelDef[] = [
       { model: 'rug', x: 12.9, z: 5, label: 'warm:3.8x0.7', solid: false },
       { model: 'bench', x: 12.3, z: 3.9, label: 'teal' },
       { model: 'plant-tall', x: 15.1, z: 5.2 },
+
+      // --- Salle de classe (5 × 3), façon lycée : le tableau au mur ouest, la professeure Kepler
+      // derrière son pupitre, huit tables d'élève tournées vers elle, en deux rangées, dont cinq
+      // libres (celles du fond, contre le mur est, le sont toutes : il les cache à moitié). Les rangées sont à cheval sur deux tuiles (z = 1,5 et 2,5) : les trois allées
+      // restent ouvertes aux trajets. S'asseoir à une table libre, parler à la professeure ou lire
+      // le tableau ouvre le quiz (cf. src/quiz/ et main.ts) ; les personnages sont posés par
+      // src/classroom.ts sur leurs emplacements, qui portent leur apparence (`label`).
+      {
+        model: 'class-board', x: 7.65, z: 2, rot: 1, solid: false, action: tr('Lire le tableau', 'Read the board'),
+        interact: tr('« Leçon du jour », souligné deux fois. Et dans un coin, à la craie jaune : « Interro surprise ».', '“Today\'s lesson”, underlined twice. And in a corner, in yellow chalk: “Pop quiz”.'),
+      },
+      { model: 'wall-clock', x: 7.65, z: 2, rot: 1, y: 0.5, solid: false },
+      { model: 'class-podium', x: 8.6, z: 2, rot: 1 },
+      {
+        model: 'class-teacher', x: 8.1, z: 2, rot: 1, label: 'human.female.e', action: tr('Parler à la professeure Kepler', 'Talk to Professor Kepler'),
+        interact: tr('Professeure Kepler : « Asseyez-vous, commandant. L\'interrogation commence. »', 'Professor Kepler: “Take a seat, Commander. The quiz is starting.”'),
+      },
+      {
+        model: 'class-globe', x: 8.0, z: 0.95,
+        interact: [
+          tr('Le globe de la galaxie : quatre cents milliards d\'étoiles, et une punaise rouge plantée sur Hutton Orbital. « Hors programme », dit l\'étiquette.', 'The galaxy globe: four hundred billion stars, and a red pin stuck in Hutton Orbital. “Not on the syllabus,” says the label.'),
+          tr('Quelqu\'un a entouré Sagittarius A* au feutre : « Voyage scolaire ? »', 'Someone has circled Sagittarius A* in marker: “School trip?”'),
+        ],
+      },
+      { model: 'plant-tall', x: 8.0, z: 3.1 },
+      ...([9.85, 10.57, 11.29, 12.01] as const).flatMap((x, col) => ([1.5, 2.5] as const).map((z, row): Prop => {
+        // Trois tables sont prises : celles des élèves (plus bas).
+        const taken = (col === 0 && row === 0) || col === 2
+        return taken
+          ? { model: 'class-desk', x, z, rot: 3, seats: false }
+          : { model: 'class-desk', x, z, rot: 3, action: tr('S\'asseoir en classe', 'Sit in class'), interact: tr('Une table libre. Sur le bois, gravé au compas : « o7 ».', 'A free desk. Carved into the wood with a compass: “o7”.') }
+      })),
+      // Les élèves, assis à leur table (0,16 derrière son centre, à hauteur d'assise).
+      {
+        model: 'class-student', x: 10.01, z: 1.5, y: 0.25, rot: 3, solid: false, label: 'human.female.c', action: tr('Parler à Zélie', 'Talk to Zélie'),
+        interact: [
+          tr('Zélie, sans lever le nez de son cahier : « Chut. Elle interroge toujours ceux qui bavardent. »', 'Zélie, without looking up from her notebook: “Shh. She always picks on the ones who chat.”'),
+          tr('Zélie : « J\'ai recopié la liste des étoiles où l\'on peut faire le plein. K, G, B, F, O, A, M. Tu veux mes fiches ? »', 'Zélie: “I copied out the list of stars you can scoop. K, G, B, F, O, A, M. Want my flashcards?”'),
+          tr('Zélie : « Le rang Élite, ça se révise. Ce n\'est pas moi qui le dis, c\'est la Fédération des pilotes. »', 'Zélie: “You have to study for Elite rank. I\'m not the one saying it, the Pilots Federation is.”'),
+        ],
+      },
+      {
+        model: 'class-student', x: 11.45, z: 2.5, y: 0.25, rot: 3, solid: false, label: 'human.male.b', action: tr('Parler à Tom', 'Talk to Tom'),
+        interact: [
+          tr('Tom chuchote : « Psst… la capitale de l\'Empire, c\'est Achenar ou Alioth ? J\'ai une chance sur deux. »', 'Tom whispers: “Psst… is the Empire\'s capital Achenar or Alioth? I\'ve got a fifty-fifty.”'),
+          tr('Tom : « Hier, elle m\'a lancé une craie. En gravité artificielle, ça va très droit. »', 'Tom: “She threw a piece of chalk at me yesterday. In artificial gravity, it flies very straight.”'),
+          tr('Tom dort les yeux ouverts. C\'est un talent. Il dit l\'avoir appris en supercruise.', 'Tom sleeps with his eyes open. It\'s a gift. He says he learned it in supercruise.'),
+        ],
+      },
+      {
+        model: 'class-student', x: 11.45, z: 1.5, y: 0.25, rot: 3, solid: false, label: 'alien.male.c.blue', action: tr('Parler à l\'élève du Zorb', 'Talk to the student from the Zorb'),
+        interact: [
+          tr('L\'élève du Zorb : « Je suis en échange scolaire. Chez moi, l\'interro se danse. »', 'The student from the Zorb: “I\'m on a school exchange. Back home, you dance your exams.”'),
+          tr('Il lève trois doigts sur quatre. Dans sa langue, cela veut dire « je connais la réponse ». Ou « bonjour ». Personne n\'est sûr.', 'He raises three fingers out of four. In his language that means “I know the answer”. Or “hello”. Nobody is sure.'),
+        ],
+      },
 
       // --- Toilettes : trois cabines contre le mur nord, dont la porte se referme sur l'occupant
       // (cf. updateStalls dans main.ts) ; deux lavabos de part et d'autre de l'entrée.
