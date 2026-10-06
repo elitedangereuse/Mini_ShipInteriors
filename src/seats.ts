@@ -57,6 +57,11 @@ export const SEATS: Partial<Record<CustomModel | StationModel, Seat[]>> = {
   'bar-stool': [sit(0, 0, 0.43, 0, [0, -0.45])],
   beanbag: [sit(0, 0, 0.24, 'free')],
   bench: [sit(-0.24, 0, 0.3, 'both'), sit(0.24, 0, 0.3, 'both')],
+  // L'extérieur des quartiers (cf. furniture/outdoor.ts) : banc, balançoire, transat, hamac.
+  'park-bench': [sit(-0.24, 0.06, 0.3), sit(0.24, 0.06, 0.3)],
+  'garden-swing': [sit(0, 0, 0.32, 0, [0, 0.55])],
+  'deck-chair': [sit(0, 0.1, 0.24, 0, [0.5, 0.2])],
+  hammock: [lie(0, 0.1, 0.34)],
   // L'îlot du hall : une place de chaque côté de la banquette ronde, dos aux plantes.
   'concourse-planter': [0, 1, 2, 3].map((k) => {
     const a = (k * Math.PI) / 2

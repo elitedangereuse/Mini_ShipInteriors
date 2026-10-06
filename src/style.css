@@ -1830,6 +1830,9 @@ body.editing .top-left {
 .ed-card-tag:empty {
   display: none;
 }
+.ed-card.garden-locked .ed-card-tag::before {
+  content: '🌱 ';
+}
 .ed-card.poor img {
   opacity: 0.55;
 }

@@ -1,6 +1,7 @@
 // Page de debug : affiche chaque modèle du kit sur une grille, avec son nom,
 // une flèche +Z (rouge) pour repérer l'orientation d'origine et une tuile 1x1.
 // Avec ?mobilier : le mobilier fait main (src/furniture/), animé.
+// Avec ?pack=outdoor (ou nature) : les modèles d'un pack de Kenney, tels qu'importés (&like=tree,hedge).
 // Avec ?catalogue : les vignettes du catalogue des cabines, toutes variantes (&variantes), ou de quelques
 // catégories (&cats=bath,kitchen).
 // Avec ?revetements : les motifs des murs et des sols, dans deux de leurs teintes (&x2 : répétés).
@@ -16,11 +17,12 @@
 // &cam=0,0.3,1&target=0,0.1,0&zoom=0.5 : de face, de près).
 // Avec ?parcelle : la parcelle du pont des quartiers (housing v2) : les types de murs et de portes,
 // des papiers peints et des sols, trois plans tout faits, sous la bulle (&zoom=15 par défaut).
+// Avec ?jardin : une parcelle de 12 × 12 aménagée en jardin (gazon, allée de gravier, arbres, haies, mobilier d'extérieur).
 // Avec ?holo : les styles du Holo-Me (cf. src/holo-style.ts) : &looks=human.female.b.mo-pk-sm--,… (par
 // défaut : chaque coupe sur un même modèle), &style=--sm-- : ce style sur toutes, &play=joie : une emote
 // en boucle (son expression). window.snap() rend l'image (PNG en data URL).
 import * as THREE from 'three'
-import { preload, station, STATION_MODELS, type StationModel } from '../assets'
+import { NATURE_PACK, OUTDOOR_PACK, packModel, packModels, preload, station, STATION_MODELS, type StationModel } from '../assets'
 import { Avatar, SALUTE } from '../avatar'
 import { CATALOG, CATEGORIES } from '../cabin/catalog'
 import { drawFinish, stylesOf } from '../cabin/finishes'
@@ -101,6 +103,7 @@ else if (params.has('emote')) await showEmote(params.get('emote')!)
 else if (params.has('thargoid')) await showThargoid()
 else if (params.has('holo')) await showHolo()
 else if (params.has('parcelle')) showPlot()
+else if (params.has('jardin')) showGarden()
 else showModels()
 
 /** Styles du Holo-Me côte à côte, en grille. */
@@ -384,7 +387,10 @@ function showCatalogue() {
 function showModels() {
   const only = params.get('only')
   const custom = params.has('mobilier')
-  const models: string[] = only ? only.split(',') : custom ? [...CUSTOM_MODELS] : [...STATION_MODELS]
+  // &pack=outdoor (ou nature) : les modèles d'un pack de Kenney, tels qu'importés ; &like=tree : ceux dont le nom contient « tree ».
+  const pack = params.get('pack') ? (params.get('pack') === 'nature' ? NATURE_PACK : OUTDOOR_PACK) : null
+  const like = params.get('like')
+  const models: string[] = only ? only.split(',') : pack ? packModels(pack).filter((n) => !like || like.split(',').some((l) => n.includes(l))) : custom ? [...CUSTOM_MODELS] : [...STATION_MODELS]
   const updates: ((t: number) => void)[] = []
   const rows = Math.ceil(models.length / COLS)
   models.forEach((name, i) => {
@@ -394,7 +400,11 @@ function showModels() {
     tile.rotation.x = -Math.PI / 2
     tile.position.set(x, -0.01, z)
     scene.add(tile)
-    if (custom) {
+    if (pack) {
+      const m = packModel(name, pack).clone(true)
+      m.position.set(x, 0, z)
+      scene.add(m)
+    } else if (custom) {
       const f = buildFurniture(name as CustomModel, params.get('label') ?? undefined, i + 1)
       for (const part of [f.solid, f.live]) {
         if (!part) continue
@@ -420,6 +430,50 @@ function showModels() {
     for (const u of updates) u(t)
     renderer.render(scene, cam)
     if (updates.length) requestAnimationFrame(frame)
+  }
+  frame()
+}
+
+/**
+ * Un jardin sur une parcelle de 12 × 12 : les sols d'extérieur (gazon, prairie, gravier, terrasse)
+ * et le mobilier de la catégorie « Extérieur » (cf. cabin/catalog-outdoor.ts), posés comme le
+ * ferait un joueur.
+ */
+function showGarden() {
+  const deck = new Deck(QUARTERS_DECK)
+  deck.group.position.y = 0
+  scene.add(deck.group)
+  const O = PLOT_ORIGIN
+  const plan: HomePlan = { walls: [], floor: Array(CELLS).fill(null), items: [] }
+  const lawn = { style: 'lawn', color: '#5f9e45' }, meadow = { style: 'meadow', color: '#5f9e45' }, gravel = { style: 'gravel', color: '#d8d2c4' }, deckFloor = { style: 'decking', color: '#a8825a' }
+  for (let z = 0; z < 12; z++) for (let x = 0; x < 12; x++) {
+    plan.floor[cellIndex(O.x + x, O.z + z)] = x === 5 || x === 6 || (z === 6 && x > 1) ? gravel : x >= 8 && z >= 8 ? deckFloor : x < 4 && z < 5 ? meadow : lawn
+  }
+  const put = (m: string, x: number, z: number, v?: string, r = 0) => plan.items!.push({ m, x: O.x + x, z: O.z + z, r: r as 0, ...(v ? { v } : {}) })
+  put('tree-oak', 1.5, 1.5, 'summer'); put('tree-maple', 3.5, 0.9, 'autumn'); put('tree-birch', 0.8, 3.6, 'summer'); put('tree-willow', 9.5, 1.8); put('tree-orchard', 2.5, 9.5, 'cherry')
+  put('tree-pine', 11, 4.5, 'classic'); put('tree-cypress', 7.6, 0.8, 'round'); put('tree-palm', 11, 7.2, 'tall'); put('tree-orchard', 0.9, 7.6, 'apple')
+  for (let i = 0; i < 4; i++) put('hedge', 7.5, 2.5 + i, 'straight', 1)
+  put('fountain', 6, 3.5, 'round'); put('park-bench', 3.9, 3.5, 'wood', 1); put('street-lamp', 4.6, 5.4, 'single'); put('street-lamp', 7.4, 7.4, 'town')
+  put('flower-bed', 2.5, 5.5, 'tulips'); put('flower-bed', 3.5, 5.5, 'lavender'); put('flower-bed', 1.5, 5.5, 'daisies'); put('flowering-shrub', 4.3, 7.4, '#6f9aff'); put('topiary', 4.4, 1.2, 'spiral')
+  put('garden-swing', 2.6, 8, undefined, 0); put('picnic-blanket', 9.6, 4, '#d9453a'); put('campfire', 9.5, 5.5, 'stones'); put('camp-tent', 10.6, 3, 'ridge', 3)
+  put('parasol-table', 9.5, 9.5, 'terracotta'); put('deck-chair', 11, 10.5, 'teal', 3); put('barbecue', 8.6, 11, '#d9453a'); put('hammock', 11.2, 8.8, 'mustard')
+  put('pergola', 6, 9.5, 'wisteria'); put('garden-well', 0.9, 10.8); put('garden-rock', 3.2, 2.6, 'moss-a'); put('toadstools', 2.2, 2.2, 'red'); put('bird-bath', 8.6, 7.5)
+  put('rail-fence', 0.5, 6.5, 'rails'); put('rail-fence', 1.5, 6.5, 'gate'); put('log-pile', 10.9, 6, 'stack'); put('garden-statue', 6, 0.8, 'obelisk'); put('meadow-flowers', 1.3, 2.9, 'red')
+  put('bird-house', 4.5, 10.8, '#3c6aa8'); put('snowman', 8.5, 1, 'hat'); put('wood-sign', 4.5, 6.5, 'arrow'); put('planter-box', 7.4, 9, undefined, 1)
+  deck.home!.set(1, plan)
+  deck.cabin?.setLayout({ items: plan.items! })
+  const r = plotRect(1)
+  const center = new THREE.Vector3((r.minX + r.maxX) / 2, 0, (r.minZ + r.maxZ) / 2)
+  cam.position.sub(target).add(center)
+  cam.lookAt(center)
+  const toCamera = cam.position.clone().sub(center).setY(0).normalize()
+  const clock = new THREE.Timer()
+  function frame() {
+    clock.update()
+    tickFurniture(clock.getElapsed())
+    deck.update(clock.getDelta(), [], center, toCamera)
+    renderer.render(scene, cam)
+    requestAnimationFrame(frame)
   }
   frame()
 }

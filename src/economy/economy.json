@@ -30,6 +30,12 @@
       "compost": { "price": 200, "speed": 1.5 },
       "bradbury": { "price": 900, "speed": 2 }
     },
+    "unlocks": {
+      "hedge-low": 2, "flowering-shrub": 3, "hedge": 5, "topiary": 8,
+      "tree-pine": 10, "cereal-patch": 12, "tree-birch": 15, "tree-formal": 20,
+      "tree-linden": 25, "tree-maple": 30, "tree-cypress": 35, "tree-oak": 40,
+      "tree-chestnut": 50, "tree-orchard": 60, "tree-palm": 75, "tree-willow": 100
+    },
     "crops": {
       "radish": { "tier": 0, "grow": 1200, "seed": 40, "price": 30, "yield": 3 },
       "lettuce": { "tier": 0, "grow": 2700, "seed": 80, "price": 60, "yield": 3 },
@@ -106,6 +112,16 @@
     "vine-trellis": 9000, "hanging-basket": 3000, "potted-palm": 12000, "bamboo": 8000, "fern": 3000, "bush": 3000, "wildflowers": 2000,
     "cactus-bed": 7000, "pumpkin-patch": 6000,
     "soil-tile": 5000, "garden-shed": 20000, "wheelbarrow": 6000, "scarecrow": 8000, "garden-gnome": 4000, "garden-fence": 2500, "beehive": 12000,
+    "flower-bed": 2500, "meadow-flowers": 1500, "grass-tuft": 1000, "toadstools": 1500, "planter-box": 3000, "topiary": 6000,
+    "flowering-shrub": 5000, "hedge": 4000, "hedge-low": 2500, "cereal-patch": 4000, "tree-oak": 20000, "tree-linden": 16000,
+    "tree-maple": 18000, "tree-chestnut": 22000, "tree-birch": 12000, "tree-formal": 14000, "tree-pine": 10000, "tree-cypress": 15000,
+    "tree-orchard": 25000, "tree-palm": 28000, "tree-willow": 35000, "garden-rock": 3000, "tree-stump": 2000, "log-pile": 2500,
+    "paving-stones": 2000, "boardwalk": 2500, "rail-fence": 2000, "iron-fence": 4000, "stone-wall": 3500, "park-bench": 7000,
+    "garden-swing": 18000, "parasol-table": 12000, "deck-chair": 8000, "hammock": 12000, "picnic-blanket": 5000, "pergola": 30000,
+    "barbecue": 15000, "campfire": 12000, "camp-tent": 14000, "canoe": 16000, "market-stall": 18000, "hand-cart": 10000,
+    "hay-bale": 2000, "wood-sign": 2500, "fountain": 45000, "bird-bath": 9000, "bird-house": 4000, "garden-well": 28000,
+    "garden-statue": 15000, "garden-urn": 5000, "garden-bridge": 20000, "street-lamp": 9000, "garden-lantern": 4000, "pumpkin": 2000,
+    "snowman": 8000, "snow-pile": 2000, "sled": 6000, "reindeer": 15000, "tree-decorated": 20000, "gift-box": 3000,
     "fsd": 60000, "srv": 90000, "afmu": 25000, "crew-seat": 15000, "command-chair": 45000, "side-console": 20000, "limpets": 18000,
     "holo-thargoid": 35000, "containment-pod": 28000, "lab-bench": 15000, "ljpc-banner": 5000, "amadioha-photo": 4000,
     "chronicles-lectern": 20000, "voie-relic": 25000, "salome-shrine": 30000, "raxxla-gate": 50000, "voie-drape": 8000, "adept-robes": 10000,

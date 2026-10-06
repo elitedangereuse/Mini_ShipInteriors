@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import {
-  advancePlot, emptyGarden, GARDEN_TOOLS, growGoal, growRate, harvestOf, hasWeeds, neglect, PLOT_KEY, plotKey, plotStatus, stockKey, stockRoom, stockTotal, TOOL_TIERS,
+  advancePlot, emptyGarden, unlockHarvests, GARDEN_TOOLS, growGoal, growRate, harvestOf, hasWeeds, neglect, PLOT_KEY, plotKey, plotStatus, stockKey, stockRoom, stockTotal, TOOL_TIERS,
   unitPrice, weedy,
 } from '../shared/gardening.js'
 
@@ -138,4 +138,19 @@ test('économie : le jardin est un revenu d\'appoint, borné par ce que Marcel p
   assert.ok(R.stock.base < R.stock.crate)
   // Le cabanon et la tuile sont au catalogue des quartiers.
   for (const item of ['soil-tile', 'garden-shed', 'harvest-crate']) assert.ok(E.items[item] > 0, item)
+})
+
+test('extérieur des quartiers : arbres, haies et arbustes se gagnent au jardinage', () => {
+  const unlocks = Object.entries(R.unlocks)
+  assert.ok(unlocks.length > 0)
+  for (const [item, harvests] of unlocks) {
+    assert.ok(E.items[item] > 0, `${item} est au catalogue`)
+    assert.ok(Number.isInteger(harvests) && harvests > 0, item)
+    assert.equal(unlockHarvests(R, item), harvests)
+  }
+  assert.equal(unlockHarvests(R, 'sofa'), 0)
+  assert.equal(emptyGarden().harvests, 0)
+  // Les premières haies arrivent dès les premières récoltes ; le dernier arbre reste à portée d'un jardinier assidu.
+  const needed = unlocks.map(([, n]) => n)
+  assert.ok(Math.min(...needed) <= 3 && Math.max(...needed) <= 150)
 })

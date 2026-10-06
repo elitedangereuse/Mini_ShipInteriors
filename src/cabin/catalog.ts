@@ -8,6 +8,7 @@ import type { Flicker } from '../levels'
 import { FUN_ENTRIES } from './catalog-fun'
 import { GARDEN_ENTRIES } from './catalog-garden'
 import { HOME_ENTRIES } from './catalog-home'
+import { OUTDOOR_ENTRIES } from './catalog-outdoor'
 import { SHIP_ENTRIES } from './catalog-ship'
 import { fishCollection } from '../fishing/collection'
 import { fishAbout, fishName, RARITY_NAME } from '../fishing/species'
@@ -33,7 +34,7 @@ export type Mount = 'floor' | 'flat' | 'wall' | 'top'
 
 export type CategoryId =
   | 'rest' | 'living' | 'bath' | 'kitchen' | 'storage' | 'light' | 'plants' | 'wall' | 'posters' | 'objects' | 'tech' | 'elite'
-  | 'adventures' | 'weapons' | 'pets' | 'leisure' | 'arcade' | 'party' | 'workshop' | 'medical' | 'rugs' | 'gardening'
+  | 'adventures' | 'weapons' | 'pets' | 'leisure' | 'arcade' | 'party' | 'workshop' | 'medical' | 'rugs' | 'gardening' | 'outdoor'
 
 export const CATEGORIES: { id: CategoryId; label: string; icon: IconName }[] = [
   { id: 'rest', label: tr('Chambre', 'Bedroom'), icon: 'bed' },
@@ -44,6 +45,7 @@ export const CATEGORIES: { id: CategoryId; label: string; icon: IconName }[] = [
   { id: 'light', label: tr('Lumières', 'Lighting'), icon: 'lamp' },
   { id: 'plants', label: tr('Plantes', 'Plants'), icon: 'potted-plant' },
   { id: 'gardening', label: tr('Jardinage', 'Gardening'), icon: 'carrot' },
+  { id: 'outdoor', label: tr('Extérieur', 'Outdoors'), icon: 'tree' },
   { id: 'wall', label: tr('Murs', 'Walls'), icon: 'frame-corners' },
   { id: 'posters', label: tr('Affiches', 'Posters'), icon: 'film-slate' },
   { id: 'objects', label: tr('Objets', 'Objects'), icon: 'cube' },
@@ -1091,6 +1093,7 @@ export const CATALOG: CatalogEntry[] = [
   // --- Le jardinage : tuiles de terre cultivable, cabanon, mobilier de jardin, cf. catalog-garden.ts
   // (avant le mobilier de la serre, rangé dans la même catégorie : la tuile et le cabanon d'abord)
   ...GARDEN_ENTRIES,
+  ...OUTDOOR_ENTRIES,
   // --- Le mobilier des pièces du vaisseau (douches, mess, atelier, infirmerie, bar…), cf. catalog-ship.ts
   ...SHIP_ENTRIES,
   // --- Écrans et consoles, armurerie, affiches de films et pin-up, salle de bain, cf. catalog-fun.ts

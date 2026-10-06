@@ -652,26 +652,39 @@ export class HomeBuilder {
     const head = document.createElement('div')
     head.className = 'ed-cat-title'
     head.textContent = slot === 'wall' ? tr('Papiers peints', 'Wallpapers') : tr('Revêtements de sol', 'Floorings')
-    const grid = document.createElement('div')
-    grid.className = 'ed-finishes'
     const cards = new Map<string, HTMLButtonElement>()
-    for (const style of stylesOf(slot)) {
-      const b = document.createElement('button')
-      b.className = 'ed-finish'
-      b.title = style.name
-      const canvas = document.createElement('canvas')
-      canvas.width = canvas.height = FINISH_THUMB
-      paintThumb(canvas, slot, { style: style.id, color: style.palette[0] })
-      const name = document.createElement('span')
-      name.textContent = style.name
-      b.append(canvas, name)
-      b.onclick = () => this.setFinish(slot, { style: style.id, color: this.finishOf(slot).style === style.id ? this.finishOf(slot).color : style.palette[0] })
-      grid.appendChild(b)
-      cards.set(style.id, b)
+    // Les sols d'extérieur (gazon, gravier, pavés…) ont leur rangée, sous les autres.
+    const grids: HTMLElement[] = []
+    for (const outdoor of [false, true]) {
+      const styles = stylesOf(slot).filter((style) => !!style.outdoor === outdoor)
+      if (!styles.length) continue
+      if (outdoor) {
+        const title = document.createElement('div')
+        title.className = 'ed-cat-title'
+        title.textContent = tr('Extérieur', 'Outdoors')
+        grids.push(title)
+      }
+      const grid = document.createElement('div')
+      grid.className = 'ed-finishes'
+      for (const style of styles) {
+        const b = document.createElement('button')
+        b.className = 'ed-finish'
+        b.title = style.name
+        const canvas = document.createElement('canvas')
+        canvas.width = canvas.height = FINISH_THUMB
+        paintThumb(canvas, slot, { style: style.id, color: style.palette[0] })
+        const name = document.createElement('span')
+        name.textContent = style.name
+        b.append(canvas, name)
+        b.onclick = () => this.setFinish(slot, { style: style.id, color: this.finishOf(slot).style === style.id ? this.finishOf(slot).color : style.palette[0] })
+        grid.appendChild(b)
+        cards.set(style.id, b)
+      }
+      grids.push(grid)
     }
     const colors = document.createElement('div')
     colors.className = 'ed-colors'
-    this.body.append(head, grid, colors)
+    this.body.append(head, ...grids, colors)
     this.finishEls = { cards, colors, style: '' }
     this.refreshFinishes(slot)
   }

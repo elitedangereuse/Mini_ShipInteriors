@@ -29,7 +29,7 @@ export const plotKey = (x, z) => `${x},${z}`
 
 /** Jardin d'un CMDR qui n'a encore rien fait. */
 export function emptyGarden() {
-  return { plots: {}, bag: { seeds: {}, soils: {}, ferts: {} }, tools: { hoe: 0, trowel: 0, can: 0, shears: 0 }, stock: {} }
+  return { plots: {}, bag: { seeds: {}, soils: {}, ferts: {} }, tools: { hoe: 0, trowel: 0, can: 0, shears: 0 }, stock: {}, harvests: 0 }
 }
 
 /** Points de pousse d'une culture mûre. */
@@ -127,3 +127,10 @@ export const stockTotal = (stock) => Object.values(stock).reduce((sum, n) => sum
 
 /** Place de la réserve : celle du cabanon, plus grande avec des caisses de récolte. */
 export const stockRoom = (rules, crate) => (crate ? rules.stock.crate : rules.stock.base)
+
+/**
+ * Récoltes à avoir faites pour acheter cet objet des quartiers (les arbres, les haies et les
+ * arbustes de l'extérieur se gagnent au jardinage), ou 0 s'il s'achète sans jardiner. Le site
+ * compte les récoltes (`harvests` du jardin) et refuse l'achat tant qu'il en manque.
+ */
+export const unlockHarvests = (rules, item) => rules.unlocks?.[item] ?? 0

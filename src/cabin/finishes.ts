@@ -19,6 +19,8 @@ export interface FinishStyle {
   palette: string[]
   /** Côté d'un motif, en mètres (une répétition de la texture). */
   size: number
+  /** Sol d'extérieur (gazon, gravier, pavés…) : rangé à part dans le mode construction. */
+  outdoor?: boolean
   draw: (g: CanvasRenderingContext2D, s: number, c: Tones, random: () => number) => void
 }
 
@@ -788,7 +790,266 @@ export const FLOOR_STYLES: FinishStyle[] = [
   },
 ]
 
-const STYLES: Record<Slot, FinishStyle[]> = { wall: WALL_STYLES, floor: FLOOR_STYLES }
+// ---------------------------------------------------------------- sols d'extérieur
+
+/** Brins d'herbe : de courts traits vers le haut, penchés au hasard, dans les nuances du vert choisi. */
+function blades(g: CanvasRenderingContext2D, c: Tones, random: () => number, n: number, len: number, spread = 0.1) {
+  g.lineWidth = 1.4
+  g.lineCap = 'round'
+  for (let i = 0; i < n; i++) {
+    const x = random() * S, y = random() * S, h = len * (0.5 + random()), lean = (random() - 0.5) * len * 0.9
+    g.strokeStyle = c.shade((random() - 0.5) * 2 * spread, (random() - 0.5) * 0.1)
+    g.globalAlpha = 0.55 + random() * 0.4
+    wrapped(x, y, len * 1.5, (px, py) => {
+      g.beginPath()
+      g.moveTo(px, py)
+      g.quadraticCurveTo(px + lean * 0.3, py - h * 0.6, px + lean, py - h)
+      g.stroke()
+    })
+  }
+  g.globalAlpha = 1
+}
+
+/** Cailloux : des polygones arrondis, ombrés d'un côté. */
+function pebbles(g: CanvasRenderingContext2D, c: Tones, random: () => number, n: number, min: number, max: number, spread = 0.12) {
+  for (let i = 0; i < n; i++) {
+    const x = random() * S, y = random() * S, r = min + random() * (max - min), a = random() * Math.PI
+    const tone = new Tones(c.shade((random() - 0.5) * 2 * spread))
+    wrapped(x, y, r * 1.4, (px, py) => {
+      g.fillStyle = tone.shade(-0.14)
+      g.beginPath()
+      g.ellipse(px + r * 0.12, py + r * 0.16, r, r * 0.74, a, 0, Math.PI * 2)
+      g.fill()
+      g.fillStyle = tone.hex
+      g.beginPath()
+      g.ellipse(px, py, r, r * 0.74, a, 0, Math.PI * 2)
+      g.fill()
+      g.fillStyle = tone.shade(0.07)
+      g.beginPath()
+      g.ellipse(px - r * 0.2, py - r * 0.2, r * 0.5, r * 0.3, a, 0, Math.PI * 2)
+      g.fill()
+    })
+  }
+}
+
+/** Petite fleur vue de dessus : des pétales autour d'un cœur. */
+function blossom(g: CanvasRenderingContext2D, x: number, y: number, r: number, petal: string, heart: string, petals = 5) {
+  g.fillStyle = petal
+  for (let k = 0; k < petals; k++) {
+    const a = (k / petals) * Math.PI * 2
+    g.beginPath()
+    g.ellipse(x + Math.cos(a) * r * 0.6, y + Math.sin(a) * r * 0.6, r * 0.5, r * 0.32, a, 0, Math.PI * 2)
+    g.fill()
+  }
+  g.fillStyle = heart
+  g.beginPath()
+  g.arc(x, y, r * 0.3, 0, Math.PI * 2)
+  g.fill()
+}
+
+const GREENS = ['#5f9e45', '#4c8a3a', '#7ab552', '#6f9a5a', '#3f7a52', '#9aa84e', '#b8a85a']
+
+export const OUTDOOR_FLOOR_STYLES: FinishStyle[] = [
+  {
+    id: 'lawn', name: tr('Gazon tondu', 'Mown lawn'), size: 1, outdoor: true, palette: GREENS,
+    draw: (g, s, c, random) => {
+      // Les bandes de la tondeuse : une sur deux un peu plus claire.
+      for (let i = 0; i < 2; i++) {
+        g.fillStyle = i ? c.shade(0.035) : c.shade(-0.02)
+        g.fillRect((i * s) / 2, 0, s / 2, s)
+      }
+      mottle(g, c, random, 14, 0.04, 40)
+      blades(g, c, random, 2600, 5, 0.07)
+    },
+  },
+  {
+    id: 'grass', name: tr('Herbe folle', 'Rough grass'), size: 1, outdoor: true, palette: GREENS,
+    draw: (g, s, c, random) => {
+      g.fillStyle = c.shade(-0.06)
+      g.fillRect(0, 0, s, s)
+      mottle(g, c, random, 22, 0.08, 46)
+      blades(g, c, random, 2200, 11, 0.13)
+      blades(g, new Tones(c.shade(0.1, 0.05)), random, 500, 14, 0.06)
+    },
+  },
+  {
+    id: 'meadow', name: tr('Prairie fleurie', 'Flower meadow'), size: 1, outdoor: true, palette: GREENS,
+    draw: (g, s, c, random) => {
+      g.fillStyle = c.shade(-0.04)
+      g.fillRect(0, 0, s, s)
+      mottle(g, c, random, 18, 0.07, 44)
+      blades(g, c, random, 2000, 9, 0.12)
+      const kinds: [string, string][] = [['#ffffff', '#ffd23c'], ['#ffd23c', '#f08a2a'], ['#ff8ac8', '#ffe9a8'], ['#8fa8ff', '#ffffff'], ['#e8453a', '#2a2420']]
+      for (let i = 0; i < 46; i++) {
+        const x = random() * s, y = random() * s, r = 3.5 + random() * 3
+        const [petal, heart] = kinds[Math.floor(random() * kinds.length)]
+        wrapped(x, y, r * 1.2, (px, py) => blossom(g, px, py, r, petal, heart))
+      }
+    },
+  },
+  {
+    id: 'clover', name: tr('Trèfle', 'Clover'), size: 0.8, outdoor: true, palette: ['#4f9a4a', '#3c7a44', '#6aa84f', '#5a8a5a'],
+    draw: (g, s, c, random) => {
+      g.fillStyle = c.shade(-0.1)
+      g.fillRect(0, 0, s, s)
+      for (let i = 0; i < 520; i++) {
+        const x = random() * s, y = random() * s, r = 4 + random() * 3, a = random() * Math.PI
+        const leaf = c.shade((random() - 0.5) * 0.16)
+        wrapped(x, y, r * 1.6, (px, py) => {
+          g.fillStyle = leaf
+          for (let k = 0; k < 3; k++) {
+            g.beginPath()
+            g.arc(px + Math.cos(a + (k * Math.PI * 2) / 3) * r * 0.62, py + Math.sin(a + (k * Math.PI * 2) / 3) * r * 0.62, r * 0.62, 0, Math.PI * 2)
+            g.fill()
+          }
+        })
+      }
+      // Quelques fleurs de trèfle, blanches.
+      for (let i = 0; i < 14; i++) {
+        const x = random() * s, y = random() * s
+        wrapped(x, y, 5, (px, py) => blossom(g, px, py, 4, '#f4f1ea', '#e8d8e0', 7))
+      }
+    },
+  },
+  {
+    id: 'moss', name: tr('Mousse', 'Moss'), size: 0.9, outdoor: true, palette: ['#5a8a3e', '#6f9a48', '#48783a', '#7a9a52'],
+    draw: (g, s, c, random) => {
+      g.fillStyle = c.shade(-0.05)
+      g.fillRect(0, 0, s, s)
+      mottle(g, c, random, 60, 0.1, 26)
+      grain(g, c, random, 6000, 0.09, 2, 0.6)
+    },
+  },
+  {
+    id: 'gravel', name: tr('Gravier', 'Gravel'), size: 0.7, outdoor: true, palette: ['#b8b2a6', '#d8d2c4', '#8f8c86', '#c8a888', '#e8e4dc', '#6a6a6c'],
+    draw: (g, s, c, random) => {
+      g.fillStyle = c.shade(-0.22)
+      g.fillRect(0, 0, s, s)
+      pebbles(g, c, random, 900, 3.5, 7.5, 0.13)
+    },
+  },
+  {
+    id: 'cobble', name: tr('Galets', 'Cobbles'), size: 0.9, outdoor: true, palette: ['#9a9a92', '#b8a88a', '#77776f', '#c8c4b8', '#8a7a6a'],
+    draw: (g, s, c, random) => {
+      g.fillStyle = c.shade(-0.26)
+      g.fillRect(0, 0, s, s)
+      // Des galets ronds, en quinconce, serrés.
+      const n = 8, d = s / n
+      for (let row = 0; row < n; row++) for (let col = 0; col < n; col++) {
+        const x = (col + (row % 2 ? 0.5 : 0)) * d + (random() - 0.5) * 3, y = (row + 0.5) * d + (random() - 0.5) * 3
+        const tone = new Tones(c.shade((random() - 0.5) * 0.14)), r = d * 0.46
+        wrapped(x, y, r, (px, py) => {
+          const grad = g.createRadialGradient(px - r * 0.3, py - r * 0.3, r * 0.1, px, py, r)
+          grad.addColorStop(0, tone.shade(0.08))
+          grad.addColorStop(1, tone.shade(-0.08))
+          g.fillStyle = grad
+          g.beginPath()
+          g.ellipse(px, py, r, r * 0.9, 0, 0, Math.PI * 2)
+          g.fill()
+        })
+      }
+    },
+  },
+  {
+    id: 'flagstones', name: tr('Dalles de jardin', 'Garden flagstones'), size: 1, outdoor: true, palette: ['#b0aaa0', '#c8b898', '#8f8c86', '#d8d2c4', '#a08a78'],
+    draw: (g, s, c, random) => {
+      // Du gazon dans les joints, des dalles à pans coupés par-dessus.
+      const grass = new Tones('#5f9e45')
+      g.fillStyle = grass.shade(-0.06)
+      g.fillRect(0, 0, s, s)
+      blades(g, grass, random, 900, 5, 0.1)
+      const n = 4, d = s / n
+      for (let row = 0; row < n; row++) for (let col = 0; col < n; col++) {
+        const tone = new Tones(c.shade((random() - 0.5) * 0.1))
+        const cx = (col + 0.5) * d, cy = (row + 0.5) * d, r = d / 2 - 4
+        const cut = () => 5 + random() * 9
+        const k = [cut(), cut(), cut(), cut()]
+        g.fillStyle = tone.shade(-0.14)
+        g.fillRect(cx - r + 2, cy - r + 3, r * 2, r * 2)
+        g.fillStyle = tone.hex
+        g.beginPath()
+        g.moveTo(cx - r + k[0], cy - r)
+        g.lineTo(cx + r - k[1], cy - r)
+        g.lineTo(cx + r, cy - r + k[1])
+        g.lineTo(cx + r, cy + r - k[2])
+        g.lineTo(cx + r - k[2], cy + r)
+        g.lineTo(cx - r + k[3], cy + r)
+        g.lineTo(cx - r, cy + r - k[3])
+        g.lineTo(cx - r, cy - r + k[0])
+        g.closePath()
+        g.fill()
+      }
+      grain(g, c, random, 1600, 0.05, 1.5, 0.3)
+    },
+  },
+  {
+    id: 'sand', name: tr('Sable', 'Sand'), size: 1, outdoor: true, palette: ['#e2c98f', '#f0e0b8', '#d8b078', '#c8c0b0', '#e8a878'],
+    draw: (g, s, c, random) => {
+      g.fillStyle = c.hex
+      g.fillRect(0, 0, s, s)
+      // Les rides du râteau, qui ondulent le long de x.
+      g.lineWidth = 2
+      for (let y = 0; y < s; y += s / 16) {
+        for (const [dy, tone, alpha] of [[0, c.shade(-0.07), 0.5], [2, c.shade(0.06), 0.6]] as const) {
+          g.strokeStyle = tone
+          g.globalAlpha = alpha
+          g.beginPath()
+          for (let x = 0; x <= s; x += 4) {
+            const yy = y + dy + Math.sin((x / s) * Math.PI * 4) * 3
+            if (x === 0) g.moveTo(x, yy)
+            else g.lineTo(x, yy)
+          }
+          g.stroke()
+        }
+      }
+      g.globalAlpha = 1
+      grain(g, c, random, 3500, 0.06, 1.4, 0.5)
+    },
+  },
+  {
+    id: 'dirt', name: tr('Terre battue', 'Packed earth'), size: 1, outdoor: true, palette: ['#8a6a4a', '#6b4e36', '#a8825a', '#b86a48', '#5a4330'],
+    draw: (g, s, c, random) => {
+      g.fillStyle = c.hex
+      g.fillRect(0, 0, s, s)
+      mottle(g, c, random, 30, 0.06, 40)
+      pebbles(g, new Tones(c.shade(0.1, -0.1)), random, 40, 1.5, 3.5, 0.08)
+      grain(g, c, random, 4500, 0.07, 1.6, 0.5)
+    },
+  },
+  {
+    id: 'decking', name: tr('Terrasse en bois', 'Timber decking'), size: 1, outdoor: true, palette: ['#a8825a', '#c49a6c', '#8a5a3a', '#6b4630', '#9a9a8e', '#d8c2a0'],
+    draw: (g, s, c, random) => {
+      const h = s / 6
+      for (let row = 0; row < 6; row++) {
+        const plank = new Tones(c.shade((random() - 0.5) * 0.08))
+        g.fillStyle = plank.hex
+        g.fillRect(0, row * h, s, h)
+        woodGrain(g, plank, random, 0, row * h, s, h)
+        // Les rainures antidérapantes, et le joint entre deux lames.
+        g.fillStyle = plank.shade(-0.07)
+        for (let k = 1; k < 5; k++) g.fillRect(0, row * h + (k * h) / 5, s, 1.5)
+        g.fillStyle = c.shade(-0.32)
+        g.fillRect(0, row * h, s, 3)
+      }
+    },
+  },
+  {
+    id: 'snow', name: tr('Neige', 'Snow'), size: 1.2, outdoor: true, palette: ['#f2f6fa', '#e4ecf6', '#fdfdfd'],
+    draw: (g, s, c, random) => {
+      g.fillStyle = c.hex
+      g.fillRect(0, 0, s, s)
+      mottle(g, new Tones(c.mix('#9fb8d8', 0.5)), random, 26, 0.05, 44)
+      g.fillStyle = '#ffffff'
+      for (let i = 0; i < 260; i++) {
+        g.globalAlpha = 0.5 + random() * 0.5
+        g.fillRect(random() * s, random() * s, 1.6, 1.6)
+      }
+      g.globalAlpha = 1
+    },
+  },
+]
+
+const STYLES: Record<Slot, FinishStyle[]> = { wall: WALL_STYLES, floor: [...FLOOR_STYLES, ...OUTDOOR_FLOOR_STYLES] }
 
 export function stylesOf(slot: Slot): FinishStyle[] {
   return STYLES[slot]

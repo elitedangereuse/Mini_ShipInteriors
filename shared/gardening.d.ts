@@ -36,6 +36,8 @@ export interface GardenRules {
   soils: Record<string, { price: number; grade: number }>
   fertilizers: Record<string, { price: number; speed: number }>
   crops: Record<string, CropRules>
+  /** Objets des quartiers qui se gagnent au jardinage : récoltes à avoir faites pour les acheter. */
+  unlocks?: Record<string, number>
 }
 
 /** Une tuile travaillée (cf. gardening.js). */
@@ -64,6 +66,8 @@ export interface Garden {
   bag: GardenBag
   tools: Record<GardenTool, number>
   stock: Record<string, number>
+  /** Récoltes faites depuis qu'il jardine (absent d'un site pas encore à jour : zéro). */
+  harvests?: number
 }
 
 export type PlotNeed = 'sow' | 'water' | 'weed' | 'harvest'
@@ -95,3 +99,4 @@ export declare const unitPrice: (rules: GardenRules, crop: string, grade: number
 export declare const stockKey: (crop: string, grade: number) => string
 export declare const stockTotal: (stock: Record<string, number>) => number
 export declare const stockRoom: (rules: GardenRules, crate: boolean) => number
+export declare const unlockHarvests: (rules: GardenRules, item: string) => number

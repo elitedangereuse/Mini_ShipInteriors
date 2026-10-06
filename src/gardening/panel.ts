@@ -1,3 +1,4 @@
+import { entryOf } from '../cabin/catalog'
 import { formatCredits, itemPrice } from '../economy/data'
 import type { Wallet } from '../economy/wallet'
 import { tr } from '../i18n'
@@ -287,6 +288,16 @@ export class GardenPanel {
     for (const r of rows) this.body.append(this.row('basket', CROPS[r.crop]?.color ?? '#86c46a', `${cropName(r.crop)} ${gradeStars(r.grade)} × ${r.count}`, tr(`Qualité ${GRADES[r.grade]} · Marcel : ${formatCredits(r.price)} pièce`, `${GRADES[r.grade]} quality · Marcel: ${formatCredits(r.price)} each`)))
     if (!rows.length) this.body.append(el('p', 'gp-empty', tr('Rien en réserve pour l\'instant.', 'Nothing in store for now.')))
     if (this.kind === 'shed') {
+      // Les récoltes d'une vie de jardinier : elles ouvrent les arbres, les haies et les arbustes de l'extérieur.
+      const done = garden.harvests ?? 0
+      const ahead = Object.entries(RULES.unlocks ?? {}).filter(([, n]) => n > done).sort((a, b) => a[1] - b[1])
+      this.section(tr('Main verte', 'Green fingers'), tr(`${done} récolte${done > 1 ? 's' : ''}`, `${done} harvest${done === 1 ? '' : 's'}`))
+      this.body.append(el('p', 'gp-empty', ahead.length
+        ? tr(
+          `Prochain plant confié par Capucine : ${entryOf(ahead[0][0])?.name ?? ahead[0][0]}, à ${ahead[0][1]} récoltes (catégorie « Extérieur » de l'aménagement).`,
+          `Next plant entrusted by Capucine: ${entryOf(ahead[0][0])?.name ?? ahead[0][0]}, at ${ahead[0][1]} harvests (“Outdoors” category when furnishing).`,
+        )
+        : tr('Capucine vous a confié tous ses arbres. Elle dit que vous avez le gant vert.', 'Capucine has entrusted you with all her trees. She says you have green gloves.')))
       this.section(tr('Outils', 'Tools'))
       for (const id of GARDEN_TOOLS) this.body.append(this.row(TOOLS[id].icon, '#8fe9ff', TOOLS[id].names[garden.tools[id]], TOOLS[id].does))
       this.section(tr('Sac', 'Bag'))

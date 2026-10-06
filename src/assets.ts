@@ -42,6 +42,12 @@ export const FURNITURE_PACK = 'furniture/kenney-furniture.glb'
 export const NATURE_PACK = 'furniture/kenney-nature.glb'
 
 /**
+ * Le mobilier d'extérieur des quartiers, tiré de plusieurs kits de Kenney (CC0), en un seul fichier
+ * de même forme (cf. scripts/import-kenney-outdoor.mjs et src/furniture/outdoor.ts).
+ */
+export const OUTDOOR_PACK = 'furniture/kenney-outdoor.glb'
+
+/**
  * Les poissons de l'« Animated Fish Pack » de Quaternius (CC0), rangés dans un seul fichier : ceux
  * de l'étang du jardin exotique (cf. scripts/import-quaternius-fish.mjs et src/fishing/models.ts).
  */
@@ -199,7 +205,7 @@ function load(path: string): Promise<GLTF> {
 
 /** @param extra modèles supplémentaires à charger d'emblée (personnage du joueur…) */
 export async function preload(extra: string[], onProgress: (ratio: number) => void): Promise<void> {
-  const paths = [...STATION_MODELS.map((m) => `station/${m}.glb`), ...extra, CAT_MODEL, FURNITURE_PACK, NATURE_PACK, FISH_PACK, CUTE_FISH_PACK]
+  const paths = [...STATION_MODELS.map((m) => `station/${m}.glb`), ...extra, CAT_MODEL, FURNITURE_PACK, NATURE_PACK, OUTDOOR_PACK, FISH_PACK, CUTE_FISH_PACK]
   let done = 0
   await Promise.all(
     paths.map(async (p) => {
@@ -246,6 +252,9 @@ export function station(name: StationModel): THREE.Object3D {
  * Modèle du Furniture Kit, ou d'un autre pack de même forme (le Nature Kit) : nœud du fichier
  * commun, à cloner ; ses géométries sont partagées.
  */
+/** Noms des modèles d'un pack (galerie de debug). */
+export const packModels = (pack: string): string[] => cache.get(pack)?.scene.children.map((c) => c.name) ?? []
+
 export function packModel(name: string, pack = FURNITURE_PACK): THREE.Object3D {
   const o = cache.get(pack)?.scene.children.find((c) => c.name === name)
   if (!o) throw new Error(`Modèle ${name} non préchargé (${pack})`)

@@ -29,6 +29,7 @@ import frameCorners from '@phosphor-icons/core/duotone/frame-corners-duotone.svg
 import gameController from '@phosphor-icons/core/duotone/game-controller-duotone.svg?raw'
 import lamp from '@phosphor-icons/core/duotone/lamp-duotone.svg?raw'
 import pottedPlant from '@phosphor-icons/core/duotone/potted-plant-duotone.svg?raw'
+import tree from '@phosphor-icons/core/duotone/tree-duotone.svg?raw'
 import rocket from '@phosphor-icons/core/duotone/rocket-duotone.svg?raw'
 import squareHalf from '@phosphor-icons/core/duotone/square-half-duotone.svg?raw'
 import joystick from '@phosphor-icons/core/duotone/joystick-duotone.svg?raw'
@@ -178,6 +179,7 @@ const SVG = {
   fish,
   lamp,
   'potted-plant': pottedPlant,
+  tree,
   'frame-corners': frameCorners,
   cube,
   rocket,

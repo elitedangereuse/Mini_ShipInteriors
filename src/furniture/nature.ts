@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { NATURE_PACK, packModel } from '../assets'
-import { box, cylinder, lit, type Builder } from './kit'
+import { box, cylinder, glow, lit, type Builder } from './kit'
 
 /*
  * Les plantes du Nature Kit de Kenney (CC0), pour la serre : buissons, fougères, herbes, fleurs
@@ -21,13 +21,42 @@ const TINTS: Record<string, string> = {
   leafsFall: '#e8842c',
 }
 
+/** Options d'un modèle : le pack où le prendre, et ce qu'on change à ses matériaux. */
+export interface KitLook {
+  pack?: string
+  /** Les jaunes clairs du modèle (les vitres d'une lanterne) deviennent lumineux. */
+  lamp?: boolean
+  /** Couleur d'un matériau du modèle (par son nom), à la place de la sienne. */
+  paint?: Record<string, string>
+}
+
+const _hsl = { h: 0, s: 0, l: 0 }
+const softened = new Map<string, string>()
+
 /**
- * Un modèle du kit, à l'échelle `s`, tourné de `turn` (radians), le pied à y = 0, centré sur
+ * Les verts menthe des kits colorés par une image (« c-rrggbb », cf.
+ * scripts/import-kenney-outdoor.mjs) ramenés vers le vert feuille de la serre, comme ceux du
+ * Nature Kit ; les autres couleurs ne changent pas.
+ */
+function soften(color: THREE.Color): string {
+  const hex = `#${color.getHexString()}`
+  let out = softened.get(hex)
+  if (!out) {
+    color.getHSL(_hsl)
+    const green = _hsl.h > 0.36 && _hsl.h < 0.5 && _hsl.s > 0.25
+    out = green ? `#${new THREE.Color().setHSL(0.3 + (_hsl.h - 0.36) * 0.3, _hsl.s * 0.72, _hsl.l * 0.92).getHexString()}` : hex
+    softened.set(hex, out)
+  }
+  return out
+}
+
+/**
+ * Un modèle d'un kit, à l'échelle `s`, tourné de `turn` (radians), le pied à y = 0, centré sur
  * l'origine, puis posé en (x, y, z).
  */
-function model(file: string, s: number, x = 0, z = 0, turn = 0, y = 0): THREE.Group {
+export function kitModel(file: string, s: number, x = 0, z = 0, turn = 0, y = 0, look: KitLook = {}): THREE.Group {
   const inner = new THREE.Group()
-  inner.add(packModel(file, NATURE_PACK).clone(true))
+  inner.add(packModel(file, look.pack ?? NATURE_PACK).clone(true))
   inner.scale.setScalar(s)
   inner.rotation.y = turn
   const root = new THREE.Group().add(inner)
@@ -37,12 +66,19 @@ function model(file: string, s: number, x = 0, z = 0, turn = 0, y = 0): THREE.Gr
   root.traverse((o) => {
     const m = o as THREE.Mesh
     if (!m.isMesh) return
-    const tint = TINTS[(m.material as THREE.Material).name]
+    const src = m.material as THREE.MeshLambertMaterial
+    const tint = look.paint?.[src.name] ?? TINTS[src.name]
     if (tint) m.material = lit(tint)
+    else if (src.name.startsWith('c-')) {
+      src.color.getHSL(_hsl)
+      m.material = look.lamp && _hsl.h > 0.08 && _hsl.h < 0.19 && _hsl.l > 0.5 ? glow(`#${src.color.getHexString()}`) : lit(soften(src.color))
+    }
   })
   root.position.set(x, y, z)
   return root
 }
+
+const model = kitModel
 
 /** Choix d'une variante par `label` (sinon la première). */
 const variant = <T,>(table: Record<string, T>, label: string | undefined): T => table[label ?? ''] ?? Object.values(table)[0]

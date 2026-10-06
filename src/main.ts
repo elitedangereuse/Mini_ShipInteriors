@@ -2321,6 +2321,7 @@ function loadEditor(): Promise<void> {
       },
       onClose: () => closeEditor(),
       wallet,
+      garden,
       build: () => switchHomeMode('build'),
     })
   })

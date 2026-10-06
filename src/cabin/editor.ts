@@ -3,6 +3,9 @@ import type { Sound } from '../audio'
 import type { IsoCamera } from '../camera'
 import { formatCredits, itemPrice } from '../economy/data'
 import type { Wallet } from '../economy/wallet'
+import { RULES } from '../gardening/data'
+import type { GardenStore } from '../gardening/store'
+import { unlockHarvests } from '../../shared/gardening.js'
 import { EN, tr } from '../i18n'
 import { icon } from '../icons'
 import type { Rot } from '../levels'
@@ -52,6 +55,8 @@ export interface EditorHost {
   onClose: () => void
   /** Crédits du CMDR : les objets du catalogue se débloquent une fois. */
   wallet: Wallet
+  /** Jardin du CMDR : ses récoltes débloquent les arbres, les haies et les arbustes de l'extérieur. */
+  garden: GardenStore
   /** Passer au mode construction (murs, revêtements, taille de la parcelle, cf. housing/builder.ts). */
   build: () => void
 }
@@ -254,6 +259,12 @@ export class CabinEditor {
       this.refreshCards()
       this.renderBuy()
     })
+    // Une récolte de plus peut ouvrir un arbre ou une haie.
+    host.garden.subscribe(() => {
+      if (!this.open) return
+      this.refreshCards()
+      this.renderBuy()
+    })
 
     // Carte saisie, relâchée au-dessus de la cabine : l'objet est posé là.
     addEventListener('pointerup', (e) => {
@@ -436,6 +447,16 @@ export class CabinEditor {
     return (FREE.get(id) ?? 0) - placed
   }
 
+  /**
+   * Récoltes qui manquent au CMDR pour acheter cet objet (cf. `gardening.unlocks` de l'économie) ;
+   * 0 s'il ne se gagne pas au jardinage, s'il est déjà débloqué, ou si le compte y est.
+   */
+  private harvestsShort(id: string): number {
+    const needed = unlockHarvests(RULES, id)
+    if (!needed || this.host.wallet.items.has(id)) return 0
+    return Math.max(0, needed - (this.host.garden.garden.harvests ?? 0))
+  }
+
   /** Étiquettes des cartes : déblocage, stock offert, ou prix (grisé si le solde est insuffisant). */
   private refreshCards() {
     const { wallet } = this.host
@@ -444,21 +465,28 @@ export class CabinEditor {
       const price = itemPrice(entry.id)
       const unlocked = price !== null && wallet.items.has(entry.id)
       const inStock = stock > 0
+      // À gagner au jardinage : le nombre de récoltes demandé, à la place du prix.
+      const needed = unlockHarvests(RULES, entry.id)
+      const short = inStock ? 0 : this.harvestsShort(entry.id)
       tag.textContent = unlocked
         ? tr('Débloqué', 'Unlocked')
         : !Number.isFinite(stock)
           ? ''
           : inStock
             ? tr(`${stock} offert${stock > 1 ? 's' : ''}`, `${stock} free`)
-            : price === null ? '' : formatCredits(price)
+            : short ? tr(`${needed} récolte${needed > 1 ? 's' : ''}`, `${needed} harvest${needed > 1 ? 's' : ''}`)
+              : price === null ? '' : formatCredits(price)
       tag.classList.toggle('stock', inStock)
-      card.classList.toggle('poor', !inStock && !unlocked && wallet.ready && price !== null && price > wallet.balance)
+      card.classList.toggle('garden-locked', short > 0)
+      card.classList.toggle('poor', short > 0 || (!inStock && !unlocked && wallet.ready && price !== null && price > wallet.balance))
       const mount = entry.mount === 'wall' ? tr(' (à accrocher)', ' (hangs on a wall)') : entry.mount === 'top' ? tr(' (se pose sur un meuble)', ' (goes on furniture)') : ''
       const state = unlocked
         ? tr(' · Débloqué : posez-en autant que vous voulez', ' · Unlocked: place as many as you like')
         : price === null || inStock
           ? price !== null ? tr(` · ${stock} exemplaire${stock > 1 ? 's' : ''} offert${stock > 1 ? 's' : ''} · déblocage ${formatCredits(price)}`, ` · ${stock} free ${stock === 1 ? 'copy' : 'copies'} · unlock ${formatCredits(price)}`) : ''
-          : tr(` · Débloquer pour ${formatCredits(price)}`, ` · Unlock for ${formatCredits(price)}`)
+          : short
+            ? tr(` · Se gagne au jardinage : ${needed} récoltes (encore ${short})`, ` · Earned by gardening: ${needed} harvests (${short} to go)`)
+            : tr(` · Débloquer pour ${formatCredits(price)}`, ` · Unlock for ${formatCredits(price)}`)
       card.title = `${entry.name}${mount}${state}`
     }
   }
@@ -517,8 +545,16 @@ export class CabinEditor {
     const note = document.createElement('div')
     note.className = 'eb-note'
     const short = wallet.ready && price > wallet.balance
+    const needed = unlockHarvests(RULES, b.entry.id), harvests = this.harvestsShort(b.entry.id)
     if (b.error) {
       note.textContent = b.error
+      note.classList.add('error')
+    } else if (harvests) {
+      const done = needed - harvests
+      note.textContent = tr(
+        `Capucine ne le confie qu'aux jardiniers : ${needed} récoltes à faire sur vos tuiles de terre, vous en êtes à ${done}. Encore ${harvests}.`,
+        `Capucine only entrusts it to gardeners: ${needed} harvests from your plots of soil, you have made ${done}. ${harvests} to go.`,
+      )
       note.classList.add('error')
     } else if (wallet.state === 'offline') {
       note.textContent = tr('Boutique indisponible : le site ne répond pas.', 'Shop unavailable: the site isn\'t responding.')
@@ -538,7 +574,7 @@ export class CabinEditor {
     const buy = document.createElement('button')
     buy.className = 'eb-buy'
     buy.append(icon('lock-simple'), document.createTextNode(b.pending ? tr('Déblocage…', 'Unlocking…') : tr('Débloquer', 'Unlock')))
-    buy.disabled = b.pending || !wallet.ready || short
+    buy.disabled = b.pending || !wallet.ready || short || harvests > 0
     buy.onclick = () => void this.confirmBuy()
     this.buyEl.append(head, note, buy)
   }
@@ -560,7 +596,8 @@ export class CabinEditor {
         owned: tr('Cet objet est déjà débloqué. Cliquez sur sa carte pour le poser.', 'This item is already unlocked. Click its card to place it.'),
         max: tr('Cet objet est déjà débloqué.', 'This item is already unlocked.'),
         guest: tr('Achats réservés aux CMDR connectés au site.', 'Only CMDRs logged in to the site can buy.'),
-      }[result.reason as 'funds' | 'max' | 'owned' | 'guest'] ?? tr('Déblocage non abouti : le site ne répond pas. Réessayez.', 'Unlock failed: the site isn\'t responding. Try again.')
+        garden: tr('Il vous manque des récoltes : cet objet se gagne au jardinage.', 'You are short of harvests: this item is earned by gardening.'),
+      }[result.reason as 'funds' | 'max' | 'owned' | 'guest' | 'garden'] ?? tr('Déblocage non abouti : le site ne répond pas. Réessayez.', 'Unlock failed: the site isn\'t responding. Try again.')
       return this.renderBuy()
     }
     const price = itemPrice(b.entry.id) ?? 0
