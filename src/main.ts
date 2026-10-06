@@ -635,12 +635,18 @@ fishing.onBook = openFishBook
 // une table libre ouvre l'interrogation (cf. src/quiz/). La professeure et les élèves sont des
 // personnages du Holo-Me, chargés après le reste (cf. src/classroom.ts).
 let classCrowd: ClassCrowd | null = null
+/** La musique de l'interrogation, tant que le panneau est ouvert : « Chills », saxo feutré (CC0, cf. public/assets/music/CREDITS.txt). */
+let quizTune: { stop: () => void } | null = null
 void ClassCrowd.load(deckById(1)).then((crowd) => { classCrowd = crowd })
 const quiz = new QuizPanel({
   sound: (kind) => {
     if (kind === 'pick') sound.ui('pick')
     else if (kind === 'wrong') sound.ui('deny')
     else sound.jingle(kind === 'right' ? 'coin' : kind === 'good' ? 'win' : 'lose')
+  },
+  music: (on) => {
+    quizTune?.stop()
+    quizTune = on ? sound.music('lofi.mp3', 0.22) : null
   },
   answered: (right) => classCrowd?.react(right),
 })

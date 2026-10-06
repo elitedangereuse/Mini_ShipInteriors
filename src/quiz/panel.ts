@@ -17,6 +17,8 @@ export type QuizSound = 'pick' | 'right' | 'wrong' | 'good' | 'bad'
 
 export interface QuizHost {
   sound(kind: QuizSound): void
+  /** Le panneau s'ouvre, ou se referme : sa musique d'ambiance commence, ou s'arrête. */
+  music?(on: boolean): void
   /** Une réponse vient d'être donnée (la professeure réagit, cf. src/classroom.ts). */
   answered?(right: boolean): void
 }
@@ -110,9 +112,11 @@ export class QuizPanel {
     this.run = null
     this.cursor = 0
     this.render()
+    this.host.music?.(true)
   }
 
   close() {
+    if (this.root) this.host.music?.(false)
     this.root?.remove()
     this.root = undefined
     this.run = null
