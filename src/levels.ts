@@ -873,6 +873,8 @@ export const LEVELS: LevelDef[] = [
     // L'étage de la salle commune (cf. MEZZANINES).
     mezzanine: tr('Mezzanine de la salle commune', 'Common room mezzanine'),
     floors: { c: 'floor-panel', b: 'floor-detail', l: 'floor-panel' },
+    // Le mur entre l'infirmerie et la salle de sport, où pendent le speed bag et l'écran des records.
+    plainWalls: [{ x: 15.5, z: 2 }],
     // Le poste de pilotage et la Promenade sont vitrés sur l'espace ; le hall de la salle commune
     // aussi, au nord et au sud (la mezzanine, à la poupe, a ses grandes baies).
     canopy: { b: [0, 1, 2], c: [0, 1, 2], e: [0, 2] },
@@ -1056,39 +1058,111 @@ export const LEVELS: LevelDef[] = [
         interact: tr('Défibrillateur. Betty dit qu\'elle n\'en a jamais eu besoin : elle a un meilleur effet sur les cœurs.', 'Defibrillator. Betty says she has never needed it: she has a better effect on hearts.'),
       },
 
-      // --- Salle de sport ---
-      // Au mur nord : les records des trois appareils (cf. src/gym.ts).
-      { model: 'score-board', x: 18.7, z: -0.35, label: 'gym', solid: false, interact: tr('Records de la salle de sport', 'Gym records'), action: tr('Consulter les records', 'View records') },
+      // --- Salle de sport, façon vraie salle : un sol de caoutchouc, et une zone par mini-jeu (cf.
+      // src/gym.ts), chacune avec son tapis, son enseigne au haut du mur nord et le record de son
+      // appareil. Au nord, d'ouest en est : la boxe (sac de frappe, mannequin, speed bag, gants,
+      // chrono des rounds), la course (le tapis, face au hublot), le vélo, puis la musculation (miroir et
+      // haltères, banc, kettlebells, disques). Au sud-ouest, le banc sous l'écran des records et le
+      // tapis d'étirement ; près de la porte, la fontaine et le coin nettoyage. L'allée de la porte
+      // reste libre : le sergent y fait sa ronde (cf. shared/patrol.js). ---
+      { model: 'gym-floor', x: 18, z: 1.5, label: '4.7x3.7', solid: false },
+      { model: 'gym-mat', x: 16.3, z: 0.9, label: 'boxing:1.3x2.5', solid: false },
+      { model: 'gym-mat', x: 17.375, z: 0.55, label: 'gym-run:0.85x1.8', solid: false },
+      { model: 'gym-mat', x: 18.325, z: 0.55, label: 'gym-bike:1.05x1.8', solid: false },
+      { model: 'gym-mat', x: 19.6, z: 1.5, label: 'weights:1.5x3.7', solid: false },
+      { model: 'gym-logo', x: 18.1, z: 2.35, label: '0.8', solid: false },
+      { model: 'gym-sign', x: 16.3, z: -0.35, label: 'gym-punch', solid: false },
+      { model: 'gym-sign', x: 17.375, z: -0.35, label: 'gym-run', solid: false },
+      { model: 'gym-sign', x: 18.33, z: -0.35, label: 'gym-bike', solid: false },
+      { model: 'gym-sign', x: 19.62, z: -0.35, label: 'weights', solid: false },
+      // La boxe : le sac sur sa potence, adossée au mur ouest ; le chrono des rounds et le speed bag
+      // au même mur, le mannequin devant, les gants au mur nord.
       {
-        model: 'treadmill', x: 16.05, z: 0.7, action: tr('Courir', 'Run'),
-        interact: [
-          tr('Tapis de course : 5 km parcourus. Le vaisseau, lui, en a fait 3 milliards.', 'Treadmill: 5 km run. The ship, meanwhile, has done 3 billion.'),
-          tr('Programme « Fuite devant un Thargoïde » : niveau 7 atteint.', '“Fleeing a Thargoid” programme: level 7 reached.'),
-        ],
-      },
-      {
-        model: 'exercise-bike', x: 17.1, z: 0.55, action: tr('Pédaler', 'Pedal'),
-        interact: tr(
-          'Vélo d\'appartement : il recharge les batteries de secours. Pédalez, CMDR !',
-          'Exercise bike: it charges the backup batteries. Pedal, CMDR!',
-        ),
-      },
-      {
-        model: 'weight-bench', x: 19.55, z: 0.55,
-        interact: tr(
-          'Banc de musculation : 60 kg… sous 0,8 g. Vous êtes plus fort que vous ne le croyez.',
-          'Weight bench: 60 kg… at 0.8 g. You are stronger than you think.',
-        ),
-      },
-      { model: 'dumbbell-rack', x: 20.15, z: 2.35, rot: 3 },
-      {
-        model: 'punching-bag', x: 16.3, z: 2.4, rot: 1, action: tr('Frapper', 'Punch'),
+        model: 'punching-bag', x: 16.12, z: 0.6, rot: 1, action: tr('Frapper', 'Punch'),
         interact: [
           tr('Paf ! Le sac encaisse sans broncher.', 'Thwack! The bag takes it without flinching.'),
           tr('Bim ! Quelqu\'un a dessiné un Thargoïde dessus.', 'Pow! Someone has drawn a Thargoid on it.'),
         ],
       },
-      { model: 'rug', x: 18.2, z: 1.9, label: 'rubber:1.6x1.1', solid: false },
+      {
+        model: 'round-timer', x: 15.65, z: 1.2, rot: 1, solid: false,
+        interact: tr('Le chrono des rounds : trois minutes rouges, une minute verte. Le sergent Rourke ne connaît que les rouges.', 'The round timer: three red minutes, one green. Sergeant Rourke only knows the red ones.'),
+      },
+      {
+        model: 'speed-bag', x: 15.65, z: 1.75, rot: 1, solid: false,
+        interact: [
+          tr('Le speed bag : tac-tac-tac-tac. Il paraît que Betty le fait chanter mieux que tout le monde.', 'The speed bag: rat-a-tat-tat. Word is Betty makes it sing better than anyone.'),
+          tr('La poire rebondit contre le plateau, et vous dans la figure. Il faut le rythme.', 'The bag bounces off the board, and into your face. It\'s all about rhythm.'),
+        ],
+      },
+      {
+        model: 'boxing-dummy', x: 16.55, z: 1.7,
+        interact: [
+          tr('Bob, le mannequin de frappe. Il a encaissé tout l\'équipage sans jamais rendre un coup. Ni un sourire.', 'Bob, the punching dummy. He has taken hits from the whole crew without ever hitting back. Or smiling.'),
+          tr('Quelqu\'un a collé une gommette « Employé du mois » sur le torse de Bob.', 'Someone has stuck an “Employee of the month” sticker on Bob\'s chest.'),
+        ],
+      },
+      {
+        model: 'glove-rack', x: 16.1, z: -0.35, solid: false,
+        interact: tr('Trois paires de gants, deux cordes à sauter, des bandes. Sur la paire noire, au marqueur : « Propriété de Rourke. Ne pas toucher. »', 'Three pairs of gloves, two skipping ropes, hand wraps. On the black pair, in marker: “Property of Rourke. Do not touch.”'),
+      },
+      // La course : le tapis face au hublot, à courir vers les étoiles.
+      {
+        model: 'treadmill', x: 17.375, z: 0.45, rot: 2, action: tr('Courir', 'Run'),
+        interact: [
+          tr('Tapis de course : 5 km parcourus. Le vaisseau, lui, en a fait 3 milliards.', 'Treadmill: 5 km run. The ship, meanwhile, has done 3 billion.'),
+          tr('Programme « Fuite devant un Thargoïde » : niveau 7 atteint.', '“Fleeing a Thargoid” programme: level 7 reached.'),
+          tr('On court face au hublot : la station la plus proche ne se rapproche jamais.', 'You run facing the porthole: the nearest station never gets any closer.'),
+        ],
+      },
+      // Le vélo.
+      {
+        model: 'exercise-bike', x: 18.45, z: 0.3, rot: 2, action: tr('Pédaler', 'Pedal'),
+        interact: tr(
+          'Vélo d\'appartement : il recharge les batteries de secours. Pédalez, CMDR !',
+          'Exercise bike: it charges the backup batteries. Pedal, CMDR!',
+        ),
+      },
+      // La musculation : le miroir et les haltères au mur nord, le banc au milieu, les kettlebells
+      // et les serviettes au mur est (sous le règlement), l'arbre à disques dans le coin.
+      { model: 'gym-mirror', x: 19.62, z: -0.35, label: '1.32', solid: false },
+      {
+        model: 'dumbbell-rack', x: 19.62, z: -0.18,
+        interact: tr('Le râtelier d\'haltères, du plus léger au plus lourd. Il en manque toujours une paire : elle est dans les quartiers de quelqu\'un.', 'The dumbbell rack, lightest to heaviest. A pair is always missing: it\'s in somebody\'s quarters.'),
+      },
+      {
+        model: 'weight-bench', x: 19.6, z: 1.8,
+        interact: tr(
+          'Banc de musculation : 60 kg… sous 0,8 g. Vous êtes plus fort que vous ne le croyez.',
+          'Weight bench: 60 kg… at 0.8 g. You are stronger than you think.',
+        ),
+      },
+      {
+        model: 'kettlebell-rack', x: 20.2, z: 0.75, rot: 3,
+        interact: tr('Kettlebells : une couleur par poids. La violette a servi à caler la porte de la soute.', 'Kettlebells: one colour per weight. The purple one was used to wedge the cargo bay door.'),
+      },
+      { model: 'plate-tree', x: 20.05, z: 3.0 },
+      { model: 'towel-shelf', x: 20.24, z: 2.42, rot: 3 },
+      {
+        model: 'gym-rules', x: 20.35, z: 2.45, rot: 3, solid: false,
+        interact: tr('Le règlement de la salle, en cinq points. Le cinquième a été ajouté au feutre, après un incident.', 'The gym rules, in five points. The fifth was added in marker, after an incident.'),
+      },
+      // Le coin repos : le banc sous l'écran des records, le tapis d'étirement, la fontaine, et le
+      // coin nettoyage près de la porte.
+      { model: 'score-board', x: 15.65, z: 2.75, rot: 1, label: 'gym', solid: false, interact: tr('Records de la salle de sport', 'Gym records'), action: tr('Consulter les records', 'View records') },
+      { model: 'bench', x: 15.95, z: 2.75, rot: 1, label: 'terracotta' },
+      { model: 'gym-mat', x: 16.85, z: 2.55, label: 'yoga:0.85x0.32', solid: false },
+      {
+        model: 'water-fountain', x: 16.6, z: 3.19, rot: 2, action: tr('Boire un verre d\'eau', 'Drink a glass of water'),
+        interact: [
+          tr('Une gorgée d\'eau fraîche entre deux séries. Le gobelet dit : « Hydratez-vous, CMDR. »', 'A sip of cold water between sets. The cup says: “Stay hydrated, CMDR.”'),
+          tr('Glou glou. Quelqu\'un a scotché une liste au-dessus : « Records du jour ». Elle est vide.', 'Glug glug. Someone has taped a list above it: “Today\'s records”. It\'s empty.'),
+        ],
+      },
+      {
+        model: 'cleaning-station', x: 17.15, z: 3.35, rot: 2,
+        interact: tr('Coin nettoyage : essuie-tout, désinfectant, gel. « Après la séance, on nettoie ! » Le sergent vérifie.', 'Cleaning station: paper towels, disinfectant, hand gel. “After your set, wipe it down!” The sergeant checks.'),
+      },
 
       // --- Mess : un self. Au nord, la salle et ses deux tables de cantine ; le comptoir la traverse
       // d'ouest en est (plateaux, bain-marie, passe du chef, desserts, boissons) ; derrière, la
@@ -1295,7 +1369,9 @@ export const LEVELS: LevelDef[] = [
       [10.2, 1.4, '#eef8ff', 2.6],
       [13.8, 1.4, '#e8f6ff', 2.6],
       [9.6, 2.9, '#ffc2d6', 1.2],
-      [18, 1.5, '#fff4e4', 3],
+      // La salle de sport : une lumière blanche de salle, et le rouge de la boxe.
+      [18.2, 1.3, '#f2f6ff', 2.8],
+      [16.3, 1.4, '#ff8a7a', 1],
       // Le mess : la salle, les lampes chauffantes de la passe, la cuisine.
       [12, 7.5, '#ffe2b0', 3],
       [11.5, 9.9, '#ff9a4a', 1.4],

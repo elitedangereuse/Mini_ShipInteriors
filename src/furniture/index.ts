@@ -14,6 +14,7 @@ import { DECOR } from './decor'
 import { ELITE } from './elite'
 import { GARDEN } from './garden'
 import { GARDENING } from './gardening'
+import { GYM } from './gym'
 import { HANGAR } from './hangar'
 import { compact, rng, type Builder, type Furniture, type Room } from './kit'
 import { KENNEY } from './kenney'
@@ -51,7 +52,8 @@ import { QUESTS_FURNITURE } from './quests'
  * - workshop.ts : la cale (minage, bricolage, réparation) ;
  * - bar.ts : Chez Jacques, le bar clandestin de la cale (comptoir, bouteilles, Jacques le robot barman) ;
  * - club.ts : le Zorb, la boîte de nuit des aliens de la cale (enseigne, cordon, videur, danseurs) ;
- * - leisure.ts : infirmerie (lits, scanner, pharmacie), salle de sport, enseigne du salon d'arcade ;
+ * - leisure.ts : infirmerie (lits, scanner, pharmacie), appareils de la salle de sport, enseigne du salon d'arcade ;
+ * - gym.ts : la salle de sport du pont principal (sols et tapis par zone, enseignes et records, miroir, boxe, disques, kettlebells, coin nettoyage) ;
  * - medical.ts : l'infirmerie agrandie de Betty (rideaux de box, perfusions, poste de soins, négatoscope…) ;
  * - kitchen.ts : le mess, un self (tables de cantine, comptoir, cuisine de Marcel, décor des tâches de cuisine) ;
  * - arcade.ts : bornes d'arcade, borne cocktail, flippers, borne de course, pince à peluches ;
@@ -89,7 +91,7 @@ import { QUESTS_FURNITURE } from './quests'
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...COCKPIT, ...CONCOURSE, ...WORKSHOP, ...BAR, ...CLUB, ...LEISURE, ...MEDICAL, ...KITCHEN, ...ARCADE, ...BOARD, ...COZY, ...GARDEN, ...GARDENING, ...NATURE, ...OUTDOOR, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...CLASSROOM, ...LISTENING, ...STUDIO, ...LJPC, ...PLANETARIUM, ...VENTS, ...VOIE, ...SALVAGE, ...HANGAR, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH, ...SPORT, ...RANGE, ...FISHING, ...TUTORIAL, ...QUESTS_FURNITURE } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...COCKPIT, ...CONCOURSE, ...WORKSHOP, ...BAR, ...CLUB, ...LEISURE, ...GYM, ...MEDICAL, ...KITCHEN, ...ARCADE, ...BOARD, ...COZY, ...GARDEN, ...GARDENING, ...NATURE, ...OUTDOOR, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...CLASSROOM, ...LISTENING, ...STUDIO, ...LJPC, ...PLANETARIUM, ...VENTS, ...VOIE, ...SALVAGE, ...HANGAR, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH, ...SPORT, ...RANGE, ...FISHING, ...TUTORIAL, ...QUESTS_FURNITURE } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 

@@ -42,6 +42,7 @@
 - [La serre](#la-serre)
 - [Le jardinage](#le-jardinage)
 - [Le planétarium](#le-planétarium)
+- [La salle de sport](#la-salle-de-sport)
 - [La zone sportive](#la-zone-sportive)
 - [Le stand de tir](#le-stand-de-tir)
 - [La base au sol](#la-base-au-sol)
@@ -116,7 +117,7 @@ La réserve de huit lumières du moteur de rendu suit le joueur : un pont peut e
 |---|---|---|
 | **Quartiers** · chacun chez soi | *cozy*, dans une bulle ouverte sur l'espace | le palier de l'ascenseur, et derrière sa porte la **parcelle** de chaque joueur, [bâtie et meublée par lui](#quartiers-personnalisables) (au départ : ses quartiers d'origine, avec grand lit, cheminée holographique, canapé, aquarium, bureau, bibliothèque, casier à combinaisons, **Holo-Me**) |
 | **Pont supérieur** · la vie à bord | *cozy* : crème et bois miel, tissus, plantes, lumière chaude, pas feutrés | **planétarium** de Bugenhagen, à la place des anciens quartiers du commandant (cf. [Le planétarium](#le-planétarium)), cabines d'équipage (vidées, elles aussi attendent leur emploi), **toilettes** (trois cabines dont la porte se referme sur l'occupant : on ne le voit plus du dehors, et lui ne voit plus personne), grande **serre hydroponique** tout en verre, prolongée au sud par le **jardin exotique** et son étang où l'on pêche, et Capucine, la jardinière (cf. [La serre](#la-serre)), salon d'écoute (fauteuils et poufs tournés vers la vitre du studio), studio de Radio Dangereuse (trois micros, néon « ON AIR »), **foyer** (le couloir du cinéma, après le salon d'écoute : tapis rouge, films à l'affiche, porte double capitonnée de rouge), cinéma, et au sud du foyer la **zone sportive** : un hall, le **terrain de basket** et le **terrain de foot** (cf. [La zone sportive](#la-zone-sportive)), coursive |
-| **Pont principal** | la station d'origine, mobilier aux couleurs d'Elite | **poste de pilotage** à la proue, sous verrières (siège du pilote et HOTAS face au tableau de bord, postes du navigateur et du copilote, fauteuil du commandant, scanner, panneaux holographiques, carte galactique), salles de LJPC, de La Voie et du Mini-CQC (en travaux), **salle commune** à la poupe, le hall du vaisseau façon station Coriolis (cf. [La salle commune](#la-salle-commune)), **infirmerie** de Betty, l'infirmière (trois lits en box, scanner corporel, poste de soins, quarantaine ; cf. [L'infirmerie](#linfirmerie)), **salle de sport**, grand **salon d'arcade** (deux rangées de bornes, dont cinq jouables : Cargaison, Viper, Astéroïdes, Thargoid Invaders, Ruelle Fighter II ; un flipper, une pince à peluches, les tables de dames, de Puissance 4 et d'échecs, un coin salon sur des tapis colorés), **mess**, un self avec sa cuisine et son chef (cf. [Le mess](#le-mess)), coursive |
+| **Pont principal** | la station d'origine, mobilier aux couleurs d'Elite | **poste de pilotage** à la proue, sous verrières (siège du pilote et HOTAS face au tableau de bord, postes du navigateur et du copilote, fauteuil du commandant, scanner, panneaux holographiques, carte galactique), salles de LJPC, de La Voie et du Mini-CQC (en travaux), **salle commune** à la poupe, le hall du vaisseau façon station Coriolis (cf. [La salle commune](#la-salle-commune)), **infirmerie** de Betty, l'infirmière (trois lits en box, scanner corporel, poste de soins, quarantaine ; cf. [L'infirmerie](#linfirmerie)), **salle de sport** (une zone par appareil : boxe, course, vélo, et la musculation ; cf. [La salle de sport](#la-salle-de-sport)), grand **salon d'arcade** (deux rangées de bornes, dont cinq jouables : Cargaison, Viper, Astéroïdes, Thargoid Invaders, Ruelle Fighter II ; un flipper, une pince à peluches, les tables de dames, de Puissance 4 et d'échecs, un coin salon sur des tapis colorés), **mess**, un self avec sa cuisine et son chef (cf. [Le mess](#le-mess)), coursive |
 | **Cale** | *brute* : acier noirci et rouillé, jaune de chantier, lumière sodium, néons qui grésillent | **lobby de la zone thargoïde** (terminal de mission, poste de sécurité vitré d'Odile, la contrôleuse, alcôve de la porte blindée et son portique de décontamination, mur des caméras de surveillance, table de briefing au plan holographique, vestiaire, classement), et derrière lui le **hangar** : un Krait Mk II sur son pad, face au bouclier bleu qui ouvre le hangar sur l'espace, et Nico, le mécano (cf. [Le hangar](#le-hangar)), **atelier** (établis, poste de soudure, établi d'ingénieur, ferraille), **stand de tir**, à la place de l'ancienne baie de réparation (pas de tir, couloir des cibles, armes au mur, cf. [Le stand de tir](#le-stand-de-tir)), **raffinerie** (fusion, tapis roulant de minerai, cristaux, drones collecteurs, laser minier), soute, palier de l'ascenseur ; au fond de la soute, **Chez Jacques**, le bar clandestin, plus soigné que le reste (arrière-bar chargé de bouteilles sous son enseigne au néon, comptoir capitonné et tabourets, tables de bistro, banquette, son propre jukebox) où sert **Jacques**, un robot barman à béret et nœud papillon qui essuie les verres, secoue le shaker et fait des clins d'œil ; au-dessus de la salle des machines, au bout d'un **couloir de service** qui part du palier, **le Zorb**, la boîte de nuit des aliens (cf. [Le Zorb](#le-zorb)) |
 
 ### Pont supérieur · les quartiers
@@ -138,7 +139,7 @@ La réserve de huit lumières du moteur de rendu suit le joueur : un pont peut e
   </tr>
   <tr>
     <td width="50%"><img src="docs/images/salle-commune.jpg" alt="La salle commune : l'îlot du hall sous l'hologramme de la galaxie, les deux comptoirs, la mezzanine et ses escaliers"><br><sub><b>Salle commune</b> : le hall et son îlot, les comptoirs Weekly et Chasse galactique, la mezzanine (jukebox, salons) sous ses baies.</sub></td>
-    <td width="50%"><img src="docs/images/infirmerie-sport.jpg" alt="L'infirmerie et la salle de sport"><br><sub><b>Infirmerie et salle de sport</b> : lit médical, scanner corporel, tapis de course, sac de frappe.</sub></td>
+    <td width="50%"><img src="docs/images/salle-de-sport.jpg" alt="La salle de sport : les dalles de mousse de la boxe, la piste bleue du tapis de course face au hublot, la piste orange du vélo, la musculation, et les enseignes de chaque zone au mur nord"><br><sub><b>Salle de sport</b> : une zone par appareil (boxe, course, vélo), la musculation, et le record de chacun sur son enseigne.</sub></td>
   </tr>
 </table>
 
@@ -288,7 +289,7 @@ La parcelle est gardée par le site (champ `home` de l'aménagement, cf. `src/ca
   <br><em>La galerie de debug <code>/gallery.html?mobilier</code> : tous les meubles construits à la main, animés.</em>
 </p>
 
-Les meubles qui ne sont pas dans le kit sont construits en primitives Three.js dans `src/furniture/`, rangés par zone : `elite.ts` (clins d'œil à Elite Dangerous, et le Holo-Me), `workshop.ts` (la cale), `bar.ts` (Chez Jacques, le bar de la cale, et Jacques le robot barman), `club.ts` (le Zorb, la boîte de nuit des aliens : videur, danseurs, enseigne, cordon), `leisure.ts` (infirmerie, sport), `medical.ts` (l'infirmerie agrandie : rideaux, perfusions, poste de soins, négatoscope…), `arcade.ts` (les bornes et leurs jeux), `cozy.ts` (les quartiers), `decor.ts` (la décoration des cabines : affiches, cadres, plantes, petits objets), `lights.ts` (les luminaires des cabines), `party.ts` (la soirée : piste de danse, boule à facettes, platines…), `retro.ts` (télé cathodique, consoles, micro 8 bits), `armory.ts` (l'armurerie décorative), `posters.ts` (affiches de films, pin-up), `bath.ts` (petits objets de salle de bain), `kenney.ts` (les modèles du Furniture Kit, remis à l'échelle et repeints), `garden.ts` (la serre : bacs potagers, pommier, bassin, treille…), `nature.ts` (les plantes du Nature Kit, assemblées en palmiers en pot, bambous, massifs), `tasks.ts` (le décor des [tâches de bord](#tâches-de-bord) : ordures, flaques, brèches…). On les place dans `src/levels.ts` comme les modèles du kit : `{ model: 'fireplace', x, z, rot }`, et dans les quartiers depuis le catalogue du mode aménagement (`src/cabin/catalog.ts`, qui dit comment chacun se pose et ce qu'on peut en changer). Le nom du modèle est vérifié à la compilation.
+Les meubles qui ne sont pas dans le kit sont construits en primitives Three.js dans `src/furniture/`, rangés par zone : `elite.ts` (clins d'œil à Elite Dangerous, et le Holo-Me), `workshop.ts` (la cale), `bar.ts` (Chez Jacques, le bar de la cale, et Jacques le robot barman), `club.ts` (le Zorb, la boîte de nuit des aliens : videur, danseurs, enseigne, cordon), `leisure.ts` (infirmerie, appareils de sport), `gym.ts` (la salle de sport : sols et tapis par zone, enseignes et records, miroir, boxe, musculation), `medical.ts` (l'infirmerie agrandie : rideaux, perfusions, poste de soins, négatoscope…), `arcade.ts` (les bornes et leurs jeux), `cozy.ts` (les quartiers), `decor.ts` (la décoration des cabines : affiches, cadres, plantes, petits objets), `lights.ts` (les luminaires des cabines), `party.ts` (la soirée : piste de danse, boule à facettes, platines…), `retro.ts` (télé cathodique, consoles, micro 8 bits), `armory.ts` (l'armurerie décorative), `posters.ts` (affiches de films, pin-up), `bath.ts` (petits objets de salle de bain), `kenney.ts` (les modèles du Furniture Kit, remis à l'échelle et repeints), `garden.ts` (la serre : bacs potagers, pommier, bassin, treille…), `nature.ts` (les plantes du Nature Kit, assemblées en palmiers en pot, bambous, massifs), `tasks.ts` (le décor des [tâches de bord](#tâches-de-bord) : ordures, flaques, brèches…). On les place dans `src/levels.ts` comme les modèles du kit : `{ model: 'fireplace', x, z, rot }`, et dans les quartiers depuis le catalogue du mode aménagement (`src/cabin/catalog.ts`, qui dit comment chacun se pose et ce qu'on peut en changer). Le nom du modèle est vérifié à la compilation.
 
 - `label` passe un texte libre au meuble : le titre d'un panneau holographique (`'Titre|ligne|ligne'`), le jeu d'une borne (`cargo`, `viper`, `asteroids`, `invaders`, `fight`, `elite`, `comete`, `srv`), la couleur d'un tissu (`teal`, `terracotta`, `mustard`…), la palette et la taille d'un tapis (`warm:2.2x1.5`).
 - `interact` accepte une liste de phrases : une au hasard à chaque interaction. `action` change le verbe de l'invite (« Jouer », « Se doucher », « Frapper »…).
@@ -661,6 +662,34 @@ Au sud de la coursive du pont supérieur, à la place des anciens quartiers du c
 
 L'ancienne pièce vide faisait 8 × 5 : elle a gagné trois rangées au sud. Les portes des anciennes extensions des quartiers ne sont plus posées sur le pont : seule la migration des anciens quartiers s'en sert encore, sur le plan figé du pont d'alors (`LEGACY_UPPER_LAYOUT` et `legacyUpperMapOptions`, cf. `shared/housing-migrate.js`).
 
+## La salle de sport
+
+Fermée tant que la quête « Poids lourds » n'est pas terminée (cf. [Les quêtes](#les-quêtes)).
+
+Au nord de la coursive du pont principal, entre l'infirmerie et le labo du L.J.P.C., la salle de sport (5 × 4 tuiles, pièce `r`) est aménagée comme une vraie salle : un sol de caoutchouc moucheté, en dalles, et une zone par mini-jeu, chacune avec son tapis, son enseigne lumineuse au haut du mur nord et le record du bord sur son appareil.
+
+| Zone | Au sol | L'appareil du mini-jeu | Autour |
+|---|---|---|---|
+| **Boxe** | dalles de mousse rouges et bleues, emboîtées | le sac de frappe, sur sa potence | Bob, le mannequin de frappe ; le speed bag, le chrono des rounds, les gants et les cordes à sauter |
+| **Course** | piste bleue | le tapis de course, face au hublot | |
+| **Vélo** | piste orange | le vélo de biking | |
+| **Musculation** | dalles lourdes noires, bande jaune et noire | (pas de mini-jeu) | le miroir et le râtelier d'haltères, le banc de développé couché (on s'y allonge), les kettlebells, l'arbre à disques, les serviettes, le règlement |
+
+Au sud-ouest, le banc sous l'écran des records (qui ouvre le classement), un tapis d'étirement et son rouleau ; près de la porte, la fontaine et le coin nettoyage. L'allée de la porte reste libre : le sergent Rourke y passe à chaque ronde. Le mobilier de la salle est dans `src/furniture/gym.ts`, les appareils (qu'on trouve aussi au catalogue des quartiers) dans `src/furniture/leisure.ts`, le mini-jeu dans `src/gym.ts`.
+
+**Le jeu.** Le tapis, le vélo et le sac de frappe ont trois défis de rythme, affichés dans
+une bulle au-dessus du personnage. La boîte de dialogue du vaisseau explique
+les règles et annonce le résultat. Le personnage reste sur l'appareil avec
+l'animation de course, de pédalage ou de frappe pendant la séance, puis se
+relève à la fin. Les touches sont alternées pour les jambes, avec des séquences
+aléatoires pour la boxe. Attendre le signal « Frappez », puis répondre avant
+la fin du délai. Erreur, frappe trop tôt ou retard terminent la séance.
+Chaque réponse vaut 100 points ; le délai descend de 1,2 s à 0,28 s, avec un
+plafond de 99 900 points. Les flèches et les boutons tactiles sont disponibles.
+Échap arrête la séance. Records locaux pour les invités ; classement, record
+personnel et huit petits paliers de crédits (20 à 300 CR, 925 CR au maximum
+par appareil) pour les CMDR, sans prime de record d'arcade. L'enseigne de chaque zone affiche le record du bord sur son appareil.
+
 ## La zone sportive
 
 Les deux terrains sont fermés tant que leur quête n'est pas terminée : « Silence, on dribble » pour le basket, « Le dernier match » pour le foot (cf. [Les quêtes](#les-quêtes)).
@@ -988,6 +1017,7 @@ Les bips, les mélodies d'arcade, les étincelles, le miaulement, le ronronnemen
 | `shared/twitch-irc.js` | Chat Twitch du cinéma : découpe des lignes IRC reçues (auteur, couleur, emotes, « /me », modération) ; tests dans `server/twitch-irc.test.js`. |
 | `src/twitch-chat.ts` | Chat flottant du direct Twitch dans le cinéma : lecture anonyme, liaison du compte Twitch et envoi des messages par le site. |
 | `src/range.ts` · `src/range-weapons.ts` · `src/range-sfx.ts` · `src/range-music.ts` | Stand de tir de la cale : balles et traînées, cibles, recul et dispersion, chargeur, paliers, inscription du score ; réglages des armes ; bruitages synthétisés ; musique générée, qui suit la partie. Plan vérifié dans `server/range.test.js`. |
+| `src/gym.ts` | Mini-jeux de la salle de sport (tapis de course, vélo, sac de frappe) : défis de rythme dans une bulle, records, crédits. Le mobilier de la salle est dans `src/furniture/gym.ts`. |
 | `src/court.ts` | Mini-jeux de la zone sportive (tirs au panier, tirs au but) : visée, jauge de force, trajectoire et rebonds des ballons (`CourtPhysics`), paliers, compte à rebours, inscription du score. |
 | `src/deck.ts` · `src/merge.ts` | Construit un pont : sols, murs sur les arêtes, hublots, poteaux, portes automatiques, meubles, ascenseur, réacteur, tuyères. Fusion de géométrie et fondu tramé (`merge.ts`, partagé avec les quartiers). |
 | `src/cabin/` | **Quartiers personnalisables** : catalogue des objets (`catalog.ts`, et ses compléments `catalog-home.ts`, `catalog-ship.ts`, `catalog-fun.ts`), revêtements des murs et du sol (`finishes.ts`), cloisons (`partitions.ts`, et `shared/cabin-partitions.js`), aménagement et sa normalisation (`layout.ts`), construction et fusion dans le pont (`view.ts`), règles de pose (`rules.ts`), mode aménagement (`editor.ts`), vignettes (`thumbs.ts`), barre des quartiers et invitations (`hud.ts`), enregistrement sur le site (`storage.ts`). |
@@ -1073,22 +1103,5 @@ Les icônes de l'interface viennent de [Phosphor Icons](https://phosphoricons.co
 - Le site tient les comptes (solde, achats, tâches), mais ne vérifie pas un aménagement contre l'inventaire, ni le relais une apparence contre la garde-robe : un aménagement ou une apparence forgés à la main passent. Les gains, eux, restent bornés par le calendrier des tâches et le temps passé à bord. La pause du revenu passif après un quart d'heure sans rien toucher est décidée par le navigateur.
 - Une partie de borne ou de pince ne se voit que chez celui qui joue : les autres le voient à la borne, qui fait sa démonstration.
 - Pistes : pseudo et choix du personnage dans un écran d'accueil, PNJ d'équipage avec routines, escaliers du kit en plus de l'ascenseur, plans édités dans [Tiled](https://www.mapeditor.org/), objets gagnés en jeu à ajouter au catalogue (la peluche de Comète gagnée à la pince…), parties d'arcade à deux sur la borne cocktail.
-
-## Salle de sport
-
-Fermée tant que la quête « Poids lourds » n'est pas terminée (cf. [Les quêtes](#les-quêtes)).
-
-Le tapis, le vélo et le sac de frappe ont trois défis de rythme, affichés dans
-une bulle au-dessus du personnage. La boîte de dialogue du vaisseau explique
-les règles et annonce le résultat. Le personnage reste sur l'appareil avec
-l'animation de course, de pédalage ou de frappe pendant la séance, puis se
-relève à la fin. Les touches sont alternées pour les jambes, avec des séquences
-aléatoires pour la boxe. Attendre le signal « Frappez », puis répondre avant
-la fin du délai. Erreur, frappe trop tôt ou retard terminent la séance.
-Chaque réponse vaut 100 points ; le délai descend de 1,2 s à 0,28 s, avec un
-plafond de 99 900 points. Les flèches et les boutons tactiles sont disponibles.
-Échap arrête la séance. Records locaux pour les invités ; classement, record
-personnel et huit petits paliers de crédits (20 à 300 CR, 925 CR au maximum
-par appareil) pour les CMDR, sans prime de record d'arcade.
 
 <p align="center"><sub>o7, CMDR.</sub></p>
