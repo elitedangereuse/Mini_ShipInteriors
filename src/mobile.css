@@ -129,8 +129,13 @@
   .ed-actions button, .ed-tabs button, .ed-tool-row button { min-height: 44px; min-width: 44px; }
   .ed-catalog { top: calc(var(--mobile-top) + 52px); bottom: var(--mobile-bottom); right: var(--mobile-right); left: auto; height: auto; width: min(310px, 40vw); }
   .ed-tools { bottom: var(--mobile-bottom); left: var(--mobile-left); transform: none; max-width: calc(60vw - 24px); flex-wrap: wrap; }
-  .photo-bar { max-width: calc(100vw - var(--mobile-left) - var(--mobile-right)); flex-wrap: wrap; top: var(--mobile-top); left: var(--mobile-left); transform: none; }
-  .photo-preview { top: var(--mobile-top); bottom: auto; right: var(--mobile-right); }
+  /* The bar keeps its bottom-centre anchor: the thumb controls are hidden in photo mode. */
+  .photo-bar { left: 0; right: 0; bottom: var(--mobile-bottom); transform: none; width: max-content; margin-inline: auto; max-width: calc(100vw - var(--mobile-left) - var(--mobile-right)); gap: 4px; padding: 4px; }
+  .photo-bar button { width: 44px; height: 44px; }
+  .photo-bar .photo-shutter { width: auto; }
+  .photo-sep { margin: 0 1px; }
+  .photo-hint { display: none; }
+  .photo-preview { top: var(--mobile-top); bottom: auto; right: var(--mobile-right); max-height: calc(var(--mobile-height) - 60px); }
   .photo-preview img { max-height: 48dvh; object-fit: contain; }
 }
 
