@@ -10,10 +10,17 @@ const AIM_SLACK = 0.3
 /** Durée (ms) au-delà de laquelle un appui sans glisser n'est plus un toucher. */
 const TAP_TIME = 350
 
-/** Un stick analogique à l'écran : il capture son doigt, les autres pointeurs restent au décor. */
+/**
+ * Un stick analogique à l'écran. Il suit son doigt depuis la fenêtre, sans capture du pointeur :
+ * une capture perdue ou reprise (les navigateurs ne s'accordent pas là-dessus) ne peut ni le
+ * lâcher en plein geste, ni le laisser coincé.
+ */
 class TouchStick {
   x = 0
   y = 0
+  /** Course du bouton depuis la dernière lecture (même unité que x et y). */
+  movedX = 0
+  movedY = 0
   /**
    * Doigt relevé depuis la dernière lecture : `tap`, un toucher bref sans glisser ; `aimed`, le
    * stick était poussé ; `back`, ramené au centre avant de lâcher (on renonce).
@@ -33,23 +40,27 @@ class TouchStick {
       const dx = e.clientX - (rect.left + rect.width / 2)
       const dy = e.clientY - (rect.top + rect.height / 2)
       const scale = Math.min(1, radius / Math.max(1, Math.hypot(dx, dy)))
-      this.x = dx * scale / radius
-      this.y = dy * scale / radius
+      const x = dx * scale / radius, y = dy * scale / radius
+      this.movedX += x - this.x
+      this.movedY += y - this.y
+      this.x = x
+      this.y = y
       this.knob.style.transform = `translate(${dx * scale}px, ${dy * scale}px)`
       this.farthest = Math.max(this.farthest, this.reach)
       el.classList.toggle('aiming', this.reach >= AIM_SLACK)
       e.preventDefault()
     }
     el.addEventListener('pointerdown', (e) => {
-      if (this.pointer !== null) return
+      // Un doigt dont on n'aurait jamais vu la fin ne bloque pas le stick : le nouveau le reprend.
+      this.reset()
       this.pointer = e.pointerId
       // L'heure du toucher lui-même : celle du traitement arrive en retard sur un appareil lent.
       this.since = e.timeStamp
       this.farthest = 0
-      el.setPointerCapture(e.pointerId)
       move(e)
+      this.movedX = this.movedY = 0
     })
-    el.addEventListener('pointermove', move)
+    addEventListener('pointermove', move, { capture: true, passive: false })
     const release = (e: PointerEvent) => {
       if (e.pointerId !== this.pointer) return
       if (e.type === 'pointerup') {
@@ -58,9 +69,8 @@ class TouchStick {
       }
       this.reset()
     }
-    el.addEventListener('pointerup', release)
-    el.addEventListener('pointercancel', release)
-    el.addEventListener('lostpointercapture', release)
+    addEventListener('pointerup', release, { capture: true })
+    addEventListener('pointercancel', release, { capture: true })
   }
 
   get held(): boolean {
@@ -180,7 +190,7 @@ export class TouchGamepad {
     document.getElementById('touch-cancel')!.hidden = !context.cancel
   }
 
-  poll(enabled: boolean): GamepadInput & { flare: boolean; run: boolean; aiming: boolean; aimReleased: TouchStick['released'] } {
+  poll(enabled: boolean): GamepadInput & { flare: boolean; run: boolean; aiming: boolean; aimReleased: TouchStick['released']; aimMovedX: number; aimMovedY: number } {
     if (!enabled && (this.stick.held || this.aim.held || this.pending.size || this.buttonPointers.size)) this.reset()
     const pressed = this.pending
     this.pending = new Set()
@@ -191,6 +201,8 @@ export class TouchGamepad {
     this.direction = direction
     const aimReleased = this.aim.released
     this.aim.released = null
+    const aimMovedX = this.aim.movedX, aimMovedY = this.aim.movedY
+    this.aim.movedX = this.aim.movedY = 0
     const active = !!(x || y || this.aim.x || this.aim.y || pressed.size)
     return {
       connected: true, active: enabled && active,
@@ -204,6 +216,7 @@ export class TouchGamepad {
       // Stick poussé à fond : on court (il n'y a plus de bouton à tenir du pouce de la caméra).
       run: enabled && Math.hypot(x, y) > RUN_REACH,
       aiming: enabled && this.aim.reach >= AIM_SLACK, aimReleased: enabled ? aimReleased : null,
+      aimMovedX: enabled ? aimMovedX : 0, aimMovedY: enabled ? aimMovedY : 0,
     }
   }
 }

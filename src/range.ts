@@ -275,6 +275,9 @@ export class RangeGame {
   private readonly idle = new THREE.Group()
   private readonly laser: THREE.Mesh
   private readonly laserDot: THREE.Mesh
+  /** Couloir de tir, au sol : montré tant qu'on vise au stick tactile (cf. sight). */
+  private readonly lane: THREE.Mesh
+  private sighting = false
   private readonly flash: THREE.Sprite
   private readonly ribbon = ribbonTexture()
   private readonly halo = glowTexture()
@@ -343,7 +346,9 @@ export class RangeGame {
     this.laser = new THREE.Mesh(BEAM, new THREE.MeshBasicMaterial({ color: '#ff4a38', transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending }))
     this.laserDot = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), new THREE.MeshBasicMaterial({ color: '#ff6a5a' }))
     this.flash = this.sprite()
-    this.live.add(this.laser, this.laserDot, this.flash)
+    this.lane = new THREE.Mesh(BEAM, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.2, depthWrite: false }))
+    this.lane.visible = false
+    this.live.add(this.laser, this.laserDot, this.lane, this.flash)
     this.live.visible = false
     // Quatre cibles restent sorties tant que personne ne tire.
     ;[[12.5, 2, false, 0.5], [13.6, 0, true, 0.75], [14.7, 1, false, 0.42], [15.7, 0, false, 0.62]].forEach(([x, row, small, y]) => {
@@ -473,6 +478,38 @@ export class RangeGame {
       if (!t.leaving && d < near) { near = d; best = t }
     }
     if (best) this.aimToward(best.x - fx, best.z - fz)
+  }
+
+  /**
+   * Tir rapide en vue subjective : direction (repère du monde) de la cible qui s'écarte le moins de
+   * la mire, ou null s'il n'y en a pas devant soi.
+   */
+  nearestInView(camera: THREE.Camera): THREE.Vector3 | null {
+    const s = this.session
+    if (!s) return null
+    const eye = camera.getWorldPosition(new THREE.Vector3())
+    const gaze = camera.getWorldDirection(new THREE.Vector3())
+    const to = new THREE.Vector3()
+    let best: THREE.Vector3 | null = null
+    // Au-delà d'un demi-champ (cos 40°), ce n'est plus « devant soi ».
+    let near = 0.77
+    for (const t of s.targets) {
+      if (t.leaving) continue
+      const facing = t.disc.getWorldPosition(to).sub(eye).normalize().dot(gaze)
+      if (facing > near) { near = facing; best = to.clone() }
+    }
+    return best
+  }
+
+  /** Stick de tir tenu poussé (écran tactile) : le couloir de tir s'allume, le temps de viser. */
+  sight(on: boolean) {
+    this.sighting = on
+  }
+
+  /** Chargeur vide, et pas encore en train d'en changer. */
+  get empty(): boolean {
+    const s = this.session
+    return !!s && s.reload <= 0 && s.ammo[s.weapon] <= 0
   }
 
   /** Change le chargeur (R) : l'ancien tombe, le neuf est en place après le délai de l'arme. */
@@ -613,7 +650,12 @@ export class RangeGame {
       this.laser.position.copy(eye)
       this.laser.quaternion.setFromUnitVectors(Z, dir)
       this.laser.scale.set(0.012, 0.012, Math.max(hit.t, 1e-4))
+      // Le couloir : la largeur de la gerbe de l'arme, du canon à l'obstacle.
+      this.lane.position.copy(eye).setY(eye.y - 0.06)
+      this.lane.quaternion.copy(this.laser.quaternion)
+      this.lane.scale.set(0.16 + w.spread * 0.07, 0.004, Math.max(hit.t, 1e-4))
     }
+    this.lane.visible = !f.fps && this.sighting
 
     // Dispersion : elle retombe ; marcher l'ouvre.
     this.bloom *= Math.exp(-w.settle * dt)
@@ -1277,7 +1319,7 @@ export class RangeGame {
     if (coarse) order.append(tr('Recharger', 'Reload'))
     else order.append(tr('Recharger ', 'Reload '), el('kbd', '', 'R'))
     const hint = el('div', 'range-hint', coarse
-      ? tr('Stick droit : glisser pour viser, lâcher pour tirer · le toucher : tir rapide', 'Right stick: drag to aim, release to fire · tap it: quick shot')
+      ? tr('Glisser le stick pour viser, lâcher pour tirer · le toucher : tir rapide', 'Drag the stick to aim, release to fire · tap it: quick shot')
       : tr('Clic : tirer · R : recharger · E devant le mur : changer d\'arme ou la rendre · V : vue · le chrono part au premier tir', 'Click: fire · R: reload · E at the wall: swap or return your weapon · V: view · the clock starts on your first shot'))
     const dot = el('div', 'range-dot')
     dot.setAttribute('aria-hidden', 'true')

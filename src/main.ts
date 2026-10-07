@@ -3470,6 +3470,9 @@ let touchRun = false
 /** Stand de tir, au doigt : le stick de tir est poussé ; et ce qu'il vient de faire en se relâchant. */
 let touchAiming = false
 let touchShot: 'tap' | 'aimed' | 'back' | null = null
+/** Vue subjective : angle (radians) que tourne le regard pour une course du centre au bord du stick de tir. */
+const FPS_STICK_YAW = 0.62
+const FPS_STICK_PITCH = 0.42
 function updateGamepad(dt: number): GamepadInput {
   const focus = document.activeElement
   const typing = focus instanceof HTMLElement && (focus.matches('input, textarea, select') || focus.isContentEditable)
@@ -3492,13 +3495,14 @@ function updateGamepad(dt: number): GamepadInput {
     touchRun = touch.run
     touchAiming = range.active && touch.aiming
     touchShot = range.active ? touch.aimReleased : null
-    if (touchAiming) {
-      // Stand de tir : le stick de droite vise. Vue de dessus, il donne la direction ; en vue
-      // subjective, il tourne le regard (réponse adoucie près du centre, pour la précision).
+    // Stand de tir : le stick de droite vise. Vue de dessus, il donne la direction du tir. En vue
+    // subjective, le regard suit la course du bouton, comme un doigt glissé sur le décor : il
+    // s'arrête avec lui, sans partir au plafond quand on tient le stick poussé.
+    if (range.active && fpsShown) fps.look(-touch.aimMovedX * FPS_STICK_YAW, -touch.aimMovedY * FPS_STICK_PITCH)
+    else if (touchAiming) {
       const reach = Math.hypot(touch.lookX, touch.lookY)
-      const gain = fpsShown ? reach : 1 / reach
-      pad.lookX = touch.lookX * gain
-      pad.lookY = touch.lookY * gain
+      pad.lookX = touch.lookX / reach
+      pad.lookY = touch.lookY / reach
     }
     pad.interact ||= touch.interact
     pad.action ||= touch.action
@@ -3528,8 +3532,10 @@ function updateGamepad(dt: number): GamepadInput {
   if (range.active) {
     // Stand de tir : la gâchette droite tire, le stick droit vise, X recharge ; on reste libre de
     // marcher. A (ou le bouton de l'écran tactile) agit sur l'arme du mur toute proche, sinon tire.
-    // Au doigt, le stick de droite fait les deux : on le glisse pour viser et on le lâche pour tirer
-    // (une arme automatique tire tant qu'il est poussé) ; un simple toucher tire au plus près.
+    // Au doigt, le stick de droite fait les deux, comme dans Brawl Stars : on le glisse pour viser
+    // et on le lâche pour tirer (une arme automatique tire tant qu'il est poussé), on le ramène au
+    // centre pour renoncer ; un simple toucher vise tout seul la cible la plus proche et tire. Le
+    // chargeur vide se change sans qu'on le demande.
     const mount = nearestInteractable()
     const auto = !!weaponById(range.weapon ?? undefined)?.auto
     const fire = gamepad.held.has('7') || (!mount && gamepad.held.has('0')) || (auto && touchAiming)
@@ -3538,8 +3544,17 @@ function updateGamepad(dt: number): GamepadInput {
     else if (pad.interact && !fire) range.tap()
     if (touchShot === 'tap') {
       if (!fpsShown) range.aimNearest(player.position)
+      else {
+        const to = range.nearestInView(fps.camera)
+        if (to) {
+          fps.yaw = Math.atan2(-to.x, -to.z)
+          fps.pitch = Math.asin(THREE.MathUtils.clamp(to.y, -1, 1))
+        }
+      }
       range.tap()
     } else if (touchShot === 'aimed' && !auto) range.tap()
+    if (coarsePointer && range.empty) range.reload()
+    range.sight(touchAiming)
     if (pad.action) range.reload()
     if (fpsShown) fps.look(-pad.lookX * dt * 2.4, -pad.lookY * dt * 1.8)
     else if (pad.lookX || pad.lookY) {
