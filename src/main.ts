@@ -1,6 +1,8 @@
 import { GymGame, type Sport } from './gym'
 import { CourtGame } from './court'
 import { RangeGame } from './range'
+import { RangeSfx } from './range-sfx'
+import { weaponById } from './range-weapons'
 import { FishBook } from './fishing/book'
 import { fishCollection } from './fishing/collection'
 import { FishingGame } from './fishing/game'
@@ -598,33 +600,45 @@ court.onSound = (kind, at) => {
   else sound.jingle(kind === 'score' ? 'coin' : 'win')
 }
 
-// Stand de tir (cale) : on prend une arme au râtelier, l'écran ouvre le classement (cf. src/range.ts).
-const range = new RangeGame(deckById(-1).group, dialog, wallet)
-for (const it of deckById(-1).interactables) {
-  const model = it.furniture?.model
-  if (model === 'range-rack') it.onInteract = () => startRange()
-  else if (model === 'score-board' && it.furniture?.label === 'range') it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; void sitePanel.rankings('range') }
+// Stand de tir (cale) : on décroche une arme du mur (on l'y remet de même, ou on en prend une
+// autre), l'écran ouvre le classement (cf. src/range.ts).
+const range = new RangeGame(deckById(-1).group, dialog, wallet, new RangeSfx(sound))
+/** Les supports d'armes du mur du stand. */
+const rangeMounts = deckById(-1).interactables.filter((it) => it.furniture?.model === 'range-weapon')
+for (const it of rangeMounts) {
+  it.onInteract = () => {
+    if (player.gliding || deck !== holdDeck) return
+    stopWork()
+    player.cancelPath()
+    marker.visible = false
+    // Le résumé de la partie précédente ne reste pas sous le viseur.
+    $('dialog').hidden = true
+    const weapon = weaponById(it.furniture?.label)
+    if (weapon) range.take(weapon.id)
+  }
 }
-function startRange() {
-  if (range.active || player.gliding || deck.def.id !== -1) return
-  stopWork()
-  player.cancelPath()
-  marker.visible = false
-  // Le résumé de la partie précédente ne reste pas sous le viseur.
-  $('dialog').hidden = true
-  range.start()
+for (const it of deckById(-1).interactables) {
+  if (it.furniture?.model === 'score-board' && it.furniture.label === 'range') it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; void sitePanel.rankings('range') }
 }
 /** Vue de dessus du stand : la caméra relevée, au sud, les cibles en haut de l'écran. */
 const RANGE_ELEVATION = THREE.MathUtils.degToRad(50)
 /** Et rapprochée : le stand, du pas de tir au mur du fond, tient à l'écran. */
-const RANGE_ZOOM = 3.1
+const RANGE_ZOOM = 3.3
 /** Cap et zoom de la vue isométrique avant la partie : on y revient en rendant l'arme. */
 let rangeHeading = 0
 let rangeZoom = 0
+let rangeOn = false
 const rangeHands = new THREE.Vector3()
 const rangeAim = new THREE.Vector3()
 let rangePadFire = false
-range.onToggle = (on) => {
+range.onChange = (on) => {
+  // L'invite de chaque support : prendre cette arme, ou raccrocher la sienne.
+  for (const it of rangeMounts) {
+    const weapon = weaponById(it.furniture?.label)
+    if (weapon) it.label = range.weapon === weapon.id ? tr('Raccrocher l\'arme', 'Hang the weapon back') : weapon.take
+  }
+  if (on === rangeOn) return
+  rangeOn = on
   // L'arme se tient à deux mains, bras tendus.
   player.avatar.carrying = on
   hover.visible = false
@@ -644,21 +658,6 @@ range.onToggle = (on) => {
     iso.zoomTo(rangeZoom)
     range.restore(fps.camera)
   }
-}
-range.onSound = (kind, at, pitch) => {
-  const pos = at ? at.clone().setY(at.y + deck.y) : null
-  if (kind === 'shot') sound.play('blaster', pos, { volume: 0.5, rate: pitch })
-  else if (kind === 'heavy') {
-    sound.play('blasterHeavy', pos, { volume: 0.6, rate: pitch })
-    sound.thud(pos ?? player.position)
-  } else if (kind === 'hit' || kind === 'bullseye') {
-    sound.play('plate', pos, { volume: 0.7, rate: pitch })
-    if (kind === 'bullseye') sound.play('ding', null, { volume: 0.3, rate: 1.5 })
-  } else if (kind === 'wall') sound.play('ricochet', pos, { volume: 0.4, rate: pitch })
-  else if (kind === 'dry') sound.play('dryFire', null, { volume: 0.5 })
-  else if (kind === 'tier') sound.jingle('win')
-  else if (kind === 'end') sound.jingle('lose')
-  else sound.play('magazine', null, { volume: 0.5, rate: kind === 'loaded' ? 1.25 : kind === 'switch' ? 0.8 : 1 })
 }
 
 // Jardin exotique (pont supérieur) : on pêche depuis le ponton de l'étang ; le livre des prises,
@@ -3366,11 +3365,14 @@ function updateGamepad(dt: number): GamepadInput {
     return pad
   }
   if (range.active) {
-    // Stand de tir : A (ou la gâchette droite) tire, le stick droit vise ; on reste libre de marcher.
-    const fire = gamepad.held.has('0') || gamepad.held.has('7')
-    if (fire !== rangePadFire) range.trigger((rangePadFire = fire))
-    // Bouton d'action de l'écran tactile : un tir par appui.
+    // Stand de tir : la gâchette droite tire, le stick droit vise, X recharge ; on reste libre de
+    // marcher. A (ou le bouton de l'écran tactile) agit sur l'arme du mur toute proche, sinon tire.
+    const mount = nearestInteractable()
+    const fire = gamepad.held.has('7') || (!mount && gamepad.held.has('0'))
+    if (pad.interact && mount) interactWith(mount)
+    else if (fire !== rangePadFire) range.trigger((rangePadFire = fire))
     else if (pad.interact && !fire) range.tap()
+    if (pad.action) range.reload()
     if (fpsShown) fps.look(-pad.lookX * dt * 2.4, -pad.lookY * dt * 1.8)
     else if (pad.lookX || pad.lookY) {
       iso.screenToGround(pad.lookX, -pad.lookY, rangeAim)
@@ -4009,6 +4011,13 @@ function inSight(item: Interactable): boolean {
 }
 
 function nearestInteractable(): Interactable | null {
+  // Arme en main, au stand de tir : on n'agit que sur les armes du mur (en changer, raccrocher la
+  // sienne), et de tout près : au pas de tir, à deux pas du mur, l'invite ne doit pas s'afficher.
+  if (range.active) {
+    let mount: Interactable | null = null
+    for (const it of rangeMounts) if (distanceTo(it) < (mount ? distanceTo(mount) : 0.85)) mount = it
+    return mount
+  }
   // Pendant une révision du Krait, le poste de l'étape passe avant les meubles voisins (une cale
   // du train est plus près du chariot à outils que le chariot lui-même, d'où l'on se tient).
   const job = deck === holdDeck ? hangar.target : deck === gardenDeck ? greenhouse.target : null
@@ -4043,7 +4052,7 @@ function hiddenRestrictedItem(item: Interactable): boolean {
 function tryInteract() {
   // Bugenhagen parle : on passe à la phrase suivante.
   if (planetarium.talking) return planetarium.next()
-  if (gym.active || court.active || range.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return
+  if (gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return
   const item = nearestInteractable()
   if (item) interactWith(item)
 }
@@ -5068,7 +5077,7 @@ function frame() {
   if (range.active) {
     range.update(dt, {
       fps: fpsShown, body: !fpsShown || fps.showsBody, camera: activeCamera(), player: player.position, hands: player.avatar.hands(rangeHands),
-      moving: input.lengthSq() > 0, look: (dYaw, dPitch) => fps.look(dYaw, dPitch),
+      move: input, look: (dYaw, dPitch) => fps.look(dYaw, dPitch),
     })
     // Le personnage fait face à ce qu'il vise, même quand il marche de côté.
     player.setHeading(range.heading)
@@ -5186,7 +5195,7 @@ function frame() {
   // Invite « E » au-dessus de l'objet le plus proche ; installé sur un meuble, au-dessus du
   // personnage : se relever (et ce que permet la place).
   const sitting = seating.settled && !gym.active && !riding && !editing() && !barPanel.isOpen
-  const near = gym.active || court.active || range.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen ? null : nearestInteractable()
+  const near = gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen ? null : nearestInteractable()
   const sit = sitting ? seatPrompt(seating.current!) : null
   const label = sit ? `${sit.main}|${sit.space ?? ''}` : near?.label
   promptEl.querySelector('kbd')!.textContent = usingGamepad ? 'A / ×' : 'E'
@@ -5370,6 +5379,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, profile, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, garden, gardenView, gardenMode, gardenPanel, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt, range, startRange, fishing, fishBook, fishCollection, startFishing, quiz, openQuiz },
+    __game: { renderer, sound, player, profile, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, garden, gardenView, gardenMode, gardenPanel, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt, range, fishing, fishBook, fishCollection, startFishing, quiz, openQuiz },
   })
 }

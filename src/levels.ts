@@ -6,6 +6,7 @@ import type { GroundDef } from './base/kit'
 import type { CabinDef } from './cabin/view'
 import type { CustomModel } from './furniture'
 import { tr } from './i18n'
+import { WEAPONS } from './range-weapons'
 import { BOARD_TABLES, SHIP_LAYOUTS, SHOOTING_RANGE, SPORT_COURTS } from '../shared/ship-layouts.js'
 import { HOUSING_LEVEL, LANDING_ROOM, PLOT_DOOR, PLOT_ORIGIN, PLOT_ROOM } from '../shared/housing-plot.js'
 import { PILOT_SEAT } from '../shared/systems.js'
@@ -532,19 +533,21 @@ export const LEVELS: LevelDef[] = [
       { model: 'stain', x: 5.1, z: 3.1, solid: false },
 
       // --- Stand de tir, à la place de l'ancienne baie de réparation (cf. src/range.ts, SHOOTING_RANGE) :
-      // on prend une arme au râtelier du mur sud, on tire vers le nord par-dessus le comptoir. Pas
-      // de tâche de bord ici (cf. economy.json) ---
-      { model: 'range-lane', x: 14, z: SHOOTING_RANGE.minZ, solid: false },
+      // on décroche une arme au mur sud, on tire vers le nord par-dessus le comptoir. Pas de tâche
+      // de bord ici (cf. economy.json) ---
       {
-        model: 'range-counter', x: 14, z: SHOOTING_RANGE.line,
-        interact: [
-          tr('Pas de tir. Sur le comptoir, gravé au couteau : « Les armes restent pointées vers les cibles. Même pour rire. Surtout pour rire. »', 'Firing line. Carved into the counter with a knife: “Weapons stay pointed at the targets. Even as a joke. Especially as a joke.”'),
-          tr('Règlement du stand : 1. On ne vise pas l\'équipage. 2. On ne vise pas Comète. 3. Les réservoirs d\'hydrogène sont de l\'autre côté du mur : on vise bien.', 'Range rules: 1. Do not aim at the crew. 2. Do not aim at Comète. 3. The hydrogen tanks are on the other side of that wall: aim well.'),
-        ],
+        model: 'range-lane', x: 14, z: SHOOTING_RANGE.minZ, solid: false,
       },
       {
-        model: 'range-rack', x: 13.5, z: SHOOTING_RANGE.maxZ, rot: 2, action: tr('Prendre une arme', 'Take a weapon'),
-        interact: tr('Le râtelier du stand : des blasters d\'entraînement, chargés à blanc. Enfin, presque.', 'The range\'s rack: training blasters, loaded with blanks. Well, nearly.'),
+        model: 'range-counter', x: 14, z: SHOOTING_RANGE.line,
+        interact: tr('Pas de tir. Sur le comptoir, gravé au couteau : « Les armes restent pointées vers les cibles. Même pour rire. Surtout pour rire. »', 'Firing line. Carved into the counter with a knife: “Weapons stay pointed at the targets. Even as a joke. Especially as a joke.”'),
+      },
+      { model: 'range-mat', x: 14, z: 3.08, solid: false },
+      // Les armes, une par support (cf. WEAPONS dans src/range-weapons.ts) : main.ts écrit leur invite.
+      ...WEAPONS.map((w, i): Prop => ({ model: 'range-weapon', x: 12.56 + i * 0.78, z: SHOOTING_RANGE.maxZ, rot: 2, label: w.id, action: w.take, interact: w.name })),
+      {
+        model: 'range-rules', x: 11.93, z: SHOOTING_RANGE.maxZ, rot: 2, solid: false,
+        interact: tr('Règlement du stand : 1. On ne vise pas l\'équipage. 2. On ne vise pas Comète. 3. Les réservoirs d\'hydrogène sont de l\'autre côté du mur : on vise bien.', 'Range rules: 1. Do not aim at the crew. 2. Do not aim at Comète. 3. The hydrogen tanks are on the other side of that wall: aim well.'),
       },
       { model: 'score-board', x: SHOOTING_RANGE.minX, z: 3.05, rot: 1, label: 'range', solid: false, interact: tr('Les meilleurs tireurs du bord', 'The ship\'s top marksmen'), action: tr('Consulter le classement', 'View rankings') },
       {
@@ -552,7 +555,10 @@ export const LEVELS: LevelDef[] = [
         interact: tr('Caisse de munitions. Au pochoir, à moitié effacé : « BAIE DE RÉPARATION ». Le Scarab a été garé ailleurs ; personne ne sait plus où.', 'Ammunition crate. Stencilled, half worn off: “REPAIR BAY”. The Scarab was parked somewhere else; nobody remembers where.'),
       },
       { model: 'range-crate', x: 16.14, z: 4.02, rot: 3, label: 'medium' },
-      { model: 'stain', x: 15.2, z: 3.6, solid: false },
+      {
+        model: 'range-spares', x: 15.86, z: SHOOTING_RANGE.maxZ, rot: 2, solid: false,
+        interact: tr('Cibles de rechange. Le stand en consomme une quarantaine par manche ; personne ne sait qui les recolle.', 'Spare targets. The range gets through about forty a round; nobody knows who glues them back together.'),
+      },
 
       // --- Raffinerie ---
       {
@@ -810,8 +816,8 @@ export const LEVELS: LevelDef[] = [
       [5.6, 6.3, '#ffa24a', 2.4, 'neon'],
       [10, 5, '#ffd9a0', 1.6],
       // Le stand de tir : le pas de tir, puis le couloir des cibles.
-      [14.3, 3.2, '#fff0d8', 2.8],
-      [14, 0.6, '#ffe6c0', 2.6],
+      [14, 3.3, '#ffe2bf', 2.6],
+      [14, 0.7, '#eef4ff', 3.6],
       [14.3, 6.9, '#ff7a2a', 3, 'fire'],
       [17.9, 4.6, '#ffb060', 2.2, 'neon'],
       [12.4, 9.7, '#ffb45e', 3.4],

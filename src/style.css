@@ -3418,43 +3418,72 @@ body:has(.cinema-room-overlay:not([hidden])) .twitch-chat { right: 372px; }
   .court-flash { font-size: 17px; }
 }
 
-/* Stand de tir de la cale (cf. src/range.ts) : le HUD des terrains de sport, plus l'arme, le chargeur et le viseur. */
+/* Stand de tir de la cale (cf. src/range.ts) : en haut le score, le chrono et la série ; en bas à droite l'arme et son chargeur ; la mire est un point blanc. */
 body.range-on #fps-crosshair { display: none; }
 body.range-top canvas { cursor: none; }
-.range-streak { display: block; min-height: 14px; color: #76f0c2; font-size: 11px; font-weight: 700; }
-.range-bar { position: absolute; left: 50%; bottom: max(86px, calc(env(safe-area-inset-bottom) + 86px)); transform: translateX(-50%); display: grid; grid-template-columns: auto auto auto; align-items: center; gap: 6px 16px; width: max-content; max-width: 92vw; padding: 8px 12px 9px; border: 1px solid #79c8dc; border-radius: 12px; background: #0b1724e0; }
-.range-slots { display: flex; gap: 6px; }
-.range-slot, .range-pick { pointer-events: auto; padding: 5px 9px; border: 1px solid #45647a; border-radius: 8px; background: #1a2c3c; color: #c8dbe6; font: 12px/1.2 system-ui, sans-serif; cursor: pointer; }
-.range-slot.on { border-color: #ffbd70; background: #3a2a18; color: #ffd9a8; }
-.range-ammo { justify-self: end; color: #ffbd70; font: 700 22px/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.range-ammo.low { color: #ff6b5e; }
-.range-reload { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: #24394a; overflow: hidden; }
-.range-reload-fill { width: 0; height: 100%; background: #ffd24a; }
-.range-sight { display: flex; align-items: center; gap: 6px; }
-.range-sight .court-label { display: inline; }
-.range-pick { min-width: 74px; }
-.range-color { min-width: 0; width: 28px; height: 24px; padding: 0; background: var(--range-reticle, #fff); }
-.range-bar .court-help { grid-column: 1 / -1; text-align: center; }
-.range-bar .court-help[hidden] { display: none; }
-.range-reticle { position: fixed; left: 0; top: 0; width: 0; height: 0; pointer-events: none; will-change: transform; }
-.range-reticle svg { position: absolute; left: -20px; top: -20px; width: 40px; height: 40px; overflow: visible; fill: none; stroke-linecap: round; stroke-linejoin: round; }
-.range-reticle .edge { stroke: #000a; stroke-width: 4.2; }
-.range-reticle .edge .fill { fill: #000a; }
-.range-reticle .ink { stroke: currentColor; stroke-width: 2; }
-.range-reticle .ink .fill { fill: currentColor; }
-/* Touche : quatre traits en croix autour du viseur, un instant. */
-.range-reticle .range-hit { stroke: #fff; stroke-width: 2.4; opacity: 0; transform: scale(1.5); transition: opacity .18s, transform .18s; }
-.range-reticle.hit .range-hit { opacity: 1; transform: scale(1); transition: none; }
-@media (max-width: 760px) {
-  .range-bar { grid-template-columns: auto auto; }
-  .range-bar .court-help, .range-sight .court-label { display: none; }
-  .range-sight { grid-row: 2; }
-  .range-ammo { font-size: 18px; }
+.range-hud { position: fixed; inset: 0; z-index: 30; pointer-events: none; color: #f2f6fa; font: 13px/1.25 ui-monospace, 'SF Mono', Menlo, monospace; --range-color: #ffb054; }
+.range-board { position: absolute; top: 244px; right: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; width: 224px; filter: drop-shadow(0 8px 18px #0009); }
+.range-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 7px 14px 8px; background: #0a121ce6; }
+.range-cell:first-child { grid-column: 1 / -1; align-items: flex-start; border-top: 2px solid #ff8a1c; border-radius: 10px 10px 0 0; }
+.range-cell:nth-child(2) { border-radius: 0 0 0 10px; }
+.range-cell:last-child { border-radius: 0 0 10px 0; }
+.range-label { color: #8fa6b6; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; }
+.range-value { color: #fff; font: 700 28px/1.05 system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.range-score .range-value { color: #ffbd70; }
+.range-clock .range-value { font-size: 36px; }
+.range-clock.low .range-value { color: #ff6b5e; animation: court-pulse .5s ease-in-out infinite alternate; }
+.range-tier { width: 100%; height: 4px; margin: 5px 0 3px; border-radius: 2px; background: #24394a; overflow: hidden; }
+.range-tier-fill { width: 0; height: 100%; background: linear-gradient(90deg, #ff8a1c, #ffd24a); transition: width .2s; }
+.range-tier-text { color: #8fa6b6; font-size: 10px; white-space: nowrap; }
+.range-banner { position: absolute; top: 118px; left: 50%; transform: translate(-50%, -6px); padding: 5px 16px; border-radius: 999px; background: #76f0c2; color: #06231a; font: 700 15px/1.2 system-ui, sans-serif; white-space: nowrap; opacity: 0; transition: opacity .25s, transform .25s; }
+.range-banner.show { opacity: 1; transform: translate(-50%, 0); }
+/* Le chargeur : une barrette par balle, à la couleur du tir de l'arme ; on le touche pour recharger. */
+.range-ammo { position: absolute; right: 18px; bottom: 64px; display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 5px 14px; width: 224px; box-sizing: border-box; padding: 10px 14px; border: 0; border-left: 3px solid var(--range-color); border-radius: 4px 12px 12px 4px; background: linear-gradient(90deg, #0a121cf2, #0a121cc0); box-shadow: 0 8px 24px #0008; color: inherit; font: inherit; text-align: left; pointer-events: auto; cursor: pointer; }
+.range-weapon { align-self: start; color: #c8d6e0; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
+.range-count { grid-row: 1 / span 2; grid-column: 2; min-width: 58px; color: #fff; font: 700 44px/.9 system-ui, sans-serif; font-variant-numeric: tabular-nums; text-align: right; }
+.range-mag { grid-column: 1; display: flex; flex-wrap: wrap; gap: 3px; max-width: 176px; }
+.range-mag i { width: 7px; height: 17px; border-radius: 3px 3px 1px 1px; background: var(--range-color); box-shadow: 0 0 6px color-mix(in srgb, var(--range-color) 55%, transparent); transition: background .12s, transform .12s; }
+.range-mag i.spent { background: #2a3642; box-shadow: none; transform: scaleY(.72); }
+.range-mag.m30 { gap: 2px; max-width: 92px; }
+.range-mag.m30 i { width: 4px; height: 11px; }
+.range-mag.m5 i { width: 17px; height: 19px; }
+.range-key { grid-column: 1 / -1; color: #8fa6b6; font-size: 11px; }
+.range-key kbd { display: inline-block; min-width: 16px; padding: 0 4px; border: 1px solid #58707f; border-radius: 4px; background: #16232f; color: #e6eef4; font: inherit; text-align: center; }
+.range-ammo.low .range-count { color: #ffd24a; }
+.range-ammo.loading .range-count { color: #8fa6b6; }
+.range-ammo.empty { border-left-color: #ff4a3d; }
+.range-ammo.empty .range-count { color: #ff4a3d; }
+.range-ammo.empty .range-key { color: #ffd0cb; animation: court-pulse .45s ease-in-out infinite alternate; }
+.range-ammo.nudge { animation: range-nudge .25s; }
+@keyframes range-nudge { 25% { translate: -5px 0; } 75% { translate: 4px 0; } }
+.range-hint { position: absolute; left: 50%; top: 78px; transform: translateX(-50%); max-width: 94vw; padding: 6px 14px; border-radius: 999px; background: #0a121cd9; color: #c8d6e0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.range-hint[hidden] { display: none; }
+.range-dot { position: fixed; left: 0; top: 0; width: 0; height: 0; will-change: transform; }
+.range-dot i { position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1.5px #0009; }
+/* Touche : quatre traits en croix autour du point, un instant. */
+.range-dot svg { position: absolute; left: -18px; top: -18px; width: 36px; height: 36px; fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; filter: drop-shadow(0 0 1px #000); opacity: 0; transform: scale(1.5); transition: opacity .18s, transform .18s; }
+.range-dot.hit svg { opacity: 1; transform: scale(1); transition: none; }
+/* Points gagnés, là où la cible a éclaté. */
+.range-pop { position: absolute; color: #fff; font: 800 20px/1 system-ui, sans-serif; text-shadow: 0 2px 0 #000a, 0 0 8px #000a; white-space: nowrap; animation: range-pop .7s ease-out forwards; }
+.range-pop.good { color: #ffd24a; font-size: 25px; }
+@keyframes range-pop {
+  from { opacity: 0; transform: translate(-50%, -30%) scale(.6); }
+  15% { opacity: 1; transform: translate(-50%, -90%) scale(1.15); }
+  to { opacity: 0; transform: translate(-50%, -280%) scale(1); }
 }
-/* Écran tactile en paysage : au-dessus du joystick et des boutons (cf. mobile.css). */
-@media (pointer: coarse) and (orientation: landscape) {
-  .range-bar { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 6px); max-width: calc(100vw - 300px); gap: 4px 10px; padding: 6px 10px; }
-  .range-bar .court-help { display: none; }
+@media (max-width: 760px) {
+  .range-board { top: max(64px, calc(env(safe-area-inset-top) + 64px)); right: 8px; width: 150px; }
+  .range-cell { padding: 4px 8px 5px; }
+  .range-value { font-size: 18px; }
+  .range-clock .range-value { font-size: 22px; }
+  .range-tier-text { display: none; }
+}
+/* Écran tactile : le chargeur au milieu, entre le joystick et les boutons (cf. mobile.css). */
+@media (pointer: coarse) {
+  .range-ammo { right: auto; left: 50%; bottom: calc(max(8px, env(safe-area-inset-bottom)) + 4px); min-width: 0; margin-left: -98px; width: 196px; padding: 7px 12px; }
+  .range-count { font-size: 32px; }
+  .range-key { display: none; }
+  .range-hint { font-size: 11px; }
 }
 
 /* Interface de jeu tactile en paysage. Le navigateur conserve ses propres limites de plein écran. */

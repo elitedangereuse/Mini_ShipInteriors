@@ -5,35 +5,43 @@ import { RANGE_ID } from './arcade/game'
 import { formatCredits } from './economy/data'
 import type { Wallet } from './economy/wallet'
 import { tr } from './i18n'
+import type { RangeSfx } from './range-sfx'
+import { rangeState, WEAPONS, type Weapon, type WeaponId } from './range-weapons'
 import type { Dialog } from './ui'
 import { SHOOTING_RANGE } from '../shared/ship-layouts.js'
 
 /*
- * Stand de tir de la cale : on prend une arme au râtelier, et des cibles sortent du sol entre le
- * comptoir et le mur du fond. On reste libre de ses mouvements, derrière le comptoir. Pas de
- * visée automatique : la balle part là où l'on vise.
+ * Stand de tir de la cale : on décroche une arme du mur, et des cibles sortent du sol entre le
+ * comptoir et le mur du fond. On reste libre de ses mouvements, derrière le comptoir ; on change
+ * d'arme en en prenant une autre au mur, on rend la sienne en la raccrochant. Pas de visée
+ * automatique : la balle part là où l'on vise, à la dispersion de l'arme près.
  *
  * - Vue subjective : la souris tourne le regard, la mire est au centre, la balle part des yeux.
- *   L'arme est à l'écran ; elle recule, le regard se cabre, la vue tremble.
+ *   L'arme est à l'écran ; à chaque tir elle recule sur son ressort et le regard se cabre, puis
+ *   revient de lui-même.
  * - Vue de dessus (la vue isométrique, relevée, tournée vers les cibles) : façon « twin-stick », le
- *   personnage se tourne vers le curseur, un laser montre la ligne de tir. Laser, balles et cibles
- *   sont alors à la même hauteur (AIM_Y) : ce que le curseur recouvre est ce qu'on touche.
+ *   personnage se tourne vers le curseur, un laser montre la ligne de tir, que le recul fait
+ *   dévier. Laser, balles et cibles sont alors à la même hauteur (AIM_Y) : ce que le curseur
+ *   recouvre est ce qu'on touche.
  *
- * Les balles sont de vrais projectiles, très rapides, qui laissent une fine traînée ; une cible
- * touchée éclate. Le chrono part au premier tir ; chaque palier de score rend du temps, et les
- * cibles deviennent plus petites, plus mobiles, plus brèves.
+ * Les balles sont de vrais projectiles, très rapides : un trait lumineux, et derrière lui une fine
+ * traînée qui s'efface. Ce sont des rubans tournés vers la caméra, pas des volumes : vus de face,
+ * en vue subjective, ils restent des traits. Une cible touchée éclate. Le chrono part au premier
+ * tir ; chaque palier de score rend du temps, et les cibles deviennent plus petites, plus mobiles,
+ * plus brèves. On recharge avec R : un chargeur vide ne se remplit pas tout seul.
  *
  * Tout se joue chez le joueur : les autres le voient bouger et se tourner, pas ses tirs.
  */
 
 const R = SHOOTING_RANGE
+const RAD = Math.PI / 180
 /** Hauteur du plafond des pièces (cf. CEILING_Y dans deck.ts). */
 const CEILING = 2.2
-/** Hauteur de la ligne de tir en vue de dessus : celle des mains, et alors celle des cibles. */
-const AIM_Y = 0.4
+/** Hauteur de la ligne de tir en vue de dessus : celle des mains (bras tendus vers le bas), et alors celle des cibles. */
+const AIM_Y = 0.24
 /** Rangées de cibles (cf. les fentes du sol dans furniture/range.ts), de la plus loin à la plus proche. */
 const ROWS = [R.minZ + 0.2, R.minZ + 1.0, R.minZ + 1.8]
-const LANE_MIN = R.minX + 0.4, LANE_MAX = R.maxX - 0.4
+const LANE_MIN = R.minX + 0.45, LANE_MAX = R.maxX - 0.45
 
 const START_TIME = 40
 const BONUS_TIME = 6
@@ -57,62 +65,6 @@ export function rangeLevel(level: number) {
     moving: level < 1 ? 0 : Math.min(0.7, 0.2 + 0.08 * level),
     speed: Math.min(2, 0.5 + 0.15 * level),
   }
-}
-
-interface Weapon {
-  id: string
-  name: string
-  model: string
-  /** Tire tant que la détente est tenue. */
-  auto: boolean
-  /** Délai entre deux tirs, taille du chargeur, durée du rechargement (secondes). */
-  interval: number
-  mag: number
-  reload: number
-  /** Vitesse de la balle (tuiles par seconde). */
-  speed: number
-  /** Recul : le regard se cabre de cet angle (radians) ; `shake` : secousse de la vue. */
-  kick: number
-  shake: number
-  /** Dispersion (radians). */
-  spread: number
-  /** La balle traverse les cibles. */
-  pierce: boolean
-  heavy: boolean
-  /** Hauteur du son. */
-  pitch: number
-  /** Poignée, dans le repère du modèle (canon vers +z) : c'est elle qu'on tient. */
-  grip: [number, number]
-}
-
-const WEAPONS: Weapon[] = [
-  { id: 'pistol', name: tr('Pistolet', 'Pistol'), model: 'blaster-b', auto: false, interval: 0.13, mag: 12, reload: 1, speed: 30, kick: 0.017, shake: 0.5, spread: 0, pierce: false, heavy: false, pitch: 1, grip: [-0.08, -0.12] },
-  { id: 'smg', name: tr('Mitraillette', 'SMG'), model: 'blaster-a', auto: true, interval: 0.085, mag: 30, reload: 1.5, speed: 30, kick: 0.007, shake: 0.32, spread: THREE.MathUtils.degToRad(1.3), pierce: false, heavy: false, pitch: 1.3, grip: [-0.1, -0.14] },
-  { id: 'rifle', name: tr('Fusil', 'Rifle'), model: 'blaster-e', auto: false, interval: 0.75, mag: 5, reload: 1.8, speed: 70, kick: 0.05, shake: 1.3, spread: 0, pierce: true, heavy: true, pitch: 1, grip: [-0.1, 0.3] },
-]
-
-/** Viseur : ses motifs (tracés dans un carré de -16 à 16) et ses couleurs. */
-const RETICLES: Record<string, string> = {
-  cross: '<path d="M0-11V-4M0 4V11M-11 0H-4M4 0H11"/>',
-  dot: '<circle r="2.2" class="fill"/>',
-  circle: '<circle r="8"/><circle r="1.3" class="fill"/>',
-  tee: '<path d="M0 4V11M-11 0H-4M4 0H11"/><circle r="1.3" class="fill"/>',
-  chevron: '<path d="M-8 9L0 0L8 9"/>',
-  corners: '<path d="M-9-4V-9H-4M4-9H9V-4M9 4V9H4M-4 9H-9V4"/><circle r="1.3" class="fill"/>',
-}
-const RETICLE_IDS = Object.keys(RETICLES)
-const RETICLE_NAMES: Record<string, string> = {
-  cross: tr('Croix', 'Cross'), dot: tr('Point', 'Dot'), circle: tr('Cercle', 'Circle'), tee: tr('Té', 'Tee'), chevron: tr('Chevron', 'Chevron'), corners: tr('Cadre', 'Frame'),
-}
-const RETICLE_COLORS = ['#ffffff', '#3dff7a', '#38e8ff', '#ffe14a', '#ff8a1c', '#ff4fd8', '#ff4a3d']
-const RETICLE_KEY = 'mini-shipinteriors-reticle'
-
-function savedReticle(): { motif: string; color: number } {
-  try {
-    const [motif, color] = (localStorage.getItem(RETICLE_KEY) ?? '').split(':')
-    if (RETICLES[motif] && RETICLE_COLORS[Number(color)]) return { motif, color: Number(color) }
-  } catch {}
-  return { motif: 'cross', color: 0 }
 }
 
 interface Target {
@@ -145,15 +97,22 @@ interface Bullet {
   pierce: boolean
   /** A touché une cible : un tir qui ne touche rien casse la série. */
   scored: boolean
-  tracer: Tracer
+  color: THREE.Color
+  streak: Streak
 }
 
-/** Traînée d'une balle : du canon à la balle, puis elle s'efface. */
-interface Tracer {
-  mesh: THREE.Mesh
+/**
+ * Ce qu'on voit d'une balle : le trait lumineux qui file (`bolt`, et son halo `glow`), et la
+ * traînée qu'il laisse du canon jusqu'à lui (`trail`), qui s'efface en une demi-seconde.
+ */
+interface Streak {
+  trail: THREE.Mesh
+  bolt: THREE.Mesh
+  glow: THREE.Sprite
   from: THREE.Vector3
-  /** Épaisseur : plus fine en vue subjective, où elle part de sous le nez. */
-  thick: number
+  head: THREE.Vector3
+  /** Largeur de la traînée : plus fine en vue subjective, où elle part de tout près. */
+  width: number
   age: number
   flying: boolean
 }
@@ -164,7 +123,7 @@ interface Debris {
   spin: THREE.Vector3
   age: number
   life: number
-  /** Éclat de cible (il rebondit au sol), ou étincelle. */
+  /** Éclat de cible ou chargeur (il rebondit au sol), ou étincelle. */
   heavy: boolean
 }
 
@@ -173,8 +132,6 @@ interface Gun {
   root: THREE.Group
   muzzle: THREE.Vector3
 }
-
-export type RangeSound = 'shot' | 'heavy' | 'hit' | 'bullseye' | 'wall' | 'reload' | 'loaded' | 'dry' | 'switch' | 'tier' | 'end'
 
 /** Ce que la boucle du jeu donne au stand à chaque image (cf. main.ts). */
 export interface RangeFrame {
@@ -186,7 +143,8 @@ export interface RangeFrame {
   /** Pieds du joueur, et le point entre ses mains (monde) s'il a deux bras. */
   player: THREE.Vector3
   hands: THREE.Vector3 | null
-  moving: boolean
+  /** Direction de marche voulue (monde, longueur 0 à 1). */
+  move: THREE.Vector3
   /** Tourne le regard de la vue subjective (recul). */
   look: (dYaw: number, dPitch: number) => void
 }
@@ -195,38 +153,77 @@ interface Hud {
   root: HTMLElement
   score: HTMLElement
   time: HTMLElement
-  best: HTMLElement
-  tier: HTMLElement
-  flash: HTMLElement
+  clock: HTMLElement
   streak: HTMLElement
+  tier: HTMLElement
+  tierFill: HTMLElement
+  banner: HTMLElement
   ammo: HTMLElement
-  reload: HTMLElement
-  slots: HTMLElement[]
-  reticle: HTMLElement
-  motif: HTMLElement
-  help: HTMLElement
+  weapon: HTMLElement
+  mag: HTMLElement
+  pips: HTMLElement[]
+  count: HTMLElement
+  hint: HTMLElement
+  dot: HTMLElement
+  pops: HTMLElement
 }
 
 const Z = new THREE.Vector3(0, 0, 1)
 const UP = new THREE.Vector3(0, 1, 0)
 const _v = new THREE.Vector3()
 const _w = new THREE.Vector3()
+const _x = new THREE.Vector3()
+const _y = new THREE.Vector3()
+const _z = new THREE.Vector3()
+const _l = new THREE.Vector3()
 const _q = new THREE.Quaternion()
 const _e = new THREE.Euler()
 const _ray = new THREE.Raycaster()
 const _ndc = new THREE.Vector2()
 const _plane = new THREE.Plane()
 const _box = new THREE.Box3()
+const SOOT = new THREE.Color('#0b0b0d')
 const rand = (a: number) => (Math.random() * 2 - 1) * a
 const easeOutBack = (u: number) => 1 + 2.7 * (u - 1) ** 3 + 1.7 * (u - 1) ** 2
 
-/** Pavé d'un mètre le long de +z, à étirer d'un point à un autre (traînées, laser). */
+/** Pavé d'un mètre le long de +z, à étirer d'un point à un autre (le laser). */
 const BEAM = new THREE.BoxGeometry(1, 1, 1).translate(0, 0, 0.5)
-function stretch(mesh: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3, thick: number) {
-  const len = _v.subVectors(to, from).length()
-  mesh.position.copy(from)
-  if (len > 1e-5) mesh.quaternion.setFromUnitVectors(Z, _v.divideScalar(len))
-  mesh.scale.set(thick, thick, Math.max(len, 1e-4))
+/** Ruban d'un mètre le long de +z, large d'un mètre le long de x : `v` vaut 1 à son départ, 0 à sa pointe. */
+const RIBBON = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(0, 0, 0.5)
+
+/** Texture d'un ruban : doux sur ses bords, et qui naît peu à peu (son départ, près du canon, est transparent). */
+function ribbonTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas')
+  c.width = 32
+  c.height = 64
+  const g = c.getContext('2d')!
+  const image = g.createImageData(32, 64)
+  for (let y = 0; y < 64; y++) {
+    const along = THREE.MathUtils.smoothstep(y / 63, 0, 0.4)
+    for (let x = 0; x < 32; x++) {
+      const across = Math.exp(-(((x - 15.5) / 5.5) ** 2))
+      const i = (y * 32 + x) * 4
+      image.data[i] = image.data[i + 1] = image.data[i + 2] = 255
+      image.data[i + 3] = Math.round(255 * along * across)
+    }
+  }
+  g.putImageData(image, 0, 0)
+  return new THREE.CanvasTexture(c)
+}
+
+/** Texture d'un halo : un disque lumineux qui s'éteint vers ses bords. */
+function glowTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas')
+  c.width = c.height = 64
+  const g = c.getContext('2d')!
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32)
+  grad.addColorStop(0, 'rgba(255,255,255,1)')
+  grad.addColorStop(0.25, 'rgba(255,255,255,0.75)')
+  grad.addColorStop(0.6, 'rgba(255,255,255,0.18)')
+  grad.addColorStop(1, 'rgba(255,255,255,0)')
+  g.fillStyle = grad
+  g.fillRect(0, 0, 64, 64)
+  return new THREE.CanvasTexture(c)
 }
 
 export class RangeGame {
@@ -250,7 +247,7 @@ export class RangeGame {
     targets: Target[]
     bullets: Bullet[]
     hud: Hud
-    flashTime: number
+    bannerTime: number
   }
   private revision = 0
   private readonly live = new THREE.Group()
@@ -258,18 +255,21 @@ export class RangeGame {
   private readonly idle = new THREE.Group()
   private readonly laser: THREE.Mesh
   private readonly laserDot: THREE.Mesh
-  private readonly flash: THREE.Mesh
+  private readonly flash: THREE.Sprite
+  private readonly ribbon = ribbonTexture()
+  private readonly halo = glowTexture()
   /** Armes en main (vue de dessus) et à l'écran (vue subjective), par arme. */
   private hand: Gun[] = []
   private view: Gun[] = []
-  private tracers: Tracer[] = []
-  private spare: THREE.Mesh[] = []
+  private streaks: Streak[] = []
+  private spare: Streak[] = []
   private debris: Debris[] = []
-  private holes: { mesh: THREE.Mesh; age: number }[] = []
-  private readonly spark = new THREE.BoxGeometry(0.018, 0.018, 0.018)
-  private readonly sparkGlow = new THREE.MeshBasicMaterial({ color: '#ffd27a' })
-  private readonly hole = new THREE.CircleGeometry(0.02, 10)
+  private marks: { mesh: THREE.Mesh; age: number; color: THREE.Color }[] = []
+  private bursts: { sprite: THREE.Sprite; age: number; size: number }[] = []
+  private readonly spark = new THREE.BoxGeometry(0.016, 0.016, 0.016)
+  private readonly mark = new THREE.CircleGeometry(0.022, 12)
   private readonly poleGeo = new THREE.CylinderGeometry(0.012, 0.016, 1, 6).translate(0, 0.5, 0)
+  private readonly baseGeo = new THREE.BoxGeometry(0.14, 0.03, 0.07).translate(0, 0.015, 0)
   private readonly poleMat = new THREE.MeshLambertMaterial({ color: '#2a2d33' })
 
   /** Détente tenue ; `queued` : un appui attend la fin du délai entre deux tirs. */
@@ -279,36 +279,42 @@ export class RangeGame {
   private readonly aim = new THREE.Vector3(0, 0, -1)
   private readonly aimPoint = new THREE.Vector3()
   private pointer: { x: number; y: number } | null = null
-  /** Sensations : recul de l'arme (0 à 1), cabrage du regard à rendre, secousse, ouverture du champ, éclair. */
-  private kick = 0
-  private recoil = 0
+  /**
+   * Recul et dispersion (radians) : ce que les tirs ont ajouté à la dispersion (`bloom`), ce que
+   * marcher y ajoute (`moving`) ; le cabrage du regard encore à donner (`debt` : il se donne en
+   * quelques images, pas d'un coup) et celui à rendre (`recoil`) ; la déviation de la ligne de tir
+   * en vue de dessus (`drift`).
+   */
+  private bloom = 0
+  private moving = 0
+  private readonly debt = new THREE.Vector2()
+  private readonly recoil = new THREE.Vector2()
+  private drift = 0
+  /** L'arme sur son ressort : son recul (0 au repos) et sa vitesse. */
+  private gunKick = 0
+  private gunVel = 0
+  /** Secousse de la vue, ouverture du champ, éclair du canon, touche, arme baissée, pas, roulis, traîne. */
   private shake = 0
   private punch = 0
   private flashTime = 0
   private hitTime = 0
   private dip = 0
   private bob = 0
+  private roll = 0
   private baseFov = 0
   private readonly sway = new THREE.Vector2()
   private readonly lastDir = new THREE.Vector3()
-  private reticle = savedReticle()
+  private camera: THREE.Camera | null = null
 
-  /** Bruitages (cf. main.ts) : `at`, là où cela se passe, dans le repère du pont ; null : à l'oreille. */
-  onSound?: (sound: RangeSound, at: THREE.Vector3 | null, pitch: number) => void
-  /** La partie commence, ou s'arrête : la vue de dessus se cadre, le personnage lève son arme. */
-  onToggle?: (on: boolean) => void
+  /** La partie commence, s'arrête, ou l'arme change : la vue se cadre, les supports du mur se mettent à jour. */
+  onChange?: (on: boolean) => void
 
   /** @param group la cale : cibles et balles y vivent, dans son repère */
-  constructor(private group: THREE.Object3D, private dialog: Dialog, private wallet: Wallet) {
+  constructor(private group: THREE.Object3D, private dialog: Dialog, private wallet: Wallet, private sfx: RangeSfx) {
     group.add(this.live, this.idle)
-    this.laser = new THREE.Mesh(BEAM, new THREE.MeshBasicMaterial({ color: '#ff3b2f', transparent: true, opacity: 0.75, depthWrite: false, blending: THREE.AdditiveBlending }))
-    this.laserDot = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 8), new THREE.MeshBasicMaterial({ color: '#ff6a5a' }))
-    // Éclair du canon : deux plans croisés, le long de +z.
-    const burst = new THREE.PlaneGeometry(0.16, 0.16)
-    const cross = new THREE.BufferGeometry().copy(burst).rotateY(Math.PI / 2)
-    const flare = new THREE.MeshBasicMaterial({ color: '#ffd9a0', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })
-    this.flash = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.16, 6).rotateX(Math.PI / 2).translate(0, 0, 0.08), flare)
-    this.flash.add(new THREE.Mesh(burst, flare), new THREE.Mesh(cross, flare))
+    this.laser = new THREE.Mesh(BEAM, new THREE.MeshBasicMaterial({ color: '#ff3b2f', transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending }))
+    this.laserDot = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), new THREE.MeshBasicMaterial({ color: '#ff6a5a' }))
+    this.flash = this.sprite()
     this.live.add(this.laser, this.laserDot, this.flash)
     this.live.visible = false
     // Quatre cibles restent sorties tant que personne ne tire.
@@ -323,6 +329,11 @@ export class RangeGame {
 
   get active() { return !!this.session }
 
+  /** L'arme en main, ou null. */
+  get weapon(): WeaponId | null {
+    return this.session ? WEAPONS[this.session.weapon].id : null
+  }
+
   /** Cap du personnage (cf. Player.setHeading) : tourné vers ce qu'il vise. */
   get heading(): number {
     return Math.atan2(this.aim.x, this.aim.z)
@@ -333,27 +344,54 @@ export class RangeGame {
     return p.x > R.minX - 0.15 && p.x < R.maxX + 0.15 && p.z > R.minZ - 0.15 && p.z < R.maxZ + 0.15
   }
 
-  start() {
-    if (this.session) this.finish(null)
+  /**
+   * On agit sur une arme du mur : on la prend (la partie commence, ou l'on change d'arme sans
+   * arrêter le chrono), ou l'on raccroche la sienne (la partie s'arrête).
+   */
+  take(id: WeaponId) {
+    const index = WEAPONS.findIndex((w) => w.id === id)
+    const s = this.session
+    if (index < 0) return
+    if (!s) return this.start(index)
+    if (s.weapon === index) return this.stop()
+    s.weapon = index
+    s.reload = 0
+    s.cooldown = Math.max(s.cooldown, 0.35)
+    this.queued = false
+    this.dip = 1
+    this.bloom = this.drift = 0
+    this.sfx.take()
+    this.fillMag()
+    rangeState.weapon = id
+    this.onChange?.(true)
+  }
+
+  private start(weapon: number) {
     const revision = ++this.revision
     if (!this.hand.length) {
       this.hand = WEAPONS.map((w) => this.makeGun(w, 0.4))
-      this.view = WEAPONS.map((w) => this.makeGun(w, 0.2))
+      this.view = WEAPONS.map((w) => this.makeGun(w, 0.085))
     }
     this.session = {
       score: 0, level: 0, hits: 0, shots: 0, streak: 0, best: localBest(RANGE_ID), timeLeft: START_TIME, elapsed: 0, started: false,
-      weapon: 0, ammo: WEAPONS.map((w) => w.mag), cooldown: 0.25, reload: 0, spawn: 0, targets: [], bullets: [], hud: this.buildHud(), flashTime: 0,
+      weapon, ammo: WEAPONS.map((w) => w.mag), cooldown: 0.3, reload: 0, spawn: 0, targets: [], bullets: [], hud: this.buildHud(), bannerTime: 0,
     }
     this.held = this.queued = false
-    this.kick = this.recoil = this.shake = this.punch = this.flashTime = this.hitTime = 0
+    this.bloom = this.moving = this.drift = this.gunKick = this.gunVel = 0
+    this.debt.set(0, 0)
+    this.recoil.set(0, 0)
+    this.shake = this.punch = this.flashTime = this.hitTime = this.roll = 0
     this.dip = 1
     this.aim.set(0, 0, -1)
     this.pointer = null
     this.live.visible = true
     this.idle.visible = false
     document.body.classList.add('range-on')
-    this.drawReticle()
-    this.onToggle?.(true)
+    this.fillMag()
+    rangeState.live = true
+    rangeState.weapon = WEAPONS[weapon].id
+    this.sfx.take()
+    this.onChange?.(true)
     void fetchBoard(RANGE_ID).then((board) => {
       if (revision !== this.revision || !this.session) return
       if (board?.me) this.session.best = Math.max(this.session.best, board.me.score)
@@ -388,47 +426,31 @@ export class RangeGame {
     this.aim.set(x, 0, z).normalize()
   }
 
-  select(index: number) {
-    const s = this.session
-    if (!s || index === s.weapon || !WEAPONS[index]) return
-    s.weapon = index
-    s.reload = 0
-    s.cooldown = Math.max(s.cooldown, 0.3)
-    this.queued = false
-    this.dip = 1
-    this.onSound?.('switch', null, 1)
-    if (!s.ammo[index]) this.reload()
-  }
-
+  /** Change le chargeur (R) : l'ancien tombe, le neuf est en place après le délai de l'arme. */
   reload() {
     const s = this.session
-    if (!s || s.reload > 0 || s.ammo[s.weapon] >= WEAPONS[s.weapon].mag) return
+    if (!s || s.reload > 0 || s.timeLeft <= 0 || s.ammo[s.weapon] >= WEAPONS[s.weapon].mag) return
     s.reload = WEAPONS[s.weapon].reload
     this.queued = false
-    this.onSound?.('reload', null, 1)
+    this.sfx.reload()
+    // Le chargeur vide tombe de l'arme.
+    const gun = [...this.view, ...this.hand].find((g) => g.root.visible)
+    if (!gun) return
+    const clip = packModel('clip-small', BLASTER_PACK).clone(true)
+    gun.root.updateWorldMatrix(true, false)
+    clip.position.copy(this.group.worldToLocal(gun.root.localToWorld(_v.set(0, -0.12, 0))))
+    clip.scale.setScalar(gun.root.scale.x * 0.9)
+    this.live.add(clip)
+    this.debris.push({ mesh: clip, v: new THREE.Vector3(rand(0.2), -0.3, rand(0.2)), spin: new THREE.Vector3(rand(6), rand(3), rand(6)), age: 0, life: 1.6, heavy: true })
   }
 
-  /** Motif suivant du viseur, ou couleur suivante. */
-  cycleReticle(what: 'motif' | 'color') {
-    if (what === 'motif') this.reticle.motif = RETICLE_IDS[(RETICLE_IDS.indexOf(this.reticle.motif) + 1) % RETICLE_IDS.length]
-    else this.reticle.color = (this.reticle.color + 1) % RETICLE_COLORS.length
-    try {
-      localStorage.setItem(RETICLE_KEY, `${this.reticle.motif}:${this.reticle.color}`)
-    } catch {}
-    this.drawReticle()
-  }
-
-  /** @returns true si la touche est prise par le stand (les déplacements, la vue, le chat restent au jeu) */
+  /** @returns true si la touche est prise par le stand (les déplacements, la vue, le chat, E restent au jeu) */
   key(e: KeyboardEvent): boolean {
     if (!this.session) return false
-    const weapon = ['Digit1', 'Digit2', 'Digit3'].indexOf(e.code)
-    if (weapon >= 0) this.select(weapon)
-    else if (e.code === 'Escape') this.stop()
-    else if (e.code === 'KeyR') this.reload()
-    else if (e.code === 'KeyC') { if (!e.repeat) this.cycleReticle('motif') }
-    else if (e.code === 'KeyX') { if (!e.repeat) this.cycleReticle('color') }
+    if (e.code === 'Escape') this.stop()
+    else if (e.code === 'KeyR') { if (!e.repeat) this.reload() }
     else if (e.code === 'Space') { if (!e.repeat) this.trigger(true) }
-    // Les autres chiffres sont des emotes : pas l'arme à la main.
+    // Les chiffres sont des emotes : pas l'arme à la main.
     else if (!/^Digit\d$/.test(e.code)) return false
     e.preventDefault()
     return true
@@ -445,14 +467,18 @@ export class RangeGame {
     const s = this.session
     if (!s) return
     const w = WEAPONS[s.weapon]
-    const origin = this.group.getWorldPosition(_w)
+    this.camera = f.camera
+    const origin = this.group.getWorldPosition(new THREE.Vector3())
     const foot = new THREE.Vector3().subVectors(f.player, origin)
+    const walking = f.move.lengthSq() > 0.01
 
     // Où l'on vise, et d'où part la balle.
     const eye = new THREE.Vector3()
+    const dir = new THREE.Vector3()
     if (f.fps) {
       f.camera.getWorldDirection(this.aim)
       f.camera.getWorldPosition(eye).sub(origin)
+      dir.copy(this.aim)
     } else {
       if (this.pointer) {
         _ndc.set((this.pointer.x / innerWidth) * 2 - 1, -(this.pointer.y / innerHeight) * 2 + 1)
@@ -464,7 +490,9 @@ export class RangeGame {
           if (_v.length() > 0.2) this.aim.copy(_v).normalize()
         }
       } else this.aim.setY(0).normalize()
-      eye.set(foot.x + this.aim.x * 0.3, AIM_Y, foot.z + this.aim.z * 0.3)
+      // Le recul fait dévier la ligne de tir : le laser le montre.
+      dir.copy(this.aim).applyAxisAngle(UP, this.drift)
+      eye.set(foot.x + dir.x * 0.3, AIM_Y, foot.z + dir.z * 0.3)
       if (!this.pointer) this.aimPoint.copy(eye).addScaledVector(this.aim, 2)
     }
 
@@ -473,8 +501,10 @@ export class RangeGame {
     for (const gun of [...this.hand, ...this.view]) gun.root.visible = gun === shown
     if (shown && shown === this.hand[s.weapon]) {
       if (f.hands) shown.root.position.subVectors(f.hands, origin)
-      else shown.root.position.set(foot.x, AIM_Y, foot.z)
-      shown.root.rotation.set(-this.kick * 0.5, this.heading, 0, 'YXZ')
+      else shown.root.position.copy(foot)
+      // À la hauteur de la ligne de tir, quelle que soit la carrure du personnage.
+      shown.root.position.y = AIM_Y - 0.02
+      shown.root.rotation.set(this.dip * 0.9 - this.gunKick * 0.5, Math.atan2(dir.x, dir.z), 0, 'YXZ')
     }
 
     // Chrono, chargeur.
@@ -486,79 +516,105 @@ export class RangeGame {
     if (s.reload > 0 && (s.reload -= dt) <= 0) {
       s.reload = 0
       s.ammo[s.weapon] = w.mag
-      this.onSound?.('loaded', null, 1)
+      this.sfx.loaded()
     }
     const want = s.timeLeft > 0 && (w.auto ? this.held || this.queued : this.queued)
     if (want && s.cooldown <= 0 && s.reload <= 0) {
       this.queued = false
-      if (s.ammo[s.weapon] > 0) this.fire(eye, f, shown)
+      if (s.ammo[s.weapon] > 0) this.fire(eye, dir, f, shown)
       else {
-        this.onSound?.('dry', null, 1)
-        this.reload()
+        // Chargeur vide : il faut recharger soi-même.
+        s.cooldown = 0.2
+        this.sfx.dry()
+        s.hud.ammo.classList.remove('nudge')
+        void s.hud.ammo.offsetWidth
+        s.hud.ammo.classList.add('nudge')
       }
     }
 
     this.updateTargets(dt, f.fps)
     this.updateBullets(dt)
+    this.updateStreaks(dt, f.camera, origin)
     this.updateDebris(dt)
 
     // Laser de la vue de dessus : du canon au premier obstacle.
     this.laser.visible = this.laserDot.visible = !f.fps
     if (!f.fps) {
-      const hit = this.cast(eye, this.aim, 30)
-      const end = _v.copy(eye).addScaledVector(this.aim, hit.t)
+      const hit = this.cast(eye, dir, 30)
+      const end = _v.copy(eye).addScaledVector(dir, hit.t)
       this.laserDot.position.copy(end)
-      stretch(this.laser, eye, end, 0.008)
+      this.laser.position.copy(eye)
+      this.laser.quaternion.setFromUnitVectors(Z, dir)
+      this.laser.scale.set(0.008, 0.008, Math.max(hit.t, 1e-4))
     }
 
-    // Sensations : tout s'amortit ; le regard revient de son cabrage.
-    this.kick = THREE.MathUtils.damp(this.kick, 0, 16, dt)
-    this.shake = THREE.MathUtils.damp(this.shake, 0, 14, dt)
+    // Dispersion : elle retombe ; marcher l'ouvre.
+    this.bloom *= Math.exp(-w.settle * dt)
+    this.moving = THREE.MathUtils.damp(this.moving, walking ? w.move * RAD : 0, 10, dt)
+    this.drift *= Math.exp(-9 * dt)
+    // Recul : le cabrage se donne en quelques images, puis le regard revient (moins vite détente tenue).
+    const give = 1 - Math.exp(-45 * dt)
+    const back = 1 - Math.exp(-w.recover * (this.held && w.auto ? 0.35 : 1) * dt)
+    const dYaw = this.debt.x * give - this.recoil.x * back, dPitch = this.debt.y * give - this.recoil.y * back
+    this.recoil.x += dYaw
+    this.recoil.y += dPitch
+    this.debt.multiplyScalar(1 - give)
+    if (f.fps && (Math.abs(dYaw) > 1e-6 || Math.abs(dPitch) > 1e-6)) f.look(dYaw, dPitch)
+    // L'arme sur son ressort.
+    this.gunVel += (-260 * this.gunKick - 24 * this.gunVel) * dt
+    this.gunKick += this.gunVel * dt
+    this.shake = THREE.MathUtils.damp(this.shake, 0, 16, dt)
     this.punch = THREE.MathUtils.damp(this.punch, 0, 12, dt)
-    this.dip = THREE.MathUtils.damp(this.dip, s.reload > 0 ? 1 : 0, s.reload > 0 ? 14 : 9, dt)
+    this.dip = THREE.MathUtils.damp(this.dip, 0, 9, dt)
     this.flashTime -= dt
     this.hitTime -= dt
-    if (this.recoil > 1e-5) {
-      const back = this.recoil * (1 - Math.exp(-7 * dt))
-      this.recoil -= back
-      if (f.fps) f.look(0, -back)
-    }
     this.jolt(f.camera, f.fps)
-    if (shown === this.view[s.weapon] && shown) this.placeView(shown, f, dt)
-    this.placeFlash(shown)
+    if (shown === this.view[s.weapon] && shown) this.placeView(shown, f, dir, dt)
+    this.placeFlash(shown, w, f.fps)
     this.drawHud(dt, f)
 
     if (s.timeLeft <= 0 && !s.bullets.length) this.finish(tr('Temps écoulé !', 'Time\'s up!'))
   }
 
-  private fire(eye: THREE.Vector3, f: RangeFrame, shown: Gun | null) {
+  private fire(eye: THREE.Vector3, dir: THREE.Vector3, f: RangeFrame, shown: Gun | null) {
     const s = this.session!, w = WEAPONS[s.weapon]
     s.ammo[s.weapon]--
     s.cooldown = w.interval
     s.shots++
     s.started = true
-    const d = this.aim.clone()
-    if (w.spread) {
-      // En vue de dessus, la balle reste dans le plan des cibles.
-      if (f.fps) d.applyEuler(_e.set(rand(w.spread), rand(w.spread), 0))
-      else d.applyAxisAngle(UP, rand(w.spread))
+    // Dispersion : un point au hasard dans le cône de l'arme (à plat, en vue de dessus, où la balle reste dans le plan des cibles).
+    const spread = w.spread * RAD + this.bloom + this.moving
+    const d = dir.clone()
+    if (spread > 1e-5) {
+      if (f.fps) {
+        const off = Math.tan(spread * Math.sqrt(Math.random())), turn = Math.random() * Math.PI * 2
+        _x.crossVectors(d, UP).normalize()
+        _y.crossVectors(_x, d)
+        d.addScaledVector(_x, Math.cos(turn) * off).addScaledVector(_y, Math.sin(turn) * off).normalize()
+      } else d.applyAxisAngle(UP, rand(spread))
     }
+    this.bloom = Math.min(w.bloomMax * RAD, this.bloom + w.bloom * RAD)
+    // Recul : le regard se cabre et dévie ; vu de dessus, la ligne de tir saute de côté.
+    this.debt.x += rand(w.side * RAD)
+    this.debt.y += w.kick * RAD * (0.85 + Math.random() * 0.3)
+    this.drift = THREE.MathUtils.clamp(this.drift + rand((w.side * 2 + w.kick * 0.5) * RAD), -0.16, 0.16)
+    this.gunVel += 8 * w.punch
+    this.shake = Math.max(this.shake, 0.45 * w.punch)
+    this.punch = Math.max(this.punch, w.punch)
+    this.flashTime = 0.055
+
     shown?.root.updateWorldMatrix(true, false)
-    const from = shown ? this.group.worldToLocal(shown.root.localToWorld(shown.muzzle.clone())) : eye.clone()
-    const tracer = this.tracer(from, f.fps ? 0.004 : 0.011)
-    s.bullets.push({ p: eye.clone(), d, speed: w.speed, pierce: w.pierce, scored: false, tracer })
-    this.kick = 1
-    this.shake = Math.max(this.shake, w.shake)
-    this.punch = Math.max(this.punch, w.shake)
-    this.flashTime = 0.05
-    this.flash.rotation.z = Math.random() * Math.PI
-    this.flash.scale.setScalar((w.heavy ? 1.5 : 1) * (0.8 + Math.random() * 0.4))
-    if (f.fps) {
-      f.look(rand(w.kick * 0.35), w.kick)
-      this.recoil += w.kick
-    }
-    this.onSound?.(w.heavy ? 'heavy' : 'shot', f.fps ? null : from, w.pitch * (0.95 + Math.random() * 0.1))
-    if (!s.ammo[s.weapon]) this.reload()
+    const muzzle = shown ? this.group.worldToLocal(shown.root.localToWorld(shown.muzzle.clone())) : eye.clone()
+    this.sfx.shot(w.id, f.fps ? null : this.world(muzzle), 0.94 + Math.random() * 0.12)
+    // En vue subjective, la traînée naît un peu devant le canon : rien ne part de sous le nez.
+    if (f.fps) muzzle.addScaledVector(d, 0.12)
+    const color = new THREE.Color(w.color)
+    s.bullets.push({ p: eye.clone(), d, speed: w.speed, pierce: w.pierce, scored: false, color, streak: this.streak(muzzle, color, f.fps ? 0.011 : 0.03) })
+  }
+
+  /** Point du repère du pont, dans le monde (pour les sons). */
+  private world(p: THREE.Vector3): THREE.Vector3 {
+    return this.group.localToWorld(p.clone())
   }
 
   /**
@@ -597,45 +653,113 @@ export class RangeGame {
         const hit = this.cast(b.p, b.d, left)
         b.p.addScaledVector(b.d, hit.t)
         left -= hit.t
+        b.streak.head.copy(b.p)
         if (hit.target) {
           this.score(hit.target, hit.off, b)
           if (b.pierce) { b.p.addScaledVector(b.d, 0.002); continue }
-        } else if (hit.normal) this.impact(b.p, hit.normal)
+        } else if (hit.normal) this.impact(b.p, hit.normal, b.color)
         else continue
-        stretch(b.tracer.mesh, b.tracer.from, b.p, b.tracer.thick)
-        b.tracer.flying = false
+        b.streak.flying = false
         if (!b.scored) s.streak = 0
         return false
       }
       return true
     })
-    // Les traînées : du canon à la balle tant qu'elle vole, puis elles s'effacent.
-    const flying = new Map(s.bullets.map((b) => [b.tracer, b.p]))
-    this.fadeTracers(dt, flying)
   }
 
-  private fadeTracers(dt: number, flying: Map<Tracer, THREE.Vector3>) {
-    this.tracers = this.tracers.filter((t) => {
-      const head = flying.get(t)
-      if (head) stretch(t.mesh, t.from, head, t.thick)
-      t.age += dt
-      const k = 1 - t.age / 0.55
-      ;(t.mesh.material as THREE.MeshBasicMaterial).opacity = Math.max(0, k) * 0.75
-      if (k > 0 || t.flying) return true
-      t.mesh.visible = false
-      this.spare.push(t.mesh)
-      return false
+  // ------------------------------------------------------------------ balles et effets
+
+  private sprite(): THREE.Sprite {
+    return new THREE.Sprite(new THREE.SpriteMaterial({ map: this.halo, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }))
+  }
+
+  private streak(from: THREE.Vector3, color: THREE.Color, width: number): Streak {
+    let it = this.spare.pop()
+    if (!it) {
+      const ribbon = () => {
+        const mesh = new THREE.Mesh(RIBBON, new THREE.MeshBasicMaterial({ map: this.ribbon, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }))
+        mesh.matrixAutoUpdate = false
+        mesh.frustumCulled = false
+        return mesh
+      }
+      it = { trail: ribbon(), bolt: ribbon(), glow: this.sprite(), from: new THREE.Vector3(), head: new THREE.Vector3(), width, age: 0, flying: true }
+      this.live.add(it.trail, it.bolt, it.glow)
+    }
+    it.from.copy(from)
+    it.head.copy(from)
+    it.width = width
+    it.age = 0
+    it.flying = true
+    for (const o of [it.trail, it.bolt, it.glow]) {
+      o.visible = false
+      ;(o.material as THREE.MeshBasicMaterial).color.copy(color)
+    }
+    this.streaks.push(it)
+    return it
+  }
+
+  /** Étire un ruban de `a` à `b`, large de `width`, tourné vers la caméra. */
+  private lay(mesh: THREE.Mesh, a: THREE.Vector3, b: THREE.Vector3, width: number, camera: THREE.Camera, origin: THREE.Vector3) {
+    const len = _z.subVectors(b, a).length()
+    mesh.visible = len > 1e-4
+    if (!mesh.visible) return
+    _z.divideScalar(len)
+    // Vers la caméra : depuis le milieu du ruban ; pour une caméra orthographique, à contre-sens de son regard.
+    if ((camera as THREE.OrthographicCamera).isOrthographicCamera) camera.getWorldDirection(_y).negate()
+    else camera.getWorldPosition(_y).sub(origin).sub(a).addScaledVector(_z, -len / 2)
+    _x.crossVectors(_z, _y)
+    if (_x.lengthSq() < 1e-8) _x.crossVectors(_z, UP)
+    _x.normalize()
+    _y.crossVectors(_x, _z)
+    mesh.matrix.makeBasis(_x.multiplyScalar(width), _y, _l.copy(_z).multiplyScalar(len)).setPosition(a)
+  }
+
+  /** Les balles en vol, leurs traînées, les éclats de lumière. */
+  private updateStreaks(dt: number, camera: THREE.Camera, origin: THREE.Vector3) {
+    const tail = new THREE.Vector3()
+    this.streaks = this.streaks.filter((it) => {
+      it.age += dt
+      const k = 1 - it.age / 0.5
+      if (k <= 0 && !it.flying) {
+        it.trail.visible = it.bolt.visible = it.glow.visible = false
+        this.spare.push(it)
+        return false
+      }
+      this.lay(it.trail, it.from, it.head, it.width, camera, origin)
+      ;(it.trail.material as THREE.MeshBasicMaterial).opacity = Math.max(0, k) * 0.55
+      // Le trait : court, vif, derrière la pointe de la balle.
+      const len = it.from.distanceTo(it.head)
+      it.bolt.visible = it.glow.visible = it.flying && len > 1e-4
+      if (it.bolt.visible) {
+        tail.lerpVectors(it.head, it.from, Math.min(1, 0.55 / len))
+        this.lay(it.bolt, tail, it.head, it.width * 2.4, camera, origin)
+        it.glow.position.copy(it.head)
+        it.glow.scale.setScalar(it.width * 5)
+      }
+      return true
+    })
+    this.bursts = this.bursts.filter((b) => {
+      b.age += dt
+      const k = 1 - b.age / 0.14
+      if (k <= 0) {
+        this.live.remove(b.sprite)
+        b.sprite.material.dispose()
+        return false
+      }
+      b.sprite.scale.setScalar(b.size * (0.5 + k * 0.5))
+      b.sprite.material.opacity = k
+      return true
     })
   }
 
-  private tracer(from: THREE.Vector3, thick: number): Tracer {
-    const mesh = this.spare.pop() ?? new THREE.Mesh(BEAM, new THREE.MeshBasicMaterial({ color: '#ffe0a8', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }))
-    if (!mesh.parent) this.live.add(mesh)
-    mesh.visible = true
-    mesh.scale.setScalar(1e-4)
-    const tracer = { mesh, from: from.clone(), thick, age: 0, flying: true }
-    this.tracers.push(tracer)
-    return tracer
+  /** Éclat de lumière, là où une balle frappe. */
+  private burst(at: THREE.Vector3, color: THREE.Color, size: number) {
+    const sprite = this.sprite()
+    sprite.material.color.copy(color)
+    sprite.position.copy(at)
+    sprite.scale.setScalar(size)
+    this.live.add(sprite)
+    this.bursts.push({ sprite, age: 0, size })
   }
 
   private score(t: Target, off: number, b: Bullet) {
@@ -646,8 +770,8 @@ export class RangeGame {
     s.streak++
     s.hits++
     s.score = Math.min(999900, s.score + points)
-    this.hitTime = bullseye ? 0.22 : 0.14
-    this.shake = Math.max(this.shake, 0.25)
+    this.hitTime = bullseye ? 0.24 : 0.15
+    this.shake = Math.max(this.shake, 0.2)
     // La cible éclate : ses morceaux partent avec la balle.
     const at = new THREE.Vector3(t.x, t.y, t.z)
     for (let i = 0; i < (t.small ? 5 : 8); i++) {
@@ -657,43 +781,62 @@ export class RangeGame {
       this.live.add(mesh)
       this.debris.push({ mesh, v: new THREE.Vector3(rand(1.6), 0.8 + Math.random() * 1.8, rand(0.8)).addScaledVector(b.d, 1.4), spin: new THREE.Vector3(rand(12), rand(12), rand(12)), age: 0, life: 1.4 + Math.random() * 0.6, heavy: true })
     }
-    this.remove(t)
+    this.burst(at, b.color, t.r * 4.5)
+    this.live.remove(t.root)
     s.targets.splice(s.targets.indexOf(t), 1)
-    let text = `+${points}${bullseye ? tr(' · Plein centre !', ' · Bullseye!') : ''}`
+    this.pop(`+${points}`, at, bullseye)
     let tier = false
     while (s.score >= rangeTier(s.level + 1)) {
       s.level++
       s.timeLeft += BONUS_TIME
       tier = true
     }
-    if (tier) text += tr(` · Palier ${s.level} : +${BONUS_TIME} s`, ` · Tier ${s.level}: +${BONUS_TIME} s`)
-    s.hud.flash.textContent = text
-    s.hud.flash.classList.toggle('good', bullseye || tier)
-    s.hud.flash.classList.add('show')
-    s.flashTime = 0.9
-    this.onSound?.(tier ? 'tier' : bullseye ? 'bullseye' : 'hit', at, 0.92 + Math.random() * 0.16)
+    if (tier) {
+      s.hud.banner.textContent = tr(`Palier ${s.level} · +${BONUS_TIME} s`, `Tier ${s.level} · +${BONUS_TIME} s`)
+      s.hud.banner.classList.add('show')
+      s.bannerTime = 1.6
+      this.sfx.tier()
+    }
+    this.sfx.hit(this.world(at), bullseye, 0.92 + Math.random() * 0.16)
   }
 
-  /** Une balle perdue : étincelles, et une marque sur le mur. */
-  private impact(at: THREE.Vector3, normal: THREE.Vector3) {
+  /** Points gagnés, affichés là où la cible a éclaté. */
+  private pop(text: string, at: THREE.Vector3, good: boolean) {
+    const s = this.session
+    if (!s || !this.camera) return
+    _v.copy(at).add(this.group.getWorldPosition(_w)).project(this.camera)
+    if (_v.z > 1) return
+    const el = document.createElement('span')
+    el.className = good ? 'range-pop good' : 'range-pop'
+    el.textContent = text
+    el.style.left = `${((_v.x + 1) * 0.5 * innerWidth).toFixed(0)}px`
+    el.style.top = `${((1 - _v.y) * 0.5 * innerHeight).toFixed(0)}px`
+    el.onanimationend = () => el.remove()
+    s.hud.pops.append(el)
+  }
+
+  /** Une balle perdue : un éclat, des étincelles, et une marque sur le mur, brûlante puis noire. */
+  private impact(at: THREE.Vector3, normal: THREE.Vector3, color: THREE.Color) {
+    const glow = new THREE.MeshBasicMaterial({ color })
     for (let i = 0; i < 5; i++) {
-      const mesh = new THREE.Mesh(this.spark, this.sparkGlow)
+      const mesh = new THREE.Mesh(this.spark, glow)
       mesh.position.copy(at)
       this.live.add(mesh)
       this.debris.push({ mesh, v: new THREE.Vector3(rand(1.4), rand(1.4), rand(1.4)).addScaledVector(normal, 1.2 + Math.random()), spin: new THREE.Vector3(), age: 0, life: 0.18 + Math.random() * 0.2, heavy: false })
     }
-    const mesh = new THREE.Mesh(this.hole, new THREE.MeshBasicMaterial({ color: '#0b0b0d', transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 }))
+    this.burst(_v.copy(at).addScaledVector(normal, 0.02), color, 0.22)
+    const mesh = new THREE.Mesh(this.mark, new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 }))
     mesh.position.copy(at).addScaledVector(normal, 0.006)
     mesh.quaternion.setFromUnitVectors(Z, normal)
     this.live.add(mesh)
-    this.holes.push({ mesh, age: 0 })
-    if (this.holes.length > 40) this.dropHole(this.holes.shift()!)
-    this.onSound?.('wall', at, 0.9 + Math.random() * 0.3)
+    this.marks.push({ mesh, age: 0, color: color.clone() })
+    if (this.marks.length > 40) this.dropMark(this.marks.shift()!)
+    this.sfx.wall(this.world(at), 0.9 + Math.random() * 0.3)
   }
 
-  private dropHole(h: { mesh: THREE.Mesh }) {
-    this.live.remove(h.mesh)
-    ;(h.mesh.material as THREE.Material).dispose()
+  private dropMark(m: { mesh: THREE.Mesh }) {
+    this.live.remove(m.mesh)
+    ;(m.mesh.material as THREE.Material).dispose()
   }
 
   private updateDebris(dt: number) {
@@ -716,28 +859,32 @@ export class RangeGame {
         p.spin.multiplyScalar(0.5)
       }
       p.mesh.position.z = Math.max(p.mesh.position.z, R.minZ + 0.1)
-      p.mesh.scale.setScalar(Math.min(1, (p.life - p.age) / 0.3))
+      // Les derniers instants : il rapetisse et disparaît.
+      const left = p.life - p.age
+      if (left < 0.3) p.mesh.scale.multiplyScalar(left / (left + dt))
       return true
     })
-    this.holes = this.holes.filter((h) => {
-      h.age += dt
-      ;(h.mesh.material as THREE.MeshBasicMaterial).opacity = Math.min(0.8, (6 - h.age) * 0.8)
-      if (h.age < 6) return true
-      this.dropHole(h)
+    this.marks = this.marks.filter((m) => {
+      m.age += dt
+      const material = m.mesh.material as THREE.MeshBasicMaterial
+      material.color.copy(m.color).lerp(SOOT, Math.min(1, m.age / 0.45))
+      material.opacity = Math.min(0.85, (6 - m.age) * 0.85)
+      if (m.age < 6) return true
+      this.dropMark(m)
       return false
     })
   }
 
   // ------------------------------------------------------------------ cibles
 
-  /** Cible du kit, face au tireur, sur sa tige. */
+  /** Cible du kit, face au tireur, sur sa tige et son socle. */
   private makeTarget(small: boolean): Pick<Target, 'root' | 'disc' | 'pole'> {
     const root = new THREE.Group()
     const disc = packModel(small ? 'target-small' : 'target-large', BLASTER_PACK).clone(true)
     // Le modèle est fin le long de x : un quart de tour le met face au sud.
     disc.rotation.y = Math.PI / 2
     const pole = new THREE.Mesh(this.poleGeo, this.poleMat)
-    root.add(pole, disc)
+    root.add(pole, disc, new THREE.Mesh(this.baseGeo, this.poleMat))
     return { root, disc, pole }
   }
 
@@ -762,10 +909,6 @@ export class RangeGame {
     }
   }
 
-  private remove(t: Target) {
-    this.live.remove(t.root)
-  }
-
   private updateTargets(dt: number, fps: boolean) {
     const s = this.session!, rules = rangeLevel(s.level)
     s.spawn -= dt
@@ -781,7 +924,7 @@ export class RangeGame {
       if (t.age > t.life || s.timeLeft <= 0) t.leaving = true
       t.k = THREE.MathUtils.clamp(t.k + (t.leaving ? -dt / 0.18 : dt / 0.22), 0, 1)
       if (t.leaving && t.k <= 0) {
-        this.remove(t)
+        this.live.remove(t.root)
         return false
       }
       if (t.amp) {
@@ -819,55 +962,66 @@ export class RangeGame {
     const persp = camera as THREE.PerspectiveCamera
     if (persp.isPerspectiveCamera) {
       if (!this.baseFov) this.baseFov = persp.fov
-      const fov = this.baseFov + this.punch * 1.1
+      const fov = this.baseFov + this.punch * 0.8
       if (Math.abs(persp.fov - fov) > 1e-3) {
         persp.fov = fov
         persp.updateProjectionMatrix()
       }
     }
     if (this.shake < 0.01) return
-    const a = this.shake * (fps ? 0.005 : 0.03)
+    const a = this.shake * (fps ? 0.0035 : 0.03)
     camera.position.x += rand(a)
     camera.position.y += rand(a)
     camera.position.z += rand(a)
-    if (fps) camera.rotateZ(rand(this.shake * 0.006))
+    if (fps) camera.rotateZ(rand(this.shake * 0.004))
   }
 
-  /** L'arme à l'écran : en bas à droite, elle recule au tir, traîne quand le regard tourne, plonge pour recharger. */
-  private placeView(gun: Gun, f: RangeFrame, dt: number) {
+  /**
+   * L'arme à l'écran, en bas à droite : elle recule sur son ressort au tir, traîne quand le regard
+   * tourne, penche quand on marche de côté, se balance au pas, bascule pour changer de chargeur.
+   */
+  private placeView(gun: Gun, f: RangeFrame, dir: THREE.Vector3, dt: number) {
     const s = this.session!
-    // Le regard tourne : l'arme suit avec un temps de retard.
-    f.camera.getWorldDirection(_v)
     if (this.lastDir.lengthSq()) {
-      const yaw = Math.atan2(_v.x, _v.z) - Math.atan2(this.lastDir.x, this.lastDir.z)
-      this.sway.x = THREE.MathUtils.clamp(this.sway.x + Math.atan2(Math.sin(yaw), Math.cos(yaw)) * 0.5, -0.12, 0.12)
-      this.sway.y = THREE.MathUtils.clamp(this.sway.y + (_v.y - this.lastDir.y) * 0.5, -0.12, 0.12)
+      const yaw = Math.atan2(dir.x, dir.z) - Math.atan2(this.lastDir.x, this.lastDir.z)
+      this.sway.x = THREE.MathUtils.clamp(this.sway.x + Math.atan2(Math.sin(yaw), Math.cos(yaw)) * 0.6, -0.14, 0.14)
+      this.sway.y = THREE.MathUtils.clamp(this.sway.y + (dir.y - this.lastDir.y) * 0.6, -0.14, 0.14)
     }
-    this.lastDir.copy(_v)
-    this.sway.multiplyScalar(Math.exp(-10 * dt))
-    this.bob += dt * (f.moving ? 9 : 1.6)
-    const step = f.moving ? 1 : 0.25
-    const reload = s.reload > 0 ? Math.sin((1 - s.reload / WEAPONS[s.weapon].reload) * Math.PI * 2) * 0.25 : 0
+    this.lastDir.copy(dir)
+    this.sway.multiplyScalar(Math.exp(-11 * dt))
+    const speed = Math.min(1, f.move.length())
+    this.bob += dt * (2 + speed * 9)
+    const step = 0.2 + speed * 0.8
+    // Pas de côté : l'arme penche dans le sens de la marche.
+    _x.crossVectors(dir, UP).normalize()
+    this.roll = THREE.MathUtils.damp(this.roll, -f.move.dot(_x) * 0.12, 8, dt)
+    // Rechargement : l'arme bascule sur le flanc et descend, le temps de changer le chargeur.
+    const loading = s.reload > 0 ? Math.sin(Math.min(1, (1 - s.reload / WEAPONS[s.weapon].reload) * 1.15) * Math.PI) : 0
     f.camera.updateMatrixWorld()
     _v.set(
-      0.085 + this.sway.x * 0.12 + Math.cos(this.bob) * 0.003 * step,
-      -0.075 - this.dip * 0.12 + this.sway.y * 0.1 + Math.abs(Math.sin(this.bob)) * 0.004 * step,
-      -0.2 + this.kick * 0.03,
+      0.05 + this.sway.x * 0.06 + Math.cos(this.bob) * 0.0018 * step - loading * 0.012,
+      -0.043 - this.dip * 0.07 - loading * 0.022 + this.sway.y * 0.05 + Math.abs(Math.sin(this.bob)) * 0.0022 * step,
+      -0.1 + this.gunKick * 0.02,
     ).applyMatrix4(f.camera.matrixWorld)
     gun.root.position.copy(this.group.worldToLocal(_v))
-    // Canon vers l'avant (le -z de la caméra), relevé par le recul, baissé pour recharger.
-    _q.setFromEuler(_e.set(this.dip * 0.9 - this.kick * 0.22 - this.sway.y * 0.6, Math.PI + this.sway.x * 0.8, reload, 'YXZ'))
+    // Canon vers l'avant (le -z de la caméra), relevé par le recul, baissé quand on prend l'arme.
+    _q.setFromEuler(_e.set(
+      this.dip * 0.9 - this.gunKick * 0.3 - this.sway.y * 0.6 + loading * 0.35,
+      Math.PI + this.sway.x * 0.8 + loading * 0.25,
+      this.roll - loading * 0.9 + this.gunKick * 0.06,
+      'YXZ',
+    ))
     gun.root.quaternion.copy(f.camera.quaternion).multiply(_q)
   }
 
-  private placeFlash(gun: Gun | null) {
+  /** Éclair du canon : un halo de la couleur du tir, le temps de trois images. */
+  private placeFlash(gun: Gun | null, w: Weapon, fps: boolean) {
     this.flash.visible = !!gun && this.flashTime > 0
     if (!gun || !this.flash.visible) return
     gun.root.updateWorldMatrix(true, false)
     this.flash.position.copy(this.group.worldToLocal(gun.root.localToWorld(_v.copy(gun.muzzle))))
-    const roll = this.flash.rotation.z
-    this.flash.quaternion.copy(gun.root.quaternion)
-    this.flash.rotateZ(roll)
+    this.flash.material.color.set(w.color)
+    this.flash.scale.setScalar((fps ? 0.05 : 0.3) * (0.7 + w.punch * 0.3) * (0.8 + Math.random() * 0.4))
   }
 
   private finish(reason: string | null) {
@@ -876,13 +1030,15 @@ export class RangeGame {
     this.session = undefined
     const revision = ++this.revision
     this.held = this.queued = false
-    for (const t of s.targets) this.remove(t)
-    for (const t of this.tracers) { t.mesh.visible = false; this.spare.push(t.mesh) }
-    this.tracers = []
+    for (const t of s.targets) this.live.remove(t.root)
+    for (const it of this.streaks) { it.trail.visible = it.bolt.visible = it.glow.visible = false; this.spare.push(it) }
+    this.streaks = []
     for (const p of this.debris) this.live.remove(p.mesh)
     this.debris = []
-    for (const h of this.holes) this.dropHole(h)
-    this.holes = []
+    for (const m of this.marks) this.dropMark(m)
+    this.marks = []
+    for (const b of this.bursts) { this.live.remove(b.sprite); b.sprite.material.dispose() }
+    this.bursts = []
     for (const gun of [...this.hand, ...this.view]) gun.root.visible = false
     this.live.visible = false
     this.idle.visible = true
@@ -890,11 +1046,16 @@ export class RangeGame {
     document.body.classList.remove('range-on', 'range-top')
     this.punch = this.shake = 0
     this.lastDir.set(0, 0, 0)
-    this.onToggle?.(false)
+    rangeState.live = false
+    rangeState.weapon = null
+    this.onChange?.(false)
     if (reason === null) return
     saveLocalBest(RANGE_ID, s.score)
-    this.onSound?.('end', null, 1)
-    if (!s.shots) return this.dialog.show(reason)
+    if (!s.shots) {
+      this.sfx.take(true)
+      return this.dialog.show(reason)
+    }
+    this.sfx.end()
     const accuracy = Math.round((s.hits / s.shots) * 100)
     const summary = tr(`${reason} ${s.score.toLocaleString()} points (${s.hits} cible${s.hits > 1 ? 's' : ''}, ${accuracy} % de précision).`, `${reason} ${s.score.toLocaleString()} points (${s.hits} target${s.hits > 1 ? 's' : ''}, ${accuracy}% accuracy).`)
     this.dialog.show(summary)
@@ -927,75 +1088,81 @@ export class RangeGame {
       node.textContent = text
       return node
     }
-    const button = (className: string, text: string, title: string, click: () => void) => {
-      const b = el('button', className, text) as HTMLButtonElement
-      b.type = 'button'
-      b.title = title
-      b.onclick = () => { click(); b.blur() }
-      return b
+    const cell = (className: string, label: string, value: HTMLElement, ...more: HTMLElement[]) => {
+      const node = el('div', `range-cell ${className}`)
+      node.append(el('span', 'range-label', label), value, ...more)
+      return node
     }
-    const root = el('div', 'court-hud range-hud')
+    const root = el('div', 'range-hud')
     root.setAttribute('role', 'group')
     root.setAttribute('aria-label', tr('Stand de tir', 'Shooting range'))
-    const top = el('div', 'court-top')
-    const score = el('strong', 'court-score'), time = el('strong', 'court-time'), best = el('span', 'court-best'), tier = el('span', 'court-tier'), streak = el('span', 'range-streak')
-    const scoreBox = el('div', 'court-box'), timeBox = el('div', 'court-box')
-    scoreBox.append(el('span', 'court-label', tr('Stand de tir', 'Shooting range')), score, streak, tier)
-    timeBox.append(el('span', 'court-label', tr('Temps', 'Time')), time, best)
-    top.append(scoreBox, timeBox, button('court-quit', tr('Rendre l\'arme (Échap)', 'Return weapon (Esc)'), '', () => this.stop()))
-    const flash = el('div', 'court-flash')
-    flash.setAttribute('aria-live', 'polite')
 
-    const bar = el('div', 'range-bar')
-    const slots = WEAPONS.map((w, i) => button('range-slot', `${i + 1} · ${w.name}`, w.name, () => this.select(i)))
-    const weapons = el('div', 'range-slots')
-    weapons.append(...slots)
-    const ammo = el('strong', 'range-ammo')
-    const reload = el('div', 'range-reload')
-    reload.append(el('div', 'range-reload-fill'))
-    const motif = button('range-pick', '', tr('Motif du viseur (C)', 'Reticle shape (C)'), () => this.cycleReticle('motif'))
-    const color = button('range-pick range-color', '', tr('Couleur du viseur (X)', 'Reticle colour (X)'), () => this.cycleReticle('color'))
-    const sight = el('div', 'range-sight')
-    sight.append(el('span', 'court-label', tr('Viseur', 'Reticle')), motif, color)
+    // En haut : le score et son palier, le chrono, la série.
+    const score = el('strong', 'range-value'), time = el('strong', 'range-value'), streak = el('strong', 'range-value')
+    const tier = el('span', 'range-tier-text'), bar = el('div', 'range-tier'), tierFill = el('div', 'range-tier-fill')
+    bar.append(tierFill)
+    const clock = cell('range-clock', tr('Temps', 'Time'), time)
+    const top = el('div', 'range-board')
+    top.append(cell('range-score', tr('Score', 'Score'), score, bar, tier), clock, cell('range-streak', tr('Série', 'Streak'), streak))
+    const banner = el('div', 'range-banner')
+    banner.setAttribute('aria-live', 'polite')
+
+    // En bas à droite : l'arme, son chargeur balle par balle, et le rappel de la touche R.
+    const ammo = el('button', 'range-ammo') as HTMLButtonElement
+    ammo.type = 'button'
+    ammo.title = tr('Recharger (R)', 'Reload (R)')
+    ammo.onclick = () => { this.reload(); ammo.blur() }
+    const weapon = el('span', 'range-weapon'), mag = el('div', 'range-mag'), count = el('strong', 'range-count')
+    const key = el('span', 'range-key')
+    key.append(el('kbd', '', 'R'), tr(' Recharger', ' Reload'))
+    ammo.append(weapon, count, mag, key)
+
     const coarse = matchMedia('(pointer: coarse)').matches
-    const help = el('span', 'court-help', coarse
-      ? tr('Touchez pour viser et tirer · le chrono part au premier tir', 'Touch to aim and fire · the clock starts on your first shot')
-      : tr('Clic : tirer · R : recharger · 1 2 3 : arme · C X : viseur · V : vue · le chrono part au premier tir', 'Click: fire · R: reload · 1 2 3: weapon · C X: reticle · V: view · the clock starts on your first shot'))
-    bar.append(weapons, sight, ammo, reload, help)
-
-    const reticle = el('div', 'range-reticle')
-    reticle.setAttribute('aria-hidden', 'true')
-    root.append(top, flash, bar, reticle)
+    const hint = el('div', 'range-hint', coarse
+      ? tr('Touchez pour viser et tirer · touchez le chargeur pour recharger · le chrono part au premier tir', 'Touch to aim and fire · touch the magazine to reload · the clock starts on your first shot')
+      : tr('Clic : tirer · R : recharger · E devant le mur : changer d\'arme ou la rendre · V : vue · le chrono part au premier tir', 'Click: fire · R: reload · E at the wall: swap or return your weapon · V: view · the clock starts on your first shot'))
+    const dot = el('div', 'range-dot')
+    dot.setAttribute('aria-hidden', 'true')
+    dot.innerHTML = '<i></i><svg viewBox="-16 -16 32 32"><path d="M-11-11L-6-6M11-11L6-6M-11 11L-6 6M11 11L6 6"/></svg>'
+    const pops = el('div', 'range-pops')
+    pops.setAttribute('aria-hidden', 'true')
+    root.append(top, banner, ammo, hint, pops, dot)
     document.body.append(root)
-    return { root, score, time, best, tier, flash, streak, ammo, reload: reload.firstElementChild as HTMLElement, slots, reticle, motif, help }
+    return { root, score, time, clock, streak, tier, tierFill, banner, ammo, weapon, mag, pips: [], count, hint, dot, pops }
   }
 
-  private drawReticle() {
-    const h = this.session?.hud
-    if (!h) return
-    const shapes = RETICLES[this.reticle.motif]
-    h.reticle.innerHTML = `<svg viewBox="-16 -16 32 32"><g class="edge">${shapes}</g><g class="ink">${shapes}</g></svg><svg class="range-hit" viewBox="-16 -16 32 32"><path d="M-12-12L-6-6M12-12L6-6M-12 12L-6 6M12 12L6 6"/></svg>`
-    h.reticle.style.color = RETICLE_COLORS[this.reticle.color]
-    h.root.style.setProperty('--range-reticle', RETICLE_COLORS[this.reticle.color])
-    h.motif.textContent = RETICLE_NAMES[this.reticle.motif]
+  /** Le chargeur du HUD, balle par balle, pour l'arme en main. */
+  private fillMag() {
+    const s = this.session
+    if (!s) return
+    const w = WEAPONS[s.weapon], h = s.hud
+    h.weapon.textContent = w.name
+    h.mag.className = `range-mag m${w.mag}`
+    h.pips = Array.from({ length: w.mag }, () => document.createElement('i'))
+    h.mag.replaceChildren(...h.pips)
+    h.root.style.setProperty('--range-color', w.color)
   }
 
   private drawHud(dt: number, f: RangeFrame) {
     const s = this.session!, h = s.hud, w = WEAPONS[s.weapon]
     h.score.textContent = s.score.toLocaleString()
     h.time.textContent = String(Math.ceil(s.timeLeft))
-    h.time.classList.toggle('low', s.started && s.timeLeft <= 10)
-    h.best.textContent = `${tr('Record', 'Best')} ${Math.max(s.best, s.score).toLocaleString()}`
-    h.tier.textContent = `${tr('Palier', 'Tier')} ${s.level} · ${tr('suivant à', 'next at')} ${rangeTier(s.level + 1).toLocaleString()}`
-    h.streak.textContent = s.streak > 1 ? tr(`Série × ${s.streak}`, `Streak × ${s.streak}`) : ''
-    h.ammo.textContent = s.reload > 0 ? tr('Rechargement…', 'Reloading…') : `${s.ammo[s.weapon]} / ${w.mag}`
-    h.ammo.classList.toggle('low', s.reload <= 0 && s.ammo[s.weapon] <= Math.ceil(w.mag / 4))
-    h.reload.style.width = `${s.reload > 0 ? (1 - s.reload / w.reload) * 100 : 0}%`
-    h.slots.forEach((slot, i) => slot.classList.toggle('on', i === s.weapon))
+    h.clock.classList.toggle('low', s.started && s.timeLeft <= 10)
+    h.streak.textContent = `× ${s.streak}`
+    const from = rangeTier(s.level), to = rangeTier(s.level + 1)
+    h.tier.textContent = `${tr('Palier', 'Tier')} ${s.level} · ${to.toLocaleString()} · ${tr('record', 'best')} ${Math.max(s.best, s.score).toLocaleString()}`
+    h.tierFill.style.width = `${(((s.score - from) / (to - from)) * 100).toFixed(1)}%`
+    // Le chargeur : les balles tirées s'éteignent ; il se regarnit pendant le rechargement.
+    const left = s.reload > 0 ? Math.floor(w.mag * (1 - s.reload / w.reload)) : s.ammo[s.weapon]
+    h.pips.forEach((pip, i) => pip.classList.toggle('spent', i >= left))
+    h.count.textContent = s.reload > 0 ? '…' : String(s.ammo[s.weapon])
+    h.ammo.classList.toggle('loading', s.reload > 0)
+    h.ammo.classList.toggle('low', s.reload <= 0 && s.ammo[s.weapon] > 0 && s.ammo[s.weapon] <= Math.ceil(w.mag / 4))
+    h.ammo.classList.toggle('empty', s.reload <= 0 && s.ammo[s.weapon] === 0)
     // Le mode d'emploi s'efface au premier tir.
-    h.help.hidden = s.started
-    if (s.flashTime > 0 && (s.flashTime -= dt) <= 0) h.flash.classList.remove('show')
-    // Le viseur : au centre en vue subjective, sur le point visé en vue de dessus ; il s'ouvre au tir.
+    h.hint.hidden = s.started
+    if (s.bannerTime > 0 && (s.bannerTime -= dt) <= 0) h.banner.classList.remove('show')
+    // La mire, un point : au centre en vue subjective, sur le point visé en vue de dessus.
     document.body.classList.toggle('range-top', !f.fps)
     let x = innerWidth / 2, y = innerHeight / 2
     if (!f.fps) {
@@ -1006,7 +1173,7 @@ export class RangeGame {
         y = (1 - _v.y) * 0.5 * innerHeight
       }
     }
-    h.reticle.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${(1 + this.kick * 0.45).toFixed(3)})`
-    h.reticle.classList.toggle('hit', this.hitTime > 0)
+    h.dot.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`
+    h.dot.classList.toggle('hit', this.hitTime > 0)
   }
 }

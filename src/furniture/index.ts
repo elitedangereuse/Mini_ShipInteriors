@@ -80,7 +80,7 @@ import { STUDIO } from './studio'
  * - posters.ts : les affiches des cabines (grands films, pin-up rétro) ;
  * - bath.ts : les petits objets de salle de bain des cabines (canard, gobelet, dérouleur, tapis) ;
  * - sport.ts : la zone sportive du pont supérieur (panier sur glissière, cage et gardien en carton, marquages, ballons) ;
- * - range.ts : le stand de tir de la cale (pas de tir, couloir et pare-balles, râtelier d'armes, caisses de munitions).
+ * - range.ts : le stand de tir de la cale (pas de tir, couloir et pare-balles, tapis des tireurs, armes au mur, caisses de munitions).
  * On les place dans levels.ts comme les modèles du kit : `{ model: 'fireplace', x, z, rot }`,
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
