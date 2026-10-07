@@ -753,7 +753,7 @@ const mobileEmotesToggle = document.createElement('button')
 mobileEmotesToggle.className = 'mobile-emotes-toggle'
 mobileEmotesToggle.setAttribute('aria-label', tr('Afficher les emotes', 'Show emotes'))
 mobileEmotesToggle.setAttribute('aria-expanded', 'false')
-mobileEmotesToggle.append(icon('smiley-sticker'))
+mobileEmotesToggle.append(icon('hand-waving'))
 mobileEmotesToggle.onclick = () => {
   const open = $('emotes').classList.toggle('expanded')
   mobileEmotesToggle.setAttribute('aria-expanded', String(open))
@@ -1981,16 +1981,18 @@ async function command(text: string) {
   }
 }
 
+// Au doigt, le chat est replié en une bulle (cf. mobile.ts) : pas de touche Entrée à annoncer.
+const howToChat = coarsePointer ? tr('Touchez la bulle pour discuter', 'Touch the bubble to chat') : tr('Entrée pour discuter', 'Press Enter to chat')
 chat.add(
   'system',
   linked
     ? tr(
-        `Bienvenue à bord, ${profile.name}. Compte Élite Dangereuse lié. Entrée pour discuter, /aide pour les commandes.`,
-        `Welcome aboard, ${profile.name}. Élite Dangereuse account linked. Press Enter to chat, /help for commands.`,
+        `Bienvenue à bord, ${profile.name}. Compte Élite Dangereuse lié. ${howToChat}, /aide pour les commandes.`,
+        `Welcome aboard, ${profile.name}. Élite Dangereuse account linked. ${howToChat}, /help for commands.`,
       )
     : tr(
-        `Bienvenue à bord, ${profile.name} (invité). Entrée pour discuter, /aide pour les commandes.`,
-        `Welcome aboard, ${profile.name} (guest). Press Enter to chat, /help for commands.`,
+        `Bienvenue à bord, ${profile.name} (invité). ${howToChat}, /aide pour les commandes.`,
+        `Welcome aboard, ${profile.name} (guest). ${howToChat}, /help for commands.`,
       ),
 )
 

@@ -16,6 +16,24 @@ export function setupMobile(enabled: boolean): () => void {
   const root = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void }
   const doc = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => Promise<void> | void }
   const isFullscreen = () => !!(document.fullscreenElement || doc.webkitFullscreenElement)
+  // L'iPhone n'a pas de plein écran pour les pages : on n'y propose rien qui ne marcherait pas, et
+  // on indique l'écran d'accueil, seule façon d'y jouer sans les barres de Safari.
+  const canFullscreen = !!(root.requestFullscreen || root.webkitRequestFullscreen)
+  const standalone = matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true
+  if (!canFullscreen) {
+    root.classList.add('no-fullscreen')
+    enter.textContent = tr('Jouer', 'Play')
+    $('mobile-entry-message').textContent = tr('Le jeu se joue en paysage.', 'The game plays in landscape.')
+    if (!standalone) {
+      status.textContent = tr('Pour jouer en plein écran : bouton Partager de Safari, puis « Sur l’écran d’accueil ».', 'To play fullscreen: Safari’s Share button, then “Add to Home Screen”.')
+      status.hidden = false
+    }
+    // L'icône de l'écran d'accueil est celle du site (chemin absolu, hors du build du jeu).
+    const touchIcon = document.createElement('link')
+    touchIcon.rel = 'apple-touch-icon'
+    touchIcon.href = '/assets/images/favicon.png'
+    document.head.append(touchIcon)
+  }
 
   const sync = () => {
     // CSS orientation remains landscape while a software keyboard reduces the viewport.
@@ -27,7 +45,9 @@ export function setupMobile(enabled: boolean): () => void {
     fullscreen.setAttribute('aria-label', label)
     if (started && !entry.hidden) {
       $('mobile-entry-message').textContent = tr('Tournez votre téléphone en paysage pour continuer.', 'Rotate your phone to landscape to continue.')
-      enter.textContent = tr('Reprendre en plein écran', 'Resume fullscreen')
+      // Sans plein écran à reprendre, il n'y a qu'à tourner le téléphone.
+      if (canFullscreen) enter.textContent = tr('Reprendre en plein écran', 'Resume fullscreen')
+      else enter.hidden = true
     }
   }
   const start = async () => {
@@ -40,7 +60,6 @@ export function setupMobile(enabled: boolean): () => void {
       if (!isFullscreen()) {
         if (root.requestFullscreen) await root.requestFullscreen({ navigationUI: 'hide' })
         else if (root.webkitRequestFullscreen) await root.webkitRequestFullscreen()
-        else notice = tr('Le plein écran est indisponible dans ce navigateur. Le jeu utilise tout l’espace disponible.', 'Fullscreen is unavailable in this browser. The game uses all available space.')
       }
     } catch {
       notice = tr('Le navigateur a refusé le plein écran. Vous pouvez le réessayer avec le bouton ⛶.', 'The browser refused fullscreen. You can retry with the ⛶ button.')
@@ -49,8 +68,10 @@ export function setupMobile(enabled: boolean): () => void {
     started = true
     entering = false
     enter.disabled = false
-    status.textContent = notice
-    status.hidden = !notice
+    if (canFullscreen) {
+      status.textContent = notice
+      status.hidden = !notice
+    }
     sync()
     if (notice && entry.hidden) {
       const toast = document.createElement('div')
@@ -58,7 +79,7 @@ export function setupMobile(enabled: boolean): () => void {
       toast.setAttribute('role', 'status')
       toast.textContent = notice
       document.body.append(toast)
-      setTimeout(() => toast.remove(), 7000)
+      setTimeout(() => toast.remove(), 5000)
     }
   }
   enter.onclick = () => void start()
@@ -109,11 +130,12 @@ export function setupMobile(enabled: boolean): () => void {
     menu.hidden = !open
     toggle.setAttribute('aria-expanded', String(open))
   }
+  // Le zoom se fait en pinçant : seuls les quarts de tour, qui ramènent la vue isométrique, restent ici.
   const labels: Record<string, string> = {
     'rot-left': tr('Pivoter à gauche', 'Rotate left'), 'rot-right': tr('Pivoter à droite', 'Rotate right'),
-    'zoom-in': tr('Zoom avant', 'Zoom in'), 'zoom-out': tr('Zoom arrière', 'Zoom out'),
-    'photo-toggle': tr('Mode photo', 'Photo mode'), 'auto-sprint': tr('Sprint auto', 'Auto-sprint'),
+    'photo-toggle': tr('Mode photo', 'Photo mode'), 'auto-sprint': tr('Toujours courir', 'Always run'),
     'light-mode': tr('Mode léger', 'Light mode'), 'help-toggle': tr('Aide', 'Help'),
+    'about-toggle': tr('À propos', 'About'),
   }
   for (const [id, label] of Object.entries(labels)) {
     const button = $(id)
@@ -121,12 +143,33 @@ export function setupMobile(enabled: boolean): () => void {
     text.textContent = label
     button.append(text)
     menu.append(button)
-    if (id === 'photo-toggle' || id === 'help-toggle') button.addEventListener('click', () => menuState(false))
+    if (id === 'photo-toggle' || id === 'help-toggle' || id === 'about-toggle') button.addEventListener('click', () => menuState(false))
   }
   const volume = document.createElement('label')
   volume.className = 'mobile-volume'
   volume.append(document.createTextNode(tr('Volume', 'Volume')), $('volume'))
-  menu.append(volume)
+  // Quitter le jeu se range au fond du menu : hors de portée d'un pouce qui visait le son.
+  menu.append(volume, $('back-to-site'))
+
+  // Chat replié en un bouton : le champ ne s'ouvre, en haut de l'écran (au-dessus du clavier), que
+  // pour écrire.
+  const chat = $('chat')
+  const chatInput = $<HTMLInputElement>('chat-input')
+  const chatToggle = document.createElement('button')
+  chatToggle.id = 'mobile-chat-toggle'
+  chatToggle.type = 'button'
+  chatToggle.title = tr('Discuter', 'Chat')
+  chatToggle.setAttribute('aria-label', chatToggle.title)
+  chatToggle.append(icon('chat-circle-dots'))
+  chat.append(chatToggle)
+  chatInput.placeholder = tr('Message…', 'Message…')
+  chatInput.enterKeyHint = 'send'
+  chatToggle.onclick = () => {
+    // Le champ doit être visible avant le focus, et le focus venir du toucher : sinon pas de clavier.
+    chat.classList.add('open')
+    chatInput.focus()
+  }
+  chatInput.addEventListener('blur', () => chat.classList.remove('open'))
   buttons.append(toggle)
   document.querySelector('.top-right')!.append(menu)
   toggle.onclick = () => { details(false); menuState(menu.hidden === true) }
@@ -138,6 +181,8 @@ export function setupMobile(enabled: boolean): () => void {
     if (!menu.contains(e.target) && !toggle.contains(e.target)) menuState(false)
     const help = $('help')
     if (!help.hidden && !help.contains(e.target) && !$('help-toggle').contains(e.target)) help.hidden = true
+    const about = $('about')
+    if (!about.hidden && !about.contains(e.target) && !$('about-toggle').contains(e.target)) $('about-toggle').click()
   })
   addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return
