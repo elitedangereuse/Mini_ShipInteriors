@@ -3501,8 +3501,10 @@ function pickTile(): Tile | null {
 let pendingMove: PointerEvent | null = null
 canvas.addEventListener('pointermove', (e) => {
   if (freeLook) return
-  if (editing()) activeEditor()!.pointerMove(e)
-  else pendingMove = e
+  // En aménagement, le doigt passe par editTouch (cf. plus bas) : un second doigt peut l'interrompre.
+  if (editing()) {
+    if (e.pointerType === 'mouse') activeEditor()!.pointerMove(e)
+  } else pendingMove = e
 })
 function processHover() {
   if (!pendingMove) return
@@ -3563,7 +3565,88 @@ function endFreeLook(e: PointerEvent) {
 canvas.addEventListener('pointerup', endFreeLook)
 canvas.addEventListener('pointercancel', endFreeLook)
 canvas.addEventListener('pointerup', (e) => {
-  if (e.button === 0 && editing()) activeEditor()!.pointerUp(e)
+  if (e.button === 0 && e.pointerType === 'mouse' && editing()) activeEditor()!.pointerUp(e)
+})
+
+// Deux doigts sur le décor : les écarter zoome, les faire tourner pivote la vue ; en aménagement et
+// en mode photo, les faire glisser déplace le cadre. Le geste à un doigt en cours est abandonné.
+const fingers = new Map<number, { x: number; y: number }>()
+let pinch: { dist: number; angle: number; x: number; y: number; twist: number } | null = null
+/**
+ * Doigt posé en aménagement : l'outil ne part qu'au glissé ou au relâchement, pour qu'un second
+ * doigt (la caméra) n'ait pas déjà posé un meuble ou tracé un mur.
+ */
+let editTouch: { down: PointerEvent; started: boolean } | null = null
+/** Rotation des doigts (radians) en deçà de laquelle un pincement ne fait pas pivoter la vue. */
+const TWIST_SLACK = 0.2
+function fingerSpan() {
+  const [a, b] = [...fingers.values()]
+  return { dist: Math.hypot(b.x - a.x, b.y - a.y), angle: Math.atan2(b.y - a.y, b.x - a.x), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+}
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'mouse') return
+  fingers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+  if (fingers.size === 1) {
+    if (!editing() || e.button !== 0) return
+    editTouch = { down: e, started: false }
+    try {
+      canvas.setPointerCapture(e.pointerId)
+    } catch {}
+    return
+  }
+  // En vue subjective, sur un terrain ou canne en main, le premier doigt garde la main.
+  if (fingers.size !== 2 || fpsShown || court.active || fishing.active) return
+  freeLook = null
+  if (editTouch?.started) activeEditor()?.pointerCancel()
+  editTouch = null
+  pinch = { ...fingerSpan(), twist: 0 }
+})
+canvas.addEventListener('pointermove', (e) => {
+  const finger = fingers.get(e.pointerId)
+  if (!finger) return
+  finger.x = e.clientX
+  finger.y = e.clientY
+  if (pinch && fingers.size === 2) {
+    const now = fingerSpan()
+    if (now.dist > 20 && pinch.dist > 20) iso.zoomBy(pinch.dist / now.dist)
+    const turn = THREE.MathUtils.euclideanModulo(now.angle - pinch.angle + Math.PI, Math.PI * 2) - Math.PI
+    pinch.twist += turn
+    if (Math.abs(pinch.twist) > TWIST_SLACK) iso.orbit(turn, 0)
+    if (editing() || photo.active) iso.pan(now.x - pinch.x, now.y - pinch.y, innerHeight)
+    Object.assign(pinch, now)
+    return
+  }
+  if (!editTouch || e.pointerId !== editTouch.down.pointerId) return
+  if (!editTouch.started) {
+    if (Math.hypot(e.clientX - editTouch.down.clientX, e.clientY - editTouch.down.clientY) < 8) return
+    editTouch.started = true
+    activeEditor()?.pointerDown(editTouch.down)
+  }
+  activeEditor()?.pointerMove(e)
+})
+function liftFinger(e: PointerEvent) {
+  if (!fingers.delete(e.pointerId)) return
+  pinch = null
+  if (!editTouch || e.pointerId !== editTouch.down.pointerId) return
+  const { down, started } = editTouch
+  editTouch = null
+  const tool = activeEditor()
+  if (!tool) return
+  if (e.type !== 'pointerup') {
+    if (started) tool.pointerCancel()
+    return
+  }
+  // Simple toucher : l'appui et le relâchement partent ensemble.
+  if (!started) tool.pointerDown(down)
+  tool.pointerUp(e)
+}
+canvas.addEventListener('pointerup', liftFinger)
+canvas.addEventListener('pointercancel', liftFinger)
+addEventListener('blur', () => {
+  fingers.clear()
+  pinch = null
+  if (editTouch?.started) activeEditor()?.pointerCancel()
+  editTouch = null
 })
 
 // Clic en dehors du panneau d'ascenseur : il se ferme, et le clic ne fait rien d'autre.
@@ -3620,8 +3703,8 @@ canvas.addEventListener('pointerdown', (e) => {
     return
   }
   // Vue subjective au doigt : le clic part au relâchement, s'il n'a pas servi à tourner le regard.
-  // En mode construction, le doigt trace comme la souris : l'appui part tout de suite.
-  if (e.button === 0 && !fpsShown && (e.pointerType === 'mouse' || builder?.active)) click(e)
+  // En aménagement, le doigt attend de savoir s'il est seul (cf. editTouch).
+  if (e.button === 0 && !fpsShown && e.pointerType === 'mouse') click(e)
 })
 
 // Vue subjective à la souris : le curseur disparaît, bloqué sur la mire, et la souris tourne

@@ -673,6 +673,13 @@ export class CabinEditor {
     }
   }
 
+  /** Geste interrompu (un second doigt prend la caméra) : l'objet qu'on déplaçait retourne à sa place. */
+  pointerCancel() {
+    this.press = null
+    this.painting = false
+    if (this.held && this.held.index >= 0) this.cancelHeld()
+  }
+
   private ray(e: { clientX: number; clientY: number }): THREE.Raycaster {
     this.pointer.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1)
     this.raycaster.setFromCamera(this.pointer, this.host.iso.camera)

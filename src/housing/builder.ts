@@ -1528,6 +1528,13 @@ export class HomeBuilder {
     this.aim(e)
   }
 
+  /** Geste interrompu (un second doigt prend la caméra) : le tracé en cours est abandonné. */
+  pointerCancel() {
+    this.stroke = null
+    this.grab = null
+    this.pointerDirty = true
+  }
+
   /** Outil « Déplacer », bouton relâché : le rectangle tiré (ou la pièce cliquée) devient le bloc ; le bloc saisi se pose là. */
   private releaseMove(e: { clientX: number; clientY: number }) {
     const p = this.ground(e)
