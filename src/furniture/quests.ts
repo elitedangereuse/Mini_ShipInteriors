@@ -3,7 +3,7 @@ import { animatedScreen, barX, barZ, box, cylinder, decal, drawnTexture, glow, l
 
 /*
  * Les objets des quêtes du bord (cf. src/quests/) : ce qu'on trouve, ce qu'on rapporte, ce qu'on
- * pose. Ils n'apparaissent qu'au joueur dont la quête en est là, et ne bloquent pas le passage.
+ * pose, ce qui flotte. Ils n'apparaissent qu'au joueur dont la quête en est là, et ne bloquent pas le passage.
  * Mêmes conventions que decor.ts : face à +z, posé au sol, centré sur l'origine.
  */
 
@@ -269,7 +269,42 @@ function targetMark(): THREE.Texture {
   })
 }
 
+/**
+ * Un éclat de mémoire d'Écho : un fragment de projection resté accroché là, qui flotte, tourne et
+ * grésille au-dessus de son halo.
+ */
+const echoShard: Builder = ({ random }) => {
+  const g = new THREE.Group()
+  const light = new THREE.MeshBasicMaterial({ color: '#7fe9ff', transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false })
+  const faint = new THREE.MeshBasicMaterial({ color: '#2aa9d8', transparent: true, opacity: 0.4, depthWrite: false, toneMapped: false })
+  const ring = part(new THREE.RingGeometry(0.13, 0.17, 24), faint, 0, 0.014, 0)
+  ring.rotation.x = -Math.PI / 2
+  g.add(ring)
+  // L'éclat : un cristal effilé, et les lignes de balayage qui le traversent.
+  const shard = new THREE.Group()
+  const crystal = part(new THREE.OctahedronGeometry(0.09, 0), light)
+  crystal.scale.set(0.7, 1.5, 0.7)
+  shard.add(crystal)
+  const lines = [-0.09, -0.03, 0.03, 0.09].map((y) => part(new THREE.BoxGeometry(0.2, 0.008, 0.008), faint, 0, y, 0))
+  shard.add(...lines)
+  shard.position.y = 0.62
+  g.add(shard)
+  const phase = random() * 6
+  return {
+    live: g,
+    update: (t) => {
+      shard.rotation.y = t * 1.1 + phase
+      shard.position.y = 0.62 + Math.sin(t * 1.7 + phase) * 0.04
+      // Il grésille : une extinction brève, de temps en temps.
+      shard.visible = Math.sin(t * 9 + phase) > -0.86 || Math.sin(t * 2.3 + phase) > 0
+      for (const [i, l] of lines.entries()) l.position.x = Math.sin(t * 13 + i * 2.1 + phase) * 0.012
+    },
+    extent: new THREE.Box3(new THREE.Vector3(-0.2, 0, -0.2), new THREE.Vector3(0.2, 0.85, 0.2)),
+  }
+}
+
 export const QUESTS_FURNITURE = {
+  'quest-echo-shard': echoShard,
   'quest-bowl': bowl,
   'quest-paws': paws,
   'quest-keycard': keycard,

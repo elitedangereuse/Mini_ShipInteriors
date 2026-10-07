@@ -3,7 +3,7 @@ import { tr } from '../i18n'
 
 /*
  * Mini-cinématique d'un dialogue de quête : deux bandes noires se ferment sur l'image, la caméra
- * se rapproche de la conversation (cf. main.ts), l'interface s'efface, et les répliques s'écrivent
+ * se rapproche de la conversation et penche vers celui qui parle (cf. main.ts), l'interface s'efface, et les répliques s'écrivent
  * une à une dans une fenêtre, sous le nom de qui parle. E, Espace, Entrée, un clic ou un toucher
  * passent à la suite (ou écrivent la réplique d'un coup) ; Échap referme, et rien n'est acquis :
  * on pourra reprendre la scène. Une scène peut finir sur un choix (accepter une quête, ou non).
@@ -44,6 +44,8 @@ export class Cinematic {
   /** La scène commence, finit (caméra, interface : cf. main.ts). */
   onOpen?: () => void
   onClose?: () => void
+  /** Une réplique suit la précédente (un petit bruit). */
+  onNext?: () => void
   private lines: Line[] = []
   private index = 0
   private typed = 0
@@ -165,7 +167,10 @@ export class Cinematic {
       return this.write()
     }
     if (this.choosing) return this.finish(this.options.choices![this.selected].value)
-    if (this.index < this.lines.length - 1) return this.open(this.index + 1)
+    if (this.index < this.lines.length - 1) {
+      this.onNext?.()
+      return this.open(this.index + 1)
+    }
     this.finish('end')
   }
 
@@ -214,9 +219,11 @@ export class Cinematic {
   update(dt: number, player: THREE.Vector3) {
     if (!this.active) return
     const target = this.options.target?.() ?? null
-    if (target) this.focus.set((player.x + target.x) / 2, player.y, (player.z + target.z) / 2)
-    else this.focus.copy(player)
     const line = this.line
+    // Le cadre penche vers celui qui parle : le joueur, son interlocuteur, ou le milieu pour le récit.
+    const lean = !target ? 0 : line?.who === 'me' ? 0.3 : line?.who ? 0.68 : 0.5
+    if (target) this.focus.set(player.x + (target.x - player.x) * lean, player.y, player.z + (target.z - player.z) * lean)
+    else this.focus.copy(player)
     if (!line || this.typed >= line.text.length) return
     const before = Math.floor(this.typed)
     this.typed = Math.min(line.text.length, this.typed + dt * SPEED)

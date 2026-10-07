@@ -28,6 +28,8 @@ export const QUESTS = [
   { id: 'dernier-match', steps: [3, 0, 0, 0], room: { level: 1, room: 'f' }, reward: { credits: 5000 } },
   // Le mannequin de l'atelier : son apparence, au Holo-Me.
   { id: 'quatre-cent-douze', steps: [0, 3, 0], reward: { skins: ['robot.d'] } },
+  // Écho, la projection que personne n'a validée : l'apparence « Hologramme », au Holo-Me.
+  { id: 'essayage', steps: [3, 0, 0], reward: { skins: ['holo.echo'] } },
 ]
 
 const BY_ID = new Map(QUESTS.map((q) => [q.id, q]))

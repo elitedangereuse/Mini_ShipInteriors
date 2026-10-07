@@ -283,17 +283,23 @@ const questLocked = (level: number, room: string | null) => {
   const quest = questOfRoom(level, room)
   return quest !== null && !quests.isDone(quest)
 }
-/** Pièces ouvertes par une quête terminée ; `evictFrom` : le joueur est dans une pièce qui se referme (cf. plus bas). */
+/**
+ * Pièces ouvertes par une quête terminée. `evictFrom` : le joueur est dans une pièce qui se referme ;
+ * `revealRoom` : une pièce vient de s'ouvrir sous ses yeux (cf. plus bas).
+ */
 const questRoomsOpen = new Map<string, boolean>()
 let evictFrom: ((level: number, room: string) => void) | null = null
+let revealRoom: ((level: number, room: string) => void) | null = null
 function applyQuestRooms() {
   for (const { quest, level, room } of QUEST_ROOMS) {
     const open = quests.isDone(quest)
     const was = questRoomsOpen.get(quest)
     if (was === open) continue
     questRoomsOpen.set(quest, open)
-    deckById(level).setRoomOpen(room, open)
+    // Ouverte en cours de partie (et non trouvée ouverte à l'arrivée) : son couvercle se rétracte.
+    deckById(level).setRoomOpen(room, open, was === false && open)
     if (was && !open) evictFrom?.(level, room)
+    if (was === false && open) revealRoom?.(level, room)
   }
 }
 applyQuestRooms()
@@ -1795,6 +1801,11 @@ const cinematic = new Cinematic()
 let cineZoom = iso.zoomLevel
 cinematic.onOpen = () => {
   cinematic.playerName = profile.name
+  // La pièce qu'on montrait attendra : la scène reprend la caméra, à son zoom d'avant.
+  if (roomReveal) {
+    iso.zoomTo(roomReveal.zoom)
+    roomReveal = null
+  }
   cineZoom = iso.zoomLevel
   iso.zoomTo(CINE_ZOOM)
   iso.setRestElevation(CINE_ELEVATION)
@@ -1803,6 +1814,21 @@ cinematic.onOpen = () => {
 cinematic.onClose = () => {
   iso.zoomTo(cineZoom)
   iso.setRestElevation(null)
+}
+cinematic.onNext = () => sound.ui('rotate')
+/**
+ * Une pièce vient de s'ouvrir sur le pont où l'on est : la caméra recule et va la montrer, le
+ * temps que son couvercle se rétracte, puis revient. Sur un autre pont, le bandeau suffit.
+ */
+const REVEAL_ZOOM = 4.6
+/** `linger` : secondes pendant lesquelles on la regarde encore, une fois son couvercle rétracté. */
+let roomReveal: { deck: Deck; focus: THREE.Vector3; linger: number; zoom: number } | null = null
+revealRoom = (level, room) => {
+  const center = deck.def.id === level ? deck.roomCenter(room) : null
+  if (!center) return
+  roomReveal = { deck, focus: new THREE.Vector3(center.x, deck.y, center.z), linger: 1.4, zoom: iso.zoomLevel }
+  iso.zoomTo(REVEAL_ZOOM)
+  sound.play('doorOpen', roomReveal.focus, { volume: 0.2, rate: 0.6 })
 }
 /** Le journal, sous le chat, et le bandeau d'une quête qui commence, avance ou se termine. */
 const questJournal = new QuestJournal(quests)
@@ -5454,7 +5480,15 @@ function frame() {
   zone.update(dt)
   // Les conduits de ventilation : la lampe, ce qu'on voit, les rats.
   vents.update(world, deck === vents.deck ? player.position : null)
-  // Les quêtes : leurs objets, leurs « ! », la scène en cours.
+  // Les quêtes : leurs objets, leurs « ! », la scène en cours, la pièce qu'on vient d'ouvrir.
+  if (roomReveal) {
+    // Le couvercle suit le temps du jeu : on attend qu'il ait fini, même sur une machine qui peine.
+    if (!roomReveal.deck.revealing) roomReveal.linger -= dt
+    if (roomReveal.linger <= 0 || deck !== roomReveal.deck) {
+      iso.zoomTo(roomReveal.zoom)
+      roomReveal = null
+    }
+  }
   cinematic.update(timer.getDelta(), player.position)
   questWorld.update(world, holoTime.value, !photo.active && !cinematic.active)
   // Le simulateur d'accueil : l'instructrice, la leçon en cours. Parti autrement qu'au téléporteur : la formation s'arrête.
@@ -5514,7 +5548,7 @@ function frame() {
   else iso.frameCenter(0, 0, innerHeight)
   const cinemaSeat = deck.def.id === 1 && ['cinema-row', 'projection-chair'].includes(seating.current?.item.furniture?.model ?? '')
   if (cinemaSeat) cinemaFocus.set(cinemaScreenProp.x, deck.y, (player.position.z + cinemaScreenProp.z) / 2)
-  iso.update(dt, zone.watchTarget ?? (cinematic.active ? cinematic.focus : claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : cinemaSeat ? cinemaFocus : planetarium.active ? planetariumFocus : builder?.active ? builder.focus : player.position))
+  iso.update(dt, zone.watchTarget ?? (cinematic.active ? cinematic.focus : roomReveal ? roomReveal.focus : claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : cinemaSeat ? cinemaFocus : planetarium.active ? planetariumFocus : builder?.active ? builder.focus : player.position))
   if (barPanel.isOpen) {
     iso.camera.updateMatrixWorld()
     barPanel.place(iso.camera, player.position, jacquesAt)

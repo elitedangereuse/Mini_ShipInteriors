@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { rig, type Rig } from './assets'
 import type { FaceControl } from './avatar'
+import { holoTime } from './furniture/kit'
 import { applyStyle, paintSuit, styleFor } from './holo-style'
 import { tr } from './i18n'
 import type { IconName } from './icons'
@@ -11,12 +12,12 @@ import { isStyleSegment, parseStyle, styleSegment, type LookStyle } from '../sha
 /**
  * Catalogue des apparences proposées par la garde-robe.
  * Une apparence s'écrit sous forme de chaîne (« human.female.b », « suit.male.c.artemis »,
- * « alien.male.c.blue », « robot.g »…) : c'est ce qui est sauvegardé et envoyé aux autres joueurs.
+ * « alien.male.c.blue », « robot.g », « holo.female.d.echo »…) : c'est ce qui est sauvegardé et envoyé aux autres joueurs.
  * Le style du Holo-Me (coiffure, expression, couleurs : cf. holo-style.ts) s'y ajoute en dernier
  * segment, s'il y en a un : « human.female.b.mo-pk-sm-- ».
  */
 
-export type RaceId = 'human' | 'suit' | 'alien' | 'robot' | 'creature' | 'guardian'
+export type RaceId = 'human' | 'suit' | 'alien' | 'robot' | 'creature' | 'guardian' | 'holo'
 export type Sex = 'female' | 'male'
 
 export interface Look {
@@ -204,6 +205,17 @@ export const RACES: Race[] = [
       { id: 's', label: tr('Archiviste lumineux', 'Luminous archivist') },
     ],
   },
+  {
+    // Une projection du Holo-Me : la silhouette d'un Mini Character, sans personne dedans. Elle ne
+    // s'achète pas : la quête « L'essayage » l'offre (cf. shared/quests.js).
+    id: 'holo',
+    label: tr('Hologramme', 'Hologram'),
+    icon: 'user-focus',
+    sexed: true,
+    variants: miniVariants(),
+    tintLabel: tr('Projection', 'Projection'),
+    tints: [{ id: 'echo', label: tr('Écho', 'Echo'), swatch: '#6fe8ff' }],
+  },
 ]
 
 export const DEFAULT_LOOK: Look = { race: 'suit', sex: 'female', variant: 'b', tint: 'flight' }
@@ -269,6 +281,8 @@ interface ModelSpec {
   antennae?: boolean
   suit?: SuitStyle
   guardian?: GuardianStyle
+  /** Projection holographique : le modèle tel quel, rendu en lumière (cf. hologram). */
+  holo?: boolean
   /** Mini Character coiffé au Holo-Me : son modèle (« female-b ») et son style. */
   mini?: string
   style?: LookStyle
@@ -341,6 +355,9 @@ function spec(l: Look): ModelSpec {
       return l.variant === 'orc' ? { path: 'creatures/character-orc.glb', height: 0.74 } : { path: `blocky/character-${l.variant}.glb`, height: 0.72 }
     case 'guardian':
       return { path: `blocky/character-${GUARDIAN_MODELS[l.variant] ?? 'g'}.glb`, height: 0.78, guardian: GUARDIAN_STYLES[l.variant] ?? GUARDIAN_STYLES.a }
+    case 'holo':
+      // Ni coiffure ni expression du Holo-Me : une projection montre le modèle, rien de plus.
+      return { path: mini.path, height: mini.height, holo: true }
   }
 }
 
@@ -657,6 +674,77 @@ function addGuardianGear(root: THREE.Object3D, s: GuardianStyle) {
   }
 }
 
+// --------------------------------------------------------------- hologramme
+
+/** Bleu d'une projection du Holo-Me, du plus sombre (les creux du modèle) au plus clair. */
+const HOLO_RAMP: [number, THREE.Color][] = [[0, new THREE.Color('#0d4f78')], [0.45, new THREE.Color('#2aa9d8')], [0.8, new THREE.Color('#7fe9ff')], [1, new THREE.Color('#e9fdff')]]
+
+/** La texture du modèle, réduite à sa lumière : ses couleurs deviennent des nuances de bleu. */
+function holoTexture(src: THREE.Texture): THREE.Texture {
+  return recolored(src, 'holo', (hsl, c) => {
+    const l = THREE.MathUtils.clamp(hsl.l, 0, 1)
+    let i = 0
+    while (i < HOLO_RAMP.length - 2 && l > HOLO_RAMP[i + 1][0]) i++
+    const [a0, a] = HOLO_RAMP[i], [b0, b] = HOLO_RAMP[i + 1]
+    c.copy(a).lerp(b, THREE.MathUtils.clamp((l - a0) / (b0 - a0), 0, 1))
+  })
+}
+
+/** Matériaux de projection, un par texture d'origine : toutes les projections les partagent. */
+const holoMaterials = new Map<THREE.Texture | null, THREE.Material>()
+
+/**
+ * Matériau d'une projection : insensible à l'éclairage, translucide, strié de lignes de balayage
+ * qui montent, traversé de temps en temps par une bande plus claire, et qui grésille un peu.
+ * Les lignes sont celles de l'écran : elles ne suivent pas les gestes, comme sur un vrai projecteur.
+ */
+function holoMaterial(src: THREE.MeshLambertMaterial): THREE.Material {
+  const key = src.map ?? null
+  let m = holoMaterials.get(key)
+  if (m) return m
+  const basic = new THREE.MeshBasicMaterial({ map: src.map ? holoTexture(src.map) : null, color: src.map ? '#ffffff' : '#7fe9ff', transparent: true, opacity: 0.92, side: src.side })
+  basic.toneMapped = false
+  basic.onBeforeCompile = (shader) => {
+    shader.uniforms.uHoloTime = holoTime
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uHoloTime;')
+      .replace(
+        '#include <dithering_fragment>',
+        `#include <dithering_fragment>
+        float holoScan = 0.5 + 0.5 * sin(gl_FragCoord.y * 1.7 - uHoloTime * 6.0);
+        float holoSweep = smoothstep(0.985, 1.0, sin(gl_FragCoord.y * 0.011 - uHoloTime * 1.3));
+        float holoFlicker = 0.93 + 0.07 * sin(uHoloTime * 43.0) * sin(uHoloTime * 17.3);
+        gl_FragColor.rgb = gl_FragColor.rgb * 1.15 + vec3(0.35, 0.55, 0.6) * holoSweep;
+        gl_FragColor.a *= (0.6 + 0.4 * holoScan) * holoFlicker;`,
+      )
+  }
+  holoMaterials.set(key, (m = basic))
+  return m
+}
+
+/** Halo au sol d'une projection : l'anneau du projecteur, qui la suit. */
+const holoRing = new THREE.MeshBasicMaterial({ color: '#6fe8ff', transparent: true, opacity: 0.5, depthWrite: false, toneMapped: false })
+
+/**
+ * Fait d'un personnage une projection du Holo-Me : chaque matériau devient de la lumière, plus
+ * d'ombre portée (la lumière n'en fait pas), et un anneau lumineux sous ses pieds. `scale` :
+ * l'échelle du modèle, pour que l'anneau garde sa taille.
+ */
+function hologram(root: THREE.Object3D, scale: number) {
+  root.traverse((o) => {
+    const m = o as THREE.Mesh
+    if (!m.isMesh) return
+    m.material = holoMaterial(m.material as THREE.MeshLambertMaterial)
+    m.castShadow = false
+  })
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.17, 0.23, 28), holoRing)
+  ring.rotation.x = -Math.PI / 2
+  ring.position.y = 0.012 / scale
+  ring.scale.setScalar(1 / scale)
+  ring.renderOrder = 1
+  root.add(ring)
+}
+
 /** Instancie le modèle animé d'une apparence (mis à l'échelle, teinté, accessoirisé). */
 export function lookRig(l: Look): Promise<LookRig> {
   return buildRig(spec(l))
@@ -691,5 +779,6 @@ async function buildRig(s: ModelSpec): Promise<LookRig> {
   if (s.antennae) addAntennae(r.root)
   if (s.suit) addSuitGear(r.root, s.suit)
   if (s.guardian) addGuardianGear(r.root, s.guardian)
+  if (s.holo) hologram(r.root, r.root.scale.x)
   return { ...r, face, height: s.height + (s.suit && s.suit.helmet !== 'none' ? 0.05 : 0) + (s.guardian ? 0.08 : 0) }
 }

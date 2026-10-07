@@ -5,12 +5,13 @@ import type { Wallet } from './wallet'
 /*
  * Apparences payantes du Holo-Me (prix : « skins » dans economy.json). Les humains et la
  * combinaison de vol sont offerts ; une combinaison ou une teinte d'alien s'achète une fois pour
- * tous les modèles ; un robot, une créature ou une forme de Gardien, un par un. Une apparence sans
+ * tous les modèles (une projection d'hologramme aussi, mais elle ne s'achète pas : une quête
+ * l'offre, cf. shared/quests.js) ; un robot, une créature ou une forme de Gardien, un par un. Une apparence sans
  * prix dans economy.json est gratuite. On essaie tout au Holo-Me ; on ne porte que ce qu'on a.
  */
 
 /** Races dont on achète une teinte (pour tous les modèles), plutôt qu'un modèle. */
-const BY_TINT = new Set<string>(['suit', 'alien'])
+const BY_TINT = new Set<string>(['suit', 'alien', 'holo'])
 
 /** Clé d'achat d'une apparence (« suit.artemis », « robot.g »…), ou null si elle est gratuite. */
 export function skinProduct(look: Look): string | null {

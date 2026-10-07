@@ -1,10 +1,13 @@
 import * as THREE from 'three'
 import type { Rig } from '../assets'
+import { Avatar } from '../avatar'
 import type { Deck, Interactable } from '../deck'
 import type { Spot } from '../economy/data'
 import { placeTask } from '../economy/placement'
 import { markerMaterial } from '../economy/tasks'
 import { buildFurniture, disposeFurniture, isCustomModel, keepShared } from '../furniture'
+import { tr } from '../i18n'
+import { lookRig, parseLook, type LookRig } from '../looks'
 import { DIRS } from '../map'
 import { petRig, speciesOf } from '../pets'
 import { dampAngle } from '../player'
@@ -65,9 +68,17 @@ interface LiveProp {
   update?: (t: number) => void
 }
 
+/** Un animal ou un personnage de quête : il vit sa vie à chaque image, et réagit quand la scène le demande. */
+interface Performer {
+  readonly root: THREE.Object3D
+  /** @param player position du joueur s'il est sur son pont, sinon null ; `follows` : il le suit */
+  update(dt: number, player: THREE.Vector3 | null, follows: boolean): void
+  emote(id: string): void
+}
+
 interface LiveActor {
-  /** L'animal, une fois son modèle chargé. */
-  pet?: QuestPet
+  /** L'animal ou le personnage, une fois son modèle chargé. */
+  performer?: Performer
   item?: Interactable
   deck: Deck
   key: string
@@ -103,6 +114,7 @@ export class QuestWorld {
         if (deck.map.room(d.x, d.z) !== room && deck.map.room(d.x + step.dx, d.z + step.dz) !== room) continue
         const item = deck.doorExamine(d.x, d.z, d.dir)
         if (!item) continue
+        item.label = tr('Examiner la porte', 'Examine the door')
         this.doorItems.add(item)
         this.add(`${quest}|door`, { deck, item, y: MARK_DOOR })
       }
@@ -255,7 +267,14 @@ export class QuestWorld {
 
   private async runStep(quest: QuestContent, hook: Hook, target: Target, part: number | null) {
     const step = this.store.state(quest.id)?.step
-    if (!(await this.play(hook.scene, target))) return
+    const confirm = hook.confirm
+    const end = await this.play(hook.scene, target, confirm && [{ label: confirm.accept, value: 'accept' }, { label: confirm.decline, value: 'decline' }])
+    if (!end) return
+    if (confirm) {
+      // Refusé : la scène le dit, et l'étape attend qu'on revienne. Accepté : la suite, quoi qu'il arrive.
+      if (end !== 'accept') return void this.play(confirm.declined, target)
+      await this.play(confirm.after, target)
+    }
     // Le journal a pu changer pendant la scène (un autre onglet) : l'étape doit être la même.
     const state = this.store.state(quest.id)
     if (!state || state.done || state.step !== step) return
@@ -362,18 +381,20 @@ export class QuestWorld {
   private spawnActor(key: string, actor: QuestActor) {
     const deck = this.host.decks.find((d) => d.def.id === actor.deck)
     const species = speciesOf(actor.species)
-    if (!deck || !species) return
+    if (!deck || (!species && !actor.look)) return
     const live: LiveActor = { deck, key }
     this.actors.set(key, live)
-    void petRig(species, undefined).then((rig) => {
+    // Un personnage du Holo-Me, qui reste à sa place ; sinon un compagnon, qui peut suivre.
+    const loading: Promise<Performer> = actor.look
+      ? lookRig(parseLook(actor.look)).then((rig) => new QuestFigure(rig, deck, actor.x, actor.z))
+      : petRig(species!, undefined).then((rig) => new QuestPet(rig, deck, actor.x, actor.z, species!.scale, () => this.host.bark(live.performer!.root.position)))
+    void loading.then((performer) => {
       // Parti pendant le chargement (quête abandonnée, terminée).
-      if (this.actors.get(key) !== live) return
-      const pet = new QuestPet(rig, deck, actor.x, actor.z, species.scale)
-      pet.onBark = () => this.host.bark(pet.root.position)
-      live.pet = pet
-      live.item = { object: pet.root, position: pet.root.position, label: actor.label, text: actor.idle }
+      if (this.actors.get(key) !== live) return void performer.root.removeFromParent()
+      live.performer = performer
+      live.item = { object: performer.root, position: performer.root.position, label: actor.label, text: actor.idle }
       deck.interactables.push(live.item)
-      this.add(key, { deck, item: live.item, y: MARK_OBJECT })
+      this.add(key, { deck, item: live.item, y: actor.look ? MARK_PERSON : MARK_OBJECT, emote: (id) => performer.emote(id) })
       this.dirty = true
     })
   }
@@ -381,7 +402,7 @@ export class QuestWorld {
   private removeActor(key: string) {
     const live = this.actors.get(key)
     if (!live) return
-    live.pet?.root.removeFromParent()
+    live.performer?.root.removeFromParent()
     if (live.item) this.forget(key, live.deck, live.item)
     this.actors.delete(key)
   }
@@ -403,7 +424,7 @@ export class QuestWorld {
     for (const quest of QUEST_CONTENT) {
       for (const actor of quest.actors ?? []) {
         const live = this.actors.get(`${quest.id}|actor:${actor.id}`)
-        if (live?.pet) live.pet.update(dt, live.deck === deck ? this.host.player : null, actor.follows(this.store.state(quest.id)))
+        live?.performer?.update(dt, live.deck === deck ? this.host.player : null, actor.follows?.(this.store.state(quest.id)) ?? false)
       }
     }
     // Celui à qui l'on parle ne reprend pas sa tournée au milieu d'une phrase.
@@ -427,7 +448,7 @@ const PET_FAR = 1.35
  * Animal d'une quête (un compagnon des Cube Pets) : il attend, tapi, tourné vers qui approche ;
  * puis, apprivoisé, il suit le joueur sur son pont, par le chemin le plus court.
  */
-class QuestPet {
+class QuestPet implements Performer {
   readonly root = new THREE.Group()
   private readonly mixer: THREE.AnimationMixer
   private readonly actions = new Map<string, THREE.AnimationAction>()
@@ -437,9 +458,10 @@ class QuestPet {
   private yaw = 0
   private moving = false
   private barkIn = 4
-  onBark?: () => void
+  /** Il fait la fête (une emote pendant une scène) : jusqu'à quand. */
+  private cheering = 0
 
-  constructor(rig: Rig, private readonly deck: Deck, x: number, z: number, scale: number) {
+  constructor(rig: Rig, private readonly deck: Deck, x: number, z: number, scale: number, private readonly onBark: () => void) {
     rig.root.scale.setScalar(scale)
     this.root.add(rig.root)
     this.root.position.set(x, 0, z)
@@ -457,10 +479,17 @@ class QuestPet {
     this.current = next
   }
 
+  /** Une réplique le fait réagir : il fait la fête, et il le dit. */
+  emote() {
+    this.cheering = 1.6
+    this.onBark()
+  }
+
   /** @param player position du joueur s'il est sur le pont de l'animal, sinon null */
   update(dt: number, player: THREE.Vector3 | null, follows: boolean) {
     this.mixer.update(dt)
     if (dt <= 0) return
+    this.cheering = Math.max(0, this.cheering - dt)
     const p = this.root.position
     const distance = player ? Math.hypot(player.x - p.x, player.z - p.z) : Infinity
     if (player && distance < 4) this.yaw = Math.atan2(player.x - p.x, player.z - p.z)
@@ -474,10 +503,10 @@ class QuestPet {
       // Content d'être là : il le dit de temps en temps.
       if ((this.barkIn -= dt) <= 0) {
         this.barkIn = 9 + Math.random() * 10
-        this.onBark?.()
+        this.onBark()
       }
     } else this.moving = false
-    this.play(this.moving ? (distance > 3 ? 'run' : 'walk') : 'idle')
+    this.play(this.moving ? (distance > 3 ? 'run' : 'walk') : this.cheering > 0 ? 'gesture-positive' : 'idle')
     this.root.rotation.y = dampAngle(this.root.rotation.y, this.yaw, 9, dt)
   }
 
@@ -500,5 +529,48 @@ class QuestPet {
       this.yaw = Math.atan2(dx, dz)
     }
     if (d - step < 0.06) this.path.shift()
+  }
+}
+
+// ---------------------------------------------------------------- le personnage d'une quête
+
+/**
+ * Personnage d'une quête, aux traits d'une apparence du Holo-Me : il reste à sa place, tourné vers
+ * qui approche. Une projection grésille : de temps en temps elle saute d'un cran, ou s'éteint un instant.
+ */
+class QuestFigure implements Performer {
+  readonly root: THREE.Object3D
+  private readonly avatar: Avatar
+  private yaw = 0
+  private glitchIn = 2
+  private glitch = 0
+
+  constructor(rig: LookRig, deck: Deck, private readonly x: number, z: number) {
+    this.avatar = new Avatar(rig)
+    this.root = this.avatar.root
+    this.root.position.set(x, 0, z)
+    deck.group.add(this.root)
+  }
+
+  emote(id: string) {
+    this.avatar.playEmote(id)
+  }
+
+  update(dt: number, player: THREE.Vector3 | null) {
+    const p = this.root.position
+    if (player && Math.hypot(player.x - this.x, player.z - p.z) < 5) this.yaw = Math.atan2(player.x - this.x, player.z - p.z)
+    this.root.rotation.y = dampAngle(this.root.rotation.y, this.yaw, 6, dt)
+    this.avatar.setLocomotion('idle')
+    this.avatar.update(dt)
+    // Le grésillement : un saut de côté, parfois une extinction, quelques centièmes de seconde.
+    if ((this.glitchIn -= dt) <= 0) {
+      this.glitchIn = 1.5 + Math.random() * 4
+      this.glitch = 0.06 + Math.random() * 0.12
+      p.x = this.x + (Math.random() - 0.5) * 0.08
+      this.root.visible = Math.random() > 0.35
+    } else if (this.glitch > 0 && (this.glitch -= dt) <= 0) {
+      p.x = this.x
+      this.root.visible = true
+    }
   }
 }

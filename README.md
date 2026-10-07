@@ -71,7 +71,7 @@ Mini Interior est un POC : un vaisseau sur trois ponts, vu de dessus en isométr
 - **Jukebox** : neuf morceaux libres de droits et quatre albums de Ben Carter Jr, que tout le pont (ou toute la cabine) entend ensemble ; la piste de danse suit leur tempo quand il est établi, sinon celui de la soirée.
 - **Mode photo** : la scène sans l'interface, jusqu'en 4K, à télécharger.
 - **Crédits** : comme dans Elite, le CR débloque les meubles des quartiers et les apparences du Holo-Me. Un meuble débloqué peut être posé autant de fois que souhaité. On gagne des crédits à bord : un revenu passif, lent, les tâches et les records aux bornes d'arcade. Le site tient les comptes.
-- **Quêtes** : six petites histoires à suivre à bord, signalées par un « ! » jaune, racontées en mini-cinématiques et suivies dans un journal, sous le chat. Elles ouvrent la salle de sport, les deux terrains et le stand de tir (fermés tant que leur quête n'est pas terminée), et offrent un chien pour ses quartiers et une apparence du Holo-Me.
+- **Quêtes** : sept petites histoires à suivre à bord, signalées par un « ! » jaune, racontées en mini-cinématiques et suivies dans un journal, sous le chat. Elles ouvrent la salle de sport, les deux terrains et le stand de tir (fermés tant que leur quête n'est pas terminée), et offrent un chien pour ses quartiers et deux apparences du Holo-Me, dont l'**Hologramme**.
 - **Tâches de bord** : ordures, flaques, plantes à arroser, pannes, fuites, brèches dans la coque… douze sortes de petites tâches apparaissent un peu partout, les mêmes pour tous, et chacun peut les régler : une tâche réglée ne disparaît que pour celui qui l'a réglée.
 - **Des dizaines de meubles animés** : hologrammes, bras robotisé qui soude, aquarium, cheminée, pince à peluches…
 - **Son spatialisé** : pas, réacteur, bips des consoles, mélodies d'arcade, ronronnements, jukebox.
@@ -170,6 +170,7 @@ Dans les quartiers du commandant (pont supérieur), monte sur la plateforme oran
 | Alien | sexe, 5 ou 6 modèles, 3 teintes (Zorblien, Cryonien, Nébulien) : les humains avec une rotation de teinte et des antennes |
 | Robot | Unité R-7, Unité V-3, Mannequin T-0 |
 | Créature | Orque de Kepler, Troll des soutes, Zombie en costume |
+| Hologramme | sexe, 5 ou 6 modèles : les humains en **projection** du Holo-Me, une silhouette de lumière bleue striée de lignes de balayage, qui grésille un peu, sans ombre, un anneau lumineux sous les pieds. Ne s'achète pas : la quête « L'essayage » l'offre (cf. [Les quêtes](#les-quêtes)) |
 
 Un nouveau joueur arrive dans une combinaison tirée au hasard. Les combinaisons recolorent le corps du modèle par « carte de dégradé » (la peau devient des gants), et le casque, le col et le sac dorsal sont accrochés aux os de la tête et du torse : ils suivent les animations. La femme « a » des Mini Characters (avec des béquilles) est retirée du catalogue. Une apparence enregistrée qui l'utilisait passe au premier modèle disponible.
 
@@ -520,9 +521,9 @@ De petites histoires à suivre à bord, seul ou à plusieurs (chacun avance dans
 
 **Le journal** est sous le chat : deux onglets de plus, « Quêtes » (`J`, ou `/quetes`) et « Terminées », dans le même habit que les messages ; sur un téléphone, un bouton au parchemin à côté de la bulle du chat. Chaque quête en cours y tient en une note, qui dit ce qu'on sait à cette étape, **pas où aller** : c'est voulu, il faut fouiller, parler à l'équipage, examiner ce qui traîne. Une étape demande parfois de réunir plusieurs choses dans l'ordre qu'on veut (trois indices, trois témoins) : le journal garde celles qu'on a trouvées. Un clic déplie la quête (son histoire, ce qu'on a déjà appris, ce qu'elle rapporte) ; « Abandonner » (deux clics) la remet à zéro. Passé le « ! » du début, rien n'est signalé à bord.
 
-**Les scènes** sont de mini-cinématiques (`src/quests/cinematic.ts`) : deux bandes noires se ferment, la caméra se rapproche de la conversation et s'abaisse, l'interface s'efface, et les répliques s'écrivent une à une sous le nom de qui parle. `E`, `Espace`, `Entrée`, un clic ou un toucher passent à la suite ; `Échap` (ou « Fermer ») referme la scène, et rien n'est acquis : on la reprendra. Le membre d'équipage à qui l'on parle arrête sa tournée, pour tout le bord, le temps de la scène.
+**Les scènes** sont de mini-cinématiques (`src/quests/cinematic.ts`) : deux bandes noires se ferment, la caméra se rapproche de la conversation, s'abaisse et penche vers celui qui parle, l'interface s'efface, et les répliques s'écrivent une à une sous le nom de qui parle. `E`, `Espace`, `Entrée`, un clic ou un toucher passent à la suite ; `Échap` (ou « Fermer ») referme la scène, et rien n'est acquis : on la reprendra. Une scène peut finir sur un choix qui compte (la dernière de « L'essayage » : « Valider » ou « Annuler »). Le membre d'équipage à qui l'on parle arrête sa tournée, pour tout le bord, le temps de la scène.
 
-**Ce qu'elles rapportent.** Quatre pièces sont **fermées tant que leur quête n'est pas terminée** : une plaque d'acier liserée de jaune les couvre, leurs portes restent verrouillées, et le relais refuse qu'on s'y trouve. Deux autres quêtes offrent ce qui ne s'achète plus : le chien des quartiers et l'apparence « Mannequin T-0 » (le catalogue et le Holo-Me disent « se gagne à bord » ; ceux qui les avaient achetés les gardent).
+**Ce qu'elles rapportent.** Quatre pièces sont **fermées tant que leur quête n'est pas terminée** : une plaque d'acier liserée de jaune les couvre, leurs portes restent verrouillées, et le relais refuse qu'on s'y trouve. Quand la quête se termine sur le pont de la pièce, la caméra va la montrer pendant que sa plaque se rétracte comme un volet. Trois autres quêtes offrent ce qui ne s'achète pas : le chien des quartiers, l'apparence « Mannequin T-0 » (ceux qui les avaient achetés les gardent) et l'apparence « Hologramme », créée pour sa quête ; le catalogue et le Holo-Me disent « se gagne à bord ».
 
 | Quête | Où elle commence | Ce qu'elle rapporte |
 |---|---|---|
@@ -532,6 +533,7 @@ De petites histoires à suivre à bord, seul ou à plusieurs (chacun avance dans
 | **Silence, on dribble** | la porte du terrain de basket (pont supérieur) | le terrain de basket, 5 000 CR |
 | **Le dernier match** | la porte du terrain de foot (pont supérieur) | le terrain de foot, 5 000 CR |
 | **Quatre cent douze** | un mannequin d'essai, dans l'atelier de la cale | l'apparence « Mannequin T-0 » |
+| **L'essayage** | une silhouette bleutée, sur le palier des quartiers | l'apparence « Hologramme » : sa propre silhouette, en projection |
 
 <details>
 <summary>Solutions (pour les essais ; divulgâche tout)</summary>
@@ -542,12 +544,13 @@ De petites histoires à suivre à bord, seul ou à plusieurs (chacun avance dans
 - **Silence, on dribble** : la porte → Bugenhagen (planétarium) → le carton du studio de Radio Dangereuse et la professeure Kepler (salle de classe) → le projecteur du planétarium → Bugenhagen.
 - **Le dernier match** : la porte → Marcel, Nico et Betty → Rourke → la carte galactique du poste de pilotage → Rourke.
 - **Quatre cent douze** : T-0 → Nico → la lunette du planétarium, le jukebox de la salle commune, le pommier de la serre → T-0.
+- **L'essayage** : Écho (palier des quartiers) → trois éclats bleus : au dernier rang du cinéma, sous le pommier de la serre, près du siège du copilote → Rourke → Écho, et « Valider ».
 
 </details>
 
 **Qui garde quoi.** Le squelette d'une quête (ses étapes, la pièce qu'elle ouvre, sa récompense) est dans `shared/quests.js`, partagé avec le relais ; son récit (scènes, notes du journal, objets posés à bord) dans `src/quests/content.ts`. Le **site** garde le journal de chaque CMDR (`outils/mini-shipinteriors-quests.php`, règles dans `phputils/mini_shipinteriors/quests.php`, table `mini_shipinteriors_quest`, dépôt du site) : le jeu avance tout de suite et le lui dit, le site n'écarte que l'impossible (quête inconnue, étape sautée, étape quittée sans avoir tout réuni) et verse la récompense une seule fois, en terminant la quête. Sa liste des quêtes recopie celle du jeu (`quest_list.php` ; `server/quests.test.js` compare les deux). Le **relais** apprend du site, à la connexion, quelles quêtes un CMDR a terminées, et le lui redemande quand le joueur en annonce une de plus : c'est le site qui fait foi, pas le client. Un **invité** garde son journal dans son navigateur : les pièces s'ouvrent (le relais le croit), mais objets, apparences et crédits ne sont versés qu'aux CMDR. Si le site ne répond pas (ou si la table n'existe pas encore), un CMDR joue comme un invité en attendant.
 
-**Ajouter une quête** : une ligne dans `QUESTS` (`shared/quests.js`), la même dans `MSI_QUESTS` (`quest_list.php`, dépôt du site), son récit dans `QUEST_CONTENT`. Une cible est un membre d'équipage déclaré dans `main.ts` (`npc:rourke`…), un meuble du vaisseau (`item:<pont>:<modèle>`), les portes de la pièce qu'elle ouvre (`door`), ou un objet (`prop:`) ou un animal (`actor:`) que la quête pose elle-même, pour le seul joueur dont la quête en est là (modèles dans `src/furniture/quests.ts`). En dev, la console signale une étape, une cible ou un objet qui ne correspond pas. Deux pièges de placement : un objet contre un mur est ou sud est caché par ce mur dans la vue par défaut, et une marque au sol passe sous les tapis et les estrades (la poser un peu plus haut).
+**Ajouter une quête** : une ligne dans `QUESTS` (`shared/quests.js`), la même dans `MSI_QUESTS` (`quest_list.php`, dépôt du site), son récit dans `QUEST_CONTENT`. Une cible est un membre d'équipage déclaré dans `main.ts` (`npc:rourke`…), un meuble du vaisseau (`item:<pont>:<modèle>`), les portes de la pièce qu'elle ouvre (`door`), ou un objet (`prop:`), un animal ou un personnage du Holo-Me (`actor:`) que la quête pose elle-même, pour le seul joueur dont la quête en est là (modèles dans `src/furniture/quests.ts`). En dev, la console signale une étape, une cible ou un objet qui ne correspond pas. Deux pièges de placement : un objet contre un mur est ou sud est caché par ce mur dans la vue par défaut, et une marque au sol passe sous les tapis et les estrades (la poser un peu plus haut).
 
 ## La salle commune
 

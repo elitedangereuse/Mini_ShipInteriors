@@ -32,6 +32,7 @@ test('les quêtes : des identifiants uniques, des étapes, des récompenses que 
   assert.equal(questById('inconnue'), undefined)
   assert.equal(QUEST_UNLOCKS['pet-chien'], 'gamelle-vide')
   assert.equal(QUEST_UNLOCKS['skin:robot.d'], 'quatre-cent-douze')
+  assert.equal(QUEST_UNLOCKS['skin:holo.echo'], 'essayage')
   assert.deepEqual(knownQuests(['poids-lourds', 'inconnue', 'poids-lourds', 3]), ['poids-lourds'])
   assert.deepEqual(knownQuests('poids-lourds'), [])
 })

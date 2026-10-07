@@ -22,13 +22,19 @@ import type { Line } from './cinematic'
  * - `npc:<nom>` : un membre d'équipage déclaré dans main.ts (rourke, marcel, betty, nico) ;
  * - `item:<pont>:<modèle>` : un meuble du vaisseau (cf. levels.ts) ;
  * - `door` : les portes de la pièce que la quête ouvre ;
- * - `prop:<id>`, `actor:<id>` : un objet ou un animal que la quête pose elle-même.
+ * - `prop:<id>`, `actor:<id>` : un objet, un animal ou un personnage que la quête pose elle-même.
  */
 
 /** Une scène, et ce qui la déclenche. */
 export interface Hook {
   on: string
   scene: Line[]
+  /**
+   * La scène finit sur un choix (dernière étape d'une histoire, où il faut se décider) : avec le
+   * premier, la suite se joue (`after`) et la scène compte ; avec le second, `declined`, et l'on
+   * pourra revenir.
+   */
+  confirm?: { accept: string; decline: string; after: Line[]; declined: Line[] }
 }
 
 /** Un élément d'une étape à réunir : sa scène, et ce que le journal en garde. */
@@ -69,11 +75,14 @@ export interface QuestProp {
   when: When
 }
 
-/** Animal d'une quête (un compagnon des Cube Pets, cf. pets.ts). */
+/**
+ * Animal d'une quête (`species` : un compagnon des Cube Pets, cf. pets.ts), ou personnage (`look` :
+ * une apparence du Holo-Me, cf. looks.ts), qui reste à sa place.
+ */
 export interface QuestActor {
   id: string
-  species: string
-  name: string
+  species?: string
+  look?: string
   deck: number
   x: number
   z: number
@@ -81,8 +90,8 @@ export interface QuestActor {
   /** Ce qu'on en lit quand aucune scène ne l'attend. */
   idle: string
   when: When
-  /** Il suit le joueur (sur son pont). */
-  follows: When
+  /** Il suit le joueur (sur son pont) : un animal seulement. */
+  follows?: When
 }
 
 export interface QuestContent {
@@ -124,6 +133,7 @@ const kepler = speaker(tr('Professeure Kepler', 'Professor Kepler'))
 const jameson = speaker('Jameson')
 const t0 = speaker('T-0')
 const varga = speaker(tr('Capitaine Varga', 'Captain Varga'))
+const echo = speaker(tr('Écho', 'Echo'))
 
 // ---------------------------------------------------------------- quand
 
@@ -210,7 +220,7 @@ export const QUEST_CONTENT: QuestContent[] = [
           scene: [
             n('Derrière le réacteur, là où le métal est tiède, deux yeux brillent. Un chien, noir de suie, tremble sans faire un bruit.', 'Behind the reactor, where the metal is warm, two eyes shine. A dog, black with soot, trembles without a sound.'),
             n('Il recule quand vous tendez la main. Puis son nez se lève : la saucisse de Marcel.', 'He backs away when you reach out. Then his nose goes up: Marcel\'s sausage.'),
-            jameson('…Wouf ?', '…Woof?'),
+            jameson('…Wouf ?', '…Woof?', { emote: 'joie' }),
             n('Il mange dans votre main, en trois bouchées. Sa queue cogne contre la tôle, de plus en plus vite.', 'He eats from your hand in three bites. His tail thumps against the plating, faster and faster.'),
             n('Quand vous vous relevez, il est déjà collé à votre jambe.', 'By the time you stand up, he is already glued to your leg.'),
           ],
@@ -246,7 +256,7 @@ export const QUEST_CONTENT: QuestContent[] = [
       },
     ],
     actors: [{
-      id: 'jameson', species: 'chien', name: 'Jameson', deck: -1, x: 2.4, z: 6.2,
+      id: 'jameson', species: 'chien', deck: -1, x: 2.4, z: 6.2,
       label: tr('Approcher le chien', 'Approach the dog'),
       idle: tr('Jameson remue la queue et vous regarde, l\'air de demander où l\'on va.', 'Jameson wags his tail and looks at you, as if asking where you\'re going.'),
       when: during(2, 3),
@@ -337,7 +347,8 @@ export const QUEST_CONTENT: QuestContent[] = [
     ],
     epilogue: tr('Le stand de tir vous est ouvert. Le distributeur de café du mess a été remplacé. Le nouveau garde aussi la monnaie.', 'The shooting range is open to you. The mess hall coffee machine was replaced. The new one keeps your change too.'),
     props: [
-      { id: 'rack-key', deck: -1, x: 13.6, z: 7.15, model: 'quest-keycard', label: tr('Fouiller le minerai', 'Search the ore'), when: missing(1, 1) },
+      // Au nord de la raffinerie : plus au sud, le couvercle du bar la cacherait à la caméra.
+      { id: 'rack-key', deck: -1, x: 15.4, z: 5.7, model: 'quest-keycard', label: tr('Fouiller le minerai', 'Search the ore'), when: missing(1, 1) },
     ],
   },
 
@@ -499,7 +510,7 @@ export const QUEST_CONTENT: QuestContent[] = [
           on: 'item:1:bugenhagen',
           scene: [
             bugenhagen('Tu as chaussé mon projecteur ? Hou hou ! Voyons… Fais-moi un rebond. Un gros.', 'You put shoes on my projector? Ho ho! Let\'s see… Give me a bounce. A big one.'),
-            n('Vous tapez du pied, trois fois, de toutes vos forces. Au plafond, les planètes poursuivent leur ronde. Saturne garde ses anneaux.', 'You stamp your foot, three times, as hard as you can. Overhead, the planets keep to their rounds. Saturn keeps its rings.', ),
+            n('Vous tapez du pied, trois fois, de toutes vos forces. Au plafond, les planètes poursuivent leur ronde. Saturne garde ses anneaux.', 'You stamp your foot, three times, as hard as you can. Overhead, the planets keep to their rounds. Saturn keeps its rings.'),
             bugenhagen('Rien ne tremble. Rien ! Hou hou houuu ! Le ciel est sauvé, et les écoliers aussi.', 'Nothing shakes. Nothing! Ho ho hooo! The sky is saved, and so are the schoolchildren.'),
             bugenhagen('Je retire ma plainte. Va jouer. Et quand tu auras marqué, viens t\'asseoir ici : on regarde mieux les étoiles avec les jambes fatiguées.', 'I withdraw my complaint. Go and play. And when you\'ve scored, come and sit here: tired legs make for better stargazing.'),
           ],
@@ -700,6 +711,111 @@ export const QUEST_CONTENT: QuestContent[] = [
         idle: tr('T-0 ne bouge pas. Sur son écran, un mot revient : « ENCORE. »', 'T-0 doesn\'t move. On its screen, one word keeps coming back: “AGAIN.”'),
       },
     ],
+  },
+
+  // ============================================================ L'essayage
+  {
+    id: 'essayage',
+    title: tr('L\'essayage', 'The fitting'),
+    icon: 'user-focus',
+    pitch: tr('Une apparence essayée au Holo-Me il y a trois ans, que personne n\'a ni validée ni annulée. Elle attend toujours.', 'A look tried on at the Holo-Me three years ago, which nobody ever confirmed or cancelled. It is still waiting.'),
+    reward: tr('L\'apparence « Hologramme », au Holo-Me : votre silhouette, en projection.', 'The “Hologram” look, at the Holo-Me: your own silhouette, as a projection.'),
+    offer: {
+      on: 'actor:echo',
+      accept: tr('Chercher ses souvenirs', 'Look for her memories'),
+      decline: tr('La laisser clignoter', 'Leave her flickering'),
+      scene: [
+        n('Sur le palier des quartiers, une silhouette bleutée, traversée de lignes. Elle clignote, disparaît, revient. Elle regarde la porte, sans la pousser.', 'On the quarters landing, a bluish silhouette, streaked with lines. She flickers, vanishes, comes back. She looks at the door without pushing it.'),
+        echo('« …lider ? Vous venez valider ? »', '“…firm? Are you here to confirm?”'),
+        echo('Pardon. Je vous ai pris pour quelqu\'un. Je suis un essayage. Quelqu\'un m\'a essayée au Holo-Me, il y a longtemps. Puis il y a eu un saut, et personne n\'a appuyé. Ni « Valider », ni « Annuler ».', 'Sorry. I took you for someone else. I\'m a fitting. Someone tried me on at the Holo-Me, a long time ago. Then there was a jump, and nobody pressed anything. Neither “Confirm” nor “Cancel”.'),
+        echo('Alors je reste. On ne peut pas me porter, on ne peut pas me ranger. J\'attends devant des quartiers qui ne sont plus les siens, et je ne sais même plus qui « elle » était.', 'So I stay. I can\'t be worn, I can\'t be put away. I wait outside quarters that are no longer hers, and I don\'t even remember who “she” was.'),
+        echo('Il m\'en reste des morceaux. Ils sont restés accrochés là où elle allait. Moi, je ne peux pas quitter ce palier : la projection ne porte pas plus loin.', 'I have pieces of her left. They stayed caught wherever she used to go. I can\'t leave this landing: the projection doesn\'t reach any further.'),
+      ],
+    },
+    steps: [
+      {
+        note: tr('Écho ne se souvient que de morceaux : un endroit où l\'on rit dans le noir, un endroit où l\'on a moins peur des sauts, un endroit où l\'on veille quand tout le bord dort.', 'Echo only remembers pieces: a place where people laugh in the dark, a place where jumps are less frightening, a place where someone keeps watch while the whole ship sleeps.'),
+        parts: [
+          {
+            on: 'prop:shard-cinema',
+            found: tr('Au cinéma, au dernier rang : elle riait aux mauvais films.', 'At the cinema, in the back row: she laughed at bad films.'),
+            scene: [
+              n('Au dernier rang, au-dessus d\'un fauteuil vide, un éclat de lumière bleue, pas plus grand qu\'une main.', 'In the back row, above an empty seat, a shard of blue light no bigger than a hand.'),
+              echo('« …c\'était un mauvais film. Le pire. Elle a ri jusqu\'au générique, et moi avec, puisque j\'avais sa bouche. »', '“…it was a bad film. The worst. She laughed all the way to the credits, and so did I, since I had her mouth.”'),
+              n('L\'éclat se glisse dans votre manche. Il est tiède.', 'The shard slips into your sleeve. It is warm.'),
+            ],
+          },
+          {
+            on: 'prop:shard-tree',
+            found: tr('Sous le pommier de la serre : elle y attendait la fin des sauts.', 'Under the apple tree in the greenhouse: she waited out the jumps there.'),
+            scene: [
+              n('Sous le pommier, un éclat bleu tremble entre deux feuilles.', 'Under the apple tree, a blue shard trembles between two leaves.'),
+              echo('« …pendant les sauts, elle venait ici. Elle disait qu\'un arbre ne sait pas qu\'on saute, alors qu\'à côté de lui, elle ne le savait pas non plus. »', '“…during jumps, she came here. She said a tree doesn\'t know we\'re jumping, so next to it, she didn\'t know either.”'),
+              n('Vous le cueillez. Il s\'éteint dans votre main, puis se rallume.', 'You pick it. It goes dark in your hand, then lights up again.'),
+            ],
+          },
+          {
+            on: 'prop:shard-watch',
+            found: tr('Au poste de pilotage : elle tenait la veille de nuit, à la place du copilote.', 'In the cockpit: she kept the night watch, in the co-pilot\'s seat.'),
+            scene: [
+              n('Près du siège du copilote, un éclat bleu, posé là comme une tasse oubliée.', 'Next to the co-pilot\'s seat, a blue shard, left there like a forgotten mug.'),
+              echo('« …la veille de nuit. Quatre heures, un café, la carte qui tourne. Elle parlait toute seule. Ce n\'était pas à moi : je n\'existais pas encore. »', '“…the night watch. Four hours, one coffee, the map turning. She talked to herself. It wasn\'t to me: I didn\'t exist yet.”'),
+              n('Vous le ramassez. Il sent le café froid.', 'You pick it up. It smells of cold coffee.'),
+            ],
+          },
+        ],
+      },
+      {
+        note: tr('Quelqu\'un qui riait au dernier rang, craignait les sauts et veillait la nuit à la place du copilote. À bord, les listes d\'équipage sont tenues par la sécurité.', 'Someone who laughed in the back row, feared jumps and kept the night watch in the co-pilot\'s seat. Aboard, security keeps the crew lists.'),
+        hooks: [{
+          on: 'npc:rourke',
+          scene: [
+            rourke('Une copilote de veille de nuit, qui a peur des sauts et mauvais goût pour les films ? Solis. Lieutenant Maren Solis.', 'A night-watch co-pilot, scared of jumps, with bad taste in films? Solis. Lieutenant Maren Solis.'),
+            rourke('Mutée sur un vaisseau d\'exploration, il y a trois ans. Elle a attrapé la navette pendant un saut, en courant. Elle était en retard, comme toujours.', 'Transferred to an exploration ship three years ago. She caught the shuttle during a jump, running. She was late, as always.'),
+            rourke('Mon rapport note une session de Holo-Me restée ouverte dans ses quartiers. J\'ai écrit « sans gravité ».', 'My report notes a Holo-Me session left open in her quarters. I wrote “not serious”.'),
+            me('Elle n\'a jamais validé.', 'She never confirmed.'),
+            rourke('…Je vais relire mon rapport.', '…I\'ll reread my report.'),
+          ],
+        }],
+      },
+      {
+        note: tr('Maren Solis est partie en courant, avec un autre visage. Sur le palier des quartiers, quelqu\'un attend toujours qu\'on appuie.', 'Maren Solis left at a run, wearing another face. On the quarters landing, someone is still waiting for a button to be pressed.'),
+        hooks: [{
+          on: 'actor:echo',
+          scene: [
+            echo('Solis. Oui… Maren. Elle hésitait entre moi et une frange. Elle a dû prendre la frange.', 'Solis. Yes… Maren. She was torn between me and a fringe. She must have gone with the fringe.'),
+            echo('Elle ne reviendra pas appuyer. Ce n\'est pas triste : on n\'essaie pas une apparence pour la garder toute la vie. On l\'essaie pour voir.', 'She won\'t come back to press it. That isn\'t sad: you don\'t try a look on to keep it for life. You try it on to see.'),
+            echo('Mais vous, vous êtes là, et vous avez un Holo-Me. Je ne demande pas d\'être quelqu\'un. Je demande d\'être portée de temps en temps, ou rangée proprement. L\'un ou l\'autre. Appuyez.', 'But you are here, and you have a Holo-Me. I\'m not asking to be someone. I\'m asking to be worn now and then, or put away properly. One or the other. Press it.'),
+          ],
+          confirm: {
+            accept: tr('Valider', 'Confirm'),
+            decline: tr('Annuler', 'Cancel'),
+            after: [
+              n('La silhouette se fige. Les lignes qui la traversaient s\'alignent, une à une.', 'The silhouette freezes. The lines running through her fall into place, one by one.'),
+              echo('« Apparence enregistrée. » …Oh. C\'est donc ça, être validée. C\'est net.', '“Look saved.” …Oh. So that\'s what being confirmed is. It\'s sharp.', { emote: 'joie' }),
+              echo('Portez-moi quand vous voudrez. Je vous préviens : je grésille un peu pendant les sauts.', 'Wear me whenever you like. Fair warning: I crackle a little during jumps.', { emote: 'o7' }),
+              n('Elle s\'efface. Dans votre Holo-Me, une ligne de plus : « Hologramme ».', 'She fades. In your Holo-Me, one more line: “Hologram”.'),
+            ],
+            declined: [
+              echo('« Annuler. » …Non. Vous n\'avez pas appuyé pour de bon, je le sens : je suis encore là.', '“Cancel.” …No. You didn\'t really press it, I can tell: I\'m still here.', { emote: 'non' }),
+              echo('Réfléchissez. Un essayage, ça sait attendre. J\'ai trois ans d\'entraînement.', 'Think it over. A fitting knows how to wait. I\'ve had three years of practice.'),
+            ],
+          },
+        }],
+      },
+    ],
+    epilogue: tr('Écho est dans votre Holo-Me, validée. Quelque part sur un vaisseau d\'exploration, Maren Solis porte une frange.', 'Echo is in your Holo-Me, confirmed. Somewhere on an exploration ship, Maren Solis is wearing a fringe.'),
+    props: [
+      { id: 'shard-cinema', deck: 1, x: 23.6, z: 6.5, model: 'quest-echo-shard', label: tr('Approcher l\'éclat', 'Approach the shard'), when: missing(0, 0) },
+      { id: 'shard-tree', deck: 1, x: 1.39, z: 5.91, fixed: true, model: 'quest-echo-shard', label: tr('Approcher l\'éclat', 'Approach the shard'), when: missing(0, 1) },
+      { id: 'shard-watch', deck: 0, x: 36.0, z: 5.2, model: 'quest-echo-shard', label: tr('Approcher l\'éclat', 'Approach the shard'), when: missing(0, 2) },
+    ],
+    actors: [{
+      id: 'echo', look: 'holo.female.d.echo', deck: 2, x: 9.4, z: 3.3,
+      label: tr('Parler à la silhouette', 'Talk to the silhouette'),
+      idle: tr('Écho regarde la porte des quartiers. Elle ne la pousse pas.', 'Echo looks at the quarters door. She doesn\'t push it.'),
+      when: (s) => !s?.done,
+    }],
   },
 ]
 

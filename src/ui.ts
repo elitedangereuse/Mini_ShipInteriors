@@ -603,12 +603,12 @@ export class WardrobePanel {
 
     const shop = this.shop
     const price = (look: Look) => shop.price(look)
-    /** Cadenas, et le prix en info-bulle, sur un choix qu'on n'a pas. */
-    const lock = (b: HTMLButtonElement, cost: number | null) => {
+    /** Cadenas, et le prix en info-bulle (ou « se gagne à bord »), sur un choix qu'on n'a pas. */
+    const lock = (b: HTMLButtonElement, cost: number | null, look: Look) => {
       if (cost === null) return b
       b.classList.add('locked')
       b.append(icon('lock-simple', 'wr-lock'))
-      b.title = formatCredits(cost)
+      b.title = shop.quest(look) ? tr('Se gagne à bord', 'Earned aboard') : formatCredits(cost)
       return b
     }
     // Une race est verrouillée si aucune de ses apparences n'est offerte ni achetée.
@@ -725,8 +725,8 @@ export class WardrobePanel {
             ...race.tints.map((t) => {
               const b = button(t.label, t.id === this.look.tint, () => this.set({ tint: t.id }), 'wr-tint')
               b.style.setProperty('--swatch', t.swatch)
-              // Combinaisons, teintes d'alien : chacune s'achète, pour tous les modèles.
-              return race.id === 'suit' || race.id === 'alien' ? lock(b, price({ ...this.look, tint: t.id })) : b
+              // Combinaisons, teintes d'alien, projections : chacune s'acquiert pour tous les modèles.
+              return race.id === 'suit' || race.id === 'alien' || race.id === 'holo' ? lock(b, price({ ...this.look, tint: t.id }), { ...this.look, tint: t.id }) : b
             }),
           ),
         )

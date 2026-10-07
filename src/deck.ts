@@ -444,6 +444,8 @@ export class Deck {
   private questRooms: string[] = []
   private readonly roomLive = new Map<string, THREE.Object3D[]>()
   private readonly roomTall = new Map<string, Occluder[]>()
+  /** Couvercles en train de se rétracter (une pièce vient de s'ouvrir sous les yeux du joueur) : où ils en sont, de 0 à 1. */
+  private readonly retracting = new Map<THREE.Group, number>()
   /** Ce qui bouge dans le Zorb (danseurs, reflets de la boule, lasers) : caché avec la salle. */
   private readonly clubLive: THREE.Object3D[] = []
 
@@ -557,9 +559,33 @@ export class Deck {
     if (this.def.id === -1) this.setRoomAccess(BAR_ROOM, regular)
   }
 
-  /** Ouvre ou ferme les portes d'une pièce (celles du simulateur d'accueil s'ouvrent au fil des leçons). */
-  setRoomOpen(room: string, open: boolean) {
+  /**
+   * Ouvre ou ferme les portes d'une pièce (celles du simulateur d'accueil s'ouvrent au fil des
+   * leçons). `reveal` : son couvercle se rétracte comme un volet, au lieu de disparaître d'un coup.
+   */
+  setRoomOpen(room: string, open: boolean, reveal = false) {
+    const cover = this.covers.get(room)
+    const shown = !!cover?.visible
     this.setRoomAccess(room, open)
+    if (cover && open && reveal && shown) {
+      cover.visible = true
+      this.retracting.set(cover, 0)
+    }
+  }
+
+  /** Un couvercle est en train de se rétracter. */
+  get revealing(): boolean {
+    return this.retracting.size > 0
+  }
+
+  /** Centre d'une pièce (le milieu de ses tuiles), ou null si le pont ne l'a pas. */
+  roomCenter(room: string): { x: number; z: number } | null {
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity
+    for (let z = 0; z < this.map.height; z++) for (let x = 0; x < this.map.width; x++) {
+      if (this.map.room(x, z) !== room) continue
+      x0 = Math.min(x0, x), x1 = Math.max(x1, x), z0 = Math.min(z0, z), z1 = Math.max(z1, z)
+    }
+    return x1 < x0 ? null : { x: (x0 + x1) / 2, z: (z0 + z1) / 2 }
   }
 
   /** Ouvre ou ferme une pièce réservée : ses portes, et le couvercle qui la cache. */
@@ -568,9 +594,19 @@ export class Deck {
     this.syncLocks()
     this.pathfinder.invalidate()
     const cover = this.covers.get(room)
-    if (cover) cover.visible = !open
+    if (cover) {
+      cover.visible = !open
+      this.settle(cover)
+    }
     for (const o of this.roomLive.get(room) ?? []) o.visible = open
     for (const o of this.roomTall.get(room) ?? []) o.off = !open
+  }
+
+  /** Couvercle remis à sa place et à sa taille (il ne se rétracte plus). */
+  private settle(cover: THREE.Group) {
+    if (!this.retracting.delete(cover)) return
+    cover.scale.x = 1
+    cover.position.x = cover.userData.x
   }
 
   private doorRoom(x: number, z: number, dir: number, room: string) {
@@ -593,6 +629,9 @@ export class Deck {
     // Jusqu'à la face extérieure des murs : la plaque les coiffe.
     const { cover, update } = roomCover(x1 - x0 + 1 + WALL_T, z1 - z0 + 1 + WALL_T, tint, glow)
     cover.position.set((x0 + x1) / 2, 0, (z0 + z1) / 2)
+    // Sa place et sa largeur, pour le rétracter comme un volet (cf. setRoomOpen).
+    cover.userData.x = cover.position.x
+    cover.userData.w = x1 - x0 + 1 + WALL_T
     if (update) this.animated.push({ update: (t) => cover.visible && update(t), interactive: false })
     this.group.add(cover)
     this.covers.set(room, cover)
@@ -1338,6 +1377,18 @@ export class Deck {
    */
   update(dt: number, actors: THREE.Vector3[], focus: THREE.Vector3 | null, toCamera: THREE.Vector3, editing = false, keep: { x: number; z: number } | null = null, fade = dt) {
     this.time += dt
+    // Les couvercles qui se rétractent : vers l'ouest, d'un mouvement amorti, en une seconde et demie.
+    for (const [cover, at] of this.retracting) {
+      const t = Math.min(1, at + fade / 1.5)
+      this.retracting.set(cover, t)
+      const left = 1 - t * t * (3 - 2 * t)
+      cover.scale.x = Math.max(left, 0.001)
+      cover.position.x = cover.userData.x - (cover.userData.w / 2) * (1 - left)
+      if (t >= 1) {
+        cover.visible = false
+        this.settle(cover)
+      }
+    }
 
     // Portes automatiques (sauf celles qui sont verrouillées).
     for (const d of this.doors) {
