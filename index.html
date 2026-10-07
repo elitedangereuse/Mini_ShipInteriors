@@ -129,6 +129,23 @@
         <!-- Vue subjective : mini-carte du pont, tournée selon le regard (cf. src/minimap.ts). -->
         <canvas id="minimap" class="minimap" hidden aria-hidden="true"></canvas>
         <div id="help" class="panel help" hidden>
+          <!-- Écran tactile : les gestes remplacent le clavier (le reste de l'aide est alors caché, cf. mobile.css). -->
+          <div class="help-touch" lang="fr">
+            <p><b>Se déplacer</b> Stick à gauche pour marcher, poussé à fond pour courir. Toucher le sol : s'y rendre.</p>
+            <p><b>Regarder</b> Glisser un doigt sur le décor : tourner la vue. Deux doigts : les écarter pour zoomer, les faire tourner pour pivoter.</p>
+            <p><b>Agir</b> <i data-icon="hand-tap"></i> ou l'étiquette au-dessus d'un objet : interagir, s'asseoir, se relever. <i data-icon="sparkle"></i> l'action de la place où l'on est assis. <i data-icon="x"></i> fermer.</p>
+            <p><b>À bord</b> <i data-icon="smiley-sticker"></i> emotes et réactions · <i data-icon="users-three"></i> annuaire des joueurs · <i data-icon="chat-circle-dots"></i> chat · <i data-icon="eye"></i> vue subjective.</p>
+            <p><b>Aménager</b> Dans ses quartiers, bouton <i data-icon="info"></i> puis « Aménager ». Toucher un meuble le choisit, le glisser le déplace ; deux doigts déplacent, zooment et tournent la vue.</p>
+            <p class="muted">Chat : <code>/nom CMDR Pseudo</code>, <code>/perso</code>, <code>/inviter CMDR Nom</code>, <code>/w CMDR Nom message</code>, <code>/taches</code>, <code>/aide</code></p>
+          </div>
+          <div class="help-touch" lang="en">
+            <p><b>Moving</b> Left stick to walk, push it all the way to run. Touch the floor to go there.</p>
+            <p><b>Looking</b> Drag one finger on the scene to turn the view. Two fingers: spread to zoom, twist to rotate.</p>
+            <p><b>Acting</b> <i data-icon="hand-tap"></i> or the label above an object: interact, sit, stand up. <i data-icon="sparkle"></i> the action of the seat you are in. <i data-icon="x"></i> close.</p>
+            <p><b>On board</b> <i data-icon="smiley-sticker"></i> emotes and reactions · <i data-icon="users-three"></i> player directory · <i data-icon="chat-circle-dots"></i> chat · <i data-icon="eye"></i> first-person view.</p>
+            <p><b>Decorating</b> In your quarters, <i data-icon="info"></i> button then “Decorate”. Touch an item to select it, drag it to move it; two fingers pan, zoom and rotate the view.</p>
+            <p class="muted">Chat: <code>/name CMDR Nickname</code>, <code>/random</code>, <code>/invite CMDR Name</code>, <code>/w CMDR Name message</code>, <code>/chores</code>, <code>/help</code></p>
+          </div>
           <div lang="fr">
             <kbd>ZQSD</kbd> <kbd>WASD</kbd> <kbd class="arrows"><i data-icon="arrow-up"></i><i data-icon="arrow-left"></i><i data-icon="arrow-down"></i><i data-icon="arrow-right"></i></kbd> ou clic : se déplacer
           </div>
@@ -190,14 +207,14 @@
         <!-- Zone thargoïde : lancer une fusée (affiché dans la baie seulement). -->
         <button id="touch-flare" class="touch-flare" hidden aria-label="Lancer une fusée" title="Lancer une fusée" data-en-aria-label="Throw a flare" data-en-title="Throw a flare"><i data-icon="flame"></i><b class="touch-flare-count">0</b></button>
         <div class="touch-actions">
-          <button id="touch-sprint" type="button" aria-label="Courir" aria-pressed="false" title="Courir" data-en-aria-label="Run" data-en-title="Run"><i data-icon="person-simple-run"></i></button>
-          <button id="touch-cancel" type="button" aria-label="Fermer" aria-pressed="false" title="Fermer" data-en-aria-label="Close" data-en-title="Close"><i data-icon="x"></i></button>
-          <button id="touch-action" type="button" aria-label="Action" aria-pressed="false" title="Action">X</button>
-          <button id="touch-interact" type="button" aria-label="Interagir" aria-pressed="false" title="Interagir" data-en-aria-label="Interact" data-en-title="Interact">A</button>
+          <!-- Fermer et l'action du siège n'apparaissent que lorsqu'ils servent (cf. TouchGamepad.show). -->
+          <button id="touch-cancel" type="button" hidden aria-label="Fermer" aria-pressed="false" title="Fermer" data-en-aria-label="Close" data-en-title="Close"><i data-icon="x"></i></button>
+          <button id="touch-action" type="button" hidden aria-label="Action du siège" aria-pressed="false" title="Action du siège" data-en-aria-label="Seat action" data-en-title="Seat action"><i data-icon="sparkle"></i></button>
+          <button id="touch-interact" type="button" aria-label="Interagir" aria-pressed="false" title="Interagir" data-en-aria-label="Interact" data-en-title="Interact"><span class="ti-use"><i data-icon="hand-tap"></i></span><span class="ti-stand"><i data-icon="arrow-fat-up"></i></span></button>
         </div>
       </div>
 
-      <div id="prompt" hidden><kbd>E</kbd><span id="prompt-label">Examiner</span></div>
+      <div id="prompt" hidden><kbd>E</kbd><i data-icon="hand-tap"></i><span id="prompt-label">Examiner</span></div>
       <!-- Tâche de bord en cours : le geste, et sa progression. -->
       <div id="task-progress" class="task-progress" hidden><span id="task-progress-label"></span><div class="tp-bar"><div id="task-progress-fill"></div></div></div>
       <div id="dialog" hidden></div>
@@ -249,8 +266,8 @@
       <div class="mobile-entry-card">
         <strong lang="fr">Mini Ship Interiors</strong><strong lang="en">Mini Ship Interiors</strong>
         <p id="mobile-entry-message"><span lang="fr">Lancez le jeu en plein écran paysage.</span><span lang="en">Start the game in landscape fullscreen.</span></p>
-        <p class="mobile-entry-hint" lang="fr">Joystick gauche pour marcher · faites glisser le décor pour regarder autour de vous.</p>
-        <p class="mobile-entry-hint" lang="en">Left stick to walk · drag the scene to look around.</p>
+        <p class="mobile-entry-hint" lang="fr">Stick à gauche pour marcher, à fond pour courir · glissez sur le décor pour tourner la vue, pincez pour zoomer.</p>
+        <p class="mobile-entry-hint" lang="en">Left stick to walk, push it all the way to run · drag the scene to turn the view, pinch to zoom.</p>
         <button id="mobile-enter"><span lang="fr">Jouer en plein écran</span><span lang="en">Play fullscreen</span></button>
         <p id="mobile-entry-status" class="mobile-entry-hint" role="status" hidden></p>
       </div>

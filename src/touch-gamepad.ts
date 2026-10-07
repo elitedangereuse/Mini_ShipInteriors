@@ -2,16 +2,19 @@ import type { GamepadInput } from '../shared/gamepad.js'
 
 type Button = 'interact' | 'action' | 'cancel' | 'flare'
 
+/** Course : part du débattement du stick au-delà de laquelle le personnage court. */
+const RUN_REACH = 0.85
+
 /** Manette tactile du mode paysage : stick analogique et boutons indépendants des pointeurs du décor. */
 export class TouchGamepad {
   private x = 0
   private y = 0
   private stickId: number | null = null
-  private sprint = false
   private pending = new Set<Button>()
   private direction = 0
   private flareButton = document.getElementById('touch-flare')!
   private flareShown = ''
+  private contextShown = ''
   /** Un doigt par bouton : un second contact ne doit pas relâcher le premier. */
   private buttonPointers = new Map<string, number>()
 
@@ -48,7 +51,7 @@ export class TouchGamepad {
     stick.addEventListener('pointercancel', release)
     stick.addEventListener('lostpointercapture', release)
 
-    for (const name of ['interact', 'action', 'cancel', 'sprint', 'flare'] as const) {
+    for (const name of ['interact', 'action', 'cancel', 'flare'] as const) {
       const button = document.getElementById(`touch-${name}`)!
       button.addEventListener('pointerdown', (e) => {
         e.preventDefault()
@@ -56,8 +59,7 @@ export class TouchGamepad {
         if (this.buttonPointers.has(name)) return
         this.buttonPointers.set(name, e.pointerId)
         try { button.setPointerCapture(e.pointerId) } catch { /* Le bouton reste utilisable sans capture. */ }
-        if (name === 'sprint') this.sprint = true
-        else this.pending.add(name)
+        this.pending.add(name)
         button.classList.add('pressed')
         button.setAttribute('aria-pressed', 'true')
       })
@@ -66,7 +68,6 @@ export class TouchGamepad {
         e.preventDefault()
         e.stopPropagation()
         this.buttonPointers.delete(name)
-        if (name === 'sprint') this.sprint = false
         button.classList.remove('pressed')
         button.setAttribute('aria-pressed', 'false')
       }
@@ -83,7 +84,6 @@ export class TouchGamepad {
   private reset() {
     this.x = this.y = 0
     this.stickId = null
-    this.sprint = false
     this.pending.clear()
     this.buttonPointers.clear()
     this.direction = 0
@@ -109,24 +109,46 @@ export class TouchGamepad {
     this.flareButton.classList.toggle('ready', flares.ready && flares.count > 0)
   }
 
-  poll(enabled: boolean): GamepadInput & { flare: boolean } {
-    if (!enabled && (this.stickId !== null || this.sprint || this.pending.size || this.buttonPointers.size)) this.reset()
+  /** Bouton pressé depuis ailleurs que la manette : l'invite au-dessus d'un objet, qu'on touche. */
+  press(button: Button) {
+    this.pending.add(button)
+  }
+
+  /**
+   * Les boutons suivent ce qu'ils feraient : interagir (ou se relever, `stand`), estompé quand il
+   * n'y a rien à portée ; l'action du siège et « fermer » n'apparaissent que lorsqu'ils servent.
+   */
+  show(context: { stand: boolean; ready: boolean; action: boolean; cancel: boolean }) {
+    const shown = `${context.stand}:${context.ready}:${context.action}:${context.cancel}`
+    if (shown === this.contextShown) return
+    this.contextShown = shown
+    const interact = document.getElementById('touch-interact')!
+    interact.classList.toggle('standing', context.stand)
+    interact.classList.toggle('idle', !context.ready)
+    document.getElementById('touch-action')!.hidden = !context.action
+    document.getElementById('touch-cancel')!.hidden = !context.cancel
+  }
+
+  poll(enabled: boolean): GamepadInput & { flare: boolean; run: boolean } {
+    if (!enabled && (this.stickId !== null || this.pending.size || this.buttonPointers.size)) this.reset()
     const pressed = this.pending
     this.pending = new Set()
     const direction = this.y < -0.55 ? -1 : this.y > 0.55 ? 1 : 0
     const up = direction === -1 && this.direction !== -1
     const down = direction === 1 && this.direction !== 1
     this.direction = direction
-    const active = !!(this.x || this.y || this.sprint || pressed.size)
+    const active = !!(this.x || this.y || pressed.size)
     return {
       connected: true, active: enabled && active,
       moveX: enabled ? this.x : 0, moveY: enabled ? this.y : 0,
       lookX: 0, lookY: 0, zoom: 0,
-      sprint: enabled && this.sprint,
+      sprint: false,
       interact: enabled && pressed.has('interact'), action: enabled && pressed.has('action'), cancel: enabled && pressed.has('cancel'),
       next: false, turn: false, rotateLeft: false, rotateRight: false, help: false,
       up: enabled && up, down: enabled && down,
       flare: enabled && pressed.has('flare'),
+      // Stick poussé à fond : on court (il n'y a plus de bouton à tenir du pouce de la caméra).
+      run: enabled && Math.hypot(this.x, this.y) > RUN_REACH,
     }
   }
 }

@@ -136,6 +136,8 @@ export function setupMobile(enabled: boolean): () => void {
     if (!(e.target instanceof Node)) return
     if (!left.contains(e.target)) details(false)
     if (!menu.contains(e.target) && !toggle.contains(e.target)) menuState(false)
+    const help = $('help')
+    if (!help.hidden && !help.contains(e.target) && !$('help-toggle').contains(e.target)) help.hidden = true
   })
   addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return

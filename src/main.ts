@@ -46,7 +46,7 @@ import { lineOfSight } from '../shared/sight.js'
 import { DIRS } from './map'
 import { EN, localizeAttributes, tr } from './i18n'
 import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, LIFT, SPAWN } from './levels'
-import { hydrateIcons, icon } from './icons'
+import { hydrateIcons, icon, type IconName } from './icons'
 import { lookId, lookPath, lookRig, parseLook, raceOf, variantsOf, type Look } from './looks'
 import { JukeboxPanel, JukeboxPlayer, trackById, type MusicOptions, type Track } from './music'
 import { Net, type BoardGameId, type JukeboxWhere, type MusicState, type PlayerState } from './net'
@@ -3125,6 +3125,11 @@ function nearestCabinTile(p: { x: number; z: number }): { x: number; z: number }
 const keys = new Set<string>()
 const gamepad = new GamepadControls()
 const touchGamepad = coarsePointer ? new TouchGamepad() : null
+// Au doigt, l'invite au-dessus d'un objet se touche : elle vaut le bouton d'interaction (ou d'action).
+promptEl.addEventListener('click', (e) => {
+  const act = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-act]')?.dataset.act : undefined
+  touchGamepad?.press(act === 'action' ? 'action' : 'interact')
+})
 const syncMobileEntry = setupMobile(coarsePointer)
 let usingGamepad = false
 for (const type of ['keydown', 'pointerdown']) addEventListener(type, () => (usingGamepad = false), { capture: true })
@@ -3246,6 +3251,8 @@ function keyboardDirection(): THREE.Vector3 {
   return view().screenToGround(sx, sy, inputDir).normalize()
 }
 
+/** Stick tactile poussé à fond : on court, sprint automatique ou non. */
+let touchRun = false
 function updateGamepad(dt: number): GamepadInput {
   const focus = document.activeElement
   const typing = focus instanceof HTMLElement && (focus.matches('input, textarea, select') || focus.isContentEditable)
@@ -3265,7 +3272,7 @@ function updateGamepad(dt: number): GamepadInput {
     touchGamepad.showFlares(zone.flares)
     flare = touch.flare
     if (touch.moveX || touch.moveY) { pad.moveX = touch.moveX; pad.moveY = touch.moveY }
-    pad.sprint ||= touch.sprint
+    touchRun = touch.run
     pad.interact ||= touch.interact
     pad.action ||= touch.action
     pad.cancel ||= touch.cancel
@@ -4857,7 +4864,7 @@ function frame() {
   if (!editing() && !photo.active) processHover()
   // Mire sur un objet utilisable : elle s'allume.
   crosshair.classList.toggle('aim', fpsShown && cursorLocked() && !!pick(screenCenter()).item)
-  player.update(world, input, zone.sprint(autoSprint !== (pad.sprint || keys.has('ShiftLeft') || keys.has('ShiftRight'))))
+  player.update(world, input, zone.sprint(touchRun || autoSprint !== (pad.sprint || keys.has('ShiftLeft') || keys.has('ShiftRight'))))
   // La mezzanine et ses escaliers : on monte (installé sur un meuble, la place donne la hauteur).
   if (deck.mezzanine && !player.gliding && !seating.current) player.position.y = deck.y + deck.ground(player.position.x, player.position.z)
   cocktailEffects.update(world)
@@ -5081,7 +5088,17 @@ function frame() {
     const promptKey = `${usingGamepad}|${label}`
     if (promptKey !== promptText) {
       promptText = promptKey
-      if (sit?.space) {
+      promptEl.classList.toggle('parts', coarsePointer && !!sit?.space)
+      if (coarsePointer && sit?.space) {
+        // Au doigt, chaque moitié de l'invite se touche : se relever, ou l'action de la place.
+        const part = (act: 'interact' | 'action', glyph: IconName, text: string) => {
+          const el = document.createElement('span')
+          el.dataset.act = act
+          el.append(icon(glyph), text)
+          return el
+        }
+        promptLabel.replaceChildren(part('interact', 'arrow-fat-up', sit.main), part('action', 'sparkle', sit.space))
+      } else if (sit?.space) {
         const k = document.createElement('kbd')
         k.textContent = usingGamepad ? 'X / □' : tr('Espace', 'Space')
         promptLabel.replaceChildren(sit.main, ' · ', k, ' ', sit.space)
@@ -5103,6 +5120,14 @@ function frame() {
     }
     promptEl.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`
   }
+  // Manette tactile : ses boutons disent ce qu'ils feraient ici.
+  const panelOpen = sitePanel.isOpen || lift.isOpen || jukebox.isOpen
+  touchGamepad?.show({
+    stand: !!sit,
+    ready: !!label || panelOpen || planetarium.talking || zone.frozen,
+    action: !!sit?.space,
+    cancel: panelOpen || gym.active || court.active || fishing.active || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || phone.isOpen || !!working || !!claw || !$('about').hidden,
+  })
   // On s'éloigne de l'ascenseur ou du jukebox : le panneau se ferme.
   if (lift.isOpen && Math.hypot(player.position.x - liftTile.x, player.position.z - liftTile.z) > 1.6) lift.close()
   if (jukebox.isOpen && jukeboxNear && Math.hypot(player.position.x - jukeboxNear.x, player.position.z - jukeboxNear.z) > 2) jukebox.close()

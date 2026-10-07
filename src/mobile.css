@@ -1,5 +1,5 @@
 /* Loaded after all desktop styles. Safe areas apply to controls as well as interaction panels. */
-.mobile-status-toggle, #mobile-menu-toggle { display: none; }
+.mobile-status-toggle, #mobile-menu-toggle, #prompt > .icon, .help-touch { display: none; }
 @media (pointer: coarse) {
   :root {
     --mobile-top: max(8px, env(safe-area-inset-top));
@@ -80,7 +80,14 @@
   body.fps-view .mobile-tools :is(#rot-left, #rot-right, #zoom-in, #zoom-out) { display: none !important; }
   .mobile-volume { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 8px; font-size: 12px; }
   .mobile-volume #volume { display: block; flex: 1; width: 100%; min-width: 0; }
-  .help { display: grid; width: min(420px, 65vw); max-height: calc(var(--mobile-height) - 56px); overflow: auto; pointer-events: auto; background: #101a2af5; }
+  /* Touch help: gestures only, above the thumb controls; a touch outside closes it (cf. mobile.ts). */
+  .help { position: fixed; z-index: 12; top: calc(var(--mobile-top) + 52px); right: var(--mobile-right); display: block; width: min(460px, calc(100vw - var(--mobile-left) - var(--mobile-right))); max-height: calc(var(--mobile-height) - 52px); box-sizing: border-box; overflow: auto; overscroll-behavior: contain; padding: 12px 14px; pointer-events: auto; background: #101a2a; font-size: 13px; line-height: 1.45; color: var(--text); }
+  .help > :not(.help-touch) { display: none; }
+  .help-touch { display: grid; gap: 8px; }
+  .help-touch p { margin: 0; }
+  .help-touch b { display: block; color: var(--accent); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
+  .help-touch .icon { color: var(--cyan); font-size: 16px; vertical-align: -3px; }
+  .lift kbd { display: none; }
   .minimap { width: 80px; height: 80px; margin-right: 50px; }
   .emotes { top: calc(var(--mobile-top) + 50px); right: var(--mobile-right); max-width: 244px; z-index: 9; }
   .emotes button { width: 44px; height: 44px; font-size: 23px; }
@@ -90,12 +97,31 @@
   .about { top: calc(var(--mobile-top) + 148px); right: var(--mobile-right); max-height: calc(var(--mobile-height) - 148px); background: #101a2af5; z-index: 10; }
   .touch-stick { left: var(--mobile-left); bottom: var(--mobile-bottom); }
   .touch-actions { right: var(--mobile-right); bottom: var(--mobile-bottom); }
-  .touch-flare { right: var(--mobile-right); bottom: calc(var(--mobile-bottom) + 116px); }
+  .touch-flare { right: var(--mobile-right); bottom: calc(var(--mobile-bottom) + 126px); }
+  /* The main button sits under the thumb; close and the seat action only show when they do something. */
+  .touch-actions { grid-template-columns: 48px 60px; grid-template-areas: '. cancel' 'action interact'; align-items: end; justify-items: center; pointer-events: none; }
+  .touch-actions button { display: grid; place-items: center; font-size: 22px; pointer-events: auto; }
+  #touch-cancel { grid-area: cancel; }
+  #touch-action { grid-area: action; border-color: var(--cyan); color: var(--cyan); }
+  #touch-interact { grid-area: interact; width: 60px; height: 60px; font-size: 28px; transition: opacity .15s; }
+  #touch-interact.idle { opacity: .45; }
+  #touch-interact span { display: contents; }
+  #touch-interact .ti-stand, #touch-interact.standing .ti-use { display: none; }
+  #touch-interact.standing .ti-stand { display: contents; }
   .chat { bottom: var(--mobile-bottom); width: min(240px, calc(100vw - 270px - var(--mobile-left) - var(--mobile-right))); }
   #chat-input { min-height: 40px; font-size: 16px; background: #101a2ad9; }
   #chat-log { font-size: 12px; max-height: 44px; }
   #dialog { bottom: calc(var(--mobile-bottom) + 58px); width: min(480px, calc(100vw - 260px - var(--mobile-left) - var(--mobile-right))); max-height: min(112px, 32dvh); overflow-y: auto; overscroll-behavior: contain; padding: 9px 12px; font-size: 13px; line-height: 1.4; pointer-events: auto; background: #101a2aeb; }
-  #prompt { bottom: auto; max-width: min(360px, calc(100vw - 260px)); white-space: normal; font-size: 12px; }
+  /* The prompt is a button here: touching it does what the main button does. */
+  #prompt { bottom: auto; max-width: min(360px, calc(100vw - 260px)); min-height: 36px; box-sizing: border-box; padding: 6px 12px; white-space: normal; font-size: 13px; pointer-events: auto; }
+  #prompt > .icon { display: block; flex: none; color: var(--accent); font-size: 17px; }
+  #prompt.parts { padding: 3px; }
+  #prompt.parts > .icon { display: none; }
+  #prompt-label { display: flex; align-items: center; gap: 4px; }
+  #prompt-label [data-act] { display: inline-flex; align-items: center; gap: 5px; min-height: 36px; padding: 0 10px; border-radius: 6px; }
+  #prompt-label [data-act] .icon { flex: none; font-size: 16px; }
+  #prompt-label [data-act='interact'] .icon { color: var(--accent); }
+  #prompt-label [data-act='action'] { background: rgba(89, 216, 255, .16); color: var(--cyan); }
   .toast { top: auto; bottom: calc(var(--mobile-bottom) + 50px); max-width: 55vw; }
   .lift { width: min(310px, calc(100vw - 260px)); }
   .wardrobe { width: min(380px, 48vw); }

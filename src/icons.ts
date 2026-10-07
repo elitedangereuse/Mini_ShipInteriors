@@ -123,6 +123,8 @@ import grains from '@phosphor-icons/core/bold/grains-bold.svg?raw'
 import scissors from '@phosphor-icons/core/bold/scissors-bold.svg?raw'
 import basket from '@phosphor-icons/core/bold/basket-bold.svg?raw'
 import sparkle from '@phosphor-icons/core/bold/sparkle-bold.svg?raw'
+import handTap from '@phosphor-icons/core/bold/hand-tap-bold.svg?raw'
+import arrowFatUp from '@phosphor-icons/core/bold/arrow-fat-up-bold.svg?raw'
 import storefront from '@phosphor-icons/core/bold/storefront-bold.svg?raw'
 import carrot from '@phosphor-icons/core/duotone/carrot-duotone.svg?raw'
 import plant from '@phosphor-icons/core/bold/plant-bold.svg?raw'
@@ -280,6 +282,8 @@ const SVG = {
   scissors,
   basket,
   sparkle,
+  'hand-tap': handTap,
+  'arrow-fat-up': arrowFatUp,
   storefront,
   carrot,
   plant,
