@@ -121,10 +121,12 @@ const rangeLane: Builder = () => {
     const x = side * (WIDTH / 2 - 0.05)
     for (let i = 0; i < 9; i++) g.add(box(0.1, 0.1, 0.15, lit(i % 2 ? C.black : C.hazard), x, 0.13 + i * 0.1, 0.075))
   }
+  // Ce qui s'allume et réagit à la partie (cf. rangeState) a ses propres matériaux.
+  const spots = new THREE.MeshBasicMaterial(), slots = new THREE.MeshBasicMaterial(), strips = new THREE.MeshBasicMaterial()
   for (let i = 0; i < LANES; i++) {
     const x = -WIDTH / 2 + (i + 0.5) * LANE
     g.add(box(0.16, 0.05, 0.09, lit(C.steel, 'metal'), x, 0.955, 0.17))
-    live.add(box(0.12, 0.012, 0.07, glow('#fff3d6'), x, 0.925, 0.175))
+    live.add(part(new THREE.BoxGeometry(0.12, 0.012, 0.07), spots, x, 0.925, 0.175))
   }
   // Enseigne, au-dessus du mur.
   g.add(box(1.74, 0.26, 0.05, lit(C.steelDeep, 'metal'), 0, 1.15, 0.045), box(0.05, 0.06, 0.05, lit(C.steel, 'metal'), -0.6, 1.02, 0.045), box(0.05, 0.06, 0.05, lit(C.steel, 'metal'), 0.6, 1.02, 0.045))
@@ -182,7 +184,7 @@ const rangeLane: Builder = () => {
   ground.position.z = depth / 2 + 0.02
   live.add(ground)
   // Fentes des cibles : un filet de lumière dans chacune.
-  for (const z of [0.2, 1.0, 1.8]) live.add(box(WIDTH - 0.24, 0.004, 0.012, glow(C.led), 0, 0.012, z))
+  for (const z of [0.2, 1.0, 1.8]) live.add(part(new THREE.BoxGeometry(WIDTH - 0.24, 0.004, 0.014), slots, 0, 0.012, z))
 
   // Mousse acoustique le long des deux murs, sous un bandeau lumineux.
   for (const side of [-1, 1]) {
@@ -190,9 +192,22 @@ const rangeLane: Builder = () => {
     for (let row = 0; row < 2; row++) {
       for (let i = 0; i < 6; i++) g.add(box(0.04, 0.36, 0.36, lit((i + row) % 2 ? C.foam : C.foamDark), x, 0.24 + row * 0.4, 0.34 + i * 0.39))
     }
-    live.add(box(0.012, 0.012, depth - 0.3, glow(C.orange), side * (WIDTH / 2 - 0.045), 0.87, depth / 2 + 0.05))
+    live.add(part(new THREE.BoxGeometry(0.012, 0.012, depth - 0.3), strips, side * (WIDTH / 2 - 0.045), 0.87, depth / 2 + 0.05))
   }
-  return { solid: g, live, update: lamp.tick }
+  const red = new THREE.Color(C.live), mint = new THREE.Color('#8dffd0'), white = new THREE.Color('#ffffff')
+  return {
+    solid: g,
+    live,
+    update: (t) => {
+      lamp.tick(t)
+      const s = rangeState
+      // Hors partie : une veille. En partie : les fentes brillent et claquent quand une cible éclate,
+      // les bandeaux respirent, virent au vert à un palier, au rouge dans les dix dernières secondes.
+      spots.color.set('#fff3d6').multiplyScalar(s.live ? 1 : 0.5)
+      slots.color.set(C.led).multiplyScalar(s.live ? 0.85 : 0.4).lerp(red, s.alarm).lerp(white, s.flash * 0.8)
+      strips.color.set(C.orange).multiplyScalar(s.live ? 0.6 + 0.3 * Math.sin(t * 2.6) : 0.8).lerp(red, s.alarm).lerp(mint, s.tier)
+    },
+  }
 }
 
 /**
@@ -240,9 +255,10 @@ const rangeMat: Builder = () => {
 const rangeWeapon: Builder = ({ label }) => {
   const w = weaponById(label) ?? WEAPONS[0]
   const g = new THREE.Group(), live = new THREE.Group()
-  g.add(box(0.72, 0.62, 0.03, lit(C.plaque), 0, 0.62, 0.015, 0.008), box(0.66, 0.34, 0.006, lit(C.panel), 0, 0.72, 0.032))
-  for (const x of [-0.12, 0.14]) g.add(box(0.03, 0.02, 0.09, lit(C.steel, 'metal'), x, 0.655, 0.07), box(0.03, 0.045, 0.014, lit(C.steel, 'metal'), x, 0.668, 0.112))
-  const gun = blaster(w.model, w.id === 'rifle' ? 0.42 : 0.5, 0, 0.075, Math.PI / 2)
+  g.add(box(0.53, 0.62, 0.03, lit(C.plaque), 0, 0.62, 0.015, 0.008), box(0.49, 0.34, 0.006, lit(C.panel), 0, 0.72, 0.032))
+  for (const x of [-0.1, 0.11]) g.add(box(0.03, 0.02, 0.09, lit(C.steel, 'metal'), x, 0.655, 0.07), box(0.03, 0.045, 0.014, lit(C.steel, 'metal'), x, 0.668, 0.112))
+  // À la largeur du support : le fusil, long, est réduit davantage.
+  const gun = blaster(w.model, w.id === 'rifle' ? 0.33 : w.id === 'pistol' ? 0.5 : 0.44, 0, 0.075, Math.PI / 2)
   gun.position.y = 0.73 - new THREE.Box3().setFromObject(gun).getSize(new THREE.Vector3()).y / 2
   live.add(gun)
   const card = drawnTexture(384, 128, (c) => {
@@ -251,17 +267,17 @@ const rangeWeapon: Builder = ({ label }) => {
     c.fillStyle = w.color
     c.fillRect(0, 0, 10, 128)
     c.fillStyle = '#f3f5f8'
-    c.font = `800 44px ${MONO}`
+    c.font = `800 38px ${MONO}`
     c.textBaseline = 'middle'
-    c.fillText(w.name.toUpperCase(), 28, 44)
+    c.fillText(w.name.toUpperCase(), 26, 44, 344)
     c.fillStyle = '#a9b3c0'
     c.font = `600 24px ${MONO}`
-    const mode = w.auto ? tr('automatique', 'automatic') : w.pierce ? tr('perforant', 'piercing') : tr('coup par coup', 'semi-auto')
-    c.fillText(`${w.mag} ${tr('coups', 'rounds')} · ${mode}`, 28, 94)
+    const mode = w.blast ? tr('explosif', 'explosive') : w.pellets > 1 ? tr('gerbe', 'spread') : w.auto ? tr('automatique', 'automatic') : w.pierce ? tr('perforant', 'piercing') : tr('coup par coup', 'semi-auto')
+    c.fillText(`${w.mag} ${tr('coups', 'rounds')} · ${mode}`, 26, 94, 344)
   })
-  live.add(part(new THREE.PlaneGeometry(0.6, 0.2), new THREE.MeshBasicMaterial({ map: card }), 0, 0.43, 0.034))
+  live.add(part(new THREE.PlaneGeometry(0.48, 0.16), new THREE.MeshBasicMaterial({ map: card }), 0, 0.42, 0.034))
   const strip = new THREE.MeshBasicMaterial({ color: w.color })
-  live.add(part(new THREE.BoxGeometry(0.66, 0.014, 0.012), strip, 0, 0.905, 0.034))
+  live.add(part(new THREE.BoxGeometry(0.49, 0.014, 0.012), strip, 0, 0.905, 0.034))
   const on = new THREE.Color(w.color), off = new THREE.Color(w.color).multiplyScalar(0.22)
   return {
     solid: g,

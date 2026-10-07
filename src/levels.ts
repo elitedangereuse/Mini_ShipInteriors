@@ -48,9 +48,9 @@ export interface Prop {
 /**
  * Vacillement d'une lumière : néon fatigué, feu de cheminée ; ou lumière de soirée, qui bat au
  * tempo de la piste de danse (pulse), en changeant de couleur (disco) ; ou reflet de l'écran de
- * cinéma, qui suit les scènes du film (screen).
+ * cinéma, qui suit les scènes du film (screen) ; ou lampe du stand de tir, qui suit la partie (range).
  */
-export type Flicker = 'neon' | 'fire' | 'disco' | 'pulse' | 'screen'
+export type Flicker = 'neon' | 'fire' | 'disco' | 'pulse' | 'screen' | 'range'
 
 /** Lumière : x, z, couleur, intensité, vacillement, et portée (7 par défaut ; les projecteurs de la baie portent plus loin). */
 export type LightDef = [number, number, string, number, Flicker?, number?]
@@ -544,9 +544,9 @@ export const LEVELS: LevelDef[] = [
       },
       { model: 'range-mat', x: 14, z: 3.08, solid: false },
       // Les armes, une par support (cf. WEAPONS dans src/range-weapons.ts) : main.ts écrit leur invite.
-      ...WEAPONS.map((w, i): Prop => ({ model: 'range-weapon', x: 12.56 + i * 0.78, z: SHOOTING_RANGE.maxZ, rot: 2, label: w.id, action: w.take, interact: w.name })),
+      ...WEAPONS.map((w, i): Prop => ({ model: 'range-weapon', x: 11.96 + i * 0.56, z: SHOOTING_RANGE.maxZ, rot: 2, label: w.id, action: w.take, interact: w.name })),
       {
-        model: 'range-rules', x: 11.93, z: SHOOTING_RANGE.maxZ, rot: 2, solid: false,
+        model: 'range-rules', x: SHOOTING_RANGE.maxX, z: 4.02, rot: 3, solid: false,
         interact: tr('Règlement du stand : 1. On ne vise pas l\'équipage. 2. On ne vise pas Comète. 3. Les réservoirs d\'hydrogène sont de l\'autre côté du mur : on vise bien.', 'Range rules: 1. Do not aim at the crew. 2. Do not aim at Comète. 3. The hydrogen tanks are on the other side of that wall: aim well.'),
       },
       { model: 'score-board', x: SHOOTING_RANGE.minX, z: 3.05, rot: 1, label: 'range', solid: false, interact: tr('Les meilleurs tireurs du bord', 'The ship\'s top marksmen'), action: tr('Consulter le classement', 'View rankings') },
@@ -816,8 +816,9 @@ export const LEVELS: LevelDef[] = [
       [5.6, 6.3, '#ffa24a', 2.4, 'neon'],
       [10, 5, '#ffd9a0', 1.6],
       // Le stand de tir : le pas de tir, puis le couloir des cibles.
-      [14, 3.3, '#ffe2bf', 2.6],
-      [14, 0.7, '#eef4ff', 3.6],
+      // (`range` : ils suivent la partie, cf. RangeGame.light.)
+      [14, 3.3, '#ffe2bf', 2.6, 'range'],
+      [14, 0.7, '#eef4ff', 3.6, 'range'],
       [14.3, 6.9, '#ff7a2a', 3, 'fire'],
       [17.9, 4.6, '#ffb060', 2.2, 'neon'],
       [12.4, 9.7, '#ffb45e', 3.4],

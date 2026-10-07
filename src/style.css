@@ -3437,24 +3437,39 @@ body.range-top canvas { cursor: none; }
 .range-tier-text { color: #8fa6b6; font-size: 10px; white-space: nowrap; }
 .range-banner { position: absolute; top: 118px; left: 50%; transform: translate(-50%, -6px); padding: 5px 16px; border-radius: 999px; background: #76f0c2; color: #06231a; font: 700 15px/1.2 system-ui, sans-serif; white-space: nowrap; opacity: 0; transition: opacity .25s, transform .25s; }
 .range-banner.show { opacity: 1; transform: translate(-50%, 0); }
-/* Le chargeur : une barrette par balle, à la couleur du tir de l'arme ; on le touche pour recharger. */
-.range-ammo { position: absolute; right: 18px; bottom: 64px; display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 5px 14px; width: 224px; box-sizing: border-box; padding: 10px 14px; border: 0; border-left: 3px solid var(--range-color); border-radius: 4px 12px 12px 4px; background: linear-gradient(90deg, #0a121cf2, #0a121cc0); box-shadow: 0 8px 24px #0008; color: inherit; font: inherit; text-align: left; pointer-events: auto; cursor: pointer; }
-.range-weapon { align-self: start; color: #c8d6e0; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
-.range-count { grid-row: 1 / span 2; grid-column: 2; min-width: 58px; color: #fff; font: 700 44px/.9 system-ui, sans-serif; font-variant-numeric: tabular-nums; text-align: right; }
-.range-mag { grid-column: 1; display: flex; flex-wrap: wrap; gap: 3px; max-width: 176px; }
-.range-mag i { width: 7px; height: 17px; border-radius: 3px 3px 1px 1px; background: var(--range-color); box-shadow: 0 0 6px color-mix(in srgb, var(--range-color) 55%, transparent); transition: background .12s, transform .12s; }
-.range-mag i.spent { background: #2a3642; box-shadow: none; transform: scaleY(.72); }
-.range-mag.m30 { gap: 2px; max-width: 92px; }
-.range-mag.m30 i { width: 4px; height: 11px; }
-.range-mag.m5 i { width: 17px; height: 19px; }
-.range-key { grid-column: 1 / -1; color: #8fa6b6; font-size: 11px; }
-.range-key kbd { display: inline-block; min-width: 16px; padding: 0 4px; border: 1px solid #58707f; border-radius: 4px; background: #16232f; color: #e6eef4; font: inherit; text-align: center; }
-.range-ammo.low .range-count { color: #ffd24a; }
-.range-ammo.loading .range-count { color: #8fa6b6; }
-.range-ammo.empty { border-left-color: #ff4a3d; }
-.range-ammo.empty .range-count { color: #ff4a3d; }
-.range-ammo.empty .range-key { color: #ffd0cb; animation: court-pulse .45s ease-in-out infinite alternate; }
-.range-ammo.nudge { animation: range-nudge .25s; }
+.range-banner.warn { background: #ff5a4a; color: #2a0806; }
+/*
+ * Hologrammes, près du joueur (cf. drawHud) : les munitions, et l'ordre de recharger. Un panneau
+ * de lumière cyan, à pans coupés, tramé de lignes de balayage, qui vacille à peine ; ambre quand
+ * le chargeur est presque vide, rouge quand il l'est.
+ */
+.range-holo, .range-alert { position: fixed; left: 0; top: 0; --holo: #7fefff; color: var(--holo); will-change: transform; }
+.range-holo { transform-origin: 0 50%; animation: range-flicker 5s steps(1) infinite; }
+.range-holo.left { transform-origin: 100% 50%; }
+.range-holo-panel { position: relative; display: grid; grid-template-columns: auto auto; align-items: center; gap: 2px 10px; padding: 6px 12px 7px 10px; border: 1px solid color-mix(in srgb, var(--holo) 45%, transparent); border-left: 2px solid var(--holo); background: linear-gradient(180deg, color-mix(in srgb, var(--holo) 20%, transparent), color-mix(in srgb, var(--holo) 6%, transparent)); box-shadow: 0 0 14px color-mix(in srgb, var(--holo) 28%, transparent), inset 0 0 12px color-mix(in srgb, var(--holo) 14%, transparent); clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px)); text-shadow: 0 0 8px color-mix(in srgb, var(--holo) 75%, transparent); }
+.range-holo-panel::before { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, color-mix(in srgb, var(--holo) 16%, transparent) 0 1px, transparent 1px 3px); animation: range-scan 1.2s linear infinite; pointer-events: none; }
+/* Le faisceau qui relie l'hologramme au personnage (ou à la mire). */
+.range-holo::before { content: ''; position: absolute; right: 100%; top: 50%; width: 22px; height: 1px; background: linear-gradient(90deg, transparent, var(--holo)); }
+.range-holo.left::before { right: auto; left: 100%; background: linear-gradient(270deg, transparent, var(--holo)); }
+.range-holo-name { grid-column: 1 / -1; font-size: 9px; letter-spacing: .2em; text-transform: uppercase; opacity: .85; white-space: nowrap; }
+.range-holo-count { font: 700 34px/.95 ui-monospace, 'SF Mono', Menlo, monospace; font-variant-numeric: tabular-nums; }
+.range-mag { display: grid; grid-template-rows: repeat(2, 9px); grid-auto-flow: column; grid-auto-columns: 4px; gap: 2px; }
+.range-mag i { border-radius: 1px; background: var(--holo); box-shadow: 0 0 5px color-mix(in srgb, var(--holo) 70%, transparent); }
+.range-mag i.spent { background: none; box-shadow: none; outline: 1px solid color-mix(in srgb, var(--holo) 35%, transparent); outline-offset: -1px; }
+.range-mag.m12 { grid-auto-columns: 5px; }
+.range-mag.m6, .range-mag.m5, .range-mag.m3 { grid-template-rows: 20px; grid-auto-columns: 8px; gap: 3px; }
+.range-holo.low { --holo: #ffcf5a; }
+.range-holo.empty { --holo: #ff5a4a; animation: court-pulse .35s ease-in-out infinite alternate; }
+.range-holo.loading .range-holo-count { opacity: .6; }
+.range-alert { --holo: #ff5a4a; font: 700 15px/1 ui-monospace, 'SF Mono', Menlo, monospace; letter-spacing: .16em; text-transform: uppercase; white-space: nowrap; opacity: 0; transition: opacity .12s; }
+.range-alert.show { opacity: 1; }
+.range-alert.show .range-holo-panel { animation: range-alert .7s ease-in-out infinite; }
+.range-alert .range-holo-panel { display: block; padding: 8px 16px; border-left-width: 1px; clip-path: polygon(9px 0, calc(100% - 9px) 0, 100% 9px, 100% calc(100% - 9px), calc(100% - 9px) 100%, 9px 100%, 0 calc(100% - 9px), 0 9px); }
+.range-alert kbd { display: inline-block; min-width: 18px; margin-left: 4px; padding: 2px 5px; border: 1px solid var(--holo); border-radius: 3px; font: inherit; letter-spacing: 0; text-align: center; }
+.range-alert.nudge { animation: range-nudge .25s; }
+@keyframes range-alert { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.7); } }
+@keyframes range-scan { to { background-position: 0 3px; } }
+@keyframes range-flicker { 0%, 100% { opacity: 1; } 47% { opacity: .82; } 48% { opacity: 1; } 81% { opacity: .9; } 82% { opacity: 1; } }
 @keyframes range-nudge { 25% { translate: -5px 0; } 75% { translate: 4px 0; } }
 .range-hint { position: absolute; left: 50%; top: 78px; transform: translateX(-50%); max-width: 94vw; padding: 6px 14px; border-radius: 999px; background: #0a121cd9; color: #c8d6e0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .range-hint[hidden] { display: none; }
@@ -3478,11 +3493,7 @@ body.range-top canvas { cursor: none; }
   .range-clock .range-value { font-size: 22px; }
   .range-tier-text { display: none; }
 }
-/* Écran tactile : le chargeur au milieu, entre le joystick et les boutons (cf. mobile.css). */
 @media (pointer: coarse) {
-  .range-ammo { right: auto; left: 50%; bottom: calc(max(8px, env(safe-area-inset-bottom)) + 4px); min-width: 0; margin-left: -98px; width: 196px; padding: 7px 12px; }
-  .range-count { font-size: 32px; }
-  .range-key { display: none; }
   .range-hint { font-size: 11px; }
 }
 

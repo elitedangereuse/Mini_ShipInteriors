@@ -5151,6 +5151,8 @@ function frame() {
     const def = pooled[i]
     if (!def?.flicker || renderQuality.light) continue
     if (def.flicker === 'neon' || def.flicker === 'fire') l.intensity = def.intensity * flicker(def.flicker, timer.getElapsed(), i)
+    // Stand de tir : pénombre au pas de tir, toute la lumière sur les cibles, et elle réagit à la partie.
+    else if (def.flicker === 'range') range.light(def, l)
     else if (def.flicker === 'screen') {
       // Reflet de l'écran de cinéma : il suit les scènes du film.
       const glow = filmGlow(film.time)
@@ -5165,7 +5167,8 @@ function frame() {
   marker.scale.setScalar(1 + Math.sin(timer.getElapsed() * 6) * 0.12)
   // Pièce tamisée (cinéma, salon d'écoute) : l'ambiance baisse en fondu quand on y entre, remonte quand on en sort.
   // Pendant la séance du planétarium, la nuit tombe tout à fait.
-  const dimTo = planetarium.active ? 0.05 : deck.def.dim?.[deck.map.room(Math.round(player.position.x), Math.round(player.position.z)) ?? ''] ?? 1
+  // Au stand de tir, arme en main, aussi : le couloir des cibles ressort.
+  const dimTo = planetarium.active ? 0.05 : range.active ? 0.5 : deck.def.dim?.[deck.map.room(Math.round(player.position.x), Math.round(player.position.z)) ?? ''] ?? 1
   if (dimming !== dimTo) {
     dimming = Math.abs(dimTo - dimming) < 0.005 ? dimTo : dimming + (dimTo - dimming) * Math.min(1, dt * 2.5)
     applyAmbience()
