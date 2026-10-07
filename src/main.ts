@@ -49,7 +49,7 @@ import { setupMobile } from './mobile'
 import { lineOfSight } from '../shared/sight.js'
 import { DIRS } from './map'
 import { EN, localizeAttributes, tr } from './i18n'
-import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, LIFT, SPAWN } from './levels'
+import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, LIFT, offShip, SPAWN } from './levels'
 import { hydrateIcons, icon, type IconName } from './icons'
 import { lookId, lookPath, lookRig, parseLook, raceOf, variantsOf, type Look } from './looks'
 import { JukeboxPanel, JukeboxPlayer, trackById, type MusicOptions, type Track } from './music'
@@ -106,6 +106,8 @@ import { SalvageClient } from './salvage/client'
 import { LOBBY_RETURN, ZONE_LEVEL } from '../shared/salvage.js'
 import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel } from './ui'
 import { LiftRide } from './lift-ride'
+import { INSTRUCTOR, Instructor, instructorRig, Tutorial, TUTORIAL_DECK } from './tutorial'
+import { TUTORIAL_EXIT, TUTORIAL_LEVEL, TUTORIAL_SPAWN } from '../shared/tutorial.js'
 
 // ------------------------------------------------------------------ profil
 
@@ -127,6 +129,14 @@ const store = {
 const storedName = store.get('name')
 const guestName = storedName && !isLegacyDefaultName(storedName) ? storedName : randomCmdrName()
 store.set('name', guestName)
+/**
+ * Simulateur d'accueil (cf. tutorial.ts) : on s'y réveille à sa toute première venue (ce
+ * navigateur ne connaît pas encore de nom), ou si l'on a quitté la page en pleine formation ;
+ * `?tuto` dans l'adresse l'impose. Fini ou passé, il ne revient plus (sauf /tuto).
+ */
+const TUTORIAL_KEY = 'tutorial'
+const tutorialState = store.get(TUTORIAL_KEY)
+const newcomer = tutorialState === 'started' || (tutorialState === null && storedName === null) || new URLSearchParams(location.search).has('tuto')
 
 // Compte Élite Dangereuse et quartiers aménagés : demandés au site pendant le chargement des
 // modèles (le cookie du site identifie le CMDR ; un invité reçoit un refus).
@@ -244,6 +254,9 @@ const decks = LEVELS.map((def) => new Deck(def))
 /** Les conduits de ventilation, hors des ponts de l'ascenseur : on y tombe par les toilettes (cf. flushToVents). */
 const vents = new Vents({ renderer, scene, squeak: (at) => sound.squeak(at) })
 decks.push(vents.deck)
+/** Le simulateur d'accueil, où les nouveaux venus apprennent les gestes de base (cf. tutorial.ts). */
+const tutorialDeck = new Deck(TUTORIAL_DECK)
+decks.push(tutorialDeck)
 for (const d of decks) scene.add(d.group)
 const deckById = (id: number) => decks.find((d) => d.def.id === id)!
 /** Aspirés par les toilettes pendant un saut FSD (cf. flushCrew). */
@@ -380,7 +393,7 @@ const WHERE_KEY = 'mini-shipinteriors-where'
 function resumePoint(): { deck: Deck; x: number; z: number; yaw: number } | null {
   try {
     const w = JSON.parse(sessionStorage.getItem(WHERE_KEY) ?? 'null')
-    const d = w && decks.find((d) => d.def.id === w.level && !d.def.zone && !d.def.ground && !d.def.vents)
+    const d = w && decks.find((d) => d.def.id === w.level && !offShip(d.def))
     if (!d || ![w.x, w.z, w.yaw].every(Number.isFinite)) return null
     // Un invité devenu habitué du bar ne l'est plus après un rechargement : il se réveille chez lui.
     if (d.def.id === -1 && !barRegular && d.map.room(Math.round(w.x), Math.round(w.z)) === BAR_ROOM) return null
@@ -391,7 +404,7 @@ function resumePoint(): { deck: Deck; x: number; z: number; yaw: number } | null
 }
 const resumed = resumePoint()
 
-let deck = resumed?.deck ?? homeDeck
+let deck = newcomer ? tutorialDeck : resumed?.deck ?? homeDeck
 /**
  * Pont affiché : celui du joueur, ou la baie de la zone thargoïde quand un capturé suit son
  * équipe par les caméras (le joueur, lui, reste au lobby).
@@ -456,11 +469,12 @@ const planetarium = new PlanetariumShow({
     planetariumZoom = null
   },
 })
-const spawn = resumed ?? spawnPoint()
+const spawn = newcomer ? TUTORIAL_SPAWN : resumed ?? spawnPoint()
 player.position.set(spawn.x, deck.y, spawn.z)
-if (resumed) {
-  player.setHeading(resumed.yaw)
-  player.root.rotation.y = resumed.yaw
+const spawnYaw = newcomer ? TUTORIAL_SPAWN.yaw : resumed?.yaw
+if (spawnYaw !== undefined) {
+  player.setHeading(spawnYaw)
+  player.root.rotation.y = spawnYaw
 }
 scene.add(player.root)
 
@@ -943,7 +957,7 @@ function setView(next: Deck) {
   for (const h of hums) sound.fade(h.gain, h.deck === viewDeck ? h.volume : 0)
   // La baie infestée est hors du vaisseau : ni étoiles, ni système par les verrières. Sur la base
   // au sol, le ciel de la planète (un fond CSS, cf. body.planet).
-  stars.group.visible = systemView.group.visible = traffic.group.visible = !viewDeck.def.zone && !viewDeck.def.ground && !viewDeck.def.vents
+  stars.group.visible = systemView.group.visible = traffic.group.visible = !offShip(viewDeck.def)
   document.body.classList.toggle('planet', !!viewDeck.def.ground)
 }
 setDeck(deck)
@@ -960,7 +974,10 @@ function footstep(level: number, position: THREE.Vector3, sprint: boolean, skin:
   const soft = (level === ZONE_LEVEL ? salvage?.deck : deckById(level))?.def.footsteps === 'soft'
   sound.play(soft ? 'softStep' : 'step', position, { volume: (sprint ? 0.15 : 0.11) * (soft ? 1.5 : 1), rate: stepRate(skin) })
 }
-player.onStep = (sprint) => footstep(deck.def.id, player.position, sprint, profile.skin)
+player.onStep = (sprint) => {
+  footstep(deck.def.id, player.position, sprint, profile.skin)
+  if (deck === tutorialDeck) tutorial.stepped(sprint)
+}
 cat.onStep = () => {
   if (catDeck === deck) sound.play('catStep', cat.root.getWorldPosition(new THREE.Vector3()), { volume: 0.03, rate: 1.6 })
 }
@@ -1038,6 +1055,124 @@ sergeant.onBark = (text) => {
 }
 sergeant.onStep = () => {
   if (patrolDeck === deck) sound.play('step', sergeant.root.getWorldPosition(new THREE.Vector3()), { volume: 0.08, rate: 0.8 })
+}
+
+// Le lieutenant Swann, l'instructrice du simulateur d'accueil, y mène la formation des nouveaux
+// venus (cf. tutorial.ts) ; au téléporteur, elle les envoie sur le pont principal (cf. leaveTutorial).
+const instructor = new Instructor(await instructorRig(), tutorialDeck)
+const tutorial = new Tutorial({
+  deck: tutorialDeck,
+  instructor,
+  player: player.position,
+  controls: () => (usingGamepad ? 'gamepad' : coarsePointer ? 'touch' : 'keyboard'),
+  camera: () => ({ heading: iso.heading, zoom: iso.zoomLevel }),
+  seated: () => !!seating.current && seating.settled,
+  say: (text) => bubbles.say('instructor', text),
+  sound: (kind) => (kind === 'done' ? sound.ui('pick') : sound.play('ding', null, { volume: 0.1 })),
+  finish: (skipped) => void leaveTutorial(skipped),
+})
+tutorialDeck.interactables.push({
+  object: instructor.root,
+  position: instructor.position,
+  label: tr(`Parler à ${INSTRUCTOR}`, `Talk to ${INSTRUCTOR}`),
+  onInteract: () => {
+    player.interact()
+    net.sendEmote('interact')
+    const line = tutorial.talk()
+    dialog.show(tr(`${INSTRUCTOR} : « ${line} »`, `${INSTRUCTOR}: “${line}”`))
+  },
+})
+for (const it of tutorialDeck.interactables) {
+  // La console de la salle d'essai : la leçon « examiner ».
+  if (it.furniture?.model === 'side-console') {
+    const lines = it.text
+    it.onInteract = () => {
+      player.interact()
+      net.sendEmote('interact')
+      const text = typeof lines === 'function' ? lines() : lines
+      if (text) dialog.show(Array.isArray(text) ? text[Math.floor(Math.random() * text.length)] : text)
+      tutorial.examined()
+    }
+  }
+  if (it.furniture?.model === 'sim-teleporter') {
+    it.onInteract = () => {
+      const refusal = tutorial.teleport()
+      if (refusal) dialog.show(refusal)
+    }
+  }
+}
+bubbles.attach('instructor', (out) => (tutorialDeck.group.visible ? instructor.avatar.head(out) : null))
+instructor.onStep = () => {
+  if (tutorialDeck === deck) sound.play('step', instructor.root.getWorldPosition(new THREE.Vector3()), { volume: 0.07, rate: 1.15 })
+}
+if (newcomer) {
+  store.set(TUTORIAL_KEY, 'started')
+  tutorial.start()
+}
+
+/**
+ * Au téléporteur du simulateur (ou formation passée) : un éclair, et l'on se retrouve sur le pont
+ * principal, dans la coursive, à deux pas de l'ascenseur. La formation ne reviendra plus d'elle-même.
+ */
+async function leaveTutorial(skipped: boolean) {
+  if (riding || deck !== tutorialDeck) return
+  riding = true
+  seating.leave()
+  player.cancelPath()
+  marker.visible = false
+  store.set(TUTORIAL_KEY, 'done')
+  sound.play('lift', player.position.clone(), { volume: 0.2 })
+  await fadeScreen(true)
+  tutorial.stop()
+  const main = deckById(TUTORIAL_EXIT.level)
+  setDeck(main)
+  const at = landingSpot(main, TUTORIAL_EXIT.x, TUTORIAL_EXIT.z)
+  player.position.set(at.x, main.y, at.z)
+  player.setHeading(TUTORIAL_EXIT.yaw)
+  player.root.rotation.y = TUTORIAL_EXIT.yaw
+  iso.snapTo(player.position)
+  sendState(true)
+  main.pulseLift()
+  await fadeScreen(false)
+  sound.play('ding', null, { volume: 0.1 })
+  riding = false
+  if (skipped) {
+    dialog.show(tr('Formation passée : bienvenue sur le pont principal ! Tapez /tuto pour la refaire quand vous voudrez.', 'Training skipped: welcome to the main deck! Type /tuto to take it again whenever you like.'))
+  } else {
+    sound.jingle('win')
+    dialog.show(tr(
+      `${INSTRUCTOR}, à la radio : « Bienvenue sur le pont principal, commandant ! L'ascenseur, juste là, vous mène partout. Bon vol. o7 »`,
+      `${INSTRUCTOR}, over the radio: “Welcome to the main deck, commander! The lift, right there, takes you everywhere. Fly safe. o7”`,
+    ))
+  }
+  chat.add('system', tr(
+    'À bord : l\'ascenseur dessert les ponts ; vos quartiers et le Holo-Me (votre apparence) sont au pont des quartiers. Les repères orange sont des tâches de bord, payées en crédits. Tab : l\'annuaire des joueurs · H : l\'aide · /tuto : refaire la formation.',
+    'Aboard: the lift serves every deck; your quarters and the Holo-Me (your look) are on the quarters deck. Orange markers are ship chores, paid in credits. Tab: player directory · H: help · /tuto: take the training again.',
+  ))
+}
+
+/** Refaire la formation (/tuto) : un fondu, et l'on se réveille dans le simulateur, face à l'instructrice. */
+async function enterTutorial() {
+  if (riding) return
+  if (deck !== tutorialDeck && !canTravel()) return
+  riding = true
+  player.cancelPath()
+  marker.visible = false
+  await fadeScreen(true)
+  if (visiting) {
+    net.sendVisit(null)
+    leaveVisit()
+  }
+  setDeck(tutorialDeck)
+  player.position.set(TUTORIAL_SPAWN.x, tutorialDeck.y, TUTORIAL_SPAWN.z)
+  player.setHeading(TUTORIAL_SPAWN.yaw)
+  player.root.rotation.y = TUTORIAL_SPAWN.yaw
+  iso.snapTo(player.position)
+  sendState(true)
+  store.set(TUTORIAL_KEY, 'started')
+  tutorial.start()
+  await fadeScreen(false)
+  riding = false
 }
 
 // Marcel, le chef, fait la tournée de sa cuisine au mess (cf. chef.ts), et cuisine avec qui prend
@@ -1934,6 +2069,7 @@ function emote(id: string) {
   bubbles.emote('me', def.icon)
   net.sendEmote(id)
   sound.play('emote', null, { volume: 0.06 })
+  if (deck === tutorialDeck) tutorial.emoted(id)
 }
 
 /** Réaction : le médaillon s'envole, le personnage ne bouge pas (on peut rester assis). */
@@ -1947,7 +2083,9 @@ chat.onSend = (text) => {
   if (text.startsWith('/')) return command(text)
   chat.add('me', text, nameTag(profile.name, verified))
   bubbles.say('me', text)
-  net.sendChat(text)
+  // Dans le simulateur d'accueil, on est seul : seule l'instructrice entend.
+  if (deck === tutorialDeck) tutorial.chatted()
+  else net.sendChat(text)
   sound.play('chat', null, { volume: 0.1, rate: 1.2 })
 }
 
@@ -2031,14 +2169,18 @@ async function command(text: string) {
       if (!lines.length) return chat.add('system', tr('Aucune tâche à bord pour l\'instant : tout est en ordre.', 'No chores aboard right now: everything is shipshape.'))
       return chat.add('system', tr(`Tâches à bord · ${lines.join(' · ')}`, `Chores aboard · ${lines.join(' · ')}`))
     }
+    case 'tuto':
+    case 'tutoriel':
+    case 'tutorial':
+      return void enterTutorial()
     case 'aide':
     case 'help': {
       const emotes = [...EMOTES, ...REACTIONS].map((x) => '/' + tr(x.id, x.en)).join(' ')
       return chat.add(
         'system',
         tr(
-          `Commandes : /nom CMDR Pseudo (invités) · /perso · /inviter CMDR Nom · /w CMDR Nom message · /credits · /taches · ${emotes}`,
-          `Commands: /name CMDR Nickname (guests) · /random · /invite CMDR Name · /w CMDR Name message · /credits · /chores · ${emotes}`,
+          `Commandes : /nom CMDR Pseudo (invités) · /perso · /inviter CMDR Nom · /w CMDR Nom message · /credits · /taches · /tuto (la formation) · ${emotes}`,
+          `Commands: /name CMDR Nickname (guests) · /random · /invite CMDR Name · /w CMDR Name message · /credits · /chores · /tuto (the training) · ${emotes}`,
         ),
       )
     }
@@ -2658,6 +2800,8 @@ const myCabin = () => visiting?.host ?? net.id
 function sees(r: RemotePlayer): boolean {
   // Dans la baie infestée (ou par les caméras) : seulement ses coéquipiers, hors des casiers.
   if (r.level === ZONE_LEVEL) return !!viewDeck.def.zone && !!salvage?.sees(r.id)
+  // Le simulateur d'accueil : chacun y est seul.
+  if (r.level === TUTORIAL_LEVEL) return false
   if (r.level !== viewDeck.def.id || viewDeck !== deck) return false
   return r.level !== HOUSING_LEVEL || r.cabin === myCabin()
 }
@@ -2759,7 +2903,7 @@ cabinBar.onToggleOpen = toggleOpen
  * trajet : on y laisserait une partie en plan.
  */
 function canTravel(explain = true): boolean {
-  const ok = !riding && !groundBase.flying && !deck.def.zone && !deck.def.ground && !deck.def.vents && !zone.frozen
+  const ok = !riding && !groundBase.flying && !offShip(deck.def) && !zone.frozen
   if (!ok && explain) chat.add('system', tr('Pas de visite d\'ici : revenez d\'abord à bord du vaisseau.', 'No visiting from here: come back aboard the ship first.'))
   return ok
 }
@@ -2959,6 +3103,7 @@ async function loadDirectory(force = false) {
 /** Où est un joueur à bord : son pont (pour la jauge ; aucun hors du vaisseau) et le lieu en toutes lettres. */
 function whereIs(r: RemotePlayer): { deck?: number; where: string } {
   if (r.level === ZONE_LEVEL) return { where: tr('Zone thargoïde', 'Thargoid zone') }
+  if (r.level === TUTORIAL_LEVEL) return { where: TUTORIAL_DECK.name }
   if (r.level === HOUSING_LEVEL) {
     const host = hostName(r.cabin)
     const where = r.cabin === r.id
@@ -3000,7 +3145,7 @@ function phoneData(): PhoneData {
     })
   }
   aboard.sort((a, b) => a.name.localeCompare(b.name))
-  const zoned = !!deck.def.zone || !!deck.def.ground || !!deck.def.vents
+  const zoned = offShip(deck.def)
   return {
     self: {
       name: profile.name, verified, linked, online: net.online,
@@ -4126,7 +4271,7 @@ function sendState(now = false) {
  * on garde la dernière place à bord.
  */
 function saveWhere() {
-  if (riding || seating.current || deck.def.zone || deck.def.ground || deck.def.vents) return
+  if (riding || seating.current || offShip(deck.def)) return
   const at = player.glideEnd ?? { x: player.position.x, z: player.position.z, yaw: player.heading }
   try {
     sessionStorage.setItem(WHERE_KEY, JSON.stringify({ level: deck.def.id, x: at.x, z: at.z, yaw: at.yaw }))
@@ -5010,6 +5155,9 @@ function frame() {
   zone.update(dt)
   // Les conduits de ventilation : la lampe, ce qu'on voit, les rats.
   vents.update(world, deck === vents.deck ? player.position : null)
+  // Le simulateur d'accueil : l'instructrice, la leçon en cours. Parti autrement qu'au téléporteur : la formation s'arrête.
+  if (deck === tutorialDeck) tutorial.update(world)
+  else if (tutorial.active) tutorial.stop()
   player.root.visible = viewDeck === deck && !zone.hiding
   flushes.update(world)
   // Quelqu'un au micro du studio (nous, ou un autre) : le néon « ON AIR » s'allume.
@@ -5117,6 +5265,7 @@ function frame() {
   actors.get(holdDeck)!.push(mechanic.position)
   actors.get(gardenDeck)!.push(gardener.position)
   if (groundBase.deck && groundBase.chief) actors.get(groundBase.deck)?.push(groundBase.chief.position)
+  actors.get(tutorialDeck)!.push(instructor.position)
   for (const c of companions.values()) actors.get(homeDeck)!.push(c.pet.root.position)
   // Un joueur d'une autre instance des quartiers n'ouvre pas nos portes.
   for (const r of remotes.values()) if (r.group.visible || r.level !== deck.def.id) actors.get(deckById(r.level))?.push(r.group.position)
@@ -5159,7 +5308,7 @@ function frame() {
 
   // Dans la baie infestée (ou par les caméras), ni étoiles ni système : on est hors du vaisseau ; sur
   // la base au sol, le ciel de la planète.
-  if (!viewDeck.def.zone && !viewDeck.def.ground && !viewDeck.def.vents) {
+  if (!offShip(viewDeck.def)) {
     const eye = fpsShown ? fps.camera.position : null
     stars.update(world, iso.target, toCam, iso.tilt, eye)
     systemView.update(world, deck.y, iso.camera, iso.target, eye)

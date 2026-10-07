@@ -21,6 +21,7 @@
 ## Sommaire
 
 - [En bref](#en-bref)
+- [Le simulateur d'accueil](#le-simulateur-daccueil)
 - [Le vaisseau](#le-vaisseau)
 - [Holo-Me (garde-robe)](#holo-me-garde-robe)
 - [Quartiers personnalisables](#quartiers-personnalisables)
@@ -78,6 +79,25 @@ Mini Interior est un POC : un vaisseau sur trois ponts, vu de dessus en isométr
   <br><em>Deux membres d'équipage dans le salon panoramique : chat en bulle, emote « danse », et Comète qui fait la sieste près du bureau.</em>
 </p>
 
+## Le simulateur d'accueil
+
+À sa toute première venue à bord (ce navigateur ne connaît pas encore de nom), on ne se réveille pas dans ses quartiers mais dans le **simulateur d'accueil** : trois salles holographiques (grille cyan au sol, panneaux de consignes), une **instance solo**. Personne d'autre n'y entre, personne ne nous y voit : le relais n'y rediffuse aucune position (le bord apprend seulement qu'on y est entré, et l'annuaire dit « Simulateur d'accueil »), et ce qu'on dit au chat n'y sort pas de la pièce.
+
+Le **lieutenant Swann**, l'instructrice, y mène la formation, une leçon après l'autre ; un panneau (en haut à gauche, en haut au centre sur mobile) dit où l'on en est, ce qu'elle vient de dire et comment faire, avec les touches du clavier, de la manette ou les gestes tactiles selon ce qu'on a en main. Un repère cyan (anneau au sol, ou icône au-dessus de l'objet) montre où aller.
+
+| Leçon | Ce qu'on fait |
+|---|---|
+| Se déplacer | marcher jusqu'au repère lumineux |
+| Courir | courir jusqu'à l'autre repère (arrivé en marchant, le repère repart de l'autre côté) |
+| Regarder autour de soi | pivoter la vue et zoomer ; la porte de la salle d'essai s'ouvre |
+| Examiner | interagir avec la console |
+| S'asseoir, se relever | s'asseoir sur le canapé, puis se relever |
+| Saluer | une emote (o7 attendu) |
+| Discuter | un message au chat (seule l'instructrice l'entend) ; la porte du téléporteur s'ouvre |
+| Rejoindre le bord | activer le téléporteur : un fondu, et l'on se retrouve sur le **pont principal**, dans la coursive, à deux pas de l'ascenseur, avec un rappel de l'essentiel dans le chat |
+
+**Passer** (deux clics) téléporte tout de suite. Finie ou passée, la formation ne revient plus d'elle-même ; quitter la page en plein milieu la fait recommencer au retour. `/tuto` la refait à tout moment depuis le vaisseau, et `?tuto` dans l'adresse l'impose (pratique pour l'essayer). Le plan est dans `shared/tutorial.js` (partagé avec le relais, tests dans `server/tutorial.test.js`), les leçons, l'instructrice et le pont dans `src/tutorial.ts`, le mobilier (grille, panneaux, téléporteur) dans `src/furniture/tutorial.ts`.
+
 ## Le vaisseau
 
 Trois ponts, trois ambiances. Chaque pont repeint à sa façon la même palette du kit (coque et mobilier, cf. `themes` dans `src/assets.ts`), et a son propre éclairage (ciel, soleil, lumières qui vacillent) et son propre bruit de pas. Le pont principal est de loin le plus grand (~330 tuiles), sa coursive file vers le poste de pilotage, à la proue. La cale et le pont supérieur sont plus petits (~180 et ~170 tuiles), autour de l'ascenseur. Les plans sont dans `shared/ship-layouts.js` (partagés avec le relais).
@@ -88,7 +108,7 @@ Les futurs espaces communautaires sont déjà là, **en travaux** : LJPC et La V
 
 La réserve de huit lumières du moteur de rendu suit le joueur : un pont peut en avoir davantage, les plus proches s'allument.
 
-On se réveille dans ses quartiers, sur le pont des quartiers, à deux pas du Holo-Me. Dans le sélecteur de l’ascenseur, **Vous êtes ici** indique le pont actuel.
+À sa toute première venue, on se réveille dans le [simulateur d'accueil](#le-simulateur-daccueil) ; ensuite, dans ses quartiers, sur le pont des quartiers, à deux pas du Holo-Me. Dans le sélecteur de l’ascenseur, **Vous êtes ici** indique le pont actuel.
 
 | Pont | Ambiance | Pièces |
 |---|---|---|
@@ -760,7 +780,7 @@ un appareil avec encoche ; essayer aussi le chat avec le clavier logiciel ouvert
 | Emotes | `1`…`8` ou la barre en bas : salut, oui, non, joie, danse, assis, dodo, **o7** (le salut des CMDR, la main à la tempe) |
 | Réactions | `9` ou le bouton au sourire de la barre, puis `1`…`8` ou un clic : un médaillon aux images du site s'envole au-dessus de la tête (logo du site, Braben, Raxxla, Fédération, Empire, Alliance, Aegis, Fuel Rats) ; le personnage ne bouge pas, on peut réagir assis |
 | Chat | `Entrée`, puis `Entrée` pour envoyer, `Échap` pour annuler |
-| Commandes du chat | `/nom CMDR Pseudo` (invités), `/perso` (apparence au hasard, parmi les siennes), `/inviter CMDR Nom`, `/w CMDR Nom message` (chuchoter), `/credits` (son solde), `/taches` (où sont les tâches de bord), `/danse`…, `/o7`, `/braben`, `/raxxla`…, `/aide` ; en anglais, `/name`, `/random`, `/invite`, `/w`, `/credits`, `/chores`, `/dance`…, `/help` |
+| Commandes du chat | `/nom CMDR Pseudo` (invités), `/perso` (apparence au hasard, parmi les siennes), `/inviter CMDR Nom`, `/w CMDR Nom message` (chuchoter), `/credits` (son solde), `/taches` (où sont les tâches de bord), `/tuto` (refaire la formation du [simulateur d'accueil](#le-simulateur-daccueil)), `/danse`…, `/o7`, `/braben`, `/raxxla`…, `/aide` ; en anglais, `/name`, `/random`, `/invite`, `/w`, `/credits`, `/chores`, `/dance`…, `/help` |
 | Changer d'apparence | le **Holo-Me** des quartiers du commandant (pont supérieur) |
 | Aménager ses quartiers | `B`, ou « Aménager » dans la barre des quartiers (CMDR connectés au site, cf. [Quartiers personnalisables](#quartiers-personnalisables)) |
 | Annuaire des joueurs | `Tab` : qui est à bord et où, visiter, sonner, chuchoter, laisser un message, inviter chez soi |
@@ -945,6 +965,7 @@ Les bips, les mélodies d'arcade, les étincelles, le miaulement, le ronronnemen
 | `src/mechanic.ts` · `shared/mechanic.js` | Nico, le mécano du hangar, et Boulon, son drone : sa tenue, sa tournée partagée par le relais et ses trajets autour du Krait (tests dans `server/mechanic.test.js`), ses répliques. |
 | `src/hangar.ts` · `src/shield.ts` | Le hangar côté joueur : les révisions en étapes avec Nico, la fiche de travail, le cockpit du Krait ; le bouclier qui ouvre un hangar sur l'espace (`shield` dans `levels.ts`). |
 | `src/base/` · `shared/ground-base.js` | **La base au sol** : le voyage en Krait et le Krait de l'aire (`client.ts`), l'écran de voyage (`flight.ts`), l'avant-poste en pont du jeu (`level.ts`), les modèles du Space Kit, le sol, les pistes et les falaises (`kit.ts`), Ada, la cheffe de la base (`chief.ts`) ; côté commun, le plan du plateau, la place du Krait et la ronde d'Ada (tests dans `server/ground-base.test.js`). Un pont sans murs ni plafond : `ground` dans `levels.ts`. |
+| `src/tutorial.ts` · `shared/tutorial.js` | **Le simulateur d'accueil** : le pont (`TUTORIAL_DECK`), le lieutenant Swann, l'instructrice, les leçons, leur panneau et leurs repères ; côté commun, le plan, les portes fermées au début, le point de réveil, le téléporteur et la sortie sur le pont principal (le relais n'y rediffuse aucune position ; tests dans `server/tutorial.test.js`). |
 | `src/infirmary.ts` | L'infirmerie côté joueur : la consultation (appel depuis un lit, auscultation, diagnostic, soin) et les pansements. |
 | `shared/salvage.js` · `server/salvage.js` | **Zone thargoïde** : règles, plan fixe de la baie et ce qu'une graine y dispose (cloisons, conteneurs, passerelle et garde-corps, zones éclairées, sols qui crissent ou collent, sas, casiers, colis, fusées, repaires ; chemins, hauteur du sol et lignes de vue, d'en bas et d'en haut), caméras de la baie et note de mission, communs au relais et au client ; côté relais, les équipes du lobby et chaque partie (ennemis à 10 Hz, ruche qui s'agite, casiers, fusées, captures, dépôts, fin, chiffres de chacun, gains envoyés au site). Tests : `server/salvage*.test.js`. |
 | `src/salvage/` | Le client de la zone : la partie et le moniteur des caméras (`client.ts`), la baie en pont du jeu (`zone-deck.ts`, `kit.ts` pour le Modular Space Kit, les conteneurs, la passerelle, les bacs, les excroissances et le décor), le brouillard de guerre et le tube cathodique (`fog.ts`), les ennemis (`monsters.ts`), les casiers, colis et fusées (`items.ts`), les bruitages (`sfx.ts`), Gaspard (`technician.ts`), Odile (`controller.ts`), le terminal, le classement et le HUD de mission (`ui.ts`). Le mobilier du lobby et de la baie (projecteurs, marquages, portique, table de briefing…) est dans `src/furniture/salvage.ts`. |

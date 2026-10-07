@@ -1575,6 +1575,96 @@ kbd .icon {
   color: #39d0ff;
 }
 
+/* ---------- simulateur d'accueil (cf. src/tutorial.ts) ---------- */
+/* Sous le bloc du vaisseau : la leçon, ce que dit l'instructrice, comment faire. */
+.tutorial {
+  width: min(320px, calc(100vw - 32px));
+  padding: 9px 12px 11px;
+  border-color: rgba(57, 208, 255, 0.55);
+  box-shadow: 0 0 22px rgba(57, 208, 255, 0.12);
+  font-size: 12px;
+  pointer-events: auto;
+}
+.tuto-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 600;
+  color: #39d0ff;
+}
+.tuto-skip {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.tuto-skip:hover {
+  color: var(--text);
+  border-color: #39d0ff;
+}
+.tuto-dots {
+  display: flex;
+  gap: 4px;
+  margin: 6px 0 4px;
+}
+.tuto-dots i {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(154, 160, 208, 0.3);
+}
+.tuto-dots i.done {
+  background: #39d0ff;
+}
+.tuto-dots i.now {
+  background: var(--accent);
+}
+.tuto-goal {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.tuto-goal.done {
+  color: #39d0ff;
+}
+.tuto-checks {
+  display: grid;
+  gap: 1px;
+  margin: 0 0 5px;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+}
+.tuto-checks li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.tuto-checks li.done {
+  color: #39d0ff;
+}
+.tuto-say {
+  margin: 0 0 5px;
+  font-style: italic;
+  color: var(--text);
+}
+.tuto-how {
+  color: var(--muted);
+  line-height: 1.6;
+}
+.tuto-how kbd {
+  margin: 0 1px;
+}
+
 /* ---------- barre de la cabine (ses quartiers, ou ceux d'un autre CMDR) ---------- */
 /* Dans la colonne de gauche, sous le bloc du vaisseau : rien ne la chevauche. */
 .cabin-bar {

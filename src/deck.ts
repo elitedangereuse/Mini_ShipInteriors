@@ -8,7 +8,7 @@ import { DoorHints } from './door-hints'
 import { makeFadeable } from './fade'
 import { beamMaterial, buildFurniture, isCustomModel, tickFurniture, type Emitter, type FurnitureControl } from './furniture'
 import { tr } from './i18n'
-import { LEVEL_HEIGHT, LIFT, type Flicker, type LevelDef } from './levels'
+import { LEVEL_HEIGHT, LIFT, offShip, type Flicker, type LevelDef } from './levels'
 import { DIRS, ShipMap } from './map'
 import { Hull } from './hull'
 import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type Occluder } from './merge'
@@ -456,7 +456,7 @@ export class Deck {
 
     // Hors du vaisseau (la baie infestée, la base au sol) : ni coque, ni ascenseur, ni tuyères. Le
     // pont des quartiers a son ascenseur, mais ses parcelles flottent sur leur propre socle.
-    const aboard = !def.zone && !def.ground && !def.vents
+    const aboard = !offShip(def)
     const hulled = aboard && !def.bubble
     this.buildFloors()
     // La coque sous le pont : le corps du vaisseau, le même sous chaque pont (cf. hull.ts). La
@@ -539,6 +539,11 @@ export class Deck {
   /** Chez Jacques n'ouvre qu'à ses habitués, ceux qui y sont déjà entrés par les conduits (cf. shared/vents.js). */
   setBarAccess(regular: boolean) {
     if (this.def.id === -1) this.setRoomAccess(BAR_ROOM, regular)
+  }
+
+  /** Ouvre ou ferme les portes d'une pièce (celles du simulateur d'accueil s'ouvrent au fil des leçons). */
+  setRoomOpen(room: string, open: boolean) {
+    this.setRoomAccess(room, open)
   }
 
   /** Ouvre ou ferme une pièce réservée : ses portes, et le couvercle qui la cache. */
