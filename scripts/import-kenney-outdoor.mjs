@@ -222,7 +222,8 @@ function collect(dir, name) {
 
 const pad4 = (n) => (n + 3) & ~3
 
-export function buildPack(root) {
+/** @param kits kits à fusionner (cf. KITS) ; un autre script peut passer les siens (import-kenney-blaster.mjs) */
+export function buildPack(root, kits = KITS) {
   const out = { asset: { version: '2.0', generator: 'mini-interior import-kenney-outdoor' }, scene: 0, scenes: [{ nodes: [] }], nodes: [], meshes: [], materials: [], accessors: [], bufferViews: [], buffers: [] }
   const chunks = []
   let length = 0
@@ -236,7 +237,7 @@ export function buildPack(root) {
     return out.bufferViews.length - 1
   }
   let count = 0
-  for (const kit of KITS) {
+  for (const kit of kits) {
     for (const name of kit.models) {
       const primitives = collect(join(root, kit.dir), name).map((g) => {
         const key = JSON.stringify(g.material)

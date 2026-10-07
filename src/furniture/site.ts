@@ -4,7 +4,7 @@ import { wallScreenHousing } from './decor'
 import { tr } from '../i18n'
 import { REWARD_COUNTER } from './reward-counter'
 import { renderQuality } from '../quality'
-import { courtBoards, records, sportRecords, type CourtId } from '../arcade/game'
+import { courtBoards, records, sportRecords, type BoardId } from '../arcade/game'
 
 const prints = new Map<string, THREE.MeshBasicMaterial>()
 const printLoads = new Map<string, Promise<void>>()
@@ -191,13 +191,14 @@ const SCORE_BOARDS = {
     best: (id: string) => sportRecords[id as keyof typeof sportRecords],
   },
 }
-/** Classements des terrains de sport : les cinq meilleurs de la salle (cf. src/court.ts). */
-const COURT_BOARDS: Record<string, { id: CourtId; kicker: string; title: string; accent: string; from: string; to: string }> = {
+/** Classements des terrains de sport et du stand de tir : les cinq meilleurs de la salle (cf. src/court.ts, src/range.ts). */
+const COURT_BOARDS: Record<string, { id: BoardId; kicker: string; title: string; accent: string; from: string; to: string }> = {
   basket: { id: 'gym-basket', kicker: tr('TERRAIN DE BASKET / MEILLEURS TIREURS', 'BASKETBALL COURT / TOP SHOOTERS'), title: 'BASKET', accent: '#ff8a3c', from: '#3d1d0c', to: '#120a07' },
   foot: { id: 'gym-foot', kicker: tr('TERRAIN DE FOOT / MEILLEURS BUTEURS', 'FOOTBALL PITCH / TOP SCORERS'), title: tr('TIRS AU BUT', 'PENALTY SHOOTOUT'), accent: '#7dff9b', from: '#12382c', to: '#07141a' },
+  range: { id: 'gym-range', kicker: tr('STAND DE TIR / MEILLEURS TIREURS', 'SHOOTING RANGE / TOP MARKSMEN'), title: tr('STAND DE TIR', 'SHOOTING RANGE'), accent: '#ff5a4a', from: '#3a1512', to: '#0f0a0c' },
 }
 /**
- * Écran mural des scores (`label` : `arcade` ou `gym`, ou un terrain, `basket` ou `foot`), du
+ * Écran mural des scores (`label` : `arcade` ou `gym`, ou un terrain, `basket` ou `foot`, ou `range`), du
  * gabarit du tableau d'honneur.
  */
 const scoreBoard: Builder = ({ label }) => {

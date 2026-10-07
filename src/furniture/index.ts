@@ -37,6 +37,7 @@ import { WORKS } from './works'
 import { FISHING } from './fishing'
 import { SALVAGE } from './salvage'
 import { SITE } from './site'
+import { RANGE } from './range'
 import { SPORT } from './sport'
 import { STUDIO } from './studio'
 
@@ -78,12 +79,13 @@ import { STUDIO } from './studio'
  * - armory.ts : l'armurerie décorative des cabines (sabres laser, épées, katanas, armes d'Odyssey, armure) ;
  * - posters.ts : les affiches des cabines (grands films, pin-up rétro) ;
  * - bath.ts : les petits objets de salle de bain des cabines (canard, gobelet, dérouleur, tapis) ;
- * - sport.ts : la zone sportive du pont supérieur (panier sur glissière, cage et gardien en carton, marquages, ballons).
+ * - sport.ts : la zone sportive du pont supérieur (panier sur glissière, cage et gardien en carton, marquages, ballons) ;
+ * - range.ts : le stand de tir de la cale (pas de tir, couloir et pare-balles, râtelier d'armes, caisses de munitions).
  * On les place dans levels.ts comme les modèles du kit : `{ model: 'fireplace', x, z, rot }`,
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...COCKPIT, ...CONCOURSE, ...WORKSHOP, ...BAR, ...CLUB, ...LEISURE, ...MEDICAL, ...KITCHEN, ...ARCADE, ...BOARD, ...COZY, ...GARDEN, ...GARDENING, ...NATURE, ...OUTDOOR, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...CLASSROOM, ...LISTENING, ...STUDIO, ...LJPC, ...PLANETARIUM, ...VENTS, ...VOIE, ...SALVAGE, ...HANGAR, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH, ...SPORT, ...FISHING } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...COCKPIT, ...CONCOURSE, ...WORKSHOP, ...BAR, ...CLUB, ...LEISURE, ...MEDICAL, ...KITCHEN, ...ARCADE, ...BOARD, ...COZY, ...GARDEN, ...GARDENING, ...NATURE, ...OUTDOOR, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...CLASSROOM, ...LISTENING, ...STUDIO, ...LJPC, ...PLANETARIUM, ...VENTS, ...VOIE, ...SALVAGE, ...HANGAR, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH, ...SPORT, ...RANGE, ...FISHING } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 

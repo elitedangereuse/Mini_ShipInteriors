@@ -14,6 +14,13 @@ const SOUNDS = {
   chat: ['select_001'],
   emote: ['confirmation_001'],
   ding: ['maximize_006'],
+  // Stand de tir (cf. src/range.ts) : tirs, impacts sur les murs, cibles qui éclatent, chargeur.
+  blaster: ['laserSmall_000', 'laserSmall_001', 'laserSmall_002'],
+  blasterHeavy: ['laserLarge_000', 'laserLarge_001'],
+  ricochet: ['impactMetal_light_000', 'impactMetal_light_001', 'impactMetal_light_002'],
+  plate: ['impactPlate_medium_000', 'impactPlate_medium_001', 'impactPlate_medium_002'],
+  magazine: ['switch_002'],
+  dryFire: ['click_002'],
 } as const
 
 export type SoundName = keyof typeof SOUNDS

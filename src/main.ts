@@ -1,5 +1,6 @@
 import { GymGame, type Sport } from './gym'
 import { CourtGame } from './court'
+import { RangeGame } from './range'
 import { FishBook } from './fishing/book'
 import { fishCollection } from './fishing/collection'
 import { FishingGame } from './fishing/game'
@@ -7,7 +8,7 @@ import type { CourtId } from './arcade/game'
 import { loadSiteArt, SitePanel } from './site'
 import * as THREE from 'three'
 import type { ArcadeCabinet } from './arcade/cabinet'
-import { isGameId, type GameId } from './arcade/game'
+import { isGameId, RANGE_ID, type GameId } from './arcade/game'
 import { fetchBoard, fetchRecords } from './arcade/scores'
 import { BoardGames } from './board/games'
 import { BarPanel, CocktailEffects } from './bar'
@@ -595,6 +596,69 @@ court.onSound = (kind, at) => {
   else if (kind === 'shoot') sound.ui('drop')
   else if (kind === 'end') sound.jingle('lose')
   else sound.jingle(kind === 'score' ? 'coin' : 'win')
+}
+
+// Stand de tir (cale) : on prend une arme au râtelier, l'écran ouvre le classement (cf. src/range.ts).
+const range = new RangeGame(deckById(-1).group, dialog, wallet)
+for (const it of deckById(-1).interactables) {
+  const model = it.furniture?.model
+  if (model === 'range-rack') it.onInteract = () => startRange()
+  else if (model === 'score-board' && it.furniture?.label === 'range') it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; void sitePanel.rankings('range') }
+}
+function startRange() {
+  if (range.active || player.gliding || deck.def.id !== -1) return
+  stopWork()
+  player.cancelPath()
+  marker.visible = false
+  // Le résumé de la partie précédente ne reste pas sous le viseur.
+  $('dialog').hidden = true
+  range.start()
+}
+/** Vue de dessus du stand : la caméra relevée, au sud, les cibles en haut de l'écran. */
+const RANGE_ELEVATION = THREE.MathUtils.degToRad(50)
+/** Et rapprochée : le stand, du pas de tir au mur du fond, tient à l'écran. */
+const RANGE_ZOOM = 3.1
+/** Cap et zoom de la vue isométrique avant la partie : on y revient en rendant l'arme. */
+let rangeHeading = 0
+let rangeZoom = 0
+const rangeHands = new THREE.Vector3()
+const rangeAim = new THREE.Vector3()
+let rangePadFire = false
+range.onToggle = (on) => {
+  // L'arme se tient à deux mains, bras tendus.
+  player.avatar.carrying = on
+  hover.visible = false
+  if (on) {
+    rangeHeading = iso.heading
+    rangeZoom = iso.zoomLevel
+    iso.turnTo(0, false)
+    iso.setRestElevation(RANGE_ELEVATION)
+    iso.zoomTo(RANGE_ZOOM)
+    // En vue subjective, le regard se tourne vers les cibles.
+    fps.align(0)
+    relock = fpsWanted
+    if (mayRelock()) lockCursor()
+  } else {
+    iso.setRestElevation(null)
+    iso.turnTo(rangeHeading)
+    iso.zoomTo(rangeZoom)
+    range.restore(fps.camera)
+  }
+}
+range.onSound = (kind, at, pitch) => {
+  const pos = at ? at.clone().setY(at.y + deck.y) : null
+  if (kind === 'shot') sound.play('blaster', pos, { volume: 0.5, rate: pitch })
+  else if (kind === 'heavy') {
+    sound.play('blasterHeavy', pos, { volume: 0.6, rate: pitch })
+    sound.thud(pos ?? player.position)
+  } else if (kind === 'hit' || kind === 'bullseye') {
+    sound.play('plate', pos, { volume: 0.7, rate: pitch })
+    if (kind === 'bullseye') sound.play('ding', null, { volume: 0.3, rate: 1.5 })
+  } else if (kind === 'wall') sound.play('ricochet', pos, { volume: 0.4, rate: pitch })
+  else if (kind === 'dry') sound.play('dryFire', null, { volume: 0.5 })
+  else if (kind === 'tier') sound.jingle('win')
+  else if (kind === 'end') sound.jingle('lose')
+  else sound.play('magazine', null, { volume: 0.5, rate: kind === 'loaded' ? 1.25 : kind === 'switch' ? 0.8 : 1 })
 }
 
 // Jardin exotique (pont supérieur) : on pêche depuis le ponton de l'étang ; le livre des prises,
@@ -3162,6 +3226,7 @@ addEventListener('keydown', (e) => {
   if (barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen) { if (e.code === 'Escape') { barPanel.close(); gameEmbed.close(); mediaRoom.close(); cinemaRoom.close() }; e.preventDefault(); return }
   if (gym.key(e)) return
   if (!chat.typing && court.key(e)) return
+  if (!chat.typing && range.key(e)) return
   if (!chat.typing && fishBook.isOpen) {
     fishBook.key(e)
     return e.preventDefault()
@@ -3237,7 +3302,7 @@ addEventListener('keydown', (e) => {
   if (+digit[1] === REACTION_KEY) return toggleReactions()
   if (EMOTES[+digit[1] - 1]) emote(EMOTES[+digit[1] - 1].id)
 })
-addEventListener('keyup', (e) => { keys.delete(e.code); court.keyUp(e) })
+addEventListener('keyup', (e) => { keys.delete(e.code); court.keyUp(e); range.keyUp(e) })
 addEventListener('blur', () => keys.clear())
 chat.onOpen = () => keys.clear()
 
@@ -3298,6 +3363,20 @@ function updateGamepad(dt: number): GamepadInput {
     court.pad(pad.moveX, gamepad.held.has('0'), dt)
     pad.moveX = pad.moveY = 0
     if (pad.cancel) court.stop()
+    return pad
+  }
+  if (range.active) {
+    // Stand de tir : A (ou la gâchette droite) tire, le stick droit vise ; on reste libre de marcher.
+    const fire = gamepad.held.has('0') || gamepad.held.has('7')
+    if (fire !== rangePadFire) range.trigger((rangePadFire = fire))
+    // Bouton d'action de l'écran tactile : un tir par appui.
+    else if (pad.interact && !fire) range.tap()
+    if (fpsShown) fps.look(-pad.lookX * dt * 2.4, -pad.lookY * dt * 1.8)
+    else if (pad.lookX || pad.lookY) {
+      iso.screenToGround(pad.lookX, -pad.lookY, rangeAim)
+      range.aimToward(rangeAim.x, rangeAim.z)
+    }
+    if (pad.cancel) range.stop()
     return pad
   }
   if (fishing.active) {
@@ -3537,6 +3616,8 @@ canvas.addEventListener('mousedown', (e) => {
 canvas.addEventListener('pointerdown', (e) => {
   // Sur un terrain de sport, ou canne en main, le pointeur vise et tire (cf. plus bas) : la vue ne tourne pas.
   if (court.active || fishing.active) return
+  // Au stand de tir aussi ; au doigt, en vue subjective, on tourne encore le regard.
+  if (range.active && (e.pointerType === 'mouse' || !fpsShown)) return
   // Vue subjective à la souris : le curseur est capturé sur la mire (cf. lockCursor).
   if (fpsShown && e.pointerType === 'mouse') return
   // Au doigt, la scène entière devient le stick de caméra. Le joystick de marche capture un
@@ -3604,7 +3685,7 @@ canvas.addEventListener('pointerdown', (e) => {
     return
   }
   // En vue subjective, sur un terrain ou canne en main, le premier doigt garde la main.
-  if (fingers.size !== 2 || fpsShown || court.active || fishing.active) return
+  if (fingers.size !== 2 || fpsShown || court.active || fishing.active || range.active) return
   freeLook = null
   if (editTouch?.started) activeEditor()?.pointerCancel()
   editTouch = null
@@ -3692,8 +3773,10 @@ canvas.addEventListener('pointermove', (e) => {
   if (court.active) court.aimAt(activeCamera(), e.clientX, e.clientY)
   // À l'étang, le pointeur choisit où lancer.
   else if (fishing.active) fishing.aimAt(activeCamera(), e.clientX, e.clientY)
+  // Au stand de tir, vu de dessus, il donne le point visé.
+  else if (range.active) range.aimAt(e.clientX, e.clientY)
 })
-for (const type of ['pointerup', 'pointercancel'] as const) addEventListener(type, () => court.release())
+for (const type of ['pointerup', 'pointercancel'] as const) addEventListener(type, () => { court.release(); range.trigger(false) })
 canvas.addEventListener('pointerdown', (e) => {
   if (court.active) {
     if (e.button !== 0) return
@@ -3704,6 +3787,15 @@ canvas.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return
     fishing.aimAt(activeCamera(), e.clientX, e.clientY)
     return fishing.press()
+  }
+  if (range.active) {
+    if (e.button !== 0) return
+    // Vue subjective à la souris : le premier clic capture le curseur, les suivants tirent.
+    if (fpsShown && e.pointerType === 'mouse' && !cursorLocked() && !lockUnavailable()) return lockCursor()
+    // Au doigt, en vue subjective, la scène tourne le regard : c'est le bouton d'action qui tire.
+    if (fpsShown && e.pointerType !== 'mouse') return
+    range.aimAt(e.clientX, e.clientY)
+    return range.trigger(true)
   }
   if (fpsShown && e.pointerType === 'mouse') {
     // Premier clic : le curseur est capturé ; ensuite, le clic gauche vise ce qui est sous la mire.
@@ -3827,7 +3919,7 @@ const fpsBottom = () => innerHeight - 130
 
 function click(e: PointerEvent, at: { clientX: number; clientY: number } = e) {
   // Caché dans un casier, capturé, derrière les caméras : le clic ne fait rien.
-  if (riding || gym.active || court.active || fishBusy() || quiz.isOpen || zone.frozen) return
+  if (riding || gym.active || court.active || range.active || fishBusy() || quiz.isOpen || zone.frozen) return
   if (editing()) {
     // Objet glissé jusque sous le catalogue : il le relâche quand même dans le mode aménagement.
     try {
@@ -3951,7 +4043,7 @@ function hiddenRestrictedItem(item: Interactable): boolean {
 function tryInteract() {
   // Bugenhagen parle : on passe à la phrase suivante.
   if (planetarium.talking) return planetarium.next()
-  if (gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return
+  if (gym.active || court.active || range.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return
   const item = nearestInteractable()
   if (item) interactWith(item)
 }
@@ -4806,6 +4898,8 @@ function frame() {
   if (court.active && deck.def.id !== 1) court.stop()
   court.update(dt)
   if (court.active) player.setHeading(court.heading)
+  // Le stand de tir : on rend l'arme en quittant la pièce (ou la cale).
+  if (range.active && (deck !== holdDeck || !range.contains(player.position))) range.stop()
   if (fishing.active && deck.def.id !== FISHING_LEVEL) fishing.stop()
   fishing.update(dt)
   if (fishing.active) player.setHeading(fishing.heading)
@@ -4863,7 +4957,7 @@ function frame() {
   }
   // Mode photo, instant figé : personnages, meubles et étoiles s'arrêtent ; la caméra, non.
   const world = photo.frozen ? 0 : dt
-  if (!editing() && !photo.active) processHover()
+  if (!editing() && !photo.active && !range.active) processHover()
   // Mire sur un objet utilisable : elle s'allume.
   crosshair.classList.toggle('aim', fpsShown && cursorLocked() && !!pick(screenCenter()).item)
   player.update(world, input, zone.sprint(touchRun || autoSprint !== (pad.sprint || keys.has('ShiftLeft') || keys.has('ShiftRight'))))
@@ -4933,6 +5027,8 @@ function frame() {
   // Mode aménagement : le joueur au milieu de la zone que le catalogue laisse visible.
   if (editing()) activeEditor()!.frameCamera()
   else if (coarsePointer && wardrobe.isOpen) iso.frameCenter((innerWidth - $('wardrobe').getBoundingClientRect().left) / 2, 0, innerHeight)
+  // Au stand de tir, le personnage en bas de l'écran : les cibles sont devant lui.
+  else if (range.active) iso.frameCenter(0, -innerHeight * 0.1, innerHeight)
   else iso.frameCenter(0, 0, innerHeight)
   const cinemaSeat = deck.def.id === 1 && ['cinema-row', 'projection-chair'].includes(seating.current?.item.furniture?.model ?? '')
   if (cinemaSeat) cinemaFocus.set(cinemaScreenProp.x, deck.y, (player.position.z + cinemaScreenProp.z) / 2)
@@ -4969,6 +5065,15 @@ function frame() {
     fps.toCamera(toCam)
   } else iso.toCamera(toCam)
   player.avatar.root.visible = !fpsShown || fps.showsBody
+  if (range.active) {
+    range.update(dt, {
+      fps: fpsShown, body: !fpsShown || fps.showsBody, camera: activeCamera(), player: player.position, hands: player.avatar.hands(rangeHands),
+      moving: input.lengthSq() > 0, look: (dYaw, dPitch) => fps.look(dYaw, dPitch),
+    })
+    // Le personnage fait face à ce qu'il vise, même quand il marche de côté.
+    player.setHeading(range.heading)
+    player.root.rotation.y = range.heading
+  }
   drawMinimap()
   document.body.classList.toggle('camera-rotating', !fpsShown && iso.rotating)
 
@@ -5081,7 +5186,7 @@ function frame() {
   // Invite « E » au-dessus de l'objet le plus proche ; installé sur un meuble, au-dessus du
   // personnage : se relever (et ce que permet la place).
   const sitting = seating.settled && !gym.active && !riding && !editing() && !barPanel.isOpen
-  const near = gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen ? null : nearestInteractable()
+  const near = gym.active || court.active || range.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen ? null : nearestInteractable()
   const sit = sitting ? seatPrompt(seating.current!) : null
   const label = sit ? `${sit.main}|${sit.space ?? ''}` : near?.label
   promptEl.querySelector('kbd')!.textContent = usingGamepad ? 'A / ×' : 'E'
@@ -5255,6 +5360,7 @@ checkLook()
 // Les records des bornes, pour leurs écrans (« HI 12340 »).
 void fetchRecords()
 for (const id of Object.keys(SPORT_COURTS) as CourtId[]) void fetchBoard(id)
+void fetchBoard(RANGE_ID)
 updateNetStatus()
 updateIdentity()
 frame()
@@ -5264,6 +5370,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, profile, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, garden, gardenView, gardenMode, gardenPanel, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt, fishing, fishBook, fishCollection, startFishing, quiz, openQuiz },
+    __game: { renderer, sound, player, profile, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, garden, gardenView, gardenMode, gardenPanel, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt, range, startRange, fishing, fishBook, fishCollection, startFishing, quiz, openQuiz },
   })
 }

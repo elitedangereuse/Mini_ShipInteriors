@@ -1,4 +1,4 @@
-import { COURT_IDS, courtBoards, isGameId, records, sportRecords, SPORT_IDS, type CourtId, type GameId, type SportId } from './game'
+import { COURT_IDS, courtBoards, isGameId, RANGE_ID, records, sportRecords, SPORT_IDS, type BoardId, type GameId, type SportId } from './game'
 
 /*
  * Tableaux des scores, gardés par le site (outils/mini-shipinteriors-scores.php, table
@@ -7,7 +7,7 @@ import { COURT_IDS, courtBoards, isGameId, records, sportRecords, SPORT_IDS, typ
  * aussi gardé dans le navigateur (celui d'un invité ne vit que là).
  */
 
-export type ScoreGame = GameId | SportId | CourtId
+export type ScoreGame = GameId | SportId | BoardId
 
 /** Retient le record d'un jeu ou d'un appareil, pour les écrans du vaisseau. */
 function keepRecord(game: string, row: { cmdr: string; score: number }) {
@@ -16,9 +16,9 @@ function keepRecord(game: string, row: { cmdr: string; score: number }) {
   else if ((SPORT_IDS as readonly string[]).includes(game)) sportRecords[game as SportId] = best
 }
 
-/** Retient le haut du tableau d'un terrain de sport, pour l'écran de sa salle. */
+/** Retient le haut du tableau d'un terrain de sport ou du stand de tir, pour l'écran de sa salle. */
 function keepCourt(game: string, b: Board) {
-  if ((COURT_IDS as readonly string[]).includes(game)) courtBoards[game as CourtId] = b.top.slice(0, 5).map((r) => ({ cmdr: r.cmdr, score: r.score }))
+  if ((COURT_IDS as readonly string[]).includes(game) || game === RANGE_ID) courtBoards[game as BoardId] = b.top.slice(0, 5).map((r) => ({ cmdr: r.cmdr, score: r.score }))
 }
 
 const SCORES_URL = import.meta.env.VITE_ED_SCORES_URL || '/outils/mini-shipinteriors-scores.php'

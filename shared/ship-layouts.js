@@ -15,9 +15,10 @@ export const SHIP_LAYOUTS = {
   // l'alcôve de la porte blindée et, derrière ses vitres, le poste de sécurité de la zone ('t',
   // verrouillé) ; au sud, le vestiaire et la table de briefing. Collé à lui, le hangar du Krait,
   // ouvert sur l'espace à la proue. Au-dessus de la salle des machines, au bout d'un couloir de
-  // service qui part du palier, le Zorb, la boîte de nuit des aliens ('n', cf. CLUB_ROOM).
+  // service qui part du palier, le Zorb, la boîte de nuit des aliens ('n', cf. CLUB_ROOM). Au nord
+  // du palier, à la place de l'ancienne baie de réparation, le stand de tir ('r', cf. SHOOTING_RANGE).
   '-1': [
-    'nnnnuuu             ttthhhkkkkkkkkkkkk  ',
+    'nnnnuuu     rrrrr   ttthhhkkkkkkkkkkkk  ',
     'nnn+uuuuuuu rrrrr   ttthhhkkkkkkkkkkkk  ',
     'nnnnaaaa  u rrrrrgg hhhhhhkkkkkkkkkkkk  ',
     'eeeeaaaa  + rrrrr+g hhhhhhkkkkkkkkkkkk  ',
@@ -216,6 +217,13 @@ export const SPORT_COURTS = {
   'gym-basket': { level: 1, room: 'b', spot: { x: 20.4, z: 12.5 }, wall: 15.65, center: 12.5 },
   'gym-foot': { level: 1, room: 'f', spot: { x: 27.6, z: 12.5 }, wall: 22.65, center: 12.5 },
 }
+
+/**
+ * Stand de tir de la cale (cf. src/range.ts) : la pièce, les faces intérieures de ses murs, et le
+ * pas de tir, un comptoir qui la traverse d'est en ouest (son axe : `line`). On tire vers le nord ;
+ * les cibles sortent entre le comptoir et le mur du fond.
+ */
+export const SHOOTING_RANGE = { level: -1, room: 'r', minX: 11.65, maxX: 16.35, minZ: -0.35, maxZ: 4.35, line: 2.3 }
 
 /** Tables de jeux de plateau (pont principal), par jeu : une table par jeu. */
 export const BOARD_TABLES = {

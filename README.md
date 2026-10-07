@@ -41,6 +41,7 @@
 - [Le jardinage](#le-jardinage)
 - [Le planétarium](#le-planétarium)
 - [La zone sportive](#la-zone-sportive)
+- [Le stand de tir](#le-stand-de-tir)
 - [La base au sol](#la-base-au-sol)
 - [Lancer en local](#lancer-en-local)
 - [Commandes](#commandes)
@@ -94,7 +95,7 @@ On se réveille dans ses quartiers, sur le pont des quartiers, à deux pas du Ho
 | **Quartiers** · chacun chez soi | *cozy*, dans une bulle ouverte sur l'espace | le palier de l'ascenseur, et derrière sa porte la **parcelle** de chaque joueur, [bâtie et meublée par lui](#quartiers-personnalisables) (au départ : ses quartiers d'origine, avec grand lit, cheminée holographique, canapé, aquarium, bureau, bibliothèque, casier à combinaisons, **Holo-Me**) |
 | **Pont supérieur** · la vie à bord | *cozy* : crème et bois miel, tissus, plantes, lumière chaude, pas feutrés | **planétarium** de Bugenhagen, à la place des anciens quartiers du commandant (cf. [Le planétarium](#le-planétarium)), cabines d'équipage (vidées, elles aussi attendent leur emploi), **toilettes** (trois cabines dont la porte se referme sur l'occupant : on ne le voit plus du dehors, et lui ne voit plus personne), grande **serre hydroponique** tout en verre, prolongée au sud par le **jardin exotique** et son étang où l'on pêche, et Capucine, la jardinière (cf. [La serre](#la-serre)), salon d'écoute (fauteuils et poufs tournés vers la vitre du studio), studio de Radio Dangereuse (trois micros, néon « ON AIR »), **foyer** (le couloir du cinéma, après le salon d'écoute : tapis rouge, films à l'affiche, porte double capitonnée de rouge), cinéma, et au sud du foyer la **zone sportive** : un hall, le **terrain de basket** et le **terrain de foot** (cf. [La zone sportive](#la-zone-sportive)), coursive |
 | **Pont principal** | la station d'origine, mobilier aux couleurs d'Elite | **poste de pilotage** à la proue, sous verrières (siège du pilote et HOTAS face au tableau de bord, postes du navigateur et du copilote, fauteuil du commandant, scanner, panneaux holographiques, carte galactique), salles de LJPC, de La Voie et du Mini-CQC (en travaux), **salle commune** à la poupe, le hall du vaisseau façon station Coriolis (cf. [La salle commune](#la-salle-commune)), **infirmerie** de Betty, l'infirmière (trois lits en box, scanner corporel, poste de soins, quarantaine ; cf. [L'infirmerie](#linfirmerie)), **salle de sport**, grand **salon d'arcade** (deux rangées de bornes, dont cinq jouables : Cargaison, Viper, Astéroïdes, Thargoid Invaders, Ruelle Fighter II ; un flipper, une pince à peluches, les tables de dames, de Puissance 4 et d'échecs, un coin salon sur des tapis colorés), **mess**, un self avec sa cuisine et son chef (cf. [Le mess](#le-mess)), coursive |
-| **Cale** | *brute* : acier noirci et rouillé, jaune de chantier, lumière sodium, néons qui grésillent | **lobby de la zone thargoïde** (terminal de mission, poste de sécurité vitré d'Odile, la contrôleuse, alcôve de la porte blindée et son portique de décontamination, mur des caméras de surveillance, table de briefing au plan holographique, vestiaire, classement), et derrière lui le **hangar** : un Krait Mk II sur son pad, face au bouclier bleu qui ouvre le hangar sur l'espace, et Nico, le mécano (cf. [Le hangar](#le-hangar)), **atelier** (établis, poste de soudure, établi d'ingénieur, ferraille), **baie de réparation** (SRV Scarab sur pont élévateur, bras robotisé qui soude, AFMU), **raffinerie** (fusion, tapis roulant de minerai, cristaux, drones collecteurs, laser minier), soute, palier de l'ascenseur ; au fond de la soute, **Chez Jacques**, le bar clandestin, plus soigné que le reste (arrière-bar chargé de bouteilles sous son enseigne au néon, comptoir capitonné et tabourets, tables de bistro, banquette, son propre jukebox) où sert **Jacques**, un robot barman à béret et nœud papillon qui essuie les verres, secoue le shaker et fait des clins d'œil ; au-dessus de la salle des machines, au bout d'un **couloir de service** qui part du palier, **le Zorb**, la boîte de nuit des aliens (cf. [Le Zorb](#le-zorb)) |
+| **Cale** | *brute* : acier noirci et rouillé, jaune de chantier, lumière sodium, néons qui grésillent | **lobby de la zone thargoïde** (terminal de mission, poste de sécurité vitré d'Odile, la contrôleuse, alcôve de la porte blindée et son portique de décontamination, mur des caméras de surveillance, table de briefing au plan holographique, vestiaire, classement), et derrière lui le **hangar** : un Krait Mk II sur son pad, face au bouclier bleu qui ouvre le hangar sur l'espace, et Nico, le mécano (cf. [Le hangar](#le-hangar)), **atelier** (établis, poste de soudure, établi d'ingénieur, ferraille), **stand de tir**, à la place de l'ancienne baie de réparation (pas de tir, couloir des cibles, râtelier d'armes, cf. [Le stand de tir](#le-stand-de-tir)), **raffinerie** (fusion, tapis roulant de minerai, cristaux, drones collecteurs, laser minier), soute, palier de l'ascenseur ; au fond de la soute, **Chez Jacques**, le bar clandestin, plus soigné que le reste (arrière-bar chargé de bouteilles sous son enseigne au néon, comptoir capitonné et tabourets, tables de bistro, banquette, son propre jukebox) où sert **Jacques**, un robot barman à béret et nœud papillon qui essuie les verres, secoue le shaker et fait des clins d'œil ; au-dessus de la salle des machines, au bout d'un **couloir de service** qui part du palier, **le Zorb**, la boîte de nuit des aliens (cf. [Le Zorb](#le-zorb)) |
 
 ### Pont supérieur · les quartiers
 
@@ -122,12 +123,12 @@ On se réveille dans ses quartiers, sur le pont des quartiers, à deux pas du Ho
 ### Cale
 
 <p align="center">
-  <img src="docs/images/cale.jpg" alt="Vue d'ensemble de la cale : atelier, palier de l'ascenseur, baie de réparation, raffinerie et soute" width="100%">
+  <img src="docs/images/cale.jpg" alt="Vue d'ensemble de la cale : atelier, palier de l'ascenseur, raffinerie et soute (le stand de tir a depuis remplacé la baie de réparation)" width="100%">
 </p>
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/reparation.jpg" alt="La baie de réparation avec le SRV Scarab et le bras robotisé"><br><sub><b>Baie de réparation</b> : le SRV Scarab sur son pont élévateur, le bras robotisé qui soude.</sub></td>
+    <td width="50%"><img src="docs/images/stand-de-tir.jpg" alt="Le stand de tir vu de dessus : le pas de tir, le laser de visée, les cibles dans leur couloir"><br><sub><b>Stand de tir</b> : le pas de tir, le laser de visée, les cibles dans leur couloir.</sub></td>
     <td width="50%"><img src="docs/images/atelier.jpg" alt="L'atelier : établis, poste de soudure, établi d'ingénieur"><br><sub><b>Atelier</b> : établis, poste de soudure, établi d'ingénieur, ferraille.</sub></td>
   </tr>
 </table>
@@ -483,9 +484,9 @@ Des incidents apparaissent aux quatre coins du vaisseau, hors des quartiers : un
 | Ranger des drones collecteurs | raffinerie | 700 CR | 2,2 s |
 | Recalibrer une console | salle des machines, poste de pilotage | 800 CR | 2,5 s |
 | Changer le filtre du support vital | salle des machines | 900 CR | 2,5 s |
-| Resserrer une vanne qui fuit | baie de réparation, raffinerie, salle des machines, cabines d'équipage | 900 CR | 2,5 s |
+| Resserrer une vanne qui fuit | raffinerie, salle des machines, cabines d'équipage | 900 CR | 2,5 s |
 | Réparer un panneau électrique | atelier, soute, coursive, toilettes | 1 100 CR | 3 s |
-| Colmater une brèche dans la coque | baie de réparation, salle des machines, poste de pilotage | 1 500 CR | 3,5 s |
+| Colmater une brèche dans la coque | salle des machines, poste de pilotage | 1 500 CR | 3,5 s |
 
 Leur calendrier ne dépend que de l'heure (`src/economy/schedule.ts`) : tous les joueurs voient les mêmes tâches aux mêmes endroits, sans que le relais ni le site aient à les annoncer. Chacun des 35 emplacements découpe le temps en apparitions de 8 à 30 minutes selon la tâche, décalées d'un emplacement à l'autre ; chaque apparition a une tâche avec la probabilité de sa sorte (de 30 à 50 %), tirée d'un hachage de l'emplacement et du numéro d'apparition. Une quinzaine de tâches attendent ainsi à bord à tout moment. Le site refait le même calcul (même hachage, testé des deux côtés) : il sait si une tâche qu'on lui dit réglée était bien là, et ne la paie qu'une fois par apparition et par CMDR. L'heure du site, donnée à chaque réponse, cale celle du jeu.
 
@@ -620,6 +621,33 @@ Une musique accompagne chaque jeu (deux boucles du pack Music Loops de Kenney, C
 Les ballons, les rebonds (cercle, planche, poteaux, sol, murs, plafond) et le décompte des points sont dans `CourtPhysics`, sans affichage : on peut rejouer des tirs hors du navigateur pour régler la jauge. Tout se joue chez le joueur : les autres le voient sur sa marque, pas ses ballons, et la cible ne bouge que pour lui.
 
 **Scores.** Chaque terrain a son jeu (`gym-basket`, `gym-foot`) dans la table des scores du site : record local pour un invité ; meilleur score, classement et paliers de crédits (cf. `arcade.tiers` dans `economy.json`) pour un CMDR, sans prime de record d'arcade. Le site écarte un score qui dépasse 130 points par seconde. Dans chaque salle, un écran affiche les cinq meilleurs et ouvre le classement complet (`?rankings=basket` ou `foot`).
+
+## Le stand de tir
+
+Dans la cale, à la place de l'ancienne baie de réparation (pièce `r`, agrandie d'une rangée vers le nord : `SHOOTING_RANGE` dans `shared/ship-layouts.js`). Un comptoir, le **pas de tir**, traverse la pièce ; on tire vers le nord, où les cibles sortent du sol sur trois rangées, devant un pare-balles. Aucune tâche de bord n'apparaît dans le stand. Le mobilier est dans `src/furniture/range.ts`, le jeu dans `src/range.ts` ; armes, cibles et éclats viennent du Blaster Kit de Kenney (`scripts/import-kenney-blaster.mjs`).
+
+**Le jeu.** On prend une arme au râtelier du mur sud. On reste libre de ses mouvements derrière le comptoir ; quitter la pièce (ou `Échap`) rend l'arme. **Pas de visée automatique** : la balle part là où l'on vise. Les balles sont de vrais projectiles, très rapides, qui laissent une fine traînée d'une demi-seconde ; une cible touchée éclate en morceaux, une balle perdue fait des étincelles et marque le mur. Le jeu se joue dans les deux vues, et `V` passe de l'une à l'autre en pleine partie :
+
+| | Vue subjective | Vue de dessus |
+|---|---|---|
+| Viser | la souris tourne le regard (curseur capturé), la mire est au centre | le personnage se tourne vers le curseur ; un **laser** rouge montre la ligne de tir jusqu'au premier obstacle |
+| Caméra | dans les yeux ; l'arme est à l'écran | la vue isométrique, relevée et rapprochée, tournée vers les cibles (elle reprend son cap et son zoom à la fin) |
+| Sensations | l'arme recule, le regard se cabre puis revient, la vue tremble, le champ s'ouvre un instant, éclair au canon | secousse de la vue, éclair au canon, l'arme tenue à deux mains |
+| Cibles | à des hauteurs variées | toutes à hauteur du laser (`AIM_Y`) : ce que le curseur recouvre est ce qu'on touche |
+
+Au clavier : clic (ou `Espace`) pour tirer, `R` recharge, `1` `2` `3` changent d'arme, `C` et `X` changent le **viseur** (six motifs, sept couleurs, retenus dans le navigateur ; deux boutons du HUD font de même). À la manette : `A` ou la gâchette droite tire, le stick droit vise. Au doigt : toucher pour viser et tirer en vue de dessus ; en vue subjective, glisser tourne le regard et le bouton d'action tire.
+
+| Arme | Tir | Chargeur | Particularité |
+|---|---|---|---|
+| Pistolet | coup par coup, rapide | 12 | précis, recul modéré |
+| Mitraillette | automatique | 30 | légère dispersion |
+| Fusil | lent | 5 | la balle traverse les cibles ; fort recul |
+
+**Manche.** Le chrono (40 s) part **au premier tir**. Une cible vaut 100 points (150 pour une petite), 50 de plus en **plein centre**, et 10 par cible touchée d'affilée (jusqu'à 100) : un tir qui ne touche rien casse la série. Les **paliers** (1 000, 3 000, 6 000, 10 000… : `rangeTier`) rendent chacun 6 s, et durcissent le stand (`rangeLevel`) : plus de cibles à la fois, plus petites, mobiles, et qui rentrent plus vite.
+
+Tout se joue chez le joueur : les autres le voient bouger et se tourner, pas ses tirs.
+
+**Scores.** Le jeu `gym-range` s'inscrit dans la table des scores du site comme les terrains de sport : record local pour un invité ; meilleur score, classement et paliers de crédits (`arcade.tiers` dans `economy.json`) pour un CMDR, sans prime de record d'arcade. Le site écarte un score qui dépasse 750 points par seconde (2,5 cibles par seconde au plus, 300 points chacune). L'écran du mur ouest affiche les cinq meilleurs et ouvre le classement complet (`?rankings=range`).
 
 ## La base au sol
 
@@ -877,6 +905,7 @@ Les bips, les mélodies d'arcade, les étincelles, le miaulement, le ronronnemen
 | `shared/sight.js` | Ligne de vue sur un plan : l'invite, `E` et le relais (tables de jeux, jukebox) refusent un objet derrière un mur ; tests dans `server/sight.test.js`. |
 | `shared/twitch-irc.js` | Chat Twitch du cinéma : découpe des lignes IRC reçues (auteur, couleur, emotes, « /me », modération) ; tests dans `server/twitch-irc.test.js`. |
 | `src/twitch-chat.ts` | Chat flottant du direct Twitch dans le cinéma : lecture anonyme, liaison du compte Twitch et envoi des messages par le site. |
+| `src/range.ts` | Stand de tir de la cale : armes, balles et traînées, cibles, recul et secousses, viseur, paliers, inscription du score ; plan vérifié dans `server/range.test.js`. |
 | `src/court.ts` | Mini-jeux de la zone sportive (tirs au panier, tirs au but) : visée, jauge de force, trajectoire et rebonds des ballons (`CourtPhysics`), paliers, compte à rebours, inscription du score. |
 | `src/deck.ts` · `src/merge.ts` | Construit un pont : sols, murs sur les arêtes, hublots, poteaux, portes automatiques, meubles, ascenseur, réacteur, tuyères. Fusion de géométrie et fondu tramé (`merge.ts`, partagé avec les quartiers). |
 | `src/cabin/` | **Quartiers personnalisables** : catalogue des objets (`catalog.ts`, et ses compléments `catalog-home.ts`, `catalog-ship.ts`, `catalog-fun.ts`), revêtements des murs et du sol (`finishes.ts`), cloisons (`partitions.ts`, et `shared/cabin-partitions.js`), aménagement et sa normalisation (`layout.ts`), construction et fusion dans le pont (`view.ts`), règles de pose (`rules.ts`), mode aménagement (`editor.ts`), vignettes (`thumbs.ts`), barre des quartiers et invitations (`hud.ts`), enregistrement sur le site (`storage.ts`). |

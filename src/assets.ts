@@ -59,6 +59,12 @@ export const FISH_PACK = 'fish/quaternius-fish.glb'
  */
 export const CUTE_FISH_PACK = 'fish/quaternius-cute-fish.glb'
 
+/**
+ * Armes et cibles du Blaster Kit (Kenney, CC0), en un fichier de même forme : le stand de tir de la
+ * cale (cf. scripts/import-kenney-blaster.mjs, src/furniture/range.ts et src/range.ts).
+ */
+export const BLASTER_PACK = 'furniture/kenney-blaster.glb'
+
 /** Tous les modèles du kit utilisent la même texture : un seul matériau partagé. */
 export let stationMaterial: THREE.MeshLambertMaterial
 
@@ -205,7 +211,7 @@ function load(path: string): Promise<GLTF> {
 
 /** @param extra modèles supplémentaires à charger d'emblée (personnage du joueur…) */
 export async function preload(extra: string[], onProgress: (ratio: number) => void): Promise<void> {
-  const paths = [...STATION_MODELS.map((m) => `station/${m}.glb`), ...extra, CAT_MODEL, FURNITURE_PACK, NATURE_PACK, OUTDOOR_PACK, FISH_PACK, CUTE_FISH_PACK]
+  const paths = [...STATION_MODELS.map((m) => `station/${m}.glb`), ...extra, CAT_MODEL, FURNITURE_PACK, NATURE_PACK, OUTDOOR_PACK, FISH_PACK, CUTE_FISH_PACK, BLASTER_PACK]
   let done = 0
   await Promise.all(
     paths.map(async (p) => {

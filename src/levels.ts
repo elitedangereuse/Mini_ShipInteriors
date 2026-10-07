@@ -6,7 +6,7 @@ import type { GroundDef } from './base/kit'
 import type { CabinDef } from './cabin/view'
 import type { CustomModel } from './furniture'
 import { tr } from './i18n'
-import { BOARD_TABLES, SHIP_LAYOUTS, SPORT_COURTS } from '../shared/ship-layouts.js'
+import { BOARD_TABLES, SHIP_LAYOUTS, SHOOTING_RANGE, SPORT_COURTS } from '../shared/ship-layouts.js'
 import { HOUSING_LEVEL, LANDING_ROOM, PLOT_DOOR, PLOT_ORIGIN, PLOT_ROOM } from '../shared/housing-plot.js'
 import { PILOT_SEAT } from '../shared/systems.js'
 import { FISHING_DOCK, FISHING_FEED, FISHING_POND } from '../shared/fishing.js'
@@ -207,7 +207,7 @@ export const QUARTERS_DECK: LevelDef = {
 }
 
 export const LEVELS: LevelDef[] = [
-  // ======================================================== Cale : minage, bricolage, réparation, un bar clandestin réservé à ses habitués, et une boîte de nuit d'aliens
+  // ======================================================== Cale : minage, bricolage, stand de tir, un bar clandestin réservé à ses habitués, et une boîte de nuit d'aliens
   {
     id: -1,
     name: tr('Cale', 'Hold'),
@@ -217,7 +217,7 @@ export const LEVELS: LevelDef[] = [
     rooms: {
       a: tr('Atelier', 'Workshop'),
       j: tr('Palier de la cale', 'Hold landing'),
-      r: tr('Baie de réparation', 'Repair bay'),
+      r: tr('Stand de tir', 'Shooting range'),
       m: tr('Raffinerie', 'Refinery'),
       g: tr('Soute', 'Cargo bay'),
       // Le nom du bar ne se traduit pas.
@@ -256,7 +256,7 @@ export const LEVELS: LevelDef[] = [
     },
     // Le bar est tenu plus proprement que le reste de la cale : dalles lisses, pas un hublot.
     floors: { u: 'floor-panel', a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', h: 'floor-panel', k: 'floor-panel', t: 'floor-panel' },
-    windows: { n: 0, u: 0, a: 0.1, j: 0, r: 0.12, m: 0, g: 0.1, b: 0, h: 0, e: 0, v: 0, k: 0.15, t: 0 },
+    windows: { n: 0, u: 0, a: 0.1, j: 0, r: 0, m: 0, g: 0.1, b: 0, h: 0, e: 0, v: 0, k: 0.15, t: 0 },
     // Le poste de sécurité du lobby : des vitres blindées côté lobby (sa porte reste verrouillée).
     glazed: ['ht'],
     // Le hangar s'ouvre sur l'espace à la proue : son mur est est un bouclier (cf. src/shield.ts).
@@ -531,32 +531,28 @@ export const LEVELS: LevelDef[] = [
       { model: 'cables', x: 5.7, z: 5.6, solid: false },
       { model: 'stain', x: 5.1, z: 3.1, solid: false },
 
-      // --- Baie de réparation : le SRV sur son pont élévateur ---
-      { model: 'repair-lift', x: 13.6, z: 2.15 },
+      // --- Stand de tir, à la place de l'ancienne baie de réparation (cf. src/range.ts, SHOOTING_RANGE) :
+      // on prend une arme au râtelier du mur sud, on tire vers le nord par-dessus le comptoir. Pas
+      // de tâche de bord ici (cf. economy.json) ---
+      { model: 'range-lane', x: 14, z: SHOOTING_RANGE.minZ, solid: false },
       {
-        model: 'srv', x: 13.6, z: 2.15, y: 0.13, rot: 1,
-        interact: tr(
-          'SRV Scarab sur le pont élévateur : suspension réparée, pare-chocs toujours tordu. Et toujours pas de ceinture.',
-          'SRV Scarab on the hoist: suspension repaired, bumper still bent. And still no seatbelt.',
-        ),
+        model: 'range-counter', x: 14, z: SHOOTING_RANGE.line,
+        interact: [
+          tr('Pas de tir. Sur le comptoir, gravé au couteau : « Les armes restent pointées vers les cibles. Même pour rire. Surtout pour rire. »', 'Firing line. Carved into the counter with a knife: “Weapons stay pointed at the targets. Even as a joke. Especially as a joke.”'),
+          tr('Règlement du stand : 1. On ne vise pas l\'équipage. 2. On ne vise pas Comète. 3. Les réservoirs d\'hydrogène sont de l\'autre côté du mur : on vise bien.', 'Range rules: 1. Do not aim at the crew. 2. Do not aim at Comète. 3. The hydrogen tanks are on the other side of that wall: aim well.'),
+        ],
       },
       {
-        model: 'robot-arm', x: 15.15, z: 1.25, rot: 3,
-        interact: tr(
-          'Bras de maintenance : soudure de la coque du SRV en cours. Garder ses distances.',
-          'Maintenance arm: welding the SRV\'s hull. Keep your distance.',
-        ),
+        model: 'range-rack', x: 13.5, z: SHOOTING_RANGE.maxZ, rot: 2, action: tr('Prendre une arme', 'Take a weapon'),
+        interact: tr('Le râtelier du stand : des blasters d\'entraînement, chargés à blanc. Enfin, presque.', 'The range\'s rack: training blasters, loaded with blanks. Well, nearly.'),
       },
+      { model: 'score-board', x: SHOOTING_RANGE.minX, z: 3.05, rot: 1, label: 'range', solid: false, interact: tr('Les meilleurs tireurs du bord', 'The ship\'s top marksmen'), action: tr('Consulter le classement', 'View rankings') },
       {
-        model: 'afmu', x: 16.05, z: 1.2,
-        interact: tr(
-          'AFMU : réparation des modules en cours. Rappel : elle ne répare pas la coque.',
-          'AFMU: module repairs in progress. Reminder: it does not repair the hull.',
-        ),
+        model: 'range-crate', x: 11.86, z: 3.05, rot: 1,
+        interact: tr('Caisse de munitions. Au pochoir, à moitié effacé : « BAIE DE RÉPARATION ». Le Scarab a été garé ailleurs ; personne ne sait plus où.', 'Ammunition crate. Stencilled, half worn off: “REPAIR BAY”. The Scarab was parked somewhere else; nobody remembers where.'),
       },
-      { model: 'tire-stack', x: 16.1, z: 2.35 },
-      { model: 'cables', x: 13.4, z: 3.55, solid: false },
-      { model: 'stain', x: 15.6, z: 3.3, solid: false },
+      { model: 'range-crate', x: 16.14, z: 4.02, rot: 3, label: 'medium' },
+      { model: 'stain', x: 15.2, z: 3.6, solid: false },
 
       // --- Raffinerie ---
       {
@@ -813,7 +809,9 @@ export const LEVELS: LevelDef[] = [
       [5.6, 3.1, '#ffb35c', 3],
       [5.6, 6.3, '#ffa24a', 2.4, 'neon'],
       [10, 5, '#ffd9a0', 1.6],
-      [14.3, 2.3, '#fff0d8', 3.2],
+      // Le stand de tir : le pas de tir, puis le couloir des cibles.
+      [14.3, 3.2, '#fff0d8', 2.8],
+      [14, 0.6, '#ffe6c0', 2.6],
       [14.3, 6.9, '#ff7a2a', 3, 'fire'],
       [17.9, 4.6, '#ffb060', 2.2, 'neon'],
       [12.4, 9.7, '#ffb45e', 3.4],

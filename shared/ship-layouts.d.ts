@@ -29,6 +29,9 @@ export declare function legacyUpperMapOptions(): import('./ship-map.js').ShipMap
 /** La porte du poste de sécurité du lobby (cale), toujours verrouillée. */
 export declare const SECURITY_DOOR: { x: number; z: number; dir: number; locked: true }
 
+/** Stand de tir de la cale : pièce, faces intérieures de ses murs, axe du pas de tir (on tire vers le nord). */
+export declare const SHOOTING_RANGE: { level: number; room: string; minX: number; maxX: number; minZ: number; maxZ: number; line: number }
+
 /** Tables de jeux de plateau (pont principal), par jeu. */
 export declare const BOARD_TABLES: Record<'draughts' | 'guardian-connect' | 'imperial-chess', { level: number; x: number; z: number }>
 

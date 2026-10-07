@@ -3418,6 +3418,45 @@ body:has(.cinema-room-overlay:not([hidden])) .twitch-chat { right: 372px; }
   .court-flash { font-size: 17px; }
 }
 
+/* Stand de tir de la cale (cf. src/range.ts) : le HUD des terrains de sport, plus l'arme, le chargeur et le viseur. */
+body.range-on #fps-crosshair { display: none; }
+body.range-top canvas { cursor: none; }
+.range-streak { display: block; min-height: 14px; color: #76f0c2; font-size: 11px; font-weight: 700; }
+.range-bar { position: absolute; left: 50%; bottom: max(86px, calc(env(safe-area-inset-bottom) + 86px)); transform: translateX(-50%); display: grid; grid-template-columns: auto auto auto; align-items: center; gap: 6px 16px; width: max-content; max-width: 92vw; padding: 8px 12px 9px; border: 1px solid #79c8dc; border-radius: 12px; background: #0b1724e0; }
+.range-slots { display: flex; gap: 6px; }
+.range-slot, .range-pick { pointer-events: auto; padding: 5px 9px; border: 1px solid #45647a; border-radius: 8px; background: #1a2c3c; color: #c8dbe6; font: 12px/1.2 system-ui, sans-serif; cursor: pointer; }
+.range-slot.on { border-color: #ffbd70; background: #3a2a18; color: #ffd9a8; }
+.range-ammo { justify-self: end; color: #ffbd70; font: 700 22px/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.range-ammo.low { color: #ff6b5e; }
+.range-reload { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: #24394a; overflow: hidden; }
+.range-reload-fill { width: 0; height: 100%; background: #ffd24a; }
+.range-sight { display: flex; align-items: center; gap: 6px; }
+.range-sight .court-label { display: inline; }
+.range-pick { min-width: 74px; }
+.range-color { min-width: 0; width: 28px; height: 24px; padding: 0; background: var(--range-reticle, #fff); }
+.range-bar .court-help { grid-column: 1 / -1; text-align: center; }
+.range-bar .court-help[hidden] { display: none; }
+.range-reticle { position: fixed; left: 0; top: 0; width: 0; height: 0; pointer-events: none; will-change: transform; }
+.range-reticle svg { position: absolute; left: -20px; top: -20px; width: 40px; height: 40px; overflow: visible; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.range-reticle .edge { stroke: #000a; stroke-width: 4.2; }
+.range-reticle .edge .fill { fill: #000a; }
+.range-reticle .ink { stroke: currentColor; stroke-width: 2; }
+.range-reticle .ink .fill { fill: currentColor; }
+/* Touche : quatre traits en croix autour du viseur, un instant. */
+.range-reticle .range-hit { stroke: #fff; stroke-width: 2.4; opacity: 0; transform: scale(1.5); transition: opacity .18s, transform .18s; }
+.range-reticle.hit .range-hit { opacity: 1; transform: scale(1); transition: none; }
+@media (max-width: 760px) {
+  .range-bar { grid-template-columns: auto auto; }
+  .range-bar .court-help, .range-sight .court-label { display: none; }
+  .range-sight { grid-row: 2; }
+  .range-ammo { font-size: 18px; }
+}
+/* Écran tactile en paysage : au-dessus du joystick et des boutons (cf. mobile.css). */
+@media (pointer: coarse) and (orientation: landscape) {
+  .range-bar { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 6px); max-width: calc(100vw - 300px); gap: 4px 10px; padding: 6px 10px; }
+  .range-bar .court-help { display: none; }
+}
+
 /* Interface de jeu tactile en paysage. Le navigateur conserve ses propres limites de plein écran. */
 #touch-pad, #mobile-fullscreen, .mobile-emotes-toggle { display: none; }
 #mobile-entry {
