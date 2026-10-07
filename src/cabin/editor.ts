@@ -6,6 +6,8 @@ import type { Wallet } from '../economy/wallet'
 import { RULES } from '../gardening/data'
 import type { GardenStore } from '../gardening/store'
 import { unlockHarvests } from '../../shared/gardening.js'
+import { QUEST_UNLOCKS } from '../../shared/quests.js'
+import { questContent } from '../quests/content'
 import { EN, tr } from '../i18n'
 import { icon } from '../icons'
 import type { Rot } from '../levels'
@@ -30,6 +32,7 @@ import { rotateLocal, type CabinView, type WallLine } from './view'
  *
  * Les objets payants se débloquent une fois en crédits (cf. economy/) et peuvent ensuite être
  * posés plusieurs fois. Le mobilier d'origine reste offert et disponible en quantité limitée.
+ * Quelques objets ne s'achètent pas : une quête du bord les offre (cf. shared/quests.js).
  */
 
 /** Pas de la grille de pose, et distance à laquelle un meuble se colle à un mur. */
@@ -457,6 +460,15 @@ export class CabinEditor {
     return Math.max(0, needed - (this.host.garden.garden.harvests ?? 0))
   }
 
+  /**
+   * Quête qui offre cet objet, s'il ne s'achète pas et que le CMDR ne l'a pas encore (cf.
+   * QUEST_UNLOCKS) ; null sinon.
+   */
+  private questFor(id: string): string | null {
+    const quest = QUEST_UNLOCKS[id]
+    return quest && !this.host.wallet.items.has(id) ? quest : null
+  }
+
   /** Étiquettes des cartes : déblocage, stock offert, ou prix (grisé si le solde est insuffisant). */
   private refreshCards() {
     const { wallet } = this.host
@@ -468,22 +480,28 @@ export class CabinEditor {
       // À gagner au jardinage : le nombre de récoltes demandé, à la place du prix.
       const needed = unlockHarvests(RULES, entry.id)
       const short = inStock ? 0 : this.harvestsShort(entry.id)
+      // À gagner par une quête : ni prix, ni achat.
+      const quest = inStock ? null : this.questFor(entry.id)
       tag.textContent = unlocked
         ? tr('Débloqué', 'Unlocked')
         : !Number.isFinite(stock)
           ? ''
           : inStock
             ? tr(`${stock} offert${stock > 1 ? 's' : ''}`, `${stock} free`)
+            : quest ? tr('Quête', 'Quest')
             : short ? tr(`${needed} récolte${needed > 1 ? 's' : ''}`, `${needed} harvest${needed > 1 ? 's' : ''}`)
               : price === null ? '' : formatCredits(price)
       tag.classList.toggle('stock', inStock)
       card.classList.toggle('garden-locked', short > 0)
-      card.classList.toggle('poor', short > 0 || (!inStock && !unlocked && wallet.ready && price !== null && price > wallet.balance))
+      card.classList.toggle('quest-locked', !!quest)
+      card.classList.toggle('poor', short > 0 || !!quest || (!inStock && !unlocked && wallet.ready && price !== null && price > wallet.balance))
       const mount = entry.mount === 'wall' ? tr(' (à accrocher)', ' (hangs on a wall)') : entry.mount === 'top' ? tr(' (se pose sur un meuble)', ' (goes on furniture)') : ''
       const state = unlocked
         ? tr(' · Débloqué : posez-en autant que vous voulez', ' · Unlocked: place as many as you like')
         : price === null || inStock
           ? price !== null ? tr(` · ${stock} exemplaire${stock > 1 ? 's' : ''} offert${stock > 1 ? 's' : ''} · déblocage ${formatCredits(price)}`, ` · ${stock} free ${stock === 1 ? 'copy' : 'copies'} · unlock ${formatCredits(price)}`) : ''
+          : quest
+            ? tr(' · Se gagne à bord, au bout d\'une quête', ' · Earned aboard, at the end of a quest')
           : short
             ? tr(` · Se gagne au jardinage : ${needed} récoltes (encore ${short})`, ` · Earned by gardening: ${needed} harvests (${short} to go)`)
             : tr(` · Débloquer pour ${formatCredits(price)}`, ` · Unlock for ${formatCredits(price)}`)
@@ -546,8 +564,16 @@ export class CabinEditor {
     note.className = 'eb-note'
     const short = wallet.ready && price > wallet.balance
     const needed = unlockHarvests(RULES, b.entry.id), harvests = this.harvestsShort(b.entry.id)
+    const quest = this.questFor(b.entry.id)
     if (b.error) {
       note.textContent = b.error
+      note.classList.add('error')
+    } else if (quest) {
+      // Le titre de la quête n'est dit que si elle est connue du jeu : c'est à bord qu'on la trouve.
+      const title = questContent(quest)?.title
+      note.textContent = title
+        ? tr(`Cet objet ne s'achète pas : il se gagne à bord, au bout de la quête « ${title} ».`, `This item can't be bought: it is earned aboard, at the end of the quest “${title}”.`)
+        : tr('Cet objet ne s\'achète pas : il se gagne à bord, au bout d\'une quête.', 'This item can\'t be bought: it is earned aboard, at the end of a quest.')
       note.classList.add('error')
     } else if (harvests) {
       const done = needed - harvests
@@ -574,7 +600,7 @@ export class CabinEditor {
     const buy = document.createElement('button')
     buy.className = 'eb-buy'
     buy.append(icon('lock-simple'), document.createTextNode(b.pending ? tr('Déblocage…', 'Unlocking…') : tr('Débloquer', 'Unlock')))
-    buy.disabled = b.pending || !wallet.ready || short || harvests > 0
+    buy.disabled = b.pending || !wallet.ready || short || harvests > 0 || !!quest
     buy.onclick = () => void this.confirmBuy()
     this.buyEl.append(head, note, buy)
   }
@@ -597,7 +623,8 @@ export class CabinEditor {
         max: tr('Cet objet est déjà débloqué.', 'This item is already unlocked.'),
         guest: tr('Achats réservés aux CMDR connectés au site.', 'Only CMDRs logged in to the site can buy.'),
         garden: tr('Il vous manque des récoltes : cet objet se gagne au jardinage.', 'You are short of harvests: this item is earned by gardening.'),
-      }[result.reason as 'funds' | 'max' | 'owned' | 'guest' | 'garden'] ?? tr('Déblocage non abouti : le site ne répond pas. Réessayez.', 'Unlock failed: the site isn\'t responding. Try again.')
+        quest: tr('Cet objet ne s\'achète pas : une quête du bord l\'offre.', 'This item can\'t be bought: a quest aboard awards it.'),
+      }[result.reason as 'funds' | 'max' | 'owned' | 'guest' | 'garden' | 'quest'] ?? tr('Déblocage non abouti : le site ne répond pas. Réessayez.', 'Unlock failed: the site isn\'t responding. Try again.')
       return this.renderBuy()
     }
     const price = itemPrice(b.entry.id) ?? 0

@@ -22,7 +22,7 @@ const CREDITS_URL = import.meta.env.VITE_ED_CREDITS_URL || '/outils/mini-shipint
 export type WalletState = 'loading' | 'guest' | 'ready' | 'offline'
 
 /** Pourquoi une demande n'a pas abouti. */
-export type Refusal = 'funds' | 'max' | 'owned' | 'garden' | 'claimed' | 'expired' | 'inactive' | 'early' | 'guest' | 'offline'
+export type Refusal = 'funds' | 'max' | 'owned' | 'garden' | 'quest' | 'claimed' | 'expired' | 'inactive' | 'early' | 'guest' | 'offline'
 
 export type Outcome = { ok: true; earned: number } | { ok: false; reason: Refusal }
 
@@ -267,7 +267,7 @@ export class Wallet {
 
   private refusal(reply: Reply | null): Refusal {
     if (!reply) return 'offline'
-    const known: Refusal[] = ['funds', 'max', 'owned', 'garden', 'claimed', 'expired', 'inactive', 'early']
+    const known: Refusal[] = ['funds', 'max', 'owned', 'garden', 'quest', 'claimed', 'expired', 'inactive', 'early']
     if (reply.error === 'auth') {
       this.state = 'guest'
       this.changed()

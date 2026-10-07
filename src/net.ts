@@ -418,6 +418,14 @@ export class Net {
     }
   }
 
+  /**
+   * Nos quêtes terminées (cf. shared/quests.js) : elles ouvrent des pièces. Pour un CMDR, le relais
+   * le redemande au site, qui fait foi ; il croit un invité, dont le journal reste dans son navigateur.
+   */
+  sendQuests(done: string[]) {
+    this.send('quests', { done })
+  }
+
   /** On parle au sergent : le relais arrête sa ronde pour tout le bord. */
   sendPatrolTalk() {
     this.send('patrol:talk', {})

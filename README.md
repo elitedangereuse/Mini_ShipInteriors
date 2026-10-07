@@ -33,6 +33,7 @@
 - [Mode photo](#mode-photo)
 - [Crédits](#crédits)
 - [Tâches de bord](#tâches-de-bord)
+- [Les quêtes](#les-quêtes)
 - [La salle commune](#la-salle-commune)
 - [Le mess](#le-mess)
 - [L'infirmerie](#linfirmerie)
@@ -70,6 +71,7 @@ Mini Interior est un POC : un vaisseau sur trois ponts, vu de dessus en isométr
 - **Jukebox** : neuf morceaux libres de droits et quatre albums de Ben Carter Jr, que tout le pont (ou toute la cabine) entend ensemble ; la piste de danse suit leur tempo quand il est établi, sinon celui de la soirée.
 - **Mode photo** : la scène sans l'interface, jusqu'en 4K, à télécharger.
 - **Crédits** : comme dans Elite, le CR débloque les meubles des quartiers et les apparences du Holo-Me. Un meuble débloqué peut être posé autant de fois que souhaité. On gagne des crédits à bord : un revenu passif, lent, les tâches et les records aux bornes d'arcade. Le site tient les comptes.
+- **Quêtes** : six petites histoires à suivre à bord, signalées par un « ! » jaune, racontées en mini-cinématiques et suivies dans un journal, sous le chat. Elles ouvrent la salle de sport, les deux terrains et le stand de tir (fermés tant que leur quête n'est pas terminée), et offrent un chien pour ses quartiers et une apparence du Holo-Me.
 - **Tâches de bord** : ordures, flaques, plantes à arroser, pannes, fuites, brèches dans la coque… douze sortes de petites tâches apparaissent un peu partout, les mêmes pour tous, et chacun peut les régler : une tâche réglée ne disparaît que pour celui qui l'a réglée.
 - **Des dizaines de meubles animés** : hologrammes, bras robotisé qui soude, aquarium, cheminée, pince à peluches…
 - **Son spatialisé** : pas, réacteur, bips des consoles, mélodies d'arcade, ronronnements, jukebox.
@@ -512,6 +514,41 @@ Leur calendrier ne dépend que de l'heure (`src/economy/schedule.ts`) : tous les
 
 Les emplacements sont notés à la main dans `economy.json`, mais le jeu vérifie chaque place avant d'y poser une tâche (`src/economy/placement.ts`) : au sol, dans une pièce ouverte (ni en travaux, ni dans les quartiers), à l'écart des murs, des meubles, des comptoirs, des portes et des affiches ; au mur, sur un pan lisse (ni porte, ni hublot, ni pilier) que rien ne masque ; sur un meuble (la vaisselle), seulement s'il est toujours là. Une place prise fait glisser la tâche à la plus proche qui convient, dans la même pièce, la même chez tous ; en dev, la console le signale, pour corriger `economy.json`.
 
+## Les quêtes
+
+De petites histoires à suivre à bord, seul ou à plusieurs (chacun avance dans son propre journal, mais tout le monde voit les mêmes personnages au même endroit). Ce qui en propose une porte un **« ! » jaune** : une porte condamnée, une gamelle, un mannequin affalé. On interagit, la scène se joue, et l'on choisit de la suivre ou non.
+
+**Le journal** est sous le chat : deux onglets de plus, « Quêtes » (`J`, ou `/quetes`) et « Terminées », dans le même habit que les messages ; sur un téléphone, un bouton au parchemin à côté de la bulle du chat. Chaque quête en cours y tient en une note, qui dit ce qu'on sait à cette étape, **pas où aller** : c'est voulu, il faut fouiller, parler à l'équipage, examiner ce qui traîne. Une étape demande parfois de réunir plusieurs choses dans l'ordre qu'on veut (trois indices, trois témoins) : le journal garde celles qu'on a trouvées. Un clic déplie la quête (son histoire, ce qu'on a déjà appris, ce qu'elle rapporte) ; « Abandonner » (deux clics) la remet à zéro. Passé le « ! » du début, rien n'est signalé à bord.
+
+**Les scènes** sont de mini-cinématiques (`src/quests/cinematic.ts`) : deux bandes noires se ferment, la caméra se rapproche de la conversation et s'abaisse, l'interface s'efface, et les répliques s'écrivent une à une sous le nom de qui parle. `E`, `Espace`, `Entrée`, un clic ou un toucher passent à la suite ; `Échap` (ou « Fermer ») referme la scène, et rien n'est acquis : on la reprendra. Le membre d'équipage à qui l'on parle arrête sa tournée, pour tout le bord, le temps de la scène.
+
+**Ce qu'elles rapportent.** Quatre pièces sont **fermées tant que leur quête n'est pas terminée** : une plaque d'acier liserée de jaune les couvre, leurs portes restent verrouillées, et le relais refuse qu'on s'y trouve. Deux autres quêtes offrent ce qui ne s'achète plus : le chien des quartiers et l'apparence « Mannequin T-0 » (le catalogue et le Holo-Me disent « se gagne à bord » ; ceux qui les avaient achetés les gardent).
+
+| Quête | Où elle commence | Ce qu'elle rapporte |
+|---|---|---|
+| **La gamelle vide** | une gamelle, dans la soute de la cale | Jameson, le chien : son panier dans le catalogue des quartiers |
+| **Permis de tir** | les portes du stand de tir (cale) | le stand de tir, 5 000 CR |
+| **Poids lourds** | la porte de la salle de sport (pont principal) | la salle de sport, 5 000 CR |
+| **Silence, on dribble** | la porte du terrain de basket (pont supérieur) | le terrain de basket, 5 000 CR |
+| **Le dernier match** | la porte du terrain de foot (pont supérieur) | le terrain de foot, 5 000 CR |
+| **Quatre cent douze** | un mannequin d'essai, dans l'atelier de la cale | l'apparence « Mannequin T-0 » |
+
+<details>
+<summary>Solutions (pour les essais ; divulgâche tout)</summary>
+
+- **La gamelle vide** : la gamelle → Nico (hangar) → trois indices : Marcel (mess), Betty (infirmerie), les traces de suie dans l'atelier → Jameson, derrière le réacteur de la salle des machines (il vous suit) → Nico.
+- **Permis de tir** : une porte du stand → le sergent Rourke (en ronde sur le pont principal) → Betty (le certificat) et la carte dans le tas de minerai de la raffinerie (Nico met sur la piste) → Rourke.
+- **Poids lourds** : la porte → Betty → la kettlebell dans la cuisine du mess, les haltères dans la serre, le disque dans le hangar → Betty.
+- **Silence, on dribble** : la porte → Bugenhagen (planétarium) → le carton du studio de Radio Dangereuse et la professeure Kepler (salle de classe) → le projecteur du planétarium → Bugenhagen.
+- **Le dernier match** : la porte → Marcel, Nico et Betty → Rourke → la carte galactique du poste de pilotage → Rourke.
+- **Quatre cent douze** : T-0 → Nico → la lunette du planétarium, le jukebox de la salle commune, le pommier de la serre → T-0.
+
+</details>
+
+**Qui garde quoi.** Le squelette d'une quête (ses étapes, la pièce qu'elle ouvre, sa récompense) est dans `shared/quests.js`, partagé avec le relais ; son récit (scènes, notes du journal, objets posés à bord) dans `src/quests/content.ts`. Le **site** garde le journal de chaque CMDR (`outils/mini-shipinteriors-quests.php`, règles dans `phputils/mini_shipinteriors/quests.php`, table `mini_shipinteriors_quest`, dépôt du site) : le jeu avance tout de suite et le lui dit, le site n'écarte que l'impossible (quête inconnue, étape sautée, étape quittée sans avoir tout réuni) et verse la récompense une seule fois, en terminant la quête. Sa liste des quêtes recopie celle du jeu (`quest_list.php` ; `server/quests.test.js` compare les deux). Le **relais** apprend du site, à la connexion, quelles quêtes un CMDR a terminées, et le lui redemande quand le joueur en annonce une de plus : c'est le site qui fait foi, pas le client. Un **invité** garde son journal dans son navigateur : les pièces s'ouvrent (le relais le croit), mais objets, apparences et crédits ne sont versés qu'aux CMDR. Si le site ne répond pas (ou si la table n'existe pas encore), un CMDR joue comme un invité en attendant.
+
+**Ajouter une quête** : une ligne dans `QUESTS` (`shared/quests.js`), la même dans `MSI_QUESTS` (`quest_list.php`, dépôt du site), son récit dans `QUEST_CONTENT`. Une cible est un membre d'équipage déclaré dans `main.ts` (`npc:rourke`…), un meuble du vaisseau (`item:<pont>:<modèle>`), les portes de la pièce qu'elle ouvre (`door`), ou un objet (`prop:`) ou un animal (`actor:`) que la quête pose elle-même, pour le seul joueur dont la quête en est là (modèles dans `src/furniture/quests.ts`). En dev, la console signale une étape, une cible ou un objet qui ne correspond pas. Deux pièges de placement : un objet contre un mur est ou sud est caché par ce mur dans la vue par défaut, et une marque au sol passe sous les tapis et les estrades (la poser un peu plus haut).
+
 ## La salle commune
 
 À la poupe du pont principal, la salle commune est le hall du vaisseau, pensé comme le concourse d'une station Coriolis. On y entre par la porte double de la coursive, face à la façade de la **mezzanine** : son tableau d'honneur, et de part et d'autre, deux volées d'escalier qui montent vers le nord et vers le sud.
@@ -623,6 +660,8 @@ L'ancienne pièce vide faisait 8 × 5 : elle a gagné trois rangées au sud. Les
 
 ## La zone sportive
 
+Les deux terrains sont fermés tant que leur quête n'est pas terminée : « Silence, on dribble » pour le basket, « Le dernier match » pour le foot (cf. [Les quêtes](#les-quêtes)).
+
 Au pont supérieur, le foyer (le couloir du cinéma) file au sud jusqu'à un petit hall, d'où l'on entre sur deux demi-terrains de 7 × 6 tuiles (pièces `b` et `f`, `SPORT_COURTS` dans `shared/ship-layouts.js`) : le **basket**, sur parquet, dont le panier coulisse sur une glissière au mur ouest, et le **foot**, sur pelouse, avec sa cage et un gardien de carton sur un rail, comme aux stands de tir au but. Le mobilier est dans `src/furniture/sport.ts`, le jeu dans `src/court.ts`.
 
 **Le jeu.** On le lance depuis la marque de tir (ou en prenant un ballon au chariot) : le personnage se place sur la marque et ne la quitte plus. La partie se joue **vue de dos**, à la troisième personne, quelle que soit la vue choisie (la vue d'origine revient à la fin). La souris vise le point du mur sous le curseur ; on garde le clic appuyé pour doser la force (la jauge monte), et on relâche pour tirer. Au doigt : toucher pour viser, garder appuyé, relâcher. Au clavier : `←` `→` (ou `A` `D`) pour viser, `Espace` (ou `E`) pour tirer. À la manette : le stick vise, le bouton d'action tire. `Échap` arrête.
@@ -643,6 +682,8 @@ Les ballons, les rebonds (cercle, planche, poteaux, sol, murs, plafond) et le d�
 **Scores.** Chaque terrain a son jeu (`gym-basket`, `gym-foot`) dans la table des scores du site : record local pour un invité ; meilleur score, classement et paliers de crédits (cf. `arcade.tiers` dans `economy.json`) pour un CMDR, sans prime de record d'arcade. Le site écarte un score qui dépasse 130 points par seconde. Dans chaque salle, un écran affiche les cinq meilleurs et ouvre le classement complet (`?rankings=basket` ou `foot`).
 
 ## Le stand de tir
+
+Fermé tant que la quête « Permis de tir » n'est pas terminée (cf. [Les quêtes](#les-quêtes)).
 
 Dans la cale, à la place de l'ancienne baie de réparation (pièce `r`, agrandie d'une rangée vers le nord : `SHOOTING_RANGE` dans `shared/ship-layouts.js`). Un comptoir, le **pas de tir**, traverse la pièce (quatre couloirs numérotés, une vitre teintée entre chacun, des voyants verts qui passent au rouge pendant une partie) ; on tire vers le nord, où les cibles sortent de trois fentes lumineuses, devant un pare-balles et sous l'enseigne du stand. Aucune tâche de bord n'apparaît dans le stand. Le mobilier est dans `src/furniture/range.ts`, le jeu dans `src/range.ts`, les réglages des armes dans `src/range-weapons.ts`, les bruitages dans `src/range-sfx.ts` ; armes, cibles et éclats viennent du Blaster Kit de Kenney (`scripts/import-kenney-blaster.mjs`).
 
@@ -772,6 +813,7 @@ un appareil avec encoche ; essayer aussi le chat avec le clavier logiciel ouvert
 | Interagir | `E` ou `Espace` près d'un objet, ou clic sur l'objet (le perso y va tout seul, du bon côté du mur : rien ne s'utilise à travers une cloison) ; sur un meuble où l'on s'installe (chaise, lit, borne…), le personnage y prend place, et le moindre pas, `E` ou un clic ailleurs le relève |
 | Installé | `Espace` : saut FSD (siège du poste de pilotage), lâcher la pince (pince à peluches, que les flèches déplacent) |
 | Tâches de bord | `E` ou un clic près d'une tâche (repère orange) : le personnage s'y met, le moindre pas l'interrompt |
+| Quêtes | `E` ou un clic sur ce qui porte un « ! » jaune ; pendant une scène, `E`, `Espace`, `Entrée` ou un clic pour la suite, `←` `→` pour choisir, `Échap` pour refermer ; `J` : le journal, sous le chat (cf. [Les quêtes](#les-quêtes)) |
 | Bornes d'arcade | `Espace` jouer, `P` pause, `E` ou `Échap` quitter ; les commandes de chaque jeu sont sur le pupitre (cf. [Bornes d'arcade](#bornes-darcade)) |
 | Jeux de plateau | `E` ou clic sur la table pour s'installer ; deux joueurs aux dames, à Puissance 4 ou aux échecs. Aux dames (8×8), choisir une pièce encadrée puis une destination marquée : les prises sont obligatoires, et une rafle continue avec la même pièce. Les pions avancent vers le camp adverse ; les dames se déplacent dans les deux sens. |
 | Jukebox | `↑` `↓` choisir, `Entrée` jouer ; `E`, `Échap` ou un clic en dehors pour fermer |
@@ -780,7 +822,7 @@ un appareil avec encoche ; essayer aussi le chat avec le clavier logiciel ouvert
 | Emotes | `1`…`8` ou la barre en bas : salut, oui, non, joie, danse, assis, dodo, **o7** (le salut des CMDR, la main à la tempe) |
 | Réactions | `9` ou le bouton au sourire de la barre, puis `1`…`8` ou un clic : un médaillon aux images du site s'envole au-dessus de la tête (logo du site, Braben, Raxxla, Fédération, Empire, Alliance, Aegis, Fuel Rats) ; le personnage ne bouge pas, on peut réagir assis |
 | Chat | `Entrée`, puis `Entrée` pour envoyer, `Échap` pour annuler |
-| Commandes du chat | `/nom CMDR Pseudo` (invités), `/perso` (apparence au hasard, parmi les siennes), `/inviter CMDR Nom`, `/w CMDR Nom message` (chuchoter), `/credits` (son solde), `/taches` (où sont les tâches de bord), `/tuto` (refaire la formation du [simulateur d'accueil](#le-simulateur-daccueil)), `/danse`…, `/o7`, `/braben`, `/raxxla`…, `/aide` ; en anglais, `/name`, `/random`, `/invite`, `/w`, `/credits`, `/chores`, `/dance`…, `/help` |
+| Commandes du chat | `/nom CMDR Pseudo` (invités), `/perso` (apparence au hasard, parmi les siennes), `/inviter CMDR Nom`, `/w CMDR Nom message` (chuchoter), `/credits` (son solde), `/taches` (où sont les tâches de bord), `/quetes` (le journal de quêtes), `/tuto` (refaire la formation du [simulateur d'accueil](#le-simulateur-daccueil)), `/danse`…, `/o7`, `/braben`, `/raxxla`…, `/aide` ; en anglais, `/name`, `/random`, `/invite`, `/w`, `/credits`, `/chores`, `/quests`, `/dance`…, `/help` |
 | Changer d'apparence | le **Holo-Me** des quartiers du commandant (pont supérieur) |
 | Aménager ses quartiers | `B`, ou « Aménager » dans la barre des quartiers (CMDR connectés au site, cf. [Quartiers personnalisables](#quartiers-personnalisables)) |
 | Annuaire des joueurs | `Tab` : qui est à bord et où, visiter, sonner, chuchoter, laisser un message, inviter chez soi |
@@ -893,7 +935,7 @@ Le relais : `npm ci --omit=dev && npm start`, avec ces variables :
 | `WS_PATH` | chemin de la socket (défaut `/ws/mini-shipinteriors`). S'il change, rebâtir le client avec `VITE_WS_PATH` et adapter nginx |
 | `MSI_RELAY_SECRET` | clé partagée avec le site pour payer les missions gagnées de la zone thargoïde, et pour la recherche de directs Twitch de la régie du cinéma : la **même valeur** dans l'environnement du relais et dans celui de PHP. Sans elle, les missions se jouent, mais rien n'est versé (le relais le signale dans son journal d'erreurs), et l'onglet Twitch de la régie ne trouve rien |
 
-Au build : `VITE_WS_PATH` (chemin de la socket), `VITE_ED_CMDR_URL` (endpoint du compte, défaut `/outils/mini-shipinteriors-cmdr.php`), `VITE_ED_CABIN_URL` (endpoint des quartiers, défaut `/outils/mini-shipinteriors-cabin.php`), `VITE_ED_SCORES_URL` (endpoint des scores, défaut `/outils/mini-shipinteriors-scores.php`) `VITE_ED_CREDITS_URL` (endpoint des crédits, défaut `/outils/mini-shipinteriors-credits.php`) `VITE_ED_SALVAGE_URL` (classement de la zone thargoïde, défaut `/outils/mini-shipinteriors-salvage.php`) et `VITE_ED_FISH_URL` (collection de poissons, défaut `/outils/mini-shipinteriors-fish.php`). Le build copie aussi `src/economy/economy.json` dans `dist/`, où le site le lit.
+Au build : `VITE_WS_PATH` (chemin de la socket), `VITE_ED_CMDR_URL` (endpoint du compte, défaut `/outils/mini-shipinteriors-cmdr.php`), `VITE_ED_CABIN_URL` (endpoint des quartiers, défaut `/outils/mini-shipinteriors-cabin.php`), `VITE_ED_SCORES_URL` (endpoint des scores, défaut `/outils/mini-shipinteriors-scores.php`) `VITE_ED_CREDITS_URL` (endpoint des crédits, défaut `/outils/mini-shipinteriors-credits.php`) `VITE_ED_SALVAGE_URL` (classement de la zone thargoïde, défaut `/outils/mini-shipinteriors-salvage.php`) `VITE_ED_FISH_URL` (collection de poissons, défaut `/outils/mini-shipinteriors-fish.php`) et `VITE_ED_QUESTS_URL` (journal de quêtes, défaut `/outils/mini-shipinteriors-quests.php`). Le build copie aussi `src/economy/economy.json` dans `dist/`, où le site le lit.
 
 Sans `ED_CMDR_URL`, ou si le site ne répond pas, le jeu fonctionne quand même : tout le monde est invité.
 
@@ -970,6 +1012,7 @@ Les bips, les mélodies d'arcade, les étincelles, le miaulement, le ronronnemen
 | `shared/salvage.js` · `server/salvage.js` | **Zone thargoïde** : règles, plan fixe de la baie et ce qu'une graine y dispose (cloisons, conteneurs, passerelle et garde-corps, zones éclairées, sols qui crissent ou collent, sas, casiers, colis, fusées, repaires ; chemins, hauteur du sol et lignes de vue, d'en bas et d'en haut), caméras de la baie et note de mission, communs au relais et au client ; côté relais, les équipes du lobby et chaque partie (ennemis à 10 Hz, ruche qui s'agite, casiers, fusées, captures, dépôts, fin, chiffres de chacun, gains envoyés au site). Tests : `server/salvage*.test.js`. |
 | `src/salvage/` | Le client de la zone : la partie et le moniteur des caméras (`client.ts`), la baie en pont du jeu (`zone-deck.ts`, `kit.ts` pour le Modular Space Kit, les conteneurs, la passerelle, les bacs, les excroissances et le décor), le brouillard de guerre et le tube cathodique (`fog.ts`), les ennemis (`monsters.ts`), les casiers, colis et fusées (`items.ts`), les bruitages (`sfx.ts`), Gaspard (`technician.ts`), Odile (`controller.ts`), le terminal, le classement et le HUD de mission (`ui.ts`). Le mobilier du lobby et de la baie (projecteurs, marquages, portique, table de briefing…) est dans `src/furniture/salvage.ts`. |
 | `src/economy/` | **Crédits** : les chiffres (`economy.json`, relu par le site) et leur lecture (`data.ts`), le compte tenu par le site (`wallet.ts`), le calendrier des tâches (`schedule.ts`), les tâches à bord et leurs marqueurs (`tasks.ts`), les apparences payantes (`skins.ts`), le solde dans le HUD (`hud.ts`). |
+| `src/quests/` · `shared/quests.js` | **Les quêtes** (cf. [Les quêtes](#les-quêtes)) : leur squelette, partagé avec le relais et recopié par le site (`shared/quests.js` : étapes, pièces fermées, récompenses, règles du journal ; tests dans `server/quests.test.js`) ; leur récit (`content.ts`), le journal du joueur et son enregistrement (`store.ts`), les mini-cinématiques (`cinematic.ts`), leurs objets, leurs animaux et leurs « ! » dans le vaisseau (`world.ts`), le journal sous le chat et les bandeaux (`journal.ts`). Les objets sont dans `src/furniture/quests.ts`. |
 | `src/photo.ts` | Le mode photo : options, prise de vue en haute définition, aperçu, pellicule. |
 | `src/looks.ts` | Catalogue des apparences (espèces, sexe, modèles, teintes, combinaisons) et fabrication des modèles correspondants (casques, sacs dorsaux). |
 | `src/furniture/` | Mobilier fait main, par zone (`elite`, `workshop`, `leisure`, `cozy`, `decor`…), le décor des tâches de bord (`tasks.ts`), et sa boîte à outils commune (`kit.ts` : fusion, instanciation, hologrammes, écrans animés). |
@@ -1029,6 +1072,8 @@ Les icônes de l'interface viennent de [Phosphor Icons](https://phosphoricons.co
 - Pistes : pseudo et choix du personnage dans un écran d'accueil, PNJ d'équipage avec routines, escaliers du kit en plus de l'ascenseur, plans édités dans [Tiled](https://www.mapeditor.org/), objets gagnés en jeu à ajouter au catalogue (la peluche de Comète gagnée à la pince…), parties d'arcade à deux sur la borne cocktail.
 
 ## Salle de sport
+
+Fermée tant que la quête « Poids lourds » n'est pas terminée (cf. [Les quêtes](#les-quêtes)).
 
 Le tapis, le vélo et le sac de frappe ont trois défis de rythme, affichés dans
 une bulle au-dessus du personnage. La boîte de dialogue du vaisseau explique

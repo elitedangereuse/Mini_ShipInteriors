@@ -166,6 +166,8 @@ export class TaskBoard {
   private phase = 0
   /** Le joueur s'approche d'une tâche et interagit (cf. main.ts). */
   onInteract?: (task: LiveTask) => void
+  /** Là, le joueur n'entre pas (une pièce qu'une quête n'a pas encore ouverte) : la tâche attendra. */
+  closed?: (deck: Deck, x: number, z: number) => boolean
 
   constructor(
     private readonly decks: Deck[],
@@ -235,7 +237,7 @@ export class TaskBoard {
     const place = placeTask(deck, spot)
     // En dev : le plan a bougé sous l'emplacement, economy.json est à corriger.
     if (import.meta.env.DEV && (!place || place.moved)) console.warn(`Tâche ${spot.id} : ${place ? `déplacée en (${place.x}, ${place.z})` : 'aucune place libre'}, cf. economy.json`)
-    if (!place) return
+    if (!place || this.closed?.(deck, place.x, place.z)) return
     const def = taskOf(spot)
     const info = TASK_INFO[spot.task]
     const holder = new THREE.Group()

@@ -11,6 +11,8 @@
 // de la requête : un en-tête Host choisi par le client ferait désigner un faux site, qui pourrait
 // répondre le nom de n'importe quel CMDR.
 
+import { knownQuests } from '../shared/quests.js'
+
 export const COOKIE = 'ED_LOGGED_CMDR_ID'
 const MAX_NAME = 40
 
@@ -38,7 +40,7 @@ export function cleanCmdrName(name) {
  * Demande au site quel CMDR porte ce cookie. Avec la clé du relais (`secret`, MSI_RELAY_SECRET),
  * le site sait que le joueur embarque pour de bon : à sa première connexion, il lui décerne le
  * badge du jeu, et le dit (`welcome`).
- * @returns {Promise<{name: string, ljpc: boolean, voie: boolean, bar: boolean, welcome: boolean} | null>} identité vérifiée, ou null (invité, site injoignable)
+ * @returns {Promise<{name: string, ljpc: boolean, voie: boolean, bar: boolean, welcome: boolean, quests: string[] | null} | null>} identité vérifiée, ou null (invité, site injoignable)
  */
 export async function cmdrIdentityFromCookie(cookieHeader, { url, secret = '', timeoutMs = 3000, error = console.error } = {}) {
   const value = cookieValue(cookieHeader)
@@ -58,7 +60,12 @@ export async function cmdrIdentityFromCookie(cookieHeader, { url, secret = '', t
     }
     const data = await res.json()
     const name = cleanCmdrName(data?.cmdr)
-    return name ? { name, ljpc: data?.ljpc === true, voie: data?.voie === true, bar: data?.bar === true, welcome: data?.welcome === true } : null
+    if (!name) return null
+    return {
+      name, ljpc: data?.ljpc === true, voie: data?.voie === true, bar: data?.bar === true, welcome: data?.welcome === true,
+      // Quêtes terminées (elles ouvrent des pièces, cf. shared/quests.js) ; null : le site ne sait pas le dire.
+      quests: Array.isArray(data?.quests) ? knownQuests(data.quests) : null,
+    }
   } catch (err) {
     error(`[relais] identité : site injoignable (${err?.message ?? err}), joueur traité en invité`)
     return null

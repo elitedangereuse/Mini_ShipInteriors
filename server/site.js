@@ -1,4 +1,5 @@
 import { COOKIE, cookieValue } from './cmdr.js'
+import { knownQuests } from '../shared/quests.js'
 
 const MODELS = { 'site-card': 'card', 'site-badge': 'badge', 'adventure-poster': 'adv' }
 
@@ -115,5 +116,25 @@ export async function fetchQuarters(stored, { cmdrUrl, fetcher = fetch, timeoutM
     if (!response.ok) return null
     const data = await response.json()
     return data?.status === 'success' && typeof data.name === 'string' && data.name ? { name: data.name, layout: data.cabin } : null
+  } catch { return null }
+}
+
+/**
+ * Quêtes terminées d'un CMDR (cf. shared/quests.js), telles que le site les garde
+ * (outils/mini-shipinteriors-quests.php) : elles ouvrent des pièces du vaisseau. Le relais le
+ * redemande quand un joueur dit en avoir terminé une : c'est le site qui fait foi, pas le client.
+ * @returns {Promise<string[] | null>} null : le site ne sait pas le dire (invité, site injoignable, table absente)
+ */
+export async function fetchQuestsDone(cookie, { cmdrUrl, fetcher = fetch, timeoutMs = 5000 }) {
+  const value = cookieValue(cookie)
+  if (!cmdrUrl || !value) return null
+  try {
+    const response = await fetcher(new URL('/outils/mini-shipinteriors-quests.php', cmdrUrl), {
+      headers: { Cookie: `${COOKIE}=${value}`, Accept: 'application/json' }, signal: AbortSignal.timeout(timeoutMs), redirect: 'error',
+    })
+    if (!response.ok) return null
+    const data = await response.json()
+    if (data?.status !== 'success' || !data.quests || typeof data.quests !== 'object') return null
+    return knownQuests(Object.keys(data.quests).filter((id) => data.quests[id]?.done === true))
   } catch { return null }
 }

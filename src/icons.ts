@@ -125,6 +125,12 @@ import basket from '@phosphor-icons/core/bold/basket-bold.svg?raw'
 import sparkle from '@phosphor-icons/core/bold/sparkle-bold.svg?raw'
 import handTap from '@phosphor-icons/core/bold/hand-tap-bold.svg?raw'
 import crosshair from '@phosphor-icons/core/bold/crosshair-bold.svg?raw'
+import exclamationMark from '@phosphor-icons/core/bold/exclamation-mark-bold.svg?raw'
+import scroll from '@phosphor-icons/core/duotone/scroll-duotone.svg?raw'
+import basketball from '@phosphor-icons/core/duotone/basketball-duotone.svg?raw'
+import soccerBall from '@phosphor-icons/core/duotone/soccer-ball-duotone.svg?raw'
+import dog from '@phosphor-icons/core/duotone/dog-duotone.svg?raw'
+import gift from '@phosphor-icons/core/duotone/gift-duotone.svg?raw'
 import arrowsClockwise from '@phosphor-icons/core/bold/arrows-clockwise-bold.svg?raw'
 import arrowFatUp from '@phosphor-icons/core/bold/arrow-fat-up-bold.svg?raw'
 import storefront from '@phosphor-icons/core/bold/storefront-bold.svg?raw'
@@ -286,6 +292,13 @@ const SVG = {
   sparkle,
   'hand-tap': handTap,
   crosshair,
+  // quêtes
+  'exclamation-mark': exclamationMark,
+  scroll,
+  basketball,
+  'soccer-ball': soccerBall,
+  dog,
+  gift,
   'arrows-clockwise': arrowsClockwise,
   'arrow-fat-up': arrowFatUp,
   storefront,

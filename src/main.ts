@@ -108,6 +108,12 @@ import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel
 import { LiftRide } from './lift-ride'
 import { INSTRUCTOR, Instructor, instructorRig, Tutorial, TUTORIAL_DECK } from './tutorial'
 import { TUTORIAL_EXIT, TUTORIAL_LEVEL, TUTORIAL_SPAWN } from '../shared/tutorial.js'
+import { Cinematic } from './quests/cinematic'
+import type { QuestContent } from './quests/content'
+import { QuestJournal, QuestToasts } from './quests/journal'
+import { QuestStore } from './quests/store'
+import { QuestWorld, type QuestEvent } from './quests/world'
+import { QUEST_ROOMS, QUEST_UNLOCKS, questById, questOfRoom } from '../shared/quests.js'
 
 // ------------------------------------------------------------------ profil
 
@@ -248,6 +254,13 @@ if (account) {
   voieAdept = account.voie
   barRegular = account.bar
 }
+/**
+ * Journal de quêtes (cf. src/quests/) : celui que le site garde pour un CMDR, sinon celui de ce
+ * navigateur. Attendu un instant : des pièces ne s'ouvrent qu'une fois leur quête terminée, et il
+ * faut le savoir avant de dire où l'on se réveille (cf. resumePoint).
+ */
+const quests = new QuestStore()
+await within(quests.load(account?.name ?? null), 3000, undefined)
 /** Réponse du site sur les quartiers du CMDR, si elle est arrivée à temps (undefined : pas encore). */
 const siteCabin = account ? await within<SiteCabin | null | undefined>(cabinRequest, 3000, undefined) : undefined
 /**
@@ -265,6 +278,26 @@ const tutorialDeck = new Deck(TUTORIAL_DECK)
 decks.push(tutorialDeck)
 for (const d of decks) scene.add(d.group)
 const deckById = (id: number) => decks.find((d) => d.def.id === id)!
+/** La pièce `room` du pont `level` est-elle fermée au joueur par une quête qu'il n'a pas terminée (cf. shared/quests.js) ? */
+const questLocked = (level: number, room: string | null) => {
+  const quest = questOfRoom(level, room)
+  return quest !== null && !quests.isDone(quest)
+}
+/** Pièces ouvertes par une quête terminée ; `evictFrom` : le joueur est dans une pièce qui se referme (cf. plus bas). */
+const questRoomsOpen = new Map<string, boolean>()
+let evictFrom: ((level: number, room: string) => void) | null = null
+function applyQuestRooms() {
+  for (const { quest, level, room } of QUEST_ROOMS) {
+    const open = quests.isDone(quest)
+    const was = questRoomsOpen.get(quest)
+    if (was === open) continue
+    questRoomsOpen.set(quest, open)
+    deckById(level).setRoomOpen(room, open)
+    if (was && !open) evictFrom?.(level, room)
+  }
+}
+applyQuestRooms()
+quests.subscribe(applyQuestRooms)
 /** Aspirés par les toilettes pendant un saut FSD (cf. flushCrew). */
 const flushes = new ToiletFlushes(scene)
 deckById(0).setLjpcAccess(ljpcMember)
@@ -403,6 +436,8 @@ function resumePoint(): { deck: Deck; x: number; z: number; yaw: number } | null
     if (!d || ![w.x, w.z, w.yaw].every(Number.isFinite)) return null
     // Un invité devenu habitué du bar ne l'est plus après un rechargement : il se réveille chez lui.
     if (d.def.id === -1 && !barRegular && d.map.room(Math.round(w.x), Math.round(w.z)) === BAR_ROOM) return null
+    // Une pièce qu'une quête ouvre, et dont le journal n'a pas (encore) dit qu'elle est terminée.
+    if (questLocked(d.def.id, d.map.room(Math.round(w.x), Math.round(w.z)))) return null
     return d.pathfinder.walkable(Math.round(w.x), Math.round(w.z)) ? { deck: d, x: w.x, z: w.z, yaw: w.yaw } : null
   } catch {
     return null
@@ -1749,6 +1784,117 @@ function ambience(dt: number) {
 
 const remotes = new Map<number, RemotePlayer>()
 const net = new Net(profile, devCmdr(), devLjpc(), devVoie(), devBar())
+
+// ------------------------------------------------------------------ quêtes
+
+/** Cadrage d'une mini-cinématique : la caméra se rapproche de la conversation, et s'abaisse un peu. */
+const CINE_ZOOM = 2.3
+const CINE_ELEVATION = THREE.MathUtils.degToRad(27)
+/** Les dialogues de quête (cf. quests/cinematic.ts) : bandes noires, caméra sur la conversation. */
+const cinematic = new Cinematic()
+let cineZoom = iso.zoomLevel
+cinematic.onOpen = () => {
+  cinematic.playerName = profile.name
+  cineZoom = iso.zoomLevel
+  iso.zoomTo(CINE_ZOOM)
+  iso.setRestElevation(CINE_ELEVATION)
+  hover.visible = false
+}
+cinematic.onClose = () => {
+  iso.zoomTo(cineZoom)
+  iso.setRestElevation(null)
+}
+/** Le journal, sous le chat, et le bandeau d'une quête qui commence, avance ou se termine. */
+const questJournal = new QuestJournal(quests)
+const questToasts = new QuestToasts()
+questJournal.onAbandon = (quest) => chat.add('system', tr(`Quête abandonnée : ${quest.title}. Elle pourra être reprise du début.`, `Quest abandoned: ${quest.title}. It can be started over.`))
+/** Les quêtes dans le vaisseau : leurs objets, leurs « ! », leurs scènes (cf. quests/world.ts). */
+const questWorld = new QuestWorld({
+  decks,
+  deck: () => deck,
+  player: player.position,
+  face: (at) => {
+    stopWork()
+    player.cancelPath()
+    keys.clear()
+    marker.visible = false
+    player.lookAt(at)
+  },
+  emote: (id) => emote(id),
+  announce: questEvent,
+  bark: (at) => sound.critter('bark', new THREE.Vector3(at.x, deck.y + 0.3, at.z)),
+}, quests, cinematic)
+/** L'invite d'un membre d'équipage (celle qu'on a posée sur son pont, plus haut). */
+const crewItem = (d: Deck, root: THREE.Object3D) => d.interactables.find((it) => it.object === root)!
+// L'équipage que les quêtes font parler : pendant une scène, il arrête sa tournée, pour tout le bord.
+questWorld.npc('rourke', patrolDeck, crewItem(patrolDeck, sergeant.root), {
+  hold: () => { sergeant.talk(player.position, shipReport()); net.sendPatrolTalk() },
+  emote: (id) => sergeant.avatar.playEmote(id),
+})
+questWorld.npc('marcel', patrolDeck, crewItem(patrolDeck, chef.root), {
+  hold: () => { chef.talk(player.position, chefReport()); net.sendChefTalk() },
+  emote: (id) => chef.avatar.playEmote(id),
+  busy: () => kitchen.cooking,
+})
+questWorld.npc('betty', patrolDeck, crewItem(patrolDeck, nurse.root), {
+  hold: () => { nurse.talk(player.position, nurseReport()); net.sendNurseTalk() },
+  emote: (id) => nurse.avatar.playEmote(id),
+  busy: () => infirmary.busy,
+})
+questWorld.npc('nico', holdDeck, crewItem(holdDeck, mechanic.root), {
+  hold: () => { mechanic.talk(player.position, mechanicReport()); net.sendMechTalk() },
+  emote: (id) => mechanic.avatar.playEmote(id),
+  busy: () => hangar.busy,
+})
+questWorld.check()
+
+/** Une quête commence, avance ou se termine : le journal la met en avant, un bandeau et le chat le disent. */
+function questEvent(event: QuestEvent, quest: QuestContent, detail?: string) {
+  questJournal.highlight(quest.id)
+  if (event === 'part') {
+    sound.ui('pick')
+    return chat.add('system', tr(`Journal · ${quest.title} : ${detail}`, `Journal · ${quest.title}: ${detail}`))
+  }
+  if (event === 'start') {
+    sound.play('ding', null, { volume: 0.12 })
+    questToasts.push({ kind: 'start', title: quest.title, detail: quest.pitch })
+    const where = coarsePointer ? tr('Le journal s\'ouvre par le bouton au parchemin.', 'The scroll button opens the journal.') : tr('Le journal est sous le chat (J).', 'The journal is below the chat (J).')
+    return chat.add('system', tr(`Nouvelle quête : ${quest.title}. ${where}`, `New quest: ${quest.title}. ${where}`))
+  }
+  if (event === 'step') {
+    sound.ui('pick')
+    return questToasts.push({ kind: 'step', title: quest.title, detail: '' })
+  }
+  sound.jingle('win')
+  questToasts.push({ kind: 'done', title: quest.title, detail: quest.reward })
+  chat.add('system', tr(`Quête terminée : ${quest.title}. ${quest.reward}`, `Quest complete: ${quest.title}. ${quest.reward}`))
+  // Journal gardé dans ce navigateur (un invité, ou le site qui ne répond pas) : le site ne verse rien.
+  const reward = questById(quest.id)?.reward
+  if (quests.mode === 'local' && reward && (reward.credits || reward.items?.length || reward.skins?.length)) {
+    chat.add('system', tr('Objets, apparences et crédits ne sont versés qu\'aux CMDR connectés au site.', 'Items, looks and credits are only awarded to CMDRs logged in to the site.'))
+  }
+}
+// La récompense d'une quête est versée par le site : le compte (crédits, objets, apparences) est à relire.
+quests.onReward = () => void wallet.load()
+/**
+ * Nos quêtes terminées, pour le relais : elles nous ouvrent des pièces (cf. shared/quests.js). Dites
+ * à l'arrivée, puis à chaque quête terminée, une fois le journal écrit : pour un CMDR, le relais
+ * relit celui du site.
+ */
+let questsTold: string | null = null
+function tellQuests(force = false) {
+  if (!quests.ready || !net.online) return
+  const done = quests.done().sort()
+  if (!force && done.join() === questsTold) return
+  questsTold = done.join()
+  net.sendQuests(done)
+}
+// Une fois le journal écrit seulement : dit plus tôt, le relais relirait un site qui ne sait pas encore.
+quests.onSaved = () => tellQuests()
+// Le journal vient d'arriver (du site, ou de ce navigateur) : le relais l'apprend.
+quests.subscribe(() => {
+  if (quests.mode === 'local' || questsTold === null) tellQuests()
+})
 salvage = new SalvageClient({
   scene, renderer, iso, player, sound, net, dialog, wallet, remotes,
   deck: () => deck,
@@ -1902,6 +2048,8 @@ net.onMessage = (m) => {
         net.sendCabin(cabinPayload())
       }
       updateIdentity()
+      // Nos quêtes terminées : un invité les annonce, le relais relit celles d'un CMDR sur le site.
+      tellQuests(true)
       for (const p of m.players) addRemote(p)
       for (const h of m.homes ?? []) absentHosts.set(h.id, h.name)
       chat.add('system', welcomeOnline(m.players.length))
@@ -2249,6 +2397,11 @@ async function command(text: string) {
       if (!wallet.ready) return chat.add('system', tr('Crédits indisponibles pour l\'instant : le site ne répond pas.', 'Credits unavailable for now: the site isn\'t responding.'))
       return chat.add('system', tr(`Solde : ${formatCredits(wallet.balance)}.`, `Balance: ${formatCredits(wallet.balance)}.`))
     }
+    case 'quetes':
+    case 'quêtes':
+    case 'quests':
+    case 'journal':
+      return questJournal.show('active')
     case 'taches':
     case 'tâches':
     case 'chores': {
@@ -2271,7 +2424,7 @@ async function command(text: string) {
       return chat.add(
         'system',
         tr(
-          `Commandes : /nom CMDR Pseudo (invités) · /perso · /inviter CMDR Nom · /w CMDR Nom message · /credits · /taches · /tuto (la formation) · ${emotes}`,
+          `Commandes : /nom CMDR Pseudo (invités) · /perso · /inviter CMDR Nom · /w CMDR Nom message · /credits · /taches · /quetes (le journal) · /tuto (la formation) · ${emotes}`,
           `Commands: /name CMDR Nickname (guests) · /random · /invite CMDR Name · /w CMDR Name message · /credits · /chores · /tuto (the training) · ${emotes}`,
         ),
       )
@@ -2300,6 +2453,8 @@ chat.add(
 
 const wardrobe = new WardrobePanel({
   price: (look) => (lookOwned(look, wallet) ? null : skinPrice(skinProduct(look)!)),
+  // Une apparence qu'une quête offre ne s'achète pas (cf. QUEST_UNLOCKS).
+  quest: (look) => !lookOwned(look, wallet) && `skin:${skinProduct(look)}` in QUEST_UNLOCKS,
   blocked: shopBlocked,
   balance: () => wallet.balance,
   buy: async (look) => {
@@ -2673,6 +2828,9 @@ function loadEditor(): Promise<void> {
 function adoptAccount() {
   if (!wallet.ready) void wallet.load()
   if (!garden.ready) void garden.load()
+  // Son journal de quêtes : celui du site, à la place de celui de l'invité qu'on croyait être.
+  const owner = profile.name.replace(/^CMDR /, '')
+  if (quests.owner !== owner) void quests.load(owner)
   if (cabinStore) return
   const store = (cabinStore = new CabinStore(profile.name.replace(/^CMDR /, '')))
   store.home = homePayload
@@ -3463,6 +3621,8 @@ addEventListener('keydown', (e) => {
   // En vol vers la base au sol (ou retour) : l'écran de voyage couvre tout, rien à faire.
   if (groundBase.flying) return e.preventDefault()
   if (barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen) { if (e.code === 'Escape') { barPanel.close(); gameEmbed.close(); mediaRoom.close(); cinemaRoom.close() }; e.preventDefault(); return }
+  // Une scène de quête : ses touches seulement, tant qu'elle se joue.
+  if (cinematic.key(e)) return
   if (gym.key(e)) return
   if (!chat.typing && court.key(e)) return
   if (!chat.typing && range.key(e)) return
@@ -3518,6 +3678,7 @@ addEventListener('keydown', (e) => {
     updateMuteButton()
   }
   if (e.code === 'KeyH') $('help').hidden = !$('help').hidden
+  if (e.code === 'KeyJ' && !editing() && !photo.active) return questJournal.toggle()
   if (editing() || photo.active) {
     // En photo, les emotes servent de poses.
     const pose = /^Digit([1-9])$/.exec(e.code)
@@ -3548,7 +3709,7 @@ chat.onOpen = () => keys.clear()
 const inputDir = new THREE.Vector3()
 function keyboardDirection(): THREE.Vector3 {
   inputDir.set(0, 0, 0)
-  if (gym.active || court.active || fishBusy() || quiz.isOpen || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return inputDir
+  if (cinematic.active || gym.active || court.active || fishBusy() || quiz.isOpen || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return inputDir
   const on = (...codes: string[]) => codes.some((c) => keys.has(c))
   // event.code = position physique : KeyW/KeyA correspondent à Z/Q sur un clavier AZERTY.
   const sx = (on('KeyD', 'ArrowRight') ? 1 : 0) - (on('KeyA', 'ArrowLeft') ? 1 : 0)
@@ -3662,6 +3823,17 @@ function updateGamepad(dt: number): GamepadInput {
     if (pad.cancel) fishing.stop()
     return pad
   }
+  // Une scène de quête : A passe la réplique (ou valide le choix), B la referme.
+  if (cinematic.active) {
+    pad.moveX = pad.moveY = 0
+    if (pad.cancel) cinematic.cancel()
+    else {
+      if (pad.up) cinematic.move(-1)
+      if (pad.down) cinematic.move(1)
+      if (pad.interact || pad.action) cinematic.next()
+    }
+    return pad
+  }
   if (barPanel.isOpen) {
     pad.moveX = pad.moveY = 0
     if (pad.cancel) barPanel.close()
@@ -3723,7 +3895,7 @@ function updateGamepad(dt: number): GamepadInput {
 
 function movementDirection(pad: GamepadInput): THREE.Vector3 {
   const input = keyboardDirection()
-  if (chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || photo.active || zone.frozen || zone.panelOpen) return input
+  if (cinematic.active || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || photo.active || zone.frozen || zone.panelOpen) return input
   // Le clavier reste prioritaire lorsqu'une touche de déplacement est maintenue.
   if (input.lengthSq() === 0) view().screenToGround(pad.moveX, -pad.moveY, input)
   return input
@@ -3785,7 +3957,8 @@ updateFpsButton()
 function isoOnly(): boolean {
   // Les caméras alliées de la zone thargoïde suivent un coéquipier, de haut.
   // Caché dans un casier aussi : en vue subjective, on ne verrait que l'intérieur de la porte.
-  return editing() || photo.active || !!claw || barPanel.isOpen || cinemaRoom.isOpen || mediaRoom.isOpen || planetarium.active || !!zone.watchTarget || zone.hiding
+  // Une scène de quête se regarde de haut, les deux interlocuteurs dans le cadre.
+  return editing() || photo.active || !!claw || barPanel.isOpen || cinemaRoom.isOpen || mediaRoom.isOpen || planetarium.active || !!zone.watchTarget || zone.hiding || cinematic.active
 }
 /** Occupé (installé, en emote, au travail…) : en vue subjective, la caméra passe derrière le personnage. */
 function busyBody(): boolean {
@@ -4195,8 +4368,8 @@ function drawMinimap() {
 const fpsBottom = () => innerHeight - 130
 
 function click(e: PointerEvent, at: { clientX: number; clientY: number } = e) {
-  // Caché dans un casier, capturé, derrière les caméras : le clic ne fait rien.
-  if (riding || gym.active || court.active || range.active || fishBusy() || quiz.isOpen || zone.frozen) return
+  // Caché dans un casier, capturé, derrière les caméras, en pleine scène de quête : le clic ne fait rien.
+  if (cinematic.active || riding || gym.active || court.active || range.active || fishBusy() || quiz.isOpen || zone.frozen) return
   if (editing()) {
     // Objet glissé jusque sous le catalogue : il le relâche quand même dans le mode aménagement.
     try {
@@ -4322,9 +4495,13 @@ function hiddenRestrictedItem(item: Interactable): boolean {
     || (!voieAdept && deck.def.id === -1 && room === 'v' && item !== voieDoorItem)
     || (!clubAlien && deck.def.id === -1 && room === CLUB_ROOM && item !== clubDoorItem)
     || (!barRegular && deck.def.id === -1 && room === BAR_ROOM && item !== barDoorItem)
+    // Une pièce que sa quête n'a pas encore ouverte : on n'y touche à rien, sauf à sa porte.
+    || (questLocked(deck.def.id, room) && !questWorld.doorItems.has(item))
 }
 
 function tryInteract() {
+  // Une scène de quête se joue : réplique suivante.
+  if (cinematic.active) return cinematic.next()
   // Bugenhagen parle : on passe à la phrase suivante.
   if (planetarium.talking) return planetarium.next()
   if (gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return
@@ -4333,6 +4510,8 @@ function tryInteract() {
 }
 
 function interactWith(item: Interactable) {
+  // Une quête attend là : sa scène se joue, à la place de l'interaction habituelle.
+  if (questWorld.intercept(item)) return
   if (item.seats) return sitOn(item)
   player.lookAt(item.position)
   if (item.furniture?.model === 'galaxy-map') return gameEmbed.open('edgis')
@@ -4947,6 +5126,19 @@ function landingSpot(hold: Deck, x: number, z: number, room?: string): { x: numb
  * disparaît pour soi, et le site la paie (un invité n'est pas payé).
  */
 const board = new TaskBoard(decks, wallet)
+// Pas de tâche dans une pièce que sa quête n'a pas encore ouverte : on ne pourrait pas la régler.
+board.closed = (d, x, z) => questLocked(d.def.id, d.map.room(Math.round(x), Math.round(z)))
+// Une quête terminée ouvre une pièce : ses tâches arrivent.
+quests.subscribe(() => board.refresh())
+// Une pièce se referme sur nous (le journal du site contredit celui de ce navigateur) : retour au palier de l'ascenseur.
+evictFrom = (level, room) => {
+  if (deck.def.id !== level || deck.map.room(Math.round(player.position.x), Math.round(player.position.z)) !== room) return
+  seating.leave()
+  player.cancelPath()
+  player.position.set(LIFT.x, deck.y, LIFT.z)
+  iso.snapTo(player.position)
+  sendState(true)
+}
 // Le site a répondu (tâches déjà réglées ailleurs) : on met les ponts à jour.
 wallet.subscribe(() => board.refresh())
 const progressEl = $('task-progress')
@@ -5241,7 +5433,7 @@ function frame() {
   }
   // Mode photo, instant figé : personnages, meubles et étoiles s'arrêtent ; la caméra, non.
   const world = photo.frozen ? 0 : dt
-  if (!editing() && !photo.active && !range.active) processHover()
+  if (!editing() && !photo.active && !range.active && !cinematic.active) processHover()
   // Mire sur un objet utilisable : elle s'allume.
   crosshair.classList.toggle('aim', fpsShown && cursorLocked() && !!pick(screenCenter()).item)
   player.update(world, input, zone.sprint(touchRun || autoSprint !== (pad.sprint || keys.has('ShiftLeft') || keys.has('ShiftRight'))))
@@ -5253,7 +5445,7 @@ function frame() {
     r.update(world)
     const room = r.level === ZONE_LEVEL ? null : deckById(r.level)?.map.room(Math.round(r.group.position.x), Math.round(r.group.position.z))
     r.group.visible = sees(r) && (ljpcMember || r.level !== 0 || room !== 'l') && (voieAdept || r.level !== -1 || room !== 'v') && (clubAlien || r.level !== -1 || room !== CLUB_ROOM)
-      && (barRegular || r.level !== -1 || room !== BAR_ROOM)
+      && (barRegular || r.level !== -1 || room !== BAR_ROOM) && !questLocked(r.level, room ?? null)
   }
   updateStalls()
   flushLatecomers()
@@ -5262,6 +5454,9 @@ function frame() {
   zone.update(dt)
   // Les conduits de ventilation : la lampe, ce qu'on voit, les rats.
   vents.update(world, deck === vents.deck ? player.position : null)
+  // Les quêtes : leurs objets, leurs « ! », la scène en cours.
+  cinematic.update(timer.getDelta(), player.position)
+  questWorld.update(world, holoTime.value, !photo.active && !cinematic.active)
   // Le simulateur d'accueil : l'instructrice, la leçon en cours. Parti autrement qu'au téléporteur : la formation s'arrête.
   if (deck === tutorialDeck) tutorial.update(world)
   else if (tutorial.active) tutorial.stop()
@@ -5319,7 +5514,7 @@ function frame() {
   else iso.frameCenter(0, 0, innerHeight)
   const cinemaSeat = deck.def.id === 1 && ['cinema-row', 'projection-chair'].includes(seating.current?.item.furniture?.model ?? '')
   if (cinemaSeat) cinemaFocus.set(cinemaScreenProp.x, deck.y, (player.position.z + cinemaScreenProp.z) / 2)
-  iso.update(dt, zone.watchTarget ?? (claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : cinemaSeat ? cinemaFocus : planetarium.active ? planetariumFocus : builder?.active ? builder.focus : player.position))
+  iso.update(dt, zone.watchTarget ?? (cinematic.active ? cinematic.focus : claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : cinemaSeat ? cinemaFocus : planetarium.active ? planetariumFocus : builder?.active ? builder.focus : player.position))
   if (barPanel.isOpen) {
     iso.camera.updateMatrixWorld()
     barPanel.place(iso.camera, player.position, jacquesAt)
@@ -5674,6 +5869,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, profile, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, garden, gardenView, gardenMode, gardenPanel, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt, range, fishing, fishBook, fishCollection, startFishing, quiz, openQuiz },
+    __game: { renderer, sound, player, profile, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, garden, gardenView, gardenMode, gardenPanel, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt, range, fishing, fishBook, fishCollection, startFishing, quiz, openQuiz, quests, questWorld, questJournal, cinematic },
   })
 }

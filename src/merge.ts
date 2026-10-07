@@ -17,6 +17,8 @@ export interface Occluder {
    * En mode aménagement, seuls les murs tournés vers la caméra s'estompent.
    */
   outward?: { x: number; z: number }
+  /** Effacé tout à fait : un grand meuble sous le couvercle d'une pièce fermée, qui dépasserait des murs. */
+  off?: boolean
 }
 
 /** Fondu de chaque occulteur fusionné (1 = opaque), lu par les shaders dans une texture. */
@@ -140,7 +142,7 @@ export function updateOccluders(list: Occluder[], fades: FadeBuffer | null, view
       if (hide && view.keep && Math.abs(o.center.x - view.keep.x) < 0.02 && Math.abs(o.center.z - view.keep.z) < 0.02) hide = false
     }
     const before = o.value
-    o.value = THREE.MathUtils.damp(o.value, hide ? 0.25 : 1, 8, dt)
+    o.value = o.off ? 0 : THREE.MathUtils.damp(o.value, hide ? 0.25 : 1, 8, dt)
     if (o.value > 0.995) o.value = 1
     if (o.value === before) continue
     if (o.uniform) o.uniform.value = o.value

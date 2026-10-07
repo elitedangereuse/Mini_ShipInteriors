@@ -17,6 +17,7 @@ import { roomCover } from './room-cover'
 import type { Doorway } from './physics'
 import { DOOR_GAP } from '../shared/sight.js'
 import { BAR_ROOM, CLUB_ROOM, mezzanineOf, shipMapOptions } from '../shared/ship-layouts.js'
+import { QUEST_ROOMS } from '../shared/quests.js'
 import { mezzanineHeight, mezzanineTile, type Mezzanine } from '../shared/mezzanine.js'
 import { BAY_BOTTOM, BAY_FRAME_TOP, BAY_TOP, bayFrame, buildMezzanine } from './mezzanine'
 import { placeSeats, seatAction, seatsOf, type SeatSpot } from './seats'
@@ -434,8 +435,15 @@ export class Deck {
   /** Haut des murs (vue subjective) : il s'estompe avec eux. */
   private ceilingOccluders: Occluder[] = []
   private ceilingFades!: FadeBuffer
-  /** Couvercles des pièces réservées (labo, sanctuaire, Zorb, bar), par lettre de pièce : posés tant qu'on n'y a pas accès. */
+  /** Couvercles des pièces réservées (labo, sanctuaire, Zorb, bar, pièces à débloquer par une quête), par lettre de pièce : posés tant qu'on n'y a pas accès. */
   private readonly covers = new Map<string, THREE.Group>()
+  /**
+   * Pièces qu'une quête débloque (cf. shared/quests.js), et ce qui y dépasserait du couvercle :
+   * ce qui bouge (le chariot du panier de basket) et les grands meubles, cachés avec la pièce.
+   */
+  private questRooms: string[] = []
+  private readonly roomLive = new Map<string, THREE.Object3D[]>()
+  private readonly roomTall = new Map<string, Occluder[]>()
   /** Ce qui bouge dans le Zorb (danseurs, reflets de la boule, lasers) : caché avec la salle. */
   private readonly clubLive: THREE.Object3D[] = []
 
@@ -448,6 +456,12 @@ export class Deck {
     }
     if (def.id === -1) for (const d of this.map.doors) {
       if (['v', CLUB_ROOM, BAR_ROOM].some((room) => this.doorRoom(d.x, d.z, d.dir, room))) this.map.lock(d.x, d.z, d.dir)
+    }
+    // Les pièces qu'une quête débloque (cf. shared/quests.js) : fermées, tant que le journal du
+    // joueur ne dit pas qu'elle est terminée (cf. main.ts).
+    this.questRooms = offShip(def) ? [] : QUEST_ROOMS.filter((r) => r.level === def.id).map((r) => r.room)
+    for (const d of this.map.doors) {
+      if (this.questRooms.some((room) => this.doorRoom(d.x, d.z, d.dir, room))) this.map.lock(d.x, d.z, d.dir)
     }
     this.y = def.id * LEVEL_HEIGHT
     this.group.position.y = this.y
@@ -473,6 +487,8 @@ export class Deck {
       this.buildRoomCover(CLUB_ROOM, '#2b1a3d', '#b860ff')
       this.buildRoomCover(BAR_ROOM, '#33261c', '#ff9a3c')
     }
+    // Une pièce à débloquer ne se devine pas d'en haut : une plaque d'acier, liserée du jaune des quêtes.
+    for (const room of this.questRooms) this.buildRoomCover(room, '#232733', '#ffd24a')
     if (aboard) this.buildLift()
     if (def.engine) this.buildCore(def.engine.x, def.engine.z)
     if (hulled) this.buildNozzles(!!def.engine)
@@ -553,6 +569,8 @@ export class Deck {
     this.pathfinder.invalidate()
     const cover = this.covers.get(room)
     if (cover) cover.visible = !open
+    for (const o of this.roomLive.get(room) ?? []) o.visible = open
+    for (const o of this.roomTall.get(room) ?? []) o.off = !open
   }
 
   private doorRoom(x: number, z: number, dir: number, room: string) {
@@ -1107,6 +1125,12 @@ export class Deck {
           f.live.rotation.y = rotY
           this.group.add(f.live)
           if (this.def.id === -1 && this.map.room(Math.round(p.x), Math.round(p.z)) === CLUB_ROOM) this.clubLive.push(f.live)
+          // Dans une pièce à débloquer : caché sous son couvercle, tant qu'elle est fermée (cf. setRoomAccess).
+          const closed = this.map.room(Math.round(p.x), Math.round(p.z))
+          if (closed && this.questRooms.includes(closed)) {
+            f.live.visible = false
+            this.roomLive.set(closed, [...(this.roomLive.get(closed) ?? []), f.live])
+          }
         }
         if (f.update) this.animated.push({ update: f.update, interactive: !!f.control })
         if (f.emitter) this.addEmitter(f.emitter, new THREE.Vector3(p.x, this.y + y + 0.6, p.z))
@@ -1122,6 +1146,7 @@ export class Deck {
       box.setFromObject(o)
       if (extent) box.copy(extent).applyMatrix4(o.matrixWorld)
       const center = box.getCenter(new THREE.Vector3())
+
       if (p.solid !== false) {
         const m = 0.04
         const b = { minX: box.min.x + m, maxX: box.max.x - m, minZ: box.min.z + m, maxZ: box.max.z - m }
@@ -1138,8 +1163,16 @@ export class Deck {
 
       // Tout le mobilier est fusionné avec le pont (les grands meubles restent tramables un par un) ;
       // un meuble interactif se clique grâce à un volume invisible.
-      if (box.max.y - lift > 0.6) this.addFading(o, center)
-      else this.addStatic(o, true)
+      if (box.max.y - lift > 0.6) {
+        this.addFading(o, center)
+        // Dans une pièce à débloquer, un grand meuble dépasserait du couvercle : effacé tant qu'elle est fermée.
+        const room = this.map.room(Math.round(p.x), Math.round(p.z))
+        if (room && this.questRooms.includes(room)) {
+          const tall = this.occluders[this.occluders.length - 1]
+          tall.off = true
+          this.roomTall.set(room, [...(this.roomTall.get(room) ?? []), tall])
+        }
+      } else this.addStatic(o, true)
 
       const seats = p.seats === false ? undefined : seatsOf(p.model, p.label)
       if (p.interact || seats || p.music) {

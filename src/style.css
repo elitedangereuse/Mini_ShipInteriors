@@ -892,6 +892,424 @@ kbd .icon {
   border-color: var(--cyan);
 }
 
+/* ---------- journal de quêtes (cf. src/quests/journal.ts) : sous le chat, dans le même habit ---------- */
+.chat-tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+.chat-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: rgba(10, 12, 28, 0.55);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  text-shadow: 0 1px 2px #000;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.2s, color 0.2s, border-color 0.2s;
+}
+.chat:hover .chat-tab,
+.chat.active .chat-tab,
+.chat.journal .chat-tab {
+  opacity: 1;
+}
+.chat-tab:hover {
+  color: var(--text);
+}
+.chat-tab.selected {
+  color: #ffd24a;
+  border-color: rgba(255, 210, 74, 0.5);
+}
+.chat-tab-count {
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: rgba(255, 210, 74, 0.2);
+  color: #ffd24a;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+.chat-tab-count:empty {
+  display: none;
+}
+/* Un message est arrivé pendant qu'on lisait le journal. */
+.chat-tab.unread::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cyan);
+}
+.chat-tab-close {
+  display: none;
+}
+.quest-log {
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  scrollbar-width: thin;
+}
+.quest {
+  padding: 5px 8px 6px;
+  border-left: 2px solid #ffd24a;
+  border-radius: 6px;
+  background: rgba(10, 12, 28, 0.62);
+  text-shadow: 0 1px 2px #000;
+}
+.quest.fresh {
+  animation: quest-fresh 1.6s ease-out;
+}
+.quest-done {
+  border-left-color: #7dffa8;
+}
+.quest-empty {
+  border-left-color: transparent;
+  color: var(--muted);
+  font-style: italic;
+}
+.quest-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #ffd24a;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  text-shadow: inherit;
+  cursor: pointer;
+}
+.quest-done .quest-head {
+  color: #7dffa8;
+}
+.quest-title {
+  flex: 1;
+}
+.quest-count {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.quest-caret {
+  color: var(--muted);
+  font-size: 11px;
+}
+.quest-note {
+  margin-top: 2px;
+}
+.quest-parts,
+.quest-past {
+  display: grid;
+  gap: 2px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+.quest-parts li {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  color: var(--muted);
+}
+.quest-parts li.done {
+  color: #bfe8cf;
+}
+.quest-parts li.todo {
+  font-style: italic;
+}
+.quest-parts .icon {
+  flex: none;
+  color: #7dffa8;
+}
+.quest-more {
+  display: grid;
+  gap: 5px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+.quest-pitch {
+  color: var(--muted);
+  font-style: italic;
+}
+.quest-past li {
+  position: relative;
+  padding-left: 10px;
+  color: var(--muted);
+}
+.quest-past li::before {
+  content: '·';
+  position: absolute;
+  left: 2px;
+}
+.quest-reward {
+  color: #ffe9a8;
+}
+.quest-reward .icon {
+  margin-right: 5px;
+  vertical-align: -2px;
+}
+.quest-guest {
+  color: var(--muted);
+}
+.quest-abandon {
+  justify-self: start;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+.quest-abandon:hover {
+  color: #ff8f8f;
+  border-color: #ff8f8f;
+}
+@keyframes quest-fresh {
+  from {
+    background: rgba(255, 210, 74, 0.35);
+  }
+}
+/* Bandeau d'une quête qui commence, avance ou se termine. */
+.quest-toasts {
+  position: absolute;
+  top: 84px;
+  left: 50%;
+  z-index: 5;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.quest-toast {
+  min-width: 260px;
+  max-width: min(460px, calc(100vw - 32px));
+  padding: 9px 18px 11px;
+  border: 1px solid rgba(255, 210, 74, 0.6);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(34, 28, 12, 0.92), rgba(16, 18, 36, 0.92));
+  box-shadow: 0 0 28px rgba(255, 210, 74, 0.18);
+  text-align: center;
+  transition: opacity 0.3s, transform 0.3s;
+  animation: quest-toast-in 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+.quest-toast.out {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+.quest-toast.done {
+  border-color: rgba(125, 255, 168, 0.65);
+  box-shadow: 0 0 32px rgba(125, 255, 168, 0.2);
+}
+.quest-toast-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #ffd24a;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.quest-toast.done .quest-toast-kicker {
+  color: #7dffa8;
+}
+.quest-toast-title {
+  font-size: 19px;
+  font-weight: 700;
+}
+.quest-toast-detail {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+@keyframes quest-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.96);
+  }
+}
+/* Mini-cinématique d'un dialogue de quête (cf. src/quests/cinematic.ts) : deux bandes noires, la
+   fenêtre des répliques entre elles ; le reste de l'interface s'efface le temps de la scène. */
+.cine {
+  position: fixed;
+  inset: 0;
+  z-index: 46;
+  pointer-events: none;
+}
+.cine::before,
+.cine::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 11vh;
+  background: #000;
+  transform: scaleY(0);
+  transition: transform 0.55s cubic-bezier(0.3, 0.7, 0.2, 1);
+}
+.cine::before {
+  top: 0;
+  transform-origin: top;
+}
+.cine::after {
+  bottom: 0;
+  transform-origin: bottom;
+}
+.cine.on::before,
+.cine.on::after {
+  transform: scaleY(1);
+}
+.cine-box {
+  position: absolute;
+  left: 50%;
+  bottom: calc(11vh + 20px);
+  transform: translateX(-50%);
+  width: min(680px, calc(100vw - 32px));
+  padding: 12px 20px 16px;
+  border: 1px solid rgba(255, 210, 74, 0.55);
+  border-radius: 10px;
+  background: rgba(12, 14, 28, 0.92);
+  box-shadow: 0 12px 40px #000a, 0 0 26px rgba(255, 210, 74, 0.1);
+  font-size: 15px;
+  line-height: 1.55;
+  cursor: pointer;
+  pointer-events: auto;
+  animation: cine-box-in 0.4s ease-out 0.25s both;
+}
+.cine-name {
+  display: block;
+  margin-bottom: 3px;
+  padding-right: 70px;
+  color: #ffd24a;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.cine-name.me {
+  color: var(--cyan);
+}
+.cine-text {
+  min-height: 3.1em;
+  margin: 0;
+  padding-right: 14px;
+}
+.cine-text.story {
+  color: #cfd3f5;
+  font-style: italic;
+}
+.cine-more {
+  position: absolute;
+  right: 14px;
+  bottom: 8px;
+  color: #ffd24a;
+  font-size: 11px;
+  animation: planetarium-more 0.9s ease-in-out infinite;
+}
+.cine-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.cine-choices button {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(10, 12, 28, 0.7);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.cine-choices button.selected {
+  border-color: #ffd24a;
+  color: #ffd24a;
+  box-shadow: 0 0 12px rgba(255, 210, 74, 0.25);
+}
+.cine-skip {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.cine-skip:hover {
+  color: var(--text);
+}
+body.cine-on #hud > *:not(.quest-toasts),
+body.cine-on #bubbles {
+  opacity: 0;
+  pointer-events: none;
+}
+/* Sur un écran tactile, les commandes sont posées à même la page (display: contents). */
+body.cine-on #touch-pad {
+  display: none;
+}
+@keyframes cine-box-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+}
+@media (max-height: 520px) {
+  .cine::before,
+  .cine::after {
+    height: 8vh;
+  }
+  .cine-box {
+    bottom: calc(8vh + 8px);
+    padding: 8px 14px 10px;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .cine-text {
+    min-height: 2.8em;
+  }
+  .cine-choices {
+    margin-top: 6px;
+  }
+  .cine-choices button {
+    min-height: 36px;
+  }
+  .quest-toasts {
+    top: 50px;
+  }
+  .quest-toast-title {
+    font-size: 15px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cine::before,
+  .cine::after {
+    transition: none;
+  }
+  .cine-more {
+    animation: none;
+  }
+}
+
 /* ---------- emotes ---------- */
 .emotes {
   left: 50%;
@@ -1922,6 +2340,9 @@ body.editing .top-left {
 }
 .ed-card.garden-locked .ed-card-tag::before {
   content: '🌱 ';
+}
+.ed-card.quest-locked .ed-card-tag::before {
+  content: '📜 ';
 }
 .ed-card.poor img {
   opacity: 0.55;

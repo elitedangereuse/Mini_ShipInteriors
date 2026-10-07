@@ -62,11 +62,15 @@
 // Zone thargoïde (cf. salvage.js) : les équipes se forment au lobby de la cale, chaque partie a
 // son instance. Dans la baie infestée, un joueur ne voit et n'entend que son équipe ; le reste du
 // bord apprend seulement qu'il y est entré.
+//
+// Quêtes (cf. shared/quests.js) : certaines pièces restent fermées tant que leur quête n'est pas
+// terminée. Pour un CMDR, le site le dit à la connexion, et le relais le lui redemande quand le
+// joueur annonce en avoir terminé une ; un invité, lui, joue dans son navigateur : on le croit.
 import { Server } from 'socket.io'
 import { fightRelay } from './fights.js'
 import { BOARD_GAMES, applyBoardMove, boardColor, boardState, newBoardGame } from './boards.js'
 import { sanitizeLayout } from './cabin.js'
-import { fetchQuarters, hasSiteArtwork, postBarRegular, postSalvageResult, siteArtworkAllowed } from './site.js'
+import { fetchQuarters, fetchQuestsDone, hasSiteArtwork, postBarRegular, postSalvageResult, siteArtworkAllowed } from './site.js'
 import { COOKIE, cleanCmdrName, cmdrIdentityFromCookie, cookieValue } from './cmdr.js'
 import { createSalvage, GAME_ACTIONS, LOBBY_ACTIONS } from './salvage.js'
 import { salvageMinDuration } from '../shared/salvage.js'
@@ -75,6 +79,7 @@ import { createCinema } from './cinema.js'
 import { BAR_ROOM, BOARD_TABLES, CLUB_ROOM, SHIP_LAYOUTS, isAlienLook, shipMapOptions } from '../shared/ship-layouts.js'
 import { TOILET_ROOM, VENT_LAYOUT, VENT_LEVEL, atVentGrate } from '../shared/vents.js'
 import { TUTORIAL_LAYOUT, TUTORIAL_LEVEL } from '../shared/tutorial.js'
+import { knownQuests, questOfRoom } from '../shared/quests.js'
 import { DIRS, ShipMap } from '../shared/ship-map.js'
 import { applyPlot, HOUSING_LEVEL, PLOT_DOOR, PLOT_ORIGIN } from '../shared/housing-plot.js'
 import { applyWalls, unpackHome } from '../shared/housing-home.js'
@@ -227,7 +232,7 @@ export function attachRelay(
   httpServer,
   { log = console.log, error = console.error, cmdrUrl = process.env.ED_CMDR_URL ?? '', path = process.env.WS_PATH || WS_PATH,
     devCmdr = false, youtubeKey = process.env.YOUTUBE_API_KEY ?? '', youtubeFetch = fetch, relaySecret = process.env.MSI_RELAY_SECRET ?? '',
-    salvageFetch = fetch, quartersFetch = fetch, barFetch = fetch } = {},
+    salvageFetch = fetch, quartersFetch = fetch, barFetch = fetch, questsFetch = fetch } = {},
 ) {
   if (!cmdrUrl) error('[relais] ED_CMDR_URL absent : les comptes Élite Dangereuse ne peuvent pas être reconnus (tout le monde est invité).')
   const io = new Server(httpServer, {
@@ -570,6 +575,8 @@ export function attachRelay(
       bar: !!cmdr && identity.bar === true,
       // Aspiré par des toilettes pendant un saut : jusqu'à quand il peut entrer dans les conduits (ms, 0 : non).
       flushed: 0,
+      // Quêtes terminées (cf. shared/quests.js) : celles que dit le site, ou qu'annonce un invité (cf. `quests`, plus bas).
+      quests: new Set(cmdr ? knownQuests(identity.quests) : []),
       skin: validLook(auth.skin) ? auth.skin : 'human.female.b',
       // Point d'apparition : l'entrée de sa parcelle, sur le pont des quartiers (cf. SPAWN dans src/levels.ts).
       x: PLOT_ORIGIN.x + 1, z: PLOT_DOOR.z, level: HOUSING_LEVEL, yaw: 0, anim: 'idle', pose: '', py: 0,
@@ -629,6 +636,7 @@ export function attachRelay(
     let gardenBudget = 3
     let chiefBudget = 3
     let salvageBudget = 20
+    let questBudget = 3
     const refill = setInterval(() => {
       chatBudget = Math.min(5, chatBudget + 1)
       inviteBudget = Math.min(3, inviteBudget + 0.25)
@@ -644,6 +652,7 @@ export function attachRelay(
       gardenBudget = Math.min(3, gardenBudget + 1)
       chiefBudget = Math.min(3, chiefBudget + 1)
       salvageBudget = Math.min(20, salvageBudget + 10)
+      questBudget = Math.min(3, questBudget + 0.25)
     }, 1000)
 
     socket.on('state', (raw) => {
@@ -669,6 +678,9 @@ export function attachRelay(
       if (m.level === -1 && MAPS.get(-1).room(Math.round(x), Math.round(z)) === CLUB_ROOM && !isAlienLook(player.skin)) return
       // Chez Jacques : seulement pour les habitués.
       if (m.level === -1 && MAPS.get(-1).room(Math.round(x), Math.round(z)) === BAR_ROOM && !player.bar) return
+      // Les pièces qu'une quête débloque : seulement une fois la quête terminée.
+      const gate = LEVELS.has(m.level) ? questOfRoom(m.level, MAPS.get(m.level).room(Math.round(x), Math.round(z))) : null
+      if (gate && !player.quests.has(gate)) return
       // La baie infestée : seulement en mission, sur son sol, et pas plus vite qu'on ne court.
       if (m.level === ZONE_LEVEL && !salvage.accepts(player, x, z)) return
       // Une pose inconnue n'en est pas une ; sa hauteur reste à portée d'une couchette du haut.
@@ -1040,6 +1052,21 @@ export function attachRelay(
         : null
       barPending = false
       reply({ ok: true, badge })
+    })
+
+    // Le joueur annonce ses quêtes terminées (à l'arrivée, puis à chaque quête terminée) : elles lui
+    // ouvrent des pièces. Pour un CMDR, le relais redemande au site, qui fait foi ; un invité joue
+    // dans son navigateur, et un CMDR dont le site ne sait rien dire aussi : on les croit.
+    // Réponse : { ok, done } (les quêtes retenues).
+    socket.on('quests', async (raw, ack) => {
+      const reply = typeof ack === 'function' ? ack : () => {}
+      if (questBudget < 1) return reply({ ok: false })
+      questBudget--
+      const claimed = knownQuests(obj(raw).done)
+      const kept = player.cookie ? await fetchQuestsDone(player.cookie, { cmdrUrl, fetcher: questsFetch }) : null
+      if (!players.has(socket.id)) return
+      player.quests = new Set(kept ?? claimed)
+      reply({ ok: true, done: [...player.quests] })
     })
 
     // Aménagement de ses quartiers (CMDR vérifiés seulement), transmis à ceux qui s'y trouvent.
