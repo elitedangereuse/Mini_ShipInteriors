@@ -32,13 +32,47 @@ interface Anchor {
   aside?: HTMLDivElement
   asideTimer?: number
   getHead: (out: THREE.Vector3) => THREE.Vector3 | null
+  /** Taille à l'écran (px), relevée après chaque mise en page (cf. Bubbles.sizes). */
+  w: number
+  h: number
+  /** Décalage vers le haut (px, négatif) pour laisser la place à l'invite d'interaction. */
+  lift: number
+  /** Dernières valeurs écrites dans le style : on ne réécrit que ce qui change. */
+  shown: boolean
+  pinned: boolean
+  transform: string
 }
+
+/** Rectangle à l'écran posé sur son bord bas : milieu de ce bord (x, y) et taille (px). */
+export interface ScreenBox {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/** Écart (px) entre une bulle et l'invite d'interaction qu'elle enjambe. */
+const PROMPT_GAP = 6
 
 /** Étiquettes HTML accrochées au-dessus des personnages : nom, bulle de chat, emote. */
 export class Bubbles {
   private anchors = new Map<string, Anchor>()
   private root = $('bubbles')
   private v = new THREE.Vector3()
+  private last = performance.now()
+  /**
+   * Taille de chaque étiquette, relevée quand elle change : la lire à chaque image forcerait le
+   * navigateur à refaire la mise en page de toute l'interface en pleine image.
+   */
+  private byEl = new WeakMap<Element, Anchor>()
+  private sizes = new ResizeObserver((entries) => {
+    for (const e of entries) {
+      const a = this.byEl.get(e.target)
+      if (!a) continue
+      a.w = a.el.offsetWidth
+      a.h = a.el.offsetHeight
+    }
+  })
 
   /** @param getHead position monde au-dessus de la tête, ou null si invisible */
   attach(key: string, getHead: Anchor['getHead'], name?: string, verified?: boolean) {
@@ -46,7 +80,9 @@ export class Bubbles {
     const el = document.createElement('div')
     el.className = 'anchor'
     this.root.appendChild(el)
-    const a: Anchor = { el, getHead }
+    const a: Anchor = { el, getHead, w: 0, h: 0, lift: 0, shown: true, pinned: false, transform: '' }
+    this.byEl.set(el, a)
+    this.sizes.observe(el)
     if (name) {
       a.tag = document.createElement('div')
       a.tag.className = 'tag'
@@ -73,6 +109,7 @@ export class Bubbles {
     if (!a) return
     clearTimeout(a.sayTimer)
     clearTimeout(a.asideTimer)
+    this.sizes.unobserve(a.el)
     a.el.remove()
     this.anchors.delete(key)
   }
@@ -149,31 +186,50 @@ export class Bubbles {
   /**
    * @param pinned étiquette posée à l'écran plutôt qu'au-dessus d'une tête (la sienne, en vue
    *   subjective : elle est dans la caméra) ; son nom est alors masqué, ses bulles restent
+   * @param avoid invite d'interaction affichée (« E Parler à… ») : une étiquette qui la
+   *   toucherait monte au-dessus d'elle, et redescend en douceur quand elle s'en va
    */
-  update(camera: THREE.Camera, pinned?: { key: string; x: number; y: number } | null) {
+  update(camera: THREE.Camera, pinned?: { key: string; x: number; y: number } | null, avoid?: ScreenBox | null) {
+    const now = performance.now()
+    const settle = Math.min(1, ((now - this.last) / 1000) * 10)
+    this.last = now
     for (const [key, a] of this.anchors) {
       const head = a.getHead(this.v)
       const empty = !a.tag && !a.el.firstChild
-      if (!head || empty) {
-        a.el.style.display = 'none'
+      let x = 0, y = 0
+      let visible = !!head && !empty
+      const pin = visible && pinned?.key === key
+      if (pin) ({ x, y } = pinned!)
+      else if (visible) {
+        head!.project(camera)
+        x = ((head!.x + 1) / 2) * innerWidth
+        y = ((1 - head!.y) / 2) * innerHeight
+        // Derrière la caméra (vue subjective), la projection renverrait la tête devant soi.
+        visible = head!.z <= 1
+      }
+      if (a.shown !== visible) {
+        a.shown = visible
+        a.el.style.display = visible ? '' : 'none'
+      }
+      if (!visible) {
+        a.lift = 0
         continue
       }
-      const pin = pinned?.key === key
-      a.el.classList.toggle('pinned', pin)
-      let x: number, y: number
-      if (pin) ({ x, y } = pinned!)
-      else {
-        head.project(camera)
-        // Derrière la caméra (vue subjective), la projection renverrait la tête devant soi.
-        if (head.z > 1) {
-          a.el.style.display = 'none'
-          continue
-        }
-        x = ((head.x + 1) / 2) * innerWidth
-        y = ((1 - head.y) / 2) * innerHeight
+      if (a.pinned !== pin) {
+        a.pinned = pin
+        a.el.classList.toggle('pinned', pin)
       }
-      a.el.style.display = ''
-      a.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`
+      // L'étiquette occupe [x ± w/2] × [y - h, y] ; l'invite, [avoid.x ± avoid.w/2] × [avoid.y - avoid.h, avoid.y].
+      let want = 0
+      if (avoid?.w && a.w && Math.abs(x - avoid.x) < (a.w + avoid.w) / 2 + PROMPT_GAP && y > avoid.y - avoid.h - PROMPT_GAP && y - a.h < avoid.y + PROMPT_GAP) {
+        want = avoid.y - avoid.h - PROMPT_GAP - y
+      }
+      a.lift = want < a.lift || Math.abs(want - a.lift) < 0.5 ? want : a.lift + (want - a.lift) * settle
+      const transform = `translate(${x.toFixed(1)}px, ${(y + a.lift).toFixed(1)}px) translate(-50%, -100%)`
+      if (a.transform !== transform) {
+        a.transform = transform
+        a.el.style.transform = transform
+      }
     }
   }
 }

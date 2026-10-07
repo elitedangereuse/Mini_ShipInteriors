@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { box, cylinder, glow, lit, sphere, type Builder, type Furniture } from './kit'
+import { box, compact, cylinder, glow, lit, sphere, type Builder, type Furniture } from './kit'
 
 const COLORS = {
   base: '#202533',
@@ -69,8 +69,7 @@ function holographicTable(kind: BoardKind): Furniture {
   for (const x of [-0.34, 0.34]) solid.add(box(0.035, 0.2, 0.035, lit(COLORS.edge), x, 0.4, 0, 0.01))
 
   const live = new THREE.Group()
-  const panel = new THREE.Group()
-  panel.position.y = 0.68
+  const board = new THREE.Group()
   const accent = kind === 'draughts' ? COLORS.cyan : kind === 'guardian-connect' ? COLORS.violet : COLORS.gold
   const dark = kind === 'draughts' ? '#10233d' : kind === 'guardian-connect' ? '#21133b' : '#3c2810'
   const light = kind === 'draughts' ? '#1d5363' : kind === 'guardian-connect' ? '#55337f' : '#72521d'
@@ -79,15 +78,19 @@ function holographicTable(kind: BoardKind): Furniture {
   const cell = kind === 'guardian-connect' ? 0.09 : 0.075
   const boardWidth = cells * cell
   const boardDepth = depth * cell
-  panel.add(box(boardWidth + 0.07, 0.018, boardDepth + 0.07, glow(accent), 0, 0, 0, 0.015))
+  board.add(box(boardWidth + 0.07, 0.018, boardDepth + 0.07, glow(accent), 0, 0, 0, 0.015))
   if (kind === 'guardian-connect') {
-    for (let y = 0; y < 6; y++) for (let x = 0; x < 7; x++) panel.add(box(cell - 0.012, 0.012, cell - 0.012, glow(dark), (x - 3) * cell, 0.014, (y - 2.5) * cell, 0.012))
-    connectGrid(panel)
+    for (let y = 0; y < 6; y++) for (let x = 0; x < 7; x++) board.add(box(cell - 0.012, 0.012, cell - 0.012, glow(dark), (x - 3) * cell, 0.014, (y - 2.5) * cell, 0.012))
+    connectGrid(board)
   } else {
-    squareGrid(panel, 8, boardWidth, light, dark)
-    if (kind === 'draughts') draughtPieces(panel)
-    else chessPieces(panel)
+    squareGrid(board, 8, boardWidth, light, dark)
+    if (kind === 'draughts') draughtPieces(board)
+    else chessPieces(board)
   }
+  // Cases et pions flottent d'un bloc : deux maillages en tout, au lieu d'un par case et par pion
+  // (une centaine par plateau, autant d'appels de dessin, et autant encore pour l'ombre).
+  const panel = compact(board)
+  panel.position.y = 0.68
   live.add(panel)
   const halo = new THREE.Mesh(new THREE.TorusGeometry(Math.max(boardWidth, boardDepth) * 0.63, 0.012, 5, 32), glow(accent))
   halo.rotation.x = Math.PI / 2
