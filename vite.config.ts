@@ -86,18 +86,36 @@ export default defineConfig({
   // crédits (même origine en prod) : en local, on relaie au site Docker.
   server: { proxy: SITE_PROXY },
   preview: { proxy: SITE_PROXY },
-  // Three.js pèse ~650 ko minifié à lui seul, le jeu et son mobilier ~200 ko : c'est attendu.
-  // Le mode aménagement est chargé à la demande (import dynamique, ~25 ko) ; les morceaux
-  // partagés prennent un nom clair (sinon, celui du premier module commun venu) : vendor pour
-  // les dépendances, game pour le code du jeu que l'éditeur utilise aussi.
+  // Tout le vaisseau est bâti au démarrage : son code est rangé en morceaux qui suivent les
+  // couches du jeu (chacun contient aussi ce dont il dépend et qu'aucun morceau plus bas n'a
+  // déjà pris), téléchargés en parallèle et gardés en cache tant qu'ils ne changent pas :
+  // - three : Three.js, ~690 ko minifié à lui seul (d'où la limite d'alerte), qui ne change
+  //   qu'à ses montées de version ;
+  // - vendor : les autres dépendances (socket.io, icônes) ;
+  // - furniture : le mobilier fait main (src/furniture), avec les jeux des bornes qu'il fait
+  //   tourner en démonstration ;
+  // - ship : les ponts, leurs plans et les quartiers (catalogue, vue, parcelle) ;
+  // - activities : les activités rangées dans leur dossier (zone thargoïde, base au sol,
+  //   jardinage, pêche, interro, annuaire, jeux de plateau) ;
+  // - common : ce que le jeu partage avec les modes chargés à la demande (sinon, il prendrait
+  //   le nom du premier module commun venu) ;
+  // - index : main.ts et le reste.
+  // Les priorités vont de la couche la plus basse à la plus haute. `$initial` laisse de côté le
+  // code chargé à la demande (aménagement, construction, borne d'arcade en grand : imports
+  // dynamiques), et les tests ne visent que les scripts : les feuilles de style restent un seul
+  // fichier, dans l'ordre d'index.html.
   build: {
     chunkSizeWarningLimit: 900,
     rolldownOptions: {
       output: {
         codeSplitting: {
           groups: [
-            { name: 'vendor', test: /node_modules/, priority: 2 },
-            { name: 'game', minShareCount: 2, priority: 1 },
+            { name: 'three', test: /node_modules[\\/]three[\\/]/, priority: 5 },
+            { name: 'vendor', test: /node_modules/, priority: 4 },
+            { name: 'furniture', test: /src[\\/]furniture[\\/].*\.ts$/, tags: ['$initial'], priority: 3 },
+            { name: 'ship', test: /src[\\/](?:deck|levels)\.ts$|src[\\/](?:cabin|housing)[\\/].*\.ts$/, tags: ['$initial'], priority: 2 },
+            { name: 'activities', test: /src[\\/](?:salvage|base|gardening|fishing|quiz|crew|board)[\\/].*\.ts$/, tags: ['$initial'], priority: 1 },
+            { name: 'common', test: /\.(?:ts|js|json)$/, tags: ['$initial'], minShareCount: 2 },
           ],
         },
       },
