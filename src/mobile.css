@@ -127,8 +127,40 @@
   .ed-bar { top: var(--mobile-top); left: var(--mobile-left); max-width: calc(100vw - 260px); padding: 6px; gap: 6px; }
   .ed-title, .ed-hint:not(.refused) { display: none; }
   .ed-actions button, .ed-tabs button, .ed-tool-row button { min-height: 44px; min-width: 44px; }
-  .ed-catalog { top: calc(var(--mobile-top) + 52px); bottom: var(--mobile-bottom); right: var(--mobile-right); left: auto; height: auto; width: min(310px, 40vw); }
-  .ed-tools { bottom: var(--mobile-bottom); left: var(--mobile-left); transform: none; max-width: calc(60vw - 24px); flex-wrap: wrap; }
+  .ed-catalog { top: calc(var(--mobile-top) + 52px); bottom: var(--mobile-bottom); right: var(--mobile-right); left: auto; height: auto; width: min(310px, 46vw); }
+  /* One row under the room: a long list of variants scrolls sideways instead of stacking over it. */
+  .ed-tools { bottom: var(--mobile-bottom); left: var(--mobile-left); transform: none; max-width: calc(100vw - min(310px, 46vw) - var(--mobile-left) - var(--mobile-right) - 8px); box-sizing: border-box; }
+  .ed-tool-row { flex-wrap: nowrap; flex: none; }
+  .ed-variants { flex-wrap: nowrap; justify-content: flex-start; min-width: 0; padding-block: 3px; overflow-x: auto; overscroll-behavior: contain; scrollbar-width: none; }
+  .ed-variants button { flex: none; }
+  .ed-bar { flex-wrap: nowrap; }
+  .ed-info { min-width: 0; }
+  .ed-info > * { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .ed-actions { flex: none; }
+  /* Furniture catalogue: categories become a scrolling rail, so the cards keep the panel's height. */
+  .ed-catalog { display: grid; grid-template-columns: 44px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; gap: 6px; padding: 6px; }
+  .ed-catalog > .ed-modes, .ed-catalog > .ed-buy, .builder .ed-catalog > .ed-cards { grid-column: 1 / -1; }
+  .ed-catalog > .ed-tabs { display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+  .ed-tabs button { flex: none; height: 44px; }
+  .ed-catalog > .ed-cards { overscroll-behavior: contain; }
+  .ed-catalog > .ed-cards:not(.finish) { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+  .ed-modes button { height: 44px; }
+  .ed-modes .icon { font-size: 18px; }
+  /* Five construction tabs: icons only, the open one spelled out. */
+  .ed-modes:has(> :nth-child(3)) { display: flex; }
+  .ed-modes:has(> :nth-child(3)) button { flex: 0 0 44px; font-size: 0; }
+  .ed-modes:has(> :nth-child(3)) button.active { flex: 1; font-size: 13px; }
+  .ed-cards.finish > .ed-rooms-intro:first-child { display: none; }
+  .hb-tools button, .hb-all { height: 40px; }
+  .ed-swatch { width: 36px; height: 36px; }
+  .ed-buy { max-height: 62%; overflow-y: auto; overscroll-behavior: contain; padding: 8px; gap: 6px; }
+  .ed-buy .eb-close { padding: 12px; }
+  .ed-buy .eb-step { width: 40px; height: 40px; }
+  .ed-buy .eb-buy { height: 44px; }
+  .ed-variants button { width: 40px; height: 40px; }
+  .ed-variants button.swatch { width: 34px; height: 34px; }
+  /* Nothing to say to the crew while decorating: the chat field would float over the room. */
+  body.editing #chat { display: none; }
   /* The bar keeps its bottom-centre anchor: the thumb controls are hidden in photo mode. */
   .photo-bar { left: 0; right: 0; bottom: var(--mobile-bottom); transform: none; width: max-content; margin-inline: auto; max-width: calc(100vw - var(--mobile-left) - var(--mobile-right)); gap: 4px; padding: 4px; }
   .photo-bar button { width: 44px; height: 44px; }
