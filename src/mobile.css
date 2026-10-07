@@ -55,6 +55,11 @@
   .mobile-status-toggle { position: absolute; right: 0; top: 0; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-left: 1px solid var(--border); border-radius: 0 10px 10px 0; background: transparent; color: var(--cyan); font-size: 22px; pointer-events: auto; }
   .mobile-status-toggle[aria-expanded='true'] { color: var(--accent); }
   .top-left > .order-ticket { display: none; }
+  /* The welcome simulator's lesson stays in view, in the free top centre: no instructor quote (her bubble says it). */
+  .top-left > .tutorial { position: fixed; z-index: 5; top: var(--mobile-top); left: 50%; transform: translateX(-50%); width: min(320px, calc(100vw - 420px - var(--mobile-left) - var(--mobile-right))); min-width: 220px; padding: 6px 10px 8px; background: #101a2ae6; }
+  .tutorial .tuto-say, .tutorial .tuto-dots { display: none; }
+  .tutorial .tuto-goal { font-size: 13px; }
+  .tutorial .tuto-skip { min-height: 32px; }
   /* Quarters actions leave the details panel for the free top centre: always there, one touch away. */
   .top-left > #cabin-bar { position: fixed; z-index: 5; top: var(--mobile-top); left: 50%; transform: translateX(-50%); display: block; width: max-content; max-width: calc(100vw - 420px - var(--mobile-left) - var(--mobile-right)); padding: 0; border: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
   #cabin-bar .cb-title { display: none; }

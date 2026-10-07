@@ -18,6 +18,7 @@ import { BASE_ARRIVAL, BASE_BURN, BASE_COCKPIT, BASE_LEVEL, CHIEF_HOLD, chiefAt 
 import { HOUSING_LEVEL, PLOT_DOOR, PLOT_ORIGIN } from '../shared/housing-plot.js'
 import { JUMP_CHARGE } from '../shared/systems.js'
 import { VENT_DROP, VENT_GRATE, VENT_LEVEL } from '../shared/vents.js'
+import { TUTORIAL_EXIT, TUTORIAL_LEVEL, TUTORIAL_SPAWN } from '../shared/tutorial.js'
 
 /** Faux site : reconnaît deux cookies, comme outils/mini-shipinteriors-cmdr.php. */
 const ACCOUNTS = { 'jeton-adam': 'Adam Fauster', 'jeton-rackam': 'Rackam' }
@@ -335,6 +336,31 @@ describe('rediffusion', () => {
     const left = once(a, 'leave')
     b.disconnect()
     assert.equal((await left)[0].id, wb.id)
+  })
+
+  test('simulateur d\'accueil : on y est seul, le bord apprend seulement qu\'on y est entré', async () => {
+    const a = client({ auth: { name: 'CMDR Recrue' } })
+    const wa = await welcome(a)
+    const b = client({ auth: { name: 'CMDR Bleu' } })
+    const wb = await welcome(b)
+    const inside = { x: TUTORIAL_SPAWN.x, z: TUTORIAL_SPAWN.z, yaw: 0, level: TUTORIAL_LEVEL, anim: 'idle' }
+
+    // Hors de son sol, la position est refusée ; l'entrée est annoncée, une fois.
+    a.emit('state', { ...inside, x: 18, z: 0 })
+    const entered = next(b, 'state', (m) => m.id === wa.id)
+    a.emit('state', inside)
+    assert.equal((await entered).level, TUTORIAL_LEVEL)
+    // Les pas suivants ne sortent pas de l'instance, même vers une autre recrue.
+    const watched = receives(b, 'state', 200, (m) => m.id === wa.id)
+    a.emit('state', { ...inside, x: 4, anim: 'walk' })
+    b.emit('state', inside)
+    assert.equal(await watched, false)
+    assert.equal(await receives(a, 'state', 200, (m) => m.id === wb.id), false)
+
+    // Téléporté sur le pont principal : le bord le voit arriver.
+    const out = next(b, 'state', (m) => m.id === wa.id)
+    a.emit('state', { x: TUTORIAL_EXIT.x, z: TUTORIAL_EXIT.z, yaw: 0, level: TUTORIAL_EXIT.level, anim: 'idle' })
+    assert.equal((await out).level, 0)
   })
 
   test('la pose sur un meuble passe avec la position, et un nouveau venu la voit', async () => {

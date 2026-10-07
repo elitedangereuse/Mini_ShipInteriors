@@ -159,6 +159,19 @@ export interface LevelDef {
    * ni ascenseur, ni tuyères ; on n'y voit qu'autour de soi.
    */
   vents?: boolean
+  /**
+   * Simulateur d'accueil des nouveaux venus (cf. src/tutorial.ts) : une instance solo, hors des
+   * ponts du vaisseau. Ni coque, ni ascenseur, ni tuyères.
+   */
+  tutorial?: boolean
+}
+
+/**
+ * Hors des ponts du vaisseau (la baie infestée, la base au sol, les conduits, le simulateur
+ * d'accueil) : ni coque ni ascenseur, pas de visite d'ici, et un rechargement ramène à bord.
+ */
+export function offShip(def: LevelDef): boolean {
+  return !!def.zone || !!def.ground || !!def.vents || !!def.tutorial
 }
 
 /** Écart vertical entre deux ponts. */
