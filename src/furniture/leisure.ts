@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
-  animatedScreen, barX, box, compact, cylinder, drawnTexture, glow, holoMaterial, lit, mesh, part, type BagControl, type Builder,
+  animatedScreen, barX, barZ, box, compact, cylinder, drawnTexture, glow, holoMaterial, lit, mesh, part, type BagControl, type Builder,
 } from './kit'
 import { tr } from '../i18n'
 
@@ -119,31 +119,109 @@ const medCabinet: Builder = () => {
 
 // ---------------------------------------------------------------- salle de sport
 
-/** Tapis de course, console à l'avant (+z). */
+/** Tableau de bord d'un appareil : écran au repos (« PRÊT »), compteurs à zéro, touches. */
+function machineConsole(w: number, h: number, accent: string, track: boolean): THREE.CanvasTexture {
+  return drawnTexture(w, h, (c) => {
+    c.fillStyle = '#16181d'
+    c.fillRect(0, 0, w, h)
+    c.fillStyle = '#071018'
+    c.fillRect(w * 0.18, h * 0.12, w * 0.64, h * 0.52)
+    c.strokeStyle = accent
+    c.lineWidth = 2
+    if (track) {
+      // La piste ovale du programme, et le petit point du coureur.
+      c.beginPath(); c.roundRect(w * 0.24, h * 0.2, w * 0.24, h * 0.36, h * 0.18); c.stroke()
+      c.fillStyle = accent
+      c.beginPath(); c.arc(w * 0.36, h * 0.2, 2, 0, Math.PI * 2); c.fill()
+    }
+    c.fillStyle = accent
+    c.font = `bold ${Math.round(h * 0.2)}px monospace`
+    c.textAlign = track ? 'left' : 'center'
+    c.textBaseline = 'middle'
+    c.fillText(tr('PRÊT', 'READY'), track ? w * 0.52 : w / 2, h * 0.38)
+    // Les touches : vitesse, pente, et le gros bouton d'arrêt.
+    for (let i = 0; i < 4; i++) {
+      c.fillStyle = i % 2 ? '#3a3f48' : '#4b525d'
+      c.fillRect(w * 0.06, h * (0.18 + i * 0.16), w * 0.08, h * 0.1)
+      c.fillRect(w * 0.86, h * (0.18 + i * 0.16), w * 0.08, h * 0.1)
+    }
+    c.fillStyle = '#d8323c'
+    c.beginPath(); c.arc(w / 2, h * 0.83, h * 0.1, 0, Math.PI * 2); c.fill()
+  })
+}
+
+/**
+ * Tapis de course, console à l'avant (+z) : le bâti et ses repose-pieds, la bande et ses rouleaux,
+ * le capot du moteur, les deux montants, les mains courantes, et le tableau de bord avec son écran
+ * au repos, son porte-gobelet et sa clé de sécurité.
+ */
 const treadmill: Builder = () => {
   const g = new THREE.Group()
-  g.add(box(0.5, 0.08, 1.2, lit(C.rubber), 0, 0.06, 0, 0.02), box(0.4, 0.02, 1.08, lit(C.black), 0, 0.11, -0.02))
+  const frame = lit('#2b2e35'), chrome = lit(C.chrome, 'metal'), grey = lit('#8a929d', 'metal')
+  g.add(box(0.5, 0.06, 1.16, frame, 0, 0.04, -0.02, 0.02))
+  for (const x of [-0.215, 0.215]) g.add(box(0.07, 0.025, 0.98, grey, x, 0.083, -0.06, 0.008))
+  g.add(box(0.36, 0.018, 1.0, lit(C.black), 0, 0.1, -0.06))
+  // Les rouleaux, au bout de la bande ; les petites roues pour le déplacer, à l'arrière.
+  for (const z of [-0.56, 0.44]) g.add(barX(0.022, 0.38, lit('#4b525d', 'metal'), 0, 0.08, z, 10))
+  for (const x of [-0.22, 0.22]) g.add(barX(0.03, 0.03, lit(C.black), x, 0.03, -0.58, 10))
+  // Le capot du moteur, à l'avant.
+  g.add(box(0.5, 0.1, 0.18, lit(C.gymRed), 0, 0.09, 0.5, 0.03), box(0.38, 0.012, 0.16, lit(C.black), 0, 0.142, 0.5))
+  // Les montants, un peu penchés vers le coureur, et les mains courantes.
   for (const x of [-0.23, 0.23]) {
-    const post = box(0.04, 0.62, 0.05, lit(C.chrome, 'metal'), x, 0.39, 0.5)
-    post.rotation.x = -0.18
-    g.add(post, box(0.03, 0.03, 0.4, lit(C.chrome, 'metal'), x, 0.55, 0.36))
+    const post = box(0.045, 0.56, 0.06, frame, x, 0.4, 0.5)
+    post.rotation.x = -0.16
+    g.add(post, box(0.032, 0.032, 0.36, chrome, x, 0.56, 0.3, 0.01), box(0.034, 0.05, 0.05, lit(C.black), x, 0.555, 0.15))
   }
-  const console_ = box(0.46, 0.05, 0.16, lit(C.rubber), 0, 0.7, 0.55, 0.02)
-  console_.rotation.x = 0.5
-  g.add(console_, box(0.2, 0.012, 0.08, glow('#39e0ff'), 0, 0.73, 0.56))
+  // Le tableau de bord, incliné vers le coureur ; la tablette, le porte-gobelet, la clé rouge.
+  const panel = new THREE.Group()
+  panel.position.set(0, 0.69, 0.52)
+  panel.rotation.x = -0.75
+  panel.add(box(0.5, 0.2, 0.04, frame, 0, 0, 0, 0.02))
+  panel.add(part(new THREE.PlaneGeometry(0.36, 0.15), new THREE.MeshBasicMaterial({ map: machineConsole(128, 56, '#39e0ff', true) }), 0, 0.005, 0.022))
+  g.add(panel)
+  g.add(box(0.48, 0.02, 0.09, frame, 0, 0.6, 0.42, 0.008))
+  for (const x of [-0.19, 0.19]) g.add(cylinder(0.03, 0.025, 0.045, lit(C.black), x, 0.62, 0.42, 10))
+  g.add(cylinder(0.022, 0.022, 0.08, lit('#39b6ff'), 0.19, 0.66, 0.42, 10))
+  g.add(box(0.02, 0.025, 0.02, lit('#ffcf33'), -0.06, 0.62, 0.38), box(0.006, 0.06, 0.006, lit('#d8323c'), -0.06, 0.58, 0.37))
   return { solid: g }
 }
 
-/** Vélo d'appartement. */
+/**
+ * Vélo de biking, guidon à l'avant (+z) : le pied et ses patins, le cadre rouge, le volant
+ * d'inertie sous son carter, le pédalier, la selle, le guidon à cornes, la petite console et le
+ * bidon dans son porte-bidon.
+ */
 const exerciseBike: Builder = () => {
   const g = new THREE.Group()
-  g.add(box(0.36, 0.03, 0.7, lit(C.rubber), 0, 0.015, 0))
-  g.add(barX(0.15, 0.06, lit(C.rubber), 0, 0.2, 0.2, 18), barX(0.06, 0.07, lit(C.gymRed), 0, 0.2, 0.2, 10))
-  const frame = box(0.06, 0.5, 0.06, lit(C.gymRed), 0, 0.3, -0.05)
-  frame.rotation.x = -0.35
-  g.add(frame, box(0.05, 0.3, 0.05, lit(C.gymRed), 0, 0.2, 0.3))
-  g.add(box(0.16, 0.04, 0.2, lit(C.padding, 'cloth'), 0, 0.5, -0.12, 0.02), box(0.3, 0.03, 0.03, lit(C.chrome, 'metal'), 0, 0.56, 0.3))
-  g.add(box(0.12, 0.08, 0.02, lit(C.rubber), 0, 0.52, 0.34), box(0.08, 0.04, 0.004, glow('#39e0ff'), 0, 0.53, 0.352))
+  const red = lit(C.gymRed), dark = lit(C.rubber), chrome = lit(C.chrome, 'metal')
+  // Le pied : deux traverses et leurs patins.
+  for (const z of [-0.3, 0.28]) g.add(box(0.36, 0.035, 0.07, dark, 0, 0.02, z, 0.01), box(0.4, 0.02, 0.05, lit(C.black), 0, 0.01, z))
+  // Le cadre : la poutre, le tube de selle et le tube du guidon.
+  const beam = box(0.06, 0.06, 0.58, red, 0, 0.13, 0)
+  beam.rotation.x = -0.12
+  const seatTube = box(0.055, 0.36, 0.055, red, 0, 0.3, -0.16)
+  seatTube.rotation.x = -0.28
+  const headTube = box(0.055, 0.42, 0.055, red, 0, 0.34, 0.24)
+  headTube.rotation.x = 0.22
+  g.add(beam, seatTube, headTube)
+  // Le volant d'inertie, sous son carter, et le pédalier.
+  g.add(barX(0.15, 0.05, lit('#2a2c31'), 0, 0.2, 0.2, 20), barX(0.152, 0.015, chrome, 0, 0.2, 0.2, 20), barX(0.04, 0.07, lit('#4b525d', 'metal'), 0, 0.2, 0.2, 10))
+  g.add(barX(0.045, 0.12, dark, 0, 0.17, -0.02, 12))
+  for (const side of [-1, 1]) {
+    const crank = box(0.015, 0.12, 0.025, chrome, side * 0.07, 0.17, -0.02 + side * 0.03)
+    crank.rotation.x = side * 0.9
+    g.add(crank, box(0.07, 0.015, 0.04, lit(C.black), side * 0.1, 0.17 - side * 0.045, -0.02 + side * 0.07))
+  }
+  // La selle sur sa tige, le guidon à cornes.
+  g.add(box(0.03, 0.12, 0.03, chrome, 0, 0.47, -0.2))
+  g.add(box(0.13, 0.04, 0.2, lit(C.padding, 'leather'), 0, 0.53, -0.18, 0.02), box(0.08, 0.035, 0.08, lit(C.padding, 'leather'), 0, 0.53, -0.04, 0.015))
+  g.add(box(0.03, 0.1, 0.03, chrome, 0, 0.56, 0.28))
+  g.add(barX(0.014, 0.32, lit(C.black), 0, 0.61, 0.3, 8))
+  for (const x of [-0.14, 0.14]) g.add(barZ(0.014, 0.12, lit(C.black), x, 0.62, 0.36, 8))
+  // La console (au repos) et le bidon.
+  g.add(box(0.12, 0.08, 0.03, lit(C.rubber), 0, 0.67, 0.31, 0.01))
+  g.add(part(new THREE.PlaneGeometry(0.1, 0.06), new THREE.MeshBasicMaterial({ map: machineConsole(64, 40, '#39e0ff', false) }), 0, 0.67, 0.326))
+  g.add(cylinder(0.025, 0.025, 0.1, lit('#39b6ff'), 0, 0.33, 0.12, 10), cylinder(0.012, 0.016, 0.02, lit(C.white), 0, 0.39, 0.12, 8))
   return { solid: g }
 }
 
@@ -181,10 +259,27 @@ const punchingBag: Builder = () => {
   const live = new THREE.Group()
   const pivot = new THREE.Group()
   pivot.position.set(0, 1.0, 0)
-  pivot.add(part(new THREE.CylinderGeometry(0.006, 0.006, 0.2, 4), lit(C.chrome, 'metal'), 0, -0.1, 0))
+  // Le crochet et son émerillon, puis les quatre chaînes qui s'écartent jusqu'au haut du sac.
+  pivot.add(part(new THREE.CylinderGeometry(0.006, 0.006, 0.08, 4), lit(C.chrome, 'metal'), 0, -0.04, 0))
+  pivot.add(part(new THREE.SphereGeometry(0.014, 8, 6), lit(C.chrome, 'metal'), 0, -0.08, 0))
+  for (const a of [0.4, 2, 3.6, 5.2]) {
+    const chain = part(new THREE.CylinderGeometry(0.004, 0.004, 0.146, 4), lit(C.chrome, 'metal'), Math.sin(a) * 0.045, -0.1375, Math.cos(a) * 0.045)
+    chain.rotation.set(-Math.cos(a) * 0.66, 0, Math.sin(a) * 0.66)
+    pivot.add(chain)
+  }
   const model = new THREE.Group()
-  model.add(mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.45, 14), lit(C.gymRed)))
-  for (const y of [-0.16, 0.16]) model.add(mesh(new THREE.CylinderGeometry(0.143, 0.143, 0.04, 14), lit(C.black), 0, y, 0))
+  model.add(mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.45, 16), lit(C.gymRed, 'leather')))
+  model.add(mesh(new THREE.CylinderGeometry(0.12, 0.143, 0.03, 16), lit(C.black, 'leather'), 0, 0.235, 0), mesh(new THREE.CylinderGeometry(0.143, 0.13, 0.03, 16), lit(C.black, 'leather'), 0, -0.235, 0))
+  for (const y of [-0.16, 0.16]) model.add(mesh(new THREE.CylinderGeometry(0.143, 0.143, 0.035, 16), lit(C.black, 'leather'), 0, y, 0))
+  model.add(mesh(new THREE.CylinderGeometry(0.1415, 0.1415, 0.07, 16), lit('#f2f2f0', 'leather'), 0, 0.07, 0))
+  // Le Thargoïde au feutre, sur la face qu'on frappe : un corps en fleur, cinq pétales.
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2
+    const petal = box(0.012, 0.035, 0.004, lit('#1c1d21'), Math.sin(a) * 0.022, -0.06 + Math.cos(a) * 0.022, 0.141)
+    petal.rotation.z = -a
+    model.add(petal)
+  }
+  model.add(box(0.02, 0.02, 0.004, lit('#5fd47a'), 0, -0.06, 0.142))
   const bag = compact(model)
   bag.position.y = -0.42
   pivot.add(bag)
