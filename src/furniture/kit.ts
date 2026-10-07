@@ -515,7 +515,11 @@ export function drawnTexture(w: number, h: number, draw: (g: CanvasRenderingCont
 
 /**
  * Écran animé : un canvas redessiné à cadence réduite (bornes d'arcade, moniteurs).
- * `tick(t)` ne redessine (et ne renvoie la texture au GPU) qu'à chaque nouvelle image.
+ * `tick(t)` ne redessine (et ne renvoie la texture au GPU) qu'à chaque nouvelle image, et
+ * seulement si l'écran est à l'image : tant que la précédente n'est pas partie au GPU (Three.js
+ * n'envoie une texture qu'au moment de dessiner ce qui la porte), l'écran est hors champ ou sur
+ * un pont caché, et la dessiner encore ne servirait à rien. Revenu dans le champ, il montre sa
+ * dernière image le temps d'une frame, puis repart.
  */
 export function animatedScreen(w: number, h: number, fps: number, draw: (g: CanvasRenderingContext2D, t: number) => void) {
   const c = document.createElement('canvas')
@@ -527,14 +531,19 @@ export function animatedScreen(w: number, h: number, fps: number, draw: (g: Canv
   texture.colorSpace = THREE.SRGBColorSpace
   texture.magFilter = THREE.NearestFilter
   let frame = -1
+  let pending = true
+  texture.onUpdate = () => {
+    pending = false
+  }
   return {
     texture,
     tick(t: number) {
       const f = Math.floor(t * fps)
-      if (f === frame) return
+      if (f === frame || pending) return
       frame = f
       draw(g, t)
       texture.needsUpdate = true
+      pending = true
     },
   }
 }

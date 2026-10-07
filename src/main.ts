@@ -104,7 +104,7 @@ import { Vents } from './vents'
 import { BAR_DROP, VENT_DROP } from '../shared/vents.js'
 import { SalvageClient } from './salvage/client'
 import { LOBBY_RETURN, ZONE_LEVEL } from '../shared/salvage.js'
-import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel } from './ui'
+import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel, type ScreenBox } from './ui'
 import { LiftRide } from './lift-ride'
 import { INSTRUCTOR, Instructor, instructorRig, Tutorial, TUTORIAL_DECK } from './tutorial'
 import { TUTORIAL_EXIT, TUTORIAL_LEVEL, TUTORIAL_SPAWN } from '../shared/tutorial.js'
@@ -209,13 +209,19 @@ const activeCamera = (): THREE.Camera => (fpsShown ? fps.camera : iso.camera)
 const hemi = new THREE.HemisphereLight(DEFAULT_AMBIENCE.sky, DEFAULT_AMBIENCE.ground, DEFAULT_AMBIENCE.hemi)
 scene.add(hemi)
 
-// Soleil fixe dont l'ombre couvre tout le vaisseau : pas de « nage » des ombres quand la caméra bouge.
+// Soleil fixe : sa direction ne change jamais, et le cadre de son ombre avance de texel en texel
+// (cf. fitShadow) : pas de « nage » des ombres quand la caméra bouge.
 const SHIP_CENTER = new THREE.Vector3(13, 0, 5)
+/** Du point visé vers le soleil. */
+const SUN_OFFSET = new THREE.Vector3(-6, 14, 4)
+/** Demi-côté du cadre d'ombre qui couvre tout le vaisseau, sur une carte de 2048 texels. */
+const SHADOW_SHIP = 20
+const SHADOW_TEXEL = (2 * SHADOW_SHIP) / 2048
 const sun = new THREE.DirectionalLight(DEFAULT_AMBIENCE.sun, DEFAULT_AMBIENCE.sunIntensity)
 sun.castShadow = true
 sun.shadow.mapSize.set(2048, 2048)
-sun.shadow.camera.left = sun.shadow.camera.bottom = -20
-sun.shadow.camera.right = sun.shadow.camera.top = 20
+sun.shadow.camera.left = sun.shadow.camera.bottom = -SHADOW_SHIP
+sun.shadow.camera.right = sun.shadow.camera.top = SHADOW_SHIP
 sun.shadow.camera.near = 1
 sun.shadow.camera.far = 50
 sun.shadow.bias = -0.0005
@@ -564,6 +570,18 @@ for (const it of decks[LEVELS.findIndex((l) => l.id === 0)].interactables) {
 }
 const promptEl = $('prompt')
 const promptLabel = $('prompt-label')
+const promptKey = promptEl.querySelector('kbd')!
+/**
+ * Où l'invite est affichée (bas, milieu, taille) : les bulles s'en écartent (cf. Bubbles.update).
+ * Sa taille est relevée quand elle change, pas lue à chaque image (ce qui forcerait le navigateur
+ * à refaire la mise en page en pleine image).
+ */
+const promptBox: ScreenBox = { x: 0, y: 0, w: 0, h: 0 }
+new ResizeObserver(() => {
+  promptBox.w = promptEl.offsetWidth
+  promptBox.h = promptEl.offsetHeight
+}).observe(promptEl)
+let promptTransform = ''
 
 bubbles.attach('me', (out) => (player.root.visible ? player.avatar.head(out) : null))
 bubbles.attach('gym', (out) => player.avatar.head(out).setY(out.y + 0.35))
@@ -951,14 +969,88 @@ function setView(next: Deck) {
   applyAmbience()
   // Le soleil cadre ses ombres sur le vaisseau, ou sur le plateau de la base au sol.
   const center = viewDeck.def.ground?.center ?? SHIP_CENTER
-  sun.position.set(center.x - 6, viewDeck.y + 14, center.z + 4)
-  sun.target.position.set(center.x, viewDeck.y, center.z)
+  shadowHome.set(center.x, 0, center.z)
+  fitShadow()
   // Les machines d'un pont ne s'entendent que sur ce pont.
   for (const h of hums) sound.fade(h.gain, h.deck === viewDeck ? h.volume : 0)
   // La baie infestée est hors du vaisseau : ni étoiles, ni système par les verrières. Sur la base
   // au sol, le ciel de la planète (un fond CSS, cf. body.planet).
   stars.group.visible = systemView.group.visible = traffic.group.visible = !offShip(viewDeck.def)
   document.body.classList.toggle('planet', !!viewDeck.def.ground)
+}
+
+/** Pas du demi-côté du cadre d'ombre (256 texels de carte) : la carte ne change de taille qu'en changeant de pas. */
+const SHADOW_STEP = 2.5
+/** Marge autour de ce que voit la caméra (le flou des bords d'ombre). */
+const SHADOW_MARGIN = 0.5
+/** Tranche du pont où l'on cherche ce que voit la caméra : de la coque, dessous, au-dessus des murs et des personnages. */
+const SHADOW_BELOW = -1.5
+const SHADOW_ABOVE = 2
+/** Repère du soleil : ses axes à l'écran de la carte d'ombre (x, y) et sa direction (z). */
+const sunZ = SUN_OFFSET.clone().normalize()
+const sunX = new THREE.Vector3().crossVectors(THREE.Object3D.DEFAULT_UP, sunZ).normalize()
+const sunY = new THREE.Vector3().crossVectors(sunZ, sunX)
+/** Centre du cadre « tout le vaisseau » (ou tout le plateau de la base au sol), cf. setView. */
+const shadowHome = SHIP_CENTER.clone()
+/** Demi-côté du cadre calé sur la vue isométrique. */
+let shadowFit = SHADOW_SHIP
+const _rayNear = new THREE.Vector3()
+const _rayFar = new THREE.Vector3()
+const _seen = new THREE.Vector3()
+
+/**
+ * Cadre l'ombre du soleil. En vue isométrique, elle ne couvre que la partie du pont que voit la
+ * caméra : la passe d'ombre ne redessine plus chaque meuble et chaque personnage du pont (plus de
+ * 400 objets sur le pont principal) quand une centaine seulement est à l'écran, et sa carte
+ * rapetisse d'autant. La finesse reste celle du cadre « tout le vaisseau » (même taille de texel),
+ * et le cadre avance de texel en texel : les ombres ne bougent pas quand la caméra se déplace.
+ * En vue subjective, ou quand la vue est trop large, elle couvre tout le vaisseau, comme avant.
+ */
+function fitShadow() {
+  const floor = viewDeck.y
+  let half = SHADOW_SHIP
+  sun.target.position.set(shadowHome.x, floor, shadowHome.z)
+  if (!fpsShown) {
+    // Les coins de l'écran, rapportés au plan du soleil, aux deux hauteurs de la tranche.
+    const camera = iso.camera
+    camera.updateMatrixWorld()
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+    for (let corner = 0; corner < 4; corner++) {
+      const nx = corner & 1 ? 1 : -1, ny = corner & 2 ? 1 : -1
+      _rayNear.set(nx, ny, -1).unproject(camera)
+      _rayFar.set(nx, ny, 1).unproject(camera)
+      for (const h of [SHADOW_BELOW, SHADOW_ABOVE]) {
+        _seen.lerpVectors(_rayNear, _rayFar, (floor + h - _rayNear.y) / (_rayFar.y - _rayNear.y))
+        const x = _seen.dot(sunX), y = _seen.dot(sunY)
+        minX = Math.min(minX, x)
+        maxX = Math.max(maxX, x)
+        minY = Math.min(minY, y)
+        maxY = Math.max(maxY, y)
+      }
+    }
+    const need = Math.max(maxX - minX, maxY - minY) / 2 + SHADOW_MARGIN
+    if (need <= SHADOW_SHIP) {
+      // Il grandit dès qu'il le faut ; il ne rapetisse que de deux pas (un zoom qui hésite ne
+      // redimensionne pas la carte à chaque image).
+      const fit = Math.ceil(need / SHADOW_STEP) * SHADOW_STEP
+      if (fit > shadowFit || fit < shadowFit - SHADOW_STEP) shadowFit = fit
+      half = shadowFit
+      // Centre du cadre sur la grille des texels ; sa profondeur (le long du soleil) ne compte pas.
+      const cx = Math.round((minX + maxX) / 2 / SHADOW_TEXEL) * SHADOW_TEXEL
+      const cy = Math.round((minY + maxY) / 2 / SHADOW_TEXEL) * SHADOW_TEXEL
+      const t = sun.target.position
+      t.addScaledVector(sunX, cx - t.dot(sunX)).addScaledVector(sunY, cy - t.dot(sunY))
+    }
+  }
+  sun.position.copy(sun.target.position).add(SUN_OFFSET)
+  const shadow = sun.shadow
+  if (shadow.camera.right !== half) {
+    shadow.camera.left = shadow.camera.bottom = -half
+    shadow.camera.right = shadow.camera.top = half
+    shadow.camera.updateProjectionMatrix()
+    const size = Math.round((2 * half) / SHADOW_TEXEL)
+    shadow.mapSize.set(size, size)
+  }
 }
 setDeck(deck)
 
@@ -5388,12 +5480,13 @@ function frame() {
   const near = gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen ? null : nearestInteractable()
   const sit = sitting ? seatPrompt(seating.current!) : null
   const label = sit ? `${sit.main}|${sit.space ?? ''}` : near?.label
-  promptEl.querySelector('kbd')!.textContent = usingGamepad ? 'A / ×' : 'E'
+  const keyName = usingGamepad ? 'A / ×' : 'E'
+  if (promptKey.textContent !== keyName) promptKey.textContent = keyName
   if (promptEl.hidden !== !label) promptEl.hidden = !label
   if (label) {
-    const promptKey = `${usingGamepad}|${label}`
-    if (promptKey !== promptText) {
-      promptText = promptKey
+    const text = `${usingGamepad}|${label}`
+    if (text !== promptText) {
+      promptText = text
       promptEl.classList.toggle('parts', coarsePointer && !!sit?.space)
       if (coarsePointer && sit?.space) {
         // Au doigt, chaque moitié de l'invite se touche : se relever, ou l'action de la place.
@@ -5420,11 +5513,17 @@ function frame() {
     }
     if (coarsePointer) {
       // Keep long interaction labels on screen, clear of the top bar and thumb controls.
-      const halfWidth = promptEl.offsetWidth / 2 + 12
+      const halfWidth = promptBox.w / 2 + 12
       x = Math.max(halfWidth, Math.min(innerWidth - halfWidth, x))
-      y = Math.max(promptEl.offsetHeight + 64, Math.min(innerHeight - 120, y))
+      y = Math.max(promptBox.h + 64, Math.min(innerHeight - 120, y))
     }
-    promptEl.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`
+    promptBox.x = x
+    promptBox.y = y
+    const transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`
+    if (transform !== promptTransform) {
+      promptTransform = transform
+      promptEl.style.transform = transform
+    }
   }
   // Manette tactile : ses boutons disent ce qu'ils feraient ici.
   const panelOpen = sitePanel.isOpen || lift.isOpen || jukebox.isOpen
@@ -5510,14 +5609,16 @@ function frame() {
   }
 
   liftRide.update(dt, activeCamera())
+  fitShadow()
   // Dans la baie (ou par les caméras), tout passe par le brouillard de guerre (cf. salvage/fog.ts).
   // Dans les conduits de ventilation aussi (cf. vents.ts).
   if (!zone.render(scene, activeCamera(), renderQuality.light) && !vents.render(scene, activeCamera(), renderQuality.light)) renderer.render(scene, activeCamera())
   cinemaRoom.placeScreen(activeCamera(), deck.def.id === 1,
     deck.def.id === 1 && deck.map.room(Math.round(player.position.x), Math.round(player.position.z)) === 'n',
     cinemaScreenProp.x, deckById(1).y, cinemaScreenProp.z)
-  // Vue subjective, dans sa tête : ses propres bulles au-dessus de l'invite, en bas de l'écran.
-  bubbles.update(activeCamera(), fpsShown && !fps.showsBody ? { key: 'me', x: innerWidth / 2, y: fpsBottom() - (promptEl.hidden ? 0 : 40) } : null)
+  // Vue subjective, dans sa tête : ses propres bulles en bas de l'écran. Les bulles ne recouvrent
+  // jamais l'invite d'interaction : celles qui la toucheraient passent au-dessus.
+  bubbles.update(activeCamera(), fpsShown && !fps.showsBody ? { key: 'me', x: innerWidth / 2, y: fpsBottom() } : null, label ? promptBox : null)
 
   // Résolution adaptative : on baisse la densité de pixels si l'affichage peine,
   // on la remonte (sans dépasser le dernier niveau qui a peiné) s'il reste de la marge.

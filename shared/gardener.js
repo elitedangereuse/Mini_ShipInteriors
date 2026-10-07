@@ -119,7 +119,10 @@ function clearOf(a, b, r, margin) {
   const minX = r.minX - margin, maxX = r.maxX + margin, minZ = r.minZ - margin, maxZ = r.maxZ + margin
   const dx = b[0] - a[0], dz = b[1] - a[1]
   let t0 = 0, t1 = 1
-  for (const [p, q] of [[-dx, a[0] - minX], [dx, maxX - a[0]], [-dz, a[1] - minZ], [dz, maxZ - a[1]]]) {
+  // Les quatre bords l'un après l'autre, sans tableau : un trajet l'appelle des milliers de fois.
+  for (let side = 0; side < 4; side++) {
+    const p = side === 0 ? -dx : side === 1 ? dx : side === 2 ? -dz : dz
+    const q = side === 0 ? a[0] - minX : side === 1 ? maxX - a[0] : side === 2 ? a[1] - minZ : maxZ - a[1]
     if (Math.abs(p) < 1e-12) {
       if (q < 0) return true
       continue
@@ -134,7 +137,8 @@ function clearOf(a, b, r, margin) {
 
 /** Le segment de `a` à `b` évite-t-il tous les meubles de la serre ? */
 export function gardenClear(a, b) {
-  return GARDEN_OBSTACLES.every((r) => clearOf(a, b, r, RADIUS))
+  for (const r of GARDEN_OBSTACLES) if (!clearOf(a, b, r, RADIUS)) return false
+  return true
 }
 
 /**
@@ -151,6 +155,18 @@ const WAYPOINTS = []
       WAYPOINTS.push([x, z])
     }
   }
+}
+
+/**
+ * Deux points de passage se voient-ils ? Ils ne bougent pas : chaque paire n'est vérifiée qu'une
+ * fois (0 : pas encore, 1 : oui, 2 : non). Sans cela, un trajet testait une centaine de points
+ * deux à deux contre tous les meubles, à chaque image tant qu'elle rattrapait sa place.
+ */
+const SIGHT = new Uint8Array(WAYPOINTS.length * WAYPOINTS.length)
+function waypointsClear(i, j) {
+  const k = i * WAYPOINTS.length + j
+  if (!SIGHT[k]) SIGHT[k] = gardenClear(WAYPOINTS[i], WAYPOINTS[j]) ? 1 : 2
+  return SIGHT[k] === 1
 }
 
 /**
@@ -172,7 +188,8 @@ export function gardenRoute(from, to) {
     if (u < 0 || u === 1) break
     done[u] = true
     for (let v = 0; v < nodes.length; v++) {
-      if (done[v] || !gardenClear(nodes[u], nodes[v])) continue
+      // Les nœuds 0 et 1 sont le départ et l'arrivée ; les suivants, les points de passage.
+      if (done[v] || !(u > 1 && v > 1 ? waypointsClear(u - 2, v - 2) : gardenClear(nodes[u], nodes[v]))) continue
       const d = dist[u] + Math.hypot(nodes[v][0] - nodes[u][0], nodes[v][1] - nodes[u][1])
       if (d < dist[v]) {
         dist[v] = d

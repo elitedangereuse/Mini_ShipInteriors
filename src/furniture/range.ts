@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { BLASTER_PACK } from '../assets'
 import { tr } from '../i18n'
 import { rangeState, weaponById, WEAPONS } from '../range-weapons'
-import { box, cylinder, decal, drawnTexture, glass, glow, lit, part, type Builder } from './kit'
+import { box, compact, cylinder, decal, drawnTexture, glass, glow, lit, part, type Builder } from './kit'
 import { kitModel } from './nature'
 
 /*
@@ -258,7 +258,10 @@ const rangeWeapon: Builder = ({ label }) => {
   g.add(box(0.53, 0.62, 0.03, lit(C.plaque), 0, 0.62, 0.015, 0.008), box(0.49, 0.34, 0.006, lit(C.panel), 0, 0.72, 0.032))
   for (const x of [-0.1, 0.11]) g.add(box(0.03, 0.02, 0.09, lit(C.steel, 'metal'), x, 0.655, 0.07), box(0.03, 0.045, 0.014, lit(C.steel, 'metal'), x, 0.668, 0.112))
   // À la largeur du support : le fusil, long, est réduit davantage.
-  const gun = blaster(w.model, w.id === 'rifle' ? 0.33 : w.id === 'pistol' ? 0.5 : 0.44, 0, 0.075, Math.PI / 2)
+  const model = blaster(w.model, w.id === 'rifle' ? 0.33 : w.id === 'pistol' ? 0.5 : 0.44, 0, 0.075, Math.PI / 2)
+  // L'arme d'un bloc (elle ne bouge pas sur son support) : un maillage au lieu d'une trentaine.
+  const gun = compact(model)
+  gun.position.copy(model.position)
   gun.position.y = 0.73 - new THREE.Box3().setFromObject(gun).getSize(new THREE.Vector3()).y / 2
   live.add(gun)
   const card = drawnTexture(384, 128, (c) => {
