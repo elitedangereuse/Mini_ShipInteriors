@@ -1,5 +1,5 @@
 /* Loaded after all desktop styles. Safe areas apply to controls as well as interaction panels. */
-.mobile-status-toggle, #mobile-menu-toggle, #prompt > .icon, .help-touch { display: none; }
+.mobile-status-toggle, #mobile-menu-toggle, #prompt > .icon, .help-touch, #touch-aim { display: none; }
 @media (pointer: coarse) {
   :root {
     --mobile-top: max(8px, env(safe-area-inset-top));
@@ -54,12 +54,18 @@
   .ship-status > .net, .ship-status > .ship-name, .ship-status > .identity, .ship-status > .tasks-here { display: none; }
   .mobile-status-toggle { position: absolute; right: 0; top: 0; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-left: 1px solid var(--border); border-radius: 0 10px 10px 0; background: transparent; color: var(--cyan); font-size: 22px; pointer-events: auto; }
   .mobile-status-toggle[aria-expanded='true'] { color: var(--accent); }
-  .top-left > #cabin-bar, .top-left > .order-ticket { display: none; }
+  .top-left > .order-ticket { display: none; }
+  /* Quarters actions leave the details panel for the free top centre: always there, one touch away. */
+  .top-left > #cabin-bar { position: fixed; z-index: 5; top: var(--mobile-top); left: 50%; transform: translateX(-50%); display: block; width: max-content; max-width: calc(100vw - 420px - var(--mobile-left) - var(--mobile-right)); padding: 0; border: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  #cabin-bar .cb-title { display: none; }
+  #cabin-bar .cb-actions { flex-wrap: nowrap; justify-content: center; gap: 6px; }
+  #cabin-bar button { flex: none; min-height: 44px; padding: 0 12px; background: #101a2ad9; font-size: 13px; }
+  #cabin-bar a { display: flex; align-items: center; min-height: 44px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: #101a2ad9; text-align: center; }
   .top-left.details-open { z-index: 10; max-height: calc(var(--mobile-height) - 110px); overflow-y: auto; overscroll-behavior: contain; pointer-events: auto; }
   .top-left.details-open > * { flex-shrink: 0; }
   .details-open .ship-status > .ship-name { display: block; grid-column: 1; letter-spacing: .05em; font-size: 10px; }
   .details-open .ship-status > .net, .details-open .ship-status > .identity, .details-open .ship-status > .tasks-here { display: flex; font-size: 12px; }
-  .details-open > #cabin-bar, .details-open > .order-ticket { display: block; width: 100%; background: #101a2af5; }
+  .details-open > .order-ticket { display: block; width: 100%; background: #101a2af5; }
   .details-open .ship-status { background: #101a2af5 !important; }
   .cb-actions { flex-wrap: wrap; }
   .cb-actions button, .cb-actions a { min-height: 44px; display: inline-flex; align-items: center; }
@@ -109,8 +115,26 @@
   #touch-interact { grid-area: interact; width: 60px; height: 60px; font-size: 28px; transition: opacity .15s; }
   #touch-interact.idle { opacity: .45; }
   #touch-interact span { display: contents; }
-  #touch-interact .ti-stand, #touch-interact.standing .ti-use { display: none; }
-  #touch-interact.standing .ti-stand { display: contents; }
+  #touch-interact :is(.ti-stand, .ti-fire), #touch-interact:is(.standing, .firing) .ti-use { display: none; }
+  #touch-interact.standing .ti-stand, #touch-interact.firing:not(.standing) .ti-fire { display: contents; }
+  #touch-interact.firing { border-color: #ff8a1c; background: #a3340fe8; }
+  #touch-action span { display: contents; }
+  #touch-action .ta-reload, #touch-action.reloading .ta-seat { display: none; }
+  #touch-action.reloading .ta-reload { display: contents; }
+  /* Shooting range: a second stick on the right aims; fire, reload and close slide to its left. */
+  body.range-on #touch-aim { display: block; left: auto; right: var(--mobile-right); }
+  body.range-on .touch-actions { right: calc(var(--mobile-right) + clamp(94px, 27dvh, 126px) + 12px); }
+  /* Its score board leaves the thumbs' corner for a single line at the top centre. */
+  .range-board { top: var(--mobile-top); right: auto; left: 50%; transform: translateX(-50%); grid-template-columns: repeat(3, auto); width: max-content; }
+  .range-cell { flex-direction: row; align-items: baseline; gap: 6px; padding: 5px 12px 6px; }
+  .range-cell:first-child { grid-column: auto; align-items: baseline; border-top: 0; border-left: 2px solid #ff8a1c; border-radius: 10px 0 0 10px; }
+  .range-cell:nth-child(2) { border-radius: 0; }
+  .range-cell:last-child { border-radius: 0 10px 10px 0; }
+  .range-value, .range-clock .range-value { font-size: 20px; }
+  .range-tier, .range-tier-text { display: none; }
+  .range-hint { top: calc(var(--mobile-top) + 50px); max-width: calc(100vw - 280px); }
+  /* First-person: the ammo hologram would sit on the walking stick. */
+  .range-holo.left { translate: 110px -70px; }
   /* Chat folded into a button beside the stick: the last lines above it, the field only while typing. */
   .chat { left: calc(var(--mobile-left) + clamp(94px, 27dvh, 126px) + 10px); bottom: var(--mobile-bottom); display: flex; flex-direction: column; align-items: flex-start; width: min(260px, calc(100vw - 420px)); padding: 0; pointer-events: none; }
   #mobile-chat-toggle { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid var(--border); border-radius: 10px; background: #101a2ad9; color: var(--text); font-size: 20px; pointer-events: auto; }
@@ -124,7 +148,8 @@
   .chat.open #chat-log, .chat.active #chat-log { max-height: 30dvh; margin: 6px 0 0; overflow-y: auto; font-size: 13px; line-height: 1.4; }
   .chat.open #chat-log .msg, .chat.active #chat-log .msg { white-space: normal; }
   #chat-input { box-sizing: border-box; min-height: 44px; font-size: 16px; background: #0a0c1c; }
-  #dialog { bottom: calc(var(--mobile-bottom) + 58px); width: min(480px, calc(100vw - 260px - var(--mobile-left) - var(--mobile-right))); max-height: min(112px, 32dvh); overflow-y: auto; overscroll-behavior: contain; padding: 9px 12px; font-size: 13px; line-height: 1.4; pointer-events: auto; background: #101a2aeb; }
+  /* Dialogue lines: a slim strip at the bottom edge, between the chat bubble and the action button. */
+  #dialog { bottom: var(--mobile-bottom); width: min(420px, calc(100vw - 380px - var(--mobile-left) - var(--mobile-right))); max-height: 64px; box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain; padding: 6px 10px; border-radius: 8px; font-size: 12px; line-height: 1.35; pointer-events: auto; background: #101a2aeb; box-shadow: none; }
   /* The prompt is a button here: touching it does what the main button does. */
   #prompt { bottom: auto; max-width: min(360px, calc(100vw - 260px)); min-height: 36px; box-sizing: border-box; padding: 6px 12px; white-space: normal; font-size: 13px; pointer-events: auto; }
   #prompt > .icon { display: block; flex: none; color: var(--accent); font-size: 17px; }
@@ -232,4 +257,10 @@
   .arc-fighting .arc-deck { position: sticky; bottom: -10px; z-index: 1; }
   .arc-fight-menu button, .arc-fight-roster button { min-height: 44px; }
   .arc-fight-roster { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* Narrow phones: the quarters actions keep their icons only. */
+@media (pointer: coarse) and (orientation: landscape) and (max-width: 760px) {
+  #cabin-bar button { width: 44px; padding: 0; font-size: 0; }
+  #cabin-bar button .icon { font-size: 19px; }
 }

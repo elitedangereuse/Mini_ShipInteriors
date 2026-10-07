@@ -1278,7 +1278,7 @@ export class RangeGame {
     if (coarse) order.append(tr('Recharger', 'Reload'))
     else order.append(tr('Recharger ', 'Reload '), el('kbd', '', 'R'))
     const hint = el('div', 'range-hint', coarse
-      ? tr('Touchez pour viser et tirer · le bouton d\'action recharge · le chrono part au premier tir', 'Touch to aim and fire · the action button reloads · the clock starts on your first shot')
+      ? tr('Stick droit : viser · viseur : tirer · flèches : recharger · chrono au premier tir', 'Right stick: aim · crosshair: fire · arrows: reload · clock starts on first shot')
       : tr('Clic : tirer · R : recharger · E devant le mur : changer d\'arme ou la rendre · V : vue · le chrono part au premier tir', 'Click: fire · R: reload · E at the wall: swap or return your weapon · V: view · the clock starts on your first shot'))
     const dot = el('div', 'range-dot')
     dot.setAttribute('aria-hidden', 'true')

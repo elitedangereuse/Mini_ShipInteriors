@@ -3339,6 +3339,16 @@ function updateGamepad(dt: number): GamepadInput {
     flare = touch.flare
     if (touch.moveX || touch.moveY) { pad.moveX = touch.moveX; pad.moveY = touch.moveY }
     touchRun = touch.run
+    if (range.active) {
+      // Stand de tir : le stick de droite vise (réponse adoucie près du centre, pour la précision),
+      // et le doigt qui tient le tir, en glissant, déplace encore le regard en vue subjective.
+      if (touch.lookX || touch.lookY) {
+        const reach = Math.hypot(touch.lookX, touch.lookY)
+        pad.lookX = touch.lookX * reach
+        pad.lookY = touch.lookY * reach
+      }
+      if (fpsShown && (touch.dragX || touch.dragY)) fps.look(-touch.dragX * 0.004, -touch.dragY * 0.0032)
+    }
     pad.interact ||= touch.interact
     pad.action ||= touch.action
     pad.cancel ||= touch.cancel
@@ -3368,7 +3378,7 @@ function updateGamepad(dt: number): GamepadInput {
     // Stand de tir : la gâchette droite tire, le stick droit vise, X recharge ; on reste libre de
     // marcher. A (ou le bouton de l'écran tactile) agit sur l'arme du mur toute proche, sinon tire.
     const mount = nearestInteractable()
-    const fire = gamepad.held.has('7') || (!mount && gamepad.held.has('0'))
+    const fire = gamepad.held.has('7') || (!mount && (gamepad.held.has('0') || !!touchGamepad?.held('interact')))
     if (pad.interact && mount) interactWith(mount)
     else if (fire !== rangePadFire) range.trigger((rangePadFire = fire))
     else if (pad.interact && !fire) range.tap()
@@ -5243,9 +5253,12 @@ function frame() {
   const panelOpen = sitePanel.isOpen || lift.isOpen || jukebox.isOpen
   touchGamepad?.show({
     stand: !!sit,
-    ready: !!label || panelOpen || planetarium.talking || zone.frozen,
-    action: !!sit?.space,
-    cancel: panelOpen || gym.active || court.active || fishing.active || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || phone.isOpen || !!working || !!claw || !$('about').hidden,
+    // Arme en main, loin du mur : le bouton tire, l'action recharge, « fermer » rend l'arme.
+    fire: range.active && !label,
+    ready: !!label || panelOpen || planetarium.talking || zone.frozen || range.active,
+    action: !!sit?.space || range.active,
+    reload: range.active,
+    cancel: panelOpen || range.active || gym.active || court.active || fishing.active || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || phone.isOpen || !!working || !!claw || !$('about').hidden,
   })
   // On s'éloigne de l'ascenseur ou du jukebox : le panneau se ferme.
   if (lift.isOpen && Math.hypot(player.position.x - liftTile.x, player.position.z - liftTile.z) > 1.6) lift.close()
