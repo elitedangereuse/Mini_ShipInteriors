@@ -17,7 +17,7 @@ const FLOOR_R = 0.26
 /** Marge devant une porte : le passage reste libre. */
 const DOOR_CLEAR = 0.75
 /** Objets sans collision, posés à plat : une tâche peut les recouvrir. */
-const FLOOR_COVERS = new Set(['rug', 'rug-round', 'works-tape', 'stain', 'cables', 'hazard-floor'])
+const FLOOR_COVERS = new Set(['rug', 'rug-round', 'works-tape', 'stain', 'cables', 'hazard-floor', 'gym-floor', 'gym-mat', 'gym-logo'])
 /** Rayon autour d'un objet sans collision (affiche, hologramme, projecteur) qu'une tâche évite. */
 const PROP_CLEAR = 0.38
 
