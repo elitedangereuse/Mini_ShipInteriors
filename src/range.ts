@@ -460,6 +460,21 @@ export class RangeGame {
     this.aim.set(x, 0, z).normalize()
   }
 
+  /** Tir rapide (toucher le stick de tir, au doigt) : vue de dessus, on se tourne vers la cible la plus proche. */
+  aimNearest(player: { x: number; z: number }) {
+    const s = this.session
+    if (!s) return
+    const origin = this.group.getWorldPosition(new THREE.Vector3())
+    const fx = player.x - origin.x, fz = player.z - origin.z
+    let best: Target | null = null
+    let near = Infinity
+    for (const t of s.targets) {
+      const d = Math.hypot(t.x - fx, t.z - fz)
+      if (!t.leaving && d < near) { near = d; best = t }
+    }
+    if (best) this.aimToward(best.x - fx, best.z - fz)
+  }
+
   /** Change le chargeur (R) : l'ancien tombe, le neuf est en place après le délai de l'arme. */
   reload() {
     const s = this.session
@@ -1278,7 +1293,7 @@ export class RangeGame {
     if (coarse) order.append(tr('Recharger', 'Reload'))
     else order.append(tr('Recharger ', 'Reload '), el('kbd', '', 'R'))
     const hint = el('div', 'range-hint', coarse
-      ? tr('Stick droit : viser · viseur : tirer · flèches : recharger · chrono au premier tir', 'Right stick: aim · crosshair: fire · arrows: reload · clock starts on first shot')
+      ? tr('Stick droit : glisser pour viser, lâcher pour tirer · le toucher : tir rapide', 'Right stick: drag to aim, release to fire · tap it: quick shot')
       : tr('Clic : tirer · R : recharger · E devant le mur : changer d\'arme ou la rendre · V : vue · le chrono part au premier tir', 'Click: fire · R: reload · E at the wall: swap or return your weapon · V: view · the clock starts on your first shot'))
     const dot = el('div', 'range-dot')
     dot.setAttribute('aria-hidden', 'true')

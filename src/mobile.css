@@ -115,18 +115,23 @@
   #touch-interact { grid-area: interact; width: 60px; height: 60px; font-size: 28px; transition: opacity .15s; }
   #touch-interact.idle { opacity: .45; }
   #touch-interact span { display: contents; }
-  #touch-interact :is(.ti-stand, .ti-fire), #touch-interact:is(.standing, .firing) .ti-use { display: none; }
-  #touch-interact.standing .ti-stand, #touch-interact.firing:not(.standing) .ti-fire { display: contents; }
-  #touch-interact.firing { border-color: #ff8a1c; background: #a3340fe8; }
+  #touch-interact .ti-stand, #touch-interact.standing .ti-use { display: none; }
+  #touch-interact.standing .ti-stand { display: contents; }
+  /* Weapon in hand, away from the wall: the fire stick does the shooting. */
+  .touch-actions #touch-interact.firing { display: none; }
   #touch-action span { display: contents; }
   #touch-action .ta-reload, #touch-action.reloading .ta-seat { display: none; }
   #touch-action.reloading .ta-reload { display: contents; }
-  /* Shooting range: a second stick on the right aims; fire, reload and close slide to its left. */
-  body.range-on #touch-aim { display: block; left: auto; right: var(--mobile-right); }
-  body.range-on .touch-actions { right: calc(var(--mobile-right) + clamp(94px, 27dvh, 126px) + 12px); }
+  /* Shooting range: one big stick on the right aims and fires (drag, then release); reload and
+     close sit against it, the wall button only shows next to the weapon rack. */
+  body.range-on #touch-aim { --size: clamp(112px, 33dvh, 144px); display: block; left: auto; right: var(--mobile-right); width: var(--size); height: var(--size); border-color: #ff7a2ecc; background: rgba(48, 14, 6, .5); transition: background .12s, box-shadow .12s; }
+  #touch-aim .touch-stick-knob { display: grid; place-items: center; background: #e2551ed9; box-shadow: 0 0 14px #ff5a1f88; color: #fff; font-size: 24px; }
+  #touch-aim.aiming { background: rgba(110, 30, 8, .55); box-shadow: inset 0 0 22px #0008, 0 0 18px #ff5a1f66; }
+  #touch-aim.aiming .touch-stick-knob { background: #ff6a2c; }
+  body.range-on .touch-actions { right: calc(var(--mobile-right) + clamp(112px, 33dvh, 144px) + 10px); grid-template-columns: 60px 48px; grid-template-areas: '. cancel' 'interact action'; }
   /* Its score board leaves the thumbs' corner for a single line at the top centre. */
-  .range-board { top: var(--mobile-top); right: auto; left: 50%; transform: translateX(-50%); grid-template-columns: repeat(3, auto); width: max-content; }
-  .range-cell { flex-direction: row; align-items: baseline; gap: 6px; padding: 5px 12px 6px; }
+  .range-board { top: var(--mobile-top); right: calc(var(--mobile-right) + 148px); grid-template-columns: repeat(3, auto); width: max-content; }
+  .range-cell { flex-direction: row; align-items: baseline; gap: 6px; padding: 5px 10px 6px; }
   .range-cell:first-child { grid-column: auto; align-items: baseline; border-top: 0; border-left: 2px solid #ff8a1c; border-radius: 10px 0 0 10px; }
   .range-cell:nth-child(2) { border-radius: 0; }
   .range-cell:last-child { border-radius: 0 10px 10px 0; }

@@ -3319,6 +3319,9 @@ function keyboardDirection(): THREE.Vector3 {
 
 /** Stick tactile poussé à fond : on court, sprint automatique ou non. */
 let touchRun = false
+/** Stand de tir, au doigt : le stick de tir est poussé ; et ce qu'il vient de faire en se relâchant. */
+let touchAiming = false
+let touchShot: 'tap' | 'aimed' | 'back' | null = null
 function updateGamepad(dt: number): GamepadInput {
   const focus = document.activeElement
   const typing = focus instanceof HTMLElement && (focus.matches('input, textarea, select') || focus.isContentEditable)
@@ -3339,15 +3342,15 @@ function updateGamepad(dt: number): GamepadInput {
     flare = touch.flare
     if (touch.moveX || touch.moveY) { pad.moveX = touch.moveX; pad.moveY = touch.moveY }
     touchRun = touch.run
-    if (range.active) {
-      // Stand de tir : le stick de droite vise (réponse adoucie près du centre, pour la précision),
-      // et le doigt qui tient le tir, en glissant, déplace encore le regard en vue subjective.
-      if (touch.lookX || touch.lookY) {
-        const reach = Math.hypot(touch.lookX, touch.lookY)
-        pad.lookX = touch.lookX * reach
-        pad.lookY = touch.lookY * reach
-      }
-      if (fpsShown && (touch.dragX || touch.dragY)) fps.look(-touch.dragX * 0.004, -touch.dragY * 0.0032)
+    touchAiming = range.active && touch.aiming
+    touchShot = range.active ? touch.aimReleased : null
+    if (touchAiming) {
+      // Stand de tir : le stick de droite vise. Vue de dessus, il donne la direction ; en vue
+      // subjective, il tourne le regard (réponse adoucie près du centre, pour la précision).
+      const reach = Math.hypot(touch.lookX, touch.lookY)
+      const gain = fpsShown ? reach : 1 / reach
+      pad.lookX = touch.lookX * gain
+      pad.lookY = touch.lookY * gain
     }
     pad.interact ||= touch.interact
     pad.action ||= touch.action
@@ -3377,11 +3380,18 @@ function updateGamepad(dt: number): GamepadInput {
   if (range.active) {
     // Stand de tir : la gâchette droite tire, le stick droit vise, X recharge ; on reste libre de
     // marcher. A (ou le bouton de l'écran tactile) agit sur l'arme du mur toute proche, sinon tire.
+    // Au doigt, le stick de droite fait les deux : on le glisse pour viser et on le lâche pour tirer
+    // (une arme automatique tire tant qu'il est poussé) ; un simple toucher tire au plus près.
     const mount = nearestInteractable()
-    const fire = gamepad.held.has('7') || (!mount && (gamepad.held.has('0') || !!touchGamepad?.held('interact')))
+    const auto = !!weaponById(range.weapon ?? undefined)?.auto
+    const fire = gamepad.held.has('7') || (!mount && gamepad.held.has('0')) || (auto && touchAiming)
     if (pad.interact && mount) interactWith(mount)
     else if (fire !== rangePadFire) range.trigger((rangePadFire = fire))
     else if (pad.interact && !fire) range.tap()
+    if (touchShot === 'tap') {
+      if (!fpsShown) range.aimNearest(player.position)
+      range.tap()
+    } else if (touchShot === 'aimed' && !auto) range.tap()
     if (pad.action) range.reload()
     if (fpsShown) fps.look(-pad.lookX * dt * 2.4, -pad.lookY * dt * 1.8)
     else if (pad.lookX || pad.lookY) {
@@ -5253,7 +5263,7 @@ function frame() {
   const panelOpen = sitePanel.isOpen || lift.isOpen || jukebox.isOpen
   touchGamepad?.show({
     stand: !!sit,
-    // Arme en main, loin du mur : le bouton tire, l'action recharge, « fermer » rend l'arme.
+    // Arme en main, loin du mur : c'est le stick de droite qui tire ; l'action recharge, « fermer » rend l'arme.
     fire: range.active && !label,
     ready: !!label || panelOpen || planetarium.talking || zone.frozen || range.active,
     action: !!sit?.space || range.active,
