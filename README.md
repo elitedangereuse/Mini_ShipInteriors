@@ -628,13 +628,15 @@ Dans la cale, à la place de l'ancienne baie de réparation (pièce `r`, agrandi
 
 **Les cinq armes sont au mur sud**, une par support, avec sa fiche. `E` devant un support décroche l'arme : la partie commence. Arme en main, `E` devant un autre support change d'arme sans arrêter le chrono, et `E` devant le sien la raccroche (la partie s'arrête, comme `Échap` ou en quittant la pièce). Le support de l'arme prise reste vide.
 
-| Arme | Tir | Chargeur | Recul et dispersion |
+| Arme | Chargeur | Sa force | Son prix |
 |---|---|---|---|
-| Pistolet | coup par coup, rapide | 12 | précis au premier tir ; la dispersion s'ouvre si l'on martèle la détente |
-| Mitraillette | automatique | 30 | peu de recul par tir, mais il s'accumule en rafale et dévie de côté |
-| Fusil à pompe | lent, huit plombs en gerbe | 6 | imprécis de loin, mais deux cibles voisines tombent d'un coup ; très fort recul |
-| Fusil | lent | 5 | la balle traverse les cibles ; fort recul, et il faut être à l'arrêt pour tirer droit |
-| Lance-plasma | une boule lente | 3 | elle **explose** là où elle frappe : toutes les cibles prises dans son rayon éclatent |
+| Pistolet | 10 | fait tout correctement ; précis au premier tir, rechargé en moins d'une seconde | une cible par tir ; la dispersion s'ouvre si l'on martèle la détente |
+| Mitraillette | 32 | automatique, douze balles par seconde | vise mal de loin, et chaque balle perdue casse la série ; long rechargement |
+| Fusil à pompe | 4 | neuf plombs en gerbe : balaie les rangées proches, deux cibles d'un coup | la gerbe se perd avant le fond du couloir ; un tir par seconde, très fort recul |
+| Fusil | 3 | ne manque jamais, à l'arrêt, et sa balle traverse les cibles | trois balles, un tir par seconde ; ne pardonne ni la marche ni la précipitation |
+| Lance-plasma | 2 | sa boule **explose** : toutes les cibles prises dans son rayon éclatent | deux coups, une boule lente, le plus long rechargement |
+
+Les trois dernières pèsent : on marche moins vite avec (`weight`). Chaque fiche du mur dit le chargeur de l'arme et son caractère en deux mots.
 
 **Le jeu.** On reste libre de ses mouvements derrière le comptoir. **Pas de visée automatique** : la balle part là où l'on vise, à la dispersion de l'arme près. Les balles sont de vrais projectiles, très rapides : un trait lumineux à la couleur de l'arme, et derrière lui une fine traînée qui s'efface en une demi-seconde (des rubans tournés vers la caméra : vus de face, ils restent des traits). Une cible touchée éclate en morceaux, et ses points s'affichent sur place (un tir du fusil à pompe ou du lance-plasma qui n'en touche aucune casse la série, comme les autres) ; une balle perdue fait des étincelles et laisse sur le mur une marque brûlante qui noircit. Le jeu se joue dans les deux vues, et `V` passe de l'une à l'autre en pleine partie :
 
@@ -642,7 +644,7 @@ Dans la cale, à la place de l'ancienne baie de réparation (pièce `r`, agrandi
 |---|---|---|
 | Viser | la souris tourne le regard (curseur capturé), la mire est au centre | le personnage se tourne vers le curseur ; un **laser** rouge montre la ligne de tir jusqu'au premier obstacle |
 | Caméra | dans les yeux ; l'arme est à l'écran | la vue isométrique, relevée et rapprochée, tournée vers les cibles (elle reprend son cap et son zoom à la fin) |
-| Recul | le regard se cabre et dévie, puis revient de lui-même (ce que le joueur a déjà compensé de la main n'est pas rendu une seconde fois, sinon la souris paraît plus sensible détente tenue) ; l'arme recule sur un ressort, traîne quand le regard tourne, penche quand on marche de côté | la ligne de tir saute un peu de côté (le laser le montre), puis revient |
+| Recul | la vue se cabre, puis retombe d'elle-même ; en rafale elle monte, serpente un peu, et plafonne. C'est une couche posée sur la caméra, par-dessus le regard : elle ne touche jamais au cap ni à la hauteur que mène la souris, qui garde la même sensibilité détente tenue. L'arme recule sur un ressort, traîne quand le regard tourne, penche quand on marche de côté | la ligne de tir saute un peu de côté (le laser le montre), puis revient |
 | Cibles | à des hauteurs variées | toutes à hauteur du laser (`AIM_Y`) : ce que le curseur recouvre est ce qu'on touche |
 
 La mire est un point blanc ; quatre traits s'y ajoutent un instant quand on touche. Clic (ou `Espace`) pour tirer. **`R` recharge** : l'ancien chargeur tombe, le neuf est en place après le délai de l'arme, et un chargeur vide ne se remplit pas tout seul (la détente claque, le chargeur du HUD passe au rouge). À la manette : la gâchette droite tire, le stick droit vise, `X` recharge, `A` agit sur l'arme du mur toute proche (sinon, tire). Au doigt : toucher pour viser et tirer en vue de dessus ; en vue subjective, glisser tourne le regard et le bouton d'action tire ; on touche le chargeur pour recharger.
@@ -653,7 +655,9 @@ La mire est un point blanc ; quatre traits s'y ajoutent un instant quand on touc
 
 **Sons.** Tout est synthétisé (`RangeSfx`) : un tir est d'abord un coup grave, un claquement de bruit et un corps saturé (deux dents de scie désaccordées derrière un filtre qui se referme) ; le sifflement de « laser » n'en est plus qu'un reflet. Tout passe par une réverbération de salle métallique, fabriquée à la volée. Un timbre par arme : pistolet sec, mitraillette sans traîne, fusil à pompe large suivi des deux claquements de la pompe, fusil qui gronde et crépite, « thoump » creux du lance-plasma et son explosion. Les cibles se brisent en éclats, les murs grésillent, les chargeurs claquent.
 
-**Mise en scène.** Arme en main, la lumière d'ambiance baisse et le pas de tir passe dans la pénombre : seul le couloir des cibles reste éclairé (lampes `range` de `levels.ts`, cf. `RangeGame.light`). Sa lumière claque à la couleur du tir quand une cible éclate, balaie en vert à chaque palier, et bat en rouge à chaque seconde des dix dernières, annoncées par une bannière puis par un top par seconde sous cinq. Les fentes du sol et les bandeaux des murs suivent (`rangeState`), et chaque cible sort dans un halo. De temps en temps, à partir du premier palier, une **cible dorée**, petite et brève, rend 2 s.
+**Musique.** Elle n'est pas enregistrée : un séquenceur la joue à mesure (`src/range-music.ts`), en ré mineur, et elle suit la partie. Arme en main, une nappe et un charleston clairsemé ; au premier tir, la grosse caisse et une basse en croches ; à chaque palier une couche de plus (charlestons en doubles croches, caisse claire et basse qui roule, arpège, puis son octave) et un tempo plus vif ; dans les dix dernières secondes il s'emballe, et la caisse claire roule en fin de mesure. Le jukebox de la cale se tait pendant la partie.
+
+**Mise en scène.** Arme en main, la lumière d'ambiance baisse et le pas de tir passe dans la pénombre : seul le couloir des cibles reste éclairé (lampes `range` de `levels.ts`, cf. `RangeGame.light`). Sa lumière bat avec la grosse caisse, claque à la couleur du tir quand une cible éclate, balaie en vert à chaque palier, et bat en rouge à chaque seconde des dix dernières, annoncées par une bannière puis par un top par seconde sous cinq. Les fentes du sol et les bandeaux des murs suivent (`rangeState`), et chaque cible sort dans un halo. De temps en temps, à partir du premier palier, une **cible dorée**, petite et brève, rend 2 s.
 
 **Manche.** Le chrono (40 s) part **au premier tir**. Une cible vaut 100 points (150 pour une petite), 50 de plus en **plein centre**, et 10 par cible touchée d'affilée (jusqu'à 100) : un tir qui ne touche rien casse la série. Les **paliers** (1 000, 3 000, 6 000, 10 000… : `rangeTier`) rendent chacun 6 s, et durcissent le stand (`rangeLevel`) : plus de cibles à la fois, plus petites, mobiles, et qui rentrent plus vite.
 
@@ -918,7 +922,7 @@ Les bips, les mélodies d'arcade, les étincelles, le miaulement, le ronronnemen
 | `shared/sight.js` | Ligne de vue sur un plan : l'invite, `E` et le relais (tables de jeux, jukebox) refusent un objet derrière un mur ; tests dans `server/sight.test.js`. |
 | `shared/twitch-irc.js` | Chat Twitch du cinéma : découpe des lignes IRC reçues (auteur, couleur, emotes, « /me », modération) ; tests dans `server/twitch-irc.test.js`. |
 | `src/twitch-chat.ts` | Chat flottant du direct Twitch dans le cinéma : lecture anonyme, liaison du compte Twitch et envoi des messages par le site. |
-| `src/range.ts` · `src/range-weapons.ts` · `src/range-sfx.ts` | Stand de tir de la cale : balles et traînées, cibles, recul et dispersion, chargeur, paliers, inscription du score ; réglages des armes ; bruitages synthétisés. Plan vérifié dans `server/range.test.js`. |
+| `src/range.ts` · `src/range-weapons.ts` · `src/range-sfx.ts` · `src/range-music.ts` | Stand de tir de la cale : balles et traînées, cibles, recul et dispersion, chargeur, paliers, inscription du score ; réglages des armes ; bruitages synthétisés ; musique générée, qui suit la partie. Plan vérifié dans `server/range.test.js`. |
 | `src/court.ts` | Mini-jeux de la zone sportive (tirs au panier, tirs au but) : visée, jauge de force, trajectoire et rebonds des ballons (`CourtPhysics`), paliers, compte à rebours, inscription du score. |
 | `src/deck.ts` · `src/merge.ts` | Construit un pont : sols, murs sur les arêtes, hublots, poteaux, portes automatiques, meubles, ascenseur, réacteur, tuyères. Fusion de géométrie et fondu tramé (`merge.ts`, partagé avec les quartiers). |
 | `src/cabin/` | **Quartiers personnalisables** : catalogue des objets (`catalog.ts`, et ses compléments `catalog-home.ts`, `catalog-ship.ts`, `catalog-fun.ts`), revêtements des murs et du sol (`finishes.ts`), cloisons (`partitions.ts`, et `shared/cabin-partitions.js`), aménagement et sa normalisation (`layout.ts`), construction et fusion dans le pont (`view.ts`), règles de pose (`rules.ts`), mode aménagement (`editor.ts`), vignettes (`thumbs.ts`), barre des quartiers et invitations (`hud.ts`), enregistrement sur le site (`storage.ts`). |

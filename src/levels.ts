@@ -550,10 +550,6 @@ export const LEVELS: LevelDef[] = [
         interact: tr('Règlement du stand : 1. On ne vise pas l\'équipage. 2. On ne vise pas Comète. 3. Les réservoirs d\'hydrogène sont de l\'autre côté du mur : on vise bien.', 'Range rules: 1. Do not aim at the crew. 2. Do not aim at Comète. 3. The hydrogen tanks are on the other side of that wall: aim well.'),
       },
       { model: 'score-board', x: SHOOTING_RANGE.minX, z: 3.05, rot: 1, label: 'range', solid: false, interact: tr('Les meilleurs tireurs du bord', 'The ship\'s top marksmen'), action: tr('Consulter le classement', 'View rankings') },
-      {
-        model: 'range-crate', x: 11.86, z: 3.05, rot: 1,
-        interact: tr('Caisse de munitions. Au pochoir, à moitié effacé : « BAIE DE RÉPARATION ». Le Scarab a été garé ailleurs ; personne ne sait plus où.', 'Ammunition crate. Stencilled, half worn off: “REPAIR BAY”. The Scarab was parked somewhere else; nobody remembers where.'),
-      },
       { model: 'range-crate', x: 16.14, z: 4.02, rot: 3, label: 'medium' },
       {
         model: 'range-spares', x: 15.86, z: SHOOTING_RANGE.maxZ, rot: 2, solid: false,

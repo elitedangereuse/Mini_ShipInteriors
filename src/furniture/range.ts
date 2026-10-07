@@ -202,10 +202,10 @@ const rangeLane: Builder = () => {
       lamp.tick(t)
       const s = rangeState
       // Hors partie : une veille. En partie : les fentes brillent et claquent quand une cible éclate,
-      // les bandeaux respirent, virent au vert à un palier, au rouge dans les dix dernières secondes.
+      // les bandeaux battent avec la musique, virent au vert à un palier, au rouge dans les dix dernières secondes.
       spots.color.set('#fff3d6').multiplyScalar(s.live ? 1 : 0.5)
       slots.color.set(C.led).multiplyScalar(s.live ? 0.85 : 0.4).lerp(red, s.alarm).lerp(white, s.flash * 0.8)
-      strips.color.set(C.orange).multiplyScalar(s.live ? 0.6 + 0.3 * Math.sin(t * 2.6) : 0.8).lerp(red, s.alarm).lerp(mint, s.tier)
+      strips.color.set(C.orange).multiplyScalar(s.live ? 0.45 + 0.55 * s.beat : 0.8).lerp(red, s.alarm).lerp(mint, s.tier)
     },
   }
 }
@@ -272,8 +272,7 @@ const rangeWeapon: Builder = ({ label }) => {
     c.fillText(w.name.toUpperCase(), 26, 44, 344)
     c.fillStyle = '#a9b3c0'
     c.font = `600 24px ${MONO}`
-    const mode = w.blast ? tr('explosif', 'explosive') : w.pellets > 1 ? tr('gerbe', 'spread') : w.auto ? tr('automatique', 'automatic') : w.pierce ? tr('perforant', 'piercing') : tr('coup par coup', 'semi-auto')
-    c.fillText(`${w.mag} ${tr('coups', 'rounds')} · ${mode}`, 26, 94, 344)
+    c.fillText(`${w.mag} ${tr('coups', 'rounds')} · ${w.trait}`, 26, 94, 344)
   })
   live.add(part(new THREE.PlaneGeometry(0.48, 0.16), new THREE.MeshBasicMaterial({ map: card }), 0, 0.42, 0.034))
   const strip = new THREE.MeshBasicMaterial({ color: w.color })

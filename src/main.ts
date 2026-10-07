@@ -1,6 +1,7 @@
 import { GymGame, type Sport } from './gym'
 import { CourtGame } from './court'
 import { RangeGame } from './range'
+import { RangeMusic } from './range-music'
 import { RangeSfx } from './range-sfx'
 import { weaponById } from './range-weapons'
 import { FishBook } from './fishing/book'
@@ -602,7 +603,7 @@ court.onSound = (kind, at) => {
 
 // Stand de tir (cale) : on décroche une arme du mur (on l'y remet de même, ou on en prend une
 // autre), l'écran ouvre le classement (cf. src/range.ts).
-const range = new RangeGame(deckById(-1).group, dialog, wallet, new RangeSfx(sound))
+const range = new RangeGame(deckById(-1).group, dialog, wallet, new RangeSfx(sound), new RangeMusic(sound))
 /** Les supports d'armes du mur du stand. */
 const rangeMounts = deckById(-1).interactables.filter((it) => it.furniture?.model === 'range-weapon')
 for (const it of rangeMounts) {
@@ -637,6 +638,8 @@ range.onChange = (on) => {
     const weapon = weaponById(it.furniture?.label)
     if (weapon) it.label = range.weapon === weapon.id ? tr('Raccrocher l\'arme', 'Hang the weapon back') : weapon.take
   }
+  // Une arme lourde ralentit la marche.
+  player.load = weaponById(range.weapon ?? undefined)?.weight ?? 1
   if (on === rangeOn) return
   rangeOn = on
   // L'arme se tient à deux mains, bras tendus.
@@ -5097,7 +5100,7 @@ function frame() {
   if (range.active) {
     range.update(dt, {
       fps: fpsShown, body: !fpsShown || fps.showsBody, camera: activeCamera(), player: player.position, hands: player.avatar.hands(rangeHands),
-      move: input, look: (dYaw, dPitch) => fps.look(dYaw, dPitch),
+      move: input,
     })
     // Le personnage fait face à ce qu'il vise, même quand il marche de côté.
     player.setHeading(range.heading)
@@ -5322,7 +5325,8 @@ function frame() {
     // Dans la boîte de nuit, on n'entend plus le jukebox du bar.
     // Des conduits de ventilation, celui du bar s'entend, étouffé : il est juste en dessous.
     const below = music === holdMusic && deck === vents.deck
-    music.setRoom(below || (source === deck && viewDeck === deck && !(inClub && music === holdMusic)), !!jukeboxRoom && jukeboxRoom === playerRoom)
+    // Ni pendant une partie au stand de tir, qui a sa propre musique.
+    music.setRoom(below || (source === deck && viewDeck === deck && !((inClub || range.active) && music === holdMusic)), !!jukeboxRoom && jukeboxRoom === playerRoom)
   }
   clubMusic.update(inClub, onHold && viewDeck === deck ? clubProximity(holdRoom, player.position.x, player.position.z) : 0)
   // La soirée bat sur le morceau entendu dans la pièce, sauf quand le mode photo fige l'instant.

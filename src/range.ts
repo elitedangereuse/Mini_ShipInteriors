@@ -5,6 +5,7 @@ import { RANGE_ID } from './arcade/game'
 import { formatCredits } from './economy/data'
 import type { Wallet } from './economy/wallet'
 import { tr } from './i18n'
+import type { RangeMusic } from './range-music'
 import type { RangeSfx } from './range-sfx'
 import { rangeState, WEAPONS, type Weapon, type WeaponId } from './range-weapons'
 import type { Dialog } from './ui'
@@ -159,8 +160,6 @@ export interface RangeFrame {
   hands: THREE.Vector3 | null
   /** Direction de marche voulue (monde, longueur 0 à 1). */
   move: THREE.Vector3
-  /** Tourne le regard de la vue subjective (recul). */
-  look: (dYaw: number, dPitch: number) => void
 }
 
 interface Hud {
@@ -302,15 +301,19 @@ export class RangeGame {
   private pointer: { x: number; y: number } | null = null
   /**
    * Recul et dispersion (radians) : ce que les tirs ont ajouté à la dispersion (`bloom`), ce que
-   * marcher y ajoute (`moving`) ; le cabrage du regard encore à donner (`debt` : il se donne en
-   * quelques images, pas d'un coup) et celui à rendre (`recoil`) ; la déviation de la ligne de tir
-   * en vue de dessus (`drift`).
+   * marcher y ajoute (`moving`) ; le cabrage de la vue subjective (`recoil` : cap, hauteur), et ce
+   * qu'il lui reste à prendre (`debt` : il vient en quelques images, pas d'un coup) ; la déviation
+   * de la ligne de tir en vue de dessus (`drift`) ; le rang du tir dans la rafale (`volley`).
+   *
+   * Le cabrage est une couche posée par-dessus le regard, sur la caméra : il ne touche jamais au
+   * cap ni à la hauteur que mène la souris. Détente tenue ou non, elle garde la même sensibilité.
    */
   private bloom = 0
   private moving = 0
   private readonly debt = new THREE.Vector2()
   private readonly recoil = new THREE.Vector2()
   private drift = 0
+  private volley = 0
   /** L'arme sur son ressort : son recul (0 au repos) et sa vitesse. */
   private gunKick = 0
   private gunVel = 0
@@ -326,10 +329,6 @@ export class RangeGame {
   private readonly sway = new THREE.Vector2()
   private readonly lastDir = new THREE.Vector3()
   private camera: THREE.Camera | null = null
-  /** Regard de l'image précédente (cap, hauteur), et ce que le recul y a ajouté : le reste est la main du joueur. */
-  private readonly lastView = new THREE.Vector2()
-  private readonly lastGiven = new THREE.Vector2()
-  private viewed = false
   /** Mise en scène : éclat d'une cible touchée, palier franchi (ils s'éteignent), et la couleur du tir. */
   private glow = 0
   private tierGlow = 0
@@ -339,7 +338,7 @@ export class RangeGame {
   onChange?: (on: boolean) => void
 
   /** @param group la cale : cibles et balles y vivent, dans son repère */
-  constructor(private group: THREE.Object3D, private dialog: Dialog, private wallet: Wallet, private sfx: RangeSfx) {
+  constructor(private group: THREE.Object3D, private dialog: Dialog, private wallet: Wallet, private sfx: RangeSfx, private music: RangeMusic) {
     group.add(this.live, this.idle)
     this.laser = new THREE.Mesh(BEAM, new THREE.MeshBasicMaterial({ color: '#ff4a38', transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending }))
     this.laserDot = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), new THREE.MeshBasicMaterial({ color: '#ff6a5a' }))
@@ -414,7 +413,7 @@ export class RangeGame {
     this.shake = this.punch = this.flashTime = this.hitTime = this.roll = 0
     this.dip = 1
     this.glow = this.tierGlow = 0
-    this.viewed = false
+    this.volley = 0
     this.aim.set(0, 0, -1)
     this.pointer = null
     this.live.visible = true
@@ -425,6 +424,7 @@ export class RangeGame {
     rangeState.weapon = WEAPONS[weapon].id
     this.sfx.take()
     this.sfx.lights(true)
+    this.music.start()
     this.onChange?.(true)
     void fetchBoard(RANGE_ID).then((board) => {
       if (revision !== this.revision || !this.session) return
@@ -525,12 +525,14 @@ export class RangeGame {
     const eye = new THREE.Vector3()
     const dir = new THREE.Vector3()
     if (f.fps) {
+      // Le cabrage du recul, par-dessus le regard : la balle part là où la vue pointe vraiment.
+      f.camera.rotateOnWorldAxis(UP, this.recoil.x)
+      f.camera.rotateX(this.recoil.y)
+      f.camera.updateMatrixWorld()
       f.camera.getWorldDirection(this.aim)
       f.camera.getWorldPosition(eye).sub(origin)
       dir.copy(this.aim)
-      this.absorb()
     } else {
-      this.viewed = false
       if (this.pointer) {
         _ndc.set((this.pointer.x / innerWidth) * 2 - 1, -(this.pointer.y / innerHeight) * 2 + 1)
         _ray.setFromCamera(_ndc, f.camera)
@@ -573,6 +575,9 @@ export class RangeGame {
     this.tierGlow = Math.max(0, this.tierGlow - dt / 1.4)
     rangeState.flash = this.glow
     rangeState.tier = this.tierGlow
+    // La musique suit la partie (cf. RangeMusic), et les lumières suivent sa grosse caisse.
+    this.music.update({ started: s.started, level: s.level, rush: s.started && s.timeLeft <= 10 })
+    rangeState.beat = this.music.pulse
     rangeState.alarm = s.started && s.timeLeft > 0 && s.timeLeft <= 10 ? (s.timeLeft % 1) ** 2 : 0
     s.cooldown = Math.max(0, s.cooldown - dt)
     if (s.reload > 0 && (s.reload -= dt) <= 0) {
@@ -614,18 +619,13 @@ export class RangeGame {
     this.bloom *= Math.exp(-w.settle * dt)
     this.moving = THREE.MathUtils.damp(this.moving, walking ? w.move * RAD : 0, 10, dt)
     this.drift *= Math.exp(-12 * dt)
-    // Recul : le cabrage se donne en quelques images, puis le regard revient (moins vite détente tenue).
-    const give = 1 - Math.exp(-45 * dt)
-    const back = 1 - Math.exp(-w.recover * (this.held && w.auto ? 0.35 : 1) * dt)
-    const dYaw = this.debt.x * give - this.recoil.x * back, dPitch = this.debt.y * give - this.recoil.y * back
-    this.recoil.x += dYaw
-    this.recoil.y += dPitch
+    // Recul : le cabrage vient en quelques images, puis retombe de lui-même (moins vite détente tenue :
+    // en rafale, la vue monte, puis plafonne).
+    const give = 1 - Math.exp(-30 * dt)
+    this.recoil.addScaledVector(this.debt, give).multiplyScalar(Math.exp(-w.recover * (this.held && w.auto ? 0.6 : 1) * dt))
+    this.recoil.y = Math.min(this.recoil.y, 0.16)
     this.debt.multiplyScalar(1 - give)
-    this.lastGiven.set(0, 0)
-    if (f.fps && (Math.abs(dYaw) > 1e-6 || Math.abs(dPitch) > 1e-6)) {
-      f.look(dYaw, dPitch)
-      this.lastGiven.set(dYaw, dPitch)
-    }
+    if (s.cooldown <= 0 && !this.held) this.volley = 0
     // L'arme sur son ressort.
     this.gunVel += (-260 * this.gunKick - 24 * this.gunVel) * dt
     this.gunKick += this.gunVel * dt
@@ -640,25 +640,6 @@ export class RangeGame {
     this.drawHud(dt, f)
 
     if (s.timeLeft <= 0 && !s.bullets.length) this.finish(tr('Temps écoulé !', 'Time\'s up!'))
-  }
-
-  /**
-   * Le joueur compense le recul de la main : ce qu'il a déjà redescendu n'est plus à rendre. Sans
-   * cela, le retour du regard s'ajoute à son geste, et la souris paraît plus sensible détente tenue.
-   */
-  private absorb() {
-    const yaw = Math.atan2(this.aim.x, this.aim.z), pitch = Math.asin(THREE.MathUtils.clamp(this.aim.y, -1, 1))
-    if (this.viewed) {
-      const turn = yaw - this.lastView.x
-      const hand = [Math.atan2(Math.sin(turn), Math.cos(turn)) - this.lastGiven.x, pitch - this.lastView.y - this.lastGiven.y]
-      for (const [axis, moved] of [['x', hand[0]], ['y', hand[1]]] as const) {
-        const due = this.recoil[axis]
-        // À contre-sens du recul : autant de moins à rendre, jamais au-delà.
-        if (due * moved < 0) this.recoil[axis] = Math.abs(moved) >= Math.abs(due) ? 0 : due + moved
-      }
-    }
-    this.lastView.set(yaw, pitch)
-    this.viewed = true
   }
 
   private fire(eye: THREE.Vector3, dir: THREE.Vector3, f: RangeFrame, shown: Gun | null) {
@@ -692,9 +673,11 @@ export class RangeGame {
       s.bullets.push({ p: eye.clone(), d, speed: w.speed * (w.pellets > 1 ? 0.85 + Math.random() * 0.3 : 1), pierce: w.pierce, blast: w.blast, shot, color, streak: this.streak(from, color, width) })
     }
     this.bloom = Math.min(w.bloomMax * RAD, this.bloom + w.bloom * RAD)
-    // Recul : le regard se cabre et dévie ; vu de dessus, la ligne de tir saute de côté.
-    this.debt.x += rand(w.side * RAD)
-    this.debt.y += w.kick * RAD * (0.85 + Math.random() * 0.3)
+    // Recul : la vue se cabre et dévie ; vu de dessus, la ligne de tir saute de côté. Une arme
+    // automatique ne tremble pas au hasard : sa rafale serpente, d'un tir à l'autre.
+    this.volley++
+    this.debt.x += w.auto ? Math.sin(this.volley * 0.9) * w.side * RAD * 0.7 : rand(w.side * RAD)
+    this.debt.y += w.kick * RAD * (0.9 + Math.random() * 0.2)
     this.drift = THREE.MathUtils.clamp(this.drift + rand((w.side + w.kick * 0.3) * RAD), -0.07, 0.07)
     this.gunVel += 8 * w.punch
     this.shake = Math.max(this.shake, 0.45 * w.punch)
@@ -1111,18 +1094,18 @@ export class RangeGame {
     const persp = camera as THREE.PerspectiveCamera
     if (persp.isPerspectiveCamera) {
       if (!this.baseFov) this.baseFov = persp.fov
-      const fov = this.baseFov + this.punch * 0.8
+      const fov = this.baseFov + this.punch * 0.5
       if (Math.abs(persp.fov - fov) > 1e-3) {
         persp.fov = fov
         persp.updateProjectionMatrix()
       }
     }
     if (this.shake < 0.01) return
-    const a = this.shake * (fps ? 0.0035 : 0.03)
+    const a = this.shake * (fps ? 0.002 : 0.03)
     camera.position.x += rand(a)
     camera.position.y += rand(a)
     camera.position.z += rand(a)
-    if (fps) camera.rotateZ(rand(this.shake * 0.004))
+    if (fps) camera.rotateZ(rand(this.shake * 0.0025))
   }
 
   /**
@@ -1197,9 +1180,10 @@ export class RangeGame {
     this.lastDir.set(0, 0, 0)
     rangeState.live = false
     rangeState.weapon = null
-    rangeState.flash = rangeState.tier = rangeState.alarm = 0
+    rangeState.flash = rangeState.tier = rangeState.alarm = rangeState.beat = 0
     this.glow = this.tierGlow = 0
     this.sfx.lights(false)
+    this.music.stop()
     this.onChange?.(false)
     if (reason === null) return
     saveLocalBest(RANGE_ID, s.score)
@@ -1228,7 +1212,7 @@ export class RangeGame {
   /**
    * Éclairage du stand (cf. main.ts, lampes `range` de levels.ts) : hors partie, la lampe telle
    * qu'elle est posée. En partie, le pas de tir passe dans la pénombre et le couloir des cibles
-   * prend toute la lumière : elle claque à la couleur du tir quand une cible éclate, balaie en vert
+   * prend toute la lumière : elle bat avec la musique, claque à la couleur du tir quand une cible éclate, balaie en vert
    * à chaque palier, et bat en rouge à chaque seconde des dix dernières.
    */
   light(def: { position: THREE.Vector3; color: THREE.Color; intensity: number }, out: THREE.PointLight) {
@@ -1241,7 +1225,7 @@ export class RangeGame {
       return
     }
     out.color.lerp(ALARM, rangeState.alarm * 0.85).lerp(MINT, this.tierGlow * strobe).lerp(this.tint, this.glow * 0.7)
-    out.intensity = def.intensity * (1.2 + this.glow * 0.7 + this.tierGlow * strobe * 0.8 - (rangeState.alarm > 0 ? 0.35 * (1 - rangeState.alarm) : 0))
+    out.intensity = def.intensity * (1.1 + rangeState.beat * 0.22 + this.glow * 0.7 + this.tierGlow * strobe * 0.8 - (rangeState.alarm > 0 ? 0.35 * (1 - rangeState.alarm) : 0))
   }
 
   /** Remet le champ de la vue subjective comme il était (à appeler une fois la partie finie). */
