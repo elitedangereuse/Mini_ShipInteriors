@@ -129,6 +129,21 @@ export const TRACKS: Track[] = [
       { title: '夜明けの電車 — Yoake no Densha', file: 'journey-through-the-night-04.mp3', duration: 192 },
     ],
   },
+  {
+    // La bande originale de Scavengers, le jeu de fouille d'épaves du site : ses six ambiances, que
+    // le jeu mixe en direct, fondues en une piste chacune (cf. scripts/mix-scavengers-music.sh).
+    id: 'scavengers', title: 'Scavengers', artist: 'OptimusKoala', style: 'ambient',
+    cover: 'scavengers.svg', duration: 932.78, bpm: null, offset: 0,
+    mood: tr('La bande originale du jeu : six ambiances pour fouiller des épaves, seul, dans une galaxie qui ne répond plus.', 'The game\'s soundtrack: six moods for searching wrecks, alone, in a galaxy that no longer answers.'),
+    songs: [
+      { title: tr('Réveil', 'Awakening'), file: 'scavengers-01.mp3', duration: 174.53 },
+      { title: tr('Carte des secteurs', 'Sector Map'), file: 'scavengers-02.mp3', duration: 155.66 },
+      { title: tr('Abordage', 'Boarding'), file: 'scavengers-03.mp3', duration: 144 },
+      { title: tr('Échos non identifiés', 'Unidentified Echoes'), file: 'scavengers-04.mp3', duration: 130.9 },
+      { title: tr('Entre deux épaves', 'Between Two Wrecks'), file: 'scavengers-05.mp3', duration: 180 },
+      { title: tr('Signal perdu', 'Signal Lost'), file: 'scavengers-06.mp3', duration: 147.69 },
+    ],
+  },
 ]
 
 export const trackById = (id: string | null | undefined) => TRACKS.find((t) => t.id === id) ?? null

@@ -281,6 +281,24 @@ tags ID3 retirés (titre, image, données Suno). Durées mesurées au centième 
 comptant les trames MP3. Pochettes : PNG 1254 px d'origine réduits en JPEG
 512 px (qualité 86).
 
+Scavengers — OptimusKoala — ambient — pochette scavengers.svg
+  01 Réveil                 scavengers-01.mp3   2:54   (ambiance « title »)
+  02 Carte des secteurs     scavengers-02.mp3   2:35   (« galaxy »)
+  03 Abordage               scavengers-03.mp3   2:24   (« mission »)
+  04 Échos non identifiés   scavengers-04.mp3   2:10   (« mission_tense »)
+  05 Entre deux épaves      scavengers-05.mp3   3:00   (« management »)
+  06 Signal perdu           scavengers-06.mp3   2:27   (« gameover »)
+
+La bande originale de Scavengers (https://scavengers.elitedangereuse.fr),
+le jeu de fouille d'épaves du site, générée par OptimusKoala, l'auteur du
+jeu (dépôt sous licence MIT). Le jeu mixe chaque ambiance en direct à partir
+de trois couches (nappe, pulsation, thème, en AAC) ; scripts/mix-scavengers-music.sh
+les fond en une piste, aux dosages du jeu : la boucle tourne trois fois
+(deux pour « gameover »), finit sur un fondu de 6 s, et est ramenée au
+niveau des autres albums (MP3 48 kHz, 192 kbit/s). Les titres des pistes ont
+été donnés pour le jukebox. Pochette : illustration originale, d'après les
+portraits en pixels de Kael et d'ARIA, par scripts/generate_scavengers_cover.py.
+
 Les pochettes SVG des neuf morceaux individuels sont des illustrations
 originales créées pour le jukebox par scripts/generate_jukebox_covers.py.
 
