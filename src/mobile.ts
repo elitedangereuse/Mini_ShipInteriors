@@ -174,7 +174,7 @@ export function setupMobile(enabled: boolean): () => void {
   document.querySelector('.top-right')!.append(menu)
   toggle.onclick = () => { details(false); menuState(menu.hidden === true) }
   detailsToggle.onclick = () => { menuState(false); details(!left.classList.contains('details-open')) }
-  document.querySelector('.ph-tab')?.addEventListener('click', () => details(false))
+  for (const tab of document.querySelectorAll('.ph-tab')) tab.addEventListener('click', () => details(false))
   addEventListener('pointerdown', (e) => {
     if (!(e.target instanceof Node)) return
     if (!left.contains(e.target)) details(false)

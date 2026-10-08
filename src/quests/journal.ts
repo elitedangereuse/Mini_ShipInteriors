@@ -1,17 +1,19 @@
-import { tr } from '../i18n'
+import { EN, tr } from '../i18n'
 import { icon, type IconName } from '../icons'
 import { questById } from '../../shared/quests.js'
 import { QUEST_CONTENT, type QuestContent } from './content'
 import type { QuestStore } from './store'
 
 /*
- * Le journal de quêtes, sous le chat : deux onglets de plus, « Quêtes » (celles en cours, avec ce
- * qu'on en sait à cette étape) et « Terminées », dans le même habit que les messages. Une quête se
- * déplie d'un clic : son histoire, ce qu'on a déjà appris, ce qu'elle rapporte, et de quoi
- * l'abandonner (deux clics). J ouvre et referme le journal.
+ * Le journal de quêtes : un second combiné, frère de l'annuaire (cf. crew/phone.ts), qui flotte au
+ * même endroit et se réduit à sa propre languette, sous celle de l'équipage. Même habit (cf.
+ * crew/phone.css), en jaune des quêtes et chanfreins inversés, pour qu'on ne les confonde pas.
+ * Deux onglets : « En cours » (ce qu'on sait à cette étape) et « Terminées ». Une quête se déplie
+ * d'un clic : son histoire, ce qu'on a déjà appris, ce qu'elle rapporte, et de quoi l'abandonner
+ * (deux clics). J ouvre et referme le journal.
  */
 
-type Tab = 'chat' | 'active' | 'done'
+type Tab = 'active' | 'done'
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] => {
   const e = document.createElement(tag)
@@ -21,93 +23,138 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text 
 }
 
 export class QuestJournal {
-  private tab: Tab = 'chat'
-  private readonly panel = document.getElementById('chat')!
-  private readonly log = el('div', 'quest-log')
-  private readonly tabs = el('div', 'chat-tabs')
-  private readonly buttons = new Map<Tab, HTMLButtonElement>()
-  private readonly mobile = el('button')
+  private pane: Tab = 'active'
+  private readonly root = document.getElementById('quest-phone')!
+  private readonly tab = el('button', 'ph-tab qp-tab')
+  private readonly tabCount = el('b')
+  private readonly tabBadge = el('span', 'ph-badge')
+  private readonly body = el('section', 'ph-body')
+  private readonly kept = el('span', 'ph-link')
+  private readonly summary = el('p', 'ph-summary')
+  private readonly segs = new Map<Tab, HTMLButtonElement>()
+  private readonly log = el('div', 'ph-list quest-log')
   /** Quêtes dépliées. */
   private readonly open = new Set<string>()
   /** Quête dont l'abandon attend son second clic, et jusqu'à quand. */
   private armed: { id: string; timer: number } | null = null
-  /** Des messages sont arrivés au chat pendant qu'on lisait le journal. */
-  private unread = false
   /** Quête à mettre en avant (elle vient de bouger). */
   private fresh: string | null = null
+  /** Une quête a bougé depuis que le journal est réduit : la languette le signale. */
+  private news = false
   /** Abandon confirmé. */
   onAbandon?: (quest: QuestContent) => void
+  /** Ouvert ou réduit. */
+  onToggle?: (open: boolean) => void
 
   constructor(private readonly store: QuestStore) {
-    this.log.hidden = true
-    this.tabs.setAttribute('role', 'tablist')
-    const tab = (id: Tab, glyph: IconName, label: string, title: string) => {
-      const b = el('button', 'chat-tab')
-      b.type = 'button'
-      b.title = title
-      b.setAttribute('role', 'tab')
-      b.append(icon(glyph), el('span', 'chat-tab-label', label), el('span', 'chat-tab-count'))
-      b.onclick = () => this.show(this.tab === id && id !== 'chat' ? 'chat' : id)
-      this.buttons.set(id, b)
-      this.tabs.append(b)
-    }
-    tab('chat', 'chat-circle-dots', tr('Chat', 'Chat'), tr('Discussion (Entrée)', 'Chat (Enter)'))
-    tab('active', 'scroll', tr('Quêtes', 'Quests'), tr('Quêtes en cours (J)', 'Quests in progress (J)'))
-    tab('done', 'check', tr('Terminées', 'Completed'), tr('Quêtes terminées', 'Completed quests'))
-    // Fermer le journal, sur un écran tactile (où il s'ouvre par-dessus le jeu, cf. mobile.css).
-    const close = el('button', 'chat-tab chat-tab-close')
+    const title = tr('Quêtes', 'Quests')
+    this.tab.type = 'button'
+    this.tab.title = tr('Journal de quêtes (J)', 'Quest journal (J)')
+    this.tab.setAttribute('aria-label', this.tab.title)
+    this.tab.setAttribute('aria-controls', 'quest-phone-body')
+    this.tab.append(icon('scroll'), this.tabCount, this.tabBadge)
+    this.tab.onclick = () => this.toggle()
+
+    this.body.id = 'quest-phone-body'
+    this.body.setAttribute('aria-label', tr('Journal de quêtes', 'Quest journal'))
+    const status = el('header', 'ph-status')
+    const kicker = el('span', 'ph-time')
+    kicker.append(icon('scroll'), tr('Journal de bord', 'Ship\'s log'))
+    const close = el('button', 'ph-close')
     close.type = 'button'
-    close.title = tr('Fermer', 'Close')
-    close.setAttribute('aria-label', close.title)
+    close.title = tr('Réduire (J)', 'Collapse (J)')
+    close.setAttribute('aria-label', tr('Réduire le journal', 'Collapse the journal'))
     close.append(icon('x'))
-    close.onclick = () => this.show('chat')
-    this.tabs.append(close)
-    const form = document.getElementById('chat-form')!
-    form.before(this.log)
-    form.after(this.tabs)
-    // Sur un écran tactile, le chat est replié en un bouton (cf. mobile.ts) : le journal a le sien, à côté.
-    this.mobile.id = 'mobile-quest-toggle'
-    this.mobile.type = 'button'
-    this.mobile.title = tr('Journal de quêtes', 'Quest journal')
-    this.mobile.setAttribute('aria-label', this.mobile.title)
-    this.mobile.append(icon('scroll'), el('span', 'chat-tab-count'))
-    this.mobile.onclick = () => this.show('active')
-    this.panel.append(this.mobile)
-    // Écrire un message ramène au chat.
-    document.getElementById('chat-input')!.addEventListener('focus', () => this.show('chat'))
+    close.onclick = () => this.close()
+    status.append(kicker, this.kept, close)
+
+    const head = el('div', 'ph-head')
+    head.append(el('h2', '', title), this.summary)
+    const seg = el('div', 'ph-segs')
+    seg.setAttribute('role', 'tablist')
+    const add = (id: Tab, label: string) => {
+      const b = el('button', 'ph-seg')
+      b.type = 'button'
+      b.setAttribute('role', 'tab')
+      b.append(label, el('span', 'ph-badge'))
+      b.onclick = () => this.show(id)
+      this.segs.set(id, b)
+      seg.append(b)
+    }
+    add('active', tr('En cours', 'In progress'))
+    add('done', tr('Terminées', 'Completed'))
+    const view = el('div', 'ph-view')
+    view.append(head, seg, this.log)
+    const screen = el('div', 'ph-screen')
+    screen.append(view)
+    this.body.append(status, screen)
+    this.root.append(this.body)
+    // La languette vit au bas de la colonne de gauche du HUD, sous celle de l'annuaire.
+    document.getElementById('invites')!.parentElement!.append(this.tab)
+
     this.log.addEventListener('click', (e) => this.click(e))
-    // Un message arrive pendant qu'on lit le journal : l'onglet du chat le signale.
-    new MutationObserver(() => {
-      if (this.tab === 'chat') return
-      this.unread = true
-      this.paintTabs()
-    }).observe(document.getElementById('chat-log')!, { childList: true })
+    // Échap, le focus dans le journal : il se referme.
+    this.root.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      this.close()
+    })
     store.subscribe(() => this.render())
-    this.render()
+    this.setOpen(false, false)
   }
 
-  /** Le journal est-il affiché (à la place des messages) ? */
   get isOpen(): boolean {
-    return this.tab !== 'chat'
+    return this.root.classList.contains('open')
   }
 
-  /** J : le journal, ou retour au chat. */
+  /** Le clic (ou autre événement) vise-t-il le journal ? */
+  contains(target: EventTarget | null): boolean {
+    return target instanceof Node && (this.root.contains(target) || this.tab.contains(target))
+  }
+
+  /** J : le journal s'ouvre, ou se réduit. */
   toggle() {
-    this.show(this.tab === 'chat' ? 'active' : 'chat')
+    this.setOpen(!this.isOpen)
+  }
+
+  /** Rend false s'il n'y avait rien à fermer. */
+  close(): boolean {
+    if (!this.isOpen) return false
+    this.setOpen(false)
+    return true
+  }
+
+  private setOpen(open: boolean, announce = true) {
+    // L'annuaire, s'il est ouvert, cède d'abord la place (cf. main.ts).
+    if (announce) this.onToggle?.(open)
+    this.root.classList.toggle('open', open)
+    // Sur un écran large mais peu haut, la colonne de gauche du HUD se pousse (cf. phone.css).
+    document.body.classList.toggle('quest-phone-open', open)
+    this.tab.setAttribute('aria-expanded', String(open))
+    this.body.inert = !open
+    if (open) this.news = false
+    else {
+      this.disarm()
+      if (this.root.contains(document.activeElement)) (document.activeElement as HTMLElement).blur()
+    }
+    this.render()
   }
 
   /** Une quête vient de bouger : on la retrouvera dépliée, en tête du journal. */
   highlight(id: string) {
     this.fresh = id
     this.open.add(id)
+    this.pane = this.store.isDone(id) ? 'done' : 'active'
+    if (!this.isOpen) this.news = true
     this.render()
   }
 
-  show(tab: Tab) {
-    if (tab === 'chat') this.unread = false
-    this.tab = tab
+  /** Ouvre le journal sur un onglet. */
+  show(pane: Tab) {
+    this.pane = pane
     this.disarm()
-    this.render()
+    if (this.isOpen) this.render()
+    else this.setOpen(true)
   }
 
   private disarm() {
@@ -137,37 +184,40 @@ export class QuestJournal {
     this.render()
   }
 
-  private paintTabs() {
+  /** Languette, résumé et onglets : les comptes, et ce qui est nouveau. */
+  private paint() {
     const active = QUEST_CONTENT.filter((q) => this.store.state(q.id) && !this.store.isDone(q.id)).length
     const done = this.store.done().length
-    this.mobile.querySelector('.chat-tab-count')!.textContent = active ? String(active) : ''
-    for (const [id, b] of this.buttons) {
-      b.classList.toggle('selected', this.tab === id)
-      b.setAttribute('aria-selected', String(this.tab === id))
-      const count = id === 'active' ? active : id === 'done' ? done : 0
-      b.querySelector('.chat-tab-count')!.textContent = count ? String(count) : ''
-      if (id === 'chat') b.classList.toggle('unread', this.unread)
-      // Rien de terminé : l'onglet attendra la première quête bouclée.
-      if (id === 'done') b.hidden = done === 0 && this.tab !== 'done'
+    this.tabCount.textContent = active ? String(active) : ''
+    this.tabBadge.textContent = this.news ? '!' : ''
+    this.tab.classList.toggle('alert', this.news)
+    this.summary.textContent = EN ? `${active} in progress, ${done} completed` : `${active} en cours, ${done} terminée${done > 1 ? 's' : ''}`
+    // Où le journal est gardé : un invité n'a que ce navigateur.
+    this.kept.textContent = this.store.mode === 'site' ? tr('Site', 'Site') : this.store.mode === 'local' ? tr('Ce navigateur', 'This browser') : ''
+    this.kept.title = this.store.mode === 'site'
+      ? tr('Votre journal est gardé par le site : vous le retrouvez partout.', 'Your journal is kept by the site: it follows you everywhere.')
+      : this.store.mode === 'local' ? tr('Votre journal n\'est gardé que dans ce navigateur.', 'Your journal is only kept in this browser.') : ''
+    this.kept.classList.toggle('on', this.store.mode === 'site')
+    for (const [id, b] of this.segs) {
+      b.setAttribute('aria-selected', String(this.pane === id))
+      const count = id === 'active' ? active : done
+      b.querySelector('.ph-badge')!.textContent = count ? String(count) : ''
     }
   }
 
   private render() {
-    this.panel.classList.toggle('journal', this.tab !== 'chat')
-    document.getElementById('chat-log')!.hidden = this.tab !== 'chat'
-    this.log.hidden = this.tab === 'chat'
-    this.paintTabs()
-    if (this.tab === 'chat') return
+    this.paint()
+    if (!this.isOpen) return
     const cards: HTMLElement[] = []
     const quests = QUEST_CONTENT.filter((q) => {
       const state = this.store.state(q.id)
-      return !!state && state.done === (this.tab === 'done')
+      return !!state && state.done === (this.pane === 'done')
     })
     // Celle qui vient de bouger d'abord.
     quests.sort((a, b) => Number(b.id === this.fresh) - Number(a.id === this.fresh))
-    for (const quest of quests) cards.push(this.tab === 'done' ? this.doneCard(quest) : this.activeCard(quest))
+    for (const quest of quests) cards.push(this.pane === 'done' ? this.doneCard(quest) : this.activeCard(quest))
     if (!cards.length) {
-      cards.push(el('div', 'quest quest-empty', this.tab === 'done'
+      cards.push(el('p', 'ph-empty', this.pane === 'done'
         ? tr('Aucune quête terminée pour l\'instant.', 'No completed quests yet.')
         : !this.store.ready
           ? tr('Lecture du journal…', 'Reading the journal…')

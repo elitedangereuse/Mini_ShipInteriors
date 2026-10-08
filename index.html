@@ -192,8 +192,8 @@
           <div lang="en"><kbd>G</kbd> garden in your quarters: <kbd>1</kbd>…<kbd>5</kbd> tools, <kbd>E</kbd> use them</div>
           <div lang="fr">Tâches de bord (repères orange) : <kbd>E</kbd> pour les régler contre des crédits</div>
           <div lang="en">Ship chores (orange markers): <kbd>E</kbd> to take care of them for credits</div>
-          <div lang="fr">Quêtes (repères jaunes « ! ») : <kbd>E</kbd> pour en savoir plus · <kbd>J</kbd> journal de quêtes, sous le chat</div>
-          <div lang="en">Quests (yellow “!” markers): <kbd>E</kbd> to find out more · <kbd>J</kbd> quest journal, below the chat</div>
+          <div lang="fr">Quêtes (repères jaunes « ! ») : <kbd>E</kbd> pour en savoir plus · <kbd>J</kbd> journal de quêtes (languette au parchemin, à gauche)</div>
+          <div lang="en">Quests (yellow “!” markers): <kbd>E</kbd> to find out more · <kbd>J</kbd> quest journal (scroll tab on the left)</div>
           <div class="muted" lang="fr">Chat : <code>/nom CMDR Pseudo</code>, <code>/perso</code> (au hasard), <code>/inviter CMDR Nom</code>, <code>/w CMDR Nom message</code>, <code>/taches</code>, <code>/quetes</code>, <code>/tuto</code> (la formation), <code>/aide</code></div>
           <div class="muted" lang="en">Chat: <code>/name CMDR Nickname</code>, <code>/random</code> (random look), <code>/invite CMDR Name</code>, <code>/w CMDR Name message</code>, <code>/chores</code>, <code>/quests</code>, <code>/tuto</code> (the training), <code>/help</code></div>
         </div>
@@ -201,6 +201,8 @@
 
       <!-- Combiné de bord : l'annuaire des joueurs, réduit à une languette (cf. src/crew/phone.ts). -->
       <div id="phone"></div>
+      <!-- Journal de quêtes : un second combiné, à sa propre languette (cf. src/quests/journal.ts). -->
+      <div id="quest-phone"></div>
 
       <div id="chat" class="panel chat">
         <div id="chat-log"></div>

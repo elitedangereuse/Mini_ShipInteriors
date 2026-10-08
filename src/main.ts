@@ -1836,7 +1836,7 @@ revealRoom = (level, room) => {
   iso.zoomTo(REVEAL_ZOOM)
   sound.play('doorOpen', roomReveal.focus, { volume: 0.2, rate: 0.6 })
 }
-/** Le journal, sous le chat, et le bandeau d'une quête qui commence, avance ou se termine. */
+/** Le journal, dans son combiné (languette sous celle de l'annuaire), et le bandeau d'une quête qui commence, avance ou se termine. */
 const questJournal = new QuestJournal(quests)
 const questToasts = new QuestToasts()
 questJournal.onAbandon = (quest) => chat.add('system', tr(`Quête abandonnée : ${quest.title}. Elle pourra être reprise du début.`, `Quest abandoned: ${quest.title}. It can be started over.`))
@@ -1890,7 +1890,7 @@ function questEvent(event: QuestEvent, quest: QuestContent, detail?: string) {
   if (event === 'start') {
     sound.play('ding', null, { volume: 0.12 })
     questToasts.push({ kind: 'start', title: quest.title, detail: quest.pitch })
-    const where = coarsePointer ? tr('Le journal s\'ouvre par le bouton au parchemin.', 'The scroll button opens the journal.') : tr('Le journal est sous le chat (J).', 'The journal is below the chat (J).')
+    const where = coarsePointer ? tr('Le journal s\'ouvre par le bouton au parchemin.', 'The scroll button opens the journal.') : tr('Le journal s\'ouvre par la languette au parchemin, à gauche (J).', 'The scroll tab on the left opens the journal (J).')
     return chat.add('system', tr(`Nouvelle quête : ${quest.title}. ${where}`, `New quest: ${quest.title}. ${where}`))
   }
   if (event === 'step') {
@@ -3253,7 +3253,10 @@ async function enterVisit(host: number) {
   lift.close()
   jukebox.close()
   // Au doigt, le combiné couvre le joystick : il se range.
-  if (COARSE.matches) phone.close()
+  if (COARSE.matches) {
+    phone.close()
+    questJournal.close()
+  }
   inviteToasts.remove(host)
   seating.leave()
   player.cancelPath()
@@ -3550,6 +3553,8 @@ phone.onDeleteLetter = (id) => {
 phone.onToggle = (open) => {
   store.set('phone', open ? '1' : '0')
   if (open) {
+    // Les deux combinés flottent au même endroit : un seul à la fois.
+    questJournal.close()
     refreshPhone()
     void loadDirectory()
   }
@@ -3558,9 +3563,13 @@ addEventListener(
   'pointerdown',
   (e) => {
     if (COARSE.matches && phone.isOpen && !phone.contains(e.target)) phone.close()
+    if (COARSE.matches && questJournal.isOpen && !questJournal.contains(e.target)) questJournal.close()
   },
   { capture: true },
 )
+questJournal.onToggle = (open) => {
+  if (open) phone.close()
+}
 void loadDirectory(true)
 
 /**
@@ -3893,6 +3902,7 @@ function updateGamepad(dt: number): GamepadInput {
   if (pad.cancel) {
     toggleAbout(false)
     phone.back()
+    questJournal.close()
     stopWork()
     wardrobe.close(false)
     if (claw && seating.settled) seating.stand()
@@ -4314,7 +4324,7 @@ function unlockCursor() {
 }
 /** Ce qui se manipule au curseur : on le rend. */
 function needsCursor(): boolean {
-  return gardenPanel.isOpen || court.active || fishBusy() || quiz.isOpen || chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || phone.isOpen || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || !reactionsPanel.hidden
+  return gardenPanel.isOpen || court.active || fishBusy() || quiz.isOpen || chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || phone.isOpen || questJournal.isOpen || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || !reactionsPanel.hidden
 }
 document.addEventListener('pointerlockchange', () => {
   document.body.classList.toggle('fps-locked', cursorLocked())
@@ -5770,7 +5780,7 @@ function frame() {
     ready: !!label || panelOpen || planetarium.talking || zone.frozen || range.active,
     action: !!sit?.space || range.active,
     reload: range.active,
-    cancel: panelOpen || range.active || gym.active || court.active || fishing.active || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || phone.isOpen || !!working || !!claw || !$('about').hidden,
+    cancel: panelOpen || range.active || gym.active || court.active || fishing.active || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || phone.isOpen || questJournal.isOpen || !!working || !!claw || !$('about').hidden,
   })
   // On s'éloigne de l'ascenseur ou du jukebox : le panneau se ferme.
   if (lift.isOpen && Math.hypot(player.position.x - liftTile.x, player.position.z - liftTile.z) > 1.6) lift.close()

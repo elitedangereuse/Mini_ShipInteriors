@@ -1,5 +1,5 @@
 /* Loaded after all desktop styles. Safe areas apply to controls as well as interaction panels. */
-.mobile-status-toggle, #mobile-menu-toggle, #mobile-quest-toggle, #prompt > .icon, .help-touch, #touch-aim { display: none; }
+.mobile-status-toggle, #mobile-menu-toggle, #prompt > .icon, .help-touch, #touch-aim { display: none; }
 @media (pointer: coarse) {
   :root {
     --mobile-top: max(8px, env(safe-area-inset-top));
@@ -78,6 +78,7 @@
   .ph-tab { margin-left: 0; width: 44px; height: 44px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; clip-path: none; }
   .ph-tab b { display: none; }
   .ph-tab .ph-badge { position: absolute; top: -3px; right: -3px; }
+  .ph-tab.qp-tab { margin-top: 0; padding: 8px; }
   .ph-body { left: var(--mobile-left); height: var(--mobile-height); }
   .top-right { top: var(--mobile-top); right: var(--mobile-right); gap: 6px; }
   .top-row { gap: 6px; }
@@ -168,17 +169,6 @@
   .chat.open #chat-log, .chat.active #chat-log { max-height: 30dvh; margin: 6px 0 0; overflow-y: auto; font-size: 13px; line-height: 1.4; }
   .chat.open #chat-log .msg, .chat.active #chat-log .msg { white-space: normal; }
   #chat-input { box-sizing: border-box; min-height: 44px; font-size: 16px; background: #0a0c1c; }
-  /* Quest journal: a second button beside the chat one; open, it takes the top of the screen like the chat field does. */
-  .chat-tabs { display: none; }
-  #mobile-quest-toggle { position: absolute; left: 52px; bottom: 0; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid var(--border); border-radius: 10px; background: #101a2ad9; color: #ffd24a; font-size: 20px; pointer-events: auto; }
-  #mobile-quest-toggle .chat-tab-count { position: absolute; top: -5px; right: -5px; background: #ffd24a; color: #1a1408; }
-  .chat.journal { position: fixed; z-index: 20; top: var(--mobile-top); bottom: auto; left: var(--mobile-left); right: var(--mobile-right); align-items: stretch; width: auto; padding: 6px; border-color: var(--border); background: #101a2af5; pointer-events: auto; }
-  .chat.journal .chat-tabs { display: flex; order: -1; margin: 0 0 6px; }
-  .chat.journal .chat-tab { min-height: 36px; padding: 4px 12px; font-size: 13px; }
-  .chat.journal .chat-tab-close { display: inline-flex; margin-left: auto; }
-  .chat.journal #mobile-chat-toggle, .chat.journal #mobile-quest-toggle, .chat.open #mobile-quest-toggle, .chat.active #mobile-quest-toggle { display: none; }
-  .chat.journal .quest-log { max-height: calc(var(--mobile-height) - 64px); margin: 0; }
-  body.editing #mobile-quest-toggle { display: none; }
   /* Dialogue lines: a slim strip at the bottom edge, between the chat bubble and the action button. */
   #dialog { bottom: var(--mobile-bottom); width: min(420px, calc(100vw - 380px - var(--mobile-left) - var(--mobile-right))); max-height: 64px; box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain; padding: 6px 10px; border-radius: 8px; font-size: 12px; line-height: 1.35; pointer-events: auto; background: #101a2aeb; box-shadow: none; }
   /* The prompt is a button here: touching it does what the main button does. */

@@ -2,8 +2,11 @@
  * Combiné de bord (annuaire des joueurs, cf. crew/phone.ts) : un téléphone aux coins chanfreinés,
  * qui flotte à gauche de l'écran et se réduit à une languette contre le bord.
  * --cut : la taille du chanfrein, en haut à gauche et en bas à droite.
+ * Le journal de quêtes (cf. quests/journal.ts) est un second combiné, au même endroit : il reprend
+ * tout d'ici, et ne change que ce qui le distingue (voir « journal de quêtes », plus bas).
  */
-#phone {
+#phone,
+#quest-phone {
   --cut: 20px;
   --ph-ink: #0b0d1f;
   --ph-line: rgba(140, 150, 255, 0.22);
@@ -16,7 +19,8 @@
   /* L'ombre suit le chanfrein (un box-shadow serait rogné par clip-path). */
   filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.55));
 }
-body.editing #phone {
+body.editing #phone,
+body.editing #quest-phone {
   display: none;
 }
 
@@ -63,12 +67,13 @@ body.editing #phone {
   outline-offset: -2px;
 }
 #phone button:focus-visible,
-#phone a:focus-visible {
+#phone a:focus-visible,
+#quest-phone button:focus-visible {
   outline: 2px solid var(--cyan);
   outline-offset: -2px;
 }
-/* Combiné ouvert : la languette garde sa place (la colonne ne saute pas), sans se montrer. */
-.ph-tab[aria-expanded='true'] {
+/* Un combiné ouvert : les languettes gardent leur place (la colonne ne saute pas), sans se montrer. */
+body:is(.phone-open, .quest-phone-open) .ph-tab {
   visibility: hidden;
 }
 .ph-badge {
@@ -118,7 +123,8 @@ body.editing #phone {
   user-select: none;
   -webkit-user-select: none;
 }
-#phone.open .ph-body {
+#phone.open .ph-body,
+#quest-phone.open .ph-body {
   transform: translate(0, -50%);
   opacity: 1;
   visibility: visible;
@@ -671,13 +677,76 @@ button.ph-row-main:hover {
   color: #b596ff;
 }
 
+/* ---------- journal de quêtes ---------- */
+/* Le même combiné, pour ne perdre personne, mais qu'on ne confond pas avec l'annuaire : le jaune
+   des quêtes à la place de l'ambre, et les chanfreins de l'autre côté (haut droit, bas gauche). */
+#quest-phone {
+  --qp: #ffd24a;
+}
+.qp-tab {
+  margin-top: -4px;
+  padding: 12px 0 14px;
+  border-left-color: #ffd24a;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%);
+}
+.qp-tab .icon {
+  color: #ffd24a;
+}
+.qp-tab .ph-badge {
+  background: #ffd24a;
+}
+#quest-phone .ph-body {
+  background: linear-gradient(210deg, var(--qp) 0, rgba(255, 210, 74, 0.25) 22%, var(--ph-line) 55%, rgba(125, 255, 168, 0.5) 100%);
+}
+#quest-phone .ph-body,
+#quest-phone .ph-body::before {
+  clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut)));
+}
+/* Le fond : la lueur passe à droite, et l'écran est ligné comme un carnet. */
+#quest-phone .ph-body::before {
+  background:
+    repeating-linear-gradient(180deg, transparent 0 27px, rgba(255, 210, 74, 0.045) 27px 28px),
+    radial-gradient(120% 60% at 100% 0, rgba(255, 210, 74, 0.12), transparent 60%),
+    linear-gradient(180deg, #1c1b34, var(--ph-ink) 70%);
+}
+#quest-phone .ph-status {
+  padding: 9px calc(var(--cut) + 4px) 6px 16px;
+}
+#quest-phone .ph-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--qp);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+#quest-phone .ph-link {
+  white-space: nowrap;
+}
+#quest-phone .ph-link.on {
+  color: var(--ph-green);
+}
+#quest-phone .ph-seg[aria-selected='true'] {
+  color: var(--qp);
+  border-bottom-color: var(--qp);
+}
+#quest-phone .ph-seg .ph-badge {
+  background: rgba(255, 210, 74, 0.2);
+  color: var(--qp);
+}
+#quest-phone .ph-list {
+  padding-top: 12px;
+}
+
 /* ---------- écran large, peu haut ---------- */
 /* Le combiné ouvert recouvrirait le bloc du vaisseau : la colonne de gauche se pousse à côté de lui. */
 @media (min-width: 1200px) and (max-height: 900px) {
   .top-left {
     transition: left 0.26s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
-  body.phone-open:not(.editing) .top-left {
+  body:is(.phone-open, .quest-phone-open):not(.editing) .top-left {
     left: 354px;
   }
 }
@@ -702,8 +771,16 @@ button.ph-row-main:hover {
     padding: 5px 6px;
   }
   .ph-time,
-  .ph-link {
+  .ph-link,
+  #quest-phone .ph-time {
     display: none;
+  }
+  #quest-phone .ph-body > .ph-status {
+    padding: 5px calc(var(--cut) + 2px) 5px 6px;
+  }
+  #quest-phone .ph-head {
+    padding-left: 14px;
+    padding-right: 64px;
   }
   .ph-head {
     display: flex;
@@ -785,5 +862,8 @@ button.ph-row-main:hover {
     gap: 6px;
     width: auto;
     padding: 7px 14px 7px calc(var(--edge) + 4px);
+  }
+  .qp-tab {
+    margin-top: 0;
   }
 }

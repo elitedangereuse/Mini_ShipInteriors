@@ -892,91 +892,26 @@ kbd .icon {
   border-color: var(--cyan);
 }
 
-/* ---------- journal de quêtes (cf. src/quests/journal.ts) : sous le chat, dans le même habit ---------- */
-.chat-tabs {
-  display: flex;
-  gap: 4px;
-  margin-top: 6px;
-}
-.chat-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 9px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: rgba(10, 12, 28, 0.55);
-  color: var(--muted);
-  font: inherit;
-  font-size: 12px;
-  text-shadow: 0 1px 2px #000;
-  cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.2s, color 0.2s, border-color 0.2s;
-}
-.chat:hover .chat-tab,
-.chat.active .chat-tab,
-.chat.journal .chat-tab {
-  opacity: 1;
-}
-.chat-tab:hover {
-  color: var(--text);
-}
-.chat-tab.selected {
-  color: #ffd24a;
-  border-color: rgba(255, 210, 74, 0.5);
-}
-.chat-tab-count {
-  min-width: 16px;
-  padding: 0 4px;
-  border-radius: 8px;
-  background: rgba(255, 210, 74, 0.2);
-  color: #ffd24a;
-  font-size: 11px;
-  font-weight: 700;
-  text-align: center;
-}
-.chat-tab-count:empty {
-  display: none;
-}
-/* Un message est arrivé pendant qu'on lisait le journal. */
-.chat-tab.unread::after {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--cyan);
-}
-.chat-tab-close {
-  display: none;
-}
+/* ---------- journal de quêtes (cf. src/quests/journal.ts) : ses cartes, dans son combiné (cf. crew/phone.css) ---------- */
 .quest-log {
-  max-height: 260px;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 6px;
+  gap: 6px;
   font-size: 13px;
-  scrollbar-width: thin;
 }
 .quest {
-  padding: 5px 8px 6px;
+  padding: 8px 10px 9px;
   border-left: 2px solid #ffd24a;
-  border-radius: 6px;
-  background: rgba(10, 12, 28, 0.62);
-  text-shadow: 0 1px 2px #000;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+  user-select: text;
+  -webkit-user-select: text;
 }
 .quest.fresh {
   animation: quest-fresh 1.6s ease-out;
 }
 .quest-done {
   border-left-color: #7dffa8;
-}
-.quest-empty {
-  border-left-color: transparent;
-  color: var(--muted);
-  font-style: italic;
 }
 .quest-head {
   display: flex;
@@ -990,7 +925,6 @@ kbd .icon {
   font: inherit;
   font-weight: 600;
   text-align: left;
-  text-shadow: inherit;
   cursor: pointer;
 }
 .quest-done .quest-head {
