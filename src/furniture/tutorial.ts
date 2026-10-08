@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { beamMaterial, box, cylinder, drawnTexture, ellipseSegments, glow, holoMaterial, holoTime, keepShared, lit, panelTexture, part, type Builder } from './kit'
+import { beamMaterial, box, cylinder, drawnTexture, ellipseSegments, glow, holoMaterial, holoTime, keepShared, lit, panelTexture, part, pointCloud, type Builder } from './kit'
 
 /*
  * Le simulateur d'accueil des nouveaux venus (cf. src/tutorial.ts) : une salle holographique.
@@ -37,6 +37,7 @@ function wallTexture(lines: boolean): THREE.CanvasTexture {
 }
 
 const wallMaterial = () => sharedSim('wall', () => new THREE.MeshLambertMaterial({ map: wallTexture(false), emissive: '#ffffff', emissiveMap: wallTexture(true), emissiveIntensity: 0.85 }))
+const floorMaterial = () => sharedSim('floor', () => new THREE.MeshLambertMaterial({ color: '#17243a' }))
 const capMaterial = () => sharedSim('cap', () => new THREE.MeshLambertMaterial({ color: '#0d1626' }))
 
 const simMaterials = new Map<string, THREE.Material>()
@@ -76,15 +77,23 @@ export const SIM_WALLS = {
     g.updateMatrixWorld(true)
     return g
   },
+  /** Dalle unie, bleu nuit : le quadrillage (cf. sim-grid) s'y lit sans rien d'autre. */
+  floor(x: number, z: number): THREE.Object3D {
+    const m = part(new THREE.BoxGeometry(1, 0.3, 1), floorMaterial(), x, -0.15, z)
+    m.receiveShadow = true
+    m.updateMatrixWorld(true)
+    return m
+  },
 }
 
 // ---------------------------------------------------------------- le sol de la simulation
 
 /**
  * Le sol de la simulation, tout autour des salles : une dalle sombre quadrillée qui s'étend à
- * perte de vue et s'efface au loin, une plateforme cernée de lumière au pied des parois, et une
- * onde qui s'en éloigne. Les salles y sont posées : elles ne flottent plus dans le vide.
- * Au-dessus, le décor de la simulation : pylônes de projection, volumes filaires à la dérive.
+ * perte de vue et s'efface au loin, une plateforme graduée et cernée de lumière au pied des
+ * parois, des cases qui s'allument çà et là. Les salles y sont posées : elles ne flottent plus
+ * dans le vide. Autour, le décor de la simulation : l'enceinte de projection, dont on ne voit que
+ * le fond, des pylônes, des volumes filaires à la dérive, des colonnes de données, des poussières.
  * `label` : « x0,z0,x1,z1;… », les rectangles des salles (bords extérieurs), vus du meuble.
  */
 const simVoid: Builder = ({ label = '-8,-3,8,3', random }) => {
@@ -118,6 +127,9 @@ const simVoid: Builder = ({ label = '-8,-3,8,3', random }) => {
         vec2 d = abs(p - b.xy) - b.zw;
         return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
       }
+      float hash(vec2 c) {
+        return fract(sin(dot(c, vec2(127.1, 311.7))) * 43758.5453);
+      }
       float grid(vec2 p, float step) {
         vec2 q = p / step;
         vec2 g = abs(fract(q) - 0.5) / fwidth(q);
@@ -136,9 +148,15 @@ const simVoid: Builder = ({ label = '-8,-3,8,3', random }) => {
         // Le bord de la plateforme, et la lueur des parois à leur pied.
         float edge = 1.0 - smoothstep(0.0, 0.05, abs(d - 1.03));
         col += uLine * (edge * 0.9 + exp(-max(d, 0.0) * 3.2) * 0.2 + exp(-abs(d - 1.03) * 7.0) * 0.07);
-        // Une onde part des salles et se perd au loin.
-        float wave = 1.0 - smoothstep(0.0, 0.5, abs(d - mod(uTime * 2.4, 26.0)));
-        col += uLine * wave * 0.22 * far * step(1.06, d);
+        // Graduations le long du bord : la plateforme est mesurée, tuile par tuile.
+        float ticks = grid(p, 1.0) * step(1.06, d) * (1.0 - step(1.26, d));
+        col += uLine * ticks * 0.55;
+        // Des cases s'allument et s'éteignent çà et là : la simulation calcule encore son sol.
+        vec2 cell = floor(p + 0.5);
+        float slot = floor(uTime * 0.35 + hash(cell) * 7.0);
+        float on = step(0.972, hash(cell + slot * 17.0));
+        float life = fract(uTime * 0.35 + hash(cell) * 7.0);
+        col += uLine * on * sin(life * 3.14159) * 0.2 * far * step(1.3, d);
         float a = 1.0 - smoothstep(18.0, 46.0, d);
         gl_FragColor = vec4(col, a);
         #include <colorspace_fragment>
@@ -190,10 +208,113 @@ const simVoid: Builder = ({ label = '-8,-3,8,3', random }) => {
     drift.push({ o, y, spin: (random() - 0.5) * 0.5, phase: random() * 6 })
     live.add(o)
   }
+  // L'enceinte de projection : un mur de lumière quadrillé qui se dresse autour de la plateforme.
+  // On n'en voit que le fond : les pans tournés vers la caméra s'effacent, rien ne passe devant
+  // les salles, d'où qu'on regarde.
+  // Elle suit le bord de la plateforme : le tour de la grande salle, puis celui de la petite, à l'est.
+  const D = 1.03, H = 2.3
+  const pts: number[] = [], normals: number[] = []
+  const sheet: number[] = [], sheetNormals: number[] = []
+  const seg = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, nx: number, nz: number) => {
+    pts.push(x0, y0, z0, x1, y1, z1)
+    normals.push(nx, 0, nz, nx, 0, nz)
+  }
+  const [A, B] = [rects[0], rects[1] ?? rects[0]]
+  const outline = [[A[0] - D, A[1] - D], [A[2] + D, A[1] - D], [B[2] + D, B[1] - D], [B[2] + D, B[3] + D], [A[2] + D, A[3] + D], [A[0] - D, A[3] + D]]
+  if (B !== A) outline.splice(2, 0, [A[2] + D, B[1] - D]), outline.splice(5, 0, [A[2] + D, B[3] + D])
+  outline.forEach(([x0, z0], k) => {
+    const [x1, z1] = outline[(k + 1) % outline.length]
+    const len = Math.hypot(x1 - x0, z1 - z0)
+    if (len < 0.01) return
+    const nx = (z1 - z0) / len, nz = -(x1 - x0) / len
+    const n = Math.max(1, Math.round(len))
+    for (let i = 0; i <= n; i++) {
+      const x = x0 + ((x1 - x0) * i) / n, z = z0 + ((z1 - z0) * i) / n
+      seg(x, 0, z, x, i % 4 ? H * 0.7 : H, z, nx, nz)
+    }
+    for (let y = 0.575; y < H; y += 0.575) seg(x0, y, z0, x1, y, z1, nx, nz)
+    // Le rideau de lumière derrière le quadrillage.
+    sheet.push(x0, 0, z0, x1, 0, z1, x1, H, z1, x0, 0, z0, x1, H, z1, x0, H, z0)
+    for (let i = 0; i < 6; i++) sheetNormals.push(nx, 0, nz)
+  })
+  const fenceGeometry = new THREE.BufferGeometry()
+  fenceGeometry.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3))
+  fenceGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3))
+  const fenceMaterial = (gain: number) => new THREE.ShaderMaterial({
+    uniforms: { uColor: { value: new THREE.Color(CYAN) }, uTime: holoTime, uHeight: { value: H }, uGain: { value: gain } },
+    vertexShader: `
+      varying float vBack;
+      varying float vH;
+      void main() {
+        vBack = -(mat3(viewMatrix) * normal).z;
+        vH = position.y;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: `
+      uniform vec3 uColor;
+      uniform float uTime;
+      uniform float uHeight;
+      uniform float uGain;
+      varying float vBack;
+      varying float vH;
+      void main() {
+        // Plus vif au pied, il se perd vers le haut ; un balayage lent le parcourt.
+        float scan = 0.8 + 0.2 * sin(vH * 5.0 - uTime * 1.2);
+        float up = 1.0 - vH / uHeight;
+        float a = smoothstep(0.08, 0.4, vBack) * up * up * uGain * scan;
+        gl_FragColor = vec4(uColor, a);
+        #include <colorspace_fragment>
+      }`,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  })
+  const fence = new THREE.LineSegments(fenceGeometry, fenceMaterial(1.3))
+  fence.frustumCulled = false
+  const curtainGeometry = new THREE.BufferGeometry()
+  curtainGeometry.setAttribute('position', new THREE.Float32BufferAttribute(sheet, 3))
+  curtainGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(sheetNormals, 3))
+  const curtain = new THREE.Mesh(curtainGeometry, fenceMaterial(0.36))
+  curtain.frustumCulled = false
+  curtain.renderOrder = -4
+  live.add(curtain, fence)
+
+  // Colonnes de données : des traits verticaux en pointillé, au loin, qui défilent vers le haut.
+  const streams: THREE.Object3D[] = []
+  const dashed = new THREE.LineDashedMaterial({ color: CYAN, transparent: true, opacity: 0.4, dashSize: 0.22, gapSize: 0.3, depthWrite: false })
+  for (let i = 0; i < 18; i++) {
+    const a = random() * Math.PI * 2
+    const r = 6 + random() * 12
+    const h = 1.5 + random() * 3
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, h, 0)]), dashed)
+    line.computeLineDistances()
+    line.position.set(cx + Math.cos(a) * ((ax1 - ax0) / 2 + r), 0, cz + Math.sin(a) * ((az1 - az0) / 2 + r))
+    line.userData.speed = 0.25 + random() * 0.5
+    streams.push(line)
+    live.add(line)
+  }
+
+  // Poussières de lumière en suspension, tout autour.
+  const N = 220
+  const pos = new Float32Array(N * 3), col = new Float32Array(N * 3), sizes = new Float32Array(N)
+  const tint = new THREE.Color(CYAN)
+  for (let i = 0; i < N; i++) {
+    const a = random() * Math.PI * 2
+    const r = 2.5 + random() * 16
+    pos.set([cx + Math.cos(a) * ((ax1 - ax0) / 2 + r), 0.3 + random() * 4.5, cz + Math.sin(a) * ((az1 - az0) / 2 + r)], i * 3)
+    const k = 0.35 + random() * 0.65
+    col.set([tint.r * k, tint.g * k, tint.b * k], i * 3)
+    sizes[i] = 0.03 + random() * 0.05
+  }
+  const motes = pointCloud(pos, col, sizes)
+  live.add(motes)
+
   return {
     live,
     update: (t) => {
       for (const b of beams) b.uniforms.uTime.value = t
+      for (const l of streams) l.position.y = ((t * l.userData.speed) % 0.52) - 0.52
+      motes.position.y = Math.sin(t * 0.25) * 0.25
       for (const d of drift) {
         d.o.rotation.y = t * d.spin
         d.o.rotation.x += 0.0008
@@ -358,8 +479,8 @@ const simGrid: Builder = ({ label = '4x4' }) => {
   const px = 64
   const texture = drawnTexture(w * px, d * px, (g) => {
     g.strokeStyle = CYAN
-    g.lineWidth = 2
-    g.globalAlpha = 0.32
+    g.lineWidth = 1.5
+    g.globalAlpha = 0.5
     for (let x = 0; x <= w; x++) {
       g.beginPath()
       g.moveTo(x * px, 0)
@@ -372,9 +493,9 @@ const simGrid: Builder = ({ label = '4x4' }) => {
       g.lineTo(w * px, z * px)
       g.stroke()
     }
-    g.globalAlpha = 0.85
-    g.lineWidth = 5
-    g.strokeRect(3, 3, w * px - 6, d * px - 6)
+    g.globalAlpha = 0.7
+    g.lineWidth = 3
+    g.strokeRect(2, 2, w * px - 4, d * px - 4)
   })
   const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -2 })
   const plane = part(new THREE.PlaneGeometry(w, d), material, 0, 0.008, 0)

@@ -58,7 +58,6 @@ export const TUTORIAL_DECK: LevelDef = {
     b: tr('Salle d\'essai', 'Practice room'),
     t: tr('Téléporteur', 'Teleporter'),
   },
-  floors: { a: 'floor-detail', b: 'floor-detail', t: 'floor-panel' },
   windows: { a: 0, b: 0, t: 0 },
   closed: {
     b: tr('Porte verrouillée : le lieutenant Swann l\'ouvrira à la fin de la leçon.', 'Locked door: Lt Swann will open it at the end of the lesson.'),

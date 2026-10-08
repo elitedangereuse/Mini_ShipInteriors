@@ -805,6 +805,10 @@ export class Deck {
           this.addStatic(this.def.ground.floor(x, z), false)
           continue
         }
+        if (this.def.walls?.floor) {
+          this.addStatic(this.def.walls.floor(x, z), false)
+          continue
+        }
         let model: StationModel = this.def.floors?.[room] ?? 'floor'
         // Quelques dalles à picots pour varier, sauf dans les quartiers (les tapis y sont posés à plat).
         if (model === 'floor' && this.def.theme !== 'cozy' && hash(x, z) % 9 === 0) model = 'floor-detail'

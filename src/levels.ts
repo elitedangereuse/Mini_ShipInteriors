@@ -154,9 +154,10 @@ export interface LevelDef {
   bubble?: boolean
   /**
    * Murs et poteaux faits main, à la place de ceux du kit (les parois quadrillées du simulateur
-   * d'accueil) : un pan par arête (milieu cx, cz), 0,3 d'épais et 1 de haut ; un poteau par sommet.
+   * d'accueil) : un pan par arête (milieu cx, cz), 0,3 d'épais et 1 de haut ; un poteau par sommet ;
+   * et, au besoin, la dalle de chaque tuile (dessus à 0).
    */
-  walls?: { wall(cx: number, cz: number, alongX: boolean): THREE.Object3D; post(vx: number, vz: number): THREE.Object3D }
+  walls?: { wall(cx: number, cz: number, alongX: boolean): THREE.Object3D; post(vx: number, vz: number): THREE.Object3D; floor?(x: number, z: number): THREE.Object3D }
   /** Plan du pont : portes et pièces fermées, à la place de celles de shipMapOptions. */
   mapOptions?: ShipMapOptions
   /**
