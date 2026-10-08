@@ -66,6 +66,10 @@ export class Sound {
   /** Écho de la baie infestée (cf. setEcho) : réverbération où partent aussi les sons joués. */
   private reverb?: { input: GainNode; wet: GainNode }
   private echo = 0
+  /** Sortie commune des boucles (moteurs, machines) : on la baisse quand une musique passe (cf. duck). */
+  private bed?: GainNode
+  private ducked = false
+  private seamless = new Map<string, AudioBuffer>()
 
   constructor() {
     this.rig.add(this.listener)
@@ -185,7 +189,7 @@ export class Sound {
     this.rig.rotation.set(0, azimuth, 0)
   }
 
-  private panner(pos: THREE.Vector3, ref = 1.5, rolloff = 1.2): PannerNode {
+  private panner(pos: THREE.Vector3, ref = 1.5, rolloff = 1.2, to: AudioNode = this.listener.getInput()): PannerNode {
     const p = this.ctx.createPanner()
     p.panningModel = 'HRTF'
     p.distanceModel = 'inverse'
@@ -195,7 +199,7 @@ export class Sound {
     p.positionX.value = pos.x
     p.positionY.value = pos.y
     p.positionZ.value = pos.z
-    p.connect(this.listener.getInput())
+    p.connect(to)
     return p
   }
 
@@ -269,17 +273,57 @@ export class Sound {
     src.start()
   }
 
+  /**
+   * Le fichier, rendu bouclable : sa fin est fondue dans son début. Sans cela, le raccord fait un
+   * saut, donc un clic à chaque tour, et plusieurs boucles ensemble crépitent.
+   */
+  private looped(file: string): AudioBuffer | null {
+    const done = this.seamless.get(file)
+    if (done) return done
+    const from = this.buffers.get(file)
+    if (!from) return null
+    const blend = Math.min(Math.floor(from.sampleRate * 0.25), from.length >> 1)
+    const length = from.length - blend
+    const buffer = this.ctx.createBuffer(from.numberOfChannels, length, from.sampleRate)
+    for (let ch = 0; ch < from.numberOfChannels; ch++) {
+      const a = from.getChannelData(ch)
+      const d = buffer.getChannelData(ch)
+      d.set(a.subarray(0, length))
+      // À puissance égale : c'est du bruit, les deux bouts ne sont pas en phase.
+      for (let i = 0; i < blend; i++) {
+        const k = (i / blend) * Math.PI / 2
+        d[i] = a[i] * Math.sin(k) + a[length + i] * Math.cos(k)
+      }
+    }
+    this.seamless.set(file, buffer)
+    return buffer
+  }
+
+  /** Baisse les boucles (moteurs, machines) tant qu'on écoute une musique, et les remonte après. */
+  duck(on: boolean) {
+    if (on === this.ducked) return
+    this.ducked = on
+    if (this.bed) this.fade(this.bed, on ? 0.25 : 1, 1.5)
+  }
+
   /** Boucle continue à une position fixe (moteurs). */
   loop(name: SoundName, pos: THREE.Vector3, o: PlayOptions = {}): GainNode | null {
     if (!this.ready) return null
-    const buffer = this.buffers.get(SOUNDS[name][0])
+    const buffer = this.looped(SOUNDS[name][0])
     if (!buffer) return null
     const src = this.ctx.createBufferSource()
     src.buffer = buffer
     src.loop = true
     src.playbackRate.value = o.rate ?? 1
-    const { input, gain } = this.output(pos, o)
-    src.connect(input)
+    if (!this.bed) {
+      this.bed = this.ctx.createGain()
+      this.bed.gain.value = this.ducked ? 0.25 : 1
+      this.bed.connect(this.listener.getInput())
+    }
+    const gain = this.ctx.createGain()
+    gain.gain.value = o.volume ?? 1
+    gain.connect(this.panner(pos, o.ref, o.rolloff, this.bed))
+    src.connect(gain)
     // Démarrage en fondu, à un point aléatoire pour désynchroniser les boucles.
     const target = gain.gain.value
     gain.gain.setValueAtTime(0, this.ctx.currentTime)

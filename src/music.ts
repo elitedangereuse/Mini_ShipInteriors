@@ -331,6 +331,11 @@ export class JukeboxPlayer {
     frequency.exponentialRampToValueAtTime(next === 'inside' ? 16000 : next === 'outside' ? 900 : 450, t + 0.65)
   }
 
+  /** On l'entend à plein volume : un morceau passe dans la pièce où l'on est. */
+  get audible(): boolean {
+    return this.acoustics === 'inside' && !!this.track && !this.audio.paused && !this.audio.muted
+  }
+
   /** Cale la soirée sur le morceau (si on l'entend et qu'il a un tempo) ; false sinon. */
   syncTempo(): boolean {
     if (this.track && !this.output) this.attach()

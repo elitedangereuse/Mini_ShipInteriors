@@ -5839,6 +5839,8 @@ function frame() {
     music.setRoom(below || (source === deck && viewDeck === deck && !((inClub || range.active) && music === holdMusic)), !!jukeboxRoom && jukeboxRoom === playerRoom)
   }
   clubMusic.update(inClub, onHold && viewDeck === deck ? clubProximity(holdRoom, player.position.x, player.position.z) : 0)
+  // Une musique passe là où l'on est : les moteurs et les machines se font discrets.
+  sound.duck(inClub || deckMusic.audible || holdMusic.audible || cabinMusic.audible)
   // La soirée bat sur le morceau entendu dans la pièce, sauf quand le mode photo fige l'instant.
   if (!photo.frozen && !clubMusic.syncTempo() && !deckMusic.syncTempo() && !holdMusic.syncTempo() && !cabinMusic.syncTempo()) syncTempo(null)
 
