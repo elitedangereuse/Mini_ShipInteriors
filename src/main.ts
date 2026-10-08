@@ -896,7 +896,7 @@ const mobileEmotesToggle = document.createElement('button')
 mobileEmotesToggle.className = 'mobile-emotes-toggle'
 mobileEmotesToggle.setAttribute('aria-label', tr('Afficher les emotes', 'Show emotes'))
 mobileEmotesToggle.setAttribute('aria-expanded', 'false')
-mobileEmotesToggle.append(icon('hand-waving'))
+mobileEmotesToggle.append(icon('person-arms-spread'))
 mobileEmotesToggle.onclick = () => {
   const open = $('emotes').classList.toggle('expanded')
   mobileEmotesToggle.setAttribute('aria-expanded', String(open))

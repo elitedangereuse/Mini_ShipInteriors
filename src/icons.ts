@@ -125,6 +125,7 @@ import scissors from '@phosphor-icons/core/bold/scissors-bold.svg?raw'
 import basket from '@phosphor-icons/core/bold/basket-bold.svg?raw'
 import sparkle from '@phosphor-icons/core/bold/sparkle-bold.svg?raw'
 import handTap from '@phosphor-icons/core/bold/hand-tap-bold.svg?raw'
+import personArmsSpread from '@phosphor-icons/core/bold/person-arms-spread-bold.svg?raw'
 import crosshair from '@phosphor-icons/core/bold/crosshair-bold.svg?raw'
 import exclamationMark from '@phosphor-icons/core/bold/exclamation-mark-bold.svg?raw'
 import scroll from '@phosphor-icons/core/duotone/scroll-duotone.svg?raw'
@@ -293,6 +294,7 @@ const SVG = {
   basket,
   sparkle,
   'hand-tap': handTap,
+  'person-arms-spread': personArmsSpread,
   crosshair,
   // quêtes
   'exclamation-mark': exclamationMark,
