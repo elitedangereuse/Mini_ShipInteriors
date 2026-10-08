@@ -73,10 +73,11 @@ export let stationMaterial: THREE.MeshLambertMaterial
  * (sols, murs, portes) et pour le mobilier.
  * - station : la coque d'origine, le mobilier aux couleurs d'Elite (acier sombre, écrans orange) ;
  * - raw : la cale, acier noirci et rouillé, jaune de chantier, écrans ambrés ;
- * - cozy : les quartiers, crème et bois miel, tissus terre cuite et bleu canard.
+ * - cozy : les quartiers, crème et bois miel, tissus terre cuite et bleu canard ;
+ * - sim : le simulateur d'accueil, acier bleu nuit, liserés et écrans cyan.
  * Les teintes rares (voyants verts et rouges, roches) ne changent pas.
  */
-export type Theme = 'station' | 'raw' | 'cozy'
+export type Theme = 'station' | 'raw' | 'cozy' | 'sim'
 
 export interface ThemeMaterials {
   /** Sols, murs, portes, poteaux. */
@@ -145,17 +146,30 @@ const PAINTS: Record<Theme, { shell?: Paint; furniture: Paint }> = {
       screen: (l, c) => set(c, 186, 0.4, 0.3 + l * 0.35),
     }),
   },
+  sim: {
+    shell: paint({
+      steel: (l, c) => set(c, 218, 0.34, 0.035 + l * 0.2),
+      accent: (l, c) => set(c, 193, 1, l * 0.95),
+      screen: (l, c) => set(c, 193, 1, 0.3 + l * 0.4),
+    }),
+    furniture: paint({
+      steel: (l, c) => set(c, 216, 0.26, 0.07 + l * 0.34),
+      accent: (l, c) => set(c, 193, 1, l * 0.95),
+      screen: (l, c) => set(c, 193, 1, 0.38 + (l - 0.55) * 0.9),
+    }),
+  },
 }
 
 /**
  * Matière de chaque ambiance (cf. surfaces.ts) : la coque d'origine en tôles brossées et sol rayé,
  * la cale sale et rouillée, les quartiers en murs enduits et parquet ; le mobilier du kit en métal
- * brossé, rouillé dans la cale, d'un grain fin dans les quartiers.
+ * brossé, rouillé dans la cale, d'un grain fin dans les quartiers ; le simulateur, comme la coque.
  */
 const MATTERS: Record<Theme, { shell: Surface; furniture: Surface }> = {
   station: { shell: 'hull', furniture: 'metal' },
   raw: { shell: 'rust', furniture: 'rust' },
   cozy: { shell: 'cozy', furniture: 'grain' },
+  sim: { shell: 'hull', furniture: 'metal' },
 }
 
 function painted(name: string, p: Paint): THREE.MeshLambertMaterial {

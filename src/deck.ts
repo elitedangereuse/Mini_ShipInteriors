@@ -180,7 +180,7 @@ function canopyGlass(panes: { x: number; z: number; alongX: boolean }[], bottom 
 }
 
 /** Teinte du plafond selon l'ambiance du pont (cf. assets.ts), et dans la baie infestée. */
-const CEILING_COLORS: Record<Theme | 'zone', string> = { station: '#5b6475', raw: '#4a4239', cozy: '#d8c6a6', zone: '#1d2322' }
+const CEILING_COLORS: Record<Theme | 'zone', string> = { station: '#5b6475', raw: '#4a4239', cozy: '#d8c6a6', sim: '#16233a', zone: '#1d2322' }
 
 /**
  * Panneaux de plafond d'une tuile : quatre plaques à joints fins et peu contrastés. Le plafond est
@@ -937,7 +937,7 @@ export class Deck {
             this.glass.push({ x: cx, z: cz, alongX })
             this.walls.push({ x: cx, z: cz, alongX, model: 'wall-window' })
           } else {
-            const wall = this.def.zone ? this.def.zone.kit.wall(cx, cz, alongX) : this.place(model, cx, 0, cz, alongX ? 0 : Math.PI / 2)
+            const wall = (this.def.zone?.kit ?? this.def.walls)?.wall(cx, cz, alongX) ?? this.place(model, cx, 0, cz, alongX ? 0 : Math.PI / 2)
             this.addFading(wall, new THREE.Vector3(cx, 0.5, cz), this.cabinOutward(cx, cz))
             this.walls.push({ x: cx, z: cz, alongX, model })
           }
@@ -962,8 +962,9 @@ export class Deck {
       const straight = (c.h === 2 && c.v === 0) || (c.v === 2 && c.h === 0)
       if (straight) continue
       const [vx, vz] = k.split(',').map(Number)
-      const m = this.def.zone ? this.def.zone.kit.post(vx, vz) : greenVertex.has(k) ? whitePost.clone() : post.clone()
-      if (!this.def.zone) m.position.set(vx, POST_H / 2, vz)
+      const made = (this.def.zone?.kit ?? this.def.walls)?.post(vx, vz)
+      const m = made ?? (greenVertex.has(k) ? whitePost.clone() : post.clone())
+      if (!made) m.position.set(vx, POST_H / 2, vz)
       this.addFading(m, new THREE.Vector3(vx, 0.5, vz), this.cabinOutward(vx, vz))
       this.posts.push(greenVertex.has(k) ? { x: vx, z: vz, green: true } : { x: vx, z: vz })
       const hs = POST_W / 2
