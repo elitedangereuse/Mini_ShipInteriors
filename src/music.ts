@@ -32,6 +32,8 @@ export interface Track {
   style: MusicStyle
   cover: string
   songs?: Song[]
+  /** Ne se propose qu'à qui a terminé cette quête (cf. shared/quests.js) ; lancé, tout le monde l'entend. */
+  quest?: string
   /** Durée du fichier (s) : la liste s'enchaîne de façon prévisible, chez tous les joueurs. */
   duration: number
   /** Tempo et premier temps (s) ; null : pas de pulsation stable (la valse), la soirée garde le sien. */
@@ -142,6 +144,20 @@ export const TRACKS: Track[] = [
       { title: tr('Échos non identifiés', 'Unidentified Echoes'), file: 'scavengers-04.mp3', duration: 130.9 },
       { title: tr('Entre deux épaves', 'Between Two Wrecks'), file: 'scavengers-05.mp3', duration: 180 },
       { title: tr('Signal perdu', 'Signal Lost'), file: 'scavengers-06.mp3', duration: 147.69 },
+    ],
+  },
+  {
+    // L'émission pirate de 03:12 (quête « Fréquence fantôme ») : cinq morceaux de Zane Little Music,
+    // en CC0 (cf. public/assets/music/CREDITS.txt). Seuls ceux qui ont remonté le signal la proposent.
+    id: 'pirate', title: tr('88.8 · Nuit 412', '88.8 · Night 412'), artist: 'Zane Little Music', style: 'lounge', quest: 'frequence-fantome',
+    cover: 'pirate.svg', duration: 913.15, bpm: null, offset: 0,
+    mood: tr('L\'émission que personne ne diffuse : du jazz-funk de nuit, capté sur 88.8 à 03:12. Entre deux morceaux, une petite voix lit son numéro de série.', 'The broadcast nobody airs: late-night jazz-funk, picked up on 88.8 at 03:12. Between two tracks, a small voice reads out its serial number.'),
+    songs: [
+      { title: 'Midnight Cruiser', file: 'pirate-01.mp3', duration: 144.4 },
+      { title: 'Empty Stretch', file: 'pirate-02.mp3', duration: 140.8 },
+      { title: 'Detour', file: 'pirate-03.mp3', duration: 251.14 },
+      { title: 'Freeway Fumes', file: 'pirate-04.mp3', duration: 200.25 },
+      { title: 'Barriers', file: 'pirate-05.mp3', duration: 176.56 },
     ],
   },
 ]
@@ -350,6 +366,9 @@ export class JukeboxPlayer {
 export class JukeboxPanel {
   private readonly el: HTMLDivElement
   private rows: { track: Track; button: HTMLButtonElement }[] = []
+  /** Un album gagné à bord (`quest`) est-il à ce joueur ? Sans réponse, il reste caché. */
+  unlocked?: (quest: string) => boolean
+  private shown = (track: Track) => !track.quest || !!this.unlocked?.(track.quest)
   private selected = 0
   private filter: MusicStyle | null = null
   private filters: HTMLButtonElement[] = []
@@ -546,7 +565,7 @@ export class JukeboxPanel {
   }
 
   private visibleRows() {
-    return this.rows.filter((row) => !this.filter || row.track.style === this.filter)
+    return this.rows.filter((row) => this.shown(row.track) && (!this.filter || row.track.style === this.filter))
   }
 
   private setFilter(style: MusicStyle | null) {
@@ -557,7 +576,7 @@ export class JukeboxPanel {
       button.classList.toggle('active', styles[i] === style)
       button.setAttribute('aria-pressed', String(styles[i] === style))
     })
-    this.rows.forEach(({ track, button }) => { button.hidden = !!style && track.style !== style })
+    this.rows.forEach(({ track, button }) => { button.hidden = !this.shown(track) || (!!style && track.style !== style) })
     this.select(0)
   }
 

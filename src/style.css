@@ -1047,6 +1047,12 @@ kbd .icon {
   opacity: 0;
   transform: translateY(-8px);
 }
+/* Une rumeur : pas une quête, de quoi savoir où traîner. Le titre est une phrase. */
+.quest-toast.rumor .quest-toast-title {
+  font-size: 15px;
+  font-weight: 500;
+  font-style: italic;
+}
 .quest-toast.done {
   border-color: rgba(125, 255, 168, 0.65);
   box-shadow: 0 0 32px rgba(125, 255, 168, 0.2);
@@ -1200,6 +1206,136 @@ body.cine-on #bubbles {
 /* Sur un écran tactile, les commandes sont posées à même la page (display: contents). */
 body.cine-on #touch-pad {
   display: none;
+}
+/* ---------- caméras de surveillance (cf. src/cctv.ts) : l'incrustation d'un moniteur cathodique ---------- */
+/* Le reste de l'interface s'efface, sauf les bandeaux de quête : on regarde un écran. */
+body.cctv-on #hud > *:not(.quest-toasts) {
+  opacity: 0;
+  pointer-events: none;
+}
+body.cctv-on #touch-pad {
+  display: none;
+}
+.cctv {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  pointer-events: none;
+  color: #dff6ff;
+  font: 700 15px ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 8px rgba(159, 232, 255, 0.75), 0 1px 2px #000;
+}
+.cctv-top,
+.cctv-bottom {
+  position: absolute;
+  left: max(42px, 5vw);
+  right: max(42px, 5vw);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.cctv-top {
+  top: max(34px, 5vh);
+}
+.cctv-bottom {
+  bottom: max(34px, 5vh);
+  align-items: flex-end;
+  font-size: 13px;
+  opacity: 0.85;
+}
+.cctv-label {
+  display: grid;
+  gap: 2px;
+}
+.cctv-label strong {
+  font-size: 22px;
+}
+.cctv-rec {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #ff6a5c;
+  text-shadow: 0 0 8px rgba(255, 74, 61, 0.8), 0 1px 2px #000;
+}
+.cctv-rec::before {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ff4a3d;
+  box-shadow: 0 0 10px #ff4a3d;
+  animation: cctv-rec 1.4s steps(1) infinite;
+}
+@keyframes cctv-rec {
+  50% {
+    opacity: 0;
+  }
+}
+.cctv-dead {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  margin: 0;
+  padding: 8px 18px;
+  transform: translate(-50%, -50%);
+  background: rgba(4, 10, 16, 0.72);
+  font-size: 16px;
+  text-align: center;
+}
+.cctv-bar {
+  position: absolute;
+  bottom: max(18px, 3vh);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(159, 232, 255, 0.4);
+  border-radius: 12px;
+  background: rgba(4, 12, 18, 0.9);
+  pointer-events: auto;
+  text-shadow: none;
+}
+.cctv-bar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 40px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid rgba(159, 232, 255, 0.35);
+  border-radius: 8px;
+  background: #0e2430;
+  color: #dff6ff;
+  font: 600 13px system-ui, sans-serif;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+.cctv-bar button:hover {
+  border-color: #9fe8ff;
+  background: #16384a;
+}
+.cctv-bar button:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 1px;
+}
+@media (pointer: coarse) {
+  .cctv-bar button {
+    min-width: 48px;
+    min-height: 44px;
+  }
+  .cctv-bottom {
+    bottom: max(70px, 5vh);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cctv-rec::before {
+    animation: none;
+  }
 }
 @keyframes cine-box-in {
   from {
@@ -3754,6 +3890,9 @@ body.photo #bubbles .gain-pop {
 .cinema-room-search-form button { padding: 9px; border: 1px solid #e5ac68; border-radius: 8px; background: #684437; color: #fff3e4; cursor: pointer; }
 .cinema-room-search-form button:disabled { opacity: .55; cursor: default; }
 .cinema-room-search-status { margin: 10px 2px; color: #dbc7ad; font-size: 12px; }
+.cinema-room-reels { display: grid; gap: 10px; }
+.cinema-room-reels[hidden] { display: none; }
+.cinema-room-reels .cinema-room-card { border-color: #b98cff99; background: #2c2444; }
 .cinema-room-search-results { display: grid; flex: 1; align-content: start; gap: 10px; min-height: 0; overflow: auto; }
 .cinema-room-card { display: block; width: 100%; padding: 7px; text-align: left; border: 1px solid #ffffff32; border-radius: 10px; background: #263443; color: #f8eddd; cursor: pointer; }
 .cinema-room-card:hover { border-color: #ffc483; background: #354959; }

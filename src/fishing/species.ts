@@ -182,6 +182,10 @@ const TEXT: Record<string, { name: string; about: string }> = {
     name: tr('Poisson-lune de Beagle Point', 'Beagle Point sunfish'),
     about: tr('Immense, pâle, plus haut que long. On dit qu\'il a fait le tour de la galaxie à la dérive, sans jamais se presser, et qu\'il a vu la dernière étoile avant le noir. Il n\'en tire aucune fierté.', 'Huge, pale, taller than it is long. They say it drifted all the way around the galaxy, never hurrying, and saw the last star before the dark. It takes no pride in it.'),
   },
+  'witchspace-koi': {
+    name: tr('Koï du sillage', 'Wake koi'),
+    about: tr('Violette, translucide : on voit l\'étang au travers. Elle ne vit pas ici, elle y passe, dans les cinq minutes qui suivent un saut, par la déchirure que le vaisseau laisse derrière lui. Capucine l\'a vue trois fois avant que quiconque la croie. Elle a toujours l\'air d\'avoir rendez-vous ailleurs.', 'Violet, translucent: you can see the pond through it. It does not live here, it passes through, within five minutes of a jump, by the tear the ship leaves behind. Capucine saw it three times before anyone believed her. It always looks as if it had somewhere else to be.'),
+  },
   'void-angler': {
     name: tr('Baudroie du Vide', 'Void anglerfish'),
     about: tr('Une lueur bleue au fond de l\'étang, là où il ne devrait pas y avoir de fond. Ceux qui l\'ont suivie disent qu\'elle ressemblait à une balise de détresse. C\'est exactement l\'idée.', 'A blue glow at the bottom of the pond, where there should be no bottom. Those who followed it say it looked like a distress beacon. That is exactly the idea.'),

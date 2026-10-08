@@ -11,7 +11,7 @@ import { cookieValue } from './cmdr.js'
 import { attachRelay, WS_PATH } from './relay.js'
 import { fetchQuestsDone } from './site.js'
 import {
-  knownQuests, QUEST_ROOMS, QUEST_UNLOCKS, questAdvance, questById, questFlag, questOfRoom, QUESTS, questStarted, stepComplete,
+  knownQuests, QUEST_ROOMS, QUEST_UNLOCKS, questAdvance, questAvailable, questById, questFlag, questOfRoom, QUESTS, questsOpenedBy, questStarted, stepComplete,
 } from '../shared/quests.js'
 import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import { DIRS, ShipMap } from '../shared/ship-map.js'
@@ -37,6 +37,29 @@ test('les quêtes : des identifiants uniques, des étapes, des récompenses que 
   assert.equal(QUEST_UNLOCKS['skin:holo.aria'], 'scavengers')
   assert.deepEqual(knownQuests(['poids-lourds', 'inconnue', 'poids-lourds', 3]), ['poids-lourds'])
   assert.deepEqual(knownQuests('poids-lourds'), [])
+})
+
+test('une quête peut en attendre d\'autres : elles existent, sans boucle, et s\'ouvrent une fois terminées', () => {
+  const ids = new Set(QUESTS.map((q) => q.id))
+  for (const q of QUESTS) for (const id of q.requires ?? []) assert.ok(ids.has(id) && id !== q.id, `${q.id} attend ${id}`)
+  // En les terminant dans l'ordre où elles s'ouvrent, on les termine toutes.
+  const done = new Set()
+  for (let before = -1; before !== done.size;) {
+    before = done.size
+    for (const q of QUESTS) if (questAvailable(q, done)) done.add(q.id)
+  }
+  assert.equal(done.size, QUESTS.length)
+  // Celles du début n'attendent rien ; les autres attendent d'avoir fait leurs preuves.
+  assert.ok(questAvailable(questById('gamelle-vide'), []))
+  const garde = questById('tour-de-garde')
+  assert.equal(questAvailable(garde, []), false)
+  assert.equal(questAvailable(garde, ['permis-de-tir', 'dernier-match']), false)
+  assert.equal(questAvailable(garde, new Set(['permis-de-tir', 'dernier-match', 'dossier-aria'])), true)
+  assert.deepEqual(questsOpenedBy('gamelle-vide', ['gamelle-vide']), ['recette-de-jacques'])
+  // La séance de minuit en attend deux : la première terminée ne suffit pas.
+  assert.deepEqual(questsOpenedBy('essayage', ['essayage']), [])
+  assert.deepEqual(questsOpenedBy('essayage', ['essayage', 'frequence-fantome']), ['seance-de-minuit'])
+  assert.deepEqual(questsOpenedBy('poids-lourds', ['poids-lourds']), [])
 })
 
 test('une étape simple passe à la suivante, sans rien sauter ; une demande répétée ne casse rien', () => {
@@ -78,7 +101,7 @@ test('la dernière étape termine la quête, pour de bon', () => {
 })
 
 test('les pièces fermées par une quête existent, et toutes leurs portes donnent sur une pièce ouverte', () => {
-  assert.deepEqual(QUEST_ROOMS.map((r) => `${r.level}:${r.room}`).sort(), ['-1:r', '0:r', '1:b', '1:f'])
+  assert.deepEqual(QUEST_ROOMS.map((r) => `${r.level}:${r.room}`).sort(), ['-1:r', '0:r', '0:v', '1:b', '1:f'])
   for (const { quest, level, room } of QUEST_ROOMS) {
     const map = new ShipMap(SHIP_LAYOUTS[String(level)], shipMapOptions(level))
     assert.equal(questOfRoom(level, room), quest)
@@ -104,9 +127,9 @@ test('le site suit les mêmes quêtes, aux mêmes étapes et aux mêmes récompe
   const list = source.slice(source.indexOf('const MSI_QUESTS = ['), source.indexOf('];', source.indexOf('const MSI_QUESTS = [')))
   const numbers = (s) => (s.trim() ? s.split(',').map((n) => Number(n.trim())) : [])
   const names = (s) => [...s.matchAll(/'([^']+)'/g)].map((m) => m[1])
-  const site = [...list.matchAll(/'([a-z0-9-]+)' => \['steps' => \[([^\]]*)\], 'credits' => (\d+), 'items' => \[([^\]]*)\], 'skins' => \[([^\]]*)\]\]/g)]
-    .map((m) => ({ id: m[1], steps: numbers(m[2]), credits: Number(m[3]), items: names(m[4]), skins: names(m[5]) }))
-  assert.deepEqual(site, QUESTS.map((q) => ({ id: q.id, steps: q.steps, credits: q.reward?.credits ?? 0, items: q.reward?.items ?? [], skins: q.reward?.skins ?? [] })))
+  const site = [...list.matchAll(/'([a-z0-9-]+)' => \['steps' => \[([^\]]*)\], 'credits' => (\d+), 'items' => \[([^\]]*)\], 'skins' => \[([^\]]*)\], 'requires' => \[([^\]]*)\]\]/g)]
+    .map((m) => ({ id: m[1], steps: numbers(m[2]), credits: Number(m[3]), items: names(m[4]), skins: names(m[5]), requires: names(m[6]) }))
+  assert.deepEqual(site, QUESTS.map((q) => ({ id: q.id, steps: q.steps, credits: q.reward?.credits ?? 0, items: q.reward?.items ?? [], skins: q.reward?.skins ?? [], requires: q.requires ?? [] })))
 })
 
 // ------------------------------------------------------------------ le relais
@@ -163,7 +186,7 @@ describe('relais : les pièces fermées par une quête', () => {
     return seen.some((m) => m.level === at.level && m.x === at.x && m.z === at.z)
   }
   /** Au milieu de chaque pièce fermée. */
-  const INSIDE = { 'permis-de-tir': { x: 14, z: 1, level: -1 }, 'poids-lourds': { x: 18, z: 1, level: 0 }, 'silence-on-dribble': { x: 19, z: 13, level: 1 }, 'dernier-match': { x: 26, z: 13, level: 1 } }
+  const INSIDE = { 'permis-de-tir': { x: 14, z: 1, level: -1 }, 'poids-lourds': { x: 18, z: 1, level: 0 }, 'silence-on-dribble': { x: 19, z: 13, level: 1 }, 'dernier-match': { x: 26, z: 13, level: 1 }, 'tour-de-garde': { x: 27, z: 12, level: 0 } }
 
   before(async () => {
     siteUrl = await listen(site)

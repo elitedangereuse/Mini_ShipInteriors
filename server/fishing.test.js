@@ -4,8 +4,9 @@ import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import {
-  bitePlan, castPoint, FEINT_TIME, FISH, FISH_RARITIES, FISH_RARITY, FISHING_DOCK, FISHING_FEED, FISHING_LEVEL, FISHING_POND, fishById, fishSize, inPond, pickFish,
+  bitePlan, castPoint, FEINT_TIME, FISH, FISH_RARITIES, FISH_RARITY, FISHING_DOCK, FISHING_FEED, FISHING_LEVEL, FISHING_POND, fishById, fishSize, inPond, pickFish, QUEST_FISH,
 } from '../shared/fishing.js'
+import { questById } from '../shared/quests.js'
 import { GARDEN_ROOM, GARDEN_SOUTH } from '../shared/gardener.js'
 import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import { ShipMap } from '../shared/ship-map.js'
@@ -60,7 +61,10 @@ test('les espèces : les modèles des deux packs tous utilisés, quatre raretés
   assert.equal(new Set(FISH.map((f) => f.id)).size, FISH.length)
   const models = new Map([...packModels('quaternius-fish.glb'), ...packModels('quaternius-cute-fish.glb')])
   assert.deepEqual([...new Set(FISH.map((f) => f.model))].sort(), [...models.keys()].sort())
-  assert.equal(FISH.filter((f) => f.rarity === 'legendary').length, 5)
+  assert.equal(FISH.filter((f) => f.rarity === 'legendary' && !f.quest).length, 5)
+  // La sixième ne sort pas du tirage : c'est une quête qui la fait mordre.
+  assert.deepEqual(FISH.filter((f) => f.quest).map((f) => [f.id, f.quest]), [[QUEST_FISH.id, QUEST_FISH.quest]])
+  assert.ok(questById(QUEST_FISH.quest), 'la quête de la koï du sillage existe')
   for (const rarity of FISH_RARITIES) assert.ok(FISH.some((f) => f.rarity === rarity), rarity)
   for (const f of FISH) {
     assert.ok(FISH_RARITIES.includes(f.rarity))
@@ -86,8 +90,8 @@ test('plus un poisson est rare, moins il mord, plus il feinte et moins il laisse
     seen.set(f.id, (seen.get(f.id) ?? 0) + 1)
   }
   // Toutes les espèces sortent, les légendaires rarement (3 % des touches à elles trois).
-  for (const f of FISH) assert.ok(seen.get(f.id) > 0, f.id)
-  const share = (rarity) => FISH.filter((f) => f.rarity === rarity).reduce((sum, f) => sum + seen.get(f.id), 0) / 20000
+  for (const f of FISH) assert.equal(seen.get(f.id) > 0, !f.quest, f.id)
+  const share = (rarity) => FISH.filter((f) => f.rarity === rarity).reduce((sum, f) => sum + (seen.get(f.id) ?? 0), 0) / 20000
   assert.ok(share('legendary') > 0.02 && share('legendary') < 0.04)
   assert.ok(share('common') > 0.58 && share('common') < 0.66)
   // Les bornes de l'aléatoire ne font jamais sortir de la liste.

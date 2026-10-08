@@ -1003,14 +1003,20 @@ export const LEVELS: LevelDef[] = [
       s: tr('Salon d\'arcade', 'Arcade lounge'),
       b: tr('Poste de pilotage', 'Cockpit'),
       l: tr('Labo du L.J.P.C.', 'L.J.P.C. lab'),
+      v: tr('Poste de surveillance', 'Surveillance room'),
     },
     closed: {
       l: tr('Accès réservé aux membres du L.J.P.C. Terminez l’aventure « Connais ton ennemi » pour entrer.', 'Access reserved for L.J.P.C. members. Complete the “Know Your Enemy” adventure to enter.'),
+      // Le poste de surveillance, tant que sa quête ne l'a pas ouvert (cf. shared/quests.js).
+      v: tr('Une porte de service, sans plaque ni poignée. Derrière, quelque chose bourdonne. Elle ne s’ouvre pas.', 'A service door, with no plate and no handle. Behind it, something hums. It does not open.'),
     },
     areas: [{ name: tr('Promenade', 'Promenade deck'), minX: 26, maxX: 30, minZ: 0, maxZ: 9 }],
     // L'étage de la salle commune (cf. MEZZANINES).
     mezzanine: tr('Mezzanine de la salle commune', 'Common room mezzanine'),
-    floors: { c: 'floor-panel', b: 'floor-detail', l: 'floor-panel' },
+    floors: { c: 'floor-panel', b: 'floor-detail', l: 'floor-panel', v: 'floor-detail' },
+    // Le poste de surveillance n'a pas un hublot : on n'y regarde que des écrans, dans la pénombre.
+    windows: { v: 0 },
+    dim: { v: 0.4 },
     // Le mur entre l'infirmerie et la salle de sport, où pendent le speed bag et l'écran des records.
     plainWalls: [{ x: 15.5, z: 2 }],
     // Le poste de pilotage et la Promenade sont vitrés sur l'espace ; le hall de la salle commune
@@ -1491,6 +1497,26 @@ export const LEVELS: LevelDef[] = [
       { model: 'plant-tall', x: 29.9, z: 7.95 },
       { model: 'telescope', x: 29.85, z: 2.6, rot: 1, interact: tr('Longue-vue : on y voit la station la plus proche… et le parking de Fleet Carriers.', 'Spyglass: you can see the nearest station… and the Fleet Carrier car park.') },
       { model: 'telescope', x: 26.15, z: 6.4, rot: 3 },
+
+      // --- Le poste de surveillance, sous la Promenade (cf. src/furniture/security.ts) : la pièce
+      // du sergent, qu'ouvre la quête « Tour de garde ». Les écrans sont au nord et à l'ouest, les
+      // deux murs qu'on voit ; le pupitre leur fait face (cf. SURVEILLANCE_ROOM, src/cctv.ts).
+      { model: 'cctv-wall', x: 25.1, z: 10.64, solid: false, label: '1', interact: tr('Huit écrans, huit pièces du bord. Sur le troisième, quelqu\'un danse seul dans le mess.', 'Eight screens, eight rooms of the ship. On the third, someone is dancing alone in the mess.') },
+      { model: 'cctv-wall', x: 29.25, z: 10.64, solid: false, label: '9', interact: tr('Encore huit écrans. La caméra 13 ne montre que de la neige : « TOILETTES : signal coupé sur décision du comité de bord ».', 'Eight more screens. Camera 13 shows nothing but snow: “RESTROOMS: feed cut by decision of the ship\'s committee”.') },
+      { model: 'cctv-board', x: 23.64, z: 13.4, rot: 1, solid: false, interact: [
+        tr('Le tableau du sergent : des photos de l\'équipage, des fils rouges, et au centre, le distributeur de café. L\'enquête n\'est pas close.', 'The sergeant\'s board: photos of the crew, red strings, and in the middle, the coffee machine. The case is not closed.'),
+        tr('Une note épinglée : « 03:12. Toujours 03:12. Qui se lève à 03:12 pour une saucisse ? »', 'A pinned note: “03:12. Always 03:12. Who gets up at 03:12 for a sausage?”'),
+      ] },
+      { model: 'cctv-rack', x: 23.95, z: 11.25, rot: 1, interact: tr('La baie d\'enregistrement : trente jours de bord sur bande magnétique. La bande du distributeur de café est usée jusqu\'à la trame.', 'The recorder bay: thirty days of ship life on magnetic tape. The coffee machine tape is worn through.') },
+      {
+        model: 'cctv-desk', x: 27, z: 12.3, action: tr('Regarder les caméras', 'Watch the cameras'),
+        interact: tr('Le pupitre des caméras du bord.', 'The ship\'s camera console.'), reach: { x: 27, z: 13.1 },
+      },
+      { model: 'cctv-chair', x: 27, z: 13.15, rot: 2, solid: false },
+      { model: 'cctv-cables', x: 25.2, z: 12, solid: false },
+      { model: 'cctv-cot', x: 30.05, z: 13.4, interact: tr('Le lit de camp du sergent. La couverture est pliée au carré, le casque à portée de main. Il dort ici plus souvent que dans sa cabine.', 'The sergeant\'s camp bed. The blanket is folded square, the helmet within reach. He sleeps here more often than in his cabin.') },
+      { model: 'crate', x: 30.1, z: 11.2, interact: tr('Une caisse de bandes vierges, et un thermos. Le thermos est vide : le distributeur, toujours lui.', 'A crate of blank tapes, and a flask. The flask is empty: the coffee machine, again.') },
+      { model: 'mug', x: 29.5, z: 14.1, solid: false },
     ],
     lights: [
       // La salle commune : l'îlot du hall, les deux comptoirs, les salons de la mezzanine et le
@@ -1526,6 +1552,11 @@ export const LEVELS: LevelDef[] = [
       [28, 1, '#9fd8ff', 1.4],
       [23.3, 7.8, '#b06bff', 2.6],
       [28, 8, '#9fd8ff', 1.4],
+      // Le poste de surveillance : rien que la lueur de ses écrans, et la veilleuse du lit de camp.
+      [25.2, 11.6, '#7fd6ff', 2.2],
+      [29.2, 11.6, '#7fd6ff', 2, 'neon'],
+      [27, 12.9, '#9fe8ff', 1.4],
+      [29.9, 13.9, '#ffb03a', 0.7],
     ],
   },
 

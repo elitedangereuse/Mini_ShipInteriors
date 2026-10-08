@@ -76,6 +76,10 @@ export class FishingGame {
   onSound?: (sound: FishingSound, at: THREE.Vector3) => void
   /** Le joueur lance, ou ferre : geste du personnage. */
   onGesture?: () => void
+  /** L'espèce qui mordra à ce lancer, si ce n'est pas le hasard qui choisit (cf. QUEST_FISH) ; null : le tirage habituel. */
+  special?: () => FishSpecies | null
+  /** Une prise vient d'être sortie de l'eau. */
+  onCatch?: (fish: FishSpecies, size: number) => void
   /** Le joueur veut ouvrir le livre des prises. */
   onBook?: () => void
 
@@ -210,7 +214,8 @@ export class FishingGame {
       s.hud.help.textContent = coarse ? tr('Touchez l\'écran pour relancer', 'Touch the screen to cast again') : tr('Cliquez (ou Espace) pour relancer', 'Click (or Space) to cast again')
     }
     if (phase === 'cast') {
-      s.fish = pickFish()
+      // Une espèce qui ne sort pas du tirage (la koï du sillage, cf. main.ts) passe devant les autres.
+      s.fish = this.special?.() ?? pickFish()
       s.size = fishSize(s.fish)
       s.plan = bitePlan(s.fish)
       s.nibbles = 0
@@ -252,6 +257,7 @@ export class FishingGame {
     else if (s.size > best) news.textContent = tr(`Record : ${best} cm battu`, `Best: ${best} cm beaten`)
     news.hidden = !news.textContent
     this.onSound?.(first || fish.rarity === 'epic' || fish.rarity === 'legendary' ? 'rare' : 'catch', this.bobber.position)
+    this.onCatch?.(fish, s.size)
     void this.collection.add(fish.id, s.size).then((result) => {
       if (this.session !== s) return
       this.count()

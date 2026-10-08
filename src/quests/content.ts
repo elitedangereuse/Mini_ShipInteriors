@@ -7,6 +7,7 @@ import { NURSE } from '../nurse'
 import { SERGEANT } from '../patrol'
 import type { QuestState } from '../../shared/quests.js'
 import type { Line } from './cinematic'
+import { MORE_QUESTS } from './content-more'
 
 /*
  * Les quêtes du bord, racontées : leurs scènes, ce qu'en garde le journal, les objets qu'elles
@@ -22,7 +23,9 @@ import type { Line } from './cinematic'
  * - `npc:<nom>` : un membre d'équipage déclaré dans main.ts (rourke, marcel, betty, nico) ;
  * - `item:<pont>:<modèle>` : un meuble du vaisseau (cf. levels.ts) ;
  * - `door` : les portes de la pièce que la quête ouvre ;
- * - `prop:<id>`, `actor:<id>` : un objet, un animal ou un personnage que la quête pose elle-même.
+ * - `prop:<id>`, `actor:<id>` : un objet, un animal ou un personnage que la quête pose elle-même ;
+ * - `event:<nom>` : pas une cible, quelque chose qui arrive au joueur (une prise à l'étang), que
+ *   main.ts signale par QuestWorld.event.
  */
 
 /** Une scène, et ce qui la déclenche. */
@@ -105,6 +108,11 @@ export interface QuestContent {
   /** La scène qui la propose, et les deux réponses. */
   offer: Hook & { accept: string; decline: string }
   steps: Step[]
+  /**
+   * Ce qui se dit à bord le jour où elle devient disponible (cf. `requires` dans shared/quests.js) :
+   * de quoi savoir où traîner, sans plus.
+   */
+  rumor?: string
   /** Devant la porte de la pièce qu'elle ouvre, une fois commencée. */
   locked?: Line[]
   /** Dans le journal, une fois terminée. */
@@ -817,6 +825,9 @@ export const QUEST_CONTENT: QuestContent[] = [
       when: (s) => !s?.done,
     }],
   },
+
+  // ============================================================ Celles qui se méritent (cf. content-more.ts)
+  ...MORE_QUESTS,
 ]
 
 const BY_ID = new Map(QUEST_CONTENT.map((q) => [q.id, q]))

@@ -43,7 +43,9 @@ export const SHIP_LAYOUTS = {
   // verrières, à la proue, et s'ouvre juste avant sur la Promenade, un atrium vitré autour de la
   // maquette du Cobra. Au nord, le labo du LJPC ; au sud, la grande salle d'arcade (deux portes) et
   // le mess, un self dont la cuisine occupe le fond. Au nord, contre la salle commune, l'infirmerie
-  // de Betty.
+  // de Betty. Sous la Promenade (au sud, par une porte de service dans sa verrière), le poste de
+  // surveillance du sergent ('v', cf. SURVEILLANCE_ROOM) : fermé tant que sa quête n'est pas
+  // terminée (cf. quests.js).
   '0': [
     '  eeeeee qqqqqqqrrrrrlllll ccc          ',
     ' eeeeeeeeqqqqqqqrrrrrlllllccccc bbb     ',
@@ -55,9 +57,11 @@ export const SHIP_LAYOUTS = {
     'eeeeeeeeemmmmmmmssssssssssccccc bbbbb   ',
     ' eeeeeeeemmmmmmmssssssssssccccc bbb     ',
     '  eeeeee mmmmmmmssssssssss ccc          ',
-    '         mmmmmmm                        ',
-    '         mmmmmmm                        ',
-    '         mmmmmmm                        ',
+    '         mmmmmmm           +            ',
+    '         mmmmmmm        vvvvvvv         ',
+    '         mmmmmmm        vvvvvvv         ',
+    '                        vvvvvvv         ',
+    '                        vvvvvvv         ',
   ],
   // Pont supérieur : les quartiers ; derrière le salon d'écoute, le cinéma. Au nord du salon,
   // derrière une vitre, le studio de Radio Dangereuse (porte à l'est). À l'ouest, la grande serre
@@ -145,6 +149,12 @@ export const BAR_ROOM = 'b'
 
 /** Apparence d'alien (identifiant du Holo-Me, ex. « alien.male.c.blue », cf. src/looks.ts). */
 export const isAlienLook = (skin) => typeof skin === 'string' && skin.startsWith('alien.')
+
+/**
+ * Le poste de surveillance du pont principal, sous la Promenade : la lettre de sa pièce, et le
+ * pupitre d'où l'on regarde les caméras du bord (cf. src/cctv.ts).
+ */
+export const SURVEILLANCE_ROOM = { level: 0, room: 'v', desk: { x: 27, z: 12.3 } }
 
 /** Le planétarium de Bugenhagen, au pont supérieur, à la place des anciens quartiers (lettre de sa pièce). */
 export const PLANETARIUM_ROOM = 'p'

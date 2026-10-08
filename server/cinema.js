@@ -2,6 +2,8 @@
  * Séance commune du cinéma. Le site fournit le catalogue et la priorité du direct Twitch de la
  * chaîne du site ; la régie peut aussi projeter une vidéo YouTube, ou le direct d'une autre chaîne.
  */
+import { QUEST_REELS } from '../shared/quests.js'
+
 export const PROJECTION_SEAT = { level: 1, x: 28.65, z: 7.55 }
 
 export function cinemaOperator(players) {
@@ -169,7 +171,11 @@ export function createCinema({ cmdrUrl, players, emit, error = console.error, no
     await refresh()
     if (live) return 'live'
     if (cinemaOperator(players()) !== player.id) return 'seat'
-    const video = foundVideos.get(id)
+    // Une bobine de quête (cf. QUEST_REELS) : à qui a terminé sa quête, sans passer par la recherche.
+    const reel = QUEST_REELS.find((r) => r.video === id)
+    const video = reel && player.quests?.has(reel.quest)
+      ? { video: reel.video, title: reel.title, image: `https://i.ytimg.com/vi/${reel.video}/mqdefault.jpg`, foundAt: now() }
+      : foundVideos.get(id)
     if (!video || now() - video.foundAt > 600000) return 'invalid'
     clearSelection()
     youtube = { video: video.video, title: video.title, image: video.image }

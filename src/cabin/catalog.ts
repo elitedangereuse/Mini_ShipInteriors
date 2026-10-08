@@ -9,6 +9,7 @@ import { FUN_ENTRIES } from './catalog-fun'
 import { GARDEN_ENTRIES } from './catalog-garden'
 import { HOME_ENTRIES } from './catalog-home'
 import { JUNK_ENTRIES } from './catalog-junk'
+import { QUEST_ENTRIES } from './catalog-quests'
 import { OUTDOOR_ENTRIES } from './catalog-outdoor'
 import { SHIP_ENTRIES } from './catalog-ship'
 import { fishCollection } from '../fishing/collection'
@@ -1102,6 +1103,8 @@ export const CATALOG: CatalogEntry[] = [
   ...JUNK_ENTRIES,
   // --- Écrans et consoles, armurerie, affiches de films et pin-up, salle de bain, cf. catalog-fun.ts
   ...FUN_ENTRIES,
+  // --- Ce que les quêtes offrent, et qui ne s'achète pas, cf. catalog-quests.ts
+  ...QUEST_ENTRIES,
 ]
 
 const BY_ID = new Map(CATALOG.map((e) => [e.id, e]))

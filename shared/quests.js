@@ -7,10 +7,13 @@
 // dans l'ordre qu'on veut avant de passer à la suivante (trois indices, trois témoins…) ; 0 : une
 // étape simple, qu'un seul geste termine. L'état d'un joueur tient en trois valeurs : l'étape en
 // cours (`step`), les éléments déjà réunis (`flags`, un bit par élément) et `done`.
+//
+// Les quêtes ne sont pas toutes proposées d'emblée : `requires` nomme celles qu'il faut avoir
+// terminées avant (cf. questAvailable). Le bord se découvre petit à petit.
 
 /**
  * @typedef {{ credits?: number, items?: string[], skins?: string[] }} QuestReward
- * @typedef {{ id: string, steps: number[], room?: { level: number, room: string }, reward?: QuestReward }} QuestDef
+ * @typedef {{ id: string, steps: number[], requires?: string[], room?: { level: number, room: string }, reward?: QuestReward }} QuestDef
  * @typedef {{ step: number, flags: number, done: boolean }} QuestState
  */
 
@@ -33,12 +36,40 @@ export const QUESTS = [
   // Pas une histoire, une formalité : lancer Scavengers depuis un de ses postes (cf. main.ts) offre
   // les apparences de Kael et d'ARIA. Le journal ne la montre pas (elle n'a pas de récit).
   { id: 'scavengers', steps: [0], reward: { skins: ['suit.kael', 'holo.aria'] } },
+  // --- Celles qui se méritent : chacune attend qu'on en ait terminé d'autres (`requires`).
+  // L'émission pirate : son album au jukebox (cf. src/music.ts), et le poste qui la captait.
+  { id: 'frequence-fantome', steps: [0, 3, 0, 0], requires: ['silence-on-dribble'], reward: { items: ['pirate-radio'] } },
+  // Le cocktail perdu de Jacques : un bar de poche pour ses quartiers, et de quoi trinquer.
+  { id: 'recette-de-jacques', steps: [3, 0, 0], requires: ['gamelle-vide'], reward: { items: ['pocket-bar'] } },
+  // Le poisson que le livre des prises ne connaît pas (cf. QUEST_FISH dans shared/fishing.js).
+  { id: 'poisson-fantome', steps: [0, 0, 0, 0], requires: ['recette-de-jacques'], reward: { credits: 3000 } },
+  // La bobine sans étiquette : son film à la régie du cinéma, et un projecteur pour ses quartiers.
+  { id: 'seance-de-minuit', steps: [3, 0], requires: ['frequence-fantome', 'essayage'], reward: { items: ['reel-projector'] } },
+  // La mémoire d'ARIA : son écran, pour ses quartiers.
+  { id: 'dossier-aria', steps: [3, 0, 0], requires: ['quatre-cent-douze'], reward: { credits: 5000, items: ['scav-aria'] } },
+  // La ronde du sergent : le poste de surveillance, sous la Promenade, et ses caméras.
+  { id: 'tour-de-garde', steps: [4, 0, 0], requires: ['permis-de-tir', 'dernier-match', 'dossier-aria'], room: { level: 0, room: 'v' }, reward: { credits: 5000 } },
 ]
 
 const BY_ID = new Map(QUESTS.map((q) => [q.id, q]))
 
 /** @returns {QuestDef | undefined} */
 export const questById = (id) => (typeof id === 'string' ? BY_ID.get(id) : undefined)
+
+/**
+ * La quête est-elle proposée à qui a terminé les quêtes `done` ? (Celles qu'elle attend le sont toutes.)
+ * @param {QuestDef} def @param {Iterable<string>} done
+ */
+export function questAvailable(def, done) {
+  const set = done instanceof Set ? done : new Set(done)
+  return (def.requires ?? []).every((id) => set.has(id))
+}
+
+/** Quêtes que la fin de `id` rend disponibles, pour qui a terminé `done` (elle comprise). */
+export function questsOpenedBy(id, done) {
+  const set = done instanceof Set ? done : new Set(done)
+  return QUESTS.filter((q) => q.requires?.includes(id) && questAvailable(q, set)).map((q) => q.id)
+}
 
 /** Pièces fermées tant que leur quête n'est pas terminée : la quête, le pont, la lettre de la pièce. */
 export const QUEST_ROOMS = QUESTS.filter((q) => q.room).map((q) => ({ quest: q.id, level: q.room.level, room: q.room.room }))
@@ -47,6 +78,12 @@ export const QUEST_ROOMS = QUESTS.filter((q) => q.room).map((q) => ({ quest: q.i
 export function questOfRoom(level, room) {
   return QUEST_ROOMS.find((r) => r.level === level && r.room === room)?.quest ?? null
 }
+
+/**
+ * Films que la régie du cinéma ne propose qu'à qui a terminé leur quête (cf. server/cinema.js et
+ * src/cinema-room.ts) : la vidéo YouTube, son titre à l'affiche, la quête.
+ */
+export const QUEST_REELS = [{ video: '4E4GbyfP8xw', title: 'La bobine sans étiquette', quest: 'seance-de-minuit' }]
 
 /** Objets et apparences qui ne s'achètent pas : une quête les offre (clé d'inventaire -> quête). */
 export const QUEST_UNLOCKS = Object.fromEntries(QUESTS.flatMap((q) => [

@@ -139,7 +139,8 @@
     "vhs-stack": 1500, "saber-display": 25000, "sword-display": 15000, "katana-stand": 18000, "odyssey-rack": 20000,
     "weapon-rack": 22000, "blaster-stand": 12000, "armor-stand": 35000, "film-poster": 3500, "pinup-poster": 3500,
     "cinema-poster": 8000, "podcast-poster": 3000, "rubber-duck": 800, "toothbrush-cup": 800, "toilet-roll": 600, "bath-mat": 2000,
-    "duct-pipes": 5000, "duct-leak": 2500, "duct-valve": 3000, "duct-lamp": 3500, "duct-sign": 2000, "duct-fan": 18000, "duct-boiler": 15000, "duct-grate": 3000, "scav-terminal": 40000, "scav-aria": 35000, "scav-sign": 8000, "scav-map": 9000, "scav-cryo": 28000, "scav-drone": 12000, "scav-loot": 12000
+    "duct-pipes": 5000, "duct-leak": 2500, "duct-valve": 3000, "duct-lamp": 3500, "duct-sign": 2000, "duct-fan": 18000, "duct-boiler": 15000, "duct-grate": 3000, "scav-terminal": 40000, "scav-aria": 35000, "scav-sign": 8000, "scav-map": 9000, "scav-cryo": 28000, "scav-drone": 12000, "scav-loot": 12000,
+    "pirate-radio": 20000, "pocket-bar": 30000, "reel-projector": 30000
   },
   "skins": {
     "suit.maverick": 30000, "suit.dominator": 40000, "suit.artemis": 45000,

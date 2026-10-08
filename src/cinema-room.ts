@@ -85,6 +85,8 @@ export class CinemaRoom {
   private searchButton = document.createElement('button')
   private searchStatus = document.createElement('p')
   private searchResults = document.createElement('div')
+  private reelCards = document.createElement('div')
+  private reelKey = ''
   private stage = document.createElement('div')
   private frame = document.createElement('iframe')
   private volumeControl = document.createElement('div')
@@ -125,7 +127,9 @@ export class CinemaRoom {
     private network: { online: () => boolean; self: () => number; choose: (id: number | null) => void;
       search: (query: string) => Promise<{ videos: CinemaVideo[]; reason?: string }>; video: (id: string) => void;
       streams: (query: string) => Promise<{ streams: CinemaStream[]; reason?: string }>; stream: (channel: string) => void;
-      duration: (id: number | string, since: number, duration: number) => void },
+      duration: (id: number | string, since: number, duration: number) => void;
+      /** Bobines gagnées à bord (cf. QUEST_REELS) : la régie les propose sans recherche. */
+      reels?: () => CinemaVideo[] },
   ) {
     try {
       const stored = localStorage.getItem('mini-shipinteriors-cinema-volume')
@@ -183,7 +187,8 @@ export class CinemaRoom {
     stopSearch.className = 'cinema-room-card cinema-room-stop'
     stopSearch.textContent = tr('Arrêter la projection', 'Stop screening')
     stopSearch.onclick = () => this.choose(null)
-    this.searchPanel.append(this.searchForm, this.searchStatus, stopSearch, this.searchResults)
+    this.reelCards.className = 'cinema-room-reels'
+    this.searchPanel.append(this.reelCards, this.searchForm, this.searchStatus, stopSearch, this.searchResults)
     this.stage.className = 'cinema-room-stage'
     this.frame.title = tr('Projection commune', 'Shared screening')
     this.frame.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture; encrypted-media')
@@ -447,7 +452,15 @@ export class CinemaRoom {
     this.searchInput.disabled = !canChoose
     this.searchButton.disabled = !canChoose || this.searching
     this.searchPanel.querySelector<HTMLButtonElement>('.cinema-room-stop')!.disabled = this.state.live || (this.network.online() && !canChoose)
-    for (const button of this.searchResults.querySelectorAll<HTMLButtonElement>('.cinema-room-card')) {
+    // Les bobines gagnées à bord, en tête de l'onglet YouTube.
+    const reels = this.tab === 'youtube' ? this.network.reels?.() ?? [] : []
+    const reelKey = reels.map((r) => r.video).join()
+    if (reelKey !== this.reelKey) {
+      this.reelKey = reelKey
+      this.reelCards.replaceChildren(...reels.map((reel) => this.videoCard(reel)))
+    }
+    this.reelCards.hidden = !reels.length
+    for (const button of this.searchPanel.querySelectorAll<HTMLButtonElement>('.cinema-room-reels .cinema-room-card, .cinema-room-search-results .cinema-room-card')) {
       button.disabled = !canChoose
       button.setAttribute('aria-pressed', String(button.dataset.stream ? button.dataset.stream === this.state.twitch?.channel : button.dataset.video === this.state.youtube?.video))
     }

@@ -1,4 +1,4 @@
-import { knownQuests, questAdvance, questById, questFlag, questStarted, stepComplete, type QuestReward, type QuestState } from '../../shared/quests.js'
+import { knownQuests, questAdvance, questAvailable, questById, questFlag, questStarted, stepComplete, type QuestReward, type QuestState } from '../../shared/quests.js'
 
 /*
  * Le journal de quêtes du joueur : pour chaque quête commencée, où il en est (cf.
@@ -102,9 +102,15 @@ export class QuestStore {
     if (account && reply?.status !== 'success') this.retryTimer = window.setTimeout(() => void this.load(account), RETRY * 1000)
   }
 
+  /** La quête est-elle proposée au joueur : celles qu'elle attend sont-elles terminées (cf. `requires`) ? */
+  available(id: string): boolean {
+    const def = questById(id)
+    return !!def && questAvailable(def, this.done())
+  }
+
   /** Commence une quête. */
   start(id: string): boolean {
-    if (!this.ready || !questById(id) || this.states.has(id)) return false
+    if (!this.ready || !this.available(id) || this.states.has(id)) return false
     this.states.set(id, questStarted())
     this.commit({ action: 'start', quest: id })
     return true

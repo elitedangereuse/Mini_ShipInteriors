@@ -299,6 +299,24 @@ niveau des autres albums (MP3 48 kHz, 192 kbit/s). Les titres des pistes ont
 été donnés pour le jukebox. Pochette : illustration originale, d'après les
 portraits en pixels de Kael et d'ARIA, par scripts/generate_scavengers_cover.py.
 
+88.8 · Nuit 412 — Zane Little Music — jazz-funk — pochette pirate.svg
+  01 Midnight Cruiser   pirate-01.mp3   2:24   https://opengameart.org/content/midnight-cruiser
+  02 Empty Stretch      pirate-02.mp3   2:21   https://opengameart.org/content/empty-stretch
+  03 Detour             pirate-03.mp3   4:11   https://opengameart.org/content/detour
+  04 Freeway Fumes      pirate-04.mp3   3:20   https://opengameart.org/content/freeway-fumes
+  05 Barriers           pirate-05.mp3   2:57   https://opengameart.org/content/barriers
+
+L'émission pirate de la quête « Fréquence fantôme » : l'album ne se propose au
+jukebox qu'à qui l'a terminée. Cinq morceaux de Zane Little Music (déjà au
+jukebox avec « Synesthesia »), placés sous CC0 1.0 par leur auteur sur
+OpenGameArt (licence relevée sur chaque page le 08/10/2026). Titres d'origine
+conservés ; le nom de l'album et sa pochette (illustration originale) sont du
+jeu. Téléchargés en WAV depuis /sites/default/files/ (midnight_cruiser.wav,
+empty_stretch_0.wav, detour.wav, freeway_fumes.wav, barriers.wav), puis :
+ffmpeg -af loudnorm=I=-16:TP=-1.5:LRA=11 (une passe), MP3 stéréo 44,1 kHz,
+LAME VBR -q:a 5, sans tags. Durées lues sur les MP3. Pas de tempo mesuré :
+la piste de danse garde celui de la soirée.
+
 Les pochettes SVG des neuf morceaux individuels sont des illustrations
 originales créées pour le jukebox par scripts/generate_jukebox_covers.py.
 

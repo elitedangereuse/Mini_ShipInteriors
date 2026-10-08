@@ -35,7 +35,7 @@ import { allLooks, lookOwned, skinProduct, starterLook } from './economy/skins'
 import { markerMaterial, TASK_INFO, TaskBoard, type LiveTask, type WorkSound } from './economy/tasks'
 import { Wallet } from './economy/wallet'
 import { Sound } from './audio'
-import { Avatar, EMOTES } from './avatar'
+import { Avatar, EARNED_EMOTES, emoteNamed, EMOTES } from './avatar'
 import { IsoCamera, ZOOM_MAX } from './camera'
 import { FirstPersonCamera } from './fps'
 import { Cat } from './cat'
@@ -98,7 +98,7 @@ import { Kael } from './scavengers'
 import { ClassCrowd } from './classroom'
 import { QuizPanel } from './quiz/panel'
 import { BAR_ROOM, CLUB_ROOM, PLANETARIUM_ROOM, SPORT_COURTS, isAlienLook } from '../shared/ship-layouts.js'
-import { FISHING_DOCK, FISHING_LEVEL } from '../shared/fishing.js'
+import { fishById, FISHING_DOCK, FISHING_LEVEL, QUEST_FISH } from '../shared/fishing.js'
 import { ToiletFlushes } from './toilet-flush'
 import { PlanetariumShow } from './planetarium'
 import { Vents } from './vents'
@@ -109,12 +109,14 @@ import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel
 import { LiftRide } from './lift-ride'
 import { INSTRUCTOR, Instructor, instructorRig, Tutorial, TUTORIAL_DECK } from './tutorial'
 import { TUTORIAL_EXIT, TUTORIAL_LEVEL, TUTORIAL_SPAWN } from '../shared/tutorial.js'
+import { ShipCameras } from './cctv'
 import { Cinematic } from './quests/cinematic'
-import type { QuestContent } from './quests/content'
+import { QUEST_CONTENT, type QuestContent } from './quests/content'
+import { GHOST_FISH_EVENT } from './quests/content-more'
 import { QuestJournal, QuestToasts } from './quests/journal'
 import { QuestStore } from './quests/store'
 import { QuestWorld, type QuestEvent } from './quests/world'
-import { QUEST_ROOMS, QUEST_UNLOCKS, questById, questOfRoom } from '../shared/quests.js'
+import { QUEST_REELS, QUEST_ROOMS, QUEST_UNLOCKS, questById, questOfRoom, questsOpenedBy } from '../shared/quests.js'
 
 // ------------------------------------------------------------------ profil
 
@@ -461,6 +463,8 @@ let deck = newcomer ? tutorialDeck : resumed?.deck ?? homeDeck
  * équipe par les caméras (le joueur, lui, reste au lobby).
  */
 let viewDeck = homeDeck
+/** Les caméras de surveillance du bord (cf. cctv.ts), une fois le vaisseau bâti ; on y regarde un autre pont que le sien. */
+let cctv: ShipCameras | null = null
 /** Zone thargoïde : lobby, mission, caméras (créée une fois le relais prêt, cf. plus bas). */
 let salvage: SalvageClient | null = null
 
@@ -503,6 +507,10 @@ const cinemaRoom = new CinemaRoom({
   search: (query) => net.searchCinema(query), video: (id) => net.sendCinemaVideo(id),
   streams: (query) => net.searchCinemaStreams(query), stream: (channel) => net.sendCinemaStream(channel),
   duration: (id, since, duration) => net.sendCinemaDuration(id, since, duration),
+  // La bobine sans étiquette, à qui a terminé « Séance de minuit ».
+  reels: () => QUEST_REELS.filter((r) => quests.isDone(r.quest)).map((r) => ({
+    video: r.video, title: r.quest === 'seance-de-minuit' ? tr('La bobine sans étiquette', 'The unlabelled reel') : r.title, image: `https://i.ytimg.com/vi/${r.video}/mqdefault.jpg`,
+  })),
 })
 const cinemaScreenProp = deckById(1).def.props.find((p) => p.model === 'cinema-screen')!
 const cinemaFocus = new THREE.Vector3()
@@ -817,6 +825,18 @@ fishBookMarker.visible = false
 if (fishBookItem) fishBookMarker.position.set(fishBookItem.position.x, 1.25, fishBookItem.position.z)
 deckById(FISHING_LEVEL).group.add(fishBookMarker)
 fishing.onGesture = () => { player.avatar.playEmote('interact'); net.sendEmote('interact') }
+// La koï du sillage (cf. QUEST_FISH) : elle ne mord que dans les minutes qui suivent un saut FSD, à
+// qui la cherche pour sa quête ; la quête terminée, elle repasse de temps en temps.
+fishing.special = () => {
+  if ((performance.now() - lastJumpAt) / 1000 > QUEST_FISH.window) return null
+  const koi = fishById(QUEST_FISH.id) ?? null
+  if (questWorld.awaits(GHOST_FISH_EVENT)) return koi
+  return quests.isDone(QUEST_FISH.quest) && Math.random() < QUEST_FISH.chance ? koi : null
+}
+// Sortie de l'eau : sa fiche d'abord, puis la scène de la quête.
+fishing.onCatch = (fish) => {
+  if (fish.id === QUEST_FISH.id) window.setTimeout(() => questWorld.event(GHOST_FISH_EVENT), 1800)
+}
 fishing.onSound = (kind, at) => {
   const here = at.clone().setY(at.y + deck.y)
   if (kind === 'cast') sound.ui('drop')
@@ -929,7 +949,7 @@ const lightsFrom = new THREE.Vector3(Infinity, 0, 0)
 /** Les lampes du pont baissent pendant la séance du planétarium (1 : pleine lumière). */
 let lightDim = 1
 function applyLights() {
-  const focus = salvage?.watchTarget ?? player.position
+  const focus = salvage?.watchTarget ?? cctv?.target3 ?? player.position
   lightsFrom.copy(focus)
   // Dans la baie infestée, les projecteurs des zones éclairées passent devant les lampes de
   // secours plus proches : une zone éclairée se voit de loin (cf. RULES.litVision).
@@ -981,6 +1001,8 @@ function applyAmbience() {
 /** Zoom d'avant les conduits de ventilation (cf. setDeck). */
 let ventZoom = iso.zoomLevel
 function setDeck(next: Deck) {
+  // On quitte le pupitre des caméras en changeant de pont (une invitation acceptée, un saut).
+  cctv?.close(false)
   seating.leave()
   // Dans les conduits de ventilation, tout résonne, et l'on regarde de près ; le zoom d'avant revient à la sortie.
   if (!!next.def.vents !== !!deck.def.vents) {
@@ -1878,7 +1900,36 @@ questWorld.npc('nico', holdDeck, crewItem(holdDeck, mechanic.root), {
   emote: (id) => mechanic.avatar.playEmote(id),
   busy: () => hangar.busy,
 })
+// La jardinière et son étal attendront la fin de la scène.
+questWorld.npc('capucine', gardenDeck, crewItem(gardenDeck, gardener.root), {
+  hold: () => { gardener.talk(player.position, gardenerReport()); net.sendGardenTalk() },
+  emote: (id) => gardener.avatar.playEmote(id),
+  busy: () => greenhouse.busy,
+})
 questWorld.check()
+
+/**
+ * Les caméras de surveillance du bord (cf. cctv.ts), depuis le pupitre du poste de surveillance :
+ * on y regarde les pièces communes des trois ponts, et ceux qui s'y trouvent.
+ */
+cctv = new ShipCameras({
+  renderer,
+  iso,
+  showView: (level) => setView(level === null ? deck : deckById(level)),
+  floor: (level) => deckById(level).y,
+  deckName: (level) => deckById(level).def.name,
+  voice: () => sound.voice(null, 0.07),
+})
+function openCameras() {
+  stopWork()
+  player.cancelPath()
+  keys.clear()
+  marker.visible = false
+  phone.close()
+  questJournal.close()
+  toggleReactions(false)
+  cctv!.open()
+}
 
 /** Une quête commence, avance ou se termine : le journal la met en avant, un bandeau et le chat le disent. */
 function questEvent(event: QuestEvent, quest: QuestContent, detail?: string) {
@@ -1904,6 +1955,13 @@ function questEvent(event: QuestEvent, quest: QuestContent, detail?: string) {
   const reward = questById(quest.id)?.reward
   if (quests.mode === 'local' && reward && (reward.credits || reward.items?.length || reward.skins?.length)) {
     chat.add('system', tr('Objets, apparences et crédits ne sont versés qu\'aux CMDR connectés au site.', 'Items, looks and credits are only awarded to CMDRs logged in to the site.'))
+  }
+  // Ce qu'elle rend disponible (cf. `requires`) : une rumeur dit où traîner, le « ! » fera le reste.
+  for (const id of questsOpenedBy(quest.id, quests.done())) {
+    const next = QUEST_CONTENT.find((q) => q.id === id)
+    if (!next?.rumor) continue
+    questToasts.push({ kind: 'rumor', title: next.rumor, detail: '' })
+    chat.add('system', tr(`On raconte à bord… ${next.rumor}`, `Word aboard is… ${next.rumor}`))
   }
 }
 // La récompense d'une quête est versée par le site : le compte (crédits, objets, apparences) est à relire.
@@ -2160,7 +2218,7 @@ net.onMessage = (m) => {
       }
       if (m.emote === 'o7' && r.level === holdDeck.def.id) mechanic.greet(r.group.position, false)
       if (m.emote === 'o7' && r.level === gardenDeck.def.id) gardener.greet(r.group.position, false)
-      const def = EMOTES.find((e) => e.id === m.emote)
+      const def = emoteNamed(m.emote)
       if (def && r.level === deck.def.id) bubbles.emote(`p${m.id}`, def.icon)
       break
     }
@@ -2369,8 +2427,14 @@ async function command(text: string) {
   const [cmd, ...rest] = text.slice(1).split(' ')
   const arg = rest.join(' ').trim()
   const name = cmd.toLowerCase()
-  const e = EMOTES.find((x) => x.id === name || x.en === name)
-  if (e) return emote(e.id)
+  const e = emoteNamed(name)
+  if (e) {
+    // Une emote qui se gagne à bord (cf. EARNED_EMOTES) : il faut l'avoir gagnée.
+    if (EARNED_EMOTES.includes(e) && !quests.isDone('recette-de-jacques')) {
+      return chat.add('system', tr('Vous ne savez pas encore trinquer comme il faut : quelqu\'un, à bord, saurait vous l\'apprendre.', 'You don\'t know how to toast properly yet: somebody aboard could teach you.'))
+    }
+    return emote(e.id)
+  }
   const reaction = findReaction(name)
   if (reaction) return react(reaction.id)
   switch (name) {
@@ -2604,6 +2668,8 @@ wardrobe.onClose = (confirmed, look) => {
 // ------------------------------------------------------------------ jukebox
 
 const jukebox = new JukeboxPanel()
+// L'album pirate ne se propose qu'à qui a remonté le signal (cf. Track.quest).
+jukebox.unlocked = (quest) => quests.isDone(quest)
 /** Jukebox dont le panneau est ouvert : on s'en éloigne, il se ferme. */
 let jukeboxNear: THREE.Vector3 | null = null
 /** Où est ce jukebox : les quartiers peuvent changer d'aménagement sous le panneau. */
@@ -3084,7 +3150,8 @@ function sees(r: RemotePlayer): boolean {
   if (r.level === ZONE_LEVEL) return !!viewDeck.def.zone && !!salvage?.sees(r.id)
   // Le simulateur d'accueil : chacun y est seul.
   if (r.level === TUTORIAL_LEVEL) return false
-  if (r.level !== viewDeck.def.id || viewDeck !== deck) return false
+  // Par les caméras de surveillance, on voit le pont filmé, pas le sien.
+  if (r.level !== viewDeck.def.id || (viewDeck !== deck && !cctv?.active)) return false
   return r.level !== HOUSING_LEVEL || r.cabin === myCabin()
 }
 
@@ -3664,6 +3731,8 @@ addEventListener('keydown', (e) => {
   if (barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen) { if (e.code === 'Escape') { barPanel.close(); gameEmbed.close(); mediaRoom.close(); cinemaRoom.close() }; e.preventDefault(); return }
   // Une scène de quête : ses touches seulement, tant qu'elle se joue.
   if (cinematic.key(e)) return
+  // Au pupitre des caméras : ←/→ changent de caméra, Échap ou E les quittent.
+  if (cctv?.keyDown(e)) return
   if (gym.key(e)) return
   if (!chat.typing && court.key(e)) return
   if (!chat.typing && range.key(e)) return
@@ -3750,7 +3819,7 @@ chat.onOpen = () => keys.clear()
 const inputDir = new THREE.Vector3()
 function keyboardDirection(): THREE.Vector3 {
   inputDir.set(0, 0, 0)
-  if (cinematic.active || gym.active || court.active || fishBusy() || quiz.isOpen || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return inputDir
+  if (cinematic.active || cctv?.active || gym.active || court.active || fishBusy() || quiz.isOpen || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return inputDir
   const on = (...codes: string[]) => codes.some((c) => keys.has(c))
   // event.code = position physique : KeyW/KeyA correspondent à Z/Q sur un clavier AZERTY.
   const sx = (on('KeyD', 'ArrowRight') ? 1 : 0) - (on('KeyA', 'ArrowLeft') ? 1 : 0)
@@ -3903,6 +3972,7 @@ function updateGamepad(dt: number): GamepadInput {
     toggleAbout(false)
     phone.back()
     questJournal.close()
+    cctv?.close()
     stopWork()
     wardrobe.close(false)
     if (claw && seating.settled) seating.stand()
@@ -3910,6 +3980,13 @@ function updateGamepad(dt: number): GamepadInput {
   }
   if (pad.help) $('help').hidden = !$('help').hidden
   if (riding || wardrobe.isOpen) return pad
+  if (cctv?.active) {
+    // Au pupitre des caméras : gauche, droite pour changer de caméra ; A pour les quitter.
+    if (pad.rotateLeft) cctv.cycle(-1)
+    if (pad.rotateRight) cctv.cycle(1)
+    if (pad.interact) cctv.close()
+    return pad
+  }
   if (zone.frozen) {
     // Caméras alliées : gauche, droite pour changer de coéquipier ; A pour les quitter. Caché
     // dans un casier : A pour en sortir.
@@ -3937,7 +4014,7 @@ function updateGamepad(dt: number): GamepadInput {
 
 function movementDirection(pad: GamepadInput): THREE.Vector3 {
   const input = keyboardDirection()
-  if (cinematic.active || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || photo.active || zone.frozen || zone.panelOpen) return input
+  if (cinematic.active || cctv?.active || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || photo.active || zone.frozen || zone.panelOpen) return input
   // Le clavier reste prioritaire lorsqu'une touche de déplacement est maintenue.
   if (input.lengthSq() === 0) view().screenToGround(pad.moveX, -pad.moveY, input)
   return input
@@ -4000,7 +4077,7 @@ function isoOnly(): boolean {
   // Les caméras alliées de la zone thargoïde suivent un coéquipier, de haut.
   // Caché dans un casier aussi : en vue subjective, on ne verrait que l'intérieur de la porte.
   // Une scène de quête se regarde de haut, les deux interlocuteurs dans le cadre.
-  return editing() || photo.active || !!claw || barPanel.isOpen || cinemaRoom.isOpen || mediaRoom.isOpen || planetarium.active || !!zone.watchTarget || zone.hiding || cinematic.active
+  return editing() || photo.active || !!claw || barPanel.isOpen || cinemaRoom.isOpen || mediaRoom.isOpen || planetarium.active || !!zone.watchTarget || zone.hiding || cinematic.active || !!cctv?.active
 }
 /** Occupé (installé, en emote, au travail…) : en vue subjective, la caméra passe derrière le personnage. */
 function busyBody(): boolean {
@@ -4324,7 +4401,7 @@ function unlockCursor() {
 }
 /** Ce qui se manipule au curseur : on le rend. */
 function needsCursor(): boolean {
-  return gardenPanel.isOpen || court.active || fishBusy() || quiz.isOpen || chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || phone.isOpen || questJournal.isOpen || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || !reactionsPanel.hidden
+  return gardenPanel.isOpen || court.active || fishBusy() || quiz.isOpen || chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || phone.isOpen || questJournal.isOpen || !!cctv?.active || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || !reactionsPanel.hidden
 }
 document.addEventListener('pointerlockchange', () => {
   document.body.classList.toggle('fps-locked', cursorLocked())
@@ -4411,7 +4488,7 @@ const fpsBottom = () => innerHeight - 130
 
 function click(e: PointerEvent, at: { clientX: number; clientY: number } = e) {
   // Caché dans un casier, capturé, derrière les caméras, en pleine scène de quête : le clic ne fait rien.
-  if (cinematic.active || riding || gym.active || court.active || range.active || fishBusy() || quiz.isOpen || zone.frozen) return
+  if (cinematic.active || cctv?.active || riding || gym.active || court.active || range.active || fishBusy() || quiz.isOpen || zone.frozen) return
   if (editing()) {
     // Objet glissé jusque sous le catalogue : il le relâche quand même dans le mode aménagement.
     try {
@@ -4544,6 +4621,7 @@ function hiddenRestrictedItem(item: Interactable): boolean {
 function tryInteract() {
   // Une scène de quête se joue : réplique suivante.
   if (cinematic.active) return cinematic.next()
+  if (cctv?.active) return cctv.close()
   // Bugenhagen parle : on passe à la phrase suivante.
   if (planetarium.talking) return planetarium.next()
   if (gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return
@@ -4575,6 +4653,7 @@ function interactWith(item: Interactable) {
   player.lookAt(item.position)
   if (item.furniture?.model === 'galaxy-map') return gameEmbed.open('edgis')
   if (item.furniture?.model === 'scav-terminal') return openScavengers()
+  if (item.furniture?.model === 'cctv-desk') return openCameras()
   if (deck.def.id === 1) {
     if (item.furniture?.model === 'podcast-console' || item.furniture?.model === 'podcast-poster') return mediaRoom.open()
     if (item.furniture?.model === 'cinema-screen') return void cinemaRoom.open(false)
@@ -4917,6 +4996,8 @@ function studioLive(): boolean {
 // ------------------------------------------------------------------ saut FSD
 
 let jumping = false
+/** Heure du dernier saut FSD (performance.now) : son sillage dure quelques minutes (cf. QUEST_FISH). */
+let lastJumpAt = -Infinity
 /** Aspirés par les toilettes, déjà dans les conduits avant la fin du saut (cf. flushToVents). */
 let flushLanded = false
 /** Traversée d'un saut FSD en cours : les toilettes aspirent quiconque s'y assoit (cf. flushCrew). */
@@ -4976,6 +5057,7 @@ async function playJump(system: SystemId, by: string | null) {
   traffic.hide(true)
   iso.shake(0.16)
   dialog.show(tr('Saut !', 'Jump!'))
+  lastJumpAt = performance.now()
   flushCrew()
   await wait(JUMP_TRAVEL * 1000)
   jumpTravel = false
@@ -5493,7 +5575,7 @@ function frame() {
   }
   // Mode photo, instant figé : personnages, meubles et étoiles s'arrêtent ; la caméra, non.
   const world = photo.frozen ? 0 : dt
-  if (!editing() && !photo.active && !range.active && !cinematic.active) processHover()
+  if (!editing() && !photo.active && !range.active && !cinematic.active && !cctv?.active) processHover()
   // Mire sur un objet utilisable : elle s'allume.
   crosshair.classList.toggle('aim', fpsShown && cursorLocked() && !!pick(screenCenter()).item)
   player.update(world, input, zone.sprint(touchRun || autoSprint !== (pad.sprint || keys.has('ShiftLeft') || keys.has('ShiftRight'))))
@@ -5524,7 +5606,7 @@ function frame() {
     }
   }
   cinematic.update(timer.getDelta(), player.position)
-  questWorld.update(world, holoTime.value, !photo.active && !cinematic.active)
+  questWorld.update(world, holoTime.value, !photo.active && !cinematic.active && !cctv?.active)
   // Le simulateur d'accueil : l'instructrice, la leçon en cours. Parti autrement qu'au téléporteur : la formation s'arrête.
   if (deck === tutorialDeck) tutorial.update(world)
   else if (tutorial.active) tutorial.stop()
@@ -5582,7 +5664,7 @@ function frame() {
   else iso.frameCenter(0, 0, innerHeight)
   const cinemaSeat = deck.def.id === 1 && ['cinema-row', 'projection-chair'].includes(seating.current?.item.furniture?.model ?? '')
   if (cinemaSeat) cinemaFocus.set(cinemaScreenProp.x, deck.y, (player.position.z + cinemaScreenProp.z) / 2)
-  iso.update(dt, zone.watchTarget ?? (cinematic.active ? cinematic.focus : roomReveal ? roomReveal.focus : claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : cinemaSeat ? cinemaFocus : planetarium.active ? planetariumFocus : builder?.active ? builder.focus : player.position))
+  iso.update(dt, zone.watchTarget ?? cctv?.target3 ?? (cinematic.active ? cinematic.focus : roomReveal ? roomReveal.focus : claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : cinemaSeat ? cinemaFocus : planetarium.active ? planetariumFocus : builder?.active ? builder.focus : player.position))
   if (barPanel.isOpen) {
     iso.camera.updateMatrixWorld()
     barPanel.place(iso.camera, player.position, jacquesAt)
@@ -5645,7 +5727,7 @@ function frame() {
     // Le plafond cacherait tout, vu de haut : on ne le voit que de l'intérieur.
     d.ceiling.visible = fpsShown
     d.tallDoors = fpsShown
-    d.update(world, actors.get(d)!, d === viewDeck ? player.position : null, toCam, editing() && d === homeDeck, keep, dt)
+    d.update(world, actors.get(d)!, d === viewDeck ? (cctv?.target3 ?? player.position) : null, toCam, editing() && d === homeDeck, keep, dt)
   }
   firstPersonGlass(fpsShown)
   // Filet de sécurité : ni le joueur ni la vue ne restent sur une baie démontée (l'écran serait
@@ -5687,7 +5769,7 @@ function frame() {
   sound.update(fpsShown ? fps.listener : iso.target, view().angle)
   ambience(dt)
   // Le joueur (ou le coéquipier suivi) a fait quelques pas : la réserve se répartit sur les lumières les plus proches.
-  const lit = zone.watchTarget ?? player.position
+  const lit = zone.watchTarget ?? cctv?.target3 ?? player.position
   if (viewDeck.lights.length > lightPool.length && Math.hypot(lit.x - lightsFrom.x, lit.z - lightsFrom.z) > 2) applyLights()
   for (const [i, l] of lightPool.entries()) {
     const def = pooled[i]
@@ -5797,7 +5879,7 @@ function frame() {
     ready: !!label || panelOpen || planetarium.talking || zone.frozen || range.active,
     action: !!sit?.space || range.active,
     reload: range.active,
-    cancel: panelOpen || range.active || gym.active || court.active || fishing.active || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || phone.isOpen || questJournal.isOpen || !!working || !!claw || !$('about').hidden,
+    cancel: panelOpen || range.active || gym.active || court.active || fishing.active || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || phone.isOpen || questJournal.isOpen || !!cctv?.active || !!working || !!claw || !$('about').hidden,
   })
   // On s'éloigne de l'ascenseur ou du jukebox : le panneau se ferme.
   if (lift.isOpen && Math.hypot(player.position.x - liftTile.x, player.position.z - liftTile.z) > 1.6) lift.close()
@@ -5878,7 +5960,8 @@ function frame() {
   fitShadow()
   // Dans la baie (ou par les caméras), tout passe par le brouillard de guerre (cf. salvage/fog.ts).
   // Dans les conduits de ventilation aussi (cf. vents.ts).
-  if (!zone.render(scene, activeCamera(), renderQuality.light) && !vents.render(scene, activeCamera(), renderQuality.light)) renderer.render(scene, activeCamera())
+  // Par les caméras de surveillance, à travers leur tube cathodique (cf. cctv.ts).
+  if (!cctv?.render(scene, activeCamera(), dt) && !zone.render(scene, activeCamera(), renderQuality.light) && !vents.render(scene, activeCamera(), renderQuality.light)) renderer.render(scene, activeCamera())
   cinemaRoom.placeScreen(activeCamera(), deck.def.id === 1,
     deck.def.id === 1 && deck.map.room(Math.round(player.position.x), Math.round(player.position.z)) === 'n',
     cinemaScreenProp.x, deckById(1).y, cinemaScreenProp.z)

@@ -132,6 +132,9 @@ import scroll from '@phosphor-icons/core/duotone/scroll-duotone.svg?raw'
 import basketball from '@phosphor-icons/core/duotone/basketball-duotone.svg?raw'
 import soccerBall from '@phosphor-icons/core/duotone/soccer-ball-duotone.svg?raw'
 import dog from '@phosphor-icons/core/duotone/dog-duotone.svg?raw'
+import radio from '@phosphor-icons/core/duotone/radio-duotone.svg?raw'
+import martini from '@phosphor-icons/core/duotone/martini-duotone.svg?raw'
+import filmReel from '@phosphor-icons/core/duotone/film-reel-duotone.svg?raw'
 import gift from '@phosphor-icons/core/duotone/gift-duotone.svg?raw'
 import arrowsClockwise from '@phosphor-icons/core/bold/arrows-clockwise-bold.svg?raw'
 import arrowFatUp from '@phosphor-icons/core/bold/arrow-fat-up-bold.svg?raw'
@@ -302,6 +305,9 @@ const SVG = {
   basketball,
   'soccer-ball': soccerBall,
   dog,
+  radio,
+  martini,
+  'film-reel': filmReel,
   gift,
   'arrows-clockwise': arrowsClockwise,
   'arrow-fat-up': arrowFatUp,

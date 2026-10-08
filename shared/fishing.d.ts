@@ -35,9 +35,13 @@ export interface FishSpecies {
   colors: Record<string, string>
   /** Part de sa couleur qu'une partie émet (les poissons qui luisent). */
   glow?: Record<string, number>
+  /** Hors du tirage : elle ne mord que pour cette quête, dans le sillage d'un saut (cf. QUEST_FISH). */
+  quest?: string
 }
 
 export declare const FISH: FishSpecies[]
+/** La koï du sillage : son espèce, sa quête, la durée du sillage d'un saut (s), sa chance par lancer une fois la quête terminée. */
+export declare const QUEST_FISH: { id: string; quest: string; window: number; chance: number }
 export declare function fishById(id: string): FishSpecies | undefined
 export declare function pickFish(random?: () => number): FishSpecies
 export declare function fishSize(fish: FishSpecies, random?: () => number): number

@@ -22,7 +22,7 @@ export interface EmoteDef {
   /** Durée de l'emote, quand elle ne suit pas celle de ses animations (un geste ajouté par-dessus). */
   duration?: number
   /** Geste du bras droit posé par-dessus l'animation (le salut « o7 ») : le squelette n'a pas de clip pour ça. */
-  gesture?: 'salute'
+  gesture?: 'salute' | 'toast'
 }
 
 export const EMOTES: EmoteDef[] = [
@@ -36,13 +36,24 @@ export const EMOTES: EmoteDef[] = [
   { id: 'o7', en: 'o7', icon: 'o7', label: tr('Salut militaire (o7)', 'Salute (o7)'), anims: ['idle'], mode: 'once', duration: 2.2, gesture: 'salute' },
 ]
 
+/**
+ * Emotes qui se gagnent à bord, hors de la barre : on les joue par leur commande du chat
+ * (« /trinquer », offerte par la quête « La recette de Jacques », cf. main.ts).
+ */
+export const EARNED_EMOTES: EmoteDef[] = [
+  { id: 'trinquer', en: 'toast', icon: 'martini', label: tr('Trinquer', 'Toast'), anims: ['idle'], mode: 'once', duration: 2.4, gesture: 'toast' },
+]
+
+/** Emote de cet identifiant (français ou anglais), de la barre ou gagnée à bord. */
+export const emoteNamed = (name: string) => [...EMOTES, ...EARNED_EMOTES].find((e) => e.id === name || e.en === name)
+
 /** Visage d'un personnage (cf. holo-style.ts) : null rend son expression de tous les jours. */
 export interface FaceControl {
   show(expression: string | null): void
 }
 
 /** L'expression que joue chaque emote, le temps du geste. */
-const EMOTE_FACES: Record<string, string> = { joie: 'gr', danse: 'gr', oui: 'sm', salut: 'wi', o7: 'wi', non: 'fr', dodo: 'zz' }
+const EMOTE_FACES: Record<string, string> = { joie: 'gr', danse: 'gr', oui: 'sm', salut: 'wi', o7: 'wi', trinquer: 'gr', non: 'fr', dodo: 'zz' }
 
 /** Emote interne (non proposée dans la barre) : utiliser une console. */
 const INTERACT: EmoteDef = { id: 'interact', en: 'interact', icon: '', label: '', anims: ['interact-right'], mode: 'once' }
@@ -103,6 +114,8 @@ const TAU = Math.PI * 2
  */
 export const SALUTE = new THREE.Euler(-2.2, 0, 1.1)
 const saluteQ = new THREE.Quaternion()
+/** Trinquer : le même bras, levé droit devant soi, un peu plus haut que l'épaule, verre en l'air. */
+const TOAST = new THREE.Euler(-1.95, 0, -0.18)
 
 /**
  * Porter à deux mains (un plateau) : les bras tendus droit devant soi, un peu vers le bas, les
@@ -323,7 +336,7 @@ export class Avatar {
   }
 
   playEmote(id: string): EmoteDef | null {
-    const def = id === 'interact' ? INTERACT : EMOTES.find((e) => e.id === id)
+    const def = id === 'interact' ? INTERACT : emoteNamed(id)
     if (!def) return null
     this.setPose(null)
     this.emote = def
@@ -430,16 +443,16 @@ export class Avatar {
       this.model.rotation.y = THREE.MathUtils.damp(this.model.rotation.y, sway, 8, dt)
     }
     this.mixer.update(dt)
-    if (this.emote?.gesture === 'salute' && this.armRight) {
+    if (this.emote?.gesture && this.armRight) {
       const t = this.emoteTime, end = this.emote.duration ?? 2
       const w = THREE.MathUtils.smoothstep(t, 0, 0.25) * (1 - THREE.MathUtils.smoothstep(t, end - 0.3, end))
-      this.armRight.quaternion.slerp(saluteQ.setFromEuler(SALUTE), w)
+      this.armRight.quaternion.slerp(saluteQ.setFromEuler(this.emote.gesture === 'toast' ? TOAST : SALUTE), w)
     }
     // À deux mains, par-dessus l'animation (sauf installé sur un meuble, et le bras qui salue).
     this.carryWeight = THREE.MathUtils.damp(this.carryWeight, this.carrying && !this.pose ? 1 : 0, 12, dt)
     if (this.carryWeight > 0.001) {
       for (const arm of this.arms) {
-        if (arm.bone === this.armRight && this.emote?.gesture === 'salute') continue
+        if (arm.bone === this.armRight && this.emote?.gesture) continue
         carryDir.set(-arm.side * CARRY.x, CARRY.y, CARRY.z)
         arm.bone.quaternion.slerp(carryQ.setFromUnitVectors(arm.rest, carryDir), this.carryWeight)
       }

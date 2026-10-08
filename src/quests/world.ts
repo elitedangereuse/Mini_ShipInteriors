@@ -181,6 +181,7 @@ export class QuestWorld {
         console.warn(`Quête ${q.id} : absente de shared/quests.js`)
         continue
       }
+      for (const id of def.requires ?? []) if (!questById(id)) console.warn(`Quête ${q.id} : attend « ${id} », inconnue`)
       if (def.steps.length !== q.steps.length) console.warn(`Quête ${q.id} : ${q.steps.length} étapes racontées, ${def.steps.length} dans shared/quests.js`)
       q.steps.forEach((step, i) => {
         if ((step.parts?.length ?? 0) !== (def.steps[i] ?? 0)) console.warn(`Quête ${q.id}, étape ${i} : ${step.parts?.length ?? 0} éléments racontés, ${def.steps[i]} dans shared/quests.js`)
@@ -188,7 +189,7 @@ export class QuestWorld {
       })
       const own = new Set([...(q.props ?? []).map((p) => `prop:${p.id}`), ...(q.actors ?? []).map((a) => `actor:${a.id}`)])
       for (const on of [q.offer.on, ...q.steps.flatMap((s) => stepHooks(s).map((h) => h.hook.on))]) {
-        if (own.has(on) || this.targets.has(this.keyOf(q, on))) continue
+        if (own.has(on) || on.startsWith('event:') || this.targets.has(this.keyOf(q, on))) continue
         console.warn(`Quête ${q.id} : cible « ${on} » introuvable à bord`)
       }
       for (const p of q.props ?? []) if (!isCustomModel(p.model)) console.warn(`Quête ${q.id} : modèle « ${p.model} » inconnu`)
@@ -218,7 +219,7 @@ export class QuestWorld {
     }
     // Puis ce qui en propose une.
     for (const quest of QUEST_CONTENT) {
-      if (this.store.state(quest.id)) continue
+      if (this.store.state(quest.id) || !this.store.available(quest.id)) continue
       const target = this.targetOf(quest, quest.offer.on, item)
       if (!target || target.busy?.()) continue
       void this.runOffer(quest, target)
@@ -244,9 +245,37 @@ export class QuestWorld {
     return false
   }
 
+  /**
+   * Quelque chose vient d'arriver au joueur ailleurs que devant une cible (une prise à l'étang…) :
+   * si une quête en cours l'attendait à cette étape (`event:<nom>`), sa scène se joue là où il est,
+   * et l'on rend true.
+   */
+  event(name: string): boolean {
+    if (this.cinematic.active || !this.store.ready) return false
+    for (const quest of QUEST_CONTENT) {
+      const state = this.store.state(quest.id)
+      if (!state || state.done) continue
+      for (const { hook, part, aside } of stepHooks(quest.steps[state.step])) {
+        if (aside || hook.on !== `event:${name}` || (part !== null && (state.flags >> part) & 1)) continue
+        const at = this.host.player.clone()
+        void this.runStep(quest, hook, { deck: this.host.deck(), item: { object: new THREE.Object3D(), position: at, label: '' }, y: MARK_OBJECT }, part)
+        return true
+      }
+    }
+    return false
+  }
+
+  /** La quête attend-elle l'événement `name` à l'étape où en est le joueur ? */
+  awaits(name: string): boolean {
+    return QUEST_CONTENT.some((quest) => {
+      const state = this.store.state(quest.id)
+      return !!state && !state.done && stepHooks(quest.steps[state.step]).some(({ hook, part, aside }) => !aside && hook.on === `event:${name}` && !(part !== null && (state.flags >> part) & 1))
+    })
+  }
+
   /** Joue une scène devant sa cible ; rend ce que rend Cinematic.play. */
   private play(scene: Line[], target: Target, choices?: Choice[]): Promise<string | null> {
-    this.host.face(target.item.position)
+    if (target.item.position.distanceToSquared(this.host.player) > 1e-4) this.host.face(target.item.position)
     target.hold?.()
     this.held = target
     this.holdIn = 3
@@ -295,20 +324,22 @@ export class QuestWorld {
     const marked = new Set<Target>()
     for (const quest of QUEST_CONTENT) {
       const state = this.store.state(quest.id)
+      // Une quête qui attend qu'on en termine d'autres (cf. `requires`) ne pose rien à bord, et ne se signale pas.
+      const open = ready && (!!state || this.store.available(quest.id))
       for (const prop of quest.props ?? []) {
         const key = `${quest.id}|prop:${prop.id}`
-        const wanted = ready && prop.when(state)
+        const wanted = open && prop.when(state)
         if (wanted && !this.props.has(key)) this.spawnProp(key, prop)
         else if (!wanted && this.props.has(key)) this.removeProp(key)
       }
       for (const actor of quest.actors ?? []) {
         const key = `${quest.id}|actor:${actor.id}`
-        const wanted = ready && actor.when(state)
+        const wanted = open && actor.when(state)
         if (wanted && !this.actors.has(key)) this.spawnActor(key, actor)
         else if (!wanted && this.actors.has(key)) this.removeActor(key)
       }
       // Une quête pas encore commencée : ce qui la propose est signalé.
-      if (ready && !state) for (const t of this.targets.get(this.keyOf(quest, quest.offer.on)) ?? []) marked.add(t)
+      if (open && !state) for (const t of this.targets.get(this.keyOf(quest, quest.offer.on)) ?? []) marked.add(t)
     }
     for (const [target, sprite] of this.marks) {
       if (marked.has(target)) continue

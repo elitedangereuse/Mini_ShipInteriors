@@ -187,7 +187,7 @@ export class QuestJournal {
   /** Languette, résumé et onglets : les comptes, et ce qui est nouveau. */
   private paint() {
     const active = QUEST_CONTENT.filter((q) => this.store.state(q.id) && !this.store.isDone(q.id)).length
-    const done = this.store.done().length
+    const done = QUEST_CONTENT.filter((q) => this.store.isDone(q.id)).length
     this.tabCount.textContent = active ? String(active) : ''
     this.tabBadge.textContent = this.news ? '!' : ''
     this.tab.classList.toggle('alert', this.news)
@@ -302,7 +302,7 @@ export class QuestJournal {
 // ---------------------------------------------------------------- bandeau
 
 interface Toast {
-  kind: 'start' | 'step' | 'done'
+  kind: 'start' | 'step' | 'done' | 'rumor'
   title: string
   detail: string
 }
@@ -331,9 +331,9 @@ export class QuestToasts {
     this.showing = !!toast
     if (!toast) return
     const box = el('div', `quest-toast ${toast.kind}`)
-    const kicker = { start: tr('Nouvelle quête', 'New quest'), step: tr('Journal mis à jour', 'Journal updated'), done: tr('Quête terminée', 'Quest complete') }[toast.kind]
+    const kicker = { start: tr('Nouvelle quête', 'New quest'), step: tr('Journal mis à jour', 'Journal updated'), done: tr('Quête terminée', 'Quest complete'), rumor: tr('On raconte à bord…', 'Word aboard is…') }[toast.kind]
     const head = el('div', 'quest-toast-kicker')
-    head.append(icon(toast.kind === 'done' ? 'check' : 'scroll'), kicker)
+    head.append(icon(toast.kind === 'done' ? 'check' : toast.kind === 'rumor' ? 'chat-circle-dots' : 'scroll'), kicker)
     box.append(head, el('div', 'quest-toast-title', toast.title))
     if (toast.detail) box.append(el('div', 'quest-toast-detail', toast.detail))
     this.root.replaceChildren(box)
@@ -344,6 +344,6 @@ export class QuestToasts {
         box.remove()
         this.next()
       }, 350)
-    }, toast.kind === 'done' ? 6500 : 3400)
+    }, toast.kind === 'done' || toast.kind === 'rumor' ? 6500 : 3400)
   }
 }

@@ -78,7 +78,8 @@ export const FISH_RARITY = {
  *
  * Le premier pack compte sept modèles sans couleurs propres : chacun donne plusieurs espèces, par
  * ses couleurs. Les vingt-cinq du second ont les leurs : une espèce par modèle. Cinq légendaires
- * seulement.
+ * seulement, plus une sixième qui ne mord pas au hasard (`quest`) : elle ne passe dans l'étang que
+ * dans le sillage d'un saut FSD, pour qui sait l'y attendre (cf. QUEST_FISH).
  */
 export const FISH = [
   // --- Communs
@@ -126,7 +127,16 @@ export const FISH = [
   { id: 'guardian-fish', model: 'fish1', rarity: 'legendary', size: [25, 50], colors: { Top: '#12202c', Bottom: '#1c3444', Fins: '#5ff0ff' }, glow: { Fins: 1 } },
   { id: 'beagle-sunfish', model: 'sunfish', rarity: 'legendary', size: [100, 200], colors: {} },
   { id: 'void-angler', model: 'angler', rarity: 'legendary', size: [20, 60], colors: { Lamp: '#5ff0ff' }, glow: { Lamp: 1 } },
+  // --- Hors du tirage : la koï du sillage, la dernière page du livre (quête « Le poisson qui n'existe pas »).
+  { id: 'witchspace-koi', model: 'fish1', rarity: 'legendary', size: [42, 88], colors: { Top: '#7a4bd8', Bottom: '#e3d6ff', Fins: '#b98cff' }, glow: { Top: 0.45, Fins: 1 }, quest: 'poisson-fantome' },
 ]
+
+/**
+ * La koï du sillage : elle ne mord que dans les minutes qui suivent un saut FSD (`window`,
+ * secondes), à qui la cherche pour sa quête (`quest`, cf. shared/quests.js) ; la quête terminée,
+ * elle repasse de temps en temps dans le même sillage (`chance`, par lancer).
+ */
+export const QUEST_FISH = { id: 'witchspace-koi', quest: 'poisson-fantome', window: 300, chance: 0.25 }
 
 /** Espèce de cet identifiant, ou undefined. */
 export const fishById = (id) => FISH.find((f) => f.id === id)
@@ -140,7 +150,8 @@ export function pickFish(random = Math.random) {
     rarity = r
     if ((roll -= FISH_RARITY[r].weight) < 0) break
   }
-  const pool = FISH.filter((f) => f.rarity === rarity)
+  // Une espèce de quête ne sort jamais du tirage.
+  const pool = FISH.filter((f) => f.rarity === rarity && !f.quest)
   return pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))]
 }
 

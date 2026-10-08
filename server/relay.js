@@ -124,7 +124,7 @@ const MAX_TEXT = 200
 const MAX_NAME = 32
 // Emotes (src/avatar.ts), puis réactions (médaillons du site, src/reactions.ts).
 const EMOTES = new Set([
-  'salut', 'oui', 'non', 'joie', 'danse', 'assis', 'dodo', 'o7', 'interact',
+  'salut', 'oui', 'non', 'joie', 'danse', 'assis', 'dodo', 'o7', 'trinquer', 'interact',
   'site', 'braben', 'raxxla', 'federation', 'empire', 'alliance', 'aegis', 'fuel-rats',
 ])
 const ANIMS = new Set(['idle', 'walk', 'sprint'])
