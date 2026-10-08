@@ -3,12 +3,13 @@ import { Avatar } from './avatar'
 import type { Deck } from './deck'
 import { markerMaterial } from './economy/tasks'
 import { beamMaterial } from './furniture/kit'
+import { SIM_WALLS } from './furniture/tutorial'
 import { tr } from './i18n'
 import { icon, type IconName } from './icons'
 import type { LevelDef } from './levels'
 import { suitRig, type SuitStyle } from './looks'
 import { dampAngle } from './player'
-import { TUTORIAL_CLOSED, TUTORIAL_LAYOUT, TUTORIAL_LEVEL, TUTORIAL_TELEPORTER } from '../shared/tutorial.js'
+import { TUTORIAL_CLOSED, TUTORIAL_LAYOUT, TUTORIAL_LEVEL, TUTORIAL_SPAWN, TUTORIAL_TELEPORTER } from '../shared/tutorial.js'
 
 /*
  * Le simulateur d'accueil (cf. shared/tutorial.js) : à sa toute première venue à bord, la recrue
@@ -36,32 +37,47 @@ export function instructorRig() {
   return suitRig('female', 'a', INSTRUCTOR_SUIT)
 }
 
-/** Grille cyan, panneaux holographiques, sol argenté : une salle d'entraînement hors du temps. */
+/** Les deux repères de la course : l'un, puis l'autre. */
+const BEACONS = [{ x: 6, z: 1 }, { x: 1, z: 5 }]
+
+/**
+ * Parois bleu nuit quadrillées de cyan, sol de simulation à perte de vue, marquages d'exercice et
+ * panneaux holographiques : une salle d'entraînement projetée, hors du temps.
+ */
 export const TUTORIAL_DECK: LevelDef = {
   id: TUTORIAL_LEVEL,
   name: tr('Simulateur d\'accueil', 'Welcome simulator'),
-  theme: 'station',
+  theme: 'sim',
   tutorial: true,
+  walls: SIM_WALLS,
   mapOptions: { closed: TUTORIAL_CLOSED },
-  ambience: { sky: '#8fb4e6', ground: '#0b1426', hemi: 1.15, sun: '#e6f6ff', sunIntensity: 1.5 },
+  ambience: { sky: '#7fb2ee', ground: '#0a1730', hemi: 1.25, sun: '#dff3ff', sunIntensity: 1.5 },
   layout: TUTORIAL_LAYOUT,
   rooms: {
     a: tr('Sas d\'accueil', 'Welcome airlock'),
     b: tr('Salle d\'essai', 'Practice room'),
     t: tr('Téléporteur', 'Teleporter'),
   },
-  floors: { a: 'floor-panel', b: 'floor-panel', t: 'floor-detail' },
-  floorFinish: { a: 'silver', b: 'silver', t: 'silver' },
+  floors: { a: 'floor-detail', b: 'floor-detail', t: 'floor-panel' },
   windows: { a: 0, b: 0, t: 0 },
   closed: {
     b: tr('Porte verrouillée : le lieutenant Swann l\'ouvrira à la fin de la leçon.', 'Locked door: Lt Swann will open it at the end of the lesson.'),
     t: tr('Le téléporteur s\'ouvre à la fin de la formation.', 'The teleporter opens at the end of the training.'),
   },
   props: [
+    // Le sol de la simulation, autour des trois salles (leurs bords extérieurs, vus d'ici).
+    { model: 'sim-void', x: 9, z: 2.5, label: '-9.65,-3.15,5.65,3.15;5.35,-2.15,9.65,2.15', solid: false },
     // Le sas d'accueil : se déplacer, courir, regarder.
     { model: 'sim-grid', x: 3.5, z: 2.5, label: '8x6', solid: false },
     { model: 'sim-sign', x: 2, z: -0.3, label: tr('SIMULATEUR|Bienvenue à bord, recrue|Suivez l\'instructrice', 'SIMULATOR|Welcome aboard, recruit|Follow the instructor'), solid: false },
     { model: 'sim-sign', x: 5.5, z: -0.3, label: tr('LEÇON 1|Marcher, courir|Regarder autour de soi', 'LESSON 1|Walk, run|Look around'), solid: false },
+    { model: 'sim-mark', x: TUTORIAL_SPAWN.x, z: TUTORIAL_SPAWN.z, label: tr('pad|Arrivée', 'pad|Arrival'), solid: false },
+    { model: 'sim-mark', x: BEACONS[0].x, z: BEACONS[0].z, label: 'target|A', solid: false },
+    { model: 'sim-mark', x: BEACONS[1].x, z: BEACONS[1].z, label: 'target|B', solid: false },
+    { model: 'sim-mark', x: 3.5, z: 1, label: 'lane||3.4', solid: false },
+    { model: 'sim-projector', x: 3.8, z: 0.2, label: 'ship' },
+    { model: 'container-wide', x: 4.4, z: 5.05 },
+    { model: 'container', x: 5.5, z: 5.1 },
     { model: 'plant', x: 0.1, z: 0.1 },
     { model: 'plant', x: 7.1, z: 5.1 },
     // La salle d'essai : examiner, s'asseoir, saluer, discuter.
@@ -74,12 +90,17 @@ export const TUTORIAL_DECK: LevelDef = {
         tr('Console d\'entraînement : « Dernière recrue : a confondu l\'ascenseur et le placard à balais. Note : 12/20. »', 'Training console: “Last recruit: mistook the lift for the broom cupboard. Score: 12/20.”'),
       ],
     },
+    { model: 'sim-mark', x: 11.6, z: 0.75, label: tr('zone|Console|2x1', 'zone|Console|2x1'), solid: false },
     { model: 'sofa', x: 11, z: 4.82, rot: 2, label: 'teal' },
+    { model: 'sim-mark', x: 11, z: 4.05, label: tr('zone|Détente|3x1', 'zone|Lounge|3x1'), solid: false },
+    { model: 'sim-projector', x: 13.9, z: 4.9, label: 'globe' },
+    { model: 'computer-system', x: 13.4, z: 0.05 },
     { model: 'plant', x: 8.1, z: 5.1 },
     { model: 'plant', x: 14.1, z: 0.1 },
     // Le téléporteur, vers le pont principal.
     { model: 'sim-grid', x: 16.5, z: 2.5, label: '4x4', solid: false },
     { model: 'sim-sign', x: 16.5, z: 0.7, label: tr('TÉLÉPORTEUR|Destination :|Pont principal', 'TELEPORTER|Destination:|Main deck'), solid: false },
+    { model: 'sim-mark', x: TUTORIAL_TELEPORTER.x, z: TUTORIAL_TELEPORTER.z, label: tr('zone|Départ|3x3', 'zone|Departure|3x3'), solid: false },
     {
       model: 'sim-teleporter', x: TUTORIAL_TELEPORTER.x, z: TUTORIAL_TELEPORTER.z, solid: false, action: tr('Se téléporter', 'Teleport'),
       // Remplacé par le départ (cf. main.ts) : il en faut un pour qu'on puisse s'en servir.
@@ -191,9 +212,6 @@ interface Lesson {
   /** Ce qu'elle dit quand c'est réussi. */
   praise: string
 }
-
-/** Les deux repères de la course : l'un, puis l'autre. */
-const BEACONS = [{ x: 6, z: 1 }, { x: 1, z: 5 }]
 
 const LESSONS: Lesson[] = [
   {
@@ -351,6 +369,10 @@ export class Tutorial {
   private readonly ring: THREE.Group
   private readonly marker = new THREE.Sprite()
   private readonly beam = beamMaterial()
+  /** Viseur au sol sous l'objectif, quel qu'il soit : un cercle en pointillé qui tourne, une onde qui s'en écarte. */
+  private readonly halo = new THREE.Group()
+  private readonly dashes: THREE.LineSegments
+  private readonly wave: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>
 
   constructor(private readonly host: TutorialHost) {
     this.ring = new THREE.Group()
@@ -366,7 +388,17 @@ export class Tutorial {
     this.marker.scale.setScalar(0.34)
     this.marker.renderOrder = 4
     this.marker.visible = false
-    host.deck.group.add(this.ring, this.marker)
+    const arc: THREE.Vector3[] = []
+    for (let i = 0; i < 12; i++) {
+      for (const a of [i, i + 0.6]) arc.push(new THREE.Vector3(Math.cos((a / 12) * Math.PI * 2) * 0.5, 0, Math.sin((a / 12) * Math.PI * 2) * 0.5))
+    }
+    this.dashes = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(arc), new THREE.LineBasicMaterial({ color: '#8ff0ff', transparent: true, opacity: 0.9, depthWrite: false }))
+    this.wave = new THREE.Mesh(new THREE.RingGeometry(0.47, 0.5, 48), new THREE.MeshBasicMaterial({ color: '#39d0ff', transparent: true, depthWrite: false, side: THREE.DoubleSide }))
+    this.wave.rotation.x = -Math.PI / 2
+    this.halo.add(this.dashes, this.wave)
+    this.halo.position.y = 0.025
+    this.halo.visible = false
+    host.deck.group.add(this.ring, this.halo, this.marker)
     this.panel.addEventListener('click', (e) => {
       if ((e.target as HTMLElement).closest('[data-skip]')) this.skip()
     })
@@ -395,7 +427,7 @@ export class Tutorial {
     this.active = false
     this.panel.hidden = true
     this.panelKey = ''
-    this.ring.visible = this.marker.visible = false
+    this.ring.visible = this.halo.visible = this.marker.visible = false
   }
 
   /** L'instructrice redit la consigne (on lui parle). */
@@ -480,15 +512,23 @@ export class Tutorial {
       this.marker.material = markerMaterial(l.icon, '#39d0ff')
       this.marker.position.set(b.x, 1.5, b.z)
       this.marker.visible = true
+      this.target(b.x, b.z, 1)
       return
     }
     const model = l.id === 'examine' ? 'side-console' : l.id === 'sit' ? 'sofa' : l.id === 'teleport' ? 'sim-teleporter' : null
     const item = model && deck.interactables.find((it) => it.furniture?.model === model)
-    this.marker.visible = !!item
+    this.marker.visible = this.halo.visible = !!item
     if (item) {
       this.marker.material = markerMaterial(l.icon, '#39d0ff')
       this.marker.position.set(item.position.x, 1.32, item.position.z)
+      this.target(item.position.x, item.position.z, 1.5)
     }
+  }
+
+  private target(x: number, z: number, size: number) {
+    this.halo.position.set(x, this.halo.position.y, z)
+    this.halo.scale.setScalar(size)
+    this.halo.visible = true
   }
 
   /** Leçon réussie : bravo (`praise` : autre chose à dire, '' : rien de plus), puis la suite. */
@@ -498,7 +538,7 @@ export class Tutorial {
     if (text) this.speak(text)
     this.host.instructor.emote(l.id === 'emote' ? 'o7' : 'oui')
     this.host.sound('done')
-    this.ring.visible = this.marker.visible = false
+    this.ring.visible = this.halo.visible = this.marker.visible = false
     // La caméra ouvre la salle d'essai ; la conversation, le téléporteur.
     if (l.id === 'camera') this.unlock('b')
     if (l.id === 'chat') this.unlock('t')
@@ -524,6 +564,12 @@ export class Tutorial {
     if (this.ring.visible) {
       this.beam.uniforms.uTime.value = t
       this.ring.scale.setScalar(1 + Math.sin(t * 4) * 0.06)
+    }
+    if (this.halo.visible) {
+      this.dashes.rotation.y = t * 0.9
+      const k = (t * 0.7) % 1
+      this.wave.scale.setScalar(1 + k * 0.9)
+      this.wave.material.opacity = (1 - k) * 0.7
     }
     if (this.marker.visible) this.marker.position.y = (this.ring.visible ? 1.5 : 1.32) + Math.sin(t * 2.2) * 0.035
     if (this.skipArmed > 0) {
@@ -564,7 +610,7 @@ export class Tutorial {
     } else if (l.id === 'sit') {
       if (!this.sat && this.host.seated()) {
         this.sat = true
-        this.marker.visible = false
+        this.marker.visible = this.halo.visible = false
         this.speak(tr('Confortable, hein ? Maintenant, debout !', 'Comfy, right? Now, on your feet!'))
       } else if (this.sat && !this.host.seated()) this.done()
     }
@@ -584,20 +630,31 @@ export class Tutorial {
 
     const head = document.createElement('div')
     head.className = 'tuto-head'
+    const tag = document.createElement('span')
+    tag.className = 'tuto-tag'
+    tag.textContent = 'SIM'
     const title = document.createElement('span')
-    title.textContent = tr(`Simulateur d'accueil · ${this.lesson + 1}/${LESSONS.length}`, `Welcome simulator · ${this.lesson + 1}/${LESSONS.length}`)
+    title.className = 'tuto-title'
+    title.textContent = tr('Simulateur d\'accueil', 'Welcome simulator')
+    const count = document.createElement('span')
+    count.className = 'tuto-count'
+    count.textContent = `${this.lesson + 1}/${LESSONS.length}`
     const skip = document.createElement('button')
     skip.type = 'button'
     skip.dataset.skip = ''
     skip.className = 'tuto-skip'
     skip.textContent = this.skipArmed > 0 ? tr('Vraiment ? Encore un clic', 'Sure? Click again') : tr('Passer', 'Skip')
-    head.append(title, skip)
+    head.append(tag, title, count, skip)
 
+    // Le fil de la formation : une pastille par leçon, à son icône.
     const dots = document.createElement('div')
     dots.className = 'tuto-dots'
-    LESSONS.forEach((_, i) => {
+    LESSONS.forEach((lesson, i) => {
       const d = document.createElement('i')
-      d.className = i < this.lesson || (i === this.lesson && this.waiting) ? 'done' : i === this.lesson ? 'now' : ''
+      const done = i < this.lesson || (i === this.lesson && this.waiting)
+      d.className = done ? 'done' : i === this.lesson ? 'now' : ''
+      d.title = lesson.title
+      d.append(icon(done ? 'check' : lesson.icon))
       dots.append(d)
     })
 
@@ -608,7 +665,11 @@ export class Tutorial {
 
     const quote = document.createElement('div')
     quote.className = 'tuto-say'
-    quote.textContent = tr(`${INSTRUCTOR} : « ${this.line} »`, `${INSTRUCTOR}: “${this.line}”`)
+    const who = document.createElement('b')
+    who.textContent = INSTRUCTOR
+    const said = document.createElement('span')
+    said.textContent = tr(`« ${this.line} »`, `“${this.line}”`)
+    quote.append(who, said)
 
     const how = document.createElement('div')
     how.className = 'tuto-how'

@@ -1994,31 +1994,70 @@ body.cine-on #touch-pad {
 }
 
 /* ---------- simulateur d'accueil (cf. src/tutorial.ts) ---------- */
-/* Sous le bloc du vaisseau : la leçon, ce que dit l'instructrice, comment faire. */
+/* Sous le bloc du vaisseau : la leçon, ce que dit l'instructrice, comment faire. Un écran de la
+   simulation : fond bleu nuit, liserés cyan, lignes de balayage. */
 .tutorial {
-  width: min(320px, calc(100vw - 32px));
-  padding: 9px 12px 11px;
-  border-color: rgba(57, 208, 255, 0.55);
-  box-shadow: 0 0 22px rgba(57, 208, 255, 0.12);
+  width: min(330px, calc(100vw - 32px));
+  padding: 0 0 10px;
+  overflow: hidden;
+  border-color: rgba(57, 208, 255, 0.6);
+  background:
+    repeating-linear-gradient(180deg, rgba(57, 208, 255, 0.045) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, rgba(10, 26, 46, 0.94), rgba(6, 12, 24, 0.94));
+  box-shadow: 0 0 26px rgba(57, 208, 255, 0.16), inset 0 0 0 1px rgba(57, 208, 255, 0.08);
   font-size: 12px;
   pointer-events: auto;
+}
+.tutorial > :not(.tuto-head) {
+  margin-left: 12px;
+  margin-right: 12px;
 }
 .tuto-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 7px;
+  padding: 6px 8px 6px 10px;
+  border-bottom: 1px solid rgba(57, 208, 255, 0.3);
+  background: linear-gradient(90deg, rgba(57, 208, 255, 0.2), rgba(57, 208, 255, 0.03));
+  font-size: 11px;
   font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: #39d0ff;
+}
+.tuto-tag {
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #39d0ff;
+  color: #04121f;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  animation: tuto-blink 2.4s ease-in-out infinite;
+}
+@keyframes tuto-blink {
+  50% { opacity: 0.55; }
+}
+.tuto-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tuto-count {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 .tuto-skip {
   padding: 2px 8px;
-  border: 1px solid var(--border);
+  border: 1px solid rgba(57, 208, 255, 0.35);
   border-radius: 6px;
-  background: transparent;
+  background: rgba(4, 12, 24, 0.6);
   color: var(--muted);
   font: inherit;
   font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
   cursor: pointer;
 }
 .tuto-skip:hover {
@@ -2027,37 +2066,82 @@ body.cine-on #touch-pad {
 }
 .tuto-dots {
   display: flex;
-  gap: 4px;
-  margin: 6px 0 4px;
+  align-items: center;
+  margin-top: 10px;
+  margin-bottom: 8px;
 }
+/* Une pastille par leçon, reliées par un fil. */
 .tuto-dots i {
-  flex: 1;
-  height: 3px;
-  border-radius: 2px;
-  background: rgba(154, 160, 208, 0.3);
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-right: auto;
+  border: 1px solid rgba(154, 160, 208, 0.35);
+  border-radius: 50%;
+  background: #0a1424;
+  color: rgba(154, 160, 208, 0.6);
+  font-size: 11px;
+  font-style: normal;
+}
+.tuto-dots i:last-child {
+  margin-right: 0;
+}
+.tuto-dots i:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  width: 40px;
+  height: 1px;
+  background: rgba(154, 160, 208, 0.28);
+  z-index: -1;
+}
+.tuto-dots {
+  isolation: isolate;
+  overflow: hidden;
 }
 .tuto-dots i.done {
+  border-color: #39d0ff;
+  background: rgba(57, 208, 255, 0.18);
+  color: #39d0ff;
+}
+.tuto-dots i.done::after {
   background: #39d0ff;
 }
 .tuto-dots i.now {
-  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(255, 176, 58, 0.16), 0 0 12px rgba(255, 176, 58, 0.45);
+  animation: tuto-now 1.6s ease-in-out infinite;
+}
+@keyframes tuto-now {
+  50% { box-shadow: 0 0 0 5px rgba(255, 176, 58, 0.06), 0 0 16px rgba(255, 176, 58, 0.6); }
 }
 .tuto-goal {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 2px 0 4px;
-  font-size: 15px;
+  gap: 7px;
+  margin-top: 2px;
+  margin-bottom: 6px;
+  font-size: 17px;
   font-weight: 700;
   color: var(--accent);
 }
 .tuto-goal.done {
   color: #39d0ff;
+  animation: tuto-done 0.5s ease-out;
+}
+@keyframes tuto-done {
+  from { transform: scale(1.08); filter: brightness(1.8); }
 }
 .tuto-checks {
   display: grid;
   gap: 1px;
-  margin: 0 0 5px;
+  margin-top: 0;
+  margin-bottom: 6px;
   padding: 0;
   list-style: none;
   color: var(--muted);
@@ -2070,17 +2154,40 @@ body.cine-on #touch-pad {
 .tuto-checks li.done {
   color: #39d0ff;
 }
+/* Ce que dit l'instructrice : son nom en étiquette, sa réplique en retrait. */
 .tuto-say {
-  margin: 0 0 5px;
-  font-style: italic;
+  margin-top: 0;
+  margin-bottom: 8px;
+  padding: 1px 0 1px 9px;
+  border-left: 2px solid #39d0ff;
   color: var(--text);
+  line-height: 1.45;
+}
+.tuto-say b {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #39d0ff;
+}
+.tuto-say span {
+  font-style: italic;
 }
 .tuto-how {
-  color: var(--muted);
-  line-height: 1.6;
+  padding: 7px 9px;
+  border: 1px solid rgba(57, 208, 255, 0.18);
+  border-radius: 7px;
+  background: rgba(57, 208, 255, 0.06);
+  color: #b9c2e6;
+  line-height: 1.7;
 }
 .tuto-how kbd {
   margin: 0 1px;
+  border-color: rgba(57, 208, 255, 0.5);
+  color: #e6fbff;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tuto-tag, .tuto-dots i.now, .tuto-goal.done { animation: none; }
 }
 
 /* ---------- barre de la cabine (ses quartiers, ou ceux d'un autre CMDR) ---------- */
@@ -4493,6 +4600,13 @@ body.planet {
   background:
     radial-gradient(ellipse 60% 45% at 78% 12%, rgba(255, 196, 140, 0.55) 0%, rgba(255, 150, 96, 0.18) 45%, transparent 75%),
     linear-gradient(180deg, #3b1a2a 0%, #7a3530 38%, #b5593c 70%, #d98a5c 100%);
+}
+
+/* Dans le simulateur d'accueil (src/tutorial.ts) : le noir bleuté de la simulation, une lueur à l'horizon. */
+body.sim {
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 38%, rgba(57, 208, 255, 0.13) 0%, transparent 70%),
+    linear-gradient(180deg, #03060d 0%, #060d1c 55%, #04070f 100%);
 }
 
 /* Séance du planétarium (cf. src/planetarium.ts) : vignette, bandes de cinéma, et la fenêtre de

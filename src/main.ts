@@ -1018,6 +1018,8 @@ function setView(next: Deck) {
   // au sol, le ciel de la planète (un fond CSS, cf. body.planet).
   stars.group.visible = systemView.group.visible = traffic.group.visible = !offShip(viewDeck.def)
   document.body.classList.toggle('planet', !!viewDeck.def.ground)
+  // Dans le simulateur d'accueil, la nuit bleutée de la simulation (cf. body.sim).
+  document.body.classList.toggle('sim', !!viewDeck.def.tutorial)
 }
 
 /** Pas du demi-côté du cadre d'ombre (256 texels de carte) : la carte ne change de taille qu'en changeant de pas. */
