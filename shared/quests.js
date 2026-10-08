@@ -30,6 +30,9 @@ export const QUESTS = [
   { id: 'quatre-cent-douze', steps: [0, 3, 0], reward: { skins: ['robot.d'] } },
   // Écho, la projection que personne n'a validée : l'apparence « Hologramme », au Holo-Me.
   { id: 'essayage', steps: [3, 0, 0], reward: { skins: ['holo.echo'] } },
+  // Pas une histoire, une formalité : lancer Scavengers depuis un de ses postes (cf. main.ts) offre
+  // les apparences de Kael et d'ARIA. Le journal ne la montre pas (elle n'a pas de récit).
+  { id: 'scavengers', steps: [0], reward: { skins: ['suit.kael', 'holo.aria'] } },
 ]
 
 const BY_ID = new Map(QUESTS.map((q) => [q.id, q]))

@@ -769,6 +769,8 @@ Tout se joue chez le joueur : les autres le voient bouger et se tourner, pas ses
 
 **Jouer.** Interagir avec le poste ouvre le jeu dans la fenêtre des jeux du site (`src/game-embed.ts`, comme la carte EDGIS ou le Mini-CQC) ; le curseur passe dans le jeu dès qu'il est chargé, on tape tout de suite (`lang fr` pour le français). Le jeu garde sa progression dans le navigateur, comme sur son site. Rien n'est versé en crédits, et il n'y a pas de tâche de bord ici.
 
+**Les apparences de Kael et d'ARIA.** La première fois qu'on lance le jeu depuis un de ses postes (celui de la planque, ou celui qu'on a posé chez soi), deux apparences arrivent au [Holo-Me](#holo-me-garde-robe) : la combinaison **Kael** (race Combinaison, gris ardoise à liseré vert, sur le modèle qu'on veut) et la projection **ARIA** (race Hologramme : un corps de lumière cyan, son visage en pixels à la place de la tête). Elles ne s'achètent pas. Côté site, c'est une quête d'une seule étape, sans récit et absente du journal (`scavengers` dans `shared/quests.js`, recopiée dans `quest_list.php`) : pas de table en plus. Le site ne voit pas ce qui se passe dans le jeu : ouvrir le poste suffit.
+
 **Dans les quartiers.** Le mobilier des deux pièces s'achète au catalogue de l'aménagement, dans la catégorie « Récup » (`src/cabin/catalog-junk.ts`, prix dans `economy.json`) : tuyauterie en trois longueurs, raccord qui fuit, vanne, hublot au sodium, plaques émaillées, double ventilateur, chaudière, caillebotis ; poste de Scavengers (il lance le jeu, là aussi), écran d'ARIA, enseigne, carte des secteurs, caisson cryogénique, drone (en état ou cabossé), étagère de butin.
 
 ## La base au sol

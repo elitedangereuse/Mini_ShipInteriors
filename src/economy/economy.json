@@ -144,7 +144,7 @@
   "skins": {
     "suit.maverick": 30000, "suit.dominator": 40000, "suit.artemis": 45000,
     "suit.imperial": 60000, "suit.federal": 60000, "suit.alliance": 60000, "suit.aegis": 75000,
-    "holo.echo": 80000,
+    "holo.echo": 80000, "suit.kael": 60000, "holo.aria": 80000,
     "alien.green": 35000, "alien.blue": 35000, "alien.violet": 35000,
     "robot.g": 50000, "robot.h": 50000, "robot.d": 40000,
     "creature.orc": 45000, "creature.o": 45000, "creature.l": 45000,

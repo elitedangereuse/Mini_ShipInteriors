@@ -1,29 +1,22 @@
 import type * as THREE from 'three'
 import { Avatar } from './avatar'
 import type { Deck } from './deck'
-import { suitRig, type SuitStyle } from './looks'
+import { lookRig, parseLook } from './looks'
 import { dampAngle } from './player'
 
 /*
  * Kael, le héros de Scavengers (https://scavengers.elitedangereuse.fr), dans la planque de la cale
- * (cf. levels.ts) : un Mini Character dans la combinaison grise de son portrait, posé sur son
+ * (cf. levels.ts) : un Mini Character dans la combinaison grise de son portrait (une apparence du Holo-Me), posé sur son
  * emplacement du plan (`scav-kael`, cf. src/furniture/scavengers.ts), qui porte ses répliques et
  * son volume de clic. Il surveille l'écran d'ARIA, et se tourne vers qui s'approche. Il n'existe
  * que dans l'affichage : chaque client a le sien.
  */
 
-/** La combinaison de son portrait : gris ardoise, col sombre, un liseré vert phosphore. */
-const KAEL_SUIT: SuitStyle = {
-  ramp: [[0, '#161b24'], [0.35, '#2d3748'], [0.6, '#4a5568'], [0.85, '#636f80'], [1, '#3ddc6a']],
-  glove: '#2d3748',
-  helmet: 'none',
-  shell: '#2d3748',
-  visor: '#000000',
-  light: '#00ff41',
-}
-
-/** Les cheveux bruns en bataille et l'air fermé de son portrait. */
-const KAEL_STYLE = { hair: '', hairColor: 'br', face: 'se', paint: '', trim: '' }
+/**
+ * Son apparence : la combinaison « Kael » du Holo-Me (cf. looks.ts), sur le modèle aux cheveux en
+ * bataille, brunis, l'air fermé de son portrait. Celle que les joueurs gagnent en lançant le jeu.
+ */
+const KAEL_LOOK = 'suit.male.d.kael.-br-se--'
 
 /** À cette distance, il se tourne vers le joueur. */
 const NOTICE = 2.2
@@ -39,7 +32,7 @@ export class Kael {
   static async load(deck: Deck): Promise<Kael | null> {
     const spot = deck.def.props.find((p) => p.model === 'scav-kael')
     if (!spot) return null
-    const kael = new Kael(new Avatar(await suitRig('male', 'd', KAEL_SUIT, KAEL_STYLE)))
+    const kael = new Kael(new Avatar(await lookRig(parseLook(KAEL_LOOK))))
     kael.avatar.root.position.set(spot.x, spot.y ?? 0, spot.z)
     kael.avatar.root.rotation.y = kael.yaw
     deck.group.add(kael.avatar.root)

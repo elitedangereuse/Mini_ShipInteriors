@@ -4551,13 +4551,30 @@ function tryInteract() {
   if (item) interactWith(item)
 }
 
+/**
+ * Ouvre Scavengers (depuis le poste de la planque, ou celui qu'on a posé chez soi). La première
+ * fois, les apparences de Kael et d'ARIA arrivent au Holo-Me : une « quête » d'une seule étape,
+ * sans récit, que le site tient comme les autres (cf. shared/quests.js).
+ */
+function openScavengers() {
+  gameEmbed.open('scavengers')
+  const quest = 'scavengers'
+  if (!quests.ready || quests.isDone(quest)) return
+  if (!quests.state(quest)) quests.start(quest)
+  // Un invité n'a pas de garde-robe à remplir : pas d'annonce.
+  if (quests.advance(quest) && linked) {
+    sound.credits(true)
+    chat.add('system', tr('Lien avec l\'Erebus établi : les apparences « Kael » (Combinaison) et « ARIA » (Hologramme) sont à toi, au Holo-Me.', 'Link to the Erebus established: the “Kael” (Suit) and “ARIA” (Hologram) looks are yours, at the Holo-Me.'))
+  }
+}
+
 function interactWith(item: Interactable) {
   // Une quête attend là : sa scène se joue, à la place de l'interaction habituelle.
   if (questWorld.intercept(item)) return
   if (item.seats) return sitOn(item)
   player.lookAt(item.position)
   if (item.furniture?.model === 'galaxy-map') return gameEmbed.open('edgis')
-  if (item.furniture?.model === 'scav-terminal') return gameEmbed.open('scavengers')
+  if (item.furniture?.model === 'scav-terminal') return openScavengers()
   if (deck.def.id === 1) {
     if (item.furniture?.model === 'podcast-console' || item.furniture?.model === 'podcast-poster') return mediaRoom.open()
     if (item.furniture?.model === 'cinema-screen') return void cinemaRoom.open(false)
