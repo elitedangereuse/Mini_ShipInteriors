@@ -44,6 +44,7 @@ import television from '@phosphor-icons/core/duotone/television-duotone.svg?raw'
 import filmSlate from '@phosphor-icons/core/duotone/film-slate-duotone.svg?raw'
 import sword from '@phosphor-icons/core/duotone/sword-duotone.svg?raw'
 import toolbox from '@phosphor-icons/core/duotone/toolbox-duotone.svg?raw'
+import pipe from '@phosphor-icons/core/duotone/pipe-duotone.svg?raw'
 import firstAidKit from '@phosphor-icons/core/duotone/first-aid-kit-duotone.svg?raw'
 import wall from '@phosphor-icons/core/duotone/wall-duotone.svg?raw'
 import door from '@phosphor-icons/core/duotone/door-duotone.svg?raw'
@@ -208,6 +209,7 @@ const SVG = {
   'film-slate': filmSlate,
   sword,
   toolbox,
+  pipe,
   'first-aid-kit': firstAidKit,
   // cloisons des quartiers
   wall,

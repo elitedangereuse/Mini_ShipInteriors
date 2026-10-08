@@ -8,6 +8,7 @@ import type { Flicker } from '../levels'
 import { FUN_ENTRIES } from './catalog-fun'
 import { GARDEN_ENTRIES } from './catalog-garden'
 import { HOME_ENTRIES } from './catalog-home'
+import { JUNK_ENTRIES } from './catalog-junk'
 import { OUTDOOR_ENTRIES } from './catalog-outdoor'
 import { SHIP_ENTRIES } from './catalog-ship'
 import { fishCollection } from '../fishing/collection'
@@ -34,7 +35,7 @@ export type Mount = 'floor' | 'flat' | 'wall' | 'top'
 
 export type CategoryId =
   | 'rest' | 'living' | 'bath' | 'kitchen' | 'storage' | 'light' | 'plants' | 'wall' | 'posters' | 'objects' | 'tech' | 'elite'
-  | 'adventures' | 'weapons' | 'pets' | 'leisure' | 'arcade' | 'party' | 'workshop' | 'medical' | 'rugs' | 'gardening' | 'outdoor'
+  | 'adventures' | 'weapons' | 'pets' | 'leisure' | 'arcade' | 'party' | 'workshop' | 'medical' | 'rugs' | 'gardening' | 'outdoor' | 'junk'
 
 export const CATEGORIES: { id: CategoryId; label: string; icon: IconName }[] = [
   { id: 'rest', label: tr('Chambre', 'Bedroom'), icon: 'bed' },
@@ -58,6 +59,7 @@ export const CATEGORIES: { id: CategoryId; label: string; icon: IconName }[] = [
   { id: 'arcade', label: 'Arcade', icon: 'joystick' },
   { id: 'party', label: tr('Soirée', 'Party'), icon: 'disco-ball' },
   { id: 'workshop', label: tr('Atelier', 'Workshop'), icon: 'toolbox' },
+  { id: 'junk', label: tr('Récup', 'Junk'), icon: 'pipe' },
   { id: 'medical', label: tr('Infirmerie', 'Medical bay'), icon: 'first-aid-kit' },
   { id: 'rugs', label: tr('Tapis', 'Rugs'), icon: 'square-half' },
 ]
@@ -1096,6 +1098,8 @@ export const CATALOG: CatalogEntry[] = [
   ...OUTDOOR_ENTRIES,
   // --- Le mobilier des pièces du vaisseau (douches, mess, atelier, infirmerie, bar…), cf. catalog-ship.ts
   ...SHIP_ENTRIES,
+  // --- La récup : tuyauterie de la gaine technique, matériel de la planque des Scavengers, cf. catalog-junk.ts
+  ...JUNK_ENTRIES,
   // --- Écrans et consoles, armurerie, affiches de films et pin-up, salle de bain, cf. catalog-fun.ts
   ...FUN_ENTRIES,
 ]
