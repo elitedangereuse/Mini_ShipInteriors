@@ -28,6 +28,8 @@ export declare function shipMapOptions(level: number | string): import('./ship-m
 export declare function legacyUpperMapOptions(): import('./ship-map.js').ShipMapOptions
 /** La porte du poste de sécurité du lobby (cale), toujours verrouillée. */
 export declare const SECURITY_DOOR: { x: number; z: number; dir: number; locked: true }
+/** La porte de service du lobby (cale) : elle donne sur la gaine technique de la planque des Scavengers. */
+export declare const SCAVENGERS_DOOR: { x: number; z: number; dir: number }
 
 /** Stand de tir de la cale : pièce, faces intérieures de ses murs, axe du pas de tir (on tire vers le nord). */
 export declare const SHOOTING_RANGE: { level: number; room: string; minX: number; maxX: number; minZ: number; maxZ: number; line: number }

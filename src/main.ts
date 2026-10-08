@@ -94,6 +94,7 @@ import { Traffic, type HullSides } from './traffic'
 import { nextSystem, JUMP_CHARGE, JUMP_TRAVEL, type SystemId } from '../shared/systems.js'
 import { syncTempo, tempo } from './tempo'
 import { ClubCrowd, ClubMusic, clubProximity } from './club'
+import { Kael } from './scavengers'
 import { ClassCrowd } from './classroom'
 import { QuizPanel } from './quiz/panel'
 import { BAR_ROOM, CLUB_ROOM, PLANETARIUM_ROOM, SPORT_COURTS, isAlienLook } from '../shared/ship-layouts.js'
@@ -348,6 +349,9 @@ void ClubCrowd.load(deckById(-1)).then((crowd) => {
   clubCrowd = crowd
   crowd.setAccess(clubAlien)
 })
+/** Kael, dans la planque des Scavengers (cf. src/scavengers.ts) : chargé après le reste, lui aussi. */
+let kael: Kael | null = null
+void Kael.load(deckById(-1)).then((k) => { kael = k })
 for (const it of deckById(-1).interactables) {
   // Sur la piste du Zorb, on danse.
   if (it.furniture?.model === 'dance-floor') it.onInteract = () => emote('danse')
@@ -4543,6 +4547,7 @@ function interactWith(item: Interactable) {
   if (item.seats) return sitOn(item)
   player.lookAt(item.position)
   if (item.furniture?.model === 'galaxy-map') return gameEmbed.open('edgis')
+  if (item.furniture?.model === 'scav-terminal') return gameEmbed.open('scavengers')
   if (deck.def.id === 1) {
     if (item.furniture?.model === 'podcast-console' || item.furniture?.model === 'podcast-poster') return mediaRoom.open()
     if (item.furniture?.model === 'cinema-screen') return void cinemaRoom.open(false)
@@ -5809,6 +5814,7 @@ function frame() {
     } else if (!near && barWarned && Math.hypot(player.position.x - barDoorItem.position.x, player.position.z - barDoorItem.position.z) > 4) barWarned = false
   }
   if (deckById(-1).group.visible) clubCrowd?.update(world)
+  if (deckById(-1).group.visible) kael?.update(world, deck.def.id === -1 ? player.position : null)
   if (deckById(1).group.visible) classCrowd?.update(world)
   // Chaque jukebox remplit sa pièce en stéréo ; derrière une cloison, il reste sourd et lointain.
   // Un autre pont est silencieux. Le repère des pièces suit la carte du pont, portes comprises.

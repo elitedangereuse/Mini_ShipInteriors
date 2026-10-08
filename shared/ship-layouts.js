@@ -17,6 +17,9 @@ export const SHIP_LAYOUTS = {
   // ouvert sur l'espace à la proue. Au-dessus de la salle des machines, au bout d'un couloir de
   // service qui part du palier, le Zorb, la boîte de nuit des aliens ('n', cf. CLUB_ROOM). Au nord
   // du palier, à la place de l'ancienne baie de réparation, le stand de tir ('r', cf. SHOOTING_RANGE).
+  // Au sud du lobby, par une porte de service (cf. SCAVENGERS_DOOR), une gaine technique d'une
+  // tuile de large ('w') file vers l'est jusqu'au local du ventilateur ; de là, on entre dans la
+  // planque des Scavengers ('s'), où l'on joue au jeu du même nom.
   '-1': [
     'nnnnuuu     rrrrr   ttthhhkkkkkkkkkkkk  ',
     'nnn+uuuuuuu rrrrr   ttthhhkkkkkkkkkkkk  ',
@@ -29,10 +32,11 @@ export const SHIP_LAYOUTS = {
     'vv+vv       mmmmm+  hhhhhhkkkkkkkkkkkk  ',
     'vvvvv    bbbbbbbbbb hhhhhhkkkkkkkkkkkk  ',
     'vvvvv    bbbbbbbbbb hhhhhhkkkkkkkkkkkk  ',
-    'vvvvv    bbbbbbbbbb                     ',
-    'vvvvv    bbbbbbbbbb                     ',
-    '         bbbbbbbbbb                     ',
-    '                                        ',
+    'vvvvv    bbbbbbbbbb  wwwwwwwww          ',
+    'vvvvv    bbbbbbbbbb   ssssssww          ',
+    '         bbbbbbbbbb   sssss+ww          ',
+    '                      ssssssww          ',
+    '                      ssssssww          ',
   ],
   // Pont principal. À la poupe, la salle commune, le hall du vaisseau, avec sa mezzanine (cf.
   // MEZZANINES) ; la coursive file vers le poste de pilotage et ses
@@ -194,7 +198,7 @@ function mezzanineWalls(level) {
  */
 export function shipMapOptions(level) {
   const id = String(level)
-  const doors = id === '-1' ? [SECURITY_DOOR] : id === '2' ? [PLOT_DOOR] : []
+  const doors = id === '-1' ? [SECURITY_DOOR, SCAVENGERS_DOOR] : id === '2' ? [PLOT_DOOR] : []
   return { closed: CLOSED_ROOMS[level] ?? '', doors, walls: mezzanineWalls(id) }
 }
 
@@ -208,6 +212,12 @@ export function legacyUpperMapOptions() {
 
 /** La porte du poste de sécurité du lobby (cale), côté alcôve : toujours verrouillée. */
 export const SECURITY_DOOR = { x: 22, z: 0, dir: 1, locked: true }
+
+/**
+ * La porte de service du lobby (cale), dans son mur sud : elle donne sur la gaine technique qui
+ * mène à la planque des Scavengers. Posée sur le bord nord de la première tuile de la gaine.
+ */
+export const SCAVENGERS_DOOR = { x: 22, z: 11, dir: 0 }
 
 /**
  * Terrains de la zone sportive (pont supérieur), par jeu : la pièce, la marque d'où l'on tire, le

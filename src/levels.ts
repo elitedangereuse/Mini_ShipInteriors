@@ -249,6 +249,8 @@ export const LEVELS: LevelDef[] = [
       u: tr('Couloir de service', 'Service corridor'),
       // Le nom de la boîte de nuit ne se traduit pas.
       n: 'Le Zorb',
+      w: tr('Gaine technique', 'Service duct'),
+      s: tr('Planque des Scavengers', 'Scavengers\' den'),
     },
     closed: {
       t: [
@@ -274,8 +276,8 @@ export const LEVELS: LevelDef[] = [
       ],
     },
     // Le bar est tenu plus proprement que le reste de la cale : dalles lisses, pas un hublot.
-    floors: { u: 'floor-panel', a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', h: 'floor-panel', k: 'floor-panel', t: 'floor-panel' },
-    windows: { n: 0, u: 0, a: 0.1, j: 0, r: 0, m: 0, g: 0.1, b: 0, h: 0, e: 0, v: 0, k: 0.15, t: 0 },
+    floors: { u: 'floor-panel', a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', h: 'floor-panel', k: 'floor-panel', t: 'floor-panel', s: 'floor-panel' },
+    windows: { n: 0, u: 0, a: 0.1, j: 0, r: 0, m: 0, g: 0.1, b: 0, h: 0, e: 0, v: 0, k: 0.15, t: 0, w: 0, s: 0 },
     // Le poste de sécurité du lobby : des vitres blindées côté lobby (sa porte reste verrouillée).
     glazed: ['ht'],
     // Le hangar s'ouvre sur l'espace à la proue : son mur est est un bouclier (cf. src/shield.ts).
@@ -287,8 +289,9 @@ export const LEVELS: LevelDef[] = [
     // Le cœur du réacteur, au milieu de la salle des machines.
     engine: { x: 1.5, z: 5 },
     // Le sanctuaire de la Voie n'est éclairé que par ses flammes et son portail ; le Zorb, par sa
-    // piste de danse ; son couloir, par deux néons.
-    dim: { v: 0.5, n: 0.3, u: 0.6 },
+    // piste de danse ; son couloir, par deux néons. La gaine technique, par ses lampes au sodium et
+    // ses braises ; la planque des Scavengers, par ses écrans.
+    dim: { v: 0.5, n: 0.3, u: 0.6, w: 0.45, s: 0.35 },
     props: [
       // --- Sanctuaire de la Voie, caché derrière la salle des machines : d'après L'Épreuve, La
       // Cérémonie et Les Reliques de la Voie. On entre au nord ; le portail de Raxxla est au mur
@@ -735,6 +738,124 @@ export const LEVELS: LevelDef[] = [
       { model: 'drums', x: 25.05, z: 9.15 },
       { model: 'cables', x: 21.3, z: 6, solid: false },
       { model: 'crate', x: 20.3, z: 10.1 },
+      // Devant la porte de service du mur sud (cf. SCAVENGERS_DOOR) : ce qui déborde de la gaine.
+      { model: 'cables', x: 22.1, z: 10.2, rot: 1, solid: false },
+      { model: 'stain', x: 22.4, z: 9.9, solid: false },
+
+      // --- Gaine technique, au sud du lobby (porte de service, cf. SCAVENGERS_DOOR) : une tuile de
+      // large, de la tuyauterie de chaufferie le long du mur nord, une chaudière dans le cul-de-sac
+      // de l'ouest. À l'est, le local du double ventilateur, d'où l'on entre dans la planque.
+      // Rien n'y bloque le passage, sauf au fond des culs-de-sac ---
+      {
+        model: 'duct-boiler', x: 20.98, z: 11,
+        interact: [
+          tr('Chaudière auxiliaire n° 2. Le manomètre est dans le rouge. D\'après la poussière sur le cadran, il y est depuis longtemps.', 'Auxiliary boiler no. 2. The gauge is in the red. Judging by the dust on the dial, it has been for a long time.'),
+          tr('Sur la porte du foyer, à la craie : « Ne pas éteindre. Personne ne sait la rallumer. »', 'Chalked on the firebox door: “Do not put out. Nobody knows how to relight it.”'),
+        ],
+      },
+      { model: 'duct-lamp', x: 23, z: 10.64, solid: false },
+      { model: 'duct-sign', x: 23, z: 10.64, label: 'SCAVENGERS|>', solid: false },
+      { model: 'duct-pipes', x: 25.5, z: 10.64, label: '4', solid: false },
+      {
+        model: 'duct-leak', x: 25.32, z: 10.64, solid: false,
+        interact: tr('Un raccord fuit. Quelqu\'un l\'a réparé avec du ruban adhésif, puis a réparé le ruban adhésif avec du ruban adhésif.', 'A joint is leaking. Someone fixed it with tape, then fixed the tape with tape.'),
+      },
+      { model: 'duct-grate', x: 24, z: 11, solid: false },
+      { model: 'duct-grate', x: 27, z: 11, solid: false },
+      { model: 'steam-vent', x: 27, z: 11, solid: false },
+      { model: 'stain', x: 25.6, z: 11.05, solid: false },
+      { model: 'cables', x: 22.9, z: 11.2, solid: false },
+      {
+        model: 'duct-fan', x: 28.4, z: 10.64, solid: false,
+        interact: [
+          tr('Extraction VT-03. L\'hélice de gauche tourne. Celle de droite y réfléchit.', 'Extraction VT-03. The left fan spins. The right one is thinking about it.'),
+          tr('Derrière les pales, une lueur orange, et l\'odeur de tout ce que le vaisseau a brûlé depuis sa mise en service.', 'Behind the blades, an orange glow, and the smell of everything the ship has burnt since it was commissioned.'),
+        ],
+      },
+      {
+        model: 'duct-valve', x: 27.64, z: 14.5, rot: 1, solid: false, action: tr('Tourner', 'Turn'),
+        interact: [
+          tr('Tu forces sur le volant. Il ne bouge pas. Le cadenas, lui, a l\'air neuf.', 'You strain at the wheel. It does not move. The padlock, on the other hand, looks brand new.'),
+          tr('Une étiquette pend à la chaîne : « Vanne condamnée par ARIA. Motif : je préfère. »', 'A tag hangs from the chain: “Valve locked out by ARIA. Reason: I prefer it that way.”'),
+        ],
+      },
+      { model: 'duct-lamp', x: 27.64, z: 12, rot: 1, solid: false },
+      { model: 'duct-boiler', x: 29, z: 14.95, rot: 3 },
+      { model: 'drums', x: 29.02, z: 12.3 },
+      { model: 'crate', x: 28.1, z: 15.05 },
+      { model: 'duct-grate', x: 28.5, z: 13.6, solid: false },
+      { model: 'stain', x: 28.4, z: 12.2, solid: false },
+
+      // --- Planque des Scavengers : le poste d'où l'on joue à Scavengers, le jeu de fouille
+      // d'épaves du site (cf. src/game-embed.ts). Tout ce qui compte est contre les murs nord et
+      // ouest, ceux qu'on voit de la caméra : la carte des secteurs, ARIA, le poste et l'enseigne ;
+      // le caisson de Kael et le butin. Kael lui-même (cf. src/scavengers.ts) se tient devant ARIA ---
+      {
+        model: 'scav-terminal', x: 25.85, z: 12.02, action: tr('Jouer à Scavengers', 'Play Scavengers'),
+        interact: tr('Le poste de pilotage des drones de l\'Erebus.', 'The Erebus drone control station.'),
+      },
+      { model: 'scav-sign', x: 25.85, z: 11.64, solid: false },
+      {
+        model: 'scav-aria', x: 24, z: 11.64, solid: false, action: tr('Parler à ARIA', 'Talk to ARIA'),
+        interact: [
+          tr('ARIA : « Systèmes en ligne. Recherche d\'épaves abandonnées. » Son regard cyan te suit dans la pièce.', 'ARIA: “Systems online. Scanning for derelict ships.” Her cyan gaze follows you around the room.'),
+          tr('ARIA : « On connaît la chanson. Passer le briefing ? » Tu n\'as rien demandé.', 'ARIA: “We know the drill. Skip the briefing?” You did not ask for anything.'),
+          tr('ARIA : « Deux cent cinquante ans de sommeil, et Kael se plaint d\'être fatigué. »', 'ARIA: “Two hundred and fifty years of sleep, and Kael complains about being tired.”'),
+          tr('ARIA : « Je détecte une forme de vie dans cette pièce. Correction : deux. Je ne comptais pas Kael. »', 'ARIA: “I detect one life form in this room. Correction: two. I was not counting Kael.”'),
+          tr('ARIA : « Mes journaux sont confidentiels. Surtout ceux que tu n\'as pas encore trouvés. »', 'ARIA: “My logs are confidential. Especially the ones you have not found yet.”'),
+          tr('L\'écran grésille. Une seconde, le visage d\'ARIA n\'est plus tout à fait le même. Puis il te sourit.', 'The screen crackles. For a second, ARIA\'s face is not quite the same. Then it smiles at you.'),
+        ],
+      },
+      {
+        model: 'scav-map', x: 22.5, z: 11.64, solid: false, action: tr('Étudier la carte', 'Study the map'),
+        interact: [
+          tr('La carte des secteurs : cinq zones à traverser, d\'épave en épave. Chaque saut coûte du carburant. Il n\'y en a jamais assez.', 'The sector map: five zones to cross, wreck by wreck. Every jump costs fuel. There is never enough.'),
+          tr('Tout au bout, un point violet, et un mot suivi d\'un point d\'interrogation. Quelqu\'un a entouré le point d\'interrogation.', 'At the far end, a violet dot, and a word followed by a question mark. Someone has circled the question mark.'),
+        ],
+      },
+      {
+        model: 'scav-kael', x: 24.9, z: 12.45, action: tr('Parler à Kael', 'Talk to Kael'),
+        interact: [
+          tr('Kael : « Deux cent cinquante ans de cryo, et je me réveille dans une cale qui sent le café froid. ARIA jure que c\'est normal. »', 'Kael: “Two hundred and fifty years in cryo, and I wake up in a hold that smells of cold coffee. ARIA swears that\'s normal.”'),
+          tr('Kael : « Le dernier humain, qu\'elle disait. Et vous êtes combien, là-haut ? Non, ne réponds pas. Je préfère ma version. »', 'Kael: “The last human, she said. And how many of you are up there? No, don\'t answer. I like my version better.”'),
+          tr('Kael : « Les drones font le sale boulot, moi je tape les commandes. Essaie le poste : naviguer, ouvrir, ramasser. Et amarrer avant que ça tourne mal. »', 'Kael: “The drones do the dirty work, I type the commands. Try the station: navigate, open, gather. And dock before it goes wrong.”'),
+          tr('Kael : « Si un drone ne répond plus, ne tape pas plus fort sur le clavier. J\'ai essayé. »', 'Kael: “If a drone stops responding, do not type harder. I tried.”'),
+          tr('Kael : « Chaque épave a sa boîte noire. Chaque boîte noire a sa mauvaise nouvelle. On s\'y fait. »', 'Kael: “Every wreck has its black box. Every black box has its bad news. You get used to it.”'),
+          tr('Kael regarde l\'écran d\'ARIA un moment. « Elle dit qu\'elle sait où est garé l\'Erebus. Elle dit beaucoup de choses. »', 'Kael watches ARIA\'s screen for a while. “She says she knows where the Erebus is parked. She says a lot of things.”'),
+        ],
+      },
+      {
+        model: 'scav-cryo', x: 22.12, z: 13.3, rot: 1,
+        interact: [
+          tr('Caisson cryogénique n° 7. Compteur : 250 ans. Sur la vitre, de l\'intérieur, une trace de main.', 'Cryo pod no. 7. Counter: 250 years. On the glass, from the inside, a handprint.'),
+          tr('Une étiquette : « Ne pas réveiller avant la fin de l\'humanité. » Quelqu\'un l\'a prise au pied de la lettre.', 'A label: “Do not wake before the end of humanity.” Someone took it literally.'),
+          tr('Le matelas a gardé la forme de Kael. Deux siècles et demi, ça marque.', 'The padding has kept Kael\'s shape. Two and a half centuries will do that.'),
+        ],
+      },
+      {
+        model: 'scav-loot', x: 21.64, z: 14.75, rot: 1,
+        interact: [
+          tr('Le butin : de la ferraille, des cellules de carburant, un module qui luit en violet, et une boîte noire que personne n\'a envie d\'écouter.', 'The haul: scrap, fuel cells, a module glowing violet, and a black box nobody wants to listen to.'),
+          tr('Une cellule de carburant est à moitié vide. Dessus, au feutre : « pour les urgences ». C\'est toujours une urgence.', 'One fuel cell is half empty. Written on it in marker: “for emergencies”. It is always an emergency.'),
+        ],
+      },
+      {
+        model: 'scav-drone', x: 23.35, z: 14.35, label: 'd1',
+        interact: tr('Drone 1 : chenilles neuves, capteur de mouvement, et un autocollant « ne mord pas ». Son œil vert te suit.', 'Drone 1: new tracks, motion sensor, and a “does not bite” sticker. Its green eye follows you.'),
+      },
+      {
+        model: 'scav-drone', x: 24.7, z: 14.7, label: 'd2',
+        interact: [
+          tr('Drone 2 : une chenille tordue, la tourelle coincée. Il est revenu d\'une épave où il n\'aurait pas dû entrer.', 'Drone 2: one bent track, a jammed turret. It came back from a wreck it should never have entered.'),
+          tr('Gravé sous le châssis : « D2 — a vu quelque chose en R6. N\'en parle pas. »', 'Scratched under the chassis: “D2 — saw something in R6. Does not talk about it.”'),
+        ],
+      },
+      { model: 'cables', x: 24.2, z: 12.6, solid: false },
+      { model: 'cables', x: 23.1, z: 13.2, rot: 1, solid: false },
+      { model: 'stain', x: 25.4, z: 13.9, solid: false },
+      { model: 'stain', x: 22.9, z: 12.5, solid: false },
+      { model: 'crate', x: 27, z: 12.05 },
+      { model: 'scrap-pile', x: 26.75, z: 14.9 },
 
       // --- Hangar, derrière le lobby de la zone thargoïde : le Krait Mk II sur son pad, nez vers le
       // bouclier (à l\'est). Au nord, l\'atelier de Nico, le mécano (cf. src/mechanic.ts) ; au sud,
@@ -846,6 +967,17 @@ export const LEVELS: LevelDef[] = [
       [22.9, 8.2, '#5fd4ff', 1.6],
       [21.6, 9.6, '#ffd9a0', 1.2, 'neon'],
       [24, 1.6, '#6dff9a', 1],
+      // Gaine technique : la chaudière, la lampe au sodium, les braises sous les caillebotis, le ventilateur.
+      [21.3, 11.1, '#ff6a1c', 1.6, 'fire', 4],
+      [23, 11, '#ff9a3c', 1.8, 'neon', 5],
+      [26.2, 11, '#ff7a2a', 1.3, 'fire', 4],
+      [28.5, 11.4, '#ff8a2a', 2, undefined, 5],
+      [28.3, 13.6, '#ff9a3c', 1.5, 'neon', 5],
+      // Planque des Scavengers : le cyan d'ARIA, le vert du poste, le froid du caisson, l'ambre du butin.
+      [24, 12.4, '#00e5ff', 2.2, undefined, 5],
+      [25.9, 12.45, '#00ff41', 1.2, undefined, 4],
+      [22.5, 13.3, '#bfe8ff', 1.3, undefined, 4],
+      [23.4, 14.6, '#ffb000', 1.2, 'neon', 4.5],
       // Hangar : projecteurs blancs aux quatre coins du pad, lueur bleue du bouclier, soudure.
       [28.5, 1.4, '#e6f0ff', 2.6],
       [34.3, 1.4, '#e6f0ff', 2.6],

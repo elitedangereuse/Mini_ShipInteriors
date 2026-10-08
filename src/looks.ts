@@ -752,10 +752,10 @@ export function lookRig(l: Look): Promise<LookRig> {
 
 /**
  * Personnage en combinaison d'un style hors garde-robe (les PNJ de l'équipage, cf. patrol.ts),
- * sur un Mini Character.
+ * sur un Mini Character ; `style` : sa coiffure et son expression, façon Holo-Me (Kael, cf. scavengers.ts).
  */
-export function suitRig(sex: Sex, variant: string, suit: SuitStyle): Promise<LookRig> {
-  return buildRig({ path: `characters/character-${sex}-${variant}.glb`, height: 0.67, suit })
+export function suitRig(sex: Sex, variant: string, suit: SuitStyle, style?: LookStyle): Promise<LookRig> {
+  return buildRig({ path: `characters/character-${sex}-${variant}.glb`, height: 0.67, suit, ...(style ? { mini: `${sex}-${variant}`, style } : {}) })
 }
 
 async function buildRig(s: ModelSpec): Promise<LookRig> {
