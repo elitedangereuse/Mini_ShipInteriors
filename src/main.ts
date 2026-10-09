@@ -1093,7 +1093,8 @@ function fitShadow() {
     for (const x of [rooms.minX, rooms.maxX]) for (const z of [rooms.minZ, rooms.maxZ]) for (const h of [SHADOW_BELOW, SHADOW_ABOVE]) cover(_seen.set(x, floor + h, z))
   }
   const need = Math.max(maxX - minX, maxY - minY) / 2 + SHADOW_MARGIN
-  if (need <= SHADOW_SHIP) {
+  // Rien à cadrer (vue subjective, tout le pont dessiné) : le cadre « tout le vaisseau ».
+  if (minX <= maxX && need <= SHADOW_SHIP) {
     // Il grandit dès qu'il le faut ; il ne rapetisse que de deux pas (un zoom qui hésite, un
     // regard qui balaie la pièce ne redimensionnent pas la carte à chaque image).
     const fit = Math.ceil(need / SHADOW_STEP) * SHADOW_STEP
@@ -4377,31 +4378,12 @@ const screenCenter = () => ({ clientX: innerWidth / 2, clientY: innerHeight / 2 
 let lockRefusals = 0
 /** Instant de la dernière capture : les premiers mouvements rapportés sont parfois un saut. */
 let lockedAt = 0
-/**
- * Mouvement brut de la souris (sans l'accélération du système), comme dans un jeu de tir : un
- * même geste tourne toujours du même angle, lent ou vif. Là où le navigateur ne sait pas faire,
- * la capture ordinaire.
- */
-let rawLook = false
 function lockCursor() {
   const refused = () => lockRefusals++
-  const request = (raw: boolean) =>
-    (canvas.requestPointerLock as (options?: { unadjustedMovement: boolean }) => Promise<void> | undefined).call(canvas, raw ? { unadjustedMovement: true } : undefined)
+  // Capture ordinaire, sans le mouvement brut (`unadjustedMovement`) : avec lui, la vue sursautait
+  // toute seule, et tournait bien plus vite tant qu'un bouton de la souris restait enfoncé.
   try {
-    const asked = request(true)
-    if (!asked?.then) return
-    asked.then(
-      () => (rawLook = true),
-      (e: DOMException) => {
-        if (e?.name !== 'NotSupportedError') return refused()
-        rawLook = false
-        try {
-          request(false)?.catch?.(refused)
-        } catch {
-          refused()
-        }
-      },
-    )
+    ;(canvas.requestPointerLock() as unknown as Promise<void> | undefined)?.catch?.(refused)
   } catch {
     refused()
   }
@@ -4430,9 +4412,8 @@ document.addEventListener('mousemove', (e) => {
   if (performance.now() - lockedAt < 120) return
   // Un coup énorme sorti de nulle part est un sursaut du navigateur ; un geste vif, lui, monte
   // sur plusieurs mouvements et doit passer entier (le filtrer figeait la vue en plein demi-tour).
-  // En mouvement brut, pas de sursaut : rien n'est filtré.
   const size = Math.max(Math.abs(e.movementX), Math.abs(e.movementY))
-  const jump = !rawLook && size > 300 && size > lastLook * 6
+  const jump = size > 300 && size > lastLook * 6
   lastLook = size
   if (jump) return
   fps.look(-e.movementX * mouseLook(), -e.movementY * mouseLook())

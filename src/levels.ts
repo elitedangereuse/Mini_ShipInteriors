@@ -1777,9 +1777,10 @@ export const LEVELS: LevelDef[] = [
       // Le plan du vaisseau, face à l'ascenseur.
       shipMap(0, 10, 3.655),
       ...([
-        [13, 0, tr('Infirmerie', 'Medical bay'), '#5ff2d8'], [18, 0, tr('Salle de sport', 'Gym'), '#ff7a5a'], [23, 0, tr('Labo L.J.P.C.', 'L.J.P.C. lab'), '#7dffa8'],
-        [13, 2, 'Mess', '#ffc27a'], [18, 2, 'Arcade', '#ff5fd8'], [23, 2, 'Arcade', '#5fdcff'],
-      ] as const).map(([x, rot, name, color]): Prop => ({ model: 'corridor-sign', x: x + (rot ? -0.8 : 0.8), z: rot ? 5.345 : 3.655, rot, label: `${name}|${color}`, solid: false })),
+        [13.8, 0, tr('Infirmerie', 'Medical bay'), '#5ff2d8'], [18.8, 0, tr('Salle de sport', 'Gym'), '#ff7a5a'], [23.8, 0, tr('Labo L.J.P.C.', 'L.J.P.C. lab'), '#7dffa8'],
+        // Celle du mess est du côté proue de sa porte : de l'autre, une colonne de la cloison la mangeait à moitié.
+        [13.8, 2, 'Mess', '#ffc27a'], [17.2, 2, 'Arcade', '#ff5fd8'], [22.2, 2, 'Arcade', '#5fdcff'],
+      ] as const).map(([x, rot, name, color]): Prop => ({ model: 'corridor-sign', x, z: rot ? 5.345 : 3.655, rot, label: `${name}|${color}`, solid: false })),
       ...[0, 2].flatMap((rot): Prop[] => [
         ...[11.2, 15.5, 20.5, 25.1].map((x): Prop => ({ model: 'corridor-pilaster', x, z: rot ? 5.345 : 3.655, rot: rot as Rot, solid: false })),
         // Le filet s'interrompt aux portes et aux pilastres.
