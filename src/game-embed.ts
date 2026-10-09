@@ -1,9 +1,10 @@
 import { tr } from './i18n'
 
-type Game = 'cards' | 'cqc' | 'edgis' | 'site' | 'scavengers'
+type Game = 'cards' | 'cqc' | 'edgis' | 'site' | 'scavengers' | 'idot'
 const EDGIS_URL = 'https://edgis.elitedangereuse.fr/static/galaxymap.html?x=0&y=0&z=0&radius=20'
 const SITE_HOME = 'https://elitedangereuse.fr/'
 const SCAVENGERS_URL = 'https://scavengers.elitedangereuse.fr/'
+const IDOT_URL = 'https://idot.elitedangereuse.fr/'
 /** `typed` : jeu au clavier, qui prend le curseur dès qu'il est chargé (Échap ne ferme alors plus : il reste le bouton). */
 const GAMES: Record<Game, { title: string; url: string; fullUrl: string; hint: string; kicker?: string; typed?: boolean }> = {
   cards: { title: 'Galactic Clash', url: '/galactic_clash.php', fullUrl: '/galactic_clash.php', hint: tr('Choisissez une partie solo ou un duel dans le jeu.', 'Choose a solo game or a duel in the game.') },
@@ -15,6 +16,9 @@ const GAMES: Record<Game, { title: string; url: string; fullUrl: string; hint: s
   scavengers: { title: 'Scavengers', url: SCAVENGERS_URL, fullUrl: SCAVENGERS_URL,
     hint: tr('Pilotez vos drones au clavier ou à la souris. Dans le jeu, tapez « lang fr » pour le français.', 'Fly your drones with the keyboard or the mouse. Type “lang fr” in the game for French.'),
     kicker: tr('CALE · PLANQUE DES SCAVENGERS', 'HOLD · SCAVENGERS\' DEN'), typed: true },
+  idot: { title: 'It\'s Dangerous Out There', url: IDOT_URL, fullUrl: IDOT_URL,
+    hint: tr('Rejoignez votre destination, saut après saut. Chaque action a son raccourci, sous l\'écran du jeu.', 'Reach your destination, jump after jump. Every action has its shortcut, below the game screen.'),
+    kicker: tr('CALE · POSTE D\'EXPLORATION', 'HOLD · EXPLORATION POST'), typed: true },
 }
 
 /** Fenêtre des jeux du site et de la carte galactique EDGIS. */

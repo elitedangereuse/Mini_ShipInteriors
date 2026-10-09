@@ -19,7 +19,9 @@ export const SHIP_LAYOUTS = {
   // du palier, à la place de l'ancienne baie de réparation, le stand de tir ('r', cf. SHOOTING_RANGE).
   // Au sud du lobby, par une porte de service (cf. SCAVENGERS_DOOR), une gaine technique d'une
   // tuile de large ('w') file vers l'est jusqu'au local du ventilateur ; de là, on entre dans la
-  // planque des Scavengers ('s'), où l'on joue au jeu du même nom.
+  // planque des Scavengers ('s'), où l'on joue au jeu du même nom. Passé le ventilateur, la gaine
+  // continue de deux tuiles jusqu'au poste d'exploration ('i'), sous le hangar : la pièce
+  // d'It's Dangerous Out There, l'autre jeu qu'on lance depuis la cale.
   '-1': [
     'nnnnuuu     rrrrr   ttthhhkkkkkkkkkkkk  ',
     'nnn+uuuuuuu rrrrr   ttthhhkkkkkkkkkkkk  ',
@@ -32,11 +34,11 @@ export const SHIP_LAYOUTS = {
     'vv+vv       mmmmm+  hhhhhhkkkkkkkkkkkk  ',
     'vvvvv    bbbbbbbbbb hhhhhhkkkkkkkkkkkk  ',
     'vvvvv    bbbbbbbbbb hhhhhhkkkkkkkkkkkk  ',
-    'vvvvv    bbbbbbbbbb  wwwwwwwww          ',
-    'vvvvv    bbbbbbbbbb   ssssssww          ',
-    '         bbbbbbbbbb   sssss+ww          ',
-    '                      ssssssww          ',
-    '                      ssssssww          ',
+    'vvvvv    bbbbbbbbbb  wwwwwwwwwww+iiiii  ',
+    'vvvvv    bbbbbbbbbb   ssssssww  iiiiii  ',
+    '         bbbbbbbbbb   sssss+ww  iiiiii  ',
+    '                      ssssssww  iiiiii  ',
+    '                      ssssssww  iiiiii  ',
   ],
   // Pont principal. À la poupe, la salle commune, le hall du vaisseau, avec sa mezzanine (cf.
   // MEZZANINES) ; la coursive file vers le poste de pilotage et ses

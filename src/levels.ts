@@ -249,6 +249,7 @@ export const LEVELS: LevelDef[] = [
       n: 'Le Zorb',
       w: tr('Gaine technique', 'Service duct'),
       s: tr('Planque des Scavengers', 'Scavengers\' den'),
+      i: tr('Poste d\'exploration', 'Exploration post'),
     },
     closed: {
       t: [
@@ -274,8 +275,8 @@ export const LEVELS: LevelDef[] = [
       ],
     },
     // Le bar est tenu plus proprement que le reste de la cale : dalles lisses, pas un hublot.
-    floors: { u: 'floor-panel', a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', h: 'floor-panel', k: 'floor-panel', t: 'floor-panel', s: 'floor-panel' },
-    windows: { n: 0, u: 0, a: 0.1, j: 0, r: 0, m: 0, g: 0.1, b: 0, h: 0, e: 0, v: 0, k: 0.15, t: 0, w: 0, s: 0 },
+    floors: { u: 'floor-panel', a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', h: 'floor-panel', k: 'floor-panel', t: 'floor-panel', s: 'floor-panel', i: 'floor-panel' },
+    windows: { n: 0, u: 0, a: 0.1, j: 0, r: 0, m: 0, g: 0.1, b: 0, h: 0, e: 0, v: 0, k: 0.15, t: 0, w: 0, s: 0, i: 0 },
     // Le poste de sécurité du lobby : des vitres blindées côté lobby (sa porte reste verrouillée).
     glazed: ['ht'],
     // Le hangar s'ouvre sur l'espace à la proue : son mur est est un bouclier (cf. src/shield.ts).
@@ -288,8 +289,9 @@ export const LEVELS: LevelDef[] = [
     engine: { x: 1.5, z: 5 },
     // Le sanctuaire de la Voie n'est éclairé que par ses flammes et son portail ; le Zorb, par sa
     // piste de danse ; son couloir, par deux néons. La gaine technique, par ses lampes au sodium et
-    // ses braises ; la planque des Scavengers, par ses écrans.
-    dim: { v: 0.5, n: 0.3, u: 0.6, w: 0.45, s: 0.35 },
+    // ses braises ; la planque des Scavengers, par ses écrans ; le poste d'exploration, par sa baie
+    // d'observation.
+    dim: { v: 0.5, n: 0.3, u: 0.6, w: 0.45, s: 0.35, i: 0.4 },
     // Le stand de tir, Chez Jacques et le couloir de service du Zorb gardent leur pénombre.
     unlit: 'rbu',
     // L'atelier et le hangar sont des postes de travail, bien éclairés ; la soute, la raffinerie et
@@ -797,6 +799,12 @@ export const LEVELS: LevelDef[] = [
       { model: 'crate', x: 28.1, z: 15.05 },
       { model: 'duct-grate', x: 28.5, z: 13.6, solid: false },
       { model: 'stain', x: 28.4, z: 12.2, solid: false },
+      // Passé le ventilateur, la gaine continue de deux tuiles vers l'est, jusqu'à la porte du poste
+      // d'exploration : la rouille s'arrête là, et la lumière de la pièce déborde dans le couloir.
+      { model: 'duct-sign', x: 30.12, z: 10.64, label: 'OUT THERE|>', solid: false },
+      { model: 'duct-pipes', x: 31, z: 10.64, solid: false },
+      { model: 'duct-grate', x: 30.4, z: 11, solid: false },
+      { model: 'cables', x: 31.05, z: 11.22, rot: 1, solid: false },
 
       // --- Planque des Scavengers : le poste d'où l'on joue à Scavengers, le jeu de fouille
       // d'épaves du site (cf. src/game-embed.ts). Tout ce qui compte est contre les murs nord et
@@ -862,6 +870,57 @@ export const LEVELS: LevelDef[] = [
           tr('Gravé sous le châssis : « D2 — a vu quelque chose en R6. N\'en parle pas. »', 'Scratched under the chassis: “D2 — saw something in R6. Does not talk about it.”'),
         ],
       },
+
+      // --- Poste d'exploration, au bout de la gaine : la pièce d'It's Dangerous Out There, le
+      // roguelite d'exploration en pixel art de Ben Carter Jr (cf. src/game-embed.ts et
+      // src/furniture/idot.ts). Contre le mur nord, le poste du jeu et la baie d'observation ; contre
+      // le mur ouest, la maquette de l'atterrissage et la soute ; au milieu, la table de navigation ---
+      {
+        model: 'idot-terminal', x: 33.4, z: 11.02, action: tr('Jouer à It\'s Dangerous Out There', 'Play It\'s Dangerous Out There'),
+        interact: tr('Le poste de navigation du Mandalay.', 'The Mandalay\'s navigation station.'),
+      },
+      {
+        model: 'idot-wall', x: 35.74, z: 10.64, solid: false, action: tr('Regarder dehors', 'Look outside'),
+        interact: [
+          tr('La baie d\'observation. Une étoile de classe G, six corps, et un Mandalay qui n\'a du carburant que pour un seul d\'entre eux.', 'The observation bay. A class G star, six bodies, and a Mandalay with fuel enough for just one of them.'),
+          tr('Sous le titre, gravé dans le cadre : « La destination est certaine. Le voyage ne l\'est jamais. »', 'Under the title, engraved in the frame: “The destination is certain. The journey never is.”'),
+          tr('Le scan passe d\'un corps à l\'autre. Explorer, ou continuer ? Le réticule hésite autant que toi.', 'The scan moves from body to body. Explore, or move on? The reticle hesitates as much as you do.'),
+          tr('Ce n\'est pas une baie, c\'est un mur de pixels. Tu comptes ceux de la géante gazeuse. Tu perds le fil vers trois cents.', 'It is not a bay, it is a wall of pixels. You count the gas giant\'s. You lose track around three hundred.'),
+        ],
+      },
+      {
+        model: 'idot-navtable', x: 34.7, z: 13.2, action: tr('Étudier la route', 'Study the route'),
+        interact: [
+          tr('La carte de navigation : mille années-lumière jusqu\'à la nébuleuse de la Californie. Sauter loin coûte cher. Sauter court coûte longtemps.', 'The navigation map: a thousand light-years to the California Nebula. Jumping far is expensive. Jumping short takes forever.'),
+          tr('Au-dessus de la table, un Mandalay grand comme le pouce fait le tour du système. Il n\'a pas l\'air pressé d\'en sortir.', 'Above the table, a thumb-sized Mandalay circles the system. It seems in no hurry to leave.'),
+          tr('Une étoile à neutrons, sur la route : portée multipliée par quatre, au prix de la coque et du FSD. Quelqu\'un l\'a entourée. Deux fois.', 'A neutron star on the route: four times the range, paid for in hull and FSD. Someone has circled it. Twice.'),
+          tr('Dans la marge de la carte, au feutre : « KGBFOAM ». Et dessous : « Sinon, les Fuel Rats. Une seule fois. »', 'In the map\'s margin, in marker: “KGBFOAM”. And below: “Otherwise, the Fuel Rats. Once.”'),
+        ],
+      },
+      {
+        model: 'idot-astro', x: 36.35, z: 12.6, action: tr('Saluer le commandant', 'Greet the commander'),
+        interact: [
+          tr('Le commandant, grandeur nature, un cube par pixel. Sa visière dorée te renvoie ton reflet, en seize couleurs.', 'The commander, life-size, one cube per pixel. The gold visor reflects you back, in sixteen colours.'),
+          tr('Il sort son scanner, te balaie des pieds à la tête, et le range. Tu ne sauras jamais ce que tu vaux en données d\'exploration.', 'They pull out the scanner, sweep you head to toe, and put it away. You will never know what you are worth in exploration data.'),
+          tr('Sur le socle : « Premier pas : 412. Arrivées à destination : 3. » Les chiffres ne mentent pas, ils préviennent.', 'On the base: “First footfalls: 412. Destinations reached: 3.” Numbers do not lie, they warn.'),
+        ],
+      },
+      {
+        model: 'idot-diorama', x: 31.64, z: 13.25, rot: 1, action: tr('Admirer la maquette', 'Admire the model'),
+        interact: [
+          tr('La scène que tout le monde attend : le Mandalay posé sur son train, la rampe ouverte, et le commandant devant un monde que personne n\'a foulé.', 'The scene everyone waits for: the Mandalay down on its gear, ramp open, and the commander facing a world no one has walked on.'),
+          tr('« Le commandant descend la rampe. Le silence est total. » Dans la cale, le ventilateur de la gaine n\'est pas d\'accord.', '“The commander walks down the ramp. The silence is total.” Down in the hold, the duct fan disagrees.'),
+          tr('Tu te penches. Le Mandalay est fait de petits cubes, la bande orange de Zorgon Peterson comprise. Des centaines de pixels, pas un de travers.', 'You lean in. The Mandalay is made of tiny cubes, Zorgon Peterson\'s orange stripe included. Hundreds of pixels, not one out of line.'),
+        ],
+      },
+      {
+        model: 'idot-cargo', x: 31.64, z: 14.85, rot: 1,
+        interact: [
+          tr('La soute : fer, nickel, carbone, vanadium, germanium. Et le polonium, qu\'on ne trouve jamais quand il en faut.', 'The cargo hold: iron, nickel, carbon, vanadium, germanium. And polonium, never there when you need it.'),
+          tr('Réparer, fabriquer, améliorer, survivre. Dans cet ordre, et rarement jusqu\'au bout.', 'Repair, craft, upgrade, survive. In that order, and rarely all the way.'),
+        ],
+      },
+      { model: 'idot-rug', x: 35.3, z: 14.5, solid: false },
       { model: 'cables', x: 24.2, z: 12.6, solid: false },
       { model: 'cables', x: 23.1, z: 13.2, rot: 1, solid: false },
       { model: 'stain', x: 25.4, z: 13.9, solid: false },
@@ -990,6 +1049,14 @@ export const LEVELS: LevelDef[] = [
       [25.9, 12.45, '#00ff41', 1.2, undefined, 4],
       [22.5, 13.3, '#bfe8ff', 1.3, undefined, 4],
       [23.4, 14.6, '#ffb000', 1.2, 'neon', 4.5],
+      // Poste d'exploration : la porte, le violet et le bleu de la baie d'observation, l'orange du
+      // poste, le cyan de la table de navigation, la maquette, le tapis.
+      [31.3, 11.1, '#8f86ff', 1.4, undefined, 4],
+      [35.7, 11.7, '#7a8cff', 3.2, undefined, 6.5],
+      [33.4, 11.9, '#ffb054', 1.6, undefined, 4.5],
+      [34.7, 13.2, '#74dcff', 1.8, undefined, 5],
+      [32.7, 13.3, '#c9b8ff', 2.2, undefined, 5],
+      [35.6, 14.6, '#a993ff', 1.6, undefined, 5],
       // Hangar : projecteurs blancs aux quatre coins du pad, lueur bleue du bouclier, soudure.
       [28.5, 1.4, '#e6f0ff', 2.6],
       [34.3, 1.4, '#e6f0ff', 2.6],
