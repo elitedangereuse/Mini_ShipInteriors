@@ -23,6 +23,8 @@ const SHIP: Record<string, FurnitureLight> = {
   arcade: { color: '#8fb8ff', intensity: 0.5, at: [0, 0.75, 0.3], priority: 6, soft: true },
   pinball: { color: '#ff8ad0', intensity: 0.5, at: [0, 0.7, 0], priority: 6, soft: true },
   'claw-machine': { color: '#ffd0f0', intensity: 0.6, at: [0, 0.8, 0], priority: 6, soft: true },
+  'prize-counter': { color: '#ffd9f4', intensity: 0.9, at: [0, 0.9, 0.5], priority: 6, soft: true },
+  'token-machine': { color: '#9df0ff', intensity: 0.4, at: [0, 0.8, 0.4], priority: 6, soft: true },
   jukebox: { color: '#ff9a4a', intensity: 0.7, at: [0, 0.6, 0.25], priority: 6, soft: true },
   'popcorn-machine': { color: '#ffd08a', intensity: 0.6, at: [0, 0.8, 0], priority: 6, soft: true },
   computer: SCREEN,

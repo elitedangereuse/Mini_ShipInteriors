@@ -1026,8 +1026,9 @@ export const LEVELS: LevelDef[] = [
     mezzanine: tr('Mezzanine de la salle commune', 'Common room mezzanine'),
     floors: { c: 'floor-panel', b: 'floor-detail', l: 'floor-panel', v: 'floor-detail' },
     // Le poste de surveillance n'a pas un hublot : on n'y regarde que des écrans, dans la pénombre.
-    windows: { v: 0 },
-    dim: { v: 0.4 },
+    // Le salon d'arcade non plus : une salle de jeux est une grotte.
+    windows: { v: 0, s: 0 },
+    dim: { v: 0.4, s: 0.45 },
     // La coursive n'a qu'une dalle de loin en loin ; l'infirmerie est blanche et crue, le mess
     // chaud, la salle d'arcade et le poste de pilotage sombres, pour leurs écrans.
     lighting: {
@@ -1396,28 +1397,64 @@ export const LEVELS: LevelDef[] = [
         ],
       },
 
-      // --- Grande salle d'arcade : deux rangées de bornes jouables, les jeux de plateau à l'est, un coin salon ---
+      // --- Grande salle d'arcade, façon années 90 : pénombre, moquette fluo d'un mur à l'autre, tubes
+      // de néon sur les murs. Deux rangées de bornes jouables, le comptoir à lots à l'ouest, les jeux
+      // de plateau et le coin salon à l'est ---
+      { model: 'arcade-carpet', x: 20.5, z: 7.5, label: '9.7x3.7', solid: false },
       // Au sud, face au nord : Cargaison, Viper, Astéroïdes et un deuxième Cargaison.
-      { model: 'arcade', x: 16.7, z: 9.02, rot: 2, label: 'cargo' },
-      { model: 'arcade', x: 17.95, z: 9.02, rot: 2, label: 'viper' },
-      { model: 'arcade', x: 19.2, z: 9.02, rot: 2, label: 'asteroids' },
+      { model: 'arcade', x: 17.0, z: 9.02, rot: 2, label: 'cargo' },
+      { model: 'arcade', x: 18.2, z: 9.02, rot: 2, label: 'viper' },
+      { model: 'arcade', x: 19.4, z: 9.02, rot: 2, label: 'asteroids' },
       { model: 'arcade', x: 20.6, z: 9.02, rot: 2, label: 'cargo' },
       // Au nord, face au sud, de part et d'autre des portes : Ruelle Fighter II à gauche de la porte
       // ouest (son duel est unique sur le pont, cf. server/fights.js), un deuxième exemplaire des
       // jeux solo pour que tout le monde joue quand l'équipage est nombreux, Thargoid Invaders, et
       // un flipper.
-      { model: 'arcade', x: 16.45, z: 5.98, label: 'fight' },
-      { model: 'arcade', x: 19.35, z: 5.98, label: 'viper' },
-      { model: 'arcade', x: 20.55, z: 5.98, label: 'asteroids' },
-      { model: 'arcade', x: 21.75, z: 5.98, label: 'invaders' },
+      { model: 'arcade', x: 16.95, z: 5.98, label: 'fight' },
+      { model: 'arcade', x: 19.75, z: 5.98, label: 'viper' },
+      { model: 'arcade', x: 20.9, z: 5.98, label: 'asteroids' },
+      { model: 'arcade', x: 22.05, z: 5.98, label: 'invaders' },
       { model: 'pinball', x: 24.05, z: 6.1, label: 'thargoid' },
       { model: 'claw-machine', x: 25.0, z: 6.2, rot: 3, label: 'cyan' },
-      { model: 'neon-sign', x: 15.72, z: 6.75, rot: 1, label: 'ARCADE' },
-      // Au mur ouest, sous le néon : les high scores de chaque borne.
-      { model: 'score-board', x: 15.65, z: 8.2, rot: 1, label: 'arcade', solid: false, interact: 'High scores', action: tr('Consulter les high scores', 'View high scores') },
-      // Tapis colorés : l'allée entre les deux rangées, et le coin des jeux de plateau.
-      { model: 'rug', x: 18.6, z: 7.5, label: 'arcade:5.2x1.5', solid: false },
-      { model: 'rug', x: 23.3, z: 7.95, label: 'neon:3.9x2.3', solid: false },
+      // L'enseigne, au mur nord, entre la porte ouest et les bornes ; dessous, les boules de gomme.
+      { model: 'neon-sign', x: 18.97, z: 5.72, label: 'ARCADE' },
+      {
+        model: 'gumball-machine', x: 18.78, z: 5.86, label: 'red',
+        interact: [
+          tr('Boules de gomme : un crédit la boule. La rouge a un goût de rouge.', 'Gumballs: one credit each. The red one tastes of red.'),
+          tr('Vous tournez la manette. Clac, clac… une boule bleue roule dans la trappe. Elle date de 3294.', 'You turn the crank. Clack, clack… a blue gumball rolls into the chute. It dates from 3294.'),
+        ],
+      },
+      { model: 'gumball-machine', x: 19.14, z: 5.86, label: 'blue', interact: tr('Balles rebondissantes. La dernière qu\'on a lâchée ici rebondit encore quelque part dans la coursive.', 'Bouncy balls. The last one dropped here is still bouncing somewhere down the corridor.') },
+      // Au mur ouest : le comptoir à lots, et les high scores de chaque borne.
+      {
+        model: 'prize-counter', x: 15.65, z: 6.72, rot: 1, action: tr('Regarder les lots', 'Look at the prizes'),
+        interact: [
+          tr('Comptoir à lots : la peluche de Comète, 400 tickets. Le Thargoïde, 650. Le gros ours rose : 10 000. Personne ne l\'a jamais décroché.', 'Prize counter: the Comète plush, 400 tickets. The Thargoid, 650. The big pink bear: 10,000. Nobody has ever won it.'),
+          tr('Vous sonnez. Personne ne vient. Une pancarte : « De retour dans cinq minutes ». Elle est là depuis 3301.', 'You ring the bell. Nobody comes. A sign reads “Back in five minutes”. It has been there since 3301.'),
+          tr('Sous la vitre : des yoyos, des gommes en forme de Cobra, une bague qui change de couleur. Tout ce qu\'on gagne avec douze tickets.', 'Under the glass: yo-yos, Cobra-shaped erasers, a mood ring. Everything twelve tickets can buy.'),
+        ],
+      },
+      { model: 'score-board', x: 15.65, z: 8.45, rot: 1, label: 'arcade', solid: false, interact: 'High scores', action: tr('Consulter les high scores', 'View high scores') },
+      // Au mur sud, après les bornes : le monnayeur.
+      {
+        model: 'token-machine', x: 21.5, z: 9.35, rot: 2,
+        interact: [
+          tr('Monnayeur : il avale un billet de dix crédits, réfléchit, et le recrache. Les bornes du bord sont gratuites, de toute façon.', 'Change machine: it swallows a ten-credit note, thinks about it, and spits it back out. The ship\'s cabinets are free anyway.'),
+          tr('Un jeton traîne dans la sébile, frappé d\'un Cobra. Au dos : « Sans valeur marchande ».', 'A token lies in the tray, stamped with a Cobra. On the back: “No cash value”.'),
+        ],
+      },
+      // Les tubes de néon, sur le bandeau des murs : rose sur cyan au nord et à l'est, jaune sur violet au sud.
+      { model: 'arcade-neon', x: 16.575, z: 5.65, label: '1.85', solid: false },
+      { model: 'arcade-neon', x: 20.5, z: 5.65, label: '4', solid: false },
+      { model: 'arcade-neon', x: 24.425, z: 5.65, label: '1.85', solid: false },
+      { model: 'arcade-neon', x: 25.35, z: 7.5, rot: 3, label: '3.7', solid: false },
+      { model: 'arcade-neon', x: 20.5, z: 9.35, rot: 2, label: '9.7|yellow|purple', solid: false },
+      // Fresques et mots de néon du coin salon.
+      { model: 'arcade-mural', x: 23.3, z: 9.35, rot: 2, label: 'jazz', solid: false },
+      { model: 'arcade-mural', x: 25.35, z: 8.2, rot: 3, label: 'memphis', solid: false },
+      { model: 'arcade-mural', x: 18.8, z: 9.35, rot: 2, label: 'checker', solid: false },
+      { model: 'neon-shape', x: 25.35, z: 7.1, rot: 3, label: 'star', solid: false },
       {
         model: 'holo-draughts', x: BOARD_TABLES.draughts.x, z: BOARD_TABLES.draughts.z, action: tr('Jouer aux dames', 'Play draughts'),
         interact: tr('Table holographique : les pièces attendent deux adversaires.', 'Holographic table: the pieces await two opponents.'),
@@ -1435,7 +1472,7 @@ export const LEVELS: LevelDef[] = [
         interact: tr('Canapé du salon : la meilleure place pour regarder les autres perdre.', 'Lounge sofa: the best seat for watching others lose.'),
       },
       { model: 'beanbag', x: 24.85, z: 9.0, label: 'teal' },
-      { model: 'beanbag', x: 21.8, z: 9.0, label: 'mustard' },
+      { model: 'beanbag', x: 22.2, z: 8.95, label: 'mustard' },
       { model: 'plant-tall', x: 25.1, z: 7.1 },
 
       // --- Labo du L.J.P.C., d'après l'aventure « Connais ton ennemi » : James devant son tableau
@@ -1562,9 +1599,11 @@ export const LEVELS: LevelDef[] = [
       [12, 7.5, '#ffe2b0', 3],
       [11.5, 9.9, '#ff9a4a', 1.4],
       [11.8, 11.4, '#fff4e0', 2.8],
-      [18.3, 7.6, '#ff4fd8', 2.6, 'neon'],
-      [16.8, 7.2, '#39d0ff', 2],
-      [20.6, 7.5, '#39d0ff', 2],
+      // Le salon d'arcade : pas d'éclairage général, rien que du néon. Le jaune du comptoir à lots,
+      // le rose et le cyan de l'allée des bornes, la lumière noire du coin salon.
+      [16.5, 6.8, '#ffd36b', 1.6],
+      [18.3, 7.6, '#ff3bd0', 2.4, 'neon'],
+      [20.6, 7.5, '#39d5ff', 2.2],
       [15, 4.5, '#ffffff', 2.5],
       // La Promenade : le monument, et la lueur bleutée des verrières.
       [28, 4.5, '#cfe6ff', 2.6],
@@ -1572,7 +1611,8 @@ export const LEVELS: LevelDef[] = [
       [21.3, 0.4, '#7dffa8', 1.2],
       [24.7, 0.5, '#bff6ff', 1.2],
       [28, 1, '#9fd8ff', 1.4],
-      [23.3, 7.8, '#b06bff', 2.6],
+      [23.3, 7.8, '#9a5bff', 2.6],
+      [24.8, 8.6, '#ff3bd0', 1.4],
       [28, 8, '#9fd8ff', 1.4],
       // Le poste de surveillance : rien que la lueur de ses écrans, et la veilleuse du lit de camp.
       [25.2, 11.6, '#7fd6ff', 2.2],

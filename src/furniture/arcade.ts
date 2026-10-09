@@ -1519,7 +1519,7 @@ const CLAWS: Record<string, { body: string; neon: string }> = {
 }
 
 /** Peluche de Comète (chatte grise, nez rose), assise, taille `s`. */
-function cometePlush(s: number): THREE.Group {
+export function cometePlush(s: number): THREE.Group {
   const p = new THREE.Group()
   const grey = lit(C.cat)
   const body = sphere(0.032 * s, grey, 0, 0.028 * s, 0, 8)
@@ -1531,7 +1531,7 @@ function cometePlush(s: number): THREE.Group {
 }
 
 /** Peluche de Thargoïde : un octogone vert au cœur lumineux. */
-function thargoidPlush(): THREE.Group {
+export function thargoidPlush(): THREE.Group {
   const p = new THREE.Group()
   p.add(mesh(new THREE.CylinderGeometry(0.034, 0.03, 0.022, 8), lit('#3fbf5f'), 0, 0.011, 0))
   p.add(mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.006, 8), glow('#9dffc0'), 0, 0.023, 0))
