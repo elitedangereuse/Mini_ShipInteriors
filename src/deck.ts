@@ -8,7 +8,12 @@ import { DoorHints } from './door-hints'
 import { makeFadeable } from './fade'
 import { beamMaterial, buildFurniture, isCustomModel, tickFurniture, type Emitter, type FurnitureControl } from './furniture'
 import { tr } from './i18n'
-import { LEVEL_HEIGHT, LIFT, offShip, type Flicker, type LevelDef } from './levels'
+import { LEVEL_HEIGHT, LIFT, offShip, type LevelDef } from './levels'
+import { furnitureLight } from './lighting/emitters'
+import { bakeLightField, type FieldSource, type LightField } from './lighting/field'
+import { buildFixtures, generalLighting, type Fixture } from './lighting/fixtures'
+import { buildHalos, type Halo } from './lighting/glow'
+import { LIGHT_DISTANCE, type LightSource } from './lighting/rig'
 import { DIRS, ShipMap } from './map'
 import { Hull } from './hull'
 import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type Occluder } from './merge'
@@ -259,20 +264,6 @@ export function upperWalls(merge: StaticMerge, walls: WallSegment[], posts: { x:
   return occluders
 }
 
-/** Plafonnier sous une lampe du pont : un disque qui brille de sa couleur. */
-const LAMP_GEO = new THREE.CylinderGeometry(0.15, 0.17, 0.025, 24)
-const lampMaterials = new Map<string, THREE.MeshBasicMaterial>()
-export function ceilingLamp(x: number, z: number, color: THREE.ColorRepresentation, y: number): THREE.Mesh {
-  const c = new THREE.Color(color)
-  const key = c.getHexString()
-  let m = lampMaterials.get(key)
-  if (!m) lampMaterials.set(key, (m = new THREE.MeshBasicMaterial({ color: c.lerp(new THREE.Color('#ffffff'), 0.55) })))
-  const lamp = new THREE.Mesh(LAMP_GEO, m)
-  lamp.position.set(x, y - 0.012, z)
-  lamp.updateMatrixWorld(true)
-  return lamp
-}
-
 /** Capitonnage d'une porte de cinéma : velours rouge piqué en losanges, clous dorés, liseré de laiton. */
 let padding: THREE.MeshLambertMaterial | undefined
 function paddingMaterial(): THREE.MeshLambertMaterial {
@@ -371,8 +362,16 @@ export class Deck {
   readonly blockedTiles = new Set<string>()
   /** Altitude du sol de ce pont. */
   readonly y: number
-  /** Lumières du pont, en coordonnées monde. */
-  readonly lights: { position: THREE.Vector3; color: THREE.Color; intensity: number; flicker?: Flicker; distance?: number }[] = []
+  /** Lampes du pont, en coordonnées monde (cf. lighting/rig.ts) : lampes d'accent, mobilier, éclairage général. */
+  readonly lights: LightSource[] = []
+  /**
+   * Le pont a son éclairage général au plafond (cf. buildCeiling) : son ambiance baisse d'autant.
+   * Faux hors du vaisseau (la baie infestée, la base au sol, les conduits), qui gardent la leur.
+   */
+  generalLit = false
+  /** Halos des lampes du mobilier (cf. buildProps). */
+  private readonly halos: Halo[] = []
+  private field: LightField | null = null
   /** Sources sonores (coordonnées monde). */
   readonly engineEmitters: THREE.Vector3[] = []
   /** Sons d'ambiance par type (bips, arcade, soudure, machines), en coordonnées monde. */
@@ -480,6 +479,9 @@ export class Deck {
     if (hulled) this.group.add(this.hull.group)
     if (def.ground) this.addStatic(def.ground.skirt, false)
     this.buildWalls()
+    for (const [x, z, color, intensity, flicker, distance] of def.lights) {
+      this.lights.push({ position: new THREE.Vector3(x, this.y + 1.4 + this.ground(x, z), z), color: new THREE.Color(color), intensity, flicker, distance })
+    }
     this.buildProps()
     this.buildMezzanine()
     if (def.id === 0) this.buildRoomCover('l', '#2a3648', '#5aa2f0')
@@ -497,15 +499,34 @@ export class Deck {
     this.flushStatic()
     this.buildCeiling()
 
-    for (const [x, z, color, intensity, flicker, distance] of def.lights) {
-      this.lights.push({ position: new THREE.Vector3(x, this.y + 1.4 + this.ground(x, z), z), color: new THREE.Color(color), intensity, flicker, distance })
-    }
+    const halos = buildHalos(this.halos)
+    if (halos) this.group.add(halos)
     this.pathfinder = new Pathfinder(this.map, this.blockedTiles, this.colliders)
     if (def.bubble) this.home = new HomeView(this)
     // Ses meubles viennent de l'aménagement du joueur (cf. main.ts) : ils s'ajoutent au reste du pont.
     if (def.cabin) this.cabin = new CabinView(this, def.cabin)
     // La parcelle se pose après la cabine : celle-ci reprend alors ses tuiles, ses murs et ses collisions.
     this.home?.set(0, emptyPlan())
+  }
+
+  /** Champ de lumière du pont (cf. lighting/field.ts), calculé à la première demande. */
+  lightField(): LightField {
+    if (this.field) return this.field
+    // Les cloisons vitrées laissent passer la lumière.
+    const glazed = new Set(this.glass.map((g) => (g.alongX ? this.map.edgeKey(Math.round(g.x), Math.floor(g.z), 2) : this.map.edgeKey(Math.floor(g.x), Math.round(g.z), 1))))
+    const sources: FieldSource[] = []
+    for (const l of this.lights) {
+      // Une lumière de soirée change de couleur et bat la mesure, celle d'un écran suit son film : hors du champ, qui ne bouge pas.
+      if (l.flicker && l.flicker !== 'neon' && l.flicker !== 'fire') continue
+      sources.push({ x: l.position.x, z: l.position.z, color: l.color, intensity: l.intensity * (l.flicker ? 0.6 : 1), distance: l.distance ?? LIGHT_DISTANCE })
+    }
+    return (this.field = bakeLightField(this.map, sources, glazed))
+  }
+
+  /** Les lampes ou le plan du pont ont changé (les quartiers qu'on aménage) : son champ est à refaire. */
+  relight() {
+    this.field?.texture.dispose()
+    this.field = null
   }
 
   /**
@@ -841,9 +862,27 @@ export class Deck {
         else merge.add(ceilingTile(x, z, this.ceilingY, this.ceilingMaterial), false)
       }
     }
-    for (const [x, z, color] of this.def.lights) {
-      if (this.map.room(Math.round(x), Math.round(z)) && !greenhouse(Math.round(x), Math.round(z))) merge.add(ceilingLamp(x, z, color, this.ceilingY), false)
+    // Les luminaires : un spot sous chaque lampe d'accent (un feu, le reflet d'un écran n'en ont
+    // pas), puis l'éclairage général de chaque pièce.
+    const fixtures: Fixture[] = []
+    for (const [x, z, color, , flicker] of this.def.lights) {
+      if (flicker === 'fire' || flicker === 'screen') continue
+      if (this.map.room(Math.round(x), Math.round(z)) && !greenhouse(Math.round(x), Math.round(z))) fixtures.push({ kind: 'spot', x, z, color })
     }
+    if (!offShip(this.def)) {
+      this.generalLit = true
+      // La parcelle des quartiers a ses propres plafonniers (cf. housing/home.ts).
+      const dark = (room: string) => (this.def.dim?.[room] ?? 1) < 0.6 || !!this.def.unlit?.includes(room) || room === this.def.cabin?.room
+      const general = generalLighting(this.map, this.def.theme ?? 'station', dark, [...fixtures, LIFT])
+      for (const l of general.lights) {
+        // Sous une verrière, c'est le jour qui éclaire : pas de luminaire.
+        const sunlit = greenhouse(Math.round(l.x), Math.round(l.z))
+        this.lights.push({ position: new THREE.Vector3(l.x, this.y + 1.4, l.z), color: new THREE.Color(sunlit ? '#fff6dc' : l.color), intensity: sunlit ? l.intensity * 1.2 : l.intensity, distance: l.distance, ambient: true })
+      }
+      fixtures.push(...general.fixtures.filter((f) => !greenhouse(Math.round(f.x), Math.round(f.z))))
+    }
+    const glows = buildFixtures(fixtures, this.ceilingY, merge)
+    if (glows) this.ceiling.add(glows)
     if (roof.length) this.ceiling.add(...greenhouseRoof(roof, this.ceilingY, '#d2ffdc'))
     const zone = this.def.zone
     const postTop = zone ? new THREE.Box3().setFromObject(zone.kit.post(0, 0)).max.y : POST_H
@@ -1150,6 +1189,7 @@ export class Deck {
       // Sur la mezzanine, le meuble est posé sur son plancher.
       const lift = this.ground(p.x, p.z)
       const y = (p.y ?? 0) + lift
+      this.addFurnitureLight(p.model, p.label, p.x, y, p.z, rotY)
       let o: THREE.Object3D
       let control: FurnitureControl | undefined
       let extent: THREE.Box3 | undefined
@@ -1231,6 +1271,21 @@ export class Deck {
         this.addEmitter('beep', new THREE.Vector3(center.x, this.y + 0.6, center.z))
       }
     }
+  }
+
+  /**
+   * Lumière d'un meuble qui éclaire (cf. lighting/emitters.ts) : une lampe du pont, et son halo.
+   * Près d'une lampe d'accent du pont, posée là pour lui, il ne garde que son halo.
+   */
+  private addFurnitureLight(model: string, label: string | undefined, x: number, y: number, z: number, rotY: number) {
+    const l = furnitureLight(model, label)
+    if (!l) return
+    const cos = Math.cos(rotY), sin = Math.sin(rotY)
+    const at = new THREE.Vector3(x + l.at[0] * cos + l.at[2] * sin, y + l.at[1], z - l.at[0] * sin + l.at[2] * cos)
+    const color = new THREE.Color(l.color)
+    if (l.halo) this.halos.push({ position: at, color, size: l.halo, fire: l.flicker === 'fire' })
+    if (this.def.lights.some(([lx, lz]) => Math.hypot(lx - at.x, lz - at.z) < 0.9)) return
+    this.lights.push({ position: at.clone().setY(at.y + this.y), color, intensity: l.intensity, flicker: l.flicker, distance: 2.5 + 2 * l.intensity, ambient: l.soft })
   }
 
   /** Mezzanine du pont (cf. src/mezzanine.ts) : plancher, façade, escaliers, garde-corps. */

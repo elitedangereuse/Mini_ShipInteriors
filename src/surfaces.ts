@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { patchLightField } from './lighting/field'
 import { renderQuality } from './quality'
 
 /*
@@ -373,6 +374,8 @@ function patch(shader: THREE.WebGLProgramParametersWithUniforms, kind: number | 
   shader.fragmentShader = define + FRAGMENT_HEAD + shader.fragmentShader
     .replace('#include <color_fragment>', FRAGMENT_BODY)
     .replace('#include <opaque_fragment>', FRAGMENT_SHEEN)
+  // Ce crochet remplace celui par défaut : le champ de lumière du pont se raccroche ici.
+  patchLightField(shader)
 }
 
 /**

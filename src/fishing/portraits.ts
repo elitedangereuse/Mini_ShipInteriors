@@ -1,3 +1,4 @@
+import { withoutLightField } from '../lighting/field'
 import * as THREE from 'three'
 import { FISH, type FishSpecies } from '../../shared/fishing.js'
 import { fishModel } from './models'
@@ -46,7 +47,7 @@ function renderAll(): Map<string, string> {
       camera.top = half
       camera.bottom = -half
       camera.updateProjectionMatrix()
-      renderer.render(scene, camera)
+      withoutLightField(() => renderer.render(scene, camera))
       out.set(fish.id, renderer.domElement.toDataURL('image/png'))
       scene.remove(model)
     }

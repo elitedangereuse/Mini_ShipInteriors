@@ -1,3 +1,4 @@
+import { withoutLightField } from '../lighting/field'
 import * as THREE from 'three'
 import { station, themes, type StationModel } from '../assets'
 import { buildFurniture, disposeFurniture, isCustomModel, type CustomModel } from '../furniture'
@@ -98,7 +99,7 @@ async function render(entry: CatalogEntry, variant: string | undefined): Promise
   camera.bottom = cy - half
   camera.updateProjectionMatrix()
 
-  renderer!.render(scene, camera)
+  withoutLightField(() => renderer!.render(scene, camera))
   const url = renderer!.domElement.toDataURL('image/png')
   scene.remove(holder)
   // L'animal partage géométrie et matériaux avec ceux du jeu : on ne les libère pas.

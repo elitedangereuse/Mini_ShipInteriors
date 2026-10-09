@@ -49,6 +49,7 @@ import { setupMobile } from './mobile'
 import { lineOfSight } from '../shared/sight.js'
 import { DIRS } from './map'
 import { EN, localizeAttributes, tr } from './i18n'
+import { LightRig } from './lighting/rig'
 import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, LIFT, offShip, SPAWN } from './levels'
 import { hydrateIcons, icon, type IconName } from './icons'
 import { lookId, lookPath, lookRig, parseLook, raceOf, variantsOf, type Look } from './looks'
@@ -214,9 +215,10 @@ let fpsShown = false
 const view = () => (fpsShown ? fps : iso)
 const activeCamera = (): THREE.Camera => (fpsShown ? fps.camera : iso.camera)
 
-// Ciel et soleil : leurs couleurs changent d'un pont à l'autre (cf. `ambience` dans levels.ts).
-const hemi = new THREE.HemisphereLight(DEFAULT_AMBIENCE.sky, DEFAULT_AMBIENCE.ground, DEFAULT_AMBIENCE.hemi)
-scene.add(hemi)
+// L'éclairage (cf. lighting/rig.ts) : ciel et soleil d'ambiance, dont les couleurs changent d'un
+// pont à l'autre (cf. `ambience` dans levels.ts), réserve de vraies lumières, champ de lumière du pont.
+const lighting = new LightRig(scene)
+const { sun } = lighting
 
 // Soleil fixe : sa direction ne change jamais, et le cadre de son ombre avance de texel en texel
 // (cf. fitShadow) : pas de « nage » des ombres quand la caméra bouge.
@@ -226,7 +228,6 @@ const SUN_OFFSET = new THREE.Vector3(-6, 14, 4)
 /** Demi-côté du cadre d'ombre qui couvre tout le vaisseau, sur une carte de 2048 texels. */
 const SHADOW_SHIP = 20
 const SHADOW_TEXEL = (2 * SHADOW_SHIP) / 2048
-const sun = new THREE.DirectionalLight(DEFAULT_AMBIENCE.sun, DEFAULT_AMBIENCE.sunIntensity)
 sun.castShadow = true
 sun.shadow.mapSize.set(2048, 2048)
 sun.shadow.camera.left = sun.shadow.camera.bottom = -SHADOW_SHIP
@@ -235,14 +236,6 @@ sun.shadow.camera.near = 1
 sun.shadow.camera.far = 50
 sun.shadow.bias = -0.0005
 sun.shadow.normalBias = 0.03
-scene.add(sun, sun.target)
-
-// Réserve de lumières ponctuelles de taille fixe : changer de pont ne recompile aucun shader.
-const lightPool = Array.from({ length: 8 }, () => {
-  const l = new THREE.PointLight('#ffffff', 0, 7, 1.5)
-  scene.add(l)
-  return l
-})
 
 // ------------------------------------------------------------------ monde
 
@@ -930,46 +923,27 @@ addEventListener('pointerdown', (e) => {
 /** Boucles sonores des machines (raffinerie…), une par meuble, coupées hors de leur pont. */
 const hums: { deck: Deck; gain: GainNode; volume: number }[] = []
 
-/** Vacillement d'une lumière : néon fatigué (brèves crises de grésillement) ou feu de cheminée. */
-function flicker(kind: 'neon' | 'fire', t: number, seed: number): number {
-  if (kind === 'fire') return 0.8 + 0.12 * Math.sin(t * 7.3 + seed) + 0.08 * Math.sin(t * 17.9 + seed * 2)
-  const crisis = Math.sin(t * 0.9 + seed * 5) + Math.sin(t * 2.3 + seed) * 0.6
-  return crisis > 1.3 && Math.sin(t * 90) > 0.2 ? 0.25 : 1
-}
-
-/** Lumière du pont confiée à chaque lumière de la réserve (cf. applyLights). */
-const pooled: (Deck['lights'][number] | undefined)[] = []
-/** Position (au sol) d'où la réserve a été répartie la dernière fois. */
-const lightsFrom = new THREE.Vector3(Infinity, 0, 0)
-
-/**
- * Lumières du pont affiché dans la réserve (celles de la cabine suivent ses meubles) : les plus
- * proches du joueur, un grand pont en ayant plus que la réserve.
- */
-/** Les lampes du pont baissent pendant la séance du planétarium (1 : pleine lumière). */
-let lightDim = 1
-function applyLights() {
-  const focus = salvage?.watchTarget ?? cctv?.target3 ?? player.position
-  lightsFrom.copy(focus)
-  // Dans la baie infestée, les projecteurs des zones éclairées passent devant les lampes de
-  // secours plus proches : une zone éclairée se voit de loin (cf. RULES.litVision).
-  const weight = viewDeck.def.zone ? (d: Deck['lights'][number]) => d.position.distanceToSquared(focus) / d.intensity : (d: Deck['lights'][number]) => d.position.distanceToSquared(focus)
-  const near = viewDeck.lights.length <= lightPool.length
-    ? viewDeck.lights
-    : [...viewDeck.lights].sort((a, b) => weight(a) - weight(b)).slice(0, lightPool.length)
-  for (const [i, l] of lightPool.entries()) {
-    const def = (pooled[i] = near[i])
-    l.intensity = def ? def.intensity * lightDim : 0
-    l.distance = def?.distance ?? 7
-    if (def) {
-      l.position.copy(def.position)
-      l.color.copy(def.color)
-    }
-  }
-}
+// Les lampes des quartiers suivent leurs meubles et leurs pièces : le champ de lumière du pont se refait.
 cabin.onLights = homeDeck.home!.onLights = () => {
-  if (viewDeck === homeDeck) applyLights()
+  homeDeck.relight()
+  if (viewDeck !== homeDeck) return
+  lighting.setField(homeDeck.lightField())
+  lighting.refresh()
 }
+// Stand de tir : pénombre au pas de tir, toute la lumière sur les cibles, et elle réagit à la partie.
+lighting.drive('range', (source, light) => range.light(source, light))
+// Reflet de l'écran de cinéma : il suit les scènes du film.
+lighting.drive('screen', (source, light) => {
+  const glow = filmGlow(film.time)
+  light.intensity = source.intensity * glow.k
+  light.color.set(glow.color)
+})
+// Lumière de soirée : à l'horloge des meubles, pour battre avec la piste de danse.
+lighting.drive('pulse', (source, light) => (light.intensity = source.intensity * (0.4 + 0.6 * beatPulse(holoTime.value))))
+lighting.drive('disco', (source, light, slot) => {
+  light.intensity = source.intensity * (0.4 + 0.6 * beatPulse(holoTime.value))
+  light.color.setHSL((holoTime.value * 0.07 + slot * 0.13) % 1, 0.9, 0.55)
+})
 /** Phrase d'une interaction (une au hasard dans une liste). */
 function showText(text: Interactable['text']) {
   const t = typeof text === 'function' ? text() : text
@@ -992,11 +966,6 @@ cabin.onMusic = (position, text, model) => {
 
 /** Lumière d'ambiance du pont, baissée dans les pièces tamisées (cf. `dim` dans levels.ts). */
 let dimming = 1
-function applyAmbience() {
-  const ambience = viewDeck.def.ambience ?? DEFAULT_AMBIENCE
-  hemi.intensity = ambience.hemi * dimming
-  sun.intensity = ambience.sunIntensity * dimming
-}
 
 /** Zoom d'avant les conduits de ventilation (cf. setDeck). */
 let ventZoom = iso.zoomLevel
@@ -1028,12 +997,9 @@ function setView(next: Deck) {
   viewDeck = next
   for (const d of decks) d.group.visible = d === viewDeck
   if (salvage?.deck) salvage.deck.group.visible = salvage.deck === viewDeck
-  applyLights()
-  const ambience = viewDeck.def.ambience ?? DEFAULT_AMBIENCE
-  hemi.color.set(ambience.sky)
-  hemi.groundColor.set(ambience.ground)
-  sun.color.set(ambience.sun)
-  applyAmbience()
+  // Dans la baie infestée, les projecteurs des zones éclairées passent devant les lampes de
+  // secours plus proches : une zone éclairée se voit de loin (cf. RULES.litVision).
+  lighting.show(viewDeck.lights, viewDeck.lightField(), viewDeck.def.ambience ?? DEFAULT_AMBIENCE, viewDeck.generalLit, !!viewDeck.def.zone)
   // Le soleil cadre ses ombres sur le vaisseau, ou sur le plateau de la base au sol.
   const center = viewDeck.def.ground?.center ?? SHIP_CENTER
   shadowHome.set(center.x, 0, center.z)
@@ -4038,10 +4004,6 @@ function updateLightMode() {
   renderer.setPixelRatio(light ? Math.min(MAX_DPR, 0.75) : dpr)
   renderer.shadowMap.enabled = !light
   renderer.shadowMap.needsUpdate = true
-  for (const [i, l] of lightPool.entries()) {
-    const def = pooled[i]
-    if (def) { l.intensity = def.intensity; l.color.set(def.color) }
-  }
   const button = $('light-mode')
   button.setAttribute('aria-pressed', String(light))
   button.title = tr(light ? 'Mode léger actif · revenir au rendu normal' : 'Activer le mode léger', light ? 'Light mode active · restore normal rendering' : 'Enable light mode')
@@ -5558,10 +5520,7 @@ function frame() {
     if (!inRoom || riding || photo.active || editing() || (!seating.current && (input.lengthSq() > 0 || (player.moving && planetarium.age > 0.5)))) planetarium.stop()
   }
   planetarium.update(dt)
-  if (lightDim !== 1 - planetarium.level * 0.7) {
-    lightDim = 1 - planetarium.level * 0.7
-    applyLights()
-  }
+  lighting.dimLamps(1 - planetarium.level * 0.7)
   if (input.lengthSq() > 0) {
     marker.visible = false
     stopWork()
@@ -5770,24 +5729,7 @@ function frame() {
   ambience(dt)
   // Le joueur (ou le coéquipier suivi) a fait quelques pas : la réserve se répartit sur les lumières les plus proches.
   const lit = zone.watchTarget ?? cctv?.target3 ?? player.position
-  if (viewDeck.lights.length > lightPool.length && Math.hypot(lit.x - lightsFrom.x, lit.z - lightsFrom.z) > 2) applyLights()
-  for (const [i, l] of lightPool.entries()) {
-    const def = pooled[i]
-    if (!def?.flicker || renderQuality.light) continue
-    if (def.flicker === 'neon' || def.flicker === 'fire') l.intensity = def.intensity * flicker(def.flicker, timer.getElapsed(), i)
-    // Stand de tir : pénombre au pas de tir, toute la lumière sur les cibles, et elle réagit à la partie.
-    else if (def.flicker === 'range') range.light(def, l)
-    else if (def.flicker === 'screen') {
-      // Reflet de l'écran de cinéma : il suit les scènes du film.
-      const glow = filmGlow(film.time)
-      l.intensity = def.intensity * glow.k
-      l.color.set(glow.color)
-    } else {
-      // Lumière de soirée : à l'horloge des meubles, pour battre avec la piste de danse.
-      l.intensity = def.intensity * (0.4 + 0.6 * beatPulse(holoTime.value))
-      if (def.flicker === 'disco') l.color.setHSL((holoTime.value * 0.07 + i * 0.13) % 1, 0.9, 0.55)
-    }
-  }
+  lighting.update(dt, timer.getElapsed(), lit)
   marker.scale.setScalar(1 + Math.sin(timer.getElapsed() * 6) * 0.12)
   // Pièce tamisée (cinéma, salon d'écoute) : l'ambiance baisse en fondu quand on y entre, remonte quand on en sort.
   // Pendant la séance du planétarium, la nuit tombe tout à fait.
@@ -5795,7 +5737,7 @@ function frame() {
   const dimTo = planetarium.active ? 0.05 : range.active ? 0.5 : deck.def.dim?.[deck.map.room(Math.round(player.position.x), Math.round(player.position.z)) ?? ''] ?? 1
   if (dimming !== dimTo) {
     dimming = Math.abs(dimTo - dimming) < 0.005 ? dimTo : dimming + (dimTo - dimming) * Math.min(1, dt * 2.5)
-    applyAmbience()
+    lighting.dim(dimming)
   }
 
   // Pièce courante.

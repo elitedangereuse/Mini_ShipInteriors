@@ -1,3 +1,5 @@
+import { entryLight } from '../lighting/emitters'
+import { buildHalos, disposeHalos, type Halo } from '../lighting/glow'
 import * as THREE from 'three'
 import { renderQuality } from '../quality'
 import { station, type StationModel } from '../assets'
@@ -135,6 +137,7 @@ export class CabinView {
   /** Collisions et lumières des objets (cf. rebuild, relink). */
   private itemColliders: Box2[] = []
   private itemLights: Deck['lights'] = []
+  private halos: THREE.Mesh | null = null
   private decorationFrame = -1
   /** Boîtes locales par modèle, variante et graine (vérifications du mode aménagement). */
   private boxes = new Map<string, THREE.Box3>()
@@ -512,6 +515,7 @@ export class CabinView {
     this.interactables = []
     this.holoMe = null
     const lights: { priority: number; light: Deck['lights'][number] }[] = []
+    const halos: Halo[] = []
     for (const e of this.emitters) {
       const list = deck.emitters.get(e.kind)
       const i = list?.indexOf(e.position) ?? -1
@@ -553,13 +557,13 @@ export class CabinView {
         this.interactables.push(it)
         deck.interactables.push(it)
       }
-      const l = typeof b.entry.light === 'function' ? b.entry.light(item.v) : b.entry.light
+      const l = entryLight(b.entry, item.v)
       if (l) {
         const at = rotateLocal(item.r, l.at[0], l.at[2])
-        lights.push({
-          priority: l.priority,
-          light: { position: new THREE.Vector3(item.x + at.x, deck.y + (item.y ?? 0) + l.at[1], item.z + at.z), color: new THREE.Color(l.color), intensity: l.intensity, flicker: l.flicker },
-        })
+        const position = new THREE.Vector3(item.x + at.x, deck.y + (item.y ?? 0) + l.at[1], item.z + at.z)
+        const color = new THREE.Color(l.color)
+        lights.push({ priority: l.priority, light: { position, color, intensity: l.intensity, flicker: l.flicker, ambient: l.soft } })
+        if (l.halo) halos.push({ position: position.clone().setY(position.y - deck.y), color, size: l.halo, fire: l.flicker === 'fire' })
       }
       if (b.emitter) {
         const e = { kind: b.emitter, position: new THREE.Vector3(center.x, deck.y + 0.6, center.z) }
@@ -573,6 +577,10 @@ export class CabinView {
     this.fades.data.fill(1)
     this.fades.texture.needsUpdate = true
     this.meshes = this.merge.flush(this.group, this.fades.texture)
+    // Les halos des lampes, dans le repère du pont.
+    disposeHalos(this.halos)
+    this.halos = buildHalos(halos)
+    if (this.halos) deck.group.add(this.halos)
 
     lights.sort((a, b) => a.priority - b.priority)
     this.itemColliders = colliders

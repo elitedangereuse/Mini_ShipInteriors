@@ -1,3 +1,4 @@
+import type { Ambience, Flicker } from './lighting/rig'
 import type * as THREE from 'three'
 import type { FloorFinish, StationModel, Theme } from './assets'
 import type { ShipMapOptions } from '../shared/ship-map.js'
@@ -44,25 +45,10 @@ export interface Prop {
   reach?: { x: number; z: number }
 }
 
-/** Lumière : x, z, couleur, intensité, et au besoin sa façon de vaciller (néon fatigué, feu de cheminée). */
-/**
- * Vacillement d'une lumière : néon fatigué, feu de cheminée ; ou lumière de soirée, qui bat au
- * tempo de la piste de danse (pulse), en changeant de couleur (disco) ; ou reflet de l'écran de
- * cinéma, qui suit les scènes du film (screen) ; ou lampe du stand de tir, qui suit la partie (range).
- */
-export type Flicker = 'neon' | 'fire' | 'disco' | 'pulse' | 'screen' | 'range'
-
 /** Lumière : x, z, couleur, intensité, vacillement, et portée (7 par défaut ; les projecteurs de la baie portent plus loin). */
 export type LightDef = [number, number, string, number, Flicker?, number?]
 
-/** Éclairage d'ambiance d'un pont : ciel et sol (lumière hémisphérique), soleil. */
-export interface Ambience {
-  sky: string
-  ground: string
-  hemi: number
-  sun: string
-  sunIntensity: number
-}
+export type { Ambience, Flicker }
 
 export const DEFAULT_AMBIENCE: Ambience = { sky: '#c4ccff', ground: '#2b2446', hemi: 1.4, sun: '#fff1dd', sunIntensity: 2.2 }
 
@@ -116,6 +102,11 @@ export interface LevelDef {
    * cette fraction, en fondu (cf. main.ts).
    */
   dim?: Record<string, number>
+  /**
+   * Pièces sans éclairage général au plafond (cf. lighting/fixtures.ts), en plus des pièces
+   * tamisées : celles qui ne vivent que de leurs propres lampes.
+   */
+  unlit?: string
   /** Salle des machines : centre du cœur du réacteur (ses tuyères, elles, sont sous tous les ponts). */
   engine?: { x: number; z: number }
   /**
@@ -293,6 +284,8 @@ export const LEVELS: LevelDef[] = [
     // piste de danse ; son couloir, par deux néons. La gaine technique, par ses lampes au sodium et
     // ses braises ; la planque des Scavengers, par ses écrans.
     dim: { v: 0.5, n: 0.3, u: 0.6, w: 0.45, s: 0.35 },
+    // Le stand de tir, Chez Jacques et le couloir de service du Zorb gardent leur pénombre.
+    unlit: 'rbu',
     props: [
       // --- Sanctuaire de la Voie, caché derrière la salle des machines : d'après L'Épreuve, La
       // Cérémonie et Les Reliques de la Voie. On entre au nord ; le portail de Raxxla est au mur

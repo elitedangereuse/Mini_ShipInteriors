@@ -1,7 +1,8 @@
 import * as THREE from 'three'
-import { ceilingLamp, ceilingSlab, domeRoof, type Box2, type Deck } from '../deck'
+import { ceilingSlab, domeRoof, type Box2, type Deck } from '../deck'
+import { buildFixtures, type Fixture } from '../lighting/fixtures'
 import { DIRS } from '../map'
-import type { FadeFocus } from '../merge'
+import { StaticMerge, type FadeFocus } from '../merge'
 import { PartitionShell } from '../cabin/partitions'
 import { FinishTexture, type Slot } from '../cabin/finishes'
 import { ForceField, PlotShell } from './plot'
@@ -182,6 +183,7 @@ export class HomeView {
       this.roof.add(m)
       this.roofGeos.push(m.geometry)
     }
+    const fixtures: Fixture[] = []
     for (const room of rooms) {
       let lit = room.filter((t) => t.x % LAMP_STEP === 1 && t.z % LAMP_STEP === 1)
       if (!lit.length) {
@@ -190,7 +192,14 @@ export class HomeView {
         const d = (t: { x: number; z: number }) => (t.x - cx) ** 2 + (t.z - cz) ** 2
         lit = [room.reduce((a, b) => (d(b) < d(a) ? b : a))]
       }
-      for (const t of lit) this.roof.add(ceilingLamp(t.x, t.z, LAMP_COLOR, deck.ceilingY))
+      fixtures.push(...lit.map((t): Fixture => ({ kind: 'dome', x: t.x, z: t.z, color: LAMP_COLOR })))
+    }
+    const merge = new StaticMerge()
+    const glows = buildFixtures(fixtures, deck.ceilingY, merge)
+    for (const m of [...merge.flush(this.roof), ...(glows ? [glows] : [])]) {
+      m.castShadow = false
+      this.roof.add(m)
+      this.roofGeos.push(m.geometry)
     }
     deck.ceiling.add(this.roof)
   }
