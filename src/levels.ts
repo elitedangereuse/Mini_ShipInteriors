@@ -1905,8 +1905,9 @@ export const LEVELS: LevelDef[] = [
     // Du foyer, on entre au cinéma par une porte double, capitonnée de rouge ; au fond du hall,
     // une autre porte double ouvre sur le Comptoir des Cartes Dangereuses.
     doubleDoors: [{ x: 22, z: 4, dir: 1, padded: true }, { x: 30, z: 9, dir: 1 }],
-    // Derrière le lavabo ouest des toilettes : un pilier lui passait au travers.
-    plainWalls: [{ x: 12.5, z: 3 }],
+    // Derrière le lavabo ouest des toilettes : un pilier lui passait au travers ; au fond du hall,
+    // sous le néon « CARTES » : un pilier le cachait à moitié.
+    plainWalls: [{ x: 12.5, z: 3 }, { x: 28, z: 8.5 }, { x: 29, z: 8.5 }],
     // La serre, tout en verre : les plantes voient les étoiles. Sol de tomettes.
     greenhouse: ['g'],
     floorFinish: { g: 'terracotta' },

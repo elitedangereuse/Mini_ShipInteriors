@@ -265,7 +265,10 @@ export class CardsPanel {
       slate.append(list)
       const next = prices[bought]
       const short = next !== undefined && this.wallet.ready && this.wallet.balance < next
-      const buy = button('ludo-buy', next === undefined ? tr('Stock de la semaine épuisé', 'Sold out for the week') : tr(`Acheter un booster pour ${formatCredits(next)}`, `Buy a booster for ${formatCredits(next)}`), () => void this.buy())
+      // Le libellé à gauche, le prix à droite, comme sur l'ardoise.
+      const buy = button('ludo-buy', '', () => void this.buy())
+      if (next === undefined) buy.append(el('span', '', tr('Stock de la semaine épuisé', 'Sold out for the week')))
+      else buy.append(el('span', '', tr('Acheter un booster', 'Buy a booster')), el('b', '', formatCredits(next)))
       buy.disabled = this.busy || next === undefined || !this.wallet.ready || short
       slate.append(buy)
       const when = new Date(reset * 1000).toLocaleString(EN ? 'en-GB' : 'fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' })

@@ -381,8 +381,51 @@ const spot = () => (spotMap ??= keepShared(drawnTexture(64, 64, (g) => {
 })))
 
 /**
- * Le dessin de l'enseigne, sur fond transparent : trois cartes en éventail, tracées d'un tube de
- * néon, puis « Cartes Dangereuses » en lettres d'ambre, soulignées d'un trait orange.
+ * Les lettres de l'enseigne, dessinées à la main comme on cintre un néon : un trait par tube, des
+ * arcs et des droites. Repère d'une lettre : x vers la droite, y vers le haut, hauteur d'x = 1.
+ * Un tube est une suite de commandes : M x y (départ), L x y (droite), A cx cy r a0 a1 sens (arc ;
+ * angles en degrés, sens 1 = antihoraire).
+ */
+type Tube = (['M' | 'L', number, number] | ['A', number, number, number, number, number, 0 | 1])[]
+const NEON_LETTERS: Record<string, { w: number; tubes: Tube[] }> = {
+  C: { w: 1.34, tubes: [[['A', 0.72, 0.72, 0.72, 48, 312, 1]]] },
+  D: { w: 1.3, tubes: [[['M', 0, 0], ['L', 0, 1.44], ['L', 0.5, 1.44], ['A', 0.5, 0.72, 0.72, 90, -90, 0], ['L', 0, 0]]] },
+  a: { w: 1.0, tubes: [[['A', 0.5, 0.5, 0.5, 0, 360, 1]], [['M', 1, 1], ['L', 1, 0]]] },
+  e: { w: 1.0, tubes: [[['M', 0, 0.5], ['L', 1, 0.5], ['A', 0.5, 0.5, 0.5, 0, 318, 1]]] },
+  g: { w: 1.0, tubes: [[['A', 0.5, 0.5, 0.5, 0, 360, 1]], [['M', 1, 1], ['L', 1, -0.12], ['A', 0.55, -0.12, 0.45, 0, -150, 0]]] },
+  n: { w: 0.9, tubes: [[['M', 0, 0], ['L', 0, 1]], [['M', 0, 0.55], ['A', 0.45, 0.55, 0.45, 180, 0, 0], ['L', 0.9, 0]]] },
+  r: { w: 0.62, tubes: [[['M', 0, 0], ['L', 0, 1]], [['M', 0, 0.55], ['A', 0.45, 0.55, 0.45, 180, 52, 0]]] },
+  s: { w: 0.56, tubes: [[['A', 0.28, 0.745, 0.255, 30, 270, 1], ['A', 0.28, 0.255, 0.255, 90, -150, 0]]] },
+  t: { w: 0.66, tubes: [[['M', 0.24, 1.42], ['L', 0.24, 0.3], ['A', 0.54, 0.3, 0.3, 180, 300, 1]], [['M', 0, 1], ['L', 0.62, 1]]] },
+  u: { w: 0.9, tubes: [[['M', 0, 1], ['L', 0, 0.45], ['A', 0.45, 0.45, 0.45, 180, 360, 1], ['L', 0.9, 1]], [['M', 0.9, 1], ['L', 0.9, 0]]] },
+}
+/** Écart entre deux lettres, et entre les deux mots, en hauteurs d'x. */
+const NEON_GAP = 0.3, NEON_SPACE = 0.9
+
+/** Largeur d'un mot de néon, en hauteurs d'x. */
+const neonWidth = (word: string) => [...word].reduce((w, ch) => w + NEON_LETTERS[ch].w + NEON_GAP, -NEON_GAP)
+
+/** Trace les tubes d'un mot (`x0` : son bord gauche, `base` : sa ligne de pied, `s` : sa hauteur d'x, en pixels). */
+function traceNeon(c: CanvasRenderingContext2D, word: string, x0: number, base: number, s: number) {
+  let x = x0
+  for (const ch of word) {
+    const letter = NEON_LETTERS[ch]
+    for (const tube of letter.tubes) {
+      c.beginPath()
+      for (const op of tube) {
+        if (op[0] === 'A') c.arc(x + op[1] * s, base - op[2] * s, op[3] * s, (-op[4] * Math.PI) / 180, (-op[5] * Math.PI) / 180, !!op[6])
+        else if (op[0] === 'M') c.moveTo(x + op[1] * s, base - op[2] * s)
+        else c.lineTo(x + op[1] * s, base - op[2] * s)
+      }
+      c.stroke()
+    }
+    x += (letter.w + NEON_GAP) * s
+  }
+}
+
+/**
+ * Le dessin de l'enseigne, sur fond transparent : trois cartes en éventail, puis « Cartes » en blanc
+ * chaud et « Dangereuses » en orange, des lettres rondes et penchées, chacune cintrée d'un seul tube.
  */
 function drawShopSign(c: CanvasRenderingContext2D) {
   const { w, h } = SIGN
@@ -391,62 +434,57 @@ function drawShopSign(c: CanvasRenderingContext2D) {
   const tube = (trace: () => void, color: string, core: string, width: number) => {
     c.shadowColor = color
     c.strokeStyle = color
-    for (const [blur, extra] of [[38, 5], [14, 2]]) {
+    for (const [blur, extra] of [[36, 5], [13, 2]]) {
       c.shadowBlur = blur
       c.lineWidth = width + extra
       trace()
     }
     c.shadowBlur = 0
     c.strokeStyle = core
-    c.lineWidth = width * 0.55
+    c.lineWidth = width * 0.5
     trace()
   }
-  const text = 'Cartes Dangereuses'
-  c.font = 'italic 700 132px Georgia, "Times New Roman", serif'
-  c.textBaseline = 'alphabetic'
-  const tw = c.measureText(text).width, fan = 190, gap = 46
-  const x0 = (w - (fan + gap + tw)) / 2, base = h * 0.68
-  // L'éventail : trois cartes, la plus rare devant.
-  const fx = x0 + fan / 2, fy = h * 0.6
-  ;([[-0.42, '#63d8ff', '#e6fbff'], [0.42, '#ff6fd0', '#ffe6f7'], [0, '#ffc94a', '#fff6d6']] as const).forEach(([a, color, core]) => {
+  const s = 68, slant = 0.14, fan = 150, gap = 62
+  const first = neonWidth('Cartes') * s, second = neonWidth('Dangereuses') * s
+  const x0 = (w - (fan + gap + first + NEON_SPACE * s + second)) / 2, base = h * 0.7
+  // L'éventail : deux cartes derrière, la plus rare devant, qui les cache là où elle passe.
+  const fx = x0 + fan / 2
+  const card = (angle: number, draw: () => void) => {
     c.save()
-    c.translate(fx, fy + 52)
-    c.rotate(a)
-    tube(() => {
-      c.beginPath()
-      c.roundRect(-38, -150, 76, 108, 10)
-      c.stroke()
-    }, color, core, 7)
+    c.translate(fx, base + 34)
+    c.rotate(angle)
+    draw()
     c.restore()
+  }
+  const outline = () => {
+    c.beginPath()
+    c.roundRect(-33, -138, 66, 96, 9)
+  }
+  for (const [angle, color, core] of [[-0.42, '#63d8ff', '#e6fbff'], [0.42, '#ff6fd0', '#ffe6f7']] as const) card(angle, () => tube(() => { outline(); c.stroke() }, color, core, 7))
+  card(0, () => {
+    c.globalCompositeOperation = 'destination-out'
+    c.shadowBlur = 0
+    c.lineWidth = 22
+    outline()
+    c.fill()
+    c.stroke()
+    c.globalCompositeOperation = 'source-over'
+    tube(() => { outline(); c.stroke() }, '#ffc94a', '#fff6d6', 7)
   })
-  // Le losange de la carte du milieu.
   tube(() => {
     c.beginPath()
-    c.moveTo(fx, fy - 62)
-    c.lineTo(fx + 15, fy - 40)
-    c.lineTo(fx, fy - 18)
-    c.lineTo(fx - 15, fy - 40)
+    c.moveTo(fx, base - 78)
+    c.lineTo(fx + 13, base - 58)
+    c.lineTo(fx, base - 38)
+    c.lineTo(fx - 13, base - 58)
     c.closePath()
     c.stroke()
   }, '#ffc94a', '#fff6d6', 5)
-  // Les lettres : pleines, d'un ambre très clair, dans leur halo.
+  // Les deux mots, penchés.
+  c.transform(1, 0, -slant, 1, slant * base, 0)
   const tx = x0 + fan + gap
-  c.shadowColor = '#ff9a2e'
-  c.fillStyle = '#ffb657'
-  for (const blur of [44, 18]) {
-    c.shadowBlur = blur
-    c.fillText(text, tx, base)
-  }
-  c.shadowBlur = 5
-  c.fillStyle = '#fff3dc'
-  c.fillText(text, tx, base)
-  // Le trait qui souligne, d'un seul geste.
-  tube(() => {
-    c.beginPath()
-    c.moveTo(tx + 8, base + 34)
-    c.bezierCurveTo(tx + tw * 0.3, base + 20, tx + tw * 0.7, base + 48, tx + tw - 4, base + 30)
-    c.stroke()
-  }, '#ff7a1c', '#ffe0c2', 6)
+  tube(() => traceNeon(c, 'Cartes', tx, base, s), '#ffb95a', '#fff6e4', 12)
+  tube(() => traceNeon(c, 'Dangereuses', tx + first + NEON_SPACE * s, base, s), '#ff6f1f', '#ffe3c8', 12)
 }
 
 /**
