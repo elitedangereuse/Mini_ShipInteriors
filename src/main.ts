@@ -5684,6 +5684,7 @@ function frame() {
       fps.yaw = fishing.viewYaw
       fps.pitch = fishing.viewPitch
     }
+    fps.motion = !range.active && !court.active
     fps.update(dt, player.avatar.head(fpsHead), deck.y + deck.ceilingY)
     fps.toCamera(toCam)
   } else iso.toCamera(toCam)

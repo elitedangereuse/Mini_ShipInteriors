@@ -2,6 +2,18 @@ import * as THREE from 'three'
 
 /** Regard vers le haut ou vers le bas, au plus (radians) : presque à la verticale. */
 const MAX_PITCH = THREE.MathUtils.degToRad(88)
+/** Champ vertical au repos, et ce que la course lui ajoute (degrés). */
+const FOV = 72
+const SPRINT_FOV = 5
+/** Vitesses (au sol) entre lesquelles le champ s'ouvre : au-dessus de la marche, sous la course. */
+const SPRINT_FROM = 2.1
+const SPRINT_FULL = 3.2
+/** Balancement de la marche : distance d'un pas, puis amplitudes (verticale ; la latérale en est la moitié). */
+const BOB_STRIDE = 0.6
+const BOB_WALK = 0.006
+const BOB_SPRINT = 0.011
+/** Déplacement en une image au-delà duquel c'est une téléportation, pas une marche. */
+const TELEPORT = 0.6
 /**
  * Hauteur des yeux sous Avatar.head (0,28 au-dessus du crâne) : un peu au-dessus du crâne. Le
  * mobilier du kit est taillé pour des têtes de chibi (table 0,40, chaise 0,55) : des yeux à
@@ -44,9 +56,21 @@ export class FirstPersonCamera {
   /** 0 : dans les yeux, 1 : derrière le personnage. */
   private blend = 0
   private readonly position = new THREE.Vector3()
+  /**
+   * Sensations de marche (balancement léger, champ qui s'ouvre en courant). À couper quand autre
+   * chose règle le champ de la caméra (le stand de tir, cf. Range.jolt).
+   */
+  motion = true
+  /** Pas de balancement pour qui a demandé moins d'animations. */
+  private readonly still = matchMedia('(prefers-reduced-motion: reduce)').matches
+  private readonly last = new THREE.Vector3(NaN, 0, 0)
+  private speed = 0
+  private stride = 0
+  private bob = 0
+  private kick = 0
 
   constructor(aspect: number) {
-    this.camera = new THREE.PerspectiveCamera(72, aspect, 0.03, 200)
+    this.camera = new THREE.PerspectiveCamera(FOV, aspect, 0.03, 200)
   }
 
   resize(aspect: number) {
@@ -109,7 +133,10 @@ export class FirstPersonCamera {
 
     // Dans les yeux : on regarde devant soi, vers (-sin yaw, -cos yaw), relevé de `pitch`.
     const top = ceiling - CEILING_MARGIN
-    _eye.set(head.x, Math.min(head.y - EYE_BELOW_HEAD, top), head.z)
+    this.feel(dt, head, 1 - k)
+    // Le balancement déplace l'œil sans le tourner : la mire reste sur ce qu'elle vise.
+    const sway = Math.sin(this.stride) * this.bob * 0.5
+    _eye.set(head.x + c * sway, Math.min(head.y - EYE_BELOW_HEAD - Math.abs(Math.sin(this.stride)) * this.bob, top), head.z - s * sway)
     const eyeLook = _look.set(_eye.x - s * cp, _eye.y + sp, _eye.z - c * cp)
 
     // Derrière le personnage : en orbite autour de sa poitrine, le regard vers lui.
@@ -121,5 +148,35 @@ export class FirstPersonCamera {
     this.position.lerpVectors(_eye, _third, k)
     this.camera.position.copy(this.position)
     this.camera.lookAt(eyeLook.lerp(_pivot, k))
+  }
+
+  /**
+   * Vitesse au sol du personnage, lue sur sa tête, et ce qu'elle fait à la vue : un balancement
+   * au rythme des pas, et le champ qui s'ouvre en courant. `eyes` : 1 dans les yeux, 0 derrière.
+   */
+  private feel(dt: number, head: THREE.Vector3, eyes: number) {
+    const moved = Number.isNaN(this.last.x) ? 0 : Math.hypot(head.x - this.last.x, head.z - this.last.z)
+    this.last.copy(head)
+    const walked = moved < TELEPORT && dt > 0 ? moved : 0
+    this.speed = THREE.MathUtils.damp(this.speed, dt > 0 ? walked / dt : 0, 12, dt)
+    const run = THREE.MathUtils.smoothstep(this.speed, SPRINT_FROM, SPRINT_FULL)
+    const on = this.motion && !this.still ? eyes : 0
+    this.stride += (walked / BOB_STRIDE) * Math.PI
+    this.bob = THREE.MathUtils.damp(this.bob, on * Math.min(1, this.speed / 1.2) * THREE.MathUtils.lerp(BOB_WALK, BOB_SPRINT, run), 10, dt)
+    if (!this.motion) {
+      // Le champ est rendu tel quel à qui le règle, une fois.
+      if (this.kick) this.setFov(FOV)
+      this.kick = 0
+      return
+    }
+    this.kick = THREE.MathUtils.damp(this.kick, run * SPRINT_FOV, run * SPRINT_FOV > this.kick ? 7 : 4, dt)
+    if (this.kick < 1e-3) this.kick = 0
+    this.setFov(FOV + this.kick)
+  }
+
+  private setFov(fov: number) {
+    if (Math.abs(this.camera.fov - fov) < 1e-3) return
+    this.camera.fov = fov
+    this.camera.updateProjectionMatrix()
   }
 }
