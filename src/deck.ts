@@ -134,6 +134,15 @@ const PICK_MATERIAL = new THREE.MeshBasicMaterial()
 /** Bandeau lumineux au pied des verrières. */
 const CANOPY_TRIM = new THREE.MeshBasicMaterial({ color: '#ff8a1c' })
 /** Verre des verrières, bleuté, à peine visible : on regarde l'espace à travers. */
+/** Dalle nue d'un sol dessiné (cf. `flatFloor` dans levels.ts) : son dessus est au niveau du sol. */
+const SLAB = new THREE.BoxGeometry(1, -FLOOR_Y, 1)
+const slabs = new Map<string, THREE.Material>()
+function slabMaterial(color: string): THREE.Material {
+  let m = slabs.get(color)
+  if (!m) slabs.set(color, (m = withSurface(new THREE.MeshLambertMaterial({ color }), 'metal')))
+  return m
+}
+
 const CANOPY_GLASS = withSurface(new THREE.MeshLambertMaterial({ color: '#9fd8ff', transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide }), 'glass')
 
 /** Serres (cf. `greenhouse` dans levels.ts) : verre à peine vert, montants blancs, allège de brique. */
@@ -835,6 +844,16 @@ export class Deck {
         }
         if (this.def.walls?.floor) {
           this.addStatic(this.def.walls.floor(x, z), false)
+          continue
+        }
+        const flat = this.def.flatFloor?.[room]
+        if (flat) {
+          // Une dalle nue : le sol de la pièce est dessiné par-dessus, d'un seul tenant.
+          const slab = new THREE.Mesh(SLAB, slabMaterial(flat))
+          slab.position.set(x, FLOOR_Y / 2, z)
+          slab.receiveShadow = true
+          slab.updateMatrixWorld(true)
+          this.addStatic(slab, false)
           continue
         }
         let model: StationModel = this.def.floors?.[room] ?? 'floor'

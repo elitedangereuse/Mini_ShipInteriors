@@ -108,7 +108,7 @@ export class LightRig {
     this.drivers.set('chase', (s, l, _i, t) => {
       // L'onde file vers +x au pas des feux de guidage du sol (cf. furniture/corridor.ts) : même
       // vitesse, une crête tous les quatre feux.
-      const crest = Math.max(0, Math.cos(((s.position.x - 10.5 - t * 2.9) * Math.PI * 2) / 11.4))
+      const crest = Math.max(0, Math.cos(((s.position.x - 8.5 - t * 2.9) * Math.PI * 2) / 11.4))
       l.intensity = s.intensity * (0.4 + 0.6 * crest * crest)
     })
     this.drivers.set('fire', (s, l, i, t) => {

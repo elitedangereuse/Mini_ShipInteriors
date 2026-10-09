@@ -69,6 +69,11 @@ export interface LevelDef {
   floors?: Record<string, StationModel>
   /** Sol repeint par pièce, quel que soit le thème du pont (cf. floorFinishes dans assets.ts). */
   floorFinish?: Record<string, FloorFinish>
+  /**
+   * Pièces dont le sol est dessiné d'un seul tenant par un meuble posé à plat (la coursive et la
+   * Promenade, cf. src/furniture/corridor.ts) : pas de dalles du kit, une dalle nue de cette couleur.
+   */
+  flatFloor?: Record<string, string>
   /** Proportion de murs extérieurs percés d'un hublot, par pièce (défaut : 1/3). */
   windows?: Record<string, number>
   /**
@@ -1176,6 +1181,8 @@ export const LEVELS: LevelDef[] = [
     floors: { c: 'floor-panel', b: 'floor-detail', l: 'floor-panel', v: 'floor-detail' },
     // Le poste de pilotage a un pont sombre, où se reflètent ses instruments.
     floorFinish: { b: 'graphite' },
+    // La coursive et la Promenade ont un sol dessiné d'un seul tenant, de mur à mur.
+    flatFloor: { c: '#b4b9c8' },
     // Le poste de surveillance n'a pas un hublot : on n'y regarde que des écrans, dans la pénombre.
     // Le salon d'arcade non plus : une salle de jeux est une grotte.
     windows: { v: 0, s: 0, x: 0, p: 0 },
@@ -1750,7 +1757,7 @@ export const LEVELS: LevelDef[] = [
       // --- La coursive (cf. src/furniture/corridor.ts), rien qui arrête le pas : le chemin de
       // roulement et ses feux de guidage, l'enseigne de chaque porte, des pilastres lumineux et un
       // filet de lumière au pied des cloisons, au nord (face au sud) comme au sud. ---
-      { model: 'corridor-floor', x: 18, z: 4.5, solid: false },
+      { model: 'corridor-floor', x: 17, z: 4.5, solid: false },
       ...([
         [13, 0, tr('Infirmerie', 'Medical bay'), '#5ff2d8'], [18, 0, tr('Salle de sport', 'Gym'), '#ff7a5a'], [23, 0, tr('Labo L.J.P.C.', 'L.J.P.C. lab'), '#7dffa8'],
         [13, 2, 'Mess', '#ffc27a'], [18, 2, 'Arcade', '#ff5fd8'], [23, 2, 'Arcade', '#5fdcff'],
@@ -1762,8 +1769,11 @@ export const LEVELS: LevelDef[] = [
       ]),
 
       // --- La Promenade (cf. src/furniture/promenade.ts) : la coursive s'élargit en atrium vitré, et
-      // contourne le monument au Cobra, sur sa place ronde. Quatre colonnes lumineuses aux angles
+      // contourne le monument au Cobra, sur sa place ronde, incrustée dans les tôles du sol. Quatre colonnes lumineuses aux angles
       // de la place, une jardinière le long de chaque mur, un banc dans chaque alcôve. ---
+      {
+        model: 'promenade-floor', x: 28, z: 4.5, solid: false,
+      },
       {
         model: 'cobra-monument', x: 28, z: 4.5,
         interact: [

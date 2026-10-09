@@ -1,11 +1,12 @@
 import * as THREE from 'three'
 import { barZ, beamMaterial, box, compact, cylinder, decal, drawnTexture, ED_ORANGE, glow, holoMaterial, lit, mat, mesh, part, type Builder } from './kit'
 import { COBRA_PLAN, cobraHullGeometry } from './cobra'
+import { brushed, EDGE, rivet, seam, STEEL } from './corridor'
 import { tr } from '../i18n'
 
 /*
  * La Promenade : l'atrium vitré où la coursive s'élargit, avant le poste de pilotage. Au milieu,
- * sur une place de pierre sombre incrustée de laiton, le monument du bord : une maquette de Cobra
+ * sur une place ronde incrustée de laiton dans les tôles du sol, le monument du bord : une maquette de Cobra
  * Mk III en lévitation au-dessus de son socle, sous les projecteurs encastrés dans le sol, et ses
  * deux pupitres gravés. Autour : des colonnes lumineuses et des jardinières.
  */
@@ -116,21 +117,56 @@ const SHIP_Y = 1.02
 /** Les projecteurs encastrés autour du socle : leur nombre, leur distance au centre. */
 const SPOTS = 6, SPOT_R = 1.22
 
-/** La place : pierre sombre, cercles et rose des vents de laiton, graduations, et le nom du vaisseau sur son pourtour. */
-function plazaTexture(): THREE.CanvasTexture {
-  const S = 1024, c = S / 2, u = S / (PLAZA * 2)
-  return drawnTexture(S, S, (g) => {
-    g.translate(c, c)
-    const stoneFill = g.createRadialGradient(0, 0, 0, 0, 0, c)
-    stoneFill.addColorStop(0, '#262a33')
-    stoneFill.addColorStop(0.6, '#1b1e25')
-    stoneFill.addColorStop(1, '#121419')
-    g.fillStyle = stoneFill
+/** La Promenade, en tuiles : sa largeur (x), sa profondeur (z), et ce que ses deux alcôves laissent de chaque côté. */
+const FLOOR_W = 5, FLOOR_D = 10, ALCOVE = 1
+
+/**
+ * Le sol de la Promenade, d'un seul tenant : les mêmes tôles claires que la coursive (cf.
+ * corridor.ts), l'allée qui la prolonge de part et d'autre, et la place ronde incrustée au milieu,
+ * ton sur ton : un disque d'acier plus soutenu, des cercles et une rose des vents de laiton, des
+ * graduations, et le nom du vaisseau gravé sur son pourtour. Hors de la pièce (les quatre coins,
+ * de part et d'autre des alcôves), rien.
+ */
+function floorTexture(): THREE.CanvasTexture {
+  const U = 204.8, W = FLOOR_W * U, H = FLOOR_D * U, cx = W / 2, cy = H / 2, u = U
+  return drawnTexture(W, H, (g) => {
+    // La forme de la pièce : un rectangle, et une alcôve au nord et au sud.
+    const room = new Path2D()
+    room.rect(0, ALCOVE * U, W, H - 2 * ALCOVE * U)
+    room.rect(ALCOVE * U, 0, W - 2 * ALCOVE * U, H)
+    g.save()
+    g.clip(room)
+    g.fillStyle = STEEL.plate
+    g.fillRect(0, 0, W, H)
+    // L'allée de la coursive, qui traverse jusqu'au poste de pilotage.
+    g.fillStyle = STEEL.lane
+    g.fillRect(0, cy - EDGE * U, W, 2 * EDGE * U)
+    brushed(g, 0, 0, W, H)
+    // Les tôles : un joint par tuile, des rivets aux croisements.
+    for (let i = 1; i < FLOOR_W; i++) seam(g, i * U, 0, i * U, H)
+    for (let j = 1; j < FLOOR_D; j++) seam(g, 0, j * U, W, j * U)
+    for (let i = 0; i <= FLOOR_W; i++) for (let j = 0; j <= FLOOR_D; j++) for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) rivet(g, i * U + dx * 12, j * U + dy * 12)
+    // Les rives, au pied des cloisons et des verrières.
+    g.strokeStyle = STEEL.rim
+    g.lineWidth = 0.48 * U
+    g.stroke(room)
+    // Les deux filets de l'allée, peints.
+    g.fillStyle = STEEL.paint
+    for (const s of [-1, 1]) g.fillRect(0, cy + s * EDGE * U - 2, W, 4)
+    g.restore()
+
+    // La place.
+    g.translate(cx, cy)
+    const disc = g.createRadialGradient(0, 0, 0, 0, 0, PLAZA * u)
+    disc.addColorStop(0, '#b9bfce')
+    disc.addColorStop(0.7, '#a9b0c1')
+    disc.addColorStop(1, '#9aa1b4')
+    g.fillStyle = disc
     g.beginPath()
-    g.arc(0, 0, c - 2, 0, Math.PI * 2)
+    g.arc(0, 0, PLAZA * u, 0, Math.PI * 2)
     g.fill()
-    // Les dalles : des joints en rayons et en cercles, à peine visibles.
-    g.strokeStyle = 'rgba(0, 0, 0, 0.45)'
+    // Ses dalles : des joints en rayons et en cercles.
+    g.strokeStyle = STEEL.seam
     g.lineWidth = 2
     for (const r of [0.9, 1.55]) {
       g.beginPath()
@@ -141,27 +177,29 @@ function plazaTexture(): THREE.CanvasTexture {
       const a = (i / 24) * Math.PI * 2 + Math.PI / 24
       g.beginPath()
       g.moveTo(Math.cos(a) * 0.9 * u, Math.sin(a) * 0.9 * u)
-      g.lineTo(Math.cos(a) * (c - 2), Math.sin(a) * (c - 2))
+      g.lineTo(Math.cos(a) * PLAZA * u, Math.sin(a) * PLAZA * u)
       g.stroke()
     }
-    // Le laiton : deux cercles, un filet, les graduations.
-    g.strokeStyle = g.fillStyle = BRASS
-    for (const [r, w] of [[2.2, 8], [1.86, 3], [1.55, 5], [0.78, 4]]) {
+    // Le laiton : le cerclage de la place, deux cercles, un filet.
+    g.strokeStyle = BRASS_INLAY
+    for (const [r, w] of [[PLAZA - 0.04, 9], [1.86, 3], [1.55, 5], [0.78, 4]]) {
       g.lineWidth = w
       g.beginPath()
       g.arc(0, 0, r * u, 0, Math.PI * 2)
       g.stroke()
     }
+    // Les graduations, gravées.
+    g.strokeStyle = STEEL.ink
     for (let i = 0; i < 72; i++) {
       const a = (i / 72) * Math.PI * 2
       const long = i % 9 === 0
       g.lineWidth = long ? 5 : 2
       g.beginPath()
       g.moveTo(Math.cos(a) * 1.86 * u, Math.sin(a) * 1.86 * u)
-      g.lineTo(Math.cos(a) * (long ? 2.06 : 1.96) * u, Math.sin(a) * (long ? 2.06 : 1.96) * u)
+      g.lineTo(Math.cos(a) * (long ? 1.98 : 1.93) * u, Math.sin(a) * (long ? 1.98 : 1.93) * u)
       g.stroke()
     }
-    // La rose des vents : huit pointes, une moitié pleine, l'autre au trait.
+    // La rose des vents : huit pointes, une moitié de laiton, l'autre d'acier sombre.
     for (let i = 0; i < 16; i++) {
       const a = (i / 16) * Math.PI * 2, len = (i % 4 === 0 ? 1.5 : i % 2 === 0 ? 1.2 : 0) * u
       if (!len) continue
@@ -171,30 +209,36 @@ function plazaTexture(): THREE.CanvasTexture {
         g.lineTo(Math.cos(a + s * 0.42) * 0.8 * u, Math.sin(a + s * 0.42) * 0.8 * u)
         g.lineTo(Math.cos(a) * 0.78 * u, Math.sin(a) * 0.78 * u)
         g.closePath()
-        g.lineWidth = 3
-        g.globalAlpha = s > 0 ? 0.9 : 0.25
+        g.fillStyle = s > 0 ? BRASS_INLAY : '#7b8397'
         g.fill()
-        g.globalAlpha = 1
+        g.strokeStyle = STEEL.seam
+        g.lineWidth = 1.5
         g.stroke()
       }
     }
-    // Le pourtour : le nom du vaisseau, deux fois, lettre à lettre le long du cercle.
-    g.font = '700 34px system-ui, "Segoe UI", sans-serif'
+    // Le pourtour : le nom du vaisseau, deux fois, gravé lettre à lettre le long du cercle.
+    g.fillStyle = STEEL.ink
+    g.font = '700 30px system-ui, "Segoe UI", sans-serif'
     g.textAlign = 'center'
     g.textBaseline = 'middle'
     const text = 'COBRA MK III  ·  FAULCON DELACY  ·  '
     for (let k = 0; k < 2; k++) {
       ;[...text].forEach((ch, i) => {
-        const a = k * Math.PI + (i / text.length) * Math.PI - Math.PI / 2
         g.save()
-        g.rotate(a)
-        g.translate(0, -2.03 * u - 3)
+        g.rotate(k * Math.PI + (i / text.length) * Math.PI - Math.PI / 2)
+        g.translate(0, -2.1 * u)
         g.fillText(ch, 0, 0)
         g.restore()
       })
     }
   })
 }
+
+/** Laiton des incrustations du sol : plus soutenu que celui du mobilier, pour trancher sur l'acier clair. */
+const BRASS_INLAY = '#b98a2c'
+
+/** Le sol de la Promenade (5 × 10, posé au milieu) : cf. floorTexture. On marche dessus. */
+const promenadeFloor: Builder = () => ({ solid: new THREE.Group().add(decal(floorTexture(), FLOOR_W, FLOOR_D)) })
 
 /** La plaque gravée : le nom, le constructeur, le plan du vaisseau, sa fiche. */
 function plaqueTexture(): THREE.CanvasTexture {
@@ -283,11 +327,10 @@ function lectern(plaque: THREE.Texture): THREE.Group {
  * Monument de la Promenade : une maquette de Cobra Mk III (1,6 d'envergure) en lévitation au-dessus
  * d'un socle rond à gradins, sous six projecteurs encastrés dans le sol dont les faisceaux se
  * relaient ; deux pupitres à plaque de laiton, tournés vers la coursive (-x et +x) ; autour, la
- * place (4,6 de diamètre), qu'on traverse : seuls le socle et les pupitres arrêtent (cf. `extent`).
+ * place (4,6 de diamètre, incrustée dans le sol, cf. `promenade-floor`), qu'on traverse : seuls le socle et les pupitres arrêtent (cf. `extent`).
  */
 const cobraMonument: Builder = () => {
   const g = new THREE.Group()
-  g.add(decal(plazaTexture(), PLAZA * 2, PLAZA * 2))
   // Deux filets lumineux dans le sol : le bord de la place, et le cercle des projecteurs.
   for (const [r, color] of [[PLAZA - 0.03, ED_ORANGE], [SPOT_R, '#7fe0ff']] as const) {
     g.add(part(new THREE.RingGeometry(r - 0.012, r + 0.012, 72).rotateX(-Math.PI / 2), glow(color), 0, 0.011, 0))
@@ -416,6 +459,7 @@ const promenadePlanter: Builder = ({ random }) => {
 }
 
 export const PROMENADE = {
+  'promenade-floor': promenadeFloor,
   'cobra-monument': cobraMonument,
   'promenade-lamp': promenadeLamp,
   'promenade-planter': promenadePlanter,

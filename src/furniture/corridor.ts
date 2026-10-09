@@ -3,14 +3,16 @@ import { box, decal, drawnTexture, ED_ORANGE, glow, instanced, lit, part, setIns
 import { tr } from '../i18n'
 
 /*
- * La coursive du pont principal : un chemin de roulement de tôle claire bordé de deux filets orange, où
+ * La coursive du pont principal : un sol de tôles claires dessiné d'un seul tenant, de mur à mur
+ * (le même que celui de la Promenade, cf. promenade.ts), son allée bordée de deux filets orange où
  * courent des feux de guidage vers la proue ; devant chaque porte, le nom de la pièce peint au sol
  * dans sa couleur, son seuil lumineux et son enseigne au mur ; des pilastres lumineux et un filet
  * de lumière au pied des cloisons. Rien n'y arrête le pas : tout est au sol ou contre les murs.
  */
 
-/** Longueur du chemin (le long de x), sa largeur, et la distance de ses filets à l'axe. */
-const LENGTH = 15, WIDTH = 1.24, EDGE = 0.6
+/** Longueur de la coursive (le long de x), sa largeur de mur à mur (axes des cloisons), et la distance des filets de l'allée à l'axe. */
+const LENGTH = 17, WIDTH = 2
+export const EDGE = 0.6
 /** Du milieu de la coursive à la face de ses cloisons. */
 const WALL = 0.85
 /** Vitesse des feux de guidage, en tuiles par seconde, et écart entre deux feux. */
@@ -23,42 +25,73 @@ const dark = lit('#22262e', 'metal')
  * (-1 au nord, 1 au sud), le nom de la pièce et sa couleur.
  */
 const DOORS: { x: number; side: -1 | 1; name: () => string; color: string }[] = [
-  { x: -5, side: -1, name: () => tr('Infirmerie', 'Medical bay'), color: '#5ff2d8' },
-  { x: 0, side: -1, name: () => tr('Salle de sport', 'Gym'), color: '#ff7a5a' },
-  { x: 5, side: -1, name: () => tr('Labo L.J.P.C.', 'L.J.P.C. lab'), color: '#7dffa8' },
-  { x: -5, side: 1, name: () => 'Mess', color: '#ffc27a' },
-  { x: 0, side: 1, name: () => tr('Arcade', 'Arcade'), color: '#ff5fd8' },
-  { x: 5, side: 1, name: () => tr('Arcade', 'Arcade'), color: '#5fdcff' },
+  { x: -4, side: -1, name: () => tr('Infirmerie', 'Medical bay'), color: '#5ff2d8' },
+  { x: 1, side: -1, name: () => tr('Salle de sport', 'Gym'), color: '#ff7a5a' },
+  { x: 6, side: -1, name: () => tr('Labo L.J.P.C.', 'L.J.P.C. lab'), color: '#7dffa8' },
+  { x: -4, side: 1, name: () => 'Mess', color: '#ffc27a' },
+  { x: 1, side: 1, name: () => 'Arcade', color: '#ff5fd8' },
+  { x: 6, side: 1, name: () => 'Arcade', color: '#5fdcff' },
 ]
 
-/** Une tuile du chemin de roulement : tôle claire brossée, comme le pont, deux bandes de rive, un chevron vers la proue. */
-function laneTexture(): THREE.CanvasTexture {
-  const t = drawnTexture(256, 256, (g) => {
-    g.fillStyle = '#c3c8d6'
-    g.fillRect(0, 0, 256, 256)
-    // Le brossé de la tôle, dans le sens de la marche.
-    for (let y = 0; y < 256; y += 3) {
-      g.fillStyle = `rgba(${y % 2 ? '255, 255, 255' : '70, 80, 110'}, ${0.04 + ((y * 37) % 5) * 0.012})`
-      g.fillRect(0, y, 256, 1)
-    }
-    // Les rives : une bande d'acier plus soutenue.
-    g.fillStyle = '#9299ad'
-    g.fillRect(0, 0, 256, 22)
-    g.fillRect(0, 234, 256, 22)
-    // Un joint entre deux tôles, ses quatre rivets, et le chevron.
-    g.fillStyle = 'rgba(40, 46, 66, 0.35)'
-    g.fillRect(0, 22, 2, 212)
-    for (const y of [40, 100, 156, 216]) {
-      g.beginPath()
-      g.arc(12, y, 3, 0, Math.PI * 2)
-      g.fill()
-    }
-    g.strokeStyle = 'rgba(232, 112, 16, 0.85)'
+/** Les aciers du sol : la tôle, l'allée un peu plus claire, les rives au pied des cloisons, les joints. */
+export const STEEL = { plate: '#c3c8d6', lane: '#cfd4e0', rim: '#9299ad', seam: 'rgba(40, 46, 66, 0.4)', shine: 'rgba(255, 255, 255, 0.3)', ink: '#343a4d', paint: 'rgba(232, 112, 16, 0.85)' }
+
+/** Le brossé d'une tôle, dans le sens de x : des filets clairs et sombres, à peine visibles. */
+export function brushed(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+  for (let k = 0; k < h; k += 3) {
+    g.fillStyle = `rgba(${k % 2 ? '255, 255, 255' : '70, 80, 110'}, ${0.035 + ((k * 37) % 5) * 0.011})`
+    g.fillRect(x, y + k, w, 1)
+  }
+}
+
+/** Un joint entre deux tôles (de a à b) : un trait sombre, et son reflet. */
+export function seam(g: CanvasRenderingContext2D, ax: number, ay: number, bx: number, by: number) {
+  const vertical = ax === bx
+  g.fillStyle = STEEL.seam
+  g.fillRect(ax, ay, vertical ? 2 : bx - ax, vertical ? by - ay : 2)
+  g.fillStyle = STEEL.shine
+  g.fillRect(ax + (vertical ? 2 : 0), ay + (vertical ? 0 : 2), vertical ? 1 : bx - ax, vertical ? by - ay : 1)
+}
+
+/** Un rivet. */
+export function rivet(g: CanvasRenderingContext2D, x: number, y: number, r = 3) {
+  g.fillStyle = STEEL.seam
+  g.beginPath()
+  g.arc(x, y, r, 0, Math.PI * 2)
+  g.fill()
+  g.fillStyle = STEEL.shine
+  g.beginPath()
+  g.arc(x - r * 0.3, y - r * 0.3, r * 0.4, 0, Math.PI * 2)
+  g.fill()
+}
+
+/**
+ * Une travée du sol de la coursive (1 de long, 2 de large, d'axe de cloison à axe de cloison) : les
+ * rives, deux tôles de côté, l'allée au milieu et son chevron vers la proue.
+ */
+function floorTexture(): THREE.CanvasTexture {
+  const U = 256, lane = [(1 - EDGE) * U, (1 + EDGE) * U]
+  const t = drawnTexture(U, 2 * U, (g) => {
+    g.fillStyle = STEEL.plate
+    g.fillRect(0, 0, U, 2 * U)
+    g.fillStyle = STEEL.lane
+    g.fillRect(0, lane[0], U, lane[1] - lane[0])
+    brushed(g, 0, 0, U, 2 * U)
+    // Les rives : une bande d'acier plus soutenue au pied de chaque cloison.
+    g.fillStyle = STEEL.rim
+    g.fillRect(0, 0, U, 0.24 * U)
+    g.fillRect(0, 1.76 * U, U, 0.24 * U)
+    seam(g, 0, 0.24 * U, U, 0.24 * U)
+    seam(g, 0, 1.76 * U - 2, U, 1.76 * U - 2)
+    // Un joint en travers par travée, et ses rivets.
+    seam(g, 0, 0.24 * U, 0, 1.76 * U)
+    for (const y of [0.3, 0.38, 0.62, 0.72, 1.28, 1.38, 1.62, 1.7]) rivet(g, 13, y * U)
+    g.strokeStyle = STEEL.paint
     g.lineWidth = 7
     g.beginPath()
-    g.moveTo(112, 104)
-    g.lineTo(140, 128)
-    g.lineTo(112, 152)
+    g.moveTo(112, U - 24)
+    g.lineTo(140, U)
+    g.lineTo(112, U + 24)
     g.stroke()
   })
   t.wrapS = THREE.RepeatWrapping
@@ -93,13 +126,13 @@ function nameTexture(name: string, arrow: boolean): THREE.CanvasTexture {
 const paintMaterial = (map: THREE.Texture, color: string) => new THREE.MeshBasicMaterial({ map, color, alphaTest: 0.45, polygonOffset: true, polygonOffsetFactor: -4 })
 
 /**
- * Le sol de la coursive (15 × 1,7, le long de x, posé au milieu) : le chemin de roulement, ses deux
- * filets, les feux de guidage qui filent vers la proue (+x), et devant chaque porte son nom, son
+ * Le sol de la coursive (17 × 2, le long de x, posé au milieu) : ses tôles, de mur à mur, les deux
+ * filets de l'allée, les feux de guidage qui filent vers la proue (+x), et devant chaque porte son nom, son
  * seuil et le trait qui y mène.
  */
 const corridorFloor: Builder = () => {
   const g = new THREE.Group()
-  g.add(decal(laneTexture(), LENGTH, WIDTH))
+  g.add(decal(floorTexture(), LENGTH, WIDTH))
   for (const s of [-1, 1]) g.add(box(LENGTH, 0.004, 0.022, glow(ED_ORANGE), 0, 0.009, s * EDGE))
   for (const d of DOORS) {
     const paint = glow(d.color)
