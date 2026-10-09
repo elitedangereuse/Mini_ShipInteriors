@@ -18,6 +18,7 @@ const TANK = { color: '#7dffa8', intensity: 0.6, at: [0, 0.7, 0], priority: 6, s
 
 /** Mobilier du vaisseau hors catalogue : sa lumière, dans le repère du meuble (face à +z). */
 const SHIP: Record<string, FurnitureLight> = {
+  'promenade-lamp': { color: '#ffd9a8', intensity: 1.1, at: [0, 0.75, 0], priority: 3, halo: 0.42 },
   'tiki-torch': { color: '#ffb36b', intensity: 1, at: [0, 1, 0], flicker: 'fire', priority: 3, halo: 0.5 },
   'vending-machine': { color: '#bfe4ff', intensity: 0.7, at: [0, 0.7, 0.35], priority: 6, soft: true },
   arcade: { color: '#8fb8ff', intensity: 0.5, at: [0, 0.75, 0.3], priority: 6, soft: true },

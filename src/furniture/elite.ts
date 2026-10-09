@@ -1,15 +1,13 @@
 import * as THREE from 'three'
 import {
-  beamMaterial, box, compact, cylinder, drawnTexture, ED_ORANGE, ellipseSegments, glass, glow, holoMaterial, instanced, lineMaterial, lit, mat, mesh,
+  beamMaterial, box, compact, cylinder, ED_ORANGE, ellipseSegments, glass, glow, holoMaterial, instanced, lineMaterial, lit, mat, mesh,
   panelTexture, part, pointCloud, setInstance, type Builder,
 } from './kit'
-import { cobraGeometry } from './cobra'
 import { tr } from '../i18n'
 
 /*
  * Mobilier inspiré d'Elite Dangerous : poste de pilotage, cartes holographiques,
- * réacteur FSD, SRV Scarab, drones collecteurs, conteneurs, cuve d'exobiologie, et la grande
- * maquette de Cobra Mk III de la Promenade.
+ * réacteur FSD, SRV Scarab, drones collecteurs, conteneurs, cuve d'exobiologie.
  */
 
 /** Panneau holographique flottant (0,70 × 0,44), légèrement incliné vers l'arrière. Texte : « Titre|ligne|ligne ». */
@@ -385,84 +383,7 @@ const holoMe: Builder = () => {
   }
 }
 
-/**
- * Monument de la Promenade : une grande maquette de Cobra Mk III (1,5 d'envergure) qui flotte et
- * tourne lentement au-dessus d'un socle octogonal, anneau orange Elite, faisceau et anneaux
- * holographiques, plaque « Cobra Mk III · 3300 ». Propulseurs et verrière allumés. Autour, un
- * médaillon au sol, qu'on traverse : seul le socle arrête (cf. `extent`).
- */
-const cobraMonument: Builder = () => {
-  const g = new THREE.Group()
-  // Médaillon : un disque sombre cerclé d'orange, et les huit rayons d'une rose des vents.
-  g.add(cylinder(1.45, 1.45, 0.008, lit('#2a2e36'), 0, 0.004, 0, 48))
-  for (const r of [1.4, 1.1]) {
-    const ring = mesh(new THREE.RingGeometry(r - 0.03, r, 48), glow(ED_ORANGE), 0, 0.01, 0)
-    ring.rotation.x = -Math.PI / 2
-    g.add(ring)
-  }
-  for (let i = 0; i < 8; i++) {
-    const ray = box(0.025, 0.004, 0.45, glow(i % 2 ? '#8ff0ff' : ED_ORANGE), 0, 0.011, 0)
-    ray.position.set(Math.sin((i * Math.PI) / 4) * 0.85, 0.011, Math.cos((i * Math.PI) / 4) * 0.85)
-    ray.rotation.y = (i * Math.PI) / 4
-    g.add(ray)
-  }
-  g.add(cylinder(0.55, 0.6, 0.12, mat.steelDark, 0, 0.06, 0, 8), cylinder(0.5, 0.5, 0.02, glow(ED_ORANGE), 0, 0.125, 0, 8))
-  g.add(cylinder(0.4, 0.46, 0.22, mat.steel, 0, 0.24, 0, 8), cylinder(0.3, 0.3, 0.015, glow('#8ff0ff'), 0, 0.355, 0, 24))
-  const plate = drawnTexture(256, 96, (c) => {
-    c.fillStyle = '#17181b'
-    c.fillRect(0, 0, 256, 96)
-    c.strokeStyle = ED_ORANGE
-    c.lineWidth = 4
-    c.strokeRect(4, 4, 248, 88)
-    c.fillStyle = ED_ORANGE
-    c.textAlign = 'center'
-    c.font = '800 30px system-ui, sans-serif'
-    c.fillText('COBRA MK III', 128, 42)
-    c.fillStyle = '#e8e4dc'
-    c.font = '500 16px system-ui, sans-serif'
-    c.fillText(tr('Faulcon DeLacy · depuis 3300', 'Faulcon DeLacy · since 3300'), 128, 72)
-  })
-  // Plaque sur la face avant (+z) et sur la face arrière du socle.
-  for (const s of [1, -1]) {
-    const p = part(new THREE.PlaneGeometry(0.34, 0.13), new THREE.MeshBasicMaterial({ map: plate }), 0, 0.24, s * 0.43)
-    p.rotation.y = s > 0 ? 0 : Math.PI
-    g.add(p)
-  }
-  const live = new THREE.Group()
-  const ship = new THREE.Group()
-  ship.position.y = 1
-  const hull = mesh(cobraGeometry(), lit('#d4d8de'))
-  hull.scale.setScalar(0.75)
-  ship.add(hull)
-  // Liseré orange sous le nez, verrière, propulseurs.
-  ship.add(part(new THREE.BoxGeometry(0.4, 0.014, 0.04), glow(ED_ORANGE), 0, -0.012, 0.52))
-  ship.add(part(new THREE.BoxGeometry(0.16, 0.04, 0.08), glow('#8ff0ff'), 0, 0.08, 0.27))
-  for (const x of [-0.19, 0.19]) ship.add(part(new THREE.BoxGeometry(0.14, 0.06, 0.02), glow('#9fd8ff'), x, 0.012, -0.34))
-  live.add(ship)
-  const beam = part(new THREE.CylinderGeometry(0.28, 0.3, 0.6, 24, 1, true), holoMaterial(null, '#8ff0ff', 0.14, 1), 0, 0.66, 0)
-  live.add(beam)
-  const rings = [0, 1].map((i) => {
-    const r = part(new THREE.TorusGeometry(0.85 + i * 0.1, 0.007, 4, 48), holoMaterial(null, i ? ED_ORANGE : '#8ff0ff', 0.7), 0, 1, 0)
-    r.rotation.x = Math.PI / 2
-    live.add(r)
-    return r
-  })
-  return {
-    solid: g,
-    live,
-    update(t) {
-      ship.rotation.y = t * 0.25
-      ship.rotation.z = Math.sin(t * 0.6) * 0.18
-      ship.position.y = 1 + Math.sin(t * 0.9) * 0.04
-      rings[0].rotation.set(Math.PI / 2 + Math.sin(t * 0.5) * 0.25, 0, t * 0.3)
-      rings[1].rotation.set(Math.PI / 2 + Math.cos(t * 0.4) * 0.2, 0, -t * 0.2)
-    },
-    extent: new THREE.Box3(new THREE.Vector3(-0.6, 0, -0.6), new THREE.Vector3(0.6, 1.2, 0.6)),
-  }
-}
-
 export const ELITE = {
-  'cobra-monument': cobraMonument,
   'holo-me': holoMe,
   'pilot-seat': pilotSeat,
   radar,

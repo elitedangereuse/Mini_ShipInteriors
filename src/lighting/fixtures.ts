@@ -74,8 +74,9 @@ export interface GeneralLight {
  * Quadrille chaque pièce de luminaires.
  * @param of éclairage d'une pièce ; null : aucun (une salle tamisée, qui ne vit que de ses lampes)
  * @param taken emplacements déjà pris (lampes d'accent, ascenseur) : pas de luminaire à moins de 0,7
+ * @param at éclairage propre à un coin d'une pièce (cf. `areas` dans levels.ts), qui l'emporte sur celui de la pièce
  */
-export function generalLighting(map: ShipMap, theme: Theme, of: (room: string) => RoomLighting | null, taken: { x: number; z: number }[]): { fixtures: Fixture[]; lights: GeneralLight[] } {
+export function generalLighting(map: ShipMap, theme: Theme, of: (room: string) => RoomLighting | null, taken: { x: number; z: number }[], at?: (x: number, z: number) => RoomLighting | undefined): { fixtures: Fixture[]; lights: GeneralLight[] } {
   const g = GENERAL[theme]
   const boxes = new Map<string, { minX: number; maxX: number; minZ: number; maxZ: number }>()
   for (let z = 0; z < map.height; z++) {
@@ -106,8 +107,9 @@ export function generalLighting(map: ShipMap, theme: Theme, of: (room: string) =
         if (taken.some((t) => Math.hypot(t.x - x, t.z - z) < 0.7)) continue
         // Toujours les mêmes luminaires en panne, chez tout le monde.
         const off = ((Math.imul(Math.round(x * 4), 73856093) ^ Math.imul(Math.round(z * 4), 19349663)) >>> 0) % 100 < dead * 100
-        fixtures.push({ kind: g.kind, x, z, color, alongZ: d > w, off })
-        if (!off) lights.push({ x, z, color, intensity: g.intensity * (mood.level ?? 1), distance: g.distance })
+        const here = at?.(x, z)
+        fixtures.push({ kind: g.kind, x, z, color: here?.color ?? color, alongZ: d > w, off })
+        if (!off) lights.push({ x, z, color: here?.color ?? color, intensity: g.intensity * (here?.level ?? mood.level ?? 1), distance: g.distance })
       }
     }
   }

@@ -73,9 +73,10 @@ export interface LevelDef {
   windows?: Record<string, number>
   /**
    * Coins d'une pièce qui portent leur propre nom (tuiles comprises entre min et max) : la
-   * Promenade, qui s'ouvre sur la coursive sans mur, n'est pas « la coursive ».
+   * Promenade, qui s'ouvre sur la coursive sans mur, n'est pas « la coursive ». `lighting` : leur
+   * éclairage général, quand il diffère de celui de la pièce (force et couleur des luminaires).
    */
-  areas?: { name: string; minX: number; maxX: number; minZ: number; maxZ: number }[]
+  areas?: { name: string; minX: number; maxX: number; minZ: number; maxZ: number; lighting?: RoomLighting }[]
   /** Nom de l'étage de la mezzanine du pont (cf. MEZZANINES dans shared/ship-layouts.js). */
   mezzanine?: string
   /** Cloisons sans pilier (milieu de l'arête) : là où un meuble s'adosse au mur. */
@@ -1090,7 +1091,8 @@ export const LEVELS: LevelDef[] = [
       // Le poste de surveillance, tant que sa quête ne l'a pas ouvert (cf. shared/quests.js).
       v: tr('Une porte de service, sans plaque ni poignée. Derrière, quelque chose bourdonne. Elle ne s’ouvre pas.', 'A service door, with no plate and no handle. Behind it, something hums. It does not open.'),
     },
-    areas: [{ name: tr('Promenade', 'Promenade deck'), minX: 26, maxX: 30, minZ: 0, maxZ: 9 }],
+    // La Promenade baisse ses dalles : ce sont ses projecteurs et ses colonnes qui l'éclairent.
+    areas: [{ name: tr('Promenade', 'Promenade deck'), minX: 26, maxX: 30, minZ: 0, maxZ: 9, lighting: { level: 0.35, color: '#c4d6ff' } }],
     // L'étage de la salle commune (cf. MEZZANINES).
     mezzanine: tr('Mezzanine de la salle commune', 'Common room mezzanine'),
     floors: { c: 'floor-panel', b: 'floor-detail', l: 'floor-panel', v: 'floor-detail' },
@@ -1667,22 +1669,27 @@ export const LEVELS: LevelDef[] = [
       { model: 'cat-bed', x: 25, z: 2.9, interact: tr('Le panier de Moustache. Il y a des poils noirs partout, et un stylo de James.', 'Moustache\'s basket. Black hair everywhere, and one of James\'s pens.') },
       { model: 'pet-bowl', x: 25.05, z: 2.3, rot: 1 },
 
-      // --- La Promenade : la coursive s'élargit en atrium vitré, et contourne la maquette du Cobra ---
+      // --- La Promenade (cf. src/furniture/promenade.ts) : la coursive s'élargit en atrium vitré, et
+      // contourne le monument au Cobra, sur sa place ronde. Quatre colonnes lumineuses aux angles
+      // de la place, une jardinière le long de chaque mur, un banc dans chaque alcôve. ---
       {
         model: 'cobra-monument', x: 28, z: 4.5,
         interact: [
-          tr('Cobra Mk III, à l\'échelle 1/40. Le vaisseau de départ de milliers de commandants, et de quelques-uns qui n\'en sont jamais descendus.', 'Cobra Mk III, 1:40 scale. The starter ship of thousands of commanders, and of a few who never got out of it.'),
-          tr('Sur le socle, quelqu\'un a collé un post-it : « 1984 – toujours en service. o7 »', 'On the plinth, someone has stuck a note: “1984 – still in service. o7”'),
+          tr('Cobra Mk III, à l\'échelle 1/27. Le vaisseau de départ de milliers de commandants, et de quelques-uns qui n\'en sont jamais descendus.', 'Cobra Mk III, 1:27 scale. The starter ship of thousands of commanders, and of a few who never got out of it.'),
+          tr('La plaque de laiton : « Cobra Mk III, Faulcon DeLacy. 27,1 m de long, 44 m d\'envergure, 180 t. Le vaisseau de légende des commandants, depuis 3100. »', 'The brass plaque: “Cobra Mk III, Faulcon DeLacy. 27.1 m long, 44 m wingspan, 180 t. The commanders\' ship of legend, since 3100.”'),
+          tr('Sous la plaque, quelqu\'un a collé un post-it : « 1984 – toujours en service. o7 »', 'Under the plaque, someone has stuck a note: “1984 – still in service. o7”'),
         ],
       },
       { model: 'bench', x: 28, z: 0.45, label: 'teal', interact: tr('Banc face à la verrière : on y regarde défiler les systèmes.', 'A bench facing the canopy: watch the systems go by.') },
       { model: 'bench', x: 28, z: 8.55, label: 'teal' },
-      { model: 'plant-tall', x: 26.1, z: 1.05 },
-      { model: 'monstera', x: 29.9, z: 1.05 },
-      { model: 'monstera', x: 26.1, z: 7.95 },
-      { model: 'plant-tall', x: 29.9, z: 7.95 },
-      { model: 'telescope', x: 29.85, z: 2.6, rot: 1, interact: tr('Longue-vue : on y voit la station la plus proche… et le parking de Fleet Carriers.', 'Spyglass: you can see the nearest station… and the Fleet Carrier car park.') },
-      { model: 'telescope', x: 26.15, z: 6.4, rot: 3 },
+      ...[[25.8, 1.6, 1], [30.2, 1.6, 3], [25.8, 7.4, 1], [30.2, 7.4, 3]].map(([x, z, rot]): Prop => ({ model: 'promenade-planter', x, z, rot: rot as Rot })),
+      ...[[26.5, 2.25], [29.5, 2.25], [26.5, 6.75], [29.5, 6.75]].map(([x, z]): Prop => ({ model: 'promenade-lamp', x, z })),
+      { model: 'plant-tall', x: 26.9, z: 0.1 },
+      { model: 'monstera', x: 29.1, z: 0.1 },
+      // Au sud, un seul pot : la porte de service du poste de surveillance est de l'autre côté du banc.
+      { model: 'plant-tall', x: 29.1, z: 8.9 },
+      { model: 'telescope', x: 29.85, z: 3.05, rot: 1, interact: tr('Longue-vue : on y voit la station la plus proche… et le parking de Fleet Carriers.', 'Spyglass: you can see the nearest station… and the Fleet Carrier car park.') },
+      { model: 'telescope', x: 26.15, z: 5.95, rot: 3 },
 
       // --- Le poste de surveillance, sous la Promenade (cf. src/furniture/security.ts) : la pièce
       // du sergent, qu'ouvre la quête « Tour de garde ». Les écrans sont au nord et à l'ouest, les
@@ -1740,8 +1747,10 @@ export const LEVELS: LevelDef[] = [
       [18.3, 7.6, '#ff3bd0', 2.4, 'neon'],
       [20.6, 7.5, '#39d5ff', 2.2],
       [15, 4.5, '#ffffff', 2.5],
-      // La Promenade : le monument, et la lueur bleutée des verrières.
-      [28, 4.5, '#cfe6ff', 2.6],
+      // La Promenade : le projecteur du monument, qui respire, et la lueur bleutée des deux alcôves
+      // (ses colonnes éclairent d'elles-mêmes, cf. lighting/emitters.ts).
+      [28, 4.5, '#cfeaff', 3.2, 'breath', 5],
+      [28, 8.3, '#9fd8ff', 1.4],
       [23, 1.2, '#e6fbff', 2.4],
       [21.3, 0.4, '#7dffa8', 1.2],
       [24.7, 0.5, '#bff6ff', 1.2],

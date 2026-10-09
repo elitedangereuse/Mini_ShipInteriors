@@ -881,7 +881,8 @@ export class Deck {
       // Pas d'éclairage général dans une pièce tamisée, ni sur la parcelle des quartiers, qui a ses
       // propres plafonniers (cf. housing/home.ts) ; ailleurs, celui de la pièce (cf. `lighting`).
       const of = (room: string) => ((this.def.dim?.[room] ?? 1) < 0.6 || this.def.unlit?.includes(room) || room === this.def.cabin?.room ? null : this.def.lighting?.[room] ?? {})
-      const general = generalLighting(this.map, this.def.theme ?? 'station', of, [...fixtures, LIFT])
+      const inArea = (x: number, z: number) => this.def.areas?.find((a) => a.lighting && x >= a.minX - 0.5 && x <= a.maxX + 0.5 && z >= a.minZ - 0.5 && z <= a.maxZ + 0.5)?.lighting
+      const general = generalLighting(this.map, this.def.theme ?? 'station', of, [...fixtures, LIFT], inArea)
       for (const l of general.lights) {
         // Sous une verrière, c'est le jour qui éclaire : pas de luminaire.
         const sunlit = greenhouse(Math.round(l.x), Math.round(l.z))

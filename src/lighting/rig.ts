@@ -16,9 +16,10 @@ import { lightFieldGain, showLightField, type LightField } from './field'
 /**
  * Vacillement d'une lampe : néon fatigué, feu de cheminée ; lumière de soirée, qui bat au tempo de
  * la piste de danse (pulse), en changeant de couleur (disco) ; reflet de l'écran de cinéma, qui
- * suit les scènes du film (screen) ; lampe du stand de tir, qui suit la partie (range).
+ * suit les scènes du film (screen) ; lampe du stand de tir, qui suit la partie (range) ; projecteur
+ * d'un monument, qui respire lentement (breath).
  */
-export type Flicker = 'neon' | 'fire' | 'disco' | 'pulse' | 'screen' | 'range'
+export type Flicker = 'neon' | 'fire' | 'disco' | 'pulse' | 'screen' | 'range' | 'breath'
 
 /** Lampe d'un pont, en coordonnées monde. */
 export interface LightSource {
@@ -99,6 +100,9 @@ export class LightRig {
       // Brèves crises de grésillement.
       const crisis = Math.sin(t * 0.9 + i * 5) + Math.sin(t * 2.3 + i) * 0.6
       l.intensity = s.intensity * (crisis > 1.3 && Math.sin(t * 90) > 0.2 ? 0.25 : 1)
+    })
+    this.drivers.set('breath', (s, l, i, t) => {
+      l.intensity = s.intensity * (0.74 + 0.26 * Math.sin(t * 0.8 + i))
     })
     this.drivers.set('fire', (s, l, i, t) => {
       l.intensity = s.intensity * (0.8 + 0.12 * Math.sin(t * 7.3 + i) + 0.08 * Math.sin(t * 17.9 + i * 2))
