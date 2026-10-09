@@ -17,9 +17,10 @@ import { lightFieldGain, showLightField, type LightField } from './field'
  * Vacillement d'une lampe : néon fatigué, feu de cheminée ; lumière de soirée, qui bat au tempo de
  * la piste de danse (pulse), en changeant de couleur (disco) ; reflet de l'écran de cinéma, qui
  * suit les scènes du film (screen) ; lampe du stand de tir, qui suit la partie (range) ; projecteur
- * d'un monument, qui respire lentement (breath).
+ * d'un monument, qui respire lentement (breath) ; lampes d'une coursive, qu'une onde parcourt vers la
+ * proue (chase).
  */
-export type Flicker = 'neon' | 'fire' | 'disco' | 'pulse' | 'screen' | 'range' | 'breath'
+export type Flicker = 'neon' | 'fire' | 'disco' | 'pulse' | 'screen' | 'range' | 'breath' | 'chase'
 
 /** Lampe d'un pont, en coordonnées monde. */
 export interface LightSource {
@@ -103,6 +104,12 @@ export class LightRig {
     })
     this.drivers.set('breath', (s, l, i, t) => {
       l.intensity = s.intensity * (0.74 + 0.26 * Math.sin(t * 0.8 + i))
+    })
+    this.drivers.set('chase', (s, l, _i, t) => {
+      // L'onde file vers +x au pas des feux de guidage du sol (cf. furniture/corridor.ts) : même
+      // vitesse, une crête tous les quatre feux.
+      const crest = Math.max(0, Math.cos(((s.position.x - 10.5 - t * 2.9) * Math.PI * 2) / 11.4))
+      l.intensity = s.intensity * (0.4 + 0.6 * crest * crest)
     })
     this.drivers.set('fire', (s, l, i, t) => {
       l.intensity = s.intensity * (0.8 + 0.12 * Math.sin(t * 7.3 + i) + 0.08 * Math.sin(t * 17.9 + i * 2))

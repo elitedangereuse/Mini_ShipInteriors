@@ -1106,7 +1106,7 @@ export const LEVELS: LevelDef[] = [
     // La coursive n'a qu'une dalle de loin en loin ; l'infirmerie est blanche et crue, le mess
     // chaud, la salle d'arcade sombre, pour ses écrans (le poste de pilotage, tamisé, n'a que ses lampes).
     lighting: {
-      c: { level: 0.75, spacing: 3 },
+      c: { level: 0.6, spacing: 3 },
       q: { level: 1.35, color: '#eef8ff' },
       r: { level: 1.15 },
       m: { level: 1, color: '#ffe9cf' },
@@ -1669,6 +1669,20 @@ export const LEVELS: LevelDef[] = [
       { model: 'cat-bed', x: 25, z: 2.9, interact: tr('Le panier de Moustache. Il y a des poils noirs partout, et un stylo de James.', 'Moustache\'s basket. Black hair everywhere, and one of James\'s pens.') },
       { model: 'pet-bowl', x: 25.05, z: 2.3, rot: 1 },
 
+      // --- La coursive (cf. src/furniture/corridor.ts), rien qui arrête le pas : le chemin de
+      // roulement et ses feux de guidage, l'enseigne de chaque porte, des pilastres lumineux et un
+      // filet de lumière au pied des cloisons, au nord (face au sud) comme au sud. ---
+      { model: 'corridor-floor', x: 18, z: 4.5, solid: false },
+      ...([
+        [13, 0, tr('Infirmerie', 'Medical bay'), '#5ff2d8'], [18, 0, tr('Salle de sport', 'Gym'), '#ff7a5a'], [23, 0, tr('Labo L.J.P.C.', 'L.J.P.C. lab'), '#7dffa8'],
+        [13, 2, 'Mess', '#ffc27a'], [18, 2, 'Arcade', '#ff5fd8'], [23, 2, 'Arcade', '#5fdcff'],
+      ] as const).map(([x, rot, name, color]): Prop => ({ model: 'corridor-sign', x: x + (rot ? -0.8 : 0.8), z: rot ? 5.345 : 3.655, rot, label: `${name}|${color}`, solid: false })),
+      ...[0, 2].flatMap((rot): Prop[] => [
+        ...[11.2, 15.5, 20.5, 25.1].map((x): Prop => ({ model: 'corridor-pilaster', x, z: rot ? 5.345 : 3.655, rot: rot as Rot, solid: false })),
+        // Le filet s'interrompt aux portes et aux pilastres.
+        ...[[9.9, 2.4], [11.875, 1.15], [14.475, 1.85], [16.525, 1.85], [19.475, 1.85], [21.525, 1.85], [24.275, 1.45]].map(([x, length]): Prop => ({ model: 'corridor-skirt', x, z: rot ? 5.345 : 3.655, rot: rot as Rot, label: String(length), solid: false })),
+      ]),
+
       // --- La Promenade (cf. src/furniture/promenade.ts) : la coursive s'élargit en atrium vitré, et
       // contourne le monument au Cobra, sur sa place ronde. Quatre colonnes lumineuses aux angles
       // de la place, une jardinière le long de chaque mur, un banc dans chaque alcôve. ---
@@ -1746,7 +1760,9 @@ export const LEVELS: LevelDef[] = [
       [16.5, 6.8, '#ffd36b', 1.6],
       [18.3, 7.6, '#ff3bd0', 2.4, 'neon'],
       [20.6, 7.5, '#39d5ff', 2.2],
-      [15, 4.5, '#ffffff', 2.5],
+      // La coursive : une onde de lumière froide qui file vers la proue, au pas des feux de guidage
+      // du sol (cf. src/furniture/corridor.ts).
+      ...[11.8, 15.5, 20.5, 24.3].map((x): LightDef => [x, 4.5, '#a8d0ff', 2, 'chase', 4.5]),
       // La Promenade : le projecteur du monument, qui respire, et la lueur bleutée des deux alcôves
       // (ses colonnes éclairent d'elles-mêmes, cf. lighting/emitters.ts).
       [28, 4.5, '#cfeaff', 3.2, 'breath', 5],
