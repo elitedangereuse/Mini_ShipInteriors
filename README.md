@@ -338,6 +338,8 @@ La galerie de debug montre chaque meuble avec un personnage à chacune de ses pl
 
 Cinq bornes se jouent (`src/arcade/`). Devant l'une d'elles, `E` ou un clic ouvre la borne en grand : fronton au néon, écran cathodique, pupitre. `Espace` lance la partie, `P` la met en pause, `E` ou `Échap` fait quitter la borne. L'écran titre fait tourner une démonstration, jouée par le pilote automatique du jeu, et alterne avec le tableau des meilleurs scores. Les bornes du vaisseau jouent aussi leur démonstration, record affiché (« HI 012340 »).
 
+Le salon d'arcade du pont principal a l'air d'une salle des années 90 (`src/furniture/arcade-decor.ts`) : pas d'éclairage général, une moquette à motifs fluo d'un mur à l'autre qui luit sous la lumière noire, des doubles tubes de néon sur le bandeau des murs, des fresques peintes dans le coin salon, un comptoir à lots au fronton à ampoules, un monnayeur et deux distributeurs de boules de gomme.
+
 | Jeu | Commandes | En bref |
 |---|---|---|
 | **Cargaison** (un Tetris) | `←` `→` déplacer, `↑` tourner, `X` tourner à gauche, `↓` descendre, `Espace` lâcher, `Maj` réserve | des conteneurs de fret s'empilent dans la soute. Sept formes tirées par sacs de sept, rotation SRS et ses décalages contre les parois, réserve, trois suivants, fantôme, verrouillage différé, un niveau tous les dix lignes |
@@ -792,8 +794,6 @@ Tout se joue chez le joueur : les autres le voient bouger et se tourner, pas ses
 
 **Dans les quartiers.** Le mobilier des deux pièces s'achète au catalogue de l'aménagement, dans la catégorie « Récup » (`src/cabin/catalog-junk.ts`, prix dans `economy.json`) : tuyauterie en trois longueurs, raccord qui fuit, vanne, hublot au sodium, plaques émaillées, double ventilateur, chaudière, caillebotis ; poste de Scavengers (il lance le jeu, là aussi), écran d'ARIA, enseigne, carte des secteurs, caisson cryogénique, drone (en état ou cabossé), étagère de butin.
 
-## La base au sol
-
 
 ## Le poste d'exploration
 
@@ -804,6 +804,8 @@ Tout se joue chez le joueur : les autres le voient bouger et se tourner, pas ses
 **Jouer.** Interagir avec le poste ouvre le jeu dans la fenêtre des jeux du site (`src/game-embed.ts`) ; le curseur passe dans le jeu dès qu'il est chargé, ses raccourcis clavier marchent tout de suite. Le jeu garde son profil dans le navigateur, comme sur son site. Rien n'est versé en crédits, il n'y a ni tâche de bord, ni quête, ni apparence à gagner ici.
 
 **Éclairage.** Pièce tamisée (`dim`), sans éclairage général : elle vit de sa baie d'observation et de ses écrans (`lights` de la cale). Les maquettes en pixels ne dépendent pas de la lumière de la pièce : leur relief est peint sur les faces de leurs cubes.
+
+## La base au sol
 
 Le Krait ne reste pas au hangar. Aux commandes, `Espace` met les réacteurs en route, puis `Espace` encore, réacteurs allumés, fait décoller : le Krait quitte le hangar, et un écran de voyage (`src/base/flight.ts`) couvre la descente vers l'**avant-poste Bradbury**, sur la quatrième planète du système où se trouve le vaisseau. La trajectoire, un arc du vaisseau au sol, sert de jauge : le Krait la parcourt, s'embrase à la rentrée atmosphérique, la planète rouge monte et remplit l'écran, l'altitude défile jusqu'au posé. Au premier voyage, l'écran couvre aussi le chargement de la base (le Krait attend en fin d'approche qu'elle soit prête) : elle n'est construite qu'alors. On pose le pied au pied de l'escabeau d'un Krait garé sur l'aire d'atterrissage ; pour rentrer, on y remonte, et la même manœuvre ramène au hangar du vaisseau.
 
@@ -1063,9 +1065,9 @@ Les bips, les mélodies d'arcade, les étincelles, le miaulement, le ronronnemen
 | `src/twitch-chat.ts` | Chat flottant du direct Twitch dans le cinéma : lecture anonyme, liaison du compte Twitch et envoi des messages par le site. |
 | `src/range.ts` · `src/range-weapons.ts` · `src/range-sfx.ts` · `src/range-music.ts` | Stand de tir de la cale : balles et traînées, cibles, recul et dispersion, chargeur, paliers, inscription du score ; réglages des armes ; bruitages synthétisés ; musique générée, qui suit la partie. Plan vérifié dans `server/range.test.js`. |
 | `src/scavengers.ts` | Kael, le héros de Scavengers, dans la planque de la cale : un Mini Character sous l'apparence « Kael », posé sur son emplacement du plan. Le mobilier de la gaine et de la planque est dans `src/furniture/scavengers.ts`. |
+| `src/furniture/idot.ts` | Le poste d'exploration d'It's Dangerous Out There : ses écrans en pixels (nébuleuses, planètes et sprites du jeu redessinés dans des canvas), et ses maquettes, des sprites extrudés un cube par pixel. |
 | `src/gym.ts` | Mini-jeux de la salle de sport (tapis de course, vélo, sac de frappe) : défis de rythme dans une bulle, records, crédits. Le mobilier de la salle est dans `src/furniture/gym.ts`. |
 | `src/court.ts` | Mini-jeux de la zone sportive (tirs au panier, tirs au but) : visée, jauge de force, trajectoire et rebonds des ballons (`CourtPhysics`), paliers, compte à rebours, inscription du score. |
-| `src/furniture/idot.ts` | Le poste d'exploration d'It's Dangerous Out There : ses écrans en pixels (nébuleuses, planètes et sprites du jeu redessinés dans des canvas), et ses maquettes, des sprites extrudés un cube par pixel. |
 | `src/deck.ts` · `src/merge.ts` | Construit un pont : sols, murs sur les arêtes, hublots, poteaux, portes automatiques, meubles, ascenseur, réacteur, tuyères. Fusion de géométrie et fondu tramé (`merge.ts`, partagé avec les quartiers). |
 | `src/cabin/` | **Quartiers personnalisables** : catalogue des objets (`catalog.ts`, et ses compléments `catalog-home.ts`, `catalog-ship.ts`, `catalog-fun.ts`), revêtements des murs et du sol (`finishes.ts`), cloisons (`partitions.ts`, et `shared/cabin-partitions.js`), aménagement et sa normalisation (`layout.ts`), construction et fusion dans le pont (`view.ts`), règles de pose (`rules.ts`), mode aménagement (`editor.ts`), vignettes (`thumbs.ts`), barre des quartiers et invitations (`hud.ts`), enregistrement sur le site (`storage.ts`). |
 | `src/crew/` | **Annuaire des joueurs** : le combiné de bord (`phone.ts`, `phone.css`) et l'annuaire du site, avec les messages laissés aux absents (`site.ts`). |

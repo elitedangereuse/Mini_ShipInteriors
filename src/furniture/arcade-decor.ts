@@ -161,12 +161,12 @@ const arcadeCarpet: Builder = ({ label = '4x3' }) => {
 
 // ---------------------------------------------------------------- néons
 
-/** Couleurs d'un tube : le verre, et son cœur presque blanc. */
+/** Couleurs d'un tube : sa lueur, et le verre allumé, plus clair (de près, il garde sa couleur). */
 const TUBES: Record<string, { tube: string; core: string }> = {
-  pink: { tube: FLUO.pink, core: '#ffd6f6' },
-  cyan: { tube: FLUO.cyan, core: '#d6f6ff' },
-  yellow: { tube: FLUO.yellow, core: '#fff7d6' },
-  purple: { tube: '#9a5cff', core: '#e6dcff' },
+  pink: { tube: FLUO.pink, core: '#ff8fe6' },
+  cyan: { tube: FLUO.cyan, core: '#8eeeff' },
+  yellow: { tube: FLUO.yellow, core: '#ffee8a' },
+  purple: { tube: '#9a5cff', core: '#c3a4ff' },
 }
 
 /**
@@ -186,7 +186,7 @@ const arcadeNeon: Builder = ({ label = '2' }) => {
   }
   // Fixations, tous les mètres environ.
   const n = Math.max(2, Math.round(len))
-  for (let i = 0; i < n; i++) g.add(box(0.016, 0.11, 0.03, lit(C.black), -len / 2 + 0.1 + (i * (len - 0.2)) / (n - 1), 0.895, 0.015))
+  for (let i = 0; i < n; i++) g.add(box(0.012, 0.1, 0.022, lit(C.black), -len / 2 + 0.1 + (i * (len - 0.2)) / (n - 1), 0.895, 0.015))
   // La lueur des deux tubes se mêle en descendant le mur.
   live.add(part(glowBand(len, 0.7, 0.92), halo((TUBES[bottom] ?? TUBES.cyan).tube, 0.32), 0, 0.5, 0.004))
   return { solid: g, live }
