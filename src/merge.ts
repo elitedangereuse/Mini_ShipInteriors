@@ -35,13 +35,31 @@ export function fadeBuffer(size: number): FadeBuffer {
 }
 
 /**
+ * Tranche d'un maillage fusionné : la géométrie d'une cellule du pont (cf. visibility.ts), d'un
+ * seul tenant dans l'index (ou dans les sommets, sans index).
+ */
+export interface CellRange {
+  cell: number
+  start: number
+  count: number
+}
+
+const _extent = new THREE.Box3()
+
+/**
  * Géométrie immobile fusionnée : un maillage (un appel de dessin) par matériau.
  * Un objet « tramable » garde son propre fondu : ses sommets portent son index (`aOcc`).
  */
 export class StaticMerge {
-  private parts = new Map<string, { material: THREE.Material; geos: THREE.BufferGeometry[]; cast: boolean; fading: boolean }>()
+  private parts = new Map<string, { material: THREE.Material; geos: THREE.BufferGeometry[]; cells: number[]; cast: boolean; fading: boolean }>()
   private fading = 0
   private readonly local = new THREE.Matrix4()
+
+  /**
+   * @param cellOf cellule d'un objet, d'après son encombrement : la géométrie de chaque maillage est
+   *   alors rangée par cellule (`userData.cells`), pour n'en dessiner qu'une partie (cf. Deck.cull)
+   */
+  constructor(private readonly cellOf?: (extent: THREE.Box3) => number) {}
 
   /** Nombre d'occulteurs fusionnés (taille de la texture de fondu). */
   get fadingCount(): number {
@@ -54,6 +72,7 @@ export class StaticMerge {
    */
   add(o: THREE.Object3D, cast: boolean, occ?: number, frame?: THREE.Matrix4) {
     o.updateMatrixWorld(true)
+    const cell = this.cellOf?.(_extent.setFromObject(o)) ?? 0
     o.traverse((c) => {
       const mesh = c as THREE.Mesh
       if (!mesh.isMesh) return
@@ -70,8 +89,9 @@ export class StaticMerge {
       if (fading) g.setAttribute('aOcc', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count).fill(occ), 1))
       const key = `${material.uuid}:${cast}:${fading}`
       let part = this.parts.get(key)
-      if (!part) this.parts.set(key, (part = { material, geos: [], cast, fading }))
+      if (!part) this.parts.set(key, (part = { material, geos: [], cells: [], cast, fading }))
       part.geos.push(g)
+      part.cells.push(cell)
     })
   }
 
@@ -89,11 +109,25 @@ export class StaticMerge {
   flush(parent: THREE.Object3D, fades?: THREE.DataTexture): THREE.Mesh[] {
     const meshes: THREE.Mesh[] = []
     for (const part of this.parts.values()) {
-      const merged = mergeGeometries(part.geos, false)
-      for (const g of part.geos) g.dispose()
+      // Rangée par cellule, la géométrie de chacune se suit dans le maillage.
+      const order = part.geos.map((_, i) => i)
+      if (this.cellOf) order.sort((a, b) => part.cells[a] - part.cells[b] || a - b)
+      const merged = mergeGeometries(order.map((i) => part.geos[i]), false)
+      const ranges: CellRange[] = []
+      let at = 0
+      for (const i of order) {
+        const g = part.geos[i]
+        const count = g.index ? g.index.count : g.attributes.position.count
+        const last = ranges[ranges.length - 1]
+        if (last?.cell === part.cells[i]) last.count += count
+        else ranges.push({ cell: part.cells[i], start: at, count })
+        at += count
+        g.dispose()
+      }
       if (!merged) continue
       const material = part.fading ? makeIndexedFadeable(part.material, fades!) : part.material
       const mesh = new THREE.Mesh(merged, material)
+      if (this.cellOf) mesh.userData.cells = ranges
       mesh.castShadow = part.cast
       mesh.receiveShadow = true
       // Matériau créé pour ce maillage (à libérer avec lui), et non le matériau partagé d'origine.

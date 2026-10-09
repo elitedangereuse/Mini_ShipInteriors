@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import type { Eye } from './visibility'
 
 /** Regard vers le haut ou vers le bas, au plus (radians) : presque à la verticale. */
 const MAX_PITCH = THREE.MathUtils.degToRad(88)
@@ -33,11 +34,15 @@ const CEILING_MARGIN = 0.1
 /** En dessous de ce mélange, la caméra est dans la tête : le personnage est masqué. */
 const HIDE_BODY_BELOW = 0.35
 
+/** Marge autour du champ de la caméra, pour ce que l'on voit du pont (cf. `eyes`). */
+const SIGHT_MARGIN = THREE.MathUtils.degToRad(3)
+
 const smooth = (u: number) => u * u * (3 - 2 * u)
 const _eye = new THREE.Vector3()
 const _look = new THREE.Vector3()
 const _third = new THREE.Vector3()
 const _pivot = new THREE.Vector3()
+const _gaze = new THREE.Vector3()
 
 /**
  * Vue subjective : caméra en perspective, dans les yeux du personnage. Quand il est occupé
@@ -68,6 +73,9 @@ export class FirstPersonCamera {
   private stride = 0
   private bob = 0
   private kick = 0
+  /** Les yeux de `eyes` : la caméra, et la tête du personnage ; dans sa tête, le premier suffit. */
+  private readonly sight: [Eye, Eye] = [{ x: 0, z: 0, toward: 0, half: 0 }, { x: 0, z: 0, toward: 0, half: Math.PI }]
+  private readonly inHead = [this.sight[0]]
 
   constructor(aspect: number) {
     this.camera = new THREE.PerspectiveCamera(FOV, aspect, 0.03, 200)
@@ -107,6 +115,28 @@ export class FirstPersonCamera {
   /** Point de la caméra, pour l'écoute. */
   get listener(): THREE.Vector3 {
     return this.position
+  }
+
+  /**
+   * D'où l'on regarde le pont, pour ne dessiner que les pièces que l'on voit (cf. visibility.ts) :
+   * la caméra, avec son champ rapporté au sol (plus on lève ou baisse les yeux, plus il s'ouvre),
+   * et, quand elle a quitté la tête du personnage, la tête aussi, qui voit tout autour d'elle.
+   */
+  eyes(head: THREE.Vector3): Eye[] {
+    const camera = this.camera
+    const gaze = camera.getWorldDirection(_gaze)
+    const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)
+    // Les coins du champ, à plat : ils passent derrière soi quand on regarde presque à la verticale.
+    const ahead = Math.hypot(gaze.x, gaze.z) - tanV * Math.abs(gaze.y)
+    const half = ahead > 0.05 ? Math.atan2(tanV * camera.aspect, ahead) + SIGHT_MARGIN : Math.PI
+    const [eye, around] = this.sight
+    eye.x = this.position.x
+    eye.z = this.position.z
+    eye.toward = Math.atan2(gaze.x, gaze.z)
+    eye.half = half
+    around.x = head.x
+    around.z = head.z
+    return this.blend > 0 ? this.sight : this.inHead
   }
 
   /** Direction horizontale (normalisée) du personnage vers la caméra. */

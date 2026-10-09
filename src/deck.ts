@@ -16,7 +16,7 @@ import { buildHalos, type Halo } from './lighting/glow'
 import { LIGHT_DISTANCE, type LightSource } from './lighting/rig'
 import { DIRS, ShipMap } from './map'
 import { Hull } from './hull'
-import { fadeBuffer, StaticMerge, updateOccluders, type FadeBuffer, type Occluder } from './merge'
+import { fadeBuffer, StaticMerge, updateOccluders, type CellRange, type FadeBuffer, type Occluder } from './merge'
 import { Pathfinder } from './pathfinding'
 import { roomCover } from './room-cover'
 import type { Doorway } from './physics'
@@ -27,6 +27,7 @@ import { mezzanineHeight, mezzanineTile, type Mezzanine } from '../shared/mezzan
 import { BAY_BOTTOM, BAY_FRAME_TOP, BAY_TOP, bayFrame, buildMezzanine } from './mezzanine'
 import { placeSeats, seatAction, seatsOf, type SeatSpot } from './seats'
 import { ForceShield, type ShieldPane } from './shield'
+import { RoomSight, type Eye } from './visibility'
 import { emptyPlan, HomeView } from './housing/home'
 
 /** Rectangle de collision dans le plan XZ. */
@@ -131,6 +132,7 @@ const ZONE_WALL_TOP = 1.06
 const DOOR_RANGE = 1.3
 
 const PICK_MATERIAL = new THREE.MeshBasicMaterial()
+const _extent = new THREE.Box3()
 
 /**
  * Un groupe caché n'est pas dessiné, mais three.js recalcule quand même, à chaque image, la matrice
@@ -426,8 +428,27 @@ export class Deck {
   private occluders: Occluder[] = []
   private doors: DoorState[] = []
   private hints = new DoorHints()
-  private merge = new StaticMerge()
+  private merge!: StaticMerge
   private fades!: FadeBuffer
+  /**
+   * Ce que l'on voit du pont en vue subjective, pièce par pièce (cf. visibility.ts, et `cull`). Les
+   * ponts du vaisseau seulement : pas le pont des quartiers, dont chacun redessine le plan.
+   */
+  private readonly sight?: RoomSight
+  /** Arêtes murées à travers lesquelles on voit : vitrages, fenêtres, champs de force, garde-corps. */
+  private readonly clearEdges = new Set<string>()
+  /** Ce qui s'estompe sur une arête du plan (un mur) : tramé, on voit au travers. */
+  private readonly edgeOccluders: { occluder: Occluder; x: number; z: number; dir: number }[] = []
+  /** Maillages fusionnés du pont, rangés par cellule (`userData.cells`). */
+  private readonly celled: THREE.Mesh[] = []
+  /** Le mobilier animé, qui reste un objet à part : un groupe par cellule, caché avec elle. */
+  private readonly cellGroups = new Map<number, THREE.Group>()
+  /** Pièces (et façades) vues à cette image, et celles que le pont dessine. */
+  private seen = new Uint8Array(0)
+  private shown = new Uint8Array(0)
+  private cellSeen = new Uint8Array(0)
+  /** Emprise (tuiles) de ce que dessine le pont, quand ce n'est pas tout : le soleil y cadre ses ombres (cf. main.ts). */
+  seenBounds: Box2 | null = null
   private time = 0
   private core?: THREE.Mesh
   private coreMat?: THREE.MeshStandardMaterial
@@ -493,6 +514,8 @@ export class Deck {
     restWhenHidden(this.group)
     this.ceilingMaterial = ceilingMaterial(def.zone ? 'zone' : def.theme ?? 'station')
     this.glowMat = beamMaterial()
+    if (!offShip(def) && !def.bubble && !def.cabin) this.sight = new RoomSight(this.map)
+    this.merge = this.merging()
 
     // Hors du vaisseau (la baie infestée, la base au sol) : ni coque, ni ascenseur, ni tuyères. Le
     // pont des quartiers a son ascenseur, mais ses parcelles flottent sur leur propre socle.
@@ -504,6 +527,7 @@ export class Deck {
     if (hulled) this.group.add(this.hull.group)
     if (def.ground) this.addStatic(def.ground.skirt, false)
     this.buildWalls()
+    this.sight?.setEdges((key) => this.clearEdges.has(key))
     for (const [x, z, color, intensity, flicker, distance] of def.lights) {
       this.lights.push({ position: new THREE.Vector3(x, this.y + 1.4 + this.ground(x, z), z), color: new THREE.Color(color), intensity, flicker, distance })
     }
@@ -823,7 +847,98 @@ export class Deck {
 
   private flushStatic() {
     this.fades = fadeBuffer(this.merge.fadingCount)
-    this.merge.flush(this.group, this.fades.texture)
+    this.celled.push(...this.merge.flush(this.group, this.fades.texture))
+  }
+
+  /** Cellule d'un objet (cf. visibility.ts) : les pièces que touche son encombrement. */
+  private cellOf(extent: THREE.Box3): number {
+    return this.sight?.cellOf(extent.min.x, extent.max.x, extent.min.z, extent.max.z) ?? 0
+  }
+
+  /** Une fusion de géométrie immobile, rangée par cellule là où le pont trie ce qu'il dessine (cf. cull). */
+  private merging(): StaticMerge {
+    return new StaticMerge(this.sight && ((extent) => this.cellOf(extent)))
+  }
+
+  /**
+   * Parent d'un objet animé posé sur le pont : le groupe de sa cellule, que `cull` cache avec elle.
+   * L'objet ne doit pas sortir des pièces où il est posé : ce qui se promène reste sur `group`.
+   */
+  private housing(o: THREE.Object3D): THREE.Object3D {
+    const cell = this.sight ? this.cellOf(_extent.setFromObject(o)) : 0
+    if (!cell) return this.group
+    let housing = this.cellGroups.get(cell)
+    if (!housing) {
+      this.cellGroups.set(cell, (housing = new THREE.Group()))
+      restWhenHidden(housing)
+      this.group.add(housing)
+    }
+    return housing
+  }
+
+  /**
+   * Vue subjective : ne dessine que les pièces que voient ces yeux (cf. visibility.ts), le reste
+   * du pont étant derrière des murs. `eyes` nul (vue isométrique, pont filmé) : tout le pont.
+   */
+  cull(eyes: Eye[] | null) {
+    const sight = this.sight
+    if (!sight) return
+    if (!this.seen.length) {
+      this.seen = new Uint8Array(2 * sight.count)
+      this.shown = new Uint8Array(2 * sight.count).fill(1)
+    }
+    const { seen, shown } = this
+    let all = !eyes
+    seen.fill(0)
+    if (eyes) {
+      // Un mur tramé parce qu'il cache le personnage laisse voir la pièce d'à côté.
+      for (const e of this.edgeOccluders) if (e.occluder.value < 1) sight.pierce(e.x, e.z, e.dir)
+      // Un œil hors de toute pièce (la caméra passée dans un mur) : on ne sait pas ce qu'il voit.
+      for (const eye of eyes) if (!sight.look(seen, eye)) all = true
+      sight.mend()
+    }
+    if (all) seen.fill(1)
+    if (seen.every((s, i) => s === shown[i])) return
+    shown.set(seen)
+
+    if (this.cellSeen.length < sight.cellCount) this.cellSeen = new Uint8Array(sight.cellCount)
+    sight.cellsSeen(seen, this.cellSeen)
+    for (const mesh of this.celled) {
+      // Les tranches visibles qui se suivent partent en un seul appel de dessin.
+      const geometry = mesh.geometry
+      const solo = (mesh.userData.solo ??= mesh.material) as THREE.Material
+      geometry.clearGroups()
+      let whole = true, start = -1, end = 0
+      for (const r of mesh.userData.cells as CellRange[]) {
+        if (this.cellSeen[r.cell]) {
+          if (start < 0) start = r.start
+          end = r.start + r.count
+          continue
+        }
+        whole = false
+        if (start >= 0) geometry.addGroup(start, end - start, 0)
+        start = -1
+      }
+      if (whole) {
+        mesh.material = solo
+        continue
+      }
+      if (start >= 0) geometry.addGroup(start, end - start, 0)
+      mesh.material = mesh.userData.sliced ??= [solo]
+    }
+    for (const [cell, housing] of this.cellGroups) housing.visible = !!this.cellSeen[cell]
+
+    this.seenBounds = null
+    if (all) return
+    const box = (this.seenBounds = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity })
+    for (let r = 1; r < sight.count; r++) {
+      if (!seen[sight.count + r]) continue
+      const b = sight.bounds[r]
+      box.minX = Math.min(box.minX, b.minX - 0.5)
+      box.maxX = Math.max(box.maxX, b.maxX + 0.5)
+      box.minZ = Math.min(box.minZ, b.minZ - 0.5)
+      box.maxZ = Math.max(box.maxZ, b.maxZ + 0.5)
+    }
   }
 
   /** Occulteur autonome (reste un objet à part) : il reçoit son propre matériau « tramable ». */
@@ -885,7 +1000,7 @@ export class Deck {
    * lampe. L'ascenseur tient dessous (tube de 1,7, panneau à 1,55) : pas de trou vers le ciel.
    */
   private buildCeiling() {
-    const merge = new StaticMerge()
+    const merge = this.merging()
     // À ciel ouvert : le ciel de la planète, pas de plafond.
     if (this.def.ground) {
       this.ceilingFades = fadeBuffer(0)
@@ -940,7 +1055,10 @@ export class Deck {
     if (this.bays.length) this.ceiling.add(canopyGlass(this.bays, BAY_FRAME_TOP, this.ceilingY))
     this.ceilingFades = fadeBuffer(merge.fadingCount)
     // Pas d'ombres : le soleil éclaire les pièces comme en vue isométrique.
-    for (const m of merge.flush(this.ceiling, this.ceilingFades.texture)) m.castShadow = false
+    for (const m of merge.flush(this.ceiling, this.ceilingFades.texture)) {
+      m.castShadow = false
+      this.celled.push(m)
+    }
     this.ceiling.visible = false
     this.group.add(this.ceiling)
   }
@@ -960,6 +1078,11 @@ export class Deck {
       vertex.set(k, c)
     }
 
+    // Ce qui s'estompe sur chaque arête murée, pour ce que l'on voit du pont (cf. cull).
+    let fadingFrom = 0
+    const onEdge = (x: number, z: number, dir: number) => {
+      if (this.sight) for (; fadingFrom < this.occluders.length; fadingFrom++) this.edgeOccluders.push({ occluder: this.occluders[fadingFrom], x, z, dir })
+    }
     for (const door of this.map.doors) {
       built.add(this.map.edgeKey(door.x, door.z, door.dir))
       this.buildDoor(door.x, door.z, door.dir, touch)
@@ -975,12 +1098,16 @@ export class Deck {
           if (built.has(key)) continue
           built.add(key)
           // Garde-corps de la mezzanine : ni mur ni collision de mur (cf. buildMezzanine).
-          if (this.mezzanine && this.map.walls.has(key)) continue
+          if (this.mezzanine && this.map.walls.has(key)) {
+            this.clearEdges.add(key)
+            continue
+          }
 
           const d = DIRS[dir]
           const cx = x + d.dx * 0.5
           const cz = z + d.dz * 0.5
           const alongX = d.dz !== 0
+          fadingFrom = this.occluders.length
           // Au bord du plateau de la base au sol, pas de mur : ses falaises (cf. GroundDef.skirt),
           // et une collision qui retient au bord.
           if (this.def.ground) {
@@ -995,6 +1122,8 @@ export class Deck {
           const windowRate = this.def.windows?.[room] ?? 1 / 3
 
           let model: 'wall' | 'wall-window' | 'wall-pillar' = 'wall'
+          // Vitrage, fenêtre, champ de force : le regard passe (cf. visibility.ts).
+          let clear = true
           if (exterior && (hsh % 1000) / 1000 < windowRate && !this.doorPocket(x, z, dir)) model = 'wall-window'
           else if (!exterior && hsh % 5 === 0 && !this.def.plainWalls?.some((w) => w.x === cx && w.z === cz)) model = 'wall-pillar'
           const glazed = !!other && this.def.glazed?.some((pair) => pair.includes(room) && pair.includes(other))
@@ -1026,7 +1155,10 @@ export class Deck {
             const wall = (this.def.zone?.kit ?? this.def.walls)?.wall(cx, cz, alongX) ?? this.place(model, cx, 0, cz, alongX ? 0 : Math.PI / 2)
             this.addFading(wall, new THREE.Vector3(cx, 0.5, cz), this.cabinOutward(cx, cz))
             this.walls.push({ x: cx, z: cz, alongX, model })
+            clear = model === 'wall-window'
           }
+          if (clear) this.clearEdges.add(key)
+          onEdge(x, z, dir)
 
           if (alongX) {
             this.colliders.push({ minX: cx - 0.5, maxX: cx + 0.5, minZ: cz - WALL_T / 2, maxZ: cz + WALL_T / 2 })
@@ -1250,8 +1382,10 @@ export class Deck {
         if (f.live) {
           f.live.position.set(p.x, y, p.z)
           f.live.rotation.y = rotY
-          this.group.add(f.live)
-          if (this.def.id === -1 && this.map.room(Math.round(p.x), Math.round(p.z)) === CLUB_ROOM) this.clubLive.push(f.live)
+          // Le Zorb garde les siens sur le pont : les reflets de sa boule se calculent dans son repère (cf. furniture/party.ts).
+          const club = this.def.id === -1 && this.map.room(Math.round(p.x), Math.round(p.z)) === CLUB_ROOM
+          ;(club ? this.group : this.housing(f.live)).add(f.live)
+          if (club) this.clubLive.push(f.live)
           // Dans une pièce à débloquer : caché sous son couvercle, tant qu'elle est fermée (cf. setRoomAccess).
           const closed = this.map.room(Math.round(p.x), Math.round(p.z))
           if (closed && this.questRooms.includes(closed)) {

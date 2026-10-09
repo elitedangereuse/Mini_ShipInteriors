@@ -1062,43 +1062,48 @@ const _seen = new THREE.Vector3()
  * 400 objets sur le pont principal) quand une centaine seulement est à l'écran, et sa carte
  * rapetisse d'autant. La finesse reste celle du cadre « tout le vaisseau » (même taille de texel),
  * et le cadre avance de texel en texel : les ombres ne bougent pas quand la caméra se déplace.
- * En vue subjective, ou quand la vue est trop large, elle couvre tout le vaisseau, comme avant.
+ * En vue subjective, elle ne couvre que les pièces que le pont dessine (cf. Deck.cull). Quand la
+ * vue est trop large, ou que tout le pont est dessiné, elle couvre tout le vaisseau, comme avant.
  */
 function fitShadow() {
   const floor = viewDeck.y
   let half = SHADOW_SHIP
   sun.target.position.set(shadowHome.x, floor, shadowHome.z)
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+  const cover = (p: THREE.Vector3) => {
+    const x = p.dot(sunX), y = p.dot(sunY)
+    minX = Math.min(minX, x)
+    maxX = Math.max(maxX, x)
+    minY = Math.min(minY, y)
+    maxY = Math.max(maxY, y)
+  }
+  const rooms = viewDeck.seenBounds
   if (!fpsShown) {
     // Les coins de l'écran, rapportés au plan du soleil, aux deux hauteurs de la tranche.
     const camera = iso.camera
     camera.updateMatrixWorld()
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
     for (let corner = 0; corner < 4; corner++) {
       const nx = corner & 1 ? 1 : -1, ny = corner & 2 ? 1 : -1
       _rayNear.set(nx, ny, -1).unproject(camera)
       _rayFar.set(nx, ny, 1).unproject(camera)
-      for (const h of [SHADOW_BELOW, SHADOW_ABOVE]) {
-        _seen.lerpVectors(_rayNear, _rayFar, (floor + h - _rayNear.y) / (_rayFar.y - _rayNear.y))
-        const x = _seen.dot(sunX), y = _seen.dot(sunY)
-        minX = Math.min(minX, x)
-        maxX = Math.max(maxX, x)
-        minY = Math.min(minY, y)
-        maxY = Math.max(maxY, y)
-      }
+      for (const h of [SHADOW_BELOW, SHADOW_ABOVE]) cover(_seen.lerpVectors(_rayNear, _rayFar, (floor + h - _rayNear.y) / (_rayFar.y - _rayNear.y)))
     }
-    const need = Math.max(maxX - minX, maxY - minY) / 2 + SHADOW_MARGIN
-    if (need <= SHADOW_SHIP) {
-      // Il grandit dès qu'il le faut ; il ne rapetisse que de deux pas (un zoom qui hésite ne
-      // redimensionne pas la carte à chaque image).
-      const fit = Math.ceil(need / SHADOW_STEP) * SHADOW_STEP
-      if (fit > shadowFit || fit < shadowFit - SHADOW_STEP) shadowFit = fit
-      half = shadowFit
-      // Centre du cadre sur la grille des texels ; sa profondeur (le long du soleil) ne compte pas.
-      const cx = Math.round((minX + maxX) / 2 / SHADOW_TEXEL) * SHADOW_TEXEL
-      const cy = Math.round((minY + maxY) / 2 / SHADOW_TEXEL) * SHADOW_TEXEL
-      const t = sun.target.position
-      t.addScaledVector(sunX, cx - t.dot(sunX)).addScaledVector(sunY, cy - t.dot(sunY))
-    }
+  } else if (rooms) {
+    // Les coins de l'emprise des pièces dessinées, aux deux mêmes hauteurs.
+    for (const x of [rooms.minX, rooms.maxX]) for (const z of [rooms.minZ, rooms.maxZ]) for (const h of [SHADOW_BELOW, SHADOW_ABOVE]) cover(_seen.set(x, floor + h, z))
+  }
+  const need = Math.max(maxX - minX, maxY - minY) / 2 + SHADOW_MARGIN
+  if (need <= SHADOW_SHIP) {
+    // Il grandit dès qu'il le faut ; il ne rapetisse que de deux pas (un zoom qui hésite, un
+    // regard qui balaie la pièce ne redimensionnent pas la carte à chaque image).
+    const fit = Math.ceil(need / SHADOW_STEP) * SHADOW_STEP
+    if (fit > shadowFit || fit < shadowFit - SHADOW_STEP) shadowFit = fit
+    half = shadowFit
+    // Centre du cadre sur la grille des texels ; sa profondeur (le long du soleil) ne compte pas.
+    const cx = Math.round((minX + maxX) / 2 / SHADOW_TEXEL) * SHADOW_TEXEL
+    const cy = Math.round((minY + maxY) / 2 / SHADOW_TEXEL) * SHADOW_TEXEL
+    const t = sun.target.position
+    t.addScaledVector(sunX, cx - t.dot(sunX)).addScaledVector(sunY, cy - t.dot(sunY))
   }
   sun.position.copy(sun.target.position).add(SUN_OFFSET)
   const shadow = sun.shadow
@@ -5523,6 +5528,8 @@ const timer = new THREE.Timer()
 timer.connect(document)
 const toCam = new THREE.Vector3()
 const fpsHead = new THREE.Vector3()
+/** Tri des pièces en vue subjective (cf. Deck.cull) ; se coupe depuis la console, en dev, pour comparer. */
+const culling = { on: true }
 const screenPos = new THREE.Vector3()
 const actors = new Map<Deck, THREE.Vector3[]>(decks.map((d) => [d, []]))
 let perfTime = 0
@@ -5967,6 +5974,9 @@ function frame() {
   }
 
   liftRide.update(dt, activeCamera())
+  // Vue subjective : le pont ne dessine que les pièces que voit la caméra (cf. src/visibility.ts),
+  // et le soleil n'y porte ses ombres que sur elles.
+  for (const d of decks) d.cull(fpsShown && d === viewDeck && culling.on ? fps.eyes(fpsHead) : null)
   fitShadow()
   // Dans la baie (ou par les caméras), tout passe par le brouillard de guerre (cf. salvage/fog.ts).
   // Dans les conduits de ventilation aussi (cf. vents.ts).
@@ -6033,6 +6043,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, profile, fps, cardsPanel, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, garden, gardenView, gardenMode, gardenPanel, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt, range, fishing, fishBook, fishCollection, startFishing, quiz, openQuiz, quests, questWorld, questJournal, cinematic },
+    __game: { renderer, sound, player, profile, fps, culling, cardsPanel, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, garden, gardenView, gardenMode, gardenPanel, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt, range, fishing, fishBook, fishCollection, startFishing, quiz, openQuiz, quests, questWorld, questJournal, cinematic },
   })
 }
