@@ -1079,6 +1079,8 @@ export const LEVELS: LevelDef[] = [
       r: tr('Salle de sport', 'Gym'),
       m: 'Mess',
       s: tr('Salon d\'arcade', 'Arcade lounge'),
+      x: tr('Couloir de la Pixel War', 'Pixel War corridor'),
+      p: tr('Salle de la Pixel War', 'Pixel War room'),
       b: tr('Poste de pilotage', 'Cockpit'),
       l: tr('Labo du L.J.P.C.', 'L.J.P.C. lab'),
       v: tr('Poste de surveillance', 'Surveillance room'),
@@ -1094,7 +1096,7 @@ export const LEVELS: LevelDef[] = [
     floors: { c: 'floor-panel', b: 'floor-detail', l: 'floor-panel', v: 'floor-detail' },
     // Le poste de surveillance n'a pas un hublot : on n'y regarde que des écrans, dans la pénombre.
     // Le salon d'arcade non plus : une salle de jeux est une grotte.
-    windows: { v: 0, s: 0 },
+    windows: { v: 0, s: 0, x: 0, p: 0 },
     dim: { v: 0.4, s: 0.45 },
     // La coursive n'a qu'une dalle de loin en loin ; l'infirmerie est blanche et crue, le mess
     // chaud, la salle d'arcade et le poste de pilotage sombres, pour leurs écrans.
@@ -1104,6 +1106,9 @@ export const LEVELS: LevelDef[] = [
       r: { level: 1.15 },
       m: { level: 1, color: '#ffe9cf' },
       s: { level: 0.3, color: '#b9a8ff', spacing: 3 },
+      // La salle de la Pixel War est un atelier blanc : c'est la toile qui la colore.
+      x: { level: 0.6 },
+      p: { level: 1.25, color: '#ffffff' },
       b: { level: 0.35, color: '#a8c8ff', spacing: 3 },
       l: { level: 1.1, color: '#e4fff0' },
     },
@@ -1516,12 +1521,51 @@ export const LEVELS: LevelDef[] = [
       { model: 'arcade-neon', x: 20.5, z: 5.65, label: '4', solid: false },
       { model: 'arcade-neon', x: 24.425, z: 5.65, label: '1.85', solid: false },
       { model: 'arcade-neon', x: 25.35, z: 7.5, rot: 3, label: '3.7', solid: false },
-      { model: 'arcade-neon', x: 20.5, z: 9.35, rot: 2, label: '9.7|yellow|purple', solid: false },
+      { model: 'arcade-neon', x: 20.925, z: 9.35, rot: 2, label: '8.85|yellow|purple', solid: false },
       // Fresques et mots de néon du coin salon.
       { model: 'arcade-mural', x: 23.3, z: 9.35, rot: 2, label: 'jazz', solid: false },
       { model: 'arcade-mural', x: 25.35, z: 8.2, rot: 3, label: 'memphis', solid: false },
       { model: 'arcade-mural', x: 18.8, z: 9.35, rot: 2, label: 'checker', solid: false },
       { model: 'neon-shape', x: 25.35, z: 7.1, rot: 3, label: 'star', solid: false },
+      // --- Salle de la Pixel War (cf. src/furniture/pixelwar.ts et src/game-embed.ts) : dans le coin
+      // sud-ouest de l'arcade, à côté du tableau des scores, une porte sous son enseigne ; une traînée
+      // de pixels file sur la moquette, passe la porte et descend le couloir jusqu'à la salle. Là,
+      // contre le mur nord, la toile du site en direct entre deux postes de jeu ; au mur ouest, le
+      // nuancier ; le sol est une toile lui aussi ---
+      { model: 'pixelwar-sign', x: 16, z: 9.35, rot: 2, solid: false },
+      { model: 'pixelwar-trail', x: 16, z: 10.3, label: '1x3.2', solid: false },
+      { model: 'pixelwar-floor', x: 19.5, z: 13.5, label: '8x4', solid: false },
+      {
+        model: 'pixelwar-screen', x: 19.9, z: 11.65, solid: false, action: tr('Jouer à la Pixel War', 'Play the Pixel War'),
+        interact: tr('La toile de la Pixel War, en direct du site.', 'The Pixel War canvas, live from the site.'),
+      },
+      {
+        model: 'pixelwar-terminal', x: 18.2, z: 11.65, action: tr('Jouer à la Pixel War', 'Play the Pixel War'),
+        interact: tr('Un poste de la Pixel War.', 'A Pixel War station.'),
+      },
+      {
+        model: 'pixelwar-terminal', x: 21.6, z: 11.65, action: tr('Jouer à la Pixel War', 'Play the Pixel War'),
+        interact: tr('Un poste de la Pixel War.', 'A Pixel War station.'),
+      },
+      {
+        model: 'pixelwar-palette', x: 15.65, z: 13.9, rot: 1, solid: false, action: tr('Regarder le nuancier', 'Look at the colour chart'),
+        interact: [
+          tr('Le nuancier : soixante-douze couleurs, rangées par teinte. L\'orange du milieu de la première ligne n\'est pas n\'importe quel orange.', 'The colour chart: seventy-two colours, sorted by hue. The orange in the middle of the first row is not just any orange.'),
+          tr('Poser du blanc, c\'est effacer. Quelqu\'un a écrit dessous, au feutre : « Le blanc est une couleur comme les autres. »', 'Placing white is erasing. Someone wrote underneath, in marker: “White is a colour like any other.”'),
+          tr('Un pixel toutes les trente secondes. Seul, on dessine un cœur en une demi-heure. À vingt, un Cobra en dix minutes.', 'One pixel every thirty seconds. Alone, you draw a heart in half an hour. With twenty of you, a Cobra in ten minutes.'),
+        ],
+      },
+      {
+        model: 'pixelwar-cubes', x: 22.75, z: 14.85,
+        interact: [
+          tr('Un tas de gros pixels, pas encore posés. Ils attendent leurs trente secondes.', 'A heap of big pixels, not placed yet. They are waiting out their thirty seconds.'),
+          tr('Vous en soulevez un. Il est plus léger qu\'il n\'en a l\'air, et un peu collant : la peinture n\'est pas sèche.', 'You lift one. It is lighter than it looks, and a little sticky: the paint is not dry.'),
+        ],
+      },
+      { model: 'pixelwar-cubes', x: 16.2, z: 15.05, rot: 1 },
+      { model: 'beanbag', x: 19.2, z: 14.3, label: 'teal' },
+      { model: 'beanbag', x: 20.7, z: 14.45, label: 'mustard' },
+
       {
         model: 'holo-draughts', x: BOARD_TABLES.draughts.x, z: BOARD_TABLES.draughts.z, action: tr('Jouer aux dames', 'Play draughts'),
         interact: tr('Table holographique : les pièces attendent deux adversaires.', 'Holographic table: the pieces await two opponents.'),
@@ -1680,6 +1724,11 @@ export const LEVELS: LevelDef[] = [
       [28, 1, '#9fd8ff', 1.4],
       [23.3, 7.8, '#9a5bff', 2.6],
       [24.8, 8.6, '#ff3bd0', 1.4],
+      // Le couloir et la salle de la Pixel War : du blanc, sur la toile et sur le nuancier.
+      [16, 10.6, '#ffffff', 1.2, undefined, 3],
+      [19.9, 12.6, '#ffffff', 2.4],
+      [16.5, 13.9, '#fff3e0', 1.2, undefined, 4],
+      [22.4, 14.4, '#dff1ff', 1.4, undefined, 5],
       [28, 8, '#9fd8ff', 1.4],
       // Le poste de surveillance : rien que la lueur de ses écrans, et la veilleuse du lit de camp.
       [25.2, 11.6, '#7fd6ff', 2.2],

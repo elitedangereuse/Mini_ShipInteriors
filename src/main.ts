@@ -4616,6 +4616,7 @@ function interactWith(item: Interactable) {
   if (item.furniture?.model === 'galaxy-map') return gameEmbed.open('edgis')
   if (item.furniture?.model === 'scav-terminal') return openScavengers()
   if (item.furniture?.model === 'idot-terminal') return gameEmbed.open('idot')
+  if (item.furniture?.model === 'pixelwar-terminal' || item.furniture?.model === 'pixelwar-screen') return gameEmbed.open('pixelwar')
   if (item.furniture?.model === 'cctv-desk') return openCameras()
   if (deck.def.id === 1) {
     if (item.furniture?.model === 'podcast-console' || item.furniture?.model === 'podcast-poster') return mediaRoom.open()

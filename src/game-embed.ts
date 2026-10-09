@@ -1,6 +1,6 @@
 import { tr } from './i18n'
 
-type Game = 'cards' | 'cqc' | 'edgis' | 'site' | 'scavengers' | 'idot'
+type Game = 'cards' | 'cqc' | 'edgis' | 'site' | 'scavengers' | 'idot' | 'pixelwar'
 const EDGIS_URL = 'https://edgis.elitedangereuse.fr/static/galaxymap.html?x=0&y=0&z=0&radius=20'
 const SITE_HOME = 'https://elitedangereuse.fr/'
 const SCAVENGERS_URL = 'https://scavengers.elitedangereuse.fr/'
@@ -19,6 +19,9 @@ const GAMES: Record<Game, { title: string; url: string; fullUrl: string; hint: s
   idot: { title: 'It\'s Dangerous Out There', url: IDOT_URL, fullUrl: IDOT_URL,
     hint: tr('Rejoignez votre destination, saut après saut. Chaque action a son raccourci, sous l\'écran du jeu.', 'Reach your destination, jump after jump. Every action has its shortcut, below the game screen.'),
     kicker: tr('CALE · POSTE D\'EXPLORATION', 'HOLD · EXPLORATION POST'), typed: true },
+  pixelwar: { title: 'Pixel War', url: '/pixel_war.php', fullUrl: '/pixel_war.php',
+    hint: tr('Choisissez une couleur, visez une case : un pixel toutes les trente secondes. Il faut être connecté au site pour poser.', 'Pick a colour, aim at a cell: one pixel every thirty seconds. You must be signed in to the site to place one.'),
+    kicker: tr('PONT PRINCIPAL · SALLE DE LA PIXEL WAR', 'MAIN DECK · PIXEL WAR ROOM') },
 }
 
 /** Fenêtre des jeux du site et de la carte galactique EDGIS. */

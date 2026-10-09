@@ -25,6 +25,8 @@ const SHIP: Record<string, FurnitureLight> = {
   'claw-machine': { color: '#ffd0f0', intensity: 0.6, at: [0, 0.8, 0], priority: 6, soft: true },
   'prize-counter': { color: '#ffd9f4', intensity: 0.9, at: [0, 0.9, 0.5], priority: 6, soft: true },
   'token-machine': { color: '#9df0ff', intensity: 0.4, at: [0, 0.8, 0.4], priority: 6, soft: true },
+  'pixelwar-screen': { color: '#ffffff', intensity: 0.7, at: [0, 0.9, 0.4], priority: 6, soft: true },
+  'pixelwar-terminal': SCREEN,
   jukebox: { color: '#ff9a4a', intensity: 0.7, at: [0, 0.6, 0.25], priority: 6, soft: true },
   'popcorn-machine': { color: '#ffd08a', intensity: 0.6, at: [0, 0.8, 0], priority: 6, soft: true },
   computer: SCREEN,

@@ -47,7 +47,9 @@ export const SHIP_LAYOUTS = {
   // le mess, un self dont la cuisine occupe le fond. Au nord, contre la salle commune, l'infirmerie
   // de Betty. Sous la Promenade (au sud, par une porte de service dans sa verrière), le poste de
   // surveillance du sergent ('v', cf. SURVEILLANCE_ROOM) : fermé tant que sa quête n'est pas
-  // terminée (cf. quests.js).
+  // terminée (cf. quests.js). Dans le coin sud-ouest de la salle d'arcade, à côté du tableau des
+  // scores, une porte (cf. PIXEL_WAR_DOORS) donne sur un couloir de deux tuiles ('x') qui descend
+  // vers la salle de la Pixel War ('p'), entre la cuisine du mess et le poste de surveillance.
   '0': [
     '  eeeeee qqqqqqqrrrrrlllll ccc          ',
     ' eeeeeeeeqqqqqqqrrrrrlllllccccc bbb     ',
@@ -59,11 +61,12 @@ export const SHIP_LAYOUTS = {
     'eeeeeeeeemmmmmmmssssssssssccccc bbbbb   ',
     ' eeeeeeeemmmmmmmssssssssssccccc bbb     ',
     '  eeeeee mmmmmmmssssssssss ccc          ',
-    '         mmmmmmm           +            ',
-    '         mmmmmmm        vvvvvvv         ',
-    '         mmmmmmm        vvvvvvv         ',
-    '                        vvvvvvv         ',
-    '                        vvvvvvv         ',
+    '         mmmmmmmx          +            ',
+    '         mmmmmmmx       vvvvvvv         ',
+    '         mmmmmmmppppppppvvvvvvv         ',
+    '                ppppppppvvvvvvv         ',
+    '                ppppppppvvvvvvv         ',
+    '                pppppppp                ',
   ],
   // Pont supérieur : les quartiers ; derrière le salon d'écoute, le cinéma. Au nord du salon,
   // derrière une vitre, le studio de Radio Dangereuse (porte à l'est). À l'ouest, la grande serre
@@ -206,11 +209,11 @@ function mezzanineWalls(level) {
 /**
  * Plan d'un pont : portes des pièces en travaux verrouillées ; dans la cale, celle du poste de
  * sécurité ; au pont des quartiers, la porte du palier vers la parcelle (cf. applyPlot) ; au
- * pont principal, les garde-corps de la mezzanine.
+ * pont principal, les garde-corps de la mezzanine et les portes du couloir de la Pixel War.
  */
 export function shipMapOptions(level) {
   const id = String(level)
-  const doors = id === '-1' ? [SECURITY_DOOR, SCAVENGERS_DOOR] : id === '2' ? [PLOT_DOOR] : []
+  const doors = id === '-1' ? [SECURITY_DOOR, SCAVENGERS_DOOR] : id === '0' ? PIXEL_WAR_DOORS : id === '2' ? [PLOT_DOOR] : []
   return { closed: CLOSED_ROOMS[level] ?? '', doors, walls: mezzanineWalls(id) }
 }
 
@@ -230,6 +233,12 @@ export const SECURITY_DOOR = { x: 22, z: 0, dir: 1, locked: true }
  * mène à la planque des Scavengers. Posée sur le bord nord de la première tuile de la gaine.
  */
 export const SCAVENGERS_DOOR = { x: 22, z: 11, dir: 0 }
+
+/**
+ * Les deux portes du couloir de la Pixel War (pont principal), chacune sur le bord nord de sa
+ * tuile : celle du salon d'arcade, dans son mur sud, et celle de la salle, au bout du couloir.
+ */
+export const PIXEL_WAR_DOORS = [{ x: 16, z: 10, dir: 0 }, { x: 16, z: 12, dir: 0 }]
 
 /**
  * Terrains de la zone sportive (pont supérieur), par jeu : la pièce, la marque d'où l'on tire, le

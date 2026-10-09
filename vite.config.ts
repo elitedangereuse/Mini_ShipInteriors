@@ -12,6 +12,8 @@ const CMDR_ENDPOINT = '/outils/mini-shipinteriors-cmdr.php'
 const CABIN_ENDPOINT = '/outils/mini-shipinteriors-cabin.php'
 /** Meilleurs scores des bornes d'arcade (lecture, inscription). */
 const SCORES_ENDPOINT = '/outils/mini-shipinteriors-scores.php'
+/** Toile de la Pixel War du site, affichée dans sa salle (lecture seule, sans compte). */
+const PIXEL_WAR_STATE = '/phputils/pixel_war/api/state.php'
 /** Crédits du CMDR (solde, achats, gains). */
 const CREDITS_ENDPOINT = '/outils/mini-shipinteriors-credits.php'
 /** Zone thargoïde : classement des victoires (lecture), gains des missions (écrit par le relais). */
@@ -35,7 +37,7 @@ const siteProxy: ProxyOptions = {
     })
   },
 }
-const SITE_PROXY = Object.fromEntries([CMDR_ENDPOINT, CABIN_ENDPOINT, SCORES_ENDPOINT, CREDITS_ENDPOINT, SALVAGE_ENDPOINT, '/outils/mini-shipinteriors-site.php', '/outils/mini-shipinteriors-cinema.php', '/outils/mini-shipinteriors-crew.php', '/outils/mini-shipinteriors-twitch.php', '/outils/mini-shipinteriors-fish.php', '/outils/mini-shipinteriors-gardening.php', '/outils/mini-shipinteriors-quests.php'].map((path) => [path, siteProxy]))
+const SITE_PROXY = Object.fromEntries([CMDR_ENDPOINT, CABIN_ENDPOINT, SCORES_ENDPOINT, CREDITS_ENDPOINT, SALVAGE_ENDPOINT, '/outils/mini-shipinteriors-site.php', '/outils/mini-shipinteriors-cinema.php', '/outils/mini-shipinteriors-crew.php', '/outils/mini-shipinteriors-twitch.php', '/outils/mini-shipinteriors-fish.php', '/outils/mini-shipinteriors-gardening.php', '/outils/mini-shipinteriors-quests.php', PIXEL_WAR_STATE].map((path) => [path, siteProxy]))
 
 /**
  * Branche le relais multijoueur sur le serveur de dev (et de preview) de Vite, sur /ws/mini-shipinteriors.
