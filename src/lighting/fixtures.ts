@@ -23,6 +23,23 @@ export interface Fixture {
   color: THREE.ColorRepresentation
   /** Réglette posée le long de z (le long de x par défaut). */
   alongZ?: boolean
+  /** En panne : le luminaire est là, éteint. */
+  off?: boolean
+}
+
+/**
+ * Éclairage général d'une pièce, par rapport à celui de son pont (cf. `lighting` dans levels.ts) :
+ * une infirmerie est plus claire et plus froide qu'une coursive, une salle d'arcade reste sombre.
+ */
+export interface RoomLighting {
+  /** Force des luminaires (1 par défaut). */
+  level?: number
+  /** Couleur de leur lumière ; celle du pont par défaut. */
+  color?: string
+  /** Écart visé entre deux luminaires, en tuiles : plus ils sont espacés, plus leurs taches se détachent. */
+  spacing?: number
+  /** Part des luminaires en panne (0 par défaut ; la cale en a toujours quelques-uns). */
+  dead?: number
 }
 
 /** Éclairage général d'une ambiance : son luminaire, sa lumière, et l'écart entre deux luminaires. */
@@ -33,14 +50,16 @@ interface General {
   /** Écart visé entre deux luminaires, en tuiles. */
   spacing: number
   distance: number
+  /** Part des luminaires en panne. */
+  dead: number
 }
 
 const GENERAL: Record<Theme, General> = {
-  station: { kind: 'panel', color: '#dfeaff', intensity: 0.7, spacing: 2, distance: 4.5 },
+  station: { kind: 'panel', color: '#dfeaff', intensity: 1.1, spacing: 2, distance: 4.5, dead: 0 },
   // La cale : des réglettes au sodium, clairsemées ; il reste de l'ombre entre deux.
-  raw: { kind: 'tube', color: '#ffc98e', intensity: 1, spacing: 3, distance: 4.5 },
-  cozy: { kind: 'dome', color: '#ffe4c0', intensity: 0.7, spacing: 2, distance: 4.5 },
-  sim: { kind: 'panel', color: '#9fdcff', intensity: 0.6, spacing: 2, distance: 4.5 },
+  raw: { kind: 'tube', color: '#ffc98e', intensity: 1.5, spacing: 3, distance: 4.5, dead: 0.15 },
+  cozy: { kind: 'dome', color: '#ffe4c0', intensity: 1.1, spacing: 2, distance: 4.5, dead: 0 },
+  sim: { kind: 'panel', color: '#9fdcff', intensity: 0.95, spacing: 2, distance: 4.5, dead: 0 },
 }
 
 export interface GeneralLight {
@@ -53,16 +72,16 @@ export interface GeneralLight {
 
 /**
  * Quadrille chaque pièce de luminaires.
- * @param skip pièce sans éclairage général (une serre sous verrière, une salle tamisée)
+ * @param of éclairage d'une pièce ; null : aucun (une salle tamisée, qui ne vit que de ses lampes)
  * @param taken emplacements déjà pris (lampes d'accent, ascenseur) : pas de luminaire à moins de 0,7
  */
-export function generalLighting(map: ShipMap, theme: Theme, skip: (room: string) => boolean, taken: { x: number; z: number }[]): { fixtures: Fixture[]; lights: GeneralLight[] } {
+export function generalLighting(map: ShipMap, theme: Theme, of: (room: string) => RoomLighting | null, taken: { x: number; z: number }[]): { fixtures: Fixture[]; lights: GeneralLight[] } {
   const g = GENERAL[theme]
   const boxes = new Map<string, { minX: number; maxX: number; minZ: number; maxZ: number }>()
   for (let z = 0; z < map.height; z++) {
     for (let x = 0; x < map.width; x++) {
       const room = map.room(x, z)
-      if (!room || skip(room)) continue
+      if (!room || !of(room)) continue
       const b = boxes.get(room)
       if (!b) boxes.set(room, { minX: x, maxX: x, minZ: z, maxZ: z })
       else {
@@ -75,16 +94,20 @@ export function generalLighting(map: ShipMap, theme: Theme, skip: (room: string)
   }
   const fixtures: Fixture[] = [], lights: GeneralLight[] = []
   for (const [room, b] of boxes) {
+    const mood = of(room)!
+    const spacing = mood.spacing ?? g.spacing, color = mood.color ?? g.color, dead = mood.dead ?? g.dead
     const w = b.maxX - b.minX + 1, d = b.maxZ - b.minZ + 1
-    const nx = Math.max(1, Math.round(w / g.spacing)), nz = Math.max(1, Math.round(d / g.spacing))
+    const nx = Math.max(1, Math.round(w / spacing)), nz = Math.max(1, Math.round(d / spacing))
     for (let j = 0; j < nz; j++) {
       for (let i = 0; i < nx; i++) {
         const x = b.minX - 0.5 + ((i + 0.5) * w) / nx, z = b.minZ - 0.5 + ((j + 0.5) * d) / nz
         // Une pièce n'est pas toujours un rectangle : pas de luminaire hors d'elle, ni à cheval sur un mur.
         if ([[-0.3, -0.3], [0.3, -0.3], [-0.3, 0.3], [0.3, 0.3]].some(([dx, dz]) => map.room(Math.round(x + dx), Math.round(z + dz)) !== room)) continue
         if (taken.some((t) => Math.hypot(t.x - x, t.z - z) < 0.7)) continue
-        fixtures.push({ kind: g.kind, x, z, color: g.color, alongZ: d > w })
-        lights.push({ x, z, color: g.color, intensity: g.intensity, distance: g.distance })
+        // Toujours les mêmes luminaires en panne, chez tout le monde.
+        const off = ((Math.imul(Math.round(x * 4), 73856093) ^ Math.imul(Math.round(z * 4), 19349663)) >>> 0) % 100 < dead * 100
+        fixtures.push({ kind: g.kind, x, z, color, alongZ: d > w, off })
+        if (!off) lights.push({ x, z, color, intensity: g.intensity * (mood.level ?? 1), distance: g.distance })
       }
     }
   }
@@ -95,6 +118,8 @@ export function generalLighting(map: ShipMap, theme: Theme, skip: (room: string)
 
 const BEZEL = withSurface(new THREE.MeshLambertMaterial({ color: '#2a2e36' }), 'metal')
 const FRAME = withSurface(new THREE.MeshLambertMaterial({ color: '#8d94a1' }), 'metal')
+/** Face d'un luminaire en panne. */
+const DEAD = withSurface(new THREE.MeshLambertMaterial({ color: '#4b4f57' }), 'grain')
 const HOUSING = withSurface(new THREE.MeshLambertMaterial({ color: '#c9ced6' }), 'grain')
 
 /** Face lumineuse d'une couleur : plus claire que sa lumière, et assez forte pour rester blanche après le tone mapping. */
@@ -137,7 +162,7 @@ function piece(geo: THREE.BufferGeometry, material: THREE.Material, x: number, y
 export function buildFixtures(fixtures: Fixture[], y: number, merge: StaticMerge): THREE.Mesh | null {
   const halos: THREE.BufferGeometry[] = []
   for (const f of fixtures) {
-    const lit = face(f.color)
+    const lit = f.off ? DEAD : face(f.color)
     const parts: THREE.Object3D[] = []
     if (f.kind === 'panel') {
       // Dalle LED encastrée : la face, et quatre profilés autour.
@@ -166,6 +191,7 @@ export function buildFixtures(fixtures: Fixture[], y: number, merge: StaticMerge
     }
     for (const p of parts) merge.add(p, false)
 
+    if (f.off) continue
     // Le halo : la lumière qui déborde du luminaire sur le plafond.
     const h = HALO[f.kind]
     const halo = new THREE.PlaneGeometry(f.kind === 'tube' ? h * 2.6 : h * 2, h * 2).rotateX(Math.PI / 2)

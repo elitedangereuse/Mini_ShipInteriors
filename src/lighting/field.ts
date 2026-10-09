@@ -18,7 +18,7 @@ import { DIRS, type ShipMap } from '../map'
 const RES = 4
 /** Marge autour du plan, en tuiles : du noir, pour que rien ne bave hors du pont. */
 const PAD = 1
-/** Hauteur d'une lampe au-dessus de ce qu'elle éclaire : le sol juste dessous n'est pas brûlé. */
+/** Hauteur d'une lampe au-dessus de ce qu'elle éclaire : elle règle la largeur de sa tache de lumière. */
 const HEIGHT = 1.2
 /** Part de la lumière qui passe une porte (elle s'ouvre et se ferme, le champ ne bouge pas). */
 const DOOR = 0.7
@@ -118,7 +118,9 @@ export function bakeLightField(map: ShipMap, sources: FieldSource[], glazed?: Se
         const d = Math.sqrt(d2)
         // Pleine jusqu'aux deux tiers de la portée, puis elle s'éteint en douceur.
         const edge = Math.min(1, (reach - d) / (reach * 0.35))
-        let e = (s.intensity * edge * edge * (3 - 2 * edge)) / (1 + 0.5 * (d2 + HEIGHT * HEIGHT))
+        // Une lampe éclaire surtout sous elle : sa tache au sol se voit, et il reste de l'ombre entre deux lampes.
+        const cos2 = (HEIGHT * HEIGHT) / (d2 + HEIGHT * HEIGHT)
+        let e = s.intensity * edge * edge * (3 - 2 * edge) * cos2 * Math.sqrt(cos2)
         if (e < 0.002) continue
         // Le rayon de la lampe au texel, de tuile en tuile : chaque bord franchi en retient sa part.
         let tx = stx, tz = stz
@@ -195,6 +197,16 @@ export function patchLightField(shader: THREE.WebGLProgramParametersWithUniforms
   Object.assign(shader.uniforms, uniforms)
   shader.vertexShader = VERTEX_HEAD + shader.vertexShader.replace('#include <project_vertex>', VERTEX_BODY)
   shader.fragmentShader = FRAGMENT_HEAD + shader.fragmentShader.replace('#include <lights_fragment_end>', FRAGMENT_BODY)
+}
+
+/**
+ * Matériau hors du champ de lumière : ce qui est posé par-dessus les pièces sans en faire partie
+ * (le couvercle d'une pièce fermée ne s'éclaire pas des lampes qu'il cache).
+ */
+export function unlitByField<M extends THREE.Material>(material: M): M {
+  material.onBeforeCompile = () => {}
+  material.customProgramCacheKey = () => 'no-light-field'
+  return material
 }
 
 // Tout matériau qui n'a pas son propre crochet reçoit le champ (personnages, animaux, pièces mobiles).

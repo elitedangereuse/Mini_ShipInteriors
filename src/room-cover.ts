@@ -1,3 +1,4 @@
+import { unlitByField } from './lighting/field'
 import * as THREE from 'three'
 import { drawnTexture } from './furniture/kit'
 
@@ -104,8 +105,8 @@ function lockTexture(color: string): THREE.CanvasTexture {
 export function roomCover(w: number, d: number, tint: string, glow?: string): { cover: THREE.Group; update?: (t: number) => void } {
   const cover = new THREE.Group()
   const base = new THREE.Color(tint)
-  const side = new THREE.MeshLambertMaterial({ color: base.clone().multiplyScalar(0.6) })
-  const top = new THREE.MeshLambertMaterial({ map: platingTexture(w, d, base) })
+  const side = unlitByField(new THREE.MeshLambertMaterial({ color: base.clone().multiplyScalar(0.6) }))
+  const top = unlitByField(new THREE.MeshLambertMaterial({ map: platingTexture(w, d, base) }))
   const plate = new THREE.Mesh(new THREE.BoxGeometry(w, THICKNESS, d), [side, side, top, side, side, side])
   plate.position.y = WALL_TOP + THICKNESS / 2
   plate.receiveShadow = true

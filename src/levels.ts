@@ -1,3 +1,4 @@
+import type { RoomLighting } from './lighting/fixtures'
 import type { Ambience, Flicker } from './lighting/rig'
 import type * as THREE from 'three'
 import type { FloorFinish, StationModel, Theme } from './assets'
@@ -107,6 +108,11 @@ export interface LevelDef {
    * tamisées : celles qui ne vivent que de leurs propres lampes.
    */
   unlit?: string
+  /**
+   * Éclairage général par pièce, quand il diffère de celui du pont : plus fort ou plus faible, d'une
+   * autre couleur, des luminaires plus espacés (cf. RoomLighting dans lighting/fixtures.ts).
+   */
+  lighting?: Record<string, RoomLighting>
   /** Salle des machines : centre du cœur du réacteur (ses tuyères, elles, sont sous tous les ponts). */
   engine?: { x: number; z: number }
   /**
@@ -286,6 +292,18 @@ export const LEVELS: LevelDef[] = [
     dim: { v: 0.5, n: 0.3, u: 0.6, w: 0.45, s: 0.35 },
     // Le stand de tir, Chez Jacques et le couloir de service du Zorb gardent leur pénombre.
     unlit: 'rbu',
+    // L'atelier et le hangar sont des postes de travail, bien éclairés ; la soute, la raffinerie et
+    // la salle des machines restent dans la pénombre, à la lueur de leurs machines.
+    lighting: {
+      a: { level: 1.1 },
+      j: { level: 0.7 },
+      g: { level: 0.6, dead: 0.3 },
+      m: { level: 0.75 },
+      e: { level: 0.35, color: '#9fc8ff' },
+      h: { level: 0.8, color: '#cfe0ff', dead: 0 },
+      t: { level: 0.6, color: '#cfe0ff', dead: 0 },
+      k: { level: 1.3, color: '#e6f0ff', dead: 0 },
+    },
     props: [
       // --- Sanctuaire de la Voie, caché derrière la salle des machines : d'après L'Épreuve, La
       // Cérémonie et Les Reliques de la Voie. On entre au nord ; le portail de Raxxla est au mur
@@ -1010,6 +1028,17 @@ export const LEVELS: LevelDef[] = [
     // Le poste de surveillance n'a pas un hublot : on n'y regarde que des écrans, dans la pénombre.
     windows: { v: 0 },
     dim: { v: 0.4 },
+    // La coursive n'a qu'une dalle de loin en loin ; l'infirmerie est blanche et crue, le mess
+    // chaud, la salle d'arcade et le poste de pilotage sombres, pour leurs écrans.
+    lighting: {
+      c: { level: 0.75, spacing: 3 },
+      q: { level: 1.35, color: '#eef8ff' },
+      r: { level: 1.15 },
+      m: { level: 1, color: '#ffe9cf' },
+      s: { level: 0.3, color: '#b9a8ff', spacing: 3 },
+      b: { level: 0.35, color: '#a8c8ff', spacing: 3 },
+      l: { level: 1.1, color: '#e4fff0' },
+    },
     // Le mur entre l'infirmerie et la salle de sport, où pendent le speed bag et l'écran des records.
     plainWalls: [{ x: 15.5, z: 2 }],
     // Le poste de pilotage et la Promenade sont vitrés sur l'espace ; le hall de la salle commune
@@ -1589,6 +1618,18 @@ export const LEVELS: LevelDef[] = [
     glazed: ['os', 'gc'],
     // On baisse les lumières au cinéma, un peu au salon d'écoute ; au planétarium, la nuit tombe.
     dim: { n: 0.45, o: 0.7, p: 0.3 },
+    // La salle de classe, les toilettes et les terrains sont en pleine lumière ; le salon d'écoute,
+    // le studio et le foyer du cinéma, feutrés, laissent parler leurs lampes.
+    lighting: {
+      c: { level: 0.75, spacing: 3 },
+      k: { level: 1.2 },
+      d: { level: 1.25, color: '#f2f8ff' },
+      o: { level: 0.45, spacing: 3 },
+      s: { level: 0.7 },
+      h: { level: 0.3, spacing: 3 },
+      b: { level: 1.35, color: '#f4f8ff' },
+      f: { level: 1.35, color: '#f4f8ff' },
+    },
     props: [
       // --- Coursive ---
       { model: 'rug', x: 12.9, z: 5, label: 'warm:3.8x0.7', solid: false },

@@ -999,7 +999,7 @@ function setView(next: Deck) {
   if (salvage?.deck) salvage.deck.group.visible = salvage.deck === viewDeck
   // Dans la baie infestée, les projecteurs des zones éclairées passent devant les lampes de
   // secours plus proches : une zone éclairée se voit de loin (cf. RULES.litVision).
-  lighting.show(viewDeck.lights, viewDeck.lightField(), viewDeck.def.ambience ?? DEFAULT_AMBIENCE, viewDeck.generalLit, !!viewDeck.def.zone)
+  lighting.show(viewDeck.lights, viewDeck.lightField(), viewDeck.def.ambience ?? DEFAULT_AMBIENCE, viewDeck.generalLit, !!viewDeck.def.zone, (s) => viewDeck.covered(s.position.x, s.position.z))
   // Le soleil cadre ses ombres sur le vaisseau, ou sur le plateau de la base au sol.
   const center = viewDeck.def.ground?.center ?? SHIP_CENTER
   shadowHome.set(center.x, 0, center.z)

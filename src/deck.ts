@@ -524,6 +524,12 @@ export class Deck {
     return (this.field = bakeLightField(this.map, sources, glazed))
   }
 
+  /** Le point (x, z) est-il sous le couvercle d'une pièce fermée ? Ses lampes n'ont pas à éclairer le couvercle. */
+  covered(x: number, z: number): boolean {
+    const room = this.map.room(Math.round(x), Math.round(z))
+    return !!room && !!this.covers.get(room)?.visible
+  }
+
   /** Les lampes ou le plan du pont ont changé (les quartiers qu'on aménage) : son champ est à refaire. */
   relight() {
     this.field?.texture.dispose()
@@ -872,9 +878,10 @@ export class Deck {
     }
     if (!offShip(this.def)) {
       this.generalLit = true
-      // La parcelle des quartiers a ses propres plafonniers (cf. housing/home.ts).
-      const dark = (room: string) => (this.def.dim?.[room] ?? 1) < 0.6 || !!this.def.unlit?.includes(room) || room === this.def.cabin?.room
-      const general = generalLighting(this.map, this.def.theme ?? 'station', dark, [...fixtures, LIFT])
+      // Pas d'éclairage général dans une pièce tamisée, ni sur la parcelle des quartiers, qui a ses
+      // propres plafonniers (cf. housing/home.ts) ; ailleurs, celui de la pièce (cf. `lighting`).
+      const of = (room: string) => ((this.def.dim?.[room] ?? 1) < 0.6 || this.def.unlit?.includes(room) || room === this.def.cabin?.room ? null : this.def.lighting?.[room] ?? {})
+      const general = generalLighting(this.map, this.def.theme ?? 'station', of, [...fixtures, LIFT])
       for (const l of general.lights) {
         // Sous une verrière, c'est le jour qui éclaire : pas de luminaire.
         const sunlit = greenhouse(Math.round(l.x), Math.round(l.z))

@@ -52,7 +52,7 @@ const POOL = 8
  * Part de l'ambiance (ciel, soleil) dans l'image : le reste vient des lampes du pont, par le champ
  * de lumière. Un pont sans lampes garde ainsi son ambiance seule, en plus sombre.
  */
-const AMBIENT_SHARE = 0.5
+const AMBIENT_SHARE = 0.42
 /** Force du champ de lumière. */
 const FIELD_GAIN = 0.22
 /** Une lampe de la réserve est déjà dans le champ : sa vraie lumière n'apporte que le relief. */
@@ -78,6 +78,7 @@ export class LightRig {
   private ambience: Ambience | null = null
   private byIntensity = false
   private general = true
+  private hidden: (s: LightSource) => boolean = () => false
   /** Position (au sol) d'où la réserve a été répartie la dernière fois. */
   private readonly from = new THREE.Vector3(Infinity, 0, 0)
   private readonly drivers = new Map<Flicker, FlickerDriver>()
@@ -116,8 +117,10 @@ export class LightRig {
    *   le champ n'ajoute que la lueur de ses lampes.
    * @param byIntensity la réserve préfère les lampes fortes aux lampes proches (la baie infestée :
    *   une zone éclairée se voit de loin)
+   * @param hidden lampe à laisser hors de la réserve (sous le couvercle d'une pièce fermée)
    */
-  show(sources: LightSource[], field: LightField | null, ambience: Ambience, general: boolean, byIntensity = false) {
+  show(sources: LightSource[], field: LightField | null, ambience: Ambience, general: boolean, byIntensity = false, hidden: (s: LightSource) => boolean = () => false) {
+    this.hidden = hidden
     this.sources = sources
     this.ambience = ambience
     this.general = general
@@ -204,7 +207,7 @@ export class LightRig {
     const first = this.from.x === Infinity
     this.from.copy(focus)
     const weight = (s: LightSource) => (s.position.distanceToSquared(focus) + 1) / ((this.byIntensity ? s.intensity : 1) * (s.flicker ? 2.5 : 1))
-    this.wanted = this.sources.filter((s) => !s.ambient).sort((a, b) => weight(a) - weight(b)).slice(0, POOL)
+    this.wanted = this.sources.filter((s) => !s.ambient && !this.hidden(s)).sort((a, b) => weight(a) - weight(b)).slice(0, POOL)
     this.fill(first ? 1 : 0)
   }
 
