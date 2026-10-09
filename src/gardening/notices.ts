@@ -8,6 +8,10 @@ import type { GardenStore } from './store'
  * est mûre, elle lui écrit, dans leur conversation du combiné de bord (cf. crew/phone.ts). Le jeu
  * regarde le jardin de temps en temps, où que soit le joueur à bord ; à son arrivée, le premier
  * message résume ce qui l'attend depuis sa dernière visite.
+ *
+ * Elle prévient, elle ne relance pas : une chose dite (« tes carottes sont mûres ») ne l'est qu'une
+ * fois, tant qu'elle reste vraie. Elle le redira si ça se reproduit après avoir été réglé (les
+ * carottes récoltées, puis d'autres qui mûrissent).
  */
 
 /** Ce dont Capucine parle (une terre prête où rien n'est semé n'attend personne). */
@@ -15,6 +19,18 @@ type Told = Exclude<PlotNeed, 'sow'>
 
 /** Entre deux regards sur le jardin (secondes). */
 const EVERY = 20
+
+/** Ce qu'elle a déjà dit, gardé le temps de l'onglet : recharger la page ne le lui fait pas répéter. */
+const SAID_KEY = 'mini-shipinteriors-garden-said'
+
+function restore(): Set<string> | null {
+  try {
+    const said: unknown = JSON.parse(sessionStorage.getItem(SAID_KEY) ?? 'null')
+    return Array.isArray(said) ? new Set(said.filter((s) => typeof s === 'string')) : null
+  } catch {
+    return null
+  }
+}
 
 const pick = <T,>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)]
 
@@ -42,39 +58,56 @@ const LINES: Record<Told, ((what: string, n: number) => string)[]> = {
 }
 
 export class GardenNotices {
-  /** Ce que chaque tuile attendait la dernière fois qu'on a regardé. */
-  private told = new Map<string, Told | null>()
+  /** Ce qu'elle a dit et qui est toujours vrai : « harvest:carrot », une fois pour toutes les tuiles de carottes. */
+  private said: Set<string>
   private clock = EVERY
-  private first = true
+  private first: boolean
 
   constructor(
     private readonly store: GardenStore,
     /** Capucine écrit au joueur. */
     private readonly post: (text: string) => void,
-  ) {}
+  ) {
+    const said = restore()
+    this.said = said ?? new Set()
+    this.first = !said
+  }
 
   update(dt: number) {
     this.clock += dt
     if (this.clock < EVERY || !this.store.ready) return
     this.clock = 0
     const now = this.store.now()
-    const fresh: Record<Told, string[]> = { water: [], weed: [], harvest: [] }
-    const seen = new Set<string>()
-    for (const [key, plot] of Object.entries(this.store.garden.plots)) {
+    /** Par état, puis par culture : le nombre de tuiles qui l'attendent. */
+    const waiting: Record<Told, Map<string, number>> = { water: new Map(), weed: new Map(), harvest: new Map() }
+    for (const plot of Object.values(this.store.garden.plots)) {
       if (!plot.c) continue
-      // Replantée depuis : c'est une autre culture, qui aura ses propres rappels.
-      const id = `${key}@${plot.p}`
-      seen.add(id)
       const need = plotStatus(RULES, plot, now).need
-      const told = need === 'sow' ? null : need
-      if (told && this.told.get(id) !== told) fresh[told].push(plot.c)
-      this.told.set(id, told)
+      if (need && need !== 'sow') waiting[need].set(plot.c, (waiting[need].get(plot.c) ?? 0) + 1)
     }
-    for (const id of [...this.told.keys()]) if (!seen.has(id)) this.told.delete(id)
-    const parts = (['harvest', 'water', 'weed'] as const).filter((need) => fresh[need].length).map((need) => pick(LINES[need])(list(fresh[need]), fresh[need].length))
+    const current = new Set<string>()
+    const parts: string[] = []
+    for (const need of ['harvest', 'water', 'weed'] as const) {
+      const fresh: string[] = []
+      let plots = 0
+      for (const [crop, n] of waiting[need]) {
+        current.add(`${need}:${crop}`)
+        if (this.said.has(`${need}:${crop}`)) continue
+        fresh.push(crop)
+        plots += n
+      }
+      if (fresh.length) parts.push(pick(LINES[need])(list(fresh), plots))
+    }
+    // Ce qui n'est plus vrai est oublié : elle pourra le redire le jour où ça revient.
+    this.said = current
+    try {
+      sessionStorage.setItem(SAID_KEY, JSON.stringify([...current]))
+    } catch {
+      /* Stockage indisponible. */
+    }
+    if (!parts.length) return
     const hello = this.first ? tr('Je suis passée voir ton jardin. ', 'I dropped by your garden. ') : ''
     this.first = false
-    if (!parts.length) return
     this.post(hello + parts.join(' '))
   }
 }

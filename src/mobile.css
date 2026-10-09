@@ -75,9 +75,10 @@
   .cb-actions { flex-wrap: wrap; }
   .cb-actions button, .cb-actions a { min-height: 44px; display: inline-flex; align-items: center; }
   .cb-actions kbd { display: none; }
-  .ph-tab { margin-left: 0; width: 44px; height: 44px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; clip-path: none; }
+  .ph-tab { margin-left: 0; width: 44px; height: 44px; padding: 8px; }
+  .ph-tab::before { border: 1px solid var(--border); border-radius: 10px; clip-path: none; }
   .ph-tab b { display: none; }
-  .ph-tab .ph-badge { position: absolute; top: -3px; right: -3px; }
+  .ph-tab .ph-badge { top: -3px; right: -3px; }
   .ph-tab.qp-tab { margin-top: 0; padding: 8px; }
   .ph-body { left: var(--mobile-left); height: var(--mobile-height); }
   .top-right { top: var(--mobile-top); right: var(--mobile-right); gap: 6px; }

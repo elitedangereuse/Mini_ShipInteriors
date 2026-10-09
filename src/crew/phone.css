@@ -30,22 +30,31 @@ body.editing #quest-phone {
   --edge: 16px;
 }
 .ph-tab {
+  position: relative;
   margin-left: calc(-1 * var(--edge));
   display: grid;
   justify-items: center;
   gap: 4px;
   width: 44px;
-  padding: 14px 0 12px;
+  padding: 14px 0 12px 3px;
   border: 0;
-  border-left: 3px solid var(--accent);
-  background: linear-gradient(160deg, rgba(34, 38, 78, 0.96), rgba(11, 13, 31, 0.96));
-  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+  background: none;
   color: var(--text);
   font: inherit;
   cursor: pointer;
   pointer-events: auto;
   filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.5));
   -webkit-tap-highlight-color: transparent;
+}
+/* Le fond chanfreiné est à part : rogné sur le bouton, il couperait la pastille qui dépasse du coin. */
+.ph-tab::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-left: 3px solid var(--accent);
+  background: linear-gradient(160deg, rgba(34, 38, 78, 0.96), rgba(11, 13, 31, 0.96));
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
 }
 .ph-tab .icon {
   font-size: 21px;
@@ -59,7 +68,7 @@ body.editing #quest-phone {
 .ph-tab b:empty {
   display: none;
 }
-.ph-tab:hover {
+.ph-tab:hover::before {
   background: linear-gradient(160deg, rgba(48, 54, 108, 0.98), rgba(16, 19, 44, 0.98));
 }
 .ph-tab:focus-visible {
@@ -91,13 +100,23 @@ body:is(.phone-open, .quest-phone-open) .ph-tab {
 .ph-badge:empty {
   display: none;
 }
+/* Sur la languette : une pastille rouge, à cheval sur le coin. */
+.ph-tab .ph-badge {
+  --ping: #ff4d5e;
+  position: absolute;
+  box-sizing: border-box;
+  top: -6px;
+  right: -7px;
+  background: #e5343f;
+  color: #fff;
+}
 .ph-tab.alert .ph-badge {
   animation: ph-ping 1.6s ease-in-out 3;
 }
 @keyframes ph-ping {
   50% {
     transform: scale(1.25);
-    box-shadow: 0 0 12px var(--accent);
+    box-shadow: 0 0 12px var(--ping, var(--accent));
   }
 }
 
@@ -685,7 +704,9 @@ button.ph-row-main:hover {
 }
 .qp-tab {
   margin-top: -4px;
-  padding: 12px 0 14px;
+  padding: 12px 0 14px 3px;
+}
+.qp-tab::before {
   border-left-color: #ffd24a;
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%);
 }
@@ -693,7 +714,9 @@ button.ph-row-main:hover {
   color: #ffd24a;
 }
 .qp-tab .ph-badge {
+  --ping: #ffd24a;
   background: #ffd24a;
+  color: #1a1204;
 }
 #quest-phone .ph-body {
   background: linear-gradient(210deg, var(--qp) 0, rgba(255, 210, 74, 0.25) 22%, var(--ph-line) 55%, rgba(125, 255, 168, 0.5) 100%);
@@ -861,7 +884,7 @@ button.ph-row-main:hover {
     align-items: center;
     gap: 6px;
     width: auto;
-    padding: 7px 14px 7px calc(var(--edge) + 4px);
+    padding: 7px 14px 7px calc(var(--edge) + 7px);
   }
   .qp-tab {
     margin-top: 0;
