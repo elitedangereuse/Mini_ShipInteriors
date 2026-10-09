@@ -26,33 +26,54 @@ const holoPanel: Builder = ({ label = tr('Systèmes|Nominal', 'Systems|Nominal')
   }
 }
 
-/** Siège du pilote, avec manche (à droite) et manette des gaz (à gauche) : le HOTAS. */
+/** Cuir des sièges du poste de pilotage : assez clair pour garder son relief dans la pénombre. */
+export const seatLeather = lit('#2b2f38', 'leather')
+export const seatCushion = lit('#3b404b', 'leather')
+
+/**
+ * Siège du pilote, comme dans les cockpits d'Elite : baquet à oreilles sur son rail, appuie-tête
+ * enveloppant, et le HOTAS sur les accoudoirs (manche à droite, manette des gaz à gauche).
+ */
 const pilotSeat: Builder = () => {
   const g = new THREE.Group()
-  g.add(cylinder(0.13, 0.17, 0.18, mat.steelDark, 0, 0.09, 0, 12))
-  g.add(box(0.52, 0.12, 0.5, mat.seat, 0, 0.24, 0.02, 0.04))
-  const back = box(0.52, 0.64, 0.12, mat.seat, 0, 0.58, -0.22, 0.05)
+  // Le rail et le pied.
+  g.add(box(0.34, 0.04, 0.58, mat.steelDark, 0, 0.02, 0, 0.01), box(0.22, 0.14, 0.3, mat.steel, 0, 0.11, 0, 0.02))
+  for (const x of [-0.13, 0.13]) g.add(box(0.02, 0.012, 0.5, mat.lamp, x, 0.046, 0))
+  // L'assise et ses bourrelets.
+  g.add(box(0.52, 0.12, 0.5, seatLeather, 0, 0.24, 0.02, 0.04), box(0.3, 0.03, 0.36, seatCushion, 0, 0.292, 0.04, 0.012))
+  // Le dossier, ses oreilles à hauteur d'épaules, l'appuie-tête et ses joues.
+  const back = new THREE.Group()
+  back.position.set(0, 0.3, -0.2)
   back.rotation.x = -0.16
+  back.add(box(0.52, 0.62, 0.12, seatLeather, 0, 0.29, 0, 0.05), box(0.24, 0.46, 0.03, seatCushion, 0, 0.28, 0.062, 0.012))
+  for (const x of [-0.2, 0.2]) back.add(box(0.03, 0.5, 0.02, mat.trim, x, 0.28, 0.066))
+  for (const x of [-0.27, 0.27]) back.add(box(0.07, 0.26, 0.17, seatLeather, x, 0.42, 0.05, 0.03))
+  back.add(box(0.3, 0.16, 0.1, seatLeather, 0, 0.68, -0.01, 0.04), box(0.18, 0.09, 0.02, seatCushion, 0, 0.68, 0.045, 0.008))
+  for (const x of [-0.165, 0.165]) back.add(box(0.05, 0.14, 0.13, seatLeather, x, 0.68, 0.03, 0.02))
+  // La coque du dossier, côté coursive, et son liseré.
+  back.add(box(0.44, 0.5, 0.03, mat.steelDark, 0, 0.3, -0.07, 0.012), box(0.3, 0.02, 0.012, mat.lamp, 0, 0.5, -0.088))
   g.add(back)
-  g.add(box(0.3, 0.14, 0.1, mat.seat, 0, 0.95, -0.29, 0.04))
-  // Liserés orange du dossier.
-  for (const x of [-0.2, 0.2]) {
-    const strip = box(0.035, 0.5, 0.02, mat.trim, x, 0.57, -0.155)
-    strip.rotation.x = -0.16
-    g.add(strip)
+  // Accoudoirs : deux caissons, un liseré lumineux dehors, un petit écran dessus.
+  for (const x of [-0.31, 0.31]) {
+    g.add(box(0.11, 0.09, 0.46, mat.steelDark, x, 0.37, 0.02, 0.02))
+    g.add(box(0.012, 0.014, 0.36, mat.lamp, x + Math.sign(x) * 0.056, 0.39, 0.02))
+    g.add(box(0.07, 0.006, 0.09, mat.lamp, x, 0.417, -0.12))
   }
-  // Accoudoirs, HOTAS.
-  for (const x of [-0.3, 0.3]) g.add(box(0.09, 0.07, 0.42, mat.steel, x, 0.36, 0, 0.02))
-  g.add(cylinder(0.018, 0.022, 0.15, mat.steelDark, 0.3, 0.46, 0.14, 8))
-  g.add(box(0.05, 0.05, 0.05, mat.seat, 0.3, 0.55, 0.14, 0.015))
-  g.add(box(0.02, 0.02, 0.02, mat.lampRed, 0.3, 0.58, 0.15))
-  g.add(box(0.06, 0.1, 0.07, mat.seat, -0.3, 0.44, 0.12, 0.015))
-  g.add(box(0.02, 0.02, 0.02, mat.lamp, -0.3, 0.5, 0.15))
+  // Le manche : son socle, son soufflet, sa poignée penchée, le chapeau chinois et la gâchette.
+  g.add(cylinder(0.04, 0.05, 0.025, mat.steel, 0.31, 0.427, 0.16, 12), cylinder(0.022, 0.034, 0.05, mat.seat, 0.31, 0.46, 0.16, 8))
+  const grip = box(0.046, 0.13, 0.055, mat.seat, 0.31, 0.545, 0.15, 0.018)
+  grip.rotation.x = -0.18
+  g.add(grip, box(0.05, 0.03, 0.06, mat.steelDark, 0.31, 0.605, 0.142, 0.012))
+  g.add(box(0.018, 0.018, 0.018, mat.lampRed, 0.31, 0.626, 0.14), box(0.014, 0.03, 0.014, mat.trim, 0.31, 0.55, 0.186))
+  // La manette des gaz : sa glissière, son levier, sa poignée en T.
+  g.add(box(0.09, 0.016, 0.2, mat.steel, -0.31, 0.423, 0.12, 0.006), box(0.012, 0.004, 0.16, mat.lamp, -0.31, 0.433, 0.12))
+  g.add(box(0.03, 0.07, 0.03, mat.steelDark, -0.31, 0.465, 0.15), box(0.085, 0.045, 0.05, mat.seat, -0.31, 0.515, 0.15, 0.016))
+  g.add(box(0.018, 0.018, 0.018, mat.lamp, -0.345, 0.542, 0.15))
   return { solid: g }
 }
 
 /** Le scanner elliptique d'Elite : anneaux, contacts sur leurs tiges, balayage. */
-const radar: Builder = () => {
+export const radar: Builder = () => {
   const live = new THREE.Group()
   const rx = 0.34, rz = 0.2, y = 0.44
   const disc = part(new THREE.CircleGeometry(1, 40), holoMaterial(null, ED_ORANGE, 0.22), 0, y, 0)

@@ -1094,12 +1094,15 @@ export const LEVELS: LevelDef[] = [
     // L'étage de la salle commune (cf. MEZZANINES).
     mezzanine: tr('Mezzanine de la salle commune', 'Common room mezzanine'),
     floors: { c: 'floor-panel', b: 'floor-detail', l: 'floor-panel', v: 'floor-detail' },
+    // Le poste de pilotage a un pont sombre, où se reflètent ses instruments.
+    floorFinish: { b: 'graphite' },
     // Le poste de surveillance n'a pas un hublot : on n'y regarde que des écrans, dans la pénombre.
     // Le salon d'arcade non plus : une salle de jeux est une grotte.
     windows: { v: 0, s: 0, x: 0, p: 0 },
-    dim: { v: 0.4, s: 0.45 },
+    // Le poste de pilotage aussi est tamisé : on y pilote à la lueur des instruments.
+    dim: { v: 0.4, s: 0.45, b: 0.5 },
     // La coursive n'a qu'une dalle de loin en loin ; l'infirmerie est blanche et crue, le mess
-    // chaud, la salle d'arcade et le poste de pilotage sombres, pour leurs écrans.
+    // chaud, la salle d'arcade sombre, pour ses écrans (le poste de pilotage, tamisé, n'a que ses lampes).
     lighting: {
       c: { level: 0.75, spacing: 3 },
       q: { level: 1.35, color: '#eef8ff' },
@@ -1109,7 +1112,6 @@ export const LEVELS: LevelDef[] = [
       // La salle de la Pixel War est un atelier blanc : c'est la toile qui la colore.
       x: { level: 0.6 },
       p: { level: 1.25, color: '#ffffff' },
-      b: { level: 0.35, color: '#a8c8ff', spacing: 3 },
       l: { level: 1.1, color: '#e4fff0' },
     },
     // Le mur entre l'infirmerie et la salle de sport, où pendent le speed bag et l'écran des records.
@@ -1138,7 +1140,6 @@ export const LEVELS: LevelDef[] = [
         model: 'pilot-seat', x: PILOT_SEAT.x, z: PILOT_SEAT.z, rot: 1,
         interact: tr('Siège du pilote. Quelqu\'un a gravé « o7 » sur l\'accoudoir.', 'Pilot\'s seat. Someone has carved “o7” into the armrest.'),
       },
-      { model: 'radar', x: 37.5, z: 4.5, rot: 1 },
       { model: 'side-console', x: 37.55, z: 3, rot: 3, label: 'nav', interact: tr('Poste du navigateur : route tracée, 3 sauts, aucune étoile à neutrons sur le trajet. Dommage.', 'Navigator\'s station: route plotted, 3 jumps, no neutron stars on the way. Pity.') },
       { model: 'crew-seat', x: 36.7, z: 3, rot: 1, interact: tr('Siège du navigateur : l\'accoudoir est usé à force de pianoter sur la carte.', 'Navigator\'s seat: the armrest is worn from tapping on the map.') },
       { model: 'side-console', x: 37.55, z: 6, rot: 3, label: 'comms', interact: tr('Comms : Felicity Farseer attend toujours son Meta-Alloy.', 'Comms: Felicity Farseer is still waiting for her Meta-Alloys.') },
@@ -1171,6 +1172,8 @@ export const LEVELS: LevelDef[] = [
       },
       { model: 'computer-screen', x: 33, z: 8, rot: 2, interact: tr('Journal de bord : « Jour 1 : on a agrandi le poste de pilotage. Jour 2 : on cherche encore le café. »', 'Ship\'s log: “Day 1: we enlarged the cockpit. Day 2: still looking for the coffee.”') },
       { model: 'plant-tall', x: 32.1, z: 7.25 },
+      // Le balisage lumineux du pont, de la porte au siège du pilote.
+      { model: 'bridge-guides', x: 34.5, z: 4.5, solid: false },
 
       // --- Salle commune, à la poupe : le hall du vaisseau, comme le concourse d'une station
       // Coriolis. Au milieu, l'îlot du hall (banquette ronde, plantes, le monument du vaisseau) ;
@@ -1697,8 +1700,13 @@ export const LEVELS: LevelDef[] = [
       [0.7, 2.4, '#ffd9a8', 1.8],
       [0.7, 6.6, '#ffd9a8', 1.8],
       [0.5, 4.5, '#ff7ad9', 1.4, 'neon'],
-      [34.5, 4.5, '#ffa04a', 3.4],
-      [37.2, 4.5, '#9fd8ff', 2.4],
+      // Le poste de pilotage, tamisé : l'orange des instruments à la proue et de la carte au
+      // centre, une lumière froide de veille sur les postes d'équipage et à l'entrée.
+      [37.3, 4.5, '#ff8a2a', 2.6, undefined, 4.5],
+      [34.5, 4.5, '#ffa04a', 2.2, undefined, 4.5],
+      [36.3, 2.8, '#9fc8ff', 2, undefined, 3.5],
+      [36.3, 6.2, '#9fc8ff', 2, undefined, 3.5],
+      [32.7, 4.5, '#a9c6ff', 1.9, undefined, 4],
       // L'infirmerie : lumière clinique sur les lits, et la lampe rosée du poste de Betty.
       [10.2, 1.4, '#eef8ff', 2.6],
       [13.8, 1.4, '#e8f6ff', 2.6],

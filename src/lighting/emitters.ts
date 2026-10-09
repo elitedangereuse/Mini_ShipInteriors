@@ -32,8 +32,9 @@ const SHIP: Record<string, FurnitureLight> = {
   computer: SCREEN,
   'computer-screen': SCREEN,
   'computer-system': SCREEN,
-  'side-console': SCREEN,
-  'helm-console': SCREEN,
+  // Le poste de pilotage s'éclaire de ses instruments : l'orange des hologrammes d'Elite.
+  'side-console': { color: '#ff9a3c', intensity: 0.5, at: [0, 0.75, 0.25], priority: 6, soft: true },
+  'helm-console': { color: '#ff8a1c', intensity: 1.1, at: [0, 0.8, 0.5], priority: 6, soft: true },
   'hangar-console': SCREEN,
   'security-desk': SCREEN,
   'galaxy-map': { color: '#ff9a3c', intensity: 0.8, at: [0, 0.8, 0], priority: 6, soft: true },

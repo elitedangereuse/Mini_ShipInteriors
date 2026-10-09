@@ -92,7 +92,7 @@ export const themes = {} as Record<Theme, ThemeMaterials>
  * Sols repeints d'une pièce, quel que soit le thème du pont (cf. `floorFinish` dans levels.ts) :
  * l'acier brossé argenté du hangar, qui accroche la lumière des projecteurs.
  */
-export type FloorFinish = 'silver' | 'terracotta'
+export type FloorFinish = 'silver' | 'terracotta' | 'graphite'
 export const floorFinishes = {} as Record<FloorFinish, THREE.Material>
 
 type Paint = (hsl: { h: number; s: number; l: number }, c: THREE.Color) => void
@@ -259,6 +259,17 @@ export async function preload(extra: string[], onProgress: (ratio: number) => vo
   floorFinishes.terracotta = withSurface(new THREE.MeshLambertMaterial({
     map: stationMaterial.map ? recolored(stationMaterial.map, 'terracotta-floor', terracotta) : null,
   }), 'tile')
+  // Graphite : le pont sombre d'un poste de pilotage, où se reflètent les instruments (Phong).
+  const graphite = paint({
+    steel: (l, c) => set(c, 218, 0.12, 0.05 + l * 0.2),
+    accent: (l, c) => set(c, 26, 0.95, l * 0.6),
+    screen: (l, c) => set(c, 212, 0.25, 0.1 + l * 0.2),
+  })
+  floorFinishes.graphite = withSurface(new THREE.MeshPhongMaterial({
+    map: stationMaterial.map ? recolored(stationMaterial.map, 'graphite-floor', graphite) : null,
+    specular: '#5a6478',
+    shininess: 90,
+  }), 'hull')
 }
 
 /** Instance d'un modèle statique (partage géométrie et matériau). */
