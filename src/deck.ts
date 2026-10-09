@@ -131,6 +131,20 @@ const ZONE_WALL_TOP = 1.06
 const DOOR_RANGE = 1.3
 
 const PICK_MATERIAL = new THREE.MeshBasicMaterial()
+
+/**
+ * Un groupe caché n'est pas dessiné, mais three.js recalcule quand même, à chaque image, la matrice
+ * de chacun de ses objets : des centaines, pour un pont. Ici, ils se reposent tant que le groupe
+ * est caché ; tout est remis à jour à la première image où il s'affiche. La matrice du groupe
+ * lui-même reste juste : on mesure parfois un objet d'un pont caché.
+ */
+function restWhenHidden(group: THREE.Object3D) {
+  const update = group.updateMatrixWorld
+  group.updateMatrixWorld = function (force) {
+    if (this.visible) update.call(this, force)
+    else this.updateWorldMatrix(false, false)
+  }
+}
 /** Bandeau lumineux au pied des verrières. */
 const CANOPY_TRIM = new THREE.MeshBasicMaterial({ color: '#ff8a1c' })
 /** Verre des verrières, bleuté, à peine visible : on regarde l'espace à travers. */
@@ -476,6 +490,7 @@ export class Deck {
     }
     this.y = def.id * LEVEL_HEIGHT
     this.group.position.y = this.y
+    restWhenHidden(this.group)
     this.ceilingMaterial = ceilingMaterial(def.zone ? 'zone' : def.theme ?? 'station')
     this.glowMat = beamMaterial()
 
