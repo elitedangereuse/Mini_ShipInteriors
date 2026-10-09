@@ -13,21 +13,25 @@ import { deckPlan, type DeckPlan } from './geometry'
 
 export type ZoneId = 'life' | 'play' | 'sport' | 'lore' | 'work' | 'way'
 
-/** Zones du plan : leur nom, la teinte de leurs pièces sur la feuille, et leur encre (pastille, contour). */
+/** Zone du plan : son nom, sa couleur d'hologramme (traits, pastilles), et la teinte translucide de ses pièces. */
+const zone = (name: string, ink: string) => ({ name, ink, fill: `${ink}38` })
 export const ZONES: Record<ZoneId, { name: string; fill: string; ink: string }> = {
-  life: { name: tr('Vie à bord', 'Life aboard'), fill: '#f3dca9', ink: '#a8700f' },
-  play: { name: tr('Jeux et spectacles', 'Games and shows'), fill: '#e2c8ec', ink: '#8440a0' },
-  sport: { name: tr('Sport et tir', 'Sport and shooting'), fill: '#f6c6b6', ink: '#bf4225' },
-  lore: { name: tr('Savoirs et nature', 'Learning and nature'), fill: '#c5e3c1', ink: '#2c7a43' },
-  work: { name: tr('Postes de travail', 'Work stations'), fill: '#bdd3ee', ink: '#2a5c9e' },
-  way: { name: tr('Passages', 'Passages'), fill: '#e3e7eb', ink: '#5b6676' },
+  life: zone(tr('Vie à bord', 'Life aboard'), '#ffd24a'),
+  play: zone(tr('Jeux et spectacles', 'Games and shows'), '#e17bff'),
+  sport: zone(tr('Sport et tir', 'Sport and shooting'), '#ff6f5c'),
+  lore: zone(tr('Savoirs et nature', 'Learning and nature'), '#52e6a0'),
+  work: zone(tr('Postes de travail', 'Work stations'), '#4fb0ff'),
+  way: zone(tr('Passages', 'Passages'), '#8497b8'),
 }
 export const ZONE_ORDER: ZoneId[] = ['life', 'play', 'sport', 'lore', 'work', 'way']
 
-/** Couleurs de la feuille. */
-export const SHEET = { paper: '#e9eef0', ink: '#172338', soft: '#536075', rule: '#b4bfc9', here: '#e5401c', hatch: '#9aa5b1' }
+/**
+ * Couleurs de l'hologramme : le noir de l'écran, ses cloisons de lumière, son texte, l'orange des
+ * interfaces d'Elite (titres, repère du joueur), et le rouge d'une porte fermée.
+ */
+export const HOLO = { deep: '#060b17', panel: '#0c182c', line: '#8fdcff', text: '#e6f1ff', soft: '#8fa5c6', rule: '#24405f', accent: '#ff8a1c', alert: '#ff5a4a' }
 
-/** Police des panneaux : une DIN, celle de la signalétique, ou ce que le système a de plus proche. */
+/** Police du plan : une DIN, celle des tableaux de bord et de la signalétique, ou ce que le système a de plus proche. */
 export const SIGN_FONT = '"DIN Alternate", "Bahnschrift", "Roboto Condensed", "Arial Narrow", system-ui, sans-serif'
 
 export interface RoomInfo {

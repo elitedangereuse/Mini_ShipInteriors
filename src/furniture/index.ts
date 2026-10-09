@@ -110,7 +110,7 @@ import { WAYFINDING } from './wayfinding'
  * - sport.ts : la zone sportive du pont supérieur (panier sur glissière, cage et gardien en carton, marquages, ballons) ;
  * - range.ts : le stand de tir de la cale (pas de tir, couloir et pare-balles, tapis des tireurs, armes au mur, caisses de munitions) ;
  * - tutorial.ts : le simulateur d'accueil des nouveaux venus (grille holographique, panneaux de consignes, téléporteur) ;
- * - wayfinding.ts : la signalétique du bord (le plan du vaisseau en caisson lumineux, cf. src/ship-plan/).
+ * - wayfinding.ts : la signalétique du bord (le plan du vaisseau sur son écran holographique, cf. src/ship-plan/).
  * On les place dans levels.ts comme les modèles du kit : `{ model: 'fireplace', x, z, rot }`,
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */

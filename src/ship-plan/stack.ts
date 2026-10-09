@@ -1,6 +1,6 @@
 import { LIFT } from '../levels'
 import type { ShipMap } from '../map'
-import { PLAN_LEVELS, planOf, roomInfo, SHEET, ZONES } from './data'
+import { PLAN_LEVELS, planOf, roomInfo, ZONES } from './data'
 import { isoPoint, pathOf, roomOpen, type Point } from './geometry'
 
 /*
@@ -18,7 +18,8 @@ export interface StackDeck {
   /** Tranche du pont (son épaisseur), dessous, puis sa coque. */
   slab: string
   hull: string
-  rooms: { id: string; d: string; fill: string; hidden: boolean }[]
+  /** Ses pièces : la teinte et le trait de leur zone ; `hidden` : une pièce que le plan ne nomme pas. */
+  rooms: { id: string; d: string; fill: string; ink: string; hidden: boolean }[]
   /** L'ascenseur sur ce pont, et la pointe de sa proue. */
   lift: Point
   bow: Point
@@ -58,7 +59,7 @@ export function shipStack(unit: number, gap: number, mapOf?: (level: number) => 
       rooms: plan.rooms.map((r) => {
         const info = roomInfo(level, r.id)
         const hidden = !!info.secret && !roomOpen(plan, r.id)
-        return { id: r.id, d: pathOf(r.loops, to), fill: hidden ? SHEET.rule : ZONES[info.zone].fill, hidden }
+        return { id: r.id, d: pathOf(r.loops, to), fill: ZONES[info.zone].fill, ink: ZONES[info.zone].ink, hidden }
       }),
       lift: to([LIFT.x + 0.5, LIFT.z + 0.5]),
       bow: to([maxX, bowZ.reduce((a, b) => a + b, 0) / bowZ.length]),

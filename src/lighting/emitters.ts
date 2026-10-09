@@ -51,8 +51,8 @@ const SHIP: Record<string, FurnitureLight> = {
   'galaxy-map': { color: '#ff9a3c', intensity: 0.8, at: [0, 0.8, 0], priority: 6, soft: true },
   'holo-panel': { color: '#ff8a1c', intensity: 0.5, at: [0, 0.8, 0.2], priority: 6, soft: true },
   'exit-sign': { color: '#6dff9a', intensity: 0.4, at: [0, 0.9, 0.15], priority: 6, soft: true },
-  // Le plan du vaisseau, en caisson lumineux : sa feuille claire éclaire un peu le mur et le sol.
-  'ship-map': { color: '#e6eef5', intensity: 0.5, at: [0, 0.62, 0.3], priority: 6, soft: true },
+  // Le plan du vaisseau, sur son écran holographique : une lueur froide sur le mur et le sol.
+  'ship-map': { color: '#7fc8ff', intensity: 0.45, at: [0, 0.62, 0.3], priority: 6, soft: true },
   'sample-tank': TANK,
   'nutrient-tank': TANK,
   'containment-pod': TANK,

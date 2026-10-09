@@ -2,13 +2,13 @@ import type { GameEmbed } from '../game-embed'
 import { tr } from '../i18n'
 import { LIFT } from '../levels'
 import type { ShipMap } from '../map'
-import { deckLabel, deckName, deckNumber, liftTo, PLAN_LEVELS, planAreas, planOf, QUARTERS_LEVEL, roomInfo, roomName, SHEET, SIGN_FONT, ZONE_ORDER, ZONES } from './data'
+import { deckLabel, deckName, deckNumber, liftTo, PLAN_LEVELS, planAreas, planOf, QUARTERS_LEVEL, roomInfo, roomName, SIGN_FONT, ZONE_ORDER, ZONES } from './data'
 import { pathOf, roomOpen, type DeckPlan, type PlanRoom } from './geometry'
 import { shipStack } from './stack'
 
 /*
  * Le plan détaillé du vaisseau, ouvert en consultant une de ses affiches (cf.
- * src/furniture/wayfinding.ts) : la feuille de l'affiche, en grand. À gauche, les trois ponts,
+ * src/furniture/wayfinding.ts) : l'écran holographique de l'affiche, en grand. À gauche, les trois ponts,
  * du plus haut au plus bas ; au milieu, le pont choisi à plat, le nom de chaque pièce dans la
  * pièce, ses portes, l'ascenseur et le repère du joueur ; dessous, la fiche de la pièce survolée
  * ou choisie (ce qu'on y fait, comment on y entre, comment on y va) et l'index des pièces du
@@ -37,14 +37,15 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, t
 /** Marge du plan à plat autour du pont, en tuiles. */
 const PAD = 0.7
 /** Tailles possibles du nom d'une pièce, en tuiles, de la plus grande à la plus petite. */
-const LABEL_SIZES = [0.78, 0.64, 0.52, 0.45]
+const LABEL_SIZES = [0.7, 0.58, 0.48, 0.41]
 
 let ruler: CanvasRenderingContext2D | null = null
 /** Largeur d'un texte en tuiles, écrit à la taille `size`. */
 function textWidth(text: string, size: number): number {
   ruler ??= document.createElement('canvas').getContext('2d')!
   ruler.font = `700 100px ${SIGN_FONT}`
-  return (ruler.measureText(text).width / 100) * size
+  // Les noms sont espacés (cf. `.plan-label` dans plan.css) : 0,04 de la taille par lettre.
+  return (ruler.measureText(text).width / 100 + text.length * 0.04) * size
 }
 
 /**
@@ -189,13 +190,13 @@ export class ShipPlanPanel {
       }
       b.onclick = () => this.showDeck(deck.level, true)
       const art = svg('svg', { viewBox: `-2 -2 ${stack.width + 4} ${stack.height + 4}`, 'aria-hidden': 'true' })
-      // Les hachures des pièces que le plan ne nomme pas, à l'échelle de ces vignettes.
-      if (!list.childElementCount) {
-        art.append(svg('defs', {}, svg('pattern', { id: 'plan-hatch-small', width: 4, height: 4, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(-45)' },
-          svg('rect', { width: 4, height: 4, fill: '#dde3e8' }), svg('rect', { width: 4, height: 1, fill: SHEET.hatch }))))
-      }
       art.append(svg('path', { d: deck.slab, class: 'plan-slab' }), svg('path', { d: deck.hull, class: 'plan-plate' }))
-      for (const room of deck.rooms) art.append(svg('path', { d: room.d, fill: room.hidden ? 'url(#plan-hatch-small)' : room.fill, 'fill-rule': 'evenodd', class: 'plan-plate-room' }))
+      // Une pièce que le plan ne nomme pas : un contour en pointillé, rien dedans.
+      for (const room of deck.rooms) {
+        art.append(room.hidden
+          ? svg('path', { d: room.d, class: 'plan-plate-room is-hidden' })
+          : svg('path', { d: room.d, fill: room.fill, stroke: room.ink, 'fill-rule': 'evenodd', class: 'plan-plate-room' }))
+      }
       art.append(svg('path', { d: deck.hull, class: 'plan-plate-edge' }))
       art.append(svg('circle', { cx: deck.lift[0], cy: deck.lift[1], r: 2.6, class: 'plan-plate-lift' }))
       const at = this.here.level === deck.level ? stack.at(deck.level, this.here.x, this.here.z) : null
@@ -222,11 +223,12 @@ export class ShipPlanPanel {
     this.deckTitle.replaceChildren(el('b', '', deckNumber(level)), deckName(level))
 
     const map = svg('svg', { class: 'plan-map', viewBox: `${-PAD} ${-PAD} ${plan.width + PAD * 2} ${plan.height + PAD * 2}`, role: 'img', 'aria-label': tr(`Plan du pont : ${deckName(level)}`, `Deck map: ${deckName(level)}`) })
+    // Les trames : une pièce que le plan ne nomme pas (des traits froids), une pièce fermée au joueur (des traits rouges).
     map.append(svg('defs', {},
       svg('pattern', { id: 'plan-hatch', width: 0.5, height: 0.5, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(-45)' },
-        svg('rect', { width: 0.5, height: 0.5, fill: '#dde3e8' }), svg('rect', { width: 0.5, height: 0.11, fill: SHEET.hatch })),
+        svg('rect', { width: 0.5, height: 0.5, fill: 'rgba(143, 220, 255, 0.04)' }), svg('rect', { width: 0.5, height: 0.06, fill: 'rgba(143, 220, 255, 0.3)' })),
       svg('pattern', { id: 'plan-lock', width: 0.42, height: 0.42, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(-45)' },
-        svg('rect', { width: 0.42, height: 0.05, fill: 'rgba(23, 35, 56, 0.14)' })),
+        svg('rect', { width: 0.42, height: 0.05, fill: 'rgba(255, 90, 74, 0.38)' })),
     ))
     map.append(svg('path', { d: pathOf(plan.hull), class: 'plan-hull' }))
 
@@ -238,7 +240,8 @@ export class ShipPlanPanel {
       const open = roomOpen(plan, room.id)
       const d = pathOf(room.loops)
       this.shapes.set(room.id, d)
-      const shape = svg('path', { d, 'fill-rule': 'evenodd', fill: hidden ? 'url(#plan-hatch)' : ZONES[roomInfo(level, room.id).zone].fill, class: 'plan-room', 'data-room': room.id })
+      const zone = ZONES[roomInfo(level, room.id).zone]
+      const shape = svg('path', { d, 'fill-rule': 'evenodd', fill: hidden ? 'url(#plan-hatch)' : zone.fill, stroke: hidden ? 'rgba(143, 220, 255, 0.55)' : zone.ink, class: hidden ? 'plan-room is-hidden' : open ? 'plan-room' : 'plan-room is-closed', 'data-room': room.id })
       shape.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') this.heat(room.id) })
       shape.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') this.heat(null) })
       shape.addEventListener('click', () => this.select(room.id))
@@ -248,7 +251,7 @@ export class ShipPlanPanel {
       marks.append(this.label(level, room, hidden, open))
     }
     for (const area of planAreas(level)) {
-      marks.append(svg('text', { x: (area.minX + area.maxX + 1) / 2, y: (area.minZ + area.maxZ + 1) / 2, 'font-size': 0.52, class: 'plan-area' }, area.name))
+      marks.append(svg('text', { x: (area.minX + area.maxX + 1) / 2, y: (area.minZ + area.maxZ + 1) / 2, 'font-size': 0.44, class: 'plan-area' }, area.name.toUpperCase()))
     }
     map.append(rooms, marks)
 
@@ -294,7 +297,7 @@ export class ShipPlanPanel {
       return g
     }
     const lock = !open
-    const fit = fitLabel(roomName(level, room.id), w - 0.36, h - 0.2 - (lock ? 0.5 : 0))
+    const fit = fitLabel(roomName(level, room.id).toUpperCase(), w - 0.36, h - 0.2 - (lock ? 0.5 : 0))
     if (fit) {
       const lineH = fit.size * 1.1
       if (lock) cy += 0.28
@@ -401,6 +404,6 @@ export class ShipPlanPanel {
   private route(level: number, room: string): string {
     if (level !== this.here.level) return tr(`Pour y aller : prenez l'ascenseur ${liftTo(level)}.`, `To get there: take the lift ${liftTo(level)}.`)
     if (room === this.roomAt(this.here)) return tr('Vous y êtes.', 'You are in it.')
-    return tr('Sur le pont où vous êtes : suivez le plan depuis le repère rouge.', 'On the deck you are on: follow the map from the red marker.')
+    return tr('Sur le pont où vous êtes : suivez le plan depuis votre balise.', 'On the deck you are on: follow the map from your beacon.')
   }
 }
