@@ -6,7 +6,7 @@ import { tr } from '../i18n'
 /*
  * Salle de la Pixel War, au bout d'un petit couloir qui part du salon d'arcade : la toile du site
  * (pixel_war.php, un pixel toutes les trente secondes, façon r/place) affichée en direct sur son
- * mur, deux postes pour y jouer (cf. src/game-embed.ts), le nuancier, et un sol qui est lui-même
+ * mur, un poste et une borne pour y jouer (cf. src/game-embed.ts ; la borne est dans arcade.ts), le nuancier, et un sol qui est lui-même
  * une toile. Une pièce blanche et claire, à l'opposé de l'arcade : ce sont les pixels qui la colorent.
  *
  * Un objet accroché est construit dos au mur (origine sur la face du mur, au niveau du sol,
@@ -68,11 +68,11 @@ function stamp(g: CanvasRenderingContext2D, sprite: string[], x: number, y: numb
 
 // ---------------------------------------------------------------- sol
 
-/** Cases par mètre : huit, soit soixante-quatre sur la largeur de la pièce, comme la toile. */
+/** Cases par mètre : huit, soit quarante sur la largeur de la pièce. */
 const CELLS = 8
 
 /** Sol de la salle : une toile blanche quadrillée, déjà bien entamée (`label` : largeur x profondeur). */
-const pixelFloor: Builder = ({ label = '8x4', random }) => {
+const pixelFloor: Builder = ({ label = '5x3', random }) => {
   const [w, d] = label.split('x').map(Number)
   const cols = Math.round(w * CELLS), rows = Math.round(d * CELLS), px = 8
   const map = drawnTexture(cols * px, rows * px, (g) => {
@@ -92,8 +92,8 @@ const pixelFloor: Builder = ({ label = '8x4', random }) => {
     }
     const at = (fx: number, fz: number) => [Math.floor(fx * cols), Math.floor(fz * rows)] as const
     const placed: [string[], number, number][] = [
-      [SPRITES.rainbow, 0.2, 0.12], [SPRITES.heart, 0.44, 0.5], [SPRITES.cobra, 0.6, 0.18], [SPRITES.invader, 0.8, 0.52],
-      [SPRITES.o7, 0.3, 0.62], [SPRITES.smiley, 0.08, 0.5], [SPRITES.flower, 0.9, 0.12], [SPRITES.star, 0.66, 0.6],
+      [SPRITES.rainbow, 0.3, 0.3], [SPRITES.heart, 0.62, 0.62], [SPRITES.cobra, 0.7, 0.26], [SPRITES.smiley, 0.08, 0.34],
+      [SPRITES.o7, 0.32, 0.64], [SPRITES.flower, 0.06, 0.66],
     ]
     for (const [sprite, fx, fz] of placed) stamp(g, sprite, ...at(fx, fz))
     g.restore()

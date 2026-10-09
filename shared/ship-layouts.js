@@ -49,7 +49,7 @@ export const SHIP_LAYOUTS = {
   // surveillance du sergent ('v', cf. SURVEILLANCE_ROOM) : fermé tant que sa quête n'est pas
   // terminée (cf. quests.js). Dans le coin sud-ouest de la salle d'arcade, à côté du tableau des
   // scores, une porte (cf. PIXEL_WAR_DOORS) donne sur un couloir de deux tuiles ('x') qui descend
-  // vers la salle de la Pixel War ('p'), entre la cuisine du mess et le poste de surveillance.
+  // vers la salle de la Pixel War ('p', 5 × 3), entre la cuisine du mess et le poste de surveillance.
   '0': [
     '  eeeeee qqqqqqqrrrrrlllll ccc          ',
     ' eeeeeeeeqqqqqqqrrrrrlllllccccc bbb     ',
@@ -63,10 +63,9 @@ export const SHIP_LAYOUTS = {
     '  eeeeee mmmmmmmssssssssss ccc          ',
     '         mmmmmmmx          +            ',
     '         mmmmmmmx       vvvvvvv         ',
-    '         mmmmmmmppppppppvvvvvvv         ',
-    '                ppppppppvvvvvvv         ',
-    '                ppppppppvvvvvvv         ',
-    '                pppppppp                ',
+    '         mmmmmmmppppp   vvvvvvv         ',
+    '                ppppp   vvvvvvv         ',
+    '                ppppp   vvvvvvv         ',
   ],
   // Pont supérieur : les quartiers ; derrière le salon d'écoute, le cinéma. Au nord du salon,
   // derrière une vitre, le studio de Radio Dangereuse (porte à l'est). À l'ouest, la grande serre

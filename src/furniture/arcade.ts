@@ -598,6 +598,39 @@ const invadersDemo = liveDemo(() => new Invaders(), (g) => {
   hiScore(c, 'invaders', 2, 2)
 }, 10)
 
+/** Dessin que la borne de la Pixel War pose case par case (cf. PIXEL_INK), et l'ordre des cases. */
+const PIXEL_ART = ['.rr.rr.', 'rRRrRRr', 'rRRRRRr', '.rRRRr.', '..rRr..', '...r...', '.......', 'ooo.ooo', 'o.o...o', 'o.o..o.', 'ooo..o.']
+const PIXEL_INK: Record<string, string> = { r: '#be0039', R: '#e8202f', o: '#fa6d00' }
+const PIXEL_CELLS = PIXEL_ART.flatMap((row, j) => row.split('').map((ch, i) => ({ ch, i, j }))).filter((p) => p.ch !== '.')
+const PIXEL_STRAYS = ['#3690ea', '#00cc78', '#ffd635', '#b44ac0', '#51e9f4', '#ff3881']
+
+/** Pixel War : une toile blanche quadrillée, un curseur qui pose ses pixels un à un, la barre de recharge. */
+const drawPixelWar: Draw = (c, t) => {
+  const cell = 6, ox = 27, oy = 4
+  c.fillStyle = '#ffffff'
+  c.fillRect(0, 0, W, H)
+  c.fillStyle = '#dfe3e7'
+  for (let x = 0; x <= W; x += cell) c.fillRect(x + 3, 0, 1, H - 8)
+  for (let y = 0; y <= H - 8; y += cell) c.fillRect(0, y + 4, W, 1)
+  // Les pixels des autres, déjà là.
+  PIXEL_STRAYS.forEach((color, k) => {
+    c.fillStyle = color
+    c.fillRect(3 + ((k * 5 + 1) % 4) * cell + (k % 2 ? 72 : 0) + 1, 4 + ((k * 3 + 2) % 11) * cell + 1, cell - 1, cell - 1)
+  })
+  const n = Math.floor(t * 1.5) % (PIXEL_CELLS.length + 8)
+  PIXEL_CELLS.slice(0, n).forEach((p) => {
+    c.fillStyle = PIXEL_INK[p.ch]
+    c.fillRect(ox + p.i * cell + 1, oy + p.j * cell + 1, cell - 1, cell - 1)
+  })
+  const next = PIXEL_CELLS[Math.min(n, PIXEL_CELLS.length - 1)]
+  c.strokeStyle = '#000000'
+  c.strokeRect(ox + next.i * cell + 0.5, oy + next.j * cell + 0.5, cell, cell)
+  c.fillStyle = '#262829'
+  c.fillRect(0, H - 8, W, 8)
+  c.fillStyle = '#fa6d00'
+  c.fillRect(2, H - 6, (W - 4) * ((t * 1.5) % 1), 4)
+}
+
 // ---------------------------------------------------------------- bornes
 
 /**
@@ -617,6 +650,8 @@ const GAMES: Record<string, { title: string; side: string; neon: string; draw: D
   invaders: { title: 'THARGOID INVADERS', side: '#4a1f6a', neon: '#ff4fd8', draw: invadersDemo, live: true },
   comete: { title: tr('LE LABYRINTHE DE COMÈTE', 'COMÈTE\'S MAZE'), side: '#1d5f6b', neon: '#ff8ad8', draw: drawComete },
   srv: { title: 'SRV RALLY', side: '#8a4512', neon: ED_ORANGE, draw: drawSrv },
+  // La borne de la salle de la Pixel War : elle ouvre la toile du site (cf. src/game-embed.ts).
+  pixelwar: { title: 'PIXEL WAR', side: '#eef1f4', neon: '#fa6d00', draw: drawPixelWar },
 }
 
 /** L'animation d'un écran : celle du jeu, ou une partie de démonstration à lui. */
