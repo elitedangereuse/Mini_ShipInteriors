@@ -3,7 +3,7 @@ import { box, decal, drawnTexture, ED_ORANGE, glow, instanced, lit, part, setIns
 import { tr } from '../i18n'
 
 /*
- * La coursive du pont principal : un chemin de roulement sombre bordé de deux filets orange, où
+ * La coursive du pont principal : un chemin de roulement de tôle claire bordé de deux filets orange, où
  * courent des feux de guidage vers la proue ; devant chaque porte, le nom de la pièce peint au sol
  * dans sa couleur, son seuil lumineux et son enseigne au mur ; des pilastres lumineux et un filet
  * de lumière au pied des cloisons. Rien n'y arrête le pas : tout est au sol ou contre les murs.
@@ -31,33 +31,29 @@ const DOORS: { x: number; side: -1 | 1; name: () => string; color: string }[] = 
   { x: 5, side: 1, name: () => tr('Arcade', 'Arcade'), color: '#5fdcff' },
 ]
 
-/** Une tuile du chemin de roulement : tôle sombre antidérapante, liserés de laiton, un chevron vers la proue. */
+/** Une tuile du chemin de roulement : tôle claire brossée, comme le pont, deux bandes de rive, un chevron vers la proue. */
 function laneTexture(): THREE.CanvasTexture {
   const t = drawnTexture(256, 256, (g) => {
-    g.fillStyle = '#1b1e25'
+    g.fillStyle = '#c3c8d6'
     g.fillRect(0, 0, 256, 256)
-    // Les larmes de la tôle, en quinconce.
-    g.fillStyle = 'rgba(255, 255, 255, 0.055)'
-    for (let j = 0; j < 12; j++) {
-      for (let i = 0; i < 8; i++) {
-        g.save()
-        g.translate(i * 32 + (j % 2 ? 16 : 0) + 8, 30 + j * 17)
-        g.rotate(j % 2 ? 0.7 : -0.7)
-        g.fillRect(-7, -1.5, 14, 3)
-        g.restore()
-      }
+    // Le brossé de la tôle, dans le sens de la marche.
+    for (let y = 0; y < 256; y += 3) {
+      g.fillStyle = `rgba(${y % 2 ? '255, 255, 255' : '70, 80, 110'}, ${0.04 + ((y * 37) % 5) * 0.012})`
+      g.fillRect(0, y, 256, 1)
     }
-    // Les bords : une bande plus sombre et un filet de laiton.
-    g.fillStyle = '#0d0e12'
-    g.fillRect(0, 0, 256, 20)
-    g.fillRect(0, 236, 256, 20)
-    g.fillStyle = '#8a7238'
-    g.fillRect(0, 20, 256, 2)
-    g.fillRect(0, 234, 256, 2)
-    // Un joint entre deux tôles, et le chevron.
-    g.fillStyle = 'rgba(0, 0, 0, 0.5)'
+    // Les rives : une bande d'acier plus soutenue.
+    g.fillStyle = '#9299ad'
+    g.fillRect(0, 0, 256, 22)
+    g.fillRect(0, 234, 256, 22)
+    // Un joint entre deux tôles, ses quatre rivets, et le chevron.
+    g.fillStyle = 'rgba(40, 46, 66, 0.35)'
     g.fillRect(0, 22, 2, 212)
-    g.strokeStyle = 'rgba(255, 138, 28, 0.5)'
+    for (const y of [40, 100, 156, 216]) {
+      g.beginPath()
+      g.arc(12, y, 3, 0, Math.PI * 2)
+      g.fill()
+    }
+    g.strokeStyle = 'rgba(232, 112, 16, 0.85)'
     g.lineWidth = 7
     g.beginPath()
     g.moveTo(112, 104)
@@ -109,14 +105,14 @@ const corridorFloor: Builder = () => {
     const paint = glow(d.color)
     // Le seuil, au pied de la porte, et le trait qui le relie au filet.
     g.add(box(0.8, 0.004, 0.03, paint, d.x, 0.009, d.side * (WALL - 0.03)), box(0.03, 0.004, WALL - EDGE - 0.03, paint, d.x, 0.009, (d.side * (WALL + EDGE - 0.03)) / 2))
-    // Le nom, lisible par qui regarde la porte.
-    const label = part(new THREE.PlaneGeometry(0.92, 0.23), paintMaterial(nameTexture(d.name(), true), d.color), d.x, 0.011, d.side * (EDGE - 0.17))
+    // Le nom, lisible par qui regarde la porte : sa couleur, foncée pour trancher sur la tôle claire.
+    const label = part(new THREE.PlaneGeometry(0.92, 0.23), paintMaterial(nameTexture(d.name(), true), `#${new THREE.Color(d.color).multiplyScalar(0.5).getHexString()}`), d.x, 0.011, d.side * (EDGE - 0.17))
     label.rotation.set(-Math.PI / 2, 0, d.side > 0 ? Math.PI : 0)
     g.add(label)
   }
-  // Les feux de guidage : des traits clairs qui courent sur les deux filets.
+  // Les feux de guidage : des traits bleus qui courent sur les deux filets.
   const n = Math.ceil(LENGTH / GUIDE_GAP) + 1
-  const lights = instanced(new THREE.BoxGeometry(0.32, 0.006, 0.05), Array.from({ length: n * 2 }, () => '#fff0d0'))
+  const lights = instanced(new THREE.BoxGeometry(0.32, 0.006, 0.05), Array.from({ length: n * 2 }, () => '#35c4ff'))
   const scale = new THREE.Vector3()
   return {
     solid: g,
