@@ -4,8 +4,8 @@ Les tâches de Mini Interior se gèrent dans le projet GitHub « Mini Interior �
 de l'organisation : https://github.com/orgs/elitedangereuse/projects/6/views/2
 (vue tableau « TO DO »). Il n'y a plus de roadmap dans le dépôt.
 
-Colonnes (champ `Status`) : `Idées`, `À faire`, `En cours`, `À tester`, `Bug`,
-`Terminé`. Une tâche commencée passe en `En cours`, puis en `À tester` une fois
+Colonnes (champ `Status`) : `Idées`, `V1.0`, `V2.0` (ce qui reste à faire, par version),
+`En cours`, `À tester`, `Bug`, `Terminé`. Une tâche commencée passe en `En cours`, puis en `À tester` une fois
 livrée ; c'est un humain qui la passe en `Terminé` après essai en jeu.
 
 La plupart des cartes sont des brouillons (draft issues) ; les bugs sont des
@@ -45,7 +45,8 @@ Identifiants des colonnes (`OPTION_ID`) :
 | Colonne   | OPTION_ID  |
 |-----------|------------|
 | Idées     | `c1d938ad` |
-| À faire   | `88927aa9` |
+| V1.0      | `88927aa9` |
+| V2.0      | `e77c9d53` |
 | En cours  | `97c87b72` |
 | À tester  | `bee3feac` |
 | Bug       | `10e1af7c` |
