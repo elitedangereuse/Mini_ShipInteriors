@@ -13,7 +13,8 @@ import { tr } from '../i18n'
  * l'IA de l'Erebus, occupe le mur. Les couleurs sont celles du jeu : vert phosphore du terminal,
  * cyan d'ARIA, ambre de la ferraille, bleu du carburant, violet des modules. Les portraits de
  * Kael et d'ARIA reprennent, pixel pour pixel, ceux du jeu (32 × 32).
- * Le personnage de Kael, lui, est un Mini Character posé par src/scavengers.ts.
+ * Le personnage de Kael, lui, est un Mini Character posé par src/scavengers.ts ; son apparence et
+ * celle d'ARIA au Holo-Me sont dans src/looks-scavengers.ts.
  */
 
 const C = {
@@ -413,13 +414,10 @@ function drawKael(c: G) {
  * ARIA, telle que la dessine le jeu (32 × 32), animée : elle cligne des yeux, ses circuits
  * battent, et sa bouche devient une onde quand elle parle.
  */
-export function drawAria(c: G, t: number, bare = false) {
+function drawAria(c: G, t: number) {
   const A = { face: '#00e5ff', dark: '#0091a1', glow: '#80f0ff', circuit: '#00bcd4', dim: '#006070', bg: '#0a1628', bgGlow: '#0d2840' }
-  // `bare` : le visage seul, sans le fond de son écran (la tête de sa projection, cf. looks.ts).
-  if (!bare) {
-    rect(c, 0, 0, 32, 32, A.bg)
-    rect(c, 4, 4, 24, 24, A.bgGlow)
-  }
+  rect(c, 0, 0, 32, 32, A.bg)
+  rect(c, 4, 4, 24, 24, A.bgGlow)
   rect(c, 10, 6, 12, 18, A.dark)
   rect(c, 8, 8, 16, 14, A.face)
   rect(c, 9, 7, 14, 1, A.face)
@@ -459,7 +457,7 @@ export function drawAria(c: G, t: number, bare = false) {
   } else rect(c, 12, 18, 8, 1, A.circuit)
   rect(c, 15, 9, 2, 1, A.glow)
   rect(c, 15, 21, 2, 1, A.glow)
-  if (!bare) for (const [x, y] of [[3, 3], [28, 3], [3, 28], [28, 28]]) rect(c, x, y, 1, 1, A.circuit)
+  for (const [x, y] of [[3, 3], [28, 3], [3, 28], [28, 28]]) rect(c, x, y, 1, 1, A.circuit)
 }
 
 // ---------------------------------------------------------------- la planque

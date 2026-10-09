@@ -3,10 +3,10 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { rig, type Rig } from './assets'
 import type { FaceControl } from './avatar'
 import { holoTime } from './furniture/kit'
-import { drawAria } from './furniture/scavengers'
-import { applyStyle, paintSuit, styleFor } from './holo-style'
+import { applyStyle, paintSuit, styleFields, styleFor, type Persona } from './holo-style'
 import { tr } from './i18n'
 import type { IconName } from './icons'
+import { addKaelGear, ARIA_RISE, ariaProjection } from './looks-scavengers'
 import { recolored } from './recolor'
 import { isStyleSegment, parseStyle, styleSegment, type LookStyle } from '../shared/look-style.js'
 
@@ -52,6 +52,8 @@ export interface SuitStyle {
   visor: string
   /** Voyants (sac dorsal, lampe du casque). */
   light: string
+  /** Équipement propre à un personnage, à la place du col (cf. looks-scavengers.ts). */
+  gear?: 'kael'
 }
 
 interface GuardianStyle {
@@ -70,6 +72,8 @@ interface Tint extends Choice {
   suit?: SuitStyle
   /** Combinaison : où commencent les liserés dans son dégradé (pour la repeindre). */
   trimAt?: number
+  /** La tête d'un personnage, imposée quel que soit le modèle (cf. PERSONAS dans holo-style.ts). */
+  persona?: Persona
 }
 
 export interface Race {
@@ -157,19 +161,23 @@ export const RACES: Race[] = [
         },
       },
       {
-        // La combinaison de Kael, le héros de Scavengers : gris ardoise, liseré vert phosphore. Elle
-        // ne s'achète pas : lancer le jeu depuis un de ses postes l'offre (cf. shared/quests.js).
+        // Kael, le héros de Scavengers : sa tête (cf. `persona`), sa combinaison ardoise (ses
+        // liserés restent gris tant qu'on ne les repeint pas : le vert phosphore est sur son
+        // équipement, cf. looks-scavengers.ts). Elle ne s'achète pas : lancer le jeu depuis un de
+        // ses postes l'offre (cf. shared/quests.js).
         id: 'kael',
         label: 'Kael',
         swatch: '#4a5568',
         trimAt: 0.86,
+        persona: 'kael',
         suit: {
-          ramp: [[0, '#161b24'], [0.4, '#2d3748'], [0.7, '#4a5568'], [0.84, '#636f80'], [0.88, '#2fbf5c'], [1, '#7dffa8']],
-          glove: '#2d3748',
+          ramp: [[0, '#222a37'], [0.2, '#333e50'], [0.4, '#4a5568'], [0.84, '#6b7788'], [0.88, '#8490a1'], [1, '#a9b3c1']],
+          glove: '#252d3b',
           helmet: 'none',
           shell: '#2d3748',
           visor: '#000000',
           light: '#00ff41',
+          gear: 'kael',
         },
       },
     ],
@@ -233,8 +241,8 @@ export const RACES: Race[] = [
     tintLabel: tr('Projection', 'Projection'),
     tints: [
       { id: 'echo', label: tr('Écho', 'Echo'), swatch: '#6fe8ff' },
-      // ARIA, l'IA de Scavengers : une projection cyan, son visage en pixels à la place de la tête.
-      // Offerte avec la combinaison de Kael (cf. shared/quests.js).
+      // ARIA, l'IA de Scavengers : un corps de lumière cyan, la plaque de son portrait à la place
+      // de la tête (cf. looks-scavengers.ts). Offerte avec Kael (cf. shared/quests.js).
       { id: 'aria', label: 'ARIA', swatch: '#00e5ff' },
     ],
   },
@@ -249,6 +257,13 @@ export function raceOf(look: Look): Race {
 /** Modèles proposés pour une race et un sexe. */
 export function variantsOf(race: Race, sex: Sex): Choice[] {
   return race.variants.filter((v) => !v.sex || v.sex === sex)
+}
+
+/** Ce que le Holo-Me laisse choisir pour cette apparence : une tête imposée garde sa coupe et ses cheveux. */
+export function styleFieldsOf(l: Look): (keyof LookStyle)[] {
+  const race = raceOf(l)
+  const fields = styleFields(race.id)
+  return race.tints?.find((t) => t.id === l.tint)?.persona ? fields.filter((f) => f !== 'hair' && f !== 'hairColor') : fields
 }
 
 export function lookId(l: Look): string {
@@ -305,8 +320,10 @@ interface ModelSpec {
   guardian?: GuardianStyle
   /** Projection holographique : le modèle tel quel, rendu en lumière (cf. hologram). */
   holo?: boolean
-  /** Projection d'ARIA : cyan, son visage en pixels à la place de la tête. */
+  /** Projection d'ARIA : un corps de lumière, la plaque de son portrait à la place de la tête. */
   aria?: boolean
+  /** Tête imposée par l'apparence (Kael). */
+  persona?: Persona
   /** Mini Character coiffé au Holo-Me : son modèle (« female-b ») et son style. */
   mini?: string
   style?: LookStyle
@@ -370,7 +387,7 @@ function spec(l: Look): ModelSpec {
     case 'human':
       return mini
     case 'suit':
-      return { ...mini, suit: suitOf(tint ?? race.tints![0], mini.style) }
+      return { ...mini, suit: suitOf(tint ?? race.tints![0], mini.style), persona: tint?.persona }
     case 'alien':
       return { ...mini, hue: tint?.hue ?? 95, antennae: true }
     case 'robot':
@@ -528,11 +545,14 @@ function addSuitGear(root: THREE.Object3D, s: SuitStyle) {
   const size = hb.getSize(new THREE.Vector3())
   const center = hb.getCenter(new THREE.Vector3())
 
-  // Col : anneau à la base de la tête.
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(size.x * 0.42, 0.035, 6, 20), mat.shell)
-  collar.rotation.x = Math.PI / 2
-  collar.position.set(center.x, hb.min.y + 0.02, center.z + size.z * 0.05)
-  head.add(collar)
+  if (s.gear === 'kael') addKaelGear(root)
+  else {
+    // Col : anneau à la base de la tête.
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(size.x * 0.42, 0.035, 6, 20), mat.shell)
+    collar.rotation.x = Math.PI / 2
+    collar.position.set(center.x, hb.min.y + 0.02, center.z + size.z * 0.05)
+    head.add(collar)
+  }
 
   if (s.helmet !== 'none') {
     // Coque un peu plus grande que la tête (coiffures comprises).
@@ -700,18 +720,13 @@ function addGuardianGear(root: THREE.Object3D, s: GuardianStyle) {
 
 // --------------------------------------------------------------- hologramme
 
-/** Bleu d'une projection du Holo-Me, du plus sombre (les creux du modèle) au plus clair ; et le cyan d'ARIA. */
-const ramp = (stops: [number, string][]): [number, THREE.Color][] => stops.map(([at, color]) => [at, new THREE.Color(color)])
-const HOLO_RAMPS = {
-  holo: ramp([[0, '#0d4f78'], [0.45, '#2aa9d8'], [0.8, '#7fe9ff'], [1, '#e9fdff']]),
-  aria: ramp([[0, '#00343c'], [0.45, '#0091a1'], [0.8, '#00e5ff'], [1, '#d8fbff']]),
-}
-type HoloKind = keyof typeof HOLO_RAMPS
+/** Bleu d'une projection du Holo-Me, du plus sombre (les creux du modèle) au plus clair. */
+const HOLO_RAMP: [number, THREE.Color][] = ([[0, '#0d4f78'], [0.45, '#2aa9d8'], [0.8, '#7fe9ff'], [1, '#e9fdff']] as const).map(([at, color]) => [at, new THREE.Color(color)])
 
 /** La texture du modèle, réduite à sa lumière : ses couleurs deviennent des nuances de bleu. */
-function holoTexture(src: THREE.Texture, kind: HoloKind): THREE.Texture {
-  const stops = HOLO_RAMPS[kind]
-  return recolored(src, kind === 'holo' ? 'holo' : `holo:${kind}`, (hsl, c) => {
+function holoTexture(src: THREE.Texture): THREE.Texture {
+  const stops = HOLO_RAMP
+  return recolored(src, 'holo', (hsl, c) => {
     const l = THREE.MathUtils.clamp(hsl.l, 0, 1)
     let i = 0
     while (i < stops.length - 2 && l > stops[i + 1][0]) i++
@@ -720,8 +735,8 @@ function holoTexture(src: THREE.Texture, kind: HoloKind): THREE.Texture {
   })
 }
 
-/** Matériaux de projection, un par sorte et par texture d'origine : toutes les projections les partagent. */
-const holoMaterials: Record<HoloKind, Map<THREE.Texture | null, THREE.Material>> = { holo: new Map(), aria: new Map() }
+/** Matériaux de projection, un par texture d'origine : toutes les projections les partagent. */
+const holoMaterials = new Map<THREE.Texture | null, THREE.Material>()
 
 /** Les lignes de balayage, la bande claire et le grésillement d'une projection, ajoutés à un matériau. */
 function holoShader(basic: THREE.MeshBasicMaterial): THREE.MeshBasicMaterial {
@@ -748,71 +763,32 @@ function holoShader(basic: THREE.MeshBasicMaterial): THREE.MeshBasicMaterial {
  * qui montent, traversé de temps en temps par une bande plus claire, et qui grésille un peu.
  * Les lignes sont celles de l'écran : elles ne suivent pas les gestes, comme sur un vrai projecteur.
  */
-function holoMaterial(src: THREE.MeshLambertMaterial, kind: HoloKind): THREE.Material {
+function holoMaterial(src: THREE.MeshLambertMaterial): THREE.Material {
   const key = src.map ?? null
-  let m = holoMaterials[kind].get(key)
+  let m = holoMaterials.get(key)
   if (m) return m
-  const flat = kind === 'aria' ? '#00e5ff' : '#7fe9ff'
-  m = holoShader(new THREE.MeshBasicMaterial({ map: src.map ? holoTexture(src.map, kind) : null, color: src.map ? '#ffffff' : flat, transparent: true, opacity: 0.92, side: src.side }))
-  holoMaterials[kind].set(key, m)
+  m = holoShader(new THREE.MeshBasicMaterial({ map: src.map ? holoTexture(src.map) : null, color: src.map ? '#ffffff' : '#7fe9ff', transparent: true, opacity: 0.92, side: src.side }))
+  holoMaterials.set(key, m)
   return m
 }
 
 /** Halo au sol d'une projection : l'anneau du projecteur, qui la suit. */
 const holoRing = new THREE.MeshBasicMaterial({ color: '#6fe8ff', transparent: true, opacity: 0.5, depthWrite: false, toneMapped: false })
-const ariaRing = new THREE.MeshBasicMaterial({ color: '#00e5ff', transparent: true, opacity: 0.55, depthWrite: false, toneMapped: false })
-
-/** La tête d'ARIA : un bloc de lumière, son visage en pixels devant (cf. drawAria), partagés par toutes ses projections. */
-let ariaHead: THREE.Material[] | null = null
-function ariaHeadMaterials(): THREE.Material[] {
-  if (ariaHead) return ariaHead
-  const c = document.createElement('canvas')
-  c.width = c.height = 128
-  const g = c.getContext('2d')!
-  // Son visage seul, cadré serré (il tient dans les pixels 5 à 26 de son portrait de 32), à un
-  // instant où elle ne cligne pas des yeux et ne parle pas.
-  g.fillStyle = '#04222c'
-  g.fillRect(0, 0, 128, 128)
-  g.scale(128 / 22, 128 / 22)
-  g.translate(-5, -4)
-  drawAria(g, 5, true)
-  const face = new THREE.CanvasTexture(c)
-  face.colorSpace = THREE.SRGBColorSpace
-  face.magFilter = THREE.NearestFilter
-  const side = holoShader(new THREE.MeshBasicMaterial({ color: '#0091a1', transparent: true, opacity: 0.85 }))
-  const front = holoShader(new THREE.MeshBasicMaterial({ map: face, transparent: true, opacity: 0.97 }))
-  // Faces d'un pavé : +x, -x, +y, -y, +z (le visage), -z.
-  return (ariaHead = [side, side, side, side, front, side])
-}
 
 /**
  * Fait d'un personnage une projection du Holo-Me : chaque matériau devient de la lumière, plus
  * d'ombre portée (la lumière n'en fait pas), et un anneau lumineux sous ses pieds. `scale` :
- * l'échelle du modèle, pour que l'anneau garde sa taille. `aria` : la projection d'ARIA, cyan,
- * dont la tête laisse place à son visage en pixels.
+ * l'échelle du modèle, pour que l'anneau garde sa taille. La projection d'ARIA a la sienne
+ * (cf. ariaProjection).
  */
-function hologram(root: THREE.Object3D, scale: number, aria = false) {
-  const kind: HoloKind = aria ? 'aria' : 'holo'
+function hologram(root: THREE.Object3D, scale: number) {
   root.traverse((o) => {
     const m = o as THREE.Mesh
     if (!m.isMesh) return
-    m.material = holoMaterial(m.material as THREE.MeshLambertMaterial, kind)
+    m.material = holoMaterial(m.material as THREE.MeshLambertMaterial)
     m.castShadow = false
   })
-  if (aria) {
-    const head = root.getObjectByName('head')
-    const headMesh = root.getObjectByName('head-mesh') as THREE.Mesh | undefined
-    if (head && headMesh) {
-      root.updateMatrixWorld(true)
-      const box = boxInBone(headMesh, head)
-      const size = box.getSize(new THREE.Vector3())
-      const block = new THREE.Mesh(new THREE.BoxGeometry(size.x * 0.82, size.y * 0.82, size.z * 0.62), ariaHeadMaterials())
-      block.position.copy(box.getCenter(new THREE.Vector3()))
-      head.add(block)
-      headMesh.visible = false
-    }
-  }
-  const ring = new THREE.Mesh(new THREE.RingGeometry(0.17, 0.23, 28), aria ? ariaRing : holoRing)
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.17, 0.23, 28), holoRing)
   ring.rotation.x = -Math.PI / 2
   ring.position.y = 0.012 / scale
   ring.scale.setScalar(1 / scale)
@@ -850,10 +826,11 @@ async function buildRig(s: ModelSpec): Promise<LookRig> {
     else if (s.guardian && (m.material as THREE.MeshLambertMaterial).map) retexture(m, cache, (t) => guardianTexture(t, s.guardian!))
   })
   // Coiffure et visage d'abord : le casque se taille sur la tête coiffée.
-  const face = s.mini && s.style ? await applyStyle(r.root, s.mini, s.style, s.suit?.helmet === 'visor') : undefined
+  let face = s.mini && s.style ? await applyStyle(r.root, s.mini, s.style, s.suit?.helmet === 'visor', s.persona) : undefined
   if (s.antennae) addAntennae(r.root)
   if (s.suit) addSuitGear(r.root, s.suit)
   if (s.guardian) addGuardianGear(r.root, s.guardian)
-  if (s.holo) hologram(r.root, r.root.scale.x, s.aria)
-  return { ...r, face, height: s.height + (s.suit && s.suit.helmet !== 'none' ? 0.05 : 0) + (s.guardian ? 0.08 : 0) }
+  if (s.aria) face = ariaProjection(r.root, r.root.scale.x)
+  else if (s.holo) hologram(r.root, r.root.scale.x)
+  return { ...r, face, height: s.height + (s.suit && s.suit.helmet !== 'none' ? 0.05 : 0) + (s.guardian ? 0.08 : 0) + (s.aria ? ARIA_RISE : 0) }
 }

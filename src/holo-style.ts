@@ -58,6 +58,8 @@ const HAIR_SHADES: Record<string, string[]> = {
   gy: ['#e2e4e8', '#bfc2c9', '#9a9ea7', '#7a7e87'],
   bl: ['#7ccaff', '#4596e6', '#2c70c4', '#1e5098'],
   pk: ['#ffa6d4', '#f478b6', '#d85598', '#ae3a78'],
+  // Hors catalogue : les cheveux de Kael (cf. PERSONAS).
+  kael: ['#4a3426', '#33241a', '#271b13', '#1c130d'],
 }
 
 export const HAIR_COLOR_CHOICES: StyleChoice[] = [
@@ -131,6 +133,23 @@ export const TRIM_CHOICES: StyleChoice[] = [
   { id: 'yl', label: tr('Or', 'Gold'), swatch: TRIMS.yl[0] },
   { id: 'wh', label: tr('Blanc', 'White'), swatch: TRIMS.wh[0] },
 ]
+
+/**
+ * Tête imposée par une apparence, quel que soit le modèle choisi : sa coupe, ses cheveux, sa peau,
+ * son expression de tous les jours et ses marques (cf. drawMarks). Ni la coupe ni la couleur des
+ * cheveux ne se choisissent alors au Holo-Me ; l'expression, si.
+ */
+export type Persona = 'kael'
+
+const PERSONAS: Record<Persona, { hair: string; hairColor: string; skin: string; face: Expression }> = {
+  // Kael, le héros de Scavengers, d'après son portrait : cheveux bruns en bataille, peau hâlée.
+  kael: { hair: 'md', hairColor: 'kael', skin: 'kael', face: 'ka' },
+}
+
+/** Peaux des têtes imposées : quatre nuances, de la lumière à l'ombre (rangées 12 à 15 de la palette). */
+const SKIN_SHADES: Record<string, string[]> = {
+  kael: ['#d4a574', '#cb9b6b', '#c19162', '#b8895c'],
+}
 
 /** Ce que le style change pour chaque race (le reste est ignoré, et n'est pas enregistré). */
 export function styleFields(race: string): (keyof LookStyle)[] {
@@ -231,6 +250,8 @@ const CRAFTED: Record<string, { base: string; drop: Part[]; buzz?: boolean }> = 
 
 /** Cases libres de la palette (rangée du haut) : les quatre nuances de la couleur des cheveux. */
 const HAIR_CELL_X = 4
+/** Et les quatre suivantes : les nuances de la peau d'une tête imposée. */
+const SKIN_CELL_X = 8
 const HAIR_ROWS = [12, 13, 14, 15]
 const uOf = (cx: number) => (cx + 0.5) / 16
 const vOf = (cy: number) => (cy + 0.5) / 16
@@ -322,19 +343,20 @@ const heads = new Map<string, Promise<StyledHead>>()
 
 /**
  * La tête coiffée d'un porteur (`own` : « female-b »…) : la coupe `hair`, les cheveux de couleur
- * `hairColor` (ou ceux du porteur), sa peau. Calculée une fois par combinaison.
+ * `hairColor` (ou ceux du porteur), sa peau (ou la peau `skin` d'une tête imposée). Calculée une
+ * fois par combinaison.
  */
-function styledHead(own: string, ownMesh: THREE.SkinnedMesh, hair: string, hairColor: string): Promise<StyledHead> {
-  const key = `${own}|${hair}|${hairColor}`
+function styledHead(own: string, ownMesh: THREE.SkinnedMesh, hair: string, hairColor: string, skin = ''): Promise<StyledHead> {
+  const key = `${own}|${hair}|${hairColor}|${skin}`
   let p = heads.get(key)
   if (!p) {
-    p = buildHead(own, ownMesh, hair, hairColor)
+    p = buildHead(own, ownMesh, hair, hairColor, skin)
     heads.set(key, p)
   }
   return p
 }
 
-async function buildHead(own: string, ownMesh: THREE.SkinnedMesh, hair: string, hairColor: string): Promise<StyledHead> {
+async function buildHead(own: string, ownMesh: THREE.SkinnedMesh, hair: string, hairColor: string, skin: string): Promise<StyledHead> {
   const crafted = CRAFTED[hair]
   const donorKey = crafted?.base ?? HEAD_OF[hair] ?? own
   const donor = donorKey === own ? ownMesh : await donorHead(donorKey)
@@ -377,15 +399,20 @@ async function buildHead(own: string, ownMesh: THREE.SkinnedMesh, hair: string, 
         u += (hx - cx) / 16
         v += (hy - cy) / 16
       } else if (part === 'skin' && cx === theirs.skin && cy >= 12) {
+        if (skin) {
+          // Peau imposée : une case libre par nuance.
+          u += (SKIN_CELL_X + cy - 12 - cx) / 16
+          v += -cy / 16
+        }
         // Même case, dans la colonne du porteur : l'ombrage de la palette est gardé.
-        u += (mine.skin - cx) / 16
+        else u += (mine.skin - cx) / 16
       }
       const p = tri[k].clone().applyMatrix4(move)
       const n = norms[k].clone().applyMatrix3(turn).normalize()
       soup.add(p, n, u, v)
       // Sans les traits : leur face prend la peau du visage.
       if (part === 'feature') {
-        blank.add(p, n, uOf(mine.skin), vOf(12))
+        blank.add(p, n, uOf(skin ? SKIN_CELL_X : mine.skin), vOf(skin ? 0 : 12))
         features.push(p)
       } else blank.add(p, n, u, v)
       if (part === 'glasses') glasses = Math.max(glasses, p.z)
@@ -471,23 +498,26 @@ function measureFace(points: THREE.Vector3[]): FaceSpot | null {
   return { eyes: [left, right], mouth: m, front }
 }
 
-/** Texture de la tête avec les quatre nuances d'une couleur de cheveux dans les cases libres. */
-function hairTexture(src: THREE.Texture, id: string): THREE.Texture {
-  const shades = HAIR_SHADES[id].map(color)
+/**
+ * Texture de la tête avec, dans les cases libres, les quatre nuances d'une couleur de cheveux et
+ * celles d'une peau imposée (`skin`, '' : aucune).
+ */
+function hairTexture(src: THREE.Texture, id: string, skin: string): THREE.Texture {
+  const shades = [...(HAIR_SHADES[id] ?? []), ...Array(4).fill('#000000')].slice(0, 4).concat(SKIN_SHADES[skin] ?? []).map(color)
   const size = (src.image as { width: number }).width
-  return recolored(src, `hair:${id}`, (_hsl, c, x, y) => {
+  return recolored(src, `hair:${id}:${skin}`, (_hsl, c, x, y) => {
     const cx = Math.floor((x * 16) / size), cy = Math.floor((y * 16) / size)
-    if (cy === 0 && cx >= HAIR_CELL_X && cx < HAIR_CELL_X + 4) c.copy(shades[cx - HAIR_CELL_X])
+    if (cy === 0 && cx >= HAIR_CELL_X && cx < HAIR_CELL_X + shades.length) c.copy(shades[cx - HAIR_CELL_X])
   })
 }
 
 const hairMaterials = new Map<string, THREE.Material>()
-function hairMaterial(src: THREE.MeshLambertMaterial, id: string): THREE.Material {
-  const key = `${src.uuid}:${id}`
+function hairMaterial(src: THREE.MeshLambertMaterial, id: string, skin: string): THREE.Material {
+  const key = `${src.uuid}:${id}:${skin}`
   let m = hairMaterials.get(key)
   if (!m) {
     const c = src.clone()
-    if (src.map) c.map = hairTexture(src.map, id)
+    if (src.map) c.map = hairTexture(src.map, id, skin)
     hairMaterials.set(key, (m = c))
   }
   return m
@@ -496,11 +526,15 @@ function hairMaterial(src: THREE.MeshLambertMaterial, id: string): THREE.Materia
 // --------------------------------------------------------------- expressions
 
 /** Expressions dessinables : les permanentes (FACE_CHOICES), et celles que jouent les emotes. */
-type Expression = 'sm' | 'se' | 'su' | 'ma' | 'gr' | 'wi' | 'zz' | 'fr'
+type Expression = 'sm' | 'se' | 'su' | 'ma' | 'gr' | 'wi' | 'zz' | 'fr' | 'ka'
 
 const INK = new THREE.MeshBasicMaterial({ color: '#1b1820' })
 const SHINE = new THREE.MeshBasicMaterial({ color: '#ffffff' })
 const MOUTH = new THREE.MeshBasicMaterial({ color: '#5c1d2a' })
+const IRIS = new THREE.MeshBasicMaterial({ color: '#4a7c59' })
+const SCAR = new THREE.MeshBasicMaterial({ color: '#9c5f47' })
+const STUBBLE = new THREE.MeshBasicMaterial({ color: '#6b4a30', transparent: true, opacity: 0.3, depthWrite: false })
+const BRISTLE = new THREE.MeshBasicMaterial({ color: '#7a5638' })
 
 /** Arc de cercle (épaisseur `w`), de `from` sur `span` radians ; 0 : à droite, π/2 : en haut. */
 const arc = (r: number, w: number, from: number, span: number) => new THREE.RingGeometry(r - w / 2, r + w / 2, 18, 1, from, span)
@@ -559,6 +593,15 @@ function drawExpression(e: Expression, f: FaceSpot): THREE.Group {
     case 'wi':
       dot(l); shut(r, true); smile(2.6)
       break
+    case 'ka':
+      // Kael au repos : le regard vert de son portrait, les sourcils bas, la bouche fermée.
+      for (const p of [l, r]) {
+        put(new THREE.CircleGeometry(1.5 * u, 16), IRIS, p.x, p.y, 0, -0.0004)
+        dot(p, 1.1)
+        brow(p, 2.5, 0.1)
+      }
+      put(new THREE.PlaneGeometry(3 * u, 0.6 * u), INK, mx, my)
+      break
     case 'zz':
       shut(l, false); shut(r, false)
       put(new THREE.CircleGeometry(0.8 * u, 12), MOUTH, mx, my)
@@ -568,6 +611,35 @@ function drawExpression(e: Expression, f: FaceSpot): THREE.Group {
       brow(l, 2.4, -0.3); brow(r, 2.4, -0.3)
       put(arc(2.4 * u, 0.65 * u, 0.2 * Math.PI, 0.6 * Math.PI), INK, mx, my - 2.2 * u)
       break
+  }
+  return g
+}
+
+/**
+ * Marques d'une tête imposée, gardées sous toutes les expressions. Kael : la cicatrice de sa joue
+ * gauche et sa barbe de trois jours.
+ */
+function drawMarks(_persona: Persona, f: FaceSpot): THREE.Group {
+  const g = new THREE.Group()
+  // Juste devant la peau, derrière les traits des expressions.
+  const z = f.front + 0.0006
+  const u = Math.abs(f.eyes[0].x - f.eyes[1].x) / 10
+  const put = (geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, rot = 0, dz = 0) => {
+    const mesh = new THREE.Mesh(geo, m)
+    mesh.position.set(x, y, z + dz)
+    mesh.rotation.z = rot
+    g.add(mesh)
+  }
+  const [l] = f.eyes
+  const mx = f.mouth.x, my = f.mouth.y
+  // La cicatrice : un trait en biais sous l'œil, barré d'un point de suture.
+  put(new THREE.PlaneGeometry(0.8 * u, 4.6 * u), SCAR, l.x + 1.6 * u, l.y - 3.8 * u, 0.45)
+  put(new THREE.PlaneGeometry(2.2 * u, 0.55 * u), SCAR, l.x + 1.7 * u, l.y - 4 * u, 0.45)
+  // La barbe : une ombre sur la mâchoire et autour de la bouche, et quelques poils plus nets.
+  put(new THREE.PlaneGeometry(17 * u, 3 * u), STUBBLE, mx, my - 2.1 * u)
+  put(new THREE.PlaneGeometry(7 * u, 2.2 * u), STUBBLE, mx, my + 0.5 * u)
+  for (const [x, y] of [[-6.5, -1.4], [-4.2, -2.6], [-1.6, -2], [1.4, -2.7], [3.8, -1.7], [6.4, -2.5], [-7.4, 0.3], [7.5, 0.1], [-2.8, 1.1], [2.9, 1]]) {
+    put(new THREE.PlaneGeometry(0.55 * u, 0.55 * u), BRISTLE, mx + x * u, my + y * u, 0, 0.0002)
   }
   return g
 }
@@ -610,22 +682,26 @@ class Face implements FaceControl {
 
 /**
  * Coiffe un Mini Character et lui donne un visage (après sa mise à l'échelle et sa teinte).
- * `own` : le modèle (« female-b »), `hideFace` : un casque fermé le cache. Renvoie le visage.
+ * `own` : le modèle (« female-b »), `hideFace` : un casque fermé le cache, `persona` : la tête
+ * imposée par l'apparence, s'il y en a une. Renvoie le visage.
  */
-export async function applyStyle(root: THREE.Object3D, own: string, style: LookStyle, hideFace: boolean): Promise<FaceControl | undefined> {
+export async function applyStyle(root: THREE.Object3D, own: string, style: LookStyle, hideFace: boolean, persona?: Persona): Promise<FaceControl | undefined> {
   const mesh = root.getObjectByName('head-mesh') as THREE.SkinnedMesh | undefined
   const head = root.getObjectByName('head')
   if (!mesh || !head || !HEADS[own]) return
-  const styled = await styledHead(own, mesh, style.hair, style.hairColor)
+  const who = persona && PERSONAS[persona]
+  const hair = who?.hair ?? style.hair, hairColor = who?.hairColor ?? style.hairColor, skin = who?.skin ?? ''
+  const styled = await styledHead(own, mesh, hair, hairColor, skin)
   mesh.geometry = styled.geometry
   mesh.computeBoundingBox()
   mesh.computeBoundingSphere()
-  if (style.hairColor) mesh.material = hairMaterial(mesh.material as THREE.MeshLambertMaterial, style.hairColor)
+  if (hairColor || skin) mesh.material = hairMaterial(mesh.material as THREE.MeshLambertMaterial, hairColor, skin)
   if (hideFace || !styled.face) return
   root.updateMatrixWorld(true)
   const holder = new THREE.Group()
   holder.matrixAutoUpdate = false
   holder.matrix.copy(head.matrixWorld).invert().multiply(mesh.matrixWorld)
   head.add(holder)
-  return new Face(mesh, styled, holder, style.face)
+  if (persona) holder.add(drawMarks(persona, styled.face))
+  return new Face(mesh, styled, holder, style.face || (who?.face ?? ''))
 }

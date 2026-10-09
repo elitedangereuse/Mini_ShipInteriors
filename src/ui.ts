@@ -3,7 +3,7 @@ import { formatCredits } from './economy/data'
 import { EN, tr } from './i18n'
 import { icon, type IconName } from './icons'
 import { FACE_CHOICES, HAIR_CHOICES, HAIR_COLOR_CHOICES, PAINT_CHOICES, styleFields, TRIM_CHOICES, type StyleChoice } from './holo-style'
-import { raceOf, RACES, variantsOf, type Look } from './looks'
+import { raceOf, RACES, styleFieldsOf, variantsOf, type Look } from './looks'
 import { NO_STYLE, type LookStyle } from '../shared/look-style.js'
 
 export const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
@@ -634,7 +634,7 @@ export class WardrobePanel {
     rotation.setAttribute('aria-pressed', String(!this.rotating))
     rows.push(rotation)
     // Onglet « Style » : seulement pour les Mini Characters (humains, combinaisons, aliens).
-    const fields = styleFields(race.id)
+    const fields = styleFieldsOf(this.look)
     if (!fields.length) this.tab = 'model'
     else {
       const tabs = document.createElement('div')
@@ -677,6 +677,13 @@ export class WardrobePanel {
       }
       if (fields.includes('paint')) rows.push(row(tr('Combinaison', 'Suit colour'), ...swatches('paint', PAINT_CHOICES)))
       if (fields.includes('trim')) rows.push(row(tr('Liserés', 'Trim'), ...swatches('trim', TRIM_CHOICES)))
+      // Une tête imposée (Kael) : ni la coupe ni la couleur des cheveux ne se choisissent.
+      if (fields.length < styleFields(race.id).length) {
+        const note = document.createElement('div')
+        note.className = 'wr-note'
+        note.textContent = tr('Cette apparence garde sa tête : sa coupe et ses cheveux ne se changent pas.', 'This look keeps its own head: its haircut and hair cannot be changed.')
+        rows.push(note)
+      }
       // Sous un casque fermé, la coiffure et le visage ne se voient pas.
       if (race.tints?.find((t) => t.id === this.look.tint)?.suit?.helmet === 'visor') {
         const note = document.createElement('div')

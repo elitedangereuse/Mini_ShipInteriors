@@ -6,17 +6,15 @@ import { dampAngle } from './player'
 
 /*
  * Kael, le héros de Scavengers (https://scavengers.elitedangereuse.fr), dans la planque de la cale
- * (cf. levels.ts) : un Mini Character dans la combinaison grise de son portrait (une apparence du Holo-Me), posé sur son
+ * (cf. levels.ts) : un Mini Character sous l'apparence « Kael » du Holo-Me (sa tête, sa combinaison
+ * ardoise, son équipement de récupérateur : cf. looks.ts et looks-scavengers.ts), posé sur son
  * emplacement du plan (`scav-kael`, cf. src/furniture/scavengers.ts), qui porte ses répliques et
  * son volume de clic. Il surveille l'écran d'ARIA, et se tourne vers qui s'approche. Il n'existe
  * que dans l'affichage : chaque client a le sien.
  */
 
-/**
- * Son apparence : la combinaison « Kael » du Holo-Me (cf. looks.ts), sur le modèle aux cheveux en
- * bataille, brunis, l'air fermé de son portrait. Celle que les joueurs gagnent en lançant le jeu.
- */
-const KAEL_LOOK = 'suit.male.d.kael.-br-se--'
+/** Son apparence : celle que les joueurs gagnent en lançant le jeu, telle quelle. */
+const KAEL_LOOK = 'suit.male.d.kael'
 
 /** À cette distance, il se tourne vers le joueur. */
 const NOTICE = 2.2
