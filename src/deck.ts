@@ -214,8 +214,9 @@ function ceilingPanel(): THREE.CanvasTexture {
 let panelTexture: THREE.CanvasTexture | null = null
 
 /**
- * Matériau du plafond d'une ambiance. Les lampes du pont sont au-dessus de lui (cf. Deck.lights)
- * et n'éclairent pas sa face du dessous : il s'éclaire donc un peu lui-même.
+ * Matériau du plafond d'une ambiance. Les vraies lumières du pont sont au-dessus de lui (cf.
+ * Deck.lights) et n'éclairent pas sa face du dessous : c'est le champ de lumière qui l'éclaire,
+ * autour de ses luminaires, et il garde un peu de lueur propre pour ne pas tomber dans le noir.
  */
 const ceilingMaterials = new Map<string, THREE.MeshLambertMaterial>()
 export function ceilingMaterial(look: Theme | 'zone'): THREE.MeshLambertMaterial {
@@ -223,7 +224,7 @@ export function ceilingMaterial(look: Theme | 'zone'): THREE.MeshLambertMaterial
   if (!m) {
     panelTexture ??= ceilingPanel()
     const color = new THREE.Color(CEILING_COLORS[look])
-    m = new THREE.MeshLambertMaterial({ color, map: panelTexture, emissive: color, emissiveMap: panelTexture, emissiveIntensity: 0.55 })
+    m = new THREE.MeshLambertMaterial({ color, map: panelTexture, emissive: color, emissiveMap: panelTexture, emissiveIntensity: 0.3 })
     ceilingMaterials.set(look, m)
   }
   return m
