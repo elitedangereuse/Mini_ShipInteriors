@@ -3843,7 +3843,7 @@ body.photo #bubbles .gain-pop {
 .jacques-drink small { display: block; margin-top: 4px; color: #b7c8cf; font-size: 12px; }
 .jacques-drink button { min-width: 75px; padding: 8px; white-space: nowrap; font-size: 12px; }
 .jacques-status { min-height: 22px; margin: 17px 0 0; color: #e5c694; font-size: 13px; }
-.bar-game-shell { width: min(1300px, 100%); height: min(920px, calc(100dvh - 32px)); min-height: 0; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #82bed4a6; border-radius: 17px; background: #101b2b; box-shadow: 0 28px 90px #000c; }
+.bar-game-shell { width: min(1600px, 100%); height: min(920px, calc(100dvh - 32px)); min-height: 0; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #82bed4a6; border-radius: 17px; background: #101b2b; box-shadow: 0 28px 90px #000c; }
 .bar-game-header { flex: none; align-items: center; padding: 14px 20px; background: linear-gradient(90deg, #17344b, #29273e); border-bottom: 1px solid #76b3ca75; }
 .bar-game-header h2 { margin: 2px 0; font: 600 26px/1.1 Georgia, serif; color: #fff0d8; }
 .bar-game-hint { margin: 0; color: #bcd1dd; font-size: 12px; }
@@ -3852,7 +3852,7 @@ body.photo #bubbles .gain-pop {
 .bar-game-shell iframe { display: block; flex: 1; width: 100%; min-height: 0; border: 0; background: #0d1521; }
 .media-room-overlay { position: fixed; inset: 0; z-index: 132; display: flex; justify-content: flex-end; align-items: center; padding: 16px; background: linear-gradient(90deg, transparent 12%, #07101ad9 76%); backdrop-filter: blur(3px); }
 .media-room-overlay[hidden] { display: none; }
-.media-room-shell { display: flex; flex-direction: column; width: min(430px, 100%); height: min(760px, calc(100dvh - 32px)); overflow: hidden; color: #fff0df; border: 1px solid #c48c5a; border-radius: 19px; background: linear-gradient(155deg, #263b43, #15222e 53%, #1b1a24); box-shadow: 0 25px 75px #000c, inset 0 1px #ffe9c331; }
+.media-room-shell { display: flex; flex-direction: column; width: min(520px, 100%); height: min(760px, calc(100dvh - 32px)); overflow: hidden; color: #fff0df; border: 1px solid #c48c5a; border-radius: 19px; background: linear-gradient(155deg, #263b43, #15222e 53%, #1b1a24); box-shadow: 0 25px 75px #000c, inset 0 1px #ffe9c331; }
 .media-room-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; padding: 16px; border-bottom: 1px solid #c48c5a80; background: #dda65a12; }
 .media-room-header small { color: #ecb87d; font-size: 10px; font-weight: 800; letter-spacing: .18em; }
 .media-room-header h2 { margin: 4px 0 0; font: 500 25px/1.1 Georgia, serif; }
