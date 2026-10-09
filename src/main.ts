@@ -4349,10 +4349,31 @@ const screenCenter = () => ({ clientX: innerWidth / 2, clientY: innerHeight / 2 
 let lockRefusals = 0
 /** Instant de la dernière capture : les premiers mouvements rapportés sont parfois un saut. */
 let lockedAt = 0
+/**
+ * Mouvement brut de la souris (sans l'accélération du système), comme dans un jeu de tir : un
+ * même geste tourne toujours du même angle, lent ou vif. Là où le navigateur ne sait pas faire,
+ * la capture ordinaire.
+ */
+let rawLook = false
 function lockCursor() {
   const refused = () => lockRefusals++
+  const request = (raw: boolean) =>
+    (canvas.requestPointerLock as (options?: { unadjustedMovement: boolean }) => Promise<void> | undefined).call(canvas, raw ? { unadjustedMovement: true } : undefined)
   try {
-    ;(canvas.requestPointerLock() as unknown as Promise<void> | undefined)?.catch?.(refused)
+    const asked = request(true)
+    if (!asked?.then) return
+    asked.then(
+      () => (rawLook = true),
+      (e: DOMException) => {
+        if (e?.name !== 'NotSupportedError') return refused()
+        rawLook = false
+        try {
+          request(false)?.catch?.(refused)
+        } catch {
+          refused()
+        }
+      },
+    )
   } catch {
     refused()
   }
@@ -4372,11 +4393,20 @@ document.addEventListener('pointerlockchange', () => {
   lockRefusals = 0
   lockedAt = performance.now()
 })
+/** Ampleur du mouvement de souris précédent (pixels) : un sursaut ne s'annonce pas. */
+let lastLook = 0
 document.addEventListener('mousemove', (e) => {
   if (!cursorLocked() || !fpsShown) return
-  // Juste après la capture, ou d'un coup énorme : le navigateur rapporte le trajet du curseur
-  // jusqu'au centre (ou un sursaut), pas un geste. Sans ce filtre, la vue partait d'un bond.
-  if (performance.now() - lockedAt < 120 || Math.abs(e.movementX) > 300 || Math.abs(e.movementY) > 300) return
+  // Juste après la capture : le navigateur rapporte le trajet du curseur jusqu'au centre, pas un
+  // geste. Sans ce filtre, la vue partait d'un bond.
+  if (performance.now() - lockedAt < 120) return
+  // Un coup énorme sorti de nulle part est un sursaut du navigateur ; un geste vif, lui, monte
+  // sur plusieurs mouvements et doit passer entier (le filtrer figeait la vue en plein demi-tour).
+  // En mouvement brut, pas de sursaut : rien n'est filtré.
+  const size = Math.max(Math.abs(e.movementX), Math.abs(e.movementY))
+  const jump = !rawLook && size > 300 && size > lastLook * 6
+  lastLook = size
+  if (jump) return
   fps.look(-e.movementX * mouseLook(), -e.movementY * mouseLook())
 })
 
@@ -4384,7 +4414,7 @@ document.addEventListener('mousemove', (e) => {
 const sensitivityInput = $<HTMLInputElement>('mouse-sensitivity')
 let mouseSensitivity = THREE.MathUtils.clamp(Number(store.get('mini-shipinteriors-mouse-sensitivity')) || 1, 0.2, 3)
 /** Angle (radians) par pixel de souris. */
-const mouseLook = () => 0.0025 * mouseSensitivity
+const mouseLook = () => 0.0032 * mouseSensitivity
 function updateSensitivity() {
   sensitivityInput.value = String(mouseSensitivity)
   const x = mouseSensitivity.toFixed(1)

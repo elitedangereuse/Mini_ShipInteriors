@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 
-/** Regard vers le haut ou vers le bas, au plus (radians). */
-const MAX_PITCH = THREE.MathUtils.degToRad(80)
+/** Regard vers le haut ou vers le bas, au plus (radians) : presque à la verticale. */
+const MAX_PITCH = THREE.MathUtils.degToRad(88)
 /**
  * Hauteur des yeux sous Avatar.head (0,28 au-dessus du crâne) : un peu au-dessus du crâne. Le
  * mobilier du kit est taillé pour des têtes de chibi (table 0,40, chaise 0,55) : des yeux à
