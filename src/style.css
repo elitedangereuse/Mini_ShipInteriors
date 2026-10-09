@@ -4917,3 +4917,76 @@ body.gardening #emotes { display: none; }
   .gp-row { grid-template-columns: 26px minmax(0, 1fr); }
   .gp-actions { grid-column: 1 / -1; justify-content: flex-end; }
 }
+
+/* Le Comptoir des Cartes Dangereuses (cf. src/cards/panel.ts) : un panneau du jeu dans la fenêtre des jeux du site. */
+.bar-game-shell iframe[hidden], .bar-game-actions a[hidden] { display: none; }
+.bar-game-panel .bar-game-shell { width: min(1120px, 100%); height: auto; max-height: calc(100dvh - 32px); border-color: #c9a24a99; background: linear-gradient(160deg, #1a2740, #101726 60%, #18121c); }
+.bar-game-panel .bar-game-header { background: linear-gradient(90deg, #2b2233, #3a2a1c); border-bottom-color: #c9a24a80; }
+.bar-game-panel .bar-game-hint { font: italic 13px/1.4 Georgia, serif; color: #e6d3ad; }
+.cards-panel { flex: 1; min-height: 0; overflow: auto; display: grid; grid-template-columns: minmax(250px, 310px) minmax(0, 1fr); gap: 18px; padding: 18px 20px 20px; color: #f1e6d0; scrollbar-width: thin; scrollbar-color: #c9a24a66 transparent; }
+.cards-panel h3 { margin: 0 0 10px; font: 600 12px/1 system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #c9a24a; }
+.cards-panel button { font: inherit; color: inherit; cursor: pointer; border-radius: 11px; border: 1px solid #c9a24a80; background: #b5762c; padding: 10px 14px; }
+.cards-panel button:hover:not(:disabled) { background: #d08132; }
+.cards-panel button:disabled { opacity: .45; cursor: default; }
+.cards-shop { align-self: start; display: grid; gap: 12px; padding: 16px; border: 1px solid #c9a24a55; border-radius: 16px; background: #0b1220b3; }
+.cards-shop h3 { margin: 0; }
+.cards-stock { display: flex; align-items: baseline; gap: 10px; }
+.cards-stock strong { font: 600 46px/1 Georgia, serif; color: #ffe2bf; text-shadow: 0 0 22px #ff8a1c88; }
+.cards-stock span { color: #bcd1dd; font-size: 13px; }
+.cards-prices { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cards-prices li { display: flex; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid #ffffff1a; background: #ffffff0a; font-size: 13px; }
+.cards-prices li.next { border-color: #c9a24a; background: #c9a24a1f; }
+.cards-prices li.sold { opacity: .5; }
+.cards-prices li.sold span { text-decoration: line-through; }
+.cards-prices b { white-space: nowrap; color: #ffe2bf; }
+.cards-panel .cards-buy, .cards-panel .cards-go { padding: 12px 14px; font-weight: 600; }
+.cards-panel .cards-link { background: #213a4d; border-color: #6798a9; }
+.cards-panel .cards-link:hover:not(:disabled) { background: #2c4f68; }
+.cards-note { margin: 0; color: #b7c8cf; font-size: 12px; line-height: 1.45; }
+.cards-status { min-height: 18px; margin: 0; color: #ffd596; font-size: 13px; }
+.cards-empty { grid-column: 1 / -1; margin: 40px 0; text-align: center; color: #bcd1dd; }
+.cards-open { min-width: 0; display: grid; gap: 12px; align-content: start; }
+.cards-open h3 { margin: 0; }
+.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; }
+.cards-panel .cards-pack { display: grid; justify-items: center; gap: 4px; padding: 10px 6px 8px; border-color: #ffffff1f; background: #ffffff0a; text-align: center; transition: transform .15s, border-color .15s, background .15s; }
+.cards-panel .cards-pack:hover:not(:disabled) { background: #ffffff14; transform: translateY(-3px); }
+.cards-panel .cards-pack.selected { border-color: #ffc46b; background: #c9a24a26; box-shadow: 0 0 24px #ff8a1c40; }
+.cards-pack img { width: 74px; aspect-ratio: 800 / 1450; object-fit: contain; filter: drop-shadow(0 6px 10px #000a); }
+.cards-pack.selected img { animation: cards-float 2.4s ease-in-out infinite; }
+.cards-pack strong { font: 600 12px/1.25 system-ui, sans-serif; color: #fff1df; }
+.cards-pack small { font-size: 11px; color: #9fb4c2; }
+.cards-pack small.complete { color: #7dffa8; }
+.cards-progress { width: 80%; height: 3px; border-radius: 2px; background: linear-gradient(90deg, #ffc46b calc(var(--done) * 100%), #ffffff22 0); }
+@keyframes cards-float { 50% { transform: translateY(-5px) rotate(-2deg); } }
+.cards-panel.cards-reveal { grid-template-columns: 1fr; justify-items: center; gap: 16px; padding: 26px 20px; background: radial-gradient(ellipse at 50% 35%, #2a4a6680, transparent 70%); }
+.cards-pull { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; perspective: 1400px; }
+.cards-panel .cards-card { display: grid; gap: 8px; justify-items: center; padding: 0; border: 0; background: none; --glow: #cfd6de; }
+.cards-panel .cards-card:hover:not(:disabled) { background: none; }
+.cards-card.rarity-r { --glow: #49a6ff; }
+.cards-card.rarity-u { --glow: #ffc94a; }
+.cards-card.rarity-m { --glow: #ff5ad0; }
+.cards-card-inner { position: relative; display: block; width: min(205px, 38vw); aspect-ratio: 1644 / 2244; transform-style: preserve-3d; transition: transform .7s cubic-bezier(.2, .8, .2, 1); border-radius: 10px; }
+.cards-card:not(.flipped):hover .cards-card-inner { transform: translateY(-6px) rotateY(12deg); }
+.cards-card.flipped .cards-card-inner { transform: rotateY(180deg); box-shadow: 0 0 34px color-mix(in srgb, var(--glow), transparent 35%); }
+.cards-card.flipped.rarity-u .cards-card-inner, .cards-card.flipped.rarity-m .cards-card-inner { animation: cards-shine 1.8s ease-in-out infinite; }
+@keyframes cards-shine { 50% { box-shadow: 0 0 60px var(--glow), 0 0 14px #fff; } }
+.cards-card-back, .cards-card-front { position: absolute; inset: 0; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 10px; }
+.cards-card-back { background: repeating-linear-gradient(0deg, #0c0c0e 0 3px, #26262b 3px 4px); border: 5px solid #f2f2f2; box-sizing: border-box; }
+.cards-card-back::before { content: ''; position: absolute; left: 22%; right: 22%; top: 20%; height: 44%; border-radius: 50%; background: repeating-linear-gradient(0deg, #d8d8dc 0 3px, #0c0c0e 3px 5px); }
+.cards-card-back::after { content: 'ÉLITE DANGEREUSE'; position: absolute; left: 9%; right: 9%; top: 72%; padding: 4% 0; background: #fff; color: #0c0c0e; font: 800 11px/1 system-ui, sans-serif; letter-spacing: .04em; text-align: center; }
+.cards-card-front { transform: rotateY(180deg); object-fit: cover; background: #101726; }
+.cards-card small { min-height: 15px; font: 600 12px/1 system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--glow); }
+.cards-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+@media (prefers-reduced-motion: reduce) {
+  .cards-card-inner { transition: none; }
+  .cards-pack.selected img, .cards-card.flipped .cards-card-inner { animation: none; }
+}
+@media (max-width: 760px), (pointer: coarse) {
+  .cards-panel { grid-template-columns: 1fr; padding: 12px; gap: 12px; }
+  .cards-shop { padding: 12px; gap: 9px; }
+  .cards-stock strong { font-size: 32px; }
+  .cards-grid { grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 7px; }
+  .cards-pack img { width: 52px; }
+  .cards-card-inner { width: min(150px, 20vw); }
+  .cards-pull { gap: 8px; }
+}

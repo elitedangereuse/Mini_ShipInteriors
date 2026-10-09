@@ -16,6 +16,8 @@ import { fetchBoard, fetchRecords } from './arcade/scores'
 import { BoardGames } from './board/games'
 import { BarPanel, CocktailEffects } from './bar'
 import { GameEmbed } from './game-embed'
+import { CardsPanel } from './cards/panel'
+import { showPull } from './furniture/cards'
 import { MediaRoom } from './media-room'
 import { CinemaRoom } from './cinema-room'
 import { CAT_MODEL, preload, rig } from './assets'
@@ -494,6 +496,12 @@ const barPanel = new BarPanel(wallet, cocktailEffects,
   },
 )
 const gameEmbed = new GameEmbed()
+// Le Comptoir des Cartes Dangereuses (pont supérieur) : la boutique de Ludo et l'ouverture des boosters.
+const cardsPanel = new CardsPanel(gameEmbed, wallet)
+cardsPanel.onPull = (cards) => showPull(cards)
+cardsPanel.onSound = (kind) => (kind === 'buy' ? sound.credits(true) : kind === 'rare' ? sound.jingle('win') : sound.ui(kind === 'deny' ? 'deny' : 'pick'))
+/** Les tables du Comptoir : une partie de Galactic Clash, ou sa collection au pupitre. */
+const cardTable = (model?: string) => (model === 'clash-table' ? 'clash' : model === 'binder-table' ? 'collection' : null)
 const mediaRoom = new MediaRoom({ get: () => iso.zoomLevel, set: (value) => iso.zoomTo(value) })
 const cinemaRoom = new CinemaRoom({
   online: () => net.online, self: () => net.id, choose: (id) => net.sendCinemaChoice(id),
@@ -4648,6 +4656,7 @@ function interactWith(item: Interactable) {
   if (item.furniture?.model === 'idot-terminal') return gameEmbed.open('idot')
   if (item.furniture?.model === 'pixelwar-terminal' || item.furniture?.model === 'pixelwar-screen' || (item.furniture?.model === 'arcade' && item.furniture.label === 'pixelwar')) return gameEmbed.open('pixelwar')
   if (item.furniture?.model === 'cctv-desk') return openCameras()
+  if (item.furniture?.model === 'cards-counter' || item.furniture?.model === 'cards-shop' || item.furniture?.model === 'cards-altar') return cardsPanel.open()
   if (deck.def.id === 1) {
     if (item.furniture?.model === 'podcast-console' || item.furniture?.model === 'podcast-poster') return mediaRoom.open()
     if (item.furniture?.model === 'cinema-screen') return void cinemaRoom.open(false)
@@ -4763,6 +4772,8 @@ function seated(seat: Seated) {
   const game = arcadeGame(seat)
   if (game) return void openArcade(seat, game)
   if (seat.item.furniture?.model === 'bar-table' && seat.item.furniture.label === 'galactic-clash') return gameEmbed.open('cards')
+  const table = cardTable(seat.item.furniture?.model)
+  if (table) return gameEmbed.open(table)
   if (seat.item.furniture?.model === 'pinball' && deck.def.id === -1) return gameEmbed.open('cqc')
   if (atDesk(seat)) return gameEmbed.open('site')
   if (deck.def.id === 1 && deck.map.room(Math.round(item.position.x), Math.round(item.position.z)) === 'o') return mediaRoom.open()
@@ -4832,6 +4843,7 @@ function seatPrompt(seat: Seated): { main: string; space?: string } | null {
   // Devant une borne fermée (on sort du mode photo, ou elle n'a pas pu se charger).
   if (arcadeGame(seat)) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
   if (seat.item.furniture?.model === 'bar-table' && seat.item.furniture.label === 'galactic-clash') return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
+  if (cardTable(seat.item.furniture?.model)) return { main: tr('Se lever', 'Stand up'), space: seat.item.furniture?.model === 'clash-table' ? tr('Jouer', 'Play') : tr('Feuilleter', 'Browse') }
   if (seat.item.furniture?.model === 'pinball' && deck.def.id === -1) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
   if (atDesk(seat)) return { main: tr('Se lever', 'Stand up'), space: tr('Ouvrir le site', 'Open the website') }
   if (deck.def.id === 1 && deck.map.room(Math.round(seat.item.position.x), Math.round(seat.item.position.z)) === 'o') return { main: tr('Se lever', 'Stand up'), space: tr('Écouter', 'Listen') }
@@ -4855,6 +4867,8 @@ function seatAction(seat: Seated) {
   const game = arcadeGame(seat)
   if (game) void openArcade(seat, game)
   if (seat.item.furniture?.model === 'bar-table' && seat.item.furniture.label === 'galactic-clash') return gameEmbed.open('cards')
+  const table = cardTable(seat.item.furniture?.model)
+  if (table) return gameEmbed.open(table)
   if (seat.item.furniture?.model === 'pinball' && deck.def.id === -1) return gameEmbed.open('cqc')
   if (atDesk(seat)) return gameEmbed.open('site')
   if (deck.def.id === 1 && deck.map.room(Math.round(seat.item.position.x), Math.round(seat.item.position.z)) === 'o') return mediaRoom.open()
@@ -5998,6 +6012,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, profile, fps, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, garden, gardenView, gardenMode, gardenPanel, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt, range, fishing, fishBook, fishCollection, startFishing, quiz, openQuiz, quests, questWorld, questJournal, cinematic },
+    __game: { renderer, sound, player, profile, fps, cardsPanel, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, garden, gardenView, gardenMode, gardenPanel, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt, range, fishing, fishBook, fishCollection, startFishing, quiz, openQuiz, quests, questWorld, questJournal, cinematic },
   })
 }

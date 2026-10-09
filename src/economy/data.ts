@@ -10,6 +10,8 @@ import type { GardenRules } from '../../shared/gardening.js'
  * - passive : revenu passif, payé à chaque battement (une fois par minute), `daily` minutes par jour ;
  * - items, skins : prix de déblocage des objets des quartiers et des apparences (cf. skins.ts) ;
  * - plot : prix des trois agrandissements de la parcelle du pont des quartiers, dans l'ordre ;
+ * - boosters : au Comptoir des Cartes Dangereuses, le prix de chaque booster de la semaine, dans
+ *   l'ordre d'achat (autant de prix, autant de boosters par semaine, au plus ; cf. src/cards/) ;
  * - salvage : récompense d'une mission réussie en zone thargoïde, par membre (par colis, et bonus
  *   par ennemi au-delà du premier, cf. salvageReward dans shared/salvage.js) ; `daily` missions
  *   payées par jour, et aucune bouclée en moins de `minPerParcel` secondes par colis ;
@@ -74,6 +76,7 @@ interface Economy {
   items: Record<string, number>
   skins: Record<string, number>
   plot?: number[]
+  boosters?: { prices: number[] }
   salvage: { parcel: number; enemyBonus: number; daily: number; minPerParcel: number }
   kitchen: JobRules
   hangar: JobRules

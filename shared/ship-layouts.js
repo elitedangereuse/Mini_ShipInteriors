@@ -69,33 +69,37 @@ export const SHIP_LAYOUTS = {
     '                ppppp   vvvvvvv         ',
     '                ppppp   vvvvvvv         ',
   ],
-  // Pont supérieur : les quartiers ; derrière le salon d'écoute, le cinéma. Au nord du salon,
+  // Pont supérieur : la vie à bord ; derrière le salon d'écoute, le cinéma. Au nord du salon,
   // derrière une vitre, le studio de Radio Dangereuse (porte à l'est). À l'ouest, la grande serre
   // de Capucine, sous verrière, aux coins cassés : au nord, la serre hydroponique, face à la
   // coursive ; au sud, sans mur entre les deux, le jardin exotique et son étang (cf. GARDEN_SOUTH
   // dans gardener.js), le long du planétarium.
   // Entre les cabines d'équipage et le studio, les toilettes ('d') : trois cabines contre le mur nord.
   // Au sud de la coursive, à la place des anciens quartiers, le planétarium de Bugenhagen ('p',
-  // 8 × 8, cf. PLANETARIUM_ROOM). Après le salon d'écoute, le foyer ('h') : un couloir qui donne à
-  // l'est sur le cinéma, par une porte double, et file au sud jusqu'au hall de la zone sportive,
-  // d'où l'on entre sur le terrain de basket ('b') et sur celui de foot ('f'), cf. SPORT_COURTS.
+  // 8 × 8, cf. PLANETARIUM_ROOM). Le salon d'écoute ('o', 5 × 5) descend jusqu'au hall. Après lui,
+  // le foyer ('h') : un couloir qui donne à l'est sur le cinéma, par une porte double, et file au
+  // sud jusqu'au hall de la zone sportive, large de deux tuiles, d'où l'on entre sur le terrain de
+  // basket ('b') et sur celui de foot ('f'), cf. SPORT_COURTS. Au fond du hall, à l'est, une porte
+  // double ouvre sur le Comptoir des Cartes Dangereuses ('x', 8 × 10, cf. CARD_ROOM) : la boutique
+  // de boosters, les tables de collection et celles de Galactic Clash, devant une baie vitrée.
   '1': [
-    '                               ',
-    '  ggggggkkkkkdddssss   nnnnnnn ',
-    ' gggggggkkkkkdddssss   nnnnnnn ',
-    'ggggggggk+kkkd+dsss+ hhnnnnnnn ',
-    'ggggggggcccccccc+ooo h+nnnnnnn ',
-    'gggggggg+cccccccoooo+h+nnnnnnn ',
-    'ggggggggppp+ppppoooo hhnnnnnnn ',
-    'ggggggggpppppppp oo  hhnnnnnnn ',
-    'ggggggggpppppppp     hhnnnnnnn ',
-    'ggggggggpppppppp  hhhhhhhhhh   ',
-    'ggggggggppppppppbbb+bbbfff+fff ',
-    'ggggggggppppppppbbbbbbbfffffff ',
-    'ggggggggppppppppbbbbbbbfffffff ',
-    ' gggggggppppppppbbbbbbbfffffff ',
-    '  gggggg        bbbbbbbfffffff ',
-    '                bbbbbbbfffffff ',
+    '                                       ',
+    '  ggggggkkkkkdddssss   nnnnnnn         ',
+    ' gggggggkkkkkdddssss   nnnnnnn         ',
+    'ggggggggk+kkkd+dsss+ hhnnnnnnn         ',
+    'ggggggggcccccccc+ooooh+nnnnnnn         ',
+    'gggggggg+cccccccoooo+h+nnnnnnn xxxxxxxx',
+    'ggggggggppp+ppppooooohhnnnnnnn xxxxxxxx',
+    'ggggggggppppppppooooohhnnnnnnn xxxxxxxx',
+    'ggggggggppppppppooooohhnnnnnnn xxxxxxxx',
+    'ggggggggpppppppphhhhhhhhhhhhhh+xxxxxxxx',
+    'ggggggggpppppppphhhhhhhhhhhhhh+xxxxxxxx',
+    'ggggggggppppppppbbb+bbbfff+fff xxxxxxxx',
+    'ggggggggppppppppbbbbbbbfffffff xxxxxxxx',
+    ' gggggggppppppppbbbbbbbfffffff xxxxxxxx',
+    '  gggggg        bbbbbbbfffffff xxxxxxxx',
+    '                bbbbbbbfffffff         ',
+    '                bbbbbbbfffffff         ',
   ],
   // Pont des quartiers (housing v2) : le palier de l'ascenseur, seul. La parcelle de chacun s'y
   // accole à l'est, derrière la porte du palier, et se construit à la volée (cf. housing-plot.js).
@@ -249,9 +253,16 @@ export const PIXEL_WAR_DOORS = [{ x: 16, z: 10, dir: 0 }, { x: 16, z: 12, dir: 0
  * mur visé (à l'ouest : x de sa face) et le milieu de la cible le long de ce mur (cf. src/court.ts).
  */
 export const SPORT_COURTS = {
-  'gym-basket': { level: 1, room: 'b', spot: { x: 20.4, z: 12.5 }, wall: 15.65, center: 12.5 },
-  'gym-foot': { level: 1, room: 'f', spot: { x: 27.6, z: 12.5 }, wall: 22.65, center: 12.5 },
+  'gym-basket': { level: 1, room: 'b', spot: { x: 20.4, z: 13.5 }, wall: 15.65, center: 13.5 },
+  'gym-foot': { level: 1, room: 'f', spot: { x: 27.6, z: 13.5 }, wall: 22.65, center: 13.5 },
 }
+
+/**
+ * Le Comptoir des Cartes Dangereuses (pont supérieur), au fond du hall de la zone sportive : la
+ * lettre de sa pièce, les faces intérieures de ses murs, et son comptoir, où l'on achète et ouvre
+ * ses boosters (cf. src/cards/).
+ */
+export const CARD_ROOM = { level: 1, room: 'x', minX: 30.65, maxX: 38.35, minZ: 4.65, maxZ: 14.35, counter: { x: 34.5, z: 5.6 } }
 
 /**
  * Stand de tir de la cale (cf. src/range.ts) : la pièce, les faces intérieures de ses murs, et le

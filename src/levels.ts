@@ -1895,12 +1895,16 @@ export const LEVELS: LevelDef[] = [
       h: tr('Foyer', 'Foyer'),
       b: tr('Terrain de basket', 'Basketball court'),
       f: tr('Terrain de foot', 'Football pitch'),
+      x: tr('Comptoir des Cartes Dangereuses', 'Cartes Dangereuses counter'),
     },
-    windows: { c: 0, k: 1, d: 0, p: 0.6, g: 0.5, o: 1, n: 0, s: 0, h: 0, b: 0, f: 0.4 },
+    windows: { c: 0, k: 1, d: 0, p: 0.6, g: 0.5, o: 1, n: 0, s: 0, h: 0, b: 0, f: 0.4, x: 0 },
+    // Le Comptoir des Cartes Dangereuses s'ouvre sur l'espace, à la proue, par une baie vitrée.
+    canopy: { x: [1] },
     // Le sud de la serre, sans mur entre les deux : le jardin exotique et son étang.
     areas: [{ name: tr('Jardin exotique', 'Exotic garden'), minX: 0, maxX: 7, minZ: 9, maxZ: 14 }],
-    // Du foyer, on entre au cinéma par une porte double, capitonnée de rouge.
-    doubleDoors: [{ x: 22, z: 4, dir: 1, padded: true }],
+    // Du foyer, on entre au cinéma par une porte double, capitonnée de rouge ; au fond du hall,
+    // une autre porte double ouvre sur le Comptoir des Cartes Dangereuses.
+    doubleDoors: [{ x: 22, z: 4, dir: 1, padded: true }, { x: 30, z: 9, dir: 1 }],
     // Derrière le lavabo ouest des toilettes : un pilier lui passait au travers.
     plainWalls: [{ x: 12.5, z: 3 }],
     // La serre, tout en verre : les plantes voient les étoiles. Sol de tomettes.
@@ -1908,8 +1912,9 @@ export const LEVELS: LevelDef[] = [
     floorFinish: { g: 'terracotta' },
     // Le salon voit le studio par sa vitre ; de la coursive, on voit la serre.
     glazed: ['os', 'gc'],
-    // On baisse les lumières au cinéma, un peu au salon d'écoute ; au planétarium, la nuit tombe.
-    dim: { n: 0.45, o: 0.7, p: 0.3 },
+    // On baisse les lumières au cinéma, un peu au salon d'écoute ; au planétarium, la nuit tombe ;
+    // au Comptoir, ce sont les cartes et les lampes des tables qui éclairent.
+    dim: { n: 0.45, o: 0.7, p: 0.3, x: 0.5 },
     // La salle de classe, les toilettes et les terrains sont en pleine lumière ; le salon d'écoute,
     // le studio et le foyer du cinéma, feutrés, laissent parler leurs lampes.
     lighting: {
@@ -1921,6 +1926,7 @@ export const LEVELS: LevelDef[] = [
       h: { level: 0.3, spacing: 3 },
       b: { level: 1.35, color: '#f4f8ff' },
       f: { level: 1.35, color: '#f4f8ff' },
+      x: { level: 0.3, color: '#ffd9a8', spacing: 3 },
     },
     props: [
       // --- Coursive ---
@@ -2265,7 +2271,8 @@ export const LEVELS: LevelDef[] = [
       // Au-dessus de la vitre, côté salon : le néon de l'émission et son « ON AIR ».
       { model: 'radio-neon', x: 17.2, z: 3.5, solid: false },
 
-      // --- Salon d'écoute : fauteuils et poufs tournés vers le studio, les affiches des Galères ---
+      // --- Salon d'écoute (5 × 5) : fauteuils et poufs tournés vers le studio, les affiches des
+      // Galères ; au fond, le coin du feu ---
       { model: 'rug', x: 17.5, z: 5.0, label: 'cosy:3.6x2.6', solid: false },
       {
         model: 'podcast-poster', x: 15.65, z: 4.95, rot: 1, label: 'gg', solid: false,
@@ -2301,13 +2308,38 @@ export const LEVELS: LevelDef[] = [
       { model: 'beanbag', x: 16.55, z: 5.0, label: 'mustard' },
       { model: 'floor-cushion', x: 17.2, z: 5.02, label: 'plum' },
       { model: 'beanbag', x: 18.45, z: 5.0, label: 'rose' },
-      // L'alcôve : un guéridon, un casque sur son pied, une lampe de papier, l'ancienne affiche des Galères.
-      { model: 'side-table', x: 17.2, z: 7.05 },
-      { model: 'headphone-stand', x: 17.14, z: 7.02, y: 0.3125, label: 'navy', solid: false },
-      { model: 'candles', x: 17.3, z: 7.12, y: 0.3125, solid: false },
-      { model: 'paper-lantern', x: 17.9, z: 7.1, label: 'tall' },
+      // Le fond du salon, là où il a gagné l'espace vide derrière lui : un canapé face à la cheminée
+      // holographique du mur ouest, la bibliothèque, un tourne-disque, et l'ancienne affiche des Galères.
+      { model: 'rug', x: 16.75, z: 7.5, label: 'cosy:1.5x1.7', solid: false },
       {
-        model: 'podcast-poster', x: 17.2, z: 7.35, rot: 2, label: 'galeres', solid: false,
+        model: 'fireplace', x: 15.84, z: 7.5, rot: 1,
+        interact: [
+          tr('La cheminée du salon : des flammes d\'hologramme, zéro degré de plus, et pourtant tout le monde s\'en approche.', 'The lounge fireplace: holographic flames, not one degree warmer, and yet everyone moves closer.'),
+          tr('Sur le manteau, une photo de l\'équipe de Radio Dangereuse. Quelqu\'un a dessiné des moustaches à tout le monde.', 'On the mantel, a photo of the Radio Dangereuse team. Someone has drawn moustaches on everybody.'),
+        ],
+      },
+      {
+        model: 'sofa', x: 17.5, z: 7.5, rot: 3, label: 'navy',
+        interact: tr('Canapé du salon : un épisode dans les oreilles, les pieds vers le feu.', 'Lounge sofa: an episode in your ears, feet towards the fire.'),
+      },
+      { model: 'floor-cushion', x: 16.7, z: 6.72, label: 'rose' },
+      { model: 'beanbag', x: 18.75, z: 7.85, label: 'mustard' },
+      {
+        model: 'bookshelf', x: 20.18, z: 7.45, rot: 3,
+        interact: [
+          tr('Les archives du salon : chaque épisode de Radio Dangereuse sur sa cassette, rangé par date. Sauf le 12, que personne ne retrouve.', 'The lounge archives: every Radio Dangereuse episode on its own tape, filed by date. Except number 12, which nobody can find.'),
+          tr('Entre deux boîtiers, le script annoté des Galères Galactiques. Dans la marge : « Ici, quelque chose se passe mal. »', 'Between two cases, the annotated script of Galères Galactiques. In the margin: “Here, something goes wrong.”'),
+        ],
+      },
+      { model: 'side-table', x: 20.0, z: 6.35 },
+      {
+        model: 'record-player', x: 20.0, z: 6.35, y: 0.3125, solid: false,
+        interact: tr('Un tourne-disque, pour les jours sans podcast. Sur la platine : la bande originale d\'Elite, en vinyle orange.', 'A record player, for podcast-free days. On the turntable: the Elite soundtrack, on orange vinyl.'),
+      },
+      { model: 'paper-lantern', x: 19.55, z: 8.05, label: 'tall' },
+      { model: 'plant-tall', x: 20.05, z: 3.98 },
+      {
+        model: 'podcast-poster', x: 18.6, z: 8.35, rot: 2, label: 'galeres', solid: false,
         interact: tr(
           'L\'ancienne affiche des Galères Galactiques, gardée en souvenir : une mini-fiction audio humoristique, où rien ne se passe jamais comme prévu dans l\'espace.',
           'The old Galères Galactiques poster, kept as a keepsake: a comedy audio mini-series where nothing in space ever goes to plan.',
@@ -2419,20 +2451,30 @@ export const LEVELS: LevelDef[] = [
       { model: 'movie-poster', x: 20.65, z: 7.1, rot: 1, label: 'hutton', solid: false },
       { model: 'movie-poster', x: 20.65, z: 7.9, rot: 1, label: 'thargoid', solid: false },
       {
-        model: 'water-fountain', x: 17.92, z: 9, rot: 1,
+        model: 'water-fountain', x: 15.92, z: 9.5, rot: 1,
         interact: tr('Fontaine à eau du hall : fraîche, et presque sans goût de vaisseau. On s\'y bouscule après un match.', 'The hall water cooler: cold, and almost free of that starship taste. There\'s a queue after every game.'),
       },
       {
-        model: 'vending-machine', x: 27.28, z: 9, rot: 3,
+        model: 'vending-machine', x: 24.6, z: 8.72,
         interact: [
           tr('Le distributeur du hall : boissons isotoniques, barres de céréales, et une canette de Lavian Brandy coincée depuis des mois.', 'The hall vending machine: isotonic drinks, cereal bars, and a can of Lavian Brandy that has been stuck for months.'),
           tr('Une affichette : « Après le sport, on s\'hydrate. Pas chez Jacques. »', 'A notice: “After sport, hydrate. Not at Jacques\'.”'),
         ],
       },
+      { model: 'bench', x: 18.6, z: 8.85, label: 'mustard' },
+      // Le fond du hall : un tapis mène à la porte double du Comptoir des Cartes Dangereuses.
+      { model: 'rug', x: 27.6, z: 9.5, label: 'cinema:4.6x1.2', solid: false },
+      { model: 'neon-sign', x: 28.9, z: 8.68, label: tr('CARTES', 'CARDS') },
+      { model: 'plant-tall', x: 29.5, z: 8.85 },
+      { model: 'plant-tall', x: 29.5, z: 10.15 },
+      {
+        model: 'cards-board', x: 27.2, z: 8.65, label: 'clash', solid: false,
+        interact: tr('L\'affiche du Comptoir : « Galactic Clash, à toutes les tables. Boosters chez Ludo. Mauvais perdants s\'abstenir. »', 'The Counter\'s poster: “Galactic Clash, at every table. Boosters at Ludo\'s. Sore losers need not apply.”'),
+      },
 
       // --- Terrain de basket : un demi-terrain, le panier sur sa glissière au mur ouest ; on tire
       // depuis la marque, face au panier (cf. src/court.ts, SPORT_COURTS) ---
-      { model: 'court-floor', x: 19, z: 12.5, rot: 1, label: 'basket:5.7x6.7', solid: false },
+      { model: 'court-floor', x: 19, z: 13.5, rot: 1, label: 'basket:5.7x6.7', solid: false },
       {
         model: 'basket-hoop', x: 15.66, z: SPORT_COURTS['gym-basket'].center, rot: 1, solid: false,
         interact: tr('Le panier coulisse sur sa glissière : plus le score monte, plus il se promène. Le filet a déjà été recousu trois fois.', 'The hoop slides along its rail: the higher the score, the more it wanders. The net has been stitched back up three times.'),
@@ -2442,15 +2484,15 @@ export const LEVELS: LevelDef[] = [
         interact: tr('La marque du tireur.', 'The shooter\'s mark.'),
       },
       {
-        model: 'ball-rack', x: 21.3, z: 13.7, rot: 3, label: 'basket', action: tr('Tirer au panier', 'Shoot hoops'),
+        model: 'ball-rack', x: 21.3, z: 14.7, rot: 3, label: 'basket', action: tr('Tirer au panier', 'Shoot hoops'),
         interact: tr('Le chariot à ballons.', 'The ball cart.'),
       },
-      { model: 'score-board', x: 16.9, z: 9.65, label: 'basket', solid: false, interact: tr('Les meilleurs tireurs du bord', 'The ship\'s top shooters'), action: tr('Consulter le classement', 'View rankings') },
-      { model: 'neon-sign', x: 21.15, z: 9.68, label: 'BASKET' },
-      { model: 'bench', x: 21.15, z: 9.9, label: 'terracotta' },
+      { model: 'score-board', x: 16.9, z: 10.65, label: 'basket', solid: false, interact: tr('Les meilleurs tireurs du bord', 'The ship\'s top shooters'), action: tr('Consulter le classement', 'View rankings') },
+      { model: 'neon-sign', x: 21.15, z: 10.68, label: 'BASKET' },
+      { model: 'bench', x: 21.15, z: 10.9, label: 'terracotta' },
 
       // --- Terrain de foot : la cage au mur ouest, et son gardien, une silhouette de carton sur un rail ---
-      { model: 'court-floor', x: 26, z: 12.5, rot: 1, label: 'foot:5.7x6.7', solid: false },
+      { model: 'court-floor', x: 26, z: 13.5, rot: 1, label: 'foot:5.7x6.7', solid: false },
       {
         model: 'foot-goal', x: 22.66, z: SPORT_COURTS['gym-foot'].center, rot: 1,
         interact: [
@@ -2463,12 +2505,80 @@ export const LEVELS: LevelDef[] = [
         interact: tr('Le point de penalty.', 'The penalty spot.'),
       },
       {
-        model: 'ball-rack', x: 28.5, z: 13.7, rot: 3, label: 'foot', action: tr('Tirer au but', 'Take penalties'),
+        model: 'ball-rack', x: 28.5, z: 14.7, rot: 3, label: 'foot', action: tr('Tirer au but', 'Take penalties'),
         interact: tr('Le chariot à ballons.', 'The ball cart.'),
       },
-      { model: 'score-board', x: 24.1, z: 9.65, label: 'foot', solid: false, interact: tr('Les meilleurs buteurs du bord', 'The ship\'s top scorers'), action: tr('Consulter le classement', 'View rankings') },
-      { model: 'neon-sign', x: 28.15, z: 9.68, label: 'FOOT' },
-      { model: 'bench', x: 28.15, z: 9.9, label: 'teal' },
+      { model: 'score-board', x: 24.1, z: 10.65, label: 'foot', solid: false, interact: tr('Les meilleurs buteurs du bord', 'The ship\'s top scorers'), action: tr('Consulter le classement', 'View rankings') },
+      { model: 'neon-sign', x: 28.15, z: 10.68, label: 'FOOT' },
+      { model: 'bench', x: 28.15, z: 10.9, label: 'teal' },
+
+      // --- Comptoir des Cartes Dangereuses (8 × 10, cf. src/furniture/cards.ts et src/cards/) : au fond
+      // du hall, derrière sa porte double. Au nord, la boutique : le mur de boosters du site et le
+      // comptoir de Ludo. Au milieu, sur la rosace du parquet, l'autel d'ouverture. Au sud, les trois
+      // tables de Galactic Clash sous leurs suspensions. À l'est, devant la baie vitrée, les pupitres
+      // où l'on feuillette sa collection. Aux murs, les vitrines des cartes du jour. ---
+      { model: 'cards-floor', x: 34.5, z: 9.5, label: '7.7x9.7', solid: false },
+      {
+        model: 'cards-shop', x: 34.5, z: 4.65, solid: false, action: tr('Voir les boosters', 'Browse the boosters'),
+        interact: tr('Le mur de boosters : un sachet par collection.', 'The wall of boosters: one pack per collection.'),
+      },
+      {
+        model: 'cards-counter', x: 34.5, z: 6.05, action: tr('Parler à Ludo', 'Talk to Ludo'),
+        interact: tr('Le comptoir de Ludo.', 'Ludo\'s counter.'),
+      },
+      {
+        model: 'cards-altar', x: 34.5, z: 9.5, action: tr('Ouvrir un booster', 'Open a booster'),
+        interact: tr('L\'autel d\'ouverture.', 'The opening altar.'),
+      },
+      // Les tables de jeu, chacune sous sa lampe.
+      { model: 'rug', x: 34.5, z: 12.55, label: 'bar:6.2x2.6', solid: false },
+      ...([[32.5, 12.1], [34.5, 13.0], [36.5, 12.1]] as const).flatMap(([x, z]): Prop[] => [
+        { model: 'clash-table', x, z, action: tr('Jouer à Galactic Clash', 'Play Galactic Clash'), interact: tr('Table de Galactic Clash : solo ou duel.', 'Galactic Clash table: solo or duel.') },
+        { model: 'pendant-lamp', x, z, solid: false },
+      ]),
+      // Les pupitres de collection, face à la baie.
+      ...([6.9, 8.7, 10.5] as const).map((z): Prop => ({
+        model: 'binder-table', x: 37.5, z, rot: 3, action: tr('Feuilleter sa collection', 'Browse your collection'),
+        interact: tr('Pupitre de collection : votre classeur, vos échanges, vos cartes à fabriquer.', 'Collection desk: your binder, your trades, your cards to craft.'),
+      })),
+      // Mur ouest, de part et d'autre de la porte : les cartes du jour sous verre, puis les classeurs.
+      {
+        model: 'card-showcase', x: 30.65, z: 5.9, rot: 1, label: '0', solid: false,
+        interact: [
+          tr('Les cartes du jour, sous verre : trois raretés tirées du catalogue chaque matin. Ludo jure qu\'il ne choisit pas.', 'The cards of the day, under glass: three rarities drawn from the catalogue every morning. Ludo swears he doesn\'t pick.'),
+          tr('Une étiquette, sous la vitre : « Ne pas lécher la vitrine. Oui, c\'est arrivé. »', 'A label under the glass: “Do not lick the display. Yes, it has happened.”'),
+        ],
+      },
+      {
+        model: 'card-showcase', x: 30.65, z: 7.55, rot: 1, label: '3', solid: false,
+        interact: tr('Trois autres cartes du jour. Celle du milieu a un reflet qui suit le regard.', 'Three more cards of the day. The middle one has a shimmer that follows your eyes.'),
+      },
+      {
+        model: 'binder-shelf', x: 30.65, z: 11.3, rot: 1,
+        interact: [
+          tr('Les classeurs des habitués, un par CMDR. Le plus épais est fermé par un cadenas à quatre chiffres.', 'The regulars\' binders, one per CMDR. The thickest one is shut with a four-digit padlock.'),
+          tr('Le trophée du tournoi de Galactic Clash. Sur le socle : « Vainqueur : » et rien derrière. Le tournoi n\'a pas encore eu lieu.', 'The Galactic Clash tournament trophy. On the base: “Winner:” and nothing after it. The tournament has not happened yet.'),
+        ],
+      },
+      // La banquette où l'on compare ses tirages.
+      {
+        model: 'cards-bench', x: 30.65, z: 13.05, rot: 1,
+        interact: tr('La banquette du Comptoir : on s\'y montre ses tirages, et on y ment sur ses doubles.', 'The Counter\'s bench: where pulls get shown off, and duplicates get lied about.'),
+      },
+      // Mur nord, de part et d'autre de la boutique.
+      {
+        model: 'binder-shelf', x: 31.42, z: 4.65,
+        interact: tr('Des boîtes de deck, des protège-cartes par milliers, et un classeur étiqueté « Doubles : NE PAS TOUCHER ».', 'Deck boxes, card sleeves by the thousand, and a binder labelled “Duplicates: DO NOT TOUCH”.'),
+      },
+      {
+        model: 'cards-board', x: 37.55, z: 4.65, label: 'rarity', solid: false,
+        interact: tr('Le tableau des raretés : commune, rare, ultra-rare, mythique. Une chance sur cent pour la dernière, par carte.', 'The rarity board: common, rare, ultra rare, mythic. One chance in a hundred for the last, per card.'),
+      },
+      // Les coins : de la verdure, des lampes de papier.
+      { model: 'monstera', x: 37.9, z: 13.9 },
+      { model: 'paper-lantern', x: 37.15, z: 13.95, label: 'round' },
+      { model: 'paper-lantern', x: 31.05, z: 14.0, label: 'tall' },
+      { model: 'plant-tall', x: 37.95, z: 5.1 },
     ],
     lights: [
       [12, 4.6, '#ffd9a8', 2],
@@ -2491,6 +2601,8 @@ export const LEVELS: LevelDef[] = [
       [1.2, 13, '#ffe2a8', 1.7],
       [6.4, 9.6, '#fff1c4', 1.6],
       [17.4, 5.4, '#ffb36b', 1.9, 'fire'],
+      // Le coin du feu, au fond du salon.
+      [16.4, 7.5, '#ffa45a', 1.5, 'fire'],
       // Le studio, et la lueur du néon sur la vitre.
       [17.45, 1.9, '#fff0dc', 1.8],
       [17.2, 3.9, '#ff9a3c', 1.1, 'neon'],
@@ -2499,9 +2611,16 @@ export const LEVELS: LevelDef[] = [
       [28.4, 5.4, '#ff9a5a', 0.5],
       // Le foyer et son hall, puis les projecteurs des deux terrains.
       [21.5, 5.6, '#ffb070', 1.3],
-      [22.5, 9, '#fff0dc', 1.2],
-      [19, 12.5, '#fff4e0', 2.4],
-      [26, 12.5, '#f2fff4', 2.4],
+      [22.5, 9.5, '#fff0dc', 1.2],
+      [17.5, 9.5, '#fff0dc', 1],
+      [28.6, 9.5, '#ffc46b', 1.3],
+      [19, 13.5, '#fff4e0', 2.4],
+      [26, 13.5, '#f2fff4', 2.4],
+      // Le Comptoir des Cartes Dangereuses : l'or de la boutique, l'ambre des tables de jeu ; le reste
+      // vient de ses meubles (cf. lighting/emitters.ts).
+      [34.5, 6.6, '#ffd596', 1.5],
+      [34.5, 12.5, '#ffc46b', 1.4],
+      [31.6, 9.5, '#ffb36b', 0.9],
     ],
   },
   QUARTERS_DECK,

@@ -41,3 +41,6 @@ export declare const BOARD_TABLES: Record<'draughts' | 'guardian-connect' | 'imp
 
 /** Terrains de la zone sportive (pont supérieur), par jeu : pièce, marque de tir, mur visé (x de sa face) et milieu de la cible le long de ce mur. */
 export declare const SPORT_COURTS: Record<'gym-basket' | 'gym-foot', { level: number; room: string; spot: { x: number; z: number }; wall: number; center: number }>
+
+/** Le Comptoir des Cartes Dangereuses (pont supérieur) : sa pièce, les faces intérieures de ses murs, son comptoir. */
+export declare const CARD_ROOM: { level: number; room: string; minX: number; maxX: number; minZ: number; maxZ: number; counter: { x: number; z: number } }

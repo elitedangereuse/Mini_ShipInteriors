@@ -43,6 +43,7 @@ export const SHIP_CAMERAS: ShipCamera[] = [
   { name: tr('Coursive des cabines', 'Cabin corridor'), level: 1, x: 11.5, z: 4.5, zoom: 4.2 },
   { name: tr('Salon d\'écoute', 'Listening lounge'), level: 1, x: 17.6, z: 5.4, zoom: 3.4, turn: 3 },
   { name: 'Foyer', level: 1, x: 21.6, z: 6.4, zoom: 4, turn: 1 },
+  { name: tr('Comptoir des Cartes', 'Card counter'), level: 1, x: 34.5, z: 9.5, zoom: 5.4 },
   { name: tr('Toilettes', 'Restrooms'), level: 1, x: 14, z: 2, dead: tr('SIGNAL COUPÉ · décision du comité de bord', 'FEED CUT · by decision of the ship\'s committee') },
   { name: tr('Palier de la cale', 'Hold landing'), level: -1, x: 10, z: 5, zoom: 3.6 },
   { name: tr('Atelier', 'Workshop'), level: -1, x: 5.6, z: 5, zoom: 4.2, turn: 1 },

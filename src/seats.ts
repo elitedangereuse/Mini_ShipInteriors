@@ -1,6 +1,7 @@
 import type { StationModel } from './assets'
 import type { CustomModel } from './furniture'
 import { CINEMA_ROW_SEATS, CINEMA_SEAT_PITCH } from './furniture/cinema'
+import { BENCH_SEATS_X, BINDER_SEAT_Z, CLASH_SEAT_X } from './furniture/cards'
 import { DESK_SEAT } from './furniture/classroom'
 import { KRAIT_CLIMB, KRAIT_LADDER_REACH, KRAIT_PILOT } from './furniture/hangar'
 import { tr } from './i18n'
@@ -109,6 +110,11 @@ export const SEATS: Partial<Record<CustomModel | StationModel, Seat[]>> = {
   // Fauteuil du studio, tourné vers la table : on s'y glisse par le côté (cf. Seating.approach).
   'studio-chair': [sit(0, 0.03, 0.3)],
   'floor-cushion': [sit(0, 0, 0.13, 'free')],
+  // Le Comptoir des Cartes Dangereuses (cf. furniture/cards.ts) : les deux chaises d'une table de
+  // Galactic Clash, face à face ; la chaise du pupitre de collection ; la banquette.
+  'clash-table': [sit(-CLASH_SEAT_X, 0, 0.285, Math.PI / 2, [-CLASH_SEAT_X, 0.5]), sit(CLASH_SEAT_X, 0, 0.285, -Math.PI / 2, [CLASH_SEAT_X, 0.5])],
+  'binder-table': [sit(0, BINDER_SEAT_Z, 0.285, Math.PI, [0.45, BINDER_SEAT_Z])],
+  'cards-bench': BENCH_SEATS_X.map((x) => sit(x, 0.3, 0.3)),
   // Table d'élève de la salle de classe : on se glisse sur la chaise par l'allée, de côté.
   'class-desk': [sit(0, DESK_SEAT.z, DESK_SEAT.y, 0, [0.45, DESK_SEAT.z])],
   // Furniture Kit de Kenney (cf. furniture/kenney.ts) : hauteurs relevées sur les modèles remis à l'échelle.
