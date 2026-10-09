@@ -299,7 +299,7 @@ function applyQuestRooms() {
     const was = questRoomsOpen.get(quest)
     if (was === open) continue
     questRoomsOpen.set(quest, open)
-    // Ouverte en cours de partie (et non trouvée ouverte à l'arrivée) : son couvercle se rétracte.
+    // Ouverte en cours de partie (et non trouvée ouverte à l'arrivée) : son couvercle se défait.
     deckById(level).setRoomOpen(room, open, was === false && open)
     if (was && !open) evictFrom?.(level, room)
     if (was === false && open) revealRoom?.(level, room)
@@ -1840,10 +1840,10 @@ cinematic.onClose = () => {
 cinematic.onNext = () => sound.ui('rotate')
 /**
  * Une pièce vient de s'ouvrir sur le pont où l'on est : la caméra recule et va la montrer, le
- * temps que son couvercle se rétracte, puis revient. Sur un autre pont, le bandeau suffit.
+ * temps que son couvercle se défait, puis revient. Sur un autre pont, le bandeau suffit.
  */
 const REVEAL_ZOOM = 4.6
-/** `linger` : secondes pendant lesquelles on la regarde encore, une fois son couvercle rétracté. */
+/** `linger` : secondes pendant lesquelles on la regarde encore, une fois son couvercle défait. */
 let roomReveal: { deck: Deck; focus: THREE.Vector3; linger: number; zoom: number } | null = null
 revealRoom = (level, room) => {
   const center = deck.def.id === level ? deck.roomCenter(room) : null

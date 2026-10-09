@@ -7,7 +7,7 @@ import * as THREE from 'three'
  * opaque, écrit la profondeur et ne clignote jamais.
  */
 
-const BAYER = `
+export const BAYER = `
   float bayer4(vec2 p) {
     ivec2 i = ivec2(mod(p, 4.0));
     int k = i.x + i.y * 4;

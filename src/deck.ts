@@ -18,7 +18,7 @@ import { DIRS, ShipMap } from './map'
 import { Hull } from './hull'
 import { fadeBuffer, StaticMerge, updateOccluders, type CellRange, type FadeBuffer, type Occluder } from './merge'
 import { Pathfinder } from './pathfinding'
-import { roomCover } from './room-cover'
+import { roomCover, type RoomCover } from './room-cover'
 import type { Doorway } from './physics'
 import { DOOR_GAP } from '../shared/sight.js'
 import { BAR_ROOM, CLUB_ROOM, mezzanineOf, shipMapOptions } from '../shared/ship-layouts.js'
@@ -480,7 +480,7 @@ export class Deck {
   private ceilingOccluders: Occluder[] = []
   private ceilingFades!: FadeBuffer
   /** Couvercles des pièces réservées (labo, sanctuaire, Zorb, bar, pièces à débloquer par une quête), par lettre de pièce : posés tant qu'on n'y a pas accès. */
-  private readonly covers = new Map<string, THREE.Group>()
+  private readonly covers = new Map<string, RoomCover>()
   /**
    * Pièces qu'une quête débloque (cf. shared/quests.js), et ce qui y dépasserait du couvercle :
    * ce qui bouge (le chariot du panier de basket) et les grands meubles, cachés avec la pièce.
@@ -488,8 +488,8 @@ export class Deck {
   private questRooms: string[] = []
   private readonly roomLive = new Map<string, THREE.Object3D[]>()
   private readonly roomTall = new Map<string, Occluder[]>()
-  /** Couvercles en train de se rétracter (une pièce vient de s'ouvrir sous les yeux du joueur) : où ils en sont, de 0 à 1. */
-  private readonly retracting = new Map<THREE.Group, number>()
+  /** Couvercles en train de s'ouvrir (une pièce vient de se débloquer sous les yeux du joueur) : où ils en sont, de 0 à 1. */
+  private readonly retracting = new Map<RoomCover, number>()
   /** Ce qui bouge dans le Zorb (danseurs, reflets de la boule, lasers) : caché avec la salle. */
   private readonly clubLive: THREE.Object3D[] = []
 
@@ -575,7 +575,7 @@ export class Deck {
   /** Le point (x, z) est-il sous le couvercle d'une pièce fermée ? Ses lampes n'ont pas à éclairer le couvercle. */
   covered(x: number, z: number): boolean {
     const room = this.map.room(Math.round(x), Math.round(z))
-    return !!room && !!this.covers.get(room)?.visible
+    return !!room && !!this.covers.get(room)?.cover.visible
   }
 
   /** Les lampes ou le plan du pont ont changé (les quartiers qu'on aménage) : son champ est à refaire. */
@@ -637,19 +637,19 @@ export class Deck {
 
   /**
    * Ouvre ou ferme les portes d'une pièce (celles du simulateur d'accueil s'ouvrent au fil des
-   * leçons). `reveal` : son couvercle se rétracte comme un volet, au lieu de disparaître d'un coup.
+   * leçons). `reveal` : son couvercle se défait tôle par tôle, au lieu de disparaître d'un coup.
    */
   setRoomOpen(room: string, open: boolean, reveal = false) {
     const cover = this.covers.get(room)
-    const shown = !!cover?.visible
+    const shown = !!cover?.cover.visible
     this.setRoomAccess(room, open)
     if (cover && open && reveal && shown) {
-      cover.visible = true
+      cover.cover.visible = true
       this.retracting.set(cover, 0)
     }
   }
 
-  /** Un couvercle est en train de se rétracter. */
+  /** Un couvercle est en train de s'ouvrir. */
   get revealing(): boolean {
     return this.retracting.size > 0
   }
@@ -671,18 +671,16 @@ export class Deck {
     this.pathfinder.invalidate()
     const cover = this.covers.get(room)
     if (cover) {
-      cover.visible = !open
+      cover.cover.visible = !open
       this.settle(cover)
     }
     for (const o of this.roomLive.get(room) ?? []) o.visible = open
     for (const o of this.roomTall.get(room) ?? []) o.off = !open
   }
 
-  /** Couvercle remis à sa place et à sa taille (il ne se rétracte plus). */
-  private settle(cover: THREE.Group) {
-    if (!this.retracting.delete(cover)) return
-    cover.scale.x = 1
-    cover.position.x = cover.userData.x
+  /** Couvercle rendu entier (il ne s'ouvre plus). */
+  private settle(cover: RoomCover) {
+    if (this.retracting.delete(cover)) cover.reveal(0)
   }
 
   private doorRoom(x: number, z: number, dir: number, room: string) {
@@ -703,14 +701,11 @@ export class Deck {
     const x0 = Math.min(...tiles.map((t) => t.x)), x1 = Math.max(...tiles.map((t) => t.x))
     const z0 = Math.min(...tiles.map((t) => t.z)), z1 = Math.max(...tiles.map((t) => t.z))
     // Jusqu'à la face extérieure des murs : la plaque les coiffe.
-    const { cover, update } = roomCover(x1 - x0 + 1 + WALL_T, z1 - z0 + 1 + WALL_T, tint, glow)
-    cover.position.set((x0 + x1) / 2, 0, (z0 + z1) / 2)
-    // Sa place et sa largeur, pour le rétracter comme un volet (cf. setRoomOpen).
-    cover.userData.x = cover.position.x
-    cover.userData.w = x1 - x0 + 1 + WALL_T
-    if (update) this.animated.push({ update: (t) => cover.visible && update(t), interactive: false })
-    this.group.add(cover)
-    this.covers.set(room, cover)
+    const made = roomCover(x1 - x0 + 1 + WALL_T, z1 - z0 + 1 + WALL_T, WALL_T, tint, glow)
+    made.cover.position.set((x0 + x1) / 2, 0, (z0 + z1) / 2)
+    if (glow) this.animated.push({ update: (t) => made.cover.visible && made.update(t), interactive: false })
+    this.group.add(made.cover)
+    this.covers.set(room, made)
   }
 
   // ------------------------------------------------------------------ build
@@ -898,6 +893,9 @@ export class Deck {
       sight.mend()
     }
     if (all) seen.fill(1)
+    // Vu d'en haut, une pièce fermée reste sous son couvercle : ni son mobilier ni son sol ne sont
+    // dessinés (le couvercle se troue autour du joueur, cf. room-cover.ts). Ses murs, mitoyens, restent.
+    if (!eyes) for (const [room, c] of this.covers) if (c.cover.visible && !this.retracting.has(c)) seen[sight.roomIndex(room)] = 0
     if (seen.every((s, i) => s === shown[i])) return
     shown.set(seen)
 
@@ -1614,18 +1612,19 @@ export class Deck {
    */
   update(dt: number, actors: THREE.Vector3[], focus: THREE.Vector3 | null, toCamera: THREE.Vector3, editing = false, keep: { x: number; z: number } | null = null, fade = dt) {
     this.time += dt
-    // Les couvercles qui se rétractent : vers l'ouest, d'un mouvement amorti, en une seconde et demie.
+    // Les couvercles qui s'ouvrent : le cadenas cède, puis les tôles se défont, en un peu plus de deux secondes.
     for (const [cover, at] of this.retracting) {
-      const t = Math.min(1, at + fade / 1.5)
+      const t = Math.min(1, at + fade / 2.2)
       this.retracting.set(cover, t)
-      const left = 1 - t * t * (3 - 2 * t)
-      cover.scale.x = Math.max(left, 0.001)
-      cover.position.x = cover.userData.x - (cover.userData.w / 2) * (1 - left)
+      cover.reveal(t)
       if (t >= 1) {
-        cover.visible = false
+        cover.cover.visible = false
         this.settle(cover)
       }
     }
+    // Vu d'en haut, le couvercle se troue autour du joueur qui passe derrière lui (cf. room-cover.ts).
+    const pierced = focus && !this.ceiling.visible ? focus : null
+    for (const c of this.covers.values()) if (c.cover.visible) c.pierce(pierced)
 
     // Portes automatiques (sauf celles qui sont verrouillées).
     for (const d of this.doors) {
