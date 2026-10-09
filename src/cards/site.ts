@@ -53,7 +53,27 @@ export interface CardsInfo {
   shop: ShopInfo | null
 }
 
-export const coverUrl = (slug: string) => `${CARDS_URL}?cover=${encodeURIComponent(slug)}`
+/** Couverture d'un booster : 256 px de large, ou 512 (`large`) pour le sachet présenté en grand. */
+export const coverUrl = (slug: string, large = false) => `${CARDS_URL}?cover=${encodeURIComponent(slug)}${large ? '&w=512' : ''}`
+/** Le dos des cartes du site (256 px de large, ou 512). */
+export const backUrl = (large = false) => `${CARDS_URL}?back=1${large ? '&w=512' : ''}`
+
+/**
+ * Bruits de cartes : ceux de Galactic Clash, sur le site (une carte posée, choisie, retournée
+ * avec éclat). `volume` : de 0 à 1.
+ */
+export type CardSound = 'card-place' | 'card-select' | 'card-capture'
+const SOUNDS_URL = '/assets/audios/galactic_clash/tt/'
+const sounds = new Map<CardSound, HTMLAudioElement>()
+export function cardSound(name: CardSound, volume: number) {
+  if (volume <= 0 || typeof Audio === 'undefined') return
+  let source = sounds.get(name)
+  if (!source) sounds.set(name, (source = new Audio(`${SOUNDS_URL}${name}.mp3`)))
+  // Une copie par coup : deux cartes retournées coup sur coup se font entendre toutes les deux.
+  const shot = source.cloneNode() as HTMLAudioElement
+  shot.volume = Math.min(1, volume)
+  void shot.play().catch(() => {})
+}
 /** Visuel d'une carte : sa vignette (352 px de large), ou le plein format. */
 export const cardUrl = (key: string, full = false) => `/assets/images/cartes/${LANG}/${encodeURIComponent(key)}${full ? '' : '.thumb'}.webp`
 

@@ -1,15 +1,16 @@
 import * as THREE from 'three'
-import { cardUrl, cardsInfo, coverUrl, type CardsInfo, type Rarity } from '../cards/site'
+import { backUrl, cardUrl, cardsInfo, coverUrl, type CardsInfo, type Rarity } from '../cards/site'
 import { tr } from '../i18n'
 import { counterStaff } from './counter-staff'
-import { animatedScreen, beamMaterial, box, cylinder, drawnTexture, glass, glow, holoMaterial, keepShared, lit, mesh, part, sphere, type Builder } from './kit'
+import { animatedScreen, beamMaterial, box, cylinder, drawnTexture, glass, glow, holoMaterial, keepShared, lit, mesh, part, pointCloud, sphere, type Builder } from './kit'
 
 /*
  * Le Comptoir des Cartes Dangereuses, au fond du hall du pont supérieur : la boutique de boosters
  * (un mur de sachets, ceux du site, chacun sa collection), Ludo derrière son comptoir, l'autel
  * d'ouverture au milieu de la pièce, les tables de Galactic Clash, les pupitres où feuilleter sa
- * collection, les vitrines des cartes du jour. Une pièce feutrée : noyer, laiton, velours bleu nuit,
- * et la lumière des cartes. Ce qu'on y fait est dans src/cards/.
+ * collection, les vitrines des cartes du jour. Une pièce où l'on a envie de rester : parquet de
+ * noyer et tapis, laiton, velours bleu nuit, guirlandes d'ampoules, lampes à vitrail, un chariot de
+ * chocolat chaud. Ce qu'on y fait est dans src/cards/.
  *
  * Un objet accroché est construit dos au mur (origine sur la face du mur, au niveau du sol,
  * contenu vers +z).
@@ -27,8 +28,19 @@ const haloMaterial = (color: string, opacity: number, map: THREE.Texture | null 
 
 // ---------------------------------------------------------------- dessins
 
-/** Dos d'une carte, d'après celui du site : noir rayé, un médaillon, le bandeau « ÉLITE DANGEREUSE ». */
+/** Le dos des cartes du site, une fois arrivé ; d'ici là (ou sans site), un dos dessiné d'après lui. */
+let backImage: HTMLImageElement | null = null
+let backAsked = false
+/** Textures qui montrent un dos de carte : redessinées quand celui du site arrive. */
+const backs = new Set<THREE.CanvasTexture>()
+
+/** Dos d'une carte : celui du site (un visage tramé, le bandeau « ÉLITE DANGEREUSE »). */
 function drawCardBack(g: CanvasRenderingContext2D, w: number, h: number) {
+  if (backImage) {
+    g.clearRect(0, 0, w, h)
+    g.drawImage(backImage, 0, 0, w, h)
+    return
+  }
   g.fillStyle = '#f2f2f2'
   g.fillRect(0, 0, w, h)
   g.fillStyle = '#0c0c0e'
@@ -49,8 +61,31 @@ function drawCardBack(g: CanvasRenderingContext2D, w: number, h: number) {
   g.fillRect(w * 0.36, h * 0.727, w * 0.51, h * 0.066)
 }
 
+/** Montre le dos sur une texture de carte ; il devient celui du site dès qu'il est chargé. */
+function showBack(texture: THREE.CanvasTexture) {
+  const c = texture.image as HTMLCanvasElement
+  drawCardBack(c.getContext('2d')!, c.width, c.height)
+  texture.needsUpdate = true
+  backs.add(texture)
+  if (backAsked || typeof Image === 'undefined') return
+  backAsked = true
+  const img = new Image()
+  img.onload = () => {
+    backImage = img
+    for (const t of backs) showBack(t)
+  }
+  img.src = backUrl()
+}
+
+/** Texture d'une carte, face cachée. */
+function backTexture(w: number, h: number): THREE.CanvasTexture {
+  const texture = drawnTexture(w, h, () => {})
+  showBack(texture)
+  return texture
+}
+
 let cardBack: THREE.MeshBasicMaterial | undefined
-const cardBackMaterial = () => (cardBack ??= keepShared(new THREE.MeshBasicMaterial({ map: keepShared(drawnTexture(96, 132, (g) => drawCardBack(g, 96, 132))) })))
+const cardBackMaterial = () => (cardBack ??= keepShared(new THREE.MeshBasicMaterial({ map: keepShared(backTexture(96, 132)) })))
 
 /** Teintes des sachets d'attente, avant que le site n'ait donné les siens. */
 const PACK_HUES = [212, 150, 28, 280, 190, 350, 48, 120, 250, 8, 170, 310]
@@ -90,6 +125,7 @@ function drawPack(g: CanvasRenderingContext2D, hue: number) {
 /** Remplace le dessin d'une texture par une image du site, quand elle arrive ; sinon le dessin reste. */
 function paint(texture: THREE.CanvasTexture, url: string) {
   if (typeof Image === 'undefined') return
+  backs.delete(texture)
   const img = new Image()
   img.onload = () => {
     const c = texture.image as HTMLCanvasElement, g = c.getContext('2d')!
@@ -137,15 +173,89 @@ function cardSlab(w: number, color: string, up = false): THREE.Group {
 
 // ---------------------------------------------------------------- sol
 
+/** Teintes d'un tapis : sa bordure, son champ, ses motifs, son filet. */
+type RugColors = { border: string; field: string; motif: string; line: string }
+const RUGS = {
+  wine: { border: '#3f1418', field: '#6a2227', motif: '#8f3a34', line: '#d2ab5c' },
+  night: { border: '#14203a', field: '#1f3458', motif: '#2f4b78', line: '#d2ab5c' },
+  moss: { border: '#152f2e', field: '#1f4a47', motif: '#2f6660', line: '#d8b866' },
+} satisfies Record<string, RugColors>
+
 /**
- * Parquet de la pièce (`label` : largeur x profondeur) : des lames de noyer en point de Hongrie, un
- * filet de laiton le long des murs, et au milieu, autour de l'autel, une rosace aux quatre raretés.
+ * Tapis tissé, dessiné sur le parquet (centre et taille en pixels) : franges aux deux bouts,
+ * bordure, filet doré, champ semé de losanges, médaillon au milieu.
+ */
+function drawRug(g: CanvasRenderingContext2D, cx: number, cy: number, w: number, h: number, c: RugColors, random: () => number) {
+  const x = cx - w / 2, y = cy - h / 2, along = w >= h, b = Math.min(w, h) * 0.09
+  // L'ombre portée du tapis, puis ses franges.
+  g.fillStyle = '#0000003d'
+  g.fillRect(x + 3, y + 4, w, h)
+  g.strokeStyle = '#e9dcc0'
+  g.lineWidth = 1.5
+  for (let k = 3; k < (along ? h : w) - 2; k += 4) {
+    g.beginPath()
+    if (along) { g.moveTo(x - 7, y + k); g.lineTo(x, y + k); g.moveTo(x + w, y + k); g.lineTo(x + w + 7, y + k) }
+    else { g.moveTo(x + k, y - 7); g.lineTo(x + k, y); g.moveTo(x + k, y + h); g.lineTo(x + k, y + h + 7) }
+    g.stroke()
+  }
+  g.fillStyle = c.border
+  g.fillRect(x, y, w, h)
+  g.fillStyle = c.field
+  g.fillRect(x + b, y + b, w - 2 * b, h - 2 * b)
+  // Le semis de losanges, à peine plus clair que le champ.
+  g.save()
+  g.beginPath()
+  g.rect(x + b, y + b, w - 2 * b, h - 2 * b)
+  g.clip()
+  const step = Math.max(14, Math.min(w, h) * 0.16)
+  for (let j = 0, yy = y + b; yy < y + h; yy += step / 2, j++) {
+    for (let xx = x + b + (j % 2 ? step / 2 : 0); xx < x + w; xx += step) {
+      g.fillStyle = random() < 0.5 ? c.motif : c.border
+      g.beginPath()
+      g.moveTo(xx, yy - step * 0.22)
+      g.lineTo(xx + step * 0.16, yy)
+      g.lineTo(xx, yy + step * 0.22)
+      g.lineTo(xx - step * 0.16, yy)
+      g.fill()
+    }
+  }
+  g.restore()
+  g.strokeStyle = c.line
+  g.lineWidth = 2
+  g.strokeRect(x + b * 0.5, y + b * 0.5, w - b, h - b)
+  g.lineWidth = 1
+  g.strokeRect(x + b * 1.25, y + b * 1.25, w - b * 2.5, h - b * 2.5)
+  // Le médaillon : un losange cerné d'or, ton sur ton.
+  const r = Math.min(w, h) * 0.17
+  const lozenge = (k: number) => {
+    g.beginPath()
+    g.moveTo(cx, cy - r * k)
+    g.lineTo(cx + r * k * (along ? 1.7 : 0.75), cy)
+    g.lineTo(cx, cy + r * k)
+    g.lineTo(cx - r * k * (along ? 1.7 : 0.75), cy)
+    g.closePath()
+  }
+  g.fillStyle = c.motif
+  lozenge(1)
+  g.fill()
+  g.stroke()
+  g.fillStyle = c.border
+  lozenge(0.55)
+  g.fill()
+  g.stroke()
+}
+
+/**
+ * Le sol de la pièce (`label` : largeur x profondeur), d'un seul tenant : un parquet de noyer en
+ * point de Hongrie, un filet de laiton le long des murs, et les tapis, posés là où l'on s'arrête
+ * (la position de chacun est donnée depuis le milieu de la pièce, en mètres). Au milieu, sous
+ * l'autel, le grand tapis rond : une étoile dorée, un losange par rareté.
  */
 const cardsFloor: Builder = ({ label = '7.7x9.7', random }) => {
   const [w, d] = label.split('x').map(Number), px = 96
   const W = Math.round(w * px), D = Math.round(d * px)
   const map = drawnTexture(W, D, (g) => {
-    g.fillStyle = '#3d2618'
+    g.fillStyle = '#33211a'
     g.fillRect(0, 0, W, D)
     // Point de Hongrie : des bandes verticales de lames inclinées, une sur deux dans l'autre sens.
     const band = px * 0.55, plank = px * 0.16
@@ -155,8 +265,7 @@ const cardsFloor: Builder = ({ label = '7.7x9.7', random }) => {
       g.rect(bx, 0, band, D)
       g.clip()
       for (let y = -band; y < D + band; y += plank) {
-        const l = 30 + random() * 9
-        g.fillStyle = `hsl(${22 + random() * 8} ${36 + random() * 10}% ${l}%)`
+        g.fillStyle = `hsl(${23 + random() * 7} ${30 + random() * 9}% ${25 + random() * 9}%)`
         g.beginPath()
         const a = k % 2 ? band : 0, b = k % 2 ? 0 : band
         g.moveTo(bx, y + a)
@@ -166,43 +275,77 @@ const cardsFloor: Builder = ({ label = '7.7x9.7', random }) => {
         g.fill()
       }
       g.restore()
-      g.fillStyle = '#2a190f'
+      g.fillStyle = '#24160f'
       g.fillRect(bx, 0, 1, D)
     }
-    // Filet de laiton, et la frise sombre le long des murs.
-    g.strokeStyle = '#2a190f'
+    // Frise sombre et filet de laiton, le long des murs.
+    g.strokeStyle = '#24160f'
     g.lineWidth = px * 0.3
     g.strokeRect(0, 0, W, D)
     g.strokeStyle = C.brass
     g.lineWidth = 3
     g.strokeRect(px * 0.2, px * 0.2, W - px * 0.4, D - px * 0.4)
-    // La rosace : un disque de velours bleu nuit cerclé de laiton, une étoile à huit branches, et
-    // quatre losanges aux couleurs des raretés.
-    const cx = W / 2, cy = D / 2, r = px * 1.55
-    g.fillStyle = C.nightDeep
+    // Les tapis : devant la boutique, de la porte à l'autel, sous les tables de jeu, au coin canapé.
+    const cx = W / 2, cy = D / 2
+    const rug = (x: number, z: number, rw: number, rd: number, c: RugColors) => drawRug(g, cx + x * px, cy + z * px, rw * px, rd * px, c, random)
+    rug(0, -2.45, 4.4, 0.95, RUGS.moss)
+    rug(-2.75, 0, 1.7, 1.25, RUGS.night)
+    rug(0.95, 3.05, 4.5, 2.85, RUGS.wine)
+    rug(-2.7, 3.75, 2.0, 1.7, RUGS.night)
+    // Le tapis rond de l'autel : franges, bordure bleu nuit à pastilles d'or, anneau lie-de-vin,
+    // champ bleu, étoile à huit branches.
+    const r = px * 1.6
+    g.fillStyle = '#0000003d'
     g.beginPath()
-    g.arc(cx, cy, r, 0, Math.PI * 2)
+    g.arc(cx + 3, cy + 5, r, 0, Math.PI * 2)
     g.fill()
-    g.strokeStyle = C.brass
-    g.lineWidth = 5
-    g.stroke()
+    g.strokeStyle = '#e9dcc0'
+    g.lineWidth = 1.5
+    for (let i = 0; i < 180; i++) {
+      const a = (i / 180) * Math.PI * 2
+      g.beginPath()
+      g.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r)
+      g.lineTo(cx + Math.cos(a) * (r + 7), cy + Math.sin(a) * (r + 7))
+      g.stroke()
+    }
+    const disc = (k: number, color: string) => {
+      g.fillStyle = color
+      g.beginPath()
+      g.arc(cx, cy, r * k, 0, Math.PI * 2)
+      g.fill()
+    }
+    disc(1, RUGS.night.border)
+    disc(0.84, RUGS.wine.field)
+    disc(0.76, RUGS.night.field)
+    g.fillStyle = RUGS.night.line
+    for (let i = 0; i < 40; i++) {
+      const a = (i / 40) * Math.PI * 2
+      g.beginPath()
+      g.arc(cx + Math.cos(a) * r * 0.92, cy + Math.sin(a) * r * 0.92, 2.6, 0, Math.PI * 2)
+      g.fill()
+    }
+    g.strokeStyle = RUGS.night.line
     g.lineWidth = 2
-    for (const k of [0.86, 0.5]) {
+    for (const k of [0.84, 0.76, 0.46]) {
       g.beginPath()
       g.arc(cx, cy, r * k, 0, Math.PI * 2)
       g.stroke()
     }
-    g.fillStyle = C.brassDark
+    g.fillStyle = '#b8964b'
     for (let i = 0; i < 8; i++) {
-      const a = (i * Math.PI) / 4, len = r * (i % 2 ? 0.62 : 0.84)
+      const a = (i * Math.PI) / 4, len = r * (i % 2 ? 0.56 : 0.72)
       g.beginPath()
       g.moveTo(cx + Math.cos(a) * len, cy + Math.sin(a) * len)
-      g.lineTo(cx + Math.cos(a + 0.2) * r * 0.2, cy + Math.sin(a + 0.2) * r * 0.2)
-      g.lineTo(cx + Math.cos(a - 0.2) * r * 0.2, cy + Math.sin(a - 0.2) * r * 0.2)
+      g.lineTo(cx + Math.cos(a + 0.2) * r * 0.18, cy + Math.sin(a + 0.2) * r * 0.18)
+      g.lineTo(cx + Math.cos(a - 0.2) * r * 0.18, cy + Math.sin(a - 0.2) * r * 0.18)
       g.fill()
     }
     ;(['c', 'r', 'u', 'm'] as const).forEach((id, i) => {
-      const a = Math.PI / 4 + (i * Math.PI) / 2, x = cx + Math.cos(a) * r * 0.93, y = cy + Math.sin(a) * r * 0.93, s = px * 0.09
+      const a = Math.PI / 4 + (i * Math.PI) / 2, x = cx + Math.cos(a) * r * 0.92, y = cy + Math.sin(a) * r * 0.92, s = px * 0.075
+      g.fillStyle = RUGS.night.border
+      g.beginPath()
+      g.arc(x, y, s * 1.9, 0, Math.PI * 2)
+      g.fill()
       g.fillStyle = RARITY_COLORS[id]
       g.beginPath()
       g.moveTo(x, y - s * 1.4)
@@ -223,7 +366,88 @@ const cardsFloor: Builder = ({ label = '7.7x9.7', random }) => {
 // ---------------------------------------------------------------- la boutique
 
 const SHOP = { w: 4.4, slots: 8, rows: [0.2, 0.6], packW: 0.19, packH: 0.345 }
+/** L'enseigne de la boutique : taille de son dessin (pixels) et de sa planche (mètres). */
+const SIGN = { w: 1720, h: 216, width: 4.3, height: 0.54 }
 let shopSign: THREE.Texture | undefined
+let spotMap: THREE.Texture | undefined
+/** Tache de lumière douce, pour les lueurs. */
+const spot = () => (spotMap ??= keepShared(drawnTexture(64, 64, (g) => {
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32)
+  grad.addColorStop(0, 'rgba(255, 255, 255, 0.9)')
+  grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.3)')
+  grad.addColorStop(1, 'rgba(255, 255, 255, 0)')
+  g.fillStyle = grad
+  g.fillRect(0, 0, 64, 64)
+})))
+
+/**
+ * Le dessin de l'enseigne, sur fond transparent : trois cartes en éventail, tracées d'un tube de
+ * néon, puis « Cartes Dangereuses » en lettres d'ambre, soulignées d'un trait orange.
+ */
+function drawShopSign(c: CanvasRenderingContext2D) {
+  const { w, h } = SIGN
+  c.lineJoin = c.lineCap = 'round'
+  /** Un tube : sa lueur, large et diffuse, puis son verre, presque blanc. */
+  const tube = (trace: () => void, color: string, core: string, width: number) => {
+    c.shadowColor = color
+    c.strokeStyle = color
+    for (const [blur, extra] of [[38, 5], [14, 2]]) {
+      c.shadowBlur = blur
+      c.lineWidth = width + extra
+      trace()
+    }
+    c.shadowBlur = 0
+    c.strokeStyle = core
+    c.lineWidth = width * 0.55
+    trace()
+  }
+  const text = 'Cartes Dangereuses'
+  c.font = 'italic 700 132px Georgia, "Times New Roman", serif'
+  c.textBaseline = 'alphabetic'
+  const tw = c.measureText(text).width, fan = 190, gap = 46
+  const x0 = (w - (fan + gap + tw)) / 2, base = h * 0.68
+  // L'éventail : trois cartes, la plus rare devant.
+  const fx = x0 + fan / 2, fy = h * 0.6
+  ;([[-0.42, '#63d8ff', '#e6fbff'], [0.42, '#ff6fd0', '#ffe6f7'], [0, '#ffc94a', '#fff6d6']] as const).forEach(([a, color, core]) => {
+    c.save()
+    c.translate(fx, fy + 52)
+    c.rotate(a)
+    tube(() => {
+      c.beginPath()
+      c.roundRect(-38, -150, 76, 108, 10)
+      c.stroke()
+    }, color, core, 7)
+    c.restore()
+  })
+  // Le losange de la carte du milieu.
+  tube(() => {
+    c.beginPath()
+    c.moveTo(fx, fy - 62)
+    c.lineTo(fx + 15, fy - 40)
+    c.lineTo(fx, fy - 18)
+    c.lineTo(fx - 15, fy - 40)
+    c.closePath()
+    c.stroke()
+  }, '#ffc94a', '#fff6d6', 5)
+  // Les lettres : pleines, d'un ambre très clair, dans leur halo.
+  const tx = x0 + fan + gap
+  c.shadowColor = '#ff9a2e'
+  c.fillStyle = '#ffb657'
+  for (const blur of [44, 18]) {
+    c.shadowBlur = blur
+    c.fillText(text, tx, base)
+  }
+  c.shadowBlur = 5
+  c.fillStyle = '#fff3dc'
+  c.fillText(text, tx, base)
+  // Le trait qui souligne, d'un seul geste.
+  tube(() => {
+    c.beginPath()
+    c.moveTo(tx + 8, base + 34)
+    c.bezierCurveTo(tx + tw * 0.3, base + 20, tx + tw * 0.7, base + 48, tx + tw - 4, base + 30)
+    c.stroke()
+  }, '#ff7a1c', '#ffe0c2', 6)
+}
 
 /**
  * Le mur de la boutique : deux rayons de sachets sous leurs réglettes, un sachet par collection du
@@ -250,27 +474,15 @@ const cardsShop: Builder = () => {
       packs.push(pack.texture)
     }
   })
-  // Le fronton, au-dessus du mur.
-  shopSign ??= keepShared(drawnTexture(1024, 112, (c) => {
-    c.fillStyle = C.nightDeep
-    c.fillRect(0, 0, 1024, 112)
-    c.textAlign = 'center'
-    c.textBaseline = 'middle'
-    c.font = '800 66px Georgia, serif'
-    c.shadowColor = '#ff8a1c'
-    c.shadowBlur = 22
-    c.fillStyle = '#ffe2bf'
-    const title = tr('CARTES  DANGEREUSES', 'CARTES  DANGEREUSES')
-    c.fillText(title, 512, 60)
-    c.fillText(title, 512, 60)
-  }))
-  g.add(box(w, 0.24, 0.1, dark, 0, 1.12, 0.05, 0.01), part(new THREE.PlaneGeometry(w - 0.3, 0.2), new THREE.MeshBasicMaterial({ map: shopSign }), 0, 1.12, 0.102))
-  // Les ampoules du fronton : deux jeux, allumés tour à tour.
-  const bulbs = [new THREE.MeshBasicMaterial({ color: '#fff3c4' }), new THREE.MeshBasicMaterial({ color: '#b0702a' })]
-  const lamp = new THREE.SphereGeometry(0.013, 6, 4)
-  for (let i = 0; i < 30; i++) {
-    for (const y of [1.02, 1.22]) live.add(part(lamp, bulbs[i % 2], -w / 2 + 0.06 + (i * (w - 0.12)) / 29, y, 0.106))
-  }
+  // L'enseigne, au-dessus du mur : un néon sur sa planche de noyer, tenue par deux équerres de laiton.
+  shopSign ??= keepShared(drawnTexture(SIGN.w, SIGN.h, drawShopSign))
+  const sy = 1.0 + SIGN.height / 2 + 0.03
+  g.add(box(SIGN.width + 0.12, SIGN.height + 0.08, 0.05, dark, 0, sy, 0.035, 0.012), box(SIGN.width + 0.16, 0.02, 0.07, brass, 0, sy + SIGN.height / 2 + 0.04, 0.04), box(SIGN.width + 0.16, 0.02, 0.07, brass, 0, sy - SIGN.height / 2 - 0.04, 0.04))
+  for (const x of [-SIGN.width / 2 + 0.3, SIGN.width / 2 - 0.3]) g.add(box(0.03, 0.1, 0.03, brass, x, 0.99, 0.03))
+  const neon = new THREE.MeshBasicMaterial({ map: shopSign, transparent: true, depthWrite: false, toneMapped: false })
+  // La lueur du néon : sur sa planche, et sur le haut du mur de sachets.
+  const halo = haloMaterial('#ffb24a', 0.5, spot())
+  live.add(part(new THREE.PlaneGeometry(SIGN.width * 1.05, SIGN.height * 2.1), halo, 0, sy - 0.04, 0.064), part(new THREE.PlaneGeometry(SIGN.width, SIGN.height), neon, 0, sy, 0.066))
   let asked = false
   return {
     solid: g,
@@ -281,8 +493,10 @@ const cardsShop: Builder = () => {
         asked = true
         if (info.registry.length) packs.forEach((texture, k) => paint(texture, coverUrl(info.registry[k % info.registry.length].slug)))
       }
-      const on = Math.floor(t * 2) % 2
-      bulbs.forEach((bulb, k) => bulb.color.set(k === on ? '#fff3c4' : '#b0702a'))
+      // Le néon respire à peine, et grésille une fraction de seconde de loin en loin.
+      const buzz = (t * 0.37) % 1 > 0.985 ? 0.72 + 0.28 * Math.sin(t * 90) : 1
+      neon.opacity = (0.94 + 0.06 * Math.sin(t * 2.3)) * buzz
+      halo.opacity = 0.5 * neon.opacity
     },
   }
 }
@@ -417,13 +631,13 @@ const cardsAltar: Builder = () => {
     ring.rotation.x = Math.PI / 2
     g.add(ring)
   })
-  g.add(cylinder(0.3, 0.3, 0.01, glow('#bff2ff'), 0, 0.206, 0, 32))
+  g.add(cylinder(0.3, 0.3, 0.01, glow('#fff0d2'), 0, 0.206, 0, 32))
   for (let i = 0; i < 4; i++) {
     const a = Math.PI / 4 + (i * Math.PI) / 2
     g.add(box(0.05, 0.012, 0.05, glow(RARITY_COLORS[(['c', 'r', 'u', 'm'] as const)[i]]), Math.cos(a) * 0.5, 0.126, Math.sin(a) * 0.5))
   }
   const beam = beamMaterial()
-  beam.uniforms.uColor.value.set('#6fd8ff')
+  beam.uniforms.uColor.value.set('#ffc777')
   beam.uniforms.uIntensity.value = 0.32
   live.add(part(new THREE.CylinderGeometry(0.4, 0.28, 0.8, 24, 1, true), beam, 0, 0.61, 0))
   // Le sachet du moment, celui que le site met en avant.
@@ -433,7 +647,7 @@ const cardsAltar: Builder = () => {
   // Les cartes : cinq, chacune son cadre et sa face.
   const cards = Array.from({ length: 5 }, (_, i) => {
     const holder = new THREE.Group()
-    const texture = drawnTexture(96, 132, (c) => drawCardBack(c, 96, 132))
+    const texture = backTexture(128, 176)
     const frame = part(new THREE.PlaneGeometry(0.152, 0.205), new THREE.MeshBasicMaterial({ color: RARITY_COLORS.c, side: THREE.DoubleSide }), 0, 0, -0.002)
     const face = part(new THREE.PlaneGeometry(0.14, 0.192), new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide }))
     const halo = part(new THREE.PlaneGeometry(0.3, 0.36), haloMaterial(RARITY_COLORS.c, 0), 0, 0, -0.004)
@@ -442,7 +656,7 @@ const cardsAltar: Builder = () => {
     return { holder, texture, frame, halo, phase: (i * Math.PI * 2) / 5 }
   })
   const sparks = Array.from({ length: 14 }, (_, i) => {
-    const s = part(new THREE.SphereGeometry(0.008, 5, 4), haloMaterial(i % 3 ? '#9fe8ff' : C.amber, 0.9))
+    const s = part(new THREE.SphereGeometry(0.008, 5, 4), haloMaterial(i % 3 ? '#ffe2ad' : '#fff7e0', 0.9))
     live.add(s)
     return { s, phase: i * 1.7, r: 0.16 + (i % 5) * 0.06, speed: 0.25 + (i % 4) * 0.08 }
   })
@@ -475,9 +689,7 @@ const cardsAltar: Builder = () => {
         pull.at = -Infinity
         cards.forEach((card) => {
           card.holder.visible = true
-          const c = card.texture.image as HTMLCanvasElement
-          drawCardBack(c.getContext('2d')!, c.width, c.height)
-          card.texture.needsUpdate = true
+          showBack(card.texture)
           ;(card.frame.material as THREE.MeshBasicMaterial).color.set(RARITY_COLORS.c)
         })
       }
@@ -678,7 +890,7 @@ const cardShowcase: Builder = ({ label = '0' }) => {
   g.add(box(w - 0.1, 0.012, 0.03, glow('#fff0cf'), 0, y + 0.335, 0.07), box(w + 0.03, 0.03, 0.08, brass, 0, y + 0.37, 0.04), box(w + 0.03, 0.03, 0.08, brass, 0, y - 0.37, 0.04))
   const slots = [0, 1, 2].map((i) => {
     const x = (i - 1) * 0.47
-    const texture = drawnTexture(176, 240, (c) => drawCardBack(c, 176, 240))
+    const texture = backTexture(176, 240)
     const frame = new THREE.MeshBasicMaterial({ color: RARITY_COLORS[SHOWCASE_RARITIES[(first + i) % 6]] })
     g.add(part(new THREE.PlaneGeometry(cw + 0.03, ch + 0.03), frame, x, y - 0.01, 0.058), part(new THREE.PlaneGeometry(cw, ch), new THREE.MeshBasicMaterial({ map: texture }), x, y - 0.01, 0.06))
     return { texture, frame }
@@ -749,20 +961,132 @@ const cardsBoard: Builder = ({ label = 'rarity' }) => {
   return { solid: g }
 }
 
+// ---------------------------------------------------------------- ce qui rend la pièce douce
+
 /**
- * Banquette d'angle en velours, adossée au mur : là où l'on compare ses tirages. Trois places.
+ * Guirlande d'ampoules tendue au-dessus des tables, le long de x (`label` : sa longueur) : un fil sombre en trois festons, une ampoule tous les vingt-cinq centimètres.
  */
-const cardsBench: Builder = () => {
+const cardsFestoon: Builder = ({ label = '7.4', random }) => {
+  const len = Number(label) || 7.4, spans = 3, top = 1.04, drop = 0.16, pitch = 0.25
   const g = new THREE.Group()
-  const w = 1.7, fabric = lit(C.velvet, 'cloth'), wood = lit(C.walnutDark, 'wood')
-  g.add(box(w, 0.2, 0.46, wood, 0, 0.1, 0.25, 0.01), box(w - 0.04, 0.1, 0.42, fabric, 0, 0.25, 0.27, 0.03), box(w, 0.42, 0.1, fabric, 0, 0.5, 0.06, 0.03))
-  for (let i = 0; i < 6; i++) g.add(sphere(0.012, lit(C.brass, 'metal'), -w / 2 + 0.2 + i * ((w - 0.4) / 5), 0.52, 0.112, 6))
-  for (const [x, color] of [[-0.6, '#c9a24a'], [0.62, '#7a2f2a']] as const) g.add(box(0.24, 0.22, 0.08, lit(color, 'cloth'), x, 0.42, 0.14, 0.04))
-  return { solid: g }
+  const wire = lit('#3a2a1e'), cap = lit(C.brassDark, 'metal'), bulb = glow('#ffe7b8')
+  const at = (x: number) => {
+    const u = ((x + len / 2) / (len / spans)) % 1
+    return top - drop * 4 * u * (1 - u)
+  }
+  const curve = new THREE.CatmullRomCurve3(Array.from({ length: spans * 12 + 1 }, (_, i) => {
+    const x = -len / 2 + (i / (spans * 12)) * len
+    return new THREE.Vector3(x, at(x), 0)
+  }))
+  g.add(mesh(new THREE.TubeGeometry(curve, spans * 24, 0.006, 5, false), wire))
+  // Les suspentes, entre deux festons.
+  for (let k = 1; k < spans; k++) g.add(cylinder(0.003, 0.003, 0.5, wire, -len / 2 + (k * len) / spans, top + 0.25, 0, 4))
+  const n = Math.floor(len / pitch)
+  const positions = new Float32Array(n * 3), colors = new Float32Array(n * 3), sizes = new Float32Array(n)
+  const tint = new THREE.Color()
+  for (let i = 0; i < n; i++) {
+    const x = -len / 2 + (i + 0.5) * (len / n), y = at(x) - 0.035
+    g.add(cylinder(0.009, 0.009, 0.018, cap, x, y + 0.022, 0, 6), sphere(0.017, bulb, x, y, 0, 8))
+    positions.set([x, y, 0], i * 3)
+    tint.set(random() < 0.3 ? '#ffd08a' : '#ffe2b0').multiplyScalar(0.9)
+    colors.set([tint.r, tint.g, tint.b], i * 3)
+    sizes[i] = 0.1 + random() * 0.03
+  }
+  const live = new THREE.Group()
+  live.add(pointCloud(positions, colors, sizes))
+  return { solid: g, live }
 }
 
-/** Places de la banquette (cf. seats.ts). */
-export const BENCH_SEATS_X = [-0.5, 0, 0.5]
+/** Couleurs des pans de verre d'une lampe à vitrail. */
+const STAINED = ['#ffab3d', '#ff8a35', '#ffd27a', '#d9502f', '#ffab3d', '#2f9a8f']
+
+/**
+ * Lampe à vitrail, sur son pied de laiton : un abat-jour de verre coloré, éclairé de l'intérieur.
+ * Posée par terre, elle fait un lampadaire (`label` : `floor`) ; sinon, une lampe de table.
+ */
+const stainedLamp: Builder = ({ label }) => {
+  const g = new THREE.Group(), live = new THREE.Group()
+  const brass = lit(C.brass, 'metal'), tall = label === 'floor'
+  const stem = tall ? 0.62 : 0.2, r = tall ? 0.15 : 0.11
+  g.add(cylinder(r * 0.55, r * 0.7, 0.02, brass, 0, 0.01, 0, 14), cylinder(0.011, 0.016, stem, brass, 0, 0.02 + stem / 2, 0, 8), sphere(0.02, brass, 0, 0.02 + stem * 0.45, 0, 8))
+  const y = 0.02 + stem
+  // L'abat-jour : douze pans, une couleur chacun, cerclés de plomb.
+  const pane = new THREE.CylinderGeometry(r * 0.28, r, r * 0.8, 12, 1, true)
+  const colors = new Float32Array(pane.attributes.position.count * 3), tint = new THREE.Color()
+  for (let i = 0; i < pane.attributes.position.count; i++) {
+    const a = Math.atan2(pane.attributes.position.getZ(i), pane.attributes.position.getX(i))
+    tint.set(STAINED[(Math.round(((a + Math.PI) / (Math.PI * 2)) * 12) + 12) % STAINED.length])
+    colors.set([tint.r, tint.g, tint.b], i * 3)
+  }
+  pane.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+  live.add(part(pane, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }), 0, y + r * 0.34, 0))
+  for (const [rr, yy] of [[r, y - r * 0.06], [r * 0.28, y + r * 0.74]]) {
+    const ring = mesh(new THREE.TorusGeometry(rr, 0.006, 4, 16), lit('#2a2018', 'metal'), 0, yy, 0)
+    ring.rotation.x = Math.PI / 2
+    g.add(ring)
+  }
+  g.add(sphere(0.016, brass, 0, y + r * 0.78, 0, 8), sphere(r * 0.2, glow('#fff0cf'), 0, y + r * 0.2, 0, 8))
+  const halo = part(new THREE.PlaneGeometry(r * 5, r * 5), haloMaterial('#ffbe6a', 0.4, spot()), 0, y + r * 0.3, 0)
+  halo.rotation.x = -Math.PI / 2
+  halo.position.y = 0.012
+  halo.scale.setScalar(tall ? 2.2 : 1.4)
+  live.add(halo)
+  return { solid: g, live }
+}
+
+/**
+ * Chariot de chocolat chaud : une desserte de noyer sur deux grandes roues, une bouilloire de cuivre
+ * qui fume, des tasses, un bocal de guimauves, et l'ardoise du prix (c'est offert).
+ */
+const cocoaCart: Builder = () => {
+  const g = new THREE.Group(), live = new THREE.Group()
+  const wood = lit(C.walnut, 'wood'), dark = lit(C.walnutDark, 'wood'), brass = lit(C.brass, 'metal'), copper = lit('#c0703a', 'metal')
+  const top = 0.44
+  g.add(box(0.72, 0.03, 0.42, wood, 0, top, 0, 0.01), box(0.66, 0.02, 0.38, wood, 0, 0.2, 0, 0.008))
+  for (const x of [-0.33, 0.33]) for (const z of [-0.18, 0.18]) g.add(box(0.03, top, 0.03, dark, x, top / 2, z))
+  for (const z of [-0.23, 0.23]) {
+    const wheel = mesh(new THREE.TorusGeometry(0.11, 0.014, 6, 20), dark, -0.26, 0.11, z)
+    g.add(wheel, cylinder(0.02, 0.02, 0.02, brass, -0.26, 0.11, z, 8).rotateX(Math.PI / 2))
+  }
+  g.add(cylinder(0.012, 0.012, 0.46, brass, 0.4, top + 0.06, 0, 6).rotateX(Math.PI / 2))
+  for (const z of [-0.2, 0.2]) g.add(box(0.07, 0.014, 0.014, brass, 0.37, top + 0.06, z))
+  // La bouilloire, sur son réchaud.
+  g.add(cylinder(0.07, 0.08, 0.03, lit('#22262e', 'metal'), -0.18, top + 0.03, 0.02, 12), box(0.05, 0.008, 0.012, glow('#ff8a3c'), -0.18, top + 0.026, 0.1))
+  g.add(cylinder(0.062, 0.085, 0.12, copper, -0.18, top + 0.105, 0.02, 14), sphere(0.02, brass, -0.18, top + 0.175, 0.02, 8))
+  const spout = cylinder(0.012, 0.018, 0.09, copper, -0.1, top + 0.12, 0.02, 8)
+  spout.rotation.z = -0.9
+  const handle = mesh(new THREE.TorusGeometry(0.05, 0.007, 5, 12, Math.PI), dark, -0.18, top + 0.16, 0.02)
+  g.add(spout, handle)
+  // Les tasses, deux pleines ; le bocal de guimauves ; l'ardoise.
+  const mugs: [number, number, string, boolean][] = [[0.04, 0.1, '#e9dcc4', true], [0.16, 0.1, '#b23a48', true], [0.1, -0.08, '#1d3a5c', false], [0.22, -0.07, '#e9dcc4', false]]
+  for (const [x, z, color, full] of mugs) {
+    g.add(cylinder(0.032, 0.028, 0.055, lit(color), x, top + 0.043, z, 10), mesh(new THREE.TorusGeometry(0.018, 0.005, 4, 8), lit(color), x + 0.036, top + 0.043, z))
+    if (full) g.add(cylinder(0.027, 0.027, 0.004, lit('#4a2a1c'), x, top + 0.069, z, 10), sphere(0.01, lit('#fff6ee'), x - 0.006, top + 0.074, z + 0.004, 6))
+  }
+  live.add(part(new THREE.CylinderGeometry(0.045, 0.045, 0.1, 12), glass('#dff3ff', 0.25), 0.05, top + 0.065, -0.1))
+  for (let i = 0; i < 9; i++) g.add(box(0.022, 0.018, 0.022, lit(i % 3 ? '#fff6ee' : '#ffd0dc'), 0.05 + ((i % 3) - 1) * 0.024, top + 0.03 + Math.floor(i / 3) * 0.02, -0.1 + ((i * 7) % 3 - 1) * 0.02))
+  g.add(cylinder(0.047, 0.047, 0.012, brass, 0.05, top + 0.12, -0.1, 12))
+  for (let i = 0; i < 3; i++) g.add(box(0.2, 0.05 - i * 0.004, 0.14, lit(['#c0643f', '#34507a', '#d9a441'][i], 'cloth'), 0.02, 0.24 + i * 0.05, 0, 0.012))
+  // La vapeur de la bouilloire, et celle des deux tasses pleines.
+  const puffs = [[-0.07, top + 0.17, 0.02], [0.04, top + 0.08, 0.1], [0.16, top + 0.08, 0.1]].flatMap(([x, y, z], k) => Array.from({ length: k ? 2 : 4 }, (_, i) => {
+    const puff = part(new THREE.PlaneGeometry(0.07, 0.07), haloMaterial('#fff6ea', 0.3, spot()))
+    live.add(puff)
+    return { puff, x, y, z, phase: i / (k ? 2 : 4) + k * 0.31, rise: k ? 0.12 : 0.24 }
+  }))
+  return {
+    solid: g,
+    live,
+    update: (t) => {
+      for (const p of puffs) {
+        const u = (t * 0.32 + p.phase) % 1
+        p.puff.position.set(p.x + Math.sin(u * 5 + p.phase * 9) * 0.02, p.y + u * p.rise, p.z)
+        p.puff.scale.setScalar(0.5 + u * 1.1)
+        ;(p.puff.material as THREE.MeshBasicMaterial).opacity = 0.34 * Math.sin(u * Math.PI)
+        p.puff.rotation.y = Math.PI / 4
+      }
+    },
+  }
+}
 
 export const CARDS = {
   'cards-floor': cardsFloor,
@@ -774,5 +1098,7 @@ export const CARDS = {
   'binder-shelf': binderShelf,
   'card-showcase': cardShowcase,
   'cards-board': cardsBoard,
-  'cards-bench': cardsBench,
+  'cards-festoon': cardsFestoon,
+  'stained-lamp': stainedLamp,
+  'cocoa-cart': cocoaCart,
 } satisfies Record<string, Builder>

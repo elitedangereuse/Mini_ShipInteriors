@@ -497,9 +497,9 @@ const barPanel = new BarPanel(wallet, cocktailEffects,
 )
 const gameEmbed = new GameEmbed()
 // Le Comptoir des Cartes Dangereuses (pont supérieur) : la boutique de Ludo et l'ouverture des boosters.
-const cardsPanel = new CardsPanel(gameEmbed, wallet)
+const cardsPanel = new CardsPanel(gameEmbed, wallet, () => (sound.isMuted ? 0 : sound.level))
 cardsPanel.onPull = (cards) => showPull(cards)
-cardsPanel.onSound = (kind) => (kind === 'buy' ? sound.credits(true) : kind === 'rare' ? sound.jingle('win') : sound.ui(kind === 'deny' ? 'deny' : 'pick'))
+cardsPanel.onSound = (kind) => (kind === 'buy' ? sound.credits() : sound.ui('deny'))
 /** Les tables du Comptoir : une partie de Galactic Clash, ou sa collection au pupitre. */
 const cardTable = (model?: string) => (model === 'clash-table' ? 'clash' : model === 'binder-table' ? 'collection' : null)
 const mediaRoom = new MediaRoom({ get: () => iso.zoomLevel, set: (value) => iso.zoomTo(value) })

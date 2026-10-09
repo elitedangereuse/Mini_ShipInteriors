@@ -98,7 +98,7 @@ export class GameEmbed {
    * Ouvre la fenêtre sur un panneau du jeu, à la place d'une page du site (le Comptoir des Cartes
    * Dangereuses, cf. src/cards/panel.ts) ; `onClose` : prévenu quand elle se referme.
    */
-  openPanel(o: { kicker: string; title: string; hint: string; body: HTMLElement; onClose?: () => void }) {
+  openPanel(o: { kicker: string; title: string; hint: string; body: HTMLElement; onClose?: () => void; bare?: boolean }) {
     if (!this.isOpen) this.previousFocus = document.activeElement as HTMLElement
     this.title.textContent = o.title
     this.kicker.textContent = o.kicker
@@ -107,8 +107,11 @@ export class GameEmbed {
     this.frame.removeAttribute('src')
     this.setPanel(o.body)
     this.onClose = o.onClose ?? null
+    // `bare` : le panneau porte son propre en-tête et son bouton de fermeture.
+    this.root.classList.toggle('bar-game-bare', !!o.bare)
+    this.root.setAttribute('aria-label', o.title)
     this.root.hidden = false
-    this.root.querySelector<HTMLButtonElement>('button')?.focus()
+    ;(o.bare ? o.body.querySelector<HTMLElement>('[data-autofocus]') : this.root.querySelector<HTMLButtonElement>('button'))?.focus()
   }
   /** Le panneau à la place de la page : le lien « ouvrir dans un onglet » n'a alors pas de sens. */
   private setPanel(body: HTMLElement | null) {
@@ -119,6 +122,10 @@ export class GameEmbed {
     this.frame.hidden = !!body
     this.link.hidden = !!body
     this.root.classList.toggle('bar-game-panel', !!body)
+    if (!body) {
+      this.root.classList.remove('bar-game-bare')
+      this.root.removeAttribute('aria-label')
+    }
     if (body) this.frame.after(body)
   }
   close() {

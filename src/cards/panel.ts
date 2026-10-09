@@ -2,23 +2,33 @@ import { formatCredits } from '../economy/data'
 import type { Wallet } from '../economy/wallet'
 import type { GameEmbed } from '../game-embed'
 import { EN, tr } from '../i18n'
-import { buyBooster, cardUrl, cardsInfo, coverUrl, openBooster, type BoosterInfo, type CardRef, type CardsInfo, type Rarity } from './site'
+import { backUrl, buyBooster, cardSound, cardUrl, cardsInfo, coverUrl, openBooster, type BoosterInfo, type CardRef, type CardsInfo, type Rarity } from './site'
 
 /*
  * Le Comptoir des Cartes Dangereuses (pont supérieur, cf. src/furniture/cards.ts) : chez Ludo, on
  * achète des boosters contre des crédits du jeu (cher, et peu par semaine : le site tient le
- * compte), on ouvre ceux qu'on a, collection par collection, et on file voir son classeur. Le
- * panneau s'affiche dans la fenêtre des jeux du site (cf. GameEmbed.openPanel).
+ * compte), on ouvre ceux qu'on a, collection par collection, et on file voir son classeur.
+ *
+ * Deux écrans, dans la fenêtre des jeux du site (cf. GameEmbed.openPanel) :
+ * - le présentoir : le sachet choisi sous le projecteur, son bouton « Ouvrir » juste dessous, les
+ *   autres collections sur l'étagère, et à côté l'ardoise de Ludo (la réserve, les prix) ;
+ * - la table de tirage : les cartes distribuées face cachée sur le feutre, qu'on retourne une à
+ *   une, avec les bruits de cartes de Galactic Clash.
  */
 
 const RARITY_NAMES: Record<Rarity, string> = { c: tr('Commune', 'Common'), r: tr('Rare', 'Rare'), u: tr('Ultra-rare', 'Ultra rare'), m: tr('Mythique', 'Mythic') }
+const RANK = 'crum'
 const LINES = [
   tr('« Un booster, c\'est quatre cartes et une promesse. Je ne garantis que les cartes. »', '“A booster is four cards and a promise. I only guarantee the cards.”'),
   tr('« Deux par semaine, pas un de plus : la rareté, ça s\'entretient. »', '“Two a week, not one more: rarity takes upkeep.”'),
-  tr('« La mythique ? Une chance sur cent, par carte. J\'en ai vu pleurer devant l\'autel. »', '“The mythic? One in a hundred, per card. I\'ve seen people cry at the altar.”'),
+  tr('« La mythique ? Une chance sur cent, par carte. J\'en ai vu pleurer à cette table. »', '“The mythic? One in a hundred, per card. I\'ve seen people cry at this table.”'),
   tr('« Les aventures du site paient mieux que moi : un booster chacune. Moi, je dépanne. »', '“The site\'s adventures pay better than I do: a booster each. I just help out.”'),
-  tr('« Ouvrez-le sur l\'autel : tout le monde aime voir briller une ultra-rare. »', '“Open it on the altar: everyone likes to see an ultra rare shine.”'),
+  tr('« Prenez votre temps pour les retourner. C\'est le meilleur moment. »', '“Take your time turning them over. It\'s the best part.”'),
 ]
+/** Temps laissé au sachet pour se déchirer, même si le site répond plus vite (ms). */
+const TEAR_TIME = 850
+/** Écart entre deux cartes distribuées (ms). */
+const DEAL_GAP = 150
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] => {
   const e = document.createElement(tag)
@@ -26,245 +36,408 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, t
   if (text !== undefined) e.textContent = text
   return e
 }
+const button = (className: string, text: string, onClick: () => void) => {
+  const b = el('button', className, text)
+  b.type = 'button'
+  b.onclick = onClick
+  return b
+}
+const plural = (n: number, one: string, many: string) => (n === 1 ? one : many)
 
 export class CardsPanel {
-  private body = el('div', 'cards-panel')
-  private status = el('p', 'cards-status')
+  private body = el('div', 'ludo')
+  private view = el('div', 'ludo-view')
+  private purse = el('strong')
   private info: CardsInfo | null = null
-  private loading = false
   private busy = false
   private selected = ''
-  private pull: CardRef[] | null = null
-  private revealed = 0
   private message = ''
   private line = Math.floor(Math.random() * LINES.length)
   private unsubscribe: (() => void) | null = null
+  /** Le tirage affiché, et le nombre de cartes déjà retournées. */
+  private pull: CardRef[] | null = null
+  private revealed = 0
+  private timers: number[] = []
   /** On vient de tirer ces cartes (l'autel de la pièce les montre). */
   onPull?: (cards: CardRef[]) => void
-  /** Une carte se retourne ; un booster est acheté. */
-  onSound?: (kind: 'flip' | 'rare' | 'buy' | 'deny') => void
+  /** Un achat réussi, ou une demande refusée : les sons du jeu. */
+  onSound?: (kind: 'buy' | 'deny') => void
 
-  constructor(private embed: GameEmbed, private wallet: Wallet) {}
+  /** @param volume volume des bruits de cartes (celui du jeu), de 0 à 1 */
+  constructor(private embed: GameEmbed, private wallet: Wallet, private volume: () => number) {
+    const head = el('header', 'ludo-head')
+    const title = el('div', 'ludo-title')
+    title.append(el('h2', '', tr('Chez Ludo', 'Ludo\'s')), el('p', 'ludo-quote'))
+    const side = el('div', 'ludo-purse')
+    const close = button('ludo-close', '×', () => this.embed.close())
+    close.setAttribute('aria-label', tr('Fermer', 'Close'))
+    side.append(el('span', '', tr('Votre solde', 'Your balance')), this.purse, close)
+    head.append(title, side)
+    this.body.append(head, this.view)
+    this.body.addEventListener('keydown', (e) => this.onKey(e))
+  }
 
   open() {
-    this.pull = null
+    this.clearPull()
     this.message = ''
     this.line = (this.line + 1) % LINES.length
-    this.unsubscribe ??= this.wallet.subscribe(() => { if (!this.pull) this.render() })
+    this.body.querySelector('.ludo-quote')!.textContent = LINES[this.line]
+    this.unsubscribe ??= this.wallet.subscribe(() => this.updatePurse())
     this.embed.openPanel({
       kicker: tr('PONT SUPÉRIEUR · COMPTOIR DES CARTES DANGEREUSES', 'UPPER DECK · CARTES DANGEREUSES COUNTER'),
-      title: tr('Chez Ludo', 'Ludo\'s'),
+      title: tr('Chez Ludo, le Comptoir des Cartes Dangereuses', 'Ludo\'s, the Cartes Dangereuses counter'),
       hint: LINES[this.line],
       body: this.body,
-      onClose: () => { this.unsubscribe?.(); this.unsubscribe = null },
+      bare: true,
+      onClose: () => { this.unsubscribe?.(); this.unsubscribe = null; this.clearPull() },
     })
-    this.render()
+    this.updatePurse()
+    this.renderShop()
     void this.refresh()
   }
 
-  private async refresh() {
-    this.loading = true
-    this.render()
-    const info = await cardsInfo(true)
-    this.loading = false
-    if (info) this.info = info
-    else if (!this.info) this.message = tr('Le terminal de Ludo ne répond pas. Réessayez dans un instant.', 'Ludo\'s terminal is unavailable. Try again in a moment.')
-    if (this.info && !this.info.registry.some((b) => b.slug === this.selected)) this.selected = (this.info.registry.find((b) => b.featured) ?? this.info.registry[0])?.slug ?? ''
-    this.render()
+  private sound(name: Parameters<typeof cardSound>[0], gain = 1) {
+    cardSound(name, this.volume() * gain)
   }
 
-  private render() {
-    if (this.pull) return this.renderPull()
+  private clearPull() {
+    for (const t of this.timers) clearTimeout(t)
+    this.timers = []
+    this.pull = null
+    this.revealed = 0
+  }
+
+  private updatePurse() {
+    this.purse.textContent = this.wallet.ready ? formatCredits(this.wallet.balance) : '—'
+    if (!this.pull) this.renderSlate()
+  }
+
+  private async refresh() {
+    const info = await cardsInfo(true)
+    if (info) this.info = info
+    else if (!this.info) this.message = tr('Le terminal de Ludo ne répond pas. Fermez et réessayez dans un instant.', 'Ludo\'s terminal is not answering. Close and try again in a moment.')
+    if (this.pull) return
+    if (this.info && !this.current()) this.selected = (this.info.registry.find((b) => b.featured) ?? this.info.registry[0])?.slug ?? ''
+    // Mêmes collections qu'à l'écran : on met à jour sans reconstruire l'étagère (ni recharger ses images).
+    const shelf = [...this.view.querySelectorAll<HTMLElement>('.ludo-pack')]
+    if (!this.info || shelf.length !== this.info.registry.length || shelf.some((pack, i) => pack.dataset.slug !== this.info!.registry[i].slug)) return this.renderShop()
+    shelf.forEach((pack, i) => this.gauge(pack.querySelector<HTMLElement>('.ludo-gauge')!, this.info!.registry[i]))
+    this.select(this.selected, false)
+    this.renderSlate()
+  }
+
+  /** La jauge d'un sachet de l'étagère : la part de la collection déjà dans le classeur. */
+  private gauge(gauge: HTMLElement, booster: BoosterInfo) {
+    gauge.classList.toggle('full', booster.total > 0 && booster.owned >= booster.total)
+    gauge.style.setProperty('--done', String(booster.total ? Math.min(1, booster.owned / booster.total) : 0))
+  }
+
+  private current(): BoosterInfo | undefined {
+    return this.info?.registry.find((b) => b.slug === this.selected)
+  }
+
+  private canOpen(): boolean {
     const info = this.info
-    this.body.replaceChildren()
-    this.body.classList.remove('cards-reveal')
+    return !!info && !this.busy && !!this.current() && !info.guest && (info.unlimited || info.boosters > 0)
+  }
+
+  // ---------------------------------------------------------------- le présentoir
+
+  private renderShop() {
+    const info = this.info
+    this.view.className = 'ludo-view ludo-shop'
     if (!info) {
-      this.body.append(el('p', 'cards-empty', this.message || tr('Ludo cherche votre classeur…', 'Ludo is looking for your binder…')))
+      this.view.replaceChildren(el('p', 'ludo-empty', this.message || tr('Ludo cherche votre classeur…', 'Ludo is looking for your binder…')))
       return
     }
-    // --- La boutique, à gauche.
-    const shop = el('section', 'cards-shop')
-    shop.append(el('h3', '', tr('La boutique', 'The shop')))
-    const stock = el('div', 'cards-stock')
-    const count = el('strong', '', info.unlimited ? '∞' : String(info.boosters))
-    stock.append(count, el('span', '', tr(info.boosters > 1 ? 'boosters à ouvrir' : 'booster à ouvrir', info.boosters === 1 ? 'booster to open' : 'boosters to open')))
-    shop.append(stock)
-    if (info.guest) shop.append(el('p', 'cards-note', tr('Connectez-vous au site pour acheter et ouvrir des boosters.', 'Sign in to the site to buy and open boosters.')))
-    else if (!info.shop) shop.append(el('p', 'cards-note', tr('Ludo attend sa livraison : la boutique ouvre bientôt.', 'Ludo is waiting for his delivery: the shop opens soon.')))
-    else {
-      const { prices, bought, reset } = info.shop
-      const list = el('ol', 'cards-prices')
-      prices.forEach((price, i) => {
-        const row = el('li', i < bought ? 'sold' : i === bought ? 'next' : '')
-        row.append(el('span', '', tr(`Booster n° ${i + 1} de la semaine`, `Booster #${i + 1} this week`)), el('b', '', i < bought ? tr('Acheté', 'Bought') : formatCredits(price)))
-        list.append(row)
-      })
-      shop.append(list)
-      const next = prices[bought]
-      const buy = el('button', 'cards-buy', next === undefined ? tr('Stock de la semaine épuisé', 'This week\'s stock is sold out') : tr(`Acheter un booster · ${formatCredits(next)}`, `Buy a booster · ${formatCredits(next)}`))
-      buy.type = 'button'
-      buy.disabled = this.busy || next === undefined || !this.wallet.ready || this.wallet.balance < next
-      buy.onclick = () => void this.buy()
-      shop.append(buy)
-      const when = new Date(reset * 1000).toLocaleString(EN ? 'en-GB' : 'fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
-      shop.append(el('p', 'cards-note', next === undefined
-        ? tr(`Retour du stock : ${when}.`, `Back in stock: ${when}.`)
-        : this.wallet.ready && this.wallet.balance < next
-          ? tr(`Il vous manque ${formatCredits(next - this.wallet.balance)}. Solde : ${formatCredits(this.wallet.balance)}.`, `You are ${formatCredits(next - this.wallet.balance)} short. Balance: ${formatCredits(this.wallet.balance)}.`)
-          : tr(`Solde : ${formatCredits(this.wallet.balance)}. ${prices.length} boosters par semaine au plus, le suivant plus cher ; le stock revient ${when}.`, `Balance: ${formatCredits(this.wallet.balance)}. ${prices.length} boosters a week at most, each dearer than the last; stock returns ${when}.`)))
+    const stage = el('section', 'ludo-stage')
+    // Le sachet choisi, sous le projecteur : on l'ouvre en cliquant dessus, ou avec son bouton.
+    const spot = el('div', 'ludo-spot')
+    const hero = button('ludo-hero', '', () => void this.openPack())
+    const img = el('img')
+    img.alt = ''
+    hero.append(img, el('span', 'ludo-sheen'))
+    hero.onpointermove = (e) => {
+      const r = hero.getBoundingClientRect()
+      hero.style.setProperty('--px', ((e.clientX - r.left) / r.width).toFixed(3))
+      hero.style.setProperty('--py', ((e.clientY - r.top) / r.height).toFixed(3))
     }
-    const binder = el('button', 'cards-link', tr('Voir ma collection ↗', 'See my collection ↗'))
-    binder.type = 'button'
-    binder.disabled = info.guest
-    binder.onclick = () => this.embed.open('collection')
-    shop.append(binder)
-    this.status.textContent = this.message || (this.loading ? tr('Mise à jour…', 'Updating…') : '')
-    shop.append(this.status)
-
-    // --- Les boosters, à droite : un sachet par collection.
-    const open = el('section', 'cards-open')
-    const current = info.registry.find((b) => b.slug === this.selected)
-    open.append(el('h3', '', tr('Ouvrir un booster', 'Open a booster')))
-    const grid = el('div', 'cards-grid')
-    for (const booster of info.registry) grid.append(this.pack(booster))
-    const go = el('button', 'cards-go', current
-      ? tr(`Ouvrir · ${current.title}`, `Open · ${current.title}`)
-      : tr('Choisissez une collection', 'Pick a collection'))
-    go.type = 'button'
-    go.disabled = this.busy || !current || info.guest || (!info.unlimited && info.boosters < 1)
-    go.onclick = () => void this.openPack()
-    // Le bouton avant les sachets : il reste sous les yeux, quel que soit le nombre de collections.
-    open.append(go, grid)
-    if (!info.guest && !info.unlimited && info.boosters < 1) open.append(el('p', 'cards-note', tr('Plus de booster à ouvrir : la boutique, les aventures du site et la zone thargoïde en donnent.', 'No booster left to open: the shop, the site\'s adventures and the Thargoid zone give some.')))
-    this.body.append(shop, open)
+    hero.onpointerleave = () => { hero.style.removeProperty('--px'); hero.style.removeProperty('--py') }
+    spot.append(hero)
+    const name = el('h3', 'ludo-name')
+    const progress = el('p', 'ludo-progress')
+    const open = button('ludo-open', '', () => void this.openPack())
+    open.dataset.autofocus = ''
+    const left = el('p', 'ludo-left')
+    // L'étagère : un sachet par collection.
+    const shelf = el('div', 'ludo-shelf')
+    shelf.setAttribute('role', 'listbox')
+    shelf.setAttribute('aria-label', tr('Collections', 'Collections'))
+    for (const booster of info.registry) {
+      const pack = button('ludo-pack', '', () => this.select(booster.slug, true))
+      pack.dataset.slug = booster.slug
+      pack.setAttribute('role', 'option')
+      pack.title = booster.title
+      const cover = el('img')
+      cover.src = coverUrl(booster.slug)
+      cover.alt = booster.title
+      cover.loading = 'lazy'
+      cover.onerror = () => { cover.style.visibility = 'hidden' }
+      const gauge = el('span', 'ludo-gauge')
+      this.gauge(gauge, booster)
+      pack.append(cover, gauge)
+      shelf.append(pack)
+    }
+    stage.append(spot, name, progress, open, left, shelf)
+    this.view.replaceChildren(stage, el('aside', 'ludo-slate'))
+    this.select(this.selected, false)
+    this.renderSlate()
+    if (!this.body.contains(document.activeElement) || document.activeElement === this.body) open.focus()
   }
 
-  private pack(booster: BoosterInfo): HTMLElement {
-    const card = el('button', booster.slug === this.selected ? 'cards-pack selected' : 'cards-pack')
-    card.type = 'button'
-    card.setAttribute('aria-pressed', String(booster.slug === this.selected))
-    const img = el('img')
-    img.src = coverUrl(booster.slug)
-    img.alt = ''
-    img.loading = 'lazy'
-    img.onerror = () => { img.style.visibility = 'hidden' }
+  /** Met le sachet de la collection `slug` sous le projecteur. */
+  private select(slug: string, heard: boolean) {
+    const booster = this.info?.registry.find((b) => b.slug === slug)
+    const stage = this.view.querySelector('.ludo-stage')
+    if (!booster || !stage) return
+    const changed = this.selected !== slug
+    this.selected = slug
+    if (heard && changed) this.sound('card-select', 0.7)
+    const hero = stage.querySelector<HTMLElement>('.ludo-hero')!
+    const img = hero.querySelector('img')!
+    if (img.dataset.slug !== slug) {
+      img.dataset.slug = slug
+      img.src = coverUrl(slug, true)
+      // Le reflet épouse la forme du sachet.
+      hero.style.setProperty('--mask', `url("${coverUrl(slug, true)}")`)
+      // Le sachet change : il se pose sur le présentoir.
+      hero.classList.remove('settle')
+      void hero.offsetWidth
+      hero.classList.add('settle')
+    }
+    stage.querySelector('.ludo-name')!.textContent = booster.title
     const done = booster.total > 0 && booster.owned >= booster.total
-    const bar = el('span', 'cards-progress')
-    bar.style.setProperty('--done', String(booster.total ? Math.min(1, booster.owned / booster.total) : 0))
-    card.append(img, el('strong', '', booster.title), el('small', done ? 'complete' : '', booster.total ? `${booster.owned} / ${booster.total}` : '—'), bar)
-    card.onclick = () => { this.selected = booster.slug; this.render() }
-    return card
+    stage.querySelector('.ludo-progress')!.textContent = !booster.total ? ''
+      : done ? tr(`Collection complète : ${booster.total} cartes sur ${booster.total}`, `Collection complete: ${booster.total} of ${booster.total} cards`)
+        : tr(`${booster.owned} ${plural(booster.owned, 'carte', 'cartes')} sur ${booster.total} dans votre classeur`, `${booster.owned} of ${booster.total} cards in your binder`)
+    for (const pack of stage.querySelectorAll<HTMLElement>('.ludo-pack')) {
+      const on = pack.dataset.slug === slug
+      pack.classList.toggle('selected', on)
+      pack.setAttribute('aria-selected', String(on))
+      if (on && changed) pack.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' })
+    }
+    this.updateOpen()
+  }
+
+  /** Le bouton « Ouvrir » et ce qu'il reste à ouvrir. */
+  private updateOpen() {
+    const info = this.info, stage = this.view.querySelector('.ludo-stage')
+    if (!info || !stage) return
+    const open = stage.querySelector<HTMLButtonElement>('.ludo-open')!, hero = stage.querySelector<HTMLButtonElement>('.ludo-hero')!
+    const can = this.canOpen()
+    open.disabled = hero.disabled = !can
+    hero.setAttribute('aria-label', tr('Ouvrir ce booster', 'Open this booster'))
+    open.textContent = stage.classList.contains('tearing') ? tr('Le sachet se déchire…', 'Tearing the pack open…') : tr('Ouvrir ce booster', 'Open this booster')
+    stage.querySelector('.ludo-left')!.textContent = info.guest ? tr('Connectez-vous au site pour ouvrir des boosters.', 'Sign in to the site to open boosters.')
+      : info.unlimited ? tr('Site de développement : boosters à volonté.', 'Development site: unlimited boosters.')
+        : info.boosters > 0 ? tr(`Il vous en reste ${info.boosters} à ouvrir, dans la collection de votre choix.`, `You have ${info.boosters} left to open, in any collection you like.`)
+          : tr('Votre réserve est vide. Ludo en vend ; les aventures du site et la zone thargoïde en donnent.', 'Your stock is empty. Ludo sells some; the site\'s adventures and the Thargoid zone give some.')
+  }
+
+  /** L'ardoise de Ludo : la réserve, les prix de la semaine, l'achat, le classeur. */
+  private renderSlate() {
+    const info = this.info, slate = this.view.querySelector('.ludo-slate')
+    if (!info || !slate) return
+    slate.replaceChildren()
+    const stock = el('div', 'ludo-stock')
+    stock.append(el('strong', '', info.unlimited ? '∞' : String(info.boosters)), el('span', '', tr(plural(info.boosters, 'booster dans votre réserve', 'boosters dans votre réserve'), plural(info.boosters, 'booster in your stock', 'boosters in your stock'))))
+    slate.append(stock, el('h3', '', tr('L\'ardoise de la semaine', 'This week\'s slate')))
+    if (info.guest) slate.append(el('p', 'ludo-note', tr('Connectez-vous au site pour acheter des boosters.', 'Sign in to the site to buy boosters.')))
+    else if (!info.shop) slate.append(el('p', 'ludo-note', tr('Ludo attend sa livraison : la boutique ouvre bientôt.', 'Ludo is waiting for his delivery: the shop opens soon.')))
+    else {
+      const { prices, bought, reset } = info.shop
+      const list = el('ol', 'ludo-prices')
+      prices.forEach((price, i) => {
+        const row = el('li', i < bought ? 'sold' : i === bought ? 'next' : '')
+        row.append(el('span', '', i === 0 ? tr('Le premier', 'The first') : i === 1 ? tr('Le deuxième', 'The second') : tr(`Le n° ${i + 1}`, `No. ${i + 1}`)), el('i'), el('b', '', i < bought ? tr('Acheté', 'Bought') : formatCredits(price)))
+        list.append(row)
+      })
+      slate.append(list)
+      const next = prices[bought]
+      const short = next !== undefined && this.wallet.ready && this.wallet.balance < next
+      const buy = button('ludo-buy', next === undefined ? tr('Stock de la semaine épuisé', 'Sold out for the week') : tr(`Acheter un booster pour ${formatCredits(next)}`, `Buy a booster for ${formatCredits(next)}`), () => void this.buy())
+      buy.disabled = this.busy || next === undefined || !this.wallet.ready || short
+      slate.append(buy)
+      const when = new Date(reset * 1000).toLocaleString(EN ? 'en-GB' : 'fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' })
+      slate.append(el('p', 'ludo-note', this.message || (next === undefined ? tr(`Le stock revient ${when}.`, `Stock returns ${when}.`)
+        : short ? tr(`Il vous manque ${formatCredits(next - this.wallet.balance)}.`, `You are ${formatCredits(next - this.wallet.balance)} short.`)
+          : tr(`${prices.length} par semaine, pas un de plus. Le stock revient ${when}.`, `${prices.length} a week, not one more. Stock returns ${when}.`))))
+    }
+    const binder = button('ludo-binder', tr('Feuilleter ma collection', 'Browse my collection'), () => this.embed.open('collection'))
+    binder.disabled = info.guest
+    slate.append(binder)
   }
 
   private async buy() {
     if (this.busy) return
     this.busy = true
     this.message = tr('Ludo descend un sachet du mur…', 'Ludo takes a pack down from the wall…')
-    this.render()
+    this.renderSlate()
+    this.updateOpen()
     const result = await buyBooster()
     this.busy = false
     if (typeof result.balance === 'number') this.wallet.site({ earned: 0, balance: result.balance })
     if (result.ok) {
       this.info = result.info
-      this.message = tr(`Un booster de plus dans votre poche, pour ${formatCredits(result.price)}.`, `One more booster in your pocket, for ${formatCredits(result.price)}.`)
+      this.message = tr(`Un booster de plus dans votre réserve, pour ${formatCredits(result.price)}.`, `One more booster in your stock, for ${formatCredits(result.price)}.`)
       this.onSound?.('buy')
     } else {
       this.message = result.reason === 'funds' ? tr('Crédits insuffisants pour ce booster.', 'Not enough credits for this booster.')
         : result.reason === 'max' ? tr('Le stock de la semaine est épuisé.', 'This week\'s stock is sold out.')
           : result.reason === 'guest' ? tr('Connectez-vous au site pour acheter des boosters.', 'Sign in to the site to buy boosters.')
-            : tr('Le terminal de Ludo ne répond pas. Réessayez.', 'Ludo\'s terminal is unavailable. Try again.')
+            : tr('Le terminal de Ludo ne répond pas. Réessayez.', 'Ludo\'s terminal is not answering. Try again.')
       this.onSound?.('deny')
       if (result.reason === 'max') void this.refresh()
     }
-    this.render()
+    if (this.pull) return
+    this.renderSlate()
+    this.updateOpen()
   }
 
   private async openPack() {
-    if (this.busy || !this.selected) return
+    if (!this.canOpen()) return
+    const stage = this.view.querySelector('.ludo-stage')
     this.busy = true
-    this.message = tr('Le sachet se déchire…', 'The pack tears open…')
-    this.render()
-    const result = await openBooster(this.selected)
+    this.message = ''
+    stage?.classList.add('tearing')
+    this.updateOpen()
+    this.renderSlate()
+    this.sound('card-select')
+    // Le sachet a le temps de se déchirer, même si le site répond tout de suite.
+    const [result] = await Promise.all([openBooster(this.selected), new Promise((r) => setTimeout(r, TEAR_TIME))])
     this.busy = false
-    if (!result) {
+    stage?.classList.remove('tearing')
+    if (!this.embed.isOpen) return
+    if (!result || !result.cards.length) {
       this.message = tr('Le booster ne s\'est pas ouvert. Vérifiez qu\'il vous en reste, puis réessayez.', 'The booster did not open. Check that you have one left, then try again.')
       this.onSound?.('deny')
-      void this.refresh()
+      await this.refresh()
       return
     }
-    this.message = ''
+    if (this.info && !this.info.unlimited) this.info = { ...this.info, boosters: result.boosters }
     this.pull = result.cards
     this.revealed = 0
     this.onPull?.(result.cards)
-    this.renderPull()
+    this.renderTable()
     // Le compte des boosters et l'avancée des collections ont changé.
-    void cardsInfo(true).then((info) => { if (info) this.info = info })
+    void cardsInfo(true).then((info) => { if (info) { this.info = info; if (this.pull) this.updateTable() } })
   }
 
-  /** Le tirage : les cartes face cachée, qu'on retourne une à une (ou toutes d'un coup). */
-  private renderPull() {
-    const cards = this.pull!
-    this.body.replaceChildren()
-    this.body.classList.add('cards-reveal')
-    const row = el('div', 'cards-pull')
+  // ---------------------------------------------------------------- la table de tirage
+
+  /** Les cartes distribuées face cachée sur le feutre. */
+  private renderTable() {
+    const cards = this.pull!, booster = this.current()
+    this.view.className = 'ludo-view ludo-table'
+    const hand = el('div', 'ludo-hand')
     cards.forEach((card, i) => {
-      const slot = el('button', `cards-card rarity-${card.rarity}`)
-      slot.type = 'button'
-      const inner = el('span', 'cards-card-inner')
-      const front = el('img', 'cards-card-front')
+      const slot = button(`ludo-card rarity-${card.rarity}`, '', () => {
+        if (slot.classList.contains('flipped')) return void window.open(cardUrl(card.key, true), '_blank', 'noopener')
+        this.flip(i)
+      })
+      slot.style.setProperty('--i', String(i))
+      // Chaque carte tombe un peu de travers, comme distribuée à la main.
+      slot.style.setProperty('--tilt', `${((i * 37) % 7) - 3}deg`)
+      const inner = el('span', 'ludo-card-inner')
+      const back = el('img', 'ludo-card-back')
+      back.src = backUrl(true)
+      back.alt = ''
+      const front = el('img', 'ludo-card-front')
       front.src = cardUrl(card.key)
-      front.alt = card.key
-      inner.append(el('span', 'cards-card-back'), front)
-      slot.append(inner, el('small'))
-      slot.onclick = () => {
-        if (i < this.revealed) return void window.open(cardUrl(card.key, true), '_blank', 'noopener')
-        if (i === this.revealed) this.flip()
-      }
-      row.append(slot)
+      front.alt = ''
+      inner.append(back, front, el('span', 'ludo-card-foil'))
+      slot.append(el('span', 'ludo-card-aura'), inner, el('small'))
+      hand.append(slot)
+      this.timers.push(window.setTimeout(() => this.sound('card-place', 0.8), 120 + i * DEAL_GAP))
     })
-    const actions = el('div', 'cards-actions')
-    const main = el('button', 'cards-go')
-    main.type = 'button'
-    main.onclick = () => (this.revealed >= cards.length ? this.back() : this.flip())
-    const all = el('button', 'cards-link', tr('Tout retourner', 'Turn them all over'))
-    all.type = 'button'
-    all.onclick = () => { while (this.revealed < cards.length) this.flip() }
-    actions.append(main, all)
-    this.body.append(row, el('p', 'cards-status'), actions)
-    this.updatePull()
+    const actions = el('div', 'ludo-actions')
+    const main = button('ludo-open', '', () => (this.revealed < cards.length ? this.flip(this.nextHidden()) : void this.again()))
+    main.dataset.autofocus = ''
+    actions.append(main, button('ludo-quiet', tr('Tout retourner', 'Turn them all over'), () => this.flipAll()), button('ludo-quiet', tr('Revenir au présentoir', 'Back to the display'), () => this.back()))
+    this.view.replaceChildren(el('p', 'ludo-from', booster?.title ?? ''), hand, el('p', 'ludo-caption'), actions)
+    this.updateTable()
     main.focus()
   }
 
-  /** Met le tirage affiché à jour : les cartes retournées, ce qu'en dit Ludo, le bouton. */
-  private updatePull() {
-    const cards = this.pull!, done = this.revealed >= cards.length
-    this.body.querySelectorAll<HTMLElement>('.cards-card').forEach((slot, i) => {
-      const shown = i < this.revealed
-      slot.classList.toggle('flipped', shown)
-      slot.querySelector('small')!.textContent = shown ? RARITY_NAMES[cards[i].rarity] : ''
-      slot.setAttribute('aria-label', shown ? `${cards[i].key}, ${RARITY_NAMES[cards[i].rarity]}` : tr('Retourner la carte', 'Turn the card over'))
-    })
-    const best = cards.slice(0, this.revealed).reduce<Rarity>((b, c) => ('crum'.indexOf(c.rarity) > 'crum'.indexOf(b) ? c.rarity : b), 'c')
-    this.body.querySelector('.cards-status')!.textContent = !this.revealed ? tr('Quatre cartes, face cachée. À vous.', 'Four cards, face down. Your move.')
-      : best === 'm' ? tr('Une MYTHIQUE. Ludo en lâche son éventail.', 'A MYTHIC. Ludo drops his fan of cards.')
-        : best === 'u' ? tr('Une ultra-rare ! Elle brille jusque dans le hall.', 'An ultra rare! It shines all the way to the hall.')
-          : best === 'r' ? tr('Une rare : joli tirage.', 'A rare: nice pull.') : tr('Des communes, pour l\'instant…', 'Commons, so far…')
-    const [main, all] = this.body.querySelectorAll<HTMLButtonElement>('.cards-actions button')
-    main.textContent = done ? tr('Ouvrir un autre booster', 'Open another booster') : tr('Retourner la carte suivante', 'Turn the next card over')
-    all.hidden = done
+  private nextHidden(): number {
+    return [...this.view.querySelectorAll('.ludo-card')].findIndex((c) => !c.classList.contains('flipped'))
   }
 
-  private flip() {
-    const card = this.pull?.[this.revealed]
-    if (!card) return
+  /** Retourne la carte `i`, si elle est encore face cachée. */
+  private flip(i: number) {
+    const card = this.pull?.[i], slot = this.view.querySelectorAll<HTMLElement>('.ludo-card')[i]
+    if (!card || !slot || slot.classList.contains('flipped')) return
+    slot.classList.add('flipped')
     this.revealed++
-    this.onSound?.(card.rarity === 'c' ? 'flip' : 'rare')
-    this.updatePull()
+    // Une carte retournée ; un bruit plus plein pour une ultra-rare ou une mythique.
+    this.sound(card.rarity === 'u' || card.rarity === 'm' ? 'card-capture' : 'card-place')
+    this.updateTable()
+  }
+
+  private flipAll() {
+    const hidden = [...this.view.querySelectorAll<HTMLElement>('.ludo-card')].flatMap((c, i) => (c.classList.contains('flipped') ? [] : [i]))
+    hidden.forEach((i, k) => this.timers.push(window.setTimeout(() => this.flip(i), k * 220)))
+  }
+
+  /** Ce que dit la table du tirage en cours, et ses boutons. */
+  private updateTable() {
+    const cards = this.pull
+    if (!cards) return
+    const slots = [...this.view.querySelectorAll<HTMLElement>('.ludo-card')]
+    const shown = slots.map((s) => s.classList.contains('flipped'))
+    slots.forEach((slot, i) => {
+      slot.querySelector('small')!.textContent = shown[i] ? RARITY_NAMES[cards[i].rarity] : ''
+      slot.setAttribute('aria-label', shown[i] ? tr(`${RARITY_NAMES[cards[i].rarity]} : voir la carte en grand`, `${RARITY_NAMES[cards[i].rarity]}: see the card full size`) : tr(`Retourner la carte ${i + 1}`, `Turn card ${i + 1} over`))
+    })
+    const done = this.revealed >= cards.length, info = this.info
+    const best = cards.filter((_, i) => shown[i]).reduce<Rarity>((b, c) => (RANK.indexOf(c.rarity) > RANK.indexOf(b) ? c.rarity : b), 'c')
+    this.view.querySelector('.ludo-caption')!.textContent = !this.revealed ? tr(`${cards.length} cartes, face cachée. Retournez-les à votre rythme.`, `${cards.length} cards, face down. Turn them over at your own pace.`)
+      : best === 'm' ? tr('Une mythique. Ludo en lâche son éventail.', 'A mythic. Ludo drops his fan of cards.')
+        : best === 'u' ? tr('Une ultra-rare. Elle brille jusque dans le hall.', 'An ultra rare. It shines all the way to the hall.')
+          : best === 'r' ? tr('Une rare : joli tirage.', 'A rare: nice pull.')
+            : done ? tr('Des communes, cette fois. Elles sont dans votre classeur.', 'Commons, this time. They are in your binder.') : tr('Des communes, pour l\'instant.', 'Commons, so far.')
+    const [main, all, back] = this.view.querySelectorAll<HTMLButtonElement>('.ludo-actions button')
+    const more = !!info && !info.guest && (info.unlimited || info.boosters > 0)
+    main.textContent = !done ? tr('Retourner la carte suivante', 'Turn the next card over')
+      : more ? tr('Ouvrir un autre booster', 'Open another booster') : tr('Revenir au présentoir', 'Back to the display')
+    all.hidden = done || cards.length - this.revealed < 2
+    // Sans autre booster à ouvrir, le bouton principal ramène déjà au présentoir.
+    back.hidden = !done || !more
+    this.view.classList.toggle('done', done)
+  }
+
+  /** Tirage fini : un autre booster de la même collection, s'il en reste. */
+  private async again() {
+    const info = this.info
+    if (!info || info.guest || (!info.unlimited && info.boosters < 1)) return this.back()
+    this.clearPull()
+    this.renderShop()
+    await this.openPack()
   }
 
   private back() {
-    this.pull = null
-    this.render()
+    this.clearPull()
+    this.renderShop()
     void this.refresh()
+  }
+
+  /** Au clavier : les flèches changent de collection sur le présentoir. */
+  private onKey(e: KeyboardEvent) {
+    if (this.pull || !this.info || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return
+    const list = this.info.registry, i = list.findIndex((b) => b.slug === this.selected)
+    const next = list[(i + (e.key === 'ArrowRight' ? 1 : -1) + list.length) % list.length]
+    if (!next) return
+    e.preventDefault()
+    this.select(next.slug, true)
   }
 }

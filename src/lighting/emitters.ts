@@ -28,11 +28,14 @@ const SHIP: Record<string, FurnitureLight> = {
   'token-machine': { color: '#9df0ff', intensity: 0.4, at: [0, 0.8, 0.4], priority: 6, soft: true },
   'pixelwar-screen': { color: '#ffffff', intensity: 0.7, at: [0, 0.9, 0.4], priority: 6, soft: true },
   'pixelwar-terminal': SCREEN,
-  // Le Comptoir des Cartes Dangereuses : les réglettes de la boutique, le faisceau de l'autel, les lampes des tables.
+  // Le Comptoir des Cartes Dangereuses : les réglettes de la boutique, le faisceau de l'autel, les
+  // guirlandes, les lampes à vitrail et celles des tables.
   'cards-shop': { color: '#ffdca8', intensity: 1.1, at: [0, 0.8, 0.6], priority: 5, soft: true },
   'cards-counter': { color: '#ffe7c0', intensity: 0.6, at: [0, 0.4, 0.5], priority: 6, soft: true },
-  'cards-altar': { color: '#7fdcff', intensity: 1.3, at: [0, 0.7, 0], priority: 3 },
-  'clash-table': { color: '#9fe6ff', intensity: 0.35, at: [0, 0.65, 0], priority: 6, soft: true },
+  'cards-altar': { color: '#ffcf8a', intensity: 1.3, at: [0, 0.7, 0], priority: 3 },
+  'cards-festoon': { color: '#ffd9a0', intensity: 0.8, at: [0, 0.9, 0], priority: 6, soft: true },
+  'stained-lamp': { color: '#ffb96a', intensity: 0.9, at: [0, 0.6, 0], priority: 4 },
+  'clash-table': { color: '#ffe2b0', intensity: 0.3, at: [0, 0.65, 0], priority: 6, soft: true },
   'binder-table': { color: '#d8ffc8', intensity: 0.5, at: [-0.3, 0.6, -0.1], priority: 6, soft: true },
   'card-showcase': { color: '#fff0cf', intensity: 0.5, at: [0, 0.6, 0.3], priority: 6, soft: true },
   jukebox: { color: '#ff9a4a', intensity: 0.7, at: [0, 0.6, 0.25], priority: 6, soft: true },

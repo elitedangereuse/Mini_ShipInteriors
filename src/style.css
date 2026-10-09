@@ -4918,75 +4918,197 @@ body.gardening #emotes { display: none; }
   .gp-actions { grid-column: 1 / -1; justify-content: flex-end; }
 }
 
-/* Le Comptoir des Cartes Dangereuses (cf. src/cards/panel.ts) : un panneau du jeu dans la fenêtre des jeux du site. */
+/*
+ * Le Comptoir des Cartes Dangereuses (cf. src/cards/panel.ts) : un panneau du jeu dans la fenêtre des
+ * jeux du site, avec son propre en-tête. Noyer, laiton, velours bleu nuit ; l'ardoise de Ludo ; le
+ * feutre de la table de tirage. Une seule chose brille : le sachet, puis les cartes.
+ */
 .bar-game-shell iframe[hidden], .bar-game-actions a[hidden] { display: none; }
-.bar-game-panel .bar-game-shell { width: min(1120px, 100%); height: auto; max-height: calc(100dvh - 32px); border-color: #c9a24a99; background: linear-gradient(160deg, #1a2740, #101726 60%, #18121c); }
-.bar-game-panel .bar-game-header { background: linear-gradient(90deg, #2b2233, #3a2a1c); border-bottom-color: #c9a24a80; }
-.bar-game-panel .bar-game-hint { font: italic 13px/1.4 Georgia, serif; color: #e6d3ad; }
-.cards-panel { flex: 1; min-height: 0; overflow: auto; display: grid; grid-template-columns: minmax(250px, 310px) minmax(0, 1fr); gap: 18px; padding: 18px 20px 20px; color: #f1e6d0; scrollbar-width: thin; scrollbar-color: #c9a24a66 transparent; }
-.cards-panel h3 { margin: 0 0 10px; font: 600 12px/1 system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #c9a24a; }
-.cards-panel button { font: inherit; color: inherit; cursor: pointer; border-radius: 11px; border: 1px solid #c9a24a80; background: #b5762c; padding: 10px 14px; }
-.cards-panel button:hover:not(:disabled) { background: #d08132; }
-.cards-panel button:disabled { opacity: .45; cursor: default; }
-.cards-shop { align-self: start; display: grid; gap: 12px; padding: 16px; border: 1px solid #c9a24a55; border-radius: 16px; background: #0b1220b3; }
-.cards-shop h3 { margin: 0; }
-.cards-stock { display: flex; align-items: baseline; gap: 10px; }
-.cards-stock strong { font: 600 46px/1 Georgia, serif; color: #ffe2bf; text-shadow: 0 0 22px #ff8a1c88; }
-.cards-stock span { color: #bcd1dd; font-size: 13px; }
-.cards-prices { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.cards-prices li { display: flex; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid #ffffff1a; background: #ffffff0a; font-size: 13px; }
-.cards-prices li.next { border-color: #c9a24a; background: #c9a24a1f; }
-.cards-prices li.sold { opacity: .5; }
-.cards-prices li.sold span { text-decoration: line-through; }
-.cards-prices b { white-space: nowrap; color: #ffe2bf; }
-.cards-panel .cards-buy, .cards-panel .cards-go { padding: 12px 14px; font-weight: 600; }
-.cards-panel .cards-link { background: #213a4d; border-color: #6798a9; }
-.cards-panel .cards-link:hover:not(:disabled) { background: #2c4f68; }
-.cards-note { margin: 0; color: #b7c8cf; font-size: 12px; line-height: 1.45; }
-.cards-status { min-height: 18px; margin: 0; color: #ffd596; font-size: 13px; }
-.cards-empty { grid-column: 1 / -1; margin: 40px 0; text-align: center; color: #bcd1dd; }
-.cards-open { min-width: 0; display: grid; gap: 12px; align-content: start; }
-.cards-open h3 { margin: 0; }
-.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; }
-.cards-panel .cards-pack { display: grid; justify-items: center; gap: 4px; padding: 10px 6px 8px; border-color: #ffffff1f; background: #ffffff0a; text-align: center; transition: transform .15s, border-color .15s, background .15s; }
-.cards-panel .cards-pack:hover:not(:disabled) { background: #ffffff14; transform: translateY(-3px); }
-.cards-panel .cards-pack.selected { border-color: #ffc46b; background: #c9a24a26; box-shadow: 0 0 24px #ff8a1c40; }
-.cards-pack img { width: 74px; aspect-ratio: 800 / 1450; object-fit: contain; filter: drop-shadow(0 6px 10px #000a); }
-.cards-pack.selected img { animation: cards-float 2.4s ease-in-out infinite; }
-.cards-pack strong { font: 600 12px/1.25 system-ui, sans-serif; color: #fff1df; }
-.cards-pack small { font-size: 11px; color: #9fb4c2; }
-.cards-pack small.complete { color: #7dffa8; }
-.cards-progress { width: 80%; height: 3px; border-radius: 2px; background: linear-gradient(90deg, #ffc46b calc(var(--done) * 100%), #ffffff22 0); }
-@keyframes cards-float { 50% { transform: translateY(-5px) rotate(-2deg); } }
-.cards-panel.cards-reveal { grid-template-columns: 1fr; justify-items: center; gap: 16px; padding: 26px 20px; background: radial-gradient(ellipse at 50% 35%, #2a4a6680, transparent 70%); }
-.cards-pull { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; perspective: 1400px; }
-.cards-panel .cards-card { display: grid; gap: 8px; justify-items: center; padding: 0; border: 0; background: none; --glow: #cfd6de; }
-.cards-panel .cards-card:hover:not(:disabled) { background: none; }
-.cards-card.rarity-r { --glow: #49a6ff; }
-.cards-card.rarity-u { --glow: #ffc94a; }
-.cards-card.rarity-m { --glow: #ff5ad0; }
-.cards-card-inner { position: relative; display: block; width: min(205px, 38vw); aspect-ratio: 1644 / 2244; transform-style: preserve-3d; transition: transform .7s cubic-bezier(.2, .8, .2, 1); border-radius: 10px; }
-.cards-card:not(.flipped):hover .cards-card-inner { transform: translateY(-6px) rotateY(12deg); }
-.cards-card.flipped .cards-card-inner { transform: rotateY(180deg); box-shadow: 0 0 34px color-mix(in srgb, var(--glow), transparent 35%); }
-.cards-card.flipped.rarity-u .cards-card-inner, .cards-card.flipped.rarity-m .cards-card-inner { animation: cards-shine 1.8s ease-in-out infinite; }
-@keyframes cards-shine { 50% { box-shadow: 0 0 60px var(--glow), 0 0 14px #fff; } }
-.cards-card-back, .cards-card-front { position: absolute; inset: 0; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 10px; }
-.cards-card-back { background: repeating-linear-gradient(0deg, #0c0c0e 0 3px, #26262b 3px 4px); border: 5px solid #f2f2f2; box-sizing: border-box; }
-.cards-card-back::before { content: ''; position: absolute; left: 22%; right: 22%; top: 20%; height: 44%; border-radius: 50%; background: repeating-linear-gradient(0deg, #d8d8dc 0 3px, #0c0c0e 3px 5px); }
-.cards-card-back::after { content: 'ÉLITE DANGEREUSE'; position: absolute; left: 9%; right: 9%; top: 72%; padding: 4% 0; background: #fff; color: #0c0c0e; font: 800 11px/1 system-ui, sans-serif; letter-spacing: .04em; text-align: center; }
-.cards-card-front { transform: rotateY(180deg); object-fit: cover; background: #101726; }
-.cards-card small { min-height: 15px; font: 600 12px/1 system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--glow); }
-.cards-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
-@media (prefers-reduced-motion: reduce) {
-  .cards-card-inner { transition: none; }
-  .cards-pack.selected img, .cards-card.flipped .cards-card-inner { animation: none; }
+.bar-game-bare .bar-game-header { display: none; }
+.bar-game-bare .bar-game-shell {
+  width: min(1180px, 100%); height: min(800px, calc(100dvh - 32px)); border: 1px solid #c9a24a8c; border-radius: 22px;
+  background: radial-gradient(120% 90% at 32% -10%, #3a2a1c 0%, #1a1a22 42%, #0e1524 100%);
+  box-shadow: 0 34px 110px #000d, inset 0 1px #ffe9b926;
 }
-@media (max-width: 760px), (pointer: coarse) {
-  .cards-panel { grid-template-columns: 1fr; padding: 12px; gap: 12px; }
-  .cards-shop { padding: 12px; gap: 9px; }
-  .cards-stock strong { font-size: 32px; }
-  .cards-grid { grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 7px; }
-  .cards-pack img { width: 52px; }
-  .cards-card-inner { width: min(150px, 20vw); }
-  .cards-pull { gap: 8px; }
+.ludo {
+  --brass: #c9a24a; --brass-pale: #ecd9a4; --ivory: #f3ead6; --mute: #a9b2bd; --ember: #e0762a; --felt: #14403f;
+  --display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  flex: 1; min-height: 0; display: flex; flex-direction: column; color: var(--ivory); font: 15px/1.45 system-ui, sans-serif;
+}
+.ludo button { font: inherit; color: inherit; cursor: pointer; }
+.ludo button:disabled { cursor: default; }
+.ludo button:focus-visible { outline: 2px solid var(--brass-pale); outline-offset: 3px; }
+.ludo-head { flex: none; display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 18px 26px 16px; border-bottom: 1px solid #c9a24a47; }
+.ludo-title h2 { margin: 0; font: 500 34px/1 var(--display); letter-spacing: -.01em; color: #fff3da; }
+.ludo-quote { margin: 7px 0 0; max-width: 62ch; font: italic 15px/1.4 var(--display); color: var(--brass-pale); }
+.ludo-purse { display: flex; align-items: baseline; gap: 10px; white-space: nowrap; }
+.ludo-purse span { font-size: 13px; color: var(--mute); }
+.ludo-purse strong { font: 600 19px/1 var(--display); font-variant-numeric: tabular-nums; color: #ffe2b0; }
+.ludo .ludo-close { align-self: center; width: 40px; height: 40px; margin-left: 10px; padding: 0; border: 1px solid #ffffff2b; border-radius: 50%; background: #ffffff0f; font-size: 26px; line-height: 1; }
+.ludo .ludo-close:hover { background: #ffffff24; }
+.ludo-view { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: #c9a24a66 transparent; }
+.ludo-empty { margin: 80px 24px; text-align: center; font: italic 18px var(--display); color: var(--brass-pale); }
+
+/* Le présentoir : le sachet choisi, son bouton, l'étagère ; à droite, l'ardoise. */
+.ludo-shop { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 8px; }
+.ludo-stage { min-width: 0; display: grid; justify-items: center; align-content: center; gap: 0; padding: 10px 26px 18px; text-align: center; }
+.ludo-spot { position: relative; display: grid; place-items: center; width: 100%; padding: 16px 0 26px; }
+/* Le projecteur, et l'ombre du sachet sur le présentoir. */
+.ludo-spot::before { content: ''; position: absolute; inset: -10px 12% 8px; background: radial-gradient(52% 78% at 50% 34%, #ffdfa42e, #ffc46b12 46%, transparent 70%); pointer-events: none; }
+.ludo-spot::after { content: ''; position: absolute; left: 50%; bottom: 8px; width: 190px; height: 22px; translate: -50% 0; border-radius: 50%; background: radial-gradient(closest-side, #000b, transparent); pointer-events: none; }
+.ludo .ludo-hero {
+  position: relative; z-index: 1; display: block; height: clamp(170px, 37dvh, 330px); aspect-ratio: 800 / 1450; padding: 0; border: 0; background: none;
+  transform: perspective(900px) rotateY(calc((var(--px, .5) - .5) * 24deg)) rotateX(calc((.5 - var(--py, .5)) * 16deg));
+  transition: transform .18s ease-out, filter .2s; filter: drop-shadow(0 18px 22px #000a);
+  animation: ludo-float 5.5s ease-in-out infinite;
+}
+.ludo .ludo-hero:disabled { filter: drop-shadow(0 18px 22px #000a) saturate(.55) brightness(.8); }
+.ludo-hero img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.ludo-hero.settle img { animation: ludo-settle .42s cubic-bezier(.2, .8, .2, 1); }
+.ludo-sheen {
+  position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen; opacity: .0; transition: opacity .2s;
+  background: linear-gradient(115deg, transparent 30%, #fff6 calc(var(--px, .5) * 100%), transparent 70%);
+  -webkit-mask: var(--mask) center / contain no-repeat; mask: var(--mask) center / contain no-repeat;
+}
+.ludo-hero:hover:not(:disabled) .ludo-sheen { opacity: 1; }
+.ludo-stage.tearing .ludo-hero { animation: ludo-tear .85s ease-in both; }
+@keyframes ludo-float { 50% { translate: 0 -7px; } }
+@keyframes ludo-settle { from { opacity: 0; translate: 0 -26px; scale: .94; } }
+@keyframes ludo-tear {
+  0%, 100% { rotate: 0deg; } 12% { rotate: -3deg; } 24% { rotate: 3deg; } 36% { rotate: -4deg; } 48% { rotate: 4deg; } 60% { rotate: -5deg; scale: 1.04; } 72% { rotate: 5deg; scale: 1.07; }
+  88% { rotate: 0deg; scale: 1.12; filter: drop-shadow(0 0 34px #ffe2b0) brightness(1.6); } 100% { scale: 1.2; opacity: 0; filter: drop-shadow(0 0 60px #fff) brightness(2.4); }
+}
+.ludo-name { margin: 0; font: 500 27px/1.15 var(--display); color: #fff3da; }
+.ludo-progress { min-height: 20px; margin: 4px 0 14px; font-size: 14px; color: var(--mute); }
+.ludo .ludo-open {
+  min-width: min(300px, 100%); padding: 14px 30px; border: 1px solid #ffd9a866; border-radius: 999px; font: 600 17px/1.1 system-ui, sans-serif; color: #fff7ea;
+  background: linear-gradient(180deg, #ef8f3f, #c9611d); box-shadow: 0 10px 30px #e0762a4d, inset 0 1px #fff5;
+  transition: translate .12s, box-shadow .12s, filter .12s;
+}
+.ludo .ludo-open:hover:not(:disabled) { translate: 0 -2px; box-shadow: 0 14px 36px #e0762a73, inset 0 1px #fff5; }
+.ludo .ludo-open:active:not(:disabled) { translate: 0 1px; }
+.ludo .ludo-open:disabled { filter: saturate(.25) brightness(.7); box-shadow: none; }
+.ludo-left { min-height: 18px; margin: 9px 0 0; max-width: 56ch; font-size: 13px; color: var(--mute); }
+/* L'étagère : une planche de noyer filetée de laiton, un sachet par collection. */
+.ludo-shelf {
+  display: flex; gap: 12px; align-items: flex-end; width: fit-content; max-width: 100%; box-sizing: border-box; margin-top: 18px; padding: 16px 18px 15px; overflow-x: auto; scroll-snap-type: x proximity;
+  scrollbar-width: thin; scrollbar-color: #c9a24a55 transparent;
+  background: linear-gradient(180deg, transparent calc(100% - 15px), #c9a24a calc(100% - 15px), #c9a24a calc(100% - 14px), #5a3a26 calc(100% - 14px), #2c1c14) no-repeat;
+  border-radius: 0 0 6px 6px;
+}
+.ludo .ludo-pack { position: relative; flex: none; width: 50px; padding: 0; border: 0; background: none; scroll-snap-align: center; transition: translate .16s, filter .16s; filter: brightness(.74) saturate(.85); }
+.ludo-pack img { display: block; width: 100%; aspect-ratio: 800 / 1450; object-fit: contain; filter: drop-shadow(0 4px 5px #0009); }
+.ludo .ludo-pack:hover { translate: 0 -4px; filter: none; }
+.ludo .ludo-pack.selected { translate: 0 -9px; filter: drop-shadow(0 0 12px #ffc46b99); }
+.ludo-gauge { position: absolute; left: 6px; right: 6px; bottom: -8px; height: 2px; border-radius: 1px; background: linear-gradient(90deg, var(--brass-pale) calc(var(--done) * 100%), #ffffff2e 0); }
+.ludo-gauge.full { background: #7dffa8; }
+
+/* L'ardoise de Ludo : écrite à la craie, encadrée de noyer. */
+.ludo-slate {
+  align-self: start; display: grid; gap: 14px; margin: 22px 22px 22px 0; padding: 20px 20px 18px; border: 7px solid #4a2f20; border-radius: 6px; color: #eef0e6;
+  background: radial-gradient(130% 100% at 20% 0%, #2c3833, #1b2420 70%); box-shadow: 0 16px 34px #0008, inset 0 0 0 1px #0006, inset 0 0 40px #0005;
+}
+.ludo-stock { display: flex; align-items: baseline; gap: 10px; }
+.ludo-stock strong { font: 500 50px/0.9 var(--display); color: #fff; }
+.ludo-stock span { font-size: 13px; line-height: 1.25; color: #c5cdc4; }
+.ludo-slate h3 { margin: 4px 0 -4px; padding-top: 12px; border-top: 1px dashed #ffffff38; font: italic 500 19px/1.2 var(--display); color: #fff; }
+.ludo-prices { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.ludo-prices li { display: flex; align-items: baseline; gap: 8px; font: 16px/1.3 var(--display); }
+.ludo-prices li i { flex: 1; border-bottom: 2px dotted #ffffff4d; translate: 0 -4px; }
+.ludo-prices li b { font-weight: 500; font-variant-numeric: tabular-nums; }
+.ludo-prices li.next b { color: #ffd98f; }
+.ludo-prices li.sold { color: #8f9a92; }
+.ludo-prices li.sold span { text-decoration: line-through; }
+.ludo .ludo-buy { padding: 11px 14px; border: 1px solid #ecd9a4; border-radius: 10px; background: #c9a24a; color: #20160c; font: 600 14px/1.2 system-ui, sans-serif; transition: background .12s; }
+.ludo .ludo-buy:hover:not(:disabled) { background: #e0bb62; }
+.ludo .ludo-buy:disabled { border-color: #ffffff33; background: #ffffff14; color: #b9c2b9; }
+.ludo-note { margin: -4px 0 0; font-size: 13px; line-height: 1.45; color: #c5cdc4; }
+.ludo .ludo-binder { justify-self: start; padding: 2px 0; border: 0; border-bottom: 1px solid #ecd9a48c; background: none; font: 15px/1.3 var(--display); color: var(--brass-pale); }
+.ludo .ludo-binder:hover:not(:disabled) { color: #fff; border-bottom-color: #fff; }
+.ludo .ludo-binder:disabled { opacity: .45; }
+
+/* La table de tirage : le feutre, les cartes distribuées face cachée. */
+.ludo-table {
+  position: relative; display: grid; grid-template-rows: auto 1fr auto auto; justify-items: center; align-items: center; gap: 12px; padding: 20px 24px 24px;
+  background:
+    repeating-linear-gradient(45deg, #ffffff05 0 2px, transparent 2px 5px), repeating-linear-gradient(-45deg, #00000012 0 2px, transparent 2px 5px),
+    radial-gradient(90% 80% at 50% 38%, #1f6660, #14403f 52%, #0a2527);
+}
+.ludo-table::before { content: ''; position: absolute; inset: 12px; border: 1px solid #c9a24a73; border-radius: 12px; pointer-events: none; }
+.ludo-from { margin: 4px 0 0; font: italic 17px/1.2 var(--display); color: #d6e6dc; }
+.ludo-hand { --w: min(226px, 19vw, 39dvh); display: flex; flex-wrap: wrap; justify-content: center; gap: clamp(10px, 2vw, 26px); perspective: 1700px; padding: 14px 0 4px; }
+.ludo .ludo-card {
+  --glow: #cfd6de; position: relative; display: grid; justify-items: center; gap: 12px; padding: 0; border: 0; background: none;
+  animation: ludo-deal .55s cubic-bezier(.2, .8, .25, 1) both; animation-delay: calc(var(--i) * 150ms);
+}
+.ludo-card.rarity-r { --glow: #49a6ff; }
+.ludo-card.rarity-u { --glow: #ffc94a; }
+.ludo-card.rarity-m { --glow: #ff5ad0; }
+@keyframes ludo-deal { from { opacity: 0; translate: 0 -70dvh; rotate: -18deg; } }
+.ludo-card-inner {
+  position: relative; display: block; width: var(--w); aspect-ratio: 1644 / 2244; border-radius: 4.6% / 3.4%; transform-style: preserve-3d;
+  rotate: var(--tilt); transform: rotateY(0); transition: transform .8s cubic-bezier(.3, .1, .2, 1), rotate .5s; box-shadow: 0 16px 26px #0009, 0 2px 4px #0008;
+}
+.ludo-card:not(.flipped):hover .ludo-card-inner, .ludo-card:not(.flipped):focus-visible .ludo-card-inner { translate: 0 -10px; box-shadow: 0 26px 34px #000a, 0 0 0 2px #ecd9a4b3; }
+.ludo-card.flipped .ludo-card-inner { transform: rotateY(180deg); rotate: 0deg; animation: ludo-lift .8s ease-in-out; box-shadow: 0 16px 26px #0009, 0 0 26px color-mix(in srgb, var(--glow), transparent 45%); }
+@keyframes ludo-lift { 45% { translate: 0 -30px; scale: 1.08; } }
+.ludo-card-back, .ludo-card-front, .ludo-card-foil { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.ludo-card-back { object-fit: cover; background: #0c0c0e; }
+.ludo-card-front { object-fit: cover; background: #101726; transform: rotateY(180deg); }
+/* Le reflet : un passage pour une rare, un va-et-vient pour une ultra-rare, l'arc-en-ciel d'une mythique. */
+.ludo-card-foil { transform: rotateY(180deg) translateZ(1px); pointer-events: none; opacity: 0; background: linear-gradient(115deg, transparent 38%, #ffffffb8 50%, transparent 62%) no-repeat; background-size: 280% 100%; mix-blend-mode: screen; }
+.ludo-card.flipped.rarity-r .ludo-card-foil { opacity: 1; animation: ludo-sweep 1.1s .55s ease-out both; }
+.ludo-card.flipped.rarity-u .ludo-card-foil { opacity: 1; animation: ludo-sweep 2.6s .55s ease-in-out infinite; }
+.ludo-card.flipped.rarity-m .ludo-card-foil { opacity: 1; background-image: linear-gradient(115deg, transparent 30%, #ff7ad9b3 42%, #ffe98ab3 50%, #7ae3ffb3 58%, transparent 70%); animation: ludo-sweep 2.2s .55s ease-in-out infinite; }
+@keyframes ludo-sweep { from { background-position: 130% 0; } to { background-position: -30% 0; } }
+/* La lueur derrière une carte qui compte. */
+.ludo-card-aura { position: absolute; left: 50%; top: calc(var(--w) * .68); width: calc(var(--w) * 1.9); aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; pointer-events: none; opacity: 0; background: radial-gradient(closest-side, color-mix(in srgb, var(--glow), transparent 35%), transparent); transition: opacity .6s .45s; }
+.ludo-card.flipped.rarity-r .ludo-card-aura { opacity: .35; }
+.ludo-card.flipped.rarity-u .ludo-card-aura, .ludo-card.flipped.rarity-m .ludo-card-aura { opacity: .7; animation: ludo-breathe 2.4s 1s ease-in-out infinite; }
+.ludo-card.flipped.rarity-m .ludo-card-aura { background: conic-gradient(from 0deg, transparent, color-mix(in srgb, var(--glow), transparent 30%), transparent 25%, #ffe98a99, transparent 50%, #7ae3ff99, transparent 75%, color-mix(in srgb, var(--glow), transparent 30%), transparent); -webkit-mask: radial-gradient(closest-side, #000, transparent); mask: radial-gradient(closest-side, #000, transparent); animation: ludo-breathe 2.4s 1s ease-in-out infinite, ludo-turn 9s linear infinite; }
+@keyframes ludo-breathe { 50% { scale: 1.12; } }
+@keyframes ludo-turn { to { rotate: 360deg; } }
+.ludo-card small { position: relative; min-height: 18px; font: 500 14px/1.2 var(--display); color: var(--glow); opacity: 0; transition: opacity .4s .5s; }
+.ludo-card.flipped small { opacity: 1; }
+.ludo-card.flipped small::before { content: '◆ '; font-size: 10px; vertical-align: 2px; }
+.ludo-caption { min-height: 26px; margin: 0; font: italic 18px/1.4 var(--display); color: #f4f0dd; text-align: center; }
+.ludo-actions { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 22px; }
+.ludo .ludo-quiet { padding: 4px 0; border: 0; border-bottom: 1px solid #ffffff59; background: none; font-size: 14px; color: #dfe9e2; }
+.ludo .ludo-quiet:hover { color: #fff; border-bottom-color: #fff; }
+.ludo [hidden] { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ludo .ludo-hero, .ludo-hero.settle img, .ludo .ludo-card, .ludo-card.flipped .ludo-card-inner, .ludo-card-foil, .ludo-card-aura { animation: none !important; }
+  .ludo-stage.tearing .ludo-hero { animation: none; opacity: .6; }
+  .ludo-card-inner { transition: none; }
+}
+/* Écrans étroits, et téléphones tenus en paysage : tout tient en hauteur, l'ardoise se serre. */
+@media (max-width: 860px), (max-height: 560px) {
+  .bar-game-bare.bar-game-overlay { padding: 8px; }
+  .bar-game-bare .bar-game-shell { height: calc(100dvh - 16px); border-radius: 14px; }
+  .ludo-head { padding: 10px 14px; }
+  .ludo-title h2 { font-size: 24px; }
+  .ludo-quote { display: none; }
+  .ludo-shop { grid-template-columns: minmax(0, 1fr) 232px; }
+  .ludo-stage { padding: 4px 12px 10px; }
+  .ludo-spot { padding: 6px 0 14px; }
+  .ludo .ludo-hero { height: clamp(110px, 30dvh, 240px); }
+  .ludo-name { font-size: 20px; }
+  .ludo-progress { margin-bottom: 8px; font-size: 12px; }
+  .ludo .ludo-open { padding: 10px 22px; font-size: 15px; }
+  .ludo-left { font-size: 12px; }
+  .ludo-shelf { margin-top: 8px; padding: 10px 12px 13px; gap: 10px; }
+  .ludo .ludo-pack { width: 34px; }
+  .ludo-slate { margin: 8px 8px 8px 0; padding: 12px; gap: 9px; border-width: 5px; }
+  .ludo-stock strong { font-size: 34px; }
+  .ludo-table { padding: 12px; gap: 6px; }
+  .ludo-hand { --w: min(150px, 20vw, 23dvh); padding-top: 4px; }
+  .ludo-from { display: none; }
+  .ludo-card { gap: 6px; }
+  .ludo-caption { font-size: 15px; }
+}
+@media (max-width: 620px) {
+  .ludo-shop { grid-template-columns: 1fr; }
+  .ludo-slate { margin: 0 12px 14px; }
+  .ludo-hand { --w: min(150px, 40vw); }
 }

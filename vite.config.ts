@@ -22,7 +22,7 @@ const SALVAGE_ENDPOINT = '/outils/mini-shipinteriors-salvage.php'
  * Comptoir des Cartes Dangereuses : la boutique et les boosters du CMDR, l'ouverture d'un booster
  * (l'endpoint de la page Cartes du site), et les visuels des cartes.
  */
-const CARDS_PATHS = ['/outils/mini-shipinteriors-cards.php', '/phputils/cartes/get_booster.php', '/assets/images/cartes']
+const CARDS_PATHS = ['/outils/mini-shipinteriors-cards.php', '/phputils/cartes/get_booster.php', '/assets/images/cartes', '/assets/audios/galactic_clash']
 /**
  * Clé partagée entre le relais et le site pour payer les missions gagnées (MSI_RELAY_SECRET des
  * deux côtés en production) ; en local, le site accepte celle-ci.

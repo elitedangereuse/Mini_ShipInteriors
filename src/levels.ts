@@ -1914,7 +1914,7 @@ export const LEVELS: LevelDef[] = [
     glazed: ['os', 'gc'],
     // On baisse les lumières au cinéma, un peu au salon d'écoute ; au planétarium, la nuit tombe ;
     // au Comptoir, ce sont les cartes et les lampes des tables qui éclairent.
-    dim: { n: 0.45, o: 0.7, p: 0.3, x: 0.5 },
+    dim: { n: 0.45, o: 0.7, p: 0.3, x: 0.62 },
     // La salle de classe, les toilettes et les terrains sont en pleine lumière ; le salon d'écoute,
     // le studio et le foyer du cinéma, feutrés, laissent parler leurs lampes.
     lighting: {
@@ -1926,7 +1926,7 @@ export const LEVELS: LevelDef[] = [
       h: { level: 0.3, spacing: 3 },
       b: { level: 1.35, color: '#f4f8ff' },
       f: { level: 1.35, color: '#f4f8ff' },
-      x: { level: 0.3, color: '#ffd9a8', spacing: 3 },
+      x: { level: 0.45, color: '#ffcf9a', spacing: 3 },
     },
     props: [
       // --- Coursive ---
@@ -2513,10 +2513,12 @@ export const LEVELS: LevelDef[] = [
       { model: 'bench', x: 28.15, z: 10.9, label: 'teal' },
 
       // --- Comptoir des Cartes Dangereuses (8 × 10, cf. src/furniture/cards.ts et src/cards/) : au fond
-      // du hall, derrière sa porte double. Au nord, la boutique : le mur de boosters du site et le
-      // comptoir de Ludo. Au milieu, sur la rosace du parquet, l'autel d'ouverture. Au sud, les trois
-      // tables de Galactic Clash sous leurs suspensions. À l'est, devant la baie vitrée, les pupitres
-      // où l'on feuillette sa collection. Aux murs, les vitrines des cartes du jour. ---
+      // du hall, derrière sa porte double. Au nord, la boutique : le mur de boosters du site sous son
+      // enseigne au néon, et le comptoir de Ludo entre deux lampes à vitrail. Au milieu, sur le tapis
+      // rond, l'autel d'ouverture. Au sud, les trois tables de Galactic Clash sous leurs suspensions de
+      // rotin ; au sud-ouest, le coin canapé et le chariot de chocolat chaud. À l'est, devant la baie
+      // vitrée, les pupitres où l'on feuillette sa collection. Aux murs, les vitrines des cartes du
+      // jour. Les tapis sont dessinés sur le sol. ---
       { model: 'cards-floor', x: 34.5, z: 9.5, label: '7.7x9.7', solid: false },
       {
         model: 'cards-shop', x: 34.5, z: 4.65, solid: false, action: tr('Voir les boosters', 'Browse the boosters'),
@@ -2526,15 +2528,18 @@ export const LEVELS: LevelDef[] = [
         model: 'cards-counter', x: 34.5, z: 6.05, action: tr('Parler à Ludo', 'Talk to Ludo'),
         interact: tr('Le comptoir de Ludo.', 'Ludo\'s counter.'),
       },
+      { model: 'stained-lamp', x: 32.45, z: 6.3, label: 'floor' },
+      { model: 'stained-lamp', x: 36.55, z: 6.3, label: 'floor' },
       {
         model: 'cards-altar', x: 34.5, z: 9.5, action: tr('Ouvrir un booster', 'Open a booster'),
         interact: tr('L\'autel d\'ouverture.', 'The opening altar.'),
       },
-      // Les tables de jeu, chacune sous sa lampe.
-      { model: 'rug', x: 34.5, z: 12.55, label: 'bar:6.2x2.6', solid: false },
-      ...([[32.5, 12.1], [34.5, 13.0], [36.5, 12.1]] as const).flatMap(([x, z]): Prop[] => [
+      // Les tables de jeu, chacune sous sa lampe ; au-dessus d'elles, deux guirlandes d'ampoules.
+      { model: 'cards-festoon', x: 35.45, z: 12.25, label: '4.6', solid: false },
+      { model: 'cards-festoon', x: 35.45, z: 13.55, label: '4.6', solid: false },
+      ...([[34.05, 11.85], [36.35, 11.85], [35.2, 13.3]] as const).flatMap(([x, z]): Prop[] => [
         { model: 'clash-table', x, z, action: tr('Jouer à Galactic Clash', 'Play Galactic Clash'), interact: tr('Table de Galactic Clash : solo ou duel.', 'Galactic Clash table: solo or duel.') },
-        { model: 'pendant-lamp', x, z, solid: false },
+        { model: 'pendant-lamp', x, z, label: 'rattan', solid: false },
       ]),
       // Les pupitres de collection, face à la baie.
       ...([6.9, 8.7, 10.5] as const).map((z): Prop => ({
@@ -2560,10 +2565,22 @@ export const LEVELS: LevelDef[] = [
           tr('Le trophée du tournoi de Galactic Clash. Sur le socle : « Vainqueur : » et rien derrière. Le tournoi n\'a pas encore eu lieu.', 'The Galactic Clash tournament trophy. On the base: “Winner:” and nothing after it. The tournament has not happened yet.'),
         ],
       },
-      // La banquette où l'on compare ses tirages.
+      // Le coin canapé, au sud-ouest : on y compare ses tirages, une tasse à la main.
       {
-        model: 'cards-bench', x: 30.65, z: 13.05, rot: 1,
-        interact: tr('La banquette du Comptoir : on s\'y montre ses tirages, et on y ment sur ses doubles.', 'The Counter\'s bench: where pulls get shown off, and duplicates get lied about.'),
+        model: 'sofa', x: 31.02, z: 13.2, rot: 1, label: 'navy',
+        interact: tr('Le canapé du Comptoir : on s\'y montre ses tirages, et on y ment sur ses doubles.', 'The Counter\'s sofa: where pulls get shown off, and duplicates get lied about.'),
+      },
+      { model: 'coffee-table', x: 31.9, z: 13.2, rot: 1 },
+      { model: 'armchair', x: 32.72, z: 13.2, rot: 3, label: 'terracotta' },
+      { model: 'stained-lamp', x: 30.98, z: 12.3, label: 'floor' },
+      { model: 'wall-neon', x: 30.65, z: 13.2, rot: 1, label: 'GG|orange', solid: false },
+      {
+        model: 'cocoa-cart', x: 32.0, z: 12.22, action: tr('Se servir un chocolat', 'Pour yourself a cocoa'),
+        interact: [
+          tr('Un chocolat chaud, deux guimauves. Sur l\'ardoise : « Offert par la maison. Les cartes, non. »', 'A hot chocolate, two marshmallows. On the slate: “On the house. The cards are not.”'),
+          tr('La tasse réchauffe les mains. Elle laisse aussi un rond sur le feutre : Ludo a l\'œil, posez-la ailleurs.', 'The mug warms your hands. It also leaves a ring on the felt: Ludo is watching, put it somewhere else.'),
+          tr('Chocolat de Lave, importé. Enfin, c\'est ce que dit l\'étiquette, collée par-dessus une autre.', 'Lavian chocolate, imported. Or so says the label, stuck over another one.'),
+        ],
       },
       // Mur nord, de part et d'autre de la boutique.
       {
@@ -2574,11 +2591,11 @@ export const LEVELS: LevelDef[] = [
         model: 'cards-board', x: 37.55, z: 4.65, label: 'rarity', solid: false,
         interact: tr('Le tableau des raretés : commune, rare, ultra-rare, mythique. Une chance sur cent pour la dernière, par carte.', 'The rarity board: common, rare, ultra rare, mythic. One chance in a hundred for the last, per card.'),
       },
-      // Les coins : de la verdure, des lampes de papier.
+      // Les coins : de la verdure, une lampe de papier.
+      { model: 'potted-palm', x: 37.92, z: 5.12, label: 'fan' },
       { model: 'monstera', x: 37.9, z: 13.9 },
       { model: 'paper-lantern', x: 37.15, z: 13.95, label: 'round' },
-      { model: 'paper-lantern', x: 31.05, z: 14.0, label: 'tall' },
-      { model: 'plant-tall', x: 37.95, z: 5.1 },
+      { model: 'potted-palm', x: 31.0, z: 14.0, label: 'short' },
     ],
     lights: [
       [12, 4.6, '#ffd9a8', 2],
@@ -2616,10 +2633,12 @@ export const LEVELS: LevelDef[] = [
       [28.6, 9.5, '#ffc46b', 1.3],
       [19, 13.5, '#fff4e0', 2.4],
       [26, 13.5, '#f2fff4', 2.4],
-      // Le Comptoir des Cartes Dangereuses : l'or de la boutique, l'ambre des tables de jeu ; le reste
+      // Le Comptoir des Cartes Dangereuses : l'or de la boutique, l'ambre des tables et du coin canapé ; le reste
       // vient de ses meubles (cf. lighting/emitters.ts).
-      [34.5, 6.6, '#ffd596', 1.5],
-      [34.5, 12.5, '#ffc46b', 1.4],
+      [34.5, 6.6, '#ffd596', 1.6],
+      [35.2, 12.5, '#ffbf6b', 1.5],
+      [31.8, 13.2, '#ffb36b', 1.2],
+      [37.2, 8.7, '#ffd9a8', 0.9],
       [31.6, 9.5, '#ffb36b', 0.9],
     ],
   },
