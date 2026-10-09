@@ -3,6 +3,8 @@ import { ARCADE } from './arcade'
 import { ARCADE_DECOR } from './arcade-decor'
 import { PIXELWAR } from './pixelwar'
 import { MEDBAY } from './medbay'
+import { HOLD_DECOR } from './hold-decor'
+import { CLOSET } from './closet'
 import { ARMORY } from './armory'
 import { BAR } from './bar'
 import { BATH } from './bath'
@@ -61,6 +63,8 @@ import { SECURITY } from './security'
  * - corridor.ts : la coursive du pont principal (chemin de roulement et feux de guidage, noms des pièces au sol, enseignes, pilastres lumineux) ;
  * - concourse.ts : le hall de la salle commune, façon station Coriolis (l'îlot du hall et son monument, cf. monument.ts) ;
  * - workshop.ts : la cale (minage, bricolage, réparation) ;
+ * - hold-decor.ts : l'habillage de la cale (cage et anneaux du réacteur, conduits d'énergie, palan, étagère de pièces, marquages, rigole de coulée, lingots, grappin, gyrophare) ;
+ * - closet.ts : le placard à balais de la cale (râtelier, seau à roulettes, étagère de produits, robot laveur, panneau « sol glissant ») ;
  * - bar.ts : Chez Jacques, le bar clandestin de la cale (comptoir, bouteilles, Jacques le robot barman) ;
  * - club.ts : le Zorb, la boîte de nuit des aliens de la cale (enseigne, cordon, videur, danseurs) ;
  * - leisure.ts : infirmerie (lits, scanner, pharmacie), appareils de la salle de sport, enseigne du salon d'arcade ;
@@ -107,7 +111,7 @@ import { SECURITY } from './security'
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...COCKPIT, ...PROMENADE, ...CORRIDOR, ...CONCOURSE, ...WORKSHOP, ...BAR, ...CLUB, ...LEISURE, ...GYM, ...MEDICAL, ...KITCHEN, ...ARCADE, ...ARCADE_DECOR, ...PIXELWAR, ...MEDBAY, ...BOARD, ...COZY, ...GARDEN, ...GARDENING, ...NATURE, ...OUTDOOR, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...CLASSROOM, ...LISTENING, ...STUDIO, ...LJPC, ...PLANETARIUM, ...VENTS, ...VOIE, ...SALVAGE, ...SCAVENGERS, ...IDOT, ...HANGAR, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH, ...SPORT, ...RANGE, ...FISHING, ...TUTORIAL, ...QUESTS_FURNITURE, ...QUEST_REWARDS, ...SECURITY } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...COCKPIT, ...PROMENADE, ...CORRIDOR, ...CONCOURSE, ...WORKSHOP, ...BAR, ...CLUB, ...LEISURE, ...GYM, ...MEDICAL, ...KITCHEN, ...ARCADE, ...ARCADE_DECOR, ...PIXELWAR, ...MEDBAY, ...HOLD_DECOR, ...CLOSET, ...BOARD, ...COZY, ...GARDEN, ...GARDENING, ...NATURE, ...OUTDOOR, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...CLASSROOM, ...LISTENING, ...STUDIO, ...LJPC, ...PLANETARIUM, ...VENTS, ...VOIE, ...SALVAGE, ...SCAVENGERS, ...IDOT, ...HANGAR, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH, ...SPORT, ...RANGE, ...FISHING, ...TUTORIAL, ...QUESTS_FURNITURE, ...QUEST_REWARDS, ...SECURITY } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 

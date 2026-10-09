@@ -235,6 +235,7 @@ export const LEVELS: LevelDef[] = [
     rooms: {
       a: tr('Atelier', 'Workshop'),
       j: tr('Palier de la cale', 'Hold landing'),
+      c: tr('Placard à balais', 'Broom closet'),
       r: tr('Stand de tir', 'Shooting range'),
       m: tr('Raffinerie', 'Refinery'),
       g: tr('Soute', 'Cargo bay'),
@@ -276,8 +277,8 @@ export const LEVELS: LevelDef[] = [
       ],
     },
     // Le bar est tenu plus proprement que le reste de la cale : dalles lisses, pas un hublot.
-    floors: { u: 'floor-panel', a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', h: 'floor-panel', k: 'floor-panel', t: 'floor-panel', s: 'floor-panel', i: 'floor-panel' },
-    windows: { n: 0, u: 0, a: 0.1, j: 0, r: 0, m: 0, g: 0.1, b: 0, h: 0, e: 0, v: 0, k: 0.15, t: 0, w: 0, s: 0, i: 0 },
+    floors: { u: 'floor-panel', a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', h: 'floor-panel', k: 'floor-panel', t: 'floor-panel', s: 'floor-panel', i: 'floor-panel', c: 'floor-panel' },
+    windows: { n: 0, u: 0, a: 0.1, j: 0, r: 0, m: 0, g: 0.1, b: 0, h: 0, e: 0, v: 0, k: 0.15, t: 0, w: 0, s: 0, i: 0, c: 0 },
     // Le poste de sécurité du lobby : des vitres blindées côté lobby (sa porte reste verrouillée).
     glazed: ['ht'],
     // Le hangar s'ouvre sur l'espace à la proue : son mur est est un bouclier (cf. src/shield.ts).
@@ -292,7 +293,8 @@ export const LEVELS: LevelDef[] = [
     // piste de danse ; son couloir, par deux néons. La gaine technique, par ses lampes au sodium et
     // ses braises ; la planque des Scavengers, par ses écrans ; le poste d'exploration, par sa baie
     // d'observation.
-    dim: { v: 0.5, n: 0.3, u: 0.6, w: 0.45, s: 0.35, i: 0.4 },
+    // Le placard à balais n'a que son ampoule nue.
+    dim: { v: 0.5, n: 0.3, u: 0.6, w: 0.45, s: 0.35, i: 0.4, c: 0.5 },
     // Le stand de tir, Chez Jacques et le couloir de service du Zorb gardent leur pénombre.
     unlit: 'rbu',
     // L'atelier et le hangar sont des postes de travail, bien éclairés ; la soute, la raffinerie et
@@ -525,6 +527,11 @@ export const LEVELS: LevelDef[] = [
       { model: 'container-tall', x: 3, z: 3 },
       { model: 'pipe-ring-colored', x: 2.8, z: 7.25 },
       { model: 'structure-panel', x: 1.5, z: 6.4, y: 0.005, solid: false },
+      // L'habillage (cf. src/furniture/hold-decor.ts) : la cage de confinement du réacteur, ses anneaux
+      // et ses arcs ; au plancher, l'anneau de sécurité et les conduits d'énergie ; un gyrophare.
+      { model: 'power-floor', x: 1.5, z: 5, label: '4x5|1.5|5', solid: false },
+      { model: 'reactor-rig', x: 1.5, z: 5, solid: false },
+      { model: 'beacon', x: 2.3, z: 2.65, solid: false },
 
       // --- Atelier ---
       {
@@ -567,6 +574,57 @@ export const LEVELS: LevelDef[] = [
       { model: 'steam-vent', x: 5.6, z: 6.2, solid: false },
       { model: 'cables', x: 5.7, z: 5.6, solid: false },
       { model: 'stain', x: 5.1, z: 3.1, solid: false },
+      // L'habillage (cf. src/furniture/hold-decor.ts) : les marquages au sol, le palan et sa tuyère
+      // en révision au-dessus de l'aire de levage, l'étagère de pièces au mur est, une lampe
+      // grillagée sur chaque établi.
+      { model: 'workshop-floor', x: 5.5, z: 4.5, label: '4x6|5.5|4.5', solid: false },
+      {
+        model: 'chain-hoist', x: 6.6, z: 3.3, solid: false,
+        interact: [
+          tr('Palan : une tuyère de propulseur en révision. L\'étiquette dit « Ne pas passer dessous ». Tout le monde passe dessous.', 'Chain hoist: a thruster nozzle under overhaul. The tag says “Do not walk underneath”. Everyone walks underneath.'),
+          tr('La tuyère se balance à peine. Au fond, une lueur : elle n\'a pas tout à fait refroidi depuis le dernier saut.', 'The nozzle barely sways. A glow deep inside: it has not quite cooled since the last jump.'),
+        ],
+      },
+      {
+        model: 'parts-shelf', x: 7.35, z: 3.85, rot: 3,
+        interact: [
+          tr('Étagère de pièces : des bobines de câble, des jerricans, et une cellule d\'énergie qui ne devrait pas luire comme ça.', 'Parts shelf: cable spools, jerrycans, and a power cell that should not be glowing like that.'),
+          tr('Une caisse marquée « DIVERS ». Dedans, une autre caisse marquée « DIVERS ».', 'A crate labelled “MISC”. Inside, another crate labelled “MISC”.'),
+        ],
+      },
+      { model: 'cage-lamp', x: 4.75, z: 2.3, solid: false },
+      { model: 'cage-lamp', x: 6.45, z: 2.3, solid: false },
+
+      // --- Placard à balais, entre l'atelier et la descente du couloir du Zorb (cf. CLOSET_DOOR et
+      // src/furniture/closet.ts) : deux tuiles sur deux sous une ampoule nue ---
+      {
+        model: 'cleaning-shelf', x: 7.65, z: 2.55, rot: 1,
+        interact: [
+          tr('Détergent « Fraîcheur de Lave », dégraissant pour tuyères, et un bidon sans étiquette que personne n\'ose ouvrir.', '“Lave Fresh” detergent, nozzle degreaser, and an unlabelled canister nobody dares open.'),
+          tr('Une caisse de gants, taille unique. La taille unique de quelqu\'un d\'autre.', 'A box of gloves, one size fits all. All of someone else.'),
+          tr('Scotchée au montant, la liste de corvée de la semaine : « Tom ». Celle de la semaine prochaine : « Tom ».', 'Taped to the upright, this week\'s cleaning rota: “Tom”. Next week\'s: “Tom”.'),
+        ],
+      },
+      {
+        model: 'broom-rack', x: 8.45, z: 1.65, solid: false,
+        interact: [
+          tr('Un balai de paille, un balai-brosse, un plumeau rose. Le plumeau est le seul à avoir servi récemment.', 'A straw broom, a scrubbing brush, a pink feather duster. The duster is the only one used recently.'),
+          tr('Sur le manche du balai, gravé au couteau : « Propriété du Zorb. Rendre après la soirée. »', 'Carved into the broom handle: “Property of the Zorb. Return after the party.”'),
+        ],
+      },
+      {
+        model: 'mop-bucket', x: 8.95, z: 3.0,
+        interact: tr('Le seau à roulettes. L\'eau a la couleur de la cale, et à peu près son odeur.', 'The mop bucket. The water is the colour of the hold, and smells about the same.'),
+      },
+      {
+        model: 'cleaning-robot', x: 8.15, z: 3.12, rot: 2,
+        interact: [
+          tr('Le robot laveur dort sur sa base. Son œil bleu respire. Sur sa coque, au feutre : « Serpillière ».', 'The cleaning robot sleeps on its dock. Its blue eye breathes. On its shell, in marker: “Moppet”.'),
+          tr('Serpillière sursaute, fait un demi-tour sur place, et se rendort. Il rêve de la coursive, sûrement.', 'Moppet twitches, half-turns on the spot, and dozes off again. Dreaming of the corridor, no doubt.'),
+        ],
+      },
+      { model: 'cage-lamp', x: 8.5, z: 2.5, label: 'bare', solid: false },
+      { model: 'wet-floor-sign', x: 10.3, z: 2.8, rot: 3, solid: false },
 
       // --- Stand de tir, à la place de l'ancienne baie de réparation (cf. src/range.ts, SHOOTING_RANGE) :
       // on décroche une arme au mur sud, on tire vers le nord par-dessus le comptoir. Pas de tâche
@@ -617,6 +675,20 @@ export const LEVELS: LevelDef[] = [
       },
       { model: 'limpets', x: 14.6, z: 6.8 },
       { model: 'stain', x: 14.5, z: 6.4, solid: false },
+      // L'habillage (cf. src/furniture/hold-decor.ts) : le métal coule de la goulotte dans une rigole
+      // du plancher, jusqu'à la table où les lingots refroidissent, contre le mur ouest ; un grappin
+      // pioche dans le tas de minerai ; un gyrophare au mur nord.
+      { model: 'molten-channel', x: 13.92, z: 6.1, rot: 1, label: '0.5', solid: false },
+      { model: 'molten-channel', x: 13.2, z: 6.35, label: '1.6', solid: false },
+      {
+        model: 'ingot-rack', x: 11.95, z: 6.98, rot: 1,
+        interact: [
+          tr('Lingots de platine, du blanc au rouge sombre. Ne pas toucher : le dernier qui a essayé signe de la main gauche.', 'Platinum ingots, from white to dull red. Do not touch: the last one who tried now signs left-handed.'),
+          tr('Sous la table, deux lingots froids. Quelqu\'un y a gravé « o7 » avec un clou.', 'Under the table, two cold ingots. Someone scratched “o7” into them with a nail.'),
+        ],
+      },
+      { model: 'ore-claw', x: 12.95, z: 7.75, solid: false },
+      { model: 'beacon', x: 16, z: 4.65, solid: false },
 
       // --- Soute ---
       { model: 'cargo', x: 17.93, z: 2.3 },
@@ -1009,6 +1081,12 @@ export const LEVELS: LevelDef[] = [
     ],
     lights: [
       [1.5, 5, '#4fd4ff', 4],
+      // L'habillage de l'atelier et de la raffinerie : les lampes des établis, le métal en fusion ; et
+      // l'ampoule nue du placard à balais.
+      [5.6, 2.5, '#ffd9a0', 1.5, undefined, 3.5],
+      [12.3, 6.8, '#ff7a1c', 1.5, 'fire', 3.5],
+      [13.6, 6.3, '#ff8a2a', 1, 'fire', 3],
+      [8.5, 2.5, '#ffd9a0', 1.5, 'neon', 3],
       // Le Zorb : la piste, les platines ; dans le couloir, l'enseigne et un néon fatigué.
       [1.5, 1.3, '#b04cff', 3.2, 'disco'],
       [1.5, -0.1, '#39ff9a', 1.8, 'pulse'],

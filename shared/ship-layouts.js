@@ -17,6 +17,8 @@ export const SHIP_LAYOUTS = {
   // ouvert sur l'espace à la proue. Au-dessus de la salle des machines, au bout d'un couloir de
   // service qui part du palier, le Zorb, la boîte de nuit des aliens ('n', cf. CLUB_ROOM). Au nord
   // du palier, à la place de l'ancienne baie de réparation, le stand de tir ('r', cf. SHOOTING_RANGE).
+  // Entre l'atelier et la descente de ce couloir, au-dessus du palier, le placard à balais ('c',
+  // 2 × 2), dont la porte donne sur le couloir (cf. CLOSET_DOOR).
   // Au sud du lobby, par une porte de service (cf. SCAVENGERS_DOOR), une gaine technique d'une
   // tuile de large ('w') file vers l'est jusqu'au local du ventilateur ; de là, on entre dans la
   // planque des Scavengers ('s'), où l'on joue au jeu du même nom. Passé le ventilateur, la gaine
@@ -25,8 +27,8 @@ export const SHIP_LAYOUTS = {
   '-1': [
     'nnnnuuu     rrrrr   ttthhhkkkkkkkkkkkk  ',
     'nnn+uuuuuuu rrrrr   ttthhhkkkkkkkkkkkk  ',
-    'nnnnaaaa  u rrrrrgg hhhhhhkkkkkkkkkkkk  ',
-    'eeeeaaaa  + rrrrr+g hhhhhhkkkkkkkkkkkk  ',
+    'nnnnaaaaccu rrrrrgg hhhhhhkkkkkkkkkkkk  ',
+    'eeeeaaaacc+ rrrrr+g hhhhhhkkkkkkkkkkkk  ',
     'eeeeaaaa jjj+rr+rgg hhhhhh+kkkkkkkkkkk  ',
     'eee+aaaa+jjjmmmmmgg+hhhhhh+kkkkkkkkkkk  ',
     'eeeeaaaa jjj+mmmm+g hhhhhhkkkkkkkkkkkk  ',
@@ -212,7 +214,7 @@ function mezzanineWalls(level) {
  */
 export function shipMapOptions(level) {
   const id = String(level)
-  const doors = id === '-1' ? [SECURITY_DOOR, SCAVENGERS_DOOR] : id === '0' ? PIXEL_WAR_DOORS : id === '2' ? [PLOT_DOOR] : []
+  const doors = id === '-1' ? [SECURITY_DOOR, SCAVENGERS_DOOR, CLOSET_DOOR] : id === '0' ? PIXEL_WAR_DOORS : id === '2' ? [PLOT_DOOR] : []
   return { closed: CLOSED_ROOMS[level] ?? '', doors, walls: mezzanineWalls(id) }
 }
 
@@ -232,6 +234,9 @@ export const SECURITY_DOOR = { x: 22, z: 0, dir: 1, locked: true }
  * mène à la planque des Scavengers. Posée sur le bord nord de la première tuile de la gaine.
  */
 export const SCAVENGERS_DOOR = { x: 22, z: 11, dir: 0 }
+
+/** La porte du placard à balais de la cale, dans son mur est : elle donne sur le couloir de service du Zorb. */
+export const CLOSET_DOOR = { x: 9, z: 2, dir: 1 }
 
 /**
  * Les deux portes du couloir de la Pixel War (pont principal), chacune sur le bord nord de sa
