@@ -28,6 +28,8 @@ import { CATALOG, CATEGORIES } from '../cabin/catalog'
 import { drawFinish, stylesOf } from '../cabin/finishes'
 import { thumbnail } from '../cabin/thumbs'
 import { buildFurniture, CUSTOM_MODELS, isCustomModel, tickFurniture, type CustomModel } from '../furniture'
+import { setShipMapArt } from '../furniture/wayfinding'
+import { drawPoster, POSTER } from '../ship-plan/poster'
 import { lookRig, parseLook } from '../looks'
 import { placeSeats, SEATS } from '../seats'
 import { tempo } from '../tempo'
@@ -43,6 +45,9 @@ import { PARTITION_KINDS } from '../cabin/partitions'
 import { cellIndex, CELLS, type HomePlan, type PlanWall } from '../../shared/housing-home.js'
 import { PLOT_ORIGIN, PLOT_SIZES, plotRect } from '../../shared/housing-plot.js'
 import { placeTemplate, templateOf, templateSize } from '../../shared/housing-templates.js'
+
+// La feuille de l'affiche du plan du vaisseau (`ship-map`), que le jeu fournit au mobilier.
+setShipMapArt({ ...POSTER, draw: drawPoster })
 
 const renderer = new THREE.WebGLRenderer({ antialias: true })
 renderer.setSize(innerWidth, innerHeight)

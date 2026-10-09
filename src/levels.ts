@@ -197,6 +197,17 @@ export const SPAWN = { level: HOUSING_LEVEL, x: PLOT_ORIGIN.x + 1, z: PLOT_DOOR.
 /** Comète vit dans les quartiers, près de son panier (ou ici, s'il n'y en a pas). */
 export const CAT_SPAWN = { level: HOUSING_LEVEL, x: PLOT_ORIGIN.x + 2, z: PLOT_DOOR.z + 2 }
 
+/**
+ * Plan du vaisseau accroché au mur (cf. src/furniture/wayfinding.ts), là où l'on se demande où
+ * aller : on le consulte pour ouvrir le plan détaillé (cf. src/ship-plan/). Son repère « Vous êtes
+ * ici » est à sa place. Sur un mur nord (`rot` 0) ou ouest (`rot` 1), ceux qu'on voit.
+ */
+const shipMap = (level: number, x: number, z: number, rot: Rot = 0): Prop => ({
+  model: 'ship-map', x, z, rot, label: `${level}:${x}:${z}`, solid: false,
+  action: tr('Consulter le plan', 'Read the map'),
+  interact: tr('Le plan du vaisseau, pont par pont.', 'The ship map, deck by deck.'),
+})
+
 /** Ce qu'on lit aux balises du bouclier du hangar. */
 const SHIELD_TEXT = [
   tr('Le bouclier retient l\'air du hangar et laisse passer les vaisseaux. Les commandants, non : il ne vaut mieux pas essayer.', 'The shield keeps the hangar\'s air in and lets ships through. Commanders, no: better not try.'),
@@ -225,6 +236,8 @@ export const QUARTERS_DECK: LevelDef = {
   props: [
     { model: 'plant-tall', x: 8.25, z: 3.25 },
     { model: 'plant-tall', x: 8.25, z: 6.75 },
+    // Le plan du vaisseau, face à l'ascenseur : la première chose qu'on voit en sortant de chez soi.
+    shipMap(HOUSING_LEVEL, 10, 2.655),
   ],
   lights: [[9.6, 5, '#ffe2bf', 1.6]],
 }
@@ -501,6 +514,7 @@ export const LEVELS: LevelDef[] = [
         ),
       },
       { model: 'drums', x: 9.2, z: 5.95 },
+      shipMap(-1, 11, 3.655),
 
       // --- Salle des machines, derrière l'atelier : le réacteur au centre, le FSD au nord ---
       {
@@ -696,6 +710,8 @@ export const LEVELS: LevelDef[] = [
       { model: 'beacon', x: 16, z: 4.65, solid: false },
 
       // --- Soute ---
+      // Le plan du vaisseau, au carrefour de la cale : entre les portes du stand de tir et de la raffinerie.
+      shipMap(-1, 16.655, 4.5, 1),
       { model: 'cargo', x: 17.93, z: 2.3 },
       { model: 'container', x: 18, z: 3.4 },
       {
@@ -1758,6 +1774,8 @@ export const LEVELS: LevelDef[] = [
       // roulement et ses feux de guidage, l'enseigne de chaque porte, des pilastres lumineux et un
       // filet de lumière au pied des cloisons, au nord (face au sud) comme au sud. ---
       { model: 'corridor-floor', x: 17, z: 4.5, solid: false },
+      // Le plan du vaisseau, face à l'ascenseur.
+      shipMap(0, 10, 3.655),
       ...([
         [13, 0, tr('Infirmerie', 'Medical bay'), '#5ff2d8'], [18, 0, tr('Salle de sport', 'Gym'), '#ff7a5a'], [23, 0, tr('Labo L.J.P.C.', 'L.J.P.C. lab'), '#7dffa8'],
         [13, 2, 'Mess', '#ffc27a'], [18, 2, 'Arcade', '#ff5fd8'], [23, 2, 'Arcade', '#5fdcff'],
@@ -1792,6 +1810,8 @@ export const LEVELS: LevelDef[] = [
       { model: 'plant-tall', x: 29.1, z: 8.9 },
       { model: 'telescope', x: 29.85, z: 3.05, rot: 1, interact: tr('Longue-vue : on y voit la station la plus proche… et le parking de Fleet Carriers.', 'Spyglass: you can see the nearest station… and the Fleet Carrier car park.') },
       { model: 'telescope', x: 26.15, z: 5.95, rot: 3 },
+      // Le plan du vaisseau, au débouché de la coursive, pour qui revient du poste de pilotage.
+      shipMap(0, 25.655, 2.95, 1),
 
       // --- Le poste de surveillance, sous la Promenade (cf. src/furniture/security.ts) : la pièce
       // du sergent, qu'ouvre la quête « Tour de garde ». Les écrans sont au nord et à l'ouest, les
@@ -1934,6 +1954,8 @@ export const LEVELS: LevelDef[] = [
       { model: 'rug', x: 12.9, z: 5, label: 'warm:3.8x0.7', solid: false },
       { model: 'bench', x: 12.3, z: 3.9, label: 'teal' },
       { model: 'plant-tall', x: 15.1, z: 5.2 },
+      // Le plan du vaisseau, face à l'ascenseur ; un autre au carrefour du foyer et du hall (plus bas).
+      shipMap(1, 11, 3.655),
 
       // --- Salle de classe (5 × 3), façon lycée : le tableau au mur ouest, la professeure Kepler
       // derrière son pupitre, huit tables d'élève tournées vers elle, en deux rangées, dont cinq
@@ -2463,6 +2485,7 @@ export const LEVELS: LevelDef[] = [
         ],
       },
       { model: 'bench', x: 18.6, z: 8.85, label: 'mustard' },
+      shipMap(1, 23.2, 8.655),
       // Le fond du hall : un tapis mène à la porte double du Comptoir des Cartes Dangereuses.
       { model: 'rug', x: 27.6, z: 9.5, label: 'cinema:4.6x1.2', solid: false },
       { model: 'neon-sign', x: 28.9, z: 8.68, label: tr('CARTES', 'CARDS') },

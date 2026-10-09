@@ -30,7 +30,7 @@ const GAMES: Record<Game, { title: string; url: string; fullUrl: string; hint: s
     kicker: tr('PONT PRINCIPAL · SALLE DE LA PIXEL WAR', 'MAIN DECK · PIXEL WAR ROOM') },
 }
 
-/** Fenêtre des jeux du site et de la carte galactique EDGIS ; elle accueille aussi le Comptoir des Cartes Dangereuses (cf. openPanel). */
+/** Fenêtre des jeux du site et de la carte galactique EDGIS ; elle accueille aussi le Comptoir des Cartes Dangereuses et le plan du vaisseau (cf. openPanel). */
 export class GameEmbed {
   private root = document.createElement('section')
   private frame = document.createElement('iframe')
@@ -42,6 +42,7 @@ export class GameEmbed {
   private typed = false
   private panel: HTMLElement | null = null
   private onClose: (() => void) | null = null
+  private skin = ''
 
   constructor() {
     this.root.className = 'bar-game-overlay'
@@ -98,7 +99,7 @@ export class GameEmbed {
    * Ouvre la fenêtre sur un panneau du jeu, à la place d'une page du site (le Comptoir des Cartes
    * Dangereuses, cf. src/cards/panel.ts) ; `onClose` : prévenu quand elle se referme.
    */
-  openPanel(o: { kicker: string; title: string; hint: string; body: HTMLElement; onClose?: () => void; bare?: boolean }) {
+  openPanel(o: { kicker: string; title: string; hint: string; body: HTMLElement; onClose?: () => void; bare?: boolean; skin?: string }) {
     if (!this.isOpen) this.previousFocus = document.activeElement as HTMLElement
     this.title.textContent = o.title
     this.kicker.textContent = o.kicker
@@ -109,6 +110,9 @@ export class GameEmbed {
     this.onClose = o.onClose ?? null
     // `bare` : le panneau porte son propre en-tête et son bouton de fermeture.
     this.root.classList.toggle('bar-game-bare', !!o.bare)
+    // `skin` : une classe de plus sur la fenêtre, pour un panneau qui a son propre habillage.
+    this.skin = o.skin ?? ''
+    if (this.skin) this.root.classList.add(this.skin)
     this.root.setAttribute('aria-label', o.title)
     this.root.hidden = false
     ;(o.bare ? o.body.querySelector<HTMLElement>('[data-autofocus]') : this.root.querySelector<HTMLButtonElement>('button'))?.focus()
@@ -116,6 +120,8 @@ export class GameEmbed {
   /** Le panneau à la place de la page : le lien « ouvrir dans un onglet » n'a alors pas de sens. */
   private setPanel(body: HTMLElement | null) {
     this.panel?.remove()
+    if (this.skin) this.root.classList.remove(this.skin)
+    this.skin = ''
     this.onClose?.()
     this.onClose = null
     this.panel = body

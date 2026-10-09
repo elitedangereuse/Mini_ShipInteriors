@@ -17,6 +17,9 @@ import { BoardGames } from './board/games'
 import { BarPanel, CocktailEffects } from './bar'
 import { GameEmbed } from './game-embed'
 import { CardsPanel } from './cards/panel'
+import { ShipPlanPanel } from './ship-plan/panel'
+import { drawPoster, POSTER } from './ship-plan/poster'
+import { setShipMapArt } from './furniture/wayfinding'
 import { showPull } from './furniture/cards'
 import { MediaRoom } from './media-room'
 import { CinemaRoom } from './cinema-room'
@@ -267,6 +270,8 @@ const siteCabin = account ? await within<SiteCabin | null | undefined>(cabinRequ
  */
 let cabinStore = account ? new CabinStore(account.name) : null
 
+// La feuille des affiches du plan du vaisseau (cf. src/furniture/wayfinding.ts), avant de bâtir les ponts qui les portent.
+setShipMapArt({ ...POSTER, draw: drawPoster })
 const decks = LEVELS.map((def) => new Deck(def))
 /** Les conduits de ventilation, hors des ponts de l'ascenseur : on y tombe par les toilettes (cf. flushToVents). */
 const vents = new Vents({ renderer, scene, squeak: (at) => sound.squeak(at) })
@@ -500,6 +505,16 @@ const gameEmbed = new GameEmbed()
 const cardsPanel = new CardsPanel(gameEmbed, wallet, () => (sound.isMuted ? 0 : sound.level))
 cardsPanel.onPull = (cards) => showPull(cards)
 cardsPanel.onSound = (kind) => (kind === 'buy' ? sound.credits() : sound.ui('deny'))
+// Le plan du vaisseau, qu'on consulte à ses affiches (cf. src/furniture/wayfinding.ts) : les portes
+// de chaque pont telles qu'elles sont pour le joueur, et l'endroit où il se tient.
+const shipPlan = new ShipPlanPanel(gameEmbed, {
+  map: (level) => decks.find((d) => d.def.id === level)?.map,
+  where: () => ({ level: deck.def.id, x: player.position.x, z: player.position.z }),
+  questTitle: (level, room) => {
+    const quest = questOfRoom(level, room)
+    return quest ? QUEST_CONTENT.find((q) => q.id === quest)?.title ?? null : null
+  },
+})
 /** Les tables du Comptoir : une partie de Galactic Clash, ou sa collection au pupitre. */
 const cardTable = (model?: string) => (model === 'clash-table' ? 'clash' : model === 'binder-table' ? 'collection' : null)
 const mediaRoom = new MediaRoom({ get: () => iso.zoomLevel, set: (value) => iso.zoomTo(value) })
@@ -4656,6 +4671,12 @@ function interactWith(item: Interactable) {
   if (item.furniture?.model === 'idot-terminal') return gameEmbed.open('idot')
   if (item.furniture?.model === 'pixelwar-terminal' || item.furniture?.model === 'pixelwar-screen' || (item.furniture?.model === 'arcade' && item.furniture.label === 'pixelwar')) return gameEmbed.open('pixelwar')
   if (item.furniture?.model === 'cctv-desk') return openCameras()
+  if (item.furniture?.model === 'ship-map') {
+    player.cancelPath()
+    keys.clear()
+    marker.visible = false
+    return shipPlan.open()
+  }
   if (item.furniture?.model === 'cards-counter' || item.furniture?.model === 'cards-shop' || item.furniture?.model === 'cards-altar') return cardsPanel.open()
   if (deck.def.id === 1) {
     if (item.furniture?.model === 'podcast-console' || item.furniture?.model === 'podcast-poster') return mediaRoom.open()

@@ -161,6 +161,14 @@ Les lampes d'un pont viennent de trois endroits : ses lampes d'accent (`lights` 
   </tr>
 </table>
 
+### Le plan du vaisseau
+
+Sept **affiches** donnent le plan du bord, là où l'on se demande où aller : face à l'ascenseur sur chaque pont (palier des quartiers, coursive du pont supérieur, coursive du pont principal, palier de la cale), au carrefour du foyer et du hall de la zone sportive, au débouché de la coursive sur la Promenade, et dans la soute, entre les portes du stand de tir et de la raffinerie. Ce sont des caissons lumineux (`ship-map`, `src/furniture/wayfinding.ts`) : une feuille claire, qu'on repère de loin jusque dans la pénombre de la cale, où les trois ponts sont empilés en perspective, comme dans le jeu, traversés par l'ascenseur, avec le nom de chaque pont, ses pièces à voir, la légende des zones et le repère « Vous êtes ici » de l'endroit où l'affiche est accrochée. On la lit de près en vue subjective.
+
+**Consulter** une affiche (`E`) ouvre le **plan détaillé** (`src/ship-plan/panel.ts`, dans la fenêtre des jeux du site) : la même feuille, en grand. À gauche, les trois ponts, du plus haut au plus bas (les quartiers, privés, n'y sont qu'une mention) ; au milieu, le pont choisi à plat, le nom de chaque pièce écrit dans la pièce, ses portes, l'ascenseur, et un repère rouge là où l'on se tient. Dessous, la fiche de la pièce survolée ou choisie dit ce qu'on y fait, pourquoi sa porte ne s'ouvre pas quand elle est fermée au joueur (la quête qui l'ouvre, l'apparence à porter…), et comment y aller ; à côté, l'index des pièces du pont, rangées par zone, sert aussi de légende. Le plan lit les portes telles qu'elles sont pour le joueur : une pièce fermée est voilée de rayures, avec un cadenas, et sa porte est tracée en rouge. Les pièces cachées (Chez Jacques, le sanctuaire de la Voie) restent des zones hachurées sans nom tant qu'on n'y a pas ses entrées. Flèches haut et bas pour changer de pont, `E` ou `Échap` pour fermer ; sur un téléphone, les ponts se réduisent à leur nom et la fiche passe au-dessus de l'index.
+
+Le plan se tire tout seul des ponts : contours des pièces, portes et place des noms viennent du `ShipMap` de chaque pont (`src/ship-plan/geometry.ts`), les noms de `src/levels.ts`. **Ajouter une pièce** : sa fiche dans `ROOMS` (`src/ship-plan/data.ts` : sa zone, ce qu'on y fait, pourquoi elle est fermée, `secret` pour une pièce cachée, `star` pour la citer sur l'affiche) ; sans fiche, elle apparaît en « passage », sans description. **Accrocher une affiche** : `shipMap(pont, x, z, rot)` dans `src/levels.ts`, sur un mur nord (`rot` 0) ou ouest (`rot` 1), ceux qu'on voit ; elle fait 0,98 de large, et il faut un pan de mur sans pilier ni hublot (cf. `plainWalls`).
+
 ## Holo-Me (garde-robe)
 
 <p align="center">
@@ -1081,6 +1089,7 @@ Les bips, les mélodies d'arcade, les étincelles, le miaulement, le ronronnemen
 |---|---|
 | `src/levels.ts` | **Les trois ponts** : plans ASCII (une lettre par pièce, `+` pour une porte), noms des pièces, ambiance (peinture, éclairage, pas), meubles, lumières, position de l'ascenseur, pièce des quartiers personnalisables. C'est ici qu'on modifie le vaisseau. |
 | `shared/ship-map.js` · `shared/ship-layouts.js` | Plans des ponts et leur lecture : pièces, portes, arêtes (mur / porte / ouvert) ; partagés avec le relais (`src/map.ts` les réexporte). |
+| `src/ship-plan/` · `src/furniture/wayfinding.ts` | **Le plan du vaisseau** (cf. [Le plan du vaisseau](#le-plan-du-vaisseau)) : la fiche de chaque pièce, les zones et leurs couleurs (`data.ts`), les contours des pièces, les portes et la place des noms tirés d'un `ShipMap` (`geometry.ts`), les ponts empilés en perspective (`stack.ts`), l'affiche dessinée au canvas (`poster.ts`), la fenêtre du plan détaillé (`panel.ts`, `plan.css`), et le caisson lumineux qu'on accroche aux murs (`wayfinding.ts`). |
 | `shared/mezzanine.js` · `src/mezzanine.ts` | Mezzanines (un étage dans une pièce, cf. `MEZZANINES`) : hauteur du sol le long des escaliers, garde-corps (des murs du plan, partagés avec le relais) ; plancher, façade, marches, garde-corps vitrés et grandes baies, fusionnés avec le pont. Tests dans `server/mezzanine.test.js`. |
 | `shared/sight.js` | Ligne de vue sur un plan : l'invite, `E` et le relais (tables de jeux, jukebox) refusent un objet derrière un mur ; tests dans `server/sight.test.js`. |
 | `shared/twitch-irc.js` | Chat Twitch du cinéma : découpe des lignes IRC reçues (auteur, couleur, emotes, « /me », modération) ; tests dans `server/twitch-irc.test.js`. |
