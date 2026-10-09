@@ -1117,8 +1117,9 @@ export const LEVELS: LevelDef[] = [
     // Le mur entre l'infirmerie et la salle de sport, où pendent le speed bag et l'écran des records.
     plainWalls: [{ x: 15.5, z: 2 }],
     // Le poste de pilotage et la Promenade sont vitrés sur l'espace ; le hall de la salle commune
-    // aussi, au nord et au sud (la mezzanine, à la poupe, a ses grandes baies).
-    canopy: { b: [0, 1, 2], c: [0, 1, 2], e: [0, 2] },
+    // aussi, au nord et au sud (la mezzanine, à la poupe, a ses grandes baies). L'infirmerie a sa
+    // verrière au nord, à la tête des lits : on s'y repose devant les étoiles.
+    canopy: { b: [0, 1, 2], c: [0, 1, 2], e: [0, 2], q: [0] },
     // Le poste de pilotage et la salle commune s'ouvrent sur la coursive par une porte double,
     // sur ses deux tuiles.
     doubleDoors: [{ x: 31, z: 4, dir: 1 }, { x: 8, z: 4, dir: 1 }],
@@ -1228,13 +1229,25 @@ export const LEVELS: LevelDef[] = [
 
       // --- Infirmerie : le domaine de Betty (cf. src/nurse.ts). Trois lits en box le long du mur
       // nord (on s'y allonge, et Betty vient en consultation, cf. src/infirmary.ts), le scanner, le
-      // frigo à vaccins et le négatoscope ; le poste de soins au sud-ouest, face aux lits ; la
+      // frigo à vaccins ; le négatoscope au mur est ; le poste de soins au sud-ouest, face aux lits ; la
       // pharmacie et l'échelle d'acuité au mur ouest ; la salle d'attente près de la porte ; la
       // quarantaine, le défibrillateur, le lavabo et le fauteuil roulant à l'est. L'allée du milieu
       // (z ≈ 1,2 à 2,3) reste libre : c'est là que passe Betty (cf. shared/nurse.js). ---
       ...[9.2, 10.5, 11.8].map((x): Prop => ({ model: 'med-bed', x, z: 0.3, label: 'left' })),
       ...[9.85, 11.15].map((x): Prop => ({ model: 'med-curtain', x, z: 0, solid: false })),
       ...[9.65, 10.95, 12.25].map((x): Prop => ({ model: 'iv-stand', x, z: -0.12 })),
+      // L'habillage (cf. src/furniture/medbay.ts), qui ne bloque rien : le sol de clinique et ses
+      // lignes de couleur, la potence de chaque lit et ses constantes en hologramme devant la
+      // verrière, la croix de pharmacie au mur ouest, le scialytique au-dessus du scanner, et un
+      // filet lumineux sur les trois murs pleins.
+      { model: 'med-floor', x: 12, z: 1.5, label: '7x4|12|1.5', solid: false },
+      ...[9.2, 10.5, 11.8].map((x, i): Prop => ({ model: 'med-bay', x, z: -0.35, label: String(i + 1), solid: false })),
+      { model: 'pharmacy-cross', x: 8.65, z: 0.55, rot: 1, solid: false },
+      { model: 'surgical-lamp', x: 13.2, z: 0.4, solid: false },
+      { model: 'med-strip', x: 8.65, z: 1.5, rot: 1, label: '3.7', solid: false },
+      { model: 'med-strip', x: 10.575, z: 3.35, rot: 2, label: '3.85', solid: false },
+      { model: 'med-strip', x: 14.425, z: 3.35, rot: 2, label: '1.85', solid: false },
+      { model: 'med-strip', x: 15.35, z: 1.5, rot: 3, label: '3.7', solid: false },
       {
         model: 'body-scan', x: 13.2, z: 0.4,
         interact: tr(
@@ -1250,7 +1263,7 @@ export const LEVELS: LevelDef[] = [
         ),
       },
       {
-        model: 'xray-board', x: 14.95, z: -0.35, solid: false,
+        model: 'xray-board', x: 15.35, z: 0.4, rot: 3, solid: false,
         interact: [
           tr('Radio du thorax : RAS. Le commentaire au feutre dit « joli sternum ».', 'Chest X-ray: all clear. The marker note says “nice sternum”.'),
           tr('Radio de l\'abdomen : un limpet de collecte. Le patient jure qu\'il ne sait pas comment c\'est arrivé là.', 'Abdominal X-ray: a collector limpet. The patient swears he has no idea how it got there.'),
@@ -1277,8 +1290,8 @@ export const LEVELS: LevelDef[] = [
         ],
       },
       // Salle d'attente.
-      { model: 'chair', x: 11, z: 3.05, rot: 2 },
-      { model: 'chair', x: 11.55, z: 3.05, rot: 2 },
+      { model: 'med-chair', x: 11, z: 3.05, rot: 2 },
+      { model: 'med-chair', x: 11.55, z: 3.05, rot: 2 },
       {
         model: 'med-scale', x: 12.25, z: 3.15, rot: 2,
         interact: [
@@ -1711,6 +1724,9 @@ export const LEVELS: LevelDef[] = [
       [10.2, 1.4, '#eef8ff', 2.6],
       [13.8, 1.4, '#e8f6ff', 2.6],
       [9.6, 2.9, '#ffc2d6', 1.2],
+      // Le turquoise des lits, sous la verrière, et celui du scanner.
+      [10.5, 0.3, '#5ff2d8', 1.3, undefined, 4],
+      [13.2, 0.5, '#aefcf0', 1.2, undefined, 3],
       // La salle de sport : une lumière blanche de salle, et le rouge de la boxe.
       [18.2, 1.3, '#f2f6ff', 2.8],
       [16.3, 1.4, '#ff8a7a', 1],

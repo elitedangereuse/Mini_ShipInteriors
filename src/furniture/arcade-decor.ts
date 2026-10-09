@@ -26,11 +26,11 @@ const C = {
 }
 
 /** Lueur ajoutée à ce qui est derrière ; elle échappe au tone mapping (cf. haloMaterial dans lights.ts). */
-const halo = (color: string, opacity: number) =>
+export const halo = (color: string, opacity: number) =>
   new THREE.MeshBasicMaterial({ color, opacity, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })
 
 /** Bande de lueur sur un mur : pleine à la hauteur `at` (de 0, en bas, à 1), éteinte en haut et en bas, et aux deux bouts. */
-function glowBand(len: number, h: number, at = 0.5): THREE.PlaneGeometry {
+export function glowBand(len: number, h: number, at = 0.5): THREE.PlaneGeometry {
   const geo = new THREE.PlaneGeometry(len, h, 8, 2)
   const p = geo.attributes.position
   const colors = new Float32Array(p.count * 4)

@@ -49,6 +49,7 @@ const KIT_CHAIR = [sit(0, 0.04, 0.25)]
 export const SEATS: Partial<Record<CustomModel | StationModel, Seat[]>> = {
   chair: KIT_CHAIR,
   'chair-cushion': KIT_CHAIR,
+  'med-chair': KIT_CHAIR,
   'chair-armrest-headrest': KIT_CHAIR,
   // Assez près du bord avant pour que les jambes pendent hors des coussins.
   sofa: [sit(-0.38, 0.22, 0.3), sit(0, 0.22, 0.3), sit(0.38, 0.22, 0.3)],
