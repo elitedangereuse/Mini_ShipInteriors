@@ -1,9 +1,11 @@
 // Récupération de cargaison en zone thargoïde (SOC-06), côté relais : il fait autorité sur la
 // partie.
 //
-// Lobby : dans le sas de la cale (pièce 'h' du pont -1), on forme une équipe de un à quatre
-// joueurs ; son chef choisit le nombre de colis et d'ennemis, chacun se déclare prêt, et la
-// mission part quelques secondes après le dernier. Sortir du lobby, c'est quitter l'équipe.
+// Lobby : dans le sas de la cale (pièce 'h' du pont -1), quatre lobbys (RULES.lobbies) attendent
+// chacun une équipe de un à quatre joueurs : on se place dans celui de son choix, pour partir avec
+// qui l'on veut, et l'on en change librement. Le premier arrivé en est le chef : il choisit le
+// nombre de colis et d'ennemis ; chacun se déclare prêt, et la mission part quelques secondes après
+// le dernier. Sortir du sas, c'est quitter son lobby ; un lobby vidé retrouve ses réglages de départ.
 //
 // Partie : une instance par équipe (sa graine, ses colis, ses ennemis, ses casiers, sa fusée).
 // Le relais tire la baie (cf. shared/salvage.js), place les joueurs loin des ennemis, puis fait
@@ -55,7 +57,7 @@ const ARRIVAL = 30000
 const KEEP_RESULT = 600000
 
 /** Événements du lobby ; les autres (ramasser, se cacher, lancer une fusée, abandonner) sont ceux d'une partie. */
-export const LOBBY_ACTIONS = new Set(['salvage:create', 'salvage:join', 'salvage:leave', 'salvage:settings', 'salvage:ready', 'salvage:resume'])
+export const LOBBY_ACTIONS = new Set(['salvage:join', 'salvage:leave', 'salvage:settings', 'salvage:ready', 'salvage:resume'])
 export const GAME_ACTIONS = new Set(['salvage:pickup', 'salvage:hide', 'salvage:unhide', 'salvage:flare', 'salvage:quit'])
 
 const clampInt = (v, lo, hi) => (Number.isInteger(v) ? Math.min(hi, Math.max(lo, v)) : null)
@@ -80,11 +82,13 @@ export function createSalvage({
   playerById, emit, broadcast, reward = async () => null, minDuration = () => 0, now = Date.now, random = Math.random, log = () => {}, debug = false,
   seed = () => randomBytes(4).readUInt32LE(0),
 }) {
-  const teams = new Map() // id -> équipe
+  // Les lobbys, fixes : id -> équipe (vide tant que personne ne s'y est placé).
+  const teams = new Map(Array.from({ length: RULES.lobbies }, (_, i) => [i + 1, { id: i + 1, members: [], ready: new Set(), game: null }]))
+  const reset = (t) => Object.assign(t, { leader: null, parcels: 1, enemies: 1, status: 'forming', startAt: 0 })
+  for (const t of teams.values()) reset(t)
   const games = new Map() // id -> partie
   const teamOf = new Map() // id du joueur -> équipe
   const finished = new Map() // id de partie -> { result, tickets, until }
-  let nextTeam = 1
 
   // ------------------------------------------------------------------ lobby
 
@@ -113,11 +117,8 @@ export function createSalvage({
     t.members = t.members.filter((id) => id !== p.id)
     t.ready.delete(p.id)
     if (t.status === 'countdown') t.status = 'forming'
-    if (!t.members.length) {
-      teams.delete(t.id)
-      return
-    }
-    if (t.leader === p.id) t.leader = t.members[0]
+    if (!t.members.length) reset(t)
+    else if (t.leader === p.id) t.leader = t.members[0]
   }
 
   /** Réglages changés, membre parti ou arrivé : chacun redit qu'il est prêt. */
@@ -133,19 +134,18 @@ export function createSalvage({
     if (t?.status === 'playing') return error(p, 'playing')
     if (action !== 'salvage:leave' && !inLobby(p)) return error(p, 'lobby')
     switch (action) {
-      case 'salvage:create': {
-        if (t) leaveTeam(p)
-        const team = { id: nextTeam++, leader: p.id, members: [], ready: new Set(), parcels: 1, enemies: 1, status: 'forming', startAt: 0, game: null }
-        teams.set(team.id, team)
-        joinTeam(p, team)
-        break
-      }
       case 'salvage:join': {
         const team = teams.get(data.team)
-        if (!team || team === t) return error(p, 'gone')
+        if (!team) return error(p, 'gone')
+        if (team === t) return
         if (team.status === 'playing') return error(p, 'playing')
         if (team.members.length >= RULES.team) return error(p, 'full')
-        if (t) leaveTeam(p)
+        // Changer de lobby : ceux qu'on quitte redisent qu'ils sont prêts, comme ceux qu'on rejoint.
+        if (t) {
+          leaveTeam(p)
+          unready(t)
+        }
+        if (!team.members.length) team.leader = p.id
         joinTeam(p, team)
         unready(team)
         break
@@ -347,8 +347,8 @@ export function createSalvage({
     // plus tard apprendra le résultat.
     const absent = new Set([...game.members.values()].filter((m) => !m.connected).map((m) => m.id))
     t.members = t.members.filter((id) => !absent.has(id))
-    if (absent.has(t.leader)) t.leader = t.members[0]
-    if (!t.members.length) teams.delete(t.id)
+    if (!t.members.length) reset(t)
+    else if (absent.has(t.leader)) t.leader = t.members[0]
     finished.set(game.id, { result: report, tickets: new Set([...game.members.values()].map((m) => m.ticket)), until: now() + KEEP_RESULT })
     log(`[salvage] mission ${game.id} : ${won ? 'réussie' : reason === 'timeout' ? 'annulée' : 'échouée'}, ${game.delivered}/${game.settings.parcels} colis en ${duration} s`)
     announce()
@@ -482,7 +482,7 @@ export function createSalvage({
       }
       return
     }
-    if (game && action !== 'salvage:create' && action !== 'salvage:join') return gameAction(p, game, action, data)
+    if (game && action !== 'salvage:join') return gameAction(p, game, action, data)
     if (LOBBY_ACTIONS.has(action)) lobbyAction(p, action, data)
   }
 

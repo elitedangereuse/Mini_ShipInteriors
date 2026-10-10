@@ -63,9 +63,9 @@ function harness(seed = 20260929, options = {}) {
   }
   const team = (...ids) => {
     const members = ids.map((id) => add(id, id !== 99))
-    salvage.handle(members[0], 'salvage:create', {})
-    const id = broadcasts.at(-1).data.teams.find((tm) => tm.leader === members[0].id).id
-    for (const p of members.slice(1)) salvage.handle(p, 'salvage:join', { team: id })
+    // Le premier lobby libre.
+    const id = salvage.snapshot().teams.find((tm) => !tm.members.length).id
+    for (const p of members) salvage.handle(p, 'salvage:join', { team: id })
     return { members, id }
   }
   const launch = (members, settings = { parcels: 1, enemies: 1 }) => {
@@ -120,12 +120,49 @@ test('équipe : quatre au plus, on la quitte en sortant du lobby, et une équipe
   Object.assign(members[3], { x: 15, z: 5 })
   h.salvage.moved(members[3])
   assert.deepEqual(h.broadcasts.at(-1).data.teams.find((t) => t.id === id).members.map((m) => m.id), [1, 2, 3])
-  // Hors du lobby, on ne crée pas d'équipe.
-  h.salvage.handle(members[3], 'salvage:create', {})
+  // Hors du sas, on ne se place dans aucun lobby.
+  h.salvage.handle(members[3], 'salvage:join', { team: id + 1 })
   assert.equal(h.last(4, 'salvage:error').code, 'lobby')
   h.launch(members.slice(0, 3))
   h.salvage.handle(fifth, 'salvage:join', { team: id })
   assert.equal(h.last(5, 'salvage:error').code, 'playing')
+})
+
+test('lobbys : quatre, fixes ; on s\'y place, on en change, et un lobby vidé retrouve ses réglages', () => {
+  const h = harness()
+  const lobby = (id) => h.salvage.snapshot().teams.find((t) => t.id === id)
+  assert.deepEqual(h.salvage.snapshot().teams.map((t) => [t.id, t.leader, t.members.length]), [[1, null, 0], [2, null, 0], [3, null, 0], [4, null, 0]])
+  const [a, b, c] = [1, 2, 3].map((id) => h.add(id))
+  // Deux groupes séparés : chacun son lobby, son chef et ses réglages.
+  h.salvage.handle(a, 'salvage:join', { team: 2 })
+  h.salvage.handle(b, 'salvage:join', { team: 2 })
+  h.salvage.handle(c, 'salvage:join', { team: 4 })
+  h.salvage.handle(a, 'salvage:settings', { parcels: 3, enemies: 2 })
+  assert.deepEqual(lobby(2).members.map((m) => m.id), [1, 2])
+  assert.equal(lobby(2).leader, 1)
+  assert.equal(lobby(4).leader, 3)
+  assert.equal(lobby(4).parcels, 1)
+  h.salvage.handle(c, 'salvage:join', { team: 5 })
+  assert.equal(h.last(3, 'salvage:error').code, 'gone')
+  // Le chef change de lobby : le suivant prend la main, et ceux qu'il quitte ne sont plus prêts.
+  h.salvage.handle(a, 'salvage:ready', { ready: true })
+  h.salvage.handle(b, 'salvage:ready', { ready: true })
+  assert.equal(lobby(2).status, 'countdown')
+  h.salvage.handle(a, 'salvage:join', { team: 4 })
+  assert.equal(lobby(2).status, 'forming')
+  assert.equal(lobby(2).leader, 2)
+  assert.ok(lobby(2).members.every((m) => !m.ready))
+  assert.deepEqual(lobby(4).members.map((m) => m.id), [3, 1])
+  // Le dernier parti : le lobby reste, vide, avec ses réglages de départ.
+  h.salvage.handle(b, 'salvage:leave', {})
+  assert.deepEqual(lobby(2), { id: 2, leader: null, parcels: 1, enemies: 1, status: 'forming', startsIn: undefined, members: [] })
+  // Deux lobbys partent chacun de son côté.
+  h.salvage.handle(b, 'salvage:join', { team: 1 })
+  for (const p of [a, b, c]) h.salvage.handle(p, 'salvage:ready', { ready: true })
+  h.advance(RULES.countdown + 0.2)
+  assert.notEqual(h.salvage.gameOf(a), h.salvage.gameOf(b))
+  assert.equal(h.salvage.gameOf(a), h.salvage.gameOf(c))
+  assert.deepEqual(h.last(2, 'salvage:start').members.map((m) => m.id), [2])
 })
 
 test('position dans la baie : sur le sol, et pas plus vite qu\'on ne court', () => {

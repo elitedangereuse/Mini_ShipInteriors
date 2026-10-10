@@ -143,10 +143,10 @@ const ticketStore = {
 
 const ERRORS: Record<string, string> = {
   lobby: tr('Il faut être dans le lobby du sas.', 'You need to be in the airlock lobby.'),
-  full: tr('Équipe complète (quatre au plus).', 'Crew full (four at most).'),
-  playing: tr('Cette équipe est déjà en mission.', 'That crew is already on a mission.'),
-  gone: tr('Cette équipe n\'existe plus.', 'That crew no longer exists.'),
-  leader: tr('Seul le chef d\'équipe règle la mission.', 'Only the crew leader sets the mission.'),
+  full: tr('Ce lobby est complet (quatre au plus).', 'That lobby is full (four at most).'),
+  playing: tr('Ce lobby est déjà en mission.', 'That lobby is already on a mission.'),
+  gone: tr('Ce lobby n\'existe pas.', 'That lobby doesn\'t exist.'),
+  leader: tr('Seul le chef du lobby règle la mission.', 'Only the lobby leader sets the mission.'),
   carrying: tr('Le colis ne rentre pas dans le casier : posez-vous ailleurs.', 'The crate won\'t fit in the locker.'),
   occupied: tr('Ce casier est déjà pris.', 'That locker is taken.'),
   cooldown: tr('Vous sortez à peine d\'un casier : reprenez votre souffle.', 'You just left a locker: catch your breath.'),
@@ -201,7 +201,6 @@ export class SalvageClient {
     this.sfx = new SalvageSfx(host.sound)
     this.fog = new FogOfWar(host.renderer)
     this.lobbyPanel = new LobbyPanel({
-      create: () => host.net.sendSalvage('create'),
       join: (team) => host.net.sendSalvage('join', { team }),
       leave: () => host.net.sendSalvage('leave'),
       settings: (parcels, enemies) => host.net.sendSalvage('settings', { parcels, enemies }),

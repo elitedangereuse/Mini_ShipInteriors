@@ -24,6 +24,7 @@ export declare const BAY_CAMERAS: BayCamera[]
 export declare const FX: { none: 0; glass: 1; goo: 2 }
 
 export declare const RULES: {
+  lobbies: number
   team: number
   parcels: { min: number; max: number }
   enemies: { min: number; max: number }

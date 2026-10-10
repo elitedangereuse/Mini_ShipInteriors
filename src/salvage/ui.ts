@@ -5,7 +5,8 @@ import type { SalvageEnd, SalvageLobby, SalvageMemberStats, SalvageStatus, Salva
 import { RULES, salvageReward } from '../../shared/salvage.js'
 
 /*
- * Interface de la zone thargoïde : le terminal de mission du lobby (équipes, réglages, « prêt »),
+ * Interface de la zone thargoïde : le terminal de mission du sas (les quatre lobbys où l'on se
+ * place, les réglages, « prêt »),
  * le classement des victoires, puis en mission la barre de l'équipe, l'agitation de la ruche,
  * l'endurance et le compte à rebours du casier au-dessus du personnage, le moniteur de
  * surveillance des capturés (caméras alliées et caméras de la baie) et l'écran de fin, avec la
@@ -41,7 +42,6 @@ function threat(team: number, enemies: number): { label: string; level: number }
 }
 
 export interface LobbyActions {
-  create(): void
   join(team: number): void
   leave(): void
   settings(parcels: number, enemies: number): void
@@ -98,7 +98,7 @@ abstract class Modal {
   }
 }
 
-/** Le terminal de mission : former une équipe, régler la mission, se déclarer prêt. */
+/** Le terminal de mission : se placer dans un des lobbys, régler la mission, se déclarer prêt. */
 export class LobbyPanel extends Modal {
   private lobby: SalvageLobby = { teams: [] }
   private self = -1
@@ -148,17 +148,12 @@ export class LobbyPanel extends Modal {
       return
     }
     const team = this.team
+    // Les lobbys, toujours visibles : on voit qui part avec qui, et l'on en change d'un clic.
+    const list = el('div', 'salvage-teams')
+    for (const t of this.lobby.teams) list.append(this.lobbyCard(t, team))
+    this.body.append(list)
     if (team) this.body.append(this.teamCard(team))
-    else {
-      const list = el('div', 'salvage-teams')
-      const others = this.lobby.teams
-      if (!others.length) list.append(el('p', 'salvage-empty', tr('Aucune équipe pour l\'instant. Créez la vôtre, pour y aller seul ou pour attendre du renfort.', 'No crew yet. Create yours, to go alone or to wait for backup.')))
-      for (const t of others) list.append(this.teamRow(t))
-      this.body.append(list)
-      const create = button(tr('Créer une équipe', 'Create a crew'), () => this.actions.create(), 'salvage-primary', 'users-three')
-      create.dataset.key = 'create'
-      this.body.append(create)
-    }
+    else this.body.append(el('p', 'salvage-empty', tr('Placez-vous dans un lobby : seul pour partir en solo, ou avec ceux qui vous accompagnent.', 'Pick a lobby: on your own to go solo, or with whoever is coming along.')))
     const footer = el('div', 'salvage-footer')
     const board = button(tr('Classement des victoires', 'Victory leaderboard'), () => this.actions.leaderboard(), 'salvage-link', 'trophy')
     footer.append(board)
@@ -168,38 +163,50 @@ export class LobbyPanel extends Modal {
     if (focused) this.body.querySelector<HTMLElement>(`[data-key="${focused}"]`)?.focus()
   }
 
-  private teamRow(t: SalvageTeam): HTMLElement {
-    const row = el('div', 'salvage-team-row')
-    const leader = t.members.find((m) => m.id === t.leader)
-    const info = el('div', 'salvage-team-info')
-    info.append(el('strong', '', tr(`Équipe de ${leader?.name ?? '?'}`, `${leader?.name ?? '?'}'s crew`)))
-    const detail = t.status === 'playing'
-      ? tr(`En mission · ${t.delivered ?? 0}/${t.parcels} colis · ${t.alive ?? 0} encore debout`, `On a mission · ${t.delivered ?? 0}/${t.parcels} crates · ${t.alive ?? 0} still standing`)
-      : tr(`${t.members.length}/${RULES.team} CMDR · ${t.parcels} colis · ${t.enemies} ennemi${t.enemies > 1 ? 's' : ''}`, `${t.members.length}/${RULES.team} CMDRs · ${t.parcels} crate${t.parcels > 1 ? 's' : ''} · ${t.enemies} ${t.enemies > 1 ? 'enemies' : 'enemy'}`)
-    info.append(el('span', '', detail))
-    row.append(info)
-    if (t.status !== 'playing') {
-      const join = button(tr('Rejoindre', 'Join'), () => this.actions.join(t.id), '', 'user-plus')
-      join.dataset.key = `join-${t.id}`
-      join.disabled = t.members.length >= RULES.team
-      row.append(join)
+  /** Un lobby : ses quatre places, ce qu'il prépare, et le bouton pour s'y placer. */
+  private lobbyCard(t: SalvageTeam, mine: SalvageTeam | null): HTMLElement {
+    const own = t === mine
+    const playing = t.status === 'playing'
+    const card = el('div', `salvage-lobby-card${own ? ' own' : ''}${playing ? ' playing' : ''}`)
+    const head = el('div', 'salvage-lobby-head')
+    head.append(el('strong', '', `Lobby ${t.id}`))
+    const state = playing ? tr('En mission', 'On a mission')
+      : t.status === 'countdown' ? tr('Départ imminent', 'Leaving')
+        : !t.members.length ? tr('Libre', 'Empty')
+          : `${t.members.length}/${RULES.team}`
+    head.append(el('span', 'salvage-lobby-state', state))
+    card.append(head)
+    const seats = el('ul', 'salvage-seats')
+    for (const m of t.members) {
+      const li = el('li', m.ready ? 'ready' : '')
+      li.append(icon(m.id === t.leader ? 'crown' : 'user-solo', m.id === t.leader ? 'salvage-crown' : 'salvage-seat-icon'))
+      li.append(el('span', 'salvage-name', m.name + (m.id === this.self ? tr(' (vous)', ' (you)') : '')))
+      if (m.ready && !playing) li.append(icon('check', 'salvage-seat-ready'))
+      seats.append(li)
     }
-    return row
+    for (let i = t.members.length; i < RULES.team; i++) seats.append(el('li', 'free', tr('Place libre', 'Open slot')))
+    card.append(seats)
+    const detail = playing
+      ? tr(`${t.delivered ?? 0}/${t.parcels} colis · ${t.alive ?? 0} encore debout`, `${t.delivered ?? 0}/${t.parcels} crates · ${t.alive ?? 0} still standing`)
+      : t.members.length
+        ? tr(`${t.parcels} colis · ${t.enemies} ennemi${t.enemies > 1 ? 's' : ''}`, `${t.parcels} crate${t.parcels > 1 ? 's' : ''} · ${t.enemies} ${t.enemies > 1 ? 'enemies' : 'enemy'}`)
+        : tr('Le premier arrivé règle la mission.', 'First in sets the mission.')
+    card.append(el('span', 'salvage-lobby-detail', detail))
+    if (own) card.append(el('span', 'salvage-lobby-own', tr('Votre lobby', 'Your lobby')))
+    else if (!playing) {
+      const full = t.members.length >= RULES.team
+      const join = button(full ? tr('Complet', 'Full') : mine ? tr('Changer pour ce lobby', 'Switch to this lobby') : tr('Se placer ici', 'Join this lobby'), () => this.actions.join(t.id), mine || full ? '' : 'salvage-primary', 'user-plus')
+      join.dataset.key = `join-${t.id}`
+      join.disabled = full || mine?.status === 'playing'
+      card.append(join)
+    }
+    return card
   }
 
   private teamCard(t: SalvageTeam): HTMLElement {
     const card = el('div', 'salvage-team')
     const leader = t.leader === this.self
-    const members = el('ul', 'salvage-members')
-    for (const m of t.members) {
-      const li = el('li', m.ready ? 'ready' : '')
-      if (m.id === t.leader) li.append(icon('crown', 'salvage-crown'))
-      li.append(el('span', 'salvage-name', m.name + (m.id === this.self ? tr(' (vous)', ' (you)') : '')))
-      li.append(el('span', 'salvage-ready', m.ready ? tr('Prêt', 'Ready') : tr('En attente', 'Waiting')))
-      members.append(li)
-    }
-    for (let i = t.members.length; i < RULES.team; i++) members.append(el('li', 'free', tr('Place libre', 'Open slot')))
-    card.append(members)
+    card.append(el('strong', 'salvage-team-title', tr(`Lobby ${t.id} · votre mission`, `Lobby ${t.id} · your mission`)))
 
     // Réglages : le chef choisit ; les autres les voient.
     const settings = el('div', 'salvage-settings')
@@ -230,14 +237,14 @@ export class LobbyPanel extends Modal {
       el('span', 'salvage-daily', tr(`${ECONOMY.salvage.daily} missions payées par jour`, `${ECONOMY.salvage.daily} paid missions a day`)),
     )
     card.append(summary)
-    if (!leader) card.append(el('p', 'salvage-note', tr('Le chef d\'équipe règle la mission ; un changement remet tout le monde en attente.', 'The crew leader sets the mission; any change puts everyone back on standby.')))
+    if (!leader) card.append(el('p', 'salvage-note', tr('Le chef du lobby (le premier arrivé) règle la mission ; un changement remet tout le monde en attente.', 'The lobby leader (first in) sets the mission; any change puts everyone back on standby.')))
 
     const actions = el('div', 'salvage-actions')
     const me = t.members.find((m) => m.id === this.self)
     if (t.status === 'countdown') actions.append(el('strong', 'salvage-countdown', tr(`Départ dans ${Math.ceil(t.startsIn ?? 0)} s…`, `Leaving in ${Math.ceil(t.startsIn ?? 0)} s…`)))
     const ready = button(me?.ready ? tr('Finalement, pas prêt', 'Not ready after all') : tr('Je suis prêt', 'I\'m ready'), () => this.actions.ready(!me?.ready), me?.ready ? '' : 'salvage-primary', me?.ready ? 'x' : 'check')
     ready.dataset.key = 'ready'
-    const leave = button(tr('Quitter l\'équipe', 'Leave the crew'), () => this.actions.leave(), 'salvage-quiet', 'sign-out')
+    const leave = button(tr('Quitter le lobby', 'Leave the lobby'), () => this.actions.leave(), 'salvage-quiet', 'sign-out')
     leave.dataset.key = 'leave'
     actions.append(ready, leave)
     card.append(actions)

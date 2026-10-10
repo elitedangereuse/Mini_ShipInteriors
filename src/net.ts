@@ -148,10 +148,10 @@ export interface FightState {
   snapshot: FightSnapshot | null
 }
 
-/** Zone thargoïde (cf. server/salvage.js) : une équipe du lobby, ou en mission. */
+/** Zone thargoïde (cf. server/salvage.js) : un des lobbys du sas (son numéro), vide, en formation ou en mission. */
 export interface SalvageTeam {
   id: number
-  leader: number
+  leader: number | null
   parcels: number
   enemies: number
   status: 'forming' | 'countdown' | 'playing'
@@ -226,7 +226,7 @@ export interface SalvageEnd {
   late?: boolean
 }
 export interface SalvageMemberStats { id: number; name: string; delivered: number; spotted: number; flares: number; hides: number; captured: number }
-export type SalvageAction = 'create' | 'join' | 'leave' | 'settings' | 'ready' | 'pickup' | 'hide' | 'unhide' | 'flare' | 'quit' | 'resume'
+export type SalvageAction = 'join' | 'leave' | 'settings' | 'ready' | 'pickup' | 'hide' | 'unhide' | 'flare' | 'quit' | 'resume'
 
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */

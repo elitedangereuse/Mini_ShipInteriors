@@ -36,6 +36,8 @@ export const LOBBY_RETURN = { x: 24, z: 0.9 }
  * - la ruche : à chaque colis livré, les ennemis s'agitent un peu plus (jusqu'à `hive` au dernier).
  */
 export const RULES = {
+  /** Lobbys du sas : autant d'équipes qui peuvent se former (et partir) en même temps. */
+  lobbies: 4,
   team: 4,
   parcels: { min: 1, max: 6 },
   enemies: { min: 1, max: 6 },
