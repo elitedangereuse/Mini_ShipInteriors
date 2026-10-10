@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import type { ShipMap } from './map'
 import type { Eye } from './visibility'
 
 /** Regard vers le haut ou vers le bas, au plus (radians) : presque à la verticale. */
@@ -31,6 +32,20 @@ const THIRD_DISTANCE = 1.7
 const THIRD_ELEVATION = THREE.MathUtils.degToRad(22)
 const THIRD_MIN_ELEVATION = THREE.MathUtils.degToRad(-10)
 const THIRD_MAX_ELEVATION = THREE.MathUtils.degToRad(70)
+/**
+ * Vue par-dessus l'épaule : la caméra recule de SHOULDER_DISTANCE le long du regard, décalée de
+ * SHOULDER_SIDE vers la droite, autour d'un point un peu au-dessus de la tête (les têtes sont
+ * grosses : plus bas, elle boucherait la mire). Elle regarde droit devant, comme dans les yeux :
+ * la mire reste au centre.
+ */
+const SHOULDER_DISTANCE = 1.6
+const SHOULDER_SIDE = 0.45
+const SHOULDER_ABOVE_HEAD = 0.12
+/** La caméra ne descend pas plus bas sous la tête (regard vers le haut) : elle resterait dans le sol. */
+const SHOULDER_MAX_DROP = 0.55
+/** Écart gardé devant un mur, et distance sous laquelle le personnage boucherait la vue. */
+const WALL_MARGIN = 0.2
+const SHOULDER_HIDE_WITHIN = 0.5
 /** Écart minimal entre la caméra et le plafond. */
 const CEILING_MARGIN = 0.1
 /** En dessous de ce mélange, la caméra est dans la tête : le personnage est masqué. */
@@ -45,6 +60,33 @@ const _look = new THREE.Vector3()
 const _third = new THREE.Vector3()
 const _pivot = new THREE.Vector3()
 const _gaze = new THREE.Vector3()
+const _shoulder = new THREE.Vector3()
+const _from = new THREE.Vector3()
+
+const DIR_OF = (dx: number, dz: number) => (dz < 0 ? 0 : dx > 0 ? 1 : dz > 0 ? 2 : 3)
+const crosses = (map: ShipMap, x: number, z: number, dx: number, dz: number) => map.edge(x, z, DIR_OF(dx, dz)) !== 'wall'
+
+/**
+ * Part du segment a → b (au sol) que l'on parcourt avant de buter sur un mur du pont : 1 si rien
+ * ne l'arrête. Les portes laissent passer : celle que l'on vient de franchir est encore ouverte.
+ */
+export function wallReach(map: ShipMap, ax: number, az: number, bx: number, bz: number): number {
+  const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 0.05))
+  let tx = Math.round(ax), tz = Math.round(az)
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps
+    const nx = Math.round(ax + (bx - ax) * t), nz = Math.round(az + (bz - az) * t)
+    const dx = nx - tx, dz = nz - tz
+    if (!dx && !dz) continue
+    const free = dx && dz
+      ? (crosses(map, tx, tz, dx, 0) && crosses(map, nx, tz, 0, dz)) || (crosses(map, tx, tz, 0, dz) && crosses(map, tx, nz, dx, 0))
+      : crosses(map, tx, tz, dx, dz)
+    if (!free) return (i - 1) / steps
+    tx = nx
+    tz = nz
+  }
+  return 1
+}
 
 /**
  * Vue subjective : caméra en perspective, dans les yeux du personnage. Quand il est occupé
@@ -60,8 +102,16 @@ export class FirstPersonCamera {
   pitch = 0
   /** Voulue à la troisième personne (le personnage est occupé). */
   thirdPerson = false
+  /** Voulue par-dessus l'épaule plutôt que dans les yeux. */
+  shoulder = false
   /** 0 : dans les yeux, 1 : derrière le personnage. */
   private blend = 0
+  /** 0 : dans les yeux, 1 : par-dessus l'épaule. */
+  private over = 0
+  /** Part du recul de l'épaule que les murs laissent à la caméra. */
+  private room = 1
+  /** Distance de la caméra d'épaule au personnage, murs compris. */
+  private back = 0
   private readonly position = new THREE.Vector3()
   /**
    * Sensations de marche (balancement léger, champ qui s'ouvre en courant). À couper quand autre
@@ -97,6 +147,8 @@ export class FirstPersonCamera {
   /** Place la caméra d'un coup (entrée dans la vue, changement de pont). */
   snap() {
     this.blend = this.thirdPerson ? 1 : 0
+    this.over = this.shoulder ? 1 : 0
+    this.room = 1
   }
 
   /** Tourne le regard (radians). */
@@ -107,7 +159,7 @@ export class FirstPersonCamera {
 
   /** La caméra est-elle assez loin de la tête pour montrer le personnage ? */
   get showsBody(): boolean {
-    return this.blend > HIDE_BODY_BELOW
+    return this.blend > HIDE_BODY_BELOW || (this.over > HIDE_BODY_BELOW && this.back > SHOULDER_HIDE_WITHIN)
   }
 
   get angle(): number {
@@ -138,7 +190,7 @@ export class FirstPersonCamera {
     eye.half = half
     around.x = head.x
     around.z = head.z
-    return this.blend > 0 ? this.sight : this.inHead
+    return this.blend > 0 || this.over > 0 ? this.sight : this.inHead
   }
 
   /** Direction horizontale (normalisée) du personnage vers la caméra. */
@@ -155,20 +207,40 @@ export class FirstPersonCamera {
   /**
    * @param head dessus de la tête du personnage (Avatar.head)
    * @param ceiling hauteur (monde) du plafond : la caméra reste dessous, même derrière le personnage
+   * @param map le pont : par-dessus l'épaule, la caméra s'arrête devant ses murs
    */
-  update(dt: number, head: THREE.Vector3, ceiling = Infinity) {
+  update(dt: number, head: THREE.Vector3, ceiling = Infinity, map: ShipMap | null = null) {
     this.blend = THREE.MathUtils.damp(this.blend, this.thirdPerson ? 1 : 0, 5, dt)
     if (Math.abs(this.blend - (this.thirdPerson ? 1 : 0)) < 1e-3) this.blend = this.thirdPerson ? 1 : 0
+    this.over = THREE.MathUtils.damp(this.over, this.shoulder ? 1 : 0, 6, dt)
+    if (Math.abs(this.over - (this.shoulder ? 1 : 0)) < 1e-3) this.over = this.shoulder ? 1 : 0
     const k = smooth(this.blend)
+    const ks = smooth(this.over)
     const s = Math.sin(this.yaw), c = Math.cos(this.yaw)
     const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch)
 
     // Dans les yeux : on regarde devant soi, vers (-sin yaw, -cos yaw), relevé de `pitch`.
     const top = ceiling - CEILING_MARGIN
-    this.feel(dt, head, 1 - k)
+    this.feel(dt, head, (1 - k) * (1 - ks))
     // Le balancement déplace l'œil sans le tourner : la mire reste sur ce qu'elle vise.
     const sway = Math.sin(this.stride) * this.bob * 0.5
     _eye.set(head.x + c * sway, Math.min(head.y - EYE_BELOW_HEAD - Math.abs(Math.sin(this.stride)) * this.bob, top), head.z - s * sway)
+    if (ks > 0) {
+      // Par-dessus l'épaule : en recul le long du regard, depuis l'axe du personnage, sans traverser de mur.
+      _from.set(head.x, head.y + SHOULDER_ABOVE_HEAD, head.z)
+      _shoulder.set(
+        _from.x + c * SHOULDER_SIDE + s * cp * SHOULDER_DISTANCE,
+        THREE.MathUtils.clamp(_from.y - sp * SHOULDER_DISTANCE, head.y - SHOULDER_MAX_DROP, top),
+        _from.z - s * SHOULDER_SIDE + c * cp * SHOULDER_DISTANCE,
+      )
+      const reach = Math.hypot(_shoulder.x - _from.x, _shoulder.z - _from.z)
+      const free = map && reach > 1e-3 ? THREE.MathUtils.clamp((wallReach(map, _from.x, _from.z, _shoulder.x, _shoulder.z) * reach - WALL_MARGIN) / reach, 0, 1) : 1
+      // Devant un mur, la caméra avance d'un coup ; elle reprend son recul en douceur.
+      this.room = free < this.room ? free : THREE.MathUtils.damp(this.room, free, 6, dt)
+      _shoulder.lerpVectors(_from, _shoulder, this.room)
+      this.back = _shoulder.distanceTo(_from)
+      _eye.lerp(_shoulder, ks)
+    } else this.back = 0
     const eyeLook = _look.set(_eye.x - s * cp, _eye.y + sp, _eye.z - c * cp)
 
     // Derrière le personnage : en orbite autour de sa poitrine, le regard vers lui.

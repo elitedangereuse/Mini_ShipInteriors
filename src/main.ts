@@ -216,7 +216,9 @@ if (zoomParam) iso.zoomBy(zoomParam / 4.5)
 // Vue subjective (bouton à côté du mode léger) : la vue isométrique reprend la main là où il faut
 // voir la scène de haut (aménagement, photo, pince, bar, cinéma), cf. `isoOnly`.
 const fps = new FirstPersonCamera(innerWidth / innerHeight)
-let fpsWanted = store.get('mini-shipinteriors-fps') === 'true'
+/** Vue subjective choisie : dans les yeux (`true`) ou par-dessus l'épaule (`shoulder`). */
+let shoulderWanted = store.get('mini-shipinteriors-fps') === 'shoulder'
+let fpsWanted = shoulderWanted || store.get('mini-shipinteriors-fps') === 'true'
 /** Vue subjective affichée à l'image courante. */
 let fpsShown = false
 /** Vue qui convertit les directions de l'écran en directions au sol, et caméra du rendu. */
@@ -4065,12 +4067,19 @@ updateLightMode()
 function updateFpsButton() {
   const button = $('fps-view')
   button.setAttribute('aria-pressed', String(fpsWanted))
-  button.title = tr(fpsWanted ? 'Vue subjective active · revenir à la vue isométrique (V)' : 'Vue subjective (V)', fpsWanted ? 'First-person view on · back to isometric view (V)' : 'First-person view (V)')
+  button.title = shoulderWanted
+    ? tr('Vue par-dessus l’épaule active · revenir à la vue isométrique (V)', 'Over-the-shoulder view on · back to isometric view (V)')
+    : fpsWanted
+      ? tr('Vue subjective active · passer par-dessus l’épaule (V)', 'First-person view on · switch to over-the-shoulder (V)')
+      : tr('Vue subjective (V)', 'First-person view (V)')
   button.setAttribute('aria-label', button.title)
 }
+/** D'une vue à la suivante : isométrique, dans les yeux, par-dessus l'épaule. */
 function toggleFps() {
-  fpsWanted = !fpsWanted
-  store.set('mini-shipinteriors-fps', String(fpsWanted))
+  if (!fpsWanted) fpsWanted = true
+  else if (!shoulderWanted) shoulderWanted = true
+  else fpsWanted = shoulderWanted = false
+  store.set('mini-shipinteriors-fps', shoulderWanted ? 'shoulder' : String(fpsWanted))
   updateFpsButton()
   // Le clic ou la touche qui active la vue suffit à capturer le curseur (sinon, au premier pas).
   relock = fpsWanted
@@ -5727,6 +5736,7 @@ function frame() {
     if (fpsShown) {
       fps.align(iso.angle)
       fps.thirdPerson = busyBody()
+      fps.shoulder = shoulderWanted && !range.active
       fps.snap()
       hover.visible = false
     }
@@ -5741,8 +5751,12 @@ function frame() {
       fps.yaw = fishing.viewYaw
       fps.pitch = fishing.viewPitch
     }
+    // Au stand de tir, on vise dans les yeux.
+    fps.shoulder = shoulderWanted && !range.active
+    // Par-dessus l'épaule, le personnage à l'arrêt regarde où l'on vise : on le voit de dos.
+    if (fps.shoulder && !fps.thirdPerson && !player.moving && input.lengthSq() === 0) player.setHeading(fps.yaw + Math.PI)
     fps.motion = !range.active && !court.active
-    fps.update(dt, player.avatar.head(fpsHead), deck.y + deck.ceilingY)
+    fps.update(dt, player.avatar.head(fpsHead), deck.y + deck.ceilingY, deck.map)
     fps.toCamera(toCam)
   } else iso.toCamera(toCam)
   player.avatar.root.visible = !fpsShown || fps.showsBody
