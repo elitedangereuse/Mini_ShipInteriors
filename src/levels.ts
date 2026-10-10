@@ -1191,7 +1191,11 @@ export const LEVELS: LevelDef[] = [
       v: tr('Une porte de service, sans plaque ni poignée. Derrière, quelque chose bourdonne. Elle ne s’ouvre pas.', 'A service door, with no plate and no handle. Behind it, something hums. It does not open.'),
     },
     // La Promenade baisse ses dalles : ce sont ses projecteurs et ses colonnes qui l'éclairent.
-    areas: [{ name: tr('Promenade', 'Promenade deck'), minX: 26, maxX: 30, minZ: 0, maxZ: 9, lighting: { level: 0.35, color: '#c4d6ff' } }],
+    // Derrière le comptoir du mess, la cuisine de Marcel : blanche et crue, quand la salle est chaude.
+    areas: [
+      { name: tr('Promenade', 'Promenade deck'), minX: 26, maxX: 30, minZ: 0, maxZ: 9, lighting: { level: 0.35, color: '#c4d6ff' } },
+      { name: tr('Cuisine du mess', 'Mess kitchen'), minX: 9, maxX: 15, minZ: 11, maxZ: 12, lighting: { level: 1.15, color: '#f2f8ff' } },
+    ],
     // L'étage de la salle commune (cf. MEZZANINES).
     mezzanine: tr('Mezzanine de la salle commune', 'Common room mezzanine'),
     floors: { c: 'floor-panel', b: 'floor-detail', l: 'floor-panel', v: 'floor-detail' },
@@ -1210,7 +1214,7 @@ export const LEVELS: LevelDef[] = [
       c: { level: 0.6, spacing: 3 },
       q: { level: 1.35, color: '#eef8ff' },
       r: { level: 1.15 },
-      m: { level: 1, color: '#ffe9cf' },
+      m: { level: 0.75, color: '#ffe0bd' },
       s: { level: 0.3, color: '#b9a8ff', spacing: 3 },
       // La salle de la Pixel War est un atelier blanc : c'est la toile qui la colore.
       x: { level: 0.6 },
@@ -1552,7 +1556,6 @@ export const LEVELS: LevelDef[] = [
         model: 'order-rail', x: 11.5, z: 10, y: 0.46, rot: 2, solid: false, action: tr('Prendre une commande', 'Take an order'),
         interact: tr('Le rail des bons de commande, à la passe du chef.', 'The order ticket rail, at the chef\'s pass.'),
       },
-      { model: 'rug', x: 12, z: 11.33, label: 'bath:6.6x2', solid: false },
       {
         model: 'kitchen-fridge', x: 9.15, z: 12.075, rot: 2,
         interact: [
@@ -1586,6 +1589,48 @@ export const LEVELS: LevelDef[] = [
           tr('Clonk ! Une barre protéinée « goût Achenar » tombe dans le bac. Personne ne sait quel goût a Achenar.', 'Clonk! An “Achenar flavour” protein bar drops into the tray. Nobody knows what Achenar tastes like.'),
           tr('La machine avale vos crédits et réfléchit longuement. Puis elle vous rend une canette de Lavian Cola.', 'The machine swallows your credits and thinks it over. Then it hands you a can of Lavian Cola.'),
         ],
+      },
+      // L'habillage (cf. src/furniture/mess-decor.ts), où rien n'arrête le pas : le sol dessiné d'un
+      // seul tenant (damier de la salle, couloir du self, carrelage de la cuisine), une suspension
+      // au-dessus de chaque place, les enseignes des postes du self, le soubassement émaillé des
+      // murs de la salle ; à l'est la fresque, à l'ouest le néon et le mur d'aromates de part et
+      // d'autre du menu, au nord le tableau de liège et l'horloge ; en cuisine, la batterie de
+      // cuivres au-dessus du plan de travail et le tour de plonge.
+      { model: 'mess-floor', x: 12, z: 9, label: '7x7|12|9', solid: false },
+      ...[10.2, 13.8].flatMap((x) => [-0.62, 0, 0.62].map((dx): Prop => ({ model: 'mess-pendant', x: x + dx, z: 7.45, solid: false }))),
+      { model: 'mess-signs', x: 11.25, z: 10, rot: 2, solid: false },
+      { model: 'mess-dado', x: 10.535, z: 5.65, label: '3.77', solid: false },
+      { model: 'mess-dado', x: 14.465, z: 5.65, label: '1.77', solid: false },
+      { model: 'mess-dado', x: 8.65, z: 7.675, rot: 1, label: '4.05', solid: false },
+      { model: 'mess-dado', x: 15.35, z: 7.675, rot: 3, label: '4.05', solid: false },
+      {
+        model: 'mess-mural', x: 15.35, z: 7.75, rot: 3, solid: false,
+        interact: [
+          tr('La fresque de l\'intendance : un soir de récolte, un cargo qui remonte vers l\'orbite. « Bien manger, c\'est déjà bien voler. »', 'The quartermaster\'s mural: a harvest evening, a freighter climbing to orbit. “Eating well is half the flight.”'),
+          tr('Dans un coin de la fresque, quelqu\'un a ajouté au feutre, tout petit : « Et le dessert ? »', 'In a corner of the mural, someone has added in marker, very small: “What about dessert?”'),
+        ],
+      },
+      { model: 'mess-neon', x: 8.65, z: 6.2, rot: 1, solid: false },
+      {
+        model: 'mess-herbs', x: 8.65, z: 8.8, rot: 1, solid: false, action: tr('Sentir les aromates', 'Smell the herbs'),
+        interact: [
+          tr('Basilic, persil, ciboulette : la serre de Capucine, en petit. Marcel sait exactement combien il y a de feuilles.', 'Basil, parsley, chives: Capucine\'s greenhouse in miniature. Marcel knows exactly how many leaves there are.'),
+          tr('Un basilic pourpre, venu d\'on ne sait quel monde. Il sent la réglisse. Il vous regarde peut-être.', 'A purple basil from some world or other. It smells of liquorice. It may be looking at you.'),
+        ],
+      },
+      {
+        model: 'mess-board', x: 10.3, z: 5.65, solid: false,
+        interact: [
+          tr('« PERDU : une spatule. Signe distinctif : c\'est la mienne. Marcel. »', '“LOST: one spatula. Distinguishing feature: it\'s mine. Marcel.”'),
+          tr('« Qui a mangé la ration du sergent ? L\'enquête continue. » Dessous, au crayon : « Elle était bonne. »', '“Who ate the sergeant\'s ration? The investigation continues.” Beneath it, in pencil: “It was good.”'),
+          tr('Un polaroïd punaisé : l\'équipage devant un Cobra, tout le monde sourit. Marcel tient une louche.', 'A pinned polaroid: the crew in front of a Cobra, everyone smiling. Marcel is holding a ladle.'),
+        ],
+      },
+      { model: 'mess-clock', x: 13.97, z: 5.65, solid: false },
+      { model: 'pot-rack', x: 10.35, z: 12, solid: false },
+      {
+        model: 'kitchen-rota', x: 8.65, z: 11, rot: 1, solid: false,
+        interact: tr('Le tour de plonge. Jeudi : Jacques, rayé. « Il rouille. » C\'est donc Marcel. C\'est toujours Marcel.', 'The dish duty rota. Thursday: Jacques, crossed out. “He rusts.” So it\'s Marcel. It\'s always Marcel.'),
       },
 
       // --- Grande salle d'arcade, façon années 90 : pénombre, moquette fluo d'un mur à l'autre, tubes
@@ -1860,10 +1905,12 @@ export const LEVELS: LevelDef[] = [
       // La salle de sport : une lumière blanche de salle, et le rouge de la boxe.
       [18.2, 1.3, '#f2f6ff', 2.8],
       [16.3, 1.4, '#ff8a7a', 1],
-      // Le mess : la salle, les lampes chauffantes de la passe, la cuisine.
-      [12, 7.5, '#ffe2b0', 3],
+      // Le mess : une tache chaude sous les suspensions de chaque table, les lampes chauffantes de
+      // la passe, et la lumière blanche de la cuisine.
+      [10.2, 7.45, '#ffb869', 2, undefined, 4.5],
+      [13.8, 7.45, '#ffb869', 2, undefined, 4.5],
       [11.5, 9.9, '#ff9a4a', 1.4],
-      [11.8, 11.4, '#fff4e0', 2.8],
+      [11.8, 11.4, '#eef5ff', 2.8],
       // Le salon d'arcade : pas d'éclairage général, rien que du néon. Le jaune du comptoir à lots,
       // le rose et le cyan de l'allée des bornes, la lumière noire du coin salon.
       [16.5, 6.8, '#ffd36b', 1.6],

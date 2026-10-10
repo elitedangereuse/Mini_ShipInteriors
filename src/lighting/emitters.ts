@@ -58,6 +58,12 @@ const SHIP: Record<string, FurnitureLight> = {
   'containment-pod': TANK,
   'hydro-rack': { color: '#ffb3e6', intensity: 0.7, at: [0, 0.8, 0], priority: 6, soft: true },
   'med-fridge': { color: '#d6f4ff', intensity: 0.4, at: [0, 0.7, 0.3], priority: 6, soft: true },
+  // Le mess : les suspensions des tables (leur lampe est celle du pont, cf. levels.ts), le néon,
+  // la fresque rétroéclairée, la rampe de culture des aromates.
+  'mess-pendant': { color: '#ffc98a', intensity: 0.5, at: [0, 1.1, 0], priority: 6, soft: true, halo: 0.3 },
+  'mess-neon': { color: '#ffb45e', intensity: 0.7, at: [0, 0.68, 0.3], priority: 6, soft: true },
+  'mess-mural': { color: '#ffc890', intensity: 0.6, at: [0, 0.7, 0.4], priority: 6, soft: true },
+  'mess-herbs': { color: '#ffc6f0', intensity: 0.45, at: [0, 0.8, 0.3], priority: 6, soft: true },
 }
 
 type Entry = (typeof CATALOG)[number]

@@ -4,6 +4,7 @@ import { ARCADE_DECOR } from './arcade-decor'
 import { PIXELWAR } from './pixelwar'
 import { CARDS } from './cards'
 import { MEDBAY } from './medbay'
+import { MESS_DECOR } from './mess-decor'
 import { HOLD_DECOR } from './hold-decor'
 import { CLOSET } from './closet'
 import { ARMORY } from './armory'
@@ -74,6 +75,7 @@ import { WAYFINDING } from './wayfinding'
  * - medical.ts : l'infirmerie agrandie de Betty (rideaux de box, perfusions, poste de soins, négatoscope…) ;
  * - medbay.ts : l'habillage de l'infirmerie (sol à lignes de couleur, potences des lits et leurs constantes en hologramme, croix de pharmacie, scialytique, filets lumineux) ;
  * - kitchen.ts : le mess, un self (tables de cantine, comptoir, cuisine de Marcel, décor des tâches de cuisine) ;
+ * - mess-decor.ts : l'habillage du mess (sol dessiné, suspensions des tables, enseignes du self, soubassement, fresque, néon, mur d'aromates, horloge, batterie de cuivres) ;
  * - arcade.ts : bornes d'arcade, borne cocktail, flippers, borne de course, pince à peluches ;
  * - arcade-decor.ts : le décor du salon d'arcade (moquette fluo, tubes de néon, fresques, comptoir à lots, monnayeur, boules de gomme) ;
  * - pixelwar.ts : la salle de la Pixel War (toile du site en direct, postes de jeu, nuancier, sol quadrillé, traînée de pixels) ;
@@ -115,7 +117,7 @@ import { WAYFINDING } from './wayfinding'
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...COCKPIT, ...PROMENADE, ...CORRIDOR, ...CONCOURSE, ...WORKSHOP, ...BAR, ...CLUB, ...LEISURE, ...GYM, ...MEDICAL, ...KITCHEN, ...ARCADE, ...ARCADE_DECOR, ...PIXELWAR, ...CARDS, ...MEDBAY, ...HOLD_DECOR, ...CLOSET, ...BOARD, ...COZY, ...GARDEN, ...GARDENING, ...NATURE, ...OUTDOOR, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...CLASSROOM, ...LISTENING, ...STUDIO, ...LJPC, ...PLANETARIUM, ...VENTS, ...VOIE, ...SALVAGE, ...SCAVENGERS, ...IDOT, ...HANGAR, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH, ...SPORT, ...RANGE, ...FISHING, ...TUTORIAL, ...QUESTS_FURNITURE, ...QUEST_REWARDS, ...SECURITY, ...WAYFINDING } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...COCKPIT, ...PROMENADE, ...CORRIDOR, ...CONCOURSE, ...WORKSHOP, ...BAR, ...CLUB, ...LEISURE, ...GYM, ...MEDICAL, ...KITCHEN, ...MESS_DECOR, ...ARCADE, ...ARCADE_DECOR, ...PIXELWAR, ...CARDS, ...MEDBAY, ...HOLD_DECOR, ...CLOSET, ...BOARD, ...COZY, ...GARDEN, ...GARDENING, ...NATURE, ...OUTDOOR, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...CLASSROOM, ...LISTENING, ...STUDIO, ...LJPC, ...PLANETARIUM, ...VENTS, ...VOIE, ...SALVAGE, ...SCAVENGERS, ...IDOT, ...HANGAR, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH, ...SPORT, ...RANGE, ...FISHING, ...TUTORIAL, ...QUESTS_FURNITURE, ...QUEST_REWARDS, ...SECURITY, ...WAYFINDING } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 
