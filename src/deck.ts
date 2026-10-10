@@ -872,6 +872,16 @@ export class Deck {
   }
 
   /**
+   * La pièce de ce point est-elle dessinée (cf. `cull`) ? Vrai hors de toute pièce, et sur un pont
+   * que l'on ne trie pas : sert à cacher les personnages des pièces que l'on ne voit pas.
+   */
+  sees(x: number, z: number): boolean {
+    if (!this.sight || !this.shown.length) return true
+    const room = this.sight.roomIndex(this.map.room(Math.round(x), Math.round(z)))
+    return !room || !!this.shown[room]
+  }
+
+  /**
    * Vue subjective : ne dessine que les pièces que voient ces yeux (cf. visibility.ts), le reste
    * du pont étant derrière des murs. `eyes` nul (vue isométrique, pont filmé) : tout le pont.
    */
@@ -886,6 +896,12 @@ export class Deck {
     let all = !eyes
     seen.fill(0)
     if (eyes) {
+      // Une porte fermée ne laisse voir sa pièce que de près ; le second battant d'une porte double suit le premier.
+      for (const d of this.doors) {
+        const open = d.open > 0.02
+        sight.setDoor(d.x, d.z, d.dir, open)
+        if (d.pair) sight.setDoor(d.x + Math.abs(d.axis.x), d.z + Math.abs(d.axis.z), d.dir, open)
+      }
       // Un mur tramé parce qu'il cache le personnage laisse voir la pièce d'à côté.
       for (const e of this.edgeOccluders) if (e.occluder.value < 1) sight.pierce(e.x, e.z, e.dir)
       // Un œil hors de toute pièce (la caméra passée dans un mur) : on ne sait pas ce qu'il voit.

@@ -188,6 +188,11 @@ const SPRINT_NOMINAL = 3.4
  * Sert au joueur local comme aux autres joueurs connectés.
  */
 export class Avatar {
+  /**
+   * Personnages animés à cette image : la vue subjective cache ceux des pièces qu'elle ne dessine
+   * pas (cf. `occluded`, et frame dans main.ts, qui vide la liste).
+   */
+  static readonly live = new Set<Avatar>()
   /** À déplacer / orienter. */
   readonly root = new THREE.Group()
   /** Modèle, décalé localement pour certaines poses (assis, sauts). */
@@ -375,7 +380,13 @@ export class Avatar {
     this.current = next
   }
 
+  /** Derrière un mur (vue subjective) : le modèle n'est plus dessiné. `root.visible` reste à qui tient le personnage. */
+  set occluded(hidden: boolean) {
+    this.model.visible = !hidden
+  }
+
   update(dt: number) {
+    Avatar.live.add(this)
     let hop = 0
     let sway = 0
     let sink = 0

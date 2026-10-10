@@ -196,7 +196,10 @@ const coarsePointer = matchMedia('(pointer: coarse)').matches
 const MAX_DPR = Math.min(devicePixelRatio, coarsePointer ? 1.5 : 2)
 renderQuality.light = store.get('mini-shipinteriors-light') === 'true'
 let dpr = Math.min(MAX_DPR, coarsePointer ? 1.25 : 1.5)
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' })
+// Sur un écran dense (Retina), pas d'anticrénelage multi-échantillon : à cette finesse il ne se voit
+// presque plus, et il coûtait près de 40 % du temps d'image (mesuré en vue subjective, densité 2).
+// La résolution adaptative garde alors plus souvent la pleine densité. Il se choisit à la création.
+const renderer = new THREE.WebGLRenderer({ antialias: coarsePointer || devicePixelRatio < 2, alpha: true, powerPreference: 'high-performance' })
 renderer.setPixelRatio(renderQuality.light ? Math.min(MAX_DPR, 0.75) : dpr)
 renderer.setSize(innerWidth, innerHeight)
 renderer.setClearColor(0x000000, 0) // fond : dégradé CSS
@@ -4378,12 +4381,29 @@ const screenCenter = () => ({ clientX: innerWidth / 2, clientY: innerHeight / 2 
 let lockRefusals = 0
 /** Instant de la dernière capture : les premiers mouvements rapportés sont parfois un saut. */
 let lockedAt = 0
+/**
+ * Mouvement brut de la souris (sans l'accélération du système), comme dans un jeu de tir : un
+ * même geste tourne toujours du même angle, lent ou vif. Là où le navigateur ne sait pas faire,
+ * la capture ordinaire.
+ */
 function lockCursor() {
   const refused = () => lockRefusals++
-  // Capture ordinaire, sans le mouvement brut (`unadjustedMovement`) : avec lui, la vue sursautait
-  // toute seule, et tournait bien plus vite tant qu'un bouton de la souris restait enfoncé.
+  const request = (raw: boolean) =>
+    (canvas.requestPointerLock as (options?: { unadjustedMovement: boolean }) => Promise<void> | undefined).call(canvas, raw ? { unadjustedMovement: true } : undefined)
   try {
-    ;(canvas.requestPointerLock() as unknown as Promise<void> | undefined)?.catch?.(refused)
+    const asked = request(true)
+    if (!asked?.then) return
+    asked.then(
+      undefined,
+      (e: DOMException) => {
+        if (e?.name !== 'NotSupportedError') return refused()
+        try {
+          request(false)?.catch?.(refused)
+        } catch {
+          refused()
+        }
+      },
+    )
   } catch {
     refused()
   }
@@ -4412,6 +4432,7 @@ document.addEventListener('mousemove', (e) => {
   if (performance.now() - lockedAt < 120) return
   // Un coup énorme sorti de nulle part est un sursaut du navigateur ; un geste vif, lui, monte
   // sur plusieurs mouvements et doit passer entier (le filtrer figeait la vue en plein demi-tour).
+  // En mouvement brut aussi : un geste réel n'est jamais retenu par ce filtre.
   const size = Math.max(Math.abs(e.movementX), Math.abs(e.movementY))
   const jump = size > 300 && size > lastLook * 6
   lastLook = size
@@ -5958,6 +5979,9 @@ function frame() {
   // Vue subjective : le pont ne dessine que les pièces que voit la caméra (cf. src/visibility.ts),
   // et le soleil n'y porte ses ombres que sur elles.
   for (const d of decks) d.cull(fpsShown && d === viewDeck && culling.on ? fps.eyes(fpsHead) : null)
+  // Les personnages suivent leur pièce : derrière un mur, ils coûtaient chacun des dizaines d'appels de dessin.
+  for (const a of Avatar.live) a.occluded = fpsShown && a !== player.avatar && !viewDeck.sees(a.root.getWorldPosition(_seen).x, _seen.z)
+  Avatar.live.clear()
   fitShadow()
   // Dans la baie (ou par les caméras), tout passe par le brouillard de guerre (cf. salvage/fog.ts).
   // Dans les conduits de ventilation aussi (cf. vents.ts).
@@ -5976,7 +6000,7 @@ function frame() {
   perfFrames++
   if (perfTime > 2 && !renderQuality.light) {
     const avg = perfTime / perfFrames
-    if (avg > 1 / 50 && dpr > 1) {
+    if (avg > 1 / 55 && dpr > 1) {
       dprCeiling = dpr - 0.25
       dpr = Math.max(1, dpr - 0.25)
       renderer.setPixelRatio(dpr)

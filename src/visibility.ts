@@ -8,8 +8,9 @@ import type { ShipMap } from './map'
  * Le calcul se fait sur le plan (cf. shared/ship-map.js) : des rayons partent de l'œil, dans le
  * champ de la caméra, et avancent de tuile en tuile jusqu'au premier mur plein. Une pièce se voit
  * dès qu'un rayon y entre. Tout penche du côté prudent, et l'on dessine en trop plutôt qu'en
- * moins : une porte, même fermée ou verrouillée, laisse passer le regard sur toute sa tuile (ses
- * battants ont des hublots).
+ * moins : une porte ouverte laisse passer le regard sur toute sa tuile. Fermée ou verrouillée, elle
+ * ne le laisse passer que de près (ses battants ont des hublots, cf. PORTHOLE) : de la coursive, on
+ * ne dessine plus toutes les pièces du pont derrière leurs portes closes.
  *
  * La géométrie immobile du pont est fusionnée (cf. merge.ts) : chaque objet y est rangé dans une
  * « cellule », l'ensemble des pièces que touche son encombrement au sol. Un mur mitoyen est dans la
@@ -33,8 +34,16 @@ const REACH = 0.1
 const SPAN = 8
 const MANY = 6
 
+/**
+ * Distance (tuiles, le long du regard) jusqu'où l'on dessine la pièce derrière une porte fermée,
+ * aperçue par son hublot. Au-delà, le hublot ne fait plus que quelques pixels : il donne sur du noir.
+ */
+const PORTHOLE = 4
+
 const CLEAR = 0
 const SOLID = 1
+/** Porte fermée : on ne voit au travers que de près (cf. PORTHOLE). */
+const DOOR = 2
 
 /** Un œil : sa position sur le plan, l'azimut de son regard (atan2(x, z) de sa direction) et le demi-angle de son champ (π : tout autour). */
 export interface Eye {
@@ -60,7 +69,7 @@ export class RoomSight {
   /** Pièces de chaque cellule ; la cellule 0 n'en a pas : elle est toujours dessinée. */
   private readonly cells: number[][] = [[]]
   private readonly cellIds = new Map<string, number>()
-  private readonly pierced: { edges: Uint8Array; tile: number }[] = []
+  private readonly pierced: { edges: Uint8Array; tile: number; kind: number }[] = []
 
   constructor(private readonly map: ShipMap) {
     this.cols = map.width + 2
@@ -123,7 +132,8 @@ export class RoomSight {
           let kind = CLEAR
           if (a || b) {
             const key = map.edgeKey(x, z, dir)
-            if (!doors.has(key) && (a !== b || map.walls.has(key))) kind = clear(key) || map.low.has(key) ? CLEAR : SOLID
+            if (doors.has(key)) kind = DOOR
+            else if (a !== b || map.walls.has(key)) kind = clear(key) || map.low.has(key) ? CLEAR : SOLID
           }
           edges[this.tile(x, z)] = kind
         }
@@ -131,22 +141,31 @@ export class RoomSight {
     }
   }
 
+  /** Arête d'un bord de tuile, rangée avec la tuile de l'ouest (ou du nord) de ses deux tuiles. */
+  private edge(x: number, z: number, dir: number): { edges: Uint8Array; tile: number } {
+    return { edges: dir % 2 ? this.east : this.south, tile: this.tile(dir === 3 ? x - 1 : x, dir === 0 ? z - 1 : z) }
+  }
+
+  /** Ouvre ou ferme une porte au regard (cf. PORTHOLE) ; sans effet sur une arête qui n'est pas une porte. */
+  setDoor(x: number, z: number, dir: number, open: boolean) {
+    const { edges, tile } = this.edge(x, z, dir)
+    if (edges[tile] !== SOLID) edges[tile] = open ? CLEAR : DOOR
+  }
+
   /**
    * Perce une arête jusqu'à `mend` : un mur tramé parce qu'il cache le personnage (cf. merge.ts)
    * laisse voir ce qu'il y a derrière lui.
    */
   pierce(x: number, z: number, dir: number) {
-    // L'arête est rangée avec la tuile de l'ouest (ou du nord) de ses deux tuiles.
-    const edges = dir % 2 ? this.east : this.south
-    const tile = this.tile(dir === 3 ? x - 1 : x, dir === 0 ? z - 1 : z)
+    const { edges, tile } = this.edge(x, z, dir)
     if (edges[tile] === CLEAR) return
-    this.pierced.push({ edges, tile })
+    this.pierced.push({ edges, tile, kind: edges[tile] })
     edges[tile] = CLEAR
   }
 
   /** Referme les arêtes percées. */
   mend() {
-    for (const p of this.pierced) p.edges[p.tile] = SOLID
+    for (const p of this.pierced) p.edges[p.tile] = p.kind
     this.pierced.length = 0
   }
 
@@ -221,6 +240,8 @@ export class RoomSight {
       let x = tx, z = tz
       for (;;) {
         let nx = x, nz = z, edge: number
+        // Distance de l'œil à l'arête franchie.
+        const far = Math.min(nextX, nextZ)
         if (nextX < nextZ) {
           nx += sx
           if (nx < -1 || nx > map.width) break
@@ -238,6 +259,7 @@ export class RoomSight {
           if (next && !room[this.tile(x, z)]) seen[this.count + next] = 1
           break
         }
+        if (edge === DOOR && far > PORTHOLE) break
         x = nx
         z = nz
         if (next) seen[next] = 1
