@@ -5,14 +5,16 @@ import type { Eye } from './visibility'
 const MAX_PITCH = THREE.MathUtils.degToRad(88)
 /** Champ vertical au repos, et ce que la course lui ajoute (degrés). */
 const FOV = 72
-const SPRINT_FOV = 11
+const SPRINT_FOV = 16
 /** Vitesses (au sol) entre lesquelles le champ s'ouvre : au-dessus de la marche, sous la course. */
 const SPRINT_FROM = 2.1
 const SPRINT_FULL = 3.2
 /** Balancement de la marche : distance d'un pas, puis amplitudes (verticale ; la latérale en est la moitié). */
 const BOB_STRIDE = 0.6
-const BOB_WALK = 0.018
-const BOB_SPRINT = 0.03
+const BOB_WALK = 0.028
+const BOB_SPRINT = 0.048
+/** Roulis de la tête d'un pied sur l'autre (radians par unité de balancement) : un degré et demi en pleine course. */
+const BOB_ROLL = 0.55
 /** Déplacement en une image au-delà duquel c'est une téléportation, pas une marche. */
 const TELEPORT = 0.6
 /**
@@ -178,6 +180,7 @@ export class FirstPersonCamera {
     this.position.lerpVectors(_eye, _third, k)
     this.camera.position.copy(this.position)
     this.camera.lookAt(eyeLook.lerp(_pivot, k))
+    this.camera.rotateZ(Math.sin(this.stride) * this.bob * BOB_ROLL)
   }
 
   /**

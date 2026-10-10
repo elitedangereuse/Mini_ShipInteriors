@@ -9,7 +9,7 @@ import type { ShipMap } from './map'
  * champ de la caméra, et avancent de tuile en tuile jusqu'au premier mur plein. Une pièce se voit
  * dès qu'un rayon y entre. Tout penche du côté prudent, et l'on dessine en trop plutôt qu'en
  * moins : une porte ouverte laisse passer le regard sur toute sa tuile. Fermée ou verrouillée, elle
- * ne le laisse passer que de près (ses battants ont des hublots, cf. PORTHOLE) : de la coursive, on
+ * ne le laisse plus passer de très loin (ses battants ont des hublots, cf. PORTHOLE) : de la coursive, on
  * ne dessine plus toutes les pièces du pont derrière leurs portes closes.
  *
  * La géométrie immobile du pont est fusionnée (cf. merge.ts) : chaque objet y est rangé dans une
@@ -39,14 +39,18 @@ const MANY = 6
  * aperçue par son hublot. Le verre du hublot se teinte avec la distance, et il est tout à fait
  * opaque avant (cf. PORTHOLE_DARK) : la pièce arrive et repart derrière lui, sans qu'on le voie.
  */
-export const PORTHOLE = 4
-/** Distances (de la caméra) entre lesquelles le verre d'un hublot se teinte, du clair à l'opaque. */
-export const PORTHOLE_CLEAR = 2.2
-export const PORTHOLE_DARK = 3.5
+export const PORTHOLE = 14
+/**
+ * Distances (de la caméra) entre lesquelles le verre d'un hublot se teinte, du clair à l'opaque :
+ * assez loin pour que le hublot ne fasse plus que quelques pixels, et que l'on ne voie pas la pièce
+ * s'y dessiner en approchant.
+ */
+export const PORTHOLE_CLEAR = 10.5
+export const PORTHOLE_DARK = 13
 
 const CLEAR = 0
 const SOLID = 1
-/** Porte fermée : on ne voit au travers que de près (cf. PORTHOLE). */
+/** Porte fermée : de très loin, on ne voit plus au travers (cf. PORTHOLE). */
 const DOOR = 2
 
 /** Un œil : sa position sur le plan, l'azimut de son regard (atan2(x, z) de sa direction) et le demi-angle de son champ (π : tout autour). */

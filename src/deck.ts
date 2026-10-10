@@ -946,7 +946,7 @@ export class Deck {
     let all = !eyes
     seen.fill(0)
     if (eyes) {
-      // Une porte fermée ne laisse voir sa pièce que de près ; le second battant d'une porte double suit le premier.
+      // De très loin, une porte fermée ne laisse plus voir sa pièce ; le second battant d'une porte double suit le premier.
       for (const d of this.doors) {
         const open = d.open > 0.02
         sight.setDoor(d.x, d.z, d.dir, open)
