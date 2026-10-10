@@ -4457,7 +4457,8 @@ function lockCursor() {
   const request = (raw: boolean) =>
     (canvas.requestPointerLock as (options?: { unadjustedMovement: boolean }) => Promise<void> | undefined).call(canvas, raw ? { unadjustedMovement: true } : undefined)
   try {
-    const asked = request(true)
+    // WebKit : les mouvements regroupés restent accélérés même en brut (cf. LOSSY_MOVES) ; on ne mélange pas les deux.
+    const asked = request(!LOSSY_MOVES)
     if (!asked?.then) return
     asked.then(
       undefined,
@@ -4491,19 +4492,38 @@ document.addEventListener('pointerlockchange', () => {
 })
 /** Ampleur du mouvement de souris précédent (pixels) : un sursaut ne s'annonce pas. */
 let lastLook = 0
-document.addEventListener('mousemove', (e) => {
+/**
+ * WebKit (Safari, et tout navigateur sous iOS) ne livre qu'un mouvement de souris par image, qui ne
+ * porte que le dernier déplacement de l'image : le regard tournait plusieurs fois trop lentement,
+ * sauf bouton enfoncé, où rien n'est regroupé (bug WebKit 235116). Le trajet entier se retrouve dans
+ * les mouvements regroupés de `pointermove`.
+ */
+const LOSSY_MOVES = /AppleWebKit/.test(navigator.userAgent) && !/Chrome|Chromium|Edg|Android/.test(navigator.userAgent) && 'getCoalescedEvents' in PointerEvent.prototype
+/** Déplacement de la souris capturée depuis le mouvement précédent (pixels). */
+function lookDelta(e: MouseEvent): { x: number; y: number } {
+  const parts = LOSSY_MOVES ? (e as PointerEvent).getCoalescedEvents() : []
+  if (parts.length < 2) return { x: e.movementX, y: e.movementY }
+  let x = 0, y = 0
+  for (const part of parts) {
+    x += part.movementX
+    y += part.movementY
+  }
+  return { x, y }
+}
+document.addEventListener(LOSSY_MOVES ? 'pointermove' : 'mousemove', (e) => {
   if (!cursorLocked() || !fpsShown) return
+  const move = lookDelta(e)
   // Juste après la capture : le navigateur rapporte le trajet du curseur jusqu'au centre, pas un
   // geste. Sans ce filtre, la vue partait d'un bond.
   if (performance.now() - lockedAt < 120) return
   // Un coup énorme sorti de nulle part est un sursaut du navigateur ; un geste vif, lui, monte
   // sur plusieurs mouvements et doit passer entier (le filtrer figeait la vue en plein demi-tour).
   // En mouvement brut aussi : un geste réel n'est jamais retenu par ce filtre.
-  const size = Math.max(Math.abs(e.movementX), Math.abs(e.movementY))
+  const size = Math.max(Math.abs(move.x), Math.abs(move.y))
   const jump = size > 300 && size > lastLook * 6
   lastLook = size
   if (jump) return
-  fps.look(-e.movementX * mouseLook(), -e.movementY * mouseLook())
+  fps.look(-move.x * mouseLook(), -move.y * mouseLook())
 })
 
 // Sensibilité de la souris en vue subjective, réglée dans l'aide : curseur capturé ou libre.
