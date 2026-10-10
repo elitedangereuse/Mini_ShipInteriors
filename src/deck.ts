@@ -27,7 +27,7 @@ import { mezzanineHeight, mezzanineTile, type Mezzanine } from '../shared/mezzan
 import { BAY_BOTTOM, BAY_FRAME_TOP, BAY_TOP, bayFrame, buildMezzanine } from './mezzanine'
 import { placeSeats, seatAction, seatsOf, type SeatSpot } from './seats'
 import { ForceShield, type ShieldPane } from './shield'
-import { RoomSight, type Eye } from './visibility'
+import { PORTHOLE_CLEAR, PORTHOLE_DARK, RoomSight, type Eye } from './visibility'
 import { emptyPlan, HomeView } from './housing/home'
 
 /** Rectangle de collision dans le plan XZ. */
@@ -175,6 +175,7 @@ const GREENHOUSE_TOP = POST_H - 0.05
  */
 export function firstPersonGlass(on: boolean) {
   CANOPY_GLASS.opacity = on ? 0.05 : 0.2
+  PORTHOLE_GLASS.visible = on
   // Les cloisons d'une serre, elles, sont à hauteur d'yeux, carreau par carreau : un verre uni si
   // pâle laissait croire à des baies vides. Il prend le verre dessiné des verrières (reflets en
   // biais, liseré au bord du cadre, cf. roofGlassTexture), dont la transparence fait le reste.
@@ -288,6 +289,55 @@ export function upperWalls(merge: StaticMerge, walls: WallSegment[], posts: { x:
     occluders.push(merge.addFading(m, new THREE.Vector3(p.x, 0.5, p.z)))
   }
   return occluders
+}
+
+/**
+ * Verre des hublots d'une porte, en vue subjective : clair de près, il se teinte en s'éloignant
+ * jusqu'à ne plus rien laisser voir. Derrière un hublot opaque, la pièce n'est plus dessinée
+ * (cf. PORTHOLE dans visibility.ts) : sans lui, elle surgirait à mesure qu'on approche, et de loin
+ * le hublot donnerait sur le vide.
+ */
+const PORTHOLE_GLASS = new THREE.ShaderMaterial({
+  uniforms: { uColor: { value: new THREE.Color('#0b131c') }, uClear: { value: PORTHOLE_CLEAR }, uDark: { value: PORTHOLE_DARK } },
+  vertexShader: `
+    varying float vFar;
+    void main() {
+      vec4 seen = modelViewMatrix * vec4(position, 1.0);
+      vFar = length(seen.xyz);
+      gl_Position = projectionMatrix * seen;
+    }`,
+  fragmentShader: `
+    uniform vec3 uColor;
+    uniform float uClear;
+    uniform float uDark;
+    varying float vFar;
+    void main() {
+      float tint = smoothstep(uClear, uDark, vFar);
+      if (tint < 0.004) discard;
+      gl_FragColor = vec4(uColor, tint);
+      #include <colorspace_fragment>
+    }`,
+  transparent: true,
+  // Il écrit sa profondeur : les étoiles, dessinées en dernier, ne passent pas par-dessus.
+  side: THREE.DoubleSide,
+  visible: false,
+})
+const _leaf = new THREE.Box3()
+
+/** Pose le verre des hublots dans l'épaisseur d'un battant (modèle du kit, avant sa mise à l'échelle) : on ne le voit que par ses jours. */
+function glazeLeaf(leaf: THREE.Object3D) {
+  const mesh = leaf.getObjectByProperty('isMesh', true) as THREE.Mesh | undefined
+  if (!mesh) return
+  mesh.geometry.computeBoundingBox()
+  const size = _leaf.copy(mesh.geometry.boundingBox!).getSize(new THREE.Vector3())
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), PORTHOLE_GLASS)
+  // Le battant est mince le long de x ou de z : le verre se met en travers.
+  if (size.x < size.z) {
+    glass.rotation.y = Math.PI / 2
+    glass.scale.set(size.z * 0.96, size.y * 0.96, 1)
+  } else glass.scale.set(size.x * 0.96, size.y * 0.96, 1)
+  _leaf.getCenter(glass.position)
+  mesh.add(glass)
 }
 
 /** Capitonnage d'une porte de cinéma : velours rouge piqué en losanges, clous dorés, liseré de laiton. */
@@ -1286,6 +1336,8 @@ export class Deck {
     // Tramé avec la porte : il s'efface avec elle devant le joueur.
     this.addOccluder(pair ? [frame, panel, pair, lamp] : [frame, panel, lamp], new THREE.Vector3(cx, 0.5, cz), this.cabinOutward(cx, cz))
     this.registerTall(pair ? [frame, panel, pair, lamp] : [frame, panel, lamp])
+    // Après le tramage : le verre des hublots garde son matériau.
+    if (this.sight) for (const leaf of pair ? [panel, pair] : [panel]) glazeLeaf(leaf)
     this.walls.push({ x: cx, z: cz, alongX, model: 'door' })
     this.doors.push({
       panel,

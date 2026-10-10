@@ -5,14 +5,14 @@ import type { Eye } from './visibility'
 const MAX_PITCH = THREE.MathUtils.degToRad(88)
 /** Champ vertical au repos, et ce que la course lui ajoute (degrés). */
 const FOV = 72
-const SPRINT_FOV = 5
+const SPRINT_FOV = 11
 /** Vitesses (au sol) entre lesquelles le champ s'ouvre : au-dessus de la marche, sous la course. */
 const SPRINT_FROM = 2.1
 const SPRINT_FULL = 3.2
 /** Balancement de la marche : distance d'un pas, puis amplitudes (verticale ; la latérale en est la moitié). */
 const BOB_STRIDE = 0.6
-const BOB_WALK = 0.006
-const BOB_SPRINT = 0.011
+const BOB_WALK = 0.018
+const BOB_SPRINT = 0.03
 /** Déplacement en une image au-delà duquel c'est une téléportation, pas une marche. */
 const TELEPORT = 0.6
 /**

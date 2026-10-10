@@ -36,9 +36,13 @@ const MANY = 6
 
 /**
  * Distance (tuiles, le long du regard) jusqu'où l'on dessine la pièce derrière une porte fermée,
- * aperçue par son hublot. Au-delà, le hublot ne fait plus que quelques pixels : il donne sur du noir.
+ * aperçue par son hublot. Le verre du hublot se teinte avec la distance, et il est tout à fait
+ * opaque avant (cf. PORTHOLE_DARK) : la pièce arrive et repart derrière lui, sans qu'on le voie.
  */
-const PORTHOLE = 4
+export const PORTHOLE = 4
+/** Distances (de la caméra) entre lesquelles le verre d'un hublot se teinte, du clair à l'opaque. */
+export const PORTHOLE_CLEAR = 2.2
+export const PORTHOLE_DARK = 3.5
 
 const CLEAR = 0
 const SOLID = 1
