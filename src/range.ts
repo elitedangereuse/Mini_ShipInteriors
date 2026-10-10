@@ -490,6 +490,13 @@ export class RangeGame {
     return true
   }
 
+  /**
+   * Vue subjective : d'où part la balle (`eye`, repère du pont) et vers où (`dir`), à corriger au
+   * besoin. Au stand, des yeux, droit devant ; l'arène, vue par-dessus l'épaule, tire du personnage
+   * vers ce que la mire recouvre.
+   */
+  protected sightline(_eye: THREE.Vector3, _dir: THREE.Vector3, _f: RangeFrame, _origin: THREE.Vector3) {}
+
   /** Un tir vient de partir, de `eye`, une direction par balle (l'arène le dit au relais). */
   protected fired(_eye: THREE.Vector3, _dirs: THREE.Vector3[], _w: Weapon) {}
 
@@ -628,6 +635,7 @@ export class RangeGame {
       f.camera.getWorldDirection(this.aim)
       f.camera.getWorldPosition(eye).sub(origin)
       dir.copy(this.aim)
+      this.sightline(eye, dir, f, origin)
     } else {
       if (this.pointer) {
         _ndc.set((this.pointer.x / innerWidth) * 2 - 1, -(this.pointer.y / innerHeight) * 2 + 1)
@@ -652,8 +660,10 @@ export class RangeGame {
       if (f.hands) shown.root.position.subVectors(f.hands, origin)
       else shown.root.position.copy(foot)
       // À la hauteur de la ligne de tir, quelle que soit la carrure du personnage.
-      shown.root.position.y = AIM_Y - 0.02
-      shown.root.rotation.set(this.dip * 0.9 - this.gunKick * 0.5, Math.atan2(dir.x, dir.z), 0, 'YXZ')
+      // Rechargement : l'arme pique du nez et bascule sur le flanc le temps de changer le chargeur, puis revient.
+      const loading = this.loading(s)
+      shown.root.position.y = AIM_Y - 0.02 - loading * 0.04
+      shown.root.rotation.set(this.dip * 0.9 - this.gunKick * 0.5 + loading * 0.75, Math.atan2(dir.x, dir.z) + loading * 0.45, loading * 1.1, 'YXZ')
     }
 
     // Chrono, chargeur.
@@ -1241,7 +1251,7 @@ export class RangeGame {
     _x.crossVectors(dir, UP).normalize()
     this.roll = THREE.MathUtils.damp(this.roll, -f.move.dot(_x) * 0.12, 8, dt)
     // Rechargement : l'arme bascule sur le flanc et descend, le temps de changer le chargeur.
-    const loading = s.reload > 0 ? Math.sin(Math.min(1, (1 - s.reload / WEAPONS[s.weapon].reload) * 1.15) * Math.PI) : 0
+    const loading = this.loading(s)
     f.camera.updateMatrixWorld()
     _v.set(
       0.05 + this.sway.x * 0.06 + Math.cos(this.bob) * 0.0018 * step - loading * 0.012,
@@ -1257,6 +1267,11 @@ export class RangeGame {
       'YXZ',
     ))
     gun.root.quaternion.copy(f.camera.quaternion).multiply(_q)
+  }
+
+  /** Le geste du rechargement, de 0 (arme en joue) à 1 (basculée, chargeur sorti) et retour, sur sa durée. */
+  protected loading(s: Session): number {
+    return s.reload > 0 ? Math.sin(Math.min(1, (1 - s.reload / WEAPONS[s.weapon].reload) * 1.15) * Math.PI) : 0
   }
 
   /** Éclair du canon : un halo de la couleur du tir, le temps de trois images. */
@@ -1457,6 +1472,9 @@ export class RangeGame {
     }
     h.dot.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`
     h.dot.classList.toggle('hit', this.hitTime > 0)
+    // Rechargement : un anneau se referme autour de la mire.
+    h.dot.classList.toggle('reloading', s.reload > 0)
+    if (s.reload > 0) h.dot.style.setProperty('--reload', (1 - s.reload / w.reload).toFixed(3))
     // Les hologrammes. Vue de dessus : les munitions flottent à droite du personnage, l'alerte à ses
     // pieds. Vue subjective : les munitions à gauche de la mire, tournées vers elle, l'alerte dessous ;
     // elles traînent un peu quand le regard tourne, comme l'arme.

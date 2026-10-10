@@ -273,7 +273,8 @@ export interface ArenaState { game: string; warmup: number; left: number; score:
 export type ArenaEvent =
   | { kind: 'shot'; id: number; weapon: WeaponId; o: [number, number, number]; d: [number, number, number][] }
   | { kind: 'hit'; id: number; by: number; hp: number; dmg: number; x: number; y: number; z: number }
-  | { kind: 'kill'; id: number; by: number; weapon: WeaponId; score: [number, number]; wait: number }
+  /** `from` : où il est tombé ; `x`, `z`, `yaw` : sa base, où il attend en fantôme de revenir en jeu. */
+  | { kind: 'kill'; id: number; by: number; weapon: WeaponId; score: [number, number]; wait: number; from: { x: number; z: number }; x: number; z: number; yaw: number }
   | { kind: 'spawn'; id: number; x: number; z: number; yaw: number; weapon: WeaponId }
   | { kind: 'left'; id: number }
   /** Une manche se termine (`winner` : -1 à égalité) ; la suivante part dans `wait` secondes. */

@@ -26,12 +26,12 @@ export interface ArenaPanelActions {
 }
 
 /** Les cinq armes, à choisir : au terminal, puis à chaque élimination. */
-function weaponPicker(current: WeaponId, pick: (id: WeaponId) => void, keys = false): HTMLElement {
+function weaponPicker(current: WeaponId, pick: (id: WeaponId) => void, keys = false, cursor = -1): HTMLElement {
   const row = el('div', 'arena-weapons')
   row.setAttribute('role', 'radiogroup')
   row.setAttribute('aria-label', tr('Arme', 'Weapon'))
   WEAPONS.forEach((w, i) => {
-    const b = button('', () => pick(w.id), w.id === current ? 'on' : '')
+    const b = button('', () => pick(w.id), `${w.id === current ? 'on' : ''}${i === cursor ? ' cursor' : ''}`)
     b.setAttribute('role', 'radio')
     b.setAttribute('aria-checked', String(w.id === current))
     b.dataset.key = `weapon-${w.id}`
@@ -370,7 +370,7 @@ export type Relation = 'self' | 'ally' | 'enemy'
 /** Ce que le HUD montre d'un combattant dans le fil des éliminations. */
 export interface FeedName { name: string; rel: Relation }
 /** La plaque d'un combattant, au-dessus de sa tête : son nom, ses points de vie. */
-export interface PlateInfo { name: string; hp: number; rel: Relation; shield: boolean; bot: boolean; /** Le joueur : son chargeur, de 0 à 1. */ ammo?: number }
+export interface PlateInfo { name: string; hp: number; rel: Relation; shield: boolean; bot: boolean; /** Le joueur : son chargeur, de 0 à 1, et s'il est en train de le changer. */ ammo?: number; reloading?: boolean; /** Éliminé, en fantôme à sa base : secondes avant de revenir en jeu. */ wait?: number }
 
 /**
  * En partie, à la façon de Brawl Stars : le score des deux camps (le sien en bleu, à gauche, celui
@@ -397,7 +397,8 @@ export class ArenaHud {
   private readonly end = el('section', 'salvage-panel salvage-end arena-end')
   private readonly quit: HTMLButtonElement
   private shownCount = ''
-  private picked: WeaponId | null = null
+  private picked: string | null = null
+  private readonly coarse = matchMedia('(pointer: coarse)').matches
   onQuit?: () => void
   onWeapon?: (id: WeaponId) => void
 
@@ -413,6 +414,7 @@ export class ArenaHud {
     this.quit = button(tr('Quitter', 'Leave'), () => this.onQuit?.(), 'arena-quit', 'sign-out')
     this.wait.hidden = true
     this.wait.append(this.waitTitle, this.waitClock, el('span', 'arena-wait-label', tr('Arme au retour', 'Weapon on return')), this.waitPick)
+    if (!this.coarse) this.wait.append(el('span', 'arena-wait-keys', tr('← → choisir · Entrée valider · 1 à 5 : directement', '← → pick · Enter confirm · 1 to 5: straight away')))
     this.count.setAttribute('aria-live', 'assertive')
     this.feed.setAttribute('aria-live', 'polite')
     this.root.append(this.plates, board, this.feed, this.quit, this.count, this.wait)
@@ -489,10 +491,18 @@ export class ArenaHud {
     }
     if (p.shown !== !!at) p.root.hidden = !(p.shown = !!at)
     if (!at) return
-    p.root.className = `arena-plate ${info.rel}${info.shield ? ' shield' : ''}`
+    p.root.className = `arena-plate ${info.rel}${info.shield ? ' shield' : ''}${info.reloading ? ' reloading' : ''}${info.wait !== undefined ? ' ghost' : ''}`
     p.root.style.transform = `translate(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px) translate(-50%, -100%) scale(${(0.6 + 0.4 * near).toFixed(2)})`
     const name = info.bot ? `🤖 ${info.name}` : info.name
     if (p.name.textContent !== name) p.name.textContent = name
+    // En fantôme : le compte à rebours de son retour, à la place de sa vie.
+    if (info.wait !== undefined) {
+      const left = String(Math.max(1, Math.ceil(info.wait)))
+      p.fill.style.width = `${Math.min(100, (1 - info.wait / ARENA_RULES.respawn) * 100).toFixed(0)}%`
+      if (p.value.textContent !== left) p.value.textContent = left
+      p.ammo.hidden = true
+      return
+    }
     const hp = Math.max(0, Math.round(info.hp))
     p.fill.style.width = `${Math.min(100, (hp / ARENA_RULES.hp) * 100).toFixed(0)}%`
     if (p.value.textContent !== String(hp)) p.value.textContent = String(hp)
@@ -522,17 +532,21 @@ export class ArenaHud {
     window.setTimeout(() => li.remove(), 6000)
   }
 
-  /** Éliminé : par qui, le temps qu'il reste, et l'arme du retour (null : on est debout). */
-  waiting(by: string | null, seconds: number, weapon: WeaponId) {
+  /**
+   * Éliminé : par qui, le temps qu'il reste, l'arme du retour (validée) et celle sous le curseur du
+   * clavier ; `by` null : on est debout.
+   */
+  waiting(by: string | null, seconds: number, weapon: WeaponId, cursor: number) {
     const on = by !== null
-    if (on && (this.wait.hidden || this.picked !== weapon)) {
-      this.picked = weapon
-      this.waitPick.replaceChildren(weaponPicker(weapon, (id) => this.onWeapon?.(id), !matchMedia('(pointer: coarse)').matches))
+    const key = `${weapon}:${cursor}`
+    if (on && (this.wait.hidden || this.picked !== key)) {
+      this.picked = key
+      this.waitPick.replaceChildren(weaponPicker(weapon, (id) => this.onWeapon?.(id), !this.coarse, this.coarse ? -1 : cursor))
     }
     this.wait.hidden = !on
     if (!on) return
     this.waitTitle.textContent = by ? tr(`Éliminé par ${by}`, `Taken out by ${by}`) : tr('Éliminé', 'Taken out')
-    this.waitClock.textContent = tr(`Retour à la base dans ${Math.max(1, Math.ceil(seconds))} s`, `Back at base in ${Math.max(1, Math.ceil(seconds))} s`)
+    this.waitClock.textContent = tr(`De retour en jeu dans ${Math.max(1, Math.ceil(seconds))} s`, `Back in play in ${Math.max(1, Math.ceil(seconds))} s`)
   }
 
   /** Le tableau de fin : qui gagne, le score, le joueur star, et les chiffres de chacun, camp par camp. */

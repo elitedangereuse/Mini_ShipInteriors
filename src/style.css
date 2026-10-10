@@ -4203,6 +4203,9 @@ body.range-top canvas { cursor: none; }
 /* Touche : quatre traits en croix autour du point, un instant. */
 .range-dot svg { position: absolute; left: -18px; top: -18px; width: 36px; height: 36px; fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; filter: drop-shadow(0 0 1px #000); opacity: 0; transform: scale(1.5); transition: opacity .18s, transform .18s; }
 .range-dot.hit svg { opacity: 1; transform: scale(1); transition: none; }
+/* Rechargement : un anneau se referme autour de la mire, puis claque quand le chargeur est en place. */
+.range-dot::after { content: ''; position: absolute; left: -19px; top: -19px; width: 38px; height: 38px; border-radius: 50%; background: conic-gradient(var(--range-color, #fff) calc(var(--reload, 0) * 360deg), #ffffff38 0); -webkit-mask: radial-gradient(circle, #0000 13px, #000 14px); mask: radial-gradient(circle, #0000 13px, #000 14px); filter: drop-shadow(0 0 2px #000); opacity: 0; transform: scale(1.5); transition: opacity .25s, transform .25s; }
+.range-dot.reloading::after { opacity: 1; transform: scale(1); transition: none; }
 /* Points gagnés, là où la cible a éclaté. */
 .range-pop { position: absolute; color: #fff; font: 800 20px/1 system-ui, sans-serif; text-shadow: 0 2px 0 #000a, 0 0 8px #000a; white-space: nowrap; animation: range-pop .7s ease-out forwards; }
 .range-pop.good { color: #ffd24a; font-size: 25px; }
@@ -5310,6 +5313,8 @@ body.gardening #emotes { display: none; }
 .arena-weapons button span { color: #a9b6c2; font-size: 10px; font-weight: 400; }
 .arena-weapons button kbd { position: absolute; top: 3px; left: 5px; color: #a9b6c2; font: 600 10px/1 ui-monospace, Menlo, monospace; }
 .arena-weapons button:hover { background: color-mix(in srgb, var(--weapon) 12%, transparent); }
+.arena-weapons button.cursor { outline: 3px solid #fff; outline-offset: 2px; transform: translateY(-3px); }
+.arena-weapons button.on::after { content: '✓'; position: absolute; top: 2px; right: 5px; color: var(--weapon); font: 900 12px/1 system-ui, sans-serif; }
 .arena-weapons button.on { border-color: var(--weapon); background: color-mix(in srgb, var(--weapon) 20%, transparent); box-shadow: 0 0 0 1px var(--weapon); }
 .arena-weapons button:focus-visible { outline: 2px solid #e9a917; outline-offset: 2px; }
 
@@ -5347,20 +5352,36 @@ body.arena-on .anchor .tag { display: none; }
 .arena-plate-bar { position: relative; width: 100%; height: 13px; box-sizing: border-box; border: 2px solid #0b0d12; border-radius: 5px; background: #0b0d12cc; overflow: hidden; }
 .arena-plate-bar i { display: block; height: 100%; background: linear-gradient(180deg, color-mix(in srgb, var(--tint) 70%, #fff), var(--tint) 55%); transition: width .12s; }
 .arena-plate-bar b { position: absolute; inset: 0; display: grid; place-items: center; font: 800 10px/1 system-ui, sans-serif; -webkit-text-stroke: 2px #0b0d12; paint-order: stroke fill; }
+/* En fantôme à sa base : le compte à rebours de son retour, sur une barre pâle qui se remplit. */
+.arena-plate.ghost { opacity: .9; }
+.arena-plate.ghost .arena-plate-name { opacity: .75; }
+.arena-plate.ghost .arena-plate-bar { height: 18px; border-style: dashed; }
+.arena-plate.ghost .arena-plate-bar i { background: #bfeaff88; transition: none; }
+.arena-plate.ghost .arena-plate-bar b { font-size: 13px; }
 .arena-plate.shield .arena-plate-bar { box-shadow: 0 0 0 2px #fff, 0 0 10px #fff; }
 .arena-plate-ammo { width: 100%; height: 7px; box-sizing: border-box; border: 2px solid #0b0d12; border-radius: 4px; background: #0b0d12cc; overflow: hidden; }
 .arena-plate-ammo[hidden] { display: none; }
 .arena-plate-ammo i { display: block; height: 100%; background: repeating-linear-gradient(90deg, #ffb02e 0 9px, #0b0d12 9px 11px); }
+/* Rechargement : la barre se regarnit en bleu clair, ses cartouches défilent, et la plaque le dit. */
+.arena-plate.reloading .arena-plate-ammo { box-shadow: 0 0 8px #7fefff; }
+.arena-plate.reloading .arena-plate-ammo i { background: repeating-linear-gradient(90deg, #7fefff 0 9px, #0b0d12 9px 11px); background-size: 22px 100%; animation: arena-reload .35s linear infinite; }
+.arena-plate.reloading::after { content: '⟳'; position: absolute; right: -16px; bottom: -4px; color: #7fefff; font: 900 14px/1 system-ui, sans-serif; -webkit-text-stroke: 3px #0b0d12; paint-order: stroke fill; animation: arena-spin .6s linear infinite; }
+@keyframes arena-reload { to { background-position: 22px 0; } }
+@keyframes arena-spin { to { transform: rotate(360deg); } }
+/* Dans l'arène, le chargeur se change tout seul : pas d'ordre de recharger. */
+.range-hud.arena .range-alert { display: none; }
 .arena-feed { position: absolute; top: 244px; right: 18px; display: grid; justify-items: end; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .arena-feed li { display: flex; align-items: center; gap: 6px; padding: 4px 9px; border: 2px solid #0b0d12; border-radius: 8px; background: #1b1f29e6; font-size: 12px; white-space: nowrap; }
 .arena-feed li.mine { border-color: #ffd23f; }
 .arena-feed li span { color: var(--tint); font-weight: 800; }
 .arena-feed li em { color: #b6bfcc; font-size: 11px; font-style: normal; }
 .arena-feed li .icon { width: 13px; height: 13px; color: #fff; }
-.arena-wait { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 8px; width: min(480px, calc(100vw - 28px)); box-sizing: border-box; padding: 18px 20px; border: 1px solid #ff5a4a66; border-radius: 14px; background: #0a121ce6; text-align: center; pointer-events: auto; }
+/* En bas de l'écran : au milieu, il cacherait le fantôme du joueur et son compte à rebours. */
+.arena-wait { position: absolute; left: 50%; bottom: 84px; transform: translateX(-50%); display: grid; justify-items: center; gap: 8px; width: min(480px, calc(100vw - 28px)); box-sizing: border-box; padding: 18px 20px; border: 1px solid #ff5a4a66; border-radius: 14px; background: #0a121ce6; text-align: center; pointer-events: auto; }
 .arena-wait[hidden] { display: none; }
 .arena-wait > strong { color: #ff8f86; font: 800 22px/1.2 system-ui, sans-serif; }
 .arena-wait > div { width: 100%; }
+.arena-wait-keys { color: #8fa6b6; font-size: 11px; }
 .arena-wait-label { margin-top: 4px; color: #8fa6b6; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; }
 .arena-count { position: absolute; left: 50%; top: 36%; transform: translate(-50%, -50%) rotate(-4deg); color: #ffd23f; font: 900 104px/1 system-ui, sans-serif; -webkit-text-stroke: 10px #0b0d12; paint-order: stroke fill; text-shadow: 0 8px 0 #0b0d12; white-space: nowrap; }
 .arena-count.pop { animation: arena-count .9s ease-out; }

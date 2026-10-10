@@ -17,6 +17,8 @@ import { castArena, type ArenaZone } from '../../shared/arena.js'
  *   lui est envoyé (d'où il part, une direction par balle), et il renvoie ceux des autres, qu'on
  *   dessine de la même façon ;
  * - pas de cibles, de score ni de chrono : la partie dure tant que le relais ne l'a pas finie ;
+ * - vue par-dessus l'épaule, la balle part du personnage vers ce que la mire recouvre (cf. sightline) ;
+ * - un chargeur vide se change tout seul (au stand, il faut le demander) : ici, on se bat ;
  * - les autres combattants tiennent leur arme : un modèle par combattant, posé dans ses mains.
  */
 
@@ -40,12 +42,20 @@ export interface ArenaGunHost {
 }
 
 const _v = new THREE.Vector3()
+const _chest = new THREE.Vector3()
+const _from = new THREE.Vector3()
+/** Hauteur d'où part la balle, vue par-dessus l'épaule : la poitrine du personnage. */
+const CHEST = 0.42
+/** Délai entre le dernier tir d'un chargeur et son rechargement automatique (secondes). */
+const AUTO_RELOAD = 0.18
 
 export class ArenaGun extends RangeGame {
   host: ArenaGunHost | null = null
   /** L'arme des autres combattants, par combattant. */
   private readonly carried = new Map<number, { gun: Gun; weapon: WeaponId }>()
   private fpsView = false
+  /** Depuis quand le chargeur est vide (secondes) : il se change de lui-même après un instant. */
+  private emptyFor = 0
   /** Balle de match : une équipe est à un point de la limite (la musique s'emballe). */
   matchPoint = false
 
@@ -117,12 +127,35 @@ export class ArenaGun extends RangeGame {
   override update(dt: number, f: RangeFrame) {
     this.fpsView = f.fps
     super.update(dt, f)
+    // Chargeur vide : le temps que le dernier tir parte, et l'on recharge sans attendre l'ordre.
+    this.emptyFor = this.empty && !this.holstered ? this.emptyFor + dt : 0
+    if (this.emptyFor > AUTO_RELOAD) this.reload()
+  }
+
+  /** Rechargement en cours (pour la plaque du joueur). */
+  get reloading(): boolean {
+    return (this.session?.reload ?? 0) > 0
   }
 
   protected override opened() {}
   protected override updateTargets() {}
   protected override blasted() {}
   protected override report() {}
+
+  /**
+   * Vue par-dessus l'épaule (le personnage est à l'image) : la caméra est derrière lui, décalée. La
+   * balle ne part pas d'elle : on cherche ce que la mire recouvre, au-delà du personnage, et l'on
+   * tire de sa poitrine vers ce point. Dans les yeux, rien à corriger.
+   */
+  protected override sightline(eye: THREE.Vector3, dir: THREE.Vector3, f: RangeFrame, origin: THREE.Vector3) {
+    if (!f.body) return
+    const chest = _chest.subVectors(f.player, origin).setY(CHEST)
+    const ahead = Math.max(0, _v.subVectors(chest, eye).dot(dir))
+    const from = _from.copy(eye).addScaledVector(dir, ahead)
+    const aimed = from.addScaledVector(dir, this.cast(from, dir, 40).t)
+    eye.copy(chest)
+    if (aimed.distanceToSquared(chest) > 0.04) dir.subVectors(aimed, chest).normalize()
+  }
 
   protected override rushing(s: Session): boolean {
     return s.started && (this.matchPoint || s.timeLeft <= 20)
@@ -135,7 +168,7 @@ export class ArenaGun extends RangeGame {
   protected override hintText(coarse: boolean): string {
     return coarse
       ? tr('Glisser le stick pour viser, lâcher pour tirer · le toucher : tir rapide', 'Drag the stick to aim, release to fire · tap it: quick shot')
-      : tr('Clic : tirer · R : recharger · V : vue · Échap : quitter la partie', 'Click: fire · R: reload · V: view · Esc: leave the match')
+      : tr('Clic : tirer · chargeur vide : il se recharge seul (R : avant) · V : vue · Échap : quitter', 'Click: fire · empty mag reloads itself (R: sooner) · V: view · Esc: leave')
   }
 
   protected override fired(eye: THREE.Vector3, dirs: THREE.Vector3[], _w: Weapon) {
@@ -195,6 +228,21 @@ export class ArenaGun extends RangeGame {
     this.hitTime = kill ? 0.3 : 0.16
     this.pop(kill ? `−${damage} ✕` : `−${damage}`, at, kill)
     this.sfx.hit(this.world(at), kill, 0.92 + Math.random() * 0.16)
+  }
+
+  /** Un combattant est éliminé : il disparaît dans un éclat, là où il est tombé (repère de l'arène). */
+  poof(at: THREE.Vector3, color: string) {
+    if (!this.session) return
+    const tint = new THREE.Color(color)
+    this.burst(at, tint, 1.5)
+    this.burst(at, new THREE.Color('#ffffff'), 0.7)
+    for (let i = 0; i < 12; i++) {
+      const mesh = new THREE.Mesh(this.spark, new THREE.MeshBasicMaterial({ color: tint }))
+      mesh.position.copy(at)
+      mesh.scale.setScalar(2.2)
+      this.live.add(mesh)
+      this.debris.push({ mesh, v: new THREE.Vector3((Math.random() - 0.5) * 3.4, 1 + Math.random() * 2.6, (Math.random() - 0.5) * 3.4), spin: new THREE.Vector3(), age: 0, life: 0.35 + Math.random() * 0.35, heavy: false })
+    }
   }
 
   /** Le joueur est touché : ce que ça lui coûte s'affiche sur lui (`at`, repère de l'arène). */

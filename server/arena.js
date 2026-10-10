@@ -10,7 +10,8 @@
 //
 // Partie : une instance par salon. Les clients n'envoient que leur position (l'événement « state »
 // du relais) et leurs tirs (d'où part la balle, vers où) ; le relais fait voler les balles, compte
-// les points de vie, les éliminations et le score, fait revenir chacun à sa base, et fait jouer
+// les points de vie, les éliminations et le score, fait revenir chacun à sa base (éliminé, on y
+// attend en fantôme quelques secondes, hors d'atteinte), et fait jouer
 // les bots dix fois par seconde et plus : ils cherchent l'adversaire, s'en approchent à la portée
 // de leur arme, tournent autour, tirent avec un temps de réaction et un écart de visée qui
 // dépendent de leur niveau. Une manche se gagne à la limite de points, ou au bout du temps (l'équipe
@@ -209,7 +210,9 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
 
   /** Pose un combattant à sa base, loin des adversaires. */
   function place(game, f) {
-    const at = arenaSpawn(game.zone, f.team, standing(game, 1 - f.team), standing(game, f.team).filter((m) => m !== f))
+    // Ses coéquipiers debout, et ceux qui attendent déjà à la base de revenir en jeu.
+    const mates = [...game.fighters.values()].filter((m) => m !== f && m.team === f.team && (m.alive || m.waiting))
+    const at = arenaSpawn(game.zone, f.team, standing(game, 1 - f.team), mates)
     Object.assign(f, { x: at.x, z: at.z, yaw: spawnYaw(game.zone, at), at: now(), warp: true, path: [] })
   }
 
@@ -269,20 +272,24 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     target.alive = false
     target.deaths++
     target.respawnAt = t + R.respawn * 1000
-    target.path = []
+    // Il attend à sa base, en fantôme, le temps de revenir en jeu : ni cible, ni tireur.
+    const fell = { x: round2(target.x), z: round2(target.z) }
+    place(game, target)
+    target.waiting = true
     // Éliminé par sa propre explosion : le point va à l'équipe d'en face.
     const own = !attacker || attacker.team === target.team
     if (!own) attacker.kills++
     game.score[own ? 1 - target.team : attacker.team]++
-    tell(game, { kind: 'kill', id: target.id, by, weapon, score: [...game.score], wait: R.respawn })
+    tell(game, { kind: 'kill', id: target.id, by, weapon, score: [...game.score], wait: R.respawn, from: fell, x: target.x, z: target.z, yaw: round2(target.yaw) })
     if (Math.max(...game.score) >= game.goal) endRound(game, game.score[0] > game.score[1] ? 0 : 1, 'score')
   }
 
   function respawn(game, f) {
     const w = WEAPON_STATS[f.next]
-    place(game, f)
+    // Éliminé, il attendait déjà à sa base (cf. hurt) : il y reste.
+    if (!f.waiting) place(game, f)
     Object.assign(f, {
-      weapon: f.next, hp: R.hp, alive: true, respawnAt: 0, shieldUntil: now() + R.shield * 1000, tokens: w.mag, tokensAt: now(), ammo: w.mag,
+      weapon: f.next, hp: R.hp, alive: true, waiting: false, at: now(), respawnAt: 0, shieldUntil: now() + R.shield * 1000, tokens: w.mag, tokensAt: now(), ammo: w.mag,
       reloadUntil: 0, lastSeen: null, seen: 0,
     })
     tell(game, { kind: 'spawn', id: f.id, x: f.x, z: f.z, yaw: round2(f.yaw), weapon: f.weapon })
@@ -530,6 +537,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     game.liveAt = t + R.intermission * 1000
     game.endsAt = game.liveAt + R.duration * 1000
     for (const f of game.fighters.values()) {
+      f.waiting = false
       respawn(game, f)
       Object.assign(f, { shieldUntil: game.liveAt + R.shield * 1000, hurtAt: 0, revealUntil: 0, firedAt: 0, nextFire: 0, calm: 0 })
     }

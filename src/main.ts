@@ -5890,7 +5890,7 @@ function frame() {
     if (fpsShown) {
       fps.align(iso.angle)
       fps.thirdPerson = busyBody()
-      fps.shoulder = shoulderWanted && !range.active
+      fps.shoulder = shoulderWanted && !stand.active
       fps.snap()
       hover.visible = false
     }
@@ -5905,8 +5905,8 @@ function frame() {
       fps.yaw = fishing.viewYaw
       fps.pitch = fishing.viewPitch
     }
-    // Au stand de tir, on vise dans les yeux.
-    fps.shoulder = shoulderWanted && !range.active
+    // Au stand de tir, on vise dans les yeux ; dans l'arène, par-dessus l'épaule aussi (cf. src/arena/gun.ts).
+    fps.shoulder = shoulderWanted && !stand.active
     // Par-dessus l'épaule, le personnage à l'arrêt regarde où l'on vise : on le voit de dos.
     if (fps.shoulder && !fps.thirdPerson && !player.moving && input.lengthSq() === 0) player.setHeading(fps.yaw + Math.PI)
     fps.motion = !range.active && !court.active

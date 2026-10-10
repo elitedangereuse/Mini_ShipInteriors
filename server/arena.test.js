@@ -258,6 +258,10 @@ test('arène : pas de tir avant le coup d\'envoi ; ensuite, les balles blessent,
   assert.equal(h.events(1, 'shot').length, 0, 'le tireur ne reçoit pas ses propres tirs')
   const kill = h.events(1, 'kill')[0]
   assert.deepEqual([kill.id, kill.by, kill.score], [2, 1, [1, 0]])
+  // Il attend déjà à sa base, en fantôme : l'annonce dit où il est tombé, et où il reparaît.
+  assert.deepEqual(kill.from, { x: 4, z: 0 })
+  assert.ok(game.zone.spawns[1].some((s) => s.x === kill.x && s.z === kill.z))
+  assert.deepEqual([game.fighters.get(2).x, game.fighters.get(2).z], [kill.x, kill.z])
   // Éliminé : sa position n'est plus acceptée ; il revient à sa base, protégé, points de vie pleins.
   assert.ok(!h.arena.accepts(b, 9, 2))
   h.advance(R.respawn + 0.1)

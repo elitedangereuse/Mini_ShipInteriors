@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import type { Sound } from '../audio'
+import type { Avatar } from '../avatar'
 import type { IsoCamera } from '../camera'
 import { Deck } from '../deck'
 import type { Wallet } from '../economy/wallet'
@@ -36,6 +37,26 @@ import { ArenaHud, ArenaPanel, fetchRanking, RankingPanel, type Ranking, type Re
 
 /** Les couleurs du joueur : lui, les siens, ceux d'en face. */
 const TINT: Record<Relation, string> = { self: '#5fe08a', ally: '#35a7ff', enemy: '#ff4d4d' }
+/** Le fantôme : ce que devient un combattant éliminé, à sa base, le temps de revenir en jeu. */
+const GHOST = new THREE.MeshBasicMaterial({ color: '#bfeaff', transparent: true, opacity: 0.4, depthWrite: false })
+
+/** Passe un personnage en fantôme (translucide, bleuté), ou lui rend ses couleurs. Sans effet s'il l'est déjà. */
+function haunt(avatar: Avatar | undefined, on: boolean) {
+  if (!avatar || !!avatar.root.userData.ghost === on) return
+  avatar.root.userData.ghost = on
+  avatar.root.traverse((o) => {
+    const mesh = o as THREE.Mesh
+    if (!mesh.isMesh) return
+    if (on) {
+      mesh.userData.solid = mesh.material
+      mesh.material = GHOST
+    } else if (mesh.userData.solid) {
+      mesh.material = mesh.userData.solid
+      mesh.userData.solid = undefined
+    }
+  })
+}
+
 /** Séries d'éliminations sans tomber : ce qu'on en dit. */
 const STREAKS = ['', '', tr('Doublé !', 'Double!'), tr('Triplé !', 'Triple!'), tr('Quadruplé !', 'Quad!'), tr('Inarrêtable !', 'Unstoppable!')]
 
@@ -74,6 +95,9 @@ interface Fighter extends ArenaFighter {
   /** Qui il est pour le joueur (sa couleur), et quand il a tiré ou pris une balle pour la dernière fois (un buisson ne le cache plus). */
   rel: Relation
   revealAt: number
+  /** Éliminé : il attend à sa base, en fantôme, encore `wait` secondes. */
+  ghost: boolean
+  wait: number
   /** Bot : son personnage, tenu ici (celui d'un joueur est dans `host.remotes`). */
   puppet: RemotePlayer | null
   /** Anneau au sol, à sa couleur. */
@@ -126,6 +150,8 @@ export class ArenaClient {
   /** Le moteur de tir, dans l'arène (créé avec elle). */
   gun: ArenaGun | null = null
   private weapon: WeaponId = 'pistol'
+  /** Éliminé : l'arme sous le curseur, que les flèches déplacent et qu'Entrée valide. */
+  private cursor = 0
   private quitArmed = 0
   private endTimer = 0
   private leaving: Promise<void> | null = null
@@ -392,7 +418,7 @@ export class ArenaClient {
       puppet.group.visible = false
       this.host.scene.add(puppet.group)
     }
-    g.fighters.set(f.id, { ...f, hp: ARENA_RULES.hp, alive: true, shield: false, rel, revealAt: 0, puppet, ring })
+    g.fighters.set(f.id, { ...f, hp: ARENA_RULES.hp, alive: true, shield: false, rel, revealAt: 0, ghost: false, wait: 0, puppet, ring })
   }
 
   private removeFighter(id: number) {
@@ -405,8 +431,9 @@ export class ArenaClient {
     ;(f.ring.material as THREE.Material).dispose()
     if (f.puppet) f.puppet.group.removeFromParent()
     else {
-      const avatar = this.host.remotes.get(id)?.avatar
-      if (avatar) avatar.carrying = false
+      const avatar = id === this.host.net.id ? this.host.player.avatar : this.host.remotes.get(id)?.avatar
+      haunt(avatar, false)
+      if (avatar && id !== this.host.net.id) avatar.carrying = false
     }
   }
 
@@ -433,7 +460,7 @@ export class ArenaClient {
     if (!g) return
     this.gun?.end()
     for (const id of [...g.fighters.keys()]) this.removeFighter(id)
-    if (this.host.player.avatar.emoteId === 'dodo') this.host.player.avatar.stopEmote()
+    haunt(this.host.player.avatar, false)
     this.hud.closeEnd()
     this.hud.show(false)
     this.game = null
@@ -455,14 +482,23 @@ export class ArenaClient {
     void this.leave(tr('Partie quittée : retour au lobby.', 'Match left: back to the lobby.'))
   }
 
-  /** Touches du mode ; true si la touche est prise. Éliminé : 1 à 5 choisissent l'arme du retour. */
+  /**
+   * Touches du mode ; true si la touche est prise. Éliminé (le curseur est pris par la mire, en vue
+   * subjective) : ← et → déplacent le choix de l'arme du retour, Entrée, Espace ou E le valident ;
+   * 1 à 5 choisissent et valident d'un coup.
+   */
   keyDown(e: KeyboardEvent): boolean {
     const g = this.game
-    if (!g || !this.inArena || g.end || g.downBy === null || e.repeat) return false
+    if (!g || !this.inArena || g.end || g.downBy === null) return false
     const digit = /^Digit([1-5])$/.exec(e.code)
-    if (!digit) return false
-    this.choose(WEAPONS[Number(digit[1]) - 1].id)
+    const step = e.code === 'ArrowLeft' || e.code === 'KeyA' ? -1 : e.code === 'ArrowRight' || e.code === 'KeyD' ? 1 : 0
+    const confirm = e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space' || e.code === 'KeyE'
+    if (!digit && !step && !confirm) return false
     e.preventDefault()
+    if (e.repeat && !step) return true
+    if (digit) this.cursor = Number(digit[1]) - 1
+    else this.cursor = (this.cursor + step + WEAPONS.length) % WEAPONS.length
+    if (digit || confirm) this.choose(WEAPONS[this.cursor].id)
     return true
   }
 
@@ -487,7 +523,7 @@ export class ArenaClient {
     for (const st of s.fighters) {
       const f = g.fighters.get(st.id)
       if (!f) continue
-      Object.assign(f, { hp: st.hp, alive: st.alive, shield: st.shield, weapon: st.weapon })
+      Object.assign(f, { hp: st.hp, alive: st.alive, shield: st.shield, weapon: st.weapon, wait: st.wait })
       f.puppet?.apply({ x: st.x, z: st.z, yaw: st.yaw, level: ARENA_LEVEL, anim: st.anim })
     }
     const side = (team: number) => ({ score: s.score[team], rounds: s.rounds[team] })
@@ -533,16 +569,20 @@ export class ArenaClient {
         const victim = g.fighters.get(e.id)
         const by = g.fighters.get(e.by)
         if (!victim) break
-        victim.alive = false
-        victim.hp = 0
+        Object.assign(victim, { alive: false, hp: 0, ghost: true, wait: e.wait })
+        // Il disparaît là où il est tombé, et reparaît à sa base, en fantôme.
+        if (this.inArena) gun.poof(new THREE.Vector3(e.from.x, 0.35, e.from.z), TINT[victim.rel])
+        const body = victim.puppet ?? (e.id === self ? null : this.host.remotes.get(e.id))
+        if (body) {
+          body.apply({ x: e.x, z: e.z, yaw: e.yaw, level: ARENA_LEVEL, anim: 'idle' })
+          body.group.position.copy(body.target)
+        }
         this.hud.kill(by && by !== victim ? by : null, victim, e.weapon, e.by === self || e.id === self)
         if (g.state) g.state.score = e.score
         if (e.id === self) {
           g.streak = 0
-          this.down(by && by !== victim ? by.name : '')
+          this.down(by && by !== victim ? by.name : '', e)
         } else {
-          // Un bot tombe sur place ; un joueur le fait de lui-même (il joue l'emote).
-          victim.puppet?.emote('dodo')
           if (e.by === self) {
             // Une série sans tomber : ça se dit.
             const text = STREAKS[Math.min(++g.streak, STREAKS.length - 1)]
@@ -555,12 +595,9 @@ export class ArenaClient {
       case 'spawn': {
         const f = g.fighters.get(e.id)
         if (!f) break
-        Object.assign(f, { alive: true, hp: ARENA_RULES.hp, shield: true, weapon: e.weapon })
+        Object.assign(f, { alive: true, hp: ARENA_RULES.hp, shield: true, weapon: e.weapon, ghost: false, wait: 0 })
         if (e.id === self) this.back(e)
-        // Un joueur revenu à sa base est debout : son personnage ne reste pas couché tant qu'il n'a pas bougé.
-        else if (!f.puppet) this.host.remotes.get(e.id)?.avatar?.stopEmote()
-        else {
-          f.puppet.avatar?.stopEmote()
+        else if (f.puppet) {
           f.puppet.apply({ x: e.x, z: e.z, yaw: e.yaw, level: ARENA_LEVEL, anim: 'idle' })
           f.puppet.group.position.copy(f.puppet.target)
         }
@@ -588,25 +625,28 @@ export class ArenaClient {
     }
   }
 
-  /** Éliminé : on tombe, l'arme disparaît, on attend de revenir à sa base. */
-  private down(by: string) {
+  /** Éliminé : on reparaît à sa base, en fantôme, sans arme, le temps de revenir en jeu. */
+  private down(by: string, at: { x: number; z: number; yaw: number }) {
     const g = this.game!
     g.downBy = by
+    this.cursor = Math.max(0, WEAPONS.findIndex((w) => w.id === this.weapon))
     const player = this.host.player
     player.cancelPath()
-    player.avatar.playEmote('dodo')
-    this.host.net.sendEmote('dodo')
     this.host.iso.shake(0.3)
+    if (this.inArena) {
+      player.position.set(at.x, this.deck!.y, at.z)
+      this.host.iso.snapTo(player.position)
+      this.host.face(at.yaw)
+    }
     this.gun!.down()
     this.gun!.cue('down')
   }
 
-  /** De retour à sa base : debout, protégé un instant, l'arme choisie en main. */
+  /** De retour en jeu : à sa base, protégé un instant, l'arme choisie en main. */
   private back(e: { x: number; z: number; yaw: number; weapon: WeaponId }) {
     const g = this.game!
     g.downBy = null
     const player = this.host.player
-    if (player.avatar.emoteId === 'dodo') player.avatar.stopEmote()
     if (!this.inArena) return
     player.position.set(e.x, this.deck!.y, e.z)
     this.host.iso.snapTo(player.position)
@@ -624,7 +664,7 @@ export class ArenaClient {
     this.lastEnd = { won: r.winner < 0 ? null : r.winner === g.team, kills: mine?.kills ?? 0, deaths: mine?.deaths ?? 0 }
     const side = (team: number) => ({ score: r.score[team], rounds: r.rounds[team] })
     this.hud.board(side(g.team), side(1 - g.team), r.goal, g.state?.round ?? 1, g.wins, 0, 0)
-    this.hud.waiting(null, 0, this.weapon)
+    this.hud.waiting(null, 0, this.weapon, this.cursor)
     this.gun?.cue(r.winner === g.team ? 'go' : 'down')
     this.gun?.end()
     this.endTimer = 30
@@ -668,6 +708,8 @@ export class ArenaClient {
         f.puppet.group.visible = inArena && this.visible(f, f.puppet.group.position)
       }
       const shown = inArena && !!at && (mine || !!r?.group.visible)
+      const avatar = mine ? this.host.player.avatar : r?.avatar
+      haunt(avatar, f.ghost && !f.alive)
       // Son anneau, sous ses pieds ; il bat tant qu'il est protégé.
       f.ring.visible = shown && f.alive
       if (f.ring.visible) {
@@ -676,12 +718,15 @@ export class ArenaClient {
         f.ring.scale.setScalar((mine ? 1.15 : 1) * beat)
       }
       // Sa plaque, au-dessus de sa tête : son nom et sa vie. En vue subjective, seulement s'il n'y
-      // a rien entre lui et nous (la plaque ne doit pas le trahir derrière un conteneur) ; la nôtre,
-      // qu'on ne voit pas dans ses propres yeux, se pose en bas de l'écran.
-      const avatar = mine ? this.host.player.avatar : r?.avatar
-      const info = { name: f.name, hp: f.hp, rel: f.rel, shield: f.shield, bot: f.bot, ammo: mine ? this.gun?.loaded : undefined }
+      // a rien entre lui et nous (la plaque ne doit pas le trahir derrière un conteneur) ; la nôtre
+      // se pose en bas de l'écran (au-dessus de notre tête, par-dessus l'épaule, elle boucherait la mire).
+      const waiting = !f.alive && f.ghost
+      const info = {
+        name: f.name, hp: f.hp, rel: f.rel, shield: f.shield, bot: f.bot, wait: waiting ? f.wait : undefined,
+        ammo: mine && f.alive ? this.gun?.loaded : undefined, reloading: mine && this.gun?.reloading,
+      }
       let spot: { x: number; y: number; d: number } | null = null
-      if (shown && f.alive && avatar && !g.end) {
+      if (shown && (f.alive || waiting) && avatar && !g.end) {
         if (mine && fps) spot = { x: innerWidth / 2, y: innerHeight - 96, d: 0 }
         else if (!fps || arenaSight(this.zone, here, at!)) spot = this.host.project(avatar.head(this.hands))
       }
@@ -697,6 +742,6 @@ export class ArenaClient {
     }
     if (!inArena || g.end) return
     const wait = g.state?.fighters.find((f) => f.id === self)?.wait ?? ARENA_RULES.respawn
-    this.hud.waiting(g.downBy, wait, this.weapon)
+    this.hud.waiting(g.downBy, wait, this.weapon, this.cursor)
   }
 }
