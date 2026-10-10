@@ -142,7 +142,7 @@
           <!-- Écran tactile : les gestes remplacent le clavier (le reste de l'aide est alors caché, cf. mobile.css). -->
           <div class="help-touch" lang="fr">
             <p><b>Se déplacer</b> Stick à gauche pour marcher, poussé à fond pour courir. Toucher le sol : s'y rendre.</p>
-            <p><b>Regarder</b> Glisser un doigt sur le décor : tourner la vue. Deux doigts : les écarter pour zoomer, les faire tourner pour pivoter.</p>
+            <p><b>Regarder</b> Glisser un doigt sur le décor : tourner la vue. En vue subjective ou à la troisième personne, le stick de droite tourne le regard. Deux doigts : les écarter pour zoomer, les faire tourner pour pivoter.</p>
             <p><b>Agir</b> <i data-icon="hand-tap"></i> ou l'étiquette au-dessus d'un objet : interagir, s'asseoir, se relever. <i data-icon="sparkle"></i> l'action de la place où l'on est assis. <i data-icon="x"></i> fermer.</p>
             <p><b>À bord</b> <i data-icon="person-arms-spread"></i> emotes et réactions · <i data-icon="users-three"></i> annuaire des joueurs · <i data-icon="chat-circle-dots"></i> chat · <i data-icon="scroll"></i> journal de quêtes (un « ! » jaune en signale une) · <i data-icon="eye"></i> vue subjective.</p>
             <p><b>Aménager</b> Dans ses quartiers, bouton « Aménager » en haut de l'écran. Toucher un meuble le choisit, le glisser le déplace ; deux doigts déplacent, zooment et tournent la vue.</p>
@@ -150,7 +150,7 @@
           </div>
           <div class="help-touch" lang="en">
             <p><b>Moving</b> Left stick to walk, push it all the way to run. Touch the floor to go there.</p>
-            <p><b>Looking</b> Drag one finger on the scene to turn the view. Two fingers: spread to zoom, twist to rotate.</p>
+            <p><b>Looking</b> Drag one finger on the scene to turn the view. In first- or third-person view, the right stick turns the camera. Two fingers: spread to zoom, twist to rotate.</p>
             <p><b>Acting</b> <i data-icon="hand-tap"></i> or the label above an object: interact, sit, stand up. <i data-icon="sparkle"></i> the action of the seat you are in. <i data-icon="x"></i> close.</p>
             <p><b>On board</b> <i data-icon="person-arms-spread"></i> emotes and reactions · <i data-icon="users-three"></i> player directory · <i data-icon="chat-circle-dots"></i> chat · <i data-icon="scroll"></i> quest journal (a yellow “!” marks one) · <i data-icon="eye"></i> first-person view.</p>
             <p><b>Decorating</b> In your quarters, “Decorate” button at the top of the screen. Touch an item to select it, drag it to move it; two fingers pan, zoom and rotate the view.</p>
@@ -218,8 +218,8 @@
       <div id="garden-tools" class="panel garden-tools" hidden></div>
       <div id="touch-pad" aria-label="Commandes tactiles">
         <div id="touch-stick" class="touch-stick" aria-label="Déplacement" data-en-aria-label="Movement"><div class="touch-stick-knob"></div></div>
-        <!-- Stand de tir : le second stick, à droite, vise et tire (affiché arme en main seulement). -->
-        <div id="touch-aim" class="touch-stick" aria-label="Viser et tirer" data-en-aria-label="Aim and fire"><div class="touch-stick-knob"><i data-icon="crosshair"></i></div></div>
+        <!-- Le second stick, à droite : il tourne le regard en vue subjective ou à la troisième personne ; au stand de tir, il vise et tire. -->
+        <div id="touch-aim" class="touch-stick" aria-label="Regarder, viser" data-en-aria-label="Look, aim"><div class="touch-stick-knob"><i data-icon="crosshair"></i></div></div>
         <!-- Zone thargoïde : lancer une fusée (affiché dans la baie seulement). -->
         <button id="touch-flare" class="touch-flare" hidden aria-label="Lancer une fusée" title="Lancer une fusée" data-en-aria-label="Throw a flare" data-en-title="Throw a flare"><i data-icon="flame"></i><b class="touch-flare-count">0</b></button>
         <div class="touch-actions">

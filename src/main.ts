@@ -3862,6 +3862,14 @@ let touchShot: 'tap' | 'aimed' | 'back' | null = null
 /** Vue subjective : angle (radians) que tourne le regard pour une course du centre au bord du stick de tir. */
 const FPS_STICK_YAW = 0.62
 const FPS_STICK_PITCH = 0.42
+/**
+ * Hors du stand de tir, le stick de droite tourne le regard « à vitesse » : radians par seconde,
+ * stick poussé à fond. Sa course est courte : passé un petit jeu, la vitesse monte en courbe, fine
+ * près du centre et vive au bord.
+ */
+const TOUCH_LOOK_YAW = 4.2
+const TOUCH_LOOK_PITCH = 2.6
+const TOUCH_LOOK_SLACK = 0.1
 function updateGamepad(dt: number): GamepadInput {
   const focus = document.activeElement
   const typing = focus instanceof HTMLElement && (focus.matches('input, textarea, select') || focus.isContentEditable)
@@ -3892,6 +3900,12 @@ function updateGamepad(dt: number): GamepadInput {
       const reach = Math.hypot(touch.lookX, touch.lookY)
       pad.lookX = touch.lookX / reach
       pad.lookY = touch.lookY / reach
+    } else if (fpsShown && !range.active) {
+      const reach = Math.hypot(touch.lookX, touch.lookY)
+      if (reach > TOUCH_LOOK_SLACK) {
+        const speed = ((reach - TOUCH_LOOK_SLACK) / (1 - TOUCH_LOOK_SLACK)) ** 1.5 / reach
+        fps.look(-touch.lookX * speed * TOUCH_LOOK_YAW * dt, -touch.lookY * speed * TOUCH_LOOK_PITCH * dt)
+      }
     }
     pad.interact ||= touch.interact
     pad.action ||= touch.action
@@ -4251,7 +4265,9 @@ canvas.addEventListener('pointermove', (e) => {
   freeLook.x = e.clientX
   freeLook.y = e.clientY
   freeLook.moved += Math.abs(dx) + Math.abs(dy)
-  if (fpsShown) fps.look(-dx * 0.005, -dy * 0.004)
+  // Au doigt, le regard tourne plus vite : un pouce n'a pas la course d'une souris.
+  const touch = e.pointerType !== 'mouse'
+  if (fpsShown) fps.look(-dx * (touch ? 0.008 : 0.005), -dy * (touch ? 0.006 : 0.004))
   else if (e.shiftKey) iso.pan(dx, dy, innerHeight)
   else iso.orbit(-dx * 0.008, dy * 0.006)
 })
@@ -4555,8 +4571,12 @@ function drawMinimap() {
   const others = [...remotes.values()].filter((r) => r.group.visible && r.level === deck.def.id).map((r) => r.group.position)
   minimap.draw(deck.map, deck.def.id, player.position.x, player.position.z, fps.yaw, liftTile, others, timer.getElapsed())
 }
-/** Bas des invites et bulles posées à l'écran en vue subjective : au-dessus de la barre d'emotes. */
-const fpsBottom = () => innerHeight - 130
+/**
+ * Bas des invites et bulles posées à l'écran en vue subjective : au-dessus de la barre d'emotes.
+ * Au doigt, il n'y a pas de barre en bas : elles descendent entre les pouces, juste au-dessus du
+ * bandeau de dialogue, loin du milieu de l'écran.
+ */
+const fpsBottom = () => innerHeight - (coarsePointer ? 76 : 130)
 
 function click(e: PointerEvent, at: { clientX: number; clientY: number } = e) {
   // Caché dans un casier, capturé, derrière les caméras, en pleine scène de quête : le clic ne fait rien.
@@ -5934,7 +5954,7 @@ function frame() {
       // Keep long interaction labels on screen, clear of the top bar and thumb controls.
       const halfWidth = promptBox.w / 2 + 12
       x = Math.max(halfWidth, Math.min(innerWidth - halfWidth, x))
-      y = Math.max(promptBox.h + 64, Math.min(innerHeight - 120, y))
+      y = Math.max(promptBox.h + 64, Math.min(innerHeight - (fpsShown ? 76 : 120), y))
     }
     promptBox.x = x
     promptBox.y = y

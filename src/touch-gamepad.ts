@@ -97,7 +97,7 @@ class TouchStick {
  */
 export class TouchGamepad {
   private stick = new TouchStick(document.getElementById('touch-stick')!)
-  /** Stick de tir, à droite : affiché au stand de tir seulement (cf. mobile.css). */
+  /** Stick de droite : le regard en vue subjective ou à la troisième personne, le tir au stand de tir (cf. mobile.css). */
   private aim = new TouchStick(document.getElementById('touch-aim')!)
   private pending = new Set<Button>()
   private direction = 0
