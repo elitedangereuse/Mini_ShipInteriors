@@ -954,7 +954,7 @@ un appareil avec encoche ; essayer aussi le chat avec le clavier logiciel ouvert
 | Caméra libre | maintenir le **clic droit** ou le **clic molette** et glisser : horizontalement on tourne autour du personnage, verticalement on incline la vue (de rasante à presque de dessus) ; avec `Maj`, on fait glisser la vue (de quatre tuiles au plus), qui revient sur le personnage dès qu'il bouge |
 | Zoom | molette, ou les boutons loupe ; la vue reste serrée sur la pièce où l'on est et un bout de ses voisines, jamais tout le pont (`ZOOM_MAX` dans `src/camera.ts` ; un écran étroit recule un peu plus, pour voir autant de pont). Seul le mode aménagement cadre plus large |
 | Mode léger | bouton éclair en haut à droite : rendu moins coûteux, retour au rendu normal au second clic ; choix mémorisé sur cet appareil |
-| Vue à la troisième personne | bouton silhouette en haut à droite (ou `V`, après la vue subjective) : la caméra par-dessus l'épaule ; `C` ou le bouton aux deux flèches la passe à l'autre épaule ; choix mémorisés sur cet appareil |
+| Vue à la troisième personne | `C` ou le bouton silhouette en haut à droite : la caméra par-dessus l'épaule ; `X` ou le bouton aux deux flèches la passe à l'autre épaule ; choix mémorisés sur cet appareil |
 | Son | `M` (la lettre, où qu'elle soit sur le clavier) ou le bouton haut-parleur, curseur de volume (le son démarre au premier clic ou à la première touche, contrainte des navigateurs) |
 
 ## Langues

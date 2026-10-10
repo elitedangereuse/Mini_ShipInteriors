@@ -3805,7 +3805,8 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyV' && !editing()) return toggleFps()
   if (e.code === 'KeyB') return editing() ? closeEditor() : void openEditor()
   if (e.code === 'KeyG' && !editing() && !photo.active && deck === homeDeck) return gardenMode.toggle()
-  if (e.code === 'KeyC' && shoulderWanted && fpsShown && !photo.active) return swapShoulder()
+  if (e.code === 'KeyC' && !editing()) return toggleShoulder()
+  if (e.code === 'KeyX' && shoulderWanted && fpsShown) return swapShoulder()
   // La lettre, pas sa place sur le clavier : en AZERTY, le M n'est pas là où le QWERTY le met.
   if (e.key.toLowerCase() === 'm') {
     sound.toggleMute()
@@ -4079,11 +4080,11 @@ function updateFpsButton() {
   const eyes = fpsWanted && !shoulderWanted
   const button = $('fps-view')
   button.setAttribute('aria-pressed', String(eyes))
-  button.title = eyes ? tr('Vue subjective active · revenir à la vue isométrique (V : vue suivante)', 'First-person view on · back to isometric view (V: next view)') : tr('Vue subjective (V)', 'First-person view (V)')
+  button.title = eyes ? tr('Vue subjective active · revenir à la vue isométrique (V)', 'First-person view on · back to isometric view (V)') : tr('Vue subjective (V)', 'First-person view (V)')
   button.setAttribute('aria-label', button.title)
   const third = $('shoulder-view')
   third.setAttribute('aria-pressed', String(shoulderWanted))
-  third.title = shoulderWanted ? tr('Vue à la troisième personne active · revenir à la vue isométrique (V)', 'Third-person view on · back to isometric view (V)') : tr('Vue à la troisième personne', 'Third-person view')
+  third.title = shoulderWanted ? tr('Vue à la troisième personne active · revenir à la vue isométrique (C)', 'Third-person view on · back to isometric view (C)') : tr('Vue à la troisième personne (C)', 'Third-person view (C)')
   third.setAttribute('aria-label', third.title)
   // Le côté de la caméra ne se choisit que par-dessus l'épaule.
   $('shoulder-side').hidden = !shoulderWanted
@@ -4098,21 +4099,19 @@ function setFps(eyes: boolean, shoulder: boolean) {
   relock = fpsWanted
   if (fpsWanted && !isoOnly() && !needsCursor() && matchMedia('(pointer: fine)').matches) lockCursor()
 }
-/** D'une vue à la suivante : isométrique, dans les yeux, par-dessus l'épaule. */
-function toggleFps() {
-  if (!fpsWanted) setFps(true, false)
-  else if (!shoulderWanted) setFps(false, true)
-  else setFps(false, false)
-}
+/** V : la vue subjective, ou retour à la vue isométrique. */
+const toggleFps = () => setFps(!fpsWanted || shoulderWanted, false)
+/** C : la vue par-dessus l'épaule, ou retour à la vue isométrique. */
+const toggleShoulder = () => setFps(false, !shoulderWanted)
 /** La caméra passe par-dessus l'autre épaule. */
 function swapShoulder() {
   fps.side = -fps.side
   store.set('mini-shipinteriors-shoulder', fps.side < 0 ? 'left' : 'right')
 }
 fps.side = store.get('mini-shipinteriors-shoulder') === 'left' ? -1 : 1
-// Chaque bouton va droit à sa vue, et en revient ; V les enchaîne.
-$('fps-view').onclick = () => setFps(!fpsWanted || shoulderWanted, false)
-$('shoulder-view').onclick = () => setFps(false, !shoulderWanted)
+// Chaque bouton, comme sa touche, va droit à sa vue, et en revient.
+$('fps-view').onclick = () => toggleFps()
+$('shoulder-view').onclick = () => toggleShoulder()
 $('shoulder-side').onclick = () => swapShoulder()
 updateFpsButton()
 
