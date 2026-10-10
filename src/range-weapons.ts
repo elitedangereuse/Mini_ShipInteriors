@@ -1,9 +1,12 @@
 import { tr } from './i18n'
+import { WEAPON_STATS, type WeaponId, type WeaponStats } from '../shared/weapons.js'
 
 /*
  * Les armes du stand de tir de la cale : des blasters, du Blaster Kit de Kenney. Leurs réglages
  * sont ici, à part, parce que le jeu (src/range.ts), ses bruitages (src/range-sfx.ts) et le mur où
- * on les prend (src/furniture/range.ts) les lisent tous les trois.
+ * on les prend (src/furniture/range.ts) les lisent tous les trois. Ce que le relais doit lire aussi
+ * pour arbitrer l'arène (cadence, chargeur, vitesse de la balle, gerbe, explosion, poids, dégâts)
+ * est dans shared/weapons.js ; ici, ce qui ne regarde que le joueur : le nom, le modèle, le recul.
  *
  * Angles en degrés (convertis par le jeu). Le recul et la dispersion se règlent arme par arme :
  * - `kick` cabre le regard à chaque tir, `side` le fait dévier de côté (au hasard, dans les deux
@@ -24,9 +27,9 @@ import { tr } from './i18n'
  * Les trois dernières pèsent : on marche moins vite avec (`weight`).
  */
 
-export type WeaponId = 'pistol' | 'smg' | 'shotgun' | 'rifle' | 'launcher'
+export type { WeaponId }
 
-export interface Weapon {
+export interface Weapon extends WeaponStats {
   id: WeaponId
   name: string
   /** « Prendre le pistolet », sur le mur. */
@@ -36,32 +39,15 @@ export interface Weapon {
   grip: [number, number]
   /** Couleur du tir : la balle, sa traînée, l'éclair du canon, le liseré de l'arme au mur. */
   color: string
-  /** Tire tant que la détente est tenue. */
-  auto: boolean
-  /** Délai entre deux tirs, taille du chargeur, durée du rechargement (secondes). */
-  interval: number
-  mag: number
-  reload: number
-  /** Vitesse de la balle (tuiles par seconde). */
-  speed: number
-  /** La balle traverse les cibles. */
-  pierce: boolean
-  /** Balles par tir (la gerbe du fusil à pompe) : chacune part dans le cône de dispersion de l'arme. */
-  pellets: number
-  /** Rayon de l'explosion à l'impact (0 : aucune) : toutes les cibles prises dedans éclatent. */
-  blast: number
   kick: number
   side: number
   recover: number
-  spread: number
   bloom: number
   bloomMax: number
   settle: number
   move: number
   /** Secousse de la vue et recul de l'arme à l'écran (1 : le pistolet). */
   punch: number
-  /** Poids : ce qu'il reste de la vitesse de marche, arme en main (1 : rien de perdu). */
-  weight: number
   /** Son caractère, en deux mots, sur sa fiche au mur. */
   trait: string
 }
@@ -69,33 +55,33 @@ export interface Weapon {
 export const WEAPONS: Weapon[] = [
   {
     id: 'pistol', name: tr('Pistolet', 'Pistol'), take: tr('Prendre le pistolet', 'Take the pistol'), model: 'blaster-b', grip: [-0.08, -0.12], color: '#ffb054',
-    trait: tr('polyvalent', 'all-rounder'), weight: 1,
-    auto: false, interval: 0.16, mag: 10, reload: 0.9, speed: 46, pierce: false, pellets: 1, blast: 0,
-    kick: 1.4, side: 0.35, recover: 8, spread: 0.15, bloom: 0.9, bloomMax: 3, settle: 6, move: 0.4, punch: 1,
+    trait: tr('polyvalent', 'all-rounder'),
+    ...WEAPON_STATS.pistol,
+    kick: 1.4, side: 0.35, recover: 8, bloom: 0.9, bloomMax: 3, settle: 6, move: 0.4, punch: 1,
   },
   {
     id: 'smg', name: tr('Mitraillette', 'SMG'), take: tr('Prendre la mitraillette', 'Take the SMG'), model: 'blaster-a', grip: [-0.1, -0.14], color: '#6fe8ff',
-    trait: tr('arrose', 'bullet hose'), weight: 0.95,
-    auto: true, interval: 0.08, mag: 32, reload: 1.9, speed: 48, pierce: false, pellets: 1, blast: 0,
-    kick: 0.5, side: 0.45, recover: 5, spread: 1.3, bloom: 0.5, bloomMax: 5.5, settle: 3.5, move: 1.4, punch: 0.55,
+    trait: tr('arrose', 'bullet hose'),
+    ...WEAPON_STATS.smg,
+    kick: 0.5, side: 0.45, recover: 5, bloom: 0.5, bloomMax: 5.5, settle: 3.5, move: 1.4, punch: 0.55,
   },
   {
     id: 'shotgun', name: tr('Fusil à pompe', 'Shotgun'), take: tr('Prendre le fusil à pompe', 'Take the shotgun'), model: 'blaster-l', grip: [-0.08, -0.1], color: '#c58bff',
-    trait: tr('de près', 'close range'), weight: 0.88,
-    auto: false, interval: 0.95, mag: 4, reload: 2.4, speed: 42, pierce: false, pellets: 9, blast: 0,
-    kick: 5.5, side: 1.2, recover: 4, spread: 5, bloom: 0.8, bloomMax: 6.5, settle: 3, move: 0.6, punch: 2.5,
+    trait: tr('de près', 'close range'),
+    ...WEAPON_STATS.shotgun,
+    kick: 5.5, side: 1.2, recover: 4, bloom: 0.8, bloomMax: 6.5, settle: 3, move: 0.6, punch: 2.5,
   },
   {
     id: 'rifle', name: tr('Fusil', 'Rifle'), take: tr('Prendre le fusil', 'Take the rifle'), model: 'blaster-e', grip: [-0.1, 0.3], color: '#ff6ad5',
-    trait: tr('perforant', 'piercing'), weight: 0.8,
-    auto: false, interval: 1, mag: 3, reload: 2.3, speed: 100, pierce: true, pellets: 1, blast: 0,
-    kick: 4.6, side: 0.8, recover: 3.4, spread: 0, bloom: 5, bloomMax: 6, settle: 2.2, move: 3, punch: 2.3,
+    trait: tr('perforant', 'piercing'),
+    ...WEAPON_STATS.rifle,
+    kick: 4.6, side: 0.8, recover: 3.4, bloom: 5, bloomMax: 6, settle: 2.2, move: 3, punch: 2.3,
   },
   {
     id: 'launcher', name: tr('Lance-plasma', 'Plasma launcher'), take: tr('Prendre le lance-plasma', 'Take the plasma launcher'), model: 'blaster-h', grip: [-0.09, -0.08], color: '#8dff6a',
-    trait: tr('explosif', 'explosive'), weight: 0.72,
-    auto: false, interval: 1.2, mag: 2, reload: 2.8, speed: 12, pierce: false, pellets: 1, blast: 0.9,
-    kick: 3.6, side: 0.6, recover: 3.4, spread: 0.3, bloom: 2, bloomMax: 4, settle: 2.5, move: 1.2, punch: 2.7,
+    trait: tr('explosif', 'explosive'),
+    ...WEAPON_STATS.launcher,
+    kick: 3.6, side: 0.6, recover: 3.4, bloom: 2, bloomMax: 4, settle: 2.5, move: 1.2, punch: 2.7,
   },
 ]
 
@@ -109,3 +95,4 @@ export const weaponById = (id: string | undefined) => WEAPONS.find((w) => w.id =
  * à chaque coup de grosse caisse de la musique.
  */
 export const rangeState: { live: boolean; weapon: WeaponId | null; flash: number; tier: number; alarm: number; beat: number } = { live: false, weapon: null, flash: 0, tier: 0, alarm: 0, beat: 0 }
+export type RangeState = typeof rangeState

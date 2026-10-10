@@ -3,6 +3,7 @@ import type { FightSnapshot } from '../shared/fight.js'
 import type { SystemId } from '../shared/systems.js'
 /** Client du relais multijoueur (server/relay.js, socket.io). Sans serveur, le jeu reste en solo. */
 import { io, type Socket } from 'socket.io-client'
+import type { WeaponId } from '../shared/weapons.js'
 
 export interface PlayerState {
   id: number
@@ -228,9 +229,64 @@ export interface SalvageEnd {
 export interface SalvageMemberStats { id: number; name: string; delivered: number; spotted: number; flares: number; hides: number; captured: number }
 export type SalvageAction = 'join' | 'leave' | 'settings' | 'ready' | 'pickup' | 'hide' | 'unhide' | 'flare' | 'quit' | 'resume'
 
+/** L'arène (cf. server/arena.js) : un salon du lobby, ses deux camps, ou sa partie en cours. */
+export interface ArenaMember { id: number; name: string; verified: boolean; team: 0 | 1; weapon: WeaponId; ready: boolean }
+export interface ArenaRoom {
+  id: number
+  leader: number
+  /** Joueurs par équipe ; `bots` : ils complètent les deux équipes, au niveau `skill` (0 à 2). */
+  size: number
+  bots: boolean
+  skill: number
+  status: 'forming' | 'countdown' | 'playing'
+  startsIn?: number
+  members: ArenaMember[]
+  score?: [number, number]
+}
+export interface ArenaLobby { rooms: ArenaRoom[] }
+export interface ArenaFighter { id: number; name: string; team: 0 | 1; bot: boolean; weapon: WeaponId }
+export interface ArenaStart {
+  game: string
+  team: 0 | 1
+  size: number
+  goal: number
+  duration: number
+  warmup: number
+  fighters: ArenaFighter[]
+  spawn: { x: number; z: number; yaw: number }
+}
+export interface ArenaFighterState {
+  id: number; x: number; z: number; yaw: number; anim: string; hp: number; alive: boolean; weapon: WeaponId
+  /** Protégé (il vient de revenir à sa base) ; `wait` : secondes avant son retour. */
+  shield: boolean
+  kills: number
+  deaths: number
+  wait: number
+}
+export interface ArenaState { game: string; warmup: number; left: number; score: [number, number]; fighters: ArenaFighterState[] }
+export type ArenaEvent =
+  | { kind: 'shot'; id: number; weapon: WeaponId; o: [number, number, number]; d: [number, number, number][] }
+  | { kind: 'hit'; id: number; by: number; hp: number; dmg: number; x: number; y: number; z: number }
+  | { kind: 'kill'; id: number; by: number; weapon: WeaponId; score: [number, number]; wait: number }
+  | { kind: 'spawn'; id: number; x: number; z: number; yaw: number; weapon: WeaponId }
+  | { kind: 'left'; id: number }
+  | { kind: 'join'; fighter: ArenaFighter; x: number; z: number; yaw: number }
+export interface ArenaStats extends ArenaFighter { kills: number; deaths: number; damage: number }
+export interface ArenaEnd {
+  game: string
+  /** Équipe gagnante ; -1 : égalité. */
+  winner: number
+  reason: 'score' | 'time' | 'forfeit'
+  score: [number, number]
+  goal: number
+  duration: number
+  stats: ArenaStats[]
+}
+export type ArenaAction = 'create' | 'join' | 'leave' | 'side' | 'settings' | 'weapon' | 'ready' | 'fire' | 'quit'
+
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
-  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean; bar?: boolean; welcome?: boolean }; players: PlayerState[]; homes?: { id: number; name: string }[]; music?: MusicState; hold?: MusicState; system?: SystemId; patrol?: PatrolState; chef?: ChefState; nurse?: NurseState; mechanic?: MechanicState; gardener?: GardenerState; chief?: ChiefState; salvage?: SalvageLobby }
+  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean; bar?: boolean; welcome?: boolean }; players: PlayerState[]; homes?: { id: number; name: string }[]; music?: MusicState; hold?: MusicState; system?: SystemId; patrol?: PatrolState; chef?: ChefState; nurse?: NurseState; mechanic?: MechanicState; gardener?: GardenerState; chief?: ChiefState; salvage?: SalvageLobby; arena?: ArenaLobby }
   | { t: 'join'; player: PlayerState }
   | { t: 'leave'; id: number }
   | { t: 'state'; id: number; x: number; z: number; yaw: number; level: number; anim: string; pose?: string; py?: number }
@@ -293,6 +349,12 @@ export type ServerMessage =
    */
   | { t: 'salvage:reward'; game: string; earned: number; balance?: number; refused?: 'max' | 'early'; boosters?: number; badge?: boolean }
   | { t: 'salvage:error'; code: string }
+  | ({ t: 'arena:lobby' } & ArenaLobby)
+  | ({ t: 'arena:start' } & ArenaStart)
+  | ({ t: 'arena:state' } & ArenaState)
+  | ({ t: 'arena:event' } & ArenaEvent)
+  | ({ t: 'arena:end' } & ArenaEnd)
+  | { t: 'arena:error'; code: string }
 
 /**
  * Réponse du relais à une invitation : partie, ou pourquoi pas (guest : on n'est pas CMDR,
@@ -307,7 +369,8 @@ type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin' | 'open'>
 /** Chemin de la socket : le même que WS_PATH dans server/relay.js et que la conf nginx du site. */
 const WS_PATH = import.meta.env.VITE_WS_PATH || '/ws/mini-shipinteriors'
 const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'open', 'whisper', 'nudge', 'ring', 'music', 'jump', 'patrol', 'chef', 'nurse', 'mechanic', 'gardener', 'chief', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error',
-  'salvage:lobby', 'salvage:start', 'salvage:state', 'salvage:event', 'salvage:end', 'salvage:reward', 'salvage:error']
+  'salvage:lobby', 'salvage:start', 'salvage:state', 'salvage:event', 'salvage:end', 'salvage:reward', 'salvage:error',
+  'arena:lobby', 'arena:start', 'arena:state', 'arena:event', 'arena:end', 'arena:error']
 
 export class Net {
   online = false
@@ -620,5 +683,10 @@ export class Net {
   /** Zone thargoïde : former son équipe au lobby, puis agir en mission (cf. server/salvage.js). */
   sendSalvage(action: SalvageAction, data: object = {}) {
     this.send(`salvage:${action}`, data)
+  }
+
+  /** L'arène : son salon au lobby, puis ses tirs en partie (cf. server/arena.js). */
+  sendArena(action: ArenaAction, data: object = {}) {
+    this.send(`arena:${action}`, data)
   }
 }

@@ -63,6 +63,9 @@
 // son instance. Dans la baie infestée, un joueur ne voit et n'entend que son équipe ; le reste du
 // bord apprend seulement qu'il y est entré.
 //
+// Arène (cf. arena.js) : des duels par équipes, lancés du même lobby. Une instance par partie,
+// comme la baie infestée : on n'y voit et n'y entend que ceux de sa partie.
+//
 // Quêtes (cf. shared/quests.js) : certaines pièces restent fermées tant que leur quête n'est pas
 // terminée. Pour un CMDR, le site le dit à la connexion, et le relais le lui redemande quand le
 // joueur annonce en avoir terminé une ; un invité, lui, joue dans son navigateur : on le croit.
@@ -97,6 +100,8 @@ import {
 } from '../shared/gardener.js'
 import { HOME_SYSTEM, JUMP_CHARGE, JUMP_TRAVEL, PILOT_SEAT, nextSystem } from '../shared/systems.js'
 import { ZONE_LEVEL } from '../shared/salvage.js'
+import { ARENA_LEVEL } from '../shared/arena.js'
+import { ARENA_GAME_ACTIONS, ARENA_LOBBY_ACTIONS, createArena } from './arena.js'
 // Identifiant d'apparence (cf. src/looks.ts), ex. « human.female.b », « alien.male.c.blue », « robot.g »,
 // suivi au besoin du style du Holo-Me (« suit.male.c.flight.mo-pk-sm-nv- ») dont chaque champ est vérifié.
 import { validLook } from '../shared/look-style.js'
@@ -504,11 +509,26 @@ export function attachRelay(
   const salvageTimer = setInterval(() => salvage.tick(0.1), 100)
   salvageTimer.unref?.()
   httpServer.on('close', () => clearInterval(salvageTimer))
+  // L'arène (cf. arena.js) : les salons se forment au même lobby, chaque partie a son instance,
+  // ses balles et ses bots ; elle avance vingt fois par seconde.
+  const arena = createArena({
+    playerById,
+    emit: (id, event, data) => sockets.get(id)?.emit(event, data),
+    broadcast: (event, data) => io.emit(event, data),
+    log,
+    debug: devCmdr,
+  })
+  const arenaTimer = setInterval(() => arena.tick(0.05), 50)
+  arenaTimer.unref?.()
+  httpServer.on('close', () => clearInterval(arenaTimer))
+  /** Hors du vaisseau, dans une instance (la baie infestée, l'arène) : seuls ceux de la partie s'y voient. */
+  const instanced = (level) => level === ZONE_LEVEL || level === ARENA_LEVEL
   /**
    * `to` entend `from` (chat, emotes) : dans la baie infestée, on ne parle qu'à son équipe ; au
    * vaisseau, à tout le bord hors de la baie, et à son équipe en mission (un capturé la suit).
+   * Dans l'arène, de même : on ne parle qu'à ceux de sa partie.
    */
-  const hears = (from, to) => salvage.teammates(from).has(to.id) || (from.level !== ZONE_LEVEL && to.level !== ZONE_LEVEL)
+  const hears = (from, to) => salvage.teammates(from).has(to.id) || arena.mates(from).has(to.id) || (!instanced(from.level) && !instanced(to.level))
   const boardKey = (game, table) => (BOARD_GAMES.has(game) && table === game ? table : null)
   const emitBoard = (state) => {
     const msg = boardState(state)
@@ -611,6 +631,7 @@ export function attachRelay(
       gardener: gardenState(),
       chief: chiefState(),
       salvage: salvage.snapshot(),
+      arena: arena.snapshot(),
       // Quartiers d'absents où se trouvent des visiteurs : de quoi dire chez qui ils sont.
       homes: [...absentById.values()].map((h) => ({ id: h.id, name: `CMDR ${h.name}` })),
     })
@@ -636,6 +657,7 @@ export function attachRelay(
     let gardenBudget = 3
     let chiefBudget = 3
     let salvageBudget = 20
+    let arenaBudget = 40
     let questBudget = 3
     const refill = setInterval(() => {
       chatBudget = Math.min(5, chatBudget + 1)
@@ -652,13 +674,15 @@ export function attachRelay(
       gardenBudget = Math.min(3, gardenBudget + 1)
       chiefBudget = Math.min(3, chiefBudget + 1)
       salvageBudget = Math.min(20, salvageBudget + 10)
+      // Une mitraillette tire douze fois par seconde.
+      arenaBudget = Math.min(40, arenaBudget + 25)
       questBudget = Math.min(3, questBudget + 0.25)
     }, 1000)
 
     socket.on('state', (raw) => {
       const m = obj(raw)
       const x = num(m.x, -5, 50), z = num(m.z, -5, 30), yaw = num(m.yaw, -10, 10)
-      if (x === null || z === null || yaw === null || !(LEVELS.has(m.level) || m.level === ZONE_LEVEL || m.level === BASE_LEVEL || m.level === VENT_LEVEL || m.level === TUTORIAL_LEVEL)) return
+      if (x === null || z === null || yaw === null || !(LEVELS.has(m.level) || m.level === ZONE_LEVEL || m.level === ARENA_LEVEL || m.level === BASE_LEVEL || m.level === VENT_LEVEL || m.level === TUTORIAL_LEVEL)) return
       // Les conduits de ventilation : sur leur sol, et l'on n'y entre qu'aspiré par des toilettes du
       // pont supérieur pendant la traversée d'un saut FSD (cf. flushed, plus bas).
       if (m.level === VENT_LEVEL) {
@@ -683,12 +707,14 @@ export function attachRelay(
       if (gate && !player.quests.has(gate)) return
       // La baie infestée : seulement en mission, sur son sol, et pas plus vite qu'on ne court.
       if (m.level === ZONE_LEVEL && !salvage.accepts(player, x, z)) return
+      // L'arène : seulement en partie, debout, sur son sol, et pas plus vite qu'on ne court.
+      if (m.level === ARENA_LEVEL && !arena.accepts(player, x, z)) return
       // Une pose inconnue n'en est pas une ; sa hauteur reste à portée d'une couchette du haut.
-      const pose = POSES.has(m.pose) && m.level !== ZONE_LEVEL ? m.pose : ''
+      const pose = POSES.has(m.pose) && !instanced(m.level) ? m.pose : ''
       if (player.level !== m.level) fights.leave(player)
       // Le pilote quitte la base (il décolle) : les réacteurs du Krait de la base se coupent derrière lui.
       if (player.level === BASE_LEVEL && m.level !== BASE_LEVEL && setBaseBurn(player, false)) io.emit('chief', { id: player.id, ...chiefState() })
-      const wasZone = player.level === ZONE_LEVEL
+      const wasZone = instanced(player.level)
       const wasTutorial = player.level === TUTORIAL_LEVEL
       Object.assign(player, { x, z, yaw, level: m.level, anim: ANIMS.has(m.anim) ? m.anim : 'idle', pose, py: pose ? (num(m.py, 0, 1.2) ?? 0) : 0 })
       // Assis dans les toilettes du pont supérieur pendant la traversée d'un saut (un joueur installé
@@ -699,14 +725,16 @@ export function attachRelay(
         if (now >= jumpTravel.from && now <= jumpTravel.to + 3000) player.flushed = now + FLUSH_TICKET
       }
       salvage.moved(player)
+      arena.moved(player)
       const msg = { id: player.id, ...motion(player) }
-      const team = salvage.teammates(player)
+      const team = new Set([...salvage.teammates(player), ...arena.mates(player)])
       // Dans le simulateur d'accueil, on est seul : le bord apprend seulement qu'on y est entré.
       if (player.level === TUTORIAL_LEVEL && wasTutorial) return cinema.operatorChanged()
       for (const p of players.values()) {
         if (p === player) continue
-        // Dans la baie, seule l'équipe suit le joueur ; le reste du bord apprend seulement qu'il y est entré.
-        if (team.has(p.id) || (p.level !== ZONE_LEVEL && (player.level !== ZONE_LEVEL || !wasZone))) sockets.get(p.id)?.emit('state', msg)
+        // Dans la baie (ou dans l'arène), seuls ceux de la partie suivent le joueur ; le reste du bord
+        // apprend seulement qu'il y est entré.
+        if (team.has(p.id) || (!instanced(p.level) && (!instanced(player.level) || !wasZone))) sockets.get(p.id)?.emit('state', msg)
       }
       cinema.operatorChanged()
     })
@@ -716,6 +744,14 @@ export function attachRelay(
         if (salvageBudget < 1) return
         salvageBudget--
         salvage.handle(player, event, raw)
+      })
+    }
+
+    for (const event of [...ARENA_LOBBY_ACTIONS, ...ARENA_GAME_ACTIONS, ...(devCmdr ? ['arena:debug'] : [])]) {
+      socket.on(event, (raw) => {
+        if (arenaBudget < 1) return
+        arenaBudget--
+        arena.handle(player, event, raw)
       })
     }
 
@@ -1199,6 +1235,7 @@ export function attachRelay(
       clearInterval(refill)
       leaveBoard(player)
       salvage.leave(player)
+      arena.leave(player)
       players.delete(socket.id)
       sockets.delete(player.id)
       cinema.operatorChanged()

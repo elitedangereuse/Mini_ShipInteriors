@@ -3,6 +3,7 @@ import type { Ambience, Flicker } from './lighting/rig'
 import type * as THREE from 'three'
 import type { FloorFinish, StationModel, Theme } from './assets'
 import type { ShipMapOptions } from '../shared/ship-map.js'
+import { ARENA_TERMINAL } from '../shared/arena.js'
 import type { ZoneKit } from './salvage/kit'
 import type { GroundDef } from './base/kit'
 import type { CabinDef } from './cabin/view'
@@ -842,6 +843,12 @@ export const LEVELS: LevelDef[] = [
         'Red decoy flares. Thrown in the bay, they draw whatever prowls there for a few seconds.',
       ) },
       { model: 'dock-marking', x: 22.9, z: 8.2, label: '2.4,1.7', solid: false },
+      // Dans le coin sud-est, contre le mur du hangar : le terminal de l'arène (cf. src/arena/), d'où
+      // partent les duels par équipes, avec les armes du stand de tir.
+      {
+        model: 'arena-terminal', x: ARENA_TERMINAL.x, z: ARENA_TERMINAL.z, rot: 3, action: tr('Entrer dans l\'arène', 'Enter the arena'),
+        interact: tr('Terminal de l\'arène : duels par équipes, jusqu\'à trois contre trois.', 'Arena terminal: team duels, up to three versus three.'),
+      },
       { model: 'k-low-bench', x: 20.65, z: 9.3, rot: 1 },
       { model: 'drums', x: 25.05, z: 9.15 },
       { model: 'cables', x: 21.3, z: 6, solid: false },

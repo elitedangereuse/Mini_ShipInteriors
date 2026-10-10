@@ -13,14 +13,14 @@ import { RULES, salvageReward } from '../../shared/salvage.js'
  * note de la mission.
  */
 
-const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] => {
+export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] => {
   const e = document.createElement(tag)
   if (className) e.className = className
   if (text) e.textContent = text
   return e
 }
 
-const button = (label: string, onClick: () => void, className = '', iconName?: IconName): HTMLButtonElement => {
+export const button = (label: string, onClick: () => void, className = '', iconName?: IconName): HTMLButtonElement => {
   const b = el('button', className)
   b.type = 'button'
   if (iconName) b.append(icon(iconName))
@@ -49,8 +49,8 @@ export interface LobbyActions {
   leaderboard(): void
 }
 
-/** Fenêtre modale commune (le terminal, le classement). */
-abstract class Modal {
+/** Fenêtre modale commune (le terminal, le classement ; celui de l'arène aussi, cf. src/arena/ui.ts). */
+export abstract class Modal {
   protected readonly root = el('section', 'salvage-panel')
   protected readonly body = el('div', 'salvage-body')
   private previousFocus: HTMLElement | null = null

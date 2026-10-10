@@ -5184,3 +5184,102 @@ body.gardening #emotes { display: none; }
   .ludo-slate { margin: 0 12px 14px; }
   .ludo-hand { --w: min(150px, 40vw); }
 }
+
+/*
+ * L'arène (cf. src/arena/ui.ts). Le moteur de tir y garde ses hologrammes (munitions, ordre de
+ * recharger, mire), sans le tableau de score du stand ; par-dessus : le score des deux équipes et
+ * le chrono, les points de vie, le fil des éliminations, l'attente de celui qui vient de tomber.
+ * En fin de fichier : ces règles passent après celles des panneaux de la zone thargoïde, dont le
+ * terminal et l'écran de fin de l'arène reprennent l'allure (.salvage-panel).
+ */
+.range-hud.arena .range-board { display: none; }
+.range-hud.arena .range-hint { top: 214px; }
+.range-hud.arena .range-banner { top: 178px; }
+.range-hud.arena.down .range-holo, .range-hud.arena.down .range-alert, .range-hud.arena.down .range-dot { display: none; }
+.team0 { --team: #ff8a1c; --team-soft: #ffb777; }
+.team1 { --team: #3fc8ff; --team-soft: #8fdcff; }
+.arena-panel { width: min(680px, calc(100vw - 28px)); }
+.arena-weapons { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.arena-weapons button {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 0; padding: 8px 4px;
+  border: 1px solid color-mix(in srgb, var(--weapon) 40%, transparent); border-radius: 8px; cursor: pointer;
+  color: #dfe7ee; background: #ffffff0a; font: inherit;
+}
+.arena-weapons button strong { max-width: 100%; color: var(--weapon); font-size: 12px; line-height: 1.15; text-align: center; text-wrap: balance; }
+.arena-weapons button span { color: #a9b6c2; font-size: 10px; font-weight: 400; }
+.arena-weapons button kbd { position: absolute; top: 3px; left: 5px; color: #a9b6c2; font: 600 10px/1 ui-monospace, Menlo, monospace; }
+.arena-weapons button:hover { background: color-mix(in srgb, var(--weapon) 12%, transparent); }
+.arena-weapons button.on { border-color: var(--weapon); background: color-mix(in srgb, var(--weapon) 20%, transparent); box-shadow: 0 0 0 1px var(--weapon); }
+.arena-weapons button:focus-visible { outline: 2px solid #e9a917; outline-offset: 2px; }
+.arena-sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.arena-side { display: grid; align-content: start; gap: 8px; min-width: 0; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--team) 35%, transparent); border-top: 3px solid var(--team); border-radius: 10px; background: color-mix(in srgb, var(--team) 7%, transparent); }
+.arena-side.own { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--team) 70%, transparent); }
+.arena-side-name { color: var(--team); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+.arena-seat-weapon { flex: none; color: #93ad9f; font-size: 11px; }
+.salvage-seats li.team0 .salvage-name, .salvage-seats li.team1 .salvage-name { color: var(--team-soft); }
+.salvage-value.arena-value { min-width: 9ch; font-size: 14px; }
+
+.arena-hud { position: fixed; inset: 0; z-index: 31; pointer-events: none; color: #f2f6fa; font: 13px/1.25 system-ui, sans-serif; }
+.arena-hud[hidden] { display: none; }
+.arena-board { position: absolute; top: 76px; left: 50%; transform: translateX(-50%); display: flex; align-items: stretch; gap: 2px; filter: drop-shadow(0 8px 18px #0009); }
+.arena-score { min-width: 62px; padding: 7px 14px 5px; border-bottom: 3px solid var(--team); background: #0a121ce6; color: var(--team); font: 800 34px/1.1 system-ui, sans-serif; font-variant-numeric: tabular-nums; text-align: center; }
+.arena-score.team0 { border-radius: 10px 0 0 10px; }
+.arena-score.team1 { border-radius: 0 10px 10px 0; }
+.arena-hud[data-team="0"] .arena-score.team0, .arena-hud[data-team="1"] .arena-score.team1 { background: color-mix(in srgb, var(--team) 24%, #0a121c); }
+.arena-middle { display: grid; place-items: center; align-content: center; gap: 1px; padding: 4px 16px; background: #0a121ce6; }
+.arena-clock { font: 700 22px/1.1 ui-monospace, 'SF Mono', Menlo, monospace; font-variant-numeric: tabular-nums; }
+.arena-clock.low { color: #ff6b5e; animation: court-pulse .5s ease-in-out infinite alternate; }
+.arena-goal { color: #8fa6b6; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
+.arena-quit { position: absolute; top: 88px; left: calc(50% + 132px); display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border: 1px solid #ff6a5c55; border-radius: 8px; color: #ffc2bb; background: #0a121cc9; font: 600 12px system-ui, sans-serif; cursor: pointer; pointer-events: auto; }
+.arena-quit .icon { width: 13px; height: 13px; }
+.arena-quit[hidden] { display: none; }
+.arena-health { position: absolute; left: 50%; top: 136px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: #0a121cd9; }
+.arena-health .icon { width: 16px; height: 16px; color: #ff6b5e; }
+.arena-health-bar { width: 180px; height: 8px; border-radius: 4px; background: #24394a; overflow: hidden; }
+.arena-health-bar i { display: block; height: 100%; background: linear-gradient(90deg, #5fe08a, #b6f36a); transition: width .15s; }
+.arena-health.low .arena-health-bar i { background: #ff5a4a; }
+.arena-health.shield { box-shadow: 0 0 0 2px #7fefff, 0 0 16px #7fefff88; }
+.arena-health strong { min-width: 3ch; font: 700 15px/1 ui-monospace, Menlo, monospace; text-align: right; }
+.arena-feed { position: absolute; top: 244px; right: 18px; display: grid; justify-items: end; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.arena-feed li { display: flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: 6px; background: #0a121cc9; font-size: 12px; white-space: nowrap; }
+.arena-feed li.mine { box-shadow: inset 0 0 0 1px #ffffff66; }
+.arena-feed li span { color: var(--team-soft); font-weight: 600; }
+.arena-feed li em { color: #8fa6b6; font-size: 11px; font-style: normal; }
+.arena-feed li .icon { width: 13px; height: 13px; color: #ff8f86; }
+.arena-wait { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 8px; width: min(480px, calc(100vw - 28px)); box-sizing: border-box; padding: 18px 20px; border: 1px solid #ff5a4a66; border-radius: 14px; background: #0a121ce6; text-align: center; pointer-events: auto; }
+.arena-wait[hidden] { display: none; }
+.arena-wait > strong { color: #ff8f86; font: 800 22px/1.2 system-ui, sans-serif; }
+.arena-wait > div { width: 100%; }
+.arena-wait-label { margin-top: 4px; color: #8fa6b6; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; }
+.arena-count { position: absolute; left: 50%; top: 36%; transform: translate(-50%, -50%); color: #fff; font: 900 96px/1 system-ui, sans-serif; text-shadow: 0 4px 0 #000a, 0 0 30px #ff8a1c; white-space: nowrap; }
+.arena-count.pop { animation: arena-count .9s ease-out; }
+@keyframes arena-count {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(1.8); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.arena-vignette { position: fixed; inset: 0; z-index: 29; pointer-events: none; background: radial-gradient(ellipse at center, #0000 45%, #c0101099 100%); opacity: 0; }
+.arena-vignette.flash { animation: arena-hurt .5s ease-out; }
+@keyframes arena-hurt {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+.arena-end { width: min(520px, calc(100vw - 28px)); }
+.arena-end-score { margin: 0; font: 900 44px/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.arena-end-score strong { color: var(--team); }
+.arena-table { text-align: left; font-size: 13px; }
+.arena-table td { padding: 7px 10px; font-variant-numeric: tabular-nums; }
+.arena-table td:first-child { width: auto; white-space: nowrap; border-left: 3px solid var(--team); color: var(--team-soft); font-weight: 600; }
+.arena-table tr.self td { background: #ffffff16; }
+.arena-table td .icon { width: 14px; height: 14px; margin-right: 5px; vertical-align: -2px; }
+@media (max-width: 760px) {
+  .arena-board { top: max(56px, calc(env(safe-area-inset-top) + 56px)); }
+  .arena-score { min-width: 44px; padding: 4px 9px 3px; font-size: 24px; }
+  .arena-clock { font-size: 16px; }
+  .arena-quit { top: max(60px, calc(env(safe-area-inset-top) + 60px)); left: calc(50% + 96px); }
+  .arena-health { top: max(100px, calc(env(safe-area-inset-top) + 100px)); padding: 4px 10px; }
+  .arena-health-bar { width: 110px; }
+  .arena-feed { top: max(56px, calc(env(safe-area-inset-top) + 56px)); right: 8px; }
+  .arena-feed li em { display: none; }
+  .arena-count { font-size: 64px; }
+  .arena-weapons button span { display: none; }
+}

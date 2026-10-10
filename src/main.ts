@@ -111,6 +111,8 @@ import { PlanetariumShow } from './planetarium'
 import { Vents } from './vents'
 import { BAR_DROP, VENT_DROP } from '../shared/vents.js'
 import { SalvageClient } from './salvage/client'
+import { ArenaClient } from './arena/client'
+import { ARENA_LEVEL } from '../shared/arena.js'
 import { LOBBY_RETURN, ZONE_LEVEL } from '../shared/salvage.js'
 import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel, type ScreenBox } from './ui'
 import { LiftRide } from './lift-ride'
@@ -475,6 +477,8 @@ let viewDeck = homeDeck
 let cctv: ShipCameras | null = null
 /** Zone thargoïde : lobby, mission, caméras (créée une fois le relais prêt, cf. plus bas). */
 let salvage: SalvageClient | null = null
+/** L'arène : salons du lobby, partie (créée avec la zone thargoïde, cf. plus bas). */
+let arenaMode: ArenaClient | null = null
 
 const stars = new Starfield()
 scene.add(stars.group)
@@ -716,7 +720,12 @@ court.onSound = (kind, at) => {
 
 // Stand de tir (cale) : on décroche une arme du mur (on l'y remet de même, ou on en prend une
 // autre), l'écran ouvre le classement (cf. src/range.ts).
-const range = new RangeGame(deckById(-1).group, dialog, wallet, new RangeSfx(sound), new RangeMusic(sound))
+const stand = new RangeGame(deckById(-1).group, dialog, wallet, new RangeSfx(sound), new RangeMusic(sound))
+/**
+ * Le jeu de tir en cours : le stand, ou l'arène tant qu'on y joue (cf. src/arena/gun.ts, le même
+ * moteur). La souris, le clavier, la manette et les sticks tactiles lui parlent sans distinction.
+ */
+let range: RangeGame = stand
 /** Les supports d'armes du mur du stand. */
 const rangeMounts = deckById(-1).interactables.filter((it) => it.furniture?.model === 'range-weapon')
 for (const it of rangeMounts) {
@@ -728,7 +737,7 @@ for (const it of rangeMounts) {
     // Le résumé de la partie précédente ne reste pas sous le viseur.
     $('dialog').hidden = true
     const weapon = weaponById(it.furniture?.label)
-    if (weapon) range.take(weapon.id)
+    if (weapon) stand.take(weapon.id)
   }
 }
 for (const it of deckById(-1).interactables) {
@@ -745,14 +754,14 @@ let rangeOn = false
 const rangeHands = new THREE.Vector3()
 const rangeAim = new THREE.Vector3()
 let rangePadFire = false
-range.onChange = (on) => {
+stand.onChange = (on) => {
   // L'invite de chaque support : prendre cette arme, ou raccrocher la sienne.
   for (const it of rangeMounts) {
     const weapon = weaponById(it.furniture?.label)
-    if (weapon) it.label = range.weapon === weapon.id ? tr('Raccrocher l\'arme', 'Hang the weapon back') : weapon.take
+    if (weapon) it.label = stand.weapon === weapon.id ? tr('Raccrocher l\'arme', 'Hang the weapon back') : weapon.take
   }
   // Une arme lourde ralentit la marche.
-  player.load = weaponById(range.weapon ?? undefined)?.weight ?? 1
+  player.load = weaponById(stand.weapon ?? undefined)?.weight ?? 1
   if (on === rangeOn) return
   rangeOn = on
   // L'arme se tient à deux mains, bras tendus.
@@ -772,7 +781,7 @@ range.onChange = (on) => {
     iso.setRestElevation(null)
     iso.turnTo(rangeHeading)
     iso.zoomTo(rangeZoom)
-    range.restore(fps.camera)
+    stand.restore(fps.camera)
   }
 }
 
@@ -966,7 +975,7 @@ cabin.onLights = homeDeck.home!.onLights = () => {
   lighting.refresh()
 }
 // Stand de tir : pénombre au pas de tir, toute la lumière sur les cibles, et elle réagit à la partie.
-lighting.drive('range', (source, light) => range.light(source, light))
+lighting.drive('range', (source, light) => stand.light(source, light))
 // Reflet de l'écran de cinéma : il suit les scènes du film.
 lighting.drive('screen', (source, light) => {
   const glow = filmGlow(film.time)
@@ -1032,6 +1041,7 @@ function setView(next: Deck) {
   viewDeck = next
   for (const d of decks) d.group.visible = d === viewDeck
   if (salvage?.deck) salvage.deck.group.visible = salvage.deck === viewDeck
+  if (arenaMode?.deck) arenaMode.deck.group.visible = arenaMode.deck === viewDeck
   // Dans la baie infestée, les projecteurs des zones éclairées passent devant les lampes de
   // secours plus proches : une zone éclairée se voit de loin (cf. RULES.litVision).
   lighting.show(viewDeck.lights, viewDeck.lightField(), viewDeck.def.ambience ?? DEFAULT_AMBIENCE, viewDeck.generalLit, !!viewDeck.def.zone, (s) => viewDeck.covered(s.position.x, s.position.z))
@@ -2037,12 +2047,68 @@ salvage = new SalvageClient({
   seated: () => seating.current !== null,
 })
 const zone = salvage
+/** Vue de dessus de l'arène : plus large que celle du bord (cf. ZOOM_MAX), on y voit la moitié de la carte. */
+const ARENA_ZOOM = 7
+arenaMode = new ArenaClient({
+  scene, iso, player, sound, net, dialog, wallet, remotes,
+  deck: () => deck,
+  hold: deckById(-1),
+  moveTo: async (next, at) => {
+    await fadeScreen(true)
+    stopWork()
+    player.cancelPath()
+    player.stopGlide()
+    marker.visible = false
+    setDeck(next)
+    player.position.set(at.x, next.y, at.z)
+    iso.snapTo(player.position)
+    sendState(true)
+    await fadeScreen(false)
+  },
+  fps: () => fpsShown,
+  // Vue subjective : la caméra regarde à l'opposé de son cap (cf. l'aide de visée de la zone).
+  face: (yaw) => {
+    player.setHeading(yaw)
+    fps.align(yaw + Math.PI)
+  },
+  sync: () => sendState(true),
+  label: (key, head, name) => {
+    if (head) bubbles.attach(key, head, name)
+    else bubbles.detach(key)
+  },
+  armed: (gun) => {
+    let on = false
+    let zoom = iso.zoomLevel
+    gun.onChange = (now) => {
+      // Une arme lourde ralentit la marche ; elle se tient à deux mains, bras tendus.
+      player.load = now ? weaponById(gun.weapon ?? undefined)?.weight ?? 1 : 1
+      player.avatar.carrying = now
+      hover.visible = false
+      if (now === on) return
+      on = now
+      if (on) {
+        // Vue de dessus : on recule plus loin qu'à bord, pour voir venir ; le zoom d'avant revient à la sortie.
+        zoom = iso.zoomLevel
+        iso.zoomMax = ARENA_ZOOM
+        iso.zoomTo(ARENA_ZOOM)
+        relock = fpsWanted
+        if (mayRelock()) lockCursor()
+      } else {
+        iso.zoomMax = ZOOM_MAX
+        iso.zoomTo(zoom)
+        gun.restore(fps.camera)
+      }
+    }
+  },
+})
+const arena = arenaMode
 // Odile, au poste de sécurité du lobby (cf. salvage/controller.ts) : sa bulle suit sa tête.
 bubbles.attach('controller', (out) => (deckById(-1).group.visible ? zone.controller?.avatar.head(out) ?? null : null))
 // Le lobby de la zone thargoïde : terminal de mission, caméras de surveillance, classement.
 for (const it of deckById(-1).interactables) {
   const model = it.furniture?.model
   if (model === 'salvage-terminal') it.onInteract = () => { player.interact(); zone.openTerminal() }
+  else if (model === 'arena-terminal') it.onInteract = () => { player.interact(); arena.openTerminal() }
   else if (model === 'salvage-board') it.onInteract = () => { player.interact(); zone.openLeaderboard() }
   else if (model === 'surveillance-wall') it.onInteract = () => {
     player.interact()
@@ -2125,6 +2191,7 @@ function removeRemote(id: number) {
 net.onStatus = (online) => {
   if (!online) {
     zone.disconnected()
+    arena.disconnected()
     cinemaRoom.close()
     boardGames.close(false)
     arcade?.disconnected()
@@ -2139,6 +2206,7 @@ net.onStatus = (online) => {
 }
 net.onMessage = (m) => {
   zone.onMessage(m)
+  arena.onMessage(m)
   switch (m.t) {
     case 'welcome':
       // Le relais fait autorité sur le nom (CMDR vérifié, ou invité homonyme d'un CMDR présent).
@@ -3171,6 +3239,8 @@ const myCabin = () => visiting?.host ?? net.id
 function sees(r: RemotePlayer): boolean {
   // Dans la baie infestée (ou par les caméras) : seulement ses coéquipiers, hors des casiers.
   if (r.level === ZONE_LEVEL) return !!viewDeck.def.zone && !!salvage?.sees(r.id)
+  // Dans l'arène : ceux de sa partie ; vu de dessus, un adversaire seulement en ligne de vue.
+  if (r.level === ARENA_LEVEL) return !!arenaMode?.sees(r.id)
   // Le simulateur d'accueil : chacun y est seul.
   if (r.level === TUTORIAL_LEVEL) return false
   // Par les caméras de surveillance, on voit le pont filmé, pas le sien.
@@ -3275,7 +3345,7 @@ cabinBar.onToggleOpen = toggleOpen
  * trajet : on y laisserait une partie en plan.
  */
 function canTravel(explain = true): boolean {
-  const ok = !riding && !groundBase.flying && !offShip(deck.def) && !zone.frozen
+  const ok = !riding && !groundBase.flying && !offShip(deck.def) && !zone.frozen && !arena.frozen
   if (!ok && explain) chat.add('system', tr('Pas de visite d\'ici : revenez d\'abord à bord du vaisseau.', 'No visiting from here: come back aboard the ship first.'))
   return ok
 }
@@ -3478,6 +3548,7 @@ async function loadDirectory(force = false) {
 /** Où est un joueur à bord : son pont (pour la jauge ; aucun hors du vaisseau) et le lieu en toutes lettres. */
 function whereIs(r: RemotePlayer): { deck?: number; where: string } {
   if (r.level === ZONE_LEVEL) return { where: tr('Zone thargoïde', 'Thargoid zone') }
+  if (r.level === ARENA_LEVEL) return { where: tr('Arène', 'Arena') }
   if (r.level === TUTORIAL_LEVEL) return { where: TUTORIAL_DECK.name }
   if (r.level === HOUSING_LEVEL) {
     const host = hostName(r.cabin)
@@ -3758,6 +3829,7 @@ addEventListener('keydown', (e) => {
   if (cctv?.keyDown(e)) return
   if (gym.key(e)) return
   if (!chat.typing && court.key(e)) return
+  if (!chat.typing && arena.keyDown(e)) return
   if (!chat.typing && range.key(e)) return
   if (!chat.typing && fishBook.isOpen) {
     fishBook.key(e)
@@ -3845,7 +3917,7 @@ chat.onOpen = () => keys.clear()
 const inputDir = new THREE.Vector3()
 function keyboardDirection(): THREE.Vector3 {
   inputDir.set(0, 0, 0)
-  if (cinematic.active || cctv?.active || gym.active || court.active || fishBusy() || quiz.isOpen || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return inputDir
+  if (cinematic.active || cctv?.active || gym.active || court.active || fishBusy() || quiz.isOpen || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen) return inputDir
   const on = (...codes: string[]) => codes.some((c) => keys.has(c))
   // event.code = position physique : KeyW/KeyA correspondent à Z/Q sur un clavier AZERTY.
   const sx = (on('KeyD', 'ArrowRight') ? 1 : 0) - (on('KeyA', 'ArrowLeft') ? 1 : 0)
@@ -4054,7 +4126,7 @@ function updateGamepad(dt: number): GamepadInput {
 
 function movementDirection(pad: GamepadInput): THREE.Vector3 {
   const input = keyboardDirection()
-  if (cinematic.active || cctv?.active || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || photo.active || zone.frozen || zone.panelOpen) return input
+  if (cinematic.active || cctv?.active || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || photo.active || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen) return input
   // Le clavier reste prioritaire lorsqu'une touche de déplacement est maintenue.
   if (input.lengthSq() === 0) view().screenToGround(pad.moveX, -pad.moveY, input)
   return input
@@ -4389,6 +4461,12 @@ addEventListener(
       e.stopPropagation()
       return
     }
+    // Terminal de l'arène : de même (son écran de fin attend aussi son bouton).
+    if (arena.panelOpen && !arena.contains(e.target) && !(e.target instanceof Element && e.target.closest('.salvage-end'))) {
+      arena.closePanels()
+      e.stopPropagation()
+      return
+    }
     const panel = sitePanel.isOpen ? sitePanel : lift.isOpen ? lift : jukebox.isOpen ? jukebox : null
     if (!panel || panel.contains(e.target)) return
     panel.close()
@@ -4481,7 +4559,7 @@ function unlockCursor() {
 }
 /** Ce qui se manipule au curseur : on le rend. */
 function needsCursor(): boolean {
-  return gardenPanel.isOpen || court.active || fishBusy() || quiz.isOpen || chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || phone.isOpen || questJournal.isOpen || !!cctv?.active || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || !reactionsPanel.hidden
+  return gardenPanel.isOpen || court.active || fishBusy() || quiz.isOpen || chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || phone.isOpen || questJournal.isOpen || !!cctv?.active || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || arena.panelOpen || !reactionsPanel.hidden
 }
 document.addEventListener('pointerlockchange', () => {
   document.body.classList.toggle('fps-locked', cursorLocked())
@@ -4600,7 +4678,7 @@ const fpsBottom = () => innerHeight - (coarsePointer ? 76 : 130)
 
 function click(e: PointerEvent, at: { clientX: number; clientY: number } = e) {
   // Caché dans un casier, capturé, derrière les caméras, en pleine scène de quête : le clic ne fait rien.
-  if (cinematic.active || cctv?.active || riding || gym.active || court.active || range.active || fishBusy() || quiz.isOpen || zone.frozen) return
+  if (cinematic.active || cctv?.active || riding || gym.active || court.active || range.active || fishBusy() || quiz.isOpen || zone.frozen || arena.frozen) return
   if (editing()) {
     // Objet glissé jusque sous le catalogue : il le relâche quand même dans le mode aménagement.
     try {
@@ -4692,6 +4770,8 @@ function inSight(item: Interactable): boolean {
 function nearestInteractable(): Interactable | null {
   // Arme en main, au stand de tir : on n'agit que sur les armes du mur (en changer, raccrocher la
   // sienne), et de tout près : au pas de tir, à deux pas du mur, l'invite ne doit pas s'afficher.
+  // Dans l'arène, rien à utiliser : on tire.
+  if (range.active && range !== stand) return null
   if (range.active) {
     let mount: Interactable | null = null
     for (const it of rangeMounts) if (distanceTo(it) < (mount ? distanceTo(mount) : 0.85)) mount = it
@@ -4736,7 +4816,7 @@ function tryInteract() {
   if (cctv?.active) return cctv.close()
   // Bugenhagen parle : on passe à la phrase suivante.
   if (planetarium.talking) return planetarium.next()
-  if (gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen) return
+  if (gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen) return
   const item = nearestInteractable()
   if (item) interactWith(item)
 }
@@ -5645,7 +5725,8 @@ function frame() {
   court.update(dt)
   if (court.active) player.setHeading(court.heading)
   // Le stand de tir : on rend l'arme en quittant la pièce (ou la cale).
-  if (range.active && (deck !== holdDeck || !range.contains(player.position))) range.stop()
+  if (stand.active && (deck !== holdDeck || !stand.contains(player.position))) stand.stop()
+  range = arenaMode?.gun?.active ? arenaMode.gun : stand
   if (fishing.active && deck.def.id !== FISHING_LEVEL) fishing.stop()
   fishing.update(dt)
   if (fishing.active) player.setHeading(fishing.heading)
@@ -5719,6 +5800,7 @@ function frame() {
   // Zone thargoïde : la mission (ennemis, objets, vue, endurance) ; le joueur caché dans un casier,
   // ou resté au lobby pendant qu'il suit son équipe, ne se voit pas.
   zone.update(dt)
+  arena.update(dt)
   // Les conduits de ventilation : la lampe, ce qu'on voit, les rats.
   vents.update(world, deck === vents.deck ? player.position : null)
   // Les quêtes : leurs objets, leurs « ! », la scène en cours, la pièce qu'on vient d'ouvrir.
@@ -5785,7 +5867,7 @@ function frame() {
   if (editing()) activeEditor()!.frameCamera()
   else if (coarsePointer && wardrobe.isOpen) iso.frameCenter((innerWidth - $('wardrobe').getBoundingClientRect().left) / 2, 0, innerHeight)
   // Au stand de tir, le personnage en bas de l'écran : les cibles sont devant lui.
-  else if (range.active) iso.frameCenter(0, -innerHeight * 0.1, innerHeight)
+  else if (stand.active) iso.frameCenter(0, -innerHeight * 0.1, innerHeight)
   else iso.frameCenter(0, 0, innerHeight)
   const cinemaSeat = deck.def.id === 1 && ['cinema-row', 'projection-chair'].includes(seating.current?.item.furniture?.model ?? '')
   if (cinemaSeat) cinemaFocus.set(cinemaScreenProp.x, deck.y, (player.position.z + cinemaScreenProp.z) / 2)
@@ -5833,9 +5915,11 @@ function frame() {
       fps: fpsShown, body: !fpsShown || fps.showsBody, camera: activeCamera(), player: player.position, hands: player.avatar.hands(rangeHands),
       move: input,
     })
-    // Le personnage fait face à ce qu'il vise, même quand il marche de côté.
-    player.setHeading(range.heading)
-    player.root.rotation.y = range.heading
+    // Le personnage fait face à ce qu'il vise, même quand il marche de côté (sauf à terre, dans l'arène).
+    if (!arena.frozen) {
+      player.setHeading(range.heading)
+      player.root.rotation.y = range.heading
+    }
   }
   drawMinimap()
   document.body.classList.toggle('camera-rotating', !fpsShown && iso.rotating)
@@ -5863,12 +5947,12 @@ function frame() {
   firstPersonGlass(fpsShown)
   // Filet de sécurité : ni le joueur ni la vue ne restent sur une baie démontée (l'écran serait
   // vide, sans rien à dessiner) ; on rentre au lobby.
-  if (deck.def.zone && deck !== zone.deck) {
+  if (deck.def.zone && deck !== zone.deck && deck !== arena.deck) {
     setDeck(deckById(-1))
     player.position.set(LOBBY_RETURN.x, deck.y, LOBBY_RETURN.z)
     iso.snapTo(player.position)
     sendState(true)
-  } else if (viewDeck.def.zone && viewDeck !== zone.deck) setView(deck)
+  } else if (viewDeck.def.zone && viewDeck !== zone.deck && viewDeck !== arena.deck) setView(deck)
   // La baie infestée : ses portes s'ouvrent devant l'équipe ; ses murs s'estompent devant le joueur
   // (ou devant le coéquipier que suit la caméra).
   const bay = zone.deck
@@ -5877,6 +5961,12 @@ function frame() {
     const inside = [...remotes.values()].filter((r) => r.level === ZONE_LEVEL && r.group.visible).map((r) => r.group.position)
     if (deck === bay) inside.push(player.position)
     bay.update(world, inside, viewDeck === bay ? (zone.watchTarget ?? player.position) : null, toCam, false, null, dt)
+  }
+  // L'arène : ses murs s'estompent devant le joueur.
+  const pit = arena.deck
+  if (pit && viewDeck === pit) {
+    pit.ceiling.visible = fpsShown
+    pit.update(world, [player.position], player.position, toCam, false, null, dt)
   }
   editor?.update(timer.getElapsed())
   builder?.update()
@@ -5906,7 +5996,7 @@ function frame() {
   // Pièce tamisée (cinéma, salon d'écoute) : l'ambiance baisse en fondu quand on y entre, remonte quand on en sort.
   // Pendant la séance du planétarium, la nuit tombe tout à fait.
   // Au stand de tir, arme en main, aussi : le couloir des cibles ressort.
-  const dimTo = planetarium.active ? 0.05 : range.active ? 0.5 : deck.def.dim?.[deck.map.room(Math.round(player.position.x), Math.round(player.position.z)) ?? ''] ?? 1
+  const dimTo = planetarium.active ? 0.05 : stand.active ? 0.5 : deck.def.dim?.[deck.map.room(Math.round(player.position.x), Math.round(player.position.z)) ?? ''] ?? 1
   if (dimming !== dimTo) {
     dimming = Math.abs(dimTo - dimming) < 0.005 ? dimTo : dimming + (dimTo - dimming) * Math.min(1, dt * 2.5)
     lighting.dim(dimming)
@@ -5936,7 +6026,7 @@ function frame() {
   // Invite « E » au-dessus de l'objet le plus proche ; installé sur un meuble, au-dessus du
   // personnage : se relever (et ce que permet la place).
   const sitting = seating.settled && !gym.active && !riding && !editing() && !barPanel.isOpen
-  const near = gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen ? null : nearestInteractable()
+  const near = gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen ? null : nearestInteractable()
   const sit = sitting ? seatPrompt(seating.current!) : null
   const label = sit ? `${sit.main}|${sit.space ?? ''}` : near?.label
   const keyName = usingGamepad ? 'A / ×' : 'E'
@@ -5990,7 +6080,7 @@ function frame() {
     stand: !!sit,
     // Arme en main, loin du mur : c'est le stick de droite qui tire ; l'action recharge, « fermer » rend l'arme.
     fire: range.active && !label,
-    ready: !!label || panelOpen || planetarium.talking || zone.frozen || range.active,
+    ready: !!label || panelOpen || planetarium.talking || zone.frozen || arena.frozen || range.active,
     action: !!sit?.space || range.active,
     reload: range.active,
     cancel: panelOpen || range.active || gym.active || court.active || fishing.active || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || phone.isOpen || questJournal.isOpen || !!cctv?.active || !!working || !!claw || !$('about').hidden,
@@ -6049,7 +6139,7 @@ function frame() {
     // Des conduits de ventilation, celui du bar s'entend, étouffé : il est juste en dessous.
     const below = music === holdMusic && deck === vents.deck
     // Ni pendant une partie au stand de tir, qui a sa propre musique.
-    music.setRoom(below || (source === deck && viewDeck === deck && !((inClub || range.active) && music === holdMusic)), !!jukeboxRoom && jukeboxRoom === playerRoom)
+    music.setRoom(below || (source === deck && viewDeck === deck && !((inClub || stand.active) && music === holdMusic)), !!jukeboxRoom && jukeboxRoom === playerRoom)
   }
   clubMusic.update(inClub, onHold && viewDeck === deck ? clubProximity(holdRoom, player.position.x, player.position.z) : 0)
   // Une musique passe là où l'on est : les moteurs et les machines se font discrets.
@@ -6143,6 +6233,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, profile, fps, culling, cardsPanel, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, garden, gardenView, gardenMode, gardenPanel, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt, range, fishing, fishBook, fishCollection, startFishing, quiz, openQuiz, quests, questWorld, questJournal, cinematic },
+    __game: { renderer, sound, player, profile, fps, culling, cardsPanel, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, garden, gardenView, gardenMode, gardenPanel, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, arena, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt, range, fishing, fishBook, fishCollection, startFishing, quiz, openQuiz, quests, questWorld, questJournal, cinematic },
   })
 }

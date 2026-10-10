@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { BLASTER_PACK } from '../assets'
 import { tr } from '../i18n'
 import { rangeState, weaponById, WEAPONS } from '../range-weapons'
-import { box, compact, cylinder, decal, drawnTexture, glass, glow, lit, part, type Builder } from './kit'
+import { animatedScreen, box, compact, cylinder, decal, drawnTexture, glass, glow, holoMaterial, lit, part, type Builder } from './kit'
 import { kitModel } from './nature'
 
 /*
@@ -335,7 +335,91 @@ const rangeSpares: Builder = () => {
   return { solid: g }
 }
 
+/**
+ * Terminal de l'arène, dans le lobby de la zone thargoïde (cf. src/arena/) : un pupitre incliné
+ * (« ARÈNE »), et au-dessus, en hologramme, deux blasters croisés qui tournent.
+ */
+const arenaTerminal: Builder = () => {
+  const g = new THREE.Group()
+  const dark = lit(C.steelDark, 'metal'), steel = lit(C.steel, 'metal'), accent = glow(C.orange)
+  g.add(box(0.62, 0.05, 0.5, dark, 0, 0.025, 0, 0.01))
+  g.add(box(0.36, 0.5, 0.3, steel, 0, 0.3, -0.02, 0.02))
+  g.add(box(0.37, 0.02, 0.31, accent, 0, 0.1, -0.02))
+  g.add(box(0.37, 0.02, 0.31, glow(C.led), 0, 0.5, -0.02))
+  // Pupitre incliné vers les joueurs, son écran.
+  const desk = new THREE.Group()
+  desk.position.set(0, 0.58, 0.05)
+  desk.rotation.x = -0.55
+  desk.add(box(0.58, 0.04, 0.36, dark, 0, 0, 0, 0.012))
+  const screen = animatedScreen(512, 320, 4, (c, t) => {
+    c.fillStyle = '#0d0a08'
+    c.fillRect(0, 0, 512, 320)
+    c.strokeStyle = C.orange
+    c.lineWidth = 4
+    c.strokeRect(8, 8, 496, 304)
+    c.fillStyle = C.orange
+    c.fillRect(22, 22, 468, 46)
+    c.fillStyle = '#0d0a08'
+    c.font = 'bold 28px sans-serif'
+    c.textBaseline = 'middle'
+    c.fillText(tr('ARÈNE · DUEL PAR ÉQUIPES', 'ARENA · TEAM DUEL'), 38, 46)
+    c.font = '22px sans-serif'
+    const lines: [string, string][] = [
+      [tr('Jusqu\'à 3 contre 3', 'Up to 3 vs 3'), '#e6dccf'],
+      [tr('Armes : au choix', 'Weapons: your call'), '#b9a892'],
+      [tr('Bots : en renfort', 'Bots: standing by'), '#b9a892'],
+    ]
+    lines.forEach(([text, color], i) => {
+      c.fillStyle = color
+      c.fillText(text, 36, 104 + i * 36)
+    })
+    // Les deux équipes, face à face.
+    c.fillStyle = C.orange
+    c.fillRect(36, 208, 150, 10)
+    c.fillStyle = C.led
+    c.fillRect(326, 208, 150, 10)
+    c.fillStyle = '#e6dccf'
+    c.font = 'bold 22px sans-serif'
+    c.fillText('VS', 242, 214)
+    // Invite qui clignote.
+    if (Math.floor(t * 2) % 2) {
+      c.fillStyle = C.idle
+      c.font = 'bold 24px sans-serif'
+      c.fillText(tr('▶ OUVRIR UN SALON', '▶ OPEN A ROOM'), 36, 270)
+    }
+  })
+  screen.texture.magFilter = THREE.LinearFilter
+  const face = part(new THREE.PlaneGeometry(0.54, 0.32), new THREE.MeshBasicMaterial({ map: screen.texture }), 0, 0.022, 0)
+  face.rotation.x = -Math.PI / 2
+  desk.add(face)
+  g.add(desk)
+  // Projecteur, et les deux blasters croisés, un par équipe.
+  g.add(cylinder(0.12, 0.14, 0.04, dark, 0, 0.84, -0.12, 20), cylinder(0.05, 0.05, 0.01, accent, 0, 0.865, -0.12, 16))
+  const live = new THREE.Group()
+  const holo = new THREE.Group()
+  holo.position.set(0, 1.06, -0.12)
+  ;[[C.orange, 0.6], [C.led, -0.6]].forEach(([color, tilt]) => {
+    const gun = blaster('blaster-e', 0.42)
+    const material = holoMaterial(null, color as string, 0.8, 0, true)
+    gun.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = material })
+    gun.position.y = -0.06
+    gun.rotation.x = tilt as number
+    holo.add(gun)
+  })
+  holo.add(part(new THREE.CylinderGeometry(0.2, 0.05, 0.14, 20, 1, true), holoMaterial(null, C.orange, 0.12, 1, true), 0, -0.13, 0))
+  live.add(holo)
+  return {
+    solid: g,
+    live,
+    update: (t) => {
+      screen.tick(t)
+      holo.rotation.y = t * 0.6
+    },
+  }
+}
+
 export const RANGE = {
+  'arena-terminal': arenaTerminal,
   'range-counter': rangeCounter,
   'range-lane': rangeLane,
   'range-mat': rangeMat,

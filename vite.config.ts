@@ -102,7 +102,7 @@ export default defineConfig({
   // - furniture : le mobilier fait main (src/furniture), avec les jeux des bornes qu'il fait
   //   tourner en démonstration ;
   // - ship : les ponts, leurs plans et les quartiers (catalogue, vue, parcelle) ;
-  // - activities : les activités rangées dans leur dossier (zone thargoïde, base au sol,
+  // - activities : les activités rangées dans leur dossier (zone thargoïde, arène, base au sol,
   //   jardinage, pêche, interro, annuaire, jeux de plateau) ;
   // - common : ce que le jeu partage avec les modes chargés à la demande (sinon, il prendrait
   //   le nom du premier module commun venu) ;
@@ -121,7 +121,7 @@ export default defineConfig({
             { name: 'vendor', test: /node_modules/, priority: 4 },
             { name: 'furniture', test: /src[\\/]furniture[\\/].*\.ts$/, tags: ['$initial'], priority: 3 },
             { name: 'ship', test: /src[\\/](?:deck|levels)\.ts$|src[\\/](?:cabin|housing)[\\/].*\.ts$/, tags: ['$initial'], priority: 2 },
-            { name: 'activities', test: /src[\\/](?:salvage|base|gardening|fishing|quiz|crew|board)[\\/].*\.ts$/, tags: ['$initial'], priority: 1 },
+            { name: 'activities', test: /src[\\/](?:salvage|arena|base|gardening|fishing|quiz|crew|board)[\\/].*\.ts$/, tags: ['$initial'], priority: 1 },
             { name: 'common', test: /\.(?:ts|js|json)$/, tags: ['$initial'], minShareCount: 2 },
           ],
         },
