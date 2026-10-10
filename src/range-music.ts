@@ -13,6 +13,8 @@ import type { Sound } from './audio'
  * Les notes sont programmées un quart de seconde à l'avance sur l'horloge audio (`update`, à chaque
  * image) : la musique ne dépend pas de la cadence d'affichage. `pulse` donne le battement de la
  * grosse caisse, pour que les lumières du stand le suivent.
+ *
+ * L'arène a la sienne, sur le même séquenceur (cf. src/arena/music.ts).
  */
 
 /** Ce que la partie donne à la musique. */
@@ -36,17 +38,17 @@ const CHORDS: { bass: number; arp: number[] }[] = [
 const AHEAD = 0.25
 
 export class RangeMusic {
-  private out: GainNode | null = null
-  private bus: AudioNode | null = null
+  protected out: GainNode | null = null
+  protected bus: AudioNode | null = null
   /** Prochain pas à programmer : son instant (horloge audio) et son numéro depuis le début. */
   private next = 0
   private step = 0
   /** Instants des derniers coups de grosse caisse programmés. */
-  private kicks: number[] = []
+  protected kicks: number[] = []
 
-  constructor(private sound: Sound) {}
+  constructor(protected sound: Sound) {}
 
-  private get ctx(): AudioContext {
+  protected get ctx(): AudioContext {
     return this.sound.ctx
   }
 
@@ -104,16 +106,20 @@ export class RangeMusic {
     // Onglet resté en arrière-plan, image très longue : on reprend d'ici, sans rattraper le retard.
     if (this.next < now - 0.05) this.next = now + 0.02
     while (this.next < now + AHEAD) {
-      const bpm = (116 + 5 * Math.min(mood.level, 6)) * (mood.rush ? 1.08 : 1)
       this.play(this.step, this.next, mood)
-      this.next += 60 / bpm / 4
+      this.next += 60 / this.tempo(mood) / 4
       this.step++
     }
     this.kicks = this.kicks.filter((t) => t > now - 1)
   }
 
+  /** Tempo du moment (battements par minute) : il monte avec les paliers, et s'emballe à la fin. */
+  protected tempo(mood: RangeMood): number {
+    return (116 + 5 * Math.min(mood.level, 6)) * (mood.rush ? 1.08 : 1)
+  }
+
   /** Les notes du pas `n`, à l'instant `t`. */
-  private play(n: number, t: number, mood: RangeMood) {
+  protected play(n: number, t: number, mood: RangeMood) {
     const out = this.out!, bus = this.bus!
     const s = n % 16, chord = CHORDS[Math.floor(n / 16) % CHORDS.length]
     const level = mood.started ? mood.level + (mood.rush ? 1 : 0) : -1
@@ -142,7 +148,7 @@ export class RangeMusic {
     if (mood.rush && s >= 12) this.snare(bus, out, t, 0.12 + (s - 12) * 0.06)
   }
 
-  private kick(out: AudioNode, t: number) {
+  protected kick(out: AudioNode, t: number) {
     const ctx = this.ctx
     const osc = ctx.createOscillator()
     osc.frequency.setValueAtTime(150, t)
@@ -157,7 +163,7 @@ export class RangeMusic {
     this.noise(out, t, 0.012, 3000, 0.12)
   }
 
-  private snare(echo: AudioNode, out: AudioNode, t: number, peak: number) {
+  protected snare(echo: AudioNode, out: AudioNode, t: number, peak: number) {
     const ctx = this.ctx
     const src = ctx.createBufferSource()
     src.buffer = this.sound.noiseBuffer
@@ -180,7 +186,7 @@ export class RangeMusic {
   }
 
   /** Souffle bref et aigu : charleston, claquement de la grosse caisse. */
-  private noise(out: AudioNode, t: number, len: number, freq: number, peak: number) {
+  protected noise(out: AudioNode, t: number, len: number, freq: number, peak: number) {
     const ctx = this.ctx
     const src = ctx.createBufferSource()
     src.buffer = this.sound.noiseBuffer
@@ -197,7 +203,7 @@ export class RangeMusic {
   }
 
   /** Note : un oscillateur derrière un passe-bas (`cutoff`), qui monte en `attack` secondes et retombe en `len`. */
-  private tone(out: AudioNode, type: OscillatorType, f0: number, f1: number, t: number, len: number, peak: number, cutoff: number, detune: number, attack: number) {
+  protected tone(out: AudioNode, type: OscillatorType, f0: number, f1: number, t: number, len: number, peak: number, cutoff: number, detune: number, attack: number) {
     const ctx = this.ctx
     const osc = ctx.createOscillator()
     osc.type = type

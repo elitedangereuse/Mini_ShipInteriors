@@ -1,11 +1,11 @@
 // L'arène (duels par équipes, cf. shared/arena.js), côté relais : il fait autorité sur la partie.
 //
-// Lobby : au terminal de l'arène (dans le sas de la zone thargoïde, pièce 'h' de la cale), quatre
+// Lobby : au terminal de l'arène (dans son lobby, pièce 'y' de la cale, cf. ARENA_LOBBY), quatre
 // lobbys (ARENA_RULES.lobbies, les « salons » du code) attendent chacun une partie : on se place
 // dans celui de son choix, pour jouer avec qui l'on veut, et l'on en change librement. Chacun y
 // choisit son camp et son arme ; le premier arrivé en est le chef : il règle le format (un, deux ou
-// trois par équipe), les bots (ils complètent les deux équipes) et leur niveau. La partie part
-// quelques secondes après que tout le monde s'est déclaré prêt. Sortir du sas, c'est quitter son
+// trois par équipe), la limite de points, les bots (ils complètent les deux équipes) et leur niveau. La partie part
+// quelques secondes après que tout le monde s'est déclaré prêt. Sortir des lobbys de la cale, c'est quitter son
 // lobby ; un lobby vidé retrouve ses réglages de départ.
 //
 // Partie : une instance par salon. Les clients n'envoient que leur position (l'événement « state »
@@ -24,17 +24,24 @@
 
 import { randomBytes } from 'node:crypto'
 import {
-  ARENA_BOTS, ARENA_LEVEL, ARENA_RULES as R, ARENA_SKILLS, arenaGoal, arenaSight, arenaSpawn, arenaZone, blastDamage, castArena, spawnYaw,
+  ARENA_BOTS, ARENA_LEVEL, ARENA_LOBBY, ARENA_RULES as R, ARENA_SKILLS, arenaHidden, arenaSight, arenaSpawn, arenaZone, blastDamage, castArena, spawnYaw,
 } from '../shared/arena.js'
 import { findPath, smoothPath, straightWalk, walkable } from '../shared/salvage.js'
 import { WEAPON_IDS, WEAPON_STATS } from '../shared/weapons.js'
-import { inLobby } from './salvage.js'
+import { ShipMap } from '../shared/ship-map.js'
+import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 
 /** Événements du lobby ; les autres sont ceux d'une partie (l'arme se change dans les deux). */
 export const ARENA_LOBBY_ACTIONS = new Set(['arena:join', 'arena:leave', 'arena:side', 'arena:settings', 'arena:weapon', 'arena:ready'])
 export const ARENA_GAME_ACTIONS = new Set(['arena:fire', 'arena:quit'])
 
 const RAD = Math.PI / 180
+const HOLD = new ShipMap(SHIP_LAYOUTS[String(ARENA_LOBBY.level)], shipMapOptions(ARENA_LOBBY.level))
+
+/** Joueur au lobby de l'arène, ou dans celui de la zone thargoïde, d'où l'on y entre ? */
+export function inLobby(p) {
+  return p.level === ARENA_LOBBY.level && ARENA_LOBBY.rooms.includes(HOLD.room(Math.round(p.x), Math.round(p.z)) ?? ' ')
+}
 /** Une position plus lointaine que la vitesse ne le permet est ignorée (marge en tuiles). */
 const SLACK = 0.9
 /** Délai pour entrer dans l'arène après le départ : au-delà, c'est un abandon (ms). */
@@ -57,14 +64,14 @@ const round2 = (v) => Math.round(v * 100) / 100
 export function createArena({ playerById, emit, broadcast, now = Date.now, random = Math.random, log = () => {}, debug = false }) {
   // Les salons, fixes : id -> salon (vide tant que personne ne s'y est placé).
   const rooms = new Map(Array.from({ length: R.lobbies }, (_, i) => [i + 1, { id: i + 1, members: new Map(), game: null }]))
-  const reset = (r) => Object.assign(r, { leader: null, size: 3, bots: true, skill: 1, status: 'forming', startAt: 0 })
+  const reset = (r) => Object.assign(r, { leader: null, size: 3, bots: true, skill: 1, goal: R.goal, status: 'forming', startAt: 0 })
   for (const r of rooms.values()) reset(r)
   const roomOf = new Map() // id du joueur -> salon
 
   // ------------------------------------------------------------------ lobby
 
   const roomState = (r) => ({
-    id: r.id, leader: r.leader, size: r.size, bots: r.bots, skill: r.skill, status: r.status,
+    id: r.id, leader: r.leader, size: r.size, bots: r.bots, skill: r.skill, goal: r.goal, status: r.status,
     startsIn: r.status === 'countdown' ? Math.max(0, (r.startAt - now()) / 1000) : undefined,
     members: [...r.members].map(([id, m]) => {
       const p = playerById(id)
@@ -135,9 +142,10 @@ export function createArena({ playerById, emit, broadcast, now = Date.now, rando
         const size = Number.isInteger(data.size) ? Math.min(R.team, Math.max(1, data.size)) : r.size
         const bots = typeof data.bots === 'boolean' ? data.bots : r.bots
         const skill = Number.isInteger(data.skill) ? Math.min(ARENA_SKILLS.length - 1, Math.max(0, data.skill)) : r.skill
-        if (size === r.size && bots === r.bots && skill === r.skill) return
+        const goal = R.goals.includes(data.goal) ? data.goal : r.goal
+        if (size === r.size && bots === r.bots && skill === r.skill && goal === r.goal) return
         if (count(r, 0) > size || count(r, 1) > size) return error(p, 'crowded')
-        Object.assign(r, { size, bots, skill })
+        Object.assign(r, { size, bots, skill, goal })
         unready(r)
         break
       }
@@ -181,7 +189,7 @@ export function createArena({ playerById, emit, broadcast, now = Date.now, rando
     const w = WEAPON_STATS[base.weapon]
     const f = {
       verified: false, bot: false, ...base, next: base.weapon, hp: R.hp, alive: true, x: 0, z: 0, yaw: 0, at: now(), warp: true, arrived: false,
-      respawnAt: 0, shieldUntil: game.liveAt + R.shield * 1000, hurtAt: 0, kills: 0, deaths: 0, damage: 0, anim: 'idle',
+      respawnAt: 0, shieldUntil: game.liveAt + R.shield * 1000, hurtAt: 0, revealUntil: 0, kills: 0, deaths: 0, damage: 0, anim: 'idle',
       // Joueur : le chargeur de jetons qui borne sa cadence.
       tokens: w.mag, tokensAt: now(), firedAt: 0,
       // Bot : son chemin, qui il voit et depuis quand, son chargeur.
@@ -211,7 +219,7 @@ export function createArena({ playerById, emit, broadcast, now = Date.now, rando
     const t = now()
     const game = {
       id: randomBytes(8).toString('hex'), room: r, zone: arenaZone(), size: r.size, startedAt: t, liveAt: t + R.warmup * 1000,
-      endsAt: t + (R.warmup + R.duration) * 1000, goal: arenaGoal(r.size), score: [0, 0], skill: ARENA_SKILLS[r.skill], fighters: new Map(), bullets: [],
+      endsAt: t + (R.warmup + R.duration) * 1000, goal: r.goal, score: [0, 0], skill: ARENA_SKILLS[r.skill], fighters: new Map(), bullets: [],
       ended: false, frozen: false, nextBot: -1,
     }
     for (const [id, m] of r.members) {
@@ -241,6 +249,8 @@ export function createArena({ playerById, emit, broadcast, now = Date.now, rando
     if (!target.alive || t < target.shieldUntil || amount <= 0 || game.ended) return
     target.hp -= amount
     target.hurtAt = t
+    // Touché, on ne se cache plus dans un buisson pendant un instant.
+    target.revealUntil = t + R.bush.reveal * 1000
     const attacker = game.fighters.get(by)
     if (attacker && attacker !== target) attacker.damage += Math.min(amount, amount + target.hp)
     tell(game, { kind: 'hit', id: target.id, by, hp: Math.max(0, Math.round(target.hp)), dmg: amount, x: round2(at.x), y: round2(at.y), z: round2(at.z) })
@@ -270,8 +280,9 @@ export function createArena({ playerById, emit, broadcast, now = Date.now, rando
   /** Un tir part : ses balles volent dès le prochain pas ; les autres joueurs de la partie le voient. */
   function shoot(game, f, origin, dirs) {
     const w = WEAPON_STATS[f.weapon]
-    // Tirer fait tomber la protection du retour à la base.
+    // Tirer fait tomber la protection du retour à la base, et trahit qui se cachait dans un buisson.
     f.shieldUntil = 0
+    f.revealUntil = now() + R.bush.reveal * 1000
     for (const d of dirs) game.bullets.push({ by: f.id, team: f.team, weapon: f.weapon, p: { ...origin }, d, speed: w.speed, age: 0, hit: new Set() })
     tell(game, { kind: 'shot', id: f.id, weapon: f.weapon, o: [round2(origin.x), round2(origin.y), round2(origin.z)], d: dirs.map((d) => [d.x, d.y, d.z].map((v) => Math.round(v * 1000) / 1000)) }, f.id)
   }
@@ -422,11 +433,11 @@ export function createArena({ playerById, emit, broadcast, now = Date.now, rando
       b.ammo = w.mag
       b.reloadUntil = 0
     }
-    // Vue : l'adversaire debout le plus proche, sans rien entre eux.
+    // Vue : l'adversaire debout le plus proche, sans rien entre eux, et qui ne se cache pas dans un buisson.
     let target = null, near = BOT_SIGHT
     for (const f of standing(game, 1 - b.team)) {
       const d = dist(b, f)
-      if (d < near && arenaSight(zone, b, f)) {
+      if (d < near && arenaSight(zone, b, f) && !arenaHidden(zone, f, b, t < f.revealUntil)) {
         near = d
         target = f
       }

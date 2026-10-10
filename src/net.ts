@@ -238,6 +238,8 @@ export interface ArenaRoom {
   size: number
   bots: boolean
   skill: number
+  /** Limite de points : la première équipe à l'atteindre gagne. */
+  goal: number
   status: 'forming' | 'countdown' | 'playing'
   startsIn?: number
   members: ArenaMember[]

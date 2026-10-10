@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createArena } from './arena.js'
-import { ARENA_LEVEL, ARENA_MAP, ARENA_RULES as R, arenaGoal, arenaSight, arenaZone, blastDamage, castArena } from '../shared/arena.js'
+import { ARENA_LEVEL, ARENA_MAP, ARENA_RULES as R, arenaHidden, arenaSight, arenaZone, blastDamage, castArena, inBush } from '../shared/arena.js'
 import { mulberry32 } from '../shared/salvage.js'
 import { WEAPON_STATS } from '../shared/weapons.js'
 
@@ -62,16 +62,13 @@ function harness(options = {}) {
   return { arena, add, advance, last, events, lobby, arrive, put, start, sent, clock: () => t }
 }
 
-test('arène : le plan est symétrique, d\'un seul tenant, trois points d\'apparition par équipe', () => {
+test('arène : le plan est d\'un seul tenant, équitable, trois points d\'apparition par équipe', () => {
   const zone = arenaZone()
   const H = ARENA_MAP.length, W = ARENA_MAP[0].length
-  for (let z = 0; z < H; z++) {
-    assert.equal(ARENA_MAP[z].length, W)
-    for (let x = 0; x < W; x++) {
-      const a = ARENA_MAP[z][x], b = ARENA_MAP[H - 1 - z][W - 1 - x]
-      assert.equal(a === 'A' ? 'B' : a === 'B' ? 'A' : a, b, `(${x}, ${z})`)
-    }
-  }
+  for (const row of ARENA_MAP) assert.equal(row.length, W)
+  // Obstacles et buissons se répondent d'un bout à l'autre : aucune équipe n'a l'avantage du terrain.
+  const kind = (c) => ('#=Hcp'.includes(c) ? 'plein' : c === 'g' ? 'buisson' : c === 'A' || c === 'B' ? 'base' : 'sol')
+  for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) assert.equal(kind(ARENA_MAP[z][x]), kind(ARENA_MAP[H - 1 - z][W - 1 - x]), `(${x}, ${z})`)
   assert.equal(zone.spawns[0].length, R.team)
   assert.equal(zone.spawns[1].length, R.team)
   const start = zone.spawns[0][0]
@@ -92,27 +89,27 @@ test('arène : le plan est symétrique, d\'un seul tenant, trois points d\'appar
 test('arène : une balle s\'arrête sur un conteneur, une cloison, le sol, ou un combattant debout', () => {
   const zone = arenaZone()
   const east = { x: 1, y: 0, z: 0 }
-  // De (1, 1) vers l'est : le conteneur debout de la tuile (4, 1), dont le flanc est en x = 3,5.
-  let hit = castArena(zone, { x: 1, y: 0.24, z: 1 }, east, 30, [])
-  assert.ok(Math.abs(hit.t - 2.5) < 1e-9)
+  // De (1, 2) vers l'est : le conteneur debout de la tuile (7, 2), dont le flanc est en x = 6,5.
+  let hit = castArena(zone, { x: 1, y: 0.24, z: 2 }, east, 30, [])
+  assert.ok(Math.abs(hit.t - 5.5) < 1e-9)
   assert.deepEqual(hit.normal, [-1, 0, 0])
   assert.equal(hit.wall, false)
   // Vers l'ouest : le bord de l'arène.
-  hit = castArena(zone, { x: 1, y: 0.24, z: 1 }, { x: -1, y: 0, z: 0 }, 30, [])
+  hit = castArena(zone, { x: 1, y: 0.24, z: 2 }, { x: -1, y: 0, z: 0 }, 30, [])
   assert.ok(Math.abs(hit.t - 1.5) < 1e-9)
   assert.equal(hit.wall, true)
   // Un combattant sur le trajet : touché au bord de son cylindre ; au-dessus de sa tête, non.
-  const body = [{ id: 7, x: 3, z: 1 }]
-  hit = castArena(zone, { x: 1, y: 0.24, z: 1 }, east, 30, body)
+  const body = [{ id: 7, x: 3, z: 2 }]
+  hit = castArena(zone, { x: 1, y: 0.24, z: 2 }, east, 30, body)
   assert.equal(hit.body, 7)
   assert.ok(Math.abs(hit.t - (2 - R.body.r)) < 1e-9)
-  assert.equal(castArena(zone, { x: 1, y: R.body.h + 0.1, z: 1 }, east, 30, body).body, null)
-  assert.equal(castArena(zone, { x: 1, y: 0.24, z: 1 }, east, 30, body, (id) => id === 7).body, null)
+  assert.equal(castArena(zone, { x: 1, y: R.body.h + 0.1, z: 2 }, east, 30, body).body, null)
+  assert.equal(castArena(zone, { x: 1, y: 0.24, z: 2 }, east, 30, body, (id) => id === 7).body, null)
   // Vers le sol.
-  hit = castArena(zone, { x: 1, y: 0.5, z: 1 }, { x: Math.SQRT1_2, y: -Math.SQRT1_2, z: 0 }, 30, [])
+  hit = castArena(zone, { x: 1, y: 0.5, z: 2 }, { x: Math.SQRT1_2, y: -Math.SQRT1_2, z: 0 }, 30, [])
   assert.deepEqual(hit.normal, [0, 1, 0])
   // Hors de portée : rien.
-  hit = castArena(zone, { x: 1, y: 0.24, z: 1 }, east, 1, [])
+  hit = castArena(zone, { x: 1, y: 0.24, z: 2 }, east, 1, [])
   assert.equal(hit.t, 1)
   assert.equal(hit.normal, null)
 })
@@ -175,7 +172,7 @@ test('arène : quatre lobbys fixes ; on s\'y place, on en change, et chacun joue
   assert.deepEqual(room(4).members.map((m) => [m.id, m.team]), [[3, 0], [1, 1]])
   // Le dernier parti : le lobby reste, vide, avec ses réglages de départ.
   h.arena.handle(b, 'arena:leave', {})
-  assert.deepEqual(room(2), { id: 2, leader: null, size: 3, bots: true, skill: 1, status: 'forming', startsIn: undefined, members: [] })
+  assert.deepEqual(room(2), { id: 2, leader: null, size: 3, bots: true, skill: 1, goal: R.goal, status: 'forming', startsIn: undefined, members: [] })
   // Deux lobbys jouent chacun de son côté.
   h.arena.handle(b, 'arena:join', { room: 1 })
   for (const p of [a, b, c]) h.arena.handle(p, 'arena:ready', { ready: true })
@@ -204,7 +201,7 @@ test('arène : les bots complètent les deux équipes, chacun part de sa base', 
   const start = h.last(1, 'arena:start')
   assert.equal(start.fighters.length, 6)
   assert.equal(start.fighters.filter((f) => f.bot).length, 5)
-  assert.equal(start.goal, arenaGoal(3))
+  assert.equal(start.goal, R.goal)
   for (const team of [0, 1]) {
     const mine = [...game.fighters.values()].filter((f) => f.team === team)
     assert.equal(mine.length, 3)
@@ -221,7 +218,7 @@ test('arène : une position n\'est acceptée que debout, sur le sol, à portée 
   h.start(a, [], { size: 1 })
   assert.ok(h.arena.accepts(a, a.x + 0.4, a.z))
   assert.ok(!h.arena.accepts(a, a.x + 12, a.z), 'trop loin')
-  assert.ok(!h.arena.accepts(a, 4, 1), 'dans un conteneur')
+  assert.ok(!h.arena.accepts(a, 3, 1), 'dans une caisse')
   assert.ok(!h.arena.accepts(h.add(9), 1, 1), 'pas dans une partie')
 })
 
@@ -238,8 +235,8 @@ test('arène : pas de tir avant le coup d\'envoi ; ensuite, les balles blessent,
   const game = h.start(a, [b], { size: 1, bots: false })
   assert.equal(game.fighters.get(2).team, 1)
   // Face à face dans l'allée nord, rien entre eux.
-  h.put(a, 6, 2)
-  h.put(b, 9, 2)
+  h.put(a, 1, 0)
+  h.put(b, 4, 0)
   fireAt(h, a, b)
   h.advance(0.5)
   assert.equal(h.events(2, 'hit').length, 0, 'tir pendant la mise en place')
@@ -273,14 +270,14 @@ test('arène : la cadence d\'un joueur est celle de son arme', () => {
   const a = h.add(1), b = h.add(2)
   h.start(a, [b], { size: 1, bots: false })
   h.advance(R.warmup + R.shield)
-  h.put(a, 6, 2)
-  h.put(b, 9, 12)
+  h.put(a, 1, 0)
+  h.put(b, 14, 10)
   // Vingt tirs d'un coup : un seul part.
-  for (let i = 0; i < 20; i++) fireAt(h, a, { x: 7, z: 2 })
+  for (let i = 0; i < 20; i++) fireAt(h, a, { x: 2, z: 0 })
   assert.equal(h.events(2, 'shot').length, 1)
   // Détente écrasée pendant dix secondes : pas plus que le chargeur et ses rechargements.
   for (let i = 0; i < 200; i++) {
-    fireAt(h, a, { x: 7, z: 2 })
+    fireAt(h, a, { x: 2, z: 0 })
     h.advance(0.05)
   }
   const w = WEAPON_STATS.pistol
@@ -295,17 +292,17 @@ test('arène : un conteneur protège, un coéquipier ne prend pas la balle', () 
   // Le troisième a rejoint le camp le moins garni : celui du tireur.
   assert.equal(game.fighters.get(3).team, 0)
   h.advance(R.warmup + R.shield)
-  // Le conteneur debout de (4, 1) entre le tireur et sa cible.
-  h.put(a, 2, 1)
-  h.put(b, 6, 1)
-  h.put(c, 2, 4)
+  // Le conteneur debout de (7, 2) entre le tireur et sa cible.
+  h.put(a, 5, 2)
+  h.put(b, 9, 2)
+  h.put(c, 2, 9)
   fireAt(h, a, b)
   h.advance(0.5)
   assert.equal(h.events(1, 'hit').length, 0)
   // Le coéquipier dans la ligne de tir : la balle le traverse, et touche l'adversaire derrière lui.
-  h.put(a, 5, 2)
-  h.put(c, 6, 2)
-  h.put(b, 8, 2)
+  h.put(a, 1, 0)
+  h.put(c, 2, 0)
+  h.put(b, 4, 0)
   fireAt(h, a, b)
   h.advance(0.5)
   assert.deepEqual(h.events(1, 'hit').map((e) => e.id), [2])
@@ -325,9 +322,9 @@ test('arène : le fusil à pompe tire sa gerbe, le fusil traverse, le plasma sou
   const game = h.arena.gameOf(a)
   h.advance(R.warmup + R.shield)
   // Deux adversaires en enfilade : le fusil les touche tous les deux.
-  h.put(a, 5, 2)
-  h.put(b, 7, 2)
-  h.put(c, 9, 2)
+  h.put(a, 1, 0)
+  h.put(b, 3, 0)
+  h.put(c, 4, 0)
   fireAt(h, a, b)
   h.advance(0.3)
   assert.deepEqual(h.events(1, 'hit').map((e) => [e.id, e.dmg]), [[2, WEAPON_STATS.rifle.damage], [3, WEAPON_STATS.rifle.damage]])
@@ -335,12 +332,12 @@ test('arène : le fusil à pompe tire sa gerbe, le fusil traverse, le plasma sou
   const fa = game.fighters.get(1)
   Object.assign(fa, { weapon: 'launcher', tokens: 2 })
   for (const f of game.fighters.values()) f.hp = R.hp
-  h.put(b, 9.9, 2.5)
-  h.put(c, 9.9, 1.5)
-  h.put(a, 5, 2)
+  h.put(b, 11.9, 1.5)
+  h.put(c, 11.9, 0.5)
+  h.put(a, 6, 1)
   h.advance(1.5)
   const before = h.events(1, 'hit').length
-  fireAt(h, a, { x: 10, z: 2 })
+  fireAt(h, a, { x: 12, z: 1 })
   h.advance(1)
   const blast = h.events(1, 'hit').slice(before)
   assert.deepEqual(blast.map((e) => e.id).sort(), [2, 3])
@@ -348,9 +345,9 @@ test('arène : le fusil à pompe tire sa gerbe, le fusil traverse, le plasma sou
   // La gerbe : au plus neuf balles par tir, quoi qu'envoie le client.
   h.advance(1.5)
   Object.assign(fa, { weapon: 'shotgun', tokens: 4 })
-  h.put(b, 9, 12)
-  h.put(c, 9, 13)
-  fireAt(h, a, { x: 7, z: 2 }, 30)
+  h.put(b, 14, 10)
+  h.put(c, 15, 10)
+  fireAt(h, a, { x: 7, z: 1 }, 30)
   assert.equal(h.events(2, 'shot').pop().d.length, WEAPON_STATS.shotgun.pellets)
 })
 
@@ -404,7 +401,7 @@ test('arène : qui part est remplacé par un bot ; sans bots, une équipe vide p
   assert.deepEqual(h.lobby().rooms[0].members.map((m) => m.id), [1])
   // Le dernier joueur parti, la partie s'arrête et le lobby se libère, avec ses réglages de départ.
   h.arena.handle(a, 'arena:quit', {})
-  assert.deepEqual(h.lobby().rooms[0], { id: 1, leader: null, size: 3, bots: true, skill: 1, status: 'forming', startsIn: undefined, members: [] })
+  assert.deepEqual(h.lobby().rooms[0], { id: 1, leader: null, size: 3, bots: true, skill: 1, goal: R.goal, status: 'forming', startsIn: undefined, members: [] })
 
   const h2 = harness()
   const c = h2.add(1), d = h2.add(2)
@@ -422,4 +419,52 @@ test('arène : seuls les joueurs de la partie se voient', () => {
   h.start(a, [b], { size: 1, bots: false })
   assert.deepEqual([...h.arena.mates(a)].sort(), [1, 2])
   assert.equal(h.arena.mates(c).size, 0)
+})
+
+test('arène : dans un buisson, on échappe aux bots, sauf de tout près ou si l\'on tire', () => {
+  const zone = arenaZone()
+  assert.ok(inBush(zone, { x: 5, z: 0 }) && !inBush(zone, { x: 4, z: 0 }))
+  assert.ok(arenaHidden(zone, { x: 5, z: 0 }, { x: 1, z: 0 }, false))
+  assert.ok(!arenaHidden(zone, { x: 5, z: 0 }, { x: 4, z: 0 }, false), 'de tout près')
+  assert.ok(!arenaHidden(zone, { x: 5, z: 0 }, { x: 1, z: 0 }, true), 'il vient de tirer')
+  assert.ok(!arenaHidden(zone, { x: 4, z: 0 }, { x: 1, z: 0 }, false), 'à découvert')
+
+  const h = harness()
+  const a = h.add(1)
+  const game = h.start(a, [], { size: 1, skill: 2 })
+  const bot = [...game.fighters.values()].find((f) => f.bot)
+  h.advance(R.warmup + R.shield)
+  // Le bot à quatre tuiles, rien entre eux : caché dans le buisson, le joueur n'est pas pris pour cible.
+  const hold = () => Object.assign(bot, { x: 1, z: 0, path: [], lastSeen: null })
+  h.put(a, 5, 0)
+  for (let i = 0; i < 20; i++) { hold(); h.advance(0.1) }
+  assert.equal(h.events(1, 'hit').length, 0)
+  // Il tire : le voilà trahi.
+  fireAt(h, a, { x: 6, z: 0 })
+  for (let i = 0; i < 20 && !h.events(1, 'hit').length; i++) { hold(); h.advance(0.1) }
+  assert.ok(h.events(1, 'hit').length > 0)
+})
+
+test('arène : le chef règle la limite de points, la première équipe à l\'atteindre gagne', () => {
+  const h = harness()
+  const a = h.add(1), b = h.add(2)
+  h.arena.handle(a, 'arena:join', { room: 1 })
+  h.arena.handle(a, 'arena:settings', { size: 1, bots: false, goal: 5 })
+  h.arena.handle(a, 'arena:settings', { goal: 7 })
+  assert.equal(h.lobby().rooms[0].goal, 5)
+  h.arena.handle(b, 'arena:join', { room: 1 })
+  for (const p of [a, b]) h.arena.handle(p, 'arena:ready', { ready: true })
+  h.advance(R.countdown + 0.1)
+  for (const p of [a, b]) h.arrive(p)
+  assert.equal(h.last(1, 'arena:start').goal, 5)
+  h.arena.handle(a, 'arena:debug', { score: [4, 0] })
+  h.advance(R.warmup + R.shield)
+  h.put(a, 1, 0)
+  h.put(b, 4, 0)
+  for (let i = 0; i < 12 && !h.last(1, 'arena:end'); i++) {
+    fireAt(h, a, b)
+    h.advance(0.25)
+  }
+  const end = h.last(2, 'arena:end')
+  assert.deepEqual([end.winner, end.reason, end.score], [0, 'score', [5, 0]])
 })

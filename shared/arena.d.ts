@@ -5,10 +5,13 @@ import type { ZoneContainer } from './salvage.js'
 export declare const ARENA_LEVEL: -5
 export declare const ARENA_RETURN: { x: number; z: number }
 export declare const ARENA_TERMINAL: { x: number; z: number }
+export declare const ARENA_LOBBY: { level: -1; room: 'y'; rooms: string }
+export declare const ARENA_BOOTH: { x: number; z: number; yaw: number; referee: { x: number; z: number }; counter: { x: number; z: number } }
 export declare const ARENA_RULES: {
   lobbies: number
   team: number
   hp: number
+  goals: number[]
   goal: number
   duration: number
   countdown: number
@@ -17,6 +20,7 @@ export declare const ARENA_RULES: {
   shield: number
   regenAfter: number
   regen: number
+  bush: { near: number; reveal: number }
   body: { r: number; h: number }
   aim: number
   ceiling: number
@@ -41,18 +45,21 @@ export interface ArenaZone {
   height: number
   layout: string[]
   blocked: Uint8Array
+  /** Tuiles de buisson : on s'y cache. */
+  bush: Uint8Array
   room: string[]
   open: Uint8Array
   adj: Int32Array
   spawns: [{ x: number; z: number }[], { x: number; z: number }[]]
-  containers: ZoneContainer[]
+  containers: (Omit<ZoneContainer, 'kind'> & { kind: 'container' | 'crates' | 'pillar' })[]
   walkMap: PlanMap
   sightMap: PlanMap
 }
 
 export declare function arenaZone(): ArenaZone
 export declare function arenaSight(zone: ArenaZone, from: { x: number; z: number }, to: { x: number; z: number }): boolean
-export declare function arenaGoal(size: number): number
+export declare function inBush(zone: ArenaZone, p: { x: number; z: number }): boolean
+export declare function arenaHidden(zone: ArenaZone, p: { x: number; z: number }, viewer: { x: number; z: number }, revealed: boolean): boolean
 export declare function blastDamage(weapon: WeaponId, d: number): number
 export declare function castArena(
   zone: ArenaZone,

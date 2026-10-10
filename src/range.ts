@@ -480,6 +480,11 @@ export class RangeGame {
     })
   }
 
+  /** La fin approche : la musique s'emballe (au stand, les dix dernières secondes). */
+  protected rushing(s: Session): boolean {
+    return s.started && s.timeLeft <= 10
+  }
+
   /** On peut tirer (l'arène : pas avant le coup d'envoi, ni une fois éliminé). */
   protected ready(): boolean {
     return true
@@ -667,7 +672,7 @@ export class RangeGame {
     this.state.flash = this.glow
     this.state.tier = this.tierGlow
     // La musique suit la partie (cf. RangeMusic), et les lumières suivent sa grosse caisse.
-    this.music.update({ started: s.started, level: s.level, rush: s.started && s.timeLeft <= 10 })
+    this.music.update({ started: s.started, level: s.level, rush: this.rushing(s) })
     this.state.beat = this.music.pulse
     this.state.alarm = s.started && s.timeLeft > 0 && s.timeLeft <= 10 ? (s.timeLeft % 1) ** 2 : 0
     s.cooldown = Math.max(0, s.cooldown - dt)

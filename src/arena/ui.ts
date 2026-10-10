@@ -3,11 +3,11 @@ import { icon } from '../icons'
 import type { ArenaEnd, ArenaLobby, ArenaRoom, ArenaStats } from '../net'
 import { WEAPONS, weaponById, type WeaponId } from '../range-weapons'
 import { button, el, Modal } from '../salvage/ui'
-import { ARENA_RULES, ARENA_TEAMS, arenaGoal } from '../../shared/arena.js'
+import { ARENA_RULES, ARENA_TEAMS } from '../../shared/arena.js'
 
 /*
- * Interface de l'arène : le terminal du sas (les quatre lobbys où l'on se place, les deux camps, l'arme, les réglages,
- * « prêt »), puis en partie le score des deux équipes et le chrono, les points de vie, le fil des
+ * Interface de l'arène : le terminal (à gauche, les quatre lobbys où l'on se place ; à droite, les
+ * deux camps face à face, l'arme et ses jauges, les réglages, « prêt »), puis en partie le score des deux équipes et le chrono, les points de vie, le fil des
  * éliminations, l'écran d'attente de celui qui vient d'être éliminé (il y change d'arme), et le
  * tableau de fin.
  */
@@ -20,7 +20,7 @@ export interface ArenaPanelActions {
   join(room: number, team?: number): void
   leave(): void
   side(team: number): void
-  settings(s: { size?: number; bots?: boolean; skill?: number }): void
+  settings(s: { size?: number; bots?: boolean; skill?: number; goal?: number }): void
   weapon(id: WeaponId): void
   ready(on: boolean): void
 }
@@ -43,7 +43,43 @@ function weaponPicker(current: WeaponId, pick: (id: WeaponId) => void, keys = fa
   return row
 }
 
-/** Le terminal de l'arène : se placer dans un des lobbys, choisir son camp et son arme, se déclarer prêt. */
+/** Ce qu'une arme vaut dans l'arène, de 0 à 1 : la force d'un tir, la cadence, la portée utile. */
+function gauges(w: (typeof WEAPONS)[number]): [string, number][] {
+  return [
+    [tr('Force', 'Power'), Math.min(1, (w.damage * w.pellets) / ARENA_RULES.hp)],
+    [tr('Cadence', 'Rate'), Math.min(1, Math.sqrt(0.08 / w.interval))],
+    [tr('Portée', 'Range'), Math.min(1, w.reach / 10)],
+  ]
+}
+
+/** Le choix de l'arme, au terminal : une fiche par arme, avec ses jauges et son chargeur. */
+function loadout(current: WeaponId, pick: (id: WeaponId) => void): HTMLElement {
+  const row = el('div', 'arena-loadout')
+  row.setAttribute('role', 'radiogroup')
+  row.setAttribute('aria-label', tr('Arme', 'Weapon'))
+  for (const w of WEAPONS) {
+    const b = button('', () => pick(w.id), `arena-gun${w.id === current ? ' on' : ''}`)
+    b.setAttribute('role', 'radio')
+    b.setAttribute('aria-checked', String(w.id === current))
+    b.dataset.key = `weapon-${w.id}`
+    b.style.setProperty('--weapon', w.color)
+    const bars = el('span', 'arena-gauges')
+    for (const [label, value] of gauges(w)) {
+      const bar = el('i')
+      bar.style.setProperty('--fill', `${Math.round(value * 100)}%`)
+      bar.title = label
+      bars.append(el('em', '', label), bar)
+    }
+    b.append(el('strong', '', w.name), el('span', 'arena-gun-trait', w.trait), bars, el('span', 'arena-gun-mag', tr(`Chargeur ${w.mag}`, `Mag ${w.mag}`)))
+    row.append(b)
+  }
+  return row
+}
+
+/**
+ * Le terminal de l'arène : à gauche, les quatre lobbys ; à droite, celui où l'on s'est placé, ses
+ * deux camps face à face, son arme, les réglages du chef, et « prêt ».
+ */
 export class ArenaPanel extends Modal {
   private lobby: ArenaLobby = { rooms: [] }
   private self = -1
@@ -52,7 +88,7 @@ export class ArenaPanel extends Modal {
   weapon: WeaponId = 'pistol'
 
   constructor(private actions: ArenaPanelActions) {
-    super(tr('ARÈNE · LOBBY DE LA CALE', 'ARENA · HOLD LOBBY'), tr('Duel par équipes', 'Team duel'))
+    super(tr('ARÈNE · INSCRIPTIONS', 'ARENA · SIGN-UP'), tr('Duel par équipes', 'Team duel'))
     this.root.classList.add('arena-panel')
   }
 
@@ -81,26 +117,23 @@ export class ArenaPanel extends Modal {
   private render() {
     const focused = document.activeElement instanceof HTMLElement && this.root.contains(document.activeElement) ? document.activeElement.dataset.key : undefined
     this.body.replaceChildren()
-    this.body.append(el('p', 'salvage-intro', tr(
-      `Deux équipes, jusqu'à ${ARENA_RULES.team} contre ${ARENA_RULES.team}, dans une baie de stockage tous projecteurs allumés. Chacun vient avec l'arme de son choix ; les bots complètent les équipes. La première au score l'emporte.`,
-      `Two teams, up to ${ARENA_RULES.team} vs ${ARENA_RULES.team}, in a storage bay with every floodlight on. Bring the weapon of your choice; bots fill the teams. First to the score wins.`,
-    )))
     if (!this.online) {
       this.body.append(el('p', 'salvage-warn', tr('Relais injoignable : l\'arène se joue en ligne. Réessayez dans un instant.', 'Relay unreachable: the arena is played online. Try again in a moment.')))
       return
     }
     const room = this.room
+    const layout = el('div', 'arena-layout')
     // Les lobbys, toujours visibles : on voit qui joue avec qui, et l'on en change d'un clic.
-    const list = el('div', 'salvage-teams')
-    for (const r of this.lobby.rooms) list.append(this.listCard(r, room))
-    this.body.append(list)
-    if (room) this.body.append(this.roomCard(room))
-    else {
-      this.body.append(el('p', 'salvage-empty', tr('Placez-vous dans un lobby : seul contre les bots, ou avec ceux qui jouent avec vous.', 'Pick a lobby: solo against the bots, or with whoever is playing with you.')))
-      this.body.append(el('span', 'salvage-label', tr('Votre arme', 'Your weapon')), weaponPicker(this.weapon, (id) => this.pick(id)))
-    }
-    this.body.append(el('p', 'salvage-note', tr('Pour l\'honneur : l\'arène ne rapporte pas de crédits.', 'For honour only: the arena pays no credits.')))
-    if (this.status) this.body.append(el('p', 'salvage-status', this.status))
+    const rail = el('nav', 'arena-rail')
+    rail.setAttribute('aria-label', tr('Lobbys', 'Lobbies'))
+    rail.append(el('span', 'arena-heading', tr('Lobbys', 'Lobbies')))
+    for (const r of this.lobby.rooms) rail.append(this.tile(r, room))
+    const stage = el('div', 'arena-stage')
+    if (room) this.fillRoom(stage, room)
+    else this.fillWelcome(stage)
+    if (this.status) stage.append(el('p', 'salvage-status', this.status))
+    layout.append(rail, stage)
+    this.body.append(layout)
     if (focused) this.body.querySelector<HTMLElement>(`[data-key="${focused}"]`)?.focus()
   }
 
@@ -110,129 +143,172 @@ export class ArenaPanel extends Modal {
     this.render()
   }
 
-  /** Un lobby : son format, qui s'y trouve, et le bouton pour s'y placer. */
-  private listCard(r: ArenaRoom, mine: ArenaRoom | null): HTMLElement {
+  /** Un lobby, dans la colonne de gauche : son état, qui s'y trouve (une pastille par place), et l'on s'y place d'un clic. */
+  private tile(r: ArenaRoom, mine: ArenaRoom | null): HTMLElement {
     const own = r === mine
     const playing = r.status === 'playing'
-    const card = el('div', `salvage-lobby-card${own ? ' own' : ''}${playing ? ' playing' : ''}`)
-    const head = el('div', 'salvage-lobby-head')
-    head.append(el('strong', '', `Lobby ${r.id}`))
-    const state = playing ? `${r.score?.[0] ?? 0} – ${r.score?.[1] ?? 0}`
-      : r.status === 'countdown' ? tr('Départ imminent', 'Starting')
-        : !r.members.length ? tr('Libre', 'Empty')
-          : `${r.members.length}/${r.size * 2}`
-    head.append(el('span', 'salvage-lobby-state', state))
-    card.append(head)
-    const seats = el('ul', 'salvage-seats')
-    for (const m of r.members) {
-      const li = el('li', `team${m.team}${m.ready ? ' ready' : ''}`)
-      li.append(icon(m.id === r.leader ? 'crown' : 'user-solo', m.id === r.leader ? 'salvage-crown' : 'salvage-seat-icon'))
-      li.append(el('span', 'salvage-name', m.name + (m.id === this.self ? tr(' (vous)', ' (you)') : '')))
-      if (m.ready && !playing) li.append(icon('check', 'salvage-seat-ready'))
-      seats.append(li)
+    const full = !own && r.members.length >= r.size * 2
+    const b = button('', () => { if (!own) this.actions.join(r.id) }, `arena-tile${own ? ' own' : ''}${playing ? ' playing' : ''}`)
+    b.dataset.key = `join-${r.id}`
+    b.disabled = !own && (playing || full)
+    if (own) b.setAttribute('aria-current', 'true')
+    const state = playing ? tr('En partie', 'Playing')
+      : r.status === 'countdown' ? tr('Départ', 'Starting')
+        : full ? tr('Complet', 'Full')
+          : !r.members.length ? tr('Libre', 'Empty')
+            : tr('Ouvert', 'Open')
+    const head = el('span', 'arena-tile-head')
+    head.append(el('strong', '', `Lobby ${r.id}`), el('span', `arena-badge${playing ? ' live' : !r.members.length ? ' idle' : ''}`, state))
+    b.append(head)
+    if (playing) {
+      const score = el('span', 'arena-tile-score')
+      score.append(el('b', 'team0', String(r.score?.[0] ?? 0)), ' – ', el('b', 'team1', String(r.score?.[1] ?? 0)))
+      b.append(score)
+    } else {
+      // Une rangée de places par camp : pleine (un joueur), creuse (libre, ou un bot).
+      const pips = el('span', 'arena-pips')
+      for (const team of ARENA_TEAMS) {
+        const row = el('span', `team${team.id}`)
+        const taken = r.members.filter((m) => m.team === team.id).length
+        for (let i = 0; i < r.size; i++) row.append(el('i', i < taken ? 'on' : ''))
+        pips.append(row)
+      }
+      b.append(pips)
     }
-    if (!r.members.length) seats.append(el('li', 'free', tr('Personne pour l\'instant', 'Nobody yet')))
-    const bots = r.bots ? tr(`bots : ${SKILLS[r.skill]}`, `bots: ${SKILLS[r.skill]}`) : tr('sans bots', 'no bots')
-    card.append(seats, el('span', 'salvage-lobby-detail', r.members.length ? `${format(r.size)} · ${bots}` : tr('Le premier arrivé règle la partie.', 'First in sets the match.')))
-    if (own) card.append(el('span', 'salvage-lobby-own', tr('Votre lobby', 'Your lobby')))
-    else if (!playing) {
-      const full = r.members.length >= r.size * 2
-      const join = button(full ? tr('Complet', 'Full') : mine ? tr('Changer pour ce lobby', 'Switch to this lobby') : tr('Se placer ici', 'Join this lobby'), () => this.actions.join(r.id), mine || full ? '' : 'salvage-primary', 'user-plus')
-      join.dataset.key = `join-${r.id}`
-      join.disabled = full
-      card.append(join)
-    }
-    return card
+    const names = r.members.map((m) => (m.id === this.self ? tr('vous', 'you') : m.name)).join(', ')
+    const bots = r.bots ? tr(`bots ${SKILLS[r.skill].toLowerCase()}`, `${SKILLS[r.skill].toLowerCase()} bots`) : tr('sans bots', 'no bots')
+    b.append(el('span', 'arena-tile-detail', r.members.length ? `${format(r.size)} · ${r.goal} pts · ${bots}` : tr('Le premier arrivé règle la partie', 'First in sets the match')))
+    if (names) b.append(el('span', 'arena-tile-names', names))
+    if (own) b.append(el('span', 'arena-tile-own', tr('Votre lobby', 'Your lobby')))
+    return b
+  }
+
+  /** Pas encore placé : ce qu'est l'arène, et l'arme qu'on y apportera. */
+  private fillWelcome(stage: HTMLElement) {
+    const hero = el('div', 'arena-hero')
+    hero.append(
+      el('strong', '', tr('Placez-vous dans un lobby', 'Pick a lobby')),
+      el('p', '', tr(
+        `Deux équipes, jusqu'à ${ARENA_RULES.team} contre ${ARENA_RULES.team}, dans une baie de stockage tous projecteurs allumés. Seul contre les bots, ou avec ceux qui jouent avec vous : ils complètent les équipes. La première au score l'emporte.`,
+        `Two teams, up to ${ARENA_RULES.team} vs ${ARENA_RULES.team}, in a storage bay with every floodlight on. Solo against the bots, or with whoever plays with you: they fill the teams. First to the score wins.`,
+      )),
+    )
+    stage.append(hero, el('span', 'arena-heading', tr('Votre arme', 'Your weapon')), loadout(this.weapon, (id) => this.pick(id)))
+    stage.append(el('p', 'salvage-note', tr('Pour l\'honneur : l\'arène ne rapporte pas de crédits.', 'For honour only: the arena pays no credits.')))
   }
 
   /** Son lobby : les deux camps face à face, son arme, les réglages du chef, « prêt ». */
-  private roomCard(r: ArenaRoom): HTMLElement {
-    const card = el('div', 'salvage-team')
+  private fillRoom(stage: HTMLElement, r: ArenaRoom) {
     const leader = r.leader === this.self
     const me = r.members.find((m) => m.id === this.self)!
-    card.append(el('strong', 'salvage-team-title', tr(`Lobby ${r.id} · ${format(r.size)} · ${arenaGoal(r.size)} éliminations`, `Lobby ${r.id} · ${format(r.size)} · ${arenaGoal(r.size)} kills`)))
+    const title = el('div', 'arena-title')
+    title.append(el('strong', '', `Lobby ${r.id}`), el('span', '', `${format(r.size)} · ${tr(`la première équipe à ${r.goal} points gagne`, `first team to ${r.goal} points wins`)}`))
+    stage.append(title)
 
-    const sides = el('div', 'arena-sides')
-    for (const team of ARENA_TEAMS) {
+    const versus = el('div', 'arena-versus')
+    ARENA_TEAMS.forEach((team, index) => {
       const mates = r.members.filter((m) => m.team === team.id)
-      const side = el('div', `arena-side team${team.id}${me.team === team.id ? ' own' : ''}`)
-      side.append(el('strong', 'arena-side-name', tr(`Équipe ${TEAM_NAMES[team.id]}`, `${TEAM_NAMES[team.id]} team`)))
-      const seats = el('ul', 'salvage-seats')
+      const side = el('section', `arena-team team${team.id}${me.team === team.id ? ' own' : ''}`)
+      const head = el('header')
+      head.append(el('strong', '', tr(`Équipe ${TEAM_NAMES[team.id]}`, `${TEAM_NAMES[team.id]} team`)), el('span', '', `${mates.length}/${r.size}`))
+      side.append(head)
+      const slots = el('ul', 'arena-slots')
       for (const m of mates) {
-        const li = el('li', m.ready ? 'ready' : '')
-        li.append(icon(m.id === r.leader ? 'crown' : 'user-solo', m.id === r.leader ? 'salvage-crown' : 'salvage-seat-icon'))
-        li.append(el('span', 'salvage-name', m.name + (m.id === this.self ? tr(' (vous)', ' (you)') : '')))
-        li.append(el('span', 'arena-seat-weapon', weaponById(m.weapon)?.name ?? ''))
-        if (m.ready) li.append(icon('check', 'salvage-seat-ready'))
-        seats.append(li)
+        const li = el('li', `arena-slot${m.id === this.self ? ' me' : ''}${m.ready ? ' ready' : ''}`)
+        const w = weaponById(m.weapon)
+        const chip = el('span', 'arena-chip', w?.name ?? '')
+        if (w) chip.style.setProperty('--weapon', w.color)
+        li.append(icon(m.id === r.leader ? 'crown' : 'user-solo'), el('span', 'arena-slot-name', m.name + (m.id === this.self ? tr(' (vous)', ' (you)') : '')), chip)
+        li.append(el('span', 'arena-slot-state', m.ready ? tr('Prêt', 'Ready') : tr('En attente', 'Waiting')))
+        slots.append(li)
       }
       for (let i = mates.length; i < r.size; i++) {
-        const li = el('li', 'free')
-        if (r.bots) li.append(icon('robot', 'salvage-seat-icon'), tr('Bot', 'Bot'))
-        else li.append(tr('Place libre', 'Open slot'))
-        seats.append(li)
+        const li = el('li', `arena-slot free${r.bots ? ' bot' : ''}`)
+        if (r.bots) li.append(icon('robot'), el('span', 'arena-slot-name', tr(`Bot · ${SKILLS[r.skill]}`, `Bot · ${SKILLS[r.skill]}`)))
+        else li.append(el('span', 'arena-slot-name', tr('Place libre', 'Open slot')))
+        slots.append(li)
       }
-      side.append(seats)
+      side.append(slots)
       if (me.team !== team.id) {
-        const swap = button(tr('Passer dans ce camp', 'Switch to this side'), () => this.actions.side(team.id), '', 'arrows-left-right')
+        const swap = button(tr('Passer dans ce camp', 'Switch to this side'), () => this.actions.side(team.id), 'arena-swap', 'arrows-left-right')
         swap.dataset.key = `side-${team.id}`
         swap.disabled = mates.length >= r.size
         side.append(swap)
       }
-      sides.append(side)
-    }
-    card.append(sides)
+      versus.append(side)
+      if (!index) versus.append(el('span', 'arena-vs', 'VS'))
+    })
+    stage.append(versus)
 
-    card.append(el('span', 'salvage-label', tr('Votre arme', 'Your weapon')), weaponPicker(me.weapon, (id) => this.pick(id)))
+    stage.append(el('span', 'arena-heading', tr('Votre arme', 'Your weapon')), loadout(me.weapon, (id) => this.pick(id)))
 
     // Réglages : le chef choisit ; les autres les voient.
-    const settings = el('div', 'salvage-settings')
-    const stepper = (label: string, text: string, value: number, lo: number, hi: number, set: (v: number) => void, key: string) => {
-      const box = el('div', 'salvage-stepper')
-      box.append(el('span', 'salvage-label', label))
-      const minus = button('', () => set(value - 1), '', 'minus')
-      minus.setAttribute('aria-label', tr(`${label} : moins`, `${label}: less`))
-      minus.dataset.key = `${key}-minus`
-      minus.disabled = !leader || value <= lo
-      const plus = button('', () => set(value + 1), '', 'plus')
-      plus.setAttribute('aria-label', tr(`${label} : plus`, `${label}: more`))
-      plus.dataset.key = `${key}-plus`
-      plus.disabled = !leader || value >= hi
-      box.append(minus, el('strong', 'salvage-value arena-value', text), plus)
+    const settings = el('div', 'arena-settings')
+    const choice = (label: string, options: [string, () => void, boolean][], key: string) => {
+      const box = el('div', 'arena-choice')
+      box.append(el('span', 'arena-heading', label))
+      const row = el('div', 'arena-segments')
+      row.setAttribute('role', 'radiogroup')
+      row.setAttribute('aria-label', label)
+      options.forEach(([text, set, on], i) => {
+        const b = button(text, set, on ? 'on' : '')
+        b.setAttribute('role', 'radio')
+        b.setAttribute('aria-checked', String(on))
+        b.dataset.key = `${key}-${i}`
+        b.disabled = !leader && !on
+        if (!leader) b.tabIndex = -1
+        row.append(b)
+      })
+      box.append(row)
       return box
     }
     const crowd = Math.max(1, ...ARENA_TEAMS.map((t) => r.members.filter((m) => m.team === t.id).length))
+    const sizes = Array.from({ length: ARENA_RULES.team }, (_, i) => i + 1).filter((n) => n >= crowd || n === r.size)
     settings.append(
-      stepper(tr('Format', 'Format'), format(r.size), r.size, crowd, ARENA_RULES.team, (v) => this.actions.settings({ size: v }), 'size'),
-      stepper(tr('Bots', 'Bots'), r.bots ? SKILLS[r.skill] : tr('Aucun', 'None'), r.bots ? r.skill : -1, -1, SKILLS.length - 1, (v) => this.actions.settings(v < 0 ? { bots: false } : { bots: true, skill: v }), 'bots'),
+      choice(tr('Format', 'Format'), sizes.map((n) => [`${n} v ${n}`, () => this.actions.settings({ size: n }), n === r.size]), 'size'),
+      choice(tr('Limite de points', 'Point limit'), ARENA_RULES.goals.map((n) => [String(n), () => this.actions.settings({ goal: n }), n === r.goal]), 'goal'),
+      choice(tr('Bots', 'Bots'), [
+        [tr('Aucun', 'None'), () => this.actions.settings({ bots: false }), !r.bots],
+        ...SKILLS.map((name, i): [string, () => void, boolean] => [name, () => this.actions.settings({ bots: true, skill: i }), r.bots && r.skill === i]),
+      ], 'bots'),
     )
-    card.append(settings)
-    if (!leader) card.append(el('p', 'salvage-note', tr('Le chef du lobby (le premier arrivé) règle la partie ; un changement remet tout le monde en attente.', 'The lobby leader (first in) sets the match; any change puts everyone back on standby.')))
+    stage.append(settings)
+    if (!leader) stage.append(el('p', 'salvage-note', tr('Le chef du lobby (le premier arrivé, à la couronne) règle la partie ; un changement remet tout le monde en attente.', 'The lobby leader (first in, with the crown) sets the match; any change puts everyone back on standby.')))
 
-    const actions = el('div', 'salvage-actions')
-    if (r.status === 'countdown') actions.append(el('strong', 'salvage-countdown', tr(`Départ dans ${Math.ceil(r.startsIn ?? 0)} s…`, `Starting in ${Math.ceil(r.startsIn ?? 0)} s…`)))
-    const ready = button(me.ready ? tr('Finalement, pas prêt', 'Not ready after all') : tr('Je suis prêt', 'I\'m ready'), () => this.actions.ready(!me.ready), me.ready ? '' : 'salvage-primary', me.ready ? 'x' : 'check')
-    ready.dataset.key = 'ready'
-    const leave = button(tr('Quitter le lobby', 'Leave the lobby'), () => this.actions.leave(), 'salvage-quiet', 'sign-out')
+    const ready = r.members.filter((m) => m.ready).length
+    const footer = el('div', 'arena-footer')
+    const go = button(
+      r.status === 'countdown' ? tr('Départ imminent…', 'Starting…') : me.ready ? tr('Prêt · annuler', 'Ready · cancel') : tr('Je suis prêt', 'I\'m ready'),
+      () => this.actions.ready(!me.ready), `arena-ready${me.ready ? ' on' : ''}`, me.ready ? 'check' : 'crosshair',
+    )
+    go.dataset.key = 'ready'
+    const leave = button(tr('Quitter le lobby', 'Leave the lobby'), () => this.actions.leave(), 'arena-leave', 'sign-out')
     leave.dataset.key = 'leave'
-    actions.append(ready, leave)
-    card.append(actions)
-    return card
+    footer.append(go, el('span', 'arena-count-ready', tr(`${ready}/${r.members.length} prêt${ready > 1 ? 's' : ''}`, `${ready}/${r.members.length} ready`)), leave)
+    stage.append(footer)
   }
 }
 
+/** Qui est un combattant pour le joueur : lui-même, un coéquipier, un adversaire. */
+export type Relation = 'self' | 'ally' | 'enemy'
 /** Ce que le HUD montre d'un combattant dans le fil des éliminations. */
-export interface FeedName { name: string; team: number }
+export interface FeedName { name: string; rel: Relation }
+/** La plaque d'un combattant, au-dessus de sa tête : son nom, ses points de vie. */
+export interface PlateInfo { name: string; hp: number; rel: Relation; shield: boolean; bot: boolean; /** Le joueur : son chargeur, de 0 à 1. */ ammo?: number }
 
-/** En partie : le score et le chrono, les points de vie, le fil des éliminations, l'attente, la fin. */
+/**
+ * En partie, à la façon de Brawl Stars : le score des deux camps (le sien en bleu, à gauche, celui
+ * d'en face en rouge) et le chrono, une plaque au-dessus de chaque combattant (son nom, sa barre de
+ * vie ; sous la sienne, son chargeur), le fil des éliminations, l'attente de celui qui vient de
+ * tomber, et le tableau de fin.
+ */
 export class ArenaHud {
   private readonly root = el('div', 'arena-hud')
-  private readonly scores = [el('strong', 'arena-score team0'), el('strong', 'arena-score team1')]
+  private readonly scores = [el('strong', 'arena-score ally'), el('strong', 'arena-score enemy')]
   private readonly clock = el('span', 'arena-clock')
   private readonly goal = el('span', 'arena-goal')
-  private readonly health = el('div', 'arena-health')
-  private readonly healthFill = el('i')
-  private readonly healthValue = el('strong')
+  private readonly plates = el('div', 'arena-plates')
+  private readonly plateOf = new Map<number, { root: HTMLElement; name: HTMLElement; fill: HTMLElement; value: HTMLElement; ammo: HTMLElement; shown: boolean }>()
   private readonly feed = el('ul', 'arena-feed')
   private readonly wait = el('div', 'arena-wait')
   private readonly waitTitle = el('strong')
@@ -255,14 +331,13 @@ export class ArenaHud {
     const middle = el('div', 'arena-middle')
     middle.append(this.clock, this.goal)
     board.append(this.scores[0], middle, this.scores[1])
-    this.health.append(icon('heart'), el('div', 'arena-health-bar'), this.healthValue)
-    this.health.querySelector('.arena-health-bar')!.append(this.healthFill)
+    this.plates.setAttribute('aria-hidden', 'true')
     this.quit = button(tr('Quitter', 'Leave'), () => this.onQuit?.(), 'arena-quit', 'sign-out')
     this.wait.hidden = true
     this.wait.append(this.waitTitle, this.waitClock, el('span', 'arena-wait-label', tr('Arme au retour', 'Weapon on return')), this.waitPick)
     this.count.setAttribute('aria-live', 'assertive')
     this.feed.setAttribute('aria-live', 'polite')
-    this.root.append(board, this.health, this.feed, this.quit, this.count, this.wait)
+    this.root.append(this.plates, board, this.feed, this.quit, this.count, this.wait)
     this.end.hidden = true
     this.end.setAttribute('role', 'dialog')
     this.end.setAttribute('aria-modal', 'true')
@@ -273,42 +348,80 @@ export class ArenaHud {
     return !this.end.hidden
   }
 
-  show(on: boolean, team = 0) {
+  show(on: boolean) {
     this.root.hidden = !on
-    this.root.dataset.team = String(team)
     this.quit.hidden = false
+    // Les noms du bord laissent la place aux plaques de l'arène.
+    document.body.classList.toggle('arena-on', on)
     if (!on) {
       this.wait.hidden = true
       this.feed.replaceChildren()
       this.count.textContent = this.shownCount = ''
+      this.plates.replaceChildren()
+      this.plateOf.clear()
     }
   }
 
-  /** @param left secondes restantes ; `warmup` : secondes avant le coup d'envoi (0 : c'est parti) */
-  board(score: [number, number], goal: number, left: number, warmup: number) {
-    this.scores.forEach((node, i) => (node.textContent = String(score[i])))
+  /**
+   * @param mine, theirs points de son équipe, de celle d'en face
+   * @param left secondes restantes ; `warmup` : secondes avant le coup d'envoi (0 : c'est parti)
+   */
+  board(mine: number, theirs: number, goal: number, left: number, warmup: number) {
+    this.scores[0].textContent = String(mine)
+    this.scores[1].textContent = String(theirs)
+    this.scores[0].classList.toggle('point', mine === goal - 1)
+    this.scores[1].classList.toggle('point', theirs === goal - 1)
     const seconds = Math.ceil(left)
     this.clock.textContent = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
     this.clock.classList.toggle('low', warmup <= 0 && left <= 30)
-    this.goal.textContent = tr(`Objectif ${goal}`, `First to ${goal}`)
-    // Le décompte du coup d'envoi, puis « Feu ! » un instant.
+    this.goal.textContent = tr(`Premier à ${goal}`, `First to ${goal}`)
+    // Le décompte du coup d'envoi, puis le signal, un instant.
     const text = warmup > 0 ? String(Math.ceil(warmup)) : this.shownCount && this.shownCount !== 'go' ? 'go' : this.shownCount
     if (text === this.shownCount) return
     this.shownCount = text
-    this.count.textContent = text === 'go' ? tr('Feu !', 'Fire!') : text
+    this.count.textContent = text === 'go' ? tr('Baston !', 'Brawl!') : text
     this.count.classList.remove('pop')
     void this.count.offsetWidth
     this.count.classList.add('pop')
     if (text === 'go') window.setTimeout(() => { if (this.shownCount === 'go') this.count.textContent = this.shownCount = '' }, 900)
   }
 
-  /** Points de vie du joueur ; `shield` : protégé, à son retour à la base. */
-  life(hp: number, shield: boolean) {
-    const k = Math.max(0, Math.min(1, hp / ARENA_RULES.hp))
-    this.healthFill.style.width = `${(k * 100).toFixed(0)}%`
-    this.healthValue.textContent = String(Math.max(0, Math.round(hp)))
-    this.health.classList.toggle('low', k > 0 && k <= 0.35)
-    this.health.classList.toggle('shield', shield)
+  /**
+   * La plaque d'un combattant, au-dessus de sa tête (`at`, en pixels ; null : on ne le voit pas).
+   * @param near de 0 (loin) à 1 (tout près) : la plaque rapetisse avec la distance, en vue subjective
+   */
+  plate(id: number, at: { x: number; y: number } | null, info: PlateInfo, near = 1) {
+    let p = this.plateOf.get(id)
+    if (!p) {
+      if (!at) return
+      const root = el('div', 'arena-plate')
+      const name = el('span', 'arena-plate-name')
+      const bar = el('div', 'arena-plate-bar')
+      const fill = el('i')
+      const value = el('b')
+      bar.append(fill, value)
+      const ammo = el('div', 'arena-plate-ammo')
+      ammo.append(el('i'))
+      root.append(name, bar, ammo)
+      this.plates.append(root)
+      this.plateOf.set(id, (p = { root, name, fill, value, ammo, shown: true }))
+    }
+    if (p.shown !== !!at) p.root.hidden = !(p.shown = !!at)
+    if (!at) return
+    p.root.className = `arena-plate ${info.rel}${info.shield ? ' shield' : ''}`
+    p.root.style.transform = `translate(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px) translate(-50%, -100%) scale(${(0.6 + 0.4 * near).toFixed(2)})`
+    const name = info.bot ? `🤖 ${info.name}` : info.name
+    if (p.name.textContent !== name) p.name.textContent = name
+    const hp = Math.max(0, Math.round(info.hp))
+    p.fill.style.width = `${Math.min(100, (hp / ARENA_RULES.hp) * 100).toFixed(0)}%`
+    if (p.value.textContent !== String(hp)) p.value.textContent = String(hp)
+    p.ammo.hidden = info.ammo === undefined
+    if (info.ammo !== undefined) (p.ammo.firstElementChild as HTMLElement).style.width = `${(info.ammo * 100).toFixed(0)}%`
+  }
+
+  dropPlate(id: number) {
+    this.plateOf.get(id)?.root.remove()
+    this.plateOf.delete(id)
   }
 
   /** Touché : le bord de l'écran rougit un instant. */
@@ -321,8 +434,8 @@ export class ArenaHud {
   /** Une élimination dans le fil : qui, avec quoi, qui. */
   kill(by: FeedName | null, victim: FeedName, weapon: WeaponId, mine: boolean) {
     const li = el('li', mine ? 'mine' : '')
-    if (by) li.append(el('span', `team${by.team}`, by.name))
-    li.append(icon('crosshair'), el('em', '', weaponById(weapon)?.name ?? ''), el('span', `team${victim.team}`, victim.name))
+    if (by) li.append(el('span', by.rel, by.name))
+    li.append(icon('crosshair'), el('em', '', weaponById(weapon)?.name ?? ''), el('span', victim.rel, victim.name))
     this.feed.append(li)
     while (this.feed.children.length > 5) this.feed.firstElementChild!.remove()
     window.setTimeout(() => li.remove(), 6000)
@@ -341,7 +454,7 @@ export class ArenaHud {
     this.waitClock.textContent = tr(`Retour à la base dans ${Math.max(1, Math.ceil(seconds))} s`, `Back at base in ${Math.max(1, Math.ceil(seconds))} s`)
   }
 
-  /** Le tableau de fin : qui gagne, le score, et les chiffres de chacun, camp par camp. */
+  /** Le tableau de fin : qui gagne, le score, le joueur star, et les chiffres de chacun, camp par camp. */
   showEnd(r: ArenaEnd, team: number, self: number, onBack: () => void) {
     this.end.replaceChildren()
     this.quit.hidden = true
@@ -349,27 +462,30 @@ export class ArenaHud {
     const head = el('header', 'salvage-head')
     head.append(
       el('span', 'salvage-kicker', tr('FIN DE LA PARTIE', 'MATCH OVER')),
-      el('h2', '', r.winner < 0 ? tr('Égalité', 'Draw') : won ? tr('Victoire', 'Victory') : tr('Défaite', 'Defeat')),
+      el('h2', r.winner < 0 ? 'draw' : won ? 'won' : 'lost', r.winner < 0 ? tr('Égalité', 'Draw') : won ? tr('Victoire !', 'Victory!') : tr('Défaite', 'Defeat')),
     )
     const body = el('div', 'salvage-body')
     const score = el('p', 'arena-end-score')
-    score.append(el('strong', 'team0', String(r.score[0])), ' – ', el('strong', 'team1', String(r.score[1])))
+    score.append(el('strong', 'ally', String(r.score[team])), ' – ', el('strong', 'enemy', String(r.score[1 - team])))
     body.append(score)
     body.append(el('p', 'salvage-intro', r.reason === 'forfeit'
       ? tr('L\'équipe d\'en face a quitté l\'arène.', 'The other team left the arena.')
       : r.reason === 'time'
         ? tr('Le temps est écoulé.', 'Time is up.')
-        : tr(`Objectif atteint : ${r.goal} éliminations.`, `Goal reached: ${r.goal} kills.`)))
+        : tr(`Limite atteinte : ${r.goal} points.`, `Limit reached: ${r.goal} points.`)))
     const table = el('table', 'salvage-table arena-table')
     const header = el('tr')
     for (const label of [tr('Combattant', 'Fighter'), tr('Élim.', 'Kills'), tr('Morts', 'Deaths'), tr('Dégâts', 'Damage')]) header.append(el('th', '', label))
     table.append(header)
-    const order = (a: ArenaStats, b: ArenaStats) => a.team - b.team || b.kills - a.kills || b.damage - a.damage
+    // Les siens d'abord ; le joueur star : celui qui a le plus éliminé (à égalité, le plus blessé).
+    const order = (a: ArenaStats, b: ArenaStats) => Number(a.team !== team) - Number(b.team !== team) || b.kills - a.kills || b.damage - a.damage
+    const star = [...r.stats].sort((a, b) => b.kills - a.kills || b.damage - a.damage)[0]
     for (const s of [...r.stats].sort(order)) {
-      const row = el('tr', `team${s.team}${s.id === self ? ' self' : ''}`)
+      const row = el('tr', `${s.team === team ? 'ally' : 'enemy'}${s.id === self ? ' self' : ''}`)
       const name = el('td')
       if (s.bot) name.append(icon('robot'))
       name.append(s.name)
+      if (s === star && star.kills > 0) name.append(el('span', 'arena-star', tr('★ Joueur star', '★ Star player')))
       row.append(name, el('td', '', String(s.kills)), el('td', '', String(s.deaths)), el('td', '', String(s.damage)))
       table.append(row)
     }

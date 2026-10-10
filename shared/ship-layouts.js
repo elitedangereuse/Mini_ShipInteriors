@@ -19,6 +19,8 @@ export const SHIP_LAYOUTS = {
   // du palier, à la place de l'ancienne baie de réparation, le stand de tir ('r', cf. SHOOTING_RANGE).
   // Entre l'atelier et la descente de ce couloir, au-dessus du palier, le placard à balais ('c',
   // 2 × 2), dont la porte donne sur le couloir (cf. CLOSET_DOOR).
+  // Le coin sud-est du lobby est une pièce à part, le lobby de l'arène ('y', 3 × 5) : une cloison
+  // vitrée l'en sépare, percée d'une porte double (cf. ARENA_DOORS).
   // Au sud du lobby, par une porte de service (cf. SCAVENGERS_DOOR), une gaine technique d'une
   // tuile de large ('w') file vers l'est jusqu'au local du ventilateur ; de là, on entre dans la
   // planque des Scavengers ('s'), où l'on joue au jeu du même nom. Passé le ventilateur, la gaine
@@ -31,11 +33,11 @@ export const SHIP_LAYOUTS = {
     'eeeeaaaacc+ rrrrr+g hhhhhhkkkkkkkkkkkk  ',
     'eeeeaaaa jjj+rr+rgg hhhhhh+kkkkkkkkkkk  ',
     'eee+aaaa+jjjmmmmmgg+hhhhhh+kkkkkkkkkkk  ',
-    'eeeeaaaa jjj+mmmm+g hhhhhhkkkkkkkkkkkk  ',
-    'eeeeaaaa    mmmmmgg hhhhhhkkkkkkkkkkkk  ',
-    'vv+vv       mmmmm+  hhhhhhkkkkkkkkkkkk  ',
-    'vvvvv    bbbbbbbbbb hhhhhhkkkkkkkkkkkk  ',
-    'vvvvv    bbbbbbbbbb hhhhhhkkkkkkkkkkkk  ',
+    'eeeeaaaa jjj+mmmm+g hhhyyykkkkkkkkkkkk  ',
+    'eeeeaaaa    mmmmmgg hhhyyykkkkkkkkkkkk  ',
+    'vv+vv       mmmmm+  hhhyyykkkkkkkkkkkk  ',
+    'vvvvv    bbbbbbbbbb hhhyyykkkkkkkkkkkk  ',
+    'vvvvv    bbbbbbbbbb hhhyyykkkkkkkkkkkk  ',
     'vvvvv    bbbbbbbbbb  wwwwwwwwwww+iiiii  ',
     'vvvvv    bbbbbbbbbb   ssssssww  iiiiii  ',
     '         bbbbbbbbbb   sssss+ww  iiiiii  ',
@@ -218,7 +220,7 @@ function mezzanineWalls(level) {
  */
 export function shipMapOptions(level) {
   const id = String(level)
-  const doors = id === '-1' ? [SECURITY_DOOR, SCAVENGERS_DOOR, CLOSET_DOOR] : id === '0' ? PIXEL_WAR_DOORS : id === '2' ? [PLOT_DOOR] : []
+  const doors = id === '-1' ? [SECURITY_DOOR, SCAVENGERS_DOOR, CLOSET_DOOR, ...ARENA_DOORS] : id === '0' ? PIXEL_WAR_DOORS : id === '2' ? [PLOT_DOOR] : []
   return { closed: CLOSED_ROOMS[level] ?? '', doors, walls: mezzanineWalls(id) }
 }
 
@@ -238,6 +240,9 @@ export const SECURITY_DOOR = { x: 22, z: 0, dir: 1, locked: true }
  * mène à la planque des Scavengers. Posée sur le bord nord de la première tuile de la gaine.
  */
 export const SCAVENGERS_DOOR = { x: 22, z: 11, dir: 0 }
+
+/** La porte double du lobby de l'arène (cale), dans sa cloison nord : elle donne sur le lobby de la zone thargoïde. */
+export const ARENA_DOORS = [{ x: 23, z: 6, dir: 0 }, { x: 24, z: 6, dir: 0 }]
 
 /** La porte du placard à balais de la cale, dans son mur est : elle donne sur le couloir de service du Zorb. */
 export const CLOSET_DOOR = { x: 9, z: 2, dir: 1 }

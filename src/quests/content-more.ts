@@ -256,7 +256,7 @@ export const MORE_QUESTS: QuestContent[] = [
     props: [
       { id: 'mint', deck: 1, x: 5.47, z: 1.82, model: 'quest-mint', label: tr('Examiner la menthe', 'Examine the mint'), when: missing(0, 0) },
       { id: 'algae', deck: 1, x: 6.35, z: 11.5, model: 'quest-algae', label: tr('Examiner le bocal', 'Examine the jar'), when: missing(0, 1) },
-      { id: 'vial', deck: -1, x: 24.5, z: 6.6, model: 'quest-vial', label: tr('Examiner la mallette', 'Examine the case'), when: missing(0, 2) },
+      { id: 'vial', deck: -1, x: 21.9, z: 9.2, model: 'quest-vial', label: tr('Examiner la mallette', 'Examine the case'), when: missing(0, 2) },
     ],
   },
 

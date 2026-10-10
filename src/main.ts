@@ -2047,8 +2047,8 @@ salvage = new SalvageClient({
   seated: () => seating.current !== null,
 })
 const zone = salvage
-/** Vue de dessus de l'arène : plus large que celle du bord (cf. ZOOM_MAX), on y voit la moitié de la carte. */
-const ARENA_ZOOM = 7
+/** Vue de dessus de l'arène : plus proche que celle du bord (cf. ZOOM_MAX), et c'est le plus loin qu'on y recule. */
+const ARENA_ZOOM = 3.6
 arenaMode = new ArenaClient({
   scene, iso, player, sound, net, dialog, wallet, remotes,
   deck: () => deck,
@@ -2072,9 +2072,11 @@ arenaMode = new ArenaClient({
     fps.align(yaw + Math.PI)
   },
   sync: () => sendState(true),
-  label: (key, head, name) => {
-    if (head) bubbles.attach(key, head, name)
-    else bubbles.detach(key)
+  project: (p) => {
+    const camera = activeCamera()
+    const d = camera.getWorldPosition(screenPos).distanceTo(p)
+    screenPos.copy(p).project(camera)
+    return screenPos.z > 1 ? null : { x: ((screenPos.x + 1) / 2) * innerWidth, y: ((1 - screenPos.y) / 2) * innerHeight, d }
   },
   armed: (gun) => {
     let on = false
@@ -2087,7 +2089,8 @@ arenaMode = new ArenaClient({
       if (now === on) return
       on = now
       if (on) {
-        // Vue de dessus : on recule plus loin qu'à bord, pour voir venir ; le zoom d'avant revient à la sortie.
+        // Vue de dessus : la caméra se rapproche, et ne recule pas plus loin. On ne voit que ce qui
+        // est autour de soi, comme les yeux au sol : pas besoin de brouillard. Le zoom d'avant revient à la sortie.
         zoom = iso.zoomLevel
         iso.zoomMax = ARENA_ZOOM
         iso.zoomTo(ARENA_ZOOM)

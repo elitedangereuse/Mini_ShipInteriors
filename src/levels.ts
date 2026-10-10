@@ -3,14 +3,14 @@ import type { Ambience, Flicker } from './lighting/rig'
 import type * as THREE from 'three'
 import type { FloorFinish, StationModel, Theme } from './assets'
 import type { ShipMapOptions } from '../shared/ship-map.js'
-import { ARENA_TERMINAL } from '../shared/arena.js'
+import { ARENA_BOOTH, ARENA_TERMINAL } from '../shared/arena.js'
 import type { ZoneKit } from './salvage/kit'
 import type { GroundDef } from './base/kit'
 import type { CabinDef } from './cabin/view'
 import type { CustomModel } from './furniture'
 import { tr } from './i18n'
 import { WEAPONS } from './range-weapons'
-import { BOARD_TABLES, SHIP_LAYOUTS, SHOOTING_RANGE, SPORT_COURTS } from '../shared/ship-layouts.js'
+import { ARENA_DOORS, BOARD_TABLES, SHIP_LAYOUTS, SHOOTING_RANGE, SPORT_COURTS } from '../shared/ship-layouts.js'
 import { HOUSING_LEVEL, LANDING_ROOM, PLOT_DOOR, PLOT_ORIGIN, PLOT_ROOM } from '../shared/housing-plot.js'
 import { PILOT_SEAT } from '../shared/systems.js'
 import { FISHING_DOCK, FISHING_FEED, FISHING_POND } from '../shared/fishing.js'
@@ -261,6 +261,7 @@ export const LEVELS: LevelDef[] = [
       // Le nom du bar ne se traduit pas.
       b: 'Chez Jacques',
       h: tr('Lobby de la zone thargoïde', 'Thargoid zone lobby'),
+      y: tr('Lobby de l\'arène', 'Arena lobby'),
       t: tr('Poste de sécurité de la zone', 'Zone security post'),
       k: tr('Hangar', 'Hangar'),
       e: tr('Salle des machines', 'Engine room'),
@@ -296,16 +297,19 @@ export const LEVELS: LevelDef[] = [
       ],
     },
     // Le bar est tenu plus proprement que le reste de la cale : dalles lisses, pas un hublot.
-    floors: { u: 'floor-panel', a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', h: 'floor-panel', k: 'floor-panel', t: 'floor-panel', s: 'floor-panel', i: 'floor-panel', c: 'floor-panel' },
-    windows: { n: 0, u: 0, a: 0.1, j: 0, r: 0, m: 0, g: 0.1, b: 0, h: 0, e: 0, v: 0, k: 0.15, t: 0, w: 0, s: 0, i: 0, c: 0 },
+    floors: { u: 'floor-panel', a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', h: 'floor-panel', y: 'floor-panel', k: 'floor-panel', t: 'floor-panel', s: 'floor-panel', i: 'floor-panel', c: 'floor-panel' },
+    windows: { n: 0, u: 0, a: 0.1, j: 0, r: 0, m: 0, g: 0.1, b: 0, h: 0, y: 0, e: 0, v: 0, k: 0.15, t: 0, w: 0, s: 0, i: 0, c: 0 },
     // Le poste de sécurité du lobby : des vitres blindées côté lobby (sa porte reste verrouillée).
-    glazed: ['ht'],
+    // Le lobby de l'arène, pris sur le coin sud-est de celui de la zone : une cloison vitrée entre les deux.
+    glazed: ['ht', 'hy'],
     // Le hangar s'ouvre sur l'espace à la proue : son mur est est un bouclier (cf. src/shield.ts).
     shield: { k: [1] },
     // Et un sol d'acier brossé argenté, qui tranche avec l'acier noirci du reste de la cale.
-    floorFinish: { k: 'silver' },
+    // Le lobby de l'arène, lui, a un sol de graphite, sous sa peinture aux couleurs des équipes.
+    floorFinish: { k: 'silver', y: 'graphite' },
     // Du lobby de la zone thargoïde au hangar, une porte double (dans le mur est du lobby).
-    doubleDoors: [{ x: 26, z: 4, dir: 3 }],
+    // Et du lobby de la zone à celui de l'arène, une autre (cf. ARENA_DOORS).
+    doubleDoors: [{ x: 26, z: 4, dir: 3 }, { x: ARENA_DOORS[0].x, z: ARENA_DOORS[0].z, dir: ARENA_DOORS[0].dir }],
     // Le cœur du réacteur, au milieu de la salle des machines.
     engine: { x: 1.5, z: 5 },
     // Le sanctuaire de la Voie n'est éclairé que par ses flammes et son portail ; le Zorb, par sa
@@ -325,6 +329,7 @@ export const LEVELS: LevelDef[] = [
       m: { level: 0.75 },
       e: { level: 0.35, color: '#9fc8ff' },
       h: { level: 0.8, color: '#cfe0ff', dead: 0 },
+      y: { level: 0.6, color: '#ffe6cc', dead: 0 },
       t: { level: 0.6, color: '#cfe0ff', dead: 0 },
       k: { level: 1.3, color: '#e6f0ff', dead: 0 },
     },
@@ -833,24 +838,34 @@ export const LEVELS: LevelDef[] = [
         'Airlock locker room: suits, head torches, and a taped note: “In the bay, never stay in a locker for more than twenty seconds.”',
       ) },
       // La table de briefing, et ce qui traîne au sud.
-      { model: 'bay-holo', x: 22.9, z: 8.2, action: tr('Étudier le plan', 'Study the map'), interact: [
+      { model: 'bay-holo', x: 21.25, z: 7.9, action: tr('Étudier le plan', 'Study the map'), interact: [
         tr('Le plan de la baie 7. Au nord, le hall de fret et sa passerelle, les bureaux, la serre (violette : éclairée). La grande allée la traverse d\'ouest en est.', 'The map of bay 7. North: the freight hall and its catwalk, the offices, the hydroponics (purple: lit). The main avenue crosses it west to east.'),
         tr('Au milieu, la salle des machines, l\'aire de stockage et le nid, en vert. Au sud, le quai de chargement éclairé, le sas d\'extraction, et la zone effondrée.', 'In the middle, the machine room, the storage yard and the nest, in green. South, the lit loading dock, the extraction airlock, and the collapsed zone.'),
         tr('Un écho rouge tourne autour du nid. La légende dit « échos simulés ». La légende ment peut-être.', 'A red echo circles the nest. The legend says “simulated echoes”. The legend may be lying.'),
       ] },
-      { model: 'flare-crate', x: 24.95, z: 10.05, interact: tr(
+      { model: 'flare-crate', x: 21.3, z: 10.1, interact: tr(
         'Des fusées d\'appel rouges. Lancées dans la baie, elles attirent ce qui y rôde pendant quelques secondes.',
         'Red decoy flares. Thrown in the bay, they draw whatever prowls there for a few seconds.',
       ) },
-      { model: 'dock-marking', x: 22.9, z: 8.2, label: '2.4,1.7', solid: false },
-      // Dans le coin sud-est, contre le mur du hangar : le terminal de l'arène (cf. src/arena/), d'où
-      // partent les duels par équipes, avec les armes du stand de tir.
+      { model: 'dock-marking', x: 21.25, z: 7.9, label: '2.2,1.6', solid: false },
+      // --- Lobby de l'arène (cf. src/arena/), pris sur le coin sud-est de celui de la zone thargoïde,
+      // derrière une cloison vitrée et sa porte double : le sol aux couleurs des deux équipes, le
+      // terminal où l'on se place dans un lobby et le guichet de l'arbitre (cf. src/arena/referee.ts),
+      // contre la cloison ouest, et le râtelier des cinq armes à côté de la porte. Rien contre les
+      // murs sud et est : vus de dessus, ce sont eux qui s'effacent devant le joueur ---
+      { model: 'arena-entry', x: 23.5, z: 4.98, solid: false },
+      { model: 'arena-floor', x: 24, z: 8, label: '2.7,4.7', solid: false },
       {
-        model: 'arena-terminal', x: ARENA_TERMINAL.x, z: ARENA_TERMINAL.z, rot: 3, action: tr('Entrer dans l\'arène', 'Enter the arena'),
+        model: 'arena-terminal', x: ARENA_TERMINAL.x, z: ARENA_TERMINAL.z, rot: 1, action: tr('Entrer dans l\'arène', 'Enter the arena'),
         interact: tr('Terminal de l\'arène : duels par équipes, jusqu\'à trois contre trois.', 'Arena terminal: team duels, up to three versus three.'),
       },
+      { model: 'arena-rack', x: 24.98, z: 5.67, solid: false, interact: [
+        tr('Les cinq armes de l\'arène. Les mêmes qu\'au stand de tir, sauf qu\'ici les cibles ripostent.', 'The arena\'s five weapons. Same as the shooting range, except here the targets shoot back.'),
+        tr('Un mot scotché sous le lance-plasma : « Pas à bout portant. Signé : celui qui a essayé. »', 'A note taped under the plasma launcher: “Not at point-blank. Signed: the one who tried.”'),
+      ] },
+      { model: 'arena-booth', x: ARENA_BOOTH.x, z: ARENA_BOOTH.z, rot: 1 },
       { model: 'k-low-bench', x: 20.65, z: 9.3, rot: 1 },
-      { model: 'drums', x: 25.05, z: 9.15 },
+      { model: 'drums', x: 22.1, z: 6.2 },
       { model: 'cables', x: 21.3, z: 6, solid: false },
       { model: 'crate', x: 20.3, z: 10.1 },
       // Devant la porte de service du mur sud (cf. SCAVENGERS_DOOR) : ce qui déborde de la gaine.
@@ -1142,7 +1157,10 @@ export const LEVELS: LevelDef[] = [
       [24.2, 0.4, '#ff3b2f', 2.2, 'neon'],
       [20.4, 7, '#6dff9a', 1.3],
       [21, 0.4, '#8fd0ff', 1.8],
-      [22.9, 8.2, '#5fd4ff', 1.6],
+      [21.25, 7.9, '#5fd4ff', 1.6],
+      // Le lobby de l'arène : une lampe par équipe.
+      [23.4, 7.2, '#ff8a1c', 1.7],
+      [24.7, 9, '#3fc8ff', 1.7],
       [21.6, 9.6, '#ffd9a0', 1.2, 'neon'],
       [24, 1.6, '#6dff9a', 1],
       // Gaine technique : la chaudière, la lampe au sodium, les braises sous les caillebotis, le ventilateur.

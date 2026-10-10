@@ -30,6 +30,8 @@ export declare function legacyUpperMapOptions(): import('./ship-map.js').ShipMap
 export declare const SECURITY_DOOR: { x: number; z: number; dir: number; locked: true }
 /** La porte de service du lobby (cale) : elle donne sur la gaine technique de la planque des Scavengers. */
 export declare const SCAVENGERS_DOOR: { x: number; z: number; dir: number }
+/** La porte double du lobby de l'arène (cale). */
+export declare const ARENA_DOORS: { x: number; z: number; dir: number }[]
 /** Le poste de surveillance du pont principal : sa pièce, et le pupitre des caméras. */
 export declare const SURVEILLANCE_ROOM: { level: number; room: string; desk: { x: number; z: number } }
 

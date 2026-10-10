@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import type { Wallet } from '../economy/wallet'
 import { tr } from '../i18n'
-import { RangeGame, type Bullet, type Gun, type Hit, type RangeFrame, type Shot } from '../range'
+import { RangeGame, type Bullet, type Gun, type Hit, type RangeFrame, type Session, type Shot } from '../range'
 import type { RangeMusic } from '../range-music'
 import type { RangeSfx } from '../range-sfx'
 import { weaponById, WEAPONS, type Weapon, type WeaponId } from '../range-weapons'
@@ -46,6 +46,8 @@ export class ArenaGun extends RangeGame {
   /** L'arme des autres combattants, par combattant. */
   private readonly carried = new Map<number, { gun: Gun; weapon: WeaponId }>()
   private fpsView = false
+  /** Balle de match : une équipe est à un point de la limite (la musique s'emballe). */
+  matchPoint = false
 
   /** @param group le pont de l'arène : armes et balles y vivent, dans son repère */
   constructor(group: THREE.Object3D, dialog: Dialog, wallet: Wallet, sfx: RangeSfx, music: RangeMusic) {
@@ -60,13 +62,35 @@ export class ArenaGun extends RangeGame {
     if (!this.session) {
       this.start(index)
       const s = this.session!
-      // Ni chrono ni cibles : le relais décide de la fin.
+      // Ni cibles ni score : le relais tient le chrono (cf. sync) et décide de la fin.
       s.timeLeft = s.second = Infinity
       s.hud.root.classList.add('arena')
     } else this.equip(index)
     this.session!.ammo = WEAPONS.map((w) => w.mag)
     this.session!.hud.root.classList.remove('down')
     this.holstered = false
+  }
+
+  /**
+   * Ce que le relais dit de la partie : le temps qu'il reste (le moteur annonce les dix dernières
+   * secondes), si le coup d'envoi est donné, et l'ardeur du moment (0 à 3), que suit la musique.
+   */
+  sync(left: number, live: boolean, heat: number) {
+    const s = this.session
+    if (!s) return
+    s.started = live
+    // Jamais à zéro : c'est le relais qui siffle la fin.
+    s.timeLeft = live ? Math.max(0.6, left) : Infinity
+    if (!live) s.second = Infinity
+    s.level = heat
+  }
+
+  /** Ce qu'il reste dans le chargeur de l'arme en main, de 0 à 1 (il se regarnit pendant le rechargement). */
+  get loaded(): number {
+    const s = this.session
+    if (!s) return 0
+    const w = WEAPONS[s.weapon]
+    return s.reload > 0 ? 1 - s.reload / w.reload : s.ammo[s.weapon] / w.mag
   }
 
   /** Éliminé : l'arme disparaît jusqu'au retour à la base. */
@@ -99,6 +123,10 @@ export class ArenaGun extends RangeGame {
   protected override updateTargets() {}
   protected override blasted() {}
   protected override report() {}
+
+  protected override rushing(s: Session): boolean {
+    return s.started && (this.matchPoint || s.timeLeft <= 20)
+  }
 
   protected override ready(): boolean {
     return !this.holstered && !!this.host?.canFire()
@@ -167,6 +195,11 @@ export class ArenaGun extends RangeGame {
     this.hitTime = kill ? 0.3 : 0.16
     this.pop(kill ? `−${damage} ✕` : `−${damage}`, at, kill)
     this.sfx.hit(this.world(at), kill, 0.92 + Math.random() * 0.16)
+  }
+
+  /** Le joueur est touché : ce que ça lui coûte s'affiche sur lui (`at`, repère de l'arène). */
+  took(at: THREE.Vector3, damage: number) {
+    this.pop(`−${damage}`, at, false)
   }
 
   /** Le joueur est touché : la vue tremble. */
