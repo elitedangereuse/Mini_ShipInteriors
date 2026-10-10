@@ -68,6 +68,39 @@ export async function postSalvageResult(cookie, result, { cmdrUrl, secret, error
 }
 
 /**
+ * Arène : déclare au site la partie d'un CMDR, pour le classement des joueurs (cf.
+ * phputils/mini_shipinteriors/arena.php du site). Le relais présente le cookie du joueur et sa clé
+ * partagée ; le site note la partie une seule fois par partie et par CMDR. Rien n'est payé.
+ * @param {{ game: string, result: 'won' | 'lost' | 'draw', kills: number, deaths: number, size: number }} result
+ * @returns {Promise<boolean>} notée ou non (invité, site injoignable, déjà notée)
+ */
+export async function postArenaResult(cookie, result, { cmdrUrl, secret, error = console.error, fetcher = fetch, timeoutMs = 8000 }) {
+  const value = cookieValue(cookie)
+  if (!cmdrUrl || !value) return false
+  if (!secret) {
+    error('[arène] MSI_RELAY_SECRET absent : les parties ne peuvent pas être notées au classement.')
+    return false
+  }
+  try {
+    const url = new URL('/outils/mini-shipinteriors-arena.php', cmdrUrl)
+    const response = await fetcher(url, {
+      method: 'POST',
+      headers: { Cookie: `${COOKIE}=${value}`, Accept: 'application/json', 'Content-Type': 'application/json', 'X-Relay-Key': secret },
+      body: JSON.stringify(result),
+      redirect: 'error',
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+    const data = await response.json().catch(() => null)
+    if (response.ok && data?.status === 'success') return true
+    if (data?.error !== 'already') error(`[arène] partie ${result.game} refusée par le site (${response.status} ${data?.error ?? ''})`)
+    return false
+  } catch (err) {
+    error(`[arène] site injoignable pour la partie ${result.game} (${err?.message ?? err})`)
+    return false
+  }
+}
+
+/**
  * Un CMDR est entré Chez Jacques par les conduits de ventilation : le site lui décerne le badge du
  * bar, qui en fait un habitué pour de bon (cf. mini-shipinteriors-bar.php). Le site reconnaît le
  * CMDR par son cookie, et le relais par la clé partagée (MSI_RELAY_SECRET).

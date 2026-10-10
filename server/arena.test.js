@@ -13,17 +13,22 @@ function harness(options = {}) {
   const players = new Map()
   const sent = []
   const broadcasts = []
+  const reports = []
   const arena = createArena({
     playerById: (id) => players.get(id),
     emit: (id, event, data) => sent.push({ id, event, data }),
     broadcast: (event, data) => broadcasts.push({ event, data }),
+    report: async (fighter, result) => {
+      reports.push({ id: fighter.id, cookie: fighter.cookie, ...result })
+      return true
+    },
     now: () => t,
     random: mulberry32(11),
     debug: true,
     ...options,
   })
   const add = (id) => {
-    const p = { id, name: `CMDR ${id}`, verified: true, level: -1, x: 24, z: 8, yaw: 0, anim: 'idle' }
+    const p = { id, name: `CMDR ${id}`, verified: true, cookie: `ED_LOGGED_CMDR_ID=jeton-${id}`, level: -1, x: 24, z: 8, yaw: 0, anim: 'idle' }
     players.set(id, p)
     return p
   }
@@ -59,7 +64,7 @@ function harness(options = {}) {
     for (const p of [a, ...others]) arrive(p)
     return arena.gameOf(a)
   }
-  return { arena, add, advance, last, events, lobby, arrive, put, start, sent, clock: () => t }
+  return { arena, add, advance, last, events, lobby, arrive, put, start, sent, reports, clock: () => t }
 }
 
 test('arène : le plan est d\'un seul tenant, équitable, trois points d\'apparition par équipe', () => {
@@ -351,42 +356,56 @@ test('arène : le fusil à pompe tire sa gerbe, le fusil traverse, le plasma sou
   assert.equal(h.events(2, 'shot').pop().d.length, WEAPON_STATS.shotgun.pellets)
 })
 
-test('arène : les bots se cherchent, se tirent dessus, et la partie finit au score', () => {
+test('arène : les bots se cherchent, se tirent dessus, et la partie se joue en manches', () => {
   const h = harness()
   const a = h.add(1)
-  const game = h.start(a, [], { size: 2, skill: 2 })
+  const game = h.start(a, [], { size: 2, skill: 2, goal: 5 })
   // Le joueur reste à sa base ; les trois bots font la partie.
   let ended = null
-  for (let i = 0; i < 400 && !ended; i++) {
+  for (let i = 0; i < 1000 && !ended; i++) {
     h.advance(1)
     ended = h.last(1, 'arena:end')
   }
   assert.ok(ended, 'la partie se termine')
   assert.ok(['score', 'time'].includes(ended.reason))
-  assert.ok(ended.score[0] + ended.score[1] > 0, 'des éliminations')
   assert.ok(h.events(1, 'shot').length > 10, 'des tirs')
+  assert.ok(h.events(1, 'kill').length > 0, 'des éliminations')
+  // Deux manches gagnantes, trois manches au plus.
+  const rounds = h.events(1, 'round').length + 1
+  assert.ok(rounds >= R.wins && rounds <= R.rounds, `${rounds} manches`)
+  assert.ok(Math.max(...ended.rounds) === R.wins || rounds === R.rounds)
   assert.equal(ended.stats.length, 4)
   // Les bots restent sur le sol de l'arène.
   for (const f of game.fighters.values()) assert.ok(!game.zone.blocked[Math.round(f.z) * game.zone.width + Math.round(f.x)], f.name)
   assert.equal(h.lobby().rooms[0].status, 'forming')
 })
 
-test('arène : au bout du temps, l\'équipe en tête gagne ; à égalité, personne', () => {
+test('arène : au bout du temps, l\'équipe en tête gagne la manche ; à égalité, personne', () => {
   const h = harness()
   const a = h.add(1), b = h.add(2)
   const game = h.start(a, [b], { size: 1, bots: false })
   h.arena.handle(a, 'arena:debug', { score: [3, 2] })
   h.advance(R.warmup + R.duration + 0.2)
+  // La première manche à l'équipe en tête : la partie continue.
+  assert.equal(h.last(2, 'arena:end'), undefined)
+  let round = h.events(2, 'round').pop()
+  assert.deepEqual([round.round, round.winner, round.reason, round.score, round.rounds], [1, 0, 'time', [3, 2], [1, 0]])
+  assert.deepEqual([game.round, game.score], [2, [0, 0]])
+  // Une manche nulle ne rapporte rien à personne ; après la troisième, l'équipe qui en a le plus l'emporte.
+  h.advance(R.intermission + R.duration + 0.2)
+  round = h.events(2, 'round').pop()
+  assert.deepEqual([round.round, round.winner, round.rounds], [2, -1, [1, 0]])
+  h.advance(R.intermission + R.duration + 0.2)
   const end = h.last(2, 'arena:end')
-  assert.deepEqual([end.winner, end.reason, end.score], [0, 'time', [3, 2]])
+  assert.deepEqual([end.winner, end.reason, end.rounds], [0, 'time', [1, 0]])
   assert.equal(game.ended, true)
-  // Le salon reste ouvert : une autre partie, sans un point de part et d'autre.
+  // Le lobby reste ouvert : une autre partie, trois manches nulles, et personne ne gagne.
   for (const p of [a, b]) Object.assign(p, { level: -1, x: 24, z: 8 })
   for (const p of [a, b]) h.arena.handle(p, 'arena:ready', { ready: true })
   h.advance(R.countdown + 0.1)
   for (const p of [a, b]) h.arrive(p)
-  h.advance(R.warmup + R.duration + 0.2)
-  assert.equal(h.last(1, 'arena:end').winner, -1)
+  h.advance(R.warmup + R.duration + 0.2 + 2 * (R.intermission + R.duration + 0.2))
+  assert.deepEqual([h.last(1, 'arena:end').winner, h.last(1, 'arena:end').rounds], [-1, [0, 0]])
 })
 
 test('arène : qui part est remplacé par un bot ; sans bots, une équipe vide perd par forfait', () => {
@@ -445,26 +464,100 @@ test('arène : dans un buisson, on échappe aux bots, sauf de tout près ou si l
   assert.ok(h.events(1, 'hit').length > 0)
 })
 
-test('arène : le chef règle la limite de points, la première équipe à l\'atteindre gagne', () => {
+test('arène : le chef règle la limite de points ; deux manches gagnantes font la partie', () => {
   const h = harness()
   const a = h.add(1), b = h.add(2)
+  assert.equal(R.goal, 15)
+  assert.equal(Math.max(...R.goals), 15)
   h.arena.handle(a, 'arena:join', { room: 1 })
   h.arena.handle(a, 'arena:settings', { size: 1, bots: false, goal: 5 })
-  h.arena.handle(a, 'arena:settings', { goal: 7 })
+  h.arena.handle(a, 'arena:settings', { goal: 20 })
   assert.equal(h.lobby().rooms[0].goal, 5)
   h.arena.handle(b, 'arena:join', { room: 1 })
   for (const p of [a, b]) h.arena.handle(p, 'arena:ready', { ready: true })
   h.advance(R.countdown + 0.1)
   for (const p of [a, b]) h.arrive(p)
-  assert.equal(h.last(1, 'arena:start').goal, 5)
+  assert.deepEqual([h.last(1, 'arena:start').goal, h.last(1, 'arena:start').wins], [5, 2])
+  const game = h.arena.gameOf(a)
+  /** Le joueur 1 élimine le joueur 2, face à face dans l'allée nord. */
+  const kill = () => {
+    const before = h.events(1, 'kill').length
+    h.put(a, 1, 0)
+    h.put(b, 4, 0)
+    for (let i = 0; i < 12 && h.events(1, 'kill').length === before; i++) {
+      fireAt(h, a, b)
+      h.advance(0.25)
+    }
+    assert.equal(h.events(1, 'kill').length, before + 1)
+  }
+  // Première manche : le cinquième point la donne. Chacun revient à sa base, et le score repart de zéro.
   h.arena.handle(a, 'arena:debug', { score: [4, 0] })
   h.advance(R.warmup + R.shield)
+  kill()
+  const round = h.events(2, 'round')[0]
+  assert.deepEqual([round.winner, round.reason, round.score, round.rounds], [0, 'score', [5, 0], [1, 0]])
+  assert.equal(h.last(1, 'arena:end'), undefined)
+  for (const f of game.fighters.values()) {
+    assert.ok(f.alive && f.hp === R.hp)
+    assert.ok(game.zone.spawns[f.team].some((s) => s.x === f.x && s.z === f.z))
+  }
+  assert.deepEqual(h.last(1, 'arena:state').score, [0, 0])
+  // Entre deux manches, personne ne tire.
   h.put(a, 1, 0)
   h.put(b, 4, 0)
+  fireAt(h, a, b)
+  h.advance(0.5)
+  assert.equal(h.events(1, 'hit').filter((e) => e.id === 2).length, Math.ceil(R.hp / WEAPON_STATS.pistol.damage))
+  // Seconde manche : gagnée aussi, la partie est jouée.
+  h.advance(R.intermission + R.shield)
+  h.arena.handle(a, 'arena:debug', { score: [4, 3] })
+  kill()
+  const end = h.last(2, 'arena:end')
+  assert.deepEqual([end.winner, end.reason, end.score, end.rounds], [0, 'score', [5, 3], [2, 0]])
+})
+
+test('arène : une partie entre joueurs est déclarée au site pour le classement, pas une partie contre des bots', () => {
+  // Contre des bots seulement : rien n'est déclaré.
+  const solo = harness()
+  const a = solo.add(1)
+  solo.start(a, [], { size: 1, goal: 5 })
+  solo.arena.handle(a, 'arena:debug', { rounds: [1, 0], score: [4, 0] })
+  const bot = [...solo.arena.gameOf(a).fighters.values()].find((f) => f.bot)
+  solo.arena.handle(a, 'arena:debug', { freeze: true })
+  solo.advance(R.warmup + R.shield)
+  solo.put(a, 1, 0)
+  Object.assign(bot, { x: 4, z: 0 })
+  for (let i = 0; i < 12 && !solo.last(1, 'arena:end'); i++) {
+    fireAt(solo, a, bot)
+    solo.advance(0.25)
+  }
+  assert.equal(solo.last(1, 'arena:end').winner, 0)
+  assert.deepEqual(solo.reports, [])
+
+  // Un joueur dans chaque camp (les bots complètent) : chacun a sa ligne, le gagnant et le perdant.
+  const h = harness()
+  const c = h.add(1), d = h.add(2), guest = h.add(3)
+  Object.assign(guest, { verified: false, cookie: null })
+  h.arena.handle(c, 'arena:join', { room: 1 })
+  h.arena.handle(c, 'arena:settings', { size: 2, goal: 5 })
+  h.arena.handle(d, 'arena:join', { room: 1, team: 1 })
+  h.arena.handle(guest, 'arena:join', { room: 1, team: 1 })
+  for (const p of [c, d, guest]) h.arena.handle(p, 'arena:ready', { ready: true })
+  h.advance(R.countdown + 0.1)
+  for (const p of [c, d, guest]) h.arrive(p)
+  const game = h.arena.gameOf(c)
+  h.arena.handle(c, 'arena:debug', { freeze: true, rounds: [1, 0], score: [4, 0] })
+  h.advance(R.warmup + R.shield)
+  h.put(c, 1, 0)
+  h.put(d, 4, 0)
   for (let i = 0; i < 12 && !h.last(1, 'arena:end'); i++) {
-    fireAt(h, a, b)
+    fireAt(h, c, d)
     h.advance(0.25)
   }
-  const end = h.last(2, 'arena:end')
-  assert.deepEqual([end.winner, end.reason, end.score], [0, 'score', [5, 0]])
+  assert.equal(h.last(1, 'arena:end').winner, 0)
+  // L'invité n'a pas de compte : pas de ligne pour lui.
+  assert.deepEqual(h.reports, [
+    { id: 1, cookie: 'ED_LOGGED_CMDR_ID=jeton-1', game: game.id, result: 'won', kills: 1, deaths: 0, size: 2 },
+    { id: 2, cookie: 'ED_LOGGED_CMDR_ID=jeton-2', game: game.id, result: 'lost', kills: 0, deaths: 1, size: 2 },
+  ])
 })

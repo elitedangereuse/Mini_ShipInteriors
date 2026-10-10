@@ -10,7 +10,7 @@ import { kitModel } from './nature'
  * Le lobby de l'arène (cale, pièce 'y', cf. src/arena/) : pris sur le coin sud-est du lobby de la
  * zone thargoïde, derrière une cloison vitrée. Là où le lobby de la zone est vert et ambre, celui-ci
  * est aux couleurs des deux équipes, orange et bleu : le sol peint (une moitié par équipe, le rond
- * central), le guichet de l'arbitre contre le mur du fond, le râtelier des cinq armes, et, côté
+ * central), le guichet de l'arbitre, le classement des joueurs en face de lui, le râtelier des cinq armes, et, côté
  * zone thargoïde, le marquage qui mène à la porte. Le terminal, lui, est dans range.ts.
  */
 
@@ -23,6 +23,13 @@ const C = {
   blue: ARENA_TEAMS[1].color,
 }
 const FONT = 'bold 64px system-ui, sans-serif'
+
+/**
+ * Ce que le tableau du classement affiche (cf. arenaBoard) : les premiers du classement tenu par le
+ * site, que le jeu relit au démarrage et après chaque partie (cf. src/arena/client.ts). `stamp`
+ * change à chaque relecture.
+ */
+export const arenaRanks: { rows: { name: string; wins: number }[]; stamp: number } = { rows: [], stamp: 0 }
 
 /** Le sol du lobby (`label` : « largeur,profondeur ») : une moitié par équipe, le rond central, les chevrons de l'entrée. */
 const arenaFloor: Builder = ({ label }) => {
@@ -196,7 +203,67 @@ const arenaRack: Builder = () => {
   return { solid: g }
 }
 
+/**
+ * Le classement des joueurs (dos au mur), face au guichet de l'arbitre : un grand écran, les cinq
+ * premiers et leurs victoires, les trois marches du podium en tête.
+ */
+const arenaBoard: Builder = () => {
+  const g = new THREE.Group()
+  const W = 1.5, H = 0.84
+  g.add(box(W + 0.08, H + 0.08, 0.05, lit(C.steelDark, 'metal'), 0, 0.66, 0.025, 0.01))
+  g.add(box(W + 0.08, 0.03, 0.07, glow(C.orange), -0.0, 0.2, 0.035))
+  let drawn = -1
+  const MEDALS = ['#ffd23f', '#d9dde3', '#d08a4a']
+  const screen = animatedScreen(512, 288, 1, (c) => {
+    drawn = arenaRanks.stamp
+    c.fillStyle = '#0b0d10'
+    c.fillRect(0, 0, 512, 288)
+    c.fillStyle = C.orange
+    c.fillRect(0, 0, 256, 6)
+    c.fillStyle = C.blue
+    c.fillRect(256, 0, 256, 6)
+    c.textBaseline = 'middle'
+    c.textAlign = 'left'
+    c.font = 'bold 30px system-ui, sans-serif'
+    c.fillStyle = C.line
+    c.fillText(tr('CLASSEMENT', 'RANKING'), 22, 36)
+    c.textAlign = 'right'
+    c.font = 'bold 15px system-ui, sans-serif'
+    c.fillStyle = '#8d96a3'
+    c.fillText(tr('VICTOIRES', 'WINS'), 490, 38)
+    if (!arenaRanks.rows.length) {
+      c.textAlign = 'center'
+      c.font = '22px system-ui, sans-serif'
+      c.fillText(tr('La première place est à prendre', 'First place is up for grabs'), 256, 160)
+      return
+    }
+    arenaRanks.rows.forEach((r, i) => {
+      const y = 82 + i * 42
+      c.fillStyle = i % 2 ? '#14171c' : '#1a1e25'
+      c.fillRect(14, y - 18, 484, 36)
+      c.fillStyle = MEDALS[i] ?? '#5c6470'
+      c.fillRect(14, y - 18, 6, 36)
+      c.textAlign = 'left'
+      c.font = 'bold 22px system-ui, sans-serif'
+      c.fillText(String(i + 1), 32, y + 1)
+      c.fillStyle = C.line
+      c.font = `${i ? '' : 'bold '}22px system-ui, sans-serif`
+      c.fillText(r.name.length > 22 ? `${r.name.slice(0, 21)}…` : r.name, 66, y + 1)
+      c.textAlign = 'right'
+      c.font = 'bold 24px ui-monospace, Menlo, monospace'
+      c.fillStyle = MEDALS[i] ?? C.line
+      c.fillText(String(r.wins), 486, y + 1)
+    })
+  })
+  screen.texture.magFilter = THREE.LinearFilter
+  const live = new THREE.Group()
+  live.add(mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshBasicMaterial({ map: screen.texture }), 0, 0.66, 0.052))
+  // L'écran ne se redessine que quand le classement a été relu.
+  return { solid: g, live, update: (t) => { if (drawn !== arenaRanks.stamp) screen.tick(t) } }
+}
+
 export const ARENA = {
+  'arena-board': arenaBoard,
   'arena-floor': arenaFloor,
   'arena-entry': arenaEntry,
   'arena-booth': arenaBooth,

@@ -18,6 +18,8 @@ const PIXEL_WAR_STATE = '/phputils/pixel_war/api/state.php'
 const CREDITS_ENDPOINT = '/outils/mini-shipinteriors-credits.php'
 /** Zone thargoïde : classement des victoires (lecture), gains des missions (écrit par le relais). */
 const SALVAGE_ENDPOINT = '/outils/mini-shipinteriors-salvage.php'
+/** Arène : classement des joueurs (lecture), parties notées (écrit par le relais). */
+const ARENA_ENDPOINT = '/outils/mini-shipinteriors-arena.php'
 /**
  * Comptoir des Cartes Dangereuses : la boutique et les boosters du CMDR, l'ouverture d'un booster
  * (l'endpoint de la page Cartes du site), et les visuels des cartes.
@@ -42,7 +44,7 @@ const siteProxy: ProxyOptions = {
     })
   },
 }
-const SITE_PROXY = Object.fromEntries([CMDR_ENDPOINT, CABIN_ENDPOINT, SCORES_ENDPOINT, CREDITS_ENDPOINT, SALVAGE_ENDPOINT, '/outils/mini-shipinteriors-site.php', '/outils/mini-shipinteriors-cinema.php', '/outils/mini-shipinteriors-crew.php', '/outils/mini-shipinteriors-twitch.php', '/outils/mini-shipinteriors-fish.php', '/outils/mini-shipinteriors-gardening.php', '/outils/mini-shipinteriors-quests.php', '/outils/mini-shipinteriors-ljpc.php', PIXEL_WAR_STATE, ...CARDS_PATHS].map((path) => [path, siteProxy]))
+const SITE_PROXY = Object.fromEntries([CMDR_ENDPOINT, CABIN_ENDPOINT, SCORES_ENDPOINT, CREDITS_ENDPOINT, SALVAGE_ENDPOINT, ARENA_ENDPOINT, '/outils/mini-shipinteriors-site.php', '/outils/mini-shipinteriors-cinema.php', '/outils/mini-shipinteriors-crew.php', '/outils/mini-shipinteriors-twitch.php', '/outils/mini-shipinteriors-fish.php', '/outils/mini-shipinteriors-gardening.php', '/outils/mini-shipinteriors-quests.php', '/outils/mini-shipinteriors-ljpc.php', PIXEL_WAR_STATE, ...CARDS_PATHS].map((path) => [path, siteProxy]))
 
 /**
  * Branche le relais multijoueur sur le serveur de dev (et de preview) de Vite, sur /ws/mini-shipinteriors.

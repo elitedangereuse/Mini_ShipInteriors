@@ -162,7 +162,8 @@ export class ArenaPanel extends Modal {
     b.append(head)
     if (playing) {
       const score = el('span', 'arena-tile-score')
-      score.append(el('b', 'team0', String(r.score?.[0] ?? 0)), ' – ', el('b', 'team1', String(r.score?.[1] ?? 0)))
+      // Les manches gagnées par chaque camp, et les points de la manche en cours.
+      score.append(el('b', 'team0', String(r.rounds?.[0] ?? 0)), ' – ', el('b', 'team1', String(r.rounds?.[1] ?? 0)), el('small', '', tr(` manches · ${r.score?.[0] ?? 0}–${r.score?.[1] ?? 0}`, ` rounds · ${r.score?.[0] ?? 0}–${r.score?.[1] ?? 0}`)))
       b.append(score)
     } else {
       // Une rangée de places par camp : pleine (un joueur), creuse (libre, ou un bot).
@@ -189,8 +190,8 @@ export class ArenaPanel extends Modal {
     hero.append(
       el('strong', '', tr('Placez-vous dans un lobby', 'Pick a lobby')),
       el('p', '', tr(
-        `Deux équipes, jusqu'à ${ARENA_RULES.team} contre ${ARENA_RULES.team}, dans une baie de stockage tous projecteurs allumés. Seul contre les bots, ou avec ceux qui jouent avec vous : ils complètent les équipes. La première au score l'emporte.`,
-        `Two teams, up to ${ARENA_RULES.team} vs ${ARENA_RULES.team}, in a storage bay with every floodlight on. Solo against the bots, or with whoever plays with you: they fill the teams. First to the score wins.`,
+        `Deux équipes, jusqu'à ${ARENA_RULES.team} contre ${ARENA_RULES.team}, dans une baie de stockage tous projecteurs allumés. Seul contre les bots, ou avec ceux qui jouent avec vous : ils complètent les équipes. La partie se joue en ${ARENA_RULES.wins} manches gagnantes.`,
+        `Two teams, up to ${ARENA_RULES.team} vs ${ARENA_RULES.team}, in a storage bay with every floodlight on. Solo against the bots, or with whoever plays with you: they fill the teams. Best of ${ARENA_RULES.rounds} rounds.`,
       )),
     )
     stage.append(hero, el('span', 'arena-heading', tr('Votre arme', 'Your weapon')), loadout(this.weapon, (id) => this.pick(id)))
@@ -202,7 +203,7 @@ export class ArenaPanel extends Modal {
     const leader = r.leader === this.self
     const me = r.members.find((m) => m.id === this.self)!
     const title = el('div', 'arena-title')
-    title.append(el('strong', '', `Lobby ${r.id}`), el('span', '', `${format(r.size)} · ${tr(`la première équipe à ${r.goal} points gagne`, `first team to ${r.goal} points wins`)}`))
+    title.append(el('strong', '', `Lobby ${r.id}`), el('span', '', `${format(r.size)} · ${tr(`${ARENA_RULES.wins} manches gagnantes · une manche : ${r.goal} points`, `best of ${ARENA_RULES.rounds} · a round: ${r.goal} points`)}`))
     stage.append(title)
 
     const versus = el('div', 'arena-versus')
@@ -289,6 +290,81 @@ export class ArenaPanel extends Modal {
   }
 }
 
+export const ARENA_URL = import.meta.env.VITE_ED_ARENA_URL || '/outils/mini-shipinteriors-arena.php'
+
+/** Une ligne du classement tenu par le site (cf. phputils/mini_shipinteriors/arena.php du site). */
+export interface RankRow { name: string; url?: string; wins: number; played: number; kills: number; deaths: number }
+export interface Ranking { top: RankRow[]; me: (Omit<RankRow, 'name' | 'url'> & { rank: number }) | null }
+
+/** Le classement des joueurs, lu sur le site ; null s'il ne répond pas. */
+export async function fetchRanking(): Promise<Ranking | null> {
+  try {
+    const res = await fetch(ARENA_URL, { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(12000) })
+    const reply = await res.json()
+    return reply?.status === 'success' && Array.isArray(reply.top) ? { top: reply.top, me: reply.me ?? null } : null
+  } catch {
+    return null
+  }
+}
+
+/** Le classement des joueurs de l'arène, sur le mur de son lobby. */
+export class RankingPanel extends Modal {
+  private revision = 0
+  /** Le classement vient d'être lu : le tableau du mur se met à jour (cf. src/arena/client.ts). */
+  onLoaded?: (ranking: Ranking) => void
+
+  constructor() {
+    super(tr('ARÈNE · CLASSEMENT', 'ARENA · RANKING'), tr('Les meilleurs joueurs', 'Top players'))
+    this.root.classList.add('arena-panel', 'arena-ranks')
+  }
+
+  async open() {
+    const token = ++this.revision
+    this.body.replaceChildren(el('p', 'salvage-intro', tr('Chargement…', 'Loading…')))
+    this.show()
+    const ranking = await fetchRanking()
+    if (token !== this.revision) return
+    this.body.replaceChildren()
+    if (!ranking) {
+      this.body.append(el('p', 'salvage-warn', tr('Le site ne répond pas. Fermez puis réessayez.', 'The site is unavailable. Close and try again.')))
+      return
+    }
+    this.onLoaded?.(ranking)
+    this.body.append(el('p', 'salvage-intro', tr(
+      'Les CMDR par victoires ; à égalité, le plus d\'éliminations, puis la première partie. Seules comptent les parties avec au moins un joueur dans chaque camp : battre des bots ne classe pas.',
+      'CMDRs by wins; ties go to the most kills, then the earliest match. Only matches with at least one player on each side count: beating bots doesn\'t rank.',
+    )))
+    const table = el('table', 'salvage-table arena-rank-table')
+    const head = el('tr')
+    for (const h of ['#', 'CMDR', tr('Victoires', 'Wins'), tr('Parties', 'Played'), tr('Élim.', 'Kills'), tr('Chutes', 'Deaths')]) head.append(el('th', '', h))
+    table.append(el('thead'), el('tbody'))
+    table.tHead!.append(head)
+    if (!ranking.top.length) {
+      const row = el('tr')
+      const td = el('td', 'salvage-empty', tr('Personne n\'a encore joué de partie classée. La première place est à prendre.', 'Nobody has played a ranked match yet. First place is up for grabs.'))
+      td.colSpan = 6
+      row.append(td)
+      table.tBodies[0].append(row)
+    }
+    ranking.top.forEach((r, i) => {
+      const row = el('tr', i < 3 ? `podium p${i + 1}` : '')
+      const name = el('td')
+      if (r.url) {
+        const a = el('a', '', r.name)
+        a.href = r.url
+        a.target = '_blank'
+        a.rel = 'noopener'
+        name.append(a)
+      } else name.textContent = r.name
+      row.append(el('td', '', String(i + 1)), name, el('td', '', String(r.wins)), el('td', '', String(r.played)), el('td', '', String(r.kills)), el('td', '', String(r.deaths)))
+      table.tBodies[0].append(row)
+    })
+    this.body.append(table)
+    const me = ranking.me
+    if (me) this.body.append(el('p', 'salvage-note', tr(`Vous : ${me.rank}ᵉ, ${me.wins} victoire${me.wins > 1 ? 's' : ''} en ${me.played} partie${me.played > 1 ? 's' : ''}.`, `You: rank ${me.rank}, ${me.wins} win${me.wins === 1 ? '' : 's'} in ${me.played} match${me.played === 1 ? '' : 'es'}.`)))
+  }
+}
+
 /** Qui est un combattant pour le joueur : lui-même, un coéquipier, un adversaire. */
 export type Relation = 'self' | 'ally' | 'enemy'
 /** Ce que le HUD montre d'un combattant dans le fil des éliminations. */
@@ -305,6 +381,8 @@ export interface PlateInfo { name: string; hp: number; rel: Relation; shield: bo
 export class ArenaHud {
   private readonly root = el('div', 'arena-hud')
   private readonly scores = [el('strong', 'arena-score ally'), el('strong', 'arena-score enemy')]
+  /** Les manches gagnées, une pastille par manche à gagner, sous chaque score. */
+  private readonly pips = [el('span', 'arena-rounds ally'), el('span', 'arena-rounds enemy')]
   private readonly clock = el('span', 'arena-clock')
   private readonly goal = el('span', 'arena-goal')
   private readonly plates = el('div', 'arena-plates')
@@ -330,7 +408,7 @@ export class ArenaHud {
     const board = el('div', 'arena-board')
     const middle = el('div', 'arena-middle')
     middle.append(this.clock, this.goal)
-    board.append(this.scores[0], middle, this.scores[1])
+    board.append(this.scores[0], middle, this.scores[1], ...this.pips)
     this.plates.setAttribute('aria-hidden', 'true')
     this.quit = button(tr('Quitter', 'Leave'), () => this.onQuit?.(), 'arena-quit', 'sign-out')
     this.wait.hidden = true
@@ -363,18 +441,21 @@ export class ArenaHud {
   }
 
   /**
-   * @param mine, theirs points de son équipe, de celle d'en face
+   * @param mine, theirs de son équipe et de celle d'en face : les points de la manche, les manches gagnées
+   * @param round la manche en cours ; `wins` : manches à gagner
    * @param left secondes restantes ; `warmup` : secondes avant le coup d'envoi (0 : c'est parti)
    */
-  board(mine: number, theirs: number, goal: number, left: number, warmup: number) {
-    this.scores[0].textContent = String(mine)
-    this.scores[1].textContent = String(theirs)
-    this.scores[0].classList.toggle('point', mine === goal - 1)
-    this.scores[1].classList.toggle('point', theirs === goal - 1)
+  board(mine: { score: number; rounds: number }, theirs: { score: number; rounds: number }, goal: number, round: number, wins: number, left: number, warmup: number) {
+    ;[mine, theirs].forEach((side, i) => {
+      this.scores[i].textContent = String(side.score)
+      this.scores[i].classList.toggle('point', side.score === goal - 1)
+      if (this.pips[i].childElementCount !== wins) this.pips[i].replaceChildren(...Array.from({ length: wins }, () => el('i')))
+      ;[...this.pips[i].children].forEach((pip, n) => pip.classList.toggle('on', n < side.rounds))
+    })
     const seconds = Math.ceil(left)
     this.clock.textContent = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
     this.clock.classList.toggle('low', warmup <= 0 && left <= 30)
-    this.goal.textContent = tr(`Premier à ${goal}`, `First to ${goal}`)
+    this.goal.textContent = tr(`Manche ${round} · ${goal} pts`, `Round ${round} · ${goal} pts`)
     // Le décompte du coup d'envoi, puis le signal, un instant.
     const text = warmup > 0 ? String(Math.ceil(warmup)) : this.shownCount && this.shownCount !== 'go' ? 'go' : this.shownCount
     if (text === this.shownCount) return
@@ -465,14 +546,14 @@ export class ArenaHud {
       el('h2', r.winner < 0 ? 'draw' : won ? 'won' : 'lost', r.winner < 0 ? tr('Égalité', 'Draw') : won ? tr('Victoire !', 'Victory!') : tr('Défaite', 'Defeat')),
     )
     const body = el('div', 'salvage-body')
+    // Le score de la partie : les manches ; dessous, les points de la dernière.
     const score = el('p', 'arena-end-score')
-    score.append(el('strong', 'ally', String(r.score[team])), ' – ', el('strong', 'enemy', String(r.score[1 - team])))
+    score.append(el('strong', 'ally', String(r.rounds[team])), ' – ', el('strong', 'enemy', String(r.rounds[1 - team])))
     body.append(score)
+    const last = `${r.score[team]} – ${r.score[1 - team]}`
     body.append(el('p', 'salvage-intro', r.reason === 'forfeit'
       ? tr('L\'équipe d\'en face a quitté l\'arène.', 'The other team left the arena.')
-      : r.reason === 'time'
-        ? tr('Le temps est écoulé.', 'Time is up.')
-        : tr(`Limite atteinte : ${r.goal} points.`, `Limit reached: ${r.goal} points.`)))
+      : tr(`Manches gagnées. Dernière manche : ${last}${r.reason === 'time' ? ', au temps' : ''}.`, `Rounds won. Last round: ${last}${r.reason === 'time' ? ', on time' : ''}.`)))
     const table = el('table', 'salvage-table arena-table')
     const header = el('tr')
     for (const label of [tr('Combattant', 'Fighter'), tr('Élim.', 'Kills'), tr('Morts', 'Deaths'), tr('Dégâts', 'Damage')]) header.append(el('th', '', label))

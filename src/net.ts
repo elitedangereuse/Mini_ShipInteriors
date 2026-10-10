@@ -243,7 +243,9 @@ export interface ArenaRoom {
   status: 'forming' | 'countdown' | 'playing'
   startsIn?: number
   members: ArenaMember[]
+  /** En partie : les points de la manche en cours, et les manches gagnées par chaque équipe. */
   score?: [number, number]
+  rounds?: [number, number]
 }
 export interface ArenaLobby { rooms: ArenaRoom[] }
 export interface ArenaFighter { id: number; name: string; team: 0 | 1; bot: boolean; weapon: WeaponId }
@@ -251,7 +253,9 @@ export interface ArenaStart {
   game: string
   team: 0 | 1
   size: number
+  /** Points à atteindre pour gagner une manche ; manches à gagner pour gagner la partie. */
   goal: number
+  wins: number
   duration: number
   warmup: number
   fighters: ArenaFighter[]
@@ -265,13 +269,15 @@ export interface ArenaFighterState {
   deaths: number
   wait: number
 }
-export interface ArenaState { game: string; warmup: number; left: number; score: [number, number]; fighters: ArenaFighterState[] }
+export interface ArenaState { game: string; warmup: number; left: number; score: [number, number]; round: number; rounds: [number, number]; fighters: ArenaFighterState[] }
 export type ArenaEvent =
   | { kind: 'shot'; id: number; weapon: WeaponId; o: [number, number, number]; d: [number, number, number][] }
   | { kind: 'hit'; id: number; by: number; hp: number; dmg: number; x: number; y: number; z: number }
   | { kind: 'kill'; id: number; by: number; weapon: WeaponId; score: [number, number]; wait: number }
   | { kind: 'spawn'; id: number; x: number; z: number; yaw: number; weapon: WeaponId }
   | { kind: 'left'; id: number }
+  /** Une manche se termine (`winner` : -1 à égalité) ; la suivante part dans `wait` secondes. */
+  | { kind: 'round'; round: number; winner: number; reason: 'score' | 'time'; score: [number, number]; rounds: [number, number]; wait: number }
   | { kind: 'join'; fighter: ArenaFighter; x: number; z: number; yaw: number }
 export interface ArenaStats extends ArenaFighter { kills: number; deaths: number; damage: number }
 export interface ArenaEnd {
@@ -279,7 +285,9 @@ export interface ArenaEnd {
   /** Équipe gagnante ; -1 : égalité. */
   winner: number
   reason: 'score' | 'time' | 'forfeit'
+  /** Les points de la dernière manche, et les manches gagnées par chaque équipe. */
   score: [number, number]
+  rounds: [number, number]
   goal: number
   duration: number
   stats: ArenaStats[]

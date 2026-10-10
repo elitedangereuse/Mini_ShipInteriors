@@ -10,7 +10,7 @@
 //
 // La partie s'inspire de Brawl Stars : on voit tout ce que la caméra montre (pas de brouillard), sauf
 // qui se tient dans un buisson ; les points de vie remontent vite quand on ne prend plus de balles ;
-// la première équipe à la limite de points l'emporte.
+// la première équipe à la limite de points gagne la manche, et la partie se joue en deux manches gagnantes.
 
 import { DIRS } from './ship-map.js'
 import { lineOfSight } from './sight.js'
@@ -37,9 +37,12 @@ export const ARENA_BOOTH = { x: 22.97, z: 9.3, yaw: Math.PI / 2, referee: { x: 2
 /**
  * Chiffres de la partie (tuiles et secondes).
  * - `team` : joueurs par équipe, au plus ; `goals` : les limites de points au choix du chef du lobby
- *   (une élimination, un point ; la première équipe à la limite gagne), `goal` : celle de départ ;
- * - `duration` : au bout du temps, l'équipe en tête gagne ; `warmup` : avant le coup d'envoi, on
- *   se place, personne ne tire ;
+ *   (une élimination, un point ; la première équipe à la limite gagne la manche), `goal` : celle de départ ;
+ * - `wins`, `rounds` : la partie se joue en manches, la première équipe à `wins` manches l'emporte,
+ *   en `rounds` manches au plus (deux manches gagnantes, en trois) ;
+ * - `duration` : au bout du temps d'une manche, l'équipe en tête la gagne (à égalité, personne) ;
+ *   `warmup` : avant le coup d'envoi, on se place, personne ne tire ; `intermission` : de même
+ *   entre deux manches, chacun revenu à sa base ;
  * - `respawn` : délai avant de revenir à sa base ; `shield` : invulnérable ensuite, tant qu'on ne tire pas ;
  * - `regenAfter`, `regen` : sans dégât depuis ce délai, les points de vie remontent (par seconde) ;
  * - `bush` : dans un buisson, un adversaire ne nous voit que de tout près (`near`), ou pendant
@@ -54,11 +57,14 @@ export const ARENA_RULES = {
   lobbies: 4,
   team: 3,
   hp: 100,
-  goals: [5, 10, 15, 20],
-  goal: 10,
+  goals: [5, 10, 15],
+  goal: 15,
+  wins: 2,
+  rounds: 3,
   duration: 300,
   countdown: 3,
   warmup: 4,
+  intermission: 6,
   respawn: 3,
   shield: 2,
   regenAfter: 3,

@@ -1122,6 +1122,65 @@ const dockMarking: Builder = ({ label }) => {
 /**
  * Flèche peinte au sol (0,8 × 0,8, vers +z) : « EXTRACTION », pour retrouver le sas dans le noir.
  */
+/**
+ * Allée peinte au sol (`label` : « TEXTE|largeur,longueur|couleur|sens ») : deux liserés, des
+ * chevrons qui pointent vers le sud (ou vers le nord, sens `n`), et la destination en toutes
+ * lettres, couchée le long de l'allée quand elle est longue. Le texte se lit toujours depuis la
+ * caméra de la vue de dessus (au sud-est) : on ne tourne pas le meuble, on choisit le sens. Elle
+ * dit où mène une porte que les murs effacés de cette vue laissent mal voir.
+ */
+const floorWay: Builder = ({ label }) => {
+  const [text = '', size = '0.8,3', color = '#e9a917', way = 's'] = (label ?? '').split('|')
+  const [w, d] = size.split(',').map(Number)
+  const px = 128
+  const W = Math.round(w * px), H = Math.round(d * px)
+  const long = d > w * 1.6
+  const north = way === 'n'
+  const texture = drawnTexture(W, H, (c) => {
+    c.clearRect(0, 0, W, H)
+    c.fillStyle = 'rgba(12, 14, 18, 0.6)'
+    c.fillRect(0, 0, W, H)
+    c.fillStyle = color
+    c.fillRect(0, 0, 8, H)
+    c.fillRect(W - 8, 0, 8, H)
+    /** Un chevron dont la pointe est en `y`, tournée vers le sens de l'allée. */
+    const chevron = (y: number, alpha: number, half = W * 0.26) => {
+      const back = (north ? 1 : -1) * half * 0.8
+      c.globalAlpha = alpha
+      c.lineWidth = 14
+      c.lineJoin = 'miter'
+      c.strokeStyle = color
+      c.beginPath()
+      c.moveTo(W / 2 - half, y + back)
+      c.lineTo(W / 2, y)
+      c.lineTo(W / 2 + half, y + back)
+      c.stroke()
+      c.globalAlpha = 1
+    }
+    // Le texte tient dans sa place : la longueur de l'allée s'il est couché, sa largeur sinon.
+    const room = (long ? H * 0.5 : W) - 36
+    let font = Math.round((long ? W : H) * 0.3)
+    c.font = `bold ${font}px system-ui, sans-serif`
+    const wide = c.measureText(text).width
+    if (wide > room) c.font = `bold ${(font = Math.floor((font * room) / wide))}px system-ui, sans-serif`
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    c.fillStyle = color
+    if (long) {
+      // Les chevrons descendent l'allée, de plus en plus francs ; le nom au milieu, couché.
+      const span = Math.min(wide, room)
+      for (let y = W * 0.4; y < H - 12; y += W * 0.46) if (Math.abs(y - W * 0.1 - H / 2) > span / 2 + W * 0.3) chevron(y, 0.65 + 0.35 * (y / H))
+      c.translate(W / 2, H / 2)
+      c.rotate(-Math.PI / 2)
+      c.fillText(text, 0, 0)
+    } else {
+      c.fillText(text, W / 2, north ? H * 0.68 : H * 0.3)
+      chevron(north ? H * 0.14 : H * 0.86, 1, Math.min(W * 0.2, H * 0.3))
+    }
+  })
+  return { solid: new THREE.Group().add(decal(texture, w, d, 0.007)) }
+}
+
 const floorArrow: Builder = () => {
   const texture = drawnTexture(256, 256, (c) => {
     c.clearRect(0, 0, 256, 256)
@@ -1157,6 +1216,7 @@ export const SALVAGE = {
   'bay-holo': bayHolo,
   'dock-marking': dockMarking,
   'floor-arrow': floorArrow,
+  'floor-way': floorWay,
   'security-booth': securityBooth,
   'salvage-terminal': terminal,
   'surveillance-wall': surveillance,

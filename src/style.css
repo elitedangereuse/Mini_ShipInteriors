@@ -5198,6 +5198,15 @@ body.gardening #emotes { display: none; }
 .range-hud.arena.down .range-holo, .range-hud.arena.down .range-alert, .range-hud.arena.down .range-dot { display: none; }
 .team0 { --team: #ff8a1c; --team-soft: #ffb777; }
 .team1 { --team: #3fc8ff; --team-soft: #8fdcff; }
+/* Le classement des joueurs : le panneau du terminal, en plus étroit ; le podium à ses couleurs. */
+.salvage-panel.arena-panel.arena-ranks { width: min(620px, calc(100vw - 28px)); }
+.arena-rank-table td { font-variant-numeric: tabular-nums; }
+.arena-rank-table td:first-child { color: #8d96a3; }
+.arena-rank-table a { color: #e8eaee; }
+.arena-rank-table tr.podium td:first-child { font-weight: 900; }
+.arena-rank-table tr.p1 td:first-child, .arena-rank-table tr.p1 td:nth-child(3) { color: #ffd23f; }
+.arena-rank-table tr.p2 td:first-child { color: #d9dde3; }
+.arena-rank-table tr.p3 td:first-child { color: #d08a4a; }
 /* Le terminal : graphite, l'orange et le bleu des deux équipes (le vert reste à la zone thargoïde). */
 .salvage-panel.arena-panel {
   width: min(940px, calc(100vw - 28px)); padding: 22px 24px 24px; color: #e8eaee; border-color: #3b404a;
@@ -5226,6 +5235,7 @@ body.gardening #emotes { display: none; }
 .arena-pips i.on { background: var(--team); opacity: 1; }
 .arena-tile-score { font: 800 20px/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; }
 .arena-tile-score b { color: var(--team); }
+.arena-tile-score small { color: #8d96a3; font-size: 11px; font-weight: 600; }
 .arena-tile-detail { color: #8d96a3; font-size: 11px; }
 .arena-tile-names { max-width: 100%; overflow: hidden; color: #c5cbd4; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .arena-tile-own { color: #ff8a1c; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
@@ -5317,6 +5327,12 @@ body.arena-on .anchor .tag { display: none; }
 .arena-score.ally { border-radius: 14px 0 0 14px; transform: skewX(-6deg); }
 .arena-score.enemy { border-radius: 0 14px 14px 0; transform: skewX(6deg); }
 .arena-score.point { animation: court-pulse .45s ease-in-out infinite alternate; }
+/* Les manches gagnées : une pastille par manche à gagner, sous chaque score. */
+.arena-rounds { position: absolute; top: 100%; display: flex; gap: 4px; margin-top: 5px; }
+.arena-rounds.ally { left: 12px; }
+.arena-rounds.enemy { right: 12px; }
+.arena-rounds i { width: 16px; height: 9px; box-sizing: border-box; border: 2px solid #0b0d12; border-radius: 4px; background: #1b1f29; }
+.arena-rounds i.on { background: var(--tint); box-shadow: 0 0 8px var(--tint); }
 .arena-middle { position: relative; z-index: 1; display: grid; place-items: center; align-content: center; gap: 1px; margin: 0 -4px; padding: 4px 16px; border: 3px solid #0b0d12; border-radius: 8px; background: #1b1f29; }
 .arena-clock { font: 800 22px/1.1 ui-monospace, 'SF Mono', Menlo, monospace; font-variant-numeric: tabular-nums; }
 .arena-clock.low { color: #ffd23f; animation: court-pulse .5s ease-in-out infinite alternate; }

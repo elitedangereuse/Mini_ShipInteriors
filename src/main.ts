@@ -2112,6 +2112,7 @@ for (const it of deckById(-1).interactables) {
   const model = it.furniture?.model
   if (model === 'salvage-terminal') it.onInteract = () => { player.interact(); zone.openTerminal() }
   else if (model === 'arena-terminal') it.onInteract = () => { player.interact(); arena.openTerminal() }
+  else if (model === 'arena-board') it.onInteract = () => { player.interact(); arena.openRanking() }
   else if (model === 'salvage-board') it.onInteract = () => { player.interact(); zone.openLeaderboard() }
   else if (model === 'surveillance-wall') it.onInteract = () => {
     player.interact()

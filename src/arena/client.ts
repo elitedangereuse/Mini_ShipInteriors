@@ -17,7 +17,8 @@ import { arenaExtras, arenaLevel, type ArenaExtras } from './deck'
 import { ArenaGun, type ArenaBody } from './gun'
 import { ArenaMusic } from './music'
 import { Referee, REFEREE, refereeRig } from './referee'
-import { ArenaHud, ArenaPanel, type Relation } from './ui'
+import { arenaRanks } from '../furniture/arena'
+import { ArenaHud, ArenaPanel, fetchRanking, RankingPanel, type Ranking, type Relation } from './ui'
 
 /*
  * L'arène, côté client : le terminal du lobby, puis la partie. Le relais fait autorité (cf.
@@ -83,6 +84,8 @@ interface Game {
   id: string
   team: 0 | 1
   goal: number
+  /** Manches à gagner. */
+  wins: number
   fighters: Map<number, Fighter>
   state: ArenaState | null
   end: ArenaEnd | null
@@ -113,6 +116,7 @@ const ringGeometry = new THREE.RingGeometry(0.21, 0.3, 28).rotateX(-Math.PI / 2)
 export class ArenaClient {
   private readonly panel: ArenaPanel
   private readonly hud = new ArenaHud()
+  private readonly ranking = new RankingPanel()
   private readonly zone = arenaZone()
   private lobby: ArenaLobby = { rooms: [] }
   private game: Game | null = null
@@ -155,7 +159,9 @@ export class ArenaClient {
     this.panel.weapon = this.weapon
     this.hud.onQuit = () => this.quit()
     this.hud.onWeapon = (id) => this.choose(id)
+    this.ranking.onLoaded = (r) => this.showRanks(r)
     void this.buildReferee()
+    void this.refreshRanks()
   }
 
   /** Tessa, derrière la vitre de son guichet : on lui parle au comptoir. */
@@ -199,15 +205,32 @@ export class ArenaClient {
   }
 
   get panelOpen(): boolean {
-    return this.panel.isOpen || this.hud.endOpen
+    return this.panel.isOpen || this.ranking.isOpen || this.hud.endOpen
   }
 
   contains(target: EventTarget | null): boolean {
-    return this.panel.contains(target)
+    return this.panel.contains(target) || this.ranking.contains(target)
   }
 
   closePanels() {
     this.panel.close()
+    this.ranking.close()
+  }
+
+  /** Le classement des joueurs, sur le mur du lobby. */
+  openRanking() {
+    void this.ranking.open()
+  }
+
+  /** Relit le classement sur le site, pour le tableau du mur (au démarrage, après chaque partie). */
+  private async refreshRanks() {
+    const ranking = await fetchRanking()
+    if (ranking) this.showRanks(ranking)
+  }
+
+  private showRanks(ranking: Ranking) {
+    arenaRanks.rows = ranking.top.slice(0, 5).map((r) => ({ name: r.name, wins: r.wins }))
+    arenaRanks.stamp++
   }
 
   /** Un autre joueur de l'arène se voit-il ? Ceux de sa partie, sauf un adversaire caché dans un buisson. */
@@ -331,13 +354,13 @@ export class ArenaClient {
       this.host.dialog.show(tr('L\'arène n\'a pas pu se charger : réessayez dans un instant.', 'The arena failed to load: try again in a moment.'))
       return
     }
-    const game: Game = { id: m.game, team: m.team, goal: m.goal, fighters: new Map(), state: null, end: null, downBy: null, second: Infinity, streak: 0, foughtAt: 0 }
+    const game: Game = { id: m.game, team: m.team, goal: m.goal, wins: m.wins, fighters: new Map(), state: null, end: null, downBy: null, second: Infinity, streak: 0, foughtAt: 0 }
     this.game = game
     for (const f of m.fighters) this.addFighter(f, f.bot ? null : undefined)
     const mine = game.fighters.get(this.host.net.id)
     if (mine) this.weapon = this.panel.weapon = mine.weapon
     this.hud.show(true)
-    this.hud.board(0, 0, m.goal, m.duration, m.warmup)
+    this.hud.board({ score: 0, rounds: 0 }, { score: 0, rounds: 0 }, m.goal, 1, m.wins, m.duration, m.warmup)
     // Sa base en bleu, celle d'en face en rouge.
     this.extras?.paintBases(m.team === 0 ? [TINT.ally, TINT.enemy] : [TINT.enemy, TINT.ally])
     await this.host.moveTo(deck, m.spawn)
@@ -347,8 +370,8 @@ export class ArenaClient {
     this.host.face(m.spawn.yaw)
     this.gun!.begin(this.weapon)
     this.host.dialog.show(tr(
-      `La première équipe à ${m.goal} points gagne. Vos adversaires sont en rouge ; les buissons cachent qui s'y tient.`,
-      `First team to ${m.goal} points wins. Your opponents are in red; bushes hide whoever stands in them.`,
+      `${m.wins} manches gagnantes : la première équipe à ${m.goal} points gagne la manche. Vos adversaires sont en rouge ; les buissons cachent qui s'y tient.`,
+      `First to ${m.wins} rounds: the first team to ${m.goal} points takes the round. Your opponents are in red; bushes hide whoever stands in them.`,
     ))
   }
 
@@ -467,7 +490,8 @@ export class ArenaClient {
       Object.assign(f, { hp: st.hp, alive: st.alive, shield: st.shield, weapon: st.weapon })
       f.puppet?.apply({ x: st.x, z: st.z, yaw: st.yaw, level: ARENA_LEVEL, anim: st.anim })
     }
-    this.hud.board(s.score[g.team], s.score[1 - g.team], g.goal, s.left, s.warmup)
+    const side = (team: number) => ({ score: s.score[team], rounds: s.rounds[team] })
+    this.hud.board(side(g.team), side(1 - g.team), g.goal, s.round, g.wins, s.left, s.warmup)
     // La musique suit la partie : le score qui monte, et les balles qu'on vient d'échanger.
     const lead = Math.max(...s.score)
     const heat = Math.min(3, Math.floor((3 * lead) / g.goal) + (performance.now() - g.foughtAt < 4000 ? 1 : 0))
@@ -551,6 +575,16 @@ export class ArenaClient {
       case 'join':
         this.addFighter(e.fighter, e)
         break
+      case 'round': {
+        // La manche est jouée : chacun revient à sa base (le relais l'annonce à part), la suivante part après la pause.
+        const mine = e.rounds[g.team], theirs = e.rounds[1 - g.team]
+        const tally = tr(`${mine} manche${mine > 1 ? 's' : ''} à ${theirs}`, `${mine}–${theirs} in rounds`)
+        if (e.winner < 0) gun.announce(tr(`Manche nulle · ${tally}`, `Round drawn · ${tally}`))
+        else gun.announce(e.winner === g.team ? tr(`Manche gagnée ! ${tally}`, `Round won! ${tally}`) : tr(`Manche perdue · ${tally}`, `Round lost · ${tally}`), e.winner !== g.team)
+        gun.cue(e.winner === g.team ? 'go' : 'down')
+        g.second = Infinity
+        break
+      }
     }
   }
 
@@ -588,11 +622,14 @@ export class ArenaClient {
     g.downBy = null
     const mine = r.stats.find((s) => s.id === this.host.net.id)
     this.lastEnd = { won: r.winner < 0 ? null : r.winner === g.team, kills: mine?.kills ?? 0, deaths: mine?.deaths ?? 0 }
-    this.hud.board(r.score[g.team], r.score[1 - g.team], r.goal, 0, 0)
+    const side = (team: number) => ({ score: r.score[team], rounds: r.rounds[team] })
+    this.hud.board(side(g.team), side(1 - g.team), r.goal, g.state?.round ?? 1, g.wins, 0, 0)
     this.hud.waiting(null, 0, this.weapon)
     this.gun?.cue(r.winner === g.team ? 'go' : 'down')
     this.gun?.end()
     this.endTimer = 30
+    // Le relais vient de déclarer la partie au site : le tableau du lobby se met à jour dans un instant.
+    window.setTimeout(() => void this.refreshRanks(), 4000)
     this.hud.showEnd(r, g.team, this.host.net.id, () => {
       this.endTimer = 0
       void this.leave()

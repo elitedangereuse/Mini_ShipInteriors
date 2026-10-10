@@ -13,6 +13,9 @@ export declare const ARENA_RULES: {
   hp: number
   goals: number[]
   goal: number
+  wins: number
+  rounds: number
+  intermission: number
   duration: number
   countdown: number
   warmup: number

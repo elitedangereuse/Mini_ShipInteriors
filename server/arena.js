@@ -13,11 +13,16 @@
 // les points de vie, les éliminations et le score, fait revenir chacun à sa base, et fait jouer
 // les bots dix fois par seconde et plus : ils cherchent l'adversaire, s'en approchent à la portée
 // de leur arme, tournent autour, tirent avec un temps de réaction et un écart de visée qui
-// dépendent de leur niveau. Fin : au score à atteindre, ou au bout du temps (l'équipe en tête).
+// dépendent de leur niveau. Une manche se gagne à la limite de points, ou au bout du temps (l'équipe
+// en tête) ; la partie, en deux manches gagnantes (ARENA_RULES.wins), trois au plus.
 //
 // Un joueur ne tire pas plus vite que son arme : chaque tir lui coûte un jeton d'un chargeur qui
 // se regarnit au rythme de l'arme, rechargement compris. Sa position est celle qu'il a envoyée,
 // si elle est plausible (sur le sol, pas plus loin que ne le permet sa vitesse).
+//
+// Classement : à la fin d'une partie où chaque camp comptait au moins un joueur au départ, le relais
+// déclare au site la partie de chaque CMDR qui l'a finie (gagnée, perdue ou nulle, ses éliminations,
+// ses chutes) : cf. `report`. Battre des bots ne classe pas, et rien n'est payé.
 //
 // Qui quitte la partie (abandon, déconnexion) est remplacé par un bot si le salon en a ; sinon son
 // équipe continue sans lui, et perd par forfait quand elle est vide.
@@ -60,8 +65,10 @@ const round2 = (v) => Math.round(v * 100) / 100
  * @param {(id: number) => any} o.playerById joueur du relais (id, name, verified, level, x, z, yaw, anim)
  * @param {(id: number, event: string, data: object) => void} o.emit envoie à un joueur
  * @param {(event: string, data: object) => void} o.broadcast envoie à tout le bord
+ * @param {(fighter: object, result: object) => Promise<boolean>} [o.report] déclare au site la partie
+ *   d'un CMDR, pour le classement (cf. postArenaResult dans site.js)
  */
-export function createArena({ playerById, emit, broadcast, now = Date.now, random = Math.random, log = () => {}, debug = false }) {
+export function createArena({ playerById, emit, broadcast, report = async () => false, now = Date.now, random = Math.random, log = () => {}, debug = false }) {
   // Les salons, fixes : id -> salon (vide tant que personne ne s'y est placé).
   const rooms = new Map(Array.from({ length: R.lobbies }, (_, i) => [i + 1, { id: i + 1, members: new Map(), game: null }]))
   const reset = (r) => Object.assign(r, { leader: null, size: 3, bots: true, skill: 1, goal: R.goal, status: 'forming', startAt: 0 })
@@ -77,7 +84,7 @@ export function createArena({ playerById, emit, broadcast, now = Date.now, rando
       const p = playerById(id)
       return { id, name: p?.name ?? m.name, verified: !!p?.verified, team: m.team, weapon: m.weapon, ready: m.ready }
     }),
-    ...(r.game ? { score: [...r.game.score] } : {}),
+    ...(r.game ? { score: [...r.game.score], rounds: [...r.game.rounds] } : {}),
   })
   const snapshot = () => ({ rooms: [...rooms.values()].map(roomState) })
   const announce = () => broadcast('arena:lobby', snapshot())
@@ -219,14 +226,16 @@ export function createArena({ playerById, emit, broadcast, now = Date.now, rando
     const t = now()
     const game = {
       id: randomBytes(8).toString('hex'), room: r, zone: arenaZone(), size: r.size, startedAt: t, liveAt: t + R.warmup * 1000,
-      endsAt: t + (R.warmup + R.duration) * 1000, goal: r.goal, score: [0, 0], skill: ARENA_SKILLS[r.skill], fighters: new Map(), bullets: [],
+      endsAt: t + (R.warmup + R.duration) * 1000, goal: r.goal, score: [0, 0], round: 1, rounds: [0, 0], skill: ARENA_SKILLS[r.skill], fighters: new Map(), bullets: [],
       ended: false, frozen: false, nextBot: -1,
     }
     for (const [id, m] of r.members) {
       const p = playerById(id)
-      makeFighter(game, { id, name: p?.name ?? m.name, verified: !!p?.verified, team: m.team, weapon: m.weapon })
+      makeFighter(game, { id, name: p?.name ?? m.name, verified: !!p?.verified, cookie: p?.cookie ?? null, team: m.team, weapon: m.weapon })
       m.ready = false
     }
+    // Une partie ne compte au classement que si chaque camp a au moins un joueur : battre des bots ne classe pas.
+    game.ranked = [0, 1].every((team) => standing(game, team).length > 0)
     if (r.bots) for (const team of [0, 1]) while (standing(game, team).length < r.size) addBot(game, team)
     r.status = 'playing'
     r.game = game
@@ -237,16 +246,18 @@ export function createArena({ playerById, emit, broadcast, now = Date.now, rando
 
   function startMessage(game, f) {
     return {
-      game: game.id, team: f.team, size: game.size, goal: game.goal, duration: R.duration, warmup: Math.max(0, (game.liveAt - now()) / 1000),
+      game: game.id, team: f.team, size: game.size, goal: game.goal, wins: R.wins, duration: R.duration, warmup: Math.max(0, (game.liveAt - now()) / 1000),
       fighters: [...game.fighters.values()].map(publicFighter), spawn: { x: f.x, z: f.z, yaw: round2(f.yaw) },
     }
   }
 
   const gameOf = (p) => roomOf.get(p.id)?.game ?? null
+  /** La partie est finie, ou entre deux manches : plus une balle ne vole, plus un coup ne porte. */
+  const over = (game) => game.ended || now() < game.liveAt
 
   function hurt(game, target, by, amount, weapon, at) {
     const t = now()
-    if (!target.alive || t < target.shieldUntil || amount <= 0 || game.ended) return
+    if (!target.alive || t < target.shieldUntil || amount <= 0 || over(game)) return
     target.hp -= amount
     target.hurtAt = t
     // Touché, on ne se cache plus dans un buisson pendant un instant.
@@ -264,7 +275,7 @@ export function createArena({ playerById, emit, broadcast, now = Date.now, rando
     if (!own) attacker.kills++
     game.score[own ? 1 - target.team : attacker.team]++
     tell(game, { kind: 'kill', id: target.id, by, weapon, score: [...game.score], wait: R.respawn })
-    if (Math.max(...game.score) >= game.goal) endGame(game, game.score[0] > game.score[1] ? 0 : 1, 'score')
+    if (Math.max(...game.score) >= game.goal) endRound(game, game.score[0] > game.score[1] ? 0 : 1, 'score')
   }
 
   function respawn(game, f) {
@@ -326,7 +337,7 @@ export function createArena({ playerById, emit, broadcast, now = Date.now, rando
       const amount = blastDamage(b.weapon, dist(f, at))
       if (!amount || !arenaSight(game.zone, walkable(game.zone, Math.round(from.x), Math.round(from.z)) ? from : f, f)) continue
       hurt(game, f, b.by, f.id === b.by ? Math.round(amount * R.self) : amount, b.weapon, { x: f.x, y: R.body.h * 0.6, z: f.z })
-      if (game.ended) return
+      if (over(game)) return
     }
   }
 
@@ -347,14 +358,14 @@ export function createArena({ playerById, emit, broadcast, now = Date.now, rando
         if (hit.body !== null) {
           if (w.blast) explode(game, b, b.p)
           else hurt(game, game.fighters.get(hit.body), b.by, w.damage, b.weapon, b.p)
-          if (game.ended) return
+          if (over(game)) return
           if (w.pierce) {
             b.hit.add(hit.body)
             continue
           }
         } else if (w.blast) {
           explode(game, b, b.p)
-          if (game.ended) return
+          if (over(game)) return
         }
         flying = false
       }
@@ -500,6 +511,32 @@ export function createArena({ playerById, emit, broadcast, now = Date.now, rando
 
   // ------------------------------------------------------------------ fin, départs
 
+  /**
+   * Une manche se termine (`winner` : -1 à égalité, au bout du temps) : l'équipe qui la gagne la
+   * marque. La partie est jouée quand une équipe a ses manches gagnantes, ou après la dernière
+   * manche (celle qui en a le plus l'emporte) ; sinon, la suivante part après une pause, chacun
+   * revenu à sa base, points de vie et chargeurs pleins, le score de la manche à zéro.
+   */
+  function endRound(game, winner, reason) {
+    if (game.ended) return
+    if (winner >= 0) game.rounds[winner]++
+    const [a, b] = game.rounds
+    if (Math.max(a, b) >= R.wins || game.round >= R.rounds) return endGame(game, a === b ? -1 : a > b ? 0 : 1, reason)
+    const t = now()
+    tell(game, { kind: 'round', round: game.round, winner, reason, score: [...game.score], rounds: [...game.rounds], wait: R.intermission })
+    game.round++
+    game.score = [0, 0]
+    game.bullets = []
+    game.liveAt = t + R.intermission * 1000
+    game.endsAt = game.liveAt + R.duration * 1000
+    for (const f of game.fighters.values()) {
+      respawn(game, f)
+      Object.assign(f, { shieldUntil: game.liveAt + R.shield * 1000, hurtAt: 0, revealUntil: 0, firedAt: 0, nextFire: 0, calm: 0 })
+    }
+    log(`[arène] partie ${game.id} : manche ${game.round - 1} ${winner < 0 ? 'nulle' : `à l'équipe ${winner ? 'B' : 'A'}`} (${a} à ${b})`)
+    announce()
+  }
+
   function endGame(game, winner, reason) {
     if (game.ended) return
     game.ended = true
@@ -507,13 +544,21 @@ export function createArena({ playerById, emit, broadcast, now = Date.now, rando
     r.game = null
     r.status = 'forming'
     unready(r)
-    const duration = Math.round((now() - game.liveAt) / 1000)
+    const duration = Math.round((now() - game.startedAt) / 1000)
     toGame(game, 'arena:end', {
-      game: game.id, winner, reason, score: [...game.score], goal: game.goal, duration: Math.max(0, duration),
+      game: game.id, winner, reason, score: [...game.score], rounds: [...game.rounds], goal: game.goal, duration: Math.max(0, duration),
       stats: [...game.fighters.values()].map((f) => ({ ...publicFighter(f), kills: f.kills, deaths: f.deaths, damage: Math.round(f.damage) })),
     })
     if (!r.members.size) reset(r)
-    log(`[arène] partie ${game.id} : ${winner < 0 ? 'égalité' : `équipe ${winner ? 'B' : 'A'}`} (${game.score.join(' à ')}, ${reason})`)
+    // Le classement : la partie de chaque CMDR qui l'a finie, déclarée au site.
+    if (game.ranked) {
+      for (const f of game.fighters.values()) {
+        if (f.bot || !f.verified || !f.cookie) continue
+        const result = { game: game.id, result: winner < 0 ? 'draw' : winner === f.team ? 'won' : 'lost', kills: f.kills, deaths: f.deaths, size: game.size }
+        void report(f, result).catch(() => {})
+      }
+    }
+    log(`[arène] partie ${game.id} : ${winner < 0 ? 'égalité' : `équipe ${winner ? 'B' : 'A'}`} (${game.rounds.join(' manches à ')}, ${reason})`)
     announce()
   }
 
@@ -564,6 +609,7 @@ export function createArena({ playerById, emit, broadcast, now = Date.now, rando
       if (!debug || !game) return
       if (typeof data.freeze === 'boolean') game.frozen = data.freeze
       if (Array.isArray(data.score) && data.score.length === 2 && data.score.every(Number.isInteger)) game.score = data.score
+      if (Array.isArray(data.rounds) && data.rounds.length === 2 && data.rounds.every(Number.isInteger)) game.rounds = data.rounds
       return
     }
     if (game) return gameAction(p, game, action, data)
@@ -637,13 +683,15 @@ export function createArena({ playerById, emit, broadcast, now = Date.now, rando
       if (!game.frozen) for (const f of game.fighters.values()) if (f.bot && f.alive) stepBot(game, f, dt)
       stepBullets(game, dt)
       if (game.ended) return
-      if (t >= game.endsAt) return endGame(game, game.score[0] === game.score[1] ? -1 : game.score[0] > game.score[1] ? 0 : 1, 'time')
+      if (t >= game.endsAt) return endRound(game, game.score[0] === game.score[1] ? -1 : game.score[0] > game.score[1] ? 0 : 1, 'time')
     }
     toGame(game, 'arena:state', {
       game: game.id,
       warmup: Math.max(0, round2((game.liveAt - t) / 1000)),
       left: Math.max(0, Math.round((game.endsAt - Math.max(t, game.liveAt)) / 100) / 10),
       score: game.score,
+      round: game.round,
+      rounds: game.rounds,
       fighters: [...game.fighters.values()].map((f) => ({
         id: f.id, x: round2(f.x), z: round2(f.z), yaw: round2(f.yaw), anim: f.anim, hp: Math.max(0, Math.round(f.hp)), alive: f.alive, weapon: f.weapon,
         shield: t < f.shieldUntil, kills: f.kills, deaths: f.deaths, wait: f.alive ? 0 : Math.max(0, round2((f.respawnAt - t) / 1000)),

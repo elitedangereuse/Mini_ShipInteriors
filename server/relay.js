@@ -73,7 +73,7 @@ import { Server } from 'socket.io'
 import { fightRelay } from './fights.js'
 import { BOARD_GAMES, applyBoardMove, boardColor, boardState, newBoardGame } from './boards.js'
 import { sanitizeLayout } from './cabin.js'
-import { fetchQuarters, fetchQuestsDone, hasSiteArtwork, postBarRegular, postSalvageResult, siteArtworkAllowed } from './site.js'
+import { fetchQuarters, fetchQuestsDone, hasSiteArtwork, postArenaResult, postBarRegular, postSalvageResult, siteArtworkAllowed } from './site.js'
 import { COOKIE, cleanCmdrName, cmdrIdentityFromCookie, cookieValue } from './cmdr.js'
 import { createSalvage, GAME_ACTIONS, LOBBY_ACTIONS } from './salvage.js'
 import { salvageMinDuration } from '../shared/salvage.js'
@@ -237,7 +237,7 @@ export function attachRelay(
   httpServer,
   { log = console.log, error = console.error, cmdrUrl = process.env.ED_CMDR_URL ?? '', path = process.env.WS_PATH || WS_PATH,
     devCmdr = false, youtubeKey = process.env.YOUTUBE_API_KEY ?? '', youtubeFetch = fetch, relaySecret = process.env.MSI_RELAY_SECRET ?? '',
-    salvageFetch = fetch, quartersFetch = fetch, barFetch = fetch, questsFetch = fetch } = {},
+    salvageFetch = fetch, arenaFetch = fetch, quartersFetch = fetch, barFetch = fetch, questsFetch = fetch } = {},
 ) {
   if (!cmdrUrl) error('[relais] ED_CMDR_URL absent : les comptes Élite Dangereuse ne peuvent pas être reconnus (tout le monde est invité).')
   const io = new Server(httpServer, {
@@ -515,6 +515,7 @@ export function attachRelay(
     playerById,
     emit: (id, event, data) => sockets.get(id)?.emit(event, data),
     broadcast: (event, data) => io.emit(event, data),
+    report: (fighter, result) => postArenaResult(fighter.cookie, result, { cmdrUrl, secret: relaySecret, error, fetcher: arenaFetch }),
     log,
     debug: devCmdr,
   })
