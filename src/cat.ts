@@ -117,6 +117,15 @@ export class Cat {
     return !a || (x >= a.minX && x <= a.maxX && z >= a.minZ && z <= a.maxZ)
   }
 
+  /** Posé ailleurs d'un coup (d'autres quartiers affichés) : il oublie son trajet et repart de là. */
+  settle(x: number, z: number) {
+    this.root.position.set(x, 0, z)
+    this.path = []
+    this.hungry = false
+    this.state = 'idle'
+    this.timer = 1 + Math.random() * 2
+  }
+
   /** Caresse : le chat se tourne vers le joueur, ronronne et se réjouit. */
   pet(from: THREE.Vector3) {
     this.path = []

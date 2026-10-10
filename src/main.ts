@@ -1659,6 +1659,8 @@ interface Companion {
 const companions = new Map<string, Companion>()
 const companionsLoading = new Set<string>()
 let companionItems: CabinItem[] | null = null
+/** Hôte dont les animaux sont affichés (null : les siens). */
+let companionHost: number | null = null
 
 /** Paniers habités : deux animaux au plus, Comète compris (les règles de pose l'imposent aussi). */
 function wantedCompanions(): Map<string, CabinItem> {
@@ -1676,10 +1678,17 @@ function wantedCompanions(): Map<string, CabinItem> {
   return wanted
 }
 
-/** Fait correspondre les animaux aux paniers, à chaque nouvel aménagement affiché. */
+/**
+ * Fait correspondre les animaux aux paniers, à chaque nouvel aménagement affiché. D'autres
+ * quartiers (début ou fin de visite) : ce sont d'autres animaux, même de la même espèce, et
+ * chacun repart de son panier plutôt que de l'endroit où se tenait celui d'avant.
+ */
 function syncCompanions() {
-  if (cabin.items === companionItems) return
+  const host = visiting?.host ?? null
+  const moved = host !== companionHost
+  if (cabin.items === companionItems && !moved) return
   companionItems = cabin.items
+  companionHost = host
   // Comète arrive avec son panier, et repart avec.
   const basket = cabin.items.find((i) => i.m === 'cat-bed')
   if (!!basket !== cometeHere) {
@@ -1694,19 +1703,23 @@ function syncCompanions() {
       cat.root.removeFromParent()
       if (i >= 0) catDeck.interactables.splice(i, 1)
     }
+  } else if (basket && moved) {
+    cat.settle(basket.x, basket.z)
+    unstick(cat.root.position, 0.12)
   }
   const wanted = wantedCompanions()
-  for (const key of [...companions.keys()]) if (!wanted.has(key)) removeCompanion(key)
+  for (const key of [...companions.keys()]) if (moved || !wanted.has(key)) removeCompanion(key)
   for (const [key, item] of wanted) if (!companions.has(key) && !companionsLoading.has(key)) void addCompanion(key, item)
 }
 
-async function addCompanion(key: string, item: CabinItem) {
-  const species = speciesOfItem(item.m)!
+async function addCompanion(key: string, basket: CabinItem) {
+  const species = speciesOfItem(basket.m)!
   companionsLoading.add(key)
-  const r = await petRig(species, item.v).catch(() => null)
+  const r = await petRig(species, basket.v).catch(() => null)
   companionsLoading.delete(key)
-  // Le panier a pu disparaître pendant le chargement.
-  if (!r || companions.has(key) || !wantedCompanions().has(key)) return
+  // Le panier a pu disparaître pendant le chargement, ou devenir celui d'autres quartiers.
+  const item = wantedCompanions().get(key)
+  if (!r || companions.has(key) || !item) return
   // Perchoir et ruche ont un mât au milieu : l'animal apparaît au pied.
   const aside = species.home === 'perch' || species.home === 'hive' ? 0.3 : 0
   const pet = new Cat(r, homeDeck, item.x, item.z + aside, { name: species.name, scale: species.scale, bowls: petBowls })
