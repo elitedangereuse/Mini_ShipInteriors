@@ -477,7 +477,7 @@ let viewDeck = homeDeck
 let cctv: ShipCameras | null = null
 /** Zone thargoïde : lobby, mission, caméras (créée une fois le relais prêt, cf. plus bas). */
 let salvage: SalvageClient | null = null
-/** L'arène : salons du lobby, partie (créée avec la zone thargoïde, cf. plus bas). */
+/** L'arène : lobbys du terminal, partie (créée avec la zone thargoïde, cf. plus bas). */
 let arenaMode: ArenaClient | null = null
 
 const stars = new Starfield()

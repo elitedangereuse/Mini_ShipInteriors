@@ -74,12 +74,12 @@ test('l\'arène a son propre « pont », distinct des autres lieux hors du vaiss
 test('un salon se forme au lobby, la partie part, et l\'arène reste entre ses joueurs', async () => {
   const a = client(), b = client(), other = client()
   const [wa, wb, wo] = await Promise.all([welcome(a), welcome(b), welcome(other)])
-  assert.deepEqual(wa.arena, { rooms: [] })
+  assert.deepEqual(wa.arena.rooms.map((r) => [r.id, r.members.length]), [[1, 0], [2, 0], [3, 0], [4, 0]])
   a.emit('state', LOBBY)
   b.emit('state', { ...LOBBY, x: 23 })
   await next(other, 'state', (m) => m.id === wb.id)
-  const opened = next(b, 'arena:lobby', (m) => m.rooms.length === 1)
-  a.emit('arena:create', { weapon: 'pistol' })
+  const opened = next(b, 'arena:lobby', (m) => m.rooms[0].members.length === 1)
+  a.emit('arena:join', { room: 1, weapon: 'pistol' })
   const room = (await opened).rooms[0]
   assert.equal(room.leader, wa.id)
   a.emit('arena:settings', { size: 1, bots: false })

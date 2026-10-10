@@ -32,6 +32,8 @@ export const ARENA_TERMINAL = { x: 25.1, z: 7.7 }
  * - `self` : part des dégâts de sa propre explosion qu'on encaisse.
  */
 export const ARENA_RULES = {
+  /** Lobbys du terminal : autant de parties qui peuvent se préparer (et se jouer) en même temps. */
+  lobbies: 4,
   team: 3,
   hp: 100,
   goal: 10,

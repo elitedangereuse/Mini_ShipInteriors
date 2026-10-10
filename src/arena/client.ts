@@ -86,9 +86,9 @@ const WEAPON_KEY = 'mini-shipinteriors-arena-weapon'
 const ERRORS: Record<string, string> = {
   lobby: tr('Il faut être dans le lobby du sas.', 'You need to be in the airlock lobby.'),
   full: tr('Ce camp est complet.', 'That side is full.'),
-  playing: tr('Ce salon est déjà en partie.', 'That room is already playing.'),
-  gone: tr('Ce salon n\'existe plus.', 'That room no longer exists.'),
-  leader: tr('Seul le chef du salon règle la partie.', 'Only the room leader sets the match.'),
+  playing: tr('Ce lobby est déjà en partie.', 'That lobby is already playing.'),
+  gone: tr('Ce lobby n\'existe pas.', 'That lobby doesn\'t exist.'),
+  leader: tr('Seul le chef du lobby règle la partie.', 'Only the lobby leader sets the match.'),
   crowded: tr('Trop de monde dans un camp pour ce format.', 'Too many players on one side for that format.'),
   alone: tr('Sans bots, il faut quelqu\'un dans le camp d\'en face.', 'Without bots, someone has to be on the other side.'),
 }
@@ -119,11 +119,10 @@ export class ArenaClient {
       if (WEAPONS.some((w) => w.id === saved)) this.weapon = saved as WeaponId
     } catch {}
     this.panel = new ArenaPanel({
-      create: () => {
-        host.net.sendArena('create', { weapon: this.weapon })
+      join: (room, team) => {
+        host.net.sendArena('join', { room, team, weapon: this.weapon })
         void loadZoneKit()
       },
-      join: (room, team) => host.net.sendArena('join', { room, team, weapon: this.weapon }),
       leave: () => host.net.sendArena('leave'),
       side: (team) => host.net.sendArena('side', { team }),
       settings: (s) => host.net.sendArena('settings', s),

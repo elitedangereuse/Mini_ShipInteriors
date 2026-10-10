@@ -6,6 +6,7 @@ export declare const ARENA_LEVEL: -5
 export declare const ARENA_RETURN: { x: number; z: number }
 export declare const ARENA_TERMINAL: { x: number; z: number }
 export declare const ARENA_RULES: {
+  lobbies: number
   team: number
   hp: number
   goal: number

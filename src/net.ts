@@ -229,11 +229,11 @@ export interface SalvageEnd {
 export interface SalvageMemberStats { id: number; name: string; delivered: number; spotted: number; flares: number; hides: number; captured: number }
 export type SalvageAction = 'join' | 'leave' | 'settings' | 'ready' | 'pickup' | 'hide' | 'unhide' | 'flare' | 'quit' | 'resume'
 
-/** L'arène (cf. server/arena.js) : un salon du lobby, ses deux camps, ou sa partie en cours. */
+/** L'arène (cf. server/arena.js) : un des lobbys du terminal (son numéro), vide, ses deux camps, ou sa partie en cours. */
 export interface ArenaMember { id: number; name: string; verified: boolean; team: 0 | 1; weapon: WeaponId; ready: boolean }
 export interface ArenaRoom {
   id: number
-  leader: number
+  leader: number | null
   /** Joueurs par équipe ; `bots` : ils complètent les deux équipes, au niveau `skill` (0 à 2). */
   size: number
   bots: boolean
@@ -282,7 +282,7 @@ export interface ArenaEnd {
   duration: number
   stats: ArenaStats[]
 }
-export type ArenaAction = 'create' | 'join' | 'leave' | 'side' | 'settings' | 'weapon' | 'ready' | 'fire' | 'quit'
+export type ArenaAction = 'join' | 'leave' | 'side' | 'settings' | 'weapon' | 'ready' | 'fire' | 'quit'
 
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
@@ -685,7 +685,7 @@ export class Net {
     this.send(`salvage:${action}`, data)
   }
 
-  /** L'arène : son salon au lobby, puis ses tirs en partie (cf. server/arena.js). */
+  /** L'arène : son lobby au terminal, puis ses tirs en partie (cf. server/arena.js). */
   sendArena(action: ArenaAction, data: object = {}) {
     this.send(`arena:${action}`, data)
   }

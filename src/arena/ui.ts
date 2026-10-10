@@ -6,7 +6,7 @@ import { button, el, Modal } from '../salvage/ui'
 import { ARENA_RULES, ARENA_TEAMS, arenaGoal } from '../../shared/arena.js'
 
 /*
- * Interface de l'arène : le terminal du lobby (les salons, les deux camps, l'arme, les réglages,
+ * Interface de l'arène : le terminal du sas (les quatre lobbys où l'on se place, les deux camps, l'arme, les réglages,
  * « prêt »), puis en partie le score des deux équipes et le chrono, les points de vie, le fil des
  * éliminations, l'écran d'attente de celui qui vient d'être éliminé (il y change d'arme), et le
  * tableau de fin.
@@ -17,7 +17,6 @@ const SKILLS = [tr('Recrues', 'Rookies'), tr('Pilotes', 'Pilots'), tr('Élite', 
 const format = (size: number) => tr(`${size} contre ${size}`, `${size} vs ${size}`)
 
 export interface ArenaPanelActions {
-  create(): void
   join(room: number, team?: number): void
   leave(): void
   side(team: number): void
@@ -44,7 +43,7 @@ function weaponPicker(current: WeaponId, pick: (id: WeaponId) => void, keys = fa
   return row
 }
 
-/** Le terminal de l'arène : ouvrir un salon ou en rejoindre un, choisir son camp et son arme, se déclarer prêt. */
+/** Le terminal de l'arène : se placer dans un des lobbys, choisir son camp et son arme, se déclarer prêt. */
 export class ArenaPanel extends Modal {
   private lobby: ArenaLobby = { rooms: [] }
   private self = -1
@@ -91,20 +90,14 @@ export class ArenaPanel extends Modal {
       return
     }
     const room = this.room
+    // Les lobbys, toujours visibles : on voit qui joue avec qui, et l'on en change d'un clic.
+    const list = el('div', 'salvage-teams')
+    for (const r of this.lobby.rooms) list.append(this.listCard(r, room))
+    this.body.append(list)
     if (room) this.body.append(this.roomCard(room))
-    const others = this.lobby.rooms.filter((r) => r !== room)
-    if (others.length) {
-      const list = el('div', 'salvage-teams')
-      for (const r of others) list.append(this.listCard(r, !!room))
-      this.body.append(list)
-    } else if (!room) this.body.append(el('p', 'salvage-empty', tr('Aucun salon ouvert. Ouvrez le vôtre : seul contre les bots, ou en attendant du monde.', 'No room open. Open yours: solo against the bots, or while waiting for company.')))
-    if (!room) {
+    else {
+      this.body.append(el('p', 'salvage-empty', tr('Placez-vous dans un lobby : seul contre les bots, ou avec ceux qui jouent avec vous.', 'Pick a lobby: solo against the bots, or with whoever is playing with you.')))
       this.body.append(el('span', 'salvage-label', tr('Votre arme', 'Your weapon')), weaponPicker(this.weapon, (id) => this.pick(id)))
-      const create = button(tr('Ouvrir un salon', 'Open a room'), () => this.actions.create(), 'salvage-primary', 'plus')
-      create.dataset.key = 'create'
-      const row = el('div', 'salvage-actions')
-      row.append(create)
-      this.body.append(row)
     }
     this.body.append(el('p', 'salvage-note', tr('Pour l\'honneur : l\'arène ne rapporte pas de crédits.', 'For honour only: the arena pays no credits.')))
     if (this.status) this.body.append(el('p', 'salvage-status', this.status))
@@ -117,24 +110,34 @@ export class ArenaPanel extends Modal {
     this.render()
   }
 
-  /** Un salon où l'on n'est pas : son format, qui s'y trouve, et le bouton pour le rejoindre. */
-  private listCard(r: ArenaRoom, elsewhere: boolean): HTMLElement {
+  /** Un lobby : son format, qui s'y trouve, et le bouton pour s'y placer. */
+  private listCard(r: ArenaRoom, mine: ArenaRoom | null): HTMLElement {
+    const own = r === mine
     const playing = r.status === 'playing'
-    const card = el('div', `salvage-lobby-card${playing ? ' playing' : ''}`)
+    const card = el('div', `salvage-lobby-card${own ? ' own' : ''}${playing ? ' playing' : ''}`)
     const head = el('div', 'salvage-lobby-head')
-    head.append(el('strong', '', tr(`Salon ${r.id}`, `Room ${r.id}`)))
-    head.append(el('span', 'salvage-lobby-state', playing ? `${r.score?.[0] ?? 0} – ${r.score?.[1] ?? 0}` : r.status === 'countdown' ? tr('Départ imminent', 'Starting') : format(r.size)))
+    head.append(el('strong', '', `Lobby ${r.id}`))
+    const state = playing ? `${r.score?.[0] ?? 0} – ${r.score?.[1] ?? 0}`
+      : r.status === 'countdown' ? tr('Départ imminent', 'Starting')
+        : !r.members.length ? tr('Libre', 'Empty')
+          : `${r.members.length}/${r.size * 2}`
+    head.append(el('span', 'salvage-lobby-state', state))
     card.append(head)
     const seats = el('ul', 'salvage-seats')
     for (const m of r.members) {
-      const li = el('li', `team${m.team}`)
-      li.append(icon(m.id === r.leader ? 'crown' : 'user-solo', m.id === r.leader ? 'salvage-crown' : 'salvage-seat-icon'), el('span', 'salvage-name', m.name))
+      const li = el('li', `team${m.team}${m.ready ? ' ready' : ''}`)
+      li.append(icon(m.id === r.leader ? 'crown' : 'user-solo', m.id === r.leader ? 'salvage-crown' : 'salvage-seat-icon'))
+      li.append(el('span', 'salvage-name', m.name + (m.id === this.self ? tr(' (vous)', ' (you)') : '')))
+      if (m.ready && !playing) li.append(icon('check', 'salvage-seat-ready'))
       seats.append(li)
     }
-    card.append(seats, el('span', 'salvage-lobby-detail', r.bots ? tr(`Bots : ${SKILLS[r.skill]}`, `Bots: ${SKILLS[r.skill]}`) : tr('Sans bots', 'No bots')))
-    if (!playing) {
+    if (!r.members.length) seats.append(el('li', 'free', tr('Personne pour l\'instant', 'Nobody yet')))
+    const bots = r.bots ? tr(`bots : ${SKILLS[r.skill]}`, `bots: ${SKILLS[r.skill]}`) : tr('sans bots', 'no bots')
+    card.append(seats, el('span', 'salvage-lobby-detail', r.members.length ? `${format(r.size)} · ${bots}` : tr('Le premier arrivé règle la partie.', 'First in sets the match.')))
+    if (own) card.append(el('span', 'salvage-lobby-own', tr('Votre lobby', 'Your lobby')))
+    else if (!playing) {
       const full = r.members.length >= r.size * 2
-      const join = button(full ? tr('Complet', 'Full') : elsewhere ? tr('Changer pour ce salon', 'Switch to this room') : tr('Rejoindre', 'Join'), () => this.actions.join(r.id), elsewhere || full ? '' : 'salvage-primary', 'user-plus')
+      const join = button(full ? tr('Complet', 'Full') : mine ? tr('Changer pour ce lobby', 'Switch to this lobby') : tr('Se placer ici', 'Join this lobby'), () => this.actions.join(r.id), mine || full ? '' : 'salvage-primary', 'user-plus')
       join.dataset.key = `join-${r.id}`
       join.disabled = full
       card.append(join)
@@ -142,12 +145,12 @@ export class ArenaPanel extends Modal {
     return card
   }
 
-  /** Son salon : les deux camps face à face, son arme, les réglages du chef, « prêt ». */
+  /** Son lobby : les deux camps face à face, son arme, les réglages du chef, « prêt ». */
   private roomCard(r: ArenaRoom): HTMLElement {
     const card = el('div', 'salvage-team')
     const leader = r.leader === this.self
     const me = r.members.find((m) => m.id === this.self)!
-    card.append(el('strong', 'salvage-team-title', tr(`Salon ${r.id} · ${format(r.size)} · ${arenaGoal(r.size)} éliminations`, `Room ${r.id} · ${format(r.size)} · ${arenaGoal(r.size)} kills`)))
+    card.append(el('strong', 'salvage-team-title', tr(`Lobby ${r.id} · ${format(r.size)} · ${arenaGoal(r.size)} éliminations`, `Lobby ${r.id} · ${format(r.size)} · ${arenaGoal(r.size)} kills`)))
 
     const sides = el('div', 'arena-sides')
     for (const team of ARENA_TEAMS) {
@@ -204,13 +207,13 @@ export class ArenaPanel extends Modal {
       stepper(tr('Bots', 'Bots'), r.bots ? SKILLS[r.skill] : tr('Aucun', 'None'), r.bots ? r.skill : -1, -1, SKILLS.length - 1, (v) => this.actions.settings(v < 0 ? { bots: false } : { bots: true, skill: v }), 'bots'),
     )
     card.append(settings)
-    if (!leader) card.append(el('p', 'salvage-note', tr('Le chef du salon règle la partie ; un changement remet tout le monde en attente.', 'The room leader sets the match; any change puts everyone back on standby.')))
+    if (!leader) card.append(el('p', 'salvage-note', tr('Le chef du lobby (le premier arrivé) règle la partie ; un changement remet tout le monde en attente.', 'The lobby leader (first in) sets the match; any change puts everyone back on standby.')))
 
     const actions = el('div', 'salvage-actions')
     if (r.status === 'countdown') actions.append(el('strong', 'salvage-countdown', tr(`Départ dans ${Math.ceil(r.startsIn ?? 0)} s…`, `Starting in ${Math.ceil(r.startsIn ?? 0)} s…`)))
     const ready = button(me.ready ? tr('Finalement, pas prêt', 'Not ready after all') : tr('Je suis prêt', 'I\'m ready'), () => this.actions.ready(!me.ready), me.ready ? '' : 'salvage-primary', me.ready ? 'x' : 'check')
     ready.dataset.key = 'ready'
-    const leave = button(tr('Quitter le salon', 'Leave the room'), () => this.actions.leave(), 'salvage-quiet', 'sign-out')
+    const leave = button(tr('Quitter le lobby', 'Leave the lobby'), () => this.actions.leave(), 'salvage-quiet', 'sign-out')
     leave.dataset.key = 'leave'
     actions.append(ready, leave)
     card.append(actions)

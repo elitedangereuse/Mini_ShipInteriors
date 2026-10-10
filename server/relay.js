@@ -509,7 +509,7 @@ export function attachRelay(
   const salvageTimer = setInterval(() => salvage.tick(0.1), 100)
   salvageTimer.unref?.()
   httpServer.on('close', () => clearInterval(salvageTimer))
-  // L'arène (cf. arena.js) : les salons se forment au même lobby, chaque partie a son instance,
+  // L'arène (cf. arena.js) : ses quatre lobbys se remplissent au même sas, chaque partie a son instance,
   // ses balles et ses bots ; elle avance vingt fois par seconde.
   const arena = createArena({
     playerById,

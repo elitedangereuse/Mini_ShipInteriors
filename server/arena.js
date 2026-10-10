@@ -1,10 +1,12 @@
 // L'arène (duels par équipes, cf. shared/arena.js), côté relais : il fait autorité sur la partie.
 //
-// Lobby : au terminal de l'arène (dans le lobby de la zone thargoïde, pièce 'h' de la cale), on
-// ouvre un salon ou l'on en rejoint un. Chacun y choisit son camp et son arme ; le chef du salon
-// règle le format (un, deux ou trois par équipe), les bots (ils complètent les deux équipes) et
-// leur niveau. La partie part quelques secondes après que tout le monde s'est déclaré prêt.
-// Sortir du lobby, c'est quitter le salon.
+// Lobby : au terminal de l'arène (dans le sas de la zone thargoïde, pièce 'h' de la cale), quatre
+// lobbys (ARENA_RULES.lobbies, les « salons » du code) attendent chacun une partie : on se place
+// dans celui de son choix, pour jouer avec qui l'on veut, et l'on en change librement. Chacun y
+// choisit son camp et son arme ; le premier arrivé en est le chef : il règle le format (un, deux ou
+// trois par équipe), les bots (ils complètent les deux équipes) et leur niveau. La partie part
+// quelques secondes après que tout le monde s'est déclaré prêt. Sortir du sas, c'est quitter son
+// lobby ; un lobby vidé retrouve ses réglages de départ.
 //
 // Partie : une instance par salon. Les clients n'envoient que leur position (l'événement « state »
 // du relais) et leurs tirs (d'où part la balle, vers où) ; le relais fait voler les balles, compte
@@ -29,7 +31,7 @@ import { WEAPON_IDS, WEAPON_STATS } from '../shared/weapons.js'
 import { inLobby } from './salvage.js'
 
 /** Événements du lobby ; les autres sont ceux d'une partie (l'arme se change dans les deux). */
-export const ARENA_LOBBY_ACTIONS = new Set(['arena:create', 'arena:join', 'arena:leave', 'arena:side', 'arena:settings', 'arena:weapon', 'arena:ready'])
+export const ARENA_LOBBY_ACTIONS = new Set(['arena:join', 'arena:leave', 'arena:side', 'arena:settings', 'arena:weapon', 'arena:ready'])
 export const ARENA_GAME_ACTIONS = new Set(['arena:fire', 'arena:quit'])
 
 const RAD = Math.PI / 180
@@ -53,9 +55,11 @@ const round2 = (v) => Math.round(v * 100) / 100
  * @param {(event: string, data: object) => void} o.broadcast envoie à tout le bord
  */
 export function createArena({ playerById, emit, broadcast, now = Date.now, random = Math.random, log = () => {}, debug = false }) {
-  const rooms = new Map() // id -> salon
+  // Les salons, fixes : id -> salon (vide tant que personne ne s'y est placé).
+  const rooms = new Map(Array.from({ length: R.lobbies }, (_, i) => [i + 1, { id: i + 1, members: new Map(), game: null }]))
+  const reset = (r) => Object.assign(r, { leader: null, size: 3, bots: true, skill: 1, status: 'forming', startAt: 0 })
+  for (const r of rooms.values()) reset(r)
   const roomOf = new Map() // id du joueur -> salon
-  let nextRoom = 1
 
   // ------------------------------------------------------------------ lobby
 
@@ -85,7 +89,7 @@ export function createArena({ playerById, emit, broadcast, now = Date.now, rando
     roomOf.delete(p.id)
     r.members.delete(p.id)
     if (!r.members.size) {
-      if (!r.game) rooms.delete(r.id)
+      if (!r.game) reset(r)
       return
     }
     if (r.leader === p.id) r.leader = r.members.keys().next().value
@@ -97,23 +101,17 @@ export function createArena({ playerById, emit, broadcast, now = Date.now, rando
     if (action !== 'arena:leave' && !inLobby(p)) return error(p, 'lobby')
     const weapon = WEAPON_IDS.includes(data.weapon) ? data.weapon : null
     switch (action) {
-      case 'arena:create': {
-        if (r) { leaveRoom(p); unready(r) }
-        const room = { id: nextRoom++, leader: p.id, size: 3, bots: true, skill: 1, status: 'forming', startAt: 0, members: new Map(), game: null }
-        rooms.set(room.id, room)
-        room.members.set(p.id, { name: p.name, team: 0, weapon: weapon ?? 'pistol', ready: false })
-        roomOf.set(p.id, room)
-        break
-      }
       case 'arena:join': {
         const room = rooms.get(data.room)
-        if (!room || room === r) return error(p, 'gone')
+        if (!room) return error(p, 'gone')
+        if (room === r) return
         if (room.status === 'playing') return error(p, 'playing')
         // Le camp demandé s'il a de la place, sinon le moins garni.
         const wanted = data.team === 0 || data.team === 1 ? data.team : count(room, 0) <= count(room, 1) ? 0 : 1
         const team = count(room, wanted) < room.size ? wanted : 1 - wanted
         if (count(room, team) >= room.size) return error(p, 'full')
         if (r) { leaveRoom(p); unready(r) }
+        if (!room.members.size) room.leader = p.id
         room.members.set(p.id, { name: p.name, team, weapon: weapon ?? 'pistol', ready: false })
         roomOf.set(p.id, room)
         unready(room)
@@ -503,7 +501,7 @@ export function createArena({ playerById, emit, broadcast, now = Date.now, rando
       game: game.id, winner, reason, score: [...game.score], goal: game.goal, duration: Math.max(0, duration),
       stats: [...game.fighters.values()].map((f) => ({ ...publicFighter(f), kills: f.kills, deaths: f.deaths, damage: Math.round(f.damage) })),
     })
-    if (!r.members.size) rooms.delete(r.id)
+    if (!r.members.size) reset(r)
     log(`[arène] partie ${game.id} : ${winner < 0 ? 'égalité' : `équipe ${winner ? 'B' : 'A'}`} (${game.score.join(' à ')}, ${reason})`)
     announce()
   }
@@ -525,7 +523,7 @@ export function createArena({ playerById, emit, broadcast, now = Date.now, rando
       game.ended = true
       r.game = null
       r.status = 'forming'
-      if (!r.members.size) rooms.delete(r.id)
+      if (!r.members.size) reset(r)
     } else if (r.bots) {
       // Un bot prend sa place, à la base de son équipe.
       const bot = addBot(game, f.team)
