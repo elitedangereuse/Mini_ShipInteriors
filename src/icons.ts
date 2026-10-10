@@ -75,6 +75,7 @@ import userPlus from '@phosphor-icons/core/bold/user-plus-bold.svg?raw'
 import lineSegment from '@phosphor-icons/core/bold/line-segment-bold.svg?raw'
 import rectangleBold from '@phosphor-icons/core/bold/rectangle-bold.svg?raw'
 import eyedropper from '@phosphor-icons/core/bold/eyedropper-bold.svg?raw'
+import arrowsLeftRight from '@phosphor-icons/core/bold/arrows-left-right-bold.svg?raw'
 import arrowsOutCardinal from '@phosphor-icons/core/bold/arrows-out-cardinal-bold.svg?raw'
 import selectionAll from '@phosphor-icons/core/bold/selection-all-bold.svg?raw'
 import warningCircle from '@phosphor-icons/core/bold/warning-circle-bold.svg?raw'
@@ -239,6 +240,7 @@ const SVG = {
   'line-segment': lineSegment,
   rectangle: rectangleBold,
   eyedropper,
+  'arrows-left-right': arrowsLeftRight,
   'arrows-out-cardinal': arrowsOutCardinal,
   'selection-all': selectionAll,
   'warning-circle': warningCircle,

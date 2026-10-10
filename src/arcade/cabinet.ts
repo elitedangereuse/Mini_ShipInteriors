@@ -468,7 +468,7 @@ export class ArcadeCabinet {
    */
   private onKey = (e: KeyboardEvent) => {
     const modified = e.ctrlKey || e.metaKey || e.altKey
-    if (e.code === 'KeyM' && !modified) return
+    if (e.key.toLowerCase() === 'm' && !modified) return
     e.stopPropagation()
     const down = e.type === 'keydown'
     const keyMap = this.id === 'fight' ? FIGHT_KEYS : KEYS

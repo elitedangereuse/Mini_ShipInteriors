@@ -274,7 +274,7 @@ export class ShipCameras {
     else if (e.code === 'ArrowRight' || e.code === 'KeyD') this.cycle(1)
     else if (e.code === 'Escape' || e.code === 'KeyE') this.close()
     // Le reste du clavier ne fait rien tant qu'on regarde les écrans (ni marcher, ni ouvrir un panneau).
-    return e.code !== 'KeyM' && e.code !== 'Enter'
+    return e.key.toLowerCase() !== 'm' && e.code !== 'Enter'
   }
 
   /** L'horloge de l'incrustation, à la seconde. */

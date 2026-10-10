@@ -11,11 +11,9 @@ const SPRINT_FOV = 20
 const SPRINT_FROM = 2.1
 const SPRINT_FULL = 3.5
 /** Balancement de la marche : distance d'un pas, puis amplitudes (verticale ; la latérale en est la moitié). */
-const BOB_STRIDE = 0.4
-const BOB_WALK = 0.020
-const BOB_SPRINT = 0.048
-/** Roulis de la tête d'un pied sur l'autre (radians par unité de balancement) : un degré et demi en pleine course. */
-const BOB_ROLL = 0.30
+const BOB_STRIDE = 0.55
+const BOB_WALK = 0.008
+const BOB_SPRINT = 0.018
 /** Déplacement en une image au-delà duquel c'est une téléportation, pas une marche. */
 const TELEPORT = 0.6
 /**
@@ -34,7 +32,7 @@ const THIRD_MIN_ELEVATION = THREE.MathUtils.degToRad(-10)
 const THIRD_MAX_ELEVATION = THREE.MathUtils.degToRad(70)
 /**
  * Vue par-dessus l'épaule : la caméra recule de SHOULDER_DISTANCE le long du regard, décalée de
- * SHOULDER_SIDE vers la droite, autour d'un point un peu au-dessus de la tête (les têtes sont
+ * SHOULDER_SIDE vers la droite (ou la gauche, cf. `side`), autour d'un point un peu au-dessus de la tête (les têtes sont
  * grosses : plus bas, elle boucherait la mire). Elle regarde droit devant, comme dans les yeux :
  * la mire reste au centre.
  */
@@ -104,6 +102,10 @@ export class FirstPersonCamera {
   thirdPerson = false
   /** Voulue par-dessus l'épaule plutôt que dans les yeux. */
   shoulder = false
+  /** Épaule par-dessus laquelle on regarde : 1 à droite, -1 à gauche. */
+  side = 1
+  /** Où en est la caméra d'un côté à l'autre (elle glisse, sans sauter). */
+  private lean = 1
   /** 0 : dans les yeux, 1 : derrière le personnage. */
   private blend = 0
   /** 0 : dans les yeux, 1 : par-dessus l'épaule. */
@@ -148,6 +150,7 @@ export class FirstPersonCamera {
   snap() {
     this.blend = this.thirdPerson ? 1 : 0
     this.over = this.shoulder ? 1 : 0
+    this.lean = this.side
     this.room = 1
   }
 
@@ -213,6 +216,7 @@ export class FirstPersonCamera {
     this.blend = THREE.MathUtils.damp(this.blend, this.thirdPerson ? 1 : 0, 5, dt)
     if (Math.abs(this.blend - (this.thirdPerson ? 1 : 0)) < 1e-3) this.blend = this.thirdPerson ? 1 : 0
     this.over = THREE.MathUtils.damp(this.over, this.shoulder ? 1 : 0, 6, dt)
+    this.lean = THREE.MathUtils.damp(this.lean, this.side, 8, dt)
     if (Math.abs(this.over - (this.shoulder ? 1 : 0)) < 1e-3) this.over = this.shoulder ? 1 : 0
     const k = smooth(this.blend)
     const ks = smooth(this.over)
@@ -229,9 +233,9 @@ export class FirstPersonCamera {
       // Par-dessus l'épaule : en recul le long du regard, depuis l'axe du personnage, sans traverser de mur.
       _from.set(head.x, head.y + SHOULDER_ABOVE_HEAD, head.z)
       _shoulder.set(
-        _from.x + c * SHOULDER_SIDE + s * cp * SHOULDER_DISTANCE,
+        _from.x + c * SHOULDER_SIDE * this.lean + s * cp * SHOULDER_DISTANCE,
         THREE.MathUtils.clamp(_from.y - sp * SHOULDER_DISTANCE, head.y - SHOULDER_MAX_DROP, top),
-        _from.z - s * SHOULDER_SIDE + c * cp * SHOULDER_DISTANCE,
+        _from.z - s * SHOULDER_SIDE * this.lean + c * cp * SHOULDER_DISTANCE,
       )
       const reach = Math.hypot(_shoulder.x - _from.x, _shoulder.z - _from.z)
       const free = map && reach > 1e-3 ? THREE.MathUtils.clamp((wallReach(map, _from.x, _from.z, _shoulder.x, _shoulder.z) * reach - WALL_MARGIN) / reach, 0, 1) : 1
@@ -252,7 +256,6 @@ export class FirstPersonCamera {
     this.position.lerpVectors(_eye, _third, k)
     this.camera.position.copy(this.position)
     this.camera.lookAt(eyeLook.lerp(_pivot, k))
-    this.camera.rotateZ(Math.sin(this.stride) * this.bob * BOB_ROLL)
   }
 
   /**
