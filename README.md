@@ -37,6 +37,7 @@
 - [La salle commune](#la-salle-commune)
 - [Le mess](#le-mess)
 - [L'infirmerie](#linfirmerie)
+- [Le labo du L.J.P.C.](#le-labo-du-ljpc)
 - [Le hangar](#le-hangar)
 - [Le Zorb](#le-zorb)
 - [La serre](#la-serre)
@@ -618,6 +619,17 @@ Au nord de la coursive, entre la salle commune et la salle de sport, l'infirmeri
 **Betty, l'infirmière** : blonde platine, yeux bleus, rouge à lèvres « Rouge Achenar », blouse blanche décolletée, coiffe à croix rouge et stéthoscope. Elle fait la tournée de l'infirmerie (son poste de soins, la pharmacie, le pied des lits, le scanner, le frigo, la quarantaine, le lavabo, la salle d'attente), avec ses gestes et ses bruits. Comme Marcel et le sergent Rourke, elle est la même pour tout le bord : sa tournée suit une horloge que tient le relais (`shared/nurse.js`), et ses trajets contournent les meubles. Quand on lui parle, elle s'arrête et répond : son métier, sa vie à bord, le système, nos visites.
 
 **Consultation.** Allongé sur un lit de l'infirmerie, `Espace` appelle Betty. Elle vient au chevet, pour tout le bord (une consultation à la fois : si elle est déjà prise, elle le dit), ausculte, rend un diagnostic façon Elite (syndrome de la supercroisière, carence en café CD-75, tendinite du salut…), puis soigne : on repart avec un pansement rose en croix sur le dessus de la tête, que tout le bord voit une dizaine de minutes (le relais le garde, jusqu'au départ du joueur). Se relever avant la fin interrompt la consultation, sans pansement. Les consultations ne rapportent pas de crédits : leur nombre est gardé dans le navigateur, et Betty en parle.
+
+## Le labo du L.J.P.C.
+
+Au nord de la coursive, après la salle de sport, le labo (5 × 4 tuiles, pièce `l`) est celui de l'aventure « Connais ton ennemi » : James devant son tableau d'enquête, Julia qui dessine sur son tapis, Moustache, la table holographique et l'échantillon sous cloche (`src/furniture/ljpc.ts`). Sa porte ne s'ouvre qu'aux **membres du L.J.P.C.**, ceux qui portent le badge de fin d'aventure sur le site (cf. [Comptes Élite Dangereuse](#comptes-élite-dangereuse)).
+
+**Le lien avec le site** (`src/ljpc-site.ts`, endpoint `outils/mini-shipinteriors-ljpc.php` du site, réservé aux membres) passe par deux écrans (`src/furniture/ljpc-decor.ts`), qui ouvrent le même registre (`src/ljpc-panel.ts`, dans le panneau du site), chacun sur son onglet :
+
+- **Le registre des membres**, au mur ouest : un grand écran où défilent les vraies cartes de membre du site, quatre par quatre, des plus récents aux plus anciens, avec à gauche celle du CMDR, son numéro (son rang d'adhésion) et son ancienneté. Onglet « Membres » : la liste complète dans l'ordre d'adhésion, la carte de celui qu'on choisit et le lien de son profil. Un membre dont le site n'a pas généré la carte a son nom écrit sur la carte vierge.
+- **Le pupitre du Codex Galactique**, contre le mur est : son écran compte les observations validées du CMDR pour la Chasse galactique, et un petit système en hologramme fait tourner un corps par observation, de la couleur de son type. Onglet « Mon Codex » : ses observations (capture, corps, type, température, système et sa carte EDGIS), ses médailles par type, et les liens vers le Codex et la Chasse de la semaine sur le site.
+
+Le reste de l'habillage : un sol dessiné (les pistes de données qui relient les écrans à la table holographique, la marelle de Julia à la craie, de la Terre à l'espace, les pattes de Moustache), ses dessins pendus à un fil, et un mobile des planètes au-dessus de son tapis. Les données sont demandées au site à l'embarquement d'un membre, puis au plus toutes les deux minutes à l'ouverture du registre ; sans le site, les écrans affichent « hors ligne ».
 
 ## Le hangar
 

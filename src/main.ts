@@ -9,6 +9,7 @@ import { fishCollection } from './fishing/collection'
 import { FishingGame } from './fishing/game'
 import type { CourtId } from './arcade/game'
 import { loadSiteArt, SitePanel } from './site'
+import { loadLjpc } from './ljpc-site'
 import * as THREE from 'three'
 import type { ArcadeCabinet } from './arcade/cabinet'
 import { isGameId, RANGE_ID, type GameId } from './arcade/game'
@@ -315,6 +316,8 @@ quests.subscribe(applyQuestRooms)
 /** Aspirés par les toilettes pendant un saut FSD (cf. flushCrew). */
 const flushes = new ToiletFlushes(scene)
 deckById(0).setLjpcAccess(ljpcMember)
+// Les écrans du labo (registre des membres, Codex) demandent leurs données au site.
+if (ljpcMember) void loadLjpc()
 deckById(-1).setVoieAccess(voieAdept)
 const ljpcEntrance = deckById(0).map.doors.find((door) => {
   const d = DIRS[door.dir]
@@ -640,6 +643,10 @@ for (const it of decks[LEVELS.findIndex((l) => l.id === 0)].interactables) {
   } else if (it.furniture?.model === 'employee-board' || it.furniture?.model === 'score-board') {
     const kind = it.furniture.model === 'employee-board' ? 'crew' : it.furniture.label === 'gym' ? 'gym' : 'arcade'
     it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; void sitePanel.rankings(kind) }
+  } else if (it.furniture?.model === 'ljpc-members' || it.furniture?.model === 'ljpc-codex') {
+    // Les deux écrans du labo du L.J.P.C. ouvrent son registre, chacun sur son onglet.
+    const tab = it.furniture.model === 'ljpc-codex' ? 'codex' : 'members'
+    it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; void sitePanel.ljpc(tab) }
   }
 }
 const promptEl = $('prompt')
@@ -2140,6 +2147,8 @@ net.onMessage = (m) => {
       voieAdept = m.you.voie
       barRegular = m.you.bar === true
       deckById(0).setLjpcAccess(ljpcMember)
+      // Les écrans du labo (registre des membres, Codex) demandent leurs données au site.
+      if (ljpcMember) void loadLjpc()
       deckById(-1).setVoieAccess(voieAdept)
       deckById(-1).setBarAccess(barRegular)
       // Reconnu par le site via le relais : le compte est lié, même si la demande faite au

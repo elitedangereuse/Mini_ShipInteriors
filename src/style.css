@@ -3989,6 +3989,38 @@ body:has(.cinema-room-overlay:not([hidden])) .twitch-chat { right: 372px; }
   .bar-game-actions button { white-space: nowrap; }
 }
 .site-panel.site-rankings { width: min(940px, calc(100vw - 28px)); }
+/* Le registre du labo du L.J.P.C. (cf. src/ljpc-panel.ts) : sarcelle, comme le labo. */
+.site-panel.site-ljpc { width: min(940px, calc(100vw - 28px)); border-color: #3f8f80; background: linear-gradient(145deg, #173b3d, #0f2a2f 55%, #0a1f24); }
+.site-ljpc .site-kicker, .site-ljpc .site-caption { color: #57e6c1; }
+.site-panel.site-ljpc button[aria-pressed=true] { color: #d9fff4; border-color: #57e6c1; background: #1f5a52; box-shadow: inset 0 -2px #57e6c1; }
+.ljpc-hero { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 22px; align-items: center; margin-bottom: 20px; }
+.ljpc-card { width: 100%; height: auto; aspect-ratio: 7 / 4; border-radius: 10px; border: 1px solid #57e6c188; box-shadow: 0 12px 34px #0008, 0 0 0 4px #57e6c11c; background: #c9d2d6; }
+.ljpc-info h3 { margin: 6px 0 10px; font-size: 22px; overflow-wrap: anywhere; }
+.ljpc-info p { margin: 0 0 6px; color: #b9d8d0; font-size: 13px; }
+.ljpc-number { color: #57e6c1; font-size: 11px; font-weight: 700; letter-spacing: .12em; white-space: nowrap; }
+.site-panel a.ljpc-link { display: block; width: fit-content; margin-top: 10px; padding: 8px 14px; border: 1px solid #57e6c177; border-radius: 9px; color: #d9fff4; font-size: 13px; }
+.site-panel a.ljpc-link:hover { background: #57e6c11f; color: #fff; text-decoration: none; }
+.site-panel ol.ljpc-roster { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px; max-height: 320px; overflow: auto; scrollbar-width: thin; scrollbar-color: #3f8f80 #0f2a2f; }
+.site-panel .ljpc-row { display: grid; grid-template-columns: auto 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; padding: 6px 12px; text-align: left; background: #ffffff0a; border-color: #ffffff14; }
+.ljpc-row .site-avatar { width: 34px; height: 34px; }
+.ljpc-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.ljpc-row[data-you] strong { color: #ffe1b0; }
+.ljpc-since { color: #8fb5ab; font-size: 11px; }
+.site-panel ul.ljpc-medals { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 6px; padding: 0; max-height: none; line-height: 1.3; }
+.ljpc-medals li { display: flex; align-items: center; gap: 7px; padding: 4px 10px; border-radius: 99px; background: #ffffff0d; color: #d9efe9; font-size: 12px; }
+.ljpc-medals li::before, .ljpc-body h4::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--body, #57e6c1); box-shadow: 0 0 8px var(--body, #57e6c1); }
+.ljpc-empty { margin: 0 0 18px; padding: 18px; border-radius: 12px; background: #ffffff0a; color: #b9d8d0; text-align: center; }
+.ljpc-codex { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+.ljpc-codex article { overflow: hidden; border: 1px solid #ffffff1a; border-radius: 12px; background: #ffffff0d; }
+.ljpc-codex img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #0a1418; }
+.ljpc-body { padding: 13px 15px 15px; }
+.ljpc-body h4 { display: flex; align-items: center; gap: 8px; margin: 5px 0 10px; font-size: 16px; overflow-wrap: anywhere; }
+.ljpc-body dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 12px; }
+.ljpc-body dt { color: #8fb5ab; }
+.ljpc-body dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 720px) {
+  .ljpc-hero { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+}
 .site-heading { padding: 0 28px 22px 0; border-bottom: 1px solid #8eb6d12b; margin-bottom: 22px; }
 .site-kicker { color: #e9ba79; font-size: 10px; font-weight: 700; letter-spacing: .16em; }
 .site-panel h2 { margin: 9px 0 8px; font-size: 26px; letter-spacing: -.02em; }

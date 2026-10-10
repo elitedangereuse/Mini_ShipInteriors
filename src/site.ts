@@ -2,6 +2,8 @@ import { CATALOG } from './cabin/catalog'
 import { tr } from './i18n'
 import { formatCredits } from './economy/data'
 import type { Wallet } from './economy/wallet'
+import { loadLjpc } from './ljpc-site'
+import { renderLjpc, type LjpcTab } from './ljpc-panel'
 
 export const SITE_URL = '/outils/mini-shipinteriors-site.php'
 export const artUrl = (id: string) => `${SITE_URL}?image=${encodeURIComponent(id)}`
@@ -133,6 +135,7 @@ export class SitePanel {
   confirm() { this.buttons[this.selected]?.click() }
   private open(title: string, rankings?: RankingKind) {
     this.el.classList.toggle('site-rankings', !!rankings)
+    this.el.classList.remove('site-ljpc')
     this.subtitle.textContent = rankings
       ? RANKING_PANELS[rankings].subtitle
       : tr('Vos missions accomplies méritent une récompense.', 'Your completed missions deserve a reward.')
@@ -185,6 +188,28 @@ export class SitePanel {
     this.content.append(text, list, claim)
     this.buttons = [claim]; this.selected = 0
     if (!claim.disabled) claim.focus()
+  }
+  /**
+   * Le registre du labo du L.J.P.C. (cf. ljpc-panel.ts) : ses membres et leurs cartes, ou le Codex
+   * Galactique du CMDR, selon l'écran du labo qu'on consulte.
+   */
+  async ljpc(tab: LjpcTab) {
+    const token = this.open(tr('Registre du L.J.P.C.', 'L.J.P.C. registry'))
+    this.el.classList.add('site-ljpc')
+    this.subtitle.textContent = tr('Laboratoire des Jeunes Prodiges Cosmiques : ses membres, leurs cartes, et votre Codex Galactique.', 'Laboratory of Young Cosmic Prodigies: its members, their cards, and your Galactic Codex.')
+    const data = await loadLjpc()
+    if (token !== this.revision) return
+    if (typeof data === 'string') {
+      this.content.textContent = data === 'auth'
+        ? tr('Connectez-vous au site pour consulter le registre.', 'Sign in to the site to read the registry.')
+        : data === 'member'
+          ? tr('Le registre est réservé aux membres du L.J.P.C.', 'The registry is reserved for L.J.P.C. members.')
+          : tr('Le site ne répond pas. Fermez puis réessayez.', 'The site is unavailable. Close and try again.')
+      return
+    }
+    this.buttons = renderLjpc(this.content, data, tab)
+    this.selected = Math.max(0, this.buttons.findIndex((b) => b.getAttribute('aria-pressed') === 'true'))
+    this.buttons[this.selected]?.focus()
   }
   async rankings(kind: RankingKind = 'crew') {
     const token = this.open(RANKING_PANELS[kind].title, kind)

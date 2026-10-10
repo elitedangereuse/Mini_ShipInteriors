@@ -32,6 +32,7 @@ import { LEISURE } from './leisure'
 import { LIGHTS } from './lights'
 import { LISTENING } from './listening'
 import { LJPC } from './ljpc'
+import { LJPC_DECOR } from './ljpc-decor'
 import { MEDICAL } from './medical'
 import { NATURE } from './nature'
 import { OUTDOOR } from './outdoor'
@@ -97,6 +98,7 @@ import { WAYFINDING } from './wayfinding'
  * - listening.ts : le salon d'écoute (casques, affiches de Radio Dangereuse et des Galères Galactiques, poste d'écoute) ;
  * - studio.ts : le studio de Radio Dangereuse (table à trois micros, fauteuils, mousse acoustique, néon « ON AIR ») ;
  * - ljpc.ts : le labo du L.J.P.C. (tableau d'enquête, paillasse, échantillon, hologramme, James et Julia) ;
+ * - ljpc-decor.ts : l'habillage du labo du L.J.P.C. et son lien avec le site (registre des membres et de leurs cartes, pupitre du Codex Galactique, sol dessiné, dessins de Julia, mobile des planètes) ;
  * - vents.ts : les conduits de ventilation (toiles d'araignée, ventilateur, mots grattés, la grille du bar) ;
  * - voie.ts : le sanctuaire de la Voie (portail de Raxxla, Chroniques, icône de Salomé, Reliques, l'Adepte Supérieur) ;
  * - hangar.ts : le hangar de la cale (le Krait Mk II, son escabeau, le pad, l'atelier de Nico le mécano, le pupitre du hangar) ;
@@ -117,7 +119,7 @@ import { WAYFINDING } from './wayfinding'
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...COCKPIT, ...PROMENADE, ...CORRIDOR, ...CONCOURSE, ...WORKSHOP, ...BAR, ...CLUB, ...LEISURE, ...GYM, ...MEDICAL, ...KITCHEN, ...MESS_DECOR, ...ARCADE, ...ARCADE_DECOR, ...PIXELWAR, ...CARDS, ...MEDBAY, ...HOLD_DECOR, ...CLOSET, ...BOARD, ...COZY, ...GARDEN, ...GARDENING, ...NATURE, ...OUTDOOR, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...CLASSROOM, ...LISTENING, ...STUDIO, ...LJPC, ...PLANETARIUM, ...VENTS, ...VOIE, ...SALVAGE, ...SCAVENGERS, ...IDOT, ...HANGAR, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH, ...SPORT, ...RANGE, ...FISHING, ...TUTORIAL, ...QUESTS_FURNITURE, ...QUEST_REWARDS, ...SECURITY, ...WAYFINDING } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...COCKPIT, ...PROMENADE, ...CORRIDOR, ...CONCOURSE, ...WORKSHOP, ...BAR, ...CLUB, ...LEISURE, ...GYM, ...MEDICAL, ...KITCHEN, ...MESS_DECOR, ...ARCADE, ...ARCADE_DECOR, ...PIXELWAR, ...CARDS, ...MEDBAY, ...HOLD_DECOR, ...CLOSET, ...BOARD, ...COZY, ...GARDEN, ...GARDENING, ...NATURE, ...OUTDOOR, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...CLASSROOM, ...LISTENING, ...STUDIO, ...LJPC, ...LJPC_DECOR, ...PLANETARIUM, ...VENTS, ...VOIE, ...SALVAGE, ...SCAVENGERS, ...IDOT, ...HANGAR, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH, ...SPORT, ...RANGE, ...FISHING, ...TUTORIAL, ...QUESTS_FURNITURE, ...QUEST_REWARDS, ...SECURITY, ...WAYFINDING } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 

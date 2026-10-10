@@ -64,6 +64,9 @@ const SHIP: Record<string, FurnitureLight> = {
   'mess-neon': { color: '#ffb45e', intensity: 0.7, at: [0, 0.68, 0.3], priority: 6, soft: true },
   'mess-mural': { color: '#ffc890', intensity: 0.6, at: [0, 0.7, 0.4], priority: 6, soft: true },
   'mess-herbs': { color: '#ffc6f0', intensity: 0.45, at: [0, 0.8, 0.3], priority: 6, soft: true },
+  // Le labo du L.J.P.C. : le registre des membres et le pupitre du Codex, sarcelle.
+  'ljpc-members': { color: '#8ff5dc', intensity: 0.6, at: [0, 0.6, 0.4], priority: 6, soft: true },
+  'ljpc-codex': { color: '#8ff5dc', intensity: 0.5, at: [0, 0.8, 0.1], priority: 6, soft: true },
 }
 
 type Entry = (typeof CATALOG)[number]

@@ -1219,10 +1219,11 @@ export const LEVELS: LevelDef[] = [
       // La salle de la Pixel War est un atelier blanc : c'est la toile qui la colore.
       x: { level: 0.6 },
       p: { level: 1.25, color: '#ffffff' },
-      l: { level: 1.1, color: '#e4fff0' },
+      l: { level: 0.95, color: '#e4fff0' },
     },
-    // Le mur entre l'infirmerie et la salle de sport, où pendent le speed bag et l'écran des records.
-    plainWalls: [{ x: 15.5, z: 2 }],
+    // Le mur entre l'infirmerie et la salle de sport, où pendent le speed bag et l'écran des records ;
+    // celui du labo du L.J.P.C. qui porte le registre des membres.
+    plainWalls: [{ x: 15.5, z: 2 }, { x: 20.5, z: 1 }],
     // Le poste de pilotage et la Promenade sont vitrés sur l'espace ; le hall de la salle commune
     // aussi, au nord et au sud (la mezzanine, à la poupe, a ses grandes baies). L'infirmerie a sa
     // verrière au nord, à la tête des lits : on s'y repose devant les étoiles.
@@ -1803,17 +1804,38 @@ export const LEVELS: LevelDef[] = [
         ],
       },
       {
-        model: 'amadioha-photo', x: 25.35, z: 1, rot: 3, solid: false,
+        model: 'amadioha-photo', x: 24.35, z: 3.35, rot: 2, solid: false,
         interact: tr('Photo de l\'installation scientifique Amadioha, près de sa naine blanche. En bas, d\'une écriture d\'enfant : « Chez nous ».', 'Photo of the Amadioha Scientific Installation, beside its white dwarf. At the bottom, in a child\'s hand: “Home”.'),
       },
       {
-        model: 'ljpc-banner', x: 20.65, z: 1.75, rot: 1, solid: false,
+        model: 'ljpc-banner', x: 21.65, z: 3.35, rot: 2, solid: false,
         interact: tr('L.J.P.C. : Laboratoire des Jeunes Prodiges Cosmiques, fondé par James et Julia pour aider leur père… et l\'humanité.', 'L.J.P.C.: Laboratory of Young Cosmic Prodigies, founded by James and Julia to help their father… and humanity.'),
       },
       { model: 'bookshelf', x: 20.85, z: 2.75, rot: 1 },
       { model: 'rug-round', x: 24.15, z: 2, label: 'blue', solid: false },
       { model: 'cat-bed', x: 25, z: 2.9, interact: tr('Le panier de Moustache. Il y a des poils noirs partout, et un stylo de James.', 'Moustache\'s basket. Black hair everywhere, and one of James\'s pens.') },
       { model: 'pet-bowl', x: 25.05, z: 2.3, rot: 1 },
+      // L'habillage et le lien avec le site (cf. src/furniture/ljpc-decor.ts) : au mur ouest, le
+      // registre des membres, où défilent leurs cartes ; contre le mur est, le pupitre du Codex
+      // Galactique (les deux ouvrent le registre du labo, cf. main.ts). Le sol dessiné les relie à
+      // la table holographique ; à l'est, les dessins de Julia, et son mobile au-dessus du tapis.
+      { model: 'ljpc-floor', x: 23, z: 1.5, label: '5x4|23|1.5', solid: false },
+      {
+        model: 'ljpc-members', x: 20.65, z: 1.35, rot: 1, solid: false, action: tr('Consulter le registre', 'Read the registry'),
+        interact: tr('Le registre des membres du L.J.P.C.', 'The L.J.P.C. members registry.'),
+      },
+      {
+        model: 'ljpc-codex', x: 25.12, z: 0.95, rot: 3, action: tr('Ouvrir mon Codex', 'Open my Codex'),
+        interact: tr('Le pupitre du Codex Galactique.', 'The Galactic Codex console.'),
+      },
+      {
+        model: 'ljpc-drawings', x: 25.35, z: 2.6, rot: 3, solid: false,
+        interact: [
+          tr('Les dessins de Julia. Le Thargoïde est légendé « MÉCHANT ». Moustache a droit à un cœur.', 'Julia\'s drawings. The Thargoid is captioned “MEAN”. Moustache gets a heart.'),
+          tr('Sur le dernier dessin, le labo au complet : James, Julia, leur père, et un rectangle noir à oreilles.', 'On the last drawing, the whole lab: James, Julia, their father, and a black rectangle with ears.'),
+        ],
+      },
+      { model: 'ljpc-mobile', x: 24.15, z: 1.95, solid: false },
 
       // --- La coursive (cf. src/furniture/corridor.ts), rien qui arrête le pas : le chemin de
       // roulement et ses feux de guidage, l'enseigne de chaque porte, des pilastres lumineux et un
@@ -1905,6 +1927,8 @@ export const LEVELS: LevelDef[] = [
       // La salle de sport : une lumière blanche de salle, et le rouge de la boxe.
       [18.2, 1.3, '#f2f6ff', 2.8],
       [16.3, 1.4, '#ff8a7a', 1],
+      // Le labo du L.J.P.C. : la lueur verte de sa table holographique.
+      [23.15, 1.5, '#7dffa8', 1.2, undefined, 3],
       // Le mess : une tache chaude sous les suspensions de chaque table, les lampes chauffantes de
       // la passe, et la lumière blanche de la cuisine.
       [10.2, 7.45, '#ffb869', 2, undefined, 4.5],
