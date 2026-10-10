@@ -326,51 +326,20 @@ const simVoid: Builder = ({ label = '-8,-3,8,3', random }) => {
 
 /**
  * Marquage d'exercice projeté au sol. `label` : « genre|texte ».
- * - pad : l'aire d'arrivée, un cercle gradué ;
  * - target : une cible carrée à coins marqués, sa lettre au centre ;
  * - zone : un cadre de `l`x`p` tuiles (« zone|texte|3x2 »), son nom dans un coin ;
  * - lane : un couloir de chevrons, long de `l` tuiles (« lane||6 »), qui file vers +x.
  */
-const simMark: Builder = ({ label = 'pad|' }) => {
+const simMark: Builder = ({ label = 'target|' }) => {
   const [kind, text = '', dims = '1x1'] = label.split('|')
-  const [w, d] = kind === 'lane' ? [Number(dims), 0.5] : kind === 'zone' ? dims.split('x').map(Number) : kind === 'pad' ? [1.5, 1.5] : [1, 1]
+  const [w, d] = kind === 'lane' ? [Number(dims), 0.5] : kind === 'zone' ? dims.split('x').map(Number) : [1, 1]
   const px = 128
   const W = Math.round(w * px), H = Math.round(d * px)
   const texture = drawnTexture(W, H, (g) => {
     g.strokeStyle = g.fillStyle = CYAN
     g.textBaseline = 'middle'
     g.textAlign = 'center'
-    if (kind === 'pad') {
-      const c = W / 2
-      g.lineWidth = 5
-      g.globalAlpha = 0.9
-      g.beginPath()
-      g.arc(c, c, c - 8, 0, Math.PI * 2)
-      g.stroke()
-      g.globalAlpha = 0.45
-      g.lineWidth = 2
-      g.beginPath()
-      g.arc(c, c, c - 34, 0, Math.PI * 2)
-      g.stroke()
-      // Graduations.
-      for (let i = 0; i < 24; i++) {
-        const a = (i / 24) * Math.PI * 2
-        const r0 = c - (i % 6 ? 22 : 34)
-        g.globalAlpha = i % 6 ? 0.5 : 0.95
-        g.lineWidth = i % 6 ? 2 : 5
-        g.beginPath()
-        g.moveTo(c + Math.cos(a) * r0, c + Math.sin(a) * r0)
-        g.lineTo(c + Math.cos(a) * (c - 10), c + Math.sin(a) * (c - 10))
-        g.stroke()
-      }
-      g.globalAlpha = 0.14
-      g.beginPath()
-      g.arc(c, c, c - 34, 0, Math.PI * 2)
-      g.fill()
-      g.globalAlpha = 0.85
-      g.font = '700 17px system-ui, "Segoe UI", sans-serif'
-      g.fillText(text.toUpperCase(), c, c + 34)
-    } else if (kind === 'target') {
+    if (kind === 'target') {
       const m = 14, l = 30
       g.lineWidth = 6
       g.globalAlpha = 0.9

@@ -1234,6 +1234,7 @@ const tutorial = new Tutorial({
   player: player.position,
   controls: () => (usingGamepad ? 'gamepad' : coarsePointer ? 'touch' : 'keyboard'),
   camera: () => ({ heading: iso.heading, zoom: iso.zoomLevel }),
+  view: () => (shoulderWanted ? 'shoulder' : fpsWanted ? 'eyes' : 'iso'),
   seated: () => !!seating.current && seating.settled,
   say: (text) => bubbles.say('instructor', text),
   sound: (kind) => (kind === 'done' ? sound.ui('pick') : sound.play('ding', null, { volume: 0.1 })),

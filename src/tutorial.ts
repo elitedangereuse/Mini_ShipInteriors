@@ -9,13 +9,13 @@ import { icon, type IconName } from './icons'
 import type { LevelDef } from './levels'
 import { suitRig, type SuitStyle } from './looks'
 import { dampAngle } from './player'
-import { TUTORIAL_CLOSED, TUTORIAL_LAYOUT, TUTORIAL_LEVEL, TUTORIAL_SPAWN, TUTORIAL_TELEPORTER } from '../shared/tutorial.js'
+import { TUTORIAL_CLOSED, TUTORIAL_LAYOUT, TUTORIAL_LEVEL, TUTORIAL_TELEPORTER } from '../shared/tutorial.js'
 
 /*
  * Le simulateur d'accueil (cf. shared/tutorial.js) : à sa toute première venue à bord, la recrue
  * s'y réveille, seule dans son instance. Le lieutenant Swann, l'instructrice, lui apprend les
- * gestes de base, une leçon après l'autre : marcher, courir, regarder autour de soi, examiner,
- * s'asseoir, saluer, discuter. Chaque leçon réussie ouvre la suite ; la dernière ouvre le
+ * gestes de base, une leçon après l'autre : marcher, courir, regarder autour de soi, changer de
+ * vue, examiner, s'asseoir, saluer, discuter. Chaque leçon réussie ouvre la suite ; la dernière ouvre le
  * téléporteur, qui la dépose sur le pont principal (cf. main.ts). On peut passer la formation à
  * tout moment, et la refaire avec /tuto.
  */
@@ -70,7 +70,6 @@ export const TUTORIAL_DECK: LevelDef = {
     { model: 'sim-grid', x: 3.5, z: 2.5, label: '8x6', solid: false },
     { model: 'sim-sign', x: 2, z: -0.3, label: tr('SIMULATEUR|Bienvenue à bord, recrue|Suivez l\'instructrice', 'SIMULATOR|Welcome aboard, recruit|Follow the instructor'), solid: false },
     { model: 'sim-sign', x: 5.5, z: -0.3, label: tr('LEÇON 1|Marcher, courir|Regarder autour de soi', 'LESSON 1|Walk, run|Look around'), solid: false },
-    { model: 'sim-mark', x: TUTORIAL_SPAWN.x, z: TUTORIAL_SPAWN.z, label: tr('pad|Arrivée', 'pad|Arrival'), solid: false },
     { model: 'sim-mark', x: BEACONS[0].x, z: BEACONS[0].z, label: 'target|A', solid: false },
     { model: 'sim-mark', x: BEACONS[1].x, z: BEACONS[1].z, label: 'target|B', solid: false },
     { model: 'sim-mark', x: 3.5, z: 1, label: 'lane||3.4', solid: false },
@@ -195,7 +194,7 @@ export class Instructor {
 /** Ce qu'on a en main : les consignes en tiennent compte. */
 export type Controls = 'keyboard' | 'gamepad' | 'touch'
 
-type LessonId = 'move' | 'run' | 'camera' | 'examine' | 'sit' | 'emote' | 'chat' | 'teleport'
+type LessonId = 'move' | 'run' | 'camera' | 'view' | 'examine' | 'sit' | 'emote' | 'chat' | 'teleport'
 
 interface Lesson {
   id: LessonId
@@ -253,7 +252,23 @@ const LESSONS: Lesson[] = [
       touch: tr('Glissez un doigt sur le décor pour tourner la vue ; écartez deux doigts pour zoomer.', 'Drag one finger across the scene to turn the view; spread two fingers to zoom.'),
     },
     post: { x: 4, z: 2.5 },
-    praise: tr('Voilà : rien ne vous échappe. La porte est ouverte, suivez-moi.', 'There: nothing escapes you. The door is open, follow me.'),
+    praise: tr('Voilà : rien ne vous échappe.', 'There: nothing escapes you.'),
+  },
+  {
+    id: 'view',
+    title: tr('Changer de vue', 'Switch views'),
+    icon: 'eye',
+    intro: tr(
+      'Le bord ne se regarde pas que de haut : il se parcourt aussi dans les yeux de votre personnage, ou par-dessus son épaule. Essayez ces deux vues.',
+      'The ship isn\'t only seen from above: you can also walk it through your character\'s eyes, or over their shoulder. Try both views.',
+    ),
+    how: {
+      keyboard: tr('[V] : la vue subjective. [C] : la troisième personne. La même touche ramène à la vue de haut.', '[V]: first-person view. [C]: third-person view. The same key takes you back to the view from above.'),
+      gamepad: tr('Les boutons à l\'œil et au personnage, en haut à droite : vue subjective, troisième personne. Le même bouton ramène à la vue de haut.', 'The eye and character buttons, top right: first-person view, third-person view. The same button takes you back to the view from above.'),
+      touch: tr('Dans le menu des outils, les boutons à l\'œil et au personnage : vue subjective, troisième personne. Le même bouton ramène à la vue de haut.', 'In the tools menu, the eye and character buttons: first-person view, third-person view. The same button takes you back to the view from above.'),
+    },
+    post: { x: 4, z: 2.5 },
+    praise: tr('Gardez la vue qui vous plaît, vous en changerez quand vous voudrez. La porte est ouverte, suivez-moi.', 'Keep whichever view you like, you can switch whenever you want. The door is open, follow me.'),
   },
   {
     id: 'examine',
@@ -332,6 +347,8 @@ export interface TutorialHost {
   controls(): Controls
   /** Cadrage de la caméra : son azimut visé et son zoom. */
   camera(): { heading: number; zoom: number }
+  /** Vue choisie : de haut, dans les yeux, ou par-dessus l'épaule. */
+  view(): 'iso' | 'eyes' | 'shoulder'
   /** Le joueur est-il installé sur un meuble ? */
   seated(): boolean
   /** L'instructrice parle (bulle au-dessus de sa tête). */
@@ -354,6 +371,9 @@ export class Tutorial {
   private turned = false
   private zoomed = false
   private cameraFrom = { heading: 0, zoom: 0 }
+  /** Leçon des vues : déjà vu dans les yeux, déjà vu par-dessus l'épaule. */
+  private eyes = false
+  private shoulder = false
   /** Leçon du canapé : déjà assis. */
   private sat = false
   /** Une leçon réussie : la suivante attend un instant (`pause`), le temps de la féliciter. */
@@ -491,6 +511,7 @@ export class Tutorial {
     const l = this.current
     this.sprintSteps = 0
     this.turned = this.zoomed = false
+    this.eyes = this.shoulder = false
     this.cameraFrom = this.host.camera()
     this.sat = false
     this.beacon = 0
@@ -538,8 +559,8 @@ export class Tutorial {
     this.host.instructor.emote(l.id === 'emote' ? 'o7' : 'oui')
     this.host.sound('done')
     this.ring.visible = this.halo.visible = this.marker.visible = false
-    // La caméra ouvre la salle d'essai ; la conversation, le téléporteur.
-    if (l.id === 'camera') this.unlock('b')
+    // Les vues ouvrent la salle d'essai ; la conversation, le téléporteur.
+    if (l.id === 'view') this.unlock('b')
     if (l.id === 'chat') this.unlock('t')
     // La leçon suivante s'ouvre au bout de la pause (cf. update) ; d'ici là, rien ne compte.
     this.pause = text ? 2.6 : 1.4
@@ -606,6 +627,11 @@ export class Tutorial {
       if (!this.turned && Math.abs(c.heading - this.cameraFrom.heading) > 0.3) this.turned = true
       if (!this.zoomed && Math.abs(c.zoom - this.cameraFrom.zoom) > 0.25) this.zoomed = true
       if (this.turned && this.zoomed) this.done()
+    } else if (l.id === 'view') {
+      const v = this.host.view()
+      if (v === 'eyes') this.eyes = true
+      else if (v === 'shoulder') this.shoulder = true
+      if (this.eyes && this.shoulder) this.done()
     } else if (l.id === 'sit') {
       if (!this.sat && this.host.seated()) {
         this.sat = true
@@ -620,7 +646,7 @@ export class Tutorial {
   private render() {
     const l = this.current
     const controls = this.host.controls()
-    const parts = l.id === 'camera' ? `${this.turned}${this.zoomed}` : l.id === 'sit' ? `${this.sat}` : ''
+    const parts = l.id === 'camera' ? `${this.turned}${this.zoomed}` : l.id === 'view' ? `${this.eyes}${this.shoulder}` : l.id === 'sit' ? `${this.sat}` : ''
     const key = `${this.lesson}|${this.waiting}|${controls}|${this.line}|${parts}|${this.skipArmed > 0}`
     if (key === this.panelKey) return
     this.panelKey = key
@@ -682,11 +708,13 @@ export class Tutorial {
     }
 
     el.append(head, dots, goal)
-    if (l.id === 'camera' || l.id === 'sit') {
+    if (l.id === 'camera' || l.id === 'view' || l.id === 'sit') {
       const list = document.createElement('ul')
       list.className = 'tuto-checks'
       const items: [boolean, string][] = l.id === 'camera'
         ? [[this.turned, tr('Pivoter la vue', 'Rotate the view')], [this.zoomed, tr('Zoomer', 'Zoom')]]
+        : l.id === 'view'
+        ? [[this.eyes, tr('Vue subjective', 'First-person view')], [this.shoulder, tr('Troisième personne', 'Third-person view')]]
         : [[this.sat, tr('S\'asseoir', 'Sit down')], [this.waiting, tr('Se relever', 'Stand up')]]
       for (const [ok, text] of items) {
         const li = document.createElement('li')

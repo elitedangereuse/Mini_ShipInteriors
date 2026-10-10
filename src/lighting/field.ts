@@ -187,16 +187,28 @@ uniform float uLightFieldGain;
 varying vec2 vLightFieldUv;
 `
 
-const FRAGMENT_BODY = `#include <lights_fragment_end>
-  reflectedLight.indirectDiffuse += texture2D(uLightField, vLightFieldUv).rgb * uLightFieldGain * diffuseColor.rgb;
+/** Éclairement jusqu'où un matériau relevé (cf. patchLightField) remonte : au-delà, il garde le champ tel quel. */
+const LIFT_CAP = 0.9
+
+const FRAGMENT_BODY = (lift: number) => `#include <lights_fragment_end>
+  {
+    vec3 lf = texture2D(uLightField, vLightFieldUv).rgb * uLightFieldGain;
+    ${lift > 1 ? `lf *= clamp(${LIFT_CAP.toFixed(2)} / max(max(lf.r, lf.g), max(lf.b, 1e-4)), 1.0, ${lift.toFixed(2)});` : ''}
+    reflectedLight.indirectDiffuse += lf * diffuseColor.rgb;
+  }
 `
 
-/** Ajoute le champ de lumière au shader d'un matériau éclairé (sans effet sur les autres). */
-export function patchLightField(shader: THREE.WebGLProgramParametersWithUniforms) {
+/**
+ * Ajoute le champ de lumière au shader d'un matériau éclairé (sans effet sur les autres).
+ * @param lift le matériau reçoit jusqu'à `lift` fois le champ là où il est faible (le plafond, que
+ *   ni le soleil ni le ciel n'éclairent) : ses coins sombres remontent, le dessous d'une lampe ne
+ *   brûle pas ; autre que 1, le matériau doit avoir sa propre `customProgramCacheKey`
+ */
+export function patchLightField(shader: THREE.WebGLProgramParametersWithUniforms, lift = 1) {
   if (!shader.fragmentShader.includes('#include <lights_fragment_end>') || !shader.vertexShader.includes('#include <defaultnormal_vertex>')) return
   Object.assign(shader.uniforms, uniforms)
   shader.vertexShader = VERTEX_HEAD + shader.vertexShader.replace('#include <project_vertex>', VERTEX_BODY)
-  shader.fragmentShader = FRAGMENT_HEAD + shader.fragmentShader.replace('#include <lights_fragment_end>', FRAGMENT_BODY)
+  shader.fragmentShader = FRAGMENT_HEAD + shader.fragmentShader.replace('#include <lights_fragment_end>', FRAGMENT_BODY(lift))
 }
 
 /**
@@ -210,4 +222,4 @@ export function unlitByField<M extends THREE.Material>(material: M): M {
 }
 
 // Tout matériau qui n'a pas son propre crochet reçoit le champ (personnages, animaux, pièces mobiles).
-THREE.Material.prototype.onBeforeCompile = patchLightField
+THREE.Material.prototype.onBeforeCompile = (shader) => patchLightField(shader)

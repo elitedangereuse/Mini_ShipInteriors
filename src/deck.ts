@@ -10,7 +10,7 @@ import { beamMaterial, buildFurniture, isCustomModel, tickFurniture, type Emitte
 import { tr } from './i18n'
 import { LEVEL_HEIGHT, LIFT, offShip, type LevelDef } from './levels'
 import { furnitureLight } from './lighting/emitters'
-import { bakeLightField, type FieldSource, type LightField } from './lighting/field'
+import { bakeLightField, patchLightField, type FieldSource, type LightField } from './lighting/field'
 import { buildFixtures, generalLighting, type Fixture } from './lighting/fixtures'
 import { buildHalos, type Halo } from './lighting/glow'
 import { LIGHT_DISTANCE, type LightSource } from './lighting/rig'
@@ -211,7 +211,13 @@ function canopyGlass(panes: { x: number; z: number; alongX: boolean }[], bottom 
 }
 
 /** Teinte du plafond selon l'ambiance du pont (cf. assets.ts), et dans la baie infestée. */
-const CEILING_COLORS: Record<Theme | 'zone', string> = { station: '#5b6475', raw: '#4a4239', cozy: '#d8c6a6', sim: '#16233a', zone: '#1d2322' }
+const CEILING_COLORS: Record<Theme | 'zone', string> = { station: '#7f8aa0', raw: '#6a5d4f', cozy: '#d8c6a6', sim: '#2a4470', zone: '#1d2322' }
+/**
+ * Ce que le plafond prend en plus du champ de lumière (cf. patchLightField) : ses luminaires sont
+ * posés sur lui, et le sol lui renvoie leur lumière, alors que ni le soleil ni le ciel du pont
+ * n'éclairent sa face du dessous. La baie infestée garde son plafond dans l'ombre.
+ */
+const CEILING_LIFT = 2.5
 
 /**
  * Panneaux de plafond d'une tuile : quatre plaques à joints fins et peu contrastés. Le plafond est
@@ -251,6 +257,10 @@ export function ceilingMaterial(look: Theme | 'zone'): THREE.MeshLambertMaterial
     panelTexture ??= ceilingPanel()
     const color = new THREE.Color(CEILING_COLORS[look])
     m = new THREE.MeshLambertMaterial({ color, map: panelTexture, emissive: color, emissiveMap: panelTexture, emissiveIntensity: 0.3 })
+    if (look !== 'zone') {
+      m.onBeforeCompile = (shader) => patchLightField(shader, CEILING_LIFT)
+      m.customProgramCacheKey = () => 'ceiling'
+    }
     ceilingMaterials.set(look, m)
   }
   return m
