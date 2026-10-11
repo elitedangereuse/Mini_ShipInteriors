@@ -864,8 +864,10 @@ export const LEVELS: LevelDef[] = [
       // --- Lobby de l'arène (cf. src/arena/), pris sur le coin sud-est de celui de la zone thargoïde,
       // derrière une cloison vitrée et sa porte double : le sol aux couleurs des deux équipes, le
       // terminal où l'on se place dans un lobby et le guichet de l'arbitre (cf. src/arena/referee.ts),
-      // contre la cloison ouest, et le râtelier des cinq armes à côté de la porte. Rien contre les
-      // murs sud et est : vus de dessus, ce sont eux qui s'effacent devant le joueur ---
+      // contre la cloison ouest, et le râtelier des cinq armes à côté de la porte. Contre les murs
+      // sud et est, rien de haut qui serve : vus de dessus, ce sont eux qui s'effacent devant le
+      // joueur, avec ce qu'ils portent (le classement et les bannières se lisent en vue subjective,
+      // le classement complet de partout) ; le trophée et le banc, bas, restent visibles ---
       { model: 'arena-entry', x: 23.5, z: 4.98, solid: false },
       { model: 'arena-floor', x: 24, z: 8, label: '2.7,4.7', solid: false },
       {
@@ -877,11 +879,29 @@ export const LEVELS: LevelDef[] = [
         tr('Un mot scotché sous le lance-plasma : « Pas à bout portant. Signé : celui qui a essayé. »', 'A note taped under the plasma launcher: “Not at point-blank. Signed: the one who tried.”'),
       ] },
       { model: 'arena-booth', x: ARENA_BOOTH.x, z: ARENA_BOOTH.z, rot: 1 },
-      // En face du guichet, sur le mur du hangar : le classement des joueurs, tenu par le site.
+      // Au milieu du mur du hangar : le classement des joueurs, tenu par le site, entre les bannières des deux équipes.
       {
-        model: 'arena-board', x: 25.33, z: ARENA_BOOTH.z, rot: 3, solid: false, action: tr('Classement', 'Ranking'),
+        model: 'arena-board', x: 25.33, z: 8, rot: 3, solid: false, action: tr('Classement', 'Ranking'),
         interact: tr('Le classement de l\'arène : les CMDR par victoires.', 'The arena ranking: CMDRs by wins.'),
       },
+      { model: 'arena-banner', x: 25.34, z: 6.45, rot: 3, label: 'orange', solid: false },
+      { model: 'arena-banner', x: 25.34, z: 9.55, rot: 3, label: 'blue', solid: false },
+      // Au milieu de la pièce, sur le rond central : l'hologramme de l'arène. On y regarde la partie en cours.
+      {
+        model: 'arena-holo', x: 24, z: 7.62, solid: false, action: tr('Regarder une partie', 'Watch a match'),
+        interact: tr('L\'hologramme de l\'arène : son plan, ses conteneurs, ses buissons. Quand une partie se joue, il passe au rouge.', 'The arena hologram: its layout, its containers, its bushes. It turns red when a match is on.'),
+      },
+      // Le coin des spectateurs : le banc, bas, contre le mur sud, et le trophée dans l'angle.
+      { model: 'arena-bench', x: 23.75, z: 10.42, rot: 2, interact: [
+        tr('Le banc des spectateurs. Un coussin par camp : on choisit son côté avant de s\'asseoir.', 'The spectators\' bench. One cushion per side: pick yours before you sit.'),
+        tr('Gravé au couteau sous le coussin orange : « Les bleus trichent. » Et dessous, d\'une autre main : « Non. »', 'Carved under the orange cushion: “Blues cheat.” And below, in another hand: “No.”'),
+      ] },
+      { model: 'arena-trophy', x: 25.18, z: 10.18, interact: [
+        tr('La coupe de l\'arène. Le socle est gravé : « À celui qui tire le dernier. »', 'The arena cup. The plinth is engraved: “To whoever shoots last.”'),
+        tr('La coupe est vissée au socle. Tessa a ses raisons.', 'The cup is bolted to the plinth. Tessa has her reasons.'),
+      ] },
+      { model: 'arena-garland', x: 24, z: 6.42, label: '2.9', solid: false },
+      { model: 'arena-garland', x: 24, z: 9.05, label: '2.9', solid: false },
       // Le vestiaire : le banc devant les casiers, et ce qui traîne dans les coins, hors de l'allée.
       { model: 'k-low-bench', x: 20.2, z: 7.95, rot: 1 },
       { model: 'drums', x: 22.15, z: 6.2 },
@@ -1179,9 +1199,10 @@ export const LEVELS: LevelDef[] = [
       [21.6, 3.45, '#5fd4ff', 1.6],
       // La porte des Scavengers : une lampe au sodium, comme dans la gaine, pour qu'on la voie du hall.
       [21.6, 9.6, '#ffb347', 2, 'neon'],
-      // Le lobby de l'arène : une lampe par équipe.
+      // Le lobby de l'arène : une lampe par équipe, et une lueur dorée sur le trophée.
       [23.4, 7.2, '#ff8a1c', 1.7],
       [24.7, 9, '#3fc8ff', 1.7],
+      [25, 10, '#ffd98a', 1, undefined, 2.5],
       [21.6, 9.6, '#ffd9a0', 1.2, 'neon'],
       [24, 1.6, '#6dff9a', 1],
       // Gaine technique : la chaudière, la lampe au sodium, les braises sous les caillebotis, le ventilateur.

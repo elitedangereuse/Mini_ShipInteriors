@@ -555,8 +555,8 @@ test('arène : le chef règle la limite de points ; deux manches gagnantes font 
   assert.deepEqual([end.winner, end.reason, end.score, end.rounds], [0, 'score', [5, 3], [2, 0]])
 })
 
-test('arène : une partie entre joueurs est déclarée au site pour le classement, pas une partie contre des bots', () => {
-  // Contre des bots seulement : rien n'est déclaré.
+test('arène : chaque partie finie est déclarée au site pour le classement, et le joueur apprend si elle a compté', async () => {
+  // Contre des bots seulement : elle compte comme une autre.
   const solo = harness()
   const a = solo.add(1)
   solo.start(a, [], { size: 1, goal: 5 })
@@ -571,7 +571,9 @@ test('arène : une partie entre joueurs est déclarée au site pour le classemen
     solo.advance(0.25)
   }
   assert.equal(solo.last(1, 'arena:end').winner, 0)
-  assert.deepEqual(solo.reports, [])
+  await new Promise((done) => setTimeout(done, 0))
+  assert.deepEqual(solo.reports.map((r) => [r.id, r.result, r.size]), [[1, 'won', 1]])
+  assert.deepEqual(solo.last(1, 'arena:ranked'), { game: solo.reports[0].game, ok: true })
 
   // Un joueur dans chaque camp (les bots complètent) : chacun a sa ligne, le gagnant et le perdant.
   const h = harness()
@@ -594,9 +596,54 @@ test('arène : une partie entre joueurs est déclarée au site pour le classemen
     h.advance(0.25)
   }
   assert.equal(h.last(1, 'arena:end').winner, 0)
+  await new Promise((done) => setTimeout(done, 0))
   // L'invité n'a pas de compte : pas de ligne pour lui.
   assert.deepEqual(h.reports, [
     { id: 1, cookie: 'ED_LOGGED_CMDR_ID=jeton-1', game: game.id, result: 'won', kills: 1, deaths: 0, size: 2 },
     { id: 2, cookie: 'ED_LOGGED_CMDR_ID=jeton-2', game: game.id, result: 'lost', kills: 0, deaths: 1, size: 2 },
   ])
+  assert.deepEqual(h.last(1, 'arena:ranked'), { game: game.id, ok: true })
+  assert.deepEqual(h.last(3, 'arena:ranked'), { game: game.id, ok: false, reason: 'guest' })
+
+  // Le site ne répond pas : la partie n'est pas notée, et le joueur le sait.
+  const down = harness({ report: async () => { throw new Error('site injoignable') } })
+  const f = down.add(2), g = down.add(3)
+  const lost = down.start(f, [g], { size: 1, bots: false })
+  down.arena.handle(g, 'arena:quit', {})
+  await new Promise((done) => setTimeout(done, 0))
+  assert.deepEqual(down.last(2, 'arena:ranked'), { game: lost.id, ok: false, reason: 'site' })
+})
+
+test('arène : un spectateur reçoit la partie en cours sans y être, jusqu\'à ce qu\'il s\'en aille', () => {
+  const h = harness()
+  const a = h.add(1), b = h.add(2), c = h.add(3)
+  const game = h.start(a, [b], { size: 1, bots: false })
+  // Personne ne joue dans le lobby 2 : rien à regarder.
+  h.arena.handle(c, 'arena:watch', { room: 2 })
+  assert.equal(h.last(3, 'arena:error').code, 'gone')
+  h.arena.handle(c, 'arena:watch', { room: 1 })
+  const start = h.last(3, 'arena:start')
+  assert.deepEqual([start.game, start.watch, start.team, start.fighters.length], [game.id, true, 0, 2])
+  assert.equal(h.lobby().rooms[0].watchers, 1)
+  // Il n'est pas un combattant : ni cible, ni tireur, et sa position dans l'arène n'est pas acceptée.
+  assert.equal(game.fighters.has(3), false)
+  assert.equal(h.arena.accepts(c, 8, 5), false)
+  assert.equal(h.arena.mates(a).has(3), false)
+  h.advance(R.warmup + R.shield)
+  assert.ok(h.last(3, 'arena:state').fighters.length === 2)
+  h.put(a, 1, 0)
+  h.put(b, 4, 0)
+  fireAt(h, a, b)
+  h.advance(0.5)
+  assert.equal(h.events(3, 'hit').length, 1)
+  // Il s'en va : plus rien ne lui arrive ; la fin de partie va aux joueurs et à qui regarde encore.
+  const d = h.add(4)
+  h.arena.handle(d, 'arena:watch', { room: 1 })
+  h.arena.handle(c, 'arena:unwatch', {})
+  const seen = h.sent.filter((m) => m.id === 3).length
+  h.advance(0.5)
+  assert.equal(h.sent.filter((m) => m.id === 3).length, seen)
+  h.arena.handle(b, 'arena:quit', {})
+  assert.equal(h.last(4, 'arena:end').reason, 'forfeit')
+  assert.equal(h.last(3, 'arena:end'), undefined)
 })

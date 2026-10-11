@@ -73,6 +73,8 @@ export class ArenaGun extends RangeGame {
   private emptyFor = 0
   /** Balle de match : une équipe est à un point de la limite (la musique s'emballe). */
   matchPoint = false
+  /** Spectateur : pas d'arme, on regarde (à régler avant `begin`). */
+  watching = false
   /** Le cône de visée, au sol (vue de dessus). */
   private readonly cone = new AimSight()
   /** Écran tactile : le cône ne paraît que le temps de viser, et le personnage regarde où il court. */
@@ -282,6 +284,9 @@ export class ArenaGun extends RangeGame {
   }
 
   protected override hintText(coarse: boolean): string {
+    if (this.watching) return coarse
+      ? tr('Spectateur : les flèches changent de combattant', 'Spectating: the arrows switch fighter')
+      : tr('Spectateur · ← → : changer de combattant · Échap : quitter', 'Spectating · ← →: switch fighter · Esc: leave')
     return coarse
       ? tr('Glisser le stick rouge pour viser, lâcher pour tirer · le toucher : tir sur le plus proche', 'Drag the red stick to aim, release to fire · tap it: shoot the nearest')
       : tr('Clic : tirer · le cône montre la portée · le chargeur se recharge seul (R : avant) · V : vue · Échap : quitter', 'Click: fire · the cone shows your range · the mag reloads itself (R: sooner) · V: view · Esc: leave')

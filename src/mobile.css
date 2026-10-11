@@ -267,6 +267,9 @@
   .arena-weapons button { min-height: 48px; padding: 4px 2px; }
   .arena-weapons button strong { font-size: 11px; }
   .arena-weapons button span { display: none; }
+  /* Spectating: who the view follows, at the bottom edge. */
+  .arena-spectate { bottom: var(--mobile-bottom); }
+  .arena-end-rank { font-size: 11px; }
   /* Match over: the line-up fills the screen, nothing under the thumbs. */
   body.arena-end-on :is(.chat, #dialog) { display: none; }
   .arena-end-note { font-size: 11px; }

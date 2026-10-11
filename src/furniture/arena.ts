@@ -1,17 +1,21 @@
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { BLASTER_PACK } from '../assets'
 import { tr } from '../i18n'
 import { WEAPONS } from '../range-weapons'
-import { ARENA_TEAMS } from '../../shared/arena.js'
-import { animatedScreen, box, cylinder, decal, drawnTexture, glow, lit, mesh, type Builder } from './kit'
+import { ARENA_MAP, ARENA_TEAMS } from '../../shared/arena.js'
+import { animatedScreen, box, cylinder, decal, drawnTexture, glow, holoMaterial, lit, mesh, type Builder } from './kit'
 import { kitModel } from './nature'
 
 /*
  * Le lobby de l'arène (cale, pièce 'y', cf. src/arena/) : pris sur le coin sud-est du lobby de la
  * zone thargoïde, derrière une cloison vitrée. Là où le lobby de la zone est vert et ambre, celui-ci
  * est aux couleurs des deux équipes, orange et bleu : le sol peint (une moitié par équipe, le rond
- * central), le guichet de l'arbitre, le classement des joueurs en face de lui, le râtelier des cinq armes, et, côté
- * zone thargoïde, le marquage qui mène à la porte. Le terminal, lui, est dans range.ts.
+ * central), le guichet de l'arbitre, le classement des joueurs au milieu du mur d'en face, entre les
+ * bannières des deux équipes, le râtelier des cinq armes, et, côté zone thargoïde, le marquage qui
+ * mène à la porte. Au milieu de la pièce, un projecteur fait tourner l'hologramme de l'arène : il
+ * passe au rouge quand une partie se joue, et c'est de là qu'on la regarde. Autour : le trophée, le
+ * banc des spectateurs, les fanions. Le terminal, lui, est dans range.ts.
  */
 
 const C = {
@@ -30,6 +34,13 @@ const FONT = 'bold 64px system-ui, sans-serif'
  * change à chaque relecture.
  */
 export const arenaRanks: { rows: { name: string; wins: number }[]; stamp: number } = { rows: [], stamp: 0 }
+
+/**
+ * Les parties en cours (cf. src/arena/client.ts, à chaque nouvelle du relais) : le tableau en donne
+ * le score sur sa dernière ligne, et l'hologramme du milieu de la pièce passe au rouge. `stamp`
+ * change avec elles.
+ */
+export const arenaLive: { games: { lobby: number; rounds: [number, number]; score: [number, number] }[]; stamp: number } = { games: [], stamp: 0 }
 
 /** Le sol du lobby (`label` : « largeur,profondeur ») : une moitié par équipe, le rond central, les chevrons de l'entrée. */
 const arenaFloor: Builder = ({ label }) => {
@@ -53,6 +64,59 @@ const arenaFloor: Builder = ({ label }) => {
       c.lineTo(x, H - 14)
       c.stroke()
     }
+    // Des dalles : un quadrillage à peine marqué, un boulon à chaque coin.
+    const tile = W / 6
+    c.strokeStyle = '#0b0d1055'
+    c.lineWidth = 2
+    c.fillStyle = '#0b0d1066'
+    for (let y = 0; y <= H; y += tile) {
+      c.beginPath()
+      c.moveTo(0, y)
+      c.lineTo(W, y)
+      c.stroke()
+      for (let x = 0; x <= W; x += tile) {
+        c.beginPath()
+        c.arc(x + 9, y + 9, 2.5, 0, Math.PI * 2)
+        c.arc(x - 9, y + 9, 2.5, 0, Math.PI * 2)
+        c.fill()
+      }
+    }
+    for (let x = 0; x <= W; x += tile) {
+      c.beginPath()
+      c.moveTo(x, 0)
+      c.lineTo(x, H)
+      c.stroke()
+    }
+    // Le nom de chaque camp, au pochoir, le long de son bord ; et l'usure du passage, vers le terminal.
+    c.save()
+    c.font = 'bold 54px system-ui, sans-serif'
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    c.globalAlpha = 0.5
+    for (const [text, color, x, turn] of [[tr('ORANGE', 'ORANGE'), C.orange, 58, -1], [tr('BLEUE', 'BLUE'), C.blue, W - 58, 1]] as const) {
+      c.save()
+      c.translate(x, H * 0.76)
+      c.rotate((turn * Math.PI) / 2)
+      c.fillStyle = color
+      c.fillText(text, 0, 0)
+      c.restore()
+    }
+    c.restore()
+    // Les coins : des hachures de chantier.
+    c.save()
+    c.globalAlpha = 0.85
+    for (const [cx, cy, sx, sy] of [[0, 0, 1, 1], [W, 0, -1, 1], [0, H, 1, -1], [W, H, -1, -1]] as const) {
+      for (let i = 0; i < 4; i++) {
+        c.fillStyle = i % 2 ? '#14161a' : '#ffd23f'
+        c.beginPath()
+        c.moveTo(cx + sx * (i * 16), cy)
+        c.lineTo(cx + sx * ((i + 1) * 16), cy)
+        c.lineTo(cx, cy + sy * ((i + 1) * 16))
+        c.lineTo(cx, cy + sy * (i * 16))
+        c.fill()
+      }
+    }
+    c.restore()
     c.strokeStyle = C.line
     c.lineWidth = 6
     c.setLineDash([26, 18])
@@ -204,66 +268,281 @@ const arenaRack: Builder = () => {
 }
 
 /**
- * Le classement des joueurs (dos au mur), face au guichet de l'arbitre : un grand écran, les cinq
- * premiers et leurs victoires, les trois marches du podium en tête.
+ * Le classement des joueurs (dos au mur), au milieu du mur du hangar : un grand écran, les cinq
+ * premiers et leurs victoires, les trois marches du podium en tête ; sur sa dernière ligne, le score
+ * des parties en cours.
  */
 const arenaBoard: Builder = () => {
   const g = new THREE.Group()
-  const W = 1.5, H = 0.84
-  g.add(box(W + 0.08, H + 0.08, 0.05, lit(C.steelDark, 'metal'), 0, 0.66, 0.025, 0.01))
-  g.add(box(W + 0.08, 0.03, 0.07, glow(C.orange), -0.0, 0.2, 0.035))
-  let drawn = -1
+  const W = 2.1, H = 1.05, Y = 0.82
+  const dark = lit(C.steelDark, 'metal')
+  g.add(box(W + 0.1, H + 0.1, 0.05, dark, 0, Y, 0.025, 0.01))
+  // Deux pattes le tiennent au mur ; un liseré par équipe, de chaque côté.
+  for (const x of [-W / 2 + 0.2, W / 2 - 0.2]) g.add(box(0.06, 0.2, 0.04, dark, x, Y - H / 2 - 0.14, 0.02))
+  g.add(box(0.025, H + 0.1, 0.07, glow(C.orange), -W / 2 - 0.06, Y, 0.035))
+  g.add(box(0.025, H + 0.1, 0.07, glow(C.blue), W / 2 + 0.06, Y, 0.035))
+  let drawn = ''
   const MEDALS = ['#ffd23f', '#d9dde3', '#d08a4a']
-  const screen = animatedScreen(512, 288, 1, (c) => {
-    drawn = arenaRanks.stamp
+  const stamp = () => `${arenaRanks.stamp}:${arenaLive.stamp}`
+  const screen = animatedScreen(640, 320, 1, (c) => {
+    drawn = stamp()
     c.fillStyle = '#0b0d10'
-    c.fillRect(0, 0, 512, 288)
+    c.fillRect(0, 0, 640, 320)
     c.fillStyle = C.orange
-    c.fillRect(0, 0, 256, 6)
+    c.fillRect(0, 0, 320, 6)
     c.fillStyle = C.blue
-    c.fillRect(256, 0, 256, 6)
+    c.fillRect(320, 0, 320, 6)
     c.textBaseline = 'middle'
     c.textAlign = 'left'
     c.font = 'bold 30px system-ui, sans-serif'
     c.fillStyle = C.line
-    c.fillText(tr('CLASSEMENT', 'RANKING'), 22, 36)
+    c.fillText(tr('ARÈNE · CLASSEMENT', 'ARENA · RANKING'), 24, 36)
     c.textAlign = 'right'
     c.font = 'bold 15px system-ui, sans-serif'
     c.fillStyle = '#8d96a3'
-    c.fillText(tr('VICTOIRES', 'WINS'), 490, 38)
+    c.fillText(tr('VICTOIRES', 'WINS'), 616, 38)
     if (!arenaRanks.rows.length) {
       c.textAlign = 'center'
-      c.font = '22px system-ui, sans-serif'
-      c.fillText(tr('La première place est à prendre', 'First place is up for grabs'), 256, 160)
-      return
+      c.font = '24px system-ui, sans-serif'
+      c.fillText(tr('La première place est à prendre', 'First place is up for grabs'), 320, 150)
     }
     arenaRanks.rows.forEach((r, i) => {
-      const y = 82 + i * 42
+      const y = 80 + i * 40
       c.fillStyle = i % 2 ? '#14171c' : '#1a1e25'
-      c.fillRect(14, y - 18, 484, 36)
+      c.fillRect(16, y - 17, 608, 34)
       c.fillStyle = MEDALS[i] ?? '#5c6470'
-      c.fillRect(14, y - 18, 6, 36)
+      c.fillRect(16, y - 17, 6, 34)
       c.textAlign = 'left'
       c.font = 'bold 22px system-ui, sans-serif'
-      c.fillText(String(i + 1), 32, y + 1)
+      c.fillText(String(i + 1), 34, y + 1)
       c.fillStyle = C.line
       c.font = `${i ? '' : 'bold '}22px system-ui, sans-serif`
-      c.fillText(r.name.length > 22 ? `${r.name.slice(0, 21)}…` : r.name, 66, y + 1)
+      c.fillText(r.name.length > 30 ? `${r.name.slice(0, 29)}…` : r.name, 70, y + 1)
       c.textAlign = 'right'
       c.font = 'bold 24px ui-monospace, Menlo, monospace'
       c.fillStyle = MEDALS[i] ?? C.line
-      c.fillText(String(r.wins), 486, y + 1)
+      c.fillText(String(r.wins), 612, y + 1)
     })
+    // La dernière ligne : les parties en cours, les manches gagnées par chaque camp.
+    c.fillStyle = '#14171c'
+    c.fillRect(0, 280, 640, 40)
+    c.textAlign = 'left'
+    c.font = 'bold 18px system-ui, sans-serif'
+    if (!arenaLive.games.length) {
+      c.fillStyle = '#5c6470'
+      c.fillText(tr('Aucune partie en cours', 'No match in progress'), 24, 301)
+      return
+    }
+    c.fillStyle = '#ff5a4a'
+    c.beginPath()
+    c.arc(30, 300, 7, 0, Math.PI * 2)
+    c.fill()
+    c.fillText(tr('EN DIRECT', 'LIVE'), 46, 301)
+    let x = 170
+    for (const game of arenaLive.games.slice(0, 3)) {
+      c.fillStyle = '#8d96a3'
+      c.font = '16px system-ui, sans-serif'
+      c.fillText(`Lobby ${game.lobby}`, x, 301)
+      c.font = 'bold 20px ui-monospace, Menlo, monospace'
+      c.fillStyle = C.orange
+      c.fillText(String(game.rounds[0]), x + 70, 301)
+      c.fillStyle = C.line
+      c.fillText('–', x + 86, 300)
+      c.fillStyle = C.blue
+      c.fillText(String(game.rounds[1]), x + 104, 301)
+      x += 150
+    }
   })
   screen.texture.magFilter = THREE.LinearFilter
   const live = new THREE.Group()
-  live.add(mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshBasicMaterial({ map: screen.texture }), 0, 0.66, 0.052))
-  // L'écran ne se redessine que quand le classement a été relu.
-  return { solid: g, live, update: (t) => { if (drawn !== arenaRanks.stamp) screen.tick(t) } }
+  live.add(mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshBasicMaterial({ map: screen.texture }), 0, Y, 0.052))
+  // L'écran ne se redessine que quand le classement a été relu, ou qu'une partie commence ou finit.
+  return { solid: g, live, update: (t) => { if (drawn !== stamp()) screen.tick(t) } }
+}
+
+/** La bannière d'une équipe (`label` : « orange » ou « blue »), dos au mur : sa couleur, son emblème, son nom. */
+const arenaBanner: Builder = ({ label }) => {
+  const blue = label === 'blue'
+  const color = blue ? C.blue : C.orange
+  const texture = drawnTexture(160, 384, (c) => {
+    c.clearRect(0, 0, 160, 384)
+    // Une oriflamme : la pointe en bas.
+    c.fillStyle = color
+    c.beginPath()
+    c.moveTo(0, 0)
+    c.lineTo(160, 0)
+    c.lineTo(160, 320)
+    c.lineTo(80, 384)
+    c.lineTo(0, 320)
+    c.fill()
+    c.fillStyle = '#0b0d1033'
+    c.fillRect(0, 0, 160, 14)
+    c.fillStyle = '#14161a'
+    c.fillRect(14, 30, 132, 6)
+    c.fillRect(14, 296, 132, 6)
+    // L'emblème : un chevron pour l'une, une étoile pour l'autre, dans un disque sombre.
+    c.beginPath()
+    c.arc(80, 150, 54, 0, Math.PI * 2)
+    c.fill()
+    c.fillStyle = color
+    c.beginPath()
+    if (blue) {
+      for (let i = 0; i < 10; i++) {
+        const r = i % 2 ? 17 : 40, a = -Math.PI / 2 + (i * Math.PI) / 5
+        c.lineTo(80 + Math.cos(a) * r, 150 + Math.sin(a) * r)
+      }
+    } else {
+      for (const y of [128, 158]) {
+        c.moveTo(46, y + 14)
+        c.lineTo(80, y - 16)
+        c.lineTo(114, y + 14)
+        c.lineTo(114, y + 30)
+        c.lineTo(80, y)
+        c.lineTo(46, y + 30)
+      }
+    }
+    c.fill()
+    c.fillStyle = '#14161a'
+    c.font = 'bold 30px system-ui, sans-serif'
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    c.fillText(blue ? tr('BLEUE', 'BLUE') : 'ORANGE', 80, 250)
+  })
+  const g = new THREE.Group()
+  g.add(box(0.5, 0.035, 0.035, lit(C.steelDark, 'metal'), 0, 1.5, 0.03))
+  for (const x of [-0.22, 0.22]) g.add(box(0.02, 0.05, 0.02, lit(C.steel, 'metal'), x, 1.52, 0.015))
+  const live = new THREE.Group()
+  live.add(mesh(new THREE.PlaneGeometry(0.44, 1.05), new THREE.MeshLambertMaterial({ map: texture, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide }), 0, 0.965, 0.04))
+  return { solid: g, live }
+}
+
+/** Le trophée de l'arène, sur son socle : une coupe dorée, basse (on la voit de partout). */
+const arenaTrophy: Builder = () => {
+  const g = new THREE.Group()
+  const gold = new THREE.MeshLambertMaterial({ color: '#ffc93a', emissive: '#6b4300' })
+  g.add(box(0.36, 0.26, 0.36, lit(C.steelDark, 'metal'), 0, 0.13, 0, 0.015))
+  g.add(box(0.4, 0.03, 0.4, lit(C.deep), 0, 0.015, 0))
+  g.add(box(0.37, 0.02, 0.37, glow('#ffd23f'), 0, 0.2, 0))
+  g.add(cylinder(0.07, 0.085, 0.03, gold, 0, 0.275, 0, 16))
+  g.add(cylinder(0.018, 0.03, 0.08, gold, 0, 0.33, 0, 10))
+  g.add(cylinder(0.1, 0.045, 0.13, gold, 0, 0.435, 0, 18))
+  g.add(cylinder(0.105, 0.105, 0.012, gold, 0, 0.5, 0, 18))
+  for (const side of [-1, 1]) {
+    const handle = mesh(new THREE.TorusGeometry(0.045, 0.011, 6, 12, Math.PI), gold, side * 0.1, 0.44, 0)
+    handle.rotation.z = (-side * Math.PI) / 2
+    g.add(handle)
+  }
+  return { solid: g }
+}
+
+/** Le banc des spectateurs (dos au mur) : bas, un coussin par équipe. */
+const arenaBench: Builder = () => {
+  const g = new THREE.Group()
+  const W = 2.2, steel = lit(C.steel, 'metal')
+  g.add(box(W, 0.05, 0.36, lit(C.steelDark, 'metal'), 0, 0.24, 0.2, 0.01))
+  for (const x of [-W / 2 + 0.12, 0, W / 2 - 0.12]) g.add(box(0.06, 0.22, 0.3, steel, x, 0.11, 0.2))
+  g.add(box(W / 2 - 0.06, 0.05, 0.3, lit(C.orange), -W / 4, 0.29, 0.2, 0.02))
+  g.add(box(W / 2 - 0.06, 0.05, 0.3, lit(C.blue), W / 4, 0.29, 0.2, 0.02))
+  return { solid: g }
+}
+
+/** Une guirlande de fanions (`label` : sa longueur), tendue d'un mur à l'autre, aux couleurs des deux équipes. */
+const arenaGarland: Builder = ({ label }) => {
+  const length = Number(label) || 2.9
+  const Y = 1.62, sag = 0.12, n = Math.round(length / 0.21)
+  const at = (k: number) => new THREE.Vector3((k - 0.5) * length, Y - sag * 4 * k * (1 - k), 0)
+  const cord = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(Array.from({ length: 9 }, (_, i) => at(i / 8))), 24, 0.006, 5), lit(C.deep))
+  const flags: Record<string, THREE.BufferGeometry[]> = { [C.orange]: [], [C.blue]: [], [C.line]: [] }
+  const colors = [C.orange, C.line, C.blue, C.line]
+  for (let i = 0; i < n; i++) {
+    const p = at((i + 0.5) / n)
+    const flag = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-0.07, 0, 0), new THREE.Vector3(0.07, 0, 0), new THREE.Vector3(0, -0.16, 0)])
+    flag.setIndex([0, 2, 1])
+    flag.computeVertexNormals()
+    flag.rotateY(((i % 3) - 1) * 0.25)
+    flag.translate(p.x, p.y, p.z)
+    flags[colors[i % colors.length]].push(flag)
+  }
+  const live = new THREE.Group().add(cord)
+  for (const [color, parts] of Object.entries(flags)) {
+    if (parts.length) live.add(new THREE.Mesh(mergeGeometries(parts), new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide })))
+    for (const part of parts) part.dispose()
+  }
+  return { live }
+}
+
+/**
+ * Le projecteur du milieu de la pièce : l'hologramme de l'arène (son plan, cf. ARENA_MAP), qui
+ * tourne lentement au-dessus de sa base. Cyan au repos ; quand une partie se joue, l'anneau de la
+ * base passe au rouge et bat, et « EN DIRECT » s'affiche : c'est là qu'on vient la regarder.
+ */
+const arenaHolo: Builder = () => {
+  const g = new THREE.Group()
+  g.add(cylinder(0.4, 0.44, 0.05, lit(C.steelDark, 'metal'), 0, 0.025, 0, 28))
+  g.add(cylinder(0.3, 0.3, 0.02, lit(C.deep), 0, 0.06, 0, 28))
+  const ring = new THREE.MeshBasicMaterial({ color: '#7fefff' })
+  g.add(mesh(new THREE.TorusGeometry(0.36, 0.014, 6, 40).rotateX(Math.PI / 2), ring, 0, 0.062, 0))
+  const live = new THREE.Group()
+  // Le faisceau, et le plan : une dalle, les obstacles en relief, les buissons, les deux bases.
+  live.add(mesh(new THREE.CylinderGeometry(0.46, 0.26, 0.5, 28, 1, true), holoMaterial(null, '#7fefff', 0.1, 1, true), 0, 0.32, 0))
+  const T = 0.05, cols = ARENA_MAP[0].length, rows = ARENA_MAP.length
+  const blocks: THREE.BufferGeometry[] = [], bushes: THREE.BufferGeometry[] = []
+  ARENA_MAP.forEach((line, z) => {
+    for (let x = 0; x < cols; x++) {
+      const c = line[x]
+      const px = (x - (cols - 1) / 2) * T, pz = (z - (rows - 1) / 2) * T
+      if ('#=Hcp'.includes(c)) blocks.push(new THREE.BoxGeometry(T * 0.92, T * 0.8, T * 0.92).translate(px, T * 0.4, pz))
+      else if (c === 'g') bushes.push(new THREE.BoxGeometry(T * 0.8, T * 0.3, T * 0.8).translate(px, T * 0.15, pz))
+    }
+  })
+  const plan = new THREE.Group()
+  plan.add(new THREE.Mesh(new THREE.PlaneGeometry(cols * T, rows * T).rotateX(-Math.PI / 2), holoMaterial(null, '#7fefff', 0.16)))
+  plan.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(cols * T, 0.004, rows * T)), new THREE.LineBasicMaterial({ color: '#7fefff', transparent: true, opacity: 0.9 })))
+  plan.add(new THREE.Mesh(mergeGeometries(blocks), holoMaterial(null, '#bff6ff', 0.85)))
+  plan.add(new THREE.Mesh(mergeGeometries(bushes), holoMaterial(null, '#6dff9a', 0.7)))
+  for (const part of [...blocks, ...bushes]) part.dispose()
+  for (const [color, side] of [[C.orange, -1], [C.blue, 1]] as const) {
+    plan.add(mesh(new THREE.PlaneGeometry(T * 3, rows * T).rotateX(-Math.PI / 2), holoMaterial(null, color, 0.45), side * ((cols - 3) / 2) * T, 0.002, 0))
+  }
+  plan.position.y = 0.52
+  plan.rotation.x = 0.22
+  const turn = new THREE.Group().add(plan)
+  live.add(turn)
+  // « EN DIRECT » : au-dessus du plan, des deux côtés, seulement quand une partie se joue.
+  const sign = drawnTexture(256, 64, (c) => {
+    c.clearRect(0, 0, 256, 64)
+    c.fillStyle = '#ff5a4a'
+    c.beginPath()
+    c.arc(26, 32, 12, 0, Math.PI * 2)
+    c.fill()
+    c.font = 'bold 34px system-ui, sans-serif'
+    c.textBaseline = 'middle'
+    c.fillText(tr('EN DIRECT', 'LIVE'), 48, 34)
+  })
+  const onAir = mesh(new THREE.PlaneGeometry(0.5, 0.125), holoMaterial(sign, '#ff5a4a', 1), 0, 0.86, 0)
+  turn.add(onAir)
+  const idle = new THREE.Color('#7fefff'), hot = new THREE.Color('#ff5a4a')
+  return {
+    solid: g,
+    live,
+    // Sa base seule arrête les pas : on traverse l'hologramme.
+    extent: new THREE.Box3(new THREE.Vector3(-0.4, 0, -0.4), new THREE.Vector3(0.4, 0.9, 0.4)),
+    update: (t) => {
+      turn.rotation.y = t * 0.22
+      const on = arenaLive.games.length > 0
+      onAir.visible = on
+      ring.color.copy(on ? hot : idle).multiplyScalar(on ? 0.65 + 0.35 * Math.sin(t * 5) : 1)
+    },
+  }
 }
 
 export const ARENA = {
+  'arena-banner': arenaBanner,
+  'arena-bench': arenaBench,
   'arena-board': arenaBoard,
+  'arena-garland': arenaGarland,
+  'arena-holo': arenaHolo,
+  'arena-trophy': arenaTrophy,
   'arena-floor': arenaFloor,
   'arena-entry': arenaEntry,
   'arena-booth': arenaBooth,

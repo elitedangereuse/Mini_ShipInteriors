@@ -2161,6 +2161,7 @@ for (const it of deckById(-1).interactables) {
   if (model === 'salvage-terminal') it.onInteract = () => { player.interact(); zone.openTerminal() }
   else if (model === 'arena-terminal') it.onInteract = () => { player.interact(); arena.openTerminal() }
   else if (model === 'arena-board') it.onInteract = () => { player.interact(); arena.openRanking() }
+  else if (model === 'arena-holo') it.onInteract = () => { player.interact(); arena.watchLive() }
   else if (model === 'salvage-board') it.onInteract = () => { player.interact(); zone.openLeaderboard() }
   else if (model === 'surveillance-wall') it.onInteract = () => {
     player.interact()
@@ -4252,7 +4253,7 @@ function isoOnly(): boolean {
   // Caché dans un casier aussi : en vue subjective, on ne verrait que l'intérieur de la porte.
   // Une scène de quête se regarde de haut, les deux interlocuteurs dans le cadre.
   // La scène de fin de l'arène se regarde de face, tous les combattants dans le cadre.
-  return editing() || photo.active || !!claw || barPanel.isOpen || cinemaRoom.isOpen || mediaRoom.isOpen || planetarium.active || !!zone.watchTarget || zone.hiding || cinematic.active || !!cctv?.active || !!arenaMode?.staging
+  return editing() || photo.active || !!claw || barPanel.isOpen || cinemaRoom.isOpen || mediaRoom.isOpen || planetarium.active || !!zone.watchTarget || zone.hiding || cinematic.active || !!cctv?.active || !!arenaMode?.staging || !!arenaMode?.watching
 }
 /** Occupé (installé, en emote, au travail…) : en vue subjective, la caméra passe derrière le personnage. */
 function busyBody(): boolean {
@@ -5959,8 +5960,8 @@ function frame() {
     fps.update(dt, player.avatar.head(fpsHead), deck.y + deck.ceilingY, deck.map)
     fps.toCamera(toCam)
   } else iso.toCamera(toCam)
-  // Sur la scène de fin de l'arène, c'est sa doublure qu'on voit (cf. src/arena/podium.ts).
-  player.avatar.root.visible = (!fpsShown || fps.showsBody) && !arena.staging
+  // Sur la scène de fin de l'arène, c'est sa doublure qu'on voit (cf. src/arena/podium.ts) ; un spectateur n'a pas de corps.
+  player.avatar.root.visible = (!fpsShown || fps.showsBody) && !arena.staging && !arena.watching
   if (range.active) {
     range.update(dt, {
       fps: fpsShown, body: !fpsShown || fps.showsBody, camera: activeCamera(), player: player.position, hands: player.avatar.hands(rangeHands),

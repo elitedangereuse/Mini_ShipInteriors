@@ -5397,6 +5397,30 @@ body.arena-on .anchor .tag { display: none; }
   to { opacity: 0; }
 }
 .arena-count.warn { color: #ff6a5c; }
+/* Le terminal : un lobby en partie se regarde. */
+.arena-tile-watch { display: inline-flex; align-items: center; gap: 5px; color: #ff9a8f; font-size: 12px; font-weight: 700; }
+.arena-tile-watch .icon { width: 14px; height: 14px; }
+.arena-tile-watch small { color: #8d96a3; font-weight: 400; }
+.arena-panel .arena-tile.playing:hover:not(:disabled) { border-color: #ff6a5c; background: #ff5a4a14; }
+/* Spectateur : les deux camps gardent leurs couleurs du lobby (orange, bleu), et une barre dit qui la vue suit. */
+.arena-hud.watch, .arena-end.watch { --ally: #ff8a1c; --enemy: #3fc8ff; }
+.arena-spectate { position: absolute; left: 50%; bottom: 84px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 6px; border: 2px solid #0b0d12; border-radius: 14px; background: #141824f2; box-shadow: 0 5px 0 #0007; pointer-events: auto; }
+.arena-spectate[hidden] { display: none; }
+.arena-spectate-who { display: grid; grid-template-columns: auto auto; align-items: center; justify-items: start; gap: 0 8px; min-width: 150px; padding: 0 6px; }
+.arena-spectate-who .icon { grid-row: span 2; width: 22px; height: 22px; color: #b6bfcc; }
+.arena-spectate-who em { color: #8d96a3; font-size: 10px; font-style: normal; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+.arena-spectate-who strong { max-width: 200px; overflow: hidden; color: var(--tint, #fff); font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+.arena-spectate-step { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid #3b404a; border-radius: 10px; background: #1b1e25; color: #e8eaee; cursor: pointer; }
+.arena-spectate-step:hover { border-color: #6b7482; background: #242833; }
+.arena-spectate-step .icon { width: 20px; height: 20px; }
+body.arena-watch #touch-pad { display: none; }
+/* Écran de fin : ce que le site a répondu pour le classement. */
+.arena-end-rank { display: inline-flex; align-items: center; gap: 6px; margin: 2px 0 0; padding: 3px 12px; border-radius: 999px; background: #0b0d12cc; font-size: 12px; font-weight: 700; }
+.arena-end-rank[hidden] { display: none; }
+.arena-end-rank .icon { width: 14px; height: 14px; }
+.arena-end-rank.ok { color: #7dedb5; }
+.arena-end-rank.no { color: #ffc2bb; }
+.arena-end-head h2.long { font-size: clamp(24px, 6.5vh, 52px); -webkit-text-stroke-width: 6px; }
 /*
  * L'écran de fin, posé sur la scène où les combattants s'alignent (cf. src/arena/podium.ts) : le
  * verdict en haut, une fiche sous les pieds de chacun (posée par le jeu, cf. ArenaHud.card), le

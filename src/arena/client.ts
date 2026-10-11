@@ -13,14 +13,14 @@ import { WEAPONS, type WeaponId } from '../range-weapons'
 import { RemotePlayer } from '../remote'
 import { loadZoneKit } from '../salvage/kit'
 import type { Dialog } from '../ui'
-import { ARENA_BOOTH, ARENA_LEVEL, ARENA_RETURN, ARENA_RULES, arenaHidden, arenaSight, arenaZone } from '../../shared/arena.js'
+import { ARENA_BOOTH, ARENA_LEVEL, ARENA_RETURN, ARENA_RULES, ARENA_TEAMS, arenaHidden, arenaSight, arenaZone } from '../../shared/arena.js'
 import { arenaExtras, arenaLevel, type ArenaExtras } from './deck'
 import { ArenaGun, type ArenaBody } from './gun'
 import { ArenaMusic } from './music'
 import { Podium, type PodiumEntry } from './podium'
 import { Referee, REFEREE, refereeRig } from './referee'
-import { arenaRanks } from '../furniture/arena'
-import { ArenaHud, ArenaPanel, fetchRanking, RankingPanel, type Ranking, type Relation } from './ui'
+import { arenaLive, arenaRanks } from '../furniture/arena'
+import { ArenaHud, ArenaPanel, fetchRanking, RankingPanel, TEAM_NAMES, type Ranking, type Relation } from './ui'
 
 /*
  * L'arène, côté client : le terminal du lobby, puis la partie. Le relais fait autorité (cf.
@@ -38,10 +38,17 @@ import { ArenaHud, ArenaPanel, fetchRanking, RankingPanel, type Ranking, type Re
  * La vue par défaut est celle de Brawl Stars : de haut et de près, son camp en bas de l'écran, celui
  * d'en face en haut (cf. ArenaHost.view). À la fin, tous les combattants s'alignent sur une scène,
  * les vainqueurs dansent (cf. podium.ts), et l'écran de fin se pose par-dessus.
+ *
+ * Spectateur : du terminal ou de l'hologramme du lobby, on regarde une partie en cours. Le relais
+ * nous l'envoie comme à un joueur ; ici, tous les combattants sont des doublures menées par ce
+ * qu'il dit, les camps gardent leurs couleurs du lobby (orange, bleu), la vue suit un combattant
+ * (← et → en changent), et l'on n'a ni arme ni corps : pour le bord, on est resté au lobby.
  */
 
 /** Les couleurs du joueur : lui, les siens, ceux d'en face. */
 const TINT: Record<Relation, string> = { self: '#5fe08a', ally: '#35a7ff', enemy: '#ff4d4d' }
+/** Pour un spectateur, pas de « siens » : les deux camps gardent leurs couleurs du lobby. */
+const WATCH_TINT: Record<Relation, string> = { self: TINT.self, ally: ARENA_TEAMS[0].color, enemy: ARENA_TEAMS[1].color }
 /** Le fantôme : ce que devient un combattant éliminé, à sa base, le temps de revenir en jeu. */
 const GHOST = new THREE.MeshBasicMaterial({ color: '#bfeaff', transparent: true, opacity: 0.4, depthWrite: false })
 
@@ -154,6 +161,11 @@ interface Game {
   /** Éliminations du joueur depuis sa dernière chute, et dernier échange de balles où il était (pour la musique). */
   streak: number
   foughtAt: number
+  /** Spectateur : on regarde la partie sans y être ; `follow` : le combattant que suit la vue. */
+  watching: boolean
+  follow: number
+  /** Les couleurs de la partie : celles du joueur, ou celles des camps pour un spectateur. */
+  tint: Record<Relation, string>
 }
 
 type Phase = 'ship' | 'loading' | 'arena'
@@ -167,6 +179,11 @@ const ERRORS: Record<string, string> = {
   leader: tr('Seul le chef du lobby règle la partie.', 'Only the lobby leader sets the match.'),
   crowded: tr('Trop de monde dans un camp pour ce format.', 'Too many players on one side for that format.'),
   alone: tr('Sans bots, il faut quelqu\'un dans le camp d\'en face.', 'Without bots, someone has to be on the other side.'),
+}
+/** Pourquoi une partie n'a pas été notée au classement. */
+const UNRANKED: Record<string, string> = {
+  guest: tr('Non classée : connectez-vous au site pour entrer au classement.', 'Not ranked: sign in to the site to enter the ranking.'),
+  site: tr('Non classée : le site n\'a pas pu enregistrer la partie.', 'Not ranked: the site could not record the match.'),
 }
 
 const ringGeometry = new THREE.RingGeometry(0.21, 0.3, 28).rotateX(-Math.PI / 2)
@@ -197,6 +214,8 @@ export class ArenaClient {
   private readonly hands = new THREE.Vector3()
   private readonly local = new THREE.Vector3()
   private readonly focus = new THREE.Vector3()
+  /** Ce que le site a répondu pour la dernière partie finie (il peut répondre avant que l'écran de fin ne soit posé). */
+  private rankedAs: { game: string; ok: boolean; reason?: string } | null = null
   /** La scène de fin (construite à la première), et si l'on y est. */
   private podium: Podium | null = null
   private staged = false
@@ -215,6 +234,7 @@ export class ArenaClient {
       side: (team) => host.net.sendArena('side', { team }),
       settings: (s) => host.net.sendArena('settings', s),
       weapon: (id) => this.choose(id),
+      watch: (room) => this.watch(room),
       ready: (on) => {
         host.net.sendArena('ready', { ready: on })
         if (on) void loadZoneKit()
@@ -223,6 +243,7 @@ export class ArenaClient {
     this.panel.weapon = this.weapon
     this.hud.onQuit = () => this.quit()
     this.hud.onWeapon = (id) => this.choose(id)
+    this.hud.onFollow = (step) => this.cycle(step)
     this.ranking.onLoaded = (r) => this.showRanks(r)
     void this.buildReferee()
     void this.refreshRanks()
@@ -263,9 +284,14 @@ export class ArenaClient {
     return !!this.game && !!this.deck && this.host.deck() === this.deck
   }
 
-  /** Le personnage ne bouge pas : en route, éliminé, ou devant l'écran de fin. */
+  /** Le personnage ne bouge pas : en route, éliminé, spectateur, ou devant l'écran de fin. */
   get frozen(): boolean {
-    return this.phase === 'loading' || (this.inArena && (this.game!.downBy !== null || !!this.game!.end))
+    return this.phase === 'loading' || (this.inArena && (this.game!.downBy !== null || this.game!.watching || !!this.game!.end))
+  }
+
+  /** On regarde une partie sans y être : ni corps, ni arme, et la vue reste celle de dessus. */
+  get watching(): boolean {
+    return !!this.game?.watching && this.inArena
   }
 
   get panelOpen(): boolean {
@@ -333,13 +359,15 @@ export class ArenaClient {
   /** Un autre joueur de l'arène se voit-il ? Ceux de sa partie, sauf un adversaire caché dans un buisson. */
   sees(id: number): boolean {
     const f = this.game?.fighters.get(id)
-    if (!f || !this.inArena || this.staged) return false
+    // Un spectateur voit des doublures : le vrai personnage, dont il ne reçoit pas les pas, reste caché.
+    if (!f || !this.inArena || this.staged || this.game!.watching) return false
     const r = f.puppet ?? this.host.remotes.get(id)
     return !!r && this.visible(f, r.group.position)
   }
 
   private visible(f: Fighter, at: THREE.Vector3): boolean {
-    if (f.rel !== 'enemy') return true
+    // Un spectateur voit tout le monde, buissons compris.
+    if (f.rel !== 'enemy' || this.game?.watching) return true
     const revealed = performance.now() - f.revealAt < ARENA_RULES.bush.reveal * 1000
     return !arenaHidden(this.zone, at, this.host.player.position, revealed)
   }
@@ -354,6 +382,25 @@ export class ArenaClient {
 
   private refresh() {
     this.panel.update(this.lobby, this.host.net.id, this.host.net.online)
+    // Le tableau du mur et l'hologramme du lobby disent les parties en cours.
+    const games = this.lobby.rooms.filter((r) => r.status === 'playing').map((r) => ({ lobby: r.id, rounds: r.rounds ?? [0, 0], score: r.score ?? [0, 0] }))
+    if (JSON.stringify(games) === JSON.stringify(arenaLive.games)) return
+    arenaLive.games = games
+    arenaLive.stamp++
+  }
+
+  /** Regarder la partie du lobby `room` (du terminal) : le relais répond par son départ, en spectateur. */
+  private watch(room: number) {
+    if (this.game) return
+    this.host.net.sendArena('watch', { room })
+    void loadZoneKit()
+  }
+
+  /** De l'hologramme du lobby : regarder la partie en cours, s'il y en a une. */
+  watchLive() {
+    const live = this.lobby.rooms.find((r) => r.status === 'playing')
+    if (live) this.watch(live.id)
+    else this.host.dialog.show(tr('Aucune partie en cours : l\'hologramme montre l\'arène au repos. Dès qu\'une partie se joue, on la regarde d\'ici.', 'No match in progress: the hologram shows the arena at rest. As soon as one is on, you watch it from here.'))
   }
 
   /** L'arme choisie : au terminal, ou en attendant de revenir à sa base. */
@@ -378,7 +425,16 @@ export class ArenaClient {
         this.refresh()
         break
       case 'arena:error':
-        if (this.panel.isOpen) this.panel.message(ERRORS[m.code] ?? tr('Action refusée.', 'Action refused.'))
+        // La partie qu'on regardait s'est arrêtée sans résultat (ses joueurs sont partis).
+        if (m.code === 'over' && this.game?.watching) void this.leave(tr('La partie s\'est arrêtée : retour au lobby.', 'The match stopped: back to the lobby.'))
+        else if (this.panel.isOpen) this.panel.message(ERRORS[m.code] ?? tr('Action refusée.', 'Action refused.'))
+        else if (m.code === 'gone') this.host.dialog.show(tr('Cette partie vient de se terminer.', 'That match just ended.'))
+        break
+      case 'arena:ranked':
+        // Le site a noté la partie (ou non) : l'écran de fin le dit, et le tableau du lobby se relit.
+        if (this.game?.end?.game === m.game) this.hud.ranked(m.ok ? tr('Partie comptée au classement', 'Match counted in the ranking') : UNRANKED[m.reason ?? 'site'], m.ok)
+        this.rankedAs = { game: m.game, ok: m.ok, reason: m.reason }
+        if (m.ok) void this.refreshRanks()
         break
       case 'arena:start':
         void this.start(m)
@@ -429,7 +485,7 @@ export class ArenaClient {
       team: () => this.game?.team ?? 0,
       bodies: () => this.bodies(),
       foes: () => this.foes(),
-      canFire: () => !!this.game && !this.game.end && this.game.downBy === null && (this.game.state?.warmup ?? 1) <= 0,
+      canFire: () => !!this.game && !this.game.end && !this.game.watching && this.game.downBy === null && (this.game.state?.warmup ?? 1) <= 0,
       fire: (o, d) => this.host.net.sendArena('fire', { o, d }),
       quit: () => this.quit(),
     }
@@ -452,21 +508,33 @@ export class ArenaClient {
       this.host.dialog.show(tr('L\'arène n\'a pas pu se charger : réessayez dans un instant.', 'The arena failed to load: try again in a moment.'))
       return
     }
-    const game: Game = { id: m.game, team: m.team, goal: m.goal, wins: m.wins, fighters: new Map(), state: null, end: null, downBy: null, second: Infinity, streak: 0, foughtAt: 0 }
+    const watching = !!m.watch
+    const game: Game = {
+      id: m.game, team: m.team, goal: m.goal, wins: m.wins, fighters: new Map(), state: null, end: null, downBy: null, second: Infinity, streak: 0, foughtAt: 0,
+      watching, follow: m.fighters[0]?.id ?? 0, tint: watching ? WATCH_TINT : TINT,
+    }
     this.game = game
-    for (const f of m.fighters) this.addFighter(f, f.bot ? null : undefined)
+    this.rankedAs = null
+    // Un spectateur mène tout le monde en doublure : il ne reçoit pas les pas des joueurs.
+    for (const f of m.fighters) this.addFighter(f, f.bot || watching ? null : undefined)
     const mine = game.fighters.get(this.host.net.id)
     if (mine) this.weapon = this.panel.weapon = mine.weapon
-    this.hud.show(true)
+    this.hud.show(true, watching)
     this.hud.board({ score: 0, rounds: 0 }, { score: 0, rounds: 0 }, m.goal, 1, m.wins, m.duration, m.warmup)
-    // Sa base en bleu, celle d'en face en rouge.
-    this.extras?.paintBases(m.team === 0 ? [TINT.ally, TINT.enemy] : [TINT.enemy, TINT.ally])
+    // Sa base en bleu, celle d'en face en rouge (pour un spectateur : chacune à la couleur de son camp).
+    this.extras?.paintBases(m.team === 0 ? [game.tint.ally, game.tint.enemy] : [game.tint.enemy, game.tint.ally])
     await this.host.moveTo(deck, m.spawn, () => this.host.view('match', { team: m.team }))
     // Reparti entre-temps (liaison perdue pendant le fondu).
     if (this.game !== game) return
     this.phase = 'arena'
     this.host.face(m.spawn.yaw)
+    this.gun!.watching = watching
     this.gun!.begin(this.weapon)
+    if (watching) {
+      // Ni arme ni mire : le moteur de tir ne sert qu'à montrer les balles des autres.
+      this.gun!.down()
+      return
+    }
     // Au doigt, le bandeau est étroit : le score dit déjà la limite de points.
     this.host.dialog.show(COARSE
       ? tr('Vos adversaires sont en rouge ; les buissons cachent qui s\'y tient.', 'Your opponents are in red; bushes hide whoever stands in them.')
@@ -480,15 +548,16 @@ export class ArenaClient {
   private addFighter(f: ArenaFighter, at: { x: number; z: number; yaw: number } | null | undefined) {
     const g = this.game!
     const rel: Relation = f.id === this.host.net.id ? 'self' : f.team === g.team ? 'ally' : 'enemy'
-    const ring = new THREE.Mesh(ringGeometry, new THREE.MeshBasicMaterial({ color: TINT[rel], transparent: true, opacity: 0.9, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6 }))
+    const ring = new THREE.Mesh(ringGeometry, new THREE.MeshBasicMaterial({ color: g.tint[rel], transparent: true, opacity: 0.9, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6 }))
     ring.visible = false
     ring.renderOrder = 2
     this.deck!.group.add(ring)
     let puppet: RemotePlayer | null = null
-    if (f.bot) {
+    if (f.bot || g.watching) {
       const deckY = this.deck!.y
-      // Hors de vue le temps que le premier état du relais donne sa place.
-      const state = { id: f.id, name: f.name, skin: lookId(randomLook()), x: at?.x ?? -10, z: at?.z ?? -10, yaw: at?.yaw ?? 0, level: ARENA_LEVEL, anim: 'idle' } as PlayerState
+      // Hors de vue le temps que le premier état du relais donne sa place. Un joueur garde son apparence du bord.
+      const skin = (!f.bot && this.host.remotes.get(f.id)?.skin) || lookId(randomLook())
+      const state = { id: f.id, name: f.name, skin, x: at?.x ?? -10, z: at?.z ?? -10, yaw: at?.yaw ?? 0, level: ARENA_LEVEL, anim: 'idle' } as PlayerState
       puppet = new RemotePlayer(f.id, state, () => deckY)
       puppet.group.visible = false
       this.host.scene.add(puppet.group)
@@ -554,6 +623,12 @@ export class ArenaClient {
   /** Abandon (deux fois de suite) : on quitte la partie et l'on rentre au lobby. */
   quit() {
     if (!this.game || this.game.end) return
+    // Un spectateur s'en va sans qu'on lui redemande : il ne laisse personne en plan.
+    if (this.game.watching) {
+      this.host.net.sendArena('unwatch')
+      void this.leave()
+      return
+    }
     const now = performance.now()
     if (now - this.quitArmed > 3000) {
       this.quitArmed = now
@@ -572,6 +647,14 @@ export class ArenaClient {
    */
   keyDown(e: KeyboardEvent): boolean {
     const g = this.game
+    if (g?.watching && this.inArena && !g.end) {
+      // Spectateur : ← et → passent d'un combattant à l'autre.
+      const turn = e.code === 'ArrowLeft' || e.code === 'KeyA' ? -1 : e.code === 'ArrowRight' || e.code === 'KeyD' ? 1 : 0
+      if (!turn) return false
+      e.preventDefault()
+      if (!e.repeat) this.cycle(turn)
+      return true
+    }
     if (!g || !this.inArena || g.end || g.downBy === null) return false
     const digit = /^Digit([1-5])$/.exec(e.code)
     const step = e.code === 'ArrowLeft' || e.code === 'KeyA' ? -1 : e.code === 'ArrowRight' || e.code === 'KeyD' ? 1 : 0
@@ -583,6 +666,15 @@ export class ArenaClient {
     else this.cursor = (this.cursor + step + WEAPONS.length) % WEAPONS.length
     if (digit || confirm) this.choose(WEAPONS[this.cursor].id)
     return true
+  }
+
+  /** Spectateur : la vue passe au combattant suivant (`step` 1) ou précédent (-1), les camps l'un après l'autre. */
+  private cycle(step: number) {
+    const g = this.game
+    if (!g?.watching) return
+    const ids = [...g.fighters.values()].sort((a, b) => a.team - b.team || a.id - b.id).map((f) => f.id)
+    if (!ids.length) return
+    g.follow = ids[(Math.max(0, ids.indexOf(g.follow)) + step + ids.length) % ids.length]
   }
 
   // ------------------------------------------------------------------ état reçu
@@ -666,7 +758,7 @@ export class ArenaClient {
         if (!victim) break
         Object.assign(victim, { alive: false, hp: 0, ghost: true, wait: e.wait })
         // Il disparaît là où il est tombé, et reparaît à sa base, en fantôme.
-        if (this.inArena) gun.poof(new THREE.Vector3(e.from.x, 0.35, e.from.z), TINT[victim.rel])
+        if (this.inArena) gun.poof(new THREE.Vector3(e.from.x, 0.35, e.from.z), g.tint[victim.rel])
         const body = victim.puppet ?? (e.id === self ? null : this.host.remotes.get(e.id))
         if (body) {
           body.apply({ x: e.x, z: e.z, yaw: e.yaw, level: ARENA_LEVEL, anim: 'idle' })
@@ -713,6 +805,7 @@ export class ArenaClient {
         const mine = e.rounds[g.team], theirs = e.rounds[1 - g.team]
         const tally = tr(`${mine} manche${mine > 1 ? 's' : ''} à ${theirs}`, `${mine}–${theirs} in rounds`)
         if (e.winner < 0) gun.announce(tr(`Manche nulle · ${tally}`, `Round drawn · ${tally}`))
+        else if (g.watching) gun.announce(tr(`Manche à l'équipe ${TEAM_NAMES[e.winner]} · ${tally}`, `Round to the ${TEAM_NAMES[e.winner]} team · ${tally}`))
         else gun.announce(e.winner === g.team ? tr(`Manche gagnée ! ${tally}`, `Round won! ${tally}`) : tr(`Manche perdue · ${tally}`, `Round lost · ${tally}`), e.winner !== g.team)
         gun.cue(e.winner === g.team ? 'go' : 'down')
         g.second = Infinity
@@ -758,7 +851,7 @@ export class ArenaClient {
     g.end = r
     g.downBy = null
     const mine = r.stats.find((s) => s.id === this.host.net.id)
-    this.lastEnd = { won: r.winner < 0 ? null : r.winner === g.team, kills: mine?.kills ?? 0, deaths: mine?.deaths ?? 0 }
+    if (!g.watching) this.lastEnd = { won: r.winner < 0 ? null : r.winner === g.team, kills: mine?.kills ?? 0, deaths: mine?.deaths ?? 0 }
     const side = (team: number) => ({ score: r.score[team], rounds: r.rounds[team] })
     this.hud.board(side(g.team), side(1 - g.team), r.goal, g.state?.round ?? 1, g.wins, 0, 0)
     this.hud.waiting(null, 0, this.weapon, this.cursor)
@@ -779,7 +872,11 @@ export class ArenaClient {
     const g = this.game!
     const self = this.host.net.id
     const gone = () => this.game !== g || !!this.leaving || !this.inArena
-    this.hud.shout(r.winner < 0 ? tr('Égalité', 'Draw') : r.winner === g.team ? tr('Victoire !', 'Victory!') : tr('Défaite', 'Defeat'), r.winner >= 0 && r.winner !== g.team)
+    // Pour un spectateur, pas de victoire ni de défaite : un camp l'emporte.
+    const verdict = r.winner < 0 ? tr('Égalité', 'Draw')
+      : g.watching ? tr(`Victoire de l'équipe ${TEAM_NAMES[r.winner]}`, `${TEAM_NAMES[r.winner]} team wins`)
+        : r.winner === g.team ? tr('Victoire !', 'Victory!') : tr('Défaite', 'Defeat')
+    this.hud.shout(verdict, !g.watching && r.winner >= 0 && r.winner !== g.team)
     await new Promise((done) => window.setTimeout(done, CURTAIN))
     if (gone()) return
     await this.host.fade(true)
@@ -795,13 +892,16 @@ export class ArenaClient {
       return { id: s.id, name: s.name, skin, rel: s.id === self ? 'self' : s.team === g.team ? 'ally' : 'enemy', won: r.winner < 0 ? null : s.team === r.winner }
     })
     this.podium ??= new Podium(this.deck!.group, this.host.scene, { x: (this.zone.width - 1) / 2, z: STAGE_Z })
-    this.podium.show(entries, TINT)
+    this.podium.show(entries, g.tint)
     this.staged = true
     this.host.view('stage', { width: this.podium.width })
     this.hud.showEnd(r, g.team, self, entries.map((e) => e.id), () => {
       this.endTimer = 0
       void this.leave()
-    })
+    }, g.watching ? verdict : undefined)
+    // Le site a pu répondre avant le lever de rideau.
+    const ranked = this.rankedAs
+    if (ranked?.game === r.game) this.hud.ranked(ranked.ok ? tr('Partie comptée au classement', 'Match counted in the ranking') : UNRANKED[ranked.reason ?? 'site'], ranked.ok)
     this.placeCards()
     await this.host.fade(false)
   }
@@ -838,6 +938,15 @@ export class ArenaClient {
     const origin = this.deck!.group.position
     const fps = this.host.fps()
     const here = this.host.player.position
+    if (g.watching && inArena && !this.staged) {
+      // Spectateur : sans corps, on se tient là où est le combattant suivi ; la vue, le son et les
+      // murs qui s'effacent le suivent d'eux-mêmes. S'il est parti, on passe au suivant.
+      if (!g.fighters.has(g.follow)) this.cycle(1)
+      const followed = g.fighters.get(g.follow)
+      const at = followed?.puppet?.group.position
+      if (at && followed!.puppet!.group.position.x > -5) here.set(at.x, this.deck!.y, at.z)
+      this.hud.spectate(followed ? { name: followed.name, rel: followed.rel, bot: followed.bot } : null)
+    }
     // Les yeux au sol, les obstacles sont doublés en hauteur : on ne voit pas par-dessus.
     if (this.extras) this.extras.upper.visible = fps
     for (const f of g.fighters.values()) {

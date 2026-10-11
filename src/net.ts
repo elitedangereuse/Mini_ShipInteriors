@@ -246,6 +246,8 @@ export interface ArenaRoom {
   /** En partie : les points de la manche en cours, et les manches gagnées par chaque équipe. */
   score?: [number, number]
   rounds?: [number, number]
+  /** En partie : ceux qui la regardent. */
+  watchers?: number
 }
 export interface ArenaLobby { rooms: ArenaRoom[] }
 export interface ArenaFighter { id: number; name: string; team: 0 | 1; bot: boolean; weapon: WeaponId }
@@ -260,6 +262,8 @@ export interface ArenaStart {
   warmup: number
   fighters: ArenaFighter[]
   spawn: { x: number; z: number; yaw: number }
+  /** On la regarde seulement (spectateur) : du côté de l'équipe 0, depuis le milieu de l'arène. */
+  watch?: boolean
 }
 export interface ArenaFighterState {
   id: number; x: number; z: number; yaw: number; anim: string; hp: number; alive: boolean; weapon: WeaponId
@@ -293,7 +297,7 @@ export interface ArenaEnd {
   duration: number
   stats: ArenaStats[]
 }
-export type ArenaAction = 'join' | 'leave' | 'side' | 'settings' | 'weapon' | 'ready' | 'fire' | 'quit'
+export type ArenaAction = 'join' | 'leave' | 'side' | 'settings' | 'weapon' | 'ready' | 'fire' | 'quit' | 'watch' | 'unwatch' | 'debug'
 
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
@@ -366,6 +370,8 @@ export type ServerMessage =
   | ({ t: 'arena:event' } & ArenaEvent)
   | ({ t: 'arena:end' } & ArenaEnd)
   | { t: 'arena:error'; code: string }
+  /** Après la fin : la partie du joueur est notée au classement, ou pourquoi pas (invité ; le site ne l'a pas prise). */
+  | { t: 'arena:ranked'; game: string; ok: boolean; reason?: 'guest' | 'site' }
 
 /**
  * Réponse du relais à une invitation : partie, ou pourquoi pas (guest : on n'est pas CMDR,
@@ -381,7 +387,7 @@ type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin' | 'open'>
 const WS_PATH = import.meta.env.VITE_WS_PATH || '/ws/mini-shipinteriors'
 const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'open', 'whisper', 'nudge', 'ring', 'music', 'jump', 'patrol', 'chef', 'nurse', 'mechanic', 'gardener', 'chief', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error',
   'salvage:lobby', 'salvage:start', 'salvage:state', 'salvage:event', 'salvage:end', 'salvage:reward', 'salvage:error',
-  'arena:lobby', 'arena:start', 'arena:state', 'arena:event', 'arena:end', 'arena:error']
+  'arena:lobby', 'arena:start', 'arena:state', 'arena:event', 'arena:end', 'arena:error', 'arena:ranked']
 
 export class Net {
   online = false

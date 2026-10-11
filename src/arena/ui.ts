@@ -23,6 +23,8 @@ export interface ArenaPanelActions {
   settings(s: { size?: number; bots?: boolean; skill?: number; goal?: number }): void
   weapon(id: WeaponId): void
   ready(on: boolean): void
+  /** Regarder la partie en cours d'un lobby, en spectateur. */
+  watch(room: number): void
 }
 
 /** Les cinq armes, à choisir : au terminal, puis à chaque élimination. */
@@ -148,9 +150,10 @@ export class ArenaPanel extends Modal {
     const own = r === mine
     const playing = r.status === 'playing'
     const full = !own && r.members.length >= r.size * 2
-    const b = button('', () => { if (!own) this.actions.join(r.id) }, `arena-tile${own ? ' own' : ''}${playing ? ' playing' : ''}`)
+    // Un lobby en partie ne se rejoint pas : on la regarde.
+    const b = button('', () => { if (playing) this.actions.watch(r.id); else if (!own) this.actions.join(r.id) }, `arena-tile${own ? ' own' : ''}${playing ? ' playing' : ''}`)
     b.dataset.key = `join-${r.id}`
-    b.disabled = !own && (playing || full)
+    b.disabled = !own && !playing && full
     if (own) b.setAttribute('aria-current', 'true')
     const state = playing ? tr('En partie', 'Playing')
       : r.status === 'countdown' ? tr('Départ', 'Starting')
@@ -164,7 +167,10 @@ export class ArenaPanel extends Modal {
       const score = el('span', 'arena-tile-score')
       // Les manches gagnées par chaque camp, et les points de la manche en cours.
       score.append(el('b', 'team0', String(r.rounds?.[0] ?? 0)), ' – ', el('b', 'team1', String(r.rounds?.[1] ?? 0)), el('small', '', tr(` manches · ${r.score?.[0] ?? 0}–${r.score?.[1] ?? 0}`, ` rounds · ${r.score?.[0] ?? 0}–${r.score?.[1] ?? 0}`)))
-      b.append(score)
+      const watch = el('span', 'arena-tile-watch')
+      watch.append(icon('eye'), tr('Regarder', 'Watch'))
+      if (r.watchers) watch.append(el('small', '', tr(` · ${r.watchers} spectateur${r.watchers > 1 ? 's' : ''}`, ` · ${r.watchers} watching`)))
+      b.append(score, watch)
     } else {
       // Une rangée de places par camp : pleine (un joueur), creuse (libre, ou un bot).
       const pips = el('span', 'arena-pips')
@@ -331,8 +337,8 @@ export class RankingPanel extends Modal {
     }
     this.onLoaded?.(ranking)
     this.body.append(el('p', 'salvage-intro', tr(
-      'Les CMDR par victoires ; à égalité, le plus d\'éliminations, puis la première partie. Seules comptent les parties avec au moins un joueur dans chaque camp : battre des bots ne classe pas.',
-      'CMDRs by wins; ties go to the most kills, then the earliest match. Only matches with at least one player on each side count: beating bots doesn\'t rank.',
+      'Les CMDR par victoires ; à égalité, le plus d\'éliminations, puis la première partie. Toute partie finie compte, contre des joueurs comme contre des bots.',
+      'CMDRs by wins; ties go to the most kills, then the earliest match. Every finished match counts, against players or bots.',
     )))
     const table = el('table', 'salvage-table arena-rank-table')
     const head = el('tr')
@@ -400,6 +406,13 @@ export class ArenaHud {
   private back: HTMLButtonElement | null = null
   private backIn = ''
   private readonly quit: HTMLButtonElement
+  /** Spectateur : qui la vue suit, entre deux flèches pour passer au suivant. */
+  private readonly watchBar = el('div', 'arena-spectate')
+  private readonly watchName = el('strong')
+  private watched = ''
+  /** Écran de fin : ce que le site a répondu pour le classement. */
+  private rankNote: HTMLElement | null = null
+  onFollow?: (step: number) => void
   private shownCount = ''
   private picked: string | null = null
   private readonly coarse = matchMedia('(pointer: coarse)').matches
@@ -421,7 +434,15 @@ export class ArenaHud {
     if (!this.coarse) this.wait.append(el('span', 'arena-wait-keys', tr('← → choisir · Entrée valider · 1 à 5 : directement', '← → pick · Enter confirm · 1 to 5: straight away')))
     this.count.setAttribute('aria-live', 'assertive')
     this.feed.setAttribute('aria-live', 'polite')
-    this.root.append(this.plates, board, this.feed, this.quit, this.count, this.wait)
+    const previous = button('', () => this.onFollow?.(-1), 'arena-spectate-step', 'caret-left')
+    previous.setAttribute('aria-label', tr('Combattant précédent', 'Previous fighter'))
+    const next = button('', () => this.onFollow?.(1), 'arena-spectate-step', 'caret-right')
+    next.setAttribute('aria-label', tr('Combattant suivant', 'Next fighter'))
+    const who = el('span', 'arena-spectate-who')
+    who.append(icon('eye'), el('em', '', tr('Spectateur', 'Spectating')), this.watchName)
+    this.watchBar.hidden = true
+    this.watchBar.append(previous, who, next)
+    this.root.append(this.plates, board, this.feed, this.quit, this.count, this.wait, this.watchBar)
     this.end.hidden = true
     this.end.setAttribute('role', 'dialog')
     this.end.setAttribute('aria-modal', 'true')
@@ -448,11 +469,16 @@ export class ArenaHud {
     this.count.classList.add('pop')
   }
 
-  show(on: boolean) {
+  /** @param watching spectateur : les deux camps à leurs couleurs du lobby, la barre du combattant suivi, pas de manette */
+  show(on: boolean, watching = false) {
     this.root.hidden = !on
     this.quit.hidden = false
     // Les noms du bord laissent la place aux plaques de l'arène.
     document.body.classList.toggle('arena-on', on)
+    document.body.classList.toggle('arena-watch', on && watching)
+    for (const node of [this.root, this.end]) node.classList.toggle('watch', on && watching)
+    this.watchBar.hidden = !(on && watching)
+    this.watched = ''
     if (!on) {
       this.wait.hidden = true
       this.feed.replaceChildren()
@@ -535,6 +561,24 @@ export class ArenaHud {
     this.plateOf.delete(id)
   }
 
+  /** Spectateur : le combattant que suit la vue (null : personne). */
+  spectate(who: { name: string; rel: Relation; bot: boolean } | null) {
+    const shown = who ? `${who.rel}:${who.bot}:${who.name}` : ''
+    if (shown === this.watched) return
+    this.watched = shown
+    this.watchName.className = who?.rel ?? ''
+    this.watchName.textContent = who ? (who.bot ? `🤖 ${who.name}` : who.name) : '…'
+  }
+
+  /** Écran de fin : la partie a été notée au classement (`ok`), ou pourquoi elle ne l'a pas été. */
+  ranked(text: string, ok: boolean) {
+    const note = this.rankNote
+    if (!note) return
+    note.replaceChildren(icon(ok ? 'check' : 'warning-circle'), text)
+    note.className = `arena-end-rank ${ok ? 'ok' : 'no'}`
+    note.hidden = false
+  }
+
   /** Touché : le bord de l'écran rougit un instant. */
   hurt() {
     this.vignette.classList.remove('flash')
@@ -574,25 +618,31 @@ export class ArenaHud {
    * score ; sous chaque combattant, sa fiche (éliminations, chutes, dégâts ; le joueur star) ; en
    * bas, le retour au lobby.
    * @param order les combattants, de gauche à droite de la scène
+   * @param title le verdict d'un spectateur (« Victoire de l'équipe Orange ») : pour lui, ni victoire ni défaite
    */
-  showEnd(r: ArenaEnd, team: number, self: number, order: number[], onBack: () => void) {
+  showEnd(r: ArenaEnd, team: number, self: number, order: number[], onBack: () => void, title?: string) {
     this.end.replaceChildren()
     this.cards.clear()
     this.quit.hidden = true
+    this.watchBar.hidden = true
     this.count.textContent = this.shownCount = ''
     const won = r.winner === team
-    const verdict = r.winner < 0 ? 'draw' : won ? 'won' : 'lost'
+    const verdict = r.winner < 0 ? 'draw' : won || title ? 'won' : 'lost'
     const head = el('header', `arena-end-head ${verdict}`)
     // Le score de la partie : les manches ; dessous, les points de la dernière.
     const score = el('p', 'arena-end-score')
     score.append(el('strong', 'ally', String(r.rounds[team])), el('i', '', '–'), el('strong', 'enemy', String(r.rounds[1 - team])))
     const last = `${r.score[team]} – ${r.score[1 - team]}`
+    // Ce que le site répond pour le classement vient ensuite (cf. ranked).
+    this.rankNote = el('p', 'arena-end-rank')
+    this.rankNote.hidden = true
     head.append(
-      el('h2', '', r.winner < 0 ? tr('Égalité', 'Draw') : won ? tr('Victoire !', 'Victory!') : tr('Défaite', 'Defeat')),
+      el('h2', title ? 'long' : '', title ?? (r.winner < 0 ? tr('Égalité', 'Draw') : won ? tr('Victoire !', 'Victory!') : tr('Défaite', 'Defeat'))),
       score,
       el('p', 'arena-end-note', r.reason === 'forfeit'
         ? tr('L\'équipe d\'en face a quitté l\'arène.', 'The other team left the arena.')
         : tr(`Dernière manche : ${last}${r.reason === 'time' ? ', au temps' : ''}`, `Last round: ${last}${r.reason === 'time' ? ', on time' : ''}`)),
+      this.rankNote,
     )
     // Le joueur star : celui qui a le plus éliminé (à égalité, le plus blessé).
     const star = [...r.stats].sort((a, b) => b.kills - a.kills || b.damage - a.damage)[0]
@@ -624,7 +674,7 @@ export class ArenaHud {
     this.back = back
     this.backIn = ''
     this.end.append(head, cards, back)
-    this.end.className = `arena-end ${verdict}`
+    this.end.className = `arena-end ${verdict}${title ? ' watch' : ''}`
     this.end.hidden = false
     document.body.classList.add('arena-end-on')
     back.focus()

@@ -22,9 +22,14 @@
 // se regarnit au rythme de l'arme, rechargement compris. Sa position est celle qu'il a envoyée,
 // si elle est plausible (sur le sol, pas plus loin que ne le permet sa vitesse).
 //
-// Classement : à la fin d'une partie où chaque camp comptait au moins un joueur au départ, le relais
-// déclare au site la partie de chaque CMDR qui l'a finie (gagnée, perdue ou nulle, ses éliminations,
-// ses chutes) : cf. `report`. Battre des bots ne classe pas, et rien n'est payé.
+// Classement : à la fin d'une partie, le relais déclare au site la partie de chaque CMDR qui l'a
+// finie (gagnée, perdue ou nulle, ses éliminations, ses chutes) : cf. `report`. Une partie contre
+// des bots compte comme une autre. Chaque joueur apprend ensuite si la sienne a été notée
+// (« arena:ranked » : oui, ou pourquoi pas). Rien n'est payé.
+//
+// Spectateurs : du terminal, on peut regarder une partie en cours (« arena:watch »). Le relais
+// envoie alors au spectateur ce qu'il envoie aux joueurs (l'état, les tirs, la fin) ; lui reste au
+// lobby, et n'agit sur rien.
 //
 // Qui quitte la partie (abandon, déconnexion) est remplacé par un bot si le salon en a ; sinon son
 // équipe continue sans lui, et perd par forfait quand elle est vide.
@@ -39,7 +44,7 @@ import { ShipMap } from '../shared/ship-map.js'
 import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 
 /** Événements du lobby ; les autres sont ceux d'une partie (l'arme se change dans les deux). */
-export const ARENA_LOBBY_ACTIONS = new Set(['arena:join', 'arena:leave', 'arena:side', 'arena:settings', 'arena:weapon', 'arena:ready'])
+export const ARENA_LOBBY_ACTIONS = new Set(['arena:join', 'arena:leave', 'arena:side', 'arena:settings', 'arena:weapon', 'arena:ready', 'arena:watch', 'arena:unwatch'])
 export const ARENA_GAME_ACTIONS = new Set(['arena:fire', 'arena:quit'])
 
 const RAD = Math.PI / 180
@@ -86,7 +91,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       const p = playerById(id)
       return { id, name: p?.name ?? m.name, verified: !!p?.verified, team: m.team, weapon: m.weapon, ready: m.ready }
     }),
-    ...(r.game ? { score: [...r.game.score], rounds: [...r.game.rounds] } : {}),
+    ...(r.game ? { score: [...r.game.score], rounds: [...r.game.rounds], watchers: r.game.watchers.size } : {}),
   })
   const snapshot = () => ({ rooms: [...rooms.values()].map(roomState) })
   const announce = () => broadcast('arena:lobby', snapshot())
@@ -111,9 +116,20 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     if (r.leader === p.id) r.leader = r.members.keys().next().value
   }
 
+  /** Le joueur ne regarde plus aucune partie. */
+  function unwatch(p) {
+    let was = false
+    for (const r of rooms.values()) if (r.game?.watchers.delete(p.id)) was = true
+    return was
+  }
+
   function lobbyAction(p, action, data) {
     const r = roomOf.get(p.id)
     if (r?.status === 'playing') return error(p, 'playing')
+    if (action === 'arena:unwatch') {
+      if (unwatch(p)) announce()
+      return
+    }
     if (action !== 'arena:leave' && !inLobby(p)) return error(p, 'lobby')
     const weapon = WEAPON_IDS.includes(data.weapon) ? data.weapon : null
     switch (action) {
@@ -138,6 +154,15 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
         leaveRoom(p)
         unready(r)
         break
+      case 'arena:watch': {
+        // Spectateur d'une partie en cours : il la reçoit comme un joueur, sans y être.
+        const game = rooms.get(data.room)?.game
+        if (!game || game.ended) return error(p, 'gone')
+        unwatch(p)
+        game.watchers.add(p.id)
+        emit(p.id, 'arena:start', startMessage(game, null))
+        break
+      }
       case 'arena:side': {
         const m = r?.members.get(p.id)
         if (!m || (data.team !== 0 && data.team !== 1) || data.team === m.team) return
@@ -190,6 +215,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
   const publicFighter = (f) => ({ id: f.id, name: f.name, team: f.team, bot: f.bot, weapon: f.weapon })
   const toGame = (game, event, data, except) => {
     for (const f of game.fighters.values()) if (!f.bot && f.id !== except) emit(f.id, event, data)
+    for (const id of game.watchers) emit(id, event, data)
   }
   const tell = (game, data, except) => toGame(game, 'arena:event', data, except)
   const standing = (game, team) => [...game.fighters.values()].filter((f) => f.alive && (team === undefined || f.team === team))
@@ -231,15 +257,15 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     const game = {
       id: randomBytes(8).toString('hex'), room: r, zone: arenaZone(), size: r.size, startedAt: t, liveAt: t + R.warmup * 1000,
       endsAt: t + (R.warmup + R.duration) * 1000, goal: r.goal, score: [0, 0], round: 1, rounds: [0, 0], skill: ARENA_SKILLS[r.skill], fighters: new Map(), bullets: [],
-      ended: false, frozen: false, nextBot: -1,
+      ended: false, frozen: false, nextBot: -1, watchers: new Set(),
     }
     for (const [id, m] of r.members) {
       const p = playerById(id)
       makeFighter(game, { id, name: p?.name ?? m.name, verified: !!p?.verified, cookie: p?.cookie ?? null, team: m.team, weapon: m.weapon })
       m.ready = false
+      // Qui regardait une autre partie joue maintenant la sienne.
+      if (p) unwatch(p)
     }
-    // Une partie ne compte au classement que si chaque camp a au moins un joueur : battre des bots ne classe pas.
-    game.ranked = [0, 1].every((team) => standing(game, team).length > 0)
     if (r.bots) for (const team of [0, 1]) while (standing(game, team).length < r.size) addBot(game, team)
     r.status = 'playing'
     r.game = game
@@ -248,10 +274,13 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     announce()
   }
 
+  /** @param f le combattant à qui l'on écrit ; null : un spectateur (il regarde du côté de l'équipe 0, depuis le milieu de l'arène) */
   function startMessage(game, f) {
+    const at = f ?? { team: 0, x: (game.zone.width - 1) / 2, z: (game.zone.height - 1) / 2, yaw: 0 }
     return {
-      game: game.id, team: f.team, size: game.size, goal: game.goal, wins: R.wins, duration: R.duration, warmup: Math.max(0, (game.liveAt - now()) / 1000),
-      fighters: [...game.fighters.values()].map(publicFighter), spawn: { x: f.x, z: f.z, yaw: round2(f.yaw) },
+      game: game.id, team: at.team, size: game.size, goal: game.goal, wins: R.wins, duration: R.duration, warmup: Math.max(0, (game.liveAt - now()) / 1000),
+      fighters: [...game.fighters.values()].map(publicFighter), spawn: { x: at.x, z: at.z, yaw: round2(at.yaw) },
+      ...(f ? {} : { watch: true }),
     }
   }
 
@@ -569,13 +598,17 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       stats: [...game.fighters.values()].map((f) => ({ ...publicFighter(f), kills: f.kills, deaths: f.deaths, damage: Math.round(f.damage) })),
     })
     if (!r.members.size) reset(r)
-    // Le classement : la partie de chaque CMDR qui l'a finie, déclarée au site.
-    if (game.ranked) {
-      for (const f of game.fighters.values()) {
-        if (f.bot || !f.verified || !f.cookie) continue
-        const result = { game: game.id, result: winner < 0 ? 'draw' : winner === f.team ? 'won' : 'lost', kills: f.kills, deaths: f.deaths, size: game.size }
-        void report(f, result).catch(() => {})
+    // Le classement : la partie de chaque CMDR qui l'a finie, déclarée au site ; chacun apprend si
+    // la sienne a été notée (un invité n'a pas de compte ; `site` : le site ne l'a pas prise).
+    for (const f of game.fighters.values()) {
+      if (f.bot) continue
+      const told = (ok, reason) => emit(f.id, 'arena:ranked', { game: game.id, ok, ...(ok ? {} : { reason }) })
+      if (!f.verified || !f.cookie) {
+        told(false, 'guest')
+        continue
       }
+      const result = { game: game.id, result: winner < 0 ? 'draw' : winner === f.team ? 'won' : 'lost', kills: f.kills, deaths: f.deaths, size: game.size }
+      void Promise.resolve().then(() => report(f, result)).catch(() => false).then((ok) => told(!!ok, 'site'))
     }
     log(`[arène] partie ${game.id} : ${winner < 0 ? 'égalité' : `équipe ${winner ? 'B' : 'A'}`} (${game.rounds.join(' manches à ')}, ${reason})`)
     announce()
@@ -594,7 +627,9 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     tell(game, { kind: 'left', id: p.id })
     const humans = [...game.fighters.values()].some((x) => !x.bot)
     if (!humans) {
-      // Plus personne : la partie s'arrête là, sans résultat.
+      // Plus personne : la partie s'arrête là, sans résultat ; qui la regardait rentre au lobby.
+      for (const id of game.watchers) emit(id, 'arena:error', { code: 'over' })
+      game.watchers.clear()
       game.ended = true
       r.game = null
       r.status = 'forming'
@@ -676,8 +711,9 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
 
   /** Départ du vaisseau (déconnexion). */
   function leave(p) {
+    const watched = unwatch(p)
     const r = roomOf.get(p.id)
-    if (!r) return
+    if (!r) return watched ? announce() : undefined
     if (r.game) return quit(p)
     leaveRoom(p)
     unready(r)
