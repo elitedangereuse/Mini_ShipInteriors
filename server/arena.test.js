@@ -75,7 +75,7 @@ test('arène : chaque plan est d\'un seul tenant, équitable, trois points d\'ap
     assert.equal(zone.id, map.id)
     for (const row of plan) assert.equal(row.length, W, map.id)
     // Obstacles et buissons se répondent d'un bout à l'autre : aucune équipe n'a l'avantage du terrain.
-    const kind = (c) => (c === ' ' ? 'vide' : c === 'v' ? 'gouffre' : '#=HcpPoX'.includes(c) ? 'plein' : c === 'g' ? 'buisson' : c === 'A' || c === 'B' ? 'base' : c === 'u' ? 'haut' : c === 'r' ? 'rampe' : 'sol')
+    const kind = (c) => (c === ' ' ? 'vide' : c === 'v' ? 'gouffre' : '#=HcpPoX'.includes(c) ? 'plein' : c === 'g' ? 'buisson' : c === 'G' ? 'brume en haut' : c === 'A' || c === 'B' ? 'base' : c === 'u' ? 'haut' : c === 'r' ? 'rampe' : 'sol')
     for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) assert.equal(kind(plan[z][x]), kind(plan[H - 1 - z][W - 1 - x]), `${map.id} (${x}, ${z})`)
     assert.equal(zone.spawns[0].length, R.team, map.id)
     assert.equal(zone.spawns[1].length, R.team, map.id)
@@ -108,6 +108,12 @@ test('arène : le site gardien se joue sur deux hauteurs, au-dessus du gouffre',
   assert.equal(arenaGround(zone, { x: 8, z: 1 }), 0)
   assert.ok(Math.abs(arenaGround(zone, { x: 6, z: 8 }) - top / 2) < 1e-6)
   assert.ok(arenaGround(zone, { x: 6.4, z: 8 }) > arenaGround(zone, { x: 5.7, z: 8 }))
+  // De la brume en haut des rampes : on s'y cache, sur le haut.
+  assert.ok(inBush(zone, { x: 7, z: 6 }) && arenaGround(zone, { x: 7, z: 6 }) === top)
+  assert.ok(arenaHidden(zone, { x: 7, z: 6 }, { x: 11, z: 8 }, false))
+  // Les rampes, de toute la largeur des bras : cinq de front.
+  for (let z = 6; z <= 10; z++) assert.equal(zone.stairs[z * zone.width + 6], 1)
+  for (let x = 9; x <= 13; x++) assert.equal(zone.stairs[4 * zone.width + x], 2)
   // On ne marche pas dans un gouffre ; on ne gagne le haut que par ses rampes.
   assert.ok(!free(6, 4) && zone.pit[4 * zone.width + 6])
   const adj = (x, z, dir) => zone.adj[(z * zone.width + x) * 4 + dir]

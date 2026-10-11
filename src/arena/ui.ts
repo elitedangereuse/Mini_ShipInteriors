@@ -44,7 +44,7 @@ function mapThumb(id: ArenaMapId): HTMLCanvasElement {
     for (let x = 0; x < zone.width; x++) {
       const t = zone.plan[z][x]
       if (t === ' ') continue
-      c.fillStyle = zone.blocked[z * zone.width + x] ? solid : t === 'g' ? bush : x < 3 ? ARENA_TEAMS[0].color : x >= zone.width - 3 ? ARENA_TEAMS[1].color : floor
+      c.fillStyle = zone.blocked[z * zone.width + x] ? solid : t === 'g' || t === 'G' ? bush : x < 3 ? ARENA_TEAMS[0].color : x >= zone.width - 3 ? ARENA_TEAMS[1].color : floor
       // Le haut, plus clair ; une rampe, entre les deux.
       if (t === 'u') c.fillStyle = '#7d8a99'
       if (t === 'r') c.fillStyle = '#5e6670'

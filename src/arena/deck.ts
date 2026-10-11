@@ -369,10 +369,12 @@ function bushes(zone: ArenaZone, look: BushLook) {
   const color = new THREE.Color()
   const tiles: number[] = []
   const dh = look.hue - 0.3, k = look.light / 0.14
+  // Sur le haut d'un plan à deux hauteurs, le buisson est posé sur son sol (`base`).
+  let base = 0
   const blob = (x: number, z: number, r: number, y: number, tile: number, tint: (c: THREE.Color) => void, shine = 0, detail = 1) => {
     const g = new THREE.IcosahedronGeometry(r, detail)
     g.scale(1, 0.85 + random() * 0.35, 1)
-    g.translate(x, y, z)
+    g.translate(x, base + y, z)
     tint(color)
     const n = g.attributes.position.count
     const rgb = new Float32Array(n * 3)
@@ -380,6 +382,7 @@ function bushes(zone: ArenaZone, look: BushLook) {
     g.setAttribute('color', new THREE.BufferAttribute(rgb, 3))
     g.setAttribute('aTile', new THREE.BufferAttribute(new Float32Array(n).fill(tile), 1))
     g.setAttribute('aShine', new THREE.BufferAttribute(new Float32Array(n).fill(shine), 1))
+    g.setAttribute('aBase', new THREE.BufferAttribute(new Float32Array(n).fill(base), 1))
     g.deleteAttribute('uv')
     parts.push(g)
   }
@@ -388,6 +391,7 @@ function bushes(zone: ArenaZone, look: BushLook) {
       if (!zone.bush[z * zone.width + x]) continue
       const t = tiles.length
       tiles.push(z * zone.width + x)
+      base = zone.top ? Math.max(0, zone.elev[z * zone.width + x]) : 0
       const at = () => [x + (random() - 0.5) * 0.66, z + (random() - 0.5) * 0.66]
       for (let i = 0; i < 4; i++) {
         const [px, pz] = at()
@@ -418,12 +422,13 @@ function bushes(zone: ArenaZone, look: BushLook) {
       .replace('#include <common>', `#include <common>
         attribute float aTile;
         attribute float aShine;
+        attribute float aBase;
         varying float vShine;
         uniform float uTime;
         uniform float uRustle[${rustle.length}];`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         vShine = aShine;
-        float lift = clamp(position.y / 0.55, 0.0, 1.0);
+        float lift = clamp((position.y - aBase) / 0.55, 0.0, 1.0);
         float shake = uRustle[int(aTile + 0.5)];
         float sway = sin(uTime * 1.3 + position.x * 0.9 + position.z * 0.7) * 0.016;
         float jolt = sin(uTime * 27.0 + position.x * 13.0 + position.z * 7.0) * 0.045 * shake;

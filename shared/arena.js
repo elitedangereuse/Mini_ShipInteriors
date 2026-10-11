@@ -104,7 +104,7 @@ export const ARENA_BOTS = ['Drone Vipère', 'Drone Cobra', 'Drone Python', 'Dron
  *   'H'  conteneurs debout (par paires, de haut en bas)
  *   'c'  caisses d'armes blindées (une tuile)      'p'  pilier (une tuile)
  *   'o'  cosse thargoïde (une tuile)               'X'  le cœur, la relique (un rectangle de tuiles)
- *   'g'  buisson : on y passe, les balles aussi, et l'on s'y cache
+ *   'g'  buisson : on y passe, les balles aussi, et l'on s'y cache ; 'G' : le même, sur le haut
  *   'u'  le haut : un sol surélevé de `plateau` (cf. le plan)
  *   'r'  rampe : elle monte vers le haut voisin, depuis le sol d'en face
  *   'P'  pilier posé sur le haut (une tuile)
@@ -123,11 +123,13 @@ export const ARENA_BOTS = ['Drone Vipère', 'Drone Cobra', 'Drone Python', 'Dron
  * - Le site gardien (23 × 17) : le sanctuaire du gouffre, des ruines gardiennes de nuit, suspendues
  *   au-dessus du vide, sur deux hauteurs. Au milieu, le sanctuaire en croix, en hauteur (`plateau`),
  *   à bras de cinq tuiles : sa travée d'ouest en est (9 × 5), et ses bras nord et sud ; on y monte par
- *   trois rampes de front au bout de chaque bras, depuis un palier au-dessus du gouffre. La relique au
- *   milieu, un obélisque à chaque angle de la travée. Autour, quatre gouffres ; au nord et au sud, deux
- *   ponts au sol ; à l'ouest et à l'est, les esplanades des bases. On ne traverse pas un gouffre, mais on tire par-dessus. D'en bas, on ne voit
+ *   une rampe de toute la largeur du bras, au bout de chacun, depuis un palier au-dessus du gouffre.
+ *   La relique au milieu, un obélisque à chaque coin de son carré, de la brume en haut des rampes de
+ *   la travée. Autour, quatre gouffres ; au nord et au sud, deux ponts au sol ; à l'ouest et à l'est,
+ *   les esplanades des bases. On ne traverse pas un gouffre, mais on tire par-dessus. D'en bas, on ne voit
  *   (et ne touche) que qui se tient près du bord du haut ; d'en haut, on tire par-dessus le vide. Des
- *   obélisques, des pans de ruines et des nappes de brume (les buissons) au sol (cf. src/arena/guardian.ts).
+ *   obélisques, des pans de ruines et des nappes de brume (les buissons), où se cacher, sur les ponts
+ *   et les esplanades (cf. src/arena/guardian.ts).
  */
 export const ARENA_MAPS = [
   {
@@ -153,21 +155,21 @@ export const ARENA_MAPS = [
     plateau: 0.42,
     plan: [
       '  .....#.......#.....  ',
-      ' .g.....gg.p.gg.....g. ',
-      '.......................',
-      '...#.vvvvv...vvvvv.#...',
-      '..p..vvvvvrrrvvvvv..p..',
-      '.....vvvvuuuuuvvvv.....',
-      '.A...vvPuuuuuuuPvv...B.',
-      '...g..ruuuuuuuuur..g...',
-      '.A....ruuuuXuuuur....B.',
-      '...g..ruuuuuuuuur..g...',
-      '.A...vvPuuuuuuuPvv...B.',
-      '.....vvvvuuuuuvvvv.....',
-      '..p..vvvvvrrrvvvvv..p..',
-      '...#.vvvvv...vvvvv.#...',
-      '.......................',
-      ' .g.....gg.p.gg.....g. ',
+      ' .gg....gg.p.gg....gg. ',
+      '......#...ggg...#......',
+      '...#.vvvv.....vvvv.#...',
+      '..p.gvvvvrrrrrvvvvg.p..',
+      '....gvvvvuuuuuvvvvg....',
+      '.A....rGuPuuuPuGr....B.',
+      '......rGuuuuuuuGr......',
+      '.A.g..ruuuuXuuuur..g.B.',
+      '......rGuuuuuuuGr......',
+      '.A....rGuPuuuPuGr....B.',
+      '....gvvvvuuuuuvvvvg....',
+      '..p.gvvvvrrrrrvvvvg.p..',
+      '...#.vvvv.....vvvv.#...',
+      '......#...ggg...#......',
+      ' .gg....gg.p.gg....gg. ',
       '  .....#.......#.....  ',
     ],
   },
@@ -206,8 +208,10 @@ export function arenaMap(id) {
 /** Ce qui arrête les pas, la vue et les balles ; ce qui est un obstacle posé (le reste : le vide, les cloisons). */
 const SOLID = ' #=HcpPo Xv'
 const PROPS = { '=': 'container', H: 'container', c: 'crates', p: 'pillar', P: 'pillar', o: 'pod', X: 'core' }
-/** Ce qui est en haut (le sol du haut, ce qui y est posé). */
-const HIGH = 'uPX'
+/** Ce qui est en haut (le sol du haut, ce qui y est posé, sa brume). */
+const HIGH = 'uPXG'
+/** Le sol du haut, où l'on se tient (une rampe y monte). */
+const TOP = 'uG'
 
 const cached = new Map()
 
@@ -252,13 +256,13 @@ export function arenaZone(id) {
       if (top && HIGH.includes(c)) elev[i] = top
       if (c === 'r') {
         // Une rampe monte vers le haut voisin, depuis un sol praticable en face.
-        const up = [0, 1, 2, 3].find((d) => cell(x + DIRS[d].dx, z + DIRS[d].dz) === 'u')
+        const up = [0, 1, 2, 3].find((d) => TOP.includes(cell(x + DIRS[d].dx, z + DIRS[d].dz)))
         const down = up === undefined ? ' ' : cell(x - DIRS[up].dx, z - DIRS[up].dz)
-        if (!top || up === undefined || SOLID.includes(down) || 'ur'.includes(down)) throw new Error(`Rampe mal placée en (${x}, ${z}) sur le plan ${map.id}`)
+        if (!top || up === undefined || SOLID.includes(down) || 'urG'.includes(down)) throw new Error(`Rampe mal placée en (${x}, ${z}) sur le plan ${map.id}`)
         stairs[i] = up
         elev[i] = top / 2
       }
-      if (c === 'g') bush[i] = 1
+      if (c === 'g' || c === 'G') bush[i] = 1
       if (c === 'A') spawns[0].push({ x, z })
       if (c === 'B') spawns[1].push({ x, z })
       if (done[i] || !PROPS[c]) continue
@@ -279,7 +283,7 @@ export function arenaZone(id) {
   }
   // Garde-corps : le haut ne se rejoint que par ses rampes (et une rampe, que par son bas, son haut,
   // ou la rampe jumelle d'à côté). Ailleurs, ses bords sont des falaises.
-  const tier = (x, z) => (cell(x, z) === 'u' ? 'u' : cell(x, z) === 'r' ? 'r' : 'g')
+  const tier = (x, z) => (TOP.includes(cell(x, z)) ? 'u' : cell(x, z) === 'r' ? 'r' : 'g')
   const joins = (x, z, dir) => {
     const nx = x + DIRS[dir].dx, nz = z + DIRS[dir].dz
     const a = tier(x, z), b = tier(nx, nz)

@@ -12,11 +12,12 @@ import type { Venue } from './venue'
  * Le site gardien (cf. ARENA_MAPS) : le sanctuaire du gouffre, des ruines gardiennes de nuit,
  * suspendues au-dessus du vide, sur deux hauteurs. Au milieu, le sanctuaire en croix, à bras de cinq
  * tuiles : des blocs de pierre sombre, gravés, qu'un liseré cyan borde ; on y monte par des rampes de
- * dalles, comme celle qui mène à la relique des sites gardiens. La relique flotte en son milieu : une sphère de plaques
- * sombres qui s'écartent sur un cœur de lumière. Autour de la croix, quatre gouffres ; au nord et au
- * sud, deux ponts ; à l'ouest et à l'est, les esplanades des bases. Tout repose sur des socles de
- * pierre qui plongent dans l'abîme. Des obélisques aux fentes lumineuses (aux angles de la croix,
- * et au sol), des pans de ruines aux arêtes vives, des nappes de brume bleutée (les buissons). Au
+ * dalles, de toute la largeur des bras, comme celle qui mène à la relique des sites gardiens. La
+ * relique flotte en son milieu : une sphère de plaques sombres qui s'écartent sur un cœur de lumière ;
+ * un obélisque à chaque coin de son carré, de la brume en haut des rampes. Autour de la croix, quatre
+ * gouffres ; au nord et au sud, deux ponts ; à l'ouest et à l'est, les esplanades des bases. Tout
+ * repose sur des socles de pierre qui plongent dans l'abîme. Des obélisques aux fentes lumineuses,
+ * des pans de ruines aux arêtes vives, des nappes de brume bleutée (les buissons), où se cacher. Au
  * sol, de la poussière et des dalles gravées de motifs gardiens, dont les rainures luisent ; le
  * réseau s'illumine depuis la relique.
  *
@@ -217,6 +218,17 @@ function topTexture(zone: ArenaZone): THREE.CanvasTexture {
           c.lineTo(x * T + 2, (z + 1) * T - 2)
         }
         c.stroke()
+      }
+    }
+    // La brume en haut des rampes : une ombre bleutée sous chaque nappe.
+    for (let z = 0; z < zone.height; z++) {
+      for (let x = 0; x < zone.width; x++) {
+        if (zone.plan[z][x] !== 'G') continue
+        const fog = c.createRadialGradient((x + 0.5) * T, (z + 0.5) * T, 4, (x + 0.5) * T, (z + 0.5) * T, T * 0.75)
+        fog.addColorStop(0, '#5d7fa088')
+        fog.addColorStop(1, '#5d7fa000')
+        c.fillStyle = fog
+        c.fillRect((x - 0.5) * T, (z - 0.5) * T, T * 2, T * 2)
       }
     }
     // La rosace : deux carrés tournés, autour de la relique.
@@ -720,7 +732,7 @@ function site(zone: ArenaZone): Venue {
   for (let z = 0; z < zone.height; z++) {
     for (let x = 0; x < zone.width; x++) {
       const c = zone.plan[z][x], base = isHigh(zone, x, z) ? zone.top : 0
-      const n = c === 'X' ? 26 : c === 'p' || c === 'P' ? 8 : c === 'g' ? 5 : 0
+      const n = c === 'X' ? 26 : c === 'p' || c === 'P' ? 8 : c === 'g' || c === 'G' ? 5 : 0
       for (let i = 0; i < n; i++) dust.push([x + (random() - 0.5) * 1.6, base + 0.2 + random() * (c === 'X' ? 1.6 : 1), z + (random() - 0.5) * 1.6])
     }
   }
