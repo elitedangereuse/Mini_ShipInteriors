@@ -2,12 +2,13 @@ import type { Sound } from '../audio'
 import type { RangeTune } from '../range-music'
 
 /*
- * Les musiques de CMDR Arena : deux morceaux enregistrés (public/assets/music/cmdr-arena/, cf.
- * CREDITS.txt), chacun en boucle.
+ * Les musiques de CMDR Arena : trois morceaux enregistrés (public/assets/music/cmdr-arena/, cf.
+ * CREDITS.txt). Les deux premiers tournent en boucle ; la fanfare ne dure que le temps de l'écran final.
  *
  * - pendant la partie, « Pixel Brawl », à 60 % ;
  * - au lobby, « Game Menu Groove », en fond : c'est la sono de la pièce, un haut-parleur de hall
  *   (cf. speaker), et on ne l'entend que dedans.
+ * - sur l'écran de fin, « Victory Fanfare », à 60 %.
  *
  * Aucun des deux n'a été coupé pour boucler : le fichier s'arrête net au milieu d'une mesure, puis
  * un quart de seconde de blanc. La boucle prend donc, depuis le début, un nombre entier de mesures
@@ -19,6 +20,7 @@ const bars = (bpm: number, n: number) => ({ from: 0, to: (n * 4 * 60) / bpm })
 
 const MATCH = { file: 'cmdr-arena/pixel-brawl.mp3', volume: 0.6, loop: bars(150.025, 52) }
 const LOBBY = { file: 'cmdr-arena/game-menu-groove.mp3', volume: 0.26, loop: bars(114.905, 32) }
+const VICTORY = { file: 'cmdr-arena/victory-fanfare.mp3', volume: 0.6 }
 
 /** La musique de la partie, pour le moteur du stand de tir (cf. src/arena/gun.ts). */
 export class ArenaMusic implements RangeTune {
@@ -40,6 +42,23 @@ export class ArenaMusic implements RangeTune {
 
   /** Le morceau ne suit pas la partie : l'ardeur que lui donne le moteur (cf. RangeMood) n'est pas lue. */
   update() {}
+}
+
+/** La fanfare de l'écran final, arrêtée dès que l'on retourne au lobby. */
+export class ArenaVictoryMusic {
+  private tune: { stop: () => void } | null = null
+
+  constructor(private sound: Sound) {}
+
+  start() {
+    if (this.tune || !this.sound.ready) return
+    this.tune = this.sound.music(VICTORY.file, VICTORY.volume)
+  }
+
+  stop() {
+    this.tune?.stop()
+    this.tune = null
+  }
 }
 
 /**

@@ -383,9 +383,12 @@ CMDR Arena (hors jukebox)
 ---------------------------------------------------------------------
 cmdr-arena/pixel-brawl.mp3      : « Pixel Brawl », la musique de la partie.
 cmdr-arena/game-menu-groove.mp3 : « Game Menu Groove », la sono du lobby.
+cmdr-arena/victory-fanfare.mp3  : « Victory Fanfare », l'écran de fin.
 Fournis par Michael Bernard le 11/10/2026 ; auteur et licence à
-renseigner ici. Fichiers d'origine, renommés, non retraités (MP3 stéréo
-48 kHz ; -15,4 et -15,5 LUFS intégrés, crête -4,7 et -5,1 dBFS).
+renseigner ici pour les deux premiers morceaux. « Victory Fanfare » a été
+ajouté au projet le 11/10/2026 ; auteur et licence à renseigner également.
+Fichiers d'origine, renommés, non retraités (MP3 stéréo 48 kHz ; les deux
+premiers : -15,4 et -15,5 LUFS intégrés, crête -4,7 et -5,1 dBFS).
 Aucun des deux n'est coupé pour boucler (arrêt net en pleine mesure, puis
 0,25 s de blanc) : le jeu boucle sur un nombre entier de mesures depuis
 le début, cf. src/arena/music.ts. Tempos mesurés sur les fichiers :

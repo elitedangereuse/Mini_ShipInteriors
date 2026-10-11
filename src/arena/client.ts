@@ -16,7 +16,7 @@ import type { Dialog } from '../ui'
 import { ARENA_BOOTH, ARENA_LEVEL, ARENA_RETURN, ARENA_RULES, ARENA_TEAMS, arenaHidden, arenaSight, arenaZone } from '../../shared/arena.js'
 import { arenaExtras, arenaLevel, type ArenaExtras } from './deck'
 import { ArenaGun, type ArenaBody } from './gun'
-import { ArenaMusic } from './music'
+import { ArenaMusic, ArenaVictoryMusic } from './music'
 import { Podium, type PodiumEntry } from './podium'
 import { Referee, REFEREE, refereeRig } from './referee'
 import { arenaLive, arenaRanks } from '../furniture/arena'
@@ -213,6 +213,7 @@ export class ArenaClient {
   private extras: ArenaExtras | null = null
   /** Les bruitages de la partie (ceux du stand, et la clameur des tribunes). */
   private sfx: RangeSfx | null = null
+  private readonly victoryMusic: ArenaVictoryMusic
   private readonly hands = new THREE.Vector3()
   private readonly local = new THREE.Vector3()
   private readonly focus = new THREE.Vector3()
@@ -226,6 +227,7 @@ export class ArenaClient {
   private ownBaseLocked: boolean | null = null
 
   constructor(private host: ArenaHost) {
+    this.victoryMusic = new ArenaVictoryMusic(host.sound)
     try {
       const saved = localStorage.getItem(WEAPON_KEY)
       if (WEAPONS.some((w) => w.id === saved)) this.weapon = saved as WeaponId
@@ -655,6 +657,7 @@ export class ArenaClient {
 
   /** La scène de fin est démontée, et la vue redevient celle d'avant la partie. */
   private unstage() {
+    this.victoryMusic.stop()
     this.podium?.clear()
     this.staged = false
     this.host.view(null)
@@ -952,6 +955,7 @@ export class ArenaClient {
     this.podium ??= new Podium(this.deck!.group, this.host.scene, { x: (this.zone.width - 1) / 2, z: STAGE_Z })
     this.podium.show(entries, g.tint)
     this.staged = true
+    this.victoryMusic.start()
     this.host.view('stage', { width: this.podium.width })
     this.hud.showEnd(r, g.team, self, entries.map((e) => e.id), () => {
       this.endTimer = 0
