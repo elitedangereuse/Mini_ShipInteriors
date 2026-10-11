@@ -3935,17 +3935,9 @@ let touchRun = false
 /** Stand de tir, au doigt : le stick de tir est poussé ; et ce qu'il vient de faire en se relâchant. */
 let touchAiming = false
 let touchShot: 'tap' | 'aimed' | 'back' | null = null
-/** Vue subjective : angle (radians) que tourne le regard pour une course du centre au bord du stick de tir. */
-const FPS_STICK_YAW = 0.62
-const FPS_STICK_PITCH = 0.42
-/**
- * Hors du stand de tir, le stick de droite tourne le regard « à vitesse » : radians par seconde,
- * stick poussé à fond. Sa course est courte : passé un petit jeu, la vitesse monte en courbe, fine
- * près du centre et vive au bord.
- */
-const TOUCH_LOOK_YAW = 4.2
-const TOUCH_LOOK_PITCH = 2.6
-const TOUCH_LOOK_SLACK = 0.1
+/** Angle (radians) que tourne le regard pour une course du centre au bord du stick de droite. */
+const TOUCH_LOOK_YAW = 0.62
+const TOUCH_LOOK_PITCH = 0.42
 function updateGamepad(dt: number): GamepadInput {
   const focus = document.activeElement
   const typing = focus instanceof HTMLElement && (focus.matches('input, textarea, select') || focus.isContentEditable)
@@ -3968,20 +3960,14 @@ function updateGamepad(dt: number): GamepadInput {
     touchRun = touch.run
     touchAiming = range.active && touch.aiming
     touchShot = range.active ? touch.aimReleased : null
-    // Stand de tir : le stick de droite vise. Vue de dessus, il donne la direction du tir. En vue
-    // subjective, le regard suit la course du bouton, comme un doigt glissé sur le décor : il
-    // s'arrête avec lui, sans partir au plafond quand on tient le stick poussé.
-    if (range.active && fpsShown) fps.look(-touch.aimMovedX * FPS_STICK_YAW, -touch.aimMovedY * FPS_STICK_PITCH)
+    // Dans les vues subjective et à la troisième personne, le regard suit exactement le
+    // déplacement du pouce. Le stick immobile ne fait rien : pas de vitesse entretenue, de zone
+    // morte ni de courbe qui lisseraient le geste. Au stand, ce même déplacement vise l'arme.
+    if (fpsShown) fps.look(-touch.aimMovedX * TOUCH_LOOK_YAW, -touch.aimMovedY * TOUCH_LOOK_PITCH)
     else if (touchAiming) {
       const reach = Math.hypot(touch.lookX, touch.lookY)
       pad.lookX = touch.lookX / reach
       pad.lookY = touch.lookY / reach
-    } else if (fpsShown && !range.active) {
-      const reach = Math.hypot(touch.lookX, touch.lookY)
-      if (reach > TOUCH_LOOK_SLACK) {
-        const speed = ((reach - TOUCH_LOOK_SLACK) / (1 - TOUCH_LOOK_SLACK)) ** 1.5 / reach
-        fps.look(-touch.lookX * speed * TOUCH_LOOK_YAW * dt, -touch.lookY * speed * TOUCH_LOOK_PITCH * dt)
-      }
     }
     pad.interact ||= touch.interact
     pad.action ||= touch.action
