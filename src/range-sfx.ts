@@ -447,4 +447,32 @@ export class RangeSfx {
       this.sweep(b.mix, 'sine', f, f * 1.25, at, 0.32, 0.05)
     }
   }
+
+  /**
+   * Le carillon de la relique gardienne (`strength` : de 0 à 1) : un accord de sinusoïdes pures,
+   * légèrement désaccordées, qui s'élève puis s'éteint lentement, une note de plus quand il est fort.
+   */
+  chime(strength: number) {
+    const b = this.bus(null, 0.1 + 0.12 * strength, 0.7)
+    if (!b) return
+    const ctx = this.ctx, t = ctx.currentTime + 0.01
+    const notes = strength >= 1 ? [392, 587.3, 784, 1174.7] : [440, 659.3, 880]
+    notes.forEach((f, i) => {
+      for (const detune of [-6, 6]) {
+        const osc = ctx.createOscillator()
+        osc.type = 'sine'
+        osc.frequency.value = f
+        osc.detune.value = detune
+        const env = ctx.createGain()
+        const at = t + i * 0.09, len = 1.8 + strength * 1.2
+        env.gain.setValueAtTime(0, at)
+        env.gain.linearRampToValueAtTime(0.22 / notes.length, at + 0.05)
+        env.gain.exponentialRampToValueAtTime(0.0008, at + len)
+        osc.connect(env).connect(b.mix)
+        osc.start(at)
+        osc.stop(at + len + 0.05)
+        this.heard(at + len + 0.05)
+      }
+    })
+  }
 }

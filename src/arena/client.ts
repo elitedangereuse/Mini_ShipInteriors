@@ -15,9 +15,10 @@ import { loadZoneKit, type ZoneKit } from '../salvage/kit'
 import { SalvageSfx } from '../salvage/sfx'
 import type { Dialog } from '../ui'
 import type { LevelDef } from '../levels'
-import { ARENA_BOOTH, ARENA_LEVEL, ARENA_RETURN, ARENA_RULES, ARENA_TEAMS, arenaHidden, arenaSight, arenaZone, type ArenaMapId, type ArenaZone } from '../../shared/arena.js'
+import { ARENA_BOOTH, ARENA_LEVEL, ARENA_RETURN, ARENA_RULES, ARENA_TEAMS, arenaGround, arenaHidden, arenaSight, arenaZone, type ArenaMapId, type ArenaZone } from '../../shared/arena.js'
 import { arenaExtras, arenaLevel, type ArenaExtras } from './deck'
 import { ArenaGun, type ArenaBody } from './gun'
+import { guardianExtras, guardianLevel } from './guardian'
 import { hiveExtras, hiveLevel } from './hive'
 import { ArenaMusic } from './music'
 import { Podium, type PodiumEntry } from './podium'
@@ -197,6 +198,7 @@ interface Built { zone: ArenaZone; deck: Deck; extras: ArenaExtras; podium: Podi
 /** Le décor de chaque plan : le pont, et ce qui y bouge ou dépend du joueur. */
 const DECKS: Record<ArenaMapId, { level(zone: ArenaZone, kit: ZoneKit): LevelDef; extras(zone: ArenaZone, kit: ZoneKit): ArenaExtras }> = {
   bay: { level: arenaLevel, extras: arenaExtras },
+  guardian: { level: guardianLevel, extras: guardianExtras },
   hive: { level: hiveLevel, extras: hiveExtras },
 }
 
@@ -592,7 +594,9 @@ export class ArenaClient {
       // Hors de vue le temps que le premier état du relais donne sa place. Un joueur garde son apparence du bord.
       const skin = (!f.bot && this.host.remotes.get(f.id)?.skin) || lookId(randomLook())
       const state = { id: f.id, name: f.name, skin, x: at?.x ?? -10, z: at?.z ?? -10, yaw: at?.yaw ?? 0, level: ARENA_LEVEL, anim: 'idle' } as PlayerState
-      puppet = new RemotePlayer(f.id, state, () => deckY)
+      // Sur le sol de sa tuile (le haut du site gardien, une rampe).
+      const zone = this.zone
+      puppet = new RemotePlayer(f.id, state, (_level, x, z) => deckY + arenaGround(zone, { x, z }))
       puppet.group.visible = false
       this.host.scene.add(puppet.group)
     }
@@ -799,7 +803,7 @@ export class ArenaClient {
         if (!victim) break
         Object.assign(victim, { alive: false, hp: 0, ghost: true, wait: e.wait })
         // Il disparaît là où il est tombé, et reparaît à sa base, en fantôme.
-        if (this.inArena) gun.poof(new THREE.Vector3(e.from.x, 0.35, e.from.z), g.tint[victim.rel])
+        if (this.inArena) gun.poof(new THREE.Vector3(e.from.x, arenaGround(this.zone, e.from) + 0.35, e.from.z), g.tint[victim.rel])
         const body = victim.puppet ?? (e.id === self ? null : this.host.remotes.get(e.id))
         if (body) {
           body.apply({ x: e.x, z: e.z, yaw: e.yaw, level: ARENA_LEVEL, anim: 'idle' })
@@ -896,10 +900,15 @@ export class ArenaClient {
     this.voice(amount)
   }
 
-  /** La clameur du public ; dans la ruche, son chant métallique, aux grands moments seulement. */
+  /**
+   * La clameur du public ; dans la ruche, son chant métallique, aux grands moments seulement ; au
+   * site gardien, le carillon de la relique.
+   */
   private voice(amount: number) {
     if (!this.inArena) return
-    if (this.extras?.venue.voice !== 'hive') this.sfx?.crowd(amount)
+    const voice = this.extras?.venue.voice
+    if (voice === 'guardian') this.sfx?.chime(amount)
+    else if (voice !== 'hive') this.sfx?.crowd(amount)
     else if (amount >= 1) (this.hiveSfx ??= new SalvageSfx(this.host.sound)).hive()
   }
 
@@ -1025,7 +1034,7 @@ export class ArenaClient {
       // Son anneau, sous ses pieds ; il bat tant qu'il est protégé.
       f.ring.visible = shown && f.alive
       if (f.ring.visible) {
-        f.ring.position.set(at!.x, 0.04, at!.z)
+        f.ring.position.set(at!.x, arenaGround(this.zone, at!) + 0.04, at!.z)
         const beat = f.shield ? 1 + 0.25 * Math.sin(performance.now() / 90) : 1
         f.ring.scale.setScalar((mine ? 1.15 : 1) * beat)
       }

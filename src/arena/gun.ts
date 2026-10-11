@@ -7,7 +7,7 @@ import type { RangeSfx } from '../range-sfx'
 import { dampAngle } from '../player'
 import { weaponById, WEAPONS, type Weapon, type WeaponId } from '../range-weapons'
 import type { Dialog } from '../ui'
-import { arenaSight, castArena, type ArenaZone } from '../../shared/arena.js'
+import { arenaGround, arenaSight, castArena, type ArenaZone } from '../../shared/arena.js'
 import { AimSight } from './sight'
 
 /*
@@ -91,6 +91,10 @@ export class ArenaGun extends RangeGame {
     super(group, dialog, wallet, sfx, music, { idle: false, state: { live: false, weapon: null, flash: 0, tier: 0, alarm: 0, beat: 0 } })
     this.debrisMinZ = -Infinity
     this.live.add(this.cone.root)
+  }
+
+  protected override groundAt(x: number, z: number): number {
+    return this.host ? arenaGround(this.host.zone, { x, z }) : 0
   }
 
   /** Une partie sur un autre plan : armes et balles passent dans son pont, et l'on y vise (`zone`). */
@@ -193,8 +197,8 @@ export class ArenaGun extends RangeGame {
     if (!shown) return
     const w = WEAPONS[s.weapon]
     const origin = this.group.getWorldPosition(_v)
-    _from.set(f.player.x - origin.x, 0, f.player.z - origin.z)
-    this.cone.place(host.zone, w, _from, this.aim, w.spread * RAD + this.bloom + this.moving, s.reload <= 0 && s.ammo[s.weapon] > 0 && this.ready())
+    _from.set(f.player.x - origin.x, f.player.y - origin.y, f.player.z - origin.z)
+    this.cone.place(host.zone, w, _from, this.aim, w.spread * RAD + this.bloom + this.moving, s.reload <= 0 && s.ammo[s.weapon] > 0 && this.ready(), this.pitch)
   }
 
   /** Dans l'arène, une arme automatique ne tire pas stick poussé : on vise, puis on lâche. */
@@ -235,7 +239,8 @@ export class ArenaGun extends RangeGame {
       const rank = d + (arenaSight(host.zone, player, foe) ? 0 : 100)
       if (rank < near) { near = rank; best = foe }
     }
-    if (best) this.aimToward(best.x - player.x, best.z - player.z)
+    // Plus haut ou plus bas que soi (le haut du site gardien) : on vise sa poitrine.
+    if (best) this.aimToward(best.x - player.x, best.z - player.z, (arenaGround(host.zone, best) - arenaGround(host.zone, player)) / Math.max(0.5, Math.hypot(best.x - player.x, best.z - player.z)))
     else if (this.stride.lengthSq() > 0.04) this.aimToward(this.stride.x / this.stride.length(), this.stride.z / this.stride.length())
   }
 
@@ -251,7 +256,7 @@ export class ArenaGun extends RangeGame {
     // Au-delà d'un demi-champ (cos 40°), ce n'est plus « devant soi ».
     let near = 0.77
     for (const foe of host.foes()) {
-      const facing = to.set(foe.x, y, foe.z).sub(eye).normalize().dot(gaze)
+      const facing = to.set(foe.x, y + arenaGround(host.zone, foe), foe.z).sub(eye).normalize().dot(gaze)
       if (facing > near && arenaSight(host.zone, { x: eye.x, z: eye.z }, foe)) { near = facing; best = to.clone() }
     }
     return best
@@ -274,7 +279,7 @@ export class ArenaGun extends RangeGame {
    */
   protected override sightline(eye: THREE.Vector3, dir: THREE.Vector3, f: RangeFrame, origin: THREE.Vector3) {
     if (!f.body) return
-    const chest = _chest.subVectors(f.player, origin).setY(CHEST)
+    const chest = _chest.subVectors(f.player, origin).setY(f.player.y - origin.y + CHEST)
     const ahead = Math.max(0, _v.subVectors(chest, eye).dot(dir))
     const from = _from.copy(eye).addScaledVector(dir, ahead)
     const aimed = from.addScaledVector(dir, this.cast(from, dir, 40).t)

@@ -2215,9 +2215,9 @@ function updateIdentity() {
 }
 /**
  * Sol du pont `level` en (x, z) : dans la baie infestée, la passerelle et ses escaliers montent ;
- * au pont principal, la mezzanine de la salle commune.
+ * au pont principal, la mezzanine de la salle commune ; dans l'arène, le haut du site gardien.
  */
-const levelY = (level: number, x: number, z: number) => level * LEVEL_HEIGHT + (level === ZONE_LEVEL ? zone.groundHeight(x, z) : decks.find((d) => d.def.id === level)?.ground(x, z) ?? 0)
+const levelY = (level: number, x: number, z: number) => level * LEVEL_HEIGHT + (level === ZONE_LEVEL ? zone.groundHeight(x, z) : level === ARENA_LEVEL ? arenaMode?.deck?.ground(x, z) ?? 0 : decks.find((d) => d.def.id === level)?.ground(x, z) ?? 0)
 
 function updateNetStatus() {
   const el = $('net')
@@ -5837,7 +5837,7 @@ function frame() {
   crosshair.classList.toggle('aim', fpsShown && cursorLocked() && !!pick(screenCenter()).item)
   player.update(world, input, zone.sprint(touchRun || autoSprint !== (pad.sprint || keys.has('ShiftLeft') || keys.has('ShiftRight'))))
   // La mezzanine et ses escaliers : on monte (installé sur un meuble, la place donne la hauteur).
-  if (deck.mezzanine && !player.gliding && !seating.current) player.position.y = deck.y + deck.ground(player.position.x, player.position.z)
+  if ((deck.mezzanine || deck.def.relief) && !player.gliding && !seating.current) player.position.y = deck.y + deck.ground(player.position.x, player.position.z)
   cocktailEffects.update(world)
 
   for (const r of remotes.values()) {

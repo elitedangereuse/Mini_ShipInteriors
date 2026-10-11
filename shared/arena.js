@@ -103,8 +103,11 @@ export const ARENA_BOTS = ['Drone Vipère', 'Drone Cobra', 'Drone Python', 'Dron
  *   '='  conteneurs couchés (par paires, de gauche à droite)
  *   'H'  conteneurs debout (par paires, de haut en bas)
  *   'c'  caisses d'armes blindées (une tuile)      'p'  pilier (une tuile)
- *   'o'  cosse thargoïde (une tuile)               'X'  le cœur de la ruche (un rectangle de tuiles)
+ *   'o'  cosse thargoïde (une tuile)               'X'  le cœur, la relique (un rectangle de tuiles)
  *   'g'  buisson : on y passe, les balles aussi, et l'on s'y cache
+ *   'u'  le haut : un sol surélevé de `plateau` (cf. le plan)
+ *   'r'  rampe : elle monte vers le haut voisin, depuis le sol d'en face
+ *   'P'  pilier posé sur le haut (une tuile)
  *   'A', 'B'  points d'apparition de chaque équipe (la première à l'ouest, l'autre à l'est)
  * Sur chaque plan, obstacles et buissons se répondent d'un bout à l'autre (un demi-tour autour du
  * centre) : aucune équipe n'a l'avantage du terrain. `name` : en français, en anglais.
@@ -116,6 +119,12 @@ export const ARENA_BOTS = ['Drone Vipère', 'Drone Cobra', 'Drone Python', 'Dron
  *   jusqu'au sommet de l'enceinte, percée d'un passage, et découpe l'anneau en huit secteurs. Les
  *   bases sont les secteurs ouest et est ; des massifs de spores (buissons) et des cosses couvrent
  *   les autres (cf. src/arena/hive.ts).
+ * - Le site gardien (21 × 13) : des ruines gardiennes, de nuit, sur deux hauteurs. Au milieu, le
+ *   promontoire de la relique (5 × 7, `plateau` de haut), qu'on gagne par ses rampes (trois de front
+ *   à l'ouest et à l'est, une au nord et une au sud) ; la relique en occupe le milieu, un obélisque
+ *   chaque coin. Ses bords sont des falaises : on n'y monte ni n'en descend ailleurs. D'en bas, on ne
+ *   voit (et ne touche) que qui se tient près du bord ; d'en haut, on tire par-dessus le vide. Des
+ *   obélisques, des pans de ruines et des nappes de brume (les buissons) au sol (cf. src/arena/guardian.ts).
  */
 export const ARENA_MAPS = [
   {
@@ -133,6 +142,26 @@ export const ARENA_MAPS = [
       '.A..gg...H.....B.',
       '...c.......g.c...',
       '.....==....g.....',
+    ],
+  },
+  {
+    id: 'guardian',
+    name: ['Le site gardien', 'The Guardian site'],
+    plateau: 0.42,
+    plan: [
+      '.......g.....g.......',
+      '...p...g.....g...p...',
+      '.....##...r...##.....',
+      '.....#..PuuuP..#.....',
+      '.A....g.uuuuu.g....B.',
+      '.......ruuuuur.......',
+      '.A.p...ruuXuur...p.B.',
+      '.......ruuuuur.......',
+      '.A....g.uuuuu.g....B.',
+      '.....#..PuuuP..#.....',
+      '.....##...r...##.....',
+      '...p...g.....g...p...',
+      '.......g.....g.......',
     ],
   },
   {
@@ -168,8 +197,10 @@ export function arenaMap(id) {
 }
 
 /** Ce qui arrête les pas, la vue et les balles ; ce qui est un obstacle posé (le reste : le vide, les cloisons). */
-const SOLID = ' #=Hcpo X'
-const PROPS = { '=': 'container', H: 'container', c: 'crates', p: 'pillar', o: 'pod', X: 'core' }
+const SOLID = ' #=HcpPo X'
+const PROPS = { '=': 'container', H: 'container', c: 'crates', p: 'pillar', P: 'pillar', o: 'pod', X: 'core' }
+/** Ce qui est en haut (le sol du haut, ce qui y est posé). */
+const HIGH = 'uPX'
 
 const cached = new Map()
 
@@ -184,6 +215,7 @@ export function arenaZone(id) {
   const known = cached.get(map.id)
   if (known) return known
   const plan = map.plan
+  const top = map.plateau ?? 0
   const H = plan.length, W = plan[0].length
   const N = W * H
   const idx = (x, z) => z * W + x
@@ -194,12 +226,24 @@ export function arenaZone(id) {
   const spawns = [[], []]
   const containers = []
   const done = new Uint8Array(N)
+  const elev = new Float64Array(N)
+  const stairs = new Int8Array(N).fill(-1)
+  const cell = (x, z) => (inside(x, z) ? plan[z][x] : ' ')
   for (let z = 0; z < H; z++) {
     for (let x = 0; x < W; x++) {
       const c = plan[z][x]
       const i = idx(x, z)
       room[i] = c === '#' || c === ' ' ? ' ' : 'a'
       if (SOLID.includes(c)) blocked[i] = 1
+      if (top && HIGH.includes(c)) elev[i] = top
+      if (c === 'r') {
+        // Une rampe monte vers le haut voisin, depuis un sol praticable en face.
+        const up = [0, 1, 2, 3].find((d) => cell(x + DIRS[d].dx, z + DIRS[d].dz) === 'u')
+        const down = up === undefined ? ' ' : cell(x - DIRS[up].dx, z - DIRS[up].dz)
+        if (!top || up === undefined || SOLID.includes(down) || 'ur'.includes(down)) throw new Error(`Rampe mal placée en (${x}, ${z}) sur le plan ${map.id}`)
+        stairs[i] = up
+        elev[i] = top / 2
+      }
       if (c === 'g') bush[i] = 1
       if (c === 'A') spawns[0].push({ x, z })
       if (c === 'B') spawns[1].push({ x, z })
@@ -219,9 +263,24 @@ export function arenaZone(id) {
       containers.push({ x, z, w, d, kind: PROPS[c], color: (x * 7 + z * 13) % 3, flip: (x + z) % 2 === 1 })
     }
   }
-  // Graphe des tuiles libres (4 directions ; -1 : cloison, bord, obstacle).
+  // Garde-corps : le haut ne se rejoint que par ses rampes (et une rampe, que par son bas, son haut,
+  // ou la rampe jumelle d'à côté). Ailleurs, ses bords sont des falaises.
+  const tier = (x, z) => (cell(x, z) === 'u' ? 'u' : cell(x, z) === 'r' ? 'r' : 'g')
+  const joins = (x, z, dir) => {
+    const nx = x + DIRS[dir].dx, nz = z + DIRS[dir].dz
+    const a = tier(x, z), b = tier(nx, nz)
+    const sa = stairs[idx(x, z)], sb = inside(nx, nz) ? stairs[idx(nx, nz)] : -1
+    if (a === b && a !== 'r') return true
+    if (a === 'r' && b === 'u') return sa === dir
+    if (a === 'u' && b === 'r') return sb === (dir + 2) % 4
+    if (a === 'r' && b === 'g') return sa === (dir + 2) % 4
+    if (a === 'g' && b === 'r') return sb === dir
+    return a === 'r' && b === 'r' && sa === sb && dir % 2 !== sa % 2
+  }
+  // Graphe des tuiles libres (4 directions ; -1 : cloison, bord, obstacle, garde-corps).
   const adj = new Int32Array(N * 4).fill(-1)
   const open = new Uint8Array(N * 4)
+  const rails = []
   for (let z = 0; z < H; z++) {
     for (let x = 0; x < W; x++) {
       const i = idx(x, z)
@@ -229,31 +288,68 @@ export function arenaZone(id) {
         const nx = x + DIRS[dir].dx, nz = z + DIRS[dir].dz
         if (!inside(nx, nz) || room[i] === ' ' || room[idx(nx, nz)] === ' ') continue
         open[i * 4 + dir] = 1
-        if (!blocked[i] && !blocked[idx(nx, nz)]) adj[i * 4 + dir] = idx(nx, nz)
+        if (blocked[i] || blocked[idx(nx, nz)]) continue
+        if (!joins(x, z, dir)) {
+          // Une fois par arête, vue de l'est ou du sud (comme les murs d'un plan de pont).
+          if (dir === 1 || dir === 2) rails.push({ x, z, dir })
+          continue
+        }
+        adj[i * 4 + dir] = idx(nx, nz)
       }
     }
   }
   const free = (x, z) => inside(x, z) && !blocked[idx(x, z)]
-  // Plan de vue, de marche et de tir : le même, tout obstacle y arrête tout.
+  const tileRoom = (x, z) => (inside(x, z) ? room[idx(x, z)] : null)
+  // Plan de vue et de tir : tout obstacle y arrête tout (sur un plan à deux hauteurs, la vue suit
+  // les balles, cf. arenaSight). Plan de marche : chaque arête franchie est un passage.
   const sight = {
     isFloor: free,
-    room: (x, z) => (inside(x, z) ? room[idx(x, z)] : null),
+    room: tileRoom,
     edge: (x, z, dir) => (free(x, z) && free(x + DIRS[dir].dx, z + DIRS[dir].dz) ? 'open' : 'wall'),
+  }
+  const walk = {
+    isFloor: free,
+    room: tileRoom,
+    edge: (x, z, dir) => (free(x, z) && adj[idx(x, z) * 4 + dir] >= 0 ? 'open' : 'wall'),
   }
   const zone = {
     id: map.id, plan,
     width: W, height: H, blocked, bush, room, open, adj, spawns, containers,
     layout: plan.map((line) => line.replace(/#/g, ' ').replace(/[^ ]/g, 'a')),
-    stairs: new Int8Array(N).fill(-1), elev: new Float32Array(N),
-    walkMap: sight, sightMap: sight,
+    stairs, elev, top, rails,
+    walkMap: walk, sightMap: sight,
   }
   cached.set(map.id, zone)
   return zone
 }
 
-/** Rien ne sépare `from` de `to` dans l'arène (ni cloison, ni conteneur). */
+/**
+ * Hauteur du sol en `p` : celle du haut, qui monte le long d'une rampe (0 sur un plan d'un seul
+ * niveau). Hors du terrain, 0.
+ */
+export function arenaGround(zone, p) {
+  if (!zone.top) return 0
+  const x = Math.round(p.x), z = Math.round(p.z)
+  if (x < 0 || z < 0 || x >= zone.width || z >= zone.height) return 0
+  const i = z * zone.width + x
+  const up = zone.stairs[i]
+  if (up < 0) return zone.elev[i]
+  const s = (p.x - x) * DIRS[up].dx + (p.z - z) * DIRS[up].dz
+  return zone.top * Math.min(1, Math.max(0, s + 0.5))
+}
+
+/**
+ * Rien ne sépare `from` de `to` dans l'arène (ni cloison, ni conteneur). Sur un plan à deux
+ * hauteurs, le regard part de la hauteur d'un tir à plat au-dessus du sol de chacun, et une falaise
+ * l'arrête comme une balle : d'en bas, on ne voit que qui se tient près du bord du haut.
+ */
 export function arenaSight(zone, from, to) {
-  return lineOfSight(zone.sightMap, from, to)
+  if (!zone.top) return lineOfSight(zone.sightMap, from, to)
+  const a = { x: from.x, y: arenaGround(zone, from) + ARENA_RULES.aim, z: from.z }
+  const dx = to.x - a.x, dy = arenaGround(zone, to) + ARENA_RULES.aim - a.y, dz = to.z - a.z
+  const len = Math.hypot(dx, dy, dz)
+  if (len < 1e-6) return true
+  return castArena(zone, a, { x: dx / len, y: dy / len, z: dz / len }, len, []).t >= len - 1e-6
 }
 
 /** Dans un buisson ? */
@@ -293,6 +389,7 @@ export function blastDamage(weapon, d) {
 export function castArena(zone, p, d, max, bodies, skip) {
   const { width: W, height: H, blocked } = zone
   const solid = (x, z) => x < 0 || z < 0 || x >= W || z >= H || blocked[z * W + x] === 1
+  if (zone.top) return castRelief(zone, p, d, max, bodies, skip, solid)
   let t = max, body = null, normal = null, wall = false
 
   // Le sol et le plafond.
@@ -340,6 +437,93 @@ export function castArena(zone, p, d, max, bodies, skip) {
       if (u < 0 || u >= t) continue
       const y = p.y + d.y * u
       if (y < 0 || y > h) continue
+      t = u
+      body = b.id
+      normal = null
+      wall = false
+    }
+  }
+  return { t, body, normal, wall }
+}
+
+/**
+ * castArena sur un plan à deux hauteurs : chaque tuile a son sol (le haut, une rampe qui monte, le
+ * sol d'en bas). La balle s'arrête sur le flanc d'une falaise si elle y arrive plus bas que son
+ * bord, sur le sol d'une tuile si elle y plonge ; un combattant se tient sur le sol de sa tuile.
+ * Tirée d'en bas, elle ne survole pas le haut pour redescendre de l'autre côté : elle s'arrête à
+ * son bord (en vue subjective, l'œil est plus haut que le rebord ; aucune vue ne doit voir ni
+ * toucher plus loin qu'une autre).
+ */
+function castRelief(zone, p, d, max, bodies, skip, solid) {
+  const { width: W, height: H } = zone
+  let t = max, body = null, normal = null, wall = false
+  if (d.y > 1e-9) {
+    const u = (ARENA_RULES.ceiling - p.y) / d.y
+    if (u >= 0 && u < t) { t = u; normal = [0, -1, 0] }
+  }
+  const at = (u) => ({ x: p.x + d.x * u, z: p.z + d.z * u })
+  // Sous le sol de sa propre tuile : arrêtée d'emblée.
+  let x = Math.round(p.x), z = Math.round(p.z)
+  if (solid(x, z) || p.y < arenaGround(zone, p) - 1e-6) return { t: 0, body: null, normal: solid(x, z) ? [-d.x, 0, -d.z] : [0, 1, 0], wall: false }
+  const sx = Math.sign(d.x), sz = Math.sign(d.z)
+  let nextX = sx ? (x + sx * 0.5 - p.x) / d.x : Infinity
+  let nextZ = sz ? (z + sz * 0.5 - p.z) / d.z : Infinity
+  const stepX = sx ? 1 / Math.abs(d.x) : Infinity, stepZ = sz ? 1 / Math.abs(d.z) : Infinity
+  let from = 0
+  const low = arenaGround(zone, p) < zone.top - 1e-6
+  for (let guard = 0; guard < 128; guard++) {
+    const u = Math.min(nextX, nextZ, t)
+    // Dans la tuile (x, z), de `from` à `u` : la balle y plonge-t-elle sous le sol ? (la différence
+    // de hauteur entre elle et le sol est affine le long du trajet, même sur une rampe).
+    const g0 = p.y + d.y * from - arenaGround(zone, at(from + 1e-6))
+    const g1 = p.y + d.y * u - arenaGround(zone, at(u - 1e-6))
+    if (g1 < 0 && g0 >= 0) {
+      const hit = from + (u - from) * (g0 / (g0 - g1))
+      if (hit < t) { t = hit; normal = [0, 1, 0]; wall = false }
+      break
+    }
+    if (u >= t) break
+    const alongX = nextX < nextZ
+    const over = low && zone.elev[z * W + x] >= zone.top - 1e-6 && zone.stairs[z * W + x] < 0
+    if (alongX) { x += sx; nextX += stepX } else { z += sz; nextZ += stepZ }
+    from = u
+    const edge = alongX ? [-sx, 0, 0] : [0, 0, -sz]
+    // Tirée d'en bas, au bout du haut qu'elle survole : elle s'arrête sur son rebord.
+    if (over && !solid(x, z) && arenaGround(zone, at(u + 1e-6)) < zone.top - 1e-6) {
+      t = Math.max(0, u)
+      normal = [-edge[0], 0, -edge[2]]
+      wall = false
+      break
+    }
+    if (solid(x, z)) {
+      t = Math.max(0, u)
+      normal = edge
+      wall = x < 0 || z < 0 || x >= W || z >= H || zone.room[z * W + x] === ' '
+      break
+    }
+    // Le flanc d'une falaise : la tuile d'à côté a son sol plus haut que la balle.
+    if (p.y + d.y * u < arenaGround(zone, at(u + 1e-6)) - 1e-6) {
+      t = Math.max(0, u)
+      normal = edge
+      wall = false
+      break
+    }
+  }
+  // Les combattants : un cylindre posé sur le sol de sa tuile.
+  const { r, h } = ARENA_RULES.body
+  const flat = d.x * d.x + d.z * d.z
+  if (flat > 1e-9) {
+    for (const b of bodies) {
+      if (skip?.(b.id)) continue
+      const ox = p.x - b.x, oz = p.z - b.z
+      const half = (ox * d.x + oz * d.z) / flat
+      const disc = half * half - (ox * ox + oz * oz - r * r) / flat
+      if (disc < 0) continue
+      const root = Math.sqrt(disc)
+      const u = -half - root < 0 && -half + root >= 0 ? 0 : -half - root
+      if (u < 0 || u >= t) continue
+      const y = p.y + d.y * u, base = arenaGround(zone, b)
+      if (y < base || y > base + h) continue
       t = u
       body = b.id
       normal = null

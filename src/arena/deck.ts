@@ -350,9 +350,10 @@ const containerRot = (c: { w: number; flip: boolean }): Rot => (c.w > 1 ? (c.fli
 
 /**
  * La teinte des buissons d'un plan : celle du feuillage (`hue`, `sat`, `light` : sa base, le dessus
- * est plus clair), et de ses fleurs, qui luisent un peu (`glow`) dans le noir d'une ruche.
+ * est plus clair), et de ses fleurs, qui luisent un peu (`glow`) dans le noir d'une ruche. `haze` :
+ * des nappes de brume plutôt que des feuillages, à demi transparentes (leur opacité).
  */
-export interface BushLook { hue: number; sat: number; light: number; blooms: string[]; glow: number }
+export interface BushLook { hue: number; sat: number; light: number; blooms: string[]; glow: number; haze?: number }
 
 /** Les buissons de la baie : un vert franc, des fleurs jaunes, roses et blanches. */
 const BAY_BUSHES: BushLook = { hue: 0.3, sat: 0.62, light: 0.14, blooms: ['#ffd84a', '#ff6fae', '#f4f4f4'], glow: 0 }
@@ -409,7 +410,7 @@ function bushes(zone: ArenaZone, look: BushLook) {
     }
   }
   const rustle = new Float32Array(Math.max(1, tiles.length))
-  const material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true })
+  const material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: !look.haze, ...(look.haze ? { transparent: true, opacity: look.haze, depthWrite: false } : {}) })
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = holoTime
     shader.uniforms.uRustle = { value: rustle }
@@ -435,7 +436,7 @@ function bushes(zone: ArenaZone, look: BushLook) {
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         totalEmissiveRadiance += vColor.rgb * vShine;`)
   }
-  material.customProgramCacheKey = () => `arena-bushes-${rustle.length}`
+  material.customProgramCacheKey = () => `arena-bushes-${rustle.length}-${!!look.haze}`
   const mesh = new THREE.Mesh(mergeGeometries(parts), material)
   for (const p of parts) p.dispose()
   mesh.receiveShadow = true

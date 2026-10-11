@@ -650,7 +650,7 @@ export class Deck {
    * escaliers ; 0 ailleurs.
    */
   ground(x: number, z: number): number {
-    return this.mezzanine ? mezzanineHeight(this.mezzanine, x, z) : 0
+    return this.mezzanine ? mezzanineHeight(this.mezzanine, x, z) : this.def.relief?.height(x, z) ?? 0
   }
 
   /** Tuile du plancher ou des escaliers de la mezzanine : on y est en hauteur. */
@@ -662,6 +662,7 @@ export class Deck {
   groundLevels(): number[] {
     const levels = new Set([0])
     if (this.mezzanine) for (const t of this.mezzanine.tiles.values()) levels.add(this.ground(t.x, t.z))
+    for (const h of this.def.relief?.levels ?? []) levels.add(h)
     return [...levels].sort((a, b) => b - a)
   }
 

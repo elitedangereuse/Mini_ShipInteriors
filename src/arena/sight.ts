@@ -67,21 +67,26 @@ export class AimSight {
 
   /**
    * Peint le cône de l'arme `w`.
-   * @param from les pieds du tireur (repère de l'arène)
+   * @param from les pieds du tireur (repère de l'arène ; `y` : la hauteur de son sol)
    * @param dir où il vise, au sol (longueur 1)
    * @param spread demi-angle de dispersion du moment (radians)
    * @param ready le coup peut partir
+   * @param rise la pente du tir, sur un sol à plusieurs hauteurs (cf. RangeGame.pitch)
    */
-  place(zone: ArenaZone, w: Weapon, from: { x: number; z: number }, dir: { x: number; z: number }, spread: number, ready: boolean) {
+  place(zone: ArenaZone, w: Weapon, from: { x: number; y: number; z: number }, dir: { x: number; z: number }, spread: number, ready: boolean, rise = 0) {
     // Une balle part d'un peu devant le tireur (cf. RangeGame.update), et vole sa portée.
     const reach = START + w.range
     const { p, d } = this
+    // Peint sur son sol ; les rayons montent ou descendent comme le tir.
+    const y = from.y + Y, slope = Math.hypot(1, rise)
+    p.y = from.y + ARENA_RULES.aim
+    d.y = rise / slope
     let centre = reach
     for (let i = 0; i <= RAYS; i++) {
       const k = (i / RAYS) * 2 - 1
       const a = k * spread, cos = Math.cos(a), sin = Math.sin(a)
-      d.x = dir.x * cos + dir.z * sin
-      d.z = dir.z * cos - dir.x * sin
+      d.x = (dir.x * cos + dir.z * sin) / slope
+      d.z = (dir.z * cos - dir.x * sin) / slope
       // Le couloir : chaque rayon part d'un peu à côté du tireur.
       p.x = from.x + dir.z * k * LANE
       p.z = from.z - dir.x * k * LANE
@@ -94,10 +99,10 @@ export class AimSight {
       }
       const near = Math.min(START, t), n = i * 6
       this.points[n] = p.x + d.x * near
-      this.points[n + 1] = Y
+      this.points[n + 1] = y
       this.points[n + 2] = p.z + d.z * near
       this.points[n + 3] = p.x + d.x * t
-      this.points[n + 4] = Y
+      this.points[n + 4] = y
       this.points[n + 5] = p.z + d.z * t
       if (i === RAYS / 2) centre = t
     }
@@ -114,7 +119,7 @@ export class AimSight {
     this.blast.visible = w.blast > 0
     if (w.blast) {
       // Qui se tient dans ce disque prend le souffle (cf. blastDamage).
-      this.blast.position.set(from.x + dir.x * centre, Y + 0.002, from.z + dir.z * centre)
+      this.blast.position.set(from.x + (dir.x * centre) / slope, y + 0.002, from.z + (dir.z * centre) / slope)
       this.blast.scale.setScalar(w.blast + ARENA_RULES.body.r)
     }
     const color = ready ? READY : BLOCKED

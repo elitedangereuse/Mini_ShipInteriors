@@ -326,6 +326,13 @@ export class RangeGame {
   protected readonly aimPoint = new THREE.Vector3()
   protected pointer: { x: number; y: number } | null = null
   /**
+   * Vue de dessus, sur un sol à plusieurs hauteurs : la pente du tir (hauteur par unité de
+   * distance au sol), quand une cible l'a donnée (cf. aimToward) ; null : celle du terrain visé.
+   * `pitch` : celle du moment.
+   */
+  protected rise: number | null = null
+  protected pitch = 0
+  /**
    * Recul et dispersion (radians) : ce que les tirs ont ajouté à la dispersion (`bloom`), ce que
    * marcher y ajoute (`moving`) ; le cabrage de la vue subjective (`recoil` : cap, hauteur), et ce
    * qu'il lui reste à prendre (`debt` : il vient en quelques images, pas d'un coup) ; la déviation
@@ -461,6 +468,8 @@ export class RangeGame {
     this.volley = 0
     this.aim.set(0, 0, -1)
     this.pointer = null
+    this.rise = null
+    this.pitch = 0
     this.live.visible = true
     this.idle.visible = false
     document.body.classList.add('range-on')
@@ -539,11 +548,20 @@ export class RangeGame {
     if (this.session) this.pointer = { x: clientX, y: clientY }
   }
 
-  /** Vue de dessus, au stick : direction visée, au sol (repère du pont). */
-  aimToward(x: number, z: number) {
+  /**
+   * Vue de dessus, au stick : direction visée, au sol (repère du pont) ; `rise` : la pente vers une
+   * cible plus haute ou plus basse que soi (sinon, celle du terrain au bout de la portée).
+   */
+  aimToward(x: number, z: number, rise: number | null = null) {
     if (!this.session || Math.hypot(x, z) < 0.3) return
     this.pointer = null
+    this.rise = rise
     this.aim.set(x, 0, z).normalize()
+  }
+
+  /** Hauteur du sol en (x, z) (repère du pont) : le stand est plat ; l'arène peut avoir un haut. */
+  protected groundAt(_x: number, _z: number): number {
+    return 0
   }
 
   /** Tir rapide (toucher le stick de tir, au doigt) : vue de dessus, on se tourne vers la cible la plus proche. */
@@ -652,20 +670,34 @@ export class RangeGame {
       dir.copy(this.aim)
       this.sightline(eye, dir, f, origin)
     } else {
+      // La balle part à hauteur d'homme au-dessus de son sol ; elle vise la poitrine de ce qui est
+      // sous le curseur (sur un sol à plusieurs hauteurs, plus haut ou plus bas que soi).
+      const chest = foot.y + AIM_Y
       if (this.pointer) {
         _ndc.set((this.pointer.x / innerWidth) * 2 - 1, -(this.pointer.y / innerHeight) * 2 + 1)
         _ray.setFromCamera(_ndc, f.camera)
-        _plane.set(UP, -(origin.y + AIM_Y))
-        if (_ray.ray.intersectPlane(_plane, _v)) {
+        let h = foot.y
+        for (let k = 0; k < 3; k++) {
+          _plane.set(UP, -(origin.y + h + AIM_Y))
+          if (!_ray.ray.intersectPlane(_plane, _v)) break
           this.aimPoint.copy(_v).sub(origin)
-          _v.set(this.aimPoint.x - foot.x, 0, this.aimPoint.z - foot.z)
-          if (_v.length() > 0.2) this.aim.copy(_v).normalize()
+          const next = this.groundAt(this.aimPoint.x, this.aimPoint.z)
+          if (Math.abs(next - h) < 1e-3) break
+          h = next
         }
-      } else this.aim.setY(0).normalize()
+        _v.set(this.aimPoint.x - foot.x, 0, this.aimPoint.z - foot.z)
+        const far = _v.length()
+        if (far > 0.2) this.aim.copy(_v).normalize()
+        this.pitch = (this.aimPoint.y - chest) / Math.max(0.5, far)
+      } else {
+        this.aim.setY(0).normalize()
+        const reach = WEAPONS[s.weapon].range
+        this.pitch = this.rise ?? (this.groundAt(foot.x + this.aim.x * reach, foot.z + this.aim.z * reach) - foot.y) / reach
+      }
       // Le recul fait dévier la ligne de tir : le laser le montre.
-      dir.copy(this.aim).applyAxisAngle(UP, this.drift)
-      eye.set(foot.x + dir.x * 0.3, AIM_Y, foot.z + dir.z * 0.3)
-      if (!this.pointer) this.aimPoint.copy(eye).addScaledVector(this.aim, 2)
+      dir.copy(this.aim).setY(this.pitch).normalize().applyAxisAngle(UP, this.drift)
+      eye.set(foot.x + dir.x * 0.3, chest, foot.z + dir.z * 0.3)
+      if (!this.pointer) this.aimPoint.copy(eye).addScaledVector(dir, 2)
     }
 
     // L'arme : en main, ou à l'écran (placée plus bas, une fois la vue secouée).
@@ -677,7 +709,7 @@ export class RangeGame {
       // À la hauteur de la ligne de tir, quelle que soit la carrure du personnage.
       // Rechargement : l'arme pique du nez et bascule sur le flanc le temps de changer le chargeur, puis revient.
       const loading = this.loading(s)
-      shown.root.position.y = AIM_Y - 0.02 - loading * 0.04
+      shown.root.position.y = foot.y + AIM_Y - 0.02 - loading * 0.04
       shown.root.rotation.set(this.dip * 0.9 - this.gunKick * 0.5 + loading * 0.75, Math.atan2(dir.x, dir.z) + loading * 0.45, loading * 1.1, 'YXZ')
     }
 

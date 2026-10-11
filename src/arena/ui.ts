@@ -20,11 +20,13 @@ const mapName = (id: string) => tr(...arenaMap(id).name)
 /** Ce qu'est chaque plan, en une ligne, au terminal. */
 const MAP_BLURBS: Record<ArenaMapId, string> = {
   bay: tr('Le stade de CMDR Arena : trois allées, des tribunes pleines.', 'The CMDR Arena stadium: three lanes, packed stands.'),
+  guardian: tr('Des ruines gardiennes, de nuit, sur deux hauteurs : le promontoire de la relique domine.', 'Guardian ruins at night, on two levels: the relic\'s ridge looms over all.'),
   hive: tr('Une ruche thargoïde : un octogone, la chambre du cœur au milieu.', 'A Thargoid hive: an octagon, the heart chamber at its centre.'),
 }
 /** Couleurs de la vignette de chaque plan : le sol, les obstacles, les buissons. */
 const MAP_TINTS: Record<ArenaMapId, [string, string, string]> = {
   bay: ['#d9ae5f', '#3a4250', '#4f9d3a'],
+  guardian: ['#4a403a', '#12161c', '#8fb9d9'],
   hive: ['#1d3326', '#0b120e', '#39ff88'],
 }
 
@@ -43,6 +45,9 @@ function mapThumb(id: ArenaMapId): HTMLCanvasElement {
       const t = zone.plan[z][x]
       if (t === ' ') continue
       c.fillStyle = zone.blocked[z * zone.width + x] ? solid : t === 'g' ? bush : x < 3 ? ARENA_TEAMS[0].color : x >= zone.width - 3 ? ARENA_TEAMS[1].color : floor
+      // Le haut, plus clair ; une rampe, entre les deux.
+      if (t === 'u') c.fillStyle = '#7d8a99'
+      if (t === 'r') c.fillStyle = '#5e6670'
       c.fillRect(x * S, z * S, S, S)
     }
   }
@@ -229,8 +234,8 @@ export class ArenaPanel extends Modal {
     hero.append(
       el('strong', '', tr('Placez-vous dans un lobby', 'Pick a lobby')),
       el('p', '', tr(
-        `Deux équipes, jusqu'à ${ARENA_RULES.team} contre ${ARENA_RULES.team}, dans le stade de la baie ou au fond d'une ruche thargoïde. Seul contre les bots, ou avec ceux qui jouent avec vous : ils complètent les équipes. La partie se joue en ${ARENA_RULES.wins} manches gagnantes.`,
-        `Two teams, up to ${ARENA_RULES.team} vs ${ARENA_RULES.team}, in the bay's stadium or deep in a Thargoid hive. Solo against the bots, or with whoever plays with you: they fill the teams. Best of ${ARENA_RULES.rounds} rounds.`,
+        `Deux équipes, jusqu'à ${ARENA_RULES.team} contre ${ARENA_RULES.team}, dans le stade de la baie, au fond d'une ruche thargoïde ou dans les ruines d'un site gardien. Seul contre les bots, ou avec ceux qui jouent avec vous : ils complètent les équipes. La partie se joue en ${ARENA_RULES.wins} manches gagnantes.`,
+        `Two teams, up to ${ARENA_RULES.team} vs ${ARENA_RULES.team}, in the bay's stadium, deep in a Thargoid hive or among the ruins of a Guardian site. Solo against the bots, or with whoever plays with you: they fill the teams. Best of ${ARENA_RULES.rounds} rounds.`,
       )),
     )
     stage.append(hero, el('span', 'arena-heading', tr('Votre arme', 'Your weapon')), loadout(this.weapon, (id) => this.pick(id)))

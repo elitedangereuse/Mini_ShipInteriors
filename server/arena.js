@@ -36,7 +36,7 @@
 
 import { randomBytes } from 'node:crypto'
 import {
-  ARENA_BOTS, ARENA_LEVEL, ARENA_LOBBY, ARENA_MAPS, ARENA_RULES as R, ARENA_SKILLS, arenaHidden, arenaSight, arenaSpawn, arenaZone, blastDamage, castArena, spawnYaw,
+  ARENA_BOTS, ARENA_LEVEL, ARENA_LOBBY, ARENA_MAPS, ARENA_RULES as R, ARENA_SKILLS, arenaGround, arenaHidden, arenaSight, arenaSpawn, arenaZone, blastDamage, castArena, spawnYaw,
 } from '../shared/arena.js'
 import { findPath, smoothPath, straightWalk, walkable } from '../shared/salvage.js'
 import { WEAPON_IDS, WEAPON_STATS } from '../shared/weapons.js'
@@ -356,7 +356,9 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       if (len < 0.5 || len > 2) return
       dirs.push({ x: v[0] / len, y: v[1] / len, z: v[2] / len })
     }
-    const origin = { x: o[0], y: Math.min(1, Math.max(0.05, o[1])), z: o[2] }
+    // À hauteur d'homme au-dessus de son sol (le haut, une rampe, le sol d'en bas).
+    const floor = arenaGround(game.zone, f)
+    const origin = { x: o[0], y: Math.min(floor + 1, Math.max(floor + 0.05, o[1])), z: o[2] }
     // La balle part de sa main : pas de plus loin, ni de derrière un conteneur.
     if (dist(origin, f) > 1.2 || !walkable(game.zone, Math.round(origin.x), Math.round(origin.z)) || !arenaSight(game.zone, f, origin)) {
       origin.x = f.x
@@ -374,7 +376,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       if (f.team === b.team && f.id !== b.by) continue
       const amount = blastDamage(b.weapon, dist(f, at))
       if (!amount || !arenaSight(game.zone, walkable(game.zone, Math.round(from.x), Math.round(from.z)) ? from : f, f)) continue
-      hurt(game, f, b.by, f.id === b.by ? Math.round(amount * R.self) : amount, b.weapon, { x: f.x, y: R.body.h * 0.6, z: f.z })
+      hurt(game, f, b.by, f.id === b.by ? Math.round(amount * R.self) : amount, b.weapon, { x: f.x, y: arenaGround(game.zone, f) + R.body.h * 0.6, z: f.z })
       if (over(game)) return
     }
   }
@@ -542,14 +544,18 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     }
     // Hors de portée, la balle s'éteindrait avant lui. Le lance-plasma, pas à bout portant : il se blesserait.
     if (near > w.range + R.body.r || (w.blast && near < w.blast + 1)) return
-    // Écart de visée : au hasard autour de la cible, plus large sur une cible qui court.
+    // Écart de visée : au hasard autour de la cible, plus large sur une cible qui court. Sur deux
+    // hauteurs, il vise sa poitrine, plus haut ou plus bas que la sienne.
     const aim = yaw + (random() + random() - 1) * skill.error * (target.anim === 'sprint' ? 1.5 : 1) * RAD
+    const floor = arenaGround(zone, b)
+    const rise = (arenaGround(zone, target) - floor) / Math.max(0.5, near)
     const dirs = []
     for (let i = 0; i < w.pellets; i++) {
       const a = aim + (random() * 2 - 1) * w.spread * RAD
-      dirs.push({ x: Math.sin(a), y: 0, z: Math.cos(a) })
+      const len = Math.hypot(1, rise)
+      dirs.push({ x: Math.sin(a) / len, y: rise / len, z: Math.cos(a) / len })
     }
-    const origin = { x: b.x + Math.sin(yaw) * 0.3, y: R.aim, z: b.z + Math.cos(yaw) * 0.3 }
+    const origin = { x: b.x + Math.sin(yaw) * 0.3, y: floor + R.aim, z: b.z + Math.cos(yaw) * 0.3 }
     if (!walkable(zone, Math.round(origin.x), Math.round(origin.z))) Object.assign(origin, { x: b.x, z: b.z })
     b.ammo--
     // Une arme au coup par coup : un bot ne presse pas la détente plus de trois fois par seconde.

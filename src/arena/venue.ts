@@ -49,8 +49,8 @@ interface Seat { x: number; y: number; z: number; yaw: number; row: number }
 /** Ce qui entoure le terrain. */
 export interface Venue {
   group: THREE.Group
-  /** Ce qu'on entend quand il s'enflamme : la clameur d'un public, ou le chant d'une ruche. */
-  voice: 'crowd' | 'hive'
+  /** Ce qu'on entend quand il s'enflamme : la clameur d'un public, le chant d'une ruche, le carillon d'une relique. */
+  voice: 'crowd' | 'hive' | 'guardian'
   /** Couleur de chaque camp (0, 1), et le camp dont la base est du côté de la caméra. */
   paint(colors: [string, string], near: number): void
   /** Vue subjective, ou de dessus. */

@@ -565,8 +565,11 @@ function holoPlan(id: string, size: number): THREE.Group {
       const c = zone.plan[z][x]
       if (c === ' ') continue
       const px = (x - (zone.width - 1) / 2) * T, pz = (z - (zone.height - 1) / 2) * T
-      floor.push(new THREE.PlaneGeometry(T, T).rotateX(-Math.PI / 2).translate(px, 0, pz))
-      if (zone.blocked[z * zone.width + x]) blocks.push(new THREE.BoxGeometry(T * 0.92, T * 0.8, T * 0.92).translate(px, T * 0.4, pz))
+      // Le haut (un sol surélevé) : une dalle en relief.
+      const lift = zone.top ? (zone.elev[z * zone.width + x] / zone.top) * T * 0.7 : 0
+      floor.push(new THREE.PlaneGeometry(T, T).rotateX(-Math.PI / 2).translate(px, lift, pz))
+      if (lift > 0 && !zone.blocked[z * zone.width + x]) blocks.push(new THREE.BoxGeometry(T * 0.98, lift, T * 0.98).translate(px, lift / 2, pz))
+      if (zone.blocked[z * zone.width + x]) blocks.push(new THREE.BoxGeometry(T * 0.92, T * 0.8, T * 0.92).translate(px, lift + T * 0.4, pz))
       else if (c === 'g') bushes.push(new THREE.BoxGeometry(T * 0.8, T * 0.3, T * 0.8).translate(px, T * 0.15, pz))
       if (x < 3) bases[0].push(new THREE.PlaneGeometry(T, T).rotateX(-Math.PI / 2).translate(px, 0.002, pz))
       if (x >= zone.width - 3) bases[1].push(new THREE.PlaneGeometry(T, T).rotateX(-Math.PI / 2).translate(px, 0.002, pz))

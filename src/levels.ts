@@ -158,6 +158,11 @@ export interface LevelDef {
    */
   open?: boolean
   /**
+   * Un sol à plusieurs hauteurs (le site gardien de l'arène, cf. arenaGround) : la hauteur du sol en
+   * (x, z), et celle de ses paliers (pour viser une tuile au clic). Le joueur la suit en marchant.
+   */
+  relief?: { height(x: number, z: number): number; levels: number[] }
+  /**
    * Pont des quartiers (housing v2, cf. src/housing/) : le palier de l'ascenseur, et la parcelle du
    * joueur, une bulle sous champ de force construite à la volée (cf. Deck.setPlot). Pas de coque ni
    * de tuyères : la parcelle repose sur son socle.
