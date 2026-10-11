@@ -563,7 +563,7 @@ function holoPlan(id: string, size: number): THREE.Group {
   for (let z = 0; z < zone.height; z++) {
     for (let x = 0; x < zone.width; x++) {
       const c = zone.plan[z][x]
-      if (c === ' ') continue
+      if (c === ' ' || c === 'v') continue
       const px = (x - (zone.width - 1) / 2) * T, pz = (z - (zone.height - 1) / 2) * T
       // Le haut (un sol surélevé) : une dalle en relief.
       const lift = zone.top ? (zone.elev[z * zone.width + x] / zone.top) * T * 0.7 : 0

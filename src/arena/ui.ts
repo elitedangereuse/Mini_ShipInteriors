@@ -48,6 +48,8 @@ function mapThumb(id: ArenaMapId): HTMLCanvasElement {
       // Le haut, plus clair ; une rampe, entre les deux.
       if (t === 'u') c.fillStyle = '#7d8a99'
       if (t === 'r') c.fillStyle = '#5e6670'
+      // Le gouffre : on le laisse vide.
+      if (t === 'v') continue
       c.fillRect(x * S, z * S, S, S)
     }
   }

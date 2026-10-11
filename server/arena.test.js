@@ -75,7 +75,7 @@ test('arène : chaque plan est d\'un seul tenant, équitable, trois points d\'ap
     assert.equal(zone.id, map.id)
     for (const row of plan) assert.equal(row.length, W, map.id)
     // Obstacles et buissons se répondent d'un bout à l'autre : aucune équipe n'a l'avantage du terrain.
-    const kind = (c) => (c === ' ' ? 'vide' : '#=HcpPoX'.includes(c) ? 'plein' : c === 'g' ? 'buisson' : c === 'A' || c === 'B' ? 'base' : c === 'u' ? 'haut' : c === 'r' ? 'rampe' : 'sol')
+    const kind = (c) => (c === ' ' ? 'vide' : c === 'v' ? 'gouffre' : '#=HcpPoX'.includes(c) ? 'plein' : c === 'g' ? 'buisson' : c === 'A' || c === 'B' ? 'base' : c === 'u' ? 'haut' : c === 'r' ? 'rampe' : 'sol')
     for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) assert.equal(kind(plan[z][x]), kind(plan[H - 1 - z][W - 1 - x]), `${map.id} (${x}, ${z})`)
     assert.equal(zone.spawns[0].length, R.team, map.id)
     assert.equal(zone.spawns[1].length, R.team, map.id)
@@ -97,53 +97,60 @@ test('arène : chaque plan est d\'un seul tenant, équitable, trois points d\'ap
   }
 })
 
-test('arène : le site gardien se joue sur deux hauteurs, le haut ne se gagne que par ses rampes', () => {
+test('arène : le site gardien se joue sur deux hauteurs, au-dessus du gouffre', () => {
   const zone = arenaZone('guardian')
   const top = zone.top
-  assert.ok(top > R.aim && top + R.aim < R.body.h, 'd\'en bas, un tir à plat bute sur la falaise ; d\'en haut, il touche qui est en bas')
-  // Le haut, le sol, une rampe qui monte vers l'est.
-  assert.equal(arenaGround(zone, { x: 9, z: 4 }), top)
-  assert.equal(arenaGround(zone, { x: 5, z: 4 }), 0)
-  assert.ok(Math.abs(arenaGround(zone, { x: 7, z: 5 }) - top / 2) < 1e-6)
-  assert.ok(arenaGround(zone, { x: 7.4, z: 5 }) > arenaGround(zone, { x: 6.7, z: 5 }))
-  // Les falaises : du haut au sol, on ne passe pas ; une rampe, par son bas et son haut seulement.
+  const free = (x, z) => !zone.blocked[z * zone.width + x]
+  assert.ok(top > R.aim && top + R.aim < R.body.h, 'd\'en bas, un tir à plat bute sur le flanc du haut ; d\'en haut, il touche qui est en bas')
+  // Le sanctuaire en hauteur, à bras de cinq tuiles ; les ponts et les esplanades au sol ; une rampe qui monte vers l'est.
+  for (let z = 6; z <= 10; z++) assert.equal(arenaGround(zone, { x: 9, z }), top)
+  for (let x = 9; x <= 13; x++) assert.equal(arenaGround(zone, { x, z: 5 }), top)
+  assert.equal(arenaGround(zone, { x: 8, z: 1 }), 0)
+  assert.ok(Math.abs(arenaGround(zone, { x: 6, z: 8 }) - top / 2) < 1e-6)
+  assert.ok(arenaGround(zone, { x: 6.4, z: 8 }) > arenaGround(zone, { x: 5.7, z: 8 }))
+  // On ne marche pas dans un gouffre ; on ne gagne le haut que par ses rampes.
+  assert.ok(!free(6, 4) && zone.pit[4 * zone.width + 6])
   const adj = (x, z, dir) => zone.adj[(z * zone.width + x) * 4 + dir]
-  assert.equal(adj(8, 4, 3), -1, 'du haut vers le sol, à l\'ouest')
-  assert.equal(adj(7, 4, 1), -1, 'du sol vers le haut')
-  assert.ok(adj(6, 5, 1) >= 0 && adj(7, 5, 1) >= 0, 'le bas, puis le haut de la rampe')
-  assert.equal(adj(7, 5, 0), -1, 'le flanc de la rampe')
-  assert.ok(adj(7, 5, 2) >= 0, 'deux rampes jumelles se rejoignent')
-  const path = findPath(zone, zone.spawns[0][0], { x: 10, z: 4 })
+  assert.ok(adj(4, 8, 1) >= 0 && adj(5, 8, 1) >= 0 && adj(6, 8, 1) >= 0, 'l\'esplanade, le palier, la rampe ouest, le haut')
+  assert.ok(adj(6, 7, 2) >= 0, 'deux rampes jumelles se rejoignent')
+  assert.ok(adj(10, 2, 2) >= 0 && adj(10, 3, 2) >= 0 && adj(10, 4, 2) >= 0, 'du pont nord au bras nord du sanctuaire')
+  const path = findPath(zone, zone.spawns[0][0], { x: 11, z: 6 })
   assert.ok(path && path.some((t) => zone.stairs[t.z * zone.width + t.x] >= 0), 'on monte par une rampe')
-  // Un tir à plat, d'en bas : il s'arrête au pied de la falaise.
-  const east = { x: 1, y: 0, z: 0 }, west = { x: -1, y: 0, z: 0 }
-  let hit = castArena(zone, { x: 4, y: R.aim, z: 4 }, east, 20, [])
+  assert.ok(path.every((t) => !zone.pit[t.z * zone.width + t.x]))
+  const north = { x: 0, y: 0, z: -1 }, south = { x: 0, y: 0, z: 1 }, east = { x: 1, y: 0, z: 0 }
+  // Par-dessus le gouffre, on se tire dessus : de l'esplanade au pont nord.
+  const across = { x: 4, y: R.aim, z: 5 }, to = { x: 8, z: 2 }
+  const len = Math.hypot(to.x - across.x, to.z - across.z)
+  let hit = castArena(zone, across, { x: (to.x - across.x) / len, y: 0, z: (to.z - across.z) / len }, 20, [{ id: 2, ...to }])
+  assert.equal(hit.body, 2)
+  assert.ok(arenaSight(zone, across, to))
+  // Un tir à plat, du pont : il bute sur le flanc du sanctuaire, de l'autre côté du gouffre.
+  hit = castArena(zone, { x: 8, y: R.aim, z: 2 }, south, 20, [])
   assert.ok(Math.abs(hit.t - 3.5) < 1e-6)
-  assert.deepEqual(hit.normal, [-1, 0, 0])
-  // D'en haut, par-dessus le vide : il touche qui est en bas.
-  hit = castArena(zone, { x: 9, y: top + R.aim, z: 4 }, west, 20, [{ id: 3, x: 5, z: 4 }])
+  assert.deepEqual(hit.normal, [0, 0, -1])
+  // Du sanctuaire, par-dessus le gouffre : il touche qui est sur le pont.
+  hit = castArena(zone, { x: 8, y: top + R.aim, z: 6 }, north, 20, [{ id: 3, x: 8, z: 2 }])
   assert.equal(hit.body, 3)
-  // D'en bas, vers la poitrine de qui est en haut : touché près du bord, la falaise le couvre plus loin.
-  const aimAt = (from, to) => {
-    const dx = to.x - from.x, dy = top + R.aim - from.y, dz = to.z - from.z, len = Math.hypot(dx, dy, dz)
-    return { x: dx / len, y: dy / len, z: dz / len }
+  // D'en bas, vers la poitrine de qui est en haut : touché près du bord, couvert plus loin.
+  const aimAt = (from, at) => {
+    const dx = at.x - from.x, dy = top + R.aim - from.y, dz = at.z - from.z, l = Math.hypot(dx, dy, dz)
+    return { x: dx / l, y: dy / l, z: dz / l }
   }
-  const low = { x: 4, y: R.aim, z: 4 }
-  assert.equal(castArena(zone, low, aimAt(low, { x: 8.4, z: 4 }), 20, [{ id: 4, x: 8.4, z: 4 }]).body, 4)
-  const under = { x: 6.2, y: R.aim, z: 4 }
-  hit = castArena(zone, under, aimAt(under, { x: 11, z: 4 }), 20, [{ id: 4, x: 11, z: 4 }])
+  const bridge = { x: 8, y: R.aim, z: 1 }
+  assert.equal(castArena(zone, bridge, aimAt(bridge, { x: 8, z: 6.2 }), 20, [{ id: 4, x: 8, z: 6.2 }]).body, 4)
+  // Sur le palier de la rampe ouest : qui s'écarte du bord, la crête de la rampe le couvre.
+  const landing = { x: 5.4, y: R.aim, z: 8 }
+  assert.equal(castArena(zone, landing, aimAt(landing, { x: 7, z: 8 }), 20, [{ id: 4, x: 7, z: 8 }]).body, 4)
+  assert.equal(castArena(zone, landing, aimAt(landing, { x: 9, z: 8 }), 20, [{ id: 4, x: 9, z: 8 }]).body, null)
+  assert.ok(!arenaSight(zone, landing, { x: 9, z: 8 }))
+  // Tirée d'en bas, même de plus haut que le rebord (l'œil, en vue subjective), elle ne redescend pas
+  // de l'autre côté du sanctuaire : elle s'arrête au bout du haut qu'elle survole (en haut de la rampe sud).
+  hit = castArena(zone, { x: 10, y: 0.66, z: 2 }, south, 20, [{ id: 5, x: 10, z: 15 }])
   assert.equal(hit.body, null)
-  assert.ok(Math.abs(hit.t * Math.hypot(...Object.values(aimAt(under, { x: 11, z: 4 })).filter((_, i) => i !== 1)) - 1.3) < 1e-3)
-  // Tirée d'en bas, même de plus haut que le rebord (l'œil, en vue subjective), elle ne redescend
-  // pas de l'autre côté du haut : elle s'arrête à son bord.
-  const eye = { x: 5, y: 0.66, z: 4 }
-  hit = castArena(zone, eye, east, 20, [{ id: 5, x: 15, z: 4 }])
-  assert.equal(hit.body, null)
-  assert.ok(Math.abs(hit.t - 7.5) < 1e-6)
-  // La vue suit les balles : par-dessus le haut, d'un côté à l'autre, on ne se voit pas ; près du bord, si.
-  assert.ok(!arenaSight(zone, { x: 4, z: 5 }, { x: 16, z: 5 }))
-  assert.ok(arenaSight(zone, { x: 4, z: 4 }, { x: 8.4, z: 4 }))
-  assert.ok(!arenaSight(zone, under, { x: 11, z: 4 }))
+  assert.ok(Math.abs(hit.t - 9.5) < 1e-6)
+  // D'une esplanade à l'autre, le sanctuaire arrête le regard et les balles.
+  assert.ok(!arenaSight(zone, { x: 4, z: 8 }, { x: 18, z: 8 }))
+  assert.ok(!castArena(zone, { x: 2, y: R.aim, z: 7 }, east, 30, [{ id: 6, x: 20, z: 7 }]).body)
 })
 
 test('arène : le chef choisit le plan ; la partie s\'y joue, et le relais n\'accepte que son sol', () => {

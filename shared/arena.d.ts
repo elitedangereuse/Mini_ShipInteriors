@@ -54,6 +54,8 @@ export interface ArenaZone {
   height: number
   layout: string[]
   blocked: Uint8Array
+  /** Gouffres : bloqués pour les pas (ils le sont dans `blocked`), pas pour les balles ni la vue. */
+  pit: Uint8Array
   /** Tuiles de buisson : on s'y cache. */
   bush: Uint8Array
   room: string[]

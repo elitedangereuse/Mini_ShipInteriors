@@ -108,6 +108,7 @@ export const ARENA_BOTS = ['Drone Vipère', 'Drone Cobra', 'Drone Python', 'Dron
  *   'u'  le haut : un sol surélevé de `plateau` (cf. le plan)
  *   'r'  rampe : elle monte vers le haut voisin, depuis le sol d'en face
  *   'P'  pilier posé sur le haut (une tuile)
+ *   'v'  gouffre : on ne le traverse pas, mais les balles et le regard passent par-dessus
  *   'A', 'B'  points d'apparition de chaque équipe (la première à l'ouest, l'autre à l'est)
  * Sur chaque plan, obstacles et buissons se répondent d'un bout à l'autre (un demi-tour autour du
  * centre) : aucune équipe n'a l'avantage du terrain. `name` : en français, en anglais.
@@ -119,11 +120,13 @@ export const ARENA_BOTS = ['Drone Vipère', 'Drone Cobra', 'Drone Python', 'Dron
  *   jusqu'au sommet de l'enceinte, percée d'un passage, et découpe l'anneau en huit secteurs. Les
  *   bases sont les secteurs ouest et est ; des massifs de spores (buissons) et des cosses couvrent
  *   les autres (cf. src/arena/hive.ts).
- * - Le site gardien (21 × 13) : des ruines gardiennes, de nuit, sur deux hauteurs. Au milieu, le
- *   promontoire de la relique (5 × 7, `plateau` de haut), qu'on gagne par ses rampes (trois de front
- *   à l'ouest et à l'est, une au nord et une au sud) ; la relique en occupe le milieu, un obélisque
- *   chaque coin. Ses bords sont des falaises : on n'y monte ni n'en descend ailleurs. D'en bas, on ne
- *   voit (et ne touche) que qui se tient près du bord ; d'en haut, on tire par-dessus le vide. Des
+ * - Le site gardien (23 × 17) : le sanctuaire du gouffre, des ruines gardiennes de nuit, suspendues
+ *   au-dessus du vide, sur deux hauteurs. Au milieu, le sanctuaire en croix, en hauteur (`plateau`),
+ *   à bras de cinq tuiles : sa travée d'ouest en est (9 × 5), et ses bras nord et sud ; on y monte par
+ *   trois rampes de front au bout de chaque bras, depuis un palier au-dessus du gouffre. La relique au
+ *   milieu, un obélisque à chaque angle de la travée. Autour, quatre gouffres ; au nord et au sud, deux
+ *   ponts au sol ; à l'ouest et à l'est, les esplanades des bases. On ne traverse pas un gouffre, mais on tire par-dessus. D'en bas, on ne voit
+ *   (et ne touche) que qui se tient près du bord du haut ; d'en haut, on tire par-dessus le vide. Des
  *   obélisques, des pans de ruines et des nappes de brume (les buissons) au sol (cf. src/arena/guardian.ts).
  */
 export const ARENA_MAPS = [
@@ -149,19 +152,23 @@ export const ARENA_MAPS = [
     name: ['Le site gardien', 'The Guardian site'],
     plateau: 0.42,
     plan: [
-      '.......g.....g.......',
-      '...p...g.....g...p...',
-      '.....##...r...##.....',
-      '.....#..PuuuP..#.....',
-      '.A....g.uuuuu.g....B.',
-      '.......ruuuuur.......',
-      '.A.p...ruuXuur...p.B.',
-      '.......ruuuuur.......',
-      '.A....g.uuuuu.g....B.',
-      '.....#..PuuuP..#.....',
-      '.....##...r...##.....',
-      '...p...g.....g...p...',
-      '.......g.....g.......',
+      '  .....#.......#.....  ',
+      ' .g.....gg.p.gg.....g. ',
+      '.......................',
+      '...#.vvvvv...vvvvv.#...',
+      '..p..vvvvvrrrvvvvv..p..',
+      '.....vvvvuuuuuvvvv.....',
+      '.A...vvPuuuuuuuPvv...B.',
+      '...g..ruuuuuuuuur..g...',
+      '.A....ruuuuXuuuur....B.',
+      '...g..ruuuuuuuuur..g...',
+      '.A...vvPuuuuuuuPvv...B.',
+      '.....vvvvuuuuuvvvv.....',
+      '..p..vvvvvrrrvvvvv..p..',
+      '...#.vvvvv...vvvvv.#...',
+      '.......................',
+      ' .g.....gg.p.gg.....g. ',
+      '  .....#.......#.....  ',
     ],
   },
   {
@@ -197,7 +204,7 @@ export function arenaMap(id) {
 }
 
 /** Ce qui arrête les pas, la vue et les balles ; ce qui est un obstacle posé (le reste : le vide, les cloisons). */
-const SOLID = ' #=HcpPo X'
+const SOLID = ' #=HcpPo Xv'
 const PROPS = { '=': 'container', H: 'container', c: 'crates', p: 'pillar', P: 'pillar', o: 'pod', X: 'core' }
 /** Ce qui est en haut (le sol du haut, ce qui y est posé). */
 const HIGH = 'uPX'
@@ -221,6 +228,8 @@ export function arenaZone(id) {
   const idx = (x, z) => z * W + x
   const inside = (x, z) => x >= 0 && z >= 0 && x < W && z < H
   const blocked = new Uint8Array(N)
+  /** Gouffre : bloqué pour les pas (cf. blocked), pas pour les balles ni la vue. */
+  const pit = new Uint8Array(N)
   const bush = new Uint8Array(N)
   const room = new Array(N)
   const spawns = [[], []]
@@ -233,8 +242,13 @@ export function arenaZone(id) {
     for (let x = 0; x < W; x++) {
       const c = plan[z][x]
       const i = idx(x, z)
-      room[i] = c === '#' || c === ' ' ? ' ' : 'a'
+      room[i] = c === '#' || c === ' ' || c === 'v' ? ' ' : 'a'
       if (SOLID.includes(c)) blocked[i] = 1
+      if (c === 'v') {
+        pit[i] = 1
+        // Son fond, très bas : une balle passe au-dessus.
+        elev[i] = -3
+      }
       if (top && HIGH.includes(c)) elev[i] = top
       if (c === 'r') {
         // Une rampe monte vers le haut voisin, depuis un sol praticable en face.
@@ -299,13 +313,15 @@ export function arenaZone(id) {
     }
   }
   const free = (x, z) => inside(x, z) && !blocked[idx(x, z)]
+  // Le regard passe par-dessus un gouffre.
+  const clear = (x, z) => inside(x, z) && (!blocked[idx(x, z)] || pit[idx(x, z)] === 1)
   const tileRoom = (x, z) => (inside(x, z) ? room[idx(x, z)] : null)
   // Plan de vue et de tir : tout obstacle y arrête tout (sur un plan à deux hauteurs, la vue suit
   // les balles, cf. arenaSight). Plan de marche : chaque arête franchie est un passage.
   const sight = {
-    isFloor: free,
+    isFloor: clear,
     room: tileRoom,
-    edge: (x, z, dir) => (free(x, z) && free(x + DIRS[dir].dx, z + DIRS[dir].dz) ? 'open' : 'wall'),
+    edge: (x, z, dir) => (clear(x, z) && clear(x + DIRS[dir].dx, z + DIRS[dir].dz) ? 'open' : 'wall'),
   }
   const walk = {
     isFloor: free,
@@ -314,8 +330,8 @@ export function arenaZone(id) {
   }
   const zone = {
     id: map.id, plan,
-    width: W, height: H, blocked, bush, room, open, adj, spawns, containers,
-    layout: plan.map((line) => line.replace(/#/g, ' ').replace(/[^ ]/g, 'a')),
+    width: W, height: H, blocked, pit, bush, room, open, adj, spawns, containers,
+    layout: plan.map((line) => line.replace(/[#v]/g, ' ').replace(/[^ ]/g, 'a')),
     stairs, elev, top, rails,
     walkMap: walk, sightMap: sight,
   }
@@ -388,7 +404,7 @@ export function blastDamage(weapon, d) {
  */
 export function castArena(zone, p, d, max, bodies, skip) {
   const { width: W, height: H, blocked } = zone
-  const solid = (x, z) => x < 0 || z < 0 || x >= W || z >= H || blocked[z * W + x] === 1
+  const solid = (x, z) => x < 0 || z < 0 || x >= W || z >= H || (blocked[z * W + x] === 1 && !zone.pit[z * W + x])
   if (zone.top) return castRelief(zone, p, d, max, bodies, skip, solid)
   let t = max, body = null, normal = null, wall = false
 
@@ -488,8 +504,9 @@ function castRelief(zone, p, d, max, bodies, skip, solid) {
     if (alongX) { x += sx; nextX += stepX } else { z += sz; nextZ += stepZ }
     from = u
     const edge = alongX ? [-sx, 0, 0] : [0, 0, -sz]
-    // Tirée d'en bas, au bout du haut qu'elle survole : elle s'arrête sur son rebord.
-    if (over && !solid(x, z) && arenaGround(zone, at(u + 1e-6)) < zone.top - 1e-6) {
+    // Tirée d'en bas, au bout du haut qu'elle survole (vers un sol plus bas, une rampe, un gouffre) :
+    // elle s'arrête sur son rebord.
+    if (over && !solid(x, z) && (zone.stairs[z * W + x] >= 0 || arenaGround(zone, at(u + 1e-6)) < zone.top - 1e-6)) {
       t = Math.max(0, u)
       normal = [-edge[0], 0, -edge[2]]
       wall = false

@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
-import { decal, drawnTexture, holoTime, part, rng } from '../furniture/kit'
+import { drawnTexture, holoTime, part, rng } from '../furniture/kit'
 import { tr } from '../i18n'
 import type { LevelDef, LightDef, Prop } from '../levels'
 import type { ZoneKit } from '../salvage/kit'
@@ -9,19 +9,21 @@ import { composeExtras, type ArenaExtras, type BushLook } from './deck'
 import type { Venue } from './venue'
 
 /*
- * Le site gardien (cf. ARENA_MAPS) : des ruines gardiennes, de nuit, sur une planète morte, et un
- * terrain à deux hauteurs. Au milieu, le promontoire de la relique : un socle de blocs de pierre
- * sombre, gravés, qu'un liseré cyan borde ; on y monte par des rampes de dalles, comme celle qui
- * mène à la relique des sites gardiens. La relique flotte au-dessus de son socle, au milieu du
- * promontoire : une sphère de plaques sombres qui s'écartent sur un cœur de lumière. Des obélisques
- * aux fentes lumineuses (aux coins du promontoire, et au sol), des pans de ruines aux arêtes vives,
- * des nappes de brume bleutée (les buissons). Au sol, de la poussière et des dalles gravées de
- * motifs gardiens, dont les rainures luisent ; le réseau s'illumine depuis la relique.
+ * Le site gardien (cf. ARENA_MAPS) : le sanctuaire du gouffre, des ruines gardiennes de nuit,
+ * suspendues au-dessus du vide, sur deux hauteurs. Au milieu, le sanctuaire en croix, à bras de cinq
+ * tuiles : des blocs de pierre sombre, gravés, qu'un liseré cyan borde ; on y monte par des rampes de
+ * dalles, comme celle qui mène à la relique des sites gardiens. La relique flotte en son milieu : une sphère de plaques
+ * sombres qui s'écartent sur un cœur de lumière. Autour de la croix, quatre gouffres ; au nord et au
+ * sud, deux ponts ; à l'ouest et à l'est, les esplanades des bases. Tout repose sur des socles de
+ * pierre qui plongent dans l'abîme. Des obélisques aux fentes lumineuses (aux angles de la croix,
+ * et au sol), des pans de ruines aux arêtes vives, des nappes de brume bleutée (les buissons). Au
+ * sol, de la poussière et des dalles gravées de motifs gardiens, dont les rainures luisent ; le
+ * réseau s'illumine depuis la relique.
  *
- * Autour : le sol de la planète, des rochers, deux pylônes à la couleur de chaque camp derrière sa
- * base. En vue subjective seulement : le ciel étoilé et sa traînée de poussière, les montagnes, les
- * faisceaux des obélisques et de la relique qui montent vers les étoiles. Quand quelqu'un tombe, la
- * relique s'embrase ; au coup d'envoi, une onde de lumière part d'elle.
+ * Autour : l'abîme, sa lueur et les spores qui en montent, deux colonnes surgies du vide derrière
+ * chaque base, à la couleur de son camp. En vue subjective seulement : le ciel étoilé et sa traînée
+ * de poussière, les montagnes, les faisceaux des obélisques et de la relique qui montent vers les
+ * étoiles. Quand quelqu'un tombe, la relique s'embrase ; au coup d'envoi, une onde de lumière part d'elle.
  */
 
 /** Le cyan des gardiens, et le blanc bleuté du cœur de leurs lumières. */
@@ -30,6 +32,10 @@ const CORE = '#d9fdff'
 /** Hauteur d'un obélisque (de son sol), d'un pan de ruine. */
 const OBELISK_H = 1.18
 const RUIN_H = 0.96
+/** Le fond de l'abîme ; l'épaisseur des socles : sous les esplanades, sous les ponts et la croix. */
+const ABYSS = -7
+const DEEP = 1.6
+const THIN = 0.45
 
 /** Les géométries d'un même matériau sont fusionnées par le pont : toutes non indexées. */
 const flat = (g: THREE.BufferGeometry) => (g.index ? g.toNonIndexed() : g)
@@ -89,6 +95,8 @@ function makeMaterials() {
     /** Ce qui luit : le cyan, et les arêtes sombres. */
     glow: new THREE.MeshBasicMaterial({ color: CYAN }),
     trim: new THREE.MeshLambertMaterial({ color: '#191b20' }),
+    /** Les socles qui plongent dans l'abîme. */
+    rock: stone(51, false),
     ramp: new THREE.MeshLambertMaterial({ map: rampTexture() }),
   }
 }
@@ -161,7 +169,8 @@ function plateau(zone: ArenaZone): THREE.Group {
         continue
       }
       if (!isHigh(zone, x, z)) continue
-      blocks.push(new THREE.BoxGeometry(1, top, 1).translate(x, top / 2, z))
+      // Du dessous du socle jusqu'au haut.
+      blocks.push(new THREE.BoxGeometry(1, top + THIN, 1).translate(x, (top - THIN) / 2, z))
       // Au bord : le liseré, sur l'arête ; parfois une fente qui luit sur le flanc.
       for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         const nx = x + dx, nz = z + dz
@@ -222,6 +231,56 @@ function topTexture(zone: ArenaZone): THREE.CanvasTexture {
       c.restore()
     }
   })
+}
+
+/**
+ * Les socles : sous chaque tuile du site (sol, ruine, obélisque), un bloc de pierre qui plonge dans
+ * l'abîme ; épais sous les esplanades, mince sous les ponts. Le liseré lumineux court sous le bord
+ * des ponts, au-dessus des gouffres.
+ */
+function footing(zone: ArenaZone): THREE.Group {
+  const m = mats()
+  const rock: THREE.BufferGeometry[] = [], light: THREE.BufferGeometry[] = []
+  const solid = (x: number, z: number) => {
+    const c = zone.plan[z]?.[x]
+    return c !== undefined && c !== ' ' && c !== 'v'
+  }
+  for (let z = 0; z < zone.height; z++) {
+    for (let x = 0; x < zone.width; x++) {
+      if (!solid(x, z) || isHigh(zone, x, z)) continue
+      const deep = x <= 4 || x >= zone.width - 5 ? DEEP : THIN
+      rock.push(new THREE.BoxGeometry(1, deep, 1).translate(x, -deep / 2, z))
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        if (solid(x + dx, z + dz)) continue
+        const along = dz !== 0
+        light.push(new THREE.BoxGeometry(along ? 1 : 0.03, 0.03, along ? 0.03 : 1).translate(x + dx * 0.51, -0.07, z + dz * 0.51))
+      }
+    }
+  }
+  const g = new THREE.Group()
+  g.add(merged(rock, m.rock))
+  const glowing = merged(light, m.glow)
+  glowing.castShadow = false
+  g.add(glowing)
+  return g
+}
+
+/** Le sol d'en bas, peint (cf. groundTexture) : une dalle par tuile au sol, rien au-dessus du vide. */
+function groundPaint(zone: ArenaZone, texture: THREE.Texture): THREE.Mesh {
+  const quads: THREE.BufferGeometry[] = []
+  for (let z = 0; z < zone.height; z++) {
+    for (let x = 0; x < zone.width; x++) {
+      const c = zone.plan[z][x]
+      if (c === ' ' || c === 'v' || c === '#' || isHigh(zone, x, z) || zone.stairs[z * zone.width + x] >= 0) continue
+      const q = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(x, 0.008, z)
+      const uv = q.attributes.uv as THREE.BufferAttribute, pos = q.attributes.position as THREE.BufferAttribute
+      for (let k = 0; k < uv.count; k++) uv.setXY(k, (pos.getX(k) + 0.5) / zone.width, 1 - (pos.getZ(k) + 0.5) / zone.height)
+      quads.push(q)
+    }
+  }
+  const mesh = merged(quads, new THREE.MeshLambertMaterial({ map: texture, polygonOffset: true, polygonOffsetFactor: -2 }))
+  mesh.castShadow = false
+  return mesh
 }
 
 /** Le dessus : une dalle par tuile du haut, la texture du promontoire étalée sur le plan. */
@@ -321,11 +380,18 @@ function circuit(zone: ArenaZone): { low: number[][]; high: number[][] } {
       }
     }
   }
-  // Le promontoire : des rainures de la relique vers ses coins et ses rampes.
-  for (const [x, z] of [[cx - 2, cz - 3], [cx + 2, cz - 3], [cx - 2, cz + 3], [cx + 2, cz + 3]]) high.push([cx, cz, x, z])
-  high.push([cx - 2.4, cz, cx + 2.4, cz], [cx, cz - 3.4, cx, cz + 3.4])
-  // Vers les bases : une ligne au milieu de chaque allée de côté.
-  for (const s of [-1, 1]) low.push([cx + s * 4.6, cz, cx + s * 7.6, cz])
+  // La croix : une rainure le long de sa travée, une le long de ses bras.
+  const span = (dx: number, dz: number) => {
+    let k = 0
+    while (isHigh(zone, Math.round(cx + dx * (k + 1)), Math.round(cz + dz * (k + 1))) || zone.plan[Math.round(cz + dz * (k + 1))]?.[Math.round(cx + dx * (k + 1))] === 'P') k++
+    return k + 0.4
+  }
+  high.push([cx - span(-1, 0), cz, cx + span(1, 0), cz], [cx, cz - span(0, -1), cx, cz + span(0, 1)])
+  // Les ponts : une rainure au milieu de chacun, d'une esplanade à l'autre.
+  for (let z = 1; z < zone.height - 1; z++) {
+    const bridge = (row: number) => row >= 0 && row < zone.height && Array.from({ length: zone.width - 10 }, (_, k) => zone.plan[row][k + 5]).every((c) => !'v urPX'.includes(c))
+    if (bridge(z) && bridge(z - 1) && bridge(z + 1)) low.push([3.4, z, zone.width - 4.4, z])
+  }
   return { low, high }
 }
 
@@ -393,9 +459,8 @@ export function guardianLevel(zone: ArenaZone, kit: ZoneKit): LevelDef {
     }
   }
   const { low } = circuit(zone)
-  const ground = decal(groundTexture(zone, low), zone.width, zone.height, 0.008)
-  ground.position.set((zone.width - 1) / 2, ground.position.y, (zone.height - 1) / 2)
-  props.push({ model: 'prebuilt', object: new THREE.Group().add(ground), x: 0, z: 0, solid: false })
+  props.push({ model: 'prebuilt', object: groundPaint(zone, groundTexture(zone, low)), x: 0, z: 0, solid: false })
+  props.push({ model: 'prebuilt', object: footing(zone), x: 0, z: 0, solid: false })
 
   // La lumière froide de la nuit, assez pour se voir ; la relique, qui respire.
   for (let z = 1; z < zone.height; z += 5) {
@@ -594,36 +659,50 @@ function site(zone: ArenaZone): Venue {
   const cx = (zone.width - 1) / 2, cz = (zone.height - 1) / 2
   const reach = Math.max(zone.width, zone.height) / 2
 
-  // Le sol de la planète.
+  // L'abîme : son fond, très bas, et la lueur qui en monte (les socles la cachent, sauf au-dessus
+  // des gouffres et autour du site).
   const floorMap = drawnTexture(1024, 1024, (c) => {
-    c.fillStyle = '#2b2622'
+    c.fillStyle = '#0d0f12'
     c.fillRect(0, 0, 1024, 1024)
-    for (let i = 0; i < 1600; i++) {
-      c.fillStyle = `hsla(${18 + random() * 20}, ${10 + random() * 14}%, ${8 + random() * 14}%, 0.5)`
+    for (let i = 0; i < 900; i++) {
+      c.fillStyle = `hsla(${190 + random() * 30}, ${10 + random() * 20}%, ${4 + random() * 8}%, 0.6)`
       c.beginPath()
-      c.arc(random() * 1024, random() * 1024, 2 + random() * 16, 0, Math.PI * 2)
+      c.arc(random() * 1024, random() * 1024, 3 + random() * 22, 0, Math.PI * 2)
       c.fill()
     }
-    const shade = c.createRadialGradient(512, 512, 180, 512, 512, 512)
+    const glow = c.createRadialGradient(512, 512, 30, 512, 512, 420)
+    glow.addColorStop(0, '#2f8fa070')
+    glow.addColorStop(0.5, '#1b4a5530')
+    glow.addColorStop(1, '#00000000')
+    c.fillStyle = glow
+    c.fillRect(0, 0, 1024, 1024)
+    const shade = c.createRadialGradient(512, 512, 260, 512, 512, 512)
     shade.addColorStop(0, '#00000000')
-    shade.addColorStop(1, '#000000e8')
+    shade.addColorStop(1, '#000000f0')
     c.fillStyle = shade
     c.fillRect(0, 0, 1024, 1024)
   })
-  const floor = part(new THREE.CircleGeometry(reach * 3.2, 48).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ map: floorMap }), cx, -0.004, cz)
-  floor.receiveShadow = true
+  const floor = part(new THREE.CircleGeometry(reach * 3.4, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: floorMap }), cx, ABYSS, cz)
   group.add(floor)
-
-  // Des rochers bas autour du terrain (ils ne cachent rien vu de dessus).
-  const rocks: THREE.BufferGeometry[] = []
-  for (let i = 0; i < 46; i++) {
-    const a = random() * Math.PI * 2, r = reach + 1.5 + random() * 7
-    const x = cx + Math.cos(a) * r * (zone.width / zone.height > 1 ? 1.25 : 1), z = cz + Math.sin(a) * r * 0.85
-    if (x > -1.5 && x < zone.width + 0.5 && z > -1.5 && z < zone.height + 0.5) continue
-    const s = 0.15 + random() * 0.35
-    rocks.push(new THREE.DodecahedronGeometry(s, 0).scale(1, 0.55 + random() * 0.4, 1).rotateY(random() * 3).translate(x, s * 0.3, z))
+  // Une brume bleutée à mi-hauteur de l'abîme : la profondeur s'y perd.
+  const hazeMap = drawnTexture(256, 256, (c) => {
+    const g = c.createRadialGradient(128, 128, 10, 128, 128, 128)
+    g.addColorStop(0, '#3fb7c855')
+    g.addColorStop(1, '#3fb7c800')
+    c.fillStyle = g
+    c.fillRect(0, 0, 256, 256)
+  })
+  const haze = part(new THREE.PlaneGeometry(reach * 3, reach * 2.2).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: hazeMap, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }), cx, -2.6, cz)
+  group.add(haze)
+  // Les spores qui montent des gouffres.
+  const rising: number[][] = []
+  for (let z = 0; z < zone.height; z++) {
+    for (let x = 0; x < zone.width; x++) {
+      if (zone.plan[z][x] !== 'v') continue
+      for (let i = 0; i < 4; i++) rising.push([x + (random() - 0.5), -2.5 + random() * 2.6, z + (random() - 0.5)])
+    }
   }
-  group.add(merged(rocks, new THREE.MeshLambertMaterial({ color: '#3a332e', flatShading: true })))
+  group.add(motes(rising, () => 0.03 + random() * 0.04, '#7fe9ff'))
 
   // Le réseau qui luit, en bas et sur le promontoire.
   const { low, high: upLines } = circuit(zone)
@@ -652,10 +731,11 @@ function site(zone: ArenaZone): Venue {
   const ends = [0, 1].map((team) => {
     const end = new THREE.Group()
     const stone: THREE.BufferGeometry[] = [], light: THREE.BufferGeometry[] = []
-    const x = team ? zone.width - 0.1 : -0.9
+    const x = team ? zone.width + 0.3 : -1.3
     for (const dz of [-2.6, 2.6]) {
-      stone.push(new THREE.CylinderGeometry(0.14, 0.2, 0.9, 4).rotateY(Math.PI / 4).translate(x, 0.45, cz + dz))
-      light.push(new THREE.BoxGeometry(0.04, 0.6, 0.04).translate(x + (team ? -0.16 : 0.16), 0.45, cz + dz))
+      stone.push(new THREE.CylinderGeometry(0.34, 0.5, 0.9 - ABYSS, 6).translate(x, (0.9 + ABYSS) / 2 - 0.45, cz + dz))
+      stone.push(new THREE.CylinderGeometry(0.14, 0.2, 0.9, 4).rotateY(Math.PI / 4).translate(x, 0.9, cz + dz))
+      light.push(new THREE.BoxGeometry(0.04, 0.6, 0.04).translate(x + (team ? -0.16 : 0.16), 0.9, cz + dz))
     }
     end.add(merged(stone, mats().obelisk))
     const glowing = merged(light, teamGlow[team])
@@ -673,7 +753,7 @@ function site(zone: ArenaZone): Venue {
   for (let i = 0; i < 40; i++) {
     const a = (i / 40) * Math.PI * 2 + random() * 0.1, r = 34 + random() * 6
     const h = 3 + random() * 7, w = 6 + random() * 8
-    ridge.push(new THREE.ConeGeometry(w, h, 5).rotateY(random() * 3).translate(cx + Math.cos(a) * r, h / 2 - 0.5, cz + Math.sin(a) * r))
+    ridge.push(new THREE.ConeGeometry(w, h - ABYSS, 5).rotateY(random() * 3).translate(cx + Math.cos(a) * r, (h + ABYSS) / 2 - 0.5, cz + Math.sin(a) * r))
   }
   high.add(merged(ridge, new THREE.MeshLambertMaterial({ color: '#17120f', flatShading: true })))
   const beams: THREE.BufferGeometry[] = []
