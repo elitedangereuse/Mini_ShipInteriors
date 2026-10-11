@@ -23,7 +23,10 @@ class TouchStick {
    * place quand on le lâche.
    */
   private floating = false
-  /** Course du bouton depuis la dernière lecture (même unité que x et y). */
+  /**
+   * Trajet du doigt depuis la dernière lecture, rapporté au rayon du stick. Il continue d'être
+   * compté quand le bouton visuel est en butée : la caméra peut ainsi suivre un long glissement.
+   */
   movedX = 0
   movedY = 0
   /**
@@ -35,6 +38,8 @@ class TouchStick {
   private knob: HTMLElement
   private since = 0
   private farthest = 0
+  private lastClientX = 0
+  private lastClientY = 0
 
   constructor(private el: HTMLElement) {
     this.knob = el.querySelector<HTMLElement>('.touch-stick-knob')!
@@ -46,8 +51,10 @@ class TouchStick {
       const dy = e.clientY - (rect.top + rect.height / 2)
       const scale = Math.min(1, radius / Math.max(1, Math.hypot(dx, dy)))
       const x = dx * scale / radius, y = dy * scale / radius
-      this.movedX += x - this.x
-      this.movedY += y - this.y
+      this.movedX += (e.clientX - this.lastClientX) / radius
+      this.movedY += (e.clientY - this.lastClientY) / radius
+      this.lastClientX = e.clientX
+      this.lastClientY = e.clientY
       this.x = x
       this.y = y
       this.knob.style.transform = `translate(${dx * scale}px, ${dy * scale}px)`
@@ -60,6 +67,8 @@ class TouchStick {
       // L'heure du toucher lui-même : celle du traitement arrive en retard sur un appareil lent.
       this.since = e.timeStamp
       this.farthest = 0
+      this.lastClientX = e.clientX
+      this.lastClientY = e.clientY
       move(e)
       this.movedX = this.movedY = 0
     }
