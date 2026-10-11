@@ -115,7 +115,8 @@ import { ArenaClient } from './arena/client'
 import { STAGE_AZIMUTH, STAGE_ELEVATION } from './arena/podium'
 import { ArenaLobbyMusic } from './arena/music'
 import { ARENA_LEVEL, ARENA_LOBBY } from '../shared/arena.js'
-import { LOBBY_RETURN, ZONE_LEVEL } from '../shared/salvage.js'
+import { LOBBY as SALVAGE_LOBBY, LOBBY_RETURN, ZONE_LEVEL } from '../shared/salvage.js'
+import { SalvageLobbyMusic } from './salvage/music'
 import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel, type ScreenBox } from './ui'
 import { LiftRide } from './lift-ride'
 import { INSTRUCTOR, Instructor, instructorRig, Tutorial, TUTORIAL_DECK } from './tutorial'
@@ -611,6 +612,8 @@ const cabinMusic = new JukeboxPlayer(sound, 0.4)
 const clubMusic = new ClubMusic(sound, 0.5)
 /** La sono du lobby de CMDR Arena : on ne l'entend que dans la pièce (cf. src/arena/music.ts). */
 const arenaLobbyMusic = new ArenaLobbyMusic(sound)
+/** La sono abîmée du lobby de récupération thargoïde (cf. src/salvage/music.ts). */
+const salvageLobbyMusic = new SalvageLobbyMusic(sound)
 const jukeboxes: Record<JukeboxWhere, JukeboxPlayer> = { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }
 /** Pont des jukebox communs (ceux des quartiers vont avec leur aménagement). */
 const JUKEBOX_DECKS = { deck: 0, hold: -1 } as const
@@ -6163,6 +6166,7 @@ function frame() {
   }
   const inClub = clubAlien && holdRoom === CLUB_ROOM
   const inArenaLobby = onHold && viewDeck === deck && holdRoom === ARENA_LOBBY.room
+  const inSalvageLobby = onHold && viewDeck === deck && holdRoom === SALVAGE_LOBBY.room
   // Chez Jacques : l'IA de la porte refoule celui qui s'en approche sans être un habitué (une fois
   // par visite) ; et celui qui ne l'est plus (un invité, après une reconnexion au relais) est
   // raccompagné à la porte, où le relais l'accepte de nouveau.
@@ -6195,13 +6199,14 @@ function frame() {
     // Dans la boîte de nuit, on n'entend plus le jukebox du bar.
     // Des conduits de ventilation, celui du bar s'entend, étouffé : il est juste en dessous.
     const below = music === holdMusic && deck === vents.deck
-    // Ni pendant une partie au stand de tir, qui a sa propre musique, ni au lobby de CMDR Arena, qui a sa sono.
-    music.setRoom(below || (source === deck && viewDeck === deck && !((inClub || stand.active || inArenaLobby) && music === holdMusic)), !!jukeboxRoom && jukeboxRoom === playerRoom)
+    // Ni pendant une partie au stand de tir, ni dans les deux lobbys qui ont leur propre sono.
+    music.setRoom(below || (source === deck && viewDeck === deck && !((inClub || stand.active || inArenaLobby || inSalvageLobby) && music === holdMusic)), !!jukeboxRoom && jukeboxRoom === playerRoom)
   }
   clubMusic.update(inClub, onHold && viewDeck === deck ? clubProximity(holdRoom, player.position.x, player.position.z) : 0)
   arenaLobbyMusic.update(inArenaLobby)
+  salvageLobbyMusic.update(inSalvageLobby)
   // Une musique passe là où l'on est : les moteurs et les machines se font discrets.
-  sound.duck(inClub || arenaLobbyMusic.audible || deckMusic.audible || holdMusic.audible || cabinMusic.audible)
+  sound.duck(inClub || arenaLobbyMusic.audible || salvageLobbyMusic.audible || deckMusic.audible || holdMusic.audible || cabinMusic.audible)
   // La soirée bat sur le morceau entendu dans la pièce, sauf quand le mode photo fige l'instant.
   if (!photo.frozen && !clubMusic.syncTempo() && !deckMusic.syncTempo() && !holdMusic.syncTempo() && !cabinMusic.syncTempo()) syncTempo(null)
 

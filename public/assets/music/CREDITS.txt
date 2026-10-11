@@ -393,3 +393,17 @@ Aucun des deux n'est coupé pour boucler (arrêt net en pleine mesure, puis
 0,25 s de blanc) : le jeu boucle sur un nombre entier de mesures depuis
 le début, cf. src/arena/music.ts. Tempos mesurés sur les fichiers :
 150,03 BPM (52 mesures, 83,19 s) et 114,91 BPM (32 mesures, 66,84 s).
+
+
+---------------------------------------------------------------------
+Lobby de récupération thargoïde (hors jukebox)
+---------------------------------------------------------------------
+thargoid-salvage/corrupted-lobby.mp3 : « Corrupted Lobby », par
+fluidspaceunivers. Source ajoutée au projet le 11/10/2026 ; ses métadonnées
+indiquent une création avec Suno. Licence à renseigner ici.
+
+Le fichier source MP3 stéréo 48 kHz a été renommé, débarrassé de sa pochette
+embarquée et réencodé en VBR. Quatre passages espacés ont été volontairement
+hachés par des micro-coupures, un tremolo rapide et un écrasement à 5 bits.
+Dans le jeu, src/salvage/music.ts le fait en plus passer dans une mauvaise sono
+de sécurité mono : bande 300–3 100 Hz, médiums accentués et saturation.
