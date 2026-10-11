@@ -34,7 +34,11 @@ export declare const ARENA_RULES: {
 export declare const ARENA_TEAMS: { id: 0 | 1; color: string }[]
 export declare const ARENA_SKILLS: { reaction: number; error: number; pace: number }[]
 export declare const ARENA_BOTS: string[]
-export declare const ARENA_MAP: string[]
+/** Les plans de l'arène (cf. ARENA_MAPS dans arena.js). */
+export type ArenaMapId = 'bay' | 'hive'
+export interface ArenaMap { id: ArenaMapId; name: [string, string]; plan: string[] }
+export declare const ARENA_MAPS: ArenaMap[]
+export declare function arenaMap(id?: string | null): ArenaMap
 
 interface PlanMap {
   isFloor(x: number, z: number): boolean
@@ -42,8 +46,10 @@ interface PlanMap {
   edge(x: number, z: number, dir: number): EdgeKind
 }
 
-/** L'arène : son plan fixe, ses obstacles, les points d'apparition de chaque équipe. */
+/** L'arène d'un plan : ses obstacles, les points d'apparition de chaque équipe. */
 export interface ArenaZone {
+  id: ArenaMapId
+  plan: string[]
   width: number
   height: number
   layout: string[]
@@ -54,12 +60,12 @@ export interface ArenaZone {
   open: Uint8Array
   adj: Int32Array
   spawns: [{ x: number; z: number }[], { x: number; z: number }[]]
-  containers: (Omit<ZoneContainer, 'kind'> & { kind: 'container' | 'crates' | 'pillar' })[]
+  containers: (Omit<ZoneContainer, 'kind'> & { kind: 'container' | 'crates' | 'pillar' | 'pod' | 'core' })[]
   walkMap: PlanMap
   sightMap: PlanMap
 }
 
-export declare function arenaZone(): ArenaZone
+export declare function arenaZone(id?: string | null): ArenaZone
 export declare function arenaSight(zone: ArenaZone, from: { x: number; z: number }, to: { x: number; z: number }): boolean
 export declare function inBush(zone: ArenaZone, p: { x: number; z: number }): boolean
 export declare function arenaHidden(zone: ArenaZone, p: { x: number; z: number }, viewer: { x: number; z: number }, revealed: boolean): boolean

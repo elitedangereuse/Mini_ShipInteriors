@@ -4,7 +4,7 @@ import { box, cylinder, decal, drawnTexture, glow, holoTime, lit, part, rng } fr
 import { tr } from '../i18n'
 import type { LevelDef, LightDef, Prop, Rot } from '../levels'
 import type { ZoneKit } from '../salvage/kit'
-import { ARENA_LEVEL, ARENA_MAP, type ArenaZone } from '../../shared/arena.js'
+import { ARENA_LEVEL, type ArenaZone } from '../../shared/arena.js'
 import { buildVenue, type Venue } from './venue'
 
 /*
@@ -152,14 +152,14 @@ function containerStencil(n: number): THREE.Mesh {
   return decal(texture, 0.78, 1.66, CONTAINER_H + 0.004)
 }
 
-/** Les cloisons d'un seul tenant (tuiles '#' voisines), chacune par son rectangle de tuiles. */
-function bulkheads(): { x0: number; z0: number; x1: number; z1: number }[] {
-  const H = ARENA_MAP.length, W = ARENA_MAP[0].length
+/** Les cloisons d'un seul tenant (tuiles '#' voisines du plan), chacune par son rectangle de tuiles. */
+export function bulkheads(plan: string[]): { x0: number; z0: number; x1: number; z1: number }[] {
+  const H = plan.length, W = plan[0].length
   const seen = new Set<number>()
   const out: { x0: number; z0: number; x1: number; z1: number }[] = []
   for (let z = 0; z < H; z++) {
     for (let x = 0; x < W; x++) {
-      if (ARENA_MAP[z][x] !== '#' || seen.has(z * W + x)) continue
+      if (plan[z][x] !== '#' || seen.has(z * W + x)) continue
       const r = { x0: x, z0: z, x1: x, z1: z }
       const queue = [[x, z]]
       seen.add(z * W + x)
@@ -168,7 +168,7 @@ function bulkheads(): { x0: number; z0: number; x1: number; z1: number }[] {
         Object.assign(r, { x0: Math.min(r.x0, qx), z0: Math.min(r.z0, qz), x1: Math.max(r.x1, qx), z1: Math.max(r.z1, qz) })
         for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
           const nx = qx + dx, nz = qz + dz
-          if (nx < 0 || nz < 0 || nx >= W || nz >= H || ARENA_MAP[nz][nx] !== '#' || seen.has(nz * W + nx)) continue
+          if (nx < 0 || nz < 0 || nx >= W || nz >= H || plan[nz][nx] !== '#' || seen.has(nz * W + nx)) continue
           seen.add(nz * W + nx)
           queue.push([nx, nz])
         }
@@ -189,7 +189,7 @@ function paint(zone: ArenaZone): THREE.Object3D {
     const bush = (x: number, z: number) => x >= 0 && z >= 0 && x < zone.width && z < zone.height && !!zone.bush[z * zone.width + x]
     for (let z = 0; z < zone.height; z++) {
       for (let x = 0; x < zone.width; x++) {
-        if (blocked(x, z) || ARENA_MAP[z][x] === '#') continue
+        if (blocked(x, z)) continue
         // Le damier : deux sables, presque opaques ; chaque dalle a son biseau, et ses éraflures.
         c.fillStyle = (x + z) % 2 ? '#c2954af2' : '#dbb062f2'
         c.fillRect(x * T, z * T, T, T)
@@ -235,7 +235,7 @@ function paint(zone: ArenaZone): THREE.Object3D {
     }
     for (let z = 0; z < zone.height; z++) {
       for (let x = 0; x < zone.width; x++) {
-        if (blocked(x, z) || ARENA_MAP[z][x] === '#') continue
+        if (blocked(x, z)) continue
         // Liseré jaune au pied de chaque obstacle.
         c.fillStyle = '#ffd23fdd'
         if (blocked(x, z - 1)) c.fillRect(x * T, z * T, T, 6)
@@ -295,7 +295,7 @@ export function arenaLevel(zone: ArenaZone, kit: ZoneKit): LevelDef {
   }
   // Le couvercle des cloisons : leurs murs (ceux du kit) en font le tour, on ne voit plus dedans.
   // Dessous, un fond sombre : il paraît quand la cloison s'efface devant le joueur (vue de dessus).
-  for (const r of bulkheads()) {
+  for (const r of bulkheads(zone.plan)) {
     const x = (r.x0 + r.x1) / 2, z = (r.z0 + r.z1) / 2, w = r.x1 - r.x0 + 0.78, d = r.z1 - r.z0 + 0.78
     props.push({ model: 'prebuilt', object: bulkheadLid(w, d), x, z, solid: false })
     props.push({ model: 'prebuilt', object: box(w, 0.01, d, lit('#171a20', 'metal'), 0, 0.005, 0), x, z, solid: false })
@@ -349,25 +349,36 @@ export function arenaLevel(zone: ArenaZone, kit: ZoneKit): LevelDef {
 const containerRot = (c: { w: number; flip: boolean }): Rot => (c.w > 1 ? (c.flip ? 1 : 3) : c.flip ? 2 : 0)
 
 /**
+ * La teinte des buissons d'un plan : celle du feuillage (`hue`, `sat`, `light` : sa base, le dessus
+ * est plus clair), et de ses fleurs, qui luisent un peu (`glow`) dans le noir d'une ruche.
+ */
+export interface BushLook { hue: number; sat: number; light: number; blooms: string[]; glow: number }
+
+/** Les buissons de la baie : un vert franc, des fleurs jaunes, roses et blanches. */
+const BAY_BUSHES: BushLook = { hue: 0.3, sat: 0.62, light: 0.14, blooms: ['#ffd84a', '#ff6fae', '#f4f4f4'], glow: 0 }
+
+/**
  * Les buissons, d'un seul bloc : de gros feuillages ronds, serrés, sombres dessous et clairs
  * dessus, quelques fleurs. Ils ondulent sans cesse ; un buisson qu'on traverse se froisse
  * (`rustle` : son ardeur, de 0 à 1, une par tuile de buisson, dans l'ordre de `tiles`).
  */
-function bushes(zone: ArenaZone) {
+function bushes(zone: ArenaZone, look: BushLook) {
   const random = rng(1907)
   const parts: THREE.BufferGeometry[] = []
   const color = new THREE.Color()
   const tiles: number[] = []
-  const blob = (x: number, z: number, r: number, y: number, h: number, s: number, l: number, tile: number, detail = 1) => {
+  const dh = look.hue - 0.3, k = look.light / 0.14
+  const blob = (x: number, z: number, r: number, y: number, tile: number, tint: (c: THREE.Color) => void, shine = 0, detail = 1) => {
     const g = new THREE.IcosahedronGeometry(r, detail)
     g.scale(1, 0.85 + random() * 0.35, 1)
     g.translate(x, y, z)
-    color.setHSL(h, s, l)
+    tint(color)
     const n = g.attributes.position.count
-    const tint = new Float32Array(n * 3)
-    for (let k = 0; k < tint.length; k += 3) color.toArray(tint, k)
-    g.setAttribute('color', new THREE.BufferAttribute(tint, 3))
+    const rgb = new Float32Array(n * 3)
+    for (let i = 0; i < rgb.length; i += 3) color.toArray(rgb, i)
+    g.setAttribute('color', new THREE.BufferAttribute(rgb, 3))
     g.setAttribute('aTile', new THREE.BufferAttribute(new Float32Array(n).fill(tile), 1))
+    g.setAttribute('aShine', new THREE.BufferAttribute(new Float32Array(n).fill(shine), 1))
     g.deleteAttribute('uv')
     parts.push(g)
   }
@@ -379,21 +390,21 @@ function bushes(zone: ArenaZone) {
       const at = () => [x + (random() - 0.5) * 0.66, z + (random() - 0.5) * 0.66]
       for (let i = 0; i < 4; i++) {
         const [px, pz] = at()
-        blob(px, pz, 0.22 + random() * 0.07, 0.15 + random() * 0.08, 0.3 + random() * 0.05, 0.62, 0.14 + random() * 0.05, t)
+        blob(px, pz, 0.22 + random() * 0.07, 0.15 + random() * 0.08, t, (c) => c.setHSL(look.hue + random() * 0.05, look.sat, look.light + random() * 0.05 * k))
       }
       for (let i = 0; i < 4; i++) {
         const [px, pz] = at()
-        blob(px, pz, 0.18 + random() * 0.07, 0.3 + random() * 0.1, 0.29 + random() * 0.06, 0.7, 0.23 + random() * 0.07, t)
+        blob(px, pz, 0.18 + random() * 0.07, 0.3 + random() * 0.1, t, (c) => c.setHSL(0.29 + dh + random() * 0.06, look.sat + 0.08, (0.23 + random() * 0.07) * k))
       }
       for (let i = 0; i < 2; i++) {
         const [px, pz] = at()
-        blob(px * 0.9 + x * 0.1, pz * 0.9 + z * 0.1, 0.12 + random() * 0.05, 0.44 + random() * 0.06, 0.26 + random() * 0.04, 0.72, 0.36, t)
+        blob(px * 0.9 + x * 0.1, pz * 0.9 + z * 0.1, 0.12 + random() * 0.05, 0.44 + random() * 0.06, t, (c) => c.setHSL(0.26 + dh + random() * 0.04, look.sat + 0.1, 0.36 * k))
       }
       // Des fleurs, posées sur le feuillage.
       for (let i = 0; i < 3; i++) {
         const [px, pz] = at()
-        const hue = [0.13, 0.95, 0.0][Math.floor(random() * 3)]
-        blob(px, pz, 0.035, 0.42 + random() * 0.1, hue, hue === 0 ? 0 : 0.85, hue === 0 ? 0.95 : 0.62, t, 0)
+        const bloom = look.blooms[Math.floor(random() * look.blooms.length)]
+        blob(px, pz, 0.035, 0.42 + random() * 0.1, t, (c) => c.set(bloom), look.glow, 0)
       }
     }
   }
@@ -405,15 +416,24 @@ function bushes(zone: ArenaZone) {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
         attribute float aTile;
+        attribute float aShine;
+        varying float vShine;
         uniform float uTime;
         uniform float uRustle[${rustle.length}];`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
+        vShine = aShine;
         float lift = clamp(position.y / 0.55, 0.0, 1.0);
         float shake = uRustle[int(aTile + 0.5)];
         float sway = sin(uTime * 1.3 + position.x * 0.9 + position.z * 0.7) * 0.016;
         float jolt = sin(uTime * 27.0 + position.x * 13.0 + position.z * 7.0) * 0.045 * shake;
         transformed.x += (sway + jolt) * lift;
         transformed.z += (sway * 0.6 + jolt * cos(uTime * 21.0)) * lift;`)
+    // Les fleurs qui luisent : leur couleur, en plus de la lumière reçue.
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+        varying float vShine;`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        totalEmissiveRadiance += vColor.rgb * vShine;`)
   }
   material.customProgramCacheKey = () => `arena-bushes-${rustle.length}`
   const mesh = new THREE.Mesh(mergeGeometries(parts), material)
@@ -444,7 +464,7 @@ function pulseMaterial(): THREE.MeshBasicMaterial {
   return m
 }
 
-/** Ce qui change avec le joueur ou le temps : les bases, les buissons, l'étage des obstacles, le stade. */
+/** Ce qui change avec le joueur ou le temps : les bases, les buissons, l'étage des obstacles, ce qui entoure le terrain. */
 export interface ArenaExtras {
   group: THREE.Group
   /**
@@ -452,7 +472,7 @@ export interface ArenaExtras {
    * `near` : le camp dont la base est du côté de la caméra (cf. Venue.paint).
    */
   paintBases(colors: [string, string], near: number): void
-  /** Vue subjective (les obstacles doublés en hauteur, la baie au-dessus du stade), ou de dessus. */
+  /** Vue subjective (les obstacles doublés en hauteur, ce qui domine le terrain), ou de dessus. */
   view(fps: boolean): void
   update(dt: number): void
   /** Un combattant qu'on voit, là où il est : s'il avance dans un buisson, le buisson se froisse. */
@@ -460,10 +480,14 @@ export interface ArenaExtras {
   venue: Venue
 }
 
-export function arenaExtras(zone: ArenaZone, kit: ZoneKit): ArenaExtras {
+/**
+ * Ce qui change avec le joueur ou le temps, quel que soit le plan : les bases (une nappe de couleur
+ * sur leurs trois colonnes, des chevrons tournés vers le camp d'en face, un bandeau lumineux à leur
+ * limite, une pastille à chaque point d'apparition), les buissons (`look`), et ce que le plan y
+ * ajoute : l'étage de ses obstacles en vue subjective (`upper`), ce qui entoure son terrain (`venue`).
+ */
+export function composeExtras(zone: ArenaZone, look: BushLook, upper: THREE.Group, venue: Venue): ArenaExtras {
   const group = new THREE.Group()
-  // Les bases : une nappe de couleur sur leurs trois colonnes, des chevrons tournés vers le camp
-  // d'en face, un bandeau lumineux à leur limite, une pastille à chaque point d'apparition.
   const chevrons = drawnTexture(BASE_DEPTH * 64, zone.height * 64, (c) => {
     const W = c.canvas.width, H = c.canvas.height
     c.fillStyle = '#ffffff55'
@@ -484,18 +508,31 @@ export function arenaExtras(zone: ArenaZone, kit: ZoneKit): ArenaExtras {
   })
   const pulses: THREE.MeshBasicMaterial[] = []
   const plates: THREE.BufferGeometry[] = []
+  const ground = (x: number, z: number) => x >= 0 && z >= 0 && x < zone.width && z < zone.height && zone.room[z * zone.width + x] !== ' '
   const bases = [0, 1].map((team) => {
     const wash = new THREE.MeshBasicMaterial({ map: chevrons, transparent: true, opacity: 0.62, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 })
     const line = new THREE.MeshBasicMaterial()
     const ring = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.95, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6 })
-    const x = team ? zone.width - 1 - (BASE_DEPTH - 1) / 2 : (BASE_DEPTH - 1) / 2
-    const plane = new THREE.Mesh(new THREE.PlaneGeometry(BASE_DEPTH, zone.height), wash)
-    plane.rotation.set(-Math.PI / 2, 0, team ? Math.PI : 0)
-    plane.position.set(x, 0.02, (zone.height - 1) / 2)
+    // La nappe, tuile par tuile (le terrain n'est pas toujours un rectangle) ; les chevrons pointent
+    // vers l'autre bout. Le bandeau, au bord de chaque tuile de la dernière colonne.
+    const tiles: THREE.BufferGeometry[] = [], edges: THREE.BufferGeometry[] = []
+    for (let z = 0; z < zone.height; z++) {
+      for (let k = 0; k < BASE_DEPTH; k++) {
+        const x = team ? zone.width - 1 - k : k
+        if (!ground(x, z)) continue
+        const tile = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(x, 0.02, z)
+        const uv = tile.attributes.uv as THREE.BufferAttribute, pos = tile.attributes.position as THREE.BufferAttribute
+        for (let i = 0; i < uv.count; i++) {
+          const u = (pos.getX(i) + 0.5) / BASE_DEPTH
+          uv.setXY(i, team ? (zone.width - (pos.getX(i) + 0.5)) / BASE_DEPTH : u, 1 - (pos.getZ(i) + 0.5) / zone.height)
+        }
+        tiles.push(tile)
+        if (k === BASE_DEPTH - 1) edges.push(new THREE.BoxGeometry(0.07, 0.02, 1).translate(team ? x - 0.5 : x + 0.5, 0.03, z))
+      }
+    }
+    const plane = part(mergeGeometries(tiles)!, wash)
     plane.renderOrder = 1
-    const edge = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.02, zone.height), line)
-    edge.position.set(team ? zone.width - 0.5 - BASE_DEPTH : BASE_DEPTH - 0.5, 0.03, (zone.height - 1) / 2)
-    group.add(plane, edge)
+    group.add(plane, part(mergeGeometries(edges)!, line))
     // Les pastilles : un socle d'acier, l'hexagone à la couleur du camp, et un anneau qui s'en échappe.
     const hexes: THREE.BufferGeometry[] = [], rims: THREE.BufferGeometry[] = []
     for (const s of zone.spawns[team]) {
@@ -515,40 +552,11 @@ export function arenaExtras(zone: ArenaZone, kit: ZoneKit): ArenaExtras {
 
   group.add(part(mergeGeometries(plates)!, lit('#1d2129', 'metal')))
 
-  const bush = bushes(zone)
+  const bush = bushes(zone, look)
   group.add(bush.mesh)
 
-  // L'étage : un second conteneur sur chaque conteneur, une seconde caisse, le haut des piliers et des cloisons.
-  const upper = new THREE.Group()
-  for (const c of zone.containers) {
-    const cx = c.x + (c.w - 1) / 2, cz = c.z + (c.d - 1) / 2
-    let o: THREE.Object3D
-    if (c.kind === 'container') {
-      o = kit.container((c.color + 1) % 3)
-      o.position.set(cx, CONTAINER_H, cz)
-      o.rotation.y = (containerRot(c) * Math.PI) / 2
-    } else if (c.kind === 'pillar') {
-      o = pillar(PILLAR_H, false)
-      o.position.set(cx, PILLAR_H, cz)
-    } else {
-      o = weaponCrate(c.x + c.z + 1)
-      o.position.set(cx, CRATE_H, cz)
-    }
-    upper.add(o)
-  }
-  for (const r of bulkheads()) {
-    const w = r.x1 - r.x0 + 1.2, d = r.z1 - r.z0 + 1.2, h = 0.95
-    const o = new THREE.Group()
-    o.add(box(w, h, d, lit('#3a4049', 'metal'), 0, h / 2, 0))
-    o.add(box(w + 0.02, 0.08, d + 0.02, glow('#ffd23f'), 0, h * 0.55, 0))
-    o.position.set((r.x0 + r.x1) / 2, BULKHEAD_H + 0.03, (r.z0 + r.z1) / 2)
-    upper.add(o)
-  }
   upper.visible = false
-  group.add(upper)
-
-  const venue = buildVenue(zone)
-  group.add(venue.group)
+  group.add(upper, venue.group)
 
   /** Où l'on a vu chaque combattant, la dernière fois : on ne froisse un buisson qu'en y bougeant. */
   const last = new Map<number, { x: number; z: number }>()
@@ -583,4 +591,34 @@ export function arenaExtras(zone: ArenaZone, kit: ZoneKit): ArenaExtras {
       if (i >= 0) bush.rustle[i] = 1
     },
   }
+}
+
+/** La baie : l'étage de ses obstacles (un second conteneur sur chaque conteneur, une seconde caisse, le haut des piliers et des cloisons), son stade. */
+export function arenaExtras(zone: ArenaZone, kit: ZoneKit): ArenaExtras {
+  const upper = new THREE.Group()
+  for (const c of zone.containers) {
+    const cx = c.x + (c.w - 1) / 2, cz = c.z + (c.d - 1) / 2
+    let o: THREE.Object3D
+    if (c.kind === 'container') {
+      o = kit.container((c.color + 1) % 3)
+      o.position.set(cx, CONTAINER_H, cz)
+      o.rotation.y = (containerRot(c) * Math.PI) / 2
+    } else if (c.kind === 'pillar') {
+      o = pillar(PILLAR_H, false)
+      o.position.set(cx, PILLAR_H, cz)
+    } else {
+      o = weaponCrate(c.x + c.z + 1)
+      o.position.set(cx, CRATE_H, cz)
+    }
+    upper.add(o)
+  }
+  for (const r of bulkheads(zone.plan)) {
+    const w = r.x1 - r.x0 + 1.2, d = r.z1 - r.z0 + 1.2, h = 0.95
+    const o = new THREE.Group()
+    o.add(box(w, h, d, lit('#3a4049', 'metal'), 0, h / 2, 0))
+    o.add(box(w + 0.02, 0.08, d + 0.02, glow('#ffd23f'), 0, h * 0.55, 0))
+    o.position.set((r.x0 + r.x1) / 2, BULKHEAD_H + 0.03, (r.z0 + r.z1) / 2)
+    upper.add(o)
+  }
+  return composeExtras(zone, BAY_BUSHES, upper, buildVenue(zone))
 }

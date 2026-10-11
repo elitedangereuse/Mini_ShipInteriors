@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createArena } from './arena.js'
-import { ARENA_LEVEL, ARENA_MAP, ARENA_RULES as R, arenaHidden, arenaSight, arenaZone, blastDamage, castArena, inBush } from '../shared/arena.js'
+import { ARENA_LEVEL, ARENA_MAPS, ARENA_RULES as R, arenaHidden, arenaSight, arenaZone, blastDamage, castArena, inBush } from '../shared/arena.js'
 import { mulberry32 } from '../shared/salvage.js'
 import { WEAPON_STATS } from '../shared/weapons.js'
 
@@ -67,28 +67,61 @@ function harness(options = {}) {
   return { arena, add, advance, last, events, lobby, arrive, put, start, sent, reports, clock: () => t }
 }
 
-test('arène : le plan est d\'un seul tenant, équitable, trois points d\'apparition par équipe', () => {
-  const zone = arenaZone()
-  const H = ARENA_MAP.length, W = ARENA_MAP[0].length
-  for (const row of ARENA_MAP) assert.equal(row.length, W)
-  // Obstacles et buissons se répondent d'un bout à l'autre : aucune équipe n'a l'avantage du terrain.
-  const kind = (c) => ('#=Hcp'.includes(c) ? 'plein' : c === 'g' ? 'buisson' : c === 'A' || c === 'B' ? 'base' : 'sol')
-  for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) assert.equal(kind(ARENA_MAP[z][x]), kind(ARENA_MAP[H - 1 - z][W - 1 - x]), `(${x}, ${z})`)
-  assert.equal(zone.spawns[0].length, R.team)
-  assert.equal(zone.spawns[1].length, R.team)
-  const start = zone.spawns[0][0]
-  const seen = new Set([start.z * W + start.x])
-  const queue = [...seen]
-  while (queue.length) {
-    const i = queue.pop()
-    for (let dir = 0; dir < 4; dir++) {
-      const j = zone.adj[i * 4 + dir]
-      if (j >= 0 && !seen.has(j)) { seen.add(j); queue.push(j) }
+test('arène : chaque plan est d\'un seul tenant, équitable, trois points d\'apparition par équipe', () => {
+  for (const map of ARENA_MAPS) {
+    const zone = arenaZone(map.id)
+    const plan = map.plan
+    const H = plan.length, W = plan[0].length
+    assert.equal(zone.id, map.id)
+    for (const row of plan) assert.equal(row.length, W, map.id)
+    // Obstacles et buissons se répondent d'un bout à l'autre : aucune équipe n'a l'avantage du terrain.
+    const kind = (c) => (c === ' ' ? 'vide' : '#=HcpoX'.includes(c) ? 'plein' : c === 'g' ? 'buisson' : c === 'A' || c === 'B' ? 'base' : 'sol')
+    for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) assert.equal(kind(plan[z][x]), kind(plan[H - 1 - z][W - 1 - x]), `${map.id} (${x}, ${z})`)
+    assert.equal(zone.spawns[0].length, R.team, map.id)
+    assert.equal(zone.spawns[1].length, R.team, map.id)
+    // Chaque équipe à son bout : l'une à l'ouest, l'autre à l'est (la caméra se tient derrière sa base).
+    assert.ok(Math.max(...zone.spawns[0].map((s) => s.x)) < W / 3 && Math.min(...zone.spawns[1].map((s) => s.x)) > (2 * W) / 3, map.id)
+    const start = zone.spawns[0][0]
+    const seen = new Set([start.z * W + start.x])
+    const queue = [...seen]
+    while (queue.length) {
+      const i = queue.pop()
+      for (let dir = 0; dir < 4; dir++) {
+        const j = zone.adj[i * 4 + dir]
+        if (j >= 0 && !seen.has(j)) { seen.add(j); queue.push(j) }
+      }
     }
+    assert.equal(seen.size, [...zone.blocked].filter((b) => !b).length, `${map.id} : d'un seul tenant`)
+    // D'une base, on ne voit pas l'autre.
+    for (const a of zone.spawns[0]) for (const b of zone.spawns[1]) assert.ok(!arenaSight(zone, a, b), `${map.id} : (${a.x}, ${a.z}) voit (${b.x}, ${b.z})`)
   }
-  assert.equal(seen.size, [...zone.blocked].filter((b) => !b).length)
-  // D'une base, on ne voit pas l'autre.
-  for (const a of zone.spawns[0]) for (const b of zone.spawns[1]) assert.ok(!arenaSight(zone, a, b))
+})
+
+test('arène : le chef choisit le plan ; la partie s\'y joue, et le relais n\'accepte que son sol', () => {
+  const h = harness()
+  const a = h.add(1), b = h.add(2)
+  h.arena.handle(a, 'arena:join', { room: 1 })
+  assert.equal(h.lobby().rooms[0].map, ARENA_MAPS[0].id)
+  h.arena.handle(a, 'arena:settings', { size: 1, bots: false, map: 'hive' })
+  h.arena.handle(a, 'arena:settings', { map: 'nulle-part' })
+  assert.equal(h.lobby().rooms[0].map, 'hive')
+  h.arena.handle(b, 'arena:join', { room: 1 })
+  // Un autre que le chef n'y touche pas.
+  h.arena.handle(b, 'arena:settings', { map: 'bay' })
+  assert.equal(h.last(2, 'arena:error').code, 'leader')
+  for (const p of [a, b]) h.arena.handle(p, 'arena:ready', { ready: true })
+  h.advance(R.countdown + 0.1)
+  assert.equal(h.last(1, 'arena:start').map, 'hive')
+  for (const p of [a, b]) h.arrive(p)
+  const game = h.arena.gameOf(a)
+  assert.equal(game.zone.id, 'hive')
+  // Le coin de l'octogone est hors du terrain ; le cœur de la ruche, un obstacle.
+  h.put(a, 2, 3)
+  assert.ok(h.arena.accepts(a, 2.5, 3.4))
+  assert.ok(!h.arena.accepts(a, 1.4, 3))
+  h.put(a, 7, 8)
+  assert.ok(h.arena.accepts(a, 7.4, 8))
+  assert.ok(!h.arena.accepts(a, 7.6, 8))
 })
 
 test('arène : une balle s\'arrête sur un conteneur, une cloison, le sol, ou un combattant debout', () => {
@@ -177,7 +210,7 @@ test('arène : quatre lobbys fixes ; on s\'y place, on en change, et chacun joue
   assert.deepEqual(room(4).members.map((m) => [m.id, m.team]), [[3, 0], [1, 1]])
   // Le dernier parti : le lobby reste, vide, avec ses réglages de départ.
   h.arena.handle(b, 'arena:leave', {})
-  assert.deepEqual(room(2), { id: 2, leader: null, size: 3, bots: true, skill: 1, goal: R.goal, status: 'forming', startsIn: undefined, members: [] })
+  assert.deepEqual(room(2), { id: 2, leader: null, map: 'bay', size: 3, bots: true, skill: 1, goal: R.goal, status: 'forming', startsIn: undefined, members: [] })
   // Deux lobbys jouent chacun de son côté.
   h.arena.handle(b, 'arena:join', { room: 1 })
   for (const p of [a, b, c]) h.arena.handle(p, 'arena:ready', { ready: true })
@@ -457,7 +490,7 @@ test('arène : qui part est remplacé par un bot ; sans bots, une équipe vide p
   assert.deepEqual(h.lobby().rooms[0].members.map((m) => m.id), [1])
   // Le dernier joueur parti, la partie s'arrête et le lobby se libère, avec ses réglages de départ.
   h.arena.handle(a, 'arena:quit', {})
-  assert.deepEqual(h.lobby().rooms[0], { id: 1, leader: null, size: 3, bots: true, skill: 1, goal: R.goal, status: 'forming', startsIn: undefined, members: [] })
+  assert.deepEqual(h.lobby().rooms[0], { id: 1, leader: null, map: 'bay', size: 3, bots: true, skill: 1, goal: R.goal, status: 'forming', startsIn: undefined, members: [] })
 
   const h2 = harness()
   const c = h2.add(1), d = h2.add(2)

@@ -1,3 +1,4 @@
+import type { ArenaMapId } from '../shared/arena.js'
 import type { FighterId } from '../shared/fight-roster.js'
 import type { FightSnapshot } from '../shared/fight.js'
 import type { SystemId } from '../shared/systems.js'
@@ -234,6 +235,8 @@ export interface ArenaMember { id: number; name: string; verified: boolean; team
 export interface ArenaRoom {
   id: number
   leader: number | null
+  /** Le plan de la partie (cf. ARENA_MAPS). */
+  map: ArenaMapId
   /** Joueurs par équipe ; `bots` : ils complètent les deux équipes, au niveau `skill` (0 à 2). */
   size: number
   bots: boolean
@@ -253,6 +256,7 @@ export interface ArenaLobby { rooms: ArenaRoom[] }
 export interface ArenaFighter { id: number; name: string; team: 0 | 1; bot: boolean; weapon: WeaponId }
 export interface ArenaStart {
   game: string
+  map: ArenaMapId
   team: 0 | 1
   size: number
   /** Points à atteindre pour gagner une manche ; manches à gagner pour gagner la partie. */

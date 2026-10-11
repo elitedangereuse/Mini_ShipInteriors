@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { BASE, BLASTER_PACK } from '../assets'
 import { tr } from '../i18n'
 import { WEAPONS } from '../range-weapons'
-import { ARENA_MAP, ARENA_TEAMS } from '../../shared/arena.js'
+import { ARENA_MAPS, ARENA_TEAMS, arenaZone } from '../../shared/arena.js'
 import { animatedScreen, box, cylinder, decal, drawnTexture, glow, holoMaterial, lit, mesh, type Builder } from './kit'
 import { kitModel } from './nature'
 
@@ -40,7 +40,7 @@ const LOGOS = {
  * Texture où figure le logo : `paint` la dessine tout de suite sans lui (`null`), puis de nouveau
  * quand l'image est là.
  */
-function logoTexture(w: number, h: number, paint: (c: CanvasRenderingContext2D, logo: HTMLImageElement | null) => void, which: keyof typeof LOGOS = 'full'): THREE.CanvasTexture {
+export function logoTexture(w: number, h: number, paint: (c: CanvasRenderingContext2D, logo: HTMLImageElement | null) => void, which: keyof typeof LOGOS = 'full'): THREE.CanvasTexture {
   const logo = LOGOS[which]
   const texture = drawnTexture(w, h, (c) => paint(c, logo.image))
   if (logo.image || typeof Image === 'undefined') return texture
@@ -68,7 +68,7 @@ export const arenaRanks: { rows: { name: string; wins: number }[]; stamp: number
  * le score sur sa dernière ligne, et l'hologramme de l'entrée passe au rouge. `stamp`
  * change avec elles.
  */
-export const arenaLive: { games: { lobby: number; rounds: [number, number]; score: [number, number] }[]; stamp: number } = { games: [], stamp: 0 }
+export const arenaLive: { games: { lobby: number; map: string; rounds: [number, number]; score: [number, number] }[]; stamp: number } = { games: [], stamp: 0 }
 
 /** Le sol du lobby (`label` : « largeur,profondeur ») : une moitié par équipe, la ligne médiane ; au milieu, le logo (cf. arenaLogo). */
 const arenaFloor: Builder = ({ label }) => {
@@ -555,10 +555,38 @@ const arenaGarland: Builder = ({ label }) => {
   return { live }
 }
 
+/** Le plan d'une arène en hologramme, de `size` de large au plus : son sol, ses obstacles en relief, ses buissons, ses deux bases. */
+function holoPlan(id: string, size: number): THREE.Group {
+  const zone = arenaZone(id)
+  const T = size / Math.max(zone.width, zone.height)
+  const floor: THREE.BufferGeometry[] = [], blocks: THREE.BufferGeometry[] = [], bushes: THREE.BufferGeometry[] = [], bases: THREE.BufferGeometry[][] = [[], []]
+  for (let z = 0; z < zone.height; z++) {
+    for (let x = 0; x < zone.width; x++) {
+      const c = zone.plan[z][x]
+      if (c === ' ') continue
+      const px = (x - (zone.width - 1) / 2) * T, pz = (z - (zone.height - 1) / 2) * T
+      floor.push(new THREE.PlaneGeometry(T, T).rotateX(-Math.PI / 2).translate(px, 0, pz))
+      if (zone.blocked[z * zone.width + x]) blocks.push(new THREE.BoxGeometry(T * 0.92, T * 0.8, T * 0.92).translate(px, T * 0.4, pz))
+      else if (c === 'g') bushes.push(new THREE.BoxGeometry(T * 0.8, T * 0.3, T * 0.8).translate(px, T * 0.15, pz))
+      if (x < 3) bases[0].push(new THREE.PlaneGeometry(T, T).rotateX(-Math.PI / 2).translate(px, 0.002, pz))
+      if (x >= zone.width - 3) bases[1].push(new THREE.PlaneGeometry(T, T).rotateX(-Math.PI / 2).translate(px, 0.002, pz))
+    }
+  }
+  const plan = new THREE.Group()
+  plan.add(new THREE.Mesh(mergeGeometries(floor), holoMaterial(null, '#7fefff', 0.16)))
+  plan.add(new THREE.Mesh(mergeGeometries(blocks), holoMaterial(null, '#bff6ff', 0.85)))
+  if (bushes.length) plan.add(new THREE.Mesh(mergeGeometries(bushes), holoMaterial(null, '#6dff9a', 0.7)))
+  bases.forEach((tiles, team) => plan.add(new THREE.Mesh(mergeGeometries(tiles), holoMaterial(null, team ? C.blue : C.orange, 0.45))))
+  for (const part of [...floor, ...blocks, ...bushes, ...bases.flat()]) part.dispose()
+  plan.userData.id = id
+  return plan
+}
+
 /**
- * Le projecteur de l'entrée, à côté du râtelier : l'hologramme de l'arène (son plan, cf. ARENA_MAP), qui
- * tourne lentement au-dessus de sa base. Cyan au repos ; quand une partie se joue, l'anneau de la
- * base passe au rouge et bat, et « EN DIRECT » s'affiche : c'est là qu'on vient la regarder.
+ * Le projecteur de l'entrée, à côté du râtelier : l'hologramme de l'arène (son plan, cf. ARENA_MAPS),
+ * qui tourne lentement au-dessus de sa base. Cyan au repos, il passe d'un plan à l'autre ; quand
+ * une partie se joue, il montre le sien, l'anneau de la base passe au rouge et bat, et « EN DIRECT »
+ * s'affiche : c'est là qu'on vient la regarder.
  */
 const arenaHolo: Builder = () => {
   const g = new THREE.Group()
@@ -567,27 +595,10 @@ const arenaHolo: Builder = () => {
   const ring = new THREE.MeshBasicMaterial({ color: '#7fefff' })
   g.add(mesh(new THREE.TorusGeometry(0.36, 0.014, 6, 40).rotateX(Math.PI / 2), ring, 0, 0.062, 0))
   const live = new THREE.Group()
-  // Le faisceau, et le plan : une dalle, les obstacles en relief, les buissons, les deux bases.
+  // Le faisceau, et les plans (un seul paraît à la fois).
   live.add(mesh(new THREE.CylinderGeometry(0.46, 0.26, 0.5, 28, 1, true), holoMaterial(null, '#7fefff', 0.1, 1, true), 0, 0.32, 0))
-  const T = 0.05, cols = ARENA_MAP[0].length, rows = ARENA_MAP.length
-  const blocks: THREE.BufferGeometry[] = [], bushes: THREE.BufferGeometry[] = []
-  ARENA_MAP.forEach((line, z) => {
-    for (let x = 0; x < cols; x++) {
-      const c = line[x]
-      const px = (x - (cols - 1) / 2) * T, pz = (z - (rows - 1) / 2) * T
-      if ('#=Hcp'.includes(c)) blocks.push(new THREE.BoxGeometry(T * 0.92, T * 0.8, T * 0.92).translate(px, T * 0.4, pz))
-      else if (c === 'g') bushes.push(new THREE.BoxGeometry(T * 0.8, T * 0.3, T * 0.8).translate(px, T * 0.15, pz))
-    }
-  })
-  const plan = new THREE.Group()
-  plan.add(new THREE.Mesh(new THREE.PlaneGeometry(cols * T, rows * T).rotateX(-Math.PI / 2), holoMaterial(null, '#7fefff', 0.16)))
-  plan.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(cols * T, 0.004, rows * T)), new THREE.LineBasicMaterial({ color: '#7fefff', transparent: true, opacity: 0.9 })))
-  plan.add(new THREE.Mesh(mergeGeometries(blocks), holoMaterial(null, '#bff6ff', 0.85)))
-  plan.add(new THREE.Mesh(mergeGeometries(bushes), holoMaterial(null, '#6dff9a', 0.7)))
-  for (const part of [...blocks, ...bushes]) part.dispose()
-  for (const [color, side] of [[C.orange, -1], [C.blue, 1]] as const) {
-    plan.add(mesh(new THREE.PlaneGeometry(T * 3, rows * T).rotateX(-Math.PI / 2), holoMaterial(null, color, 0.45), side * ((cols - 3) / 2) * T, 0.002, 0))
-  }
+  const plans = ARENA_MAPS.map((m) => holoPlan(m.id, 0.85))
+  const plan = new THREE.Group().add(...plans)
   // Le plan tourne à plat dans un cadre penché une fois pour toutes vers la vue de dessus (le
   // sud-est) : penché avec lui, il montrait son dessous à la caméra la moitié du tour.
   const tilt = new THREE.Group().add(plan)
@@ -619,6 +630,8 @@ const arenaHolo: Builder = () => {
     extent: new THREE.Box3(new THREE.Vector3(-0.4, 0, -0.4), new THREE.Vector3(0.4, 0.9, 0.4)),
     update: (t) => {
       plan.rotation.y = turn.rotation.y = t * 0.22
+      const shown = arenaLive.games[0]?.map ?? ARENA_MAPS[Math.floor(t / 9) % ARENA_MAPS.length].id
+      for (const p of plans) p.visible = p.userData.id === shown
       const on = arenaLive.games.length > 0
       onAir.visible = on
       ring.color.copy(on ? hot : idle).multiplyScalar(on ? 0.65 + 0.35 * Math.sin(t * 5) : 1)

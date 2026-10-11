@@ -11,11 +11,14 @@ import type { Player } from '../player'
 import { RangeSfx } from '../range-sfx'
 import { WEAPONS, type WeaponId } from '../range-weapons'
 import { RemotePlayer } from '../remote'
-import { loadZoneKit } from '../salvage/kit'
+import { loadZoneKit, type ZoneKit } from '../salvage/kit'
+import { SalvageSfx } from '../salvage/sfx'
 import type { Dialog } from '../ui'
-import { ARENA_BOOTH, ARENA_LEVEL, ARENA_RETURN, ARENA_RULES, ARENA_TEAMS, arenaHidden, arenaSight, arenaZone } from '../../shared/arena.js'
+import type { LevelDef } from '../levels'
+import { ARENA_BOOTH, ARENA_LEVEL, ARENA_RETURN, ARENA_RULES, ARENA_TEAMS, arenaHidden, arenaSight, arenaZone, type ArenaMapId, type ArenaZone } from '../../shared/arena.js'
 import { arenaExtras, arenaLevel, type ArenaExtras } from './deck'
 import { ArenaGun, type ArenaBody } from './gun'
+import { hiveExtras, hiveLevel } from './hive'
 import { ArenaMusic } from './music'
 import { Podium, type PodiumEntry } from './podium'
 import { Referee, REFEREE, refereeRig } from './referee'
@@ -188,15 +191,27 @@ const UNRANKED: Record<string, string> = {
 
 const ringGeometry = new THREE.RingGeometry(0.21, 0.3, 28).rotateX(-Math.PI / 2)
 
+/** Une arène bâtie : son plan, son pont, ce qui y dépend du joueur, sa scène de fin (construite à la première). */
+interface Built { zone: ArenaZone; deck: Deck; extras: ArenaExtras; podium: Podium | null }
+
+/** Le décor de chaque plan : le pont, et ce qui y bouge ou dépend du joueur. */
+const DECKS: Record<ArenaMapId, { level(zone: ArenaZone, kit: ZoneKit): LevelDef; extras(zone: ArenaZone, kit: ZoneKit): ArenaExtras }> = {
+  bay: { level: arenaLevel, extras: arenaExtras },
+  hive: { level: hiveLevel, extras: hiveExtras },
+}
+
 export class ArenaClient {
   private readonly panel: ArenaPanel
   private readonly hud = new ArenaHud()
   private readonly ranking = new RankingPanel()
-  private readonly zone = arenaZone()
+  /** Le plan de la partie en cours (ou de la dernière). */
+  private zone = arenaZone()
   private lobby: ArenaLobby = { rooms: [] }
   private game: Game | null = null
   private phase: Phase = 'ship'
-  /** L'arène, construite au premier départ, puis gardée : son plan ne change pas. */
+  /** Les arènes déjà bâties, une par plan : construite au premier départ sur ce plan, puis gardée. */
+  private readonly built = new Map<ArenaMapId, Built>()
+  /** Le pont de l'arène de la partie en cours (ou de la dernière). */
   deck: Deck | null = null
   /** Le moteur de tir, dans l'arène (créé avec elle). */
   gun: ArenaGun | null = null
@@ -211,8 +226,9 @@ export class ArenaClient {
   private lastEnd: { won: boolean | null; kills: number; deaths: number } | null = null
   /** Ce qui dépend du joueur ou bouge dans le décor : les bases, les buissons, l'étage des obstacles en vue subjective, le stade. */
   private extras: ArenaExtras | null = null
-  /** Les bruitages de la partie (ceux du stand, et la clameur des tribunes). */
+  /** Les bruitages de la partie (ceux du stand, et la clameur des tribunes), et le chant de la ruche. */
   private sfx: RangeSfx | null = null
+  private hiveSfx: SalvageSfx | null = null
   private readonly hands = new THREE.Vector3()
   private readonly local = new THREE.Vector3()
   private readonly focus = new THREE.Vector3()
@@ -385,7 +401,7 @@ export class ArenaClient {
   private refresh() {
     this.panel.update(this.lobby, this.host.net.id, this.host.net.online)
     // Le tableau du mur et l'hologramme du lobby disent les parties en cours.
-    const games = this.lobby.rooms.filter((r) => r.status === 'playing').map((r) => ({ lobby: r.id, rounds: r.rounds ?? [0, 0], score: r.score ?? [0, 0] }))
+    const games = this.lobby.rooms.filter((r) => r.status === 'playing').map((r) => ({ lobby: r.id, map: r.map, rounds: r.rounds ?? [0, 0], score: r.score ?? [0, 0] }))
     if (JSON.stringify(games) === JSON.stringify(arenaLive.games)) return
     arenaLive.games = games
     arenaLive.stamp++
@@ -461,13 +477,14 @@ export class ArenaClient {
 
   // ------------------------------------------------------------------ départ, retour
 
-  /** Construit l'arène (une fois) et son moteur de tir. */
-  private async build(): Promise<Deck> {
-    if (this.deck) return this.deck
+  /** L'arène du plan `id` (bâtie une fois, à la première partie qui s'y joue), et le moteur de tir, qui y passe. */
+  private async build(id: ArenaMapId): Promise<Deck> {
     const kit = await loadZoneKit()
-    if (this.deck) return this.deck
-    const zone = this.zone
-    const deck = new Deck(arenaLevel(zone, kit))
+    const ready = this.built.get(id)
+    if (ready) return this.use(ready)
+    const zone = arenaZone(id)
+    const look = DECKS[zone.id]
+    const deck = new Deck(look.level(zone, kit))
     // Chaque obstacle bloque sa tuile entière, comme pour le relais.
     for (let z = 0; z < zone.height; z++) {
       for (let x = 0; x < zone.width; x++) {
@@ -476,10 +493,12 @@ export class ArenaClient {
     }
     deck.pathfinder.invalidate()
     deck.group.visible = false
-    this.extras = arenaExtras(zone, kit)
-    deck.group.add(this.extras.group)
+    const extras = look.extras(zone, kit)
+    deck.group.add(extras.group)
     this.host.scene.add(deck.group)
-    this.deck = deck
+    const built: Built = { zone, deck, extras, podium: null }
+    this.built.set(zone.id, built)
+    if (this.gun) return this.use(built)
     this.sfx = new RangeSfx(this.host.sound)
     const gun = new ArenaGun(deck.group, this.host.dialog, this.host.wallet, this.sfx, new ArenaMusic(this.host.sound))
     gun.host = {
@@ -494,7 +513,18 @@ export class ArenaClient {
     }
     this.gun = gun
     this.host.armed(gun)
-    return deck
+    return this.use(built)
+  }
+
+  /** La partie se joue dans cette arène : la seule visible, celle où l'on vise. */
+  private use(b: Built): Deck {
+    for (const other of this.built.values()) if (other !== b) other.deck.group.visible = false
+    this.zone = b.zone
+    this.deck = b.deck
+    this.extras = b.extras
+    this.podium = b.podium
+    this.gun?.attach(b.deck.group, b.zone)
+    return b.deck
   }
 
   private async start(m: ArenaStart) {
@@ -503,7 +533,7 @@ export class ArenaClient {
     this.phase = 'loading'
     let deck: Deck
     try {
-      deck = await this.build()
+      deck = await this.build(m.map)
     } catch {
       // Le kit de l'arène n'a pas pu se charger : on rend sa place, plutôt que de rester figé au lobby.
       this.phase = 'ship'
@@ -731,9 +761,9 @@ export class ArenaClient {
       if (second > 0) this.gun?.cue('tick', second)
       else if (g.second !== Infinity) {
         this.gun?.cue('go')
-        // Le coup d'envoi : la ola fait le tour des tribunes.
+        // Le coup d'envoi : la ola fait le tour des tribunes (dans la ruche, une vague de lumière).
         this.extras?.venue.ola()
-        this.sfx?.crowd(0.5)
+        this.voice(0.5)
       }
     }
     g.second = second
@@ -860,10 +890,17 @@ export class ArenaClient {
     this.gun!.begin(e.weapon)
   }
 
-  /** Le public des tribunes se lève, et on l'entend (`amount` : de 0 à 1). */
+  /** Le public des tribunes se lève (la ruche s'agite), et on l'entend (`amount` : de 0 à 1). */
   private roar(amount: number) {
     this.extras?.venue.cheer(amount)
-    if (this.inArena) this.sfx?.crowd(amount)
+    this.voice(amount)
+  }
+
+  /** La clameur du public ; dans la ruche, son chant métallique, aux grands moments seulement. */
+  private voice(amount: number) {
+    if (!this.inArena) return
+    if (this.extras?.venue.voice !== 'hive') this.sfx?.crowd(amount)
+    else if (amount >= 1) (this.hiveSfx ??= new SalvageSfx(this.host.sound)).hive()
   }
 
   private finish(r: ArenaEnd) {
@@ -912,7 +949,7 @@ export class ArenaClient {
       const skin = s.id === self ? this.host.skin() : (f?.puppet ?? this.host.remotes.get(s.id))?.skin ?? lookId(randomLook())
       return { id: s.id, name: s.name, skin, rel: s.id === self ? 'self' : s.team === g.team ? 'ally' : 'enemy', won: r.winner < 0 ? null : s.team === r.winner }
     })
-    this.podium ??= new Podium(this.deck!.group, this.host.scene, { x: (this.zone.width - 1) / 2, z: STAGE_Z })
+    this.podium ??= this.built.get(this.zone.id)!.podium = new Podium(this.deck!.group, this.host.scene, { x: (this.zone.width - 1) / 2, z: STAGE_Z })
     this.podium.show(entries, g.tint)
     this.staged = true
     this.host.view('stage', { width: this.podium.width })

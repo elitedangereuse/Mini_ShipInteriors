@@ -93,6 +93,13 @@ export class ArenaGun extends RangeGame {
     this.live.add(this.cone.root)
   }
 
+  /** Une partie sur un autre plan : armes et balles passent dans son pont, et l'on y vise (`zone`). */
+  attach(group: THREE.Object3D, zone: ArenaZone) {
+    this.group = group
+    group.add(this.live, this.idle)
+    if (this.host) this.host.zone = zone
+  }
+
   /** La partie commence, ou l'on revient à sa base : cette arme en main, tous les chargeurs pleins. */
   begin(id: WeaponId) {
     const index = Math.max(0, WEAPONS.findIndex((w) => w.id === id))

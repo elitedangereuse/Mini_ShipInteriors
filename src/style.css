@@ -5278,6 +5278,14 @@ body.gardening #emotes { display: none; }
 .arena-gauges em { color: #8d96a3; font-size: 9px; font-style: normal; letter-spacing: .04em; text-transform: uppercase; }
 .arena-gauges i { height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--weapon) var(--fill), #ffffff14 var(--fill)); }
 .arena-settings { display: flex; flex-wrap: wrap; gap: 10px 22px; }
+.arena-maps { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.arena-panel .arena-map { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 8px 12px 8px 8px; border-radius: 10px; text-align: left; }
+.arena-panel .arena-map.on { border-color: #ff8a1c; background: #ff8a1c1f; opacity: 1; }
+.arena-map-thumb { flex: none; width: 68px; height: auto; max-height: 68px; object-fit: contain; image-rendering: pixelated; border-radius: 4px; }
+.arena-map-text { display: grid; gap: 2px; min-width: 0; }
+.arena-map-text strong { color: #f0f3f7; font-size: 13px; }
+.arena-map.on .arena-map-text strong { color: #ffd0a0; }
+.arena-map-text small { color: #a9b1bd; font-size: 11.5px; line-height: 1.3; }
 .arena-choice { display: grid; gap: 5px; min-width: 0; }
 .arena-segments { display: flex; flex-wrap: wrap; gap: 0; }
 .arena-panel .arena-segments button { padding: 7px 12px; border-radius: 0; margin-left: -1px; font-size: 12px; }

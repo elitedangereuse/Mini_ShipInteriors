@@ -36,7 +36,7 @@
 
 import { randomBytes } from 'node:crypto'
 import {
-  ARENA_BOTS, ARENA_LEVEL, ARENA_LOBBY, ARENA_RULES as R, ARENA_SKILLS, arenaHidden, arenaSight, arenaSpawn, arenaZone, blastDamage, castArena, spawnYaw,
+  ARENA_BOTS, ARENA_LEVEL, ARENA_LOBBY, ARENA_MAPS, ARENA_RULES as R, ARENA_SKILLS, arenaHidden, arenaSight, arenaSpawn, arenaZone, blastDamage, castArena, spawnYaw,
 } from '../shared/arena.js'
 import { findPath, smoothPath, straightWalk, walkable } from '../shared/salvage.js'
 import { WEAPON_IDS, WEAPON_STATS } from '../shared/weapons.js'
@@ -78,14 +78,14 @@ const round2 = (v) => Math.round(v * 100) / 100
 export function createArena({ playerById, emit, broadcast, report = async () => false, now = Date.now, random = Math.random, log = () => {}, debug = false }) {
   // Les salons, fixes : id -> salon (vide tant que personne ne s'y est placé).
   const rooms = new Map(Array.from({ length: R.lobbies }, (_, i) => [i + 1, { id: i + 1, members: new Map(), game: null }]))
-  const reset = (r) => Object.assign(r, { leader: null, size: 3, bots: true, skill: 1, goal: R.goal, status: 'forming', startAt: 0 })
+  const reset = (r) => Object.assign(r, { leader: null, map: ARENA_MAPS[0].id, size: 3, bots: true, skill: 1, goal: R.goal, status: 'forming', startAt: 0 })
   for (const r of rooms.values()) reset(r)
   const roomOf = new Map() // id du joueur -> salon
 
   // ------------------------------------------------------------------ lobby
 
   const roomState = (r) => ({
-    id: r.id, leader: r.leader, size: r.size, bots: r.bots, skill: r.skill, goal: r.goal, status: r.status,
+    id: r.id, leader: r.leader, map: r.map, size: r.size, bots: r.bots, skill: r.skill, goal: r.goal, status: r.status,
     startsIn: r.status === 'countdown' ? Math.max(0, (r.startAt - now()) / 1000) : undefined,
     members: [...r.members].map(([id, m]) => {
       const p = playerById(id)
@@ -177,9 +177,10 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
         const bots = typeof data.bots === 'boolean' ? data.bots : r.bots
         const skill = Number.isInteger(data.skill) ? Math.min(ARENA_SKILLS.length - 1, Math.max(0, data.skill)) : r.skill
         const goal = R.goals.includes(data.goal) ? data.goal : r.goal
-        if (size === r.size && bots === r.bots && skill === r.skill && goal === r.goal) return
+        const map = ARENA_MAPS.some((m) => m.id === data.map) ? data.map : r.map
+        if (size === r.size && bots === r.bots && skill === r.skill && goal === r.goal && map === r.map) return
         if (count(r, 0) > size || count(r, 1) > size) return error(p, 'crowded')
-        Object.assign(r, { size, bots, skill, goal })
+        Object.assign(r, { size, bots, skill, goal, map })
         unready(r)
         break
       }
@@ -255,7 +256,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
   function startGame(r) {
     const t = now()
     const game = {
-      id: randomBytes(8).toString('hex'), room: r, zone: arenaZone(), size: r.size, startedAt: t, liveAt: t + R.warmup * 1000,
+      id: randomBytes(8).toString('hex'), room: r, zone: arenaZone(r.map), size: r.size, startedAt: t, liveAt: t + R.warmup * 1000,
       endsAt: t + (R.warmup + R.duration) * 1000, goal: r.goal, score: [0, 0], round: 1, rounds: [0, 0], skill: ARENA_SKILLS[r.skill], fighters: new Map(), bullets: [],
       ended: false, frozen: false, nextBot: -1, watchers: new Set(),
     }
@@ -278,7 +279,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
   function startMessage(game, f) {
     const at = f ?? { team: 0, x: (game.zone.width - 1) / 2, z: (game.zone.height - 1) / 2, yaw: 0 }
     return {
-      game: game.id, team: at.team, size: game.size, goal: game.goal, wins: R.wins, duration: R.duration, warmup: Math.max(0, (game.liveAt - now()) / 1000),
+      game: game.id, map: game.zone.id, team: at.team, size: game.size, goal: game.goal, wins: R.wins, duration: R.duration, warmup: Math.max(0, (game.liveAt - now()) / 1000),
       fighters: [...game.fighters.values()].map(publicFighter), spawn: { x: at.x, z: at.z, yaw: round2(at.yaw) },
       ...(f ? {} : { watch: true }),
     }
@@ -675,9 +676,10 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
    * que ne le permet sa vitesse ; à son retour à la base, seulement près de sa base.
    */
   function accepts(p, x, z) {
-    const f = gameOf(p)?.fighters.get(p.id)
+    const game = gameOf(p)
+    const f = game?.fighters.get(p.id)
     if (!f || !f.alive) return false
-    if (!walkable(arenaZone(), Math.round(x), Math.round(z))) return false
+    if (!walkable(game.zone, Math.round(x), Math.round(z))) return false
     const far = Math.hypot(x - f.x, z - f.z)
     if (f.warp) return far <= 1.6
     return far <= R.sprint * 1.25 * Math.min(2, (now() - f.at) / 1000) + SLACK

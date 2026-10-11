@@ -2,11 +2,11 @@
 // Règles communes au relais, qui arbitre la partie (points de vie, tirs, bots, score), et au
 // client, qui la dessine et y fait jouer le moteur du stand (cf. src/range.ts, src/arena/).
 //
-// Le terminal de l'arène est dans son propre lobby (la pièce 'y' de la cale, cf. ARENA_LOBBY), pris
-// sur le coin sud-est de celui de la zone thargoïde. L'arène elle-même est une petite baie de stockage, tous projecteurs
-// allumés, au plan fixe (ARENA_MAP), une base par équipe à chaque bout. Tout obstacle y occupe sa
-// tuile entière, du sol au plafond : il arrête les pas, la vue et les balles, pour le relais comme
-// pour le client, quelle que soit la vue. Seuls les buissons laissent tout passer : on s'y cache.
+// Le terminal de l'arène est dans son propre lobby (la pièce 'y' de la cale, cf. ARENA_LOBBY). Le
+// chef du lobby choisit le plan de la partie (ARENA_MAPS : la baie, un stade tous projecteurs
+// allumés ; la ruche, une structure thargoïde), une base par équipe à chaque bout. Tout obstacle y
+// occupe sa tuile entière, du sol au plafond : il arrête les pas, la vue et les balles, pour le
+// relais comme pour le client, quelle que soit la vue. Seuls les buissons laissent tout passer : on s'y cache.
 //
 // La partie s'inspire de Brawl Stars : on voit tout ce que la caméra montre (pas de brouillard), sauf
 // qui se tient dans un buisson ; les points de vie remontent vite quand on ne prend plus de balles ;
@@ -98,41 +98,93 @@ export const ARENA_SKILLS = [
 export const ARENA_BOTS = ['Drone Vipère', 'Drone Cobra', 'Drone Python', 'Drone Anaconda', 'Drone Krait', 'Drone Mamba', 'Drone Asp', 'Drone Orca', 'Drone Faucon', 'Drone Aigle']
 
 /**
- * Le plan (17 × 11), une lettre par tuile :
- *   '.'  sol          '#'  cloison (plein)
+ * Les plans, une lettre par tuile :
+ *   ' '  hors du terrain (le vide)   '.'  sol   '#'  cloison (plein)
  *   '='  conteneurs couchés (par paires, de gauche à droite)
  *   'H'  conteneurs debout (par paires, de haut en bas)
  *   'c'  caisses d'armes blindées (une tuile)      'p'  pilier (une tuile)
+ *   'o'  cosse thargoïde (une tuile)               'X'  le cœur de la ruche (un rectangle de tuiles)
  *   'g'  buisson : on y passe, les balles aussi, et l'on s'y cache
- *   'A', 'B'  points d'apparition de chaque équipe
- * Les obstacles et les buissons se répondent d'un bout à l'autre (un demi-tour autour du centre) :
- * aucune équipe n'a l'avantage du terrain. Trois allées : au nord, au milieu par la cour centrale
- * et ses deux buissons, au sud.
+ *   'A', 'B'  points d'apparition de chaque équipe (la première à l'ouest, l'autre à l'est)
+ * Sur chaque plan, obstacles et buissons se répondent d'un bout à l'autre (un demi-tour autour du
+ * centre) : aucune équipe n'a l'avantage du terrain. `name` : en français, en anglais.
+ *
+ * - La baie (17 × 11) : le stade de CMDR Arena (cf. src/arena/venue.ts). Trois allées : au nord, au
+ *   milieu par la cour centrale et ses deux buissons, au sud.
+ * - La ruche (19 × 19) : une structure thargoïde, en octogone. Au milieu, la chambre du cœur, octogone
+ *   elle aussi, ouverte sur ses quatre côtés droits ; de chacun de ses sommets, une nervure court
+ *   jusqu'au sommet de l'enceinte, percée d'un passage, et découpe l'anneau en huit secteurs. Les
+ *   bases sont les secteurs ouest et est ; des massifs de spores (buissons) et des cosses couvrent
+ *   les autres (cf. src/arena/hive.ts).
  */
-export const ARENA_MAP = [
-  '.....g....==.....',
-  '...c.g.......c...',
-  '.A.....H...gg..B.',
-  '...==..H.#.......',
-  '......gg.#..==...',
-  '.A..p.......p..B.',
-  '...==..#.gg......',
-  '.......#.H..==...',
-  '.A..gg...H.....B.',
-  '...c.......g.c...',
-  '.....==....g.....',
+export const ARENA_MAPS = [
+  {
+    id: 'bay',
+    name: ['La baie', 'The bay'],
+    plan: [
+      '.....g....==.....',
+      '...c.g.......c...',
+      '.A.....H...gg..B.',
+      '...==..H.#.......',
+      '......gg.#..==...',
+      '.A..p.......p..B.',
+      '...==..#.gg......',
+      '.......#.H..==...',
+      '.A..gg...H.....B.',
+      '...c.......g.c...',
+      '.....==....g.....',
+    ],
+  },
+  {
+    id: 'hive',
+    name: ['La ruche', 'The hive'],
+    plan: [
+      '     #.......#     ',
+      '    .##.....##.    ',
+      '   .....ggg.....   ',
+      '  ....#.....#....  ',
+      ' ..gg.##.o.##.gg.. ',
+      '##.....#...#.....##',
+      '.#.##.##...##.##.#.',
+      '.A..###g...g###..B.',
+      '........XXX........',
+      '.A.o....XXX....o.B.',
+      '........XXX........',
+      '.A..###g...g###..B.',
+      '.#.##.##...##.##.#.',
+      '##.....#...#.....##',
+      ' ..gg.##.o.##.gg.. ',
+      '  ....#.....#....  ',
+      '   .....ggg.....   ',
+      '    .##.....##.    ',
+      '     #.......#     ',
+    ],
+  },
 ]
 
-let cached = null
+/** Le plan d'une partie, s'il existe (sinon le premier). */
+export function arenaMap(id) {
+  return ARENA_MAPS.find((m) => m.id === id) ?? ARENA_MAPS[0]
+}
+
+/** Ce qui arrête les pas, la vue et les balles ; ce qui est un obstacle posé (le reste : le vide, les cloisons). */
+const SOLID = ' #=Hcpo X'
+const PROPS = { '=': 'container', H: 'container', c: 'crates', p: 'pillar', o: 'pod', X: 'core' }
+
+const cached = new Map()
 
 /**
- * L'arène, prête à l'emploi (construite une fois). Elle a la forme de la baie de la zone thargoïde
- * (cf. generateZone dans salvage.js) : `blocked`, `adj`, `walkMap`… si bien que ses fonctions de
- * chemin (findPath, smoothPath, walkable, tileOf) s'y appliquent telles quelles.
+ * L'arène d'un plan (`id`, cf. ARENA_MAPS), prête à l'emploi (construite une fois). Elle a la forme
+ * de la baie de la zone thargoïde (cf. generateZone dans salvage.js) : `blocked`, `adj`, `walkMap`…
+ * si bien que ses fonctions de chemin (findPath, smoothPath, walkable, tileOf) s'y appliquent telles
+ * quelles.
  */
-export function arenaZone() {
-  if (cached) return cached
-  const H = ARENA_MAP.length, W = ARENA_MAP[0].length
+export function arenaZone(id) {
+  const map = arenaMap(id)
+  const known = cached.get(map.id)
+  if (known) return known
+  const plan = map.plan
+  const H = plan.length, W = plan[0].length
   const N = W * H
   const idx = (x, z) => z * W + x
   const inside = (x, z) => x >= 0 && z >= 0 && x < W && z < H
@@ -144,18 +196,27 @@ export function arenaZone() {
   const done = new Uint8Array(N)
   for (let z = 0; z < H; z++) {
     for (let x = 0; x < W; x++) {
-      const c = ARENA_MAP[z][x]
+      const c = plan[z][x]
       const i = idx(x, z)
-      room[i] = c === '#' ? ' ' : 'a'
-      if ('#=Hcp'.includes(c)) blocked[i] = 1
+      room[i] = c === '#' || c === ' ' ? ' ' : 'a'
+      if (SOLID.includes(c)) blocked[i] = 1
       if (c === 'g') bush[i] = 1
       if (c === 'A') spawns[0].push({ x, z })
       if (c === 'B') spawns[1].push({ x, z })
-      if (done[i] || !'=Hcp'.includes(c)) continue
-      const w = c === '=' ? 2 : 1, d = c === 'H' ? 2 : 1
-      if (!inside(x + w - 1, z + d - 1) || ARENA_MAP[z + d - 1][x + w - 1] !== c) throw new Error(`Conteneur sans sa moitié en (${x}, ${z})`)
-      for (let tz = z; tz < z + d; tz++) for (let tx = x; tx < x + w; tx++) done[idx(tx, tz)] = 1
-      containers.push({ x, z, w, d, kind: c === 'c' ? 'crates' : c === 'p' ? 'pillar' : 'container', color: (x * 7 + z * 13) % 3, flip: (x + z) % 2 === 1 })
+      if (done[i] || !PROPS[c]) continue
+      // Un conteneur fait deux tuiles ; le cœur, tout son rectangle.
+      let w = c === '=' ? 2 : 1, d = c === 'H' ? 2 : 1
+      if (c === 'X') {
+        while (inside(x + w, z) && plan[z][x + w] === c) w++
+        while (inside(x, z + d) && plan[z + d][x] === c) d++
+      }
+      for (let tz = z; tz < z + d; tz++) {
+        for (let tx = x; tx < x + w; tx++) {
+          if (!inside(tx, tz) || plan[tz][tx] !== c || done[idx(tx, tz)]) throw new Error(`Obstacle '${c}' incomplet en (${x}, ${z}) sur le plan ${map.id}`)
+          done[idx(tx, tz)] = 1
+        }
+      }
+      containers.push({ x, z, w, d, kind: PROPS[c], color: (x * 7 + z * 13) % 3, flip: (x + z) % 2 === 1 })
     }
   }
   // Graphe des tuiles libres (4 directions ; -1 : cloison, bord, obstacle).
@@ -174,18 +235,20 @@ export function arenaZone() {
   }
   const free = (x, z) => inside(x, z) && !blocked[idx(x, z)]
   // Plan de vue, de marche et de tir : le même, tout obstacle y arrête tout.
-  const map = {
+  const sight = {
     isFloor: free,
     room: (x, z) => (inside(x, z) ? room[idx(x, z)] : null),
     edge: (x, z, dir) => (free(x, z) && free(x + DIRS[dir].dx, z + DIRS[dir].dz) ? 'open' : 'wall'),
   }
-  cached = {
+  const zone = {
+    id: map.id, plan,
     width: W, height: H, blocked, bush, room, open, adj, spawns, containers,
-    layout: ARENA_MAP.map((line) => line.replace(/#/g, ' ').replace(/[^ ]/g, 'a')),
+    layout: plan.map((line) => line.replace(/#/g, ' ').replace(/[^ ]/g, 'a')),
     stairs: new Int8Array(N).fill(-1), elev: new Float32Array(N),
-    walkMap: map, sightMap: map,
+    walkMap: sight, sightMap: sight,
   }
-  return cached
+  cached.set(map.id, zone)
+  return zone
 }
 
 /** Rien ne sépare `from` de `to` dans l'arène (ni cloison, ni conteneur). */
