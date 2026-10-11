@@ -40,7 +40,7 @@ let logoAsked: Promise<HTMLImageElement> | null = null
  * Texture où figure le logo : `paint` la dessine tout de suite sans lui (`null`), puis de nouveau
  * quand l'image est là.
  */
-function logoTexture(w: number, h: number, paint: (c: CanvasRenderingContext2D, logo: HTMLImageElement | null) => void): THREE.CanvasTexture {
+export function logoTexture(w: number, h: number, paint: (c: CanvasRenderingContext2D, logo: HTMLImageElement | null) => void): THREE.CanvasTexture {
   const texture = drawnTexture(w, h, (c) => paint(c, logo))
   if (logo || typeof Image === 'undefined') return texture
   logoAsked ??= new Promise((resolve) => {

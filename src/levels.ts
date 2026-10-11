@@ -143,14 +143,20 @@ export interface LevelDef {
   /**
    * Baie infestée de la zone thargoïde (cf. src/salvage/) : son plan (murs du labyrinthe, portes
    * du sas), le kit de ses murs, sols et portes, et la couleur des projecteurs sur le sol des
-   * zones éclairées (`glow`). Ni coque, ni ascenseur, ni tuyères.
+   * zones éclairées (`glow`). Ni coque, ni ascenseur, ni tuyères. `plain` : rien que des dalles
+   * unies (un sol peint par-dessus, comme le terrain de l'arène, n'en laisse rien dépasser).
    */
-  zone?: { kit: ZoneKit; map: ShipMapOptions; glow?: (x: number, z: number) => string | null }
+  zone?: { kit: ZoneKit; map: ShipMapOptions; glow?: (x: number, z: number) => string | null; plain?: boolean }
   /**
    * Base au sol (cf. src/base/) : un plateau à ciel ouvert, sans murs (le bord arrête les pas, ses
    * falaises plongent dans le vide), ni coque, ni ascenseur, ni tuyères, ni plafond.
    */
   ground?: GroundDef
+  /**
+   * Ni plafond ni haut des murs, même en vue subjective : la pièce est une scène au milieu d'un
+   * plus grand volume, qui l'habille lui-même (l'arène et ses tribunes, cf. src/arena/venue.ts).
+   */
+  open?: boolean
   /**
    * Pont des quartiers (housing v2, cf. src/housing/) : le palier de l'ascenseur, et la parcelle du
    * joueur, une bulle sous champ de force construite à la volée (cf. Deck.setPlot). Pas de coque ni

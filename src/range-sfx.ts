@@ -405,4 +405,46 @@ export class RangeSfx {
     }
     this.heard(t + 0.7)
   }
+
+  /**
+   * La clameur des tribunes de l'arène (`strength` : de 0 à 1) : du bruit sur les formants d'une
+   * foule qui crie, qui enfle en une demi-seconde et retombe, brassé de vagues lentes et
+   * désaccordées d'une bande à l'autre ; forte, des sifflets par-dessus.
+   */
+  crowd(strength: number) {
+    const b = this.bus(null, 0.16 + 0.2 * strength, 0.45)
+    if (!b) return
+    const ctx = this.ctx, t = ctx.currentTime + 0.01, len = 1.5 + 1.5 * strength
+    for (const [f, q, peak] of [[480, 1.3, 1], [1100, 2, 0.6], [2500, 2.6, 0.28]]) {
+      const src = ctx.createBufferSource()
+      src.buffer = this.sound.noiseBuffer
+      src.loop = true
+      const filter = ctx.createBiquadFilter()
+      filter.type = 'bandpass'
+      filter.frequency.value = f * (0.92 + Math.random() * 0.16)
+      filter.Q.value = q
+      const env = ctx.createGain()
+      env.gain.setValueAtTime(0, t)
+      env.gain.linearRampToValueAtTime(peak * 0.7, t + 0.22)
+      env.gain.linearRampToValueAtTime(peak, t + 0.55)
+      env.gain.exponentialRampToValueAtTime(0.0008, t + len)
+      const swell = ctx.createGain()
+      const lfo = ctx.createOscillator()
+      lfo.frequency.value = 2.5 + Math.random() * 3
+      const depth = ctx.createGain()
+      depth.gain.value = 0.3
+      lfo.connect(depth).connect(swell.gain)
+      src.connect(filter).connect(env).connect(swell).connect(b.mix)
+      src.start(t, Math.random() * 0.5)
+      src.stop(t + len + 0.03)
+      lfo.start(t)
+      lfo.stop(t + len + 0.03)
+    }
+    this.heard(t + len + 0.03)
+    if (strength < 0.7) return
+    for (let i = 0; i < 3; i++) {
+      const at = t + 0.15 + Math.random() * 0.7, f = 2300 + Math.random() * 700
+      this.sweep(b.mix, 'sine', f, f * 1.25, at, 0.32, 0.05)
+    }
+  }
 }

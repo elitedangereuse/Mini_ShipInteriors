@@ -1040,7 +1040,7 @@ export class Deck {
         const room = this.map.room(x, z)
         if (!room) continue
         if (this.def.zone) {
-          this.addStatic(this.def.zone.kit.floor(x, z, hash(x, z), this.def.zone.glow?.(x, z)), false)
+          this.addStatic(this.def.zone.kit.floor(x, z, this.def.zone.plain ? 1 : hash(x, z), this.def.zone.glow?.(x, z)), false)
           continue
         }
         if (this.def.ground) {
@@ -1076,8 +1076,8 @@ export class Deck {
    */
   private buildCeiling() {
     const merge = this.merging()
-    // À ciel ouvert : le ciel de la planète, pas de plafond.
-    if (this.def.ground) {
+    // À ciel ouvert : le ciel de la planète, pas de plafond ; une scène ouverte : son propre décor.
+    if (this.def.ground || this.def.open) {
       this.ceilingFades = fadeBuffer(0)
       this.ceiling.visible = false
       this.group.add(this.ceiling)
