@@ -209,8 +209,10 @@ export class ArenaClient {
   /** Tessa, l'arbitre, à son guichet du lobby (chargée à part) ; et ce qu'elle retient de notre dernière partie. */
   referee: Referee | null = null
   private lastEnd: { won: boolean | null; kills: number; deaths: number } | null = null
-  /** Ce qui dépend du joueur dans le décor : la couleur des bases, l'étage des obstacles en vue subjective. */
+  /** Ce qui dépend du joueur ou bouge dans le décor : les bases, les buissons, l'étage des obstacles en vue subjective, le stade. */
   private extras: ArenaExtras | null = null
+  /** Les bruitages de la partie (ceux du stand, et la clameur des tribunes). */
+  private sfx: RangeSfx | null = null
   private readonly hands = new THREE.Vector3()
   private readonly local = new THREE.Vector3()
   private readonly focus = new THREE.Vector3()
@@ -478,7 +480,8 @@ export class ArenaClient {
     deck.group.add(this.extras.group)
     this.host.scene.add(deck.group)
     this.deck = deck
-    const gun = new ArenaGun(deck.group, this.host.dialog, this.host.wallet, new RangeSfx(this.host.sound), new ArenaMusic(this.host.sound))
+    this.sfx = new RangeSfx(this.host.sound)
+    const gun = new ArenaGun(deck.group, this.host.dialog, this.host.wallet, this.sfx, new ArenaMusic(this.host.sound))
     gun.host = {
       zone,
       self: () => this.host.net.id,
@@ -521,8 +524,9 @@ export class ArenaClient {
     if (mine) this.weapon = this.panel.weapon = mine.weapon
     this.hud.show(true, watching)
     this.hud.board({ score: 0, rounds: 0 }, { score: 0, rounds: 0 }, m.goal, 1, m.wins, m.duration, m.warmup)
-    // Sa base en bleu, celle d'en face en rouge (pour un spectateur : chacune à la couleur de son camp).
-    this.extras?.paintBases(m.team === 0 ? [game.tint.ally, game.tint.enemy] : [game.tint.enemy, game.tint.ally])
+    // Sa base en bleu, celle d'en face en rouge (pour un spectateur : chacune à la couleur de son camp) ;
+    // la caméra est derrière la sienne.
+    this.extras?.paintBases(m.team === 0 ? [game.tint.ally, game.tint.enemy] : [game.tint.enemy, game.tint.ally], m.team)
     await this.host.moveTo(deck, m.spawn, () => this.host.view('match', { team: m.team }))
     // Reparti entre-temps (liaison perdue pendant le fondu).
     if (this.game !== game) return
@@ -714,6 +718,7 @@ export class ArenaClient {
     }
     const side = (team: number) => ({ score: s.score[team], rounds: s.rounds[team] })
     this.hud.board(side(g.team), side(1 - g.team), g.goal, s.round, g.wins, s.left, s.warmup)
+    this.extras?.venue.board(s.score[g.team], s.score[1 - g.team], [g.tint.ally, g.tint.enemy], s.left, s.round)
     // L'ardeur de la partie : le score qui monte, et les balles qu'on vient d'échanger (le moteur la
     // donne à sa musique ; le morceau enregistré de CMDR Arena ne la suit pas, cf. music.ts).
     const lead = Math.max(...s.score)
@@ -724,7 +729,12 @@ export class ArenaClient {
     const second = Math.ceil(s.warmup)
     if (second < g.second) {
       if (second > 0) this.gun?.cue('tick', second)
-      else if (g.second !== Infinity) this.gun?.cue('go')
+      else if (g.second !== Infinity) {
+        this.gun?.cue('go')
+        // Le coup d'envoi : la ola fait le tour des tribunes.
+        this.extras?.venue.ola()
+        this.sfx?.crowd(0.5)
+      }
     }
     g.second = second
   }
@@ -766,6 +776,8 @@ export class ArenaClient {
           body.group.position.copy(body.target)
         }
         this.hud.kill(by && by !== victim ? by : null, victim, e.weapon, e.by === self || e.id === self)
+        // Le public se lève : plus fort pour une balle de match.
+        this.roar(Math.max(...e.score) >= g.goal - 1 ? 1 : 0.6)
         if (g.state) g.state.score = e.score
         if (e.id === self) {
           g.streak = 0
@@ -809,6 +821,7 @@ export class ArenaClient {
         else if (g.watching) gun.announce(tr(`Manche à l'équipe ${TEAM_NAMES[e.winner]} · ${tally}`, `Round to the ${TEAM_NAMES[e.winner]} team · ${tally}`))
         else gun.announce(e.winner === g.team ? tr(`Manche gagnée ! ${tally}`, `Round won! ${tally}`) : tr(`Manche perdue · ${tally}`, `Round lost · ${tally}`), e.winner !== g.team)
         gun.cue(e.winner === g.team ? 'go' : 'down')
+        this.roar(1)
         g.second = Infinity
         break
       }
@@ -847,6 +860,12 @@ export class ArenaClient {
     this.gun!.begin(e.weapon)
   }
 
+  /** Le public des tribunes se lève, et on l'entend (`amount` : de 0 à 1). */
+  private roar(amount: number) {
+    this.extras?.venue.cheer(amount)
+    if (this.inArena) this.sfx?.crowd(amount)
+  }
+
   private finish(r: ArenaEnd) {
     const g = this.game!
     g.end = r
@@ -858,6 +877,7 @@ export class ArenaClient {
     this.hud.waiting(null, 0, this.weapon, this.cursor)
     this.gun?.cue(r.winner === g.team ? 'go' : 'down')
     this.gun?.end()
+    this.roar(1)
     this.endTimer = 30
     // Le relais vient de déclarer la partie au site : le tableau du lobby se met à jour dans un instant.
     window.setTimeout(() => void this.refreshRanks(), 4000)
@@ -948,8 +968,10 @@ export class ArenaClient {
       if (at && followed!.puppet!.group.position.x > -5) here.set(at.x, this.deck!.y, at.z)
       this.hud.spectate(followed ? { name: followed.name, rel: followed.rel, bot: followed.bot } : null)
     }
-    // Les yeux au sol, les obstacles sont doublés en hauteur : on ne voit pas par-dessus.
-    if (this.extras) this.extras.upper.visible = fps
+    // Les yeux au sol, les obstacles sont doublés en hauteur : on ne voit pas par-dessus ; le toit
+    // de la baie et l'écran suspendu ne paraissent qu'alors.
+    this.extras?.view(fps)
+    this.extras?.update(dt)
     for (const f of g.fighters.values()) {
       const mine = f.id === self
       const r = mine ? null : f.puppet ?? this.host.remotes.get(f.id) ?? null
@@ -959,6 +981,8 @@ export class ArenaClient {
         f.puppet.group.visible = inArena && !this.staged && this.visible(f, f.puppet.group.position)
       }
       const shown = inArena && !this.staged && !!at && (mine || !!r?.group.visible)
+      // Qui traverse un buisson le froisse, s'il est vu (un adversaire caché ne se trahit pas ainsi).
+      if (shown && f.alive) this.extras?.stir(f.id, at!.x, at!.z)
       const avatar = mine ? this.host.player.avatar : r?.avatar
       haunt(avatar, f.ghost && !f.alive)
       // Son anneau, sous ses pieds ; il bat tant qu'il est protégé.
