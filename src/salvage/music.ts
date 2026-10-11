@@ -5,7 +5,7 @@ import type { Sound } from '../audio'
  * dans son fichier, que la sono de sécurité rend encore plus étroite et saturée.
  */
 
-const LOBBY = { file: 'thargoid-salvage/corrupted-lobby.mp3', volume: 0.5 }
+const LOBBY = { file: 'thargoid-salvage/corrupted-lobby.mp3', volume: 0.25 }
 
 /** Un vieux haut-parleur de sécurité : mono, peu de graves et d'aigus, médiums durs et saturés. */
 function damagedSpeaker(ctx: AudioContext, from: AudioNode): AudioNode {
