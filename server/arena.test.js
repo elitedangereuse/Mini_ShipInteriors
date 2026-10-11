@@ -214,6 +214,14 @@ test('arène : les bots complètent les deux équipes, chacun part de sa base', 
     assert.equal(spots.size, 3)
     for (const f of mine) assert.ok(game.zone.spawns[team].some((s) => s.x === f.x && s.z === f.z))
   }
+  // Même en poursuivant un adversaire jusque chez lui, un bot s'arrête à la frontière de sa base.
+  h.advance(R.warmup + 8)
+  const nearEdge = R.baseDepth - 0.5
+  const farEdge = game.zone.width - R.baseDepth - 0.5
+  for (const f of game.fighters.values()) {
+    if (!f.bot) continue
+    assert.ok(f.team === 0 ? f.x < farEdge : f.x > nearEdge, `bot ${f.id} hors de la base adverse`)
+  }
   assert.equal(h.lobby().rooms[0].status, 'playing')
 })
 
@@ -225,6 +233,19 @@ test('arène : une position n\'est acceptée que debout, sur le sol, à portée 
   assert.ok(!h.arena.accepts(a, a.x + 12, a.z), 'trop loin')
   assert.ok(!h.arena.accepts(a, 3, 1), 'dans une caisse')
   assert.ok(!h.arena.accepts(h.add(9), 1, 1), 'pas dans une partie')
+})
+
+test('arène : chaque camp reste à sa base avant le départ et ne peut jamais entrer dans la base adverse', () => {
+  const h = harness()
+  const a = h.add(1)
+  h.start(a, [], { size: 1 })
+  h.put(a, R.baseDepth - 0.6, 2)
+  assert.equal(h.arena.accepts(a, R.baseDepth - 0.4, 2), false, 'sortie avant le coup d’envoi')
+  h.advance(R.warmup + 0.1)
+  assert.equal(h.arena.accepts(a, R.baseDepth - 0.4, 2), true, 'sortie autorisée après le coup d’envoi')
+  const enemyEdge = arenaZone().width - R.baseDepth - 0.5
+  h.put(a, enemyEdge - 0.1, 2)
+  assert.equal(h.arena.accepts(a, enemyEdge + 0.1, 2), false, 'base adverse interdite')
 })
 
 /** Tir à plat de `p` vers `to`. */

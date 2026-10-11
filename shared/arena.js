@@ -56,6 +56,8 @@ export const ARENA_RULES = {
   /** Lobbys du terminal : autant de parties qui peuvent se préparer (et se jouer) en même temps. */
   lobbies: 4,
   team: 3,
+  /** Profondeur d'une base, depuis le bord de l'arène (tuiles). */
+  baseDepth: 3,
   hp: 100,
   goals: [5, 10, 15],
   goal: 15,

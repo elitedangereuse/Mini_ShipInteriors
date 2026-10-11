@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import type { Wallet } from '../economy/wallet'
 import { tr } from '../i18n'
-import { RangeGame, type Bullet, type Gun, type Hit, type RangeFrame, type Session, type Shot } from '../range'
+import { RangeGame, type Bullet, type Gun, type Hit, type RangeFrame, type Session, type Shot, type Streak } from '../range'
 import type { RangeTune } from '../range-music'
 import type { RangeSfx } from '../range-sfx'
 import { dampAngle } from '../player'
@@ -259,6 +259,11 @@ export class ArenaGun extends RangeGame {
   protected override updateTargets() {}
   protected override blasted() {}
   protected override report() {}
+
+  /** Dans la grande baie, les projectiles doivent rester lisibles dans les deux vues. */
+  protected override streak(from: THREE.Vector3, color: THREE.Color, width: number): Streak {
+    return super.streak(from, color, width * (this.fpsView ? 1.8 : 2.2))
+  }
 
   /**
    * Vue par-dessus l'épaule (le personnage est à l'image) : la caméra est derrière lui, décalée. La

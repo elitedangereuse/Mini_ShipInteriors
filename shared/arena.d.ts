@@ -10,6 +10,7 @@ export declare const ARENA_BOOTH: { x: number; z: number; yaw: number; referee: 
 export declare const ARENA_RULES: {
   lobbies: number
   team: number
+  baseDepth: number
   hp: number
   goals: number[]
   goal: number

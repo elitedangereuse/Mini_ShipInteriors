@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import type { Sound } from '../audio'
 import type { Avatar } from '../avatar'
 import type { IsoCamera } from '../camera'
-import { Deck } from '../deck'
+import { Deck, type Box2 } from '../deck'
 import type { Wallet } from '../economy/wallet'
 import { tr } from '../i18n'
 import { lookId, randomLook } from '../looks'
@@ -221,6 +221,9 @@ export class ArenaClient {
   /** La scène de fin (construite à la première), et si l'on y est. */
   private podium: Podium | null = null
   private staged = false
+  /** Limites ajoutées aux collisions : la base adverse toujours, la nôtre avant le coup d'envoi. */
+  private baseBarriers: Box2[] = []
+  private ownBaseLocked: boolean | null = null
 
   constructor(private host: ArenaHost) {
     try {
@@ -517,6 +520,7 @@ export class ArenaClient {
       watching, follow: m.fighters[0]?.id ?? 0, tint: watching ? WATCH_TINT : TINT,
     }
     this.game = game
+    this.setBaseBarriers(!watching)
     this.rankedAs = null
     // Un spectateur mène tout le monde en doublure : il ne reçoit pas les pas des joueurs.
     for (const f of m.fighters) this.addFighter(f, f.bot || watching ? null : undefined)
@@ -585,6 +589,37 @@ export class ArenaClient {
     }
   }
 
+  /** Pose les frontières des bases dans les collisions du joueur local. */
+  private setBaseBarriers(lockOwn: boolean) {
+    const deck = this.deck, game = this.game
+    if (!deck || !game || game.watching) {
+      this.clearBaseBarriers()
+      return
+    }
+    if (this.ownBaseLocked === lockOwn && this.baseBarriers.length) return
+    this.clearBaseBarriers()
+    const near = ARENA_RULES.baseDepth - 0.5
+    const far = this.zone.width - ARENA_RULES.baseDepth - 0.5
+    const own = game.team === 0 ? near : far
+    const enemy = game.team === 0 ? far : near
+    const barrier = (x: number): Box2 => ({ minX: x - 0.025, maxX: x + 0.025, minZ: -0.5, maxZ: this.zone.height - 0.5 })
+    this.baseBarriers = lockOwn ? [barrier(own), barrier(enemy)] : [barrier(enemy)]
+    this.ownBaseLocked = lockOwn
+    deck.colliders.push(...this.baseBarriers)
+    deck.pathfinder.invalidate()
+  }
+
+  private clearBaseBarriers() {
+    if (!this.deck || !this.baseBarriers.length) return
+    for (const barrier of this.baseBarriers) {
+      const i = this.deck.colliders.indexOf(barrier)
+      if (i >= 0) this.deck.colliders.splice(i, 1)
+    }
+    this.baseBarriers = []
+    this.ownBaseLocked = null
+    this.deck.pathfinder.invalidate()
+  }
+
   /** Quitte l'arène (fin, abandon, coupure) : retour devant le terminal du lobby. */
   private leave(message?: string): Promise<void> {
     this.leaving ??= this.leaveNow(message).finally(() => (this.leaving = null))
@@ -612,6 +647,7 @@ export class ArenaClient {
     this.unstage()
     this.hud.closeEnd()
     this.hud.show(false)
+    this.clearBaseBarriers()
     this.game = null
     this.phase = 'ship'
     this.endTimer = 0
@@ -710,6 +746,7 @@ export class ArenaClient {
   private apply(s: ArenaState) {
     const g = this.game!
     g.state = s
+    this.setBaseBarriers(!g.watching && s.warmup > 0)
     for (const st of s.fighters) {
       const f = g.fighters.get(st.id)
       if (!f) continue

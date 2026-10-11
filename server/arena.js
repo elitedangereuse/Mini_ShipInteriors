@@ -66,6 +66,9 @@ const BOT_SIGHT = 16
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z)
 const finite = (v) => typeof v === 'number' && Number.isFinite(v)
 const round2 = (v) => Math.round(v * 100) / 100
+const baseEdge = (zone, team) => team === 0 ? R.baseDepth - 0.5 : zone.width - R.baseDepth - 0.5
+const inBase = (zone, team, p) => team === 0 ? p.x < baseEdge(zone, team) : p.x > baseEdge(zone, team)
+const outsideEnemyBase = (zone, team, p) => !inBase(zone, 1 - team, p)
 
 /**
  * @param {object} o
@@ -424,13 +427,15 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
   // ------------------------------------------------------------------ bots
 
   function routeTo(game, b, goal) {
-    const tiles = findPath(game.zone, b, goal)
+    const edge = baseEdge(game.zone, 1 - b.team)
+    const safe = { ...goal, x: b.team === 0 ? Math.min(goal.x, edge - 0.01) : Math.max(goal.x, edge + 0.01) }
+    const tiles = findPath(game.zone, b, safe)
     if (!tiles) {
       b.path = []
       return
     }
     b.path = smoothPath(game.zone, b, tiles.slice(1))
-    if (b.path.length && walkable(game.zone, Math.round(goal.x), Math.round(goal.z))) b.path[b.path.length - 1] = { x: goal.x, z: goal.z }
+    if (b.path.length && walkable(game.zone, Math.round(safe.x), Math.round(safe.z))) b.path[b.path.length - 1] = safe
   }
 
   /** Avance le long de son chemin ; true tant qu'il marche. */
@@ -479,7 +484,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     const goal = back
       ? { x: b.x - (dx / d) * reach + (-dz / d) * side * 0.5, z: b.z - (dz / d) * reach + (dx / d) * side * 0.5 }
       : { x: b.x + (-dz / d) * side * reach, z: b.z + (dx / d) * side * reach }
-    if (walkable(game.zone, Math.round(goal.x), Math.round(goal.z)) && straightWalk(game.zone, b, goal)) b.path = [goal]
+    if (outsideEnemyBase(game.zone, b.team, goal) && walkable(game.zone, Math.round(goal.x), Math.round(goal.z)) && straightWalk(game.zone, b, goal)) b.path = [goal]
   }
 
   function stepBot(game, b, dt) {
@@ -530,6 +535,10 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       if (b.calm > 1 && b.ammo < w.mag && !b.reloadUntil) b.reloadUntil = t + w.reload * 1000
     }
     const moved = walk(b, R.bot * w.weight, dt)
+    // Dernier garde-fou : même un chemin lissé ne franchit jamais la frontière adverse.
+    const enemyEdge = baseEdge(zone, 1 - b.team)
+    if (b.team === 0 && b.x >= enemyEdge) { b.x = enemyEdge - 0.01; b.path = [] }
+    if (b.team === 1 && b.x <= enemyEdge) { b.x = enemyEdge + 0.01; b.path = [] }
     b.anim = moved ? 'sprint' : 'idle'
     if (!target) return
     const yaw = Math.atan2(target.x - b.x, target.z - b.z)
@@ -675,9 +684,13 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
    * que ne le permet sa vitesse ; à son retour à la base, seulement près de sa base.
    */
   function accepts(p, x, z) {
-    const f = gameOf(p)?.fighters.get(p.id)
+    const game = gameOf(p)
+    const f = game?.fighters.get(p.id)
     if (!f || !f.alive) return false
     if (!walkable(arenaZone(), Math.round(x), Math.round(z))) return false
+    const at = { x, z }
+    // Avant le signal, chacun reste dans sa base ; pendant la manche, la base adverse reste interdite.
+    if (!outsideEnemyBase(game.zone, f.team, at) || (now() < game.liveAt && !inBase(game.zone, f.team, at))) return false
     const far = Math.hypot(x - f.x, z - f.z)
     if (f.warp) return far <= 1.6
     return far <= R.sprint * 1.25 * Math.min(2, (now() - f.at) / 1000) + SLACK
