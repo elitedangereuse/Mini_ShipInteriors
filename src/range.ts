@@ -117,6 +117,8 @@ export interface Bullet {
   by?: number
   team?: number
   through?: Set<number>
+  /** Arène : ce qu'il lui reste à parcourir avant de s'éteindre (la portée de l'arme). Au stand, les murs l'arrêtent. */
+  reach?: number
 }
 
 /** Ce qu'une balle rencontre (cf. RangeGame.cast) : une cible, un combattant de l'arène (`body`), ou une paroi (`normal`). */
@@ -519,6 +521,19 @@ export class RangeGame {
     if (this.session) this.queued = true
   }
 
+  /** Stick de tir tactile : une arme automatique tire tant qu'il est poussé (au stand ; pas dans l'arène). */
+  get sprays(): boolean {
+    return !!this.session && WEAPONS[this.session.weapon].auto
+  }
+
+  /**
+   * Le stick de tir vient d'être lâché : le coup part. `quick` : un simple toucher, sans viser.
+   * Une arme automatique tirait déjà, stick poussé : rien de plus, sauf au toucher.
+   */
+  loose(quick = false) {
+    if (quick || !this.sprays) this.tap()
+  }
+
   /** Vue de dessus : le curseur (ou le doigt) donne le point visé. */
   aimAt(clientX: number, clientY: number) {
     if (this.session) this.pointer = { x: clientX, y: clientY }
@@ -837,11 +852,12 @@ export class RangeGame {
   protected updateBullets(dt: number) {
     const s = this.session!
     s.bullets = s.bullets.filter((b) => {
-      let left = b.speed * dt
+      let left = Math.min(b.speed * dt, b.reach ?? Infinity)
       for (let i = 0; i < 4 && left > 0; i++) {
         const hit = this.cast(b.p, b.d, left, b)
         b.p.addScaledVector(b.d, hit.t)
         left -= hit.t
+        if (b.reach !== undefined) b.reach -= hit.t
         b.streak.head.copy(b.p)
         if (hit.target) {
           this.score(hit.target, hit.off < 0.38, b.d, b.color, b.shot)
@@ -857,7 +873,12 @@ export class RangeGame {
         if (--b.shot.left <= 0 && !b.shot.scored) s.streak = 0
         return false
       }
-      return true
+      if (b.reach === undefined || b.reach > 1e-6) return true
+      // Au bout de sa portée (arène) : elle s'éteint ; le plasma, lui, explose là.
+      if (b.blast) this.explode(b)
+      else this.burst(b.p, b.color, 0.16)
+      b.streak.flying = false
+      return false
     })
   }
 

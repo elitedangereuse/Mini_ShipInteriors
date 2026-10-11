@@ -188,6 +188,23 @@ export class IsoCamera {
     this.target.set(follow.x, follow.y + 0.4, follow.z)
   }
 
+  /**
+   * Ce que le cadre visé montre du sol autour de la cible (tuiles) : de chaque côté, vers le haut
+   * de l'écran, vers le bas (le cadre peut être décalé, cf. frameCenter).
+   */
+  get span(): { side: number; ahead: number; behind: number } {
+    const z = this.zoomGoal, sin = Math.sin(this.elevationGoal)
+    return { side: z * this.aspect, ahead: (z * (1 - this.shiftGoal.y)) / sin, behind: (z * (1 + this.shiftGoal.y)) / sin }
+  }
+
+  /** Sous un fondu au noir : la vue est tout de suite à son cap, son inclinaison, son zoom et son cadre visés. */
+  settle() {
+    this.azimuth = this.azimuthGoal
+    this.elevation = this.elevationGoal
+    this.zoom = this.zoomGoal
+    this.shift.copy(this.shiftGoal)
+  }
+
   get angle(): number {
     return this.azimuth
   }

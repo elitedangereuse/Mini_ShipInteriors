@@ -112,6 +112,7 @@ import { Vents } from './vents'
 import { BAR_DROP, VENT_DROP } from '../shared/vents.js'
 import { SalvageClient } from './salvage/client'
 import { ArenaClient } from './arena/client'
+import { STAGE_AZIMUTH, STAGE_ELEVATION } from './arena/podium'
 import { ARENA_LEVEL } from '../shared/arena.js'
 import { LOBBY_RETURN, ZONE_LEVEL } from '../shared/salvage.js'
 import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel, type ScreenBox } from './ui'
@@ -2047,13 +2048,24 @@ salvage = new SalvageClient({
   seated: () => seating.current !== null,
 })
 const zone = salvage
-/** Vue de dessus de l'arène : plus proche que celle du bord (cf. ZOOM_MAX), et c'est le plus loin qu'on y recule. */
+/**
+ * Vue de dessus de l'arène, façon Brawl Stars : plus proche que celle du bord (cf. ZOOM_MAX), et
+ * c'est le plus loin qu'on y recule ; de haut (la vue isométrique du bord est à 35°), tournée pour
+ * que le camp du joueur soit en bas de l'écran ; le joueur un peu sous le milieu, pour voir devant lui.
+ */
 const ARENA_ZOOM = 3.6
+const ARENA_ELEVATION = THREE.MathUtils.degToRad(52)
+const ARENA_DROP = 0.13
+/** La scène de fin : la caméra, face aux combattants alignés, les montre en pied (demi-hauteur du cadre, au plus près). */
+const STAGE_ZOOM = 1.05
+const STAGE_RISE = 0.05
+/** La vue d'avant la partie (cap, zoom, vue subjective ou par-dessus l'épaule) : on y revient à la sortie. */
+let arenaView: { heading: number; zoom: number; eyes: boolean; shoulder: boolean } | null = null
 arenaMode = new ArenaClient({
   scene, iso, player, sound, net, dialog, wallet, remotes,
   deck: () => deck,
   hold: deckById(-1),
-  moveTo: async (next, at) => {
+  moveTo: async (next, at, dark) => {
     await fadeScreen(true)
     stopWork()
     player.cancelPath()
@@ -2061,10 +2073,54 @@ arenaMode = new ArenaClient({
     marker.visible = false
     setDeck(next)
     player.position.set(at.x, next.y, at.z)
-    iso.snapTo(player.position)
+    dark?.()
+    iso.snapTo(arenaMode?.matchFocus(iso) ?? player.position)
     sendState(true)
     await fadeScreen(false)
   },
+  fade: fadeScreen,
+  view: (mode, options = {}) => {
+    if (!mode) {
+      if (!arenaView) return
+      const before = arenaView
+      arenaView = null
+      iso.zoomMin = 2.5
+      iso.zoomMax = ZOOM_MAX
+      iso.setRestElevation(null)
+      iso.turnTo(before.heading)
+      iso.zoomTo(before.zoom)
+      iso.settle()
+      // La vue du bord revient, sauf si l'on en a changé pendant la partie.
+      if (!fpsWanted && (before.eyes || before.shoulder)) setFps(before.eyes, before.shoulder)
+      return
+    }
+    if (!arenaView) {
+      arenaView = { heading: iso.heading, zoom: iso.zoomLevel, eyes: fpsWanted && !shoulderWanted, shoulder: shoulderWanted }
+      // On entre dans l'arène vu de dessus ; V et C y mènent toujours aux autres vues. Le choix du bord reste enregistré.
+      if (fpsWanted) setFps(false, false, false)
+    }
+    if (mode === 'match') {
+      iso.zoomMin = 2.5
+      iso.zoomMax = ARENA_ZOOM
+      iso.setRestElevation(ARENA_ELEVATION)
+      // Le haut de l'écran est du côté d'en face : la caméra est derrière sa propre base (à l'ouest pour l'équipe 0).
+      iso.turnTo(options.team ? Math.PI / 2 : -Math.PI / 2, false)
+      iso.zoomTo(ARENA_ZOOM)
+      iso.frameCenter(0, -innerHeight * ARENA_DROP, innerHeight)
+    } else {
+      // Assez large pour tous les combattants, jamais plus près que ce qu'il faut pour les voir en pied.
+      const zoom = Math.max(STAGE_ZOOM, (options.width ?? 4) / (2 * (innerWidth / innerHeight)))
+      iso.zoomMin = Math.min(iso.zoomMin, zoom)
+      iso.zoomMax = Math.max(ARENA_ZOOM, zoom)
+      iso.setRestElevation(STAGE_ELEVATION)
+      iso.turnTo(STAGE_AZIMUTH, false)
+      iso.zoomTo(zoom)
+      iso.frameCenter(0, innerHeight * STAGE_RISE, innerHeight)
+      iso.snapTo(arenaMode!.stageFocus ?? player.position)
+    }
+    iso.settle()
+  },
+  skin: () => profile.skin,
   fps: () => fpsShown,
   // Vue subjective : la caméra regarde à l'opposé de son cap (cf. l'aide de visée de la zone).
   face: (yaw) => {
@@ -2080,7 +2136,6 @@ arenaMode = new ArenaClient({
   },
   armed: (gun) => {
     let on = false
-    let zoom = iso.zoomLevel
     gun.onChange = (now) => {
       // Une arme lourde ralentit la marche ; elle se tient à deux mains, bras tendus.
       player.load = now ? weaponById(gun.weapon ?? undefined)?.weight ?? 1 : 1
@@ -2088,19 +2143,12 @@ arenaMode = new ArenaClient({
       hover.visible = false
       if (now === on) return
       on = now
+      // La vue de l'arène est cadrée à part (cf. `view`) : de près, on ne voit que ce qui est
+      // autour de soi, pas besoin de brouillard.
       if (on) {
-        // Vue de dessus : la caméra se rapproche, et ne recule pas plus loin. On ne voit que ce qui
-        // est autour de soi, comme les yeux au sol : pas besoin de brouillard. Le zoom d'avant revient à la sortie.
-        zoom = iso.zoomLevel
-        iso.zoomMax = ARENA_ZOOM
-        iso.zoomTo(ARENA_ZOOM)
         relock = fpsWanted
         if (mayRelock()) lockCursor()
-      } else {
-        iso.zoomMax = ZOOM_MAX
-        iso.zoomTo(zoom)
-        gun.restore(fps.camera)
-      }
+      } else gun.restore(fps.camera)
     }
   },
 })
@@ -4001,8 +4049,9 @@ function updateGamepad(dt: number): GamepadInput {
     // et on le lâche pour tirer (une arme automatique tire tant qu'il est poussé), on le ramène au
     // centre pour renoncer ; un simple toucher vise tout seul la cible la plus proche et tire. Le
     // chargeur vide se change sans qu'on le demande.
+    // Dans l'arène, une arme automatique attend aussi qu'on lâche le stick : sa rafale part alors.
     const mount = nearestInteractable()
-    const auto = !!weaponById(range.weapon ?? undefined)?.auto
+    const auto = range.sprays
     const fire = gamepad.held.has('7') || (!mount && gamepad.held.has('0')) || (auto && touchAiming)
     if (pad.interact && mount) interactWith(mount)
     else if (fire !== rangePadFire) range.trigger((rangePadFire = fire))
@@ -4016,10 +4065,11 @@ function updateGamepad(dt: number): GamepadInput {
           fps.pitch = Math.asin(THREE.MathUtils.clamp(to.y, -1, 1))
         }
       }
-      range.tap()
-    } else if (touchShot === 'aimed' && !auto) range.tap()
+      range.loose(true)
+    } else if (touchShot === 'aimed') range.loose()
     if (coarsePointer && range.empty) range.reload()
-    range.sight(touchAiming)
+    // Dans l'arène, le cône de visée paraît aussi au stick droit d'une vraie manette, sur un écran tactile.
+    range.sight(touchAiming || (range !== stand && Math.hypot(pad.lookX, pad.lookY) > 0.3))
     if (pad.action) range.reload()
     if (fpsShown) fps.look(-pad.lookX * dt * 2.4, -pad.lookY * dt * 1.8)
     else if (pad.lookX || pad.lookY) {
@@ -4125,8 +4175,9 @@ function movementDirection(pad: GamepadInput): THREE.Vector3 {
 addEventListener('wheel', (e) => {
   if (!barPanel.isOpen && !cinemaRoom.isOpen && !fpsShown) iso.zoomBy(Math.exp(e.deltaY * 0.001))
 }, { passive: true })
-$('rot-left').onclick = () => iso.rotate(-1)
-$('rot-right').onclick = () => iso.rotate(1)
+// Dans l'arène, la vue garde son cap : son camp en bas de l'écran.
+$('rot-left').onclick = () => { if (!arenaMode?.inArena) iso.rotate(-1) }
+$('rot-right').onclick = () => { if (!arenaMode?.inArena) iso.rotate(1) }
 $('zoom-in').onclick = () => iso.zoomBy(0.8)
 $('zoom-out').onclick = () => iso.zoomBy(1.25)
 $('mute').onclick = () => {
@@ -4166,11 +4217,14 @@ function updateFpsButton() {
   // Le côté de la caméra ne se choisit que par-dessus l'épaule.
   $('shoulder-side').hidden = !shoulderWanted
 }
-/** Choisit la vue : isométrique, dans les yeux (`eyes`) ou par-dessus l'épaule (`shoulder`). */
-function setFps(eyes: boolean, shoulder: boolean) {
+/**
+ * Choisit la vue : isométrique, dans les yeux (`eyes`) ou par-dessus l'épaule (`shoulder`).
+ * @param keep le choix est retenu d'une visite à l'autre (non : le temps d'une partie dans l'arène)
+ */
+function setFps(eyes: boolean, shoulder: boolean, keep = true) {
   shoulderWanted = shoulder
   fpsWanted = eyes || shoulder
-  store.set('mini-shipinteriors-fps', shoulderWanted ? 'shoulder' : String(fpsWanted))
+  if (keep) store.set('mini-shipinteriors-fps', shoulderWanted ? 'shoulder' : String(fpsWanted))
   updateFpsButton()
   // Le clic ou la touche qui active la vue suffit à capturer le curseur (sinon, au premier pas).
   relock = fpsWanted
@@ -4197,7 +4251,8 @@ function isoOnly(): boolean {
   // Les caméras alliées de la zone thargoïde suivent un coéquipier, de haut.
   // Caché dans un casier aussi : en vue subjective, on ne verrait que l'intérieur de la porte.
   // Une scène de quête se regarde de haut, les deux interlocuteurs dans le cadre.
-  return editing() || photo.active || !!claw || barPanel.isOpen || cinemaRoom.isOpen || mediaRoom.isOpen || planetarium.active || !!zone.watchTarget || zone.hiding || cinematic.active || !!cctv?.active
+  // La scène de fin de l'arène se regarde de face, tous les combattants dans le cadre.
+  return editing() || photo.active || !!claw || barPanel.isOpen || cinemaRoom.isOpen || mediaRoom.isOpen || planetarium.active || !!zone.watchTarget || zone.hiding || cinematic.active || !!cctv?.active || !!arenaMode?.staging
 }
 /** Occupé (installé, en emote, au travail…) : en vue subjective, la caméra passe derrière le personnage. */
 function busyBody(): boolean {
@@ -4470,8 +4525,8 @@ canvas.addEventListener('pointermove', (e) => {
   if (court.active) court.aimAt(activeCamera(), e.clientX, e.clientY)
   // À l'étang, le pointeur choisit où lancer.
   else if (fishing.active) fishing.aimAt(activeCamera(), e.clientX, e.clientY)
-  // Au stand de tir, vu de dessus, il donne le point visé.
-  else if (range.active) range.aimAt(e.clientX, e.clientY)
+  // Au stand de tir, vu de dessus, il donne le point visé. Dans l'arène, au doigt, c'est le stick qui vise.
+  else if (range.active && (range === stand || e.pointerType === 'mouse')) range.aimAt(e.clientX, e.clientY)
 })
 for (const type of ['pointerup', 'pointercancel'] as const) addEventListener(type, () => { court.release(); range.trigger(false) })
 canvas.addEventListener('pointerdown', (e) => {
@@ -4491,6 +4546,8 @@ canvas.addEventListener('pointerdown', (e) => {
     if (fpsShown && e.pointerType === 'mouse' && !cursorLocked() && !lockUnavailable()) return lockCursor()
     // Au doigt, en vue subjective, la scène tourne le regard : c'est le bouton d'action qui tire.
     if (fpsShown && e.pointerType !== 'mouse') return
+    // Dans l'arène, au doigt, on ne tire qu'au stick : un pouce égaré sur le décor ne lâche pas un coup.
+    if (range !== stand && e.pointerType !== 'mouse') return
     range.aimAt(e.clientX, e.clientY)
     return range.trigger(true)
   }
@@ -5858,10 +5915,13 @@ function frame() {
   else if (coarsePointer && wardrobe.isOpen) iso.frameCenter((innerWidth - $('wardrobe').getBoundingClientRect().left) / 2, 0, innerHeight)
   // Au stand de tir, le personnage en bas de l'écran : les cibles sont devant lui.
   else if (stand.active) iso.frameCenter(0, -innerHeight * 0.1, innerHeight)
+  // Dans l'arène aussi : on voit plus loin devant soi que derrière. Sur la scène de fin, les combattants au-dessus de leurs fiches.
+  else if (arena.staging) iso.frameCenter(0, innerHeight * STAGE_RISE, innerHeight)
+  else if (arena.inArena) iso.frameCenter(0, -innerHeight * ARENA_DROP, innerHeight)
   else iso.frameCenter(0, 0, innerHeight)
   const cinemaSeat = deck.def.id === 1 && ['cinema-row', 'projection-chair'].includes(seating.current?.item.furniture?.model ?? '')
   if (cinemaSeat) cinemaFocus.set(cinemaScreenProp.x, deck.y, (player.position.z + cinemaScreenProp.z) / 2)
-  iso.update(dt, zone.watchTarget ?? cctv?.target3 ?? (cinematic.active ? cinematic.focus : roomReveal ? roomReveal.focus : claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : cinemaSeat ? cinemaFocus : planetarium.active ? planetariumFocus : builder?.active ? builder.focus : player.position))
+  iso.update(dt, arena.stageFocus ?? arena.matchFocus(iso) ?? zone.watchTarget ?? cctv?.target3 ?? (cinematic.active ? cinematic.focus : roomReveal ? roomReveal.focus : claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : cinemaSeat ? cinemaFocus : planetarium.active ? planetariumFocus : builder?.active ? builder.focus : player.position))
   if (barPanel.isOpen) {
     iso.camera.updateMatrixWorld()
     barPanel.place(iso.camera, player.position, jacquesAt)
@@ -5899,7 +5959,8 @@ function frame() {
     fps.update(dt, player.avatar.head(fpsHead), deck.y + deck.ceilingY, deck.map)
     fps.toCamera(toCam)
   } else iso.toCamera(toCam)
-  player.avatar.root.visible = !fpsShown || fps.showsBody
+  // Sur la scène de fin de l'arène, c'est sa doublure qu'on voit (cf. src/arena/podium.ts).
+  player.avatar.root.visible = (!fpsShown || fps.showsBody) && !arena.staging
   if (range.active) {
     range.update(dt, {
       fps: fpsShown, body: !fpsShown || fps.showsBody, camera: activeCamera(), player: player.position, hands: player.avatar.hands(rangeHands),
@@ -6073,7 +6134,8 @@ function frame() {
     ready: !!label || panelOpen || planetarium.talking || zone.frozen || arena.frozen || range.active,
     action: !!sit?.space || range.active,
     reload: range.active,
-    cancel: panelOpen || range.active || gym.active || court.active || fishing.active || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || phone.isOpen || questJournal.isOpen || !!cctv?.active || !!working || !!claw || !$('about').hidden,
+    // Dans l'arène, on quitte la partie par son bouton du haut de l'écran : pas de croix sous le pouce.
+    cancel: panelOpen || stand.active || gym.active || court.active || fishing.active || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || phone.isOpen || questJournal.isOpen || !!cctv?.active || !!working || !!claw || !$('about').hidden,
   })
   // On s'éloigne de l'ascenseur ou du jukebox : le panneau se ferme.
   if (lift.isOpen && Math.hypot(player.position.x - liftTile.x, player.position.z - liftTile.z) > 1.6) lift.close()

@@ -9,11 +9,12 @@
 // lobby ; un lobby vidé retrouve ses réglages de départ.
 //
 // Partie : une instance par salon. Les clients n'envoient que leur position (l'événement « state »
-// du relais) et leurs tirs (d'où part la balle, vers où) ; le relais fait voler les balles, compte
+// du relais) et leurs tirs (d'où part la balle, vers où) ; le relais fait voler les balles (jusqu'au
+// bout de la portée de l'arme, pas plus loin : `range` dans shared/weapons.js), compte
 // les points de vie, les éliminations et le score, fait revenir chacun à sa base (éliminé, on y
 // attend en fantôme quelques secondes, hors d'atteinte), et fait jouer
 // les bots dix fois par seconde et plus : ils cherchent l'adversaire, s'en approchent à la portée
-// de leur arme, tournent autour, tirent avec un temps de réaction et un écart de visée qui
+// de leur arme, tournent autour, tirent dès qu'il est à portée, avec un temps de réaction et un écart de visée qui
 // dépendent de leur niveau. Une manche se gagne à la limite de points, ou au bout du temps (l'équipe
 // en tête) ; la partie, en deux manches gagnantes (ARENA_RULES.wins), trois au plus.
 //
@@ -52,7 +53,7 @@ export function inLobby(p) {
 const SLACK = 0.9
 /** Délai pour entrer dans l'arène après le départ : au-delà, c'est un abandon (ms). */
 const ARRIVAL = 20000
-/** Une balle qui n'a rien touché s'éteint (s). */
+/** Garde-fou : une balle encore en vol après ce délai s'éteint (s). C'est sa portée qui l'arrête, bien avant. */
 const BULLET_LIFE = 3
 /** Un bot ne voit pas plus loin (tuiles). */
 const BOT_SIGHT = 16
@@ -301,7 +302,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     // Tirer fait tomber la protection du retour à la base, et trahit qui se cachait dans un buisson.
     f.shieldUntil = 0
     f.revealUntil = now() + R.bush.reveal * 1000
-    for (const d of dirs) game.bullets.push({ by: f.id, team: f.team, weapon: f.weapon, p: { ...origin }, d, speed: w.speed, age: 0, hit: new Set() })
+    for (const d of dirs) game.bullets.push({ by: f.id, team: f.team, weapon: f.weapon, p: { ...origin }, d, speed: w.speed, left: w.range, age: 0, hit: new Set() })
     tell(game, { kind: 'shot', id: f.id, weapon: f.weapon, o: [round2(origin.x), round2(origin.y), round2(origin.z)], d: dirs.map((d) => [d.x, d.y, d.z].map((v) => Math.round(v * 1000) / 1000)) }, f.id)
   }
 
@@ -352,7 +353,8 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     const keep = []
     for (const b of game.bullets) {
       const w = WEAPON_STATS[b.weapon]
-      let left = b.speed * dt
+      // Pas plus loin que la portée de l'arme.
+      let left = Math.min(b.speed * dt, b.left)
       let flying = (b.age += dt) < BULLET_LIFE
       for (let i = 0; i < 4 && left > 0 && flying; i++) {
         // Ni le tireur, ni son équipe, ni celui qu'elle a déjà traversé.
@@ -361,6 +363,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
         b.p.y += b.d.y * hit.t
         b.p.z += b.d.z * hit.t
         left -= hit.t
+        b.left -= hit.t
         if (hit.body === null && !hit.normal) break
         if (hit.body !== null) {
           if (w.blast) explode(game, b, b.p)
@@ -375,6 +378,14 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
           if (over(game)) return
         }
         flying = false
+      }
+      // Au bout de sa portée, elle s'éteint ; le plasma, lui, explose là.
+      if (flying && b.left <= 1e-6) {
+        flying = false
+        if (w.blast) {
+          explode(game, b, b.p)
+          if (over(game)) return
+        }
       }
       if (flying) keep.push(b)
     }
@@ -466,8 +477,8 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       b.seen += dt
       b.calm = 0
       b.lastSeen = { x: target.x, z: target.z }
-      if (near > w.reach + 1.5) {
-        // Trop loin pour son arme : il s'approche.
+      if (near > w.reach) {
+        // Plus loin qu'il n'aime pour son arme : il s'approche (à portée, il tire déjà en marchant).
         if (b.repath <= 0 || !b.path.length) {
           b.repath = 0.4
           routeTo(game, b, target)
@@ -499,8 +510,8 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       b.reloadUntil = t + w.reload * 1000
       return
     }
-    // Le lance-plasma, pas à bout portant : il se blesserait.
-    if (w.blast && near < w.blast + 1) return
+    // Hors de portée, la balle s'éteindrait avant lui. Le lance-plasma, pas à bout portant : il se blesserait.
+    if (near > w.range + R.body.r || (w.blast && near < w.blast + 1)) return
     // Écart de visée : au hasard autour de la cible, plus large sur une cible qui court.
     const aim = yaw + (random() + random() - 1) * skill.error * (target.anim === 'sprint' ? 1.5 : 1) * RAD
     const dirs = []

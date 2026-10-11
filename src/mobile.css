@@ -1,5 +1,5 @@
 /* Loaded after all desktop styles. Safe areas apply to controls as well as interaction panels. */
-.mobile-status-toggle, #mobile-menu-toggle, #prompt > .icon, .help-touch, #touch-aim { display: none; }
+.mobile-status-toggle, #mobile-menu-toggle, #prompt > .icon, .help-touch, #touch-aim, #touch-float { display: none; }
 @media (pointer: coarse) {
   :root {
     --mobile-top: max(8px, env(safe-area-inset-top));
@@ -217,6 +217,65 @@
   .jb-section-title { margin-bottom: 4px; }
   .jukebox .jb-list button.jb-card { min-height: 64px; gap: 8px; padding: 6px; }
   .jb-cover { width: 48px; height: 48px; }
+  /* Arena terminal on a short screen: the title goes, the lobbies become a slim rail, the two
+     sides and the weapons keep the height. */
+  .salvage-panel.arena-panel { padding: 10px 12px 12px; }
+  .arena-panel:not(.arena-ranks) .salvage-head { margin-bottom: 6px; }
+  .arena-panel:not(.arena-ranks) .salvage-head h2 { display: none; }
+  .arena-layout { grid-template-columns: 138px minmax(0, 1fr); gap: 10px; }
+  .arena-rail { gap: 5px; }
+  .arena-panel .arena-tile { gap: 3px; padding: 6px 8px; }
+  .arena-tile-detail, .arena-tile-own { display: none; }
+  .arena-stage { gap: 8px; }
+  .arena-hero { padding: 10px 12px; }
+  .arena-hero p { font-size: 12px; line-height: 1.4; }
+  .arena-title strong { font-size: 16px; }
+  .arena-title span { font-size: 12px; }
+  .arena-team { gap: 5px; padding: 8px; }
+  .arena-slot { min-height: 34px; padding: 4px 8px; }
+  .arena-panel .arena-gun { padding: 6px; }
+  .arena-footer { bottom: -12px; margin: 0 -12px -12px; padding: 8px 12px 10px; }
+  .arena-panel .arena-ready { min-width: 180px; min-height: 44px; padding: 8px 16px; font-size: 14px; }
+  /* Arena: a clean screen, like Brawl Stars. The ship's panels, the phone tabs and the emotes go;
+     the score sits at the top edge, leaving on its left, the kill feed under the menu. */
+  body.arena-on :is(.top-left, #phone, .emotes, .about-toggle) { display: none; }
+  .arena-board { top: var(--mobile-top); transform: translateX(-50%) scale(.82); transform-origin: 50% 0; }
+  .arena-quit { top: var(--mobile-top); left: var(--mobile-left); min-height: 44px; padding: 0 12px; border-radius: 10px; font-size: 13px; }
+  .arena-feed { top: calc(var(--mobile-top) + 52px); right: var(--mobile-right); }
+  .arena-feed li { padding: 3px 7px; font-size: 11px; }
+  .arena-feed li em { display: none; }
+  .arena-count { top: 44%; font-size: 76px; -webkit-text-stroke-width: 8px; }
+  .range-hud.arena .range-hint { top: calc(var(--mobile-top) + 66px); max-width: calc(100vw - 2 * (var(--aim-size) + 40px)); white-space: normal; text-align: center; border-radius: 12px; }
+  .range-hud.arena .range-banner { top: calc(var(--mobile-top) + 66px); font-size: 14px; }
+  /* Seen from above, the cone on the floor shows the aim and the plate under the name shows the
+     magazine: no crosshair, no hologram beside the fighter. */
+  body.range-top .range-hud.arena :is(.range-holo, .range-dot) { display: none; }
+  /* Both sticks the same size, the red one fires; reloading early sits against it. */
+  body.arena-on { --aim-size: clamp(118px, 35dvh, 150px); }
+  body.arena-on #touch-stick { width: var(--aim-size); height: var(--aim-size); }
+  /* The walking stick floats: a thumb anywhere on the left of the screen brings it there. */
+  body.arena-on:not(.arena-end-on) #touch-float { display: block; position: absolute; left: 0; top: 0; bottom: 0; width: 44vw; z-index: 5; pointer-events: auto; touch-action: none; -webkit-tap-highlight-color: transparent; }
+  body.arena-on .range-holo.left { translate: 160px -84px; }
+  body.arena-on .chat { left: calc(var(--mobile-left) + var(--aim-size) + 10px); width: min(220px, calc(100vw - 2 * (var(--aim-size) + 80px))); }
+  body.arena-on #chat-log { display: none; }
+  body.arena-on #dialog { bottom: calc(var(--mobile-bottom) + 50px); width: min(380px, calc(100vw - 2 * (var(--aim-size) + 30px))); }
+  /* Taken out: the weapon for the comeback, between the thumbs. */
+  .arena-wait { bottom: var(--mobile-bottom); width: min(440px, calc(100vw - 2 * (var(--aim-size) + 26px))); gap: 4px; padding: 8px 10px 10px; }
+  .arena-wait > strong { font-size: 16px; }
+  .arena-wait-label { margin-top: 0; }
+  .arena-weapons { gap: 4px; }
+  .arena-weapons button { min-height: 48px; padding: 4px 2px; }
+  .arena-weapons button strong { font-size: 11px; }
+  .arena-weapons button span { display: none; }
+  /* Match over: the line-up fills the screen, nothing under the thumbs. */
+  body.arena-end-on :is(.chat, #dialog) { display: none; }
+  .arena-end-note { font-size: 11px; }
+  .arena-card { margin-top: 5px; padding: 4px 4px 5px; border-radius: 8px; }
+  .arena-card-name { font-size: 11px; }
+  .arena-card-stats { gap: 4px; margin-top: 3px; }
+  .arena-card-stats dd { font-size: 13px; }
+  .arena-card-stats dt { font-size: 7px; letter-spacing: 0; }
+  .arena-back { bottom: var(--mobile-bottom); min-height: 44px; font-size: 14px; }
   .salvage-hud { top: calc(var(--mobile-top) + 52px); left: 50%; right: auto; transform: translateX(-50%); max-width: calc(100vw - 360px); padding: 5px 8px; gap: 4px 8px; font-size: 12px; }
   .court-top { top: calc(var(--mobile-top) + 52px); right: calc(var(--mobile-right) + 50px); width: 144px; transform: none; flex-direction: column; }
   .court-power { bottom: calc(var(--mobile-bottom) + 52px); width: min(360px, calc(100vw - 270px)); }

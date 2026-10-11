@@ -18,6 +18,11 @@ const TAP_TIME = 350
 class TouchStick {
   x = 0
   y = 0
+  /**
+   * Stick flottant (l'arène, cf. `float`) : posé sous le doigt le temps du geste, il revient à sa
+   * place quand on le lâche.
+   */
+  private floating = false
   /** Course du bouton depuis la dernière lecture (même unité que x et y). */
   movedX = 0
   movedY = 0
@@ -50,15 +55,18 @@ class TouchStick {
       el.classList.toggle('aiming', this.reach >= AIM_SLACK)
       e.preventDefault()
     }
-    el.addEventListener('pointerdown', (e) => {
-      // Un doigt dont on n'aurait jamais vu la fin ne bloque pas le stick : le nouveau le reprend.
-      this.reset()
+    this.grab = (e) => {
       this.pointer = e.pointerId
       // L'heure du toucher lui-même : celle du traitement arrive en retard sur un appareil lent.
       this.since = e.timeStamp
       this.farthest = 0
       move(e)
       this.movedX = this.movedY = 0
+    }
+    el.addEventListener('pointerdown', (e) => {
+      // Un doigt dont on n'aurait jamais vu la fin ne bloque pas le stick : le nouveau le reprend.
+      this.reset()
+      this.grab(e)
     })
     addEventListener('pointermove', move, { capture: true, passive: false })
     const release = (e: PointerEvent) => {
@@ -71,6 +79,23 @@ class TouchStick {
     }
     addEventListener('pointerup', release, { capture: true })
     addEventListener('pointercancel', release, { capture: true })
+  }
+
+  /** Le doigt se pose sur le stick : le geste commence, au repos. */
+  private readonly grab: (e: PointerEvent) => void
+
+  /**
+   * Le doigt se pose à côté, dans la zone du stick flottant : le stick vient se centrer sous lui
+   * (sans sortir de l'écran), et le geste part de là, au repos.
+   */
+  float(e: PointerEvent) {
+    this.reset()
+    const rect = this.el.getBoundingClientRect()
+    const half = rect.width / 2
+    const x = Math.min(innerWidth - half, Math.max(half, e.clientX)), y = Math.min(innerHeight - half, Math.max(half, e.clientY))
+    this.el.style.translate = `${x - (rect.left + half)}px ${y - (rect.top + half)}px`
+    this.floating = true
+    this.grab(e)
   }
 
   get held(): boolean {
@@ -87,13 +112,19 @@ class TouchStick {
     this.x = this.y = 0
     this.knob.style.transform = ''
     this.el.classList.remove('aiming')
+    if (this.floating) {
+      this.floating = false
+      this.el.style.translate = ''
+    }
   }
 }
 
 /**
  * Manette tactile du mode paysage : stick de marche, boutons indépendants des pointeurs du décor,
  * et, au stand de tir, un second stick qui vise et tire (on glisse pour viser, on lâche pour tirer ;
- * un simple toucher tire au plus près).
+ * un simple toucher tire au plus près). Dans l'arène, comme dans Brawl Stars, le stick de marche
+ * est flottant : poser le pouce n'importe où sur la gauche de l'écran l'y amène (cf. #touch-float,
+ * que mobile.css n'étend que pendant la partie).
  */
 export class TouchGamepad {
   private stick = new TouchStick(document.getElementById('touch-stick')!)
@@ -132,6 +163,14 @@ export class TouchGamepad {
       button.addEventListener('pointercancel', up)
       button.addEventListener('lostpointercapture', up)
     }
+    const float = document.createElement('div')
+    float.id = 'touch-float'
+    float.setAttribute('aria-hidden', 'true')
+    float.addEventListener('pointerdown', (e) => {
+      e.preventDefault()
+      this.stick.float(e)
+    })
+    document.getElementById('touch-pad')!.prepend(float)
     addEventListener('blur', () => this.reset())
     addEventListener('resize', () => this.reset())
     addEventListener('orientationchange', () => this.reset())

@@ -1,6 +1,6 @@
 import { tr } from '../i18n'
 import { icon } from '../icons'
-import type { ArenaEnd, ArenaLobby, ArenaRoom, ArenaStats } from '../net'
+import type { ArenaEnd, ArenaLobby, ArenaRoom } from '../net'
 import { WEAPONS, weaponById, type WeaponId } from '../range-weapons'
 import { button, el, Modal } from '../salvage/ui'
 import { ARENA_RULES, ARENA_TEAMS } from '../../shared/arena.js'
@@ -8,8 +8,8 @@ import { ARENA_RULES, ARENA_TEAMS } from '../../shared/arena.js'
 /*
  * Interface de l'arène : le terminal (à gauche, les quatre lobbys où l'on se place ; à droite, les
  * deux camps face à face, l'arme et ses jauges, les réglages, « prêt »), puis en partie le score des deux équipes et le chrono, les points de vie, le fil des
- * éliminations, l'écran d'attente de celui qui vient d'être éliminé (il y change d'arme), et le
- * tableau de fin.
+ * éliminations, l'écran d'attente de celui qui vient d'être éliminé (il y change d'arme), et
+ * l'écran de fin, posé sur la scène où les combattants s'alignent (cf. podium.ts).
  */
 
 export const TEAM_NAMES = [tr('Orange', 'Orange'), tr('Bleue', 'Blue')]
@@ -48,7 +48,7 @@ function gauges(w: (typeof WEAPONS)[number]): [string, number][] {
   return [
     [tr('Force', 'Power'), Math.min(1, (w.damage * w.pellets) / ARENA_RULES.hp)],
     [tr('Cadence', 'Rate'), Math.min(1, Math.sqrt(0.08 / w.interval))],
-    [tr('Portée', 'Range'), Math.min(1, w.reach / 10)],
+    [tr('Portée', 'Range'), Math.min(1, w.range / 7.5)],
   ]
 }
 
@@ -376,7 +376,7 @@ export interface PlateInfo { name: string; hp: number; rel: Relation; shield: bo
  * En partie, à la façon de Brawl Stars : le score des deux camps (le sien en bleu, à gauche, celui
  * d'en face en rouge) et le chrono, une plaque au-dessus de chaque combattant (son nom, sa barre de
  * vie ; sous la sienne, son chargeur), le fil des éliminations, l'attente de celui qui vient de
- * tomber, et le tableau de fin.
+ * tomber, et l'écran de fin : le verdict, une fiche sous chaque combattant de la scène, le retour.
  */
 export class ArenaHud {
   private readonly root = el('div', 'arena-hud')
@@ -394,7 +394,11 @@ export class ArenaHud {
   private readonly waitPick = el('div')
   private readonly count = el('div', 'arena-count')
   private readonly vignette = el('div', 'arena-vignette')
-  private readonly end = el('section', 'salvage-panel salvage-end arena-end')
+  private readonly end = el('section', 'arena-end')
+  /** Les fiches de l'écran de fin, par combattant, et le bouton du retour (son compte à rebours). */
+  private readonly cards = new Map<number, HTMLElement>()
+  private back: HTMLButtonElement | null = null
+  private backIn = ''
   private readonly quit: HTMLButtonElement
   private shownCount = ''
   private picked: string | null = null
@@ -421,11 +425,27 @@ export class ArenaHud {
     this.end.hidden = true
     this.end.setAttribute('role', 'dialog')
     this.end.setAttribute('aria-modal', 'true')
+    this.end.setAttribute('aria-label', tr('Fin de la partie', 'Match over'))
     document.body.append(this.root, this.vignette, this.end)
   }
 
   get endOpen() {
     return !this.end.hidden
+  }
+
+  /** L'écran de fin contient-il cet élément ? (un clic dessus n'est pas un clic « à côté ») */
+  contains(target: EventTarget | null): boolean {
+    return target instanceof Node && this.end.contains(target)
+  }
+
+  /** Un mot en grand, au milieu de l'écran, un instant (le verdict, avant la scène de fin). */
+  shout(text: string, warn = false) {
+    this.shownCount = ''
+    this.count.textContent = text
+    this.count.classList.toggle('warn', warn)
+    this.count.classList.remove('pop')
+    void this.count.offsetWidth
+    this.count.classList.add('pop')
   }
 
   show(on: boolean) {
@@ -549,54 +569,85 @@ export class ArenaHud {
     this.waitClock.textContent = tr(`De retour en jeu dans ${Math.max(1, Math.ceil(seconds))} s`, `Back in play in ${Math.max(1, Math.ceil(seconds))} s`)
   }
 
-  /** Le tableau de fin : qui gagne, le score, le joueur star, et les chiffres de chacun, camp par camp. */
-  showEnd(r: ArenaEnd, team: number, self: number, onBack: () => void) {
+  /**
+   * L'écran de fin, par-dessus la scène où les combattants sont alignés : en haut, qui gagne et le
+   * score ; sous chaque combattant, sa fiche (éliminations, chutes, dégâts ; le joueur star) ; en
+   * bas, le retour au lobby.
+   * @param order les combattants, de gauche à droite de la scène
+   */
+  showEnd(r: ArenaEnd, team: number, self: number, order: number[], onBack: () => void) {
     this.end.replaceChildren()
+    this.cards.clear()
     this.quit.hidden = true
+    this.count.textContent = this.shownCount = ''
     const won = r.winner === team
-    const head = el('header', 'salvage-head')
-    head.append(
-      el('span', 'salvage-kicker', tr('FIN DE LA PARTIE', 'MATCH OVER')),
-      el('h2', r.winner < 0 ? 'draw' : won ? 'won' : 'lost', r.winner < 0 ? tr('Égalité', 'Draw') : won ? tr('Victoire !', 'Victory!') : tr('Défaite', 'Defeat')),
-    )
-    const body = el('div', 'salvage-body')
+    const verdict = r.winner < 0 ? 'draw' : won ? 'won' : 'lost'
+    const head = el('header', `arena-end-head ${verdict}`)
     // Le score de la partie : les manches ; dessous, les points de la dernière.
     const score = el('p', 'arena-end-score')
-    score.append(el('strong', 'ally', String(r.rounds[team])), ' – ', el('strong', 'enemy', String(r.rounds[1 - team])))
-    body.append(score)
+    score.append(el('strong', 'ally', String(r.rounds[team])), el('i', '', '–'), el('strong', 'enemy', String(r.rounds[1 - team])))
     const last = `${r.score[team]} – ${r.score[1 - team]}`
-    body.append(el('p', 'salvage-intro', r.reason === 'forfeit'
-      ? tr('L\'équipe d\'en face a quitté l\'arène.', 'The other team left the arena.')
-      : tr(`Manches gagnées. Dernière manche : ${last}${r.reason === 'time' ? ', au temps' : ''}.`, `Rounds won. Last round: ${last}${r.reason === 'time' ? ', on time' : ''}.`)))
-    const table = el('table', 'salvage-table arena-table')
-    const header = el('tr')
-    for (const label of [tr('Combattant', 'Fighter'), tr('Élim.', 'Kills'), tr('Morts', 'Deaths'), tr('Dégâts', 'Damage')]) header.append(el('th', '', label))
-    table.append(header)
-    // Les siens d'abord ; le joueur star : celui qui a le plus éliminé (à égalité, le plus blessé).
-    const order = (a: ArenaStats, b: ArenaStats) => Number(a.team !== team) - Number(b.team !== team) || b.kills - a.kills || b.damage - a.damage
+    head.append(
+      el('h2', '', r.winner < 0 ? tr('Égalité', 'Draw') : won ? tr('Victoire !', 'Victory!') : tr('Défaite', 'Defeat')),
+      score,
+      el('p', 'arena-end-note', r.reason === 'forfeit'
+        ? tr('L\'équipe d\'en face a quitté l\'arène.', 'The other team left the arena.')
+        : tr(`Dernière manche : ${last}${r.reason === 'time' ? ', au temps' : ''}`, `Last round: ${last}${r.reason === 'time' ? ', on time' : ''}`)),
+    )
+    // Le joueur star : celui qui a le plus éliminé (à égalité, le plus blessé).
     const star = [...r.stats].sort((a, b) => b.kills - a.kills || b.damage - a.damage)[0]
-    for (const s of [...r.stats].sort(order)) {
-      const row = el('tr', `${s.team === team ? 'ally' : 'enemy'}${s.id === self ? ' self' : ''}`)
-      const name = el('td')
+    const cards = el('div', 'arena-cards')
+    for (const id of order) {
+      const s = r.stats.find((x) => x.id === id)
+      if (!s) continue
+      const starred = s === star && star.kills > 0
+      const card = el('article', `arena-card ${s.id === self ? 'self' : s.team === team ? 'ally' : 'enemy'}${starred ? ' star' : ''}`)
+      if (starred) card.append(el('span', 'arena-star', tr('★ Joueur star', '★ Star player')))
+      const name = el('strong', 'arena-card-name')
       if (s.bot) name.append(icon('robot'))
       name.append(s.name)
-      if (s === star && star.kills > 0) name.append(el('span', 'arena-star', tr('★ Joueur star', '★ Star player')))
-      row.append(name, el('td', '', String(s.kills)), el('td', '', String(s.deaths)), el('td', '', String(s.damage)))
-      table.append(row)
+      const stats = el('dl', 'arena-card-stats')
+      for (const [value, label] of [[s.kills, tr('Élim.', 'Kills')], [s.deaths, tr('Chutes', 'Deaths')], [s.damage, tr('Dégâts', 'Damage')]] as const) {
+        const cell = el('div')
+        cell.append(el('dd', '', String(value)), el('dt', '', label))
+        stats.append(cell)
+      }
+      card.append(name, stats)
+      card.hidden = true
+      cards.append(card)
+      this.cards.set(id, card)
     }
-    body.append(table)
     const back = button(tr('Retour au lobby', 'Back to the lobby'), () => {
-      this.end.hidden = true
+      this.closeEnd()
       onBack()
-    }, 'salvage-primary', 'door-open')
-    body.append(back)
-    this.end.append(head, body)
+    }, 'arena-back', 'door-open')
+    this.back = back
+    this.backIn = ''
+    this.end.append(head, cards, back)
+    this.end.className = `arena-end ${verdict}`
     this.end.hidden = false
-    this.end.classList.toggle('won', won)
+    document.body.classList.add('arena-end-on')
     back.focus()
+  }
+
+  /** Pose la fiche d'un combattant sous ses pieds (`at`, en pixels ; null : hors du cadre). */
+  card(id: number, at: { x: number; y: number } | null) {
+    const card = this.cards.get(id)
+    if (!card) return
+    card.hidden = !at
+    if (at) card.style.transform = `translate(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px) translateX(-50%)`
+  }
+
+  /** Secondes avant le retour de soi-même au lobby : le bouton les compte. */
+  endClock(seconds: number) {
+    const left = seconds > 0 ? String(Math.ceil(seconds)) : ''
+    if (!this.back || left === this.backIn) return
+    this.backIn = left
+    this.back.dataset.left = left
   }
 
   closeEnd() {
     this.end.hidden = true
+    document.body.classList.remove('arena-end-on')
   }
 }

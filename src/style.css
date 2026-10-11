@@ -5396,17 +5396,45 @@ body.arena-on .anchor .tag { display: none; }
   from { opacity: 1; }
   to { opacity: 0; }
 }
-.arena-end { width: min(520px, calc(100vw - 28px)); }
-.arena-end-score { margin: 0; font: 900 44px/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.arena-count.warn { color: #ff6a5c; }
+/*
+ * L'écran de fin, posé sur la scène où les combattants s'alignent (cf. src/arena/podium.ts) : le
+ * verdict en haut, une fiche sous les pieds de chacun (posée par le jeu, cf. ArenaHud.card), le
+ * retour en bas. Le reste de l'interface de la partie s'efface.
+ */
+body.arena-end-on .arena-hud > :not(.arena-count), body.arena-end-on :is(.top-left, .top-right, .emotes, #phone, .about-toggle, #touch-pad, #prompt) { display: none; }
+.arena-end { position: fixed; inset: 0; z-index: 33; pointer-events: none; color: #fff; font: 13px/1.25 system-ui, sans-serif; }
+.arena-end[hidden] { display: none; }
+.arena-end-head { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 50%; display: grid; justify-items: center; gap: 4px; text-align: center; white-space: nowrap; transform: translateX(-50%); animation: arena-verdict .55s cubic-bezier(.2, 1.5, .4, 1) both; }
+.arena-end-head h2 { margin: 0; color: #e8eaee; font: 900 clamp(34px, 10vh, 78px)/1 system-ui, sans-serif; letter-spacing: .02em; text-transform: uppercase; -webkit-text-stroke: 8px #0b0d12; paint-order: stroke fill; text-shadow: 0 6px 0 #0b0d12; transform: rotate(-3deg); }
+.arena-end-head.won h2 { color: #ffd23f; }
+.arena-end-head.lost h2 { color: #ff8f86; }
+.arena-end-score { display: flex; align-items: center; gap: 10px; margin: 0; font: 900 clamp(22px, 6vh, 42px)/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; -webkit-text-stroke: 5px #0b0d12; paint-order: stroke fill; }
 .arena-end-score strong { color: var(--tint); }
-.arena-end h2.won { color: #ffd23f; }
-.arena-end h2.lost { color: #ff8f86; }
-.arena-star { margin-left: 8px; color: #ffd23f; font-size: 11px; font-weight: 800; white-space: nowrap; }
-.arena-table { text-align: left; font-size: 13px; }
-.arena-table td { padding: 7px 10px; font-variant-numeric: tabular-nums; }
-.arena-table td:first-child { width: auto; white-space: nowrap; border-left: 3px solid var(--tint); color: color-mix(in srgb, var(--tint) 70%, #fff); font-weight: 600; }
-.arena-table tr.self td { background: #ffffff16; }
-.arena-table td .icon { width: 14px; height: 14px; margin-right: 5px; vertical-align: -2px; }
+.arena-end-score i { color: #b6bfcc; font-style: normal; }
+.arena-end-note { margin: 0; padding: 2px 10px; border-radius: 999px; background: #0b0d12b3; color: #c5cbd4; font-size: 12px; }
+@keyframes arena-verdict {
+  from { opacity: 0; transform: translateX(-50%) scale(1.8); }
+}
+.arena-cards { position: absolute; inset: 0; }
+.arena-card { position: absolute; left: 0; top: 0; width: min(27vh, 12.5vw, 150px); margin-top: 8px; box-sizing: border-box; padding: 6px 6px 7px; border: 2px solid #0b0d12; border-top: 4px solid var(--tint); border-radius: 10px; background: #141824f2; box-shadow: 0 5px 0 #0007; text-align: center; will-change: transform; }
+.arena-card[hidden] { display: none; }
+.arena-card.self { background: #222a3cf7; box-shadow: 0 0 0 2px var(--tint), 0 5px 0 #0007; }
+.arena-card-name { display: block; overflow: hidden; color: color-mix(in srgb, var(--tint) 72%, #fff); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.arena-card-name .icon { width: 13px; height: 13px; margin-right: 4px; vertical-align: -2px; }
+.arena-card-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; margin: 5px 0 0; }
+.arena-card-stats dd { margin: 0; font: 800 15px/1.1 system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.arena-card-stats dt { overflow: hidden; color: #8d96a3; font-size: 8px; letter-spacing: .04em; text-transform: uppercase; }
+/* Le joueur star : sa fiche est dorée, et le dit dessous. */
+.arena-card.star { border-color: #ffd23f; border-top-color: var(--tint); }
+.arena-star { position: absolute; left: 50%; top: 100%; transform: translate(-50%, -5px); padding: 2px 8px; border: 2px solid #0b0d12; border-radius: 999px; background: #ffd23f; color: #1a1304; font-size: 10px; font-weight: 900; white-space: nowrap; }
+.arena-back { position: absolute; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 24px; border: 3px solid #0b0d12; border-radius: 14px; background: #ffd23f; color: #1a1304; font: 900 15px/1 system-ui, sans-serif; letter-spacing: .04em; text-transform: uppercase; box-shadow: 0 5px 0 #0b0d12; transform: translateX(-50%); cursor: pointer; pointer-events: auto; }
+.arena-back:hover { background: #ffdf6b; }
+.arena-back:active { box-shadow: 0 2px 0 #0b0d12; transform: translate(-50%, 3px); }
+.arena-back:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.arena-back .icon { width: 18px; height: 18px; }
+/* Le compte à rebours du retour de soi-même. */
+.arena-back::after { content: attr(data-left); min-width: 1.4em; opacity: .55; font-variant-numeric: tabular-nums; text-align: right; }
 @media (max-width: 760px) {
   .arena-board { top: max(56px, calc(env(safe-area-inset-top) + 56px)); }
   .arena-score { min-width: 44px; padding: 2px 9px 3px; font-size: 24px; }

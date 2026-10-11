@@ -4,9 +4,11 @@ import { tr } from '../i18n'
 import { RangeGame, type Bullet, type Gun, type Hit, type RangeFrame, type Session, type Shot } from '../range'
 import type { RangeMusic } from '../range-music'
 import type { RangeSfx } from '../range-sfx'
+import { dampAngle } from '../player'
 import { weaponById, WEAPONS, type Weapon, type WeaponId } from '../range-weapons'
 import type { Dialog } from '../ui'
-import { castArena, type ArenaZone } from '../../shared/arena.js'
+import { arenaSight, castArena, type ArenaZone } from '../../shared/arena.js'
+import { AimSight } from './sight'
 
 /*
  * Le moteur du stand de tir (cf. src/range.ts), dans l'arène : même arme en main, même visée, même
@@ -19,7 +21,13 @@ import { castArena, type ArenaZone } from '../../shared/arena.js'
  * - pas de cibles, de score ni de chrono : la partie dure tant que le relais ne l'a pas finie ;
  * - vue par-dessus l'épaule, la balle part du personnage vers ce que la mire recouvre (cf. sightline) ;
  * - un chargeur vide se change tout seul (au stand, il faut le demander) : ici, on se bat ;
- * - les autres combattants tiennent leur arme : un modèle par combattant, posé dans ses mains.
+ * - les autres combattants tiennent leur arme : un modèle par combattant, posé dans ses mains ;
+ * - une balle ne vole pas plus loin que la portée de son arme (`range`, cf. shared/weapons.js : le
+ *   relais compte de même), et vu de dessus, un cône peint au sol la montre (cf. sight.ts), à la
+ *   place du laser du stand ;
+ * - au stick tactile, comme dans Brawl Stars : on le glisse, le cône paraît, on le lâche, le coup
+ *   part (une rafale, pour une arme automatique) ; un simple toucher tire sur l'adversaire le plus
+ *   proche ; et tant qu'on ne vise pas, le personnage regarde où il court.
  */
 
 /** Combattant debout, dans le repère de l'arène : ce qu'une balle peut toucher. */
@@ -37,6 +45,8 @@ export interface ArenaGunHost {
   canFire(): boolean
   /** Un tir part : au relais. */
   fire(origin: [number, number, number], dirs: [number, number, number][]): void
+  /** Les adversaires debout que le joueur voit (pas ceux qu'un buisson cache) : ceux que vise le tir rapide. */
+  foes(): { x: number; z: number }[]
   /** Échap : quitter la partie ? */
   quit(): void
 }
@@ -48,6 +58,11 @@ const _from = new THREE.Vector3()
 const CHEST = 0.42
 /** Délai entre le dernier tir d'un chargeur et son rechargement automatique (secondes). */
 const AUTO_RELOAD = 0.18
+const RAD = Math.PI / 180
+/** Au doigt : délai après un tir avant que le personnage ne se retourne vers où il court (secondes). */
+const FACE_AFTER = 0.45
+/** Tir rapide : un adversaire un peu au-delà de la portée est visé quand même (il approche). */
+const QUICK_MARGIN = 1
 
 export class ArenaGun extends RangeGame {
   host: ArenaGunHost | null = null
@@ -58,12 +73,22 @@ export class ArenaGun extends RangeGame {
   private emptyFor = 0
   /** Balle de match : une équipe est à un point de la limite (la musique s'emballe). */
   matchPoint = false
+  /** Le cône de visée, au sol (vue de dessus). */
+  private readonly cone = new AimSight()
+  /** Écran tactile : le cône ne paraît que le temps de viser, et le personnage regarde où il court. */
+  private readonly touch = matchMedia('(pointer: coarse)').matches
+  /** Balles qu'il reste à la rafale en cours (arme automatique, stick lâché). */
+  private salvo = 0
+  /** Depuis quand on n'a pas tiré (secondes), et où l'on marchait à la dernière image. */
+  private calm = 0
+  private readonly stride = new THREE.Vector3()
 
   /** @param group le pont de l'arène : armes et balles y vivent, dans son repère */
   constructor(group: THREE.Object3D, dialog: Dialog, wallet: Wallet, sfx: RangeSfx, music: RangeMusic) {
     // Le décor du stand ne lit rien d'ici : l'arène a son propre état.
     super(group, dialog, wallet, sfx, music, { idle: false, state: { live: false, weapon: null, flash: 0, tier: 0, alarm: 0, beat: 0 } })
     this.debrisMinZ = -Infinity
+    this.live.add(this.cone.root)
   }
 
   /** La partie commence, ou l'on revient à sa base : cette arme en main, tous les chargeurs pleins. */
@@ -106,6 +131,7 @@ export class ArenaGun extends RangeGame {
   /** Éliminé : l'arme disparaît jusqu'au retour à la base. */
   down() {
     this.holstered = true
+    this.salvo = 0
     this.trigger(false)
     this.session?.hud.root.classList.add('down')
   }
@@ -126,10 +152,100 @@ export class ArenaGun extends RangeGame {
 
   override update(dt: number, f: RangeFrame) {
     this.fpsView = f.fps
+    this.calm += dt
+    this.stride.copy(f.move).setY(0)
+    // Une rafale s'arrête avec son chargeur, ou si l'on ne peut plus tirer.
+    if (this.salvo > 0 && (this.empty || this.reloading || !this.ready())) {
+      this.salvo = 0
+      this.held = false
+    }
+    // Au doigt, tant qu'on ne vise pas : le personnage regarde où il court, comme dans Brawl Stars.
+    if (this.touch && !f.fps && !this.sighting && this.salvo <= 0 && this.calm > FACE_AFTER && this.stride.lengthSq() > 0.04) {
+      this.pointer = null
+      const yaw = dampAngle(Math.atan2(this.aim.x, this.aim.z), Math.atan2(this.stride.x, this.stride.z), 14, dt)
+      this.aim.set(Math.sin(yaw), 0, Math.cos(yaw))
+    }
     super.update(dt, f)
     // Chargeur vide : le temps que le dernier tir parte, et l'on recharge sans attendre l'ordre.
     this.emptyFor = this.empty && !this.holstered ? this.emptyFor + dt : 0
     if (this.emptyFor > AUTO_RELOAD) this.reload()
+    this.sightCone(f)
+  }
+
+  /**
+   * Vue de dessus : le cône de visée remplace le laser et le couloir du stand. À la souris, il est
+   * toujours là ; au doigt, seulement stick de tir poussé.
+   */
+  private sightCone(f: RangeFrame) {
+    const s = this.session, host = this.host
+    this.laser.visible = this.laserDot.visible = this.lane.visible = false
+    const shown = !!s && !!host && !f.fps && !this.holstered && (this.sighting || !this.touch)
+    this.cone.root.visible = shown
+    if (!shown) return
+    const w = WEAPONS[s.weapon]
+    const origin = this.group.getWorldPosition(_v)
+    _from.set(f.player.x - origin.x, 0, f.player.z - origin.z)
+    this.cone.place(host.zone, w, _from, this.aim, w.spread * RAD + this.bloom + this.moving, s.reload <= 0 && s.ammo[s.weapon] > 0 && this.ready())
+  }
+
+  /** Dans l'arène, une arme automatique ne tire pas stick poussé : on vise, puis on lâche. */
+  override get sprays(): boolean {
+    return false
+  }
+
+  /** Stick lâché : le coup part ; pour une arme automatique, toute une rafale, là où l'on visait. */
+  override loose(_quick = false) {
+    const s = this.session
+    if (!s) return
+    const w = WEAPONS[s.weapon]
+    if (!w.auto) return this.tap()
+    this.salvo = w.burst ?? 6
+    this.held = true
+  }
+
+  /** Un doigt relevé ailleurs (le stick de marche) ne coupe pas la rafale en cours. */
+  override trigger(on: boolean) {
+    if (!on && this.salvo > 0) return
+    super.trigger(on)
+  }
+
+  /**
+   * Tir rapide (toucher le stick de tir) : on se tourne vers l'adversaire visible le plus proche,
+   * à portée ou presque, de préférence à découvert ; sans personne, on tire devant soi, là où l'on court.
+   */
+  override aimNearest(player: { x: number; z: number }) {
+    const s = this.session, host = this.host
+    if (!s || !host) return
+    const reach = WEAPONS[s.weapon].range + QUICK_MARGIN
+    let best: { x: number; z: number } | null = null
+    let near = Infinity
+    for (const foe of host.foes()) {
+      const d = Math.hypot(foe.x - player.x, foe.z - player.z)
+      if (d > reach) continue
+      // Derrière un conteneur, il passe après ceux qu'on peut toucher.
+      const rank = d + (arenaSight(host.zone, player, foe) ? 0 : 100)
+      if (rank < near) { near = rank; best = foe }
+    }
+    if (best) this.aimToward(best.x - player.x, best.z - player.z)
+    else if (this.stride.lengthSq() > 0.04) this.aimToward(this.stride.x / this.stride.length(), this.stride.z / this.stride.length())
+  }
+
+  /** Tir rapide en vue subjective : la direction (monde) de l'adversaire qui s'écarte le moins de la mire. */
+  override nearestInView(camera: THREE.Camera): THREE.Vector3 | null {
+    const host = this.host
+    if (!this.session || !host) return null
+    const eye = camera.getWorldPosition(new THREE.Vector3())
+    const gaze = camera.getWorldDirection(new THREE.Vector3())
+    const y = this.group.getWorldPosition(_v).y + CHEST
+    const to = new THREE.Vector3()
+    let best: THREE.Vector3 | null = null
+    // Au-delà d'un demi-champ (cos 40°), ce n'est plus « devant soi ».
+    let near = 0.77
+    for (const foe of host.foes()) {
+      const facing = to.set(foe.x, y, foe.z).sub(eye).normalize().dot(gaze)
+      if (facing > near && arenaSight(host.zone, { x: eye.x, z: eye.z }, foe)) { near = facing; best = to.clone() }
+    }
+    return best
   }
 
   /** Rechargement en cours (pour la plaque du joueur). */
@@ -167,17 +283,20 @@ export class ArenaGun extends RangeGame {
 
   protected override hintText(coarse: boolean): string {
     return coarse
-      ? tr('Glisser le stick pour viser, lâcher pour tirer · le toucher : tir rapide', 'Drag the stick to aim, release to fire · tap it: quick shot')
-      : tr('Clic : tirer · chargeur vide : il se recharge seul (R : avant) · V : vue · Échap : quitter', 'Click: fire · empty mag reloads itself (R: sooner) · V: view · Esc: leave')
+      ? tr('Glisser le stick rouge pour viser, lâcher pour tirer · le toucher : tir sur le plus proche', 'Drag the red stick to aim, release to fire · tap it: shoot the nearest')
+      : tr('Clic : tirer · le cône montre la portée · le chargeur se recharge seul (R : avant) · V : vue · Échap : quitter', 'Click: fire · the cone shows your range · the mag reloads itself (R: sooner) · V: view · Esc: leave')
   }
 
-  protected override fired(eye: THREE.Vector3, dirs: THREE.Vector3[], _w: Weapon) {
+  protected override fired(eye: THREE.Vector3, dirs: THREE.Vector3[], w: Weapon) {
     const host = this.host
     if (!host) return
-    // Ses propres balles : elles ne le touchent pas, et traversent son équipe.
+    this.calm = 0
+    if (this.salvo > 0 && --this.salvo <= 0) this.held = false
+    // Ses propres balles : elles ne le touchent pas, traversent son équipe, et s'éteignent au bout de la portée de l'arme.
     for (const b of this.session!.bullets.slice(-dirs.length)) {
       b.by = host.self()
       b.team = host.team()
+      b.reach = w.range
     }
     host.fire([eye.x, eye.y, eye.z], dirs.map((d) => [d.x, d.y, d.z]))
   }
@@ -215,7 +334,7 @@ export class ArenaGun extends RangeGame {
     const shot: Shot = { left: dirs.length, scored: true }
     const width = (this.fpsView ? 0.018 : 0.03) * (w.pellets > 1 ? 0.6 : w.blast ? 2.6 : 1)
     for (const d of dirs) {
-      s.bullets.push({ p: from.clone(), d: new THREE.Vector3(...d).normalize(), speed: w.speed, pierce: w.pierce, blast: w.blast, shot, color, streak: this.streak(from, color, width), by, team })
+      s.bullets.push({ p: from.clone(), d: new THREE.Vector3(...d).normalize(), speed: w.speed, pierce: w.pierce, blast: w.blast, shot, color, streak: this.streak(from, color, width), by, team, reach: w.range })
     }
     this.sfx.shot(w.id, this.world(from), 0.94 + Math.random() * 0.12)
   }

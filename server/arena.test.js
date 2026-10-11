@@ -294,6 +294,39 @@ test('arène : la cadence d\'un joueur est celle de son arme', () => {
   assert.ok(h.events(2, 'shot').length <= most, `${h.events(2, 'shot').length} tirs`)
 })
 
+test('arène : une balle s\'éteint au bout de la portée de son arme ; le plasma y explose', () => {
+  const h = harness()
+  const a = h.add(1), b = h.add(2)
+  const game = h.start(a, [b], { size: 1, bots: false })
+  h.advance(R.warmup + R.shield)
+  // La cour centrale est libre de (5, 5) à (11, 5). Au pistolet : touché en deçà de la portée, pas au-delà.
+  const reach = WEAPON_STATS.pistol.range
+  assert.ok(reach > 3 && reach < 5.6)
+  h.put(a, 5, 5)
+  h.put(b, 5 + reach - 0.5, 5)
+  fireAt(h, a, b)
+  h.advance(0.5)
+  assert.equal(h.events(1, 'hit').length, 1)
+  h.put(b, 5 + reach + R.body.r + 0.3, 5)
+  h.advance(0.5)
+  fireAt(h, a, b)
+  h.advance(0.5)
+  assert.equal(h.events(1, 'hit').length, 1, 'hors de portée')
+  assert.equal(game.bullets.length, 0, 'la balle s\'est éteinte')
+  // Le plasma explose au bout de sa course, même sans rien toucher : qui s'y tient est soufflé.
+  const fa = game.fighters.get(1)
+  Object.assign(fa, { weapon: 'launcher', tokens: 2 })
+  game.fighters.get(2).hp = R.hp
+  h.put(a, 5, 5)
+  h.put(b, 5 + WEAPON_STATS.launcher.range, 5.6)
+  h.advance(1.5)
+  fireAt(h, a, { x: 8, z: 5 })
+  h.advance(1)
+  const blast = h.events(1, 'hit').slice(1)
+  assert.deepEqual(blast.map((e) => e.id), [2])
+  assert.ok(blast[0].dmg > 0 && blast[0].dmg < WEAPON_STATS.launcher.damage)
+})
+
 test('arène : un conteneur protège, un coéquipier ne prend pas la balle', () => {
   const h = harness()
   const a = h.add(1), b = h.add(2), c = h.add(3)
@@ -456,6 +489,8 @@ test('arène : dans un buisson, on échappe aux bots, sauf de tout près ou si l
   const a = h.add(1)
   const game = h.start(a, [], { size: 1, skill: 2 })
   const bot = [...game.fighters.values()].find((f) => f.bot)
+  // Une arme qui porte à quatre tuiles : c'est le buisson qu'on essaie, pas la portée.
+  bot.weapon = bot.next = 'pistol'
   h.advance(R.warmup + R.shield)
   // Le bot à quatre tuiles, rien entre eux : caché dans le buisson, le joueur n'est pas pris pour cible.
   const hold = () => Object.assign(bot, { x: 1, z: 0, path: [], lastSeen: null })

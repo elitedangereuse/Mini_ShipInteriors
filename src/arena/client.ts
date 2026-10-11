@@ -17,6 +17,7 @@ import { ARENA_BOOTH, ARENA_LEVEL, ARENA_RETURN, ARENA_RULES, arenaHidden, arena
 import { arenaExtras, arenaLevel, type ArenaExtras } from './deck'
 import { ArenaGun, type ArenaBody } from './gun'
 import { ArenaMusic } from './music'
+import { Podium, type PodiumEntry } from './podium'
 import { Referee, REFEREE, refereeRig } from './referee'
 import { arenaRanks } from '../furniture/arena'
 import { ArenaHud, ArenaPanel, fetchRanking, RankingPanel, type Ranking, type Relation } from './ui'
@@ -33,6 +34,10 @@ import { ArenaHud, ArenaPanel, fetchRanking, RankingPanel, type Ranking, type Re
  * près). Les couleurs sont celles du joueur, pas des camps : lui en vert, les siens en bleu, ceux
  * d'en face en rouge (plaques, anneaux, bases, score). Aucune vue ne voit plus qu'une autre : en vue
  * subjective, les obstacles sont doublés en hauteur, et l'on ne lit la plaque que de ceux qu'on voit.
+ *
+ * La vue par défaut est celle de Brawl Stars : de haut et de près, son camp en bas de l'écran, celui
+ * d'en face en haut (cf. ArenaHost.view). À la fin, tous les combattants s'alignent sur une scène,
+ * les vainqueurs dansent (cf. podium.ts), et l'écran de fin se pose par-dessus.
  */
 
 /** Les couleurs du joueur : lui, les siens, ceux d'en face. */
@@ -57,6 +62,24 @@ function haunt(avatar: Avatar | undefined, on: boolean) {
   })
 }
 
+/** Écran tactile : le téléphone vibre quand on est touché, quand on élimine, quand on tombe (là où le navigateur le permet). */
+const COARSE = matchMedia('(pointer: coarse)').matches
+function buzz(pattern: number | number[]) {
+  if (!COARSE) return
+  try {
+    navigator.vibrate?.(pattern)
+  } catch {}
+}
+/**
+ * Vue de dessus, ce que le cadre peut montrer au-delà du plan de l'arène (tuiles) : de chaque côté,
+ * au fond (sous le score), et derrière sa base, en bas de l'écran (au doigt, davantage : les sticks y sont).
+ */
+const EDGE = { side: 0.9, far: 1.3, near: COARSE ? 2.5 : 1.3 }
+/** Fin de partie : le temps de voir tomber le dernier, avant le rideau (ms). */
+const CURTAIN = 1100
+/** La scène de fin : au nord de l'arène, hors du plan (z, repère de l'arène). */
+const STAGE_Z = -9
+
 /** Séries d'éliminations sans tomber : ce qu'on en dit. */
 const STREAKS = ['', '', tr('Doublé !', 'Double!'), tr('Triplé !', 'Triple!'), tr('Quadruplé !', 'Quad!'), tr('Inarrêtable !', 'Unstoppable!')]
 
@@ -74,8 +97,19 @@ export interface ArenaHost {
   deck(): Deck
   /** La cale, où est le lobby. */
   hold: Deck
-  /** Passe le joueur sur ce pont, à cet endroit, sous un fondu au noir. */
-  moveTo(deck: Deck, at: { x: number; z: number }): Promise<void>
+  /** Passe le joueur sur ce pont, à cet endroit, sous un fondu au noir ; `dark` : appelé dans le noir, une fois arrivé. */
+  moveTo(deck: Deck, at: { x: number; z: number }, dark?: () => void): Promise<void>
+  /** Fondu au noir (`on`), ou retour à l'image. */
+  fade(on: boolean): Promise<void>
+  /**
+   * Cadre la vue de dessus, sans transition (à appeler dans le noir). `match` : de haut et de près,
+   * derrière le camp `team`, qui est alors en bas de l'écran ; c'est la vue où l'on entre, quelle
+   * que soit celle du bord. `stage` : face à la scène de fin, large de `width` tuiles. null : la
+   * vue d'avant la partie.
+   */
+  view(mode: 'match' | 'stage' | null, options?: { team?: number; width?: number }): void
+  /** L'apparence du joueur (cf. looks.ts). */
+  skin(): string
   /** Vue subjective (sinon : vue de dessus). */
   fps(): boolean
   /** Tourne le joueur (et son regard, en vue subjective) vers ce cap. */
@@ -162,6 +196,10 @@ export class ArenaClient {
   private extras: ArenaExtras | null = null
   private readonly hands = new THREE.Vector3()
   private readonly local = new THREE.Vector3()
+  private readonly focus = new THREE.Vector3()
+  /** La scène de fin (construite à la première), et si l'on y est. */
+  private podium: Podium | null = null
+  private staged = false
 
   constructor(private host: ArenaHost) {
     try {
@@ -235,7 +273,40 @@ export class ArenaClient {
   }
 
   contains(target: EventTarget | null): boolean {
-    return this.panel.contains(target) || this.ranking.contains(target)
+    return this.panel.contains(target) || this.ranking.contains(target) || this.hud.contains(target)
+  }
+
+  /** Sur la scène de fin : la caméra la cadre de face (cf. main.ts), les vrais personnages sont cachés. */
+  get staging(): boolean {
+    return this.staged
+  }
+
+  /**
+   * Ce que la caméra suit pendant la partie, vue de dessus : le joueur, sans que le cadre sorte de
+   * l'arène. Comme dans Brawl Stars, au bord la vue s'arrête, et c'est le personnage qui avance à
+   * l'écran ; plus large que l'arène, elle reste centrée dessus. null : ailleurs, ou dans les yeux.
+   */
+  matchFocus(iso: IsoCamera): THREE.Vector3 | null {
+    if (!this.inArena || this.staged || this.host.fps()) return null
+    const here = this.host.player.position
+    const { side, ahead, behind } = iso.span
+    // Le haut de l'écran, au sol : dans l'arène, c'est le camp d'en face.
+    const up = iso.screenToGround(0, 1, this.local)
+    const cx = (this.zone.width - 1) / 2, cz = (this.zone.height - 1) / 2
+    const lengthwise = Math.abs(up.x) > Math.abs(up.z)
+    const deep = (lengthwise ? this.zone.width : this.zone.height) / 2, wide = (lengthwise ? this.zone.height : this.zone.width) / 2
+    const along = (here.x - cx) * up.x + (here.z - cz) * up.z
+    const across = (here.z - cz) * up.x - (here.x - cx) * up.z
+    const high = deep + EDGE.far - ahead, low = behind - deep - EDGE.near
+    const room = wide + EDGE.side - side
+    const a = low > high ? (low + high) / 2 : THREE.MathUtils.clamp(along, low, high)
+    const b = room <= 0 ? 0 : THREE.MathUtils.clamp(across, -room, room)
+    return this.focus.set(cx + up.x * a - up.z * b, here.y, cz + up.z * a + up.x * b)
+  }
+
+  /** Ce que la caméra suit pendant la scène de fin (monde) ; null hors de la scène. */
+  get stageFocus(): THREE.Vector3 | null {
+    return this.staged ? this.podium!.focus : null
   }
 
   closePanels() {
@@ -262,7 +333,7 @@ export class ArenaClient {
   /** Un autre joueur de l'arène se voit-il ? Ceux de sa partie, sauf un adversaire caché dans un buisson. */
   sees(id: number): boolean {
     const f = this.game?.fighters.get(id)
-    if (!f || !this.inArena) return false
+    if (!f || !this.inArena || this.staged) return false
     const r = f.puppet ?? this.host.remotes.get(id)
     return !!r && this.visible(f, r.group.position)
   }
@@ -357,6 +428,7 @@ export class ArenaClient {
       self: () => this.host.net.id,
       team: () => this.game?.team ?? 0,
       bodies: () => this.bodies(),
+      foes: () => this.foes(),
       canFire: () => !!this.game && !this.game.end && this.game.downBy === null && (this.game.state?.warmup ?? 1) <= 0,
       fire: (o, d) => this.host.net.sendArena('fire', { o, d }),
       quit: () => this.quit(),
@@ -389,16 +461,19 @@ export class ArenaClient {
     this.hud.board({ score: 0, rounds: 0 }, { score: 0, rounds: 0 }, m.goal, 1, m.wins, m.duration, m.warmup)
     // Sa base en bleu, celle d'en face en rouge.
     this.extras?.paintBases(m.team === 0 ? [TINT.ally, TINT.enemy] : [TINT.enemy, TINT.ally])
-    await this.host.moveTo(deck, m.spawn)
+    await this.host.moveTo(deck, m.spawn, () => this.host.view('match', { team: m.team }))
     // Reparti entre-temps (liaison perdue pendant le fondu).
     if (this.game !== game) return
     this.phase = 'arena'
     this.host.face(m.spawn.yaw)
     this.gun!.begin(this.weapon)
-    this.host.dialog.show(tr(
-      `${m.wins} manches gagnantes : la première équipe à ${m.goal} points gagne la manche. Vos adversaires sont en rouge ; les buissons cachent qui s'y tient.`,
-      `First to ${m.wins} rounds: the first team to ${m.goal} points takes the round. Your opponents are in red; bushes hide whoever stands in them.`,
-    ))
+    // Au doigt, le bandeau est étroit : le score dit déjà la limite de points.
+    this.host.dialog.show(COARSE
+      ? tr('Vos adversaires sont en rouge ; les buissons cachent qui s\'y tient.', 'Your opponents are in red; bushes hide whoever stands in them.')
+      : tr(
+        `${m.wins} manches gagnantes : la première équipe à ${m.goal} points gagne la manche. Vos adversaires sont en rouge ; les buissons cachent qui s'y tient.`,
+        `First to ${m.wins} rounds: the first team to ${m.goal} points takes the round. Your opponents are in red; bushes hide whoever stands in them.`,
+      ))
   }
 
   /** @param at où poser un bot (undefined : un joueur, son personnage est celui du bord) */
@@ -449,7 +524,7 @@ export class ArenaClient {
     this.hud.closeEnd()
     this.hud.show(false)
     this.gun?.end()
-    if (this.inArena) await this.host.moveTo(this.host.hold, ARENA_RETURN)
+    if (this.inArena) await this.host.moveTo(this.host.hold, ARENA_RETURN, () => this.unstage())
     if (this.game !== g) return
     this.dispose()
     if (message) this.host.dialog.show(message)
@@ -461,11 +536,19 @@ export class ArenaClient {
     this.gun?.end()
     for (const id of [...g.fighters.keys()]) this.removeFighter(id)
     haunt(this.host.player.avatar, false)
+    this.unstage()
     this.hud.closeEnd()
     this.hud.show(false)
     this.game = null
     this.phase = 'ship'
     this.endTimer = 0
+  }
+
+  /** La scène de fin est démontée, et la vue redevient celle d'avant la partie. */
+  private unstage() {
+    this.podium?.clear()
+    this.staged = false
+    this.host.view(null)
   }
 
   /** Abandon (deux fois de suite) : on quitte la partie et l'on rentre au lobby. */
@@ -517,6 +600,17 @@ export class ArenaClient {
     return out
   }
 
+  /** Les adversaires debout que le joueur voit (un buisson peut les cacher) : ceux que vise le tir rapide. */
+  private foes(): { x: number; z: number }[] {
+    const out: { x: number; z: number }[] = []
+    for (const f of this.game?.fighters.values() ?? []) {
+      if (!f.alive || f.rel !== 'enemy') continue
+      const at = (f.puppet ?? this.host.remotes.get(f.id))?.group.position
+      if (at && this.visible(f, at)) out.push({ x: at.x, z: at.z })
+    }
+    return out
+  }
+
   private apply(s: ArenaState) {
     const g = this.game!
     g.state = s
@@ -559,6 +653,7 @@ export class ArenaClient {
         if (e.id === self || e.by === self) g.foughtAt = performance.now()
         if (e.id === self) {
           this.hud.hurt()
+          buzz(25)
           gun.jar(0.9)
           gun.cue('hurt')
           if (this.inArena) gun.took(new THREE.Vector3(e.x, e.y + 0.3, e.z), e.dmg)
@@ -584,6 +679,7 @@ export class ArenaClient {
           this.down(by && by !== victim ? by.name : '', e)
         } else {
           if (e.by === self) {
+            buzz(45)
             // Une série sans tomber : ça se dit.
             const text = STREAKS[Math.min(++g.streak, STREAKS.length - 1)]
             gun.announce(text || tr(`${victim.name} éliminé`, `${victim.name} taken out`))
@@ -635,11 +731,12 @@ export class ArenaClient {
     this.host.iso.shake(0.3)
     if (this.inArena) {
       player.position.set(at.x, this.deck!.y, at.z)
-      this.host.iso.snapTo(player.position)
+      this.host.iso.snapTo(this.matchFocus(this.host.iso) ?? player.position)
       this.host.face(at.yaw)
     }
     this.gun!.down()
     this.gun!.cue('down')
+    buzz([70, 40, 130])
   }
 
   /** De retour en jeu : à sa base, protégé un instant, l'arme choisie en main. */
@@ -649,7 +746,7 @@ export class ArenaClient {
     const player = this.host.player
     if (!this.inArena) return
     player.position.set(e.x, this.deck!.y, e.z)
-    this.host.iso.snapTo(player.position)
+    this.host.iso.snapTo(this.matchFocus(this.host.iso) ?? player.position)
     this.host.face(e.yaw)
     this.host.sync()
     this.weapon = e.weapon
@@ -670,10 +767,49 @@ export class ArenaClient {
     this.endTimer = 30
     // Le relais vient de déclarer la partie au site : le tableau du lobby se met à jour dans un instant.
     window.setTimeout(() => void this.refreshRanks(), 4000)
-    this.hud.showEnd(r, g.team, this.host.net.id, () => {
+    void this.stage(r)
+  }
+
+  /**
+   * La scène de fin : le verdict claque, puis, sous un fondu, tous les combattants s'alignent face à
+   * la caméra, les siens à gauche (le joueur au milieu d'eux), ceux d'en face à droite ; les
+   * vainqueurs dansent. L'écran de fin se pose par-dessus : une fiche sous chacun, et le retour.
+   */
+  private async stage(r: ArenaEnd) {
+    const g = this.game!
+    const self = this.host.net.id
+    const gone = () => this.game !== g || !!this.leaving || !this.inArena
+    this.hud.shout(r.winner < 0 ? tr('Égalité', 'Draw') : r.winner === g.team ? tr('Victoire !', 'Victory!') : tr('Défaite', 'Defeat'), r.winner >= 0 && r.winner !== g.team)
+    await new Promise((done) => window.setTimeout(done, CURTAIN))
+    if (gone()) return
+    await this.host.fade(true)
+    if (gone()) return
+    // Dans chaque camp, les plus forts au milieu ; chez les siens, c'est le joueur.
+    const best = (a: ArenaEnd['stats'][number], b: ArenaEnd['stats'][number]) => b.kills - a.kills || b.damage - a.damage
+    const centred = <T>(list: T[]) => (list.length > 2 ? [list[1], list[0], ...list.slice(2)] : list)
+    const mates = r.stats.filter((s) => s.team === g.team).sort((a, b) => Number(b.id === self) - Number(a.id === self) || best(a, b))
+    const foes = r.stats.filter((s) => s.team !== g.team).sort(best)
+    const entries = [...centred(mates), ...centred(foes)].map((s): PodiumEntry => {
+      const f = g.fighters.get(s.id)
+      const skin = s.id === self ? this.host.skin() : (f?.puppet ?? this.host.remotes.get(s.id))?.skin ?? lookId(randomLook())
+      return { id: s.id, name: s.name, skin, rel: s.id === self ? 'self' : s.team === g.team ? 'ally' : 'enemy', won: r.winner < 0 ? null : s.team === r.winner }
+    })
+    this.podium ??= new Podium(this.deck!.group, this.host.scene, { x: (this.zone.width - 1) / 2, z: STAGE_Z })
+    this.podium.show(entries, TINT)
+    this.staged = true
+    this.host.view('stage', { width: this.podium.width })
+    this.hud.showEnd(r, g.team, self, entries.map((e) => e.id), () => {
       this.endTimer = 0
       void this.leave()
     })
+    this.placeCards()
+    await this.host.fade(false)
+  }
+
+  /** Les fiches de l'écran de fin, sous les pieds de chaque combattant de la scène. */
+  private placeCards() {
+    if (!this.podium) return
+    for (const { id, at } of this.podium.feet()) this.hud.card(id, this.host.project(at))
   }
 
   // ------------------------------------------------------------------ chaque image
@@ -692,6 +828,11 @@ export class ArenaClient {
       void this.leave()
       return
     }
+    if (g.end) this.hud.endClock(this.endTimer)
+    if (this.staged) {
+      this.podium!.update(dt)
+      this.placeCards()
+    }
     const inArena = this.inArena
     const self = this.host.net.id
     const origin = this.deck!.group.position
@@ -705,9 +846,9 @@ export class ArenaClient {
       const at = mine ? here : r?.group.position
       if (f.puppet) {
         f.puppet.update(dt)
-        f.puppet.group.visible = inArena && this.visible(f, f.puppet.group.position)
+        f.puppet.group.visible = inArena && !this.staged && this.visible(f, f.puppet.group.position)
       }
-      const shown = inArena && !!at && (mine || !!r?.group.visible)
+      const shown = inArena && !this.staged && !!at && (mine || !!r?.group.visible)
       const avatar = mine ? this.host.player.avatar : r?.avatar
       haunt(avatar, f.ghost && !f.alive)
       // Son anneau, sous ses pieds ; il bat tant qu'il est protégé.
