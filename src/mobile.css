@@ -1,6 +1,15 @@
 /* Loaded after all desktop styles. Safe areas apply to controls as well as interaction panels. */
 .mobile-status-toggle, #mobile-menu-toggle, #prompt > .icon, .help-touch, #touch-aim, #touch-float { display: none; }
 @media (pointer: coarse) {
+  /* Le jeu prend entièrement en charge les gestes tactiles. `manipulation` conserve le défilement
+     des panneaux, mais retire notamment le délai et le zoom du double toucher. Les règles
+     suivantes empêchent aussi la sélection et les callouts système au toucher prolongé. */
+  html, body { touch-action: manipulation; }
+  body, body * {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -webkit-touch-callout: none !important;
+  }
   :root {
     --mobile-top: max(8px, env(safe-area-inset-top));
     --mobile-bottom: max(8px, env(safe-area-inset-bottom));

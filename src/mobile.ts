@@ -5,6 +5,13 @@ import { $ } from './ui'
 /** Mobile shell: keep the original controls and their handlers, including live pressed states. */
 export function setupMobile(enabled: boolean): () => void {
   if (!enabled) return () => {}
+  // Le navigateur ne doit jamais substituer ses interactions au jeu : menu copier/coller au
+  // toucher prolongé, sélection, glisser natif d'une image ou d'un lien, zoom au double toucher.
+  // Les clics simples et le défilement tactile restent natifs.
+  const preventNativeGesture = (e: Event) => e.preventDefault()
+  for (const type of ['contextmenu', 'selectstart', 'dragstart', 'dblclick']) {
+    document.addEventListener(type, preventNativeGesture, { capture: true })
+  }
   let started = false
   let entering = false
   const entry = $('mobile-entry')
