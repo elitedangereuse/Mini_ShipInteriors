@@ -349,7 +349,7 @@ const arenaTerminal: Builder = () => {
   // Pupitre incliné vers les joueurs, son écran.
   const desk = new THREE.Group()
   desk.position.set(0, 0.58, 0.05)
-  desk.rotation.x = -0.55
+  desk.rotation.x = 0.55
   desk.add(box(0.58, 0.04, 0.36, dark, 0, 0, 0, 0.012))
   const screen = animatedScreen(512, 320, 4, (c, t) => {
     c.fillStyle = '#0d0a08'
