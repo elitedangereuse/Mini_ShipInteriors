@@ -22,6 +22,7 @@ import { roomCover, type RoomCover } from './room-cover'
 import type { Doorway } from './physics'
 import { DOOR_GAP } from '../shared/sight.js'
 import { BAR_ROOM, CLUB_ROOM, mezzanineOf, shipMapOptions } from '../shared/ship-layouts.js'
+import { SHIP_WALL_THICKNESS } from '../shared/ship-geometry.js'
 import { QUEST_ROOMS } from '../shared/quests.js'
 import { mezzanineHeight, mezzanineTile, type Mezzanine } from '../shared/mezzanine.js'
 import { BAY_BOTTOM, BAY_FRAME_TOP, BAY_TOP, bayFrame, buildMezzanine } from './mezzanine'
@@ -107,7 +108,7 @@ export interface DoorState {
 /** Où se range la collision d'une porte ouverte : hors de portée de tout. */
 const NOWHERE: Box2 = { minX: -1e6, maxX: -1e6, minZ: -1e6, maxZ: -1e6 }
 
-export const WALL_T = 0.3
+export const WALL_T = SHIP_WALL_THICKNESS
 /**
  * Poteau d'angle : un peu plus large et plus haut que les murs, pour recouvrir
  * entièrement la zone où deux murs se chevauchent (sinon leurs dessus, au même

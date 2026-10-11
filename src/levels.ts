@@ -11,6 +11,7 @@ import type { CustomModel } from './furniture'
 import { tr } from './i18n'
 import { WEAPONS } from './range-weapons'
 import { ARENA_DOORS, BOARD_TABLES, SHIP_LAYOUTS, SHOOTING_RANGE, SPORT_COURTS } from '../shared/ship-layouts.js'
+import { resolveShipMapPlacement, type ShipMapPlacementId } from '../shared/ship-map-placements.js'
 import { HOUSING_LEVEL, LANDING_ROOM, PLOT_DOOR, PLOT_ORIGIN, PLOT_ROOM } from '../shared/housing-plot.js'
 import { PILOT_SEAT } from '../shared/systems.js'
 import { FISHING_DOCK, FISHING_FEED, FISHING_POND } from '../shared/fishing.js'
@@ -201,13 +202,17 @@ export const CAT_SPAWN = { level: HOUSING_LEVEL, x: PLOT_ORIGIN.x + 2, z: PLOT_D
 /**
  * Plan du vaisseau accroché au mur (cf. src/furniture/wayfinding.ts), là où l'on se demande où
  * aller : on le consulte pour ouvrir le plan détaillé (cf. src/ship-plan/). Son repère « Vous êtes
- * ici » est à sa place. Sur un mur nord (`rot` 0) ou ouest (`rot` 1), ceux qu'on voit.
+ * ici » est à sa place. Chaque emplacement est ancré à une arête du plan, puis avancé devant le
+ * relief de la cloison (cf. shared/ship-map-placements.js).
  */
-const shipMap = (level: number, x: number, z: number, rot: Rot = 0): Prop => ({
-  model: 'ship-map', x, z, rot, label: `${level}:${x}:${z}`, solid: false,
-  action: tr('Consulter le plan', 'Read the map'),
-  interact: tr('Le plan du vaisseau, pont par pont.', 'The ship map, deck by deck.'),
-})
+const shipMap = (id: ShipMapPlacementId): Prop => {
+  const { level, worldX: x, worldZ: z, rot } = resolveShipMapPlacement(id)
+  return {
+    model: 'ship-map', x, z, rot: rot as Rot, label: `${level}:${x}:${z}`, solid: false,
+    action: tr('Consulter le plan', 'Read the map'),
+    interact: tr('Le plan du vaisseau, pont par pont.', 'The ship map, deck by deck.'),
+  }
+}
 
 /** Ce qu'on lit aux balises du bouclier du hangar. */
 const SHIELD_TEXT = [
@@ -238,7 +243,7 @@ export const QUARTERS_DECK: LevelDef = {
     { model: 'plant-tall', x: 8.25, z: 3.25 },
     { model: 'plant-tall', x: 8.25, z: 6.75 },
     // Le plan du vaisseau, face à l'ascenseur : la première chose qu'on voit en sortant de chez soi.
-    shipMap(HOUSING_LEVEL, 10, 2.655),
+    shipMap('quartersLanding'),
   ],
   lights: [[9.6, 5, '#ffe2bf', 1.6]],
 }
@@ -520,7 +525,7 @@ export const LEVELS: LevelDef[] = [
         ),
       },
       { model: 'drums', x: 9.2, z: 5.95 },
-      shipMap(-1, 11, 3.655),
+      shipMap('holdLanding'),
 
       // --- Salle des machines, derrière l'atelier : le réacteur au centre, le FSD au nord ---
       {
@@ -717,7 +722,7 @@ export const LEVELS: LevelDef[] = [
 
       // --- Soute ---
       // Le plan du vaisseau, au carrefour de la cale : entre les portes du stand de tir et de la raffinerie.
-      shipMap(-1, 16.655, 4.5, 1),
+      shipMap('holdCrossroads'),
       { model: 'cargo', x: 17.93, z: 2.3 },
       { model: 'container', x: 18, z: 3.4 },
       {
@@ -1883,7 +1888,7 @@ export const LEVELS: LevelDef[] = [
       // filet de lumière au pied des cloisons, au nord (face au sud) comme au sud. ---
       { model: 'corridor-floor', x: 17, z: 4.5, solid: false },
       // Le plan du vaisseau, face à l'ascenseur.
-      shipMap(0, 10, 3.655),
+      shipMap('mainLanding'),
       ...([
         [13.8, 0, tr('Infirmerie', 'Medical bay'), '#5ff2d8'], [18.8, 0, tr('Salle de sport', 'Gym'), '#ff7a5a'], [23.8, 0, tr('Labo L.J.P.C.', 'L.J.P.C. lab'), '#7dffa8'],
         // Celle du mess est du côté proue de sa porte : de l'autre, une colonne de la cloison la mangeait à moitié.
@@ -1920,7 +1925,7 @@ export const LEVELS: LevelDef[] = [
       { model: 'telescope', x: 29.85, z: 3.05, rot: 1, interact: tr('Longue-vue : on y voit la station la plus proche… et le parking de Fleet Carriers.', 'Spyglass: you can see the nearest station… and the Fleet Carrier car park.') },
       { model: 'telescope', x: 26.15, z: 5.95, rot: 3 },
       // Le plan du vaisseau, au débouché de la coursive, pour qui revient du poste de pilotage.
-      shipMap(0, 25.655, 2.95, 1),
+      shipMap('mainPromenade'),
 
       // --- Le poste de surveillance, sous la Promenade (cf. src/furniture/security.ts) : la pièce
       // du sergent, qu'ouvre la quête « Tour de garde ». Les écrans sont au nord et à l'ouest, les
@@ -2068,7 +2073,7 @@ export const LEVELS: LevelDef[] = [
       { model: 'bench', x: 12.3, z: 3.9, label: 'teal' },
       { model: 'plant-tall', x: 15.1, z: 5.2 },
       // Le plan du vaisseau, face à l'ascenseur ; un autre au carrefour du foyer et du hall (plus bas).
-      shipMap(1, 11, 3.655),
+      shipMap('upperLanding'),
 
       // --- Salle de classe (5 × 3), façon lycée : le tableau au mur ouest, la professeure Kepler
       // derrière son pupitre, huit tables d'élève tournées vers elle, en deux rangées, dont cinq
@@ -2598,7 +2603,7 @@ export const LEVELS: LevelDef[] = [
         ],
       },
       { model: 'bench', x: 18.6, z: 8.85, label: 'mustard' },
-      shipMap(1, 23.2, 8.655),
+      shipMap('upperSportsHall'),
       // Le fond du hall : un tapis mène à la porte double du Comptoir des Cartes Dangereuses.
       { model: 'rug', x: 27.6, z: 9.5, label: 'cinema:4.6x1.2', solid: false },
       { model: 'neon-sign', x: 28.9, z: 8.68, label: tr('CARTES', 'CARDS') },
