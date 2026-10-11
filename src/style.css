@@ -5365,7 +5365,8 @@ body.arena-on .anchor .tag { display: none; }
 /* Rechargement : la barre se regarnit en bleu clair, ses cartouches défilent, et la plaque le dit. */
 .arena-plate.reloading .arena-plate-ammo { box-shadow: 0 0 8px #7fefff; }
 .arena-plate.reloading .arena-plate-ammo i { background: repeating-linear-gradient(90deg, #7fefff 0 9px, #0b0d12 9px 11px); background-size: 22px 100%; animation: arena-reload .35s linear infinite; }
-.arena-plate.reloading::after { content: '⟳'; position: absolute; right: -16px; bottom: -4px; color: #7fefff; font: 900 14px/1 system-ui, sans-serif; -webkit-text-stroke: 3px #0b0d12; paint-order: stroke fill; animation: arena-spin .6s linear infinite; }
+/* Un anneau dessiné, pas un caractère : une flèche de police tournait de travers (son dessin n'est pas centré dans sa case) et s'empâtait sous son contour. */
+.arena-plate.reloading::after { content: ''; position: absolute; right: -21px; bottom: -4px; width: 8px; height: 8px; border: 3px solid #7fefff; border-right-color: transparent; border-radius: 50%; background: #0b0d12; box-shadow: 0 0 0 2px #0b0d12; animation: arena-spin .6s linear infinite; }
 @keyframes arena-reload { to { background-position: 22px 0; } }
 @keyframes arena-spin { to { transform: rotate(360deg); } }
 /* Dans l'arène, le chargeur se change tout seul : pas d'ordre de recharger. */
