@@ -197,7 +197,13 @@ const arenaLogo: Builder = ({ label }) => {
     c.drawImage(logo, 0, 0, 512, 512)
     c.globalAlpha = 1
   }, 'floor')
-  return { solid: new THREE.Group().add(decal(texture, side, side, 0.01)) }
+  // Il est peint sur le sol de la pièce, lui-même un décalque translucide : sans écrire dans le tampon
+  // de profondeur, et dessiné après lui. Sinon ses parties vides masquent ce sol, et laissent voir
+  // dans un carré les dalles sombres du pont.
+  const paint = decal(texture, side, side, 0.01)
+  ;(paint.material as THREE.Material).depthWrite = false
+  paint.renderOrder = 1
+  return { live: new THREE.Group().add(paint) }
 }
 
 /**
@@ -582,9 +588,15 @@ const arenaHolo: Builder = () => {
   for (const [color, side] of [[C.orange, -1], [C.blue, 1]] as const) {
     plan.add(mesh(new THREE.PlaneGeometry(T * 3, rows * T).rotateX(-Math.PI / 2), holoMaterial(null, color, 0.45), side * ((cols - 3) / 2) * T, 0.002, 0))
   }
-  plan.position.y = 0.52
-  plan.rotation.x = 0.22
-  const turn = new THREE.Group().add(plan)
+  // Le plan tourne à plat dans un cadre penché une fois pour toutes vers la vue de dessus (le
+  // sud-est) : penché avec lui, il montrait son dessous à la caméra la moitié du tour.
+  const tilt = new THREE.Group().add(plan)
+  tilt.rotation.x = 0.22
+  const lean = new THREE.Group().add(tilt)
+  lean.position.y = 0.52
+  lean.rotation.y = Math.PI / 4
+  live.add(lean)
+  const turn = new THREE.Group()
   live.add(turn)
   // « EN DIRECT » : au-dessus du plan, des deux côtés, seulement quand une partie se joue.
   const sign = drawnTexture(256, 64, (c) => {
@@ -606,7 +618,7 @@ const arenaHolo: Builder = () => {
     // Sa base seule arrête les pas : on traverse l'hologramme.
     extent: new THREE.Box3(new THREE.Vector3(-0.4, 0, -0.4), new THREE.Vector3(0.4, 0.9, 0.4)),
     update: (t) => {
-      turn.rotation.y = t * 0.22
+      plan.rotation.y = turn.rotation.y = t * 0.22
       const on = arenaLive.games.length > 0
       onAir.visible = on
       ring.color.copy(on ? hot : idle).multiplyScalar(on ? 0.65 + 0.35 * Math.sin(t * 5) : 1)
