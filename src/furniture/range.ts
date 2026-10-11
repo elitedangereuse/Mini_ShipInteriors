@@ -362,7 +362,7 @@ const arenaTerminal: Builder = () => {
     c.fillStyle = '#0d0a08'
     c.font = 'bold 28px sans-serif'
     c.textBaseline = 'middle'
-    c.fillText(tr('ARÈNE · DUEL PAR ÉQUIPES', 'ARENA · TEAM DUEL'), 38, 46)
+    c.fillText(tr('CMDR ARENA · PAR ÉQUIPES', 'CMDR ARENA · TEAM DUEL'), 38, 46)
     c.font = '22px sans-serif'
     const lines: [string, string][] = [
       [tr('Jusqu\'à 3 contre 3', 'Up to 3 vs 3'), '#e6dccf'],

@@ -1,90 +1,91 @@
-import { RangeMusic, type RangeMood } from '../range-music'
+import type { Sound } from '../audio'
+import type { RangeTune } from '../range-music'
 
 /*
- * Musique de l'arène : le séquenceur du stand de tir (cf. src/range-music.ts), avec un autre
- * morceau, plus vif et plus joueur. En la mineur, sur quatre accords qui tournent (la mineur, fa, do,
- * sol), à 138 battements par minute et au-delà :
+ * Les musiques de CMDR Arena : deux morceaux enregistrés (public/assets/music/cmdr-arena/, cf.
+ * CREDITS.txt), chacun en boucle.
  *
- * - pendant la mise en place : une montée, la caisse claire qui roule de plus en plus serré ;
- * - au coup d'envoi : la grosse caisse sur chaque temps, le charleston à contretemps, une basse
- *   qui rebondit ;
- * - puis, à mesure que la partie chauffe (`level`, de 0 à 3 : le score qui monte, les balles qu'on
- *   échange) : les claquements de mains et les accords plaqués à contretemps, le thème, puis son
- *   contre-chant à l'octave et les charlestons en doubles croches ;
- * - balle de match, ou dernières secondes (`rush`) : tout monte d'un ton, le tempo s'emballe, la
- *   caisse claire roule en fin de mesure.
+ * - pendant la partie, « Pixel Brawl », à 60 % ;
+ * - au lobby, « Game Menu Groove », en fond : c'est la sono de la pièce, un haut-parleur de hall
+ *   (cf. speaker), et on ne l'entend que dedans.
+ *
+ * Aucun des deux n'a été coupé pour boucler : le fichier s'arrête net au milieu d'une mesure, puis
+ * un quart de seconde de blanc. La boucle prend donc, depuis le début, un nombre entier de mesures
+ * (tempo mesuré sur le fichier) : au raccord, le rythme ne saute pas.
  */
 
-/** Demi-tons au-dessus du la : fréquence. */
-const note = (semitones: number, octave = 4) => 440 * 2 ** (semitones / 12 + octave - 4)
+/** `n` mesures à quatre temps depuis le début du morceau. */
+const bars = (bpm: number, n: number) => ({ from: 0, to: (n * 4 * 60) / bpm })
 
-/** Accords, une mesure chacun : la basse, les trois notes plaquées. */
-const CHORDS = [
-  { bass: note(0, 2), stab: [note(0), note(3), note(7)] }, // la mineur
-  { bass: note(-4, 2), stab: [note(-4), note(0), note(3)] }, // fa
-  { bass: note(3, 2), stab: [note(3), note(7), note(10)] }, // do
-  { bass: note(-2, 2), stab: [note(-2), note(2), note(5)] }, // sol
-]
+const MATCH = { file: 'cmdr-arena/pixel-brawl.mp3', volume: 0.6, loop: bars(150.025, 52) }
+const LOBBY = { file: 'cmdr-arena/game-menu-groove.mp3', volume: 0.26, loop: bars(114.905, 32) }
 
-/** Le thème : une note (demi-tons au-dessus du la 4) ou un silence par double croche, une ligne par accord. */
-const _ = null
-const THEME: (number | null)[][] = [
-  [7, _, _, 7, _, 5, _, 3, _, _, 0, _, 3, _, 5, _],
-  [3, _, _, 3, _, 0, _, -4, _, _, 0, _, 3, _, 8, _],
-  [7, _, _, 7, _, 10, _, 7, _, _, 3, _, 5, _, 7, _],
-  [5, _, _, 5, _, 2, _, -2, _, _, 2, _, 5, _, 10, 7],
-]
-/** La basse rebondit : octave de la fondamentale (0 ou 1) ou silence, par double croche. */
-const BOUNCE = [0, _, _, 0, _, _, 1, _, 0, _, 1, _, _, 0, 1, _]
+/** La musique de la partie, pour le moteur du stand de tir (cf. src/arena/gun.ts). */
+export class ArenaMusic implements RangeTune {
+  private tune: { stop: () => void } | null = null
+  /** Un morceau enregistré : les lumières n'ont pas de grosse caisse à suivre. */
+  readonly pulse = 0
 
-export class ArenaMusic extends RangeMusic {
-  protected override tempo(mood: RangeMood): number {
-    return (138 + 4 * Math.min(mood.level, 3)) * (mood.rush ? 1.07 : 1)
+  constructor(private sound: Sound) {}
+
+  start() {
+    if (this.tune || !this.sound.ready) return
+    this.tune = this.sound.music(MATCH.file, MATCH.volume, { loop: MATCH.loop })
   }
 
-  protected override play(n: number, t: number, mood: RangeMood) {
-    const out = this.out!, bus = this.bus!
-    const s = n % 16, bar = Math.floor(n / 16) % CHORDS.length
-    const chord = CHORDS[bar]
-    // Balle de match : tout monte d'un ton.
-    const lift = mood.rush ? 2 ** (2 / 12) : 1
-    if (!mood.started) {
-      // La mise en place : une note tenue, et la caisse claire qui roule de plus en plus serré.
-      if (s === 0) this.tone(out, 'sawtooth', chord.bass * 2, chord.bass * 2, t, 1.6, 0.05, 600, 0, 0.4)
-      const every = bar < 1 ? 8 : bar < 2 ? 4 : s < 8 ? 2 : 1
-      if (s % every === 0) this.snare(bus, out, t, 0.1 + (bar * 16 + s) * 0.004)
-      return
-    }
-    const level = mood.level + (mood.rush ? 1 : 0)
-    if (s % 4 === 0) {
-      this.kick(out, t)
-      this.kicks.push(t)
-    }
-    // Charleston : à contretemps, puis en doubles croches quand ça chauffe.
-    if (s % 4 === 2) this.noise(out, t, 0.06, 8000, 0.17)
-    else if (level >= 3) this.noise(out, t, 0.025, 9000, 0.08)
-    // La basse qui rebondit.
-    const hop = BOUNCE[s]
-    if (hop !== null) {
-      const f = chord.bass * (hop ? 2 : 1) * lift
-      this.tone(out, 'sawtooth', f, f, t, 0.14, 0.22, 500 + 180 * Math.min(level, 4), 0, 0.004)
-    }
-    if (level >= 1) {
-      // Les mains claquent sur les temps faibles, les accords se plaquent juste après.
-      if (s === 4 || s === 12) this.snare(bus, out, t, 0.32)
-      if (s === 6 || s === 14) for (const f of chord.stab) this.tone(bus, 'square', f * lift, f * lift, t, 0.09, 0.035, 1800, 0, 0.003)
-    }
-    if (level >= 2) {
-      const step = THEME[bar][s]
-      if (step !== null) {
-        const f = note(step, 5) * lift
-        this.tone(out, 'square', f, f, t, 0.16, 0.075, 3200, 0, 0.004)
-        this.tone(bus, 'triangle', f, f, t, 0.16, 0.05, 4000, 0, 0.004)
-        // Le contre-chant, une octave plus haut, une note sur deux.
-        if (level >= 3 && s % 4 === 0) this.tone(bus, 'square', f * 2, f * 2, t, 0.1, 0.03, 5000, 0, 0.003)
-      }
-    }
-    // Balle de match : la caisse claire roule sur le dernier temps.
-    if (mood.rush && s >= 12) this.snare(bus, out, t, 0.12 + (s - 12) * 0.06)
+  stop() {
+    this.tune?.stop()
+    this.tune = null
+  }
+
+  /** Le morceau ne suit pas la partie : l'ardeur que lui donne le moteur (cf. RangeMood) n'est pas lue. */
+  update() {}
+}
+
+/**
+ * Le son d'un haut-parleur de hall : une seule voie, ni graves ni aigus, la bosse nasillarde du
+ * pavillon dans les médiums, et une membrane qui sature un peu.
+ */
+function speaker(ctx: AudioContext, from: AudioNode): AudioNode {
+  const mono = ctx.createGain()
+  mono.channelCount = 1
+  mono.channelCountMode = 'explicit'
+  const filter = (type: BiquadFilterType, frequency: number, q: number, gain = 0) => {
+    const f = ctx.createBiquadFilter()
+    f.type = type
+    f.frequency.value = frequency
+    f.Q.value = q
+    f.gain.value = gain
+    return f
+  }
+  const drive = ctx.createWaveShaper()
+  const curve = new Float32Array(257)
+  for (let i = 0; i < curve.length; i++) curve[i] = Math.tanh(2.2 * (i / 128 - 1)) / Math.tanh(2.2)
+  drive.curve = curve
+  drive.oversample = '2x'
+  const out = filter('lowpass', 3400, 0.8)
+  from.connect(mono).connect(filter('highpass', 330, 0.7)).connect(filter('peaking', 1500, 1.1, 6)).connect(drive).connect(out)
+  return out
+}
+
+/** La sono du lobby : elle joue tant qu'on y est, la même mesure pour tous ceux qui s'y trouvent. */
+export class ArenaLobbyMusic {
+  private tune: { stop: () => void } | null = null
+
+  constructor(private sound: Sound) {}
+
+  /** On l'entend (les autres musiques de la cale et le bruit des machines lui laissent la place). */
+  get audible(): boolean {
+    return !!this.tune
+  }
+
+  /** À appeler à chaque image : `inside`, le joueur est dans le lobby. */
+  update(inside: boolean) {
+    if (inside === !!this.tune) return
+    if (!inside) {
+      this.tune!.stop()
+      this.tune = null
+      // Avant le premier geste du joueur, le son n'a pas démarré.
+    } else if (this.sound.ready) this.tune = this.sound.music(LOBBY.file, LOBBY.volume, { loop: LOBBY.loop, shared: true, through: speaker })
   }
 }

@@ -158,7 +158,7 @@ interface Game {
   downBy: string | null
   /** Dernière seconde annoncée par le décompte du coup d'envoi. */
   second: number
-  /** Éliminations du joueur depuis sa dernière chute, et dernier échange de balles où il était (pour la musique). */
+  /** Éliminations du joueur depuis sa dernière chute, et dernier échange de balles où il était (l'ardeur de la partie, cf. apply). */
   streak: number
   foughtAt: number
   /** Spectateur : on regarde la partie sans y être ; `follow` : le combattant que suit la vue. */
@@ -505,7 +505,7 @@ export class ArenaClient {
       // Le kit de l'arène n'a pas pu se charger : on rend sa place, plutôt que de rester figé au lobby.
       this.phase = 'ship'
       this.host.net.sendArena('quit')
-      this.host.dialog.show(tr('L\'arène n\'a pas pu se charger : réessayez dans un instant.', 'The arena failed to load: try again in a moment.'))
+      this.host.dialog.show(tr('CMDR Arena n\'a pas pu se charger : réessayez dans un instant.', 'CMDR Arena failed to load: try again in a moment.'))
       return
     }
     const watching = !!m.watch
@@ -714,7 +714,8 @@ export class ArenaClient {
     }
     const side = (team: number) => ({ score: s.score[team], rounds: s.rounds[team] })
     this.hud.board(side(g.team), side(1 - g.team), g.goal, s.round, g.wins, s.left, s.warmup)
-    // La musique suit la partie : le score qui monte, et les balles qu'on vient d'échanger.
+    // L'ardeur de la partie : le score qui monte, et les balles qu'on vient d'échanger (le moteur la
+    // donne à sa musique ; le morceau enregistré de CMDR Arena ne la suit pas, cf. music.ts).
     const lead = Math.max(...s.score)
     const heat = Math.min(3, Math.floor((3 * lead) / g.goal) + (performance.now() - g.foughtAt < 4000 ? 1 : 0))
     if (this.gun) this.gun.matchPoint = lead >= g.goal - 1

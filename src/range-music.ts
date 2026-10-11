@@ -15,7 +15,7 @@ import type { Sound } from './audio'
  * grosse caisse, pour que les lumières du stand le suivent. Chaque note quitte le graphe audio dès
  * qu'elle s'est tue : laissées branchées, elles s'y entasseraient jusqu'à saturer le rendu du son.
  *
- * L'arène a la sienne, sur le même séquenceur (cf. src/arena/music.ts).
+ * CMDR Arena a la sienne, un morceau enregistré (cf. src/arena/music.ts).
  */
 
 /** Ce que la partie donne à la musique. */
@@ -37,6 +37,9 @@ const CHORDS: { bass: number; arp: number[] }[] = [
 ]
 /** Avance de programmation (secondes) : assez pour une image qui traîne, pas assez pour qu'un palier tarde à s'entendre. */
 const AHEAD = 0.25
+
+/** Ce que le moteur du stand demande à sa musique (cf. src/range.ts). */
+export type RangeTune = Pick<RangeMusic, 'start' | 'stop' | 'update' | 'pulse'>
 
 export class RangeMusic {
   protected out: GainNode | null = null

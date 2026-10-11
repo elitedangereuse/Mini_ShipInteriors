@@ -90,7 +90,7 @@ export class ArenaPanel extends Modal {
   weapon: WeaponId = 'pistol'
 
   constructor(private actions: ArenaPanelActions) {
-    super(tr('ARÈNE · INSCRIPTIONS', 'ARENA · SIGN-UP'), tr('Duel par équipes', 'Team duel'))
+    super(tr('CMDR ARENA · INSCRIPTIONS', 'CMDR ARENA · SIGN-UP'), tr('Duel par équipes', 'Team duel'))
     this.root.classList.add('arena-panel')
   }
 
@@ -120,7 +120,7 @@ export class ArenaPanel extends Modal {
     const focused = document.activeElement instanceof HTMLElement && this.root.contains(document.activeElement) ? document.activeElement.dataset.key : undefined
     this.body.replaceChildren()
     if (!this.online) {
-      this.body.append(el('p', 'salvage-warn', tr('Relais injoignable : l\'arène se joue en ligne. Réessayez dans un instant.', 'Relay unreachable: the arena is played online. Try again in a moment.')))
+      this.body.append(el('p', 'salvage-warn', tr('Relais injoignable : CMDR Arena se joue en ligne. Réessayez dans un instant.', 'Relay unreachable: CMDR Arena is played online. Try again in a moment.')))
       return
     }
     const room = this.room
@@ -201,7 +201,7 @@ export class ArenaPanel extends Modal {
       )),
     )
     stage.append(hero, el('span', 'arena-heading', tr('Votre arme', 'Your weapon')), loadout(this.weapon, (id) => this.pick(id)))
-    stage.append(el('p', 'salvage-note', tr('Pour l\'honneur : l\'arène ne rapporte pas de crédits.', 'For honour only: the arena pays no credits.')))
+    stage.append(el('p', 'salvage-note', tr('Pour l\'honneur : CMDR Arena ne rapporte pas de crédits.', 'For honour only: CMDR Arena pays no credits.')))
   }
 
   /** Son lobby : les deux camps face à face, son arme, les réglages du chef, « prêt ». */
@@ -320,7 +320,7 @@ export class RankingPanel extends Modal {
   onLoaded?: (ranking: Ranking) => void
 
   constructor() {
-    super(tr('ARÈNE · CLASSEMENT', 'ARENA · RANKING'), tr('Les meilleurs joueurs', 'Top players'))
+    super(tr('CMDR ARENA · CLASSEMENT', 'CMDR ARENA · RANKING'), tr('Les meilleurs joueurs', 'Top players'))
     this.root.classList.add('arena-panel', 'arena-ranks')
   }
 
@@ -422,7 +422,7 @@ export class ArenaHud {
   constructor() {
     this.root.hidden = true
     this.root.setAttribute('role', 'group')
-    this.root.setAttribute('aria-label', tr('Arène', 'Arena'))
+    this.root.setAttribute('aria-label', 'CMDR Arena')
     const board = el('div', 'arena-board')
     const middle = el('div', 'arena-middle')
     middle.append(this.clock, this.goal)

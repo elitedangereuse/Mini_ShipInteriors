@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import type { Wallet } from '../economy/wallet'
 import { tr } from '../i18n'
 import { RangeGame, type Bullet, type Gun, type Hit, type RangeFrame, type Session, type Shot } from '../range'
-import type { RangeMusic } from '../range-music'
+import type { RangeTune } from '../range-music'
 import type { RangeSfx } from '../range-sfx'
 import { dampAngle } from '../player'
 import { weaponById, WEAPONS, type Weapon, type WeaponId } from '../range-weapons'
@@ -71,7 +71,7 @@ export class ArenaGun extends RangeGame {
   private fpsView = false
   /** Depuis quand le chargeur est vide (secondes) : il se change de lui-même après un instant. */
   private emptyFor = 0
-  /** Balle de match : une équipe est à un point de la limite (la musique s'emballe). */
+  /** Balle de match : une équipe est à un point de la limite (cf. rushing ; le morceau enregistré n'en fait rien, cf. music.ts). */
   matchPoint = false
   /** Spectateur : pas d'arme, on regarde (à régler avant `begin`). */
   watching = false
@@ -86,7 +86,7 @@ export class ArenaGun extends RangeGame {
   private readonly stride = new THREE.Vector3()
 
   /** @param group le pont de l'arène : armes et balles y vivent, dans son repère */
-  constructor(group: THREE.Object3D, dialog: Dialog, wallet: Wallet, sfx: RangeSfx, music: RangeMusic) {
+  constructor(group: THREE.Object3D, dialog: Dialog, wallet: Wallet, sfx: RangeSfx, music: RangeTune) {
     // Le décor du stand ne lit rien d'ici : l'arène a son propre état.
     super(group, dialog, wallet, sfx, music, { idle: false, state: { live: false, weapon: null, flash: 0, tier: 0, alarm: 0, beat: 0 } })
     this.debrisMinZ = -Infinity
@@ -110,7 +110,7 @@ export class ArenaGun extends RangeGame {
 
   /**
    * Ce que le relais dit de la partie : le temps qu'il reste (le moteur annonce les dix dernières
-   * secondes), si le coup d'envoi est donné, et l'ardeur du moment (0 à 3), que suit la musique.
+   * secondes), si le coup d'envoi est donné, et l'ardeur du moment (0 à 3), donnée à la musique.
    */
   sync(left: number, live: boolean, heat: number) {
     const s = this.session

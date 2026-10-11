@@ -54,7 +54,7 @@ export interface RefereeReport {
 const pick = <T,>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)]
 
 const SMALL_TALK = [
-  tr('Bienvenue à l\'arène. Les règles tiennent en une ligne : on tire sur ceux d\'en face. J\'ai quand même dû l\'écrire.', 'Welcome to the arena. The rules fit on one line: shoot the other side. I still had to write it down.'),
+  tr('Bienvenue à CMDR Arena. Les règles tiennent en une ligne : on tire sur ceux d\'en face. J\'ai quand même dû l\'écrire.', 'Welcome to CMDR Arena. The rules fit on one line: shoot the other side. I still had to write it down.'),
   tr('J\'ai fait dix ans de CQC. Maintenant j\'arbitre. On me paie pour regarder les autres rater ce que je réussissais.', 'I did ten years of CQC. Now I referee. I get paid to watch others miss what I used to hit.'),
   tr('Le terminal est juste là, contre le mur. Quatre lobbys. Choisissez-en un, un camp, une arme. Dans cet ordre.', 'The terminal is right there, on the wall. Four lobbies. Pick one, a side, a weapon. In that order.'),
   tr('Odile, à côté, envoie les gens dans le noir chercher des caisses. Ici au moins, on allume la lumière avant de vous tirer dessus.', 'Odile next door sends people into the dark to fetch crates. Here at least we turn the lights on before shooting at you.'),

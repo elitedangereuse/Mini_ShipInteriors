@@ -376,3 +376,17 @@ Zone sportive (mini-jeux de basket et de foot, hors jukebox)
 court-basket.ogg : « Alpha Dance », court-foot.ogg : « Drumming Sticks ».
 Kenney (www.kenney.nl), pack Music Loops 1.1, CC0 1.0. Boucles de 15 s,
 fichiers d'origine, non retraités ; jouées en boucle par Sound.music.
+
+
+---------------------------------------------------------------------
+CMDR Arena (hors jukebox)
+---------------------------------------------------------------------
+cmdr-arena/pixel-brawl.mp3      : « Pixel Brawl », la musique de la partie.
+cmdr-arena/game-menu-groove.mp3 : « Game Menu Groove », la sono du lobby.
+Fournis par Michael Bernard le 11/10/2026 ; auteur et licence à
+renseigner ici. Fichiers d'origine, renommés, non retraités (MP3 stéréo
+48 kHz ; -15,4 et -15,5 LUFS intégrés, crête -4,7 et -5,1 dBFS).
+Aucun des deux n'est coupé pour boucler (arrêt net en pleine mesure, puis
+0,25 s de blanc) : le jeu boucle sur un nombre entier de mesures depuis
+le début, cf. src/arena/music.ts. Tempos mesurés sur les fichiers :
+150,03 BPM (52 mesures, 83,19 s) et 114,91 BPM (32 mesures, 66,84 s).

@@ -195,7 +195,7 @@ export function arenaLevel(zone: ArenaZone, kit: ZoneKit): LevelDef {
 
   return {
     id: ARENA_LEVEL,
-    name: tr('Arène', 'Arena'),
+    name: 'CMDR Arena',
     theme: 'raw',
     // Plein jour : rien n'est caché, on se voit de loin.
     ambience: { sky: '#e6eefa', ground: '#6b7482', hemi: 2.6, sun: '#fff1dd', sunIntensity: 1.8 },

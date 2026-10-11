@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
-import { BLASTER_PACK } from '../assets'
+import { BASE, BLASTER_PACK } from '../assets'
 import { tr } from '../i18n'
 import { WEAPONS } from '../range-weapons'
 import { ARENA_MAP, ARENA_TEAMS } from '../../shared/arena.js'
@@ -16,6 +16,10 @@ import { kitModel } from './nature'
  * mène à la porte. Au milieu de la pièce, un projecteur fait tourner l'hologramme de l'arène : il
  * passe au rouge quand une partie se joue, et c'est de là qu'on la regarde. Autour : le trophée, le
  * banc des spectateurs, les fanions. Le terminal, lui, est dans range.ts.
+ *
+ * Le jeu s'appelle CMDR Arena, et son logo (public/assets/arena/cmdr-arena.svg : le titre, deux
+ * combattants que la foudre sépare) est sur l'enseigne lumineuse au-dessus de la porte, côté zone
+ * thargoïde, et peint au sol à l'entrée du lobby.
  */
 
 const C = {
@@ -27,6 +31,29 @@ const C = {
   blue: ARENA_TEAMS[1].color,
 }
 const FONT = 'bold 64px system-ui, sans-serif'
+
+/** Le logo de CMDR Arena, une fois chargé (cf. logoTexture). */
+let logo: HTMLImageElement | null = null
+let logoAsked: Promise<HTMLImageElement> | null = null
+
+/**
+ * Texture où figure le logo : `paint` la dessine tout de suite sans lui (`null`), puis de nouveau
+ * quand l'image est là.
+ */
+function logoTexture(w: number, h: number, paint: (c: CanvasRenderingContext2D, logo: HTMLImageElement | null) => void): THREE.CanvasTexture {
+  const texture = drawnTexture(w, h, (c) => paint(c, logo))
+  if (logo || typeof Image === 'undefined') return texture
+  logoAsked ??= new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => resolve((logo = img))
+    img.src = `${BASE}arena/cmdr-arena.svg`
+  })
+  void logoAsked.then((img) => {
+    paint((texture.image as HTMLCanvasElement).getContext('2d')!, img)
+    texture.needsUpdate = true
+  })
+  return texture
+}
 
 /**
  * Ce que le tableau du classement affiche (cf. arenaBoard) : les premiers du classement tenu par le
@@ -42,7 +69,7 @@ export const arenaRanks: { rows: { name: string; wins: number }[]; stamp: number
  */
 export const arenaLive: { games: { lobby: number; rounds: [number, number]; score: [number, number] }[]; stamp: number } = { games: [], stamp: 0 }
 
-/** Le sol du lobby (`label` : « largeur,profondeur ») : une moitié par équipe, le rond central, les chevrons de l'entrée. */
+/** Le sol du lobby (`label` : « largeur,profondeur ») : une moitié par équipe, le rond central ; à l'entrée, le logo (cf. arenaLogo). */
 const arenaFloor: Builder = ({ label }) => {
   const [w, d] = (label ?? '2.7,4.7').split(',').map(Number)
   const W = 512, H = Math.round((512 * d) / w)
@@ -138,24 +165,12 @@ const arenaFloor: Builder = ({ label }) => {
     c.fillText('V', W / 2 - 24, H * 0.42 + 4)
     c.fillStyle = C.blue
     c.fillText('S', W / 2 + 24, H * 0.42 + 4)
-    // Les chevrons de l'entrée, au nord.
-    c.lineWidth = 12
-    c.lineCap = 'square'
-    for (let i = 0; i < 3; i++) {
-      c.strokeStyle = i % 2 ? C.blue : C.orange
-      const y = 40 + i * 30
-      c.beginPath()
-      c.moveTo(W / 2 - 70, y)
-      c.lineTo(W / 2, y + 34)
-      c.lineTo(W / 2 + 70, y)
-      c.stroke()
-    }
   })
   // Dans un groupe : c'est lui que le pont tourne, la plaque reste à plat.
   return { solid: new THREE.Group().add(decal(texture, w, d, 0.008)) }
 }
 
-/** Marquage au sol devant la porte, côté zone thargoïde : « ARÈNE », et la flèche. */
+/** Marquage au sol devant la porte, côté zone thargoïde : « CMDR ARENA », et la flèche. */
 const arenaEntry: Builder = () => {
   const texture = drawnTexture(512, 200, (c) => {
     c.clearRect(0, 0, 512, 200)
@@ -165,11 +180,11 @@ const arenaEntry: Builder = () => {
     c.fillRect(0, 0, 256, 14)
     c.fillStyle = C.blue
     c.fillRect(256, 0, 256, 14)
-    c.font = 'bold 92px system-ui, sans-serif'
+    c.font = 'bold 76px system-ui, sans-serif'
     c.textAlign = 'center'
     c.textBaseline = 'middle'
     c.fillStyle = C.line
-    c.fillText(tr('ARÈNE', 'ARENA'), 256, 92)
+    c.fillText('CMDR ARENA', 256, 90, 480)
     c.fillStyle = C.orange
     c.beginPath()
     c.moveTo(216, 150)
@@ -178,6 +193,78 @@ const arenaEntry: Builder = () => {
     c.fill()
   })
   return { solid: new THREE.Group().add(decal(texture, 1.8, 0.7, 0.009)) }
+}
+
+/** Le logo peint au sol (`label` : son côté, en mètres), le titre vers le nord : il se lit vu de dessus. */
+const arenaLogo: Builder = ({ label }) => {
+  const side = Number(label) || 1.4
+  const texture = logoTexture(512, 512, (c, logo) => {
+    c.clearRect(0, 0, 512, 512)
+    if (!logo) return
+    // De la peinture : un rien passée, pour ne pas flotter au-dessus des dalles.
+    c.globalAlpha = 0.94
+    c.drawImage(logo, 0, 0, 512, 512)
+    c.globalAlpha = 1
+  })
+  return { solid: new THREE.Group().add(decal(texture, side, side, 0.01)) }
+}
+
+/**
+ * L'enseigne lumineuse (dos au mur), au-dessus de la porte du lobby : un caisson à la largeur de la
+ * porte double, le logo au milieu, une aile par équipe. Elle a deux faces : celle qu'on voit en
+ * arrivant de la zone thargoïde, et son dos, que montre la vue de dessus. Elle tient entre le haut
+ * de la porte et le plafond ; deux potences la portent.
+ */
+const arenaSign: Builder = () => {
+  const W = 1.9, H = 0.7, Y = 1.81, D = 0.09
+  const TW = 1024, TH = Math.round((1024 * H) / W)
+  const texture = logoTexture(TW, TH, (c, logo) => {
+    c.fillStyle = '#0d0f13'
+    c.fillRect(0, 0, TW, TH)
+    // Une aile par équipe : sa lueur, et ses chevrons qui pointent vers le logo.
+    for (const [color, from, to, dir] of [[C.orange, 0, TW * 0.42, 1], [C.blue, TW, TW * 0.58, -1]] as const) {
+      const wing = c.createLinearGradient(from, 0, to, 0)
+      wing.addColorStop(0, `${color}cc`)
+      wing.addColorStop(1, `${color}00`)
+      c.fillStyle = wing
+      c.fillRect(Math.min(from, to), 0, Math.abs(to - from), TH)
+      c.strokeStyle = color
+      c.lineWidth = 22
+      c.lineCap = 'square'
+      for (let i = 0; i < 3; i++) {
+        const x = from + dir * (70 + i * 78)
+        c.globalAlpha = 0.45 + i * 0.25
+        c.beginPath()
+        c.moveTo(x, TH * 0.24)
+        c.lineTo(x + dir * 58, TH / 2)
+        c.lineTo(x, TH * 0.76)
+        c.stroke()
+      }
+      c.globalAlpha = 1
+    }
+    c.strokeStyle = '#2a2d33'
+    c.lineWidth = 10
+    c.strokeRect(5, 5, TW - 10, TH - 10)
+    const side = TH - 14
+    if (logo) c.drawImage(logo, (TW - side) / 2, 7, side, side)
+    else {
+      c.font = 'bold 96px system-ui, sans-serif'
+      c.textAlign = 'center'
+      c.textBaseline = 'middle'
+      c.fillStyle = C.line
+      c.fillText('CMDR ARENA', TW / 2, TH / 2)
+    }
+  })
+  const g = new THREE.Group()
+  const dark = lit(C.steelDark, 'metal')
+  g.add(box(W + 0.06, H + 0.06, D, dark, 0, Y, D / 2 + 0.005))
+  // Les potences, du haut de la cloison au caisson, et un liseré jaune (la foudre du logo) sur les chants.
+  for (const x of [-W / 2 + 0.12, W / 2 - 0.12]) g.add(box(0.05, Y - H / 2 - 1.02, 0.05, dark, x, (Y - H / 2 + 1.02) / 2, 0.03))
+  for (const x of [-W / 2 - 0.035, W / 2 + 0.035]) g.add(box(0.02, H, D + 0.01, glow('#ffd23f'), x, Y, D / 2 + 0.005))
+  const face = new THREE.MeshLambertMaterial({ map: texture, emissive: '#ffffff', emissiveMap: texture, emissiveIntensity: 0.85 })
+  g.add(mesh(new THREE.PlaneGeometry(W, H), face, 0, Y, D + 0.011))
+  g.add(mesh(new THREE.PlaneGeometry(W, H).rotateY(Math.PI), face, 0, Y, -0.001))
+  return { solid: g }
 }
 
 /**
@@ -296,7 +383,7 @@ const arenaBoard: Builder = () => {
     c.textAlign = 'left'
     c.font = 'bold 30px system-ui, sans-serif'
     c.fillStyle = C.line
-    c.fillText(tr('ARÈNE · CLASSEMENT', 'ARENA · RANKING'), 24, 36)
+    c.fillText(tr('CMDR ARENA · CLASSEMENT', 'CMDR ARENA · RANKING'), 24, 36)
     c.textAlign = 'right'
     c.font = 'bold 15px system-ui, sans-serif'
     c.fillStyle = '#8d96a3'
@@ -545,6 +632,8 @@ export const ARENA = {
   'arena-trophy': arenaTrophy,
   'arena-floor': arenaFloor,
   'arena-entry': arenaEntry,
+  'arena-logo': arenaLogo,
+  'arena-sign': arenaSign,
   'arena-booth': arenaBooth,
   'arena-rack': arenaRack,
 } satisfies Record<string, Builder>

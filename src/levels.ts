@@ -266,7 +266,7 @@ export const LEVELS: LevelDef[] = [
       // Le nom du bar ne se traduit pas.
       b: 'Chez Jacques',
       h: tr('Lobby de la zone thargoïde', 'Thargoid zone lobby'),
-      y: tr('Lobby de l\'arène', 'Arena lobby'),
+      y: tr('Lobby de CMDR Arena', 'CMDR Arena lobby'),
       t: tr('Poste de sécurité de la zone', 'Zone security post'),
       k: tr('Hangar', 'Hangar'),
       e: tr('Salle des machines', 'Engine room'),
@@ -870,19 +870,23 @@ export const LEVELS: LevelDef[] = [
       // le classement complet de partout) ; le trophée et le banc, bas, restent visibles ---
       { model: 'arena-entry', x: 23.5, z: 4.98, solid: false },
       { model: 'arena-floor', x: 24, z: 8, label: '2.7,4.7', solid: false },
+      // Le logo de CMDR Arena : sur l'enseigne lumineuse, au-dessus de la porte (elle est du côté de
+      // la zone thargoïde, contre la cloison), et peint au sol, à l'entrée du lobby.
+      { model: 'arena-sign', x: 23.5, z: 5.34, rot: 2, solid: false },
+      { model: 'arena-logo', x: 23.55, z: 6.38, label: '1.34', solid: false },
       {
-        model: 'arena-terminal', x: ARENA_TERMINAL.x, z: ARENA_TERMINAL.z, rot: 1, action: tr('Entrer dans l\'arène', 'Enter the arena'),
-        interact: tr('Terminal de l\'arène : duels par équipes, jusqu\'à trois contre trois.', 'Arena terminal: team duels, up to three versus three.'),
+        model: 'arena-terminal', x: ARENA_TERMINAL.x, z: ARENA_TERMINAL.z, rot: 1, action: tr('Jouer à CMDR Arena', 'Play CMDR Arena'),
+        interact: tr('Terminal de CMDR Arena : duels par équipes, jusqu\'à trois contre trois.', 'CMDR Arena terminal: team duels, up to three versus three.'),
       },
       { model: 'arena-rack', x: 24.98, z: 5.67, solid: false, interact: [
-        tr('Les cinq armes de l\'arène. Les mêmes qu\'au stand de tir, sauf qu\'ici les cibles ripostent.', 'The arena\'s five weapons. Same as the shooting range, except here the targets shoot back.'),
+        tr('Les cinq armes de CMDR Arena. Les mêmes qu\'au stand de tir, sauf qu\'ici les cibles ripostent.', 'The five weapons of CMDR Arena. Same as the shooting range, except here the targets shoot back.'),
         tr('Un mot scotché sous le lance-plasma : « Pas à bout portant. Signé : celui qui a essayé. »', 'A note taped under the plasma launcher: “Not at point-blank. Signed: the one who tried.”'),
       ] },
       { model: 'arena-booth', x: ARENA_BOOTH.x, z: ARENA_BOOTH.z, rot: 1 },
       // Au milieu du mur du hangar : le classement des joueurs, tenu par le site, entre les bannières des deux équipes.
       {
         model: 'arena-board', x: 25.33, z: 8, rot: 3, solid: false, action: tr('Classement', 'Ranking'),
-        interact: tr('Le classement de l\'arène : les CMDR par victoires.', 'The arena ranking: CMDRs by wins.'),
+        interact: tr('Le classement de CMDR Arena : les CMDR par victoires.', 'The CMDR Arena ranking: CMDRs by wins.'),
       },
       { model: 'arena-banner', x: 25.34, z: 6.45, rot: 3, label: 'orange', solid: false },
       { model: 'arena-banner', x: 25.34, z: 9.55, rot: 3, label: 'blue', solid: false },
@@ -897,7 +901,7 @@ export const LEVELS: LevelDef[] = [
         tr('Gravé au couteau sous le coussin orange : « Les bleus trichent. » Et dessous, d\'une autre main : « Non. »', 'Carved under the orange cushion: “Blues cheat.” And below, in another hand: “No.”'),
       ] },
       { model: 'arena-trophy', x: 25.18, z: 10.18, interact: [
-        tr('La coupe de l\'arène. Le socle est gravé : « À celui qui tire le dernier. »', 'The arena cup. The plinth is engraved: “To whoever shoots last.”'),
+        tr('La coupe de CMDR Arena. Le socle est gravé : « À celui qui tire le dernier. »', 'The CMDR Arena cup. The plinth is engraved: “To whoever shoots last.”'),
         tr('La coupe est vissée au socle. Tessa a ses raisons.', 'The cup is bolted to the plinth. Tessa has her reasons.'),
       ] },
       { model: 'arena-garland', x: 24, z: 6.42, label: '2.9', solid: false },

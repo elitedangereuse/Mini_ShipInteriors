@@ -1,0 +1,5 @@
+cmdr-arena.svg : le logo de CMDR Arena, dessiné pour le jeu.
+Le titre est composé en « Kenney Bold » (Kenney, www.kenney.nl, pack Kenney
+Fonts, CC0 1.0 ; assets/Other/Fonts/Kenney Bold.ttf), converti en tracés : le
+fichier n'a besoin d'aucune police. Couleurs des deux camps : celles
+d'ARENA_TEAMS (shared/arena.js).

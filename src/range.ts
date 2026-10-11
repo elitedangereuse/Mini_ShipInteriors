@@ -5,7 +5,7 @@ import { RANGE_ID } from './arcade/game'
 import { formatCredits } from './economy/data'
 import type { Wallet } from './economy/wallet'
 import { tr } from './i18n'
-import type { RangeMusic } from './range-music'
+import type { RangeTune } from './range-music'
 import type { RangeSfx } from './range-sfx'
 import { rangeState, WEAPONS, type RangeState, type Weapon, type WeaponId } from './range-weapons'
 import type { Dialog } from './ui'
@@ -371,7 +371,7 @@ export class RangeGame {
   onChange?: (on: boolean) => void
 
   /** @param group la cale : cibles et balles y vivent, dans son repère */
-  constructor(protected group: THREE.Object3D, protected dialog: Dialog, protected wallet: Wallet, protected sfx: RangeSfx, protected music: RangeMusic, options: { idle?: boolean; state?: RangeState } = {}) {
+  constructor(protected group: THREE.Object3D, protected dialog: Dialog, protected wallet: Wallet, protected sfx: RangeSfx, protected music: RangeTune, options: { idle?: boolean; state?: RangeState } = {}) {
     this.state = options.state ?? rangeState
     group.add(this.live, this.idle)
     this.laser = new THREE.Mesh(BEAM, new THREE.MeshBasicMaterial({ color: '#ff4a38', transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending }))

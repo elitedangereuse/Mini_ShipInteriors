@@ -113,7 +113,8 @@ import { BAR_DROP, VENT_DROP } from '../shared/vents.js'
 import { SalvageClient } from './salvage/client'
 import { ArenaClient } from './arena/client'
 import { STAGE_AZIMUTH, STAGE_ELEVATION } from './arena/podium'
-import { ARENA_LEVEL } from '../shared/arena.js'
+import { ArenaLobbyMusic } from './arena/music'
+import { ARENA_LEVEL, ARENA_LOBBY } from '../shared/arena.js'
 import { LOBBY_RETURN, ZONE_LEVEL } from '../shared/salvage.js'
 import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel, type ScreenBox } from './ui'
 import { LiftRide } from './lift-ride'
@@ -608,6 +609,8 @@ const holdMusic = new JukeboxPlayer(sound, 0.4)
 const cabinMusic = new JukeboxPlayer(sound, 0.4)
 /** La boîte de nuit de la cale : son morceau tourne tout seul (cf. src/club.ts). */
 const clubMusic = new ClubMusic(sound, 0.5)
+/** La sono du lobby de CMDR Arena : on ne l'entend que dans la pièce (cf. src/arena/music.ts). */
+const arenaLobbyMusic = new ArenaLobbyMusic(sound)
 const jukeboxes: Record<JukeboxWhere, JukeboxPlayer> = { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }
 /** Pont des jukebox communs (ceux des quartiers vont avec leur aménagement). */
 const JUKEBOX_DECKS = { deck: 0, hold: -1 } as const
@@ -3601,7 +3604,7 @@ async function loadDirectory(force = false) {
 /** Où est un joueur à bord : son pont (pour la jauge ; aucun hors du vaisseau) et le lieu en toutes lettres. */
 function whereIs(r: RemotePlayer): { deck?: number; where: string } {
   if (r.level === ZONE_LEVEL) return { where: tr('Zone thargoïde', 'Thargoid zone') }
-  if (r.level === ARENA_LEVEL) return { where: tr('Arène', 'Arena') }
+  if (r.level === ARENA_LEVEL) return { where: 'CMDR Arena' }
   if (r.level === TUTORIAL_LEVEL) return { where: TUTORIAL_DECK.name }
   if (r.level === HOUSING_LEVEL) {
     const host = hostName(r.cabin)
@@ -6159,6 +6162,7 @@ function frame() {
     }
   }
   const inClub = clubAlien && holdRoom === CLUB_ROOM
+  const inArenaLobby = onHold && viewDeck === deck && holdRoom === ARENA_LOBBY.room
   // Chez Jacques : l'IA de la porte refoule celui qui s'en approche sans être un habitué (une fois
   // par visite) ; et celui qui ne l'est plus (un invité, après une reconnexion au relais) est
   // raccompagné à la porte, où le relais l'accepte de nouveau.
@@ -6191,12 +6195,13 @@ function frame() {
     // Dans la boîte de nuit, on n'entend plus le jukebox du bar.
     // Des conduits de ventilation, celui du bar s'entend, étouffé : il est juste en dessous.
     const below = music === holdMusic && deck === vents.deck
-    // Ni pendant une partie au stand de tir, qui a sa propre musique.
-    music.setRoom(below || (source === deck && viewDeck === deck && !((inClub || stand.active) && music === holdMusic)), !!jukeboxRoom && jukeboxRoom === playerRoom)
+    // Ni pendant une partie au stand de tir, qui a sa propre musique, ni au lobby de CMDR Arena, qui a sa sono.
+    music.setRoom(below || (source === deck && viewDeck === deck && !((inClub || stand.active || inArenaLobby) && music === holdMusic)), !!jukeboxRoom && jukeboxRoom === playerRoom)
   }
   clubMusic.update(inClub, onHold && viewDeck === deck ? clubProximity(holdRoom, player.position.x, player.position.z) : 0)
+  arenaLobbyMusic.update(inArenaLobby)
   // Une musique passe là où l'on est : les moteurs et les machines se font discrets.
-  sound.duck(inClub || deckMusic.audible || holdMusic.audible || cabinMusic.audible)
+  sound.duck(inClub || arenaLobbyMusic.audible || deckMusic.audible || holdMusic.audible || cabinMusic.audible)
   // La soirée bat sur le morceau entendu dans la pièce, sauf quand le mode photo fige l'instant.
   if (!photo.frozen && !clubMusic.syncTempo() && !deckMusic.syncTempo() && !holdMusic.syncTempo() && !cabinMusic.syncTempo()) syncTempo(null)
 

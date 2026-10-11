@@ -26,6 +26,19 @@ interface PlayOptions {
   rolloff?: number
 }
 
+/** Ce qu'on peut demander d'une musique de fond (cf. Sound.music). */
+export interface MusicOptions {
+  /**
+   * La boucle ne prend qu'une partie du morceau (secondes) : un nombre entier de mesures, pour un
+   * morceau qui n'a pas été coupé pour boucler. Sans cela, tout le fichier tourne.
+   */
+  loop?: { from: number; to: number }
+  /** Tous les joueurs l'entendent au même endroit du morceau (avec `loop`). */
+  shared?: boolean
+  /** Un traitement entre le morceau et la sortie : il reçoit la source, rend son dernier nœud. */
+  through?: (ctx: AudioContext, from: AudioNode) => AudioNode
+}
+
 const pick = <T,>(a: readonly T[]) => a[Math.floor(Math.random() * a.length)]
 
 /**
@@ -357,12 +370,44 @@ export class Sound {
   }
 
   private tunes = new Map<string, Promise<AudioBuffer | null>>()
+  /** Les raccords déjà préparés (cf. seam), par fichier : le début de la boucle et sa fin, en secondes du tampon. */
+  private seams = new Map<string, [number, number]>()
 
   /**
-   * Musique de fond, en boucle, non spatialisée (les mini-jeux de la zone sportive) : un fichier
-   * de `music/`, chargé à la première écoute ; elle entre et sort en fondu.
+   * Prépare le raccord d'une boucle qui ne prend qu'une partie du morceau (cf. MusicOptions.loop) :
+   * ses bornes dans le tampon décodé, comptées du premier son (selon le navigateur, le décodage d'un
+   * MP3 garde ou non le blanc que l'encodeur met en tête), et un fondu de quelques millisecondes de
+   * part et d'autre, écrit dans le tampon : coupée net en plein son, la boucle claquerait à chaque tour.
    */
-  music(file: string, volume = 0.3): { stop: () => void } {
+  private seam(file: string, buffer: AudioBuffer, loop: { from: number; to: number }): [number, number] {
+    const done = this.seams.get(file)
+    if (done) return done
+    const rate = buffer.sampleRate
+    const first = buffer.getChannelData(0)
+    let lead = 0
+    const within = Math.min(first.length, Math.floor(rate * 0.2))
+    while (lead < within && Math.abs(first[lead]) < 0.003) lead++
+    if (lead === within) lead = 0
+    const from = lead + Math.round(loop.from * rate)
+    const to = Math.min(buffer.length, lead + Math.round(loop.to * rate))
+    const fade = Math.min(Math.floor(rate * 0.004), (to - from) >> 1)
+    for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+      const d = buffer.getChannelData(ch)
+      for (let i = 0; i < fade; i++) {
+        d[from + i] *= i / fade
+        d[to - 1 - i] *= i / fade
+      }
+    }
+    const seam: [number, number] = [from / rate, to / rate]
+    this.seams.set(file, seam)
+    return seam
+  }
+
+  /**
+   * Musique de fond, en boucle, non spatialisée (les mini-jeux de la zone sportive, CMDR Arena) : un
+   * fichier de `music/`, chargé à la première écoute ; elle entre et sort en fondu.
+   */
+  music(file: string, volume = 0.3, o: MusicOptions = {}): { stop: () => void } {
     let stopped = false
     let voice: { src: AudioBufferSourceNode; gain: GainNode } | undefined
     let tune = this.tunes.get(file)
@@ -375,10 +420,23 @@ export class Sound {
       const src = this.ctx.createBufferSource()
       src.buffer = buffer
       src.loop = true
+      let at = 0
+      if (o.loop) {
+        const [from, to] = this.seam(file, buffer, o.loop)
+        src.loopStart = at = from
+        src.loopEnd = to
+        // Tout le monde au même endroit du morceau : la boucle part de minuit, à l'horloge de l'appareil.
+        if (o.shared) at += (Date.now() / 1000) % (to - from)
+      }
       const { input, gain } = this.output(null, { volume: 0 })
-      src.connect(input)
+      const chain = o.through?.(this.ctx, src) ?? src
+      chain.connect(input)
+      src.onended = () => {
+        chain.disconnect()
+        this.release(input)
+      }
       gain.gain.linearRampToValueAtTime(volume, this.ctx.currentTime + 0.6)
-      src.start()
+      src.start(0, at)
       voice = { src, gain }
     })
     return {
