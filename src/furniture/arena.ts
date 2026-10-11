@@ -40,7 +40,7 @@ const LOGOS = {
  * Texture où figure le logo : `paint` la dessine tout de suite sans lui (`null`), puis de nouveau
  * quand l'image est là.
  */
-function logoTexture(w: number, h: number, paint: (c: CanvasRenderingContext2D, logo: HTMLImageElement | null) => void, which: keyof typeof LOGOS = 'full'): THREE.CanvasTexture {
+export function logoTexture(w: number, h: number, paint: (c: CanvasRenderingContext2D, logo: HTMLImageElement | null) => void, which: keyof typeof LOGOS = 'full'): THREE.CanvasTexture {
   const logo = LOGOS[which]
   const texture = drawnTexture(w, h, (c) => paint(c, logo.image))
   if (logo.image || typeof Image === 'undefined') return texture
