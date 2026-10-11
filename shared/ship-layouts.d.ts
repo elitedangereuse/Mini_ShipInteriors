@@ -28,8 +28,10 @@ export declare function shipMapOptions(level: number | string): import('./ship-m
 export declare function legacyUpperMapOptions(): import('./ship-map.js').ShipMapOptions
 /** La porte du poste de sécurité du lobby (cale), toujours verrouillée. */
 export declare const SECURITY_DOOR: { x: number; z: number; dir: number; locked: true }
-/** La porte de service du lobby (cale) : elle donne sur la gaine technique de la planque des Scavengers. */
+/** La porte de service du hall de la cale : elle donne sur la gaine technique de la planque des Scavengers. */
 export declare const SCAVENGERS_DOOR: { x: number; z: number; dir: number }
+/** La porte double du lobby de la zone thargoïde (cale), face à celle de l'arène. */
+export declare const THARGOID_DOORS: { x: number; z: number; dir: number }[]
 /** La porte double du lobby de l'arène (cale). */
 export declare const ARENA_DOORS: { x: number; z: number; dir: number }[]
 /** Le poste de surveillance du pont principal : sa pièce, et le pupitre des caméras. */

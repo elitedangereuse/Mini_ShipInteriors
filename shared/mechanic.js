@@ -85,7 +85,7 @@ const RADIUS = 0.17
 
 /**
  * Les coins de l'allée qui fait le tour du Krait : entre lui et l'atelier au nord, le bouclier à
- * l'est, le ravitaillement au sud, la porte du lobby à l'ouest.
+ * l'est, le ravitaillement au sud, la porte du hall de la cale à l'ouest.
  */
 const AISLE = [[27.75, 1.2], [35.95, 1.2], [35.95, 8.75], [27.75, 8.75]]
 

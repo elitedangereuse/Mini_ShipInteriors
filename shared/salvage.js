@@ -19,8 +19,12 @@ import { lineOfSight } from './sight.js'
 
 /** « Pont » de la baie infestée : sous la cale, hors du vaisseau (cf. LEVEL_HEIGHT côté client). */
 export const ZONE_LEVEL = -2
-/** Le lobby : le sas de la cale, pièce 'h' du pont -1 (cf. shared/ship-layouts.js). */
-export const LOBBY = { level: -1, room: 'h' }
+/**
+ * Le lobby : la pièce 'h' de la cale (cf. shared/ship-layouts.js), derrière sa porte double. On garde
+ * sa place dans une équipe tant qu'on reste dans cette pièce ou dans le hall de la cale ('p'), sur
+ * lequel elle donne.
+ */
+export const LOBBY = { level: -1, room: 'h', rooms: 'hp' }
 /** Où l'on revient dans le lobby (fin de partie, capture, abandon) : devant la porte blindée. */
 export const LOBBY_RETURN = { x: 24, z: 0.9 }
 

@@ -8,18 +8,18 @@ import { animatedScreen, box, cylinder, decal, drawnTexture, glow, holoMaterial,
 import { kitModel } from './nature'
 
 /*
- * Le lobby de l'arène (cale, pièce 'y', cf. src/arena/) : pris sur le coin sud-est du lobby de la
- * zone thargoïde, derrière une cloison vitrée. Là où le lobby de la zone est vert et ambre, celui-ci
+ * Le lobby de l'arène (cale, pièce 'y', cf. src/arena/) : au coin sud-est du hall de la cale,
+ * derrière une cloison vitrée, en face du lobby de la zone thargoïde. Là où celui de la zone est sombre, celui-ci
  * est aux couleurs des deux équipes, orange et bleu : le sol peint (une moitié par équipe, le rond
  * central), le guichet de l'arbitre, le classement des joueurs au milieu du mur d'en face, entre les
- * bannières des deux équipes, le râtelier des cinq armes, et, côté zone thargoïde, le marquage qui
- * mène à la porte. Au milieu de la pièce, un projecteur fait tourner l'hologramme de l'arène : il
+ * bannières des deux équipes, le râtelier des cinq armes, et, côté hall, le marquage qui
+ * mène à la porte. À l'entrée, un projecteur fait tourner l'hologramme de l'arène : il
  * passe au rouge quand une partie se joue, et c'est de là qu'on la regarde. Autour : le trophée, le
  * banc des spectateurs, les fanions. Le terminal, lui, est dans range.ts.
  *
  * Le jeu s'appelle CMDR Arena, et son logo (public/assets/arena/cmdr-arena.svg : le titre, deux
- * combattants que la foudre sépare) est sur l'enseigne lumineuse au-dessus de la porte, côté zone
- * thargoïde, et peint au sol à l'entrée du lobby.
+ * combattants que la foudre sépare) est sur l'enseigne lumineuse au-dessus de la porte, côté
+ * hall, et peint au sol au milieu du lobby, sans son fond (cmdr-arena-floor.svg).
  */
 
 const C = {
@@ -30,25 +30,26 @@ const C = {
   orange: ARENA_TEAMS[0].color,
   blue: ARENA_TEAMS[1].color,
 }
-const FONT = 'bold 64px system-ui, sans-serif'
-
-/** Le logo de CMDR Arena, une fois chargé (cf. logoTexture). */
-let logo: HTMLImageElement | null = null
-let logoAsked: Promise<HTMLImageElement> | null = null
+/** Le logo de CMDR Arena, et sa version sans fond (pour le sol) : le fichier, l'image une fois chargée (cf. logoTexture). */
+const LOGOS = {
+  full: { file: 'cmdr-arena.svg', image: null as HTMLImageElement | null, asked: null as Promise<HTMLImageElement> | null },
+  floor: { file: 'cmdr-arena-floor.svg', image: null as HTMLImageElement | null, asked: null as Promise<HTMLImageElement> | null },
+}
 
 /**
  * Texture où figure le logo : `paint` la dessine tout de suite sans lui (`null`), puis de nouveau
  * quand l'image est là.
  */
-export function logoTexture(w: number, h: number, paint: (c: CanvasRenderingContext2D, logo: HTMLImageElement | null) => void): THREE.CanvasTexture {
-  const texture = drawnTexture(w, h, (c) => paint(c, logo))
-  if (logo || typeof Image === 'undefined') return texture
-  logoAsked ??= new Promise((resolve) => {
+function logoTexture(w: number, h: number, paint: (c: CanvasRenderingContext2D, logo: HTMLImageElement | null) => void, which: keyof typeof LOGOS = 'full'): THREE.CanvasTexture {
+  const logo = LOGOS[which]
+  const texture = drawnTexture(w, h, (c) => paint(c, logo.image))
+  if (logo.image || typeof Image === 'undefined') return texture
+  logo.asked ??= new Promise((resolve) => {
     const img = new Image()
-    img.onload = () => resolve((logo = img))
-    img.src = `${BASE}arena/cmdr-arena.svg`
+    img.onload = () => resolve((logo.image = img))
+    img.src = `${BASE}arena/${logo.file}`
   })
-  void logoAsked.then((img) => {
+  void logo.asked.then((img) => {
     paint((texture.image as HTMLCanvasElement).getContext('2d')!, img)
     texture.needsUpdate = true
   })
@@ -64,12 +65,12 @@ export const arenaRanks: { rows: { name: string; wins: number }[]; stamp: number
 
 /**
  * Les parties en cours (cf. src/arena/client.ts, à chaque nouvelle du relais) : le tableau en donne
- * le score sur sa dernière ligne, et l'hologramme du milieu de la pièce passe au rouge. `stamp`
+ * le score sur sa dernière ligne, et l'hologramme de l'entrée passe au rouge. `stamp`
  * change avec elles.
  */
 export const arenaLive: { games: { lobby: number; rounds: [number, number]; score: [number, number] }[]; stamp: number } = { games: [], stamp: 0 }
 
-/** Le sol du lobby (`label` : « largeur,profondeur ») : une moitié par équipe, le rond central ; à l'entrée, le logo (cf. arenaLogo). */
+/** Le sol du lobby (`label` : « largeur,profondeur ») : une moitié par équipe, la ligne médiane ; au milieu, le logo (cf. arenaLogo). */
 const arenaFloor: Builder = ({ label }) => {
   const [w, d] = (label ?? '2.7,4.7').split(',').map(Number)
   const W = 512, H = Math.round((512 * d) / w)
@@ -152,19 +153,6 @@ const arenaFloor: Builder = ({ label }) => {
     c.lineTo(W / 2, H - 20)
     c.stroke()
     c.setLineDash([])
-    // Le rond central, et son « VS ».
-    c.fillStyle = '#14161a'
-    c.beginPath()
-    c.arc(W / 2, H * 0.42, 92, 0, Math.PI * 2)
-    c.fill()
-    c.stroke()
-    c.font = FONT
-    c.textAlign = 'center'
-    c.textBaseline = 'middle'
-    c.fillStyle = C.orange
-    c.fillText('V', W / 2 - 24, H * 0.42 + 4)
-    c.fillStyle = C.blue
-    c.fillText('S', W / 2 + 24, H * 0.42 + 4)
   })
   // Dans un groupe : c'est lui que le pont tourne, la plaque reste à plat.
   return { solid: new THREE.Group().add(decal(texture, w, d, 0.008)) }
@@ -195,7 +183,10 @@ const arenaEntry: Builder = () => {
   return { solid: new THREE.Group().add(decal(texture, 1.8, 0.7, 0.009)) }
 }
 
-/** Le logo peint au sol (`label` : son côté, en mètres), le titre vers le nord : il se lit vu de dessus. */
+/**
+ * Le logo peint au sol (`label` : son côté, en mètres), le titre vers le nord : il se lit vu de
+ * dessus. C'est sa version sans fond : entre les combattants et l'anneau, on voit le sol de la pièce.
+ */
 const arenaLogo: Builder = ({ label }) => {
   const side = Number(label) || 1.4
   const texture = logoTexture(512, 512, (c, logo) => {
@@ -205,14 +196,20 @@ const arenaLogo: Builder = ({ label }) => {
     c.globalAlpha = 0.94
     c.drawImage(logo, 0, 0, 512, 512)
     c.globalAlpha = 1
-  })
-  return { solid: new THREE.Group().add(decal(texture, side, side, 0.01)) }
+  }, 'floor')
+  // Il est peint sur le sol de la pièce, lui-même un décalque translucide : sans écrire dans le tampon
+  // de profondeur, et dessiné après lui. Sinon ses parties vides masquent ce sol, et laissent voir
+  // dans un carré les dalles sombres du pont.
+  const paint = decal(texture, side, side, 0.01)
+  ;(paint.material as THREE.Material).depthWrite = false
+  paint.renderOrder = 1
+  return { live: new THREE.Group().add(paint) }
 }
 
 /**
  * L'enseigne lumineuse (dos au mur), au-dessus de la porte du lobby : un caisson à la largeur de la
  * porte double, le logo au milieu, une aile par équipe. Elle a deux faces : celle qu'on voit en
- * arrivant de la zone thargoïde, et son dos, que montre la vue de dessus. Elle tient entre le haut
+ * arrivant du hall de la cale, et son dos, que montre la vue de dessus. Elle tient entre le haut
  * de la porte et le plafond ; deux potences la portent.
  */
 const arenaSign: Builder = () => {
@@ -559,7 +556,7 @@ const arenaGarland: Builder = ({ label }) => {
 }
 
 /**
- * Le projecteur du milieu de la pièce : l'hologramme de l'arène (son plan, cf. ARENA_MAP), qui
+ * Le projecteur de l'entrée, à côté du râtelier : l'hologramme de l'arène (son plan, cf. ARENA_MAP), qui
  * tourne lentement au-dessus de sa base. Cyan au repos ; quand une partie se joue, l'anneau de la
  * base passe au rouge et bat, et « EN DIRECT » s'affiche : c'est là qu'on vient la regarder.
  */
@@ -591,9 +588,15 @@ const arenaHolo: Builder = () => {
   for (const [color, side] of [[C.orange, -1], [C.blue, 1]] as const) {
     plan.add(mesh(new THREE.PlaneGeometry(T * 3, rows * T).rotateX(-Math.PI / 2), holoMaterial(null, color, 0.45), side * ((cols - 3) / 2) * T, 0.002, 0))
   }
-  plan.position.y = 0.52
-  plan.rotation.x = 0.22
-  const turn = new THREE.Group().add(plan)
+  // Le plan tourne à plat dans un cadre penché une fois pour toutes vers la vue de dessus (le
+  // sud-est) : penché avec lui, il montrait son dessous à la caméra la moitié du tour.
+  const tilt = new THREE.Group().add(plan)
+  tilt.rotation.x = 0.22
+  const lean = new THREE.Group().add(tilt)
+  lean.position.y = 0.52
+  lean.rotation.y = Math.PI / 4
+  live.add(lean)
+  const turn = new THREE.Group()
   live.add(turn)
   // « EN DIRECT » : au-dessus du plan, des deux côtés, seulement quand une partie se joue.
   const sign = drawnTexture(256, 64, (c) => {
@@ -615,7 +618,7 @@ const arenaHolo: Builder = () => {
     // Sa base seule arrête les pas : on traverse l'hologramme.
     extent: new THREE.Box3(new THREE.Vector3(-0.4, 0, -0.4), new THREE.Vector3(0.4, 0.9, 0.4)),
     update: (t) => {
-      turn.rotation.y = t * 0.22
+      plan.rotation.y = turn.rotation.y = t * 0.22
       const on = arenaLive.games.length > 0
       onAir.visible = on
       ring.color.copy(on ? hot : idle).multiplyScalar(on ? 0.65 + 0.35 * Math.sin(t * 5) : 1)

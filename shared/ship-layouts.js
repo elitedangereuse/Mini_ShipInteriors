@@ -11,17 +11,18 @@ export const SHIP_LAYOUTS = {
   // Cale ; à la poupe, la salle des machines, derrière l'atelier, et cachée derrière elle, le
   // sanctuaire de la Voie. Chez Jacques, le bar clandestin, ne s'ouvre que depuis le fond de la soute, et
   // aux seuls habitués (cf. BAR_ROOM). À
-  // l'est de la soute, le lobby de la zone thargoïde (SOC-06), d'où partent les missions : au nord,
-  // l'alcôve de la porte blindée et, derrière ses vitres, le poste de sécurité de la zone ('t',
-  // verrouillé) ; au sud, le vestiaire et la table de briefing. Collé à lui, le hangar du Krait,
-  // ouvert sur l'espace à la proue. Au-dessus de la salle des machines, au bout d'un couloir de
+  // l'est de la soute, le hall de la cale ('p') : deux rangées qui filent de la soute au hangar du
+  // Krait, collé à lui et ouvert sur l'espace à la proue, et un vestiaire qui descend au sud-ouest.
+  // Il dessert deux lobbys, face à face, chacun derrière sa porte double. Au nord, celui de la zone
+  // thargoïde (SOC-06, 'h', cf. THARGOID_DOORS), une pièce fermée d'où partent les missions : la
+  // salle de briefing, l'alcôve de la porte blindée et, derrière ses vitres, le poste de sécurité
+  // de la zone ('t', verrouillé). Au sud-est, celui de l'arène ('y', 3 × 5, cf. ARENA_DOORS),
+  // derrière une cloison vitrée. Au-dessus de la salle des machines, au bout d'un couloir de
   // service qui part du palier, le Zorb, la boîte de nuit des aliens ('n', cf. CLUB_ROOM). Au nord
   // du palier, à la place de l'ancienne baie de réparation, le stand de tir ('r', cf. SHOOTING_RANGE).
   // Entre l'atelier et la descente de ce couloir, au-dessus du palier, le placard à balais ('c',
   // 2 × 2), dont la porte donne sur le couloir (cf. CLOSET_DOOR).
-  // Le coin sud-est du lobby est une pièce à part, le lobby de l'arène ('y', 3 × 5) : une cloison
-  // vitrée l'en sépare, percée d'une porte double (cf. ARENA_DOORS).
-  // Au sud du lobby, par une porte de service (cf. SCAVENGERS_DOOR), une gaine technique d'une
+  // Au sud du hall, par une porte de service (cf. SCAVENGERS_DOOR), une gaine technique d'une
   // tuile de large ('w') file vers l'est jusqu'au local du ventilateur ; de là, on entre dans la
   // planque des Scavengers ('s'), où l'on joue au jeu du même nom. Passé le ventilateur, la gaine
   // continue de deux tuiles jusqu'au poste d'exploration ('i'), sous le hangar : la pièce
@@ -31,13 +32,13 @@ export const SHIP_LAYOUTS = {
     'nnn+uuuuuuu rrrrr   ttthhhkkkkkkkkkkkk  ',
     'nnnnaaaaccu rrrrrgg hhhhhhkkkkkkkkkkkk  ',
     'eeeeaaaacc+ rrrrr+g hhhhhhkkkkkkkkkkkk  ',
-    'eeeeaaaa jjj+rr+rgg hhhhhh+kkkkkkkkkkk  ',
-    'eee+aaaa+jjjmmmmmgg+hhhhhh+kkkkkkkkkkk  ',
-    'eeeeaaaa jjj+mmmm+g hhhyyykkkkkkkkkkkk  ',
-    'eeeeaaaa    mmmmmgg hhhyyykkkkkkkkkkkk  ',
-    'vv+vv       mmmmm+  hhhyyykkkkkkkkkkkk  ',
-    'vvvvv    bbbbbbbbbb hhhyyykkkkkkkkkkkk  ',
-    'vvvvv    bbbbbbbbbb hhhyyykkkkkkkkkkkk  ',
+    'eeeeaaaa jjj+rr+rgg pppppp+kkkkkkkkkkk  ',
+    'eee+aaaa+jjjmmmmmgg+pppppp+kkkkkkkkkkk  ',
+    'eeeeaaaa jjj+mmmm+g pppyyykkkkkkkkkkkk  ',
+    'eeeeaaaa    mmmmmgg pppyyykkkkkkkkkkkk  ',
+    'vv+vv       mmmmm+  pppyyykkkkkkkkkkkk  ',
+    'vvvvv    bbbbbbbbbb pppyyykkkkkkkkkkkk  ',
+    'vvvvv    bbbbbbbbbb pppyyykkkkkkkkkkkk  ',
     'vvvvv    bbbbbbbbbb  wwwwwwwwwww+iiiii  ',
     'vvvvv    bbbbbbbbbb   ssssssww  iiiiii  ',
     '         bbbbbbbbbb   sssss+ww  iiiiii  ',
@@ -220,7 +221,7 @@ function mezzanineWalls(level) {
  */
 export function shipMapOptions(level) {
   const id = String(level)
-  const doors = id === '-1' ? [SECURITY_DOOR, SCAVENGERS_DOOR, CLOSET_DOOR, ...ARENA_DOORS] : id === '0' ? PIXEL_WAR_DOORS : id === '2' ? [PLOT_DOOR] : []
+  const doors = id === '-1' ? [SECURITY_DOOR, SCAVENGERS_DOOR, CLOSET_DOOR, ...THARGOID_DOORS, ...ARENA_DOORS] : id === '0' ? PIXEL_WAR_DOORS : id === '2' ? [PLOT_DOOR] : []
   return { closed: CLOSED_ROOMS[level] ?? '', doors, walls: mezzanineWalls(id) }
 }
 
@@ -236,12 +237,18 @@ export function legacyUpperMapOptions() {
 export const SECURITY_DOOR = { x: 22, z: 0, dir: 1, locked: true }
 
 /**
- * La porte de service du lobby (cale), dans son mur sud : elle donne sur la gaine technique qui
+ * La porte de service du hall de la cale, dans son mur sud : elle donne sur la gaine technique qui
  * mène à la planque des Scavengers. Posée sur le bord nord de la première tuile de la gaine.
  */
 export const SCAVENGERS_DOOR = { x: 22, z: 11, dir: 0 }
 
-/** La porte double du lobby de l'arène (cale), dans sa cloison nord : elle donne sur le lobby de la zone thargoïde. */
+/**
+ * La porte double du lobby de la zone thargoïde (cale), dans son mur sud : elle donne sur le hall,
+ * juste en face de celle du lobby de l'arène.
+ */
+export const THARGOID_DOORS = [{ x: 23, z: 4, dir: 0 }, { x: 24, z: 4, dir: 0 }]
+
+/** La porte double du lobby de l'arène (cale), dans sa cloison nord : elle donne sur le hall de la cale. */
 export const ARENA_DOORS = [{ x: 23, z: 6, dir: 0 }, { x: 24, z: 6, dir: 0 }]
 
 /** La porte du placard à balais de la cale, dans son mur est : elle donne sur le couloir de service du Zorb. */
