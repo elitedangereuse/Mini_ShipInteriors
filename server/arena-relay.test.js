@@ -7,11 +7,10 @@ import { createServer } from 'node:http'
 import { after, afterEach, before, test } from 'node:test'
 import { io as connect } from 'socket.io-client'
 import { attachRelay, WS_PATH } from './relay.js'
-import { ARENA_LEVEL, ARENA_RULES } from '../shared/arena.js'
+import { ARENA_CHARACTERS, ARENA_LEVEL, ARENA_RULES } from '../shared/arena.js'
 import { VENT_LEVEL } from '../shared/vents.js'
 import { ZONE_LEVEL } from '../shared/salvage.js'
 import { TUTORIAL_LEVEL } from '../shared/tutorial.js'
-import { WEAPON_STATS } from '../shared/weapons.js'
 
 const site = createServer((req, res) => {
   res.setHeader('Content-Type', 'application/json')
@@ -79,7 +78,7 @@ test('un salon se forme au lobby, la partie part, et l\'arène reste entre ses j
   b.emit('state', { ...LOBBY, x: 23 })
   await next(other, 'state', (m) => m.id === wb.id)
   const opened = next(b, 'arena:lobby', (m) => m.rooms[0].members.length === 1)
-  a.emit('arena:join', { room: 1, weapon: 'pistol' })
+  a.emit('arena:join', { room: 1, character: 'betty' })
   const room = (await opened).rooms[0]
   assert.equal(room.leader, wa.id)
   a.emit('arena:settings', { size: 1, bots: false })
@@ -122,7 +121,7 @@ test('un salon se forme au lobby, la partie part, et l\'arène reste entre ses j
   a.emit('arena:fire', { o: [sa.spawn.x, ARENA_RULES.aim, sa.spawn.z], d: [[1, 0, 0]] })
   const shot = await shown
   await Promise.all([notMine, notTheirs])
-  assert.equal(shot.weapon, 'pistol')
-  assert.equal(shot.d.length, WEAPON_STATS.pistol.pellets)
+  assert.equal(shot.character, 'betty')
+  assert.equal(shot.d.length, ARENA_CHARACTERS.betty.weapon.pellets)
   assert.ok(wo.id)
 })

@@ -1,18 +1,17 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
-import { BASE, BLASTER_PACK } from '../assets'
+import { BASE } from '../assets'
 import { tr } from '../i18n'
-import { WEAPONS } from '../range-weapons'
-import { ARENA_MAP, ARENA_TEAMS } from '../../shared/arena.js'
+import { ROSTER } from '../arena/roster'
+import { ARENA_MAP, ARENA_TEAMS, CHARACTER_IDS } from '../../shared/arena.js'
 import { animatedScreen, box, cylinder, decal, drawnTexture, glow, holoMaterial, lit, mesh, type Builder } from './kit'
-import { kitModel } from './nature'
 
 /*
  * Le lobby de l'arène (cale, pièce 'y', cf. src/arena/) : au coin sud-est du hall de la cale,
  * derrière une cloison vitrée, en face du lobby de la zone thargoïde. Là où celui de la zone est sombre, celui-ci
  * est aux couleurs des deux équipes, orange et bleu : le sol peint (une moitié par équipe, le rond
  * central), le guichet de l'arbitre, le classement des joueurs au milieu du mur d'en face, entre les
- * bannières des deux équipes, le râtelier des cinq armes, et, côté hall, le marquage qui
+ * bannières des deux équipes, le tableau des six personnages, et, côté hall, le marquage qui
  * mène à la porte. À l'entrée, un projecteur fait tourner l'hologramme de l'arène : il
  * passe au rouge quand une partie se joue, et c'est de là qu'on la regarde. Autour : le trophée, le
  * banc des spectateurs, les fanions. Le terminal, lui, est dans range.ts.
@@ -334,20 +333,47 @@ const arenaBooth: Builder = () => {
   return { solid: g, live, update: (t) => screen.tick(t) }
 }
 
-/** Le râtelier (dos au mur) : les cinq armes de l'arène, chacune sur son liseré de couleur. */
-const arenaRack: Builder = () => {
+/**
+ * Le tableau des personnages (dos au mur) : les six membres de l'équipage qu'on joue dans l'arène,
+ * sur deux rangées, chacun dans sa case à sa couleur, avec son nom, son rôle et son arme.
+ */
+const arenaRoster: Builder = () => {
   const g = new THREE.Group()
-  const W = 1.15
-  g.add(box(W, 0.78, 0.04, lit(C.deep), 0, 0.6, 0.02))
-  g.add(box(W + 0.06, 0.04, 0.08, lit(C.steelDark, 'metal'), 0, 0.2, 0.04))
-  g.add(box(W + 0.06, 0.04, 0.08, lit(C.steelDark, 'metal'), 0, 1, 0.04))
-  WEAPONS.forEach((w, i) => {
-    const y = 0.9 - i * 0.15
-    g.add(box(W - 0.1, 0.012, 0.01, glow(w.color), 0, y - 0.055, 0.045))
-    const gun = kitModel(w.model, 0.3, 0, 0, Math.PI / 2, 0, { pack: BLASTER_PACK })
-    gun.position.set((i % 2 ? 0.12 : -0.12), y - 0.045, 0.07)
-    g.add(gun)
+  const W = 1.15, H = 0.78, Y = 0.62
+  g.add(box(W + 0.06, H + 0.06, 0.04, lit(C.steelDark, 'metal'), 0, Y, 0.02))
+  const texture = drawnTexture(768, 520, (c) => {
+    c.fillStyle = '#101216'
+    c.fillRect(0, 0, 768, 520)
+    c.fillStyle = '#e6e9ee'
+    c.font = '800 34px system-ui, sans-serif'
+    c.textAlign = 'center'
+    c.fillText(tr('CHOISISSEZ VOTRE PERSONNAGE', 'PICK YOUR CHARACTER'), 384, 50)
+    CHARACTER_IDS.forEach((id, i) => {
+      const who = ROSTER[id]
+      const x = 16 + (i % 3) * 248, y = 74 + Math.floor(i / 3) * 222
+      c.fillStyle = '#1b1e25'
+      c.fillRect(x, y, 240, 210)
+      c.fillStyle = who.color
+      c.fillRect(x, y, 240, 8)
+      // Sa pastille : un rond à sa couleur, l'initiale dedans.
+      c.beginPath()
+      c.arc(x + 120, y + 72, 46, 0, Math.PI * 2)
+      c.fill()
+      c.fillStyle = '#101216'
+      c.font = '900 52px system-ui, sans-serif'
+      c.fillText(who.name[0], x + 120, y + 91)
+      c.fillStyle = who.color
+      c.font = '800 28px system-ui, sans-serif'
+      c.fillText(who.name, x + 120, y + 152, 224)
+      c.fillStyle = '#c5cbd4'
+      c.font = '600 19px system-ui, sans-serif'
+      c.fillText(who.role, x + 120, y + 178, 224)
+      c.fillStyle = '#8d96a3'
+      c.font = 'italic 17px system-ui, sans-serif'
+      c.fillText(who.weapon, x + 120, y + 199, 224)
+    })
   })
+  g.add(mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshLambertMaterial({ map: texture }), 0, Y, 0.042))
   return { solid: g }
 }
 
@@ -638,5 +664,5 @@ export const ARENA = {
   'arena-logo': arenaLogo,
   'arena-sign': arenaSign,
   'arena-booth': arenaBooth,
-  'arena-rack': arenaRack,
+  'arena-roster': arenaRoster,
 } satisfies Record<string, Builder>

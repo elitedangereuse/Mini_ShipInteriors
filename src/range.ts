@@ -7,7 +7,7 @@ import type { Wallet } from './economy/wallet'
 import { tr } from './i18n'
 import type { RangeTune } from './range-music'
 import type { RangeSfx } from './range-sfx'
-import { rangeState, WEAPONS, type RangeState, type Weapon, type WeaponId } from './range-weapons'
+import { rangeState, WEAPONS, type RangeState, type Weapon } from './range-weapons'
 import type { Dialog } from './ui'
 import { SHOOTING_RANGE } from '../shared/ship-layouts.js'
 
@@ -119,6 +119,8 @@ export interface Bullet {
   through?: Set<number>
   /** Arène : ce qu'il lui reste à parcourir avant de s'éteindre (la portée de l'arme). Au stand, les murs l'arrêtent. */
   reach?: number
+  /** Arène : une seringue de Betty, qui s'arrête aussi sur un coéquipier blessé. */
+  heal?: boolean
 }
 
 /** Ce qu'une balle rencontre (cf. RangeGame.cast) : une cible, un combattant de l'arène (`body`), ou une paroi (`normal`). */
@@ -362,6 +364,8 @@ export class RangeGame {
 
   /** Ce que le décor lit de la partie (cf. rangeState) ; l'arène a le sien. */
   protected readonly state: RangeState
+  /** Les armes qu'on peut avoir en main : celles du mur du stand ; dans l'arène, celles des personnages. */
+  protected readonly arsenal: Weapon[]
   /** Arme rangée : ni modèle, ni laser (l'arène, une fois éliminé). */
   protected holstered = false
   /** Les éclats ne passent pas derrière le mur du fond (z minimal). */
@@ -371,8 +375,9 @@ export class RangeGame {
   onChange?: (on: boolean) => void
 
   /** @param group la cale : cibles et balles y vivent, dans son repère */
-  constructor(protected group: THREE.Object3D, protected dialog: Dialog, protected wallet: Wallet, protected sfx: RangeSfx, protected music: RangeTune, options: { idle?: boolean; state?: RangeState } = {}) {
+  constructor(protected group: THREE.Object3D, protected dialog: Dialog, protected wallet: Wallet, protected sfx: RangeSfx, protected music: RangeTune, options: { idle?: boolean; state?: RangeState; arsenal?: Weapon[] } = {}) {
     this.state = options.state ?? rangeState
+    this.arsenal = options.arsenal ?? WEAPONS
     group.add(this.live, this.idle)
     this.laser = new THREE.Mesh(BEAM, new THREE.MeshBasicMaterial({ color: '#ff4a38', transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending }))
     this.laserDot = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), new THREE.MeshBasicMaterial({ color: '#ff6a5a' }))
@@ -397,8 +402,13 @@ export class RangeGame {
   get active() { return !!this.session }
 
   /** L'arme en main, ou null. */
-  get weapon(): WeaponId | null {
-    return this.session ? WEAPONS[this.session.weapon].id : null
+  get weapon(): string | null {
+    return this.session ? this.arsenal[this.session.weapon].id : null
+  }
+
+  /** Ce qu'il reste de la vitesse de marche, l'arme en main (cf. `weight`) ; 1 sans arme. */
+  get load(): number {
+    return this.session ? this.arsenal[this.session.weapon].weight : 1
   }
 
   /** Cap du personnage (cf. Player.setHeading) : tourné vers ce qu'il vise. */
@@ -415,8 +425,8 @@ export class RangeGame {
    * On agit sur une arme du mur : on la prend (la partie commence, ou l'on change d'arme sans
    * arrêter le chrono), ou l'on raccroche la sienne (la partie s'arrête).
    */
-  take(id: WeaponId) {
-    const index = WEAPONS.findIndex((w) => w.id === id)
+  take(id: string) {
+    const index = this.arsenal.findIndex((w) => w.id === id)
     const s = this.session
     if (index < 0) return
     if (!s) return this.start(index)
@@ -428,7 +438,7 @@ export class RangeGame {
   protected equip(index: number) {
     const s = this.session
     if (!s) return
-    const id = WEAPONS[index].id
+    const id = this.arsenal[index].id
     s.weapon = index
     s.reload = 0
     s.cooldown = Math.max(s.cooldown, 0.35)
@@ -444,12 +454,12 @@ export class RangeGame {
   protected start(weapon: number) {
     const revision = ++this.revision
     if (!this.hand.length) {
-      this.hand = WEAPONS.map((w) => this.makeGun(w, 0.4))
-      this.view = WEAPONS.map((w) => this.makeGun(w, 0.085))
+      this.hand = this.arsenal.map((w) => this.makeGun(w, 0.4))
+      this.view = this.arsenal.map((w) => this.makeGun(w, 0.085))
     }
     this.session = {
       score: 0, level: 0, hits: 0, shots: 0, streak: 0, best: localBest(RANGE_ID), timeLeft: START_TIME, elapsed: 0, started: false,
-      weapon, ammo: WEAPONS.map((w) => w.mag), cooldown: 0.3, reload: 0, spawn: 0, targets: [], bullets: [], hud: this.buildHud(), bannerTime: 0, second: START_TIME,
+      weapon, ammo: this.arsenal.map((w) => w.mag), cooldown: 0.3, reload: 0, spawn: 0, targets: [], bullets: [], hud: this.buildHud(), bannerTime: 0, second: START_TIME,
     }
     this.held = this.queued = false
     this.bloom = this.moving = this.drift = this.gunKick = this.gunVel = 0
@@ -466,7 +476,7 @@ export class RangeGame {
     document.body.classList.add('range-on')
     this.fillMag()
     this.state.live = true
-    this.state.weapon = WEAPONS[weapon].id
+    this.state.weapon = this.arsenal[weapon].id
     this.sfx.take()
     this.sfx.lights(true)
     this.music.start()
@@ -523,7 +533,7 @@ export class RangeGame {
 
   /** Stick de tir tactile : une arme automatique tire tant qu'il est poussé (au stand ; pas dans l'arène). */
   get sprays(): boolean {
-    return !!this.session && WEAPONS[this.session.weapon].auto
+    return !!this.session && this.arsenal[this.session.weapon].auto
   }
 
   /**
@@ -596,8 +606,8 @@ export class RangeGame {
   /** Change le chargeur (R) : l'ancien tombe, le neuf est en place après le délai de l'arme. */
   reload() {
     const s = this.session
-    if (!s || s.reload > 0 || s.timeLeft <= 0 || s.ammo[s.weapon] >= WEAPONS[s.weapon].mag) return
-    s.reload = WEAPONS[s.weapon].reload
+    if (!s || s.reload > 0 || s.timeLeft <= 0 || s.ammo[s.weapon] >= this.arsenal[s.weapon].mag) return
+    s.reload = this.arsenal[s.weapon].reload
     this.queued = false
     this.sfx.reload()
     // Le chargeur vide tombe de l'arme.
@@ -633,7 +643,7 @@ export class RangeGame {
   update(dt: number, f: RangeFrame) {
     const s = this.session
     if (!s) return
-    const w = WEAPONS[s.weapon]
+    const w = this.arsenal[s.weapon]
     this.camera = f.camera
     const origin = this.group.getWorldPosition(new THREE.Vector3())
     const foot = new THREE.Vector3().subVectors(f.player, origin)
@@ -769,7 +779,7 @@ export class RangeGame {
   }
 
   protected fire(eye: THREE.Vector3, dir: THREE.Vector3, f: RangeFrame, shown: Gun | null) {
-    const s = this.session!, w = WEAPONS[s.weapon]
+    const s = this.session!, w = this.arsenal[s.weapon]
     s.ammo[s.weapon]--
     s.cooldown = w.interval
     s.shots++
@@ -779,7 +789,7 @@ export class RangeGame {
     const spread = w.spread * RAD + this.bloom + this.moving
     shown?.root.updateWorldMatrix(true, false)
     const muzzle = shown ? this.group.worldToLocal(shown.root.localToWorld(shown.muzzle.clone())) : eye.clone()
-    this.sfx.shot(w.id, f.fps ? null : this.world(muzzle), 0.94 + Math.random() * 0.12)
+    this.sfx.shot(w.sound ?? w.id, f.fps ? null : this.world(muzzle), 0.94 + Math.random() * 0.12)
     const color = new THREE.Color(w.color)
     const shot: Shot = { left: w.pellets, scored: false }
     // Plus fine pour un plomb, large pour la boule de plasma.
@@ -1065,14 +1075,14 @@ export class RangeGame {
     s.bannerTime = 1.6
   }
 
-  /** Points gagnés, affichés là où la cible a éclaté. */
-  protected pop(text: string, at: THREE.Vector3, good: boolean) {
+  /** Points gagnés, affichés là où la cible a éclaté (`kind` : une classe de plus, cf. l'arène). */
+  protected pop(text: string, at: THREE.Vector3, good: boolean, kind = '') {
     const s = this.session
     if (!s || !this.camera) return
     _v.copy(at).add(this.group.getWorldPosition(_w)).project(this.camera)
     if (_v.z > 1) return
     const el = document.createElement('span')
-    el.className = good ? 'range-pop good' : 'range-pop'
+    el.className = `range-pop${good ? ' good' : ''}${kind ? ` ${kind}` : ''}`
     el.textContent = text
     el.style.left = `${((_v.x + 1) * 0.5 * innerWidth).toFixed(0)}px`
     el.style.top = `${((1 - _v.y) * 0.5 * innerHeight).toFixed(0)}px`
@@ -1222,7 +1232,7 @@ export class RangeGame {
 
   /** Arme du kit à l'échelle `scale`, poignée à l'origine, canon vers +z. */
   protected makeGun(w: Weapon, scale: number): Gun {
-    const model = packModel(w.model, BLASTER_PACK).clone(true)
+    const model = w.make ? w.make() : packModel(w.model, BLASTER_PACK).clone(true)
     model.traverse((o) => { o.castShadow = false })
     _box.setFromObject(model)
     model.position.set(-(_box.min.x + _box.max.x) / 2, -w.grip[0], -w.grip[1])
@@ -1292,7 +1302,7 @@ export class RangeGame {
 
   /** Le geste du rechargement, de 0 (arme en joue) à 1 (basculée, chargeur sorti) et retour, sur sa durée. */
   protected loading(s: Session): number {
-    return s.reload > 0 ? Math.sin(Math.min(1, (1 - s.reload / WEAPONS[s.weapon].reload) * 1.15) * Math.PI) : 0
+    return s.reload > 0 ? Math.sin(Math.min(1, (1 - s.reload / this.arsenal[s.weapon].reload) * 1.15) * Math.PI) : 0
   }
 
   /** Éclair du canon : un halo de la couleur du tir, le temps de trois images. */
@@ -1452,7 +1462,7 @@ export class RangeGame {
   protected fillMag() {
     const s = this.session
     if (!s) return
-    const w = WEAPONS[s.weapon], h = s.hud
+    const w = this.arsenal[s.weapon], h = s.hud
     h.weapon.textContent = w.name
     h.mag.className = `range-mag m${w.mag}`
     h.pips = Array.from({ length: w.mag }, () => document.createElement('i'))
@@ -1460,7 +1470,7 @@ export class RangeGame {
   }
 
   protected drawHud(dt: number, f: RangeFrame) {
-    const s = this.session!, h = s.hud, w = WEAPONS[s.weapon]
+    const s = this.session!, h = s.hud, w = this.arsenal[s.weapon]
     h.score.textContent = s.score.toLocaleString()
     h.time.textContent = String(Math.ceil(s.timeLeft))
     h.clock.classList.toggle('low', s.started && s.timeLeft <= 10)

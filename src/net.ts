@@ -3,7 +3,7 @@ import type { FightSnapshot } from '../shared/fight.js'
 import type { SystemId } from '../shared/systems.js'
 /** Client du relais multijoueur (server/relay.js, socket.io). Sans serveur, le jeu reste en solo. */
 import { io, type Socket } from 'socket.io-client'
-import type { WeaponId } from '../shared/weapons.js'
+import type { CharacterId } from '../shared/arena.js'
 
 export interface PlayerState {
   id: number
@@ -230,7 +230,7 @@ export interface SalvageMemberStats { id: number; name: string; delivered: numbe
 export type SalvageAction = 'join' | 'leave' | 'settings' | 'ready' | 'pickup' | 'hide' | 'unhide' | 'flare' | 'quit' | 'resume'
 
 /** L'arène (cf. server/arena.js) : un des lobbys du terminal (son numéro), vide, ses deux camps, ou sa partie en cours. */
-export interface ArenaMember { id: number; name: string; verified: boolean; team: 0 | 1; weapon: WeaponId; ready: boolean }
+export interface ArenaMember { id: number; name: string; verified: boolean; team: 0 | 1; character: CharacterId; ready: boolean }
 export interface ArenaRoom {
   id: number
   leader: number | null
@@ -250,7 +250,8 @@ export interface ArenaRoom {
   watchers?: number
 }
 export interface ArenaLobby { rooms: ArenaRoom[] }
-export interface ArenaFighter { id: number; name: string; team: 0 | 1; bot: boolean; weapon: WeaponId }
+/** Un combattant de la partie, et le personnage qu'il joue (cf. ARENA_CHARACTERS). */
+export interface ArenaFighter { id: number; name: string; team: 0 | 1; bot: boolean; character: CharacterId }
 export interface ArenaStart {
   game: string
   team: 0 | 1
@@ -266,25 +267,31 @@ export interface ArenaStart {
   watch?: boolean
 }
 export interface ArenaFighterState {
-  id: number; x: number; z: number; yaw: number; anim: string; hp: number; alive: boolean; weapon: WeaponId
+  id: number; x: number; z: number; yaw: number; anim: string; hp: number; alive: boolean
   /** Protégé (il vient de revenir à sa base) ; `wait` : secondes avant son retour. */
   shield: boolean
   kills: number
   deaths: number
   wait: number
 }
-export interface ArenaState { game: string; warmup: number; left: number; score: [number, number]; round: number; rounds: [number, number]; fighters: ArenaFighterState[] }
+/** Une fleur carnivore de Capucine, ou une flaque en feu de Jacques : où, de quel camp, et pour combien de temps (s). */
+export interface ArenaTrap { id: number; kind: 'flower' | 'fire'; team: 0 | 1; x: number; z: number; left: number }
+export interface ArenaState { game: string; warmup: number; left: number; score: [number, number]; round: number; rounds: [number, number]; fighters: ArenaFighterState[]; traps: ArenaTrap[] }
 export type ArenaEvent =
-  | { kind: 'shot'; id: number; weapon: WeaponId; o: [number, number, number]; d: [number, number, number][] }
-  | { kind: 'hit'; id: number; by: number; hp: number; dmg: number; x: number; y: number; z: number }
+  /** `to`, `dur` : un objet lancé, où il retombe et en combien de temps. */
+  | { kind: 'shot'; id: number; character: CharacterId; o: [number, number, number]; d: [number, number, number][]; to?: [number, number]; dur?: number }
+  /** `trap` : la fleur qui a mordu, ou la flaque qui a brûlé. */
+  | { kind: 'hit'; id: number; by: number; hp: number; dmg: number; x: number; y: number; z: number; trap?: number }
+  /** Betty soigne un coéquipier. */
+  | { kind: 'heal'; id: number; by: number; hp: number; amount: number; x: number; y: number; z: number }
   /** `from` : où il est tombé ; `x`, `z`, `yaw` : sa base, où il attend en fantôme de revenir en jeu. */
-  | { kind: 'kill'; id: number; by: number; weapon: WeaponId; score: [number, number]; wait: number; from: { x: number; z: number }; x: number; z: number; yaw: number }
-  | { kind: 'spawn'; id: number; x: number; z: number; yaw: number; weapon: WeaponId }
+  | { kind: 'kill'; id: number; by: number; character: CharacterId; score: [number, number]; wait: number; from: { x: number; z: number }; x: number; z: number; yaw: number }
+  | { kind: 'spawn'; id: number; x: number; z: number; yaw: number }
   | { kind: 'left'; id: number }
   /** Une manche se termine (`winner` : -1 à égalité) ; la suivante part dans `wait` secondes. */
   | { kind: 'round'; round: number; winner: number; reason: 'score' | 'time'; score: [number, number]; rounds: [number, number]; wait: number }
   | { kind: 'join'; fighter: ArenaFighter; x: number; z: number; yaw: number }
-export interface ArenaStats extends ArenaFighter { kills: number; deaths: number; damage: number }
+export interface ArenaStats extends ArenaFighter { kills: number; deaths: number; damage: number; heal: number }
 export interface ArenaEnd {
   game: string
   /** Équipe gagnante ; -1 : égalité. */
@@ -297,7 +304,7 @@ export interface ArenaEnd {
   duration: number
   stats: ArenaStats[]
 }
-export type ArenaAction = 'join' | 'leave' | 'side' | 'settings' | 'weapon' | 'ready' | 'fire' | 'quit' | 'watch' | 'unwatch' | 'debug'
+export type ArenaAction = 'join' | 'leave' | 'side' | 'settings' | 'character' | 'ready' | 'fire' | 'quit' | 'watch' | 'unwatch' | 'debug'
 
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */

@@ -1,15 +1,16 @@
 import { tr } from '../i18n'
 import { icon } from '../icons'
 import type { ArenaEnd, ArenaLobby, ArenaRoom } from '../net'
-import { WEAPONS, weaponById, type WeaponId } from '../range-weapons'
 import { button, el, Modal } from '../salvage/ui'
-import { ARENA_RULES, ARENA_TEAMS } from '../../shared/arena.js'
+import { ARENA_RULES, ARENA_TEAMS, DEFAULT_CHARACTER, type CharacterId } from '../../shared/arena.js'
+import { CHARACTERS, characterById, gauges, type Character } from './characters'
 
 /*
  * Interface de l'arène : le terminal (à gauche, les quatre lobbys où l'on se place ; à droite, les
- * deux camps face à face, l'arme et ses jauges, les réglages, « prêt »), puis en partie le score des deux équipes et le chrono, les points de vie, le fil des
- * éliminations, l'écran d'attente de celui qui vient d'être éliminé (il y change d'arme), et
- * l'écran de fin, posé sur la scène où les combattants s'alignent (cf. podium.ts).
+ * deux camps face à face, le choix du personnage et sa fiche, les réglages, « prêt »), puis en
+ * partie le score des deux équipes et le chrono, les points de vie, le fil des éliminations,
+ * l'écran d'attente de celui qui vient d'être éliminé, et l'écran de fin, posé sur la scène où les
+ * combattants s'alignent (cf. podium.ts).
  */
 
 export const TEAM_NAMES = [tr('Orange', 'Orange'), tr('Bleue', 'Blue')]
@@ -21,61 +22,68 @@ export interface ArenaPanelActions {
   leave(): void
   side(team: number): void
   settings(s: { size?: number; bots?: boolean; skill?: number; goal?: number }): void
-  weapon(id: WeaponId): void
+  character(id: CharacterId): void
   ready(on: boolean): void
   /** Regarder la partie en cours d'un lobby, en spectateur. */
   watch(room: number): void
 }
 
-/** Les cinq armes, à choisir : au terminal, puis à chaque élimination. */
-function weaponPicker(current: WeaponId, pick: (id: WeaponId) => void, keys = false, cursor = -1): HTMLElement {
-  const row = el('div', 'arena-weapons')
-  row.setAttribute('role', 'radiogroup')
-  row.setAttribute('aria-label', tr('Arme', 'Weapon'))
-  WEAPONS.forEach((w, i) => {
-    const b = button('', () => pick(w.id), `${w.id === current ? 'on' : ''}${i === cursor ? ' cursor' : ''}`)
-    b.setAttribute('role', 'radio')
-    b.setAttribute('aria-checked', String(w.id === current))
-    b.dataset.key = `weapon-${w.id}`
-    b.style.setProperty('--weapon', w.color)
-    if (keys) b.append(el('kbd', '', String(i + 1)))
-    b.append(el('strong', '', w.name), el('span', '', w.trait))
-    row.append(b)
-  })
-  return row
+/** Sa pastille : l'icône du personnage, à sa couleur. */
+function badge(c: Character, className = 'arena-badge-char'): HTMLElement {
+  const b = el('span', className)
+  b.style.setProperty('--char', c.color)
+  b.append(icon(c.icon))
+  return b
 }
 
-/** Ce qu'une arme vaut dans l'arène, de 0 à 1 : la force d'un tir, la cadence, la portée utile. */
-function gauges(w: (typeof WEAPONS)[number]): [string, number][] {
-  return [
-    [tr('Force', 'Power'), Math.min(1, (w.damage * w.pellets) / ARENA_RULES.hp)],
-    [tr('Cadence', 'Rate'), Math.min(1, Math.sqrt(0.08 / w.interval))],
-    [tr('Portée', 'Range'), Math.min(1, w.range / 7.5)],
-  ]
-}
-
-/** Le choix de l'arme, au terminal : une fiche par arme, avec ses jauges et son chargeur. */
-function loadout(current: WeaponId, pick: (id: WeaponId) => void): HTMLElement {
-  const row = el('div', 'arena-loadout')
+/**
+ * Le choix du personnage, au terminal : une rangée de six portraits (sa pastille, son nom, son rôle),
+ * et dessous la fiche de celui qu'on a choisi : son arme, ce qu'il fait, et ses six jauges.
+ */
+function roster(current: CharacterId, pick: (id: CharacterId) => void): HTMLElement {
+  const box = el('div', 'arena-roster')
+  const row = el('div', 'arena-chars')
   row.setAttribute('role', 'radiogroup')
-  row.setAttribute('aria-label', tr('Arme', 'Weapon'))
-  for (const w of WEAPONS) {
-    const b = button('', () => pick(w.id), `arena-gun${w.id === current ? ' on' : ''}`)
+  row.setAttribute('aria-label', tr('Personnage', 'Character'))
+  for (const c of CHARACTERS) {
+    const b = button('', () => pick(c.id), `arena-char${c.id === current ? ' on' : ''}`)
     b.setAttribute('role', 'radio')
-    b.setAttribute('aria-checked', String(w.id === current))
-    b.dataset.key = `weapon-${w.id}`
-    b.style.setProperty('--weapon', w.color)
-    const bars = el('span', 'arena-gauges')
-    for (const [label, value] of gauges(w)) {
-      const bar = el('i')
-      bar.style.setProperty('--fill', `${Math.round(value * 100)}%`)
-      bar.title = label
-      bars.append(el('em', '', label), bar)
-    }
-    b.append(el('strong', '', w.name), el('span', 'arena-gun-trait', w.trait), bars, el('span', 'arena-gun-mag', tr(`Chargeur ${w.mag}`, `Mag ${w.mag}`)))
+    b.setAttribute('aria-checked', String(c.id === current))
+    b.dataset.key = `char-${c.id}`
+    b.style.setProperty('--char', c.color)
+    b.append(badge(c), el('strong', '', c.name), el('span', '', c.role))
     row.append(b)
   }
-  return row
+  const c = characterById(current)
+  const card = el('article', 'arena-sheet')
+  card.style.setProperty('--char', c.color)
+  const head = el('header')
+  const title = el('div')
+  title.append(el('strong', '', c.full), el('span', '', `${c.role} · ${c.arm.name}`))
+  head.append(badge(c), title)
+  const bars = el('dl', 'arena-gauges')
+  for (const g of gauges(c)) {
+    const cell = el('div')
+    const bar = el('i')
+    bar.style.setProperty('--fill', `${Math.round(Math.max(0.04, g.value) * 100)}%`)
+    cell.append(el('dt', '', g.label), bar, el('dd', '', g.text))
+    bars.append(cell)
+  }
+  card.append(head, el('p', 'arena-sheet-play', play(c)), bars, el('p', 'arena-sheet-quip', `« ${c.quip} »`))
+  box.append(row, card)
+  return box
+}
+
+/** Comment il se joue, en une phrase. */
+function play(c: Character): string {
+  switch (c.id) {
+    case 'rourke': return tr('Des rafales régulières à moyenne portée. Il va partout, sans exceller nulle part : le bon choix pour commencer.', 'Steady bursts at mid range. He goes anywhere without excelling anywhere: the right pick to start with.')
+    case 'marcel': return tr('Ses tomates éclatent à l\'impact et éclaboussent autour. Lent et très solide, il doit s\'approcher : de loin, il ne fait rien.', 'His tomatoes burst on impact and splash around. Slow and very sturdy, he has to close in: at range he does nothing.')
+    case 'nico': return tr('Le laser porte loin, frappe fort et traverse. Le plus rapide, le plus fragile : on tire, on bouge, on ne se fait pas toucher. Boulon voit dans les buissons proches.', 'The laser reaches far, hits hard and pierces. Fastest and frailest: shoot, move, don\'t get hit. Bolt sees into nearby bushes.')
+    case 'betty': return tr('Ses seringues soignent les coéquipiers blessés et piquent ceux d\'en face. Peu de dégâts : elle tient son équipe en vie.', 'Her syringes heal wounded teammates and sting the other side. Low damage: she keeps her team alive.')
+    case 'capucine': return tr('Elle lance par-dessus les obstacles des graines qui deviennent des fleurs carnivores : elles mordent qui passe, un moment. Deux à la fois.', 'She lobs seeds over obstacles that grow into carnivorous flowers: they bite whoever walks by, for a while. Two at a time.')
+    case 'jacques': return tr('Ses cocktails, lancés par-dessus les obstacles, éclatent et laissent une flaque qui brûle : de quoi fermer un passage, ou punir un groupe.', 'His cocktails, lobbed over obstacles, burst and leave a burning puddle: enough to shut a lane, or punish a group.')
+  }
 }
 
 /**
@@ -87,7 +95,7 @@ export class ArenaPanel extends Modal {
   private self = -1
   private online = false
   private status = ''
-  weapon: WeaponId = 'pistol'
+  character: CharacterId = DEFAULT_CHARACTER
 
   constructor(private actions: ArenaPanelActions) {
     super(tr('CMDR ARENA · INSCRIPTIONS', 'CMDR ARENA · SIGN-UP'), tr('Duel par équipes', 'Team duel'))
@@ -139,9 +147,9 @@ export class ArenaPanel extends Modal {
     if (focused) this.body.querySelector<HTMLElement>(`[data-key="${focused}"]`)?.focus()
   }
 
-  private pick(id: WeaponId) {
-    this.weapon = id
-    this.actions.weapon(id)
+  private pick(id: CharacterId) {
+    this.character = id
+    this.actions.character(id)
     this.render()
   }
 
@@ -190,17 +198,17 @@ export class ArenaPanel extends Modal {
     return b
   }
 
-  /** Pas encore placé : ce qu'est l'arène, et l'arme qu'on y apportera. */
+  /** Pas encore placé : ce qu'est l'arène, et le personnage qu'on y jouera. */
   private fillWelcome(stage: HTMLElement) {
     const hero = el('div', 'arena-hero')
     hero.append(
       el('strong', '', tr('Placez-vous dans un lobby', 'Pick a lobby')),
       el('p', '', tr(
-        `Deux équipes, jusqu'à ${ARENA_RULES.team} contre ${ARENA_RULES.team}, dans une baie de stockage tous projecteurs allumés. Seul contre les bots, ou avec ceux qui jouent avec vous : ils complètent les équipes. La partie se joue en ${ARENA_RULES.wins} manches gagnantes.`,
-        `Two teams, up to ${ARENA_RULES.team} vs ${ARENA_RULES.team}, in a storage bay with every floodlight on. Solo against the bots, or with whoever plays with you: they fill the teams. Best of ${ARENA_RULES.rounds} rounds.`,
+        `Deux équipes, jusqu'à ${ARENA_RULES.team} contre ${ARENA_RULES.team}, dans une baie de stockage tous projecteurs allumés. Chacun y joue un membre de l'équipage, son arme et son style. Seul contre les bots, ou avec ceux qui jouent avec vous : ils complètent les équipes. La partie se joue en ${ARENA_RULES.wins} manches gagnantes.`,
+        `Two teams, up to ${ARENA_RULES.team} vs ${ARENA_RULES.team}, in a storage bay with every floodlight on. Everyone plays a crew member, with their own weapon and style. Solo against the bots, or with whoever plays with you: they fill the teams. Best of ${ARENA_RULES.rounds} rounds.`,
       )),
     )
-    stage.append(hero, el('span', 'arena-heading', tr('Votre arme', 'Your weapon')), loadout(this.weapon, (id) => this.pick(id)))
+    stage.append(hero, el('span', 'arena-heading', tr('Votre personnage', 'Your character')), roster(this.character, (id) => this.pick(id)))
     stage.append(el('p', 'salvage-note', tr('Pour l\'honneur : CMDR Arena ne rapporte pas de crédits.', 'For honour only: CMDR Arena pays no credits.')))
   }
 
@@ -222,9 +230,9 @@ export class ArenaPanel extends Modal {
       const slots = el('ul', 'arena-slots')
       for (const m of mates) {
         const li = el('li', `arena-slot${m.id === this.self ? ' me' : ''}${m.ready ? ' ready' : ''}`)
-        const w = weaponById(m.weapon)
-        const chip = el('span', 'arena-chip', w?.name ?? '')
-        if (w) chip.style.setProperty('--weapon', w.color)
+        const c = characterById(m.character)
+        const chip = el('span', 'arena-chip', c.name)
+        chip.style.setProperty('--weapon', c.color)
         li.append(icon(m.id === r.leader ? 'crown' : 'user-solo'), el('span', 'arena-slot-name', m.name + (m.id === this.self ? tr(' (vous)', ' (you)') : '')), chip)
         li.append(el('span', 'arena-slot-state', m.ready ? tr('Prêt', 'Ready') : tr('En attente', 'Waiting')))
         slots.append(li)
@@ -247,7 +255,7 @@ export class ArenaPanel extends Modal {
     })
     stage.append(versus)
 
-    stage.append(el('span', 'arena-heading', tr('Votre arme', 'Your weapon')), loadout(me.weapon, (id) => this.pick(id)))
+    stage.append(el('span', 'arena-heading', tr('Votre personnage', 'Your character')), roster(me.character, (id) => this.pick(id)))
 
     // Réglages : le chef choisit ; les autres les voient.
     const settings = el('div', 'arena-settings')
@@ -376,7 +384,7 @@ export type Relation = 'self' | 'ally' | 'enemy'
 /** Ce que le HUD montre d'un combattant dans le fil des éliminations. */
 export interface FeedName { name: string; rel: Relation }
 /** La plaque d'un combattant, au-dessus de sa tête : son nom, ses points de vie. */
-export interface PlateInfo { name: string; hp: number; rel: Relation; shield: boolean; bot: boolean; /** Le joueur : son chargeur, de 0 à 1, et s'il est en train de le changer. */ ammo?: number; reloading?: boolean; /** Éliminé, en fantôme à sa base : secondes avant de revenir en jeu. */ wait?: number }
+export interface PlateInfo { name: string; hp: number; /** Ses points de vie de départ. */ max: number; rel: Relation; shield: boolean; bot: boolean; /** Le joueur : son chargeur, de 0 à 1, et s'il est en train de le changer. */ ammo?: number; reloading?: boolean; /** Éliminé, en fantôme à sa base : secondes avant de revenir en jeu. */ wait?: number }
 
 /**
  * En partie, à la façon de Brawl Stars : le score des deux camps (le sien en bleu, à gauche, celui
@@ -397,7 +405,6 @@ export class ArenaHud {
   private readonly wait = el('div', 'arena-wait')
   private readonly waitTitle = el('strong')
   private readonly waitClock = el('span')
-  private readonly waitPick = el('div')
   private readonly count = el('div', 'arena-count')
   private readonly vignette = el('div', 'arena-vignette')
   private readonly end = el('section', 'arena-end')
@@ -414,10 +421,7 @@ export class ArenaHud {
   private rankNote: HTMLElement | null = null
   onFollow?: (step: number) => void
   private shownCount = ''
-  private picked: string | null = null
-  private readonly coarse = matchMedia('(pointer: coarse)').matches
   onQuit?: () => void
-  onWeapon?: (id: WeaponId) => void
 
   constructor() {
     this.root.hidden = true
@@ -430,8 +434,7 @@ export class ArenaHud {
     this.plates.setAttribute('aria-hidden', 'true')
     this.quit = button(tr('Quitter', 'Leave'), () => this.onQuit?.(), 'arena-quit', 'sign-out')
     this.wait.hidden = true
-    this.wait.append(this.waitTitle, this.waitClock, el('span', 'arena-wait-label', tr('Arme au retour', 'Weapon on return')), this.waitPick)
-    if (!this.coarse) this.wait.append(el('span', 'arena-wait-keys', tr('← → choisir · Entrée valider · 1 à 5 : directement', '← → pick · Enter confirm · 1 to 5: straight away')))
+    this.wait.append(this.waitTitle, this.waitClock)
     this.count.setAttribute('aria-live', 'assertive')
     this.feed.setAttribute('aria-live', 'polite')
     const previous = button('', () => this.onFollow?.(-1), 'arena-spectate-step', 'caret-left')
@@ -550,7 +553,7 @@ export class ArenaHud {
       return
     }
     const hp = Math.max(0, Math.round(info.hp))
-    p.fill.style.width = `${Math.min(100, (hp / ARENA_RULES.hp) * 100).toFixed(0)}%`
+    p.fill.style.width = `${Math.min(100, (hp / Math.max(1, info.max)) * 100).toFixed(0)}%`
     if (p.value.textContent !== String(hp)) p.value.textContent = String(hp)
     p.ammo.hidden = info.ammo === undefined
     if (info.ammo !== undefined) (p.ammo.firstElementChild as HTMLElement).style.width = `${(info.ammo * 100).toFixed(0)}%`
@@ -586,27 +589,20 @@ export class ArenaHud {
     this.vignette.classList.add('flash')
   }
 
-  /** Une élimination dans le fil : qui, avec quoi, qui. */
-  kill(by: FeedName | null, victim: FeedName, weapon: WeaponId, mine: boolean) {
+  /** Une élimination dans le fil : qui, avec quoi (le personnage, son arme), qui. */
+  kill(by: FeedName | null, victim: FeedName, character: CharacterId, mine: boolean) {
     const li = el('li', mine ? 'mine' : '')
+    const c = characterById(character)
     if (by) li.append(el('span', by.rel, by.name))
-    li.append(icon('crosshair'), el('em', '', weaponById(weapon)?.name ?? ''), el('span', victim.rel, victim.name))
+    li.append(badge(c, 'arena-feed-char'), el('em', '', c.arm.name), el('span', victim.rel, victim.name))
     this.feed.append(li)
     while (this.feed.children.length > 5) this.feed.firstElementChild!.remove()
     window.setTimeout(() => li.remove(), 6000)
   }
 
-  /**
-   * Éliminé : par qui, le temps qu'il reste, l'arme du retour (validée) et celle sous le curseur du
-   * clavier ; `by` null : on est debout.
-   */
-  waiting(by: string | null, seconds: number, weapon: WeaponId, cursor: number) {
+  /** Éliminé : par qui, le temps qu'il reste avant de revenir en jeu ; `by` null : on est debout. */
+  waiting(by: string | null, seconds: number) {
     const on = by !== null
-    const key = `${weapon}:${cursor}`
-    if (on && (this.wait.hidden || this.picked !== key)) {
-      this.picked = key
-      this.waitPick.replaceChildren(weaponPicker(weapon, (id) => this.onWeapon?.(id), !this.coarse, this.coarse ? -1 : cursor))
-    }
     this.wait.hidden = !on
     if (!on) return
     this.waitTitle.textContent = by ? tr(`Éliminé par ${by}`, `Taken out by ${by}`) : tr('Éliminé', 'Taken out')
@@ -656,13 +652,18 @@ export class ArenaHud {
       const name = el('strong', 'arena-card-name')
       if (s.bot) name.append(icon('robot'))
       name.append(s.name)
+      const c = characterById(s.character)
+      const role = el('span', 'arena-card-char', c.name)
+      role.style.setProperty('--char', c.color)
       const stats = el('dl', 'arena-card-stats')
-      for (const [value, label] of [[s.kills, tr('Élim.', 'Kills')], [s.deaths, tr('Chutes', 'Deaths')], [s.damage, tr('Dégâts', 'Damage')]] as const) {
+      // Betty : ses soins, à la place des chutes.
+      const third: [number, string] = s.heal > 0 ? [s.heal, tr('Soins', 'Heals')] : [s.deaths, tr('Chutes', 'Deaths')]
+      for (const [value, label] of [[s.kills, tr('Élim.', 'Kills')], third, [s.damage, tr('Dégâts', 'Damage')]] as const) {
         const cell = el('div')
         cell.append(el('dd', '', String(value)), el('dt', '', label))
         stats.append(cell)
       }
-      card.append(name, stats)
+      card.append(name, role, stats)
       card.hidden = true
       cards.append(card)
       this.cards.set(id, card)

@@ -1,15 +1,17 @@
 import * as THREE from 'three'
-import type { Weapon } from '../range-weapons'
-import { ARENA_RULES, castArena, type ArenaZone } from '../../shared/arena.js'
+import { ARENA_RULES, castArena, type ArenaZone, type CharacterWeapon } from '../../shared/arena.js'
 
 /*
  * Le cône de visée de l'arène, peint au sol devant le joueur, à la façon de Brawl Stars : il montre
- * jusqu'où porte l'arme (cf. `range` dans shared/weapons.js) et ce qu'elle couvre.
+ * jusqu'où porte l'arme de son personnage (cf. `range` dans ARENA_CHARACTERS) et ce qu'elle couvre.
  * - Un couloir étroit pour une arme précise ; il s'évase de la dispersion de l'arme (la gerbe du
  *   fusil à pompe, la rafale qui s'ouvre de la mitraillette, la marche).
  * - Il s'arrête sur les cloisons et les conteneurs, rayon par rayon, comme les balles : ce qui est
  *   peint est ce qu'on peut toucher. Les combattants ne l'arrêtent pas.
- * - Au bout, pour le lance-plasma, le disque de son explosion.
+ * - Au bout, pour le lance-tomates de Marcel, le disque de son explosion.
+ * - Pour un objet lancé (la graine de Capucine, le cocktail de Jacques), qui passe par-dessus les
+ *   obstacles : un couloir droit jusqu'au point visé, et le disque de ce qu'il y couvrira (la
+ *   portée des mâchoires d'une fleur, l'éclat et la flaque d'un cocktail).
  * Blanc quand le coup peut partir, rouge sinon (chargeur vide ou en cours de changement, avant le
  * coup d'envoi).
  */
@@ -34,7 +36,7 @@ export class AimSight {
   private readonly outline = new Float32Array((RAYS + 1) * 2 * 3)
   private readonly fill: THREE.Mesh
   private readonly edge: THREE.LineLoop
-  /** L'explosion du lance-plasma, au bout du couloir : un disque et son bord. */
+  /** L'explosion d'une tomate, au bout du couloir, ou là où retombe un objet lancé : un disque et son bord. */
   private readonly blast = new THREE.Group()
   private readonly materials: (THREE.MeshBasicMaterial | THREE.LineBasicMaterial)[]
   private readonly p = { x: 0, y: ARENA_RULES.aim, z: 0 }
@@ -72,9 +74,10 @@ export class AimSight {
    * @param spread demi-angle de dispersion du moment (radians)
    * @param ready le coup peut partir
    */
-  place(zone: ArenaZone, w: Weapon, from: { x: number; z: number }, dir: { x: number; z: number }, spread: number, ready: boolean) {
-    // Une balle part d'un peu devant le tireur (cf. RangeGame.update), et vole sa portée.
-    const reach = START + w.range
+  place(zone: ArenaZone, w: CharacterWeapon, from: { x: number; z: number }, dir: { x: number; z: number }, spread: number, ready: boolean, throwTo = 0) {
+    // Une balle part d'un peu devant le tireur (cf. RangeGame.update), et vole sa portée ; un objet
+    // lancé va jusqu'au point visé, par-dessus tout.
+    const reach = w.lob ? Math.max(START, throwTo) : START + w.range
     const { p, d } = this
     let centre = reach
     for (let i = 0; i <= RAYS; i++) {
@@ -85,7 +88,7 @@ export class AimSight {
       // Le couloir : chaque rayon part d'un peu à côté du tireur.
       p.x = from.x + dir.z * k * LANE
       p.z = from.z - dir.x * k * LANE
-      let t = castArena(zone, p, d, reach, NOBODY).t
+      let t = w.lob ? reach : castArena(zone, p, d, reach, NOBODY).t
       // Parti d'un obstacle (le tireur le frôle) : le rayon repart de ses pieds.
       if (t <= 0) {
         p.x = from.x
@@ -111,11 +114,12 @@ export class AimSight {
     }
     this.fill.geometry.attributes.position.needsUpdate = true
     this.edge.geometry.attributes.position.needsUpdate = true
-    this.blast.visible = w.blast > 0
-    if (w.blast) {
-      // Qui se tient dans ce disque prend le souffle (cf. blastDamage).
+    // Qui se tient dans ce disque prend le souffle (cf. blastDamage), la morsure ou la brûlure.
+    const area = Math.max(w.blast, w.flower?.radius ?? 0, w.fire?.radius ?? 0)
+    this.blast.visible = area > 0
+    if (area) {
       this.blast.position.set(from.x + dir.x * centre, Y + 0.002, from.z + dir.z * centre)
-      this.blast.scale.setScalar(w.blast + ARENA_RULES.body.r)
+      this.blast.scale.setScalar(area + ARENA_RULES.body.r)
     }
     const color = ready ? READY : BLOCKED
     for (const m of this.materials) m.color.copy(color)
