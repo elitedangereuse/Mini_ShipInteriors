@@ -12,7 +12,8 @@ import type { Sound } from './audio'
  *
  * Les notes sont programmées un quart de seconde à l'avance sur l'horloge audio (`update`, à chaque
  * image) : la musique ne dépend pas de la cadence d'affichage. `pulse` donne le battement de la
- * grosse caisse, pour que les lumières du stand le suivent.
+ * grosse caisse, pour que les lumières du stand le suivent. Chaque note quitte le graphe audio dès
+ * qu'elle s'est tue : laissées branchées, elles s'y entasseraient jusqu'à saturer le rendu du son.
  *
  * L'arène a la sienne, sur le même séquenceur (cf. src/arena/music.ts).
  */
@@ -45,6 +46,8 @@ export class RangeMusic {
   private step = 0
   /** Instants des derniers coups de grosse caisse programmés. */
   protected kicks: number[] = []
+  /** Ce que `start` a branché, à débrancher à l'arrêt. */
+  private rack: (() => void) | null = null
 
   constructor(protected sound: Sound) {}
 
@@ -73,6 +76,13 @@ export class RangeMusic {
     delay.connect(feedback).connect(delay)
     delay.connect(this.out)
     this.bus = delay
+    const out = this.out
+    this.rack = () => {
+      out.disconnect()
+      delay.disconnect()
+      feedback.disconnect()
+      this.sound.release(voice)
+    }
     this.next = ctx.currentTime + 0.1
     this.step = 0
     this.kicks = []
@@ -87,7 +97,9 @@ export class RangeMusic {
     out.gain.cancelScheduledValues(t)
     out.gain.setValueAtTime(out.gain.value, t)
     out.gain.linearRampToValueAtTime(0, t + 0.5)
-    setTimeout(() => out.disconnect(), 1500)
+    const unplug = this.rack
+    this.rack = null
+    setTimeout(() => unplug?.(), 1500)
   }
 
   /** Battement de la grosse caisse : 1 au coup, puis il retombe (0 quand elle se tait). */
@@ -158,6 +170,7 @@ export class RangeMusic {
     env.gain.linearRampToValueAtTime(0.55, t + 0.004)
     env.gain.exponentialRampToValueAtTime(0.0008, t + 0.22)
     osc.connect(env).connect(out)
+    osc.onended = () => env.disconnect()
     osc.start(t)
     osc.stop(t + 0.25)
     this.noise(out, t, 0.012, 3000, 0.12)
@@ -180,6 +193,10 @@ export class RangeMusic {
     const send = ctx.createGain()
     send.gain.value = 0.35
     env.connect(send).connect(echo)
+    src.onended = () => {
+      env.disconnect()
+      send.disconnect()
+    }
     src.start(t, Math.random() * 0.5)
     src.stop(t + 0.16)
     this.tone(out, 'sine', 210, 150, t, 0.07, peak * 0.6, 4000, 0, 0.002)
@@ -198,6 +215,7 @@ export class RangeMusic {
     env.gain.linearRampToValueAtTime(peak, t + 0.002)
     env.gain.exponentialRampToValueAtTime(0.0008, t + len)
     src.connect(high).connect(env).connect(out)
+    src.onended = () => env.disconnect()
     src.start(t, Math.random() * 0.5)
     src.stop(t + len + 0.02)
   }
@@ -219,6 +237,7 @@ export class RangeMusic {
     env.gain.linearRampToValueAtTime(peak, t + attack)
     env.gain.exponentialRampToValueAtTime(0.0008, t + len)
     osc.connect(low).connect(env).connect(out)
+    osc.onended = () => env.disconnect()
     osc.start(t)
     osc.stop(t + len + 0.03)
   }

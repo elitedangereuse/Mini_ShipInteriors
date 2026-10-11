@@ -11,19 +11,41 @@ import type { WeaponId } from './range-weapons'
  * murs grésillent, les chargeurs claquent.
  *
  * `pos` : là où cela se passe (monde) ; null : à l'oreille, non spatialisé.
+ *
+ * Chaque bruitage quitte le graphe audio dès que sa dernière voix s'est tue (cf. bus) : dans
+ * l'arène, six combattants tirent à la fois, et des sorties laissées branchées s'entasseraient par
+ * milliers jusqu'à saturer le rendu du son. Leur nombre est aussi borné (cf. VOICES).
  */
 
 type Pos = THREE.Vector3 | null
 
-/** Sortie d'un bruitage : `dry` va à l'oreille, `mix` y va aussi en passant par la salle. */
+/**
+ * Sortie d'un bruitage : `dry` va à l'oreille, `mix` y va aussi en passant par la salle ; `until` :
+ * l'instant (horloge audio) où sa dernière voix se tait.
+ */
 interface Bus {
   dry: AudioNode
   mix: AudioNode
+  until: number
 }
+
+/**
+ * Bruitages à la fois, au plus : au-delà, le nouveau ne part pas (dans la mêlée, on ne l'entendrait
+ * pas). Une balle perdue sur un mur cède la place bien avant (`wall`) : une gerbe en fait neuf d'un coup.
+ */
+const VOICES = { most: 28, wall: 10 }
+/**
+ * Sur un téléphone, le rendu du son a bien moins de marge : pas de réverbération de salle (une
+ * convolution qui tourne en continu), et deux fois moins de bruitages à la fois.
+ */
+const LIGHT = matchMedia('(pointer: coarse)').matches
 
 export class RangeSfx {
   private room?: ConvolverNode
   private curves = new Map<number, Float32Array<ArrayBuffer>>()
+  /** Le bruitage en cours de fabrication (ses voix disent quand elles se taisent, cf. heard), et ceux qui sonnent encore. */
+  private last: Bus | null = null
+  private sounding = 0
 
   constructor(private sound: Sound) {}
 
@@ -36,6 +58,7 @@ export class RangeSfx {
    * nettes (les murs d'acier sont tout près). Fabriquée une fois, à la première détonation.
    */
   private get reverb(): ConvolverNode | null {
+    if (LIGHT) return null
     if (this.room) return this.room
     const out = this.sound.voice(null, 0.9)
     if (!out) return null
@@ -59,18 +82,37 @@ export class RangeSfx {
   }
 
   /** Sortie d'un bruitage, à `volume`, dont `wet` part dans la salle. */
-  private bus(pos: Pos, volume: number, wet: number): Bus | null {
+  private bus(pos: Pos, volume: number, wet: number, most = VOICES.most): Bus | null {
+    if (this.sounding >= (LIGHT ? most / 2 : most)) return null
     const dry = this.sound.voice(pos, volume, 2.5, 1)
     if (!dry) return null
-    const mix = this.ctx.createGain()
+    const ctx = this.ctx
+    const mix = ctx.createGain()
     mix.connect(dry)
     const reverb = this.reverb
+    let send: GainNode | null = null
     if (reverb && wet > 0) {
-      const send = this.ctx.createGain()
+      send = ctx.createGain()
       send.gain.value = wet * volume
       mix.connect(send).connect(reverb)
     }
-    return { dry, mix }
+    const bus: Bus = { dry, mix, until: ctx.currentTime + 0.05 }
+    this.last = bus
+    this.sounding++
+    // Ses voix sont créées dans la foulée ; la dernière éteinte, il quitte le graphe audio (la
+    // salle, elle, finit de résonner toute seule).
+    queueMicrotask(() => setTimeout(() => {
+      this.sounding--
+      mix.disconnect()
+      send?.disconnect()
+      this.sound.release(dry)
+    }, Math.max(0, bus.until - ctx.currentTime) * 1000 + 60))
+    return bus
+  }
+
+  /** Une voix du bruitage en cours se tait à l'instant `end`. */
+  private heard(end: number) {
+    if (this.last) this.last.until = Math.max(this.last.until, end)
   }
 
   /** Saturation : écrase le signal (`amount` : de 1, à peine, à 6, très fort) et lui donne du grain. */
@@ -102,6 +144,7 @@ export class RangeSfx {
     osc.connect(env).connect(out)
     osc.start(t)
     osc.stop(t + len + 0.03)
+    this.heard(t + len + 0.03)
   }
 
   /** Bouffée de bruit filtré, dont le filtre glisse de `f0` à `f1`. */
@@ -121,6 +164,7 @@ export class RangeSfx {
     src.connect(filter).connect(env).connect(out)
     src.start(t, Math.random() * 0.5)
     src.stop(t + len + 0.03)
+    this.heard(t + len + 0.03)
   }
 
   /**
@@ -161,6 +205,7 @@ export class RangeSfx {
     chop.connect(out)
     lfo.start(t)
     lfo.stop(t + len + 0.05)
+    this.heard(t + len + 0.05)
     this.burst(chop, 'bandpass', 3400, 2200, 3.5, t, len, peak)
   }
 
@@ -257,7 +302,7 @@ export class RangeSfx {
 
   /** Une balle perdue grésille sur le mur. */
   wall(pos: Pos, pitch: number) {
-    const b = this.bus(pos, 0.34, 0.35)
+    const b = this.bus(pos, 0.34, 0.35, VOICES.wall)
     if (!b) return
     const t = this.ctx.currentTime + 0.004
     this.burst(b.mix, 'bandpass', 4600 * pitch, 1300, 2.2, t, 0.13, 0.8)
@@ -358,5 +403,6 @@ export class RangeSfx {
       osc.start(t)
       osc.stop(t + 0.7)
     }
+    this.heard(t + 0.7)
   }
 }

@@ -51,6 +51,9 @@ const VOICES: Record<Exclude<Voice, 'meow'>, {
   click: { wave: 'square', f: [3000, 3000, 2800], len: 0.02, formant: 3000, q: 2, reps: 4, gap: 0.07, noise: 0.8, volume: 0.1 },
 }
 
+/** Écran tactile (téléphone) : le son se spatialise au plus simple (cf. Sound.panner). */
+const LIGHT = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
+
 export class Sound {
   readonly listener = new THREE.AudioListener()
   /** Objet à placer dans la scène ; porte l'auditeur. */
@@ -191,7 +194,9 @@ export class Sound {
 
   private panner(pos: THREE.Vector3, ref = 1.5, rolloff = 1.2, to: AudioNode = this.listener.getInput()): PannerNode {
     const p = this.ctx.createPanner()
-    p.panningModel = 'HRTF'
+    // Sur un téléphone, la spatialisation binaurale coûte trop cher au rendu du son dès que plusieurs
+    // sons se chevauchent (les tirs de l'arène) : un simple panoramique y suffit.
+    p.panningModel = LIGHT ? 'equalpower' : 'HRTF'
     p.distanceModel = 'inverse'
     p.refDistance = ref
     p.rolloffFactor = rolloff
@@ -203,11 +208,17 @@ export class Sound {
     return p
   }
 
+  /** Le spatialiseur de chaque sortie (cf. output) : il se débranche avec elle (cf. release). */
+  private readonly panners = new WeakMap<AudioNode, PannerNode>()
+
   private output(pos: THREE.Vector3 | null, o: PlayOptions): { input: AudioNode; gain: GainNode } {
     const gain = this.ctx.createGain()
     gain.gain.value = o.volume ?? 1
-    if (pos) gain.connect(this.panner(pos, o.ref, o.rolloff))
-    else gain.connect(this.listener.getInput())
+    if (pos) {
+      const panner = this.panner(pos, o.ref, o.rolloff)
+      gain.connect(panner)
+      this.panners.set(gain, panner)
+    } else gain.connect(this.listener.getInput())
     // Dans la baie infestée, les sons de la scène résonnent sur les parois de métal.
     if (pos && this.echo > 0 && this.reverb) gain.connect(this.reverb.input)
     return { input: gain, gain }
@@ -220,6 +231,17 @@ export class Sound {
   voice(pos: THREE.Vector3 | null, volume: number, ref = 1.5, rolloff = 1.2): AudioNode | null {
     if (!this.ready) return null
     return this.output(pos, { volume, ref, rolloff }).input
+  }
+
+  /**
+   * Un son est fini : sa sortie (cf. voice) quitte le graphe audio, spatialiseur compris. Sans
+   * cela, le navigateur continue de la calculer tant que son ramasse-miettes n'est pas passé : des
+   * tirs par dizaines chaque seconde (l'arène) s'entassent alors par milliers, le rendu du son
+   * sature, et tout se met à hacher.
+   */
+  release(voice: AudioNode) {
+    voice.disconnect()
+    this.panners.get(voice)?.disconnect()
   }
 
   /** Bruit blanc d'une seconde (pour les sons synthétisés ailleurs). */
@@ -269,7 +291,9 @@ export class Sound {
     const src = this.ctx.createBufferSource()
     src.buffer = buffer
     src.playbackRate.value = o.rate ?? 1
-    src.connect(this.output(pos, o).input)
+    const out = this.output(pos, o).input
+    src.connect(out)
+    src.onended = () => this.release(out)
     src.start()
   }
 
