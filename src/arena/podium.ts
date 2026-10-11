@@ -2,7 +2,8 @@ import * as THREE from 'three'
 import { drawnTexture } from '../furniture/kit'
 import type { PlayerState } from '../net'
 import { RemotePlayer } from '../remote'
-import { ARENA_LEVEL } from '../../shared/arena.js'
+import { ARENA_LEVEL, type CharacterId } from '../../shared/arena.js'
+import { characterById, Drone } from './characters'
 import type { Relation } from './ui'
 
 /*
@@ -11,12 +12,12 @@ import type { Relation } from './ui'
  * battus font non de la tête. Le fond rayonne à la couleur du camp qui gagne.
  *
  * La scène est hors du plan de l'arène, au nord, dos à elle : un fond la cache. Chaque combattant y
- * a une doublure (le vrai personnage d'un joueur suit ce que dit le relais, on ne le déplace pas) ;
- * le client cache les vrais le temps de la scène (cf. ArenaClient.staging).
+ * a une doublure, sous les traits de son personnage (Nico avec Boulon) ; le client cache les vrais le
+ * temps de la scène (cf. ArenaClient.staging).
  */
 
-/** Un combattant sur la scène : qui il est pour le joueur, et si son camp a gagné (null : égalité). */
-export interface PodiumEntry { id: number; name: string; skin: string; rel: Relation; won: boolean | null }
+/** Un combattant sur la scène : qui il est pour le joueur, son personnage, et si son camp a gagné (null : égalité). */
+export interface PodiumEntry { id: number; name: string; character: CharacterId; rel: Relation; won: boolean | null }
 
 /** Écart entre deux combattants d'un camp, et ce qu'on ajoute entre les deux camps (tuiles). */
 const SPACING = 0.62
@@ -31,7 +32,7 @@ export const STAGE_ELEVATION = 0.17
 const WIDE = 22
 const BACK = 0.8
 
-interface Figure { entry: PodiumEntry; puppet: RemotePlayer; next: number }
+interface Figure { entry: PodiumEntry; puppet: RemotePlayer; next: number; drone: Drone | null }
 
 export class Podium {
   private readonly decor = new THREE.Group()
@@ -73,13 +74,16 @@ export class Podium {
     this.build(winner ? tints[winner.rel === 'enemy' ? 'enemy' : 'ally'] : null, winners.length ? (winners[0] + winners[winners.length - 1]) / 2 : 0)
     entries.forEach((entry, i) => {
       const sx = xs[i] - span / 2
-      const state = { id: entry.id, name: entry.name, skin: entry.skin, x: this.at.x - sx, z: this.at.z, yaw: Math.PI, level: ARENA_LEVEL, anim: 'idle' } as PlayerState
-      const puppet = new RemotePlayer(entry.id, state, () => y)
+      const character = characterById(entry.character)
+      const state = { id: entry.id, name: entry.name, skin: entry.character, x: this.at.x - sx, z: this.at.z, yaw: Math.PI, level: ARENA_LEVEL, anim: 'idle' } as PlayerState
+      const puppet = new RemotePlayer(entry.id, state, () => y, () => character.rig())
       this.scene.add(puppet.group)
+      const drone = character.drone ? new Drone() : null
+      if (drone) puppet.group.add(drone.root)
       // Les vainqueurs dansent ; à égalité, chacun salue.
       if (entry.won) puppet.emote('danse')
       else if (entry.won === null) puppet.emote('salut')
-      this.figures.push({ entry, puppet, next: 0.6 + i * 0.35 })
+      this.figures.push({ entry, puppet, next: 0.6 + i * 0.35, drone })
       // Sa pastille, au sol, à sa couleur.
       const spot = new THREE.Mesh(new THREE.CircleGeometry(0.25, 28).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: tints[entry.rel], transparent: true, opacity: entry.won === false ? 0.3 : 0.75, depthWrite: false }))
       spot.position.set(this.at.x - sx, 0.012, this.at.z)
@@ -138,6 +142,7 @@ export class Podium {
   update(dt: number) {
     for (const f of this.figures) {
       f.puppet.update(dt)
+      f.drone?.update(dt)
       // Les battus : non de la tête, de temps en temps.
       if (f.entry.won !== false || (f.next -= dt) > 0) continue
       f.next = 2.8 + Math.random() * 1.6

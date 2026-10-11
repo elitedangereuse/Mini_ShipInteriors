@@ -114,7 +114,7 @@ export async function mechanicRig() {
  * Boulon, le drone de maintenance : une coque ronde, un œil cyan, deux rotors, un bandeau orange
  * et, dessous, le cône de son scanner (allumé quand il scanne ou éclaire une soudure).
  */
-function droidModel() {
+export function droidModel() {
   const g = new THREE.Group()
   const shell = new THREE.MeshLambertMaterial({ color: '#dfe3e8' })
   const dark = new THREE.MeshLambertMaterial({ color: '#2a2e36' })

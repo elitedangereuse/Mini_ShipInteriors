@@ -2068,7 +2068,7 @@ const STAGE_RISE = 0.05
 /** La vue d'avant la partie (cap, zoom, vue subjective ou par-dessus l'épaule) : on y revient à la sortie. */
 let arenaView: { heading: number; zoom: number; eyes: boolean; shoulder: boolean } | null = null
 arenaMode = new ArenaClient({
-  scene, iso, player, sound, net, dialog, wallet, remotes,
+  scene, iso, player, sound, net, dialog, wallet,
   deck: () => deck,
   hold: deckById(-1),
   moveTo: async (next, at, dark) => {
@@ -2126,7 +2126,6 @@ arenaMode = new ArenaClient({
     }
     iso.settle()
   },
-  skin: () => profile.skin,
   fps: () => fpsShown,
   // Vue subjective : la caméra regarde à l'opposé de son cap (cf. l'aide de visée de la zone).
   face: (yaw) => {
@@ -2134,6 +2133,15 @@ arenaMode = new ArenaClient({
     fps.align(yaw + Math.PI)
   },
   sync: () => sendState(true),
+  // Les traits de son personnage, le temps d'une partie ; sans : son apparence du bord revient.
+  wear: (rig) => {
+    if (!rig) return void applyLook(parseLook(profile.skin))
+    lookRequest++
+    player.setAvatar(new Avatar(rig))
+    player.avatar.setPose(seating.pose)
+    bindPose()
+    photo.refresh()
+  },
   project: (p) => {
     const camera = activeCamera()
     const d = camera.getWorldPosition(screenPos).distanceTo(p)
@@ -2143,8 +2151,8 @@ arenaMode = new ArenaClient({
   armed: (gun) => {
     let on = false
     gun.onChange = (now) => {
-      // Une arme lourde ralentit la marche ; elle se tient à deux mains, bras tendus.
-      player.load = now ? weaponById(gun.weapon ?? undefined)?.weight ?? 1 : 1
+      // Chaque personnage a sa vitesse (cf. ArenaArm.weight) ; son arme se tient à deux mains, bras tendus.
+      player.load = now ? gun.load : 1
       player.avatar.carrying = now
       hover.visible = false
       if (now === on) return
@@ -3298,8 +3306,8 @@ const myCabin = () => visiting?.host ?? net.id
 function sees(r: RemotePlayer): boolean {
   // Dans la baie infestée (ou par les caméras) : seulement ses coéquipiers, hors des casiers.
   if (r.level === ZONE_LEVEL) return !!viewDeck.def.zone && !!salvage?.sees(r.id)
-  // Dans l'arène : ceux de sa partie ; vu de dessus, un adversaire seulement en ligne de vue.
-  if (r.level === ARENA_LEVEL) return !!arenaMode?.sees(r.id)
+  // Dans l'arène, on ne voit d'un autre joueur que sa doublure, à l'allure de son personnage (cf. ArenaClient.addFighter).
+  if (r.level === ARENA_LEVEL) return false
   // Le simulateur d'accueil : chacun y est seul.
   if (r.level === TUTORIAL_LEVEL) return false
   // Par les caméras de surveillance, on voit le pont filmé, pas le sien.

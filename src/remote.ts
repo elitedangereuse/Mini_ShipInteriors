@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { Avatar, type Locomotion } from './avatar'
-import { lookRig, parseLook } from './looks'
+import { lookRig, parseLook, type LookRig } from './looks'
 import type { PlayerState } from './net'
 import { dampAngle } from './player'
 import { POSE_IDS, type PoseId } from './seats'
@@ -33,6 +33,8 @@ export class RemotePlayer {
     s: PlayerState,
     /** Hauteur du sol du pont `level` en (x, z) : celle du pont, ou de la passerelle de la baie infestée. */
     private levelY: (level: number, x: number, z: number) => number,
+    /** Son modèle, s'il n'est pas celui de son apparence (un personnage de l'arène, cf. src/arena/characters.ts). */
+    private rigOf?: () => Promise<LookRig>,
   ) {
     this.name = s.name
     this.verified = !!s.verified
@@ -48,7 +50,7 @@ export class RemotePlayer {
   /** (Re)charge le modèle du personnage (changement d'apparence ; `skin` = identifiant d'apparence, cf. looks.ts). */
   async load() {
     const skin = this.skin
-    const r = await lookRig(parseLook(skin))
+    const r = await (this.rigOf ? this.rigOf() : lookRig(parseLook(skin)))
     if (skin !== this.skin) return // changé entre-temps
     if (this.avatar) this.group.remove(this.avatar.root)
     this.avatar = new Avatar(r)
