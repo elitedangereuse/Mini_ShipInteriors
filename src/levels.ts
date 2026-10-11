@@ -10,7 +10,7 @@ import type { CabinDef } from './cabin/view'
 import type { CustomModel } from './furniture'
 import { tr } from './i18n'
 import { WEAPONS } from './range-weapons'
-import { ARENA_DOORS, BOARD_TABLES, SHIP_LAYOUTS, SHOOTING_RANGE, SPORT_COURTS } from '../shared/ship-layouts.js'
+import { ARENA_DOORS, BOARD_TABLES, SHIP_LAYOUTS, SHOOTING_RANGE, SPORT_COURTS, THARGOID_DOORS } from '../shared/ship-layouts.js'
 import { resolveShipMapPlacement, type ShipMapPlacementId } from '../shared/ship-map-placements.js'
 import { HOUSING_LEVEL, LANDING_ROOM, PLOT_DOOR, PLOT_ORIGIN, PLOT_ROOM } from '../shared/housing-plot.js'
 import { PILOT_SEAT } from '../shared/systems.js'
@@ -265,6 +265,7 @@ export const LEVELS: LevelDef[] = [
       g: tr('Soute', 'Cargo bay'),
       // Le nom du bar ne se traduit pas.
       b: 'Chez Jacques',
+      p: tr('Hall de la cale', 'Hold hall'),
       h: tr('Lobby de la zone thargoïde', 'Thargoid zone lobby'),
       y: tr('Lobby de CMDR Arena', 'CMDR Arena lobby'),
       t: tr('Poste de sécurité de la zone', 'Zone security post'),
@@ -302,27 +303,35 @@ export const LEVELS: LevelDef[] = [
       ],
     },
     // Le bar est tenu plus proprement que le reste de la cale : dalles lisses, pas un hublot.
-    floors: { u: 'floor-panel', a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', h: 'floor-panel', y: 'floor-panel', k: 'floor-panel', t: 'floor-panel', s: 'floor-panel', i: 'floor-panel', c: 'floor-panel' },
-    windows: { n: 0, u: 0, a: 0.1, j: 0, r: 0, m: 0, g: 0.1, b: 0, h: 0, y: 0, e: 0, v: 0, k: 0.15, t: 0, w: 0, s: 0, i: 0, c: 0 },
+    floors: { u: 'floor-panel', a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', p: 'floor-panel', h: 'floor-panel', y: 'floor-panel', k: 'floor-panel', t: 'floor-panel', s: 'floor-panel', i: 'floor-panel', c: 'floor-panel' },
+    windows: { n: 0, u: 0, a: 0.1, j: 0, r: 0, m: 0, g: 0.1, b: 0, p: 0, h: 0, y: 0, e: 0, v: 0, k: 0.15, t: 0, w: 0, s: 0, i: 0, c: 0 },
     // Le poste de sécurité du lobby : des vitres blindées côté lobby (sa porte reste verrouillée).
-    // Le lobby de l'arène, pris sur le coin sud-est de celui de la zone : une cloison vitrée entre les deux.
-    glazed: ['ht', 'hy'],
+    // Le lobby de l'arène, au coin sud-est du hall de la cale : une cloison vitrée entre les deux.
+    // Celui de la zone thargoïde, lui, est derrière un mur plein : on n'en voit rien du hall.
+    glazed: ['ht', 'py'],
     // Le hangar s'ouvre sur l'espace à la proue : son mur est est un bouclier (cf. src/shield.ts).
     shield: { k: [1] },
     // Et un sol d'acier brossé argenté, qui tranche avec l'acier noirci du reste de la cale.
-    // Le lobby de l'arène, lui, a un sol de graphite, sous sa peinture aux couleurs des équipes.
-    floorFinish: { k: 'silver', y: 'graphite' },
-    // Du lobby de la zone thargoïde au hangar, une porte double (dans le mur est du lobby).
-    // Et du lobby de la zone à celui de l'arène, une autre (cf. ARENA_DOORS).
-    doubleDoors: [{ x: 26, z: 4, dir: 3 }, { x: ARENA_DOORS[0].x, z: ARENA_DOORS[0].z, dir: ARENA_DOORS[0].dir }],
+    // Le lobby de l'arène, lui, a un sol de graphite, sous sa peinture aux couleurs des équipes ;
+    // celui de la zone thargoïde aussi, pour sa pénombre.
+    floorFinish: { k: 'silver', y: 'graphite', h: 'graphite' },
+    // Du hall de la cale au hangar, une porte double (dans le mur est du hall). Et deux autres,
+    // face à face : celle du lobby de la zone thargoïde (cf. THARGOID_DOORS), au nord, et celle du
+    // lobby de l'arène (cf. ARENA_DOORS), au sud.
+    doubleDoors: [
+      { x: 26, z: 4, dir: 3 },
+      { x: THARGOID_DOORS[0].x, z: THARGOID_DOORS[0].z, dir: THARGOID_DOORS[0].dir },
+      { x: ARENA_DOORS[0].x, z: ARENA_DOORS[0].z, dir: ARENA_DOORS[0].dir },
+    ],
     // Le cœur du réacteur, au milieu de la salle des machines.
     engine: { x: 1.5, z: 5 },
     // Le sanctuaire de la Voie n'est éclairé que par ses flammes et son portail ; le Zorb, par sa
     // piste de danse ; son couloir, par deux néons. La gaine technique, par ses lampes au sodium et
     // ses braises ; la planque des Scavengers, par ses écrans ; le poste d'exploration, par sa baie
     // d'observation.
-    // Le placard à balais n'a que son ampoule nue.
-    dim: { v: 0.5, n: 0.3, u: 0.6, w: 0.45, s: 0.35, i: 0.4, c: 0.5 },
+    // Le placard à balais n'a que son ampoule nue. Le lobby de la zone thargoïde, que son gyrophare,
+    // ses écrans, la lueur du poste de sécurité et ce qui suinte de la porte blindée.
+    dim: { v: 0.5, n: 0.3, u: 0.6, w: 0.45, s: 0.35, i: 0.4, c: 0.5, h: 0.3 },
     // Le stand de tir, Chez Jacques et le couloir de service du Zorb gardent leur pénombre.
     unlit: 'rbu',
     // L'atelier et le hangar sont des postes de travail, bien éclairés ; la soute, la raffinerie et
@@ -333,7 +342,7 @@ export const LEVELS: LevelDef[] = [
       g: { level: 0.6, dead: 0.3 },
       m: { level: 0.75 },
       e: { level: 0.35, color: '#9fc8ff' },
-      h: { level: 0.8, color: '#cfe0ff', dead: 0 },
+      p: { level: 0.8, color: '#cfe0ff', dead: 0 },
       y: { level: 0.6, color: '#ffe6cc', dead: 0 },
       t: { level: 0.6, color: '#cfe0ff', dead: 0 },
       k: { level: 1.3, color: '#e6f0ff', dead: 0 },
@@ -800,17 +809,18 @@ export const LEVELS: LevelDef[] = [
       { model: 'crate', x: 18.02, z: 9.62 },
       { model: 'plant-tall', x: 17.95, z: 12.95 },
 
-      // --- Lobby de la zone thargoïde (SOC-06) : on y forme son équipe au terminal, on suit les
-      // coéquipiers sur les caméras, et la porte blindée, au fond de l'alcôve nord, mène à la baie
-      // infestée. Derrière les vitres du poste de sécurité (au nord-ouest), Odile, la contrôleuse
-      // de la zone (cf. src/salvage/controller.ts), devant le mur des caméras de la baie ; on lui
-      // parle à l'interphone. Le hall (les quatre rangées du nord) se lit d'un coup d'œil : la table de
-      // briefing (le plan de la baie) au milieu, à l'ouest, le terminal de mission au pied de
-      // l'alcôve, et l'allée des rangées 4 et 5 dégagée de la porte de la soute à celle du hangar.
-      // Trois marquages au sol disent où l'on va : la zone (vert), l'arène, et les Scavengers, dont
-      // l'allée jaune descend le vestiaire, au sud-ouest, jusqu'à la porte de service ---
+      // --- Lobby de la zone thargoïde (SOC-06), une pièce fermée au nord du hall de la cale, derrière
+      // sa porte double : on y forme son équipe au terminal, on suit les coéquipiers sur les caméras,
+      // et la porte blindée, au fond de l'alcôve nord, mène à la baie infestée. Derrière les vitres
+      // du poste de sécurité (au nord-ouest), Odile, la contrôleuse de la zone (cf.
+      // src/salvage/controller.ts), devant le mur des caméras de la baie ; on lui parle à
+      // l'interphone. La porte s'ouvre dans l'axe de l'alcôve : en entrant, on a le portique et la
+      // porte blindée devant soi, le terminal de mission à gauche, la table de briefing (le plan de la
+      // baie) à droite, contre le mur du hangar, et les caméras au mur ouest. Pas d'éclairage général
+      // (cf. `dim`) : la pièce ne vit que de son gyrophare, de ses écrans, des vitres d'Odile, et de
+      // ce que la baie laisse passer sous la porte blindée ---
       {
-        model: 'salvage-terminal', x: 22.9, z: 2.55, action: tr('Préparer une mission', 'Prepare a mission'),
+        model: 'salvage-terminal', x: 22, z: 2.45, action: tr('Préparer une mission', 'Prepare a mission'),
         interact: tr('Terminal de mission : récupération de cargaison en zone thargoïde.', 'Mission terminal: cargo recovery in a Thargoid zone.'),
       },
       // Le poste de sécurité : les écrans de la baie au mur, le bureau d'Odile, ses classeurs.
@@ -833,35 +843,62 @@ export const LEVELS: LevelDef[] = [
         'Portique de décontamination : il balaie tout ce qui revient de la baie. Il a déjà sonné pour une chaussette.',
         'Decontamination gate: it scans everything coming back from the bay. It once went off for a sock.',
       ) },
-      // Le mur ouest : le classement, les caméras pour suivre son équipe, le vestiaire.
-      { model: 'salvage-board', x: 19.68, z: 3.2, rot: 1, action: tr('Classement', 'Leaderboard') },
+      // Ce que la baie laisse passer : la résine suinte sous la porte blindée (la flaque est à cheval
+      // sur le seuil : on n'en voit que ce qui a passé), ses spores flottent dans l'alcôve, et une
+      // excroissance a percé dans l'angle, sous le panneau.
+      { model: 'caustic-pool', x: 23.75, z: -0.3, solid: false },
+      { model: 'caustic-motes', x: 24, z: 0.5, label: '2.8,1.9', solid: false },
+      { model: 'thargoid-spire', x: 25.12, z: 0.9, interact: [
+        tr('Une excroissance de résine a percé la cloison. Elle bat, lentement. Quelqu\'un a tracé un cercle à la craie autour, et écrit : « mardi ». Elle a dépassé le cercle.', 'A resin growth has broken through the bulkhead. It beats, slowly. Someone chalked a circle around it and wrote: “Tuesday”. It has outgrown the circle.'),
+        tr('Odile, à l\'interphone : « On ne touche pas. On ne lui parle pas non plus. »', 'Odile, over the intercom: “Hands off. And don\'t talk to it either.”'),
+      ] },
+      { model: 'emergency-lamp', x: 22.82, z: -0.42, solid: false },
+      { model: 'stain', x: 23.6, z: 0.95, solid: false },
+      { model: 'stain', x: 24.5, z: 2.5, solid: false },
+      // Le mur ouest : les caméras pour suivre son équipe ; sous les vitres d'Odile, les fusées.
       {
-        model: 'surveillance-wall', x: 19.62, z: 7, rot: 1, action: tr('Caméras', 'Cameras'),
+        model: 'surveillance-wall', x: 19.86, z: 2.5, rot: 1, action: tr('Caméras', 'Cameras'),
         interact: [
           tr('Dix caméras dans la baie de stockage. Sur la trois, quelque chose vient de passer. Ou pas.', 'Ten cameras in the storage bay. On number three, something just walked past. Or not.'),
           tr('Les caméras filment la baie infestée. En mission, elles suivent l\'équipe.', 'The cameras watch the infested bay. During a mission, they follow the crew.'),
         ],
       },
-      { model: 'locker-row', x: 19.8, z: 9.3, rot: 1, interact: tr(
-        'Vestiaire du sas : combinaisons, lampes frontales, et un mot scotché : « Dans la baie, ne restez jamais plus de vingt secondes dans un casier. »',
-        'Airlock locker room: suits, head torches, and a taped note: “In the bay, never stay in a locker for more than twenty seconds.”',
+      { model: 'flare-crate', x: 20.75, z: 1.82, interact: tr(
+        'Des fusées d\'appel rouges. Lancées dans la baie, elles attirent ce qui y rôde pendant quelques secondes.',
+        'Red decoy flares. Thrown in the bay, they draw whatever prowls there for a few seconds.',
       ) },
-      // La table de briefing, au milieu du hall : on en fait le tour.
-      { model: 'bay-holo', x: 21.6, z: 3.45, action: tr('Étudier le plan', 'Study the map'), interact: [
+      // La table de briefing, contre le mur du hangar, à droite en entrant.
+      { model: 'bay-holo', x: 24.98, z: 2.55, rot: 1, action: tr('Étudier le plan', 'Study the map'), interact: [
         tr('Le plan de la baie 7. Au nord, le hall de fret et sa passerelle, les bureaux, la serre (violette : éclairée). La grande allée la traverse d\'ouest en est.', 'The map of bay 7. North: the freight hall and its catwalk, the offices, the hydroponics (purple: lit). The main avenue crosses it west to east.'),
         tr('Au milieu, la salle des machines, l\'aire de stockage et le nid, en vert. Au sud, le quai de chargement éclairé, le sas d\'extraction, et la zone effondrée.', 'In the middle, the machine room, the storage yard and the nest, in green. South, the lit loading dock, the extraction airlock, and the collapsed zone.'),
         tr('Un écho rouge tourne autour du nid. La légende dit « échos simulés ». La légende ment peut-être.', 'A red echo circles the nest. The legend says “simulated echoes”. The legend may be lying.'),
       ] },
-      { model: 'flare-crate', x: 20.3, z: 6.25, interact: tr(
-        'Des fusées d\'appel rouges. Lancées dans la baie, elles attirent ce qui y rôde pendant quelques secondes.',
-        'Red decoy flares. Thrown in the bay, they draw whatever prowls there for a few seconds.',
+      { model: 'cables', x: 21.2, z: 3.2, solid: false },
+
+      // --- Hall de la cale : deux rangées de la soute au hangar, et le vestiaire qui descend au
+      // sud-ouest jusqu'à la porte de service de la gaine technique (Scavengers, poste
+      // d'exploration). Les deux lobbys s'y font face, chacun sous son enseigne : la zone thargoïde
+      // au nord, CMDR Arena au sud. Au mur nord, à côté de la porte de la zone : son classement ---
+      { model: 'salvage-sign', x: 23.5, z: 3.66, solid: false },
+      { model: 'floor-way', x: 23.5, z: 4.08, label: tr('ZONE THARGOÏDE', 'THARGOID ZONE') + '|1.8,0.95|#6dff9a|n', solid: false },
+      { model: 'salvage-board', x: 21, z: 3.68, action: tr('Classement', 'Leaderboard'), interact: tr(
+        'Le classement de la zone thargoïde : les équipes qui sont revenues avec leurs colis.',
+        'The Thargoid zone leaderboard: the crews that came back with their cargo.',
       ) },
-      { model: 'dock-marking', x: 21.6, z: 3.45, label: '2.3,1.7', solid: false },
-      // Les marquages : vers la porte blindée, et l'allée des Scavengers au milieu du vestiaire (plus
-      // près de la cloison de l'arène, vue de dessus, elle serait cachée derrière).
-      { model: 'floor-way', x: 23.65, z: 3.35, label: tr('ZONE THARGOÏDE', 'THARGOID ZONE') + '|1.5,1.1|#6dff9a|n', solid: false },
-      { model: 'floor-way', x: 21.15, z: 8.05, label: 'SCAVENGERS|0.9,4.5|#e9a917', solid: false },
-      // --- Lobby de l'arène (cf. src/arena/), pris sur le coin sud-est de celui de la zone thargoïde,
+      { model: 'emergency-lamp', x: 22.2, z: 3.66, solid: false },
+      { model: 'emergency-lamp', x: 24.8, z: 3.66, solid: false },
+      { model: 'bio-sign', x: 25.05, z: 3.67, solid: false, interact: tr(
+        '« Zone thargoïde. Porte à refermer derrière soi. » Dessous, au feutre : « Elle se referme toute seule. C\'est bien ça le problème. »',
+        '“Thargoid zone. Close the door behind you.” Below, in marker: “It closes by itself. That is the problem.”',
+      ) },
+      { model: 'locker-row', x: 19.8, z: 9.3, rot: 1, interact: tr(
+        'Vestiaire du sas : combinaisons, lampes frontales, et un mot scotché : « Dans la baie, ne restez jamais plus de vingt secondes dans un casier. »',
+        'Airlock locker room: suits, head torches, and a taped note: “In the bay, never stay in a locker for more than twenty seconds.”',
+      ) },
+      // L'allée du vestiaire, jusqu'à la porte de service : sans nom, elle mène à deux jeux (au milieu
+      // du vestiaire : plus près de la cloison de l'arène, vue de dessus, elle serait cachée derrière).
+      { model: 'floor-way', x: 21.15, z: 8.05, label: '|0.9,4.5|#e9a917', solid: false },
+      // --- Lobby de l'arène (cf. src/arena/), au coin sud-est du hall de la cale,
       // derrière une cloison vitrée et sa porte double : le sol aux couleurs des deux équipes, le
       // terminal où l'on se place dans un lobby et le guichet de l'arbitre (cf. src/arena/referee.ts),
       // contre la cloison ouest, et le râtelier des cinq armes à côté de la porte. Contre les murs
@@ -870,8 +907,8 @@ export const LEVELS: LevelDef[] = [
       // le classement complet de partout) ; le trophée et le banc, bas, restent visibles ---
       { model: 'arena-entry', x: 23.5, z: 4.98, solid: false },
       { model: 'arena-floor', x: 24, z: 8, label: '2.7,4.7', solid: false },
-      // Le logo de CMDR Arena : sur l'enseigne lumineuse, au-dessus de la porte (elle est du côté de
-      // la zone thargoïde, contre la cloison), et peint au sol, sans son fond, au milieu du lobby.
+      // Le logo de CMDR Arena : sur l'enseigne lumineuse, au-dessus de la porte (elle est du côté du
+      // hall, contre la cloison), et peint au sol, sans son fond, au milieu du lobby.
       { model: 'arena-sign', x: 23.5, z: 5.34, rot: 2, solid: false },
       { model: 'arena-logo', x: 24, z: 7.6, label: '1.6', solid: false },
       {
@@ -915,7 +952,7 @@ export const LEVELS: LevelDef[] = [
       { model: 'cables', x: 22.1, z: 10.2, rot: 1, solid: false },
       { model: 'stain', x: 22.4, z: 9.9, solid: false },
 
-      // --- Gaine technique, au sud du lobby (porte de service, cf. SCAVENGERS_DOOR) : une tuile de
+      // --- Gaine technique, au sud du hall de la cale (porte de service, cf. SCAVENGERS_DOOR) : une tuile de
       // large, de la tuyauterie de chaufferie le long du mur nord, une chaudière dans le cul-de-sac
       // de l'ouest. À l'est, le local du double ventilateur, d'où l'on entre dans la planque.
       // Rien n'y bloque le passage, sauf au fond des culs-de-sac ---
@@ -1194,13 +1231,21 @@ export const LEVELS: LevelDef[] = [
       [17.9, 4.6, '#ffb060', 2.2, 'neon'],
       [12.4, 9.7, '#ffb45e', 3.4],
       [14.2, 11.8, '#ff9f5a', 3, 'fire'],
-      // Lobby de la zone thargoïde : lumière froide, gyrophare de la porte blindée, écrans verts
-      // des caméras, le bleu du poste de sécurité, la table de briefing, le portique.
-      [22.6, 4.2, '#cfe6ff', 2.4],
-      [24.2, 0.4, '#ff3b2f', 2.2, 'neon'],
-      [20.4, 7, '#6dff9a', 1.3],
+      // Lobby de la zone thargoïde, dans le noir : le gyrophare de la porte blindée, la résine qui
+      // suinte dessous et l'excroissance de l'angle (elles battent), les écrans verts des caméras, le
+      // bleu du poste de sécurité derrière ses vitres, la table de briefing, le portique.
+      [24.2, 0.4, '#ff3b2f', 2.4, 'neon', 4.5],
+      [23.75, 0.1, '#39ff88', 1.3, 'breath', 3],
+      [25.1, 0.9, '#39ff88', 1.2, 'breath', 2.5],
+      [20.1, 2.5, '#6dff9a', 1.1, undefined, 3],
       [21, 0.4, '#8fd0ff', 1.8],
-      [21.6, 3.45, '#5fd4ff', 1.6],
+      [24.9, 2.55, '#5fd4ff', 1.1, undefined, 2.5],
+      [24, 1.6, '#6dff9a', 0.8, undefined, 3],
+      // Hall de la cale : lumière froide ; à la porte de la zone, le rouge du tube de secours et le
+      // vert de l'enseigne.
+      [22.2, 4.6, '#cfe6ff', 2.4],
+      [23.5, 4.1, '#ff3b2f', 1.3, 'neon', 3],
+      [21, 4, '#6dff9a', 0.9, undefined, 2.5],
       // La porte des Scavengers : une lampe au sodium, comme dans la gaine, pour qu'on la voie du hall.
       [21.6, 9.6, '#ffb347', 2, 'neon'],
       // Le lobby de l'arène : une lampe par équipe, et une lueur dorée sur le trophée.
@@ -1208,7 +1253,6 @@ export const LEVELS: LevelDef[] = [
       [24.7, 9, '#3fc8ff', 1.7],
       [25, 10, '#ffd98a', 1, undefined, 2.5],
       [21.6, 9.6, '#ffd9a0', 1.2, 'neon'],
-      [24, 1.6, '#6dff9a', 1],
       // Gaine technique : la chaudière, la lampe au sodium, les braises sous les caillebotis, le ventilateur.
       [21.3, 11.1, '#ff6a1c', 1.6, 'fire', 4],
       [23, 11, '#ff9a3c', 1.8, 'neon', 5],

@@ -1,11 +1,11 @@
 // Récupération de cargaison en zone thargoïde (SOC-06), côté relais : il fait autorité sur la
 // partie.
 //
-// Lobby : dans le sas de la cale (pièce 'h' du pont -1), quatre lobbys (RULES.lobbies) attendent
+// Lobby : dans sa pièce de la cale ('h' du pont -1, cf. LOBBY), quatre lobbys (RULES.lobbies) attendent
 // chacun une équipe de un à quatre joueurs : on se place dans celui de son choix, pour partir avec
 // qui l'on veut, et l'on en change librement. Le premier arrivé en est le chef : il choisit le
 // nombre de colis et d'ennemis ; chacun se déclare prêt, et la mission part quelques secondes après
-// le dernier. Sortir du sas, c'est quitter son lobby ; un lobby vidé retrouve ses réglages de départ.
+// le dernier. Sortir de la pièce et du hall de la cale, c'est quitter son lobby ; un lobby vidé retrouve ses réglages de départ.
 //
 // Partie : une instance par équipe (sa graine, ses colis, ses ennemis, ses casiers, sa fusée).
 // Le relais tire la baie (cf. shared/salvage.js), place les joueurs loin des ennemis, puis fait
@@ -63,9 +63,9 @@ export const GAME_ACTIONS = new Set(['salvage:pickup', 'salvage:hide', 'salvage:
 const clampInt = (v, lo, hi) => (Number.isInteger(v) ? Math.min(hi, Math.max(lo, v)) : null)
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z)
 
-/** Joueur dans le lobby (le sas de la cale) ? */
+/** Joueur dans le lobby de la zone, ou dans le hall de la cale, à sa porte (cf. LOBBY) ? */
 export function inLobby(p) {
-  return p.level === LOBBY.level && HOLD.room(Math.round(p.x), Math.round(p.z)) === LOBBY.room
+  return p.level === LOBBY.level && LOBBY.rooms.includes(HOLD.room(Math.round(p.x), Math.round(p.z)) ?? ' ')
 }
 
 /**

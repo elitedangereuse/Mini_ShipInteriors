@@ -8,18 +8,18 @@ import { animatedScreen, box, cylinder, decal, drawnTexture, glow, holoMaterial,
 import { kitModel } from './nature'
 
 /*
- * Le lobby de l'arène (cale, pièce 'y', cf. src/arena/) : pris sur le coin sud-est du lobby de la
- * zone thargoïde, derrière une cloison vitrée. Là où le lobby de la zone est vert et ambre, celui-ci
+ * Le lobby de l'arène (cale, pièce 'y', cf. src/arena/) : au coin sud-est du hall de la cale,
+ * derrière une cloison vitrée, en face du lobby de la zone thargoïde. Là où celui de la zone est sombre, celui-ci
  * est aux couleurs des deux équipes, orange et bleu : le sol peint (une moitié par équipe, le rond
  * central), le guichet de l'arbitre, le classement des joueurs au milieu du mur d'en face, entre les
- * bannières des deux équipes, le râtelier des cinq armes, et, côté zone thargoïde, le marquage qui
+ * bannières des deux équipes, le râtelier des cinq armes, et, côté hall, le marquage qui
  * mène à la porte. À l'entrée, un projecteur fait tourner l'hologramme de l'arène : il
  * passe au rouge quand une partie se joue, et c'est de là qu'on la regarde. Autour : le trophée, le
  * banc des spectateurs, les fanions. Le terminal, lui, est dans range.ts.
  *
  * Le jeu s'appelle CMDR Arena, et son logo (public/assets/arena/cmdr-arena.svg : le titre, deux
- * combattants que la foudre sépare) est sur l'enseigne lumineuse au-dessus de la porte, côté zone
- * thargoïde, et peint au sol au milieu du lobby, sans son fond (cmdr-arena-floor.svg).
+ * combattants que la foudre sépare) est sur l'enseigne lumineuse au-dessus de la porte, côté
+ * hall, et peint au sol au milieu du lobby, sans son fond (cmdr-arena-floor.svg).
  */
 
 const C = {
@@ -209,7 +209,7 @@ const arenaLogo: Builder = ({ label }) => {
 /**
  * L'enseigne lumineuse (dos au mur), au-dessus de la porte du lobby : un caisson à la largeur de la
  * porte double, le logo au milieu, une aile par équipe. Elle a deux faces : celle qu'on voit en
- * arrivant de la zone thargoïde, et son dos, que montre la vue de dessus. Elle tient entre le haut
+ * arrivant du hall de la cale, et son dos, que montre la vue de dessus. Elle tient entre le haut
  * de la porte et le plafond ; deux potences la portent.
  */
 const arenaSign: Builder = () => {

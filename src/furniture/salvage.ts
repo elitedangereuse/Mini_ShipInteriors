@@ -461,6 +461,73 @@ const bioSign: Builder = () => {
   return { solid: g }
 }
 
+/**
+ * L'enseigne du lobby de la zone (dos au mur), au-dessus de sa porte double, côté hall : un caisson
+ * noirci à la largeur de la porte, entre deux bandes de chantier, le nom de la zone en vert
+ * caustique sous la marque des Thargoïdes. Deux faces, comme celle de l'arène, qui lui fait face de
+ * l'autre côté du hall : celle qu'on voit du hall, et son dos, que montre la vue de dessus. Un tube
+ * rouge de secours grésille dessous.
+ */
+const salvageSign: Builder = () => {
+  const W = 1.9, H = 0.5, Y = 1.71, D = 0.09
+  const TW = 1024, TH = Math.round((1024 * H) / W)
+  const texture = drawnTexture(TW, TH, (c) => {
+    c.fillStyle = '#080c0a'
+    c.fillRect(0, 0, TW, TH)
+    // Bandes de chantier aux deux bouts.
+    for (const x0 of [0, TW - 96]) {
+      c.save()
+      c.beginPath(); c.rect(x0, 0, 96, TH); c.clip()
+      c.fillStyle = C.hazard
+      c.fillRect(x0, 0, 96, TH)
+      c.fillStyle = '#17181b'
+      for (let k = -TH; k < 96 + TH; k += 48) {
+        c.beginPath()
+        c.moveTo(x0 + k, TH); c.lineTo(x0 + k + 24, TH); c.lineTo(x0 + k + 24 + TH, 0); c.lineTo(x0 + k + TH, 0)
+        c.fill()
+      }
+      c.restore()
+    }
+    c.strokeStyle = '#1d3a27'
+    c.lineWidth = 8
+    c.strokeRect(100, 4, TW - 200, TH - 8)
+    causticMark(c, 190, TH / 2, TH * 0.3)
+    causticMark(c, TW - 190, TH / 2, TH * 0.3)
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    c.shadowColor = C.caustic
+    c.shadowBlur = 22
+    c.fillStyle = C.caustic
+    c.font = 'bold 92px system-ui, sans-serif'
+    c.fillText(tr('ZONE THARGOÏDE', 'THARGOID ZONE'), TW / 2, TH * 0.42, TW - 520)
+    c.shadowBlur = 0
+    c.fillStyle = '#ff6a5c'
+    c.font = 'bold 40px system-ui, sans-serif'
+    c.fillText(tr('ACCÈS RÉGLEMENTÉ · BAIE 7', 'RESTRICTED ACCESS · BAY 7'), TW / 2, TH * 0.8, TW - 520)
+  })
+  const g = new THREE.Group()
+  const dark = lit(C.steelDark, 'metal')
+  g.add(box(W + 0.06, H + 0.06, D, dark, 0, Y, D / 2 + 0.005))
+  for (const x of [-W / 2 + 0.12, W / 2 - 0.12]) g.add(box(0.05, Y - H / 2 - 1.02, 0.05, dark, x, (Y - H / 2 + 1.02) / 2, 0.03))
+  const face = new THREE.MeshLambertMaterial({ map: texture, emissive: '#ffffff', emissiveMap: texture, emissiveIntensity: 0.8 })
+  g.add(mesh(new THREE.PlaneGeometry(W, H), face, 0, Y, D + 0.011))
+  g.add(mesh(new THREE.PlaneGeometry(W, H).rotateY(Math.PI), face, 0, Y, -0.001))
+  // Le tube de secours, sous le caisson : il grésille, et s'éteint par à-coups.
+  const live = new THREE.Group()
+  // Son propre matériau : il change de couleur (ceux de `glow` sont partagés).
+  const tube = new THREE.MeshBasicMaterial({ color: C.red })
+  live.add(part(new THREE.BoxGeometry(W - 0.3, 0.035, 0.035), tube, 0, Y - H / 2 - 0.06, D / 2))
+  const lit_ = new THREE.Color(C.red), off = new THREE.Color('#3a0d0a')
+  return {
+    solid: g,
+    live,
+    update: (t) => {
+      const k = Math.sin(t * 31) * Math.sin(t * 7.3) > 0.82 || (t % 9) > 8.6 ? 0 : 1
+      tube.color.copy(k ? lit_ : off)
+    },
+  }
+}
+
 /** Zone de dépôt peinte au sol devant la porte blindée (1,6 × 1). */
 const dropZone: Builder = () => {
   const texture = drawnTexture(320, 200, (c) => {
@@ -1222,6 +1289,7 @@ export const SALVAGE = {
   'surveillance-wall': surveillance,
   'blast-door': blastDoor,
   'salvage-board': salvageBoard,
+  'salvage-sign': salvageSign,
   'locker-row': lockerRow,
   'flare-crate': flareCrate,
   'bio-sign': bioSign,

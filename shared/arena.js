@@ -19,11 +19,11 @@ import { WEAPON_STATS } from './weapons.js'
 /** « Pont » de l'arène : hors du vaisseau, sous les autres (baie infestée -2, conduits -3, simulateur -4). */
 export const ARENA_LEVEL = -5
 /**
- * Le lobby de l'arène : la pièce 'y' de la cale (cf. shared/ship-layouts.js), prise sur le coin
- * sud-est du lobby de la zone thargoïde ('h'), d'où l'on vient. On garde sa place dans un lobby du
- * terminal tant qu'on reste dans l'une ou l'autre.
+ * Le lobby de l'arène : la pièce 'y' de la cale (cf. shared/ship-layouts.js), au coin sud-est du
+ * hall de la cale ('p'), d'où l'on vient. On garde sa place dans un lobby du terminal tant qu'on
+ * reste dans l'une ou l'autre.
  */
-export const ARENA_LOBBY = { level: -1, room: 'y', rooms: 'yh' }
+export const ARENA_LOBBY = { level: -1, room: 'y', rooms: 'yp' }
 /** Où l'on revient (fin de partie, abandon) : devant le terminal. */
 export const ARENA_RETURN = { x: 23.8, z: 7 }
 /** Le terminal, contre la cloison ouest, près de la porte (cf. src/levels.ts). */

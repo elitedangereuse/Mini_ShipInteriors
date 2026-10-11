@@ -77,8 +77,10 @@ function harness(seed = 20260929, options = {}) {
   return { salvage, players, sent, broadcasts, rewards, add, advance, last, arrive, walk, team, launch, now: () => t }
 }
 
-test('le lobby est le sas de la cale', () => {
+test('le lobby est sa pièce de la cale, et le hall à sa porte', () => {
+  assert.ok(inLobby({ level: -1, x: 22, z: 3 }))
   assert.ok(inLobby({ level: -1, x: 22, z: 5 }))
+  assert.equal(inLobby({ level: -1, x: 24, z: 8 }), false)
   assert.equal(inLobby({ level: -1, x: 15, z: 5 }), false)
   assert.equal(inLobby({ level: 0, x: 22, z: 5 }), false)
 })

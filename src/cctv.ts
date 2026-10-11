@@ -48,7 +48,7 @@ export const SHIP_CAMERAS: ShipCamera[] = [
   { name: tr('Palier de la cale', 'Hold landing'), level: -1, x: 10, z: 5, zoom: 3.6 },
   { name: tr('Atelier', 'Workshop'), level: -1, x: 5.6, z: 5, zoom: 4.2, turn: 1 },
   { name: tr('Raffinerie', 'Refinery'), level: -1, x: 14.2, z: 6.4, zoom: 4.2 },
-  { name: tr('Lobby de la zone thargoïde', 'Thargoid zone lobby'), level: -1, x: 22.6, z: 5.4, zoom: 4.8, turn: 3 },
+  { name: tr('Lobby de la zone thargoïde', 'Thargoid zone lobby'), level: -1, x: 22.8, z: 2.2, zoom: 4.8, turn: 3 },
   { name: 'Hangar', level: -1, x: 31, z: 5, zoom: 5 },
   { name: 'Chez Jacques', level: -1, x: 13, z: 11, dead: tr('OBJECTIF MASQUÉ · on dirait un béret', 'LENS COVERED · looks like a beret') },
 ]

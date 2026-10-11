@@ -19,12 +19,12 @@ const inFurniture = ({ x, z }) => MECH_OBSTACLES.find((r) => x > r.minX - 0.12 &
 const inRoom = ({ x, z }) => map.room(Math.round(x), Math.round(z)) === MECH_ROOM && x > 25.8 && x < 37.2 && z > -0.2 && z < 10.2
 const at = ({ x, z }) => `(${x.toFixed(2)}, ${z.toFixed(2)})`
 
-test('le hangar est collé au lobby, à l\'est, par une porte double', () => {
+test('le hangar est collé au hall de la cale, à l\'est, par une porte double', () => {
   for (let z = 0; z <= 10; z++) for (let x = 26; x <= 37; x++) assert.equal(map.room(x, z), MECH_ROOM, `tuile (${x}, ${z})`)
   assert.equal(map.room(38, 5), null)
-  // Les deux tuiles de porte appartiennent au hangar, et s'ouvrent sur le lobby, juste à côté.
+  // Les deux tuiles de porte appartiennent au hangar, et s'ouvrent sur le hall, juste à côté.
   for (const z of [4, 5]) {
-    assert.equal(map.room(25, z), 'h')
+    assert.equal(map.room(25, z), 'p')
     assert.equal(map.edge(26, z, 3), 'door')
   }
 })

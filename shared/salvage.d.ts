@@ -1,7 +1,7 @@
 import type { Door, EdgeKind, ShipMap } from './ship-map.js'
 
 export declare const ZONE_LEVEL: -2
-export declare const LOBBY: { level: -1; room: 'h' }
+export declare const LOBBY: { level: -1; room: 'h'; rooms: string }
 export declare const LOBBY_RETURN: { x: number; z: number }
 /** Plan fixe de la baie (une lettre par tuile). */
 export declare const BAY: string[]
