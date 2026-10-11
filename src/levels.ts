@@ -871,9 +871,9 @@ export const LEVELS: LevelDef[] = [
       { model: 'arena-entry', x: 23.5, z: 4.98, solid: false },
       { model: 'arena-floor', x: 24, z: 8, label: '2.7,4.7', solid: false },
       // Le logo de CMDR Arena : sur l'enseigne lumineuse, au-dessus de la porte (elle est du côté de
-      // la zone thargoïde, contre la cloison), et peint au sol, à l'entrée du lobby.
+      // la zone thargoïde, contre la cloison), et peint au sol, sans son fond, au milieu du lobby.
       { model: 'arena-sign', x: 23.5, z: 5.34, rot: 2, solid: false },
-      { model: 'arena-logo', x: 23.55, z: 6.38, label: '1.34', solid: false },
+      { model: 'arena-logo', x: 24, z: 7.6, label: '1.6', solid: false },
       {
         model: 'arena-terminal', x: ARENA_TERMINAL.x, z: ARENA_TERMINAL.z, rot: 1, action: tr('Jouer à CMDR Arena', 'Play CMDR Arena'),
         interact: tr('Terminal de CMDR Arena : duels par équipes, jusqu\'à trois contre trois.', 'CMDR Arena terminal: team duels, up to three versus three.'),
@@ -890,9 +890,9 @@ export const LEVELS: LevelDef[] = [
       },
       { model: 'arena-banner', x: 25.34, z: 6.45, rot: 3, label: 'orange', solid: false },
       { model: 'arena-banner', x: 25.34, z: 9.55, rot: 3, label: 'blue', solid: false },
-      // Au milieu de la pièce, sur le rond central : l'hologramme de l'arène. On y regarde la partie en cours.
+      // À l'entrée, à côté du râtelier (le milieu de la pièce est au logo) : l'hologramme de l'arène. On y regarde la partie en cours.
       {
-        model: 'arena-holo', x: 24, z: 7.62, solid: false, action: tr('Regarder une partie', 'Watch a match'),
+        model: 'arena-holo', x: 24.7, z: 6.25, solid: false, action: tr('Regarder une partie', 'Watch a match'),
         interact: tr('L\'hologramme de l\'arène : son plan, ses conteneurs, ses buissons. Quand une partie se joue, il passe au rouge.', 'The arena hologram: its layout, its containers, its bushes. It turns red when a match is on.'),
       },
       // Le coin des spectateurs : le banc, bas, contre le mur sud, et le trophée dans l'angle.

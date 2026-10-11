@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1024" height="1024">
+  <title>CMDR Arena</title>
+  <defs>
+    <clipPath id="disc"><circle cx="500" cy="612" r="334"/></clipPath>
+    <clipPath id="left"><polygon points="0,0 556,212 472,553 543,553 442,974 442,1000 0,1000"/></clipPath>
+    <clipPath id="right"><polygon points="1000,0 556,212 472,553 543,553 442,974 442,1000 1000,1000"/></clipPath>
+    <radialGradient id="warm" cx="0.3" cy="0.45" r="0.6"><stop offset="0" stop-color="#7a3a08"/><stop offset="1" stop-color="#2b1606"/></radialGradient>
+    <radialGradient id="cold" cx="0.7" cy="0.45" r="0.6"><stop offset="0" stop-color="#0d5378"/><stop offset="1" stop-color="#08202e"/></radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff3a6"/><stop offset="1" stop-color="#ffd23f"/></linearGradient>
+    <linearGradient id="silver" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#c9d3e2"/></linearGradient>
+  </defs>
+
+  <!-- L'emblème, sans fond (pour le peindre au sol) : l'anneau des deux équipes, que la foudre sépare -->
+  <circle cx="500" cy="612" r="345" fill="none" stroke="#14161a" stroke-width="22"/>
+  <circle cx="500" cy="612" r="325" fill="none" stroke="#14161a" stroke-width="6"/>
+  <g fill="none" stroke-width="14">
+    <circle cx="500" cy="612" r="334" stroke="#ff8a1c" clip-path="url(#left)"/>
+    <circle cx="500" cy="612" r="334" stroke="#3fc8ff" clip-path="url(#right)"/>
+  </g>
+  <g clip-path="url(#disc)">
+  <g transform="translate(296 850) scale(1.27 1.27)" stroke-linejoin="round">
+    <g fill="#14161a" stroke="#14161a" stroke-width="20">
+    <rect x="-66" y="-292" width="132" height="124" rx="26"/>
+    <rect x="-42" y="-176" width="84" height="100" rx="14"/>
+    <path d="M-40-88h34l-12 88h-44z M6-88h34l24 88h-40z"/>
+    <path d="M-36-156l-22 50" fill="none" stroke-width="46" stroke-linecap="round"/>
+    <path d="M26-150l62 6" fill="none" stroke-width="46" stroke-linecap="round"/>
+    <path d="M78-170h74v14h22v14h-66l-8 30h-22z"/>
+    </g>
+    <g fill="#ff8a1c" stroke="#ff8a1c" stroke-width="0">
+    <rect x="-66" y="-292" width="132" height="124" rx="26"/>
+    <rect x="-42" y="-176" width="84" height="100" rx="14"/>
+    <path d="M-40-88h34l-12 88h-44z M6-88h34l24 88h-40z"/>
+    <path d="M-36-156l-22 50" fill="none" stroke-width="26" stroke-linecap="round"/>
+    <path d="M26-150l62 6" fill="none" stroke-width="26" stroke-linecap="round"/>
+    <path d="M78-170h74v14h22v14h-66l-8 30h-22z"/>
+    </g>
+    <g fill="#14161a"><rect x="6" y="-252" width="52" height="28" rx="10"/></g>
+  </g>
+  <g transform="translate(704 850) scale(-1.27 1.27)" stroke-linejoin="round">
+    <g fill="#14161a" stroke="#14161a" stroke-width="20">
+    <rect x="-66" y="-292" width="132" height="124" rx="26"/>
+    <rect x="-42" y="-176" width="84" height="100" rx="14"/>
+    <path d="M-40-88h34l-12 88h-44z M6-88h34l24 88h-40z"/>
+    <path d="M-36-156l-22 50" fill="none" stroke-width="46" stroke-linecap="round"/>
+    <path d="M26-150l62 6" fill="none" stroke-width="46" stroke-linecap="round"/>
+    <path d="M78-170h74v14h22v14h-66l-8 30h-22z"/>
+    </g>
+    <g fill="#3fc8ff" stroke="#3fc8ff" stroke-width="0">
+    <rect x="-66" y="-292" width="132" height="124" rx="26"/>
+    <rect x="-42" y="-176" width="84" height="100" rx="14"/>
+    <path d="M-40-88h34l-12 88h-44z M6-88h34l24 88h-40z"/>
+    <path d="M-36-156l-22 50" fill="none" stroke-width="26" stroke-linecap="round"/>
+    <path d="M26-150l62 6" fill="none" stroke-width="26" stroke-linecap="round"/>
+    <path d="M78-170h74v14h22v14h-66l-8 30h-22z"/>
+    </g>
+    <g fill="#14161a"><rect x="6" y="-252" width="52" height="28" rx="10"/></g>
+  </g>
+  </g>
+
+  <!-- La foudre -->
+  <polygon points="604,212 508,212 424,590 494,590 442,974 592,516 520,516" fill="#14161a" stroke="#14161a" stroke-width="34" stroke-linejoin="round"/>
+  <polygon points="604,212 508,212 424,590 494,590 442,974 592,516 520,516" fill="url(#gold)" stroke="#fff8d0" stroke-width="5" stroke-linejoin="round"/>
+
+  <!-- Le titre (Kenney Bold, en tracés) -->
+  <g transform="translate(500 105) skewX(-9) translate(-500 -105)">
+    <path d="M85.6 170Q74.3 170 66.4 162Q58.4 154.1 58.4 142.8V61.2Q58.4 49.9 66.4 42.1Q74.4 34 85.6 34H140V61.2H85.6V142.8H140V170ZM154.9 170V34H182.1V34.2L195.7 47.6L209.3 34H236.5V170H209.3V88.4L195.7 102L182.1 88.4V170ZM305.8 142.8V61.2H278.6V142.8ZM251.4 170V34H305.8Q317 34 324.9 42.1Q333 50 333 61.2V142.8Q333 154.2 324.9 162Q316.9 170 305.8 170ZM402.2 88.4V61.2H375.1V88.4ZM347.9 170V34H402.2Q413.5 34 421.4 42.1Q429.5 50 429.5 61.2V88.4H429.2L415.9 102L429.5 115.6V170H402.2V115.6H375.1V170Z M528.5 88.4V61.2H501.3V88.4ZM474.1 170V61.2Q474.1 49.9 482 42.1Q490 34 501.3 34H528.5Q539.7 34 547.6 42.1Q555.7 50 555.7 61.2V170H528.5V115.6H501.3V170ZM624.9 88.4V61.2H597.8V88.4ZM570.5 170V34H624.9Q636.2 34 644.1 42.1Q652.1 50 652.1 61.2V88.4H651.9L638.5 102L652.1 115.6V170H624.9V115.6H597.8V170ZM667 170V34H748.6V61.2H694.2V88.4H748.6V115.6H694.2V142.8H748.6V170ZM763.5 170V34H817.9Q829.2 34 837 42.1Q845.1 50 845.1 61.2V170H817.9V61.2H790.7V170ZM914.4 88.4V61.2H887.2V88.4ZM860 170V61.2Q860 49.9 867.9 42.1Q875.9 34 887.2 34H914.4Q925.6 34 933.5 42.1Q941.6 50 941.6 61.2V170H914.4V115.6H887.2V170Z" transform="translate(7 11)" fill="#14161a" stroke="#14161a" stroke-width="30" stroke-linejoin="round"/>
+    <path d="M85.6 170Q74.3 170 66.4 162Q58.4 154.1 58.4 142.8V61.2Q58.4 49.9 66.4 42.1Q74.4 34 85.6 34H140V61.2H85.6V142.8H140V170ZM154.9 170V34H182.1V34.2L195.7 47.6L209.3 34H236.5V170H209.3V88.4L195.7 102L182.1 88.4V170ZM305.8 142.8V61.2H278.6V142.8ZM251.4 170V34H305.8Q317 34 324.9 42.1Q333 50 333 61.2V142.8Q333 154.2 324.9 162Q316.9 170 305.8 170ZM402.2 88.4V61.2H375.1V88.4ZM347.9 170V34H402.2Q413.5 34 421.4 42.1Q429.5 50 429.5 61.2V88.4H429.2L415.9 102L429.5 115.6V170H402.2V115.6H375.1V170Z M528.5 88.4V61.2H501.3V88.4ZM474.1 170V61.2Q474.1 49.9 482 42.1Q490 34 501.3 34H528.5Q539.7 34 547.6 42.1Q555.7 50 555.7 61.2V170H528.5V115.6H501.3V170ZM624.9 88.4V61.2H597.8V88.4ZM570.5 170V34H624.9Q636.2 34 644.1 42.1Q652.1 50 652.1 61.2V88.4H651.9L638.5 102L652.1 115.6V170H624.9V115.6H597.8V170ZM667 170V34H748.6V61.2H694.2V88.4H748.6V115.6H694.2V142.8H748.6V170ZM763.5 170V34H817.9Q829.2 34 837 42.1Q845.1 50 845.1 61.2V170H817.9V61.2H790.7V170ZM914.4 88.4V61.2H887.2V88.4ZM860 170V61.2Q860 49.9 867.9 42.1Q875.9 34 887.2 34H914.4Q925.6 34 933.5 42.1Q941.6 50 941.6 61.2V170H914.4V115.6H887.2V170Z" fill="#14161a" stroke="#14161a" stroke-width="30" stroke-linejoin="round"/>
+    <path d="M85.6 170Q74.3 170 66.4 162Q58.4 154.1 58.4 142.8V61.2Q58.4 49.9 66.4 42.1Q74.4 34 85.6 34H140V61.2H85.6V142.8H140V170ZM154.9 170V34H182.1V34.2L195.7 47.6L209.3 34H236.5V170H209.3V88.4L195.7 102L182.1 88.4V170ZM305.8 142.8V61.2H278.6V142.8ZM251.4 170V34H305.8Q317 34 324.9 42.1Q333 50 333 61.2V142.8Q333 154.2 324.9 162Q316.9 170 305.8 170ZM402.2 88.4V61.2H375.1V88.4ZM347.9 170V34H402.2Q413.5 34 421.4 42.1Q429.5 50 429.5 61.2V88.4H429.2L415.9 102L429.5 115.6V170H402.2V115.6H375.1V170Z" fill="url(#gold)"/>
+    <path d="M528.5 88.4V61.2H501.3V88.4ZM474.1 170V61.2Q474.1 49.9 482 42.1Q490 34 501.3 34H528.5Q539.7 34 547.6 42.1Q555.7 50 555.7 61.2V170H528.5V115.6H501.3V170ZM624.9 88.4V61.2H597.8V88.4ZM570.5 170V34H624.9Q636.2 34 644.1 42.1Q652.1 50 652.1 61.2V88.4H651.9L638.5 102L652.1 115.6V170H624.9V115.6H597.8V170ZM667 170V34H748.6V61.2H694.2V88.4H748.6V115.6H694.2V142.8H748.6V170ZM763.5 170V34H817.9Q829.2 34 837 42.1Q845.1 50 845.1 61.2V170H817.9V61.2H790.7V170ZM914.4 88.4V61.2H887.2V88.4ZM860 170V61.2Q860 49.9 867.9 42.1Q875.9 34 887.2 34H914.4Q925.6 34 933.5 42.1Q941.6 50 941.6 61.2V170H914.4V115.6H887.2V170Z" fill="url(#silver)"/>
+  </g>
+</svg>
