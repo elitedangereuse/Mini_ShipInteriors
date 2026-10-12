@@ -2154,7 +2154,7 @@ arenaMode = new ArenaClient({
     activeCamera().getWorldDirection(screenPos)
     return Math.atan2(screenPos.x, screenPos.z)
   },
-  controls: () => (usingGamepad ? 'gamepad' : coarsePointer ? 'touch' : 'keyboard'),
+  controls: () => (usingPad ? 'gamepad' : coarsePointer ? 'touch' : 'keyboard'),
   armed: (gun) => {
     let on = false
     gun.onChange = (now) => {
@@ -3871,7 +3871,12 @@ promptEl.addEventListener('click', (e) => {
 })
 const syncMobileEntry = setupMobile(coarsePointer)
 let usingGamepad = false
-for (const type of ['keydown', 'pointerdown']) addEventListener(type, () => (usingGamepad = false), { capture: true })
+/**
+ * Une vraie manette (pas le stick tactile, qui allume aussi usingGamepad) : ce que l'arène dit tenir
+ * en main, aux statistiques et aux rappels de son terminal (cf. ArenaHost.controls).
+ */
+let usingPad = false
+for (const type of ['keydown', 'pointerdown']) addEventListener(type, () => (usingGamepad = usingPad = false), { capture: true })
 addEventListener('blur', () => gamepad.suspend())
 addEventListener('visibilitychange', () => gamepad.suspend())
 /** Touches de déplacement (position physique : KeyW/KeyA = Z/Q sur un clavier AZERTY). */
@@ -4022,6 +4027,8 @@ function updateGamepad(dt: number): GamepadInput {
     return pad
   }
   let flare = false
+  // La manette elle-même, avant que le stick tactile ne s'y mêle.
+  const padActive = pad.active
   if (touchGamepad) {
     const touch = touchGamepad.poll(enabled)
     touchGamepad.showFlares(zone.flares)
@@ -4047,12 +4054,13 @@ function updateGamepad(dt: number): GamepadInput {
     pad.active ||= touch.active
     pad.connected ||= touch.connected
   }
-  if (!pad.connected) usingGamepad = false
+  if (!pad.connected) usingGamepad = usingPad = false
   if (!enabled) return pad
   if (pad.active) {
     usingGamepad = true
     lastInput = performance.now()
   }
+  if (padActive) usingPad = true
   if (gym.active) {
     pad.moveX = pad.moveY = 0
     if (pad.cancel) gym.stop()

@@ -15,7 +15,9 @@ import { dirname } from 'node:path'
  * - `by` : les mêmes, en moins détaillé, par plan (`map:…`), par taille d'équipe (`size:…`), et pour
  *   les joueurs par commande (`control:mouse`, `control:gamepad`, `control:touch` ; `control:assist`,
  *   les tirs rapides au doigt, à part : ce n'est pas la même précision) ; les bots, `control:bot`.
- * Une partie abandonnée par tous ses joueurs ne compte pas (cf. arena.js, quit).
+ * Qui quitte une partie en cours y compte pour une défaite, avec ce qu'il y a fait jusque-là (sinon,
+ * qui part en perdant ne perdrait jamais) ; une partie abandonnée par tous ses joueurs ne compte pas
+ * (cf. arena.js, quit).
  */
 
 export const STATS_VERSION = 1
@@ -33,14 +35,14 @@ export function emptyStats(at = Date.now()) {
  * Ajoute une partie finie aux statistiques `data`.
  * @param game { map, size, winner (-1 : nulle), fighters: [{ character, team, bot, control (sa
  *   commande principale), kills, deaths, damage, heals, shots, hits, alive (s), lives, range, ranged,
- *   best, time (s), controls: { [commande]: { shots, hits } } }] }
+ *   best, time (s), controls: { [commande]: { shots, hits } }, left (parti en cours de partie) }] }
  */
 export function addGame(data, game, at = Date.now()) {
   data.games++
   data.updated = at
   for (const f of game.fighters) {
     const kind = f.bot ? 'bot' : 'human'
-    const result = game.winner < 0 ? 'draws' : game.winner === f.team ? 'wins' : 'losses'
+    const result = f.left ? 'losses' : game.winner < 0 ? 'draws' : game.winner === f.team ? 'wins' : 'losses'
     const r = (data.rows[`${kind}|${f.character}`] ??= row())
     r.picks++
     r[result]++
@@ -70,9 +72,23 @@ export function addGame(data, game, at = Date.now()) {
   return data
 }
 
+/** Ce qui reste à écrire quand le relais s'arrête (cf. createArenaStats). */
+const pending = new Set()
+let hooked = false
+function flushAtExit(flush) {
+  pending.add(flush)
+  if (hooked) return
+  hooked = true
+  // Un arrêt (signal, erreur fatale : cf. server/index.js) passe par là ; l'écriture y est synchrone.
+  process.on('exit', () => {
+    for (const f of pending) f()
+  })
+}
+
 /**
  * Les statistiques de l'arène : en mémoire, et dans `file` s'il est donné (écrit peu après chaque
- * partie, d'un bloc : un fichier à moitié écrit ne se lit pas).
+ * partie, d'un bloc : un fichier à moitié écrit ne se lit pas ; et à l'arrêt du relais, ce qui
+ * attendait encore).
  */
 export function createArenaStats({ file = null, now = () => Date.now(), error = () => {} } = {}) {
   let data = emptyStats(now())
@@ -85,6 +101,7 @@ export function createArenaStats({ file = null, now = () => Date.now(), error = 
     }
   }
   let timer = null
+  if (file) flushAtExit(() => flush())
   const save = () => {
     timer = null
     if (!file) return
@@ -108,11 +125,13 @@ export function createArenaStats({ file = null, now = () => Date.now(), error = 
     /** Ce qu'on en sait (l'objet lui-même : à ne pas modifier). */
     snapshot: () => data,
     /** Écrit tout de suite ce qui attendait (à l'arrêt du relais). */
-    flush() {
-      if (!timer) return
-      clearTimeout(timer)
-      save()
-    },
+    flush,
+  }
+
+  function flush() {
+    if (!timer) return
+    clearTimeout(timer)
+    save()
   }
 }
 

@@ -18,6 +18,9 @@ process.on('uncaughtException', (err) => {
   error(`arrêt sur erreur : ${err?.stack ?? err}`)
   process.exit(1)
 })
+// Arrêt demandé (systemd, Ctrl+C) : on sort par process.exit, qui écrit au passage les statistiques
+// de l'arène qui attendaient encore (cf. server/arena-stats.js).
+for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => process.exit(0))
 
 const ROOT = resolve(fileURLToPath(new URL('../dist', import.meta.url)))
 const PORT = Number(process.env.PORT) || 8080

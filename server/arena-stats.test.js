@@ -2,6 +2,7 @@
 // résument, qu'elles se gardent dans un fichier, et qu'une vraie partie les nourrit.
 //   npm test
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -172,4 +173,52 @@ test('statistiques : une partie entre bots seulement se joue jusqu\'au bout, et 
   assert.ok(rows['bot|nico'].shots > 0 && rows['bot|marcel'].shots > 0)
   assert.equal(rows['human|nico'], undefined)
   assert.ok(C.nico)
+})
+
+test('statistiques : qui quitte une partie en cours y compte pour une défaite, avec ce qu\'il y a fait', () => {
+  let t = 1_000_000
+  const players = new Map()
+  const arena = createArena({ playerById: (id) => players.get(id), emit: () => {}, broadcast: () => {}, now: () => t, random: mulberry32(3), debug: true })
+  const advance = (s) => { for (let i = 0; i < Math.round(s * 20); i++) { t += 50; arena.tick(0.05) } }
+  const a = { id: 1, name: 'CMDR A', level: -1, x: 24, z: 8, yaw: 0, anim: 'idle' }
+  const b = { id: 2, name: 'CMDR B', level: -1, x: 24, z: 8, yaw: 0, anim: 'idle' }
+  players.set(1, a)
+  players.set(2, b)
+  arena.handle(a, 'arena:join', { room: 1, team: 0, character: 'nico' })
+  arena.handle(a, 'arena:settings', { size: 1, bots: false })
+  arena.handle(b, 'arena:join', { room: 1, team: 1, character: 'marcel' })
+  arena.handle(a, 'arena:ready', { ready: true })
+  arena.handle(b, 'arena:ready', { ready: true })
+  advance(R.countdown + 0.1)
+  const game = arena.gameOf(a)
+  advance(R.warmup + 1)
+  // B tire une fois (dans le vide), puis s'en va : son équipe est vide, A gagne par forfait.
+  game.fighters.get(2).shieldUntil = 0
+  arena.handle(b, 'arena:fire', { o: [game.fighters.get(2).x, R.aim, game.fighters.get(2).z], d: [[0, 0, 1]], c: 'g' })
+  advance(0.5)
+  arena.handle(b, 'arena:quit')
+  assert.ok(game.ended)
+  const rows = arena.stats().rows
+  assert.equal(rows['human|nico'].wins, 1)
+  assert.equal(rows['human|marcel'].losses, 1, 'la défaite de qui est parti')
+  assert.equal(rows['human|marcel'].shots, 1, 'et ce qu\'il a fait avant')
+  assert.equal(arena.stats().by['control:gamepad|marcel'].picks, 1)
+})
+
+test('statistiques : à l\'arrêt du relais, ce qui attendait est écrit', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'arena-stats-exit-'))
+  try {
+    const file = join(dir, 'arena-stats.json')
+    // Un relais qui note une partie et s'arrête aussitôt (avant l'écriture différée).
+    const script = `
+      import('${new URL('./arena-stats.js', import.meta.url).href}').then(({ createArenaStats }) => {
+        const s = createArenaStats({ file: ${JSON.stringify(file)} })
+        s.record({ map: 'bay', size: 1, winner: 0, fighters: [{ character: 'betty', team: 0, bot: false, control: 'touch', controls: {} }] })
+        process.exit(0)
+      })`
+    execFileSync(process.execPath, ['--input-type=module', '-e', script])
+    assert.equal(JSON.parse(readFileSync(file, 'utf8')).rows['human|betty'].wins, 1)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })

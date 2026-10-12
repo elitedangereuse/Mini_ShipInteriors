@@ -1199,7 +1199,8 @@ export class ArenaClient {
         : match ? (ours ? tr('Balle de match !', 'Match point!') : tr('Balle de match pour eux !', 'Match point for them!'))
           : ours ? tr('Balle de manche !', 'Round point!') : tr('Balle de manche pour eux !', 'Round point for them!')
       window.setTimeout(() => {
-        if (this.game !== g || g.end) return
+        // La manche s'est jouée entre-temps (la même tomate a fini le travail) : plus rien à annoncer.
+        if (this.game !== g || g.end || !g.called[team]) return
         this.gun?.announce(text, !ours && !g.watching, match ? 'match' : 'point')
         this.gun?.cue('point', (ours || g.watching ? 1 : 0) | (match ? 2 : 0))
       }, wait)
@@ -1303,7 +1304,8 @@ export class ArenaClient {
     const side = (team: number) => ({ score: r.score[team], rounds: r.rounds[team] })
     this.hud.board(side(g.team), side(1 - g.team), r.goal, g.state?.round ?? 1, g.wins, 0, 0)
     this.hud.waiting(null, 0)
-    this.gun?.cue(r.winner === g.team ? 'go' : 'down')
+    // Le verdict a son accord (cf. stage) ; les fleurs et les flaques s'en vont avec la partie.
+    this.traps?.clear()
     this.gun?.end()
     this.roar(1)
     this.endTimer = 30
@@ -1431,7 +1433,9 @@ export class ArenaClient {
       const shown = inArena && !this.staged && !!at && (mine || !!r?.group.visible)
       // Qui traverse un buisson le froisse, s'il est vu (un adversaire caché ne se trahit pas ainsi).
       if (shown && f.alive) this.extras?.stir(f.id, at!.x, at!.z)
-      const avatar = r ? r.avatar : this.host.player.avatar
+      // Le joueur : seulement une fois sous les traits de son personnage (son apparence du bord ne
+      // garde ni contour ni pose de l'arène, même si ses traits n'arrivent jamais).
+      const avatar = r ? r.avatar : this.worn ? this.host.player.avatar : undefined
       // Qui lance (Capucine, Jacques) tient son objet d'une main, prêt à le lancer.
       if (avatar) avatar.oneHand = this.holdOf(f.character)
       // Son contour, à sa couleur : posé dès que son modèle est là (il arrive après la doublure) ; il

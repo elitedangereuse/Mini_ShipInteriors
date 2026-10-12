@@ -179,8 +179,12 @@ export class ArenaGun extends RangeGame {
   private readonly touch = matchMedia('(pointer: coarse)').matches
   /** Balles qu'il reste à la rafale en cours (arme automatique, stick lâché). */
   private salvo = 0
-  /** Le tir en cours est un tir rapide (un toucher du stick, sans viser) : il visait tout seul. */
-  private assisted = false
+  /**
+   * Jusqu'à quand (ms, horloge de la page) un tir qui part est un tir rapide (un toucher du stick,
+   * sans viser : il visait tout seul) : le temps qu'il parte, sa rafale comprise. Une borne plutôt
+   * qu'un drapeau : un tir rapide qui ne part pas (chargeur vide) ne déteint pas sur le suivant.
+   */
+  private assistUntil = 0
   /** Depuis quand on n'a pas tiré (secondes), et où l'on marchait à la dernière image. */
   private calm = 0
   private readonly stride = new THREE.Vector3()
@@ -433,7 +437,7 @@ export class ArenaGun extends RangeGame {
   override loose(quick = false) {
     const w = this.arm
     if (!w) return
-    this.assisted = quick
+    this.assistUntil = quick ? performance.now() + 400 + (w.auto ? (w.burst ?? 6) * w.interval * 1000 : 0) : 0
     if (!w.auto) return this.tap()
     this.salvo = w.burst ?? 6
     this.held = true
@@ -443,7 +447,7 @@ export class ArenaGun extends RangeGame {
   override trigger(on: boolean) {
     if (!on && this.salvo > 0) return
     // La gâchette (souris, manette) : on vise soi-même.
-    if (on) this.assisted = false
+    if (on) this.assistUntil = 0
     super.trigger(on)
   }
 
@@ -587,8 +591,8 @@ export class ArenaGun extends RangeGame {
     this.gunVel += 8 * w.punch
     this.flashTime = 0.04
     this.tint.set(w.color)
-    host.fire([eye.x, eye.y, eye.z], [[flat.x, 0, flat.z]], dist, this.assisted)
-    this.assisted = false
+    host.fire([eye.x, eye.y, eye.z], [[flat.x, 0, flat.z]], dist, performance.now() < this.assistUntil)
+    this.assistUntil = 0
   }
 
   protected override fired(eye: THREE.Vector3, dirs: THREE.Vector3[], w: Weapon) {
@@ -606,9 +610,9 @@ export class ArenaGun extends RangeGame {
       b.heal = !!arm.heal
       this.style(b, arm, host.tint(b.by), this.predictHeal(b.p, b.d, arm, b.by, b.team) !== null)
     }
-    host.fire([eye.x, eye.y, eye.z], dirs.map((d) => [d.x, d.y, d.z]), undefined, this.assisted)
+    host.fire([eye.x, eye.y, eye.z], dirs.map((d) => [d.x, d.y, d.z]), undefined, performance.now() < this.assistUntil)
     // Un tir rapide vaut pour toute sa rafale ; après, on vise de nouveau soi-même.
-    if (this.salvo <= 0) this.assisted = false
+    if (this.salvo <= 0) this.assistUntil = 0
     // Le recul, dans les bras du personnage : à la mesure de l'arme.
     host.gesture('recoil', undefined, Math.min(1, 0.35 + arm.punch * 0.25))
   }

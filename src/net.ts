@@ -435,7 +435,9 @@ type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin' | 'open'>
 /**
  * Serveur de dev : une latence simulée (`?lag=300`, en millisecondes, aller-retour), la moitié à
  * l'envoi, la moitié à la réception, pour essayer le jeu comme sur un mauvais réseau (cf. la matrice
- * des essais de l'arène, docs/arena-test-matrix.md). L'ordre des messages est gardé.
+ * des essais de l'arène, docs/arena-test-matrix.md). Les messages du jeu (positions, tirs, ce que dit
+ * le relais) gardent leur ordre, la déconnexion comprise ; les requêtes qui attendent une réponse
+ * (invitations, chuchotements, quartiers…) partent sans délai.
  */
 const LAG = import.meta.env.DEV ? Math.min(5000, Math.max(0, Number(new URLSearchParams(location.search).get('lag')) || 0)) : 0
 
@@ -489,9 +491,14 @@ export class Net {
       })
     }
     socket.on('disconnect', () => {
-      if (!this.online) return
-      this.online = false
-      this.onStatus?.(false)
+      // Après les messages reçus avant elle (la latence simulée les retient encore).
+      const gone = () => {
+        if (!this.online) return
+        this.online = false
+        this.onStatus?.(false)
+      }
+      if (LAG) window.setTimeout(gone, LAG / 2)
+      else gone()
     })
     socket.on('connect_error', () => {
       // Refus du relais (vaisseau complet) : socket.io ne réessaie pas de lui-même.
@@ -501,6 +508,8 @@ export class Net {
 
   /** Un message du relais (après la latence simulée, s'il y en a une). */
   private receive(t: ServerMessage['t'], data: object) {
+    // Retenu par la latence simulée, il arrive après une déconnexion : il n'a plus cours.
+    if (LAG && !this.socket?.connected) return
     const m = { ...data, t } as ServerMessage
     if (m.t === 'welcome') {
       this.id = m.id

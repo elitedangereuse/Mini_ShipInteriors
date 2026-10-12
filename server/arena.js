@@ -289,6 +289,8 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       // Les fleurs de Capucine et les flaques de Jacques, sur le terrain.
       traps: [], nextTrap: 1,
       ended: false, frozen: false, nextBot: -1, watchers: new Set(),
+      // Les statistiques de ceux qui sont partis en cours de partie (cf. quit).
+      left: [],
     }
     for (const [id, m] of r.members) {
       const p = playerById(id)
@@ -825,15 +827,9 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
         ...publicFighter(f), kills: f.kills, deaths: f.deaths, damage: Math.round(f.damage), heal: Math.round(f.healed), shots: f.shots, hits: f.hits, best: f.best,
       })),
     })
-    // Les statistiques par personnage (cf. arena-stats.js).
-    stats.record({
-      map: game.zone.id, size: game.size, winner,
-      fighters: [...game.fighters.values()].map((f) => ({
-        character: f.character, team: f.team, bot: f.bot, control: mainControl(f), kills: f.kills, deaths: f.deaths, damage: Math.round(f.damage), heals: Math.round(f.healed),
-        shots: f.shots, hits: f.hits, alive: Math.round(f.lived), lives: f.lives, range: Math.round(f.range * 10) / 10, ranged: f.ranged, best: f.best,
-        time: Math.max(0, Math.round((t - Math.max(f.joinedAt, game.startedAt)) / 1000)), controls: f.controls,
-      })),
-    })
+    // Les statistiques par personnage (cf. arena-stats.js) : ceux qui ont fini la partie, et ceux qui
+    // l'ont quittée en route (une défaite pour eux : sinon, qui part en perdant ne perdrait jamais).
+    stats.record({ map: game.zone.id, size: game.size, winner, fighters: [...[...game.fighters.values()].map((f) => recordOf(game, f, t)), ...game.left] })
     if (!r.members.size) reset(r)
     // Le classement : la partie de chaque CMDR qui l'a finie, déclarée au site ; chacun apprend si
     // la sienne a été notée (un invité n'a pas de compte ; `site` : le site ne l'a pas prise).
@@ -849,6 +845,15 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     }
     log(`[arène] partie ${game.id} : ${winner < 0 ? 'égalité' : `équipe ${winner ? 'B' : 'A'}`} (${game.rounds.join(' manches à ')}, ${reason})`)
     announce()
+  }
+
+  /** Ce que les statistiques gardent d'un combattant (cf. arena-stats.js) ; `left` : il est parti en cours de partie. */
+  function recordOf(game, f, t, left = false) {
+    return {
+      character: f.character, team: f.team, bot: f.bot, control: mainControl(f), kills: f.kills, deaths: f.deaths, damage: Math.round(f.damage), heals: Math.round(f.healed),
+      shots: f.shots, hits: f.hits, alive: Math.round(f.lived), lives: f.lives, range: Math.round(f.range * 10) / 10, ranged: f.ranged, best: f.best,
+      time: Math.max(0, Math.round((t - Math.max(f.joinedAt, game.startedAt)) / 1000)), controls: f.controls, ...(left ? { left: true } : {}),
+    }
   }
 
   /**
@@ -870,6 +875,9 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     const f = game.fighters.get(p.id)
     leaveRoom(p)
     if (!f) return announce()
+    // Ses statistiques jusque-là : elles compteront à la fin de la partie (cf. endGame).
+    lifeEnds(f, now())
+    game.left.push(recordOf(game, f, now(), true))
     game.fighters.delete(p.id)
     game.bullets = game.bullets.filter((b) => b.by !== p.id)
     game.traps = game.traps.filter((x) => x.by !== p.id)
