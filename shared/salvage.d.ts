@@ -6,7 +6,7 @@ export declare const LOBBY_RETURN: { x: number; z: number }
 /** Plan fixe de la baie (une lettre par tuile). */
 export declare const BAY: string[]
 export interface BayLight { x: number; z: number; color: string; intensity: number; flicker?: 'neon' | 'fire' }
-export interface BayFurniture { model: string; x: number; z: number; rot?: 0 | 1 | 2 | 3; y?: number; block?: true | [number, number][]; label?: string; /** false : on passe à travers (marquage au sol, tuyau, panneau). */ solid?: boolean }
+export interface BayFurniture { model: string; x: number; z: number; rot?: 0 | 1 | 2 | 3; y?: number; block?: true | [number, number][]; label?: string; /** false : on passe à travers (marquage au sol, tuyau, panneau). */ solid?: boolean; /** Un lit sous lequel on se cache, par ce côté (0 nord… 3 ouest). */ hide?: number }
 export interface BayRoom { id: string; x: number; z: number; w: number; d: number; doors: { x: number; z: number; dir: number }[]; light: BayLight; furniture: BayFurniture[] }
 export interface BayArea { id: string; x: number; z: number; w: number; d: number; density: number; decor: string[]; lights: BayLight[] }
 /** Zone éclairée : son rectangle, la couleur et la force de ses projecteurs, et leur place. */
@@ -63,7 +63,7 @@ export declare const RULES: {
 }
 
 export interface Tile { x: number; z: number }
-export interface Locker extends Tile { id: number; /** Mur contre lequel il se dresse. */ dir: number }
+export interface Locker extends Tile { id: number; /** Mur contre lequel il se dresse (ou lit vers lequel sa tuile regarde). */ dir: number; /** Un lit sous lequel on se glisse, depuis cette tuile : son milieu. */ bed?: { x: number; z: number } }
 export interface Pickup extends Tile { id: number }
 export interface ZoneContainer extends Tile { w: number; d: number; kind: 'container' | 'crates' | 'planter' | 'growth'; color: number; flip: boolean }
 export type DecorKind = 'cables' | 'bones' | 'crystals' | 'barrel' | 'goo' | 'debris' | 'glass' | 'papers' | 'soil'

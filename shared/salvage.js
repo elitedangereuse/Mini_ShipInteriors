@@ -293,6 +293,7 @@ export const BAY_BOOTH = { x: 16, z: 7, w: 3, d: 2, window: 2, technician: { x: 
  * meubles (modèles du jeu, cf. src/furniture/) ; un meuble `block` occupe sa tuile, ou les tuiles
  * listées (ni passage, ni vue au sol). Côté client, un meuble arrête le joueur à sa taille réelle,
  * pas à celle de sa tuile ; sauf `solid: false` (marquages au sol, tuyaux, panneaux), il est solide.
+ * `hide` : un lit sous lequel on se glisse comme dans un casier, par son côté `hide` (0 nord… 3 ouest).
  * Sur la tuile d'un meuble, bloquant ou non, on ne pose rien (ni colis, ni fusée, ni décor).
  */
 export const BAY_ROOMS = [
@@ -331,7 +332,7 @@ export const BAY_ROOMS = [
     light: { x: 34, z: 23.5, color: '#cfe8ff', intensity: 0.9, flicker: 'neon' },
     furniture: [
       // Le lit (en longueur le long de z) contre le mur est, la cantine à son pied.
-      { model: 'bunk-bed', x: 35.15, z: 22.1, rot: 0, block: [[35, 22]] },
+      { model: 'bunk-bed', x: 35.15, z: 22.1, rot: 0, block: [[35, 22]], hide: 3 },
       { model: 'footlocker', x: 35.1, z: 23, rot: 0 },
       { model: 'wheelchair', x: 33.2, z: 24.4, rot: 1 },
       { model: 'stain', x: 34, z: 23.8, rot: 0, solid: false },
@@ -383,10 +384,10 @@ export const BAY_PROPS = [
   { model: 'containment-pod', x: 43, z: 3, block: true },
   { model: 'holo-thargoid', x: 41, z: 6, block: true },
   // Les dortoirs : quatre lits superposés, les vestiaires contre le mur nord.
-  { model: 'bunk-bed', x: 2, z: 29, rot: 0, block: true },
-  { model: 'bunk-bed', x: 7, z: 29, rot: 0, block: true },
-  { model: 'bunk-bed', x: 2, z: 32, rot: 0, block: true },
-  { model: 'bunk-bed', x: 7, z: 32, rot: 0, block: true },
+  { model: 'bunk-bed', x: 2, z: 29, rot: 0, block: true, hide: 3 },
+  { model: 'bunk-bed', x: 7, z: 29, rot: 0, block: true, hide: 1 },
+  { model: 'bunk-bed', x: 2, z: 32, rot: 0, block: true, hide: 3 },
+  { model: 'bunk-bed', x: 7, z: 32, rot: 0, block: true, hide: 1 },
   { model: 'suit-locker', x: 2, z: 27.2, rot: 0, block: true },
   { model: 'suit-locker', x: 7, z: 27.2, rot: 0, block: true },
   { model: 'footlocker', x: 2.75, z: 29, rot: 0 },
@@ -726,6 +727,13 @@ export function generateZone(seed, settings) {
       const behind = against.length ? against : [0, 1, 2, 3].filter((dir) => blocked[idx(x + DIRS[dir].dx, z + DIRS[dir].dz)])
       zone.lockers.push({ id: zone.lockers.length, x, z, dir: behind[0] })
     }
+  }
+  // Les lits : on se glisse dessous comme dans un casier, depuis la tuile libre de leur côté `hide`.
+  for (const f of [...rooms.flatMap((r) => r.furniture), ...props]) {
+    if (f.hide === undefined) continue
+    const x = Math.round(f.x) + DIRS[f.hide].dx, z = Math.round(f.z) + DIRS[f.hide].dz
+    if (!walkable(zone, x, z) || zone.lockers.some((l) => l.x === x && l.z === z)) continue
+    zone.lockers.push({ id: zone.lockers.length, x, z, dir: (f.hide + 2) % 4, bed: { x: f.x, z: f.z } })
   }
 
   const fromAirlock = distances(zone, zone.doors.map((d) => ({ x: d.x + DIRS[d.dir].dx, z: d.z + DIRS[d.dir].dz })))
@@ -1088,12 +1096,17 @@ export function pickSpawns(zone, count, monsters, random) {
   return chosen
 }
 
-/** Place d'un casier : au fond de sa tuile, contre son mur ; on s'y cache en son centre. */
+/**
+ * Place d'un casier : au fond de sa tuile, contre son mur ; on s'y cache en son centre. Sous un
+ * lit (`bed`) : au milieu du lit, sur la tuile voisine.
+ */
 export function lockerSpot(locker) {
+  if (locker.bed) return { ...locker.bed }
   return { x: locker.x + DIRS[locker.dir].dx * 0.2, z: locker.z + DIRS[locker.dir].dz * 0.2 }
 }
 
-/** Devant le casier, où l'on en sort (et d'où un ennemi le fouille). */
+/** Devant le casier, où l'on en sort (et d'où un ennemi le fouille) ; pour un lit, à son chevet. */
 export function lockerFront(locker) {
+  if (locker.bed) return { x: locker.x + DIRS[locker.dir].dx * 0.3, z: locker.z + DIRS[locker.dir].dz * 0.3 }
   return { x: locker.x - DIRS[locker.dir].dx * 0.12, z: locker.z - DIRS[locker.dir].dz * 0.12 }
 }

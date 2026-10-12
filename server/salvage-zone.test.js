@@ -97,6 +97,19 @@ test('toute la baie est accessible depuis le sas, conteneurs compris', () => {
   })
 })
 
+test('les lits : on se cache dessous comme dans un casier, depuis leur chevet', () => {
+  const zone = generateZone(1, OPEN)
+  const beds = zone.lockers.filter((l) => l.bed)
+  assert.equal(beds.length, 5, 'quatre aux dortoirs, un à l\'infirmerie')
+  for (const l of beds) {
+    assert.ok(walkable(zone, l.x, l.z) && zone.furnished[l.z * zone.width + l.x] === 0)
+    assert.ok(findPath(zone, zone.airlock.pad, lockerFront(l)), 'un ennemi vient y regarder')
+    assert.ok(zoneSight(zone, { x: l.x, z: l.z }, lockerFront(l)))
+  }
+  // Dortoirs condamnés : plus de lit où se cacher là-bas.
+  assert.equal(generateZone(1, { ...OPEN, closed: ['dorm', 'infirmary'] }).lockers.filter((l) => l.bed).length, 0)
+})
+
 test('le compte y est : colis, ennemis, casiers, fusées', () => {
   each((zone, s) => {
     assert.equal(zone.cargo.length, s.parcels)
@@ -137,8 +150,12 @@ test('un casier se dresse contre une paroi ou un conteneur, et l\'on en sort du 
       const back = { x: l.x + [0, 1, 0, -1][l.dir], z: l.z + [-1, 0, 1, 0][l.dir] }
       assert.ok(zone.map.edge(l.x, l.z, l.dir) === 'wall' || !walkable(zone, back.x, back.z), `casier ${l.id} sans appui (graine ${zone.seed})`)
       const spot = lockerSpot(l), front = lockerFront(l)
-      assert.equal(Math.round(spot.x) + 0, l.x)
+      // Sous un lit, on est sur la tuile du lit ; on en sort, comme d'un casier, sur la tuile d'à côté.
+      if (l.bed) assert.equal(walkable(zone, Math.round(spot.x), Math.round(spot.z)), false, 'sous le lit')
+      else assert.equal(Math.round(spot.x) + 0, l.x)
+      assert.equal(Math.round(front.x) + 0, l.x)
       assert.equal(Math.round(front.z) + 0, l.z)
+      assert.ok(Math.hypot(spot.x - front.x, spot.z - front.z) <= RULES.reach, 'à portée de son entrée')
     }
   })
 })

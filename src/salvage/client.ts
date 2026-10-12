@@ -899,7 +899,8 @@ export class SalvageClient {
         if (e.locker !== undefined) g.items.bang(e.locker)
         const pos = e.locker !== undefined ? g.items.lockerPosition(e.locker) : null
         if (pos && this.hearing()) this.sfx.locker(pos, e.kind === 'eject')
-        if (e.kind === 'eject' && e.id === self) this.host.dialog.show(tr('Impossible de rester plus longtemps : vous sortez du casier.', 'You can\'t stay any longer: you step out of the locker.'))
+        const bed = e.locker !== undefined && !!g.zone.lockers[e.locker]?.bed
+        if (e.kind === 'eject' && e.id === self) this.host.dialog.show(bed ? tr('Impossible de rester plus longtemps : vous sortez de sous le lit.', 'You can\'t stay any longer: you crawl out from under the bed.') : tr('Impossible de rester plus longtemps : vous sortez du casier.', 'You can\'t stay any longer: you step out of the locker.'))
         if (e.kind === 'hide' && e.id === self) this.host.dialog.show(tr(`Caché. ${RULES.locker.max} secondes au plus ; E pour sortir. Il ne vous trouvera que s'il était juste derrière vous.`, `Hidden. ${RULES.locker.max} seconds at most; E to get out. It will only find you if it was right behind you.`))
         break
       }
@@ -908,7 +909,7 @@ export class SalvageClient {
         g.items.shake(e.locker)
         const pos = g.items.lockerPosition(e.locker)
         if (pos) this.sfx.rattle(pos)
-        if (this.me?.hidden === e.locker) this.host.dialog.show(tr('Il fouille votre casier…', 'It\'s searching your locker…'))
+        if (this.me?.hidden === e.locker) this.host.dialog.show(g.zone.lockers[e.locker]?.bed ? tr('Il regarde sous votre lit…', 'It\'s looking under your bed…') : tr('Il fouille votre casier…', 'It\'s searching your locker…'))
         break
       }
       case 'searched':
@@ -1171,7 +1172,7 @@ export class SalvageClient {
     }
 
     this.hud.setHint(hidden
-      ? tr('E : sortir du casier', 'E: leave the locker')
+      ? this.game?.zone.lockers[this.me?.hidden ?? -1]?.bed ? tr('E : sortir de sous le lit', 'E: crawl out from under the bed') : tr('E : sortir du casier', 'E: leave the locker')
       : goo
         ? tr('Flaque caustique : vous pataugez, sortez-en vite', 'Caustic puddle: you\'re wading, get out quick')
         : carrying
