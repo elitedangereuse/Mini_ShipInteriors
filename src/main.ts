@@ -208,7 +208,15 @@ let dpr = Math.min(MAX_DPR, coarsePointer ? 1.25 : 1.5)
 // presque plus, et il coûtait près de 40 % du temps d'image (mesuré en vue subjective, densité 2).
 // La résolution adaptative garde alors plus souvent la pleine densité. Il se choisit à la création.
 // Canvas opaque : le fond (l'espace, le ciel d'une planète) est dessiné par WebGL (cf. backdrop.ts).
-const renderer = new THREE.WebGLRenderer({ antialias: coarsePointer || devicePixelRatio < 2, alpha: false, powerPreference: 'high-performance' })
+// three.js crée toujours un contexte transparent, que le navigateur mélange à la page à chaque
+// image : on lui donne le nôtre, opaque.
+const antialias = coarsePointer || devicePixelRatio < 2
+const glCanvas = document.createElement('canvas')
+const renderer = new THREE.WebGLRenderer({
+  canvas: glCanvas,
+  context: glCanvas.getContext('webgl2', { alpha: false, antialias, stencil: false, powerPreference: 'high-performance' }) ?? undefined,
+  antialias,
+})
 renderer.setPixelRatio(renderQuality.light ? Math.min(MAX_DPR, 0.75) : dpr)
 renderer.setSize(innerWidth, innerHeight)
 renderer.setClearColor(0x000000, 1)
@@ -5800,13 +5808,24 @@ let perfFrames = 0
 let fastWindows = 0
 /** Densité de pixels maximale autorisée ; redescend si l'affichage a déjà peiné à ce niveau. */
 let dprCeiling = MAX_DPR
-/** Durées des images de la seconde en cours (cf. la résolution adaptative). */
+/**
+ * Sous la pleine densité (1), quand même elle ne tient pas 60 i/s : l'image s'adoucit plutôt que
+ * de saccader. Seulement si c'est la carte graphique qui peine (cf. frame).
+ */
+const MIN_DPR = 0.75
+/** Secondes d'aisance avant de retenter un niveau qui a peiné : double quand l'essai échoue encore. */
+const PATIENCE = 15
+let patience = PATIENCE
+/** Secondes écoulées depuis le dernier essai d'un niveau qui avait peiné. */
+let sinceRetry = Infinity
+/** Durées des images de la seconde en cours, et le temps passé à les préparer (cf. la résolution adaptative). */
 const frameTimes = new Float32Array(256)
+const busyTimes = new Float32Array(256)
 const sortedFrames = new Float32Array(256)
-/** Durée sous laquelle passent neuf des `n` dernières images sur dix. */
-function slowFrame(n: number): number {
+/** Durée sous laquelle passent neuf des `n` dernières valeurs sur dix. */
+function slowFrame(times: Float32Array, n: number): number {
   const sorted = sortedFrames.subarray(0, n)
-  sorted.set(frameTimes.subarray(0, n))
+  sorted.set(times.subarray(0, n))
   sorted.sort()
   return sorted[Math.min(n - 1, Math.floor(n * 0.9))]
 }
@@ -5818,6 +5837,7 @@ let taskClock = 0
 let frozenAt = 0
 
 function frame() {
+  const frameStart = performance.now()
   timer.update()
   const dt = Math.min(timer.getDelta(), 0.05)
   gym.update()
@@ -6294,27 +6314,43 @@ function frame() {
 
   // Résolution adaptative, jugée sur la seconde écoulée : on baisse la densité de pixels si
   // l'affichage peine, on la remonte s'il reste de la marge, sans dépasser le dernier niveau qui a
-  // peiné (retenté après une demi-minute d'aisance). On juge sur les images les plus lentes (une
-  // sur dix) : on vise 60 i/s constants, mais un à-coup isolé (un pont qui se charge, le
-  // ramasse-miettes) ne coûte plus de la netteté pour toute la partie.
+  // peiné (retenté après un moment d'aisance, deux fois plus long à chaque nouvel échec). On juge
+  // sur les images les plus lentes (une sur dix) : on vise 60 i/s constants, mais un à-coup isolé
+  // (un pont qui se charge, le ramasse-miettes) ne coûte plus de la netteté pour toute la partie.
   const spent = Math.min(timer.getDelta(), 0.25)
-  frameTimes[perfFrames++ % frameTimes.length] = spent
+  const slot = perfFrames++ % frameTimes.length
+  frameTimes[slot] = spent
+  busyTimes[slot] = (performance.now() - frameStart) / 1000
   perfTime += spent
   if (perfTime > 1) {
-    const typical = renderQuality.light || document.hidden ? 0 : slowFrame(Math.min(perfFrames, frameTimes.length))
-    if (typical > 1 / 55 && dpr > 1) {
+    const n = Math.min(perfFrames, frameTimes.length)
+    const typical = renderQuality.light || document.hidden ? 0 : slowFrame(frameTimes, n)
+    // Sous la pleine densité, seulement si le jeu prépare chaque image bien plus vite que 60 i/s :
+    // c'est alors la carte graphique qui ne suit pas, et moins de pixels la soulagent.
+    const floor = typical && slowFrame(busyTimes, n) < 1 / 75 ? MIN_DPR : 1
+    sinceRetry++
+    if (typical > 1 / 55 && dpr > floor) {
+      // Le niveau qu'on retentait peine encore : le prochain essai attendra deux fois plus.
+      if (sinceRetry < 10) patience = Math.min(240, patience * 2)
       dprCeiling = dpr - 0.25
-      dpr = Math.max(1, dpr - 0.25)
+      dpr = Math.max(floor, dpr - 0.25)
       renderer.setPixelRatio(dpr)
       fastWindows = 0
-    } else if (typical && typical < 1 / 58) {
-      fastWindows++
-      if (dpr < dprCeiling && fastWindows >= 3) {
-        dpr = Math.min(dprCeiling, dpr + 0.25)
-        renderer.setPixelRatio(dpr)
-        fastWindows = 0
-      } else if (dprCeiling < MAX_DPR && fastWindows >= 30) dprCeiling = Math.min(MAX_DPR, dprCeiling + 0.25)
-    } else fastWindows = 0
+    } else {
+      // Un essai qui tient depuis cinq minutes : la patience revient à la normale.
+      if (sinceRetry > 300) patience = PATIENCE
+      if (typical && typical < 1 / 58) {
+        fastWindows++
+        if (dpr < dprCeiling && fastWindows >= 3) {
+          dpr = Math.min(dprCeiling, dpr + 0.25)
+          renderer.setPixelRatio(dpr)
+          fastWindows = 0
+        } else if (dprCeiling < MAX_DPR && fastWindows >= patience) {
+          dprCeiling = Math.min(MAX_DPR, dprCeiling + 0.25)
+          sinceRetry = 0
+        }
+      } else fastWindows = 0
+    }
     perfTime = 0
     perfFrames = 0
   }
