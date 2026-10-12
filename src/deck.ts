@@ -16,7 +16,7 @@ import { buildHalos, type Halo } from './lighting/glow'
 import { LIGHT_DISTANCE, type LightSource } from './lighting/rig'
 import { DIRS, ShipMap } from './map'
 import { Hull } from './hull'
-import { fadeBuffer, StaticMerge, updateOccluders, type CellRange, type FadeBuffer, type Occluder } from './merge'
+import { fadeBuffer, hidesCharacter, StaticMerge, updateOccluders, type CellRange, type FadeBuffer, type Occluder } from './merge'
 import { Pathfinder } from './pathfinding'
 import { roomCover, type RoomCover } from './room-cover'
 import type { Doorway } from './physics'
@@ -131,6 +131,21 @@ export const TALL_DOOR = 1.43
 /** Dessus des murs de la baie infestée (cf. salvage/kit.ts) ; ceux du vaisseau font 1. */
 const ZONE_WALL_TOP = 1.06
 const DOOR_RANGE = 1.3
+
+/**
+ * Champ de la vue isométrique, pour ne dessiner que les pièces qu'il touche (cf. Deck.cull).
+ * `shadow` : où tombe au sol l'ombre d'un point haut de 1 (le soleil vient toujours du même côté).
+ */
+export interface IsoView {
+  frustum: THREE.Frustum
+  shadow: { x: number; z: number }
+}
+/** Hauteur du plus haut des meubles d'une pièce (au-dessus de son sol), mezzanine comprise. */
+const ROOM_TOP = 3
+/** Ce qui dépasse d'une pièce (ses murs, la moitié de ses tuiles de bord). */
+const ROOM_MARGIN = 0.65
+/** Trou (en sommets) entre deux tranches visibles qu'on dessine plutôt que de couper l'appel de dessin. */
+const BRIDGE = 6000
 
 const PICK_MATERIAL = new THREE.MeshBasicMaterial()
 const _extent = new THREE.Box3()
@@ -914,7 +929,8 @@ export class Deck {
 
   /** Une fusion de géométrie immobile, rangée par cellule là où le pont trie ce qu'il dessine (cf. cull). */
   private merging(): StaticMerge {
-    return new StaticMerge(this.sight && ((extent) => this.cellOf(extent)))
+    const sight = this.sight
+    return new StaticMerge(sight && ((extent) => this.cellOf(extent)), sight && ((cell) => sight.cellRank(cell)))
   }
 
   /**
@@ -943,11 +959,21 @@ export class Deck {
     return !room || !!this.shown[room]
   }
 
+  /** Boîte d'une pièce (repère monde), étirée du côté où ses meubles peuvent porter leur ombre (cf. IsoView). */
+  private roomBox(room: number, shadow: IsoView['shadow'], out: THREE.Box3): THREE.Box3 {
+    const b = this.sight!.bounds[room]
+    out.min.set(b.minX - ROOM_MARGIN + Math.min(0, shadow.x * ROOM_TOP), this.y + FLOOR_Y, b.minZ - ROOM_MARGIN + Math.min(0, shadow.z * ROOM_TOP))
+    out.max.set(b.maxX + ROOM_MARGIN + Math.max(0, shadow.x * ROOM_TOP), this.y + ROOM_TOP, b.maxZ + ROOM_MARGIN + Math.max(0, shadow.z * ROOM_TOP))
+    return out
+  }
+
   /**
    * Vue subjective : ne dessine que les pièces que voient ces yeux (cf. visibility.ts), le reste
-   * du pont étant derrière des murs. `eyes` nul (vue isométrique, pont filmé) : tout le pont.
+   * du pont étant derrière des murs. Vue isométrique (`view`) : que les pièces dans le champ de la
+   * caméra, et celles qui y portent leur ombre ; le reste du pont n'est ni dessiné ni ombré, son
+   * mobilier animé compris. Ni l'un ni l'autre (pont filmé) : tout le pont.
    */
-  cull(eyes: Eye[] | null) {
+  cull(eyes: Eye[] | null, view: IsoView | null = null) {
     const sight = this.sight
     if (!sight) return
     if (!this.seen.length) {
@@ -955,8 +981,9 @@ export class Deck {
       this.shown = new Uint8Array(2 * sight.count).fill(1)
     }
     const { seen, shown } = this
-    let all = !eyes
+    let all = !eyes && !view
     seen.fill(0)
+    if (view && !eyes) sight.framed(seen, (room, out) => this.roomBox(room, view.shadow, out), view.frustum)
     if (eyes) {
       // De très loin, une porte fermée ne laisse plus voir sa pièce ; le second battant d'une porte double suit le premier.
       for (const d of this.doors) {
@@ -979,6 +1006,9 @@ export class Deck {
 
     if (this.cellSeen.length < sight.cellCount) this.cellSeen = new Uint8Array(sight.cellCount)
     sight.cellsSeen(seen, this.cellSeen)
+    // Vue isométrique : un petit trou entre deux tranches visibles se dessine quand même (quelques
+    // centaines de triangles cachés coûtent moins qu'un appel de dessin de plus, pour l'image et l'ombre).
+    const bridge = view && !eyes ? BRIDGE : 0
     for (const mesh of this.celled) {
       // Les tranches visibles qui se suivent partent en un seul appel de dessin.
       const geometry = mesh.geometry
@@ -992,6 +1022,7 @@ export class Deck {
           continue
         }
         whole = false
+        if (start >= 0 && r.start + r.count - end <= bridge) continue
         if (start >= 0) geometry.addGroup(start, end - start, 0)
         start = -1
       }
@@ -1566,11 +1597,14 @@ export class Deck {
 
       // Tout le mobilier est fusionné avec le pont (les grands meubles restent tramables un par un) ;
       // un meuble interactif se clique grâce à un volume invisible.
-      if (box.max.y - lift > 0.6) {
+      const room = this.map.room(Math.round(p.x), Math.round(p.z))
+      // Dans une pièce à débloquer, un grand meuble dépasserait du couvercle : effacé tant qu'elle est fermée.
+      const tall = box.max.y - lift > 0.6
+      const covered = tall && !!room && this.questRooms.includes(room)
+      // Ce qui est accroché à un mur s'estompe avec lui (une applique ne reste pas suspendue devant un mur tramé).
+      if (covered || hidesCharacter(box, lift) || (tall && this.againstWall(box))) {
         this.addFading(o, center)
-        // Dans une pièce à débloquer, un grand meuble dépasserait du couvercle : effacé tant qu'elle est fermée.
-        const room = this.map.room(Math.round(p.x), Math.round(p.z))
-        if (room && this.questRooms.includes(room)) {
+        if (covered) {
           const tall = this.occluders[this.occluders.length - 1]
           tall.off = true
           this.roomTall.set(room, [...(this.roomTall.get(room) ?? []), tall])
@@ -1590,6 +1624,22 @@ export class Deck {
         this.addEmitter('beep', new THREE.Vector3(center.x, this.y + 0.6, center.z))
       }
     }
+  }
+
+  /** L'encombrement touche-t-il un mur du plan (à quelques centimètres de l'une de ses faces) ? */
+  private againstWall(box: THREE.Box3): boolean {
+    const reach = WALL_T / 2 + 0.08
+    const mx = Math.round((box.min.x + box.max.x) / 2), mz = Math.round((box.min.z + box.max.z) / 2)
+    const wall = (x: number, z: number, dir: number) => this.map.edge(x, z, dir) === 'wall' && (!!this.map.room(x, z) || !!this.map.room(x + DIRS[dir].dx, z + DIRS[dir].dz))
+    for (const x of [box.min.x, box.max.x]) {
+      const line = Math.round(x - 0.5) + 0.5
+      if (Math.abs(x - line) <= reach && wall(line - 0.5, mz, 1)) return true
+    }
+    for (const z of [box.min.z, box.max.z]) {
+      const line = Math.round(z - 0.5) + 0.5
+      if (Math.abs(z - line) <= reach && wall(mx, line - 0.5, 2)) return true
+    }
+    return false
   }
 
   /**
@@ -1728,13 +1778,16 @@ export class Deck {
    * on ne les entend que depuis celui de la salle des machines (`sound`).
    */
   private buildNozzles(sound: boolean) {
-    const nozzleMat = new THREE.MeshStandardMaterial({ color: '#3b3f5e', metalness: 0.7, roughness: 0.35, side: THREE.DoubleSide })
     const stern = Hull.stern
+    const bell = nozzleBell()
     for (const z of [3, 6]) {
-      const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.42, 0.8, 20, 1, true), nozzleMat)
-      nozzle.rotation.z = Math.PI / 2
-      nozzle.position.set(stern - 0.3, -0.75, z)
-      this.addStatic(nozzle, false)
+      // L'extérieur en acier, l'intérieur chauffé à blanc (les deux faces du même cône).
+      for (const material of [NOZZLE_SHELL, NOZZLE_THROAT]) {
+        const nozzle = new THREE.Mesh(bell, material)
+        nozzle.rotation.z = Math.PI / 2
+        nozzle.position.set(stern - 0.3, -0.75, z)
+        this.addStatic(nozzle, false)
+      }
       const plume = new THREE.Mesh(new THREE.ConeGeometry(0.5, 2.6, 20, 1, true), this.glowMat)
       plume.rotation.z = Math.PI / 2
       plume.position.set(stern - 1.9, -0.75, z)
@@ -1835,6 +1888,28 @@ export class Deck {
       p.scale.set(s, 1 + Math.sin(this.time * 17 + i) * 0.1, s)
     }
   }
+}
+
+/**
+ * Tuyères (cf. buildNozzles) : l'extérieur, d'acier mat ; l'intérieur, qui rougeoit du blanc
+ * bleuté de la gorge au bleu sombre de la sortie. En métal poli sans reflets à renvoyer, la tuyère
+ * n'était qu'un trou noir derrière son jet, qu'on voyait par les verrières de la salle commune.
+ */
+const NOZZLE_SHELL = withSurface(new THREE.MeshLambertMaterial({ color: '#4a4f6e' }), 'metal')
+const NOZZLE_THROAT = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })
+
+/** Cône ouvert de la tuyère, la gorge (étroite) en bas, la sortie en haut ; couleurs de sa face intérieure. */
+function nozzleBell(): THREE.CylinderGeometry {
+  const geo = new THREE.CylinderGeometry(0.62, 0.42, 0.8, 20, 3, true)
+  const p = geo.attributes.position
+  const colors = new Float32Array(p.count * 3)
+  const hot = new THREE.Color('#d8f1ff'), cold = new THREE.Color('#1c3566'), c = new THREE.Color()
+  for (let i = 0; i < p.count; i++) {
+    const t = p.getY(i) / 0.8 + 0.5
+    c.copy(hot).lerp(cold, Math.pow(t, 0.6)).toArray(colors, i * 3)
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+  return geo
 }
 
 /** Point de la texture du kit où se trouve la couleur du dessus des murs (cf. solidBox). */

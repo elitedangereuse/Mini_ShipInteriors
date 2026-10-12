@@ -4747,20 +4747,6 @@ body.fps-view #zoom-out {
   }
 }
 
-/* Sur la base au sol (src/base/) : le ciel poussiéreux de la planète, un soleil bas qui l'embrase. */
-body.planet {
-  background:
-    radial-gradient(ellipse 60% 45% at 78% 12%, rgba(255, 196, 140, 0.55) 0%, rgba(255, 150, 96, 0.18) 45%, transparent 75%),
-    linear-gradient(180deg, #3b1a2a 0%, #7a3530 38%, #b5593c 70%, #d98a5c 100%);
-}
-
-/* Dans le simulateur d'accueil (src/tutorial.ts) : le noir bleuté de la simulation, une lueur à l'horizon. */
-body.sim {
-  background:
-    radial-gradient(ellipse 70% 50% at 50% 38%, rgba(57, 208, 255, 0.13) 0%, transparent 70%),
-    linear-gradient(180deg, #03060d 0%, #060d1c 55%, #04070f 100%);
-}
-
 /* Séance du planétarium (cf. src/planetarium.ts) : vignette, bandes de cinéma, et la fenêtre de
    dialogue de Bugenhagen, bleue à liseré clair, clin d'œil au jeu d'origine. */
 .planetarium-show {

@@ -46,6 +46,19 @@ export interface Ambience {
   sunIntensity: number
 }
 
+/**
+ * Bords d'ombre stables. Le filtrage des ombres de three.js fait tourner ses cinq échantillons d'un
+ * angle tiré d'un bruit attaché aux pixels de l'écran (prévu pour un anticrénelage temporel, que le
+ * jeu n'a pas) : le grain reste collé à l'écran pendant que l'ombre glisse dessous, et le bord des
+ * ombres grésille dès que la caméra bouge ou tourne. Un angle fixe donne le même flou, immobile.
+ * À appeler avant la compilation du premier shader.
+ */
+export function steadyShadows() {
+  const chunk = THREE.ShaderChunk.shadowmap_pars_fragment
+  const noisy = 'float phi = interleavedGradientNoise( gl_FragCoord.xy ) * PI2;'
+  if (chunk.includes(noisy)) THREE.ShaderChunk.shadowmap_pars_fragment = chunk.replaceAll(noisy, 'float phi = 0.0;')
+}
+
 /** Portée d'une lampe qui n'en dit rien. */
 export const LIGHT_DISTANCE = 7
 /** Taille de la réserve : fixe, pour que changer de pont ne recompile aucun shader. */

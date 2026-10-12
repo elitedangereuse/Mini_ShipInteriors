@@ -268,10 +268,31 @@ varying vec3 vSurfNormal;
 varying float vSurfKind;
 #endif
 
+// Dérivées de la position à l'écran, prises une fois pour toutes avant les branchements (cf. FRAGMENT_BODY).
+vec3 surfDx;
+vec3 surfDy;
+
 // Projection sur les trois plans, pondérée par la normale ; s : côté du motif, en mètres.
 // Les motifs orientés (veinage, brossage) courent le long de x, ou de z sur les faces tournées vers x.
+// Presque tout le mobilier est fait de faces droites : un seul plan compte, et on ne lit que lui
+// (un plan dont le poids est négligeable est sauté), soit une lecture au lieu de trois. Le niveau
+// de la texture vient des dérivées prises hors des branchements : pas d'erreur au bord d'une face.
 vec4 surfTri(sampler2D t, vec3 p, vec3 w, float s) {
-  return texture2D(t, p.zy / s) * w.x + texture2D(t, p.xz / s) * w.y + texture2D(t, p.xy / s) * w.z;
+  vec4 c = vec4(0.0);
+  float sum = 0.0;
+  if (w.x > 0.02) {
+    c += textureGrad(t, p.zy / s, surfDx.zy / s, surfDy.zy / s) * w.x;
+    sum += w.x;
+  }
+  if (w.y > 0.02) {
+    c += textureGrad(t, p.xz / s, surfDx.xz / s, surfDy.xz / s) * w.y;
+    sum += w.y;
+  }
+  if (w.z > 0.02) {
+    c += textureGrad(t, p.xy / s, surfDx.xy / s, surfDy.xy / s) * w.z;
+    sum += w.z;
+  }
+  return c / sum;
 }
 
 float surfHash(vec2 p) {
@@ -279,17 +300,24 @@ float surfHash(vec2 p) {
 }
 
 // Parquet (sol des quartiers) : lames de 20 cm le long de x, de longueurs décalées, joints sombres.
+// Le veinage saute d'une lame à l'autre : il est lu avec les dérivées de la position (continues),
+// sans quoi le pixel au bord d'une lame prenait le plus petit niveau de la texture. Les joints
+// (1 cm) s'élargissent d'un pixel et s'effacent vers une teinte moyenne quand ils deviennent plus
+// fins qu'un pixel : de loin, ils ne grésillent plus quand la caméra bouge.
 float surfParquet(vec3 p) {
   float row = floor(p.z * 5.0);
   float shift = surfHash(vec2(row, 3.1)) * 1.9;
   float u = p.x + shift;
   float plank = floor(u / 1.25);
   float tone = surfHash(vec2(row, plank));
-  float grain = texture2D(uSurfA, vec2(u * 0.9 + tone * 7.0, p.z * 1.6 + row * 0.37) / 0.65).g;
+  vec2 flow = vec2(p.x * 0.9, p.z * 1.6) / 0.65;
+  float grain = textureGrad(uSurfA, vec2(u * 0.9 + tone * 7.0, p.z * 1.6 + row * 0.37) / 0.65, dFdx(flow), dFdy(flow)).g;
+  float rowStep = fwidth(p.z * 5.0);
   float across = fract(p.z * 5.0);
-  float seam = smoothstep(0.0, 0.05, min(across, 1.0 - across));
+  float seam = mix(smoothstep(0.0, 0.05 + rowStep, min(across, 1.0 - across)), 0.9, smoothstep(0.08, 0.3, rowStep));
+  float pixel = fwidth(p.x);
   float along = fract(u / 1.25) * 1.25;
-  seam *= smoothstep(0.0, 0.01, min(along, 1.25 - along));
+  seam *= mix(smoothstep(0.0, 0.01 + pixel, min(along, 1.25 - along)), 0.98, smoothstep(0.015, 0.06, pixel));
   return (1.0 + 0.5 * (grain - 0.5) + 0.26 * (tone - 0.5)) * mix(0.6, 1.0, seam);
 }
 `
@@ -301,6 +329,8 @@ float surfParquet(vec3 p) {
 const FRAGMENT_BODY = `#include <color_fragment>
   float surfSheen = 0.0;
   {
+    surfDx = dFdx(vSurfPos);
+    surfDy = dFdy(vSurfPos);
     #ifdef SURF_ATTR
       int sk = int(vSurfKind + 0.5);
     #else

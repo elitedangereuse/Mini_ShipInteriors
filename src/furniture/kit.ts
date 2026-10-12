@@ -3,6 +3,7 @@ import { renderQuality } from '../quality'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { guessSurface, surfaceKind, withSurface, withSurfaceAttribute, type Surface } from '../surfaces'
+import { separateCoplanar, type Piece } from './coplanar'
 
 /*
  * Boîte à outils commune du mobilier fait main : matériaux partagés, primitives,
@@ -192,9 +193,13 @@ export function part(geo: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0,
   return o
 }
 
-/** Pavé, arrondi si `r` > 0. */
+/**
+ * Pavé, arrondi si `r` > 0. Un arrondi de quelques millimètres ne se voit pas : pavé droit
+ * (12 triangles). Jusqu'à 6 cm, un seul pan biseauté par arête, ombré en douceur (108 triangles) ;
+ * au-delà, deux (300). Les pavés arrondis faisaient à eux seuls 60 % des triangles du mobilier.
+ */
 export const box = (w: number, h: number, d: number, m: THREE.Material, x = 0, y = 0, z = 0, r = 0) =>
-  mesh(r ? new RoundedBoxGeometry(w, h, d, 2, r) : new THREE.BoxGeometry(w, h, d), m, x, y, z)
+  mesh(r >= 0.005 ? new RoundedBoxGeometry(w, h, d, r < 0.06 ? 1 : 2, r) : new THREE.BoxGeometry(w, h, d), m, x, y, z)
 
 export const cylinder = (rt: number, rb: number, h: number, m: THREE.Material, x = 0, y = 0, z = 0, seg = 16) =>
   mesh(new THREE.CylinderGeometry(rt, rb, h, seg), m, x, y, z)
@@ -227,6 +232,29 @@ export function rng(seed: number): () => number {
   }
 }
 
+/** Teinte propre à chaque matériau texturé (cf. tintOf). */
+const textureTints = new WeakMap<THREE.Material, number>()
+let texturedCount = 0
+
+/**
+ * Teinte de chaque triangle d'une pièce (cf. separateCoplanar) : celle de ses sommets s'ils en
+ * portent (une pièce déjà fusionnée), sinon celle de son matériau ; une texture compte pour une
+ * teinte à elle seule.
+ */
+function tintOf(src: THREE.MeshLambertMaterial | THREE.MeshBasicMaterial, g: THREE.BufferGeometry): (triangle: number) => number {
+  const lumens = (src as THREE.MeshBasicMaterial).isMeshBasicMaterial ? 1 << 24 : 0
+  if (src.map) {
+    let n = textureTints.get(src)
+    if (n === undefined) textureTints.set(src, (n = (1 << 25) + ++texturedCount))
+    return () => n
+  }
+  const colors = src.vertexColors ? (g.getAttribute('color') as THREE.BufferAttribute | undefined) : undefined
+  const pack = (r: number, gr: number, b: number) => lumens + (Math.round(r * 255) << 16) + (Math.round(gr * 255) << 8) + Math.round(b * 255)
+  if (colors) return (t) => pack(colors.getX(t * 3), colors.getY(t * 3), colors.getZ(t * 3))
+  const tint = pack(src.color.r, src.color.g, src.color.b)
+  return () => tint
+}
+
 /**
  * Fusionne toutes les pièces d'un meuble en deux maillages au plus (éclairé, lumineux),
  * la couleur de chaque pièce passant dans ses sommets : un meuble de 30 pièces coûte
@@ -243,12 +271,15 @@ export function compact(group: THREE.Object3D, guess = false): THREE.Group {
   const inverse = group.matrixWorld.clone().invert()
   const local = new THREE.Matrix4()
   const textured: THREE.Mesh[] = []
+  const pieces: Piece[] = []
   group.traverse((o) => {
     const m = o as THREE.Mesh
     if (!m.isMesh) return
     const src = m.material as THREE.MeshLambertMaterial | THREE.MeshBasicMaterial
-    const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone()
+    // Copie brute : le clone d'une géométrie dérivée (un pavé arrondi) en reconstruisait d'abord un par défaut.
+    const g = m.geometry.index ? m.geometry.toNonIndexed() : new THREE.BufferGeometry().copy(m.geometry)
     g.applyMatrix4(local.multiplyMatrices(inverse, m.matrixWorld))
+    pieces.push({ geometry: g, color: tintOf(src, g) })
     if (src.map) {
       const t = new THREE.Mesh(g, src)
       t.castShadow = m.castShadow
@@ -268,6 +299,8 @@ export function compact(group: THREE.Object3D, guess = false): THREE.Group {
     }
     parts[(src as THREE.MeshBasicMaterial).isMeshBasicMaterial ? 'glow' : 'lit'].push(g)
   })
+  // Plus de faces confondues entre ses pièces (cf. coplanar.ts) : elles grésillaient quand la caméra tournait.
+  separateCoplanar(pieces)
   const out = new THREE.Group()
   for (const key of ['lit', 'glow'] as const) {
     if (!parts[key].length) continue

@@ -8,7 +8,7 @@ import { buildFurniture, disposeFurniture, isCustomModel, keepShared, type Custo
 import { tr } from '../i18n'
 import type { Rot } from '../levels'
 import { DIRS } from '../map'
-import { fadeBuffer, StaticMerge, updateOccluders, type FadeFocus, type Occluder } from '../merge'
+import { fadeBuffer, hidesCharacter, StaticMerge, updateOccluders, type FadeFocus, type Occluder } from '../merge'
 import { placeSeats, seatAction, seatsOf } from '../seats'
 import { builderLabel, entryOf, interactText, isSolid, type CatalogEntry } from './catalog'
 import { sameItems, type CabinItem, type CabinLayout, type Rect } from './layout'
@@ -616,7 +616,7 @@ export class CabinView {
       const center = d.dz !== 0 ? new THREE.Vector3(at, 0.5, wall.edge) : new THREE.Vector3(wall.edge, 0.5, at)
       return { center, outward: { x: d.dx, z: d.dz } }
     }
-    if (box.max.y <= 0.6) return null
+    if (!hidesCharacter(box)) return null
     return { center: box.getCenter(new THREE.Vector3()) }
   }
 
