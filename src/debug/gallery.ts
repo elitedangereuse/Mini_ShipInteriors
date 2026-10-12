@@ -18,6 +18,9 @@
 // Avec ?parcelle : la parcelle du pont des quartiers (housing v2) : les types de murs et de portes,
 // des papiers peints et des sols, trois plans tout faits, sous la bulle (&zoom=15 par défaut).
 // Avec ?jardin : une parcelle de 12 × 12 aménagée en jardin (gazon, allée de gravier, arbres, haies, mobilier d'extérieur).
+// Avec ?arena : les six personnages de CMDR Arena, arme en main (cf. src/arena/characters.ts) ;
+// &act=lob (recoil, toss, heal, reload) : ce geste de combat, rejoué chaque seconde (&at=0.15 : figé à
+// 0,15 s du geste) ; &hurt : il encaisse un coup ; &ko : il tombe ; &only=jacques,capucine.
 // Avec ?holo : les styles du Holo-Me (cf. src/holo-style.ts) : &looks=human.female.b.mo-pk-sm--,… (par
 // défaut : chaque coupe sur un même modèle), &style=--sm-- : ce style sur toutes, &play=joie : une emote
 // en boucle (son expression). window.snap() rend l'image (PNG en data URL).
@@ -107,6 +110,7 @@ else if (params.has('gardener')) await showNurse(gardenerRig, 'human.female.d')
 else if (params.has('emote')) await showEmote(params.get('emote')!)
 else if (params.has('thargoid')) await showThargoid()
 else if (params.has('holo')) await showHolo()
+else if (params.has('arena')) await showArena()
 else if (params.has('parcelle')) showPlot()
 else if (params.has('jardin')) showGarden()
 else showModels()
@@ -165,6 +169,51 @@ async function showNurse(rig: () => ReturnType<typeof nurseRig> = nurseRig, look
       a.setLocomotion(params.has('walk') ? 'walk' : 'idle', params.has('walk') ? 0.8 : 0)
       if (emote && !a.emoteId) a.playEmote(emote)
       a.update(dt)
+    }
+    renderer.render(scene, cam)
+    requestAnimationFrame(frame)
+  }
+  frame()
+}
+
+/** Les personnages de CMDR Arena, arme en main, et leurs gestes de combat (cf. Avatar.act). */
+async function showArena() {
+  const { CHARACTERS } = await import('../arena/characters')
+  const only = params.get('only')?.split(',')
+  const list = CHARACTERS.filter((c) => !only || only.includes(c.id))
+  const act = params.get('act') as Parameters<Avatar['act']>[0] | null
+  const at = params.get('at')
+  const avatars: Avatar[] = []
+  for (const [i, c] of list.entries()) {
+    const a = new Avatar(await c.rig())
+    a.carrying = true
+    a.oneHand = c.arm.lob ? (c.arm.fire ? 'lob' : 'toss') : null
+    a.root.position.set((i - (list.length - 1) / 2) * 1.1, -0.35, 0)
+    scene.add(a.root)
+    avatars.push(a)
+    const l = label(c.name)
+    l.position.set(a.root.position.x, -0.25, 0.4)
+    scene.add(l)
+  }
+  const play = () => {
+    for (const a of avatars) {
+      if (act) a.act(act)
+      if (params.has('hurt')) a.flinch(1, 0.5)
+      if (params.has('ko')) a.playEmote('ko')
+    }
+  }
+  // La pose d'abord (le port de l'arme vient en douceur), puis le geste.
+  for (const a of avatars) for (let i = 0; i < 30; i++) a.update(0.05)
+  play()
+  if (at) for (const a of avatars) a.update(+at)
+  const clock = new THREE.Timer()
+  let next = 1.2
+  function frame() {
+    clock.update()
+    const dt = Math.min(clock.getDelta(), 0.05)
+    if (!at) {
+      for (const a of avatars) a.update(dt)
+      if ((next -= dt) <= 0) { next = 1.2; play() }
     }
     renderer.render(scene, cam)
     requestAnimationFrame(frame)

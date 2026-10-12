@@ -7,6 +7,7 @@ import type { RangeSfx } from '../range-sfx'
 import type { Weapon } from '../range-weapons'
 import { dampAngle } from '../player'
 import type { Dialog } from '../ui'
+import { RELEASE, type CombatAct } from '../avatar'
 import { ARENA_RULES, arenaGround, arenaSight, castArena, inArenaBase, lobTarget, lobTime, shotOrigin, type ArenaZone, type CharacterId } from '../../shared/arena.js'
 import { ARMS, characterById, type ArenaArm } from './characters'
 import { CombatFx } from './fx'
@@ -62,6 +63,10 @@ export interface ArenaGunHost {
   quit(): void
   /** La couleur d'un combattant pour le joueur (lui, les siens, ceux d'en face ; cf. palette.ts). */
   tint(id: number): string
+  /** Le personnage du joueur fait un geste : le recul d'un tir, un lancer, un rechargement (de `len` secondes). */
+  gesture(kind: CombatAct, len?: number, strength?: number): void
+  /** Le joueur change de chargeur : les autres le voient faire. */
+  reloading(): void
 }
 
 /**
@@ -85,12 +90,19 @@ interface Lob {
   /** Le cocktail : le liquide qui clapote, et ce qui en déborde. */
   brew: THREE.Object3D | null
   drip: number
+  /**
+   * L'objet ne quitte la main qu'au milieu du geste du lanceur (cf. RELEASE) : il part alors de là où
+   * est sa main (`start`), et vole le temps qui reste, pour retomber à l'instant que dit le relais.
+   */
+  delay: number
+  start: (() => THREE.Vector3) | null
 }
 
 const _v = new THREE.Vector3()
 const _chest = new THREE.Vector3()
 const _from = new THREE.Vector3()
 const _axis = new THREE.Vector3()
+const _hand = new THREE.Vector3()
 const _landed = new THREE.Vector3()
 const _z = new THREE.Vector3(0, 0, 1)
 /** Hauteur d'où part la balle, vue par-dessus l'épaule : la poitrine du personnage. */
@@ -124,6 +136,8 @@ const rand = (a: number) => (Math.random() * 2 - 1) * a
  */
 const TRAIL: Record<CharacterId, number> = { rourke: 0.075, marcel: 0.11, nico: 0.1, betty: 0.07, capucine: 0.06, jacques: 0.06 }
 const LOOK_THIN = 0.42
+/** Après un lancer, la main reste vide ce temps (s), avant de reprendre un objet. */
+const THROWN_EMPTY = 0.3
 /** En deçà de cette vitesse (tuiles par seconde), un projectile a son ombre au sol : on lit sa hauteur, sa course. */
 const SLOW = 30
 /** Le cercle du point de chute d'un objet lancé, et son disque qui se remplit. */
@@ -141,8 +155,14 @@ function landingPaint(tint: string) {
 
 export class ArenaGun extends RangeGame {
   host: ArenaGunHost | null = null
-  /** L'arme des autres combattants, par combattant. */
-  private readonly carried = new Map<number, { gun: Gun; character: CharacterId }>()
+  /**
+   * L'arme des autres combattants, par combattant : son recul (`kick`, de 1 à 0), son rechargement
+   * (`reload` : ce qu'il en reste, sur `reloadLen` secondes), et depuis quand il a lancé son objet
+   * (`thrown` : il n'a plus rien en main, le temps d'en prendre un autre).
+   */
+  private readonly carried = new Map<number, { gun: Gun; character: CharacterId; kick: number; reload: number; reloadLen: number; thrown: number }>()
+  /** Depuis quand le joueur a lancé son objet (s) : sa main est vide un instant. */
+  private thrownFor = Infinity
   private fpsView = false
   /** Depuis quand le chargeur est vide (secondes) : il se change de lui-même après un instant. */
   private emptyFor = 0
@@ -299,6 +319,14 @@ export class ArenaGun extends RangeGame {
     this.updateBalls(dt)
     this.fx.update(dt, f.camera)
     this.sightCone(f)
+    // L'objet qu'on vient de lancer a quitté la main : elle reste vide un instant.
+    this.thrownFor += dt
+    if (this.arm?.lob && this.thrownFor < THROWN_EMPTY + RELEASE.lob) for (const g of [...this.hand, ...this.view]) g.root.visible = false
+    for (const it of this.carried.values()) {
+      it.kick = Math.max(0, it.kick - dt * 7)
+      it.reload = Math.max(0, it.reload - dt)
+      it.thrown += dt
+    }
   }
 
   /**
@@ -536,7 +564,11 @@ export class ArenaGun extends RangeGame {
     shown?.root.updateWorldMatrix(true, false)
     const hand = shown ? this.group.worldToLocal(shown.root.localToWorld(shown.muzzle.clone())) : eye.clone()
     const to = lobTarget(host.zone, eye, flat, dist, w.range)
-    this.throwLob(w, hand, new THREE.Vector3(to.x, arenaGround(host.zone, to) + 0.06, to.z), lobTime(w, Math.hypot(to.x - eye.x, to.z - eye.z)), host.tint(host.self()))
+    // Le geste du lanceur : l'objet quitte sa main au milieu, et part de là.
+    const kind = w.fire ? 'lob' : 'toss'
+    host.gesture(kind)
+    this.thrownFor = 0
+    this.throwLob(w, hand, new THREE.Vector3(to.x, arenaGround(host.zone, to) + 0.06, to.z), lobTime(w, Math.hypot(to.x - eye.x, to.z - eye.z)), host.tint(host.self()), RELEASE[kind], () => this.handPoint(_hand))
     this.sfx.shot(w.sound ?? w.id, f.fps ? null : this.world(hand), 0.94 + Math.random() * 0.12)
     this.gunVel += 8 * w.punch
     this.flashTime = 0.04
@@ -560,6 +592,18 @@ export class ArenaGun extends RangeGame {
       this.style(b, arm, host.tint(b.by), this.predictHeal(b.p, b.d, arm, b.by, b.team) !== null)
     }
     host.fire([eye.x, eye.y, eye.z], dirs.map((d) => [d.x, d.y, d.z]))
+    // Le recul, dans les bras du personnage : à la mesure de l'arme.
+    host.gesture('recoil', undefined, Math.min(1, 0.35 + arm.punch * 0.25))
+  }
+
+  /** Le chargeur se change : le personnage le fait (ses bras plongent), et les autres le voient faire. */
+  override reload() {
+    const s = this.session
+    const was = s?.reload ?? 0
+    super.reload()
+    if (!s || was > 0 || s.reload <= 0) return
+    this.host?.gesture('reload', s.reload)
+    this.host?.reloading()
   }
 
   /**
@@ -703,9 +747,12 @@ export class ArenaGun extends RangeGame {
    * Un objet part en cloche, de `from` à `to` (repère de l'arène), en `dur` secondes ; `tint` : la
    * couleur du lanceur pour le joueur, celle du cercle de son point de chute.
    */
-  private throwLob(arm: ArenaArm, from: THREE.Vector3, to: THREE.Vector3, dur: number, tint: string) {
+  private throwLob(arm: ArenaArm, from: THREE.Vector3, to: THREE.Vector3, dur: number, tint: string, delay = 0, start: (() => THREE.Vector3) | null = null) {
     const mesh = arm.ammo?.() ?? new THREE.Mesh(BALL, new THREE.MeshBasicMaterial({ color: arm.color }))
     mesh.position.copy(from)
+    // Il ne quitte la main qu'au milieu du geste ; il vole au moins un instant.
+    delay = Math.min(delay, Math.max(0, dur - 0.2))
+    mesh.visible = delay <= 0
     const shadow = new THREE.Mesh(SHADOW, SHADOW_MAT)
     shadow.position.set(from.x, this.groundAt(from.x, from.z) + 0.02, from.z)
     // Le point de chute : un cercle de la taille de ce qu'il couvrira, qui se remplit jusqu'à l'impact.
@@ -724,25 +771,38 @@ export class ArenaGun extends RangeGame {
     // Il tourne sur lui-même autour d'un axe couché, en travers de sa course : on le voit basculer, pas trembler.
     const across = new THREE.Vector3(to.z - from.z, 0, from.x - to.x).normalize().multiplyScalar(arm.fire ? 7 : 11)
     const brew = arm.fire ? (mesh.children.find((o) => (o as THREE.Mesh).isMesh && ((o as THREE.Mesh).material as THREE.Material).transparent) ?? null) : null
-    this.lobs.push({ mesh, shadow, from: from.clone(), to: to.clone(), dur: Math.max(0.05, dur), age: 0, peak: lobPeak(far), arm, spin: across, mark, fill, brew, drip: 0 })
+    shadow.visible = mesh.visible
+    this.lobs.push({ mesh, shadow, from: from.clone(), to: to.clone(), dur: Math.max(0.05, dur), age: 0, peak: lobPeak(far), arm, spin: across, mark, fill, brew, drip: 0, delay, start })
   }
 
   private updateLobs(dt: number) {
     this.lobs = this.lobs.filter((l) => {
       l.age += dt
-      const u = Math.min(1, l.age / l.dur)
+      // Son point de chute se remplit dès le départ ; l'objet, lui, attend de quitter la main.
+      l.fill.scale.setScalar(Math.max(0.001, Math.min(1, l.age / l.dur)))
+      if (l.age < l.delay) return true
+      if (!l.mesh.visible) {
+        if (l.start) l.from.copy(l.start())
+        l.peak = lobPeak(Math.hypot(l.to.x - l.from.x, l.to.z - l.from.z))
+        l.mesh.visible = l.shadow.visible = true
+      }
+      const u = Math.min(1, (l.age - l.delay) / Math.max(0.05, l.dur - l.delay))
       l.mesh.position.lerpVectors(l.from, l.to, u)
       l.mesh.position.y += l.peak * 4 * u * (1 - u)
       l.mesh.rotateOnWorldAxis(_axis.copy(l.spin).normalize(), l.spin.length() * dt)
       const ground = this.groundAt(l.mesh.position.x, l.mesh.position.z)
       l.shadow.position.set(l.mesh.position.x, ground + 0.02, l.mesh.position.z)
       l.shadow.scale.setScalar(0.6 + u * 0.6)
-      l.fill.scale.setScalar(Math.max(0.001, u))
       // Le cocktail : le liquide clapote, et ce qui déborde tombe en gouttes vertes.
       if (l.brew) l.brew.scale.set(1.4 + Math.sin(l.age * 22) * 0.15, 0.6 + Math.sin(l.age * 31) * 0.12, 1.4 + Math.cos(l.age * 22) * 0.15)
       if (l.arm.fire && (l.drip -= dt) <= 0) {
         l.drip = 0.07
         this.fx.drip(l.mesh.position, l.arm.color, ground)
+      }
+      // La graine laisse derrière elle un sillage de poussière verte : on suit sa course.
+      if (l.arm.flower && !arenaFx.reduced && (l.drip -= dt) <= 0) {
+        l.drip = 0.045
+        this.fx.puff(l.mesh.position, '#a6ff6a', 0.06, 1)
       }
       if (u < 1) return true
       l.mesh.removeFromParent()
@@ -765,8 +825,11 @@ export class ArenaGun extends RangeGame {
       this.splash(at, new THREE.Color(l.arm.color), l.arm.blast, 10)
       this.splash(at, GLASS, 0.3, 8)
       this.burst(at, new THREE.Color('#ffd23c'), l.arm.blast * 2)
+      // La boule de feu : une onde jusqu'au bord de l'éclat, un souffle orange, une fumée qui monte.
       this.fx.wave(_landed.set(at.x, ground, at.z), l.arm.color, 0.2, l.arm.blast + ARENA_RULES.body.r, 0.4)
+      this.fx.wave(_landed, '#ffd23c', 0.1, (l.arm.blast + ARENA_RULES.body.r) * 0.8, 0.28, 0.8)
       this.fx.puff(at, '#ffb347', 0.35, 4)
+      this.fx.puff(_landed.set(at.x, ground + 0.15, at.z), '#3a3a3a', 0.4, 3)
       this.fx.spill(at, l.arm.color, 10, 1.6, ground)
       this.sfx.shatter(this.world(at))
     } else {
@@ -816,10 +879,15 @@ export class ArenaGun extends RangeGame {
     const tint = this.host?.tint(by) ?? w.color
     this.sfx.shot(w.sound ?? w.id, this.world(from), 0.94 + Math.random() * 0.12)
     if (w.lob) {
-      // Il retombe sur le sol du point visé (le haut d'un plan à deux hauteurs, peut-être).
-      if (to) this.throwLob(w, from, new THREE.Vector3(to[0], (this.host ? arenaGround(this.host.zone, { x: to[0], z: to[1] }) : 0) + 0.06, to[1]), dur ?? 0.5, tint)
+      // Il retombe sur le sol du point visé (le haut d'un plan à deux hauteurs, peut-être), après
+      // avoir quitté la main du lanceur au milieu de son geste.
+      const held = this.carried.get(by)
+      if (held) held.thrown = 0
+      const start = held ? () => held.gun.root.position.clone() : null
+      if (to) this.throwLob(w, from, new THREE.Vector3(to[0], (this.host ? arenaGround(this.host.zone, { x: to[0], z: to[1] }) : 0) + 0.06, to[1]), dur ?? 0.5, tint, RELEASE[w.fire ? 'lob' : 'toss'], start)
       return
     }
+    this.kick(by, w)
     const color = new THREE.Color(w.color)
     const shot: Shot = { left: dirs.length, scored: true }
     for (const d of dirs) {
@@ -862,6 +930,7 @@ export class ArenaGun extends RangeGame {
    */
   mend(from: THREE.Vector3 | null, to: THREE.Vector3) {
     if (from) this.fx.link(from, to, HEAL, 0.5)
+    this.fx.wave(_landed.set(to.x, this.groundAt(to.x, to.z), to.z), HEAL, 0.15, 0.55, 0.45, 0.8)
     this.fx.cross(_landed.copy(to).setY(to.y + 0.15), HEAL, 0.24)
     if (!arenaFx.reduced) this.fx.cross(_landed.set(to.x + rand(0.12), to.y + 0.05, to.z + rand(0.12)), HEAL, 0.16)
   }
@@ -881,6 +950,14 @@ export class ArenaGun extends RangeGame {
     this.sfx.chomp(this.world(at))
   }
 
+  /** Les bruits d'un piège : une fleur jaillit, s'arme, fane (repère de l'arène). */
+  trapSound(kind: 'sprout' | 'windup' | 'wilt' | 'ignite', at: THREE.Vector3) {
+    if (!this.session) return
+    if (kind === 'sprout') this.sfx.sprout(this.world(at))
+    else if (kind === 'windup') this.sfx.hiss(this.world(at))
+    else if (kind === 'wilt') this.sfx.wilt(this.world(at))
+  }
+
   /**
    * Un combattant est éliminé, là où il se tient (`at`, ses pieds, repère de l'arène) : un éclair
    * blanc, une onde à sa couleur au sol ; il tombe (cf. ArenaClient.fallen), avant de disparaître.
@@ -892,6 +969,23 @@ export class ArenaGun extends RangeGame {
     this.burst(chest, new THREE.Color(color), 0.8)
     this.fx.wave(at, color, 0.15, 1.1, 0.55, 0.9)
     if (!arenaFx.reduced) this.fx.wave(at, WHITE, 0.1, 0.7, 0.35, 0.6)
+  }
+
+  /**
+   * Un combattant (re)vient en jeu, là où il se tient (`at`, ses pieds, repère de l'arène) : un
+   * faisceau monte du sol à sa couleur, une onde s'en va, et on l'entend arriver.
+   */
+  spawned(at: THREE.Vector3, color: string) {
+    if (!this.session) return
+    this.fx.beam(at, color, 0.3, 1.5, 0.55)
+    this.fx.wave(at, color, 0.1, 0.75, 0.5, 0.9)
+    this.sfx.spawn(this.world(at))
+  }
+
+  /** La bulle de protection d'un combattant crève (repère de l'arène). */
+  unshielded(at: THREE.Vector3) {
+    if (!this.session) return
+    this.fx.wave(at, WHITE, 0.25, 0.7, 0.3, 0.7)
   }
 
   /** Un combattant est éliminé : il disparaît dans un éclat, là où il est tombé (repère de l'arène). */
@@ -942,11 +1036,33 @@ export class ArenaGun extends RangeGame {
       this.disarm(id)
       it = undefined
     }
-    if (!it) this.carried.set(id, (it = { gun: this.makeGun(characterById(character).arm, 0.4), character }))
-    it.gun.root.visible = !!at
+    const arm = characterById(character).arm
+    if (!it) this.carried.set(id, (it = { gun: this.makeGun(arm, 0.4), character, kick: 0, reload: 0, reloadLen: 1, thrown: Infinity }))
+    // Un objet lancé a quitté sa main : elle reste vide un instant.
+    it.gun.root.visible = !!at && !(arm.lob && it.thrown < THROWN_EMPTY + RELEASE.lob)
     if (!at) return
-    it.gun.root.position.copy(at)
-    it.gun.root.rotation.set(0, yaw, 0, 'YXZ')
+    // Le recul le repousse et le relève ; le rechargement le fait basculer sur le flanc, comme le nôtre.
+    const k = it.kick * it.kick
+    const loading = it.reload > 0 ? Math.sin(Math.min(1, (1 - it.reload / it.reloadLen) * 1.15) * Math.PI) : 0
+    it.gun.root.position.set(at.x - Math.sin(yaw) * k * 0.06, at.y + k * 0.015 - loading * 0.04, at.z - Math.cos(yaw) * k * 0.06)
+    it.gun.root.rotation.set(-k * 0.45 + loading * 0.75, yaw + loading * 0.45, loading * 1.1, 'YXZ')
+  }
+
+  /** Un autre combattant tire : son arme recule, et la bouche de son canon s'illumine. */
+  private kick(id: number, arm: ArenaArm) {
+    const it = this.carried.get(id)
+    if (!it) return
+    it.kick = Math.min(1, 0.5 + arm.punch * 0.25)
+    if (!it.gun.root.visible) return
+    it.gun.root.updateWorldMatrix(true, false)
+    this.burst(this.group.worldToLocal(it.gun.root.localToWorld(_hand.copy(it.gun.muzzle))), new THREE.Color(arm.color), 0.22 + arm.punch * 0.06)
+  }
+
+  /** Un autre combattant change de chargeur : son arme bascule le temps qu'il lui faut (`len` secondes). */
+  reloadOf(id: number, len: number) {
+    const it = this.carried.get(id)
+    if (!it) return
+    it.reload = it.reloadLen = len
   }
 
   disarm(id: number) {

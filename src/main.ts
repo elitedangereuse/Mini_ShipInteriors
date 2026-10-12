@@ -5984,7 +5984,7 @@ function frame() {
   player.avatar.root.visible = (!fpsShown || fps.showsBody) && !arena.staging && !arena.watching
   if (range.active) {
     range.update(dt, {
-      fps: fpsShown, body: !fpsShown || fps.showsBody, camera: activeCamera(), player: player.position, hands: player.avatar.hands(rangeHands),
+      fps: fpsShown, body: !fpsShown || fps.showsBody, camera: activeCamera(), player: player.position, hands: player.avatar.grip(rangeHands),
       move: input,
     })
     // Le personnage fait face à ce qu'il vise, même quand il marche de côté (sauf à terre, dans l'arène).

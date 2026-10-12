@@ -631,12 +631,17 @@ test('arène : la graine de Capucine passe par-dessus un conteneur, et la fleur 
   assert.deepEqual(shot.to, [9, 2])
   h.advance(shot.dur + 0.1)
   assert.deepEqual(game.traps.map((x) => [x.kind, x.team, x.x, x.z]), [['flower', 0, 9, 2]])
-  // Elle sort de terre, puis mord, une fois par intervalle.
-  h.advance(seed.flower.grow + seed.flower.every * 2 + 0.05)
+  // Elle sort de terre, s'arme (on voit sur qui, et dans combien de temps elle mord), puis mord, une fois par intervalle.
+  h.advance(seed.flower.grow + 0.1)
+  const armed = h.last(2, 'arena:state').traps[0]
+  assert.equal(armed.kind, 'flower')
+  assert.equal(armed.aim, 2)
+  assert.ok(armed.strike > 0 && armed.strike <= seed.flower.windup)
+  assert.equal(h.events(2, 'hit').filter((e) => e.trap).length, 0, 'pas encore')
+  h.advance(seed.flower.windup + seed.flower.every * 2 + 0.05 - 0.1)
   const bites = h.events(2, 'hit').filter((e) => e.trap)
   assert.equal(bites.length, 3)
   assert.ok(bites.every((e) => e.id === 2 && e.by === 1 && e.dmg === seed.damage))
-  assert.equal(h.last(2, 'arena:state').traps[0].kind, 'flower')
   // Hors de portée de ses mâchoires, plus rien.
   h.put(b, 9, 5)
   const was = h.events(2, 'hit').length
@@ -653,6 +658,33 @@ test('arène : la graine de Capucine passe par-dessus un conteneur, et la fleur 
   // Elles fanent au bout de leur temps.
   h.advance(seed.flower.life + 0.1)
   assert.equal(game.traps.length, 0)
+})
+
+test('arène : la fleur de Capucine s\'arme avant de mordre ; qui sort à temps de sa portée y échappe', () => {
+  const h = harness()
+  const a = h.add(1), b = h.add(2)
+  const game = h.start(a, [b], { size: 1, bots: false }, { 1: 'capucine' })
+  h.advance(R.warmup + R.shield)
+  const seed = C.capucine.weapon
+  h.put(a, 5, 5)
+  h.put(b, 12, 5)
+  h.arena.handle(a, 'arena:fire', { o: [5, R.aim, 5], d: [[1, 0, 0]], r: 4 })
+  h.advance(1)
+  assert.equal(game.traps.length, 1)
+  const flower = game.traps[0]
+  // Il approche : elle s'arme sur lui…
+  h.put(b, flower.x + 1, flower.z)
+  h.advance(0.1)
+  assert.equal(h.last(2, 'arena:state').traps[0].aim, 2)
+  // … et il recule hors de portée avant qu'elle ne morde : rien.
+  h.put(b, flower.x + seed.flower.radius + 1, flower.z)
+  h.advance(seed.flower.windup + 0.1)
+  assert.equal(h.events(2, 'hit').filter((e) => e.trap).length, 0)
+  assert.equal(h.last(2, 'arena:state').traps[0].aim, undefined, 'elle se repose, et s\'armera de nouveau')
+  // Il revient et reste : elle s'arme, et mord.
+  h.put(b, flower.x + 1, flower.z)
+  h.advance(seed.flower.every + seed.flower.windup + 0.1)
+  assert.ok(h.events(2, 'hit').filter((e) => e.trap).length >= 1)
 })
 
 test('arène : le cocktail de Jacques éclate là où il retombe, et sa flaque brûle ceux d\'en face', () => {

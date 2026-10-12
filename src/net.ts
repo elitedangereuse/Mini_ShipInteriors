@@ -278,8 +278,11 @@ export interface ArenaFighterState {
   deaths: number
   wait: number
 }
-/** Une fleur carnivore de Capucine, ou une flaque en feu de Jacques : où, de quel camp, et pour combien de temps (s). */
-export interface ArenaTrap { id: number; kind: 'flower' | 'fire'; team: 0 | 1; x: number; z: number; left: number }
+/**
+ * Une fleur carnivore de Capucine, ou une flaque en feu de Jacques : où, de quel camp, et pour combien
+ * de temps (s). Une fleur qui s'arme : sa proie (`aim`), et dans combien de temps elle mord (`strike`, s).
+ */
+export interface ArenaTrap { id: number; kind: 'flower' | 'fire'; team: 0 | 1; x: number; z: number; left: number; aim?: number; strike?: number }
 export interface ArenaState { game: string; warmup: number; left: number; score: [number, number]; round: number; rounds: [number, number]; fighters: ArenaFighterState[]; traps: ArenaTrap[] }
 export type ArenaEvent =
   /** `to`, `dur` : un objet lancé, où il retombe et en combien de temps. */
@@ -295,6 +298,8 @@ export type ArenaEvent =
   /** Une manche se termine (`winner` : -1 à égalité) ; la suivante part dans `wait` secondes. */
   | { kind: 'round'; round: number; winner: number; reason: 'score' | 'time'; score: [number, number]; rounds: [number, number]; wait: number }
   | { kind: 'join'; fighter: ArenaFighter; x: number; z: number; yaw: number }
+  /** Il change de chargeur (rien qu'un geste : le relais borne la cadence lui-même). */
+  | { kind: 'reload'; id: number }
 export interface ArenaStats extends ArenaFighter { kills: number; deaths: number; damage: number; heal: number }
 export interface ArenaEnd {
   game: string
@@ -308,7 +313,7 @@ export interface ArenaEnd {
   duration: number
   stats: ArenaStats[]
 }
-export type ArenaAction = 'join' | 'leave' | 'side' | 'settings' | 'character' | 'ready' | 'fire' | 'quit' | 'watch' | 'unwatch' | 'debug'
+export type ArenaAction = 'join' | 'leave' | 'side' | 'settings' | 'character' | 'ready' | 'fire' | 'reload' | 'quit' | 'watch' | 'unwatch' | 'debug'
 
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */

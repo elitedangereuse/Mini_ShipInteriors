@@ -47,7 +47,7 @@ import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 
 /** Événements du lobby ; les autres sont ceux d'une partie. */
 export const ARENA_LOBBY_ACTIONS = new Set(['arena:join', 'arena:leave', 'arena:side', 'arena:settings', 'arena:character', 'arena:ready', 'arena:watch', 'arena:unwatch'])
-export const ARENA_GAME_ACTIONS = new Set(['arena:fire', 'arena:quit'])
+export const ARENA_GAME_ACTIONS = new Set(['arena:fire', 'arena:reload', 'arena:quit'])
 
 const RAD = Math.PI / 180
 const HOLD = new ShipMap(SHIP_LAYOUTS[String(ARENA_LOBBY.level)], shipMapOptions(ARENA_LOBBY.level))
@@ -469,8 +469,19 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
           const d = dist(f, trap)
           if (d <= near && t >= f.shieldUntil && arenaSight(game.zone, trap, f)) { near = d; prey = f }
         }
+        if (!trap.strikeAt) {
+          // Une proie à portée : elle s'arme (on la voit faire), et mordra dans `windup` secondes.
+          if (!prey) continue
+          trap.strikeAt = t + spec.windup * 1000
+          trap.aim = prey.id
+          continue
+        }
+        if (t < trap.strikeAt) continue
+        // Elle mord qui est encore à portée (le plus proche) ; sa proie a pu s'enfuir à temps.
+        trap.strikeAt = 0
+        trap.aim = 0
+        trap.next = t + (spec.every - spec.windup) * 1000
         if (!prey) continue
-        trap.next = t + spec.every * 1000
         hurt(game, prey, trap.by, trap.w.damage, trap.character, { x: prey.x, y: arenaGround(game.zone, prey) + R.body.h * 0.5, z: prey.z }, trap.id)
       } else {
         const spec = trap.w.fire
@@ -654,8 +665,11 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
         b.lastSeen = null
         routeTo(game, b, goal)
       }
-      // Au calme depuis un moment : il recharge.
-      if (b.calm > 1 && b.ammo < w.mag && !b.reloadUntil) b.reloadUntil = t + w.reload * 1000
+      // Au calme depuis un moment : il recharge (on le voit faire).
+      if (b.calm > 1 && b.ammo < w.mag && !b.reloadUntil) {
+        b.reloadUntil = t + w.reload * 1000
+        tell(game, { kind: 'reload', id: b.id })
+      }
     }
     const moved = walk(b, R.bot * c.speed, dt)
     // Dernier garde-fou : même un chemin lissé ne franchit jamais la frontière adverse.
@@ -682,6 +696,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     if ((aimed === target && b.seen < skill.reaction) || b.reloadUntil || t < b.nextFire) return
     if (b.ammo <= 0) {
       b.reloadUntil = t + w.reload * 1000
+      tell(game, { kind: 'reload', id: b.id })
       return
     }
     // Écart de visée : au hasard autour de la cible, plus large sur une cible qui court. Sur deux
@@ -792,9 +807,22 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     announce()
   }
 
-  /** En partie, on tire ou l'on s'en va ; le personnage, lui, ne change pas. */
+  /**
+   * Le joueur change de chargeur : les autres le voient faire (son arme bascule, ses bras plongent).
+   * Rien de plus : c'est le chargeur de jetons du relais qui borne sa cadence (cf. fire), pas ce geste.
+   */
+  function reloading(p, game) {
+    const f = game.fighters.get(p.id)
+    const t = now()
+    if (!f || !f.alive || game.ended || t < (f.reloadShownAt ?? 0)) return
+    f.reloadShownAt = t + weaponOf(f.character).reload * 1000
+    tell(game, { kind: 'reload', id: f.id }, f.id)
+  }
+
+  /** En partie, on tire, on recharge ou l'on s'en va ; le personnage, lui, ne change pas. */
   function gameAction(p, game, action, data) {
     if (action === 'arena:fire') return fire(p, game, data)
+    if (action === 'arena:reload') return reloading(p, game)
     if (action === 'arena:quit') return quit(p)
   }
 
@@ -900,8 +928,12 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
         id: f.id, x: round2(f.x), z: round2(f.z), yaw: round2(f.yaw), anim: f.anim, hp: Math.max(0, Math.round(f.hp)), alive: f.alive,
         shield: t < f.shieldUntil, kills: f.kills, deaths: f.deaths, wait: f.alive ? 0 : Math.max(0, round2((f.respawnAt - t) / 1000)),
       })),
-      // Les fleurs et les flaques : où, de quel camp, combien de temps encore (s).
-      traps: game.traps.map((x) => ({ id: x.id, kind: x.kind, team: x.team, x: x.x, z: x.z, left: Math.max(0, round2((x.until - t) / 1000)) })),
+      // Les fleurs et les flaques : où, de quel camp, combien de temps encore (s) ; une fleur qui
+      // s'arme, sa proie (`aim`) et dans combien de temps elle mord (`strike`, s).
+      traps: game.traps.map((x) => ({
+        id: x.id, kind: x.kind, team: x.team, x: x.x, z: x.z, left: Math.max(0, round2((x.until - t) / 1000)),
+        ...(x.strikeAt ? { aim: x.aim, strike: Math.max(0, round2((x.strikeAt - t) / 1000)) } : {}),
+      })),
     })
   }
 

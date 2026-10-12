@@ -27,9 +27,11 @@ import { ArenaMusic, ArenaVictoryMusic } from './music'
 import { Podium, type PodiumEntry } from './podium'
 import { Referee, REFEREE, refereeRig } from './referee'
 import { arenaLive, arenaRanks } from '../furniture/arena'
+import { ShieldBubble } from './bubble'
 import { FighterMark } from './marks'
 import { outline, showOutline } from './outline'
 import { TINT, WATCH_TINT } from './palette'
+import { arenaFx } from './settings'
 import { Traps } from './traps'
 import { ArenaHud, ArenaPanel, fetchRanking, RankingPanel, TEAM_NAMES, type Ranking, type Relation } from './ui'
 
@@ -113,6 +115,9 @@ const THREAT_TIME = 1300
  */
 const DEATH = 0.85
 const DEATH_FADE = 0.26
+/** Le retour en jeu : il se matérialise dans son faisceau, d'un élan (s). */
+const APPEAR = 0.35
+const easeOutBack = (u: number) => 1 + 2.4 * (u - 1) ** 3 + 1.4 * (u - 1) ** 2
 
 /** Séries d'éliminations sans tomber : ce qu'on en dit. */
 const STREAKS = ['', '', tr('Doublé !', 'Double!'), tr('Triplé !', 'Triple!'), tr('Quadruplé !', 'Quad!'), tr('Inarrêtable !', 'Unstoppable!')]
@@ -186,6 +191,10 @@ interface Fighter extends ArenaFighter {
    * finissait), joué ensuite.
    */
   dying: { left: number; from: { x: number; z: number }; base: { x: number; z: number; yaw: number }; spawn: { x: number; z: number; yaw: number } | null } | null
+  /** Il apparaît (s qui restent) : il se matérialise dans son faisceau, d'un élan. */
+  appear: number
+  /** Sa bulle de protection (créée la première fois qu'il est protégé). */
+  bubble: ShieldBubble | null
 }
 
 interface Game {
@@ -549,7 +558,7 @@ export class ArenaClient {
       const g = this.game
       if (!g || g.watching) return { color: ARENA_TEAMS[team].color, foe: team === 1 }
       return team === g.team ? { color: g.tint.ally, foe: false } : { color: g.tint.enemy, foe: true }
-    }, (x, z) => arenaGround(this.zone, { x, z }))
+    }, (x, z) => arenaGround(this.zone, { x, z }), (id) => this.positionOf(id))
     this.host.scene.add(deck.group)
     const built: Built = { zone, deck, extras, podium: null }
     this.built.set(zone.id, built)
@@ -570,8 +579,12 @@ export class ArenaClient {
         const g = this.game, f = g?.fighters.get(id)
         return g && f ? g.tint[f.rel] : TINT.enemy
       },
+      gesture: (kind, len, strength) => this.host.player.avatar.act(kind, len, strength),
+      reloading: () => this.host.net.sendArena('reload'),
     }
     this.gun = gun
+    this.traps.fx = gun.fx
+    this.traps.onSound = (kind, at) => { if (this.inArena) gun.trapSound(kind, at) }
     this.host.armed(gun)
     return this.use(built)
   }
@@ -633,6 +646,11 @@ export class ArenaClient {
     if (this.game !== game) return
     this.phase = 'arena'
     this.host.face(m.spawn.yaw)
+    // Au départ, chacun apparaît à sa base, dans son faisceau.
+    for (const f of game.fighters.values()) {
+      const at = this.positionOf(f.id)
+      if (at && f.alive) this.appear(f, at)
+    }
     this.gun!.watching = watching
     this.gun!.begin(this.character)
     if (watching) {
@@ -690,7 +708,7 @@ export class ArenaClient {
       if (character.drone) puppet.group.add((drone = new Drone()).root)
     }
     const max = character.stats.hp
-    g.fighters.set(f.id, { ...f, hp: max, max, alive: true, shield: false, rel, revealAt: 0, ghost: false, wait: 0, puppet, mark, drone, flashUntil: 0, flashing: false, dying: null })
+    g.fighters.set(f.id, { ...f, hp: max, max, alive: true, shield: false, rel, revealAt: 0, ghost: false, wait: 0, puppet, mark, drone, flashUntil: 0, flashing: false, dying: null, appear: 0, bubble: null })
   }
 
   private removeFighter(id: number) {
@@ -704,6 +722,7 @@ export class ArenaClient {
       f.dying = null
     }
     this.game!.fighters.delete(id)
+    f.bubble?.dispose()
     this.gun?.disarm(id)
     this.hud.dropPlate(id)
     f.mark.dispose()
@@ -768,6 +787,7 @@ export class ArenaClient {
   private dispose() {
     const g = this.game
     if (!g) return
+    this.host.player.avatar.oneHand = null
     this.gun?.end()
     for (const id of [...g.fighters.keys()]) this.removeFighter(id)
     haunt(this.host.player.avatar, false)
@@ -851,6 +871,12 @@ export class ArenaClient {
     if (!f) return null
     if (f.puppet) return f.puppet.group.position.x > -5 ? f.puppet.group.position : null
     return id === this.host.net.id ? this.host.player.position : null
+  }
+
+  /** Comment un personnage tient son arme : d'une main, prêt à lancer par-dessus l'épaule ou par en dessous, ou à deux mains. */
+  private holdOf(character: CharacterId): 'lob' | 'toss' | null {
+    const arm = characterById(character).arm
+    return arm.lob ? (arm.fire ? 'lob' : 'toss') : null
   }
 
   /** Le personnage d'un combattant (le joueur : le sien). */
@@ -963,14 +989,29 @@ export class ArenaClient {
       case 'shot': {
         const f = g.fighters.get(e.id)
         if (f) f.revealAt = performance.now()
-        if (f && e.id !== self && this.inArena) gun.remoteShot(e.id, f.team, e.character, e.o, e.d, e.to, e.dur)
+        if (!f || e.id === self || !this.inArena) break
+        gun.remoteShot(e.id, f.team, e.character, e.o, e.d, e.to, e.dur)
+        // Son geste : le recul de son arme, ou son lancer (par-dessus l'épaule, par en dessous).
+        const arm = characterById(e.character).arm
+        this.avatarOf(f)?.act(arm.lob ? (arm.fire ? 'lob' : 'toss') : 'recoil', undefined, arm.lob ? 1 : Math.min(1, 0.35 + arm.punch * 0.25))
+        break
+      }
+      case 'reload': {
+        // Il change de chargeur : son arme bascule, ses bras plongent, le temps qu'il lui faut.
+        const f = g.fighters.get(e.id)
+        if (!f || e.id === self || !this.inArena) break
+        const len = characterById(f.character).stats.weapon.reload
+        gun.reloadOf(e.id, len)
+        this.avatarOf(f)?.act('reload', len)
         break
       }
       case 'heal': {
         const f = g.fighters.get(e.id)
         if (f) f.hp = e.hp
         if (!this.inArena) break
-        // Vu de tous : un trait relie Betty au soigné, des croix montent au-dessus de lui, son contour flashe.
+        // Vu de tous : Betty tend le bras, un trait la relie au soigné, des croix montent au-dessus de lui, son contour flashe.
+        const betty = g.fighters.get(e.by)
+        if (betty) this.avatarOf(betty)?.act('heal')
         const healer = this.handsOf(e.by)
         const target = this.positionOf(e.id)
         if (target && f) {
@@ -989,7 +1030,7 @@ export class ArenaClient {
         if (f) Object.assign(f, { hp: e.hp, revealAt: performance.now() })
         if (e.id === self || e.by === self) g.foughtAt = performance.now()
         // Une fleur qui mord : ses mâchoires claquent.
-        const flower = e.trap !== undefined ? this.traps?.bite(e.trap) : null
+        const flower = e.trap !== undefined ? this.traps?.bite(e.trap, this.positionOf(e.id)) : null
         if (flower && this.inArena) gun.chomp(flower)
         // D'où vient le coup (repère de l'arène) : le tireur, ou la fleur, la flaque qui l'a mordu ou brûlé.
         const shooter = this.positionOf(e.by)
@@ -1109,7 +1150,7 @@ export class ArenaClient {
     if (d.spawn) this.respawned(f, d.spawn)
   }
 
-  /** Il revient en jeu, à sa base, protégé un instant. */
+  /** Il revient en jeu, à sa base, protégé un instant : il apparaît dans un faisceau. */
   private respawned(f: Fighter, e: { x: number; z: number; yaw: number }) {
     Object.assign(f, { alive: true, hp: f.max, shield: true, ghost: false, wait: 0 })
     if (f.id === this.host.net.id) this.back(e)
@@ -1117,6 +1158,14 @@ export class ArenaClient {
       f.puppet.apply({ x: e.x, z: e.z, yaw: e.yaw, level: ARENA_LEVEL, anim: 'idle' })
       f.puppet.group.position.copy(f.puppet.target)
     }
+    this.appear(f, e)
+  }
+
+  /** Il apparaît en `at` : un faisceau à sa couleur, une onde, et il se matérialise d'un élan. */
+  private appear(f: Fighter, at: { x: number; z: number }) {
+    if (!this.inArena || !this.game) return
+    f.appear = APPEAR
+    this.gun?.spawned(new THREE.Vector3(at.x, arenaGround(this.zone, at), at.z), this.game.tint[f.rel])
   }
 
   /** De retour en jeu : à sa base, protégé un instant, l'arme de son personnage en main. */
@@ -1270,6 +1319,9 @@ export class ArenaClient {
       if (f.dying) {
         const k = THREE.MathUtils.clamp(1 - f.dying.left / DEATH_FADE, 0, 1)
         this.avatarOf(f)?.root.scale.setScalar(1 - 0.55 * k * k)
+      } else if (f.appear > 0) {
+        f.appear = Math.max(0, f.appear - dt)
+        this.avatarOf(f)?.root.scale.setScalar(Math.max(0.05, easeOutBack(1 - f.appear / APPEAR)))
       }
     }
     for (const f of g.fighters.values()) {
@@ -1284,6 +1336,8 @@ export class ArenaClient {
       // Qui traverse un buisson le froisse, s'il est vu (un adversaire caché ne se trahit pas ainsi).
       if (shown && f.alive) this.extras?.stir(f.id, at!.x, at!.z)
       const avatar = r ? r.avatar : this.host.player.avatar
+      // Qui lance (Capucine, Jacques) tient son objet d'une main, prêt à le lancer.
+      if (avatar) avatar.oneHand = this.holdOf(f.character)
       // Son contour, à sa couleur : posé dès que son modèle est là (il arrive après la doublure) ; il
       // flashe blanc un instant quand il encaisse un coup ou reçoit un soin.
       const flashing = f.flashUntil > now
@@ -1296,12 +1350,18 @@ export class ArenaClient {
         f.drone.root.visible = !f.ghost || f.alive
         f.drone.update(dt, mine && scanning)
       }
-      // Son anneau, sous ses pieds ; il bat tant qu'il est protégé.
+      // Son anneau, sous ses pieds ; il bat tant qu'il est protégé, et une bulle l'entoure (sauf effets réduits).
       f.mark.root.visible = shown && f.alive
       if (f.mark.root.visible) {
         this.local.set(at!.x, arenaGround(this.zone, at!), at!.z)
         const beat = f.shield ? 1 + 0.25 * Math.sin(performance.now() / 90) : 1
         f.mark.place(this.local, r ? r.group.rotation.y : this.host.player.root.rotation.y, beat)
+      }
+      const guarded = shown && f.alive && f.shield && !arenaFx.reduced
+      if (guarded && !f.bubble) this.deck!.group.add((f.bubble = new ShieldBubble(g.tint[f.rel])).mesh)
+      if (f.bubble) {
+        const feet = shown && f.alive ? this.local.set(at!.x, arenaGround(this.zone, at!), at!.z) : null
+        if (f.bubble.update(dt, feet, guarded) && feet) this.gun?.unshielded(feet)
       }
       // Sa plaque, au-dessus de sa tête : son nom et sa vie. En vue subjective, seulement s'il n'y
       // a rien entre lui et nous (la plaque ne doit pas le trahir derrière un conteneur) ; la nôtre
@@ -1323,7 +1383,7 @@ export class ArenaClient {
       // Son arme, dans ses mains, tournée où il regarde.
       const armed = shown && f.alive && !!r.avatar
       if (r.avatar) r.avatar.carrying = f.alive
-      if (armed && r.avatar!.hands(this.hands)) this.local.copy(this.hands).sub(origin)
+      if (armed && r.avatar!.grip(this.hands)) this.local.copy(this.hands).sub(origin)
       else if (armed) this.local.copy(at!).sub(origin)
       this.local.y = ARENA_RULES.aim - 0.02
       this.gun?.carry(f.id, f.character, armed ? this.local : null, r.group.rotation.y)

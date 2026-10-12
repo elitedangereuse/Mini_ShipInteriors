@@ -105,7 +105,9 @@ export const ARENA_RULES = {
  *     touche rien en vol, et retombe au point visé ;
  *   - `flower` : Capucine : là où retombe sa graine pousse une fleur carnivore, qui mord (`damage`)
  *     l'adversaire le plus proche à moins de `radius`, toutes les `every` secondes, une fois sortie
- *     de terre (`grow`) et pendant `life` secondes ; `most` fleurs à la fois, la plus vieille fane ;
+ *     de terre (`grow`) et pendant `life` secondes ; `most` fleurs à la fois, la plus vieille fane.
+ *     Avant chaque morsure, elle s'arme (`windup` secondes, compris dans `every`) : elle se tourne
+ *     vers sa proie et ouvre grand ses mâchoires ; qui sort de sa portée à temps y échappe ;
  *   - `fire` : Jacques : là où éclate son cocktail, une flaque brûle `life` secondes, et chaque
  *     adversaire qui s'y tient (à moins de `radius`) perd `damage` toutes les `every` secondes.
  */
@@ -130,7 +132,7 @@ export const ARENA_CHARACTERS = {
     hp: 85, speed: 1,
     weapon: {
       auto: false, interval: 0.8, mag: 3, reload: 2.2, speed: 9, lob: true, pierce: false, pellets: 1, spread: 0, damage: 20, range: 6.5, reach: 4.5, blast: 0,
-      flower: { life: 6, radius: 1.6, every: 0.6, grow: 0.3, most: 2 },
+      flower: { life: 6, radius: 1.6, every: 0.6, grow: 0.3, most: 2, windup: 0.25 },
     },
   },
   jacques: {

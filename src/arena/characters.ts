@@ -1,6 +1,8 @@
 import * as THREE from 'three'
 import { BLASTER_PACK, packModel } from '../assets'
 import { chefRig } from '../chef'
+import { jacquesFace } from '../furniture/bar'
+import { recolored } from '../recolor'
 import { gardenerRig } from '../gardener'
 import { boxInBone, lookRig, parseLook, type LookRig } from '../looks'
 import { droidModel, mechanicRig } from '../mechanic'
@@ -163,15 +165,37 @@ async function rourkeRig(): Promise<LookRig> {
 }
 
 /**
+ * La peinture de Jacques sur le robot du kit : l'émail crème de son buste du comptoir à la place du
+ * gris bleuté, un bordeaux à la place du rouge vif ; les ombres et le noir restent.
+ */
+function enamel(src: THREE.Texture): THREE.Texture {
+  return recolored(src, 'jacques-enamel', (hsl, c) => {
+    if (hsl.l < 0.22) return
+    if (hsl.s > 0.45 && (hsl.h < 0.05 || hsl.h > 0.9)) c.setHSL(0.985, 0.62, Math.max(0.16, hsl.l * 0.55), THREE.SRGBColorSpace)
+    else if (hsl.s < 0.35) c.setHSL(0.11, 0.3, Math.min(0.92, 0.42 + hsl.l * 0.55), THREE.SRGBColorSpace)
+  })
+}
+
+/**
  * Jacques : il ne quitte jamais son comptoir, alors pour l'arène on lui a prêté des jambes (le
- * robot « Unité R-7 » du kit). Il a gardé l'essentiel : le béret, le nœud papillon rouge, le gilet
- * noir sur sa plastron crème, et le torchon sur l'épaule.
+ * robot « Unité R-7 » du kit), repeintes à l'émail crème de son buste. Il a gardé tout ce qu'on lui
+ * connaît au bar : son visage d'écran (deux yeux ambrés et sa moustache en guidon de vélo, qui
+ * clignent et frémissent comme au comptoir, cf. furniture/bar.ts), ses oreillettes, le béret, le nœud
+ * papillon rouge, le gilet noir sur sa plastron crème, sa plaque de laiton, et le torchon sur l'épaule.
  */
 async function jacquesRig(): Promise<LookRig> {
   const r = await lookRig(parseLook('robot.g'))
   const root = r.root
   root.updateMatrixWorld(true)
-  const black = lambert('#141519'), cream = lambert('#f4f1ea'), red = lambert('#b0202a'), brass = lambert('#c9a24a')
+  // Sa peinture à lui : les joueurs au robot du kit gardent la leur.
+  root.traverse((o) => {
+    const m = o as THREE.Mesh
+    if (!m.isMesh) return
+    const material = (m.material as THREE.MeshBasicMaterial).clone()
+    if (material.map) material.map = enamel(material.map)
+    m.material = material
+  })
+  const black = lambert('#141519'), cream = lambert('#f4f1ea'), red = lambert('#b0202a'), brass = lambert('#c9a24a'), steel = lambert('#3a3f47')
   const torso = root.getObjectByName('torso') as THREE.Mesh | undefined
   if (torso?.isMesh) {
     const tb = boxInBone(torso, torso)
@@ -193,10 +217,12 @@ async function jacquesRig(): Promise<LookRig> {
       button.position.set(c.x + size.x * 0.12, c.y + size.y * 0.1 - i * size.y * 0.13, front + size.z * 0.03)
       torso.add(button)
     }
-    // Le torchon, sur l'épaule gauche.
+    // Le torchon, sur l'épaule gauche ; la plaque de laiton, sur le gilet.
     const rag = new THREE.Mesh(new THREE.BoxGeometry(size.x * 0.22, size.y * 0.04, size.z * 0.7), cream)
     rag.position.set(c.x + size.x * 0.32, tb.max.y + size.y * 0.01, c.z)
-    torso.add(rag)
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(size.x * 0.2, size.y * 0.06, size.z * 0.03), brass)
+    plate.position.set(c.x - size.x * 0.2, c.y + size.y * 0.12, front + size.z * 0.025)
+    torso.add(rag, plate)
   }
   const head = root.getObjectByName('head') as THREE.Mesh | undefined
   if (head?.isMesh) {
@@ -209,6 +235,22 @@ async function jacquesRig(): Promise<LookRig> {
     const stalk = new THREE.Mesh(new THREE.CylinderGeometry(size.x * 0.03, size.x * 0.02, size.y * 0.12, 5), lambert('#1b1b24'))
     stalk.position.set(c.x + size.x * 0.1, hb.max.y + size.y * 0.17, c.z - size.z * 0.03)
     head.add(beret, stalk)
+    // Son visage d'écran, celui du comptoir : un cadre sombre, les yeux ambrés et la moustache qui vivent.
+    const face = jacquesFace()
+    const bezel = new THREE.Mesh(new THREE.BoxGeometry(size.x * 0.84, size.y * 0.64, size.z * 0.04), lambert('#0c1a20'))
+    bezel.position.set(c.x, c.y - size.y * 0.04, hb.max.z + size.z * 0.01)
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(size.x * 0.76, size.y * 0.56), new THREE.MeshBasicMaterial({ map: face.texture }))
+    screen.position.set(c.x, c.y - size.y * 0.04, hb.max.z + size.z * 0.035)
+    // Il cligne et frémit à l'image : on le dessine quand on le voit.
+    screen.onBeforeRender = () => face.tick(performance.now() / 1000, 'calm')
+    // Ses oreillettes d'antenne, de chaque côté.
+    const ears = [-1, 1].map((side) => {
+      const ear = new THREE.Mesh(new THREE.CylinderGeometry(size.y * 0.13, size.y * 0.13, size.x * 0.08, 12), steel)
+      ear.rotation.z = Math.PI / 2
+      ear.position.set(c.x + side * (size.x * 0.5 + size.x * 0.03), c.y, c.z)
+      return ear
+    })
+    head.add(bezel, screen, ...ears)
   }
   return { ...r, height: r.height + 0.04 }
 }

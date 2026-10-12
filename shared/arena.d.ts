@@ -50,7 +50,7 @@ export interface CharacterWeapon {
   blast: number
   heal?: number
   lob?: boolean
-  flower?: { life: number; radius: number; every: number; grow: number; most: number }
+  flower?: { life: number; radius: number; every: number; grow: number; most: number; windup: number }
   fire?: { life: number; radius: number; every: number; damage: number }
 }
 

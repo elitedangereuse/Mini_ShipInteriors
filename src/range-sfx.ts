@@ -336,6 +336,33 @@ export class RangeSfx {
     this.burst(b.mix, 'lowpass', 900, 200, 0.8, t, 0.12, 0.6)
   }
 
+  /** Une fleur carnivore jaillit de terre : un froissement de feuilles, et un « pop » qui s'ouvre. */
+  sprout(pos: Pos) {
+    const b = this.bus(pos, 0.3, 0.2)
+    if (!b) return
+    const t = this.ctx.currentTime + 0.004
+    this.burst(b.mix, 'bandpass', 1800, 3400, 2, t, 0.18, 0.5)
+    this.sweep(b.mix, 'sine', 260, 520, t + 0.12, 0.09, 0.5)
+  }
+
+  /** Une fleur carnivore s'arme : un sifflement qui monte, comme une bête qui va mordre. */
+  hiss(pos: Pos) {
+    const b = this.bus(pos, 0.3, 0.2)
+    if (!b) return
+    const t = this.ctx.currentTime + 0.004
+    this.burst(b.mix, 'highpass', 2600, 5200, 1.2, t, 0.22, 0.6)
+    this.sweep(b.mix, 'triangle', 300, 420, t, 0.2, 0.12)
+  }
+
+  /** Une fleur carnivore fane : un souffle qui retombe, des feuilles sèches. */
+  wilt(pos: Pos) {
+    const b = this.bus(pos, 0.24, 0.3)
+    if (!b) return
+    const t = this.ctx.currentTime + 0.004
+    this.sweep(b.mix, 'sine', 520, 180, t, 0.4, 0.35)
+    this.burst(b.mix, 'bandpass', 2400, 900, 2.5, t + 0.05, 0.3, 0.3)
+  }
+
   /** Une fleur carnivore mord : deux mâchoires qui claquent. */
   chomp(pos: Pos) {
     const b = this.bus(pos, 0.45, 0.25)
