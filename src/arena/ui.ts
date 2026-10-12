@@ -298,9 +298,22 @@ export class ArenaPanel extends Modal {
         `Two teams, up to ${ARENA_RULES.team} vs ${ARENA_RULES.team}, in the bay's stadium, deep in a Thargoid hive or among the ruins of a Guardian site. Everyone plays a crew member, with their own weapon and style. Solo against the bots, or with whoever plays with you: they fill the teams. Best of ${ARENA_RULES.rounds} rounds.`,
       )),
     )
-    stage.append(hero, el('span', 'arena-heading', tr('Votre personnage', 'Your character')), this.picker.root)
-    stage.append(this.effects())
-    stage.append(el('p', 'salvage-note', tr('Pour l\'honneur : CMDR Arena ne rapporte pas de crédits.', 'For honour only: CMDR Arena pays no credits.')))
+    const [teams, mine, match] = this.columns(stage)
+    teams.append(hero)
+    mine.append(el('span', 'arena-heading', tr('Votre personnage', 'Your character')), this.picker.root)
+    match.append(this.effects(), el('p', 'salvage-note', tr('Pour l\'honneur : CMDR Arena ne rapporte pas de crédits.', 'For honour only: CMDR Arena pays no credits.')))
+  }
+
+  /**
+   * Les trois blocs du terminal : les équipes, son personnage, les réglages de la partie. Sur un
+   * écran large, le personnage tient la colonne de droite, les deux autres celle de gauche, et tout
+   * se voit sans défiler ; ailleurs ils se suivent dans cet ordre (cf. .arena-block, style.css).
+   */
+  private columns(stage: HTMLElement): [HTMLElement, HTMLElement, HTMLElement] {
+    const blocks: [HTMLElement, HTMLElement, HTMLElement] = [el('div', 'arena-block teams'), el('div', 'arena-block mine'), el('div', 'arena-block match')]
+    stage.classList.add('split')
+    stage.append(...blocks)
+    return blocks
   }
 
   /**
@@ -339,6 +352,7 @@ export class ArenaPanel extends Modal {
     const title = el('div', 'arena-title')
     title.append(el('strong', '', `Lobby ${r.id}`), el('span', '', `${mapName(r.map)} · ${format(r.size)} · ${tr(`${ARENA_RULES.wins} manches gagnantes · une manche : ${r.goal} points`, `best of ${ARENA_RULES.rounds} · a round: ${r.goal} points`)}`))
     stage.append(title)
+    const [teams, mine, match] = this.columns(stage)
 
     const versus = el('div', 'arena-versus')
     ARENA_TEAMS.forEach((team, index) => {
@@ -376,9 +390,9 @@ export class ArenaPanel extends Modal {
       versus.append(side)
       if (!index) versus.append(el('span', 'arena-vs', 'VS'))
     })
-    stage.append(versus)
+    teams.append(versus)
 
-    stage.append(el('span', 'arena-heading', tr('Votre personnage', 'Your character')), this.picker.root)
+    mine.append(el('span', 'arena-heading', tr('Votre personnage', 'Your character')), this.picker.root)
 
     // Réglages : le chef choisit ; les autres les voient.
     const settings = el('div', 'arena-settings')
@@ -417,7 +431,7 @@ export class ArenaPanel extends Modal {
       b.append(mapThumb(m.id), text)
       maps.append(b)
     }
-    stage.append(el('span', 'arena-heading', tr('Plan', 'Map')), maps)
+    match.append(el('span', 'arena-heading', tr('Plan', 'Map')), maps)
 
     const crowd = Math.max(1, ...ARENA_TEAMS.map((t) => r.members.filter((m) => m.team === t.id).length))
     const sizes = Array.from({ length: ARENA_RULES.team }, (_, i) => i + 1).filter((n) => n >= crowd || n === r.size)
@@ -429,9 +443,9 @@ export class ArenaPanel extends Modal {
         ...SKILLS.map((name, i): [string, () => void, boolean] => [name, () => this.actions.settings({ bots: true, skill: i }), r.bots && r.skill === i]),
       ], 'bots'),
     )
-    stage.append(settings)
-    if (!leader) stage.append(el('p', 'salvage-note', tr('Le chef du lobby (le premier arrivé, à la couronne) règle la partie ; un changement remet tout le monde en attente.', 'The lobby leader (first in, with the crown) sets the match; any change puts everyone back on standby.')))
-    stage.append(this.effects())
+    match.append(settings)
+    if (!leader) match.append(el('p', 'salvage-note', tr('Le chef du lobby (le premier arrivé, à la couronne) règle la partie ; un changement remet tout le monde en attente.', 'The lobby leader (first in, with the crown) sets the match; any change puts everyone back on standby.')))
+    match.append(this.effects())
 
     const ready = r.members.filter((m) => m.ready).length
     const footer = el('div', 'arena-footer')

@@ -5420,6 +5420,35 @@ body.gardening #emotes { display: none; }
 .arena-panel .arena-ready.on:hover:not(:disabled) { border-color: #39d98a; background: #39d98a33; }
 .arena-count-ready { color: #a9b1bd; font: 600 12px ui-monospace, Menlo, monospace; }
 .arena-panel .arena-leave { margin-left: auto; border-color: transparent; background: none; color: #a9b1bd; }
+/* Les trois blocs du terminal (équipes, personnage, réglages) : à la suite, sauf sur un écran large. */
+.arena-block { display: contents; }
+/*
+ * Écran large, à la souris : le terminal prend la largeur, et tout se voit sans défiler. Les lobbys à
+ * gauche ; au milieu les équipes, puis le plan et les réglages ; à droite, le personnage et sa fiche.
+ */
+@media (min-width: 1180px) and (pointer: fine) {
+  .salvage-panel.arena-panel:not(.arena-ranks) { width: min(1400px, calc(100vw - 28px)); padding-top: 16px; }
+  .arena-panel:not(.arena-ranks) .salvage-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 16px; margin-bottom: 10px; }
+  .arena-panel:not(.arena-ranks) .salvage-head h2 { margin: 0; font-size: 21px; }
+  .arena-panel:not(.arena-ranks) .arena-hints { margin: 0 0 0 auto; }
+  .arena-layout { grid-template-columns: 200px minmax(0, 1fr); }
+  .arena-stage.split { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); grid-template-rows: auto auto 1fr; gap: 10px 18px; }
+  .arena-stage.split > * { grid-column: 1 / -1; }
+  .arena-block { display: grid; gap: 8px; min-width: 0; align-content: start; }
+  .arena-stage.split > .arena-block.teams { grid-area: 2 / 1; }
+  .arena-stage.split > .arena-block.match { grid-area: 3 / 1; }
+  .arena-stage.split > .arena-block.mine { grid-area: 2 / 2 / span 2; }
+  /* Les plans côte à côte : la vignette, puis le nom et ce qu'il est. */
+  .arena-maps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .arena-panel .arena-map { flex-direction: column; align-items: stretch; gap: 6px; padding: 8px; text-align: center; }
+  .arena-map-thumb { align-self: center; width: auto; height: 46px; max-height: none; }
+  .arena-map-text small { font-size: 11px; }
+  .arena-settings { gap: 8px 16px; }
+  .arena-team { padding: 10px; }
+  .arena-slot { min-height: 36px; }
+  .arena-footer { padding: 10px 24px 14px; }
+  .arena-panel .arena-ready { padding: 11px 22px; }
+}
 @media (max-width: 760px) {
   .arena-layout { grid-template-columns: minmax(0, 1fr); }
   .arena-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
