@@ -1,24 +1,33 @@
-import type { Sound } from '../audio'
+import type { ArenaMapId } from '../../shared/arena.js'
+import type { MusicOptions, Sound } from '../audio'
 import type { RangeTune } from '../range-music'
 
 /*
- * Les musiques de CMDR Arena : trois morceaux enregistrés (public/assets/music/cmdr-arena/, cf.
- * CREDITS.txt). Les deux premiers tournent en boucle ; la fanfare ne dure que le temps de l'écran final.
+ * Les musiques de CMDR Arena : cinq morceaux enregistrés (public/assets/music/cmdr-arena/, cf.
+ * CREDITS.txt). Tous tournent en boucle, sauf la fanfare, qui ne dure que le temps de l'écran final.
  *
- * - pendant la partie, « Pixel Brawl », à 60 % ;
+ * - pendant la partie, le morceau de son plan, à 60 % : « Pixel Brawl » dans la baie, « X-99
+ *   Protocol » dans la ruche thargoïde, « Guardians of the Forbidden » sur le site gardien ;
  * - au lobby, « Game Menu Groove », en fond : c'est la sono de la pièce, un haut-parleur de hall
  *   (cf. speaker), et on ne l'entend que dedans.
  * - sur l'écran de fin, « Victory Fanfare », à 60 %.
  *
- * Aucun des deux n'a été coupé pour boucler : le fichier s'arrête net au milieu d'une mesure, puis
- * un quart de seconde de blanc. La boucle prend donc, depuis le début, un nombre entier de mesures
- * (tempo mesuré sur le fichier) : au raccord, le rythme ne saute pas.
+ * Aucun n'a été coupé pour boucler. « Pixel Brawl » et « Game Menu Groove » s'arrêtent net au milieu
+ * d'une mesure, puis un quart de seconde de blanc ; « X-99 Protocol » finit sur une coda. La boucle
+ * prend donc, depuis le début, un nombre entier de mesures (tempo mesuré sur le fichier) : au
+ * raccord, le rythme ne saute pas. « Guardians of the Forbidden », lui, tourne en entier : son tempo
+ * flotte trop pour un raccord à la mesure, mais il s'ouvre en fondu et finit sur un accord qui
+ * s'éteint.
  */
 
 /** `n` mesures à quatre temps depuis le début du morceau. */
 const bars = (bpm: number, n: number) => ({ from: 0, to: (n * 4 * 60) / bpm })
 
-const MATCH = { file: 'cmdr-arena/pixel-brawl.mp3', volume: 0.6, loop: bars(150.025, 52) }
+const MATCH: Record<ArenaMapId, { file: string; volume: number; loop?: MusicOptions['loop'] }> = {
+  bay: { file: 'cmdr-arena/pixel-brawl.mp3', volume: 0.6, loop: bars(150.025, 52) },
+  hive: { file: 'cmdr-arena/x-99-protocol.mp3', volume: 0.6, loop: bars(150, 76) },
+  guardian: { file: 'cmdr-arena/guardians-of-the-forbidden.mp3', volume: 0.6 },
+}
 const LOBBY = { file: 'cmdr-arena/game-menu-groove.mp3', volume: 0.26, loop: bars(114.905, 32) }
 const VICTORY = { file: 'cmdr-arena/victory-fanfare.mp3', volume: 0.6 }
 
@@ -27,12 +36,15 @@ export class ArenaMusic implements RangeTune {
   private tune: { stop: () => void } | null = null
   /** Un morceau enregistré : les lumières n'ont pas de grosse caisse à suivre. */
   readonly pulse = 0
+  /** Le plan où l'on joue : chacun a son morceau (cf. MATCH). */
+  map: ArenaMapId = 'bay'
 
   constructor(private sound: Sound) {}
 
   start() {
     if (this.tune || !this.sound.ready) return
-    this.tune = this.sound.music(MATCH.file, MATCH.volume, { loop: MATCH.loop })
+    const { file, volume, loop } = MATCH[this.map]
+    this.tune = this.sound.music(file, volume, { loop })
   }
 
   stop() {

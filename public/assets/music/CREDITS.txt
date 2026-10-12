@@ -394,6 +394,19 @@ Aucun des deux n'est coupé pour boucler (arrêt net en pleine mesure, puis
 le début, cf. src/arena/music.ts. Tempos mesurés sur les fichiers :
 150,03 BPM (52 mesures, 83,19 s) et 114,91 BPM (32 mesures, 66,84 s).
 
+cmdr-arena/x-99-protocol.mp3              : « X-99 Protocol », la musique
+                                            de la ruche thargoïde.
+cmdr-arena/guardians-of-the-forbidden.mp3 : « Guardians of the Forbidden »,
+                                            la musique du site gardien.
+Par fluidspaceunivers. Fournis par Michael Bernard le 12/10/2026 ; leurs
+métadonnées indiquent une création avec Suno. Licence à renseigner ici.
+Fichiers d'origine, renommés, non retraités (MP3 stéréo 48 kHz ; -15,1 et
+-16,0 LUFS intégrés, crête -3,9 et -5,1 dBFS).
+« X-99 Protocol » : 150,00 BPM mesurés sur le fichier ; le jeu boucle sur
+ses 76 premières mesures (121,6 s), avant la coda. « Guardians of the
+Forbidden » (149,2 s) tourne en entier : tempo trop flottant pour un raccord
+à la mesure, mais une ouverture en fondu et un accord final qui s'éteint.
+
 
 ---------------------------------------------------------------------
 Lobby de récupération thargoïde (hors jukebox)

@@ -249,6 +249,7 @@ export class ArenaClient {
   private extras: ArenaExtras | null = null
   /** Les bruitages de la partie (ceux du stand, et la clameur des tribunes), et le chant de la ruche. */
   private sfx: RangeSfx | null = null
+  private music: ArenaMusic | null = null
   private hiveSfx: SalvageSfx | null = null
   private readonly victoryMusic: ArenaVictoryMusic
   private readonly hands = new THREE.Vector3()
@@ -530,7 +531,8 @@ export class ArenaClient {
     this.built.set(zone.id, built)
     if (this.gun) return this.use(built)
     this.sfx = new RangeSfx(this.host.sound)
-    const gun = new ArenaGun(deck.group, this.host.dialog, this.host.wallet, this.sfx, new ArenaMusic(this.host.sound))
+    this.music = new ArenaMusic(this.host.sound)
+    const gun = new ArenaGun(deck.group, this.host.dialog, this.host.wallet, this.sfx, this.music)
     gun.host = {
       zone,
       self: () => this.host.net.id,
@@ -554,6 +556,7 @@ export class ArenaClient {
     this.extras = b.extras
     this.podium = b.podium
     this.gun?.attach(b.deck.group, b.zone)
+    if (this.music) this.music.map = b.zone.id
     if (this.traps) b.deck.group.add(this.traps.group)
     return b.deck
   }
