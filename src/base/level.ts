@@ -7,8 +7,8 @@ import type { BaseKit, SpaceModel } from './kit'
 
 /*
  * L'avant-poste Bradbury, en pont du jeu (cf. LevelDef, Deck) : un plateau de roche rouge à ciel
- * ouvert, bordé de falaises. À l'est, l'aire d'atterrissage et le Krait (on y remonte par
- * l'escabeau pour repartir) ; au nord, la tour de contrôle, le garage des rovers et la serre ; à
+ * ouvert, bordé de falaises. À l'est, l'aire d'atterrissage et le vaisseau du joueur (cf.
+ * ship-bay.ts ; on y remonte par l'escabeau pour repartir) ; au nord, la tour de contrôle, le garage des rovers et la serre ; à
  * l'ouest, les quartiers de la base et la fusée de ravitaillement ; au sud, les machines, la foreuse
  * et le gisement de cristaux. Des pistes relient le tout. Les trajets de la cheffe de base
  * (cf. CHIEF_POSTS dans shared/ground-base.js) passent entre les bâtiments : à revoir si l'un

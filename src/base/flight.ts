@@ -2,12 +2,12 @@ import { tr } from '../i18n'
 import { $ } from '../ui'
 
 /*
- * Le voyage en Krait entre le hangar du vaisseau et l'avant-poste Bradbury : l'écran de
- * chargement, qui couvre le changement de pont (et, au premier voyage, le chargement de la base).
- * La trajectoire est la jauge : un arc du vaisseau au sol, que le Krait parcourt ; la planète rouge
- * monte et remplit l'écran à la descente (lueur de rentrée atmosphérique à mi-course), s'enfonce à
- * la remontée ; l'altitude défile. Le Krait attend en fin d'approche tant que la base n'est pas
- * prête.
+ * Le voyage entre le hangar du vaisseau et l'avant-poste Bradbury, à bord du vaisseau du joueur
+ * (celui du registre du hangar, cf. ship-bay.ts) : l'écran de chargement, qui couvre le changement
+ * de pont (et, au premier voyage, le chargement de la base). La trajectoire est la jauge : un arc du
+ * vaisseau au sol, que sa silhouette parcourt ; la planète rouge monte et remplit l'écran à la
+ * descente (lueur de rentrée atmosphérique à mi-course), s'enfonce à la remontée ; l'altitude défile.
+ * Le vaisseau attend en fin d'approche tant que la base n'est pas prête.
  */
 
 const NS = 'http://www.w3.org/2000/svg'
@@ -15,7 +15,7 @@ const NS = 'http://www.w3.org/2000/svg'
 const FLIGHT = 5.2
 /** Fondus d'entrée et de sortie (s). */
 const FADE = 0.45
-/** Où le Krait attend que la base soit prête (fraction du trajet). */
+/** Où le vaisseau attend que la base soit prête (fraction du trajet). */
 const HOLD = 0.9
 /** Altitude de départ affichée (m) : l'orbite basse où croise le vaisseau. */
 const ORBIT = 18400

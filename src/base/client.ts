@@ -117,8 +117,13 @@ export class GroundBase {
     return this.here && !!seat && seat.item === this.ladder
   }
 
-  /** Les réacteurs tournent sur l'aire de la base (le joueur local ou un autre les a mis en route). */
+  /** Nos réacteurs tournent, sur la base : nous les avons mis en route (chacun son vaisseau). */
   get engines(): boolean {
+    return this.started && !!this.chief?.burning
+  }
+
+  /** Des réacteurs tournent sur l'aire, les nôtres ou ceux d'un autre CMDR (le grondement, Ada qui salue). */
+  get roaring(): boolean {
     return !!this.chief?.burning
   }
 
@@ -139,12 +144,12 @@ export class GroundBase {
 
   /** Le relais : la ronde d'Ada, et les réacteurs sur l'aire de la base. */
   sync(s: ChiefState, from: number, self: number) {
-    const was = this.engines
+    const was = this.roaring
     this.chief?.sync(s)
-    if (!was && this.engines && from !== self && this.here) this.host.show(pick(LIFTOFF))
+    if (!was && this.roaring && from !== self && this.here) this.host.show(pick(LIFTOFF))
   }
 
-  /** On parle à Ada. */
+  /** On parle à Ada (elle parle de notre vaisseau, celui de l'aire). */
   talk(report: ChiefReport): string | null {
     if (!this.chief) return null
     const line = this.chief.talk(this.host.player.position, report)
@@ -194,8 +199,8 @@ export class GroundBase {
     chief.update(dt, here ? this.host.player.position : null)
     const aboard = this.aboardKrait
     // Descendu du cockpit : ses réacteurs se coupent avec lui.
-    if (this.started && (!aboard || !this.engines) && !this.flying) {
-      if (this.engines) {
+    if (this.started && (!aboard || !chief.burning) && !this.flying) {
+      if (chief.burning) {
         this.host.engines(false)
         chief.setBurn(0, true)
       }

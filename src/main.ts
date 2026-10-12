@@ -1531,14 +1531,6 @@ const hangar = new Hangar({
   // Installé seulement : pendant la montée des marches, on n'est pas encore aux commandes.
   seat: () => (seating.pose ? seating.current : null),
   bay: hangarBay,
-  // Les autres joueurs assis aux commandes du même vaisseau que nous (la place de notre cockpit).
-  pilots: () => {
-    const cockpit = hangarBay.seat
-    if (!cockpit) return 0
-    let n = 0
-    for (const r of remotes.values()) if (r.level === holdDeck.def.id && r.pose === 'pilot' && Math.hypot(r.target.x - cockpit.x, r.target.z - cockpit.z) < 0.3) n++
-    return n
-  },
   show: (text) => dialog.show(text),
   help: (on) => {
     mechanic.help(player.position, on)
@@ -1597,7 +1589,7 @@ const groundBase = new GroundBase({
         net.sendEmote('interact')
         net.sendChiefTalk()
         const visitors = [...remotes.values()].filter((r) => r.level === BASE_LEVEL).length
-        const line = groundBase.talk({ system: SYSTEMS[systemView.id].name, visitors })
+        const line = groundBase.talk({ system: SYSTEMS[systemView.id].name, visitors, ship: hangarBay.info?.name ?? 'Krait Mk II' })
         if (line) dialog.show(line)
       },
     })
@@ -3365,15 +3357,13 @@ const myCabin = () => visiting?.host ?? net.id
  * instance (chacun y est dans sa bulle).
  */
 /**
- * Un autre CMDR aux commandes de son vaisseau, au hangar ou sur la base : s'il n'a pas le même que
- * nous (sa place n'est pas notre cockpit), il est dans le sien, qu'on ne voit pas (cf. ship-bay.ts).
+ * Un autre CMDR aux commandes de son vaisseau, au hangar ou sur la base : il est dans le sien (chacun
+ * voit le sien sur l'aire, cf. ship-bay.ts), qu'on ne voit pas ; et il ne nous prend pas notre cockpit.
  */
-function inOtherShip(r: RemotePlayer): boolean {
+function inOwnShip(r: RemotePlayer): boolean {
   if (r.pose !== 'pilot') return false
   const bay = r.level === holdDeck.def.id ? hangarBay : r.level === BASE_LEVEL ? groundBase.bay : null
-  const seat = bay?.seat
-  if (!bay || !seat || !bay.covers(r.target.x, r.target.z)) return false
-  return Math.hypot(r.target.x - seat.x, r.target.z - seat.z) > 0.3
+  return !!bay && bay.covers(r.target.x, r.target.z)
 }
 
 function sees(r: RemotePlayer): boolean {
@@ -6086,7 +6076,7 @@ function frame() {
     r.update(world)
     const room = r.level === ZONE_LEVEL ? null : deckById(r.level)?.map.room(Math.round(r.group.position.x), Math.round(r.group.position.z))
     r.group.visible = sees(r) && (ljpcMember || r.level !== 0 || room !== 'l') && (voieAdept || r.level !== -1 || room !== 'v') && (clubAlien || r.level !== -1 || room !== CLUB_ROOM)
-      && (barRegular || r.level !== -1 || room !== BAR_ROOM) && !questLocked(r.level, room ?? null) && !inOtherShip(r)
+      && (barRegular || r.level !== -1 || room !== BAR_ROOM) && !questLocked(r.level, room ?? null) && !inOwnShip(r)
   }
   updateStalls()
   flushLatecomers()
@@ -6131,7 +6121,7 @@ function frame() {
   if (homeDeck === viewDeck) gardenView.update(dt)
   gardenNotices.update(dt)
   // Réacteurs du Krait en route : leur grondement dans la cale, et la vue qui tremble (vue isométrique).
-  const roaring = hangar.engines && holdDeck === deck
+  const roaring = mechanic.panicking && holdDeck === deck
   if (roaring && !kraitRoar) kraitRoar = sound.thrusters(new THREE.Vector3(KRAIT_COCKPIT.x - 3, holdDeck.y + 0.6, KRAIT_COCKPIT.z)) ?? undefined
   else if (!roaring && kraitRoar) {
     kraitRoar.stop()
@@ -6141,7 +6131,7 @@ function frame() {
   // La base au sol : Ada, et les réacteurs du Krait de l'aire (leur grondement, la vue qui tremble).
   hangarBay.update(performance.now() / 1000)
   groundBase.update(world)
-  const baseRoaring = groundBase.engines && groundBase.here && !groundBase.flying
+  const baseRoaring = groundBase.roaring && groundBase.here && !groundBase.flying
   if (baseRoaring && !baseRoar) baseRoar = sound.thrusters(new THREE.Vector3(BASE_COCKPIT.x + 3, deck.y + 0.6, BASE_COCKPIT.z)) ?? undefined
   else if (!baseRoaring && baseRoar) {
     baseRoar.stop()

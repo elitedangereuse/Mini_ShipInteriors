@@ -6,12 +6,16 @@ import {
 import { tr } from '../i18n'
 
 /*
- * Le hangar de la cale, au bout du lobby de la zone thargoïde : un Krait Mk II de Faulcon DeLacy
- * posé sur son pad, face au bouclier qui ferme le hangar sur l'espace (cf. `shield` dans
- * levels.ts). Autour : l'escabeau d'embarquement (on monte au cockpit), la station de
- * ravitaillement, le pupitre de contrôle du hangar, le chariot à outils et les étagères de pièces
- * de Nico, le mécano (cf. src/mechanic.ts), les cales du train et un propulseur de rechange sur
- * son support. Blanc cassé, gris anthracite, orange d'Elite et jaune de chantier.
+ * Le hangar de la cale, au bout du lobby de la zone thargoïde : un pad face au bouclier qui ferme
+ * le hangar sur l'espace (cf. `shield` dans levels.ts), où chacun voit le vaisseau qu'il a choisi
+ * au registre (cf. src/ship-bay.ts). Autour : la station de ravitaillement, le pupitre de contrôle
+ * du hangar, le registre, le chariot à outils et les étagères de pièces de Nico, le mécano (cf.
+ * src/mechanic.ts), les cales du train et un propulseur de rechange sur son support. Blanc cassé,
+ * gris anthracite, orange d'Elite et jaune de chantier.
+ *
+ * Le Krait Mk II fait main et son escabeau (krait-mk2, krait-ladder) ne sont plus posés au hangar :
+ * le vaisseau du pad vient du modèle d'Elite Dangerous du joueur. Ils restent au catalogue (la
+ * galerie ?mobilier les montre).
  */
 
 const C = {

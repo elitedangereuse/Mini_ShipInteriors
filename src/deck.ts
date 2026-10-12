@@ -54,8 +54,8 @@ export interface Interactable {
   /** Meuble et variante (le jeu d'une borne, par exemple). */
   furniture?: { model: string; label?: string }
   /**
-   * Installé ici, c'est ce meuble-là qui ne s'estompe pas (son centre) : le Krait, pour son
-   * escabeau, puisqu'on s'assoit dans le cockpit. Par défaut, le meuble lui-même.
+   * Installé ici, c'est ce meuble-là qui ne s'estompe pas (son centre) : le vaisseau du hangar, pour
+   * son escabeau, puisqu'on s'assoit dans le cockpit (cf. ship-bay.ts). Par défaut, le meuble lui-même.
    */
   keep?: THREE.Vector3
 }

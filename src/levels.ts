@@ -42,7 +42,7 @@ export interface Prop {
   /** On y choisit la musique (le jukebox, cf. src/music.ts). */
   music?: boolean
   /**
-   * Où l'on se tient pour agir sur un très grand meuble (le Krait du hangar) : son centre est hors
+   * Où l'on se tient pour agir sur un très grand meuble (un écran mural, un plan de travail) : son centre est hors
    * de portée de main. Par défaut, le centre du meuble.
    */
   reach?: { x: number; z: number }

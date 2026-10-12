@@ -169,8 +169,6 @@ export interface HangarHost {
   seat: () => { item: Interactable } | null
   /** Le vaisseau du pad (celui du joueur) : son escabeau mène au cockpit, sa coque est un poste. */
   bay: ShipBay
-  /** Joueurs distants installés aux commandes du même vaisseau que nous (les autres sont dans le leur). */
-  pilots: () => number
   /** Texte dans la boîte de dialogue. */
   show: (text: string) => void
   /** On aide le mécano (à chaque étape), ou on a fini : le relais et le mécano le savent. */
@@ -257,17 +255,18 @@ export class Hangar {
     return !!seat && seat.item === this.ladder && this.host.here() === this.host.deck
   }
 
-  /** Les réacteurs tournent (le joueur local ou un autre les a mis en route). */
+  /**
+   * Nos réacteurs tournent : nous les avons mis en route (chacun son vaisseau ; ceux d'un autre font
+   * paniquer Nico, cf. Mechanic.panicking, mais n'allument pas les nôtres).
+   */
   get engines(): boolean {
-    return this.host.mechanic.panicking
+    return this.started && this.host.mechanic.panicking
   }
 
   /** Aux commandes, Espace : les réacteurs démarrent, ou se coupent. */
   toggleEngines() {
     if (!this.aboardKrait) return
     const on = !this.engines
-    // Un autre pilote les a lancés (une place à la fois, mais la latence…) : on ne les coupe pas.
-    if (!on && !this.started) return
     this.started = on
     this.host.engines(on)
     if (on) this.host.show(this.named(pick(IGNITION)))
@@ -437,11 +436,11 @@ export class Hangar {
     if (aboard && !this.aboard && Math.hypot(m.x - p.x, m.z - p.z) < 8) host.mechanic.say(pick(ABOARD))
     this.aboard = aboard
     // Descendu du cockpit (ou débarqué de la cale) : ses réacteurs se coupent avec lui.
-    if (this.started && (!aboard || !this.engines)) {
-      if (this.engines) host.engines(false)
+    if (this.started && (!aboard || !host.mechanic.panicking)) {
+      if (host.mechanic.panicking) host.engines(false)
       this.started = false
     }
-    // Réacteurs en route : pleine poussée ; quelqu'un aux commandes : les tuyères s'éveillent (cf. ShipBay).
-    kraitPower.value = this.engines ? 1 : aboard || host.pilots() > 0 ? 0.3 : 0
+    // Nos réacteurs en route : pleine poussée ; aux commandes : les tuyères s'éveillent (cf. ShipBay).
+    kraitPower.value = this.engines ? 1 : aboard ? 0.3 : 0
   }
 }
