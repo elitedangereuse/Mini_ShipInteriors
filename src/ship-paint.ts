@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { BASE } from './assets'
 import { patchLightField } from './lighting/field'
+import { elitePaint } from '../shared/elite-paints.js'
 
 /*
  * Les peintures des vaisseaux d'Elite Dangerous (cf. ed-ships.ts) : celles de la boutique du jeu,
@@ -14,7 +15,8 @@ import { patchLightField } from './lighting/field'
  * camouflage grandissent avec la coque, sans s'étirer), et une carte de distance au bord de la
  * coque vue de dessus (cf. edgeField) pose les liserés, les bouts d'ailes et les lueurs des arêtes.
  *
- * Le choix d'une peinture est gardé dans ce navigateur, vaisseau par vaisseau (cf. paintOf).
+ * Le choix d'une peinture est gardé dans ce navigateur, vaisseau par vaisseau (cf. paintOf) ; sans
+ * choix, le vaisseau porte la peinture qu'il a dans Elite Dangerous (cf. saveElitePaint).
  */
 
 /** Une peinture : son nom (celui de la boutique), sa famille (le motif), ses couleurs (sRGB). */
@@ -663,27 +665,55 @@ export async function randomPaint(ship: string): Promise<ShipPaint | null> {
 
 /** Les peintures choisies, vaisseau par vaisseau, gardées dans ce navigateur (le stockage peut manquer). */
 const KEY = 'mini-shipinteriors-paints'
+/** Les peintures que ces vaisseaux portent dans Elite, telles que le site les a dites la dernière fois. */
+const ELITE_KEY = 'mini-shipinteriors-paints-elite'
 
-function chosen(): Record<string, string> {
+function stored(key: string): Record<string, string> {
   try {
-    const v = JSON.parse(localStorage.getItem(KEY) ?? '{}')
+    const v = JSON.parse(localStorage.getItem(key) ?? '{}')
     return v && typeof v === 'object' ? v : {}
   } catch {
     return {}
   }
 }
 
-/** La peinture choisie pour ce vaisseau (FACTORY : celle du constructeur). */
-export const paintOf = (ship: string): string => chosen()[ship] ?? FACTORY
-
-/** Garde la peinture de ce vaisseau. */
-export function savePaint(ship: string, id: string) {
-  const all = chosen()
-  if (id === FACTORY) delete all[ship]
-  else all[ship] = id
+function store(key: string, all: Record<string, string>) {
   try {
-    localStorage.setItem(KEY, JSON.stringify(all))
+    localStorage.setItem(key, JSON.stringify(all))
   } catch {
     // Stockage indisponible (navigation privée) : le choix vaut pour cette visite.
   }
+}
+
+/** La peinture que ce vaisseau porte dans Elite (FACTORY : aucune, ou une qu'on n'a pas). */
+export const elitePaintOf = (ship: string): string => stored(ELITE_KEY)[ship] ?? FACTORY
+
+/** La peinture de ce vaisseau : celle choisie au registre, sinon celle d'Elite (FACTORY : celle du constructeur). */
+export const paintOf = (ship: string): string => stored(KEY)[ship] ?? elitePaintOf(ship)
+
+/** Garde la peinture choisie pour ce vaisseau ; celle d'Elite n'est pas un choix : il se remet à la suivre. */
+export function savePaint(ship: string, id: string) {
+  const all = stored(KEY)
+  if (id === elitePaintOf(ship)) delete all[ship]
+  else all[ship] = id
+  store(KEY, all)
+}
+
+/**
+ * Le site a dit la peinture de ce vaisseau dans Elite (le nom de Frontier, vide sans peinture) : on
+ * la garde, de quoi la poser dès le chargement la prochaine fois. Rend notre coloris, ou null : la
+ * livrée du constructeur, ou une peinture qu'on n'a pas (cf. shared/elite-paints.js).
+ */
+export async function saveElitePaint(ship: string, frontier: string): Promise<ShipPaint | null> {
+  const f = await paintFile()
+  const id = elitePaint(frontier, f.ships[ship] ?? [])
+  // À relever pour compléter la table : le nom de Frontier d'une peinture qu'on ne reconnaît pas.
+  if (frontier && !id) console.info(`Peinture d'Elite sans coloris ici : ${frontier} (${ship})`)
+  const elite = stored(ELITE_KEY)
+  if (id) elite[ship] = id
+  else delete elite[ship]
+  store(ELITE_KEY, elite)
+  // Le même que le choix du registre : autant suivre Elite, il changera avec lui.
+  savePaint(ship, paintOf(ship))
+  return id && f.paints[id] ? toPaint(id, f.paints[id]) : null
 }

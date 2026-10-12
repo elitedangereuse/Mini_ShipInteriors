@@ -26,6 +26,8 @@ export class ShipPicker extends Modal {
   onPaint?: (ship: EdShipId, paint: ShipPaint | null) => void
   /** La peinture de ce vaisseau (son identifiant ; FACTORY : la livrée du constructeur). */
   paintOf: (ship: EdShipId) => string = () => FACTORY
+  /** La peinture que ce vaisseau porte dans Elite Dangerous (FACTORY : aucune) : sa pastille est marquée. */
+  elitePaintOf: (ship: EdShipId) => string = () => FACTORY
   /** Le vaisseau du joueur dans Elite Dangerous, si le site l'a dit : sa fiche est marquée, et y revenir, c'est le suivre à nouveau. */
   elite: EdShipId | null = null
   private current: EdShipId | null = null
@@ -294,6 +296,8 @@ export class ShipPicker extends Modal {
     b.dataset.paint = p?.id ?? FACTORY
     b.tabIndex = -1
     const name = p ? p.name : tr('Livrée du constructeur', 'Factory livery')
+    // Son nom : le titre et le libellé de la pastille s'en servent (cf. markPaint).
+    b.dataset.name = name
     b.setAttribute('aria-label', name)
     b.title = name
     const s = document.createElement('span')
@@ -314,10 +318,18 @@ export class ShipPicker extends Modal {
   /** La pastille de la peinture posée : marquée, et seule dans l'ordre de tabulation (les flèches mènent aux autres). */
   private markPaint() {
     const id = this.applied?.id ?? FACTORY
+    // Celle d'Elite peut n'arriver qu'après les pastilles : sa marque se pose ici. La livrée du
+    // constructeur n'en porte pas : c'est celle de tout vaisseau qu'on n'a pas repeint.
+    const elite = this.current ? this.elitePaintOf(this.current) : FACTORY
     for (const b of this.paintList.querySelectorAll<HTMLButtonElement>('.ship-paint-chip')) {
       const on = b.dataset.paint === id
       b.setAttribute('aria-pressed', String(on))
       b.tabIndex = on ? 0 : -1
+      const name = b.dataset.name ?? ''
+      const worn = elite !== FACTORY && b.dataset.paint === elite
+      b.classList.toggle('ship-paint-elite', worn)
+      b.title = worn ? tr(`${name} (dans Elite : la choisir, c'est laisser le hangar la suivre)`, `${name} (in Elite: picking it lets the hangar follow it)`) : name
+      b.setAttribute('aria-label', worn ? tr(`${name}, dans Elite`, `${name}, in Elite`) : name)
     }
   }
 
@@ -326,8 +338,10 @@ export class ShipPicker extends Modal {
     this.preview.setPaint(p)
     this.paintName.textContent = p ? p.name : tr('Livrée du constructeur', 'Factory livery')
     const applied = (this.applied?.id ?? FACTORY) === (p?.id ?? FACTORY)
+    const elite = this.current ? this.elitePaintOf(this.current) : FACTORY
     this.paintFamily.textContent = [
       p ? familyLabel(p.family) : tr('Les couleurs du chantier naval', 'The shipyard colours'),
+      ...(p && p.id === elite ? [tr('celle que vous avez dans Elite', 'the one you have in Elite')] : []),
       applied ? tr('posée', 'applied') : tr('aperçu', 'preview'),
     ].join(', ')
   }

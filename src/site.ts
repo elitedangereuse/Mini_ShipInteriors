@@ -76,16 +76,22 @@ export async function nearestAdventure(): Promise<NearestAdventure | 'auth' | nu
   return reply?.error === 'auth' ? 'auth' : null
 }
 
-/** Le vaisseau du CMDR dans Elite (cf. msi_site_cmdr_ship) : son modèle chez Frontier, et le nom qu'il lui a donné. */
-export interface EliteShip { type: string; name: string }
+/**
+ * Le vaisseau du CMDR dans Elite (cf. msi_site_cmdr_ship) : son modèle chez Frontier, le nom qu'il
+ * lui a donné, et sa peinture (le nom de Frontier, vide pour la livrée du constructeur ; absente si
+ * le site ne la dit pas encore).
+ */
+export interface EliteShip { type: string; name: string; paint?: string }
 
 /**
  * Le vaisseau que le CMDR pilote en ce moment dans Elite Dangerous, ou null : invité, jeton
- * Frontier expiré, site ou Frontier muets. `?edship=krait_light` le simule en dev.
+ * Frontier expiré, site ou Frontier muets. `?edship=krait_light` le simule en dev, et
+ * `&edpaint=paintjob_krait_light_salvage_06` sa peinture.
  */
 export async function eliteShip(): Promise<EliteShip | null> {
-  const simulated = import.meta.env.DEV && new URLSearchParams(location.search).get('edship')
-  if (simulated) return { type: simulated, name: '' }
+  const query = new URLSearchParams(location.search)
+  const simulated = import.meta.env.DEV && query.get('edship')
+  if (simulated) return { type: simulated, name: '', paint: query.get('edpaint') ?? '' }
   const reply = await siteRequest('?ship=1')
   return reply?.status === 'success' && typeof reply.ship?.type === 'string' ? reply.ship : null
 }

@@ -76,7 +76,7 @@ import { DROID, MECHANIC, Mechanic, mechanicRig, type MechanicReport } from './m
 import { Hangar } from './hangar'
 import { chosenShip, pickedShip, saveEliteShip, saveShip, ShipBay } from './ship-bay'
 import { ShipPicker } from './ship-picker'
-import { FACTORY, paintOf, savePaint } from './ship-paint'
+import { elitePaintOf, FACTORY, findPaint, paintOf, saveElitePaint, savePaint } from './ship-paint'
 import { hangarDisplay, kraitPower } from './furniture/hangar'
 import { edShipFromElite, silhouetteRects } from './ed-ships'
 import { GARDENER, Gardener, gardenerRig, type GardenerReport } from './gardener'
@@ -1533,7 +1533,7 @@ hangarBay.hull.text = () => {
   if (hangarBay.id === shipPicker.elite && !pickedShip()) {
     lines[0] = tr(`{ship} de {maker}${eliteShipName ? ` « ${eliteShipName} »` : ''}, posé sur le pad 7. Le tien : celui que tu pilotes dans Elite Dangerous. Nico l'appelle « la Princesse ».`, `{maker} {ship}${eliteShipName ? ` “${eliteShipName}”` : ''}, parked on pad 7. Yours: the one you fly in Elite Dangerous. Nico calls her “the Princess”.`)
   }
-  // Repeint au registre : la première phrase dit sa peinture.
+  // Peint (au registre, ou dans Elite) : la première phrase dit sa peinture.
   const paint = hangarBay.paint
   if (paint) lines[0] += tr(` Peinture : ${paint.name}.`, ` Paint job: ${paint.name}.`)
   return lines[Math.floor(Math.random() * lines.length)]
@@ -1674,7 +1674,7 @@ shipPicker.onPick = (id) => {
 // Le vaisseau que le CMDR pilote dans Elite Dangerous (le site le lit dans son profil Frontier) :
 // c'est lui qui est posé, tant que le joueur n'en a pas choisi un autre au registre. La réponse
 // peut tarder (Frontier) : le dernier connu est déjà sur le pad (cf. chosenShip).
-void eliteShip().then((ship) => {
+void eliteShip().then(async (ship) => {
   if (!ship) return
   const id = edShipFromElite(ship.type)
   // Pas encore de modèle pour ce vaisseau-là : le pad garde le dernier vaisseau connu.
@@ -1682,6 +1682,19 @@ void eliteShip().then((ship) => {
   saveEliteShip(id)
   shipPicker.elite = id
   eliteShipName = ship.name
+  // Sa peinture d'Elite : il la porte tant que le joueur ne l'a pas repeint au registre. Le
+  // vaisseau qui se pose plus bas la prend en arrivant (cf. paintOf) ; celui qui est déjà là, ici.
+  if (typeof ship.paint === 'string') {
+    try {
+      await saveElitePaint(id, ship.paint)
+      const paint = await findPaint(id, paintOf(id))
+      if (hangarBay.id === id) hangarBay.setPaint(paint)
+      groundBase.setPaint(id, paint)
+    } catch (e) {
+      // Le nuancier ne répond pas : le vaisseau garde sa peinture.
+      console.error(e)
+    }
+  }
   // Le même que celui du registre : autant suivre Elite, il changera avec lui.
   if (pickedShip() === id) saveShip(null)
   if (pickedShip() || hangarBay.chosen === id) return
@@ -1691,6 +1704,7 @@ void eliteShip().then((ship) => {
 }).catch((e) => console.error(e))
 // La peinture, au même registre : gardée pour ce vaisseau, posée au hangar et sur la base.
 shipPicker.paintOf = paintOf
+shipPicker.elitePaintOf = elitePaintOf
 /** Le vaisseau repeint pendant que le registre était ouvert : Nico le remarque à la fermeture. */
 let repainted = false
 shipPicker.onPaint = (ship, paint) => {

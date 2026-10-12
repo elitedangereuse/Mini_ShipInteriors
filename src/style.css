@@ -4465,6 +4465,12 @@ body.in-zone { background: #000; }
 .ship-picker .ship-paint-chip { width: 36px; height: 26px; padding: 2px; border: 1px solid #2b4156; border-radius: 6px; background: #ffffff08; }
 .ship-picker .ship-paint-chip:hover:not(:disabled) { border-color: #8fd0ff99; background: #182a3c; }
 .ship-picker .ship-paint-chip[aria-pressed="true"] { border-color: #ff8a1c; box-shadow: 0 0 0 1px #ff8a1c; }
+/* La peinture que le vaisseau porte dans Elite : une pastille verte au coin, comme la marque « Dans Elite » des fiches. */
+.ship-picker .ship-paint-elite { position: relative; }
+.ship-picker .ship-paint-elite::after {
+  content: ""; position: absolute; top: -4px; right: -4px; width: 9px; height: 9px;
+  border: 2px solid #0b1622; border-radius: 50%; background: #6dff9a;
+}
 .ship-paint-swatch { display: block; width: 100%; height: 100%; border-radius: 3px; box-shadow: inset 0 0 0 1px #ffffff1c; }
 @media (max-width: 680px) {
   .ship-paints { grid-template-columns: minmax(0, 1fr); }
