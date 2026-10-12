@@ -595,6 +595,48 @@ function cut(positions, indices, zoneBoxes) {
   return { positions: new Float32Array(pos), indices: new Uint32Array(tris) }
 }
 
+/** Cases du plan au sol, sur la plus grande dimension du vaisseau. */
+const PLAN_CELLS = 48
+
+/**
+ * Plan au sol (vu de dessus) : une grille sur la boîte du vaisseau, et dans chaque case la hauteur
+ * du dessous et du dessus de la coque (m, depuis le bas du vaisseau ; -1 : rien). Le jeu en tire
+ * les collisions (ce qui descend plus bas que la tête), le train et la place de l'escabeau.
+ * Rangée par rangée, de la poupe au nez (z croissant), chaque rangée de tribord à bâbord (x croissant).
+ */
+function groundPlan(positions, indices, size) {
+  const cell = Math.max(size[0], size[2]) / PLAN_CELLS
+  const cols = Math.ceil(size[0] / cell), rows = Math.ceil(size[2] / cell)
+  const x0 = -size[0] / 2, z0 = -size[2] / 2, y0 = -size[1] / 2
+  const low = new Float32Array(cols * rows).fill(Infinity), high = new Float32Array(cols * rows).fill(-Infinity)
+  for (let t = 0; t < indices.length; t += 3) {
+    const a = indices[t] * 3, b = indices[t + 1] * 3, c = indices[t + 2] * 3
+    const ax = positions[a], az = positions[a + 2], bx = positions[b], bz = positions[b + 2], cx = positions[c], cz = positions[c + 2]
+    const d = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz)
+    if (Math.abs(d) < 1e-9) continue
+    const i0 = Math.max(0, Math.floor((Math.min(ax, bx, cx) - x0) / cell)), i1 = Math.min(cols - 1, Math.floor((Math.max(ax, bx, cx) - x0) / cell))
+    const j0 = Math.max(0, Math.floor((Math.min(az, bz, cz) - z0) / cell)), j1 = Math.min(rows - 1, Math.floor((Math.max(az, bz, cz) - z0) / cell))
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        // Centre de la case, puis ses quatre quarts : les pièces fines (ailes, antennes) comptent aussi.
+        for (const [fx, fz] of [[0.5, 0.5], [0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]]) {
+          const x = x0 + (i + fx) * cell, z = z0 + (j + fz) * cell
+          const l0 = ((bz - cz) * (x - cx) + (cx - bx) * (z - cz)) / d
+          const l1 = ((cz - az) * (x - cx) + (ax - cx) * (z - cz)) / d
+          const l2 = 1 - l0 - l1
+          if (l0 < 0 || l1 < 0 || l2 < 0) continue
+          const y = l0 * positions[a + 1] + l1 * positions[b + 1] + l2 * positions[c + 1] - y0
+          const k = j * cols + i
+          if (y < low[k]) low[k] = y
+          if (y > high[k]) high[k] = y
+        }
+      }
+    }
+  }
+  const round = (v) => (Number.isFinite(v) ? Math.round(v * 10) / 10 : -1)
+  return { cell: +cell.toFixed(4), cols, rows, low: Array.from(low, round), high: Array.from(high, round) }
+}
+
 /** Point le plus en arrière du modèle en (x, y), vu de la poupe ; null s'il n'y a rien. */
 function rearmost(positions, indices, x, y) {
   let best = Infinity
@@ -802,6 +844,7 @@ for (const ship of SHIPS) {
       size: size.map((v) => +v.toFixed(2)),
       engines: painted.engines,
       ...(zoned.canopy ? { canopy: zoned.canopy } : {}),
+      plan: groundPlan(positions, indices, size),
       credit: credit(ship),
     }
     writeFileSync(join(dest, `${ship.id}.glb`), writeGlb(ship.id, light.positions, painted.groups, extras))
