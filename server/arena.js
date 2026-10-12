@@ -44,9 +44,10 @@ import {
 import { findPath, smoothPath, straightWalk, walkable } from '../shared/salvage.js'
 import { ShipMap } from '../shared/ship-map.js'
 import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
+import { breakdown, createArenaStats, summarize } from './arena-stats.js'
 
 /** Événements du lobby ; les autres sont ceux d'une partie. */
-export const ARENA_LOBBY_ACTIONS = new Set(['arena:join', 'arena:leave', 'arena:side', 'arena:settings', 'arena:character', 'arena:ready', 'arena:watch', 'arena:unwatch'])
+export const ARENA_LOBBY_ACTIONS = new Set(['arena:join', 'arena:leave', 'arena:side', 'arena:settings', 'arena:character', 'arena:ready', 'arena:watch', 'arena:unwatch', 'arena:stats'])
 export const ARENA_GAME_ACTIONS = new Set(['arena:fire', 'arena:reload', 'arena:quit'])
 
 const RAD = Math.PI / 180
@@ -60,6 +61,8 @@ export function inLobby(p) {
 const SLACK = 0.9
 /** Délai pour entrer dans l'arène après le départ : au-delà, c'est un abandon (ms). */
 const ARRIVAL = 20000
+/** Ce que le client tient en main, dit avec chaque tir (`c`) : souris, manette, doigt (cf. arena-stats.js). */
+const CONTROL_CODES = { m: 'mouse', g: 'gamepad', t: 'touch' }
 /** Garde-fou : une balle encore en vol après ce délai s'éteint (s). C'est sa portée qui l'arrête, bien avant. */
 const BULLET_LIFE = 3
 /** Un bot ne voit pas plus loin (tuiles). */
@@ -84,7 +87,11 @@ const outsideEnemyBase = (zone, team, p) => !inBase(zone, 1 - team, p)
  * @param {(fighter: object, result: object) => Promise<boolean>} [o.report] déclare au site la partie
  *   d'un CMDR, pour le classement (cf. postArenaResult dans site.js)
  */
-export function createArena({ playerById, emit, broadcast, report = async () => false, now = Date.now, random = Math.random, log = () => {}, debug = false }) {
+/**
+ * @param stats les statistiques par personnage (cf. arena-stats.js) : chaque partie finie y est
+ *   comptée ; sans, elles restent en mémoire
+ */
+export function createArena({ playerById, emit, broadcast, report = async () => false, now = Date.now, random = Math.random, log = () => {}, debug = false, stats = createArenaStats({ now }) }) {
   // Les salons, fixes : id -> salon (vide tant que personne ne s'y est placé).
   const rooms = new Map(Array.from({ length: R.lobbies }, (_, i) => [i + 1, { id: i + 1, members: new Map(), game: null }]))
   const reset = (r) => Object.assign(r, { leader: null, map: ARENA_MAPS[0].id, size: 3, bots: true, skill: 1, goal: R.goal, status: 'forming', startAt: 0 })
@@ -240,6 +247,10 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       tokens: w.mag, tokensAt: now(), firedAt: 0,
       // Bot : son chemin, qui il voit et depuis quand, son chargeur.
       path: [], lastSeen: null, seen: 0, calm: 0, think: 0, repath: 0, ammo: w.mag, reloadUntil: 0, nextFire: 0,
+      // Ses statistiques (cf. arena-stats.js) : ses projectiles et ceux qui ont porté, par commande ; la
+      // distance de ses coups ; ses vies (le temps passé en vie, `lived`, s, depuis `aliveFrom`) ; sa série.
+      shots: 0, hits: 0, controls: {}, control: base.bot ? 'bot' : 'mouse', range: 0, ranged: 0,
+      lived: 0, lives: 1, aliveFrom: Math.max(now(), game.liveAt), streak: 0, best: 0, joinedAt: now(),
     }
     place(game, f)
     game.fighters.set(f.id, f)
@@ -254,8 +265,11 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     Object.assign(f, { x: at.x, z: at.z, yaw: spawnYaw(game.zone, at), at: now(), warp: true, path: [] })
   }
 
-  /** Un bot de l'équipe `team` : un personnage que son équipe n'a pas encore, si possible. */
-  function addBot(game, team) {
+  /**
+   * Un bot de l'équipe `team` : un personnage que son équipe n'a pas encore, si possible (`character` :
+   * celui-là ; les parties simulées, cf. simulate).
+   */
+  function addBot(game, team, character = null) {
     const used = new Set([...game.fighters.values()].map((f) => f.name))
     const names = ARENA_BOTS.filter((n) => !used.has(n))
     const taken = new Set([...game.fighters.values()].filter((f) => f.team === team).map((f) => f.character))
@@ -263,7 +277,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     const pool = fresh.length ? fresh : CHARACTER_IDS
     return makeFighter(game, {
       id: game.nextBot--, bot: true, team, name: names[Math.floor(random() * names.length)] ?? `Drone ${-game.nextBot}`,
-      character: pool[Math.floor(random() * pool.length)],
+      character: CHARACTER_IDS.includes(character) ? character : pool[Math.floor(random() * pool.length)],
     })
   }
 
@@ -283,7 +297,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       // Qui regardait une autre partie joue maintenant la sienne.
       if (p) unwatch(p)
     }
-    if (r.bots) for (const team of [0, 1]) while (standing(game, team).length < r.size) addBot(game, team)
+    if (r.bots) for (const team of [0, 1]) while (standing(game, team).length < r.size) addBot(game, team, r.picks?.[team]?.[standing(game, team).length])
     r.status = 'playing'
     r.game = game
     for (const f of game.fighters.values()) if (!f.bot) emit(f.id, 'arena:start', startMessage(game, f))
@@ -311,17 +325,26 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
    */
   function hurt(game, target, by, amount, character, at, trap) {
     const t = now()
-    if (!target.alive || t < target.shieldUntil || amount <= 0 || over(game)) return
+    if (!target.alive || t < target.shieldUntil || amount <= 0 || over(game)) return false
     target.hp -= amount
     target.hurtAt = t
     // Touché, on ne se cache plus dans un buisson pendant un instant.
     target.revealUntil = t + R.bush.reveal * 1000
     const attacker = game.fighters.get(by)
-    if (attacker && attacker !== target) attacker.damage += Math.min(amount, amount + target.hp)
+    if (attacker && attacker !== target) {
+      attacker.damage += Math.min(amount, amount + target.hp)
+      // La distance de l'engagement (pas celle d'un piège, qui mord loin de qui l'a posé).
+      if (!trap) {
+        attacker.range += dist(attacker, target)
+        attacker.ranged++
+      }
+    }
     tell(game, { kind: 'hit', id: target.id, by, hp: Math.max(0, Math.round(target.hp)), dmg: amount, x: round2(at.x), y: round2(at.y), z: round2(at.z), ...(trap ? { trap } : {}) })
-    if (target.hp > 0) return
+    if (target.hp > 0) return true
     target.alive = false
     target.deaths++
+    target.streak = 0
+    lifeEnds(target, t)
     target.respawnAt = t + R.respawn * 1000
     // Il attend à sa base, en fantôme, le temps de revenir en jeu : ni cible, ni tireur.
     const fell = { x: round2(target.x), z: round2(target.z) }
@@ -329,20 +352,40 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     target.waiting = true
     // Sans adversaire pour l'avoir eu (il est parti) : le point va à l'équipe d'en face.
     const own = !attacker || attacker.team === target.team
-    if (!own) attacker.kills++
+    if (!own) {
+      attacker.kills++
+      attacker.best = Math.max(attacker.best, ++attacker.streak)
+    }
     game.score[own ? 1 - target.team : attacker.team]++
     tell(game, { kind: 'kill', id: target.id, by, character, score: [...game.score], wait: R.respawn, from: fell, x: target.x, z: target.z, yaw: round2(target.yaw) })
     if (Math.max(...game.score) >= game.goal) endRound(game, game.score[0] > game.score[1] ? 0 : 1, 'score')
+    return true
+  }
+
+  /** Une vie s'achève (élimination, fin de manche) : le temps passé en vie s'ajoute au sien. */
+  function lifeEnds(f, t) {
+    if (!f.aliveFrom) return
+    f.lived += Math.max(0, t - f.aliveFrom) / 1000
+    f.aliveFrom = 0
+  }
+
+  /** Un projectile a porté (dégât ou soin) : il compte, une fois, pour la précision de son tireur. */
+  function score(rec) {
+    if (!rec || rec.hit) return
+    rec.hit = true
+    rec.f.hits++
+    rec.f.controls[rec.control].hits++
   }
 
   /** Betty soigne `target` (un coéquipier) de `amount`, sans dépasser ses points de vie de départ. */
   function heal(game, target, by, amount, at) {
-    if (!target.alive || !wounded(target) || over(game)) return
+    if (!target.alive || !wounded(target) || over(game)) return false
     const gain = Math.min(amount, target.max - target.hp)
     target.hp += gain
     const healer = game.fighters.get(by)
     if (healer) healer.healed += gain
     tell(game, { kind: 'heal', id: target.id, by, hp: Math.round(target.hp), amount: Math.round(gain), x: round2(at.x), y: round2(at.y), z: round2(at.z) })
+    return gain > 0
   }
 
   function respawn(game, f) {
@@ -353,6 +396,11 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       hp: f.max, alive: true, waiting: false, at: now(), respawnAt: 0, shieldUntil: now() + R.shield * 1000, tokens: w.mag, tokensAt: now(), ammo: w.mag,
       reloadUntil: 0, lastSeen: null, seen: 0,
     })
+    // Une nouvelle vie (pour sa durée de survie), qui part au coup d'envoi s'il n'est pas encore donné.
+    if (!f.aliveFrom) {
+      f.aliveFrom = Math.max(now(), game.liveAt)
+      f.lives++
+    }
     tell(game, { kind: 'spawn', id: f.id, x: f.x, z: f.z, yaw: round2(f.yaw) })
   }
 
@@ -360,8 +408,15 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
    * Un tir part : ses projectiles volent dès le prochain pas ; les autres joueurs de la partie le
    * voient. `throwTo` : pour un objet lancé, jusqu'où (tuiles).
    */
-  function shoot(game, f, origin, dirs, throwTo = 0) {
+  function shoot(game, f, origin, dirs, throwTo = 0, assisted = false) {
     const w = weaponOf(f.character)
+    // Pour les statistiques : chaque projectile, de quelle commande (un tir rapide à part), et s'il porte.
+    const control = f.bot ? 'bot' : assisted ? 'assist' : f.control
+    const rec = () => {
+      f.shots++
+      ;(f.controls[control] ??= { shots: 0, hits: 0 }).shots++
+      return { f, control, hit: false }
+    }
     // Tirer fait tomber la protection du retour à la base, et trahit qui se cachait dans un buisson.
     f.shieldUntil = 0
     f.revealUntil = now() + R.bush.reveal * 1000
@@ -373,11 +428,11 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       const dir = { x: dirs[0].x / flat, z: dirs[0].z / flat }
       const to = lobTarget(game.zone, origin, dir, throwTo, w.range)
       const dur = lobTime(w, dist(origin, to))
-      game.bullets.push({ ...base, lob: true, p: { ...origin }, to, dur })
+      game.bullets.push({ ...base, lob: true, p: { ...origin }, to, dur, rec: rec() })
       tell(game, { ...shot, to: [round2(to.x), round2(to.z)], dur: round2(dur) }, f.id)
       return
     }
-    for (const d of dirs) game.bullets.push({ ...base, p: { ...origin }, d, speed: w.speed, left: w.range })
+    for (const d of dirs) game.bullets.push({ ...base, p: { ...origin }, d, speed: w.speed, left: w.range, rec: rec() })
     tell(game, shot, f.id)
   }
 
@@ -411,7 +466,8 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     const origin = { ...shotOrigin(game.zone, f, { x: o[0], z: o[2] }), y: Math.min(floor + 1, Math.max(floor + 0.05, o[1])) }
     f.tokens--
     f.firedAt = t
-    shoot(game, f, origin, dirs, w.lob ? data.r : 0)
+    f.control = CONTROL_CODES[data.c] ?? f.control
+    shoot(game, f, origin, dirs, w.lob ? data.r : 0, data.a === 1)
   }
 
   /** Le souffle d'une explosion en `at` (tomate, cocktail) : les adversaires dans son rayon, que rien n'abrite. */
@@ -421,7 +477,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     for (const f of standing(game, 1 - b.team)) {
       const amount = blastDamage(b.w, dist(f, at))
       if (!amount || !arenaSight(game.zone, walkable(game.zone, Math.round(from.x), Math.round(from.z)) ? from : f, f)) continue
-      hurt(game, f, b.by, amount, b.character, { x: f.x, y: arenaGround(game.zone, f) + R.body.h * 0.6, z: f.z })
+      if (hurt(game, f, b.by, amount, b.character, { x: f.x, y: arenaGround(game.zone, f) + R.body.h * 0.6, z: f.z })) score(b.rec)
       if (over(game)) return
     }
   }
@@ -449,7 +505,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     }
     const trap = {
       id: game.nextTrap++, kind, by: b.by, team: b.team, character: b.character, w, x: round2(at.x), z: round2(at.z),
-      until: t + spec.life * 1000, next: t + (w.flower ? w.flower.grow : w.fire.every) * 1000,
+      until: t + spec.life * 1000, next: t + (w.flower ? w.flower.grow : w.fire.every) * 1000, rec: b.rec,
     }
     game.traps.push(trap)
   }
@@ -482,13 +538,13 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
         trap.aim = 0
         trap.next = t + (spec.every - spec.windup) * 1000
         if (!prey) continue
-        hurt(game, prey, trap.by, trap.w.damage, trap.character, { x: prey.x, y: arenaGround(game.zone, prey) + R.body.h * 0.5, z: prey.z }, trap.id)
+        if (hurt(game, prey, trap.by, trap.w.damage, trap.character, { x: prey.x, y: arenaGround(game.zone, prey) + R.body.h * 0.5, z: prey.z }, trap.id)) score(trap.rec)
       } else {
         const spec = trap.w.fire
         trap.next = t + spec.every * 1000
         for (const f of foes) {
           if (dist(f, trap) > spec.radius + R.body.r) continue
-          hurt(game, f, trap.by, spec.damage, trap.character, { x: f.x, y: arenaGround(game.zone, f) + 0.2, z: f.z }, trap.id)
+          if (hurt(game, f, trap.by, spec.damage, trap.character, { x: f.x, y: arenaGround(game.zone, f) + 0.2, z: f.z }, trap.id)) score(trap.rec)
           if (over(game)) return
         }
       }
@@ -529,9 +585,10 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
         if (hit.body === null && !hit.normal) break
         if (hit.body !== null) {
           const target = game.fighters.get(hit.body)
-          if (target.team === b.team) heal(game, target, b.by, w.heal, b.p)
-          else if (w.blast) explode(game, b, b.p)
-          else hurt(game, target, b.by, w.damage, b.character, b.p)
+          if (target.team === b.team) {
+            if (heal(game, target, b.by, w.heal, b.p)) score(b.rec)
+          } else if (w.blast) explode(game, b, b.p)
+          else if (hurt(game, target, b.by, w.damage, b.character, b.p)) score(b.rec)
           if (over(game)) return
           if (w.pierce) {
             b.hit.add(hit.body)
@@ -741,6 +798,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     game.liveAt = t + R.intermission * 1000
     game.endsAt = game.liveAt + R.duration * 1000
     for (const f of game.fighters.values()) {
+      lifeEnds(f, t)
       f.waiting = false
       respawn(game, f)
       Object.assign(f, { shieldUntil: game.liveAt + R.shield * 1000, hurtAt: 0, revealUntil: 0, firedAt: 0, nextFire: 0, calm: 0 })
@@ -756,10 +814,25 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     r.game = null
     r.status = 'forming'
     unready(r)
-    const duration = Math.round((now() - game.startedAt) / 1000)
+    const t = now()
+    const duration = Math.round((t - game.startedAt) / 1000)
+    for (const f of game.fighters.values()) lifeEnds(f, t)
     toGame(game, 'arena:end', {
       game: game.id, winner, reason, score: [...game.score], rounds: [...game.rounds], goal: game.goal, duration: Math.max(0, duration),
-      stats: [...game.fighters.values()].map((f) => ({ ...publicFighter(f), kills: f.kills, deaths: f.deaths, damage: Math.round(f.damage), heal: Math.round(f.healed) })),
+      // De quoi faire le récapitulatif de chacun : éliminations, chutes, dégâts, soins, précision
+      // (projectiles qui ont porté, sur ceux tirés), meilleure série.
+      stats: [...game.fighters.values()].map((f) => ({
+        ...publicFighter(f), kills: f.kills, deaths: f.deaths, damage: Math.round(f.damage), heal: Math.round(f.healed), shots: f.shots, hits: f.hits, best: f.best,
+      })),
+    })
+    // Les statistiques par personnage (cf. arena-stats.js).
+    stats.record({
+      map: game.zone.id, size: game.size, winner,
+      fighters: [...game.fighters.values()].map((f) => ({
+        character: f.character, team: f.team, bot: f.bot, control: mainControl(f), kills: f.kills, deaths: f.deaths, damage: Math.round(f.damage), heals: Math.round(f.healed),
+        shots: f.shots, hits: f.hits, alive: Math.round(f.lived), lives: f.lives, range: Math.round(f.range * 10) / 10, ranged: f.ranged, best: f.best,
+        time: Math.max(0, Math.round((t - Math.max(f.joinedAt, game.startedAt)) / 1000)), controls: f.controls,
+      })),
     })
     if (!r.members.size) reset(r)
     // Le classement : la partie de chaque CMDR qui l'a finie, déclarée au site ; chacun apprend si
@@ -776,6 +849,17 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     }
     log(`[arène] partie ${game.id} : ${winner < 0 ? 'égalité' : `équipe ${winner ? 'B' : 'A'}`} (${game.rounds.join(' manches à ')}, ${reason})`)
     announce()
+  }
+
+  /**
+   * La commande dont un joueur s'est le plus servi (souris, manette, doigt ; ses tirs rapides comptent
+   * pour le doigt) ; un bot, la sienne.
+   */
+  function mainControl(f) {
+    if (f.bot) return 'bot'
+    const shots = (c) => (f.controls[c]?.shots ?? 0) + (c === 'touch' ? f.controls.assist?.shots ?? 0 : 0)
+    const best = ['mouse', 'gamepad', 'touch'].reduce((a, b) => (shots(b) > shots(a) ? b : a))
+    return shots(best) ? best : f.control
   }
 
   /** Un joueur quitte la partie en cours (abandon, retour au vaisseau, déconnexion). */
@@ -837,8 +921,16 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       if (Array.isArray(data.rounds) && data.rounds.length === 2 && data.rounds.every(Number.isInteger)) game.rounds = data.rounds
       return
     }
+    // Les statistiques des personnages (au classement) : de partout, à tout moment.
+    if (action === 'arena:stats') return emit(p.id, 'arena:stats', publicStats())
     if (game) return gameAction(p, game, action, data)
     if (ARENA_LOBBY_ACTIONS.has(action)) lobbyAction(p, action, data)
+  }
+
+  /** Ce que les joueurs voient des statistiques (cf. arena-stats.js) : celles des joueurs, pas des bots. */
+  function publicStats() {
+    const data = stats.snapshot()
+    return { games: data.games, since: data.since, characters: summarize(data, 'human'), controls: breakdown(data, 'control', 'human') }
   }
 
   /**
@@ -937,6 +1029,22 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     })
   }
 
+  /** Les parties entre bots seulement (cf. simulate), hors des lobbys. */
+  const sims = new Set()
+
+  /**
+   * Une partie entre bots seulement, pour l'équilibrage (cf. scripts/arena-balance.mjs) : hors des
+   * lobbys, sans joueur ni spectateur, chaque équipe de `size` bots de niveau `skill` ; `picks` : les
+   * personnages de chacune (au hasard s'il en manque). Elle se joue à chaque pas, comme les autres,
+   * et compte dans les statistiques (sous `bot`). Rend la partie : `ended` dit quand elle est jouée.
+   */
+  function simulate({ map = ARENA_MAPS[0].id, size = R.team, skill = ARENA_SKILLS.length - 1, goal = R.goal, picks = [[], []] } = {}) {
+    const r = { id: 0, members: new Map(), game: null, leader: null, map, size, bots: true, skill, goal, status: 'forming', startAt: 0, picks }
+    startGame(r)
+    sims.add(r)
+    return r.game
+  }
+
   /** Un pas de simulation (dt en secondes) : départs des salons prêts, puis chaque partie. */
   function tick(dt) {
     const t = now()
@@ -944,7 +1052,11 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       if (r.status === 'countdown' && r.startAt <= t) startGame(r)
       if (r.game && !r.game.ended) stepGame(r.game, dt)
     }
+    for (const r of sims) {
+      if (r.game && !r.game.ended) stepGame(r.game, dt)
+      else sims.delete(r)
+    }
   }
 
-  return { snapshot, handle, accepts, moved, leave, mates, tick, gameOf }
+  return { snapshot, handle, accepts, moved, leave, mates, tick, gameOf, simulate, stats: () => stats.snapshot(), flushStats: () => stats.flush() }
 }

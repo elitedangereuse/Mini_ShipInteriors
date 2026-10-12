@@ -120,6 +120,8 @@ const APPEAR = 0.35
 const easeOutBack = (u: number) => 1 + 2.4 * (u - 1) ** 3 + 1.4 * (u - 1) ** 2
 
 /** Séries d'éliminations sans tomber : ce qu'on en dit. */
+/** Ce qu'on tient en main, dit au relais avec chaque tir (cf. ArenaGunHost.fire). */
+const CONTROL: Record<PanelControls, 'm' | 'g' | 't'> = { keyboard: 'm', gamepad: 'g', touch: 't' }
 const STREAKS = ['', '', tr('Doublé !', 'Double!'), tr('Triplé !', 'Triple!'), tr('Quadruplé !', 'Quad!'), tr('Inarrêtable !', 'Unstoppable!')]
 
 /** Ce que le jeu prête au mode (cf. main.ts). */
@@ -324,6 +326,7 @@ export class ArenaClient {
     this.hud.onQuit = () => this.quit()
     this.hud.onFollow = (step) => this.cycle(step)
     this.ranking.onLoaded = (r) => this.showRanks(r)
+    this.ranking.askStats = () => host.net.sendArena('stats')
     void this.buildReferee()
     void this.refreshRanks()
   }
@@ -523,6 +526,9 @@ export class ArenaClient {
         else if (this.panel.isOpen) this.panel.message(ERRORS[m.code] ?? tr('Action refusée.', 'Action refused.'))
         else if (m.code === 'gone') this.host.dialog.show(tr('Cette partie vient de se terminer.', 'That match just ended.'))
         break
+      case 'arena:stats':
+        this.ranking.showStats(m)
+        break
       case 'arena:ranked':
         // Le site a noté la partie (ou non) : l'écran de fin le dit, et le tableau du lobby se relit.
         if (this.game?.end?.game === m.game) this.hud.ranked(m.ok ? tr('Partie comptée au classement', 'Match counted in the ranking') : UNRANKED[m.reason ?? 'site'], m.ok)
@@ -590,7 +596,9 @@ export class ArenaClient {
       bodies: () => this.bodies(),
       foes: () => this.foes(),
       canFire: () => !!this.game && !this.game.end && !this.game.watching && this.game.downBy === null && (this.game.state?.warmup ?? 1) <= 0,
-      fire: (o, d, r) => this.host.net.sendArena('fire', r === undefined ? { o, d } : { o, d, r }),
+      // Avec le tir, ce qu'on tient en main (`c` : souris, manette, doigt) et si c'était un tir rapide
+      // (`a`) : les statistiques de l'arène comparent les commandes (cf. server/arena-stats.js).
+      fire: (o, d, r, assisted) => this.host.net.sendArena('fire', { o, d, ...(r === undefined ? {} : { r }), c: CONTROL[this.host.controls()], ...(assisted ? { a: 1 } : {}) }),
       quit: () => this.quit(),
       tint: (id) => {
         const g = this.game, f = g?.fighters.get(id)

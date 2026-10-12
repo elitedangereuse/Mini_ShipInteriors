@@ -1,9 +1,9 @@
 import { tr } from '../i18n'
 import { icon } from '../icons'
-import type { ArenaEnd, ArenaLobby, ArenaRoom } from '../net'
+import type { ArenaCharacterStats, ArenaEnd, ArenaLobby, ArenaRoom } from '../net'
 import { button, el, Modal } from '../salvage/ui'
 import { ARENA_MAPS, ARENA_RULES, ARENA_TEAMS, DEFAULT_CHARACTER, arenaMap, arenaZone, type ArenaMapId, type CharacterId } from '../../shared/arena.js'
-import { characterById, type Character } from './characters'
+import { CHARACTERS, characterById, type Character } from './characters'
 import { arrow, moveFocus, PadRepeat } from './nav'
 import { CharacterPicker, faceOf } from './select'
 
@@ -441,6 +441,10 @@ export class RankingPanel extends Modal {
   private revision = 0
   /** Le classement vient d'être lu : le tableau du mur se met à jour (cf. src/arena/client.ts). */
   onLoaded?: (ranking: Ranking) => void
+  /** Le panneau s'ouvre : demander au relais les statistiques des personnages (cf. showStats). */
+  askStats?: () => void
+  /** Sous le classement, les statistiques des personnages (elles arrivent du relais, à part). */
+  private readonly statsBox = el('section', 'arena-char-stats')
 
   constructor() {
     super(tr('CMDR ARENA · CLASSEMENT', 'CMDR ARENA · RANKING'), tr('Les meilleurs joueurs', 'Top players'))
@@ -451,11 +455,12 @@ export class RankingPanel extends Modal {
     const token = ++this.revision
     this.body.replaceChildren(el('p', 'salvage-intro', tr('Chargement…', 'Loading…')))
     this.show()
+    this.askStats?.()
     const ranking = await fetchRanking()
     if (token !== this.revision) return
     this.body.replaceChildren()
     if (!ranking) {
-      this.body.append(el('p', 'salvage-warn', tr('Le site ne répond pas. Fermez puis réessayez.', 'The site is unavailable. Close and try again.')))
+      this.body.append(el('p', 'salvage-warn', tr('Le site ne répond pas. Fermez puis réessayez.', 'The site is unavailable. Close and try again.')), this.statsBox)
       return
     }
     this.onLoaded?.(ranking)
@@ -491,6 +496,56 @@ export class RankingPanel extends Modal {
     this.body.append(table)
     const me = ranking.me
     if (me) this.body.append(el('p', 'salvage-note', tr(`Vous : ${me.rank}ᵉ, ${me.wins} victoire${me.wins > 1 ? 's' : ''} en ${me.played} partie${me.played > 1 ? 's' : ''}.`, `You: rank ${me.rank}, ${me.wins} win${me.wins === 1 ? '' : 's'} in ${me.played} match${me.played === 1 ? '' : 'es'}.`)))
+    this.body.append(this.statsBox)
+  }
+
+  /**
+   * Les statistiques des personnages, sur les parties des joueurs (cf. server/arena-stats.js) : leur
+   * taux de sélection et de victoire, leurs éliminations et chutes par partie, leurs dégâts et soins
+   * par minute, la durée d'une vie, leur précision et la portée de leurs coups ; et la précision par
+   * commande, souris, manette, doigt, tir rapide.
+   */
+  showStats(stats: ArenaCharacterStats) {
+    const box = this.statsBox
+    box.replaceChildren(el('h3', 'arena-heading', tr('Les personnages', 'The characters')))
+    if (!stats.games) {
+      box.append(el('p', 'salvage-note', tr('Pas encore de partie finie : les chiffres de chaque personnage viendront avec les premières.', 'No finished match yet: each character\'s numbers will come with the first ones.')))
+      return
+    }
+    const since = new Date(stats.since).toLocaleDateString(tr('fr-FR', 'en-GB'))
+    box.append(el('p', 'salvage-intro', tr(`${stats.games} partie${stats.games > 1 ? 's' : ''} depuis le ${since}, celles des joueurs (pas des bots).`, `${stats.games} match${stats.games > 1 ? 'es' : ''} since ${since}, players only (no bots).`)))
+    const pct = (x: number | null) => (x === null ? '—' : `${Math.round(x * 100)} %`)
+    const one = (x: number | null, digits = 1) => (x === null ? '—' : tr(x.toFixed(digits).replace('.', ','), x.toFixed(digits)))
+    const table = el('table', 'salvage-table arena-stat-table')
+    const head = el('tr')
+    for (const h of [tr('Personnage', 'Character'), tr('Choisi', 'Picked'), tr('Victoires', 'Wins'), tr('Élim.', 'Kills'), tr('Chutes', 'Deaths'), tr('Dégâts/min', 'Dmg/min'), tr('Soins/min', 'Heal/min'), tr('Vie (s)', 'Life (s)'), tr('Précision', 'Accuracy'), tr('Portée', 'Range')]) head.append(el('th', '', h))
+    table.append(el('thead'), el('tbody'))
+    table.tHead!.append(head)
+    for (const c of CHARACTERS) {
+      const r = stats.characters[c.id]
+      const row = el('tr')
+      const name = el('td', 'arena-stat-name', c.name)
+      name.style.setProperty('--char', c.color)
+      row.append(name)
+      const cells = r
+        ? [pct(r.pickRate), pct(r.winRate), one(r.kills), one(r.deaths), one(r.damage, 0), one(r.heals, 0), one(r.survival, 0), pct(r.accuracy), one(r.range)]
+        : Array(9).fill('—')
+      for (const v of cells) row.append(el('td', '', v))
+      table.tBodies[0].append(row)
+    }
+    box.append(table)
+    // La précision par commande, tous personnages confondus (pondérée par les tirs).
+    const parts: string[] = []
+    for (const [key, label] of [['mouse', tr('souris', 'mouse')], ['gamepad', tr('manette', 'gamepad')], ['touch', tr('doigt', 'touch')], ['assist', tr('tir rapide', 'quick shot')]] as const) {
+      let shots = 0, hits = 0
+      for (const r of Object.values(stats.controls[key] ?? {})) {
+        if (!r) continue
+        shots += r.shots
+        hits += (r.accuracy ?? 0) * r.shots
+      }
+      if (shots) parts.push(`${label} ${pct(hits / shots)}`)
+    }
+    if (parts.length) box.append(el('p', 'salvage-note', tr(`Précision par commande : ${parts.join(', ')}.`, `Accuracy by control: ${parts.join(', ')}.`)))
   }
 }
 

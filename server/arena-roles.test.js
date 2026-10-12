@@ -32,3 +32,25 @@ test('chaque personnage garde ce que sa fiche dit de lui', () => {
   assert.ok(C.jacques.speed < 1 && C.jacques.speed > C.marcel.speed, 'Jacques est lent')
   assert.ok(C.capucine.hp < C.rourke.hp, 'Capucine est fragile')
 })
+
+/**
+ * Ce que vaut un personnage sur chaque axe où l'on peut être meilleur (plus est mieux) : sa vie, sa
+ * vitesse, sa portée, ses dégâts par seconde (ceux de sa fleur ou de sa flaque compris), la zone qu'il
+ * touche, ses soins, et ce qu'il est seul à faire (lancer par-dessus les obstacles, traverser).
+ */
+function axes(c) {
+  const w = c.weapon
+  const trap = w.flower ? w.flower.damage / w.flower.every : w.fire ? w.fire.damage / w.fire.every : 0
+  return [c.hp, c.speed, w.range, (w.damage * w.pellets) / w.interval + trap, Math.max(w.blast, w.flower?.radius ?? 0, w.fire?.radius ?? 0), w.heal ?? 0, w.lob ? 1 : 0, w.pierce ? 1 : 0, c.scan ?? 0]
+}
+
+test('aucun personnage n\'est meilleur qu\'un autre sur tous les plans', () => {
+  for (const a of ids) {
+    for (const b of ids) {
+      if (a === b) continue
+      const x = axes(C[a]), y = axes(C[b])
+      const dominates = x.every((v, i) => v >= y[i]) && x.some((v, i) => v > y[i])
+      assert.ok(!dominates, `${a} vaut au moins ${b} partout : ${x.map((v) => +v.toFixed(2))} contre ${y.map((v) => +v.toFixed(2))}`)
+    }
+  }
+})

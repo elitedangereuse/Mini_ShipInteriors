@@ -102,6 +102,7 @@ import { HOME_SYSTEM, JUMP_CHARGE, JUMP_TRAVEL, PILOT_SEAT, nextSystem } from '.
 import { ZONE_LEVEL } from '../shared/salvage.js'
 import { ARENA_LEVEL } from '../shared/arena.js'
 import { ARENA_GAME_ACTIONS, ARENA_LOBBY_ACTIONS, createArena } from './arena.js'
+import { createArenaStats } from './arena-stats.js'
 // Identifiant d'apparence (cf. src/looks.ts), ex. « human.female.b », « alien.male.c.blue », « robot.g »,
 // suivi au besoin du style du Holo-Me (« suit.male.c.flight.mo-pk-sm-nv- ») dont chaque champ est vérifié.
 import { validLook } from '../shared/look-style.js'
@@ -237,7 +238,8 @@ export function attachRelay(
   httpServer,
   { log = console.log, error = console.error, cmdrUrl = process.env.ED_CMDR_URL ?? '', path = process.env.WS_PATH || WS_PATH,
     devCmdr = false, youtubeKey = process.env.YOUTUBE_API_KEY ?? '', youtubeFetch = fetch, relaySecret = process.env.MSI_RELAY_SECRET ?? '',
-    salvageFetch = fetch, arenaFetch = fetch, quartersFetch = fetch, barFetch = fetch, questsFetch = fetch } = {},
+    salvageFetch = fetch, arenaFetch = fetch, quartersFetch = fetch, barFetch = fetch, questsFetch = fetch,
+    arenaStatsFile = process.env.ARENA_STATS_FILE || null } = {},
 ) {
   if (!cmdrUrl) error('[relais] ED_CMDR_URL absent : les comptes Élite Dangereuse ne peuvent pas être reconnus (tout le monde est invité).')
   const io = new Server(httpServer, {
@@ -518,7 +520,10 @@ export function attachRelay(
     report: (fighter, result) => postArenaResult(fighter.cookie, result, { cmdrUrl, secret: relaySecret, error, fetcher: arenaFetch }),
     log,
     debug: devCmdr,
+    // Les statistiques des personnages : dans ce fichier s'il est donné (ARENA_STATS_FILE), sinon en mémoire.
+    stats: createArenaStats({ file: arenaStatsFile, error }),
   })
+  httpServer.on('close', () => arena.flushStats())
   const arenaTimer = setInterval(() => arena.tick(0.05), 50)
   arenaTimer.unref?.()
   httpServer.on('close', () => clearInterval(arenaTimer))

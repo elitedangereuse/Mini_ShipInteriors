@@ -5213,7 +5213,7 @@ body.gardening #emotes { display: none; }
 .team0 { --team: #ff8a1c; --team-soft: #ffb777; }
 .team1 { --team: #3fc8ff; --team-soft: #8fdcff; }
 /* Le classement des joueurs : le panneau du terminal, en plus étroit ; le podium à ses couleurs. */
-.salvage-panel.arena-panel.arena-ranks { width: min(620px, calc(100vw - 28px)); }
+.salvage-panel.arena-panel.arena-ranks { width: min(760px, calc(100vw - 28px)); }
 .arena-rank-table td { font-variant-numeric: tabular-nums; }
 .arena-rank-table td:first-child { color: #8d96a3; }
 .arena-rank-table a { color: #e8eaee; }
@@ -5221,6 +5221,14 @@ body.gardening #emotes { display: none; }
 .arena-rank-table tr.p1 td:first-child, .arena-rank-table tr.p1 td:nth-child(3) { color: #ffd23f; }
 .arena-rank-table tr.p2 td:first-child { color: #d9dde3; }
 .arena-rank-table tr.p3 td:first-child { color: #d08a4a; }
+/* Les statistiques des personnages, sous le classement. */
+.arena-char-stats { display: grid; gap: 8px; margin-top: 18px; }
+.arena-char-stats h3 { margin: 0; }
+.arena-stat-table { font-size: 12px; }
+.arena-stat-table td, .arena-stat-table th { padding: 5px 6px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.arena-stat-table td:first-child, .arena-stat-table th:first-child { text-align: left; }
+.salvage-table.arena-stat-table td.arena-stat-name { color: var(--char); font-weight: 700; }
+.salvage-panel.arena-panel.arena-ranks { overflow-x: auto; }
 /* Le terminal : graphite, l'orange et le bleu des deux équipes (le vert reste à la zone thargoïde). */
 .salvage-panel.arena-panel {
   width: min(940px, calc(100vw - 28px)); padding: 22px 24px 24px; color: #e8eaee; border-color: #3b404a;

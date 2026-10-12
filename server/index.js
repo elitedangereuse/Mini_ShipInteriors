@@ -80,5 +80,7 @@ const server = createServer((req, res) => {
   createReadStream(file).pipe(res)
 })
 
-attachRelay(server, { log, error })
+// Les statistiques des personnages de l'arène (cf. server/arena-stats.js) : ARENA_STATS_FILE, sinon var/ à côté du serveur.
+const arenaStatsFile = process.env.ARENA_STATS_FILE || fileURLToPath(new URL('../var/arena-stats.json', import.meta.url))
+attachRelay(server, { log, error, arenaStatsFile })
 server.listen(PORT, HOST, () => log(`Vaisseau en ligne : http://${HOST ?? 'localhost'}:${PORT} (socket : ${process.env.WS_PATH || WS_PATH})`))

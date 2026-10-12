@@ -53,7 +53,12 @@ export const ARENA_BOOTH = { x: 22.97, z: 9.3, yaw: Math.PI / 2, referee: { x: 2
  *   d'où part un tir à plat (vue de dessus, bots) ; `ceiling` : le plafond ;
  * - `sprint` : la vitesse d'un joueur à la course (celle de src/player.ts) ; `bot` : celle d'un bot.
  *   L'une et l'autre pour un personnage de vitesse 1 (cf. ARENA_CHARACTERS) ;
- * - `lob` : durée de vol d'un objet lancé (graine, cocktail), au plus court (s).
+ * - `lob` : durée de vol d'un objet lancé (graine, cocktail), au plus court (s) ;
+ * - `assist` : le tir rapide (au doigt, toucher le stick de tir sans viser ; en vue subjective, le
+ *   tir sur l'adversaire le plus près de la mire) vise l'adversaire le plus proche, mais pas mieux
+ *   qu'un bon joueur à la souris : il s'en écarte au hasard de `assist` degrés au plus, comme un bot
+ *   (cf. ARENA_SKILLS, assistAim) ; un lancer, de deux pour cent par degré de sa distance. Un essai
+ *   (server/arena-assist.test.js) le situe entre un bot recrue et un bot d'élite, contre une cible qui court.
  */
 export const ARENA_RULES = {
   /** Lobbys du terminal : autant de parties qui peuvent se préparer (et se jouer) en même temps. */
@@ -80,6 +85,7 @@ export const ARENA_RULES = {
   sprint: 3.4,
   bot: 2.5,
   lob: 0.35,
+  assist: 4.5,
 }
 
 /**
@@ -117,7 +123,7 @@ export const ARENA_CHARACTERS = {
     weapon: { auto: true, burst: 8, interval: 0.09, mag: 18, reload: 1.6, speed: 46, pierce: false, pellets: 1, spread: 2.4, damage: 8, range: 5.5, reach: 4, blast: 0 },
   },
   marcel: {
-    hp: 170, speed: 0.78,
+    hp: 160, speed: 0.78,
     weapon: { auto: false, interval: 0.55, mag: 3, reload: 1.6, speed: 11, pierce: false, pellets: 1, spread: 1, damage: 45, range: 4.5, reach: 3.2, blast: 0.85 },
   },
   nico: {
@@ -125,21 +131,21 @@ export const ARENA_CHARACTERS = {
     weapon: { auto: false, interval: 0.85, mag: 3, reload: 1.9, speed: 80, pierce: true, pellets: 1, spread: 0, damage: 60, range: 8, reach: 6.5, blast: 0 },
   },
   betty: {
-    hp: 95, speed: 1,
-    weapon: { auto: false, interval: 0.38, mag: 5, reload: 1.4, speed: 26, pierce: false, pellets: 1, spread: 0.6, damage: 22, heal: 22, range: 6, reach: 4.5, blast: 0 },
+    hp: 100, speed: 1,
+    weapon: { auto: false, interval: 0.38, mag: 5, reload: 1.4, speed: 26, pierce: false, pellets: 1, spread: 0.6, damage: 24, heal: 24, range: 6, reach: 4.5, blast: 0 },
   },
   capucine: {
-    hp: 85, speed: 1,
+    hp: 90, speed: 1,
     weapon: {
       auto: false, interval: 0.8, mag: 3, reload: 2.2, speed: 9, lob: true, pierce: false, pellets: 1, spread: 0, damage: 20, range: 6.5, reach: 4.5, blast: 0,
       flower: { life: 6, radius: 1.6, every: 0.6, grow: 0.3, most: 2, windup: 0.25 },
     },
   },
   jacques: {
-    hp: 150, speed: 0.85,
+    hp: 140, speed: 0.85,
     weapon: {
       auto: false, interval: 0.9, mag: 3, reload: 2.2, speed: 9, lob: true, pierce: false, pellets: 1, spread: 0, damage: 32, range: 6, reach: 4.8, blast: 0.9,
-      fire: { life: 2.5, radius: 1, every: 0.4, damage: 12 },
+      fire: { life: 2.5, radius: 1, every: 0.4, damage: 11 },
     },
   },
 }
@@ -490,6 +496,18 @@ export function bushSight(character) {
 export function blastDamage(w, d) {
   const reach = w.blast + ARENA_RULES.body.r
   return d > reach ? 0 : Math.round(w.damage * (1 - (2 / 3) * (d / reach)))
+}
+
+/**
+ * Le tir rapide (cf. ARENA_RULES.assist) : le cap visé `yaw` (radians) et, pour un lancer, sa
+ * distance `dist`, écartés au hasard (la somme de deux tirages, comme l'écart de visée des bots).
+ */
+export function assistAim(yaw, dist, random = Math.random) {
+  const spread = ARENA_RULES.assist
+  return {
+    yaw: yaw + (random() + random() - 1) * spread * (Math.PI / 180),
+    dist: dist * (1 + (random() + random() - 1) * spread * 0.02),
+  }
 }
 
 /**

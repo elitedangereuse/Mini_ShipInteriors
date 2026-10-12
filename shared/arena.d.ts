@@ -29,6 +29,7 @@ export declare const ARENA_RULES: {
   sprint: number
   bot: number
   lob: number
+  assist: number
 }
 
 export type CharacterId = 'rourke' | 'marcel' | 'nico' | 'betty' | 'capucine' | 'jacques'
@@ -115,6 +116,8 @@ export declare function inBush(zone: ArenaZone, p: { x: number; z: number }): bo
 export declare function arenaHidden(zone: ArenaZone, p: { x: number; z: number }, viewer: { x: number; z: number }, revealed: boolean, near?: number): boolean
 export declare function bushSight(character: string): number
 export declare function blastDamage(w: { blast: number; damage: number }, d: number): number
+/** Le tir rapide : le cap visé et la distance d'un lancer, écartés au hasard (cf. ARENA_RULES.assist). */
+export declare function assistAim(yaw: number, dist: number, random?: () => number): { yaw: number; dist: number }
 export declare function lobTarget(zone: ArenaZone, from: { x: number; z: number }, dir: { x: number; z: number }, dist: number, range: number): { x: number; z: number }
 export declare function lobTime(w: { speed: number }, dist: number): number
 export declare const MUZZLE_SLACK: number

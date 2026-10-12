@@ -63,7 +63,8 @@ function relay(): Plugin {
     },
     configureServer(server) {
       const { info, warn } = server.config.logger
-      if (server.httpServer) attachRelay(server.httpServer, { log: (m) => info(m), error: (m) => warn(m), cmdrUrl, devCmdr: true, youtubeKey, relaySecret: DEV_RELAY_SECRET })
+      // Les statistiques de l'arène du serveur de dev : dans var/ (ignoré par git), pour essayer scripts/arena-balance.mjs.
+      if (server.httpServer) attachRelay(server.httpServer, { log: (m) => info(m), error: (m) => warn(m), cmdrUrl, devCmdr: true, youtubeKey, relaySecret: DEV_RELAY_SECRET, arenaStatsFile: process.env.ARENA_STATS_FILE || 'var/arena-stats-dev.json' })
     },
     configurePreviewServer(server) {
       const { info, warn } = server.config.logger

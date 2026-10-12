@@ -313,7 +313,34 @@ export interface ArenaEnd {
   duration: number
   stats: ArenaStats[]
 }
-export type ArenaAction = 'join' | 'leave' | 'side' | 'settings' | 'character' | 'ready' | 'fire' | 'reload' | 'quit' | 'watch' | 'unwatch' | 'debug'
+export type ArenaAction = 'join' | 'leave' | 'side' | 'settings' | 'character' | 'ready' | 'fire' | 'reload' | 'quit' | 'watch' | 'unwatch' | 'debug' | 'stats'
+
+/** Les statistiques d'un personnage, sur les parties des joueurs (cf. server/arena-stats.js, summarize). */
+export interface ArenaCharacterSummary {
+  picks: number
+  /** Part des places qu'il occupe, et des parties décidées qu'il gagne (null : aucune). */
+  pickRate: number
+  winRate: number | null
+  /** Éliminations et chutes par partie ; dégâts et soins par minute ; durée moyenne d'une vie (s). */
+  kills: number
+  deaths: number
+  kd: number
+  damage: number
+  heals: number
+  survival: number
+  /** Part des projectiles qui ont porté, et distance moyenne de ses coups (tuiles). */
+  accuracy: number | null
+  range: number | null
+  best: number
+}
+/** Les mêmes, par commande (souris, manette, doigt, tir rapide). */
+export interface ArenaControlSummary { picks: number; winRate: number | null; kills: number; deaths: number; accuracy: number | null; shots: number }
+export interface ArenaCharacterStats {
+  games: number
+  since: number
+  characters: Partial<Record<CharacterId, ArenaCharacterSummary>>
+  controls: Record<string, Partial<Record<CharacterId, ArenaControlSummary>>>
+}
 
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
@@ -388,6 +415,8 @@ export type ServerMessage =
   | { t: 'arena:error'; code: string }
   /** Après la fin : la partie du joueur est notée au classement, ou pourquoi pas (invité ; le site ne l'a pas prise). */
   | { t: 'arena:ranked'; game: string; ok: boolean; reason?: 'guest' | 'site' }
+  /** Les statistiques des personnages (en réponse à `stats`), pour le classement. */
+  | ({ t: 'arena:stats' } & ArenaCharacterStats)
 
 /**
  * Réponse du relais à une invitation : partie, ou pourquoi pas (guest : on n'est pas CMDR,
@@ -403,7 +432,7 @@ type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin' | 'open'>
 const WS_PATH = import.meta.env.VITE_WS_PATH || '/ws/mini-shipinteriors'
 const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'open', 'whisper', 'nudge', 'ring', 'music', 'jump', 'patrol', 'chef', 'nurse', 'mechanic', 'gardener', 'chief', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error',
   'salvage:lobby', 'salvage:start', 'salvage:state', 'salvage:event', 'salvage:end', 'salvage:reward', 'salvage:error',
-  'arena:lobby', 'arena:start', 'arena:state', 'arena:event', 'arena:end', 'arena:error', 'arena:ranked']
+  'arena:lobby', 'arena:start', 'arena:state', 'arena:event', 'arena:end', 'arena:error', 'arena:ranked', 'arena:stats']
 
 export class Net {
   online = false

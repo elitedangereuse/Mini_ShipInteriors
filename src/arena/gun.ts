@@ -8,7 +8,7 @@ import type { Weapon } from '../range-weapons'
 import { dampAngle } from '../player'
 import type { Dialog } from '../ui'
 import { RELEASE, type CombatAct } from '../avatar'
-import { ARENA_RULES, arenaGround, arenaSight, castArena, inArenaBase, lobTarget, lobTime, shotOrigin, type ArenaZone, type CharacterId } from '../../shared/arena.js'
+import { ARENA_RULES, arenaGround, arenaSight, assistAim, castArena, inArenaBase, lobTarget, lobTime, shotOrigin, type ArenaZone, type CharacterId } from '../../shared/arena.js'
 import { ARMS, characterById, type ArenaArm } from './characters'
 import { CombatFx } from './fx'
 import { color as paint, HEAL as HEAL_TINT } from './palette'
@@ -55,8 +55,11 @@ export interface ArenaGunHost {
   bodies(): ArenaBody[]
   /** Le joueur peut tirer : debout, après le coup d'envoi. */
   canFire(): boolean
-  /** Un tir part : au relais (`r` : jusqu'où, pour un objet lancé). */
-  fire(origin: [number, number, number], dirs: [number, number, number][], r?: number): void
+  /**
+   * Un tir part : au relais (`r` : jusqu'où, pour un objet lancé ; `assisted` : un tir rapide, qui
+   * visait tout seul l'adversaire le plus proche, cf. ARENA_RULES.assist : les statistiques le comptent à part).
+   */
+  fire(origin: [number, number, number], dirs: [number, number, number][], r?: number, assisted?: boolean): void
   /** Les adversaires debout que le joueur voit (pas ceux qu'un buisson cache) : ceux que vise le tir rapide. */
   foes(): { x: number; z: number }[]
   /** Échap : quitter la partie ? */
@@ -176,6 +179,8 @@ export class ArenaGun extends RangeGame {
   private readonly touch = matchMedia('(pointer: coarse)').matches
   /** Balles qu'il reste à la rafale en cours (arme automatique, stick lâché). */
   private salvo = 0
+  /** Le tir en cours est un tir rapide (un toucher du stick, sans viser) : il visait tout seul. */
+  private assisted = false
   /** Depuis quand on n'a pas tiré (secondes), et où l'on marchait à la dernière image. */
   private calm = 0
   private readonly stride = new THREE.Vector3()
@@ -425,9 +430,10 @@ export class ArenaGun extends RangeGame {
   }
 
   /** Stick lâché : le coup part ; pour la mitraillette, toute une rafale, là où l'on visait. */
-  override loose(_quick = false) {
+  override loose(quick = false) {
     const w = this.arm
     if (!w) return
+    this.assisted = quick
     if (!w.auto) return this.tap()
     this.salvo = w.burst ?? 6
     this.held = true
@@ -436,6 +442,8 @@ export class ArenaGun extends RangeGame {
   /** Un doigt relevé ailleurs (le stick de marche) ne coupe pas la rafale en cours. */
   override trigger(on: boolean) {
     if (!on && this.salvo > 0) return
+    // La gâchette (souris, manette) : on vise soi-même.
+    if (on) this.assisted = false
     super.trigger(on)
   }
 
@@ -472,9 +480,11 @@ export class ArenaGun extends RangeGame {
     }
     if (best) {
       const d = Math.hypot(best.x - player.x, best.z - player.z)
+      // Pas mieux qu'un bon joueur à la souris : le tir rapide s'écarte un peu de sa cible (ARENA_RULES.assist).
+      const off = assistAim(Math.atan2(best.x - player.x, best.z - player.z), d)
       // Plus haut ou plus bas que soi (le haut du site gardien) : on vise sa poitrine.
-      this.aimToward(best.x - player.x, best.z - player.z, (arenaGround(host.zone, best) - arenaGround(host.zone, player)) / Math.max(0.5, d))
-      this.throwAt = d
+      this.aimToward(Math.sin(off.yaw), Math.cos(off.yaw), (arenaGround(host.zone, best) - arenaGround(host.zone, player)) / Math.max(0.5, d))
+      this.throwAt = Math.min(w.range, off.dist)
     } else if (this.stride.lengthSq() > 0.04) {
       this.aimToward(this.stride.x / this.stride.length(), this.stride.z / this.stride.length())
       this.throwAt = null
@@ -496,7 +506,11 @@ export class ArenaGun extends RangeGame {
       const facing = to.set(foe.x, y + arenaGround(host.zone, foe), foe.z).sub(eye).normalize().dot(gaze)
       if (facing > near && arenaSight(host.zone, { x: eye.x, z: eye.z }, foe)) { near = facing; best = to.clone() }
     }
-    return best
+    if (!best) return null
+    // Comme vu de dessus, le tir rapide s'écarte un peu de sa cible (ARENA_RULES.assist).
+    const off = assistAim(Math.atan2(best.x, best.z), 1)
+    const flat = Math.hypot(best.x, best.z)
+    return best.set(Math.sin(off.yaw) * flat, best.y, Math.cos(off.yaw) * flat)
   }
 
   /** Rechargement en cours (pour la plaque du joueur). */
@@ -573,7 +587,8 @@ export class ArenaGun extends RangeGame {
     this.gunVel += 8 * w.punch
     this.flashTime = 0.04
     this.tint.set(w.color)
-    host.fire([eye.x, eye.y, eye.z], [[flat.x, 0, flat.z]], dist)
+    host.fire([eye.x, eye.y, eye.z], [[flat.x, 0, flat.z]], dist, this.assisted)
+    this.assisted = false
   }
 
   protected override fired(eye: THREE.Vector3, dirs: THREE.Vector3[], w: Weapon) {
@@ -591,7 +606,9 @@ export class ArenaGun extends RangeGame {
       b.heal = !!arm.heal
       this.style(b, arm, host.tint(b.by), this.predictHeal(b.p, b.d, arm, b.by, b.team) !== null)
     }
-    host.fire([eye.x, eye.y, eye.z], dirs.map((d) => [d.x, d.y, d.z]))
+    host.fire([eye.x, eye.y, eye.z], dirs.map((d) => [d.x, d.y, d.z]), undefined, this.assisted)
+    // Un tir rapide vaut pour toute sa rafale ; après, on vise de nouveau soi-même.
+    if (this.salvo <= 0) this.assisted = false
     // Le recul, dans les bras du personnage : à la mesure de l'arme.
     host.gesture('recoil', undefined, Math.min(1, 0.35 + arm.punch * 0.25))
   }
