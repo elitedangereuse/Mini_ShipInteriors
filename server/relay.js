@@ -101,6 +101,7 @@ import {
 import { HOME_SYSTEM, JUMP_CHARGE, JUMP_TRAVEL, PILOT_SEAT, nextSystem } from '../shared/systems.js'
 import { ZONE_LEVEL } from '../shared/salvage.js'
 import { ARENA_LEVEL } from '../shared/arena.js'
+import { createSiteStats } from './site-stats.js'
 import { ARENA_GAME_ACTIONS, ARENA_LOBBY_ACTIONS, createArena } from './arena.js'
 import { createArenaStats } from './arena-stats.js'
 // Identifiant d'apparence (cf. src/looks.ts), ex. « human.female.b », « alien.male.c.blue », « robot.g »,
@@ -238,7 +239,7 @@ export function attachRelay(
   httpServer,
   { log = console.log, error = console.error, cmdrUrl = process.env.ED_CMDR_URL ?? '', path = process.env.WS_PATH || WS_PATH,
     devCmdr = false, youtubeKey = process.env.YOUTUBE_API_KEY ?? '', youtubeFetch = fetch, relaySecret = process.env.MSI_RELAY_SECRET ?? '',
-    salvageFetch = fetch, arenaFetch = fetch, quartersFetch = fetch, barFetch = fetch, questsFetch = fetch,
+    salvageFetch = fetch, arenaFetch = fetch, quartersFetch = fetch, barFetch = fetch, questsFetch = fetch, statsFetch = fetch,
     arenaStatsFile = process.env.ARENA_STATS_FILE || null } = {},
 ) {
   if (!cmdrUrl) error('[relais] ED_CMDR_URL absent : les comptes Élite Dangereuse ne peuvent pas être reconnus (tout le monde est invité).')
@@ -527,6 +528,16 @@ export function attachRelay(
   const arenaTimer = setInterval(() => arena.tick(0.05), 50)
   arenaTimer.unref?.()
   httpServer.on('close', () => clearInterval(arenaTimer))
+  // La fréquentation, racontée au site toutes les cinq minutes (cf. site-stats.js) : joueurs à bord,
+  // sessions, temps passé dans chaque pièce, personnages de l'arène.
+  const siteStats = createSiteStats({
+    cmdrUrl, secret: relaySecret, fetcher: statsFetch, error,
+    players: () => players.values(),
+    // La pièce du vaisseau, ou le pont seul hors du vaisseau (arène, baie infestée, base au sol…).
+    zoneOf: (p) => (LEVELS.has(p.level) ? `${p.level}:${MAPS.get(p.level).room(Math.round(p.x), Math.round(p.z)) || '-'}` : String(p.level)),
+    arena: () => arena.stats(),
+  })
+  httpServer.on('close', () => siteStats.dispose())
   /** Hors du vaisseau, dans une instance (la baie infestée, l'arène) : seuls ceux de la partie s'y voient. */
   const instanced = (level) => level === ZONE_LEVEL || level === ARENA_LEVEL
   /**
@@ -595,6 +606,8 @@ export function attachRelay(
       id: nextId++,
       name: '',
       verified: !!cmdr,
+      // Son nom tel que le site le stocke (cmdr.name) : pour les statistiques de fréquentation, jamais montré aux joueurs.
+      stored: (cmdr && identity.stored) || '',
       ljpc: !!cmdr && identity.ljpc === true,
       voie: !!cmdr && identity.voie === true,
       // Habitué de Chez Jacques : le badge du site, ou la grille des conduits atteinte pendant cette session.
@@ -620,6 +633,7 @@ export function attachRelay(
     player.name = cmdr ? `CMDR ${cmdr}` : guestName(auth.name, player)
     players.set(socket.id, player)
     sockets.set(player.id, socket)
+    siteStats.open(player)
     socket.emit('welcome', {
       id: player.id,
       // `welcome` : première connexion du CMDR, le site vient de lui décerner le badge du jeu.
@@ -1242,6 +1256,7 @@ export function attachRelay(
       leaveBoard(player)
       salvage.leave(player)
       arena.leave(player)
+      siteStats.close(player)
       players.delete(socket.id)
       sockets.delete(player.id)
       cinema.operatorChanged()
