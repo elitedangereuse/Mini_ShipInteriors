@@ -258,7 +258,7 @@ export class TouchGamepad {
       lookX: enabled ? this.aim.x : 0, lookY: enabled ? this.aim.y : 0, zoom: 0,
       sprint: false,
       interact: enabled && pressed.has('interact'), action: enabled && pressed.has('action'), cancel: enabled && pressed.has('cancel'),
-      next: false, turn: false, rotateLeft: false, rotateRight: false, help: false,
+      next: false, turn: false, rotateLeft: false, rotateRight: false, help: false, left: false, right: false, menu: false,
       up: enabled && up, down: enabled && down,
       flare: enabled && pressed.has('flare'),
       // Stick poussé à fond : on court (il n'y a plus de bouton à tenir du pouce de la caméra).

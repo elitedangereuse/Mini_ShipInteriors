@@ -90,6 +90,8 @@ export interface TechnicianReport {
   cargo?: { dir: string; dist: number } | null
   /** La ruche s'agite (0 à 1). */
   hive?: number
+  /** Noms des secteurs condamnés de la mission. */
+  sealed?: string[]
 }
 
 const pick = <T,>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)]
@@ -143,6 +145,13 @@ function reportLines(r: TechnicianReport): string[] {
   }
   if (r.delivered > 0 && r.delivered < r.parcels) {
     lines.push(tr(`${r.delivered} sur ${r.parcels} ! On y arrive ! Je coche ma liste. Ça me calme, de cocher.`, `${r.delivered} of ${r.parcels}! We\'re getting there! I\'m ticking my list. Ticking calms me down.`))
+  }
+  if (r.sealed?.length) {
+    const list = r.sealed.join(', ')
+    lines.push(
+      tr(`Sas verrouillés aujourd'hui : ${list}. Ce n'est pas moi. Enfin si, c'est moi. Mais c'est pour votre bien.`, `Gates sealed today: ${list}. Wasn't me. Well, it was me. But it's for your own good.`),
+      tr(`N'allez pas cogner aux sas condamnés : ${list}. Il n'y a plus rien derrière. Plus rien de gentil.`, `Don't go knocking on the sealed gates: ${list}. There's nothing left behind them. Nothing nice.`),
+    )
   }
   if (r.cargo && !r.carrying) {
     lines.push(

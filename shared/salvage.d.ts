@@ -6,7 +6,7 @@ export declare const LOBBY_RETURN: { x: number; z: number }
 /** Plan fixe de la baie (une lettre par tuile). */
 export declare const BAY: string[]
 export interface BayLight { x: number; z: number; color: string; intensity: number; flicker?: 'neon' | 'fire' }
-export interface BayFurniture { model: string; x: number; z: number; rot?: 0 | 1 | 2 | 3; y?: number; block?: true | [number, number][]; label?: string; /** false : on passe à travers (marquage au sol, tuyau, panneau). */ solid?: boolean }
+export interface BayFurniture { model: string; x: number; z: number; rot?: 0 | 1 | 2 | 3; y?: number; block?: true | [number, number][]; label?: string; /** false : on passe à travers (marquage au sol, tuyau, panneau). */ solid?: boolean; /** Un lit sous lequel on se cache, par ce côté (0 nord… 3 ouest). */ hide?: number }
 export interface BayRoom { id: string; x: number; z: number; w: number; d: number; doors: { x: number; z: number; dir: number }[]; light: BayLight; furniture: BayFurniture[] }
 export interface BayArea { id: string; x: number; z: number; w: number; d: number; density: number; decor: string[]; lights: BayLight[] }
 /** Zone éclairée : son rectangle, la couleur et la force de ses projecteurs, et leur place. */
@@ -15,6 +15,12 @@ export interface BayLit { id: string; x: number; z: number; w: number; d: number
 export interface BayCamera { id: string; x: number; z: number }
 /** Le guichet de sécurité : tuiles, côté de la vitre, place du technicien et du comptoir. */
 export declare const BAY_BOOTH: { x: number; z: number; w: number; d: number; window: number; technician: { x: number; z: number }; counter: { x: number; z: number } }
+/** Sas d'un passage : un vantail sur l'arête `dir` de chaque tuile de `at`, verrouillé si l'un de ses secteurs est condamné. */
+export interface BayGate { rooms: string[]; dir: number; at: [number, number][] }
+export declare const BAY_GATES: BayGate[]
+/** Secteur qu'une partie peut condamner, et l'une de ses tuiles ; `small` : une petite pièce. */
+export interface BaySector { id: string; x: number; z: number; small?: boolean }
+export declare const BAY_SECTORS: BaySector[]
 export declare const BAY_ROOMS: BayRoom[]
 export declare const BAY_PROPS: BayFurniture[]
 export declare const BAY_AREAS: BayArea[]
@@ -25,6 +31,7 @@ export declare const FX: { none: 0; glass: 1; goo: 2 }
 
 export declare const RULES: {
   lobbies: number
+  sealed: { min: number; max: number; small: number }
   team: number
   parcels: { min: number; max: number }
   enemies: { min: number; max: number }
@@ -56,7 +63,7 @@ export declare const RULES: {
 }
 
 export interface Tile { x: number; z: number }
-export interface Locker extends Tile { id: number; /** Mur contre lequel il se dresse. */ dir: number }
+export interface Locker extends Tile { id: number; /** Mur contre lequel il se dresse (ou lit vers lequel sa tuile regarde). */ dir: number; /** Un lit sous lequel on se glisse, depuis cette tuile : son milieu. */ bed?: { x: number; z: number } }
 export interface Pickup extends Tile { id: number }
 export interface ZoneContainer extends Tile { w: number; d: number; kind: 'container' | 'crates' | 'planter' | 'growth'; color: number; flip: boolean }
 export type DecorKind = 'cables' | 'bones' | 'crystals' | 'barrel' | 'goo' | 'debris' | 'glass' | 'papers' | 'soil'
@@ -72,13 +79,21 @@ export interface Zone {
   enemies: number
   layout: string[]
   walls: Door[]
+  /** Portes du sas d'extraction. */
   doors: Door[]
+  /** Vantaux des sas de la baie ; verrouillé : il donne sur un secteur condamné. */
+  gates: (Door & { locked: boolean })[]
+  /** Arêtes des sas ouverts (tuile * 4 + direction) : on y passe par l'ouverture du vantail. */
+  gated: Uint8Array
+  /** Secteurs condamnés de la partie (cf. BAY_SECTORS) : du vide, derrière leurs sas verrouillés. */
+  closed: string[]
   airlock: { side: number; tiles: Tile[]; pad: Tile; inward: number }
   halls: { x: number; z: number; w: number; d: number }[]
   containers: ZoneContainer[]
   blocked: Uint8Array
   /** Tuiles du guichet de sécurité (bloquées, mais on y voit par la vitre). */
   booth: Uint8Array
+  /** Petites pièces, coins, meubles, projecteurs et caméras des secteurs ouverts. */
   rooms: BayRoom[]
   areas: BayArea[]
   props: BayFurniture[]
@@ -125,7 +140,7 @@ export declare function salvagePar(parcels: number, team: number): number
 export type SalvageGrade = 'S' | 'A' | 'B' | 'C' | 'D'
 export declare function salvageGrade(r: { won: boolean; delivered: number; parcels: number; team: number; duration: number; captures: number }): SalvageGrade
 export declare function mulberry32(seed: number): () => number
-export declare function generateZone(seed: number, settings: { team: number; parcels: number; enemies: number }): Zone
+export declare function generateZone(seed: number, settings: { team: number; parcels: number; enemies: number; closed?: string[] }): Zone
 export declare function tileOf(zone: Zone, p: { x: number; z: number }): Tile | null
 export declare function walkable(zone: Zone, x: number, z: number): boolean
 export declare function inAirlock(zone: Zone, p: { x: number; z: number }): boolean

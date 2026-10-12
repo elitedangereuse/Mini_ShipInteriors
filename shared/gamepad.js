@@ -13,6 +13,7 @@ function neutral(connected = false) {
     connected, active: false, moveX: 0, moveY: 0, lookX: 0, lookY: 0, zoom: 0,
     sprint: false, interact: false, action: false, cancel: false, next: false,
     rotateLeft: false, rotateRight: false, help: false, turn: false, up: false, down: false,
+    left: false, right: false, menu: false,
   }
 }
 
@@ -61,13 +62,15 @@ export class GamepadControls {
     for (let i = 0; i < pad.buttons.length; i++) if (on(i)) held.add(String(i))
     if (on(12) || moveY < -0.55) held.add('up')
     if (on(13) || moveY > 0.55) held.add('down')
+    if (on(14) || moveX < -0.55) held.add('left')
+    if (on(15) || moveX > 0.55) held.add('right')
     const press = (key) => enabled && !this.suspended && !changed && held.has(key) && !this.held.has(key)
     const result = {
       connected: true, active: moving(pad), moveX, moveY, lookX, lookY,
       zoom: (pad.buttons[6]?.value ?? 0) - (pad.buttons[7]?.value ?? 0),
       sprint: on(10), interact: press('0'), cancel: press('1'), action: press('2'), next: press('3'),
       rotateLeft: press('4'), rotateRight: press('5'), help: press('9'), turn: press('11'),
-      up: press('up'), down: press('down'),
+      up: press('up'), down: press('down'), left: press('left'), right: press('right'), menu: press('8'),
     }
     // La croix complète le stick sans accélérer les diagonales.
     const dx = Number(on(15)) - Number(on(14)), dy = Number(on(13)) - Number(on(12))

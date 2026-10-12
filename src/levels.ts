@@ -1973,7 +1973,7 @@ export const LEVELS: LevelDef[] = [
       ...([
         [13.8, 0, tr('Infirmerie', 'Medical bay'), '#5ff2d8'], [18.8, 0, tr('Salle de sport', 'Gym'), '#ff7a5a'], [23.8, 0, tr('Labo L.J.P.C.', 'L.J.P.C. lab'), '#7dffa8'],
         // Celle du mess est du côté proue de sa porte : de l'autre, une colonne de la cloison la mangeait à moitié.
-        [13.8, 2, 'Mess', '#ffc27a'], [17.2, 2, 'Arcade', '#ff5fd8'], [22.2, 2, 'Arcade', '#5fdcff'],
+        [13.8, 2, 'Mess', '#ffc27a'], [17.2, 2, 'Arcade', '#ff5fd8'], [23.8, 2, 'Arcade', '#5fdcff'],
       ] as const).map(([x, rot, name, color]): Prop => ({ model: 'corridor-sign', x, z: rot ? 5.345 : 3.655, rot, label: `${name}|${color}`, solid: false })),
       ...[0, 2].flatMap((rot): Prop[] => [
         ...[11.2, 15.5, 20.5, 25.1].map((x): Prop => ({ model: 'corridor-pilaster', x, z: rot ? 5.345 : 3.655, rot: rot as Rot, solid: false })),
@@ -2124,9 +2124,10 @@ export const LEVELS: LevelDef[] = [
     // Du foyer, on entre au cinéma par une porte double, capitonnée de rouge ; au fond du hall,
     // une autre porte double ouvre sur le Comptoir des Cartes Dangereuses.
     doubleDoors: [{ x: 22, z: 4, dir: 1, padded: true }, { x: 30, z: 9, dir: 1 }],
-    // Derrière le lavabo ouest des toilettes : un pilier lui passait au travers ; au fond du hall,
-    // sous le néon « CARTES » : un pilier le cachait à moitié.
-    plainWalls: [{ x: 12.5, z: 3 }, { x: 28, z: 8.5 }, { x: 29, z: 8.5 }],
+    // Derrière le lavabo ouest des toilettes : un pilier lui passait au travers ; entre le salon
+    // d'écoute et le couloir du cinéma, la cloison reste sobre ; au fond du hall, sous le néon
+    // « CARTES » : un pilier le cachait à moitié.
+    plainWalls: [{ x: 12.5, z: 3 }, { x: 20.5, z: 7 }, { x: 28, z: 8.5 }, { x: 29, z: 8.5 }],
     // La serre, tout en verre : les plantes voient les étoiles. Sol de tomettes.
     greenhouse: ['g'],
     floorFinish: { g: 'terracotta' },

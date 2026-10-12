@@ -182,15 +182,15 @@ test('arène : le chef choisit le plan ; la partie s\'y joue, et le relais n\'ac
   for (const p of [a, b]) h.arrive(p)
   const game = h.arena.gameOf(a)
   assert.equal(game.zone.id, 'hive')
-  // Après le coup d'envoi (avant, chacun reste dans sa base) : le coin de l'octogone est hors du
+  // Après le coup d'envoi (avant, chacun reste dans sa base) : le coin de la chrysalide est hors du
   // terrain ; le cœur de la ruche, un obstacle.
   h.advance(R.warmup + 0.1)
-  h.put(a, 2, 3)
-  assert.ok(h.arena.accepts(a, 2.5, 3.4))
-  assert.ok(!h.arena.accepts(a, 1.4, 3))
-  h.put(a, 7, 8)
-  assert.ok(h.arena.accepts(a, 7.4, 8))
-  assert.ok(!h.arena.accepts(a, 7.6, 8))
+  h.put(a, 1, 3)
+  assert.ok(h.arena.accepts(a, 1.4, 3.4))
+  assert.ok(!h.arena.accepts(a, 0.4, 3))
+  h.put(a, 9, 7)
+  assert.ok(h.arena.accepts(a, 9.4, 7))
+  assert.ok(!h.arena.accepts(a, 9.6, 7))
 })
 
 test('arène : une balle s\'arrête sur un conteneur, une cloison, le sol, ou un combattant debout', () => {

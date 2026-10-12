@@ -28,6 +28,8 @@ interface Locker {
   searched: boolean
   open: number
   shake: number
+  /** Un lit, pas un casier : rien à dessiner ni à ouvrir. */
+  bed?: boolean
 }
 
 interface Cargo {
@@ -38,6 +40,7 @@ interface Cargo {
 }
 
 const LOCKER_LABEL = tr('Se cacher', 'Hide')
+const BED_LABEL = tr('Se cacher sous le lit', 'Hide under the bed')
 
 export class ZoneItems {
   readonly group = new THREE.Group()
@@ -52,6 +55,16 @@ export class ZoneItems {
   constructor(private zone: Zone, private deck: Deck, actions: ItemActions) {
     this.deck.group.add(this.group)
     for (const l of zone.lockers) {
+      // Sous un lit : rien à dessiner (le lit est un meuble de la baie), on s'y glisse de son chevet.
+      if (l.bed) {
+        const body = new THREE.Group(), front = lockerFront(l)
+        body.position.set(l.bed.x, 0, l.bed.z)
+        this.group.add(body)
+        const item: Interactable = { object: body, position: new THREE.Vector3(front.x, 0, front.z), label: BED_LABEL, onInteract: () => actions.hide(l.id) }
+        deck.interactables.push(item)
+        this.lockers.set(l.id, { id: l.id, body, door: new THREE.Group(), item, occupied: false, searched: false, open: 0, shake: 0, bed: true })
+        continue
+      }
       const { body, door } = lockerParts(l.id + 1, l.id % 3 === 1)
       body.add(door)
       const spot = lockerSpot(l)
@@ -128,7 +141,7 @@ export class ZoneItems {
       l.occupied = occupied.has(id)
       l.searched = searching.has(id)
       // Un casier pris ne se propose plus (sauf à celui qui s'y cache, qui en sort avec E).
-      l.item.label = hidingSelf === id ? tr('Sortir du casier', 'Leave the locker') : LOCKER_LABEL
+      l.item.label = l.bed ? (hidingSelf === id ? tr('Sortir de sous le lit', 'Crawl out from under the bed') : BED_LABEL) : hidingSelf === id ? tr('Sortir du casier', 'Leave the locker') : LOCKER_LABEL
       this.setInteractable(l.item, !l.occupied || hidingSelf === id)
     }
   }
