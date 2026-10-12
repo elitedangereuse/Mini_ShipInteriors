@@ -15,7 +15,6 @@
 <p align="center">
   <img src="docs/images/pont-superieur.jpg" alt="Le pont supérieur en vue isométrique : la serre centrée sur la coursive, la place des anciens quartiers (avant le planétarium), les cabines d'équipage (vides), les toilettes, le studio, le salon d'écoute et le cinéma" width="100%">
 </p>
-
 ---
 
 ## Sommaire
