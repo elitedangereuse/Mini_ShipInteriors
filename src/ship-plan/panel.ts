@@ -148,7 +148,8 @@ export class ShipPlanPanel {
   }
 
   private shownName(level: number, room: string): string {
-    return this.hidden(level, room) ? tr('Zone non répertoriée', 'Uncharted area') : roomName(level, room)
+    const plan = this.plans.get(level)
+    return plan && !roomOpen(plan, room) ? '???' : roomName(level, room)
   }
 
   private onKey(e: KeyboardEvent) {
@@ -292,12 +293,8 @@ export class ShipPlanPanel {
     const g = svg('g', { class: hidden ? 'plan-label is-hidden' : 'plan-label' })
     const cx = x + w / 2
     let cy = z + h / 2
-    if (hidden) {
-      g.append(svg('text', { x: cx, y: cy, 'font-size': 0.9 }, '?'))
-      return g
-    }
     const lock = !open
-    const fit = fitLabel(roomName(level, room.id).toUpperCase(), w - 0.36, h - 0.2 - (lock ? 0.5 : 0))
+    const fit = fitLabel((lock ? '???' : roomName(level, room.id)).toUpperCase(), w - 0.36, h - 0.2 - (lock ? 0.5 : 0))
     if (fit) {
       const lineH = fit.size * 1.1
       if (lock) cy += 0.28
@@ -329,7 +326,7 @@ export class ShipPlanPanel {
       title.append(swatch, ZONES[zone].name)
       const list = el('ul')
       for (const room of rooms.sort((a, b) => roomName(level, a.id).localeCompare(roomName(level, b.id)))) {
-        const b = el('button', '', roomName(level, room.id))
+        const b = el('button', '', this.shownName(level, room.id))
         b.type = 'button'
         b.dataset.room = room.id
         b.onclick = () => this.select(room.id)
