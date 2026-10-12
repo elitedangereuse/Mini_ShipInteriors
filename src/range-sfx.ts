@@ -363,6 +363,40 @@ export class RangeSfx {
     this.burst(b.mix, 'bandpass', 2400, 900, 2.5, t + 0.05, 0.3, 0.3)
   }
 
+  /** La flaque de Jacques s'embrase : un souffle de flamme qui part d'un coup. */
+  ignite(pos: Pos) {
+    const b = this.bus(pos, 0.3, 0.3)
+    if (!b) return
+    const t = this.ctx.currentTime + 0.004
+    this.burst(b.mix, 'lowpass', 300, 2600, 0.9, t, 0.45, 0.8)
+    this.sweep(b.mix, 'sine', 90, 55, t, 0.4, 0.5)
+  }
+
+  /** La flaque brûle : des crépitements secs, de temps en temps (on l'entend sans la voir). */
+  burning(pos: Pos) {
+    const b = this.bus(pos, 0.16, 0.15, VOICES.most / 2)
+    if (!b) return
+    const t = this.ctx.currentTime + 0.004
+    for (let i = 0; i < 3; i++) {
+      const f = 1400 + Math.random() * 2600
+      this.burst(b.mix, 'bandpass', f, f * 0.7, 4, t + Math.random() * 0.12, 0.02 + Math.random() * 0.02, 0.6)
+    }
+    this.burst(b.mix, 'lowpass', 500, 300, 0.7, t, 0.18, 0.25)
+  }
+
+  /**
+   * Un objet lancé d'en face qui retombe (`len` : sa chute, s) : un sifflement qui descend, à
+   * l'endroit où il va tomber. On sait qu'il arrive, et où, avant de le voir.
+   */
+  whistle(pos: Pos, len: number) {
+    const b = this.bus(pos, 0.14, 0.2)
+    if (!b) return
+    const t = this.ctx.currentTime + 0.004
+    const d = Math.max(0.2, len)
+    this.sweep(b.mix, 'sine', 1900, 700, t, d, 0.5)
+    this.sweep(b.mix, 'sine', 1910, 705, t, d, 0.2, 12)
+  }
+
   /** Une fleur carnivore mord : deux mâchoires qui claquent. */
   chomp(pos: Pos) {
     const b = this.bus(pos, 0.45, 0.25)
@@ -578,6 +612,51 @@ export class RangeSfx {
     this.sweep(b.mix, 'triangle', 660, 660, t + 0.22, 0.16, 0.6)
     this.sweep(b.mix, 'triangle', 990, 990, t + 0.34, 0.3, 0.7)
     this.sweep(b.mix, 'sine', 495, 495, t + 0.34, 0.3, 0.4)
+  }
+
+  /**
+   * Une série d'éliminations sans tomber (`level` : 2 pour un doublé, 3 un triplé…) : une fanfare
+   * qui monte d'autant de notes, plus haut à chaque palier.
+   */
+  streak(level: number) {
+    const b = this.bus(null, 0.3, 0.5)
+    if (!b) return
+    const t = this.ctx.currentTime + 0.004
+    const base = 523 * 2 ** ((Math.min(5, level) - 2) / 12 * 2)
+    const steps = [1, 1.26, 1.5, 2, 2.52].slice(0, Math.min(5, level + 1))
+    steps.forEach((k, i) => {
+      this.sweep(b.mix, 'square', base * k, base * k, t + i * 0.07, 0.14, 0.18)
+      this.sweep(b.mix, 'triangle', base * k * 2, base * k * 2, t + i * 0.07, 0.12, 0.25)
+    })
+    this.burst(b.mix, 'highpass', 5000, 9000, 1, t + steps.length * 0.07, 0.25, 0.3)
+  }
+
+  /**
+   * Balle de manche ou de match (`ours` : pour les siens) : deux coups de cloche qui montent, ou
+   * qui descendent, plus graves, si c'est l'équipe d'en face ; trois pour une balle de match.
+   */
+  alarm(ours: boolean, match: boolean) {
+    const b = this.bus(null, 0.3, 0.6)
+    if (!b) return
+    const t = this.ctx.currentTime + 0.004
+    const notes = ours ? [784, 1047, 1319] : [622, 466, 349]
+    notes.slice(0, match ? 3 : 2).forEach((f, i) => {
+      this.sweep(b.mix, 'sine', f, f, t + i * 0.16, 0.5, 0.55)
+      this.sweep(b.mix, 'triangle', f * 2.01, f * 2, t + i * 0.16, 0.25, 0.2)
+    })
+  }
+
+  /** Le verdict : un accord qui s'ouvre (victoire), qui retombe (défaite), ou suspendu (égalité). */
+  verdict(kind: 'won' | 'lost' | 'draw') {
+    const b = this.bus(null, 0.32, 0.7)
+    if (!b) return
+    const t = this.ctx.currentTime + 0.004
+    const chord = kind === 'won' ? [523, 659, 784, 1047] : kind === 'lost' ? [440, 349, 294, 220] : [523, 698, 784]
+    chord.forEach((f, i) => {
+      this.sweep(b.mix, 'triangle', f, f, t + i * 0.09, 0.9 - i * 0.1, 0.4)
+      this.sweep(b.mix, 'sine', f / 2, f / 2, t + i * 0.09, 0.8, 0.25)
+    })
+    if (kind === 'won') this.burst(b.mix, 'bandpass', 600, 5000, 1.2, t, 0.5, 0.4)
   }
 
   /** Fin de la manche : la sonnerie du stand, grave et courte. */

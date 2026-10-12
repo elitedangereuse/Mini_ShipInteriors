@@ -18,7 +18,9 @@ import { arenaFx } from './settings'
  *   des flammèches orange qui dansent dessus et tout le long de son bord (on en voit la limite), des
  *   bulles qui crèvent, des braises qui montent ; elle faiblit sur la fin, et s'éteint dans une fumée.
  * Leur portée est peinte au sol, à la couleur du camp pour le joueur (cf. palette.ts) : un voile léger,
- * un bord fin (en tirets pour celles d'en face) et un arc qui se rétracte avec le temps qui leur reste.
+ * un bord fin (en tirets pour celles d'en face) et un arc épais qui se rétracte avec le temps qui leur
+ * reste, et clignote dans leur dernière seconde. Une fleur qui s'arme ne tourne la tête que vers une
+ * proie que le joueur voit (cf. ArenaClient.seenAt) : rien de tout cela ne trahit qui se cache.
  * Leurs formes sont partagées : une fleur, une flaque de plus ne coûtent que des objets.
  */
 
@@ -128,8 +130,9 @@ interface Shown {
   /** Elle n'est plus dans ce que dit le relais : elle fane, ou s'éteint (s). */
   gone: number
   phase: number
-  /** Ses braises : la prochaine dans tant de secondes. */
+  /** Ses braises, ses crépitements : le prochain dans tant de secondes. */
   ember: number
+  crackle: number
 }
 
 /** Une fleur carnivore : feuilles au sol, tige, et une tête à deux mâchoires dentées, ouvertes. */
@@ -184,8 +187,11 @@ export class Traps {
   private readonly bubbleMat = new THREE.MeshBasicMaterial({ color: '#d8ff7a', transparent: true, opacity: 0.8, depthWrite: false })
   /** Les effets de combat (la terre qui gicle, la fumée, les braises), une fois l'arène armée. */
   fx: CombatFx | null = null
-  /** Une fleur s'arme (`windup`) ou fane, une flaque s'éteint : le client les fait entendre (cf. client.ts). */
-  onSound?: (kind: 'sprout' | 'windup' | 'wilt' | 'ignite', at: THREE.Vector3) => void
+  /**
+   * Une fleur jaillit, s'arme (`windup`) ou fane ; une flaque s'embrase, puis crépite tant qu'elle
+   * brûle : le client les fait entendre (cf. client.ts) ; on reconnaît le piège sans le voir.
+   */
+  onSound?: (kind: 'sprout' | 'windup' | 'wilt' | 'ignite' | 'crackle', at: THREE.Vector3) => void
 
   /**
    * @param tint la couleur d'un camp (0 ou 1) pour le joueur, et s'il est d'en face : pour sa portée
@@ -261,7 +267,7 @@ export class Traps {
     const paint = (opacity: number) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4 })
     const mark = new THREE.Mesh(disc, paint(0.08))
     const border = new THREE.Mesh(foe ? dashes : ring, paint(0.6))
-    const timer = new THREE.Mesh(new THREE.RingGeometry(0.925, 0.955, TIMER_SEGMENTS, 1, Math.PI / 2, Math.PI * 2).rotateX(-Math.PI / 2), paint(0.8))
+    const timer = new THREE.Mesh(new THREE.RingGeometry(0.9, 0.97, TIMER_SEGMENTS, 1, Math.PI / 2, Math.PI * 2).rotateX(-Math.PI / 2), paint(0.95))
     for (const m of [mark, border, timer]) {
       m.scale.setScalar(radius + ARENA_RULES.body.r)
       m.position.y = 0.03
@@ -270,7 +276,7 @@ export class Traps {
     }
     const s: Shown = {
       kind: t.kind, root, mark, border, timer, life: t.kind === 'flower' ? FLOWER.life : FIRE.life, age: 0, left: t.left,
-      bite: Infinity, biteAt: null, aim: 0, strike: 0, armed: 0, gone: 0, phase: Math.random() * 10, ember: 0,
+      bite: Infinity, biteAt: null, aim: 0, strike: 0, armed: 0, gone: 0, phase: Math.random() * 10, ember: 0, crackle: 0.35,
     }
     if (t.kind === 'flower') {
       const f = flowerModel()
@@ -332,8 +338,10 @@ export class Traps {
       const shown = Math.min(1, fade + 0.2)
       ;(s.mark.material as THREE.MeshBasicMaterial).opacity = 0.08 * shown
       ;(s.border.material as THREE.MeshBasicMaterial).opacity = 0.6 * shown
-      ;(s.timer.material as THREE.MeshBasicMaterial).opacity = 0.8 * shown
-      // Le temps qui reste : l'arc se rétracte, d'un tour complet (il vient de naître) à rien.
+      // Le temps qui reste : l'arc se rétracte, d'un tour complet (il vient de naître) à rien ; sa
+      // dernière seconde, il clignote.
+      const ending = !s.gone && s.left < 1 ? 0.55 + 0.45 * Math.sin(s.age * 18) : 1
+      ;(s.timer.material as THREE.MeshBasicMaterial).opacity = 0.95 * shown * ending
       const left = s.gone ? 0 : Math.max(0, Math.min(1, s.left / s.life))
       s.timer.geometry.setDrawRange(0, Math.ceil(left * TIMER_SEGMENTS) * 6)
       if (s.kind === 'flower') this.flower(s, dt)
@@ -396,6 +404,11 @@ export class Traps {
         const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * FIRE.radius * 0.7
         b.mesh.position.set(Math.cos(a) * r, 0.03, Math.sin(a) * r)
       }
+    }
+    // Elle crépite (on l'entend sans la voir), de temps en temps.
+    if (!s.gone && (s.crackle -= dt) <= 0) {
+      s.crackle = 0.3 + Math.random() * 0.25
+      this.onSound?.('crackle', s.root.position)
     }
     // Des braises qui montent (pas en effets réduits).
     if (!this.fx || arenaFx.reduced || s.gone || (s.ember -= dt) > 0) return

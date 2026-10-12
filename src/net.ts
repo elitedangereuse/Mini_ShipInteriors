@@ -300,7 +300,11 @@ export type ArenaEvent =
   | { kind: 'join'; fighter: ArenaFighter; x: number; z: number; yaw: number }
   /** Il change de chargeur (rien qu'un geste : le relais borne la cadence lui-même). */
   | { kind: 'reload'; id: number }
-export interface ArenaStats extends ArenaFighter { kills: number; deaths: number; damage: number; heal: number }
+/**
+ * La fiche de fin d'un combattant : éliminations, chutes, dégâts, soins ; ses projectiles tirés et
+ * ceux qui ont porté (sa précision), sa meilleure série (absents d'un relais plus ancien).
+ */
+export interface ArenaStats extends ArenaFighter { kills: number; deaths: number; damage: number; heal: number; shots?: number; hits?: number; best?: number }
 export interface ArenaEnd {
   game: string
   /** Équipe gagnante ; -1 : égalité. */
@@ -428,6 +432,13 @@ export type WhisperReply = { ok: true } | { ok: false; reason: 'gone' | 'busy' |
 
 type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin' | 'open'>
 
+/**
+ * Serveur de dev : une latence simulée (`?lag=300`, en millisecondes, aller-retour), la moitié à
+ * l'envoi, la moitié à la réception, pour essayer le jeu comme sur un mauvais réseau (cf. la matrice
+ * des essais de l'arène, docs/arena-test-matrix.md). L'ordre des messages est gardé.
+ */
+const LAG = import.meta.env.DEV ? Math.min(5000, Math.max(0, Number(new URLSearchParams(location.search).get('lag')) || 0)) : 0
+
 /** Chemin de la socket : le même que WS_PATH dans server/relay.js et que la conf nginx du site. */
 const WS_PATH = import.meta.env.VITE_WS_PATH || '/ws/mini-shipinteriors'
 const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'open', 'whisper', 'nudge', 'ring', 'music', 'jump', 'patrol', 'chef', 'nurse', 'mechanic', 'gardener', 'chief', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error',
@@ -473,14 +484,8 @@ export class Net {
     this.socket = socket
     for (const t of EVENTS) {
       socket.on(t, (data: object) => {
-        const m = { ...data, t } as ServerMessage
-        if (m.t === 'welcome') {
-          this.id = m.id
-          this.last = ''
-          this.online = true
-          this.onStatus?.(true)
-        }
-        this.onMessage?.(m)
+        if (LAG) window.setTimeout(() => this.receive(t, data), LAG / 2)
+        else this.receive(t, data)
       })
     }
     socket.on('disconnect', () => {
@@ -494,8 +499,23 @@ export class Net {
     })
   }
 
+  /** Un message du relais (après la latence simulée, s'il y en a une). */
+  private receive(t: ServerMessage['t'], data: object) {
+    const m = { ...data, t } as ServerMessage
+    if (m.t === 'welcome') {
+      this.id = m.id
+      this.last = ''
+      this.online = true
+      this.onStatus?.(true)
+    }
+    this.onMessage?.(m)
+  }
+
   private send(event: string, msg: object) {
-    if (this.online && this.socket?.connected) this.socket.emit(event, msg)
+    if (!this.online || !this.socket?.connected) return
+    const socket = this.socket
+    if (LAG) window.setTimeout(() => socket.connected && socket.emit(event, msg), LAG / 2)
+    else socket.emit(event, msg)
   }
 
   /**

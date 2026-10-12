@@ -5209,6 +5209,20 @@ body.gardening #emotes { display: none; }
 .range-hud.arena .range-board { display: none; }
 .range-hud.arena .range-hint { top: 214px; }
 .range-hud.arena .range-banner { top: 178px; }
+/* Les annonces de l'arène, chacune à son allure : une élimination, une série en or, une balle de
+   manche ou de match qui bat, une manche jouée, le coup d'envoi. */
+.range-hud.arena .range-banner.again.show { animation: arena-callout .45s cubic-bezier(.2, 1.6, .4, 1); }
+.range-hud.arena .range-banner.kill { background: #f0f3f7; color: #0b0d12; }
+.range-hud.arena .range-banner.streak { padding: 6px 22px; background: linear-gradient(180deg, #ffe58a, #ffc21f); color: #2a1a00; font-size: 19px; font-weight: 900; letter-spacing: .03em; box-shadow: 0 0 0 3px #0b0d12, 0 0 22px #ffd23f88; }
+.range-hud.arena .range-banner.point { background: #ffd23f; color: #2a1a00; font-weight: 800; }
+.range-hud.arena .range-banner.match { padding: 6px 20px; background: #ffd23f; color: #2a1a00; font-size: 18px; font-weight: 900; box-shadow: 0 0 0 3px #0b0d12; }
+.range-hud.arena .range-banner:is(.point, .match).warn { background: #ff5a4a; color: #2a0806; }
+.range-hud.arena .range-banner.match.show { animation: arena-callout .45s cubic-bezier(.2, 1.6, .4, 1), arena-beat .6s ease-in-out .45s 2; }
+.range-hud.arena .range-banner.round { padding: 6px 20px; font-size: 17px; font-weight: 800; }
+.range-hud.arena .range-banner.start { background: #e8eaee; color: #0b0d12; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+@keyframes arena-callout { from { transform: translate(-50%, 0) scale(.6); } to { transform: translate(-50%, 0) scale(1); } }
+@keyframes arena-beat { 50% { transform: translate(-50%, 0) scale(1.08); } }
+@media (prefers-reduced-motion: reduce) { .range-hud.arena .range-banner.show { animation: none !important; } }
 .range-hud.arena.down .range-holo, .range-hud.arena.down .range-alert, .range-hud.arena.down .range-dot { display: none; }
 .team0 { --team: #ff8a1c; --team-soft: #ffb777; }
 .team1 { --team: #3fc8ff; --team-soft: #8fdcff; }
@@ -5380,6 +5394,7 @@ body.gardening #emotes { display: none; }
 .arena-map.on .arena-map-text strong { color: #ffd0a0; }
 .arena-map-text small { color: #a9b1bd; font-size: 11.5px; line-height: 1.3; }
 .arena-choice { display: grid; gap: 5px; min-width: 0; }
+.arena-effects-note { color: #8d96a3; font-size: 11px; line-height: 1.35; }
 .arena-segments { display: flex; flex-wrap: wrap; gap: 0; }
 .arena-panel .arena-segments button { padding: 7px 12px; border-radius: 0; margin-left: -1px; font-size: 12px; }
 .arena-panel .arena-segments button:first-child { margin-left: 0; border-radius: 8px 0 0 8px; }
@@ -5560,6 +5575,33 @@ body.arena-end-on .arena-hud > :not(.arena-count), body.arena-end-on :is(.top-le
 .arena-card-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; margin: 5px 0 0; }
 .arena-card-stats dd { margin: 0; font: 800 15px/1.1 system-ui, sans-serif; font-variant-numeric: tabular-nums; }
 .arena-card-stats dt { overflow: hidden; color: #8d96a3; font-size: 8px; letter-spacing: .04em; text-transform: uppercase; }
+/* Sa part de ce qu'a fait son équipe (dégâts et soins), en barre sous ses chiffres. */
+.arena-card-share { display: grid; gap: 2px; margin: 5px 0 0; color: #8d96a3; font-size: 9px; }
+.arena-card-share i { height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--tint) var(--fill), #ffffff1a var(--fill)); }
+/* Le récapitulatif complet, au milieu, et son bouton, à gauche du retour au lobby (le chat reste libre). */
+.arena-end-recap { position: absolute; right: calc(50% + 142px); bottom: max(14px, env(safe-area-inset-bottom)); display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 0 16px; border: 3px solid #0b0d12; border-radius: 12px; background: #1b2030f2; color: #e8eaee; font: 800 13px/1 system-ui, sans-serif; box-shadow: 0 4px 0 #0b0d12; cursor: pointer; pointer-events: auto; }
+.arena-end-recap.on { background: #2e3550f2; }
+.arena-end-recap .icon { width: 16px; height: 16px; }
+.arena-recap { position: absolute; left: 50%; top: 50%; max-width: min(760px, calc(100vw - 24px)); max-height: calc(100dvh - 190px); overflow: auto; box-sizing: border-box; padding: 12px 14px; border: 3px solid #0b0d12; border-radius: 14px; background: #10131cf7; box-shadow: 0 8px 0 #0008; transform: translate(-50%, -46%); pointer-events: auto; }
+.arena-recap[hidden] { display: none; }
+.arena-recap-table { width: 100%; border-collapse: separate; border-spacing: 0 3px; font-size: 13px; }
+.arena-recap-table th { padding: 4px 8px; color: #8d96a3; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-align: right; text-transform: uppercase; }
+.arena-recap-table td { padding: 6px 8px; background: #ffffff08; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.arena-recap-table :is(th, td):nth-child(-n + 2) { text-align: left; }
+.arena-recap-table tr > td:first-child { border-left: 3px solid var(--tint); border-radius: 6px 0 0 6px; }
+.arena-recap-table tr > td:last-child { border-radius: 0 6px 6px 0; }
+.arena-recap-table tr.self td { background: #ffe14d14; }
+.arena-recap-name { color: color-mix(in srgb, var(--tint) 70%, #fff); font-weight: 700; }
+.arena-recap-name .icon { width: 13px; height: 13px; margin-right: 4px; vertical-align: -2px; }
+.arena-recap-char { color: var(--char); font-weight: 700; }
+.arena-recap-note { margin: 6px 0 0; color: #8d96a3; font-size: 11px; line-height: 1.4; }
+/* Le personnage de la partie suivante, en bas à droite. */
+.arena-next { position: absolute; right: max(14px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 4px; padding: 4px 6px 4px 10px; border: 3px solid #0b0d12; border-radius: 12px; background: #1b2030f2; box-shadow: 0 4px 0 #0b0d12; pointer-events: auto; }
+.arena-next-label { margin-right: 4px; color: #c5cbd4; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.arena-next-pick { display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 2px solid transparent; border-radius: 50%; background: none; cursor: pointer; }
+.arena-next-pick:hover { border-color: color-mix(in srgb, var(--char) 60%, transparent); }
+.arena-next-pick.on { border-color: var(--char); box-shadow: 0 0 10px color-mix(in srgb, var(--char) 55%, transparent); }
+.arena-next-pick:not(.on) .arena-face { filter: saturate(.55) brightness(.8); }
 /* Le joueur star : sa fiche est dorée, et le dit dessous. */
 .arena-card.star { border-color: #ffd23f; border-top-color: var(--tint); }
 .arena-star { position: absolute; left: 50%; top: 100%; transform: translate(-50%, -5px); padding: 2px 8px; border: 2px solid #0b0d12; border-radius: 999px; background: #ffd23f; color: #1a1304; font-size: 10px; font-weight: 900; white-space: nowrap; }

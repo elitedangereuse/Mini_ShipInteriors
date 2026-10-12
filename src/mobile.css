@@ -290,6 +290,17 @@
   body.arena-on #chat-log { display: none; }
   body.arena-on #dialog { bottom: calc(var(--mobile-bottom) + 50px); width: min(380px, calc(100vw - 2 * (var(--aim-size) + 30px))); }
   /* Taken out: who did it and the countdown, between the thumbs. */
+  /* L'écran de fin : le récapitulatif et le personnage suivant, de part et d'autre du retour au lobby. */
+  .arena-end-recap { right: calc(50% + 112px); bottom: var(--mobile-bottom); padding: 0 12px; }
+  .arena-end-recap { font-size: 0; gap: 0; }
+  .arena-end-recap .icon { width: 20px; height: 20px; }
+  .arena-next { right: var(--mobile-right); bottom: var(--mobile-bottom); gap: 2px; padding: 3px 4px; }
+  .arena-next-label { display: none; }
+  /* Six visages tiennent à droite du retour au lobby, même sur 667 px de large. */
+  .arena-next-pick { width: 36px; height: 36px; }
+  .arena-next .arena-face.mini { width: 28px; height: 28px; }
+  .arena-recap { max-height: calc(100dvh - 120px); transform: translate(-50%, -54%); }
+  .arena-recap-table { font-size: 12px; }
   .arena-wait { bottom: var(--mobile-bottom); width: min(440px, calc(100vw - 2 * (var(--aim-size) + 26px))); gap: 4px; padding: 8px 10px 10px; }
   .arena-wait > strong { font-size: 16px; }
   /* Spectating: who the view follows, at the bottom edge. */

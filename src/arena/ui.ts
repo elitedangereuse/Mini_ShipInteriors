@@ -1,11 +1,13 @@
 import { tr } from '../i18n'
 import { icon } from '../icons'
-import type { ArenaCharacterStats, ArenaEnd, ArenaLobby, ArenaRoom } from '../net'
+import type { ArenaCharacterStats, ArenaEnd, ArenaLobby, ArenaRoom, ArenaStats } from '../net'
 import { button, el, Modal } from '../salvage/ui'
 import { ARENA_MAPS, ARENA_RULES, ARENA_TEAMS, DEFAULT_CHARACTER, arenaMap, arenaZone, type ArenaMapId, type CharacterId } from '../../shared/arena.js'
 import { CHARACTERS, characterById, type Character } from './characters'
 import { arrow, moveFocus, PadRepeat } from './nav'
+import { loadPortraits } from './portraits'
 import { CharacterPicker, faceOf } from './select'
+import { arenaFx } from './settings'
 
 /*
  * Interface de l'arène : le terminal (à gauche, les quatre lobbys où l'on se place ; à droite, les
@@ -302,7 +304,37 @@ export class ArenaPanel extends Modal {
       )),
     )
     stage.append(hero, el('span', 'arena-heading', tr('Votre personnage', 'Your character')), this.picker.root)
+    stage.append(this.effects())
     stage.append(el('p', 'salvage-note', tr('Pour l\'honneur : CMDR Arena ne rapporte pas de crédits.', 'For honour only: CMDR Arena pays no credits.')))
+  }
+
+  /**
+   * Les effets visuels de la partie, pour soi (cf. settings.ts) : comme le mode léger du jeu, complets,
+   * ou réduits (pour un téléphone peu puissant ; ce qui renseigne la partie reste).
+   */
+  private effects(): HTMLElement {
+    const box = el('div', 'arena-choice arena-effects')
+    const label = tr('Effets visuels', 'Visual effects')
+    box.append(el('span', 'arena-heading', label))
+    const row = el('div', 'arena-segments')
+    row.setAttribute('role', 'radiogroup')
+    row.setAttribute('aria-label', label)
+    const options: [string, boolean | null][] = [[tr('Auto', 'Auto'), null], [tr('Complets', 'Full'), false], [tr('Réduits', 'Reduced'), true]]
+    options.forEach(([text, value], i) => {
+      const on = arenaFx.choice === value
+      const b = button(text, () => {
+        arenaFx.set(value)
+        this.render()
+      }, on ? 'on' : '')
+      b.setAttribute('role', 'radio')
+      b.setAttribute('aria-checked', String(on))
+      b.dataset.key = `fx-${i}`
+      row.append(b)
+    })
+    box.append(row, el('small', 'arena-effects-note', arenaFx.reduced
+      ? tr('Réduits : moins d\'éclats, ni fumée, ni braises, ni bulle ; les anneaux, plaques, cônes, traînées, pièges et chiffres restent.', 'Reduced: fewer sparks, no smoke, embers or bubble; rings, plates, cones, trails, traps and numbers stay.')
+      : tr('Complets. « Réduits » allège la partie sur un téléphone peu puissant, sans rien retirer d\'utile.', 'Full. “Reduced” lightens the match on a low-end phone, without removing anything useful.')))
+    return box
   }
 
   /** Son lobby : les deux camps face à face, son arme, les réglages du chef, « prêt ». */
@@ -404,6 +436,7 @@ export class ArenaPanel extends Modal {
     )
     stage.append(settings)
     if (!leader) stage.append(el('p', 'salvage-note', tr('Le chef du lobby (le premier arrivé, à la couronne) règle la partie ; un changement remet tout le monde en attente.', 'The lobby leader (first in, with the crown) sets the match; any change puts everyone back on standby.')))
+    stage.append(this.effects())
 
     const ready = r.members.filter((m) => m.ready).length
     const footer = el('div', 'arena-footer')
@@ -855,12 +888,14 @@ export class ArenaHud {
 
   /**
    * L'écran de fin, par-dessus la scène où les combattants sont alignés : en haut, qui gagne et le
-   * score ; sous chaque combattant, sa fiche (éliminations, chutes, dégâts ; le joueur star) ; en
-   * bas, le retour au lobby.
+   * score ; sous chaque combattant, sa fiche (éliminations, chutes ou soins, dégâts, et sa part de
+   * ce qu'a fait son équipe ; le joueur star) ; en bas, le retour au lobby, à gauche le
+   * récapitulatif complet (précision, meilleure série…), à droite le personnage de la partie suivante.
    * @param order les combattants, de gauche à droite de la scène
    * @param title le verdict d'un spectateur (« Victoire de l'équipe Orange ») : pour lui, ni victoire ni défaite
+   * @param next le personnage du joueur pour la partie suivante, et quoi faire s'il en change (pas pour un spectateur)
    */
-  showEnd(r: ArenaEnd, team: number, self: number, order: number[], onBack: () => void, title?: string) {
+  showEnd(r: ArenaEnd, team: number, self: number, order: number[], onBack: () => void, title?: string, next?: { character: CharacterId; pick(id: CharacterId): void }) {
     this.end.replaceChildren()
     this.cards.clear()
     this.quit.hidden = true
@@ -887,6 +922,11 @@ export class ArenaHud {
     // Le joueur star : celui qui a le plus éliminé (à égalité, le plus blessé).
     const star = [...r.stats].sort((a, b) => b.kills - a.kills || b.damage - a.damage)[0]
     const cards = el('div', 'arena-cards')
+    // Sa part de ce qu'a fait son équipe : ses dégâts et ses soins, rapportés aux siens.
+    const share = (s: ArenaStats) => {
+      const total = r.stats.filter((x) => x.team === s.team).reduce((n, x) => n + x.damage + x.heal, 0)
+      return total ? (s.damage + s.heal) / total : 0
+    }
     for (const id of order) {
       const s = r.stats.find((x) => x.id === id)
       if (!s) continue
@@ -907,7 +947,12 @@ export class ArenaHud {
         cell.append(el('dd', '', String(value)), el('dt', '', label))
         stats.append(cell)
       }
-      card.append(name, role, stats)
+      // Sa part de l'équipe, en barre.
+      const part = el('p', 'arena-card-share')
+      const bar = el('i')
+      bar.style.setProperty('--fill', `${Math.round(share(s) * 100)}%`)
+      part.append(bar, el('span', '', tr(`${Math.round(share(s) * 100)} % de l'équipe`, `${Math.round(share(s) * 100)}% of the team`)))
+      card.append(name, role, stats, part)
       card.hidden = true
       cards.append(card)
       this.cards.set(id, card)
@@ -918,11 +963,84 @@ export class ArenaHud {
     }, 'arena-back', 'door-open')
     this.back = back
     this.backIn = ''
-    this.end.append(head, cards, back)
+    // Le récapitulatif complet : un tableau, les siens d'abord.
+    const recap = this.recap(r, team, self, share)
+    const open = button(tr('Récapitulatif', 'Summary'), () => {
+      recap.hidden = !recap.hidden
+      open.setAttribute('aria-expanded', String(!recap.hidden))
+      open.classList.toggle('on', !recap.hidden)
+    }, 'arena-end-recap', 'grid-four')
+    open.setAttribute('aria-expanded', 'false')
+    this.end.append(head, cards, recap, open, back)
+    // Le personnage de la partie suivante : on en change d'ici, il vaudra au retour au lobby.
+    if (next) this.end.append(this.nextPick(next))
     this.end.className = `arena-end ${verdict}${title ? ' watch' : ''}`
     this.end.hidden = false
     document.body.classList.add('arena-end-on')
     back.focus()
+  }
+
+  /** Le récapitulatif de fin : chaque combattant, ses éliminations, chutes, dégâts, soins, précision, meilleure série, part de l'équipe. */
+  private recap(r: ArenaEnd, team: number, self: number, share: (s: ArenaStats) => number): HTMLElement {
+    const box = el('section', 'arena-recap')
+    box.hidden = true
+    box.setAttribute('aria-label', tr('Récapitulatif de la partie', 'Match summary'))
+    const table = el('table', 'arena-recap-table')
+    const head = el('tr')
+    for (const h of [tr('Joueur', 'Player'), tr('Personnage', 'Character'), tr('Élim.', 'Kills'), tr('Chutes', 'Deaths'), tr('Dégâts', 'Damage'), tr('Soins', 'Heals'), tr('Précision', 'Accuracy'), tr('Série', 'Streak'), tr('Part', 'Share')]) head.append(el('th', '', h))
+    table.append(el('thead'), el('tbody'))
+    table.tHead!.append(head)
+    const rows = [...r.stats].sort((a, b) => Number(b.team === team) - Number(a.team === team) || b.kills - a.kills || b.damage - a.damage)
+    for (const s of rows) {
+      const tr_ = el('tr', s.id === self ? 'self' : s.team === team ? 'ally' : 'enemy')
+      const c = characterById(s.character)
+      const who = el('td', 'arena-recap-name')
+      if (s.bot) who.append(icon('robot'))
+      who.append(s.name)
+      const char = el('td', 'arena-recap-char', c.name)
+      char.style.setProperty('--char', c.color)
+      const accuracy = s.shots ? `${Math.round(((s.hits ?? 0) / s.shots) * 100)} %` : '—'
+      tr_.append(who, char)
+      for (const v of [s.kills, s.deaths, s.damage, s.heal || '—', accuracy, s.best ?? '—', `${Math.round(share(s) * 100)} %`]) tr_.append(el('td', '', String(v)))
+      table.tBodies[0].append(tr_)
+    }
+    box.append(table, el('p', 'arena-recap-note', tr(
+      'Précision : les projectiles qui ont blessé ou soigné (une graine dont la fleur a mordu, un cocktail dont l\'éclat ou la flaque a brûlé). Part : ses dégâts et ses soins, sur ceux de son équipe.',
+      'Accuracy: projectiles that hurt or healed (a seed whose flower bit, a cocktail whose blast or puddle burned). Share: damage and heals, out of the team\'s.',
+    )))
+    return box
+  }
+
+  /** Le personnage de la partie suivante : six visages ; le choisi ressort. */
+  private nextPick(next: { character: CharacterId; pick(id: CharacterId): void }): HTMLElement {
+    const box = el('nav', 'arena-next')
+    box.setAttribute('aria-label', tr('Personnage pour la partie suivante', 'Character for the next match'))
+    box.append(el('span', 'arena-next-label', tr('Partie suivante', 'Next match')))
+    const draw = (current: CharacterId) => {
+      for (const b of box.querySelectorAll<HTMLButtonElement>('button')) {
+        const on = b.dataset.key === `next-${current}`
+        b.classList.toggle('on', on)
+        b.setAttribute('aria-pressed', String(on))
+      }
+    }
+    for (const c of CHARACTERS) {
+      const b = button('', () => {
+        next.pick(c.id)
+        draw(c.id)
+      }, 'arena-next-pick')
+      b.dataset.key = `next-${c.id}`
+      b.title = c.name
+      b.setAttribute('aria-label', tr(`Jouer ${c.name} à la partie suivante`, `Play ${c.name} next match`))
+      b.style.setProperty('--char', c.color)
+      b.append(faceOf(c, 'arena-face mini'))
+      box.append(b)
+    }
+    draw(next.character)
+    // Les visages arrivent (ils se rendent à la première ouverture du terminal) : on les pose.
+    void loadPortraits().then(() => {
+      for (const c of CHARACTERS) box.querySelector(`[data-key="next-${c.id}"] .arena-face`)?.replaceWith(faceOf(c, 'arena-face mini'))
+    })
+    return box
   }
 
   /** Pose la fiche d'un combattant sous ses pieds (`at`, en pixels ; null : hors du cadre). */

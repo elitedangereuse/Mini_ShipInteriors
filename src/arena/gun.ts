@@ -901,7 +901,16 @@ export class ArenaGun extends RangeGame {
       const held = this.carried.get(by)
       if (held) held.thrown = 0
       const start = held ? () => held.gun.root.position.clone() : null
-      if (to) this.throwLob(w, from, new THREE.Vector3(to[0], (this.host ? arenaGround(this.host.zone, { x: to[0], z: to[1] }) : 0) + 0.06, to[1]), dur ?? 0.5, tint, RELEASE[w.fire ? 'lob' : 'toss'], start)
+      if (to) {
+        const land = new THREE.Vector3(to[0], (this.host ? arenaGround(this.host.zone, { x: to[0], z: to[1] }) : 0) + 0.06, to[1])
+        const release = RELEASE[w.fire ? 'lob' : 'toss']
+        this.throwLob(w, from, land, dur ?? 0.5, tint, release, start)
+        // D'en face : il siffle en retombant, là où il va tomber (sa seconde moitié de course).
+        if (this.host && team !== this.host.team()) {
+          const fall = Math.max(0.2, ((dur ?? 0.5) - release) / 2)
+          window.setTimeout(() => { if (this.session) this.sfx.whistle(this.world(land), fall) }, ((dur ?? 0.5) - fall) * 1000)
+        }
+      }
       return
     }
     this.kick(by, w)
@@ -968,11 +977,13 @@ export class ArenaGun extends RangeGame {
   }
 
   /** Les bruits d'un piège : une fleur jaillit, s'arme, fane (repère de l'arène). */
-  trapSound(kind: 'sprout' | 'windup' | 'wilt' | 'ignite', at: THREE.Vector3) {
+  trapSound(kind: 'sprout' | 'windup' | 'wilt' | 'ignite' | 'crackle', at: THREE.Vector3) {
     if (!this.session) return
     if (kind === 'sprout') this.sfx.sprout(this.world(at))
     else if (kind === 'windup') this.sfx.hiss(this.world(at))
     else if (kind === 'wilt') this.sfx.wilt(this.world(at))
+    else if (kind === 'ignite') this.sfx.ignite(this.world(at))
+    else this.sfx.burning(this.world(at))
   }
 
   /**
@@ -1031,16 +1042,34 @@ export class ArenaGun extends RangeGame {
   }
 
   /** Bruitages de la partie : touché, éliminé, décompte du coup d'envoi (`left` secondes), coup d'envoi ou victoire. */
-  cue(kind: 'hurt' | 'down' | 'tick' | 'go', left = 0) {
+  /**
+   * Les sons de la partie : coup reçu, chute, décompte (`left` : secondes), coup d'envoi ; une série
+   * (`left` : sa longueur) ; une balle de manche ou de match (`left` : 1 pour les siens, 2 de plus
+   * pour une balle de match) ; le verdict (`left` : 1 victoire, -1 défaite, 0 égalité).
+   */
+  cue(kind: 'hurt' | 'down' | 'tick' | 'go' | 'streak' | 'point' | 'verdict', left = 0) {
     if (kind === 'hurt') this.sfx.hurt(0.4)
     else if (kind === 'down') this.sfx.down()
     else if (kind === 'tick') this.sfx.tick(left)
+    else if (kind === 'streak') this.sfx.streak(left)
+    else if (kind === 'point') this.sfx.alarm((left & 1) === 1, (left & 2) === 2)
+    else if (kind === 'verdict') this.sfx.verdict(left > 0 ? 'won' : left < 0 ? 'lost' : 'draw')
     else this.sfx.tier()
   }
 
-  /** Annonce en haut de l'écran (coup d'envoi, élimination). */
-  announce(text: string, warn = false) {
+  /**
+   * Annonce en haut de l'écran : `kind` lui donne son allure (une élimination, une série en or, une
+   * balle de manche ou de match qui bat, une manche jouée, le coup d'envoi).
+   */
+  announce(text: string, warn = false, kind: '' | 'kill' | 'streak' | 'point' | 'match' | 'round' | 'start' = '') {
     this.banner(text, warn)
+    const banner = this.session?.hud.banner
+    if (!banner) return
+    for (const k of ['kill', 'streak', 'point', 'match', 'round', 'start']) banner.classList.toggle(k, k === kind)
+    // Elle se relance à chaque annonce (son animation).
+    banner.classList.remove('again')
+    void banner.offsetWidth
+    banner.classList.add('again')
   }
 
   /**

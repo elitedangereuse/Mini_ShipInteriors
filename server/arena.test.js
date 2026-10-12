@@ -1011,3 +1011,40 @@ test('arène : un spectateur reçoit la partie en cours sans y être, jusqu\'à 
   assert.equal(h.last(4, 'arena:end').reason, 'forfeit')
   assert.equal(h.last(3, 'arena:end'), undefined)
 })
+
+test('arène : les gestes suivent le relais ; le rechargement se dit aux autres, une fois, et ne change rien aux règles', () => {
+  const h = harness()
+  const a = h.add(1), b = h.add(2)
+  const game = h.start(a, [b], { size: 1, bots: false })
+  h.advance(R.warmup + R.shield)
+  // A change de chargeur : B le voit faire (son arme bascule) ; A, non (il le fait déjà).
+  h.arena.handle(a, 'arena:reload')
+  assert.deepEqual(h.events(2, 'reload').map((e) => e.id), [1])
+  assert.equal(h.events(1, 'reload').length, 0)
+  // Le même geste répété aussitôt ne se redit pas (le temps d'un rechargement).
+  h.arena.handle(a, 'arena:reload')
+  h.advance(0.5)
+  h.arena.handle(a, 'arena:reload')
+  assert.equal(h.events(2, 'reload').length, 1)
+  h.advance(D.weapon.reload)
+  h.arena.handle(a, 'arena:reload')
+  assert.equal(h.events(2, 'reload').length, 2)
+  // Le geste n'est qu'une image : le chargeur de jetons du relais n'en sait rien.
+  const tokens = game.fighters.get(1).tokens
+  h.arena.handle(a, 'arena:reload')
+  assert.equal(game.fighters.get(1).tokens, tokens)
+  // Un tir rapide (au doigt) blesse comme un autre : seules les statistiques le comptent à part.
+  h.put(a, 5, 5)
+  h.put(b, 8, 5)
+  game.fighters.get(2).shieldUntil = 0
+  h.arena.handle(a, 'arena:fire', { o: [5, R.aim, 5], d: [[1, 0, 0]], c: 't', a: 1 })
+  h.advance(0.3)
+  const hit = h.events(2, 'hit').pop()
+  assert.equal(hit.dmg, D.weapon.damage)
+  assert.equal(game.fighters.get(1).controls.assist.hits, 1)
+  // Éliminé, on ne recharge plus aux yeux des autres.
+  game.fighters.get(1).alive = false
+  h.advance(D.weapon.reload + 0.1)
+  h.arena.handle(a, 'arena:reload')
+  assert.equal(h.events(2, 'reload').length, 2)
+})

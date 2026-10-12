@@ -217,6 +217,8 @@ interface Game {
   /** Éliminations du joueur depuis sa dernière chute, et dernier échange de balles où il était (l'ardeur de la partie, cf. apply). */
   streak: number
   foughtAt: number
+  /** La balle de manche (ou de match) de chaque équipe a été annoncée, dans cette manche (cf. callPoint). */
+  called: [boolean, boolean]
   /** Spectateur : on regarde la partie sans y être ; `follow` : le combattant que suit la vue. */
   watching: boolean
   follow: number
@@ -298,6 +300,8 @@ export class ArenaClient {
   private threatsFrom: { by: number; src: THREE.Vector3; at: number; heavy: boolean }[] = []
   /** Limites ajoutées aux collisions : la base adverse toujours, la nôtre avant le coup d'envoi. */
   private baseBarriers: Box2[] = []
+  /** Un personnage a été choisi à l'écran de fin, pour la partie suivante : le dire au relais au retour. */
+  private nextCharacter = false
   private ownBaseLocked: boolean | null = null
 
   constructor(private host: ArenaHost) {
@@ -499,6 +503,18 @@ export class ArenaClient {
     else this.host.dialog.show(tr('Aucune partie en cours : l\'hologramme montre l\'arène au repos. Dès qu\'une partie se joue, on la regarde d\'ici.', 'No match in progress: the hologram shows the arena at rest. As soon as one is on, you watch it from here.'))
   }
 
+  /**
+   * Le personnage de la partie suivante, choisi à l'écran de fin : le relais ne l'accepte qu'au
+   * lobby, on le lui dit donc au retour (cf. leaveNow).
+   */
+  private chooseNext(id: CharacterId) {
+    this.character = this.panel.character = id
+    try {
+      localStorage.setItem(CHARACTER_KEY, id)
+    } catch {}
+    this.nextCharacter = true
+  }
+
   /** Le personnage choisi au terminal (on le garde ensuite toute la partie). */
   private choose(id: CharacterId) {
     this.character = this.panel.character = id
@@ -581,7 +597,7 @@ export class ArenaClient {
       const g = this.game
       if (!g || g.watching) return { color: ARENA_TEAMS[team].color, foe: team === 1 }
       return team === g.team ? { color: g.tint.ally, foe: false } : { color: g.tint.enemy, foe: true }
-    }, (x, z) => arenaGround(this.zone, { x, z }), (id) => this.positionOf(id))
+    }, (x, z) => arenaGround(this.zone, { x, z }), (id) => this.seenAt(id))
     this.host.scene.add(deck.group)
     const built: Built = { zone, deck, extras, podium: null }
     this.built.set(zone.id, built)
@@ -643,7 +659,7 @@ export class ArenaClient {
     }
     const watching = !!m.watch
     const game: Game = {
-      id: m.game, team: m.team, goal: m.goal, wins: m.wins, fighters: new Map(), state: null, end: null, downBy: null, second: Infinity, streak: 0, foughtAt: 0,
+      id: m.game, team: m.team, goal: m.goal, wins: m.wins, fighters: new Map(), state: null, end: null, downBy: null, second: Infinity, streak: 0, foughtAt: 0, called: [false, false],
       watching, follow: m.fighters[0]?.id ?? 0, tint: watching ? WATCH_TINT : TINT,
     }
     this.game = game
@@ -804,6 +820,11 @@ export class ArenaClient {
       this.removeFighter(this.host.net.id)
       this.undress()
     })
+    // De retour au lobby : le personnage choisi pour la partie suivante (cf. chooseNext).
+    if (this.nextCharacter) {
+      this.nextCharacter = false
+      this.host.net.sendArena('character', { character: this.character })
+    }
     if (this.game !== g) return
     this.dispose()
     if (message) this.host.dialog.show(message)
@@ -896,6 +917,16 @@ export class ArenaClient {
     if (!f) return null
     if (f.puppet) return f.puppet.group.position.x > -5 ? f.puppet.group.position : null
     return id === this.host.net.id ? this.host.player.position : null
+  }
+
+  /**
+   * Où se tient un combattant que le joueur voit : une fleur qui s'arme ne tourne la tête que vers
+   * celui-là (elle ne trahit pas qui se cache dans un buisson).
+   */
+  private seenAt(id: number): THREE.Vector3 | null {
+    const f = this.game?.fighters.get(id)
+    const at = this.positionOf(id)
+    return f && at && this.visible(f, at) ? at : null
   }
 
   /** Comment un personnage tient son arme : d'une main, prêt à lancer par-dessus l'épaule ou par en dessous, ou à deux mains. */
@@ -995,6 +1026,11 @@ export class ArenaClient {
     // Le décompte du coup d'envoi : un top par seconde, puis le signal.
     const second = Math.ceil(s.warmup)
     if (second < g.second) {
+      // Le décompte commence : quelle manche (la dernière, si chacun en a gagné une, se dit décisive).
+      if (g.second === Infinity && second > 0) {
+        const decisive = s.rounds[0] === g.wins - 1 && s.rounds[1] === g.wins - 1
+        this.gun?.announce(decisive ? tr(`Manche ${s.round} · décisive !`, `Round ${s.round} · decider!`) : tr(`Manche ${s.round} · ${g.goal} points`, `Round ${s.round} · ${g.goal} points`), false, 'start')
+      }
       if (second > 0) this.gun?.cue('tick', second)
       else if (g.second !== Infinity) {
         this.gun?.cue('go')
@@ -1084,7 +1120,8 @@ export class ArenaClient {
         if (this.inArena) gun.knockout(new THREE.Vector3(e.from.x, arenaGround(this.zone, e.from), e.from.z), g.tint[victim.rel])
         const body = victim.puppet
         if (body) body.apply({ x: e.from.x, z: e.from.z, yaw: body.group.rotation.y, level: ARENA_LEVEL, anim: 'idle' })
-        this.avatarOf(victim)?.playEmote('ko')
+        // En effets réduits, il ne tombe pas : il s'efface sur place.
+        if (!arenaFx.reduced) this.avatarOf(victim)?.playEmote('ko')
         this.hud.kill(by && by !== victim ? by : null, victim, e.character, e.by === self || e.id === self)
         if (e.by === self && e.id !== self && this.inArena) gun.slain(new THREE.Vector3(e.from.x, arenaGround(this.zone, e.from) + ARENA_RULES.body.h * 0.6, e.from.z))
         // Le public se lève : plus fort pour une balle de match.
@@ -1093,15 +1130,18 @@ export class ArenaClient {
         if (e.id === self) {
           g.streak = 0
           this.down(by && by !== victim ? by.name : '')
-        } else {
-          if (e.by === self) {
-            buzz(45)
-            // Une série sans tomber : ça se dit.
-            const text = STREAKS[Math.min(++g.streak, STREAKS.length - 1)]
-            gun.announce(text || tr(`${victim.name} éliminé`, `${victim.name} taken out`))
-            if (text) gun.cue('go')
-          } else if (Math.max(...e.score) === g.goal - 1) gun.announce(tr('Balle de match !', 'Match point!'), e.score[g.team] < g.goal - 1)
+        } else if (e.by === self) {
+          buzz(45)
+          // Une série sans tomber : ça se dit, en or, et ça sonne de plus en plus haut.
+          const level = ++g.streak
+          const text = STREAKS[Math.min(level, STREAKS.length - 1)]
+          if (text) {
+            gun.announce(text, false, 'streak')
+            gun.cue('streak', level)
+          } else gun.announce(tr(`${victim.name} éliminé`, `${victim.name} taken out`), false, 'kill')
         }
+        // Une équipe à un point de la manche (ou du match) : on l'annonce, après l'annonce de l'élimination du joueur.
+        this.callPoint(e.score, e.by === self || e.id === self ? 1400 : 0)
         break
       }
       case 'spawn': {
@@ -1127,12 +1167,38 @@ export class ArenaClient {
         const tally = tr(`${mine} manche${mine > 1 ? 's' : ''} à ${theirs}`, `${mine}–${theirs} in rounds`)
         if (e.winner < 0) gun.announce(tr(`Manche nulle · ${tally}`, `Round drawn · ${tally}`))
         else if (g.watching) gun.announce(tr(`Manche à l'équipe ${TEAM_NAMES[e.winner]} · ${tally}`, `Round to the ${TEAM_NAMES[e.winner]} team · ${tally}`))
-        else gun.announce(e.winner === g.team ? tr(`Manche gagnée ! ${tally}`, `Round won! ${tally}`) : tr(`Manche perdue · ${tally}`, `Round lost · ${tally}`), e.winner !== g.team)
+        else gun.announce(e.winner === g.team ? tr(`Manche gagnée ! ${tally}`, `Round won! ${tally}`) : tr(`Manche perdue · ${tally}`, `Round lost · ${tally}`), e.winner !== g.team, 'round')
         gun.cue(e.winner === g.team ? 'go' : 'down')
         this.roar(1)
         g.second = Infinity
+        g.called = [false, false]
         break
       }
+    }
+  }
+
+  /**
+   * Une équipe arrive à un point de la limite : balle de manche, ou balle de match si cette manche
+   * lui donnerait la partie (elle a déjà ses autres manches gagnantes). Une fois par équipe et par
+   * manche ; `delay` (ms) : après l'annonce de l'élimination qui vient d'avoir lieu.
+   */
+  private callPoint(score: [number, number], delay: number) {
+    const g = this.game!
+    const rounds = g.state?.rounds ?? [0, 0]
+    for (const team of [g.team, 1 - g.team] as const) {
+      if (score[team] !== g.goal - 1 || g.called[team]) continue
+      g.called[team] = true
+      const match = rounds[team] >= g.wins - 1
+      const ours = team === g.team
+      const text = g.watching
+        ? match ? tr(`Balle de match pour l'équipe ${TEAM_NAMES[team]} !`, `Match point for the ${TEAM_NAMES[team]} team!`) : tr(`Balle de manche pour l'équipe ${TEAM_NAMES[team]} !`, `Round point for the ${TEAM_NAMES[team]} team!`)
+        : match ? (ours ? tr('Balle de match !', 'Match point!') : tr('Balle de match pour eux !', 'Match point for them!'))
+          : ours ? tr('Balle de manche !', 'Round point!') : tr('Balle de manche pour eux !', 'Round point for them!')
+      window.setTimeout(() => {
+        if (this.game !== g || g.end) return
+        this.gun?.announce(text, !ours && !g.watching, match ? 'match' : 'point')
+        this.gun?.cue('point', (ours || g.watching ? 1 : 0) | (match ? 2 : 0))
+      }, delay)
     }
   }
 
@@ -1144,7 +1210,7 @@ export class ArenaClient {
     const g = this.game!
     g.downBy = by
     this.host.player.cancelPath()
-    this.host.iso.shake(0.3)
+    if (!arenaFx.reduced) this.host.iso.shake(0.3)
     this.gun!.down()
     this.gun!.cue('down')
     buzz([70, 40, 130])
@@ -1256,6 +1322,7 @@ export class ArenaClient {
       : g.watching ? tr(`Victoire de l'équipe ${TEAM_NAMES[r.winner]}`, `${TEAM_NAMES[r.winner]} team wins`)
         : r.winner === g.team ? tr('Victoire !', 'Victory!') : tr('Défaite', 'Defeat')
     this.hud.shout(verdict, !g.watching && r.winner >= 0 && r.winner !== g.team)
+    this.gun?.cue('verdict', r.winner < 0 ? 0 : g.watching || r.winner === g.team ? 1 : -1)
     await new Promise((done) => window.setTimeout(done, CURTAIN))
     if (gone()) return
     await this.host.fade(true)
@@ -1276,7 +1343,7 @@ export class ArenaClient {
     this.hud.showEnd(r, g.team, self, entries.map((e) => e.id), () => {
       this.endTimer = 0
       void this.leave()
-    }, g.watching ? verdict : undefined)
+    }, g.watching ? verdict : undefined, g.watching ? undefined : { character: this.character, pick: (id) => this.chooseNext(id) })
     // Le site a pu répondre avant le lever de rideau.
     const ranked = this.rankedAs
     if (ranked?.game === r.game) this.hud.ranked(ranked.ok ? tr('Partie comptée au classement', 'Match counted in the ranking') : UNRANKED[ranked.reason ?? 'site'], ranked.ok)
