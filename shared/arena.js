@@ -183,11 +183,14 @@ export const ARENA_BOTS = ['Drone Vipère', 'Drone Cobra', 'Drone Python', 'Dron
  *
  * - La baie (17 × 11) : le stade de CMDR Arena (cf. src/arena/venue.ts). Trois allées : au nord, au
  *   milieu par la cour centrale et ses deux buissons, au sud.
- * - La ruche (19 × 19) : une structure thargoïde, en octogone. Au milieu, la chambre du cœur, octogone
- *   elle aussi, ouverte sur ses quatre côtés droits ; de chacun de ses sommets, une nervure court
- *   jusqu'au sommet de l'enceinte, percée d'un passage, et découpe l'anneau en huit secteurs. Les
- *   bases sont les secteurs ouest et est ; des massifs de spores (buissons) et des cosses couvrent
- *   les autres (cf. src/arena/hive.ts).
+ * - La ruche (23 × 15) : une structure thargoïde, en chrysalide (un octogone étiré d'une base à
+ *   l'autre, renflé au milieu). Au milieu, la chambre du cœur, octogone elle aussi, fermée de
+ *   nervures, ses coins coupés : une porte de trois tuiles sur chaque côté droit, des massifs de
+ *   spores (buissons) dans ses coins. Autour, deux galeries au nord et au sud, une spire au milieu de
+ *   chacune et des spores dans le renflement, coupées d'une nervure de chaque côté ; devant chaque
+ *   base, deux chevrons et une spire ; des spores encore, au coin des bases et devant la porte de la
+ *   chambre. Tout le terrain sert : rien n'y est à l'écart du chemin d'une base à l'autre (cf.
+ *   src/arena/hive.ts).
  * - Le site gardien (23 × 17) : le sanctuaire du gouffre, des ruines gardiennes de nuit, suspendues
  *   au-dessus du vide, sur deux hauteurs. Au milieu, le sanctuaire en croix, en hauteur (`plateau`),
  *   à bras de cinq tuiles : sa travée d'ouest en est (9 × 5), et ses bras nord et sud ; on y monte par
@@ -245,25 +248,21 @@ export const ARENA_MAPS = [
     id: 'hive',
     name: ['La ruche', 'The hive'],
     plan: [
-      '     #.......#     ',
-      '    .##.....##.    ',
-      '   .....ggg.....   ',
-      '  ....#.....#....  ',
-      ' ..gg.##.o.##.gg.. ',
-      '##.....#...#.....##',
-      '.#.##.##...##.##.#.',
-      '.A..###g...g###..B.',
-      '........XXX........',
-      '.A.o....XXX....o.B.',
-      '........XXX........',
-      '.A..###g...g###..B.',
-      '.#.##.##...##.##.#.',
-      '##.....#...#.....##',
-      ' ..gg.##.o.##.gg.. ',
-      '  ....#.....#....  ',
-      '   .....ggg.....   ',
-      '    .##.....##.    ',
-      '     #.......#     ',
+      '        ..g.g..        ',
+      '   ...#....o....#...   ',
+      '  .gg.#.........#.gg.  ',
+      ' .......##...##....... ',
+      '....##.#.......#.##....',
+      '.A..#..#g.....g#..#..B.',
+      '.....g....XXX....g.....',
+      '.A..o.....XXX.....o..B.',
+      '.....g....XXX....g.....',
+      '.A..#..#g.....g#..#..B.',
+      '....##.#.......#.##....',
+      ' .......##...##....... ',
+      '  .gg.#.........#.gg.  ',
+      '   ...#....o....#...   ',
+      '        ..g.g..        ',
     ],
   },
 ]

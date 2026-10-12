@@ -9,11 +9,11 @@ import { composeExtras, type ArenaExtras, type BushLook } from './deck'
 import type { Venue } from './venue'
 
 /*
- * La ruche (cf. ARENA_MAPS) : une structure thargoïde, au fond d'une caverne. Le terrain est un
- * octogone ; au milieu, la chambre du cœur, octogone elle aussi, et de chacun de ses sommets une
- * nervure court jusqu'au sommet de l'enceinte. Cette figure est gravée dans le sol et y luit (les
- * veines), même là où la nervure est percée d'un passage ou la chambre ouverte : vue de dessus, on
- * lit la structure entière.
+ * La ruche (cf. ARENA_MAPS) : une structure thargoïde, au fond d'une caverne. Le terrain est une
+ * chrysalide, un octogone étiré d'une base à l'autre ; au milieu, la chambre du cœur, octogone elle
+ * aussi, et de chacun de ses sommets une nervure court jusqu'au sommet de l'enceinte. Cette figure
+ * est gravée dans le sol et y luit (les veines), même là où la nervure est percée d'un passage ou la
+ * chambre ouverte : vue de dessus, on lit la structure entière.
  *
  * Tout est de la chitine thargoïde, noire, d'un reflet vert : les nervures et l'enceinte sont des
  * blocs arrondis qui se fondent l'un dans l'autre (débordant de leur tuile comme un mur du kit, dont
@@ -31,9 +31,12 @@ import type { Venue } from './venue'
 /** Le vert des veines thargoïdes, et celui du cœur au plus fort de son battement. */
 const VEIN = '#39ff88'
 const BRIGHT = '#c9ffe0'
-/** La ruche dessine la même figure que son plan (cf. ARENA_MAPS) : les sommets de l'enceinte et de la chambre, en tuiles. */
-const OUTER: [number, number][] = [[5, 0], [13, 0], [18, 5], [18, 13], [13, 18], [5, 18], [0, 13], [0, 5]]
-const INNER: [number, number][] = [[7, 5], [11, 5], [13, 7], [13, 11], [11, 13], [7, 13], [5, 11], [5, 7]]
+/**
+ * La ruche dessine la même figure que son plan (cf. ARENA_MAPS) : les sommets de l'enceinte (sans
+ * son renflement au nord et au sud) et ceux des murs de la chambre, en tuiles.
+ */
+const OUTER: [number, number][] = [[3, 1], [19, 1], [22, 4], [22, 10], [19, 13], [3, 13], [0, 10], [0, 4]]
+const INNER: [number, number][] = [[8, 3], [14, 3], [15, 4], [15, 10], [14, 11], [8, 11], [7, 10], [7, 4]]
 /**
  * La chitine de la ruche : noire, lisse, un reflet vert. Un matériau à elle : ses pièces (des
  * géométries indexées) ne se fusionnent pas avec celles du mobilier fait main, qui ne le sont plus.

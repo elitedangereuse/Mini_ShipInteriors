@@ -22,7 +22,7 @@ const mapName = (id: string) => tr(...arenaMap(id).name)
 const MAP_BLURBS: Record<ArenaMapId, string> = {
   bay: tr('Le stade de CMDR Arena : trois allées, des tribunes pleines.', 'The CMDR Arena stadium: three lanes, packed stands.'),
   guardian: tr('Des ruines gardiennes, de nuit, sur deux hauteurs : le promontoire de la relique domine.', 'Guardian ruins at night, on two levels: the relic\'s ridge looms over all.'),
-  hive: tr('Une ruche thargoïde : un octogone, la chambre du cœur au milieu.', 'A Thargoid hive: an octagon, the heart chamber at its centre.'),
+  hive: tr('Une ruche thargoïde en chrysalide : au milieu, la chambre du cœur et ses quatre portes.', 'A chrysalis-shaped Thargoid hive: the heart chamber and its four doors at its centre.'),
 }
 /** Couleurs de la vignette de chaque plan : le sol, les obstacles, les buissons. */
 const MAP_TINTS: Record<ArenaMapId, [string, string, string]> = {
