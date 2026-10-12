@@ -25,10 +25,12 @@
 // défaut : chaque coupe sur un même modèle), &style=--sm-- : ce style sur toutes, &play=joie : une emote
 // en boucle (son expression). window.snap() rend l'image (PNG en data URL).
 // Avec ?vaisseaux : les vaisseaux d'Elite Dangerous (cf. src/ed-ships.ts), à la taille du trafic, du plus
-// petit au plus grand (&only=cobra-mk3,python ; &cols=6).
+// petit au plus grand (&only=cobra-mk3,python ; &cols=6 ; &peinture=tactical-ice : chacun dans cette peinture de la
+// boutique, s'il l'a ; &peintures=python : toutes les peintures d'un vaisseau, cf. src/ship-paint.ts).
 import * as THREE from 'three'
 import { NATURE_PACK, OUTDOOR_PACK, packModel, packModels, preload, station, STATION_MODELS, type StationModel } from '../assets'
-import { ED_SHIPS, edShip, shipInfo, trafficLength, type EdShipId } from '../ed-ships'
+import { ED_SHIPS, edShip, paintShip, shipInfo, trafficLength, type EdShipId } from '../ed-ships'
+import { findPaint, shipPaints, type ShipPaint } from '../ship-paint'
 import { Avatar, SALUTE } from '../avatar'
 import { CATALOG, CATEGORIES } from '../cabin/catalog'
 import { drawFinish, stylesOf } from '../cabin/finishes'
@@ -121,16 +123,24 @@ else showModels()
 
 /** Les vaisseaux d'Elite Dangerous, en grille, à la taille où ils croisent autour du vaisseau. */
 async function showShips() {
-  const ids = (params.get('only')?.split(',') ?? ED_SHIPS) as EdShipId[]
+  const one = params.get('peintures') as EdShipId | null
+  const paint = params.get('peinture')
+  let ids = (params.get('only')?.split(',') ?? ED_SHIPS) as EdShipId[]
+  let paints: (ShipPaint | null)[] = await Promise.all(ids.map((id) => (paint ? findPaint(id, paint) : null)))
+  if (one) {
+    paints = [null, ...(await shipPaints(one))]
+    ids = paints.map(() => one)
+  }
   const cols = +(params.get('cols') ?? 6)
   const ships = await Promise.all(ids.map((id) => edShip(id)))
   ships.forEach((ship, i) => {
     const info = shipInfo(ship)
+    paintShip(ship, paints[i])
     ship.scale.setScalar(trafficLength(info.size[2]) / info.size[2])
     const x = ((i % cols) - (cols - 1) / 2) * 6, z = Math.floor(i / cols) * 6
     ship.position.set(x, 0, z)
     scene.add(ship)
-    const l = label(info.name)
+    const l = label(one ? paints[i]?.name ?? 'Livrée du constructeur' : info.name)
     l.position.set(x, -0.8, z + 2.6)
     scene.add(l)
   })

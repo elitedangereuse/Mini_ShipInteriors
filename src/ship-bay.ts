@@ -1,9 +1,10 @@
 import * as THREE from 'three'
 import type { Box2, Deck, Interactable } from './deck'
-import { ED_SHIPS, edShip, shipInfo, type EdShipId, type EdShipInfo } from './ed-ships'
+import { ED_SHIPS, edShip, paintShip, shipInfo, type EdShipId, type EdShipInfo } from './ed-ships'
 import { beamMaterial, ED_ORANGE, glow, lit } from './furniture/kit'
 import { tr } from './i18n'
 import type { SeatSpot } from './seats'
+import { FACTORY, findPaint, paintOf, type PaintedHull, type ShipPaint } from './ship-paint'
 
 /*
  * L'aire du hangar de la cale (et celle de la base au sol) : le vaisseau que le joueur a choisi
@@ -19,6 +20,9 @@ import type { SeatSpot } from './seats'
  *
  * Ce qui arrête le joueur vient du plan au sol du modèle (cf. scripts/import-ed-ships.mjs) : la
  * coque plus basse que la tête ; sous une aile haute, on passe.
+ *
+ * Le vaisseau porte la peinture choisie pour lui au registre (cf. ship-paint.ts), la même au hangar
+ * et sur la base ; on la change sans le reposer (cf. setPaint).
  */
 
 /** Tuiles par mètre : l'échelle du Krait d'origine du hangar (73,25 m pour 6,57 tuiles). */
@@ -175,6 +179,8 @@ interface Parked {
   id: EdShipId
   layout: Layout
   root: THREE.Group
+  /** Sa coque peinte. */
+  hull: PaintedHull
   remove: () => void
   update: (t: number) => void
   spot: SeatSpot
@@ -228,6 +234,17 @@ export class ShipBay {
     return this.parked?.layout.info ?? null
   }
 
+  /** La peinture du vaisseau posé (null : la livrée du constructeur). */
+  get paint(): ShipPaint | null {
+    const p = this.parked?.hull.paint
+    return p && p.family !== FACTORY ? p : null
+  }
+
+  /** Repeint le vaisseau posé, sur place (celui qui se charge prendra la peinture gardée pour lui, cf. paintOf). */
+  setPaint(paint: ShipPaint | null) {
+    this.parked?.hull.set(paint)
+  }
+
   /** La place du pilote (repère du pont), si un vaisseau est posé. */
   get seat(): SeatSpot | null {
     return this.parked?.spot ?? null
@@ -262,8 +279,10 @@ export class ShipBay {
     }
     this.wanted = id
     let model: THREE.Object3D
+    let paint: ShipPaint | null
     try {
-      model = await edShip(id)
+      // Sa peinture arrive avec lui (le catalogue des peintures peut manquer : la livrée d'usine).
+      ;[model, paint] = await Promise.all([edShip(id), findPaint(id, paintOf(id)).catch(() => null)])
     } catch (e) {
       if (this.wanted === id) this.wanted = null
       throw e
@@ -274,14 +293,15 @@ export class ShipBay {
     if (this.wanted !== id) return false
     this.wanted = null
     this.parked?.remove()
-    this.parked = this.park(id, model)
+    this.parked = this.park(id, model, paint)
     this.onChange?.(this)
     return true
   }
 
   /** Construit le vaisseau, son train, son escabeau, ses jets et ses feux, et le pose sur le pont. */
-  private park(id: EdShipId, model: THREE.Object3D): Parked {
+  private park(id: EdShipId, model: THREE.Object3D, paint: ShipPaint | null): Parked {
     const info = shipInfo(model)
+    const hull = paintShip(model, paint)
     const l = layout(info)
     const root = new THREE.Group()
     const p = this.o.pad
@@ -472,6 +492,7 @@ export class ShipBay {
       unplace()
       for (const g of own) g.dispose()
       jet.dispose()
+      hull.material.dispose()
     }
     // Les interactions : l'escabeau (le cockpit), la coque (examiner ; l'aile tribord pour Nico).
     const foot = this.world(0, (PLATFORM_FROM + STEPS_END) / 2)
@@ -506,7 +527,7 @@ export class ShipBay {
       nav[0].visible = nav[1].visible = t % 2 < 1.6
       if (nav[2]) nav[2].visible = t % 1.4 < 0.12 || thrust > 0.3
     }
-    return { id, layout: l, root, remove, update, spot }
+    return { id, layout: l, root, hull, remove, update, spot }
   }
 
   /** Ce qu'on lit en examinant le vaisseau. */

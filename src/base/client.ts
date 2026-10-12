@@ -5,6 +5,7 @@ import { tr } from '../i18n'
 import type { ChiefState } from '../net'
 import type { Player } from '../player'
 import type { EdShipId } from '../ed-ships'
+import type { ShipPaint } from '../ship-paint'
 import { chosenShip, ShipBay } from '../ship-bay'
 import { BASE_ARRIVAL, BASE_BURN, BASE_KRAIT, HANGAR_ARRIVAL } from '../../shared/ground-base.js'
 import { CHIEF, Chief, chiefRig, type ChiefReport } from './chief'
@@ -151,6 +152,11 @@ export class GroundBase {
   /** Le joueur a choisi un autre vaisseau au registre du hangar : il l'attend aussi sur la base. */
   setShip(id: EdShipId) {
     this.bay?.set(id).catch((e) => console.error(e))
+  }
+
+  /** Le joueur a repeint ce vaisseau au registre du hangar : il l'est aussi sur la base. */
+  setPaint(id: EdShipId, paint: ShipPaint | null) {
+    if (this.bay?.id === id) this.bay.setPaint(paint)
   }
 
   /** Le relais : la ronde d'Ada, et les réacteurs sur l'aire de la base. */

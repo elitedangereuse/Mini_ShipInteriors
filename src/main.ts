@@ -76,6 +76,7 @@ import { DROID, MECHANIC, Mechanic, mechanicRig, type MechanicReport } from './m
 import { Hangar } from './hangar'
 import { chosenShip, pickedShip, saveEliteShip, saveShip, ShipBay } from './ship-bay'
 import { ShipPicker } from './ship-picker'
+import { FACTORY, paintOf, savePaint } from './ship-paint'
 import { hangarDisplay, kraitPower } from './furniture/hangar'
 import { edShipFromElite, silhouetteRects } from './ed-ships'
 import { GARDENER, Gardener, gardenerRig, type GardenerReport } from './gardener'
@@ -1532,6 +1533,9 @@ hangarBay.hull.text = () => {
   if (hangarBay.id === shipPicker.elite && !pickedShip()) {
     lines[0] = tr(`{ship} de {maker}${eliteShipName ? ` « ${eliteShipName} »` : ''}, posé sur le pad 7. Le tien : celui que tu pilotes dans Elite Dangerous. Nico l'appelle « la Princesse ».`, `{maker} {ship}${eliteShipName ? ` “${eliteShipName}”` : ''}, parked on pad 7. Yours: the one you fly in Elite Dangerous. Nico calls her “the Princess”.`)
   }
+  // Repeint au registre : la première phrase dit sa peinture.
+  const paint = hangarBay.paint
+  if (paint) lines[0] += tr(` Peinture : ${paint.name}.`, ` Paint job: ${paint.name}.`)
   return lines[Math.floor(Math.random() * lines.length)]
     .split('{ship}').join(hangarBay.info?.name ?? 'Krait Mk II')
     .split('{maker}').join(hangarBay.info?.maker ?? 'Faulcon DeLacy')
@@ -1685,6 +1689,27 @@ void eliteShip().then((ship) => {
     if (parked) groundBase.setShip(id)
   })
 }).catch((e) => console.error(e))
+// La peinture, au même registre : gardée pour ce vaisseau, posée au hangar et sur la base.
+shipPicker.paintOf = paintOf
+/** Le vaisseau repeint pendant que le registre était ouvert : Nico le remarque à la fermeture. */
+let repainted = false
+shipPicker.onPaint = (ship, paint) => {
+  savePaint(ship, paint?.id ?? FACTORY)
+  // Encore en route (choisi à l'instant) : il prendra la peinture gardée en se posant.
+  if (hangarBay.id === ship) hangarBay.setPaint(paint)
+  groundBase.setPaint(ship, paint)
+  repainted = true
+}
+shipPicker.onClose = () => {
+  if (!repainted) return
+  repainted = false
+  const name = hangarBay.info?.name ?? ''
+  const paint = hangarBay.paint
+  dialog.show(paint
+    ? tr(`Ton ${name} sort de l'atelier en ${paint.name}. La peinture est encore fraîche.`, `Your ${name} rolls out of the paint shop in ${paint.name}. The paint is still wet.`)
+    : tr(`Ton ${name} retrouve la livrée de son constructeur.`, `Your ${name} is back in its maker's livery.`))
+  mechanic.say(paint ? tr('Ouh là. Elle est encore plus belle comme ça.', 'Oh wow. She looks even better like that.') : tr('Les couleurs d\'origine, y a que ça de vrai.', 'Factory colours. Nothing beats them.'))
+}
 for (const it of holdDeck.interactables) {
   if (it.furniture?.model === 'ship-registry') it.onInteract = () => {
     player.interact()

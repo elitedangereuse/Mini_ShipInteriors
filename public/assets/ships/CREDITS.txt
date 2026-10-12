@@ -1,4 +1,4 @@
-Vaisseaux d'Elite Dangerous (Frontier Developments), allégés et peints pour Mini Interior par
+Vaisseaux d'Elite Dangerous (Frontier Developments), allégés, lissés et peints pour Mini Interior par
 scripts/import-ed-ships.mjs, d'après les modèles imprimables « 2 Part (Elite Dangerous) » de
 Kahnindustries (David Williams). Licences des modèles d'origine :
 
@@ -34,3 +34,7 @@ Type-9 Heavy : Kahnindustries, https://www.thingiverse.com/thing:3618927, CC BY 
 Type-10 Defender : Kahnindustries (David Williams), « type_10_defender », licence CC
 Federal Corvette : Kahnindustries, https://www.thingiverse.com/thing:3485024, CC BY 3.0
 Imperial Cutter : Kahnindustries, https://www.thingiverse.com/thing:3548302, CC BY 3.0
+
+Peintures (paints.json) : les noms et les couleurs des peintures de la boutique d'Elite Dangerous
+(Frontier Developments), relevés sur ses vignettes par scripts/import-ed-paints.mjs ; leurs motifs
+sont redessinés pour le jeu (src/ship-paint.ts).
