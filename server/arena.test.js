@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createArena } from './arena.js'
 import {
-  ARENA_CHARACTERS as C, ARENA_LEVEL, ARENA_MAPS, ARENA_RULES as R, CHARACTER_IDS, DEFAULT_CHARACTER, arenaGround, arenaHidden, arenaSight, arenaZone, blastDamage, bushSight, castArena, inBush, lobTarget,
+  ARENA_CHARACTERS as C, ARENA_LEVEL, ARENA_MAPS, ARENA_RULES as R, CHARACTER_IDS, DEFAULT_CHARACTER, arenaGround, arenaHidden, arenaSight, arenaZone, blastDamage, bushSight, castArena, inBush, lobTarget, shotOrigin,
 } from '../shared/arena.js'
 import { findPath, mulberry32 } from '../shared/salvage.js'
 
@@ -682,6 +682,43 @@ test('arène : le cocktail de Jacques éclate là où il retombe, et sa flaque b
   const zone = arenaZone()
   assert.deepEqual(lobTarget(zone, { x: 5, z: 2 }, { x: 1, z: 0 }, 2, cocktail.range), { x: 6.4, z: 2 })
   assert.deepEqual(lobTarget(zone, { x: 5, z: 2 }, { x: 1, z: 0 }, 20, cocktail.range), { x: 11, z: 2 })
+})
+
+test('arène : le cône de visée prévoit le tir du relais, d\'où il part jusqu\'où il retombe, même contre un obstacle', () => {
+  const zone = arenaZone()
+  // En terrain libre, le tir part de la main ; si elle passe dans un conteneur, ou trop loin, des pieds.
+  assert.deepEqual(shotOrigin(zone, { x: 5, z: 2 }, { x: 5.3, z: 2 }), { x: 5.3, z: 2 })
+  assert.deepEqual(shotOrigin(zone, { x: 6.4, z: 2 }, { x: 6.7, z: 2 }), { x: 6.4, z: 2 })
+  assert.deepEqual(shotOrigin(zone, { x: 5, z: 2 }, { x: 6.3, z: 2 }), { x: 5, z: 2 })
+  const h = harness()
+  const a = h.add(1), b = h.add(2)
+  h.start(a, [b], { size: 1, bots: false }, { 1: 'capucine' })
+  h.advance(R.warmup + R.shield)
+  h.put(b, 12, 9)
+  const seed = C.capucine.weapon
+  const diagonal = { x: Math.SQRT1_2, z: Math.SQRT1_2 }
+  // Les pieds, la main, la direction, la distance voulue : ce que le cône calcule (cf. ArenaGun.sightCone),
+  // et ce que le relais fait retomber.
+  const cases = [
+    [{ x: 5, z: 2 }, { x: 5.3, z: 2 }, { x: 1, z: 0 }, 4],
+    [{ x: 6.4, z: 2 }, { x: 6.7, z: 2 }, { x: 1, z: 0 }, 3],
+    [{ x: 5, z: 5 }, { x: 5 + 0.3 * diagonal.x, z: 5 + 0.3 * diagonal.z }, diagonal, 20],
+    [{ x: 8, z: 4.4 }, { x: 8.3, z: 4.4 }, { x: 1, z: 0 }, 1.2],
+  ]
+  for (const [foot, hand, dir, r] of cases) {
+    h.put(a, foot.x, foot.z)
+    const expected = lobTarget(zone, shotOrigin(zone, foot, hand), dir, r, seed.range)
+    h.arena.handle(a, 'arena:fire', { o: [hand.x, R.aim, hand.z], d: [[dir.x, 0, dir.z]], r })
+    const shot = h.events(2, 'shot').pop()
+    assert.deepEqual(shot.to, [expected.x, expected.z], `de (${foot.x}, ${foot.z}) vers (${dir.x.toFixed(2)}, ${dir.z.toFixed(2)})`)
+    h.advance(seed.interval + seed.reload)
+  }
+  // Une balle : elle s'arrête là où s'arrête la ligne du milieu du cône (le premier obstacle, ou la portée).
+  const rifle = C.nico.weapon
+  const from = { x: 5.3, y: R.aim, z: 2 }
+  assert.ok(Math.abs(castArena(zone, from, { x: 1, y: 0, z: 0 }, rifle.range, []).t - 1.2) < 1e-6, 'le conteneur de (7, 2)')
+  assert.equal(castArena(zone, { x: 5, y: R.aim, z: 7 }, { x: 0, y: 0, z: -1 }, rifle.range, []).t, 7.5, 'le bord nord de l\'arène, en deçà de la portée')
+  assert.equal(castArena(zone, { x: 5, y: R.aim, z: 7 }, { x: 0, y: 0, z: -1 }, 6, []).t, 6, 'la portée, sans rien en deçà')
 })
 
 test('arène : les bots se cherchent, se tirent dessus, et la partie se joue en manches', () => {

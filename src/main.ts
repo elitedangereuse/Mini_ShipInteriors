@@ -759,7 +759,6 @@ let rangeHeading = 0
 let rangeZoom = 0
 let rangeOn = false
 const rangeHands = new THREE.Vector3()
-const rangeAim = new THREE.Vector3()
 let rangePadFire = false
 stand.onChange = (on) => {
   // L'invite de chaque support : prendre cette arme, ou raccrocher la sienne.
@@ -2150,6 +2149,10 @@ arenaMode = new ArenaClient({
     const d = camera.getWorldPosition(screenPos).distanceTo(p)
     screenPos.copy(p).project(camera)
     return screenPos.z > 1 ? null : { x: ((screenPos.x + 1) / 2) * innerWidth, y: ((1 - screenPos.y) / 2) * innerHeight, d }
+  },
+  facing: () => {
+    activeCamera().getWorldDirection(screenPos)
+    return Math.atan2(screenPos.x, screenPos.z)
   },
   armed: (gun) => {
     let on = false
@@ -4029,11 +4032,11 @@ function updateGamepad(dt: number): GamepadInput {
     // Dans les vues subjective et à la troisième personne, le regard suit exactement le
     // déplacement du pouce. Le stick immobile ne fait rien : pas de vitesse entretenue, de zone
     // morte ni de courbe qui lisseraient le geste. Au stand, ce même déplacement vise l'arme.
+    // Vu de dessus, il vise : sa direction, et jusqu'où il est poussé (un objet lancé part d'autant plus loin).
     if (fpsShown) fps.look(-touch.aimMovedX * TOUCH_LOOK_YAW, -touch.aimMovedY * TOUCH_LOOK_PITCH)
     else if (touchAiming) {
-      const reach = Math.hypot(touch.lookX, touch.lookY)
-      pad.lookX = touch.lookX / reach
-      pad.lookY = touch.lookY / reach
+      pad.lookX = touch.lookX
+      pad.lookY = touch.lookY
     }
     pad.interact ||= touch.interact
     pad.action ||= touch.action
@@ -4089,11 +4092,9 @@ function updateGamepad(dt: number): GamepadInput {
     // Dans l'arène, le cône de visée paraît aussi au stick droit d'une vraie manette, sur un écran tactile.
     range.sight(touchAiming || (range !== stand && Math.hypot(pad.lookX, pad.lookY) > 0.3))
     if (pad.action) range.reload()
+    // Vu de dessus, le stick vise là où il pointe à l'écran (cf. RangeGame.aimStick).
     if (fpsShown) fps.look(-pad.lookX * dt * 2.4, -pad.lookY * dt * 1.8)
-    else if (pad.lookX || pad.lookY) {
-      iso.screenToGround(pad.lookX, -pad.lookY, rangeAim)
-      range.aimToward(rangeAim.x, rangeAim.z)
-    }
+    else if (pad.lookX || pad.lookY) range.aimStick(pad.lookX, pad.lookY, Math.min(1, Math.hypot(pad.lookX, pad.lookY)))
     if (pad.cancel) range.stop()
     return pad
   }

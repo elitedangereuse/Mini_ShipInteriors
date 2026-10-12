@@ -443,7 +443,32 @@ export type Relation = 'self' | 'ally' | 'enemy'
 /** Ce que le HUD montre d'un combattant dans le fil des éliminations. */
 export interface FeedName { name: string; rel: Relation }
 /** La plaque d'un combattant, au-dessus de sa tête : son nom, ses points de vie. */
-export interface PlateInfo { name: string; hp: number; /** Ses points de vie de départ. */ max: number; rel: Relation; shield: boolean; bot: boolean; /** Le joueur : son chargeur, de 0 à 1, et s'il est en train de le changer. */ ammo?: number; reloading?: boolean; /** Éliminé, en fantôme à sa base : secondes avant de revenir en jeu. */ wait?: number }
+export interface PlateInfo {
+  name: string; hp: number; /** Ses points de vie de départ. */ max: number; rel: Relation; shield: boolean; bot: boolean
+  /** Le joueur : son chargeur, de 0 à 1, et s'il est en train de le changer. */
+  ammo?: number; reloading?: boolean
+  /** Éliminé, en fantôme à sa base : secondes avant de revenir en jeu. */
+  wait?: number
+  /** Le joueur joue Betty : ce coéquipier blessé est à soigner (`heal`), ou il est au maximum de sa vie et sa seringue le traversera (`full`). */
+  heal?: boolean; full?: boolean
+}
+
+/** Une plaque : ses éléments, et ce qu'elle montrait (pour ne toucher au DOM que si cela change). */
+interface Plate {
+  root: HTMLElement
+  name: HTMLElement
+  fill: HTMLElement
+  /** Ce que le dernier coup a ôté, qui s'efface après la barre (on voit ce qu'on vient de perdre). */
+  lag: HTMLElement
+  value: HTMLElement
+  ammo: HTMLElement
+  shown: boolean
+  hp: number
+  max: number
+}
+
+/** Une graduation de la barre de vie tous les SEGMENT points : on y compte les coups qu'il reste à donner. */
+const SEGMENT = 25
 
 /**
  * En partie, à la façon de Brawl Stars : le score des deux camps (le sien en bleu, à gauche, celui
@@ -459,13 +484,16 @@ export class ArenaHud {
   private readonly clock = el('span', 'arena-clock')
   private readonly goal = el('span', 'arena-goal')
   private readonly plates = el('div', 'arena-plates')
-  private readonly plateOf = new Map<number, { root: HTMLElement; name: HTMLElement; fill: HTMLElement; value: HTMLElement; ammo: HTMLElement; shown: boolean }>()
+  private readonly plateOf = new Map<number, Plate>()
   private readonly feed = el('ul', 'arena-feed')
   private readonly wait = el('div', 'arena-wait')
   private readonly waitTitle = el('strong')
   private readonly waitClock = el('span')
   private readonly count = el('div', 'arena-count')
   private readonly vignette = el('div', 'arena-vignette')
+  /** D'où viennent les coups qu'on prend : un arc par tireur, autour de soi (cf. threats). */
+  private readonly threatBox = el('div', 'arena-threats')
+  private readonly threatArcs: HTMLElement[] = []
   private readonly end = el('section', 'arena-end')
   /** Les fiches de l'écran de fin, par combattant, et le bouton du retour (son compte à rebours). */
   private readonly cards = new Map<number, HTMLElement>()
@@ -504,7 +532,8 @@ export class ArenaHud {
     who.append(icon('eye'), el('em', '', tr('Spectateur', 'Spectating')), this.watchName)
     this.watchBar.hidden = true
     this.watchBar.append(previous, who, next)
-    this.root.append(this.plates, board, this.feed, this.quit, this.count, this.wait, this.watchBar)
+    this.threatBox.setAttribute('aria-hidden', 'true')
+    this.root.append(this.plates, this.threatBox, board, this.feed, this.quit, this.count, this.wait, this.watchBar)
     this.end.hidden = true
     this.end.setAttribute('role', 'dialog')
     this.end.setAttribute('aria-modal', 'true')
@@ -588,18 +617,23 @@ export class ArenaHud {
       const root = el('div', 'arena-plate')
       const name = el('span', 'arena-plate-name')
       const bar = el('div', 'arena-plate-bar')
+      const lag = el('s')
       const fill = el('i')
       const value = el('b')
-      bar.append(fill, value)
+      bar.append(lag, fill, value)
       const ammo = el('div', 'arena-plate-ammo')
       ammo.append(el('i'))
       root.append(name, bar, ammo)
       this.plates.append(root)
-      this.plateOf.set(id, (p = { root, name, fill, value, ammo, shown: true }))
+      this.plateOf.set(id, (p = { root, name, fill, lag, value, ammo, shown: true, hp: -1, max: -1 }))
     }
     if (p.shown !== !!at) p.root.hidden = !(p.shown = !!at)
     if (!at) return
-    p.root.className = `arena-plate ${info.rel}${info.shield ? ' shield' : ''}${info.reloading ? ' reloading' : ''}${info.wait !== undefined ? ' ghost' : ''}`
+    p.root.className = `arena-plate ${info.rel}${info.shield ? ' shield' : ''}${info.reloading ? ' reloading' : ''}${info.wait !== undefined ? ' ghost' : ''}${info.heal ? ' heal-target' : ''}${info.full ? ' full' : ''}`
+    if (p.max !== info.max) {
+      p.max = info.max
+      p.root.style.setProperty('--seg', `${((SEGMENT / Math.max(1, info.max)) * 100).toFixed(2)}%`)
+    }
     p.root.style.transform = `translate(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px) translate(-50%, -100%) scale(${(0.6 + 0.4 * near).toFixed(2)})`
     const name = info.bot ? `🤖 ${info.name}` : info.name
     if (p.name.textContent !== name) p.name.textContent = name
@@ -612,7 +646,18 @@ export class ArenaHud {
       return
     }
     const hp = Math.max(0, Math.round(info.hp))
-    p.fill.style.width = `${Math.min(100, (hp / Math.max(1, info.max)) * 100).toFixed(0)}%`
+    const width = `${Math.min(100, (hp / Math.max(1, info.max)) * 100).toFixed(0)}%`
+    p.fill.style.width = width
+    if (hp !== p.hp) {
+      // Ce qu'il vient de perdre reste un instant, puis s'efface ; ce qu'il regagne se voit tout de suite.
+      if (hp > p.hp) {
+        p.lag.style.transition = 'none'
+        p.lag.style.width = width
+        void p.lag.offsetWidth
+        p.lag.style.transition = ''
+      } else p.lag.style.width = width
+      p.hp = hp
+    }
     if (p.value.textContent !== String(hp)) p.value.textContent = String(hp)
     p.ammo.hidden = info.ammo === undefined
     if (info.ammo !== undefined) (p.ammo.firstElementChild as HTMLElement).style.width = `${(info.ammo * 100).toFixed(0)}%`
@@ -641,11 +686,37 @@ export class ArenaHud {
     note.hidden = false
   }
 
-  /** Touché : le bord de l'écran rougit un instant. */
-  hurt() {
-    this.vignette.classList.remove('flash')
+  /** Touché : le bord de l'écran rougit un instant (soigné : il verdit). */
+  hurt(heal = false) {
+    this.vignette.classList.remove('flash', 'heal')
     void this.vignette.offsetWidth
     this.vignette.classList.add('flash')
+    this.vignette.classList.toggle('heal', heal)
+  }
+
+  /**
+   * D'où viennent les coups qu'on prend : un arc à la couleur d'en face autour de soi (`center`, en
+   * pixels : ses pieds vu de dessus, la mire dans les yeux), tourné vers chaque tireur, qui s'efface.
+   * `angle` : 0 vers le haut de l'écran (devant soi), dans le sens des aiguilles d'une montre ;
+   * `alpha` : de 1 (il vient de tirer) à 0 ; `heavy` : un gros coup (l'arc est plus épais).
+   */
+  threats(list: { angle: number; alpha: number; heavy: boolean }[], center: { x: number; y: number } | null) {
+    this.threatBox.hidden = !center || !list.length
+    if (!center) return
+    this.threatBox.style.transform = `translate(${center.x.toFixed(1)}px, ${center.y.toFixed(1)}px)`
+    while (this.threatArcs.length < list.length) {
+      const arc = el('i', 'arena-threat')
+      this.threatBox.append(arc)
+      this.threatArcs.push(arc)
+    }
+    this.threatArcs.forEach((arc, i) => {
+      const t = list[i]
+      arc.hidden = !t
+      if (!t) return
+      arc.style.transform = `rotate(${t.angle.toFixed(3)}rad)`
+      arc.style.opacity = t.alpha.toFixed(2)
+      arc.classList.toggle('heavy', t.heavy)
+    })
   }
 
   /** Une élimination dans le fil : qui, avec quoi (le personnage, son arme), qui. */

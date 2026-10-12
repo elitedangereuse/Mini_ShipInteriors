@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { ArenaTrap } from '../net'
 import { ARENA_CHARACTERS, ARENA_RULES } from '../../shared/arena.js'
 
@@ -18,8 +19,19 @@ import { ARENA_CHARACTERS, ARENA_RULES } from '../../shared/arena.js'
 const FLOWER = ARENA_CHARACTERS.capucine.weapon.flower!
 const FIRE = ARENA_CHARACTERS.jacques.weapon.fire!
 
-const ring = new THREE.RingGeometry(0.94, 1, 40).rotateX(-Math.PI / 2)
+const ring = new THREE.RingGeometry(0.965, 1, 48).rotateX(-Math.PI / 2)
 const disc = new THREE.CircleGeometry(1, 40).rotateX(-Math.PI / 2)
+/** Le bord d'un piège d'en face : en tirets (la forme double la couleur, cf. palette.ts). */
+const dashes = (() => {
+  const parts: THREE.BufferGeometry[] = []
+  const n = 16
+  for (let i = 0; i < n; i++) parts.push(new THREE.RingGeometry(0.955, 1, 4, 1, (i / n) * Math.PI * 2, (Math.PI * 2) / n * 0.6))
+  const g = mergeGeometries(parts)
+  for (const p of parts) p.dispose()
+  return g.rotateX(-Math.PI / 2)
+})()
+/** Segments de l'arc du temps qui reste (cf. Shown.timer). */
+const TIMER_SEGMENTS = 48
 const flame = new THREE.ConeGeometry(0.06, 0.2, 6).translate(0, 0.1, 0)
 
 const lambert = (color: string) => new THREE.MeshLambertMaterial({ color })
@@ -33,8 +45,15 @@ const TOOTH_GEO = new THREE.ConeGeometry(0.012, 0.035, 4)
 interface Shown {
   kind: ArenaTrap['kind']
   root: THREE.Group
-  /** Le cercle de sa portée, au sol, et sa matière (à la couleur du camp). */
+  /**
+   * Sa portée, au sol, à la couleur de son camp pour le joueur : un voile léger (`mark`), un bord fin
+   * (en tirets s'il est d'en face), et un arc plus épais qui se rétracte avec le temps qui lui reste
+   * (`timer`, sa propre géométrie : on n'en dessine qu'une part).
+   */
   mark: THREE.Mesh
+  border: THREE.Mesh
+  timer: THREE.Mesh
+  life: number
   /** La fleur : sa tige et ses deux mâchoires ; la flaque : sa nappe et ses flammèches. */
   head?: THREE.Group
   jaws?: [THREE.Object3D, THREE.Object3D]
@@ -93,10 +112,10 @@ export class Traps {
   private readonly flameMat = new THREE.MeshBasicMaterial({ color: '#ffd23c', transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending })
 
   /**
-   * @param tint la couleur d'un camp (0 ou 1), pour le cercle de portée
+   * @param tint la couleur d'un camp (0 ou 1) pour le joueur, et s'il est d'en face : pour sa portée
    * @param ground la hauteur du sol en (x, z) : un piège se pose sur le haut d'un plan à deux hauteurs
    */
-  constructor(private tint: (team: number) => string, private ground: (x: number, z: number) => number = () => 0) {}
+  constructor(private tint: (team: number) => { color: string; foe: boolean }, private ground: (x: number, z: number) => number = () => 0) {}
 
   /** Ce que le relais dit des pièges sur le terrain : ceux qui arrivent poussent, ceux qui manquent fanent. */
   sync(traps: ArenaTrap[]) {
@@ -110,9 +129,15 @@ export class Traps {
         this.group.add(s.root)
       }
       s.left = t.left
-      ;(s.mark.material as THREE.MeshBasicMaterial).color.set(this.tint(t.team))
+      const { color } = this.tint(t.team)
+      for (const m of [s.mark, s.border, s.timer]) (m.material as THREE.MeshBasicMaterial).color.set(color)
     }
     for (const [id, s] of this.shown) if (!seen.has(id) && !s.gone) s.gone = 0.001
+  }
+
+  /** Où est le piège `id` (repère de l'arène) ; null s'il n'est plus là. */
+  at(id: number): THREE.Vector3 | null {
+    return this.shown.get(id)?.root.position ?? null
   }
 
   /** La fleur `id` vient de mordre : ses mâchoires claquent. Où elle est (repère de l'arène) ; null si ce n'est pas une fleur. */
@@ -127,12 +152,18 @@ export class Traps {
     const root = new THREE.Group()
     root.position.set(t.x, this.ground(t.x, t.z), t.z)
     const radius = t.kind === 'flower' ? FLOWER.radius : FIRE.radius
-    const mark = new THREE.Mesh(ring, new THREE.MeshBasicMaterial({ color: this.tint(t.team), transparent: true, opacity: 0.7, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }))
-    mark.scale.setScalar(radius + ARENA_RULES.body.r)
-    mark.position.y = 0.03
-    mark.renderOrder = 2
-    root.add(mark)
-    const s: Shown = { kind: t.kind, root, mark, age: 0, left: t.left, bite: Infinity, gone: 0, phase: Math.random() * 10 }
+    const { color, foe } = this.tint(t.team)
+    const paint = (opacity: number) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4 })
+    const mark = new THREE.Mesh(disc, paint(0.08))
+    const border = new THREE.Mesh(foe ? dashes : ring, paint(0.6))
+    const timer = new THREE.Mesh(new THREE.RingGeometry(0.925, 0.955, TIMER_SEGMENTS, 1, Math.PI / 2, Math.PI * 2).rotateX(-Math.PI / 2), paint(0.8))
+    for (const m of [mark, border, timer]) {
+      m.scale.setScalar(radius + ARENA_RULES.body.r)
+      m.position.y = 0.03
+      m.renderOrder = 2
+      root.add(m)
+    }
+    const s: Shown = { kind: t.kind, root, mark, border, timer, life: t.kind === 'flower' ? FLOWER.life : FIRE.life, age: 0, left: t.left, bite: Infinity, gone: 0, phase: Math.random() * 10 }
     if (t.kind === 'flower') {
       const f = flowerModel()
       root.add(f.root)
@@ -166,12 +197,17 @@ export class Traps {
       // Ses dernières secondes : il faiblit ; disparu de ce que dit le relais : il s'éteint en un instant.
       const fade = s.gone ? Math.max(0, 1 - s.gone / 0.35) : Math.min(1, s.left / 0.6 + 0.2)
       if (s.gone && fade <= 0) {
-        s.root.removeFromParent()
-        ;(s.mark.material as THREE.Material).dispose()
+        this.drop(s)
         this.shown.delete(id)
         continue
       }
-      ;(s.mark.material as THREE.MeshBasicMaterial).opacity = 0.7 * Math.min(1, fade + 0.2)
+      const shown = Math.min(1, fade + 0.2)
+      ;(s.mark.material as THREE.MeshBasicMaterial).opacity = 0.08 * shown
+      ;(s.border.material as THREE.MeshBasicMaterial).opacity = 0.6 * shown
+      ;(s.timer.material as THREE.MeshBasicMaterial).opacity = 0.8 * shown
+      // Le temps qui reste : l'arc se rétracte, d'un tour complet (il vient de naître) à rien.
+      const left = s.gone ? 0 : Math.max(0, Math.min(1, s.left / s.life))
+      s.timer.geometry.setDrawRange(0, Math.ceil(left * TIMER_SEGMENTS) * 6)
       const t = s.age + s.phase
       if (s.kind === 'flower') {
         // Elle sort de terre, se balance, et claque des mâchoires quand elle mord.
@@ -194,11 +230,15 @@ export class Traps {
     }
   }
 
+  /** Retire un piège de la scène, et ce qui n'est qu'à lui (ses matières, l'arc de son temps). */
+  private drop(s: Shown) {
+    s.root.removeFromParent()
+    for (const m of [s.mark, s.border, s.timer]) (m.material as THREE.Material).dispose()
+    s.timer.geometry.dispose()
+  }
+
   clear() {
-    for (const s of this.shown.values()) {
-      s.root.removeFromParent()
-      ;(s.mark.material as THREE.Material).dispose()
-    }
+    for (const s of this.shown.values()) this.drop(s)
     this.shown.clear()
   }
 }

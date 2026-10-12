@@ -53,10 +53,12 @@ export interface FaceControl {
 }
 
 /** L'expression que joue chaque emote, le temps du geste. */
-const EMOTE_FACES: Record<string, string> = { joie: 'gr', danse: 'gr', oui: 'sm', salut: 'wi', o7: 'wi', trinquer: 'gr', non: 'fr', dodo: 'zz' }
+const EMOTE_FACES: Record<string, string> = { joie: 'gr', danse: 'gr', oui: 'sm', salut: 'wi', o7: 'wi', trinquer: 'gr', non: 'fr', dodo: 'zz', ko: 'zz' }
 
 /** Emote interne (non proposée dans la barre) : utiliser une console. */
 const INTERACT: EmoteDef = { id: 'interact', en: 'interact', icon: '', label: '', anims: ['interact-right'], mode: 'once' }
+/** Emote interne : éliminé dans l'arène, il tombe et reste au sol, les yeux fermés (cf. src/arena/client.ts). */
+const KO: EmoteDef = { id: 'ko', en: 'ko', icon: '', label: '', anims: ['die'], mode: 'hold' }
 
 /** Animations de repli quand un pack ne fournit pas un clip (les Blocky Characters n'ont pas « jump »). */
 const FALLBACK: Record<string, string> = { jump: 'emote-yes', crouch: 'sit', drive: 'sit' }
@@ -237,6 +239,9 @@ export class Avatar {
   /** À chaque animation d'une pose (un coup de poing dans le sac, cf. main.ts). */
   onPoseStep?: (step: number) => void
   private readonly face: FaceControl | null
+  /** Touché (cf. flinch) : il encaisse, penché en arrière, et se redresse (de 1 à 0). */
+  private jolt = 0
+  private joltSide = 0
 
   constructor(rig: Rig & { height?: number; face?: FaceControl }) {
     this.height = rig.height ?? 0.67
@@ -341,7 +346,7 @@ export class Avatar {
   }
 
   playEmote(id: string): EmoteDef | null {
-    const def = id === 'interact' ? INTERACT : emoteNamed(id)
+    const def = id === 'interact' ? INTERACT : id === 'ko' ? KO : emoteNamed(id)
     if (!def) return null
     this.setPose(null)
     this.emote = def
@@ -354,6 +359,15 @@ export class Avatar {
 
   stopEmote() {
     this.emote = null
+  }
+
+  /**
+   * Touché : il encaisse le coup, d'un recul bref du buste, puis se redresse (`strength` : de 0 à 1 ;
+   * `side` : de quel côté vient le coup, -1 à sa gauche, 1 à sa droite, 0 de face).
+   */
+  flinch(strength = 1, side = 0) {
+    this.jolt = Math.min(1, Math.max(this.jolt, strength))
+    this.joltSide = side
   }
 
   private startStep(restart: boolean) {
@@ -447,6 +461,10 @@ export class Avatar {
       if (sprint) sprint.timeScale = this.base === 'sprint' ? THREE.MathUtils.clamp(this.speed / SPRINT_NOMINAL, 0.4, 1.4) : 1
     }
     this.model.position.y = THREE.MathUtils.damp(this.model.position.y, hop - sink, hop ? 30 : 10, dt)
+    // Le recul d'un coup reçu : vite en arrière, et il se redresse.
+    this.jolt = Math.max(0, this.jolt - dt * 4.5)
+    this.model.rotation.x = -this.jolt * this.jolt * 0.32
+    this.model.rotation.z = this.jolt * this.jolt * 0.18 * this.joltSide
     if (spin !== null) this.model.rotation.y = spin
     else {
       // Au sortir d'une pirouette, on revient par le plus court chemin.

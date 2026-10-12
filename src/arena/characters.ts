@@ -8,7 +8,7 @@ import { nurseRig } from '../nurse'
 import { soldierRig } from '../patrol'
 import type { Weapon } from '../range-weapons'
 import { tr } from '../i18n'
-import { ARENA_CHARACTERS, CHARACTER_IDS, DEFAULT_CHARACTER, type CharacterId, type CharacterStats, type CharacterWeapon } from '../../shared/arena.js'
+import { ARENA_CHARACTERS, ARENA_PALETTE, CHARACTER_IDS, DEFAULT_CHARACTER, type CharacterId, type CharacterStats, type CharacterWeapon } from '../../shared/arena.js'
 import { ROSTER, type Identity } from './roster'
 
 /*
@@ -35,8 +35,13 @@ import { ROSTER, type Identity } from './roster'
 /** L'arme d'un personnage : ce que le moteur du stand en lit (cf. range-weapons.ts), et ses chiffres de l'arène. */
 export interface ArenaArm extends Weapon, CharacterWeapon {
   id: CharacterId
-  /** Le modèle du projectile qui vole (la tomate, la graine, le cocktail) ; sans : un trait lumineux. */
-  ammo?: () => THREE.Object3D
+  /**
+   * Le modèle du projectile qui vole (la tomate, la seringue, la graine, le cocktail) ; sans : un
+   * trait lumineux. `heal` : la seringue de Betty soignera (sa dose est vert d'eau, pas rose).
+   */
+  ammo?: (heal?: boolean) => THREE.Object3D
+  /** Le projectile vole tête en avant (la seringue), au lieu de tourner sur lui-même (la tomate). */
+  aligned?: boolean
 }
 
 /** Un personnage : qui il est (cf. roster.ts), ses chiffres, son arme et son modèle. */
@@ -127,6 +132,24 @@ function thrownCocktail(): THREE.Object3D {
 function tomato(): THREE.Object3D {
   const g = packModel('food-tomato', BLASTER_PACK).clone(true)
   g.scale.setScalar(0.55)
+  return g
+}
+
+/** La seringue de Betty, en vol (aiguille vers +z) : le corps de verre, sa dose, le piston, l'aiguille. */
+const BARREL = new THREE.CylinderGeometry(0.016, 0.016, 0.09, 10).rotateX(Math.PI / 2)
+const DOSE = new THREE.CylinderGeometry(0.0115, 0.0115, 0.06, 8).rotateX(Math.PI / 2).translate(0, 0, 0.008)
+const PLUNGER = new THREE.CylinderGeometry(0.022, 0.022, 0.008, 10).rotateX(Math.PI / 2).translate(0, 0, -0.05)
+const NEEDLE = new THREE.ConeGeometry(0.005, 0.05, 5).rotateX(Math.PI / 2).translate(0, 0, 0.07)
+const BARREL_MAT = new THREE.MeshBasicMaterial({ color: '#f2f8ff', transparent: true, opacity: 0.55, toneMapped: false })
+const STEEL_MAT = lambert('#c9d3dc')
+/** La dose : rose pour piquer ceux d'en face, vert d'eau pour soigner (cf. ARENA_PALETTE). */
+const DOSE_MAT = { attack: new THREE.MeshBasicMaterial({ color: '#ff5fa8', toneMapped: false }), heal: new THREE.MeshBasicMaterial({ color: ARENA_PALETTE.heal, toneMapped: false }) }
+
+function syringe(heal = false): THREE.Object3D {
+  const g = new THREE.Group()
+  g.add(new THREE.Mesh(DOSE, heal ? DOSE_MAT.heal : DOSE_MAT.attack), new THREE.Mesh(BARREL, BARREL_MAT), new THREE.Mesh(PLUNGER, STEEL_MAT), new THREE.Mesh(NEEDLE, STEEL_MAT))
+  // Assez grande pour se lire, vue de haut, à la vitesse où elle file.
+  g.scale.setScalar(1.6)
   return g
 }
 
@@ -225,21 +248,21 @@ export const CHARACTERS: Character[] = [
   {
     ...ROSTER.betty, id: 'betty', stats: ARENA_CHARACTERS.betty, rig: nurseRig,
     arm: arm('betty', {
-      trait: tr('soigne', 'heals'), model: 'blaster-b', grip: [-0.08, -0.12], color: '#ff7bc0', sound: 'syringe',
+      trait: tr('soigne', 'heals'), model: 'blaster-b', grip: [-0.08, -0.12], ammo: syringe, aligned: true, color: '#ff7bc0', sound: 'syringe',
       kick: 1, side: 0.3, recover: 8, bloom: 0.7, bloomMax: 2.5, settle: 6, move: 0.4, punch: 0.7,
     }),
   },
   {
     ...ROSTER.capucine, id: 'capucine', stats: ARENA_CHARACTERS.capucine, rig: gardenerRig,
     arm: arm('capucine', {
-      trait: tr('pièges', 'traps'), model: '', grip: [0, 0], make: seedBag, ammo: seed, color: '#8ad94a', sound: 'throw',
+      trait: tr('pièges', 'traps'), model: '', grip: [0, 0], make: seedBag, ammo: seed, color: '#8ad94a', sound: 'seed',
       kick: 0.6, side: 0.2, recover: 6, bloom: 0, bloomMax: 0, settle: 6, move: 0, punch: 0.5,
     }),
   },
   {
     ...ROSTER.jacques, id: 'jacques', stats: ARENA_CHARACTERS.jacques, rig: jacquesRig,
     arm: arm('jacques', {
-      trait: tr('flambe', 'flambé'), model: '', grip: [0.08, 0], make: cocktail, ammo: thrownCocktail, color: '#b6ff3a', sound: 'throw',
+      trait: tr('flambe', 'flambé'), model: '', grip: [0.08, 0], make: cocktail, ammo: thrownCocktail, color: '#b6ff3a', sound: 'cocktail',
       kick: 0.8, side: 0.2, recover: 6, bloom: 0, bloomMax: 0, settle: 6, move: 0, punch: 0.6,
     }),
   },

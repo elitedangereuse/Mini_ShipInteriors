@@ -4209,8 +4209,17 @@ body.range-top canvas { cursor: none; }
 /* Points gagnés, là où la cible a éclaté. */
 .range-pop { position: absolute; color: #fff; font: 800 20px/1 system-ui, sans-serif; text-shadow: 0 2px 0 #000a, 0 0 8px #000a; white-space: nowrap; animation: range-pop .7s ease-out forwards; }
 .range-pop.good { color: #ffd24a; font-size: 25px; }
-/* Arène : les soins de Betty. */
-.range-pop.heal { color: #7dffb0; }
+/*
+ * Arène : les dégâts qu'on fait (blancs, cernés de noir ; une élimination en grand, rouge-orangé),
+ * ceux qu'on prend (rouges), et les soins de Betty (vert d'eau, une croix devant) se distinguent
+ * d'un coup d'œil, par la couleur, le signe et la forme.
+ */
+.range-pop.dmg, .range-pop.heal, .range-pop.hurt { -webkit-text-stroke: 4px #0b0d12; paint-order: stroke fill; text-shadow: 0 3px 0 #0b0d12; }
+.range-pop.dmg { color: #fff; }
+.range-pop.dmg.good { color: #ff8a70; font-size: 28px; }
+.range-pop.hurt { color: #ff6a55; }
+.range-pop.heal { color: #9cffd6; }
+.range-pop.heal::before { content: '✚ '; font-size: .78em; }
 @keyframes range-pop {
   from { opacity: 0; transform: translate(-50%, -30%) scale(.6); }
   15% { opacity: 1; transform: translate(-50%, -90%) scale(1.15); }
@@ -5328,7 +5337,7 @@ body.gardening #emotes { display: none; }
   .arena-panel .arena-ready { min-width: 0; flex: 1; }
 }
 /* En partie : les couleurs sont celles du joueur. Lui en vert, les siens en bleu, ceux d'en face en rouge. */
-.arena-hud, .arena-end { --self: #5fe08a; --ally: #35a7ff; --enemy: #ff4d4d; }
+.arena-hud, .arena-end { --self: #ffe14d; --ally: #2e86ff; --enemy: #ff4733; --heal: #9cffd6; }
 .arena-hud .self, .arena-end .self { --tint: var(--self); }
 .arena-hud .ally, .arena-end .ally { --tint: var(--ally); }
 .arena-hud .enemy, .arena-end .enemy { --tint: var(--enemy); }
@@ -5359,13 +5368,27 @@ body.arena-on .anchor .tag { display: none; }
 .arena-plate[hidden] { display: none; }
 .arena-plate-name { max-width: 150px; overflow: hidden; color: var(--tint); font: 800 12px/1.1 system-ui, sans-serif; text-overflow: ellipsis; white-space: nowrap; -webkit-text-stroke: 3px #0b0d12; paint-order: stroke fill; }
 .arena-plate-bar { position: relative; width: 100%; height: 13px; box-sizing: border-box; border: 2px solid #0b0d12; border-radius: 5px; background: #0b0d12cc; overflow: hidden; }
-.arena-plate-bar i { display: block; height: 100%; background: linear-gradient(180deg, color-mix(in srgb, var(--tint) 70%, #fff), var(--tint) 55%); transition: width .12s; }
-.arena-plate-bar b { position: absolute; inset: 0; display: grid; place-items: center; font: 800 10px/1 system-ui, sans-serif; -webkit-text-stroke: 2px #0b0d12; paint-order: stroke fill; }
+.arena-plate-bar i { position: relative; display: block; height: 100%; background: linear-gradient(180deg, color-mix(in srgb, var(--tint) 70%, #fff), var(--tint) 55%); transition: width .12s; }
+/* Ce que le dernier coup a ôté : un morceau clair, qui s'efface après la barre. */
+.arena-plate-bar s { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; background: #fff6d6; transition: width .4s ease-in .3s; }
+/* Une graduation tous les 25 points de vie (cf. SEGMENT, ui.ts) : on compte les coups qu'il reste. */
+.arena-plate-bar::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, #0000 0 calc(var(--seg, 25%) - 1px), #0b0d12b3 calc(var(--seg, 25%) - 1px) var(--seg, 25%)); pointer-events: none; }
+.arena-plate-bar b { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; font: 800 10px/1 system-ui, sans-serif; -webkit-text-stroke: 2px #0b0d12; paint-order: stroke fill; }
+/* La forme double la couleur : un losange devant le nom d'un adversaire, un rond devant celui d'un coéquipier. */
+.arena-plate.enemy .arena-plate-name::before, .arena-plate.ally .arena-plate-name::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 4px; vertical-align: 1px; border: 2px solid #0b0d12; background: var(--tint); }
+.arena-plate.enemy .arena-plate-name::before { transform: rotate(45deg); }
+.arena-plate.ally .arena-plate-name::before { border-radius: 50%; }
+/* Betty : un coéquipier blessé à soigner porte une croix qui bat ; au maximum de sa vie, « PV max » (sa seringue le traversera). */
+.arena-plate.heal-target::after { content: '+'; position: absolute; right: -15px; top: 10px; display: grid; place-items: center; width: 14px; height: 14px; border: 2px solid #0b0d12; border-radius: 50%; background: var(--heal); color: #0b0d12; font: 900 13px/1 system-ui, sans-serif; animation: arena-heal-pulse .6s ease-in-out infinite alternate; }
+.arena-plate.full::after { content: 'PV max'; position: absolute; left: 50%; top: -15px; transform: translateX(-50%); padding: 1px 5px; border: 2px solid #0b0d12; border-radius: 6px; background: #1b1f29; color: var(--heal); font: 800 9px/1.1 system-ui, sans-serif; white-space: nowrap; }
+:lang(en) .arena-plate.full::after { content: 'Max HP'; }
+@keyframes arena-heal-pulse { to { transform: scale(1.25); } }
 /* En fantôme à sa base : le compte à rebours de son retour, sur une barre pâle qui se remplit. */
 .arena-plate.ghost { opacity: .9; }
 .arena-plate.ghost .arena-plate-name { opacity: .75; }
 .arena-plate.ghost .arena-plate-bar { height: 18px; border-style: dashed; }
 .arena-plate.ghost .arena-plate-bar i { background: #bfeaff88; transition: none; }
+.arena-plate.ghost .arena-plate-bar s, .arena-plate.ghost .arena-plate-bar::after { display: none; }
 .arena-plate.ghost .arena-plate-bar b { font-size: 13px; }
 .arena-plate.shield .arena-plate-bar { box-shadow: 0 0 0 2px #fff, 0 0 10px #fff; }
 .arena-plate-ammo { width: 100%; height: 7px; box-sizing: border-box; border: 2px solid #0b0d12; border-radius: 4px; background: #0b0d12cc; overflow: hidden; }
@@ -5402,6 +5425,13 @@ body.arena-on .anchor .tag { display: none; }
 }
 .arena-vignette { position: fixed; inset: 0; z-index: 29; pointer-events: none; background: radial-gradient(ellipse at center, #0000 45%, #c0101099 100%); opacity: 0; }
 .arena-vignette.flash { animation: arena-hurt .5s ease-out; }
+.arena-vignette.heal { background: radial-gradient(ellipse at center, #0000 55%, color-mix(in srgb, var(--heal, #9cffd6) 45%, transparent) 100%); }
+/* D'où viennent les coups : un arc par tireur, autour de soi, tourné vers lui (cf. ArenaHud.threats). */
+.arena-threats { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.arena-threats[hidden] { display: none; }
+.arena-threat { position: absolute; left: -84px; top: -84px; width: 168px; height: 168px; box-sizing: border-box; border: 7px solid transparent; border-top-color: var(--enemy); border-radius: 50%; filter: drop-shadow(0 0 2px #0b0d12) drop-shadow(0 0 1px #0b0d12); }
+.arena-threat.heavy { border-width: 11px; }
+.arena-threat[hidden] { display: none; }
 @keyframes arena-hurt {
   from { opacity: 1; }
   to { opacity: 0; }

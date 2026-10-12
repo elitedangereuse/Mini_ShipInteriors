@@ -153,6 +153,18 @@ export const ARENA_TEAMS = [
 ]
 
 /**
+ * Les couleurs de la partie, telles que le joueur la voit (cf. src/arena/palette.ts) : lui
+ * (`self`), les siens (`ally`), ceux d'en face (`enemy`), et les soins (`heal`). Les mêmes partout :
+ * anneaux, contours, plaques, projectiles, pièges, score, chiffres. Choisies pour rester distinctes
+ * aux formes courantes de daltonisme (protanopie, deutéranopie, tritanopie ; les essais le
+ * vérifient) : le bleu des siens et le rouge-orangé d'en face ne se confondent pour aucune, le
+ * jaune de soi et le vert d'eau des soins se distinguent aussi par leur clarté. La forme double la
+ * couleur là où elle compte : les dents de l'anneau d'un adversaire, la flèche du sien, le signe et
+ * la croix des soins.
+ */
+export const ARENA_PALETTE = { self: '#ffe14d', ally: '#2e86ff', enemy: '#ff4733', heal: '#9cffd6' }
+
+/**
  * Niveau des bots : délai avant le premier tir sur qui ils viennent de voir (s), écart de visée
  * (degrés, au hasard autour de la cible), part de la cadence de l'arme qu'ils tiennent.
  */
@@ -440,6 +452,15 @@ export function arenaSight(zone, from, to) {
   return castArena(zone, a, { x: dx / len, y: dy / len, z: dz / len }, len, []).t >= len - 1e-6
 }
 
+/**
+ * Dans la base de l'équipe `team` ? (ses `baseDepth` colonnes, au bout de l'arène qui est le sien :
+ * l'ouest pour l'équipe 0, l'est pour l'autre). Personne n'entre dans la base adverse, et ni fleur ni
+ * flaque n'y prend.
+ */
+export function inArenaBase(zone, team, p) {
+  return team === 0 ? p.x < ARENA_RULES.baseDepth - 0.5 : p.x > zone.width - ARENA_RULES.baseDepth - 0.5
+}
+
 /** Dans un buisson ? */
 export function inBush(zone, p) {
   const x = Math.round(p.x), z = Math.round(p.z)
@@ -488,6 +509,24 @@ export function lobTarget(zone, from, dir, dist, range) {
 /** Durée de vol d'un objet lancé à `dist` tuiles par l'arme `w` (s). */
 export function lobTime(w, dist) {
   return Math.max(ARENA_RULES.lob, dist / w.speed)
+}
+
+/** D'aussi loin du tireur, au plus, part un projectile (tuiles) : sa main, un peu devant lui. */
+export const MUZZLE_SLACK = 1.2
+
+/**
+ * D'où part vraiment un tir qu'on voudrait faire partir de `want` (la main du tireur, un peu devant
+ * lui) : de là, s'il est sur le sol de l'arène, à moins de MUZZLE_SLACK des pieds du tireur
+ * (`foot`) et sans obstacle entre eux ; sinon, de ses pieds (le tireur colle à un conteneur, et sa
+ * main passerait de l'autre côté). Le relais tranche ainsi, et le client de même pour son cône et
+ * son tir : ce que le cône montre est ce que le relais fera voler.
+ * @returns un point au sol (x, z)
+ */
+export function shotOrigin(zone, foot, want) {
+  const x = Math.round(want.x), z = Math.round(want.z)
+  const free = x >= 0 && z >= 0 && x < zone.width && z < zone.height && !zone.blocked[z * zone.width + x]
+  if (free && Math.hypot(want.x - foot.x, want.z - foot.z) <= MUZZLE_SLACK && arenaSight(zone, foot, want)) return { x: want.x, z: want.z }
+  return { x: foot.x, z: foot.z }
 }
 
 /**

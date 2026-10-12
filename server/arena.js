@@ -39,7 +39,7 @@
 import { randomBytes } from 'node:crypto'
 import {
   ARENA_BOTS, ARENA_CHARACTERS, ARENA_LEVEL, ARENA_LOBBY, ARENA_MAPS, ARENA_RULES as R, ARENA_SKILLS, CHARACTER_IDS, DEFAULT_CHARACTER,
-  arenaGround, arenaHidden, arenaSight, arenaSpawn, arenaZone, blastDamage, bushSight, castArena, lobTarget, lobTime, spawnYaw,
+  arenaGround, arenaHidden, arenaSight, arenaSpawn, arenaZone, blastDamage, bushSight, castArena, inArenaBase, lobTarget, lobTime, shotOrigin, spawnYaw,
 } from '../shared/arena.js'
 import { findPath, smoothPath, straightWalk, walkable } from '../shared/salvage.js'
 import { ShipMap } from '../shared/ship-map.js'
@@ -73,7 +73,7 @@ const weaponOf = (character) => statsOf(character).weapon
 const finite = (v) => typeof v === 'number' && Number.isFinite(v)
 const round2 = (v) => Math.round(v * 100) / 100
 const baseEdge = (zone, team) => team === 0 ? R.baseDepth - 0.5 : zone.width - R.baseDepth - 0.5
-const inBase = (zone, team, p) => team === 0 ? p.x < baseEdge(zone, team) : p.x > baseEdge(zone, team)
+const inBase = inArenaBase
 const outsideEnemyBase = (zone, team, p) => !inBase(zone, 1 - team, p)
 
 /**
@@ -405,14 +405,10 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       dirs.push({ x: v[0] / len, y: v[1] / len, z: v[2] / len })
     }
     if (w.lob && (!finite(data.r) || Math.hypot(dirs[0].x, dirs[0].z) < 0.2)) return
-    // À hauteur d'homme au-dessus de son sol (le haut, une rampe, le sol d'en bas).
+    // À hauteur d'homme au-dessus de son sol (le haut, une rampe, le sol d'en bas) ; de sa main, pas
+    // de plus loin, ni de derrière un conteneur (le client en juge de même, cf. shotOrigin).
     const floor = arenaGround(game.zone, f)
-    const origin = { x: o[0], y: Math.min(floor + 1, Math.max(floor + 0.05, o[1])), z: o[2] }
-    // Le projectile part de sa main : pas de plus loin, ni de derrière un conteneur.
-    if (dist(origin, f) > 1.2 || !walkable(game.zone, Math.round(origin.x), Math.round(origin.z)) || !arenaSight(game.zone, f, origin)) {
-      origin.x = f.x
-      origin.z = f.z
-    }
+    const origin = { ...shotOrigin(game.zone, f, { x: o[0], z: o[2] }), y: Math.min(floor + 1, Math.max(floor + 0.05, o[1])) }
     f.tokens--
     f.firedAt = t
     shoot(game, f, origin, dirs, w.lob ? data.r : 0)
