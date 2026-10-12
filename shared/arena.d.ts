@@ -1,5 +1,4 @@
 import type { EdgeKind } from './ship-map.js'
-import type { WeaponId } from './weapons.js'
 import type { ZoneContainer } from './salvage.js'
 
 export declare const ARENA_LEVEL: -5
@@ -10,7 +9,7 @@ export declare const ARENA_BOOTH: { x: number; z: number; yaw: number; referee: 
 export declare const ARENA_RULES: {
   lobbies: number
   team: number
-  hp: number
+  baseDepth: number
   goals: number[]
   goal: number
   wins: number
@@ -29,8 +28,42 @@ export declare const ARENA_RULES: {
   ceiling: number
   sprint: number
   bot: number
-  self: number
+  lob: number
 }
+
+export type CharacterId = 'rourke' | 'marcel' | 'nico' | 'betty' | 'capucine' | 'jacques'
+
+/** L'arme d'un personnage (cf. ARENA_CHARACTERS dans arena.js). */
+export interface CharacterWeapon {
+  auto: boolean
+  burst?: number
+  interval: number
+  mag: number
+  reload: number
+  speed: number
+  pierce: boolean
+  pellets: number
+  spread: number
+  damage: number
+  range: number
+  reach: number
+  blast: number
+  heal?: number
+  lob?: boolean
+  flower?: { life: number; radius: number; every: number; grow: number; most: number }
+  fire?: { life: number; radius: number; every: number; damage: number }
+}
+
+export interface CharacterStats {
+  hp: number
+  speed: number
+  scan?: number
+  weapon: CharacterWeapon
+}
+
+export declare const ARENA_CHARACTERS: Record<CharacterId, CharacterStats>
+export declare const CHARACTER_IDS: CharacterId[]
+export declare const DEFAULT_CHARACTER: CharacterId
 export declare const ARENA_TEAMS: { id: 0 | 1; color: string }[]
 export declare const ARENA_SKILLS: { reaction: number; error: number; pace: number }[]
 export declare const ARENA_BOTS: string[]
@@ -77,8 +110,11 @@ export declare function arenaZone(id?: string | null): ArenaZone
 export declare function arenaGround(zone: ArenaZone, p: { x: number; z: number }): number
 export declare function arenaSight(zone: ArenaZone, from: { x: number; z: number }, to: { x: number; z: number }): boolean
 export declare function inBush(zone: ArenaZone, p: { x: number; z: number }): boolean
-export declare function arenaHidden(zone: ArenaZone, p: { x: number; z: number }, viewer: { x: number; z: number }, revealed: boolean): boolean
-export declare function blastDamage(weapon: WeaponId, d: number): number
+export declare function arenaHidden(zone: ArenaZone, p: { x: number; z: number }, viewer: { x: number; z: number }, revealed: boolean, near?: number): boolean
+export declare function bushSight(character: string): number
+export declare function blastDamage(w: { blast: number; damage: number }, d: number): number
+export declare function lobTarget(zone: ArenaZone, from: { x: number; z: number }, dir: { x: number; z: number }, dist: number, range: number): { x: number; z: number }
+export declare function lobTime(w: { speed: number }, dist: number): number
 export declare function castArena(
   zone: ArenaZone,
   p: { x: number; y: number; z: number },

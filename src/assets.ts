@@ -198,7 +198,8 @@ function load(path: string): Promise<GLTF> {
   if (hit) return Promise.resolve(hit)
   let p = pending.get(path)
   if (!p) {
-    p = loader.loadAsync(BASE + path).then((gltf) => {
+    // L'empreinte des modèles change avec eux : sans elle, le navigateur ressert l'ancien fichier.
+    p = loader.loadAsync(`${BASE}${path}?v=${import.meta.env.VITE_MODELS_STAMP}`).then((gltf) => {
       const converted = new Map<THREE.Material, THREE.Material>()
       gltf.scene.traverse((o) => {
         const mesh = o as THREE.Mesh

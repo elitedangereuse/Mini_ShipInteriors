@@ -1,4 +1,5 @@
-// L'arène : duels par équipes, à trois contre trois au plus, avec les armes du stand de tir.
+// L'arène : duels par équipes, à trois contre trois au plus, entre personnages jouables (des membres
+// de l'équipage du vaisseau, cf. ARENA_CHARACTERS), chacun avec son arme et sa façon de jouer.
 // Règles communes au relais, qui arbitre la partie (points de vie, tirs, bots, score), et au
 // client, qui la dessine et y fait jouer le moteur du stand (cf. src/range.ts, src/arena/).
 //
@@ -11,10 +12,10 @@
 // La partie s'inspire de Brawl Stars : on voit tout ce que la caméra montre (pas de brouillard), sauf
 // qui se tient dans un buisson ; les points de vie remontent vite quand on ne prend plus de balles ;
 // la première équipe à la limite de points gagne la manche, et la partie se joue en deux manches gagnantes.
+// Chacun choisit son personnage au lobby et le garde toute la partie.
 
 import { DIRS } from './ship-map.js'
 import { lineOfSight } from './sight.js'
-import { WEAPON_STATS } from './weapons.js'
 
 /** « Pont » de l'arène : hors du vaisseau, sous les autres (baie infestée -2, conduits -3, simulateur -4). */
 export const ARENA_LEVEL = -5
@@ -44,19 +45,22 @@ export const ARENA_BOOTH = { x: 22.97, z: 9.3, yaw: Math.PI / 2, referee: { x: 2
  *   `warmup` : avant le coup d'envoi, on se place, personne ne tire ; `intermission` : de même
  *   entre deux manches, chacun revenu à sa base ;
  * - `respawn` : délai avant de revenir à sa base ; `shield` : invulnérable ensuite, tant qu'on ne tire pas ;
- * - `regenAfter`, `regen` : sans dégât depuis ce délai, les points de vie remontent (par seconde) ;
+ * - `regenAfter`, `regen` : sans dégât depuis ce délai, les points de vie remontent (`regen` : la part
+ *   de ses points de vie de départ qu'un combattant regagne par seconde) ;
  * - `bush` : dans un buisson, un adversaire ne nous voit que de tout près (`near`), ou pendant
  *   `reveal` secondes après qu'on a tiré ou pris une balle ;
  * - `body` : ce qu'une balle touche d'un combattant (un cylindre posé au sol) ; `aim` : la hauteur
  *   d'où part un tir à plat (vue de dessus, bots) ; `ceiling` : le plafond ;
- * - `sprint` : la vitesse d'un joueur à la course (celle de src/player.ts) ; `bot` : celle d'un bot ;
- * - `self` : part des dégâts de sa propre explosion qu'on encaisse.
+ * - `sprint` : la vitesse d'un joueur à la course (celle de src/player.ts) ; `bot` : celle d'un bot.
+ *   L'une et l'autre pour un personnage de vitesse 1 (cf. ARENA_CHARACTERS) ;
+ * - `lob` : durée de vol d'un objet lancé (graine, cocktail), au plus court (s).
  */
 export const ARENA_RULES = {
   /** Lobbys du terminal : autant de parties qui peuvent se préparer (et se jouer) en même temps. */
   lobbies: 4,
   team: 3,
-  hp: 100,
+  /** Profondeur d'une base, depuis le bord de l'arène (tuiles). */
+  baseDepth: 3,
   goals: [5, 10, 15],
   goal: 15,
   wins: 2,
@@ -68,15 +72,79 @@ export const ARENA_RULES = {
   respawn: 3,
   shield: 2,
   regenAfter: 3,
-  regen: 18,
+  regen: 0.18,
   bush: { near: 1.6, reveal: 1.2 },
   body: { r: 0.24, h: 0.75 },
   aim: 0.24,
   ceiling: 2.2,
   sprint: 3.4,
   bot: 2.5,
-  self: 0.5,
+  lob: 0.35,
 }
+
+/**
+ * Les personnages jouables, des membres de l'équipage (leurs noms, leur allure et leur humour sont
+ * côté client : src/arena/characters.ts). Chacun a ses forces et ses faiblesses : aucun ne gagne
+ * partout, et ils se complètent dans une équipe.
+ * - `hp` : points de vie ; `speed` : part de la vitesse de course (1 : Rourke, la référence) ;
+ * - `scan` : Nico et Boulon, son drone : à moins de cette distance (tuiles), un buisson ne leur cache
+ *   personne (Boulon le scanne) ;
+ * - `weapon` : son arme, qui ne se change pas :
+ *   - `auto` : tire tant que la détente est tenue ; `burst` : au stick tactile, balles d'une rafale ;
+ *   - `interval`, `mag`, `reload` : délai entre deux tirs, chargeur, rechargement (s) ;
+ *   - `speed` : vitesse du projectile (tuiles par seconde ; à plat, pour un objet lancé) ;
+ *     `pierce` : il traverse ceux qu'il touche ; `pellets` : projectiles par tir ; `spread` :
+ *     dispersion au repos (degrés) ;
+ *   - `damage` : points de vie retirés par coup (au centre de l'explosion, s'il y en a une ; par
+ *     morsure, pour les fleurs de Capucine) ; `range` : distance qu'il parcourt avant de s'éteindre
+ *     (tuiles), ou jusqu'où l'on lance ; `reach` : d'où un bot aime s'en servir, en deçà ;
+ *   - `blast` : rayon de l'explosion à l'impact (0 : aucune ; dégâts pleins au centre, un tiers au bord) ;
+ *   - `heal` : Betty : ce que rend à un coéquipier blessé chacun de ses projectiles, qui blessent les
+ *     adversaires (ils traversent les coéquipiers en pleine forme, et jamais elle-même) ;
+ *   - `lob` : on le lance en cloche, par-dessus les obstacles, là où l'on vise (à portée) : il ne
+ *     touche rien en vol, et retombe au point visé ;
+ *   - `flower` : Capucine : là où retombe sa graine pousse une fleur carnivore, qui mord (`damage`)
+ *     l'adversaire le plus proche à moins de `radius`, toutes les `every` secondes, une fois sortie
+ *     de terre (`grow`) et pendant `life` secondes ; `most` fleurs à la fois, la plus vieille fane ;
+ *   - `fire` : Jacques : là où éclate son cocktail, une flaque brûle `life` secondes, et chaque
+ *     adversaire qui s'y tient (à moins de `radius`) perd `damage` toutes les `every` secondes.
+ */
+export const ARENA_CHARACTERS = {
+  rourke: {
+    hp: 100, speed: 1,
+    weapon: { auto: true, burst: 8, interval: 0.09, mag: 18, reload: 1.6, speed: 46, pierce: false, pellets: 1, spread: 2.4, damage: 8, range: 5.5, reach: 4, blast: 0 },
+  },
+  marcel: {
+    hp: 170, speed: 0.78,
+    weapon: { auto: false, interval: 0.55, mag: 3, reload: 1.6, speed: 11, pierce: false, pellets: 1, spread: 1, damage: 45, range: 4.5, reach: 3.2, blast: 0.85 },
+  },
+  nico: {
+    hp: 65, speed: 1.15, scan: 3,
+    weapon: { auto: false, interval: 0.85, mag: 3, reload: 1.9, speed: 80, pierce: true, pellets: 1, spread: 0, damage: 60, range: 8, reach: 6.5, blast: 0 },
+  },
+  betty: {
+    hp: 95, speed: 1,
+    weapon: { auto: false, interval: 0.38, mag: 5, reload: 1.4, speed: 26, pierce: false, pellets: 1, spread: 0.6, damage: 22, heal: 22, range: 6, reach: 4.5, blast: 0 },
+  },
+  capucine: {
+    hp: 85, speed: 1,
+    weapon: {
+      auto: false, interval: 0.8, mag: 3, reload: 2.2, speed: 9, lob: true, pierce: false, pellets: 1, spread: 0, damage: 20, range: 6.5, reach: 4.5, blast: 0,
+      flower: { life: 6, radius: 1.6, every: 0.6, grow: 0.3, most: 2 },
+    },
+  },
+  jacques: {
+    hp: 150, speed: 0.85,
+    weapon: {
+      auto: false, interval: 0.9, mag: 3, reload: 2.2, speed: 9, lob: true, pierce: false, pellets: 1, spread: 0, damage: 32, range: 6, reach: 4.8, blast: 0.9,
+      fire: { life: 2.5, radius: 1, every: 0.4, damage: 12 },
+    },
+  },
+}
+
+export const CHARACTER_IDS = Object.keys(ARENA_CHARACTERS)
+/** Le personnage qu'on a tant qu'on n'en a pas choisi d'autre. */
+export const DEFAULT_CHARACTER = 'rourke'
 
 /** Les deux équipes : leur couleur, celle des bases, des noms et des anneaux au sol. */
 export const ARENA_TEAMS = [
@@ -381,19 +449,45 @@ export function inBush(zone, p) {
 /**
  * Un adversaire en `viewer` ne voit pas le combattant en `p` : il est dans un buisson, pas tout
  * près, et n'a ni tiré ni pris de balle depuis un moment (`revealed` : il vient de le faire).
+ * `near` : en deçà, le buisson ne cache rien (plus loin pour Nico, que Boulon renseigne).
  */
-export function arenaHidden(zone, p, viewer, revealed) {
-  return !revealed && inBush(zone, p) && Math.hypot(p.x - viewer.x, p.z - viewer.z) > ARENA_RULES.bush.near
+export function arenaHidden(zone, p, viewer, revealed, near = ARENA_RULES.bush.near) {
+  return !revealed && inBush(zone, p) && Math.hypot(p.x - viewer.x, p.z - viewer.z) > Math.max(near, ARENA_RULES.bush.near)
+}
+
+/** D'aussi près, `viewer` voit qui se cache dans un buisson : de tout près, ou plus loin s'il est Nico. */
+export function bushSight(character) {
+  return ARENA_CHARACTERS[character]?.scan ?? ARENA_RULES.bush.near
 }
 
 /**
- * Dégâts d'une explosion à la distance `d` de son centre : pleins au centre, un tiers au bord du
- * rayon (plus le corps), rien au-delà.
+ * Dégâts d'une explosion de l'arme `w` à la distance `d` de son centre : pleins au centre, un tiers
+ * au bord du rayon (plus le corps), rien au-delà.
  */
-export function blastDamage(weapon, d) {
-  const w = WEAPON_STATS[weapon]
+export function blastDamage(w, d) {
   const reach = w.blast + ARENA_RULES.body.r
   return d > reach ? 0 : Math.round(w.damage * (1 - (2 / 3) * (d / reach)))
+}
+
+/**
+ * Où retombe un objet lancé de `from` dans la direction `dir` (au sol, longueur 1), à `dist` tuiles
+ * (bornées à la portée `range`) : au point visé, ou, s'il est sur un obstacle ou hors de l'arène, à
+ * la dernière tuile libre en deçà, sur la même ligne.
+ */
+export function lobTarget(zone, from, dir, dist, range) {
+  const free = (x, z) => {
+    const tx = Math.round(x), tz = Math.round(z)
+    return tx >= 0 && tz >= 0 && tx < zone.width && tz < zone.height && !zone.blocked[tz * zone.width + tx]
+  }
+  let d = Math.min(range, Math.max(0, dist))
+  while (d > 0 && !free(from.x + dir.x * d, from.z + dir.z * d)) d = Math.max(0, d - 0.1)
+  const round = (v) => Math.round(v * 100) / 100
+  return { x: round(from.x + dir.x * d), z: round(from.z + dir.z * d) }
+}
+
+/** Durée de vol d'un objet lancé à `dist` tuiles par l'arme `w` (s). */
+export function lobTime(w, dist) {
+  return Math.max(ARENA_RULES.lob, dist / w.speed)
 }
 
 /**

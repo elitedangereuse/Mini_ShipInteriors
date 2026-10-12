@@ -3,24 +3,26 @@
 // Lobby : au terminal de l'arène (dans son lobby, pièce 'y' de la cale, cf. ARENA_LOBBY), quatre
 // lobbys (ARENA_RULES.lobbies, les « salons » du code) attendent chacun une partie : on se place
 // dans celui de son choix, pour jouer avec qui l'on veut, et l'on en change librement. Chacun y
-// choisit son camp et son arme ; le premier arrivé en est le chef : il règle le format (un, deux ou
+// choisit son camp et son personnage (cf. ARENA_CHARACTERS : il le garde toute la partie) ; le premier arrivé en est le chef : il règle le format (un, deux ou
 // trois par équipe), la limite de points, les bots (ils complètent les deux équipes) et leur niveau. La partie part
 // quelques secondes après que tout le monde s'est déclaré prêt. Sortir des lobbys de la cale, c'est quitter son
 // lobby ; un lobby vidé retrouve ses réglages de départ.
 //
 // Partie : une instance par salon. Les clients n'envoient que leur position (l'événement « state »
-// du relais) et leurs tirs (d'où part la balle, vers où) ; le relais fait voler les balles (jusqu'au
-// bout de la portée de l'arme, pas plus loin : `range` dans shared/weapons.js), compte
-// les points de vie, les éliminations et le score, fait revenir chacun à sa base (éliminé, on y
-// attend en fantôme quelques secondes, hors d'atteinte), et fait jouer
+// du relais) et leurs tirs (d'où part la balle, vers où, et jusqu'où pour un objet lancé) ; le relais
+// fait voler les projectiles (jusqu'au bout de la portée de l'arme, pas plus loin), lance en cloche
+// les graines de Capucine et les cocktails de Jacques, fait pousser les fleurs carnivores et brûler
+// les flaques, compte les points de vie, les soins de Betty, les éliminations et le score, fait
+// revenir chacun à sa base (éliminé, on y attend en fantôme quelques secondes, hors d'atteinte), et fait jouer
 // les bots dix fois par seconde et plus : ils cherchent l'adversaire, s'en approchent à la portée
-// de leur arme, tournent autour, tirent dès qu'il est à portée, avec un temps de réaction et un écart de visée qui
+// de leur personnage, tournent autour, tirent dès qu'il est à portée (Betty soigne aussi les siens),
+// avec un temps de réaction et un écart de visée qui
 // dépendent de leur niveau. Une manche se gagne à la limite de points, ou au bout du temps (l'équipe
 // en tête) ; la partie, en deux manches gagnantes (ARENA_RULES.wins), trois au plus.
 //
 // Un joueur ne tire pas plus vite que son arme : chaque tir lui coûte un jeton d'un chargeur qui
 // se regarnit au rythme de l'arme, rechargement compris. Sa position est celle qu'il a envoyée,
-// si elle est plausible (sur le sol, pas plus loin que ne le permet sa vitesse).
+// si elle est plausible (sur le sol, pas plus loin que ne le permet la vitesse de son personnage).
 //
 // Classement : à la fin d'une partie, le relais déclare au site la partie de chaque CMDR qui l'a
 // finie (gagnée, perdue ou nulle, ses éliminations, ses chutes) : cf. `report`. Une partie contre
@@ -36,15 +38,15 @@
 
 import { randomBytes } from 'node:crypto'
 import {
-  ARENA_BOTS, ARENA_LEVEL, ARENA_LOBBY, ARENA_MAPS, ARENA_RULES as R, ARENA_SKILLS, arenaGround, arenaHidden, arenaSight, arenaSpawn, arenaZone, blastDamage, castArena, spawnYaw,
+  ARENA_BOTS, ARENA_CHARACTERS, ARENA_LEVEL, ARENA_LOBBY, ARENA_MAPS, ARENA_RULES as R, ARENA_SKILLS, CHARACTER_IDS, DEFAULT_CHARACTER,
+  arenaGround, arenaHidden, arenaSight, arenaSpawn, arenaZone, blastDamage, bushSight, castArena, lobTarget, lobTime, spawnYaw,
 } from '../shared/arena.js'
 import { findPath, smoothPath, straightWalk, walkable } from '../shared/salvage.js'
-import { WEAPON_IDS, WEAPON_STATS } from '../shared/weapons.js'
 import { ShipMap } from '../shared/ship-map.js'
 import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 
-/** Événements du lobby ; les autres sont ceux d'une partie (l'arme se change dans les deux). */
-export const ARENA_LOBBY_ACTIONS = new Set(['arena:join', 'arena:leave', 'arena:side', 'arena:settings', 'arena:weapon', 'arena:ready', 'arena:watch', 'arena:unwatch'])
+/** Événements du lobby ; les autres sont ceux d'une partie. */
+export const ARENA_LOBBY_ACTIONS = new Set(['arena:join', 'arena:leave', 'arena:side', 'arena:settings', 'arena:character', 'arena:ready', 'arena:watch', 'arena:unwatch'])
 export const ARENA_GAME_ACTIONS = new Set(['arena:fire', 'arena:quit'])
 
 const RAD = Math.PI / 180
@@ -64,8 +66,15 @@ const BULLET_LIFE = 3
 const BOT_SIGHT = 16
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z)
+const statsOf = (character) => ARENA_CHARACTERS[character] ?? ARENA_CHARACTERS[DEFAULT_CHARACTER]
+/** Blessé, pour les soins de Betty : comme le voient les clients, qui reçoivent des points de vie arrondis. */
+const wounded = (f) => Math.round(f.hp) < f.max
+const weaponOf = (character) => statsOf(character).weapon
 const finite = (v) => typeof v === 'number' && Number.isFinite(v)
 const round2 = (v) => Math.round(v * 100) / 100
+const baseEdge = (zone, team) => team === 0 ? R.baseDepth - 0.5 : zone.width - R.baseDepth - 0.5
+const inBase = (zone, team, p) => team === 0 ? p.x < baseEdge(zone, team) : p.x > baseEdge(zone, team)
+const outsideEnemyBase = (zone, team, p) => !inBase(zone, 1 - team, p)
 
 /**
  * @param {object} o
@@ -89,7 +98,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     startsIn: r.status === 'countdown' ? Math.max(0, (r.startAt - now()) / 1000) : undefined,
     members: [...r.members].map(([id, m]) => {
       const p = playerById(id)
-      return { id, name: p?.name ?? m.name, verified: !!p?.verified, team: m.team, weapon: m.weapon, ready: m.ready }
+      return { id, name: p?.name ?? m.name, verified: !!p?.verified, team: m.team, character: m.character, ready: m.ready }
     }),
     ...(r.game ? { score: [...r.game.score], rounds: [...r.game.rounds], watchers: r.game.watchers.size } : {}),
   })
@@ -131,7 +140,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       return
     }
     if (action !== 'arena:leave' && !inLobby(p)) return error(p, 'lobby')
-    const weapon = WEAPON_IDS.includes(data.weapon) ? data.weapon : null
+    const character = CHARACTER_IDS.includes(data.character) ? data.character : null
     switch (action) {
       case 'arena:join': {
         const room = rooms.get(data.room)
@@ -144,7 +153,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
         if (count(room, team) >= room.size) return error(p, 'full')
         if (r) { leaveRoom(p); unready(r) }
         if (!room.members.size) room.leader = p.id
-        room.members.set(p.id, { name: p.name, team, weapon: weapon ?? 'pistol', ready: false })
+        room.members.set(p.id, { name: p.name, team, character: character ?? DEFAULT_CHARACTER, ready: false })
         roomOf.set(p.id, room)
         unready(room)
         break
@@ -184,10 +193,10 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
         unready(r)
         break
       }
-      case 'arena:weapon': {
+      case 'arena:character': {
         const m = r?.members.get(p.id)
-        if (!m || !weapon || weapon === m.weapon) return
-        m.weapon = weapon
+        if (!m || !character || character === m.character) return
+        m.character = character
         break
       }
       case 'arena:ready': {
@@ -213,7 +222,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
 
   // ------------------------------------------------------------------ partie
 
-  const publicFighter = (f) => ({ id: f.id, name: f.name, team: f.team, bot: f.bot, weapon: f.weapon })
+  const publicFighter = (f) => ({ id: f.id, name: f.name, team: f.team, bot: f.bot, character: f.character })
   const toGame = (game, event, data, except) => {
     for (const f of game.fighters.values()) if (!f.bot && f.id !== except) emit(f.id, event, data)
     for (const id of game.watchers) emit(id, event, data)
@@ -222,10 +231,11 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
   const standing = (game, team) => [...game.fighters.values()].filter((f) => f.alive && (team === undefined || f.team === team))
 
   function makeFighter(game, base) {
-    const w = WEAPON_STATS[base.weapon]
+    const c = statsOf(base.character)
+    const w = c.weapon
     const f = {
-      verified: false, bot: false, ...base, next: base.weapon, hp: R.hp, alive: true, x: 0, z: 0, yaw: 0, at: now(), warp: true, arrived: false,
-      respawnAt: 0, shieldUntil: game.liveAt + R.shield * 1000, hurtAt: 0, revealUntil: 0, kills: 0, deaths: 0, damage: 0, anim: 'idle',
+      verified: false, bot: false, ...base, hp: c.hp, max: c.hp, alive: true, x: 0, z: 0, yaw: 0, at: now(), warp: true, arrived: false,
+      respawnAt: 0, shieldUntil: game.liveAt + R.shield * 1000, hurtAt: 0, revealUntil: 0, kills: 0, deaths: 0, damage: 0, healed: 0, anim: 'idle',
       // Joueur : le chargeur de jetons qui borne sa cadence.
       tokens: w.mag, tokensAt: now(), firedAt: 0,
       // Bot : son chemin, qui il voit et depuis quand, son chargeur.
@@ -244,12 +254,16 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     Object.assign(f, { x: at.x, z: at.z, yaw: spawnYaw(game.zone, at), at: now(), warp: true, path: [] })
   }
 
+  /** Un bot de l'équipe `team` : un personnage que son équipe n'a pas encore, si possible. */
   function addBot(game, team) {
     const used = new Set([...game.fighters.values()].map((f) => f.name))
     const names = ARENA_BOTS.filter((n) => !used.has(n))
+    const taken = new Set([...game.fighters.values()].filter((f) => f.team === team).map((f) => f.character))
+    const fresh = CHARACTER_IDS.filter((c) => !taken.has(c))
+    const pool = fresh.length ? fresh : CHARACTER_IDS
     return makeFighter(game, {
       id: game.nextBot--, bot: true, team, name: names[Math.floor(random() * names.length)] ?? `Drone ${-game.nextBot}`,
-      weapon: WEAPON_IDS[Math.floor(random() * WEAPON_IDS.length)],
+      character: pool[Math.floor(random() * pool.length)],
     })
   }
 
@@ -258,11 +272,13 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     const game = {
       id: randomBytes(8).toString('hex'), room: r, zone: arenaZone(r.map), size: r.size, startedAt: t, liveAt: t + R.warmup * 1000,
       endsAt: t + (R.warmup + R.duration) * 1000, goal: r.goal, score: [0, 0], round: 1, rounds: [0, 0], skill: ARENA_SKILLS[r.skill], fighters: new Map(), bullets: [],
+      // Les fleurs de Capucine et les flaques de Jacques, sur le terrain.
+      traps: [], nextTrap: 1,
       ended: false, frozen: false, nextBot: -1, watchers: new Set(),
     }
     for (const [id, m] of r.members) {
       const p = playerById(id)
-      makeFighter(game, { id, name: p?.name ?? m.name, verified: !!p?.verified, cookie: p?.cookie ?? null, team: m.team, weapon: m.weapon })
+      makeFighter(game, { id, name: p?.name ?? m.name, verified: !!p?.verified, cookie: p?.cookie ?? null, team: m.team, character: m.character })
       m.ready = false
       // Qui regardait une autre partie joue maintenant la sienne.
       if (p) unwatch(p)
@@ -271,7 +287,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     r.status = 'playing'
     r.game = game
     for (const f of game.fighters.values()) if (!f.bot) emit(f.id, 'arena:start', startMessage(game, f))
-    log(`[arène] partie ${game.id} : ${[...game.fighters.values()].map((f) => `${f.name} (${f.team ? 'B' : 'A'})`).join(', ')}`)
+    log(`[arène] partie ${game.id} : ${[...game.fighters.values()].map((f) => `${f.name} (${f.team ? 'B' : 'A'}, ${f.character})`).join(', ')}`)
     announce()
   }
 
@@ -289,7 +305,11 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
   /** La partie est finie, ou entre deux manches : plus une balle ne vole, plus un coup ne porte. */
   const over = (game) => game.ended || now() < game.liveAt
 
-  function hurt(game, target, by, amount, weapon, at) {
+  /**
+   * `target` perd `amount` points de vie, du fait de `by` (son personnage, `character`, pour le fil
+   * des éliminations) ; `trap` : la fleur ou la flaque qui a mordu ou brûlé.
+   */
+  function hurt(game, target, by, amount, character, at, trap) {
     const t = now()
     if (!target.alive || t < target.shieldUntil || amount <= 0 || over(game)) return
     target.hp -= amount
@@ -298,7 +318,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     target.revealUntil = t + R.bush.reveal * 1000
     const attacker = game.fighters.get(by)
     if (attacker && attacker !== target) attacker.damage += Math.min(amount, amount + target.hp)
-    tell(game, { kind: 'hit', id: target.id, by, hp: Math.max(0, Math.round(target.hp)), dmg: amount, x: round2(at.x), y: round2(at.y), z: round2(at.z) })
+    tell(game, { kind: 'hit', id: target.id, by, hp: Math.max(0, Math.round(target.hp)), dmg: amount, x: round2(at.x), y: round2(at.y), z: round2(at.z), ...(trap ? { trap } : {}) })
     if (target.hp > 0) return
     target.alive = false
     target.deaths++
@@ -307,41 +327,69 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     const fell = { x: round2(target.x), z: round2(target.z) }
     place(game, target)
     target.waiting = true
-    // Éliminé par sa propre explosion : le point va à l'équipe d'en face.
+    // Sans adversaire pour l'avoir eu (il est parti) : le point va à l'équipe d'en face.
     const own = !attacker || attacker.team === target.team
     if (!own) attacker.kills++
     game.score[own ? 1 - target.team : attacker.team]++
-    tell(game, { kind: 'kill', id: target.id, by, weapon, score: [...game.score], wait: R.respawn, from: fell, x: target.x, z: target.z, yaw: round2(target.yaw) })
+    tell(game, { kind: 'kill', id: target.id, by, character, score: [...game.score], wait: R.respawn, from: fell, x: target.x, z: target.z, yaw: round2(target.yaw) })
     if (Math.max(...game.score) >= game.goal) endRound(game, game.score[0] > game.score[1] ? 0 : 1, 'score')
   }
 
+  /** Betty soigne `target` (un coéquipier) de `amount`, sans dépasser ses points de vie de départ. */
+  function heal(game, target, by, amount, at) {
+    if (!target.alive || !wounded(target) || over(game)) return
+    const gain = Math.min(amount, target.max - target.hp)
+    target.hp += gain
+    const healer = game.fighters.get(by)
+    if (healer) healer.healed += gain
+    tell(game, { kind: 'heal', id: target.id, by, hp: Math.round(target.hp), amount: Math.round(gain), x: round2(at.x), y: round2(at.y), z: round2(at.z) })
+  }
+
   function respawn(game, f) {
-    const w = WEAPON_STATS[f.next]
+    const w = weaponOf(f.character)
     // Éliminé, il attendait déjà à sa base (cf. hurt) : il y reste.
     if (!f.waiting) place(game, f)
     Object.assign(f, {
-      weapon: f.next, hp: R.hp, alive: true, waiting: false, at: now(), respawnAt: 0, shieldUntil: now() + R.shield * 1000, tokens: w.mag, tokensAt: now(), ammo: w.mag,
+      hp: f.max, alive: true, waiting: false, at: now(), respawnAt: 0, shieldUntil: now() + R.shield * 1000, tokens: w.mag, tokensAt: now(), ammo: w.mag,
       reloadUntil: 0, lastSeen: null, seen: 0,
     })
-    tell(game, { kind: 'spawn', id: f.id, x: f.x, z: f.z, yaw: round2(f.yaw), weapon: f.weapon })
+    tell(game, { kind: 'spawn', id: f.id, x: f.x, z: f.z, yaw: round2(f.yaw) })
   }
 
-  /** Un tir part : ses balles volent dès le prochain pas ; les autres joueurs de la partie le voient. */
-  function shoot(game, f, origin, dirs) {
-    const w = WEAPON_STATS[f.weapon]
+  /**
+   * Un tir part : ses projectiles volent dès le prochain pas ; les autres joueurs de la partie le
+   * voient. `throwTo` : pour un objet lancé, jusqu'où (tuiles).
+   */
+  function shoot(game, f, origin, dirs, throwTo = 0) {
+    const w = weaponOf(f.character)
     // Tirer fait tomber la protection du retour à la base, et trahit qui se cachait dans un buisson.
     f.shieldUntil = 0
     f.revealUntil = now() + R.bush.reveal * 1000
-    for (const d of dirs) game.bullets.push({ by: f.id, team: f.team, weapon: f.weapon, p: { ...origin }, d, speed: w.speed, left: w.range, age: 0, hit: new Set() })
-    tell(game, { kind: 'shot', id: f.id, weapon: f.weapon, o: [round2(origin.x), round2(origin.y), round2(origin.z)], d: dirs.map((d) => [d.x, d.y, d.z].map((v) => Math.round(v * 1000) / 1000)) }, f.id)
+    const base = { by: f.id, team: f.team, character: f.character, w, age: 0, hit: new Set() }
+    const shot = { kind: 'shot', id: f.id, character: f.character, o: [round2(origin.x), round2(origin.y), round2(origin.z)], d: dirs.map((d) => [d.x, d.y, d.z].map((v) => Math.round(v * 1000) / 1000)) }
+    if (w.lob) {
+      // En cloche, par-dessus les obstacles : il retombe là où l'on a visé.
+      const flat = Math.hypot(dirs[0].x, dirs[0].z) || 1
+      const dir = { x: dirs[0].x / flat, z: dirs[0].z / flat }
+      const to = lobTarget(game.zone, origin, dir, throwTo, w.range)
+      const dur = lobTime(w, dist(origin, to))
+      game.bullets.push({ ...base, lob: true, p: { ...origin }, to, dur })
+      tell(game, { ...shot, to: [round2(to.x), round2(to.z)], dur: round2(dur) }, f.id)
+      return
+    }
+    for (const d of dirs) game.bullets.push({ ...base, p: { ...origin }, d, speed: w.speed, left: w.range })
+    tell(game, shot, f.id)
   }
 
-  /** Tir d'un joueur : d'où part la balle (près de lui), et la direction de chaque balle de la gerbe. */
+  /**
+   * Tir d'un joueur : d'où part le projectile (près de lui), la direction de chaque projectile de la
+   * gerbe, et pour un objet lancé, jusqu'où (`r`, en tuiles).
+   */
   function fire(p, game, data) {
     const f = game.fighters.get(p.id)
     const t = now()
     if (!f || !f.alive || game.ended || t < game.liveAt) return
-    const w = WEAPON_STATS[f.weapon]
+    const w = weaponOf(f.character)
     // La cadence : jamais deux tirs plus rapprochés que l'arme, et pas plus que son chargeur ne débite.
     f.tokens = Math.min(w.mag, f.tokens + ((t - f.tokensAt) / 1000) * (w.mag / (w.mag * w.interval + w.reload)))
     f.tokensAt = t
@@ -356,27 +404,87 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       if (len < 0.5 || len > 2) return
       dirs.push({ x: v[0] / len, y: v[1] / len, z: v[2] / len })
     }
+    if (w.lob && (!finite(data.r) || Math.hypot(dirs[0].x, dirs[0].z) < 0.2)) return
     // À hauteur d'homme au-dessus de son sol (le haut, une rampe, le sol d'en bas).
     const floor = arenaGround(game.zone, f)
     const origin = { x: o[0], y: Math.min(floor + 1, Math.max(floor + 0.05, o[1])), z: o[2] }
-    // La balle part de sa main : pas de plus loin, ni de derrière un conteneur.
+    // Le projectile part de sa main : pas de plus loin, ni de derrière un conteneur.
     if (dist(origin, f) > 1.2 || !walkable(game.zone, Math.round(origin.x), Math.round(origin.z)) || !arenaSight(game.zone, f, origin)) {
       origin.x = f.x
       origin.z = f.z
     }
     f.tokens--
     f.firedAt = t
-    shoot(game, f, origin, dirs)
+    shoot(game, f, origin, dirs, w.lob ? data.r : 0)
   }
 
+  /** Le souffle d'une explosion en `at` (tomate, cocktail) : les adversaires dans son rayon, que rien n'abrite. */
   function explode(game, b, at) {
     // Le souffle ne traverse pas un conteneur : il part d'un peu en deçà de l'impact.
-    const from = { x: at.x - b.d.x * 0.05, z: at.z - b.d.z * 0.05 }
-    for (const f of standing(game)) {
-      if (f.team === b.team && f.id !== b.by) continue
-      const amount = blastDamage(b.weapon, dist(f, at))
+    const from = b.d ? { x: at.x - b.d.x * 0.05, z: at.z - b.d.z * 0.05 } : at
+    for (const f of standing(game, 1 - b.team)) {
+      const amount = blastDamage(b.w, dist(f, at))
       if (!amount || !arenaSight(game.zone, walkable(game.zone, Math.round(from.x), Math.round(from.z)) ? from : f, f)) continue
-      hurt(game, f, b.by, f.id === b.by ? Math.round(amount * R.self) : amount, b.weapon, { x: f.x, y: arenaGround(game.zone, f) + R.body.h * 0.6, z: f.z })
+      hurt(game, f, b.by, amount, b.character, { x: f.x, y: arenaGround(game.zone, f) + R.body.h * 0.6, z: f.z })
+      if (over(game)) return
+    }
+  }
+
+  /**
+   * Un objet lancé retombe : le cocktail éclate (son souffle, puis sa flaque qui brûle), la graine
+   * fait pousser une fleur carnivore. Ni fleur ni flaque dans la base adverse.
+   */
+  function land(game, b) {
+    const w = b.w
+    const at = { x: b.to.x, y: arenaGround(game.zone, b.to) + 0.1, z: b.to.z }
+    if (w.blast) {
+      explode(game, b, at)
+      if (over(game)) return
+    }
+    if (!outsideEnemyBase(game.zone, b.team, at)) return
+    const t = now()
+    const kind = w.flower ? 'flower' : w.fire ? 'fire' : null
+    if (!kind) return
+    const spec = w.flower ?? w.fire
+    if (w.flower) {
+      // Pas plus de `most` fleurs à la fois : la plus vieille fane.
+      const mine = game.traps.filter((x) => x.kind === 'flower' && x.by === b.by)
+      for (const old of mine.slice(0, Math.max(0, mine.length - w.flower.most + 1))) game.traps.splice(game.traps.indexOf(old), 1)
+    }
+    const trap = {
+      id: game.nextTrap++, kind, by: b.by, team: b.team, character: b.character, w, x: round2(at.x), z: round2(at.z),
+      until: t + spec.life * 1000, next: t + (w.flower ? w.flower.grow : w.fire.every) * 1000,
+    }
+    game.traps.push(trap)
+  }
+
+  /** Les fleurs mordent, les flaques brûlent ; celles qui ont fait leur temps disparaissent. */
+  function stepTraps(game) {
+    const t = now()
+    game.traps = game.traps.filter((x) => t < x.until)
+    for (const trap of [...game.traps]) {
+      if (t < trap.next) continue
+      const foes = standing(game, 1 - trap.team)
+      if (trap.kind === 'flower') {
+        // L'adversaire le plus proche, à portée de mâchoire, que rien n'abrite.
+        const spec = trap.w.flower
+        let prey = null, near = spec.radius + R.body.r
+        for (const f of foes) {
+          const d = dist(f, trap)
+          if (d <= near && t >= f.shieldUntil && arenaSight(game.zone, trap, f)) { near = d; prey = f }
+        }
+        if (!prey) continue
+        trap.next = t + spec.every * 1000
+        hurt(game, prey, trap.by, trap.w.damage, trap.character, { x: prey.x, y: arenaGround(game.zone, prey) + R.body.h * 0.5, z: prey.z }, trap.id)
+      } else {
+        const spec = trap.w.fire
+        trap.next = t + spec.every * 1000
+        for (const f of foes) {
+          if (dist(f, trap) > spec.radius + R.body.r) continue
+          hurt(game, f, trap.by, spec.damage, trap.character, { x: f.x, y: arenaGround(game.zone, f) + 0.2, z: f.z }, trap.id)
+          if (over(game)) return
+        }
+      }
       if (over(game)) return
     }
   }
@@ -384,13 +492,28 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
   function stepBullets(game, dt) {
     const keep = []
     for (const b of game.bullets) {
-      const w = WEAPON_STATS[b.weapon]
+      const w = b.w
+      b.age += dt
+      if (b.lob) {
+        // En vol, il ne touche rien ; il retombe au bout de sa course.
+        if (b.age < b.dur) keep.push(b)
+        else {
+          land(game, b)
+          if (over(game)) return
+        }
+        continue
+      }
       // Pas plus loin que la portée de l'arme.
       let left = Math.min(b.speed * dt, b.left)
-      let flying = (b.age += dt) < BULLET_LIFE
+      let flying = b.age < BULLET_LIFE
       for (let i = 0; i < 4 && left > 0 && flying; i++) {
-        // Ni le tireur, ni son équipe, ni celui qu'elle a déjà traversé.
-        const hit = castArena(game.zone, b.p, b.d, left, standing(game), (id) => b.hit.has(id) || game.fighters.get(id)?.team === b.team)
+        // Ni le tireur, ni celui qu'elle a déjà traversé ; ses coéquipiers non plus, sauf, pour les
+        // soins de Betty, un coéquipier blessé.
+        const hit = castArena(game.zone, b.p, b.d, left, standing(game), (id) => {
+          if (b.hit.has(id) || id === b.by) return true
+          const o = game.fighters.get(id)
+          return o?.team === b.team && !(w.heal && wounded(o))
+        })
         b.p.x += b.d.x * hit.t
         b.p.y += b.d.y * hit.t
         b.p.z += b.d.z * hit.t
@@ -398,8 +521,10 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
         b.left -= hit.t
         if (hit.body === null && !hit.normal) break
         if (hit.body !== null) {
-          if (w.blast) explode(game, b, b.p)
-          else hurt(game, game.fighters.get(hit.body), b.by, w.damage, b.weapon, b.p)
+          const target = game.fighters.get(hit.body)
+          if (target.team === b.team) heal(game, target, b.by, w.heal, b.p)
+          else if (w.blast) explode(game, b, b.p)
+          else hurt(game, target, b.by, w.damage, b.character, b.p)
           if (over(game)) return
           if (w.pierce) {
             b.hit.add(hit.body)
@@ -411,7 +536,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
         }
         flying = false
       }
-      // Au bout de sa portée, elle s'éteint ; le plasma, lui, explose là.
+      // Au bout de sa portée, elle s'éteint ; la tomate, elle, éclate là.
       if (flying && b.left <= 1e-6) {
         flying = false
         if (w.blast) {
@@ -427,13 +552,15 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
   // ------------------------------------------------------------------ bots
 
   function routeTo(game, b, goal) {
-    const tiles = findPath(game.zone, b, goal)
+    const edge = baseEdge(game.zone, 1 - b.team)
+    const safe = { ...goal, x: b.team === 0 ? Math.min(goal.x, edge - 0.01) : Math.max(goal.x, edge + 0.01) }
+    const tiles = findPath(game.zone, b, safe)
     if (!tiles) {
       b.path = []
       return
     }
     b.path = smoothPath(game.zone, b, tiles.slice(1))
-    if (b.path.length && walkable(game.zone, Math.round(goal.x), Math.round(goal.z))) b.path[b.path.length - 1] = { x: goal.x, z: goal.z }
+    if (b.path.length && walkable(game.zone, Math.round(safe.x), Math.round(safe.z))) b.path[b.path.length - 1] = safe
   }
 
   /** Avance le long de son chemin ; true tant qu'il marche. */
@@ -482,23 +609,25 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     const goal = back
       ? { x: b.x - (dx / d) * reach + (-dz / d) * side * 0.5, z: b.z - (dz / d) * reach + (dx / d) * side * 0.5 }
       : { x: b.x + (-dz / d) * side * reach, z: b.z + (dx / d) * side * reach }
-    if (walkable(game.zone, Math.round(goal.x), Math.round(goal.z)) && straightWalk(game.zone, b, goal)) b.path = [goal]
+    if (outsideEnemyBase(game.zone, b.team, goal) && walkable(game.zone, Math.round(goal.x), Math.round(goal.z)) && straightWalk(game.zone, b, goal)) b.path = [goal]
   }
 
   function stepBot(game, b, dt) {
     const t = now()
     const zone = game.zone
-    const w = WEAPON_STATS[b.weapon]
+    const c = statsOf(b.character)
+    const w = c.weapon
     const skill = game.skill
     if (b.reloadUntil && t >= b.reloadUntil) {
       b.ammo = w.mag
       b.reloadUntil = 0
     }
-    // Vue : l'adversaire debout le plus proche, sans rien entre eux, et qui ne se cache pas dans un buisson.
+    // Vue : l'adversaire debout le plus proche, sans rien entre eux, et qui ne se cache pas dans un
+    // buisson (Nico, que Boulon renseigne, en voit de plus loin).
     let target = null, near = BOT_SIGHT
     for (const f of standing(game, 1 - b.team)) {
       const d = dist(b, f)
-      if (d < near && arenaSight(zone, b, f) && !arenaHidden(zone, f, b, t < f.revealUntil)) {
+      if (d < near && arenaSight(zone, b, f) && !arenaHidden(zone, f, b, t < f.revealUntil, bushSight(b.character))) {
         near = d
         target = f
       }
@@ -532,23 +661,38 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       // Au calme depuis un moment : il recharge.
       if (b.calm > 1 && b.ammo < w.mag && !b.reloadUntil) b.reloadUntil = t + w.reload * 1000
     }
-    const moved = walk(b, R.bot * w.weight, dt)
+    const moved = walk(b, R.bot * c.speed, dt)
+    // Dernier garde-fou : même un chemin lissé ne franchit jamais la frontière adverse.
+    const enemyEdge = baseEdge(zone, 1 - b.team)
+    if (b.team === 0 && b.x >= enemyEdge) { b.x = enemyEdge - 0.01; b.path = [] }
+    if (b.team === 1 && b.x <= enemyEdge) { b.x = enemyEdge + 0.01; b.path = [] }
     b.anim = moved ? 'sprint' : 'idle'
-    if (!target) return
-    const yaw = Math.atan2(target.x - b.x, target.z - b.z)
+    // Betty : sans adversaire à portée, elle soigne le plus blessé des siens qu'elle voit.
+    let aimed = target && near <= w.range + R.body.r ? target : null
+    if (w.heal && !aimed) {
+      let worst = 0.75
+      for (const m of standing(game, b.team)) {
+        const d = dist(b, m)
+        if (m === b || d > w.range || m.hp / m.max >= worst || !arenaSight(zone, b, m)) continue
+        worst = m.hp / m.max
+        aimed = m
+      }
+    }
+    if (target) b.yaw = Math.atan2(target.x - b.x, target.z - b.z)
+    if (!aimed) return
+    const range = dist(b, aimed)
+    const yaw = Math.atan2(aimed.x - b.x, aimed.z - b.z)
     b.yaw = yaw
-    if (b.seen < skill.reaction || b.reloadUntil || t < b.nextFire) return
+    if ((aimed === target && b.seen < skill.reaction) || b.reloadUntil || t < b.nextFire) return
     if (b.ammo <= 0) {
       b.reloadUntil = t + w.reload * 1000
       return
     }
-    // Hors de portée, la balle s'éteindrait avant lui. Le lance-plasma, pas à bout portant : il se blesserait.
-    if (near > w.range + R.body.r || (w.blast && near < w.blast + 1)) return
     // Écart de visée : au hasard autour de la cible, plus large sur une cible qui court. Sur deux
-    // hauteurs, il vise sa poitrine, plus haut ou plus bas que la sienne.
-    const aim = yaw + (random() + random() - 1) * skill.error * (target.anim === 'sprint' ? 1.5 : 1) * RAD
+    // hauteurs, il vise sa poitrine, plus haut ou plus bas que la sienne (un objet lancé, lui, retombe où il veut).
+    const aim = yaw + (random() + random() - 1) * skill.error * (aimed.anim === 'sprint' ? 1.5 : 1) * RAD
     const floor = arenaGround(zone, b)
-    const rise = (arenaGround(zone, target) - floor) / Math.max(0.5, near)
+    const rise = w.lob ? 0 : (arenaGround(zone, aimed) - floor) / Math.max(0.5, range)
     const dirs = []
     for (let i = 0; i < w.pellets; i++) {
       const a = aim + (random() * 2 - 1) * w.spread * RAD
@@ -560,7 +704,8 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     b.ammo--
     // Une arme au coup par coup : un bot ne presse pas la détente plus de trois fois par seconde.
     b.nextFire = t + (Math.max(w.interval, w.auto ? 0 : 0.3) / skill.pace) * 1000
-    shoot(game, b, origin, dirs)
+    // Un objet lancé : là où se tient la cible, à l'écart de visée près.
+    shoot(game, b, origin, dirs, w.lob ? range * (1 + (random() + random() - 1) * skill.error * 0.02) : 0)
   }
 
   // ------------------------------------------------------------------ fin, départs
@@ -581,6 +726,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     game.round++
     game.score = [0, 0]
     game.bullets = []
+    game.traps = []
     game.liveAt = t + R.intermission * 1000
     game.endsAt = game.liveAt + R.duration * 1000
     for (const f of game.fighters.values()) {
@@ -602,7 +748,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     const duration = Math.round((now() - game.startedAt) / 1000)
     toGame(game, 'arena:end', {
       game: game.id, winner, reason, score: [...game.score], rounds: [...game.rounds], goal: game.goal, duration: Math.max(0, duration),
-      stats: [...game.fighters.values()].map((f) => ({ ...publicFighter(f), kills: f.kills, deaths: f.deaths, damage: Math.round(f.damage) })),
+      stats: [...game.fighters.values()].map((f) => ({ ...publicFighter(f), kills: f.kills, deaths: f.deaths, damage: Math.round(f.damage), heal: Math.round(f.healed) })),
     })
     if (!r.members.size) reset(r)
     // Le classement : la partie de chaque CMDR qui l'a finie, déclarée au site ; chacun apprend si
@@ -631,6 +777,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     if (!f) return announce()
     game.fighters.delete(p.id)
     game.bullets = game.bullets.filter((b) => b.by !== p.id)
+    game.traps = game.traps.filter((x) => x.by !== p.id)
     tell(game, { kind: 'left', id: p.id })
     const humans = [...game.fighters.values()].some((x) => !x.bot)
     if (!humans) {
@@ -649,17 +796,10 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     announce()
   }
 
+  /** En partie, on tire ou l'on s'en va ; le personnage, lui, ne change pas. */
   function gameAction(p, game, action, data) {
     if (action === 'arena:fire') return fire(p, game, data)
     if (action === 'arena:quit') return quit(p)
-    if (action === 'arena:weapon') {
-      // En partie : l'arme du prochain retour à la base.
-      const f = game.fighters.get(p.id)
-      const m = game.room.members.get(p.id)
-      if (!f || !WEAPON_IDS.includes(data.weapon)) return
-      f.next = data.weapon
-      if (m) m.weapon = data.weapon
-    }
   }
 
   function handle(p, action, raw) {
@@ -686,9 +826,12 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     const f = game?.fighters.get(p.id)
     if (!f || !f.alive) return false
     if (!walkable(game.zone, Math.round(x), Math.round(z))) return false
+    const at = { x, z }
+    // Avant le signal, chacun reste dans sa base ; pendant la manche, la base adverse reste interdite.
+    if (!outsideEnemyBase(game.zone, f.team, at) || (now() < game.liveAt && !inBase(game.zone, f.team, at))) return false
     const far = Math.hypot(x - f.x, z - f.z)
     if (f.warp) return far <= 1.6
-    return far <= R.sprint * 1.25 * Math.min(2, (now() - f.at) / 1000) + SLACK
+    return far <= R.sprint * statsOf(f.character).speed * 1.25 * Math.min(2, (now() - f.at) / 1000) + SLACK
   }
 
   /** Après chaque position acceptée (ou changement de pont) d'un joueur. */
@@ -741,10 +884,12 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       for (const f of game.fighters.values()) {
         if (!f.alive && f.respawnAt && t >= f.respawnAt) respawn(game, f)
         // Sans dégât depuis un moment, les points de vie remontent.
-        else if (f.alive && f.hp < R.hp && t - f.hurtAt > R.regenAfter * 1000) f.hp = Math.min(R.hp, f.hp + R.regen * dt)
+        else if (f.alive && f.hp < f.max && t - f.hurtAt > R.regenAfter * 1000) f.hp = Math.min(f.max, f.hp + R.regen * f.max * dt)
       }
       if (!game.frozen) for (const f of game.fighters.values()) if (f.bot && f.alive) stepBot(game, f, dt)
       stepBullets(game, dt)
+      if (game.ended) return
+      if (!over(game)) stepTraps(game)
       if (game.ended) return
       if (t >= game.endsAt) return endRound(game, game.score[0] === game.score[1] ? -1 : game.score[0] > game.score[1] ? 0 : 1, 'time')
     }
@@ -756,9 +901,11 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       round: game.round,
       rounds: game.rounds,
       fighters: [...game.fighters.values()].map((f) => ({
-        id: f.id, x: round2(f.x), z: round2(f.z), yaw: round2(f.yaw), anim: f.anim, hp: Math.max(0, Math.round(f.hp)), alive: f.alive, weapon: f.weapon,
+        id: f.id, x: round2(f.x), z: round2(f.z), yaw: round2(f.yaw), anim: f.anim, hp: Math.max(0, Math.round(f.hp)), alive: f.alive,
         shield: t < f.shieldUntil, kills: f.kills, deaths: f.deaths, wait: f.alive ? 0 : Math.max(0, round2((f.respawnAt - t) / 1000)),
       })),
+      // Les fleurs et les flaques : où, de quel camp, combien de temps encore (s).
+      traps: game.traps.map((x) => ({ id: x.id, kind: x.kind, team: x.team, x: x.x, z: x.z, left: Math.max(0, round2((x.until - t) / 1000)) })),
     })
   }
 

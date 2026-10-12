@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { readdirSync, readFileSync } from 'node:fs'
 import { defineConfig, loadEnv, type Plugin, type ProxyOptions } from 'vite'
 import { attachRelay } from './server/relay.js'
 
@@ -86,10 +87,25 @@ function economy(): Plugin {
   }
 }
 
+/**
+ * Empreinte des modèles 3D (public/assets, tous les .glb) : leur adresse ne change pas d'un build à
+ * l'autre, et le navigateur ressert volontiers l'ancien fichier, auquel manquent les modèles ajoutés
+ * depuis. Le client la colle à leur adresse (cf. load dans src/assets.ts).
+ */
+function modelsStamp(): string {
+  const hash = createHash('sha1')
+  const files = (readdirSync('public/assets', { recursive: true }) as string[]).filter((f) => f.endsWith('.glb')).sort()
+  for (const file of files) hash.update(file).update(readFileSync(`public/assets/${file}`))
+  return hash.digest('hex').slice(0, 10)
+}
+
 export default defineConfig({
   // base relative : le build peut être servi depuis n'importe quel sous-dossier.
   base: './',
-  define: { 'import.meta.env.VITE_ED_SITE_ORIGIN': JSON.stringify(ED_SITE_URL) },
+  define: {
+    'import.meta.env.VITE_ED_SITE_ORIGIN': JSON.stringify(ED_SITE_URL),
+    'import.meta.env.VITE_MODELS_STAMP': JSON.stringify(modelsStamp()),
+  },
   plugins: [relay(), economy()],
   // Le client demande au site qui est connecté, ses quartiers, les scores des bornes et ses
   // crédits (même origine en prod) : en local, on relaie au site Docker.

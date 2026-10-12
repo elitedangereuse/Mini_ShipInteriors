@@ -242,7 +242,11 @@
   .arena-title span { font-size: 12px; }
   .arena-team { gap: 5px; padding: 8px; }
   .arena-slot { min-height: 34px; padding: 4px 8px; }
-  .arena-panel .arena-gun { padding: 6px; }
+  .arena-panel .arena-char { padding: 6px 3px; }
+  .arena-char > span:last-child { display: none; }
+  .arena-badge-char { width: 28px; height: 28px; }
+  .arena-sheet { gap: 6px; padding: 8px 10px; }
+  .arena-sheet-quip { display: none; }
   .arena-footer { bottom: -12px; margin: 0 -12px -12px; padding: 8px 12px 10px; }
   .arena-panel .arena-ready { min-width: 180px; min-height: 44px; padding: 8px 16px; font-size: 14px; }
   /* Arena: a clean screen, like Brawl Stars. The ship's panels, the phone tabs and the emotes go;
@@ -268,14 +272,9 @@
   body.arena-on .chat { left: calc(var(--mobile-left) + var(--aim-size) + 10px); width: min(220px, calc(100vw - 2 * (var(--aim-size) + 80px))); }
   body.arena-on #chat-log { display: none; }
   body.arena-on #dialog { bottom: calc(var(--mobile-bottom) + 50px); width: min(380px, calc(100vw - 2 * (var(--aim-size) + 30px))); }
-  /* Taken out: the weapon for the comeback, between the thumbs. */
+  /* Taken out: who did it and the countdown, between the thumbs. */
   .arena-wait { bottom: var(--mobile-bottom); width: min(440px, calc(100vw - 2 * (var(--aim-size) + 26px))); gap: 4px; padding: 8px 10px 10px; }
   .arena-wait > strong { font-size: 16px; }
-  .arena-wait-label { margin-top: 0; }
-  .arena-weapons { gap: 4px; }
-  .arena-weapons button { min-height: 48px; padding: 4px 2px; }
-  .arena-weapons button strong { font-size: 11px; }
-  .arena-weapons button span { display: none; }
   /* Spectating: who the view follows, at the bottom edge. */
   .arena-spectate { bottom: var(--mobile-bottom); }
   .arena-end-rank { font-size: 11px; }

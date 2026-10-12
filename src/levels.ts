@@ -926,9 +926,10 @@ export const LEVELS: LevelDef[] = [
         model: 'arena-terminal', x: ARENA_TERMINAL.x, z: ARENA_TERMINAL.z, rot: 1, action: tr('Jouer à CMDR Arena', 'Play CMDR Arena'),
         interact: tr('Terminal de CMDR Arena : duels par équipes, jusqu\'à trois contre trois.', 'CMDR Arena terminal: team duels, up to three versus three.'),
       },
-      { model: 'arena-rack', x: 24.98, z: 5.67, solid: false, interact: [
-        tr('Les cinq armes de CMDR Arena. Les mêmes qu\'au stand de tir, sauf qu\'ici les cibles ripostent.', 'The five weapons of CMDR Arena. Same as the shooting range, except here the targets shoot back.'),
-        tr('Un mot scotché sous le lance-plasma : « Pas à bout portant. Signé : celui qui a essayé. »', 'A note taped under the plasma launcher: “Not at point-blank. Signed: the one who tried.”'),
+      { model: 'arena-roster', x: 24.98, z: 5.67, solid: false, interact: [
+        tr('Les six personnages de CMDR Arena : Rourke, Marcel, Nico et Boulon, Betty, Capucine, Jacques. L\'équipage au complet, sauf qu\'ici il riposte.', 'The six CMDR Arena characters: Rourke, Marcel, Nico & Bolt, Betty, Capucine, Jacques. The whole crew, except here it shoots back.'),
+        tr('Un mot scotché sous la case de Marcel : « Les tomates sont comptées. Signé : le chef. »', 'A note taped under Marcel\'s box: “The tomatoes are counted. Signed: the chef.”'),
+        tr('Quelqu\'un a écrit au feutre sous Jacques : « On ne boit pas les munitions. »', 'Someone wrote in marker under Jacques: “Do not drink the ammunition.”'),
       ] },
       { model: 'arena-booth', x: ARENA_BOOTH.x, z: ARENA_BOOTH.z, rot: 1 },
       // Au milieu du mur du hangar : le classement des joueurs, tenu par le site, entre les bannières des deux équipes.

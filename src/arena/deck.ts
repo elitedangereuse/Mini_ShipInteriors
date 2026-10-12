@@ -4,7 +4,7 @@ import { box, cylinder, decal, drawnTexture, glow, holoTime, lit, part, rng } fr
 import { tr } from '../i18n'
 import type { LevelDef, LightDef, Prop, Rot } from '../levels'
 import type { ZoneKit } from '../salvage/kit'
-import { ARENA_LEVEL, type ArenaZone } from '../../shared/arena.js'
+import { ARENA_LEVEL, ARENA_RULES, type ArenaZone } from '../../shared/arena.js'
 import { buildVenue, type Venue } from './venue'
 
 /*
@@ -12,8 +12,8 @@ import { buildVenue, type Venue } from './venue'
  * venue.ts), bâti avec le kit de la baie de la zone thargoïde (murs, dalles, conteneurs, cf.
  * src/salvage/kit.ts), tous projecteurs allumés. Le terrain est peint comme un terrain de jeu : un
  * damier de sable, le rond central et son éclair, le liseré jaune au pied de chaque obstacle. Les
- * cloisons ont un couvercle, les conteneurs un marquage au pochoir ; les caisses d'armes et les
- * piliers sont faits main, et un peu de fatras traîne le long des murs. Pas de plafond : en vue
+ * cloisons ont un couvercle ; les caisses d'armes et les piliers sont faits main, et un peu de
+ * fatras traîne le long des murs. Pas de plafond : en vue
  * subjective, on voit le public par-dessus les murs du pourtour.
  *
  * Ce qui bouge, ou dépend de qui regarde, est à part (cf. arenaExtras) :
@@ -32,7 +32,7 @@ const CRATE_H = 1.04
 const PILLAR_H = 1.06
 const BULKHEAD_H = 1.06
 /** Tuiles peintes de chaque base, depuis son bord. */
-const BASE_DEPTH = 3
+const BASE_DEPTH = ARENA_RULES.baseDepth
 
 let crateMaterials: THREE.Material[] | null = null
 
@@ -124,32 +124,6 @@ function bulkheadLid(w: number, d: number): THREE.Object3D {
   g.add(box(w, 0.04, d, lit('#2c3139', 'metal'), 0, BULKHEAD_H - 0.01, 0))
   g.add(decal(texture, w, d, BULKHEAD_H + 0.011))
   return g
-}
-
-/** Le marquage au pochoir sur le toit d'un conteneur (long de 1,9 le long de z) : son numéro. */
-function containerStencil(n: number): THREE.Mesh {
-  const texture = drawnTexture(128, 272, (c) => {
-    c.clearRect(0, 0, 128, 272)
-    c.fillStyle = '#ffffffb0'
-    c.save()
-    c.translate(64, 136)
-    c.rotate(-Math.PI / 2)
-    c.font = 'bold 46px system-ui, sans-serif'
-    c.textAlign = 'center'
-    c.textBaseline = 'middle'
-    c.fillText(`CMDR-${String(n).padStart(2, '0')}`, 0, 2)
-    c.restore()
-    // Les coins : des équerres de danger.
-    c.fillStyle = '#ffd23fc0'
-    for (const [x, y, sx, sy] of [[6, 6, 1, 1], [122, 6, -1, 1], [6, 266, 1, -1], [122, 266, -1, -1]]) {
-      c.beginPath()
-      c.moveTo(x, y)
-      c.lineTo(x + sx * 26, y)
-      c.lineTo(x, y + sy * 26)
-      c.fill()
-    }
-  })
-  return decal(texture, 0.78, 1.66, CONTAINER_H + 0.004)
 }
 
 /** Les cloisons d'un seul tenant (tuiles '#' voisines du plan), chacune par son rectangle de tuiles. */
@@ -286,10 +260,9 @@ function paint(zone: ArenaZone): THREE.Object3D {
 
 export function arenaLevel(zone: ArenaZone, kit: ZoneKit): LevelDef {
   const props: Prop[] = []
-  let number = 0
   for (const c of zone.containers) {
     const cx = c.x + (c.w - 1) / 2, cz = c.z + (c.d - 1) / 2
-    if (c.kind === 'container') props.push({ model: 'prebuilt', object: new THREE.Group().add(kit.container(c.color), containerStencil(++number * 3 + 4)), x: cx, z: cz, rot: containerRot(c) })
+    if (c.kind === 'container') props.push({ model: 'prebuilt', object: kit.container(c.color), x: cx, z: cz, rot: containerRot(c) })
     else if (c.kind === 'pillar') props.push({ model: 'prebuilt', object: pillar(), x: cx, z: cz })
     else props.push({ model: 'prebuilt', object: weaponCrate(c.x + c.z), x: cx, z: cz, rot: ((c.x + c.z) % 4) as Rot })
   }

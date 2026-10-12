@@ -1,12 +1,14 @@
+import type * as THREE from 'three'
 import { tr } from './i18n'
 import { WEAPON_STATS, type WeaponId, type WeaponStats } from '../shared/weapons.js'
 
 /*
  * Les armes du stand de tir de la cale : des blasters, du Blaster Kit de Kenney. Leurs réglages
  * sont ici, à part, parce que le jeu (src/range.ts), ses bruitages (src/range-sfx.ts) et le mur où
- * on les prend (src/furniture/range.ts) les lisent tous les trois. Ce que le relais doit lire aussi
- * pour arbitrer l'arène (cadence, chargeur, vitesse de la balle, gerbe, explosion, poids, dégâts)
- * est dans shared/weapons.js ; ici, ce qui ne regarde que le joueur : le nom, le modèle, le recul.
+ * on les prend (src/furniture/range.ts) les lisent tous les trois. Leurs chiffres (cadence,
+ * chargeur, vitesse de la balle, gerbe, explosion, poids) sont dans shared/weapons.js ; ici, ce qui
+ * ne regarde que le joueur : le nom, le modèle, le recul. Le moteur du stand sert aussi à l'arène,
+ * où chacun a l'arme de son personnage (cf. src/arena/characters.ts, qui les décrit de même).
  *
  * Angles en degrés (convertis par le jeu). Le recul et la dispersion se règlent arme par arme :
  * - `kick` cabre le regard à chaque tir, `side` le fait dévier de côté (au hasard, dans les deux
@@ -30,13 +32,18 @@ import { WEAPON_STATS, type WeaponId, type WeaponStats } from '../shared/weapons
 export type { WeaponId }
 
 export interface Weapon extends WeaponStats {
-  id: WeaponId
+  /** Au stand, l'une des cinq armes du mur ; dans l'arène, le personnage qui la tient. */
+  id: string
   name: string
   /** « Prendre le pistolet », sur le mur. */
   take: string
   /** Modèle du kit (canon vers +z) et sa poignée dans le repère du modèle (y, z) : c'est elle qu'on tient. */
   model: string
   grip: [number, number]
+  /** Un modèle fait à la main, à la place de celui du kit (mêmes repères). */
+  make?: () => THREE.Object3D
+  /** Le timbre de son tir (cf. RangeSfx.shot), s'il n'est pas celui de son identifiant. */
+  sound?: string
   /** Couleur du tir : la balle, sa traînée, l'éclair du canon, le liseré de l'arme au mur. */
   color: string
   kick: number
@@ -52,7 +59,7 @@ export interface Weapon extends WeaponStats {
   trait: string
 }
 
-export const WEAPONS: Weapon[] = [
+export const WEAPONS: (Weapon & { id: WeaponId })[] = [
   {
     id: 'pistol', name: tr('Pistolet', 'Pistol'), take: tr('Prendre le pistolet', 'Take the pistol'), model: 'blaster-b', grip: [-0.08, -0.12], color: '#ffb054',
     trait: tr('polyvalent', 'all-rounder'),
@@ -94,5 +101,5 @@ export const weaponById = (id: string | undefined) => WEAPONS.find((w) => w.id =
  * éclate, `tier` quand un palier est franchi, `alarm` à chaque seconde des dix dernières, `beat`
  * à chaque coup de grosse caisse de la musique.
  */
-export const rangeState: { live: boolean; weapon: WeaponId | null; flash: number; tier: number; alarm: number; beat: number } = { live: false, weapon: null, flash: 0, tier: 0, alarm: 0, beat: 0 }
+export const rangeState: { live: boolean; weapon: string | null; flash: number; tier: number; alarm: number; beat: number } = { live: false, weapon: null, flash: 0, tier: 0, alarm: 0, beat: 0 }
 export type RangeState = typeof rangeState

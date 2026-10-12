@@ -1,6 +1,5 @@
 import type * as THREE from 'three'
 import type { Sound } from './audio'
-import type { WeaponId } from './range-weapons'
 
 /*
  * Bruitages du stand de tir, synthétisés (Web Audio) : des armes à énergie, mais des armes. Un tir
@@ -8,7 +7,9 @@ import type { WeaponId } from './range-weapons'
  * corps saturé (deux dents de scie désaccordées derrière un filtre qui se referme) ; le sifflement
  * de « laser » n'en est plus qu'un reflet. Tout passe par une réverbération de salle métallique,
  * qui donne aux tirs leur poids. Chaque arme a son timbre ; les cibles se brisent en éclats, les
- * murs grésillent, les chargeurs claquent.
+ * murs grésillent, les chargeurs claquent. Les personnages de l'arène ont, en plus des timbres du
+ * stand, les leurs : la seringue de Betty, la graine et le cocktail qu'on lance, la tomate qui
+ * s'écrase, le verre qui éclate et la flaque qui s'embrase, la fleur qui mord, le soin qui tinte.
  *
  * `pos` : là où cela se passe (monde) ; null : à l'oreille, non spatialisé.
  *
@@ -210,8 +211,25 @@ export class RangeSfx {
   }
 
   /** Un tir. `pitch` : hauteur (autour de 1), tirée au hasard par le jeu pour qu'aucun tir ne sonne comme le précédent. */
-  shot(weapon: WeaponId, pos: Pos, pitch: number) {
+  shot(weapon: string, pos: Pos, pitch: number) {
     const t = this.ctx.currentTime + 0.004
+    if (weapon === 'syringe') {
+      // La seringue de Betty : un « pfft » d'air comprimé, et le tintement de l'aiguille.
+      const b = this.bus(pos, 0.42, 0.2)
+      if (!b) return
+      this.burst(b.mix, 'highpass', 2600 * pitch, 5200 * pitch, 0.8, t, 0.07, 0.8)
+      this.burst(b.mix, 'bandpass', 900, 500, 1.2, t, 0.05, 0.5)
+      this.sweep(b.dry, 'sine', 2900 * pitch, 2600 * pitch, t + 0.02, 0.09, 0.08)
+      return
+    }
+    if (weapon === 'throw') {
+      // Un objet lancé : le bras qui fouette l'air.
+      const b = this.bus(pos, 0.36, 0.15)
+      if (!b) return
+      this.burst(b.mix, 'bandpass', 500 * pitch, 2400 * pitch, 1.6, t, 0.22, 0.75)
+      this.sweep(b.mix, 'sine', 160, 90, t, 0.08, 0.4)
+      return
+    }
     if (weapon === 'pistol') {
       const b = this.bus(pos, 0.5, 0.3)
       if (!b) return
@@ -270,6 +288,59 @@ export class RangeSfx {
     this.burst(this.drive(b.mix, 3), 'lowpass', 2800, 120, 0.7, t, 0.8, 1)
     this.body(b.mix, 180, 36, 1800, 200, t, 0.5, 0.4, 4)
     this.crackle(b.mix, t + 0.05, 0.45, 0.25)
+  }
+
+  /** Une tomate s'écrase : un « splotch » mouillé, sourd. */
+  splat(pos: Pos) {
+    const b = this.bus(pos, 0.55, 0.4)
+    if (!b) return
+    const t = this.ctx.currentTime + 0.004
+    this.sweep(b.mix, 'sine', 150, 48, t, 0.22, 1)
+    this.burst(this.drive(b.mix, 2), 'lowpass', 1800, 240, 0.8, t, 0.26, 0.9)
+    this.burst(b.mix, 'bandpass', 700, 380, 2.5, t + 0.01, 0.16, 0.6)
+    for (let i = 0; i < 3; i++) this.burst(b.mix, 'bandpass', 1100 + Math.random() * 900, 600, 4, t + 0.04 + Math.random() * 0.1, 0.05, 0.3)
+  }
+
+  /** Le cocktail de Jacques : le verre éclate, puis la flaque s'embrase dans un souffle. */
+  shatter(pos: Pos) {
+    const b = this.bus(pos, 0.5, 0.5)
+    if (!b) return
+    const t = this.ctx.currentTime + 0.004
+    for (let i = 0; i < 8; i++) {
+      const f = 3800 + Math.random() * 5200
+      this.burst(b.mix, 'bandpass', f, f * 0.94, 9, t + Math.random() * 0.12, 0.04 + Math.random() * 0.06, 0.45)
+    }
+    this.burst(b.mix, 'highpass', 6000, 4200, 0.7, t, 0.03, 0.6)
+    this.burst(b.mix, 'lowpass', 300, 1600, 0.7, t + 0.06, 0.5, 0.55)
+    this.sweep(b.mix, 'sine', 120, 60, t + 0.05, 0.3, 0.5)
+  }
+
+  /** La graine de Capucine touche le sol : un « pof » de terre. */
+  plant(pos: Pos) {
+    const b = this.bus(pos, 0.4, 0.2)
+    if (!b) return
+    const t = this.ctx.currentTime + 0.004
+    this.sweep(b.mix, 'sine', 240, 90, t, 0.12, 0.8)
+    this.burst(b.mix, 'lowpass', 900, 200, 0.8, t, 0.12, 0.6)
+  }
+
+  /** Une fleur carnivore mord : deux mâchoires qui claquent. */
+  chomp(pos: Pos) {
+    const b = this.bus(pos, 0.45, 0.25)
+    if (!b) return
+    const t = this.ctx.currentTime + 0.004
+    this.clack(b.mix, t, 0.6, 0.8)
+    this.clack(b.mix, t + 0.07, 0.75, 0.9)
+    this.sweep(b.mix, 'sine', 170, 70, t + 0.06, 0.12, 0.6)
+  }
+
+  /** Betty soigne un coéquipier : deux notes claires. */
+  heal(pos: Pos) {
+    const b = this.bus(pos, 0.2, 0.5)
+    if (!b) return
+    const t = this.ctx.currentTime + 0.01
+    this.sweep(b.mix, 'sine', 988, 986, t, 0.25, 0.7)
+    this.sweep(b.mix, 'sine', 1480, 1477, t + 0.07, 0.3, 0.6)
   }
 
   /** Une cible vole en éclats ; en plein centre, une confirmation discrète par-dessus. */

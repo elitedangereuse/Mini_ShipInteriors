@@ -19,14 +19,6 @@ export interface WeaponStats {
   spread: number
   /** Poids : ce qu'il reste de la vitesse de marche, arme en main (1 : rien de perdu). */
   weight: number
-  /** Arène : points de vie retirés par balle (au centre de l'explosion pour le lance-plasma). */
-  damage: number
-  /** Arène : distance que parcourt une balle avant de s'éteindre (tuiles) ; le plasma explose au bout. */
-  range: number
-  /** Arène : distance d'où un bot aime s'en servir (tuiles), en deçà de sa portée. */
-  reach: number
-  /** Arène, au stick tactile : balles d'une rafale d'arme automatique. */
-  burst?: number
 }
 
 export declare const WEAPON_STATS: Record<WeaponId, WeaponStats>

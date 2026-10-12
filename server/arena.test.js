@@ -1,11 +1,16 @@
-// L'arène (duels par équipes), côté relais : plan, tirs, salons, bots, dégâts, retours à la base, fin.
+// L'arène (duels par équipes), côté relais : plan, personnages, tirs, salons, bots, dégâts, soins,
+// fleurs et flaques, retours à la base, fin.
 //   npm test
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createArena } from './arena.js'
-import { ARENA_LEVEL, ARENA_MAPS, ARENA_RULES as R, arenaGround, arenaHidden, arenaSight, arenaZone, blastDamage, castArena, inBush } from '../shared/arena.js'
+import {
+  ARENA_CHARACTERS as C, ARENA_LEVEL, ARENA_MAPS, ARENA_RULES as R, CHARACTER_IDS, DEFAULT_CHARACTER, arenaGround, arenaHidden, arenaSight, arenaZone, blastDamage, bushSight, castArena, inBush, lobTarget,
+} from '../shared/arena.js'
 import { findPath, mulberry32 } from '../shared/salvage.js'
-import { WEAPON_STATS } from '../shared/weapons.js'
+
+/** Le personnage par défaut, celui des essais qui n'en choisissent pas d'autre. */
+const D = C[DEFAULT_CHARACTER]
 
 /** Relais simulé : joueurs, horloge, messages envoyés. */
 function harness(options = {}) {
@@ -54,11 +59,11 @@ function harness(options = {}) {
     Object.assign(p, { x, z })
     Object.assign(f, { x, z, at: t })
   }
-  /** Une partie lancée : le salon de `a`, rejoint par `others`, tous prêts. */
-  const start = (a, others = [], settings = {}) => {
-    arena.handle(a, 'arena:join', { room: 1 })
+  /** Une partie lancée : le salon de `a`, rejoint par `others`, tous prêts ; `picks` : le personnage de chacun (par identifiant). */
+  const start = (a, others = [], settings = {}, picks = {}) => {
+    arena.handle(a, 'arena:join', { room: 1, character: picks[a.id] })
     arena.handle(a, 'arena:settings', settings)
-    for (const o of others) arena.handle(o, 'arena:join', { room: 1 })
+    for (const o of others) arena.handle(o, 'arena:join', { room: 1, character: picks[o.id] })
     for (const p of [a, ...others]) arena.handle(p, 'arena:ready', { ready: true })
     advance(R.countdown + 0.1)
     for (const p of [a, ...others]) arrive(p)
@@ -177,7 +182,9 @@ test('arène : le chef choisit le plan ; la partie s\'y joue, et le relais n\'ac
   for (const p of [a, b]) h.arrive(p)
   const game = h.arena.gameOf(a)
   assert.equal(game.zone.id, 'hive')
-  // Le coin de l'octogone est hors du terrain ; le cœur de la ruche, un obstacle.
+  // Après le coup d'envoi (avant, chacun reste dans sa base) : le coin de l'octogone est hors du
+  // terrain ; le cœur de la ruche, un obstacle.
+  h.advance(R.warmup + 0.1)
   h.put(a, 2, 3)
   assert.ok(h.arena.accepts(a, 2.5, 3.4))
   assert.ok(!h.arena.accepts(a, 1.4, 3))
@@ -215,25 +222,56 @@ test('arène : une balle s\'arrête sur un conteneur, une cloison, le sol, ou un
 })
 
 test('arène : l\'explosion blesse moins loin de son centre, pas au-delà de son rayon', () => {
-  assert.equal(blastDamage('launcher', 0), WEAPON_STATS.launcher.damage)
-  assert.ok(blastDamage('launcher', 0.8) < blastDamage('launcher', 0.2))
-  assert.equal(blastDamage('launcher', WEAPON_STATS.launcher.blast + R.body.r + 0.01), 0)
+  const tomato = C.marcel.weapon
+  assert.equal(blastDamage(tomato, 0), tomato.damage)
+  assert.ok(blastDamage(tomato, 0.8) < blastDamage(tomato, 0.2))
+  assert.equal(blastDamage(tomato, tomato.blast + R.body.r + 0.01), 0)
+})
+
+test('arène : six personnages, chacun ses forces et ses faiblesses', () => {
+  assert.deepEqual(CHARACTER_IDS, ['rourke', 'marcel', 'nico', 'betty', 'capucine', 'jacques'])
+  const stats = CHARACTER_IDS.map((id) => ({ id, ...C[id] }))
+  // Chacun a ce qu'il faut : points de vie, vitesse, et une arme complète.
+  for (const c of stats) {
+    assert.ok(c.hp > 0 && c.speed > 0, c.id)
+    for (const key of ['interval', 'mag', 'reload', 'speed', 'pellets', 'damage', 'range', 'reach']) assert.ok(c.weapon[key] > 0, `${c.id}.${key}`)
+    assert.ok(c.weapon.reach < c.weapon.range, `${c.id} : un bot tire en deçà de sa portée`)
+  }
+  // Les tanks sont lents et solides, Nico rapide et fragile, Rourke au milieu de tout.
+  const most = (key) => stats.reduce((a, b) => (b[key] > a[key] ? b : a)).id
+  const least = (key) => stats.reduce((a, b) => (b[key] < a[key] ? b : a)).id
+  assert.equal(most('hp'), 'marcel')
+  assert.equal(least('speed'), 'marcel')
+  assert.equal(most('speed'), 'nico')
+  assert.equal(least('hp'), 'nico')
+  assert.ok(C.jacques.hp > C.rourke.hp && C.jacques.speed < C.rourke.speed)
+  assert.equal(stats.reduce((a, b) => (b.weapon.range > a.weapon.range ? b : a)).id, 'nico')
+  assert.equal(stats.reduce((a, b) => (b.weapon.damage > a.weapon.damage ? b : a)).id, 'nico')
+  // Aucun n'est le meilleur partout : le plus solide n'est ni le plus rapide, ni celui qui porte le plus loin.
+  for (const c of stats) assert.ok(!(c.id === most('hp') && c.id === most('speed')), c.id)
+  // Ce qui n'appartient qu'à un seul : les soins de Betty, les fleurs de Capucine, la flaque de Jacques, le scan de Boulon.
+  assert.deepEqual(stats.filter((c) => c.weapon.heal).map((c) => c.id), ['betty'])
+  assert.deepEqual(stats.filter((c) => c.weapon.flower).map((c) => c.id), ['capucine'])
+  assert.deepEqual(stats.filter((c) => c.weapon.fire).map((c) => c.id), ['jacques'])
+  assert.deepEqual(stats.filter((c) => c.weapon.lob).map((c) => c.id), ['capucine', 'jacques'])
+  assert.deepEqual(stats.filter((c) => c.weapon.blast).map((c) => c.id), ['marcel', 'jacques'])
+  assert.deepEqual(stats.filter((c) => c.scan).map((c) => c.id), ['nico'])
 })
 
 test('arène : on se place dans un lobby, dans le camp le moins garni, on change de camp', () => {
   const h = harness()
   const a = h.add(1), b = h.add(2), c = h.add(3)
   const id = 1
-  h.arena.handle(a, 'arena:join', { room: id, weapon: 'rifle' })
+  h.arena.handle(a, 'arena:join', { room: id, character: 'nico' })
   h.arena.handle(b, 'arena:join', { room: id })
   h.arena.handle(c, 'arena:join', { room: id, team: 1 })
   let room = h.lobby().rooms[0]
-  assert.deepEqual(room.members.map((m) => [m.id, m.team, m.weapon]), [[1, 0, 'rifle'], [2, 1, 'pistol'], [3, 1, 'pistol']])
+  assert.deepEqual(room.members.map((m) => [m.id, m.team, m.character]), [[1, 0, 'nico'], [2, 1, 'rourke'], [3, 1, 'rourke']])
   h.arena.handle(c, 'arena:side', { team: 0 })
-  h.arena.handle(c, 'arena:weapon', { weapon: 'smg' })
-  h.arena.handle(c, 'arena:weapon', { weapon: 'canon' })
+  h.arena.handle(c, 'arena:character', { character: 'betty' })
+  h.arena.handle(c, 'arena:character', { character: 'tessa' })
   room = h.lobby().rooms[0]
-  assert.deepEqual(room.members[2], { id: 3, name: 'CMDR 3', verified: true, team: 0, weapon: 'smg', ready: false })
+  assert.deepEqual(room.members[2], { id: 3, name: 'CMDR 3', verified: true, team: 0, character: 'betty', ready: false })
   // À un contre un, le salon est trop plein pour ce format.
   h.arena.handle(a, 'arena:settings', { size: 1 })
   assert.equal(h.last(1, 'arena:error').code, 'crowded')
@@ -309,6 +347,14 @@ test('arène : les bots complètent les deux équipes, chacun part de sa base', 
     assert.equal(spots.size, 3)
     for (const f of mine) assert.ok(game.zone.spawns[team].some((s) => s.x === f.x && s.z === f.z))
   }
+  // Même en poursuivant un adversaire jusque chez lui, un bot s'arrête à la frontière de sa base.
+  h.advance(R.warmup + 8)
+  const nearEdge = R.baseDepth - 0.5
+  const farEdge = game.zone.width - R.baseDepth - 0.5
+  for (const f of game.fighters.values()) {
+    if (!f.bot) continue
+    assert.ok(f.team === 0 ? f.x < farEdge : f.x > nearEdge, `bot ${f.id} hors de la base adverse`)
+  }
   assert.equal(h.lobby().rooms[0].status, 'playing')
 })
 
@@ -320,6 +366,19 @@ test('arène : une position n\'est acceptée que debout, sur le sol, à portée 
   assert.ok(!h.arena.accepts(a, a.x + 12, a.z), 'trop loin')
   assert.ok(!h.arena.accepts(a, 3, 1), 'dans une caisse')
   assert.ok(!h.arena.accepts(h.add(9), 1, 1), 'pas dans une partie')
+})
+
+test('arène : chaque camp reste à sa base avant le départ et ne peut jamais entrer dans la base adverse', () => {
+  const h = harness()
+  const a = h.add(1)
+  h.start(a, [], { size: 1 })
+  h.put(a, R.baseDepth - 0.6, 2)
+  assert.equal(h.arena.accepts(a, R.baseDepth - 0.4, 2), false, 'sortie avant le coup d’envoi')
+  h.advance(R.warmup + 0.1)
+  assert.equal(h.arena.accepts(a, R.baseDepth - 0.4, 2), true, 'sortie autorisée après le coup d’envoi')
+  const enemyEdge = arenaZone().width - R.baseDepth - 0.5
+  h.put(a, enemyEdge - 0.1, 2)
+  assert.equal(h.arena.accepts(a, enemyEdge + 0.1, 2), false, 'base adverse interdite')
 })
 
 /** Tir à plat de `p` vers `to`. */
@@ -347,8 +406,8 @@ test('arène : pas de tir avant le coup d\'envoi ; ensuite, les balles blessent,
     h.advance(0.25)
     shots++
   }
-  // Le pistolet : cinq balles.
-  assert.equal(shots, Math.ceil(R.hp / WEAPON_STATS.pistol.damage))
+  // La mitraillette de Rourke contre Rourke : treize balles.
+  assert.equal(shots, Math.ceil(D.hp / D.weapon.damage))
   assert.equal(h.events(2, 'shot').length, shots, 'l\'autre joueur voit chaque tir')
   assert.equal(h.events(1, 'shot').length, 0, 'le tireur ne reçoit pas ses propres tirs')
   const kill = h.events(1, 'kill')[0]
@@ -363,7 +422,7 @@ test('arène : pas de tir avant le coup d\'envoi ; ensuite, les balles blessent,
   const spawn = h.events(2, 'spawn').pop()
   assert.equal(spawn.id, 2)
   const f = game.fighters.get(2)
-  assert.ok(f.alive && f.hp === R.hp)
+  assert.ok(f.alive && f.hp === D.hp)
   assert.ok(game.zone.spawns[1].some((s) => s.x === f.x && s.z === f.z))
   assert.ok(!h.arena.accepts(b, 9, 2), 'loin de sa base')
   assert.ok(h.arena.accepts(b, f.x, f.z))
@@ -384,18 +443,18 @@ test('arène : la cadence d\'un joueur est celle de son arme', () => {
     fireAt(h, a, { x: 2, z: 0 })
     h.advance(0.05)
   }
-  const w = WEAPON_STATS.pistol
+  const w = D.weapon
   const most = w.mag + Math.ceil(10 * (w.mag / (w.mag * w.interval + w.reload))) + 1
   assert.ok(h.events(2, 'shot').length <= most, `${h.events(2, 'shot').length} tirs`)
 })
 
-test('arène : une balle s\'éteint au bout de la portée de son arme ; le plasma y explose', () => {
+test('arène : une balle s\'éteint au bout de la portée de son arme ; la tomate y éclate', () => {
   const h = harness()
   const a = h.add(1), b = h.add(2)
   const game = h.start(a, [b], { size: 1, bots: false })
   h.advance(R.warmup + R.shield)
-  // La cour centrale est libre de (5, 5) à (11, 5). Au pistolet : touché en deçà de la portée, pas au-delà.
-  const reach = WEAPON_STATS.pistol.range
+  // La cour centrale est libre de (5, 5) à (11, 5). À la mitraillette : touché en deçà de la portée, pas au-delà.
+  const reach = D.weapon.range
   assert.ok(reach > 3 && reach < 5.6)
   h.put(a, 5, 5)
   h.put(b, 5 + reach - 0.5, 5)
@@ -408,18 +467,18 @@ test('arène : une balle s\'éteint au bout de la portée de son arme ; le plasm
   h.advance(0.5)
   assert.equal(h.events(1, 'hit').length, 1, 'hors de portée')
   assert.equal(game.bullets.length, 0, 'la balle s\'est éteinte')
-  // Le plasma explose au bout de sa course, même sans rien toucher : qui s'y tient est soufflé.
+  // La tomate de Marcel éclate au bout de sa course, même sans rien toucher : qui s'y tient est éclaboussé.
   const fa = game.fighters.get(1)
-  Object.assign(fa, { weapon: 'launcher', tokens: 2 })
-  game.fighters.get(2).hp = R.hp
+  Object.assign(fa, { character: 'marcel', tokens: 3 })
+  game.fighters.get(2).hp = D.hp
   h.put(a, 5, 5)
-  h.put(b, 5 + WEAPON_STATS.launcher.range, 5.6)
+  h.put(b, 5 + C.marcel.weapon.range, 5.6)
   h.advance(1.5)
   fireAt(h, a, { x: 8, z: 5 })
   h.advance(1)
   const blast = h.events(1, 'hit').slice(1)
   assert.deepEqual(blast.map((e) => e.id), [2])
-  assert.ok(blast[0].dmg > 0 && blast[0].dmg < WEAPON_STATS.launcher.damage)
+  assert.ok(blast[0].dmg > 0 && blast[0].dmg < C.marcel.weapon.damage)
 })
 
 test('arène : un conteneur protège, un coéquipier ne prend pas la balle', () => {
@@ -445,10 +504,10 @@ test('arène : un conteneur protège, un coéquipier ne prend pas la balle', () 
   assert.deepEqual(h.events(1, 'hit').map((e) => e.id), [2])
 })
 
-test('arène : le fusil à pompe tire sa gerbe, le fusil traverse, le plasma souffle', () => {
+test('arène : le laser de Nico traverse, la tomate de Marcel éclabousse, et un tir ne part qu\'avec ses projectiles', () => {
   const h = harness()
   const a = h.add(1), b = h.add(2), c = h.add(3)
-  h.arena.handle(a, 'arena:join', { room: 1, weapon: 'rifle' })
+  h.arena.handle(a, 'arena:join', { room: 1, character: 'nico' })
   h.arena.handle(a, 'arena:settings', { size: 2, bots: false })
   const room = h.lobby().rooms[0].id
   h.arena.handle(b, 'arena:join', { room, team: 1 })
@@ -458,34 +517,171 @@ test('arène : le fusil à pompe tire sa gerbe, le fusil traverse, le plasma sou
   for (const p of [a, b, c]) h.arrive(p)
   const game = h.arena.gameOf(a)
   h.advance(R.warmup + R.shield)
-  // Deux adversaires en enfilade : le fusil les touche tous les deux.
+  // Deux adversaires en enfilade : le laser les touche tous les deux, et fort.
   h.put(a, 1, 0)
   h.put(b, 3, 0)
   h.put(c, 4, 0)
   fireAt(h, a, b)
   h.advance(0.3)
-  assert.deepEqual(h.events(1, 'hit').map((e) => [e.id, e.dmg]), [[2, WEAPON_STATS.rifle.damage], [3, WEAPON_STATS.rifle.damage]])
-  // Le plasma : une explosion entre les deux, qui les blesse l'un et l'autre, et le tireur s'il est trop près.
+  assert.deepEqual(h.events(1, 'hit').map((e) => [e.id, e.dmg]), [[2, C.nico.weapon.damage], [3, C.nico.weapon.damage]])
+  // Marcel : une tomate entre les deux, qui les éclabousse l'un et l'autre, sans jamais le blesser lui.
   const fa = game.fighters.get(1)
-  Object.assign(fa, { weapon: 'launcher', tokens: 2 })
-  for (const f of game.fighters.values()) f.hp = R.hp
-  h.put(b, 11.9, 1.5)
-  h.put(c, 11.9, 0.5)
+  Object.assign(fa, { character: 'marcel', tokens: 3 })
+  for (const f of game.fighters.values()) f.hp = f.max
+  h.put(b, 9.9, 1.5)
+  h.put(c, 9.9, 0.5)
   h.put(a, 6, 1)
   h.advance(1.5)
   const before = h.events(1, 'hit').length
-  fireAt(h, a, { x: 12, z: 1 })
+  fireAt(h, a, { x: 10, z: 1 })
   h.advance(1)
   const blast = h.events(1, 'hit').slice(before)
   assert.deepEqual(blast.map((e) => e.id).sort(), [2, 3])
-  assert.ok(blast.every((e) => e.dmg > 0 && e.dmg < WEAPON_STATS.launcher.damage))
-  // La gerbe : au plus neuf balles par tir, quoi qu'envoie le client.
+  assert.ok(blast.every((e) => e.dmg > 0 && e.dmg < C.marcel.weapon.damage))
+  // Un tir ne part qu'avec les projectiles de l'arme, quoi qu'envoie le client.
   h.advance(1.5)
-  Object.assign(fa, { weapon: 'shotgun', tokens: 4 })
   h.put(b, 14, 10)
   h.put(c, 15, 10)
   fireAt(h, a, { x: 7, z: 1 }, 30)
-  assert.equal(h.events(2, 'shot').pop().d.length, WEAPON_STATS.shotgun.pellets)
+  assert.equal(h.events(2, 'shot').pop().d.length, C.marcel.weapon.pellets)
+})
+
+test('arène : on garde son personnage toute la partie ; ses points de vie et sa vitesse sont les siens', () => {
+  const h = harness()
+  const a = h.add(1), b = h.add(2)
+  const game = h.start(a, [b], { size: 1, bots: false }, { 1: 'marcel', 2: 'nico' })
+  const start = h.last(1, 'arena:start')
+  assert.deepEqual(start.fighters.map((f) => [f.id, f.character]), [[1, 'marcel'], [2, 'nico']])
+  assert.deepEqual([game.fighters.get(1).hp, game.fighters.get(2).hp], [C.marcel.hp, C.nico.hp])
+  // En partie, on ne change pas de personnage.
+  h.arena.handle(a, 'arena:character', { character: 'betty' })
+  assert.equal(game.fighters.get(1).character, 'marcel')
+  assert.equal(h.lobby().rooms[0].members[0].character, 'marcel')
+  // Nico court plus vite que Marcel : en deux secondes, il va plus loin.
+  h.advance(R.warmup + R.shield)
+  h.put(a, 3, 5)
+  h.put(b, 3, 5)
+  h.advance(2)
+  assert.ok(h.arena.accepts(b, 11, 5), 'Nico')
+  assert.ok(!h.arena.accepts(a, 11, 5), 'Marcel')
+  // Hors de combat, chacun remonte à ses propres points de vie.
+  game.fighters.get(1).hp = 10
+  h.advance(R.regenAfter + 12)
+  assert.equal(game.fighters.get(1).hp, C.marcel.hp)
+  // Éliminé, il revient le même, points de vie pleins.
+  Object.assign(game.fighters.get(2), { hp: 1, shieldUntil: 0 })
+  h.put(a, 1, 0)
+  h.put(b, 3, 0)
+  h.advance(1.5)
+  fireAt(h, a, b)
+  h.advance(1)
+  assert.equal(h.events(1, 'kill').length, 1)
+  h.advance(R.respawn + 0.2)
+  const f = game.fighters.get(2)
+  assert.deepEqual([f.alive, f.character, f.hp], [true, 'nico', C.nico.hp])
+})
+
+test('arène : Betty soigne les siens et blesse ceux d\'en face ; ses seringues traversent qui est en pleine forme', () => {
+  const h = harness()
+  const a = h.add(1), b = h.add(2), c = h.add(3)
+  const game = h.start(a, [b, c], { size: 2, bots: false }, { 1: 'betty', 3: 'marcel' })
+  assert.equal(game.fighters.get(3).team, 0)
+  h.advance(R.warmup + R.shield)
+  const mate = game.fighters.get(3)
+  // Un coéquipier en pleine forme dans la ligne de tir : la seringue passe, et blesse l'adversaire derrière lui.
+  h.put(a, 1, 0)
+  h.put(c, 2, 0)
+  h.put(b, 4, 0)
+  fireAt(h, a, b)
+  h.advance(0.5)
+  assert.deepEqual(h.events(1, 'hit').map((e) => [e.id, e.dmg]), [[2, C.betty.weapon.damage]])
+  assert.equal(h.events(1, 'heal').length, 0)
+  // Blessé, il est soigné, sans dépasser ses points de vie de départ ; l'adversaire derrière est épargné.
+  mate.hp = mate.max - 30
+  mate.hurtAt = h.clock()
+  fireAt(h, a, b)
+  h.advance(0.5)
+  const heal = h.events(1, 'heal')
+  assert.deepEqual(heal.map((e) => [e.id, e.by, e.amount]), [[3, 1, C.betty.weapon.heal]])
+  assert.equal(mate.hp, mate.max - 30 + C.betty.weapon.heal)
+  assert.equal(h.events(1, 'hit').length, 1)
+  fireAt(h, a, b)
+  h.advance(0.5)
+  assert.equal(mate.hp, mate.max)
+  assert.equal(h.events(1, 'heal').pop().amount, 30 - C.betty.weapon.heal)
+  // Elle ne se soigne pas elle-même : ses seringues partent de sa main, elle n'est pas sur le trajet.
+  const end = (() => {
+    h.arena.handle(b, 'arena:quit', {})
+    return h.last(1, 'arena:end')
+  })()
+  assert.equal(end.stats.find((x) => x.id === 1).heal, 30)
+})
+
+test('arène : la graine de Capucine passe par-dessus un conteneur, et la fleur qui pousse mord qui s\'approche', () => {
+  const h = harness()
+  const a = h.add(1), b = h.add(2)
+  const game = h.start(a, [b], { size: 1, bots: false }, { 1: 'capucine' })
+  h.advance(R.warmup + R.shield)
+  const seed = C.capucine.weapon
+  // Le conteneur debout de (7, 2) entre elle et sa cible : la graine passe par-dessus.
+  h.put(a, 5, 2)
+  h.put(b, 9, 2)
+  h.arena.handle(a, 'arena:fire', { o: [5, R.aim, 2], d: [[1, 0, 0]], r: 4 })
+  const shot = h.events(2, 'shot').pop()
+  assert.deepEqual(shot.to, [9, 2])
+  h.advance(shot.dur + 0.1)
+  assert.deepEqual(game.traps.map((x) => [x.kind, x.team, x.x, x.z]), [['flower', 0, 9, 2]])
+  // Elle sort de terre, puis mord, une fois par intervalle.
+  h.advance(seed.flower.grow + seed.flower.every * 2 + 0.05)
+  const bites = h.events(2, 'hit').filter((e) => e.trap)
+  assert.equal(bites.length, 3)
+  assert.ok(bites.every((e) => e.id === 2 && e.by === 1 && e.dmg === seed.damage))
+  assert.equal(h.last(2, 'arena:state').traps[0].kind, 'flower')
+  // Hors de portée de ses mâchoires, plus rien.
+  h.put(b, 9, 5)
+  const was = h.events(2, 'hit').length
+  h.advance(1.5)
+  assert.equal(h.events(2, 'hit').length, was)
+  // Pas plus de deux fleurs à la fois : la plus vieille fane.
+  for (const r of [2, 3]) {
+    h.advance(seed.interval + 1.5)
+    h.put(a, 5, 5)
+    h.arena.handle(a, 'arena:fire', { o: [5, R.aim, 5], d: [[1, 0, 0]], r })
+    h.advance(1)
+  }
+  assert.deepEqual(game.traps.map((x) => [x.x, x.z]), [[7, 5], [8, 5]])
+  // Elles fanent au bout de leur temps.
+  h.advance(seed.flower.life + 0.1)
+  assert.equal(game.traps.length, 0)
+})
+
+test('arène : le cocktail de Jacques éclate là où il retombe, et sa flaque brûle ceux d\'en face', () => {
+  const h = harness()
+  const a = h.add(1), b = h.add(2), c = h.add(3)
+  const game = h.start(a, [b, c], { size: 2, bots: false }, { 1: 'jacques' })
+  assert.equal(game.fighters.get(3).team, 0)
+  h.advance(R.warmup + R.shield)
+  const cocktail = C.jacques.weapon
+  // Lancé par-dessus le conteneur de (7, 2), il retombe sur l'adversaire ; le coéquipier à côté n'a rien.
+  h.put(a, 5, 2)
+  h.put(b, 9, 2)
+  h.put(c, 9, 1.4)
+  h.arena.handle(a, 'arena:fire', { o: [5, R.aim, 2], d: [[1, 0, 0]], r: 4 })
+  const shot = h.events(2, 'shot').pop()
+  h.advance(shot.dur + 0.05)
+  const splash = h.events(1, 'hit')
+  assert.deepEqual(splash.map((e) => [e.id, e.dmg]), [[2, cocktail.damage]])
+  assert.deepEqual(game.traps.map((x) => [x.kind, x.x, x.z]), [['fire', 9, 2]])
+  // La flaque brûle tant qu'on s'y tient, puis s'éteint.
+  h.advance(cocktail.fire.life + 0.1)
+  const burns = h.events(1, 'hit').filter((e) => e.trap)
+  assert.ok(burns.length >= Math.floor(cocktail.fire.life / cocktail.fire.every) - 1, `${burns.length} brûlures`)
+  assert.ok(burns.every((e) => e.id === 2 && e.dmg === cocktail.fire.damage))
+  assert.equal(game.traps.length, 0)
+  // Visé sur un obstacle, il retombe à la dernière tuile libre en deçà.
+  const zone = arenaZone()
+  assert.deepEqual(lobTarget(zone, { x: 5, z: 2 }, { x: 1, z: 0 }, 2, cocktail.range), { x: 6.4, z: 2 })
+  assert.deepEqual(lobTarget(zone, { x: 5, z: 2 }, { x: 1, z: 0 }, 20, cocktail.range), { x: 11, z: 2 })
 })
 
 test('arène : les bots se cherchent, se tirent dessus, et la partie se joue en manches', () => {
@@ -584,8 +780,8 @@ test('arène : dans un buisson, on échappe aux bots, sauf de tout près ou si l
   const a = h.add(1)
   const game = h.start(a, [], { size: 1, skill: 2 })
   const bot = [...game.fighters.values()].find((f) => f.bot)
-  // Une arme qui porte à quatre tuiles : c'est le buisson qu'on essaie, pas la portée.
-  bot.weapon = bot.next = 'pistol'
+  // Rourke, qui porte à plus de quatre tuiles : c'est le buisson qu'on essaie, pas la portée.
+  bot.character = 'rourke'
   h.advance(R.warmup + R.shield)
   // Le bot à quatre tuiles, rien entre eux : caché dans le buisson, le joueur n'est pas pris pour cible.
   const hold = () => Object.assign(bot, { x: 1, z: 0, path: [], lastSeen: null })
@@ -596,6 +792,10 @@ test('arène : dans un buisson, on échappe aux bots, sauf de tout près ou si l
   fireAt(h, a, { x: 6, z: 0 })
   for (let i = 0; i < 20 && !h.events(1, 'hit').length; i++) { hold(); h.advance(0.1) }
   assert.ok(h.events(1, 'hit').length > 0)
+  // Nico, que Boulon renseigne, voit dans un buisson de plus loin que les autres.
+  assert.ok(bushSight('nico') > bushSight('rourke'))
+  assert.ok(arenaHidden(zone, { x: 5, z: 0 }, { x: 2.5, z: 0 }, false, bushSight('rourke')))
+  assert.ok(!arenaHidden(zone, { x: 5, z: 0 }, { x: 2.5, z: 0 }, false, bushSight('nico')))
 })
 
 test('arène : le chef règle la limite de points ; deux manches gagnantes font la partie', () => {
@@ -618,7 +818,7 @@ test('arène : le chef règle la limite de points ; deux manches gagnantes font 
     const before = h.events(1, 'kill').length
     h.put(a, 1, 0)
     h.put(b, 4, 0)
-    for (let i = 0; i < 12 && h.events(1, 'kill').length === before; i++) {
+    for (let i = 0; i < 20 && h.events(1, 'kill').length === before; i++) {
       fireAt(h, a, b)
       h.advance(0.25)
     }
@@ -632,7 +832,7 @@ test('arène : le chef règle la limite de points ; deux manches gagnantes font 
   assert.deepEqual([round.winner, round.reason, round.score, round.rounds], [0, 'score', [5, 0], [1, 0]])
   assert.equal(h.last(1, 'arena:end'), undefined)
   for (const f of game.fighters.values()) {
-    assert.ok(f.alive && f.hp === R.hp)
+    assert.ok(f.alive && f.hp === f.max)
     assert.ok(game.zone.spawns[f.team].some((s) => s.x === f.x && s.z === f.z))
   }
   assert.deepEqual(h.last(1, 'arena:state').score, [0, 0])
@@ -641,7 +841,7 @@ test('arène : le chef règle la limite de points ; deux manches gagnantes font 
   h.put(b, 4, 0)
   fireAt(h, a, b)
   h.advance(0.5)
-  assert.equal(h.events(1, 'hit').filter((e) => e.id === 2).length, Math.ceil(R.hp / WEAPON_STATS.pistol.damage))
+  assert.equal(h.events(1, 'hit').filter((e) => e.id === 2).length, Math.ceil(D.hp / D.weapon.damage))
   // Seconde manche : gagnée aussi, la partie est jouée.
   h.advance(R.intermission + R.shield)
   h.arena.handle(a, 'arena:debug', { score: [4, 3] })
@@ -661,7 +861,7 @@ test('arène : chaque partie finie est déclarée au site pour le classement, et
   solo.advance(R.warmup + R.shield)
   solo.put(a, 1, 0)
   Object.assign(bot, { x: 4, z: 0 })
-  for (let i = 0; i < 12 && !solo.last(1, 'arena:end'); i++) {
+  for (let i = 0; i < 40 && !solo.last(1, 'arena:end'); i++) {
     fireAt(solo, a, bot)
     solo.advance(0.25)
   }
@@ -686,7 +886,7 @@ test('arène : chaque partie finie est déclarée au site pour le classement, et
   h.advance(R.warmup + R.shield)
   h.put(c, 1, 0)
   h.put(d, 4, 0)
-  for (let i = 0; i < 12 && !h.last(1, 'arena:end'); i++) {
+  for (let i = 0; i < 20 && !h.last(1, 'arena:end'); i++) {
     fireAt(h, c, d)
     h.advance(0.25)
   }
