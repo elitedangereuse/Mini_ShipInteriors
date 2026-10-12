@@ -34,6 +34,12 @@ const IGNITION = [
   tr('Contact ! Ton {ship} tremble sur son train. Au pied de la tour, Ada lève la main. Espace pour décoller.', 'Ignition! Your {ship} shudders on its gear. At the foot of the tower, Ada raises a hand. Space to take off.'),
 ]
 
+/** Le vol vers la base n'a pas abouti (la base n'a pas pu se charger). */
+const TURNED_BACK = tr('Ton vaisseau fait demi-tour : la base ne répond pas. Réessayez dans un instant.', 'Your ship turns back: the base is not answering. Try again in a moment.')
+
+/** Espace aux commandes, quand un autre vaisseau met déjà les gaz sur l'aire (le relais n'en suit qu'un à la fois). */
+const WAIT = tr('Un autre vaisseau met déjà les gaz sur l\'aire. Attends que la poussière retombe.', 'Another ship is already throttling up on the pad. Wait for the dust to settle.')
+
 /** Ce qu'on lit en examinant son vaisseau, posé sur l'aire. */
 const PARKED = [
   tr('Ton {ship}, posé sur l\'aire de l\'avant-poste. De la poussière rouge s\'est déjà glissée dans le train. Nico va adorer.', 'Your {ship}, parked on the outpost\'s pad. Red dust has already crept into the landing gear. Nico is going to love that.'),
@@ -90,7 +96,7 @@ export class GroundBase {
     return !!this.deck && this.host.here() === this.deck
   }
 
-  /** Charge et construit la base (une fois). */
+  /** Charge et construit la base (une fois ; un échec, le réseau, se retente au départ suivant). */
   prepare(): Promise<void> {
     return (this.building ??= (async () => {
       const [kit, rig] = await Promise.all([loadBaseKit(), chiefRig()])
@@ -108,7 +114,10 @@ export class GroundBase {
       this.deck = deck
       this.chief = chief
       this.host.built(deck, chief)
-    })())
+    })().catch((e) => {
+      this.building = null
+      throw e
+    }))
   }
 
   /** Le joueur local est aux commandes de son vaisseau, sur la base. */
@@ -131,6 +140,8 @@ export class GroundBase {
   seatAction() {
     if (!this.aboardKrait) return
     if (this.engines) return void this.fly(false)
+    // Ceux d'un autre tournent déjà : le relais n'en suit qu'un à la fois (cf. setBaseBurn), on attend.
+    if (this.roaring) return this.host.show(WAIT)
     this.started = true
     this.chief?.setBurn(BASE_BURN, true)
     this.host.engines(true)
@@ -139,13 +150,15 @@ export class GroundBase {
 
   /** Le joueur a choisi un autre vaisseau au registre du hangar : il l'attend aussi sur la base. */
   setShip(id: EdShipId) {
-    void this.bay?.set(id)
+    this.bay?.set(id).catch((e) => console.error(e))
   }
 
   /** Le relais : la ronde d'Ada, et les réacteurs sur l'aire de la base. */
   sync(s: ChiefState, from: number, self: number) {
     const was = this.roaring
     this.chief?.sync(s)
+    // Deux départs à la fois, à la latence près : le premier arrivé au relais l'emporte, et les nôtres ne tournent pas.
+    if (s.burn > 0 && s.pilot !== undefined && s.pilot !== self) this.started = false
     if (!was && this.roaring && from !== self && this.here) this.host.show(pick(LIFTOFF))
   }
 
@@ -180,13 +193,15 @@ export class GroundBase {
           this.started = false
           if (down && this.deck) this.host.arrive(this.deck, BASE_ARRIVAL)
           else if (!down) this.host.arrive(this.host.hold, HANGAR_ARRIVAL)
+          // La base n'a pas pu se construire (le réseau) : on reste au hangar, et on le dit.
+          else this.host.show(TURNED_BACK)
           this.host.touchdown()
         },
       })
     } catch (e) {
       stop()
       console.error(e)
-      this.host.show(tr('Ton vaisseau fait demi-tour : la base ne répond pas. Réessayez dans un instant.', 'Your ship turns back: the base is not answering. Try again in a moment.'))
+      this.host.show(TURNED_BACK)
     }
   }
 

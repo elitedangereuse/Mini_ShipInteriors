@@ -1502,7 +1502,7 @@ let kraitRoar: { stop: () => void } | undefined
 const mechanic = new Mechanic(await mechanicRig(), holdDeck)
 // Le vaisseau du pad, au hangar : celui que le joueur a choisi au registre (le Krait Mk II d'abord),
 // là où se posait le Krait, nez vers le bouclier (cf. ship-bay.ts). Chacun voit le sien.
-const hangarBay = new ShipBay({ deck: holdDeck, pad: { x: 31.4, z: 5, rot: 1 }, power: kraitPower })
+const hangarBay = new ShipBay({ deck: holdDeck, pad: { x: 31.4, z: 5, rot: 1 }, power: kraitPower, busy: (cockpit) => seating.current?.item === cockpit })
 /** Ce qu'on lit en examinant son vaisseau, au hangar ({ship}, {maker} : le sien). */
 const HULL_LINES = [
   tr('{ship} de {maker}, posé sur le pad 7. Le tien : tu l\'as choisi au registre, sur le mur sud. Nico l\'appelle « la Princesse ».', '{maker} {ship}, parked on pad 7. Yours: you picked it at the registry on the south wall. Nico calls her “the Princess”.'),
@@ -1519,6 +1519,8 @@ hangarBay.onChange = (bay) => {
   hangarDisplay.name = info.name
   hangarDisplay.maker = info.maker
   hangarDisplay.silhouette = silhouetteRects(info.silhouette)
+  // L'ancien fil de fer ne sert plus : le pupitre prend le nouveau à sa prochaine image.
+  hangarDisplay.wire?.dispose()
   hangarDisplay.wire = bay.wireframe()
   hangarDisplay.version++
 }
@@ -1623,10 +1625,13 @@ const groundBase = new GroundBase({
 // Le registre du hangar (mur sud) : on y choisit son vaisseau ; il se pose au hangar, et sur la base.
 const shipPicker = new ShipPicker()
 shipPicker.onPick = (id) => {
-  saveShip(id)
-  groundBase.setShip(id)
   void hangarBay.set(id).then(
-    () => {
+    (parked) => {
+      // Un autre choix entre-temps : c'est lui qu'on annoncera.
+      if (!parked) return
+      // Gardé une fois posé seulement : un vaisseau qui n'a pas pu venir ne reste pas le choix.
+      saveShip(id)
+      groundBase.setShip(id)
       const name = hangarBay.info?.name ?? ''
       dialog.show(tr(`Ton ${name} est posé sur le pad. Nico siffle entre ses dents.`, `Your ${name} is parked on the pad. Nico whistles through his teeth.`))
       mechanic.say(tr('Oh, la belle bête…', 'Oh, what a beauty…'))
@@ -1640,7 +1645,7 @@ shipPicker.onPick = (id) => {
 for (const it of holdDeck.interactables) {
   if (it.furniture?.model === 'ship-registry') it.onInteract = () => {
     player.interact()
-    void shipPicker.open(hangarBay.id ?? chosenShip())
+    void shipPicker.open(hangarBay.chosen ?? chosenShip())
   }
 }
 mechanic.onBark = (text) => {
@@ -2474,6 +2479,7 @@ net.onMessage = (m) => {
       // relais recale sa tournée) ; un autre qui les lance, on l'apprend dans le chat.
       const burning = mechanic.panicking
       mechanic.sync(m)
+      if (m.panic > 0) hangar.relayed(m.pilot, net.id)
       if (!burning && m.panic > 0 && m.pilot !== undefined && m.pilot !== net.id) {
         const pilot = remotes.get(m.pilot)?.name ?? tr('Quelqu\'un', 'Someone')
         chat.add('system', tr(`${pilot} a mis en route les réacteurs de son vaisseau. Nico panique.`, `${pilot} started their ship's thrusters. Nico is panicking.`))

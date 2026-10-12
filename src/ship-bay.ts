@@ -152,6 +152,8 @@ export interface ShipBayOptions {
   pad: PadFrame
   /** Puissance des réacteurs (0 : au repos ; 0,3 : quelqu'un aux commandes ; 1 : en route), cf. hangar.ts. */
   power: { value: number }
+  /** Le joueur occupe le cockpit (installé, ou dans l'escabeau) : le vaisseau suivant attend qu'il en descende. */
+  busy?: (cockpit: Interactable) => boolean
 }
 
 /** Un vaisseau posé sur l'aire, et de quoi le retirer. */
@@ -198,9 +200,14 @@ export class ShipBay {
     deck.interactables.push(this.cockpit, this.hull)
   }
 
-  /** Le vaisseau posé (ou en route vers l'aire). */
+  /** Le vaisseau posé. */
   get id(): EdShipId | null {
     return this.parked?.id ?? null
+  }
+
+  /** Le dernier choisi pour l'aire : celui qui se charge, sinon celui qui est posé. */
+  get chosen(): EdShipId | null {
+    return this.wanted ?? this.parked?.id ?? null
   }
 
   get info(): EdShipInfo | null {
@@ -229,17 +236,33 @@ export class ShipBay {
     return { minX: Math.min(p.x, q.x), maxX: Math.max(p.x, q.x), minZ: Math.min(p.z, q.z), maxZ: Math.max(p.z, q.z) }
   }
 
-  /** Pose ce vaisseau sur l'aire (il remplace le précédent dès qu'il est chargé). */
-  async set(id: EdShipId): Promise<void> {
-    if (this.parked?.id === id && this.wanted === null) return
+  /**
+   * Pose ce vaisseau sur l'aire : il remplace le précédent dès qu'il est chargé (et que le cockpit
+   * est libre). Rend true s'il est sur l'aire, false si un autre choix l'a remplacé entre-temps.
+   */
+  async set(id: EdShipId): Promise<boolean> {
+    if (this.parked?.id === id) {
+      // Déjà là : un autre choix encore en route est oublié.
+      this.wanted = null
+      return true
+    }
     this.wanted = id
-    const model = await edShip(id)
+    let model: THREE.Object3D
+    try {
+      model = await edShip(id)
+    } catch (e) {
+      if (this.wanted === id) this.wanted = null
+      throw e
+    }
+    // Quelqu'un aux commandes, ou dans l'escabeau : on ne change pas le vaisseau sous ses pieds.
+    while (this.wanted === id && this.o.busy?.(this.cockpit)) await new Promise((r) => setTimeout(r, 250))
     // Un autre choix entre-temps : celui-là ne se pose pas.
-    if (this.wanted !== id) return
+    if (this.wanted !== id) return false
     this.wanted = null
     this.parked?.remove()
     this.parked = this.park(id, model)
     this.onChange?.(this)
+    return true
   }
 
   /** Construit le vaisseau, son train, son escabeau, ses jets et ses feux, et le pose sur le pont. */
@@ -420,7 +443,22 @@ export class ShipBay {
 
     const mid = this.world(0, l.zc)
     this.center.set(mid.x, 0, mid.z)
-    const remove = this.o.deck.addRuntime(root, blocks, this.center)
+    const unplace = this.o.deck.addRuntime(root, blocks, this.center)
+    // Ce qui n'appartient qu'à ce vaisseau-là s'en va avec lui : le modèle partage ses géométries avec
+    // ses semblables (cf. edShip), et les matériaux du kit sont communs ; le reste est à lui.
+    const shared = new Set<THREE.BufferGeometry>()
+    model.traverse((m) => {
+      if ((m as THREE.Mesh).isMesh) shared.add((m as THREE.Mesh).geometry)
+    })
+    const own = new Set<THREE.BufferGeometry>()
+    root.traverse((m) => {
+      if ((m as THREE.Mesh).isMesh && !shared.has((m as THREE.Mesh).geometry)) own.add((m as THREE.Mesh).geometry)
+    })
+    const remove = () => {
+      unplace()
+      for (const g of own) g.dispose()
+      jet.dispose()
+    }
     // Les interactions : l'escabeau (le cockpit), la coque (examiner ; l'aile tribord pour Nico).
     const foot = this.world(0, (PLATFORM_FROM + STEPS_END) / 2)
     this.cockpit.object = ladderPick

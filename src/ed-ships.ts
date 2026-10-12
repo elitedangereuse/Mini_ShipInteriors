@@ -115,6 +115,11 @@ export async function edShip(id: EdShipId): Promise<THREE.Object3D> {
       return root
     })
     protos.set(id, proto)
+    // Raté (le réseau) : le prochain appel retente.
+    const failed = proto
+    failed.catch(() => {
+      if (protos.get(id) === failed) protos.delete(id)
+    })
   }
   return (await proto).clone(true)
 }

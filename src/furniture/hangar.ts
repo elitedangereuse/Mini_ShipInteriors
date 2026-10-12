@@ -685,7 +685,8 @@ const hangarConsole: Builder = () => {
   }
   // Les deux arêtes dorsales, qui donnent le relief.
   for (const s of [1, -1]) pts.push(new THREE.Vector3(s * 0.62 * k, 0.05, 1.95 * k), new THREE.Vector3(s * 0.62 * k, 0.07, -2.9 * k))
-  const lines = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), lineMaterial)
+  const drawn = new THREE.BufferGeometry().setFromPoints(pts)
+  const lines = new THREE.LineSegments(drawn, lineMaterial)
   wire.add(lines)
   const live = new THREE.Group()
   live.add(panel, wire)
@@ -697,6 +698,8 @@ const hangarConsole: Builder = () => {
       // Un autre vaisseau sur l'aire : son fil de fer remplace celui du Krait.
       if (shown !== hangarDisplay.version && hangarDisplay.wire) {
         shown = hangarDisplay.version
+        // Le Krait dessiné ici ne revient plus ; les fils de fer suivants sont à hangarDisplay (main.ts les jette).
+        if (lines.geometry === drawn) drawn.dispose()
         lines.geometry = hangarDisplay.wire
       }
       screen.tick(t)

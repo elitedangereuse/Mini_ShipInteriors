@@ -53,7 +53,7 @@ export class ShipPicker extends Modal {
     }
   }
 
-  /** Le vaisseau posé : sa fiche est marquée, et a le focus. */
+  /** Le dernier vaisseau choisi (posé, ou encore en route) : sa fiche est marquée, et a le focus. */
   private mark() {
     for (const b of this.grid.querySelectorAll<HTMLButtonElement>('.ship-card')) {
       const on = b.dataset.ship === this.current

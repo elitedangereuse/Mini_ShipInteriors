@@ -134,6 +134,9 @@ const IGNITION = [
   tr('Contact ! Ton {ship} vibre de la verrière au train, et le hangar avec lui. Quelque part, Nico hurle. Espace pour décoller.', 'Ignition! Your {ship} shakes from canopy to landing gear, and the hangar with it. Somewhere, Nico screams. Space to take off.'),
 ]
 
+/** Espace aux commandes, quand les réacteurs d'un autre vaisseau tournent déjà (le relais n'en suit qu'un à la fois). */
+const WAIT = tr('Les réacteurs d\'un autre vaisseau tournent déjà sur le pad, et Nico n\'a qu\'une paire de poumons. Attends qu\'ils se coupent.', 'Another ship\'s thrusters are already running on the pad, and Nico only has one pair of lungs. Wait for them to cut out.')
+
 /** Sans un geste pendant ce temps, la révision est abandonnée (Nico ne l'attend pas plus, cf. MECH_HELP). */
 const IDLE = MECH_HELP - 3
 /** Hors du hangar plus longtemps que ça, la révision est abandonnée. */
@@ -267,9 +270,19 @@ export class Hangar {
   toggleEngines() {
     if (!this.aboardKrait) return
     const on = !this.engines
+    // Ceux d'un autre tournent déjà : le relais n'en suit qu'un à la fois (cf. setBurn), on attend.
+    if (on && this.host.mechanic.panicking) return this.host.show(WAIT)
     this.started = on
     this.host.engines(on)
     if (on) this.host.show(this.named(pick(IGNITION)))
+  }
+
+  /**
+   * Le relais : des réacteurs tournent, lancés par `pilot`. Deux départs à la fois, à la latence
+   * près : le premier arrivé l'emporte, et les nôtres ne tournent pas.
+   */
+  relayed(pilot: number | undefined, self: number) {
+    if (pilot !== undefined && pilot !== self) this.started = false
   }
 
   /** Ce que Nico répond si on lui parle pendant une révision (null : il bavarde comme d'habitude). */
@@ -417,7 +430,9 @@ export class Hangar {
 
   update(dt: number) {
     const { host } = this
-    if (this.marker.visible) this.marker.position.y = 1.32 + Math.sin(performance.now() / 450) * 0.035
+    // Le marqueur suit son poste : la coque d'un autre vaisseau a pu se poser entre-temps (cf. ShipBay.set).
+    const target = this.target
+    if (this.marker.visible && target) this.marker.position.set(target.position.x, 1.32 + Math.sin(performance.now() / 450) * 0.035, target.position.z)
 
     const s = this.service
     if (s) {
