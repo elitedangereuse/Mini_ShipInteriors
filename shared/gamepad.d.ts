@@ -21,10 +21,15 @@ export interface GamepadInput {
   help: boolean
   up: boolean
   down: boolean
+  /** Croix ou stick gauche, à gauche puis à droite : au nouvel appui, comme `up` et `down`. */
+  left: boolean
+  right: boolean
+  /** Select / View / Share : au nouvel appui. */
+  menu: boolean
 }
 
 export class GamepadControls {
-  /** Boutons enfoncés à la dernière lecture (indices, et 'up' / 'down'). */
+  /** Boutons enfoncés à la dernière lecture (indices, et 'up' / 'down' / 'left' / 'right'). */
   readonly held: Set<string>
   constructor(read?: () => readonly (Pad | null)[])
   suspend(): void

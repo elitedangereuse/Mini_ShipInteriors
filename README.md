@@ -971,8 +971,20 @@ Les manettes reconnues par le navigateur avec la disposition [Gamepad « standar
 | Pivoter d'un quart de tour | LB / L1 et RB / R1 |
 | Zoom | LT / L2 : éloigner ; RT / R2 : rapprocher |
 | Afficher / cacher l'aide | Start / Options |
+| Emotes | Y / Triangle : le cadre se pose sur la barre des emotes, A / Croix en joue une |
+| Changer de vue | R3 (clic du stick droit) : subjective, troisième personne, de haut |
+| Mode interface | Select / Share : voir ci-dessous |
 
-Une zone morte évite la dérive des sticks. Les boutons d'action ne se répètent pas quand on les maintient. Les invites près des meubles affichent les boutons de la manette après son utilisation. Les commandes manette sont suspendues pendant la saisie, en mode aménagement, en mode photo, dans les jeux de table et les bornes d'arcade, ou lorsque la fenêtre n'a plus le focus. Pour activer le son, un premier clic ou une touche du clavier peut être nécessaire selon le navigateur.
+Une zone morte évite la dérive des sticks. Les boutons d'action ne se répètent pas quand on les maintient. Les invites près des meubles affichent les boutons de la manette après son utilisation. Les commandes manette sont suspendues pendant la saisie au clavier ou lorsque la fenêtre n'a plus le focus. Le son et le plein écran attendent un premier clic, un toucher ou une touche du clavier : les navigateurs ne comptent pas un bouton de manette comme un geste.
+
+**Tout se fait à la manette** (`src/pad-ui.ts`), sur ordinateur comme sur téléphone :
+
+- **Mode interface** (`PadUi`). `Select` l'allume ; il s'allume seul quand un panneau tient l'écran (bar, étal, garde-robe, jeux de table, quiz, livre des prises, cinéma, terminaux et écrans de fin de la zone thargoïde et de l'arène, écran d'entrée du téléphone). Un cadre orange saute d'un bouton à l'autre à la croix ou au stick gauche, parmi ceux qu'on voit à l'écran ; `A` presse, `B` fait Échap (puis quitte le mode quand il n'y a plus rien à fermer), le stick droit fait défiler, `LB` / `RB` règlent une glissière ou une liste déroulante. Le nom d'un bouton réduit à une icône s'affiche près du cadre. Le mode ne connaît aucun panneau : il lit la page et ne garde que ce qu'un clic atteindrait (bouton, lien, champ, ou tout élément dont le curseur est une main), dans la fenêtre de dialogue ouverte s'il y en a une. Un panneau nouveau se pilote donc sans code de plus ; s'il doit s'ouvrir tout seul à la manette, l'ajouter à `padModal()` dans `main.ts`.
+- **Clavier à l'écran** (`PadKeyboard`). `A` sur un champ de texte (chat, messages de l'annuaire, recherche) l'ouvre : `A` tape la touche encadrée, `X` efface (tenu : en continu), `Y` espace, `LB` majuscule, `RB` symboles et accents, `Start` envoie, `B` referme. AZERTY en français, QWERTY en anglais. Il s'ouvre aussi quand la manette se manifeste alors qu'un champ a déjà le focus. Sur téléphone, le clavier du système ne sort pas (`inputmode="none"` le temps de la saisie).
+- **Aménagement des quartiers** (`editorPad` dans `main.ts`). Un curseur mené par le stick gauche (`L3` : plus vite) ; `A` choisit un objet et, tenu, le déplace ; `LB` / `RB` le tournent (sans objet, la vue) ; `Y` le retire ; `X` annule, `R3` rétablit ; `B` fait Échap ; `Select` mène au catalogue, et le curseur reprend dès qu'un objet est en main. L'aide du bas de l'écran nomme alors les boutons de la manette. La construction garde ses commandes (plus bas), avec `Select` pour ses panneaux.
+- **Bornes d'arcade** (`PadKeys`). La manette tient les touches du clavier de la borne : stick ou croix, `A`, `X` et `Y` pour ses trois boutons (`LB` / `RB` doublent `X` / `Y`), `Start` la pause, `B` quitte, `Select` pour ses menus.
+- **Mode photo.** On marche et on cadre comme d'habitude ; `A` déclenche, `B` range l'appareil, `Select` pour ses options.
+- **Salle de sport.** La flèche demandée se frappe à la croix ou au stick. Spectateur de l'arène : `LB` / `RB` passent d'un combattant à l'autre.
 
 ### Mobile et tablette
 

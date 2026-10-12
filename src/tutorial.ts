@@ -264,7 +264,7 @@ const LESSONS: Lesson[] = [
     ),
     how: {
       keyboard: tr('[V] : la vue subjective. [C] : la troisième personne. La même touche ramène à la vue de haut.', '[V]: first-person view. [C]: third-person view. The same key takes you back to the view from above.'),
-      gamepad: tr('Les boutons à l\'œil et au personnage, en haut à droite : vue subjective, troisième personne. Le même bouton ramène à la vue de haut.', 'The eye and character buttons, top right: first-person view, third-person view. The same button takes you back to the view from above.'),
+      gamepad: tr('[R3] (clic du stick droit) change de vue : subjective, troisième personne, puis de nouveau de haut.', '[R3] (right stick click) changes the view: first-person, third-person, then from above again.'),
       touch: tr('Dans le menu des outils, les boutons à l\'œil et au personnage : vue subjective, troisième personne. Le même bouton ramène à la vue de haut.', 'In the tools menu, the eye and character buttons: first-person view, third-person view. The same button takes you back to the view from above.'),
     },
     post: { x: 4, z: 2.5 },
@@ -303,7 +303,7 @@ const LESSONS: Lesson[] = [
     intro: tr('À bord, on se salue. Faites-moi le salut des commandants : o7.', 'Aboard, we salute each other. Give me the commanders\' salute: o7.'),
     how: {
       keyboard: tr('Les touches [1] à [8] jouent les emotes, [8] : le salut o7. La barre du bas aussi.', 'Keys [1] to [8] play emotes, [8]: the o7 salute. The bar at the bottom too.'),
-      gamepad: tr('La barre d\'emotes, en bas de l\'écran : le salut o7.', 'The emote bar, at the bottom of the screen: the o7 salute.'),
+      gamepad: tr('[Y / △] ouvre la barre d\'emotes : choisissez le salut o7 à la croix, puis [A / ×].', '[Y / △] opens the emote bar: pick the o7 salute with the D-pad, then [A / ×].'),
       touch: tr('Le bouton au sourire, puis le salut o7.', 'The smiley button, then the o7 salute.'),
     },
     post: { x: 12, z: 2.5 },
@@ -316,7 +316,7 @@ const LESSONS: Lesson[] = [
     intro: tr('Pour parler à l\'équipage, il y a le chat. Dites-moi quelque chose. Ici, je suis seule à vous entendre.', 'To talk to the crew, there\'s the chat. Say something to me. In here, I\'m the only one listening.'),
     how: {
       keyboard: tr('[Entrée] ouvre le chat ; écrivez, puis [Entrée] pour envoyer.', '[Enter] opens the chat; type, then [Enter] to send.'),
-      gamepad: tr('[Entrée] au clavier ouvre le chat ; écrivez, puis [Entrée] pour envoyer.', '[Enter] on the keyboard opens the chat; type, then [Enter] to send.'),
+      gamepad: tr('[Select] puis [A / ×] sur le chat : un clavier s\'ouvre. Écrivez, puis [Start] pour envoyer.', '[Select] then [A / ×] on the chat: a keyboard opens. Type, then [Start] to send.'),
       touch: tr('Touchez la bulle du chat, écrivez, puis envoyez.', 'Touch the chat bubble, type, then send.'),
     },
     post: { x: 12, z: 2.5 },

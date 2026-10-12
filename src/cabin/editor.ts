@@ -90,6 +90,13 @@ for (const it of DEFAULT_CABIN) FREE.set(it.m, (FREE.get(it.m) ?? 0) + 1)
 const snap = (v: number, step = SNAP) => Math.round(Math.round(v / step) * step * 1000) / 1000
 const round3 = (v: number) => Math.round(v * 1000) / 1000
 
+/** Les touches de l'aide, dites à la manette (cf. main.ts, editorPad) ; `null` : sans équivalent. */
+const PAD_KEYS: Record<string, string | null> = {
+  Click: 'A', Clic: 'A', Drag: 'Hold A', Glisser: 'A tenu', Release: 'Release A', Relâcher: 'Lâcher A',
+  'Shift+click': null, 'Maj+clic': null, Arrows: null, Flèches: null,
+  R: 'LB / RB', Del: 'Y', Suppr: 'Y', 'Ctrl+Z': 'X', Esc: 'B', Échap: 'B',
+}
+
 export class CabinEditor {
   /** Mobilier en cours d'édition. */
   items: CabinItem[] = []
@@ -284,6 +291,19 @@ export class CabinEditor {
 
   get active(): boolean {
     return this.open
+  }
+
+  /** L'aide du bas de l'écran nomme les boutons de la manette, et non les touches (cf. main.ts, editorPad). */
+  set padHints(on: boolean) {
+    if (on === this.pad) return
+    this.pad = on
+    this.setHint()
+  }
+  private pad = false
+
+  /** Un objet en main (pris au catalogue, ou qu'on déplace) : il attend sa place. */
+  get holding(): boolean {
+    return !!this.held
   }
 
   /**
@@ -694,6 +714,7 @@ export class CabinEditor {
 
   pointerUp(e: PointerEvent) {
     this.press = null
+    this.painting = false
     if (this.held && this.held.index >= 0) {
       this.aimAt(e)
       this.drop()
@@ -1305,7 +1326,12 @@ export class CabinEditor {
       : EN
         ? [['Click', 'select'], ['Drag', 'move'], ['R', 'rotate'], ['Arrows', 'nudge'], ['Del', 'remove'], ['Ctrl+Z', 'undo'], ['Esc', 'done']]
         : [['Clic', 'choisir'], ['Glisser', 'déplacer'], ['R', 'tourner'], ['Flèches', 'ajuster'], ['Suppr', 'retirer'], ['Ctrl+Z', 'annuler'], ['Échap', 'terminer']]
-    parts.forEach(([key, what], i) => {
+    // À la manette, l'aide nomme ses boutons ; ce qui ne s'y fait pas n'est pas annoncé.
+    const shown = !this.pad ? parts : [
+      ...parts.flatMap(([key, what]): [string, string][] => (PAD_KEYS[key] ? [[PAD_KEYS[key], what]] : [])),
+      ...(this.held ? [] : [['Select', tr('catalogue', 'catalogue')] as [string, string]]),
+    ]
+    shown.forEach(([key, what], i) => {
       if (i) this.keysEl.append(' · ')
       const k = document.createElement('kbd')
       k.textContent = key

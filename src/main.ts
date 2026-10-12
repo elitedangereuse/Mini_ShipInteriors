@@ -51,6 +51,7 @@ import { Minimap } from './minimap'
 import { beatAt, beatPulse, film, filmGlow, holoMeGlow, holoTime, studio, type ClawControl, type ClawResult } from './furniture'
 import { GamepadControls, type GamepadInput } from '../shared/gamepad.js'
 import { TouchGamepad } from './touch-gamepad'
+import { PadCursor, PadKeys, PadUi } from './pad-ui'
 import { setupMobile } from './mobile'
 import { lineOfSight } from '../shared/sight.js'
 import { DIRS } from './map'
@@ -905,8 +906,11 @@ wallet.onGain = (amount, kind) => {
   bubbles.gain('me', `+${formatCredits(amount)}`)
   sound.credits(amount >= 1000)
 }
+/** Les boutons des emotes, dans l'ordre de la barre. */
+const emoteButtons: HTMLButtonElement[] = []
 for (const [i, e] of EMOTES.entries()) {
   const b = document.createElement('button')
+  emoteButtons.push(b)
   b.title = `${e.label} (${i + 1})`
   b.setAttribute('aria-label', e.label)
   if (e.icon) b.append(icon(e.icon))
@@ -3867,7 +3871,18 @@ promptEl.addEventListener('click', (e) => {
 })
 const syncMobileEntry = setupMobile(coarsePointer)
 let usingGamepad = false
-for (const type of ['keydown', 'pointerdown']) addEventListener(type, () => (usingGamepad = false), { capture: true })
+/** La vraie manette est ce dont le joueur se sert : ni le clavier, ni la souris, ni l'écran tactile. */
+let padDriving = false
+// Les touches et les clics que joue la manette (cf. pad-ui.ts) ne sont pas ceux du joueur.
+for (const type of ['keydown', 'pointerdown']) addEventListener(type, (e) => { if (e.isTrusted) usingGamepad = padDriving = false }, { capture: true })
+/** Le mode interface de la manette, son clavier, ses touches jouées et son curseur (cf. pad-ui.ts). */
+const padUi = new PadUi({ back: padBack, sound: (kind) => { if (kind === 'press') sound.ui('pick') } })
+const padKeys = new PadKeys()
+const padCursor = new PadCursor()
+/** Touches du clavier que la manette tient à cette image (les bornes d'arcade). */
+let padHolding: readonly string[] = []
+/** Aménagement : A était enfoncé à l'image précédente. */
+let padEditHeld = false
 addEventListener('blur', () => gamepad.suspend())
 addEventListener('visibilitychange', () => gamepad.suspend())
 /** Touches de déplacement (position physique : KeyW/KeyA = Z/Q sur un clavier AZERTY). */
@@ -4004,19 +4019,152 @@ let touchShot: 'tap' | 'aimed' | 'back' | null = null
 /** Angle (radians) que tourne le regard pour une course du centre au bord du stick de droite. */
 const TOUCH_LOOK_YAW = 0.62
 const TOUCH_LOOK_PITCH = 0.42
+/** B en mode interface, quand Échap n'a rien refermé : ce qui se replie encore. */
+function padBack(): boolean {
+  if (!reactionsPanel.hidden) toggleReactions(false)
+  else if (!$('about').hidden) toggleAbout(false)
+  else if (!$('help').hidden) $('help').hidden = true
+  else if ($('emotes').classList.contains('expanded')) mobileEmotesToggle.click()
+  else return false
+  return true
+}
+
+/** Un panneau tient l'écran : la manette y mène son cadre de sélection, sans qu'on le demande. */
+function padModal(): boolean {
+  return $('mobile-entry').hidden !== true || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || boardGames.isOpen || quiz.isOpen || fishBook.isOpen || wardrobe.isOpen || zone.panelOpen || arena.panelOpen || !!document.querySelector('.salvage-end:not([hidden]), .arena-end:not([hidden])')
+}
+
+/** Rien ne sort de la manette à cette image : ni déplacement, ni bouton. */
+function padIdle(pad: GamepadInput): GamepadInput {
+  const state = pad as unknown as Record<string, number | boolean>
+  for (const key in state) if (key !== 'connected') state[key] = typeof state[key] === 'number' ? 0 : false
+  return pad
+}
+
+/** Stick droit, gâchettes, LB et RB : la caméra, quelle que soit la vue. */
+function padCamera(pad: GamepadInput, dt: number) {
+  if (fpsShown) {
+    if (pad.lookX || pad.lookY) fps.look(-pad.lookX * dt * 2.4, -pad.lookY * dt * 1.8)
+    return
+  }
+  if (pad.rotateLeft) iso.rotate(-1)
+  if (pad.rotateRight) iso.rotate(1)
+  if (pad.lookX || pad.lookY) iso.orbit(-pad.lookX * dt * 1.8, pad.lookY * dt * 1.2)
+  if (pad.zoom) iso.zoomBy(Math.exp(pad.zoom * dt))
+}
+
+/**
+ * Aménagement des quartiers à la manette : un curseur à l'écran, mené par le stick gauche ou la
+ * croix ; A clique et, tenu, déplace l'objet ; B fait Échap (annuler, désélectionner, quitter) ;
+ * X annule le dernier geste, R3 le rétablit ; LB et RB tournent l'objet (sans objet, la vue) ;
+ * Y supprime ; stick droit et gâchettes pour la caméra. Select mène au catalogue.
+ */
+function editorPad(tool: CabinEditor, pad: GamepadInput, dt: number) {
+  const key = (code: string, init: KeyboardEventInit = {}) => tool.keyDown(new KeyboardEvent('keydown', { code, key: code, ...init }))
+  if (pad.lookX || pad.lookY) iso.orbit(-pad.lookX * dt * 1.8, pad.lookY * dt * 1.2)
+  if (pad.zoom) iso.zoomBy(Math.exp(pad.zoom * dt))
+  const held = gamepad.held.has('0')
+  if (pad.cancel) {
+    padEditHeld = held
+    tool.pointerCancel()
+    key('Escape')
+    return
+  }
+  if (pad.action) key('KeyZ', { ctrlKey: true })
+  if (pad.turn) key('KeyZ', { ctrlKey: true, shiftKey: true })
+  if (pad.rotateLeft && !key('KeyR', { shiftKey: true })) iso.rotate(-1)
+  if (pad.rotateRight && !key('KeyR')) iso.rotate(1)
+  if (pad.next) key('Delete')
+  const moving = pad.moveX || pad.moveY
+  if (moving || held || padCursor.shown) padCursor.move(pad.moveX, pad.moveY, dt, 620 * (pad.sprint ? 1.8 : 1))
+  if (!padCursor.shown) return
+  const e = padCursor.event
+  if (moving) tool.pointerMove(e)
+  if (held && !padEditHeld) tool.pointerDown(e)
+  else if (!held && padEditHeld) tool.pointerUp(e)
+  padEditHeld = held
+}
+
 function updateGamepad(dt: number): GamepadInput {
+  padHolding = []
+  const pad = routeGamepad(dt)
+  padKeys.hold(padHolding)
+  return pad
+}
+
+function routeGamepad(dt: number): GamepadInput {
   const focus = document.activeElement
   const typing = focus instanceof HTMLElement && (focus.matches('input, textarea, select') || focus.isContentEditable)
-  const enabled = !document.hidden && $('mobile-entry').hidden === true && !typing && !chat.typing && !editing() && !photo.active && !arcade?.isOpen && !boardGames.isOpen && !barPanel.isOpen && !gardenPanel.isOpen && !gameEmbed.isOpen && !mediaRoom.isOpen && !cinemaRoom.isOpen && !quiz.isOpen
   // Certains navigateurs mobiles rapportent brièvement document.hasFocus() = false après le
   // passage en plein écran. Cela ne doit pas couper le joystick ni ses boutons.
+  const pad = gamepad.poll(document.hasFocus() && !document.hidden)
+  if (pad.active) {
+    padDriving = usingGamepad = true
+    lastInput = performance.now()
+  }
+  if (!pad.connected) padDriving = false
+  const editingNow = editing()
+  if (!editingNow) {
+    padCursor.hide()
+    padEditHeld = false
+  }
+  // On écrit au vrai clavier : la manette attend. Son clavier à l'écran, lui, est à elle.
+  // Sauf si elle se manifeste : son clavier s'ouvre alors sur le champ, sans quoi elle y resterait prise.
+  const written = (typing || chat.typing) && !padUi.keyboard.isOpen && !(pad.active && padUi.write(focus))
+  if (written) padIdle(pad)
+  // Le mode interface : demandé (Select, Y), ou parce qu'un panneau tient l'écran.
+  const modal = padModal()
+  if (pad.menu && padDriving && !padUi.wanted && !modal) {
+    pad.menu = false
+    padUi.toggle(true, editingNow ? null : document.getElementById('mobile-chat-toggle') ?? $('chat-form'))
+  }
+  // En aménagement, B rend la main au curseur ; Échap y annulerait le geste en cours.
+  if (padUi.update(pad, gamepad.held, dt, { driving: padDriving && !written, modal, escape: !editingNow })) {
+    // Un objet pris au catalogue attend sa place : le curseur reprend.
+    if (editor?.active && editor.holding) padUi.toggle(false)
+    padCursor.hide()
+    touchGamepad?.poll(false)
+    return padIdle(pad)
+  }
   // Mode construction : la manette mène son curseur (cf. HomeBuilder.gamepad).
-  const building = builder?.active === true && !document.hidden && !typing && !chat.typing
-  const pad = gamepad.poll(document.hasFocus() && (enabled || building))
-  if (building) {
-    builder!.gamepad(pad, gamepad.held.has('0'), dt)
+  if (builder?.active) {
+    if (!written) builder.gamepad(pad, gamepad.held.has('0'), dt)
     return pad
   }
+  if (editor?.active) {
+    editor.padHints = padDriving
+    if (!written) editorPad(editor, pad, dt)
+    return pad
+  }
+  // Borne d'arcade : la manette en tient les touches. Stick ou croix, A, X et Y pour ses trois
+  // boutons (LB et RB les doublent), Start la pause, B quitte.
+  if (arcade?.isOpen && padDriving) {
+    const held = gamepad.held
+    const keys: string[] = []
+    if (held.has('left')) keys.push('ArrowLeft')
+    if (held.has('right')) keys.push('ArrowRight')
+    if (held.has('up')) keys.push('ArrowUp')
+    if (held.has('down')) keys.push('ArrowDown')
+    if (held.has('0')) keys.push('Space')
+    // Les jeux de la borne et le duel n'ont pas les mêmes touches : chacun ignore celles de l'autre.
+    if (held.has('2') || held.has('4')) keys.push('KeyX', 'KeyG')
+    if (held.has('3') || held.has('5')) keys.push('KeyC', 'KeyH')
+    padHolding = keys
+    if (pad.cancel) padKeys.tap('Escape')
+    if (pad.help) padKeys.tap('KeyP')
+    touchGamepad?.poll(false)
+    return padIdle(pad)
+  }
+  // Mode photo : on marche et on cadre comme d'habitude ; A déclenche, B range l'appareil.
+  if (photo.active && padDriving) {
+    if (pad.cancel) padKeys.tap('Escape')
+    else if (pad.interact) padKeys.tap('Space')
+    padCamera(pad, dt)
+    touchGamepad?.poll(false)
+    return pad
+  }
+  const enabled = !document.hidden && $('mobile-entry').hidden === true && !typing && !chat.typing && !editingNow && !photo.active && !arcade?.isOpen && !boardGames.isOpen && !barPanel.isOpen && !gardenPanel.isOpen && !gameEmbed.isOpen && !mediaRoom.isOpen && !cinemaRoom.isOpen && !quiz.isOpen
+  if (!enabled) padIdle(pad)
   let flare = false
   if (touchGamepad) {
     const touch = touchGamepad.poll(enabled)
@@ -4050,6 +4198,10 @@ function updateGamepad(dt: number): GamepadInput {
     lastInput = performance.now()
   }
   if (gym.active) {
+    // La flèche demandée se frappe à la croix ou au stick.
+    for (const [on, code] of [[pad.up, 'ArrowUp'], [pad.down, 'ArrowDown'], [pad.left, 'ArrowLeft'], [pad.right, 'ArrowRight']] as const) {
+      if (on) gym.key(new KeyboardEvent('keydown', { code, key: code }))
+    }
     pad.moveX = pad.moveY = 0
     if (pad.cancel) gym.stop()
     return pad
@@ -4165,14 +4317,14 @@ function updateGamepad(dt: number): GamepadInput {
     if (pad.interact) zone.keyDown(new KeyboardEvent('keydown', { code: 'KeyE' }))
     return pad
   }
-  if (fpsShown) {
-    if (pad.lookX || pad.lookY) fps.look(-pad.lookX * dt * 2.4, -pad.lookY * dt * 1.8)
-  } else {
-    if (pad.rotateLeft) iso.rotate(-1)
-    if (pad.rotateRight) iso.rotate(1)
-    if (pad.lookX || pad.lookY) iso.orbit(-pad.lookX * dt * 1.8, pad.lookY * dt * 1.2)
-    if (pad.zoom) iso.zoomBy(Math.exp(pad.zoom * dt))
-  }
+  // Y : la barre des emotes, le temps d'en choisir une. R3 : la vue suivante (de haut, subjective,
+  // troisième personne) ; l'arène, elle, garde la sienne.
+  if (pad.next && padDriving) padUi.toggle(true, emoteButtons[0].getClientRects().length ? emoteButtons[0] : $('emotes'), true)
+  if (pad.turn && padDriving && !arenaMode?.inArena) setFps(!fpsWanted, fpsWanted && !shoulderWanted)
+  // Spectateur de l'arène : LB et RB passent d'un combattant à l'autre.
+  const turn = pad.rotateLeft ? 'ArrowLeft' : pad.rotateRight ? 'ArrowRight' : null
+  if (turn && arena.keyDown(new KeyboardEvent('keydown', { code: turn, key: turn }))) pad.rotateLeft = pad.rotateRight = false
+  padCamera(pad, dt)
   if (groundBase.flying) return pad
   if (seating.current) {
     if (pad.interact && seating.settled) seating.stand()
@@ -4184,7 +4336,7 @@ function updateGamepad(dt: number): GamepadInput {
 
 function movementDirection(pad: GamepadInput): THREE.Vector3 {
   const input = keyboardDirection()
-  if (cinematic.active || cctv?.active || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || photo.active || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen) return input
+  if (cinematic.active || cctv?.active || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || (photo.active && !padDriving) || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen) return input
   // Le clavier reste prioritaire lorsqu'une touche de déplacement est maintenue.
   if (input.lengthSq() === 0) view().screenToGround(pad.moveX, -pad.moveY, input)
   return input
@@ -4246,7 +4398,8 @@ function setFps(eyes: boolean, shoulder: boolean, keep = true) {
   updateFpsButton()
   // Le clic ou la touche qui active la vue suffit à capturer le curseur (sinon, au premier pas).
   relock = fpsWanted
-  if (fpsWanted && !isoOnly() && !needsCursor() && matchMedia('(pointer: fine)').matches) lockCursor()
+  // À la manette, pas de curseur à capturer : le navigateur le refuserait (aucun clic).
+  if (fpsWanted && !padDriving && !isoOnly() && !needsCursor() && matchMedia('(pointer: fine)').matches) lockCursor()
 }
 /** V : la vue subjective, ou retour à la vue isométrique. */
 const toggleFps = () => setFps(!fpsWanted || shoulderWanted, false)
@@ -4715,12 +4868,13 @@ function edgeLook(dt: number) {
 // ou dès qu'on se remet à marcher ; Échap, lui, le laisse libre jusqu'au prochain clic sur la scène.
 let relock = fpsWanted
 const mayRelock = () => relock && fpsShown && !cursorLocked() && !needsCursor() && matchMedia('(pointer: fine)').matches
+// Les touches et les clics joués par la manette ne capturent rien : le navigateur le refuserait.
 addEventListener('keydown', (e) => {
-  if (MOVE_KEYS.has(e.code) && mayRelock()) lockCursor()
+  if (e.isTrusted && MOVE_KEYS.has(e.code) && mayRelock()) lockCursor()
 })
 // Phase de bouillonnement : le bouton « Fermer » a déjà fermé son panneau.
-addEventListener('click', () => {
-  if (mayRelock()) lockCursor()
+addEventListener('click', (e) => {
+  if (e.isTrusted && mayRelock()) lockCursor()
 })
 // Curseur rendu pour une interface : la mire et son aide s'effacent.
 const syncCursorUi = () => document.body.classList.toggle('fps-cursor-ui', fpsShown && needsCursor())
