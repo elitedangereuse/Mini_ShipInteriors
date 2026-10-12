@@ -6,8 +6,8 @@ import * as THREE from 'three'
  * (halo d'une lampe, jet d'une tuyère, couronne d'une étoile, atmosphère d'une planète) écrivait
  * pourtant une opacité pleine là où elle passait devant le vide, et le fond CSS disparaissait
  * derrière un carré noir. Le canvas est désormais opaque, et ce fond est dessiné par WebGL, aux
- * mêmes couleurs que les dégradés CSS (cf. body, body.planet et body.sim dans style.css) : les
- * lueurs s'y ajoutent comme partout ailleurs. Le navigateur n'a plus à mélanger le canvas avec la
+ * couleurs des anciens dégradés CSS (celui de l'espace reste le fond de la page, cf. body dans
+ * style.css, pendant le chargement) : les lueurs s'y ajoutent comme partout ailleurs. Le navigateur n'a plus à mélanger le canvas avec la
  * page à chaque image, ce qui allège aussi la composition.
  *
  * Un seul triangle plein écran, posé au fond de la profondeur et dessiné après tous les objets
