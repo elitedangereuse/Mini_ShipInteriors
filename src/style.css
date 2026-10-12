@@ -5441,6 +5441,8 @@ body.gardening #emotes { display: none; }
 .arena-hud[hidden] { display: none; }
 /* Les noms du bord laissent la place aux plaques de l'arène (les bulles de discussion restent). */
 body.arena-on .anchor .tag { display: none; }
+/* L'écran dégagé, le temps de la partie : du bord, il ne reste que le logo (ni panneau du pont, ni barre de boutons, ni combinés, ni emotes, ni chat). */
+body.arena-on :is(.top-right, .top-left > :not(.site-logo), #phone, #quest-phone, .emotes, .chat, .about-toggle) { display: none; }
 .arena-board { position: absolute; top: 76px; left: 50%; transform: translateX(-50%); display: flex; align-items: stretch; filter: drop-shadow(0 5px 0 #0007); }
 .arena-score { min-width: 66px; padding: 4px 16px 6px; border: 3px solid #0b0d12; background: var(--tint); color: #fff; font: 900 36px/1.1 system-ui, sans-serif; font-variant-numeric: tabular-nums; text-align: center; -webkit-text-stroke: 1.5px #0b0d12; paint-order: stroke fill; text-shadow: 0 3px 0 #0b0d12; }
 .arena-score.ally { border-radius: 14px 0 0 14px; transform: skewX(-6deg); }

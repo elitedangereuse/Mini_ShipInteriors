@@ -309,6 +309,9 @@ export class ArenaGun extends RangeGame {
       this.salvo = 0
       this.held = false
     }
+    // Un clic pendant le rechargement, en fantôme à sa base ou avant le coup d'envoi ne se met pas
+    // en attente : rien ne part tout seul une fois l'arme prête.
+    if (this.reloading || !this.ready()) this.queued = false
     // Au doigt, tant qu'on ne vise pas : le personnage regarde où il court, comme dans Brawl Stars.
     // Pas quand un coup attend de partir (le stick vient d'être lâché) : il part là où l'on visait.
     if (this.touch && !f.fps && !this.sighting && !this.queued && !this.held && this.salvo <= 0 && this.calm > FACE_AFTER && this.stride.lengthSq() > 0.04) {

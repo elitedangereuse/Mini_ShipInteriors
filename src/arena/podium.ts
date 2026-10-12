@@ -31,6 +31,9 @@ export const STAGE_ELEVATION = 0.17
 /** Largeur et profondeur du décor : de quoi remplir le cadre sur un écran large. */
 const WIDE = 22
 const BACK = 0.8
+/** Les projecteurs de la scène : celui de face, et l'appoint d'ambiance. */
+const KEY_LIGHT = 1.5
+const FILL_LIGHT = 0.9
 
 interface Figure { entry: PodiumEntry; puppet: RemotePlayer; next: number; drone: Drone | null }
 
@@ -135,8 +138,14 @@ export class Podium {
     // Tourné vers la caméra (au nord) : sa gauche est celle de l'écran.
     const back = new THREE.Mesh(new THREE.PlaneGeometry(WIDE, tall).rotateY(Math.PI), new THREE.MeshBasicMaterial({ map: texture }))
     back.position.set(this.at.x, tall / 2 - 1, this.at.z + BACK)
-    this.decor.add(floor, back)
-    this.owned.push(floor.geometry, floor.material as THREE.Material, back.geometry, back.material as THREE.Material, texture, boards)
+    // Les projecteurs de la scène : de face, depuis la caméra, et un appoint d'ambiance. Le plan
+    // éclaire peu ici, hors de son terrain (de nuit au site gardien, dans la pénombre de la ruche).
+    const key = new THREE.DirectionalLight('#fff6e8', KEY_LIGHT)
+    key.position.set(this.at.x + 1.5, 3.2, this.at.z - 6)
+    key.target.position.set(this.at.x, 0.5, this.at.z)
+    const fill = new THREE.HemisphereLight('#ffffff', '#5a647c', FILL_LIGHT)
+    this.decor.add(floor, back, key, key.target, fill)
+    this.owned.push(key, fill, floor.geometry, floor.material as THREE.Material, back.geometry, back.material as THREE.Material, texture, boards)
   }
 
   update(dt: number) {
