@@ -1,4 +1,4 @@
-Vaisseaux d'Elite Dangerous (Frontier Developments), allégés, lissés et peints pour Mini Interior par
+Vaisseaux d'Elite Dangerous (Frontier Developments), allégés, taillés en grands pans et peints pour Mini Interior par
 scripts/import-ed-ships.mjs, d'après les modèles imprimables « 2 Part (Elite Dangerous) » de
 Kahnindustries (David Williams). Licences des modèles d'origine :
 

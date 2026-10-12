@@ -10,10 +10,14 @@ import { elitePaint } from '../shared/elite-paints.js'
  *
  * Les modèles n'ont pas de coordonnées de texture : la coque est peinte par son shader, dans le
  * repère du vaisseau. Chaque famille de la boutique (Tactical, Predator, Shock…) a son motif (cf.
- * FAMILIES) : bandes, damiers, camouflages, flammes, écailles, éclats, éclairs lumineux, métal… ; ses
+ * FAMILIES) : bandes, damiers, camouflages, flammes, écailles, éclats, éclairs lumineux… ; ses
  * coloris n'en changent que les couleurs. Le motif suit le vaisseau à sa taille (les cellules d'un
  * camouflage grandissent avec la coque, sans s'étirer), et une carte de distance au bord de la
  * coque vue de dessus (cf. edgeField) pose les liserés, les bouts d'ailes et les lueurs des arêtes.
+ *
+ * Le tout à la façon des éléments du jeu (blocs francs, aplats mats) : les pièces que la boutique ne
+ * peint jamais restent en graphite (attribut _bare des modèles, cf. scripts/import-ed-bare.mjs), comme
+ * la poupe, et les motifs passent en grandes formes, sans reflets (cf. aplat).
  *
  * Le choix d'une peinture est gardé dans ce navigateur, vaisseau par vaisseau (cf. paintOf) ; sans
  * choix, le vaisseau porte la peinture qu'il a dans Elite Dangerous (cf. saveElitePaint).
@@ -80,9 +84,10 @@ interface Recipe {
 
 /**
  * Les familles de la boutique. Les motifs reprennent ce que montrent les vignettes (vues de dessus) :
- * l'essentiel des formes et des couleurs, pas le détail (les lettres, les blasons).
+ * l'essentiel des formes et des couleurs, pas le détail (les lettres, les blasons). Le jeu les porte
+ * en aplats (cf. FAMILIES).
  */
-export const FAMILIES: Record<string, Recipe> = {
+const RECIPES: Record<string, Recipe> = {
   [FACTORY]: { label: 'Livrée du constructeur', style: P.Belly, finish: 'satin' },
   vibrant: { label: 'Vibrant', style: P.Mottle, p: [0.5, 0.35, 0.15, 0, 0], finish: 'gloss' },
   marquess: { label: 'Marquess', style: P.Heraldic, p: [1.6, 0.15, 0, 0, 0], finish: 'satin' },
@@ -156,6 +161,27 @@ export const FAMILIES: Record<string, Recipe> = {
   vanguard: { label: 'Vanguard', style: P.Lines, p: [0.9, 0.7, 0.06, 0.5, 0], finish: 'metal' },
 }
 
+/**
+ * Une famille en aplats, à la façon des éléments du jeu : des motifs à grande échelle (taches de
+ * camouflage, éclats, écailles, lignes… deux fois plus grandes ; flammes et bandes plus larges ;
+ * marbrures unies), des lueurs plus épaisses, et tout mat (les peintures métallisées deviennent des
+ * aplats de leur couleur).
+ */
+function aplat(r: Recipe): Recipe {
+  const p = r.p ? ([...r.p] as NonNullable<Recipe['p']>) : undefined
+  if (p) {
+    if (r.style === P.Mottle) p[1] = p[2] = 0
+    if (([P.Camo, P.Splinter, P.Scales, P.Dazzle, P.Halftone, P.Heraldic, P.Panels, P.Lines] as number[]).includes(r.style)) p[0] *= 0.5
+    if (r.style === P.Flames) p[3] *= 0.45
+    if (r.style === P.Tiger) p[1] *= 1.8
+    if (r.style === P.Bands) p[2] *= 1.6
+  }
+  return { ...r, p, finish: 'matte', g: r.g && [r.g[0] * 0.6, r.g[1] * 1.4, r.g[2], r.g[3]] }
+}
+
+/** Les familles telles que le jeu les peint (cf. aplat). */
+export const FAMILIES: Record<string, Recipe> = Object.fromEntries(Object.entries(RECIPES).map(([k, r]) => [k, aplat(r)]))
+
 /** Libellé d'une famille (le nom de la boutique ; la livrée d'usine se traduit). */
 export const familyLabel = (family: string): string => FAMILIES[family]?.label ?? family
 
@@ -163,7 +189,8 @@ export const familyLabel = (family: string): string => FAMILIES[family]?.label ?
 
 const VERTEX = `#include <begin_vertex>
   vPaintPos = transformed;
-  vPaintNormal = objectNormal;`
+  vPaintNormal = objectNormal;
+  vPaintBare = _bare;`
 
 const HEAD = /* glsl */ `
 uniform vec3 uPaintSize;
@@ -180,7 +207,10 @@ uniform float uPaintEdgeMax;
 uniform float uPaintSeed;
 varying vec3 vPaintPos;
 varying vec3 vPaintNormal;
+varying float vPaintBare;
 vec3 paintSpecular = vec3(0.0);
+// Le graphite des pièces jamais peintes (linéaire).
+const vec3 PAINT_GRAPHITE = vec3(0.0475, 0.0532, 0.0646);
 float paintShininess = 30.0;
 
 float ph1(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
@@ -431,7 +461,13 @@ const FRAGMENT = `#include <color_fragment>
   {
     vec3 paintGlowColor;
     diffuseColor.rgb = paintAt(paintGlowColor);
-    totalEmissiveRadiance += paintGlowColor;
+    // Les pièces que la boutique ne peint jamais (_bare) et la poupe (tuyères, blocs moteurs) en
+    // graphite, sans lueur ; les flancs, à moitié : les blocs se lisent comme ceux du jeu.
+    vec3 bn = normalize(vPaintNormal);
+    float bare = max(vPaintBare, smoothstep(-0.55, -0.85, bn.z));
+    float side = (1.0 - smoothstep(0.2, 0.45, bn.y)) * 0.6;
+    diffuseColor.rgb = mix(diffuseColor.rgb, PAINT_GRAPHITE, clamp(max(bare, side), 0.0, 1.0) * 0.95);
+    totalEmissiveRadiance += paintGlowColor * (1.0 - bare);
   }`
 
 const SPECULAR = `#include <lights_phong_fragment>
@@ -579,7 +615,7 @@ export class PaintedHull {
     this.material.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, u)
       shader.vertexShader = shader.vertexShader
-        .replace('void main() {', 'varying vec3 vPaintPos;\nvarying vec3 vPaintNormal;\nvoid main() {')
+        .replace('void main() {', 'attribute float _bare;\nvarying vec3 vPaintPos;\nvarying vec3 vPaintNormal;\nvarying float vPaintBare;\nvoid main() {')
         .replace('#include <begin_vertex>', VERTEX)
       shader.fragmentShader = shader.fragmentShader
         .replace('void main() {', `${HEAD}\nvoid main() {`)

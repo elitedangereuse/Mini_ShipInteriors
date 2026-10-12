@@ -8,14 +8,17 @@
  * Pour chaque vaisseau : le STL entier est lu dans son archive, ses sommets soudés, puis le
  * maillage est allégé (simplificateur de meshoptimizer, fourni avec three.js), orienté, centré,
  * et chaque face reçoit une peinture (coque, panneaux, liseré, verrière, réacteurs) d'après des
- * zones propres au vaisseau (cf. PAINT). Les infos utiles au jeu (dimensions, verrière, tuyères)
- * vont dans les « extras » du nœud, que GLTFLoader range dans userData. Cf. src/ships/.
+ * zones propres au vaisseau (cf. PAINT). Le modèle allégé est taillé en grands pans plats, comme
+ * les éléments du jeu (cf. panelNormals), et les pans de coque que la boutique d'Elite ne peint
+ * jamais sont marqués (attribut _BARE, d'après scripts/ed-ships-bare.json, cf. import-ed-bare.mjs) :
+ * le jeu les laisse en graphite. Les infos utiles au jeu (dimensions, verrière, tuyères) vont dans
+ * les « extras » du nœud, que GLTFLoader range dans userData. Cf. src/ed-ships.ts.
  *
  * Usage : node scripts/import-ed-ships.mjs <dossier des archives .zip> [--raw <dossier>] [id…]
  *   --raw : écrit les maillages allégés tels quels (axes d'origine, sans peinture), pour régler
  *           l'orientation.
  */
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { inflateRawSync } from 'node:zlib'
 import { fileURLToPath } from 'node:url'
@@ -344,10 +347,11 @@ const pad4 = (n) => (n + 3) & ~3
 
 /**
  * GLB d'un vaisseau : un nœud (nom = id, extras = infos du jeu), un maillage, une primitive par
- * peinture, toutes sur les mêmes sommets. Les normales (lissées, cf. creaseNormals) tiennent sur un
- * octet par composante (KHR_mesh_quantization, que lit GLTFLoader).
+ * peinture, toutes sur les mêmes sommets. Les normales (en pans, cf. panelNormals) tiennent sur un
+ * octet par composante (KHR_mesh_quantization, que lit GLTFLoader) ; _BARE (un octet, 0 ou 255) marque
+ * les sommets des pans jamais peints (GLTFLoader en fait l'attribut « _bare », de 0 à 1).
  */
-function writeGlb(id, positions, normals, groups, extras) {
+function writeGlb(id, positions, normals, groups, extras, bare = null) {
   const chunks = []
   let length = 0
   const push = (buf) => {
@@ -386,6 +390,15 @@ function writeGlb(id, positions, normals, groups, extras) {
   }
   gltf.bufferViews.push({ buffer: 0, byteOffset: push(norBuf), byteLength: norBuf.length, byteStride: 4, target: 34962 })
   gltf.accessors.push({ bufferView: 1, componentType: 5120, normalized: true, count: normals.length / 3, type: 'VEC3' })
+  const attributes = { POSITION: 0, NORMAL: 1 }
+  if (bare) {
+    // Un octet par sommet, trois de bourrage (un attribut de sommet s'aligne sur quatre octets).
+    const bareBuf = Buffer.alloc(bare.length * 4)
+    bare.forEach((b, i) => bareBuf.writeUInt8(b ? 255 : 0, i * 4))
+    gltf.bufferViews.push({ buffer: 0, byteOffset: push(bareBuf), byteLength: bareBuf.length, byteStride: 4, target: 34962 })
+    gltf.accessors.push({ bufferView: 2, componentType: 5121, normalized: true, count: bare.length, type: 'SCALAR' })
+    attributes._BARE = 2
+  }
   const big = positions.length / 3 > 65535
   for (const g of groups) {
     if (!g.indices.length) continue
@@ -398,7 +411,7 @@ function writeGlb(id, positions, normals, groups, extras) {
       pbrMetallicRoughness: { baseColorFactor: [...g.color, 1], metallicFactor: 0, roughnessFactor: 1 },
       ...(g.emissive ? { emissiveFactor: g.emissive } : {}),
     })
-    gltf.meshes[0].primitives.push({ attributes: { POSITION: 0, NORMAL: 1 }, indices: gltf.accessors.length - 1, material: gltf.materials.length - 1 })
+    gltf.meshes[0].primitives.push({ attributes, indices: gltf.accessors.length - 1, material: gltf.materials.length - 1 })
   }
   gltf.buffers.push({ byteLength: length })
   const json = Buffer.from(JSON.stringify(gltf), 'utf8')
@@ -419,10 +432,12 @@ function writeGlb(id, positions, normals, groups, extras) {
 
 // ---------------------------------------------------------------- Allègement
 
-/** Triangles visés : assez pour garder la silhouette et les grands pans, sans plus. */
-const TARGET_TRIS = 8000
+/** Triangles visés : la silhouette et les grands volumes, en facettes nettes comme les éléments du jeu. */
+const TARGET_TRIS = 2900
+/** Les plus complexes en demandent plus, sinon leur coque se froisse. */
+const TRIS = { 'type-9': 6000, 'type-10': 6000 }
 /** Écart toléré, relatif à la taille du vaisseau. */
-const TARGET_ERROR = 0.004
+const TARGET_ERROR = 0.02
 
 function simplify(mesh, target = TARGET_TRIS, error = TARGET_ERROR) {
   const [indices, err] = MeshoptSimplifier.simplify(mesh.indices, mesh.positions, 3, Math.min(mesh.indices.length, target * 3), error, [])
@@ -459,78 +474,132 @@ function simplifyGroups(positions, groups, target = TARGET_TRIS, error = TARGET_
   return { positions: new Float32Array(pos), groups: out, error: worst }
 }
 
-// ---------------------------------------------------------------- Lissage
+// ---------------------------------------------------------------- Facettes
 
-/** Au-delà de cet angle (degrés) entre deux faces qui se touchent, l'arête reste vive. */
-const CREASE = 38
+/** Faces voisines à moins de tant de degrés l'une de l'autre : un même pan plat. */
+const PANEL = 12
+/** Pans plus fins pour décider de ce qui reste en graphite : ils suivent mieux les pièces non peintes. */
+const BARE_PANEL = 8
+/** Part non peinte au-delà de laquelle un pan de coque reste en graphite. */
+const BARE_CUT = 0.6
 
 /**
- * Normales lissées : chaque coin de triangle prend la moyenne (pondérée par l'aire) des faces qui
- * touchent son sommet et ne font pas avec la sienne un angle de plus de CREASE. Les pans courbes et
- * les petites facettes de l'allègement se fondent ; les arêtes franches des coques restent nettes.
- * Un sommet est dédoublé pour chaque normale différente qu'il reçoit, toutes peintures confondues
- * (la verrière se raccorde en douceur à la coque si elles se suivent).
+ * Le masque des pièces non peintes d'un vaisseau (une entrée de scripts/ed-ships-bare.json, cf.
+ * import-ed-bare.mjs : une grille vue de dessus, un bit par case), adouci d'un flou 1-2-1 : une
+ * fonction (x, z) → part non peinte, de 0 à 1.
  */
-function creaseNormals(positions, groups, angle = CREASE) {
-  const cos = Math.cos((angle * Math.PI) / 180)
-  const nv = positions.length / 3
-  const faces = []
-  for (const g of groups) for (let t = 0; t < g.indices.length; t += 3) faces.push(g.indices[t], g.indices[t + 1], g.indices[t + 2])
-  const nf = faces.length / 3
-  // Normale de chaque face : pondérée (son module vaut deux fois l'aire) et unitaire.
-  const wn = new Float64Array(nf * 3), un = new Float64Array(nf * 3)
-  for (let f = 0; f < nf; f++) {
-    const a = faces[f * 3] * 3, b = faces[f * 3 + 1] * 3, c = faces[f * 3 + 2] * 3
-    const e1 = [positions[b] - positions[a], positions[b + 1] - positions[a + 1], positions[b + 2] - positions[a + 2]]
-    const e2 = [positions[c] - positions[a], positions[c + 1] - positions[a + 1], positions[c + 2] - positions[a + 2]]
-    const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]]
-    const len = Math.hypot(...n)
-    for (let k = 0; k < 3; k++) {
-      wn[f * 3 + k] = n[k]
-      un[f * 3 + k] = len ? n[k] / len : 0
-    }
+function bareField(m) {
+  if (!m) return null
+  const { cols, rows, box } = m
+  const bits = Buffer.from(m.mask, 'base64')
+  const bit = (i, j) => {
+    const k = Math.min(rows - 1, Math.max(0, j)) * cols + Math.min(cols - 1, Math.max(0, i))
+    return (bits[k >> 3] >> (k & 7)) & 1
   }
-  // Les faces de chaque sommet.
-  const start = new Int32Array(nv + 1)
-  for (const v of faces) start[v + 1]++
-  for (let v = 0; v < nv; v++) start[v + 1] += start[v]
-  const around = new Int32Array(faces.length)
-  const fill = start.slice(0, nv)
-  for (let i = 0; i < faces.length; i++) around[fill[faces[i]]++] = (i / 3) | 0
-  // Chaque coin : sa normale, puis un sommet par couple (position, normale) distinct.
-  const pos = [], nor = [], made = new Map()
-  let f = 0
-  const out = groups.map((g) => {
-    const indices = []
-    for (let t = 0; t < g.indices.length; t += 3, f++) {
-      for (let k = 0; k < 3; k++) {
-        const v = g.indices[t + k]
-        let nx = 0, ny = 0, nz = 0
-        for (let i = start[v]; i < start[v + 1]; i++) {
-          const o = around[i]
-          if (un[o * 3] * un[f * 3] + un[o * 3 + 1] * un[f * 3 + 1] + un[o * 3 + 2] * un[f * 3 + 2] < cos) continue
-          nx += wn[o * 3]
-          ny += wn[o * 3 + 1]
-          nz += wn[o * 3 + 2]
+  const soft = new Float32Array(cols * rows)
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    let t = 0
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) t += bit(i + di, j + dj) * (2 - Math.abs(di)) * (2 - Math.abs(dj))
+    soft[j * cols + i] = t / 16
+  }
+  const at = (i, j) => soft[Math.min(rows - 1, Math.max(0, j)) * cols + Math.min(cols - 1, Math.max(0, i))]
+  return (x, z) => {
+    const u = ((x - box[0]) / box[2]) * cols - 0.5, v = ((z - box[1]) / box[3]) * rows - 0.5
+    const i = Math.floor(u), j = Math.floor(v), fu = u - i, fv = v - j
+    return (at(i, j) * (1 - fu) + at(i + 1, j) * fu) * (1 - fv) + (at(i, j + 1) * (1 - fu) + at(i + 1, j + 1) * fu) * fv
+  }
+}
+
+/**
+ * Normales en grands pans : dans chaque peinture, les faces voisines presque coplanaires (PANEL)
+ * forment un pan, qui prend leur normale moyenne (pondérée par l'aire) ; le pan se lit d'un bloc,
+ * comme une facette des éléments Kenney du jeu. Les pans de coque qui tombent surtout sur une pièce
+ * que la boutique ne peint pas (bare, cf. bareField ; décidé sur des pans plus fins, BARE_PANEL) sont
+ * marqués. Un sommet est dédoublé pour chaque pan qui le touche.
+ */
+function panelNormals(positions, groups, bare = null) {
+  const pos = [], nor = [], flags = []
+  const out = groups.map((g, gi) => {
+    const idx = g.indices
+    const nf = idx.length / 3
+    // Normale unitaire, aire et part non peinte de chaque face.
+    const fn = new Float64Array(nf * 3), area = new Float64Array(nf), share = new Float64Array(nf)
+    for (let f = 0; f < nf; f++) {
+      const a = idx[f * 3] * 3, b = idx[f * 3 + 1] * 3, c = idx[f * 3 + 2] * 3
+      const e1 = [positions[b] - positions[a], positions[b + 1] - positions[a + 1], positions[b + 2] - positions[a + 2]]
+      const e2 = [positions[c] - positions[a], positions[c + 1] - positions[a + 1], positions[c + 2] - positions[a + 2]]
+      const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]]
+      const len = Math.hypot(...n)
+      area[f] = len / 2
+      for (let k = 0; k < 3; k++) fn[f * 3 + k] = len ? n[k] / len : 0
+      if (bare && g.name === 'hull') share[f] = bare((positions[a] + positions[b] + positions[c]) / 3, (positions[a + 2] + positions[b + 2] + positions[c + 2]) / 3)
+    }
+    // Les voisines : faces qui partagent une arête.
+    const edges = new Map()
+    for (let f = 0; f < nf; f++) for (let e = 0; e < 3; e++) {
+      const v1 = idx[f * 3 + e], v2 = idx[f * 3 + ((e + 1) % 3)]
+      const key = Math.min(v1, v2) * 4194304 + Math.max(v1, v2)
+      const l = edges.get(key)
+      if (l) l.push(f)
+      else edges.set(key, [f])
+    }
+    const near = Array.from({ length: nf }, () => [])
+    for (const l of edges.values()) for (const f of l) for (const o of l) if (f !== o) near[f].push(o)
+    // Les pans, du plus grand triangle au plus petit : on agrège les voisines proches de la normale du pan.
+    const order = [...Array(nf).keys()].sort((x, y) => area[y] - area[x])
+    const grow = (angle) => {
+      const cos = Math.cos((angle * Math.PI) / 180)
+      const region = new Int32Array(nf).fill(-1), normal = [], part = []
+      for (const seed of order) {
+        if (region[seed] >= 0) continue
+        const r = normal.length
+        const sum = [fn[seed * 3] * area[seed], fn[seed * 3 + 1] * area[seed], fn[seed * 3 + 2] * area[seed]]
+        let len = Math.hypot(...sum) || 1
+        let dir = sum.map((v) => v / len)
+        let wb = share[seed] * area[seed], wa = area[seed]
+        region[seed] = r
+        const queue = [seed]
+        for (let q = 0; q < queue.length; q++) {
+          for (const o of near[queue[q]]) {
+            if (region[o] >= 0 || fn[o * 3] * dir[0] + fn[o * 3 + 1] * dir[1] + fn[o * 3 + 2] * dir[2] < cos) continue
+            region[o] = r
+            queue.push(o)
+            for (let k = 0; k < 3; k++) sum[k] += fn[o * 3 + k] * area[o]
+            len = Math.hypot(...sum) || 1
+            dir = sum.map((v) => v / len)
+            wb += share[o] * area[o]
+            wa += area[o]
+          }
         }
-        const len = Math.hypot(nx, ny, nz) || 1
-        nx /= len
-        ny /= len
-        nz /= len
-        const key = `${v},${Math.round(nx * 100)},${Math.round(ny * 100)},${Math.round(nz * 100)}`
+        normal.push(dir)
+        part.push(wa ? wb / wa : 0)
+      }
+      return { region, normal, part }
+    }
+    const light = grow(PANEL), cut = bare && g.name === 'hull' ? grow(BARE_PANEL) : null
+    // Un sommet par (sommet, pan, graphite ou non).
+    const made = new Map()
+    const indices = []
+    for (let f = 0; f < nf; f++) {
+      const r = light.region[f]
+      const flag = cut && cut.part[cut.region[f]] > BARE_CUT ? 1 : 0
+      for (let k = 0; k < 3; k++) {
+        const v = idx[f * 3 + k]
+        const key = `${gi},${v},${r},${flag}`
         let id = made.get(key)
         if (id === undefined) {
           id = pos.length / 3
           made.set(key, id)
           pos.push(positions[v * 3], positions[v * 3 + 1], positions[v * 3 + 2])
-          nor.push(nx, ny, nz)
+          nor.push(...light.normal[r])
+          flags.push(flag)
         }
         indices.push(id)
       }
     }
     return { ...g, indices }
   })
-  return { positions: new Float32Array(pos), normals: new Float32Array(nor), groups: out }
+  return { positions: new Float32Array(pos), normals: new Float32Array(nor), bare: Uint8Array.from(flags), groups: out }
 }
 
 // ---------------------------------------------------------------- Orientation
@@ -911,6 +980,9 @@ while (args.length) {
 }
 await MeshoptSimplifier.ready
 const dest = raw ?? fileURLToPath(new URL('../public/assets/ships/', import.meta.url))
+/** Les pièces que la boutique ne peint jamais (cf. import-ed-bare.mjs). */
+const bareFile = fileURLToPath(new URL('./ed-ships-bare.json', import.meta.url))
+const BARE = existsSync(bareFile) ? JSON.parse(readFileSync(bareFile, 'utf8')) : {}
 mkdirSync(dest, { recursive: true })
 const credits = []
 /** Le catalogue (public/assets/ships/catalog.json) : de quoi présenter les vaisseaux sans charger leurs modèles. */
@@ -927,15 +999,15 @@ for (const ship of SHIPS) {
   if (raw) {
     const light = simplify(welded)
     ;[tris, error] = [light.indices.length / 3, light.error]
-    const smooth = creaseNormals(light.positions, [{ name: 'hull', color: [0.8, 0.8, 0.8], indices: light.indices }])
-    writeFileSync(join(dest, `${ship.id}.glb`), writeGlb(ship.id, smooth.positions, smooth.normals, smooth.groups, { name: ship.name }))
+    const flat = panelNormals(light.positions, [{ name: 'hull', color: [0.8, 0.8, 0.8], indices: light.indices }])
+    writeFileSync(join(dest, `${ship.id}.glb`), writeGlb(ship.id, flat.positions, flat.normals, flat.groups, { name: ship.name }))
   } else {
     const spec = PAINT[ship.id] ?? {}
     const oriented = orient(welded.positions, spec.nose, spec.up)
     const size = oriented.size
     const { positions, indices } = cut(oriented.positions, welded.indices, boxes(spec.zones, size))
     const zoned = zone(positions, indices, size, spec)
-    const light = simplifyGroups(positions, zoned.groups)
+    const light = simplifyGroups(positions, zoned.groups, TRIS[ship.id] ?? TARGET_TRIS)
     const discs = nozzleDiscs(positions, indices, size, spec.nozzles)
     if (discs.list.length) {
       // Les disques s'ajoutent au modèle allégé, dans la peinture des tuyères.
@@ -957,8 +1029,9 @@ for (const ship of SHIPS) {
       credit: credit(ship),
     }
     extras.silhouette = silhouette(extras.plan, size)
-    const smooth = creaseNormals(light.positions, painted.groups)
-    writeFileSync(join(dest, `${ship.id}.glb`), writeGlb(ship.id, smooth.positions, smooth.normals, smooth.groups, extras))
+    if (!BARE[ship.id]) console.warn(`${ship.id} : pas de masque des pièces non peintes (cf. scripts/import-ed-bare.mjs)`)
+    const flat = panelNormals(light.positions, painted.groups, bareField(BARE[ship.id]))
+    writeFileSync(join(dest, `${ship.id}.glb`), writeGlb(ship.id, flat.positions, flat.normals, flat.groups, extras, flat.bare))
     credits.push(`${ship.name} : ${extras.credit}`)
     catalog.push({ id: ship.id, name: ship.name, maker: ship.maker, size: extras.size, silhouette: extras.silhouette })
   }
@@ -967,7 +1040,7 @@ for (const ship of SHIPS) {
 if (!raw && !only.length) {
   writeFileSync(join(dest, 'catalog.json'), JSON.stringify(catalog))
   writeFileSync(join(dest, 'CREDITS.txt'), [
-    "Vaisseaux d'Elite Dangerous (Frontier Developments), allégés, lissés et peints pour Mini Interior par",
+    "Vaisseaux d'Elite Dangerous (Frontier Developments), allégés, taillés en grands pans et peints pour Mini Interior par",
     'scripts/import-ed-ships.mjs, d\'après les modèles imprimables « 2 Part (Elite Dangerous) » de',
     'Kahnindustries (David Williams). Licences des modèles d\'origine :',
     '',
