@@ -1,5 +1,6 @@
 import * as THREE from 'three'
-import { ED_SHIPS, edShip, shipInfo, trafficLength, type EdShipId } from './ed-ships'
+import { ED_SHIPS, edShip, paintShip, shipInfo, trafficLength, type EdShipId } from './ed-ships'
+import { shipPaints, type PaintedHull, type ShipPaint } from './ship-paint'
 import { renderQuality } from './quality'
 
 /*
@@ -13,7 +14,8 @@ import { renderQuality } from './quality'
  * les uns au ras de la coque, les autres plus au large : ils ne se rentrent pas dedans.
  *
  * Les modèles se chargent au fil de l'eau : quelques-uns d'emblée, puis un nouveau à chaque
- * départ ; tous finissent par passer.
+ * départ ; tous finissent par passer. Chacun porte une des peintures de la boutique d'Elite pour
+ * son modèle (cf. ship-paint.ts), prise au hasard, ou la livrée de son constructeur.
  */
 
 /** Bords de la coque sous le pont affiché (z du bord bâbord, au nord, et du bord tribord, au sud). */
@@ -41,10 +43,14 @@ interface Proto {
   half: number
   /** Tuyères (m) : un halo devant chacune. */
   engines: [number, number, number, number, number][]
+  /** Ses peintures (vide si le catalogue n'a pas répondu : la livrée d'usine). */
+  paints: ShipPaint[]
 }
 
 interface Ship {
   root: THREE.Group
+  /** Sa coque peinte (son matériau est à lui, à jeter avec lui). */
+  hull: PaintedHull
   /** Sens de marche le long de la coque (1 : vers l'est, -1 : vers l'ouest), et vitesse (tuiles/s, toujours positive). */
   dir: 1 | -1
   speed: number
@@ -88,11 +94,11 @@ export class Traffic {
   private fetch(id: EdShipId) {
     if (this.protos.has(id) || this.loading.has(id)) return
     this.loading.add(id)
-    edShip(id).then(
-      (root) => {
+    Promise.all([edShip(id), shipPaints(id).catch(() => [])]).then(
+      ([root, paints]) => {
         const info = shipInfo(root)
         const scale = trafficLength(info.size[2]) / info.size[2]
-        this.protos.set(id, { root, scale, heavy: info.size[2] > HEAVY, half: (info.size[0] / 2) * scale, engines: info.engines })
+        this.protos.set(id, { root, scale, heavy: info.size[2] > HEAVY, half: (info.size[0] / 2) * scale, engines: info.engines, paints })
       },
       () => this.loading.delete(id),
     )
@@ -105,7 +111,7 @@ export class Traffic {
   }
 
   private clear() {
-    for (const s of this.ships) s.root.removeFromParent()
+    for (const s of this.ships) this.drop(s)
     this.ships = []
     this.filled = false
   }
@@ -114,7 +120,10 @@ export class Traffic {
     const proto = pick([...this.protos.values()])
     this.fetch(pick(ED_SHIPS))
     const root = new THREE.Group()
-    root.add(proto.root.clone(true))
+    const model = proto.root.clone(true)
+    // Une peinture de la boutique trois fois sur quatre, sinon la livrée du constructeur.
+    const hull = paintShip(model, proto.paints.length && Math.random() < 0.75 ? pick(proto.paints) : null)
+    root.add(model)
     // Un halo devant chaque tuyère (en mètres, comme le modèle).
     for (const [x, y, z, rx, ry] of proto.engines) {
       const flare = new THREE.Sprite(this.flare)
@@ -129,6 +138,7 @@ export class Traffic {
     root.rotation.y = (dir * Math.PI) / 2
     const ship: Ship = {
       root,
+      hull,
       dir,
       speed: (proto.heavy ? 1.2 + Math.random() * 0.8 : 2 + Math.random() * 2.5) * (dir > 0 ? 1 : 1.6),
       // Ceux qui croisent passent plus au large que ceux qui doublent ; les gros encore plus loin.
@@ -140,6 +150,12 @@ export class Traffic {
     root.position.x = anywhere ? centerX + (Math.random() * 2 - 1) * SPAN * 0.8 : centerX - dir * SPAN
     this.group.add(root)
     this.ships.push(ship)
+  }
+
+  /** Retire un vaisseau parti (ses géométries sont partagées ; sa peinture est à lui). */
+  private drop(s: Ship) {
+    s.root.removeFromParent()
+    s.hull.material.dispose()
   }
 
   /**
@@ -168,7 +184,7 @@ export class Traffic {
       s.root.rotation.z = Math.sin(this.time * 0.5 + s.phase) * 0.1
     }
     const gone = this.ships.filter((s) => Math.abs(s.root.position.x - target.x) > SPAN + 6)
-    for (const s of gone) s.root.removeFromParent()
+    for (const s of gone) this.drop(s)
     if (gone.length) this.ships = this.ships.filter((s) => !gone.includes(s))
   }
 }

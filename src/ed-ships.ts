@@ -1,11 +1,14 @@
 import * as THREE from 'three'
 import { BASE, rig } from './assets'
+import { PaintedHull, type Livery, type ShipPaint } from './ship-paint'
 
 /*
  * Les vaisseaux d'Elite Dangerous (public/assets/ships/, cf. scripts/import-ed-ships.mjs) : les
- * modèles imprimables de Kahnindustries, allégés (6 000 à 9 000 triangles) et peints. En mètres,
- * à l'échelle du jeu d'origine, nez vers +z, dessus vers +y, centrés sur leur boîte. Le nœud du
- * modèle porte dans userData ses dimensions, ses tuyères et sa verrière (cf. EdShipInfo).
+ * modèles imprimables de Kahnindustries, allégés (8 000 à 10 000 triangles), lissés et peints. En
+ * mètres, à l'échelle du jeu d'origine, nez vers +z, dessus vers +y, centrés sur leur boîte. Le nœud
+ * du modèle porte dans userData ses dimensions, ses tuyères, sa verrière et la livrée de son
+ * constructeur (cf. EdShipInfo). La coque est peinte par son shader (cf. ship-paint.ts) : la livrée
+ * du constructeur, ou une des peintures de la boutique d'Elite (cf. paintShip).
  *
  * Ils croisent autour du vaisseau (trafic, cf. traffic.ts ; passage derrière le bouclier du
  * hangar, cf. shield.ts). Chacun n'est chargé qu'à sa première sortie.
@@ -58,6 +61,8 @@ export interface EdShipInfo {
   plan: { cell: number; cols: number; rows: number; low: number[]; high: number[] }
   /** Silhouette vue de dessus, nez vers +x, bâbord en haut : un chemin SVG de 56 unités sur la plus grande dimension, centré. */
   silhouette: string
+  /** Les couleurs du constructeur (dos, ventre, panneaux sombres, liserés). */
+  livery: Livery
   credit: string
 }
 
@@ -96,23 +101,19 @@ export function shipCatalog(): Promise<EdShipEntry[]> {
 export const ENGINE_GLOW = new THREE.Color('#8fd0ff')
 
 /**
- * Peintures du modèle (noms des matériaux du GLB) → matériaux du jeu, facettés comme le reste du
- * bord (le GLB n'a pas de normales). Le chargeur a déjà fait de ses matériaux des Lambert.
+ * Peintures du modèle (noms des matériaux du GLB) → matériaux du jeu. Le chargeur a déjà fait de
+ * ses matériaux des Lambert ; la coque, elle, est peinte à part (cf. PaintedHull).
  */
 function gameMaterial(src: THREE.MeshLambertMaterial): THREE.Material {
   if (src.name === 'engine') return new THREE.MeshBasicMaterial({ color: ENGINE_GLOW, name: 'engine' })
   if (src.name === 'glass') {
-    return new THREE.MeshPhongMaterial({
-      color: src.color,
-      emissive: src.emissive,
-      specular: '#9cc3ff',
-      shininess: 80,
-      flatShading: true,
-      name: 'glass',
-    })
+    return new THREE.MeshPhongMaterial({ color: src.color, emissive: src.emissive, specular: '#9cc3ff', shininess: 80, name: 'glass' })
   }
-  return new THREE.MeshLambertMaterial({ color: src.color, flatShading: true, name: src.name })
+  return new THREE.MeshLambertMaterial({ color: src.color, name: src.name })
 }
+
+/** Livrée de secours (un modèle d'avant les livrées) : celle de Faulcon DeLacy. */
+const FALLBACK_LIVERY: Livery = { hull: '#d8dad6', belly: '#a9adb0', dark: '#4d5359', trim: '#7e8790' }
 
 const protos = new Map<EdShipId, Promise<THREE.Object3D>>()
 
@@ -127,10 +128,13 @@ export async function edShip(id: EdShipId): Promise<THREE.Object3D> {
         if (!mesh.isMesh) return
         mesh.castShadow = mesh.receiveShadow = false
         const src = mesh.material as THREE.MeshLambertMaterial
+        if (src.name === 'hull') return
         let dst = converted.get(src)
         if (!dst) converted.set(src, (dst = gameMaterial(src)))
         mesh.material = dst
       })
+      // La coque des copies : la livrée du constructeur, partagée tant qu'on ne les peint pas.
+      paintShip(root, null)
       return root
     })
     protos.set(id, proto)
@@ -142,6 +146,31 @@ export async function edShip(id: EdShipId): Promise<THREE.Object3D> {
   }
   return (await proto).clone(true)
 }
+
+/**
+ * Peint ce vaisseau (une copie rendue par edShip) : la première fois, il reçoit sa propre coque, que
+ * ses semblables ne partagent pas. Rend la coque, de quoi changer de peinture ensuite (cf.
+ * PaintedHull.set) ; son matériau est à jeter avec le vaisseau.
+ */
+export function paintShip(ship: THREE.Object3D, paint: ShipPaint | null): PaintedHull {
+  const own = hulls.get(ship)
+  if (own) {
+    own.set(paint)
+    return own
+  }
+  const info = shipInfo(ship)
+  const hull = new PaintedHull(info.name, ship, info.size, info.livery ?? FALLBACK_LIVERY)
+  hull.set(paint)
+  ship.traverse((o) => {
+    const mesh = o as THREE.Mesh
+    if (mesh.isMesh && (mesh.material as THREE.Material).name === 'hull') mesh.material = hull.material
+  })
+  hulls.set(ship, hull)
+  return hull
+}
+
+/** Les coques peintes, par vaisseau (pas dans userData : clone() le recopie en JSON). */
+const hulls = new WeakMap<THREE.Object3D, PaintedHull>()
 
 /** Les infos d'un vaisseau chargé (cf. EdShipInfo). */
 export function shipInfo(ship: THREE.Object3D): EdShipInfo {

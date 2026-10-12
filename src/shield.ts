@@ -1,5 +1,6 @@
 import * as THREE from 'three'
-import { ED_SHIPS, edShip, shipInfo, trafficLength } from './ed-ships'
+import { ED_SHIPS, edShip, paintShip, shipInfo, trafficLength } from './ed-ships'
+import { randomPaint, type PaintedHull } from './ship-paint'
 import { renderQuality } from './quality'
 
 /*
@@ -113,6 +114,8 @@ export class ForceShield {
   private readonly traffic: THREE.Group
   /** Celui du prochain passage, une fois chargé ; un autre à chaque fois. */
   private ship: THREE.Object3D | null = null
+  /** Sa coque peinte (son matériau est à lui). */
+  private hull: PaintedHull | null = null
   private disposed = false
   private trafficAt = 6 + Math.random() * 10
   /** Sa trajectoire : le long du champ, de `a0` à `a1`, à distance du vaisseau. */
@@ -194,14 +197,17 @@ export class ForceShield {
     this.trafficLine = { line, a0: a0 - 30, a1: a1 + 30, alongX, outward }
   }
 
-  /** Charge le vaisseau du prochain passage, pris au hasard (à la taille du trafic, cf. traffic.ts). */
+  /** Charge le vaisseau du prochain passage, pris au hasard (à la taille du trafic, cf. traffic.ts), dans une peinture au hasard. */
   private board() {
-    edShip(ED_SHIPS[Math.floor(Math.random() * ED_SHIPS.length)]).then(
-      (ship) => {
+    const id = ED_SHIPS[Math.floor(Math.random() * ED_SHIPS.length)]
+    Promise.all([edShip(id), randomPaint(id)]).then(
+      ([ship, paint]) => {
         if (this.disposed) return
         const length = shipInfo(ship).size[2]
         ship.scale.setScalar(trafficLength(length) / length)
         this.ship?.removeFromParent()
+        this.hull?.material.dispose()
+        this.hull = paintShip(ship, paint)
         this.ship = ship
         this.traffic.add(ship)
       },
@@ -267,6 +273,7 @@ export class ForceShield {
     // Le vaisseau du passage partage ses géométries et ses matériaux avec ses semblables : on le garde.
     this.disposed = true
     this.ship?.removeFromParent()
+    this.hull?.material.dispose()
     this.group.removeFromParent()
     this.studs.dispose()
     this.group.traverse((o) => {

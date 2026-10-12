@@ -344,9 +344,10 @@ const pad4 = (n) => (n + 3) & ~3
 
 /**
  * GLB d'un vaisseau : un nœud (nom = id, extras = infos du jeu), un maillage, une primitive par
- * peinture, toutes sur les mêmes positions. Pas de normales : facettes (flatShading).
+ * peinture, toutes sur les mêmes sommets. Les normales (lissées, cf. creaseNormals) tiennent sur un
+ * octet par composante (KHR_mesh_quantization, que lit GLTFLoader).
  */
-function writeGlb(id, positions, groups, extras) {
+function writeGlb(id, positions, normals, groups, extras) {
   const chunks = []
   let length = 0
   const push = (buf) => {
@@ -359,6 +360,8 @@ function writeGlb(id, positions, groups, extras) {
   }
   const gltf = {
     asset: { version: '2.0', generator: 'mini-interior import-ed-ships' },
+    extensionsUsed: ['KHR_mesh_quantization'],
+    extensionsRequired: ['KHR_mesh_quantization'],
     scene: 0,
     scenes: [{ nodes: [0] }],
     nodes: [{ name: id, mesh: 0, extras }],
@@ -376,6 +379,13 @@ function writeGlb(id, positions, groups, extras) {
   const posBuf = Buffer.from(positions.buffer, positions.byteOffset, positions.byteLength)
   gltf.bufferViews.push({ buffer: 0, byteOffset: push(posBuf), byteLength: posBuf.length, target: 34962 })
   gltf.accessors.push({ bufferView: 0, componentType: 5126, count: positions.length / 3, type: 'VEC3', min, max })
+  // Normales : trois octets signés par sommet (et un de bourrage), ramenés à [-1, 1] au chargement.
+  const norBuf = Buffer.alloc((normals.length / 3) * 4)
+  for (let i = 0; i < normals.length / 3; i++) {
+    for (let k = 0; k < 3; k++) norBuf.writeInt8(Math.max(-127, Math.min(127, Math.round(normals[i * 3 + k] * 127))), i * 4 + k)
+  }
+  gltf.bufferViews.push({ buffer: 0, byteOffset: push(norBuf), byteLength: norBuf.length, byteStride: 4, target: 34962 })
+  gltf.accessors.push({ bufferView: 1, componentType: 5120, normalized: true, count: normals.length / 3, type: 'VEC3' })
   const big = positions.length / 3 > 65535
   for (const g of groups) {
     if (!g.indices.length) continue
@@ -388,7 +398,7 @@ function writeGlb(id, positions, groups, extras) {
       pbrMetallicRoughness: { baseColorFactor: [...g.color, 1], metallicFactor: 0, roughnessFactor: 1 },
       ...(g.emissive ? { emissiveFactor: g.emissive } : {}),
     })
-    gltf.meshes[0].primitives.push({ attributes: { POSITION: 0 }, indices: gltf.accessors.length - 1, material: gltf.materials.length - 1 })
+    gltf.meshes[0].primitives.push({ attributes: { POSITION: 0, NORMAL: 1 }, indices: gltf.accessors.length - 1, material: gltf.materials.length - 1 })
   }
   gltf.buffers.push({ byteLength: length })
   const json = Buffer.from(JSON.stringify(gltf), 'utf8')
@@ -410,7 +420,7 @@ function writeGlb(id, positions, groups, extras) {
 // ---------------------------------------------------------------- Allègement
 
 /** Triangles visés : assez pour garder la silhouette et les grands pans, sans plus. */
-const TARGET_TRIS = 6000
+const TARGET_TRIS = 8000
 /** Écart toléré, relatif à la taille du vaisseau. */
 const TARGET_ERROR = 0.004
 
@@ -447,6 +457,80 @@ function simplifyGroups(positions, groups, target = TARGET_TRIS, error = TARGET_
     })
   }
   return { positions: new Float32Array(pos), groups: out, error: worst }
+}
+
+// ---------------------------------------------------------------- Lissage
+
+/** Au-delà de cet angle (degrés) entre deux faces qui se touchent, l'arête reste vive. */
+const CREASE = 38
+
+/**
+ * Normales lissées : chaque coin de triangle prend la moyenne (pondérée par l'aire) des faces qui
+ * touchent son sommet et ne font pas avec la sienne un angle de plus de CREASE. Les pans courbes et
+ * les petites facettes de l'allègement se fondent ; les arêtes franches des coques restent nettes.
+ * Un sommet est dédoublé pour chaque normale différente qu'il reçoit, toutes peintures confondues
+ * (la verrière se raccorde en douceur à la coque si elles se suivent).
+ */
+function creaseNormals(positions, groups, angle = CREASE) {
+  const cos = Math.cos((angle * Math.PI) / 180)
+  const nv = positions.length / 3
+  const faces = []
+  for (const g of groups) for (let t = 0; t < g.indices.length; t += 3) faces.push(g.indices[t], g.indices[t + 1], g.indices[t + 2])
+  const nf = faces.length / 3
+  // Normale de chaque face : pondérée (son module vaut deux fois l'aire) et unitaire.
+  const wn = new Float64Array(nf * 3), un = new Float64Array(nf * 3)
+  for (let f = 0; f < nf; f++) {
+    const a = faces[f * 3] * 3, b = faces[f * 3 + 1] * 3, c = faces[f * 3 + 2] * 3
+    const e1 = [positions[b] - positions[a], positions[b + 1] - positions[a + 1], positions[b + 2] - positions[a + 2]]
+    const e2 = [positions[c] - positions[a], positions[c + 1] - positions[a + 1], positions[c + 2] - positions[a + 2]]
+    const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]]
+    const len = Math.hypot(...n)
+    for (let k = 0; k < 3; k++) {
+      wn[f * 3 + k] = n[k]
+      un[f * 3 + k] = len ? n[k] / len : 0
+    }
+  }
+  // Les faces de chaque sommet.
+  const start = new Int32Array(nv + 1)
+  for (const v of faces) start[v + 1]++
+  for (let v = 0; v < nv; v++) start[v + 1] += start[v]
+  const around = new Int32Array(faces.length)
+  const fill = start.slice(0, nv)
+  for (let i = 0; i < faces.length; i++) around[fill[faces[i]]++] = (i / 3) | 0
+  // Chaque coin : sa normale, puis un sommet par couple (position, normale) distinct.
+  const pos = [], nor = [], made = new Map()
+  let f = 0
+  const out = groups.map((g) => {
+    const indices = []
+    for (let t = 0; t < g.indices.length; t += 3, f++) {
+      for (let k = 0; k < 3; k++) {
+        const v = g.indices[t + k]
+        let nx = 0, ny = 0, nz = 0
+        for (let i = start[v]; i < start[v + 1]; i++) {
+          const o = around[i]
+          if (un[o * 3] * un[f * 3] + un[o * 3 + 1] * un[f * 3 + 1] + un[o * 3 + 2] * un[f * 3 + 2] < cos) continue
+          nx += wn[o * 3]
+          ny += wn[o * 3 + 1]
+          nz += wn[o * 3 + 2]
+        }
+        const len = Math.hypot(nx, ny, nz) || 1
+        nx /= len
+        ny /= len
+        nz /= len
+        const key = `${v},${Math.round(nx * 100)},${Math.round(ny * 100)},${Math.round(nz * 100)}`
+        let id = made.get(key)
+        if (id === undefined) {
+          id = pos.length / 3
+          made.set(key, id)
+          pos.push(positions[v * 3], positions[v * 3 + 1], positions[v * 3 + 2])
+          nor.push(nx, ny, nz)
+        }
+        indices.push(id)
+      }
+    }
+    return { ...g, indices }
+  })
+  return { positions: new Float32Array(pos), normals: new Float32Array(nor), groups: out }
 }
 
 // ---------------------------------------------------------------- Orientation
@@ -758,20 +842,15 @@ function zone(positions, indices, size, spec) {
   return { groups: Object.entries(groups).map(([name, idx]) => ({ name, indices: idx })), canopy: glassFaces.length ? centroid(glassFaces) : null }
 }
 
-/** Couleurs du modèle allégé : la coque se partage entre dos et ventre selon l'orientation des faces. */
+/**
+ * Couleurs du modèle allégé. La coque est d'une seule pièce : le jeu la peint (dos, ventre, motifs
+ * des peintures de la boutique, cf. src/ship-paint.ts) d'après la livrée du constructeur, rangée
+ * dans les extras.
+ */
 function shade(positions, groups, spec) {
   const livery = { ...LIVERIES[spec.livery ?? 'faulcon'], ...(spec.colors ?? {}) }
   const colors = { ...livery, glass: spec.glass ?? GLASS, engine: spec.engine ?? ENGINE }
-  const out = []
-  for (const g of groups) {
-    if (g.name !== 'base') {
-      out.push(g)
-      continue
-    }
-    const hull = [], belly = []
-    for (const f of faces(positions, g.indices)) (f.n[1] < -0.45 ? belly : hull).push(g.indices[f.t], g.indices[f.t + 1], g.indices[f.t + 2])
-    out.push({ name: 'hull', indices: hull }, { name: 'belly', indices: belly })
-  }
+  const out = groups.map((g) => (g.name === 'base' ? { ...g, name: 'hull' } : g))
   const engineFaces = []
   for (const f of faces(positions, out.find((g) => g.name === 'engine')?.indices ?? [])) engineFaces.push([...f.c, f.area])
   return {
@@ -781,6 +860,7 @@ function shade(positions, groups, spec) {
       emissive: g.name === 'engine' ? srgb(colors.engine) : g.name === 'glass' ? srgb('#173a5c') : null,
     })),
     engines: nozzles(engineFaces),
+    livery: { hull: livery.hull, belly: livery.belly, dark: livery.dark, trim: livery.trim },
   }
 }
 
@@ -847,7 +927,8 @@ for (const ship of SHIPS) {
   if (raw) {
     const light = simplify(welded)
     ;[tris, error] = [light.indices.length / 3, light.error]
-    writeFileSync(join(dest, `${ship.id}.glb`), writeGlb(ship.id, light.positions, [{ name: 'hull', color: [0.8, 0.8, 0.8], indices: light.indices }], { name: ship.name }))
+    const smooth = creaseNormals(light.positions, [{ name: 'hull', color: [0.8, 0.8, 0.8], indices: light.indices }])
+    writeFileSync(join(dest, `${ship.id}.glb`), writeGlb(ship.id, smooth.positions, smooth.normals, smooth.groups, { name: ship.name }))
   } else {
     const spec = PAINT[ship.id] ?? {}
     const oriented = orient(welded.positions, spec.nose, spec.up)
@@ -872,10 +953,12 @@ for (const ship of SHIPS) {
       engines: painted.engines,
       ...(zoned.canopy ? { canopy: zoned.canopy } : {}),
       plan: groundPlan(positions, indices, size),
+      livery: painted.livery,
       credit: credit(ship),
     }
     extras.silhouette = silhouette(extras.plan, size)
-    writeFileSync(join(dest, `${ship.id}.glb`), writeGlb(ship.id, light.positions, painted.groups, extras))
+    const smooth = creaseNormals(light.positions, painted.groups)
+    writeFileSync(join(dest, `${ship.id}.glb`), writeGlb(ship.id, smooth.positions, smooth.normals, smooth.groups, extras))
     credits.push(`${ship.name} : ${extras.credit}`)
     catalog.push({ id: ship.id, name: ship.name, maker: ship.maker, size: extras.size, silhouette: extras.silhouette })
   }
@@ -884,11 +967,15 @@ for (const ship of SHIPS) {
 if (!raw && !only.length) {
   writeFileSync(join(dest, 'catalog.json'), JSON.stringify(catalog))
   writeFileSync(join(dest, 'CREDITS.txt'), [
-    "Vaisseaux d'Elite Dangerous (Frontier Developments), allégés et peints pour Mini Interior par",
+    "Vaisseaux d'Elite Dangerous (Frontier Developments), allégés, lissés et peints pour Mini Interior par",
     'scripts/import-ed-ships.mjs, d\'après les modèles imprimables « 2 Part (Elite Dangerous) » de',
     'Kahnindustries (David Williams). Licences des modèles d\'origine :',
     '',
     ...credits,
+    '',
+    'Peintures (paints.json) : les noms et les couleurs des peintures de la boutique d\'Elite Dangerous',
+    '(Frontier Developments), relevés sur ses vignettes par scripts/import-ed-paints.mjs ; leurs motifs',
+    'sont redessinés pour le jeu (src/ship-paint.ts).',
     '',
   ].join('\n'))
 }

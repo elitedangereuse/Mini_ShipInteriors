@@ -4439,6 +4439,38 @@ body.in-zone { background: #000; }
 .ship-card-meta { font-size: 11px; color: #9fb4c8; }
 .ship-card-tag { margin-top: 2px; font-size: 10px; font-weight: 700; letter-spacing: .06em; color: #ffb36b; text-transform: uppercase; }
 .ship-card-elite { color: #6dff9a; }
+/* Ses onglets (vaisseaux, peinture), et le nuancier : l'aperçu tournant du vaisseau, les pastilles par famille. */
+.ship-picker-tabs { display: flex; gap: 2px; margin: -2px 0 12px; border-bottom: 1px solid #22384d; }
+.ship-picker .ship-picker-tabs button {
+  padding: 7px 14px 9px; border: 0; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0;
+  background: transparent; color: #9fb4c8; font-weight: 600;
+}
+.ship-picker .ship-picker-tabs button:hover:not(:disabled) { background: #ffffff08; border-color: transparent; color: #dfe9f3; }
+.ship-picker .ship-picker-tabs button[aria-selected="true"] { border-bottom-color: #ff8a1c; color: #f2f8ff; }
+.ship-paints { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.ship-paint-stage {
+  position: relative; min-width: 0; overflow: hidden; border: 1px solid #2b4156; border-radius: 10px;
+  background: radial-gradient(120% 85% at 50% 80%, #1c3854 0%, #0f1b28 52%, #090e14 100%);
+}
+.ship-paint-view { aspect-ratio: 4 / 3; cursor: grab; touch-action: pan-y; }
+.ship-paint-view:active { cursor: grabbing; }
+.ship-paint-view canvas { display: block; width: 100%; height: 100%; min-width: 0; }
+.ship-paint-caption { position: absolute; left: 12px; right: 12px; bottom: 10px; display: grid; gap: 1px; margin: 0; pointer-events: none; text-shadow: 0 1px 3px #000c; }
+.ship-paint-name { font-size: 17px; font-weight: 700; color: #f2f8ff; }
+.ship-paint-family { font-size: 12px; color: #a9bccf; }
+.ship-paint-list { display: grid; align-content: start; gap: 11px; max-height: min(52dvh, 430px); overflow: auto; padding: 4px 6px 4px 4px; }
+.ship-paint-group { display: grid; gap: 5px; }
+.ship-paint-group-label { font-size: 12px; font-weight: 600; color: #a9bccf; }
+.ship-paint-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ship-picker .ship-paint-chip { width: 36px; height: 26px; padding: 2px; border: 1px solid #2b4156; border-radius: 6px; background: #ffffff08; }
+.ship-picker .ship-paint-chip:hover:not(:disabled) { border-color: #8fd0ff99; background: #182a3c; }
+.ship-picker .ship-paint-chip[aria-pressed="true"] { border-color: #ff8a1c; box-shadow: 0 0 0 1px #ff8a1c; }
+.ship-paint-swatch { display: block; width: 100%; height: 100%; border-radius: 3px; box-shadow: inset 0 0 0 1px #ffffff1c; }
+@media (max-width: 680px) {
+  .ship-paints { grid-template-columns: minmax(0, 1fr); }
+  .ship-paint-view { aspect-ratio: 16 / 9; }
+  .ship-paint-list { max-height: 34dvh; }
+}
 .salvage-teams { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .salvage-lobby-card { display: grid; align-content: start; gap: 8px; min-width: 0; padding: 10px 12px; border: 1px solid #ffffff14; border-radius: 10px; background: #ffffff07; }
 .salvage-lobby-card.own { border-color: #e9a917; background: #e9a91710; }
