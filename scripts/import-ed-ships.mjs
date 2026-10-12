@@ -207,7 +207,7 @@ export const PAINT = {
   },
   python: {
     livery: 'faulcon',
-    zones: { glass: [{ u: [-0.1, 0.1], v: [0.7, 1], w: [0.66, 0.84] }] },
+    zones: { glass: [{ u: [-0.12, 0.12], v: [0.5, 1], w: [0.64, 0.84] }] },
     nozzles: [{ u: 0.386, v: 0.37, du: 0.054, dv: 0.088, shape: 'oct', mirror: true }, { u: 0.265, v: 0.37, du: 0.054, dv: 0.088, shape: 'oct', mirror: true }],
   },
   orca: {
@@ -637,6 +637,31 @@ function groundPlan(positions, indices, size) {
   return { cell: +cell.toFixed(4), cols, rows, low: Array.from(low, round), high: Array.from(high, round) }
 }
 
+/**
+ * Silhouette vue de dessus, nez vers +x (bâbord vers le haut), pour les écrans du jeu (le vol vers
+ * la base, le registre du hangar) : un chemin SVG de 56 unités sur la plus grande dimension, centré,
+ * fait des rangées du plan au sol.
+ */
+function silhouette(plan, size) {
+  const k = 56 / Math.max(size[0], size[2])
+  let d = ''
+  for (let j = 0; j < plan.rows; j++) {
+    let i = 0
+    while (i < plan.cols) {
+      if (plan.high[j * plan.cols + i] < 0) {
+        i++
+        continue
+      }
+      const i0 = i
+      while (i < plan.cols && plan.high[j * plan.cols + i] >= 0) i++
+      const x = (-size[2] / 2 + j * plan.cell) * k, w = plan.cell * k + 0.3
+      const y = (size[0] / 2 - i * plan.cell) * k, h = (i - i0) * plan.cell * k
+      d += `M${x.toFixed(1)} ${y.toFixed(1)}h${w.toFixed(1)}v${h.toFixed(1)}h${(-w).toFixed(1)}z`
+    }
+  }
+  return d
+}
+
 /** Point le plus en arrière du modèle en (x, y), vu de la poupe ; null s'il n'y a rien. */
 function rearmost(positions, indices, x, y) {
   let best = Infinity
@@ -808,6 +833,8 @@ await MeshoptSimplifier.ready
 const dest = raw ?? fileURLToPath(new URL('../public/assets/ships/', import.meta.url))
 mkdirSync(dest, { recursive: true })
 const credits = []
+/** Le catalogue (public/assets/ships/catalog.json) : de quoi présenter les vaisseaux sans charger leurs modèles. */
+const catalog = []
 const credit = (s) => s.thing
   ? `Kahnindustries, https://www.thingiverse.com/thing:${s.thing}, CC BY 3.0`
   : `Kahnindustries (David Williams), « ${s.zip.replace(/\.zip$/, '')} », licence ${s.license}`
@@ -847,12 +874,15 @@ for (const ship of SHIPS) {
       plan: groundPlan(positions, indices, size),
       credit: credit(ship),
     }
+    extras.silhouette = silhouette(extras.plan, size)
     writeFileSync(join(dest, `${ship.id}.glb`), writeGlb(ship.id, light.positions, painted.groups, extras))
     credits.push(`${ship.name} : ${extras.credit}`)
+    catalog.push({ id: ship.id, name: ship.name, maker: ship.maker, size: extras.size, silhouette: extras.silhouette })
   }
   console.log(`${ship.id.padEnd(22)} ${String(soup.length / 9).padStart(7)} → ${String(tris).padStart(5)} triangles (écart ${error.toFixed(4)}), ${Date.now() - t0} ms`)
 }
 if (!raw && !only.length) {
+  writeFileSync(join(dest, 'catalog.json'), JSON.stringify(catalog))
   writeFileSync(join(dest, 'CREDITS.txt'), [
     "Vaisseaux d'Elite Dangerous (Frontier Developments), allégés et peints pour Mini Interior par",
     'scripts/import-ed-ships.mjs, d\'après les modèles imprimables « 2 Part (Elite Dangerous) » de',

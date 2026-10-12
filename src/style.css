@@ -4405,6 +4405,30 @@ body.in-zone { background: #000; }
 .salvage-panel .salvage-primary:hover:not(:disabled) { background: #ffc233; border-color: #ffc233; }
 .salvage-panel .salvage-quiet { background: transparent; }
 .salvage-panel .salvage-link { background: transparent; border-color: transparent; padding-left: 0; color: #9fe8bc; }
+/* Registre du hangar (cf. src/ship-picker.ts) : la fenêtre des terminaux, aux couleurs du hangar (orange Elite, bleu acier). */
+.ship-picker {
+  width: min(780px, calc(100vw - 28px)); color: #dfe9f3; border-color: #34506c;
+  background:
+    linear-gradient(90deg, #ff8a1c22 0 6px, transparent 6px) left top / 100% 100% no-repeat,
+    linear-gradient(150deg, #13202d, #0b131b 55%, #090e14);
+  box-shadow: 0 24px 90px #000c, inset 0 1px #ffffff10, 0 0 0 1px #8fd0ff14;
+}
+.ship-picker .salvage-kicker { color: #ff8a1c; }
+.ship-picker h2 { color: #f2f8ff; }
+.ship-picker .salvage-intro { color: #a9bccf; }
+.ship-picker .salvage-close { border-color: #34506c; color: #cfe0f0; }
+.ship-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; max-height: min(58dvh, 540px); overflow: auto; padding: 2px; }
+.ship-picker .ship-card {
+  display: grid; justify-items: start; align-content: start; gap: 2px; padding: 8px 10px 10px; text-align: left;
+  border-color: #2b4156; background: #ffffff06; color: #dfe9f3; font-weight: 500;
+}
+.ship-picker .ship-card canvas { width: 100%; height: auto; aspect-ratio: 140 / 80; margin-bottom: 4px; }
+.ship-picker .ship-card:hover:not(:disabled) { background: #182a3c; border-color: #8fd0ff99; }
+.ship-picker .ship-card[aria-pressed="true"] { border-color: #ff8a1c; background: #ff8a1c16; }
+.ship-picker button:focus-visible { outline-color: #ff8a1c; }
+.ship-card-name { font-size: 13px; font-weight: 700; color: #f2f8ff; }
+.ship-card-meta { font-size: 11px; color: #9fb4c8; }
+.ship-card-tag { margin-top: 2px; font-size: 10px; font-weight: 700; letter-spacing: .06em; color: #ffb36b; text-transform: uppercase; }
 .salvage-teams { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .salvage-lobby-card { display: grid; align-content: start; gap: 8px; min-width: 0; padding: 10px 12px; border: 1px solid #ffffff14; border-radius: 10px; background: #ffffff07; }
 .salvage-lobby-card.own { border-color: #e9a917; background: #e9a91710; }

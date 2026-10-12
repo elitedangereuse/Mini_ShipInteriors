@@ -31,6 +31,21 @@ const C = {
   thruster: '#8fd0ff',
 }
 
+/**
+ * Ce que montrent les écrans du hangar (le pupitre, le registre) : le vaisseau posé sur l'aire,
+ * celui que le joueur a choisi (cf. src/ship-bay.ts, qui le tient à jour). `version` change à chaque
+ * vaisseau : les écrans refont alors leur hologramme.
+ */
+export const hangarDisplay = {
+  name: 'Krait Mk II',
+  maker: 'Faulcon DeLacy',
+  /** Silhouette vue de dessus, nez vers +x : ses rectangles (56 unités de long, cf. silhouetteRects). */
+  silhouette: null as [number, number, number, number][] | null,
+  /** Le vaisseau en fil de fer, pour l'hologramme du pupitre (~0,46 de large). */
+  wire: null as THREE.BufferGeometry | null,
+  version: 0,
+}
+
 // ---------------------------------------------------------------- Krait Mk II
 
 /** Section du fuselage à une abscisse `z` : demi-profil [x, dessus, dessous], du centre vers le bord. */
@@ -612,8 +627,9 @@ const thrusterStand: Builder = () => {
 }
 
 /**
- * Pupitre de contrôle du hangar : écran incliné (état du Krait, du bouclier et du pad) et, au-
- * dessus, le Krait en fil de fer qui tourne, à la façon de la Cobra de 1984.
+ * Pupitre de contrôle du hangar : écran incliné (état du vaisseau posé, du bouclier et du pad) et,
+ * au-dessus, le vaisseau en fil de fer qui tourne, à la façon de la Cobra de 1984 (le Krait tant
+ * qu'aucun autre n'est posé, cf. hangarDisplay).
  */
 const hangarConsole: Builder = () => {
   const g = new THREE.Group()
@@ -634,7 +650,7 @@ const hangarConsole: Builder = () => {
     c.fillText('HANGAR 01', 14, 30)
     c.font = '14px monospace'
     const lines = [
-      ['KRAIT MK II', ''],
+      [hangarDisplay.name.toUpperCase(), ''],
       [tr('CARBURANT', 'FUEL'), '100%'],
       [tr('BOUCLIER', 'SHIELD'), tr('ACTIF', 'ACTIVE')],
       [tr('PAD', 'PAD'), tr('VERROUILLÉ', 'LOCKED')],
@@ -665,13 +681,20 @@ const hangarConsole: Builder = () => {
   }
   // Les deux arêtes dorsales, qui donnent le relief.
   for (const s of [1, -1]) pts.push(new THREE.Vector3(s * 0.62 * k, 0.05, 1.95 * k), new THREE.Vector3(s * 0.62 * k, 0.07, -2.9 * k))
-  wire.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), lineMaterial))
+  const lines = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), lineMaterial)
+  wire.add(lines)
   const live = new THREE.Group()
   live.add(panel, wire)
+  let shown = 0
   return {
     solid: g,
     live,
     update: (t) => {
+      // Un autre vaisseau sur l'aire : son fil de fer remplace celui du Krait.
+      if (shown !== hangarDisplay.version && hangarDisplay.wire) {
+        shown = hangarDisplay.version
+        lines.geometry = hangarDisplay.wire
+      }
       screen.tick(t)
       wire.rotation.y = t * 0.6
       wire.position.y = 1.12 + Math.sin(t * 1.5) * 0.02
@@ -706,6 +729,49 @@ const hangarSign: Builder = ({ label = 'HANGAR 01' }) => {
   return { solid: g }
 }
 
+/**
+ * Registre du hangar : un écran mural (face +z) où chacun choisit son vaisseau parmi ceux d'Elite
+ * Dangerous (cf. src/ship-picker.ts). Il montre celui qui est posé : sa silhouette et son nom.
+ */
+const shipRegistry: Builder = () => {
+  const g = new THREE.Group()
+  g.add(box(1.0, 0.66, 0.04, lit(C.dark), 0, 0.86, 0.02))
+  g.add(box(1.04, 0.03, 0.06, lit(ED_ORANGE), 0, 0.515, 0.03))
+  const screen = animatedScreen(320, 200, 6, (c, t) => {
+    c.fillStyle = '#081018'
+    c.fillRect(0, 0, 320, 200)
+    c.strokeStyle = ED_ORANGE
+    c.lineWidth = 3
+    c.strokeRect(4, 4, 312, 192)
+    c.fillStyle = ED_ORANGE
+    c.font = '700 18px monospace'
+    c.fillText(tr('REGISTRE · HANGAR 01', 'REGISTRY · HANGAR 01'), 14, 28)
+    // La silhouette du vaisseau posé, qui balaie doucement l'écran comme un scanner.
+    const shape = hangarDisplay.silhouette
+    if (shape) {
+      c.save()
+      c.translate(160, 100)
+      c.scale(2.2, 2.2)
+      c.fillStyle = '#1d4a66'
+      for (const [x, y, w, h] of shape) c.fillRect(x - 0.25, y - 0.25, w + 0.5, h + 0.5)
+      c.restore()
+      const scan = 40 + ((t * 60) % 240)
+      c.fillStyle = 'rgba(143, 240, 255, 0.18)'
+      c.fillRect(scan, 40, 6, 120)
+    }
+    c.fillStyle = '#8ff0ff'
+    c.font = '700 16px monospace'
+    c.fillText(hangarDisplay.name.toUpperCase(), 14, 176)
+    c.fillStyle = '#cfe6ff'
+    c.font = '12px monospace'
+    c.fillText(hangarDisplay.maker.toUpperCase(), 14, 192)
+  })
+  const panel = part(new THREE.PlaneGeometry(0.92, 0.575), new THREE.MeshBasicMaterial({ map: screen.texture }), 0, 0.86, 0.042)
+  const live = new THREE.Group()
+  live.add(panel)
+  return { solid: g, live, update: (t) => screen.tick(t) }
+}
+
 /** Balise du bouclier : un piquet à feu clignotant, posé au sol devant le champ de force. */
 const shieldBeacon: Builder = () => {
   const g = new THREE.Group()
@@ -735,5 +801,6 @@ export const HANGAR = {
   'thruster-stand': thrusterStand,
   'hangar-console': hangarConsole,
   'hangar-sign': hangarSign,
+  'ship-registry': shipRegistry,
   'shield-beacon': shieldBeacon,
 } satisfies Record<string, Builder>

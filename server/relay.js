@@ -717,7 +717,7 @@ export function attachRelay(
       if (player.level === BASE_LEVEL && m.level !== BASE_LEVEL && setBaseBurn(player, false)) io.emit('chief', { id: player.id, ...chiefState() })
       const wasZone = instanced(player.level)
       const wasTutorial = player.level === TUTORIAL_LEVEL
-      Object.assign(player, { x, z, yaw, level: m.level, anim: ANIMS.has(m.anim) ? m.anim : 'idle', pose, py: pose ? (num(m.py, 0, 1.2) ?? 0) : 0 })
+      Object.assign(player, { x, z, yaw, level: m.level, anim: ANIMS.has(m.anim) ? m.anim : 'idle', pose, py: pose ? (num(m.py, 0, 2.5) ?? 0) : 0 })
       // Assis dans les toilettes du pont supérieur pendant la traversée d'un saut (un joueur installé
       // redit sa position toutes les 2 s) : la cuvette l'aspire, il est attendu dans les conduits.
       if (pose === 'sit' && m.level === TOILET_ROOM.level && MAPS.get(TOILET_ROOM.level).room(Math.round(x), Math.round(z)) === TOILET_ROOM.room) {

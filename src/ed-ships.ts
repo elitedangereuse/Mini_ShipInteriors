@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { rig } from './assets'
+import { BASE, rig } from './assets'
 
 /*
  * Les vaisseaux d'Elite Dangerous (public/assets/ships/, cf. scripts/import-ed-ships.mjs) : les
@@ -31,7 +31,46 @@ export interface EdShipInfo {
   engines: [number, number, number, number, number][]
   /** Centre de la verrière (m), s'il y en a une. */
   canopy?: [number, number, number]
+  /**
+   * Plan au sol (vu de dessus) : une grille sur la boîte du vaisseau (cases de `cell` m), rangée
+   * par rangée de la poupe au nez, chaque rangée de tribord à bâbord ; dans chaque case, la hauteur
+   * du dessous et du dessus de la coque (m, depuis le bas du vaisseau ; -1 : rien).
+   */
+  plan: { cell: number; cols: number; rows: number; low: number[]; high: number[] }
+  /** Silhouette vue de dessus, nez vers +x, bâbord en haut : un chemin SVG de 56 unités sur la plus grande dimension, centré. */
+  silhouette: string
   credit: string
+}
+
+/** Un vaisseau du catalogue (public/assets/ships/catalog.json) : de quoi le présenter sans charger son modèle. */
+export interface EdShipEntry {
+  id: EdShipId
+  name: string
+  maker: string
+  size: [number, number, number]
+  silhouette: string
+}
+
+/**
+ * Les rectangles d'une silhouette ([x, y, largeur, hauteur], cf. EdShipInfo.silhouette), pour la
+ * dessiner case par case dans un canvas : plus sûr qu'un Path2D, que certains navigateurs mélangent
+ * d'un petit canvas à l'autre.
+ */
+export function silhouetteRects(d: string): [number, number, number, number][] {
+  return [...d.matchAll(/M(-?[\d.]+) (-?[\d.]+)h(-?[\d.]+)v(-?[\d.]+)/g)].map((m) => [+m[1], +m[2], +m[3], +m[4]])
+}
+
+let catalog: Promise<EdShipEntry[]> | null = null
+
+/** Le catalogue des vaisseaux, du plus petit au plus grand (chargé une fois). */
+export function shipCatalog(): Promise<EdShipEntry[]> {
+  return (catalog ??= fetch(`${BASE}ships/catalog.json?v=${import.meta.env.VITE_MODELS_STAMP}`).then((r) => {
+    if (!r.ok) throw new Error(`catalogue des vaisseaux : ${r.status}`)
+    return r.json() as Promise<EdShipEntry[]>
+  }).catch((e) => {
+    catalog = null
+    throw e
+  }))
 }
 
 /** Lueur des tuyères : le bleu des réacteurs du trafic, partagé par tous les vaisseaux. */
