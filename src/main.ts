@@ -8,7 +8,7 @@ import { FishBook } from './fishing/book'
 import { fishCollection } from './fishing/collection'
 import { FishingGame } from './fishing/game'
 import type { CourtId } from './arcade/game'
-import { loadSiteArt, SitePanel } from './site'
+import { eliteShip, loadSiteArt, SitePanel } from './site'
 import { loadLjpc } from './ljpc-site'
 import * as THREE from 'three'
 import type { ArcadeCabinet } from './arcade/cabinet'
@@ -74,10 +74,10 @@ import { Kitchen } from './kitchen'
 import { NURSE, Nurse, nurseRig, type NurseReport } from './nurse'
 import { DROID, MECHANIC, Mechanic, mechanicRig, type MechanicReport } from './mechanic'
 import { Hangar } from './hangar'
-import { chosenShip, saveShip, ShipBay } from './ship-bay'
+import { chosenShip, pickedShip, saveEliteShip, saveShip, ShipBay } from './ship-bay'
 import { ShipPicker } from './ship-picker'
 import { hangarDisplay, kraitPower } from './furniture/hangar'
-import { silhouetteRects } from './ed-ships'
+import { edShipFromElite, silhouetteRects } from './ed-ships'
 import { GARDENER, Gardener, gardenerRig, type GardenerReport } from './gardener'
 import { GARDEN_LEVEL } from '../shared/gardener.js'
 import { Greenhouse } from './greenhouse'
@@ -1508,9 +1508,18 @@ const HULL_LINES = [
   tr('La coque est encore tiède, les tuyères couvent. Sur le bord d\'attaque, gravé au tournevis : « Rayé = mort. Nico ».', 'The hull is still warm, the thrusters glowing. Scratched into the leading edge with a screwdriver: “Scratch it = dead. Nico”.'),
   tr('Une étiquette sur le train avant : « NE PAS TOUCHER. JE SAIS QUE C\'EST TOI. » Tu retires ta main.', 'A label on the nose gear: “DO NOT TOUCH. I KNOW IT\'S YOU.” You take your hand back.'),
 ]
-hangarBay.hull.text = () => HULL_LINES[Math.floor(Math.random() * HULL_LINES.length)]
-  .split('{ship}').join(hangarBay.info?.name ?? 'Krait Mk II')
-  .split('{maker}').join(hangarBay.info?.maker ?? 'Faulcon DeLacy')
+/** Le nom que le CMDR a donné à son vaisseau dans Elite, une fois que le site l'a dit. */
+let eliteShipName = ''
+hangarBay.hull.text = () => {
+  const lines = [...HULL_LINES]
+  // Celui d'Elite n'a pas été choisi au registre : la première phrase le dit, avec son nom.
+  if (hangarBay.id === shipPicker.elite && !pickedShip()) {
+    lines[0] = tr(`{ship} de {maker}${eliteShipName ? ` « ${eliteShipName} »` : ''}, posé sur le pad 7. Le tien : celui que tu pilotes dans Elite Dangerous. Nico l'appelle « la Princesse ».`, `{maker} {ship}${eliteShipName ? ` “${eliteShipName}”` : ''}, parked on pad 7. Yours: the one you fly in Elite Dangerous. Nico calls her “the Princess”.`)
+  }
+  return lines[Math.floor(Math.random() * lines.length)]
+    .split('{ship}').join(hangarBay.info?.name ?? 'Krait Mk II')
+    .split('{maker}').join(hangarBay.info?.maker ?? 'Faulcon DeLacy')
+}
 // Les écrans du hangar (le pupitre, le registre) montrent le vaisseau posé.
 hangarBay.onChange = (bay) => {
   const info = bay.info
@@ -1629,7 +1638,8 @@ shipPicker.onPick = (id) => {
       // Un autre choix entre-temps : c'est lui qu'on annoncera.
       if (!parked) return
       // Gardé une fois posé seulement : un vaisseau qui n'a pas pu venir ne reste pas le choix.
-      saveShip(id)
+      // Celui d'Elite n'est pas un choix : le hangar se remet à le suivre.
+      saveShip(id === shipPicker.elite ? null : id)
       groundBase.setShip(id)
       const name = hangarBay.info?.name ?? ''
       dialog.show(tr(`Ton ${name} est posé sur le pad. Nico siffle entre ses dents.`, `Your ${name} is parked on the pad. Nico whistles through his teeth.`))
@@ -1641,6 +1651,24 @@ shipPicker.onPick = (id) => {
     },
   )
 }
+// Le vaisseau que le CMDR pilote dans Elite Dangerous (le site le lit dans son profil Frontier) :
+// c'est lui qui est posé, tant que le joueur n'en a pas choisi un autre au registre. La réponse
+// peut tarder (Frontier) : le dernier connu est déjà sur le pad (cf. chosenShip).
+void eliteShip().then((ship) => {
+  if (!ship) return
+  const id = edShipFromElite(ship.type)
+  // Pas encore de modèle pour ce vaisseau-là : le pad garde le dernier vaisseau connu.
+  if (!id) return
+  saveEliteShip(id)
+  shipPicker.elite = id
+  eliteShipName = ship.name
+  // Le même que celui du registre : autant suivre Elite, il changera avec lui.
+  if (pickedShip() === id) saveShip(null)
+  if (pickedShip() || hangarBay.chosen === id) return
+  return hangarBay.set(id).then((parked) => {
+    if (parked) groundBase.setShip(id)
+  })
+}).catch((e) => console.error(e))
 for (const it of holdDeck.interactables) {
   if (it.furniture?.model === 'ship-registry') it.onInteract = () => {
     player.interact()

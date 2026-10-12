@@ -36,26 +36,40 @@ const STEPS_END = NOSE_Z + 1.06
 const FOOT_Z = NOSE_Z + 1.3
 const LADDER_HALF = 0.25
 
-/** Le vaisseau choisi, gardé dans ce navigateur (le stockage peut manquer). */
+/**
+ * Le vaisseau du pad, gardé dans ce navigateur (le stockage peut manquer) : celui que le joueur a
+ * choisi au registre, sinon celui qu'il pilote dans Elite Dangerous, tel que le site l'a dit à sa
+ * dernière visite (cf. eliteShip, site.ts), sinon le Krait.
+ */
 const KEY = 'mini-shipinteriors-ship'
+const ELITE_KEY = 'mini-shipinteriors-ship-elite'
 export const DEFAULT_SHIP: EdShipId = 'krait-mk2'
 
-export function chosenShip(): EdShipId {
+function stored(key: string): EdShipId | null {
   try {
-    const id = localStorage.getItem(KEY)
-    return ED_SHIPS.includes(id as EdShipId) ? (id as EdShipId) : DEFAULT_SHIP
+    const id = localStorage.getItem(key)
+    return ED_SHIPS.includes(id as EdShipId) ? (id as EdShipId) : null
   } catch {
-    return DEFAULT_SHIP
+    return null
   }
 }
 
-export function saveShip(id: EdShipId) {
+function store(key: string, id: EdShipId | null) {
   try {
-    localStorage.setItem(KEY, id)
+    if (id) localStorage.setItem(key, id)
+    else localStorage.removeItem(key)
   } catch {
     // Stockage indisponible (navigation privée) : le choix vaut pour cette visite.
   }
 }
+
+/** Le vaisseau choisi au registre, ou null : le hangar suit alors celui d'Elite. */
+export const pickedShip = () => stored(KEY)
+/** Garde le choix du registre ; null : on revient au vaisseau d'Elite. */
+export const saveShip = (id: EdShipId | null) => store(KEY, id)
+/** Le dernier vaisseau d'Elite connu : il est posé dès le chargement, sans attendre le site. */
+export const saveEliteShip = (id: EdShipId) => store(ELITE_KEY, id)
+export const chosenShip = (): EdShipId => pickedShip() ?? stored(ELITE_KEY) ?? DEFAULT_SHIP
 
 /** L'aire : centre du vaisseau d'origine (le Krait) et orientation de son nez (quarts de tour, cf. levels.ts). */
 export interface PadFrame {

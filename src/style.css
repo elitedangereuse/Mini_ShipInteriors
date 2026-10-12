@@ -4438,6 +4438,7 @@ body.in-zone { background: #000; }
 .ship-card-name { font-size: 13px; font-weight: 700; color: #f2f8ff; }
 .ship-card-meta { font-size: 11px; color: #9fb4c8; }
 .ship-card-tag { margin-top: 2px; font-size: 10px; font-weight: 700; letter-spacing: .06em; color: #ffb36b; text-transform: uppercase; }
+.ship-card-elite { color: #6dff9a; }
 .salvage-teams { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .salvage-lobby-card { display: grid; align-content: start; gap: 8px; min-width: 0; padding: 10px 12px; border: 1px solid #ffffff14; border-radius: 10px; background: #ffffff07; }
 .salvage-lobby-card.own { border-color: #e9a917; background: #e9a91710; }

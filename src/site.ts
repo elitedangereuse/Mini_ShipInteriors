@@ -50,6 +50,7 @@ export interface NearestAdventure {
 interface Reply {
   status: string; error?: string; art?: Artwork[]; pending?: Record<string, Reward[]>;
   rankings?: Ranking[]; earned?: number; balance?: number; count?: number; adventure?: NearestAdventure
+  ship?: EliteShip | null
 }
 export async function siteRequest(query = '', body?: object): Promise<Reply | null> {
   try {
@@ -73,6 +74,20 @@ export async function nearestAdventure(): Promise<NearestAdventure | 'auth' | nu
     return reply.adventure
   }
   return reply?.error === 'auth' ? 'auth' : null
+}
+
+/** Le vaisseau du CMDR dans Elite (cf. msi_site_cmdr_ship) : son modèle chez Frontier, et le nom qu'il lui a donné. */
+export interface EliteShip { type: string; name: string }
+
+/**
+ * Le vaisseau que le CMDR pilote en ce moment dans Elite Dangerous, ou null : invité, jeton
+ * Frontier expiré, site ou Frontier muets. `?edship=krait_light` le simule en dev.
+ */
+export async function eliteShip(): Promise<EliteShip | null> {
+  const simulated = import.meta.env.DEV && new URLSearchParams(location.search).get('edship')
+  if (simulated) return { type: simulated, name: '' }
+  const reply = await siteRequest('?ship=1')
+  return reply?.status === 'success' && typeof reply.ship?.type === 'string' ? reply.ship : null
 }
 
 /** Only owned artwork is offered, but visiting cabins can render any valid artwork ID. */

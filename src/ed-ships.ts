@@ -22,6 +22,25 @@ export const ED_SHIPS = [
 
 export type EdShipId = (typeof ED_SHIPS)[number]
 
+/**
+ * Les vaisseaux tels que Frontier les nomme dans le profil du CMDR (`ship.name`, en minuscules),
+ * pour ceux qui ont un modèle ici. Les autres (Anaconda, Hauler, Beluga, Python Mk II…) n'en ont
+ * pas encore : en ajouter un, c'est ajouter sa ligne.
+ */
+const ELITE_SHIPS: Record<string, EdShipId> = {
+  sidewinder: 'sidewinder', eagle: 'eagle', empire_eagle: 'imperial-eagle', viper: 'viper-mk3', viper_mkiv: 'viper-mk4',
+  cobramkiii: 'cobra-mk3', cobramkiv: 'cobra-mk4', adder: 'adder', diamondback: 'diamondback-scout',
+  diamondbackxl: 'diamondback-explorer', empire_courier: 'imperial-courier', vulture: 'vulture', asp: 'asp-explorer',
+  independant_trader: 'keelback', type6: 'type-6', dolphin: 'dolphin', ferdelance: 'fer-de-lance', mamba: 'mamba',
+  krait_mkii: 'krait-mk2', krait_light: 'krait-phantom', typex: 'alliance-chieftain', typex_2: 'alliance-crusader',
+  federation_dropship: 'federal-dropship', federation_dropship_mkii: 'federal-assault-ship', type7: 'type-7',
+  python: 'python', orca: 'orca', empire_trader: 'imperial-clipper', type9: 'type-9', type9_military: 'type-10',
+  federation_corvette: 'federal-corvette', cutter: 'imperial-cutter',
+}
+
+/** Le modèle d'un vaisseau du profil Frontier (cf. ELITE_SHIPS), ou null s'il n'en a pas. */
+export const edShipFromElite = (type: string): EdShipId | null => ELITE_SHIPS[type.trim().toLowerCase()] ?? null
+
 export interface EdShipInfo {
   name: string
   maker: string

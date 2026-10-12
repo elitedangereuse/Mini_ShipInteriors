@@ -12,6 +12,8 @@ import { BAY_SCALE, bayScale } from './ship-bay'
 export class ShipPicker extends Modal {
   /** Un vaisseau choisi (pas celui qui est déjà posé). */
   onPick?: (id: EdShipId) => void
+  /** Le vaisseau du joueur dans Elite Dangerous, si le site l'a dit : sa fiche est marquée, et y revenir, c'est le suivre à nouveau. */
+  elite: EdShipId | null = null
   private current: EdShipId | null = null
   private readonly grid = document.createElement('div')
   private readonly status = document.createElement('p')
@@ -22,8 +24,8 @@ export class ShipPicker extends Modal {
     const intro = document.createElement('p')
     intro.className = 'salvage-intro'
     intro.textContent = tr(
-      'Le vaisseau posé sur le pad, celui que vous pilotez jusqu\'à la base au sol. Chacun voit le sien.',
-      'The ship parked on the pad, the one you fly down to the ground base. Everyone sees their own.',
+      'Le vaisseau posé sur le pad, celui que vous pilotez jusqu\'à la base au sol. Chacun voit le sien : celui de votre CMDR dans Elite Dangerous, tant que vous n\'en choisissez pas un autre ici.',
+      'The ship parked on the pad, the one you fly down to the ground base. Everyone sees their own: the one your CMDR flies in Elite Dangerous, until you pick another one here.',
     )
     this.grid.className = 'ship-picker-grid'
     this.grid.setAttribute('role', 'group')
@@ -59,6 +61,15 @@ export class ShipPicker extends Modal {
       const on = b.dataset.ship === this.current
       b.setAttribute('aria-pressed', String(on))
       if (on && this.isOpen) b.focus({ preventScroll: false })
+      // Le vaisseau d'Elite peut n'arriver qu'après les fiches : sa marque se pose ici.
+      b.querySelector('.ship-card-elite')?.remove()
+      if (b.dataset.ship === this.elite) {
+        const tag = document.createElement('span')
+        tag.className = 'ship-card-tag ship-card-elite'
+        tag.textContent = tr('Dans Elite', 'In Elite')
+        tag.title = tr('Le vaisseau que vous pilotez dans Elite Dangerous : le choisir, c\'est laisser le hangar le suivre.', 'The ship you fly in Elite Dangerous: picking it lets the hangar follow it.')
+        b.append(tag)
+      }
     }
   }
 
