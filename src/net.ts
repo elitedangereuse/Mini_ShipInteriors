@@ -278,8 +278,11 @@ export interface ArenaFighterState {
   deaths: number
   wait: number
 }
-/** Une fleur carnivore de Capucine, ou une flaque en feu de Jacques : où, de quel camp, et pour combien de temps (s). */
-export interface ArenaTrap { id: number; kind: 'flower' | 'fire'; team: 0 | 1; x: number; z: number; left: number }
+/**
+ * Une fleur carnivore de Capucine, ou une flaque en feu de Jacques : où, de quel camp, et pour combien
+ * de temps (s). Une fleur qui s'arme : sa proie (`aim`), et dans combien de temps elle mord (`strike`, s).
+ */
+export interface ArenaTrap { id: number; kind: 'flower' | 'fire'; team: 0 | 1; x: number; z: number; left: number; aim?: number; strike?: number }
 export interface ArenaState { game: string; warmup: number; left: number; score: [number, number]; round: number; rounds: [number, number]; fighters: ArenaFighterState[]; traps: ArenaTrap[] }
 export type ArenaEvent =
   /** `to`, `dur` : un objet lancé, où il retombe et en combien de temps. */
@@ -295,7 +298,13 @@ export type ArenaEvent =
   /** Une manche se termine (`winner` : -1 à égalité) ; la suivante part dans `wait` secondes. */
   | { kind: 'round'; round: number; winner: number; reason: 'score' | 'time'; score: [number, number]; rounds: [number, number]; wait: number }
   | { kind: 'join'; fighter: ArenaFighter; x: number; z: number; yaw: number }
-export interface ArenaStats extends ArenaFighter { kills: number; deaths: number; damage: number; heal: number }
+  /** Il change de chargeur (rien qu'un geste : le relais borne la cadence lui-même). */
+  | { kind: 'reload'; id: number }
+/**
+ * La fiche de fin d'un combattant : éliminations, chutes, dégâts, soins ; ses projectiles tirés et
+ * ceux qui ont porté (sa précision), sa meilleure série (absents d'un relais plus ancien).
+ */
+export interface ArenaStats extends ArenaFighter { kills: number; deaths: number; damage: number; heal: number; shots?: number; hits?: number; best?: number }
 export interface ArenaEnd {
   game: string
   /** Équipe gagnante ; -1 : égalité. */
@@ -308,7 +317,34 @@ export interface ArenaEnd {
   duration: number
   stats: ArenaStats[]
 }
-export type ArenaAction = 'join' | 'leave' | 'side' | 'settings' | 'character' | 'ready' | 'fire' | 'quit' | 'watch' | 'unwatch' | 'debug'
+export type ArenaAction = 'join' | 'leave' | 'side' | 'settings' | 'character' | 'ready' | 'fire' | 'reload' | 'quit' | 'watch' | 'unwatch' | 'debug' | 'stats'
+
+/** Les statistiques d'un personnage, sur les parties des joueurs (cf. server/arena-stats.js, summarize). */
+export interface ArenaCharacterSummary {
+  picks: number
+  /** Part des places qu'il occupe, et des parties décidées qu'il gagne (null : aucune). */
+  pickRate: number
+  winRate: number | null
+  /** Éliminations et chutes par partie ; dégâts et soins par minute ; durée moyenne d'une vie (s). */
+  kills: number
+  deaths: number
+  kd: number
+  damage: number
+  heals: number
+  survival: number
+  /** Part des projectiles qui ont porté, et distance moyenne de ses coups (tuiles). */
+  accuracy: number | null
+  range: number | null
+  best: number
+}
+/** Les mêmes, par commande (souris, manette, doigt, tir rapide). */
+export interface ArenaControlSummary { picks: number; winRate: number | null; kills: number; deaths: number; accuracy: number | null; shots: number }
+export interface ArenaCharacterStats {
+  games: number
+  since: number
+  characters: Partial<Record<CharacterId, ArenaCharacterSummary>>
+  controls: Record<string, Partial<Record<CharacterId, ArenaControlSummary>>>
+}
 
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
@@ -383,6 +419,8 @@ export type ServerMessage =
   | { t: 'arena:error'; code: string }
   /** Après la fin : la partie du joueur est notée au classement, ou pourquoi pas (invité ; le site ne l'a pas prise). */
   | { t: 'arena:ranked'; game: string; ok: boolean; reason?: 'guest' | 'site' }
+  /** Les statistiques des personnages (en réponse à `stats`), pour le classement. */
+  | ({ t: 'arena:stats' } & ArenaCharacterStats)
 
 /**
  * Réponse du relais à une invitation : partie, ou pourquoi pas (guest : on n'est pas CMDR,
@@ -394,11 +432,20 @@ export type WhisperReply = { ok: true } | { ok: false; reason: 'gone' | 'busy' |
 
 type LocalState = Omit<PlayerState, 'id' | 'name' | 'skin' | 'cabin' | 'open'>
 
+/**
+ * Serveur de dev : une latence simulée (`?lag=300`, en millisecondes, aller-retour), la moitié à
+ * l'envoi, la moitié à la réception, pour essayer le jeu comme sur un mauvais réseau (cf. la matrice
+ * des essais de l'arène, docs/arena-test-matrix.md). Les messages du jeu (positions, tirs, ce que dit
+ * le relais) gardent leur ordre, la déconnexion comprise ; les requêtes qui attendent une réponse
+ * (invitations, chuchotements, quartiers…) partent sans délai.
+ */
+const LAG = import.meta.env.DEV ? Math.min(5000, Math.max(0, Number(new URLSearchParams(location.search).get('lag')) || 0)) : 0
+
 /** Chemin de la socket : le même que WS_PATH dans server/relay.js et que la conf nginx du site. */
 const WS_PATH = import.meta.env.VITE_WS_PATH || '/ws/mini-shipinteriors'
 const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'open', 'whisper', 'nudge', 'ring', 'music', 'jump', 'patrol', 'chef', 'nurse', 'mechanic', 'gardener', 'chief', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error',
   'salvage:lobby', 'salvage:start', 'salvage:state', 'salvage:event', 'salvage:end', 'salvage:reward', 'salvage:error',
-  'arena:lobby', 'arena:start', 'arena:state', 'arena:event', 'arena:end', 'arena:error', 'arena:ranked']
+  'arena:lobby', 'arena:start', 'arena:state', 'arena:event', 'arena:end', 'arena:error', 'arena:ranked', 'arena:stats']
 
 export class Net {
   online = false
@@ -439,20 +486,19 @@ export class Net {
     this.socket = socket
     for (const t of EVENTS) {
       socket.on(t, (data: object) => {
-        const m = { ...data, t } as ServerMessage
-        if (m.t === 'welcome') {
-          this.id = m.id
-          this.last = ''
-          this.online = true
-          this.onStatus?.(true)
-        }
-        this.onMessage?.(m)
+        if (LAG) window.setTimeout(() => this.receive(t, data), LAG / 2)
+        else this.receive(t, data)
       })
     }
     socket.on('disconnect', () => {
-      if (!this.online) return
-      this.online = false
-      this.onStatus?.(false)
+      // Après les messages reçus avant elle (la latence simulée les retient encore).
+      const gone = () => {
+        if (!this.online) return
+        this.online = false
+        this.onStatus?.(false)
+      }
+      if (LAG) window.setTimeout(gone, LAG / 2)
+      else gone()
     })
     socket.on('connect_error', () => {
       // Refus du relais (vaisseau complet) : socket.io ne réessaie pas de lui-même.
@@ -460,8 +506,25 @@ export class Net {
     })
   }
 
+  /** Un message du relais (après la latence simulée, s'il y en a une). */
+  private receive(t: ServerMessage['t'], data: object) {
+    // Retenu par la latence simulée, il arrive après une déconnexion : il n'a plus cours.
+    if (LAG && !this.socket?.connected) return
+    const m = { ...data, t } as ServerMessage
+    if (m.t === 'welcome') {
+      this.id = m.id
+      this.last = ''
+      this.online = true
+      this.onStatus?.(true)
+    }
+    this.onMessage?.(m)
+  }
+
   private send(event: string, msg: object) {
-    if (this.online && this.socket?.connected) this.socket.emit(event, msg)
+    if (!this.online || !this.socket?.connected) return
+    const socket = this.socket
+    if (LAG) window.setTimeout(() => socket.connected && socket.emit(event, msg), LAG / 2)
+    else socket.emit(event, msg)
   }
 
   /**

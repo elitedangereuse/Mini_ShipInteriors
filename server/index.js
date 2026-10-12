@@ -18,6 +18,9 @@ process.on('uncaughtException', (err) => {
   error(`arrêt sur erreur : ${err?.stack ?? err}`)
   process.exit(1)
 })
+// Arrêt demandé (systemd, Ctrl+C) : on sort par process.exit, qui écrit au passage les statistiques
+// de l'arène qui attendaient encore (cf. server/arena-stats.js).
+for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => process.exit(0))
 
 const ROOT = resolve(fileURLToPath(new URL('../dist', import.meta.url)))
 const PORT = Number(process.env.PORT) || 8080
@@ -80,5 +83,7 @@ const server = createServer((req, res) => {
   createReadStream(file).pipe(res)
 })
 
-attachRelay(server, { log, error })
+// Les statistiques des personnages de l'arène (cf. server/arena-stats.js) : ARENA_STATS_FILE, sinon var/ à côté du serveur.
+const arenaStatsFile = process.env.ARENA_STATS_FILE || fileURLToPath(new URL('../var/arena-stats.json', import.meta.url))
+attachRelay(server, { log, error, arenaStatsFile })
 server.listen(PORT, HOST, () => log(`Vaisseau en ligne : http://${HOST ?? 'localhost'}:${PORT} (socket : ${process.env.WS_PATH || WS_PATH})`))

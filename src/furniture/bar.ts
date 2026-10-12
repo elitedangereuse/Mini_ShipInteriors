@@ -266,7 +266,7 @@ const barChair: Builder = () => {
  * Visage de Jacques : un écran où luisent deux yeux et une moustache en guidon de vélo.
  * Il cligne, sourit quand il secoue le shaker, fait un clin d'œil de temps en temps.
  */
-function jacquesFace() {
+export function jacquesFace() {
   let mood: 'calm' | 'happy' | 'wink' = 'calm'
   const screen = animatedScreen(128, 96, 12, (c, t) => {
     c.fillStyle = '#0c1a20'

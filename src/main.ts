@@ -760,7 +760,6 @@ let rangeHeading = 0
 let rangeZoom = 0
 let rangeOn = false
 const rangeHands = new THREE.Vector3()
-const rangeAim = new THREE.Vector3()
 let rangePadFire = false
 stand.onChange = (on) => {
   // L'invite de chaque support : prendre cette arme, ou raccrocher la sienne.
@@ -2155,6 +2154,12 @@ arenaMode = new ArenaClient({
     screenPos.copy(p).project(camera)
     return screenPos.z > 1 ? null : { x: ((screenPos.x + 1) / 2) * innerWidth, y: ((1 - screenPos.y) / 2) * innerHeight, d }
   },
+  facing: () => {
+    activeCamera().getWorldDirection(screenPos)
+    return Math.atan2(screenPos.x, screenPos.z)
+  },
+  // La vraie manette (pas le stick tactile) : cf. padDriving.
+  controls: () => (padDriving ? 'gamepad' : coarsePointer ? 'touch' : 'keyboard'),
   armed: (gun) => {
     let on = false
     gun.onChange = (now) => {
@@ -4118,6 +4123,9 @@ function routeGamepad(dt: number): GamepadInput {
     pad.menu = false
     padUi.toggle(true, editingNow ? null : document.getElementById('mobile-chat-toggle') ?? $('chat-form'))
   }
+  // Au terminal de l'arène, LB et RB changent de personnage, Y déplie sa fiche, X dit « prêt » ; le
+  // cadre de sélection garde la croix, A et B, comme partout.
+  if (arena.panelOpen && padDriving && !written && arena.padShortcuts(pad)) pad.rotateLeft = pad.rotateRight = pad.next = pad.action = false
   // En aménagement, B rend la main au curseur ; Échap y annulerait le geste en cours.
   if (padUi.update(pad, gamepad.held, dt, { driving: padDriving && !written, modal, escape: !editingNow })) {
     // Un objet pris au catalogue attend sa place : le curseur reprend.
@@ -4177,11 +4185,11 @@ function routeGamepad(dt: number): GamepadInput {
     // Dans les vues subjective et à la troisième personne, le regard suit exactement le
     // déplacement du pouce. Le stick immobile ne fait rien : pas de vitesse entretenue, de zone
     // morte ni de courbe qui lisseraient le geste. Au stand, ce même déplacement vise l'arme.
+    // Vu de dessus, il vise : sa direction, et jusqu'où il est poussé (un objet lancé part d'autant plus loin).
     if (fpsShown) fps.look(-touch.aimMovedX * TOUCH_LOOK_YAW, -touch.aimMovedY * TOUCH_LOOK_PITCH)
     else if (touchAiming) {
-      const reach = Math.hypot(touch.lookX, touch.lookY)
-      pad.lookX = touch.lookX / reach
-      pad.lookY = touch.lookY / reach
+      pad.lookX = touch.lookX
+      pad.lookY = touch.lookY
     }
     pad.interact ||= touch.interact
     pad.action ||= touch.action
@@ -4210,6 +4218,12 @@ function routeGamepad(dt: number): GamepadInput {
     court.pad(pad.moveX, gamepad.held.has('0'), dt)
     pad.moveX = pad.moveY = 0
     if (pad.cancel) court.stop()
+    return pad
+  }
+  // Les fenêtres de l'arène (terminal, classement, écran de fin) : la manette y est au mode
+  // interface (cf. padModal) ; le doigt, lui, les touche. Rien ne passe au personnage derrière.
+  if (arena.panelOpen) {
+    pad.moveX = pad.moveY = 0
     return pad
   }
   if (range.active) {
@@ -4241,11 +4255,9 @@ function routeGamepad(dt: number): GamepadInput {
     // Dans l'arène, le cône de visée paraît aussi au stick droit d'une vraie manette, sur un écran tactile.
     range.sight(touchAiming || (range !== stand && Math.hypot(pad.lookX, pad.lookY) > 0.3))
     if (pad.action) range.reload()
+    // Vu de dessus, le stick vise là où il pointe à l'écran (cf. RangeGame.aimStick).
     if (fpsShown) fps.look(-pad.lookX * dt * 2.4, -pad.lookY * dt * 1.8)
-    else if (pad.lookX || pad.lookY) {
-      iso.screenToGround(pad.lookX, -pad.lookY, rangeAim)
-      range.aimToward(rangeAim.x, rangeAim.z)
-    }
+    else if (pad.lookX || pad.lookY) range.aimStick(pad.lookX, pad.lookY, Math.min(1, Math.hypot(pad.lookX, pad.lookY)))
     if (pad.cancel) range.stop()
     return pad
   }
@@ -6137,7 +6149,7 @@ function frame() {
   player.avatar.root.visible = (!fpsShown || fps.showsBody) && !arena.staging && !arena.watching
   if (range.active) {
     range.update(dt, {
-      fps: fpsShown, body: !fpsShown || fps.showsBody, camera: activeCamera(), player: player.position, hands: player.avatar.hands(rangeHands),
+      fps: fpsShown, body: !fpsShown || fps.showsBody, camera: activeCamera(), player: player.position, hands: player.avatar.grip(rangeHands),
       move: input,
     })
     // Le personnage fait face à ce qu'il vise, même quand il marche de côté (sauf à terre, dans l'arène).

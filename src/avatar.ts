@@ -53,10 +53,12 @@ export interface FaceControl {
 }
 
 /** L'expression que joue chaque emote, le temps du geste. */
-const EMOTE_FACES: Record<string, string> = { joie: 'gr', danse: 'gr', oui: 'sm', salut: 'wi', o7: 'wi', trinquer: 'gr', non: 'fr', dodo: 'zz' }
+const EMOTE_FACES: Record<string, string> = { joie: 'gr', danse: 'gr', oui: 'sm', salut: 'wi', o7: 'wi', trinquer: 'gr', non: 'fr', dodo: 'zz', ko: 'zz' }
 
 /** Emote interne (non proposée dans la barre) : utiliser une console. */
 const INTERACT: EmoteDef = { id: 'interact', en: 'interact', icon: '', label: '', anims: ['interact-right'], mode: 'once' }
+/** Emote interne : éliminé dans l'arène, il tombe et reste au sol, les yeux fermés (cf. src/arena/client.ts). */
+const KO: EmoteDef = { id: 'ko', en: 'ko', icon: '', label: '', anims: ['die'], mode: 'hold' }
 
 /** Animations de repli quand un pack ne fournit pas un clip (les Blocky Characters n'ont pas « jump »). */
 const FALLBACK: Record<string, string> = { jump: 'emote-yes', crouch: 'sit', drive: 'sit' }
@@ -132,6 +134,53 @@ const carryDir = new THREE.Vector3()
  * la fourchette à la bouche (MOUTH), et redescend ; une bouchée par EAT_BITE secondes. Même
  * repère que CARRY (x vers l'intérieur).
  */
+/**
+ * Gestes de combat de l'arène (cf. act) : la direction de chaque bras, dans le même repère que CARRY
+ * (x vers l'intérieur). Les lanceurs tiennent leur objet d'une main (cf. oneHand) : le bras droit prêt
+ * à lancer (READY), l'autre en balancier (BALANCE).
+ */
+const ACT = {
+  lobReady: new THREE.Vector3(-0.35, 0.45, 0.35),
+  lobWind: new THREE.Vector3(-0.2, 0.75, -0.6),
+  lobThrow: new THREE.Vector3(0, 0.5, 0.85),
+  lobFollow: new THREE.Vector3(0.15, -0.55, 0.8),
+  tossReady: new THREE.Vector3(-0.15, -0.55, 0.8),
+  tossWind: new THREE.Vector3(-0.1, -0.75, -0.6),
+  tossThrow: new THREE.Vector3(0, 0.05, 1),
+  tossFollow: new THREE.Vector3(0, 0.6, 0.75),
+  balance: new THREE.Vector3(0.2, -0.6, 0.75),
+  point: new THREE.Vector3(0.1, 0.2, 1),
+  reload: new THREE.Vector3(0.1, -0.85, 0.5),
+}
+for (const v of Object.values(ACT)) v.normalize()
+/** Une suite de directions clés, au fil du geste (de 0 à 1), entre lesquelles le bras glisse en douceur. */
+type Keys = [number, THREE.Vector3][]
+const LOB_KEYS: Keys = [[0, ACT.lobReady], [0.18, ACT.lobWind], [0.3, ACT.lobThrow], [0.55, ACT.lobFollow], [1, ACT.lobReady]]
+const TOSS_KEYS: Keys = [[0, ACT.tossReady], [0.22, ACT.tossWind], [0.38, ACT.tossThrow], [0.6, ACT.tossFollow], [1, ACT.tossReady]]
+/** Le moment où l'objet quitte la main, dans chaque lancer (s) : l'arène le fait partir de là (cf. ArenaGun.throwLob). */
+export const RELEASE = { lob: 0.15, toss: 0.17 }
+const _key = new THREE.Vector3()
+function keyed(keys: Keys, u: number, out: THREE.Vector3): THREE.Vector3 {
+  for (let i = 1; i < keys.length; i++) {
+    if (u > keys[i][0]) continue
+    const [u0, a] = keys[i - 1], [u1, b] = keys[i]
+    return out.copy(a).lerp(b, THREE.MathUtils.smoothstep(u, u0, u1)).normalize()
+  }
+  return out.copy(keys[keys.length - 1][1])
+}
+
+/**
+ * Un geste de combat (l'arène, cf. src/arena/), posé par-dessus l'animation et le port de l'arme :
+ * - `recoil` : le recul d'un tir, les bras se relèvent d'un coup et redescendent ;
+ * - `lob` : un lancer par-dessus l'épaule (le cocktail de Jacques), le bras armé en arrière, lancé
+ *   vers l'avant et le haut, et qui retombe ;
+ * - `toss` : un lancer par en dessous (la graine de Capucine), le bras qui balance d'arrière en avant ;
+ * - `heal` : Betty tend le bras gauche vers celui qu'elle soigne ;
+ * - `reload` : les bras plongent le temps de changer le chargeur.
+ */
+export type CombatAct = 'recoil' | 'lob' | 'toss' | 'heal' | 'reload'
+const ACT_LENGTH: Record<CombatAct, number> = { recoil: 0.16, lob: 0.5, toss: 0.45, heal: 0.55, reload: 1.5 }
+
 const PLATE = new THREE.Vector3(0.1, -0.1, 0.99).normalize()
 const MOUTH = new THREE.Vector3(0.62, 0.52, 0.6).normalize()
 export const EAT_BITE = 1.4
@@ -155,6 +204,17 @@ function measureArm(model: THREE.Object3D, bone: THREE.Object3D | undefined): Ar
   if (!bone?.parent) return null
   const sum = new THREE.Vector3()
   const points: THREE.Vector3[] = []
+  // Les Blocky Characters (le robot, les créatures) n'ont pas de peau : le bras est un maillage, son
+  // nœud tourne autour de l'épaule ; on le mesure sur ses propres sommets.
+  const solid = bone as THREE.Mesh
+  if (solid.isMesh && !(solid as THREE.SkinnedMesh).isSkinnedMesh) {
+    const position = solid.geometry.getAttribute('position')
+    for (let i = 0; i < position.count; i++) {
+      const p = new THREE.Vector3().fromBufferAttribute(position, i)
+      points.push(p)
+      sum.add(p)
+    }
+  }
   model.traverse((o) => {
     const mesh = o as THREE.SkinnedMesh
     if (!mesh.isSkinnedMesh) return
@@ -237,6 +297,17 @@ export class Avatar {
   /** À chaque animation d'une pose (un coup de poing dans le sac, cf. main.ts). */
   onPoseStep?: (step: number) => void
   private readonly face: FaceControl | null
+  /** Touché (cf. flinch) : il encaisse, penché en arrière, et se redresse (de 1 à 0). */
+  private jolt = 0
+  private joltSide = 0
+  /** Le geste de combat en cours (cf. act), son avancée (s), sa durée et sa force. */
+  private gesture: { kind: CombatAct; t: number; len: number; strength: number } | null = null
+  /**
+   * Il tient son arme d'une main, prêt à la lancer (l'arène : le cocktail de Jacques, `lob` ; le
+   * sachet de graines de Capucine, `toss`) : le bras droit armé, l'autre en balancier ; null : à deux
+   * mains (cf. carrying).
+   */
+  oneHand: 'lob' | 'toss' | null = null
 
   constructor(rig: Rig & { height?: number; face?: FaceControl }) {
     this.height = rig.height ?? 0.67
@@ -341,7 +412,7 @@ export class Avatar {
   }
 
   playEmote(id: string): EmoteDef | null {
-    const def = id === 'interact' ? INTERACT : emoteNamed(id)
+    const def = id === 'interact' ? INTERACT : id === 'ko' ? KO : emoteNamed(id)
     if (!def) return null
     this.setPose(null)
     this.emote = def
@@ -354,6 +425,20 @@ export class Avatar {
 
   stopEmote() {
     this.emote = null
+  }
+
+  /** Un geste de combat (cf. CombatAct), de `len` secondes (la durée de chacun, sinon) et de force `strength`. */
+  act(kind: CombatAct, len = ACT_LENGTH[kind], strength = 1) {
+    this.gesture = { kind, t: 0, len: Math.max(0.05, len), strength }
+  }
+
+  /**
+   * Touché : il encaisse le coup, d'un recul bref du buste, puis se redresse (`strength` : de 0 à 1 ;
+   * `side` : de quel côté vient le coup, -1 à sa gauche, 1 à sa droite, 0 de face).
+   */
+  flinch(strength = 1, side = 0) {
+    this.jolt = Math.min(1, Math.max(this.jolt, strength))
+    this.joltSide = side
   }
 
   private startStep(restart: boolean) {
@@ -447,6 +532,10 @@ export class Avatar {
       if (sprint) sprint.timeScale = this.base === 'sprint' ? THREE.MathUtils.clamp(this.speed / SPRINT_NOMINAL, 0.4, 1.4) : 1
     }
     this.model.position.y = THREE.MathUtils.damp(this.model.position.y, hop - sink, hop ? 30 : 10, dt)
+    // Le recul d'un coup reçu : vite en arrière, et il se redresse.
+    this.jolt = Math.max(0, this.jolt - dt * 4.5)
+    this.model.rotation.x = -this.jolt * this.jolt * 0.32
+    this.model.rotation.z = this.jolt * this.jolt * 0.18 * this.joltSide
     if (spin !== null) this.model.rotation.y = spin
     else {
       // Au sortir d'une pirouette, on revient par le plus court chemin.
@@ -459,13 +548,36 @@ export class Avatar {
       const w = THREE.MathUtils.smoothstep(t, 0, 0.25) * (1 - THREE.MathUtils.smoothstep(t, end - 0.3, end))
       this.armRight.quaternion.slerp(saluteQ.setFromEuler(this.emote.gesture === 'toast' ? TOAST : SALUTE), w)
     }
-    // À deux mains, par-dessus l'animation (sauf installé sur un meuble, et le bras qui salue).
+    // À deux mains, par-dessus l'animation (sauf installé sur un meuble, et le bras qui salue) ; d'une
+    // main pour qui lance (le bras droit armé, l'autre en balancier).
     this.carryWeight = THREE.MathUtils.damp(this.carryWeight, this.carrying && !this.pose ? 1 : 0, 12, dt)
     if (this.carryWeight > 0.001) {
       for (const arm of this.arms) {
         if (arm.bone === this.armRight && this.emote?.gesture) continue
-        carryDir.set(-arm.side * CARRY.x, CARRY.y, CARRY.z)
-        arm.bone.quaternion.slerp(carryQ.setFromUnitVectors(arm.rest, carryDir), this.carryWeight)
+        this.aimArm(arm, this.held(arm), this.carryWeight)
+      }
+    }
+    // Un geste de combat, par-dessus le port de l'arme.
+    const g = this.gesture
+    if (g && (g.t += dt) >= g.len) this.gesture = null
+    else if (g && this.arms.length === 2) {
+      const u = g.t / g.len
+      for (const arm of this.arms) {
+        const right = arm.bone === this.armRight
+        let dir: THREE.Vector3 | null = null, w = g.strength
+        if (g.kind === 'recoil') {
+          // Les bras se relèvent d'un coup, puis redescendent.
+          const k = u < 0.2 ? u / 0.2 : 1 - (u - 0.2) / 0.8
+          dir = _key.copy(this.held(arm)).setY(this.held(arm).y + 0.55 * k).normalize()
+        } else if ((g.kind === 'lob' || g.kind === 'toss') && right) dir = keyed(g.kind === 'lob' ? LOB_KEYS : TOSS_KEYS, u, _key)
+        else if (g.kind === 'heal' && !right) {
+          dir = ACT.point
+          w *= Math.sin(Math.min(1, u * 1.6) * Math.PI) ** 0.5
+        } else if (g.kind === 'reload') {
+          dir = ACT.reload
+          w *= Math.sin(u * Math.PI)
+        }
+        if (dir) this.aimArm(arm, dir, Math.min(1, w))
       }
     }
     // La fourchette : à l'assiette au début de chaque bouchée, puis à la bouche, et on redescend.
@@ -493,6 +605,24 @@ export class Avatar {
       const floor = this.root.getWorldPosition(this.groundOrigin).y
       this.model.position.y += Math.max(0, floor + 0.005 - this.groundBounds.min.y)
     }
+  }
+
+  /** La direction du bras `arm` qui porte l'arme : à deux mains (CARRY), ou prêt à lancer, ou en balancier. */
+  private held(arm: Arm): THREE.Vector3 {
+    if (!this.oneHand) return CARRY
+    if (arm.bone !== this.armRight) return ACT.balance
+    return this.oneHand === 'lob' ? ACT.lobReady : ACT.tossReady
+  }
+
+  /** Oriente un bras vers `dir` (x vers l'intérieur), avec le poids `w`. */
+  private aimArm(arm: Arm, dir: THREE.Vector3, w: number) {
+    carryDir.set(-arm.side * dir.x, dir.y, dir.z)
+    arm.bone.quaternion.slerp(carryQ.setFromUnitVectors(arm.rest, carryDir), w)
+  }
+
+  /** Là où il tient son arme (monde) : entre ses deux mains, ou dans sa main droite s'il la tient d'une main. */
+  grip(out: THREE.Vector3): THREE.Vector3 | null {
+    return this.oneHand ? this.rightHand(out) : this.hands(out)
   }
 
   /**

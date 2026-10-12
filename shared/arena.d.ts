@@ -29,6 +29,7 @@ export declare const ARENA_RULES: {
   sprint: number
   bot: number
   lob: number
+  assist: number
 }
 
 export type CharacterId = 'rourke' | 'marcel' | 'nico' | 'betty' | 'capucine' | 'jacques'
@@ -50,7 +51,7 @@ export interface CharacterWeapon {
   blast: number
   heal?: number
   lob?: boolean
-  flower?: { life: number; radius: number; every: number; grow: number; most: number }
+  flower?: { life: number; radius: number; every: number; grow: number; most: number; windup: number }
   fire?: { life: number; radius: number; every: number; damage: number }
 }
 
@@ -65,6 +66,7 @@ export declare const ARENA_CHARACTERS: Record<CharacterId, CharacterStats>
 export declare const CHARACTER_IDS: CharacterId[]
 export declare const DEFAULT_CHARACTER: CharacterId
 export declare const ARENA_TEAMS: { id: 0 | 1; color: string }[]
+export declare const ARENA_PALETTE: { self: string; ally: string; enemy: string; heal: string }
 export declare const ARENA_SKILLS: { reaction: number; error: number; pace: number }[]
 export declare const ARENA_BOTS: string[]
 /** Les plans de l'arène (cf. ARENA_MAPS dans arena.js). */
@@ -109,12 +111,17 @@ export interface ArenaZone {
 export declare function arenaZone(id?: string | null): ArenaZone
 export declare function arenaGround(zone: ArenaZone, p: { x: number; z: number }): number
 export declare function arenaSight(zone: ArenaZone, from: { x: number; z: number }, to: { x: number; z: number }): boolean
+export declare function inArenaBase(zone: ArenaZone, team: number, p: { x: number; z: number }): boolean
 export declare function inBush(zone: ArenaZone, p: { x: number; z: number }): boolean
 export declare function arenaHidden(zone: ArenaZone, p: { x: number; z: number }, viewer: { x: number; z: number }, revealed: boolean, near?: number): boolean
 export declare function bushSight(character: string): number
 export declare function blastDamage(w: { blast: number; damage: number }, d: number): number
+/** Le tir rapide : le cap visé et la distance d'un lancer, écartés au hasard (cf. ARENA_RULES.assist). */
+export declare function assistAim(yaw: number, dist: number, random?: () => number): { yaw: number; dist: number }
 export declare function lobTarget(zone: ArenaZone, from: { x: number; z: number }, dir: { x: number; z: number }, dist: number, range: number): { x: number; z: number }
 export declare function lobTime(w: { speed: number }, dist: number): number
+export declare const MUZZLE_SLACK: number
+export declare function shotOrigin(zone: ArenaZone, foot: { x: number; z: number }, want: { x: number; z: number }): { x: number; z: number }
 export declare function castArena(
   zone: ArenaZone,
   p: { x: number; y: number; z: number },
