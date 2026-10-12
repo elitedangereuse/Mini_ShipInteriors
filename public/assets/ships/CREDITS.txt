@@ -1,0 +1,36 @@
+Vaisseaux d'Elite Dangerous (Frontier Developments), allégés et peints pour Mini Interior par
+scripts/import-ed-ships.mjs, d'après les modèles imprimables « 2 Part (Elite Dangerous) » de
+Kahnindustries (David Williams). Licences des modèles d'origine :
+
+Sidewinder Mk I : Kahnindustries, https://www.thingiverse.com/thing:3381354, CC BY 3.0
+Eagle Mk II : Kahnindustries, https://www.thingiverse.com/thing:3125546, CC BY 3.0
+Imperial Eagle : Kahnindustries, https://www.thingiverse.com/thing:3381403, CC BY 3.0
+Viper Mk III : Kahnindustries (David Williams), « Viper_Mk3_2_Part_(Elite_Dangerous) », licence CC
+Viper Mk IV : Kahnindustries, https://www.thingiverse.com/thing:3182123, CC BY 3.0
+Cobra Mk III : Kahnindustries, https://www.thingiverse.com/thing:3382983, CC BY 3.0
+Cobra Mk IV : Kahnindustries (David Williams), « Cobra_MKIV_2_Part_(Elite_Dangerous) », licence CC
+Adder : Kahnindustries, https://www.thingiverse.com/thing:3134574, CC BY 3.0
+Diamondback Scout : Kahnindustries, https://www.thingiverse.com/thing:3358052, CC BY 3.0
+Diamondback Explorer : Kahnindustries, https://www.thingiverse.com/thing:3572407, CC BY 3.0
+Imperial Courier : Kahnindustries, https://www.thingiverse.com/thing:3663105, CC BY 3.0
+Vulture : Kahnindustries, https://www.thingiverse.com/thing:3505015, CC BY 3.0
+Asp Explorer : Kahnindustries, https://www.thingiverse.com/thing:3687930, CC BY 3.0
+Keelback : Kahnindustries, https://www.thingiverse.com/thing:3493591, CC BY 3.0
+Type-6 Transporter : Kahnindustries, https://www.thingiverse.com/thing:3365219, CC BY 3.0
+Dolphin : Kahnindustries, https://www.thingiverse.com/thing:3376313, CC BY 3.0
+Fer-de-Lance : Kahnindustries, https://www.thingiverse.com/thing:3424789, CC BY 3.0
+Mamba : Kahnindustries, https://www.thingiverse.com/thing:3632426, CC BY 3.0
+Krait Mk II : Kahnindustries (David Williams), « Krait_MKII_2_Part_(Elite_Dangerous) », licence CC BY-SA
+Krait Phantom : Kahnindustries, https://www.thingiverse.com/thing:3823396, CC BY 3.0
+Alliance Chieftain : Kahnindustries, https://www.thingiverse.com/thing:3519242, CC BY 3.0
+Alliance Crusader : Kahnindustries (David Williams), « Alliance+Crusader+2+Part+(Elite+Dangerous) », licence CC
+Federal Dropship : Kahnindustries (David Williams), « Federal_Dropship_2_Part_(Elite_Dangerous) », licence CC
+Federal Assault Ship : Kahnindustries, https://www.thingiverse.com/thing:3587778, CC BY 3.0
+Type-7 Transporter : Kahnindustries, https://www.thingiverse.com/thing:3655113, CC BY 3.0
+Python : Kahnindustries, https://www.thingiverse.com/thing:3413730, CC BY 3.0
+Orca : Kahnindustries, https://www.thingiverse.com/thing:3524233, CC BY 3.0
+Imperial Clipper : Kahnindustries, https://www.thingiverse.com/thing:3673356, CC BY 3.0
+Type-9 Heavy : Kahnindustries, https://www.thingiverse.com/thing:3618927, CC BY 3.0
+Type-10 Defender : Kahnindustries (David Williams), « type_10_defender », licence CC
+Federal Corvette : Kahnindustries, https://www.thingiverse.com/thing:3485024, CC BY 3.0
+Imperial Cutter : Kahnindustries, https://www.thingiverse.com/thing:3548302, CC BY 3.0

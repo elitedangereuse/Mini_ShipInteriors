@@ -146,10 +146,19 @@ export interface Streak {
   trail: THREE.Mesh
   bolt: THREE.Mesh
   glow: THREE.Sprite
+  /**
+   * L'ombre de la traînée (l'arène) : un ruban sombre, plus large, dessous, qui la détache d'un sol
+   * clair où une lumière additive s'effacerait.
+   */
+  shade?: THREE.Mesh
   from: THREE.Vector3
   head: THREE.Vector3
   /** Largeur de la traînée : plus fine en vue subjective, où elle part de tout près. */
   width: number
+  /** Combien de temps la traînée met à s'effacer (s ; une demi-seconde par défaut). */
+  life?: number
+  /** Longueur du trait vif, derrière la pointe (tuiles ; 0,55 par défaut). */
+  boltLength?: number
   age: number
   flying: boolean
 }
@@ -334,6 +343,14 @@ export class RangeGame {
    */
   protected rise: number | null = null
   protected pitch = 0
+  /**
+   * Vue de dessus, au stick (cf. aimStick) : la direction du stick à l'écran, et jusqu'où il est
+   * poussé. Lue à l'image suivante : la direction au sol est celle que l'écran montre.
+   */
+  protected stickAim: { x: number; y: number; reach: number } | null = null
+  /** D'où part le tir, et vers où, à cette image (repère du pont) : ce que le cône de l'arène montre. */
+  protected readonly shotFrom = new THREE.Vector3()
+  protected readonly shotDir = new THREE.Vector3()
   /**
    * Recul et dispersion (radians) : ce que les tirs ont ajouté à la dispersion (`bloom`), ce que
    * marcher y ajoute (`moving`) ; le cabrage de la vue subjective (`recoil` : cap, hauteur), et ce
@@ -569,6 +586,24 @@ export class RangeGame {
     this.aim.set(x, 0, z).normalize()
   }
 
+  /**
+   * Vue de dessus, au stick (manette, ou stick tactile) : `x`, `y` sa direction à l'écran (vers la
+   * droite, vers le bas), `reach` jusqu'où il est poussé (0 à 1). La direction au sol est celle que
+   * montre l'écran, où que soit la caméra et quelle que soit sa pente (cf. update).
+   */
+  aimStick(x: number, y: number, reach: number) {
+    if (!this.session || reach < 0.3) return
+    this.pointer = null
+    this.rise = null
+    this.stickAim = { x, y, reach }
+  }
+
+  /**
+   * Vue de dessus : `eye` (repère du pont), d'où partirait la balle, un peu devant les pieds du
+   * tireur (`foot`) ; l'arène le ramène à ses pieds s'il collait à un obstacle (cf. shotOrigin).
+   */
+  protected aimFrom(_eye: THREE.Vector3, _foot: THREE.Vector3) {}
+
   /** Hauteur du sol en (x, z) (repère du pont) : le stand est plat ; l'arène peut avoir un haut. */
   protected groundAt(_x: number, _z: number): number {
     return 0
@@ -705,6 +740,20 @@ export class RangeGame {
         if (far > 0.2) this.aim.copy(_v).normalize()
         this.pitch = (this.aimPoint.y - chest) / Math.max(0.5, far)
       } else {
+        if (this.stickAim) {
+          // Le stick : le point de l'écran où il pointe, depuis les pieds du joueur, ramené au sol.
+          const s = this.stickAim
+          const len = Math.hypot(s.x, s.y)
+          _v.copy(f.player).project(f.camera)
+          _ndc.set(_v.x + ((s.x / len) * 240) / innerWidth, _v.y - ((s.y / len) * 240) / innerHeight)
+          _ray.setFromCamera(_ndc, f.camera)
+          _plane.set(UP, -f.player.y)
+          if (_ray.ray.intersectPlane(_plane, _w)) {
+            _w.sub(f.player).setY(0)
+            if (_w.lengthSq() > 1e-8) this.aim.copy(_w)
+          }
+          this.stickAim = null
+        }
         this.aim.setY(0).normalize()
         const reach = this.reach()
         this.pitch = this.rise ?? (this.groundAt(foot.x + this.aim.x * reach, foot.z + this.aim.z * reach) - foot.y) / reach
@@ -712,8 +761,11 @@ export class RangeGame {
       // Le recul fait dévier la ligne de tir : le laser le montre.
       dir.copy(this.aim).setY(this.pitch).normalize().applyAxisAngle(UP, this.drift)
       eye.set(foot.x + dir.x * 0.3, chest, foot.z + dir.z * 0.3)
+      this.aimFrom(eye, foot)
       if (!this.pointer) this.aimPoint.copy(eye).addScaledVector(dir, 2)
     }
+    this.shotFrom.copy(eye)
+    this.shotDir.copy(dir)
 
     // L'arme : en main, ou à l'écran (placée plus bas, une fois la vue secouée).
     const shown = this.holstered ? null : f.fps && !f.body ? this.view[s.weapon] : f.body ? this.hand[s.weapon] : null
@@ -947,15 +999,28 @@ export class RangeGame {
       it = { trail: ribbon(), bolt: ribbon(), glow: this.sprite(), from: new THREE.Vector3(), head: new THREE.Vector3(), width, age: 0, flying: true }
       this.live.add(it.trail, it.bolt, it.glow)
     }
+    if (this.shaded && !it.shade) {
+      // L'ombre (l'arène) : sombre, en mélange ordinaire, dessinée avant la traînée qui l'éclaire.
+      const shade = new THREE.Mesh(RIBBON, new THREE.MeshBasicMaterial({ map: this.ribbon, color: '#05070b', transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }))
+      shade.matrixAutoUpdate = false
+      shade.frustumCulled = false
+      shade.renderOrder = 4
+      for (const o of [it.trail, it.bolt, it.glow]) o.renderOrder = 5
+      this.live.add(shade)
+      it.shade = shade
+    }
     it.from.copy(from)
     it.head.copy(from)
     it.width = width
     it.age = 0
     it.flying = true
+    it.life = undefined
+    it.boltLength = undefined
     for (const o of [it.trail, it.bolt, it.glow]) {
       o.visible = false
       ;(o.material as THREE.MeshBasicMaterial).color.copy(color)
     }
+    if (it.shade) it.shade.visible = false
     this.streaks.push(it)
     return it
   }
@@ -981,19 +1046,28 @@ export class RangeGame {
     const tail = new THREE.Vector3()
     this.streaks = this.streaks.filter((it) => {
       it.age += dt
-      const k = 1 - it.age / 0.5
+      const k = 1 - it.age / (it.life ?? 0.5)
       if (k <= 0 && !it.flying) {
         it.trail.visible = it.bolt.visible = it.glow.visible = false
+        if (it.shade) it.shade.visible = false
         this.spare.push(it)
         return false
       }
       this.lay(it.trail, it.from, it.head, it.width, camera, origin)
-      ;(it.trail.material as THREE.MeshBasicMaterial).opacity = Math.max(0, k) * 0.55
+      ;(it.trail.material as THREE.MeshBasicMaterial).opacity = Math.max(0, k) * this.trailOpacity
+      if (it.shade) {
+        // L'ombre, sous la traînée : plus large, et qui s'efface avec elle.
+        it.shade.visible = this.shaded
+        if (this.shaded) {
+          this.lay(it.shade, it.from, it.head, it.width * 2.6, camera, origin)
+          ;(it.shade.material as THREE.MeshBasicMaterial).opacity = Math.max(0, k) * this.shadeOpacity
+        }
+      }
       // Le trait : court, vif, derrière la pointe de la balle.
       const len = it.from.distanceTo(it.head)
       it.bolt.visible = it.glow.visible = it.flying && len > 1e-4
       if (it.bolt.visible) {
-        tail.lerpVectors(it.head, it.from, Math.min(1, 0.55 / len))
+        tail.lerpVectors(it.head, it.from, Math.min(1, (it.boltLength ?? 0.55) / len))
         this.lay(it.bolt, tail, it.head, it.width * 2.4, camera, origin)
         it.glow.position.copy(it.head)
         it.glow.scale.setScalar(it.width * 5)
@@ -1013,6 +1087,11 @@ export class RangeGame {
       return true
     })
   }
+
+  /** Les traînées ont une ombre (cf. Streak.shade), de cette opacité au départ ; et la leur. */
+  protected shaded = false
+  protected shadeOpacity = 0.3
+  protected trailOpacity = 0.55
 
   /** Éclat de lumière, là où une balle frappe. */
   protected burst(at: THREE.Vector3, color: THREE.Color, size: number) {
@@ -1359,7 +1438,7 @@ export class RangeGame {
     const revision = ++this.revision
     this.held = this.queued = false
     for (const t of s.targets) this.live.remove(t.root)
-    for (const it of this.streaks) { it.trail.visible = it.bolt.visible = it.glow.visible = false; this.spare.push(it) }
+    for (const it of this.streaks) { it.trail.visible = it.bolt.visible = it.glow.visible = false; if (it.shade) it.shade.visible = false; this.spare.push(it) }
     this.streaks = []
     for (const p of this.debris) this.live.remove(p.mesh)
     this.debris = []

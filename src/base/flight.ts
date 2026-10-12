@@ -2,12 +2,12 @@ import { tr } from '../i18n'
 import { $ } from '../ui'
 
 /*
- * Le voyage en Krait entre le hangar du vaisseau et l'avant-poste Bradbury : l'écran de
- * chargement, qui couvre le changement de pont (et, au premier voyage, le chargement de la base).
- * La trajectoire est la jauge : un arc du vaisseau au sol, que le Krait parcourt ; la planète rouge
- * monte et remplit l'écran à la descente (lueur de rentrée atmosphérique à mi-course), s'enfonce à
- * la remontée ; l'altitude défile. Le Krait attend en fin d'approche tant que la base n'est pas
- * prête.
+ * Le voyage entre le hangar du vaisseau et l'avant-poste Bradbury, à bord du vaisseau du joueur
+ * (celui du registre du hangar, cf. ship-bay.ts) : l'écran de chargement, qui couvre le changement
+ * de pont (et, au premier voyage, le chargement de la base). La trajectoire est la jauge : un arc du
+ * vaisseau au sol, que sa silhouette parcourt ; la planète rouge monte et remplit l'écran à la
+ * descente (lueur de rentrée atmosphérique à mi-course), s'enfonce à la remontée ; l'altitude défile.
+ * Le vaisseau attend en fin d'approche tant que la base n'est pas prête.
  */
 
 const NS = 'http://www.w3.org/2000/svg'
@@ -15,7 +15,7 @@ const NS = 'http://www.w3.org/2000/svg'
 const FLIGHT = 5.2
 /** Fondus d'entrée et de sortie (s). */
 const FADE = 0.45
-/** Où le Krait attend que la base soit prête (fraction du trajet). */
+/** Où le vaisseau attend que la base soit prête (fraction du trajet). */
 const HOLD = 0.9
 /** Altitude de départ affichée (m) : l'orbite basse où croise le vaisseau. */
 const ORBIT = 18400
@@ -38,8 +38,13 @@ export interface FlightPlan {
   /** Destination : son nom, et d'où elle est. */
   title: string
   where: string
-  /** Prête (base chargée) : le Krait peut finir son approche. */
+  /** Prête (base chargée) : le vaisseau peut finir son approche. */
   ready: Promise<unknown>
+  /**
+   * Silhouette du vaisseau du joueur, vue de dessus, nez vers +x (un chemin SVG de 56 unités, cf.
+   * EdShipInfo.silhouette) ; à défaut, le Krait dessiné à la main.
+   */
+  ship?: string | null
   /** Tout est noir : on change de pont. */
   swap: () => void
   /** Avancement du vol, à chaque image (0…1), pour le son. */
@@ -52,6 +57,8 @@ export class FlightScreen {
   private readonly path: SVGPathElement
   private readonly trail: SVGPathElement
   private readonly krait: SVGGElement
+  /** La silhouette du vaisseau du joueur (vide : on montre le Krait dessiné à la main). */
+  private readonly shape: SVGPathElement
   private readonly heat: SVGEllipseElement
   private readonly dust: SVGGElement
   private readonly stars: SVGGElement
@@ -97,9 +104,11 @@ export class FlightScreen {
     this.trail = el('path', { d, class: 'flight-trail' }, svg)
     el('circle', { cx: 1420, cy: 120, r: 7, class: 'flight-end' }, svg)
     el('circle', { cx: 560, cy: 700, r: 7, class: 'flight-end' }, svg)
-    // Le Krait : un delta blanc, ses deux blocs moteurs, sa verrière (nez vers +x).
+    // Le Krait : un delta blanc, ses deux blocs moteurs, sa verrière (nez vers +x) ; remplacé par la
+    // silhouette du vaisseau du joueur à chaque vol (cf. FlightPlan.ship).
     this.heat = el('ellipse', { cx: 0, cy: 0, rx: 70, ry: 42, fill: 'url(#flight-heat)', opacity: 0 }, svg)
     this.krait = el('g', { class: 'flight-krait' }, svg)
+    this.shape = el('path', { d: '', fill: '#eef1f5' }, this.krait)
     el('polygon', { points: '30,0 -18,-26 -22,-24 -16,0 -22,24 -18,26', fill: '#eef1f5' }, this.krait)
     el('polygon', { points: '10,0 -18,-9 -18,9', fill: '#3a3f4a' }, this.krait)
     el('rect', { x: -24, y: -12, width: 8, height: 7, fill: '#2b2f38' }, this.krait)
@@ -129,6 +138,9 @@ export class FlightScreen {
     this.dir.textContent = plan.down ? tr('Descente vers', 'Descending to') : tr('Retour vers', 'Returning to')
     this.title.textContent = plan.title
     this.where.textContent = plan.where
+    // Le vaisseau du joueur : sa silhouette ; le Krait dessiné à la main s'il n'y en a pas.
+    this.shape.setAttribute('d', plan.ship ?? '')
+    for (const c of this.krait.children) if (c !== this.shape) (c as SVGElement).style.display = plan.ship ? 'none' : ''
     this.draw(0, plan.down)
     this.root.hidden = false
     // Laisse le navigateur poser l'état de départ avant le fondu.

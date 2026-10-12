@@ -103,7 +103,7 @@ import { WAYFINDING } from './wayfinding'
  * - ljpc-decor.ts : l'habillage du labo du L.J.P.C. et son lien avec le site (registre des membres et de leurs cartes, pupitre du Codex Galactique, sol dessiné, dessins de Julia, mobile des planètes) ;
  * - vents.ts : les conduits de ventilation (toiles d'araignée, ventilateur, mots grattés, la grille du bar) ;
  * - voie.ts : le sanctuaire de la Voie (portail de Raxxla, Chroniques, icône de Salomé, Reliques, l'Adepte Supérieur) ;
- * - hangar.ts : le hangar de la cale (le Krait Mk II, son escabeau, le pad, l'atelier de Nico le mécano, le pupitre du hangar) ;
+ * - hangar.ts : le hangar de la cale (le Krait Mk II fait main et son escabeau, le pad, l'atelier de Nico le mécano, le pupitre et le registre du hangar ; le vaisseau du pad, lui, est celui de chacun, cf. ship-bay.ts) ;
  * - salvage.ts : la zone thargoïde (lobby du sas de la cale, casiers, colis, fusées, plateforme d'extraction) ;
  * - scavengers.ts : la gaine technique (tuyauterie, chaudière, ventilateur) et la planque des Scavengers (poste du jeu, ARIA, caisson de Kael, drones, butin) ;
  * - idot.ts : le poste d'exploration d'It's Dangerous Out There (baie d'observation, poste du jeu, maquettes en pixels du Mandalay et du commandant, table de navigation, soute) ;

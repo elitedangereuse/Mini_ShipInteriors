@@ -232,7 +232,12 @@
   .arena-panel:not(.arena-ranks) .salvage-head { margin-bottom: 6px; }
   .arena-panel:not(.arena-ranks) .salvage-head h2 { display: none; }
   .arena-layout { grid-template-columns: 138px minmax(0, 1fr); gap: 10px; }
-  .arena-rail { gap: 5px; }
+  /* Même plus étroit que 760 px (cf. style.css) : les lobbys en colonne, les deux camps côte à côte,
+     les six personnages sur une rangée. */
+  .arena-rail { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+  .arena-rail .arena-heading { grid-column: auto; }
+  .arena-versus { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 6px; }
+  .arena-chars { grid-template-columns: repeat(6, minmax(0, 1fr)); }
   .arena-panel .arena-tile { gap: 3px; padding: 6px 8px; }
   .arena-tile-detail, .arena-tile-own { display: none; }
   .arena-stage { gap: 8px; }
@@ -242,10 +247,22 @@
   .arena-title span { font-size: 12px; }
   .arena-team { gap: 5px; padding: 8px; }
   .arena-slot { min-height: 34px; padding: 4px 8px; }
-  .arena-panel .arena-char { padding: 6px 3px; }
-  .arena-char > span:last-child { display: none; }
-  .arena-badge-char { width: 28px; height: 28px; }
-  .arena-sheet { gap: 6px; padding: 8px 10px; }
+  /* Les cartes des personnages : le visage, le nom, la difficulté ; le rôle est sur la fiche. */
+  .arena-chars { gap: 4px; }
+  .arena-panel .arena-char { gap: 2px; min-height: 64px; padding: 5px 3px 6px; }
+  .arena-panel .arena-char.on { padding: 4px 2px 5px; }
+  .arena-char-role, .arena-char-key, .arena-diff > span:last-child { display: none; }
+  .arena-face { width: 44px; height: 44px; }
+  .arena-char strong { font-size: 12px; }
+  .arena-pick { gap: 6px; padding: 8px 10px; }
+  .arena-pick-top { grid-template-columns: minmax(0, 1fr) minmax(170px, 34%); gap: 10px; }
+  .arena-pick header strong { font-size: 15px; }
+  .arena-pick-style { font-size: 13px; }
+  .arena-trait { font-size: 12px; }
+  .arena-panel .arena-pick-tools button { min-height: 44px; }
+  .arena-panel .arena-compare-pick { width: 46px; height: 46px; }
+  .arena-panel .arena-take { min-height: 44px; }
+  .arena-panel .arena-demo-toggle { width: 40px; height: 40px; }
   .arena-sheet-quip { display: none; }
   .arena-footer { bottom: -12px; margin: 0 -12px -12px; padding: 8px 12px 10px; }
   .arena-panel .arena-ready { min-width: 180px; min-height: 44px; padding: 8px 16px; font-size: 14px; }
@@ -273,6 +290,17 @@
   body.arena-on #chat-log { display: none; }
   body.arena-on #dialog { bottom: calc(var(--mobile-bottom) + 50px); width: min(380px, calc(100vw - 2 * (var(--aim-size) + 30px))); }
   /* Taken out: who did it and the countdown, between the thumbs. */
+  /* L'écran de fin : le récapitulatif et le personnage suivant, de part et d'autre du retour au lobby. */
+  .arena-end-recap { right: calc(50% + 112px); bottom: var(--mobile-bottom); padding: 0 12px; }
+  .arena-end-recap { font-size: 0; gap: 0; }
+  .arena-end-recap .icon { width: 20px; height: 20px; }
+  .arena-next { right: var(--mobile-right); bottom: var(--mobile-bottom); gap: 2px; padding: 3px 4px; }
+  .arena-next-label { display: none; }
+  /* Six visages tiennent à droite du retour au lobby, même sur 667 px de large. */
+  .arena-next-pick { width: 36px; height: 36px; }
+  .arena-next .arena-face.mini { width: 28px; height: 28px; }
+  .arena-recap { max-height: calc(100dvh - 120px); transform: translate(-50%, -54%); }
+  .arena-recap-table { font-size: 12px; }
   .arena-wait { bottom: var(--mobile-bottom); width: min(440px, calc(100vw - 2 * (var(--aim-size) + 26px))); gap: 4px; padding: 8px 10px 10px; }
   .arena-wait > strong { font-size: 16px; }
   /* Spectating: who the view follows, at the bottom edge. */

@@ -51,6 +51,7 @@ import { Minimap } from './minimap'
 import { beatAt, beatPulse, film, filmGlow, holoMeGlow, holoTime, studio, type ClawControl, type ClawResult } from './furniture'
 import { GamepadControls, type GamepadInput } from '../shared/gamepad.js'
 import { TouchGamepad } from './touch-gamepad'
+import { PadCursor, PadKeys, PadUi } from './pad-ui'
 import { setupMobile } from './mobile'
 import { lineOfSight } from '../shared/sight.js'
 import { DIRS } from './map'
@@ -73,6 +74,10 @@ import { Kitchen } from './kitchen'
 import { NURSE, Nurse, nurseRig, type NurseReport } from './nurse'
 import { DROID, MECHANIC, Mechanic, mechanicRig, type MechanicReport } from './mechanic'
 import { Hangar } from './hangar'
+import { chosenShip, saveShip, ShipBay } from './ship-bay'
+import { ShipPicker } from './ship-picker'
+import { hangarDisplay, kraitPower } from './furniture/hangar'
+import { silhouetteRects } from './ed-ships'
 import { GARDENER, Gardener, gardenerRig, type GardenerReport } from './gardener'
 import { GARDEN_LEVEL } from '../shared/gardener.js'
 import { Greenhouse } from './greenhouse'
@@ -268,7 +273,7 @@ sun.shadow.normalBias = 0.03
 // ------------------------------------------------------------------ monde
 
 // Les modèles font l'essentiel de l'attente : 90 % de la jauge, le reste pour le site et le montage.
-await preload([lookPath(parseLook(profile.skin))], (r) => bootProgress(r * 0.9))
+await preload([lookPath(parseLook(profile.skin)), `ships/${chosenShip()}.glb`], (r) => bootProgress(r * 0.9))
 bootProgress(0.94, tr('Identification du CMDR', 'Identifying CMDR'))
 const account = await within(accountRequest, 3000, null)
 if (account) {
@@ -774,7 +779,6 @@ let rangeHeading = 0
 let rangeZoom = 0
 let rangeOn = false
 const rangeHands = new THREE.Vector3()
-const rangeAim = new THREE.Vector3()
 let rangePadFire = false
 stand.onChange = (on) => {
   // L'invite de chaque support : prendre cette arme, ou raccrocher la sienne.
@@ -920,8 +924,11 @@ wallet.onGain = (amount, kind) => {
   bubbles.gain('me', `+${formatCredits(amount)}`)
   sound.credits(amount >= 1000)
 }
+/** Les boutons des emotes, dans l'ordre de la barre. */
+const emoteButtons: HTMLButtonElement[] = []
 for (const [i, e] of EMOTES.entries()) {
   const b = document.createElement('button')
+  emoteButtons.push(b)
   b.title = `${e.label} (${i + 1})`
   b.setAttribute('aria-label', e.label)
   if (e.icon) b.append(icon(e.icon))
@@ -1508,6 +1515,31 @@ const holdDeck = deckById(-1)
 /** Le grondement des réacteurs du Krait, tant qu'ils tournent (et qu'on est dans la cale). */
 let kraitRoar: { stop: () => void } | undefined
 const mechanic = new Mechanic(await mechanicRig(), holdDeck)
+// Le vaisseau du pad, au hangar : celui que le joueur a choisi au registre (le Krait Mk II d'abord),
+// là où se posait le Krait, nez vers le bouclier (cf. ship-bay.ts). Chacun voit le sien.
+const hangarBay = new ShipBay({ deck: holdDeck, pad: { x: 31.4, z: 5, rot: 1 }, power: kraitPower, busy: (cockpit) => seating.current?.item === cockpit })
+/** Ce qu'on lit en examinant son vaisseau, au hangar ({ship}, {maker} : le sien). */
+const HULL_LINES = [
+  tr('{ship} de {maker}, posé sur le pad 7. Le tien : tu l\'as choisi au registre, sur le mur sud. Nico l\'appelle « la Princesse ».', '{maker} {ship}, parked on pad 7. Yours: you picked it at the registry on the south wall. Nico calls her “the Princess”.'),
+  tr('La coque est encore tiède, les tuyères couvent. Sur le bord d\'attaque, gravé au tournevis : « Rayé = mort. Nico ».', 'The hull is still warm, the thrusters glowing. Scratched into the leading edge with a screwdriver: “Scratch it = dead. Nico”.'),
+  tr('Une étiquette sur le train avant : « NE PAS TOUCHER. JE SAIS QUE C\'EST TOI. » Tu retires ta main.', 'A label on the nose gear: “DO NOT TOUCH. I KNOW IT\'S YOU.” You take your hand back.'),
+]
+hangarBay.hull.text = () => HULL_LINES[Math.floor(Math.random() * HULL_LINES.length)]
+  .split('{ship}').join(hangarBay.info?.name ?? 'Krait Mk II')
+  .split('{maker}').join(hangarBay.info?.maker ?? 'Faulcon DeLacy')
+// Les écrans du hangar (le pupitre, le registre) montrent le vaisseau posé.
+hangarBay.onChange = (bay) => {
+  const info = bay.info
+  if (!info) return
+  hangarDisplay.name = info.name
+  hangarDisplay.maker = info.maker
+  hangarDisplay.silhouette = silhouetteRects(info.silhouette)
+  // L'ancien fil de fer ne sert plus : le pupitre prend le nouveau à sa prochaine image.
+  hangarDisplay.wire?.dispose()
+  hangarDisplay.wire = bay.wireframe()
+  hangarDisplay.version++
+}
+await hangarBay.set(chosenShip()).catch((e) => console.error(e))
 const hangar = new Hangar({
   deck: holdDeck,
   mechanic,
@@ -1515,14 +1547,7 @@ const hangar = new Hangar({
   here: () => deck,
   // Installé seulement : pendant la montée des marches, on n'est pas encore aux commandes.
   seat: () => (seating.pose ? seating.current : null),
-  // Les autres joueurs assis aux commandes du Krait (la place de l'escabeau).
-  pilots: () => {
-    const cockpit = holdDeck.interactables.find((it) => it.furniture?.model === 'krait-ladder')?.seats?.(player.position)[0]
-    if (!cockpit) return 0
-    let n = 0
-    for (const r of remotes.values()) if (r.level === holdDeck.def.id && r.pose === 'pilot' && Math.hypot(r.target.x - cockpit.x, r.target.z - cockpit.z) < 0.3) n++
-    return n
-  },
+  bay: hangarBay,
   show: (text) => dialog.show(text),
   help: (on) => {
     mechanic.help(player.position, on)
@@ -1539,7 +1564,8 @@ const hangar = new Hangar({
 })
 /** Ce que le mécano sait quand on lui parle : le système, nos révisions, si l'on est dans le cockpit. */
 function mechanicReport(): MechanicReport {
-  return { system: SYSTEMS[systemView.id].name, done: hangar.done, aboard: hangar.aboardKrait }
+  const info = hangarBay.info
+  return { system: SYSTEMS[systemView.id].name, done: hangar.done, aboard: hangar.aboardKrait, ship: { id: hangarBay.id ?? 'krait-mk2', name: info?.name ?? 'Krait Mk II', maker: info?.maker ?? 'Faulcon DeLacy' } }
 }
 holdDeck.interactables.push({
   object: mechanic.root,
@@ -1580,7 +1606,7 @@ const groundBase = new GroundBase({
         net.sendEmote('interact')
         net.sendChiefTalk()
         const visitors = [...remotes.values()].filter((r) => r.level === BASE_LEVEL).length
-        const line = groundBase.talk({ system: SYSTEMS[systemView.id].name, visitors })
+        const line = groundBase.talk({ system: SYSTEMS[systemView.id].name, visitors, ship: hangarBay.info?.name ?? 'Krait Mk II' })
         if (line) dialog.show(line)
       },
     })
@@ -1608,7 +1634,35 @@ const groundBase = new GroundBase({
   system: () => SYSTEMS[systemView.id].name,
   roar: () => sound.thrusters(iso.target.clone()) ?? undefined,
   touchdown: () => sound.thud(iso.target.clone()),
+  silhouette: () => hangarBay.silhouette(),
 })
+
+// Le registre du hangar (mur sud) : on y choisit son vaisseau ; il se pose au hangar, et sur la base.
+const shipPicker = new ShipPicker()
+shipPicker.onPick = (id) => {
+  void hangarBay.set(id).then(
+    (parked) => {
+      // Un autre choix entre-temps : c'est lui qu'on annoncera.
+      if (!parked) return
+      // Gardé une fois posé seulement : un vaisseau qui n'a pas pu venir ne reste pas le choix.
+      saveShip(id)
+      groundBase.setShip(id)
+      const name = hangarBay.info?.name ?? ''
+      dialog.show(tr(`Ton ${name} est posé sur le pad. Nico siffle entre ses dents.`, `Your ${name} is parked on the pad. Nico whistles through his teeth.`))
+      mechanic.say(tr('Oh, la belle bête…', 'Oh, what a beauty…'))
+    },
+    (e) => {
+      console.error(e)
+      dialog.show(tr('Le registre n\'a pas pu faire venir ce vaisseau. Réessayez dans un instant.', 'The registry could not bring that ship in. Try again in a moment.'))
+    },
+  )
+}
+for (const it of holdDeck.interactables) {
+  if (it.furniture?.model === 'ship-registry') it.onInteract = () => {
+    player.interact()
+    void shipPicker.open(hangarBay.chosen ?? chosenShip())
+  }
+}
 mechanic.onBark = (text) => {
   if (holdDeck === deck) bubbles.say('mechanic', text)
 }
@@ -2167,6 +2221,12 @@ arenaMode = new ArenaClient({
     screenPos.copy(p).project(camera)
     return screenPos.z > 1 ? null : { x: ((screenPos.x + 1) / 2) * innerWidth, y: ((1 - screenPos.y) / 2) * innerHeight, d }
   },
+  facing: () => {
+    activeCamera().getWorldDirection(screenPos)
+    return Math.atan2(screenPos.x, screenPos.z)
+  },
+  // La vraie manette (pas le stick tactile) : cf. padDriving.
+  controls: () => (padDriving ? 'gamepad' : coarsePointer ? 'touch' : 'keyboard'),
   armed: (gun) => {
     let on = false
     gun.onChange = (now) => {
@@ -2440,9 +2500,10 @@ net.onMessage = (m) => {
       // relais recale sa tournée) ; un autre qui les lance, on l'apprend dans le chat.
       const burning = mechanic.panicking
       mechanic.sync(m)
+      if (m.panic > 0) hangar.relayed(m.pilot, net.id)
       if (!burning && m.panic > 0 && m.pilot !== undefined && m.pilot !== net.id) {
         const pilot = remotes.get(m.pilot)?.name ?? tr('Quelqu\'un', 'Someone')
-        chat.add('system', tr(`${pilot} a mis en route les réacteurs du Krait. Nico panique.`, `${pilot} started the Krait's thrusters. Nico is panicking.`))
+        chat.add('system', tr(`${pilot} a mis en route les réacteurs de son vaisseau. Nico panique.`, `${pilot} started their ship's thrusters. Nico is panicking.`))
       }
       if (m.id !== net.id && holdDeck === deck && m.hold > 0 && m.help === 0 && m.panic === 0) bubbles.say('mechanic', '…')
       break
@@ -3324,6 +3385,16 @@ const myCabin = () => visiting?.host ?? net.id
  * Un autre joueur est-il visible ? Sur le pont des quartiers, seulement s'il est dans la même
  * instance (chacun y est dans sa bulle).
  */
+/**
+ * Un autre CMDR aux commandes de son vaisseau, au hangar ou sur la base : il est dans le sien (chacun
+ * voit le sien sur l'aire, cf. ship-bay.ts), qu'on ne voit pas ; et il ne nous prend pas notre cockpit.
+ */
+function inOwnShip(r: RemotePlayer): boolean {
+  if (r.pose !== 'pilot') return false
+  const bay = r.level === holdDeck.def.id ? hangarBay : r.level === BASE_LEVEL ? groundBase.bay : null
+  return !!bay && bay.covers(r.target.x, r.target.z)
+}
+
 function sees(r: RemotePlayer): boolean {
   // Dans la baie infestée (ou par les caméras) : seulement ses coéquipiers, hors des casiers.
   if (r.level === ZONE_LEVEL) return !!viewDeck.def.zone && !!salvage?.sees(r.id)
@@ -3885,7 +3956,18 @@ promptEl.addEventListener('click', (e) => {
 })
 const syncMobileEntry = setupMobile(coarsePointer)
 let usingGamepad = false
-for (const type of ['keydown', 'pointerdown']) addEventListener(type, () => (usingGamepad = false), { capture: true })
+/** La vraie manette est ce dont le joueur se sert : ni le clavier, ni la souris, ni l'écran tactile. */
+let padDriving = false
+// Les touches et les clics que joue la manette (cf. pad-ui.ts) ne sont pas ceux du joueur.
+for (const type of ['keydown', 'pointerdown']) addEventListener(type, (e) => { if (e.isTrusted) usingGamepad = padDriving = false }, { capture: true })
+/** Le mode interface de la manette, son clavier, ses touches jouées et son curseur (cf. pad-ui.ts). */
+const padUi = new PadUi({ back: padBack, sound: (kind) => { if (kind === 'press') sound.ui('pick') } })
+const padKeys = new PadKeys()
+const padCursor = new PadCursor()
+/** Touches du clavier que la manette tient à cette image (les bornes d'arcade). */
+let padHolding: readonly string[] = []
+/** Aménagement : A était enfoncé à l'image précédente. */
+let padEditHeld = false
 addEventListener('blur', () => gamepad.suspend())
 addEventListener('visibilitychange', () => gamepad.suspend())
 /** Touches de déplacement (position physique : KeyW/KeyA = Z/Q sur un clavier AZERTY). */
@@ -4005,7 +4087,7 @@ chat.onOpen = () => keys.clear()
 const inputDir = new THREE.Vector3()
 function keyboardDirection(): THREE.Vector3 {
   inputDir.set(0, 0, 0)
-  if (cinematic.active || cctv?.active || gym.active || court.active || fishBusy() || quiz.isOpen || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen) return inputDir
+  if (cinematic.active || cctv?.active || gym.active || court.active || fishBusy() || quiz.isOpen || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen || shipPicker.isOpen) return inputDir
   const on = (...codes: string[]) => codes.some((c) => keys.has(c))
   // event.code = position physique : KeyW/KeyA correspondent à Z/Q sur un clavier AZERTY.
   const sx = (on('KeyD', 'ArrowRight') ? 1 : 0) - (on('KeyA', 'ArrowLeft') ? 1 : 0)
@@ -4022,19 +4104,155 @@ let touchShot: 'tap' | 'aimed' | 'back' | null = null
 /** Angle (radians) que tourne le regard pour une course du centre au bord du stick de droite. */
 const TOUCH_LOOK_YAW = 0.62
 const TOUCH_LOOK_PITCH = 0.42
+/** B en mode interface, quand Échap n'a rien refermé : ce qui se replie encore. */
+function padBack(): boolean {
+  if (!reactionsPanel.hidden) toggleReactions(false)
+  else if (!$('about').hidden) toggleAbout(false)
+  else if (!$('help').hidden) $('help').hidden = true
+  else if ($('emotes').classList.contains('expanded')) mobileEmotesToggle.click()
+  else return false
+  return true
+}
+
+/** Un panneau tient l'écran : la manette y mène son cadre de sélection, sans qu'on le demande. */
+function padModal(): boolean {
+  return $('mobile-entry').hidden !== true || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || boardGames.isOpen || quiz.isOpen || fishBook.isOpen || wardrobe.isOpen || zone.panelOpen || arena.panelOpen || shipPicker.isOpen || !!document.querySelector('.salvage-end:not([hidden]), .arena-end:not([hidden])')
+}
+
+/** Rien ne sort de la manette à cette image : ni déplacement, ni bouton. */
+function padIdle(pad: GamepadInput): GamepadInput {
+  const state = pad as unknown as Record<string, number | boolean>
+  for (const key in state) if (key !== 'connected') state[key] = typeof state[key] === 'number' ? 0 : false
+  return pad
+}
+
+/** Stick droit, gâchettes, LB et RB : la caméra, quelle que soit la vue. */
+function padCamera(pad: GamepadInput, dt: number) {
+  if (fpsShown) {
+    if (pad.lookX || pad.lookY) fps.look(-pad.lookX * dt * 2.4, -pad.lookY * dt * 1.8)
+    return
+  }
+  if (pad.rotateLeft) iso.rotate(-1)
+  if (pad.rotateRight) iso.rotate(1)
+  if (pad.lookX || pad.lookY) iso.orbit(-pad.lookX * dt * 1.8, pad.lookY * dt * 1.2)
+  if (pad.zoom) iso.zoomBy(Math.exp(pad.zoom * dt))
+}
+
+/**
+ * Aménagement des quartiers à la manette : un curseur à l'écran, mené par le stick gauche ou la
+ * croix ; A clique et, tenu, déplace l'objet ; B fait Échap (annuler, désélectionner, quitter) ;
+ * X annule le dernier geste, R3 le rétablit ; LB et RB tournent l'objet (sans objet, la vue) ;
+ * Y supprime ; stick droit et gâchettes pour la caméra. Select mène au catalogue.
+ */
+function editorPad(tool: CabinEditor, pad: GamepadInput, dt: number) {
+  const key = (code: string, init: KeyboardEventInit = {}) => tool.keyDown(new KeyboardEvent('keydown', { code, key: code, ...init }))
+  if (pad.lookX || pad.lookY) iso.orbit(-pad.lookX * dt * 1.8, pad.lookY * dt * 1.2)
+  if (pad.zoom) iso.zoomBy(Math.exp(pad.zoom * dt))
+  const held = gamepad.held.has('0')
+  if (pad.cancel) {
+    padEditHeld = held
+    tool.pointerCancel()
+    key('Escape')
+    return
+  }
+  if (pad.action) key('KeyZ', { ctrlKey: true })
+  if (pad.turn) key('KeyZ', { ctrlKey: true, shiftKey: true })
+  if (pad.rotateLeft && !key('KeyR', { shiftKey: true })) iso.rotate(-1)
+  if (pad.rotateRight && !key('KeyR')) iso.rotate(1)
+  if (pad.next) key('Delete')
+  const moving = pad.moveX || pad.moveY
+  if (moving || held || padCursor.shown) padCursor.move(pad.moveX, pad.moveY, dt, 620 * (pad.sprint ? 1.8 : 1))
+  if (!padCursor.shown) return
+  const e = padCursor.event
+  if (moving) tool.pointerMove(e)
+  if (held && !padEditHeld) tool.pointerDown(e)
+  else if (!held && padEditHeld) tool.pointerUp(e)
+  padEditHeld = held
+}
+
 function updateGamepad(dt: number): GamepadInput {
+  padHolding = []
+  const pad = routeGamepad(dt)
+  padKeys.hold(padHolding)
+  return pad
+}
+
+function routeGamepad(dt: number): GamepadInput {
   const focus = document.activeElement
   const typing = focus instanceof HTMLElement && (focus.matches('input, textarea, select') || focus.isContentEditable)
-  const enabled = !document.hidden && $('mobile-entry').hidden === true && !typing && !chat.typing && !editing() && !photo.active && !arcade?.isOpen && !boardGames.isOpen && !barPanel.isOpen && !gardenPanel.isOpen && !gameEmbed.isOpen && !mediaRoom.isOpen && !cinemaRoom.isOpen && !quiz.isOpen
   // Certains navigateurs mobiles rapportent brièvement document.hasFocus() = false après le
   // passage en plein écran. Cela ne doit pas couper le joystick ni ses boutons.
+  const pad = gamepad.poll(document.hasFocus() && !document.hidden)
+  if (pad.active) {
+    padDriving = usingGamepad = true
+    lastInput = performance.now()
+  }
+  if (!pad.connected) padDriving = false
+  const editingNow = editing()
+  if (!editingNow) {
+    padCursor.hide()
+    padEditHeld = false
+  }
+  // On écrit au vrai clavier : la manette attend. Son clavier à l'écran, lui, est à elle.
+  // Sauf si elle se manifeste : son clavier s'ouvre alors sur le champ, sans quoi elle y resterait prise.
+  const written = (typing || chat.typing) && !padUi.keyboard.isOpen && !(pad.active && padUi.write(focus))
+  if (written) padIdle(pad)
+  // Le mode interface : demandé (Select, Y), ou parce qu'un panneau tient l'écran.
+  const modal = padModal()
+  if (pad.menu && padDriving && !padUi.wanted && !modal) {
+    pad.menu = false
+    padUi.toggle(true, editingNow ? null : document.getElementById('mobile-chat-toggle') ?? $('chat-form'))
+  }
+  // Au terminal de l'arène, LB et RB changent de personnage, Y déplie sa fiche, X dit « prêt » ; le
+  // cadre de sélection garde la croix, A et B, comme partout.
+  if (arena.panelOpen && padDriving && !written && arena.padShortcuts(pad)) pad.rotateLeft = pad.rotateRight = pad.next = pad.action = false
+  // En aménagement, B rend la main au curseur ; Échap y annulerait le geste en cours.
+  if (padUi.update(pad, gamepad.held, dt, { driving: padDriving && !written, modal, escape: !editingNow })) {
+    // Un objet pris au catalogue attend sa place : le curseur reprend.
+    if (editor?.active && editor.holding) padUi.toggle(false)
+    padCursor.hide()
+    touchGamepad?.poll(false)
+    return padIdle(pad)
+  }
   // Mode construction : la manette mène son curseur (cf. HomeBuilder.gamepad).
-  const building = builder?.active === true && !document.hidden && !typing && !chat.typing
-  const pad = gamepad.poll(document.hasFocus() && (enabled || building))
-  if (building) {
-    builder!.gamepad(pad, gamepad.held.has('0'), dt)
+  if (builder?.active) {
+    if (!written) builder.gamepad(pad, gamepad.held.has('0'), dt)
     return pad
   }
+  if (editor?.active) {
+    editor.padHints = padDriving
+    if (!written) editorPad(editor, pad, dt)
+    return pad
+  }
+  // Borne d'arcade : la manette en tient les touches. Stick ou croix, A, X et Y pour ses trois
+  // boutons (LB et RB les doublent), Start la pause, B quitte.
+  if (arcade?.isOpen && padDriving) {
+    const held = gamepad.held
+    const keys: string[] = []
+    if (held.has('left')) keys.push('ArrowLeft')
+    if (held.has('right')) keys.push('ArrowRight')
+    if (held.has('up')) keys.push('ArrowUp')
+    if (held.has('down')) keys.push('ArrowDown')
+    if (held.has('0')) keys.push('Space')
+    // Les jeux de la borne et le duel n'ont pas les mêmes touches : chacun ignore celles de l'autre.
+    if (held.has('2') || held.has('4')) keys.push('KeyX', 'KeyG')
+    if (held.has('3') || held.has('5')) keys.push('KeyC', 'KeyH')
+    padHolding = keys
+    if (pad.cancel) padKeys.tap('Escape')
+    if (pad.help) padKeys.tap('KeyP')
+    touchGamepad?.poll(false)
+    return padIdle(pad)
+  }
+  // Mode photo : on marche et on cadre comme d'habitude ; A déclenche, B range l'appareil.
+  if (photo.active && padDriving) {
+    if (pad.cancel) padKeys.tap('Escape')
+    else if (pad.interact) padKeys.tap('Space')
+    padCamera(pad, dt)
+    touchGamepad?.poll(false)
+    return pad
+  }
+  const enabled = !document.hidden && $('mobile-entry').hidden === true && !typing && !chat.typing && !editingNow && !photo.active && !arcade?.isOpen && !boardGames.isOpen && !barPanel.isOpen && !gardenPanel.isOpen && !gameEmbed.isOpen && !mediaRoom.isOpen && !cinemaRoom.isOpen && !quiz.isOpen
+  if (!enabled) padIdle(pad)
   let flare = false
   if (touchGamepad) {
     const touch = touchGamepad.poll(enabled)
@@ -4047,11 +4265,11 @@ function updateGamepad(dt: number): GamepadInput {
     // Dans les vues subjective et à la troisième personne, le regard suit exactement le
     // déplacement du pouce. Le stick immobile ne fait rien : pas de vitesse entretenue, de zone
     // morte ni de courbe qui lisseraient le geste. Au stand, ce même déplacement vise l'arme.
+    // Vu de dessus, il vise : sa direction, et jusqu'où il est poussé (un objet lancé part d'autant plus loin).
     if (fpsShown) fps.look(-touch.aimMovedX * TOUCH_LOOK_YAW, -touch.aimMovedY * TOUCH_LOOK_PITCH)
     else if (touchAiming) {
-      const reach = Math.hypot(touch.lookX, touch.lookY)
-      pad.lookX = touch.lookX / reach
-      pad.lookY = touch.lookY / reach
+      pad.lookX = touch.lookX
+      pad.lookY = touch.lookY
     }
     pad.interact ||= touch.interact
     pad.action ||= touch.action
@@ -4068,6 +4286,10 @@ function updateGamepad(dt: number): GamepadInput {
     lastInput = performance.now()
   }
   if (gym.active) {
+    // La flèche demandée se frappe à la croix ou au stick.
+    for (const [on, code] of [[pad.up, 'ArrowUp'], [pad.down, 'ArrowDown'], [pad.left, 'ArrowLeft'], [pad.right, 'ArrowRight']] as const) {
+      if (on) gym.key(new KeyboardEvent('keydown', { code, key: code }))
+    }
     pad.moveX = pad.moveY = 0
     if (pad.cancel) gym.stop()
     return pad
@@ -4076,6 +4298,12 @@ function updateGamepad(dt: number): GamepadInput {
     court.pad(pad.moveX, gamepad.held.has('0'), dt)
     pad.moveX = pad.moveY = 0
     if (pad.cancel) court.stop()
+    return pad
+  }
+  // Les fenêtres de l'arène (terminal, classement, écran de fin) : la manette y est au mode
+  // interface (cf. padModal) ; le doigt, lui, les touche. Rien ne passe au personnage derrière.
+  if (arena.panelOpen) {
+    pad.moveX = pad.moveY = 0
     return pad
   }
   if (range.active) {
@@ -4107,11 +4335,9 @@ function updateGamepad(dt: number): GamepadInput {
     // Dans l'arène, le cône de visée paraît aussi au stick droit d'une vraie manette, sur un écran tactile.
     range.sight(touchAiming || (range !== stand && Math.hypot(pad.lookX, pad.lookY) > 0.3))
     if (pad.action) range.reload()
+    // Vu de dessus, le stick vise là où il pointe à l'écran (cf. RangeGame.aimStick).
     if (fpsShown) fps.look(-pad.lookX * dt * 2.4, -pad.lookY * dt * 1.8)
-    else if (pad.lookX || pad.lookY) {
-      iso.screenToGround(pad.lookX, -pad.lookY, rangeAim)
-      range.aimToward(rangeAim.x, rangeAim.z)
-    }
+    else if (pad.lookX || pad.lookY) range.aimStick(pad.lookX, pad.lookY, Math.min(1, Math.hypot(pad.lookX, pad.lookY)))
     if (pad.cancel) range.stop()
     return pad
   }
@@ -4183,14 +4409,14 @@ function updateGamepad(dt: number): GamepadInput {
     if (pad.interact) zone.keyDown(new KeyboardEvent('keydown', { code: 'KeyE' }))
     return pad
   }
-  if (fpsShown) {
-    if (pad.lookX || pad.lookY) fps.look(-pad.lookX * dt * 2.4, -pad.lookY * dt * 1.8)
-  } else {
-    if (pad.rotateLeft) iso.rotate(-1)
-    if (pad.rotateRight) iso.rotate(1)
-    if (pad.lookX || pad.lookY) iso.orbit(-pad.lookX * dt * 1.8, pad.lookY * dt * 1.2)
-    if (pad.zoom) iso.zoomBy(Math.exp(pad.zoom * dt))
-  }
+  // Y : la barre des emotes, le temps d'en choisir une. R3 : la vue suivante (de haut, subjective,
+  // troisième personne) ; l'arène, elle, garde la sienne.
+  if (pad.next && padDriving) padUi.toggle(true, emoteButtons[0].getClientRects().length ? emoteButtons[0] : $('emotes'), true)
+  if (pad.turn && padDriving && !arenaMode?.inArena) setFps(!fpsWanted, fpsWanted && !shoulderWanted)
+  // Spectateur de l'arène : LB et RB passent d'un combattant à l'autre.
+  const turn = pad.rotateLeft ? 'ArrowLeft' : pad.rotateRight ? 'ArrowRight' : null
+  if (turn && arena.keyDown(new KeyboardEvent('keydown', { code: turn, key: turn }))) pad.rotateLeft = pad.rotateRight = false
+  padCamera(pad, dt)
   if (groundBase.flying) return pad
   if (seating.current) {
     if (pad.interact && seating.settled) seating.stand()
@@ -4202,7 +4428,7 @@ function updateGamepad(dt: number): GamepadInput {
 
 function movementDirection(pad: GamepadInput): THREE.Vector3 {
   const input = keyboardDirection()
-  if (cinematic.active || cctv?.active || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || photo.active || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen) return input
+  if (cinematic.active || cctv?.active || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || (photo.active && !padDriving) || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen || shipPicker.isOpen) return input
   // Le clavier reste prioritaire lorsqu'une touche de déplacement est maintenue.
   if (input.lengthSq() === 0) view().screenToGround(pad.moveX, -pad.moveY, input)
   return input
@@ -4264,7 +4490,8 @@ function setFps(eyes: boolean, shoulder: boolean, keep = true) {
   updateFpsButton()
   // Le clic ou la touche qui active la vue suffit à capturer le curseur (sinon, au premier pas).
   relock = fpsWanted
-  if (fpsWanted && !isoOnly() && !needsCursor() && matchMedia('(pointer: fine)').matches) lockCursor()
+  // À la manette, pas de curseur à capturer : le navigateur le refuserait (aucun clic).
+  if (fpsWanted && !padDriving && !isoOnly() && !needsCursor() && matchMedia('(pointer: fine)').matches) lockCursor()
 }
 /** V : la vue subjective, ou retour à la vue isométrique. */
 const toggleFps = () => setFps(!fpsWanted || shoulderWanted, false)
@@ -4544,6 +4771,12 @@ addEventListener(
       e.stopPropagation()
       return
     }
+    // Le registre du hangar : un clic à côté le ferme.
+    if (shipPicker.isOpen && !shipPicker.contains(e.target)) {
+      shipPicker.close()
+      e.stopPropagation()
+      return
+    }
     // Terminal de l'arène : de même (son écran de fin attend aussi son bouton).
     if (arena.panelOpen && !arena.contains(e.target) && !(e.target instanceof Element && e.target.closest('.salvage-end'))) {
       arena.closePanels()
@@ -4644,7 +4877,7 @@ function unlockCursor() {
 }
 /** Ce qui se manipule au curseur : on le rend. */
 function needsCursor(): boolean {
-  return gardenPanel.isOpen || court.active || fishBusy() || quiz.isOpen || chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || phone.isOpen || questJournal.isOpen || !!cctv?.active || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || arena.panelOpen || !reactionsPanel.hidden
+  return gardenPanel.isOpen || court.active || fishBusy() || quiz.isOpen || chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || phone.isOpen || questJournal.isOpen || !!cctv?.active || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || arena.panelOpen || shipPicker.isOpen || !reactionsPanel.hidden
 }
 document.addEventListener('pointerlockchange', () => {
   document.body.classList.toggle('fps-locked', cursorLocked())
@@ -4733,12 +4966,13 @@ function edgeLook(dt: number) {
 // ou dès qu'on se remet à marcher ; Échap, lui, le laisse libre jusqu'au prochain clic sur la scène.
 let relock = fpsWanted
 const mayRelock = () => relock && fpsShown && !cursorLocked() && !needsCursor() && matchMedia('(pointer: fine)').matches
+// Les touches et les clics joués par la manette ne capturent rien : le navigateur le refuserait.
 addEventListener('keydown', (e) => {
-  if (MOVE_KEYS.has(e.code) && mayRelock()) lockCursor()
+  if (e.isTrusted && MOVE_KEYS.has(e.code) && mayRelock()) lockCursor()
 })
 // Phase de bouillonnement : le bouton « Fermer » a déjà fermé son panneau.
-addEventListener('click', () => {
-  if (mayRelock()) lockCursor()
+addEventListener('click', (e) => {
+  if (e.isTrusted && mayRelock()) lockCursor()
 })
 // Curseur rendu pour une interface : la mire et son aide s'effacent.
 const syncCursorUi = () => document.body.classList.toggle('fps-cursor-ui', fpsShown && needsCursor())
@@ -4901,7 +5135,7 @@ function tryInteract() {
   if (cctv?.active) return cctv.close()
   // Bugenhagen parle : on passe à la phrase suivante.
   if (planetarium.talking) return planetarium.next()
-  if (gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen) return
+  if (gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen || shipPicker.isOpen) return
   const item = nearestInteractable()
   if (item) interactWith(item)
 }
@@ -5914,7 +6148,7 @@ function frame() {
     r.update(world)
     const room = r.level === ZONE_LEVEL ? null : deckById(r.level)?.map.room(Math.round(r.group.position.x), Math.round(r.group.position.z))
     r.group.visible = sees(r) && (ljpcMember || r.level !== 0 || room !== 'l') && (voieAdept || r.level !== -1 || room !== 'v') && (clubAlien || r.level !== -1 || room !== CLUB_ROOM)
-      && (barRegular || r.level !== -1 || room !== BAR_ROOM) && !questLocked(r.level, room ?? null)
+      && (barRegular || r.level !== -1 || room !== BAR_ROOM) && !questLocked(r.level, room ?? null) && !inOwnShip(r)
   }
   updateStalls()
   flushLatecomers()
@@ -5959,7 +6193,7 @@ function frame() {
   if (homeDeck === viewDeck) gardenView.update(dt)
   gardenNotices.update(dt)
   // Réacteurs du Krait en route : leur grondement dans la cale, et la vue qui tremble (vue isométrique).
-  const roaring = hangar.engines && holdDeck === deck
+  const roaring = mechanic.panicking && holdDeck === deck
   if (roaring && !kraitRoar) kraitRoar = sound.thrusters(new THREE.Vector3(KRAIT_COCKPIT.x - 3, holdDeck.y + 0.6, KRAIT_COCKPIT.z)) ?? undefined
   else if (!roaring && kraitRoar) {
     kraitRoar.stop()
@@ -5967,8 +6201,9 @@ function frame() {
   }
   if (roaring) iso.shake(0.1)
   // La base au sol : Ada, et les réacteurs du Krait de l'aire (leur grondement, la vue qui tremble).
+  hangarBay.update(performance.now() / 1000)
   groundBase.update(world)
-  const baseRoaring = groundBase.engines && groundBase.here && !groundBase.flying
+  const baseRoaring = groundBase.roaring && groundBase.here && !groundBase.flying
   if (baseRoaring && !baseRoar) baseRoar = sound.thrusters(new THREE.Vector3(BASE_COCKPIT.x + 3, deck.y + 0.6, BASE_COCKPIT.z)) ?? undefined
   else if (!baseRoaring && baseRoar) {
     baseRoar.stop()
@@ -6037,7 +6272,7 @@ function frame() {
   player.avatar.root.visible = (!fpsShown || fps.showsBody) && !arena.staging && !arena.watching
   if (range.active) {
     range.update(dt, {
-      fps: fpsShown, body: !fpsShown || fps.showsBody, camera: activeCamera(), player: player.position, hands: player.avatar.hands(rangeHands),
+      fps: fpsShown, body: !fpsShown || fps.showsBody, camera: activeCamera(), player: player.position, hands: player.avatar.grip(rangeHands),
       move: input,
     })
     // Le personnage fait face à ce qu'il vise, même quand il marche de côté (sauf à terre, dans l'arène).
@@ -6078,12 +6313,13 @@ function frame() {
     iso.snapTo(player.position)
     sendState(true)
   } else if (viewDeck.def.zone && viewDeck !== zone.deck && viewDeck !== arena.deck) setView(deck)
-  // La baie infestée : ses portes s'ouvrent devant l'équipe ; ses murs s'estompent devant le joueur
-  // (ou devant le coéquipier que suit la caméra).
+  // La baie infestée : ses portes s'ouvrent devant l'équipe et devant les ennemis ; ses murs
+  // s'estompent devant le joueur (ou devant le coéquipier que suit la caméra).
   const bay = zone.deck
   if (bay) {
     bay.ceiling.visible = fpsShown
     const inside = [...remotes.values()].filter((r) => r.level === ZONE_LEVEL && r.group.visible).map((r) => r.group.position)
+    inside.push(...zone.doorActors)
     if (deck === bay) inside.push(player.position)
     bay.update(world, inside, viewDeck === bay ? (zone.watchTarget ?? player.position) : null, toCam, false, null, dt)
   }
@@ -6151,7 +6387,7 @@ function frame() {
   // Invite « E » au-dessus de l'objet le plus proche ; installé sur un meuble, au-dessus du
   // personnage : se relever (et ce que permet la place).
   const sitting = seating.settled && !gym.active && !riding && !editing() && !barPanel.isOpen
-  const near = gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen ? null : nearestInteractable()
+  const near = gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen || shipPicker.isOpen ? null : nearestInteractable()
   const sit = sitting ? seatPrompt(seating.current!) : null
   const label = sit ? `${sit.main}|${sit.space ?? ''}` : near?.label
   const keyName = usingGamepad ? 'A / ×' : 'E'

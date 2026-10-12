@@ -4,32 +4,46 @@ import { baseKraitPower } from '../furniture/hangar'
 import { tr } from '../i18n'
 import type { ChiefState } from '../net'
 import type { Player } from '../player'
-import { BASE_ARRIVAL, BASE_BURN, HANGAR_ARRIVAL } from '../../shared/ground-base.js'
+import type { EdShipId } from '../ed-ships'
+import { chosenShip, ShipBay } from '../ship-bay'
+import { BASE_ARRIVAL, BASE_BURN, BASE_KRAIT, HANGAR_ARRIVAL } from '../../shared/ground-base.js'
 import { CHIEF, Chief, chiefRig, type ChiefReport } from './chief'
 import { FlightScreen } from './flight'
 import { loadBaseKit } from './kit'
 import { baseLevel } from './level'
 
 /*
- * La base au sol, côté joueur : le voyage en Krait entre le hangar de la cale et l'avant-poste
- * Bradbury, dans les deux sens, et ce qui s'y passe (Ada, la cheffe de la base ; le Krait posé sur
- * son aire).
+ * La base au sol, côté joueur : le voyage entre le hangar de la cale et l'avant-poste Bradbury,
+ * dans les deux sens, à bord du vaisseau choisi au registre du hangar (le Krait Mk II d'abord, cf.
+ * ship-bay.ts), et ce qui s'y passe (Ada, la cheffe de la base ; notre vaisseau posé sur son aire).
  *
- * Aux commandes d'un Krait (celui du hangar, ou celui de la base), Espace met les réacteurs en
- * route ; Espace encore, réacteurs allumés : on décolle. L'écran de voyage (cf. flight.ts) couvre
+ * Aux commandes (au hangar, ou sur la base), Espace met les réacteurs en route ; Espace encore,
+ * réacteurs allumés : on décolle. L'écran de voyage (cf. flight.ts) couvre
  * le changement de pont ; au premier départ, il couvre aussi le chargement de la base (les modèles
  * du Space Kit, la cheffe), qui n'est construite qu'alors.
  */
 
 /** Quand un autre CMDR met les gaz sur l'aire, et qu'on est sur la base. */
 const LIFTOFF = [
-  tr('Les réacteurs du Krait rugissent sur l\'aire. Quelqu\'un s\'en va.', 'The Krait\'s thrusters roar on the pad. Someone is leaving.'),
+  tr('Des réacteurs rugissent sur l\'aire. Quelqu\'un s\'en va.', 'Thrusters roar on the pad. Someone is leaving.'),
 ]
 
 /** Ce qu'on lit en mettant les réacteurs en route sur la base. */
 const IGNITION = [
-  tr('Les réacteurs du Krait s\'éveillent. La poussière rouge se soulève tout autour de l\'aire. Espace pour décoller.', 'The Krait\'s thrusters wake up. Red dust rises all around the pad. Space to take off.'),
-  tr('Contact ! Le Krait tremble sur son train. Au pied de la tour, Ada lève la main. Espace pour décoller.', 'Ignition! The Krait shudders on its gear. At the foot of the tower, Ada raises a hand. Space to take off.'),
+  tr('Les réacteurs de ton {ship} s\'éveillent. La poussière rouge se soulève tout autour de l\'aire. Espace pour décoller.', 'Your {ship}\'s thrusters wake up. Red dust rises all around the pad. Space to take off.'),
+  tr('Contact ! Ton {ship} tremble sur son train. Au pied de la tour, Ada lève la main. Espace pour décoller.', 'Ignition! Your {ship} shudders on its gear. At the foot of the tower, Ada raises a hand. Space to take off.'),
+]
+
+/** Le vol vers la base n'a pas abouti (la base n'a pas pu se charger). */
+const TURNED_BACK = tr('Ton vaisseau fait demi-tour : la base ne répond pas. Réessayez dans un instant.', 'Your ship turns back: the base is not answering. Try again in a moment.')
+
+/** Espace aux commandes, quand un autre vaisseau met déjà les gaz sur l'aire (le relais n'en suit qu'un à la fois). */
+const WAIT = tr('Un autre vaisseau met déjà les gaz sur l\'aire. Attends que la poussière retombe.', 'Another ship is already throttling up on the pad. Wait for the dust to settle.')
+
+/** Ce qu'on lit en examinant son vaisseau, posé sur l'aire. */
+const PARKED = [
+  tr('Ton {ship}, posé sur l\'aire de l\'avant-poste. De la poussière rouge s\'est déjà glissée dans le train. Nico va adorer.', 'Your {ship}, parked on the outpost\'s pad. Red dust has already crept into the landing gear. Nico is going to love that.'),
+  tr('La coque craque en refroidissant. Pour rentrer au vaisseau : l\'escabeau, le cockpit, et Espace pour les réacteurs.', 'The hull creaks as it cools. To fly back to the ship: the ladder, the cockpit, and Space for the thrusters.'),
 ]
 
 const pick = <T,>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)]
@@ -46,7 +60,7 @@ export interface GroundBaseHost {
   built: (deck: Deck, chief: Chief) => void
   /** Change de pont (écran couvert) : le joueur y arrive à cet endroit. */
   arrive: (deck: Deck, at: { x: number; z: number; yaw: number }) => void
-  /** Réacteurs du Krait de la base, en route ou coupés : le relais le sait. */
+  /** Réacteurs du vaisseau de la base, en route ou coupés : le relais le sait. */
   engines: (on: boolean) => void
   /** Texte dans la boîte de dialogue. */
   show: (text: string) => void
@@ -55,6 +69,8 @@ export interface GroundBaseHost {
   /** Grondement des réacteurs pendant le vol (rend de quoi le couper), et le posé. */
   roar: () => { stop: () => void } | undefined
   touchdown: () => void
+  /** La silhouette du vaisseau du joueur (vue de dessus, nez vers +x), pour l'écran de vol. */
+  silhouette: () => string | null
 }
 
 export class GroundBase {
@@ -63,7 +79,9 @@ export class GroundBase {
   private building: Promise<void> | null = null
   private readonly flight = new FlightScreen()
   private ladder?: Interactable
-  /** C'est le joueur local qui a mis les réacteurs du Krait de la base en route. */
+  /** Notre vaisseau, posé sur l'aire de la base (cf. ship-bay.ts). */
+  bay: ShipBay | null = null
+  /** C'est le joueur local qui a mis les réacteurs de son vaisseau, sur la base, en route. */
   private started = false
 
   constructor(private readonly host: GroundBaseHost) {}
@@ -78,51 +96,73 @@ export class GroundBase {
     return !!this.deck && this.host.here() === this.deck
   }
 
-  /** Charge et construit la base (une fois). */
+  /** Charge et construit la base (une fois ; un échec, le réseau, se retente au départ suivant). */
   prepare(): Promise<void> {
     return (this.building ??= (async () => {
       const [kit, rig] = await Promise.all([loadBaseKit(), chiefRig()])
       const deck = new Deck(baseLevel(kit))
       const chief = new Chief(rig, deck)
-      this.ladder = deck.interactables.find((it) => it.furniture?.model === 'krait-ladder')
-      const krait = deck.interactables.find((it) => it.furniture?.model === 'krait-mk2')
-      // Aux commandes, c'est le Krait qui reste net (on est dans son cockpit), pas l'escabeau.
-      if (this.ladder && krait) this.ladder.keep = krait.object.position
+      // Notre vaisseau, là où se posait le Krait : nez à l'ouest, vers les bâtiments.
+      const bay = new ShipBay({ deck, pad: { x: BASE_KRAIT.x, z: BASE_KRAIT.z, rot: 3 }, power: baseKraitPower })
+      bay.hull.text = () => {
+        const line = PARKED[Math.floor(Math.random() * PARKED.length)]
+        return line.split('{ship}').join(bay.info?.name ?? 'Krait Mk II')
+      }
+      await bay.set(chosenShip())
+      this.bay = bay
+      this.ladder = bay.cockpit
       this.deck = deck
       this.chief = chief
       this.host.built(deck, chief)
-    })())
+    })().catch((e) => {
+      this.building = null
+      throw e
+    }))
   }
 
-  /** Le joueur local est aux commandes du Krait de la base. */
+  /** Le joueur local est aux commandes de son vaisseau, sur la base. */
   get aboardKrait(): boolean {
     const seat = this.host.seat()
     return this.here && !!seat && seat.item === this.ladder
   }
 
-  /** Les réacteurs du Krait de la base tournent (le joueur local ou un autre les a mis en route). */
+  /** Nos réacteurs tournent, sur la base : nous les avons mis en route (chacun son vaisseau). */
   get engines(): boolean {
+    return this.started && !!this.chief?.burning
+  }
+
+  /** Des réacteurs tournent sur l'aire, les nôtres ou ceux d'un autre CMDR (le grondement, Ada qui salue). */
+  get roaring(): boolean {
     return !!this.chief?.burning
   }
 
-  /** Aux commandes du Krait de la base, Espace : les réacteurs démarrent ; allumés, on décolle. */
+  /** Aux commandes, sur la base, Espace : les réacteurs démarrent ; allumés, on décolle. */
   seatAction() {
     if (!this.aboardKrait) return
     if (this.engines) return void this.fly(false)
+    // Ceux d'un autre tournent déjà : le relais n'en suit qu'un à la fois (cf. setBaseBurn), on attend.
+    if (this.roaring) return this.host.show(WAIT)
     this.started = true
     this.chief?.setBurn(BASE_BURN, true)
     this.host.engines(true)
-    this.host.show(pick(IGNITION))
+    this.host.show(pick(IGNITION).split('{ship}').join(this.bay?.info?.name ?? 'Krait Mk II'))
   }
 
-  /** Le relais : la ronde d'Ada, et les réacteurs du Krait de la base. */
+  /** Le joueur a choisi un autre vaisseau au registre du hangar : il l'attend aussi sur la base. */
+  setShip(id: EdShipId) {
+    this.bay?.set(id).catch((e) => console.error(e))
+  }
+
+  /** Le relais : la ronde d'Ada, et les réacteurs sur l'aire de la base. */
   sync(s: ChiefState, from: number, self: number) {
-    const was = this.engines
+    const was = this.roaring
     this.chief?.sync(s)
-    if (!was && this.engines && from !== self && this.here) this.host.show(pick(LIFTOFF))
+    // Deux départs à la fois, à la latence près : le premier arrivé au relais l'emporte, et les nôtres ne tournent pas.
+    if (s.burn > 0 && s.pilot !== undefined && s.pilot !== self) this.started = false
+    if (!was && this.roaring && from !== self && this.here) this.host.show(pick(LIFTOFF))
   }
 
-  /** On parle à Ada. */
+  /** On parle à Ada (elle parle de notre vaisseau, celui de l'aire). */
   talk(report: ChiefReport): string | null {
     if (!this.chief) return null
     const line = this.chief.talk(this.host.player.position, report)
@@ -131,7 +171,7 @@ export class GroundBase {
 
   /**
    * Le voyage : du hangar vers la base (`down`), ou de la base vers le hangar. Le joueur quitte le
-   * cockpit, l'écran de vol couvre tout, et il pose le pied au pied de l'escabeau de l'autre Krait.
+   * cockpit, l'écran de vol couvre tout, et il pose le pied au pied de l'escabeau, à l'autre bout.
    */
   async fly(down: boolean) {
     if (this.flying) return
@@ -146,32 +186,36 @@ export class GroundBase {
           ? tr(`Quatrième planète de ${this.host.system()}`, `Fourth planet of ${this.host.system()}`)
           : tr(`En orbite de ${this.host.system()}`, `In orbit around ${this.host.system()}`),
         ready,
+        ship: this.host.silhouette(),
         swap: () => {
           stop()
           if (this.started) this.host.engines(false)
           this.started = false
           if (down && this.deck) this.host.arrive(this.deck, BASE_ARRIVAL)
           else if (!down) this.host.arrive(this.host.hold, HANGAR_ARRIVAL)
+          // La base n'a pas pu se construire (le réseau) : on reste au hangar, et on le dit.
+          else this.host.show(TURNED_BACK)
           this.host.touchdown()
         },
       })
     } catch (e) {
       stop()
       console.error(e)
-      this.host.show(tr('Le Krait fait demi-tour : la base ne répond pas. Réessayez dans un instant.', 'The Krait turns back: the base is not answering. Try again in a moment.'))
+      this.host.show(TURNED_BACK)
     }
   }
 
-  /** À chaque image : la cheffe, et les tuyères du Krait de la base. */
+  /** À chaque image : la cheffe, et les tuyères de notre vaisseau sur la base. */
   update(dt: number) {
+    this.bay?.update(performance.now() / 1000)
     const { chief, deck } = this
     if (!chief || !deck) return
     const here = this.here
     chief.update(dt, here ? this.host.player.position : null)
     const aboard = this.aboardKrait
     // Descendu du cockpit : ses réacteurs se coupent avec lui.
-    if (this.started && (!aboard || !this.engines) && !this.flying) {
-      if (this.engines) {
+    if (this.started && (!aboard || !chief.burning) && !this.flying) {
+      if (chief.burning) {
         this.host.engines(false)
         chief.setBurn(0, true)
       }

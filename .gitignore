@@ -6,3 +6,6 @@ dist
 # Secrets locaux (clé YouTube du relais de dev)
 .env.local
 .env.*.local
+
+# Statistiques de l'arène gardées par le relais (cf. server/arena-stats.js)
+var/

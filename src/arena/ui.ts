@@ -1,13 +1,18 @@
 import { tr } from '../i18n'
 import { icon } from '../icons'
-import type { ArenaEnd, ArenaLobby, ArenaRoom } from '../net'
+import type { ArenaCharacterStats, ArenaEnd, ArenaLobby, ArenaRoom, ArenaStats } from '../net'
 import { button, el, Modal } from '../salvage/ui'
 import { ARENA_MAPS, ARENA_RULES, ARENA_TEAMS, DEFAULT_CHARACTER, arenaMap, arenaZone, type ArenaMapId, type CharacterId } from '../../shared/arena.js'
-import { CHARACTERS, characterById, gauges, type Character } from './characters'
+import { CHARACTERS, characterById, type Character } from './characters'
+import { arrow, moveFocus } from './nav'
+import { loadPortraits } from './portraits'
+import { CharacterPicker, faceOf } from './select'
+import { arenaFx } from './settings'
 
 /*
  * Interface de l'arène : le terminal (à gauche, les quatre lobbys où l'on se place ; à droite, les
- * deux camps face à face, le choix du personnage et sa fiche, les réglages, « prêt »), puis en
+ * deux camps face à face, le choix du personnage et sa fiche, cf. select.ts, les réglages, « prêt » ;
+ * on s'y déplace aussi aux flèches et à la manette, cf. nav.ts), puis en
  * partie le score des deux équipes et le chrono, les points de vie, le fil des éliminations,
  * l'écran d'attente de celui qui vient d'être éliminé, et l'écran de fin, posé sur la scène où les
  * combattants s'alignent (cf. podium.ts).
@@ -22,7 +27,7 @@ const mapName = (id: string) => tr(...arenaMap(id).name)
 const MAP_BLURBS: Record<ArenaMapId, string> = {
   bay: tr('Le stade de CMDR Arena : trois allées, des tribunes pleines.', 'The CMDR Arena stadium: three lanes, packed stands.'),
   guardian: tr('Des ruines gardiennes, de nuit, sur deux hauteurs : le promontoire de la relique domine.', 'Guardian ruins at night, on two levels: the relic\'s ridge looms over all.'),
-  hive: tr('Une ruche thargoïde : un octogone, la chambre du cœur au milieu.', 'A Thargoid hive: an octagon, the heart chamber at its centre.'),
+  hive: tr('Une ruche thargoïde en chrysalide : au milieu, la chambre du cœur et ses quatre portes.', 'A chrysalis-shaped Thargoid hive: the heart chamber and its four doors at its centre.'),
 }
 /** Couleurs de la vignette de chaque plan : le sol, les obstacles, les buissons. */
 const MAP_TINTS: Record<ArenaMapId, [string, string, string]> = {
@@ -68,8 +73,8 @@ export interface ArenaPanelActions {
   watch(room: number): void
 }
 
-/** Sa pastille : l'icône du personnage, à sa couleur. */
-function badge(c: Character, className = 'arena-badge-char'): HTMLElement {
+/** Sa pastille : l'icône du personnage, à sa couleur (le fil des éliminations). */
+function badge(c: Character, className: string): HTMLElement {
   const b = el('span', className)
   b.style.setProperty('--char', c.color)
   b.append(icon(c.icon))
@@ -77,54 +82,18 @@ function badge(c: Character, className = 'arena-badge-char'): HTMLElement {
 }
 
 /**
- * Le choix du personnage, au terminal : une rangée de six portraits (sa pastille, son nom, son rôle),
- * et dessous la fiche de celui qu'on a choisi : son arme, ce qu'il fait, et ses six jauges.
+ * Les boutons de la manette qui ont un raccourci au terminal (cf. ArenaPanel.shortcuts) ; la croix,
+ * A et B y mènent le cadre de sélection du jeu, comme partout (cf. src/pad-ui.ts).
  */
-function roster(current: CharacterId, pick: (id: CharacterId) => void): HTMLElement {
-  const box = el('div', 'arena-roster')
-  const row = el('div', 'arena-chars')
-  row.setAttribute('role', 'radiogroup')
-  row.setAttribute('aria-label', tr('Personnage', 'Character'))
-  for (const c of CHARACTERS) {
-    const b = button('', () => pick(c.id), `arena-char${c.id === current ? ' on' : ''}`)
-    b.setAttribute('role', 'radio')
-    b.setAttribute('aria-checked', String(c.id === current))
-    b.dataset.key = `char-${c.id}`
-    b.style.setProperty('--char', c.color)
-    b.append(badge(c), el('strong', '', c.name), el('span', '', c.role))
-    row.append(b)
-  }
-  const c = characterById(current)
-  const card = el('article', 'arena-sheet')
-  card.style.setProperty('--char', c.color)
-  const head = el('header')
-  const title = el('div')
-  title.append(el('strong', '', c.full), el('span', '', `${c.role} · ${c.arm.name}`))
-  head.append(badge(c), title)
-  const bars = el('dl', 'arena-gauges')
-  for (const g of gauges(c)) {
-    const cell = el('div')
-    const bar = el('i')
-    bar.style.setProperty('--fill', `${Math.round(Math.max(0.04, g.value) * 100)}%`)
-    cell.append(el('dt', '', g.label), bar, el('dd', '', g.text))
-    bars.append(cell)
-  }
-  card.append(head, el('p', 'arena-sheet-play', play(c)), bars, el('p', 'arena-sheet-quip', `« ${c.quip} »`))
-  box.append(row, card)
-  return box
+export interface PanelPad {
+  action: boolean
+  next: boolean
+  rotateLeft: boolean
+  rotateRight: boolean
 }
 
-/** Comment il se joue, en une phrase. */
-function play(c: Character): string {
-  switch (c.id) {
-    case 'rourke': return tr('Des rafales régulières à moyenne portée. Il va partout, sans exceller nulle part : le bon choix pour commencer.', 'Steady bursts at mid range. He goes anywhere without excelling anywhere: the right pick to start with.')
-    case 'marcel': return tr('Ses tomates éclatent à l\'impact et éclaboussent autour. Lent et très solide, il doit s\'approcher : de loin, il ne fait rien.', 'His tomatoes burst on impact and splash around. Slow and very sturdy, he has to close in: at range he does nothing.')
-    case 'nico': return tr('Le laser porte loin, frappe fort et traverse. Le plus rapide, le plus fragile : on tire, on bouge, on ne se fait pas toucher. Boulon voit dans les buissons proches.', 'The laser reaches far, hits hard and pierces. Fastest and frailest: shoot, move, don\'t get hit. Bolt sees into nearby bushes.')
-    case 'betty': return tr('Ses seringues soignent les coéquipiers blessés et piquent ceux d\'en face. Peu de dégâts : elle tient son équipe en vie.', 'Her syringes heal wounded teammates and sting the other side. Low damage: she keeps her team alive.')
-    case 'capucine': return tr('Elle lance par-dessus les obstacles des graines qui deviennent des fleurs carnivores : elles mordent qui passe, un moment. Deux à la fois.', 'She lobs seeds over obstacles that grow into carnivorous flowers: they bite whoever walks by, for a while. Two at a time.')
-    case 'jacques': return tr('Ses cocktails, lancés par-dessus les obstacles, éclatent et laissent une flaque qui brûle : de quoi fermer un passage, ou punir un groupe.', 'His cocktails, lobbed over obstacles, burst and leave a burning puddle: enough to shut a lane, or punish a group.')
-  }
-}
+/** Ce qu'on tient en main : le terminal rappelle ses commandes (rien au doigt, tout se touche). */
+export type PanelControls = 'keyboard' | 'gamepad' | 'touch'
 
 /**
  * Le terminal de l'arène : à gauche, les quatre lobbys ; à droite, celui où l'on s'est placé, ses
@@ -135,17 +104,98 @@ export class ArenaPanel extends Modal {
   private self = -1
   private online = false
   private status = ''
-  character: CharacterId = DEFAULT_CHARACTER
+  private _character: CharacterId = DEFAULT_CHARACTER
+  private readonly picker: CharacterPicker
+  private readonly hints = el('p', 'arena-hints')
+  private controls: PanelControls = 'keyboard'
 
   constructor(private actions: ArenaPanelActions) {
     super(tr('CMDR ARENA · INSCRIPTIONS', 'CMDR ARENA · SIGN-UP'), tr('Duel par équipes', 'Team duel'))
     this.root.classList.add('arena-panel')
+    this.picker = new CharacterPicker(this._character, (id) => this.pick(id))
+    // Les visages arrivent : les équipes les montrent aussi.
+    this.picker.onFaces = () => { if (this.isOpen) this.render() }
+    // Sous le titre, les commandes du clavier ou de la manette.
+    ;(this.root.querySelector('.salvage-head') ?? this.root).append(this.hints)
+    this.hint()
+    // Au clavier : les flèches vont d'un bouton à l'autre, les chiffres choisissent le personnage,
+    // Échap replie d'abord la fiche détaillée (la fenêtre, elle, écoute Échap pour se fermer).
+    this.root.addEventListener('keydown', (e) => {
+      if (e.target instanceof HTMLElement && e.target.matches('input, textarea, select')) return
+      const dir = arrow(e.key)
+      if (dir) {
+        e.preventDefault()
+        moveFocus(this.body, dir[0], dir[1])
+      } else if (/^[1-6]$/.test(e.key) && !e.altKey && !e.ctrlKey && !e.metaKey && !this.room?.status.startsWith('play')) {
+        this.picker.pickNth(Number(e.key))
+      } else if (e.key === 'Escape' && this.picker.detailed) {
+        this.picker.toggleDetails(false)
+        e.preventDefault()
+        e.stopImmediatePropagation()
+      }
+    }, { capture: true })
+  }
+
+  get character(): CharacterId {
+    return this._character
+  }
+
+  set character(id: CharacterId) {
+    this._character = id
+    this.picker.set(id)
   }
 
   open() {
     this.status = ''
     this.render()
     this.show()
+    // Le focus sur son personnage, plutôt que sur la croix : Entrée ou A ne referment pas tout de suite.
+    this.picker.focus()
+    this.picker.resume()
+  }
+
+  /** Ce qu'on tient en main a changé : les commandes rappelées au pied du terminal suivent. */
+  setControls(mode: PanelControls) {
+    if (mode === this.controls) return
+    this.controls = mode
+    this.hint()
+  }
+
+  private hint() {
+    this.hints.hidden = this.controls === 'touch'
+    this.hints.replaceChildren()
+    const keys: [string, string][] = this.controls === 'gamepad'
+      ? [['✛', tr('Se déplacer', 'Move')], ['A', tr('Valider', 'Select')], ['B', tr('Retour', 'Back')], ['LB RB', tr('Personnage', 'Character')], ['Y', tr('Fiche', 'Stats')], ['X', tr('Prêt', 'Ready')]]
+      : [['← → ↑ ↓', tr('Se déplacer', 'Move')], [tr('Entrée', 'Enter'), tr('Valider', 'Select')], ['1–6', tr('Personnage', 'Character')], [tr('Échap', 'Esc'), tr('Fermer', 'Close')]]
+    for (const [key, what] of keys) {
+      const k = el('span')
+      k.append(el('kbd', '', key), what)
+      this.hints.append(k)
+    }
+  }
+
+  /**
+   * La manette au terminal : son cadre de sélection s'y promène à la croix, A presse, B revient (il
+   * joue Échap : la fiche détaillée se replie d'abord), comme dans tout le jeu (cf. src/pad-ui.ts) ;
+   * et ses raccourcis : LB et RB passent au personnage d'avant ou d'après, Y déplie la fiche, X dit
+   * « prêt ». Rend vrai si l'un d'eux a servi (le cadre de sélection ne s'en sert pas alors).
+   */
+  shortcuts(input: PanelPad): boolean {
+    const playing = this.room?.status === 'playing'
+    let used = false
+    if ((input.rotateLeft || input.rotateRight) && !playing) {
+      this.picker.cycle(input.rotateLeft ? -1 : 1)
+      used = true
+    }
+    if (input.next) {
+      this.picker.toggleDetails()
+      used = true
+    }
+    if (input.action) {
+      this.body.querySelector<HTMLButtonElement>('[data-key="ready"]')?.click()
+      used = true
+    }
+    return used
   }
 
   update(lobby: ArenaLobby, self: number, online: boolean) {
@@ -187,10 +237,10 @@ export class ArenaPanel extends Modal {
     if (focused) this.body.querySelector<HTMLElement>(`[data-key="${focused}"]`)?.focus()
   }
 
+  /** Le joueur choisit un personnage (sa carte le montre déjà, cf. CharacterPicker). */
   private pick(id: CharacterId) {
-    this.character = id
+    this._character = id
     this.actions.character(id)
-    this.render()
   }
 
   /** Un lobby, dans la colonne de gauche : son état, qui s'y trouve (une pastille par place), et l'on s'y place d'un clic. */
@@ -248,8 +298,38 @@ export class ArenaPanel extends Modal {
         `Two teams, up to ${ARENA_RULES.team} vs ${ARENA_RULES.team}, in the bay's stadium, deep in a Thargoid hive or among the ruins of a Guardian site. Everyone plays a crew member, with their own weapon and style. Solo against the bots, or with whoever plays with you: they fill the teams. Best of ${ARENA_RULES.rounds} rounds.`,
       )),
     )
-    stage.append(hero, el('span', 'arena-heading', tr('Votre personnage', 'Your character')), roster(this.character, (id) => this.pick(id)))
+    stage.append(hero, el('span', 'arena-heading', tr('Votre personnage', 'Your character')), this.picker.root)
+    stage.append(this.effects())
     stage.append(el('p', 'salvage-note', tr('Pour l\'honneur : CMDR Arena ne rapporte pas de crédits.', 'For honour only: CMDR Arena pays no credits.')))
+  }
+
+  /**
+   * Les effets visuels de la partie, pour soi (cf. settings.ts) : comme le mode léger du jeu, complets,
+   * ou réduits (pour un téléphone peu puissant ; ce qui renseigne la partie reste).
+   */
+  private effects(): HTMLElement {
+    const box = el('div', 'arena-choice arena-effects')
+    const label = tr('Effets visuels', 'Visual effects')
+    box.append(el('span', 'arena-heading', label))
+    const row = el('div', 'arena-segments')
+    row.setAttribute('role', 'radiogroup')
+    row.setAttribute('aria-label', label)
+    const options: [string, boolean | null][] = [[tr('Auto', 'Auto'), null], [tr('Complets', 'Full'), false], [tr('Réduits', 'Reduced'), true]]
+    options.forEach(([text, value], i) => {
+      const on = arenaFx.choice === value
+      const b = button(text, () => {
+        arenaFx.set(value)
+        this.render()
+      }, on ? 'on' : '')
+      b.setAttribute('role', 'radio')
+      b.setAttribute('aria-checked', String(on))
+      b.dataset.key = `fx-${i}`
+      row.append(b)
+    })
+    box.append(row, el('small', 'arena-effects-note', arenaFx.reduced
+      ? tr('Réduits : moins d\'éclats, ni fumée, ni braises, ni bulle ; les anneaux, plaques, cônes, traînées, pièges et chiffres restent.', 'Reduced: fewer sparks, no smoke, embers or bubble; rings, plates, cones, trails, traps and numbers stay.')
+      : tr('Complets. « Réduits » allège la partie sur un téléphone peu puissant, sans rien retirer d\'utile.', 'Full. “Reduced” lightens the match on a low-end phone, without removing anything useful.')))
+    return box
   }
 
   /** Son lobby : les deux camps face à face, son arme, les réglages du chef, « prêt ». */
@@ -270,11 +350,14 @@ export class ArenaPanel extends Modal {
       const slots = el('ul', 'arena-slots')
       for (const m of mates) {
         const li = el('li', `arena-slot${m.id === this.self ? ' me' : ''}${m.ready ? ' ready' : ''}`)
-        const c = characterById(m.character)
-        const chip = el('span', 'arena-chip', c.name)
-        chip.style.setProperty('--weapon', c.color)
-        li.append(icon(m.id === r.leader ? 'crown' : 'user-solo'), el('span', 'arena-slot-name', m.name + (m.id === this.self ? tr(' (vous)', ' (you)') : '')), chip)
-        li.append(el('span', 'arena-slot-state', m.ready ? tr('Prêt', 'Ready') : tr('En attente', 'Waiting')))
+        // Son personnage : celui qu'on vient de choisir pour soi, sans attendre l'écho du relais.
+        const c = characterById(m.id === this.self ? this._character : m.character)
+        const face = faceOf(c, 'arena-face mini')
+        face.title = c.name
+        const name = el('span', 'arena-slot-name')
+        if (m.id === r.leader) name.append(icon('crown'))
+        name.append(m.name + (m.id === this.self ? tr(' (vous)', ' (you)') : ''))
+        li.append(face, name, el('span', 'arena-slot-state', `${c.name} · ${m.ready ? tr('prêt', 'ready') : tr('en attente', 'waiting')}`))
         slots.append(li)
       }
       for (let i = mates.length; i < r.size; i++) {
@@ -295,7 +378,7 @@ export class ArenaPanel extends Modal {
     })
     stage.append(versus)
 
-    stage.append(el('span', 'arena-heading', tr('Votre personnage', 'Your character')), roster(me.character, (id) => this.pick(id)))
+    stage.append(el('span', 'arena-heading', tr('Votre personnage', 'Your character')), this.picker.root)
 
     // Réglages : le chef choisit ; les autres les voient.
     const settings = el('div', 'arena-settings')
@@ -348,6 +431,7 @@ export class ArenaPanel extends Modal {
     )
     stage.append(settings)
     if (!leader) stage.append(el('p', 'salvage-note', tr('Le chef du lobby (le premier arrivé, à la couronne) règle la partie ; un changement remet tout le monde en attente.', 'The lobby leader (first in, with the crown) sets the match; any change puts everyone back on standby.')))
+    stage.append(this.effects())
 
     const ready = r.members.filter((m) => m.ready).length
     const footer = el('div', 'arena-footer')
@@ -385,6 +469,10 @@ export class RankingPanel extends Modal {
   private revision = 0
   /** Le classement vient d'être lu : le tableau du mur se met à jour (cf. src/arena/client.ts). */
   onLoaded?: (ranking: Ranking) => void
+  /** Le panneau s'ouvre : demander au relais les statistiques des personnages (cf. showStats). */
+  askStats?: () => void
+  /** Sous le classement, les statistiques des personnages (elles arrivent du relais, à part). */
+  private readonly statsBox = el('section', 'arena-char-stats')
 
   constructor() {
     super(tr('CMDR ARENA · CLASSEMENT', 'CMDR ARENA · RANKING'), tr('Les meilleurs joueurs', 'Top players'))
@@ -395,11 +483,12 @@ export class RankingPanel extends Modal {
     const token = ++this.revision
     this.body.replaceChildren(el('p', 'salvage-intro', tr('Chargement…', 'Loading…')))
     this.show()
+    this.askStats?.()
     const ranking = await fetchRanking()
     if (token !== this.revision) return
     this.body.replaceChildren()
     if (!ranking) {
-      this.body.append(el('p', 'salvage-warn', tr('Le site ne répond pas. Fermez puis réessayez.', 'The site is unavailable. Close and try again.')))
+      this.body.append(el('p', 'salvage-warn', tr('Le site ne répond pas. Fermez puis réessayez.', 'The site is unavailable. Close and try again.')), this.statsBox)
       return
     }
     this.onLoaded?.(ranking)
@@ -435,6 +524,56 @@ export class RankingPanel extends Modal {
     this.body.append(table)
     const me = ranking.me
     if (me) this.body.append(el('p', 'salvage-note', tr(`Vous : ${me.rank}ᵉ, ${me.wins} victoire${me.wins > 1 ? 's' : ''} en ${me.played} partie${me.played > 1 ? 's' : ''}.`, `You: rank ${me.rank}, ${me.wins} win${me.wins === 1 ? '' : 's'} in ${me.played} match${me.played === 1 ? '' : 'es'}.`)))
+    this.body.append(this.statsBox)
+  }
+
+  /**
+   * Les statistiques des personnages, sur les parties des joueurs (cf. server/arena-stats.js) : leur
+   * taux de sélection et de victoire, leurs éliminations et chutes par partie, leurs dégâts et soins
+   * par minute, la durée d'une vie, leur précision et la portée de leurs coups ; et la précision par
+   * commande, souris, manette, doigt, tir rapide.
+   */
+  showStats(stats: ArenaCharacterStats) {
+    const box = this.statsBox
+    box.replaceChildren(el('h3', 'arena-heading', tr('Les personnages', 'The characters')))
+    if (!stats.games) {
+      box.append(el('p', 'salvage-note', tr('Pas encore de partie finie : les chiffres de chaque personnage viendront avec les premières.', 'No finished match yet: each character\'s numbers will come with the first ones.')))
+      return
+    }
+    const since = new Date(stats.since).toLocaleDateString(tr('fr-FR', 'en-GB'))
+    box.append(el('p', 'salvage-intro', tr(`${stats.games} partie${stats.games > 1 ? 's' : ''} depuis le ${since}, celles des joueurs (pas des bots).`, `${stats.games} match${stats.games > 1 ? 'es' : ''} since ${since}, players only (no bots).`)))
+    const pct = (x: number | null) => (x === null ? '—' : `${Math.round(x * 100)} %`)
+    const one = (x: number | null, digits = 1) => (x === null ? '—' : tr(x.toFixed(digits).replace('.', ','), x.toFixed(digits)))
+    const table = el('table', 'salvage-table arena-stat-table')
+    const head = el('tr')
+    for (const h of [tr('Personnage', 'Character'), tr('Choisi', 'Picked'), tr('Victoires', 'Wins'), tr('Élim.', 'Kills'), tr('Chutes', 'Deaths'), tr('Dégâts/min', 'Dmg/min'), tr('Soins/min', 'Heal/min'), tr('Vie (s)', 'Life (s)'), tr('Précision', 'Accuracy'), tr('Portée', 'Range')]) head.append(el('th', '', h))
+    table.append(el('thead'), el('tbody'))
+    table.tHead!.append(head)
+    for (const c of CHARACTERS) {
+      const r = stats.characters[c.id]
+      const row = el('tr')
+      const name = el('td', 'arena-stat-name', c.name)
+      name.style.setProperty('--char', c.color)
+      row.append(name)
+      const cells = r
+        ? [pct(r.pickRate), pct(r.winRate), one(r.kills), one(r.deaths), one(r.damage, 0), one(r.heals, 0), one(r.survival, 0), pct(r.accuracy), one(r.range)]
+        : Array(9).fill('—')
+      for (const v of cells) row.append(el('td', '', v))
+      table.tBodies[0].append(row)
+    }
+    box.append(table)
+    // La précision par commande, tous personnages confondus (pondérée par les tirs).
+    const parts: string[] = []
+    for (const [key, label] of [['mouse', tr('souris', 'mouse')], ['gamepad', tr('manette', 'gamepad')], ['touch', tr('doigt', 'touch')], ['assist', tr('tir rapide', 'quick shot')]] as const) {
+      let shots = 0, hits = 0
+      for (const r of Object.values(stats.controls[key] ?? {})) {
+        if (!r) continue
+        shots += r.shots
+        hits += (r.accuracy ?? 0) * r.shots
+      }
+      if (shots) parts.push(`${label} ${pct(hits / shots)}`)
+    }
+    if (parts.length) box.append(el('p', 'salvage-note', tr(`Précision par commande : ${parts.join(', ')}.`, `Accuracy by control: ${parts.join(', ')}.`)))
   }
 }
 
@@ -443,7 +582,32 @@ export type Relation = 'self' | 'ally' | 'enemy'
 /** Ce que le HUD montre d'un combattant dans le fil des éliminations. */
 export interface FeedName { name: string; rel: Relation }
 /** La plaque d'un combattant, au-dessus de sa tête : son nom, ses points de vie. */
-export interface PlateInfo { name: string; hp: number; /** Ses points de vie de départ. */ max: number; rel: Relation; shield: boolean; bot: boolean; /** Le joueur : son chargeur, de 0 à 1, et s'il est en train de le changer. */ ammo?: number; reloading?: boolean; /** Éliminé, en fantôme à sa base : secondes avant de revenir en jeu. */ wait?: number }
+export interface PlateInfo {
+  name: string; hp: number; /** Ses points de vie de départ. */ max: number; rel: Relation; shield: boolean; bot: boolean
+  /** Le joueur : son chargeur, de 0 à 1, et s'il est en train de le changer. */
+  ammo?: number; reloading?: boolean
+  /** Éliminé, en fantôme à sa base : secondes avant de revenir en jeu. */
+  wait?: number
+  /** Le joueur joue Betty : ce coéquipier blessé est à soigner (`heal`), ou il est au maximum de sa vie et sa seringue le traversera (`full`). */
+  heal?: boolean; full?: boolean
+}
+
+/** Une plaque : ses éléments, et ce qu'elle montrait (pour ne toucher au DOM que si cela change). */
+interface Plate {
+  root: HTMLElement
+  name: HTMLElement
+  fill: HTMLElement
+  /** Ce que le dernier coup a ôté, qui s'efface après la barre (on voit ce qu'on vient de perdre). */
+  lag: HTMLElement
+  value: HTMLElement
+  ammo: HTMLElement
+  shown: boolean
+  hp: number
+  max: number
+}
+
+/** Une graduation de la barre de vie tous les SEGMENT points : on y compte les coups qu'il reste à donner. */
+const SEGMENT = 25
 
 /**
  * En partie, à la façon de Brawl Stars : le score des deux camps (le sien en bleu, à gauche, celui
@@ -459,13 +623,16 @@ export class ArenaHud {
   private readonly clock = el('span', 'arena-clock')
   private readonly goal = el('span', 'arena-goal')
   private readonly plates = el('div', 'arena-plates')
-  private readonly plateOf = new Map<number, { root: HTMLElement; name: HTMLElement; fill: HTMLElement; value: HTMLElement; ammo: HTMLElement; shown: boolean }>()
+  private readonly plateOf = new Map<number, Plate>()
   private readonly feed = el('ul', 'arena-feed')
   private readonly wait = el('div', 'arena-wait')
   private readonly waitTitle = el('strong')
   private readonly waitClock = el('span')
   private readonly count = el('div', 'arena-count')
   private readonly vignette = el('div', 'arena-vignette')
+  /** D'où viennent les coups qu'on prend : un arc par tireur, autour de soi (cf. threats). */
+  private readonly threatBox = el('div', 'arena-threats')
+  private readonly threatArcs: HTMLElement[] = []
   private readonly end = el('section', 'arena-end')
   /** Les fiches de l'écran de fin, par combattant, et le bouton du retour (son compte à rebours). */
   private readonly cards = new Map<number, HTMLElement>()
@@ -504,7 +671,8 @@ export class ArenaHud {
     who.append(icon('eye'), el('em', '', tr('Spectateur', 'Spectating')), this.watchName)
     this.watchBar.hidden = true
     this.watchBar.append(previous, who, next)
-    this.root.append(this.plates, board, this.feed, this.quit, this.count, this.wait, this.watchBar)
+    this.threatBox.setAttribute('aria-hidden', 'true')
+    this.root.append(this.plates, this.threatBox, board, this.feed, this.quit, this.count, this.wait, this.watchBar)
     this.end.hidden = true
     this.end.setAttribute('role', 'dialog')
     this.end.setAttribute('aria-modal', 'true')
@@ -588,18 +756,23 @@ export class ArenaHud {
       const root = el('div', 'arena-plate')
       const name = el('span', 'arena-plate-name')
       const bar = el('div', 'arena-plate-bar')
+      const lag = el('s')
       const fill = el('i')
       const value = el('b')
-      bar.append(fill, value)
+      bar.append(lag, fill, value)
       const ammo = el('div', 'arena-plate-ammo')
       ammo.append(el('i'))
       root.append(name, bar, ammo)
       this.plates.append(root)
-      this.plateOf.set(id, (p = { root, name, fill, value, ammo, shown: true }))
+      this.plateOf.set(id, (p = { root, name, fill, lag, value, ammo, shown: true, hp: -1, max: -1 }))
     }
     if (p.shown !== !!at) p.root.hidden = !(p.shown = !!at)
     if (!at) return
-    p.root.className = `arena-plate ${info.rel}${info.shield ? ' shield' : ''}${info.reloading ? ' reloading' : ''}${info.wait !== undefined ? ' ghost' : ''}`
+    p.root.className = `arena-plate ${info.rel}${info.shield ? ' shield' : ''}${info.reloading ? ' reloading' : ''}${info.wait !== undefined ? ' ghost' : ''}${info.heal ? ' heal-target' : ''}${info.full ? ' full' : ''}`
+    if (p.max !== info.max) {
+      p.max = info.max
+      p.root.style.setProperty('--seg', `${((SEGMENT / Math.max(1, info.max)) * 100).toFixed(2)}%`)
+    }
     p.root.style.transform = `translate(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px) translate(-50%, -100%) scale(${(0.6 + 0.4 * near).toFixed(2)})`
     const name = info.bot ? `🤖 ${info.name}` : info.name
     if (p.name.textContent !== name) p.name.textContent = name
@@ -612,7 +785,18 @@ export class ArenaHud {
       return
     }
     const hp = Math.max(0, Math.round(info.hp))
-    p.fill.style.width = `${Math.min(100, (hp / Math.max(1, info.max)) * 100).toFixed(0)}%`
+    const width = `${Math.min(100, (hp / Math.max(1, info.max)) * 100).toFixed(0)}%`
+    p.fill.style.width = width
+    if (hp !== p.hp) {
+      // Ce qu'il vient de perdre reste un instant, puis s'efface ; ce qu'il regagne se voit tout de suite.
+      if (hp > p.hp) {
+        p.lag.style.transition = 'none'
+        p.lag.style.width = width
+        void p.lag.offsetWidth
+        p.lag.style.transition = ''
+      } else p.lag.style.width = width
+      p.hp = hp
+    }
     if (p.value.textContent !== String(hp)) p.value.textContent = String(hp)
     p.ammo.hidden = info.ammo === undefined
     if (info.ammo !== undefined) (p.ammo.firstElementChild as HTMLElement).style.width = `${(info.ammo * 100).toFixed(0)}%`
@@ -641,11 +825,37 @@ export class ArenaHud {
     note.hidden = false
   }
 
-  /** Touché : le bord de l'écran rougit un instant. */
-  hurt() {
-    this.vignette.classList.remove('flash')
+  /** Touché : le bord de l'écran rougit un instant (soigné : il verdit). */
+  hurt(heal = false) {
+    this.vignette.classList.remove('flash', 'heal')
     void this.vignette.offsetWidth
     this.vignette.classList.add('flash')
+    this.vignette.classList.toggle('heal', heal)
+  }
+
+  /**
+   * D'où viennent les coups qu'on prend : un arc à la couleur d'en face autour de soi (`center`, en
+   * pixels : ses pieds vu de dessus, la mire dans les yeux), tourné vers chaque tireur, qui s'efface.
+   * `angle` : 0 vers le haut de l'écran (devant soi), dans le sens des aiguilles d'une montre ;
+   * `alpha` : de 1 (il vient de tirer) à 0 ; `heavy` : un gros coup (l'arc est plus épais).
+   */
+  threats(list: { angle: number; alpha: number; heavy: boolean }[], center: { x: number; y: number } | null) {
+    this.threatBox.hidden = !center || !list.length
+    if (!center) return
+    this.threatBox.style.transform = `translate(${center.x.toFixed(1)}px, ${center.y.toFixed(1)}px)`
+    while (this.threatArcs.length < list.length) {
+      const arc = el('i', 'arena-threat')
+      this.threatBox.append(arc)
+      this.threatArcs.push(arc)
+    }
+    this.threatArcs.forEach((arc, i) => {
+      const t = list[i]
+      arc.hidden = !t
+      if (!t) return
+      arc.style.transform = `rotate(${t.angle.toFixed(3)}rad)`
+      arc.style.opacity = t.alpha.toFixed(2)
+      arc.classList.toggle('heavy', t.heavy)
+    })
   }
 
   /** Une élimination dans le fil : qui, avec quoi (le personnage, son arme), qui. */
@@ -670,12 +880,14 @@ export class ArenaHud {
 
   /**
    * L'écran de fin, par-dessus la scène où les combattants sont alignés : en haut, qui gagne et le
-   * score ; sous chaque combattant, sa fiche (éliminations, chutes, dégâts ; le joueur star) ; en
-   * bas, le retour au lobby.
+   * score ; sous chaque combattant, sa fiche (éliminations, chutes ou soins, dégâts, et sa part de
+   * ce qu'a fait son équipe ; le joueur star) ; en bas, le retour au lobby, à gauche le
+   * récapitulatif complet (précision, meilleure série…), à droite le personnage de la partie suivante.
    * @param order les combattants, de gauche à droite de la scène
    * @param title le verdict d'un spectateur (« Victoire de l'équipe Orange ») : pour lui, ni victoire ni défaite
+   * @param next le personnage du joueur pour la partie suivante, et quoi faire s'il en change (pas pour un spectateur)
    */
-  showEnd(r: ArenaEnd, team: number, self: number, order: number[], onBack: () => void, title?: string) {
+  showEnd(r: ArenaEnd, team: number, self: number, order: number[], onBack: () => void, title?: string, next?: { character: CharacterId; pick(id: CharacterId): void }) {
     this.end.replaceChildren()
     this.cards.clear()
     this.quit.hidden = true
@@ -702,6 +914,11 @@ export class ArenaHud {
     // Le joueur star : celui qui a le plus éliminé (à égalité, le plus blessé).
     const star = [...r.stats].sort((a, b) => b.kills - a.kills || b.damage - a.damage)[0]
     const cards = el('div', 'arena-cards')
+    // Sa part de ce qu'a fait son équipe : ses dégâts et ses soins, rapportés aux siens.
+    const share = (s: ArenaStats) => {
+      const total = r.stats.filter((x) => x.team === s.team).reduce((n, x) => n + x.damage + x.heal, 0)
+      return total ? (s.damage + s.heal) / total : 0
+    }
     for (const id of order) {
       const s = r.stats.find((x) => x.id === id)
       if (!s) continue
@@ -722,7 +939,12 @@ export class ArenaHud {
         cell.append(el('dd', '', String(value)), el('dt', '', label))
         stats.append(cell)
       }
-      card.append(name, role, stats)
+      // Sa part de l'équipe, en barre.
+      const part = el('p', 'arena-card-share')
+      const bar = el('i')
+      bar.style.setProperty('--fill', `${Math.round(share(s) * 100)}%`)
+      part.append(bar, el('span', '', tr(`${Math.round(share(s) * 100)} % de l'équipe`, `${Math.round(share(s) * 100)}% of the team`)))
+      card.append(name, role, stats, part)
       card.hidden = true
       cards.append(card)
       this.cards.set(id, card)
@@ -733,11 +955,84 @@ export class ArenaHud {
     }, 'arena-back', 'door-open')
     this.back = back
     this.backIn = ''
-    this.end.append(head, cards, back)
+    // Le récapitulatif complet : un tableau, les siens d'abord.
+    const recap = this.recap(r, team, self, share)
+    const open = button(tr('Récapitulatif', 'Summary'), () => {
+      recap.hidden = !recap.hidden
+      open.setAttribute('aria-expanded', String(!recap.hidden))
+      open.classList.toggle('on', !recap.hidden)
+    }, 'arena-end-recap', 'grid-four')
+    open.setAttribute('aria-expanded', 'false')
+    this.end.append(head, cards, recap, open, back)
+    // Le personnage de la partie suivante : on en change d'ici, il vaudra au retour au lobby.
+    if (next) this.end.append(this.nextPick(next))
     this.end.className = `arena-end ${verdict}${title ? ' watch' : ''}`
     this.end.hidden = false
     document.body.classList.add('arena-end-on')
     back.focus()
+  }
+
+  /** Le récapitulatif de fin : chaque combattant, ses éliminations, chutes, dégâts, soins, précision, meilleure série, part de l'équipe. */
+  private recap(r: ArenaEnd, team: number, self: number, share: (s: ArenaStats) => number): HTMLElement {
+    const box = el('section', 'arena-recap')
+    box.hidden = true
+    box.setAttribute('aria-label', tr('Récapitulatif de la partie', 'Match summary'))
+    const table = el('table', 'arena-recap-table')
+    const head = el('tr')
+    for (const h of [tr('Joueur', 'Player'), tr('Personnage', 'Character'), tr('Élim.', 'Kills'), tr('Chutes', 'Deaths'), tr('Dégâts', 'Damage'), tr('Soins', 'Heals'), tr('Précision', 'Accuracy'), tr('Série', 'Streak'), tr('Part', 'Share')]) head.append(el('th', '', h))
+    table.append(el('thead'), el('tbody'))
+    table.tHead!.append(head)
+    const rows = [...r.stats].sort((a, b) => Number(b.team === team) - Number(a.team === team) || b.kills - a.kills || b.damage - a.damage)
+    for (const s of rows) {
+      const tr_ = el('tr', s.id === self ? 'self' : s.team === team ? 'ally' : 'enemy')
+      const c = characterById(s.character)
+      const who = el('td', 'arena-recap-name')
+      if (s.bot) who.append(icon('robot'))
+      who.append(s.name)
+      const char = el('td', 'arena-recap-char', c.name)
+      char.style.setProperty('--char', c.color)
+      const accuracy = s.shots ? `${Math.round(((s.hits ?? 0) / s.shots) * 100)} %` : '—'
+      tr_.append(who, char)
+      for (const v of [s.kills, s.deaths, s.damage, s.heal || '—', accuracy, s.best ?? '—', `${Math.round(share(s) * 100)} %`]) tr_.append(el('td', '', String(v)))
+      table.tBodies[0].append(tr_)
+    }
+    box.append(table, el('p', 'arena-recap-note', tr(
+      'Précision : les projectiles qui ont blessé ou soigné (une graine dont la fleur a mordu, un cocktail dont l\'éclat ou la flaque a brûlé). Part : ses dégâts et ses soins, sur ceux de son équipe.',
+      'Accuracy: projectiles that hurt or healed (a seed whose flower bit, a cocktail whose blast or puddle burned). Share: damage and heals, out of the team\'s.',
+    )))
+    return box
+  }
+
+  /** Le personnage de la partie suivante : six visages ; le choisi ressort. */
+  private nextPick(next: { character: CharacterId; pick(id: CharacterId): void }): HTMLElement {
+    const box = el('nav', 'arena-next')
+    box.setAttribute('aria-label', tr('Personnage pour la partie suivante', 'Character for the next match'))
+    box.append(el('span', 'arena-next-label', tr('Partie suivante', 'Next match')))
+    const draw = (current: CharacterId) => {
+      for (const b of box.querySelectorAll<HTMLButtonElement>('button')) {
+        const on = b.dataset.key === `next-${current}`
+        b.classList.toggle('on', on)
+        b.setAttribute('aria-pressed', String(on))
+      }
+    }
+    for (const c of CHARACTERS) {
+      const b = button('', () => {
+        next.pick(c.id)
+        draw(c.id)
+      }, 'arena-next-pick')
+      b.dataset.key = `next-${c.id}`
+      b.title = c.name
+      b.setAttribute('aria-label', tr(`Jouer ${c.name} à la partie suivante`, `Play ${c.name} next match`))
+      b.style.setProperty('--char', c.color)
+      b.append(faceOf(c, 'arena-face mini'))
+      box.append(b)
+    }
+    draw(next.character)
+    // Les visages arrivent (ils se rendent à la première ouverture du terminal) : on les pose.
+    void loadPortraits().then(() => {
+      for (const c of CHARACTERS) box.querySelector(`[data-key="next-${c.id}"] .arena-face`)?.replaceWith(faceOf(c, 'arena-face mini'))
+    })
+    return box
   }
 
   /** Pose la fiche d'un combattant sous ses pieds (`at`, en pixels ; null : hors du cadre). */
@@ -760,4 +1055,5 @@ export class ArenaHud {
     this.end.hidden = true
     document.body.classList.remove('arena-end-on')
   }
+
 }

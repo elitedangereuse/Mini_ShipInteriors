@@ -112,6 +112,11 @@ export class MonsterView {
   }
 
   /** Distance du plus proche (en tuiles), pour le cœur qui bat. */
+  /** Où sont les ennemis (les sas s'ouvrent devant eux aussi). */
+  positions(): THREE.Vector3[] {
+    return [...this.monsters.values()].map((m) => m.root.position)
+  }
+
   nearest(p: { x: number; z: number }): number {
     let best = Infinity
     for (const m of this.monsters.values()) best = Math.min(best, Math.hypot(m.root.position.x - p.x, m.root.position.z - p.z))

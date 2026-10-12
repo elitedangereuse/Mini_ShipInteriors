@@ -1,6 +1,8 @@
 import * as THREE from 'three'
 import { BLASTER_PACK, packModel } from '../assets'
 import { chefRig } from '../chef'
+import { jacquesFace } from '../furniture/bar'
+import { recolored } from '../recolor'
 import { gardenerRig } from '../gardener'
 import { boxInBone, lookRig, parseLook, type LookRig } from '../looks'
 import { droidModel, mechanicRig } from '../mechanic'
@@ -8,7 +10,7 @@ import { nurseRig } from '../nurse'
 import { soldierRig } from '../patrol'
 import type { Weapon } from '../range-weapons'
 import { tr } from '../i18n'
-import { ARENA_CHARACTERS, CHARACTER_IDS, DEFAULT_CHARACTER, type CharacterId, type CharacterStats, type CharacterWeapon } from '../../shared/arena.js'
+import { ARENA_CHARACTERS, ARENA_PALETTE, CHARACTER_IDS, DEFAULT_CHARACTER, type CharacterId, type CharacterStats, type CharacterWeapon } from '../../shared/arena.js'
 import { ROSTER, type Identity } from './roster'
 
 /*
@@ -35,8 +37,13 @@ import { ROSTER, type Identity } from './roster'
 /** L'arme d'un personnage : ce que le moteur du stand en lit (cf. range-weapons.ts), et ses chiffres de l'arène. */
 export interface ArenaArm extends Weapon, CharacterWeapon {
   id: CharacterId
-  /** Le modèle du projectile qui vole (la tomate, la graine, le cocktail) ; sans : un trait lumineux. */
-  ammo?: () => THREE.Object3D
+  /**
+   * Le modèle du projectile qui vole (la tomate, la seringue, la graine, le cocktail) ; sans : un
+   * trait lumineux. `heal` : la seringue de Betty soignera (sa dose est vert d'eau, pas rose).
+   */
+  ammo?: (heal?: boolean) => THREE.Object3D
+  /** Le projectile vole tête en avant (la seringue), au lieu de tourner sur lui-même (la tomate). */
+  aligned?: boolean
 }
 
 /** Un personnage : qui il est (cf. roster.ts), ses chiffres, son arme et son modèle. */
@@ -130,6 +137,24 @@ function tomato(): THREE.Object3D {
   return g
 }
 
+/** La seringue de Betty, en vol (aiguille vers +z) : le corps de verre, sa dose, le piston, l'aiguille. */
+const BARREL = new THREE.CylinderGeometry(0.016, 0.016, 0.09, 10).rotateX(Math.PI / 2)
+const DOSE = new THREE.CylinderGeometry(0.0115, 0.0115, 0.06, 8).rotateX(Math.PI / 2).translate(0, 0, 0.008)
+const PLUNGER = new THREE.CylinderGeometry(0.022, 0.022, 0.008, 10).rotateX(Math.PI / 2).translate(0, 0, -0.05)
+const NEEDLE = new THREE.ConeGeometry(0.005, 0.05, 5).rotateX(Math.PI / 2).translate(0, 0, 0.07)
+const BARREL_MAT = new THREE.MeshBasicMaterial({ color: '#f2f8ff', transparent: true, opacity: 0.55, toneMapped: false })
+const STEEL_MAT = lambert('#c9d3dc')
+/** La dose : rose pour piquer ceux d'en face, vert d'eau pour soigner (cf. ARENA_PALETTE). */
+const DOSE_MAT = { attack: new THREE.MeshBasicMaterial({ color: '#ff5fa8', toneMapped: false }), heal: new THREE.MeshBasicMaterial({ color: ARENA_PALETTE.heal, toneMapped: false }) }
+
+function syringe(heal = false): THREE.Object3D {
+  const g = new THREE.Group()
+  g.add(new THREE.Mesh(DOSE, heal ? DOSE_MAT.heal : DOSE_MAT.attack), new THREE.Mesh(BARREL, BARREL_MAT), new THREE.Mesh(PLUNGER, STEEL_MAT), new THREE.Mesh(NEEDLE, STEEL_MAT))
+  // Assez grande pour se lire, vue de haut, à la vitesse où elle file.
+  g.scale.setScalar(1.6)
+  return g
+}
+
 // --------------------------------------------------------------- personnages
 
 /** Rourke : sa combinaison de la sécurité, sans son fusil laser (il a sa mitraillette, dans l'arène). */
@@ -140,15 +165,37 @@ async function rourkeRig(): Promise<LookRig> {
 }
 
 /**
+ * La peinture de Jacques sur le robot du kit : l'émail crème de son buste du comptoir à la place du
+ * gris bleuté, un bordeaux à la place du rouge vif ; les ombres et le noir restent.
+ */
+function enamel(src: THREE.Texture): THREE.Texture {
+  return recolored(src, 'jacques-enamel', (hsl, c) => {
+    if (hsl.l < 0.22) return
+    if (hsl.s > 0.45 && (hsl.h < 0.05 || hsl.h > 0.9)) c.setHSL(0.985, 0.62, Math.max(0.16, hsl.l * 0.55), THREE.SRGBColorSpace)
+    else if (hsl.s < 0.35) c.setHSL(0.11, 0.3, Math.min(0.92, 0.42 + hsl.l * 0.55), THREE.SRGBColorSpace)
+  })
+}
+
+/**
  * Jacques : il ne quitte jamais son comptoir, alors pour l'arène on lui a prêté des jambes (le
- * robot « Unité R-7 » du kit). Il a gardé l'essentiel : le béret, le nœud papillon rouge, le gilet
- * noir sur sa plastron crème, et le torchon sur l'épaule.
+ * robot « Unité R-7 » du kit), repeintes à l'émail crème de son buste. Il a gardé tout ce qu'on lui
+ * connaît au bar : son visage d'écran (deux yeux ambrés et sa moustache en guidon de vélo, qui
+ * clignent et frémissent comme au comptoir, cf. furniture/bar.ts), ses oreillettes, le béret, le nœud
+ * papillon rouge, le gilet noir sur sa plastron crème, sa plaque de laiton, et le torchon sur l'épaule.
  */
 async function jacquesRig(): Promise<LookRig> {
   const r = await lookRig(parseLook('robot.g'))
   const root = r.root
   root.updateMatrixWorld(true)
-  const black = lambert('#141519'), cream = lambert('#f4f1ea'), red = lambert('#b0202a'), brass = lambert('#c9a24a')
+  // Sa peinture à lui : les joueurs au robot du kit gardent la leur.
+  root.traverse((o) => {
+    const m = o as THREE.Mesh
+    if (!m.isMesh) return
+    const material = (m.material as THREE.MeshBasicMaterial).clone()
+    if (material.map) material.map = enamel(material.map)
+    m.material = material
+  })
+  const black = lambert('#141519'), cream = lambert('#f4f1ea'), red = lambert('#b0202a'), brass = lambert('#c9a24a'), steel = lambert('#3a3f47')
   const torso = root.getObjectByName('torso') as THREE.Mesh | undefined
   if (torso?.isMesh) {
     const tb = boxInBone(torso, torso)
@@ -170,10 +217,12 @@ async function jacquesRig(): Promise<LookRig> {
       button.position.set(c.x + size.x * 0.12, c.y + size.y * 0.1 - i * size.y * 0.13, front + size.z * 0.03)
       torso.add(button)
     }
-    // Le torchon, sur l'épaule gauche.
+    // Le torchon, sur l'épaule gauche ; la plaque de laiton, sur le gilet.
     const rag = new THREE.Mesh(new THREE.BoxGeometry(size.x * 0.22, size.y * 0.04, size.z * 0.7), cream)
     rag.position.set(c.x + size.x * 0.32, tb.max.y + size.y * 0.01, c.z)
-    torso.add(rag)
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(size.x * 0.2, size.y * 0.06, size.z * 0.03), brass)
+    plate.position.set(c.x - size.x * 0.2, c.y + size.y * 0.12, front + size.z * 0.025)
+    torso.add(rag, plate)
   }
   const head = root.getObjectByName('head') as THREE.Mesh | undefined
   if (head?.isMesh) {
@@ -186,6 +235,22 @@ async function jacquesRig(): Promise<LookRig> {
     const stalk = new THREE.Mesh(new THREE.CylinderGeometry(size.x * 0.03, size.x * 0.02, size.y * 0.12, 5), lambert('#1b1b24'))
     stalk.position.set(c.x + size.x * 0.1, hb.max.y + size.y * 0.17, c.z - size.z * 0.03)
     head.add(beret, stalk)
+    // Son visage d'écran, celui du comptoir : un cadre sombre, les yeux ambrés et la moustache qui vivent.
+    const face = jacquesFace()
+    const bezel = new THREE.Mesh(new THREE.BoxGeometry(size.x * 0.84, size.y * 0.64, size.z * 0.04), lambert('#0c1a20'))
+    bezel.position.set(c.x, c.y - size.y * 0.04, hb.max.z + size.z * 0.01)
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(size.x * 0.76, size.y * 0.56), new THREE.MeshBasicMaterial({ map: face.texture }))
+    screen.position.set(c.x, c.y - size.y * 0.04, hb.max.z + size.z * 0.035)
+    // Il cligne et frémit à l'image : on le dessine quand on le voit.
+    screen.onBeforeRender = () => face.tick(performance.now() / 1000, 'calm')
+    // Ses oreillettes d'antenne, de chaque côté.
+    const ears = [-1, 1].map((side) => {
+      const ear = new THREE.Mesh(new THREE.CylinderGeometry(size.y * 0.13, size.y * 0.13, size.x * 0.08, 12), steel)
+      ear.rotation.z = Math.PI / 2
+      ear.position.set(c.x + side * (size.x * 0.5 + size.x * 0.03), c.y, c.z)
+      return ear
+    })
+    head.add(bezel, screen, ...ears)
   }
   return { ...r, height: r.height + 0.04 }
 }
@@ -225,21 +290,21 @@ export const CHARACTERS: Character[] = [
   {
     ...ROSTER.betty, id: 'betty', stats: ARENA_CHARACTERS.betty, rig: nurseRig,
     arm: arm('betty', {
-      trait: tr('soigne', 'heals'), model: 'blaster-b', grip: [-0.08, -0.12], color: '#ff7bc0', sound: 'syringe',
+      trait: tr('soigne', 'heals'), model: 'blaster-b', grip: [-0.08, -0.12], ammo: syringe, aligned: true, color: '#ff7bc0', sound: 'syringe',
       kick: 1, side: 0.3, recover: 8, bloom: 0.7, bloomMax: 2.5, settle: 6, move: 0.4, punch: 0.7,
     }),
   },
   {
     ...ROSTER.capucine, id: 'capucine', stats: ARENA_CHARACTERS.capucine, rig: gardenerRig,
     arm: arm('capucine', {
-      trait: tr('pièges', 'traps'), model: '', grip: [0, 0], make: seedBag, ammo: seed, color: '#8ad94a', sound: 'throw',
+      trait: tr('pièges', 'traps'), model: '', grip: [0, 0], make: seedBag, ammo: seed, color: '#8ad94a', sound: 'seed',
       kick: 0.6, side: 0.2, recover: 6, bloom: 0, bloomMax: 0, settle: 6, move: 0, punch: 0.5,
     }),
   },
   {
     ...ROSTER.jacques, id: 'jacques', stats: ARENA_CHARACTERS.jacques, rig: jacquesRig,
     arm: arm('jacques', {
-      trait: tr('flambe', 'flambé'), model: '', grip: [0.08, 0], make: cocktail, ammo: thrownCocktail, color: '#b6ff3a', sound: 'throw',
+      trait: tr('flambe', 'flambé'), model: '', grip: [0.08, 0], make: cocktail, ammo: thrownCocktail, color: '#b6ff3a', sound: 'cocktail',
       kick: 0.8, side: 0.2, recover: 6, bloom: 0, bloomMax: 0, settle: 6, move: 0, punch: 0.6,
     }),
   },
@@ -268,6 +333,9 @@ export function warmCharacters() {
  * vitesse, dégâts d'un coup, portée, cadence (coups par seconde) et zone d'impact (rayon de
  * l'explosion, des mâchoires d'une fleur ou de la flaque). Chacune rapportée au meilleur des six.
  */
+/** Un nombre écrit, à la française (virgule) ou à l'anglaise. */
+const dec = (n: string) => tr(n.replace('.', ','), n)
+
 export function gauges(c: Character): { label: string; value: number; text: string }[] {
   const zone = (w: CharacterWeapon) => Math.max(w.blast, w.flower?.radius ?? 0, w.fire?.radius ?? 0)
   const rate = (w: CharacterWeapon) => 1 / w.interval
@@ -276,11 +344,11 @@ export function gauges(c: Character): { label: string; value: number; text: stri
   const row = (label: string, f: (x: Character) => number, text: string) => ({ label, value: f(c) / best(f), text })
   return [
     row(tr('Vie', 'Health'), (x) => x.stats.hp, String(c.stats.hp)),
-    row(tr('Vitesse', 'Speed'), (x) => x.stats.speed, `×${c.stats.speed.toFixed(2)}`),
+    row(tr('Vitesse', 'Speed'), (x) => x.stats.speed, `×${dec(c.stats.speed.toFixed(2))}`),
     row(tr('Dégâts', 'Damage'), (x) => x.stats.weapon.damage * x.stats.weapon.pellets, w.heal ? `${w.damage} · +${w.heal}` : String(w.damage)),
     row(tr('Portée', 'Range'), (x) => x.stats.weapon.range, tr(`${w.range} cases`, `${w.range} tiles`)),
-    row(tr('Cadence', 'Rate'), (x) => rate(x.stats.weapon), tr(`${rate(w).toFixed(1)} / s`, `${rate(w).toFixed(1)}/s`)),
-    row(tr('Zone', 'Area'), (x) => zone(x.stats.weapon), zone(w) ? tr(`${zone(w)} case${zone(w) > 1 ? 's' : ''}`, `${zone(w)} tiles`) : '—'),
+    row(tr('Cadence', 'Rate'), (x) => rate(x.stats.weapon), tr(`${dec(rate(w).toFixed(1))} / s`, `${rate(w).toFixed(1)}/s`)),
+    row(tr('Zone', 'Area'), (x) => zone(x.stats.weapon), zone(w) ? tr(`${dec(String(zone(w)))} case${zone(w) >= 2 ? 's' : ''}`, `${zone(w)} tiles`) : '—'),
   ]
 }
 

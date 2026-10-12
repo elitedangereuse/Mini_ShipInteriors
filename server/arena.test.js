@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createArena } from './arena.js'
 import {
-  ARENA_CHARACTERS as C, ARENA_LEVEL, ARENA_MAPS, ARENA_RULES as R, CHARACTER_IDS, DEFAULT_CHARACTER, arenaGround, arenaHidden, arenaSight, arenaZone, blastDamage, bushSight, castArena, inBush, lobTarget,
+  ARENA_CHARACTERS as C, ARENA_LEVEL, ARENA_MAPS, ARENA_RULES as R, CHARACTER_IDS, DEFAULT_CHARACTER, arenaGround, arenaHidden, arenaSight, arenaZone, blastDamage, bushSight, castArena, inBush, lobTarget, shotOrigin,
 } from '../shared/arena.js'
 import { findPath, mulberry32 } from '../shared/salvage.js'
 
@@ -182,15 +182,15 @@ test('arène : le chef choisit le plan ; la partie s\'y joue, et le relais n\'ac
   for (const p of [a, b]) h.arrive(p)
   const game = h.arena.gameOf(a)
   assert.equal(game.zone.id, 'hive')
-  // Après le coup d'envoi (avant, chacun reste dans sa base) : le coin de l'octogone est hors du
+  // Après le coup d'envoi (avant, chacun reste dans sa base) : le coin de la chrysalide est hors du
   // terrain ; le cœur de la ruche, un obstacle.
   h.advance(R.warmup + 0.1)
-  h.put(a, 2, 3)
-  assert.ok(h.arena.accepts(a, 2.5, 3.4))
-  assert.ok(!h.arena.accepts(a, 1.4, 3))
-  h.put(a, 7, 8)
-  assert.ok(h.arena.accepts(a, 7.4, 8))
-  assert.ok(!h.arena.accepts(a, 7.6, 8))
+  h.put(a, 1, 3)
+  assert.ok(h.arena.accepts(a, 1.4, 3.4))
+  assert.ok(!h.arena.accepts(a, 0.4, 3))
+  h.put(a, 9, 7)
+  assert.ok(h.arena.accepts(a, 9.4, 7))
+  assert.ok(!h.arena.accepts(a, 9.6, 7))
 })
 
 test('arène : une balle s\'arrête sur un conteneur, une cloison, le sol, ou un combattant debout', () => {
@@ -631,12 +631,17 @@ test('arène : la graine de Capucine passe par-dessus un conteneur, et la fleur 
   assert.deepEqual(shot.to, [9, 2])
   h.advance(shot.dur + 0.1)
   assert.deepEqual(game.traps.map((x) => [x.kind, x.team, x.x, x.z]), [['flower', 0, 9, 2]])
-  // Elle sort de terre, puis mord, une fois par intervalle.
-  h.advance(seed.flower.grow + seed.flower.every * 2 + 0.05)
+  // Elle sort de terre, s'arme (on voit sur qui, et dans combien de temps elle mord), puis mord, une fois par intervalle.
+  h.advance(seed.flower.grow + 0.1)
+  const armed = h.last(2, 'arena:state').traps[0]
+  assert.equal(armed.kind, 'flower')
+  assert.equal(armed.aim, 2)
+  assert.ok(armed.strike > 0 && armed.strike <= seed.flower.windup)
+  assert.equal(h.events(2, 'hit').filter((e) => e.trap).length, 0, 'pas encore')
+  h.advance(seed.flower.windup + seed.flower.every * 2 + 0.05 - 0.1)
   const bites = h.events(2, 'hit').filter((e) => e.trap)
   assert.equal(bites.length, 3)
   assert.ok(bites.every((e) => e.id === 2 && e.by === 1 && e.dmg === seed.damage))
-  assert.equal(h.last(2, 'arena:state').traps[0].kind, 'flower')
   // Hors de portée de ses mâchoires, plus rien.
   h.put(b, 9, 5)
   const was = h.events(2, 'hit').length
@@ -653,6 +658,33 @@ test('arène : la graine de Capucine passe par-dessus un conteneur, et la fleur 
   // Elles fanent au bout de leur temps.
   h.advance(seed.flower.life + 0.1)
   assert.equal(game.traps.length, 0)
+})
+
+test('arène : la fleur de Capucine s\'arme avant de mordre ; qui sort à temps de sa portée y échappe', () => {
+  const h = harness()
+  const a = h.add(1), b = h.add(2)
+  const game = h.start(a, [b], { size: 1, bots: false }, { 1: 'capucine' })
+  h.advance(R.warmup + R.shield)
+  const seed = C.capucine.weapon
+  h.put(a, 5, 5)
+  h.put(b, 12, 5)
+  h.arena.handle(a, 'arena:fire', { o: [5, R.aim, 5], d: [[1, 0, 0]], r: 4 })
+  h.advance(1)
+  assert.equal(game.traps.length, 1)
+  const flower = game.traps[0]
+  // Il approche : elle s'arme sur lui…
+  h.put(b, flower.x + 1, flower.z)
+  h.advance(0.1)
+  assert.equal(h.last(2, 'arena:state').traps[0].aim, 2)
+  // … et il recule hors de portée avant qu'elle ne morde : rien.
+  h.put(b, flower.x + seed.flower.radius + 1, flower.z)
+  h.advance(seed.flower.windup + 0.1)
+  assert.equal(h.events(2, 'hit').filter((e) => e.trap).length, 0)
+  assert.equal(h.last(2, 'arena:state').traps[0].aim, undefined, 'elle se repose, et s\'armera de nouveau')
+  // Il revient et reste : elle s'arme, et mord.
+  h.put(b, flower.x + 1, flower.z)
+  h.advance(seed.flower.every + seed.flower.windup + 0.1)
+  assert.ok(h.events(2, 'hit').filter((e) => e.trap).length >= 1)
 })
 
 test('arène : le cocktail de Jacques éclate là où il retombe, et sa flaque brûle ceux d\'en face', () => {
@@ -682,6 +714,43 @@ test('arène : le cocktail de Jacques éclate là où il retombe, et sa flaque b
   const zone = arenaZone()
   assert.deepEqual(lobTarget(zone, { x: 5, z: 2 }, { x: 1, z: 0 }, 2, cocktail.range), { x: 6.4, z: 2 })
   assert.deepEqual(lobTarget(zone, { x: 5, z: 2 }, { x: 1, z: 0 }, 20, cocktail.range), { x: 11, z: 2 })
+})
+
+test('arène : le cône de visée prévoit le tir du relais, d\'où il part jusqu\'où il retombe, même contre un obstacle', () => {
+  const zone = arenaZone()
+  // En terrain libre, le tir part de la main ; si elle passe dans un conteneur, ou trop loin, des pieds.
+  assert.deepEqual(shotOrigin(zone, { x: 5, z: 2 }, { x: 5.3, z: 2 }), { x: 5.3, z: 2 })
+  assert.deepEqual(shotOrigin(zone, { x: 6.4, z: 2 }, { x: 6.7, z: 2 }), { x: 6.4, z: 2 })
+  assert.deepEqual(shotOrigin(zone, { x: 5, z: 2 }, { x: 6.3, z: 2 }), { x: 5, z: 2 })
+  const h = harness()
+  const a = h.add(1), b = h.add(2)
+  h.start(a, [b], { size: 1, bots: false }, { 1: 'capucine' })
+  h.advance(R.warmup + R.shield)
+  h.put(b, 12, 9)
+  const seed = C.capucine.weapon
+  const diagonal = { x: Math.SQRT1_2, z: Math.SQRT1_2 }
+  // Les pieds, la main, la direction, la distance voulue : ce que le cône calcule (cf. ArenaGun.sightCone),
+  // et ce que le relais fait retomber.
+  const cases = [
+    [{ x: 5, z: 2 }, { x: 5.3, z: 2 }, { x: 1, z: 0 }, 4],
+    [{ x: 6.4, z: 2 }, { x: 6.7, z: 2 }, { x: 1, z: 0 }, 3],
+    [{ x: 5, z: 5 }, { x: 5 + 0.3 * diagonal.x, z: 5 + 0.3 * diagonal.z }, diagonal, 20],
+    [{ x: 8, z: 4.4 }, { x: 8.3, z: 4.4 }, { x: 1, z: 0 }, 1.2],
+  ]
+  for (const [foot, hand, dir, r] of cases) {
+    h.put(a, foot.x, foot.z)
+    const expected = lobTarget(zone, shotOrigin(zone, foot, hand), dir, r, seed.range)
+    h.arena.handle(a, 'arena:fire', { o: [hand.x, R.aim, hand.z], d: [[dir.x, 0, dir.z]], r })
+    const shot = h.events(2, 'shot').pop()
+    assert.deepEqual(shot.to, [expected.x, expected.z], `de (${foot.x}, ${foot.z}) vers (${dir.x.toFixed(2)}, ${dir.z.toFixed(2)})`)
+    h.advance(seed.interval + seed.reload)
+  }
+  // Une balle : elle s'arrête là où s'arrête la ligne du milieu du cône (le premier obstacle, ou la portée).
+  const rifle = C.nico.weapon
+  const from = { x: 5.3, y: R.aim, z: 2 }
+  assert.ok(Math.abs(castArena(zone, from, { x: 1, y: 0, z: 0 }, rifle.range, []).t - 1.2) < 1e-6, 'le conteneur de (7, 2)')
+  assert.equal(castArena(zone, { x: 5, y: R.aim, z: 7 }, { x: 0, y: 0, z: -1 }, rifle.range, []).t, 7.5, 'le bord nord de l\'arène, en deçà de la portée')
+  assert.equal(castArena(zone, { x: 5, y: R.aim, z: 7 }, { x: 0, y: 0, z: -1 }, 6, []).t, 6, 'la portée, sans rien en deçà')
 })
 
 test('arène : les bots se cherchent, se tirent dessus, et la partie se joue en manches', () => {
@@ -941,4 +1010,41 @@ test('arène : un spectateur reçoit la partie en cours sans y être, jusqu\'à 
   h.arena.handle(b, 'arena:quit', {})
   assert.equal(h.last(4, 'arena:end').reason, 'forfeit')
   assert.equal(h.last(3, 'arena:end'), undefined)
+})
+
+test('arène : les gestes suivent le relais ; le rechargement se dit aux autres, une fois, et ne change rien aux règles', () => {
+  const h = harness()
+  const a = h.add(1), b = h.add(2)
+  const game = h.start(a, [b], { size: 1, bots: false })
+  h.advance(R.warmup + R.shield)
+  // A change de chargeur : B le voit faire (son arme bascule) ; A, non (il le fait déjà).
+  h.arena.handle(a, 'arena:reload')
+  assert.deepEqual(h.events(2, 'reload').map((e) => e.id), [1])
+  assert.equal(h.events(1, 'reload').length, 0)
+  // Le même geste répété aussitôt ne se redit pas (le temps d'un rechargement).
+  h.arena.handle(a, 'arena:reload')
+  h.advance(0.5)
+  h.arena.handle(a, 'arena:reload')
+  assert.equal(h.events(2, 'reload').length, 1)
+  h.advance(D.weapon.reload)
+  h.arena.handle(a, 'arena:reload')
+  assert.equal(h.events(2, 'reload').length, 2)
+  // Le geste n'est qu'une image : le chargeur de jetons du relais n'en sait rien.
+  const tokens = game.fighters.get(1).tokens
+  h.arena.handle(a, 'arena:reload')
+  assert.equal(game.fighters.get(1).tokens, tokens)
+  // Un tir rapide (au doigt) blesse comme un autre : seules les statistiques le comptent à part.
+  h.put(a, 5, 5)
+  h.put(b, 8, 5)
+  game.fighters.get(2).shieldUntil = 0
+  h.arena.handle(a, 'arena:fire', { o: [5, R.aim, 5], d: [[1, 0, 0]], c: 't', a: 1 })
+  h.advance(0.3)
+  const hit = h.events(2, 'hit').pop()
+  assert.equal(hit.dmg, D.weapon.damage)
+  assert.equal(game.fighters.get(1).controls.assist.hits, 1)
+  // Éliminé, on ne recharge plus aux yeux des autres.
+  game.fighters.get(1).alive = false
+  h.advance(D.weapon.reload + 0.1)
+  h.arena.handle(a, 'arena:reload')
+  assert.equal(h.events(2, 'reload').length, 2)
 })

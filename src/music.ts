@@ -132,6 +132,30 @@ export const TRACKS: Track[] = [
     ],
   },
   {
+    // La bande originale de CMDR Arena : la sono du lobby, les trois plans de combat et la fanfare
+    // de victoire, également jouées dans le mode lui-même (cf. src/arena/music.ts).
+    id: 'cmdr-arena', title: 'CMDR Arena', artist: 'Ben Carter Jr', style: 'synthwave',
+    cover: 'cmdr-arena.png', duration: 459.072, bpm: null, offset: 0,
+    mood: tr('Cinq morceaux pour choisir son combattant, traverser les arènes et célébrer la victoire.', 'Five tracks for choosing a fighter, crossing the arenas and celebrating victory.'),
+    songs: [
+      { title: 'Game Menu Groove', file: 'cmdr-arena/game-menu-groove.mp3', duration: 67.704 },
+      { title: 'Pixel Brawl', file: 'cmdr-arena/pixel-brawl.mp3', duration: 85.704 },
+      { title: 'X-99 Protocol', file: 'cmdr-arena/x-99-protocol.mp3', duration: 126.84 },
+      { title: 'Guardians of the Forbidden', file: 'cmdr-arena/guardians-of-the-forbidden.mp3', duration: 149.184 },
+      { title: 'Victory Fanfare', file: 'cmdr-arena/victory-fanfare.mp3', duration: 29.64 },
+    ],
+  },
+  {
+    // La musique glitchée du lobby de récupération thargoïde, sans le filtre de sa mauvaise sono
+    // de sécurité (cf. src/salvage/music.ts).
+    id: 'corrupted-lobby', title: 'Corrupted Lobby', artist: 'Ben Carter Jr', style: 'ambient',
+    cover: 'corrupted-lobby.png', duration: 137.664, bpm: null, offset: 0,
+    mood: tr('Le signal corrompu du lobby de récupération : métal noir, alarmes rouges et pulsations thargoïdes.', 'The salvage lobby’s corrupted signal: black metal, red alarms and Thargoid pulses.'),
+    songs: [
+      { title: 'Corrupted Lobby', file: 'thargoid-salvage/corrupted-lobby.mp3', duration: 137.664 },
+    ],
+  },
+  {
     // La bande originale de Scavengers, le jeu de fouille d'épaves du site : ses six ambiances, que
     // le jeu mixe en direct, fondues en une piste chacune (cf. scripts/mix-scavengers-music.sh).
     id: 'scavengers', title: 'Scavengers', artist: 'OptimusKoala', style: 'ambient',

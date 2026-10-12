@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { beamMaterial, box, compact, cylinder, drawnTexture, ED_ORANGE, glass, glow, holoTime, instanced, lit, part, rng, setInstance } from '../furniture/kit'
 import { logoTexture } from '../furniture/arena'
 import { tr } from '../i18n'
-import type { ArenaZone } from '../../shared/arena.js'
+import { ARENA_PALETTE, type ArenaZone } from '../../shared/arena.js'
 
 /*
  * Le stade de CMDR Arena : ce qui entoure le terrain (cf. deck.ts), au milieu d'une grande baie du
@@ -295,7 +295,7 @@ function scoreTexture() {
     for (let y = 0; y < H; y += 4) c.fillRect(0, y, W, 1)
     texture.needsUpdate = true
   }
-  draw(0, 0, ['#35a7ff', '#ff4d4d'], 0, 1)
+  draw(0, 0, [ARENA_PALETTE.ally, ARENA_PALETTE.enemy], 0, 1)
   return { texture, draw }
 }
 

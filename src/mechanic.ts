@@ -158,30 +158,42 @@ export interface MechanicReport {
   system: string
   /** Révisions faites par ce joueur avec lui (cf. hangar.ts). */
   done: number
-  /** Le joueur est installé aux commandes du Krait. */
+  /** Le joueur est installé aux commandes de son vaisseau. */
   aboard: boolean
+  /** Le vaisseau du joueur, sur le pad (cf. ship-bay.ts) : celui dont Nico parle. */
+  ship: { id: string; name: string; maker: string }
 }
 
 const pick = <T,>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)]
 
-/** Son métier, le Krait, Boulon, sa vie à bord. */
+/**
+ * Son métier, le vaisseau du pad, Boulon, sa vie à bord. {ship} et {maker} : le vaisseau du joueur
+ * (Nico les appelle tous « la Princesse ») ; certaines ne valent que pour le Krait (cf. KRAIT_DUTY).
+ */
 const DUTY = [
-  tr('Elle, c\'est la Princesse. Krait Mk II, Faulcon DeLacy. Je l\'ai remontée boulon par boulon. Enfin, Boulon m\'a aidé.', 'That\'s the Princess. Krait Mk II, Faulcon DeLacy. I rebuilt her bolt by bolt. Well, Bolt helped.'),
+  tr('Elle, c\'est la Princesse. {ship}, {maker}. Je l\'ai remontée boulon par boulon. Enfin, Boulon m\'a aidé.', 'That\'s the Princess. {ship}, {maker}. I rebuilt her bolt by bolt. Well, Bolt helped.'),
   tr('Boulon ? C\'est mon drone. Il compte les vis, il éclaire les recoins et il juge mes soudures. Surtout, il juge.', 'Bolt? He\'s my drone. He counts the screws, lights up the corners and judges my welds. Mostly he judges.'),
   tr('Tu entends ce petit sifflement dans la tuyère gauche ? Non ? Moi si. Elle me dit qu\'elle a froid.', 'Hear that little whistle in the port thruster? No? I do. She\'s telling me she\'s cold.'),
   tr('Le bouclier laisse passer les vaisseaux, pas l\'air. Ni les gens. J\'ai testé avec une clé de 12. Adieu, clé de 12.', 'The shield lets ships through, not air. Not people either. I tested it with a 12 mm spanner. Farewell, 12 mm spanner.'),
   tr('Un jour, je la sortirai du hangar. Juste un tour. Juste jusqu\'à la balise de navigation et retour. Chut.', 'One day I\'ll take her out. Just one lap. Just to the nav beacon and back. Shh.'),
   tr('Les Thargoïdes du lobby grattent la porte toute la nuit. Moi je mets de la musique et je soude plus fort.', 'The Thargoids by the lobby scratch at the door all night. I put some music on and weld louder.'),
   tr('J\'ai appris la mécanique sur une Sidewinder de récup\'. Elle n\'avait plus de train, alors on se posait sur le ventre.', 'I learned mechanics on a scrapyard Sidewinder. She had no landing gear, so we landed on her belly.'),
-  tr('Le Krait a un hangar à chasseur. Je rêve d\'y ranger un chasseur. Pour l\'instant, j\'y range mes sandwichs.', 'The Krait has a fighter bay. I dream of parking a fighter in there. For now, I keep my sandwiches in it.'),
   tr('Le chef Marcel me garde toujours une assiette. Il dit que je suis trop maigre pour tenir une clé à choc.', 'Chef Marcel always saves me a plate. He says I\'m too skinny to hold an impact wrench.'),
   tr('Betty m\'a déjà recousu trois fois. Elle dit que je suis son meilleur client. Je crois que c\'est un compliment.', 'Betty has stitched me up three times already. She says I\'m her best customer. I think that\'s a compliment.'),
   tr('Ne touche pas au levier rouge du cockpit. Ni au jaune. Tu sais quoi ? Ne touche à rien.', 'Don\'t touch the red lever in the cockpit. Or the yellow one. You know what? Don\'t touch anything.'),
-  tr('Soixante-treize mètres de delta et elle tourne comme une Eagle. C\'est ce qu\'on raconte. Je ne l\'ai jamais pilotée.', 'Seventy-three metres of delta and she turns like an Eagle. So they say. I\'ve never flown her.'),
   tr('Les pilotes rayent la peinture, les mécanos la repeignent. C\'est le cycle de la vie.', 'Pilots scratch the paint, mechanics repaint it. It\'s the circle of life.'),
   tr('Il manque toujours une vis. Toujours. Boulon dit qu\'il n\'en manque pas. Boulon ment.', 'There\'s always one screw missing. Always. Bolt says there isn\'t. Bolt lies.'),
-  tr('Le sergent Rourke passe parfois vérifier le hangar. Il regarde le Krait longtemps. Je crois qu\'il est amoureux.', 'Sergeant Rourke sometimes comes by to check the hangar. He stares at the Krait for ages. I think he\'s in love.'),
+  tr('Le sergent Rourke passe parfois vérifier le hangar. Il regarde ton {ship} longtemps. Je crois qu\'il est amoureux.', 'Sergeant Rourke sometimes comes by to check the hangar. He stares at your {ship} for ages. I think he\'s in love.'),
 ]
+
+/** Ce qui ne vaut que pour le Krait Mk II (son hangar à chasseur, son delta). */
+const KRAIT_DUTY = [
+  tr('Le Krait a un hangar à chasseur. Je rêve d\'y ranger un chasseur. Pour l\'instant, j\'y range mes sandwichs.', 'The Krait has a fighter bay. I dream of parking a fighter in there. For now, I keep my sandwiches in it.'),
+  tr('Soixante-treize mètres de delta et elle tourne comme une Eagle. C\'est ce qu\'on raconte. Je ne l\'ai jamais pilotée.', 'Seventy-three metres of delta and she turns like an Eagle. So they say. I\'ve never flown her.'),
+]
+
+/** Le vaisseau du joueur dans une réplique. */
+const named = (line: string, r: MechanicReport) => line.split('{ship}').join(r.ship.name).split('{maker}').join(r.ship.maker)
 
 /** Répliques qui dépendent du bord et de ce que le joueur a fait avec lui. */
 function reportLines(r: MechanicReport): string[] {
@@ -324,11 +336,12 @@ export class Mechanic {
     this.clock = holdMech(this.clock, now)
     this.face = { x: from.x, z: from.z }
     if (this.panicking) return pick(PANIC_TALK)
-    const pool = report.aboard || Math.random() < 0.45 ? reportLines(report) : DUTY
+    const duty = report.ship.id === 'krait-mk2' ? [...DUTY, ...KRAIT_DUTY] : DUTY
+    const pool = report.aboard || Math.random() < 0.45 ? reportLines(report) : duty
     const fresh = pool.filter((l) => !this.recent.includes(l))
     const line = pick(fresh.length ? fresh : pool)
     this.recent = [line, ...this.recent].slice(0, 8)
-    return line
+    return named(line, report)
   }
 
   /**

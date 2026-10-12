@@ -22,7 +22,7 @@ import { MonsterView } from './monsters'
 import { SalvageSfx } from './sfx'
 import { Technician, technicianRig, TECHNICIAN } from './technician'
 import { LeaderboardPanel, LobbyPanel, MissionHud, type HudMember } from './ui'
-import { zoneLevel } from './zone-deck'
+import { sectorName, zoneLevel } from './zone-deck'
 
 /*
  * Récupération de cargaison en zone thargoïde (SOC-06), côté client : le terminal du lobby, puis
@@ -102,6 +102,10 @@ const CAMERA_NAMES: Record<string, string> = {
   storage: tr('Aire de stockage', 'Storage yard'),
   nest: tr('Le nid', 'The nest'),
   collapse: tr('Zone effondrée', 'Collapsed zone'),
+  lab: tr('Laboratoire de quarantaine', 'Quarantine lab'),
+  hatchery: tr('Le couvoir', 'The hatchery'),
+  dorm: tr('Dortoirs', 'Crew quarters'),
+  cold: tr('Chambre froide', 'Cold room'),
 }
 
 /** Direction d'un point vu d'un autre, en mots (le nord est en haut du plan). */
@@ -281,6 +285,11 @@ export class SalvageClient {
   /** La baie de la mission en cours (construite), s'il y en a une. */
   get deck(): Deck | null {
     return this.game?.deck ?? null
+  }
+
+  /** Qui ouvre les sas de la baie, en plus de l'équipe : les ennemis. */
+  get doorActors(): THREE.Vector3[] {
+    return this.game?.monsters.positions() ?? []
   }
 
   get inZone(): boolean {
@@ -624,6 +633,7 @@ export class SalvageClient {
       flares: this.me?.flares ?? 0,
       cargo: cargo && { dir: cargo.dir, dist: Math.round(cargo.dist) },
       hive: g.state?.hive ?? 0,
+      sealed: g.zone.closed.map(sectorName),
     })
     this.host.dialog.show(tr(`${TECHNICIAN} : « ${line} »`, `${TECHNICIAN}: “${line}”`))
   }
@@ -716,7 +726,9 @@ export class SalvageClient {
   /** Tout ce que montre le moniteur : les coéquipiers d'abord, puis les caméras de la baie. */
   private feeds(): Feed[] {
     if (!this.game?.state) return []
-    return [...this.watchable().map((id): Feed => ({ kind: 'ally', id })), ...BAY_CAMERAS.map((_, index): Feed => ({ kind: 'fixed', index }))]
+    // Pas de caméra dans un secteur condamné (cf. Zone.cameras).
+    const fixed = BAY_CAMERAS.flatMap((c, index): Feed[] => (this.game!.zone.cameras.includes(c) ? [{ kind: 'fixed', index }] : []))
+    return [...this.watchable().map((id): Feed => ({ kind: 'ally', id })), ...fixed]
   }
 
   private sameFeed(a: Feed | null, b: Feed | null): boolean {
@@ -887,7 +899,8 @@ export class SalvageClient {
         if (e.locker !== undefined) g.items.bang(e.locker)
         const pos = e.locker !== undefined ? g.items.lockerPosition(e.locker) : null
         if (pos && this.hearing()) this.sfx.locker(pos, e.kind === 'eject')
-        if (e.kind === 'eject' && e.id === self) this.host.dialog.show(tr('Impossible de rester plus longtemps : vous sortez du casier.', 'You can\'t stay any longer: you step out of the locker.'))
+        const bed = e.locker !== undefined && !!g.zone.lockers[e.locker]?.bed
+        if (e.kind === 'eject' && e.id === self) this.host.dialog.show(bed ? tr('Impossible de rester plus longtemps : vous sortez de sous le lit.', 'You can\'t stay any longer: you crawl out from under the bed.') : tr('Impossible de rester plus longtemps : vous sortez du casier.', 'You can\'t stay any longer: you step out of the locker.'))
         if (e.kind === 'hide' && e.id === self) this.host.dialog.show(tr(`Caché. ${RULES.locker.max} secondes au plus ; E pour sortir. Il ne vous trouvera que s'il était juste derrière vous.`, `Hidden. ${RULES.locker.max} seconds at most; E to get out. It will only find you if it was right behind you.`))
         break
       }
@@ -896,7 +909,7 @@ export class SalvageClient {
         g.items.shake(e.locker)
         const pos = g.items.lockerPosition(e.locker)
         if (pos) this.sfx.rattle(pos)
-        if (this.me?.hidden === e.locker) this.host.dialog.show(tr('Il fouille votre casier…', 'It\'s searching your locker…'))
+        if (this.me?.hidden === e.locker) this.host.dialog.show(g.zone.lockers[e.locker]?.bed ? tr('Il regarde sous votre lit…', 'It\'s looking under your bed…') : tr('Il fouille votre casier…', 'It\'s searching your locker…'))
         break
       }
       case 'searched':
@@ -1159,7 +1172,7 @@ export class SalvageClient {
     }
 
     this.hud.setHint(hidden
-      ? tr('E : sortir du casier', 'E: leave the locker')
+      ? this.game?.zone.lockers[this.me?.hidden ?? -1]?.bed ? tr('E : sortir de sous le lit', 'E: crawl out from under the bed') : tr('E : sortir du casier', 'E: leave the locker')
       : goo
         ? tr('Flaque caustique : vous pataugez, sortez-en vite', 'Caustic puddle: you\'re wading, get out quick')
         : carrying

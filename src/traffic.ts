@@ -1,16 +1,19 @@
 import * as THREE from 'three'
-import { rig } from './assets'
+import { ED_SHIPS, edShip, shipInfo, trafficLength, type EdShipId } from './ed-ships'
 import { renderQuality } from './quality'
 
 /*
- * Le trafic autour du vaisseau : des appareils (les « craft » du Space Kit de Kenney) qui croisent
- * le long de la coque, de chaque bord, à hauteur du pont. La vue isométrique reste serrée (cf.
- * ZOOM_MAX dans camera.ts) : loin sous la coque, on ne les verrait pas ; ils passent donc tout
- * près, mais toujours au large, jamais au-dessus des pièces.
+ * Le trafic autour du vaisseau : des vaisseaux d'Elite Dangerous (cf. ed-ships.ts), du Sidewinder
+ * au Cutter, qui croisent le long de la coque, de chaque bord, à hauteur du pont. La vue
+ * isométrique reste serrée (cf. ZOOM_MAX dans camera.ts) : loin sous la coque, on ne les verrait
+ * pas ; ils passent donc tout près, mais toujours au large, jamais au-dessus des pièces.
  *
  * Chacun avance, nez devant : ceux qui vont vers l'est (comme le vaisseau, cf. starfield.ts) le
  * doublent, les autres le croisent. Aucun ne recule à l'écran. Les deux sens ont leurs couloirs,
  * les uns au ras de la coque, les autres plus au large : ils ne se rentrent pas dedans.
+ *
+ * Les modèles se chargent au fil de l'eau : quelques-uns d'emblée, puis un nouveau à chaque
+ * départ ; tous finissent par passer.
  */
 
 /** Bords de la coque sous le pont affiché (z du bord bâbord, au nord, et du bord tribord, au sud). */
@@ -22,26 +25,22 @@ export interface HullSides {
 /** Demi-longueur du couloir, de part et d'autre du point que regarde la caméra : au-delà du cadre le plus large. */
 const SPAN = 30
 
-/** Appareils du Space Kit (environ deux tuiles) et leur échelle ; les cargos sont plus gros et plus lents. */
-const MODELS: { name: string; scale: number; heavy?: boolean }[] = [
-  { name: 'craft_speederA', scale: 0.8 },
-  { name: 'craft_speederB', scale: 0.8 },
-  { name: 'craft_speederC', scale: 0.75 },
-  { name: 'craft_speederD', scale: 0.75 },
-  { name: 'craft_racer', scale: 0.85 },
-  { name: 'craft_miner', scale: 1.05 },
-  { name: 'craft_cargoA', scale: 1.3, heavy: true },
-  { name: 'craft_cargoB', scale: 1.3, heavy: true },
-]
+/** Au-delà de cette longueur (m), un gros porteur : plus lent, plus bas et plus au large. */
+const HEAVY = 100
+
+/** Vaisseaux chargés d'emblée (au hasard) ; les autres suivent, un par départ. */
+const FIRST = 4
 
 interface Proto {
+  /** Le modèle, en mètres (cf. ed-ships.ts). */
   root: THREE.Object3D
+  /** Mètres → tuiles (cf. trafficLength). */
   scale: number
   heavy: boolean
-  /** Arrière de l'appareil (z de la poupe), demi-largeur et mi-hauteur : là où luisent les réacteurs. */
-  tail: number
-  width: number
-  mid: number
+  /** Demi-largeur (tuiles) : les plus larges s'écartent d'autant de la coque. */
+  half: number
+  /** Tuyères (m) : un halo devant chacune. */
+  engines: [number, number, number, number, number][]
 }
 
 interface Ship {
@@ -57,9 +56,12 @@ interface Ship {
   phase: number
 }
 
+const pick = <T>(list: readonly T[]): T => list[Math.floor(Math.random() * list.length)]
+
 export class Traffic {
   readonly group = new THREE.Group()
-  private protos: Proto[] = []
+  private readonly protos = new Map<EdShipId, Proto>()
+  private readonly loading = new Set<EdShipId>()
   private readonly flare: THREE.SpriteMaterial
   private ships: Ship[] = []
   private next = 0
@@ -79,23 +81,21 @@ export class Traffic {
     g.fillStyle = grad
     g.fillRect(0, 0, 64, 64)
     this.flare = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), color: '#7fc8ff', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
-    void this.load()
+    while (this.loading.size < FIRST) this.fetch(pick(ED_SHIPS))
   }
 
-  /** Les modèles arrivent après le reste du bord : le trafic commence quand ils sont là. */
-  private async load() {
-    this.protos = await Promise.all(MODELS.map(async (m) => {
-      const model = (await rig(`space/${m.name}.glb`)).root
-      model.traverse((o) => (o.castShadow = o.receiveShadow = false))
-      // Dans son fichier, chaque appareil est posé à l'écart de l'origine : on le recentre.
-      model.getObjectByName(m.name)?.position.set(0, 0, 0)
-      // Les modèles de Kenney ont le nez à -z : on les retourne, nez à +z.
-      model.rotation.y = Math.PI
-      const root = new THREE.Group()
-      root.add(model)
-      const box = new THREE.Box3().setFromObject(root)
-      return { root, scale: m.scale, heavy: !!m.heavy, tail: box.min.z, width: (box.max.x - box.min.x) / 2, mid: (box.min.y + box.max.y) / 2 }
-    }))
+  /** Charge un vaisseau pour les prochains départs (sans effet s'il l'est déjà ou en cours). */
+  private fetch(id: EdShipId) {
+    if (this.protos.has(id) || this.loading.has(id)) return
+    this.loading.add(id)
+    edShip(id).then(
+      (root) => {
+        const info = shipInfo(root)
+        const scale = trafficLength(info.size[2]) / info.size[2]
+        this.protos.set(id, { root, scale, heavy: info.size[2] > HEAVY, half: (info.size[0] / 2) * scale, engines: info.engines })
+      },
+      () => this.loading.delete(id),
+    )
   }
 
   /** Le trafic disparaît pendant la traversée d'un saut FSD : à l'arrivée, d'autres appareils. */
@@ -111,12 +111,17 @@ export class Traffic {
   }
 
   private spawn(centerX: number, anywhere: boolean) {
-    const proto = this.protos[Math.floor(Math.random() * this.protos.length)]
+    const proto = pick([...this.protos.values()])
+    this.fetch(pick(ED_SHIPS))
     const root = new THREE.Group()
-    const flare = new THREE.Sprite(this.flare)
-    flare.position.set(0, proto.mid, proto.tail)
-    flare.scale.setScalar(proto.width * 1.3)
-    root.add(proto.root.clone(true), flare)
+    root.add(proto.root.clone(true))
+    // Un halo devant chaque tuyère (en mètres, comme le modèle).
+    for (const [x, y, z, rx, ry] of proto.engines) {
+      const flare = new THREE.Sprite(this.flare)
+      flare.position.set(x, y, z - 0.3)
+      flare.scale.setScalar(Math.max(rx, ry) * 3.2)
+      root.add(flare)
+    }
     root.scale.setScalar(proto.scale)
     // La plupart vont vers l'est, comme le vaisseau, et le doublent ; les autres le croisent, plus vite.
     const dir = Math.random() < 0.7 ? 1 : -1
@@ -126,10 +131,10 @@ export class Traffic {
       root,
       dir,
       speed: (proto.heavy ? 1.2 + Math.random() * 0.8 : 2 + Math.random() * 2.5) * (dir > 0 ? 1 : 1.6),
-      // Ceux qui croisent passent plus au large que ceux qui doublent.
-      off: dir > 0 ? 2 + Math.random() * 1.8 : 5 + Math.random() * 1.8,
+      // Ceux qui croisent passent plus au large que ceux qui doublent ; les gros encore plus loin.
+      off: (dir > 0 ? 2 + Math.random() * 1.8 : 5 + Math.random() * 1.8) + proto.half + (proto.heavy ? 1 : 0),
       side: Math.random() < 0.5 ? -1 : 1,
-      height: -0.6 - Math.random() * 1.2,
+      height: -0.6 - Math.random() * 1.2 - (proto.heavy ? 0.6 : 0),
       phase: Math.random() * Math.PI * 2,
     }
     root.position.x = anywhere ? centerX + (Math.random() * 2 - 1) * SPAN * 0.8 : centerX - dir * SPAN
@@ -144,7 +149,7 @@ export class Traffic {
    */
   update(dt: number, deckY: number, sides: HullSides, target: THREE.Vector3) {
     this.group.visible = !this.hidden
-    if (this.hidden || !this.protos.length) return
+    if (this.hidden || !this.protos.size) return
     this.time += dt
     const wanted = renderQuality.light ? 1 : 3
     if (!this.filled) {
@@ -162,7 +167,7 @@ export class Traffic {
       p.z = s.side < 0 ? sides.north - s.off : sides.south + s.off
       s.root.rotation.z = Math.sin(this.time * 0.5 + s.phase) * 0.1
     }
-    const gone = this.ships.filter((s) => Math.abs(s.root.position.x - target.x) > SPAN + 4)
+    const gone = this.ships.filter((s) => Math.abs(s.root.position.x - target.x) > SPAN + 6)
     for (const s of gone) s.root.removeFromParent()
     if (gone.length) this.ships = this.ships.filter((s) => !gone.includes(s))
   }

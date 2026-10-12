@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
-  BAY, BAY_BOOTH, BAY_CAMERAS, BAY_LIT, distances, elevated, floorFx, FX, sightOrigin, findPath, generateZone, groundHeight, inAirlock, isLit, lockerFront, lockerSpot,
+  BAY, BAY_BOOTH, BAY_CAMERAS, BAY_GATES, BAY_LIT, BAY_ROOMS, BAY_SECTORS, distances, elevated, floorFx, FX, sightOrigin, findPath, generateZone, groundHeight, inAirlock, isLit, lockerFront, lockerSpot,
   mulberry32, pickSpawns, RULES, salvageGrade, salvageMinDuration, salvagePar, salvageReward, smoothPath, straightWalk, walkable, zoneSight,
 } from '../shared/salvage.js'
 
@@ -14,6 +14,8 @@ const SETTINGS = [
   { team: 3, parcels: 2, enemies: 5 },
 ]
 const SEEDS = [1, 42, 7, 2024, 99991, 123456789, 0xdeadbeef]
+/** Toute la baie ouverte : pour les essais qui regardent un coin précis du plan. */
+const OPEN = { team: 1, parcels: 1, enemies: 1, closed: [] }
 
 const each = (fn) => {
   for (const settings of SETTINGS) for (const seed of SEEDS) fn(generateZone(seed, settings), settings, seed)
@@ -22,11 +24,13 @@ const each = (fn) => {
 test('même graine, même baie (le relais et chaque client construisent la même)', () => {
   const a = generateZone(424242, { team: 2, parcels: 3, enemies: 2 })
   const b = generateZone(424242, { team: 2, parcels: 3, enemies: 2 })
-  assert.deepEqual([a.lockers, a.flares, a.cargo, a.monsters, a.decor, a.containers], [b.lockers, b.flares, b.cargo, b.monsters, b.decor, b.containers])
-  // Le plan ne change pas ; ce qu'on y trouve, si.
-  const c = generateZone(424243, { team: 2, parcels: 3, enemies: 2 })
-  assert.deepEqual([a.layout, a.containers, a.lockers, a.doors], [c.layout, c.containers, c.lockers, c.doors])
-  assert.notDeepEqual([a.cargo, a.flares, a.monsters], [c.cargo, c.flares, c.monsters])
+  assert.deepEqual([a.closed, a.gates, a.layout, a.lockers, a.flares, a.cargo, a.monsters, a.decor, a.containers], [b.closed, b.gates, b.layout, b.lockers, b.flares, b.cargo, b.monsters, b.decor, b.containers])
+  // Le plan ne change pas ; ses secteurs condamnés et ce qu'on y trouve, si.
+  const open = { team: 2, parcels: 3, enemies: 2, closed: [] }
+  const c = generateZone(424242, open), d = generateZone(424243, open)
+  assert.deepEqual([c.layout, c.containers, c.lockers, c.doors, c.gates], [d.layout, d.containers, d.lockers, d.doors, d.gates])
+  assert.notDeepEqual([c.cargo, c.flares, c.monsters], [d.cargo, d.flares, d.monsters])
+  assert.notDeepEqual(a.closed, generateZone(424243, { team: 2, parcels: 3, enemies: 2 }).closed)
 })
 
 test('le plan : rectangulaire, conteneurs par paires, un sas de six tuiles au bord sud', () => {
@@ -36,19 +40,20 @@ test('le plan : rectangulaire, conteneurs par paires, un sas de six tuiles au bo
     const column = BAY.map((line) => line[x]).join('')
     for (const run of column.match(/H+/g) ?? []) assert.equal(run.length % 2, 0, `colonne ${x}`)
   }
-  const zone = generateZone(1, { team: 1, parcels: 1, enemies: 1 })
+  const zone = generateZone(1, OPEN)
   assert.equal(zone.airlock.tiles.length, 6)
   assert.equal(zone.airlock.side, 2)
-  assert.ok(zone.lockers.length >= 30, 'des casiers partout')
+  assert.ok(zone.lockers.length >= 45, 'des casiers partout')
 })
 
 test('des passages larges dans les cloisons, et la grande allée de trois tuiles', () => {
-  const zone = generateZone(1, { team: 1, parcels: 1, enemies: 1 })
+  const zone = generateZone(1, OPEN)
   // Chaque passage d'une cloison pleine (lignes 8, 12 et 18) fait deux tuiles de large au moins.
   for (const z of [8, 12, 18]) for (const gap of BAY[z].match(/\.+/g)) assert.ok(gap.length >= 2, `ligne ${z}`)
   // La grande allée traverse la baie d'ouest en est, sur trois tuiles de large.
   for (const z of [9, 10, 11]) assert.ok([...BAY[z]].filter((c) => '.L'.includes(c)).length >= 32, `ligne ${z}`)
   assert.ok(findPath(zone, { x: 0, z: 10 }, { x: 35, z: 10 }).length === 36, 'tout droit')
+  assert.ok(findPath(zone, { x: 0, z: 10 }, { x: 45, z: 10 }).length === 46, 'jusqu\'au couvoir, par son sas')
   // Les cloisons fines ne ferment que les petites pièces et le guichet.
   for (const w of zone.walls) {
     const x = w.x + (w.dir === 1 ? 0.5 : 0), z = w.z + (w.dir === 2 ? 0.5 : 0)
@@ -58,12 +63,12 @@ test('des passages larges dans les cloisons, et la grande allée de trois tuiles
 })
 
 test('les petites pièces : fermées, sauf leurs portes, éclairées, meublées', () => {
-  const zone = generateZone(1, { team: 1, parcels: 1, enemies: 1 })
+  const zone = generateZone(1, OPEN)
   assert.ok(zone.rooms.length >= 4)
   for (const r of zone.rooms) {
     assert.ok(r.light && r.furniture.length)
-    // On y entre par une porte (et une seule rangée d'arêtes ouvertes vers l'extérieur).
-    for (const d of r.doors) assert.equal(zone.map.edge(d.x, d.z, d.dir), 'open', r.id)
+    // On y entre par un sas (et une seule rangée d'arêtes ouvertes vers l'extérieur).
+    for (const d of r.doors) assert.equal(zone.map.edge(d.x, d.z, d.dir), 'door', r.id)
     const door = r.doors[0]
     const out = { x: door.x + [0, 1, 0, -1][door.dir], z: door.z + [-1, 0, 1, 0][door.dir] }
     assert.ok(findPath(zone, zone.airlock.pad, door) && walkable(zone, out.x, out.z), r.id)
@@ -71,7 +76,7 @@ test('les petites pièces : fermées, sauf leurs portes, éclairées, meublées'
 })
 
 test('le guichet : on ne peut pas y entrer, mais on voit le technicien par la vitre', () => {
-  const zone = generateZone(1, { team: 1, parcels: 1, enemies: 1 })
+  const zone = generateZone(1, OPEN)
   const { technician, counter } = BAY_BOOTH
   assert.equal(walkable(zone, Math.round(technician.x), Math.round(technician.z)), false)
   assert.ok(walkable(zone, counter.x, counter.z))
@@ -90,6 +95,19 @@ test('toute la baie est accessible depuis le sas, conteneurs compris', () => {
       if (!zone.blocked[i]) assert.ok(d[i] >= 0, `tuile ${i % zone.width},${Math.floor(i / zone.width)} coupée (graine ${zone.seed})`)
     }
   })
+})
+
+test('les lits : on se cache dessous comme dans un casier, depuis leur chevet', () => {
+  const zone = generateZone(1, OPEN)
+  const beds = zone.lockers.filter((l) => l.bed)
+  assert.equal(beds.length, 5, 'quatre aux dortoirs, un à l\'infirmerie')
+  for (const l of beds) {
+    assert.ok(walkable(zone, l.x, l.z) && zone.furnished[l.z * zone.width + l.x] === 0)
+    assert.ok(findPath(zone, zone.airlock.pad, lockerFront(l)), 'un ennemi vient y regarder')
+    assert.ok(zoneSight(zone, { x: l.x, z: l.z }, lockerFront(l)))
+  }
+  // Dortoirs condamnés : plus de lit où se cacher là-bas.
+  assert.equal(generateZone(1, { ...OPEN, closed: ['dorm', 'infirmary'] }).lockers.filter((l) => l.bed).length, 0)
 })
 
 test('le compte y est : colis, ennemis, casiers, fusées', () => {
@@ -132,14 +150,18 @@ test('un casier se dresse contre une paroi ou un conteneur, et l\'on en sort du 
       const back = { x: l.x + [0, 1, 0, -1][l.dir], z: l.z + [-1, 0, 1, 0][l.dir] }
       assert.ok(zone.map.edge(l.x, l.z, l.dir) === 'wall' || !walkable(zone, back.x, back.z), `casier ${l.id} sans appui (graine ${zone.seed})`)
       const spot = lockerSpot(l), front = lockerFront(l)
-      assert.equal(Math.round(spot.x) + 0, l.x)
+      // Sous un lit, on est sur la tuile du lit ; on en sort, comme d'un casier, sur la tuile d'à côté.
+      if (l.bed) assert.equal(walkable(zone, Math.round(spot.x), Math.round(spot.z)), false, 'sous le lit')
+      else assert.equal(Math.round(spot.x) + 0, l.x)
+      assert.equal(Math.round(front.x) + 0, l.x)
       assert.equal(Math.round(front.z) + 0, l.z)
+      assert.ok(Math.hypot(spot.x - front.x, spot.z - front.z) <= RULES.reach, 'à portée de son entrée')
     }
   })
 })
 
 test('la vue s\'arrête aux parois et aux conteneurs', () => {
-  const zone = generateZone(42, { team: 1, parcels: 2, enemies: 1 })
+  const zone = generateZone(42, { ...OPEN, parcels: 2 })
   // Une rangée de conteneurs : de part et d'autre, on ne se voit pas ; par un passage, si.
   assert.equal(zoneSight(zone, { x: 8, z: 2 }, { x: 8, z: 0 }), false)
   assert.equal(zoneSight(zone, { x: 3, z: 2 }, { x: 3, z: 0 }), true)
@@ -219,7 +241,7 @@ test('récompense : plus de colis et plus d\'ennemis, plus de crédits', () => {
 })
 
 test('au ras d\'un meuble, la vue part de la tuile libre voisine, jamais à travers une cloison', () => {
-  const zone = generateZone(1, { team: 1, parcels: 1, enemies: 1 })
+  const zone = generateZone(1, OPEN)
   // La fontaine de la salle de pause (17, 0) : sa tuile est bloquée ; derrière la cloison est, le local radio.
   const o = sightOrigin(zone, { x: 17.2, z: 0.35 })
   assert.ok(walkable(zone, Math.round(o.x), Math.round(o.z)))
@@ -229,9 +251,9 @@ test('au ras d\'un meuble, la vue part de la tuile libre voisine, jamais à trav
   assert.deepEqual(sightOrigin(zone, { x: 12.3, z: 2.1 }), { x: 12.3, z: 2.1 })
 })
 
-test('les zones éclairées : la serre, le carrefour du guichet et le quai de chargement', () => {
-  const zone = generateZone(3, { team: 1, parcels: 1, enemies: 1 })
-  assert.deepEqual(BAY_LIT.map((l) => l.id), ['greenhouse', 'crossroads', 'dock'])
+test('les zones éclairées : la serre, le carrefour du guichet, le quai de chargement et la chambre froide', () => {
+  const zone = generateZone(3, OPEN)
+  assert.deepEqual(BAY_LIT.map((l) => l.id), ['greenhouse', 'crossroads', 'dock', 'cold'])
   assert.ok(isLit(zone, { x: 28, z: 3 }), 'la serre')
   assert.ok(isLit(zone, zone.airlock.pad), 'le quai, jusqu\'au sas')
   assert.ok(isLit(zone, BAY_BOOTH.counter), 'devant le guichet')
@@ -241,7 +263,7 @@ test('les zones éclairées : la serre, le carrefour du guichet et le quai de ch
 })
 
 test('la passerelle : on n\'y monte que par ses escaliers, et l\'on y voit par-dessus les conteneurs', () => {
-  const zone = generateZone(5, { team: 1, parcels: 1, enemies: 1 })
+  const zone = generateZone(5, OPEN)
   // Garde-corps : de la tuile d'à côté, pas de passage direct ; le chemin passe par un escalier.
   assert.equal(zone.adj[(2 * zone.width + 5) * 4 + 2], -1, 'garde-corps au nord')
   const path = findPath(zone, { x: 5, z: 2 }, { x: 5, z: 3 })
@@ -268,7 +290,7 @@ test('la passerelle : on n\'y monte que par ses escaliers, et l\'on y voit par-d
 })
 
 test('la serre : ses bacs bloquent le passage, pas la vue ; les excroissances du nid arrêtent tout', () => {
-  const zone = generateZone(9, { team: 1, parcels: 1, enemies: 1 })
+  const zone = generateZone(9, OPEN)
   assert.equal(walkable(zone, 25, 2), false)
   assert.equal(zoneSight(zone, { x: 25, z: 1 }, { x: 25, z: 3 }), true, 'par-dessus un bac')
   assert.equal(walkable(zone, 28, 13), false)
@@ -281,23 +303,23 @@ test('les meubles : rien ne se pose sur leur tuile, et la table de la salle de p
     for (const t of [...zone.cargo, ...zone.flares, ...zone.monsters]) assert.equal(zone.furnished[t.z * zone.width + t.x], 0, `${t.x},${t.z}`)
     for (const d of zone.decor) assert.equal(zone.furnished[Math.round(d.z) * zone.width + Math.round(d.x)], 0)
   })
-  const zone = generateZone(1, { team: 1, parcels: 1, enemies: 1 })
+  const zone = generateZone(1, OPEN)
   for (const t of [[15, 2], [16, 2], [15, 0], [16, 0], [14, 1]]) assert.ok(walkable(zone, t[0], t[1]), `${t}`)
   assert.ok(!walkable(zone, 15, 1) && !walkable(zone, 16, 1), 'la table')
   assert.ok(walkable(zone, 17, 1), 'pas de mur invisible à côté')
 })
 
-test('les sols : verre brisé dans la zone effondrée, flaques caustiques dans le nid', () => {
+test('les sols : verre brisé dans la zone effondrée, flaques caustiques dans le nid et le couvoir', () => {
   let glass = 0, goo = 0
   each((zone) => {
     for (let i = 0; i < zone.width * zone.height; i++) {
       const x = i % zone.width, z = Math.floor(i / zone.width)
       if (zone.fx[i] === FX.glass) {
         glass++
-        assert.ok(x >= 25 && z >= 19, `verre en ${x},${z}`)
+        assert.ok(x >= 25 && x < 36 && z >= 19 && z < 26, `verre en ${x},${z}`)
       } else if (zone.fx[i] === FX.goo) {
         goo++
-        assert.ok(x >= 25 && z >= 13 && z < 18, `flaque en ${x},${z}`)
+        assert.ok((x >= 25 && x < 36 && z >= 13 && z < 18) || (x >= 37 && z >= 9 && z < 18), `flaque en ${x},${z}`)
       }
       if (zone.fx[i]) assert.equal(floorFx(zone, { x: x + 0.3, z: z - 0.2 }), zone.fx[i])
     }
@@ -308,9 +330,70 @@ test('les sols : verre brisé dans la zone effondrée, flaques caustiques dans l
 })
 
 test('les caméras de surveillance filment des tuiles de la baie', () => {
-  const zone = generateZone(1, { team: 1, parcels: 1, enemies: 1 })
+  const zone = generateZone(1, OPEN)
   assert.ok(BAY_CAMERAS.length >= 6)
+  assert.equal(zone.cameras.length, BAY_CAMERAS.length)
   for (const c of BAY_CAMERAS) assert.ok(walkable(zone, Math.round(c.x), Math.round(c.z)) && !inAirlock(zone, c), c.id)
+  // Jamais de caméra dans un secteur condamné : on n'y verrait que du vide.
+  each((z) => {
+    assert.ok(z.cameras.length >= 6)
+    for (const c of z.cameras) assert.ok(walkable(z, Math.round(c.x), Math.round(c.z)), `${c.id} (graine ${z.seed})`)
+  })
+})
+
+test('les sas : un vantail par tuile de passage, et chaque secteur fermé par les siens', () => {
+  const zone = generateZone(1, OPEN)
+  assert.deepEqual(zone.closed, [])
+  assert.equal(zone.gates.length, BAY_GATES.reduce((n, g) => n + g.at.length, 0))
+  for (const g of zone.gates) {
+    assert.equal(g.locked, false)
+    assert.equal(zone.map.edge(g.x, g.z, g.dir), 'door')
+    // De part et d'autre, du sol libre : ni casier, ni colis, ni fusée devant un sas.
+    const out = { x: g.x + [0, 1, 0, -1][g.dir], z: g.z + [-1, 0, 1, 0][g.dir] }
+    for (const t of [g, out]) {
+      assert.ok(walkable(zone, t.x, t.z), `sas ${g.x},${g.z}`)
+      for (const o of [...zone.lockers, ...zone.cargo, ...zone.flares]) assert.ok(o.x !== t.x || o.z !== t.z, `sas ${g.x},${g.z} encombré`)
+    }
+  }
+  // Un sas se passe par son ouverture : au milieu de sa tuile, pas à travers un montant.
+  assert.equal(straightWalk(zone, { x: 4, z: 9 }, { x: 4, z: 7 }), true)
+  assert.equal(straightWalk(zone, { x: 4.4, z: 9 }, { x: 4.4, z: 7 }), false)
+  // Chaque secteur, condamné seul, est coupé du sas d'extraction ; le reste de la baie tient d'un bloc.
+  for (const s of BAY_SECTORS) {
+    const z = generateZone(1, { ...OPEN, closed: [s.id] })
+    assert.ok(z.closed.includes(s.id), s.id)
+    assert.equal(walkable(z, s.x, s.z), false, s.id)
+    assert.ok(z.gates.some((g) => g.locked), s.id)
+    const d = distances(z, [z.airlock.pad])
+    for (let i = 0; i < z.width * z.height; i++) if (!z.blocked[i]) assert.ok(d[i] >= 0, `${s.id} : tuile ${i % z.width},${Math.floor(i / z.width)} coupée`)
+  }
+  assert.deepEqual(BAY_ROOMS.map((r) => r.id).filter((id) => !BAY_SECTORS.some((s) => s.small && s.id === id)), [], 'chaque petite pièce est un secteur')
+})
+
+test('les secteurs condamnés : quelques-uns par partie, jamais le quai ni la grande allée', () => {
+  const big = BAY_SECTORS.filter((s) => !s.small).map((s) => s.id)
+  const seen = new Set()
+  let variants = new Set()
+  for (let s = 1; s <= 300; s++) {
+    const zone = generateZone(s * 7919, { team: 4, parcels: 6, enemies: 6 })
+    const lost = zone.closed.filter((id) => big.includes(id))
+    assert.ok(lost.length >= RULES.sealed.min && lost.length <= RULES.sealed.max, `${lost} (graine ${zone.seed})`)
+    for (const id of zone.closed) seen.add(id)
+    variants.add(zone.closed.join())
+    // Un sas verrouillé est un mur : on ne le franchit pas, on ne voit pas au travers.
+    for (const g of zone.gates) {
+      assert.equal(zone.map.edge(g.x, g.z, g.dir), g.locked ? 'wall' : 'door')
+      const a = walkable(zone, g.x, g.z), b = walkable(zone, g.x + [0, 1, 0, -1][g.dir], g.z + [-1, 0, 1, 0][g.dir])
+      assert.equal(a && b, !g.locked, `sas ${g.x},${g.z} (graine ${zone.seed})`)
+      assert.ok(a || b, 'pas de sas entre deux secteurs condamnés')
+    }
+    // Ni meuble, ni lampe, ni projecteur dans le vide.
+    for (const f of [...zone.rooms.flatMap((r) => r.furniture), ...zone.props]) assert.ok(zone.room[Math.round(f.z) * zone.width + Math.round(f.x)] !== ' ', `${f.model} (graine ${zone.seed})`)
+    for (const l of [...zone.areas.flatMap((a) => a.lights), ...zone.rooms.map((r) => r.light), ...zone.lights.flatMap((l) => l.lamps)]) assert.ok(zone.room[Math.round(l.z) * zone.width + Math.round(l.x)] !== ' ')
+    assert.ok(isLit(zone, zone.airlock.pad) && walkable(zone, 17, 10))
+  }
+  assert.deepEqual([...seen].sort(), BAY_SECTORS.map((s) => s.id).sort(), 'chaque secteur ferme de temps en temps')
+  assert.ok(variants.size > 100, `${variants.size} baies différentes`)
 })
 
 test('la note de mission : S sans capture et vite, jusqu\'à D', () => {

@@ -68,4 +68,5 @@ export declare function helpMech(clock: MechClock, now: number, until: number): 
 /** Les réacteurs tournent jusqu'à `until` (ms, 0 : ils viennent de s'arrêter) : la tournée reste figée jusque-là, plus souffler et revenir. */
 export declare function panicMech(clock: MechClock, now: number, until: number): MechClock
 /** Un joueur est-il installé aux commandes du Krait ? */
-export declare function inCockpit(p: { x: number; z: number; pose?: string | null }): boolean
+export declare const HANGAR_PAD: { minX: number; maxX: number; minZ: number; maxZ: number }
+export declare function inCockpit(p: { x: number; z: number; pose?: string | null; level?: number }): boolean

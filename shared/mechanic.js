@@ -32,8 +32,14 @@ const NORTH = Math.PI
 const EAST = Math.PI / 2
 const WEST = -Math.PI / 2
 
-/** Le siège du pilote du Krait, sur le pont (cf. KRAIT_PILOT et l'escabeau dans levels.ts). */
+/** Le siège du pilote du Krait Mk II, le vaisseau du pad par défaut (cf. src/ship-bay.ts). */
 export const KRAIT_COCKPIT = { x: 33.45, z: 5 }
+
+/**
+ * L'aire du hangar : chacun y voit le vaisseau qu'il a choisi au registre, posé sur son train, et
+ * s'installe dans son cockpit, où qu'il soit sous l'emprise (cf. src/ship-bay.ts). Nico la contourne.
+ */
+export const HANGAR_PAD = { minX: 27.9, maxX: 34.8, minZ: 1.6, maxZ: 8.4 }
 
 /** Les réacteurs se coupent d'eux-mêmes au bout de ce temps (secondes) : la sécurité du hangar. */
 export const KRAIT_BURN = 8
@@ -287,7 +293,11 @@ export function panicMech(clock, now, until) {
   return { tau: t, at: now, holdUntil: Math.max(now, until) + (MECH_RELIEF + mechReturn(t, MECH_PANIC)) * 1000 }
 }
 
-/** Un joueur est-il installé aux commandes du Krait ? (le siège, à la latence près) */
+/**
+ * Un joueur est-il installé aux commandes de son vaisseau, au hangar ? Chacun a le sien (son
+ * cockpit est où il est) : assis en pilote, quelque part sur l'aire.
+ */
 export function inCockpit(p) {
-  return p.pose === 'pilot' && Math.hypot(p.x - KRAIT_COCKPIT.x, p.z - KRAIT_COCKPIT.z) < 0.6
+  return p.pose === 'pilot' && (p.level === undefined || p.level === MECH_LEVEL)
+    && p.x >= HANGAR_PAD.minX && p.x <= HANGAR_PAD.maxX && p.z >= HANGAR_PAD.minZ && p.z <= HANGAR_PAD.maxZ
 }

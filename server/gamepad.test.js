@@ -64,6 +64,23 @@ test('croix normalisée et navigation par impulsions du stick ou de la croix', (
   assert.equal(controls.poll().down, true)
 })
 
+test('gauche, droite et Select : au nouvel appui seulement', () => {
+  const p = pad(), controls = new GamepadControls(() => [p])
+  button(p, 14, true); button(p, 8, true)
+  let input = controls.poll()
+  assert.equal(input.left, true)
+  assert.equal(input.right, false)
+  assert.equal(input.menu, true)
+  input = controls.poll()
+  assert.equal(input.left, false)
+  assert.equal(input.menu, false)
+  assert.ok(controls.held.has('left'))
+  button(p, 14, false)
+  p.axes[0] = 1
+  assert.equal(controls.poll().right, true)
+  assert.equal(controls.poll().right, false)
+})
+
 test('saisie, perte de focus : aucune action différée au retour', () => {
   const p = pad(), controls = new GamepadControls(() => [p])
   button(p, 0, true); p.axes[0] = 1

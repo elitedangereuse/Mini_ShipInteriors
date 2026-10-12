@@ -379,14 +379,13 @@ fichiers d'origine, non retraités ; jouées en boucle par Sound.music.
 
 
 ---------------------------------------------------------------------
-CMDR Arena (hors jukebox)
+CMDR Arena (jeu et album du jukebox)
 ---------------------------------------------------------------------
 cmdr-arena/pixel-brawl.mp3      : « Pixel Brawl », la musique de la partie.
 cmdr-arena/game-menu-groove.mp3 : « Game Menu Groove », la sono du lobby.
 cmdr-arena/victory-fanfare.mp3  : « Victory Fanfare », l'écran de fin.
-Fournis par Michael Bernard le 11/10/2026 ; auteur et licence à
-renseigner ici pour les deux premiers morceaux. « Victory Fanfare » a été
-ajouté au projet le 11/10/2026 ; auteur et licence à renseigner également.
+Composés par Ben Carter Jr et fournis par Michael Bernard le 11/10/2026.
+« Victory Fanfare » a été ajouté au projet le 11/10/2026. Licence à renseigner.
 Fichiers d'origine, renommés, non retraités (MP3 stéréo 48 kHz ; les deux
 premiers : -15,4 et -15,5 LUFS intégrés, crête -4,7 et -5,1 dBFS).
 Aucun des deux n'est coupé pour boucler (arrêt net en pleine mesure, puis
@@ -398,8 +397,8 @@ cmdr-arena/x-99-protocol.mp3              : « X-99 Protocol », la musique
                                             de la ruche thargoïde.
 cmdr-arena/guardians-of-the-forbidden.mp3 : « Guardians of the Forbidden »,
                                             la musique du site gardien.
-Par fluidspaceunivers. Fournis par Michael Bernard le 12/10/2026 ; leurs
-métadonnées indiquent une création avec Suno. Licence à renseigner ici.
+Composés par Ben Carter Jr et fournis par Michael Bernard le 12/10/2026 ;
+leurs métadonnées indiquent une création avec Suno. Licence à renseigner.
 Fichiers d'origine, renommés, non retraités (MP3 stéréo 48 kHz ; -15,1 et
 -16,0 LUFS intégrés, crête -3,9 et -5,1 dBFS).
 « X-99 Protocol » : 150,00 BPM mesurés sur le fichier ; le jeu boucle sur
@@ -409,11 +408,11 @@ Forbidden » (149,2 s) tourne en entier : tempo trop flottant pour un raccord
 
 
 ---------------------------------------------------------------------
-Lobby de récupération thargoïde (hors jukebox)
+Lobby de récupération thargoïde (jeu et album du jukebox)
 ---------------------------------------------------------------------
-thargoid-salvage/corrupted-lobby.mp3 : « Corrupted Lobby », par
-fluidspaceunivers. Source ajoutée au projet le 11/10/2026 ; ses métadonnées
-indiquent une création avec Suno. Licence à renseigner ici.
+thargoid-salvage/corrupted-lobby.mp3 : « Corrupted Lobby », par Ben Carter Jr.
+Source ajoutée au projet le 11/10/2026 ; ses métadonnées indiquent une création
+avec Suno. Licence à renseigner.
 
 Le fichier source MP3 stéréo 48 kHz a été renommé, débarrassé de sa pochette
 embarquée et réencodé en VBR. Quatre passages espacés ont été volontairement

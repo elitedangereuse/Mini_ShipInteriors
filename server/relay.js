@@ -102,6 +102,7 @@ import { HOME_SYSTEM, JUMP_CHARGE, JUMP_TRAVEL, PILOT_SEAT, nextSystem } from '.
 import { ZONE_LEVEL } from '../shared/salvage.js'
 import { ARENA_LEVEL } from '../shared/arena.js'
 import { ARENA_GAME_ACTIONS, ARENA_LOBBY_ACTIONS, createArena } from './arena.js'
+import { createArenaStats } from './arena-stats.js'
 // Identifiant d'apparence (cf. src/looks.ts), ex. « human.female.b », « alien.male.c.blue », « robot.g »,
 // suivi au besoin du style du Holo-Me (« suit.male.c.flight.mo-pk-sm-nv- ») dont chaque champ est vérifié.
 import { validLook } from '../shared/look-style.js'
@@ -237,7 +238,8 @@ export function attachRelay(
   httpServer,
   { log = console.log, error = console.error, cmdrUrl = process.env.ED_CMDR_URL ?? '', path = process.env.WS_PATH || WS_PATH,
     devCmdr = false, youtubeKey = process.env.YOUTUBE_API_KEY ?? '', youtubeFetch = fetch, relaySecret = process.env.MSI_RELAY_SECRET ?? '',
-    salvageFetch = fetch, arenaFetch = fetch, quartersFetch = fetch, barFetch = fetch, questsFetch = fetch } = {},
+    salvageFetch = fetch, arenaFetch = fetch, quartersFetch = fetch, barFetch = fetch, questsFetch = fetch,
+    arenaStatsFile = process.env.ARENA_STATS_FILE || null } = {},
 ) {
   if (!cmdrUrl) error('[relais] ED_CMDR_URL absent : les comptes Élite Dangereuse ne peuvent pas être reconnus (tout le monde est invité).')
   const io = new Server(httpServer, {
@@ -518,7 +520,10 @@ export function attachRelay(
     report: (fighter, result) => postArenaResult(fighter.cookie, result, { cmdrUrl, secret: relaySecret, error, fetcher: arenaFetch }),
     log,
     debug: devCmdr,
+    // Les statistiques des personnages : dans ce fichier s'il est donné (ARENA_STATS_FILE), sinon en mémoire.
+    stats: createArenaStats({ file: arenaStatsFile, error }),
   })
+  httpServer.on('close', () => arena.flushStats())
   const arenaTimer = setInterval(() => arena.tick(0.05), 50)
   arenaTimer.unref?.()
   httpServer.on('close', () => clearInterval(arenaTimer))
@@ -717,7 +722,7 @@ export function attachRelay(
       if (player.level === BASE_LEVEL && m.level !== BASE_LEVEL && setBaseBurn(player, false)) io.emit('chief', { id: player.id, ...chiefState() })
       const wasZone = instanced(player.level)
       const wasTutorial = player.level === TUTORIAL_LEVEL
-      Object.assign(player, { x, z, yaw, level: m.level, anim: ANIMS.has(m.anim) ? m.anim : 'idle', pose, py: pose ? (num(m.py, 0, 1.2) ?? 0) : 0 })
+      Object.assign(player, { x, z, yaw, level: m.level, anim: ANIMS.has(m.anim) ? m.anim : 'idle', pose, py: pose ? (num(m.py, 0, 2.5) ?? 0) : 0 })
       // Assis dans les toilettes du pont supérieur pendant la traversée d'un saut (un joueur installé
       // redit sa position toutes les 2 s) : la cuvette l'aspire, il est attendu dans les conduits.
       if (pose === 'sit' && m.level === TOILET_ROOM.level && MAPS.get(TOILET_ROOM.level).room(Math.round(x), Math.round(z)) === TOILET_ROOM.room) {

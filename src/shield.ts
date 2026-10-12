@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { cobraGeometry } from './furniture/cobra'
+import { ED_SHIPS, edShip, shipInfo, trafficLength } from './ed-ships'
 import { renderQuality } from './quality'
 
 /*
@@ -109,8 +109,11 @@ export class ForceShield {
   /** Direction du champ vers l'espace (horizontale). */
   private readonly outward: THREE.Vector3
   private readonly length: number
-  /** Vaisseau qui passe au loin, de temps en temps. */
+  /** Vaisseau qui passe au loin, de temps en temps (un vaisseau d'Elite Dangerous, cf. ed-ships.ts). */
   private readonly traffic: THREE.Group
+  /** Celui du prochain passage, une fois chargé ; un autre à chaque fois. */
+  private ship: THREE.Object3D | null = null
+  private disposed = false
   private trafficAt = 6 + Math.random() * 10
   /** Sa trajectoire : le long du champ, de `a0` à `a1`, à distance du vaisseau. */
   private readonly trafficLine: { line: number; a0: number; a1: number; alongX: boolean; outward: 1 | -1 }
@@ -181,17 +184,29 @@ export class ForceShield {
 
     if (stars) this.group.add(starBox(line, a0, a1, 60, outward, alongX))
 
-    // Un vaisseau au loin (une Cobra, feux allumés), qui file le long du vaisseau.
+    // Un vaisseau au loin (réacteurs allumés), qui file le long du vaisseau.
     this.traffic = new THREE.Group()
-    const hull = new THREE.Mesh(cobraGeometry(), new THREE.MeshLambertMaterial({ color: '#8a93a3', flatShading: true }))
-    hull.scale.setScalar(0.6)
-    const glowMat = new THREE.MeshBasicMaterial({ color: '#8fd0ff' })
-    const engine = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.06, 0.05), glowMat)
-    engine.position.set(0, 0.02, -0.28)
-    this.traffic.add(hull, engine)
     this.traffic.visible = false
-    if (traffic) this.group.add(this.traffic)
+    if (traffic) {
+      this.group.add(this.traffic)
+      this.board()
+    }
     this.trafficLine = { line, a0: a0 - 30, a1: a1 + 30, alongX, outward }
+  }
+
+  /** Charge le vaisseau du prochain passage, pris au hasard (à la taille du trafic, cf. traffic.ts). */
+  private board() {
+    edShip(ED_SHIPS[Math.floor(Math.random() * ED_SHIPS.length)]).then(
+      (ship) => {
+        if (this.disposed) return
+        const length = shipInfo(ship).size[2]
+        ship.scale.setScalar(trafficLength(length) / length)
+        this.ship?.removeFromParent()
+        this.ship = ship
+        this.traffic.add(ship)
+      },
+      () => {},
+    )
   }
 
   /**
@@ -221,7 +236,7 @@ export class ForceShield {
     const tl = this.trafficLine
     if (!this.trafficRun) {
       this.trafficAt -= dt
-      if (this.trafficAt <= 0 && this.traffic.parent) {
+      if (this.trafficAt <= 0 && this.traffic.parent && this.ship) {
         const forward = Math.random() < 0.5
         this.trafficRun = { from: forward ? tl.a0 : tl.a1, to: forward ? tl.a1 : tl.a0, off: 7 + Math.random() * 8, y: -1 + Math.random() * 3, t: 0, duration: 7 + Math.random() * 4 }
         this.traffic.visible = true
@@ -235,19 +250,23 @@ export class ForceShield {
       const out = tl.line + tl.outward * run.off
       if (tl.alongX) this.traffic.position.set(a, run.y, out)
       else this.traffic.position.set(out, run.y, a)
-      // Le nez de la Cobra (+z) vers où elle file.
+      // Le nez (+z) vers où il file.
       const dirSign = Math.sign(run.to - run.from)
       this.traffic.rotation.y = tl.alongX ? (dirSign > 0 ? Math.PI / 2 : -Math.PI / 2) : dirSign > 0 ? 0 : Math.PI
       if (k >= 1) {
         this.trafficRun = null
         this.traffic.visible = false
         this.trafficAt = 20 + Math.random() * 25
+        this.board()
       }
     }
   }
 
   /** Retire le champ (une parcelle qui change de taille) : ses géométries et ses matériaux. */
   dispose() {
+    // Le vaisseau du passage partage ses géométries et ses matériaux avec ses semblables : on le garde.
+    this.disposed = true
+    this.ship?.removeFromParent()
     this.group.removeFromParent()
     this.studs.dispose()
     this.group.traverse((o) => {

@@ -53,7 +53,12 @@ export const ARENA_BOOTH = { x: 22.97, z: 9.3, yaw: Math.PI / 2, referee: { x: 2
  *   d'où part un tir à plat (vue de dessus, bots) ; `ceiling` : le plafond ;
  * - `sprint` : la vitesse d'un joueur à la course (celle de src/player.ts) ; `bot` : celle d'un bot.
  *   L'une et l'autre pour un personnage de vitesse 1 (cf. ARENA_CHARACTERS) ;
- * - `lob` : durée de vol d'un objet lancé (graine, cocktail), au plus court (s).
+ * - `lob` : durée de vol d'un objet lancé (graine, cocktail), au plus court (s) ;
+ * - `assist` : le tir rapide (au doigt, toucher le stick de tir sans viser ; en vue subjective, le
+ *   tir sur l'adversaire le plus près de la mire) vise l'adversaire le plus proche, mais pas mieux
+ *   qu'un bon joueur à la souris : il s'en écarte au hasard de `assist` degrés au plus, comme un bot
+ *   (cf. ARENA_SKILLS, assistAim) ; un lancer, de deux pour cent par degré de sa distance. Un essai
+ *   (server/arena-assist.test.js) le situe entre un bot recrue et un bot d'élite, contre une cible qui court.
  */
 export const ARENA_RULES = {
   /** Lobbys du terminal : autant de parties qui peuvent se préparer (et se jouer) en même temps. */
@@ -80,6 +85,7 @@ export const ARENA_RULES = {
   sprint: 3.4,
   bot: 2.5,
   lob: 0.35,
+  assist: 4.5,
 }
 
 /**
@@ -105,7 +111,9 @@ export const ARENA_RULES = {
  *     touche rien en vol, et retombe au point visé ;
  *   - `flower` : Capucine : là où retombe sa graine pousse une fleur carnivore, qui mord (`damage`)
  *     l'adversaire le plus proche à moins de `radius`, toutes les `every` secondes, une fois sortie
- *     de terre (`grow`) et pendant `life` secondes ; `most` fleurs à la fois, la plus vieille fane ;
+ *     de terre (`grow`) et pendant `life` secondes ; `most` fleurs à la fois, la plus vieille fane.
+ *     Avant chaque morsure, elle s'arme (`windup` secondes, compris dans `every`) : elle se tourne
+ *     vers sa proie et ouvre grand ses mâchoires ; qui sort de sa portée à temps y échappe ;
  *   - `fire` : Jacques : là où éclate son cocktail, une flaque brûle `life` secondes, et chaque
  *     adversaire qui s'y tient (à moins de `radius`) perd `damage` toutes les `every` secondes.
  */
@@ -115,7 +123,7 @@ export const ARENA_CHARACTERS = {
     weapon: { auto: true, burst: 8, interval: 0.09, mag: 18, reload: 1.6, speed: 46, pierce: false, pellets: 1, spread: 2.4, damage: 8, range: 5.5, reach: 4, blast: 0 },
   },
   marcel: {
-    hp: 170, speed: 0.78,
+    hp: 160, speed: 0.78,
     weapon: { auto: false, interval: 0.55, mag: 3, reload: 1.6, speed: 11, pierce: false, pellets: 1, spread: 1, damage: 45, range: 4.5, reach: 3.2, blast: 0.85 },
   },
   nico: {
@@ -123,21 +131,21 @@ export const ARENA_CHARACTERS = {
     weapon: { auto: false, interval: 0.85, mag: 3, reload: 1.9, speed: 80, pierce: true, pellets: 1, spread: 0, damage: 60, range: 8, reach: 6.5, blast: 0 },
   },
   betty: {
-    hp: 95, speed: 1,
-    weapon: { auto: false, interval: 0.38, mag: 5, reload: 1.4, speed: 26, pierce: false, pellets: 1, spread: 0.6, damage: 22, heal: 22, range: 6, reach: 4.5, blast: 0 },
+    hp: 100, speed: 1,
+    weapon: { auto: false, interval: 0.38, mag: 5, reload: 1.4, speed: 26, pierce: false, pellets: 1, spread: 0.6, damage: 24, heal: 24, range: 6, reach: 4.5, blast: 0 },
   },
   capucine: {
-    hp: 85, speed: 1,
+    hp: 90, speed: 1,
     weapon: {
       auto: false, interval: 0.8, mag: 3, reload: 2.2, speed: 9, lob: true, pierce: false, pellets: 1, spread: 0, damage: 20, range: 6.5, reach: 4.5, blast: 0,
-      flower: { life: 6, radius: 1.6, every: 0.6, grow: 0.3, most: 2 },
+      flower: { life: 6, radius: 1.6, every: 0.6, grow: 0.3, most: 2, windup: 0.25 },
     },
   },
   jacques: {
-    hp: 150, speed: 0.85,
+    hp: 140, speed: 0.85,
     weapon: {
       auto: false, interval: 0.9, mag: 3, reload: 2.2, speed: 9, lob: true, pierce: false, pellets: 1, spread: 0, damage: 32, range: 6, reach: 4.8, blast: 0.9,
-      fire: { life: 2.5, radius: 1, every: 0.4, damage: 12 },
+      fire: { life: 2.5, radius: 1, every: 0.4, damage: 11 },
     },
   },
 }
@@ -151,6 +159,18 @@ export const ARENA_TEAMS = [
   { id: 0, color: '#ff8a1c' },
   { id: 1, color: '#3fc8ff' },
 ]
+
+/**
+ * Les couleurs de la partie, telles que le joueur la voit (cf. src/arena/palette.ts) : lui
+ * (`self`), les siens (`ally`), ceux d'en face (`enemy`), et les soins (`heal`). Les mêmes partout :
+ * anneaux, contours, plaques, projectiles, pièges, score, chiffres. Choisies pour rester distinctes
+ * aux formes courantes de daltonisme (protanopie, deutéranopie, tritanopie ; les essais le
+ * vérifient) : le bleu des siens et le rouge-orangé d'en face ne se confondent pour aucune, le
+ * jaune de soi et le vert d'eau des soins se distinguent aussi par leur clarté. La forme double la
+ * couleur là où elle compte : les dents de l'anneau d'un adversaire, la flèche du sien, le signe et
+ * la croix des soins.
+ */
+export const ARENA_PALETTE = { self: '#ffe14d', ally: '#2e86ff', enemy: '#ff4733', heal: '#9cffd6' }
 
 /**
  * Niveau des bots : délai avant le premier tir sur qui ils viennent de voir (s), écart de visée
@@ -183,11 +203,14 @@ export const ARENA_BOTS = ['Drone Vipère', 'Drone Cobra', 'Drone Python', 'Dron
  *
  * - La baie (17 × 11) : le stade de CMDR Arena (cf. src/arena/venue.ts). Trois allées : au nord, au
  *   milieu par la cour centrale et ses deux buissons, au sud.
- * - La ruche (19 × 19) : une structure thargoïde, en octogone. Au milieu, la chambre du cœur, octogone
- *   elle aussi, ouverte sur ses quatre côtés droits ; de chacun de ses sommets, une nervure court
- *   jusqu'au sommet de l'enceinte, percée d'un passage, et découpe l'anneau en huit secteurs. Les
- *   bases sont les secteurs ouest et est ; des massifs de spores (buissons) et des cosses couvrent
- *   les autres (cf. src/arena/hive.ts).
+ * - La ruche (23 × 15) : une structure thargoïde, en chrysalide (un octogone étiré d'une base à
+ *   l'autre, renflé au milieu). Au milieu, la chambre du cœur, octogone elle aussi, fermée de
+ *   nervures, ses coins coupés : une porte de trois tuiles sur chaque côté droit, des massifs de
+ *   spores (buissons) dans ses coins. Autour, deux galeries au nord et au sud, une spire au milieu de
+ *   chacune et des spores dans le renflement, coupées d'une nervure de chaque côté ; devant chaque
+ *   base, deux chevrons et une spire ; des spores encore, au coin des bases et devant la porte de la
+ *   chambre. Tout le terrain sert : rien n'y est à l'écart du chemin d'une base à l'autre (cf.
+ *   src/arena/hive.ts).
  * - Le site gardien (23 × 17) : le sanctuaire du gouffre, des ruines gardiennes de nuit, suspendues
  *   au-dessus du vide, sur deux hauteurs. Au milieu, le sanctuaire en croix, en hauteur (`plateau`),
  *   à bras de cinq tuiles : sa travée d'ouest en est (9 × 5), et ses bras nord et sud ; on y monte par
@@ -245,25 +268,21 @@ export const ARENA_MAPS = [
     id: 'hive',
     name: ['La ruche', 'The hive'],
     plan: [
-      '     #.......#     ',
-      '    .##.....##.    ',
-      '   .....ggg.....   ',
-      '  ....#.....#....  ',
-      ' ..gg.##.o.##.gg.. ',
-      '##.....#...#.....##',
-      '.#.##.##...##.##.#.',
-      '.A..###g...g###..B.',
-      '........XXX........',
-      '.A.o....XXX....o.B.',
-      '........XXX........',
-      '.A..###g...g###..B.',
-      '.#.##.##...##.##.#.',
-      '##.....#...#.....##',
-      ' ..gg.##.o.##.gg.. ',
-      '  ....#.....#....  ',
-      '   .....ggg.....   ',
-      '    .##.....##.    ',
-      '     #.......#     ',
+      '        ..g.g..        ',
+      '   ...#....o....#...   ',
+      '  .gg.#.........#.gg.  ',
+      ' .......##...##....... ',
+      '....##.#.......#.##....',
+      '.A..#..#g.....g#..#..B.',
+      '.....g....XXX....g.....',
+      '.A..o.....XXX.....o..B.',
+      '.....g....XXX....g.....',
+      '.A..#..#g.....g#..#..B.',
+      '....##.#.......#.##....',
+      ' .......##...##....... ',
+      '  .gg.#.........#.gg.  ',
+      '   ...#....o....#...   ',
+      '        ..g.g..        ',
     ],
   },
 ]
@@ -440,6 +459,15 @@ export function arenaSight(zone, from, to) {
   return castArena(zone, a, { x: dx / len, y: dy / len, z: dz / len }, len, []).t >= len - 1e-6
 }
 
+/**
+ * Dans la base de l'équipe `team` ? (ses `baseDepth` colonnes, au bout de l'arène qui est le sien :
+ * l'ouest pour l'équipe 0, l'est pour l'autre). Personne n'entre dans la base adverse, et ni fleur ni
+ * flaque n'y prend.
+ */
+export function inArenaBase(zone, team, p) {
+  return team === 0 ? p.x < ARENA_RULES.baseDepth - 0.5 : p.x > zone.width - ARENA_RULES.baseDepth - 0.5
+}
+
 /** Dans un buisson ? */
 export function inBush(zone, p) {
   const x = Math.round(p.x), z = Math.round(p.z)
@@ -470,6 +498,18 @@ export function blastDamage(w, d) {
 }
 
 /**
+ * Le tir rapide (cf. ARENA_RULES.assist) : le cap visé `yaw` (radians) et, pour un lancer, sa
+ * distance `dist`, écartés au hasard (la somme de deux tirages, comme l'écart de visée des bots).
+ */
+export function assistAim(yaw, dist, random = Math.random) {
+  const spread = ARENA_RULES.assist
+  return {
+    yaw: yaw + (random() + random() - 1) * spread * (Math.PI / 180),
+    dist: dist * (1 + (random() + random() - 1) * spread * 0.02),
+  }
+}
+
+/**
  * Où retombe un objet lancé de `from` dans la direction `dir` (au sol, longueur 1), à `dist` tuiles
  * (bornées à la portée `range`) : au point visé, ou, s'il est sur un obstacle ou hors de l'arène, à
  * la dernière tuile libre en deçà, sur la même ligne.
@@ -488,6 +528,24 @@ export function lobTarget(zone, from, dir, dist, range) {
 /** Durée de vol d'un objet lancé à `dist` tuiles par l'arme `w` (s). */
 export function lobTime(w, dist) {
   return Math.max(ARENA_RULES.lob, dist / w.speed)
+}
+
+/** D'aussi loin du tireur, au plus, part un projectile (tuiles) : sa main, un peu devant lui. */
+export const MUZZLE_SLACK = 1.2
+
+/**
+ * D'où part vraiment un tir qu'on voudrait faire partir de `want` (la main du tireur, un peu devant
+ * lui) : de là, s'il est sur le sol de l'arène, à moins de MUZZLE_SLACK des pieds du tireur
+ * (`foot`) et sans obstacle entre eux ; sinon, de ses pieds (le tireur colle à un conteneur, et sa
+ * main passerait de l'autre côté). Le relais tranche ainsi, et le client de même pour son cône et
+ * son tir : ce que le cône montre est ce que le relais fera voler.
+ * @returns un point au sol (x, z)
+ */
+export function shotOrigin(zone, foot, want) {
+  const x = Math.round(want.x), z = Math.round(want.z)
+  const free = x >= 0 && z >= 0 && x < zone.width && z < zone.height && !zone.blocked[z * zone.width + x]
+  if (free && Math.hypot(want.x - foot.x, want.z - foot.z) <= MUZZLE_SLACK && arenaSight(zone, foot, want)) return { x: want.x, z: want.z }
+  return { x: foot.x, z: foot.z }
 }
 
 /**
