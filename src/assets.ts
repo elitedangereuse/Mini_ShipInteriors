@@ -193,6 +193,20 @@ function toLambert(m: THREE.Material): THREE.Material {
   return l
 }
 
+/**
+ * Palette des packs de Kenney (« colormap ») : chaque face pointe dans une case de couleur ou un
+ * dégradé de 32 texels de large, au-dessus d'une moitié noire. Ses mipmaps ne servent à rien et
+ * nuisaient : aux angles rasants (un mur vu de profil pendant que la caméra tourne), la face
+ * sautait d'un niveau au suivant et piochait jusque dans le noir de la palette. Lue telle quelle,
+ * elle garde ses couleurs sous tous les angles, et un tiers de mémoire en moins.
+ */
+function flatPalette(map: THREE.Texture | null) {
+  if (!map || map.name !== 'colormap' || !map.generateMipmaps) return
+  map.generateMipmaps = false
+  map.minFilter = map.magFilter === THREE.NearestFilter ? THREE.NearestFilter : THREE.LinearFilter
+  map.needsUpdate = true
+}
+
 function load(path: string): Promise<GLTF> {
   const hit = cache.get(path)
   if (hit) return Promise.resolve(hit)
@@ -206,6 +220,7 @@ function load(path: string): Promise<GLTF> {
         if (!mesh.isMesh) return
         mesh.castShadow = true
         mesh.receiveShadow = true
+        flatPalette((mesh.material as THREE.MeshStandardMaterial).map)
         if (path.startsWith('station/')) {
           stationMaterial ??= toLambert(mesh.material as THREE.Material) as THREE.MeshLambertMaterial
           mesh.material = stationMaterial

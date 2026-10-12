@@ -1,4 +1,7 @@
+import * as THREE from 'three'
 import type { ShipMap } from './map'
+
+const _box = new THREE.Box3()
 
 /*
  * Ce que l'on voit d'un pont en vue subjective, pièce par pièce. Les murs y montent jusqu'au
@@ -205,6 +208,27 @@ export class RoomSight {
       this.cells.push(rooms)
     }
     return id
+  }
+
+  /**
+   * Rang d'une cellule le long d'une courbe en Z sur le plan (celle de sa première pièce) : des
+   * pièces proches ont des rangs proches, quelle que soit l'orientation de la caméra. La cellule 0
+   * (toujours dessinée) passe en tête.
+   */
+  cellRank(cell: number): number {
+    const rooms = this.cells[cell]
+    if (!rooms?.length) return -1
+    const room = rooms[0] >= this.count ? rooms[0] - this.count : rooms[0]
+    const b = this.bounds[room]
+    const x = Math.round((b.minX + b.maxX) / 2) + 1, z = Math.round((b.minZ + b.maxZ) / 2) + 1
+    let rank = 0
+    for (let bit = 0; bit < 8; bit++) rank |= (((x >> bit) & 1) << (2 * bit)) | (((z >> bit) & 1) << (2 * bit + 1))
+    return rank
+  }
+
+  /** Pièces dont la boîte (repère du pont, cf. `box`) touche le champ `frustum`, marquées dans `seen`. */
+  framed(seen: Uint8Array, box: (room: number, out: THREE.Box3) => THREE.Box3, frustum: THREE.Frustum) {
+    for (let r = 1; r < this.count; r++) if (frustum.intersectsBox(box(r, _box))) seen[r] = 1
   }
 
   /** Nombre de cellules relevées jusqu'ici. */

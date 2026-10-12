@@ -204,8 +204,8 @@ export class PhotoMode {
   }
 
   /**
-   * Déclencheur : la scène seule, rendue en grand dans un canvas sur le fond du jeu, avec les
-   * noms si on les veut ; puis l'éclair, et la photo dans l'aperçu.
+   * Déclencheur : la scène seule (et son fond, cf. backdrop.ts), rendue en grand dans un canvas,
+   * avec les noms si on les veut ; puis l'éclair, et la photo dans l'aperçu.
    */
   async capture() {
     if (!this.active || this.busy) return
@@ -223,7 +223,6 @@ export class PhotoMode {
     try {
       renderer.setPixelRatio(scale)
       renderer.render(scene, this.host.camera())
-      paintBackground(g, out.width, out.height)
       g.drawImage(renderer.domElement, 0, 0, out.width, out.height)
       if (this.names) this.drawTags(g, out.width, out.height, scale)
     } finally {
@@ -343,24 +342,6 @@ export class PhotoMode {
     this.preview.replaceChildren(head, img, actions, ...(this.shots.length > 1 ? [strip] : []))
     this.preview.hidden = false
   }
-}
-
-/** Le fond du jeu (le dégradé de la page, cf. style.css), derrière la scène. */
-function paintBackground(g: CanvasRenderingContext2D, w: number, h: number) {
-  // radial-gradient(ellipse at 30% 20%, …) : ellipse qui passe par le coin le plus éloigné.
-  const cx = w * 0.3, cy = h * 0.2, rx = Math.SQRT2 * w * 0.7, ry = Math.SQRT2 * h * 0.8
-  g.save()
-  g.fillStyle = '#05060f'
-  g.fillRect(0, 0, w, h)
-  g.translate(cx, cy)
-  g.scale(1, ry / rx)
-  const grad = g.createRadialGradient(0, 0, 0, 0, 0, rx)
-  grad.addColorStop(0, '#2a1f4d')
-  grad.addColorStop(0.55, '#0e1024')
-  grad.addColorStop(1, '#05060f')
-  g.fillStyle = grad
-  g.fillRect(-cx, -cy * (rx / ry), w, h * (rx / ry))
-  g.restore()
 }
 
 function flash() {

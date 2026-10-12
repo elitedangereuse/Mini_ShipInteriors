@@ -46,7 +46,7 @@ import { IsoCamera, ZOOM_MAX } from './camera'
 import { FirstPersonCamera } from './fps'
 import { Cat } from './cat'
 import { MAX_PETS, petRig, speciesOfItem, type Species } from './pets'
-import { Deck, firstPersonGlass, type Interactable } from './deck'
+import { Deck, firstPersonGlass, type Interactable, type IsoView } from './deck'
 import { Minimap } from './minimap'
 import { beatAt, beatPulse, film, filmGlow, holoMeGlow, holoTime, studio, type ClawControl, type ClawResult } from './furniture'
 import { GamepadControls, type GamepadInput } from '../shared/gamepad.js'
@@ -55,7 +55,7 @@ import { setupMobile } from './mobile'
 import { lineOfSight } from '../shared/sight.js'
 import { DIRS } from './map'
 import { EN, localizeAttributes, tr } from './i18n'
-import { LightRig } from './lighting/rig'
+import { LightRig, steadyShadows } from './lighting/rig'
 import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, LIFT, offShip, SPAWN } from './levels'
 import { hydrateIcons, icon, type IconName } from './icons'
 import { lookId, lookPath, lookRig, parseLook, raceOf, variantsOf, type Look } from './looks'
@@ -96,6 +96,8 @@ import { menuOf } from './menu'
 import { RemotePlayer } from './remote'
 import { Seating, type Seated } from './seating'
 import { Starfield } from './starfield'
+import { Backdrop } from './backdrop'
+import { DeckTextures } from './deck-textures'
 import { SystemView, SYSTEMS } from './systems'
 import { Traffic, type HullSides } from './traffic'
 import { nextSystem, JUMP_CHARGE, JUMP_TRAVEL, type SystemId } from '../shared/systems.js'
@@ -205,12 +207,14 @@ let dpr = Math.min(MAX_DPR, coarsePointer ? 1.25 : 1.5)
 // Sur un écran dense (Retina), pas d'anticrénelage multi-échantillon : à cette finesse il ne se voit
 // presque plus, et il coûtait près de 40 % du temps d'image (mesuré en vue subjective, densité 2).
 // La résolution adaptative garde alors plus souvent la pleine densité. Il se choisit à la création.
-const renderer = new THREE.WebGLRenderer({ antialias: coarsePointer || devicePixelRatio < 2, alpha: true, powerPreference: 'high-performance' })
+// Canvas opaque : le fond (l'espace, le ciel d'une planète) est dessiné par WebGL (cf. backdrop.ts).
+const renderer = new THREE.WebGLRenderer({ antialias: coarsePointer || devicePixelRatio < 2, alpha: false, powerPreference: 'high-performance' })
 renderer.setPixelRatio(renderQuality.light ? Math.min(MAX_DPR, 0.75) : dpr)
 renderer.setSize(innerWidth, innerHeight)
-renderer.setClearColor(0x000000, 0) // fond : dégradé CSS
+renderer.setClearColor(0x000000, 1)
 renderer.shadowMap.enabled = !renderQuality.light
 renderer.shadowMap.type = THREE.PCFShadowMap
+steadyShadows()
 renderer.toneMapping = THREE.ACESFilmicToneMapping
 renderer.toneMappingExposure = 1.1
 $('app').appendChild(renderer.domElement)
@@ -483,6 +487,9 @@ let salvage: SalvageClient | null = null
 /** L'arène : lobbys du terminal, partie (créée avec la zone thargoïde, cf. plus bas). */
 let arenaMode: ArenaClient | null = null
 
+/** Le fond de la scène, derrière tout le reste (cf. backdrop.ts). */
+const backdrop = new Backdrop()
+scene.add(backdrop.mesh)
 const stars = new Starfield()
 scene.add(stars.group)
 /** Le système où se trouve le vaisseau, vu par les verrières (il change au saut FSD). */
@@ -1059,11 +1066,10 @@ function setView(next: Deck) {
   // Les machines d'un pont ne s'entendent que sur ce pont.
   for (const h of hums) sound.fade(h.gain, h.deck === viewDeck ? h.volume : 0)
   // La baie infestée est hors du vaisseau : ni étoiles, ni système par les verrières. Sur la base
-  // au sol, le ciel de la planète (un fond CSS, cf. body.planet).
+  // au sol, le ciel de la planète ; dans le simulateur d'accueil, la nuit bleutée de la simulation.
   stars.group.visible = systemView.group.visible = traffic.group.visible = !offShip(viewDeck.def)
-  document.body.classList.toggle('planet', !!viewDeck.def.ground)
-  // Dans le simulateur d'accueil, la nuit bleutée de la simulation (cf. body.sim).
-  document.body.classList.toggle('sim', !!viewDeck.def.tutorial)
+  backdrop.show(viewDeck.def.ground ? 'planet' : viewDeck.def.tutorial ? 'sim' : 'space')
+  deckTextures.show(viewDeck)
 }
 
 /** Pas du demi-côté du cadre d'ombre (256 texels de carte) : la carte ne change de taille qu'en changeant de pas. */
@@ -1077,6 +1083,8 @@ const SHADOW_ABOVE = 2
 const sunZ = SUN_OFFSET.clone().normalize()
 const sunX = new THREE.Vector3().crossVectors(THREE.Object3D.DEFAULT_UP, sunZ).normalize()
 const sunY = new THREE.Vector3().crossVectors(sunZ, sunX)
+/** Textures des ponts : envoyées au GPU à l'arrivée sur un pont, libérées longtemps après l'avoir quitté. */
+const deckTextures = new DeckTextures(renderer, scene, decks)
 /** Centre du cadre « tout le vaisseau » (ou tout le plateau de la base au sol), cf. setView. */
 const shadowHome = SHIP_CENTER.clone()
 /** Demi-côté du cadre calé sur la vue isométrique. */
@@ -2945,6 +2953,8 @@ async function ride(target: number) {
       leaveVisit(tr(`Fin de la visite chez ${host} : vos quartiers vous attendent.`, `Your visit to ${host} is over: your own quarters await.`))
     }
     setDeck(next)
+    // L'écran est noir : toutes les textures du pont partent maintenant, pas à la première vue de chaque pièce.
+    deckTextures.flush()
     deck.pulseLift()
     net.sendState({ x: player.position.x, z: player.position.z, yaw: player.heading, level: deck.def.id, anim: 'idle' }, Infinity)
     sound.play('ding', null, { volume: 0.1 })
@@ -5767,8 +5777,22 @@ const timer = new THREE.Timer()
 timer.connect(document)
 const toCam = new THREE.Vector3()
 const fpsHead = new THREE.Vector3()
-/** Tri des pièces en vue subjective (cf. Deck.cull) ; se coupe depuis la console, en dev, pour comparer. */
+/** Tri des pièces, en vue subjective et isométrique (cf. Deck.cull) ; se coupe depuis la console, en dev, pour comparer. */
 const culling = { on: true }
+/** Champ de la vue isométrique (cf. framedView). */
+const isoField: IsoView = {
+  frustum: new THREE.Frustum(),
+  // Le soleil est fixe (cf. SUN_OFFSET) : l'ombre d'un point haut de 1 tombe toujours au même endroit.
+  shadow: { x: -SUN_OFFSET.x / SUN_OFFSET.y, z: -SUN_OFFSET.z / SUN_OFFSET.y },
+}
+const _isoClip = new THREE.Matrix4()
+/** Le champ de la caméra isométrique, à cette image. */
+function framedView(): IsoView {
+  const camera = iso.camera
+  camera.updateMatrixWorld()
+  isoField.frustum.setFromProjectionMatrix(_isoClip.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse))
+  return isoField
+}
 const screenPos = new THREE.Vector3()
 const actors = new Map<Deck, THREE.Vector3[]>(decks.map((d) => [d, []]))
 let perfTime = 0
@@ -5776,6 +5800,16 @@ let perfFrames = 0
 let fastWindows = 0
 /** Densité de pixels maximale autorisée ; redescend si l'affichage a déjà peiné à ce niveau. */
 let dprCeiling = MAX_DPR
+/** Durées des images de la seconde en cours (cf. la résolution adaptative). */
+const frameTimes = new Float32Array(256)
+const sortedFrames = new Float32Array(256)
+/** Durée sous laquelle passent neuf des `n` dernières images sur dix. */
+function slowFrame(n: number): number {
+  const sorted = sortedFrames.subarray(0, n)
+  sorted.set(frameTimes.subarray(0, n))
+  sorted.sort()
+  return sorted[Math.min(n - 1, Math.floor(n * 0.9))]
+}
 let promptText = ''
 /** Chronomètre des « Zzz » de ceux qui dorment. */
 let snore = 0
@@ -6238,12 +6272,15 @@ function frame() {
 
   liftRide.update(dt, activeCamera())
   // Vue subjective : le pont ne dessine que les pièces que voit la caméra (cf. src/visibility.ts),
-  // et le soleil n'y porte ses ombres que sur elles.
-  for (const d of decks) d.cull(fpsShown && d === viewDeck && culling.on ? fps.eyes(fpsHead) : null)
+  // et le soleil n'y porte ses ombres que sur elles. Vue isométrique : que les pièces dans son
+  // champ, et celles qui y portent leur ombre.
+  const isoView = !fpsShown && culling.on ? framedView() : null
+  for (const d of decks) d.cull(fpsShown && d === viewDeck && culling.on ? fps.eyes(fpsHead) : null, d === viewDeck ? isoView : null)
   // Les personnages suivent leur pièce : derrière un mur, ils coûtaient chacun des dizaines d'appels de dessin.
   for (const a of Avatar.live) a.occluded = fpsShown && a !== player.avatar && !viewDeck.sees(a.root.getWorldPosition(_seen).x, _seen.z)
   Avatar.live.clear()
   fitShadow()
+  deckTextures.update()
   // Dans la baie (ou par les caméras), tout passe par le brouillard de guerre (cf. salvage/fog.ts).
   // Dans les conduits de ventilation aussi (cf. vents.ts).
   // Par les caméras de surveillance, à travers leur tube cathodique (cf. cctv.ts).
@@ -6255,23 +6292,28 @@ function frame() {
   // jamais l'invite d'interaction : celles qui la toucheraient passent au-dessus.
   bubbles.update(activeCamera(), fpsShown && !fps.showsBody ? { key: 'me', x: innerWidth / 2, y: fpsBottom() } : null, label ? promptBox : null)
 
-  // Résolution adaptative : on baisse la densité de pixels si l'affichage peine,
-  // on la remonte (sans dépasser le dernier niveau qui a peiné) s'il reste de la marge.
-  perfTime += dt
-  perfFrames++
-  if (perfTime > 2 && !renderQuality.light) {
-    const avg = perfTime / perfFrames
-    if (avg > 1 / 55 && dpr > 1) {
+  // Résolution adaptative, jugée sur la seconde écoulée : on baisse la densité de pixels si
+  // l'affichage peine, on la remonte s'il reste de la marge, sans dépasser le dernier niveau qui a
+  // peiné (retenté après une demi-minute d'aisance). On juge sur les images les plus lentes (une
+  // sur dix) : on vise 60 i/s constants, mais un à-coup isolé (un pont qui se charge, le
+  // ramasse-miettes) ne coûte plus de la netteté pour toute la partie.
+  const spent = Math.min(timer.getDelta(), 0.25)
+  frameTimes[perfFrames++ % frameTimes.length] = spent
+  perfTime += spent
+  if (perfTime > 1) {
+    const typical = renderQuality.light || document.hidden ? 0 : slowFrame(Math.min(perfFrames, frameTimes.length))
+    if (typical > 1 / 55 && dpr > 1) {
       dprCeiling = dpr - 0.25
       dpr = Math.max(1, dpr - 0.25)
       renderer.setPixelRatio(dpr)
       fastWindows = 0
-    } else if (avg < 1 / 57 && dpr < dprCeiling) {
-      if (++fastWindows >= 3) {
+    } else if (typical && typical < 1 / 58) {
+      fastWindows++
+      if (dpr < dprCeiling && fastWindows >= 3) {
         dpr = Math.min(dprCeiling, dpr + 0.25)
         renderer.setPixelRatio(dpr)
         fastWindows = 0
-      }
+      } else if (dprCeiling < MAX_DPR && fastWindows >= 30) dprCeiling = Math.min(MAX_DPR, dprCeiling + 0.25)
     } else fastWindows = 0
     perfTime = 0
     perfFrames = 0
@@ -6286,10 +6328,12 @@ addEventListener('resize', () => {
   syncMobileEntry()
 })
 
-// Compile tous les shaders avant la première image (pas d'à-coup au premier fondu de mur).
+// Compile tous les shaders avant la première image (pas d'à-coup au premier fondu de mur), et
+// envoie les textures du pont de départ pendant l'écran de chargement.
 for (const d of decks) d.group.visible = true
 renderer.compile(scene, iso.camera)
 setDeck(deck)
+deckTextures.show(deck, true)
 
 bootDone()
 $('hud').hidden = false
