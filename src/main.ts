@@ -1805,8 +1805,11 @@ function startSound() {
   })
   $('sound-hint').classList.add('gone')
 }
-addEventListener('pointerdown', startSound, { once: true })
-addEventListener('keydown', startSound, { once: true })
+// Les navigateurs mobiles peuvent suspendre l'audio après le plein écran, une rotation ou une
+// mise en veille. Sound.start ne charge les fichiers qu'une fois, mais reprend le contexte à
+// chacun de ces gestes autorisés par la politique d'autoplay.
+addEventListener('pointerdown', startSound)
+addEventListener('keydown', startSound)
 
 const volumeInput = $<HTMLInputElement>('volume')
 function updateMuteIcon() {
@@ -4409,9 +4412,11 @@ function endFreeLook(e: PointerEvent) {
   freeLook = null
   if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId)
   canvas.style.cursor = 'default'
-  // Le clic tactile est différé au relâchement : un glissé de caméra ne donne plus en même
-  // temps un ordre de marche ou d'interaction.
-  if (tap && e.type === 'pointerup' && (fpsShown || e.pointerType !== 'mouse')) click(e)
+  // Sur mobile, la marche et l'interaction passent par leurs commandes tactiles dédiées : un
+  // simple toucher du décor ne donne donc jamais d'ordre de déplacement. En mode photo, il reste
+  // utile pour placer le personnage. La vue subjective à la souris conserve son clic habituel.
+  const mobileTap = coarsePointer && e.pointerType !== 'mouse'
+  if (tap && e.type === 'pointerup' && (fpsShown || e.pointerType !== 'mouse') && (!mobileTap || photo.active)) click(e)
 }
 canvas.addEventListener('pointerup', endFreeLook)
 canvas.addEventListener('pointercancel', endFreeLook)

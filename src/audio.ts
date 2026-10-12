@@ -73,6 +73,7 @@ export class Sound {
   readonly rig = new THREE.Object3D()
   private buffers = new Map<string, AudioBuffer>()
   private started = false
+  private loading: Promise<void> | null = null
   private muted = false
   private volume = 0.6
   private noise?: AudioBuffer
@@ -147,22 +148,30 @@ export class Sound {
 
   /** À appeler sur le premier geste de l'utilisateur (politique d'autoplay des navigateurs). */
   async start(onReady: () => void) {
-    if (this.started) return
-    this.started = true
+    // Un passage en plein écran, un changement d'orientation ou un retour dans l'onglet peut
+    // suspendre de nouveau le contexte sur mobile. Chaque geste doit donc pouvoir le relancer,
+    // sans pour autant recharger les sons ni recréer les boucles déjà installées.
     await this.ctx.resume()
-    const names = Object.values(SOUNDS).flat()
-    await Promise.all(
-      names.map(async (n) => {
-        try {
-          const res = await fetch(`${BASE}sounds/${n}.ogg`)
-          this.buffers.set(n, await this.ctx.decodeAudioData(await res.arrayBuffer()))
-        } catch {
-          // Format non supporté (ancien Safari…) : le jeu reste muet pour ce son.
-        }
-      }),
-    )
-    if (this.echo) this.setEcho(this.echo)
-    onReady()
+    if (this.started) return
+    if (!this.loading) {
+      this.loading = (async () => {
+        const names = Object.values(SOUNDS).flat()
+        await Promise.all(
+          names.map(async (n) => {
+            try {
+              const res = await fetch(`${BASE}sounds/${n}.ogg`)
+              this.buffers.set(n, await this.ctx.decodeAudioData(await res.arrayBuffer()))
+            } catch {
+              // Format non supporté (ancien Safari…) : le jeu reste muet pour ce son.
+            }
+          }),
+        )
+        this.started = true
+        if (this.echo) this.setEcho(this.echo)
+        onReady()
+      })().finally(() => (this.loading = null))
+    }
+    await this.loading
   }
 
   get ready(): boolean {
