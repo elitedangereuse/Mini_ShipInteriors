@@ -1185,9 +1185,13 @@ export class ArenaClient {
   private callPoint(score: [number, number], delay: number) {
     const g = this.game!
     const rounds = g.state?.rounds ?? [0, 0]
+    // Les deux équipes à la fois : l'une après l'autre (les siens d'abord), pas l'une sur l'autre.
+    let after = delay
     for (const team of [g.team, 1 - g.team] as const) {
       if (score[team] !== g.goal - 1 || g.called[team]) continue
       g.called[team] = true
+      const wait = after
+      after += 1600
       const match = rounds[team] >= g.wins - 1
       const ours = team === g.team
       const text = g.watching
@@ -1198,7 +1202,7 @@ export class ArenaClient {
         if (this.game !== g || g.end) return
         this.gun?.announce(text, !ours && !g.watching, match ? 'match' : 'point')
         this.gun?.cue('point', (ours || g.watching ? 1 : 0) | (match ? 2 : 0))
-      }, delay)
+      }, wait)
     }
   }
 
