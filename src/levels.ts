@@ -42,7 +42,7 @@ export interface Prop {
   /** On y choisit la musique (le jukebox, cf. src/music.ts). */
   music?: boolean
   /**
-   * Où l'on se tient pour agir sur un très grand meuble (le Krait du hangar) : son centre est hors
+   * Où l'on se tient pour agir sur un très grand meuble (un écran mural, un plan de travail) : son centre est hors
    * de portée de main. Par défaut, le centre du meuble.
    */
   reach?: { x: number; z: number }
@@ -1136,10 +1136,10 @@ export const LEVELS: LevelDef[] = [
       { model: 'crate', x: 27, z: 12.05 },
       { model: 'scrap-pile', x: 26.75, z: 14.9 },
 
-      // --- Hangar, derrière le lobby de la zone thargoïde : le Krait Mk II sur son pad, nez vers le
-      // bouclier (à l\'est). Au nord, l\'atelier de Nico, le mécano (cf. src/mechanic.ts) ; au sud,
-      // le ravitaillement et le chariot à outils ; à l\'est, l\'escabeau du cockpit et le pupitre du
-      // hangar. Les postes de sa tournée, et les obstacles de ses trajets, sont dans
+      // --- Hangar, derrière le lobby de la zone thargoïde : le vaisseau de chacun sur son pad (le
+      // Krait Mk II, ou celui choisi au registre), nez vers le bouclier (à l\'est). Au nord, l\'atelier
+      // de Nico, le mécano (cf. src/mechanic.ts) ; au sud, le ravitaillement, le chariot à outils et
+      // le registre ; à l\'est, l\'escabeau du cockpit et le pupitre du hangar. Les postes de sa tournée, et les obstacles de ses trajets, sont dans
       // shared/mechanic.js : à tenir à jour si l\'on déplace un meuble ici.
       { model: 'hangar-pad', x: 31.4, z: 5, rot: 1, label: '7', solid: false },
       // Gyrophares aux coins du carré peint du pad : franchissables, comme les balises du bouclier
@@ -1148,25 +1148,12 @@ export const LEVELS: LevelDef[] = [
       { model: 'hangar-beacon', x: 34.75, z: 1.65, solid: false },
       { model: 'hangar-beacon', x: 28.05, z: 8.35, solid: false },
       { model: 'hangar-beacon', x: 34.75, z: 8.35, solid: false },
-      {
-        model: 'krait-mk2', x: 31.4, z: 5, rot: 1, reach: { x: 31.4, z: 8.5 },
-        interact: [
-          tr(
-            'Krait Mk II de Faulcon DeLacy : un delta de soixante-treize mètres, trois places, un hangar à chasseur. Nico l\'appelle « la Princesse ».',
-            'Faulcon DeLacy Krait Mk II: a seventy-three-metre delta, three seats, a fighter bay. Nico calls her “the Princess”.',
-          ),
-          tr(
-            'La coque est encore tiède, les tuyères couvent. Sur le bord d\'attaque, gravé au tournevis : « Rayé = mort. Nico ».',
-            'The hull is still warm, the thrusters glowing. Scratched into the leading edge with a screwdriver: “Scratch it = dead. Nico”.',
-          ),
-          tr(
-            'Une étiquette sur le train avant : « NE PAS TOUCHER. JE SAIS QUE C\'EST TOI. » Tu retires ta main.',
-            'A label on the nose gear: “DO NOT TOUCH. I KNOW IT\'S YOU.” You take your hand back.',
-          ),
-        ],
-      },
-      // Solide : on ne le traverse pas, on monte ses marches pour aller au cockpit (cf. SEATS).
-      { model: 'krait-ladder', x: 35.15, z: 5, rot: 3 },
+      // Le vaisseau du pad et son escabeau ne sont pas ici : chacun voit celui qu'il a choisi au
+      // registre (cf. src/ship-bay.ts), posé à l'emplacement du Krait d'origine, nez au même endroit.
+      { model: 'ship-registry', x: 30.4, z: 10.3, rot: 2, solid: false, reach: { x: 30.4, z: 9.55 }, action: tr('Choisir mon vaisseau', 'Choose my ship'), interact: tr(
+        'Le registre du hangar : les vaisseaux qu\'on peut faire poser sur le pad.',
+        'The hangar registry: the ships you can have parked on the pad.',
+      ) },
       { model: 'gear-chock', x: 30.45, z: 1.62, solid: false, label: 'port', interact: tr(
         'Les cales du train bâbord, peintes en jaune. Quelqu\'un a écrit dessus au feutre : « À RETIRER AVANT LE DÉCOLLAGE (OUI, TOI) ».',
         'The port gear chocks, painted yellow. Someone wrote on them in marker: “REMOVE BEFORE TAKE-OFF (YES, YOU)”.',

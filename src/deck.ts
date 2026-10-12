@@ -54,8 +54,8 @@ export interface Interactable {
   /** Meuble et variante (le jeu d'une borne, par exemple). */
   furniture?: { model: string; label?: string }
   /**
-   * Installé ici, c'est ce meuble-là qui ne s'estompe pas (son centre) : le Krait, pour son
-   * escabeau, puisqu'on s'assoit dans le cockpit. Par défaut, le meuble lui-même.
+   * Installé ici, c'est ce meuble-là qui ne s'estompe pas (son centre) : le vaisseau du hangar, pour
+   * son escabeau, puisqu'on s'assoit dans le cockpit (cf. ship-bay.ts). Par défaut, le meuble lui-même.
    */
   keep?: THREE.Vector3
 }
@@ -1033,6 +1033,59 @@ export class Deck {
       this.group.add(o)
     }
     this.occluders.push({ center, value: 1, uniform: fade, outward })
+  }
+
+  /**
+   * Pose sur le pont, en cours de jeu, un objet qui n'a pas pu être fusionné avec lui (le vaisseau
+   * du hangar, chargé après coup, cf. ship-bay.ts) : il rejoint la cellule de sa pièce, ses
+   * rectangles bloquent le passage (et les tuiles dessous, pour les trajets), et il se trame quand
+   * il cache le joueur (centre `fade`). Ses matériaux sont remplacés par des copies tramables,
+   * sauf ceux des pièces marquées `userData.keepMaterial` (des jets animés, des feux).
+   * Rend de quoi le retirer, tel qu'il était.
+   */
+  addRuntime(o: THREE.Object3D, solids: Box2[], fade: THREE.Vector3): () => void {
+    const uniform = { value: 1 }
+    const cache = new Map<THREE.Material, THREE.Material>()
+    o.traverse((c) => {
+      const m = c as THREE.Mesh
+      if (!m.isMesh || m.userData.keepMaterial) return
+      const src = m.material as THREE.Material
+      let dst = cache.get(src)
+      if (!dst) cache.set(src, (dst = makeFadeable(src, uniform)))
+      m.material = dst
+    })
+    o.updateMatrixWorld(true)
+    const parent = this.housing(o)
+    parent.add(o)
+    const occluder: Occluder = { center: fade, value: 1, uniform }
+    this.occluders.push(occluder)
+    this.colliders.push(...solids)
+    // Seules les tuiles qu'il bloque, lui, se libèrent quand il s'en va.
+    const tiles: string[] = []
+    for (const b of solids) {
+      for (let tz = Math.floor(b.minZ); tz <= Math.ceil(b.maxZ); tz++) {
+        for (let tx = Math.floor(b.minX); tx <= Math.ceil(b.maxX); tx++) {
+          const key = `${tx},${tz}`
+          if (tx > b.minX - 0.15 && tx < b.maxX + 0.15 && tz > b.minZ - 0.15 && tz < b.maxZ + 0.15 && !this.blockedTiles.has(key)) {
+            this.blockedTiles.add(key)
+            tiles.push(key)
+          }
+        }
+      }
+    }
+    this.pathfinder.invalidate()
+    return () => {
+      o.removeFromParent()
+      const i = this.occluders.indexOf(occluder)
+      if (i >= 0) this.occluders.splice(i, 1)
+      for (const b of solids) {
+        const k = this.colliders.indexOf(b)
+        if (k >= 0) this.colliders.splice(k, 1)
+      }
+      for (const key of tiles) this.blockedTiles.delete(key)
+      this.pathfinder.invalidate()
+      for (const m of cache.values()) m.dispose()
+    }
   }
 
   private buildFloors() {

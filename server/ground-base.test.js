@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { DIRS, ShipMap } from '../shared/ship-map.js'
 import {
-  BASE_ARRIVAL, BASE_COCKPIT, BASE_LADDER, BASE_LAYOUT, CHIEF_HOLD, CHIEF_PERIOD, CHIEF_POSTS, CHIEF_SPEED, chiefAt, chiefTime, holdChief, inBaseCockpit,
+  BASE_ARRIVAL, BASE_COCKPIT, BASE_LADDER, BASE_LAYOUT, BASE_PAD, CHIEF_HOLD, CHIEF_PERIOD, CHIEF_POSTS, CHIEF_SPEED, chiefAt, chiefTime, holdChief, inBaseCockpit,
   BASE_LEVEL,
 } from '../shared/ground-base.js'
 
@@ -32,11 +32,16 @@ test('le plateau est d\'un seul tenant : on atteint chaque tuile depuis l\'arriv
   assert.ok(map.width <= 50 && map.height <= 30)
 })
 
-test('l\'arrivée, l\'escabeau et le cockpit du Krait sont sur le plateau', () => {
+test('l\'arrivée, l\'escabeau et le cockpit du Krait sont sur le plateau, l\'aire aussi', () => {
   for (const p of [BASE_ARRIVAL, BASE_LADDER, BASE_COCKPIT]) assert.ok(onPlateau(p.x, p.z), `${p.x}, ${p.z}`)
+  for (const x of [BASE_PAD.minX, BASE_PAD.maxX]) for (const z of [BASE_PAD.minZ, BASE_PAD.maxZ]) assert.ok(onPlateau(x, z), `${x}, ${z}`)
   assert.ok(inBaseCockpit({ level: BASE_LEVEL, pose: 'pilot', x: BASE_COCKPIT.x + 0.2, z: BASE_COCKPIT.z }))
   assert.ok(!inBaseCockpit({ level: BASE_LEVEL, pose: 'sit', x: BASE_COCKPIT.x, z: BASE_COCKPIT.z }))
   assert.ok(!inBaseCockpit({ level: -1, pose: 'pilot', x: BASE_COCKPIT.x, z: BASE_COCKPIT.z }))
+  // Chacun a son vaisseau sur l'aire : le cockpit d'un plus grand, plus loin sur le pad, compte aussi ;
+  // pas l'arrivée, hors de l'aire.
+  assert.ok(inBaseCockpit({ level: BASE_LEVEL, pose: 'pilot', x: 29.5, z: 11 }))
+  assert.ok(!inBaseCockpit({ level: BASE_LEVEL, pose: 'pilot', x: BASE_ARRIVAL.x, z: BASE_ARRIVAL.z }))
 })
 
 test('Ada avance sans jamais sauter, et sans quitter le plateau', () => {

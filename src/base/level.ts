@@ -2,13 +2,13 @@ import * as THREE from 'three'
 import { tr } from '../i18n'
 import type { LevelDef, LightDef, Prop, Rot } from '../levels'
 import { ShipMap } from '../map'
-import { BASE_KRAIT, BASE_LADDER, BASE_LAYOUT, BASE_LEVEL } from '../../shared/ground-base.js'
+import { BASE_KRAIT, BASE_LAYOUT, BASE_LEVEL } from '../../shared/ground-base.js'
 import type { BaseKit, SpaceModel } from './kit'
 
 /*
  * L'avant-poste Bradbury, en pont du jeu (cf. LevelDef, Deck) : un plateau de roche rouge à ciel
- * ouvert, bordé de falaises. À l'est, l'aire d'atterrissage et le Krait (on y remonte par
- * l'escabeau pour repartir) ; au nord, la tour de contrôle, le garage des rovers et la serre ; à
+ * ouvert, bordé de falaises. À l'est, l'aire d'atterrissage et le vaisseau du joueur (cf.
+ * ship-bay.ts ; on y remonte par l'escabeau pour repartir) ; au nord, la tour de contrôle, le garage des rovers et la serre ; à
  * l'ouest, les quartiers de la base et la fusée de ravitaillement ; au sud, les machines, la foreuse
  * et le gisement de cristaux. Des pistes relient le tout. Les trajets de la cheffe de base
  * (cf. CHIEF_POSTS dans shared/ground-base.js) passent entre les bâtiments : à revoir si l'un
@@ -73,20 +73,8 @@ export function baseLevel(kit: BaseKit): LevelDef {
     props.push({ model: 'hangar-beacon', x, z, solid: false })
     lights.push([x, z, '#ff6a3c', 0.7])
   }
-  props.push({
-    model: 'krait-mk2', x: BASE_KRAIT.x, z: BASE_KRAIT.z, rot: 3, label: 'base', reach: { x: BASE_KRAIT.x, z: BASE_KRAIT.z + 3.6 },
-    interact: [
-      tr(
-        'Le Krait, posé sur l\'aire de l\'avant-poste. De la poussière rouge s\'est déjà glissée dans le train. Nico va adorer.',
-        'The Krait, parked on the outpost\'s pad. Red dust has already crept into the landing gear. Nico is going to love that.',
-      ),
-      tr(
-        'La coque craque en refroidissant. Pour rentrer au vaisseau : l\'escabeau, le cockpit, et Espace pour les réacteurs.',
-        'The hull creaks as it cools. To fly back to the ship: the ladder, the cockpit, and Space for the thrusters.',
-      ),
-    ],
-  })
-  props.push({ model: 'krait-ladder', x: BASE_LADDER.x, z: BASE_LADDER.z, rot: 1 })
+  // Le vaisseau posé sur l'aire, et son escabeau : celui que chacun a choisi au registre du hangar
+  // (cf. src/ship-bay.ts), nez à l'ouest, vers les bâtiments, là où se posait le Krait.
   lights.push([BASE_KRAIT.x - 3.2, BASE_KRAIT.z, '#fff1dd', 1.1])
 
   // --- La tour de contrôle, au coin de l'aire : un bloc fermé, une cage, l'antenne sur le toit.

@@ -24,8 +24,11 @@
 // Avec ?holo : les styles du Holo-Me (cf. src/holo-style.ts) : &looks=human.female.b.mo-pk-sm--,… (par
 // défaut : chaque coupe sur un même modèle), &style=--sm-- : ce style sur toutes, &play=joie : une emote
 // en boucle (son expression). window.snap() rend l'image (PNG en data URL).
+// Avec ?vaisseaux : les vaisseaux d'Elite Dangerous (cf. src/ed-ships.ts), à la taille du trafic, du plus
+// petit au plus grand (&only=cobra-mk3,python ; &cols=6).
 import * as THREE from 'three'
 import { NATURE_PACK, OUTDOOR_PACK, packModel, packModels, preload, station, STATION_MODELS, type StationModel } from '../assets'
+import { ED_SHIPS, edShip, shipInfo, trafficLength, type EdShipId } from '../ed-ships'
 import { Avatar, SALUTE } from '../avatar'
 import { CATALOG, CATEGORIES } from '../cabin/catalog'
 import { drawFinish, stylesOf } from '../cabin/finishes'
@@ -113,7 +116,30 @@ else if (params.has('holo')) await showHolo()
 else if (params.has('arena')) await showArena()
 else if (params.has('parcelle')) showPlot()
 else if (params.has('jardin')) showGarden()
+else if (params.has('vaisseaux')) await showShips()
 else showModels()
+
+/** Les vaisseaux d'Elite Dangerous, en grille, à la taille où ils croisent autour du vaisseau. */
+async function showShips() {
+  const ids = (params.get('only')?.split(',') ?? ED_SHIPS) as EdShipId[]
+  const cols = +(params.get('cols') ?? 6)
+  const ships = await Promise.all(ids.map((id) => edShip(id)))
+  ships.forEach((ship, i) => {
+    const info = shipInfo(ship)
+    ship.scale.setScalar(trafficLength(info.size[2]) / info.size[2])
+    const x = ((i % cols) - (cols - 1) / 2) * 6, z = Math.floor(i / cols) * 6
+    ship.position.set(x, 0, z)
+    scene.add(ship)
+    const l = label(info.name)
+    l.position.set(x, -0.8, z + 2.6)
+    scene.add(l)
+  })
+  const frame = () => {
+    renderer.render(scene, cam)
+    requestAnimationFrame(frame)
+  }
+  frame()
+}
 
 /** Styles du Holo-Me côte à côte, en grille. */
 async function showHolo() {

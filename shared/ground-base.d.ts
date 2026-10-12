@@ -17,6 +17,7 @@ export declare const HANGAR_ARRIVAL: { level: number; x: number; z: number; yaw:
 /** Les réacteurs du Krait de la base se coupent d'eux-mêmes au bout de ce temps (secondes). */
 export declare const BASE_BURN: number
 /** Un joueur est-il installé aux commandes du Krait de la base ? */
+export declare const BASE_PAD: { minX: number; maxX: number; minZ: number; maxZ: number }
 export declare function inBaseCockpit(p: { level: number; pose?: string; x: number; z: number }): boolean
 
 /** Pas de la cheffe (unités par seconde). */

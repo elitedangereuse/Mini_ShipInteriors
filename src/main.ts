@@ -74,6 +74,10 @@ import { Kitchen } from './kitchen'
 import { NURSE, Nurse, nurseRig, type NurseReport } from './nurse'
 import { DROID, MECHANIC, Mechanic, mechanicRig, type MechanicReport } from './mechanic'
 import { Hangar } from './hangar'
+import { chosenShip, saveShip, ShipBay } from './ship-bay'
+import { ShipPicker } from './ship-picker'
+import { hangarDisplay, kraitPower } from './furniture/hangar'
+import { silhouetteRects } from './ed-ships'
 import { GARDENER, Gardener, gardenerRig, type GardenerReport } from './gardener'
 import { GARDEN_LEVEL } from '../shared/gardener.js'
 import { Greenhouse } from './greenhouse'
@@ -257,7 +261,7 @@ sun.shadow.normalBias = 0.03
 // ------------------------------------------------------------------ monde
 
 // Les modèles font l'essentiel de l'attente : 90 % de la jauge, le reste pour le site et le montage.
-await preload([lookPath(parseLook(profile.skin))], (r) => bootProgress(r * 0.9))
+await preload([lookPath(parseLook(profile.skin)), `ships/${chosenShip()}.glb`], (r) => bootProgress(r * 0.9))
 bootProgress(0.94, tr('Identification du CMDR', 'Identifying CMDR'))
 const account = await within(accountRequest, 3000, null)
 if (account) {
@@ -1495,6 +1499,31 @@ const holdDeck = deckById(-1)
 /** Le grondement des réacteurs du Krait, tant qu'ils tournent (et qu'on est dans la cale). */
 let kraitRoar: { stop: () => void } | undefined
 const mechanic = new Mechanic(await mechanicRig(), holdDeck)
+// Le vaisseau du pad, au hangar : celui que le joueur a choisi au registre (le Krait Mk II d'abord),
+// là où se posait le Krait, nez vers le bouclier (cf. ship-bay.ts). Chacun voit le sien.
+const hangarBay = new ShipBay({ deck: holdDeck, pad: { x: 31.4, z: 5, rot: 1 }, power: kraitPower, busy: (cockpit) => seating.current?.item === cockpit })
+/** Ce qu'on lit en examinant son vaisseau, au hangar ({ship}, {maker} : le sien). */
+const HULL_LINES = [
+  tr('{ship} de {maker}, posé sur le pad 7. Le tien : tu l\'as choisi au registre, sur le mur sud. Nico l\'appelle « la Princesse ».', '{maker} {ship}, parked on pad 7. Yours: you picked it at the registry on the south wall. Nico calls her “the Princess”.'),
+  tr('La coque est encore tiède, les tuyères couvent. Sur le bord d\'attaque, gravé au tournevis : « Rayé = mort. Nico ».', 'The hull is still warm, the thrusters glowing. Scratched into the leading edge with a screwdriver: “Scratch it = dead. Nico”.'),
+  tr('Une étiquette sur le train avant : « NE PAS TOUCHER. JE SAIS QUE C\'EST TOI. » Tu retires ta main.', 'A label on the nose gear: “DO NOT TOUCH. I KNOW IT\'S YOU.” You take your hand back.'),
+]
+hangarBay.hull.text = () => HULL_LINES[Math.floor(Math.random() * HULL_LINES.length)]
+  .split('{ship}').join(hangarBay.info?.name ?? 'Krait Mk II')
+  .split('{maker}').join(hangarBay.info?.maker ?? 'Faulcon DeLacy')
+// Les écrans du hangar (le pupitre, le registre) montrent le vaisseau posé.
+hangarBay.onChange = (bay) => {
+  const info = bay.info
+  if (!info) return
+  hangarDisplay.name = info.name
+  hangarDisplay.maker = info.maker
+  hangarDisplay.silhouette = silhouetteRects(info.silhouette)
+  // L'ancien fil de fer ne sert plus : le pupitre prend le nouveau à sa prochaine image.
+  hangarDisplay.wire?.dispose()
+  hangarDisplay.wire = bay.wireframe()
+  hangarDisplay.version++
+}
+await hangarBay.set(chosenShip()).catch((e) => console.error(e))
 const hangar = new Hangar({
   deck: holdDeck,
   mechanic,
@@ -1502,14 +1531,7 @@ const hangar = new Hangar({
   here: () => deck,
   // Installé seulement : pendant la montée des marches, on n'est pas encore aux commandes.
   seat: () => (seating.pose ? seating.current : null),
-  // Les autres joueurs assis aux commandes du Krait (la place de l'escabeau).
-  pilots: () => {
-    const cockpit = holdDeck.interactables.find((it) => it.furniture?.model === 'krait-ladder')?.seats?.(player.position)[0]
-    if (!cockpit) return 0
-    let n = 0
-    for (const r of remotes.values()) if (r.level === holdDeck.def.id && r.pose === 'pilot' && Math.hypot(r.target.x - cockpit.x, r.target.z - cockpit.z) < 0.3) n++
-    return n
-  },
+  bay: hangarBay,
   show: (text) => dialog.show(text),
   help: (on) => {
     mechanic.help(player.position, on)
@@ -1526,7 +1548,8 @@ const hangar = new Hangar({
 })
 /** Ce que le mécano sait quand on lui parle : le système, nos révisions, si l'on est dans le cockpit. */
 function mechanicReport(): MechanicReport {
-  return { system: SYSTEMS[systemView.id].name, done: hangar.done, aboard: hangar.aboardKrait }
+  const info = hangarBay.info
+  return { system: SYSTEMS[systemView.id].name, done: hangar.done, aboard: hangar.aboardKrait, ship: { id: hangarBay.id ?? 'krait-mk2', name: info?.name ?? 'Krait Mk II', maker: info?.maker ?? 'Faulcon DeLacy' } }
 }
 holdDeck.interactables.push({
   object: mechanic.root,
@@ -1567,7 +1590,7 @@ const groundBase = new GroundBase({
         net.sendEmote('interact')
         net.sendChiefTalk()
         const visitors = [...remotes.values()].filter((r) => r.level === BASE_LEVEL).length
-        const line = groundBase.talk({ system: SYSTEMS[systemView.id].name, visitors })
+        const line = groundBase.talk({ system: SYSTEMS[systemView.id].name, visitors, ship: hangarBay.info?.name ?? 'Krait Mk II' })
         if (line) dialog.show(line)
       },
     })
@@ -1595,7 +1618,35 @@ const groundBase = new GroundBase({
   system: () => SYSTEMS[systemView.id].name,
   roar: () => sound.thrusters(iso.target.clone()) ?? undefined,
   touchdown: () => sound.thud(iso.target.clone()),
+  silhouette: () => hangarBay.silhouette(),
 })
+
+// Le registre du hangar (mur sud) : on y choisit son vaisseau ; il se pose au hangar, et sur la base.
+const shipPicker = new ShipPicker()
+shipPicker.onPick = (id) => {
+  void hangarBay.set(id).then(
+    (parked) => {
+      // Un autre choix entre-temps : c'est lui qu'on annoncera.
+      if (!parked) return
+      // Gardé une fois posé seulement : un vaisseau qui n'a pas pu venir ne reste pas le choix.
+      saveShip(id)
+      groundBase.setShip(id)
+      const name = hangarBay.info?.name ?? ''
+      dialog.show(tr(`Ton ${name} est posé sur le pad. Nico siffle entre ses dents.`, `Your ${name} is parked on the pad. Nico whistles through his teeth.`))
+      mechanic.say(tr('Oh, la belle bête…', 'Oh, what a beauty…'))
+    },
+    (e) => {
+      console.error(e)
+      dialog.show(tr('Le registre n\'a pas pu faire venir ce vaisseau. Réessayez dans un instant.', 'The registry could not bring that ship in. Try again in a moment.'))
+    },
+  )
+}
+for (const it of holdDeck.interactables) {
+  if (it.furniture?.model === 'ship-registry') it.onInteract = () => {
+    player.interact()
+    void shipPicker.open(hangarBay.chosen ?? chosenShip())
+  }
+}
 mechanic.onBark = (text) => {
   if (holdDeck === deck) bubbles.say('mechanic', text)
 }
@@ -2433,9 +2484,10 @@ net.onMessage = (m) => {
       // relais recale sa tournée) ; un autre qui les lance, on l'apprend dans le chat.
       const burning = mechanic.panicking
       mechanic.sync(m)
+      if (m.panic > 0) hangar.relayed(m.pilot, net.id)
       if (!burning && m.panic > 0 && m.pilot !== undefined && m.pilot !== net.id) {
         const pilot = remotes.get(m.pilot)?.name ?? tr('Quelqu\'un', 'Someone')
-        chat.add('system', tr(`${pilot} a mis en route les réacteurs du Krait. Nico panique.`, `${pilot} started the Krait's thrusters. Nico is panicking.`))
+        chat.add('system', tr(`${pilot} a mis en route les réacteurs de son vaisseau. Nico panique.`, `${pilot} started their ship's thrusters. Nico is panicking.`))
       }
       if (m.id !== net.id && holdDeck === deck && m.hold > 0 && m.help === 0 && m.panic === 0) bubbles.say('mechanic', '…')
       break
@@ -3315,6 +3367,16 @@ const myCabin = () => visiting?.host ?? net.id
  * Un autre joueur est-il visible ? Sur le pont des quartiers, seulement s'il est dans la même
  * instance (chacun y est dans sa bulle).
  */
+/**
+ * Un autre CMDR aux commandes de son vaisseau, au hangar ou sur la base : il est dans le sien (chacun
+ * voit le sien sur l'aire, cf. ship-bay.ts), qu'on ne voit pas ; et il ne nous prend pas notre cockpit.
+ */
+function inOwnShip(r: RemotePlayer): boolean {
+  if (r.pose !== 'pilot') return false
+  const bay = r.level === holdDeck.def.id ? hangarBay : r.level === BASE_LEVEL ? groundBase.bay : null
+  return !!bay && bay.covers(r.target.x, r.target.z)
+}
+
 function sees(r: RemotePlayer): boolean {
   // Dans la baie infestée (ou par les caméras) : seulement ses coéquipiers, hors des casiers.
   if (r.level === ZONE_LEVEL) return !!viewDeck.def.zone && !!salvage?.sees(r.id)
@@ -4007,7 +4069,7 @@ chat.onOpen = () => keys.clear()
 const inputDir = new THREE.Vector3()
 function keyboardDirection(): THREE.Vector3 {
   inputDir.set(0, 0, 0)
-  if (cinematic.active || cctv?.active || gym.active || court.active || fishBusy() || quiz.isOpen || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen) return inputDir
+  if (cinematic.active || cctv?.active || gym.active || court.active || fishBusy() || quiz.isOpen || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen || shipPicker.isOpen) return inputDir
   const on = (...codes: string[]) => codes.some((c) => keys.has(c))
   // event.code = position physique : KeyW/KeyA correspondent à Z/Q sur un clavier AZERTY.
   const sx = (on('KeyD', 'ArrowRight') ? 1 : 0) - (on('KeyA', 'ArrowLeft') ? 1 : 0)
@@ -4036,7 +4098,7 @@ function padBack(): boolean {
 
 /** Un panneau tient l'écran : la manette y mène son cadre de sélection, sans qu'on le demande. */
 function padModal(): boolean {
-  return $('mobile-entry').hidden !== true || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || boardGames.isOpen || quiz.isOpen || fishBook.isOpen || wardrobe.isOpen || zone.panelOpen || arena.panelOpen || !!document.querySelector('.salvage-end:not([hidden]), .arena-end:not([hidden])')
+  return $('mobile-entry').hidden !== true || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || boardGames.isOpen || quiz.isOpen || fishBook.isOpen || wardrobe.isOpen || zone.panelOpen || arena.panelOpen || shipPicker.isOpen || !!document.querySelector('.salvage-end:not([hidden]), .arena-end:not([hidden])')
 }
 
 /** Rien ne sort de la manette à cette image : ni déplacement, ni bouton. */
@@ -4348,7 +4410,7 @@ function routeGamepad(dt: number): GamepadInput {
 
 function movementDirection(pad: GamepadInput): THREE.Vector3 {
   const input = keyboardDirection()
-  if (cinematic.active || cctv?.active || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || (photo.active && !padDriving) || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen) return input
+  if (cinematic.active || cctv?.active || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || (photo.active && !padDriving) || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen || shipPicker.isOpen) return input
   // Le clavier reste prioritaire lorsqu'une touche de déplacement est maintenue.
   if (input.lengthSq() === 0) view().screenToGround(pad.moveX, -pad.moveY, input)
   return input
@@ -4691,6 +4753,12 @@ addEventListener(
       e.stopPropagation()
       return
     }
+    // Le registre du hangar : un clic à côté le ferme.
+    if (shipPicker.isOpen && !shipPicker.contains(e.target)) {
+      shipPicker.close()
+      e.stopPropagation()
+      return
+    }
     // Terminal de l'arène : de même (son écran de fin attend aussi son bouton).
     if (arena.panelOpen && !arena.contains(e.target) && !(e.target instanceof Element && e.target.closest('.salvage-end'))) {
       arena.closePanels()
@@ -4791,7 +4859,7 @@ function unlockCursor() {
 }
 /** Ce qui se manipule au curseur : on le rend. */
 function needsCursor(): boolean {
-  return gardenPanel.isOpen || court.active || fishBusy() || quiz.isOpen || chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || phone.isOpen || questJournal.isOpen || !!cctv?.active || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || arena.panelOpen || !reactionsPanel.hidden
+  return gardenPanel.isOpen || court.active || fishBusy() || quiz.isOpen || chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || phone.isOpen || questJournal.isOpen || !!cctv?.active || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || arena.panelOpen || shipPicker.isOpen || !reactionsPanel.hidden
 }
 document.addEventListener('pointerlockchange', () => {
   document.body.classList.toggle('fps-locked', cursorLocked())
@@ -5049,7 +5117,7 @@ function tryInteract() {
   if (cctv?.active) return cctv.close()
   // Bugenhagen parle : on passe à la phrase suivante.
   if (planetarium.talking) return planetarium.next()
-  if (gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen) return
+  if (gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen || shipPicker.isOpen) return
   const item = nearestInteractable()
   if (item) interactWith(item)
 }
@@ -6026,7 +6094,7 @@ function frame() {
     r.update(world)
     const room = r.level === ZONE_LEVEL ? null : deckById(r.level)?.map.room(Math.round(r.group.position.x), Math.round(r.group.position.z))
     r.group.visible = sees(r) && (ljpcMember || r.level !== 0 || room !== 'l') && (voieAdept || r.level !== -1 || room !== 'v') && (clubAlien || r.level !== -1 || room !== CLUB_ROOM)
-      && (barRegular || r.level !== -1 || room !== BAR_ROOM) && !questLocked(r.level, room ?? null)
+      && (barRegular || r.level !== -1 || room !== BAR_ROOM) && !questLocked(r.level, room ?? null) && !inOwnShip(r)
   }
   updateStalls()
   flushLatecomers()
@@ -6071,7 +6139,7 @@ function frame() {
   if (homeDeck === viewDeck) gardenView.update(dt)
   gardenNotices.update(dt)
   // Réacteurs du Krait en route : leur grondement dans la cale, et la vue qui tremble (vue isométrique).
-  const roaring = hangar.engines && holdDeck === deck
+  const roaring = mechanic.panicking && holdDeck === deck
   if (roaring && !kraitRoar) kraitRoar = sound.thrusters(new THREE.Vector3(KRAIT_COCKPIT.x - 3, holdDeck.y + 0.6, KRAIT_COCKPIT.z)) ?? undefined
   else if (!roaring && kraitRoar) {
     kraitRoar.stop()
@@ -6079,8 +6147,9 @@ function frame() {
   }
   if (roaring) iso.shake(0.1)
   // La base au sol : Ada, et les réacteurs du Krait de l'aire (leur grondement, la vue qui tremble).
+  hangarBay.update(performance.now() / 1000)
   groundBase.update(world)
-  const baseRoaring = groundBase.engines && groundBase.here && !groundBase.flying
+  const baseRoaring = groundBase.roaring && groundBase.here && !groundBase.flying
   if (baseRoaring && !baseRoar) baseRoar = sound.thrusters(new THREE.Vector3(BASE_COCKPIT.x + 3, deck.y + 0.6, BASE_COCKPIT.z)) ?? undefined
   else if (!baseRoaring && baseRoar) {
     baseRoar.stop()
@@ -6264,7 +6333,7 @@ function frame() {
   // Invite « E » au-dessus de l'objet le plus proche ; installé sur un meuble, au-dessus du
   // personnage : se relever (et ce que permet la place).
   const sitting = seating.settled && !gym.active && !riding && !editing() && !barPanel.isOpen
-  const near = gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen ? null : nearestInteractable()
+  const near = gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen || shipPicker.isOpen ? null : nearestInteractable()
   const sit = sitting ? seatPrompt(seating.current!) : null
   const label = sit ? `${sit.main}|${sit.space ?? ''}` : near?.label
   const keyName = usingGamepad ? 'A / ×' : 'E'

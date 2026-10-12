@@ -12,7 +12,7 @@ import type { PatrolClock } from '../../shared/patrol.js'
  * Ada Kerlan, la cheffe de l'avant-poste Bradbury : seule habitante de la base, en combinaison de
  * surface blanche et orange, casque bulle. Elle fait sa ronde d'un bâtiment à l'autre (la même pour
  * tous, cf. shared/ground-base.js), s'arrête pour parler aux visiteurs, et salue de la main chaque
- * Krait qui met les gaz sur l'aire d'atterrissage.
+ * vaisseau qui met les gaz sur l'aire d'atterrissage.
  */
 
 export const CHIEF = 'Ada Kerlan'
@@ -40,6 +40,8 @@ export interface ChiefReport {
   system: string
   /** Autres CMDR sur la base. */
   visitors: number
+  /** Le vaisseau du joueur, posé sur l'aire (cf. src/ship-bay.ts). */
+  ship: string
 }
 
 const pick = <T,>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)]
@@ -51,19 +53,19 @@ const TALK = [
   tr('Un conseil : ne marchez pas trop près du bord. La falaise, elle, ne fait pas de ronde.', 'A tip: don\'t walk too close to the edge. The cliff doesn\'t do rounds.'),
   tr('La fusée part une fois par semaine. Les autres jours, je lui parle. Elle écoute bien.', 'The rocket leaves once a week. The rest of the time, I talk to it. It\'s a good listener.'),
   tr('Les cristaux verts, au sud-est ? Magnifiques. Radioactifs ? Un peu. Juste un peu.', 'The green crystals to the south-east? Beautiful. Radioactive? A little. Just a little.'),
-  tr('Votre mécano, Nico, m\'a envoyé un message : « Si elle revient rayée, je démissionne. » Je crois qu\'il parle du Krait.', 'Your mechanic, Nico, sent me a message: “If she comes back scratched, I quit.” I think he means the Krait.'),
+  tr('Votre mécano, Nico, m\'a envoyé un message : « Si elle revient rayée, je démissionne. » Je crois qu\'il parle de votre {ship}.', 'Your mechanic, Nico, sent me a message: “If she comes back scratched, I quit.” I think he means your {ship}.'),
   tr('Le rover ? Pas aujourd\'hui. La dernière fois qu\'un visiteur l\'a conduit, on l\'a retrouvé sur le toit du garage.', 'The rover? Not today. The last time a visitor drove it, we found it on the garage roof.'),
   tr('Le coucher de soleil ici dure quatre heures. Je ne m\'en lasse pas. Enfin, un peu, vers la troisième heure.', 'Sunset here lasts four hours. I never tire of it. Well, a bit, around the third hour.'),
   tr('J\'ai une tourelle de défense et je n\'ai jamais eu à m\'en servir. Je l\'astique quand même. On ne sait jamais.', 'I have a defence turret and never had to use it. I polish it anyway. You never know.'),
   tr('À la serre, on fait pousser des salades. Et une tomate. Ne touchez pas à la tomate.', 'In the greenhouse we grow lettuce. And one tomato. Don\'t touch the tomato.'),
   tr('Si vous entendez un bruit la nuit, c\'est le générateur. Si c\'est une voix, c\'est moi qui parle au générateur.', 'If you hear a noise at night, it\'s the generator. If it\'s a voice, it\'s me talking to the generator.'),
   tr('Ça fait du bien de voir du monde. La dernière visite, c\'était un Thargoïde. Il n\'est pas resté longtemps.', 'It\'s nice to see people. The last visitor was a Thargoid. It didn\'t stay long.'),
-  tr('Pour repartir : l\'escabeau du Krait, le cockpit, Espace pour les réacteurs, et encore Espace pour décoller. Faites-moi un signe en partant.', 'To leave: the Krait\'s ladder, the cockpit, Space for the thrusters, and Space again to take off. Wave at me on the way out.'),
+  tr('Pour repartir : l\'escabeau de votre {ship}, le cockpit, Espace pour les réacteurs, et encore Espace pour décoller. Faites-moi un signe en partant.', 'To leave: your {ship}\'s ladder, the cockpit, Space for the thrusters, and Space again to take off. Wave at me on the way out.'),
 ]
 
 /** Ce qu'elle dit de son poste du moment. */
 const POST_LINES: Record<ChiefPost, string> = {
-  pad: tr('Je surveille l\'aire. Votre Krait est bien garé, pour une fois qu\'un pilote ne prend pas deux places.', 'Keeping an eye on the pad. Your Krait is parked nicely, for once a pilot doesn\'t take up two spots.'),
+  pad: tr('Je surveille l\'aire. Votre {ship} est bien garé, pour une fois qu\'un pilote ne prend pas deux places.', 'Keeping an eye on the pad. Your {ship} is parked nicely, for once a pilot doesn\'t take up two spots.'),
   tower: tr('Contrôle Bradbury, tout est vert. Enfin, tout est rouge, c\'est la planète. Mais les voyants sont verts.', 'Bradbury Control, all green. Well, everything\'s red, it\'s the planet. But the lights are green.'),
   garage: tr('Le rover a encore perdu une roue. Il en a six, il ne s\'en rendra pas compte.', 'The rover lost a wheel again. It has six, it won\'t notice.'),
   greenhouse: tr('J\'arrose la serre. Enfin, je regarde le système d\'arrosage arroser. C\'est un travail aussi.', 'Watering the greenhouse. Well, watching the sprinklers water it. That\'s a job too.'),
@@ -82,7 +84,7 @@ const BARKS = [
   tr('Belle journée. Rouge, mais belle.', 'Lovely day. Red, but lovely.'),
 ]
 
-/** Quand un Krait met les gaz sur l'aire. */
+/** Quand un vaisseau met les gaz sur l'aire. */
 const TAKEOFF = [
   tr('Bon vol, commandant !', 'Safe flight, commander!'),
   tr('Revenez quand vous voulez !', 'Come back anytime!'),
@@ -97,7 +99,7 @@ export class Chief {
   private yaw = 0
   private placed = false
   private stride = 0
-  /** Fin de l'allumage des réacteurs du Krait de la base (ms de l'appareil), 0 sinon. */
+  /** Fin de l'allumage des réacteurs sur l'aire de la base (ms de l'appareil), 0 sinon. */
   private burnUntil = 0
   private barkIn = 10 + Math.random() * 10
   private recent: string[] = []
@@ -115,12 +117,12 @@ export class Chief {
     return this.root.position
   }
 
-  /** Les réacteurs du Krait de la base tournent (d'après le relais, ou nous-mêmes). */
+  /** Des réacteurs tournent sur l'aire de la base (d'après le relais, ou nous-mêmes). */
   get burning(): boolean {
     return Date.now() < this.burnUntil
   }
 
-  /** Où en est la ronde, et le Krait de la base, d'après le relais. */
+  /** Où en est la ronde, et l'aire de la base, d'après le relais. */
   sync(s: ChiefState) {
     const now = Date.now()
     this.clock = { tau: s.tau, at: now, holdUntil: now + s.hold * 1000 }
@@ -129,7 +131,7 @@ export class Chief {
   }
 
   /**
-   * Réacteurs du Krait de la base : allumés pour `seconds` (0 : coupés). Elle se tourne vers le
+   * Réacteurs sur l'aire de la base : allumés pour `seconds` (0 : coupés). Elle se tourne vers le
    * cockpit et salue de la main. `local` : c'est nous qui les avons lancés (elle ne l'apprendra du
    * relais qu'un peu plus tard).
    */
@@ -161,7 +163,7 @@ export class Chief {
     const fresh = pool.filter((l) => !this.recent.includes(l))
     const line = pick(fresh.length ? fresh : pool)
     this.recent = [line, ...this.recent].slice(0, 8)
-    return line
+    return line.split('{ship}').join(report.ship)
   }
 
   /** @param player position du joueur s'il est sur la base, sinon null */

@@ -147,9 +147,12 @@ test('réacteurs en route : la tournée reste figée tant que ça tourne, plus s
   assert.ok(Math.abs(burning.holdUntil - (14000 + back)) < 1e-6)
   const cut = panicMech(burning, 5000, 0)
   assert.ok(Math.abs(cut.holdUntil - (5000 + back)) < 1e-6)
-  // Aux commandes : assis dans le siège du pilote, pas à côté, pas debout.
+  // Aux commandes : assis en pilote dans son vaisseau, sur l'aire (le cockpit du Krait, ou celui
+  // d'un autre vaisseau, plus loin sur le pad) ; pas hors de l'aire, pas debout, pas à un autre pont.
   assert.ok(inCockpit({ ...KRAIT_COCKPIT, pose: 'pilot' }))
-  assert.ok(!inCockpit({ x: KRAIT_COCKPIT.x + 1, z: KRAIT_COCKPIT.z, pose: 'pilot' }))
+  assert.ok(inCockpit({ x: 30.2, z: 5, pose: 'pilot', level: -1 }))
+  assert.ok(!inCockpit({ x: 36.3, z: KRAIT_COCKPIT.z, pose: 'pilot' }))
+  assert.ok(!inCockpit({ ...KRAIT_COCKPIT, pose: 'pilot', level: 0 }))
   assert.ok(!inCockpit({ ...KRAIT_COCKPIT, pose: null }))
 })
 

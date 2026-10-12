@@ -64,7 +64,7 @@ export class RemotePlayer {
     const changedLevel = s.level !== this.level
     this.level = s.level
     this.pose = POSE_IDS.includes(s.pose as PoseId) ? (s.pose as PoseId) : null
-    this.target.set(s.x, this.levelY(s.level, s.x, s.z) + (this.pose ? Math.min(1.2, Math.max(0, s.py ?? 0)) : 0), s.z)
+    this.target.set(s.x, this.levelY(s.level, s.x, s.z) + (this.pose ? Math.min(2.5, Math.max(0, s.py ?? 0)) : 0), s.z)
     this.yaw = s.yaw
     this.anim = (['idle', 'walk', 'sprint'].includes(s.anim) ? s.anim : 'idle') as Locomotion
     this.avatar?.setPose(this.pose)

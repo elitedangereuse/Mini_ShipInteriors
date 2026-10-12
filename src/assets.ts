@@ -220,6 +220,11 @@ function load(path: string): Promise<GLTF> {
       return gltf
     })
     pending.set(path, p)
+    // Un échec ne reste pas en mémoire : le prochain appel retente (un vaisseau choisi au registre).
+    const failed = p
+    failed.catch(() => {
+      if (pending.get(path) === failed) pending.delete(path)
+    })
   }
   return p
 }

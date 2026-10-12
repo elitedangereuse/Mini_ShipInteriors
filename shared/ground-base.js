@@ -53,8 +53,10 @@ export const BASE_LAYOUT = ROWS.map((runs) => {
 export const BASE_KRAIT = { x: 28, z: 11 }
 /** L'escabeau du cockpit, devant le nez (cf. KRAIT_LADDER_REACH côté client). */
 export const BASE_LADDER = { x: 24.25, z: 11 }
-/** Le siège du pilote, sur le plateau (cf. KRAIT_PILOT). */
+/** Le siège du pilote du Krait Mk II, le vaisseau par défaut (cf. src/ship-bay.ts). */
 export const BASE_COCKPIT = { x: BASE_KRAIT.x - 2.05, z: BASE_KRAIT.z }
+/** L'aire de la base : chacun y retrouve son vaisseau, et son cockpit où qu'il soit sous l'emprise. */
+export const BASE_PAD = { minX: 24.6, maxX: 31.5, minZ: 7.6, maxZ: 14.4 }
 
 /** Où l'on pose le pied en arrivant : à côté du pied de l'escabeau, face à la base. */
 export const BASE_ARRIVAL = { x: 23, z: 12.2, yaw: -Math.PI / 2 }
@@ -64,9 +66,9 @@ export const HANGAR_ARRIVAL = { level: -1, x: 36.1, z: 4.2, yaw: -Math.PI / 2 }
 /** Les réacteurs du Krait de la base se coupent d'eux-mêmes au bout de ce temps (secondes). */
 export const BASE_BURN = 8
 
-/** Un joueur est-il installé aux commandes du Krait de la base ? (le siège, à la latence près) */
+/** Un joueur est-il installé aux commandes de son vaisseau, sur la base ? (assis en pilote, sur l'aire) */
 export function inBaseCockpit(p) {
-  return p.level === BASE_LEVEL && p.pose === 'pilot' && Math.hypot(p.x - BASE_COCKPIT.x, p.z - BASE_COCKPIT.z) < 0.6
+  return p.level === BASE_LEVEL && p.pose === 'pilot' && p.x >= BASE_PAD.minX && p.x <= BASE_PAD.maxX && p.z >= BASE_PAD.minZ && p.z <= BASE_PAD.maxZ
 }
 
 // --------------------------------------------------------------- la cheffe de base
