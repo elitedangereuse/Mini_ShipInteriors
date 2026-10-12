@@ -6,7 +6,8 @@ import { BAY_BOOTH, groundHeight, RULES, ZONE_LEVEL, type BayLight, type Zone } 
 import type { ZoneKit } from './kit'
 
 /*
- * La baie infestée en pont du jeu (cf. LevelDef, Deck) : le plan fixe (parois, portes du sas),
+ * La baie infestée en pont du jeu (cf. LevelDef, Deck) : le plan de la partie (parois, portes du
+ * sas d'extraction, sas des secteurs, verrouillés devant ceux qui sont condamnés),
  * ses rangées de conteneurs et piles de caisses (des obstacles), les bacs de la serre et les
  * excroissances du nid, la passerelle du hall de fret (caillebotis, escaliers, garde-corps), son
  * décor (câbles, ossements, cristaux thargoïdes, verre brisé, flaques caustiques), les lampes de
@@ -26,9 +27,13 @@ const AREA_NAMES: Record<string, string> = {
   machines: tr('Salle des machines', 'Machine room'),
   storage: tr('Aire de stockage', 'Storage yard'),
   nest: tr('Le nid', 'The nest'),
-  workshop: tr('Ateliers', 'Workshops'),
+  workshops: tr('Ateliers', 'Workshops'),
   dock: tr('Quai de chargement', 'Loading dock'),
   collapse: tr('Zone effondrée', 'Collapsed zone'),
+  lab: tr('Laboratoire de quarantaine', 'Quarantine lab'),
+  hatchery: tr('Le couvoir', 'The hatchery'),
+  dorm: tr('Dortoirs', 'Crew quarters'),
+  cold: tr('Chambre froide', 'Cold room'),
 }
 const ROOM_NAMES: Record<string, string> = {
   pause: tr('Salle de pause', 'Break room'),
@@ -36,6 +41,8 @@ const ROOM_NAMES: Record<string, string> = {
   workshop: tr('Atelier', 'Workshop'),
   infirmary: tr('Infirmerie de fortune', 'Makeshift infirmary'),
 }
+/** Nom d'un secteur de la baie (cf. BAY_SECTORS) : un coin, ou une petite pièce. */
+export const sectorName = (id: string): string => AREA_NAMES[id] ?? ROOM_NAMES[id] ?? id
 
 export function zoneLevel(zone: Zone, kit: ZoneKit): LevelDef {
   const props: Prop[] = []
@@ -59,9 +66,9 @@ export function zoneLevel(zone: Zone, kit: ZoneKit): LevelDef {
     if (d.kind === 'goo') props.push({ model: 'caustic-pool', x: d.x, z: d.z, rot: d.rot as Rot, solid: false })
     else props.push({ model: 'prebuilt', object: kit.decor(d.kind, i), x: d.x, z: d.z, rot: d.rot as Rot, solid: false })
   }
-  // Le nid : la biomasse étalée sous ses excroissances et ses flaques, et ses spores qui flottent.
-  const nest = zone.areas.find((a) => a.id === 'nest')
-  if (nest) {
+  // Le nid et le couvoir : la biomasse étalée sous leurs excroissances et leurs flaques, et leurs
+  // spores qui flottent.
+  for (const nest of zone.areas.filter((a) => a.id === 'nest' || a.id === 'hatchery')) {
     const inNest = (p: { x: number; z: number }) => p.x >= nest.x && p.z >= nest.z && p.x < nest.x + nest.w && p.z < nest.z + nest.d
     const sources = [
       ...zone.containers.filter((c) => c.kind === 'growth' && inNest(c)),
@@ -135,10 +142,12 @@ export function zoneLevel(zone: Zone, kit: ZoneKit): LevelDef {
     const nx = x + DIRS[d].dx, nz = z + DIRS[d].dz
     return !zone.open[(z * W + x) * 4 + d] || nx < 0 || nz < 0 || nx >= W || nz >= zone.height || !!zone.blocked[nz * W + nx]
   }
+  // Pas sur le vantail d'un sas : ni sur sa tuile, ni sur celle d'en face.
+  const gateTiles = new Set(zone.gates.flatMap((g) => [g.z * W + g.x, (g.z + DIRS[g.dir].dz) * W + g.x + DIRS[g.dir].dx]))
   for (let z = 0; z < zone.height; z++) {
     for (let x = 0; x < W; x++) {
       const i = z * W + x
-      if (zone.room[i] !== 'z' || zone.blocked[i] || zone.lit[i] || zone.elev[i] > 0 || hash(x * 7 + 3, z * 5 + 1) % 7 !== 0) continue
+      if (zone.room[i] !== 'z' || zone.blocked[i] || zone.lit[i] || zone.elev[i] > 0 || gateTiles.has(i) || hash(x * 7 + 3, z * 5 + 1) % 7 !== 0) continue
       if (zone.lockers.some((l) => l.x === x && l.z === z)) continue
       if (zone.rooms.some((r) => x >= r.x && z >= r.z && x < r.x + r.w && z < r.z + r.d)) continue
       const dir = [0, 3].find((d) => closed(x, z, d) && !zone.rail[i * 4 + d])
@@ -172,10 +181,12 @@ export function zoneLevel(zone: Zone, kit: ZoneKit): LevelDef {
     footsteps: 'hard',
     layout: zone.layout,
     rooms: { z: tr('Baie de stockage infestée', 'Infested storage bay'), x: tr('Sas d\'extraction', 'Extraction airlock') },
+    closed: { z: tr('Sas verrouillé : le secteur est condamné pour cette mission.', 'Sealed gate: this sector is locked down for this mission.') },
     areas,
     windows: { z: 0, x: 0 },
     props,
     lights,
-    zone: { kit, map: { walls: zone.walls, doors: zone.doors }, glow },
+    // Un sas : une porte entre deux tuiles de la baie (cf. buildGraph), verrouillée devant un secteur condamné.
+    zone: { kit, map: { walls: [...zone.walls, ...zone.gates], doors: [...zone.doors, ...zone.gates] }, glow },
   }
 }

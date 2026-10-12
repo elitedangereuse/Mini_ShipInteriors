@@ -1,11 +1,12 @@
 // Récupération de cargaison en zone thargoïde (SOC-06) : règles communes au relais, qui arbitre
 // la partie (ennemis, colis, casiers, fusées, captures), et au client, qui la dessine.
 //
-// La baie infestée a un plan fixe (BAY) ; la graine que le relais tire au lancement y dispose les
-// colis, les fusées, les ennemis et le décor, et chacun en construit exactement la même
-// (générateur pseudo-aléatoire, entiers seulement). Une lettre par tuile, comme les ponts (cf.
-// ship-map.js) : 'z' la baie, 'x' le sas d'extraction ; les conteneurs bloquent des tuiles
-// entières (`blocked`), la vue comme le passage.
+// La baie infestée a un plan fixe (BAY), découpé en secteurs que ferment des sas (BAY_GATES) ; la
+// graine que le relais tire au lancement en condamne quelques-uns (BAY_SECTORS), puis dispose
+// dans ce qui reste les colis, les fusées, les ennemis et le décor, et chacun en construit
+// exactement la même (générateur pseudo-aléatoire, entiers seulement). Une lettre par tuile, comme
+// les ponts (cf. ship-map.js) : 'z' la baie, 'x' le sas d'extraction ; les conteneurs bloquent des
+// tuiles entières (`blocked`), la vue comme le passage.
 //
 // Trois choses changent la façon de s'y déplacer :
 // - les zones éclairées (BAY_LIT) : on y voit de loin, mais on y est vu de loin ;
@@ -42,6 +43,11 @@ export const LOBBY_RETURN = { x: 24, z: 0.9 }
 export const RULES = {
   /** Lobbys du sas : autant d'équipes qui peuvent se former (et partir) en même temps. */
   lobbies: 4,
+  /**
+   * Secteurs condamnés à chaque partie (cf. BAY_SECTORS) : entre `min` et `max` des grands, ceux
+   * qui se retrouvent coupés du sas compris ; chaque petite pièce, avec la probabilité `small`.
+   */
+  sealed: { min: 3, max: 4, small: 0.3 },
   team: 4,
   parcels: { min: 1, max: 6 },
   enemies: { min: 1, max: 6 },
@@ -149,8 +155,9 @@ function shuffle(list, random) {
 }
 
 /**
- * Plan de la baie, le même à chaque mission (36 × 26) : trois bandes séparées par des cloisons
- * percées de passages larges, et, au milieu, la grande allée qui la traverse d'ouest en est.
+ * Plan de la baie, le même à chaque mission (46 × 34) : trois bandes séparées par des cloisons
+ * percées de passages larges, et, au milieu, la grande allée qui la traverse d'ouest en est ;
+ * autour, quatre pièces à part, à l'est et au sud.
  * - Au nord : le hall de fret et sa passerelle surélevée (deux escaliers), les bureaux (salle de
  *   pause, local radio, open space) et la serre hydroponique, sous ses rampes violettes (éclairée).
  * - La grande allée, trois tuiles de large ; au milieu, le guichet de sécurité où s'est barricadé
@@ -159,6 +166,10 @@ function shuffle(list, random) {
  *   (excroissances, flaques caustiques, cristaux), le coin le plus noir.
  * - Au sud : l'atelier, le quai de chargement et ses projecteurs (éclairé), le sas d'extraction
  *   au milieu du bord sud, et la zone effondrée (verre brisé) avec l'infirmerie de fortune.
+ * - À l'est : le laboratoire de quarantaine, derrière la serre, et le couvoir, au bout de la
+ *   grande allée et contre le nid (excroissances, flaques caustiques).
+ * - Au sud, de part et d'autre du sas : les dortoirs (des casiers partout), sous les ateliers, et
+ *   la chambre froide (éclairée), sous la zone effondrée.
  * Une lettre par tuile (colonne = x, ligne = z) :
  *   '.'  sol de la baie        'x'  sas d'extraction
  *   '#'  cloison (plein : ni sol, ni passage, ni vue)
@@ -172,35 +183,103 @@ function shuffle(list, random) {
  *   'g'  guichet de sécurité : on y voit par la vitre, on n'y entre pas
  */
 export const BAY = [
-  'L...L....L..L#........#L...........L',
-  '.==.==..==.==#........#.............',
-  '.............#........#..pp..pp..pp.',
-  '.ruuuuuuuuur.#........#.............',
-  '.ruuuuuuuuur.#...........pp..pp..pp.',
-  '....................................',
-  '.H.==..==.H...........#..pp..pp..pp.',
-  '.H........H.L#..ggg...#L...L....L..L',
-  '###...##########ggg#########...#####',
-  'L.......L..............L..........L.',
-  '....................................',
-  '..L.......L..c........L..c........L.',
-  '#####...########...##########...####',
-  'L...m..m...L#.==..H..==.#...o....o..',
-  '.mm......mm.#.....H.......o....o....',
-  '..............H.......H......o....o.',
-  '.m..mm..m.....H..==...H.#..o....o...',
-  'L.....L....L#L.........L#L......o..L',
-  '####..##########...##########..#####',
-  '........L.#L...........L#...c......L',
-  '..........#.........................',
-  '.....cc......cc.....cc....c.....c...',
-  '........................#....c......',
-  '.c........#.............#..c........',
-  '..........#L....xxx....L#...........',
-  'L...L...L.#.c...xxx...c.#L...L......',
+  'L...L....L..L#........#L...........L#L.......L',
+  '.==.==..==.==#........#.............#.........',
+  '.............#........#..pp..pp..pp.#.........',
+  '.ruuuuuuuuur.#........#..................o....',
+  '.ruuuuuuuuur.#...........pp..pp..pp......o....',
+  '....................................#.........',
+  '.H.==..==.H...........#..pp..pp..pp.#.c.....c.',
+  '.H........H.L#..ggg...#L...L....L..L#L.......L',
+  '###...##########ggg#########...########..#####',
+  'L.......L..............L..........L.......o..L',
+  '..............................................',
+  '..L.......L..c........L..c........L....o......',
+  '#####...########...##########...#####......o..',
+  'L...m...m..L#.==...H.==.#...o....o..#L........',
+  '.mm......mm.#......H......o....o....#...o.....',
+  '..............H.......H......o....o.........o.',
+  '.m..mm..m.....H..==...H.#..o....o.............',
+  'L.....L....L#L.........L#L......o..L#L...o...L',
+  '####..##########...##########..###############',
+  '........L.#L...........L#...c......L##########',
+  '..........#.........................##########',
+  '.....cc......cc.....cc....c.....c...##########',
+  '........................#....c......##########',
+  '.c........#.............#..c........##########',
+  '..........#L....xxx....L#...........##########',
+  'L...L...L.#.c...xxx...c.#L...L......##########',
+  '#####..####################..#################',
+  'L...L....L###############L.........L##########',
+  '..........###############.==.==.==..##########',
+  '..........###############...........##########',
+  'L........L###############.cc..cc..c.##########',
+  '..........###############...........##########',
+  '..........###############.==.==.==..##########',
+  'L...L....L###############L....L....L##########',
 ]
 /** Le sas : adossé au bord sud (2), ouvert vers le nord (0) par deux portes, la plateforme au fond. */
 const BAY_AIRLOCK = { side: 2, inward: 0, pad: { x: 17, z: 25 }, doors: [{ x: 16, z: 24, dir: 0 }, { x: 18, z: 24, dir: 0 }] }
+
+/**
+ * Les sas : un vantail par tuile de chaque passage, sur l'arête `dir` des tuiles (x, z) de `at`.
+ * `rooms` : les secteurs que le passage dessert ; que l'un d'eux soit condamné, et le sas reste
+ * verrouillé (cf. BAY_SECTORS). La grande allée et le quai de chargement ne ferment jamais.
+ */
+export const BAY_GATES = [
+  // Le long de la grande allée.
+  { rooms: ['freight'], dir: 0, at: [[3, 8], [4, 8], [5, 8]] },
+  { rooms: ['greenhouse'], dir: 0, at: [[28, 8], [29, 8], [30, 8]] },
+  { rooms: ['machines'], dir: 2, at: [[5, 12], [6, 12], [7, 12]] },
+  { rooms: ['storage'], dir: 2, at: [[16, 12], [17, 12], [18, 12]] },
+  { rooms: ['nest'], dir: 2, at: [[29, 12], [30, 12], [31, 12]] },
+  { rooms: ['hatchery'], dir: 1, at: [[36, 9], [36, 10], [36, 11]] },
+  // Autour du quai de chargement.
+  { rooms: ['storage'], dir: 0, at: [[16, 18], [17, 18], [18, 18]] },
+  { rooms: ['workshops'], dir: 3, at: [[10, 21], [10, 22]] },
+  { rooms: ['collapse'], dir: 1, at: [[24, 20], [24, 21]] },
+  // D'un secteur à l'autre.
+  { rooms: ['freight', 'offices'], dir: 3, at: [[13, 5], [13, 6]] },
+  { rooms: ['offices', 'greenhouse'], dir: 1, at: [[22, 4], [22, 5]] },
+  { rooms: ['machines', 'storage'], dir: 3, at: [[12, 15], [12, 16]] },
+  { rooms: ['storage', 'nest'], dir: 1, at: [[24, 14], [24, 15]] },
+  { rooms: ['machines', 'workshops'], dir: 0, at: [[4, 18], [5, 18]] },
+  { rooms: ['nest', 'collapse'], dir: 0, at: [[29, 18], [30, 18]] },
+  { rooms: ['greenhouse', 'lab'], dir: 1, at: [[36, 3], [36, 4]] },
+  { rooms: ['lab', 'hatchery'], dir: 0, at: [[39, 8], [40, 8]] },
+  { rooms: ['nest', 'hatchery'], dir: 1, at: [[36, 15], [36, 16]] },
+  { rooms: ['workshops', 'dorm'], dir: 2, at: [[5, 26], [6, 26]] },
+  { rooms: ['collapse', 'cold'], dir: 2, at: [[27, 26], [28, 26]] },
+  // Les portes des petites pièces (cf. BAY_ROOMS).
+  { rooms: ['pause'], dir: 2, at: [[15, 2], [16, 2]] },
+  { rooms: ['radio'], dir: 2, at: [[19, 2], [20, 2]] },
+  { rooms: ['workshop'], dir: 1, at: [[3, 20]] },
+  { rooms: ['infirmary'], dir: 3, at: [[32, 23]] },
+]
+
+/**
+ * Les secteurs qu'une partie peut condamner, et une tuile de chacun (pour savoir s'il l'est).
+ * `small` : une petite pièce, tirée à part ; les autres comptent dans les `RULES.sealed` secteurs
+ * fermés d'une partie.
+ */
+export const BAY_SECTORS = [
+  { id: 'freight', x: 6, z: 2 },
+  { id: 'offices', x: 17, z: 5 },
+  { id: 'greenhouse', x: 29, z: 3 },
+  { id: 'machines', x: 6, z: 15 },
+  { id: 'storage', x: 18, z: 15 },
+  { id: 'nest', x: 30, z: 15 },
+  { id: 'workshops', x: 6, z: 22 },
+  { id: 'collapse', x: 28, z: 21 },
+  { id: 'lab', x: 41, z: 1 },
+  { id: 'hatchery', x: 41, z: 13 },
+  { id: 'dorm', x: 5, z: 30 },
+  { id: 'cold', x: 30, z: 29 },
+  { id: 'pause', x: 14, z: 0, small: true },
+  { id: 'radio', x: 21, z: 1, small: true },
+  { id: 'workshop', x: 1, z: 20, small: true },
+  { id: 'infirmary', x: 34, z: 24, small: true },
+]
 
 /**
  * Le guichet de sécurité : ses tuiles ('g'), la vitre (côté `window`, 2 : sud), où se tient le
@@ -294,6 +373,27 @@ export const BAY_PROPS = [
   { model: 'floodlight', x: 22.75, z: 20.2, rot: 3, label: '#fff0d6', solid: false },
   { model: 'floodlight', x: 11.25, z: 23.6, rot: 1, label: '#fff0d6', solid: false },
   { model: 'floodlight', x: 22.75, z: 23.6, rot: 3, label: '#fff0d6', solid: false },
+  // Le laboratoire de quarantaine : paillasses au nord, cuves et caissons autour du spécimen.
+  { model: 'lab-bench', x: 39.5, z: 0.25, rot: 0, block: [[39, 0], [40, 0]] },
+  { model: 'lab-bench', x: 42.5, z: 0.25, rot: 0, block: [[42, 0], [43, 0]] },
+  { model: 'med-fridge', x: 37, z: 2, rot: 1, block: true },
+  { model: 'sample-tank', x: 45, z: 2, block: true },
+  { model: 'sample-tank', x: 45, z: 5, block: true },
+  { model: 'containment-pod', x: 39, z: 4, block: true },
+  { model: 'containment-pod', x: 43, z: 3, block: true },
+  { model: 'holo-thargoid', x: 41, z: 6, block: true },
+  // Les dortoirs : quatre lits superposés, les vestiaires contre le mur nord.
+  { model: 'bunk-bed', x: 2, z: 29, rot: 0, block: true },
+  { model: 'bunk-bed', x: 7, z: 29, rot: 0, block: true },
+  { model: 'bunk-bed', x: 2, z: 32, rot: 0, block: true },
+  { model: 'bunk-bed', x: 7, z: 32, rot: 0, block: true },
+  { model: 'suit-locker', x: 2, z: 27.2, rot: 0, block: true },
+  { model: 'suit-locker', x: 7, z: 27.2, rot: 0, block: true },
+  { model: 'footlocker', x: 2.75, z: 29, rot: 0 },
+  { model: 'laundry-basket', x: 8.6, z: 33.2, solid: false },
+  // La chambre froide : les armoires réfrigérées contre le mur nord.
+  { model: 'med-fridge', x: 30, z: 27.2, rot: 0, block: true },
+  { model: 'med-fridge', x: 31, z: 27.2, rot: 0, block: true },
   // Le carrefour du guichet, dans la grande allée.
   { model: 'floodlight', x: 13.3, z: 9.25, rot: 0, label: '#ffcf7a', solid: false },
   { model: 'floodlight', x: 20.7, z: 9.25, rot: 0, label: '#ffcf7a', solid: false },
@@ -311,9 +411,13 @@ export const BAY_AREAS = [
   { id: 'machines', x: 0, z: 13, w: 12, d: 5, density: 0.16, decor: ['cables', 'cables', 'barrel', 'debris'], lights: [{ x: 6, z: 15.6, color: '#ff5a36', intensity: 0.9, flicker: 'fire' }] },
   { id: 'storage', x: 13, z: 13, w: 11, d: 5, density: 0.1, decor: ['barrel', 'debris', 'cables'], lights: [] },
   { id: 'nest', x: 25, z: 13, w: 11, d: 5, density: 0.4, decor: ['crystals', 'crystals', 'goo', 'goo', 'goo', 'bones'], lights: [{ x: 30.5, z: 14.4, color: '#39ff88', intensity: 0.9, flicker: 'neon' }, { x: 27, z: 16.6, color: '#2fd873', intensity: 0.7 }] },
-  { id: 'workshop', x: 0, z: 19, w: 10, d: 7, density: 0.12, decor: ['cables', 'debris', 'barrel'], lights: [{ x: 6.5, z: 23, color: '#ffaa55', intensity: 0.6, flicker: 'neon' }] },
+  { id: 'workshops', x: 0, z: 19, w: 10, d: 7, density: 0.12, decor: ['cables', 'debris', 'barrel'], lights: [{ x: 6.5, z: 23, color: '#ffaa55', intensity: 0.6, flicker: 'neon' }] },
   { id: 'dock', x: 11, z: 19, w: 13, d: 7, density: 0.04, decor: ['barrel', 'cables'], lights: [] },
   { id: 'collapse', x: 25, z: 19, w: 11, d: 7, density: 0.3, decor: ['glass', 'glass', 'glass', 'debris', 'debris', 'bones', 'cables'], lights: [{ x: 28.4, z: 21.2, color: '#ffaa55', intensity: 0.8, flicker: 'neon' }] },
+  { id: 'lab', x: 37, z: 0, w: 9, d: 8, density: 0.1, decor: ['papers', 'papers', 'cables', 'debris', 'crystals'], lights: [{ x: 41, z: 0.6, color: '#7fe0d0', intensity: 0.9, flicker: 'neon' }, { x: 41, z: 4.6, color: '#39ff88', intensity: 0.7 }] },
+  { id: 'hatchery', x: 37, z: 9, w: 9, d: 9, density: 0.38, decor: ['crystals', 'crystals', 'goo', 'goo', 'bones'], lights: [{ x: 41, z: 10.4, color: '#39ff88', intensity: 0.8, flicker: 'neon' }, { x: 43.4, z: 15.6, color: '#2fd873', intensity: 0.7 }] },
+  { id: 'dorm', x: 0, z: 27, w: 10, d: 7, density: 0.14, decor: ['papers', 'debris', 'cables'], lights: [{ x: 4.5, z: 30, color: '#ffb066', intensity: 0.8, flicker: 'neon' }] },
+  { id: 'cold', x: 25, z: 27, w: 11, d: 7, density: 0.05, decor: ['barrel', 'debris'], lights: [] },
 ]
 
 /**
@@ -325,6 +429,7 @@ export const BAY_LIT = [
   { id: 'greenhouse', x: 23, z: 0, w: 13, d: 8, color: '#e08cff', intensity: 2.6, lamps: [{ x: 26, z: 2 }, { x: 32, z: 2 }, { x: 26, z: 5.6 }, { x: 32, z: 5.6 }] },
   { id: 'crossroads', x: 13, z: 9, w: 9, d: 3, color: '#ffcf7a', intensity: 3, lamps: [{ x: 14.5, z: 10 }, { x: 19.5, z: 10 }] },
   { id: 'dock', x: 11, z: 19, w: 13, d: 7, color: '#fff0d6', intensity: 4, lamps: [{ x: 13, z: 20.6 }, { x: 21, z: 20.6 }, { x: 13, z: 23.4 }, { x: 21, z: 23.4 }] },
+  { id: 'cold', x: 25, z: 27, w: 11, d: 7, color: '#bfe6ff', intensity: 3, lamps: [{ x: 27.6, z: 29 }, { x: 32.6, z: 29 }, { x: 27.6, z: 31 }, { x: 32.6, z: 31 }] },
 ]
 
 /**
@@ -342,17 +447,89 @@ export const BAY_CAMERAS = [
   { id: 'storage', x: 18, z: 15.4 },
   { id: 'nest', x: 30, z: 15 },
   { id: 'collapse', x: 30, z: 21 },
+  { id: 'lab', x: 41, z: 1.6 },
+  { id: 'hatchery', x: 41, z: 13 },
+  { id: 'dorm', x: 5, z: 30 },
+  { id: 'cold', x: 30, z: 29 },
 ]
 
 /** Sols qui comptent : le verre brisé crisse (FX.glass), la flaque caustique ralentit (FX.goo). */
 export const FX = { none: 0, glass: 1, goo: 2 }
 const areaOf = (x, z) => BAY_AREAS.find((a) => x >= a.x && z >= a.z && x < a.x + a.w && z < a.z + a.d) ?? null
 
+/** Clé d'une arête, la même vue des deux tuiles qu'elle sépare. */
+const edgeKey = (x, z, dir) => (dir === 1 ? `${x},${z},v` : dir === 3 ? `${x - 1},${z},v` : dir === 2 ? `${x},${z},h` : `${x},${z - 1},h`)
+/** Un vantail par arête : sa tuile, son arête, les secteurs qu'il dessert. */
+const GATE_EDGES = BAY_GATES.flatMap((g) => g.at.map(([x, z]) => ({ x, z, dir: g.dir, rooms: g.rooms, key: edgeKey(x, z, g.dir) })))
+/** Le tour des petites pièces, sauf leurs portes (des sas) : des cloisons fines, toujours fermées. */
+const ROOM_WALLS = new Set(BAY_ROOMS.flatMap((r) => {
+  const out = []
+  for (let z = r.z; z < r.z + r.d; z++) {
+    for (let x = r.x; x < r.x + r.w; x++) {
+      for (let dir = 0; dir < 4; dir++) {
+        const nx = x + DIRS[dir].dx, nz = z + DIRS[dir].dz
+        if (nx >= r.x && nz >= r.z && nx < r.x + r.w && nz < r.z + r.d) continue
+        if (!r.doors.some((d) => d.x === x && d.z === z && d.dir === dir)) out.push(edgeKey(x, z, dir))
+      }
+    }
+  }
+  return out
+}))
+
 /**
- * La baie d'une mission : le plan fixe (BAY), et ce que la graine y dispose (colis, fusées,
- * ennemis, décor), différent à chaque partie.
+ * Ce qui reste relié au sas d'extraction quand les secteurs `closed` sont condamnés (1 par tuile) :
+ * on ne franchit ni un sas verrouillé, ni la cloison d'une petite pièce, ni le guichet. Les
+ * conteneurs ne comptent pas : ils sont de leur secteur, ouvert ou fermé avec lui.
+ */
+function reachable(closed) {
+  const H = BAY.length, W = BAY[0].length
+  const shut = new Set(ROOM_WALLS)
+  for (const g of GATE_EDGES) if (g.rooms.some((r) => closed.has(r))) shut.add(g.key)
+  const seen = new Uint8Array(W * H)
+  const queue = [BAY_AIRLOCK.pad.z * W + BAY_AIRLOCK.pad.x]
+  seen[queue[0]] = 1
+  for (let head = 0; head < queue.length; head++) {
+    const x = queue[head] % W, z = Math.floor(queue[head] / W)
+    for (let dir = 0; dir < 4; dir++) {
+      const nx = x + DIRS[dir].dx, nz = z + DIRS[dir].dz
+      if (nx < 0 || nz < 0 || nx >= W || nz >= H || '#g'.includes(BAY[nz][nx]) || seen[nz * W + nx] || shut.has(edgeKey(x, z, dir))) continue
+      seen[nz * W + nx] = 1
+      queue.push(nz * W + nx)
+    }
+  }
+  return seen
+}
+
+/**
+ * Les secteurs condamnés d'une partie : des grands, tirés un à un tant que le compte n'y est pas
+ * (un secteur qui en couperait d'autres du sas au-delà de ce compte reste ouvert), puis chaque
+ * petite pièce à part.
+ */
+function pickClosed(random) {
+  const W = BAY[0].length
+  const big = BAY_SECTORS.filter((s) => !s.small)
+  const lost = (closed) => {
+    const seen = reachable(closed)
+    return big.filter((s) => !seen[s.z * W + s.x]).length
+  }
+  const target = int(random, RULES.sealed.min, RULES.sealed.max)
+  let closed = new Set()
+  for (const s of shuffle([...big], random)) {
+    if (lost(closed) >= target) break
+    const trial = new Set(closed).add(s.id)
+    if (lost(trial) <= target) closed = trial
+  }
+  for (const s of BAY_SECTORS) if (s.small && random() < RULES.sealed.small) closed.add(s.id)
+  return closed
+}
+
+/**
+ * La baie d'une mission : le plan fixe (BAY), les secteurs que la graine condamne, et ce qu'elle
+ * dispose dans les autres (colis, fusées, ennemis, décor), différents à chaque partie. Un secteur
+ * condamné n'existe plus : ses tuiles sont du vide, comme une cloison, derrière ses sas verrouillés.
  * @param {number} seed graine choisie par le relais
- * @param {{ team: number, parcels: number, enemies: number }} settings
+ * @param {{ team: number, parcels: number, enemies: number, closed?: string[] }} settings closed :
+ *   secteurs condamnés imposés, au lieu du tirage (essais)
  */
 export function generateZone(seed, settings) {
   const random = mulberry32(seed)
@@ -363,7 +540,15 @@ export function generateZone(seed, settings) {
   const N = W * H
   const idx = (x, z) => z * W + x
   const inside = (x, z) => x >= 0 && z >= 0 && x < W && z < H
-  const cell = (x, z) => (inside(x, z) ? BAY[z][x] : '#')
+  const live = reachable(settings.closed ? new Set(settings.closed) : pickClosed(random))
+  const alive = (p) => live[idx(Math.round(p.x), Math.round(p.z))] === 1
+  // Le plan de la partie : celui de la baie, les secteurs condamnés en moins (le guichet reste).
+  const plan = BAY.map((line, z) => [...line].map((c, x) => (live[idx(x, z)] || c === 'g' ? c : '#')).join(''))
+  const cell = (x, z) => (inside(x, z) ? plan[z][x] : '#')
+  const rooms = BAY_ROOMS.filter((r) => live[idx(r.x, r.z)])
+  const props = BAY_PROPS.filter(alive)
+  const lights = BAY_LIT.filter((l) => alive(l.lamps[0]))
+  const areas = BAY_AREAS.filter((a) => alive({ x: a.x + (a.w >> 1), z: a.z + (a.d >> 1) })).map((a) => ({ ...a, lights: a.lights.filter(alive) }))
   const room = new Array(N)
   const blocked = new Uint8Array(N)
   const booth = new Uint8Array(N)
@@ -392,7 +577,7 @@ export function generateZone(seed, settings) {
       if (c === 'r') elev[i] = RULES.deck / 2
     }
   }
-  for (const l of BAY_LIT) {
+  for (const l of lights) {
     for (let z = l.z; z < l.z + l.d; z++) for (let x = l.x; x < l.x + l.w; x++) if (inside(x, z) && room[idx(x, z)] !== ' ') lit[idx(x, z)] = 1
   }
   // Escaliers : ils montent vers la passerelle voisine ; le bas donne sur le sol de la baie.
@@ -429,7 +614,7 @@ export function generateZone(seed, settings) {
     walls.push(dir === 1 || dir === 2 ? { x, z, dir } : { x: nx, z: nz, dir: (dir + 2) % 4 })
   }
   // Petites pièces : cloisons fines tout autour, sauf aux portes ; leurs meubles occupent leur tuile.
-  for (const r of BAY_ROOMS) {
+  for (const r of rooms) {
     const within = (x, z) => x >= r.x && z >= r.z && x < r.x + r.w && z < r.z + r.d
     for (let z = r.z; z < r.z + r.d; z++) {
       for (let x = r.x; x < r.x + r.w; x++) {
@@ -441,13 +626,28 @@ export function generateZone(seed, settings) {
       }
     }
   }
-  for (const f of [...BAY_ROOMS.flatMap((r) => r.furniture), ...BAY_PROPS]) {
+  for (const f of [...rooms.flatMap((r) => r.furniture), ...props]) {
     if (f.solid !== false) furnished[idx(Math.round(f.x), Math.round(f.z))] = 1
     if (!f.block) continue
     for (const [x, z] of f.block === true ? [[Math.round(f.x), Math.round(f.z)]] : f.block) {
       blocked[idx(x, z)] = 1
       furnished[idx(x, z)] = 1
     }
+  }
+  // Les sas : un vantail verrouillé donne sur un secteur condamné ; entre deux secteurs condamnés,
+  // il n'y en a plus. Devant un sas, d'un côté comme de l'autre, on ne pose rien.
+  const gates = []
+  const gated = new Uint8Array(N * 4)
+  const threshold = new Uint8Array(N)
+  for (const g of GATE_EDGES) {
+    const i = idx(g.x, g.z), j = idx(g.x + DIRS[g.dir].dx, g.z + DIRS[g.dir].dz)
+    if (!live[i] && !live[j]) continue
+    const locked = !live[i] || !live[j]
+    gates.push({ x: g.x, z: g.z, dir: g.dir, locked })
+    threshold[i] = threshold[j] = 1
+    if (locked) continue
+    gated[i * 4 + g.dir] = 1
+    gated[j * 4 + ((g.dir + 2) % 4)] = 1
   }
   // Le guichet : cloisonné, sauf la vitre (le passage reste fermé : ses tuiles sont bloquées).
   for (let z = BAY_BOOTH.z; z < BAY_BOOTH.z + BAY_BOOTH.d; z++) {
@@ -507,10 +707,11 @@ export function generateZone(seed, settings) {
     }
   }
 
-  const layout = BAY.map((line) => line.replace(/#/g, ' ').replace(/[^x ]/g, 'z'))
+  const layout = plan.map((line) => line.replace(/#/g, ' ').replace(/[^x ]/g, 'z'))
   const zone = {
     seed, width: W, height: H, team, parcels, enemies,
-    layout, walls, doors, booth, rooms: BAY_ROOMS, areas: BAY_AREAS, props: BAY_PROPS, lights: BAY_LIT, cameras: BAY_CAMERAS,
+    layout, walls, doors, gates, gated, booth, rooms, areas, props, lights, cameras: BAY_CAMERAS.filter(alive),
+    closed: BAY_SECTORS.filter((s) => !live[idx(s.x, s.z)]).map((s) => s.id),
     airlock: { side: BAY_AIRLOCK.side, tiles: airlock, pad: { ...BAY_AIRLOCK.pad }, inward: BAY_AIRLOCK.inward },
     halls: [], containers, blocked, low, tall, elev, stairs, lit, fx, furnished, open, rail, rails, room, hall,
     lockers: [], flares: [], cargo: [], monsters: [], decor: [],
@@ -531,8 +732,8 @@ export function generateZone(seed, settings) {
   const dist = (t) => fromAirlock[idx(t.x, t.z)]
   const taken = new Set(zone.lockers.map((l) => `${l.x},${l.z}`))
   const key = (t) => `${t.x},${t.z}`
-  // Devant les portes du sas et devant le comptoir du guichet, on ne pose rien.
-  const nearDoor = (t) => zone.doors.some((d) => Math.abs(t.x - d.x - DIRS[d.dir].dx) + Math.abs(t.z - d.z - DIRS[d.dir].dz) <= 1)
+  // Devant les portes du sas d'extraction, devant un sas et devant le comptoir du guichet, on ne pose rien.
+  const nearDoor = (t) => threshold[idx(t.x, t.z)] === 1 || zone.doors.some((d) => Math.abs(t.x - d.x - DIRS[d.dir].dx) + Math.abs(t.z - d.z - DIRS[d.dir].dz) <= 1)
     || (t.z === BAY_BOOTH.z + BAY_BOOTH.d && t.x >= BAY_BOOTH.x - 1 && t.x <= BAY_BOOTH.x + BAY_BOOTH.w)
   const free = (t) => room[idx(t.x, t.z)] === 'z' && !blocked[idx(t.x, t.z)] && !furnished[idx(t.x, t.z)] && !taken.has(key(t)) && !nearDoor(t)
   const tiles = (keep) => {
@@ -566,7 +767,7 @@ export function generateZone(seed, settings) {
   // flaques ; celui de chaque coin (cf. BAY_AREAS), jamais sur un passage entre deux coins, sur la
   // passerelle, ni dans les petites pièces (elles ont leurs meubles). Le verre et les flaques couvrent leur tuile,
   // et comptent (FX) : les autres se rangent contre une paroi.
-  const inRoom = (x, z) => BAY_ROOMS.some((r) => x >= r.x && z >= r.z && x < r.x + r.w && z < r.z + r.d)
+  const inRoom = (x, z) => rooms.some((r) => x >= r.x && z >= r.z && x < r.x + r.w && z < r.z + r.d)
   for (let z = 0; z < H; z++) {
     for (let x = 0; x < W; x++) {
       const area = areaOf(x, z)
@@ -648,7 +849,8 @@ function buildGraph(zone) {
       }
     }
   }
-  zone.map = new ShipMap(zone.layout, { walls: zone.walls, doors: zone.doors })
+  // Un sas : une porte entre deux tuiles de la baie (une cloison, percée d'une porte).
+  zone.map = new ShipMap(zone.layout, { walls: [...zone.walls, ...zone.gates], doors: [...zone.doors, ...zone.gates] })
   const room = (x, z) => (inside(x, z) ? zone.room[z * W + x] : null)
   const edgeOf = (pass) => (x, z, dir) => {
     const nx = x + DIRS[dir].dx, nz = z + DIRS[dir].dz
@@ -670,11 +872,13 @@ function buildGraph(zone) {
     room,
     edge: edgeOf((i, j, e) => zone.open[e] && !zone.tall[i] && !zone.tall[j]),
   }
-  // Plan « de marche » : pour filer tout droit, chaque arête franchie doit être un passage.
+  // Plan « de marche » : pour filer tout droit, chaque arête franchie doit être un passage ; un
+  // sas se passe par son ouverture, pas à travers ses montants (cf. lineOfSight).
+  const walk = edgeOf((i, j, e) => zone.adj[e] >= 0)
   zone.walkMap = {
     isFloor: (x, z) => walkable(zone, x, z),
     room,
-    edge: edgeOf((i, j, e) => zone.adj[e] >= 0),
+    edge: (x, z, dir) => (walk(x, z, dir) === 'open' && zone.gated[(z * W + x) * 4 + dir] ? 'door' : walk(x, z, dir)),
   }
 }
 

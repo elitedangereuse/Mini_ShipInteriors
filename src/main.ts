@@ -6178,12 +6178,13 @@ function frame() {
     iso.snapTo(player.position)
     sendState(true)
   } else if (viewDeck.def.zone && viewDeck !== zone.deck && viewDeck !== arena.deck) setView(deck)
-  // La baie infestée : ses portes s'ouvrent devant l'équipe ; ses murs s'estompent devant le joueur
-  // (ou devant le coéquipier que suit la caméra).
+  // La baie infestée : ses portes s'ouvrent devant l'équipe et devant les ennemis ; ses murs
+  // s'estompent devant le joueur (ou devant le coéquipier que suit la caméra).
   const bay = zone.deck
   if (bay) {
     bay.ceiling.visible = fpsShown
     const inside = [...remotes.values()].filter((r) => r.level === ZONE_LEVEL && r.group.visible).map((r) => r.group.position)
+    inside.push(...zone.doorActors)
     if (deck === bay) inside.push(player.position)
     bay.update(world, inside, viewDeck === bay ? (zone.watchTarget ?? player.position) : null, toCam, false, null, dt)
   }

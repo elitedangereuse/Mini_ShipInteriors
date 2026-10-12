@@ -644,7 +644,7 @@ const bayHolo: Builder = () => {
   const H = BAY.length, W = BAY[0].length, k = 12
   const map = drawnTexture(W * k, H * k, (c) => {
     c.clearRect(0, 0, W * k, H * k)
-    const areaTint: Record<string, string> = { nest: 'rgba(57, 255, 136, 0.35)', collapse: 'rgba(255, 170, 85, 0.18)' }
+    const areaTint: Record<string, string> = { nest: 'rgba(57, 255, 136, 0.35)', hatchery: 'rgba(57, 255, 136, 0.35)', collapse: 'rgba(255, 170, 85, 0.18)' }
     for (let z = 0; z < H; z++) {
       for (let x = 0; x < W; x++) {
         const ch = BAY[z][x]

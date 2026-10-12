@@ -22,7 +22,7 @@ import { MonsterView } from './monsters'
 import { SalvageSfx } from './sfx'
 import { Technician, technicianRig, TECHNICIAN } from './technician'
 import { LeaderboardPanel, LobbyPanel, MissionHud, type HudMember } from './ui'
-import { zoneLevel } from './zone-deck'
+import { sectorName, zoneLevel } from './zone-deck'
 
 /*
  * Récupération de cargaison en zone thargoïde (SOC-06), côté client : le terminal du lobby, puis
@@ -102,6 +102,10 @@ const CAMERA_NAMES: Record<string, string> = {
   storage: tr('Aire de stockage', 'Storage yard'),
   nest: tr('Le nid', 'The nest'),
   collapse: tr('Zone effondrée', 'Collapsed zone'),
+  lab: tr('Laboratoire de quarantaine', 'Quarantine lab'),
+  hatchery: tr('Le couvoir', 'The hatchery'),
+  dorm: tr('Dortoirs', 'Crew quarters'),
+  cold: tr('Chambre froide', 'Cold room'),
 }
 
 /** Direction d'un point vu d'un autre, en mots (le nord est en haut du plan). */
@@ -281,6 +285,11 @@ export class SalvageClient {
   /** La baie de la mission en cours (construite), s'il y en a une. */
   get deck(): Deck | null {
     return this.game?.deck ?? null
+  }
+
+  /** Qui ouvre les sas de la baie, en plus de l'équipe : les ennemis. */
+  get doorActors(): THREE.Vector3[] {
+    return this.game?.monsters.positions() ?? []
   }
 
   get inZone(): boolean {
@@ -624,6 +633,7 @@ export class SalvageClient {
       flares: this.me?.flares ?? 0,
       cargo: cargo && { dir: cargo.dir, dist: Math.round(cargo.dist) },
       hive: g.state?.hive ?? 0,
+      sealed: g.zone.closed.map(sectorName),
     })
     this.host.dialog.show(tr(`${TECHNICIAN} : « ${line} »`, `${TECHNICIAN}: “${line}”`))
   }
@@ -716,7 +726,9 @@ export class SalvageClient {
   /** Tout ce que montre le moniteur : les coéquipiers d'abord, puis les caméras de la baie. */
   private feeds(): Feed[] {
     if (!this.game?.state) return []
-    return [...this.watchable().map((id): Feed => ({ kind: 'ally', id })), ...BAY_CAMERAS.map((_, index): Feed => ({ kind: 'fixed', index }))]
+    // Pas de caméra dans un secteur condamné (cf. Zone.cameras).
+    const fixed = BAY_CAMERAS.flatMap((c, index): Feed[] => (this.game!.zone.cameras.includes(c) ? [{ kind: 'fixed', index }] : []))
+    return [...this.watchable().map((id): Feed => ({ kind: 'ally', id })), ...fixed]
   }
 
   private sameFeed(a: Feed | null, b: Feed | null): boolean {

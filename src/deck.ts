@@ -1399,7 +1399,8 @@ export class Deck {
 
   /**
    * Porte du sas de la baie infestée (kit modulaire) : un encadrement épais et un vantail qui
-   * coulisse dans le mur, comme les portes du vaisseau.
+   * coulisse dans le mur, comme les portes du vaisseau. Verrouillée (un secteur condamné), elle
+   * reste fermée, voyant rouge allumé, et se laisse examiner.
    */
   private buildGate(x: number, z: number, dir: number, cx: number, cz: number, alongX: boolean, touch: (vx: number, vz: number, a: 'h' | 'v') => void) {
     const { frame, door } = this.def.zone!.kit.gate(cx, cz, alongX)
@@ -1414,6 +1415,16 @@ export class Deck {
       open: 0, wanted: false, x, z, dir, lamp,
     })
     const g = DOOR_GAP / 2, t = WALL_T / 2
+    if (this.map.isLocked(x, z, dir)) {
+      lamp.visible = true
+      this.interactables.push({
+        object: door,
+        position: new THREE.Vector3(cx, 0, cz),
+        label: tr('Examiner', 'Examine'),
+        text: () => this.closedText(x, z, dir) ?? tr('Porte verrouillée.', 'Locked door.'),
+      })
+      this.colliders.push(alongX ? { minX: cx - g, maxX: cx + g, minZ: cz - t, maxZ: cz + t } : { minX: cx - t, maxX: cx + t, minZ: cz - g, maxZ: cz + g })
+    }
     if (alongX) {
       this.colliders.push({ minX: cx - 0.5, maxX: cx - g, minZ: cz - t, maxZ: cz + t }, { minX: cx + g, maxX: cx + 0.5, minZ: cz - t, maxZ: cz + t })
       touch(cx - 0.5, cz, 'h')
