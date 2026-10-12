@@ -4,7 +4,7 @@ import type { ArenaCharacterStats, ArenaEnd, ArenaLobby, ArenaRoom, ArenaStats }
 import { button, el, Modal } from '../salvage/ui'
 import { ARENA_MAPS, ARENA_RULES, ARENA_TEAMS, DEFAULT_CHARACTER, arenaMap, arenaZone, type ArenaMapId, type CharacterId } from '../../shared/arena.js'
 import { CHARACTERS, characterById, type Character } from './characters'
-import { arrow, moveFocus, PadRepeat } from './nav'
+import { arrow, moveFocus } from './nav'
 import { loadPortraits } from './portraits'
 import { CharacterPicker, faceOf } from './select'
 import { arenaFx } from './settings'
@@ -81,12 +81,11 @@ function badge(c: Character, className: string): HTMLElement {
   return b
 }
 
-/** Ce que la manette dit au terminal, à chaque image (cf. shared/gamepad.js). */
+/**
+ * Les boutons de la manette qui ont un raccourci au terminal (cf. ArenaPanel.shortcuts) ; la croix,
+ * A et B y mènent le cadre de sélection du jeu, comme partout (cf. src/pad-ui.ts).
+ */
 export interface PanelPad {
-  moveX: number
-  moveY: number
-  interact: boolean
-  cancel: boolean
   action: boolean
   next: boolean
   rotateLeft: boolean
@@ -108,7 +107,6 @@ export class ArenaPanel extends Modal {
   private _character: CharacterId = DEFAULT_CHARACTER
   private readonly picker: CharacterPicker
   private readonly hints = el('p', 'arena-hints')
-  private readonly repeat = new PadRepeat()
   private controls: PanelControls = 'keyboard'
 
   constructor(private actions: ArenaPanelActions) {
@@ -164,12 +162,10 @@ export class ArenaPanel extends Modal {
   }
 
   private hint() {
-    // À la manette, le focus se voit toujours (le navigateur ne le montre qu'après une touche).
-    this.root.classList.toggle('pad-nav', this.controls === 'gamepad')
     this.hints.hidden = this.controls === 'touch'
     this.hints.replaceChildren()
     const keys: [string, string][] = this.controls === 'gamepad'
-      ? [['A', tr('Valider', 'Select')], ['B', tr('Retour', 'Back')], ['LB RB', tr('Personnage', 'Character')], ['Y', tr('Fiche', 'Stats')], ['X', tr('Prêt', 'Ready')]]
+      ? [['✛', tr('Se déplacer', 'Move')], ['A', tr('Valider', 'Select')], ['B', tr('Retour', 'Back')], ['LB RB', tr('Personnage', 'Character')], ['Y', tr('Fiche', 'Stats')], ['X', tr('Prêt', 'Ready')]]
       : [['← → ↑ ↓', tr('Se déplacer', 'Move')], [tr('Entrée', 'Enter'), tr('Valider', 'Select')], ['1–6', tr('Personnage', 'Character')], [tr('Échap', 'Esc'), tr('Fermer', 'Close')]]
     for (const [key, what] of keys) {
       const k = el('span')
@@ -179,28 +175,27 @@ export class ArenaPanel extends Modal {
   }
 
   /**
-   * La manette, tant que le terminal est ouvert : le stick et la croix vont d'un bouton à l'autre, A
-   * l'actionne, B replie la fiche détaillée ou ferme, LB et RB changent de personnage, Y déplie la
-   * fiche, X dit « prêt ».
+   * La manette au terminal : son cadre de sélection s'y promène à la croix, A presse, B revient (il
+   * joue Échap : la fiche détaillée se replie d'abord), comme dans tout le jeu (cf. src/pad-ui.ts) ;
+   * et ses raccourcis : LB et RB passent au personnage d'avant ou d'après, Y déplie la fiche, X dit
+   * « prêt ». Rend vrai si l'un d'eux a servi (le cadre de sélection ne s'en sert pas alors).
    */
-  pad(input: PanelPad, dt: number) {
-    if (input.cancel) {
-      if (this.picker.detailed) this.picker.toggleDetails(false)
-      else this.close()
-      return
-    }
-    const dir = this.repeat.step(input.moveX, input.moveY, dt)
-    if (dir) moveFocus(this.body, dir[0], dir[1])
+  shortcuts(input: PanelPad): boolean {
     const playing = this.room?.status === 'playing'
-    if (input.rotateLeft && !playing) this.picker.cycle(-1)
-    if (input.rotateRight && !playing) this.picker.cycle(1)
-    if (input.next) this.picker.toggleDetails()
-    if (input.action) this.body.querySelector<HTMLButtonElement>('[data-key="ready"]')?.click()
-    if (input.interact) {
-      const active = document.activeElement
-      if (active instanceof HTMLElement && this.body.contains(active)) active.click()
-      else moveFocus(this.body, 0, 1)
+    let used = false
+    if ((input.rotateLeft || input.rotateRight) && !playing) {
+      this.picker.cycle(input.rotateLeft ? -1 : 1)
+      used = true
     }
+    if (input.next) {
+      this.picker.toggleDetails()
+      used = true
+    }
+    if (input.action) {
+      this.body.querySelector<HTMLButtonElement>('[data-key="ready"]')?.click()
+      used = true
+    }
+    return used
   }
 
   update(lobby: ArenaLobby, self: number, online: boolean) {
@@ -685,9 +680,6 @@ export class ArenaHud {
     document.body.append(this.root, this.vignette, this.end)
   }
 
-  /** La manette, à l'écran de fin : le stick tenu répète (cf. endPad). */
-  private readonly endRepeat = new PadRepeat()
-
   get endOpen() {
     return !this.end.hidden
   }
@@ -1064,14 +1056,4 @@ export class ArenaHud {
     document.body.classList.remove('arena-end-on')
   }
 
-  /** La manette sur l'écran de fin : le stick va d'un bouton à l'autre, A l'actionne. */
-  endPad(input: PanelPad, dt: number) {
-    const dir = this.endRepeat.step(input.moveX, input.moveY, dt)
-    if (dir || input.interact) this.end.classList.add('pad-nav')
-    if (dir) moveFocus(this.end, dir[0], dir[1])
-    if (!input.interact) return
-    const active = document.activeElement
-    if (active instanceof HTMLElement && this.end.contains(active)) active.click()
-    else moveFocus(this.end, 0, 1)
-  }
 }

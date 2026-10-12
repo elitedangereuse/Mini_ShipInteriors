@@ -5382,8 +5382,8 @@ body.gardening #emotes { display: none; }
 .arena-hints[hidden] { display: none; }
 .arena-hints span { display: inline-flex; align-items: center; gap: 5px; }
 .arena-hints kbd { padding: 1px 6px; border: 1px solid #3b404a; border-bottom-width: 2px; border-radius: 5px; color: #e3e7ec; background: #1b1e25; font: 700 10px ui-monospace, Menlo, monospace; }
-/* Au clavier comme à la manette, on voit toujours où l'on est. */
-.arena-panel :focus-visible, .arena-panel.pad-nav :focus, .arena-end.pad-nav :focus { outline: 2px solid #ffffff; outline-offset: 2px; }
+/* Au clavier, on voit toujours où l'on est (la manette a son propre cadre, cf. src/pad-ui.ts). */
+.arena-panel :focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
 .arena-settings { display: flex; flex-wrap: wrap; gap: 10px 22px; }
 .arena-maps { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
 .arena-panel .arena-map { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 8px 12px 8px 8px; border-radius: 10px; text-align: left; }

@@ -2158,7 +2158,8 @@ arenaMode = new ArenaClient({
     activeCamera().getWorldDirection(screenPos)
     return Math.atan2(screenPos.x, screenPos.z)
   },
-  controls: () => (usingPad ? 'gamepad' : coarsePointer ? 'touch' : 'keyboard'),
+  // La vraie manette (pas le stick tactile) : cf. padDriving.
+  controls: () => (padDriving ? 'gamepad' : coarsePointer ? 'touch' : 'keyboard'),
   armed: (gun) => {
     let on = false
     gun.onChange = (now) => {
@@ -4122,6 +4123,9 @@ function routeGamepad(dt: number): GamepadInput {
     pad.menu = false
     padUi.toggle(true, editingNow ? null : document.getElementById('mobile-chat-toggle') ?? $('chat-form'))
   }
+  // Au terminal de l'arène, LB et RB changent de personnage, Y déplie sa fiche, X dit « prêt » ; le
+  // cadre de sélection garde la croix, A et B, comme partout.
+  if (arena.panelOpen && padDriving && !written && arena.padShortcuts(pad)) pad.rotateLeft = pad.rotateRight = pad.next = pad.action = false
   // En aménagement, B rend la main au curseur ; Échap y annulerait le geste en cours.
   if (padUi.update(pad, gamepad.held, dt, { driving: padDriving && !written, modal, escape: !editingNow })) {
     // Un objet pris au catalogue attend sa place : le curseur reprend.
@@ -4170,8 +4174,6 @@ function routeGamepad(dt: number): GamepadInput {
   const enabled = !document.hidden && $('mobile-entry').hidden === true && !typing && !chat.typing && !editingNow && !photo.active && !arcade?.isOpen && !boardGames.isOpen && !barPanel.isOpen && !gardenPanel.isOpen && !gameEmbed.isOpen && !mediaRoom.isOpen && !cinemaRoom.isOpen && !quiz.isOpen
   if (!enabled) padIdle(pad)
   let flare = false
-  // La manette elle-même, avant que le stick tactile ne s'y mêle.
-  const padActive = pad.active
   if (touchGamepad) {
     const touch = touchGamepad.poll(enabled)
     touchGamepad.showFlares(zone.flares)
@@ -4197,13 +4199,12 @@ function routeGamepad(dt: number): GamepadInput {
     pad.active ||= touch.active
     pad.connected ||= touch.connected
   }
-  if (!pad.connected) usingGamepad = usingPad = false
+  if (!pad.connected) usingGamepad = false
   if (!enabled) return pad
   if (pad.active) {
     usingGamepad = true
     lastInput = performance.now()
   }
-  if (padActive) usingPad = true
   if (gym.active) {
     // La flèche demandée se frappe à la croix ou au stick.
     for (const [on, code] of [[pad.up, 'ArrowUp'], [pad.down, 'ArrowDown'], [pad.left, 'ArrowLeft'], [pad.right, 'ArrowRight']] as const) {
@@ -4219,9 +4220,9 @@ function routeGamepad(dt: number): GamepadInput {
     if (pad.cancel) court.stop()
     return pad
   }
-  // Les fenêtres de l'arène (terminal, classement, écran de fin) se parcourent à la manette.
+  // Les fenêtres de l'arène (terminal, classement, écran de fin) : la manette y est au mode
+  // interface (cf. padModal) ; le doigt, lui, les touche. Rien ne passe au personnage derrière.
   if (arena.panelOpen) {
-    arena.pad(pad, dt)
     pad.moveX = pad.moveY = 0
     return pad
   }

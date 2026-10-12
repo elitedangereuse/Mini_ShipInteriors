@@ -1,8 +1,7 @@
 /*
- * Naviguer sans souris dans les fenêtres de l'arène (le terminal, le classement, l'écran de fin) :
- * les flèches du clavier, la croix et le stick de la manette passent au bouton le plus proche dans
- * leur direction, comme sur une console ; A (ou Entrée) l'actionne. La souris et le doigt n'en ont
- * pas besoin, et rien ne change pour eux.
+ * Naviguer au clavier dans le terminal de l'arène : les flèches passent au bouton le plus proche dans
+ * leur direction, comme sur une console ; Entrée l'actionne. La manette a son propre cadre de
+ * sélection, celui de tout le jeu (src/pad-ui.ts) ; la souris et le doigt n'en ont pas besoin.
  */
 
 const FOCUSABLE = 'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])'
@@ -63,26 +62,3 @@ export function arrow(key: string): [number, number] | null {
   }
   return null
 }
-
-/**
- * Le stick (ou la croix) en directions : une au premier appui, puis, tant qu'on le tient, une
- * répétition après un temps, de plus en plus vite.
- */
-export class PadRepeat {
-  private dir = ''
-  private wait = 0
-
-  step(x: number, y: number, dt: number): [number, number] | null {
-    const dir = Math.max(Math.abs(x), Math.abs(y)) < 0.55 ? '' : Math.abs(x) > Math.abs(y) ? (x > 0 ? 'r' : 'l') : y > 0 ? 'd' : 'u'
-    if (dir !== this.dir) {
-      this.dir = dir
-      this.wait = 0.38
-      return dir ? STEP[dir] : null
-    }
-    if (!dir || (this.wait -= dt) > 0) return null
-    this.wait = 0.11
-    return STEP[dir]
-  }
-}
-
-const STEP: Record<string, [number, number]> = { l: [-1, 0], r: [1, 0], u: [0, -1], d: [0, 1] }

@@ -385,17 +385,12 @@ export class ArenaClient {
   }
 
   /**
-   * La manette, tant qu'une fenêtre de l'arène est ouverte (cf. panelOpen) : le terminal s'y
-   * parcourt tout entier (cf. ArenaPanel.pad) ; B ferme le classement ; à l'écran de fin, le stick
-   * va d'un bouton à l'autre et A l'actionne.
+   * Les raccourcis de la manette au terminal (LB, RB, Y, X : cf. ArenaPanel.shortcuts) ; toutes les
+   * fenêtres de l'arène (terminal, classement, écran de fin) se parcourent sinon au cadre de
+   * sélection du jeu, comme les autres panneaux (src/pad-ui.ts). Rend vrai si un raccourci a servi.
    */
-  pad(input: PanelPad, dt: number) {
-    if (this.panel.isOpen) {
-      this.panel.setControls(this.host.controls())
-      this.panel.pad(input, dt)
-    } else if (this.ranking.isOpen) {
-      if (input.cancel) this.ranking.close()
-    } else if (this.hud.endOpen) this.hud.endPad(input, dt)
+  padShortcuts(input: PanelPad): boolean {
+    return this.panel.isOpen && this.panel.shortcuts(input)
   }
 
   contains(target: EventTarget | null): boolean {
@@ -1366,6 +1361,8 @@ export class ArenaClient {
   // ------------------------------------------------------------------ chaque image
 
   update(dt: number) {
+    // Au terminal, les commandes rappelées suivent ce qu'on tient en main.
+    if (this.panel.isOpen) this.panel.setControls(this.host.controls())
     // Tessa, au lobby : elle se tourne vers qui s'approche de son comptoir.
     if (this.referee) {
       const here = this.host.player.position
