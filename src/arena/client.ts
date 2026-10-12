@@ -33,7 +33,7 @@ import { outline, showOutline } from './outline'
 import { TINT, WATCH_TINT } from './palette'
 import { arenaFx } from './settings'
 import { Traps } from './traps'
-import { ArenaHud, ArenaPanel, fetchRanking, RankingPanel, TEAM_NAMES, type Ranking, type Relation } from './ui'
+import { ArenaHud, ArenaPanel, fetchRanking, RankingPanel, TEAM_NAMES, type PanelControls, type PanelPad, type Ranking, type Relation } from './ui'
 
 /*
  * L'arène, côté client : le terminal du lobby, puis la partie. Le relais fait autorité (cf.
@@ -160,6 +160,8 @@ export interface ArenaHost {
   facing(): number
   /** L'arme de l'arène vient d'être créée : le jeu y branche ses réglages (vitesse, pose, curseur). */
   armed(gun: ArenaGun): void
+  /** Ce que le joueur tient en main : clavier et souris, manette, ou le doigt. */
+  controls(): PanelControls
 }
 
 interface Fighter extends ArenaFighter {
@@ -375,6 +377,20 @@ export class ArenaClient {
     return this.panel.isOpen || this.ranking.isOpen || this.hud.endOpen
   }
 
+  /**
+   * La manette, tant qu'une fenêtre de l'arène est ouverte (cf. panelOpen) : le terminal s'y
+   * parcourt tout entier (cf. ArenaPanel.pad) ; B ferme le classement ; à l'écran de fin, le stick
+   * va d'un bouton à l'autre et A l'actionne.
+   */
+  pad(input: PanelPad, dt: number) {
+    if (this.panel.isOpen) {
+      this.panel.setControls(this.host.controls())
+      this.panel.pad(input, dt)
+    } else if (this.ranking.isOpen) {
+      if (input.cancel) this.ranking.close()
+    } else if (this.hud.endOpen) this.hud.endPad(input, dt)
+  }
+
   contains(target: EventTarget | null): boolean {
     return this.panel.contains(target) || this.ranking.contains(target) || this.hud.contains(target)
   }
@@ -450,6 +466,7 @@ export class ArenaClient {
 
   openTerminal() {
     this.refresh()
+    this.panel.setControls(this.host.controls())
     this.panel.open()
     void loadZoneKit()
     warmCharacters()

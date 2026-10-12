@@ -3,11 +3,14 @@ import { icon } from '../icons'
 import type { ArenaEnd, ArenaLobby, ArenaRoom } from '../net'
 import { button, el, Modal } from '../salvage/ui'
 import { ARENA_MAPS, ARENA_RULES, ARENA_TEAMS, DEFAULT_CHARACTER, arenaMap, arenaZone, type ArenaMapId, type CharacterId } from '../../shared/arena.js'
-import { CHARACTERS, characterById, gauges, type Character } from './characters'
+import { characterById, type Character } from './characters'
+import { arrow, moveFocus, PadRepeat } from './nav'
+import { CharacterPicker, faceOf } from './select'
 
 /*
  * Interface de l'arène : le terminal (à gauche, les quatre lobbys où l'on se place ; à droite, les
- * deux camps face à face, le choix du personnage et sa fiche, les réglages, « prêt »), puis en
+ * deux camps face à face, le choix du personnage et sa fiche, cf. select.ts, les réglages, « prêt » ;
+ * on s'y déplace aussi aux flèches et à la manette, cf. nav.ts), puis en
  * partie le score des deux équipes et le chrono, les points de vie, le fil des éliminations,
  * l'écran d'attente de celui qui vient d'être éliminé, et l'écran de fin, posé sur la scène où les
  * combattants s'alignent (cf. podium.ts).
@@ -68,63 +71,28 @@ export interface ArenaPanelActions {
   watch(room: number): void
 }
 
-/** Sa pastille : l'icône du personnage, à sa couleur. */
-function badge(c: Character, className = 'arena-badge-char'): HTMLElement {
+/** Sa pastille : l'icône du personnage, à sa couleur (le fil des éliminations). */
+function badge(c: Character, className: string): HTMLElement {
   const b = el('span', className)
   b.style.setProperty('--char', c.color)
   b.append(icon(c.icon))
   return b
 }
 
-/**
- * Le choix du personnage, au terminal : une rangée de six portraits (sa pastille, son nom, son rôle),
- * et dessous la fiche de celui qu'on a choisi : son arme, ce qu'il fait, et ses six jauges.
- */
-function roster(current: CharacterId, pick: (id: CharacterId) => void): HTMLElement {
-  const box = el('div', 'arena-roster')
-  const row = el('div', 'arena-chars')
-  row.setAttribute('role', 'radiogroup')
-  row.setAttribute('aria-label', tr('Personnage', 'Character'))
-  for (const c of CHARACTERS) {
-    const b = button('', () => pick(c.id), `arena-char${c.id === current ? ' on' : ''}`)
-    b.setAttribute('role', 'radio')
-    b.setAttribute('aria-checked', String(c.id === current))
-    b.dataset.key = `char-${c.id}`
-    b.style.setProperty('--char', c.color)
-    b.append(badge(c), el('strong', '', c.name), el('span', '', c.role))
-    row.append(b)
-  }
-  const c = characterById(current)
-  const card = el('article', 'arena-sheet')
-  card.style.setProperty('--char', c.color)
-  const head = el('header')
-  const title = el('div')
-  title.append(el('strong', '', c.full), el('span', '', `${c.role} · ${c.arm.name}`))
-  head.append(badge(c), title)
-  const bars = el('dl', 'arena-gauges')
-  for (const g of gauges(c)) {
-    const cell = el('div')
-    const bar = el('i')
-    bar.style.setProperty('--fill', `${Math.round(Math.max(0.04, g.value) * 100)}%`)
-    cell.append(el('dt', '', g.label), bar, el('dd', '', g.text))
-    bars.append(cell)
-  }
-  card.append(head, el('p', 'arena-sheet-play', play(c)), bars, el('p', 'arena-sheet-quip', `« ${c.quip} »`))
-  box.append(row, card)
-  return box
+/** Ce que la manette dit au terminal, à chaque image (cf. shared/gamepad.js). */
+export interface PanelPad {
+  moveX: number
+  moveY: number
+  interact: boolean
+  cancel: boolean
+  action: boolean
+  next: boolean
+  rotateLeft: boolean
+  rotateRight: boolean
 }
 
-/** Comment il se joue, en une phrase. */
-function play(c: Character): string {
-  switch (c.id) {
-    case 'rourke': return tr('Des rafales régulières à moyenne portée. Il va partout, sans exceller nulle part : le bon choix pour commencer.', 'Steady bursts at mid range. He goes anywhere without excelling anywhere: the right pick to start with.')
-    case 'marcel': return tr('Ses tomates éclatent à l\'impact et éclaboussent autour. Lent et très solide, il doit s\'approcher : de loin, il ne fait rien.', 'His tomatoes burst on impact and splash around. Slow and very sturdy, he has to close in: at range he does nothing.')
-    case 'nico': return tr('Le laser porte loin, frappe fort et traverse. Le plus rapide, le plus fragile : on tire, on bouge, on ne se fait pas toucher. Boulon voit dans les buissons proches.', 'The laser reaches far, hits hard and pierces. Fastest and frailest: shoot, move, don\'t get hit. Bolt sees into nearby bushes.')
-    case 'betty': return tr('Ses seringues soignent les coéquipiers blessés et piquent ceux d\'en face. Peu de dégâts : elle tient son équipe en vie.', 'Her syringes heal wounded teammates and sting the other side. Low damage: she keeps her team alive.')
-    case 'capucine': return tr('Elle lance par-dessus les obstacles des graines qui deviennent des fleurs carnivores : elles mordent qui passe, un moment. Deux à la fois.', 'She lobs seeds over obstacles that grow into carnivorous flowers: they bite whoever walks by, for a while. Two at a time.')
-    case 'jacques': return tr('Ses cocktails, lancés par-dessus les obstacles, éclatent et laissent une flaque qui brûle : de quoi fermer un passage, ou punir un groupe.', 'His cocktails, lobbed over obstacles, burst and leave a burning puddle: enough to shut a lane, or punish a group.')
-  }
-}
+/** Ce qu'on tient en main : le terminal rappelle ses commandes (rien au doigt, tout se touche). */
+export type PanelControls = 'keyboard' | 'gamepad' | 'touch'
 
 /**
  * Le terminal de l'arène : à gauche, les quatre lobbys ; à droite, celui où l'on s'est placé, ses
@@ -135,17 +103,102 @@ export class ArenaPanel extends Modal {
   private self = -1
   private online = false
   private status = ''
-  character: CharacterId = DEFAULT_CHARACTER
+  private _character: CharacterId = DEFAULT_CHARACTER
+  private readonly picker: CharacterPicker
+  private readonly hints = el('p', 'arena-hints')
+  private readonly repeat = new PadRepeat()
+  private controls: PanelControls = 'keyboard'
 
   constructor(private actions: ArenaPanelActions) {
     super(tr('CMDR ARENA · INSCRIPTIONS', 'CMDR ARENA · SIGN-UP'), tr('Duel par équipes', 'Team duel'))
     this.root.classList.add('arena-panel')
+    this.picker = new CharacterPicker(this._character, (id) => this.pick(id))
+    // Les visages arrivent : les équipes les montrent aussi.
+    this.picker.onFaces = () => { if (this.isOpen) this.render() }
+    // Sous le titre, les commandes du clavier ou de la manette.
+    ;(this.root.querySelector('.salvage-head') ?? this.root).append(this.hints)
+    this.hint()
+    // Au clavier : les flèches vont d'un bouton à l'autre, les chiffres choisissent le personnage,
+    // Échap replie d'abord la fiche détaillée (la fenêtre, elle, écoute Échap pour se fermer).
+    this.root.addEventListener('keydown', (e) => {
+      if (e.target instanceof HTMLElement && e.target.matches('input, textarea, select')) return
+      const dir = arrow(e.key)
+      if (dir) {
+        e.preventDefault()
+        moveFocus(this.body, dir[0], dir[1])
+      } else if (/^[1-6]$/.test(e.key) && !e.altKey && !e.ctrlKey && !e.metaKey && !this.room?.status.startsWith('play')) {
+        this.picker.pickNth(Number(e.key))
+      } else if (e.key === 'Escape' && this.picker.detailed) {
+        this.picker.toggleDetails(false)
+        e.preventDefault()
+        e.stopImmediatePropagation()
+      }
+    }, { capture: true })
+  }
+
+  get character(): CharacterId {
+    return this._character
+  }
+
+  set character(id: CharacterId) {
+    this._character = id
+    this.picker.set(id)
   }
 
   open() {
     this.status = ''
     this.render()
     this.show()
+    // Le focus sur son personnage, plutôt que sur la croix : Entrée ou A ne referment pas tout de suite.
+    this.picker.focus()
+    this.picker.resume()
+  }
+
+  /** Ce qu'on tient en main a changé : les commandes rappelées au pied du terminal suivent. */
+  setControls(mode: PanelControls) {
+    if (mode === this.controls) return
+    this.controls = mode
+    this.hint()
+  }
+
+  private hint() {
+    // À la manette, le focus se voit toujours (le navigateur ne le montre qu'après une touche).
+    this.root.classList.toggle('pad-nav', this.controls === 'gamepad')
+    this.hints.hidden = this.controls === 'touch'
+    this.hints.replaceChildren()
+    const keys: [string, string][] = this.controls === 'gamepad'
+      ? [['A', tr('Valider', 'Select')], ['B', tr('Retour', 'Back')], ['LB RB', tr('Personnage', 'Character')], ['Y', tr('Fiche', 'Stats')], ['X', tr('Prêt', 'Ready')]]
+      : [['← → ↑ ↓', tr('Se déplacer', 'Move')], [tr('Entrée', 'Enter'), tr('Valider', 'Select')], ['1–6', tr('Personnage', 'Character')], [tr('Échap', 'Esc'), tr('Fermer', 'Close')]]
+    for (const [key, what] of keys) {
+      const k = el('span')
+      k.append(el('kbd', '', key), what)
+      this.hints.append(k)
+    }
+  }
+
+  /**
+   * La manette, tant que le terminal est ouvert : le stick et la croix vont d'un bouton à l'autre, A
+   * l'actionne, B replie la fiche détaillée ou ferme, LB et RB changent de personnage, Y déplie la
+   * fiche, X dit « prêt ».
+   */
+  pad(input: PanelPad, dt: number) {
+    if (input.cancel) {
+      if (this.picker.detailed) this.picker.toggleDetails(false)
+      else this.close()
+      return
+    }
+    const dir = this.repeat.step(input.moveX, input.moveY, dt)
+    if (dir) moveFocus(this.body, dir[0], dir[1])
+    const playing = this.room?.status === 'playing'
+    if (input.rotateLeft && !playing) this.picker.cycle(-1)
+    if (input.rotateRight && !playing) this.picker.cycle(1)
+    if (input.next) this.picker.toggleDetails()
+    if (input.action) this.body.querySelector<HTMLButtonElement>('[data-key="ready"]')?.click()
+    if (input.interact) {
+      const active = document.activeElement
+      if (active instanceof HTMLElement && this.body.contains(active)) active.click()
+      else moveFocus(this.body, 0, 1)
+    }
   }
 
   update(lobby: ArenaLobby, self: number, online: boolean) {
@@ -187,10 +240,10 @@ export class ArenaPanel extends Modal {
     if (focused) this.body.querySelector<HTMLElement>(`[data-key="${focused}"]`)?.focus()
   }
 
+  /** Le joueur choisit un personnage (sa carte le montre déjà, cf. CharacterPicker). */
   private pick(id: CharacterId) {
-    this.character = id
+    this._character = id
     this.actions.character(id)
-    this.render()
   }
 
   /** Un lobby, dans la colonne de gauche : son état, qui s'y trouve (une pastille par place), et l'on s'y place d'un clic. */
@@ -248,7 +301,7 @@ export class ArenaPanel extends Modal {
         `Two teams, up to ${ARENA_RULES.team} vs ${ARENA_RULES.team}, in the bay's stadium, deep in a Thargoid hive or among the ruins of a Guardian site. Everyone plays a crew member, with their own weapon and style. Solo against the bots, or with whoever plays with you: they fill the teams. Best of ${ARENA_RULES.rounds} rounds.`,
       )),
     )
-    stage.append(hero, el('span', 'arena-heading', tr('Votre personnage', 'Your character')), roster(this.character, (id) => this.pick(id)))
+    stage.append(hero, el('span', 'arena-heading', tr('Votre personnage', 'Your character')), this.picker.root)
     stage.append(el('p', 'salvage-note', tr('Pour l\'honneur : CMDR Arena ne rapporte pas de crédits.', 'For honour only: CMDR Arena pays no credits.')))
   }
 
@@ -270,11 +323,14 @@ export class ArenaPanel extends Modal {
       const slots = el('ul', 'arena-slots')
       for (const m of mates) {
         const li = el('li', `arena-slot${m.id === this.self ? ' me' : ''}${m.ready ? ' ready' : ''}`)
-        const c = characterById(m.character)
-        const chip = el('span', 'arena-chip', c.name)
-        chip.style.setProperty('--weapon', c.color)
-        li.append(icon(m.id === r.leader ? 'crown' : 'user-solo'), el('span', 'arena-slot-name', m.name + (m.id === this.self ? tr(' (vous)', ' (you)') : '')), chip)
-        li.append(el('span', 'arena-slot-state', m.ready ? tr('Prêt', 'Ready') : tr('En attente', 'Waiting')))
+        // Son personnage : celui qu'on vient de choisir pour soi, sans attendre l'écho du relais.
+        const c = characterById(m.id === this.self ? this._character : m.character)
+        const face = faceOf(c, 'arena-face mini')
+        face.title = c.name
+        const name = el('span', 'arena-slot-name')
+        if (m.id === r.leader) name.append(icon('crown'))
+        name.append(m.name + (m.id === this.self ? tr(' (vous)', ' (you)') : ''))
+        li.append(face, name, el('span', 'arena-slot-state', `${c.name} · ${m.ready ? tr('prêt', 'ready') : tr('en attente', 'waiting')}`))
         slots.append(li)
       }
       for (let i = mates.length; i < r.size; i++) {
@@ -295,7 +351,7 @@ export class ArenaPanel extends Modal {
     })
     stage.append(versus)
 
-    stage.append(el('span', 'arena-heading', tr('Votre personnage', 'Your character')), roster(me.character, (id) => this.pick(id)))
+    stage.append(el('span', 'arena-heading', tr('Votre personnage', 'Your character')), this.picker.root)
 
     // Réglages : le chef choisit ; les autres les voient.
     const settings = el('div', 'arena-settings')
@@ -540,6 +596,9 @@ export class ArenaHud {
     this.end.setAttribute('aria-label', tr('Fin de la partie', 'Match over'))
     document.body.append(this.root, this.vignette, this.end)
   }
+
+  /** La manette, à l'écran de fin : le stick tenu répète (cf. endPad). */
+  private readonly endRepeat = new PadRepeat()
 
   get endOpen() {
     return !this.end.hidden
@@ -830,5 +889,16 @@ export class ArenaHud {
   closeEnd() {
     this.end.hidden = true
     document.body.classList.remove('arena-end-on')
+  }
+
+  /** La manette sur l'écran de fin : le stick va d'un bouton à l'autre, A l'actionne. */
+  endPad(input: PanelPad, dt: number) {
+    const dir = this.endRepeat.step(input.moveX, input.moveY, dt)
+    if (dir || input.interact) this.end.classList.add('pad-nav')
+    if (dir) moveFocus(this.end, dir[0], dir[1])
+    if (!input.interact) return
+    const active = document.activeElement
+    if (active instanceof HTMLElement && this.end.contains(active)) active.click()
+    else moveFocus(this.end, 0, 1)
   }
 }

@@ -5268,39 +5268,100 @@ body.gardening #emotes { display: none; }
 .arena-team header strong { color: var(--team); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
 .arena-team header span { color: #a9b1bd; font: 600 12px ui-monospace, Menlo, monospace; }
 .arena-slots { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
-.arena-slot { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 2px 8px; min-height: 40px; box-sizing: border-box; padding: 6px 10px; border-radius: 8px; background: #0b0d10aa; font-size: 13px; }
-.arena-slot .icon { grid-row: span 2; width: 18px; height: 18px; color: var(--team-soft); }
-.arena-slot-name { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.arena-slot { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 1px 9px; min-height: 40px; box-sizing: border-box; padding: 5px 10px 5px 6px; border-radius: 8px; background: #0b0d10aa; font-size: 13px; }
+.arena-slot > .icon { grid-row: span 2; width: 18px; height: 18px; color: var(--team-soft); }
+.arena-slot .arena-face { grid-row: span 2; }
+.arena-slot-name { display: flex; align-items: center; gap: 5px; overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.arena-slot-name .icon { flex: none; width: 13px; height: 13px; color: #ffd23f; }
 .arena-slot.me { box-shadow: inset 2px 0 var(--team); }
-.arena-chip { grid-row: span 2; padding: 2px 8px; border: 1px solid color-mix(in srgb, var(--weapon) 55%, transparent); border-radius: 999px; color: var(--weapon); font-size: 11px; white-space: nowrap; }
 .arena-slot-state { grid-column: 2; color: #8d96a3; font-size: 11px; }
 .arena-slot.ready .arena-slot-state { color: #7dedb5; }
 .arena-slot.free { grid-template-columns: auto minmax(0, 1fr); border: 1px dashed #3b404a; background: none; color: #8d96a3; }
 .arena-slot.free .icon { grid-row: auto; color: #8d96a3; }
 .arena-slot.free .arena-slot-name { font-weight: 400; font-style: italic; }
 .arena-panel .arena-swap { padding: 7px 10px; border-color: color-mix(in srgb, var(--team) 45%, transparent); color: var(--team-soft); font-size: 12px; }
-/* Le choix du personnage : six portraits, puis la fiche de celui qu'on a pris. */
-.arena-roster { display: grid; gap: 8px; }
-.arena-chars { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
-.arena-panel .arena-char { display: grid; justify-items: center; gap: 2px; min-width: 0; padding: 9px 5px 8px; border-color: color-mix(in srgb, var(--char) 35%, transparent); text-align: center; font-weight: 400; }
+/* Le choix du personnage (src/arena/select.ts) : six cartes (visage, nom, rôle, difficulté), puis la
+   fiche de celui qu'on a pris (son jeu, ses forces et faiblesses, sa démonstration), et sa fiche détaillée. */
+.arena-picker { display: grid; gap: 10px; min-width: 0; }
+.arena-chars { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.arena-panel .arena-char { position: relative; display: grid; justify-items: center; align-content: start; gap: 3px; min-width: 0; min-height: 44px; padding: 8px 5px 9px; border: 1px solid color-mix(in srgb, var(--char) 30%, #3b404a); border-radius: 12px; background: #16191f; text-align: center; font-weight: 400; transition: transform .12s, background .12s, border-color .12s; }
 .arena-panel .arena-char:hover:not(:disabled) { border-color: var(--char); background: color-mix(in srgb, var(--char) 10%, #1b1e25); }
-.arena-panel .arena-char.on { border-color: var(--char); background: color-mix(in srgb, var(--char) 18%, #1b1e25); box-shadow: 0 0 0 1px var(--char); }
-.arena-char strong { max-width: 100%; overflow: hidden; color: var(--char); font-size: 12px; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
-.arena-char > span:last-child { color: #a9b1bd; font-size: 10px; line-height: 1.2; text-wrap: balance; }
-.arena-badge-char { display: grid; place-items: center; width: 34px; height: 34px; border: 2px solid var(--char); border-radius: 50%; background: color-mix(in srgb, var(--char) 22%, #0b0d10); color: var(--char); }
-.arena-badge-char .icon { width: 20px; height: 20px; }
-.arena-sheet { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--char) 45%, transparent); border-left: 4px solid var(--char); border-radius: 10px; background: color-mix(in srgb, var(--char) 7%, #121418); }
-.arena-sheet header { display: flex; align-items: center; gap: 10px; }
-.arena-sheet header > div { display: grid; gap: 1px; min-width: 0; }
-.arena-sheet header strong { color: var(--char); font-size: 15px; }
-.arena-sheet header span { color: #a9b1bd; font-size: 12px; }
-.arena-sheet-play { margin: 0; color: #d9dee6; font-size: 12px; line-height: 1.45; }
-.arena-sheet-quip { margin: 0; color: #9aa3b0; font-size: 11px; font-style: italic; }
-.arena-gauges { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 14px; margin: 0; }
+.arena-panel .arena-char.on { border: 2px solid var(--char); padding: 7px 4px 8px; background: linear-gradient(180deg, color-mix(in srgb, var(--char) 30%, #1b1e25), color-mix(in srgb, var(--char) 12%, #14161b)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--char) 25%, transparent), 0 8px 22px #0008; transform: translateY(-2px); }
+.arena-char strong { max-width: 100%; color: #f0f3f7; font-size: 13px; line-height: 1.15; text-wrap: balance; }
+.arena-char.on strong { color: var(--char); }
+.arena-char-role { color: #a9b1bd; font-size: 10.5px; line-height: 1.2; text-wrap: balance; }
+.arena-char-check { position: absolute; top: 6px; right: 6px; display: none; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--char); color: #0b0d10; }
+.arena-char-check .icon { width: 13px; height: 13px; }
+.arena-char.on .arena-char-check { display: grid; }
+.arena-char-key { position: absolute; top: 6px; left: 7px; color: #6f7886; font: 600 10px ui-monospace, Menlo, monospace; }
+/* Le visage : son portrait, sur un fond à sa couleur ; sa pastille tant qu'il n'est pas prêt. */
+.arena-face { display: grid; place-items: center; width: 64px; height: 64px; overflow: hidden; border-radius: 50%; background: radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--char) 55%, #2a2f3a), color-mix(in srgb, var(--char) 14%, #0b0d10) 72%); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--char) 60%, transparent); color: var(--char); }
+.arena-face img { width: 100%; height: 100%; object-fit: cover; }
+.arena-face .icon { width: 44%; height: 44%; }
+.arena-char.on .arena-face { box-shadow: inset 0 0 0 2px var(--char), 0 0 14px color-mix(in srgb, var(--char) 45%, transparent); }
+.arena-face.small { width: 40px; height: 40px; }
+.arena-face.mini { width: 30px; height: 30px; }
+/* La difficulté : trois crans. */
+.arena-diff { display: inline-flex; align-items: center; gap: 5px; color: #a9b1bd; font-size: 10px; letter-spacing: .04em; }
+.arena-diff-pips { display: inline-flex; gap: 2px; }
+.arena-diff-pips i { width: 7px; height: 7px; border-radius: 2px; background: #ffffff1f; }
+.arena-diff.d1 .arena-diff-pips i.on { background: #7dedb5; }
+.arena-diff.d2 .arena-diff-pips i.on { background: #ffd23f; }
+.arena-diff.d3 .arena-diff-pips i.on { background: #ff8a7a; }
+/* Sa fiche : son jeu en une phrase, ses forces, ses faiblesses, sa particularité, sa démonstration. */
+.arena-pick { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--char) 45%, transparent); border-left: 4px solid var(--char); border-radius: 12px; background: color-mix(in srgb, var(--char) 7%, #121418); }
+.arena-pick-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 300px); gap: 14px; align-items: start; }
+.arena-pick-text { display: grid; gap: 7px; min-width: 0; }
+.arena-pick header { display: grid; gap: 1px; }
+.arena-pick header strong { color: var(--char); font-size: 17px; }
+.arena-pick header span { color: #a9b1bd; font-size: 12px; }
+.arena-pick-style { margin: 0; color: #f0f3f7; font-size: 14px; font-weight: 600; line-height: 1.35; }
+.arena-traits { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.arena-trait { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: start; gap: 6px; color: #d9dee6; font-size: 12.5px; line-height: 1.35; }
+.arena-trait .icon { width: 16px; height: 16px; margin-top: 1px; }
+.arena-trait.pro .icon { color: #7dedb5; }
+.arena-trait.con .icon { color: #ff8a7a; }
+.arena-trait.special { color: #f0f3f7; }
+.arena-trait.special .icon { color: var(--char); }
+.arena-pick-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.arena-panel .arena-pick-tools button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 12px; border-radius: 9px; font-size: 12.5px; }
+.arena-panel .arena-pick-tools button.on { border-color: var(--char); color: #fff; }
+.arena-pick-tools .icon { width: 15px; height: 15px; }
+/* La démonstration : le canevas, et le bouton pour la lancer ou l'arrêter. */
+.arena-demo { position: relative; margin: 0; min-width: 0; }
+.arena-demo canvas { display: block; width: 100%; height: auto; aspect-ratio: 300 / 168; border: 1px solid #ffffff14; border-radius: 10px; background: #12151b; }
+.arena-panel .arena-demo-toggle { position: absolute; right: 6px; bottom: 6px; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border-radius: 50%; background: #0b0d10cc; }
+.arena-demo-toggle .icon { width: 15px; height: 15px; }
+/* La fiche détaillée : ses chiffres, et la comparaison avec un autre. */
+.arena-detail { display: grid; gap: 9px; padding-top: 10px; border-top: 1px dashed #ffffff1f; }
+.arena-detail-facts { margin: 0; color: #c5cbd4; font-size: 12px; }
+.arena-detail-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; color: #c5cbd4; font-size: 11.5px; }
+.arena-detail-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.arena-detail-legend i { width: 14px; height: 5px; border-radius: 3px; background: var(--char); }
+.arena-detail-legend span + span i { background: repeating-linear-gradient(90deg, var(--char) 0 4px, transparent 4px 6px); }
+.arena-gauges { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px 16px; margin: 0; }
 .arena-gauges div { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 2px 8px; }
-.arena-gauges dt { color: #8d96a3; font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
-.arena-gauges dd { grid-column: 1 / -1; margin: 0; color: #c5cbd4; font: 600 11px ui-monospace, Menlo, monospace; }
-.arena-gauges i { height: 5px; border-radius: 3px; background: linear-gradient(90deg, var(--char) var(--fill), #ffffff14 var(--fill)); }
+.arena-gauges dt { color: #8d96a3; font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; }
+.arena-gauges dd { grid-column: 1 / -1; margin: 0; color: #e3e7ec; font: 600 11px ui-monospace, Menlo, monospace; }
+.arena-gauges i { grid-column: 2; height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--char) var(--fill), #ffffff14 var(--fill)); }
+/* En comparaison, la jauge de l'autre, sous la sienne : en tirets, à sa couleur. */
+.arena-gauges.versus i.other { background: linear-gradient(90deg, transparent var(--fill), #ffffff14 var(--fill)), repeating-linear-gradient(90deg, var(--other) 0 4px, transparent 4px 6px); }
+.arena-gauges.versus dd.other { color: #9aa3b0; }
+.arena-compare { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.arena-compare .arena-heading { margin-right: 4px; }
+.arena-panel .arena-compare-pick { display: grid; place-items: center; width: 48px; height: 48px; padding: 3px; border-radius: 50%; border-color: transparent; background: none; }
+.arena-panel .arena-compare-pick:hover:not(:disabled) { border-color: var(--char); background: none; }
+.arena-panel .arena-compare-pick.on { border: 2px dashed var(--char); }
+.arena-panel .arena-take { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; margin-left: auto; padding: 6px 14px; border-color: var(--char); border-radius: 9px; color: #fff; }
+.arena-take .icon { width: 15px; height: 15px; color: var(--char); }
+.arena-sheet-quip { margin: 0; color: #9aa3b0; font-size: 11px; font-style: italic; }
+/* Les commandes, rappelées sous le titre (clavier ou manette ; rien au doigt). */
+.arena-hints { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 8px 0 0; color: #8d96a3; font-size: 11px; }
+.arena-hints[hidden] { display: none; }
+.arena-hints span { display: inline-flex; align-items: center; gap: 5px; }
+.arena-hints kbd { padding: 1px 6px; border: 1px solid #3b404a; border-bottom-width: 2px; border-radius: 5px; color: #e3e7ec; background: #1b1e25; font: 700 10px ui-monospace, Menlo, monospace; }
+/* Au clavier comme à la manette, on voit toujours où l'on est. */
+.arena-panel :focus-visible, .arena-panel.pad-nav :focus, .arena-end.pad-nav :focus { outline: 2px solid #ffffff; outline-offset: 2px; }
 .arena-settings { display: flex; flex-wrap: wrap; gap: 10px 22px; }
 .arena-maps { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
 .arena-panel .arena-map { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 8px 12px 8px 8px; border-radius: 10px; text-align: left; }
@@ -5332,6 +5393,7 @@ body.gardening #emotes { display: none; }
   .arena-versus { grid-template-columns: minmax(0, 1fr); }
   .arena-vs { justify-self: center; }
   .arena-chars { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .arena-pick-top { grid-template-columns: minmax(0, 1fr); }
   .arena-gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .arena-settings { grid-template-columns: minmax(0, 1fr); }
   .arena-panel .arena-ready { min-width: 0; flex: 1; }

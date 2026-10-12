@@ -333,6 +333,9 @@ export function warmCharacters() {
  * vitesse, dégâts d'un coup, portée, cadence (coups par seconde) et zone d'impact (rayon de
  * l'explosion, des mâchoires d'une fleur ou de la flaque). Chacune rapportée au meilleur des six.
  */
+/** Un nombre écrit, à la française (virgule) ou à l'anglaise. */
+const dec = (n: string) => tr(n.replace('.', ','), n)
+
 export function gauges(c: Character): { label: string; value: number; text: string }[] {
   const zone = (w: CharacterWeapon) => Math.max(w.blast, w.flower?.radius ?? 0, w.fire?.radius ?? 0)
   const rate = (w: CharacterWeapon) => 1 / w.interval
@@ -341,11 +344,11 @@ export function gauges(c: Character): { label: string; value: number; text: stri
   const row = (label: string, f: (x: Character) => number, text: string) => ({ label, value: f(c) / best(f), text })
   return [
     row(tr('Vie', 'Health'), (x) => x.stats.hp, String(c.stats.hp)),
-    row(tr('Vitesse', 'Speed'), (x) => x.stats.speed, `×${c.stats.speed.toFixed(2)}`),
+    row(tr('Vitesse', 'Speed'), (x) => x.stats.speed, `×${dec(c.stats.speed.toFixed(2))}`),
     row(tr('Dégâts', 'Damage'), (x) => x.stats.weapon.damage * x.stats.weapon.pellets, w.heal ? `${w.damage} · +${w.heal}` : String(w.damage)),
     row(tr('Portée', 'Range'), (x) => x.stats.weapon.range, tr(`${w.range} cases`, `${w.range} tiles`)),
-    row(tr('Cadence', 'Rate'), (x) => rate(x.stats.weapon), tr(`${rate(w).toFixed(1)} / s`, `${rate(w).toFixed(1)}/s`)),
-    row(tr('Zone', 'Area'), (x) => zone(x.stats.weapon), zone(w) ? tr(`${zone(w)} case${zone(w) > 1 ? 's' : ''}`, `${zone(w)} tiles`) : '—'),
+    row(tr('Cadence', 'Rate'), (x) => rate(x.stats.weapon), tr(`${dec(rate(w).toFixed(1))} / s`, `${rate(w).toFixed(1)}/s`)),
+    row(tr('Zone', 'Area'), (x) => zone(x.stats.weapon), zone(w) ? tr(`${dec(String(zone(w)))} case${zone(w) >= 2 ? 's' : ''}`, `${zone(w)} tiles`) : '—'),
   ]
 }
 

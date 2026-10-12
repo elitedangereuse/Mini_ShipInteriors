@@ -2154,6 +2154,7 @@ arenaMode = new ArenaClient({
     activeCamera().getWorldDirection(screenPos)
     return Math.atan2(screenPos.x, screenPos.z)
   },
+  controls: () => (usingGamepad ? 'gamepad' : coarsePointer ? 'touch' : 'keyboard'),
   armed: (gun) => {
     let on = false
     gun.onChange = (now) => {
@@ -4061,6 +4062,12 @@ function updateGamepad(dt: number): GamepadInput {
     court.pad(pad.moveX, gamepad.held.has('0'), dt)
     pad.moveX = pad.moveY = 0
     if (pad.cancel) court.stop()
+    return pad
+  }
+  // Les fenêtres de l'arène (terminal, classement, écran de fin) se parcourent à la manette.
+  if (arena.panelOpen) {
+    arena.pad(pad, dt)
+    pad.moveX = pad.moveY = 0
     return pad
   }
   if (range.active) {
