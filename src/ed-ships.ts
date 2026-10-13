@@ -220,16 +220,14 @@ export const trafficLength = (meters: number) => 0.196 * meters ** 0.717
 
 // ---------------------------------------------------------------- effets en vol
 
-/** Ce que les effets partagent : textures, matériaux et géométries, faits une fois. */
+/** Ce que les effets partagent : textures, matériaux et géométrie, faits une fois. */
 interface EffectKit {
   flare: THREE.SpriteMaterial
   port: THREE.SpriteMaterial
   starboard: THREE.SpriteMaterial
   strobe: THREE.SpriteMaterial
-  trail: THREE.MeshBasicMaterial
-  vapor: THREE.MeshBasicMaterial
-  cross: THREE.BufferGeometry
-  ribbon: THREE.BufferGeometry
+  jet: THREE.MeshBasicMaterial
+  cone: THREE.BufferGeometry
   at: number
 }
 let effects: EffectKit | null = null
@@ -243,7 +241,6 @@ function effectKit(): EffectKit {
     draw(c.getContext('2d')!)
     return new THREE.CanvasTexture(c)
   }
-  // Un halo rond, et une traînée : vive à la tuyère (en haut de l'image), qui s'effile et s'éteint.
   const halo = canvas(64, 64, (g) => {
     const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32)
     grad.addColorStop(0, 'rgba(255,255,255,1)')
@@ -252,84 +249,56 @@ function effectKit(): EffectKit {
     g.fillStyle = grad
     g.fillRect(0, 0, 64, 64)
   })
-  const streak = canvas(32, 128, (g) => {
-    for (let y = 0; y < 128; y++) {
-      const t = y / 127, half = 16 * (1 - t * 0.75)
-      const grad = g.createLinearGradient(16 - half, 0, 16 + half, 0)
-      const a = (1 - t) ** 1.6
-      grad.addColorStop(0, 'rgba(255,255,255,0)')
-      grad.addColorStop(0.5, `rgba(255,255,255,${a.toFixed(3)})`)
-      grad.addColorStop(1, 'rgba(255,255,255,0)')
-      g.fillStyle = grad
-      g.fillRect(0, y, 32, 1)
-    }
+  // Le jet : vif à la tuyère (le bas de l'image, la base du cône), il s'éteint vers sa pointe.
+  const fade = canvas(4, 64, (g) => {
+    const grad = g.createLinearGradient(0, 0, 0, 64)
+    grad.addColorStop(0, 'rgba(255,255,255,0)')
+    grad.addColorStop(0.55, 'rgba(255,255,255,0.22)')
+    grad.addColorStop(1, 'rgba(255,255,255,1)')
+    g.fillStyle = grad
+    g.fillRect(0, 0, 4, 64)
   })
   const sprite = (color: string) => new THREE.SpriteMaterial({ map: halo, color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
-  const band = (color: string, opacity: number) => new THREE.MeshBasicMaterial({ map: streak, color, opacity, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })
-  // Traînée : un ruban d'une unité de large qui part vers l'arrière (-z) sur une unité ; en croix pour les tuyères.
-  const plane = (vertical: boolean) => {
-    const g = new THREE.PlaneGeometry(1, 1)
-    g.rotateX(-Math.PI / 2)
-    g.translate(0, 0, -0.5)
-    if (vertical) g.rotateZ(Math.PI / 2)
-    return g
-  }
-  const flat = plane(false), up = plane(true)
-  const cross = new THREE.BufferGeometry()
-  for (const name of ['position', 'uv'] as const) {
-    const a = flat.getAttribute(name), b = up.getAttribute(name)
-    const merged = new Float32Array(a.array.length + b.array.length)
-    merged.set(a.array as Float32Array)
-    merged.set(b.array as Float32Array, a.array.length)
-    cross.setAttribute(name, new THREE.BufferAttribute(merged, a.itemSize))
-  }
-  const index = Array.from(flat.index!.array)
-  cross.setIndex([...index, ...index.map((i) => i + 4)])
-  up.dispose()
-  return (effects = { flare: sprite('#7fc8ff'), port: sprite(LAMPS.port.color), starboard: sprite(LAMPS.starboard.color), strobe: sprite('#ffffff'), trail: band('#8fd4ff', 1), vapor: band('#dcecff', 0.55), cross, ribbon: flat, at: -1 })
+  // Un cône ouvert, la base à la tuyère, la pointe une unité derrière (-z) : rond, il se lit pareil sous tous les angles.
+  const cone = new THREE.ConeGeometry(1, 1, 12, 1, true)
+  cone.rotateX(-Math.PI / 2)
+  cone.translate(0, 0, -0.5)
+  const jet = new THREE.MeshBasicMaterial({ map: fade, color: '#8fd4ff', opacity: 0.7, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })
+  return (effects = { flare: sprite('#7fc8ff'), port: sprite(LAMPS.port.color), starboard: sprite(LAMPS.starboard.color), strobe: sprite('#ffffff'), jet, cone, at: -1 })
 }
 
 /**
  * Les effets d'un vaisseau en vol (le trafic, le passage derrière le bouclier), à ajouter au modèle
- * (en mètres, comme lui) : un halo et une traînée derrière chaque tuyère, deux filets de vapeur aux
- * bouts d'ailes, et la lueur de ses feux, dont l'éclat du feu à éclats. Peu de chose à dessiner :
- * des rubans et des halos, sur des matériaux et des géométries partagés par tous les vaisseaux
- * (rien à jeter). Leur vie (le frémissement des traînées, les éclats) se règle une fois par image.
+ * (en mètres, comme lui) : derrière chaque tuyère, un halo et un jet court qui s'effile ; et la
+ * lueur de ses feux, dont l'éclat du feu à éclats. Peu de chose à dessiner : un cône et des halos,
+ * sur des matériaux et une géométrie partagés par tous les vaisseaux (rien à jeter). Leur vie (le
+ * frémissement des jets, les éclats) se règle une fois par image.
  * @param light mode léger : les halos seulement
  */
 export function shipEffects(info: EdShipInfo, light = false): THREE.Group {
   const k = effectKit()
   const group = new THREE.Group()
-  const length = info.size[2]
   const halo = (m: THREE.SpriteMaterial, x: number, y: number, z: number, size: number) => {
     const s = new THREE.Sprite(m)
     s.position.set(x, y, z)
     s.scale.setScalar(size)
     group.add(s)
-    return s
-  }
-  const band = (geometry: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number, width: number, len: number) => {
-    const mesh = new THREE.Mesh(geometry, m)
-    mesh.position.set(x, y, z)
-    mesh.scale.set(width, width, len)
-    group.add(mesh)
   }
   for (const [x, y, z, rx, ry] of info.engines) {
-    const r = Math.max(rx, ry)
-    halo(k.flare, x, y, z - 0.3, r * 5.5)
-    // Deux traînées l'une dans l'autre : un cœur vif et court, un panache large et long.
-    if (!light) {
-      band(k.cross, k.trail, x, y, z, r * 2.4, r * 6 + length * 0.2)
-      band(k.cross, k.trail, x, y, z, r * 4.4, r * 10 + length * 0.5)
-    }
+    halo(k.flare, x, y, z - 0.3, Math.max(rx, ry) * 3.6)
+    if (light) continue
+    // Le jet, à la forme de la tuyère (ronde ou large), long de quelques diamètres.
+    const jet = new THREE.Mesh(k.cone, k.jet)
+    jet.position.set(x, y, z)
+    jet.scale.set(rx * 0.95, ry * 0.95, Math.max(rx, ry) * 7)
+    group.add(jet)
   }
   const lamps = info.lamps
   if (lamps) {
     const [x, y, z] = lamps.port
-    halo(k.port, x, y, z, lamps.size * 11)
-    halo(k.starboard, -x, y, z, lamps.size * 11)
-    for (const b of lamps.beacons) halo(k.strobe, b[0], b[1], b[2], lamps.size * 22)
-    if (!light) for (const side of [1, -1]) band(k.cross, k.vapor, x * side, y, z, lamps.size * 3, length * 0.8)
+    halo(k.port, x, y, z, lamps.size * 7)
+    halo(k.starboard, -x, y, z, lamps.size * 7)
+    for (const b of lamps.beacons) halo(k.strobe, b[0], b[1], b[2], lamps.size * 14)
   }
   // La vie des effets : au premier objet dessiné de chaque image.
   const first = group.children[0]
@@ -339,7 +308,7 @@ export function shipEffects(info: EdShipInfo, light = false): THREE.Group {
       if (now === k.at) return
       k.at = now
       const t = now / 1000
-      k.trail.opacity = 0.8 + 0.14 * Math.sin(t * 11) * Math.sin(t * 3.1) + 0.06 * Math.sin(t * 27)
+      k.jet.opacity = 0.66 + 0.1 * Math.sin(t * 11) * Math.sin(t * 3.1)
       k.flare.opacity = 0.85 + 0.15 * Math.sin(t * 9) * Math.sin(t * 2.3)
       k.port.opacity = k.starboard.opacity = LAMPS.port.level!(t)
       k.strobe.opacity = LAMPS.beacon.level!(t) > 0.5 ? 1 : 0
