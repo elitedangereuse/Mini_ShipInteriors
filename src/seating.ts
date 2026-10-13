@@ -55,9 +55,15 @@ export class Seating {
     return this.climb >= 0 ? null : this.current?.spot.pose ?? null
   }
 
-  /** Hauteur de la place au-dessus du pont. */
+  /**
+   * Hauteur au-dessus du pont, à dire aux autres : celle de la place, ou, sur un chemin d'accès (on
+   * y monte, on en redescend), celle du point où mène le pas en cours ; sinon ils nous verraient
+   * marcher au sol, sous le vaisseau, pendant qu'on est sur son dos.
+   */
   get height(): number {
-    return this.climb >= 0 ? 0 : this.current?.spot.y ?? 0
+    if (this.climb < 0 && this.current) return this.current.spot.y
+    const end = this.host.player.glideEnd
+    return end ? Math.max(0, end.y - this.floor(end)) : 0
   }
 
   /** Installé, pose tenue, trajet fini. */

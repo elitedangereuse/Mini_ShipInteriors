@@ -489,8 +489,8 @@ export function attachRelay(
     }
   }
 
-  /** Position et animation d'un joueur, avec sa pose s'il est installé sur un meuble. */
-  const motion = (p) => ({ x: p.x, z: p.z, yaw: p.yaw, level: p.level, anim: p.anim, ...(p.pose ? { pose: p.pose, py: p.py } : {}) })
+  /** Position et animation d'un joueur, avec sa pose s'il est installé sur un meuble, et sa hauteur (la place, ou le chemin qui y monte). */
+  const motion = (p) => ({ x: p.x, z: p.z, yaw: p.yaw, level: p.level, anim: p.anim, ...(p.pose ? { pose: p.pose } : {}), ...(p.py ? { py: p.py } : {}) })
   const publicState = (p) => ({ id: p.id, name: p.name, verified: p.verified, skin: p.skin, ...motion(p), cabin: p.cabin, ...(p.open ? { open: true } : {}) })
   const playerById = (id) => {
     const socket = sockets.get(id)
@@ -736,7 +736,7 @@ export function attachRelay(
       if (player.level === BASE_LEVEL && m.level !== BASE_LEVEL && setBaseBurn(player, false)) io.emit('chief', { id: player.id, ...chiefState() })
       const wasZone = instanced(player.level)
       const wasTutorial = player.level === TUTORIAL_LEVEL
-      Object.assign(player, { x, z, yaw, level: m.level, anim: ANIMS.has(m.anim) ? m.anim : 'idle', pose, py: pose ? (num(m.py, 0, 2.5) ?? 0) : 0 })
+      Object.assign(player, { x, z, yaw, level: m.level, anim: ANIMS.has(m.anim) ? m.anim : 'idle', pose, py: num(m.py, 0, 2.5) ?? 0 })
       // Assis dans les toilettes du pont supérieur pendant la traversée d'un saut (un joueur installé
       // redit sa position toutes les 2 s) : la cuvette l'aspire, il est attendu dans les conduits.
       if (pose === 'sit' && m.level === TOILET_ROOM.level && MAPS.get(TOILET_ROOM.level).room(Math.round(x), Math.round(z)) === TOILET_ROOM.room) {

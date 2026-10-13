@@ -375,8 +375,11 @@ describe('rediffusion', () => {
     const c = client({ auth: { name: 'CMDR Tardif' } })
     const seen = (await welcome(c)).players.find((p) => p.id === wa.id)
     assert.deepEqual([seen.pose, seen.py], ['sit', 0.25])
-    // Une pose inconnue n'en est pas une ; la hauteur reste bornée (au cockpit des plus grands vaisseaux du hangar).
+    // Une pose inconnue n'en est pas une ; la hauteur passe sans elle (on monte à sa place, on en redescend),
+    // bornée (au cockpit des plus grands vaisseaux du hangar).
     a.emit('state', { ...state, pose: 'lévitation', py: 3 })
+    assert.deepEqual(await next(b, 'state', (m) => m.id === wa.id), { id: wa.id, ...state, py: 2.5 })
+    a.emit('state', { ...state, py: 0 })
     assert.deepEqual(await next(b, 'state', (m) => m.id === wa.id), { id: wa.id, ...state })
     a.emit('state', { ...state, pose: 'lie', py: 3 })
     assert.equal((await next(b, 'state', (m) => m.id === wa.id)).py, 2.5)
