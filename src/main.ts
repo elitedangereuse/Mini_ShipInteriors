@@ -6336,7 +6336,9 @@ function frame() {
     fps.toCamera(toCam)
   } else iso.toCamera(toCam)
   // Sur la scène de fin de l'arène, c'est sa doublure qu'on voit (cf. src/arena/podium.ts) ; un spectateur n'a pas de corps.
-  player.avatar.root.visible = (!fpsShown || fps.showsBody) && !arena.staging && !arena.watching
+  // Aux commandes de son vaisseau, une fois installé : il est dans le cockpit, on ne le voit plus.
+  const inCockpit = seating.settled && (hangar.aboardKrait || groundBase.aboardKrait)
+  player.avatar.root.visible = (!fpsShown || fps.showsBody) && !arena.staging && !arena.watching && !inCockpit
   if (range.active) {
     range.update(dt, {
       fps: fpsShown, body: !fpsShown || fps.showsBody, camera: activeCamera(), player: player.position, hands: player.avatar.grip(rangeHands),

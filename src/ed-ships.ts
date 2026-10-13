@@ -286,7 +286,7 @@ function effectKit(): EffectKit {
   const index = Array.from(flat.index!.array)
   cross.setIndex([...index, ...index.map((i) => i + 4)])
   up.dispose()
-  return (effects = { flare: sprite('#7fc8ff'), port: sprite(LAMPS.port.color), starboard: sprite(LAMPS.starboard.color), strobe: sprite('#ffffff'), trail: band('#7fc8ff', 0.8), vapor: band('#cfe6ff', 0.22), cross, ribbon: flat, at: -1 })
+  return (effects = { flare: sprite('#7fc8ff'), port: sprite(LAMPS.port.color), starboard: sprite(LAMPS.starboard.color), strobe: sprite('#ffffff'), trail: band('#8fd4ff', 1), vapor: band('#dcecff', 0.55), cross, ribbon: flat, at: -1 })
 }
 
 /**
@@ -316,16 +316,20 @@ export function shipEffects(info: EdShipInfo, light = false): THREE.Group {
   }
   for (const [x, y, z, rx, ry] of info.engines) {
     const r = Math.max(rx, ry)
-    halo(k.flare, x, y, z - 0.3, r * 3.2)
-    if (!light) band(k.cross, k.trail, x, y, z, r * 2.2, r * 5 + length * 0.22)
+    halo(k.flare, x, y, z - 0.3, r * 5.5)
+    // Deux traînées l'une dans l'autre : un cœur vif et court, un panache large et long.
+    if (!light) {
+      band(k.cross, k.trail, x, y, z, r * 2.4, r * 6 + length * 0.2)
+      band(k.cross, k.trail, x, y, z, r * 4.4, r * 10 + length * 0.5)
+    }
   }
   const lamps = info.lamps
   if (lamps) {
     const [x, y, z] = lamps.port
-    halo(k.port, x, y, z, lamps.size * 5)
-    halo(k.starboard, -x, y, z, lamps.size * 5)
-    for (const b of lamps.beacons) halo(k.strobe, b[0], b[1], b[2], lamps.size * 9)
-    if (!light) for (const side of [1, -1]) band(k.ribbon, k.vapor, x * side, y, z, lamps.size * 1.6, length * 0.45)
+    halo(k.port, x, y, z, lamps.size * 11)
+    halo(k.starboard, -x, y, z, lamps.size * 11)
+    for (const b of lamps.beacons) halo(k.strobe, b[0], b[1], b[2], lamps.size * 22)
+    if (!light) for (const side of [1, -1]) band(k.cross, k.vapor, x * side, y, z, lamps.size * 3, length * 0.8)
   }
   // La vie des effets : au premier objet dessiné de chaque image.
   const first = group.children[0]
@@ -335,7 +339,7 @@ export function shipEffects(info: EdShipInfo, light = false): THREE.Group {
       if (now === k.at) return
       k.at = now
       const t = now / 1000
-      k.trail.opacity = 0.62 + 0.14 * Math.sin(t * 11) * Math.sin(t * 3.1) + 0.08 * Math.sin(t * 27)
+      k.trail.opacity = 0.8 + 0.14 * Math.sin(t * 11) * Math.sin(t * 3.1) + 0.06 * Math.sin(t * 27)
       k.flare.opacity = 0.85 + 0.15 * Math.sin(t * 9) * Math.sin(t * 2.3)
       k.port.opacity = k.starboard.opacity = LAMPS.port.level!(t)
       k.strobe.opacity = LAMPS.beacon.level!(t) > 0.5 ? 1 : 0

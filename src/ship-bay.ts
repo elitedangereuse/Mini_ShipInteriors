@@ -116,9 +116,21 @@ function ridge(l: Layout, z: number): { x: number; y: number } | null {
   return null
 }
 
-/** Tuiles par mètre d'un vaisseau sur l'aire : l'échelle commune, ou moins s'il ne tient pas dans l'emprise. */
+/** Jusqu'à cette taille (m, la plus grande de la longueur et de l'envergure), un vaisseau est posé à l'échelle commune. */
+const TRUE_SIZE = 40
+/** Le plus grand vaisseau (m, l'Imperial Cutter) : il occupe toute la longueur de l'aire. */
+const LARGEST = 192.3
+/**
+ * Tuiles par mètre d'un vaisseau sur l'aire. Les petits (jusqu'à TRUE_SIZE) y sont à l'échelle
+ * commune ; au-delà, tout ne tiendrait pas : les tailles sont tassées, mais dans l'ordre, d'après la
+ * plus grande dimension du vaisseau (un Clipper, aussi large que long, reste plus petit qu'un
+ * Cutter, qui prend toute la longueur de l'aire). Jamais plus que l'emprise.
+ */
 export function bayScale(size: readonly number[]): number {
-  return Math.min(BAY_SCALE, LENGTH_MAX / size[2], (2 * HALF_WIDTH_MAX) / size[0])
+  const m = Math.max(size[0], size[2])
+  const small = BAY_SCALE * TRUE_SIZE
+  const tiles = m <= TRUE_SIZE ? BAY_SCALE * m : small * (m / TRUE_SIZE) ** (Math.log(LENGTH_MAX / small) / Math.log(LARGEST / TRUE_SIZE))
+  return Math.min(tiles / m, LENGTH_MAX / size[2], (2 * HALF_WIDTH_MAX) / size[0])
 }
 
 function layout(info: EdShipInfo): Layout {
