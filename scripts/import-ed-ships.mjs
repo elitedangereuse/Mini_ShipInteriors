@@ -21,7 +21,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { inflateRawSync } from 'node:zlib'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { MeshoptSimplifier } from 'three/examples/jsm/libs/meshopt_simplifier.module.js'
 
 /** Les vaisseaux : archive, fichier du modèle entier, page d'origine et licence. */
@@ -351,7 +351,7 @@ const pad4 = (n) => (n + 3) & ~3
  * octet par composante (KHR_mesh_quantization, que lit GLTFLoader) ; _BARE (un octet, 0 ou 255) marque
  * les sommets des pans jamais peints (GLTFLoader en fait l'attribut « _bare », de 0 à 1).
  */
-function writeGlb(id, positions, normals, groups, extras, bare = null) {
+export function writeGlb(id, positions, normals, groups, extras, bare = null) {
   const chunks = []
   let length = 0
   const push = (buf) => {
@@ -633,7 +633,7 @@ function orient(positions, nose = '-y', up = '+z') {
 // ---------------------------------------------------------------- Peinture
 
 /** Livrées par défaut, d'après les vaisseaux du jeu (couleurs sRGB). */
-const LIVERIES = {
+export const LIVERIES = {
   // Faulcon DeLacy : blanc cassé, panneaux gris acier.
   faulcon: { hull: '#d8dad6', belly: '#a9adb0', dark: '#4d5359', trim: '#7e8790' },
   // Core Dynamics : gris militaire bleuté.
@@ -651,10 +651,10 @@ const LIVERIES = {
   // Saud Kruger : blanc nacré, gris bleu, or.
   saud: { hull: '#f2f1ec', belly: '#cfd3d8', dark: '#7d8a9a', trim: '#c9a55a' },
 }
-const GLASS = '#14273b'
-const ENGINE = '#8fd0ff'
+export const GLASS = '#14273b'
+export const ENGINE = '#8fd0ff'
 
-const srgb = (hex) => [1, 3, 5].map((i) => {
+export const srgb = (hex) => [1, 3, 5].map((i) => {
   const c = parseInt(hex.slice(i, i + 2), 16) / 255
   return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
 })
@@ -757,7 +757,7 @@ const PLAN_CELLS = 48
  * les collisions (ce qui descend plus bas que la tête), le train et la place de l'escabeau.
  * Rangée par rangée, de la poupe au nez (z croissant), chaque rangée de tribord à bâbord (x croissant).
  */
-function groundPlan(positions, indices, size) {
+export function groundPlan(positions, indices, size) {
   const cell = Math.max(size[0], size[2]) / PLAN_CELLS
   const cols = Math.ceil(size[0] / cell), rows = Math.ceil(size[2] / cell)
   const x0 = -size[0] / 2, z0 = -size[2] / 2, y0 = -size[1] / 2
@@ -795,7 +795,7 @@ function groundPlan(positions, indices, size) {
  * la base, le registre du hangar) : un chemin SVG de 56 unités sur la plus grande dimension, centré,
  * fait des rangées du plan au sol.
  */
-function silhouette(plan, size) {
+export function silhouette(plan, size) {
   const k = 56 / Math.max(size[0], size[2])
   let d = ''
   for (let j = 0; j < plan.rows; j++) {
@@ -965,90 +965,93 @@ function nozzles(faces) {
 
 // ---------------------------------------------------------------- Programme
 
-const args = process.argv.slice(2)
-const dir = args.shift()
-if (!dir) {
-  console.error('Usage : node scripts/import-ed-ships.mjs <dossier des archives .zip> [--raw <dossier>] [id…]')
-  process.exit(1)
-}
-let raw = null
-const only = []
-while (args.length) {
-  const a = args.shift()
-  if (a === '--raw') raw = args.shift()
-  else only.push(a)
-}
-await MeshoptSimplifier.ready
-const dest = raw ?? fileURLToPath(new URL('../public/assets/ships/', import.meta.url))
-/** Les pièces que la boutique ne peint jamais (cf. import-ed-bare.mjs). */
-const bareFile = fileURLToPath(new URL('./ed-ships-bare.json', import.meta.url))
-const BARE = existsSync(bareFile) ? JSON.parse(readFileSync(bareFile, 'utf8')) : {}
-mkdirSync(dest, { recursive: true })
-const credits = []
-/** Le catalogue (public/assets/ships/catalog.json) : de quoi présenter les vaisseaux sans charger leurs modèles. */
-const catalog = []
-const credit = (s) => s.thing
-  ? `Kahnindustries, https://www.thingiverse.com/thing:${s.thing}, CC BY 3.0`
-  : `Kahnindustries (David Williams), « ${s.zip.replace(/\.zip$/, '')} », licence ${s.license}`
-for (const ship of SHIPS) {
-  if (only.length && !only.includes(ship.id)) continue
-  const t0 = Date.now()
-  const soup = readStl(unzip(join(dir, ship.zip), ship.file))
-  const welded = weld(soup)
-  let tris, error
-  if (raw) {
-    const light = simplify(welded)
-    ;[tris, error] = [light.indices.length / 3, light.error]
-    const flat = panelNormals(light.positions, [{ name: 'hull', color: [0.8, 0.8, 0.8], indices: light.indices }])
-    writeFileSync(join(dest, `${ship.id}.glb`), writeGlb(ship.id, flat.positions, flat.normals, flat.groups, { name: ship.name }))
-  } else {
-    const spec = PAINT[ship.id] ?? {}
-    const oriented = orient(welded.positions, spec.nose, spec.up)
-    const size = oriented.size
-    const { positions, indices } = cut(oriented.positions, welded.indices, boxes(spec.zones, size))
-    const zoned = zone(positions, indices, size, spec)
-    const light = simplifyGroups(positions, zoned.groups, TRIS[ship.id] ?? TARGET_TRIS)
-    const discs = nozzleDiscs(positions, indices, size, spec.nozzles)
-    if (discs.list.length) {
-      // Les disques s'ajoutent au modèle allégé, dans la peinture des tuyères.
-      const base = light.positions.length / 3
-      light.positions = Float32Array.from([...light.positions, ...discs.positions])
-      light.groups.find((g) => g.name === 'engine').indices.push(...discs.indices.map((i) => i + base))
-    }
-    const painted = shade(light.positions, light.groups, spec)
-    if (discs.list.length) painted.engines = discs.list
-    ;[tris, error] = [painted.groups.reduce((s, g) => s + g.indices.length / 3, 0), light.error]
-    const extras = {
-      name: ship.name,
-      maker: ship.maker,
-      size: size.map((v) => +v.toFixed(2)),
-      engines: painted.engines,
-      ...(zoned.canopy ? { canopy: zoned.canopy } : {}),
-      plan: groundPlan(positions, indices, size),
-      livery: painted.livery,
-      credit: credit(ship),
-    }
-    extras.silhouette = silhouette(extras.plan, size)
-    if (!BARE[ship.id]) console.warn(`${ship.id} : pas de masque des pièces non peintes (cf. scripts/import-ed-bare.mjs)`)
-    const flat = panelNormals(light.positions, painted.groups, bareField(BARE[ship.id]))
-    writeFileSync(join(dest, `${ship.id}.glb`), writeGlb(ship.id, flat.positions, flat.normals, flat.groups, extras, flat.bare))
-    credits.push(`${ship.name} : ${extras.credit}`)
-    catalog.push({ id: ship.id, name: ship.name, maker: ship.maker, size: extras.size, silhouette: extras.silhouette })
+// Seulement lancé à la main : scripts/build-ed-ships.mjs reprend les outils ci-dessus sans rien importer.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const args = process.argv.slice(2)
+  const dir = args.shift()
+  if (!dir) {
+    console.error('Usage : node scripts/import-ed-ships.mjs <dossier des archives .zip> [--raw <dossier>] [id…]')
+    process.exit(1)
   }
-  console.log(`${ship.id.padEnd(22)} ${String(soup.length / 9).padStart(7)} → ${String(tris).padStart(5)} triangles (écart ${error.toFixed(4)}), ${Date.now() - t0} ms`)
-}
-if (!raw && !only.length) {
-  writeFileSync(join(dest, 'catalog.json'), JSON.stringify(catalog))
-  writeFileSync(join(dest, 'CREDITS.txt'), [
-    "Vaisseaux d'Elite Dangerous (Frontier Developments), allégés, taillés en grands pans et peints pour Mini Interior par",
-    'scripts/import-ed-ships.mjs, d\'après les modèles imprimables « 2 Part (Elite Dangerous) » de',
-    'Kahnindustries (David Williams). Licences des modèles d\'origine :',
-    '',
-    ...credits,
-    '',
-    'Peintures (paints.json) : les noms et les couleurs des peintures de la boutique d\'Elite Dangerous',
-    '(Frontier Developments), relevés sur ses vignettes par scripts/import-ed-paints.mjs ; leurs motifs',
-    'sont redessinés pour le jeu (src/ship-paint.ts).',
-    '',
-  ].join('\n'))
+  let raw = null
+  const only = []
+  while (args.length) {
+    const a = args.shift()
+    if (a === '--raw') raw = args.shift()
+    else only.push(a)
+  }
+  await MeshoptSimplifier.ready
+  const dest = raw ?? fileURLToPath(new URL('../public/assets/ships/', import.meta.url))
+  /** Les pièces que la boutique ne peint jamais (cf. import-ed-bare.mjs). */
+  const bareFile = fileURLToPath(new URL('./ed-ships-bare.json', import.meta.url))
+  const BARE = existsSync(bareFile) ? JSON.parse(readFileSync(bareFile, 'utf8')) : {}
+  mkdirSync(dest, { recursive: true })
+  const credits = []
+  /** Le catalogue (public/assets/ships/catalog.json) : de quoi présenter les vaisseaux sans charger leurs modèles. */
+  const catalog = []
+  const credit = (s) => s.thing
+    ? `Kahnindustries, https://www.thingiverse.com/thing:${s.thing}, CC BY 3.0`
+    : `Kahnindustries (David Williams), « ${s.zip.replace(/\.zip$/, '')} », licence ${s.license}`
+  for (const ship of SHIPS) {
+    if (only.length && !only.includes(ship.id)) continue
+    const t0 = Date.now()
+    const soup = readStl(unzip(join(dir, ship.zip), ship.file))
+    const welded = weld(soup)
+    let tris, error
+    if (raw) {
+      const light = simplify(welded)
+      ;[tris, error] = [light.indices.length / 3, light.error]
+      const flat = panelNormals(light.positions, [{ name: 'hull', color: [0.8, 0.8, 0.8], indices: light.indices }])
+      writeFileSync(join(dest, `${ship.id}.glb`), writeGlb(ship.id, flat.positions, flat.normals, flat.groups, { name: ship.name }))
+    } else {
+      const spec = PAINT[ship.id] ?? {}
+      const oriented = orient(welded.positions, spec.nose, spec.up)
+      const size = oriented.size
+      const { positions, indices } = cut(oriented.positions, welded.indices, boxes(spec.zones, size))
+      const zoned = zone(positions, indices, size, spec)
+      const light = simplifyGroups(positions, zoned.groups, TRIS[ship.id] ?? TARGET_TRIS)
+      const discs = nozzleDiscs(positions, indices, size, spec.nozzles)
+      if (discs.list.length) {
+        // Les disques s'ajoutent au modèle allégé, dans la peinture des tuyères.
+        const base = light.positions.length / 3
+        light.positions = Float32Array.from([...light.positions, ...discs.positions])
+        light.groups.find((g) => g.name === 'engine').indices.push(...discs.indices.map((i) => i + base))
+      }
+      const painted = shade(light.positions, light.groups, spec)
+      if (discs.list.length) painted.engines = discs.list
+      ;[tris, error] = [painted.groups.reduce((s, g) => s + g.indices.length / 3, 0), light.error]
+      const extras = {
+        name: ship.name,
+        maker: ship.maker,
+        size: size.map((v) => +v.toFixed(2)),
+        engines: painted.engines,
+        ...(zoned.canopy ? { canopy: zoned.canopy } : {}),
+        plan: groundPlan(positions, indices, size),
+        livery: painted.livery,
+        credit: credit(ship),
+      }
+      extras.silhouette = silhouette(extras.plan, size)
+      if (!BARE[ship.id]) console.warn(`${ship.id} : pas de masque des pièces non peintes (cf. scripts/import-ed-bare.mjs)`)
+      const flat = panelNormals(light.positions, painted.groups, bareField(BARE[ship.id]))
+      writeFileSync(join(dest, `${ship.id}.glb`), writeGlb(ship.id, flat.positions, flat.normals, flat.groups, extras, flat.bare))
+      credits.push(`${ship.name} : ${extras.credit}`)
+      catalog.push({ id: ship.id, name: ship.name, maker: ship.maker, size: extras.size, silhouette: extras.silhouette })
+    }
+    console.log(`${ship.id.padEnd(22)} ${String(soup.length / 9).padStart(7)} → ${String(tris).padStart(5)} triangles (écart ${error.toFixed(4)}), ${Date.now() - t0} ms`)
+  }
+  if (!raw && !only.length) {
+    writeFileSync(join(dest, 'catalog.json'), JSON.stringify(catalog))
+    writeFileSync(join(dest, 'CREDITS.txt'), [
+      "Vaisseaux d'Elite Dangerous (Frontier Developments), allégés, taillés en grands pans et peints pour Mini Interior par",
+      'scripts/import-ed-ships.mjs, d\'après les modèles imprimables « 2 Part (Elite Dangerous) » de',
+      'Kahnindustries (David Williams). Licences des modèles d\'origine :',
+      '',
+      ...credits,
+      '',
+      'Peintures (paints.json) : les noms et les couleurs des peintures de la boutique d\'Elite Dangerous',
+      '(Frontier Developments), relevés sur ses vignettes par scripts/import-ed-paints.mjs ; leurs motifs',
+      'sont redessinés pour le jeu (src/ship-paint.ts).',
+      '',
+    ].join('\n'))
+  }
 }

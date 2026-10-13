@@ -1,6 +1,7 @@
-Vaisseaux d'Elite Dangerous (Frontier Developments), allégés, taillés en grands pans et peints pour Mini Interior par
-scripts/import-ed-ships.mjs, d'après les modèles imprimables « 2 Part (Elite Dangerous) » de
-Kahnindustries (David Williams). Licences des modèles d'origine :
+Vaisseaux d'Elite Dangerous (Frontier Developments), remodelés pour Mini Interior à la façon des
+éléments du jeu (scripts/build-ed-ships.mjs, scripts/ed-ships-models.mjs). Leurs cotes sont relevées
+sur les modèles imprimables « 2 Part (Elite Dangerous) » de Kahnindustries (David Williams).
+Licences des modèles d'origine :
 
 Sidewinder Mk I : Kahnindustries, https://www.thingiverse.com/thing:3381354, CC BY 3.0
 Eagle Mk II : Kahnindustries, https://www.thingiverse.com/thing:3125546, CC BY 3.0

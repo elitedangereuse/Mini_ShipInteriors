@@ -3,9 +3,9 @@ import { BASE, rig } from './assets'
 import { PaintedHull, type Livery, type ShipPaint } from './ship-paint'
 
 /*
- * Les vaisseaux d'Elite Dangerous (public/assets/ships/, cf. scripts/import-ed-ships.mjs) : les
- * modèles imprimables de Kahnindustries, allégés (3 000 à 4 300 triangles, 7 000 pour les deux plus
- * gros transporteurs) et taillés en grands pans, comme les éléments du jeu, puis peints. En
+ * Les vaisseaux d'Elite Dangerous (public/assets/ships/, cf. scripts/build-ed-ships.mjs) : modelés
+ * à la main à la façon des éléments du jeu (blocs aux angles arrondis, pans plats, aplats de
+ * couleur ; 500 à 2 200 triangles), d'après les cotes des modèles imprimables de Kahnindustries. En
  * mètres, à l'échelle du jeu d'origine, nez vers +z, dessus vers +y, centrés sur leur boîte. Le nœud
  * du modèle porte dans userData ses dimensions, ses tuyères, sa verrière et la livrée de son
  * constructeur (cf. EdShipInfo). La coque est peinte par son shader (cf. ship-paint.ts) : la livrée
