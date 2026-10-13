@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import type { Box2, Deck, Interactable } from './deck'
-import { ED_SHIPS, edShip, paintShip, shipInfo, type EdShipId, type EdShipInfo } from './ed-ships'
-import { beamMaterial, ED_ORANGE, glow, lit } from './furniture/kit'
+import { ED_SHIPS, LAMPS, edShip, paintShip, shipInfo, type EdShipId, type EdShipInfo } from './ed-ships'
+import { beamMaterial, ED_ORANGE, lit } from './furniture/kit'
 import { tr } from './i18n'
 import type { SeatSpot } from './seats'
 import { FACTORY, findPaint, paintOf, type PaintedHull, type ShipPaint } from './ship-paint'
@@ -335,30 +335,6 @@ export class ShipBay {
       flames.push({ mesh, z, r })
     }
 
-    // Feux de navigation : rouge au bout de l'aile bâbord (+x), vert à tribord, blanc à la poupe.
-    const pl = info.plan
-    let port = -1, star = -1, stern = -1
-    for (let k = 0; k < pl.high.length; k++) {
-      if (pl.high[k] < 0) continue
-      const i = k % pl.cols
-      if (port < 0 || i > port % pl.cols) port = k
-      if (star < 0 || i < star % pl.cols) star = k
-      if (i === Math.floor(pl.cols / 2) && stern < 0) stern = k
-    }
-    const navAt = (k: number): THREE.Vector3 => new THREE.Vector3(
-      -info.size[0] / 2 + ((k % pl.cols) + 0.5) * pl.cell,
-      -info.size[1] / 2 + pl.high[k] + 0.05 / l.s,
-      -info.size[2] / 2 + (Math.floor(k / pl.cols) + 0.5) * pl.cell,
-    )
-    const light = (color: string, at: THREE.Vector3) => {
-      const m = new THREE.Mesh(new THREE.SphereGeometry(0.05 / l.s, 8, 6), glow(color))
-      m.position.copy(at)
-      m.userData.keepMaterial = true
-      ship.add(m)
-      return m
-    }
-    const nav = [light('#ff3b2f', navAt(port)), light('#4dff8a', navAt(star)), ...(stern >= 0 ? [light('#ffffff', navAt(stern))] : [])]
-
     // Le train : une jambe sous le nez, deux sous le ventre, du pont au dessous de la coque.
     const leg = lit('#3a3f47'), pad = lit('#22262c')
     const gearAt = (x: number, z: number) => {
@@ -504,9 +480,13 @@ export class ShipBay {
 
     // Tuyères : leur matériau tramable est celui du vaisseau posé (cf. Deck.addRuntime).
     const cores: THREE.MeshBasicMaterial[] = []
+    // Les feux du modèle (cf. LAMPS dans ed-ships.ts) : même chose, ce vaisseau anime les siens.
+    const lamps: { mat: THREE.MeshBasicMaterial; color: THREE.Color; level: (t: number) => number; beacon: boolean }[] = []
     model.traverse((m) => {
       const mat = (m as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined
       if (mat?.name === 'engine' && !cores.includes(mat)) cores.push(mat)
+      const lamp = mat && LAMPS[mat.name]
+      if (lamp?.level && !lamps.some((l) => l.mat === mat)) lamps.push({ mat: mat!, color: new THREE.Color(lamp.color), level: lamp.level, beacon: mat!.name === 'beacon' })
     })
     const update = (t: number) => {
       // La puissance suit la consigne : les jets montent en un instant, et retombent aussi vite à l'arrêt.
@@ -524,8 +504,8 @@ export class ShipBay {
         f.mesh.scale.set(f.r * (1 + thrust * 0.25), len, f.r * (1 + thrust * 0.25))
         f.mesh.position.z = f.z - len / 2
       }
-      nav[0].visible = nav[1].visible = t % 2 < 1.6
-      if (nav[2]) nav[2].visible = t % 1.4 < 0.12 || thrust > 0.3
+      // Le feu à éclats reste allumé quand les réacteurs poussent.
+      for (const l of lamps) l.mat.color.copy(l.color).multiplyScalar(l.beacon && thrust > 0.3 ? 1 : l.level(t))
     }
     return { id, layout: l, root, hull, remove, update, spot }
   }

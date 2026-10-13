@@ -106,12 +106,37 @@ export const ENGINE_GLOW = new THREE.Color('#8fd0ff')
  * ses matériaux des Lambert ; la coque, elle, est peinte à part (cf. PaintedHull).
  */
 function gameMaterial(src: THREE.MeshLambertMaterial): THREE.Material {
-  if (src.name === 'engine') return new THREE.MeshBasicMaterial({ color: ENGINE_GLOW, name: 'engine' })
+  if (src.name === 'engine') return living('engine', ENGINE_GLOW, (t) => 0.86 + 0.14 * Math.sin(t * 9) * Math.sin(t * 2.3))
+  const lamp = LAMPS[src.name]
+  if (lamp) return living(src.name, new THREE.Color(lamp.color), lamp.level)
   // La verrière, mate comme le reste (un reflet franc blanchirait toute une facette).
   if (src.name === 'glass') {
     return new THREE.MeshPhongMaterial({ color: src.color, emissive: src.emissive, specular: '#2a3442', shininess: 20, name: 'glass' })
   }
   return new THREE.MeshLambertMaterial({ color: src.color, name: src.name })
+}
+
+/**
+ * Les lumières des modèles (cf. scripts/build-ed-ships.mjs) : hublots éclairés, feux de navigation
+ * rouge et vert qui s'éteignent un instant toutes les deux secondes, feu à éclats. `level` donne
+ * leur éclat (de 0 à 1) à l'instant t (s) ; sans lui, la lumière est fixe.
+ */
+export const LAMPS: Record<string, { color: string; level?: (t: number) => number }> = {
+  light: { color: '#ffd89a' },
+  port: { color: '#ff3b2f', level: (t) => (t % 2 < 1.6 ? 1 : 0.15) },
+  starboard: { color: '#4dff8a', level: (t) => (t % 2 < 1.6 ? 1 : 0.15) },
+  beacon: { color: '#ffffff', level: (t) => (t % 1.4 < 0.12 ? 1 : 0.12) },
+}
+
+/**
+ * Matériau lumineux (non éclairé), partagé par tous les vaisseaux, dont l'éclat suit `level` : il
+ * se règle tout seul à chaque rendu, sans rien à brancher (le trafic, le bouclier, l'aperçu). Le
+ * vaisseau posé au hangar reçoit des copies de ses matériaux, qu'il anime lui-même (cf. ship-bay.ts).
+ */
+function living(name: string, color: THREE.Color, level?: (t: number) => number): THREE.MeshBasicMaterial {
+  const m = new THREE.MeshBasicMaterial({ color, name })
+  if (level) m.onBeforeRender = () => void m.color.copy(color).multiplyScalar(level(performance.now() / 1000))
+  return m
 }
 
 /** Livrée de secours (un modèle d'avant les livrées) : celle de Faulcon DeLacy. */

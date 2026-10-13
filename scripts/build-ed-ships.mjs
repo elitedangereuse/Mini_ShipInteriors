@@ -8,7 +8,9 @@
  * (coque, graphite, liseré du constructeur, verrière), des réacteurs en creux sombres. Chacun est
  * décrit dans scripts/ed-ships-models.mjs avec les quatre outils d'ici : un profilé aux coins
  * arrondis le long du vaisseau (loft), une plaque biseautée (plate) pour les ailes et les panneaux,
- * une dérive (fin) et une tuyère (nozzle). Ce qui est décrit à bâbord (x > 0) est recopié à tribord.
+ * une dérive (fin) et une tuyère (nozzle), plus des hublots éclairés (windows). Ce qui est décrit à
+ * bâbord (x > 0) est recopié à tribord. Chaque vaisseau reçoit d'office ses feux : rouge au bout de
+ * l'aile bâbord, vert à tribord, et un feu à éclats sur le dos et sous le ventre (cf. beacons).
  * Leurs cotes sont relevées sur les modèles imprimables de Kahnindustries (cf. import-ed-ships.mjs,
  * dont viennent aussi l'écriture du GLB, le plan au sol et les livrées).
  *
@@ -24,6 +26,9 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SHIPS, PAINT, LIVERIES, GLASS, ENGINE, srgb, writeGlb, groundPlan, silhouette } from './import-ed-ships.mjs'
 import { MODELS } from './ed-ships-models.mjs'
+
+/** Les lumières : hublots éclairés, feux de navigation, feu à éclats (le jeu les fait vivre, cf. src/ed-ships.ts). */
+const LIGHTS = { light: '#ffd89a', port: '#ff3b2f', starboard: '#4dff8a', beacon: '#ffffff' }
 
 /** Segments par coin arrondi d'un profilé. */
 const ROUND = 2
@@ -160,7 +165,57 @@ function kit() {
     }
   }
 
-  return { faces, engines, tools: { loft, plate, fin, nozzle } }
+  /**
+   * Hublots éclairés : une rangée de n petites vitres sur le flanc, du point (z0, x0) au point
+   * (z1, x1) vus de dessus, à la hauteur y, hautes de h ; recopiée à tribord.
+   */
+  function windows(z0, x0, z1, x1, n, y, h = 1.2) {
+    const step = (z1 - z0) / n
+    for (let i = 0; i < n; i++) {
+      const za = z0 + step * (i + 0.2), zb = z0 + step * (i + 0.8)
+      const xa = x0 + ((x1 - x0) * (i + 0.2)) / n, xb = x0 + ((x1 - x0) * (i + 0.8)) / n
+      for (const side of [1, -1]) {
+        const out = [[xa + 0.12, y, za], [xb + 0.12, y, zb], [xb + 0.12, y + h, zb], [xa + 0.12, y + h, za]].map(([x, yy, z]) => [x * side, yy, z])
+        const back = out.map(([x, yy, z]) => [x - 1.5 * side, yy, z])
+        const inside = [(xa - 1) * side, y + h / 2, (za + zb) / 2]
+        face(out, 'light', inside)
+        for (let k = 0; k < 4; k++) face([out[k], out[(k + 1) % 4], back[(k + 1) % 4], back[k]], 'light', inside)
+      }
+    }
+  }
+
+  /** Un feu : un petit cube lumineux de côté r, dans la peinture `mat`. */
+  function lamp(x, y, z, r, mat) {
+    const h = r / 2
+    const c = [[-h, -h, -h], [h, -h, -h], [h, h, -h], [-h, h, -h], [-h, -h, h], [h, -h, h], [h, h, h], [-h, h, h]].map(([a, b, d]) => [x + a, y + b, z + d])
+    for (const q of [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4], [2, 3, 7, 6], [1, 2, 6, 5], [0, 3, 7, 4]]) face(q.map((i) => c[i]), mat, [x, y, z])
+  }
+
+  /**
+   * Les feux du vaisseau, posés d'après sa forme : rouge au point le plus à bâbord, vert à tribord
+   * ('port', 'starboard'), et un feu à éclats ('beacon') au plus haut du dos et au plus bas du ventre
+   * (un de chaque bord s'ils ne sont pas dans l'axe).
+   */
+  function beacons() {
+    const pts = faces.filter((f) => f.mat !== 'engine').flatMap((f) => f.verts).filter((p) => p[0] >= 0)
+    const zs = pts.map((p) => p[2])
+    const r = Math.min(1, Math.max(0.22, (Math.max(...zs) - Math.min(...zs)) * 0.012))
+    /** Milieu des points les plus loin le long de l'axe k (dans le sens s). */
+    const extreme = (k, s) => {
+      const far = Math.max(...pts.map((p) => p[k] * s))
+      const near = pts.filter((p) => p[k] * s > far - 0.25)
+      return [0, 1, 2].map((a) => near.reduce((t, p) => t + p[a], 0) / near.length)
+    }
+    const tip = extreme(0, 1)
+    lamp(tip[0] + r * 0.4, tip[1], tip[2], r, 'port')
+    lamp(-tip[0] - r * 0.4, tip[1], tip[2], r, 'starboard')
+    for (const s of [1, -1]) {
+      const [x, y, z] = extreme(1, s)
+      for (const side of x > 0.6 ? [1, -1] : [1]) lamp(x > 0.6 ? x * side : 0, y + s * r * 0.4, z, r, 'beacon')
+    }
+  }
+
+  return { faces, engines, beacons, tools: { loft, plate, fin, nozzle, windows } }
 }
 
 /**
@@ -200,14 +255,14 @@ function mesh(ship, { faces, engines }) {
     if (f.mat === 'glass') glass.push([...c, len / 2])
   }
   const livery = LIVERIES[PAINT[ship.id]?.livery ?? 'faulcon']
-  const colors = { hull: livery.hull, dark: livery.dark, trim: livery.trim, glass: GLASS, engine: ENGINE }
+  const colors = { hull: livery.hull, dark: livery.dark, trim: livery.trim, glass: GLASS, engine: ENGINE, ...LIGHTS }
   const unknown = Object.keys(byMat).filter((name) => !colors[name])
   if (unknown.length) throw new Error(`${ship.id} : peinture inconnue (${unknown.join(', ')})`)
   const groups = Object.keys(colors).filter((name) => byMat[name]).map((name) => ({
     name,
     indices: byMat[name],
     color: srgb(colors[name]),
-    emissive: name === 'engine' ? srgb(ENGINE) : name === 'glass' ? srgb('#173a5c') : null,
+    emissive: name === 'engine' ? srgb(ENGINE) : name === 'glass' ? srgb('#173a5c') : LIGHTS[name] ? srgb(LIGHTS[name]) : null,
   }))
   const pos = new Float32Array(positions)
   const all = groups.flatMap((g) => g.indices)
@@ -248,6 +303,7 @@ for (const ship of SHIPS) {
   if ((only.length && !only.includes(ship.id)) || !MODELS[ship.id]) continue
   const k = kit()
   MODELS[ship.id](k.tools)
+  k.beacons()
   const { glb, extras, triangles, panels } = mesh(ship, k)
   writeFileSync(join(dest, `${ship.id}.glb`), glb)
   credits.push(`${ship.name} : ${extras.credit}`)

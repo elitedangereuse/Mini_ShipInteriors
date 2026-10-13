@@ -1,7 +1,7 @@
 /**
  * Les vaisseaux d'Elite Dangerous du jeu, modelés à la main avec les outils de build-ed-ships.mjs
  * (loft : profilé aux coins arrondis, du nez vers la poupe ; plate : plaque biseautée ; fin : dérive ;
- * nozzle : tuyère). En mètres, nez vers +z, dessus vers +y, bâbord vers +x ; ce qui est décrit à
+ * nozzle : tuyère ; windows : rangée de hublots éclairés). En mètres, nez vers +z, dessus vers +y, bâbord vers +x ; ce qui est décrit à
  * bâbord est recopié à tribord. Peintures : 'hull' (la coque, peinte par le jeu), 'dark' (graphite),
  * 'trim' (liseré du constructeur), 'glass' (verrière).
  *
@@ -669,7 +669,7 @@ MODELS['asp-explorer'] = ({ loft, plate, fin, nozzle }) => {
  * échine sur le dos, la verrière au bout du nez. `w` : demi-largeur de la caisse ; `engines` : de
  * chaque bord, [x, y, rayon, hauteur] des tuyères ; `pod` : le carénage des réacteurs [x, demi-largeur].
  */
-function lakonHauler({ loft, plate, nozzle }, { w, engines, pod }) {
+function lakonHauler({ loft, plate, nozzle, windows }, { w, engines, pod, ports = [9, -9, 6] }) {
   loft([
     { z: 21.6, w: 5.5, y0: -3.6, y1: 3.6, c: 2 },
     { z: 19.4, w: w - 4.2, y0: -4.4, y1: 4.6, c: 3 },
@@ -678,6 +678,7 @@ function lakonHauler({ loft, plate, nozzle }, { w, engines, pod }) {
     { z: -10, w, y0: -6, y1: 5.2, c: 4.4 },
     { z: -21.4, w: w - 3.2, y0: -4.4, y1: 4.6, c: 3.6 },
   ], { paint: (z, part) => (between(z, 12, 10.8) && part !== 'bottom' ? 'trim' : 'hull'), caps: ['hull', 'dark'] })
+  windows(ports[0], w, ports[1], w, ports[2], -1, 1.3)
   // L'échine, et la verrière au bout du nez.
   loft([
     { z: 20, w: 2.6, y0: 3.6, y1: 5.6, c: 1 },
@@ -712,7 +713,7 @@ MODELS['type-6'] = (t) => lakonHauler(t, { w: 13.6, engines: [[6.67, 2.1, 2.05, 
 
 MODELS['keelback'] = (t) => {
   const { loft, nozzle } = t
-  lakonHauler(t, { w: 15.2, engines: [[10.22, 0.2, 1.6, 1.6], [6.6, 0.2, 1.6, 1.6]], pod: [8.4, 4.3] })
+  lakonHauler(t, { w: 15.2, engines: [[10.22, 0.2, 1.6, 1.6], [6.6, 0.2, 1.6, 1.6]], pod: [8.4, 4.3], ports: [9, 0, 3] })
   // Les deux réacteurs orientables, en saillie sur les flancs.
   loft([
     { x: 17.6, z: -1.6, w: 1.4, y0: -1.6, y1: 1.8, c: 0.7 },
@@ -746,7 +747,7 @@ MODELS['dolphin'] = ({ loft, plate, nozzle }) => {
     { z: 13, w: 5.95, y0: 0.6, y1: 1.6, c: 0.2 },
     { z: 0, w: 6.06, y0: 0.6, y1: 1.6, c: 0.2 },
     { z: -11, w: 5.72, y0: 0.6, y1: 1.6, c: 0.2 },
-  ], { paint: () => 'dark', caps: ['dark', 'dark'] })
+  ], { paint: () => 'light', caps: ['light', 'light'] })
   // Trois paires d'ailerons : à l'avant, au milieu, et les grands de la queue.
   plate([[4.8, 15.4, -1.9, -2.5], [10.3, 10.4, -2.1, -2.5], [10.3, 8.6, -2.1, -2.5], [4.8, 9.4, -1.9, -2.5]], 'hull', 0.2)
   plate([[4.8, -4, -1.9, -2.5], [10.3, -8, -2.1, -2.5], [10.3, -9.6, -2.1, -2.5], [4.8, -8.4, -1.9, -2.5]], 'hull', 0.2)
@@ -805,7 +806,7 @@ MODELS['orca'] = ({ loft, plate, nozzle }) => {
       { z: 28, w: 16.1, y0: y, y1: y + 1.6, c: 0.3 },
       { z: -40, w: 16.26, y0: y, y1: y + 1.6, c: 0.3 },
       { z: -52, w: 15.86, y0: y, y1: y + 1.6, c: 0.3 },
-    ], { paint: () => 'dark', caps: ['dark', 'dark'] })
+    ], { paint: () => 'light', caps: ['light', 'light'] })
   }
   // Les ailerons : une paire à l'avant, une plus grande à l'arrière.
   plate([[14, 40, -4.4, -5.6], [22, 27, -4.8, -5.6], [22, 24, -4.8, -5.6], [14, 26, -4.4, -5.6]], 'hull', 0.4)
@@ -818,7 +819,7 @@ MODELS['orca'] = ({ loft, plate, nozzle }) => {
   ], { paint: () => 'dark', caps: ['dark', 'dark'] })
 }
 
-MODELS['type-7'] = ({ loft, plate, nozzle }) => {
+MODELS['type-7'] = ({ loft, plate, nozzle, windows }) => {
   // La caisse : une tête basse à l'avant, la grande soute en bosse derrière elle, la poupe qui s'affine.
   loft([
     { z: 40.5, w: 5, y0: -9.6, y1: -2, c: 2 },
@@ -832,6 +833,7 @@ MODELS['type-7'] = ({ loft, plate, nozzle }) => {
     { z: -34, w: 13.4, y0: -7, y1: 7, c: 4 },
     { z: -40, w: 9, y0: -5, y1: 6, c: 3 },
   ], { paint: (z, part) => (between(z, 21, 19.4) && part !== 'bottom' ? 'trim' : 'hull'), caps: ['hull', 'dark'] })
+  windows(18, 16.4, 3, 16.6, 6, 1, 1.6)
   // La verrière, sur le front de la tête.
   loft([
     { z: 39.4, w: 3.4, y0: -2.6, y1: 0.2, c: 1 },
@@ -1264,7 +1266,7 @@ MODELS['federal-corvette'] = ({ loft, plate, nozzle }) => {
   ], { paint: () => 'dark', caps: ['dark', 'dark'] })
 }
 
-MODELS['imperial-cutter'] = ({ loft, plate, fin, nozzle }) => {
+MODELS['imperial-cutter'] = ({ loft, plate, fin, nozzle, windows }) => {
   // Le grand yacht impérial : un fuselage en amande, une arête qui monte jusqu'à la queue.
   loft([
     { z: 96.3, w: 2, y0: -6, y1: -3, c: 1.4 },
@@ -1282,6 +1284,7 @@ MODELS['imperial-cutter'] = ({ loft, plate, fin, nozzle }) => {
     caps: ['hull', 'dark'],
   })
   nozzle(0, -9, -76, 5.6)
+  windows(40, 17.5, 4, 18.1, 9, -3.2, 1.6)
   loft([
     { z: 84, w: 3, y0: 0.6, y1: 2.6, c: 1.2 },
     { z: 78, w: 5.6, y0: 1.6, y1: 5.6, c: 2.2 },
