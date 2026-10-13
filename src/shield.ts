@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { ED_SHIPS, edShip, paintShip, shipInfo, trafficLength } from './ed-ships'
+import { ED_SHIPS, edShip, paintShip, shipEffects, shipInfo, trafficLength } from './ed-ships'
 import { randomPaint, type PaintedHull } from './ship-paint'
 import { renderQuality } from './quality'
 
@@ -204,6 +204,7 @@ export class ForceShield {
       ([ship, paint]) => {
         if (this.disposed) return
         const length = shipInfo(ship).size[2]
+        ship.add(shipEffects(shipInfo(ship), renderQuality.light))
         ship.scale.setScalar(trafficLength(length) / length)
         this.ship?.removeFromParent()
         this.hull?.material.dispose()

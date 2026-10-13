@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { ED_SHIPS, edShip, paintShip, shipInfo, trafficLength, type EdShipId } from './ed-ships'
+import { ED_SHIPS, edShip, paintShip, shipEffects, shipInfo, trafficLength, type EdShipId, type EdShipInfo } from './ed-ships'
 import { shipPaints, type PaintedHull, type ShipPaint } from './ship-paint'
 import { renderQuality } from './quality'
 
@@ -41,8 +41,8 @@ interface Proto {
   heavy: boolean
   /** Demi-largeur (tuiles) : les plus larges s'écartent d'autant de la coque. */
   half: number
-  /** Tuyères (m) : un halo devant chacune. */
-  engines: [number, number, number, number, number][]
+  /** Ses tuyères et ses feux, pour ses effets (cf. shipEffects). */
+  info: EdShipInfo
   /** Ses peintures (vide si le catalogue n'a pas répondu : la livrée d'usine). */
   paints: ShipPaint[]
 }
@@ -68,7 +68,6 @@ export class Traffic {
   readonly group = new THREE.Group()
   private readonly protos = new Map<EdShipId, Proto>()
   private readonly loading = new Set<EdShipId>()
-  private readonly flare: THREE.SpriteMaterial
   private ships: Ship[] = []
   private next = 0
   private hidden = false
@@ -76,17 +75,6 @@ export class Traffic {
   private filled = false
 
   constructor() {
-    // Lueur des réacteurs, à la poupe : un halo bleuté.
-    const c = document.createElement('canvas')
-    c.width = c.height = 64
-    const g = c.getContext('2d')!
-    const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32)
-    grad.addColorStop(0, 'rgba(255,255,255,1)')
-    grad.addColorStop(0.3, 'rgba(255,255,255,0.45)')
-    grad.addColorStop(1, 'rgba(255,255,255,0)')
-    g.fillStyle = grad
-    g.fillRect(0, 0, 64, 64)
-    this.flare = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), color: '#7fc8ff', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
     while (this.loading.size < FIRST) this.fetch(pick(ED_SHIPS))
   }
 
@@ -98,7 +86,7 @@ export class Traffic {
       ([root, paints]) => {
         const info = shipInfo(root)
         const scale = trafficLength(info.size[2]) / info.size[2]
-        this.protos.set(id, { root, scale, heavy: info.size[2] > HEAVY, half: (info.size[0] / 2) * scale, engines: info.engines, paints })
+        this.protos.set(id, { root, scale, heavy: info.size[2] > HEAVY, half: (info.size[0] / 2) * scale, info, paints })
       },
       () => this.loading.delete(id),
     )
@@ -124,13 +112,8 @@ export class Traffic {
     // Une peinture de la boutique trois fois sur quatre, sinon la livrée du constructeur.
     const hull = paintShip(model, proto.paints.length && Math.random() < 0.75 ? pick(proto.paints) : null)
     root.add(model)
-    // Un halo devant chaque tuyère (en mètres, comme le modèle).
-    for (const [x, y, z, rx, ry] of proto.engines) {
-      const flare = new THREE.Sprite(this.flare)
-      flare.position.set(x, y, z - 0.3)
-      flare.scale.setScalar(Math.max(rx, ry) * 3.2)
-      root.add(flare)
-    }
+    // Ses traînées et la lueur de ses feux (en mètres, comme le modèle).
+    root.add(shipEffects(proto.info, renderQuality.light))
     root.scale.setScalar(proto.scale)
     // La plupart vont vers l'est, comme le vaisseau, et le doublent ; les autres le croisent, plus vite.
     const dir = Math.random() < 0.7 ? 1 : -1

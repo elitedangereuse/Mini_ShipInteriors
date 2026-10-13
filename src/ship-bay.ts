@@ -33,6 +33,8 @@ const LENGTH_MAX = 6.6
 const HALF_WIDTH_MAX = 3.25
 /** La coque plus basse que ça arrête le joueur ; plus haute, on passe dessous. */
 const HEAD = 0.8
+/** Du siège au sommet de la tête d'un pilote assis, avec un peu de marge sous la verrière. */
+const PILOT_HEAD = 0.45
 /** L'escabeau, devant le nez : sa plateforme, le bas des marches, et où l'on se tient pour y monter. */
 const PLATFORM_FROM = NOSE_Z + 0.16
 const PLATFORM_TO = NOSE_Z + 0.4
@@ -409,12 +411,13 @@ export class ShipBay {
     ladder.add(top)
     root.add(ladder)
 
-    // Le cockpit : sous la verrière (le milieu du vaisseau s'il n'en a pas), la tête dépasse un peu.
+    // Le cockpit : sous la verrière (le milieu du vaisseau s'il n'en a pas). Le pilote y est assis tout
+    // entier, la tête sous la bulle (PILOT_HEAD), quitte à descendre dans la coque d'un petit appareil.
     const c = info.canopy ?? [0, info.size[1] / 2, info.size[2] * 0.25]
     const seatX = c[0] * l.s, seatZ = l.zc + c[2] * l.s
     const canopyY = l.gear + (c[1] + info.size[1] / 2) * l.s
     const roof = ridge(l, seatZ)?.y ?? canopyY
-    const seatY = Math.max(l.gear + 0.05, Math.min(roof - 0.3, canopyY + 0.1))
+    const seatY = roof - PILOT_HEAD
     // Le chemin : le pied de l'escabeau, les marches, la plateforme, le nez, le dos jusqu'au cockpit.
     const via: { x: number; y: number; z: number }[] = []
     const add = (x: number, y: number, z: number) => via.push({ ...this.world(x, z), y })

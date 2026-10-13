@@ -60,6 +60,8 @@ function kit() {
   const face = (verts, mat, inside) => faces.push({ verts, mat, inside })
   /** Les tuyères, pour le jeu (extras : [x, y, z, rx, ry]). */
   const engines = []
+  /** Les feux, pour le jeu (extras : le feu bâbord, les feux à éclats, leur taille). */
+  const lamps = { port: null, beacons: [], size: 0 }
 
   /**
    * Profilé aux coins arrondis le long du vaisseau, du nez vers la poupe : une section par station
@@ -207,22 +209,27 @@ function kit() {
       return [0, 1, 2].map((a) => near.reduce((t, p) => t + p[a], 0) / near.length)
     }
     const tip = extreme(0, 1)
+    lamps.size = r
+    lamps.port = [tip[0] + r * 0.4, tip[1], tip[2]]
     lamp(tip[0] + r * 0.4, tip[1], tip[2], r, 'port')
     lamp(-tip[0] - r * 0.4, tip[1], tip[2], r, 'starboard')
     for (const s of [1, -1]) {
       const [x, y, z] = extreme(1, s)
-      for (const side of x > 0.6 ? [1, -1] : [1]) lamp(x > 0.6 ? x * side : 0, y + s * r * 0.4, z, r, 'beacon')
+      for (const side of x > 0.6 ? [1, -1] : [1]) {
+        lamps.beacons.push([x > 0.6 ? x * side : 0, y + s * r * 0.4, z])
+        lamp(x > 0.6 ? x * side : 0, y + s * r * 0.4, z, r, 'beacon')
+      }
     }
   }
 
-  return { faces, engines, beacons, tools: { loft, plate, fin, nozzle, windows } }
+  return { faces, engines, lamps, beacons, tools: { loft, plate, fin, nozzle, windows } }
 }
 
 /**
  * Le maillage d'un vaisseau : chaque face a ses propres sommets et une seule normale (pans plats),
  * tournée vers l'extérieur ; une primitive par peinture. Centré sur sa boîte.
  */
-function mesh(ship, { faces, engines }) {
+function mesh(ship, { faces, engines, lamps }) {
   const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity]
   for (const f of faces) for (const p of f.verts) for (let k = 0; k < 3; k++) {
     min[k] = Math.min(min[k], p[k])
@@ -273,6 +280,11 @@ function mesh(ship, { faces, engines }) {
     size,
     engines: engines.map(([x, y, z, rx, ry]) => [x - center[0], y - center[1], z - center[2], rx, ry].map((v) => +v.toFixed(2))),
     ...(area ? { canopy: [0, 1, 2].map((k) => +(glass.reduce((s, g) => s + g[k] * g[3], 0) / area).toFixed(2)) } : {}),
+    lamps: {
+      size: +lamps.size.toFixed(2),
+      port: lamps.port.map((v, k) => +(v - center[k]).toFixed(2)),
+      beacons: lamps.beacons.map((b) => b.map((v, k) => +(v - center[k]).toFixed(2))),
+    },
     plan: groundPlan(pos, all, size),
     livery: { hull: livery.hull, belly: livery.belly, dark: livery.dark, trim: livery.trim },
     credit: credit(ship),

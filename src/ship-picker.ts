@@ -54,6 +54,8 @@ export class ShipPicker extends Modal {
   constructor() {
     super(tr('REGISTRE · HANGAR 01', 'REGISTRY · HANGAR 01'), tr('Mon vaisseau', 'My ship'))
     this.root.classList.add('ship-picker')
+    // La molette fait défiler les listes, pas le zoom du jeu derrière.
+    this.root.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true })
 
     this.tabs.className = 'ship-picker-tabs'
     this.tabs.setAttribute('role', 'tablist')
