@@ -1,0 +1,342 @@
+// MESS RUSH côté relais : les salons du mess (server/lobby.js), et chaque partie, dans son instance
+// (MESS_LEVEL), dont le relais fait autorité (cf. docs/mess-rush.md).
+//
+// Salon : au vrai mess du pont principal, on prend le service au rail des bons ; on garde sa place
+// tant qu'on reste dans le mess. Quand tous sont prêts, un compte à rebours, puis l'équipe part
+// dans la cuisine (un joueur qui n'y est pas arrivé à temps est retiré).
+//
+// Partie : les règles sont dans shared/mess-rush.js. Le relais tient l'état, arbitre chaque action
+// une à une (E : `mess:use`, Espace : `mess:work`), vérifie que le joueur est au poste (sa dernière
+// position acceptée), fait avancer les gestes, les cuissons et les commandes dix fois par seconde,
+// et envoie l'état à l'équipe quand il change.
+//
+// Fin : à la fin du service, chacun reçoit le résultat ; chaque membre CMDR encore là (ou parti
+// depuis moins d'une minute) est présenté au site (`reward`), qui décide de la récompense (cf.
+// docs/mess-rush-site.md). Un service abandonné (plus personne en cuisine) n'a pas de résultat.
+//
+// Reconnexion : au départ, chaque membre reçoit un ticket. Déconnecté, il pose ce qu'il tenait et
+// sa place l'attend une minute ; avec son ticket, il revient dans l'allée de la cuisine. Une partie
+// finie entre-temps : on lui en donne le résultat (gardé dix minutes).
+
+import { randomBytes } from 'node:crypto'
+import { ShipMap } from '../shared/ship-map.js'
+import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
+import {
+  MESS_LEVEL, MESS_LOBBY, MESS_SPAWNS, RULES, STATION_BY_ID, createService, dropHeld, onMessFloor, serviceResult, serviceView, stepService,
+  stopWork, useStation, workStation,
+} from '../shared/mess-rush.js'
+import { createLobby } from './lobby.js'
+
+const DECK = new ShipMap(SHIP_LAYOUTS[String(MESS_LOBBY.level)], shipMapOptions(MESS_LOBBY.level))
+/** Une position plus lointaine que la vitesse ne le permet est ignorée (marge en mètres). */
+const SLACK = 0.9
+/** La course (cf. src/player.ts), avec de la marge pour le retard du réseau. */
+const SPRINT = 3.4 * 1.25
+
+/** Évènements des salons et de la partie. */
+export const MESS_ACTIONS = new Set(['mess:join', 'mess:leave', 'mess:ready', 'mess:resume', 'mess:use', 'mess:work', 'mess:stop', 'mess:quit'])
+
+/** Joueur au vrai mess, là où se tiennent les salons ? */
+export function inMessLobby(p) {
+  return p.level === MESS_LOBBY.level && DECK.room(Math.round(p.x), Math.round(p.z)) === MESS_LOBBY.room
+}
+
+const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z)
+
+/**
+ * @param {object} o
+ * @param {(id: number) => object | undefined} o.playerById
+ * @param {(id: number, event: string, data: object) => void} o.emit
+ * @param {(event: string, data: object) => void} o.broadcast
+ * @param {(member: object, result: object) => Promise<object | null>} [o.reward] présente la victoire d'un CMDR au site
+ * @param {() => number} [o.now]
+ * @param {() => number} [o.seed]
+ * @param {string[]} [o.recipes] les recettes en jeu (la sélection du prototype par défaut)
+ */
+export function createMessRush({
+  playerById, emit, broadcast, reward = async () => null, now = Date.now, log = () => {}, seed = () => randomBytes(4).readUInt32LE(0), recipes,
+}) {
+  const games = new Map() // id de partie -> partie
+  const finished = new Map() // id de partie -> { report, tickets, until }
+  const lobby = createLobby({
+    name: 'mess', count: RULES.lobbies, size: RULES.team, countdown: RULES.countdown, inLobby: inMessLobby, playerById, emit, broadcast, now,
+    extra: (t) => (t.game ? { score: t.game.state.score, endsIn: Math.max(0, Math.round((t.game.state.endsAt - now()) / 1000)) } : {}),
+  })
+  const error = (p, code) => emit(p.id, 'mess:error', { code })
+
+  const gameOf = (p) => lobby.teamOf(p)?.game ?? null
+  const toGame = (game, event, data) => {
+    for (const m of game.members.values()) if (m.connected) emit(m.id, event, data)
+  }
+
+  // ------------------------------------------------------------------ départ
+
+  function startGame(t) {
+    const id = randomBytes(8).toString('hex')
+    const state = createService({ id, seed: seed(), players: t.members.length, now: now(), ...(recipes ? { recipes } : {}) })
+    const game = { id, team: t, state, members: new Map(), ended: false, last: now(), dirty: true, tick: 0 }
+    t.members.forEach((pid, i) => {
+      const p = playerById(pid)
+      const spawn = MESS_SPAWNS[i % MESS_SPAWNS.length]
+      game.members.set(pid, {
+        id: pid, name: p?.name ?? '?', verified: !!p?.verified, cookie: p?.cookie ?? null,
+        status: 'arriving', spawn, x: spawn.x, z: spawn.z, at: now(), arrivingSince: now(),
+        ticket: randomBytes(12).toString('hex'), connected: true, awayUntil: 0,
+      })
+    })
+    games.set(id, game)
+    lobby.playing(t, game)
+    for (const m of game.members.values()) emit(m.id, 'mess:start', startMessage(game, m))
+    log(`[mess-rush] service ${id} : ${[...game.members.values()].map((m) => m.name).join(', ')}`)
+  }
+
+  /** Départ (ou retour) d'un membre : la partie, son point d'arrivée, son ticket et l'état. */
+  function startMessage(game, m) {
+    return {
+      game: game.id, now: now(), spawn: m.spawn, ticket: m.ticket, you: String(m.id),
+      members: [...game.members.values()].map((o) => ({ id: String(o.id), name: o.name, status: o.status })),
+      state: serviceView(game.state),
+    }
+  }
+
+  // ------------------------------------------------------------------ partie
+
+  /** Le membre est-il à portée de ce poste (sa dernière position acceptée) ? */
+  function near(game, pid, stationId) {
+    const m = game.members.get(Number(pid)) ?? game.members.get(pid)
+    const s = STATION_BY_ID[stationId]
+    return !!m && !!s && m.status === 'in' && dist(m, s) <= RULES.reach
+  }
+
+  /** Ce qui s'est passé : à l'équipe, avec l'état qui a changé. */
+  function tell(game, events) {
+    if (!events.length) return
+    game.dirty = true
+    toGame(game, 'mess:event', { game: game.id, events })
+  }
+
+  function gameAction(p, game, action, data) {
+    const m = game.members.get(p.id)
+    if (!m || game.ended) return
+    const pid = String(p.id)
+    if (action === 'mess:quit') return quit(game, m)
+    if (m.status !== 'in') return
+    if (action === 'mess:stop') {
+      stopWork(game.state, pid)
+      game.dirty = true
+      return
+    }
+    const station = typeof data.station === 'string' ? data.station : ''
+    if (!STATION_BY_ID[station]) return
+    const refuse = (code) => emit(p.id, 'mess:refused', { game: game.id, station, code })
+    if (!near(game, pid, station)) return refuse('far')
+    const t = now()
+    const r = action === 'mess:use'
+      ? useStation(game.state, pid, station, typeof data.pick === 'string' ? data.pick : undefined, t)
+      : action === 'mess:work' ? workStation(game.state, pid, station, t) : null
+    if (!r) return
+    if (!r.ok) return refuse(r.code)
+    game.dirty = true
+    tell(game, r.events)
+  }
+
+  /** Un membre abandonne (« Quitter le service ») : il pose ce qu'il tenait et rentre au mess. */
+  function quit(game, m) {
+    if (m.status === 'left' || m.status === 'gone') return
+    tell(game, dropHeld(game.state, String(m.id)))
+    m.status = 'left'
+    emit(m.id, 'mess:left', { game: game.id })
+    tell(game, [{ kind: 'left', by: String(m.id) }])
+    checkAbandon(game)
+  }
+
+  /** Plus personne en cuisine (ni en route, ni attendu) : le service est abandonné, sans résultat. */
+  function checkAbandon(game) {
+    if (game.ended) return
+    const active = [...game.members.values()].some((m) => m.status === 'in' || m.status === 'arriving' || m.status === 'away')
+    if (!active) endGame(game, 'abandoned')
+  }
+
+  function endGame(game, reason) {
+    if (game.ended) return
+    game.ended = true
+    games.delete(game.id)
+    const state = game.state
+    const result = reason === 'end' ? serviceResult(state) : null
+    const report = {
+      game: game.id, reason, ...(result ?? { score: state.score, served: state.served, expired: state.expired, bestCombo: state.bestCombo, wasted: state.wasted, players: state.players }),
+      members: [...game.members.values()].map((m) => ({ id: String(m.id), name: m.name, status: m.status })),
+      orders: state.orders.map((o) => ({ id: o.id, recipe: o.recipe, status: o.status, points: o.points ?? 0 })),
+    }
+    toGame(game, 'mess:end', report)
+    // Membres partis (ou pas encore revenus) : ils quittent le salon ; qui revient apprendra le résultat.
+    lobby.finish(game.team, new Set([...game.members.values()].filter((m) => m.connected && m.status !== 'left' && m.status !== 'gone').map((m) => m.id)))
+    finished.set(game.id, { report, tickets: new Set([...game.members.values()].map((m) => m.ticket)), until: now() + RULES.keepResult * 1000 })
+    log(`[mess-rush] service ${game.id} : ${reason === 'end' ? `${result.score} points, médaille ${result.medal}, ${result.served} servies, ${result.expired} expirées` : 'abandonné'}`)
+    if (!result?.won) return
+    // La victoire : chaque membre CMDR encore là, ou parti depuis moins d'une minute, est présenté au site.
+    for (const m of game.members.values()) {
+      if (!m.verified || !m.cookie || m.status === 'left' || m.status === 'gone') continue
+      void reward(m, result).then((r) => {
+        if (r) emit(m.id, 'mess:reward', { game: game.id, ...r })
+      }).catch(() => {})
+    }
+  }
+
+  function stepGame(game) {
+    const t = now()
+    const dt = Math.min(0.5, (t - game.last) / 1000)
+    game.last = t
+    // Déconnectés trop longtemps, ou jamais arrivés : ils ne reviendront plus dans cette partie.
+    for (const m of game.members.values()) {
+      const late = m.status === 'arriving' && t - m.arrivingSince > RULES.arrival * 1000
+      if (!(m.status === 'away' && t >= m.awayUntil) && !late) continue
+      if (late) dropHeld(game.state, String(m.id))
+      m.status = 'gone'
+      if (late) emit(m.id, 'mess:left', { game: game.id })
+      tell(game, [{ kind: 'gone', by: String(m.id) }])
+      game.dirty = true
+    }
+    checkAbandon(game)
+    if (game.ended) return
+    const events = stepService(game.state, t, dt, (pid, sid) => near(game, pid, sid))
+    tell(game, events)
+    if (game.state.status === 'ended') {
+      game.dirty = true
+      sendState(game)
+      return endGame(game, 'end')
+    }
+    // L'état : quand il change ; pendant un geste, cinq fois par seconde (sa jauge avance).
+    game.tick++
+    const working = Object.keys(game.state.work).length > 0
+    if (game.dirty || (working && game.tick % 2 === 0)) sendState(game)
+  }
+
+  function sendState(game) {
+    game.dirty = false
+    toGame(game, 'mess:state', {
+      game: game.id, now: now(), state: serviceView(game.state),
+      members: [...game.members.values()].map((m) => ({ id: String(m.id), name: m.name, status: m.status })),
+    })
+  }
+
+  // ------------------------------------------------------------------ joueurs
+
+  /**
+   * Position reçue d'un joueur dans la cuisine : acceptée si elle y est plausible (sur le sol, pas
+   * plus loin que ne le permet la course ; à l'arrivée, près de son point d'arrivée).
+   */
+  function accepts(p, x, z) {
+    const m = gameOf(p)?.members.get(p.id)
+    if (!m || (m.status !== 'in' && m.status !== 'arriving')) return false
+    if (!onMessFloor(x, z)) return false
+    if (m.status === 'arriving') return Math.hypot(x - m.spawn.x, z - m.spawn.z) <= 1.5
+    const elapsed = Math.min(2, (now() - m.at) / 1000)
+    return Math.hypot(x - m.x, z - m.z) <= SPRINT * elapsed + SLACK
+  }
+
+  /** Après chaque position acceptée (ou changement de pont) d'un joueur. */
+  function moved(p) {
+    const t = lobby.teamOf(p)
+    if (!t) return
+    if (t.status !== 'playing') return lobby.moved(p)
+    const game = t.game
+    const m = game.members.get(p.id)
+    if (!m) return
+    if (p.level !== MESS_LEVEL) {
+      // Revenu au vaisseau en plein service sans l'avoir quitté : c'est un abandon.
+      if (m.status === 'in') quit(game, m)
+      return
+    }
+    if (m.status === 'arriving') {
+      m.status = 'in'
+      tell(game, [{ kind: 'arrive', by: String(m.id) }])
+    }
+    if (m.status !== 'in') return
+    m.x = p.x
+    m.z = p.z
+    m.at = now()
+  }
+
+  /** Départ du vaisseau (déconnexion) : en partie, la place attend une minute (cf. resume). */
+  function leave(p) {
+    const t = lobby.teamOf(p)
+    if (!t) return
+    const game = t.game
+    const m = game?.members.get(p.id)
+    if (!m) return lobby.remove(p)
+    m.connected = false
+    if (m.status === 'in' || m.status === 'arriving') {
+      tell(game, dropHeld(game.state, String(m.id)))
+      m.status = 'away'
+      m.awayUntil = now() + RULES.reconnect * 1000
+      tell(game, [{ kind: 'away', by: String(m.id), wait: RULES.reconnect }])
+    }
+    checkAbandon(game)
+    lobby.announce()
+  }
+
+  /**
+   * Retour d'un membre après une déconnexion (nouvel id de joueur, même ticket) : il retrouve sa
+   * place, dans l'allée de la cuisine.
+   */
+  function resume(p, data) {
+    const ticket = typeof data.ticket === 'string' ? data.ticket : ''
+    const game = games.get(data.game)
+    if (!game) {
+      const done = finished.get(data.game)
+      if (done && ticket && done.tickets.has(ticket)) emit(p.id, 'mess:end', { ...done.report, late: true })
+      else error(p, 'resume')
+      return
+    }
+    const m = ticket ? [...game.members.values()].find((x) => x.ticket === ticket) : null
+    // Encore joué depuis un autre onglet : on ne lui prend pas sa place.
+    if (m?.connected) return error(p, 'elsewhere')
+    if (!m || m.status !== 'away' || gameOf(p)) return error(p, 'resume')
+    // La place d'un CMDR ne revient qu'à lui.
+    if (m.verified && (!p.verified || p.name !== m.name)) return error(p, 'resume')
+    if (p.cookie) m.cookie = p.cookie
+    if (lobby.teamOf(p)) lobby.leaveTeam(p)
+    const old = m.id
+    game.members.delete(old)
+    m.id = p.id
+    m.connected = true
+    game.members.set(p.id, m)
+    lobby.rename(game.team, old, p.id)
+    // Sa main (vide : il a tout posé en partant) suit son nouvel identifiant.
+    delete game.state.hands[String(old)]
+    Object.assign(m, { status: 'arriving', x: m.spawn.x, z: m.spawn.z, at: now(), arrivingSince: now() })
+    emit(p.id, 'mess:start', { ...startMessage(game, m), resumed: true })
+    tell(game, [{ kind: 'back', by: String(p.id), old: String(old) }])
+    log(`[mess-rush] service ${game.id} : ${m.name} est revenu`)
+    lobby.announce()
+  }
+
+  function handle(p, action, raw) {
+    const data = raw && typeof raw === 'object' ? raw : {}
+    if (action === 'mess:resume') return resume(p, data)
+    const game = gameOf(p)
+    if (game) {
+      if (action === 'mess:join' || action === 'mess:leave' || action === 'mess:ready') return error(p, 'playing')
+      return gameAction(p, game, action, data)
+    }
+    if (action === 'mess:join' || action === 'mess:leave' || action === 'mess:ready') lobby.action(p, action.slice(5), data)
+  }
+
+  /** Membres de la même partie en cours (pour limiter la vue, le chat et les emotes à l'équipe). */
+  function mates(p) {
+    const game = gameOf(p)
+    if (!game) return new Set()
+    return new Set([...game.members.values()].filter((m) => m.status !== 'gone' && m.status !== 'left').map((m) => m.id))
+  }
+
+  /** Un pas (toutes les 100 ms) : départs des salons prêts, puis chaque partie. */
+  function tick() {
+    const t = now()
+    for (const [id, done] of finished) if (done.until < t) finished.delete(id)
+    for (const team of lobby.due()) startGame(team)
+    for (const game of [...games.values()]) stepGame(game)
+  }
+
+  return { snapshot: lobby.snapshot, handle, accepts, moved, leave, mates, tick, gameOf, inKitchen: (p) => p.level === MESS_LEVEL && !!gameOf(p) }
+}

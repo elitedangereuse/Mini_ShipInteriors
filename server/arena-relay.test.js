@@ -8,6 +8,7 @@ import { after, afterEach, before, test } from 'node:test'
 import { io as connect } from 'socket.io-client'
 import { attachRelay, WS_PATH } from './relay.js'
 import { ARENA_CHARACTERS, ARENA_LEVEL, ARENA_RULES } from '../shared/arena.js'
+import { MESS_LEVEL } from '../shared/mess-rush.js'
 import { VENT_LEVEL } from '../shared/vents.js'
 import { ZONE_LEVEL } from '../shared/salvage.js'
 import { TUTORIAL_LEVEL } from '../shared/tutorial.js'
@@ -67,7 +68,7 @@ const silent = (socket, event, match = () => true, ms = 400) => new Promise((res
 const LOBBY = { x: 24, z: 8, yaw: 0, level: -1, anim: 'idle' }
 
 test('l\'arène a son propre « pont », distinct des autres lieux hors du vaisseau', () => {
-  assert.equal(new Set([ARENA_LEVEL, ZONE_LEVEL, VENT_LEVEL, TUTORIAL_LEVEL]).size, 4)
+  assert.equal(new Set([ARENA_LEVEL, ZONE_LEVEL, VENT_LEVEL, TUTORIAL_LEVEL, MESS_LEVEL]).size, 5)
 })
 
 test('un salon se forme au lobby, la partie part, et l\'arène reste entre ses joueurs', async () => {
