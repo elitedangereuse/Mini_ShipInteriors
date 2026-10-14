@@ -125,6 +125,11 @@ import grains from '@phosphor-icons/core/bold/grains-bold.svg?raw'
 import scissors from '@phosphor-icons/core/bold/scissors-bold.svg?raw'
 import basket from '@phosphor-icons/core/bold/basket-bold.svg?raw'
 import coffee from '@phosphor-icons/core/bold/coffee-bold.svg?raw'
+import oven from '@phosphor-icons/core/bold/oven-bold.svg?raw'
+import smiley from '@phosphor-icons/core/bold/smiley-bold.svg?raw'
+import smileyAngry from '@phosphor-icons/core/bold/smiley-angry-bold.svg?raw'
+import path from '@phosphor-icons/core/bold/path-bold.svg?raw'
+import arrowsMerge from '@phosphor-icons/core/bold/arrows-merge-bold.svg?raw'
 import recycle from '@phosphor-icons/core/bold/recycle-bold.svg?raw'
 import sparkle from '@phosphor-icons/core/bold/sparkle-bold.svg?raw'
 import handTap from '@phosphor-icons/core/bold/hand-tap-bold.svg?raw'
@@ -343,6 +348,12 @@ const SVG = {
   'eye-closed': eyeClosed,
   'video-camera': videoCamera,
   footprints,
+  // MESS RUSH : le four, les clients contents ou fâchés, le fil rouge, deux assiettes réunies
+  oven,
+  smiley,
+  'smiley-angry': smileyAngry,
+  path,
+  'arrows-merge': arrowsMerge,
 } as const
 
 export type IconName = keyof typeof SVG

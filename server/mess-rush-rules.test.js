@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
-  MESS_LAYOUT, MESS_SPAWNS, RULES, STATIONS, comboMultiplier, createService, dropHeld, medalOf, onMessFloor,
+  MESS_BOUNDS, MESS_LAYOUT, MESS_SPAWNS, QUEUE, RULES, SERVICE_COUNTER, STATIONS, comboMultiplier, createService, dropHeld, medalOf, onMessFloor,
   resolveAction, serviceResult, serviceView, speedBonus,
 } from '../shared/mess-rush.js'
 import { ShipMap } from '../shared/ship-map.js'
@@ -19,7 +19,11 @@ test('la cuisine : une seule pièce, les postes et les arrivées sur son sol', (
     assert.ok(onMessFloor(s.x, s.z))
     assert.ok(map.isFloor(Math.round(s.x), Math.round(s.z)))
   }
-  for (const s of STATIONS) assert.ok(onMessFloor(s.x, s.z), s.id)
+  // Les postes sont dans la pièce (ceux du comptoir de service, sur lui : on les atteint de la cuisine).
+  for (const s of STATIONS) assert.ok(s.x > MESS_BOUNDS.minX && s.x < MESS_BOUNDS.maxX && s.z > MESS_BOUNDS.minZ && s.z < MESS_BOUNDS.maxZ, s.id)
+  for (const s of STATIONS) assert.ok(onMessFloor(s.x, s.z) || s.z > SERVICE_COUNTER.minZ, s.id)
+  // Personne ne cuisine dans la file des clients.
+  assert.ok(!onMessFloor(12, QUEUE.z))
   assert.equal(new Set(STATIONS.map((s) => s.id)).size, STATIONS.length)
 })
 
@@ -72,8 +76,8 @@ test('une livraison rapporte la valeur de la recette, le bonus de rapidité et l
   assert.equal(k.state.score, 60)
   assert.equal(k.state.combo, 1)
   // Plus rien en main : livrer de nouveau n'a pas de sens.
-  assert.deepEqual(resolveAction(k.state, 'p1', 'passe'), { use: null, work: null })
-  assert.equal(k.use('p1', 'passe').ok, false)
+  assert.deepEqual(resolveAction(k.state, 'p1', 'passe-1'), { use: null, work: null })
+  assert.equal(k.use('p1', 'passe-1').ok, false)
   // La suivante, en combo : × 1,1.
   k.waitOrder()
   cookRecipe(k, 'p1', 'escargots-irukama')
@@ -94,11 +98,11 @@ test('un plat qui ne correspond à aucune commande est refusé et reste en main'
   must(k.use('p1', 'comptoir-1'))
   const plate = k.state.items[k.state.hands.p1]
   assert.deepEqual(plate.contents, [['lapin-ceti', 'brut']])
-  assert.equal(resolveAction(k.state, 'p1', 'passe').use.order, null)
-  assert.deepEqual(k.use('p1', 'passe'), { ok: false, code: 'nomatch' })
+  assert.equal(resolveAction(k.state, 'p1', 'passe-1').use.order, null)
+  assert.deepEqual(k.use('p1', 'passe-1'), { ok: false, code: 'nomatch' })
   assert.equal(k.state.hands.p1, plate.id)
-  // Au recyclage : l'assiette se vide, on la garde ; c'est du gaspillage.
-  must(k.use('p1', 'recyclage'))
+  // À la poubelle : l'assiette se vide, on la garde ; c'est du gaspillage.
+  must(k.use('p1', 'poubelle-so'))
   assert.deepEqual(plate.contents, [])
   assert.equal(k.state.hands.p1, plate.id)
   assert.equal(k.state.wasted, 1)
@@ -108,9 +112,10 @@ test('les transitions invalides sont refusées : ingrédient pas prêt, mauvais 
   const k = solo(['ragout-lapin', 'escargots-irukama'])
   k.waitOrder()
   must(k.use('p1', 'frigo', 'lapin-ceti'))
-  // Le lapin n'est pas coupé : ni marmite, ni poêle.
+  // Le lapin n'est pas coupé : ni marmite, ni poêle, ni four.
   assert.equal(k.use('p1', 'marmite-1').ok, false)
   assert.equal(k.use('p1', 'poele-1').ok, false)
+  assert.equal(k.use('p1', 'four').ok, false)
   // Mains pleines : on ne prend rien d'autre.
   assert.equal(k.use('p1', 'garde-manger', 'legumes').ok, false)
   assert.equal(k.use('p1', 'assiettes').ok, false)
@@ -125,17 +130,30 @@ test('les transitions invalides sont refusées : ingrédient pas prêt, mauvais 
   // Coupé : la marmite, oui ; la poêle, toujours pas (le lapin mijote).
   assert.equal(k.use('p1', 'poele-1').ok, false)
   must(k.use('p1', 'marmite-1'))
+  // Du riz (qui cuit à l'eau) ne va pas avec ce qui mijote.
+  k.state.items.r = { id: 'r', kind: 'ingredient', ing: 'riz-jaroua', step: 0, progress: 0 }
+  k.state.hands.p1 = 'r'
+  assert.equal(k.use('p1', 'marmite-1').ok, false)
+  must(k.use('p1', 'marmite-2'))
+  assert.equal(resolveAction(k.state, 'p1', 'marmite-2').work.process, 'cuire')
+  must(k.use('p1', 'marmite-2'))
+  delete k.state.items.r
+  k.state.hands.p1 = null
   must(k.work('p1', 'marmite-1'))
   // En cuisson : on n'y ajoute rien, on ne relance pas (Espace la viderait).
   must(k.use('p1', 'garde-manger', 'legumes'))
   must(k.use('p1', 'plan-1'))
+  must(k.work('p1', 'plan-1'))
+  k.advance(2.1)
+  // Épluchées, pas encore coupées : pas de marmite.
+  assert.equal(resolveAction(k.state, 'p1', 'plan-1').work.process, 'couper')
   must(k.work('p1', 'plan-1'))
   k.advance(2.6)
   must(k.use('p1', 'plan-1'))
   assert.equal(k.use('p1', 'marmite-1').ok, false)
   assert.equal(resolveAction(k.state, 'p1', 'marmite-1').work.kind, 'empty')
   // Cuit : sans assiette, on ne sert pas.
-  k.advance(8)
+  k.advance(9)
   must(k.use('p1', 'marmite-2'))
   assert.equal(k.use('p1', 'marmite-1').ok, false)
 })
@@ -161,9 +179,9 @@ test('deux joueurs livrent le même plat : la commande n\'est servie qu\'une foi
   cookRecipe(k, 'p1', 'escargots-irukama')
   assert.equal(k.state.served, 1)
   // Une seconde assiette identique, sans seconde commande en attente : refusée.
-  k.state.items.x = { id: 'x', kind: 'plate', contents: [['escargots-irukama', 'cuit']] }
+  k.state.items.x = { id: 'x', kind: 'plate', contents: [['escargots-irukama', 'poêlé']] }
   k.state.hands.p2 = 'x'
-  assert.deepEqual(k.use('p2', 'passe'), { ok: false, code: 'nomatch' })
+  assert.deepEqual(k.use('p2', 'passe-1'), { ok: false, code: 'nomatch' })
   assert.equal(k.state.served, 1)
 })
 
@@ -208,7 +226,7 @@ test('la fontaine infuse le café en tasse ; la tasse se livre telle quelle', ()
   must(k.use('p1', 'fontaine'))
   const cup = k.state.items[k.state.hands.p1]
   assert.equal(cup.kind, 'cup')
-  must(k.use('p1', 'passe'))
+  must(k.use('p1', 'passe-1'))
   assert.equal(k.state.served, 1)
 })
 
@@ -228,8 +246,9 @@ test('un joueur qui part pose ce qu\'il tenait au comptoir', () => {
   k.waitOrder()
   must(k.use('p1', 'frigo', 'escargots-irukama'))
   const id = k.state.hands.p1
-  assert.deepEqual(dropHeld(k.state, 'p1'), [{ kind: 'dropped', by: 'p1', station: 'comptoir-1' }])
-  assert.equal(k.state.stations['comptoir-1'].item, id)
+  const at = first('counter').id
+  assert.deepEqual(dropHeld(k.state, 'p1'), [{ kind: 'dropped', by: 'p1', station: at }])
+  assert.equal(k.state.stations[at].item, id)
   assert.equal(k.state.hands.p1, undefined)
 })
 
@@ -277,5 +296,5 @@ test('ce que reçoivent les joueurs suffit pour calculer les mêmes invites, san
   const view = JSON.parse(JSON.stringify(serviceView(k.state)))
   assert.equal(view.rng, undefined)
   for (const s of STATIONS) for (const pid of ['p1', 'p2']) assert.deepEqual(resolveAction(view, pid, s.id), resolveAction(k.state, pid, s.id), `${s.id} ${pid}`)
-  assert.equal(first('pass').id, 'passe')
+  assert.equal(first('pass').id, 'passe-1')
 })
