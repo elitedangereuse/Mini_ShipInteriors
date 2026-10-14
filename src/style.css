@@ -5922,6 +5922,16 @@ body.arena-end-on .arena-hud > :not(.arena-count), body.arena-end-on :is(.top-le
 }
 .mess-quit { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 12px; border: 3px solid #0b0d12; border-radius: 12px; background: #1b2030f2; color: #e8eaee; font: 800 12px/1 system-ui, sans-serif; box-shadow: 0 3px 0 #0b0d12; cursor: pointer; pointer-events: auto; }
 .mess-quit .icon { width: 15px; height: 15px; }
+/* La consigne du guidage, en bas de l'écran, au-dessus des emotes : verte comme les flèches au-dessus des postes. */
+.mess-hint { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom)); transform: translateX(-50%); display: inline-flex; align-items: center; gap: 8px; max-width: calc(100vw - 32px); margin: 0; padding: 7px 16px; border: 3px solid #0b0d12; border-radius: 999px; background: #1b2030f2; color: #e8eaee; font: 800 14px/1.2 system-ui, sans-serif; box-shadow: 0 3px 0 #0b0d12; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mess-hint[hidden] { display: none; }
+.mess-hint .icon { flex: none; width: 18px; height: 18px; color: #4cd88a; }
+/* Au doigt, pas de barre d'emotes : la consigne descend tout en bas, entre le stick et le bouton d'action. */
+@media (pointer: coarse) {
+  .mess-hint { bottom: calc(8px + env(safe-area-inset-bottom)); max-width: calc(100vw - 280px); font-size: 13px; }
+}
+/* En cuisine, la vue du dessus laisse les côtés libres : les bons s'y rangent en colonne, à gauche. */
+body.mess-on .mess-tickets { position: fixed; top: calc(max(10px, env(safe-area-inset-top)) + 64px); left: max(16px, env(safe-area-inset-left)); flex-direction: column; flex-wrap: nowrap; justify-content: flex-start; }
 /* En service, comme dans l'arène : le bandeau et les bons prennent le haut de l'écran. */
 body.mess-on :is(.top-left > :not(.site-logo), #phone, #quest-phone, .about-toggle) { display: none; }
 body.mess-on :is(.top-right) { visibility: hidden; }

@@ -54,6 +54,12 @@ export class IsoCamera {
   private shift = new THREE.Vector2()
   private shiftGoal = new THREE.Vector2()
 
+  /**
+   * Vue imposée (la cuisine de MESS RUSH) : le joueur ne la tourne, ne l'incline, ne la fait glisser
+   * ni ne zoome plus ; le jeu, lui, la règle toujours (turnTo, zoomTo, setRestElevation).
+   */
+  locked = false
+
   /** Inclut le mouvement direct et la fin amortie d'un quart de tour. */
   get rotating(): boolean {
     return this.orbitHold > 0 || Math.abs(this.azimuthGoal - this.azimuth) > 0.001 || Math.abs(this.elevationGoal - this.elevation) > 0.001
@@ -75,6 +81,7 @@ export class IsoCamera {
    * de la vue isométrique la plus proche dans ce sens, inclinaison et cadrage compris.
    */
   rotate(step: 1 | -1) {
+    if (this.locked) return
     const k = (this.azimuthGoal - ISO_AZIMUTH) / QUARTER
     const next = step > 0 ? Math.floor(k + 1e-6) + 1 : Math.ceil(k - 1e-6) - 1
     this.azimuthGoal = ISO_AZIMUTH + next * QUARTER
@@ -108,6 +115,7 @@ export class IsoCamera {
 
   /** Caméra libre : tourne autour de la cible et change l'inclinaison (radians). */
   orbit(dAzimuth: number, dElevation: number) {
+    if (this.locked) return
     if (dAzimuth || dElevation) this.orbitHold = 0.15
     this.azimuth += dAzimuth
     this.azimuthGoal += dAzimuth
@@ -120,6 +128,7 @@ export class IsoCamera {
    * @param viewportHeight hauteur de la fenêtre, en pixels
    */
   pan(dxPx: number, dyPx: number, viewportHeight: number) {
+    if (this.locked) return
     const unit = (2 * this.zoom) / viewportHeight
     // À l'écran, le sol est vu en biais : un pixel vertical couvre plus de sol qu'un pixel horizontal.
     this.offset.add(this.screenToGround(-dxPx * unit, (dyPx * unit) / Math.sin(this.elevation), _v))
@@ -162,6 +171,7 @@ export class IsoCamera {
   }
 
   zoomBy(factor: number) {
+    if (this.locked) return
     this.zoomGoal = THREE.MathUtils.clamp(this.zoomGoal * factor, this.zoomMin, this.farthest)
   }
 

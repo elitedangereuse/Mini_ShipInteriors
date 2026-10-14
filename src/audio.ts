@@ -1048,6 +1048,80 @@ export class Sound {
   }
 
   /**
+   * Les sons de la cuisine de MESS RUSH (spatialisés) : la sonnette du passe quand un plat est
+   * cuit (deux coups), la petite cloche d'un nouveau bon et le ticket qui sort, le buzzer d'un bon
+   * expiré, le « tchic » d'un geste fini, et le bac de recyclage.
+   */
+  kitchen(kind: 'bell' | 'order' | 'expired' | 'ready' | 'trash', pos: THREE.Vector3 | null) {
+    if (!this.ready) return
+    const ctx = this.ctx
+    const out = this.output(pos, { volume: kind === 'expired' ? 0.1 : kind === 'trash' ? 0.12 : 0.11, ref: 3, rolloff: 0.8 }).input
+    const t0 = ctx.currentTime + 0.01
+    /** Une note de cloche : un fondamental et des partiels inharmoniques qui s'éteignent vite. */
+    const strike = (f: number, t: number, decay: number, gain = 1) => {
+      for (const [ratio, g] of [[1, 1], [2.76, 0.45], [5.4, 0.22], [8.93, 0.1]] as const) {
+        const osc = ctx.createOscillator()
+        osc.type = 'sine'
+        osc.frequency.value = f * ratio
+        const env = ctx.createGain()
+        env.gain.setValueAtTime(0, t)
+        env.gain.linearRampToValueAtTime(g * gain, t + 0.003)
+        env.gain.exponentialRampToValueAtTime(0.0001, t + decay / ratio ** 0.5)
+        osc.connect(env).connect(out)
+        osc.start(t)
+        osc.stop(t + decay + 0.05)
+      }
+    }
+    const noise = (filter: BiquadFilterType, freq: number, t: number, len: number, peak: number) => {
+      const src = ctx.createBufferSource()
+      src.buffer = this.whiteNoise
+      const f = ctx.createBiquadFilter()
+      f.type = filter
+      f.frequency.value = freq
+      const env = ctx.createGain()
+      env.gain.setValueAtTime(0, t)
+      env.gain.linearRampToValueAtTime(peak, t + 0.01)
+      env.gain.exponentialRampToValueAtTime(0.001, t + len)
+      src.connect(f).connect(env).connect(out)
+      src.start(t, Math.random() * 0.5)
+      src.stop(t + len + 0.02)
+    }
+    if (kind === 'bell') {
+      // La sonnette de comptoir : « ding-ding ».
+      strike(2093, t0, 1.1)
+      strike(2093, t0 + 0.16, 1.4)
+    } else if (kind === 'order') {
+      // Le ticket qui sort de l'imprimante, puis une petite cloche.
+      for (let i = 0; i < 5; i++) noise('bandpass', 3200, t0 + i * 0.035, 0.03, 0.5)
+      strike(1568, t0 + 0.2, 0.7, 0.7)
+    } else if (kind === 'expired') {
+      // Un buzzer grave qui retombe.
+      const osc = ctx.createOscillator()
+      osc.type = 'square'
+      osc.frequency.setValueAtTime(180, t0)
+      osc.frequency.exponentialRampToValueAtTime(110, t0 + 0.45)
+      const lp = ctx.createBiquadFilter()
+      lp.type = 'lowpass'
+      lp.frequency.value = 900
+      const env = ctx.createGain()
+      env.gain.setValueAtTime(0, t0)
+      env.gain.linearRampToValueAtTime(0.6, t0 + 0.02)
+      env.gain.setTargetAtTime(0, t0 + 0.35, 0.06)
+      osc.connect(lp).connect(env).connect(out)
+      osc.start(t0)
+      osc.stop(t0 + 0.7)
+    } else if (kind === 'ready') {
+      // Geste fini : deux notes brèves qui montent.
+      strike(1319, t0, 0.25, 0.6)
+      strike(1760, t0 + 0.07, 0.35, 0.6)
+    } else {
+      // Le bac : un souffle, et le couvercle qui retombe.
+      noise('lowpass', 1400, t0, 0.25, 0.7)
+      noise('bandpass', 600, t0 + 0.22, 0.08, 0.9)
+    }
+  }
+
+  /**
    * Bruit d'une tâche de bord en cours (spatialisé) : frotter (ordures, flaque, vaisselle),
    * une clé sur du métal (réparations), un sifflement (vapeur, brèche), de l'eau (plantes).
    */

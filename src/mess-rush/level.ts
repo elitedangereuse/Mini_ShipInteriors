@@ -25,10 +25,8 @@ const PROPS: Prop[] = [
     model: 'vending-machine', x: 12.5, z: 4.65,
     interact: tr('Le distributeur : en plein service, Marcel l\'a débranché. « On cuisine, ici. »', 'The vending machine: mid-service, Marcel has unplugged it. “We cook here.”'),
   },
-  {
-    model: 'tray-return', x: 16.75, z: 4.84,
-    interact: tr('Retour plateaux : pendant le service, il attendra.', 'Tray return: it will have to wait until after service.'),
-  },
+  // Le retour plateaux sert de bac de recyclage côté salle (le poste `retour-plateaux`).
+  { model: 'tray-return', x: at('retour-plateaux').x, z: 4.84 },
   { model: 'menu-board', x: 7.66, z: 6.45, rot: 1, solid: false, interact: tr('Le menu du service : ce que disent les bons.', 'The service menu: whatever the tickets say.') },
   // --- Le comptoir du self, la pile d'assiettes, le rail des bons et la passe.
   { model: 'self-counter', x: 12.5, z: 9.3, rot: 2, label: '7' },
