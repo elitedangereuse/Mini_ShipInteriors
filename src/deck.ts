@@ -1185,7 +1185,8 @@ export class Deck {
       if (flicker === 'fire' || flicker === 'screen') continue
       if (this.map.room(Math.round(x), Math.round(z)) && !greenhouse(Math.round(x), Math.round(z))) fixtures.push({ kind: 'spot', x, z, color })
     }
-    if (!offShip(this.def)) {
+    // Hors du vaisseau, seule une pièce instanciée garde l'éclairage général de ses pièces.
+    if (!offShip(this.def) || this.def.instance) {
       this.generalLit = true
       // Pas d'éclairage général dans une pièce tamisée, ni sur la parcelle des quartiers, qui a ses
       // propres plafonniers (cf. housing/home.ts) ; ailleurs, celui de la pièce (cf. `lighting`).

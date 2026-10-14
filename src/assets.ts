@@ -65,6 +65,13 @@ export const CUTE_FISH_PACK = 'fish/quaternius-cute-fish.glb'
  */
 export const BLASTER_PACK = 'furniture/kenney-blaster.glb'
 
+/**
+ * Ingrédients, vaisselle et ustensiles du Food Kit (Kenney, CC0), en un fichier de même forme : la
+ * cuisine de MESS RUSH (cf. scripts/import-kenney-food.mjs, src/mess-rush/props.ts). Hors du
+ * préchargement : on le charge en entrant dans la cuisine (cf. loadPack).
+ */
+export const FOOD_PACK = 'food/kenney-food.glb'
+
 /** Tous les modèles du kit utilisent la même texture : un seul matériau partagé. */
 export let stationMaterial: THREE.MeshLambertMaterial
 
@@ -304,6 +311,11 @@ export function station(name: StationModel): THREE.Object3D {
  * Modèle du Furniture Kit, ou d'un autre pack de même forme (le Nature Kit) : nœud du fichier
  * commun, à cloner ; ses géométries sont partagées.
  */
+/** Charge un pack hors du préchargement (la cuisine de MESS RUSH) : ensuite, packModel le trouve. */
+export async function loadPack(pack: string): Promise<void> {
+  await load(pack)
+}
+
 /** Noms des modèles d'un pack (galerie de debug). */
 export const packModels = (pack: string): string[] => cache.get(pack)?.scene.children.map((c) => c.name) ?? []
 

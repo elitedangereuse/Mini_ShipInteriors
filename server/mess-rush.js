@@ -48,13 +48,14 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z)
  * @param {(id: number) => object | undefined} o.playerById
  * @param {(id: number, event: string, data: object) => void} o.emit
  * @param {(event: string, data: object) => void} o.broadcast
- * @param {(member: object, result: object) => Promise<object | null>} [o.reward] présente la victoire d'un CMDR au site
+ * @param {((member: object, result: object) => Promise<object | null>) | null} [o.reward] présente la victoire d'un CMDR au site ;
+ *   sans elle, les victoires ne sont présentées à personne (le site n'est pas prêt)
  * @param {() => number} [o.now]
  * @param {() => number} [o.seed]
  * @param {string[]} [o.recipes] les recettes en jeu (la sélection du prototype par défaut)
  */
 export function createMessRush({
-  playerById, emit, broadcast, reward = async () => null, now = Date.now, log = () => {}, seed = () => randomBytes(4).readUInt32LE(0), recipes,
+  playerById, emit, broadcast, reward = null, now = Date.now, log = () => {}, seed = () => randomBytes(4).readUInt32LE(0), recipes,
 }) {
   const games = new Map() // id de partie -> partie
   const finished = new Map() // id de partie -> { report, tickets, until }
@@ -173,10 +174,12 @@ export function createMessRush({
     lobby.finish(game.team, new Set([...game.members.values()].filter((m) => m.connected && m.status !== 'left' && m.status !== 'gone').map((m) => m.id)))
     finished.set(game.id, { report, tickets: new Set([...game.members.values()].map((m) => m.ticket)), until: now() + RULES.keepResult * 1000 })
     log(`[mess-rush] service ${game.id} : ${reason === 'end' ? `${result.score} points, médaille ${result.medal}, ${result.served} servies, ${result.expired} expirées` : 'abandonné'}`)
-    if (!result?.won) return
-    // La victoire : chaque membre CMDR encore là, ou parti depuis moins d'une minute, est présenté au site.
+    if (!result?.won || !reward) return
+    // La victoire : chaque membre CMDR encore là, ou parti depuis moins d'une minute, est présenté au
+    // site ; il sait tout de suite que sa récompense est en route, puis ce que le site a confirmé.
     for (const m of game.members.values()) {
       if (!m.verified || !m.cookie || m.status === 'left' || m.status === 'gone') continue
+      emit(m.id, 'mess:reward', { game: game.id, status: 'pending' })
       void reward(m, result).then((r) => {
         if (r) emit(m.id, 'mess:reward', { game: game.id, ...r })
       }).catch(() => {})

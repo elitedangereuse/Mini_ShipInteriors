@@ -14,6 +14,8 @@ export declare const PROCESSES: Record<ProcessId, Process>
 export interface Ingredient {
   name: Text
   short: Text
+  /** Genre et nombre du nom court, pour accorder son état (« Crevettes rincées »). */
+  gender: 'ms' | 'fs' | 'mp' | 'fp'
   /** Nom canonique d'Elite Dangerous : métadonnée, jamais affichée (null pour une création). */
   canonical: string | null
   category: string | null

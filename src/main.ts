@@ -120,6 +120,9 @@ import { Vents } from './vents'
 import { BAR_DROP, VENT_DROP } from '../shared/vents.js'
 import { SalvageClient } from './salvage/client'
 import { ArenaClient } from './arena/client'
+import { MessRushClient } from './mess-rush/client'
+import { MESS_RUSH_DECK } from './mess-rush/level'
+import { MESS_LEVEL } from '../shared/mess-rush.js'
 import { STAGE_AZIMUTH, STAGE_ELEVATION } from './arena/podium'
 import { ArenaLobbyMusic } from './arena/music'
 import { ARENA_LEVEL, ARENA_LOBBY } from '../shared/arena.js'
@@ -1385,8 +1388,8 @@ async function enterTutorial() {
   riding = false
 }
 
-// Marcel, le chef, fait la tournée de sa cuisine au mess (cf. chef.ts), et cuisine avec qui prend
-// une commande au rail de la passe ; le self sert des plateaux (cf. kitchen.ts).
+// Marcel, le chef, fait la tournée de sa cuisine au mess (cf. chef.ts) ; le self sert des plateaux
+// (cf. kitchen.ts), et l'on prend le service de MESS RUSH au rail des bons (cf. mess-rush/).
 const chef = new Chef(await chefRig(), patrolDeck)
 /** Ce que le chef sait quand on lui parle : le système, le menu, nos plats. */
 function chefReport(): ChefReport {
@@ -1394,7 +1397,6 @@ function chefReport(): ChefReport {
 }
 const kitchen = new Kitchen({
   deck: patrolDeck,
-  chef,
   player,
   here: () => deck,
   seat: () => seating.current,
@@ -1402,13 +1404,6 @@ const kitchen = new Kitchen({
   chefSays: (text) => {
     if (patrolDeck === deck) bubbles.say('chef', text)
   },
-  cook: (on) => {
-    chef.cook(player.position, on)
-    net.sendChefCook(on)
-  },
-  reward: `+${formatCredits(ECONOMY.kitchen.reward)}`,
-  ordered: () => wallet.startJob('kitchen'),
-  sent: () => void payJob('kitchen'),
   work: (job) => startWork({ ...job, deck: patrolDeck }),
 })
 patrolDeck.interactables.push({
@@ -1419,13 +1414,12 @@ patrolDeck.interactables.push({
     player.interact()
     net.sendEmote('interact')
     // Une récolte en réserve : il l'achète (cf. gardening/panel.ts).
-    if (!kitchen.cooking && garden.ready && stockTotal(garden.garden.stock) > 0) {
+    if (garden.ready && stockTotal(garden.garden.stock) > 0) {
       net.sendChefTalk()
       return gardenPanel.open('sell')
     }
-    // Pendant une commande, il rappelle l'étape ; sinon il bavarde.
-    const line = kitchen.reminder() ?? chef.talk(player.position, chefReport())
-    if (!kitchen.cooking) net.sendChefTalk()
+    const line = chef.talk(player.position, chefReport())
+    net.sendChefTalk()
     dialog.show(tr(`${CHEF} : « ${line} »`, `${CHEF}: “${line}”`))
   },
 })
@@ -2066,7 +2060,6 @@ questWorld.npc('rourke', patrolDeck, crewItem(patrolDeck, sergeant.root), {
 questWorld.npc('marcel', patrolDeck, crewItem(patrolDeck, chef.root), {
   hold: () => { chef.talk(player.position, chefReport()); net.sendChefTalk() },
   emote: (id) => chef.avatar.playEmote(id),
-  busy: () => kitchen.cooking,
 })
 questWorld.npc('betty', patrolDeck, crewItem(patrolDeck, nurse.root), {
   hold: () => { nurse.talk(player.position, nurseReport()); net.sendNurseTalk() },
@@ -2313,6 +2306,46 @@ arenaMode = new ArenaClient({
   },
 })
 const arena = arenaMode
+// MESS RUSH (cf. mess-rush/) : le salon au rail des bons du mess, la cuisine instanciée (construite à
+// la première entrée, comme la base au sol), le service.
+let messKitchen: Deck | null = null
+function kitchenDeck(): Deck {
+  if (!messKitchen) {
+    messKitchen = new Deck(MESS_RUSH_DECK)
+    decks.push(messKitchen)
+    scene.add(messKitchen.group)
+    messKitchen.group.visible = false
+    actors.set(messKitchen, [])
+  }
+  return messKitchen
+}
+const messRush = new MessRushClient({
+  net, player, sound,
+  deck: () => deck,
+  messDeck: patrolDeck,
+  kitchenDeck,
+  moveTo: async (next, at) => {
+    await fadeScreen(true)
+    stopWork()
+    player.cancelPath()
+    player.stopGlide()
+    marker.visible = false
+    setDeck(next)
+    player.position.set(at.x, next.y, at.z)
+    iso.snapTo(player.position)
+    sendState(true)
+    await fadeScreen(false)
+  },
+  verified: () => verified,
+  avatarOf: (id) => (id === net.id ? player.avatar : remotes.get(id)?.avatar ?? null),
+  camera: () => activeCamera(),
+  served: () => kitchen.addServed(),
+  credited: (earned, balance) => wallet.site({ earned, balance }),
+})
+// Le rail des bons du mess : on y prend le service.
+for (const it of patrolDeck.interactables) {
+  if (it.furniture?.model === 'order-rail') it.onInteract = () => { player.interact(); messRush.openTerminal() }
+}
 // Odile, au poste de sécurité du lobby (cf. salvage/controller.ts) : sa bulle suit sa tête.
 bubbles.attach('controller', (out) => (deckById(-1).group.visible ? zone.controller?.avatar.head(out) ?? null : null))
 // Le lobby de la zone thargoïde : terminal de mission, caméras de surveillance, classement.
@@ -2405,6 +2438,7 @@ net.onStatus = (online) => {
   if (!online) {
     zone.disconnected()
     arena.disconnected()
+    messRush.disconnected()
     cinemaRoom.close()
     boardGames.close(false)
     arcade?.disconnected()
@@ -2420,6 +2454,7 @@ net.onStatus = (online) => {
 net.onMessage = (m) => {
   zone.onMessage(m)
   arena.onMessage(m)
+  messRush.onMessage(m)
   switch (m.t) {
     case 'welcome':
       // Le relais fait autorité sur le nom (CMDR vérifié, ou invité homonyme d'un CMDR présent).
@@ -3469,6 +3504,8 @@ function sees(r: RemotePlayer): boolean {
   if (r.level === ARENA_LEVEL) return false
   // Le simulateur d'accueil : chacun y est seul.
   if (r.level === TUTORIAL_LEVEL) return false
+  // La cuisine de MESS RUSH : seulement ses coéquipiers, de la cuisine.
+  if (r.level === MESS_LEVEL) return deck === messKitchen && messRush.sees(r.id)
   // Par les caméras de surveillance, on voit le pont filmé, pas le sien.
   if (r.level !== viewDeck.def.id || (viewDeck !== deck && !cctv?.active)) return false
   return r.level !== HOUSING_LEVEL || r.cabin === myCabin()
@@ -3776,6 +3813,7 @@ function whereIs(r: RemotePlayer): { deck?: number; where: string } {
   if (r.level === ZONE_LEVEL) return { where: tr('Zone thargoïde', 'Thargoid zone') }
   if (r.level === ARENA_LEVEL) return { where: 'CMDR Arena' }
   if (r.level === TUTORIAL_LEVEL) return { where: TUTORIAL_DECK.name }
+  if (r.level === MESS_LEVEL) return { where: 'MESS RUSH' }
   if (r.level === HOUSING_LEVEL) {
     const host = hostName(r.cabin)
     const where = r.cabin === r.id
@@ -4079,6 +4117,7 @@ addEventListener('keydown', (e) => {
   if (!chat.typing && fishing.key(e)) return
   if (chat.typing) return
   if (zone.keyDown(e)) return
+  if (messRush.keyDown(e)) return
   if (sitePanel.isOpen) {
     if (e.code === 'Escape' || e.code === 'KeyE') sitePanel.close()
     e.preventDefault()
@@ -4154,7 +4193,7 @@ chat.onOpen = () => keys.clear()
 const inputDir = new THREE.Vector3()
 function keyboardDirection(): THREE.Vector3 {
   inputDir.set(0, 0, 0)
-  if (cinematic.active || cctv?.active || gym.active || court.active || fishBusy() || quiz.isOpen || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen || shipPicker.isOpen) return inputDir
+  if (cinematic.active || cctv?.active || gym.active || court.active || fishBusy() || quiz.isOpen || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen || messRush.panelOpen || shipPicker.isOpen) return inputDir
   const on = (...codes: string[]) => codes.some((c) => keys.has(c))
   // event.code = position physique : KeyW/KeyA correspondent à Z/Q sur un clavier AZERTY.
   const sx = (on('KeyD', 'ArrowRight') ? 1 : 0) - (on('KeyA', 'ArrowLeft') ? 1 : 0)
@@ -4183,7 +4222,7 @@ function padBack(): boolean {
 
 /** Un panneau tient l'écran : la manette y mène son cadre de sélection, sans qu'on le demande. */
 function padModal(): boolean {
-  return $('mobile-entry').hidden !== true || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || boardGames.isOpen || quiz.isOpen || fishBook.isOpen || wardrobe.isOpen || zone.panelOpen || arena.panelOpen || shipPicker.isOpen || !!document.querySelector('.salvage-end:not([hidden]), .arena-end:not([hidden])')
+  return $('mobile-entry').hidden !== true || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || boardGames.isOpen || quiz.isOpen || fishBook.isOpen || wardrobe.isOpen || zone.panelOpen || arena.panelOpen || messRush.panelOpen || shipPicker.isOpen || !!document.querySelector('.salvage-end:not([hidden]), .arena-end:not([hidden])')
 }
 
 /** Rien ne sort de la manette à cette image : ni déplacement, ni bouton. */
@@ -4489,13 +4528,14 @@ function routeGamepad(dt: number): GamepadInput {
     if (pad.interact && seating.settled) seating.stand()
     else if (pad.action && seating.settled) seatAction(seating.current)
   } else if ((pad.action || flare) && zone.inZone) zone.throwFlare(true)
+  else if (pad.action && messRush.inKitchen) messRush.work()
   else if (pad.interact || pad.action) tryInteract()
   return pad
 }
 
 function movementDirection(pad: GamepadInput): THREE.Vector3 {
   const input = keyboardDirection()
-  if (cinematic.active || cctv?.active || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || (photo.active && !padDriving) || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen || shipPicker.isOpen) return input
+  if (cinematic.active || cctv?.active || chat.typing || riding || groundBase.flying || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || (photo.active && !padDriving) || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen || messRush.panelOpen || shipPicker.isOpen) return input
   // Le clavier reste prioritaire lorsqu'une touche de déplacement est maintenue.
   if (input.lengthSq() === 0) view().screenToGround(pad.moveX, -pad.moveY, input)
   return input
@@ -4832,6 +4872,12 @@ addEventListener(
       if (!gardenPanel.contains(e.target)) { gardenPanel.close(); e.stopPropagation() }
       return
     }
+    // Le salon de MESS RUSH : un clic à côté le ferme.
+    if (messRush.panelOpen && !messRush.contains(e.target)) {
+      messRush.closePanel()
+      e.stopPropagation()
+      return
+    }
     // Terminal ou classement de la zone thargoïde : un clic à côté les ferme (l'écran de fin, lui, attend son bouton).
     if (zone.panelOpen && !zone.contains(e.target) && !(e.target instanceof Element && e.target.closest('.salvage-end'))) {
       zone.closePanels()
@@ -4944,7 +4990,7 @@ function unlockCursor() {
 }
 /** Ce qui se manipule au curseur : on le rend. */
 function needsCursor(): boolean {
-  return gardenPanel.isOpen || court.active || fishBusy() || quiz.isOpen || chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || phone.isOpen || questJournal.isOpen || !!cctv?.active || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || arena.panelOpen || shipPicker.isOpen || !reactionsPanel.hidden
+  return gardenPanel.isOpen || court.active || fishBusy() || quiz.isOpen || chat.typing || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || wardrobe.isOpen || phone.isOpen || questJournal.isOpen || !!cctv?.active || !!arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen || !$('help').hidden || !$('about').hidden || zone.panelOpen || arena.panelOpen || messRush.panelOpen || shipPicker.isOpen || !reactionsPanel.hidden
 }
 document.addEventListener('pointerlockchange', () => {
   document.body.classList.toggle('fps-locked', cursorLocked())
@@ -5202,7 +5248,7 @@ function tryInteract() {
   if (cctv?.active) return cctv.close()
   // Bugenhagen parle : on passe à la phrase suivante.
   if (planetarium.talking) return planetarium.next()
-  if (gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen || shipPicker.isOpen) return
+  if (gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || wardrobe.isOpen || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || editing() || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen || messRush.panelOpen || shipPicker.isOpen) return
   const item = nearestInteractable()
   if (item) interactWith(item)
 }
@@ -5994,14 +6040,6 @@ function guestPaid(reward: string, what = tr('Tâche réglée', 'Chore done')) {
 
 /** Ce que dit le membre d'équipage d'un travail, et ce que le jeu en dit quand il ne le paie plus. */
 const JOB_TEXT: Record<JobKind, { done: string; say: (text: string) => void; capped: string; cappedChat: (n: number) => string }> = {
-  kitchen: {
-    done: tr('Plat envoyé', 'Dish sent'),
-    say: (text) => {
-      if (patrolDeck === deck) bubbles.say('chef', text)
-    },
-    capped: tr('La caisse est fermée pour aujourd\'hui. Tu cuisines pour la gloire, maintenant !', 'The till is closed for today. You\'re cooking for glory now!'),
-    cappedChat: (n) => tr(`Marcel a payé ses ${n} plats du jour. Les suivants sont pour la gloire, jusqu'à demain.`, `Marcel has paid his ${n} dishes for today. The rest are for glory, until tomorrow.`),
-  },
   hangar: {
     done: tr('Révision finie', 'Service done'),
     say: (text) => mechanic.say(text),
@@ -6016,7 +6054,7 @@ const JOB_TEXT: Record<JobKind, { done: string; say: (text: string) => void; cap
   },
 }
 
-/** Plat envoyé avec Marcel, révision finie avec Nico, fiche de culture finie avec Capucine : le site le paie (cf. Wallet.finishJob). */
+/** Révision finie avec Nico, fiche de culture finie avec Capucine : le site le paie (cf. Wallet.finishJob). */
 async function payJob(job: JobKind) {
   const text = JOB_TEXT[job]
   const reward = formatCredits(ECONOMY[job].reward)
@@ -6456,9 +6494,11 @@ function frame() {
   // Invite « E » au-dessus de l'objet le plus proche ; installé sur un meuble, au-dessus du
   // personnage : se relever (et ce que permet la place).
   const sitting = seating.settled && !gym.active && !riding && !editing() && !barPanel.isOpen
-  const near = gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen || shipPicker.isOpen ? null : nearestInteractable()
+  const near = gym.active || court.active || fishBusy() || quiz.isOpen || riding || sitePanel.isOpen || lift.isOpen || jukebox.isOpen || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || editing() || seating.current || working || planetarium.active || zone.frozen || zone.panelOpen || arena.frozen || arena.panelOpen || messRush.panelOpen || shipPicker.isOpen ? null : nearestInteractable()
   const sit = sitting ? seatPrompt(seating.current!) : null
-  const label = sit ? `${sit.main}|${sit.space ?? ''}` : near?.label
+  // Un poste de la cuisine de MESS RUSH : ce que font E et Espace (cf. mess-rush/client.ts).
+  const parts = sit ?? (near ? messRush.prompt(near) : null)
+  const label = parts ? `${parts.main}|${parts.space ?? ''}` : near?.label
   const keyName = usingGamepad ? 'A / ×' : 'E'
   if (promptKey.textContent !== keyName) promptKey.textContent = keyName
   if (promptEl.hidden !== !label) promptEl.hidden = !label
@@ -6466,8 +6506,8 @@ function frame() {
     const text = `${usingGamepad}|${label}`
     if (text !== promptText) {
       promptText = text
-      promptEl.classList.toggle('parts', coarsePointer && !!sit?.space)
-      if (coarsePointer && sit?.space) {
+      promptEl.classList.toggle('parts', coarsePointer && !!parts?.space)
+      if (coarsePointer && parts?.space) {
         // Au doigt, chaque moitié de l'invite se touche : se relever, ou l'action de la place.
         const part = (act: 'interact' | 'action', glyph: IconName, text: string) => {
           const el = document.createElement('span')
@@ -6475,12 +6515,12 @@ function frame() {
           el.append(icon(glyph), text)
           return el
         }
-        promptLabel.replaceChildren(part('interact', 'arrow-fat-up', sit.main), part('action', 'sparkle', sit.space))
-      } else if (sit?.space) {
+        promptLabel.replaceChildren(part('interact', 'arrow-fat-up', parts.main), part('action', 'sparkle', parts.space))
+      } else if (parts?.space) {
         const k = document.createElement('kbd')
         k.textContent = usingGamepad ? 'X / □' : tr('Espace', 'Space')
-        promptLabel.replaceChildren(sit.main, ' · ', k, ' ', sit.space)
-      } else promptLabel.textContent = sit ? sit.main : label
+        promptLabel.replaceChildren(parts.main, ' · ', k, ' ', parts.space)
+      } else promptLabel.textContent = parts ? parts.main : label
     }
     let x = innerWidth / 2, y = fpsBottom()
     // Vue subjective : l'invite reste devant soi, en bas de l'écran ; sinon, au-dessus de l'objet.
@@ -6511,7 +6551,7 @@ function frame() {
     // Arme en main, loin du mur : c'est le stick de droite qui tire ; l'action recharge, « fermer » rend l'arme.
     fire: range.active && !label,
     ready: !!label || panelOpen || planetarium.talking || zone.frozen || arena.frozen || range.active,
-    action: !!sit?.space || range.active,
+    action: !!parts?.space || range.active,
     reload: range.active,
     // Dans l'arène, on quitte la partie par son bouton du haut de l'écran : pas de croix sous le pouce.
     cancel: panelOpen || stand.active || gym.active || court.active || fishing.active || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || phone.isOpen || questJournal.isOpen || !!cctv?.active || !!working || !!claw || !$('about').hidden,
@@ -6583,7 +6623,8 @@ function frame() {
   if (!photo.frozen && !clubMusic.syncTempo() && !deckMusic.syncTempo() && !holdMusic.syncTempo() && !cabinMusic.syncTempo()) syncTempo(null)
 
   workStep(dt)
-  kitchen.update(world)
+  kitchen.update()
+  messRush.update()
   dialog.update(dt)
   seating.arbitrate()
   sendState()
@@ -6694,6 +6735,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, profile, fps, culling, cardsPanel, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, garden, gardenView, gardenMode, gardenPanel, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, arena, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt, range, fishing, fishBook, fishCollection, startFishing, quiz, openQuiz, quests, questWorld, questJournal, cinematic },
+    __game: { renderer, sound, player, profile, fps, culling, cardsPanel, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, garden, gardenView, gardenMode, gardenPanel, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, arena, messRush, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt, range, fishing, fishBook, fishCollection, startFishing, quiz, openQuiz, quests, questWorld, questJournal, cinematic },
   })
 }

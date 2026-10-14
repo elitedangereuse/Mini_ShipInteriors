@@ -15,9 +15,11 @@ import type { GardenRules } from '../../shared/gardening.js'
  * - salvage : récompense d'une mission réussie en zone thargoïde, par membre (par colis, et bonus
  *   par ennemi au-delà du premier, cf. salvageReward dans shared/salvage.js) ; `daily` missions
  *   payées par jour, et aucune bouclée en moins de `minPerParcel` secondes par colis ;
- * - kitchen, hangar, garden : prime d'un plat envoyé avec Marcel (cf. kitchen.ts), d'une révision
- *   faite avec Nico (cf. hangar.ts), d'une fiche de culture avec Capucine (cf. greenhouse.ts) : payée `minTime` secondes au moins après la commande, au plus une
- *   toutes les `minGap` secondes et `daily` par jour ;
+ * - hangar, garden : prime d'une révision faite avec Nico (cf. hangar.ts), d'une fiche de culture
+ *   avec Capucine (cf. greenhouse.ts) : payée `minTime` secondes au moins après la commande, au plus une
+ *   toutes les `minGap` secondes et `daily` par jour. `kitchen`, la prime des plats de l'ancienne
+ *   cuisine solo, n'est plus demandée (MESS RUSH l'a remplacée, cf. src/mess-rush/) : elle reste
+ *   tant que le site la relit (cf. docs/mess-rush-site.md) ;
  * - tasks, spots : les tâches de bord et leurs emplacements (cf. schedule.ts et tasks.ts) ;
  *   taskRules : au plus `daily` tâches payées par jour, espacées d'au moins `minGap` secondes ;
  * - gardening : le jardinage dans les quartiers (cf. shared/gardening.js) : cultures, outils,
@@ -60,7 +62,7 @@ export interface Spot {
 }
 
 /** Travail payé aux côtés d'un membre d'équipage : les plats de Marcel, les révisions de Nico, les fiches de culture de Capucine. */
-export type JobKind = 'kitchen' | 'hangar' | 'garden'
+export type JobKind = 'hangar' | 'garden'
 
 /** Prime d'un travail, et ses délais (s) : de la commande à la paie, entre deux paies ; payés par jour. */
 export interface JobRules {

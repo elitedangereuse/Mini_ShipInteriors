@@ -210,9 +210,22 @@ test('fin du service : le résultat à chacun, le salon se reforme, seules les v
   await new Promise((resolve) => setImmediate(resolve))
   // L'invité joue, sans être présenté au site.
   assert.deepEqual(h.rewards.map((r) => r.member), [1])
+  // D'abord l'annonce que la récompense est en route, puis ce que le site a confirmé.
+  assert.deepEqual(h.all(1, 'mess:reward')[0], { game: end.game, status: 'pending' })
   assert.equal(h.rewards[0].result.game, end.game)
   assert.equal(h.rewards[0].result.endedAt - h.rewards[0].result.startedAt, RULES.service * 1000)
   assert.deepEqual(h.last(1, 'mess:reward'), { game: end.game, status: 'success', reward: 'credits', earned: 1000, balance: 31000 })
+})
+
+test('sans site prêt (pas de `reward`), une victoire n\'est présentée à personne', async () => {
+  const h = harness({ reward: undefined })
+  const { members: [a] } = h.team(1)
+  const game = h.launch([a])
+  game.state.score = 5000
+  h.advance(RULES.service + 1)
+  assert.equal(h.last(1, 'mess:end').won, true)
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(h.last(1, 'mess:reward'), undefined)
 })
 
 test('une défaite (sans médaille) n\'est pas présentée au site', async () => {

@@ -16,6 +16,7 @@ test('chaque ingrédient a ses noms, sa source, ses gestes, sa cuisson, son stat
   for (const [id, ing] of Object.entries(INGREDIENTS)) {
     assert.ok(filled(ing.name), `${id} : nom`)
     assert.ok(filled(ing.short), `${id} : nom court`)
+    assert.ok(['ms', 'fs', 'mp', 'fp'].includes(ing.gender), `${id} : genre du nom court`)
     assert.ok(KINDS.has(ing.source) && (ing.source === 'fridge' || ing.source === 'pantry'), `${id} : distributeur`)
     for (const p of ing.prep) assert.ok(PROCESSES[p]?.active, `${id} : geste ${p}`)
     for (const c of ing.cook) assert.ok(PROCESSES[c] && !PROCESSES[c].active, `${id} : cuisson ${c}`)

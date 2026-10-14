@@ -40,78 +40,79 @@ export const PROCESSES = {
 
 /**
  * Ingrédients. `source` : le distributeur d'où il sort ; `prep` : les gestes à faire, dans
- * l'ordre ; `cook` : où il peut cuire (marmite, poêle ou fontaine), une fois préparé.
+ * l'ordre ; `cook` : où il peut cuire (marmite, poêle ou fontaine), une fois préparé. `gender` :
+ * genre et nombre du nom court (« Lapin coupé », « Crevettes rincées »), 'ms', 'fs', 'mp' ou 'fp'.
  */
 export const INGREDIENTS = {
   'lapin-ceti': {
-    name: { fr: 'Lapins de Ceti', en: 'Ceti rabbits' }, short: { fr: 'Lapin', en: 'Rabbit' },
+    name: { fr: 'Lapins de Ceti', en: 'Ceti rabbits' }, short: { fr: 'Lapin', en: 'Rabbit' }, gender: 'ms',
     canonical: 'Ceti Rabbits', category: 'Foods', rare: true, origin: { system: '47 Ceti', station: 'Kaufmanis Hub' },
     source: 'fridge', prep: ['couper'], cook: ['marmite'], model: 'meat-raw', color: '#c9705a',
     status: 'canonique', sources: RARE,
   },
   'legumes': {
-    name: { fr: 'Fruits et légumes', en: 'Fruit and vegetables' }, short: { fr: 'Légumes', en: 'Vegetables' },
+    name: { fr: 'Fruits et légumes', en: 'Fruit and vegetables' }, short: { fr: 'Légumes', en: 'Vegetables' }, gender: 'mp',
     canonical: 'Fruit and Vegetables', category: 'Foods', rare: false,
     source: 'pantry', prep: ['couper'], cook: ['marmite'], model: 'carrot', color: '#e8772a',
     status: 'canonique', sources: COMMON,
   },
   'escargots-irukama': {
-    name: { fr: 'Escargots géants d\'Irukama', en: 'Giant Irukama snails' }, short: { fr: 'Escargots', en: 'Snails' },
+    name: { fr: 'Escargots géants d\'Irukama', en: 'Giant Irukama snails' }, short: { fr: 'Escargots', en: 'Snails' }, gender: 'mp',
     canonical: 'Giant Irukama Snails', category: 'Foods', rare: true, origin: { system: 'Irukama', station: 'Blaauw City' },
     source: 'fridge', prep: ['rincer'], cook: ['poele'], model: 'mussel', color: '#8a6a4a',
     status: 'canonique', sources: RARE,
   },
   'crevettes-baltahsine': {
-    name: { fr: 'Crevettes stellaires de Baltah\'sine', en: 'Baltah\'sine vacuum krill' }, short: { fr: 'Crevettes', en: 'Krill' },
+    name: { fr: 'Crevettes stellaires de Baltah\'sine', en: 'Baltah\'sine vacuum krill' }, short: { fr: 'Crevettes', en: 'Krill' }, gender: 'fp',
     canonical: 'Baltah\'sine Vacuum Krill', category: 'Foods', rare: true, origin: { system: 'Baltah\'Sine', station: 'Baltha\'sine Station' },
     source: 'fridge', prep: ['rincer'], cook: ['poele'], model: 'fish', color: '#f08a7a',
     status: 'canonique', sources: RARE,
   },
   'cafe-goman': {
-    name: { fr: 'Café Goman Yaupon', en: 'Goman Yaupon coffee' }, short: { fr: 'Café', en: 'Coffee' },
+    name: { fr: 'Café Goman Yaupon', en: 'Goman Yaupon coffee' }, short: { fr: 'Café', en: 'Coffee' }, gender: 'ms',
     canonical: 'Goman Yaupon Coffee', category: 'Foods', rare: true, origin: { system: 'Goman', station: 'Gustav Sporer Port' },
     source: 'pantry', prep: [], cook: ['infuser'], model: 'bag', color: '#5a3a24',
     status: 'canonique', sources: RARE,
   },
   'the-ethgreze': {
-    name: { fr: 'Bourgeons de thé d\'Ethgreze', en: 'Ethgreze tea buds' }, short: { fr: 'Thé', en: 'Tea' },
+    name: { fr: 'Bourgeons de thé d\'Ethgreze', en: 'Ethgreze tea buds' }, short: { fr: 'Thé', en: 'Tea' }, gender: 'ms',
     canonical: 'Ethgreze Tea Buds', category: 'Foods', rare: true, origin: { system: 'Ethgreze', station: 'Bloch Station' },
     source: 'pantry', prep: [], cook: ['infuser'], model: 'bag-flat', color: '#6f9a4a',
     status: 'canonique', sources: RARE,
   },
   'pommes-aerial': {
-    name: { fr: 'Pommes d\'eden d\'Aerial', en: 'Eden apples of Aerial' }, short: { fr: 'Pomme', en: 'Apple' },
+    name: { fr: 'Pommes d\'eden d\'Aerial', en: 'Eden apples of Aerial' }, short: { fr: 'Pomme', en: 'Apple' }, gender: 'fs',
     canonical: 'Eden Apples of Aerial', category: 'Foods', rare: true, origin: { system: 'Aerial', station: 'Andrade Legacy' },
     source: 'pantry', prep: ['couper'], cook: [], model: 'apple', color: '#d8323c',
     status: 'canonique', sources: RARE,
   },
   'ma-corn-diso': {
-    name: { fr: 'Ma Corn de Diso', en: 'Diso Ma Corn' }, short: { fr: 'Ma Corn', en: 'Ma Corn' },
+    name: { fr: 'Ma Corn de Diso', en: 'Diso Ma Corn' }, short: { fr: 'Ma Corn', en: 'Ma Corn' }, gender: 'ms',
     canonical: 'Diso Ma Corn', category: 'Foods', rare: true, origin: { system: 'Diso', station: 'Shifnalport' },
     source: 'pantry', prep: [], cook: ['poele'], model: 'corn', color: '#f2c94c',
     // Le lore en fait une plante dont on prise la poussière de graines : la griller est une adaptation.
     status: 'canonique', sources: RARE,
   },
   'gateaux-wheemete': {
-    name: { fr: 'Gâteaux de blé Wheemete', en: 'Wheemete wheat cakes' }, short: { fr: 'Gâteaux de blé', en: 'Wheat cakes' },
+    name: { fr: 'Gâteaux de blé Wheemete', en: 'Wheemete wheat cakes' }, short: { fr: 'Gâteaux de blé', en: 'Wheat cakes' }, gender: 'mp',
     canonical: 'Wheemete Wheat Cakes', category: 'Foods', rare: true, origin: { system: 'Wheemete', station: 'Eisinga Enterprise' },
     source: 'pantry', prep: [], cook: ['poele'], model: 'pancakes', color: '#d9a55a',
     status: 'canonique', sources: RARE,
   },
   'truffes-deuringas': {
-    name: { fr: 'Truffes de Deuringas', en: 'Deuringas truffles' }, short: { fr: 'Truffes', en: 'Truffles' },
+    name: { fr: 'Truffes de Deuringas', en: 'Deuringas truffles' }, short: { fr: 'Truffes', en: 'Truffles' }, gender: 'fp',
     canonical: 'Deuringas Truffles', category: 'Foods', rare: true, origin: { system: 'Deuringas', station: 'Shukor Hub' },
     source: 'pantry', prep: ['couper', 'fouetter'], cook: [], model: 'mushroom', color: '#3d2f2a',
     status: 'canonique', sources: RARE,
   },
   'piments-ochoeng': {
-    name: { fr: 'Piments d\'Ochoeng', en: 'Ochoeng chillies' }, short: { fr: 'Piments', en: 'Chillies' },
+    name: { fr: 'Piments d\'Ochoeng', en: 'Ochoeng chillies' }, short: { fr: 'Piments', en: 'Chillies' }, gender: 'mp',
     canonical: 'Ochoeng Chillies', category: 'Foods', rare: true, origin: { system: 'Ochoeng', station: 'Roddenberry Gateway' },
     source: 'pantry', prep: ['couper'], cook: ['poele'], model: 'paprika', color: '#c0262d',
     status: 'canonique', sources: RARE,
   },
   'balanes': {
-    name: { fr: 'Balanes spatiales', en: 'Space barnacles' }, short: { fr: 'Balanes', en: 'Barnacles' },
+    name: { fr: 'Balanes spatiales', en: 'Space barnacles' }, short: { fr: 'Balanes', en: 'Barnacles' }, gender: 'fp',
     // Pas une marchandise : les Thargoid Barnacles sont des structures au sol. Seul l'article de
     // GalNet en fait un mets (« space barnacle broth »).
     canonical: null, category: null, rare: false,
