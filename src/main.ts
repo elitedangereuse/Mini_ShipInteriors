@@ -527,6 +527,10 @@ function hullSides(): HullSides {
 const player = new Player(new Avatar(await lookRig(parseLook(profile.skin))), deck.colliders)
 player.doorways = () => deck.doorways()
 const cocktailEffects = new CocktailEffects(player, scene)
+/** Une partie de la zone, de l'arène ou de MESS RUSH commence : elle se joue sans les cocktails de Jacques. */
+function soberUp() {
+  if (cocktailEffects.clear()) dialog.show(tr('Les effets de vos cocktails se dissipent : la partie se joue sans.', 'Your cocktails wear off: the game is played without them.'))
+}
 const barFocus = new THREE.Vector3()
 let barZoom: number | null = null
 const barPanel = new BarPanel(wallet, cocktailEffects,
@@ -2185,6 +2189,7 @@ salvage = new SalvageClient({
     if (deck === deckById(-1)) bubbles.say('controller', text)
   },
   seated: () => seating.current !== null,
+  playing: soberUp,
 })
 const zone = salvage
 /**
@@ -2202,6 +2207,7 @@ const STAGE_RISE = 0.05
 let arenaView: { heading: number; zoom: number; eyes: boolean; shoulder: boolean } | null = null
 arenaMode = new ArenaClient({
   scene, iso, player, sound, net, dialog, wallet,
+  playing: soberUp,
   deck: () => deck,
   hold: deckById(-1),
   moveTo: async (next, at, dark) => {
@@ -2343,6 +2349,7 @@ const messRush = new MessRushClient({
   camera: () => activeCamera(),
   served: () => kitchen.addServed(),
   stowTray: () => kitchen.stowTray(),
+  playing: soberUp,
   credited: (earned, balance) => wallet.site({ earned, balance }),
   view: (on) => {
     if (on) {

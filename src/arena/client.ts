@@ -139,6 +139,8 @@ export interface ArenaHost {
   hold: Deck
   /** Passe le joueur sur ce pont, à cet endroit, sous un fondu au noir ; `dark` : appelé dans le noir, une fois arrivé. */
   moveTo(deck: Deck, at: { x: number; z: number }, dark?: () => void): Promise<void>
+  /** La partie commence pour ce joueur : les effets des cocktails de Jacques s'arrêtent (cf. src/bar.ts). */
+  playing(): void
   /** Fondu au noir (`on`), ou retour à l'image. */
   fade(on: boolean): Promise<void>
   /**
@@ -674,6 +676,8 @@ export class ArenaClient {
     // Sa base en bleu, celle d'en face en rouge (pour un spectateur : chacune à la couleur de son camp) ;
     // la caméra est derrière la sienne.
     this.extras?.paintBases(m.team === 0 ? [game.tint.ally, game.tint.enemy] : [game.tint.enemy, game.tint.ally], m.team)
+    // Un spectateur ne joue pas : ses cocktails continuent.
+    if (!watching) this.host.playing()
     await this.host.moveTo(deck, m.spawn, () => {
       this.host.view('match', { team: m.team })
       if (rig) this.dress(rig, mine!)

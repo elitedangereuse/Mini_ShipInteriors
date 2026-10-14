@@ -52,6 +52,8 @@ export interface SalvageHost {
   hold: Deck
   /** Passe le joueur sur ce pont, à cet endroit, sous un fondu au noir. */
   moveTo(deck: Deck, at: { x: number; z: number }): Promise<void>
+  /** La partie commence pour ce joueur : les effets des cocktails de Jacques s'arrêtent (cf. src/bar.ts). */
+  playing(): void
   /** Montre la baie (caméras alliées) ou revient au pont du joueur. */
   showView(zone: Deck | null): void
   /** CMDR reconnu par le site (sinon, invité : pas de crédits). */
@@ -533,6 +535,7 @@ export class SalvageClient {
     this.hud.canQuit(true)
     this.hud.show(true)
     this.host.sound.setEcho(1)
+    this.host.playing()
     await this.host.moveTo(deck, m.spawn)
     this.phase = 'zone'
     if (m.resumed) {

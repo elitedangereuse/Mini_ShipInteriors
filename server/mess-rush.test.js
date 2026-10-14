@@ -582,12 +582,40 @@ test('une rafale de positions ne cumule pas la marge : pas de téléportation d\
     h.mess.moved(a)
   }
   assert.equal(accepted, 1)
-  // Une seconde plus tard, une seconde de course ; pas davantage dans la foulée.
-  const t0 = h.now()
+  // Une seconde plus tard, une seconde de course (≈ 4,3 m, marge comprise) ; pas davantage.
   h.advance(1)
-  assert.ok(h.now() - t0 >= 1000)
-  assert.ok(h.mess.accepts(a, a.x + 3.5, a.z))
-  Object.assign(a, { x: a.x + 3.5 })
+  assert.ok(h.mess.accepts(a, a.x - 2, a.z))
+  Object.assign(a, { x: a.x - 2 })
+  h.mess.moved(a)
+  assert.ok(h.mess.accepts(a, a.x + 2, a.z))
+  Object.assign(a, { x: a.x + 2 })
   h.mess.moved(a)
   assert.equal(h.mess.accepts(a, a.x + 1.5, a.z), false)
+})
+
+test('une vraie course passe toujours : dix positions par seconde, et la gigue du réseau', () => {
+  const h = harness()
+  const { members: [a] } = h.team(1)
+  h.launch([a])
+  // Des allers-retours dans l'allée, au sprint (3,4 m/s, cf. src/player.ts), une position toutes
+  // les 100 ms ; le réseau les livre parfois par paquets de trois, 300 ms plus tard.
+  const speed = 3.4
+  let x = a.x
+  let dir = 1
+  let refused = 0
+  const queue = []
+  for (let i = 0; i < 200; i++) {
+    x += dir * speed * 0.1
+    if (x > 16.5 || x < 8.5) dir = -dir
+    queue.push(x)
+    if (i % 7 < 4 || i % 7 === 6) {
+      for (const qx of queue.splice(0)) {
+        if (!h.mess.accepts(a, qx, a.z)) { refused++; continue }
+        Object.assign(a, { x: qx })
+        h.mess.moved(a)
+      }
+    }
+    h.advance(0.1)
+  }
+  assert.equal(refused, 0)
 })

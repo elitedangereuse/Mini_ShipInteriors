@@ -31,11 +31,15 @@ import { createLobby } from './lobby.js'
 const DECK = new ShipMap(SHIP_LAYOUTS[String(MESS_LOBBY.level)], shipMapOptions(MESS_LOBBY.level))
 /**
  * Une position plus lointaine que la vitesse ne le permet est ignorée : la course permise est une
- * réserve (marge de départ en mètres) qui se recharge au rythme de la course, deux secondes au plus,
- * et que chaque position use ; une rafale de positions ne la cumule donc pas.
+ * réserve (marge de départ en mètres) qui se recharge au rythme de la course, deux secondes au
+ * plus, et que chaque position use ; une rafale de positions ne la cumule donc pas.
  */
 const SLACK = 0.9
-/** La course (cf. src/player.ts), avec de la marge pour le retard du réseau. */
+/**
+ * La course (cf. src/player.ts), avec de la marge pour le retard du réseau. Le Night Conda de
+ * Jacques ne compte pas : les effets des cocktails s'arrêtent quand une partie commence (cf.
+ * src/bar.ts).
+ */
 const SPRINT = 3.4 * 1.25
 /**
  * Le site ne répond pas (ou est en erreur) : on lui représente la même victoire après ces délais (s).

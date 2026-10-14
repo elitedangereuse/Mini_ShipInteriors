@@ -108,6 +108,8 @@ export interface MessRushHost {
   served: () => void
   /** Le plateau du self repart au chariot (vrai s'il y en avait un). */
   stowTray: () => boolean
+  /** Le service commence pour ce joueur : les effets des cocktails de Jacques s'arrêtent (cf. src/bar.ts). */
+  playing: () => void
   /** Les crédits confirmés par le site arrivent au portefeuille. */
   credited: (earned: number, balance: number) => void
   /**
@@ -342,6 +344,7 @@ export class MessRushClient {
     props.sync(this.game.state)
     // En cuisine, on a les mains libres : le plateau du self repart au chariot.
     const stowed = this.host.stowTray()
+    this.host.playing()
     const kitchen = this.host.kitchenDeck()
     await this.host.moveTo(kitchen, spawn)
     if (!this.game || this.game.id !== id) {

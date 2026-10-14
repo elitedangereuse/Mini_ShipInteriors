@@ -68,6 +68,16 @@ export class CocktailEffects {
     this.player.speedMultiplier = this.active.has('night-conda') ? 1.45 : 1
   }
 
+  /**
+   * Plus aucun effet (une partie de la zone, de l'arène ou de MESS RUSH commence : elle se joue
+   * sans). Vrai s'il y en avait un.
+   */
+  clear(): boolean {
+    const had = this.active.size > 0
+    for (const id of [...this.active.keys()]) this.remove(id)
+    return had
+  }
+
   private remove(id: DrinkId) {
     const effect = this.active.get(id)
     if (!effect) return
