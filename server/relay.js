@@ -89,6 +89,7 @@ import { applyWalls, unpackHome } from '../shared/housing-home.js'
 import { canReach } from '../shared/sight.js'
 import { PATROL_LEVEL, PATROL_PERIOD, holdPatrol, patrolAt, patrolTime } from '../shared/patrol.js'
 import { CHEF_COOK, CHEF_LEVEL, CHEF_PERIOD, CHEF_ROOM, CHEF_WAIT, chefAt, chefTime, cookChef, holdChef } from '../shared/chef.js'
+import { DINERS_PERIOD, dinersTime } from '../shared/diners.js'
 import {
   NURSE_BEDS, NURSE_CARE, NURSE_CARE_MIN, NURSE_LEVEL, NURSE_PATCH, NURSE_PERIOD, NURSE_ROOM, bedOf, careNurse, holdNurse, nurseAt, nurseTime,
 } from '../shared/nurse.js'
@@ -286,6 +287,9 @@ export function attachRelay(
     hold: Math.max(0, patrol.holdUntil - now) / 1000,
     ...(patrolFace && patrol.holdUntil > now ? { face: patrolFace } : {}),
   })
+  /** Horloge des habitués du mess (cf. shared/diners.js) : la même pour tout le bord, jamais arrêtée. */
+  const diners = { tau: Math.random() * DINERS_PERIOD, at: Date.now(), holdUntil: 0 }
+  const dinersState = (now = Date.now()) => ({ tau: dinersTime(diners, now) })
   /** Horloge de la tournée du chef, vers qui il se tourne, et les commandes en cours (id du joueur -> fin, ms). */
   let chef = { tau: Math.random() * CHEF_PERIOD, at: Date.now(), holdUntil: 0 }
   let chefFace = null
@@ -666,6 +670,7 @@ export function attachRelay(
       system,
       patrol: patrolState(),
       chef: chefState(),
+      diners: dinersState(),
       nurse: nurseState(),
       mechanic: mechState(),
       gardener: gardenState(),

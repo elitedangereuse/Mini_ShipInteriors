@@ -24,7 +24,7 @@ import { CHEF_ROOM } from '../shared/chef.js'
  */
 
 /** Le plateau repose sur les mains : un peu au-dessus de leur bout, et à peine en avant. */
-const HAND_LIFT = new THREE.Vector3(0, 0.012, 0.03)
+export const HAND_LIFT = new THREE.Vector3(0, 0.012, 0.03)
 /** Temps d'un repas à table (s), d'une traite. */
 const MEAL = 12
 /** Part du repas où chaque plat se vide : entrée, plat, dessert, boisson (cf. trayMesh). */
@@ -328,7 +328,7 @@ function menuText(menu: Menu): string {
 }
 
 /** Le plateau, et ce qui est dessus. */
-interface TrayMesh {
+export interface TrayMesh {
   mesh: THREE.Group
   /** Entrée, plat, dessert, boisson : se vident dans cet ordre (cf. COURSES). */
   food: THREE.Mesh[]
@@ -343,7 +343,7 @@ const FORK_AT = new THREE.Vector3(0.035, 0.016, 0.02)
 const KNIFE_AT = new THREE.Vector3(-0.13, 0.016, 0.02)
 
 /** Un plateau garni : assiette du plat, bol d'entrée, coupelle de dessert, gobelet, couverts. */
-function trayMesh(): TrayMesh {
+export function trayMesh(): TrayMesh {
   const lit = (color: string) => new THREE.MeshLambertMaterial({ color })
   const g = new THREE.Group()
   const at = (o: THREE.Mesh, x: number, y: number, z: number) => {
@@ -385,7 +385,7 @@ function trayMesh(): TrayMesh {
  * plus rien laisser. Fini, on débarrasse le bol, la coupelle et le gobelet : il ne reste que
  * l'assiette vide, les couverts posés dessus, en biais, côte à côte (c'est terminé).
  */
-function emptyTray(t: TrayMesh, meal: number) {
+export function emptyTray(t: TrayMesh, meal: number) {
   t.food.forEach((f, i) => {
     const [a, b] = COURSES[i]
     const left = 1 - THREE.MathUtils.clamp((meal - a) / (b - a), 0, 1)
@@ -405,7 +405,7 @@ function emptyTray(t: TrayMesh, meal: number) {
 }
 
 /** Les couverts reprennent leur place de part et d'autre de l'assiette. */
-function restCutlery(t: TrayMesh) {
+export function restCutlery(t: TrayMesh) {
   t.fork.position.copy(FORK_AT)
   t.fork.rotation.set(0, 0, 0)
   t.knife.position.copy(KNIFE_AT)

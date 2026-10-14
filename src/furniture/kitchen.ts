@@ -200,9 +200,12 @@ const menuBoard: Builder = () => {
  * défaut). La file le longe de +x vers -x : glissière à plateaux, bain-marie (quatre bacs sous
  * leur vitre et leur buée), passe du chef sous ses lampes chauffantes, vitrine réfrigérée
  * (salades, fruits, desserts), puis pain et boissons. Côté cuisine, des piles d'assiettes.
+ * Plus court que 5,2, il l'est du côté des plateaux : la passe, la vitrine et les boissons restent à
+ * la même distance du bout de la file, et le bain-marie perd des bacs (cf. selfLayout).
  */
 const selfCounter: Builder = ({ label, random }) => {
   const W = Number(label) >= 2 && Number(label) <= 8 ? Number(label) : 5.2
+  const { pans, hot0, hot1, passe0, passe1, cold0, cold1, drink0, drink1 } = selfLayout(W)
   const g = new THREE.Group()
   const steel = lit(C.steel, 'metal'), dark = lit(C.steelDark, 'metal'), black = lit(C.black), orange = lit(C.orange)
   const top = 0.45
@@ -226,11 +229,10 @@ const selfCounter: Builder = ({ label, random }) => {
   }
   const live = new THREE.Group()
 
-  // Bain-marie : quatre bacs de plats chauds, cuillères de service.
-  const hot0 = 0.25, hot1 = 1.85
+  // Bain-marie : des bacs de plats chauds (quatre sur un comptoir entier), cuillères de service.
   g.add(box(hot1 - hot0, 0.02, 0.4, black, (hot0 + hot1) / 2, top + 0.002, 0.02))
-  const pans = 4, pw = (hot1 - hot0) / pans
-  const hot = [FOOD[0], FOOD[1], FOOD[2], FOOD[3]].sort(() => random() - 0.5)
+  const pw = (hot1 - hot0) / pans
+  const hot = [FOOD[0], FOOD[1], FOOD[2], FOOD[3]].sort(() => random() - 0.5).slice(0, pans)
   for (let i = 0; i < pans; i++) {
     const x = hot0 + (i + 0.5) * pw
     g.add(box(pw - 0.04, 0.02, 0.32, lit(C.steel, 'metal'), x, top + 0.012, 0.02), box(pw - 0.07, 0.014, 0.28, lit(hot[i]), x, top + 0.022, 0.02))
@@ -242,14 +244,14 @@ const selfCounter: Builder = ({ label, random }) => {
   // Buée qui monte des bacs.
   const puffs: THREE.Mesh[] = []
   const steam = new THREE.MeshLambertMaterial({ color: '#ffffff', transparent: true, opacity: 0.25, depthWrite: false })
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < pans; i++) {
     const p = part(new THREE.SphereGeometry(0.05, 8, 6), steam, hot0 + (i + 0.5) * pw, top + 0.05, 0.02)
     puffs.push(p)
     live.add(p)
   }
 
   // Passe du chef : étagère chauffante, lampes, assiettes prêtes.
-  const passe0 = -0.7, passe1 = 0.2, pcx = (passe0 + passe1) / 2
+  const pcx = (passe0 + passe1) / 2
   for (const x of [passe0 + 0.03, passe1 - 0.03]) g.add(box(0.025, 0.36, 0.025, steel, x, top + 0.18, -0.1))
   g.add(box(passe1 - passe0, 0.02, 0.3, steel, pcx, top + 0.2, -0.05), box(passe1 - passe0 - 0.1, 0.008, 0.02, glow('#ff7a2a'), pcx, top + 0.19, 0.1))
   for (const x of [pcx - 0.22, pcx + 0.22]) g.add(cylinder(0.035, 0.05, 0.06, black, x, top + 0.33, -0.05, 10), cylinder(0.04, 0.04, 0.01, glow('#ff6a1c'), x, top + 0.297, -0.05, 10))
@@ -257,7 +259,6 @@ const selfCounter: Builder = ({ label, random }) => {
   for (const x of [pcx - 0.25, pcx, pcx + 0.25]) if (random() < 0.7) plate(g, x, top + 0.21, -0.05, pick(random, FOOD))
 
   // Vitrine réfrigérée : salades, corbeille de fruits, desserts en coupelles.
-  const cold0 = -1.85, cold1 = -0.75
   g.add(box(cold1 - cold0, 0.02, 0.4, lit('#2b3e4f'), (cold0 + cold1) / 2, top + 0.002, 0.02))
   for (let x = cold0 + 0.12; x < cold1 - 0.08; x += 0.16) {
     const kind = random()
@@ -272,7 +273,6 @@ const selfCounter: Builder = ({ label, random }) => {
   live.add(sneezeGuard(cold0, cold1, '#8ff0ff'))
 
   // Pain et boissons : corbeille de miches, pichets de jus, gobelets.
-  const drink0 = -W / 2 + 0.05, drink1 = -1.9
   g.add(box(0.3, 0.05, 0.2, lit(C.wood, 'wood'), drink1 - 0.2, top + 0.025, 0.08, 0.01))
   for (let i = 0; i < 4; i++) g.add(sphere(0.045, lit('#c98a4a'), drink1 - 0.3 + i * 0.065, top + 0.06, 0.08, 8))
   for (const [i, c] of (['#ff9a2a', '#b25adf'] as const).entries()) {
@@ -300,6 +300,25 @@ const selfCounter: Builder = ({ label, random }) => {
         p.visible = k < 0.85
       })
     },
+  }
+}
+
+/**
+ * Les postes du comptoir du self le long de sa longueur `W` (repère du comptoir, la file de +x vers
+ * -x). Jusqu'à 5,2, ils ne bougent pas par rapport au milieu (le comptoir de MESS RUSH, plus long,
+ * a de la place aux deux bouts). Plus court, il l'est du côté des plateaux (le passage ouest du
+ * mess) : passe, vitrine et boissons gardent leur place depuis le bout de la file, et le bain-marie
+ * garde les bacs qui tiennent avant la pile de plateaux (0,55).
+ */
+export function selfLayout(W: number) {
+  const shift = Math.max(0, (5.2 - W) / 2)
+  const hot0 = 0.25 + shift
+  const pans = shift ? Math.max(1, Math.floor((W / 2 - 0.55 - hot0) / 0.4 + 1e-6)) : 4
+  return {
+    pans, hot0, hot1: hot0 + pans * 0.4,
+    passe0: -0.7 + shift, passe1: 0.2 + shift,
+    cold0: -1.85 + shift, cold1: -0.75 + shift,
+    drink0: -W / 2 + 0.05, drink1: -1.9 + shift,
   }
 }
 

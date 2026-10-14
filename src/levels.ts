@@ -1650,7 +1650,8 @@ export const LEVELS: LevelDef[] = [
 
       // --- Mess : un self. Au nord, la salle et ses deux tables de cantine ; le comptoir la traverse
       // d'ouest en est (plateaux, bain-marie, passe du chef, desserts, boissons) ; derrière, la
-      // cuisine de Marcel (cf. chef.ts), où l'on entre par le passage à l'est du comptoir. ---
+      // cuisine de Marcel (cf. chef.ts), où l'on entre par deux passages : à l'ouest, sous l'arche
+      // de MESS RUSH, et à l'est du comptoir. ---
       { model: 'canteen-table', x: 10.2, z: 7.45, label: '1' },
       { model: 'canteen-table', x: 13.8, z: 7.45, label: '2' },
       {
@@ -1669,10 +1670,19 @@ export const LEVELS: LevelDef[] = [
         model: 'tray-return', x: 14.75, z: 5.84,
         interact: tr('Retour plateaux : le tapis emporte tout vers la plonge. Enfin, en théorie.', 'Tray return: the belt carries everything to the dishwashing station. In theory.'),
       },
-      { model: 'self-counter', x: 11.25, z: 10, rot: 2, label: '5.2' },
+      { model: 'self-counter', x: 11.75, z: 10, rot: 2, label: '4.2' },
       {
-        model: 'tray-stack', x: 9.05, z: 10, y: 0.46, rot: 2, solid: false, action: tr('Prendre un plateau', 'Take a tray'),
+        model: 'tray-stack', x: 9.93, z: 10, y: 0.46, rot: 2, solid: false, action: tr('Prendre un plateau', 'Take a tray'),
         interact: tr('Plateaux, couverts, serviettes : le self commence ici.', 'Trays, cutlery, napkins: the line starts here.'),
+      },
+      // L'arche de MESS RUSH, sur le passage ouest vers la cuisine (cf. mess-decor.ts) : de la face
+      // du mur ouest (x = 8,65) au bout du comptoir (9,63).
+      {
+        model: 'mess-arch', x: 9.14, z: 10, label: '0.98', solid: false,
+        interact: [
+          tr('L\'arche de MESS RUSH. Par ici, la cuisine ; le service, lui, se prend au rail des bons.', 'The MESS RUSH arch. The kitchen is this way; services start at the ticket rail.'),
+          tr('« CRAZY SPACE KITCHEN ». Marcel trouve que « crazy », c\'est exagéré. Le néon grésille, comme pour protester.', '“CRAZY SPACE KITCHEN”. Marcel thinks “crazy” is an exaggeration. The neon buzzes, as if in protest.'),
+        ],
       },
       {
         model: 'order-rail', x: 11.5, z: 10, y: 0.46, rot: 2, solid: false, action: tr('Prendre le service (MESS RUSH)', 'Take a service (MESS RUSH)'),
@@ -1720,7 +1730,7 @@ export const LEVELS: LevelDef[] = [
       // cuivres au-dessus du plan de travail et le tour de plonge.
       { model: 'mess-floor', x: 12, z: 9, label: '7x7|12|9', solid: false },
       ...[10.2, 13.8].flatMap((x) => [-0.62, 0, 0.62].map((dx): Prop => ({ model: 'mess-pendant', x: x + dx, z: 7.45, solid: false }))),
-      { model: 'mess-signs', x: 11.25, z: 10, rot: 2, solid: false },
+      { model: 'mess-signs', x: 11.75, z: 10, rot: 2, label: '4.2', solid: false },
       { model: 'mess-dado', x: 10.535, z: 5.65, label: '3.77', solid: false },
       { model: 'mess-dado', x: 14.465, z: 5.65, label: '1.77', solid: false },
       { model: 'mess-dado', x: 8.65, z: 7.675, rot: 1, label: '4.05', solid: false },
@@ -1749,7 +1759,23 @@ export const LEVELS: LevelDef[] = [
         ],
       },
       { model: 'mess-clock', x: 13.97, z: 5.65, solid: false },
+      // Les réglettes néon des murs nord et ouest, au-dessus de tout ce qui s'y accroche, et le coin
+      // café, entre le distributeur et la porte : là que les habitués prennent leur café.
+      { model: 'mess-neon-strip', x: 10.2, z: 5.65, label: '2.9', solid: false },
+      { model: 'mess-neon-strip', x: 14.375, z: 5.65, label: '1.65', solid: false },
+      { model: 'mess-neon-strip', x: 8.65, z: 7.675, rot: 1, label: '3.75', solid: false },
+      {
+        model: 'mess-coffee', x: 12.02, z: 5.65, action: tr('Prendre un café', 'Get a coffee'),
+        interact: [
+          tr('Le percolateur siffle, crachote, puis livre un café noir comme le vide. Marcel jure que c\'est du Goman Yaupon.', 'The machine hisses, sputters, then delivers coffee as black as the void. Marcel swears it\'s Goman Yaupon.'),
+          tr('Un café serré. Sur la tasse, quelqu\'un a écrit au feutre : « PAS TOUCHE — RAHEL ».', 'An espresso. On the cup, someone has written in marker: “HANDS OFF — RAHEL”.'),
+          tr('Le café est brûlant. La mousse dessine vaguement un Thargoïde. Vous préférez ne pas y penser.', 'The coffee is scalding. The foam vaguely looks like a Thargoid. You\'d rather not think about it.'),
+        ],
+      },
       { model: 'pot-rack', x: 10.35, z: 12, solid: false },
+      // Les bruits de la cuisine : au fourneau et à la plonge (cf. AMBIENT dans main.ts).
+      { model: 'kitchen-sounds', x: 11.8, z: 11.5, solid: false },
+      { model: 'kitchen-sounds', x: 13.15, z: 11.5, solid: false },
       {
         model: 'kitchen-rota', x: 8.65, z: 11, rot: 1, solid: false,
         interact: tr('Le tour de plonge. Jeudi : Jacques, rayé. « Il rouille. » C\'est donc Marcel. C\'est toujours Marcel.', 'The dish duty rota. Thursday: Jacques, crossed out. “He rusts.” So it\'s Marcel. It\'s always Marcel.'),
@@ -2056,6 +2082,9 @@ export const LEVELS: LevelDef[] = [
       [13.8, 7.45, '#ffb869', 2, undefined, 4.5],
       [11.5, 9.9, '#ff9a4a', 1.4],
       [11.8, 11.4, '#eef5ff', 2.8],
+      // L'arche de MESS RUSH : l'orange de ses néons côté cuisine, le cyan côté salle.
+      [9.14, 10.3, '#ff9a3c', 1.2, 'neon', 2.8],
+      [9.14, 9.65, '#3fd8ff', 1, 'neon', 2.8],
       // Le salon d'arcade : pas d'éclairage général, rien que du néon. Le jaune du comptoir à lots,
       // le rose et le cyan de l'allée des bornes, la lumière noire du coin salon.
       [16.5, 6.8, '#ffd36b', 1.6],

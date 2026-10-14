@@ -35,7 +35,8 @@ export const CHEF_WAIT = { x: 13.45, z: 10.6, yaw: NORTH }
 
 /**
  * Passage entre la cuisine et la salle, à l'est du comptoir : côté cuisine, côté salle. Le
- * comptoir court de x = 8,65 à 13,85 entre z = 9,7 et 10,3 (cf. levels.ts).
+ * comptoir court de x = 9,65 à 13,85 entre z = 9,7 et 10,3 (cf. levels.ts) ; à l'ouest, sous
+ * l'arche de MESS RUSH, un autre passage, que le chef ne prend pas (cf. COUNTER).
  */
 const KITCHEN_GATE = [14.6, 10.9]
 const DINING_GATE = [14.6, 9.2]
@@ -67,7 +68,8 @@ export function pathLength(points) {
 
 /**
  * Le comptoir, élargi de la carrure du chef et d'une marge : ses trajets ne le traversent pas.
- * La passe et le bout du self (z = 10,6) restent juste derrière.
+ * La passe et le bout du self (z = 10,6) restent juste derrière. Il couvre aussi le passage
+ * ouest : le chef passe toujours par celui de l'est.
  */
 const COUNTER = { minX: 8.4, maxX: 14.1, minZ: 9.4, maxZ: 10.52 }
 

@@ -37,6 +37,8 @@ export interface SeatingHost {
   taken: () => void
   /** Pose prise ou quittée : à dire aux autres tout de suite. */
   changed: () => void
+  /** Place tenue par un personnage du bord (un habitué du mess à sa table, cf. diners.ts). */
+  reserved?: (spot: SeatSpot) => boolean
 }
 
 export class Seating {
@@ -85,8 +87,9 @@ export class Seating {
     return deck.y + deck.ground(p.x, p.z)
   }
 
-  /** Une place est-elle déjà prise par un autre joueur ? */
+  /** Une place est-elle déjà prise par un autre joueur, ou par un personnage du bord ? */
   occupied(spot: SeatSpot): boolean {
+    if (this.host.reserved?.(spot)) return true
     for (const r of this.host.visible()) if (this.holds(r, spot)) return true
     return false
   }
@@ -98,6 +101,11 @@ export class Seating {
   arbitrate() {
     const seat = this.current
     if (!seat || !this.settled) return
+    // Un habitué vient s'asseoir à sa place : on la lui laisse.
+    if (this.host.reserved?.(seat.spot)) {
+      this.stand()
+      return this.host.taken()
+    }
     const me = this.host.self()
     for (const r of this.host.visible()) {
       if (r.id < me && this.holds(r, seat.spot)) {
