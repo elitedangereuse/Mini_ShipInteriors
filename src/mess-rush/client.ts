@@ -334,6 +334,11 @@ export class MessRushClient {
       this.panel.message(tr('La cuisine n\'a pas pu se charger (réseau). Réessayez dans un instant.', 'The kitchen could not load (network). Try again in a moment.'))
       return
     }
+    // Un retour au mess encore en cours (coupure, puis reprise aussitôt) : on le laisse finir.
+    if (this.leavingMove) {
+      await this.leavingMove
+      if (!this.game || this.game.id !== id) return
+    }
     props.sync(this.game.state)
     // En cuisine, on a les mains libres : le plateau du self repart au chariot.
     const stowed = this.host.stowTray()
@@ -342,7 +347,7 @@ export class MessRushClient {
     if (!this.game || this.game.id !== id) {
       // Fini pendant le trajet : leave() ramène au mess s'il nous a trouvés en cuisine ; sinon, c'est
       // ici (sauf si un autre service nous y attend déjà).
-      if (!this.game && !this.leaving && this.host.deck() === kitchen) await this.host.moveTo(this.host.messDeck, MESS_RETURN)
+      if (!this.game && !this.leavingMove && this.host.deck() === kitchen) await this.host.moveTo(this.host.messDeck, MESS_RETURN)
       return
     }
     this.phase = 'kitchen'
@@ -373,13 +378,13 @@ export class MessRushClient {
     this.game = null
     if (wasIn) this.host.view(false)
     if (wasIn && this.host.deck() === this.host.kitchenDeck()) {
-      this.leaving = true
-      await this.host.moveTo(this.host.messDeck, MESS_RETURN).finally(() => (this.leaving = false))
+      this.leavingMove = this.host.moveTo(this.host.messDeck, MESS_RETURN).finally(() => (this.leavingMove = null))
+      await this.leavingMove
     }
   }
 
-  /** Le retour au mess de leave() est en cours. */
-  private leaving = false
+  /** Le retour au mess de leave(), tant qu'il est en cours. */
+  private leavingMove: Promise<void> | null = null
 
   /** Liaison perdue : on rentre au mess (le ticket permettra de revenir). */
   disconnected() {
