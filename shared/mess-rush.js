@@ -114,7 +114,7 @@ export const RULES = {
   lobbies: 4,
   team: 4,
   countdown: 3,
-  arrival: 20,
+  arrival: 30,
   reconnect: 60,
   keepResult: 600,
   service: 300,

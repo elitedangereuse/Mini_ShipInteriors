@@ -136,10 +136,11 @@ export class MessRushClient {
     this.panel.close()
   }
 
-  /** Le rail des bons du mess : le terminal des salons. */
+  /** Le rail des bons du mess : le terminal des salons. La cuisine se prépare pendant qu'on s'y place. */
   openTerminal() {
     this.panel.update(this.lobby, this.host.net.id ?? -1, this.host.net.online)
     this.panel.open()
+    void this.prepare()
   }
 
   private serverNow() {
@@ -249,18 +250,37 @@ export class MessRushClient {
 
   // ------------------------------------------------------------------ entrer, sortir
 
-  /** Entrée dans la cuisine : le Food Kit, la pièce, ses postes, puis le fondu. */
+  /**
+   * La cuisine, prête à servir : le Food Kit, la pièce et ses postes. Une seule fois ; on s'y prend
+   * dès l'ouverture du salon, pour que le départ ne fasse pas attendre (le relais ne garde la place
+   * d'un joueur pas encore arrivé que RULES.arrival secondes).
+   */
+  private ready: Promise<KitchenProps> | null = null
+  private prepare(): Promise<KitchenProps> {
+    this.ready ??= loadPack(FOOD_PACK).then(() => {
+      const kitchen = this.host.kitchenDeck()
+      this.bindStations(kitchen)
+      this.props = new KitchenProps(kitchen.group)
+      return this.props
+    })
+    return this.ready
+  }
+
+  /** Entrée dans la cuisine, puis le fondu ; abandonnée si le service a changé entre-temps. */
   private async enter(spawn: { x: number; z: number }) {
+    const id = this.game?.id
     this.phase = 'loading'
     this.panel.close()
     this.end.close()
-    await loadPack(FOOD_PACK)
+    const props = await this.prepare()
+    if (!this.game || this.game.id !== id) return
+    props.sync(this.game.state)
     const kitchen = this.host.kitchenDeck()
-    if (!this.stationItems.size) this.bindStations(kitchen)
-    if (!this.props) this.props = new KitchenProps(kitchen.group)
-    if (!this.game) return void (this.phase = 'ship')
-    this.props.sync(this.game.state)
     await this.host.moveTo(kitchen, spawn)
+    if (!this.game || this.game.id !== id) {
+      if (this.host.deck() === kitchen) await this.host.moveTo(this.host.messDeck, MESS_RETURN)
+      return
+    }
     this.phase = 'kitchen'
     this.hud.show()
   }
