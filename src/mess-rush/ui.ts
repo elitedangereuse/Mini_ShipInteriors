@@ -221,6 +221,8 @@ export class MessHud {
   private readonly score = el('strong', 'mess-score')
   private readonly combo = el('span', 'mess-combo')
   private readonly medal = el('span', 'mess-medal')
+  private readonly crew = el('div', 'mess-crew-row')
+  private crewKey = ''
   private readonly tickets = el('div', 'mess-tickets')
   private readonly toasts = el('div', 'mess-toasts')
   private readonly quit: HTMLButtonElement
@@ -245,7 +247,7 @@ export class MessHud {
         this.quit.lastChild!.textContent = tr('Confirmer ?', 'Confirm?')
       }
     }, 'mess-quit', 'sign-out')
-    this.root.append(bar, this.tickets, this.toasts, this.quit)
+    this.root.append(bar, this.crew, this.tickets, this.toasts, this.quit)
     document.body.append(this.root)
   }
 
@@ -257,8 +259,27 @@ export class MessHud {
   hide() {
     this.root.hidden = true
     this.tickets.replaceChildren()
-    this.shown = ''
+    this.crew.replaceChildren()
+    this.shown = this.crewKey = ''
     document.body.classList.remove('mess-on')
+  }
+
+  /**
+   * L'équipe, à plusieurs : qui est en cuisine, ce que chacun tient, qui a perdu la liaison (seul,
+   * la rangée ne s'affiche pas).
+   */
+  team(members: { name: string; me: boolean; holding: string; away: boolean }[]) {
+    const key = JSON.stringify(members)
+    if (key === this.crewKey) return
+    this.crewKey = key
+    this.crew.hidden = members.length < 2
+    this.crew.replaceChildren(...members.map((m) => {
+      const chip = el('span', `mess-mate${m.me ? ' me' : ''}${m.away ? ' away' : ''}`)
+      chip.append(icon('chef-hat'), el('strong', '', m.name))
+      if (m.away) chip.append(el('small', '', tr('liaison perdue', 'link lost')))
+      else if (m.holding) chip.append(el('small', '', m.holding))
+      return chip
+    }))
   }
 
   /** À chaque image : les chiffres, et les bons (refaits quand les commandes changent). */

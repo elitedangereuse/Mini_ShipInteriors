@@ -9,7 +9,7 @@ import { io as connect } from 'socket.io-client'
 import { attachRelay, WS_PATH } from './relay.js'
 import { MESS_LEVEL, RULES } from '../shared/mess-rush.js'
 
-const ACCOUNTS = { 'jeton-adam': 'Adam Fauster', 'jeton-rackam': 'Rackam' }
+const ACCOUNTS = { 'jeton-adam': 'Adam Fauster', 'jeton-rackam': 'Rackam', 'jeton-ines': 'Ines', 'jeton-zoe': 'Zoé' }
 const site = createServer((req, res) => {
   const name = ACCOUNTS[/ED_LOGGED_CMDR_ID=([^;]+)/.exec(req.headers.cookie ?? '')?.[1]] ?? null
   res.setHeader('Content-Type', 'application/json')
@@ -115,4 +115,44 @@ test('un salon se forme au mess, part en service, et la cuisine reste entre coé
   const refused = next(rackam, 'mess:refused')
   rackam.emit('mess:use', { station: 'frigo' })
   assert.equal((await refused).code, 'far')
+})
+
+test('à quatre : salon complet, départ, et un cuisinier qui perd la liaison reprend sa place avec son ticket', async () => {
+  const cookies = ['jeton-adam', 'jeton-rackam', 'jeton-ines', 'jeton-zoe'].map((t) => `ED_LOGGED_CMDR_ID=${t}`)
+  const crew = cookies.map((c) => client(c))
+  const hello = await Promise.all(crew.map(welcome))
+  crew.forEach((socket, i) => socket.emit('state', { ...LOBBY, x: 10 + i }))
+  // Le salon 2 (le 1 a peut-être encore son service du test d'avant).
+  const formed = next(crew[0], 'mess:lobby', (m) => m.teams[1].members.length === 4)
+  for (const socket of crew) socket.emit('mess:join', { team: 2 })
+  await formed
+  const starts = Promise.all(crew.map((socket) => next(socket, 'mess:start')))
+  for (const socket of crew) socket.emit('mess:ready', { ready: true })
+  const started = await starts
+  assert.equal(new Set(started.map((s) => s.game)).size, 1)
+  assert.equal(started[0].state.players, 4)
+  assert.equal(new Set(started.map((s) => s.ticket)).size, 4)
+  started.forEach((s, i) => crew[i].emit('state', { x: s.spawn.x, z: s.spawn.z, yaw: 0, level: MESS_LEVEL, anim: 'idle' }))
+  await next(crew[3], 'state', (m) => m.id === hello[0].id && m.level === MESS_LEVEL)
+
+  // Adam perd la liaison : ses coéquipiers le savent, sa place l'attend.
+  const away = next(crew[1], 'mess:event', (m) => m.events.some((e) => e.kind === 'away' && e.by === String(hello[0].id)))
+  crew[0].disconnect()
+  await away
+  // Il revient (nouvelle connexion, même compte), et reprend sa place avec son ticket.
+  const again = client(cookies[0])
+  const back = await welcome(again)
+  const told = next(crew[2], 'mess:event', (m) => m.events.some((e) => e.kind === 'back' && e.by === String(back.id)))
+  const resumed = next(again, 'mess:start', (m) => m.resumed === true)
+  again.emit('mess:resume', { game: started[0].game, ticket: started[0].ticket })
+  const r = await resumed
+  await told
+  assert.equal(r.you, String(back.id))
+  assert.equal(r.members.length, 4)
+  // De retour dans la cuisine : l'équipe le voit, et il agit comme avant.
+  const seen = next(crew[1], 'state', (m) => m.id === back.id && m.level === MESS_LEVEL)
+  again.emit('state', { x: r.spawn.x, z: r.spawn.z, yaw: 0, level: MESS_LEVEL, anim: 'idle' })
+  await seen
+  const state = await next(crew[1], 'mess:state', (m) => m.members.some((x) => x.id === String(back.id) && x.status === 'in'))
+  assert.equal(state.members.filter((x) => x.status === 'in').length, 4)
 })

@@ -143,11 +143,15 @@ export function createMessRush({
     tell(game, r.events)
   }
 
-  /** Un membre abandonne (« Quitter le service ») : il pose ce qu'il tenait et rentre au mess. */
+  /**
+   * Un membre abandonne (« Quitter le service ») : il pose ce qu'il tenait, rentre au mess, et peut
+   * se placer dans un autre salon ; l'équipe continue sans lui.
+   */
   function quit(game, m) {
     if (m.status === 'left' || m.status === 'gone') return
     tell(game, dropHeld(game.state, String(m.id)))
     m.status = 'left'
+    lobby.release({ id: m.id })
     emit(m.id, 'mess:left', { game: game.id })
     tell(game, [{ kind: 'left', by: String(m.id) }])
     checkAbandon(game)
@@ -198,7 +202,10 @@ export function createMessRush({
       if (!(m.status === 'away' && t >= m.awayUntil) && !late) continue
       if (late) dropHeld(game.state, String(m.id))
       m.status = 'gone'
-      if (late) emit(m.id, 'mess:left', { game: game.id })
+      if (late) {
+        lobby.release({ id: m.id })
+        emit(m.id, 'mess:left', { game: game.id })
+      }
       tell(game, [{ kind: 'gone', by: String(m.id) }])
       game.dirty = true
     }

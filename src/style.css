@@ -5941,3 +5941,12 @@ body.mess-end-on :is(.top-left, .top-right, .emotes, #phone, .about-toggle, #tou
   .mess-time, .mess-score { font-size: 17px; }
   .mess-end-card { top: 56%; max-height: calc(100dvh - 280px); }
 }
+/* À plusieurs : l'équipe sous le bandeau, ce que chacun tient. */
+.mess-crew-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.mess-crew-row[hidden] { display: none; }
+.mess-mate { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border: 2px solid #0b0d12; border-radius: 999px; background: #1b2030e6; font-size: 12px; }
+.mess-mate .icon { width: 13px; height: 13px; color: #ffb15c; }
+.mess-mate small { color: #c5cbd4; }
+.mess-mate.me { border-color: #ffb15c; }
+.mess-mate.away { opacity: .6; }
+.mess-mate.away small { color: #ff9a8f; }

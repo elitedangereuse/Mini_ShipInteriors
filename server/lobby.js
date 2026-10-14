@@ -146,6 +146,19 @@ export function createLobby({ name, count, size, countdown, inLobby, playerById,
     announce()
   }
 
+  /**
+   * Un joueur quitte la partie de son salon (abandon, arrivée manquée) : il n'en fait plus partie et
+   * peut se placer ailleurs ; la partie continue sans lui.
+   */
+  function release(p) {
+    const t = teamOf.get(p.id)
+    if (!t) return
+    teamOf.delete(p.id)
+    t.members = t.members.filter((id) => id !== p.id)
+    if (t.leader === p.id) t.leader = t.members[0] ?? null
+    announce()
+  }
+
   /** Un joueur reprend sa place sous un nouvel identifiant (reconnexion). */
   function rename(t, old, id) {
     t.members = t.members.map((m) => (m === old ? id : m))
@@ -154,5 +167,5 @@ export function createLobby({ name, count, size, countdown, inLobby, playerById,
     teamOf.set(id, t)
   }
 
-  return { teams, snapshot, announce, error, action, moved, remove, due, playing, finish, rename, teamOf: (p) => teamOf.get(p.id) ?? null, leaveTeam }
+  return { teams, snapshot, announce, error, action, moved, remove, due, playing, finish, release, rename, teamOf: (p) => teamOf.get(p.id) ?? null, leaveTeam }
 }

@@ -221,7 +221,7 @@ export class MessRushClient {
     }
     switch (e.kind) {
       case 'served':
-        this.hud.toast(`+${e.points} · ${text(RECIPES[e.recipe!].name)}${(e.combo ?? 0) > 1 ? ` · combo ×${e.combo}` : ''}`, 'good')
+        this.hud.toast(`+${e.points} · ${text(RECIPES[e.recipe!].name)}${me ? '' : ` · ${who(e.by)}`}${(e.combo ?? 0) > 1 ? ` · combo ×${e.combo}` : ''}`, 'good')
         this.host.sound.play('ding', at('passe'), { volume: 0.5 })
         if (me) this.host.served()
         break
@@ -422,8 +422,13 @@ export class MessRushClient {
   update() {
     if (!this.game || this.phase !== 'kitchen') return
     const now = this.serverNow()
-    this.props?.update(this.game.state, now, (pid) => this.avatar(pid), this.host.camera())
-    this.hud.update(this.game.state, now)
+    const { state, members, you } = this.game
+    this.props?.update(state, now, (pid) => this.avatar(pid), this.host.camera())
+    this.hud.update(state, now)
+    this.hud.team(members.filter((m) => m.status !== 'left' && m.status !== 'gone').map((m) => {
+      const id = state.hands[m.id]
+      return { name: m.name, me: m.id === you, holding: id && state.items[id] ? itemName(state.items[id]) : '', away: m.status === 'away' }
+    }))
     // Un geste actif s'arrête quand on s'éloigne du poste (le relais le constate aussi).
     if (this.working) {
       const s = STATION_BY_ID[this.working]

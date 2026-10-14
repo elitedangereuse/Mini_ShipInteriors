@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createMessRush, inMessLobby } from './mess-rush.js'
-import { MESS_LEVEL, RULES, STATION_BY_ID } from '../shared/mess-rush.js'
+import { MESS_LEVEL, RULES, STATION_BY_ID, serviceView } from '../shared/mess-rush.js'
 import { mulberry32 } from '../shared/salvage.js'
 
 /** Relais simulé : joueurs, horloge, messages envoyés et victoires présentées au site. */
@@ -318,6 +318,71 @@ test('serveur de dev seulement : `mess:debug` raccourcit le service et choisit l
   assert.equal(g.state.score, 120)
   dev.advance(5.2)
   assert.equal(dev.last(b.id, 'mess:end').medal, 'bronze')
+})
+
+test('à quatre : le rythme de quatre ; qui quitte rejoint un autre salon, l\'équipe continue', () => {
+  const h = harness()
+  const { members } = h.team(1, 2, 3, 4)
+  const game = h.launch(members)
+  assert.equal(game.state.players, 4)
+  assert.equal(h.last(4, 'mess:start').state.players, 4)
+  // Quatre commandes au plus, une toutes les 16 s.
+  h.advance(RULES.firstOrder + 0.2 + 16 * 3)
+  assert.equal(game.state.orders.filter((o) => o.status === 'pending').length, 4)
+  // Le quatrième abandonne : il rentre au mess, et peut prendre un autre salon.
+  const [, , , d] = members
+  h.mess.handle(d, 'mess:quit')
+  assert.ok(h.last(4, 'mess:left'))
+  Object.assign(d, { level: 0, x: 12, z: 8 })
+  h.mess.moved(d)
+  h.mess.handle(d, 'mess:join', { team: 2 })
+  const lobby = h.mess.snapshot().teams
+  assert.deepEqual(lobby[1].members.map((m) => m.id), [4])
+  assert.deepEqual(lobby[0].members.map((m) => m.id), [1, 2, 3])
+  // Les trois autres cuisinent toujours, entre eux.
+  assert.equal(h.mess.gameOf(members[0]), game)
+  assert.deepEqual([...h.mess.mates(members[0])].sort(), [1, 2, 3])
+})
+
+test('deux livraisons au même instant, pour deux commandes de la même recette : chacune la sienne', () => {
+  const h = harness()
+  const { members: [a, b] } = h.team(1, 2)
+  const game = h.launch([a, b])
+  game.state.recipes = ['escargots-irukama']
+  h.advance(RULES.firstOrder + 0.2 + 24)
+  const pending = game.state.orders.filter((o) => o.status === 'pending')
+  assert.equal(pending.length, 2)
+  for (const [pid, id] of [['1', 'x1'], ['2', 'x2']]) {
+    game.state.items[id] = { id, kind: 'plate', contents: [['escargots-irukama', 'cuit']] }
+    game.state.hands[pid] = id
+  }
+  h.goto(a, 'passe')
+  h.goto(b, 'passe')
+  h.mess.handle(a, 'mess:use', { station: 'passe' })
+  h.mess.handle(b, 'mess:use', { station: 'passe' })
+  assert.deepEqual(pending.map((o) => o.status), ['served', 'served'])
+  assert.equal(game.state.served, 2)
+  assert.equal(game.state.combo, 2)
+  // Une troisième assiette, sans commande en attente : refusée, elle reste en main.
+  game.state.items.x3 = { id: 'x3', kind: 'plate', contents: [['escargots-irukama', 'cuit']] }
+  game.state.hands['1'] = 'x3'
+  h.mess.handle(a, 'mess:use', { station: 'passe' })
+  assert.equal(h.last(1, 'mess:refused').code, 'nomatch')
+  assert.equal(game.state.hands['1'], 'x3')
+})
+
+test('l\'état envoyé à l\'équipe reste léger, même à quatre en plein coup de feu', () => {
+  const h = harness()
+  const { members } = h.team(1, 2, 3, 4)
+  const game = h.launch(members)
+  h.advance(RULES.service - 10)
+  for (const [i, p] of members.entries()) {
+    const id = `p${i}`
+    game.state.items[id] = { id, kind: 'plate', contents: [['lapin-ceti', 'cuit'], ['legumes', 'cuit']] }
+    game.state.hands[String(p.id)] = id
+  }
+  const size = JSON.stringify(serviceView(game.state)).length
+  assert.ok(size < 8000, `${size} octets`)
 })
 
 test('arrivée manquée : un membre qui n\'entre pas dans la cuisine à temps est retiré', () => {
