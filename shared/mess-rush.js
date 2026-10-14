@@ -67,12 +67,12 @@ export const STATIONS = [
   { id: 'frigo', kind: 'fridge', x: 8.15, z: 12.075 },
   { id: 'garde-manger', kind: 'pantry', x: 9.25, z: 12.14 },
   { id: 'plan-1', kind: 'board', x: 10.55, z: 12.075 },
-  { id: 'marmite-1', kind: 'pot', x: 11.62, z: 12.075 },
-  { id: 'poele-1', kind: 'pan', x: 12.28, z: 12.075 },
-  { id: 'marmite-2', kind: 'pot', x: 13.07, z: 12.075 },
-  { id: 'poele-2', kind: 'pan', x: 13.73, z: 12.075 },
-  { id: 'plan-2', kind: 'board', x: 14.8, z: 12.075 },
-  { id: 'plonge', kind: 'sink', x: 16.05, z: 12.075 },
+  { id: 'plan-2', kind: 'board', x: 11.9, z: 12.075 },
+  { id: 'marmite-1', kind: 'pot', x: 13.07, z: 12.075 },
+  { id: 'poele-1', kind: 'pan', x: 13.73, z: 12.075 },
+  { id: 'marmite-2', kind: 'pot', x: 14.47, z: 12.075 },
+  { id: 'poele-2', kind: 'pan', x: 15.13, z: 12.075 },
+  { id: 'plonge', kind: 'sink', x: 16.1, z: 12.075 },
   { id: 'recyclage', kind: 'trash', x: 16.98, z: 12.0 },
   { id: 'assiettes', kind: 'plates', x: 9.45, z: 9.3 },
   { id: 'comptoir-1', kind: 'counter', x: 10.4, z: 9.3 },
@@ -83,6 +83,7 @@ export const STATIONS = [
   { id: 'fontaine', kind: 'fountain', x: 8.3, z: 4.85 },
   { id: 'retour-plateaux', kind: 'trash', x: 16.75, z: 4.84 },
   { id: 'passe-plat-sud', kind: 'counter', x: 12.675, z: 10.3 },
+  { id: 'passe-plat-centre', kind: 'counter', x: 12.675, z: 10.8 },
   { id: 'recyclage-2', kind: 'trash', x: 12.675, z: 11.3 },
   { id: 'passe-plat-nord', kind: 'counter', x: 12.675, z: 7.1 },
 ]
@@ -117,9 +118,13 @@ const SOUTH = { minZ: COUNTER.maxZ, maxZ: MESS_BOUNDS.maxZ }
 const ALL_X = { minX: MESS_BOUNDS.minX, maxX: MESS_BOUNDS.maxX }
 const ALL_Z = { minZ: MESS_BOUNDS.minZ, maxZ: MESS_BOUNDS.maxZ }
 
-/** Les postes de chaque coin de la cuisine. */
-const SW = ['frigo', 'garde-manger', 'plan-1', 'marmite-1', 'poele-1', 'assiettes', 'comptoir-1', 'comptoir-2', 'passe-plat-sud', 'recyclage-2']
-const SE = ['marmite-2', 'poele-2', 'plan-2', 'plonge', 'recyclage', 'comptoir-3', 'comptoir-4', 'passe-plat-sud', 'recyclage-2']
+/**
+ * Les postes de chaque coin de la cuisine. Le sud-ouest prépare (les distributeurs, les deux plans
+ * de travail, les assiettes), le sud-est cuit (les deux fourneaux, la plonge) : à plusieurs, aucun
+ * coin ne fait un plat seul, et le coin du frigo ne fait plus presque tout.
+ */
+const SW = ['frigo', 'garde-manger', 'plan-1', 'plan-2', 'assiettes', 'comptoir-1', 'comptoir-2', 'passe-plat-sud', 'passe-plat-centre', 'recyclage-2']
+const SE = ['marmite-1', 'poele-1', 'marmite-2', 'poele-2', 'plonge', 'recyclage', 'comptoir-3', 'comptoir-4', 'passe-plat-sud', 'passe-plat-centre', 'recyclage-2']
 const NW = ['assiettes', 'comptoir-1', 'comptoir-2', 'fontaine', 'passe-plat-nord']
 const NE = ['comptoir-3', 'comptoir-4', 'passe', 'retour-plateaux', 'passe-plat-nord']
 const OPEN = STATIONS.map((s) => s.id).filter((id) => !id.startsWith('passe-plat') && id !== 'recyclage-2')
@@ -130,7 +135,8 @@ const union = (...lists) => [...new Set(lists.flat())]
  * salon), et les cloisons à élever. Chaque zone dit son sol (`bounds`), où l'on y arrive, et les
  * postes qu'on y atteint ; un poste partagé par deux zones est un passe-plat.
  * - 1 : toute la cuisine ;
- * - 2 : l'ouest (les distributeurs, les assiettes, la fontaine) et l'est (la plonge, la passe) ;
+ * - 2 : l'ouest, qui prépare (les distributeurs, les plans de travail, les assiettes, la fontaine),
+ *   et l'est, qui cuit et sert (les fourneaux, la plonge, la passe) ;
  * - 3 : la cuisine ouest, la cuisine est, et la salle (les assiettes, la fontaine, la passe) ;
  * - 4 : les quatre coins.
  */
@@ -278,6 +284,11 @@ export const RULES = {
   speedBonus: [[2 / 3, 0.5], [1 / 3, 0.25]],
   combo: { step: 0.1, max: 1.5 },
   expiredPenalty: 0.5,
+  // Les imprévus (cf. EVENT_KINDS) : le premier après `first` secondes, puis un toutes les `every`
+  // (de… à…) secondes après la fin du précédent, jamais dans les `quiet` dernières ; la panne et la
+  // plonge bouchée durent ce temps-là (s), la flaque se nettoie en `clean` secondes (Espace), le
+  // bon de l'amiral rapporte `vip.points` fois plus en `vip.time` fois moins de temps.
+  events: { first: 60, every: [35, 55], quiet: 20, outage: 10, sink: 12, clean: 2.5, vip: { points: 2, time: 0.75 } },
   medals: {
     1: [230, 390, 490],
     2: [410, 580, 650],
@@ -365,6 +376,8 @@ export function createService({ id, seed, players, now, recipes, members = [], r
     seq: 0,
     orderSeq: 0,
     nextOrderAt: now + rules.firstOrder * 1000,
+    event: null,
+    nextEventAt: now + rules.events.first * 1000,
     orders: [],
     items: {},
     stations,
@@ -485,7 +498,8 @@ export function resolveAction(state, pid, stationId, pick, rules = RULES) {
       else if (hand && slot && hand.kind === 'ingredient' && slot.kind === 'plate' && room(slot, 1, rules)) use = { kind: 'plate-add' }
       let work = null
       const next = slot ? nextPrep(slot) : null
-      if (!hand && next && PROCESSES[next].station === station.kind) {
+      // (La plonge bouchée ne rince plus, cf. EVENT_KINDS.)
+      if (!hand && next && PROCESSES[next].station === station.kind && !isBlocked(state, stationId)) {
         const other = workerAt(state, stationId)
         work = { kind: 'process', process: next, busy: !!other && other !== String(pid) }
       }
@@ -514,6 +528,11 @@ export function resolveAction(state, pid, stationId, pick, rules = RULES) {
       return { use, work }
     }
     case 'pass': {
+      // Un plateau renversé sur la passe : on nettoie d'abord (Espace, les mains vides).
+      if (isBlocked(state, stationId)) {
+        const other = workerAt(state, stationId)
+        return { use: null, work: hand ? null : { kind: 'clean', busy: !!other && other !== String(pid) } }
+      }
       if (!hand || (hand.kind !== 'plate' && hand.kind !== 'cup') || !contentsOf(hand).length) return none
       return { use: { kind: 'deliver', order: matchingOrder(state, hand)?.id ?? null }, work: null }
     }
@@ -596,7 +615,8 @@ export function guide(state, pid, rules = RULES) {
       const next = nextPrep(hand)
       const busyHere = (ok) => kitchen.stations.some((id) => ok(id) && mine(id))
       if (next) {
-        const prepAt = (id) => kind(id) === PROCESSES[next].station
+        // (Pas à la plonge bouchée : on le pose en attendant.)
+        const prepAt = (id) => kind(id) === PROCESSES[next].station && !isBlocked(state, id)
         return toward('prep', (id) => prepAt(id) && !itemAt(id), { ing: hand.ing, process: next }) ?? (busyHere(prepAt) ? null : toward('prep', prepAt, { ing: hand.ing, process: next }))
       }
       const cook = INGREDIENTS[hand.ing].cook[0]
@@ -612,8 +632,11 @@ export function guide(state, pid, rules = RULES) {
       }, { ing: hand.ing })
         ?? toward('put', (id) => kind(id) === 'counter' && !itemAt(id), { ing: hand.ing })
     }
-    // Une assiette, une tasse.
-    if (matchingOrder(state, hand)) return toward('deliver', (id) => kind(id) === 'pass')
+    // Une assiette, une tasse. La passe renversée, chez soi : on le pose, le temps de la nettoyer.
+    if (matchingOrder(state, hand)) {
+      const spilled = kitchen.stations.some((id) => kind(id) === 'pass' && mine(id) && isBlocked(state, id))
+      return spilled ? toward('put', (id) => kind(id) === 'counter' && !itemAt(id)) ?? { step: 'hold', stations: [] } : toward('deliver', (id) => kind(id) === 'pass')
+    }
     if (hand.kind === 'plate') {
       // Les bons que cette assiette peut encore devenir, et ce qui leur manque.
       const got = contentsOf(hand).map(([i, s]) => componentKey(i, s))
@@ -644,8 +667,11 @@ export function guide(state, pid, rules = RULES) {
   }
 
   function idle() {
-    // Les mains vides. Un plat complet posé (ou une tasse prête) : à livrer, si l'on atteint la passe
-    // (sinon, c'est un coéquipier qui l'a posé là pour la livrer).
+    // Les mains vides. Un plateau renversé sur la passe, si on l'atteint : on nettoie d'abord.
+    const spill = here('clean', (id) => kind(id) === 'pass' && isBlocked(state, id))
+    if (spill) return spill
+    // Un plat complet posé (ou une tasse prête) : à livrer, si l'on atteint la passe (sinon, c'est
+    // un coéquipier qui l'a posé là pour la livrer).
     const reachPass = kitchen.stations.some((id) => kind(id) === 'pass' && mine(id))
     const done = (id) => {
       const it = itemAt(id)
@@ -702,7 +728,7 @@ export function guide(state, pid, rules = RULES) {
     const prep = here('work', (id) => {
       const it = itemAt(id)
       const next = it ? nextPrep(it) : null
-      return !!next && PROCESSES[next].station === kind(id) && wanted(it.ing)
+      return !!next && PROCESSES[next].station === kind(id) && wanted(it.ing) && !isBlocked(state, id)
     }, (id) => ({ ing: itemAt(id).ing, process: nextPrep(itemAt(id)) }))
     if (prep) return prep
     // Un ustensile garni, pas encore lancé.
@@ -834,7 +860,7 @@ export function useStation(state, pid, stationId, pick, now, rules = RULES) {
       const remaining = Math.max(0, (order.until - now) / (order.until - order.at))
       state.combo += 1
       state.bestCombo = Math.max(state.bestCombo, state.combo)
-      const points = Math.round(base * (1 + speedBonus(remaining, rules)) * comboMultiplier(state.combo, rules))
+      const points = Math.round(base * (order.vip ? rules.events.vip.points : 1) * (1 + speedBonus(remaining, rules)) * comboMultiplier(state.combo, rules))
       order.status = 'served'
       order.done = now
       order.points = points
@@ -842,7 +868,7 @@ export function useStation(state, pid, stationId, pick, now, rules = RULES) {
       state.served += 1
       delete state.items[hand.id]
       state.hands[pid] = null
-      events.push({ kind: 'served', order: order.id, recipe: order.recipe, points, combo: state.combo, by: pid })
+      events.push({ kind: 'served', order: order.id, recipe: order.recipe, points, combo: state.combo, by: pid, ...(order.vip ? { vip: true } : {}) })
       break
     }
     case 'trash':
@@ -870,6 +896,10 @@ export function workStation(state, pid, stationId, now, rules = RULES) {
   const s = state.stations[stationId]
   if (work.kind === 'process') {
     state.work[pid] = { station: stationId, item: s.item }
+    return { ok: true, events: [] }
+  }
+  if (work.kind === 'clean') {
+    state.work[pid] = { station: stationId, clean: true }
     return { ok: true, events: [] }
   }
   if (work.kind === 'empty') {
@@ -960,14 +990,82 @@ export function clearUnneeded(state) {
   return count
 }
 
-function spawnOrder(state, now, rules) {
+// ---------------------------------------------------------------- les imprévus
+
+/**
+ * Les imprévus, comme dans Overcooked : un à la fois, tirés au sort par le relais (la graine du
+ * service), annoncés à toute l'équipe.
+ * - `outage` (panne de courant) : les fourneaux et la fontaine s'arrêtent, les cuissons restent où
+ *   elles en sont (RULES.events.outage secondes) ;
+ * - `sink` (plonge bouchée) : on ne rince plus (RULES.events.sink secondes) ;
+ * - `spill` (un plateau renversé sur la passe) : plus de livraison tant qu'on ne l'a pas nettoyée
+ *   (Espace, les mains vides, RULES.events.clean secondes) : du travail pour la salle ;
+ * - `rush` (coup de feu) : deux bons d'un coup ;
+ * - `vip` (l'amiral à bord) : un bon doré, plus pressé, qui rapporte plus.
+ */
+export const EVENT_KINDS = ['outage', 'sink', 'spill', 'rush', 'vip']
+
+/** Un poste hors d'usage à cause d'un imprévu (la plonge bouchée, la passe renversée) ? */
+export function isBlocked(state, stationId) {
+  const kind = STATION_BY_ID[stationId]?.kind
+  const e = state.event?.kind
+  return (e === 'sink' && kind === 'sink') || (e === 'spill' && kind === 'pass')
+}
+
+/** Une durée tirée au sort entre `[a, b]` secondes. */
+function between(state, [a, b]) {
+  return a + random(state) * (b - a)
+}
+
+/** L'imprévu en cours finit (le temps est passé, ou la passe est propre) ; le suivant est tiré. */
+function endEvent(state, now, rules, by) {
+  const kind = state.event?.kind
+  state.event = null
+  state.nextEventAt = now + between(state, rules.events.every) * 1000
+  return kind ? [{ kind: 'event-end', event: kind, ...(by !== undefined ? { by } : {}) }] : []
+}
+
+/** Les imprévus à ce pas : la fin de celui en cours, ou le suivant, s'il est temps. */
+function stepEvent(state, now, rules) {
+  const e = state.event
+  if (e) return e.until && now >= e.until ? endEvent(state, now, rules) : []
+  if (state.nextEventAt === undefined || now < state.nextEventAt || now >= state.endsAt - rules.events.quiet * 1000) return []
+  const possible = EVENT_KINDS.filter((k) => {
+    if (k === 'sink') return kitchenOf(state).stations.some((id) => STATION_BY_ID[id].kind === 'sink')
+    return true
+  })
+  const kind = possible[Math.floor(random(state) * possible.length)]
+  const r = rules.events
+  const events = []
+  if (kind === 'outage' || kind === 'sink') {
+    state.event = { kind, at: now, until: now + r[kind] * 1000 }
+    events.push({ kind: 'event', event: kind, until: state.event.until })
+  } else if (kind === 'spill') {
+    state.event = { kind, at: now, progress: 0 }
+    events.push({ kind: 'event', event: kind })
+  } else {
+    // Le coup de feu et l'amiral : des bons, tout de suite (un peu au-delà du plafond).
+    events.push({ kind: 'event', event: kind })
+    const { maxOrders } = pace(state.players, rules)
+    for (let i = 0; i < (kind === 'rush' ? 2 : 1); i++) {
+      if (state.orders.filter((o) => o.status === 'pending').length >= maxOrders + 2) break
+      const order = spawnOrder(state, now, rules, kind === 'vip')
+      if (order) events.push({ kind: 'order', order: order.id, recipe: order.recipe, ...(order.vip ? { vip: true } : {}) })
+    }
+    state.nextEventAt = now + between(state, r.every) * 1000
+  }
+  return events
+}
+
+function spawnOrder(state, now, rules, vip = false) {
   const elapsed = (now - state.startedAt) / 1000
   const pool = state.recipes.filter((r) => RECIPES[r].difficulty !== 'complexe' || elapsed >= rules.complexAfter)
   if (!pool.length) return null
   const recipe = pool[Math.floor(random(state) * pool.length)]
   const { time } = recipeValue(recipe)
   state.orderSeq += 1
-  const order = { id: `c${state.orderSeq}`, recipe, at: now, until: now + time * pace(state.players, rules).timeScale * 1000, status: 'pending' }
+  const scale = pace(state.players, rules).timeScale * (vip ? rules.events.vip.time : 1)
+  const order = { id: `c${state.orderSeq}`, recipe, at: now, until: now + time * scale * 1000, status: 'pending', ...(vip ? { vip: true } : {}) }
   state.orders.push(order)
   return order
 }
@@ -984,6 +1082,20 @@ export function stepService(state, now, dt, near, rules = RULES) {
   const events = []
   // Les gestes actifs.
   for (const [pid, w] of Object.entries(state.work)) {
+    // Nettoyer la passe : tant qu'on y reste, les mains vides.
+    if (w.clean) {
+      const spill = state.event?.kind === 'spill' ? state.event : null
+      if (!spill || state.hands[pid] || !near(pid, w.station)) {
+        delete state.work[pid]
+        continue
+      }
+      spill.progress = (spill.progress ?? 0) + dt
+      if (spill.progress >= rules.events.clean - 1e-3) {
+        delete state.work[pid]
+        events.push(...endEvent(state, now, rules, pid))
+      }
+      continue
+    }
     const item = state.items[w.item]
     const s = state.stations[w.station]
     const next = item ? nextPrep(item) : null
@@ -1000,10 +1112,17 @@ export function stepService(state, now, dt, near, rules = RULES) {
       events.push({ kind: 'prepared', station: w.station, ing: item.ing, process: next, by: pid })
     }
   }
-  // Les cuissons.
+  // Les cuissons (en panne de courant, elles s'arrêtent où elles en sont).
+  const outage = state.event?.kind === 'outage'
   for (const st of STATIONS) {
     const s = state.stations[st.id]
-    if (!s?.cook || s.done || now < s.cook.until) continue
+    if (!s?.cook || s.done) continue
+    if (outage) {
+      s.cook.start += dt * 1000
+      s.cook.until += dt * 1000
+      continue
+    }
+    if (now < s.cook.until) continue
     s.done = true
     const process = COOKS[st.kind]
     if (st.kind === 'fountain') {
@@ -1034,6 +1153,8 @@ export function stepService(state, now, dt, near, rules = RULES) {
     events.push({ kind: 'end' })
     return events
   }
+  // Les imprévus.
+  events.push(...stepEvent(state, now, rules))
   // Les nouvelles commandes : au rythme du nombre de joueurs, sans dépasser le plafond ; tout de
   // suite si la cuisine n'en a plus aucune.
   const { maxOrders, every } = pace(state.players, rules)

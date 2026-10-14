@@ -134,8 +134,8 @@ test('une action loin du poste est refusée ; au poste, elle passe et l\'état p
   const { members: [a, b] } = h.team(1, 2)
   h.launch([a, b])
   h.advance(RULES.firstOrder + 0.2)
-  // Loin du frigo (au bout de sa zone, devant le fourneau).
-  h.goto(a, 'poele-1')
+  // Loin du frigo (au bout de sa zone, devant le second plan de travail).
+  h.goto(a, 'plan-2')
   h.mess.handle(a, 'mess:use', { station: 'frigo' })
   assert.deepEqual(h.last(1, 'mess:refused'), { game: h.mess.gameOf(a).id, station: 'frigo', code: 'far' })
   h.goto(a, 'frigo')
