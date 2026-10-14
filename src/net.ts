@@ -2,6 +2,7 @@ import type { ArenaMapId } from '../shared/arena.js'
 import type { FighterId } from '../shared/fight-roster.js'
 import type { FightSnapshot } from '../shared/fight.js'
 import type { SystemId } from '../shared/systems.js'
+import type { Medal, ServiceEvent, ServiceState } from '../shared/mess-rush.js'
 /** Client du relais multijoueur (server/relay.js, socket.io). Sans serveur, le jeu reste en solo. */
 import { io, type Socket } from 'socket.io-client'
 import type { CharacterId } from '../shared/arena.js'
@@ -346,9 +347,63 @@ export interface ArenaCharacterStats {
   controls: Record<string, Partial<Record<CharacterId, ArenaControlSummary>>>
 }
 
+/** MESS RUSH (cf. server/mess-rush.js) : un salon du mess, et qui s'y trouve. */
+export interface MessMember { id: number; name: string; verified: boolean; ready: boolean }
+export interface MessTeam {
+  id: number
+  leader: number | null
+  status: 'forming' | 'countdown' | 'playing'
+  startsIn?: number
+  members: MessMember[]
+  /** En service : le score de l'équipe, et les secondes qui restent. */
+  score?: number
+  endsIn?: number
+}
+export interface MessLobby { teams: MessTeam[] }
+/** Un membre d'un service (identifiant de joueur en texte, comme les clés de l'état). */
+export interface MessCrew { id: string; name: string; status: 'arriving' | 'in' | 'away' | 'left' | 'gone' }
+export interface MessStart { game: string; now: number; spawn: { x: number; z: number }; ticket: string; you: string; members: MessCrew[]; state: ServiceState; resumed?: boolean }
+/** Ce qui se passe en cuisine : celui de la partie (cf. shared/mess-rush.js), et les allées et venues de l'équipe. */
+export type MessEvent = ServiceEvent | { kind: 'left' | 'gone' | 'away' | 'back' | 'arrive'; by: string; old?: string; wait?: number }
+export interface MessEnd {
+  game: string
+  reason: 'end' | 'abandoned'
+  score: number
+  medal?: Medal
+  won?: boolean
+  served: number
+  expired: number
+  bestCombo: number
+  wasted: number
+  players: number
+  duration?: number
+  members: MessCrew[]
+  orders: { id: string; recipe: string; status: 'pending' | 'served' | 'expired'; points: number }[]
+  /** Revenu après la fin : le résultat, en retard. */
+  late?: boolean
+  /** Le relais présente cette victoire au site pour ce joueur : sa réponse suit (`mess:reward`). */
+  rewarding?: boolean
+}
+/**
+ * La récompense d'une victoire (cf. docs/mess-rush-site.md) : en route (`pending`), confirmée par le
+ * site (`success`), pas encore en service (`unavailable`), refusée (`refused`), ou sans réponse du
+ * site après plusieurs tentatives (`failed`).
+ */
+export interface MessReward {
+  game: string
+  status: 'pending' | 'success' | 'unavailable' | 'refused' | 'failed'
+  reward?: 'booster' | 'credits' | 'capped' | 'none'
+  boosters?: number
+  earned?: number
+  balance?: number
+  already?: boolean
+  code?: string
+}
+export type MessAction = 'join' | 'leave' | 'ready' | 'resume' | 'use' | 'work' | 'stop' | 'quit'
+
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
-  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean; bar?: boolean; welcome?: boolean }; players: PlayerState[]; homes?: { id: number; name: string }[]; music?: MusicState; hold?: MusicState; system?: SystemId; patrol?: PatrolState; chef?: ChefState; nurse?: NurseState; mechanic?: MechanicState; gardener?: GardenerState; chief?: ChiefState; salvage?: SalvageLobby; arena?: ArenaLobby }
+  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean; bar?: boolean; welcome?: boolean }; players: PlayerState[]; homes?: { id: number; name: string }[]; music?: MusicState; hold?: MusicState; system?: SystemId; patrol?: PatrolState; chef?: ChefState; nurse?: NurseState; mechanic?: MechanicState; gardener?: GardenerState; chief?: ChiefState; salvage?: SalvageLobby; arena?: ArenaLobby; mess?: MessLobby }
   | { t: 'join'; player: PlayerState }
   | { t: 'leave'; id: number }
   | { t: 'state'; id: number; x: number; z: number; yaw: number; level: number; anim: string; pose?: string; py?: number }
@@ -421,6 +476,18 @@ export type ServerMessage =
   | { t: 'arena:ranked'; game: string; ok: boolean; reason?: 'guest' | 'site' }
   /** Les statistiques des personnages (en réponse à `stats`), pour le classement. */
   | ({ t: 'arena:stats' } & ArenaCharacterStats)
+  | ({ t: 'mess:lobby' } & MessLobby)
+  | ({ t: 'mess:start' } & MessStart)
+  /** L'état du service, quand il change (heure du relais : `now`). */
+  | { t: 'mess:state'; game: string; now: number; state: ServiceState; members: MessCrew[] }
+  | { t: 'mess:event'; game: string; events: MessEvent[] }
+  | ({ t: 'mess:end' } & MessEnd)
+  | ({ t: 'mess:reward' } & MessReward)
+  /** Une action refusée par le relais : trop loin du poste (`far`), poste occupé (`busy`), rien à faire (`state`)… */
+  | { t: 'mess:refused'; game: string; station: string; code: string }
+  /** On a quitté le service (abandon, arrivée manquée) : retour au mess. */
+  | { t: 'mess:left'; game: string }
+  | { t: 'mess:error'; code: string }
 
 /**
  * Réponse du relais à une invitation : partie, ou pourquoi pas (guest : on n'est pas CMDR,
@@ -445,7 +512,8 @@ const LAG = import.meta.env.DEV ? Math.min(5000, Math.max(0, Number(new URLSearc
 const WS_PATH = import.meta.env.VITE_WS_PATH || '/ws/mini-shipinteriors'
 const EVENTS: ServerMessage['t'][] = ['welcome', 'join', 'leave', 'state', 'chat', 'emote', 'profile', 'cabin', 'invite', 'decline', 'visit', 'open', 'whisper', 'nudge', 'ring', 'music', 'jump', 'patrol', 'chef', 'nurse', 'mechanic', 'gardener', 'chief', 'board:state', 'board:error', 'fight:state', 'fight:error', 'cinema:state', 'cinema:error',
   'salvage:lobby', 'salvage:start', 'salvage:state', 'salvage:event', 'salvage:end', 'salvage:reward', 'salvage:error',
-  'arena:lobby', 'arena:start', 'arena:state', 'arena:event', 'arena:end', 'arena:error', 'arena:ranked', 'arena:stats']
+  'arena:lobby', 'arena:start', 'arena:state', 'arena:event', 'arena:end', 'arena:error', 'arena:ranked', 'arena:stats',
+  'mess:lobby', 'mess:start', 'mess:state', 'mess:event', 'mess:end', 'mess:reward', 'mess:refused', 'mess:left', 'mess:error']
 
 export class Net {
   online = false
@@ -588,11 +656,6 @@ export class Net {
   /** On parle au chef : le relais arrête sa tournée pour tout le bord. */
   sendChefTalk() {
     this.send('chef:talk', {})
-  }
-
-  /** On cuisine avec le chef (une étape de plus), ou on a fini : il attend à la passe, ou repart. */
-  sendChefCook(on: boolean) {
-    this.send('chef:cook', { on })
   }
 
   /** On parle à l'infirmière : le relais arrête sa tournée pour tout le bord. */
@@ -779,5 +842,10 @@ export class Net {
   /** L'arène : son lobby au terminal, puis ses tirs en partie (cf. server/arena.js). */
   sendArena(action: ArenaAction, data: object = {}) {
     this.send(`arena:${action}`, data)
+  }
+
+  /** MESS RUSH : son salon au rail des bons du mess, puis ses gestes en cuisine (cf. server/mess-rush.js). */
+  sendMess(action: MessAction, data: object = {}) {
+    this.send(`mess:${action}`, data)
   }
 }

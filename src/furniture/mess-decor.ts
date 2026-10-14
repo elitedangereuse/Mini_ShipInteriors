@@ -47,9 +47,40 @@ const pick = <T,>(random: () => number, list: readonly T[]): T => list[Math.floo
 const PX = 128
 /**
  * Ce que le sol contourne, en coordonnées du pont (cf. levels.ts) : les deux tables, la porte, le
- * comptoir du self et les postes de la cuisine devant lesquels on travaille debout.
+ * comptoir du self et les postes de la cuisine devant lesquels on travaille debout. Le couloir du
+ * self (`lane`, de x à x, et son bord nord `laneZ`) longe le comptoir côté salle : son mot « SELF »
+ * en `self`, ses chevrons à partir de `chevrons`. Côté cuisine : la rigole (`drain`), les tapis des
+ * postes (`mats`), et les passages entre la salle et la cuisine, de part et d'autre du comptoir
+ * (`passages`, de x à x), au carrelage de la cuisine et à leur seuil jaune et noir.
  */
-const PLAN = { tables: [10.2, 13.8], tableZ: 7.45, door: 13, counter: { x0: 8.65, x1: 13.85, z0: 9.7, z1: 10.3 }, posts: [10.35, 11.8, 13.15] }
+interface FloorPlan {
+  tables: number[]
+  tableZ: number
+  door: number | null
+  counter: { x0: number; x1: number; z0: number; z1: number }
+  posts: number[]
+  lane: [number, number]
+  laneZ: number
+  self: number
+  chevrons: number
+  drain: number
+  mats: number
+  passages: [number, number][]
+}
+
+const PLANS: Record<string, FloorPlan> = {
+  // Le mess du pont principal (7 × 7) : un seul passage, à l'est du comptoir.
+  mess: {
+    tables: [10.2, 13.8], tableZ: 7.45, door: 13, counter: { x0: 8.65, x1: 13.85, z0: 9.7, z1: 10.3 }, posts: [10.35, 11.8, 13.15],
+    lane: [8.5, 13.95], laneZ: 9.02, self: 8.82, chevrons: 9.75, drain: 10.98, mats: 11.4, passages: [[13.85, 15.5]],
+  },
+  // La cuisine de MESS RUSH (10 × 8, cf. shared/mess-rush.js) : le comptoir au milieu, un passage à
+  // chaque bout, une allée de cuisine plus large et ses postes doublés.
+  rush: {
+    tables: [10.3, 14.7], tableZ: 6.45, door: null, counter: { x0: 9, x1: 16, z0: 9.03, z1: 9.57 }, posts: [10.55, 11.95, 13.4, 14.8, 16.05],
+    lane: [9, 16], laneZ: 8.35, self: 9.17, chevrons: 9.9, drain: 10.68, mats: 11.4, passages: [[7.5, 9], [16, 17.5]],
+  },
+}
 
 /** Fourchette et couteau, debout, de hauteur `s`, autour de (x, y). */
 function cutlery(g: CanvasRenderingContext2D, x: number, y: number, s: number) {
@@ -89,10 +120,12 @@ function cutlery(g: CanvasRenderingContext2D, x: number, y: number, s: number) {
  * sa rigole et les tapis de caoutchouc des postes.
  */
 const messFloor: Builder = ({ label = '7x7|12|9' }) => {
-  const [size, cx, cz] = label.split('|')
+  const [size, cx, cz, plan = 'mess'] = label.split('|')
+  const PLAN = PLANS[plan] ?? PLANS.mess
   const [w, d] = size.split('x').map(Number)
   const x0 = Number(cx) - w / 2, z0 = Number(cz) - d / 2
   const { counter } = PLAN
+  const inPassage = (x: number) => PLAN.passages.some(([a, b]) => x >= a - 1e-6 && x <= b + 1e-6)
   const map = drawnTexture(w * PX, d * PX, (g) => {
     // Tout se dessine en mètres, dans le repère du pont.
     g.scale(PX, PX)
@@ -136,68 +169,77 @@ const messFloor: Builder = ({ label = '7x7|12|9' }) => {
     g.strokeStyle = g.fillStyle = C.cream
     cutlery(g, ex, ez, 0.42)
     // Le paillasson de la porte, et son chevron qui invite à entrer.
-    g.fillStyle = C.lane
-    g.fillRect(PLAN.door - 0.5, z0 + 0.12, 1, 0.42)
-    g.strokeStyle = C.orange
-    g.lineWidth = 0.035
+    const door = PLAN.door
     g.lineCap = g.lineJoin = 'round'
-    for (const dz of [0, 0.1]) {
-      g.beginPath()
-      g.moveTo(PLAN.door - 0.16, z0 + 0.24 + dz)
-      g.lineTo(PLAN.door, z0 + 0.34 + dz)
-      g.lineTo(PLAN.door + 0.16, z0 + 0.24 + dz)
-      g.stroke()
+    if (door !== null) {
+      g.fillStyle = C.lane
+      g.fillRect(door - 0.5, z0 + 0.12, 1, 0.42)
+      g.strokeStyle = C.orange
+      g.lineWidth = 0.035
+      for (const dz of [0, 0.1]) {
+        g.beginPath()
+        g.moveTo(door - 0.16, z0 + 0.24 + dz)
+        g.lineTo(door, z0 + 0.34 + dz)
+        g.lineTo(door + 0.16, z0 + 0.24 + dz)
+        g.stroke()
+      }
     }
     // --- Le couloir du self, le long du comptoir : on le suit vers l'est, des plateaux aux boissons.
-    const l0 = 9.02, l1 = counter.z0
+    const l0 = PLAN.laneZ, l1 = counter.z0
+    const [la, lb] = PLAN.lane
     g.fillStyle = C.lane
-    g.fillRect(x0, l0, counter.x1 - x0 + 0.1, l1 - l0)
-    g.fillRect(x0, counter.z0, counter.x1 - x0, counter.z1 - counter.z0)
+    g.fillRect(la, l0, lb - la, l1 - l0)
+    g.fillRect(la, counter.z0, counter.x1 - la, counter.z1 - counter.z0)
     g.fillStyle = C.orange
-    g.fillRect(x0, l0, counter.x1 - x0 + 0.1, 0.04)
+    g.fillRect(la, l0, lb - la, 0.04)
     g.font = '800 0.2px system-ui, sans-serif'
     g.textBaseline = 'middle'
     g.textAlign = 'left'
-    g.fillText('SELF', 8.82, (l0 + l1) / 2 + 0.03)
+    g.fillText('SELF', PLAN.self, (l0 + l1) / 2 + 0.03)
     g.strokeStyle = C.amber
     g.lineWidth = 0.035
-    for (let x = 9.75; x < counter.x1 - 0.1; x += 0.62) {
+    for (let x = PLAN.chevrons; x < counter.x1 - 0.1; x += 0.62) {
       g.beginPath()
       g.moveTo(x, (l0 + l1) / 2 - 0.1)
       g.lineTo(x + 0.11, (l0 + l1) / 2 + 0.02)
       g.lineTo(x, (l0 + l1) / 2 + 0.14)
       g.stroke()
     }
-    // --- La cuisine : carrelage blanc, jusque dans le passage à l'est du comptoir.
+    // --- La cuisine : carrelage blanc, jusque dans les passages de part et d'autre du comptoir.
     g.fillStyle = C.tile
     g.fillRect(x0, counter.z1, w, z0 + d - counter.z1)
-    g.fillRect(counter.x1, counter.z0, x0 + w - counter.x1, counter.z1 - counter.z0)
+    for (const [a, b] of PLAN.passages) g.fillRect(a, counter.z0, b - a, counter.z1 - counter.z0)
     g.fillStyle = C.tileJoint
-    for (let x = x0; x <= x0 + w; x += 0.25) g.fillRect(x - 0.005, x > counter.x1 ? counter.z0 : counter.z1, 0.01, d)
-    for (let z = counter.z0; z <= z0 + d; z += 0.25) g.fillRect(z < counter.z1 ? counter.x1 : x0, z - 0.005, w, 0.01)
-    // Le seuil du passage : une bande jaune et noire.
-    for (let x = counter.x1, i = 0; x < x0 + w; x += 0.11, i++) {
-      g.fillStyle = i % 2 ? '#17181b' : '#ffd23c'
-      g.beginPath()
-      g.moveTo(x, counter.z0 + 0.12)
-      g.lineTo(x + 0.11, counter.z0 + 0.12)
-      g.lineTo(x + 0.17, counter.z0)
-      g.lineTo(x + 0.06, counter.z0)
-      g.fill()
+    for (let x = x0; x <= x0 + w; x += 0.25) g.fillRect(x - 0.005, inPassage(x) ? counter.z0 : counter.z1, 0.01, d)
+    for (let z = counter.z0; z <= z0 + d; z += 0.25) {
+      if (z >= counter.z1) g.fillRect(x0, z - 0.005, w, 0.01)
+      else for (const [a, b] of PLAN.passages) g.fillRect(a, z - 0.005, b - a, 0.01)
+    }
+    // Le seuil des passages : une bande jaune et noire.
+    for (const [a, b] of PLAN.passages) {
+      for (let x = a, i = 0; x < b; x += 0.11, i++) {
+        g.fillStyle = i % 2 ? '#17181b' : '#ffd23c'
+        g.beginPath()
+        g.moveTo(x, counter.z0 + 0.12)
+        g.lineTo(x + 0.11, counter.z0 + 0.12)
+        g.lineTo(x + 0.17, counter.z0)
+        g.lineTo(x + 0.06, counter.z0)
+        g.fill()
+      }
     }
     // La rigole, au milieu de l'allée, et ses fentes.
     g.fillStyle = '#8f98a3'
-    g.fillRect(x0 + 0.4, 10.98, w - 0.8, 0.08)
+    g.fillRect(x0 + 0.4, PLAN.drain, w - 0.8, 0.08)
     g.fillStyle = '#3d444e'
-    for (let x = x0 + 0.44; x < x0 + w - 0.44; x += 0.07) g.fillRect(x, 10.995, 0.035, 0.05)
+    for (let x = x0 + 0.44; x < x0 + w - 0.44; x += 0.07) g.fillRect(x, PLAN.drain + 0.015, 0.035, 0.05)
     // Devant chaque poste, un tapis de caoutchouc alvéolé.
     for (const x of PLAN.posts) {
       g.fillStyle = '#23262d'
-      g.fillRect(x - 0.48, 11.4, 0.96, 0.36)
+      g.fillRect(x - 0.48, PLAN.mats, 0.96, 0.36)
       g.fillStyle = '#3a3f49'
       for (let j = 0; j < 4; j++) for (let i = 0; i < 12 - (j % 2); i++) {
         g.beginPath()
-        g.arc(x - 0.44 + i * 0.08 + (j % 2) * 0.04, 11.445 + j * 0.09, 0.022, 0, Math.PI * 2)
+        g.arc(x - 0.44 + i * 0.08 + (j % 2) * 0.04, PLAN.mats + 0.045 + j * 0.09, 0.022, 0, Math.PI * 2)
         g.fill()
       }
     }

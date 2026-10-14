@@ -5860,3 +5860,106 @@ body.arena-end-on .arena-hud > :not(.arena-count), body.arena-end-on :is(.top-le
 .pad-keyboard-bar button {
   font-size: 13px;
 }
+
+/* ------------------------------------------------------------------ MESS RUSH (cf. src/mess-rush/) */
+/* Le salon : le terminal de CMDR Arena, aux couleurs du mess (l'émail orange des suspensions, la crème du damier). */
+.mess-panel { --mess: #ffb15c; --cream: #f4ead8; }
+.mess-panel .salvage-kicker { color: var(--mess); }
+.mess-panel .arena-tile.own, .mess-panel .arena-tile.own:hover { border-color: var(--mess); background: #ffb15c14; }
+.mess-panel .arena-tile-own { color: var(--mess); }
+.mess-pips { --team: #ffb15c; }
+.mess-crew .arena-slot { grid-template-columns: minmax(0, 1fr) auto; padding-left: 10px; }
+.mess-crew .arena-slot-name .icon { width: 14px; height: 14px; margin-right: 5px; vertical-align: -2px; color: var(--mess); }
+.mess-crew .arena-slot.ready .arena-slot-state { color: #7dedb5; }
+.mess-menu ul { display: grid; gap: 4px; margin: 6px 0 0; padding: 0; list-style: none; }
+.mess-menu li { display: flex; justify-content: space-between; gap: 10px; padding: 6px 10px; border-radius: 8px; background: #0b0d10aa; font-size: 13px; }
+.mess-menu li span { color: #a9b1bd; font-size: 12px; white-space: nowrap; }
+.mess-medals { display: grid; gap: 6px; }
+.mess-medals small { color: #8d96a3; font-size: 11px; }
+.mess-medal-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.mess-medal { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; background: #ffffff10; color: #c5cbd4; font-size: 12px; font-weight: 700; }
+.mess-medal .icon { width: 14px; height: 14px; }
+.mess-medal.bronze { background: #cd7f3226; color: #e8a46a; }
+.mess-medal.silver { background: #c9d2dc26; color: #dfe6ee; }
+.mess-medal.gold { background: #ffd23f2b; color: #ffd23f; }
+.mess-medal.big { padding: 5px 14px; border: 3px solid #0b0d12; font-size: 15px; box-shadow: 0 4px 0 #0b0d12; }
+.mess-medal.big.none { background: #1b2030f2; }
+
+/* En cuisine : le bandeau du service en haut, les bons du rail dessous, comme des tickets de caisse. */
+/* Centré sans transform : le bouton Quitter, en position fixe dedans, se place par rapport à l'écran. */
+.mess-hud { position: fixed; top: max(10px, env(safe-area-inset-top)); left: 0; right: 0; margin: 0 auto; z-index: 30; display: grid; justify-items: center; gap: 8px; width: min(920px, calc(100vw - 24px)); pointer-events: none; color: #fff; font: 13px/1.25 system-ui, sans-serif; }
+.mess-hud[hidden] { display: none; }
+.mess-bar { display: flex; align-items: center; gap: 14px; padding: 6px 16px; border: 3px solid #0b0d12; border-radius: 14px; background: #1b2030f2; box-shadow: 0 4px 0 #0b0d12; }
+.mess-cell { display: inline-flex; align-items: center; gap: 6px; }
+.mess-cell .icon { width: 18px; height: 18px; color: #ffb15c; }
+.mess-cell small { color: #8d96a3; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.mess-time, .mess-score { font: 900 20px/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.mess-time.late { color: #ff8f86; }
+.mess-combo { padding: 2px 8px; border-radius: 999px; background: #ffd23f; color: #1a1304; font-weight: 900; }
+.mess-combo[hidden] { display: none; }
+.mess-tickets { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.mess-ticket { position: relative; display: grid; gap: 4px; width: 168px; box-sizing: border-box; padding: 8px 10px 12px; border-radius: 4px 4px 10px 10px; background: #f4ead8; color: #2a211a; box-shadow: 0 4px 0 #0b0d12aa; overflow: hidden; }
+.mess-ticket::before { content: ''; position: absolute; inset: 0 0 auto; height: 4px; background: #e8772a; }
+.mess-ticket.complexe::before { background: #b5462f; }
+.mess-ticket.rapide::before { background: #6fb04a; }
+.mess-ticket strong { font-size: 13px; line-height: 1.2; }
+.mess-ticket ul { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; font-size: 11.5px; }
+.mess-ticket li::before { content: '· '; color: #e8772a; font-weight: 900; }
+.mess-ticket li.mess-ticket-dish { color: #7a6a5a; font-style: italic; }
+.mess-ticket li.mess-ticket-dish::before { content: ''; }
+.mess-ticket-time { position: absolute; left: 0; right: 0; bottom: 0; height: 5px; background: linear-gradient(90deg, var(--bar, #4cd88a) calc(var(--left, 1) * 100%), #2a211a22 calc(var(--left, 1) * 100%)); }
+.mess-ticket-time[data-level='warn'] { --bar: #ffb15c; }
+.mess-ticket-time[data-level='late'] { --bar: #ff5a4a; }
+.mess-toasts { display: grid; justify-items: center; gap: 4px; }
+.mess-toast { margin: 0; padding: 4px 12px; border-radius: 999px; background: #0b0d12cc; font-size: 12.5px; font-weight: 700; animation: mess-toast 2.6s ease both; }
+.mess-toast.good { color: #7dedb5; }
+.mess-toast.bad { color: #ff9a8f; }
+.mess-toast.info { color: #e8eaee; }
+@keyframes mess-toast {
+  from { opacity: 0; transform: translateY(-6px); }
+  10%, 80% { opacity: 1; transform: none; }
+  to { opacity: 0; }
+}
+.mess-quit { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 12px; border: 3px solid #0b0d12; border-radius: 12px; background: #1b2030f2; color: #e8eaee; font: 800 12px/1 system-ui, sans-serif; box-shadow: 0 3px 0 #0b0d12; cursor: pointer; pointer-events: auto; }
+.mess-quit .icon { width: 15px; height: 15px; }
+/* En service, comme dans l'arène : le bandeau et les bons prennent le haut de l'écran. */
+body.mess-on :is(.top-left > :not(.site-logo), #phone, #quest-phone, .about-toggle) { display: none; }
+body.mess-on :is(.top-right) { visibility: hidden; }
+@media (max-width: 720px) {
+  /* Sur un téléphone, le bandeau prend la largeur : le bouton Quitter passe au-dessus, à droite. */
+  .mess-quit { position: static; order: -1; justify-self: end; min-height: 32px; }
+}
+
+/* L'écran de fin : celui de CMDR Arena (le verdict, le score), et au milieu la fiche du service. */
+body.mess-end-on :is(.top-left, .top-right, .emotes, #phone, .about-toggle, #touch-pad, #prompt) { display: none; }
+.mess-end .arena-end-head { gap: 8px; }
+.mess-end-card { position: absolute; left: 50%; top: 52%; display: grid; gap: 8px; width: min(520px, calc(100vw - 24px)); max-height: calc(100dvh - 300px); overflow: auto; box-sizing: border-box; padding: 14px 16px; border: 3px solid #0b0d12; border-radius: 14px; background: #10131cf7; box-shadow: 0 8px 0 #0008; transform: translate(-50%, -40%); pointer-events: auto; }
+.mess-end-crew { margin: 0; color: #e8eaee; font-weight: 700; }
+.mess-end-orders { width: 100%; border-collapse: separate; border-spacing: 0 3px; font-size: 13px; }
+.mess-end-orders td { padding: 5px 8px; background: #ffffff08; }
+.mess-end-orders td:last-child { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; color: #7dedb5; }
+.mess-end-orders tr.expired td { color: #ff9a8f; }
+.mess-end-reward { margin: 4px 0 0; padding: 8px 12px; border-radius: 10px; background: #ffb15c1a; color: #ffd9a8; font-weight: 700; line-height: 1.4; }
+.mess-end-reward.pending { background: #ffffff10; color: #c5cbd4; font-weight: 600; }
+@media (max-width: 640px) {
+  .mess-ticket { width: 138px; padding: 6px 8px 10px; }
+  .mess-ticket strong { font-size: 12px; }
+  .mess-bar { gap: 10px; padding: 5px 12px; }
+  .mess-time, .mess-score { font-size: 17px; }
+  .mess-end-card { top: 56%; max-height: calc(100dvh - 280px); }
+}
+/* À plusieurs : l'équipe sous le bandeau, ce que chacun tient. */
+.mess-crew-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.mess-crew-row[hidden] { display: none; }
+.mess-mate { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border: 2px solid #0b0d12; border-radius: 999px; background: #1b2030e6; font-size: 12px; }
+.mess-mate .icon { width: 13px; height: 13px; color: #ffb15c; }
+.mess-mate small { color: #c5cbd4; }
+.mess-mate.me { border-color: #ffb15c; }
+.mess-mate.away { opacity: .6; }
+.mess-mate.away small { color: #ff9a8f; }
+.mess-rewards { display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; background: #ffb15c14; }
+.mess-rewards p { margin: 0; color: #ffd9a8; font-size: 13px; line-height: 1.45; }
+.mess-menu-level { margin: 8px 0 0; color: #e8eaee; font-size: 12px; }
+.mess-menu-level small { color: #8d96a3; font-weight: 400; }
+.mess-menu ul { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.mess-menu-dish { color: #e8eaee !important; font-size: 13px !important; white-space: normal !important; }

@@ -67,6 +67,67 @@ export async function postSalvageResult(cookie, result, { cmdrUrl, secret, error
   }
 }
 
+/** Les récompenses que le site peut confirmer pour une victoire de MESS RUSH (cf. docs/mess-rush-site.md). */
+const MESS_REWARDS = new Set(['booster', 'credits', 'capped', 'none'])
+
+/**
+ * MESS RUSH : présente au site la victoire d'un CMDR (cf. docs/mess-rush-site.md). Le site le
+ * reconnaît par son cookie, et le relais par la clé partagée ; il décide, une seule fois par partie
+ * et par CMDR, du booster de la semaine ou des crédits de la médaille, et rend la même réponse si
+ * on lui présente de nouveau la même partie (`already`).
+ * @param {{ game: string, endedAt: number, won: boolean, medal: string }} result cf. serviceResult (shared/mess-rush.js)
+ * @returns {Promise<
+ *   | { status: 'success', reward: 'booster' | 'credits' | 'capped' | 'none', boosters: number, earned: number, balance?: number, already: boolean, week?: string }
+ *   | { status: 'unavailable' }
+ *   | { status: 'refused', code: string }
+ *   | { status: 'retry' }
+ * >} `unavailable` : pas encore d'endpoint (404) ou pas de clé ; `refused` : le site ne prend pas ce
+ *   résultat ; `retry` : site injoignable ou en erreur, on peut lui représenter la même partie
+ */
+export async function postMessRushResult(cookie, result, { cmdrUrl, secret, error = console.error, fetcher = fetch, timeoutMs = 8000 }) {
+  const value = cookieValue(cookie)
+  if (!cmdrUrl || !value) return { status: 'refused', code: 'cmdr' }
+  if (!secret) {
+    error('[mess-rush] MSI_RELAY_SECRET absent : les victoires ne peuvent pas être présentées au site.')
+    return { status: 'unavailable' }
+  }
+  try {
+    const url = new URL('/outils/mini-shipinteriors-messrush.php', cmdrUrl)
+    const response = await fetcher(url, {
+      method: 'POST',
+      headers: { Cookie: `${COOKIE}=${value}`, Accept: 'application/json', 'Content-Type': 'application/json', 'X-Relay-Key': secret },
+      body: JSON.stringify(result),
+      redirect: 'error',
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+    // Pas encore d'endpoint sur le site : les récompenses ne sont pas en service.
+    if (response.status === 404) return { status: 'unavailable' }
+    const data = await response.json().catch(() => null)
+    // Un refus (4xx autre que 404) n'est pas retenté, même sans JSON (page d'erreur d'un proxy).
+    if (response.status >= 500 || (response.ok && !data)) {
+      error(`[mess-rush] site en erreur pour la partie ${result.game} (${response.status})`)
+      return { status: 'retry' }
+    }
+    if (!response.ok || data.status !== 'success') {
+      error(`[mess-rush] victoire de la partie ${result.game} refusée par le site (${response.status} ${data?.error ?? ''})`)
+      return { status: 'refused', code: typeof data?.error === 'string' ? data.error : String(response.status) }
+    }
+    const n = (v) => Math.max(0, Math.floor(Number(v) || 0))
+    return {
+      status: 'success',
+      reward: MESS_REWARDS.has(data.reward) ? data.reward : 'none',
+      boosters: n(data.boosters),
+      earned: n(data.earned),
+      ...(Number.isFinite(Number(data.balance)) && data.balance !== null ? { balance: Number(data.balance) } : {}),
+      already: data.already === true,
+      ...(typeof data.week === 'string' ? { week: data.week } : {}),
+    }
+  } catch (err) {
+    error(`[mess-rush] site injoignable pour la partie ${result.game} (${err?.message ?? err})`)
+    return { status: 'retry' }
+  }
+}
+
 /**
  * Arène : déclare au site la partie d'un CMDR, pour le classement des joueurs (cf.
  * phputils/mini_shipinteriors/arena.php du site). Le relais présente le cookie du joueur et sa clé

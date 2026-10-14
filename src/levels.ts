@@ -186,14 +186,21 @@ export interface LevelDef {
    * ponts du vaisseau. Ni coque, ni ascenseur, ni tuyères.
    */
   tutorial?: boolean
+  /**
+   * Une pièce instanciée hors des ponts du vaisseau, pour une activité (la cuisine de MESS RUSH,
+   * cf. src/mess-rush/) : ni coque, ni ascenseur, ni tuyères, mais l'éclairage général de ses pièces,
+   * comme à bord.
+   */
+  instance?: boolean
 }
 
 /**
  * Hors des ponts du vaisseau (la baie infestée, la base au sol, les conduits, le simulateur
- * d'accueil) : ni coque ni ascenseur, pas de visite d'ici, et un rechargement ramène à bord.
+ * d'accueil, une pièce instanciée) : ni coque ni ascenseur, pas de visite d'ici, et un
+ * rechargement ramène à bord.
  */
 export function offShip(def: LevelDef): boolean {
-  return !!def.zone || !!def.ground || !!def.vents || !!def.tutorial
+  return !!def.zone || !!def.ground || !!def.vents || !!def.tutorial || !!def.instance
 }
 
 /** Écart vertical entre deux ponts. */
@@ -1668,8 +1675,8 @@ export const LEVELS: LevelDef[] = [
         interact: tr('Plateaux, couverts, serviettes : le self commence ici.', 'Trays, cutlery, napkins: the line starts here.'),
       },
       {
-        model: 'order-rail', x: 11.5, z: 10, y: 0.46, rot: 2, solid: false, action: tr('Prendre une commande', 'Take an order'),
-        interact: tr('Le rail des bons de commande, à la passe du chef.', 'The order ticket rail, at the chef\'s pass.'),
+        model: 'order-rail', x: 11.5, z: 10, y: 0.46, rot: 2, solid: false, action: tr('Prendre le service (MESS RUSH)', 'Take a service (MESS RUSH)'),
+        interact: tr('Le rail des bons de commande, à la passe du chef : on y prend le service.', 'The order ticket rail, at the chef\'s pass: this is where a service starts.'),
       },
       {
         model: 'kitchen-fridge', x: 9.15, z: 12.075, rot: 2,

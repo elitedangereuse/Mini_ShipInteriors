@@ -73,7 +73,7 @@ import { Server } from 'socket.io'
 import { fightRelay } from './fights.js'
 import { BOARD_GAMES, applyBoardMove, boardColor, boardState, newBoardGame } from './boards.js'
 import { sanitizeLayout } from './cabin.js'
-import { fetchQuarters, fetchQuestsDone, hasSiteArtwork, postArenaResult, postBarRegular, postSalvageResult, siteArtworkAllowed } from './site.js'
+import { fetchQuarters, fetchQuestsDone, hasSiteArtwork, postArenaResult, postBarRegular, postMessRushResult, postSalvageResult, siteArtworkAllowed } from './site.js'
 import { COOKIE, cleanCmdrName, cmdrIdentityFromCookie, cookieValue } from './cmdr.js'
 import { createSalvage, GAME_ACTIONS, LOBBY_ACTIONS } from './salvage.js'
 import { salvageMinDuration } from '../shared/salvage.js'
@@ -103,6 +103,8 @@ import { ZONE_LEVEL } from '../shared/salvage.js'
 import { ARENA_LEVEL } from '../shared/arena.js'
 import { createSiteStats } from './site-stats.js'
 import { ARENA_GAME_ACTIONS, ARENA_LOBBY_ACTIONS, createArena } from './arena.js'
+import { MESS_ACTIONS, createMessRush } from './mess-rush.js'
+import { MESS_LAYOUT, MESS_LEVEL } from '../shared/mess-rush.js'
 import { createArenaStats } from './arena-stats.js'
 // Identifiant d'apparence (cf. src/looks.ts), ex. « human.female.b », « alien.male.c.blue », « robot.g »,
 // suivi au besoin du style du Holo-Me (« suit.male.c.flight.mo-pk-sm-nv- ») dont chaque champ est vérifié.
@@ -154,6 +156,8 @@ MAPS.set(BASE_LEVEL, new ShipMap(BASE_LAYOUT))
 MAPS.set(VENT_LEVEL, new ShipMap(VENT_LAYOUT))
 // Le simulateur d'accueil des nouveaux venus : une instance solo (cf. shared/tutorial.js).
 MAPS.set(TUTORIAL_LEVEL, new ShipMap(TUTORIAL_LAYOUT))
+// La cuisine de MESS RUSH : une instance par service (cf. shared/mess-rush.js).
+MAPS.set(MESS_LEVEL, new ShipMap(MESS_LAYOUT))
 /**
  * Aspiré par des toilettes pendant la traversée d'un saut, un joueur a ce délai pour arriver dans
  * les conduits (ms) : le temps du tourbillon et de la chute, long sur un appareil qui peine.
@@ -239,7 +243,7 @@ export function attachRelay(
   httpServer,
   { log = console.log, error = console.error, cmdrUrl = process.env.ED_CMDR_URL ?? '', path = process.env.WS_PATH || WS_PATH,
     devCmdr = false, youtubeKey = process.env.YOUTUBE_API_KEY ?? '', youtubeFetch = fetch, relaySecret = process.env.MSI_RELAY_SECRET ?? '',
-    salvageFetch = fetch, arenaFetch = fetch, quartersFetch = fetch, barFetch = fetch, questsFetch = fetch, statsFetch = fetch,
+    salvageFetch = fetch, arenaFetch = fetch, messFetch = fetch, quartersFetch = fetch, barFetch = fetch, questsFetch = fetch, statsFetch = fetch,
     arenaStatsFile = process.env.ARENA_STATS_FILE || null } = {},
 ) {
   if (!cmdrUrl) error('[relais] ED_CMDR_URL absent : les comptes Élite Dangereuse ne peuvent pas être reconnus (tout le monde est invité).')
@@ -528,6 +532,22 @@ export function attachRelay(
   const arenaTimer = setInterval(() => arena.tick(0.05), 50)
   arenaTimer.unref?.()
   httpServer.on('close', () => clearInterval(arenaTimer))
+  // MESS RUSH (cf. mess-rush.js) : ses salons au vrai mess, chaque service dans son instance de la
+  // cuisine ; il avance dix fois par seconde.
+  const messRush = createMessRush({
+    playerById,
+    emit: (id, event, data) => sockets.get(id)?.emit(event, data),
+    broadcast: (event, data) => io.emit(event, data),
+    // Les victoires des CMDR, présentées au site (cf. docs/mess-rush-site.md) : tant que son
+    // endpoint n'existe pas, il répond 404 et les joueurs lisent que les récompenses arrivent.
+    reward: (member, result) => postMessRushResult(member.cookie, result, { cmdrUrl, secret: relaySecret, error, fetcher: messFetch }),
+    log,
+    // Serveur de dev : les essais dans le navigateur peuvent raccourcir le service.
+    debug: devCmdr,
+  })
+  const messTimer = setInterval(() => messRush.tick(), 100)
+  messTimer.unref?.()
+  httpServer.on('close', () => clearInterval(messTimer))
   // La fréquentation, racontée au site toutes les cinq minutes (cf. site-stats.js) : joueurs à bord,
   // sessions, temps passé dans chaque pièce, personnages de l'arène.
   const siteStats = createSiteStats({
@@ -538,14 +558,14 @@ export function attachRelay(
     arena: () => arena.stats(),
   })
   httpServer.on('close', () => siteStats.dispose())
-  /** Hors du vaisseau, dans une instance (la baie infestée, l'arène) : seuls ceux de la partie s'y voient. */
-  const instanced = (level) => level === ZONE_LEVEL || level === ARENA_LEVEL
+  /** Hors du vaisseau, dans une instance (la baie infestée, l'arène, la cuisine de MESS RUSH) : seuls ceux de la partie s'y voient. */
+  const instanced = (level) => level === ZONE_LEVEL || level === ARENA_LEVEL || level === MESS_LEVEL
   /**
    * `to` entend `from` (chat, emotes) : dans la baie infestée, on ne parle qu'à son équipe ; au
    * vaisseau, à tout le bord hors de la baie, et à son équipe en mission (un capturé la suit).
-   * Dans l'arène, de même : on ne parle qu'à ceux de sa partie.
+   * Dans l'arène et la cuisine de MESS RUSH, de même : on ne parle qu'à ceux de sa partie.
    */
-  const hears = (from, to) => salvage.teammates(from).has(to.id) || arena.mates(from).has(to.id) || (!instanced(from.level) && !instanced(to.level))
+  const hears = (from, to) => salvage.teammates(from).has(to.id) || arena.mates(from).has(to.id) || messRush.mates(from).has(to.id) || (!instanced(from.level) && !instanced(to.level))
   const boardKey = (game, table) => (BOARD_GAMES.has(game) && table === game ? table : null)
   const emitBoard = (state) => {
     const msg = boardState(state)
@@ -652,6 +672,7 @@ export function attachRelay(
       chief: chiefState(),
       salvage: salvage.snapshot(),
       arena: arena.snapshot(),
+      mess: messRush.snapshot(),
       // Quartiers d'absents où se trouvent des visiteurs : de quoi dire chez qui ils sont.
       homes: [...absentById.values()].map((h) => ({ id: h.id, name: `CMDR ${h.name}` })),
     })
@@ -678,6 +699,7 @@ export function attachRelay(
     let chiefBudget = 3
     let salvageBudget = 20
     let arenaBudget = 40
+    let messBudget = 20
     let questBudget = 3
     const refill = setInterval(() => {
       chatBudget = Math.min(5, chatBudget + 1)
@@ -696,13 +718,14 @@ export function attachRelay(
       salvageBudget = Math.min(20, salvageBudget + 10)
       // Une mitraillette tire douze fois par seconde.
       arenaBudget = Math.min(40, arenaBudget + 25)
+      messBudget = Math.min(20, messBudget + 10)
       questBudget = Math.min(3, questBudget + 0.25)
     }, 1000)
 
     socket.on('state', (raw) => {
       const m = obj(raw)
       const x = num(m.x, -5, 50), z = num(m.z, -5, 30), yaw = num(m.yaw, -10, 10)
-      if (x === null || z === null || yaw === null || !(LEVELS.has(m.level) || m.level === ZONE_LEVEL || m.level === ARENA_LEVEL || m.level === BASE_LEVEL || m.level === VENT_LEVEL || m.level === TUTORIAL_LEVEL)) return
+      if (x === null || z === null || yaw === null || !(LEVELS.has(m.level) || m.level === ZONE_LEVEL || m.level === ARENA_LEVEL || m.level === BASE_LEVEL || m.level === VENT_LEVEL || m.level === TUTORIAL_LEVEL || m.level === MESS_LEVEL)) return
       // Les conduits de ventilation : sur leur sol, et l'on n'y entre qu'aspiré par des toilettes du
       // pont supérieur pendant la traversée d'un saut FSD (cf. flushed, plus bas).
       if (m.level === VENT_LEVEL) {
@@ -729,6 +752,8 @@ export function attachRelay(
       if (m.level === ZONE_LEVEL && !salvage.accepts(player, x, z)) return
       // L'arène : seulement en partie, debout, sur son sol, et pas plus vite qu'on ne court.
       if (m.level === ARENA_LEVEL && !arena.accepts(player, x, z)) return
+      // La cuisine de MESS RUSH : seulement en service, sur son sol, et pas plus vite qu'on ne court.
+      if (m.level === MESS_LEVEL && !messRush.accepts(player, x, z)) return
       // Une pose inconnue n'en est pas une ; sa hauteur reste à portée d'une couchette du haut.
       const pose = POSES.has(m.pose) && !instanced(m.level) ? m.pose : ''
       if (player.level !== m.level) fights.leave(player)
@@ -746,8 +771,9 @@ export function attachRelay(
       }
       salvage.moved(player)
       arena.moved(player)
+      messRush.moved(player)
       const msg = { id: player.id, ...motion(player) }
-      const team = new Set([...salvage.teammates(player), ...arena.mates(player)])
+      const team = new Set([...salvage.teammates(player), ...arena.mates(player), ...messRush.mates(player)])
       // Dans le simulateur d'accueil, on est seul : le bord apprend seulement qu'on y est entré.
       if (player.level === TUTORIAL_LEVEL && wasTutorial) return cinema.operatorChanged()
       for (const p of players.values()) {
@@ -772,6 +798,14 @@ export function attachRelay(
         if (arenaBudget < 1) return
         arenaBudget--
         arena.handle(player, event, raw)
+      })
+    }
+
+    for (const event of [...MESS_ACTIONS, ...(devCmdr ? ['mess:debug'] : [])]) {
+      socket.on(event, (raw) => {
+        if (messBudget < 1) return
+        messBudget--
+        messRush.handle(player, event, raw)
       })
     }
 
@@ -1256,6 +1290,7 @@ export function attachRelay(
       leaveBoard(player)
       salvage.leave(player)
       arena.leave(player)
+      messRush.leave(player)
       siteStats.close(player)
       players.delete(socket.id)
       sockets.delete(player.id)

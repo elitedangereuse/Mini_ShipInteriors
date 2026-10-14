@@ -8,7 +8,7 @@ import type { Menu } from './menu'
 import type { ChefState } from './net'
 import { dampAngle } from './player'
 import {
-  CHEF_CATCH_UP, CHEF_COOK, CHEF_POSTS, CHEF_SNAP, CHEF_SPEED, CHEF_WAIT, chefAt, chefStep, chefTime, cookChef, holdChef,
+  CHEF_CATCH_UP, CHEF_POSTS, CHEF_SNAP, CHEF_SPEED, CHEF_WAIT, chefAt, chefStep, chefTime, holdChef,
   type ChefClock, type ChefWork,
 } from '../shared/chef.js'
 
@@ -151,7 +151,7 @@ function reportLines(r: ChefReport): string[] {
     tr(`Le ${menu.drink} est chaud depuis six heures. Il n'a jamais été aussi fort.`, `The ${menu.drink} has been on since six. It\'s never been stronger.`),
     tr(`${r.system} ? Tant mieux. J'espère qu'ils vendent des épices.`, `${r.system}? Good. I hope they sell spices.`),
   ]
-  if (!r.served) lines.push(tr('Tu veux m\'aider ? Prends un bon au rail de la passe. Je ne mords pas. Presque pas.', 'Want to help? Take a ticket from the rail at the pass. I don\'t bite. Hardly.'))
+  if (!r.served) lines.push(tr('Tu veux m\'aider ? Prends le service au rail des bons, avec l\'équipage. Je ne mords pas. Presque pas.', 'Want to help? Take a service at the ticket rail, with the crew. I don\'t bite. Hardly.'))
   else if (r.served < 10) lines.push(tr(`${r.served} plat${r.served > 1 ? 's' : ''} envoyé${r.served > 1 ? 's' : ''} avec moi. Je vais finir par te mettre au planning.`, `${r.served} dish${r.served > 1 ? 'es' : ''} sent out with me. I\'ll end up putting you on the rota.`))
   else lines.push(tr(`${r.served} plats ! Toi, tu as un vrai coup de couteau. Tu veux ma toque ? Non. Personne n'aura ma toque.`, `${r.served} dishes! You\'ve got real knife skills. Want my hat? No. Nobody gets my hat.`))
   return lines
@@ -226,22 +226,6 @@ export class Chef {
     const line = pick(fresh.length ? fresh : pool)
     this.recent = [line, ...this.recent].slice(0, 8)
     return line
-  }
-
-  /**
-   * Le joueur local cuisine (`on`, à chaque étape) ou a fini : comme le relais, sans attendre sa
-   * réponse (et hors ligne, sans relais du tout).
-   */
-  cook(from: { x: number; z: number }, on: boolean) {
-    const now = Date.now()
-    this.cookUntil = on ? now + CHEF_COOK * 1000 : 0
-    if (on) this.face = { x: from.x, z: from.z }
-    this.clock = cookChef(this.clock, now, this.cookUntil)
-  }
-
-  /** Pendant sa commande, le commis local bouge : le chef le suit des yeux depuis la passe. */
-  watch(p: { x: number; z: number }) {
-    if (this.cooking) this.face = { x: p.x, z: p.z }
   }
 
   /** Un joueur salue (o7) à côté de lui : il répond d'un signe de la main, sans quitter son poste. */

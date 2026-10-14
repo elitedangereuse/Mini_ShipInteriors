@@ -4,6 +4,14 @@
   "plot": [100000, 250000, 500000],
   "boosters": { "prices": [50000, 100000] },
   "salvage": { "parcel": 1000, "enemyBonus": 0.3, "daily": 5, "minPerParcel": 15 },
+  "messRush": {
+    "service": 300,
+    "credits": { "bronze": 1000, "silver": 2000, "gold": 3000 },
+    "daily": 5,
+    "boosters": 1,
+    "firstWinCredits": false,
+    "reset": { "day": "thursday", "hour": null, "tz": null }
+  },
   "kitchen": { "reward": 600, "minGap": 60, "minTime": 15, "daily": 12 },
   "hangar": { "reward": 800, "minGap": 90, "minTime": 15, "daily": 8 },
   "garden": { "reward": 700, "minGap": 75, "minTime": 15, "daily": 10 },
