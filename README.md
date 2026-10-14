@@ -1189,6 +1189,8 @@ Sans le site, `http://localhost:5173/?cmdr=Adam%20Fauster` simule un CMDR connec
 
 Zone thargoïde en local : la table se crée à la main (`docker exec -i elitedangereuse mysql -u root -proot lavermv500 < docker/tables/mini_shipinteriors_salvage.sql`) ; le relais de dev envoie la clé `dev-local`, que le site local accepte. Pour les essais dans le navigateur, le serveur de dev (lui seul) accepte `salvage:debug` sur la socket : `{ freeze: true }` fige les ennemis de sa partie, `{ monster: 0, x, z }` en pose un.
 
+MESS RUSH en local : de même, le serveur de dev (lui seul) accepte `mess:debug` sur la socket, en plein service : `{ endIn: 60 }` finit le service dans une minute, `{ recipes: ['cafe-goman'] }` ne tire plus que ces recettes, `{ score: 120 }` fixe le score (depuis la console : `__game.net.sendMess('debug', { endIn: 60 })`).
+
 ## Sons
 
 Tous les sons sont spatialisés (HRTF ; un simple panoramique sur un écran tactile, où le rendu du son a moins de marge), avec l'auditeur au-dessus du joueur, orienté comme la caméra. Ils passent par un filtre passe-bas doux et un compresseur léger, qui évitent les sons qui claquent. Un son fini **quitte le graphe audio** (`Sound.release`, `src/audio.ts` : les sons enregistrés, les bruitages du stand de tir et de l'arène, les notes de leur musique) : laissée branchée, sa sortie serait calculée jusqu'au passage du ramasse-miettes, et dans l'arène, où six combattants tirent à la fois, elles s'entassaient par milliers jusqu'à saturer le rendu (son haché, musique qui coupe puis reprend). Les bruitages de tir sont aussi bornés en nombre (`VOICES`, `src/range-sfx.ts`), et sans réverbération de salle sur un téléphone. Le volume par défaut est à 60 % :
