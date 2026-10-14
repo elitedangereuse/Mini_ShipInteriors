@@ -249,11 +249,12 @@ test('le service finit à 5:00 : plus d\'action, le résultat et la médaille', 
 })
 
 test('médailles, combo et rapidité', () => {
-  assert.equal(medalOf(269, 1), 'none')
-  assert.equal(medalOf(270, 1), 'bronze')
-  assert.equal(medalOf(560, 1), 'silver')
-  assert.equal(medalOf(730, 1), 'gold')
-  assert.equal(medalOf(730, 4), 'bronze')
+  assert.equal(medalOf(229, 1), 'none')
+  assert.equal(medalOf(230, 1), 'bronze')
+  assert.equal(medalOf(390, 1), 'silver')
+  assert.equal(medalOf(490, 1), 'gold')
+  assert.equal(medalOf(490, 4), 'none')
+  assert.equal(medalOf(530, 4), 'bronze')
   // Plus on est nombreux, plus chaque médaille demande de points.
   for (let n = 1; n < 4; n++) for (let m = 0; m < 3; m++) assert.ok(RULES.medals[n][m] <= RULES.medals[n + 1][m])
   assert.equal(medalOf(9999, 9), 'gold')

@@ -189,9 +189,9 @@ Les médailles, issues de la simulation (cf. « L'équilibrage ») :
 
 | Médaille | 1 joueur | 2 | 3 | 4 |
 |---|---|---|---|---|
-| Bronze (victoire) | 270 | 530 | 660 | 660 |
-| Argent | 560 | 780 | 940 | 950 |
-| Or | 730 | 950 | 1 050 | 1 150 |
+| Bronze (victoire) | 230 | 480 | 530 | 530 |
+| Argent | 390 | 680 | 830 | 830 |
+| Or | 490 | 760 | 900 | 980 |
 
 ### L'équilibrage
 
@@ -215,12 +215,14 @@ carte, de 1 à 4 cuisiniers, à trois niveaux :
 
 | Joueurs | Débutants | Moyens | Experts | Expirées (débutants) |
 |---|---|---|---|---|
-| 1 | 265 | 557 | 809 | 1,0 |
-| 2 | 528 | 782 | 1 058 | 1,2 |
-| 3 | 655 | 935 | 1 166 | 1,6 |
-| 4 | 609 | 951 | 1 278 | 3,8 |
+| 1 | 230 | 385 | 548 | 0,9 |
+| 2 | 477 | 681 | 844 | 1,7 |
+| 3 | 534 | 828 | 1 003 | 2,8 |
+| 4 | 515 | 816 | 1 094 | 4,9 |
 
-(Score moyen sur 30 services par case.) Relancer le script après tout changement de recettes, de
+(Score moyen sur 30 services par case, avec les 15 recettes de la carte.) Avec 12 recettes, les
+scores étaient de 15 à 30 % plus hauts : les trois intermédiaires ajoutées sont plus longues, et la
+plonge unique devient un goulot à plusieurs. Relancer le script après tout changement de recettes, de
 durées ou de rythme ; les essais en jeu trancheront.
 
 L'écran de fin affiche :
@@ -356,9 +358,11 @@ revérifier par un humain avant la sortie.
 | Pommes d'eden d'Aerial | Eden Apples of Aerial | Alimentation, rare | Aerial, Andrade Legacy | Garde-manger | canonique | A B C D |
 | Ma Corn de Diso | Diso Ma Corn | Alimentation, rare | Diso, Shifnalport | Garde-manger | canonique (le lore en fait une plante dont on prise la poussière de graines : la cuire est une adaptation) | A B C D |
 | Gâteaux de blé Wheemete | Wheemete Wheat Cakes | Alimentation, rare | Wheemete, Eisinga Enterprise | Garde-manger | canonique | A B C D |
-| Riz jarouan | Jaroua Rice | Alimentation, rare | Jaroua, McCool City | Garde-manger | canonique | A B C D |
 | Truffes de Deuringas | Deuringas Truffles | Alimentation, rare | Deuringas, Shukor Hub | Garde-manger | canonique | A B C D |
 | Piments d'Ochoeng | Ochoeng Chillies | Alimentation, rare | Ochoeng, Roddenberry Gateway | Garde-manger | canonique | A B C D |
+| Œuf d'Aepyornis | Aepyornis Egg | Alimentation, rare | 47 Ceti, Glushko Station | Frigo | canonique | A B C D |
+| Bœuf de Kobe de Witchhaul | Witchhaul Kobe Beef | Alimentation, rare | Witchhaul, Hornby Terminal | Frigo | canonique | A B C D |
+| Riz jarouan | Jaroua Rice | Alimentation, rare | Jaroua, McCool City | Garde-manger | canonique | A B C D |
 | Fruits et légumes | Fruit and Vegetables | Alimentation | — | Garde-manger | canonique | A B |
 | Viande synthétique | Synthetic Meat | Alimentation | — | Synthétiseur | canonique | A B |
 | Cartouches alimentaires | Food Cartridges | Alimentation | — | Synthétiseur | canonique | A B |
@@ -368,8 +372,9 @@ revérifier par un humain avant la sortie.
 
 - « Krill du Vide », introuvable : l'article dit « Vacuum krill », qui renvoie aux crevettes de
   Baltah'sine.
-- Le caviar, le bœuf de Kobe, l'œuf d'Aepyornis, etc. Ils sont vérifiés (A B C D) et
-  disponibles pour enrichir le catalogue en phase 4.
+- Le caviar d'Esuseku, le mammouth albinos, la viande ornementale de Sanuma, les œufs millénaires,
+  etc. Ils sont vérifiés (A B C D) et disponibles pour de prochaines recettes. L'œuf d'Aepyornis, le
+  bœuf de Kobe et le riz jarouan sont entrés à la carte en phase 4.
 
 ### Recettes
 
@@ -382,6 +387,9 @@ revérifier par un humain avant la sortie.
 | Ragoût de lapin de Ceti | intermédiaire | Lapin : frigo → plan (couper). Légumes : garde-manger → plan (couper). Les deux dans la marmite (8 s) → assiette → passe | adaptation (déjà au menu du jour et dans l'ancienne cuisine) |
 | Escargots géants d'Irukama | intermédiaire | Frigo → plonge (rincer) → poêle (5 s) → assiette → passe | adaptation |
 | Crevettes stellaires de Baltah'sine sautées | intermédiaire | Frigo → plonge (rincer) → poêle (5 s) → assiette → passe | adaptation |
+| Omelette à l'œuf d'Aepyornis | intermédiaire | Frigo → plan (fouetter) → poêle (5 s) → assiette → passe | adaptation (phase 4) |
+| Bœuf de Kobe de Witchhaul grillé | intermédiaire | Frigo → plan (couper) → poêle (5 s) → assiette → passe | adaptation (phase 4) |
+| Riz jarouan aux crevettes stellaires | intermédiaire (60 pts, 120 s) | Riz : garde-manger → plonge (rincer) → marmite. Crevettes : frigo → plonge (rincer) → poêle. Assiette avec les deux → passe | adaptation (phase 4) |
 | Gâteaux de blé Wheemete aux pommes d'eden | intermédiaire | Gâteaux : garde-manger → poêle (réchauffer). Pommes : garde-manger → plan (couper). Assiette avec les deux → passe | adaptation |
 | Bouillon de balanes spatiales | complexe | Frigo → plonge (rincer) → marmite (10 s) → assiette creuse → passe | création, inspirée de GalNet |
 | Mousse à l'huile de truffe de Deuringas | complexe | Garde-manger → plan (couper) → plan (fouetter) → assiette → passe | adaptation, inspirée de GalNet |

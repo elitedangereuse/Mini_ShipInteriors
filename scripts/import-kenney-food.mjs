@@ -19,7 +19,7 @@ const KITS = [
     models: [
       // Les ingrédients (crus, puis préparés ou cuits).
       'meat-raw', 'meat-cooked', 'carrot', 'mussel', 'mussel-open', 'fish', 'bag', 'bag-flat', 'apple', 'apple-half',
-      'corn', 'pancakes', 'mushroom', 'mushroom-half', 'paprika', 'paprika-slice',
+      'corn', 'pancakes', 'mushroom', 'mushroom-half', 'paprika', 'paprika-slice', 'egg', 'meat-ribs', 'rice-ball',
       // La vaisselle et les ustensiles.
       'plate', 'plate-deep', 'cup-coffee', 'cup-tea', 'pot', 'pot-stew', 'frying-pan', 'cutting-board', 'cooking-knife',
     ],
