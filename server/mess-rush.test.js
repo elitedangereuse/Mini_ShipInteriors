@@ -48,10 +48,10 @@ function harness(options = {}) {
     assert.ok(mess.accepts(p, p.x, p.z))
     mess.moved(p)
   }
-  /** Le joueur va (en deux secondes) devant un poste. */
-  const goto = (p, stationId) => {
+  /** Le joueur va (en deux secondes) devant un poste ; `dx` : de côté (un passe-plat, dans une cloison). */
+  const goto = (p, stationId, dx = 0) => {
     const s = STATION_BY_ID[stationId]
-    const x = s.x
+    const x = s.x + dx
     const z = s.z > 11 ? 11.3 : s.z > 9 ? 10 : s.z + 0.8
     t += 2000
     assert.ok(mess.accepts(p, x, z), `vers ${stationId}`)
@@ -134,8 +134,8 @@ test('une action loin du poste est refusée ; au poste, elle passe et l\'état p
   const { members: [a, b] } = h.team(1, 2)
   h.launch([a, b])
   h.advance(RULES.firstOrder + 0.2)
-  // Loin du frigo (à l'autre bout de l'allée).
-  h.goto(a, 'plonge')
+  // Loin du frigo (au bout de sa zone, devant le fourneau).
+  h.goto(a, 'poele-1')
   h.mess.handle(a, 'mess:use', { station: 'frigo' })
   assert.deepEqual(h.last(1, 'mess:refused'), { game: h.mess.gameOf(a).id, station: 'frigo', code: 'far' })
   h.goto(a, 'frigo')
@@ -151,6 +151,26 @@ test('une action loin du poste est refusée ; au poste, elle passe et l\'état p
   assert.equal(h.last(1, 'mess:refused').code, 'state')
 })
 
+test('à deux, chacun arrive dans sa zone et y reste ; un départ fait tomber les cloisons', () => {
+  const h = harness()
+  const { members: [a, b] } = h.team(1, 2)
+  const game = h.launch([a, b])
+  assert.ok(h.last(1, 'mess:start').spawn.x < 12.6)
+  assert.ok(h.last(2, 'mess:start').spawn.x > 12.75)
+  assert.deepEqual(game.state.zones, { 1: 0, 2: 1 })
+  // De l'autre côté de la cloison : refusé, même à portée de course.
+  assert.equal(h.mess.accepts(b, 12.2, 10.6), false)
+  assert.equal(h.mess.accepts(a, 11.5, 10.6), true)
+  // L'est abandonne : l'ouest atteint toute la cuisine.
+  h.mess.handle(b, 'mess:quit')
+  assert.equal(game.state.open, true)
+  assert.ok(h.all(1, 'mess:event').some((e) => e.events.some((x) => x.kind === 'open')))
+  h.advance(0.1)
+  assert.equal(h.last(1, 'mess:state').state.open, true)
+  h.advance(1)
+  assert.equal(h.mess.accepts(a, 13.2, 10.6), true)
+})
+
 test('deux joueurs prennent le même objet en même temps : un seul l\'a', () => {
   const h = harness()
   const { members: [a, b] } = h.team(1, 2)
@@ -158,13 +178,15 @@ test('deux joueurs prennent le même objet en même temps : un seul l\'a', () =>
   h.advance(RULES.firstOrder + 0.2)
   h.goto(a, 'frigo')
   h.mess.handle(a, 'mess:use', { station: 'frigo' })
-  h.goto(a, 'comptoir-1')
-  h.mess.handle(a, 'mess:use', { station: 'comptoir-1' })
-  h.goto(b, 'comptoir-1')
-  const item = game.state.stations['comptoir-1'].item
+  // Le passe-plat de la cloison : chacun l'atteint de son côté.
+  h.goto(a, 'passe-plat-sud', -0.5)
+  h.mess.handle(a, 'mess:use', { station: 'passe-plat-sud' })
+  h.goto(b, 'passe-plat-sud', 0.5)
+  const item = game.state.stations['passe-plat-sud'].item
+  assert.ok(item)
   // Les deux demandes arrivent avant le pas suivant.
-  h.mess.handle(a, 'mess:use', { station: 'comptoir-1' })
-  h.mess.handle(b, 'mess:use', { station: 'comptoir-1' })
+  h.mess.handle(a, 'mess:use', { station: 'passe-plat-sud' })
+  h.mess.handle(b, 'mess:use', { station: 'passe-plat-sud' })
   assert.equal(game.state.hands['1'], item)
   assert.equal(game.state.hands['2'] ?? null, null)
   assert.equal(h.last(2, 'mess:refused').code, 'state')
@@ -331,8 +353,8 @@ test('à quatre : le rythme de quatre ; qui quitte rejoint un autre salon, l\'é
   const game = h.launch(members)
   assert.equal(game.state.players, 4)
   assert.equal(h.last(4, 'mess:start').state.players, 4)
-  // Cinq commandes au plus, une toutes les 10 s.
-  h.advance(RULES.firstOrder + 0.2 + 10 * 4)
+  // Cinq commandes au plus, une toutes les 11 s.
+  h.advance(RULES.firstOrder + 0.2 + 11 * 4)
   assert.equal(game.state.orders.filter((o) => o.status === 'pending').length, 5)
   // Le quatrième abandonne : il rentre au mess, et peut prendre un autre salon.
   const [, , , d] = members
@@ -354,7 +376,9 @@ test('deux livraisons au même instant, pour deux commandes de la même recette 
   const { members: [a, b] } = h.team(1, 2)
   const game = h.launch([a, b])
   game.state.recipes = ['escargots-irukama']
-  h.advance(RULES.firstOrder + 0.2 + 14)
+  // Cuisine ouverte (après un départ) : les deux atteignent la passe.
+  game.state.open = true
+  h.advance(RULES.firstOrder + 0.2 + 15)
   const pending = game.state.orders.filter((o) => o.status === 'pending')
   assert.equal(pending.length, 2)
   for (const [pid, id] of [['1', 'x1'], ['2', 'x2']]) {

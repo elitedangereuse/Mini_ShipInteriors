@@ -166,8 +166,9 @@ Les règles qui empêchent les doublons :
 | Réglage, selon le nombre de joueurs | 1 | 2 | 3 | 4 |
 |---|---|---|---|---|
 | Commandes en même temps, au plus | 2 | 3 | 4 | 5 |
-| Une nouvelle toutes les | 25 s | 14 s | 12 s | 10 s |
-| Délais multipliés par | 1,3 | 1,1 | 1,05 | 1 |
+| Une nouvelle toutes les | 25 s | 15 s | 13 s | 11 s |
+| Délais multipliés par | 1,3 | 1,3 | 1,3 | 1,25 |
+| Hors carte | riz aux crevettes, bouillon impérial | bouillon impérial | — | — |
 
 - La première commande arrive 3 s après le début.
 - Les recettes complexes n'apparaissent qu'après 2 minutes.
@@ -189,9 +190,13 @@ Les médailles, issues de la simulation (cf. « L'équilibrage ») :
 
 | Médaille | 1 joueur | 2 | 3 | 4 |
 |---|---|---|---|---|
-| Bronze (victoire) | 230 | 480 | 530 | 530 |
-| Argent | 390 | 680 | 830 | 830 |
-| Or | 490 | 760 | 900 | 980 |
+| Bronze (victoire) | 230 | 410 | 450 | 450 |
+| Argent | 390 | 580 | 700 | 700 |
+| Or | 490 | 650 | 770 | 830 |
+
+À plusieurs, ces chiffres viennent de la mise à jour 1.1 (cf. plus bas) : la cuisine cloisonnée
+oblige à se passer les plats, ce que la simulation ne sait pas faire. Les délais ont été allongés
+et les seuils baissés d'environ 15 % au jugé ; à confirmer en jeu.
 
 ### L'équilibrage
 
@@ -514,3 +519,90 @@ la référence.
   relais pendant un essai perd la paie (comme aujourd'hui pour la zone) : une file sur disque est
   possible en phase 5 si besoin.
 - **Les noms français officiels** viennent d'une seule capture du client : à confirmer.
+
+## Mise à jour 1.1
+
+Carte « 👨🏻‍🍳 Mess Rush Update v1.1 » du tableau : rapprocher MESS RUSH d'Overcooked.
+
+### La vue du dessus
+
+En cuisine, la caméra est imposée : presque à la verticale (58°), du côté de la salle, les postes du
+mur sud face à soi, toute la pièce à l'écran entre le bandeau du haut et la consigne du bas. On ne
+la tourne, ne l'incline ni ne zoome (`IsoCamera.locked`), et la vue subjective attend la sortie
+(`isoOnly`). Le cadrage suit la taille de l'écran (`kitchenZoom` dans `src/main.ts`) ; les bons
+passent en colonne à gauche, et l'invite « E » se pose sous les pieds du joueur.
+
+### Les cloisons
+
+À plusieurs, chacun tient sa zone et l'on se passe les plats par-dessus les comptoirs
+(`KITCHENS` dans `shared/mess-rush.js`). La cloison du milieu est un plan de travail étroit, entre
+les deux fourneaux ; le comptoir du self sépare la salle de la cuisine une fois ses deux passages
+fermés.
+
+| Joueurs | Zones (dans l'ordre du salon) | Ce qui oblige à coopérer |
+|---|---|---|
+| 1 | toute la cuisine | — |
+| 2 | ouest (distributeurs, assiettes, fontaine) · est (plonge, passe) | tout plat passe d'ouest en est |
+| 3 | cuisine ouest · cuisine est · salle (assiettes, fontaine, passe) | la cuisine prépare, la salle dresse et livre |
+| 4 | les quatre coins | idem, et la cloison coupe aussi la salle |
+
+- Les **passe-plats** sont des places de comptoir qu'atteignent deux zones : ceux de la cloison
+  (`passe-plat-sud`, `passe-plat-nord`), et le comptoir du self entre la salle et la cuisine.
+- Un **second bac** (`recyclage-2`) est encastré dans la cloison, et le retour plateaux de la salle
+  sert de bac (`retour-plateaux`).
+- Le relais refuse une position hors de sa zone (`inZone`), et les règles une action sur un poste
+  qu'on n'atteint pas (`canReach`, dans `resolveAction`) ; le client ne vise que les postes de sa
+  zone, et les cloisons bloquent le passage (`Deck.addRuntime`).
+- **Un cuisinier part pour de bon** (abandon, liaison perdue plus d'une minute, jamais arrivé) :
+  les cloisons tombent (`openKitchen`) et la cuisine reprend le plan solo ; ce que portaient les
+  passe-plats va sur le comptoir. Sans cela, une zone sans personne rendrait des plats impossibles.
+- La **carte** dépend aussi du nombre de joueurs (`menuFor`) : seul, ni le riz aux crevettes ni le
+  bouillon impérial ; à deux, pas de bouillon impérial.
+
+### Le guidage
+
+`guide(state, joueur)` dit le prochain geste utile et où le faire, dans sa zone : des flèches vertes
+rebondissent au-dessus des postes, et une consigne s'affiche en bas (« Rincer : Escargots », « À la
+passe ! », « Passez-le à l'équipe par le passe-plat »). Quand le poste utile est chez un coéquipier,
+la flèche montre le passe-plat. Les mains vides, dans l'ordre : un plat prêt à livrer, quelque chose
+de prêt à dresser (prendre une assiette, ou une assiette entamée qu'il complète), un geste à faire,
+un ustensile à lancer, un ingrédient posé qu'on sait traiter, débarrasser une assiette vide qui
+bouche un passe-plat, puis ce qui manque aux bons, au distributeur.
+
+Un test fait jouer des services entiers, de 1 à 4 cuisiniers, à des robots qui ne font que suivre le
+guidage (`server/mess-rush-kitchens.test.js`) : ils servent 15 à 27 plats par service, presque sans
+commande expirée. C'est ce qui a fait sortir les cas où le guidage tournait en rond (assiettes vides
+qui bouchent les passe-plats, plat fini qui fait l'aller-retour entre deux zones).
+
+### Les postes
+
+- **Le poste visé** est celui qu'on regarde, à portée : un poste de côté compte jusqu'à deux fois
+  sa distance, un poste dans le dos trois fois. Sans cela, devant une poêle, on visait le
+  passe-plat de la cloison voisine.
+- **Repères** : chaque poste a son pictogramme au-dessus de lui (frigo, garde-manger, couteau,
+  plonge, marmite, poêle, café, assiettes, sonnette de la passe, recyclage, passe-plat), grisé chez
+  un coéquipier.
+- **Vider** : Espace sur une marmite, une poêle ou la fontaine en cuisson ou cuite la vide (deux
+  appuis, c'est perdu, compté en gaspillage). Pas encore lancée, E reprend le dernier ingrédient
+  mis.
+- **La jauge** des gestes et des cuissons était invisible : minuscule, sous l'invite « E », et son
+  remplissage opaque, dessiné sans test de profondeur, était recouvert par la passe transparente du
+  pont. Elle est plus grande, devant le poste, et « transparente » pour passer après le décor.
+
+### Les bons qui expirent
+
+Quand un bon expire, ce qu'on lui préparait et qu'aucun autre bon n'attend disparaît, où qu'il soit
+(mains, postes, ustensiles, assiettes et tasses ; les assiettes restent, vidées) : `clearUnneeded`.
+Sans pénalité ni gaspillage compté.
+
+### Les sons
+
+Synthétisés (`Sound.kitchen`) : la sonnette quand une cuisson est prête, le ticket et la petite
+cloche d'un nouveau bon, le buzzer d'un bon expiré, deux notes quand un geste est fini, le bac de
+recyclage ; et la caisse quand un plat est servi, un petit son quand on prend ou pose.
+
+### À confirmer en jeu
+
+- Le rythme et les médailles à plusieurs (cf. plus haut).
+- Le partage des rôles à quatre : le coin nord-est n'a que la passe et le retour plateaux.
+- Les sons, jamais écoutés (session sans haut-parleur).

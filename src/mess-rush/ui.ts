@@ -4,7 +4,7 @@ import { icon } from '../icons'
 import type { MessCrew, MessEnd, MessLobby, MessReward, MessTeam } from '../net'
 import { button, el, Modal } from '../salvage/ui'
 import { DIFFICULTIES, INGREDIENTS, PROCESSES, RECIPES, SERVICE_RECIPES, type Text } from '../../shared/mess-rush-catalog.js'
-import { RULES, currentMedal, medalOf, recipeValue, type Medal, type ServiceState } from '../../shared/mess-rush.js'
+import { RULES, currentMedal, medalOf, menuFor, recipeValue, type Medal, type ServiceState } from '../../shared/mess-rush.js'
 import { nextReset } from '../../shared/mess-rush-week.js'
 import { stateLabel } from './props'
 
@@ -179,12 +179,16 @@ export class MessPanel extends Modal {
     stage.append(hero, ...[this.rewards()].filter((b): b is HTMLElement => !!b), this.menu(), this.controls())
   }
 
-  /** La carte du service, par difficulté : les plats et ce qu'ils valent ; les complexes arrivent en cours de service. */
-  private menu(): HTMLElement {
+  /**
+   * La carte du service, par difficulté : les plats et ce qu'ils valent ; les complexes arrivent en
+   * cours de service. `players` : la carte de ce nombre de cuisiniers (toute la carte, sinon).
+   */
+  private menu(players?: number): HTMLElement {
     const box = el('div', 'mess-menu')
-    box.append(el('span', 'arena-heading', tr('À la carte', 'On the menu')))
+    const served = players ? menuFor(players) : SERVICE_RECIPES
+    box.append(el('span', 'arena-heading', players ? tr(`À la carte ${players > 1 ? `à ${COUNT[players] ?? players}` : 'en solo'}`, players > 1 ? `On the menu for ${players}` : 'Solo menu') : tr('À la carte', 'On the menu')))
     for (const level of Object.keys(DIFFICULTIES) as (keyof typeof DIFFICULTIES)[]) {
-      const ids = SERVICE_RECIPES.filter((id) => RECIPES[id].difficulty === level)
+      const ids = served.filter((id) => RECIPES[id].difficulty === level)
       if (!ids.length) continue
       const head = el('p', 'mess-menu-level')
       head.append(el('strong', '', text(DIFFICULTIES[level].name)))
@@ -204,8 +208,8 @@ export class MessPanel extends Modal {
   private controls(): HTMLElement {
     const box = el('p', 'salvage-note')
     box.textContent = tr(
-      'E (A / ×) : prendre ou poser. Espace (X / □) : rincer, couper, lancer une cuisson ; au frigo et au garde-manger, changer d\'ingrédient.',
-      'E (A / ×): pick up or put down. Space (X / □): rinse, chop, start cooking; at the fridge and pantry, switch ingredient.',
+      'E (A / ×) : prendre ou poser. Espace (X / □) : rincer, couper, lancer une cuisson, vider un ustensile ; au frigo et au garde-manger, changer d\'ingrédient. À plusieurs, la cuisine est cloisonnée : chacun sa zone, et l\'on se passe les plats par les passe-plats. Les flèches vertes montrent quoi faire.',
+      'E (A / ×): pick up or put down. Space (X / □): rinse, chop, start cooking, empty a utensil; at the fridge and pantry, switch ingredient. With several cooks, the kitchen is split: each has a zone, and dishes go across the pass-throughs. Green arrows show what to do.',
     )
     return box
   }
@@ -241,7 +245,7 @@ export class MessPanel extends Modal {
       row.append(m)
     }
     medals.append(row, el('small', '', tr('La médaille de bronze, c\'est la victoire.', 'Bronze means victory.')))
-    stage.append(crew, medals, ...[this.rewards()].filter((b): b is HTMLElement => !!b), this.menu(), this.controls())
+    stage.append(crew, medals, ...[this.rewards()].filter((b): b is HTMLElement => !!b), this.menu(t.members.length), this.controls())
 
     const ready = t.members.filter((m) => m.ready).length
     const footer = el('div', 'arena-footer')
@@ -268,6 +272,9 @@ export class MessHud {
   private crewKey = ''
   private readonly tickets = el('div', 'mess-tickets')
   private readonly toasts = el('div', 'mess-toasts')
+  /** La consigne du guidage, en bas de l'écran (cf. client.ts, hintText). */
+  private readonly hintBox = el('p', 'mess-hint')
+  private readonly hintText = el('span')
   private readonly quit: HTMLButtonElement
   private armed = 0
   private shown = ''
@@ -290,8 +297,17 @@ export class MessHud {
         this.quit.lastChild!.textContent = tr('Confirmer ?', 'Confirm?')
       }
     }, 'mess-quit', 'sign-out')
-    this.root.append(bar, this.crew, this.tickets, this.toasts, this.quit)
+    this.hintBox.append(icon('chef-hat'), this.hintText)
+    this.hintBox.hidden = true
+    this.root.append(bar, this.crew, this.tickets, this.toasts, this.hintBox, this.quit)
     document.body.append(this.root)
+  }
+
+  /** La consigne du moment (vide : rien à dire). */
+  hint(line: string) {
+    if (this.hintText.textContent === line && this.hintBox.hidden === !line) return
+    this.hintText.textContent = line
+    this.hintBox.hidden = !line
   }
 
   show() {
@@ -303,6 +319,7 @@ export class MessHud {
     this.root.hidden = true
     this.tickets.replaceChildren()
     this.crew.replaceChildren()
+    this.hint('')
     this.shown = this.crewKey = ''
     document.body.classList.remove('mess-on')
   }

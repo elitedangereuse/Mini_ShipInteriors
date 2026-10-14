@@ -8,7 +8,8 @@
 // Partie : les règles sont dans shared/mess-rush.js. Le relais tient l'état, arbitre chaque action
 // une à une (E : `mess:use`, Espace : `mess:work`), vérifie que le joueur est au poste (sa dernière
 // position acceptée), fait avancer les gestes, les cuissons et les commandes dix fois par seconde,
-// et envoie l'état à l'équipe quand il change.
+// et envoie l'état à l'équipe quand il change. À plusieurs, la cuisine est cloisonnée (cf. KITCHENS) :
+// chacun reste dans sa zone, et un départ fait tomber les cloisons.
 //
 // Fin : à la fin du service, chacun reçoit le résultat ; chaque membre CMDR encore là (ou parti
 // depuis moins d'une minute) est présenté au site (`reward`), qui décide de la récompense (cf.
@@ -22,8 +23,8 @@ import { randomBytes } from 'node:crypto'
 import { ShipMap } from '../shared/ship-map.js'
 import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import {
-  MESS_LEVEL, MESS_LOBBY, MESS_SPAWNS, RULES, STATION_BY_ID, createService, dropHeld, onMessFloor, serviceResult, serviceView, stepService,
-  stopWork, useStation, workStation,
+  KITCHENS, MESS_LEVEL, MESS_LOBBY, RULES, STATION_BY_ID, createService, dropHeld, inZone, onMessFloor, openKitchen, serviceResult, serviceView,
+  stepService, stopWork, useStation, workStation,
 } from '../shared/mess-rush.js'
 import { RECIPES } from '../shared/mess-rush-catalog.js'
 import { createLobby } from './lobby.js'
@@ -94,11 +95,13 @@ export function createMessRush({
 
   function startGame(t) {
     const id = randomBytes(8).toString('hex')
-    const state = createService({ id, seed: seed(), players: t.members.length, now: now(), ...(recipes ? { recipes } : {}) })
+    const state = createService({ id, seed: seed(), players: t.members.length, now: now(), members: t.members, ...(recipes ? { recipes } : {}) })
     const game = { id, team: t, state, members: new Map(), ended: false, last: now(), dirty: true, tick: 0 }
+    const zones = KITCHENS[state.kitchen].zones
     t.members.forEach((pid, i) => {
       const p = playerById(pid)
-      const spawn = MESS_SPAWNS[i % MESS_SPAWNS.length]
+      // On arrive dans sa zone (cf. KITCHENS), au même rang que sa place dans le salon.
+      const spawn = zones[i % zones.length].spawn
       game.members.set(pid, {
         id: pid, name: p?.name ?? '?', verified: !!p?.verified, cookie: p?.cookie ?? null,
         status: 'arriving', spawn, x: spawn.x, z: spawn.z, at: now(), stride: SLACK, arrivingSince: now(),
@@ -122,7 +125,7 @@ export function createMessRush({
 
   // ------------------------------------------------------------------ partie
 
-  /** Le membre est-il à portée de ce poste (sa dernière position acceptée) ? */
+  /** Le membre est-il à portée de ce poste (sa dernière position acceptée) ? La zone, elle, est vérifiée par les règles. */
   function near(game, pid, stationId) {
     const m = game.members.get(Number(pid)) ?? game.members.get(pid)
     const s = STATION_BY_ID[stationId]
@@ -169,6 +172,7 @@ export function createMessRush({
     if (m.status === 'left' || m.status === 'gone') return
     tell(game, dropHeld(game.state, String(m.id)))
     m.status = 'left'
+    tell(game, openKitchen(game.state))
     lobby.release({ id: m.id })
     emit(m.id, 'mess:left', { game: game.id })
     tell(game, [{ kind: 'left', by: String(m.id) }])
@@ -240,6 +244,7 @@ export function createMessRush({
       if (!(m.status === 'away' && t >= m.awayUntil) && !late) continue
       if (late) dropHeld(game.state, String(m.id))
       m.status = 'gone'
+      tell(game, openKitchen(game.state))
       if (late) {
         lobby.release({ id: m.id })
         emit(m.id, 'mess:left', { game: game.id })
@@ -273,13 +278,14 @@ export function createMessRush({
   // ------------------------------------------------------------------ joueurs
 
   /**
-   * Position reçue d'un joueur dans la cuisine : acceptée si elle y est plausible (sur le sol, pas
-   * plus loin que ne le permet la course ; à l'arrivée, près de son point d'arrivée).
+   * Position reçue d'un joueur dans la cuisine : acceptée si elle y est plausible (sur le sol de sa
+   * zone, pas plus loin que ne le permet la course ; à l'arrivée, près de son point d'arrivée).
    */
   function accepts(p, x, z) {
-    const m = gameOf(p)?.members.get(p.id)
+    const game = gameOf(p)
+    const m = game?.members.get(p.id)
     if (!m || (m.status !== 'in' && m.status !== 'arriving')) return false
-    if (!onMessFloor(x, z)) return false
+    if (!onMessFloor(x, z) || !inZone(game.state, String(m.id), x, z)) return false
     if (m.status === 'arriving') return Math.hypot(x - m.spawn.x, z - m.spawn.z) <= 1.5
     return Math.hypot(x - m.x, z - m.z) <= stride(m)
   }
@@ -366,8 +372,12 @@ export function createMessRush({
     m.connected = true
     game.members.set(p.id, m)
     lobby.rename(game.team, old, p.id)
-    // Sa main (vide : il a tout posé en partant) suit son nouvel identifiant.
+    // Sa main (vide : il a tout posé en partant) et sa zone suivent son nouvel identifiant.
     delete game.state.hands[String(old)]
+    if (game.state.zones[String(old)] !== undefined) {
+      game.state.zones[String(p.id)] = game.state.zones[String(old)]
+      delete game.state.zones[String(old)]
+    }
     Object.assign(m, { status: 'arriving', x: m.spawn.x, z: m.spawn.z, at: now(), arrivingSince: now() })
     emit(p.id, 'mess:start', { ...startMessage(game, m), resumed: true })
     tell(game, [{ kind: 'back', by: String(p.id), old: String(old) }])

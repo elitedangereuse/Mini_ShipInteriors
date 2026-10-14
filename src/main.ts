@@ -2316,7 +2316,25 @@ const arena = arenaMode
 // la première entrée, comme la base au sol), le service.
 let messKitchen: Deck | null = null
 /** La vue d'avant la cuisine (cf. `view`) : on y revient à la sortie. */
-let messHeading: number | null = null
+let messBefore: { heading: number; zoom: number } | null = null
+/** La vue de la cuisine : presque à la verticale, du côté de la salle (le nord), les postes du mur sud face à soi. */
+const KITCHEN_ELEVATION = THREE.MathUtils.degToRad(58)
+/** Ce que la vue du dessus doit montrer de la cuisine (m) : la pièce, ses murs, et un peu de marge. */
+const KITCHEN_SPAN = { width: 10.4, depth: 8.6 }
+/**
+ * Place que prennent le bandeau (en haut), et la consigne et les emotes (en bas), en pixels ; sur un
+ * écran bas (un téléphone en paysage), une part de la hauteur au plus.
+ */
+const KITCHEN_HUD = { top: 110, bottom: 100 }
+const kitchenHud = () => ({ top: Math.min(KITCHEN_HUD.top, innerHeight * 0.16), bottom: Math.min(KITCHEN_HUD.bottom, innerHeight * 0.13) })
+/** Le zoom qui montre toute la cuisine entre le bandeau du haut et celui du bas, sur cet écran. */
+function kitchenZoom(): number {
+  const hud = kitchenHud()
+  const free = Math.max(0.35, (innerHeight - hud.top - hud.bottom) / innerHeight)
+  const tall = (KITCHEN_SPAN.depth * Math.sin(KITCHEN_ELEVATION) + 2.2 * Math.cos(KITCHEN_ELEVATION)) / 2 / free
+  const wide = KITCHEN_SPAN.width / 2 / (innerWidth / innerHeight)
+  return Math.max(tall, wide)
+}
 function kitchenDeck(): Deck {
   if (!messKitchen) {
     messKitchen = new Deck(MESS_RUSH_DECK)
@@ -2350,17 +2368,39 @@ const messRush = new MessRushClient({
   served: () => kitchen.addServed(),
   stowTray: () => kitchen.stowTray(),
   playing: soberUp,
+  place: (o, solids, fade) => kitchenDeck().addRuntime(o, solids, fade),
   credited: (earned, balance) => wallet.site({ earned, balance }),
-  view: (on) => {
-    if (on) {
-      messHeading ??= iso.heading
-      iso.turnTo(Math.PI * 0.75)
-    } else if (messHeading !== null) {
-      iso.turnTo(messHeading)
-      messHeading = null
-    }
-  },
+  view: kitchenView,
 })
+/**
+ * La cuisine se joue vue du dessus, toute la pièce à l'écran (on ne la tourne ni ne zoome), comme
+ * dans Overcooked ; la vue subjective attend la sortie (cf. isoOnly). Puis la vue d'avant.
+ */
+function kitchenView(on: boolean) {
+  if (on) {
+    messBefore ??= { heading: iso.heading, zoom: iso.zoomLevel }
+    iso.locked = false
+    const zoom = kitchenZoom()
+    iso.zoomMin = Math.min(2.5, zoom)
+    iso.zoomMax = Math.max(ZOOM_MAX, zoom)
+    iso.setRestElevation(KITCHEN_ELEVATION)
+    iso.turnTo(Math.PI, false)
+    iso.zoomTo(zoom)
+    const hud = kitchenHud()
+    iso.frameCenter(0, (hud.bottom - hud.top) / 2, innerHeight)
+    iso.settle()
+    iso.locked = true
+  } else if (messBefore) {
+    iso.locked = false
+    iso.zoomMin = 2.5
+    iso.zoomMax = ZOOM_MAX
+    iso.setRestElevation(null)
+    iso.frameCenter(0, 0, innerHeight)
+    iso.turnTo(messBefore.heading)
+    iso.zoomTo(messBefore.zoom)
+    messBefore = null
+  }
+}
 // Le rail des bons du mess : on y prend le service.
 for (const it of patrolDeck.interactables) {
   if (it.furniture?.model === 'order-rail') it.onInteract = () => { player.interact(); messRush.openTerminal() }
@@ -4641,7 +4681,8 @@ function isoOnly(): boolean {
   // Caché dans un casier aussi : en vue subjective, on ne verrait que l'intérieur de la porte.
   // Une scène de quête se regarde de haut, les deux interlocuteurs dans le cadre.
   // La scène de fin de l'arène se regarde de face, tous les combattants dans le cadre.
-  return editing() || photo.active || !!claw || barPanel.isOpen || cinemaRoom.isOpen || mediaRoom.isOpen || planetarium.active || !!zone.watchTarget || zone.hiding || cinematic.active || !!cctv?.active || !!arenaMode?.staging || !!arenaMode?.watching
+  // La cuisine de MESS RUSH se joue vue du dessus.
+  return messRush.inKitchen || editing() || photo.active || !!claw || barPanel.isOpen || cinemaRoom.isOpen || mediaRoom.isOpen || planetarium.active || !!zone.watchTarget || zone.hiding || cinematic.active || !!cctv?.active || !!arenaMode?.staging || !!arenaMode?.watching
 }
 /** Occupé (installé, en emote, au travail…) : en vue subjective, la caméra passe derrière le personnage. */
 function busyBody(): boolean {
@@ -5219,6 +5260,8 @@ function inSight(item: Interactable): boolean {
 }
 
 function nearestInteractable(): Interactable | null {
+  // En cuisine de MESS RUSH : le poste qu'on regarde, de sa zone (cf. mess-rush/client.ts).
+  if (messRush.inKitchen) return messRush.target()
   // Arme en main, au stand de tir : on n'agit que sur les armes du mur (en changer, raccrocher la
   // sienne), et de tout près : au pas de tir, à deux pas du mur, l'invite ne doit pas s'afficher.
   // Dans l'arène, rien à utiliser : on tire.
@@ -6354,7 +6397,7 @@ function frame() {
   else iso.frameCenter(0, 0, innerHeight)
   const cinemaSeat = deck.def.id === 1 && ['cinema-row', 'projection-chair'].includes(seating.current?.item.furniture?.model ?? '')
   if (cinemaSeat) cinemaFocus.set(cinemaScreenProp.x, deck.y, (player.position.z + cinemaScreenProp.z) / 2)
-  iso.update(dt, arena.stageFocus ?? arena.matchFocus(iso) ?? zone.watchTarget ?? cctv?.target3 ?? (cinematic.active ? cinematic.focus : roomReveal ? roomReveal.focus : claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : cinemaSeat ? cinemaFocus : planetarium.active ? planetariumFocus : builder?.active ? builder.focus : player.position))
+  iso.update(dt, arena.stageFocus ?? arena.matchFocus(iso) ?? messRush.focus ?? zone.watchTarget ?? cctv?.target3 ?? (cinematic.active ? cinematic.focus : roomReveal ? roomReveal.focus : claw ? claw.focus : barPanel.isOpen && deck.def.id === -1 ? barFocus : cinemaSeat ? cinemaFocus : planetarium.active ? planetariumFocus : builder?.active ? builder.focus : player.position))
   if (barPanel.isOpen) {
     iso.camera.updateMatrixWorld()
     barPanel.place(iso.camera, player.position, jacquesAt)
@@ -6542,9 +6585,13 @@ function frame() {
       } else promptLabel.textContent = parts ? parts.main : label
     }
     let x = innerWidth / 2, y = fpsBottom()
+    // En cuisine de MESS RUSH, sous les pieds du joueur : au-dessus des postes, elle cacherait leurs
+    // repères, les flèches et les jauges.
+    const underFeet = !!parts && messRush.inKitchen
     // Vue subjective : l'invite reste devant soi, en bas de l'écran ; sinon, au-dessus de l'objet.
     if (!fpsShown) {
       if (sitting) screenPos.set(player.position.x, player.position.y + 1.3, player.position.z).project(activeCamera())
+      else if (underFeet) screenPos.set(player.position.x, player.position.y, player.position.z).project(activeCamera())
       else screenPos.set(near!.position.x, deck.y + deck.ground(near!.position.x, near!.position.z) + 1.1, near!.position.z).project(activeCamera())
       x = ((screenPos.x + 1) / 2) * innerWidth
       y = ((1 - screenPos.y) / 2) * innerHeight
@@ -6557,7 +6604,7 @@ function frame() {
     }
     promptBox.x = x
     promptBox.y = y
-    const transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`
+    const transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, ${underFeet ? '14px' : '-100%'})`
     if (transform !== promptTransform) {
       promptTransform = transform
       promptEl.style.transform = transform
@@ -6725,6 +6772,8 @@ function frame() {
 addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight)
   iso.resize(innerWidth / innerHeight)
+  // En cuisine, la vue du dessus se recadre sur la nouvelle taille de l'écran.
+  if (messRush.inKitchen) kitchenView(true)
   fps.resize(innerWidth / innerHeight)
   syncMobileEntry()
 })

@@ -34,11 +34,11 @@ test('les commandes arrivent au rythme du nombre de joueurs, sans dépasser le p
   assert.equal(k.state.orders.filter((o) => o.status === 'pending').length, 2)
   k.advance(24)
   assert.equal(k.state.orders.filter((o) => o.status === 'pending').length, 2)
-  // À quatre : cinq au plus, une toutes les 10 s.
+  // À quatre : cinq au plus, une toutes les 11 s.
   const four = solo(['escargots-irukama'], 4)
-  four.advance(3.1 + 10 * 4)
+  four.advance(3.1 + 11 * 4)
   assert.equal(four.state.orders.filter((o) => o.status === 'pending').length, 5)
-  four.advance(10)
+  four.advance(11)
   assert.equal(four.state.orders.filter((o) => o.status === 'pending').length, 5)
 })
 
@@ -126,14 +126,14 @@ test('les transitions invalides sont refusées : ingrédient pas prêt, mauvais 
   assert.equal(k.use('p1', 'poele-1').ok, false)
   must(k.use('p1', 'marmite-1'))
   must(k.work('p1', 'marmite-1'))
-  // En cuisson : on n'y ajoute rien, on ne relance pas.
+  // En cuisson : on n'y ajoute rien, on ne relance pas (Espace la viderait).
   must(k.use('p1', 'garde-manger', 'legumes'))
   must(k.use('p1', 'plan-1'))
   must(k.work('p1', 'plan-1'))
   k.advance(2.6)
   must(k.use('p1', 'plan-1'))
   assert.equal(k.use('p1', 'marmite-1').ok, false)
-  assert.equal(k.work('p1', 'marmite-1').ok, false)
+  assert.equal(resolveAction(k.state, 'p1', 'marmite-1').work.kind, 'empty')
   // Cuit : sans assiette, on ne sert pas.
   k.advance(8)
   must(k.use('p1', 'marmite-2'))
@@ -198,8 +198,12 @@ test('la fontaine infuse le café en tasse ; la tasse se livre telle quelle', ()
   k.waitOrder()
   must(k.use('p1', 'garde-manger', 'cafe-goman'))
   must(k.use('p1', 'fontaine'))
-  assert.equal(k.use('p1', 'fontaine').ok, false)
+  // Pas encore lancée : on reprend le café, on le remet.
+  must(k.use('p1', 'fontaine'))
+  assert.equal(k.state.items[k.state.hands.p1].ing, 'cafe-goman')
+  must(k.use('p1', 'fontaine'))
   must(k.work('p1', 'fontaine'))
+  assert.equal(k.use('p1', 'fontaine').ok, false)
   k.advance(4.1)
   must(k.use('p1', 'fontaine'))
   const cup = k.state.items[k.state.hands.p1]
@@ -253,8 +257,8 @@ test('médailles, combo et rapidité', () => {
   assert.equal(medalOf(230, 1), 'bronze')
   assert.equal(medalOf(390, 1), 'silver')
   assert.equal(medalOf(490, 1), 'gold')
-  assert.equal(medalOf(490, 4), 'none')
-  assert.equal(medalOf(530, 4), 'bronze')
+  assert.equal(medalOf(449, 4), 'none')
+  assert.equal(medalOf(450, 4), 'bronze')
   // Plus on est nombreux, plus chaque médaille demande de points.
   for (let n = 1; n < 4; n++) for (let m = 0; m < 3; m++) assert.ok(RULES.medals[n][m] <= RULES.medals[n + 1][m])
   assert.equal(medalOf(9999, 9), 'gold')

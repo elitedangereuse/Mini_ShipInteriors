@@ -124,6 +124,8 @@ import shovel from '@phosphor-icons/core/bold/shovel-bold.svg?raw'
 import grains from '@phosphor-icons/core/bold/grains-bold.svg?raw'
 import scissors from '@phosphor-icons/core/bold/scissors-bold.svg?raw'
 import basket from '@phosphor-icons/core/bold/basket-bold.svg?raw'
+import coffee from '@phosphor-icons/core/bold/coffee-bold.svg?raw'
+import recycle from '@phosphor-icons/core/bold/recycle-bold.svg?raw'
 import sparkle from '@phosphor-icons/core/bold/sparkle-bold.svg?raw'
 import handTap from '@phosphor-icons/core/bold/hand-tap-bold.svg?raw'
 import personArmsSpread from '@phosphor-icons/core/bold/person-arms-spread-bold.svg?raw'
@@ -332,6 +334,9 @@ const SVG = {
   'chef-hat': chefHat,
   knife,
   'bowl-steam': bowlSteam,
+  // MESS RUSH : les repères des postes (cf. mess-rush/props.ts)
+  coffee,
+  recycle,
   // zone thargoïde : chef d'équipe, capturé, caché, fusée, caméras, bruit
   crown,
   skull,
