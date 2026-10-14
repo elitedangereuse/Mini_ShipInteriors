@@ -382,8 +382,21 @@ export interface MessEnd {
   /** Revenu après la fin : le résultat, en retard. */
   late?: boolean
 }
-/** La récompense d'une victoire, telle que le site l'a confirmée (cf. docs/mess-rush-site.md). */
-export interface MessReward { game: string; status?: string; reward?: 'booster' | 'credits' | 'capped' | 'none'; boosters?: number; earned?: number; balance?: number; already?: boolean }
+/**
+ * La récompense d'une victoire (cf. docs/mess-rush-site.md) : en route (`pending`), confirmée par le
+ * site (`success`), pas encore en service (`unavailable`), refusée (`refused`), ou sans réponse du
+ * site après plusieurs tentatives (`failed`).
+ */
+export interface MessReward {
+  game: string
+  status: 'pending' | 'success' | 'unavailable' | 'refused' | 'failed'
+  reward?: 'booster' | 'credits' | 'capped' | 'none'
+  boosters?: number
+  earned?: number
+  balance?: number
+  already?: boolean
+  code?: string
+}
 export type MessAction = 'join' | 'leave' | 'ready' | 'resume' | 'use' | 'work' | 'stop' | 'quit'
 
 export type ServerMessage =

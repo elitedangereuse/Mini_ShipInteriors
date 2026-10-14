@@ -15,6 +15,8 @@ import type { GardenRules } from '../../shared/gardening.js'
  * - salvage : récompense d'une mission réussie en zone thargoïde, par membre (par colis, et bonus
  *   par ennemi au-delà du premier, cf. salvageReward dans shared/salvage.js) ; `daily` missions
  *   payées par jour, et aucune bouclée en moins de `minPerParcel` secondes par colis ;
+ * - messRush : les récompenses de MESS RUSH (crédits selon la médaille, victoires payées par jour,
+ *   booster de la semaine, bascule du jeudi), que le site applique (cf. MessRushRules) ;
  * - hangar, garden : prime d'une révision faite avec Nico (cf. hangar.ts), d'une fiche de culture
  *   avec Capucine (cf. greenhouse.ts) : payée `minTime` secondes au moins après la commande, au plus une
  *   toutes les `minGap` secondes et `daily` par jour. `kitchen`, la prime des plats de l'ancienne
@@ -64,6 +66,21 @@ export interface Spot {
 /** Travail payé aux côtés d'un membre d'équipage : les plats de Marcel, les révisions de Nico, les fiches de culture de Capucine. */
 export type JobKind = 'hangar' | 'garden'
 
+/**
+ * MESS RUSH (cf. docs/mess-rush-site.md, que le site applique) : durée du service, crédits d'une
+ * victoire selon la médaille, victoires payées par jour, boosters de la première victoire de la
+ * semaine (et si elle paie aussi des crédits), jour de la bascule de la semaine ; l'heure et le
+ * fuseau, à `null` tant qu'ils ne sont pas décidés, sont ceux de la boutique de boosters.
+ */
+export interface MessRushRules {
+  service: number
+  credits: { bronze: number; silver: number; gold: number }
+  daily: number
+  boosters: number
+  firstWinCredits: boolean
+  reset: { day: string; hour: number | null; tz: string | null }
+}
+
 /** Prime d'un travail, et ses délais (s) : de la commande à la paie, entre deux paies ; payés par jour. */
 export interface JobRules {
   reward: number
@@ -80,6 +97,7 @@ interface Economy {
   plot?: number[]
   boosters?: { prices: number[] }
   salvage: { parcel: number; enemyBonus: number; daily: number; minPerParcel: number }
+  messRush?: MessRushRules
   kitchen: JobRules
   hangar: JobRules
   garden: JobRules

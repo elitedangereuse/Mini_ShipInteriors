@@ -176,9 +176,39 @@ Pour un succès, ou pour une partie déjà enregistrée (`already: true`), on re
 - Le booster doit être réellement versé au compte, comme ceux de la zone thargoïde (on l'ouvre
   ensuite sur le site ou au comptoir de Ludo). Le jeu ne simule rien.
 
+## La semaine du joueur (lecture, côté client)
+
+Le salon de MESS RUSH n'annonce les récompenses que si le site les confirme. Il lit la semaine du
+joueur, avec le cookie du site, comme les autres endpoints lus par le client :
+
+`GET /outils/mini-shipinteriors-messrush.php?week=1`
+
+```json
+{ "status": "success", "booster": "available", "reset": "2026-10-22T07:00:00Z", "paidToday": 2, "daily": 5 }
+```
+
+| Champ | Sens |
+|---|---|
+| `booster` | `available` : la première victoire de la semaine reste à gagner ; `won` : déjà gagnée |
+| `reset` | La prochaine bascule (ISO 8601), selon `messRush.reset` |
+| `paidToday`, `daily` | Victoires payées en crédits aujourd'hui, et le plafond |
+
+Pour un invité, un `403` suffit : le salon n'affiche alors rien sur les récompenses.
+
+## Ce que fait le relais
+
+- **Une requête par CMDR et par partie**, seulement pour une victoire (médaille de bronze au
+  moins). Un invité n'est jamais présenté ; un joueur parti depuis plus d'une minute non plus.
+- **Le site ne répond pas, ou répond 5xx** : le relais représente la même partie après 5 s, 30 s,
+  puis 2 min. Ensuite, le joueur lit que la récompense n'est pas confirmée, avec le code de partie.
+- **Un refus (4xx autre que 404)** n'est pas retenté.
+- **Un 404 (l'endpoint n'existe pas encore)** : le joueur lit que les récompenses de MESS RUSH ne sont
+  pas encore en service. Ces victoires ne sont gardées nulle part : rien n'est dû pour elles.
+- Le relais n'a pas d'heure de bascule : il horodate la fin (`endedAt`), et c'est tout.
+
 ## `economy.json`
 
-Le jeu ajoute cette section (le build la copie dans `dist/`, où le site la lit déjà) :
+Le jeu a cette section (le build la copie dans `dist/`, où le site la lit déjà) :
 
 ```json
 "messRush": {

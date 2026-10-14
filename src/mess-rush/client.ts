@@ -11,7 +11,7 @@ import {
   MESS_LEVEL, MESS_RETURN, STATION_BY_ID, STATION_NAMES, STATIONS, dispenserChoices, ingredientState, resolveAction, type Item, type ServiceState,
 } from '../../shared/mess-rush.js'
 import { KitchenProps, stateLabel } from './props'
-import { MessEndScreen, MessHud, MessPanel } from './ui'
+import { MessEndScreen, MessHud, MessPanel, type MessWeek } from './ui'
 
 /*
  * MESS RUSH côté joueur (cf. docs/mess-rush.md) : le salon au rail des bons du mess, l'entrée dans
@@ -42,6 +42,27 @@ function saveTicket(t: { game: string; ticket: string } | null) {
     else localStorage.removeItem(TICKET_KEY)
   } catch {
     // Stockage indisponible : pas de reprise après un rechargement, c'est tout.
+  }
+}
+
+/** L'endpoint de MESS RUSH sur le site (cf. docs/mess-rush-site.md) : on y lit sa semaine. */
+export const MESS_URL = import.meta.env.VITE_ED_MESSRUSH_URL || '/outils/mini-shipinteriors-messrush.php'
+
+/** La semaine du joueur (booster gagné ou non, victoires payées du jour) ; null si le site ne la donne pas. */
+async function fetchWeek(): Promise<MessWeek | null> {
+  try {
+    const res = await fetch(`${MESS_URL}?week=1`, { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8000) })
+    if (!res.ok) return null
+    const d = await res.json()
+    if (d?.status !== 'success' || (d.booster !== 'available' && d.booster !== 'won')) return null
+    return {
+      booster: d.booster,
+      ...(typeof d.reset === 'string' ? { reset: d.reset } : {}),
+      ...(Number.isInteger(d.paidToday) ? { paidToday: d.paidToday } : {}),
+      ...(Number.isInteger(d.daily) ? { daily: d.daily } : {}),
+    }
+  } catch {
+    return null
   }
 }
 
@@ -146,6 +167,8 @@ export class MessRushClient {
     this.panel.update(this.lobby, this.host.net.id ?? -1, this.host.net.online)
     this.panel.open()
     void this.prepare()
+    // Un CMDR : sa semaine, si le site la donne (sinon, on n'annonce aucune récompense).
+    if (this.host.verified()) void fetchWeek().then((w) => this.panel.week(w))
   }
 
   private serverNow() {
@@ -200,7 +223,7 @@ export class MessRushClient {
         break
       case 'mess:reward':
         this.end.rewarded(m)
-        if (m.reward === 'credits' && m.earned !== undefined && m.balance !== undefined) this.host.credited(m.earned, m.balance)
+        if (m.status === 'success' && m.reward === 'credits' && !m.already && m.earned !== undefined && m.balance !== undefined) this.host.credited(m.earned, m.balance)
         break
     }
   }

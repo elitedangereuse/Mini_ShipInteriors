@@ -4,7 +4,7 @@
 //   npm test
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { createMessRush, inMessLobby } from './mess-rush.js'
+import { REWARD_RETRIES, createMessRush, inMessLobby } from './mess-rush.js'
 import { MESS_LEVEL, RULES, STATION_BY_ID, serviceView } from '../shared/mess-rush.js'
 import { mulberry32 } from '../shared/salvage.js'
 
@@ -383,6 +383,54 @@ test('l\'état envoyé à l\'équipe reste léger, même à quatre en plein coup
   }
   const size = JSON.stringify(serviceView(game.state)).length
   assert.ok(size < 8000, `${size} octets`)
+})
+
+test('le site ne répond pas : la même victoire lui est représentée, puis le joueur apprend que rien n\'est confirmé', async () => {
+  const later = []
+  let calls = 0
+  const h = harness({
+    later: (fn, ms) => later.push({ fn, ms }),
+    reward: async () => (++calls < 3 ? { status: 'retry' } : { status: 'success', reward: 'booster', boosters: 1, earned: 0, balance: 30000, already: false }),
+  })
+  const { members: [a] } = h.team(1)
+  const game = h.launch([a])
+  game.state.score = 5000
+  h.advance(RULES.service + 1)
+  const flush = () => new Promise((resolve) => setImmediate(resolve))
+  await flush()
+  assert.deepEqual(later.map((l) => l.ms), [REWARD_RETRIES[0] * 1000])
+  later.shift().fn()
+  await flush()
+  later.shift().fn()
+  await flush()
+  assert.equal(calls, 3)
+  assert.deepEqual(h.last(1, 'mess:reward'), { game: game.id, status: 'success', reward: 'booster', boosters: 1, earned: 0, balance: 30000, already: false })
+  // Toujours muet après toutes les tentatives : « rien n'est confirmé ».
+  const quiet = harness({ later: (fn) => fn(), reward: async () => ({ status: 'retry' }) })
+  const { members: [b] } = quiet.team(1)
+  const g = quiet.launch([b])
+  g.state.score = 5000
+  quiet.advance(RULES.service + 1)
+  for (let i = 0; i < 6; i++) await flush()
+  assert.deepEqual(quiet.last(1, 'mess:reward'), { game: g.id, status: 'failed' })
+})
+
+test('revenu après la fin : le résultat, et la récompense que le site a confirmée entre-temps', async () => {
+  const h = harness()
+  const { members: [a, b] } = h.team(1, 2)
+  const game = h.launch([a, b])
+  const { ticket } = h.last(1, 'mess:start')
+  // Parti moins d'une minute avant la fin : sa victoire est présentée au site quand même.
+  h.advance(RULES.service - 20)
+  h.mess.leave(a)
+  game.state.score = 5000
+  h.advance(21)
+  await new Promise((resolve) => setImmediate(resolve))
+  const back = h.add(13)
+  back.name = a.name
+  h.mess.handle(back, 'mess:resume', { game: game.id, ticket })
+  assert.equal(h.last(13, 'mess:end').late, true)
+  assert.deepEqual(h.last(13, 'mess:reward'), { game: game.id, status: 'success', reward: 'credits', earned: 1000, balance: 31000 })
 })
 
 test('arrivée manquée : un membre qui n\'entre pas dans la cuisine à temps est retiré', () => {

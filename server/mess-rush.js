@@ -33,6 +33,11 @@ const DECK = new ShipMap(SHIP_LAYOUTS[String(MESS_LOBBY.level)], shipMapOptions(
 const SLACK = 0.9
 /** La course (cf. src/player.ts), avec de la marge pour le retard du réseau. */
 const SPRINT = 3.4 * 1.25
+/**
+ * Le site ne répond pas (ou est en erreur) : on lui représente la même victoire après ces délais (s).
+ * Sans risque : il ne paie qu'une fois par partie et par CMDR, et rend la réponse déjà donnée.
+ */
+export const REWARD_RETRIES = [5, 30, 120]
 
 /** Évènements des salons et de la partie. */
 export const MESS_ACTIONS = new Set(['mess:join', 'mess:leave', 'mess:ready', 'mess:resume', 'mess:use', 'mess:work', 'mess:stop', 'mess:quit'])
@@ -55,9 +60,11 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z)
  * @param {() => number} [o.seed]
  * @param {string[]} [o.recipes] les recettes en jeu (la sélection du prototype par défaut)
  * @param {boolean} [o.debug] serveur de dev : `mess:debug` raccourcit le service, choisit les recettes, fixe le score
+ * @param {(fn: () => void, ms: number) => void} [o.later] programme une nouvelle tentative auprès du site
  */
 export function createMessRush({
   playerById, emit, broadcast, reward = null, now = Date.now, log = () => {}, seed = () => randomBytes(4).readUInt32LE(0), recipes, debug = false,
+  later = (fn, ms) => setTimeout(fn, ms).unref?.(),
 }) {
   const games = new Map() // id de partie -> partie
   const finished = new Map() // id de partie -> { report, tickets, until }
@@ -178,7 +185,7 @@ export function createMessRush({
     toGame(game, 'mess:end', report)
     // Membres partis (ou pas encore revenus) : ils quittent le salon ; qui revient apprendra le résultat.
     lobby.finish(game.team, new Set([...game.members.values()].filter((m) => m.connected && m.status !== 'left' && m.status !== 'gone').map((m) => m.id)))
-    finished.set(game.id, { report, tickets: new Set([...game.members.values()].map((m) => m.ticket)), until: now() + RULES.keepResult * 1000 })
+    finished.set(game.id, { report, tickets: new Set([...game.members.values()].map((m) => m.ticket)), rewards: new Map(), until: now() + RULES.keepResult * 1000 })
     log(`[mess-rush] service ${game.id} : ${reason === 'end' ? `${result.score} points, médaille ${result.medal}, ${result.served} servies, ${result.expired} expirées` : 'abandonné'}`)
     if (!result?.won || !reward) return
     // La victoire : chaque membre CMDR encore là, ou parti depuis moins d'une minute, est présenté au
@@ -186,10 +193,23 @@ export function createMessRush({
     for (const m of game.members.values()) {
       if (!m.verified || !m.cookie || m.status === 'left' || m.status === 'gone') continue
       emit(m.id, 'mess:reward', { game: game.id, status: 'pending' })
-      void reward(m, result).then((r) => {
-        if (r) emit(m.id, 'mess:reward', { game: game.id, ...r })
-      }).catch(() => {})
+      present(game.id, m, result, 0)
     }
+  }
+
+  /**
+   * Présente la victoire d'un membre au site ; s'il ne répond pas, on réessaie (REWARD_RETRIES),
+   * puis on dit au joueur que rien n'est confirmé. La réponse est gardée avec le résultat, pour qui
+   * revient après la fin.
+   */
+  function present(id, m, result, attempt) {
+    void Promise.resolve().then(() => reward(m, result)).catch(() => ({ status: 'retry' })).then((r) => {
+      if (r?.status === 'retry' && attempt < REWARD_RETRIES.length) return later(() => present(id, m, result, attempt + 1), REWARD_RETRIES[attempt] * 1000)
+      const out = { game: id, ...(r && r.status !== 'retry' ? r : { status: 'failed' }) }
+      if (out.status === 'failed') log(`[mess-rush] partie ${id} : la victoire de ${m.name} n'a pas pu être présentée au site`)
+      finished.get(id)?.rewards.set(m.ticket, out)
+      emit(m.id, 'mess:reward', out)
+    })
   }
 
   function stepGame(game) {
@@ -297,8 +317,11 @@ export function createMessRush({
     const game = games.get(data.game)
     if (!game) {
       const done = finished.get(data.game)
-      if (done && ticket && done.tickets.has(ticket)) emit(p.id, 'mess:end', { ...done.report, late: true })
-      else error(p, 'resume')
+      if (done && ticket && done.tickets.has(ticket)) {
+        emit(p.id, 'mess:end', { ...done.report, late: true })
+        const r = done.rewards.get(ticket)
+        if (r) emit(p.id, 'mess:reward', r)
+      } else error(p, 'resume')
       return
     }
     const m = ticket ? [...game.members.values()].find((x) => x.ticket === ticket) : null

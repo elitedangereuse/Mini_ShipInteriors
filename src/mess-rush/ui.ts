@@ -1,4 +1,4 @@
-import { formatCredits } from '../economy/data'
+import { ECONOMY, formatCredits } from '../economy/data'
 import { EN, tr } from '../i18n'
 import { icon } from '../icons'
 import type { MessCrew, MessEnd, MessLobby, MessReward, MessTeam } from '../net'
@@ -35,6 +35,9 @@ export function component(ing: string, state: string): string {
   return s ? `${text(INGREDIENTS[ing].short)} ${s}` : text(INGREDIENTS[ing].short)
 }
 
+/** La semaine du joueur, telle que le site la tient (cf. docs/mess-rush-site.md, `?week=1`). */
+export interface MessWeek { booster: 'available' | 'won'; reset?: string; paidToday?: number; daily?: number }
+
 export interface MessPanelActions {
   join(team: number): void
   leave(): void
@@ -47,6 +50,7 @@ export class MessPanel extends Modal {
   private self = -1
   private online = false
   private status = ''
+  private weekInfo: MessWeek | null = null
 
   constructor(private actions: MessPanelActions) {
     super(tr('MESS RUSH · LE SERVICE', 'MESS RUSH · SERVICE'), tr('Cuisine en équipe', 'Team cooking'))
@@ -69,6 +73,34 @@ export class MessPanel extends Modal {
   message(line: string) {
     this.status = line
     if (this.isOpen) this.render()
+  }
+
+  /** La semaine du joueur, ou null (invité, ou le site ne répond pas : on n'annonce rien). */
+  week(w: MessWeek | null) {
+    this.weekInfo = w
+    if (this.isOpen) this.render()
+  }
+
+  /** Ce que rapporte une victoire, quand le site le confirme : le booster de la semaine, puis les crédits. */
+  private rewards(): HTMLElement | null {
+    const w = this.weekInfo
+    if (!w) return null
+    const box = el('div', 'mess-rewards')
+    box.append(el('span', 'arena-heading', tr('Vos récompenses', 'Your rewards')))
+    const reset = w.reset ? new Date(w.reset) : null
+    const when = reset && !Number.isNaN(reset.getTime()) ? reset.toLocaleString(EN ? 'en-GB' : 'fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' }) : ''
+    box.append(el('p', '', w.booster === 'available'
+      ? tr('Première victoire de la semaine : un booster de Cartes Dangereuses.', 'First win of the week: a Cartes Dangereuses booster.')
+      : tr(`Booster de la semaine déjà gagné${when ? ` ; le prochain se gagne à partir de ${when}` : ''}.`, `This week's booster already won${when ? `; the next one can be won from ${when}` : ''}.`)))
+    const e = ECONOMY.messRush
+    if (e) {
+      const paid = w.paidToday !== undefined ? tr(` (${w.paidToday}/${w.daily ?? e.daily} aujourd'hui)`, ` (${w.paidToday}/${w.daily ?? e.daily} today)`) : ''
+      box.append(el('p', '', tr(
+        `Les victoires suivantes : ${formatCredits(e.credits.bronze)} en bronze, ${formatCredits(e.credits.silver)} en argent, ${formatCredits(e.credits.gold)} en or ; ${e.daily} victoires payées par jour${paid}.`,
+        `Further wins: ${formatCredits(e.credits.bronze)} for bronze, ${formatCredits(e.credits.silver)} for silver, ${formatCredits(e.credits.gold)} for gold; ${e.daily} paid wins a day${paid}.`,
+      )))
+    }
+    return box
   }
 
   get team(): MessTeam | null {
@@ -139,7 +171,7 @@ export class MessPanel extends Modal {
         `Rush hour in the mess: one to four of you run the kitchen for ${RULES.service / 60} minutes. Tickets come in at the rail; grab ingredients from the fridge and pantry, rinse, chop, cook, plate up, and put the dish on the pass before the timer runs out. The score belongs to the whole team.`,
       )),
     )
-    stage.append(hero, this.menu(), this.controls())
+    stage.append(hero, ...[this.rewards()].filter((b): b is HTMLElement => !!b), this.menu(), this.controls())
   }
 
   /** Les recettes de la carte : leur nom, leur difficulté, ce qu'elles valent. */
@@ -198,7 +230,7 @@ export class MessPanel extends Modal {
       row.append(m)
     }
     medals.append(row, el('small', '', tr('La médaille de bronze, c\'est la victoire.', 'Bronze means victory.')))
-    stage.append(crew, medals, this.menu(), this.controls())
+    stage.append(crew, medals, ...[this.rewards()].filter((b): b is HTMLElement => !!b), this.menu(), this.controls())
 
     const ready = t.members.filter((m) => m.ready).length
     const footer = el('div', 'arena-footer')
@@ -399,7 +431,11 @@ export class MessEndScreen {
     if (r.reason === 'abandoned') this.reward.textContent = tr('Un service abandonné ne compte pas.', 'An abandoned service does not count.')
     else if (!won) this.reward.textContent = tr('Il faut au moins la médaille de bronze pour gagner.', 'You need at least the bronze medal to win.')
     else if (!verified) this.reward.textContent = tr('Connectez-vous sur le site pour gagner des récompenses.', 'Log in to the site to earn rewards.')
-    else this.reward.textContent = tr('Les récompenses de MESS RUSH ne sont pas encore en service.', 'MESS RUSH rewards are not live yet.')
+    else {
+      // Le relais présente la victoire au site : sa réponse suit (cf. rewarded).
+      this.reward.classList.add('pending')
+      this.reward.textContent = tr('Envoi du résultat au site…', 'Sending the result to the site…')
+    }
     card.append(this.reward)
     const back = button(tr('Retour au mess', 'Back to the mess'), () => {
       this.close()
@@ -420,6 +456,18 @@ export class MessEndScreen {
     if (r.game !== this.game) return
     clearTimeout(this.waiting)
     this.reward.classList.remove('pending')
+    if (r.status === 'unavailable') {
+      this.reward.textContent = tr('Les récompenses de MESS RUSH ne sont pas encore en service.', 'MESS RUSH rewards are not live yet.')
+      return
+    }
+    if (r.status === 'refused') {
+      this.reward.textContent = tr(`Le site n'a pas pris ce résultat : pas de récompense pour cette partie (code de partie : ${r.game}).`, `The site did not accept this result: no reward for this game (game code: ${r.game}).`)
+      return
+    }
+    if (r.status === 'failed') {
+      this.reward.textContent = tr(`Le site n'a pas répondu : la récompense n'est pas confirmée. Signalez le code de partie ${r.game} à l'équipe du site.`, `The site did not answer: the reward is not confirmed. Report game code ${r.game} to the site team.`)
+      return
+    }
     if (r.status === 'pending') {
       this.reward.classList.add('pending')
       this.reward.textContent = tr('Envoi du résultat au site…', 'Sending the result to the site…')
@@ -440,7 +488,7 @@ export class MessEndScreen {
       )
     } else if (r.reward === 'capped') {
       this.reward.textContent = tr('Plafond du jour atteint : cette victoire ne rapporte pas de crédits.', 'Daily cap reached: this win earns no credits.')
-    }
+    } else this.reward.textContent = tr('Pas de récompense pour cette partie.', 'No reward for this game.')
   }
 
   close() {
