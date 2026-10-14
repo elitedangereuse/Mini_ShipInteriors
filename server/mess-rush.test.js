@@ -433,6 +433,65 @@ test('revenu après la fin : le résultat, et la récompense que le site a confi
   assert.deepEqual(h.last(13, 'mess:reward'), { game: game.id, status: 'success', reward: 'credits', earned: 1000, balance: 31000 })
 })
 
+test('quatre salons en service en même temps : chacun sa cuisine, ses commandes, son résultat', () => {
+  const h = harness()
+  const teams = [[1, 2], [3], [4, 5, 6], [7, 8]].map((ids) => h.team(...ids))
+  const games = teams.map((t) => h.launch(t.members))
+  assert.equal(new Set(games.map((g) => g.id)).size, 4)
+  assert.deepEqual(games.map((g) => g.state.players), [2, 1, 3, 2])
+  h.advance(RULES.firstOrder + 0.2)
+  // Ce qu'on prend dans une cuisine n'existe pas dans les autres.
+  const [a] = teams[0].members
+  h.goto(a, 'frigo')
+  h.mess.handle(a, 'mess:use', { station: 'frigo' })
+  assert.ok(games[0].state.hands['1'])
+  for (const g of games.slice(1)) assert.equal(Object.values(g.state.hands).filter(Boolean).length, 0)
+  // L'équipe de chacun : les siens, pas ceux des autres salons.
+  assert.deepEqual([...h.mess.mates(a)].sort(), [1, 2])
+  assert.deepEqual([...h.mess.mates(teams[2].members[0])].sort(), [4, 5, 6])
+  games[2].state.score = 5000
+  h.advance(RULES.service)
+  assert.deepEqual([1, 3, 4, 7].map((id) => h.last(id, 'mess:end').game), games.map((g) => g.id))
+  assert.equal(h.last(4, 'mess:end').medal, 'gold')
+  assert.equal(h.last(1, 'mess:end').medal, 'none')
+})
+
+test('après la fin du service, une action en retard est ignorée ; une seule présentation au site par CMDR', async () => {
+  const h = harness()
+  const { members: [a, b] } = h.team(1, 2)
+  const game = h.launch([a, b])
+  game.state.score = 5000
+  h.advance(RULES.service + 1)
+  // L'action arrive après la fin : la partie n'est plus là, rien ne bouge, rien ne casse.
+  h.mess.handle(a, 'mess:use', { station: 'passe' })
+  h.mess.handle(a, 'mess:quit')
+  h.mess.leave(b)
+  h.advance(RULES.reconnect + 1)
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.deepEqual(h.rewards.map((r) => r.member).sort(), [1, 2])
+  assert.equal(h.all(1, 'mess:end').length, 1)
+})
+
+test('pendant le compte à rebours : un nouveau venu ou un départ le remettent à zéro', () => {
+  const h = harness()
+  const { members: [a, b], id } = h.team(1, 2)
+  h.mess.handle(a, 'mess:ready', { ready: true })
+  h.mess.handle(b, 'mess:ready', { ready: true })
+  assert.equal(h.mess.snapshot().teams[id - 1].status, 'countdown')
+  h.advance(1)
+  h.mess.handle(h.add(3), 'mess:join', { team: id })
+  assert.equal(h.mess.snapshot().teams[id - 1].status, 'forming')
+  h.advance(RULES.countdown + 1)
+  assert.equal(h.mess.gameOf(a), null)
+  // Tous prêts de nouveau, puis l'un sort du mess : pas de départ.
+  for (const p of [a, b, h.players.get(3)]) h.mess.handle(p, 'mess:ready', { ready: true })
+  Object.assign(b, { z: 4 })
+  h.mess.moved(b)
+  h.advance(RULES.countdown + 1)
+  assert.equal(h.mess.gameOf(a), null)
+  assert.equal(h.mess.snapshot().teams[id - 1].status, 'forming')
+})
+
 test('arrivée manquée : un membre qui n\'entre pas dans la cuisine à temps est retiré', () => {
   const h = harness()
   const { members: [a, b] } = h.team(1, 2)

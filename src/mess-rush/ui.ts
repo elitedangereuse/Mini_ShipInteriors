@@ -5,6 +5,7 @@ import type { MessCrew, MessEnd, MessLobby, MessReward, MessTeam } from '../net'
 import { button, el, Modal } from '../salvage/ui'
 import { DIFFICULTIES, INGREDIENTS, PROCESSES, RECIPES, SERVICE_RECIPES, type Text } from '../../shared/mess-rush-catalog.js'
 import { RULES, currentMedal, medalOf, recipeValue, type Medal, type ServiceState } from '../../shared/mess-rush.js'
+import { nextReset } from '../../shared/mess-rush-week.js'
 import { stateLabel } from './props'
 
 /*
@@ -87,8 +88,9 @@ export class MessPanel extends Modal {
     if (!w) return null
     const box = el('div', 'mess-rewards')
     box.append(el('span', 'arena-heading', tr('Vos récompenses', 'Your rewards')))
-    const reset = w.reset ? new Date(w.reset) : null
-    const when = reset && !Number.isNaN(reset.getTime()) ? reset.toLocaleString(EN ? 'en-GB' : 'fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' }) : ''
+    // La prochaine bascule : celle que dit le site, sinon celle d'economy.json (cf. mess-rush-week.js).
+    const reset = new Date(w.reset ?? nextReset(Date.now(), ECONOMY.messRush?.reset))
+    const when = !Number.isNaN(reset.getTime()) ? reset.toLocaleString(EN ? 'en-GB' : 'fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' }) : ''
     box.append(el('p', '', w.booster === 'available'
       ? tr('Première victoire de la semaine : un booster de Cartes Dangereuses.', 'First win of the week: a Cartes Dangereuses booster.')
       : tr(`Booster de la semaine déjà gagné${when ? ` ; le prochain se gagne à partir de ${when}` : ''}.`, `This week's booster already won${when ? `; the next one can be won from ${when}` : ''}.`)))

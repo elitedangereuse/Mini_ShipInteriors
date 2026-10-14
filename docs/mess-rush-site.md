@@ -96,6 +96,12 @@ week_start = le dernier jeudi à RESET_HOUR (fuseau RESET_TZ) ≤ endedAt
 - La semaine dépend de `endedAt`, pas d'un délai de 7 jours depuis la dernière victoire, ni de
   l'heure de réception. Une partie finie à 6 h 59 et reçue à 7 h 01 compte pour la semaine qui
   s'achève.
+- **Implémentation de référence** : `shared/mess-rush-week.js` (`weekStart`, `nextReset`), et ses
+  cas de test dans `server/mess-rush-week.test.js`. Ils couvrent la bascule par défaut, le jeudi
+  6 h 59 contre 7 h 01, l'absence de délai glissant, une heure et un fuseau réglés (Paris, avec le
+  passage à l'heure d'hiver), un fuseau de l'autre côté du méridien, et les heures qui n'existent
+  pas ou existent deux fois. Le PHP du site doit donner les mêmes résultats sur ces mêmes cas
+  (`DateTimeImmutable` et `DateTimeZone` suffisent).
 
 ## Une seule transaction
 

@@ -155,4 +155,11 @@ test('à quatre : salon complet, départ, et un cuisinier qui perd la liaison re
   await seen
   const state = await next(crew[1], 'mess:state', (m) => m.members.some((x) => x.id === String(back.id) && x.status === 'in'))
   assert.equal(state.members.filter((x) => x.status === 'in').length, 4)
+
+  // Une rafale d'actions : le relais n'en traite que ce que permet son débit (20, puis 10 par seconde).
+  let refused = 0
+  crew[3].on('mess:refused', () => refused++)
+  for (let i = 0; i < 80; i++) crew[3].emit('mess:use', { station: 'frigo' })
+  await new Promise((resolve) => setTimeout(resolve, 600))
+  assert.ok(refused > 0 && refused <= 27, `${refused} réponses`)
 })
