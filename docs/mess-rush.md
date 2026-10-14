@@ -165,15 +165,15 @@ Les règles qui empêchent les doublons :
 
 | Réglage, selon le nombre de joueurs | 1 | 2 | 3 | 4 |
 |---|---|---|---|---|
-| Commandes en même temps, au plus | 2 | 3 | 4 | 4 |
-| Une nouvelle toutes les | 30 s | 24 s | 20 s | 16 s |
-| Délais multipliés par | 1,3 | 1,1 | 1 | 1 |
+| Commandes en même temps, au plus | 2 | 3 | 4 | 5 |
+| Une nouvelle toutes les | 25 s | 14 s | 12 s | 10 s |
+| Délais multipliés par | 1,3 | 1,1 | 1,05 | 1 |
 
 - La première commande arrive 3 s après le début.
 - Les recettes complexes n'apparaissent qu'après 2 minutes.
 - Délais de base : rapide 60 s, intermédiaire 90 s, complexe 150 s.
-- Tous ces chiffres sont des réglages de départ, dans `RULES` (`shared/mess-rush.js`), à
-  équilibrer en phase 4.
+- Tous ces chiffres sont dans `RULES` (`shared/mess-rush.js`). Ils sortent de la simulation de la
+  phase 4 (cf. « L'équilibrage ») et restent à confirmer en jeu.
 
 ### Le score (collectif)
 
@@ -185,13 +185,43 @@ Les règles qui empêchent les doublons :
 | Commande expirée | −50 % de la valeur de la recette. Le score ne descend pas sous 0 |
 | Gaspillage | Compté, sans pénalité ; on décidera après les essais |
 
-Les médailles sont des seuils de départ, à équilibrer :
+Les médailles, issues de la simulation (cf. « L'équilibrage ») :
 
 | Médaille | 1 joueur | 2 | 3 | 4 |
 |---|---|---|---|---|
-| Bronze (victoire) | 100 | 160 | 200 | 240 |
-| Argent | 180 | 280 | 340 | 400 |
-| Or | 260 | 400 | 480 | 560 |
+| Bronze (victoire) | 270 | 530 | 660 | 660 |
+| Argent | 560 | 780 | 940 | 950 |
+| Or | 730 | 950 | 1 050 | 1 150 |
+
+### L'équilibrage
+
+`scripts/mess-rush-balance.mjs` fait jouer des services complets avec les vraies règles et toute la
+carte, de 1 à 4 cuisiniers, à trois niveaux :
+
+| Niveau | Vitesse de marche | Réaction par action |
+|---|---|---|
+| Débutant | 1,6 m/s | 1,4 s |
+| Moyen | 2,1 m/s | 0,8 s |
+| Expert | 2,8 m/s | 0,35 s |
+
+- **Les trajets** sont tirés du plan de la cuisine (le détour par un passage pour franchir le
+  comptoir).
+- **Ce que le modèle simplifie.** Un cuisinier attend la fin de ses cuissons au lieu d'en
+  profiter ; les équipes se coordonnent sans se gêner.
+- **Les seuils** : des débutants font le bronze, des joueurs moyens l'argent, l'or demande 90 %
+  du score d'experts.
+- **Le rythme.** Il a été resserré à plusieurs : avec l'ancien, quatre experts ne servaient que
+  14 plats, contre 11 pour un seul.
+
+| Joueurs | Débutants | Moyens | Experts | Expirées (débutants) |
+|---|---|---|---|---|
+| 1 | 265 | 557 | 809 | 1,0 |
+| 2 | 528 | 782 | 1 058 | 1,2 |
+| 3 | 655 | 935 | 1 166 | 1,6 |
+| 4 | 609 | 951 | 1 278 | 3,8 |
+
+(Score moyen sur 30 services par case.) Relancer le script après tout changement de recettes, de
+durées ou de rythme ; les essais en jeu trancheront.
 
 L'écran de fin affiche :
 
@@ -364,6 +394,9 @@ GalNet, 06 MAR 3302, texte officiel de Frontier
 Oliver Gordon y annonce *« a dish fit for an emperor: space barnacle broth with a Deuringas truffle
 oil foam and Ochoeng chilli reduction »*. C'est un seul plat en trois composantes ; les étapes de
 jeu sont inventées. La traduction française de news.galnet.fr n'a pas pu être lue.
+
+**La carte du service (phase 4) :** toutes les recettes ci-dessus. Les rapides et les
+intermédiaires dès le début, les complexes après 2 minutes de service.
 
 **Prototype (phase 2) :**
 

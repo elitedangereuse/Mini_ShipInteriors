@@ -58,7 +58,7 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z)
  *   sans elle, les victoires ne sont présentées à personne (le site n'est pas prêt)
  * @param {() => number} [o.now]
  * @param {() => number} [o.seed]
- * @param {string[]} [o.recipes] les recettes en jeu (la sélection du prototype par défaut)
+ * @param {string[]} [o.recipes] les recettes en jeu (toute la carte par défaut)
  * @param {boolean} [o.debug] serveur de dev : `mess:debug` raccourcit le service, choisit les recettes, fixe le score
  * @param {(fn: () => void, ms: number) => void} [o.later] programme une nouvelle tentative auprès du site
  */

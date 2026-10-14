@@ -253,3 +253,6 @@ export const RECIPES = {
 
 /** Recettes de la sélection du prototype (phase 2). */
 export const PROTOTYPE_RECIPES = Object.keys(RECIPES).filter((id) => RECIPES[id].prototype)
+
+/** La carte du service : toutes les recettes (les complexes n'arrivent qu'après deux minutes, cf. RULES.complexAfter). */
+export const SERVICE_RECIPES = Object.keys(RECIPES)

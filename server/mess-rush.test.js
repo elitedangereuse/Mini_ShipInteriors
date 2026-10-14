@@ -313,9 +313,9 @@ test('serveur de dev seulement : `mess:debug` raccourcit le service et choisit l
   const dev = harness({ debug: true })
   const { members: [b] } = dev.team(1)
   const g = dev.launch([b])
-  dev.mess.handle(b, 'mess:debug', { endIn: 5, recipes: ['cafe-goman', 'inconnue'], score: 120 })
+  dev.mess.handle(b, 'mess:debug', { endIn: 5, recipes: ['cafe-goman', 'inconnue'], score: 300 })
   assert.deepEqual(g.state.recipes, ['cafe-goman'])
-  assert.equal(g.state.score, 120)
+  assert.equal(g.state.score, 300)
   dev.advance(5.2)
   assert.equal(dev.last(b.id, 'mess:end').medal, 'bronze')
 })
@@ -326,9 +326,9 @@ test('à quatre : le rythme de quatre ; qui quitte rejoint un autre salon, l\'é
   const game = h.launch(members)
   assert.equal(game.state.players, 4)
   assert.equal(h.last(4, 'mess:start').state.players, 4)
-  // Quatre commandes au plus, une toutes les 16 s.
-  h.advance(RULES.firstOrder + 0.2 + 16 * 3)
-  assert.equal(game.state.orders.filter((o) => o.status === 'pending').length, 4)
+  // Cinq commandes au plus, une toutes les 10 s.
+  h.advance(RULES.firstOrder + 0.2 + 10 * 4)
+  assert.equal(game.state.orders.filter((o) => o.status === 'pending').length, 5)
   // Le quatrième abandonne : il rentre au mess, et peut prendre un autre salon.
   const [, , , d] = members
   h.mess.handle(d, 'mess:quit')
@@ -349,7 +349,7 @@ test('deux livraisons au même instant, pour deux commandes de la même recette 
   const { members: [a, b] } = h.team(1, 2)
   const game = h.launch([a, b])
   game.state.recipes = ['escargots-irukama']
-  h.advance(RULES.firstOrder + 0.2 + 24)
+  h.advance(RULES.firstOrder + 0.2 + 14)
   const pending = game.state.orders.filter((o) => o.status === 'pending')
   assert.equal(pending.length, 2)
   for (const [pid, id] of [['1', 'x1'], ['2', 'x2']]) {

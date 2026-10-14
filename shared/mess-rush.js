@@ -11,7 +11,7 @@
 // fonction que l'arbitre). Les fonctions qui le changent sont pures, à l'horloge près (`now`, en
 // ms), que l'appelant fournit.
 
-import { DIFFICULTIES, INGREDIENTS, PROCESSES, PROTOTYPE_RECIPES, RECIPES } from './mess-rush-catalog.js'
+import { DIFFICULTIES, INGREDIENTS, PROCESSES, RECIPES, SERVICE_RECIPES } from './mess-rush-catalog.js'
 
 /** « Pont » de la cuisine de MESS RUSH : une instance hors des ponts du vaisseau. */
 export const MESS_LEVEL = -6
@@ -124,20 +124,23 @@ export const RULES = {
   panCapacity: 1,
   firstOrder: 3,
   complexAfter: 120,
+  // Le rythme et les médailles sortent de la simulation (scripts/mess-rush-balance.mjs) : des
+  // débutants y font le bronze, des joueurs moyens l'argent, l'or demande 90 % du score d'experts.
+  // À confirmer en jeu.
   byPlayers: {
-    1: { maxOrders: 2, every: 30, timeScale: 1.3 },
-    2: { maxOrders: 3, every: 24, timeScale: 1.1 },
-    3: { maxOrders: 4, every: 20, timeScale: 1 },
-    4: { maxOrders: 4, every: 16, timeScale: 1 },
+    1: { maxOrders: 2, every: 25, timeScale: 1.3 },
+    2: { maxOrders: 3, every: 14, timeScale: 1.1 },
+    3: { maxOrders: 4, every: 12, timeScale: 1.05 },
+    4: { maxOrders: 5, every: 10, timeScale: 1 },
   },
   speedBonus: [[2 / 3, 0.5], [1 / 3, 0.25]],
   combo: { step: 0.1, max: 1.5 },
   expiredPenalty: 0.5,
   medals: {
-    1: [100, 180, 260],
-    2: [160, 280, 400],
-    3: [200, 340, 480],
-    4: [240, 400, 560],
+    1: [270, 560, 730],
+    2: [530, 780, 950],
+    3: [660, 940, 1050],
+    4: [660, 950, 1150],
   },
 }
 
@@ -184,11 +187,11 @@ function random(state) {
 }
 
 /**
- * Une nouvelle partie, en service dès `now`. `recipes` : les recettes qui peuvent sortir (la
- * sélection du prototype par défaut).
+ * Une nouvelle partie, en service dès `now`. `recipes` : les recettes qui peuvent sortir (toute la
+ * carte par défaut ; les complexes, après RULES.complexAfter).
  * @param {{ id: string, seed: number, players: number, now: number, recipes?: string[], rules?: typeof RULES }} o
  */
-export function createService({ id, seed, players, now, recipes = PROTOTYPE_RECIPES, rules = RULES }) {
+export function createService({ id, seed, players, now, recipes = SERVICE_RECIPES, rules = RULES }) {
   const stations = {}
   for (const s of STATIONS) {
     if (s.kind === 'pot' || s.kind === 'pan') stations[s.id] = { items: [], cook: null, done: false }

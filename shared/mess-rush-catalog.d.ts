@@ -49,3 +49,4 @@ export interface Recipe {
 }
 export declare const RECIPES: Record<string, Recipe>
 export declare const PROTOTYPE_RECIPES: string[]
+export declare const SERVICE_RECIPES: string[]

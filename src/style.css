@@ -5952,3 +5952,7 @@ body.mess-end-on :is(.top-left, .top-right, .emotes, #phone, .about-toggle, #tou
 .mess-mate.away small { color: #ff9a8f; }
 .mess-rewards { display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; background: #ffb15c14; }
 .mess-rewards p { margin: 0; color: #ffd9a8; font-size: 13px; line-height: 1.45; }
+.mess-menu-level { margin: 8px 0 0; color: #e8eaee; font-size: 12px; }
+.mess-menu-level small { color: #8d96a3; font-weight: 400; }
+.mess-menu ul { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.mess-menu-dish { color: #e8eaee !important; font-size: 13px !important; white-space: normal !important; }

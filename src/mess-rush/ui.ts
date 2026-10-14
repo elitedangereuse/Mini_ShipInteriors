@@ -3,7 +3,7 @@ import { EN, tr } from '../i18n'
 import { icon } from '../icons'
 import type { MessCrew, MessEnd, MessLobby, MessReward, MessTeam } from '../net'
 import { button, el, Modal } from '../salvage/ui'
-import { DIFFICULTIES, INGREDIENTS, PROCESSES, PROTOTYPE_RECIPES, RECIPES, type Text } from '../../shared/mess-rush-catalog.js'
+import { DIFFICULTIES, INGREDIENTS, PROCESSES, RECIPES, SERVICE_RECIPES, type Text } from '../../shared/mess-rush-catalog.js'
 import { RULES, currentMedal, medalOf, recipeValue, type Medal, type ServiceState } from '../../shared/mess-rush.js'
 import { stateLabel } from './props'
 
@@ -174,18 +174,24 @@ export class MessPanel extends Modal {
     stage.append(hero, ...[this.rewards()].filter((b): b is HTMLElement => !!b), this.menu(), this.controls())
   }
 
-  /** Les recettes de la carte : leur nom, leur difficulté, ce qu'elles valent. */
+  /** La carte du service, par difficulté : les plats et ce qu'ils valent ; les complexes arrivent en cours de service. */
   private menu(): HTMLElement {
     const box = el('div', 'mess-menu')
     box.append(el('span', 'arena-heading', tr('À la carte', 'On the menu')))
-    const list = el('ul')
-    for (const id of PROTOTYPE_RECIPES) {
-      const r = RECIPES[id]
-      const li = el('li')
-      li.append(el('strong', '', text(r.name)), el('span', '', `${text(DIFFICULTIES[r.difficulty].name)} · ${recipeValue(id).points} pts`))
-      list.append(li)
+    for (const level of Object.keys(DIFFICULTIES) as (keyof typeof DIFFICULTIES)[]) {
+      const ids = SERVICE_RECIPES.filter((id) => RECIPES[id].difficulty === level)
+      if (!ids.length) continue
+      const head = el('p', 'mess-menu-level')
+      head.append(el('strong', '', text(DIFFICULTIES[level].name)))
+      if (level === 'complexe') head.append(el('small', '', tr(` · après ${RULES.complexAfter / 60} minutes de service`, ` · after ${RULES.complexAfter / 60} minutes of service`)))
+      const list = el('ul')
+      for (const id of ids) {
+        const li = el('li')
+        li.append(el('span', 'mess-menu-dish', text(RECIPES[id].name)), el('span', '', `${recipeValue(id).points} pts`))
+        list.append(li)
+      }
+      box.append(head, list)
     }
-    box.append(list)
     return box
   }
 
