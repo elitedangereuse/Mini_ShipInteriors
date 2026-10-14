@@ -3,8 +3,9 @@
 // shared/mess-rush.js pour les règles, docs/mess-rush.md pour la conception).
 //
 // Ajouter une recette ne demande pas de toucher au moteur : un ingrédient dit d'où il sort, ce
-// qu'on lui fait (`prep`, dans l'ordre) et où il cuit (`cook`) ; une recette dit ce qu'on attend
-// dans l'assiette ou la tasse (`dish`). server/mess-rush-catalog.test.js vérifie que tout se tient.
+// qu'on lui fait (`prep`, dans l'ordre) et comment il cuit (`cook`) ; une recette dit ce qu'on
+// attend dans l'assiette ou la tasse (`dish`), et sa couleur (`color`, celle de son bon, de son
+// client et de ses assiettes). server/mess-rush-catalog.test.js vérifie que tout se tient.
 //
 // Les noms affichés sont en français (et en anglais, comme tout le jeu, cf. src/i18n.ts). Le nom
 // canonique d'Elite Dangerous (`canonical`) n'est qu'une métadonnée : il n'est jamais affiché.
@@ -27,14 +28,21 @@ const COMMON = ['fdev', 'clientFr']
 /**
  * Ce qu'on fait à un ingrédient, et où : un geste actif (on reste au poste, la jauge avance tant
  * qu'on y est) ou une cuisson passive (on lance, on peut s'en aller). `result` : l'état qui en sort.
- * Les durées sont en secondes.
+ * Les durées sont en secondes. La marmite cuit ou mijote, la poêle saisit ou poêle : ce qu'on y met
+ * ensemble cuit de la même façon (cf. `cookOf` dans shared/mess-rush.js). `why` : à quoi sert le
+ * geste, pour le fil rouge (cf. src/mess-rush/client.ts).
  */
 export const PROCESSES = {
   rincer: { station: 'sink', active: true, duration: 2, result: 'rincé', verb: { fr: 'Rincer', en: 'Rinse' } },
+  eplucher: { station: 'board', active: true, duration: 2, result: 'épluché', verb: { fr: 'Éplucher', en: 'Peel' } },
   couper: { station: 'board', active: true, duration: 2.5, result: 'coupé', verb: { fr: 'Couper', en: 'Chop' } },
+  emincer: { station: 'board', active: true, duration: 3, result: 'émincé', verb: { fr: 'Émincer', en: 'Slice' } },
   fouetter: { station: 'board', active: true, duration: 3, result: 'fouetté', verb: { fr: 'Fouetter', en: 'Whisk' } },
-  marmite: { station: 'pot', active: false, duration: 8, result: 'cuit', verb: { fr: 'Lancer la cuisson', en: 'Start cooking' } },
-  poele: { station: 'pan', active: false, duration: 5, result: 'cuit', verb: { fr: 'Lancer la cuisson', en: 'Start cooking' } },
+  cuire: { station: 'pot', active: false, duration: 6, result: 'cuit', verb: { fr: 'Cuire', en: 'Boil' } },
+  mijoter: { station: 'pot', active: false, duration: 9, result: 'mijoté', verb: { fr: 'Mijoter', en: 'Simmer' } },
+  saisir: { station: 'pan', active: false, duration: 3.5, result: 'saisi', verb: { fr: 'Saisir', en: 'Sear' } },
+  poeler: { station: 'pan', active: false, duration: 5, result: 'poêlé', verb: { fr: 'Poêler', en: 'Pan-fry' } },
+  enfourner: { station: 'oven', active: false, duration: 7, result: 'doré', verb: { fr: 'Enfourner', en: 'Bake' } },
   infuser: { station: 'fountain', active: false, duration: 4, result: 'infusé', verb: { fr: 'Infuser', en: 'Brew' } },
 }
 
@@ -47,25 +55,25 @@ export const INGREDIENTS = {
   'lapin-ceti': {
     name: { fr: 'Lapins de Ceti', en: 'Ceti rabbits' }, short: { fr: 'Lapin', en: 'Rabbit' }, gender: 'ms',
     canonical: 'Ceti Rabbits', category: 'Foods', rare: true, origin: { system: '47 Ceti', station: 'Kaufmanis Hub' },
-    source: 'fridge', prep: ['couper'], cook: ['marmite'], model: 'meat-raw', color: '#c9705a',
+    source: 'fridge', prep: ['couper'], cook: ['mijoter'], model: 'meat-raw', color: '#c9705a',
     status: 'canonique', sources: RARE,
   },
   'legumes': {
     name: { fr: 'Fruits et légumes', en: 'Fruit and vegetables' }, short: { fr: 'Légumes', en: 'Vegetables' }, gender: 'mp',
     canonical: 'Fruit and Vegetables', category: 'Foods', rare: false,
-    source: 'pantry', prep: ['couper'], cook: ['marmite'], model: 'carrot', color: '#e8772a',
+    source: 'pantry', prep: ['eplucher', 'couper'], cook: ['mijoter'], model: 'carrot', color: '#e8772a',
     status: 'canonique', sources: COMMON,
   },
   'escargots-irukama': {
     name: { fr: 'Escargots géants d\'Irukama', en: 'Giant Irukama snails' }, short: { fr: 'Escargots', en: 'Snails' }, gender: 'mp',
     canonical: 'Giant Irukama Snails', category: 'Foods', rare: true, origin: { system: 'Irukama', station: 'Blaauw City' },
-    source: 'fridge', prep: ['rincer'], cook: ['poele'], model: 'mussel', color: '#8a6a4a',
+    source: 'fridge', prep: ['rincer'], cook: ['poeler'], model: 'mussel', color: '#8a6a4a',
     status: 'canonique', sources: RARE,
   },
   'crevettes-baltahsine': {
     name: { fr: 'Crevettes stellaires de Baltah\'sine', en: 'Baltah\'sine vacuum krill' }, short: { fr: 'Crevettes', en: 'Krill' }, gender: 'fp',
     canonical: 'Baltah\'sine Vacuum Krill', category: 'Foods', rare: true, origin: { system: 'Baltah\'Sine', station: 'Baltha\'sine Station' },
-    source: 'fridge', prep: ['rincer'], cook: ['poele'], model: 'fish', color: '#f08a7a',
+    source: 'fridge', prep: ['rincer'], cook: ['saisir'], model: 'fish', color: '#f08a7a',
     status: 'canonique', sources: RARE,
   },
   'cafe-goman': {
@@ -83,20 +91,20 @@ export const INGREDIENTS = {
   'pommes-aerial': {
     name: { fr: 'Pommes d\'eden d\'Aerial', en: 'Eden apples of Aerial' }, short: { fr: 'Pomme', en: 'Apple' }, gender: 'fs',
     canonical: 'Eden Apples of Aerial', category: 'Foods', rare: true, origin: { system: 'Aerial', station: 'Andrade Legacy' },
-    source: 'pantry', prep: ['couper'], cook: [], model: 'apple', color: '#d8323c',
+    source: 'pantry', prep: ['eplucher', 'couper'], cook: [], model: 'apple', color: '#d8323c',
     status: 'canonique', sources: RARE,
   },
   'ma-corn-diso': {
     name: { fr: 'Ma Corn de Diso', en: 'Diso Ma Corn' }, short: { fr: 'Ma Corn', en: 'Ma Corn' }, gender: 'ms',
     canonical: 'Diso Ma Corn', category: 'Foods', rare: true, origin: { system: 'Diso', station: 'Shifnalport' },
-    source: 'pantry', prep: [], cook: ['poele'], model: 'corn', color: '#f2c94c',
-    // Le lore en fait une plante dont on prise la poussière de graines : la griller est une adaptation.
+    source: 'pantry', prep: [], cook: ['enfourner'], model: 'corn', color: '#f2c94c',
+    // Le lore en fait une plante dont on prise la poussière de graines : la rôtir est une adaptation.
     status: 'canonique', sources: RARE,
   },
   'gateaux-wheemete': {
     name: { fr: 'Gâteaux de blé Wheemete', en: 'Wheemete wheat cakes' }, short: { fr: 'Gâteaux de blé', en: 'Wheat cakes' }, gender: 'mp',
     canonical: 'Wheemete Wheat Cakes', category: 'Foods', rare: true, origin: { system: 'Wheemete', station: 'Eisinga Enterprise' },
-    source: 'pantry', prep: [], cook: ['poele'], model: 'pancakes', color: '#d9a55a',
+    source: 'pantry', prep: [], cook: ['enfourner'], model: 'pancakes', color: '#d9a55a',
     status: 'canonique', sources: RARE,
   },
   'truffes-deuringas': {
@@ -108,25 +116,25 @@ export const INGREDIENTS = {
   'piments-ochoeng': {
     name: { fr: 'Piments d\'Ochoeng', en: 'Ochoeng chillies' }, short: { fr: 'Piments', en: 'Chillies' }, gender: 'mp',
     canonical: 'Ochoeng Chillies', category: 'Foods', rare: true, origin: { system: 'Ochoeng', station: 'Roddenberry Gateway' },
-    source: 'pantry', prep: ['couper'], cook: ['poele'], model: 'paprika', color: '#c0262d',
+    source: 'pantry', prep: ['emincer'], cook: ['poeler'], model: 'paprika', color: '#c0262d',
     status: 'canonique', sources: RARE,
   },
   'oeuf-aepyornis': {
     name: { fr: 'Œuf d\'Aepyornis', en: 'Aepyornis egg' }, short: { fr: 'Œuf', en: 'Egg' }, gender: 'ms',
     canonical: 'Aepyornis Egg', category: 'Foods', rare: true, origin: { system: '47 Ceti', station: 'Glushko Station' },
-    source: 'fridge', prep: ['fouetter'], cook: ['poele'], model: 'egg', color: '#f2e4c2',
+    source: 'fridge', prep: ['fouetter'], cook: ['poeler'], model: 'egg', color: '#f2e4c2',
     status: 'canonique', sources: RARE,
   },
   'boeuf-witchhaul': {
     name: { fr: 'Bœuf de Kobe de Witchhaul', en: 'Witchhaul Kobe beef' }, short: { fr: 'Bœuf de Kobe', en: 'Kobe beef' }, gender: 'ms',
     canonical: 'Witchhaul Kobe Beef', category: 'Foods', rare: true, origin: { system: 'Witchhaul', station: 'Hornby Terminal' },
-    source: 'fridge', prep: ['couper'], cook: ['poele'], model: 'meat-ribs', color: '#a8423a',
+    source: 'fridge', prep: ['emincer'], cook: ['saisir'], model: 'meat-ribs', color: '#a8423a',
     status: 'canonique', sources: RARE,
   },
   'riz-jaroua': {
     name: { fr: 'Riz jarouan', en: 'Jaroua rice' }, short: { fr: 'Riz', en: 'Rice' }, gender: 'ms',
     canonical: 'Jaroua Rice', category: 'Foods', rare: true, origin: { system: 'Jaroua', station: 'McCool City' },
-    source: 'pantry', prep: ['rincer'], cook: ['marmite'], model: 'rice-ball', color: '#f4efe2',
+    source: 'pantry', prep: [], cook: ['cuire'], model: 'rice-ball', color: '#f4efe2',
     status: 'canonique', sources: RARE,
   },
   'balanes': {
@@ -134,7 +142,7 @@ export const INGREDIENTS = {
     // Pas une marchandise : les Thargoid Barnacles sont des structures au sol. Seul l'article de
     // GalNet en fait un mets (« space barnacle broth »).
     canonical: null, category: null, rare: false,
-    source: 'fridge', prep: ['rincer'], cook: ['marmite'], model: 'mussel-open', color: '#5f8f7a',
+    source: 'fridge', prep: ['rincer'], cook: ['mijoter'], model: 'mussel-open', color: '#5f8f7a',
     status: 'création', sources: ['galnet'],
   },
 }
@@ -149,13 +157,18 @@ export const DIFFICULTIES = {
 /**
  * Recettes. `dish` : le contenant et ce qu'il doit contenir, exactement (l'ingrédient et son
  * état) ; l'ordre n'importe pas. `steps` : les étapes, dans l'ordre, pour le bon et la
- * documentation (le test du catalogue vérifie qu'elles suivent les ingrédients). `prototype` :
- * dans la sélection de la phase 2.
+ * documentation (le test du catalogue vérifie qu'elles suivent les ingrédients). `color` : la
+ * couleur du plat (son bon, son client dans la file, les assiettes qui le deviennent), toutes
+ * différentes. `prototype` : dans la sélection de la phase 2.
+ *
+ * Les ingrédients du frigo se rincent, s'émincent ou se fouettent, et se saisissent ou se poêlent ;
+ * ceux du garde-manger s'épluchent et se coupent, et cuisent, mijotent, passent au four ou
+ * infusent : les plats qui mêlent les deux se finissent en réunissant deux assiettes.
  */
 export const RECIPES = {
   'cafe-goman': {
     name: { fr: 'Café Goman Yaupon', en: 'Goman Yaupon coffee' },
-    difficulty: 'rapide', prototype: true,
+    difficulty: 'rapide', prototype: true, color: '#a0693f',
     dish: { container: 'cup', contents: [['cafe-goman', 'infusé']] },
     steps: [['pantry', 'cafe-goman'], ['fountain', 'infuser'], ['pass']],
     success: { fr: 'La tasse arrive à la passe avant la fin du délai.', en: 'The cup reaches the pass before the timer runs out.' },
@@ -163,8 +176,8 @@ export const RECIPES = {
     status: 'adaptation', sources: ['fdev', 'clientFr'],
   },
   'the-ethgreze': {
-    name: { fr: 'Thé en bourgeons d\'Ethgreze', en: 'Ethgreze bud tea' },
-    difficulty: 'rapide',
+    name: { fr: "Thé en bourgeons d'Ethgreze", en: 'Ethgreze bud tea' },
+    difficulty: 'rapide', color: '#9bd12a',
     dish: { container: 'cup', contents: [['the-ethgreze', 'infusé']] },
     steps: [['pantry', 'the-ethgreze'], ['fountain', 'infuser'], ['pass']],
     success: { fr: 'La tasse arrive à la passe avant la fin du délai.', en: 'The cup reaches the pass before the timer runs out.' },
@@ -172,98 +185,116 @@ export const RECIPES = {
     status: 'adaptation', sources: ['fdev', 'clientFr'],
   },
   'pommes-aerial': {
-    name: { fr: 'Pommes d\'eden d\'Aerial', en: 'Eden apples of Aerial' },
-    difficulty: 'rapide',
+    name: { fr: "Pommes d'eden d'Aerial", en: 'Eden apples of Aerial' },
+    difficulty: 'rapide', color: '#e5484d',
     dish: { container: 'plate', contents: [['pommes-aerial', 'coupé']] },
-    steps: [['pantry', 'pommes-aerial'], ['board', 'couper'], ['plates'], ['pass']],
-    success: { fr: 'Les pommes coupées, en assiette, arrivent à la passe à temps.', en: 'The sliced apples, plated, reach the pass in time.' },
+    steps: [['pantry', 'pommes-aerial'], ['board', 'eplucher'], ['board', 'couper'], ['plates'], ['pass']],
+    success: { fr: 'Les pommes épluchées et coupées, en assiette, arrivent à la passe à temps.', en: 'The peeled, sliced apples, plated, reach the pass in time.' },
     failure: { fr: 'Le délai expire.', en: 'The timer runs out.' },
     status: 'adaptation', sources: ['fdev', 'clientFr'],
   },
   'ma-corn-diso': {
-    name: { fr: 'Ma Corn de Diso grillé', en: 'Grilled Diso Ma Corn' },
-    difficulty: 'rapide',
-    dish: { container: 'plate', contents: [['ma-corn-diso', 'cuit']] },
-    steps: [['pantry', 'ma-corn-diso'], ['pan', 'poele'], ['plates'], ['pass']],
-    success: { fr: 'Le Ma Corn grillé, en assiette, arrive à la passe à temps.', en: 'The grilled Ma Corn, plated, reaches the pass in time.' },
+    name: { fr: 'Ma Corn de Diso rôti', en: 'Roasted Diso Ma Corn' },
+    difficulty: 'rapide', color: '#ffd23f',
+    dish: { container: 'plate', contents: [['ma-corn-diso', 'doré']] },
+    steps: [['pantry', 'ma-corn-diso'], ['oven', 'enfourner'], ['plates'], ['pass']],
+    success: { fr: 'Le Ma Corn doré au four, en assiette, arrive à la passe à temps.', en: 'The oven-baked Ma Corn, plated, reaches the pass in time.' },
     failure: { fr: 'Le délai expire.', en: 'The timer runs out.' },
     status: 'adaptation', sources: ['fdev', 'clientFr'],
   },
   'ragout-lapin': {
     name: { fr: 'Ragoût de lapin de Ceti', en: 'Ceti rabbit stew' },
-    difficulty: 'intermediaire', prototype: true,
-    dish: { container: 'plate', contents: [['lapin-ceti', 'cuit'], ['legumes', 'cuit']] },
-    steps: [['fridge', 'lapin-ceti'], ['board', 'couper'], ['pantry', 'legumes'], ['board', 'couper'], ['pot', 'marmite'], ['plates'], ['pass']],
-    success: { fr: 'Le lapin et les légumes, mijotés ensemble, arrivent en assiette à la passe à temps.', en: 'The rabbit and vegetables, stewed together, reach the pass plated in time.' },
+    difficulty: 'intermediaire', prototype: true, color: '#f76b15',
+    dish: { container: 'plate', contents: [['lapin-ceti', 'mijoté'], ['legumes', 'mijoté']] },
+    steps: [['fridge', 'lapin-ceti'], ['board', 'couper'], ['pantry', 'legumes'], ['board', 'eplucher'], ['board', 'couper'], ['pot', 'mijoter'], ['plates'], ['pass']],
+    success: { fr: 'Le lapin et les légumes, mijotés ensemble, arrivent en assiette à la passe à temps.', en: 'The rabbit and vegetables, simmered together, reach the pass plated in time.' },
     failure: { fr: 'Le délai expire.', en: 'The timer runs out.' },
     status: 'adaptation', sources: ['fdev', 'clientFr'],
   },
   'escargots-irukama': {
-    name: { fr: 'Escargots géants d\'Irukama', en: 'Giant Irukama snails' },
-    difficulty: 'intermediaire', prototype: true,
-    dish: { container: 'plate', contents: [['escargots-irukama', 'cuit']] },
-    steps: [['fridge', 'escargots-irukama'], ['sink', 'rincer'], ['pan', 'poele'], ['plates'], ['pass']],
+    name: { fr: "Escargots géants d'Irukama", en: 'Giant Irukama snails' },
+    difficulty: 'intermediaire', prototype: true, color: '#12a594',
+    dish: { container: 'plate', contents: [['escargots-irukama', 'poêlé']] },
+    steps: [['fridge', 'escargots-irukama'], ['sink', 'rincer'], ['pan', 'poeler'], ['plates'], ['pass']],
     success: { fr: 'Les escargots rincés et poêlés arrivent en assiette à la passe à temps.', en: 'The rinsed, pan-fried snails reach the pass plated in time.' },
     failure: { fr: 'Le délai expire.', en: 'The timer runs out.' },
     status: 'adaptation', sources: ['fdev', 'clientFr'],
   },
   'crevettes-baltahsine': {
-    name: { fr: 'Crevettes stellaires de Baltah\'sine sautées', en: 'Sautéed Baltah\'sine vacuum krill' },
-    difficulty: 'intermediaire',
-    dish: { container: 'plate', contents: [['crevettes-baltahsine', 'cuit']] },
-    steps: [['fridge', 'crevettes-baltahsine'], ['sink', 'rincer'], ['pan', 'poele'], ['plates'], ['pass']],
-    success: { fr: 'Les crevettes rincées et sautées arrivent en assiette à la passe à temps.', en: 'The rinsed, sautéed krill reach the pass plated in time.' },
+    name: { fr: "Crevettes stellaires de Baltah'sine saisies", en: "Seared Baltah'sine vacuum krill" },
+    difficulty: 'intermediaire', color: '#ff7eb6',
+    dish: { container: 'plate', contents: [['crevettes-baltahsine', 'saisi']] },
+    steps: [['fridge', 'crevettes-baltahsine'], ['sink', 'rincer'], ['pan', 'saisir'], ['plates'], ['pass']],
+    success: { fr: 'Les crevettes rincées et saisies arrivent en assiette à la passe à temps.', en: 'The rinsed, seared krill reach the pass plated in time.' },
     failure: { fr: 'Le délai expire.', en: 'The timer runs out.' },
     status: 'adaptation', sources: ['fdev', 'clientFr'],
   },
   'gateaux-wheemete': {
-    name: { fr: 'Gâteaux de blé Wheemete aux pommes d\'eden', en: 'Wheemete wheat cakes with Eden apples' },
-    difficulty: 'intermediaire',
-    dish: { container: 'plate', contents: [['gateaux-wheemete', 'cuit'], ['pommes-aerial', 'coupé']] },
-    steps: [['pantry', 'gateaux-wheemete'], ['pan', 'poele'], ['pantry', 'pommes-aerial'], ['board', 'couper'], ['plates'], ['pass']],
-    success: { fr: 'Les gâteaux réchauffés et les pommes coupées arrivent ensemble en assiette à temps.', en: 'The warmed cakes and sliced apples reach the pass together, plated, in time.' },
+    name: { fr: "Gâteaux de blé Wheemete aux pommes d'eden", en: 'Wheemete wheat cakes with Eden apples' },
+    difficulty: 'intermediaire', color: '#8b5cf6',
+    dish: { container: 'plate', contents: [['gateaux-wheemete', 'doré'], ['pommes-aerial', 'coupé']] },
+    steps: [['pantry', 'gateaux-wheemete'], ['oven', 'enfourner'], ['pantry', 'pommes-aerial'], ['board', 'eplucher'], ['board', 'couper'], ['plates'], ['pass']],
+    success: { fr: 'Les gâteaux dorés au four et les pommes coupées arrivent ensemble en assiette à temps.', en: 'The baked cakes and sliced apples reach the pass together, plated, in time.' },
     failure: { fr: 'Le délai expire.', en: 'The timer runs out.' },
     status: 'adaptation', sources: ['fdev', 'clientFr'],
   },
   'omelette-aepyornis': {
-    name: { fr: 'Omelette à l\'œuf d\'Aepyornis', en: 'Aepyornis egg omelette' },
-    difficulty: 'intermediaire',
-    dish: { container: 'plate', contents: [['oeuf-aepyornis', 'cuit']] },
-    steps: [['fridge', 'oeuf-aepyornis'], ['board', 'fouetter'], ['pan', 'poele'], ['plates'], ['pass']],
-    success: { fr: 'L\'omelette, battue puis cuite à la poêle, arrive en assiette à la passe à temps.', en: 'The omelette, whisked then pan-cooked, reaches the pass plated in time.' },
+    name: { fr: "Omelette à l'œuf d'Aepyornis", en: 'Aepyornis egg omelette' },
+    difficulty: 'intermediaire', color: '#22c5e8',
+    dish: { container: 'plate', contents: [['oeuf-aepyornis', 'poêlé']] },
+    steps: [['fridge', 'oeuf-aepyornis'], ['board', 'fouetter'], ['pan', 'poeler'], ['plates'], ['pass']],
+    success: { fr: "L'omelette, battue puis poêlée, arrive en assiette à la passe à temps.", en: 'The omelette, whisked then pan-fried, reaches the pass plated in time.' },
     failure: { fr: 'Le délai expire.', en: 'The timer runs out.' },
     status: 'adaptation', sources: ['fdev', 'clientFr'],
   },
   'boeuf-witchhaul': {
-    name: { fr: 'Bœuf de Kobe de Witchhaul grillé', en: 'Grilled Witchhaul Kobe beef' },
-    difficulty: 'intermediaire',
-    dish: { container: 'plate', contents: [['boeuf-witchhaul', 'cuit']] },
-    steps: [['fridge', 'boeuf-witchhaul'], ['board', 'couper'], ['pan', 'poele'], ['plates'], ['pass']],
-    success: { fr: 'Le bœuf, tranché puis saisi, arrive en assiette à la passe à temps.', en: 'The beef, sliced then seared, reaches the pass plated in time.' },
+    name: { fr: 'Bœuf de Kobe de Witchhaul saisi', en: 'Seared Witchhaul Kobe beef' },
+    difficulty: 'intermediaire', color: '#3e63dd',
+    dish: { container: 'plate', contents: [['boeuf-witchhaul', 'saisi']] },
+    steps: [['fridge', 'boeuf-witchhaul'], ['board', 'emincer'], ['pan', 'saisir'], ['plates'], ['pass']],
+    success: { fr: 'Le bœuf, émincé puis saisi, arrive en assiette à la passe à temps.', en: 'The beef, thinly sliced then seared, reaches the pass plated in time.' },
     failure: { fr: 'Le délai expire.', en: 'The timer runs out.' },
     status: 'adaptation', sources: ['fdev', 'clientFr'],
   },
   'riz-crevettes': {
     name: { fr: 'Riz jarouan aux crevettes stellaires', en: 'Jaroua rice with vacuum krill' },
-    difficulty: 'intermediaire', points: 60, time: 120,
-    dish: { container: 'plate', contents: [['riz-jaroua', 'cuit'], ['crevettes-baltahsine', 'cuit']] },
-    steps: [['pantry', 'riz-jaroua'], ['sink', 'rincer'], ['pot', 'marmite'], ['fridge', 'crevettes-baltahsine'], ['sink', 'rincer'], ['pan', 'poele'], ['plates'], ['pass']],
-    success: { fr: 'Le riz cuit à la marmite et les crevettes sautées arrivent ensemble en assiette à temps.', en: 'The pot-cooked rice and the sautéed krill reach the pass together, plated, in time.' },
+    difficulty: 'intermediaire', points: 60, time: 120, color: '#d63ad1',
+    dish: { container: 'plate', contents: [['riz-jaroua', 'cuit'], ['crevettes-baltahsine', 'saisi']] },
+    steps: [['pantry', 'riz-jaroua'], ['pot', 'cuire'], ['fridge', 'crevettes-baltahsine'], ['sink', 'rincer'], ['pan', 'saisir'], ['plates'], ['pass']],
+    success: { fr: 'Le riz cuit à la marmite et les crevettes saisies arrivent ensemble en assiette à temps.', en: 'The boiled rice and the seared krill reach the pass together, plated, in time.' },
     failure: { fr: 'Le délai expire.', en: 'The timer runs out.' },
     status: 'adaptation', sources: ['fdev', 'clientFr'],
   },
+  'omelette-truffes': {
+    name: { fr: "Omelette d'Aepyornis à la mousse de truffe", en: 'Aepyornis omelette with truffle foam' },
+    difficulty: 'intermediaire', points: 60, time: 120, color: '#86ead4',
+    dish: { container: 'plate', contents: [['oeuf-aepyornis', 'poêlé'], ['truffes-deuringas', 'fouetté']] },
+    steps: [['fridge', 'oeuf-aepyornis'], ['board', 'fouetter'], ['pan', 'poeler'], ['pantry', 'truffes-deuringas'], ['board', 'couper'], ['board', 'fouetter'], ['plates'], ['pass']],
+    success: { fr: "L'omelette et la mousse de truffe arrivent ensemble en assiette à temps.", en: 'The omelette and the truffle foam reach the pass together, plated, in time.' },
+    failure: { fr: 'Le délai expire.', en: 'The timer runs out.' },
+    status: 'création', sources: ['fdev', 'clientFr', 'galnet'],
+  },
+  'riz-piments': {
+    name: { fr: "Riz jarouan aux piments d'Ochoeng", en: 'Jaroua rice with Ochoeng chillies' },
+    difficulty: 'intermediaire', points: 60, time: 120, color: '#ff9e7a',
+    dish: { container: 'plate', contents: [['riz-jaroua', 'cuit'], ['piments-ochoeng', 'poêlé']] },
+    steps: [['pantry', 'riz-jaroua'], ['pot', 'cuire'], ['pantry', 'piments-ochoeng'], ['board', 'emincer'], ['pan', 'poeler'], ['plates'], ['pass']],
+    success: { fr: 'Le riz cuit et les piments émincés et poêlés arrivent ensemble en assiette à temps.', en: 'The boiled rice and the sliced, pan-fried chillies reach the pass together, plated, in time.' },
+    failure: { fr: 'Le délai expire.', en: 'The timer runs out.' },
+    status: 'création', sources: ['fdev', 'clientFr'],
+  },
   'bouillon-balanes': {
     name: { fr: 'Bouillon de balanes spatiales', en: 'Space barnacle broth' },
-    difficulty: 'complexe',
-    dish: { container: 'plate', contents: [['balanes', 'cuit']] },
-    steps: [['fridge', 'balanes'], ['sink', 'rincer'], ['pot', 'marmite'], ['plates'], ['pass']],
+    difficulty: 'complexe', color: '#2fb36d',
+    dish: { container: 'plate', contents: [['balanes', 'mijoté']] },
+    steps: [['fridge', 'balanes'], ['sink', 'rincer'], ['pot', 'mijoter'], ['plates'], ['pass']],
     success: { fr: 'Le bouillon arrive en assiette à la passe à temps.', en: 'The broth reaches the pass plated in time.' },
     failure: { fr: 'Le délai expire.', en: 'The timer runs out.' },
     status: 'création', sources: ['galnet'],
   },
   'mousse-truffe': {
-    name: { fr: 'Mousse à l\'huile de truffe de Deuringas', en: 'Deuringas truffle oil foam' },
-    difficulty: 'complexe',
+    name: { fr: "Mousse à l'huile de truffe de Deuringas", en: 'Deuringas truffle oil foam' },
+    difficulty: 'complexe', color: '#8b8d98',
     dish: { container: 'plate', contents: [['truffes-deuringas', 'fouetté']] },
     steps: [['pantry', 'truffes-deuringas'], ['board', 'couper'], ['board', 'fouetter'], ['plates'], ['pass']],
     success: { fr: 'La mousse arrive en assiette à la passe à temps.', en: 'The foam reaches the pass plated in time.' },
@@ -271,24 +302,19 @@ export const RECIPES = {
     status: 'adaptation', sources: ['fdev', 'clientFr', 'galnet'],
   },
   'reduction-piments': {
-    name: { fr: 'Réduction de piments d\'Ochoeng', en: 'Ochoeng chilli reduction' },
-    difficulty: 'complexe',
-    dish: { container: 'plate', contents: [['piments-ochoeng', 'cuit']] },
-    steps: [['pantry', 'piments-ochoeng'], ['board', 'couper'], ['pan', 'poele'], ['plates'], ['pass']],
+    name: { fr: "Réduction de piments d'Ochoeng", en: 'Ochoeng chilli reduction' },
+    difficulty: 'complexe', color: '#8e1f30',
+    dish: { container: 'plate', contents: [['piments-ochoeng', 'poêlé']] },
+    steps: [['pantry', 'piments-ochoeng'], ['board', 'emincer'], ['pan', 'poeler'], ['plates'], ['pass']],
     success: { fr: 'La réduction arrive en assiette à la passe à temps.', en: 'The reduction reaches the pass plated in time.' },
     failure: { fr: 'Le délai expire.', en: 'The timer runs out.' },
     status: 'adaptation', sources: ['fdev', 'clientFr', 'galnet'],
   },
   'bouillon-imperial': {
     name: { fr: 'Bouillon impérial de balanes spatiales', en: 'Imperial space barnacle broth' },
-    difficulty: 'complexe', points: 160, time: 210,
-    dish: { container: 'plate', contents: [['balanes', 'cuit'], ['truffes-deuringas', 'fouetté'], ['piments-ochoeng', 'cuit']] },
-    steps: [
-      ['fridge', 'balanes'], ['sink', 'rincer'], ['pot', 'marmite'],
-      ['pantry', 'truffes-deuringas'], ['board', 'couper'], ['board', 'fouetter'],
-      ['pantry', 'piments-ochoeng'], ['board', 'couper'], ['pan', 'poele'],
-      ['plates'], ['pass'],
-    ],
+    difficulty: 'complexe', points: 160, time: 210, color: '#eceff4',
+    dish: { container: 'plate', contents: [['balanes', 'mijoté'], ['truffes-deuringas', 'fouetté'], ['piments-ochoeng', 'poêlé']] },
+    steps: [['fridge', 'balanes'], ['sink', 'rincer'], ['pot', 'mijoter'], ['pantry', 'truffes-deuringas'], ['board', 'couper'], ['board', 'fouetter'], ['pantry', 'piments-ochoeng'], ['board', 'emincer'], ['pan', 'poeler'], ['plates'], ['pass']],
     success: { fr: 'Le bouillon, la mousse et la réduction arrivent réunis dans une même assiette à temps.', en: 'The broth, foam and reduction reach the pass together on one plate in time.' },
     failure: { fr: 'Le délai expire.', en: 'The timer runs out.' },
     // Le plat d'Oliver Gordon (« a dish fit for an emperor ») ; le nom est une création.

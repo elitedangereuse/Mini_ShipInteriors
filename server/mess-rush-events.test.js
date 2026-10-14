@@ -19,7 +19,7 @@ function timeline(seed) {
   const k = service(2, undefined, seed)
   for (let t = 0; t <= RULES.service; t += 0.5) {
     k.advance(0.5)
-    if (k.state.event?.kind === 'spill' && !k.state.work.b) k.work('b', 'passe')
+    if (k.state.event?.kind === 'spill' && !k.state.work.b) k.work('b', k.state.event.station)
   }
   return k.events.filter((e) => e.kind === 'event' || e.kind === 'event-end')
 }
@@ -32,7 +32,7 @@ test('un imprévu à la fois, pas avant la première minute, jamais dans les der
     for (let t = 0; t < RULES.service; t += 0.1) {
       k.advance(0.1)
       // Un plateau renversé reste là tant qu'on ne nettoie pas : le cuisinier de l'est s'en charge.
-      if (k.state.event?.kind === 'spill' && !k.state.work.b) k.work('b', 'passe')
+      if (k.state.event?.kind === 'spill' && !k.state.work.b) k.work('b', k.state.event.station)
       for (const e of k.events.splice(0)) {
         if (e.kind === 'event') {
           count++
@@ -72,7 +72,7 @@ test('panne de courant : les cuissons s\'arrêtent où elles en sont, puis repre
   assert.equal(k.state.event, null)
   assert.ok(k.events.some((e) => e.kind === 'event-end' && e.event === 'outage'))
   // Il restait 3 s de cuisson avant la panne : elles restent à faire.
-  k.advance(PROCESSES.poele.duration - 2 - 0.6)
+  k.advance(PROCESSES.poeler.duration - 2 - 0.6)
   assert.equal(k.state.stations['poele-1'].done, false)
   k.advance(0.8)
   assert.equal(k.state.stations['poele-1'].done, true)
@@ -102,25 +102,31 @@ test('plateau renversé : la passe refuse les plats tant qu\'on ne l\'a pas nett
   must(k.work('a', 'fontaine'))
   k.advance(PROCESSES.infuser.duration + 0.2)
   must(k.use('a', 'fontaine'))
-  k.state.event = { kind: 'spill', at: k.now, progress: 0 }
+  // Un plateau renversé sur la passe ouest.
+  k.state.event = { kind: 'spill', at: k.now, progress: 0, station: 'passe-1' }
   k.state.nextEventAt = Infinity
-  // La tasse en main : la passe la refuse, et le guidage la fait poser.
-  assert.equal(resolveAction(k.state, 'a', 'passe').use, null)
+  assert.ok(isBlocked(k.state, 'passe-1'))
+  assert.ok(!isBlocked(k.state, 'passe-2'))
+  // L'autre passe sert toujours : le guidage y mène.
+  assert.deepEqual(guide(k.state, 'a'), { step: 'deliver', stations: ['passe-2'] })
+  k.state.event.station = undefined
+  // La tasse en main, toutes les passes renversées : la passe la refuse, et le guidage la fait poser.
+  assert.equal(resolveAction(k.state, 'a', 'passe-1').use, null)
   assert.equal(guide(k.state, 'a').step, 'put')
   must(k.use('a', 'comptoir-1'))
   // Les mains vides : on nettoie (Espace) ; s'éloigner arrête le geste.
-  assert.deepEqual(guide(k.state, 'a'), { step: 'clean', stations: ['passe'] })
-  must(k.work('a', 'passe'))
+  assert.deepEqual(guide(k.state, 'a'), { step: 'clean', stations: ['passe-1', 'passe-2'] })
+  must(k.work('a', 'passe-1'))
   k.near = () => false
   k.advance(0.5)
   assert.equal(k.state.work.a, undefined)
   k.near = () => true
-  must(k.work('a', 'passe'))
+  must(k.work('a', 'passe-1'))
   k.advance(RULES.events.clean + 0.2)
   assert.equal(k.state.event, null)
   assert.ok(k.events.some((e) => e.kind === 'event-end' && e.event === 'spill' && e.by === 'a'))
   must(k.use('a', 'comptoir-1'))
-  must(k.use('a', 'passe'))
+  must(k.use('a', 'passe-1'))
   assert.equal(k.state.served, 1)
 })
 
@@ -147,7 +153,7 @@ test('l\'amiral à bord : un bon plus pressé, qui rapporte le double ; le coup 
   must(vip.work('a', 'fontaine'))
   vip.advance(PROCESSES.infuser.duration + 0.2)
   must(vip.use('a', 'fontaine'))
-  must(vip.use('a', 'passe'))
+  must(vip.use('a', 'passe-1'))
   const served = vip.events.find((e) => e.kind === 'served')
   assert.equal(served.vip, true)
   assert.ok(served.points >= 2 * 20)

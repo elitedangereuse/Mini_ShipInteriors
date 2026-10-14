@@ -671,3 +671,94 @@ Deux morceaux enregistrés (`public/assets/music/mess-rush/`, cf. `CREDITS.txt` 
 - Le cadrage plus serré sur téléphone (en paysage).
 - Le volume des deux musiques face aux sons de la cuisine, et le dosage de la platine.
 - La fréquence des imprévus : assez pour pimenter, pas au point d'agacer.
+
+## Mise à jour 1.3
+
+Retours d'une partie en direct à deux : la cuisine seule, des tâches plus variées, des assiettes
+qu'on réunit, un fil rouge, une file de clients et une couleur par plat.
+
+### La cuisine seule
+
+La salle du self a disparu de l'instance : la partie se joue dans la cuisine (10 × 6 tuiles,
+`MESS_LAYOUT`). Le long du mur du fond, à l'ouest le frigo, la plonge et deux poêles, à l'est deux
+marmites, le garde-manger et une place de comptoir ; au milieu, l'îlot, avec ses deux plans de
+travail, ses deux piles d'assiettes et ses places de comptoir, qu'on atteint des deux côtés ; au
+nord, le comptoir de service d'un mur à l'autre, avec ses deux passes, la machine à café (à l'ouest)
+et le four de comptoir (à l'est). Derrière lui, l'allée où les clients font la queue. Une poubelle
+dans chaque coin (plus de bac au milieu de la cloison, dont le repère chevauchait celui du comptoir).
+
+La vue est plus serrée (`KITCHEN_SPAN`, 7,6 × 4,9 m) et se tient un peu vers la file des clients, en
+suivant le cuisinier sans sortir des murs. Les meubles neufs (sol, îlot, comptoir de service, four,
+enseigne au logo) sont dans `src/furniture/mess-rush.ts`.
+
+| Joueurs | Zones | Cloisons |
+|---|---|---|
+| 1 | toute la cuisine | — |
+| 2 | ouest (frigo, plonge, poêles, café) · est (garde-manger, marmites, four) | la cloison du milieu, qui traverse l'îlot |
+| 3 | ouest · sud-est · nord-est | idem, et le portillon au bout est de l'îlot |
+| 4 | les quatre coins | idem, et les deux portillons : l'îlot sépare le nord du sud |
+
+Chaque zone a son plan de travail et ses assiettes (à quatre, l'îlot est partagé entre le nord et le
+sud), sa passe et sa poubelle. Les passe-plats : deux dans la cloison (`passe-plat-nord`,
+`passe-plat-sud`) et un au milieu de l'îlot (`passe-plat-ilot`).
+
+### Des tâches variées
+
+Les gestes : rincer (plonge), éplucher, couper, émincer, fouetter (plan de travail). Les cuissons :
+cuire et mijoter (marmite), saisir et poêler (poêle), enfourner (four, deux à la fois), infuser
+(machine à café). Un ustensile cuit comme ce qu'il contient : ce qui cuit à l'eau ne va pas avec ce
+qui mijote (`cookOf`). Les ingrédients du frigo se rincent, s'émincent ou se fouettent, et se
+saisissent ou se poêlent ; ceux du garde-manger s'épluchent et se coupent, et cuisent, mijotent ou
+passent au four.
+
+Deux recettes de plus, qui mêlent les deux côtés : l'omelette à la mousse de truffe et le riz aux
+piments (le riz aux crevettes et le bouillon impérial le faisaient déjà).
+
+Mesuré avec les robots du guidage (part des gestes, plats servis par service, assiettes réunies) :
+à deux, 46 / 54 %, 22,6 plats, et chacun prend, prépare, cuit, dresse et livre ; à trois,
+43 / 36 / 21 %, 24,6 plats ; à quatre, 32 / 17 / 33 / 17 %, 27,1 plats ; aucun bon expiré.
+
+### Réunir deux assiettes
+
+Une assiette qu'on tient, posée (E) sur une assiette posée, s'y verse : les crevettes saisies d'un
+côté, le riz cuit de l'autre, et le plat est complet (`merge`, dans la limite de ce que tient une
+assiette). Le guidage le propose : prendre une des deux assiettes entamées (`take-merge`), puis la
+verser dans l'autre (`merge`), au besoin par un passe-plat.
+
+### Le fil rouge
+
+Un encadré à droite de l'écran explique à quoi sert ce qu'on fait (`threadOf` dans les règles,
+`MessHud.thread`) :
+
+- un ingrédient en main : le bon qu'il sert (à sa couleur) et son chemin, étape par étape, faite,
+  en cours ou à faire (frigo › rincer › saisir · poêle › assiette › passe), et ce que le plat
+  demande d'autre ;
+- une assiette : ce qu'elle porte, ce qui manque, et comment le compléter (ou la réunir) ;
+- une assiette vide, un plat qui ne sert à rien : à quoi sert une assiette, la poubelle ;
+- les mains vides, devant un poste : à quoi il sert ; sinon, le chemin du bon le plus ancien.
+
+### La file des clients
+
+Un client par bon, derrière le comptoir de service (`src/mess-rush/queue.ts`) : il arrive par l'est,
+attend à sa place avec sa bulle (la couleur de son plat, une tasse ou une assiette, la couronne de
+l'amiral) et sa patience, qui baisse avec le délai du bon. Servi, il saute de joie et s'en va
+content ; son bon expiré, il fait non de la tête et s'en va fâché. La file se lit dans les bons de
+l'état du service : rien de plus ne passe par le relais.
+
+### Une couleur par plat
+
+Chaque recette a sa couleur (`color`, toutes différentes) : le bandeau, le liseré et la pastille de
+son bon, la bulle de son client, et un anneau sous les assiettes et les tasses qui deviennent ce
+plat. Les annonces (nouveau client, plat servi, client fâché) ont aussi leur pastille.
+
+### Le salon
+
+Le terminal du salon ne montre plus la carte des recettes : elle se découvre en cuisine, bon par
+bon. Les touches y sont rappelées, avec la fusion des assiettes et le fil rouge.
+
+### À confirmer en jeu (1.3)
+
+- Le cadrage, avec la file en bas de l'écran, sur téléphone surtout.
+- Les trajets réels (les robots n'en ont pas) : l'îlot à contourner, les deux passes.
+- La lisibilité des couleurs proches (rose et magenta, orange et saumon) ; un daltonien s'aidera du
+  nom sur le bon et du fil rouge.

@@ -1054,7 +1054,7 @@ const RUSH = { orange: '#ff8a1c', yellow: '#ffc93c', cyan: '#2fd9ff', blue: '#2a
 
 let rushLogoTexture: THREE.Texture | null = null
 /** Le logo de MESS RUSH, détouré (public/assets/mess-rush/logo.webp, 1024 × 778), chargé une fois. */
-function rushLogo(): THREE.Texture {
+export function rushLogo(): THREE.Texture {
   if (!rushLogoTexture) {
     const t = new THREE.TextureLoader().load(import.meta.env.BASE_URL + 'assets/mess-rush/logo.webp')
     t.colorSpace = THREE.SRGBColorSpace

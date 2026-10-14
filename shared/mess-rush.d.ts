@@ -6,6 +6,11 @@ export declare const MESS_RETURN: { level: 0; x: number; z: number; yaw: number 
 export declare const MESS_LAYOUT: string[]
 export declare const MESS_BOUNDS: { minX: number; maxX: number; minZ: number; maxZ: number }
 export declare const MESS_SPAWNS: { x: number; z: number }[]
+/** Le comptoir de service (les clients derrière), l'îlot, le sol des cuisiniers, la file des clients. */
+export declare const SERVICE_COUNTER: { minX: number; maxX: number; minZ: number; maxZ: number }
+export declare const ISLAND: { minX: number; maxX: number; minZ: number; maxZ: number }
+export declare const KITCHEN_FLOOR: { minX: number; maxX: number; minZ: number; maxZ: number }
+export declare const QUEUE: { minX: number; maxX: number; z: number }
 export declare function onMessFloor(x: number, z: number): boolean
 
 export interface Station { id: string; kind: StationKind; x: number; z: number }
@@ -40,6 +45,7 @@ export declare const RULES: {
   plateCapacity: number
   potCapacity: number
   panCapacity: number
+  ovenCapacity: number
   firstOrder: number
   complexAfter: number
   byPlayers: Record<1 | 2 | 3 | 4, Pace>
@@ -55,7 +61,7 @@ export declare const RULES: {
 export type EventKind = 'outage' | 'sink' | 'spill' | 'rush' | 'vip'
 export declare const EVENT_KINDS: EventKind[]
 /** L'imprévu en cours (la panne et la plonge ont une fin ; le plateau renversé, un nettoyage en cours). */
-export interface ServiceIncident { kind: EventKind; at: number; until?: number; progress?: number }
+export interface ServiceIncident { kind: EventKind; at: number; until?: number; progress?: number; station?: string }
 
 export interface Item {
   id: string
@@ -71,8 +77,10 @@ export interface Item {
   contents?: [string, string][]
 }
 export interface Order { id: string; recipe: string; at: number; until: number; status: 'pending' | 'served' | 'expired'; done?: number; points?: number; vip?: boolean }
-export interface SlotState { item: string | null; cook?: { start: number; until: number } | null; done?: boolean }
-export interface UtensilState { items: string[]; cook: { start: number; until: number } | null; done: boolean }
+/** Une cuisson lancée : de quand à quand, et laquelle. */
+export interface Cooking { start: number; until: number; process?: ProcessId }
+export interface SlotState { item: string | null; cook?: Cooking | null; done?: boolean }
+export interface UtensilState { items: string[]; cook: Cooking | null; done: boolean }
 export interface ServiceState {
   id: string
   players: number
@@ -106,10 +114,10 @@ export interface ServiceState {
   expired: number
   wasted: number
 }
-export interface ServiceEvent { kind: 'served' | 'expired' | 'wasted' | 'prepared' | 'cooked' | 'cooking' | 'order' | 'dropped' | 'end' | 'emptied' | 'cleared' | 'open' | 'event' | 'event-end'; order?: string; recipe?: string; points?: number; combo?: number; penalty?: number; station?: string; ing?: string; process?: ProcessId; by?: string; count?: number; event?: EventKind; until?: number; vip?: boolean }
-export interface UseAction { kind: 'take-ingredient' | 'take-plate' | 'take' | 'take-back' | 'put' | 'plate-pick' | 'plate-add' | 'fill' | 'serve-utensil' | 'deliver' | 'trash'; ing?: string; order?: string | null }
+export interface ServiceEvent { kind: 'served' | 'expired' | 'wasted' | 'prepared' | 'cooked' | 'cooking' | 'order' | 'dropped' | 'end' | 'emptied' | 'cleared' | 'open' | 'event' | 'event-end' | 'merged'; order?: string; recipe?: string; points?: number; combo?: number; penalty?: number; station?: string; ing?: string; process?: ProcessId; by?: string; count?: number; event?: EventKind; until?: number; vip?: boolean }
+export interface UseAction { kind: 'take-ingredient' | 'take-plate' | 'take' | 'take-back' | 'put' | 'plate-pick' | 'plate-add' | 'merge' | 'fill' | 'serve-utensil' | 'deliver' | 'trash'; ing?: string; order?: string | null }
 export interface WorkAction { kind: 'cycle' | 'process' | 'cook' | 'empty' | 'clean'; process?: ProcessId; busy?: boolean }
-export type GuideStep = 'prep' | 'cook' | 'plate' | 'put' | 'deliver' | 'complete' | 'fill-plate' | 'wait' | 'hold' | 'trash' | 'handoff' | 'take-dish' | 'take-plate' | 'need-plate' | 'work' | 'start' | 'take' | 'tidy' | 'fetch' | 'clean'
+export type GuideStep = 'prep' | 'cook' | 'plate' | 'put' | 'deliver' | 'complete' | 'fill-plate' | 'wait' | 'hold' | 'trash' | 'handoff' | 'take-dish' | 'take-plate' | 'need-plate' | 'work' | 'start' | 'take' | 'tidy' | 'fetch' | 'clean' | 'merge' | 'take-merge'
 export interface Guide { step: GuideStep; stations: string[]; ing?: string; process?: ProcessId }
 export interface ServiceResult {
   game: string
@@ -138,6 +146,12 @@ export declare function ingredientState(item: Item): string
 export declare function nextPrep(item: Item): ProcessId | null
 export declare function dishMatches(item: Item, recipeId: string): boolean
 export declare function matchingOrder(state: ServiceState, item: Item | null): Order | null
+/** La cuisson d'un ustensile : celle qui y est lancée, sinon celle de ce qu'il contient (null : vide). */
+export declare function cookOf(state: ServiceState, stationId: string): ProcessId | null
+/** Une étape du fil rouge : le poste où elle se fait, et ce qui s'y fait. */
+export interface ThreadStep { kind: StationKind; process?: ProcessId; ing?: string; state?: string; done: boolean }
+/** Le fil rouge d'un objet : le bon qu'il sert, et son chemin jusqu'à la passe (null : il ne sert à aucun bon). */
+export declare function threadOf(state: ServiceState, item: Item | null): { order: { id: string; recipe: string }; steps: ThreadStep[] } | null
 export declare function dispenserChoices(state: ServiceState, stationId: string): string[]
 export declare function resolveAction(state: ServiceState, pid: string, stationId: string, pick?: string, rules?: typeof RULES): { use: UseAction | null; work: WorkAction | null }
 export declare function useStation(state: ServiceState, pid: string, stationId: string, pick: string | undefined, now: number, rules?: typeof RULES): { ok: true; events: ServiceEvent[] } | { ok: false; code: string }

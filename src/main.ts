@@ -2374,10 +2374,11 @@ let messBefore: { heading: number; zoom: number } | null = null
 /** La vue de la cuisine : presque à la verticale, du côté de la salle (le nord), les postes du mur sud face à soi. */
 const KITCHEN_ELEVATION = THREE.MathUtils.degToRad(58)
 /**
- * Ce que la vue du dessus montre de la cuisine (m) : un peu plus que la moitié de la pièce autour
- * du cuisinier (la vue le suit sans sortir des murs, cf. MessRushClient.focus), pour mieux le voir.
+ * Ce que la vue du dessus montre de la cuisine (m) : la cuisine seule (sans la salle du self),
+ * presque entière, autour du cuisinier (la vue le suit sans sortir des murs, cf.
+ * MessRushClient.focus) ; la file des clients passe en bas de l'écran.
  */
-const KITCHEN_SPAN = { width: 8, depth: 6.6 }
+const KITCHEN_SPAN = { width: 7.6, depth: 4.9 }
 /**
  * Place que prennent le bandeau (en haut), et la consigne et les emotes (en bas), en pixels ; sur un
  * écran bas (un téléphone en paysage), une part de la hauteur au plus.
@@ -2431,8 +2432,8 @@ const messRush = new MessRushClient({
   music: (on) => (on ? messServiceMusic.start() : messServiceMusic.stop()),
 })
 /**
- * La cuisine se joue vue du dessus, presque toute la pièce à l'écran (on ne la tourne ni ne zoome),
- * comme dans Overcooked ; la vue subjective attend la sortie (cf. isoOnly). Puis la vue d'avant.
+ * La cuisine se joue vue du dessus, presque toute la cuisine à l'écran (on ne la tourne ni ne
+ * zoome), comme dans Overcooked ; la vue subjective attend la sortie (cf. isoOnly). Puis la vue d'avant.
  */
 function kitchenView(on: boolean) {
   if (on) {

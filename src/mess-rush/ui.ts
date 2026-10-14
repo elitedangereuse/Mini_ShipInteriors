@@ -3,8 +3,8 @@ import { EN, tr } from '../i18n'
 import { icon, type IconName } from '../icons'
 import type { MessCrew, MessEnd, MessLobby, MessReward, MessTeam } from '../net'
 import { button, el, Modal } from '../salvage/ui'
-import { DIFFICULTIES, INGREDIENTS, PROCESSES, RECIPES, SERVICE_RECIPES, type Text } from '../../shared/mess-rush-catalog.js'
-import { RULES, currentMedal, medalOf, menuFor, recipeValue, type Medal, type ServiceIncident, type ServiceState } from '../../shared/mess-rush.js'
+import { INGREDIENTS, PROCESSES, RECIPES, type Text } from '../../shared/mess-rush-catalog.js'
+import { RULES, currentMedal, medalOf, type Medal, type ServiceIncident, type ServiceState } from '../../shared/mess-rush.js'
 import { nextReset } from '../../shared/mess-rush-week.js'
 import { stateLabel } from './props'
 
@@ -24,11 +24,25 @@ export const MEDAL_NAMES: Record<Medal, string> = {
   gold: tr('Or', 'Gold'),
 }
 
+/**
+ * Le fil rouge (cf. client.ts) : ce qu'on tient et le bon qu'il sert (à sa couleur), son chemin
+ * jusqu'à la passe, étape par étape (faite, en cours, à faire), et à quoi sert l'étape suivante.
+ */
+export interface ThreadView {
+  icon: IconName
+  title: string
+  sub?: string
+  color?: string
+  vip?: boolean
+  steps: { text: string; state: 'done' | 'now' | 'todo' }[]
+  note: string
+}
+
 /** Les imprévus qui durent (cf. EVENT_KINDS) : leur bandeau en cuisine. */
 const ALERTS: Record<string, { icon: IconName; line: string }> = {
   outage: { icon: 'lightning', line: tr('Panne de courant : les fourneaux sont coupés', 'Power cut: the ranges are off') },
   sink: { icon: 'drop', line: tr('Plonge bouchée : impossible de rincer', 'Sink blocked: no rinsing') },
-  spill: { icon: 'broom', line: tr('Plateau renversé sur la passe : nettoyez-la pour livrer', 'Tray spilled on the pass: clean it to deliver') },
+  spill: { icon: 'broom', line: tr('Plateau renversé sur une passe : nettoyez-la, ou livrez à l\'autre', 'Tray spilled on a pass: clean it, or deliver at the other one') },
 }
 
 /** Les effectifs d'une brigade, en toutes lettres (« médailles à trois »). */
@@ -173,50 +187,25 @@ export class MessPanel extends Modal {
     return b
   }
 
-  /** Pas encore placé : ce qu'est MESS RUSH, et ce qu'il y a au menu. */
+  /** Pas encore placé : ce qu'est MESS RUSH (la carte, elle, se découvre en cuisine, bon par bon). */
   private fillWelcome(stage: HTMLElement) {
     const hero = el('div', 'arena-hero')
     hero.append(
       el('strong', '', tr('Placez-vous dans un salon', 'Pick a lobby')),
       el('p', '', tr(
-        `Le coup de feu au mess : de un à quatre, vous tenez la cuisine pendant ${RULES.service / 60} minutes. Les bons arrivent au rail ; on prend les ingrédients au frigo et au garde-manger, on rince, on coupe, on fait cuire, on dresse, et l'on pose l'assiette à la passe avant la fin du délai. Le score est celui de toute l'équipe.`,
-        `Rush hour in the mess: one to four of you run the kitchen for ${RULES.service / 60} minutes. Tickets come in at the rail; grab ingredients from the fridge and pantry, rinse, chop, cook, plate up, and put the dish on the pass before the timer runs out. The score belongs to the whole team.`,
+        `Le coup de feu au mess : de un à quatre, vous tenez la cuisine pendant ${RULES.service / 60} minutes. Les clients font la queue au comptoir, chacun son bon ; on prend les ingrédients au frigo et au garde-manger, on rince, on épluche, on coupe, on fait cuire, mijoter, saisir ou dorer au four, on dresse, et l'on pose l'assiette à la passe avant que le client ne perde patience. Le score est celui de toute l'équipe.`,
+        `Rush hour in the mess: one to four of you run the kitchen for ${RULES.service / 60} minutes. Customers queue at the counter, one ticket each; grab ingredients from the fridge and pantry, rinse, peel, chop, boil, simmer, sear or bake, plate up, and put the dish on the pass before the customer runs out of patience. The score belongs to the whole team.`,
       )),
     )
-    stage.append(hero, ...[this.rewards()].filter((b): b is HTMLElement => !!b), this.menu(), this.controls())
-  }
-
-  /**
-   * La carte du service, par difficulté : les plats et ce qu'ils valent ; les complexes arrivent en
-   * cours de service. `players` : la carte de ce nombre de cuisiniers (toute la carte, sinon).
-   */
-  private menu(players?: number): HTMLElement {
-    const box = el('div', 'mess-menu')
-    const served = players ? menuFor(players) : SERVICE_RECIPES
-    box.append(el('span', 'arena-heading', players ? tr(`À la carte ${players > 1 ? `à ${COUNT[players] ?? players}` : 'en solo'}`, players > 1 ? `On the menu for ${players}` : 'Solo menu') : tr('À la carte', 'On the menu')))
-    for (const level of Object.keys(DIFFICULTIES) as (keyof typeof DIFFICULTIES)[]) {
-      const ids = served.filter((id) => RECIPES[id].difficulty === level)
-      if (!ids.length) continue
-      const head = el('p', 'mess-menu-level')
-      head.append(el('strong', '', text(DIFFICULTIES[level].name)))
-      if (level === 'complexe') head.append(el('small', '', tr(` · après ${RULES.complexAfter / 60} minutes de service`, ` · after ${RULES.complexAfter / 60} minutes of service`)))
-      const list = el('ul')
-      for (const id of ids) {
-        const li = el('li')
-        li.append(el('span', 'mess-menu-dish', text(RECIPES[id].name)), el('span', '', `${recipeValue(id).points} pts`))
-        list.append(li)
-      }
-      box.append(head, list)
-    }
-    return box
+    stage.append(hero, ...[this.rewards()].filter((b): b is HTMLElement => !!b), this.controls())
   }
 
   /** Les deux touches de la cuisine. */
   private controls(): HTMLElement {
     const box = el('p', 'salvage-note')
     box.textContent = tr(
-      'E (A / ×) : prendre ou poser. Espace (X / □) : rincer, couper, lancer une cuisson, vider un ustensile ; au frigo et au garde-manger, changer d\'ingrédient. À plusieurs, la cuisine est cloisonnée : chacun sa zone, et l\'on se passe les plats par les passe-plats. Les flèches vertes montrent quoi faire.',
-      'E (A / ×): pick up or put down. Space (X / □): rinse, chop, start cooking, empty a utensil; at the fridge and pantry, switch ingredient. With several cooks, the kitchen is split: each has a zone, and dishes go across the pass-throughs. Green arrows show what to do.',
+      'E (A / ×) : prendre ou poser ; une assiette sur une autre, on les réunit. Espace (X / □) : rincer, éplucher, couper, émincer, fouetter, lancer une cuisson, vider un ustensile ; au frigo et au garde-manger, changer d\'ingrédient. À plusieurs, la cuisine est cloisonnée : chacun sa zone, et l\'on se passe les plats par les passe-plats. Les flèches vertes montrent quoi faire, le fil rouge à quoi ça sert.',
+      'E (A / ×): pick up or put down; a plate onto another merges them. Space (X / □): rinse, peel, chop, slice, whisk, start cooking, empty a utensil; at the fridge and pantry, switch ingredient. With several cooks, the kitchen is split: each has a zone, and dishes go across the pass-throughs. Green arrows show what to do, the red thread what it\'s for.',
     )
     return box
   }
@@ -252,7 +241,7 @@ export class MessPanel extends Modal {
       row.append(m)
     }
     medals.append(row, el('small', '', tr('La médaille de bronze, c\'est la victoire.', 'Bronze means victory.')))
-    stage.append(crew, medals, ...[this.rewards()].filter((b): b is HTMLElement => !!b), this.menu(t.members.length), this.controls())
+    stage.append(crew, medals, ...[this.rewards()].filter((b): b is HTMLElement => !!b), this.controls())
 
     const ready = t.members.filter((m) => m.ready).length
     const footer = el('div', 'arena-footer')
@@ -285,6 +274,9 @@ export class MessHud {
   private readonly alertMore = el('small')
   private readonly blackout = el('div', 'mess-blackout')
   private alertKind = ''
+  /** Le fil rouge, à droite (cf. ThreadView). */
+  private readonly threadBox = el('aside', 'mess-thread')
+  private threadKey = ''
   /** La consigne du guidage, en bas de l'écran (cf. client.ts, hintText). */
   private readonly hintBox = el('p', 'mess-hint')
   private readonly hintText = el('span')
@@ -314,8 +306,33 @@ export class MessHud {
     this.hintBox.hidden = true
     this.alert.hidden = true
     this.blackout.hidden = true
-    this.root.append(bar, this.alert, this.crew, this.tickets, this.toasts, this.hintBox, this.quit)
+    this.threadBox.hidden = true
+    this.root.append(bar, this.alert, this.crew, this.tickets, this.toasts, this.threadBox, this.hintBox, this.quit)
     document.body.append(this.blackout, this.root)
+  }
+
+  /** Le fil rouge du moment (null : rien à expliquer). Refait seulement quand il change. */
+  thread(view: ThreadView | null) {
+    const key = view ? JSON.stringify(view) : ''
+    if (key === this.threadKey) return
+    this.threadKey = key
+    this.threadBox.hidden = !view
+    if (!view) return this.threadBox.replaceChildren()
+    const head = el('header', 'mess-thread-head')
+    head.append(icon(view.icon), el('small', '', tr('Fil rouge', 'Red thread')))
+    const title = el('strong', 'mess-thread-title', view.title)
+    if (view.color) title.style.setProperty('--dish', view.color)
+    title.classList.toggle('dish', !!view.color)
+    if (view.vip) title.append(el('em', '', tr(' · amiral', ' · admiral')))
+    const parts: HTMLElement[] = [head, title]
+    if (view.sub) parts.push(el('span', 'mess-thread-sub', view.sub))
+    if (view.steps.length) {
+      const list = el('ol', 'mess-thread-steps')
+      for (const s of view.steps) list.append(el('li', s.state, s.text))
+      parts.push(list)
+    }
+    if (view.note) parts.push(el('p', 'mess-thread-note', view.note))
+    this.threadBox.replaceChildren(...parts)
   }
 
   /** La consigne du moment (vide : rien à dire). */
@@ -335,6 +352,7 @@ export class MessHud {
     this.tickets.replaceChildren()
     this.crew.replaceChildren()
     this.hint('')
+    this.thread(null)
     this.incident(null, 0)
     this.shown = this.crewKey = ''
     document.body.classList.remove('mess-on')
@@ -413,13 +431,15 @@ export class MessHud {
     const r = RECIPES[recipeId]
     const card = el('article', `mess-ticket ${r.difficulty}${vip ? ' vip' : ''}`)
     card.dataset.order = id
+    // La couleur du plat : celle de son client dans la file, et des assiettes qui le deviennent.
+    card.style.setProperty('--dish', r.color)
     if (vip) card.append(el('em', 'mess-ticket-vip', tr(`Amiral · points ×${RULES.events.vip.points}`, `Admiral · points ×${RULES.events.vip.points}`)))
     card.append(el('strong', '', text(r.name)))
     const list = el('ul')
     for (const [ing, state] of r.dish.contents) {
       const how = INGREDIENTS[ing].cook[0] ? text(PROCESSES[INGREDIENTS[ing].cook[0]].verb) : ''
       const li = el('li', '', component(ing, state))
-      if (how && state === 'infusé') li.textContent = `${text(INGREDIENTS[ing].short)} · ${tr('fontaine', 'fountain')}`
+      if (how && state === 'infusé') li.textContent = `${text(INGREDIENTS[ing].short)} · ${tr('machine à café', 'coffee machine')}`
       list.append(li)
     }
     list.append(el('li', 'mess-ticket-dish', r.dish.container === 'cup' ? tr('en tasse', 'in a cup') : tr('en assiette', 'on a plate')))
@@ -428,8 +448,9 @@ export class MessHud {
   }
 
   /** Une ligne qui monte au-dessus des bons (livraison, expiration, refus), quelques secondes. */
-  toast(line: string, kind: 'good' | 'bad' | 'info' = 'info') {
-    const t = el('p', `mess-toast ${kind}`, line)
+  toast(line: string, kind: 'good' | 'bad' | 'info' = 'info', color?: string) {
+    const t = el('p', `mess-toast ${kind}${color ? ' dish' : ''}`, line)
+    if (color) t.style.setProperty('--dish', color)
     this.toasts.append(t)
     setTimeout(() => t.remove(), 2600)
     while (this.toasts.childElementCount > 4) this.toasts.firstElementChild?.remove()

@@ -4,8 +4,6 @@ import assert from 'node:assert/strict'
 import { INGREDIENTS, PROCESSES, RECIPES } from '../shared/mess-rush-catalog.js'
 import { STATIONS, stepService, useStation, workStation } from '../shared/mess-rush.js'
 
-const COOK_KIND = { marmite: 'pot', poele: 'pan', infuser: 'fountain' }
-
 /**
  * Une partie à l'horloge simulée : `advance(s)` la fait avancer par pas de 100 ms ; `near` dit
  * qui est à son poste (tout le monde, par défaut) ; `events` garde tous les évènements.
@@ -78,9 +76,9 @@ export function cookRecipe(k, pid, recipeId) {
     }
     const cook = info.cook[0]
     if (cook) {
-      const kind = COOK_KIND[cook]
-      if (!utensils.has(kind)) utensils.set(kind, first(kind, free).id)
-      must(k.use(pid, utensils.get(kind)), `mettre ${ing} à cuire`)
+      // Un ustensile par cuisson : ce qui cuit ensemble cuit de la même façon.
+      if (!utensils.has(cook)) utensils.set(cook, first(PROCESSES[cook].station, free).id)
+      must(k.use(pid, utensils.get(cook)), `mettre ${ing} à cuire`)
     } else {
       const st = first('counter', free)
       must(k.use(pid, st.id), `poser ${ing} au comptoir`)
@@ -88,12 +86,12 @@ export function cookRecipe(k, pid, recipeId) {
     }
   }
   let longest = 0
-  for (const [kind, sid] of utensils) {
-    must(k.work(pid, sid), `cuire (${kind})`)
-    longest = Math.max(longest, PROCESSES[Object.keys(COOK_KIND).find((c) => COOK_KIND[c] === kind)].duration)
+  for (const [cook, sid] of utensils) {
+    must(k.work(pid, sid), `cuire (${cook})`)
+    longest = Math.max(longest, PROCESSES[cook].duration)
   }
   k.advance(longest + 0.2)
-  if (dish.container === 'cup') must(k.use(pid, utensils.get('fountain')), 'prendre la tasse')
+  if (dish.container === 'cup') must(k.use(pid, utensils.get('infuser')), 'prendre la tasse')
   else {
     must(k.use(pid, first('plates').id), 'prendre une assiette')
     for (const sid of counters) must(k.use(pid, sid), 'dresser depuis le comptoir')
