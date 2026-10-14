@@ -2342,6 +2342,7 @@ const messRush = new MessRushClient({
   avatarOf: (id) => (id === net.id ? player.avatar : remotes.get(id)?.avatar ?? null),
   camera: () => activeCamera(),
   served: () => kitchen.addServed(),
+  stowTray: () => kitchen.stowTray(),
   credited: (earned, balance) => wallet.site({ earned, balance }),
   view: (on) => {
     if (on) {

@@ -96,7 +96,7 @@ l'horloge partagée. Il parle à la radio, en bulles du HUD (« Deux ragoûts, �
 - **Quoi.** 4 salons publics de 1 à 4 joueurs. Le premier arrivé est chef de salon ; s'il part,
   le suivant prend sa place. Chacun se dit prêt ; tout changement de l'équipe remet les « prêt »
   à zéro. Quand tous sont prêts, un compte à rebours de 3 s, puis l'entrée dans l'instance (fondu,
-  `setDeck`). Un joueur qui n'est pas arrivé au bout de 20 s est retiré.
+  `setDeck`). Un joueur qui n'est pas arrivé au bout de 30 s est retiré.
 - **Code.** `server/lobby.js` reprend le bloc commun à l'arène et à la zone : membres, prêt, chef,
   réglages validés par le chef, compte à rebours, codes d'erreur. MESS RUSH est son seul
   utilisateur au début. Passer l'arène et la zone dessus serait une tâche à part, avec leurs
@@ -255,9 +255,9 @@ position (l'évènement `state`, déjà contrôlé) et leurs intentions.
 | `mess:start {game, ticket, seed, endsAt, now}` | Entrée dans l'instance |
 | `mess:state {v, orders, items, stations, score, combo}` | L'état, à chaque changement, au plus 10 fois par seconde |
 | `mess:event {kind, …}` | Les évènements : livraison, expiration, refus, médaille franchie, coéquipier parti ou revenu |
-| `mess:end {…}` | Les résultats ; avec `late` pour un joueur revenu après la fin |
+| `mess:end {…}` | Les résultats, aux membres encore en service (pas à ceux qui l'ont quitté) ; `rewarding` : sa victoire part au site ; `late` : revenu après la fin |
 | `mess:reward {game, status, reward, boosters, earned, balance}` | La récompense confirmée par le site |
-| `mess:error {code}` | Les erreurs du salon : `lobby`, `full`, `playing`, `gone`, `leader`, `resume` |
+| `mess:error {code}` | Les erreurs du salon : `lobby`, `full`, `playing`, `gone`, `resume`, `elsewhere` (place encore tenue par une autre liaison) |
 
 - **Ce que les autres tiennent.** Chacun voit ce que ses coéquipiers portent grâce à
   `mess:state`, qui dit qui tient quoi. `PlayerState` ne change pas.
@@ -266,12 +266,16 @@ position (l'évènement `state`, déjà contrôlé) et leurs intentions.
 - **Dans `relay.js` :**
   - `MESS_LEVEL` rejoint `instanced`, la liste blanche de `state` et `MAPS` ;
   - `messRush.mates` rejoint `hears` et la diffusion à l'équipe ;
-  - le contrôle de vraisemblance `accepts`, la déconnexion `leave` ;
+  - le contrôle de vraisemblance `accepts` (une réserve de course qui se recharge au rythme du
+    sprint et que chaque position use : une rafale de positions ne téléporte pas), la
+    déconnexion `leave` ;
   - une limite de débit, comme la zone (20 jetons, +10/s).
-- **Les coupures.** Une coupure fait poser ce qu'on tenait sur la surface libre la plus proche,
-  et la place est gardée 60 s. Le navigateur garde le ticket : on revient dans l'allée de
-  cuisine. Si le service s'est terminé entre-temps, on en voit le résultat et la récompense
-  (gardés 10 min).
+- **Les coupures.** Une coupure fait poser ce qu'on tenait sur le premier comptoir libre, et la
+  place est gardée 60 s. Le navigateur garde le ticket : on revient dans l'allée de cuisine. Si
+  l'ancienne liaison tient encore la place (changement de réseau, le relais ne l'a pas encore vue
+  tomber), le client réessaie toutes les 5 s le temps que la place attend. Si le service s'est
+  terminé entre-temps, on en voit le résultat et la récompense (gardés 10 min) ; si le site n'a
+  pas encore répondu, sa réponse suit sur la nouvelle liaison.
 
 ## Les récompenses
 
@@ -294,7 +298,9 @@ Elles sont individuelles, payées par le site, jamais déclarées par le client.
    - crédits : « Victoire ! Vous gagnez 2 000 CR. », avec le nouveau solde ;
    - plafond atteint : « Plafond du jour atteint : cette victoire ne rapporte pas de crédits. » ;
    - échec : « Le site n'a pas confirmé la récompense. Code de partie : … » ;
-   - invité : « Connectez-vous sur le site pour gagner des récompenses. »
+   - invité : « Connectez-vous sur le site pour gagner des récompenses. » ;
+   - parti plus d'une minute avant la fin (donc pas présenté au site) : « Pas de récompense :
+     vous n'étiez plus en cuisine à la fin du service. »
 
 - **Cas limites :**
   - Une défaite n'écrit rien dans la table de la semaine, donc ne consomme jamais le booster.
@@ -469,7 +475,7 @@ Logique pure (`node --test`, fausse horloge et aléa à graine, comme `salvage.t
 - **Commandes :** l'apparition selon le nombre de joueurs, le plafond simultané, l'expiration et
   sa pénalité, le combo remis à zéro.
 - **Score :** les bonus de rapidité, les combos, le plancher à 0, les médailles selon les seuils.
-- **Service :** la fin à 5:00, l'abandon quand tout le monde part, l'arrivée manquée (20 s).
+- **Service :** la fin à 5:00, l'abandon quand tout le monde part, l'arrivée manquée (30 s).
 - **Coupure :** l'objet tenu est posé, la place gardée 60 s, la reprise par ticket, la reprise
   après la fin (`late`).
 - **Paie :**

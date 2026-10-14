@@ -134,6 +134,20 @@ export class Kitchen {
     saveServed(this.served)
   }
 
+  /**
+   * Le plateau repart au chariot sans un mot (on prend le service de MESS RUSH : en cuisine, on a
+   * les mains libres). Vrai s'il y en avait un.
+   */
+  stowTray(): boolean {
+    const t = this.tray
+    if (!t) return false
+    t.mesh.removeFromParent()
+    this.host.player.avatar.carrying = false
+    this.host.player.avatar.eating = false
+    this.tray = null
+    return true
+  }
+
 
   // ------------------------------------------------------------ plateaux
 

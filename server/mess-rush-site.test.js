@@ -43,6 +43,8 @@ test('refusé par le site (clé, compte, résultat invalide), ou sans cookie : p
   assert.deepEqual(await postMessRushResult('ED_LOGGED_CMDR_ID=jeton', RESULT, { ...OPTS, fetcher: reply(422, { status: 'error', error: 'invalid' }) }), { status: 'refused', code: 'invalid' })
   assert.deepEqual(await postMessRushResult('ED_LOGGED_CMDR_ID=jeton', RESULT, { ...OPTS, fetcher: reply(401, { error: 'key' }) }), { status: 'refused', code: 'key' })
   assert.deepEqual(await postMessRushResult(null, RESULT, { ...OPTS, fetcher: reply(200, {}) }), { status: 'refused', code: 'cmdr' })
+  // Même sans JSON (la page d'erreur d'un proxy) : un refus reste un refus.
+  assert.deepEqual(await postMessRushResult('ED_LOGGED_CMDR_ID=jeton', RESULT, { ...OPTS, fetcher: reply(403, undefined) }), { status: 'refused', code: '403' })
 })
 
 test('site en erreur ou injoignable : on pourra lui représenter la même partie', async () => {

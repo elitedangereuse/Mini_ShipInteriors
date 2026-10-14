@@ -5886,7 +5886,8 @@ body.arena-end-on .arena-hud > :not(.arena-count), body.arena-end-on :is(.top-le
 .mess-medal.big.none { background: #1b2030f2; }
 
 /* En cuisine : le bandeau du service en haut, les bons du rail dessous, comme des tickets de caisse. */
-.mess-hud { position: fixed; top: max(10px, env(safe-area-inset-top)); left: 50%; z-index: 30; display: grid; justify-items: center; gap: 8px; width: min(920px, calc(100vw - 24px)); transform: translateX(-50%); pointer-events: none; color: #fff; font: 13px/1.25 system-ui, sans-serif; }
+/* Centré sans transform : le bouton Quitter, en position fixe dedans, se place par rapport à l'écran. */
+.mess-hud { position: fixed; top: max(10px, env(safe-area-inset-top)); left: 0; right: 0; margin: 0 auto; z-index: 30; display: grid; justify-items: center; gap: 8px; width: min(920px, calc(100vw - 24px)); pointer-events: none; color: #fff; font: 13px/1.25 system-ui, sans-serif; }
 .mess-hud[hidden] { display: none; }
 .mess-bar { display: flex; align-items: center; gap: 14px; padding: 6px 16px; border: 3px solid #0b0d12; border-radius: 14px; background: #1b2030f2; box-shadow: 0 4px 0 #0b0d12; }
 .mess-cell { display: inline-flex; align-items: center; gap: 6px; }
@@ -5921,7 +5922,13 @@ body.arena-end-on .arena-hud > :not(.arena-count), body.arena-end-on :is(.top-le
 }
 .mess-quit { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 12px; border: 3px solid #0b0d12; border-radius: 12px; background: #1b2030f2; color: #e8eaee; font: 800 12px/1 system-ui, sans-serif; box-shadow: 0 3px 0 #0b0d12; cursor: pointer; pointer-events: auto; }
 .mess-quit .icon { width: 15px; height: 15px; }
+/* En service, comme dans l'arène : le bandeau et les bons prennent le haut de l'écran. */
+body.mess-on :is(.top-left > :not(.site-logo), #phone, #quest-phone, .about-toggle) { display: none; }
 body.mess-on :is(.top-right) { visibility: hidden; }
+@media (max-width: 720px) {
+  /* Sur un téléphone, le bandeau prend la largeur : le bouton Quitter passe au-dessus, à droite. */
+  .mess-quit { position: static; order: -1; justify-self: end; min-height: 32px; }
+}
 
 /* L'écran de fin : celui de CMDR Arena (le verdict, le score), et au milieu la fiche du service. */
 body.mess-end-on :is(.top-left, .top-right, .emotes, #phone, .about-toggle, #touch-pad, #prompt) { display: none; }

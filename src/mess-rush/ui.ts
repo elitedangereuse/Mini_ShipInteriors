@@ -404,6 +404,7 @@ export class MessEndScreen {
 
   /** @param verified le joueur est un CMDR (un invité ne gagne rien) */
   show(r: MessEnd, verified: boolean, onBack: () => void) {
+    clearTimeout(this.waiting)
     this.game = r.game
     this.root.replaceChildren()
     const won = r.reason === 'end' && !!r.won
@@ -442,11 +443,14 @@ export class MessEndScreen {
     if (r.reason === 'abandoned') this.reward.textContent = tr('Un service abandonné ne compte pas.', 'An abandoned service does not count.')
     else if (!won) this.reward.textContent = tr('Il faut au moins la médaille de bronze pour gagner.', 'You need at least the bronze medal to win.')
     else if (!verified) this.reward.textContent = tr('Connectez-vous sur le site pour gagner des récompenses.', 'Log in to the site to earn rewards.')
-    else {
-      // Le relais présente la victoire au site : sa réponse suit (cf. rewarded).
-      this.reward.classList.add('pending')
-      this.reward.textContent = tr('Envoi du résultat au site…', 'Sending the result to the site…')
+    // Pas présenté au site : revenu après la fin, on était parti depuis plus d'une minute.
+    else if (!r.rewarding) {
+      this.reward.textContent = r.late
+        ? tr('Pas de récompense : vous n\'étiez plus en cuisine à la fin du service.', 'No reward: you were no longer in the kitchen when the service ended.')
+        : tr('Pas de récompense pour cette partie.', 'No reward for this game.')
     }
+    // Le relais présente la victoire au site : sa réponse suit (cf. rewarded).
+    else this.rewarded({ game: r.game, status: 'pending' })
     card.append(this.reward)
     const back = button(tr('Retour au mess', 'Back to the mess'), () => {
       this.close()
@@ -476,10 +480,11 @@ export class MessEndScreen {
       return
     }
     if (r.status === 'failed') {
-      this.reward.textContent = tr(`Le site n'a pas répondu : la récompense n'est pas confirmée. Signalez le code de partie ${r.game} à l'équipe du site.`, `The site did not answer: the reward is not confirmed. Report game code ${r.game} to the site team.`)
+      this.reward.textContent = tr(`Le site n'a pas confirmé la récompense. Signalez le code de partie ${r.game} à l'équipe du site.`, `The site did not confirm the reward. Report game code ${r.game} to the site team.`)
       return
     }
     if (r.status === 'pending') {
+      clearTimeout(this.waiting)
       this.reward.classList.add('pending')
       this.reward.textContent = tr('Envoi du résultat au site…', 'Sending the result to the site…')
       this.waiting = window.setTimeout(() => {

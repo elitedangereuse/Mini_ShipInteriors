@@ -202,7 +202,9 @@ test('fin du service : le résultat à chacun, le salon se reforme, seules les v
   assert.equal(end.medal, 'gold')
   assert.equal(end.won, true)
   assert.equal(end.duration, RULES.service)
-  assert.deepEqual(h.last(99, 'mess:end'), end)
+  // Le même résultat pour l'invité, à ceci près que sa victoire ne part pas au site.
+  assert.equal(end.rewarding, true)
+  assert.deepEqual(h.last(99, 'mess:end'), { ...end, rewarding: false })
   assert.equal(h.mess.gameOf(a), null)
   const lobby = h.mess.snapshot().teams[0]
   assert.equal(lobby.status, 'forming')
@@ -250,7 +252,10 @@ test('tout le monde quitte le service : abandonné, sans résultat ni site', asy
   Object.assign(b, { level: 0, x: 12, z: 8 })
   h.mess.moved(b)
   h.advance(0.1)
-  assert.equal(h.last(2, 'mess:end').reason, 'abandoned')
+  // Rentrés au mess, ils n'attendent pas de résultat ; le service, lui, est clos sans en avoir.
+  assert.ok(h.last(2, 'mess:left'))
+  assert.equal(h.last(2, 'mess:end'), undefined)
+  assert.equal(h.mess.gameOf(b), null)
   await new Promise((resolve) => setImmediate(resolve))
   assert.equal(h.rewards.length, 0)
   // Ceux qui ont quitté ne sont plus du salon.
@@ -313,7 +318,7 @@ test('serveur de dev seulement : `mess:debug` raccourcit le service et choisit l
   const dev = harness({ debug: true })
   const { members: [b] } = dev.team(1)
   const g = dev.launch([b])
-  dev.mess.handle(b, 'mess:debug', { endIn: 5, recipes: ['cafe-goman', 'inconnue'], score: 300 })
+  dev.mess.handle(b, 'mess:debug', { endIn: 5, recipes: ['cafe-goman', 'inconnue', 'constructor', '__proto__', 'toString'], score: 300 })
   assert.deepEqual(g.state.recipes, ['cafe-goman'])
   assert.equal(g.state.score, 300)
   dev.advance(5.2)
@@ -502,4 +507,87 @@ test('arrivée manquée : un membre qui n\'entre pas dans la cuisine à temps es
   assert.ok(h.last(2, 'mess:left'))
   assert.equal(h.mess.mates(a).has(2), false)
   assert.ok(h.mess.gameOf(a))
+})
+
+test('qui quitte n\'entend plus parler de l\'ancien service, même quand il finit', () => {
+  const h = harness()
+  const { members: [a, b] } = h.team(1, 2)
+  const game = h.launch([a, b])
+  h.mess.handle(b, 'mess:quit')
+  const since = h.sent.length
+  // Il prend un autre salon et lance son propre service.
+  Object.assign(b, { level: 0, x: 12, z: 8 })
+  h.mess.moved(b)
+  h.mess.handle(b, 'mess:join', { team: 2 })
+  h.mess.handle(b, 'mess:ready', { ready: true })
+  h.advance(RULES.countdown + 0.2)
+  h.arrive(b)
+  h.advance(RULES.service)
+  const old = h.sent.slice(since).filter((m) => m.id === 2 && m.data?.game === game.id)
+  assert.deepEqual(old.map((m) => m.event), [])
+  assert.ok(h.last(1, 'mess:end', (d) => d.game === game.id))
+  assert.ok(h.last(2, 'mess:end', (d) => d.game !== game.id))
+})
+
+test('revenu pendant que le site réfléchit : l\'attente, puis sa réponse, à sa nouvelle liaison', async () => {
+  let answer
+  const h = harness({ reward: () => new Promise((resolve) => (answer = resolve)) })
+  const { members: [a] } = h.team(1)
+  const game = h.launch([a])
+  const { ticket } = h.last(1, 'mess:start')
+  game.state.score = 5000
+  h.advance(RULES.service + 1)
+  assert.equal(h.last(1, 'mess:end').rewarding, true)
+  await new Promise((resolve) => setImmediate(resolve))
+  // Il recharge la page avant que le site ait répondu.
+  h.mess.leave(a)
+  const back = h.add(15)
+  back.name = a.name
+  h.mess.handle(back, 'mess:resume', { game: game.id, ticket })
+  assert.deepEqual({ late: h.last(15, 'mess:end').late, rewarding: h.last(15, 'mess:end').rewarding }, { late: true, rewarding: true })
+  assert.deepEqual(h.last(15, 'mess:reward'), { game: game.id, status: 'pending' })
+  answer({ status: 'success', reward: 'booster', boosters: 1, earned: 0, balance: 30000, already: false })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(h.last(15, 'mess:reward').status, 'success')
+})
+
+test('parti trop longtemps : la victoire de l\'équipe ne lui rapporte rien, et il le sait', () => {
+  const h = harness()
+  const { members: [a, b] } = h.team(1, 2)
+  const game = h.launch([a, b])
+  const { ticket } = h.last(1, 'mess:start')
+  h.mess.leave(a)
+  h.advance(RULES.reconnect + 0.2)
+  game.state.score = 5000
+  h.advance(RULES.service)
+  assert.equal(h.last(2, 'mess:end').rewarding, true)
+  const back = h.add(16)
+  back.name = a.name
+  h.mess.handle(back, 'mess:resume', { game: game.id, ticket })
+  assert.deepEqual({ won: h.last(16, 'mess:end').won, rewarding: h.last(16, 'mess:end').rewarding }, { won: true, rewarding: false })
+  assert.equal(h.last(16, 'mess:reward'), undefined)
+})
+
+test('une rafale de positions ne cumule pas la marge : pas de téléportation d\'un poste à l\'autre', () => {
+  const h = harness()
+  const { members: [a] } = h.team(1)
+  h.launch([a])
+  // Huit petits pas au même instant : la marge n'en laisse passer qu'un.
+  let accepted = 0
+  for (let i = 1; i <= 8; i++) {
+    const x = a.x + 0.85
+    if (!h.mess.accepts(a, x, a.z)) continue
+    accepted++
+    Object.assign(a, { x })
+    h.mess.moved(a)
+  }
+  assert.equal(accepted, 1)
+  // Une seconde plus tard, une seconde de course ; pas davantage dans la foulée.
+  const t0 = h.now()
+  h.advance(1)
+  assert.ok(h.now() - t0 >= 1000)
+  assert.ok(h.mess.accepts(a, a.x + 3.5, a.z))
+  Object.assign(a, { x: a.x + 3.5 })
+  h.mess.moved(a)
+  assert.equal(h.mess.accepts(a, a.x + 1.5, a.z), false)
 })

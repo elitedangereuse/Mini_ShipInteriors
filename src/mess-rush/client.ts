@@ -8,7 +8,7 @@ import type { MessCrew, MessLobby, Net, ServerMessage } from '../net'
 import type { Player } from '../player'
 import { INGREDIENTS, PROCESSES, RECIPES, type Text } from '../../shared/mess-rush-catalog.js'
 import {
-  MESS_LEVEL, MESS_RETURN, STATION_BY_ID, STATION_NAMES, STATIONS, dispenserChoices, ingredientState, resolveAction, type Item, type ServiceState,
+  MESS_LEVEL, MESS_RETURN, RULES, STATION_BY_ID, STATION_NAMES, STATIONS, dispenserChoices, ingredientState, resolveAction, type Item, type ServiceState,
 } from '../../shared/mess-rush.js'
 import { KitchenProps, stateLabel } from './props'
 import { MessEndScreen, MessHud, MessPanel, type MessWeek } from './ui'
@@ -25,6 +25,9 @@ import { MessEndScreen, MessHud, MessPanel, type MessWeek } from './ui'
  */
 
 const text = (t: Text) => (EN ? t.en : t.fr)
+
+/** Reprise refusée parce que la place est encore tenue ailleurs : nouvel essai toutes les … s. */
+const RESUME_EVERY = 5
 
 /** Le ticket du service en cours, pour revenir après une coupure (le stockage peut manquer). */
 const TICKET_KEY = 'mini-shipinteriors-mess-ticket'
@@ -103,6 +106,8 @@ export interface MessRushHost {
   camera: () => THREE.Camera
   /** Un plat livré par le joueur : Marcel le compte (cf. kitchen.ts). */
   served: () => void
+  /** Le plateau du self repart au chariot (vrai s'il y en avait un). */
+  stowTray: () => boolean
   /** Les crédits confirmés par le site arrivent au portefeuille. */
   credited: (earned: number, balance: number) => void
   /**
@@ -182,6 +187,7 @@ export class MessRushClient {
       case 'welcome':
         this.lobby = m.mess ?? { teams: [] }
         this.panel.update(this.lobby, m.id, true)
+        this.resumeTries = 0
         this.askResume()
         break
       case 'mess:lobby':
@@ -189,10 +195,18 @@ export class MessRushClient {
         this.panel.update(this.lobby, this.host.net.id ?? -1, this.host.net.online)
         break
       case 'mess:error':
-        if (m.code === 'resume' || m.code === 'elsewhere') saveTicket(null)
+        // Encore tenue par une autre liaison : l'ancienne, coupée sans que le relais le sache encore
+        // (changement de réseau), ou un autre onglet. On réessaie le temps que la place attend.
+        if (m.code === 'elsewhere' && this.resumeTries++ < RULES.reconnect / RESUME_EVERY) {
+          clearTimeout(this.resumeTimer)
+          this.resumeTimer = window.setTimeout(() => this.askResume(), RESUME_EVERY * 1000)
+          break
+        }
+        if (m.code === 'resume') saveTicket(null)
         if (m.code !== 'resume') this.panel.message(ERRORS[m.code] ?? tr('Action impossible.', 'Not possible.'))
         break
       case 'mess:start':
+        clearTimeout(this.resumeTimer)
         saveTicket({ game: m.game, ticket: m.ticket })
         this.game = { id: m.game, you: m.you, state: m.state, members: m.members, offset: m.now - Date.now() }
         void this.enter(m.spawn)
@@ -217,9 +231,11 @@ export class MessRushClient {
         }
         break
       case 'mess:end':
+        // Le résultat de ce service (ou, au retour, celui du ticket) ; pas celui d'un autre.
+        if (m.game !== this.game?.id && !m.late) break
         saveTicket(null)
         this.end.show(m, this.host.verified(), () => {})
-        if (m.game === this.game?.id || m.late) void this.leave()
+        void this.leave()
         break
       case 'mess:reward':
         this.end.rewarded(m)
@@ -229,9 +245,11 @@ export class MessRushClient {
   }
 
   /** Revenu à bord avec le ticket d'un service : on demande à le reprendre. */
+  private resumeTries = 0
+  private resumeTimer = 0
   private askResume() {
     const t = loadTicket()
-    if (t) this.host.net.sendMess('resume', t)
+    if (t && this.host.net.online && !this.game) this.host.net.sendMess('resume', t)
   }
 
   /** Ce qui se passe en cuisine : un mot au-dessus des bons, et un son. */
@@ -285,11 +303,15 @@ export class MessRushClient {
    */
   private ready: Promise<KitchenProps> | null = null
   private prepare(): Promise<KitchenProps> {
+    // Raté (réseau), le Food Kit se redemandera à la prochaine occasion.
     this.ready ??= loadPack(FOOD_PACK).then(() => {
       const kitchen = this.host.kitchenDeck()
       this.bindStations(kitchen)
       this.props = new KitchenProps(kitchen.group)
       return this.props
+    }, (e) => {
+      this.ready = null
+      throw e
     })
     return this.ready
   }
@@ -300,18 +322,33 @@ export class MessRushClient {
     this.phase = 'loading'
     this.panel.close()
     this.end.close()
-    const props = await this.prepare()
+    const props = await this.prepare().catch(() => null)
     if (!this.game || this.game.id !== id) return
+    if (!props) {
+      // La cuisine n'a pas pu se charger : on rend sa place à l'équipe plutôt que de la faire attendre.
+      this.host.net.sendMess('quit')
+      saveTicket(null)
+      this.game = null
+      this.phase = 'ship'
+      this.panel.open()
+      this.panel.message(tr('La cuisine n\'a pas pu se charger (réseau). Réessayez dans un instant.', 'The kitchen could not load (network). Try again in a moment.'))
+      return
+    }
     props.sync(this.game.state)
+    // En cuisine, on a les mains libres : le plateau du self repart au chariot.
+    const stowed = this.host.stowTray()
     const kitchen = this.host.kitchenDeck()
     await this.host.moveTo(kitchen, spawn)
     if (!this.game || this.game.id !== id) {
-      if (this.host.deck() === kitchen) await this.host.moveTo(this.host.messDeck, MESS_RETURN)
+      // Fini pendant le trajet : leave() ramène au mess s'il nous a trouvés en cuisine ; sinon, c'est
+      // ici (sauf si un autre service nous y attend déjà).
+      if (!this.game && !this.leaving && this.host.deck() === kitchen) await this.host.moveTo(this.host.messDeck, MESS_RETURN)
       return
     }
     this.phase = 'kitchen'
     this.host.view(true)
     this.hud.show()
+    if (stowed) this.hud.toast(tr('Marcel reprend votre plateau : en cuisine, on a les mains libres.', 'Marcel takes your tray: in the kitchen, you need your hands free.'), 'info')
   }
 
   /** Les postes de la cuisine : un objet à viser par poste (E, et l'invite). */
@@ -335,11 +372,18 @@ export class MessRushClient {
     this.props?.release((pid) => this.avatar(pid))
     this.game = null
     if (wasIn) this.host.view(false)
-    if (wasIn && this.host.deck() === this.host.kitchenDeck()) await this.host.moveTo(this.host.messDeck, MESS_RETURN)
+    if (wasIn && this.host.deck() === this.host.kitchenDeck()) {
+      this.leaving = true
+      await this.host.moveTo(this.host.messDeck, MESS_RETURN).finally(() => (this.leaving = false))
+    }
   }
+
+  /** Le retour au mess de leave() est en cours. */
+  private leaving = false
 
   /** Liaison perdue : on rentre au mess (le ticket permettra de revenir). */
   disconnected() {
+    clearTimeout(this.resumeTimer)
     this.panel.update(this.lobby, -1, false)
     if (this.phase !== 'ship') void this.leave()
   }

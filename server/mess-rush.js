@@ -29,7 +29,11 @@ import { RECIPES } from '../shared/mess-rush-catalog.js'
 import { createLobby } from './lobby.js'
 
 const DECK = new ShipMap(SHIP_LAYOUTS[String(MESS_LOBBY.level)], shipMapOptions(MESS_LOBBY.level))
-/** Une position plus lointaine que la vitesse ne le permet est ignorée (marge en mètres). */
+/**
+ * Une position plus lointaine que la vitesse ne le permet est ignorée : la course permise est une
+ * réserve (marge de départ en mètres) qui se recharge au rythme de la course, deux secondes au plus,
+ * et que chaque position use ; une rafale de positions ne la cumule donc pas.
+ */
 const SLACK = 0.9
 /** La course (cf. src/player.ts), avec de la marge pour le retard du réseau. */
 const SPRINT = 3.4 * 1.25
@@ -75,8 +79,11 @@ export function createMessRush({
   const error = (p, code) => emit(p.id, 'mess:error', { code })
 
   const gameOf = (p) => lobby.teamOf(p)?.game ?? null
+  // Ceux qui ont quitté le service (ou n'y sont jamais arrivés) n'en entendent plus parler : ils
+  // sont peut-être déjà dans un autre.
+  const stillIn = (m) => m.connected && m.status !== 'left' && m.status !== 'gone'
   const toGame = (game, event, data) => {
-    for (const m of game.members.values()) if (m.connected) emit(m.id, event, data)
+    for (const m of game.members.values()) if (stillIn(m)) emit(m.id, event, data)
   }
 
   // ------------------------------------------------------------------ départ
@@ -90,7 +97,7 @@ export function createMessRush({
       const spawn = MESS_SPAWNS[i % MESS_SPAWNS.length]
       game.members.set(pid, {
         id: pid, name: p?.name ?? '?', verified: !!p?.verified, cookie: p?.cookie ?? null,
-        status: 'arriving', spawn, x: spawn.x, z: spawn.z, at: now(), arrivingSince: now(),
+        status: 'arriving', spawn, x: spawn.x, z: spawn.z, at: now(), stride: SLACK, arrivingSince: now(),
         ticket: randomBytes(12).toString('hex'), connected: true, awayUntil: 0,
       })
     })
@@ -182,16 +189,22 @@ export function createMessRush({
       members: [...game.members.values()].map((m) => ({ id: String(m.id), name: m.name, status: m.status })),
       orders: state.orders.map((o) => ({ id: o.id, recipe: o.recipe, status: o.status, points: o.points ?? 0 })),
     }
-    toGame(game, 'mess:end', report)
-    // Membres partis (ou pas encore revenus) : ils quittent le salon ; qui revient apprendra le résultat.
-    lobby.finish(game.team, new Set([...game.members.values()].filter((m) => m.connected && m.status !== 'left' && m.status !== 'gone').map((m) => m.id)))
-    finished.set(game.id, { report, tickets: new Set([...game.members.values()].map((m) => m.ticket)), rewards: new Map(), until: now() + RULES.keepResult * 1000 })
-    log(`[mess-rush] service ${game.id} : ${reason === 'end' ? `${result.score} points, médaille ${result.medal}, ${result.served} servies, ${result.expired} expirées` : 'abandonné'}`)
-    if (!result?.won || !reward) return
     // La victoire : chaque membre CMDR encore là, ou parti depuis moins d'une minute, est présenté au
-    // site ; il sait tout de suite que sa récompense est en route, puis ce que le site a confirmé.
+    // site ; le résultat lui dit que sa récompense est en route (`rewarding`), puis vient ce que le
+    // site a confirmé. Les autres savent qu'il n'y en aura pas.
+    const presented = new Set(result?.won && reward
+      ? [...game.members.values()].filter((m) => m.verified && m.cookie && m.status !== 'left' && m.status !== 'gone').map((m) => m.ticket)
+      : [])
+    for (const m of game.members.values()) if (stillIn(m)) emit(m.id, 'mess:end', { ...report, rewarding: presented.has(m.ticket) })
+    // Membres partis (ou pas encore revenus) : ils quittent le salon ; qui revient apprendra le résultat.
+    lobby.finish(game.team, new Set([...game.members.values()].filter(stillIn).map((m) => m.id)))
+    // `to` : où envoyer la réponse du site à qui est revenu (nouvel id de joueur) avant qu'elle arrive.
+    finished.set(game.id, {
+      report, tickets: new Set([...game.members.values()].map((m) => m.ticket)), presented, rewards: new Map(), to: new Map(), until: now() + RULES.keepResult * 1000,
+    })
+    log(`[mess-rush] service ${game.id} : ${reason === 'end' ? `${result.score} points, médaille ${result.medal}, ${result.served} servies, ${result.expired} expirées` : 'abandonné'}`)
     for (const m of game.members.values()) {
-      if (!m.verified || !m.cookie || m.status === 'left' || m.status === 'gone') continue
+      if (!presented.has(m.ticket)) continue
       emit(m.id, 'mess:reward', { game: game.id, status: 'pending' })
       present(game.id, m, result, 0)
     }
@@ -207,8 +220,9 @@ export function createMessRush({
       if (r?.status === 'retry' && attempt < REWARD_RETRIES.length) return later(() => present(id, m, result, attempt + 1), REWARD_RETRIES[attempt] * 1000)
       const out = { game: id, ...(r && r.status !== 'retry' ? r : { status: 'failed' }) }
       if (out.status === 'failed') log(`[mess-rush] partie ${id} : la victoire de ${m.name} n'a pas pu être présentée au site`)
-      finished.get(id)?.rewards.set(m.ticket, out)
-      emit(m.id, 'mess:reward', out)
+      const done = finished.get(id)
+      done?.rewards.set(m.ticket, out)
+      emit(done?.to.get(m.ticket) ?? m.id, 'mess:reward', out)
     })
   }
 
@@ -263,8 +277,12 @@ export function createMessRush({
     if (!m || (m.status !== 'in' && m.status !== 'arriving')) return false
     if (!onMessFloor(x, z)) return false
     if (m.status === 'arriving') return Math.hypot(x - m.spawn.x, z - m.spawn.z) <= 1.5
-    const elapsed = Math.min(2, (now() - m.at) / 1000)
-    return Math.hypot(x - m.x, z - m.z) <= SPRINT * elapsed + SLACK
+    return Math.hypot(x - m.x, z - m.z) <= stride(m)
+  }
+
+  /** La course permise d'un membre depuis sa dernière position acceptée (cf. SLACK). */
+  function stride(m) {
+    return Math.min(SPRINT * 2 + SLACK, m.stride + SPRINT * Math.max(0, now() - m.at) / 1000)
   }
 
   /** Après chaque position acceptée (ou changement de pont) d'un joueur. */
@@ -280,11 +298,13 @@ export function createMessRush({
       if (m.status === 'in') quit(game, m)
       return
     }
-    if (m.status === 'arriving') {
+    const arrived = m.status === 'arriving'
+    if (arrived) {
       m.status = 'in'
       tell(game, [{ kind: 'arrive', by: String(m.id) }])
     }
     if (m.status !== 'in') return
+    m.stride = arrived ? SLACK : Math.max(0, stride(m) - Math.hypot(p.x - m.x, p.z - m.z))
     m.x = p.x
     m.z = p.z
     m.at = now()
@@ -318,9 +338,13 @@ export function createMessRush({
     if (!game) {
       const done = finished.get(data.game)
       if (done && ticket && done.tickets.has(ticket)) {
-        emit(p.id, 'mess:end', { ...done.report, late: true })
-        const r = done.rewards.get(ticket)
-        if (r) emit(p.id, 'mess:reward', r)
+        const rewarding = done.presented.has(ticket)
+        emit(p.id, 'mess:end', { ...done.report, late: true, rewarding })
+        // La réponse du site, ou, si elle n'est pas encore là, l'attente : elle suivra ici.
+        if (rewarding) {
+          done.to.set(ticket, p.id)
+          emit(p.id, 'mess:reward', done.rewards.get(ticket) ?? { game: data.game, status: 'pending' })
+        }
       } else error(p, 'resume')
       return
     }
@@ -358,7 +382,7 @@ export function createMessRush({
       const t = now()
       if (Number.isFinite(data.endIn)) game.state.endsAt = t + Math.max(1, data.endIn) * 1000
       if (Array.isArray(data.recipes)) {
-        const known = data.recipes.filter((r) => typeof r === 'string' && RECIPES[r])
+        const known = data.recipes.filter((r) => typeof r === 'string' && Object.hasOwn(RECIPES, r))
         if (known.length) game.state.recipes = known
       }
       if (Number.isInteger(data.score) && data.score >= 0) game.state.score = data.score

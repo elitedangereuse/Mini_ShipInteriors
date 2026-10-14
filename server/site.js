@@ -103,13 +103,14 @@ export async function postMessRushResult(cookie, result, { cmdrUrl, secret, erro
     // Pas encore d'endpoint sur le site : les récompenses ne sont pas en service.
     if (response.status === 404) return { status: 'unavailable' }
     const data = await response.json().catch(() => null)
-    if (response.status >= 500 || !data) {
+    // Un refus (4xx autre que 404) n'est pas retenté, même sans JSON (page d'erreur d'un proxy).
+    if (response.status >= 500 || (response.ok && !data)) {
       error(`[mess-rush] site en erreur pour la partie ${result.game} (${response.status})`)
       return { status: 'retry' }
     }
     if (!response.ok || data.status !== 'success') {
-      error(`[mess-rush] victoire de la partie ${result.game} refusée par le site (${response.status} ${data.error ?? ''})`)
-      return { status: 'refused', code: typeof data.error === 'string' ? data.error : String(response.status) }
+      error(`[mess-rush] victoire de la partie ${result.game} refusée par le site (${response.status} ${data?.error ?? ''})`)
+      return { status: 'refused', code: typeof data?.error === 'string' ? data.error : String(response.status) }
     }
     const n = (v) => Math.max(0, Math.floor(Number(v) || 0))
     return {

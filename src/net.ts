@@ -381,6 +381,8 @@ export interface MessEnd {
   orders: { id: string; recipe: string; status: 'pending' | 'served' | 'expired'; points: number }[]
   /** Revenu après la fin : le résultat, en retard. */
   late?: boolean
+  /** Le relais présente cette victoire au site pour ce joueur : sa réponse suit (`mess:reward`). */
+  rewarding?: boolean
 }
 /**
  * La récompense d'une victoire (cf. docs/mess-rush-site.md) : en route (`pending`), confirmée par le
