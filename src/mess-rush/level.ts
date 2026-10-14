@@ -36,10 +36,11 @@ const PROPS: Prop[] = [
   // --- La cuisine, le long du mur sud.
   { model: 'kitchen-fridge', x: at('frigo').x, z: 12.075, rot: 2 },
   { model: 'kitchen-pantry', x: at('garde-manger').x, z: 12.14, rot: 2 },
+  // L'ouest prépare (deux plans de travail), l'est cuit (deux fourneaux) et lave (cf. KITCHENS).
   { model: 'kitchen-prep', x: at('plan-1').x, z: 12.075, rot: 2 },
-  { model: 'kitchen-range', x: 11.95, z: 12.075, rot: 2 },
-  { model: 'kitchen-range', x: 13.4, z: 12.075, rot: 2 },
   { model: 'kitchen-prep', x: at('plan-2').x, z: 12.075, rot: 2 },
+  { model: 'kitchen-range', x: (at('marmite-1').x + at('poele-1').x) / 2, z: 12.075, rot: 2 },
+  { model: 'kitchen-range', x: (at('marmite-2').x + at('poele-2').x) / 2, z: 12.075, rot: 2 },
   { model: 'kitchen-sink', x: at('plonge').x, z: 12.075, rot: 2 },
   { model: 'k-trashcan', x: at('recyclage').x, z: 12.0, rot: 2 },
   { model: 'pot-rack', x: at('plan-1').x, z: 12, solid: false },

@@ -6,7 +6,7 @@ import { markerMaterial } from '../economy/tasks'
 import { EN } from '../i18n'
 import type { IconName } from '../icons'
 import { INGREDIENTS, PROCESSES, type StationKind } from '../../shared/mess-rush-catalog.js'
-import { STATIONS, STATION_BY_ID, canReach, ingredientState, kitchenOf, nextPrep, wallsOf, type Item, type Rect, type ServiceState } from '../../shared/mess-rush.js'
+import { RULES, STATIONS, STATION_BY_ID, canReach, ingredientState, kitchenOf, nextPrep, wallsOf, type Item, type Rect, type ServiceState } from '../../shared/mess-rush.js'
 
 /*
  * Ce qu'on voit en cuisine, d'après l'état du service (cf. shared/mess-rush.js) : les ingrédients,
@@ -213,6 +213,25 @@ export type PlaceOnDeck = (o: THREE.Object3D, solids: Box2[], fade: THREE.Vector
 /** Qui tient quoi : le joueur local et ses coéquipiers (leur avatar, s'il est là). */
 export type AvatarOf = (pid: string) => Avatar | null
 
+/**
+ * Une flaque (les imprévus) : quelques taches rondes qui se chevauchent, à plat, un peu brillantes.
+ * Le plateau renversé laisse une sauce sur la passe ; la plonge bouchée déborde sur le sol.
+ */
+function puddle(color: string, size: number): THREE.Object3D {
+  const g = new THREE.Group()
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85, depthWrite: false })
+  const spots: [number, number, number][] = [[0, 0, 1], [0.45, 0.2, 0.6], [-0.4, 0.25, 0.55], [0.15, -0.4, 0.5], [-0.3, -0.3, 0.4]]
+  for (const [x, z, r] of spots) {
+    const m = new THREE.Mesh(new THREE.CircleGeometry(r * size * 0.5, 20), mat)
+    m.rotation.x = -Math.PI / 2
+    m.position.set(x * size * 0.5, 0, z * size * 0.5)
+    m.renderOrder = 2
+    g.add(m)
+  }
+  g.visible = false
+  return g
+}
+
 export class KitchenProps {
   readonly group = new THREE.Group()
   /** Ce qui est posé sur chaque poste, et sa signature. */
@@ -228,6 +247,9 @@ export class KitchenProps {
   private walls: { key: string; remove: () => void } | null = null
   /** Postes visés par les flèches. */
   private aimed: string[] = []
+  /** Les flaques des imprévus : la sauce du plateau renversé sur la passe, l'eau de la plonge bouchée. */
+  private readonly spill = puddle('#7a3b17', 0.42)
+  private readonly flood = puddle('#5fa8d8', 0.9)
 
   constructor(private readonly parent: THREE.Object3D, private readonly place: PlaceOnDeck) {
     parent.add(this.group)
@@ -266,7 +288,16 @@ export class KitchenProps {
         board.position.set(s.x, TOP, s.z - 0.05)
         this.group.add(board)
       }
-      if (s.kind !== 'fridge' && s.kind !== 'pantry' && s.kind !== 'plates' && s.kind !== 'trash' && s.kind !== 'pass') {
+      if (s.kind === 'pass') {
+        this.spill.position.set(s.x, TOP + 0.006, s.z)
+        this.group.add(this.spill)
+      }
+      if (s.kind === 'sink') {
+        this.flood.position.set(s.x - 0.1, 0.012, s.z - 0.65)
+        this.group.add(this.flood)
+      }
+      // La passe a sa jauge pour le nettoyage du plateau renversé.
+      if (s.kind !== 'fridge' && s.kind !== 'pantry' && s.kind !== 'plates' && s.kind !== 'trash') {
         const g = new Gauge()
         // Devant le poste, côté salle (vers le milieu de la pièce), sous l'invite.
         g.root.position.set(s.x, 0.85, s.z + (s.z > 8.5 ? -0.55 : 0.55))
@@ -380,7 +411,8 @@ export class KitchenProps {
       const slot = state.stations[s.id] as { item?: string | null; cook?: { start: number; until: number } | null; done?: boolean }
       const item = slot?.item ? state.items[slot.item] : null
       const next = item ? nextPrep(item) : null
-      if (slot?.cook) gauge.set(slot.done ? 1 : (now - slot.cook.start) / (slot.cook.until - slot.cook.start), !!slot.done)
+      if (s.kind === 'pass') gauge.set(state.event?.kind === 'spill' && state.event.progress ? state.event.progress / RULES.events.clean : null)
+      else if (slot?.cook) gauge.set(slot.done ? 1 : (now - slot.cook.start) / (slot.cook.until - slot.cook.start), !!slot.done)
       else if (item && next && (item.progress ?? 0) > 0) gauge.set((item.progress ?? 0) / PROCESSES[next].duration)
       else gauge.set(null)
       gauge.root.quaternion.copy(camera.quaternion)
@@ -396,6 +428,10 @@ export class KitchenProps {
       a.quaternion.copy(camera.quaternion)
     })
     for (const [id, sprite] of this.icons) sprite.scale.setScalar(this.aimed.includes(id) ? 0.42 * (1.12 + Math.sin(t * 8) * 0.06) : 0.42)
+    this.spill.visible = state.event?.kind === 'spill'
+    this.flood.visible = state.event?.kind === 'sink'
+    // La flaque de la passe s'efface à mesure qu'on la nettoie.
+    if (this.spill.visible) this.spill.scale.setScalar(1 - 0.7 * Math.min(1, (state.event?.progress ?? 0) / RULES.events.clean))
   }
 
   /** Fin du service : on vide les mains de chacun, les cloisons tombent, plus de repère ni de flèche. */
@@ -405,6 +441,7 @@ export class KitchenProps {
     this.aimed = []
     for (const a of this.arrows) a.visible = false
     for (const sprite of this.icons.values()) sprite.visible = false
+    this.spill.visible = this.flood.visible = false
     for (const [pid, held] of this.inHands) {
       held.obj.removeFromParent()
       const avatar = avatarOf(pid)

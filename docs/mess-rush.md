@@ -606,3 +606,68 @@ recyclage ; et la caisse quand un plat est servi, un petit son quand on prend ou
 - Le rythme et les médailles à plusieurs (cf. plus haut).
 - Le partage des rôles à quatre : le coin nord-est n'a que la passe et le retour plateaux.
 - Les sons, jamais écoutés (session sans haut-parleur).
+
+## Mise à jour 1.2
+
+Plus près des cuisiniers, des rôles mieux partagés, des imprévus, et deux musiques.
+
+### La vue
+
+La vue du dessus montre un peu plus que la moitié de la pièce (`KITCHEN_SPAN`, 8 × 6,6 m, au lieu de
+toute la cuisine) et suit le cuisinier à moitié, sans s'écarter du milieu de plus de 1,3 m en
+largeur et 0,9 m en profondeur : les murs restent à l'écran (`FOLLOW` et `focus` dans
+`src/mess-rush/client.ts`). On ne la tourne ni ne zoome toujours pas.
+
+### Les rôles
+
+À deux, le joueur du coin du frigo faisait presque tout : les distributeurs, les plans de travail
+et la fontaine étaient à l'ouest, l'est n'avait que la plonge, les fourneaux et la passe. Le mur sud
+est réparti autrement : **l'ouest prépare** (distributeurs, deux plans de travail, assiettes,
+fontaine), **l'est cuit et sert** (deux fourneaux, plonge, passe). Un second passe-plat
+(`passe-plat-centre`) double celui du sud dans la cloison.
+
+Mesuré avec les robots du guidage (part des gestes, plats servis par service, imprévus compris) :
+
+| Joueurs | Avant (1.1) | Après |
+|---|---|---|
+| 2 | 54 / 46 %, 21,5 plats | 49 / 51 %, 21,4 plats |
+| 3 | 45 / 31 / 24 %, 21,2 plats | 41 / 35 / 23 %, 20,5 plats |
+| 4 | 50 / 29 / 9 / 11 %, 23,2 plats | 47 / 37 / 6 / 10 %, 22,8 plats |
+
+À quatre, les coins de la salle restent légers ; le plateau renversé leur donne du travail.
+
+### Les imprévus
+
+Comme dans Overcooked, la cuisine se dérègle. Le relais tire les imprévus sur la graine du service :
+toute l'équipe vit les mêmes, au même moment (`stepEvent`, `RULES.events`). Un seul à la fois, le
+premier après une minute, puis toutes les 35 à 55 s, jamais dans les 20 dernières secondes.
+
+| Imprévu | Effet | Fin |
+|---|---|---|
+| Panne de courant (`outage`) | les cuissons s'arrêtent où elles en sont, l'écran s'assombrit et grésille | 10 s |
+| Plonge bouchée (`sink`) | on y pose, mais on n'y rince plus ; une flaque devant | 12 s |
+| Plateau renversé (`spill`) | la passe refuse les plats ; une flaque de sauce dessus | nettoyée : Espace, mains vides, 2,5 s |
+| Coup de feu (`rush`) | deux bons d'un coup | aussitôt |
+| L'amiral à bord (`vip`) | un bon doré, au délai ×0,75, qui rapporte ×2 | aussitôt |
+
+Le bandeau rouge sous le score dit l'imprévu en cours et ce qui reste (secondes, ou nettoyage) ; le
+guidage en tient compte (ni plonge bouchée, ni passe renversée ; « nettoyez la passe », ou posez le
+plat en attendant). Essais : `server/mess-rush-events.test.js`.
+
+### Les musiques
+
+Deux morceaux enregistrés (`public/assets/music/mess-rush/`, cf. `CREDITS.txt` et
+`src/mess-rush/music.ts`) :
+
+- **« MESS RUSH »** au mess, tant qu'on y est, comme la sono du lobby de CMDR Arena ou de la zone
+  thargoïde : la même mesure pour tous, et le jukebox du pont lui laisse la place. Il passe par une
+  **platine** : pleurage et scintillement (un retard modulé fait onduler la hauteur), son de vinyle
+  (ni sub-graves, aigus adoucis, un peu de saturation) et craquements.
+- **« Arcade Groove »** en cuisine, en boucle, de l'arrivée au début du service jusqu'à la fin des
+  cinq minutes (ou au départ).
+
+### À confirmer en jeu (1.2)
+
+- Le cadrage plus serré sur téléphone (en paysage).
+- Le volume des deux musiques face aux sons de la cuisine, et le dosage de la platine.
+- La fréquence des imprévus : assez pour pimenter, pas au point d'agacer.

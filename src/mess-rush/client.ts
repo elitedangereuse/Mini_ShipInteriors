@@ -28,8 +28,13 @@ import { MessEndScreen, MessHud, MessPanel, type MessWeek } from './ui'
 
 const text = (t: Text) => (EN ? t.en : t.fr)
 
-/** Le milieu de la cuisine : la vue du dessus le garde au centre (cf. `focus`). */
+/** Le milieu de la cuisine : la vue du dessus s'y tient, en suivant un peu le cuisinier (cf. `focus`). */
 const KITCHEN_CENTER = { x: (MESS_BOUNDS.minX + MESS_BOUNDS.maxX) / 2, z: (MESS_BOUNDS.minZ + MESS_BOUNDS.maxZ) / 2 }
+/**
+ * La vue, plus serrée que la pièce (cf. KITCHEN_SPAN dans main.ts), suit le cuisinier à moitié, et
+ * jamais plus loin du milieu que ce qui garde les murs à l'écran (m, en x et en z).
+ */
+const FOLLOW = { share: 0.5, x: 1.3, z: 0.9 }
 
 /** La consigne du bandeau, d'après le guidage (cf. `guide` dans shared/mess-rush.js). */
 function hintText(g: Guide | null): string {
@@ -55,9 +60,19 @@ function hintText(g: Guide | null): string {
     case 'take': return tr(`Pour vous : ${ing}`, `For you: ${ing}`)
     case 'tidy': return tr('Débarrassez le passe-plat : cette assiette vide ne sert à rien', 'Clear the pass-through: that empty plate isn\'t needed')
     case 'trash': return tr('Ce plat ne correspond à aucun bon : au recyclage', 'This dish matches no ticket: recycle it')
+    case 'clean': return tr('Plateau renversé : nettoyez la passe (Espace, mains vides)', 'Spilled tray: clean the pass (Space, empty hands)')
     case 'handoff': return tr(`Passez-le à l'équipe par le passe-plat${ing ? ` : ${ing}` : ''}`, `Hand it to the team over the pass-through${ing ? `: ${ing}` : ''}`)
   }
   return ''
+}
+
+/** L'annonce des imprévus (cf. EVENT_KINDS dans shared/mess-rush.js). */
+const INCIDENTS: Record<string, string> = {
+  outage: tr('Panne de courant ! Les fourneaux s\'arrêtent.', 'Power cut! The ranges stop.'),
+  sink: tr('La plonge est bouchée !', 'The sink is blocked!'),
+  spill: tr('Un plateau renversé sur la passe : nettoyez avant de livrer !', 'A tray spilled on the pass: clean it before delivering!'),
+  rush: tr('Coup de feu : deux bons d\'un coup !', 'Rush hour: two tickets at once!'),
+  vip: tr('L\'amiral est à bord : son bon rapporte double, mais il est pressé !', 'The admiral is aboard: their ticket pays double, but they\'re in a hurry!'),
 }
 
 /** Reprise refusée parce que la place est encore tenue ailleurs : nouvel essai toutes les … s. */
@@ -153,6 +168,8 @@ export interface MessRushHost {
    * la caméra, sans rotation ni zoom ; puis (false) la vue d'avant.
    */
   view: (kitchen: boolean) => void
+  /** La musique du service (cf. music.ts) : de l'arrivée en cuisine à la fin du service. */
+  music: (on: boolean) => void
 }
 
 interface Game {
@@ -303,7 +320,7 @@ export class MessRushClient {
   }
 
   /** Ce qui se passe en cuisine : un mot au-dessus des bons, et un son. */
-  private event(e: { kind: string; by?: string; recipe?: string; points?: number; combo?: number; penalty?: number; station?: string; process?: string; wait?: number; count?: number }) {
+  private event(e: { kind: string; by?: string; recipe?: string; points?: number; combo?: number; penalty?: number; station?: string; process?: string; wait?: number; count?: number; event?: string; vip?: boolean }) {
     const me = e.by === this.game?.you
     const who = (id?: string) => this.game?.members.find((m) => m.id === id)?.name ?? '?'
     const at = (station?: string) => {
@@ -312,7 +329,7 @@ export class MessRushClient {
     }
     switch (e.kind) {
       case 'served':
-        this.hud.toast(`+${e.points} · ${text(RECIPES[e.recipe!].name)}${me ? '' : ` · ${who(e.by)}`}${(e.combo ?? 0) > 1 ? ` · combo ×${e.combo}` : ''}`, 'good')
+        this.hud.toast(`+${e.points} · ${text(RECIPES[e.recipe!].name)}${e.vip ? tr(' · l\'amiral est ravi', ' · the admiral is delighted') : ''}${me ? '' : ` · ${who(e.by)}`}${(e.combo ?? 0) > 1 ? ` · combo ×${e.combo}` : ''}`, 'good')
         this.host.sound.play('ding', at('passe'), { volume: 0.5 })
         this.host.sound.credits((e.combo ?? 0) > 2)
         if (me) this.host.served()
@@ -348,6 +365,26 @@ export class MessRushClient {
       case 'emptied':
         if (me) this.hud.toast(tr('Vidé : c\'est perdu.', 'Emptied: it\'s lost.'), 'info')
         this.host.sound.kitchen('trash', at(e.station))
+        break
+      case 'event':
+        // Un imprévu : le bandeau rouge le tient affiché (cf. MessHud) ; ici, l'annonce et son bruit.
+        if (e.event && INCIDENTS[e.event]) this.hud.toast(INCIDENTS[e.event], 'bad')
+        if (e.event === 'outage') {
+          this.host.sound.kitchen('expired', null)
+          this.host.sound.work('hiss', this.host.player.position)
+        }
+        else if (e.event === 'sink') this.host.sound.work('water', at('plonge'))
+        else if (e.event === 'spill') this.host.sound.kitchen('trash', at('passe'))
+        else this.host.sound.kitchen('order', null)
+        break
+      case 'event-end':
+        if (e.event === 'outage') this.hud.toast(tr('Le courant revient : les cuissons reprennent.', 'Power is back: cooking resumes.'), 'good')
+        else if (e.event === 'sink') this.hud.toast(tr('La plonge est débouchée.', 'The sink is clear.'), 'good')
+        else if (e.event === 'spill') {
+          this.hud.toast(tr(`Passe nettoyée${e.by && !me ? ` par ${who(e.by)}` : ''} : on peut livrer.`, `Pass cleaned${e.by && !me ? ` by ${who(e.by)}` : ''}: you can deliver.`), 'good')
+          if (me) this.working = null
+          this.host.sound.kitchen('ready', at('passe'))
+        }
         break
       case 'open':
         this.hud.toast(tr('Un cuisinier est parti : les cloisons tombent, toute la cuisine est à vous.', 'A cook has left: the partitions come down, the whole kitchen is yours.'), 'info')
@@ -426,6 +463,7 @@ export class MessRushClient {
     }
     this.phase = 'kitchen'
     this.host.view(true)
+    this.host.music(true)
     this.hud.show()
     if (stowed) this.hud.toast(tr('Marcel reprend votre plateau : en cuisine, on a les mains libres.', 'Marcel takes your tray: in the kitchen, you need your hands free.'), 'info')
   }
@@ -461,10 +499,13 @@ export class MessRushClient {
     list.push(...reach.map(([it]) => it))
   }
 
-  /** La vue du dessus garde la cuisine au centre (null : hors de la cuisine). */
+  /** La vue du dessus : le milieu de la cuisine, tiré vers le cuisinier (null : hors de la cuisine). */
   get focus(): THREE.Vector3 | null {
     if (!this.inKitchen) return null
-    return this.center.set(KITCHEN_CENTER.x, this.host.kitchenDeck().y, KITCHEN_CENTER.z)
+    const p = this.host.player.position
+    const dx = THREE.MathUtils.clamp((p.x - KITCHEN_CENTER.x) * FOLLOW.share, -FOLLOW.x, FOLLOW.x)
+    const dz = THREE.MathUtils.clamp((p.z - KITCHEN_CENTER.z) * FOLLOW.share, -FOLLOW.z, FOLLOW.z)
+    return this.center.set(KITCHEN_CENTER.x + dx, this.host.kitchenDeck().y, KITCHEN_CENTER.z + dz)
   }
 
   /** Retour au vrai mess (fin du service, abandon, coupure). */
@@ -473,6 +514,7 @@ export class MessRushClient {
     this.phase = 'ship'
     this.working = null
     this.hud.hide()
+    this.host.music(false)
     this.props?.release((pid) => this.avatar(pid))
     this.game = null
     this.holding = null
@@ -567,6 +609,10 @@ export class MessRushClient {
       this.working = station
       this.host.sound.work(work.process === 'rincer' ? 'water' : 'chop', this.host.player.position)
     }
+    if (work.kind === 'clean') {
+      this.working = station
+      this.host.sound.work('scrub', this.host.player.position)
+    }
     // Vider un ustensile en cuisson : un second appui confirme (on ne jette pas une marmite par mégarde).
     if (work.kind === 'empty') {
       if (this.emptyArmed?.station !== station || performance.now() > this.emptyArmed.until) {
@@ -628,6 +674,7 @@ export class MessRushClient {
       if (work.kind === 'cycle') space = tr('Autre ingrédient', 'Other ingredient')
       else if (work.kind === 'empty') space = tr('Vider', 'Empty')
       else if (work.busy) space = tr('Occupé', 'Busy')
+      else if (work.kind === 'clean') space = tr('Nettoyer', 'Clean')
       else space = text(PROCESSES[work.process!].verb)
     }
     return { main, space }

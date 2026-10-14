@@ -46,8 +46,16 @@ export declare const RULES: {
   speedBonus: [number, number][]
   combo: { step: number; max: number }
   expiredPenalty: number
+  /** Les imprévus (cf. EVENT_KINDS). */
+  events: { first: number; every: [number, number]; quiet: number; outage: number; sink: number; clean: number; vip: { points: number; time: number } }
   medals: Record<1 | 2 | 3 | 4, [number, number, number]>
 }
+
+/** Les imprévus : panne de courant, plonge bouchée, plateau renversé sur la passe, coup de feu, l'amiral à bord. */
+export type EventKind = 'outage' | 'sink' | 'spill' | 'rush' | 'vip'
+export declare const EVENT_KINDS: EventKind[]
+/** L'imprévu en cours (la panne et la plonge ont une fin ; le plateau renversé, un nettoyage en cours). */
+export interface ServiceIncident { kind: EventKind; at: number; until?: number; progress?: number }
 
 export interface Item {
   id: string
@@ -62,7 +70,7 @@ export interface Item {
   /** Assiette ou tasse : ce qu'elle contient, [ingrédient, état]. */
   contents?: [string, string][]
 }
-export interface Order { id: string; recipe: string; at: number; until: number; status: 'pending' | 'served' | 'expired'; done?: number; points?: number }
+export interface Order { id: string; recipe: string; at: number; until: number; status: 'pending' | 'served' | 'expired'; done?: number; points?: number; vip?: boolean }
 export interface SlotState { item: string | null; cook?: { start: number; until: number } | null; done?: boolean }
 export interface UtensilState { items: string[]; cook: { start: number; until: number } | null; done: boolean }
 export interface ServiceState {
@@ -83,11 +91,14 @@ export interface ServiceState {
   seq: number
   orderSeq: number
   nextOrderAt: number
+  /** L'imprévu en cours, et l'heure du prochain tirage. */
+  event?: ServiceIncident | null
+  nextEventAt?: number
   orders: Order[]
   items: Record<string, Item>
   stations: Record<string, SlotState | UtensilState>
   hands: Record<string, string | null>
-  work: Record<string, { station: string; item: string }>
+  work: Record<string, { station: string; item?: string; clean?: boolean }>
   score: number
   combo: number
   bestCombo: number
@@ -95,10 +106,10 @@ export interface ServiceState {
   expired: number
   wasted: number
 }
-export interface ServiceEvent { kind: 'served' | 'expired' | 'wasted' | 'prepared' | 'cooked' | 'cooking' | 'order' | 'dropped' | 'end' | 'emptied' | 'cleared' | 'open'; order?: string; recipe?: string; points?: number; combo?: number; penalty?: number; station?: string; ing?: string; process?: ProcessId; by?: string; count?: number }
+export interface ServiceEvent { kind: 'served' | 'expired' | 'wasted' | 'prepared' | 'cooked' | 'cooking' | 'order' | 'dropped' | 'end' | 'emptied' | 'cleared' | 'open' | 'event' | 'event-end'; order?: string; recipe?: string; points?: number; combo?: number; penalty?: number; station?: string; ing?: string; process?: ProcessId; by?: string; count?: number; event?: EventKind; until?: number; vip?: boolean }
 export interface UseAction { kind: 'take-ingredient' | 'take-plate' | 'take' | 'take-back' | 'put' | 'plate-pick' | 'plate-add' | 'fill' | 'serve-utensil' | 'deliver' | 'trash'; ing?: string; order?: string | null }
-export interface WorkAction { kind: 'cycle' | 'process' | 'cook' | 'empty'; process?: ProcessId; busy?: boolean }
-export type GuideStep = 'prep' | 'cook' | 'plate' | 'put' | 'deliver' | 'complete' | 'fill-plate' | 'wait' | 'hold' | 'trash' | 'handoff' | 'take-dish' | 'take-plate' | 'need-plate' | 'work' | 'start' | 'take' | 'tidy' | 'fetch'
+export interface WorkAction { kind: 'cycle' | 'process' | 'cook' | 'empty' | 'clean'; process?: ProcessId; busy?: boolean }
+export type GuideStep = 'prep' | 'cook' | 'plate' | 'put' | 'deliver' | 'complete' | 'fill-plate' | 'wait' | 'hold' | 'trash' | 'handoff' | 'take-dish' | 'take-plate' | 'need-plate' | 'work' | 'start' | 'take' | 'tidy' | 'fetch' | 'clean'
 export interface Guide { step: GuideStep; stations: string[]; ing?: string; process?: ProcessId }
 export interface ServiceResult {
   game: string
@@ -132,6 +143,8 @@ export declare function resolveAction(state: ServiceState, pid: string, stationI
 export declare function useStation(state: ServiceState, pid: string, stationId: string, pick: string | undefined, now: number, rules?: typeof RULES): { ok: true; events: ServiceEvent[] } | { ok: false; code: string }
 export declare function workStation(state: ServiceState, pid: string, stationId: string, now: number, rules?: typeof RULES): { ok: true; events: ServiceEvent[] } | { ok: false; code: string }
 export declare function stopWork(state: ServiceState, pid: string): void
+/** Un poste hors d'usage à cause d'un imprévu (la plonge bouchée, la passe renversée) ? */
+export declare function isBlocked(state: ServiceState, stationId: string): boolean
 export declare function dropHeld(state: ServiceState, pid: string): ServiceEvent[]
 export declare function finalState(ing: string): string
 export declare function guide(state: ServiceState, pid: string, rules?: typeof RULES): Guide | null

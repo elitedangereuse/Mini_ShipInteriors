@@ -39,8 +39,11 @@ export interface MusicOptions {
   loop?: { from: number; to: number }
   /** Tous les joueurs l'entendent au même endroit du morceau (avec `loop`). */
   shared?: boolean
-  /** Un traitement entre le morceau et la sortie : il reçoit la source, rend son dernier nœud. */
-  through?: (ctx: AudioContext, from: AudioNode) => AudioNode
+  /**
+   * Un traitement entre le morceau et la sortie : il reçoit la source, rend son dernier nœud (ce
+   * qu'il fait tourner de son côté s'arrête sur l'événement `ended` de la source).
+   */
+  through?: (ctx: AudioContext, from: AudioBufferSourceNode) => AudioNode
 }
 
 const pick = <T,>(a: readonly T[]) => a[Math.floor(Math.random() * a.length)]

@@ -247,7 +247,7 @@ test('des cuisiniers qui ne font que suivre le guidage tiennent un service entie
           if (k.state.work[pid]) continue
           const g = guide(k.state, pid)
           if (!g?.stations.length) continue
-          if (g.step === 'work' || g.step === 'start') k.work(pid, g.stations[0])
+          if (g.step === 'work' || g.step === 'start' || g.step === 'clean') k.work(pid, g.stations[0])
           else k.use(pid, g.stations[0], g.ing)
         }
       }

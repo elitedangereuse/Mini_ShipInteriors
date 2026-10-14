@@ -1,10 +1,10 @@
 import { ECONOMY, formatCredits } from '../economy/data'
 import { EN, tr } from '../i18n'
-import { icon } from '../icons'
+import { icon, type IconName } from '../icons'
 import type { MessCrew, MessEnd, MessLobby, MessReward, MessTeam } from '../net'
 import { button, el, Modal } from '../salvage/ui'
 import { DIFFICULTIES, INGREDIENTS, PROCESSES, RECIPES, SERVICE_RECIPES, type Text } from '../../shared/mess-rush-catalog.js'
-import { RULES, currentMedal, medalOf, menuFor, recipeValue, type Medal, type ServiceState } from '../../shared/mess-rush.js'
+import { RULES, currentMedal, medalOf, menuFor, recipeValue, type Medal, type ServiceIncident, type ServiceState } from '../../shared/mess-rush.js'
 import { nextReset } from '../../shared/mess-rush-week.js'
 import { stateLabel } from './props'
 
@@ -22,6 +22,13 @@ export const MEDAL_NAMES: Record<Medal, string> = {
   bronze: tr('Bronze', 'Bronze'),
   silver: tr('Argent', 'Silver'),
   gold: tr('Or', 'Gold'),
+}
+
+/** Les imprévus qui durent (cf. EVENT_KINDS) : leur bandeau en cuisine. */
+const ALERTS: Record<string, { icon: IconName; line: string }> = {
+  outage: { icon: 'lightning', line: tr('Panne de courant : les fourneaux sont coupés', 'Power cut: the ranges are off') },
+  sink: { icon: 'drop', line: tr('Plonge bouchée : impossible de rincer', 'Sink blocked: no rinsing') },
+  spill: { icon: 'broom', line: tr('Plateau renversé sur la passe : nettoyez-la pour livrer', 'Tray spilled on the pass: clean it to deliver') },
 }
 
 /** Les effectifs d'une brigade, en toutes lettres (« médailles à trois »). */
@@ -272,6 +279,12 @@ export class MessHud {
   private crewKey = ''
   private readonly tickets = el('div', 'mess-tickets')
   private readonly toasts = el('div', 'mess-toasts')
+  /** L'imprévu en cours, sous le bandeau (cf. EVENT_KINDS) ; la panne assombrit l'écran. */
+  private readonly alert = el('p', 'mess-alert')
+  private readonly alertText = el('span')
+  private readonly alertMore = el('small')
+  private readonly blackout = el('div', 'mess-blackout')
+  private alertKind = ''
   /** La consigne du guidage, en bas de l'écran (cf. client.ts, hintText). */
   private readonly hintBox = el('p', 'mess-hint')
   private readonly hintText = el('span')
@@ -299,8 +312,10 @@ export class MessHud {
     }, 'mess-quit', 'sign-out')
     this.hintBox.append(icon('chef-hat'), this.hintText)
     this.hintBox.hidden = true
-    this.root.append(bar, this.crew, this.tickets, this.toasts, this.hintBox, this.quit)
-    document.body.append(this.root)
+    this.alert.hidden = true
+    this.blackout.hidden = true
+    this.root.append(bar, this.alert, this.crew, this.tickets, this.toasts, this.hintBox, this.quit)
+    document.body.append(this.blackout, this.root)
   }
 
   /** La consigne du moment (vide : rien à dire). */
@@ -320,6 +335,7 @@ export class MessHud {
     this.tickets.replaceChildren()
     this.crew.replaceChildren()
     this.hint('')
+    this.incident(null, 0)
     this.shown = this.crewKey = ''
     document.body.classList.remove('mess-on')
   }
@@ -356,11 +372,12 @@ export class MessHud {
       this.armed = 0
       this.quit.lastChild!.textContent = tr('Quitter le service', 'Leave service')
     }
+    this.incident(state.event ?? null, now)
     const pending = state.orders.filter((o) => o.status === 'pending').sort((a, b) => a.at - b.at)
     const key = pending.map((o) => o.id).join(',')
     if (key !== this.shown) {
       this.shown = key
-      this.tickets.replaceChildren(...pending.map((o) => this.ticket(o.id, o.recipe)))
+      this.tickets.replaceChildren(...pending.map((o) => this.ticket(o.id, o.recipe, !!o.vip)))
     }
     // Le délai de chaque bon : une barre qui se vide, du vert au rouge.
     for (const o of pending) {
@@ -372,11 +389,31 @@ export class MessHud {
     }
   }
 
-  /** Un bon : le plat, ce qu'il faut dans l'assiette (ou la tasse), et son délai. */
-  private ticket(id: string, recipeId: string): HTMLElement {
+  /**
+   * L'imprévu en cours : un bandeau rouge sous le score (ce qui se passe, ce qu'il reste à tenir ou
+   * à nettoyer), et, pendant la panne, l'écran dans la pénombre qui clignote.
+   */
+  private incident(event: ServiceIncident | null, now: number) {
+    const kind = event && ALERTS[event.kind] ? event.kind : ''
+    if (kind !== this.alertKind) {
+      this.alertKind = kind
+      this.alert.hidden = !kind
+      this.alert.className = `mess-alert ${kind}`
+      if (kind) this.alert.replaceChildren(icon(ALERTS[kind].icon), this.alertText, this.alertMore)
+      this.alertText.textContent = kind ? ALERTS[kind].line : ''
+      this.blackout.hidden = kind !== 'outage'
+    }
+    if (!event || !kind) return
+    if (event.until) this.alertMore.textContent = `${Math.max(0, Math.ceil((event.until - now) / 1000))} s`
+    else this.alertMore.textContent = event.progress ? `${Math.round((event.progress / RULES.events.clean) * 100)} %` : tr('Espace, mains vides', 'Space, empty hands')
+  }
+
+  /** Un bon : le plat, ce qu'il faut dans l'assiette (ou la tasse), et son délai (l'amiral : en or, plus pressé). */
+  private ticket(id: string, recipeId: string, vip = false): HTMLElement {
     const r = RECIPES[recipeId]
-    const card = el('article', `mess-ticket ${r.difficulty}`)
+    const card = el('article', `mess-ticket ${r.difficulty}${vip ? ' vip' : ''}`)
     card.dataset.order = id
+    if (vip) card.append(el('em', 'mess-ticket-vip', tr(`Amiral · points ×${RULES.events.vip.points}`, `Admiral · points ×${RULES.events.vip.points}`)))
     card.append(el('strong', '', text(r.name)))
     const list = el('ul')
     for (const [ing, state] of r.dish.contents) {

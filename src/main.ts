@@ -122,8 +122,10 @@ import { BAR_DROP, VENT_DROP } from '../shared/vents.js'
 import { SalvageClient } from './salvage/client'
 import { ArenaClient } from './arena/client'
 import { MessRushClient } from './mess-rush/client'
+import { MessLobbyMusic, MessServiceMusic } from './mess-rush/music'
 import { MESS_RUSH_DECK } from './mess-rush/level'
 import { MESS_LEVEL } from '../shared/mess-rush.js'
+import { DINERS_ROOM } from '../shared/diners.js'
 import { STAGE_AZIMUTH, STAGE_ELEVATION } from './arena/podium'
 import { ArenaLobbyMusic } from './arena/music'
 import { ARENA_LEVEL, ARENA_LOBBY } from '../shared/arena.js'
@@ -644,6 +646,9 @@ const clubMusic = new ClubMusic(sound, 0.5)
 const arenaLobbyMusic = new ArenaLobbyMusic(sound)
 /** La sono abîmée du lobby de récupération thargoïde (cf. src/salvage/music.ts). */
 const salvageLobbyMusic = new SalvageLobbyMusic(sound)
+/** La platine du mess, et la musique du service de MESS RUSH (cf. src/mess-rush/music.ts). */
+const messLobbyMusic = new MessLobbyMusic(sound)
+const messServiceMusic = new MessServiceMusic(sound)
 const jukeboxes: Record<JukeboxWhere, JukeboxPlayer> = { deck: deckMusic, hold: holdMusic, cabin: cabinMusic }
 /** Pont des jukebox communs (ceux des quartiers vont avec leur aménagement). */
 const JUKEBOX_DECKS = { deck: 0, hold: -1 } as const
@@ -2368,8 +2373,11 @@ let messKitchen: Deck | null = null
 let messBefore: { heading: number; zoom: number } | null = null
 /** La vue de la cuisine : presque à la verticale, du côté de la salle (le nord), les postes du mur sud face à soi. */
 const KITCHEN_ELEVATION = THREE.MathUtils.degToRad(58)
-/** Ce que la vue du dessus doit montrer de la cuisine (m) : la pièce, ses murs, et un peu de marge. */
-const KITCHEN_SPAN = { width: 10.4, depth: 8.6 }
+/**
+ * Ce que la vue du dessus montre de la cuisine (m) : un peu plus que la moitié de la pièce autour
+ * du cuisinier (la vue le suit sans sortir des murs, cf. MessRushClient.focus), pour mieux le voir.
+ */
+const KITCHEN_SPAN = { width: 8, depth: 6.6 }
 /**
  * Place que prennent le bandeau (en haut), et la consigne et les emotes (en bas), en pixels ; sur un
  * écran bas (un téléphone en paysage), une part de la hauteur au plus.
@@ -2420,10 +2428,11 @@ const messRush = new MessRushClient({
   place: (o, solids, fade) => kitchenDeck().addRuntime(o, solids, fade),
   credited: (earned, balance) => wallet.site({ earned, balance }),
   view: kitchenView,
+  music: (on) => (on ? messServiceMusic.start() : messServiceMusic.stop()),
 })
 /**
- * La cuisine se joue vue du dessus, toute la pièce à l'écran (on ne la tourne ni ne zoome), comme
- * dans Overcooked ; la vue subjective attend la sortie (cf. isoOnly). Puis la vue d'avant.
+ * La cuisine se joue vue du dessus, presque toute la pièce à l'écran (on ne la tourne ni ne zoome),
+ * comme dans Overcooked ; la vue subjective attend la sortie (cf. isoOnly). Puis la vue d'avant.
  */
 function kitchenView(on: boolean) {
   if (on) {
@@ -6696,6 +6705,7 @@ function frame() {
   const inClub = clubAlien && holdRoom === CLUB_ROOM
   const inArenaLobby = onHold && viewDeck === deck && holdRoom === ARENA_LOBBY.room
   const inSalvageLobby = onHold && viewDeck === deck && holdRoom === SALVAGE_LOBBY.room
+  const inMess = deck === patrolDeck && viewDeck === deck && deck.map.room(Math.round(player.position.x), Math.round(player.position.z)) === DINERS_ROOM
   // Chez Jacques : l'IA de la porte refoule celui qui s'en approche sans être un habitué (une fois
   // par visite) ; et celui qui ne l'est plus (un invité, après une reconnexion au relais) est
   // raccompagné à la porte, où le relais l'accepte de nouveau.
@@ -6729,13 +6739,16 @@ function frame() {
     // Des conduits de ventilation, celui du bar s'entend, étouffé : il est juste en dessous.
     const below = music === holdMusic && deck === vents.deck
     // Ni pendant une partie au stand de tir, ni dans les deux lobbys qui ont leur propre sono.
-    music.setRoom(below || (source === deck && viewDeck === deck && !((inClub || stand.active || inArenaLobby || inSalvageLobby) && music === holdMusic)), !!jukeboxRoom && jukeboxRoom === playerRoom)
+    // Au mess, la platine passe avant le jukebox du pont ; en cuisine, la musique du service.
+    music.setRoom(below || (source === deck && viewDeck === deck && !((inClub || stand.active || inArenaLobby || inSalvageLobby) && music === holdMusic) && !((inMess || messRush.inKitchen) && music === deckMusic)), !!jukeboxRoom && jukeboxRoom === playerRoom)
   }
   clubMusic.update(inClub, onHold && viewDeck === deck ? clubProximity(holdRoom, player.position.x, player.position.z) : 0)
   arenaLobbyMusic.update(inArenaLobby)
   salvageLobbyMusic.update(inSalvageLobby)
+  // La platine se tait en cuisine : le service a sa musique (cf. MessRushHost.music).
+  messLobbyMusic.update(inMess && !messRush.inKitchen)
   // Une musique passe là où l'on est : les moteurs et les machines se font discrets.
-  sound.duck(inClub || arenaLobbyMusic.audible || salvageLobbyMusic.audible || deckMusic.audible || holdMusic.audible || cabinMusic.audible)
+  sound.duck(inClub || arenaLobbyMusic.audible || salvageLobbyMusic.audible || messLobbyMusic.audible || messServiceMusic.audible || deckMusic.audible || holdMusic.audible || cabinMusic.audible)
   // La soirée bat sur le morceau entendu dans la pièce, sauf quand le mode photo fige l'instant.
   if (!photo.frozen && !clubMusic.syncTempo() && !deckMusic.syncTempo() && !holdMusic.syncTempo() && !cabinMusic.syncTempo()) syncTempo(null)
 

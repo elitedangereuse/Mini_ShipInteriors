@@ -408,6 +408,23 @@ Forbidden » (149,2 s) tourne en entier : tempo trop flottant pour un raccord
 
 
 ---------------------------------------------------------------------
+MESS RUSH
+---------------------------------------------------------------------
+mess-rush/mess-rush.mp3     : « MESS RUSH », par fluidspaceunivers : la platine
+                              du mess.
+mess-rush/arcade-groove.mp3 : « Arcade Groove » : la musique du service, en
+                              cuisine.
+Fournis par Benjamin Grande le 14/10/2026 ; leurs métadonnées indiquent une
+création avec Suno. Licence à renseigner.
+Fichiers d'origine, renommés, non retraités (MP3 stéréo 48 kHz ; -15,5 et
+-13,7 LUFS intégrés, crête -3,3 et -0,6 dBFS). Ils finissent sur un blanc
+(0,26 et 0,68 s) : le jeu boucle juste avant (149,42 et 149,29 s), cf.
+src/mess-rush/music.ts, qui fait aussi passer « MESS RUSH » dans une platine :
+pleurage et scintillement, son de vinyle (ni sub-graves, aigus adoucis, une
+pointe de saturation) et craquements.
+
+
+---------------------------------------------------------------------
 Lobby de récupération thargoïde (jeu et album du jukebox)
 ---------------------------------------------------------------------
 thargoid-salvage/corrupted-lobby.mp3 : « Corrupted Lobby », par Ben Carter Jr.
