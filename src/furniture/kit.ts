@@ -71,8 +71,8 @@ export interface TargetControl {
 
 export type FurnitureControl = ClawControl | BagControl | StallControl | TargetControl
 
-/** Bips d'arcade, crépitements de soudure, grondement de machine. */
-export type Emitter = 'arcade' | 'sparks' | 'hum'
+/** Bips d'arcade, crépitements de soudure, grondement de machine, bruits de cuisine. */
+export type Emitter = 'arcade' | 'sparks' | 'hum' | 'kitchen'
 
 /** Pièce d'un meuble : faces intérieures de ses murs, en coordonnées du pont. */
 export interface Room {

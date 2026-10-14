@@ -2,4 +2,6 @@ Sons : Kenney (www.kenney.nl) — licence CC0 (domaine public)
 - Impact Sounds    : footstep_*.ogg
 - Sci-fi Sounds    : spaceEngineLow, doorOpen, doorClose, forceField, computerNoise
 - Interface Sounds : select, confirmation, maximize
+- RPG Audio        : metalPot, knifeSlice, chop (cuisine du mess)
+- Impact Sounds    : impactPlate_light, impactGlass_light, impactMetal_light (vaisselle du mess)
 Les bips du cockpit, le miaulement et le ronronnement du chat sont synthétisés en direct (Web Audio).

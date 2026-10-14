@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { glowBand, halo } from './arcade-decor'
-import { animatedScreen, barX, box, cylinder, drawnTexture, glow, lit, mesh, part, sphere, type Builder } from './kit'
+import { animatedScreen, barX, box, cylinder, drawnTexture, glass, glow, keepShared, lit, mesh, part, sphere, type Builder } from './kit'
+import { selfLayout } from './kitchen'
 import { tr } from '../i18n'
 
 /*
@@ -69,10 +70,11 @@ interface FloorPlan {
 }
 
 const PLANS: Record<string, FloorPlan> = {
-  // Le mess du pont principal (7 × 7) : un seul passage, à l'est du comptoir.
+  // Le mess du pont principal (7 × 7) : deux passages, sous l'arche de MESS RUSH à l'ouest du
+  // comptoir, et à l'est.
   mess: {
-    tables: [10.2, 13.8], tableZ: 7.45, door: 13, counter: { x0: 8.65, x1: 13.85, z0: 9.7, z1: 10.3 }, posts: [10.35, 11.8, 13.15],
-    lane: [8.5, 13.95], laneZ: 9.02, self: 8.82, chevrons: 9.75, drain: 10.98, mats: 11.4, passages: [[13.85, 15.5]],
+    tables: [10.2, 13.8], tableZ: 7.45, door: 13, counter: { x0: 9.65, x1: 13.85, z0: 9.7, z1: 10.3 }, posts: [10.35, 11.8, 13.15],
+    lane: [9.65, 13.95], laneZ: 9.02, self: 9.8, chevrons: 10.6, drain: 10.98, mats: 11.4, passages: [[8.5, 9.65], [13.85, 15.5]],
   },
   // La cuisine de MESS RUSH (10 × 8, cf. shared/mess-rush.js) : le comptoir au milieu, un passage à
   // chaque bout, une allée de cuisine plus large et ses postes doublés.
@@ -340,29 +342,39 @@ const PICTOS: Record<string, (g: CanvasRenderingContext2D, x: number, y: number)
 }
 
 /**
- * Les postes du self, d'ouest en est le long de la file, dans le repère du comptoir (cf.
- * selfCounter dans kitchen.ts, face à +z) : leur place, leur nom, leur pictogramme et leur couleur.
+ * Les postes du self, d'ouest en est le long de la file, dans le repère d'un comptoir de longueur
+ * `len` (cf. selfCounter et selfLayout dans kitchen.ts, face à +z) : leur place, leur nom, leur
+ * pictogramme et leur couleur.
  */
-const STATIONS: { x: number; name: () => string; picto: keyof typeof PICTOS; color: string }[] = [
-  { x: 2.2, name: () => tr('PLATEAUX', 'TRAYS'), picto: 'tray', color: C.steel },
-  { x: 1.05, name: () => tr('PLATS CHAUDS', 'HOT DISHES'), picto: 'hot', color: C.amber },
-  { x: -0.25, name: () => tr('LA PASSE', 'THE PASS'), picto: 'pass', color: '#ff8a1c' },
-  { x: -1.3, name: () => tr('FRAIS', 'CHILLED'), picto: 'cold', color: C.ice },
-  { x: -2.2, name: () => tr('BOISSONS', 'DRINKS'), picto: 'drink', color: '#d9a8ff' },
-]
+function selfStations(len: number): { x: number; name: () => string; picto: keyof typeof PICTOS; color: string }[] {
+  const l = selfLayout(len)
+  const short = len < 5.2
+  return [
+    { x: short ? (l.hot1 + len / 2) / 2 : 2.2, name: () => tr('PLATEAUX', 'TRAYS'), picto: 'tray', color: C.steel },
+    { x: (l.hot0 + l.hot1) / 2, name: () => tr('PLATS CHAUDS', 'HOT DISHES'), picto: 'hot', color: C.amber },
+    { x: (l.passe0 + l.passe1) / 2, name: () => tr('LA PASSE', 'THE PASS'), picto: 'pass', color: '#ff8a1c' },
+    { x: (l.cold0 + l.cold1) / 2, name: () => tr('FRAIS', 'CHILLED'), picto: 'cold', color: C.ice },
+    { x: l.drink1 - 0.3, name: () => tr('BOISSONS', 'DRINKS'), picto: 'drink', color: '#d9a8ff' },
+  ]
+}
 
 /**
  * Enseignes des postes du self, pendues au-dessus du comptoir (à poser comme lui, même place et
- * même sens) : une tringle, et sous elle un petit caisson lumineux par poste, lisible de la salle
- * comme de la cuisine.
+ * même sens ; `label` : sa longueur, 5,2 par défaut) : une tringle, et sous elle un petit caisson
+ * lumineux par poste, lisible de la salle comme de la cuisine.
  */
-const messSigns: Builder = () => {
+const messSigns: Builder = ({ label }) => {
+  const len = Number(label) >= 2 && Number(label) <= 8 ? Number(label) : 5.2
+  const stations = selfStations(len)
   const g = new THREE.Group()
   const steel = lit(C.steel, 'metal')
   const railY = 1.27, y = 1.15, z = 0.2, W = 0.66, H = 0.17
-  g.add(barX(0.008, 5.1, steel, 0, railY, z, 6))
-  for (const x of [-2.45, -0.78, 0.4, 1.63, 2.45]) g.add(cylinder(0.004, 0.004, 0.36, steel, x, railY + 0.18, z, 5))
-  for (const s of STATIONS) {
+  const rail = Math.min(5.1, len - 0.1)
+  g.add(barX(0.008, rail, steel, 0, railY, z, 6))
+  // Les suspentes : aux deux bouts de la tringle, et entre les caissons.
+  const hangers = len >= 5.2 ? [-2.45, -0.78, 0.4, 1.63, 2.45] : [-rail / 2 + 0.05, ...stations.slice(1, 4).map((s, i) => (s.x + stations[i].x) / 2), rail / 2 - 0.05]
+  for (const x of hangers) g.add(cylinder(0.004, 0.004, 0.36, steel, x, railY + 0.18, z, 5))
+  for (const s of stations) {
     const face = drawnTexture(264, 68, (c) => {
       c.fillStyle = '#10131a'
       c.fillRect(0, 0, 264, 68)
@@ -892,6 +904,249 @@ const kitchenRota: Builder = () => {
   return { solid: g }
 }
 
+// ---------------------------------------------------------------- bruits de cuisine
+
+/**
+ * D'où viennent les bruits de la cuisine du mess (cf. AMBIENT dans main.ts) : casseroles, couteau,
+ * vaisselle, friture. Rien à voir, rien qui arrête le pas.
+ */
+const kitchenSounds: Builder = () => ({ emitter: 'kitchen' })
+
+// ---------------------------------------------------------------- néons de la salle
+
+/**
+ * Réglette néon d'un mur de la salle (`label` : longueur), au-dessus du soubassement et de ce qui
+ * s'y accroche : un tube ambre sur son profilé d'inox, un fil bleu glacé dessous, et leur lueur sur
+ * le mur. Elle respire, lentement.
+ */
+const messNeonStrip: Builder = ({ label = '2', random }) => {
+  const len = Number(label) || 2
+  const y = 1.02
+  const g = new THREE.Group()
+  g.add(box(len, 0.022, 0.03, lit(C.steelDark, 'metal'), 0, y, 0.015))
+  for (const x of [-len / 2 + 0.06, len / 2 - 0.06]) g.add(box(0.02, 0.05, 0.03, lit(C.steel, 'metal'), x, y - 0.012, 0.015))
+  const live = new THREE.Group()
+  live.add(part(new THREE.CylinderGeometry(0.011, 0.011, len - 0.04, 8), glow(C.amber), 0, y + 0.012, 0.035).rotateZ(Math.PI / 2))
+  live.add(part(new THREE.CylinderGeometry(0.005, 0.005, len - 0.2, 6), glow(C.ice), 0, y - 0.03, 0.033).rotateZ(Math.PI / 2))
+  const wash = halo(C.amber, 0.3)
+  live.add(part(glowBand(len + 0.3, 0.46, 0.55), wash, 0, y, 0.006))
+  const phase = random() * 10
+  return {
+    solid: g,
+    live,
+    update(t) {
+      wash.opacity = 0.24 + 0.06 * Math.sin((t + phase) * 0.9)
+    },
+  }
+}
+
+/** Le néon du coin café : une tasse qui fume, et « CAFÉ » en tubes ambre. */
+function coffeeNeon(steam: boolean): THREE.Texture {
+  const W = 384, H = 160
+  const tube = (g: CanvasRenderingContext2D, color: string, width: number, path: () => void) => {
+    for (const [stroke, lineWidth, blur] of [[color, width, 20], ['#fff6e6', width * 0.34, 4]] as const) {
+      g.shadowColor = color
+      g.shadowBlur = blur
+      g.strokeStyle = stroke
+      g.lineWidth = lineWidth
+      g.beginPath()
+      path()
+      g.stroke()
+    }
+  }
+  return drawnTexture(W, H, (g) => {
+    g.lineCap = g.lineJoin = 'round'
+    const cx = 70, cy = 92
+    tube(g, C.amber, 7, () => {
+      g.moveTo(cx - 34, cy - 12)
+      g.lineTo(cx - 28, cy + 30)
+      g.lineTo(cx + 28, cy + 30)
+      g.lineTo(cx + 34, cy - 12)
+      g.closePath()
+      g.moveTo(cx + 34, cy - 2)
+      g.arc(cx + 42, cy + 6, 11, -Math.PI / 2, Math.PI / 2)
+    })
+    if (steam) {
+      for (const dx of [-14, 8]) {
+        tube(g, C.ice, 5, () => {
+          g.moveTo(cx + dx, cy - 22)
+          g.bezierCurveTo(cx + dx + 14, cy - 38, cx + dx - 14, cy - 56, cx + dx, cy - 72)
+        })
+      }
+    }
+    g.font = '800 70px system-ui, sans-serif'
+    g.textBaseline = 'alphabetic'
+    for (const [stroke, lineWidth, blur] of [[C.amber, 6, 20], ['#fff6e6', 2.2, 4]] as const) {
+      g.shadowColor = C.amber
+      g.shadowBlur = blur
+      g.strokeStyle = stroke
+      g.lineWidth = lineWidth
+      g.strokeText(tr('CAFÉ', 'COFFEE'), 132, 116, 236)
+    }
+  })
+}
+
+/**
+ * Le coin café, contre un mur (origine sur la face du mur) : un meuble bas à façade orange, un
+ * percolateur d'inox à deux têtes (sa vapeur), des tasses retournées sur la grille, une pile de
+ * gobelets, le sucrier ; au-dessus, son néon.
+ */
+const messCoffee: Builder = ({ random }) => {
+  const W = 0.58, D = 0.36, top = 0.46
+  const steel = lit(C.steel, 'metal'), dark = lit(C.steelDark, 'metal')
+  const g = new THREE.Group()
+  g.add(box(W, top - 0.04, D, dark, 0, (top - 0.04) / 2, D / 2), box(W - 0.04, top - 0.12, 0.02, lit(C.orange), 0, top / 2, D + 0.005))
+  g.add(box(W + 0.03, 0.035, D + 0.03, steel, 0, top - 0.018, D / 2, 0.006))
+  // Le percolateur : sa caisse, son manomètre, ses deux têtes et leurs porte-filtres, sa grille.
+  const mx = -0.06, mz = D / 2 - 0.02
+  g.add(box(0.34, 0.26, 0.22, steel, mx, top + 0.13, mz - 0.01, 0.02), box(0.34, 0.04, 0.24, dark, mx, top + 0.28, mz - 0.01, 0.01))
+  g.add(cylinder(0.026, 0.026, 0.012, lit(C.black), mx, top + 0.2, mz + 0.105, 14).rotateX(Math.PI / 2))
+  for (const dx of [-0.08, 0.08]) {
+    g.add(cylinder(0.03, 0.026, 0.04, dark, mx + dx, top + 0.1, mz + 0.12, 10), box(0.02, 0.015, 0.1, lit(C.black), mx + dx, top + 0.08, mz + 0.18))
+    g.add(cylinder(0.022, 0.018, 0.04, lit('#f4f6f8'), mx + dx, top + 0.035, mz + 0.12, 10))
+  }
+  g.add(box(0.3, 0.01, 0.1, dark, mx, top + 0.008, mz + 0.12))
+  // Tasses retournées sur le dessus, pile de gobelets, sucrier.
+  for (let i = 0; i < 4; i++) g.add(cylinder(0.018, 0.022, 0.03, lit(i % 2 ? '#f4f6f8' : C.cream), mx - 0.12 + i * 0.08, top + 0.315, mz - 0.03, 8))
+  for (let k = 0; k < 6; k++) g.add(cylinder(0.024, 0.02, 0.012, lit('#d9cfc0'), 0.2, top + 0.006 + k * 0.012, D / 2 + 0.04, 10))
+  g.add(cylinder(0.032, 0.032, 0.012, steel, 0.2, top + 0.066, D / 2 - 0.08, 10))
+  // Le néon, au mur.
+  const sign = new THREE.MeshBasicMaterial({ map: coffeeNeon(true), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })
+  const faint = new THREE.MeshBasicMaterial({ map: coffeeNeon(false), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })
+  const nw = 0.56, nh = (nw * 160) / 384, ny = 1.16
+  g.add(box(nw + 0.03, nh + 0.02, 0.012, lit('#20232b'), 0, ny, 0.006, 0.005))
+  const live = new THREE.Group()
+  const lit0 = part(new THREE.PlaneGeometry(nw, nh), sign, 0, ny, 0.026)
+  const lit1 = part(new THREE.PlaneGeometry(nw, nh), faint, 0, ny, 0.026)
+  lit1.visible = false
+  live.add(lit0, lit1, part(glowBand(nw + 0.4, nh + 0.4), halo(C.amber, 0.24), 0, ny, 0.013))
+  live.add(part(new THREE.CylinderGeometry(0.03, 0.03, 0.06, 10), glass('#ffffff', 0.4), 0.2, top + 0.03, D / 2 - 0.08))
+  // La vapeur du percolateur.
+  const steam = new THREE.MeshLambertMaterial({ color: '#ffffff', transparent: true, opacity: 0.22, depthWrite: false })
+  const puffs = [0, 1, 2].map(() => {
+    const p = part(new THREE.SphereGeometry(0.03, 8, 6), steam, mx + 0.1, top + 0.3, mz + 0.05)
+    live.add(p)
+    return p
+  })
+  const phase = random() * 20
+  return {
+    solid: g,
+    live,
+    update(t) {
+      const k = (t + phase) % 11
+      const out = k < 0.4 && Math.floor(k * 12) % 2 === 0
+      lit0.visible = !out
+      lit1.visible = out
+      puffs.forEach((p, i) => {
+        const u = (t * 0.4 + i / 3 + phase) % 1
+        p.position.y = top + 0.3 + u * 0.22
+        p.scale.setScalar(0.6 + u * 1.6)
+        p.visible = u < 0.8
+      })
+    },
+  }
+}
+
+// ---------------------------------------------------------------- arche de MESS RUSH
+
+/** Les couleurs du logo de MESS RUSH : l'orange et le jaune de « RUSH », le cyan et le bleu de son cadre. */
+const RUSH = { orange: '#ff8a1c', yellow: '#ffc93c', cyan: '#2fd9ff', blue: '#2a6bff', frame: '#1a2233' }
+
+let rushLogoTexture: THREE.Texture | null = null
+/** Le logo de MESS RUSH, détouré (public/assets/mess-rush/logo.webp, 1024 × 778), chargé une fois. */
+function rushLogo(): THREE.Texture {
+  if (!rushLogoTexture) {
+    const t = new THREE.TextureLoader().load(import.meta.env.BASE_URL + 'assets/mess-rush/logo.webp')
+    t.colorSpace = THREE.SRGBColorSpace
+    t.anisotropy = 8
+    rushLogoTexture = keepShared(t)
+  }
+  return rushLogoTexture
+}
+
+/**
+ * L'arche de MESS RUSH, sur le passage ouest entre la salle et la cuisine (`label` : sa largeur,
+ * d'un mur à l'autre). Deux montants et un linteau à pans coupés, comme le cadre du logo, en acier
+ * bleu nuit ; sur leurs deux faces, un tube néon cyan suit l'intérieur de l'ouverture et un orange
+ * l'extérieur. Au-dessus, le logo détouré, lisible des deux côtés, encadré de ses néons (le cyan
+ * du cadre, l'orange et le jaune de « RUSH ») et de leur lueur. Rien n'y arrête le pas.
+ */
+const messArch: Builder = ({ label, random }) => {
+  const W = Number(label) >= 0.6 && Number(label) <= 3 ? Number(label) : 1
+  const D = 0.12, post = 0.08, H = 1.12, cham = 0.14
+  const frame = lit(RUSH.frame, 'metal')
+  const g = new THREE.Group()
+  const live = new THREE.Group()
+  const tube = (len: number, color: string, x: number, y: number, z: number, angle = 0) => {
+    const t = part(new THREE.BoxGeometry(len, 0.018, 0.018), glow(color), x, y, z)
+    t.rotation.z = angle
+    return t
+  }
+  const lintel = H + cham
+  // Les montants, leur socle, les biseaux et le linteau.
+  for (const s of [-1, 1]) {
+    const x = s * (W / 2 - post / 2)
+    g.add(box(post, H, D, frame, x, H / 2, 0, 0.008), box(post + 0.04, 0.05, D + 0.04, lit(C.black), x, 0.025, 0))
+    const bevel = box(Math.SQRT2 * cham + post * 0.4, post, D, frame, s * (W / 2 - post / 2 - cham / 2), H + cham / 2, 0)
+    bevel.rotation.z = -s * Math.PI / 4
+    g.add(bevel)
+  }
+  g.add(box(W - 2 * cham - post * 0.2, post, D, frame, 0, lintel, 0, 0.008))
+  // Les néons de l'arche, sur ses deux faces : cyan à l'intérieur, orange à l'extérieur.
+  const inner = W / 2 - post, outer = W / 2
+  for (const z of [D / 2 + 0.01, -D / 2 - 0.01]) {
+    for (const s of [-1, 1]) {
+      live.add(
+        part(new THREE.BoxGeometry(0.018, H - 0.2, 0.018), glow(RUSH.cyan), s * (inner + 0.012), 0.12 + (H - 0.2) / 2, z),
+        tube(Math.SQRT2 * cham, RUSH.cyan, s * (inner - cham / 2 + 0.01), H + cham / 2 - post / 2, z, -s * Math.PI / 4),
+        part(new THREE.BoxGeometry(0.018, H - 0.06, 0.018), glow(RUSH.orange), s * (outer - 0.012), 0.05 + (H - 0.06) / 2, z),
+        tube(Math.SQRT2 * cham, RUSH.orange, s * (outer - cham / 2 - 0.006), H + cham / 2 + post / 2 - 0.004, z, -s * Math.PI / 4),
+      )
+    }
+    live.add(tube(W - 2 * cham - post, RUSH.cyan, 0, lintel - post / 2 - 0.006, z), tube(W - 2 * cham, RUSH.orange, 0, lintel + post / 2 + 0.006, z))
+  }
+  // Le logo, au-dessus : deux faces dos à dos, sur deux tiges plantées dans le linteau.
+  const lw = W - 0.06, lh = (lw * 778) / 1024, ly = lintel + post / 2 + 0.04 + lh / 2
+  for (const x of [-lw * 0.28, lw * 0.28]) g.add(cylinder(0.01, 0.01, lh * 0.6, lit(C.steel, 'metal'), x, lintel + lh * 0.3, 0, 6))
+  const logo = new THREE.MeshBasicMaterial({ map: rushLogo(), transparent: true, alphaTest: 0.04, toneMapped: false })
+  const front = part(new THREE.PlaneGeometry(lw, lh), logo, 0, ly, 0.018)
+  const back = part(new THREE.PlaneGeometry(lw, lh), logo, 0, ly, -0.018)
+  back.rotation.y = Math.PI
+  // Sa lueur, derrière : le cyan du cadre en haut, l'orange de « RUSH » en bas.
+  const glowCyan = part(glowBand(lw + 0.5, lh * 0.7, 0.62), halo(RUSH.cyan, 0.32), 0, ly + lh * 0.12, 0)
+  const glowOrange = part(glowBand(lw + 0.55, lh * 0.7, 0.4), halo(RUSH.orange, 0.36), 0, ly - lh * 0.16, 0)
+  for (const m of [glowCyan, glowOrange]) (m.material as THREE.Material).side = THREE.DoubleSide
+  live.add(glowCyan, glowOrange, front, back)
+  // Ses néons, de part et d'autre : un cadre cyan à pans coupés (comme celui du logo), deux barres
+  // orange au-dessus des coins, et les « // » jaunes au pied.
+  const fx = lw / 2 + 0.025, top = ly + lh / 2 + 0.03, foot = ly - lh / 2 + 0.06
+  for (const z of [0.03, -0.03]) {
+    for (const s of [-1, 1]) {
+      live.add(
+        part(new THREE.BoxGeometry(0.016, lh * 0.5, 0.016), glow(RUSH.cyan), s * fx, ly - lh * 0.05, z),
+        tube(0.16, RUSH.cyan, s * (fx - 0.055), ly + lh * 0.2 + 0.055, z, -s * Math.PI / 4),
+        tube(lw * 0.22, RUSH.orange, s * lw * 0.3, top, z),
+        tube(0.07, RUSH.yellow, s * (fx - 0.02), foot, z, Math.PI / 3),
+        tube(0.07, RUSH.yellow, s * (fx - 0.065), foot, z, Math.PI / 3),
+      )
+    }
+    live.add(tube(lw * 0.3, RUSH.blue, 0, top + 0.012, z))
+  }
+  // De temps en temps, le néon cyan grésille.
+  const cyans = live.children.filter((o) => o instanceof THREE.Mesh && o.material === glow(RUSH.cyan)) as THREE.Mesh[]
+  const phase = random() * 40
+  return {
+    solid: g,
+    live,
+    update(t) {
+      const k = (t + phase) % 17
+      const out = k < 0.45 && Math.floor(k * 14) % 2 === 0
+      for (const c of cyans) c.visible = !out
+      glowCyan.visible = !out
+    },
+  }
+}
+
 export const MESS_DECOR = {
   'mess-floor': messFloor,
   'mess-pendant': messPendant,
@@ -902,6 +1157,10 @@ export const MESS_DECOR = {
   'mess-herbs': messHerbs,
   'mess-clock': messClock,
   'mess-board': messBoard,
+  'mess-arch': messArch,
+  'mess-neon-strip': messNeonStrip,
+  'mess-coffee': messCoffee,
+  'kitchen-sounds': kitchenSounds,
   'pot-rack': potRack,
   'kitchen-rota': kitchenRota,
 } satisfies Record<string, Builder>

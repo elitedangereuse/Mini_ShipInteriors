@@ -70,6 +70,7 @@ import { renderQuality } from './quality'
 import { findReaction, REACTIONS, reactionImage } from './reactions'
 import { Patroller, SERGEANT, soldierRig, type ShipReport } from './patrol'
 import { CHEF, Chef, chefRig, type ChefReport } from './chef'
+import { DINER_PROFILES, Diners, dinerRigs } from './diners'
 import { Kitchen } from './kitchen'
 import { NURSE, Nurse, nurseRig, type NurseReport } from './nurse'
 import { DROID, MECHANIC, Mechanic, mechanicRig, type MechanicReport } from './mechanic'
@@ -606,6 +607,7 @@ const seating = new Seating({
   settled: (seat) => seated(seat),
   taken: () => dialog.show(tr('Quelqu\'un vient de prendre la place.', 'Someone just took that seat.')),
   changed: () => poseChanged(),
+  reserved: (spot) => spot.pose === 'sit' && deck === patrolDeck && diners.holds(spot),
 })
 
 // Comète vit près de son panier ; sans panier dans les quartiers affichés, il n'est pas là
@@ -1428,6 +1430,38 @@ patrolDeck.interactables.push({
   },
 })
 bubbles.attach('chef', (out) => (patrolDeck.group.visible ? chef.avatar.head(out) : null))
+
+// Rahel, Bastien et Ilka, les habitués du mess (cf. diners.ts) : leurs pauses, de plateau en café.
+// On leur parle en passant ; leurs places à table leur sont gardées (cf. Seating.reserved).
+const diners = new Diners(await dinerRigs(), patrolDeck)
+for (const d of diners.list) {
+  const p = DINER_PROFILES[d.id]
+  patrolDeck.interactables.push({
+    object: d.avatar.root,
+    position: d.avatar.root.position,
+    label: tr(`Parler à ${p.name}`, `Talk to ${p.name}`),
+    onInteract: () => {
+      player.interact()
+      net.sendEmote('interact')
+      dialog.show(diners.talk(d))
+    },
+  })
+  bubbles.attach(`diner:${d.id}`, (out) => (patrolDeck.group.visible ? d.avatar.head(out) : null))
+}
+diners.onBark = (id, text) => {
+  if (patrolDeck === deck) bubbles.say(`diner:${id}`, text)
+}
+diners.onStep = (at) => {
+  if (patrolDeck === deck) sound.play('step', patrolDeck.group.localToWorld(at.clone()), { volume: 0.05, rate: 1.1 })
+}
+diners.onAct = (act, at) => {
+  if (patrolDeck !== deck) return
+  const p = patrolDeck.group.localToWorld(at.clone().setY(at.y + 0.45))
+  if (act === 'bite') sound.work('munch', p)
+  else if (act === 'coffee') sound.work('hiss', p)
+  else if (act === 'water') sound.work('water', p)
+  else if (act === 'return' || act === 'tray' || act === 'serve') sound.play('dishes', p, { volume: 0.05, rate: 0.9 + Math.random() * 0.2, ref: 1.2, rolloff: 1.6 })
+}
 chef.onBark = (text) => {
   if (patrolDeck === deck) bubbles.say('chef', text)
 }
@@ -1968,14 +2002,29 @@ function stepRate(skin: string): number {
   return base * (0.92 + Math.random() * 0.16)
 }
 
-/** Sons d'ambiance du pont affiché : bips des consoles, bornes d'arcade, crépitements de soudure. */
+/**
+ * Un bruit de la cuisine du mess : une casserole qu'on repose, la vaisselle qui s'entrechoque, un
+ * couteau sur la planche, la friture.
+ */
+function kitchenNoise(p: THREE.Vector3) {
+  const rate = 0.9 + Math.random() * 0.2
+  const k = Math.random()
+  if (k < 0.3) sound.play('pot', p, { volume: 0.09, rate, ref: 1.2, rolloff: 1.6 })
+  else if (k < 0.6) sound.play('dishes', p, { volume: 0.08, rate, ref: 1.2, rolloff: 1.6 })
+  else if (k < 0.8) sound.play('knife', p, { volume: 0.07, rate, ref: 1.2, rolloff: 1.6 })
+  else if (k < 0.92) sound.work('sizzle', p)
+  else sound.work('chop', p)
+}
+
+/** Sons d'ambiance du pont affiché : bips des consoles, bornes d'arcade, crépitements de soudure, cuisine du mess. */
 const AMBIENT = {
   beep: { gap: [1.2, 4.2], play: (p: THREE.Vector3) => sound.beep(p) },
   computer: { gap: [8, 16], play: (p: THREE.Vector3) => sound.play('computer', p, { volume: 0.05, ref: 1.2, rolloff: 1.6 }) },
   arcade: { gap: [0.7, 2.2], play: (p: THREE.Vector3) => sound.chiptune(p) },
   sparks: { gap: [1.2, 3.5], play: (p: THREE.Vector3) => sound.sparks(p) },
+  kitchen: { gap: [1.4, 4], play: kitchenNoise },
 } as const
-const ambientIn: Record<keyof typeof AMBIENT, number> = { beep: 2, computer: 6, arcade: 1, sparks: 1.5 }
+const ambientIn: Record<keyof typeof AMBIENT, number> = { beep: 2, computer: 6, arcade: 1, sparks: 1.5, kitchen: 2 }
 
 function ambience(dt: number) {
   for (const kind of Object.keys(AMBIENT) as (keyof typeof AMBIENT)[]) {
@@ -2514,6 +2563,7 @@ net.onMessage = (m) => {
       if (m.patrol) sergeant.sync(m.patrol)
       // Le chef aussi, dans sa tournée (ou à la passe, si quelqu'un cuisine avec lui).
       if (m.chef) chef.sync(m.chef)
+      if (m.diners) diners.sync(m.diners)
       // Et Betty, dans sa tournée (ou au chevet d'un patient), avec les pansements du bord.
       if (m.nurse) nurse.sync(m.nurse)
       // Et le mécano du hangar (ou devant le nez du Krait, si quelqu'un fait une révision avec lui).
@@ -6306,6 +6356,7 @@ function frame() {
   moustache.update(world, labDeck === deck ? player.position : null, player.avatar.emoteId === 'danse')
   sergeant.update(world, patrolDeck === deck ? player.position : null, player.avatar.emoteId)
   chef.update(world, patrolDeck === deck ? player.position : null, player.avatar.emoteId)
+  diners.update(world, patrolDeck === deck ? player.position : null)
   nurse.update(world, patrolDeck === deck ? player.position : null, player.avatar.emoteId)
   infirmary.update()
   mechanic.update(world, holdDeck === deck ? player.position : null, player.avatar.emoteId)
@@ -6754,6 +6805,6 @@ if (import.meta.env.DEV) {
   const { refusal } = await import('./cabin/rules')
   Object.assign(window, { __refusal: (items: CabinItem[], i: number) => refusal(cabin, items, i) })
   Object.assign(window, {
-    __game: { renderer, sound, player, profile, fps, culling, cardsPanel, cat, moustache, sergeant, chef, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, garden, gardenView, gardenMode, gardenPanel, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, arena, messRush, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt, range, fishing, fishBook, fishCollection, startFishing, quiz, openQuiz, quests, questWorld, questJournal, cinematic },
+    __game: { renderer, sound, player, profile, fps, culling, cardsPanel, cat, moustache, sergeant, chef, diners, kitchen, nurse, infirmary, mechanic, hangar, gardener, greenhouse, garden, gardenView, gardenMode, gardenPanel, companions, cabin, seating, sitOn, interactables: () => deck.interactables, groundBase, arcade: () => arcade, photo, wallet, board, music: { deck: deckMusic, hold: holdMusic, cabin: cabinMusic, club: clubMusic }, tempo, get editor() { return editor }, openEditor, closeEditor, net, remotes, visiting: () => visiting, sees: (id: number) => { const r = remotes.get(id); return r ? sees(r) : null }, openWardrobe, applyLook, ride, emote, goTo: (x: number, z: number) => goTo({ x, z }), say: (t: string) => chat.onSend?.(t), interact: tryInteract, deck: () => deck, iso, systems: systemView, traffic, salvage: zone, arena, messRush, view: () => viewDeck, homeDeck, get builder() { return builder }, cinemaRoom, planetarium, toDeck: (id: number) => setDeck(deckById(id)), vents, fsdJump, liftGrate, barRegular: () => barRegular, court, startCourt, range, fishing, fishBook, fishCollection, startFishing, quiz, openQuiz, quests, questWorld, questJournal, cinematic },
   })
 }

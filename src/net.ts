@@ -61,6 +61,11 @@ export interface ChefState extends PatrolState {
   cook: number
 }
 
+/** Horloge des habitués du mess (cf. shared/diners.js) : où en est leur journée. */
+export interface DinersState {
+  tau: number
+}
+
 /**
  * Tournée de l'infirmière (cf. shared/nurse.js) : comme la ronde du sergent, plus la consultation en
  * cours (s restantes, lit, id du patient ; 0, -1 et 0 sans consultation) qui la retient au chevet,
@@ -403,7 +408,7 @@ export type MessAction = 'join' | 'leave' | 'ready' | 'resume' | 'use' | 'work' 
 
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
-  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean; bar?: boolean; welcome?: boolean }; players: PlayerState[]; homes?: { id: number; name: string }[]; music?: MusicState; hold?: MusicState; system?: SystemId; patrol?: PatrolState; chef?: ChefState; nurse?: NurseState; mechanic?: MechanicState; gardener?: GardenerState; chief?: ChiefState; salvage?: SalvageLobby; arena?: ArenaLobby; mess?: MessLobby }
+  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean; bar?: boolean; welcome?: boolean }; players: PlayerState[]; homes?: { id: number; name: string }[]; music?: MusicState; hold?: MusicState; system?: SystemId; patrol?: PatrolState; chef?: ChefState; diners?: DinersState; nurse?: NurseState; mechanic?: MechanicState; gardener?: GardenerState; chief?: ChiefState; salvage?: SalvageLobby; arena?: ArenaLobby; mess?: MessLobby }
   | { t: 'join'; player: PlayerState }
   | { t: 'leave'; id: number }
   | { t: 'state'; id: number; x: number; z: number; yaw: number; level: number; anim: string; pose?: string; py?: number }

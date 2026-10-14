@@ -14,6 +14,10 @@ const SOUNDS = {
   chat: ['select_001'],
   emote: ['confirmation_001'],
   ding: ['maximize_006'],
+  // Les bruits de la cuisine du mess (cf. AMBIENT dans main.ts).
+  pot: ['metalPot1', 'metalPot2', 'metalPot3'],
+  knife: ['knifeSlice', 'knifeSlice2', 'chop'],
+  dishes: ['impactPlate_light_000', 'impactPlate_light_002', 'impactPlate_light_004', 'impactGlass_light_001', 'impactMetal_light_001'],
 } as const
 
 export type SoundName = keyof typeof SOUNDS
