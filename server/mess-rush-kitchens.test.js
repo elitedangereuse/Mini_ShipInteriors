@@ -1,6 +1,6 @@
 // MESS RUSH, la cuisine cloisonnée et ce qui aide à s'y retrouver (shared/mess-rush.js) : les plans
-// selon le nombre de joueurs (zones, cloisons, passe-plats), la carte de chaque effectif, vider un
-// ustensile, ce qui disparaît quand un bon expire, et le guidage (les flèches).
+// selon le nombre de joueurs (zones, cloisons, passe-plats), la carte de chaque effectif, ce qui
+// disparaît quand un bon expire, et le guidage (la flèche et la consigne).
 //   npm test
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
@@ -10,8 +10,12 @@ import {
 } from '../shared/mess-rush.js'
 import { kitchen, must } from './mess-rush-helpers.js'
 
-const service = (players, recipes, members = ['a', 'b', 'c', 'd'].slice(0, players)) =>
-  kitchen(createService({ id: 'g', seed: 7, players, now: 0, members, ...(recipes ? { recipes } : {}) }))
+/** Une partie sans imprévu (cf. mess-rush-events.test.js pour eux). */
+const service = (players, recipes, members = ['a', 'b', 'c', 'd'].slice(0, players)) => {
+  const k = kitchen(createService({ id: 'g', seed: 7, players, now: 0, members, ...(recipes ? { recipes } : {}) }))
+  k.state.nextEventAt = undefined
+  return k
+}
 
 /** Distance d'un point à un rectangle (0 dedans). */
 const toRect = (b, x, z) => Math.hypot(Math.max(b.minX - x, 0, x - b.maxX), Math.max(b.minZ - z, 0, z - b.maxZ))
@@ -42,17 +46,14 @@ test('chaque plan : une zone par joueur, des arrivées sur son sol, des postes �
       }
     }
     assert.equal(linked.size, n, `zones isolées à ${n}`)
-    // Toute la cuisine : chaque sorte de poste existe, et chaque zone a sa poubelle, dans un coin.
-    for (const kind of ['fridge', 'pantry', 'board', 'sink', 'pot', 'pan', 'oven', 'fountain', 'plates', 'counter', 'pass', 'trash']) {
+    // Toute la cuisine : chaque sorte de poste existe, chaque ingrédient a sa caisse, et les poubelles sont dans les coins.
+    for (const kind of ['crate', 'board', 'pot', 'pan', 'sink', 'plates', 'return', 'counter', 'pass', 'trash']) {
       assert.ok(k.stations.some((id) => STATION_BY_ID[id].kind === kind), `${kind} à ${n}`)
     }
-    for (const zone of k.zones) {
-      const bins = zone.stations.filter((id) => STATION_BY_ID[id].kind === 'trash')
-      assert.ok(bins.length >= 1, `poubelle : ${n} ${zone.id}`)
-      for (const id of bins) {
-        const { x, z } = STATION_BY_ID[id]
-        assert.ok(Math.min(x - MESS_BOUNDS.minX, MESS_BOUNDS.maxX - x) < 0.5, `${id} dans un coin`)
-      }
+    for (const ing of Object.keys(INGREDIENTS)) assert.ok(k.stations.some((id) => STATION_BY_ID[id].ing === ing), `caisse ${ing} à ${n}`)
+    for (const id of k.stations.filter((id) => STATION_BY_ID[id].kind === 'trash')) {
+      const { x } = STATION_BY_ID[id]
+      assert.ok(Math.min(x - MESS_BOUNDS.minX, MESS_BOUNDS.maxX - x) < 0.5, `${id} dans un coin`)
     }
   }
 })
@@ -69,97 +70,59 @@ test('les cloisons ferment vraiment : une zone ne touche pas le sol d\'une autre
   }
 })
 
-test('à deux : chacun ses postes, les passe-plats aux deux ; un départ fait tomber les cloisons', () => {
+test('à deux : le commis prend et coupe, le chef cuit, dresse, sert et lave ; un départ fait tomber la cloison', () => {
   const k = service(2)
   k.waitOrder()
-  // Chacun prend, prépare, cuit et livre : l'ouest a le frigo, la plonge, les poêles ; l'est le garde-manger, les marmites, le four.
-  for (const id of ['frigo', 'plonge', 'poele-1', 'plan-1', 'assiettes', 'passe-1', 'fontaine']) assert.ok(canReach(k.state, 'a', id), id)
-  for (const id of ['garde-manger', 'marmite-1', 'four', 'plan-2', 'assiettes-2', 'passe-2']) assert.ok(canReach(k.state, 'b', id), id)
-  assert.ok(!canReach(k.state, 'a', 'garde-manger'))
-  assert.ok(!canReach(k.state, 'b', 'frigo'))
-  for (const pid of ['a', 'b']) assert.ok(canReach(k.state, pid, 'passe-plat-sud'))
+  for (const id of ['caisse-lapin', 'caisse-crevettes', 'caisse-legumes', 'plan-1', 'plan-2', 'poubelle-so']) assert.ok(canReach(k.state, 'a', id), id)
+  for (const id of ['marmite-1', 'poele-1', 'caisse-riz', 'caisse-pommes', 'plan-3', 'assiettes', 'passe', 'retour', 'plonge']) assert.ok(canReach(k.state, 'b', id), id)
+  for (const id of ['marmite-1', 'assiettes', 'passe']) assert.ok(!canReach(k.state, 'a', id), id)
+  assert.ok(!canReach(k.state, 'b', 'caisse-lapin'))
+  for (const pid of ['a', 'b']) for (const id of ['passe-plat-o-n', 'passe-plat-o-s']) assert.ok(canReach(k.state, pid, id))
   // Hors de sa zone, aucune action.
-  assert.deepEqual(resolveAction(k.state, 'b', 'frigo'), { use: null, work: null })
-  assert.equal(k.use('b', 'frigo').ok, false)
-  assert.ok(inZone(k.state, 'a', 10, 11))
+  assert.equal(resolveAction(k.state, 'b', 'caisse-lapin'), null)
+  assert.equal(k.use('b', 'caisse-lapin').ok, false)
+  assert.ok(inZone(k.state, 'a', 9.5, 11))
   assert.ok(!inZone(k.state, 'a', 15, 11))
-  assert.equal(wallsOf(k.state).length, 2)
+  assert.equal(wallsOf(k.state).length, 1)
   // Le passe-plat : l'un pose, l'autre prend.
-  must(k.use('a', 'frigo'))
-  must(k.use('a', 'passe-plat-sud'))
-  must(k.use('b', 'passe-plat-sud'))
+  must(k.use('a', 'caisse-lapin'))
+  must(k.use('a', 'passe-plat-o-n'))
+  must(k.use('b', 'passe-plat-o-n'))
   assert.ok(k.state.hands.b)
   // Quelqu'un part : la cuisine s'ouvre, une fois ; ce qui était sur le passe-plat va à la place libre la plus proche.
-  must(k.use('b', 'passe-plat-sud'))
-  const passed = k.state.stations['passe-plat-sud'].item
+  must(k.use('b', 'passe-plat-o-n'))
+  const passed = k.state.stations['passe-plat-o-n'].item
   assert.deepEqual(openKitchen(k.state), [{ kind: 'open' }])
-  assert.equal(k.state.stations['passe-plat-sud'], undefined)
-  assert.ok(!canReach(k.state, 'a', 'passe-plat-sud'))
-  assert.equal(k.state.stations['passe-plat-ilot'].item, passed)
+  assert.equal(k.state.stations['passe-plat-o-n'], undefined)
+  assert.ok(!canReach(k.state, 'a', 'passe-plat-o-n'))
+  assert.equal(k.state.stations['comptoir-o'].item, passed)
   assert.deepEqual(openKitchen(k.state), [])
   assert.deepEqual(wallsOf(k.state), [])
-  assert.ok(canReach(k.state, 'a', 'garde-manger'))
+  assert.ok(canReach(k.state, 'a', 'marmite-1'))
   assert.ok(inZone(k.state, 'a', 15, 11))
   // Seul, il n'y a jamais rien à ouvrir.
   assert.deepEqual(openKitchen(service(1).state), [])
 })
 
 test('la carte suit le nombre de joueurs', () => {
-  assert.ok(!menuFor(1).includes('bouillon-imperial'))
-  assert.ok(!menuFor(1).includes('riz-crevettes'))
-  assert.ok(!menuFor(2).includes('bouillon-imperial'))
-  assert.deepEqual(menuFor(4), SERVICE_RECIPES)
+  assert.ok(!menuFor(1).includes('festin-du-bord'))
+  for (const n of [2, 3, 4]) assert.deepEqual(menuFor(n), SERVICE_RECIPES)
   assert.deepEqual(service(1).state.recipes, menuFor(1))
   // Une liste imposée (serveur de dev) reste telle quelle.
-  assert.deepEqual(service(1, ['bouillon-imperial']).state.recipes, ['bouillon-imperial'])
-})
-
-test('vider une marmite ou une fontaine, reprendre ce qu\'on vient d\'y mettre', () => {
-  const k = service(1, ['ragout-lapin', 'cafe-goman'])
-  k.waitOrder()
-  const lapin = { id: 'x1', kind: 'ingredient', ing: 'lapin-ceti', step: 1, progress: 0 }
-  const legumes = { id: 'x2', kind: 'ingredient', ing: 'legumes', step: 2, progress: 0 }
-  Object.assign(k.state.items, { x1: lapin, x2: legumes })
-  k.state.hands.a = 'x1'
-  must(k.use('a', 'marmite-1'))
-  // Pas encore lancée : E reprend le dernier ingrédient mis.
-  assert.equal(resolveAction(k.state, 'a', 'marmite-1').use.kind, 'take-back')
-  must(k.use('a', 'marmite-1'))
-  assert.equal(k.state.hands.a, 'x1')
-  assert.deepEqual(k.state.stations['marmite-1'].items, [])
-  must(k.use('a', 'marmite-1'))
-  k.state.hands.a = 'x2'
-  must(k.use('a', 'marmite-1'))
-  must(k.work('a', 'marmite-1'))
-  // En cuisson : Espace vide la marmite, c'est perdu.
-  assert.equal(resolveAction(k.state, 'a', 'marmite-1').work.kind, 'empty')
-  must(k.work('a', 'marmite-1'))
-  assert.deepEqual(k.state.stations['marmite-1'], { items: [], cook: null, done: false })
-  assert.equal(k.state.items.x1, undefined)
-  assert.equal(k.state.wasted, 2)
-  assert.ok(k.events.some((e) => e.kind === 'emptied' && e.station === 'marmite-1' && e.by === 'a'))
-  // La fontaine, une fois la tasse prête : on peut aussi la vider.
-  must(k.use('a', 'garde-manger', 'cafe-goman'))
-  must(k.use('a', 'fontaine'))
-  must(k.work('a', 'fontaine'))
-  k.advance(PROCESSES.infuser.duration + 0.2)
-  assert.equal(resolveAction(k.state, 'a', 'fontaine').work.kind, 'empty')
-  must(k.work('a', 'fontaine'))
-  assert.equal(k.state.stations.fontaine.item, null)
-  assert.equal(k.state.wasted, 3)
+  assert.deepEqual(service(1, ['festin-du-bord']).state.recipes, ['festin-du-bord'])
 })
 
 test('un bon expire : ce qu\'on lui préparait disparaît, sauf ce qu\'un autre bon attend', () => {
   const k = service(1, ['ragout-lapin'])
   k.waitOrder()
   const ragout = k.state.orders[0]
-  // Un second bon, qui veut des escargots.
-  k.state.orders.push({ id: 'c9', recipe: 'escargots-irukama', at: k.now, until: k.now + 600000, status: 'pending' })
+  // Un second bon, qui veut du riz aux crevettes.
+  k.state.orders.push({ id: 'c9', recipe: 'riz-crevettes', at: k.now, until: k.now + 600000, status: 'pending' })
   Object.assign(k.state.items, {
     x1: { id: 'x1', kind: 'ingredient', ing: 'lapin-ceti', step: 1, progress: 0 },
     x2: { id: 'x2', kind: 'ingredient', ing: 'legumes', step: 0, progress: 1 },
-    x3: { id: 'x3', kind: 'ingredient', ing: 'escargots-irukama', step: 1, progress: 0 },
-    x4: { id: 'x4', kind: 'plate', contents: [['lapin-ceti', 'mijoté'], ['escargots-irukama', 'poêlé']] },
+    x3: { id: 'x3', kind: 'ingredient', ing: 'crevettes-baltahsine', step: 1, progress: 0 },
+    x4: { id: 'x4', kind: 'plate', contents: [['lapin-ceti', 'cuit'], ['crevettes-baltahsine', 'saisi']] },
   })
   k.state.hands.a = 'x1'
   k.state.stations['plan-1'].item = 'x2'
@@ -172,58 +135,81 @@ test('un bon expire : ce qu\'on lui préparait disparaît, sauf ce qu\'un autre 
   assert.equal(k.state.items.x1, undefined)
   assert.equal(k.state.stations['plan-1'].item, null)
   assert.equal(k.state.work.a, undefined)
-  // Les escargots servent encore : ils restent, et l'assiette ne garde qu'eux.
+  // Les crevettes servent encore : elles restent, et l'assiette ne garde qu'elles.
   assert.deepEqual(k.state.stations['poele-1'].items, ['x3'])
-  assert.deepEqual(k.state.items.x4.contents, [['escargots-irukama', 'poêlé']])
+  assert.deepEqual(k.state.items.x4.contents, [['crevettes-baltahsine', 'saisi']])
   assert.ok(k.events.some((e) => e.kind === 'cleared' && e.recipe === 'ragout-lapin' && e.count === 3))
   assert.equal(k.state.wasted, 0)
 })
 
-test('le guidage mène une recette de bout en bout, seul', () => {
-  const k = service(1, ['escargots-irukama'])
+test('le guidage mène une recette de bout en bout, seul, à une seule touche', () => {
+  const k = service(1, ['crevettes-saisies'])
   k.waitOrder()
   const step = () => guide(k.state, 'a')
-  assert.deepEqual(step(), { step: 'fetch', stations: ['frigo'], ing: 'escargots-irukama' })
-  must(k.use('a', 'frigo', 'escargots-irukama'))
-  assert.deepEqual(step(), { step: 'prep', stations: ['plonge'], ing: 'escargots-irukama', process: 'rincer' })
-  must(k.use('a', 'plonge'))
-  assert.equal(step().step, 'work')
-  must(k.work('a', 'plonge'))
-  k.advance(PROCESSES.rincer.duration + 0.2)
-  must(k.use('a', 'plonge'))
-  assert.deepEqual(step(), { step: 'cook', stations: ['poele-1', 'poele-2'], ing: 'escargots-irukama', process: 'poeler' })
+  const ing = 'crevettes-baltahsine'
+  assert.deepEqual(step(), { step: 'fetch', stations: ['caisse-crevettes'], ing })
+  must(k.use('a', 'caisse-crevettes'))
+  assert.deepEqual(step(), { step: 'prep', stations: ['plan-2', 'plan-1', 'plan-3'], ing, process: 'couper' })
+  must(k.use('a', 'plan-2'))
+  assert.deepEqual(step(), { step: 'work', stations: ['plan-2'], ing, process: 'couper' })
+  must(k.use('a', 'plan-2'))
+  k.advance(PROCESSES.couper.duration + 0.1)
+  assert.deepEqual(step(), { step: 'take', stations: ['plan-2'], ing })
+  must(k.use('a', 'plan-2'))
+  assert.deepEqual(step(), { step: 'cook', stations: ['poele-1', 'poele-2'], ing, process: 'saisir' })
   must(k.use('a', 'poele-1'))
-  assert.deepEqual(step(), { step: 'start', stations: ['poele-1'] })
-  must(k.work('a', 'poele-1'))
-  k.advance(PROCESSES.poeler.duration + 0.2)
-  assert.deepEqual(step(), { step: 'take-plate', stations: ['assiettes', 'assiettes-2'] })
+  // Ça saisit tout seul : rien à faire en attendant.
+  assert.equal(step(), null)
+  k.advance(PROCESSES.saisir.duration + 0.1)
+  assert.deepEqual(step(), { step: 'take-plate', stations: ['assiettes'] })
   must(k.use('a', 'assiettes'))
   assert.deepEqual(step(), { step: 'fill-plate', stations: ['poele-1'] })
   must(k.use('a', 'poele-1'))
-  assert.deepEqual(step(), { step: 'deliver', stations: ['passe-1', 'passe-2'] })
+  assert.deepEqual(step(), { step: 'deliver', stations: ['passe'] })
   // Une assiette qui ne correspond à rien : à la poubelle.
-  k.state.items[k.state.hands.a].contents = [['legumes', 'mijoté']]
+  k.state.items[k.state.hands.a].contents = [['legumes', 'cuit']]
   assert.equal(step().step, 'trash')
+})
+
+test('la vaisselle : quand la pile est vide, le guidage envoie laver', () => {
+  const k = service(1, ['crevettes-saisies'])
+  k.waitOrder()
+  k.state.stations.assiettes.count = 0
+  k.state.stations.retour.count = 2
+  k.state.items.c = { id: 'c', kind: 'ingredient', ing: 'crevettes-baltahsine', step: 1, progress: 0, cooked: 'saisir' }
+  k.state.stations['poele-1'] = { items: ['c'], cook: { start: k.now - 4000, until: k.now, burnAt: k.now + 6000, process: 'saisir' }, done: true, burnt: false }
+  assert.deepEqual(guide(k.state, 'a'), { step: 'take-dirty', stations: ['retour'] })
+  must(k.use('a', 'retour'))
+  assert.deepEqual(guide(k.state, 'a'), { step: 'wash', stations: ['plonge'] })
+  must(k.use('a', 'plonge'))
+  assert.deepEqual(guide(k.state, 'a'), { step: 'wash', stations: ['plonge'] })
+  must(k.use('a', 'plonge'))
+  k.advance(RULES.wash + 0.1)
+  // Une assiette propre : on dresse ce qui attend.
+  assert.equal(k.state.stations.assiettes.count, 1)
+  assert.deepEqual(guide(k.state, 'a'), { step: 'take-plate', stations: ['assiettes'] })
 })
 
 test('à plusieurs, le guidage passe par les passe-plats', () => {
   const k = service(2, ['ragout-lapin'])
   k.waitOrder()
-  // Le lapin sort du frigo (l'ouest), les légumes du garde-manger (l'est) : chacun va chercher le sien.
-  assert.deepEqual(guide(k.state, 'a'), { step: 'fetch', stations: ['frigo'], ing: 'lapin-ceti' })
-  assert.deepEqual(guide(k.state, 'b'), { step: 'fetch', stations: ['garde-manger'], ing: 'legumes' })
-  // Le lapin coupé mijote dans une marmite de l'est : le passe-plat.
+  // Le commis va chercher le lapin ; le chef n'a rien tant que rien n'arrive.
+  assert.deepEqual(guide(k.state, 'a'), { step: 'fetch', stations: ['caisse-lapin'], ing: 'lapin-ceti' })
+  assert.equal(guide(k.state, 'b'), null)
+  // Le lapin coupé cuit dans une marmite du chef : le passe-plat.
   k.state.items.x1 = { id: 'x1', kind: 'ingredient', ing: 'lapin-ceti', step: 1, progress: 0 }
   k.state.hands.a = 'x1'
   const pass = guide(k.state, 'a')
   assert.equal(pass.step, 'handoff')
-  assert.ok(pass.stations.every((id) => canReach(k.state, 'b', id)))
+  assert.ok(pass.stations.length && pass.stations.every((id) => canReach(k.state, 'b', id)))
   must(k.use('a', pass.stations[0]))
-  // L'est le voit, le prend, le met à mijoter.
+  // Le chef le voit, le prend, le met à cuire.
   assert.deepEqual(guide(k.state, 'b'), { step: 'take', stations: [pass.stations[0]], ing: 'lapin-ceti' })
-  // À quatre, chaque zone a quelque chose à faire ou à attendre, et rien n'est indiqué hors de sa zone.
-  const four = service(4, ['ragout-lapin'])
-  four.waitOrder()
+  must(k.use('b', pass.stations[0]))
+  assert.equal(guide(k.state, 'b').step, 'cook')
+  // À quatre, rien n'est indiqué hors de sa zone.
+  const four = service(4, ['festin-du-bord'])
+  four.waitOrder(400)
   for (const pid of ['a', 'b', 'c', 'd']) {
     const g = guide(four.state, pid)
     if (g) assert.ok(g.stations.every((id) => canReach(four.state, pid, id)), pid)
@@ -236,8 +222,8 @@ test('chaque recette de la carte se fait à plusieurs : chaque geste a son poste
     for (const id of menuFor(n)) {
       for (const [ing] of RECIPES[id].dish.contents) {
         const info = INGREDIENTS[ing]
-        const kinds = [info.source, ...[...info.prep, ...info.cook].map((p) => PROCESSES[p].station)]
-        for (const kind of kinds) assert.ok(k.stations.some((s) => STATION_BY_ID[s].kind === kind), `${id} à ${n} : ${kind}`)
+        assert.ok(k.stations.some((s) => STATION_BY_ID[s].ing === ing), `${id} à ${n} : caisse ${ing}`)
+        for (const p of [...info.prep, ...info.cook]) assert.ok(k.stations.some((s) => STATION_BY_ID[s].kind === PROCESSES[p].station), `${id} à ${n} : ${p}`)
       }
     }
   }
@@ -245,8 +231,8 @@ test('chaque recette de la carte se fait à plusieurs : chaque geste a son poste
 })
 
 test('des cuisiniers qui ne font que suivre le guidage tiennent un service entier, à tous les effectifs', () => {
-  // Sans trajets (chacun agit une fois par seconde, au poste indiqué) : on vérifie que le guidage ne
-  // tourne jamais en rond et ne laisse personne bloqué, cloisons comprises.
+  // Sans trajets (chacun appuie une fois par seconde, au poste indiqué), avec les imprévus : on
+  // vérifie que le guidage ne tourne jamais en rond et ne laisse personne bloqué, cloisons comprises.
   for (const n of [1, 2, 3, 4]) {
     for (const seed of [1, 7]) {
       const pids = ['a', 'b', 'c', 'd'].slice(0, n)
@@ -256,13 +242,13 @@ test('des cuisiniers qui ne font que suivre le guidage tiennent un service entie
         for (const pid of pids) {
           if (k.state.work[pid]) continue
           const g = guide(k.state, pid)
-          if (!g?.stations.length) continue
-          if (g.step === 'work' || g.step === 'start' || g.step === 'clean') k.work(pid, g.stations[0])
-          else k.use(pid, g.stations[0], g.ing)
+          if (g?.stations.length) k.use(pid, g.stations[0])
         }
       }
       assert.ok(k.state.served >= 12, `${n} joueurs, graine ${seed} : ${k.state.served} plats servis`)
       assert.ok(k.state.expired <= 3, `${n} joueurs, graine ${seed} : ${k.state.expired} expirés`)
+      // Les robots décrochent au moins le bronze (les médailles sont réglées sur eux).
+      assert.ok(k.state.score >= RULES.medals[n][0], `${n} joueurs, graine ${seed} : ${k.state.score} points`)
     }
   }
 })

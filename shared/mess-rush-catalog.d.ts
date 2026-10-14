@@ -1,7 +1,7 @@
 /** Un texte affiché, dans les deux langues du jeu. */
 export interface Text { fr: string; en: string }
-export type ProcessId = 'rincer' | 'eplucher' | 'couper' | 'emincer' | 'fouetter' | 'cuire' | 'mijoter' | 'saisir' | 'poeler' | 'enfourner' | 'infuser'
-export type StationKind = 'fridge' | 'pantry' | 'board' | 'sink' | 'pot' | 'pan' | 'oven' | 'fountain' | 'plates' | 'counter' | 'pass' | 'trash'
+export type ProcessId = 'couper' | 'cuire' | 'saisir'
+export type StationKind = 'crate' | 'board' | 'pot' | 'pan' | 'sink' | 'plates' | 'return' | 'counter' | 'pass' | 'trash'
 export type CatalogStatus = 'canonique' | 'adaptation' | 'création'
 export type Difficulty = 'rapide' | 'intermediaire' | 'complexe'
 
@@ -21,7 +21,6 @@ export interface Ingredient {
   category: string | null
   rare: boolean
   origin?: { system: string; station: string }
-  source: 'fridge' | 'pantry'
   prep: ProcessId[]
   cook: ProcessId[]
   /** Modèle du Food Kit de Kenney. */
@@ -42,7 +41,7 @@ export interface Recipe {
   time?: number
   /** La couleur du plat : son bon, son client dans la file, les assiettes qui le deviennent. */
   color: string
-  dish: { container: 'plate' | 'cup'; contents: [string, string][] }
+  dish: { container: 'plate'; contents: [string, string][] }
   steps: [StationKind, string?][]
   success: Text
   failure: Text

@@ -103,17 +103,17 @@ test('un salon se forme au mess, part en service, et la cuisine reste entre coé
   adam.emit('chat', { text: 'deux ragoûts, ça presse' })
   await Promise.all([heard, unheard])
 
-  // Au frigo (dans l'allée, devant lui), après la première commande : on prend un ingrédient,
+  // À la caisse de légumes (devant elle), après la première commande : on prend un ingrédient,
   // et l'équipe le voit dans ses mains.
   await next(adam, 'mess:event', (m) => m.events.some((e) => e.kind === 'order'), RULES.firstOrder * 1000 + 3000)
-  adam.emit('state', { x: 8.6, z: 11.2, yaw: 0, level: MESS_LEVEL, anim: 'idle' })
-  await next(rackam, 'state', (m) => m.id === wa.id && m.x === 8.6)
+  adam.emit('state', { x: 9.6, z: 11.3, yaw: 0, level: MESS_LEVEL, anim: 'idle' })
+  await next(rackam, 'state', (m) => m.id === wa.id && m.x === 9.6)
   const held = next(rackam, 'mess:state', (m) => !!m.state.hands[String(wa.id)])
-  adam.emit('mess:use', { station: 'frigo' })
+  adam.emit('mess:use', { station: 'caisse-legumes' })
   await held
   // Loin du poste : refusé.
   const refused = next(rackam, 'mess:refused')
-  rackam.emit('mess:use', { station: 'frigo' })
+  rackam.emit('mess:use', { station: 'caisse-legumes' })
   assert.equal((await refused).code, 'far')
 })
 
@@ -159,7 +159,7 @@ test('à quatre : salon complet, départ, et un cuisinier qui perd la liaison re
   // Une rafale d'actions : le relais n'en traite que ce que permet son débit (20, puis 10 par seconde).
   let refused = 0
   crew[3].on('mess:refused', () => refused++)
-  for (let i = 0; i < 80; i++) crew[3].emit('mess:use', { station: 'frigo' })
+  for (let i = 0; i < 80; i++) crew[3].emit('mess:use', { station: 'caisse-legumes' })
   await new Promise((resolve) => setTimeout(resolve, 600))
   assert.ok(refused > 0 && refused <= 27, `${refused} réponses`)
 })

@@ -52,9 +52,9 @@ export function first(kind, ok = () => true) {
 }
 
 /**
- * Cuisine une recette de bout en bout, seul, et la livre : chaque ingrédient sort de son
- * distributeur, passe par ses gestes, puis attend dans son ustensile ou sur le comptoir ; les
- * cuissons partent ensemble ; on dresse l'assiette (ou on prend la tasse) et on livre à la passe.
+ * Cuisine une recette de bout en bout, seul, et la livre : chaque ingrédient sort de sa caisse, est
+ * coupé, puis attend dans son ustensile (la cuisson part toute seule ; un ustensile par cuisson) ou
+ * sur le comptoir ; on dresse l'assiette et on la livre à la passe.
  */
 export function cookRecipe(k, pid, recipeId) {
   const dish = RECIPES[recipeId].dish
@@ -62,15 +62,15 @@ export function cookRecipe(k, pid, recipeId) {
   const counters = []
   const free = (s) => {
     const u = k.state.stations[s.id]
-    return !u.item && !u.cook && !u.done && !u.items?.length
+    return !!u && !u.item && !u.cook && !u.done && !u.items?.length
   }
   for (const [ing] of dish.contents) {
     const info = INGREDIENTS[ing]
-    must(k.use(pid, first(info.source).id, ing), `prendre ${ing}`)
+    must(k.use(pid, STATIONS.find((s) => s.kind === 'crate' && s.ing === ing).id), `prendre ${ing}`)
     for (const p of info.prep) {
       const st = first(PROCESSES[p].station, free)
       must(k.use(pid, st.id), `poser ${ing}`)
-      must(k.work(pid, st.id), `${p} ${ing}`)
+      must(k.use(pid, st.id), `${p} ${ing}`)
       k.advance(PROCESSES[p].duration + 0.2)
       must(k.use(pid, st.id), `reprendre ${ing}`)
     }
@@ -85,17 +85,12 @@ export function cookRecipe(k, pid, recipeId) {
       counters.push(st.id)
     }
   }
+  // Le temps que tout cuise (la marmite s'allonge d'un peu à chaque ingrédient en plus).
   let longest = 0
-  for (const [cook, sid] of utensils) {
-    must(k.work(pid, sid), `cuire (${cook})`)
-    longest = Math.max(longest, PROCESSES[cook].duration)
-  }
+  for (const [cook, sid] of utensils) longest = Math.max(longest, (k.state.stations[sid].cook.until - k.now) / 1000, 0)
   k.advance(longest + 0.2)
-  if (dish.container === 'cup') must(k.use(pid, utensils.get('infuser')), 'prendre la tasse')
-  else {
-    must(k.use(pid, first('plates').id), 'prendre une assiette')
-    for (const sid of counters) must(k.use(pid, sid), 'dresser depuis le comptoir')
-    for (const [, sid] of utensils) must(k.use(pid, sid), 'servir l\'ustensile')
-  }
-  must(k.use(pid, first('pass').id), 'livrer')
+  must(k.use(pid, 'assiettes'), 'prendre une assiette')
+  for (const sid of counters) must(k.use(pid, sid), 'dresser depuis le comptoir')
+  for (const [, sid] of utensils) must(k.use(pid, sid), 'servir l\'ustensile')
+  must(k.use(pid, 'passe'), 'livrer')
 }
