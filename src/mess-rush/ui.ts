@@ -24,6 +24,9 @@ export const MEDAL_NAMES: Record<Medal, string> = {
   gold: tr('Or', 'Gold'),
 }
 
+/** Les effectifs d'une brigade, en toutes lettres (« médailles à trois »). */
+const COUNT = ['', 'un', 'deux', 'trois', 'quatre']
+
 /** mm:ss */
 export const clock = (s: number) => {
   const t = Math.max(0, Math.ceil(s))
@@ -148,7 +151,7 @@ export class MessPanel extends Modal {
     const head = el('span', 'arena-tile-head')
     head.append(el('strong', '', tr(`Salon ${t.id}`, `Lobby ${t.id}`)), el('span', `arena-badge${playing ? ' live' : !t.members.length ? ' idle' : ''}`, state))
     b.append(head)
-    if (playing) b.append(el('span', 'arena-tile-score', tr(`${t.score ?? 0} points · ${clock(t.endsIn ?? 0)} restantes`, `${t.score ?? 0} points · ${clock(t.endsIn ?? 0)} left`)))
+    if (playing) b.append(el('span', 'arena-tile-score', tr(`${t.score ?? 0} points · reste ${clock(t.endsIn ?? 0)}`, `${t.score ?? 0} points · ${clock(t.endsIn ?? 0)} left`)))
     else {
       const pips = el('span', 'arena-pips')
       const row = el('span', 'mess-pips')
@@ -229,7 +232,7 @@ export class MessPanel extends Modal {
     }
     // Les médailles, pour le nombre de cuisiniers du salon.
     const medals = el('div', 'mess-medals')
-    medals.append(el('span', 'arena-heading', tr(`Médailles à ${t.members.length}`, `Medals for ${t.members.length}`)))
+    medals.append(el('span', 'arena-heading', tr(`Médailles ${t.members.length > 1 ? `à ${COUNT[t.members.length] ?? t.members.length}` : 'en solo'}`, t.members.length > 1 ? `Medals for ${t.members.length}` : 'Solo medals')))
     const row = el('div', 'mess-medal-row')
     const [bronze, silver, gold] = RULES.medals[Math.min(4, Math.max(1, t.members.length)) as 1 | 2 | 3 | 4]
     for (const [medal, score] of [['bronze', bronze], ['silver', silver], ['gold', gold]] as const) {
@@ -433,7 +436,7 @@ export class MessEndScreen {
       }
       card.append(el('span', 'arena-heading', tr('Les commandes', 'The orders')), table)
     }
-    if (r.wasted) card.append(el('p', 'salvage-note', tr(`Gaspillage : ${r.wasted} (sans pénalité pour l'instant).`, `Waste: ${r.wasted} (no penalty for now).`)))
+    if (r.wasted) card.append(el('p', 'salvage-note', tr(`Au recyclage : ${r.wasted} (sans pénalité).`, `Recycled: ${r.wasted} (no penalty).`)))
     // La récompense : seulement ce que le site a confirmé (cf. reward).
     this.reward = el('p', 'mess-end-reward')
     if (r.reason === 'abandoned') this.reward.textContent = tr('Un service abandonné ne compte pas.', 'An abandoned service does not count.')

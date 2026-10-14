@@ -267,7 +267,7 @@ export class MessRushClient {
         this.hud.toast(tr(`${who(e.by)} a perdu la liaison : sa place l'attend une minute.`, `${who(e.by)} lost the link: their place waits a minute.`), 'info')
         break
       case 'back':
-        this.hud.toast(tr(`${who(e.by)} est revenu en cuisine.`, `${who(e.by)} is back in the kitchen.`), 'info')
+        this.hud.toast(tr(`${who(e.by)} est de retour en cuisine.`, `${who(e.by)} is back in the kitchen.`), 'info')
         break
       case 'left':
       case 'gone':
