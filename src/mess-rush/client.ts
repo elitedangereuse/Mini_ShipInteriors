@@ -84,6 +84,11 @@ export interface MessRushHost {
   served: () => void
   /** Les crédits confirmés par le site arrivent au portefeuille. */
   credited: (earned: number, balance: number) => void
+  /**
+   * La vue de la cuisine (true) : depuis le nord-est, les postes du mur sud face à la caméra ; puis
+   * (false) la vue d'avant.
+   */
+  view: (kitchen: boolean) => void
 }
 
 interface Game {
@@ -282,6 +287,7 @@ export class MessRushClient {
       return
     }
     this.phase = 'kitchen'
+    this.host.view(true)
     this.hud.show()
   }
 
@@ -305,6 +311,7 @@ export class MessRushClient {
     this.hud.hide()
     this.props?.release((pid) => this.avatar(pid))
     this.game = null
+    if (wasIn) this.host.view(false)
     if (wasIn && this.host.deck() === this.host.kitchenDeck()) await this.host.moveTo(this.host.messDeck, MESS_RETURN)
   }
 

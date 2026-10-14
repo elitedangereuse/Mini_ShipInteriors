@@ -539,6 +539,8 @@ export function attachRelay(
     emit: (id, event, data) => sockets.get(id)?.emit(event, data),
     broadcast: (event, data) => io.emit(event, data),
     log,
+    // Serveur de dev : les essais dans le navigateur peuvent raccourcir le service.
+    debug: devCmdr,
   })
   const messTimer = setInterval(() => messRush.tick(), 100)
   messTimer.unref?.()
@@ -796,7 +798,7 @@ export function attachRelay(
       })
     }
 
-    for (const event of MESS_ACTIONS) {
+    for (const event of [...MESS_ACTIONS, ...(devCmdr ? ['mess:debug'] : [])]) {
       socket.on(event, (raw) => {
         if (messBudget < 1) return
         messBudget--

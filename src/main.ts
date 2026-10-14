@@ -2309,6 +2309,8 @@ const arena = arenaMode
 // MESS RUSH (cf. mess-rush/) : le salon au rail des bons du mess, la cuisine instanciée (construite à
 // la première entrée, comme la base au sol), le service.
 let messKitchen: Deck | null = null
+/** La vue d'avant la cuisine (cf. `view`) : on y revient à la sortie. */
+let messHeading: number | null = null
 function kitchenDeck(): Deck {
   if (!messKitchen) {
     messKitchen = new Deck(MESS_RUSH_DECK)
@@ -2341,6 +2343,15 @@ const messRush = new MessRushClient({
   camera: () => activeCamera(),
   served: () => kitchen.addServed(),
   credited: (earned, balance) => wallet.site({ earned, balance }),
+  view: (on) => {
+    if (on) {
+      messHeading ??= iso.heading
+      iso.turnTo(Math.PI * 0.75)
+    } else if (messHeading !== null) {
+      iso.turnTo(messHeading)
+      messHeading = null
+    }
+  },
 })
 // Le rail des bons du mess : on y prend le service.
 for (const it of patrolDeck.interactables) {

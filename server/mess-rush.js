@@ -25,6 +25,7 @@ import {
   MESS_LEVEL, MESS_LOBBY, MESS_SPAWNS, RULES, STATION_BY_ID, createService, dropHeld, onMessFloor, serviceResult, serviceView, stepService,
   stopWork, useStation, workStation,
 } from '../shared/mess-rush.js'
+import { RECIPES } from '../shared/mess-rush-catalog.js'
 import { createLobby } from './lobby.js'
 
 const DECK = new ShipMap(SHIP_LAYOUTS[String(MESS_LOBBY.level)], shipMapOptions(MESS_LOBBY.level))
@@ -53,9 +54,10 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z)
  * @param {() => number} [o.now]
  * @param {() => number} [o.seed]
  * @param {string[]} [o.recipes] les recettes en jeu (la sélection du prototype par défaut)
+ * @param {boolean} [o.debug] serveur de dev : `mess:debug` raccourcit le service, choisit les recettes, fixe le score
  */
 export function createMessRush({
-  playerById, emit, broadcast, reward = null, now = Date.now, log = () => {}, seed = () => randomBytes(4).readUInt32LE(0), recipes,
+  playerById, emit, broadcast, reward = null, now = Date.now, log = () => {}, seed = () => randomBytes(4).readUInt32LE(0), recipes, debug = false,
 }) {
   const games = new Map() // id de partie -> partie
   const finished = new Map() // id de partie -> { report, tickets, until }
@@ -319,6 +321,20 @@ export function createMessRush({
     const data = raw && typeof raw === 'object' ? raw : {}
     if (action === 'mess:resume') return resume(p, data)
     const game = gameOf(p)
+    // Serveur de dev seulement (essais dans le navigateur) : finir le service dans `endIn` secondes,
+    // ne tirer que certaines recettes, fixer le score.
+    if (action === 'mess:debug') {
+      if (!debug || !game) return
+      const t = now()
+      if (Number.isFinite(data.endIn)) game.state.endsAt = t + Math.max(1, data.endIn) * 1000
+      if (Array.isArray(data.recipes)) {
+        const known = data.recipes.filter((r) => typeof r === 'string' && RECIPES[r])
+        if (known.length) game.state.recipes = known
+      }
+      if (Number.isInteger(data.score) && data.score >= 0) game.state.score = data.score
+      game.dirty = true
+      return
+    }
     if (game) {
       if (action === 'mess:join' || action === 'mess:leave' || action === 'mess:ready') return error(p, 'playing')
       return gameAction(p, game, action, data)

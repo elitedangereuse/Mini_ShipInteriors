@@ -303,6 +303,23 @@ test('coupure trop longue : la place est perdue ; une partie finie se raconte à
   assert.equal(h.last(12, 'mess:end').late, true)
 })
 
+test('serveur de dev seulement : `mess:debug` raccourcit le service et choisit les recettes', () => {
+  const prod = harness()
+  const { members: [a] } = prod.team(1)
+  const game = prod.launch([a])
+  const endsAt = game.state.endsAt
+  prod.mess.handle(a, 'mess:debug', { endIn: 5 })
+  assert.equal(game.state.endsAt, endsAt)
+  const dev = harness({ debug: true })
+  const { members: [b] } = dev.team(1)
+  const g = dev.launch([b])
+  dev.mess.handle(b, 'mess:debug', { endIn: 5, recipes: ['cafe-goman', 'inconnue'], score: 120 })
+  assert.deepEqual(g.state.recipes, ['cafe-goman'])
+  assert.equal(g.state.score, 120)
+  dev.advance(5.2)
+  assert.equal(dev.last(b.id, 'mess:end').medal, 'bronze')
+})
+
 test('arrivée manquée : un membre qui n\'entre pas dans la cuisine à temps est retiré', () => {
   const h = harness()
   const { members: [a, b] } = h.team(1, 2)
