@@ -9,7 +9,7 @@ import { QUEUE, type ServiceState } from '../../shared/mess-rush.js'
  * La file des clients de MESS RUSH, derrière le comptoir de service (cf. QUEUE dans
  * shared/mess-rush.js) : un client par bon. Il arrive par l'est, prend sa place dans la file et
  * attend, sa bulle au-dessus de la tête : la couleur de son plat (celle de son bon, cf. RECIPES),
- * une tasse ou une assiette, la couronne de l'amiral, et sa patience qui baisse avec le délai du
+ * une assiette ou la couronne de l'amiral, et sa patience qui baisse avec le délai du
  * bon. Servi, il saute de joie et s'en va content par l'ouest ; son bon expiré, il fait non de la
  * tête et s'en va fâché. Rien de tout cela ne passe par le relais : la file se lit dans les bons de
  * l'état du service, que toute l'équipe partage.
@@ -124,7 +124,7 @@ export class MessQueue {
     const root = new THREE.Group()
     root.position.set(ENTER_X, 0, QUEUE.z)
     const color = RECIPES[recipe].color
-    const bubble = new THREE.Sprite(bubbleMaterial(color, vip ? 'crown' : RECIPES[recipe].dish.container === 'cup' ? 'coffee' : 'fork-knife'))
+    const bubble = new THREE.Sprite(bubbleMaterial(color, vip ? 'crown' : 'fork-knife'))
     bubble.scale.setScalar(0.42)
     bubble.position.y = BUBBLE_Y
     bubble.renderOrder = 25

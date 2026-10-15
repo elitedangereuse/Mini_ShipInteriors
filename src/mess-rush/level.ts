@@ -1,14 +1,15 @@
 import { tr } from '../i18n'
 import type { LevelDef, Prop } from '../levels'
-import { ISLAND, MESS_BOUNDS, MESS_LAYOUT, MESS_LEVEL, SERVICE_COUNTER, STATION_BY_ID } from '../../shared/mess-rush.js'
+import { INGREDIENTS } from '../../shared/mess-rush-catalog.js'
+import { CRATE_ROW, MESS_BOUNDS, MESS_LAYOUT, MESS_LEVEL, SERVICE_COUNTER, STATION_BY_ID, STATIONS } from '../../shared/mess-rush.js'
 
 /*
- * La cuisine de MESS RUSH : la cuisine du mess, seule (sans la salle du self), instanciée pour
- * chaque service (cf. shared/mess-rush.js). Le long du mur du fond, à l'ouest le frigo, la plonge et
- * le fourneau des poêles, à l'est celui des marmites et le garde-manger ; au milieu, l'îlot, ses
- * plans de travail et ses piles d'assiettes ; au nord, le comptoir de service, ses deux passes, la
- * machine à café et le four, et derrière lui l'allée où les clients font la queue. Une poubelle dans
- * chaque coin.
+ * La cuisine de MESS RUSH : la cuisine du mess, seule, instanciée pour chaque service (cf.
+ * shared/mess-rush.js), à l'échelle de ses cuisiniers : des meubles bas, rien qui leur arrive à la
+ * tête (cf. furniture/mess-rush.ts). À l'ouest, le garde-manger et la découpe (les caisses, deux
+ * planches) ; au milieu, les fourneaux et la pile d'assiettes ; à l'est, la passe, le retour de
+ * vaisselle et la plonge. Au nord, la rangée des caisses et le comptoir de service, et derrière lui
+ * l'allée où les clients font la queue. Une poubelle dans les coins.
  *
  * Les meubles des postes n'ont rien à examiner : ce sont les postes eux-mêmes (cf. client.ts) qu'on
  * vise, avec leur invite.
@@ -16,30 +17,34 @@ import { ISLAND, MESS_BOUNDS, MESS_LAYOUT, MESS_LEVEL, SERVICE_COUNTER, STATION_
 
 const at = (id: string) => STATION_BY_ID[id]
 const WALL_Z = 12.075
+const NORTH_Z = (SERVICE_COUNTER.minZ + SERVICE_COUNTER.maxZ) / 2
 const mid = (a: string, b: string) => (at(a).x + at(b).x) / 2
+/** Un comptoir bas de `x0` à `x1`, au fond (`wall`) ou au nord (`service`). */
+const counter = (x0: number, x1: number, z: number, kind: 'wall' | 'service', rot: Prop['rot'] = kind === 'wall' ? 2 : 0): Prop => ({ model: 'rush-counter', x: (x0 + x1) / 2, z, rot, label: `${(x1 - x0).toFixed(2)}|${kind}` })
 
 const PROPS: Prop[] = [
-  // --- Le mur du fond.
-  { model: 'kitchen-fridge', x: at('frigo').x, z: WALL_Z, rot: 2 },
-  { model: 'kitchen-sink', x: at('plonge').x, z: WALL_Z, rot: 2 },
-  { model: 'kitchen-range', x: mid('poele-1', 'poele-2'), z: WALL_Z, rot: 2 },
-  { model: 'kitchen-range', x: mid('marmite-1', 'marmite-2'), z: WALL_Z, rot: 2 },
-  { model: 'kitchen-pantry', x: at('garde-manger').x, z: 12.14, rot: 2 },
-  { model: 'rush-counter', x: at('comptoir-6').x, z: WALL_Z, rot: 2, label: '1.1|wall' },
-  // --- L'îlot, et le comptoir de service d'un mur à l'autre (les clients derrière).
-  { model: 'rush-counter', x: (ISLAND.minX + ISLAND.maxX) / 2, z: (ISLAND.minZ + ISLAND.maxZ) / 2, label: `${ISLAND.maxX - ISLAND.minX}|island` },
-  { model: 'rush-counter', x: (MESS_BOUNDS.minX + MESS_BOUNDS.maxX) / 2, z: (SERVICE_COUNTER.minZ + SERVICE_COUNTER.maxZ) / 2, label: `${MESS_BOUNDS.maxX - MESS_BOUNDS.minX}|service` },
-  { model: 'k-coffee-machine', x: at('fontaine').x, z: at('fontaine').z, y: 0.46, solid: false },
-  { model: 'rush-oven', x: at('four').x, z: at('four').z, y: 0.46, solid: false },
-  // --- Une poubelle dans chaque coin.
-  ...['poubelle-so', 'poubelle-se', 'poubelle-no', 'poubelle-ne'].map((id): Prop => ({ model: 'k-trashcan', x: at(id).x, z: at(id).z, rot: at(id).z > 10 ? 2 : 0 })),
-  // --- L'habillage : le sol d'un seul tenant, l'enseigne au-dessus du fond, les cuivres, le tableau des tâches.
+  // --- Les caisses : une par ingrédient, sa couleur en façade (l'ingrédient, en grand, posé dessus).
+  ...STATIONS.filter((s) => s.kind === 'crate').map((s): Prop => ({ model: 'rush-crate', x: s.x, z: s.z, rot: s.z > 10 ? 2 : 0, label: INGREDIENTS[s.ing!].color })),
+  // --- Le nord : la fin de la rangée des caisses (deux places de comptoir), puis le comptoir de service.
+  counter(9.1, CRATE_ROW.maxX, NORTH_Z, 'wall', 0),
+  counter(11.75, 16.15, NORTH_Z, 'service'),
+  counter(16.85, MESS_BOUNDS.maxX, NORTH_Z, 'service'),
+  // --- Le mur ouest : une planche et une place de comptoir.
+  { model: 'rush-counter', x: at('plan-2').x, z: at('plan-2').z, rot: 1, label: '1|wall' },
+  { model: 'rush-counter', x: at('comptoir-so').x, z: at('comptoir-so').z, rot: 1, label: '0.8|wall' },
+  // --- Le mur du fond : une planche, les deux fourneaux, la plonge, une planche.
+  counter(8.35, 9.38, WALL_Z, 'wall'),
+  counter(10.1, CRATE_ROW.maxX, WALL_Z, 'wall'),
+  { model: 'rush-stove', x: mid('marmite-1', 'marmite-2'), z: WALL_Z, rot: 2 },
+  { model: 'rush-stove', x: mid('poele-1', 'poele-2'), z: WALL_Z, rot: 2 },
+  { model: 'rush-sink', x: at('plonge').x, z: WALL_Z, rot: 2 },
+  counter(15.35, 16.35, WALL_Z, 'wall'),
+  // --- Une poubelle dans les coins.
+  ...STATIONS.filter((s) => s.kind === 'trash').map((s): Prop => ({ model: 'k-trashcan', x: s.x, z: s.z, rot: s.z > 10 ? 2 : 0 })),
+  // --- Le sol d'un seul tenant (et le logo), le tableau des tâches, le néon.
   { model: 'rush-floor', x: (MESS_BOUNDS.minX + MESS_BOUNDS.maxX) / 2, z: (MESS_BOUNDS.minZ + MESS_BOUNDS.maxZ) / 2, solid: false },
-  { model: 'rush-sign', x: 12.675, z: MESS_BOUNDS.maxZ, rot: 2, label: '0.95', solid: false },
-  { model: 'pot-rack', x: at('plonge').x, z: 12, solid: false },
-  { model: 'pot-rack', x: at('garde-manger').x - 0.9, z: 12, solid: false },
-  { model: 'kitchen-rota', x: MESS_BOUNDS.minX, z: 10.9, rot: 1, solid: false },
-  { model: 'mess-neon', x: MESS_BOUNDS.maxX, z: 10.9, rot: 3, solid: false },
+  { model: 'kitchen-rota', x: MESS_BOUNDS.minX, z: 10.3, rot: 1, solid: false },
+  { model: 'mess-neon', x: MESS_BOUNDS.maxX, z: 10.3, rot: 3, solid: false },
 ]
 
 /** Le « pont » de la cuisine : une seule pièce, hors des ponts du vaisseau. */
@@ -56,11 +61,10 @@ export const MESS_RUSH_DECK: LevelDef = {
   areas: [{ name: tr('File des clients', 'Customer queue'), minX: 8, maxX: 17, minZ: 7, maxZ: 7, lighting: { level: 0.8, color: '#ffe0bd' } }],
   props: PROPS,
   lights: [
-    // Les lampes chauffantes des passes, et la lumière blanche de la cuisine.
-    [at('passe-1').x, 8.1, '#ff9a4a', 1.4],
-    [at('passe-2').x, 8.1, '#ff9a4a', 1.4],
-    [10.6, 10.9, '#eef5ff', 2.6],
-    [14.6, 10.9, '#eef5ff', 2.6],
-    [12.5, 9.1, '#eef5ff', 2],
+    // La lampe chauffante de la passe, et la lumière blanche de la cuisine, une par colonne.
+    [at('passe').x, 8.1, '#ff9a4a', 1.4],
+    [9.4, 10.2, '#eef5ff', 2.4],
+    [12.4, 10.2, '#eef5ff', 2.4],
+    [15.6, 10.2, '#eef5ff', 2.4],
   ],
 }

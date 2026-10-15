@@ -2371,8 +2371,11 @@ const arena = arenaMode
 let messKitchen: Deck | null = null
 /** La vue d'avant la cuisine (cf. `view`) : on y revient à la sortie. */
 let messBefore: { heading: number; zoom: number } | null = null
-/** La vue de la cuisine : presque à la verticale, du côté de la salle (le nord), les postes du mur sud face à soi. */
-const KITCHEN_ELEVATION = THREE.MathUtils.degToRad(58)
+/**
+ * La vue de la cuisine : presque à la verticale, du côté de la passe (le nord), les postes du mur
+ * du fond face à soi ; assez plongeante pour qu'aucun comptoir ne cache un cuisinier.
+ */
+const KITCHEN_ELEVATION = THREE.MathUtils.degToRad(62)
 /**
  * Ce que la vue du dessus montre de la cuisine (m) : la cuisine seule (sans la salle du self),
  * presque entière, autour du cuisinier (la vue le suit sans sortir des murs, cf.

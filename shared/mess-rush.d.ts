@@ -4,21 +4,24 @@ export declare const MESS_LEVEL: -6
 export declare const MESS_LOBBY: { level: 0; room: 'm'; rail: { x: number; z: number } }
 export declare const MESS_RETURN: { level: 0; x: number; z: number; yaw: number }
 export declare const MESS_LAYOUT: string[]
-export declare const MESS_BOUNDS: { minX: number; maxX: number; minZ: number; maxZ: number }
-export declare const MESS_SPAWNS: { x: number; z: number }[]
-/** Le comptoir de service (les clients derrière), l'îlot, le sol des cuisiniers, la file des clients. */
-export declare const SERVICE_COUNTER: { minX: number; maxX: number; minZ: number; maxZ: number }
-export declare const ISLAND: { minX: number; maxX: number; minZ: number; maxZ: number }
-export declare const KITCHEN_FLOOR: { minX: number; maxX: number; minZ: number; maxZ: number }
+export interface Rect { minX: number; maxX: number; minZ: number; maxZ: number }
+export declare const MESS_BOUNDS: Rect
+/** La rangée des caisses (au nord de l'ouest), le comptoir de service (les clients derrière), le sol des cuisiniers, la file des clients. */
+export declare const CRATE_ROW: Rect
+export declare const SERVICE_COUNTER: Rect
+export declare const KITCHEN_FLOOR: Rect
 export declare const QUEUE: { minX: number; maxX: number; z: number }
+/** Hauteur du dessus des meubles de la cuisine. */
+export declare const COUNTER_TOP: number
+export declare const MESS_SPAWNS: { x: number; z: number }[]
 export declare function onMessFloor(x: number, z: number): boolean
 
-export interface Station { id: string; kind: StationKind; x: number; z: number }
+/** Un poste ; une caisse dit son ingrédient (`ing`). */
+export interface Station { id: string; kind: StationKind; x: number; z: number; ing?: string }
 export declare const STATIONS: Station[]
 export declare const STATION_BY_ID: Record<string, Station>
 export declare const STATION_NAMES: Record<StationKind, Text>
 
-export interface Rect { minX: number; maxX: number; minZ: number; maxZ: number }
 export interface KitchenZone { id: string; bounds: Rect; spawn: { x: number; z: number }; stations: string[] }
 export interface Kitchen { walls: Rect[]; zones: KitchenZone[]; stations: string[] }
 export declare const KITCHENS: Record<1 | 2 | 3 | 4, Kitchen>
@@ -45,7 +48,12 @@ export declare const RULES: {
   plateCapacity: number
   potCapacity: number
   panCapacity: number
-  ovenCapacity: number
+  /** La cuisson : le temps qu'ajoute un ingrédient de plus, le temps avant de brûler, l'alerte avant. */
+  cook: { potExtra: number; burn: { pot: number; pan: number }; warn: number }
+  /** Les assiettes au départ, le temps avant qu'une assiette servie revienne sale, le temps pour en laver une. */
+  plates: Record<1 | 2 | 3 | 4, number>
+  plateReturn: number
+  wash: number
   firstOrder: number
   complexAfter: number
   byPlayers: Record<1 | 2 | 3 | 4, Pace>
@@ -53,34 +61,43 @@ export declare const RULES: {
   combo: { step: number; max: number }
   expiredPenalty: number
   /** Les imprévus (cf. EVENT_KINDS). */
-  events: { first: number; every: [number, number]; quiet: number; outage: number; sink: number; clean: number; vip: { points: number; time: number } }
+  events: { first: number; every: [number, number]; quiet: number; clean: number; cat: number; overheat: { time: number; speed: number }; vip: { points: number; time: number } }
   medals: Record<1 | 2 | 3 | 4, [number, number, number]>
 }
 
-/** Les imprévus : panne de courant, plonge bouchée, plateau renversé sur la passe, coup de feu, l'amiral à bord. */
-export type EventKind = 'outage' | 'sink' | 'spill' | 'rush' | 'vip'
+/** Les imprévus : plateau renversé sur la passe, le chat du bord sur un comptoir, surchauffe des fourneaux, coup de feu, l'amiral à bord. */
+export type EventKind = 'spill' | 'cat' | 'overheat' | 'rush' | 'vip'
 export declare const EVENT_KINDS: EventKind[]
-/** L'imprévu en cours (la panne et la plonge ont une fin ; le plateau renversé, un nettoyage en cours). */
+/** L'imprévu en cours : sa fin (le chat, la surchauffe), le nettoyage en cours (le plateau), son poste (la passe, le comptoir du chat). */
 export interface ServiceIncident { kind: EventKind; at: number; until?: number; progress?: number; station?: string }
 
 export interface Item {
   id: string
-  kind: 'ingredient' | 'plate' | 'cup'
+  /** Un ingrédient, une assiette (propre, garnie ou non), une pile d'assiettes sales. */
+  kind: 'ingredient' | 'plate' | 'dirty'
   ing?: string
   /** Gestes faits (cf. `prep` de l'ingrédient). */
   step?: number
   /** Avancée du geste en cours (s). */
   progress?: number
-  /** Cuit : la cuisson qui l'a cuit. */
+  /** Cuit : la cuisson qui l'a cuit ; brûlé. */
   cooked?: ProcessId
-  /** Assiette ou tasse : ce qu'elle contient, [ingrédient, état]. */
+  burnt?: boolean
+  /** Assiette : ce qu'elle contient, [ingrédient, état]. */
   contents?: [string, string][]
+  /** Pile d'assiettes sales : combien. */
+  count?: number
 }
 export interface Order { id: string; recipe: string; at: number; until: number; status: 'pending' | 'served' | 'expired'; done?: number; points?: number; vip?: boolean }
-/** Une cuisson lancée : de quand à quand, et laquelle. */
-export interface Cooking { start: number; until: number; process?: ProcessId }
-export interface SlotState { item: string | null; cook?: Cooking | null; done?: boolean }
-export interface UtensilState { items: string[]; cook: Cooking | null; done: boolean }
+/** Une cuisson : de quand à quand, quand ça brûle, laquelle. */
+export interface Cooking { start: number; until: number; burnAt: number; process: ProcessId }
+/** Une planche, une place de comptoir. */
+export interface SlotState { item: string | null }
+/** Une marmite, une poêle. */
+export interface UtensilState { items: string[]; cook: Cooking | null; done: boolean; burnt: boolean }
+/** La pile d'assiettes, le retour de vaisselle (et ce qui revient bientôt), la plonge (et l'assiette en cours). */
+export interface CountState { count: number; pending?: number[]; progress?: number }
+export type StationState = SlotState | UtensilState | CountState
 export interface ServiceState {
   id: string
   players: number
@@ -104,9 +121,9 @@ export interface ServiceState {
   nextEventAt?: number
   orders: Order[]
   items: Record<string, Item>
-  stations: Record<string, SlotState | UtensilState>
+  stations: Record<string, StationState>
   hands: Record<string, string | null>
-  work: Record<string, { station: string; item?: string; clean?: boolean }>
+  work: Record<string, { station: string; item?: string; clean?: boolean; wash?: boolean }>
   score: number
   combo: number
   bestCombo: number
@@ -114,10 +131,18 @@ export interface ServiceState {
   expired: number
   wasted: number
 }
-export interface ServiceEvent { kind: 'served' | 'expired' | 'wasted' | 'prepared' | 'cooked' | 'cooking' | 'order' | 'dropped' | 'end' | 'emptied' | 'cleared' | 'open' | 'event' | 'event-end' | 'merged'; order?: string; recipe?: string; points?: number; combo?: number; penalty?: number; station?: string; ing?: string; process?: ProcessId; by?: string; count?: number; event?: EventKind; until?: number; vip?: boolean }
-export interface UseAction { kind: 'take-ingredient' | 'take-plate' | 'take' | 'take-back' | 'put' | 'plate-pick' | 'plate-add' | 'merge' | 'fill' | 'serve-utensil' | 'deliver' | 'trash'; ing?: string; order?: string | null }
-export interface WorkAction { kind: 'cycle' | 'process' | 'cook' | 'empty' | 'clean'; process?: ProcessId; busy?: boolean }
-export type GuideStep = 'prep' | 'cook' | 'plate' | 'put' | 'deliver' | 'complete' | 'fill-plate' | 'wait' | 'hold' | 'trash' | 'handoff' | 'take-dish' | 'take-plate' | 'need-plate' | 'work' | 'start' | 'take' | 'tidy' | 'fetch' | 'clean' | 'merge' | 'take-merge'
+export interface ServiceEvent {
+  kind: 'served' | 'expired' | 'wasted' | 'prepared' | 'cooked' | 'cooking' | 'burnt' | 'order' | 'dropped' | 'end' | 'emptied' | 'cleared' | 'open'
+    | 'event' | 'event-end' | 'merged' | 'washed' | 'dirty' | 'shooed' | 'eaten'
+  order?: string; recipe?: string; points?: number; combo?: number; penalty?: number; station?: string; ing?: string; process?: ProcessId; by?: string; count?: number
+  event?: EventKind; until?: number; vip?: boolean
+}
+/** Ce que fait la touche à un poste. */
+export type ActionKind = 'shoo' | 'clean' | 'work' | 'wash' | 'take-ingredient' | 'take' | 'put' | 'plate-pick' | 'plate-add' | 'merge' | 'stack' | 'fill' | 'serve' | 'empty'
+  | 'take-plate' | 'take-dirty' | 'put-dirty' | 'deliver' | 'trash'
+export interface Action { kind: ActionKind; ing?: string; order?: string | null; busy?: boolean }
+export type GuideStep = 'shoo' | 'clean' | 'empty' | 'take-dish' | 'take-plate' | 'fill-plate' | 'complete' | 'merge' | 'take-merge' | 'wash' | 'take-dirty' | 'work' | 'take' | 'fetch'
+  | 'prep' | 'cook' | 'plate' | 'put' | 'wait' | 'hold' | 'deliver' | 'trash' | 'handoff' | 'need-plate'
 export interface Guide { step: GuideStep; stations: string[]; ing?: string; process?: ProcessId }
 export interface ServiceResult {
   game: string
@@ -144,23 +169,17 @@ export declare function recipeValue(id: string): { points: number; time: number 
 export declare function createService(o: { id: string; seed: number; players: number; now: number; recipes?: string[]; members?: (string | number)[]; rules?: typeof RULES }): ServiceState
 export declare function ingredientState(item: Item): string
 export declare function nextPrep(item: Item): ProcessId | null
+export declare function finalState(ing: string): string
 export declare function dishMatches(item: Item, recipeId: string): boolean
 export declare function matchingOrder(state: ServiceState, item: Item | null): Order | null
-/** La cuisson d'un ustensile : celle qui y est lancée, sinon celle de ce qu'il contient (null : vide). */
-export declare function cookOf(state: ServiceState, stationId: string): ProcessId | null
-/** Une étape du fil rouge : le poste où elle se fait, et ce qui s'y fait. */
-export interface ThreadStep { kind: StationKind; process?: ProcessId; ing?: string; state?: string; done: boolean }
-/** Le fil rouge d'un objet : le bon qu'il sert, et son chemin jusqu'à la passe (null : il ne sert à aucun bon). */
-export declare function threadOf(state: ServiceState, item: Item | null): { order: { id: string; recipe: string }; steps: ThreadStep[] } | null
-export declare function dispenserChoices(state: ServiceState, stationId: string): string[]
-export declare function resolveAction(state: ServiceState, pid: string, stationId: string, pick?: string, rules?: typeof RULES): { use: UseAction | null; work: WorkAction | null }
+/** Ce que ferait la touche à ce poste, pour ce joueur (null : rien). */
+export declare function resolveAction(state: ServiceState, pid: string, stationId: string, rules?: typeof RULES): Action | null
 export declare function useStation(state: ServiceState, pid: string, stationId: string, pick: string | undefined, now: number, rules?: typeof RULES): { ok: true; events: ServiceEvent[] } | { ok: false; code: string }
 export declare function workStation(state: ServiceState, pid: string, stationId: string, now: number, rules?: typeof RULES): { ok: true; events: ServiceEvent[] } | { ok: false; code: string }
 export declare function stopWork(state: ServiceState, pid: string): void
-/** Un poste hors d'usage à cause d'un imprévu (la plonge bouchée, la passe renversée) ? */
+/** Un poste hors d'usage à cause d'un imprévu (la passe renversée, le chat assis dessus) ? */
 export declare function isBlocked(state: ServiceState, stationId: string): boolean
 export declare function dropHeld(state: ServiceState, pid: string): ServiceEvent[]
-export declare function finalState(ing: string): string
 export declare function guide(state: ServiceState, pid: string, rules?: typeof RULES): Guide | null
 export declare function clearUnneeded(state: ServiceState): number
 export declare function stepService(state: ServiceState, now: number, dt: number, near: (pid: string, stationId: string) => boolean, rules?: typeof RULES): ServiceEvent[]

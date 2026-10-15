@@ -12,12 +12,14 @@ const KINDS = new Set(STATIONS.map((s) => s.kind))
 const STATUSES = new Set(['canonique', 'adaptation', 'création'])
 const filled = (name) => typeof name?.fr === 'string' && name.fr.trim() !== '' && typeof name?.en === 'string' && name.en.trim() !== ''
 
-test('chaque ingrédient a ses noms, sa source, ses gestes, sa cuisson, son statut et ses sources', () => {
+test('chaque ingrédient a ses noms, sa caisse, ses gestes, sa cuisson, son statut et ses sources', () => {
   for (const [id, ing] of Object.entries(INGREDIENTS)) {
     assert.ok(filled(ing.name), `${id} : nom`)
     assert.ok(filled(ing.short), `${id} : nom court`)
     assert.ok(['ms', 'fs', 'mp', 'fp'].includes(ing.gender), `${id} : genre du nom court`)
-    assert.ok(KINDS.has(ing.source) && (ing.source === 'fridge' || ing.source === 'pantry'), `${id} : distributeur`)
+    // Chaque ingrédient a sa caisse, et une seule.
+    assert.equal(STATIONS.filter((s) => s.kind === 'crate' && s.ing === id).length, 1, `${id} : caisse`)
+    assert.ok(typeof ing.model === 'string' && ing.model !== '', `${id} : modèle`)
     for (const p of ing.prep) assert.ok(PROCESSES[p]?.active, `${id} : geste ${p}`)
     for (const c of ing.cook) assert.ok(PROCESSES[c] && !PROCESSES[c].active, `${id} : cuisson ${c}`)
     // Un seul mode de cuisson : le plat dit « cuit », sans dire où.
@@ -45,7 +47,8 @@ test('chaque recette a ses noms, sa difficulté, un plat atteignable, des étape
     assert.ok(filled(r.success) && filled(r.failure), `${id} : conditions de réussite et d'échec`)
     assert.ok(STATUSES.has(r.status), `${id} : statut`)
     assert.ok(r.sources.length > 0 && r.sources.every((s) => SOURCES[s]), `${id} : sources`)
-    assert.ok(r.dish.container === 'plate' || r.dish.container === 'cup', `${id} : contenant`)
+    assert.equal(r.dish.container, 'plate', `${id} : contenant`)
+    assert.match(r.color, /^#[0-9a-f]{6}$/, `${id} : couleur`)
     assert.ok(r.dish.contents.length >= 1 && r.dish.contents.length <= 4, `${id} : contenu`)
     for (const [ing, state] of r.dish.contents) {
       const i = INGREDIENTS[ing]
@@ -53,29 +56,32 @@ test('chaque recette a ses noms, sa difficulté, un plat atteignable, des étape
       // L'état attendu est celui où l'ingrédient finit : cuit s'il cuit, sinon après son dernier geste.
       const final = i.cook.length ? PROCESSES[i.cook[0]].result : i.prep.length ? PROCESSES[i.prep.at(-1)].result : 'brut'
       assert.equal(state, final, `${id} : ${ing} doit être ${final}`)
-      // La tasse ne sort que de la fontaine ; l'assiette jamais.
-      assert.equal(r.dish.container === 'cup', i.cook[0] === 'infuser', `${id} : contenant de ${ing}`)
     }
-    // Les étapes : chaque ingrédient sort de son distributeur, chaque geste et cuisson a son poste.
+    // Les étapes : chaque ingrédient sort de sa caisse, chaque geste et cuisson a son poste.
     for (const step of r.steps) {
       assert.ok(KINDS.has(step[0]), `${id} : poste ${step[0]}`)
       if (step[1] && PROCESSES[step[1]]) assert.equal(PROCESSES[step[1]].station, step[0], `${id} : ${step[1]} au bon poste`)
-      if (step[1] && INGREDIENTS[step[1]]) assert.equal(INGREDIENTS[step[1]].source, step[0], `${id} : ${step[1]} au bon distributeur`)
+      if (step[1] && INGREDIENTS[step[1]]) assert.equal(step[0], 'crate', `${id} : ${step[1]} sort de sa caisse`)
     }
     for (const [ing] of r.dish.contents) assert.ok(r.steps.some((s) => s[1] === ing), `${id} : étape pour ${ing}`)
     assert.equal(r.steps.at(-1)[0], 'pass', `${id} : on finit à la passe`)
   }
+  // Une couleur par plat.
+  const colors = Object.values(RECIPES).map((r) => r.color)
+  assert.equal(new Set(colors).size, colors.length)
 })
 
 test('la sélection du prototype : trois recettes, qui passent par tous les postes de la cuisine', () => {
-  assert.deepEqual(PROTOTYPE_RECIPES.sort(), ['cafe-goman', 'escargots-irukama', 'ragout-lapin'])
+  assert.deepEqual(PROTOTYPE_RECIPES.sort(), ['bouillon-legumes', 'crevettes-saisies', 'pommes-aerial'])
   const used = new Set(PROTOTYPE_RECIPES.flatMap((id) => RECIPES[id].steps.map((s) => s[0])))
-  for (const kind of ['fridge', 'pantry', 'board', 'sink', 'pot', 'pan', 'fountain', 'plates', 'pass']) assert.ok(used.has(kind), kind)
+  for (const kind of ['crate', 'board', 'pot', 'pan', 'plates', 'pass']) assert.ok(used.has(kind), kind)
 })
 
 test('chaque recette se cuisine de bout en bout, et la commande est servie', () => {
   for (const id of Object.keys(RECIPES)) {
     const k = kitchen(createService({ id: 'g', seed: 7, players: 1, now: 0, recipes: [id] }))
+    // Sans imprévu : un plateau renversé sur la passe ferait attendre la livraison.
+    k.state.nextEventAt = undefined
     k.waitOrder()
     const order = k.state.orders[0]
     assert.equal(order.recipe, id)

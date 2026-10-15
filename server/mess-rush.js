@@ -261,10 +261,11 @@ export function createMessRush({
       sendState(game)
       return endGame(game, 'end')
     }
-    // L'état : quand il change ; pendant un geste, cinq fois par seconde (sa jauge avance).
+    // L'état : quand il change ; pendant un geste ou un imprévu, cinq fois par seconde (les jauges
+    // avancent, la surchauffe presse les cuissons).
     game.tick++
-    const working = Object.keys(game.state.work).length > 0
-    if (game.dirty || (working && game.tick % 2 === 0)) sendState(game)
+    const live = Object.keys(game.state.work).length > 0 || !!game.state.event
+    if (game.dirty || (live && game.tick % 2 === 0)) sendState(game)
   }
 
   function sendState(game) {

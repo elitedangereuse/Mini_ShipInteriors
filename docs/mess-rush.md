@@ -762,3 +762,139 @@ bon. Les touches y sont rappelées, avec la fusion des assiettes et le fil rouge
 - Les trajets réels (les robots n'en ont pas) : l'îlot à contourner, les deux passes.
 - La lisibilité des couleurs proches (rose et magenta, orange et saumon) ; un daltonien s'aidera du
   nom sur le bon et du fil rouge.
+
+## Mise à jour 2.0
+
+Retours après les essais en direct de la 1.3 : trop de postes, des cuisiniers qui ont la tête dans
+les meubles, un fil rouge qui ne sert à rien, deux touches de trop, une coupure de courant vécue
+comme une punition, une coopération qui reste à créer, et une interface où l'on peine à comprendre
+quoi faire. La règle de la 2.0 : **la difficulté vient de l'enchaînement des tâches et des timings,
+jamais de la difficulté à comprendre quoi faire.**
+
+### Ce qu'on retient d'Overcooked
+
+La bande-annonce demandée (YouTube) n'était pas joignable depuis l'environnement de travail :
+l'analyse s'appuie sur ce que montrent les bandes-annonces d'Overcooked (« Co-op Chaos », E3 2016)
+et sur ce qu'en disent ses auteurs, Ghost Town Games :
+[Game Developer, Road to the IGF](https://gamedeveloper.com/design/road-to-the-igf-ghost-town-games-i-overcooked-i-),
+[Gamereactor](https://www.gamereactor.eu/every-single-person-has-an-integral-role-in-overcooked/),
+[Red Bull, Overcooked 2](https://www.redbull.com/int-en/overcooked-2-ghost-town-games-interview),
+[Wikipédia](https://en.wikipedia.org/wiki/Overcooked),
+[Game Informer](https://gameinformer.com/games/overcooked/b/playstation4/archive/2016/07/15/the-steaks-are-high-in-new-trailer-and-eggcellent-release-date.aspx).
+
+| Overcooked | Ce qu'on en tire | MESS RUSH 2.0 |
+|---|---|---|
+| Deux boutons : prendre/poser, et agir (couper, laver, l'extincteur) | Le geste se lit sur le poste, pas sur le clavier | **Une seule touche** (E, Espace, A ou ×) : elle fait ce que permettent le poste et ce qu'on tient (`resolveAction`) |
+| Une caisse par ingrédient, son image sur le couvercle | On voit d'un coup d'œil où est quoi | Cinq caisses, l'ingrédient posé dessus en grand ; plus de frigo ni de garde-manger à menu |
+| On coupe en restant devant la planche, une jauge avance | Un seul geste actif, lisible | **Couper**, seul geste actif (2,5 s), sur trois planches |
+| La marmite cuit seule ; trop longtemps, elle clignote puis prend feu | Une tension qu'on gère en jouant, pas un temps mort | La marmite et la poêle cuisent seules ; cuit, un signal d'alerte, puis **brûlé** (9 s marmite, 6 s poêle) : la touche la vide |
+| Peu d'assiettes ; servies, elles reviennent sales, il faut les laver | Une seconde boucle qui pèse sur le rythme | 3 à 5 assiettes ; chaque plat servi rend une **assiette sale** au retour 7 s plus tard ; on la lave à la **plonge** (1,5 s chacune) |
+| Des bons sans texte : le plat, ses ingrédients, ses gestes, une barre de temps | Comprendre sans lire | Les bons en **images** (le Food Kit de Kenney), le nombre, les icônes des gestes, la barre de délai, la couleur du plat |
+| Le pourboire selon la rapidité, les étoiles | Récompenser l'enchaînement | Bonus de rapidité, combo, médailles (inchangés) |
+| Des cuisines coupées en deux, un passe-plat au milieu : chacun est indispensable | Créer de la vraie coopération | Des **cuisines en colonnes** : à plusieurs, chacun tient un maillon de la chaîne (prendre et couper, cuire et dresser, servir et laver) et l'on se passe les plats |
+| Des surprises qui se règlent (le feu, les rats d'Overcooked 2, le décor qui bouge) | Du chaos qu'on peut combattre, jamais une punition gratuite | Des **imprévus jouables** : chacun a sa parade (cf. plus bas) |
+| Lisibilité absolue : gros objets, peu de postes | La difficulté vient du rythme | Moins de postes, des meubles bas, une flèche et une consigne courte |
+
+Pas repris pour l'instant : lancer les ingrédients (Overcooked 2), le sprint, l'extincteur, les
+cuisines qui bougent. Ce sont des pistes pour une prochaine version.
+
+### Une seule touche
+
+`resolveAction(state, pid, station)` renvoie l'action de la touche, ou null. Les mains vides :
+prendre à une caisse, prendre une assiette, couper ce qui attend sur une planche, laver à la plonge,
+reprendre ce qui est posé, vider une marmite brûlée, nettoyer la passe, chasser le chat. Les mains
+pleines : poser (planche, comptoir), mettre à cuire, dresser (depuis un ustensile cuit ou un
+ingrédient prêt), réunir deux assiettes, livrer, jeter, déposer la vaisselle sale. Le client montre
+l'action dans l'invite ; le relais arbitre avec la même fonction. `useStation` fait tout ;
+`workStation` n'en est plus qu'un alias (le relais accepte encore `mess:work`). Quand plusieurs postes
+sont à portée, celui où la touche ferait quelque chose l'emporte sur celui où elle ne ferait rien.
+
+### Moins de postes, plus lisibles
+
+Trois procédés au lieu de dix : **couper** (planche), **cuire** (marmite, qui prend jusqu'à trois
+ingrédients, 8 s et 1,5 s par ingrédient de plus) et **saisir** (poêle, une portion, 4 s). Cinq
+ingrédients (lapin, légumes, crevettes, riz, pommes), six recettes :
+
+| Recette | Contenu | Couleur |
+|---|---|---|
+| Pommes d'eden en quartiers | pomme coupée | rouge |
+| Crevettes stellaires saisies | crevettes coupées, saisies | rose |
+| Bouillon de légumes du bord | trois légumes coupés, cuits ensemble | vert |
+| Ragoût de lapin de Ceti | lapin et deux légumes, cuits ensemble | orange |
+| Riz jarouan aux crevettes | riz cuit + crevettes saisies | violet |
+| Festin du bord (pas en solo) | riz cuit + crevettes saisies + pomme coupée | cyan |
+
+Disparus : le frigo et le garde-manger à menu, la machine à café, le four, rincer, éplucher,
+émincer, fouetter, mijoter, poêler, et les tasses.
+
+### Le plan en colonnes, à l'échelle
+
+La cuisine (10 × 6 tuiles) se lit de gauche à droite comme une chaîne : à l'ouest, les caisses et
+les planches ; au milieu, les fourneaux (deux marmites, deux poêles) au fond et la pile d'assiettes
+au nord ; à l'est, la passe et le retour de vaisselle au comptoir de service, la plonge au fond.
+
+| Joueurs | Zones | Ce que fait chacun |
+|---|---|---|
+| 1 | toute la cuisine | tout |
+| 2 | ouest · est (cloison ouest) | le commis prend et coupe le lapin, les légumes, les crevettes ; le chef a le riz, les pommes, cuit, dresse, sert et lave |
+| 3 | ouest · milieu · est | prendre et couper · cuire et dresser · servir, laver, couper les pommes |
+| 4 | ouest-nord · milieu · est · ouest-sud | l'ouest coupé en deux (chacun ses caisses et sa planche) |
+
+Les cloisons courent du nord au sud, dans l'axe de la caméra : elles ne cachent personne. Deux
+passe-plats par cloison, un dans la cloison de l'ouest à quatre.
+
+L'échelle : les cuisiniers mesurent 0,67 m ; les meubles sont bas (dessus à 0,34 m, `COUNTER_TOP`),
+sans hotte, crédence ni étagère, comme dans Overcooked : plus personne n'a la tête dans un meuble.
+La caméra est plus plongeante (62°). Les meubles sont dans `src/furniture/mess-rush.ts`
+(`rush-floor`, `rush-counter`, `rush-crate`, `rush-stove`, `rush-sink`).
+
+### Des imprévus jouables
+
+La coupure de courant (on ne pouvait rien y faire) et la plonge bouchée sont retirées. Chaque
+imprévu a désormais sa parade, et le guidage la montre en premier :
+
+- **plateau renversé** sur la passe : plus de livraison tant qu'on ne l'a pas nettoyée (la touche,
+  les mains vides, 2,5 s) ;
+- **Comète, le chat du bord**, saute sur un comptoir ou une planche : au bout de 7 s, il mange
+  l'ingrédient qui s'y trouve, sauf si on le chasse (la touche) ; tant qu'il est là, le poste est
+  bloqué ;
+- **surchauffe** des fourneaux (15 s) : tout cuit, et brûle, 1,7 fois plus vite : il faut surveiller
+  ses feux ;
+- **coup de feu** : deux bons d'un coup ;
+- **l'amiral à bord** : un bon doré, plus pressé, qui rapporte double.
+
+### L'interface
+
+- Le fil rouge est supprimé. À la place : une **flèche** au-dessus du prochain poste utile et une
+  **consigne courte** en bas (« Coupez : Crevettes », « À la plonge ! », « Comète est sur le plan :
+  chassez-le ! »).
+- Les **bons** en images : l'ingrédient (aperçu du Food Kit, `public/assets/mess-rush/food/`), le
+  nombre, les icônes de ses gestes (couteau, marmite, flamme), la barre de délai, la couleur du plat.
+- Sur les postes : la jauge de coupe, de cuisson et de lavage ; l'alerte rouge avant que ça brûle,
+  la fumée quand c'est brûlé ; la pile d'assiettes et la vaisselle sale comptées ; le chat sur son
+  poste, dont l'icône clignote ; la flaque sur la passe.
+- L'invite dit ce que fera la touche ; rien à faire : le nom du poste et ce qui manque (« il faut
+  une assiette », « ça cuit… »).
+
+### L'équilibrage
+
+Mesuré avec les robots du guidage (sans trajets, une touche par seconde, imprévus compris, moyenne
+sur plusieurs graines) :
+
+| Joueurs | Plats servis | Score | Part des gestes |
+|---|---|---|---|
+| 1 | 14,3 | 1 091 | — |
+| 2 | 18,8 | 1 696 | 48 / 52 % |
+| 3 | 17,8 | 1 514 | 45 / 28 / 27 % |
+| 4 | 23,2 | 2 073 | 18 / 25 / 29 / 27 % |
+
+Presque aucun bon n'expire. Les médailles sont réglées à environ 30, 50 et 70 % de ces scores
+(`RULES.medals`). `server/mess-rush-kitchens.test.js` vérifie que les robots servent au moins 12
+plats à tous les effectifs et décrochent le bronze ; `server/mess-rush-events.test.js`, que personne
+ne reste les bras croisés ; `server/mess-rush-plates.test.js`, la vaisselle et les assiettes réunies.
+
+### À confirmer en jeu (2.0)
+
+- Les vrais trajets : les robots n'en ont pas ; la colonne du milieu, à trois, attend-elle trop ?
+- Le temps avant de brûler (9 s, 6 s) et la vitesse de la vaisselle, avec la latence réelle.
+- La place de Comète : sur une planche où l'on coupe, il agace peut-être plus qu'il n'amuse.
