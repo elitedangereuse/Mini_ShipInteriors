@@ -20,7 +20,8 @@ import { GameEmbed } from './game-embed'
 import { CardsPanel } from './cards/panel'
 import { ShipPlanPanel } from './ship-plan/panel'
 import { drawPoster, POSTER } from './ship-plan/poster'
-import { setShipMapArt } from './furniture/wayfinding'
+import { setShipMapArt, setTotemArt } from './furniture/wayfinding'
+import { drawTotem, identityOf, TOTEM_ART } from './deck-identity'
 import { showPull } from './furniture/cards'
 import { MediaRoom } from './media-room'
 import { CinemaRoom } from './cinema-room'
@@ -305,8 +306,15 @@ const siteCabin = account ? await within<SiteCabin | null | undefined>(cabinRequ
  */
 let cabinStore = account ? new CabinStore(account.name) : null
 
-// La feuille des affiches du plan du vaisseau (cf. src/furniture/wayfinding.ts), avant de bâtir les ponts qui les portent.
+// La feuille des affiches du plan du vaisseau et l'écran des totems des téléporteurs (cf.
+// src/furniture/wayfinding.ts), avant de bâtir les ponts qui les portent.
 setShipMapArt({ ...POSTER, draw: drawPoster })
+const levelName = (level: number) => LEVELS.find((l) => l.id === level)?.name ?? ''
+setTotemArt({
+  ...TOTEM_ART,
+  draw: (g, label) => drawTotem(g, label, levelName),
+  color: (label) => identityOf(Number(label.split(':')[0]))?.color ?? '#59d8ff',
+})
 const decks = LEVELS.map((def) => new Deck(def))
 /** Les conduits de ventilation, hors des ponts du téléporteur : on y tombe par les toilettes (cf. flushToVents). */
 const vents = new Vents({ renderer, scene, squeak: (at) => sound.squeak(at) })
@@ -1079,6 +1087,10 @@ function setDeck(next: Deck) {
   marker.position.y = deck.y + 0.02
   marker.visible = false
   $('deck').textContent = deck.def.name
+  // Le nom du pont, à sa couleur, et sa devise au survol (cf. deck-identity.ts).
+  const identity = identityOf(deck.def.id)
+  $('deck').style.color = offShip(deck.def) ? '' : identity?.color ?? ''
+  $('deck').title = offShip(deck.def) ? '' : identity?.tagline ?? ''
   // Sur la base au sol, on n'est plus à bord du Fleet Carrier.
   $('ship-where').textContent = deck.def.ground ? tr('Au sol', 'Planetside') : 'Fleet Carrier'
 }
@@ -3257,7 +3269,8 @@ async function ride(target: number) {
   const zoom = iso.zoomLevel
   iso.zoomTo(Math.min(zoom, 3.4))
   // Le pont change dans l'éclair, au milieu de la téléportation (cf. lift-ride.ts).
-  await liftRide.run(from.x, deck.y, from.z, next.y > deck.y, next.def.name, () => {
+  const tagline = identityOf(target)?.tagline
+  await liftRide.run(from.x, deck.y, from.z, next.y > deck.y, tagline ? `${next.def.name} · ${tagline}` : next.def.name, () => {
     // Changer de pont met fin à une visite : on retrouvera ses propres quartiers.
     if (visiting) {
       const host = visiting.name
@@ -4223,13 +4236,14 @@ addEventListener('visibilitychange', () => gamepad.suspend())
 const MOVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'])
 
 /**
- * Panneau d'ascenseur ouvert : haut/bas pour choisir l'étage, Entrée ou Espace pour y aller,
- * E ou Échap pour fermer. Le personnage ne bouge pas pendant ce temps.
+ * Panneau du téléporteur ouvert : haut/bas pour choisir le pont, Entrée ou Espace pour y aller,
+ * / pour chercher un lieu, E ou Échap pour fermer. Le personnage ne bouge pas pendant ce temps.
  * @returns true si la touche a été prise par le panneau
  */
 function liftKey(e: KeyboardEvent): boolean {
   if (!lift.isOpen) return false
-  if (e.code === 'ArrowUp' || e.code === 'KeyW') lift.move(-1)
+  if (e.key === '/') lift.focusSearch()
+  else if (e.code === 'ArrowUp' || e.code === 'KeyW') lift.move(-1)
   else if (e.code === 'ArrowDown' || e.code === 'KeyS') lift.move(1)
   else if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') lift.confirm()
   else if (e.code === 'KeyE' || e.code === 'Escape') lift.close()
@@ -5427,7 +5441,7 @@ function interactWith(item: Interactable) {
   if (item.furniture?.model === 'idot-terminal') return gameEmbed.open('idot')
   if (item.furniture?.model === 'pixelwar-terminal' || item.furniture?.model === 'pixelwar-screen' || (item.furniture?.model === 'arcade' && item.furniture.label === 'pixelwar')) return gameEmbed.open('pixelwar')
   if (item.furniture?.model === 'cctv-desk') return openCameras()
-  if (item.furniture?.model === 'ship-map') {
+  if (item.furniture?.model === 'ship-map' || item.furniture?.model === 'deck-totem') {
     player.cancelPath()
     keys.clear()
     marker.visible = false

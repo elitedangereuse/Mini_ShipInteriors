@@ -176,8 +176,8 @@
           <div lang="en"><kbd>Y / △</kbd> emotes · <kbd>R3</kbd> change view · <kbd>Select</kbd> interface mode: the D-pad picks an on-screen button, <kbd>A / ×</kbd> presses it, <kbd>B / ○</kbd> goes back, the right stick scrolls</div>
           <div lang="fr">Sur un champ de texte (chat, messages), <kbd>A / ×</kbd> ouvre un clavier : <kbd>X / □</kbd> effacer, <kbd>Y / △</kbd> espace, <kbd>LB</kbd> majuscule, <kbd>RB</kbd> symboles, <kbd>Start</kbd> envoyer</div>
           <div lang="en">On a text field (chat, messages), <kbd>A / ×</kbd> opens a keyboard: <kbd>X / □</kbd> erase, <kbd>Y / △</kbd> space, <kbd>LB</kbd> shift, <kbd>RB</kbd> symbols, <kbd>Start</kbd> send</div>
-          <div class="muted" lang="fr">Appuyez sur un bouton de la manette pour la détecter. Les panneaux, les jeux de table et les bornes d'arcade se pilotent à la croix ; ascenseur / jukebox : haut-bas, <kbd>A / ×</kbd> valider ; jukebox : <kbd>LB / RB</kbd> filtrer.</div>
-          <div class="muted" lang="en">Press a gamepad button to detect it. Panels, board games and arcade cabinets are driven with the D-pad; lift / jukebox: up-down, <kbd>A / ×</kbd> confirm; jukebox: <kbd>LB / RB</kbd> filter.</div>
+          <div class="muted" lang="fr">Appuyez sur un bouton de la manette pour la détecter. Les panneaux, les jeux de table et les bornes d'arcade se pilotent à la croix ; téléporteur / jukebox : haut-bas, <kbd>A / ×</kbd> valider ; jukebox : <kbd>LB / RB</kbd> filtrer.</div>
+          <div class="muted" lang="en">Press a gamepad button to detect it. Panels, board games and arcade cabinets are driven with the D-pad; teleporter / jukebox: up-down, <kbd>A / ×</kbd> confirm; jukebox: <kbd>LB / RB</kbd> filter.</div>
           <div lang="fr"><kbd>1</kbd>…<kbd>8</kbd> emotes (<kbd>8</kbd> : o7) · <kbd>9</kbd> réactions · <kbd>Entrée</kbd> chat</div>
           <div lang="en"><kbd>1</kbd>…<kbd>8</kbd> emotes (<kbd>8</kbd>: o7) · <kbd>9</kbd> reactions · <kbd>Enter</kbd> chat</div>
           <div lang="fr"><kbd>R</kbd> pivoter · molette : zoom · <kbd>V</kbd> vue subjective · <kbd>C</kbd> troisième personne (<kbd>X</kbd> : l'autre épaule)</div>
@@ -242,11 +242,16 @@
       <div id="dialog" hidden></div>
 
       <div id="lift" class="panel lift" hidden>
-        <div class="lift-title"><span lang="fr">Ascenseur</span><span lang="en">Lift</span></div>
+        <div class="lift-title"><span lang="fr">Téléporteur</span><span lang="en">Teleporter</span></div>
+        <label class="lift-search">
+          <i data-icon="magnifying-glass"></i>
+          <input id="lift-search" type="search" autocomplete="off" spellcheck="false" placeholder="Où aller ? basket, cinéma, Weekly…" data-en-placeholder="Where to? basketball, cinema, Weekly…" aria-label="Où aller ?" data-en-aria-label="Where to?">
+        </label>
         <div id="lift-buttons"></div>
+        <p id="lift-none" class="lift-none" hidden><span lang="fr">Aucun lieu ne répond. Essayez un autre mot.</span><span lang="en">No place matches. Try another word.</span></p>
         <div class="lift-hint">
           <kbd class="arrows"><i data-icon="arrow-up"></i><i data-icon="arrow-down"></i></kbd>
-          <span lang="fr">choisir · <kbd>Entrée</kbd> y aller</span><span lang="en">select · <kbd>Enter</kbd> go</span>
+          <span lang="fr">choisir · <kbd>Entrée</kbd> y aller · <kbd>/</kbd> chercher</span><span lang="en">select · <kbd>Enter</kbd> go · <kbd>/</kbd> search</span>
         </div>
         <button id="lift-close" class="lift-close">
           <span lang="fr">Fermer</span><span lang="en">Close</span> <kbd>E</kbd><kbd lang="fr">Échap</kbd><kbd lang="en">Esc</kbd>

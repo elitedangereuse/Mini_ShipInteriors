@@ -1,6 +1,7 @@
 import type { GameEmbed } from '../game-embed'
 import { tr } from '../i18n'
 import { liftOf } from '../levels'
+import { identityOf } from '../deck-identity'
 import type { ShipMap } from '../map'
 import { deckLabel, deckName, deckNumber, liftTo, PLAN_LEVELS, planAreas, planOf, QUARTERS_LEVEL, roomInfo, roomName, SIGN_FONT, ZONE_ORDER, ZONES } from './data'
 import { pathOf, roomOpen, type DeckPlan, type PlanRoom } from './geometry'
@@ -203,7 +204,16 @@ export class ShipPlanPanel {
       const at = this.here.level === deck.level ? stack.at(deck.level, this.here.x, this.here.z) : null
       if (at) art.append(svg('circle', { cx: at[0], cy: at[1], r: 4.2, class: 'plan-plate-here' }))
       const name = el('span', 'plan-deck-label')
-      name.append(el('b', '', deckNumber(deck.level)), deckName(deck.level))
+      // L'étage à la couleur du pont, et sa devise (cf. deck-identity.ts).
+      const identity = identityOf(deck.level)
+      const number = el('b', '', deckNumber(deck.level))
+      if (identity) number.style.color = identity.color
+      name.append(number, deckName(deck.level))
+      if (identity) {
+        const tagline = el('em', 'plan-deck-tagline', identity.tagline)
+        tagline.style.color = identity.color
+        name.append(tagline)
+      }
       if (this.here.level === deck.level) name.append(el('small', '', tr('Vous êtes ici', 'You are here')))
       b.append(art, name)
       const item = el('li')

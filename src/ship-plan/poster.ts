@@ -1,4 +1,5 @@
 import { tr } from '../i18n'
+import { identityOf } from '../deck-identity'
 import { deckLabel, deckName, deckNumber, HOLO, planOf, QUARTERS_LEVEL, roomInfo, roomName, SIGN_FONT, ZONE_ORDER, ZONES } from './data'
 import { shipStack } from './stack'
 
@@ -185,8 +186,11 @@ export function drawPoster(g: Ctx, here?: { level: number; x: number; z: number 
     const y = 124 + i * blockH
     const plan = planOf(deck.level)
     g.textAlign = 'left'
-    glow(g, HOLO.accent, 12)
-    g.fillStyle = HOLO.accent
+    // L'étage, à la couleur du pont, son nom, et sa devise (cf. deck-identity.ts).
+    const identity = identityOf(deck.level)
+    const color = identity?.color ?? HOLO.accent
+    glow(g, color, 12)
+    g.fillStyle = color
     g.font = `700 52px ${SIGN_FONT}`
     const number = deckNumber(deck.level)
     g.fillText(number, colX, y + 50)
@@ -195,9 +199,16 @@ export function drawPoster(g: Ctx, here?: { level: number; x: number; z: number 
     caps(g, 3)
     g.fillStyle = HOLO.text
     g.font = `700 31px ${SIGN_FONT}`
-    g.fillText(deckName(deck.level).toUpperCase(), nx, y + 47)
+    const name = deckName(deck.level).toUpperCase()
+    g.fillText(name, nx, y + 47)
+    const tx = nx + g.measureText(name).width + 16
     caps(g, 0)
     glow(g, null)
+    if (identity) {
+      g.fillStyle = color
+      g.font = `600 21px ${SIGN_FONT}`
+      g.fillText(identity.tagline, tx, y + 46, Math.max(0, w - 44 - tx))
+    }
 
     // Ses pièces à voir, chacune avec la pastille de sa zone : les plus longs noms d'abord, chaque
     // nom sur la première ligne où il tient, pour en remplir le moins possible.

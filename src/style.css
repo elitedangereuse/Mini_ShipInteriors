@@ -1597,7 +1597,9 @@ body.cctv-on #touch-pad {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: min(280px, calc(100vw - 24px));
+  width: min(360px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
   display: grid;
   gap: 8px;
   padding: 14px;
@@ -1657,6 +1659,82 @@ body.cctv-on #touch-pad {
   background: transparent;
   color: var(--muted);
   font-size: 12px;
+}
+/* Un pont : sa couleur en liseré, son étage, son nom et sa devise (cf. deck-identity.ts). */
+#lift-buttons button.lift-deck {
+  --deck: var(--cyan);
+  justify-content: flex-start;
+  gap: 12px;
+  text-align: left;
+  border-left: 4px solid var(--deck);
+}
+#lift-buttons button.lift-deck kbd {
+  min-width: 2.4em;
+  text-align: center;
+  background: var(--deck);
+  border-color: var(--deck);
+  color: #0a0f18;
+  font-weight: 700;
+}
+.lift-deck-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.lift-tagline {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--deck);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.lift-tagline .icon {
+  width: 13px;
+  height: 13px;
+}
+.lift-places {
+  color: var(--text);
+  font-size: 11px;
+  opacity: 0.85;
+}
+#lift-buttons button.lift-deck.dim {
+  opacity: 0.45;
+}
+.lift-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+}
+.lift-search:focus-within {
+  border-color: var(--cyan);
+}
+.lift-search .icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+.lift-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.lift-none {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
 }
 
 /* Au-dessus des emotes : en haut, il toucherait « Retour au site » et la barre sous ~1360 px. */

@@ -9,6 +9,7 @@ import type { GroundDef } from './base/kit'
 import type { CabinDef } from './cabin/view'
 import type { CustomModel } from './furniture'
 import { tr } from './i18n'
+import { identityOf } from './deck-identity'
 import { WEAPONS } from './range-weapons'
 import { ARENA_DOORS, BOARD_TABLES, FOYER_DOORS, SHIP_LAYOUTS, SHOOTING_RANGE, SPORT_COURTS, teleporterOf, THARGOID_DOORS } from '../shared/ship-layouts.js'
 import { resolveShipMapPlacement, type ShipMapPlacementId } from '../shared/ship-map-placements.js'
@@ -234,6 +235,29 @@ const shipMap = (id: ShipMapPlacementId): Prop => {
     interact: tr('Le plan du vaisseau, pont par pont.', 'The ship map, deck by deck.'),
   }
 }
+
+/**
+ * Le totem du téléporteur (cf. src/deck-identity.ts et src/furniture/wayfinding.ts) : le pont, sa
+ * devise, ses lieux et leur direction vue du totem, et les autres ponts. On le consulte pour ouvrir
+ * le plan détaillé.
+ */
+const totem = (level: number, x: number, z: number, rot: Rot): Prop => ({
+  model: 'deck-totem', x, z, rot, label: `${level}:${x}:${z}:${rot}`,
+  action: tr('Consulter le plan', 'Read the map'),
+  interact: tr('Le totem du téléporteur : le pont, ses lieux, et le plan du vaisseau.', 'The teleporter totem: the deck, its places, and the ship map.'),
+})
+
+/** Couleur d'un pont (cf. src/deck-identity.ts) : ses totems, ses enseignes, ses lignes au sol. */
+const deckColor = (level: number) => identityOf(level)?.color ?? '#59d8ff'
+
+/** Ligne de guidage peinte au sol, de la couleur du pont, par ces points (position du jeu), du téléporteur vers une destination. */
+const guide = (level: number, points: [number, number][]): Prop => {
+  const [x, z] = points[0]
+  return { model: 'guide-line', x, z, solid: false, label: `${deckColor(level)}|${points.map(([px, pz]) => `${+(px - x).toFixed(3)},${+(pz - z).toFixed(3)}`).join(' ')}` }
+}
+
+/** Enseigne de porte, au format de celles de la coursive du pont principal, à la couleur du pont (cf. src/furniture/corridor.ts). */
+const doorSign = (level: number, x: number, z: number, rot: Rot, name: string): Prop => ({ model: 'corridor-sign', x, z, rot, label: `${name}|${deckColor(level)}`, solid: false })
 
 /** Ce qu'on lit aux balises du bouclier du hangar. */
 const SHIELD_TEXT = [
@@ -915,8 +939,11 @@ export const LEVELS: LevelDef[] = [
       // d'exploration). Les deux lobbys s'y font face, chacun sous son enseigne : la zone thargoïde
       // au nord, CMDR Arena au sud. Au mur nord, à côté de la porte de la zone : son classement ---
       { model: 'salvage-sign', x: 23.5, z: 3.66, solid: false },
-      // Le plan du vaisseau, à côté du téléporteur de la cale (cf. TELEPORTERS).
+      // Le plan du vaisseau, à côté du téléporteur de la cale (cf. TELEPORTERS), son totem, et la
+      // ligne au sol qui mène au complexe d'entraînement.
       shipMap('holdHall'),
+      totem(-1, 20.3, 6.45, 1),
+      guide(-1, [[21, 5.45], [20.62, 5.9], [20.62, 10], [20.1, 10.45]]),
       { model: 'floor-way', x: 23.5, z: 4.08, label: tr('ZONE THARGOÏDE', 'THARGOID ZONE') + '|1.8,0.95|#6dff9a|n', solid: false },
       { model: 'salvage-board', x: 21, z: 3.68, action: tr('Classement', 'Leaderboard'), interact: tr(
         'Le classement de la zone thargoïde : les équipes qui sont revenues avec leurs colis.',
@@ -1010,6 +1037,9 @@ export const LEVELS: LevelDef[] = [
       { model: 'bench', x: 8.4, z: 13.85, label: 'mustard' },
       { model: 'bench', x: 15.6, z: 13.85, label: 'teal' },
       shipMap('trainingHall'),
+      doorSign(-1, 5.8, 15.345, 2, tr('Terrain de foot', 'Football pitch')),
+      doorSign(-1, 12.8, 15.345, 2, tr('Terrain de basket', 'Basketball court')),
+      doorSign(-1, 18.8, 15.345, 2, tr('Salle de sport', 'Gym')),
 
       // --- Terrain de basket : un demi-terrain, le panier sur sa glissière au mur ouest ; on tire
       // depuis la marque, face au panier (cf. src/court.ts, SPORT_COURTS). Derrière le mur nord du
@@ -1642,8 +1672,9 @@ export const LEVELS: LevelDef[] = [
       { model: 'plant', x: 7.1, z: 0.0 },
       { model: 'plant', x: 7.1, z: 9.0 },
 
-      // Le plan du vaisseau, face au téléporteur du hall (cf. TELEPORTERS).
+      // Le plan du vaisseau, face au téléporteur du hall (cf. TELEPORTERS), et son totem, entre les deux bureaux.
       shipMap('mainHall'),
+      totem(0, 4, 12.4, 2),
 
       // À l'étage : le jukebox au milieu des baies (tout le pont l'entend, cf. src/music.ts), deux
       // salons de part et d'autre, tournés vers le hall, et des plantes aux paliers.
@@ -2815,8 +2846,19 @@ export const LEVELS: LevelDef[] = [
       { model: 'movie-poster', x: 20.65, z: 7.1, rot: 1, label: 'hutton', solid: false },
       { model: 'movie-poster', x: 20.65, z: 7.9, rot: 1, label: 'thargoid', solid: false },
       // --- Galerie : la coursive qui longe le planétarium et dessert la bibliothèque. Au bout, un
-      // tapis mène à la porte double du Comptoir des Cartes Dangereuses ---
+      // tapis mène à la porte double du Comptoir des Cartes Dangereuses. Le téléporteur du pont
+      // est à son débouché (cf. TELEPORTERS) : son totem, le plan, les lignes au sol vers la
+      // bibliothèque, le Comptoir et le planétarium, et l'enseigne de chaque porte ---
       shipMap('upperGallery'),
+      totem(1, 16.5, 8.86, 0),
+      guide(1, [[16.45, 10.2], [22.5, 10.2], [22.5, 10.45]]),
+      guide(1, [[16.45, 9.8], [29.45, 9.8]]),
+      guide(1, [[15.6, 9.55], [15, 8.95], [15, 6.3]]),
+      doorSign(1, 24.2, 10.345, 2, tr('Bibliothèque', 'Library')),
+      doorSign(1, 23.35, 8.655, 0, tr('Cinéma', 'Cinema')),
+      doorSign(1, 18.8, 8.655, 0, tr('Salon d\'écoute', 'Listening lounge')),
+      doorSign(1, 11.8, 5.345, 2, tr('Planétarium', 'Planetarium')),
+      doorSign(1, 9.8, 3.655, 0, tr('Salle de classe', 'Classroom')),
       { model: 'rug', x: 27.6, z: 9.5, label: 'cinema:4.6x1.2', solid: false },
       { model: 'neon-sign', x: 28.9, z: 8.68, label: tr('CARTES', 'CARDS') },
       { model: 'plant-tall', x: 29.5, z: 8.85 },
