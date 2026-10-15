@@ -49,13 +49,13 @@ function harness(options = {}) {
     mess.moved(p)
   }
   /**
-   * Le joueur va (en deux secondes) devant un poste : au mur du fond, au mur ouest, au sud de la
-   * cloison de l'ouest, devant le comptoir de service ; `dx` : de côté (un passe-plat, dans la cloison).
+   * Le joueur va (en deux secondes) devant un poste : au mur du fond, aux murs ouest et est, devant le
+   * comptoir du nord ; `dx` : un peu de côté (deux joueurs au même poste).
    */
   const goto = (p, stationId, dx = 0) => {
     const s = STATION_BY_ID[stationId]
-    const x = s.x < 8.3 ? 8.6 : s.x + dx
-    const z = s.z > 11.5 ? 11.3 : Math.abs(s.z - 10.075) < 0.1 ? 10.7 : s.z < 8.4 ? 8.85 : s.z
+    const x = s.x < 8.3 ? 8.6 : s.x > 16.8 ? 16.4 : s.x + dx
+    const z = s.z > 11.5 ? 11.3 : s.z < 8.4 ? 8.85 : s.z
     t += 2000
     assert.ok(mess.accepts(p, x, z), `vers ${stationId}`)
     Object.assign(p, { x, z })
@@ -137,8 +137,8 @@ test('une action loin du poste est refusée ; au poste, elle passe et l\'état p
   const { members: [a, b] } = h.team(1, 2)
   h.launch([a, b])
   h.advance(RULES.firstOrder + 0.2)
-  // Loin de la caisse de lapin (au bout de sa zone, devant sa planche du fond).
-  h.goto(a, 'plan-1')
+  // Loin de la caisse de lapin (au bout de la cuisine, devant la plonge).
+  h.goto(a, 'plonge')
   h.mess.handle(a, 'mess:use', { station: 'caisse-lapin' })
   assert.deepEqual(h.last(1, 'mess:refused'), { game: h.mess.gameOf(a).id, station: 'caisse-lapin', code: 'far' })
   h.goto(a, 'caisse-lapin')
@@ -154,24 +154,16 @@ test('une action loin du poste est refusée ; au poste, elle passe et l\'état p
   assert.equal(h.last(1, 'mess:refused').code, 'state')
 })
 
-test('à deux, chacun arrive dans sa zone et y reste ; un départ fait tomber les cloisons', () => {
+test('à deux, chacun arrive à sa place, et va où il veut dans la cuisine ouverte', () => {
   const h = harness()
   const { members: [a, b] } = h.team(1, 2)
-  const game = h.launch([a, b])
-  assert.ok(h.last(1, 'mess:start').spawn.x < 12.6)
-  assert.ok(h.last(2, 'mess:start').spawn.x > 12.75)
-  assert.deepEqual(game.state.zones, { 1: 0, 2: 1 })
-  // De l'autre côté de la cloison : refusé, même à portée de course.
-  assert.equal(h.mess.accepts(b, 10.2, 10.6), false)
-  assert.equal(h.mess.accepts(a, 9.8, 10.7), true)
-  // L'est abandonne : l'ouest atteint toute la cuisine.
-  h.mess.handle(b, 'mess:quit')
-  assert.equal(game.state.open, true)
-  assert.ok(h.all(1, 'mess:event').some((e) => e.events.some((x) => x.kind === 'open')))
-  h.advance(0.1)
-  assert.equal(h.last(1, 'mess:state').state.open, true)
-  h.advance(1.5)
-  assert.equal(h.mess.accepts(a, 11.6, 10.9), true)
+  h.launch([a, b])
+  const [sa, sb] = [h.last(1, 'mess:start').spawn, h.last(2, 'mess:start').spawn]
+  assert.ok(Math.hypot(sa.x - sb.x, sa.z - sb.z) > 1)
+  h.advance(2)
+  // Pas de cloison : chacun traverse toute la cuisine (à la vitesse d'une course).
+  assert.equal(h.mess.accepts(a, sa.x + 2.5, sa.z), true)
+  assert.equal(h.mess.accepts(b, sb.x - 2.5, sb.z), true)
 })
 
 test('deux joueurs prennent le même objet en même temps : un seul l\'a', () => {
@@ -181,15 +173,15 @@ test('deux joueurs prennent le même objet en même temps : un seul l\'a', () =>
   h.advance(RULES.firstOrder + 0.2)
   h.goto(a, 'caisse-lapin')
   h.mess.handle(a, 'mess:use', { station: 'caisse-lapin' })
-  // Le passe-plat de la cloison : chacun l'atteint de son côté.
-  h.goto(a, 'passe-plat-o-s', -0.5)
-  h.mess.handle(a, 'mess:use', { station: 'passe-plat-o-s' })
-  h.goto(b, 'passe-plat-o-s', 0.5)
-  const item = game.state.stations['passe-plat-o-s'].item
+  // Un comptoir du nord : chacun s'y tient, côte à côte.
+  h.goto(a, 'comptoir-n3', -0.4)
+  h.mess.handle(a, 'mess:use', { station: 'comptoir-n3' })
+  h.goto(b, 'comptoir-n3', 0.4)
+  const item = game.state.stations['comptoir-n3'].item
   assert.ok(item)
   // Les deux demandes arrivent avant le pas suivant.
-  h.mess.handle(a, 'mess:use', { station: 'passe-plat-o-s' })
-  h.mess.handle(b, 'mess:use', { station: 'passe-plat-o-s' })
+  h.mess.handle(a, 'mess:use', { station: 'comptoir-n3' })
+  h.mess.handle(b, 'mess:use', { station: 'comptoir-n3' })
   assert.equal(game.state.hands['1'], item)
   assert.equal(game.state.hands['2'] ?? null, null)
   assert.equal(h.last(2, 'mess:refused').code, 'state')
@@ -298,7 +290,7 @@ test('coupure : ce qu\'on tenait est posé, la place attend une minute, et l\'on
   const held = game.state.hands['1']
   const { ticket } = h.last(1, 'mess:start')
   h.mess.leave(a)
-  assert.equal(game.state.stations['comptoir-n'].item, held)
+  assert.equal(game.state.stations['comptoir-so'].item, held)
   assert.ok(h.last(2, 'mess:event', (d) => d.events.some((e) => e.kind === 'away')))
   // Un autre ticket : refusé. Le bon : on revient, sous un nouvel identifiant.
   const back = h.add(11)

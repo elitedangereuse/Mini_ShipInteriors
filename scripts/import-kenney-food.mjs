@@ -17,11 +17,10 @@ const KITS = [
   {
     dir: 'Food Kit/Models/GLB format', prefix: '',
     models: [
-      // Les ingrédients (crus, puis préparés ou cuits).
-      'meat-raw', 'meat-cooked', 'carrot', 'mussel', 'mussel-open', 'fish', 'bag', 'bag-flat', 'apple', 'apple-half',
-      'corn', 'pancakes', 'mushroom', 'mushroom-half', 'paprika', 'paprika-slice', 'egg', 'egg-cooked', 'meat-ribs', 'rice-ball',
+      // Les ingrédients (crus, puis coupés ou cuits) : seulement ceux du catalogue (cf. `model`).
+      'meat-raw', 'meat-cooked', 'carrot', 'fish', 'rice-ball', 'apple', 'apple-half',
       // La vaisselle et les ustensiles.
-      'plate', 'plate-deep', 'cup-coffee', 'cup-tea', 'pot', 'pot-stew', 'frying-pan', 'cutting-board', 'cooking-knife',
+      'plate', 'pot', 'frying-pan', 'cutting-board',
     ],
   },
 ]

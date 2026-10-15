@@ -1,33 +1,44 @@
 import * as THREE from 'three'
+import arrowsSvg from '@phosphor-icons/core/fill/arrows-clockwise-fill.svg?raw'
+import bellSvg from '@phosphor-icons/core/fill/bell-ringing-fill.svg?raw'
+import potSvg from '@phosphor-icons/core/fill/cooking-pot-fill.svg?raw'
+import dropSvg from '@phosphor-icons/core/fill/drop-fill.svg?raw'
+import flameSvg from '@phosphor-icons/core/fill/flame-fill.svg?raw'
+import forkKnifeSvg from '@phosphor-icons/core/fill/fork-knife-fill.svg?raw'
+import knifeSvg from '@phosphor-icons/core/fill/knife-fill.svg?raw'
+import trashSvg from '@phosphor-icons/core/fill/trash-fill.svg?raw'
+import warningSvg from '@phosphor-icons/core/fill/warning-fill.svg?raw'
 import { CAT_MODEL, FOOD_PACK, packModel, rig } from '../assets'
 import type { Avatar } from '../avatar'
-import type { Box2 } from '../deck'
-import { markerMaterial } from '../economy/tasks'
 import { EN } from '../i18n'
-import type { IconName } from '../icons'
 import { INGREDIENTS, PROCESSES, RECIPES, type StationKind } from '../../shared/mess-rush-catalog.js'
 import {
-  COUNTER_TOP, RULES, STATIONS, STATION_BY_ID, canReach, ingredientState, kitchenOf, nextPrep, wallsOf,
-  type CountState, type Item, type Rect, type ServiceState, type UtensilState,
+  COUNTER_TOP, RULES, STATIONS, STATION_BY_ID, ingredientState, nextPrep,
+  type CountState, type Item, type ServiceState, type UtensilState,
 } from '../../shared/mess-rush.js'
 
 /*
  * Ce qu'on voit en cuisine, d'après l'état du service (cf. shared/mess-rush.js), pour qu'on comprenne
- * d'un coup d'œil, comme dans Overcooked : l'ingrédient en grand sur sa caisse, ce qui est posé sur
- * les planches et les comptoirs ou porté à deux mains, la marmite et la poêle de chaque feu, ce
- * qu'elles contiennent (en images au-dessus), leur jauge de cuisson, l'alerte quand ça va brûler et la
+ * d'un coup d'œil, comme dans Overcooked : des aliments gros et reconnaissables (entiers, puis en
+ * morceaux une fois coupés, dorés une fois cuits, noirs une fois brûlés), en grand sur leur caisse,
+ * posés sur les planches et les comptoirs ou portés à deux mains ; la marmite et la poêle de chaque
+ * feu, ce qu'elles contiennent (en bulles au-dessus), leur jauge, l'alerte quand ça va brûler et la
  * fumée quand c'est brûlé ; la pile d'assiettes propres, la vaisselle sale au retour et dans la
- * plonge ; un anneau de la couleur du plat sous chaque assiette qui le devient ; le repère de chaque
- * poste (grisé chez un coéquipier), les flèches du guidage ; à plusieurs, les cloisons et leurs
- * passe-plats ; et les imprévus : le plateau renversé sur la passe, Comète sur son comptoir, les feux
- * en surchauffe. Les modèles viennent du Food Kit de Kenney (cf. FOOD_PACK), chargé en entrant dans
- * la cuisine.
+ * plonge ; un anneau de la couleur du plat sous chaque assiette qui le devient ; une pastille ronde
+ * au-dessus de chaque poste ; et les imprévus : le plateau renversé sur la passe, Comète sur son
+ * plan, les feux en surchauffe. Les modèles viennent du Food Kit de Kenney (cf. FOOD_PACK), chargé à
+ * l'ouverture du salon ; Comète se charge avec lui, pas au milieu du service.
  */
 
 /** Hauteur des comptoirs, des planches et des fourneaux (cf. furniture/mess-rush.ts). */
 const TOP = COUNTER_TOP + 0.005
 /** Ce qu'on porte repose sur les mains : un peu au-dessus de leur bout. */
 const HAND_LIFT = 0.02
+/** Taille d'un aliment (m) : posé ou porté, sur sa caisse, dans une assiette. */
+const FOOD = 0.25
+const ON_CRATE = 0.36
+const ON_PLATE = 0.14
+const PLATE = 0.34
 
 /** Un modèle du Food Kit, à la taille voulue (plus grande dimension au sol), posé sur y = 0. */
 const fitted = new Map<string, THREE.Object3D>()
@@ -68,26 +79,59 @@ function tint(o: THREE.Object3D, color: string, amount: number): THREE.Object3D 
 }
 
 /** Les modèles d'un ingrédient coupé, quand le pack en a un. */
-const CUT: Record<string, string> = { apple: 'apple-half', mushroom: 'mushroom-half', paprika: 'paprika-slice' }
+const CUT: Record<string, string> = { apple: 'apple-half' }
 
-/** Un ingrédient, dans son état : cru, coupé, cuit (le riz reste blanc), saisi (doré), brûlé (noir). */
-function ingredientObject(ing: string, state: string, size = 0.15): THREE.Object3D {
-  const base = INGREDIENTS[ing].model
-  if (state === 'brûlé') return tint(model(base === 'meat-raw' ? 'meat-cooked' : base, size), '#1b1410', 0.85)
-  if ((state === 'cuit' || state === 'saisi') && base === 'meat-raw') return model('meat-cooked', size)
-  const name = state === 'coupé' ? CUT[base] ?? base : base
-  const o = model(name, state === 'coupé' && !CUT[base] ? size * 0.85 : size)
-  return state === 'saisi' || (state === 'cuit' && base !== 'rice-ball') ? tint(o, '#5a3418', 0.45) : o
+/** Coupé : trois morceaux (ou deux moitiés), pour qu'on voie d'un coup que c'est prêt. */
+function pieces(name: string, size: number): THREE.Object3D {
+  const g = new THREE.Group()
+  const half = CUT[name]
+  const spots: [number, number, number][] = half ? [[-0.22, 0, 0.4], [0.22, 0.05, -0.5]] : [[-0.22, -0.12, 0.3], [0.2, -0.14, 1.9], [0, 0.18, 3.6]]
+  for (const [x, z, a] of spots) {
+    const p = model(half ?? name, size * (half ? 0.62 : 0.55))
+    p.position.set(x * size, 0, z * size)
+    p.rotation.y = a
+    g.add(p)
+  }
+  return g
 }
 
-/** Ce que contient une assiette, en petit, en cercle sur elle. */
+/**
+ * Un ingrédient, dans son état : entier, coupé (en morceaux), cuit (doré, le riz reste blanc), saisi,
+ * brûlé (noir). Dans une assiette (`whole`), en un seul morceau, pour rester lisible en petit.
+ */
+function ingredientObject(ing: string, state: string, size = FOOD, whole = false): THREE.Object3D {
+  const base = INGREDIENTS[ing].model
+  const meat = base === 'meat-raw'
+  const cut = (name: string) => (whole ? model(CUT[name] ?? name, size) : pieces(name, size))
+  if (state === 'brûlé') return tint(model(meat ? 'meat-cooked' : base, size), '#1b1410', 0.85)
+  if ((state === 'cuit' || state === 'saisi') && meat) return model('meat-cooked', size)
+  if (state === 'coupé') return cut(base)
+  if (state === 'cuit' || state === 'saisi') {
+    const o = INGREDIENTS[ing].prep.length ? cut(base) : model(base, size)
+    return base === 'rice-ball' ? o : tint(o, '#5a3418', 0.45)
+  }
+  return model(base, size)
+}
+
+/** Une ombre douce sous ce qui est posé : l'aliment se détache du comptoir clair. */
+const shadowGeometry = new THREE.CircleGeometry(0.15, 20).rotateX(-Math.PI / 2)
+const shadowMaterial = new THREE.MeshBasicMaterial({ color: '#0b0d12', transparent: true, opacity: 0.28, depthWrite: false })
+function withShadow(o: THREE.Object3D): THREE.Object3D {
+  const s = new THREE.Mesh(shadowGeometry, shadowMaterial)
+  s.position.y = 0.003
+  s.renderOrder = 1
+  o.add(s)
+  return o
+}
+
+/** Ce que contient une assiette, en cercle sur elle. */
 function plateObject(contents: [string, string][]): THREE.Object3D {
   const g = new THREE.Group()
-  g.add(model('plate', 0.3))
+  g.add(model('plate', PLATE))
   contents.forEach(([ing, state], i) => {
-    const o = ingredientObject(ing, state, 0.1)
+    const o = ingredientObject(ing, state, ON_PLATE, true)
     const a = (i / Math.max(1, contents.length)) * Math.PI * 2
-    const r = contents.length > 1 ? 0.06 : 0
+    const r = contents.length > 1 ? 0.07 : 0
     o.position.set(Math.cos(a) * r, 0.015, Math.sin(a) * r)
     g.add(o)
   })
@@ -98,7 +142,7 @@ function plateObject(contents: [string, string][]): THREE.Object3D {
 function plateStack(n: number, dirty: boolean): THREE.Object3D {
   const g = new THREE.Group()
   for (let i = 0; i < Math.min(6, n); i++) {
-    const p = model('plate', 0.3)
+    const p = model('plate', PLATE)
     p.position.y = i * 0.025
     p.rotation.y = i * 0.7
     g.add(dirty ? tint(p, '#6b5a48', 0.55) : p)
@@ -145,7 +189,7 @@ export function dishColor(state: ServiceState, item: Item | null | undefined): s
 }
 
 /** Un anneau de couleur sous une assiette : le plat qu'elle devient (cf. dishColor). */
-const ringGeometry = new THREE.RingGeometry(0.15, 0.2, 28).rotateX(-Math.PI / 2)
+const ringGeometry = new THREE.RingGeometry(0.17, 0.23, 28).rotateX(-Math.PI / 2)
 const ringMaterials = new Map<string, THREE.Material>()
 function tintRing(color: string): THREE.Object3D {
   let m = ringMaterials.get(color)
@@ -156,41 +200,88 @@ function tintRing(color: string): THREE.Object3D {
   return ring
 }
 
-/** L'image d'un ingrédient (cf. public/assets/mess-rush/food/), en sprite : ce que contient une marmite. */
-const foodMaterials = new Map<string, THREE.SpriteMaterial>()
+/** L'image d'un ingrédient (cf. public/assets/mess-rush/food/), pour les bons et les bulles des marmites. */
 export function foodImage(ing: string, state = 'brut'): string {
   const base = INGREDIENTS[ing].model
   const name = state === 'coupé' && CUT[base] ? CUT[base] : (state === 'cuit' || state === 'saisi') && base === 'meat-raw' ? 'meat-cooked' : base
   return `${import.meta.env.BASE_URL}assets/mess-rush/food/${name}.png`
 }
-function foodMaterial(ing: string): THREE.SpriteMaterial {
-  let m = foodMaterials.get(ing)
-  if (!m) {
-    const t = new THREE.TextureLoader().load(foodImage(ing))
-    t.colorSpace = THREE.SRGBColorSpace
-    foodMaterials.set(ing, (m = new THREE.SpriteMaterial({ map: t, depthTest: false, depthWrite: false, transparent: true })))
+
+/**
+ * Une pastille ronde, façon dessin animé : un gros cerne sombre, un fond vif avec son reflet, et le
+ * pictogramme (plein) au milieu ; ou, sans pictogramme, l'image d'un aliment (les bulles des
+ * marmites). Une texture par pastille, dessinée une fois.
+ */
+const badges = new Map<string, THREE.SpriteMaterial>()
+function badge(key: string, fill: string, draw: { svg: string; color: string } | { image: string }): THREE.SpriteMaterial {
+  let m = badges.get(key)
+  if (m) return m
+  const S = 128
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = S
+  const g = canvas.getContext('2d')!
+  const disc = (x: number, y: number, r: number, color: string) => {
+    g.beginPath()
+    g.arc(x, y, r, 0, Math.PI * 2)
+    g.fillStyle = color
+    g.fill()
   }
+  disc(64, 70, 55, 'rgba(0, 0, 0, 0.35)')
+  disc(64, 62, 57, '#14161c')
+  disc(64, 62, 47, fill)
+  g.beginPath()
+  g.ellipse(64, 40, 30, 14, 0, 0, Math.PI * 2)
+  g.fillStyle = 'rgba(255, 255, 255, 0.32)'
+  g.fill()
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.anisotropy = 4
+  const img = new Image()
+  img.onload = () => {
+    if ('svg' in draw) g.drawImage(img, 30, 28, 68, 68)
+    else g.drawImage(img, 22, 20, 84, 84)
+    texture.needsUpdate = true
+  }
+  img.src = 'svg' in draw ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(draw.svg.replace(/currentColor/g, draw.color))}` : draw.image
+  m = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false })
+  badges.set(key, m)
   return m
 }
-/** La pastille sombre sous les images d'une marmite. */
-const bubbleMaterial = new THREE.SpriteMaterial({ color: '#0b0d12', opacity: 0.75, depthTest: false, depthWrite: false, transparent: true })
+
+/** La pastille de chaque sorte de poste (les caisses et les comptoirs n'en ont pas : ce qu'ils portent se voit). */
+const STATION_BADGES: Partial<Record<StationKind, { svg: string; fill: string; color?: string }>> = {
+  board: { svg: knifeSvg, fill: '#ffb020' },
+  pot: { svg: potSvg, fill: '#ff7a2f' },
+  pan: { svg: flameSvg, fill: '#ff4d3d' },
+  sink: { svg: dropSvg, fill: '#3fa9ff' },
+  plates: { svg: forkKnifeSvg, fill: '#4cd88a' },
+  return: { svg: arrowsSvg, fill: '#8f9bb0' },
+  pass: { svg: bellSvg, fill: '#ffd23f', color: '#2a211a' },
+  trash: { svg: trashSvg, fill: '#6b7280' },
+}
+const stationBadge = (kind: StationKind) => {
+  const b = STATION_BADGES[kind]
+  return b ? badge(`station:${kind}`, b.fill, { svg: b.svg, color: b.color ?? '#ffffff' }) : null
+}
+/** La bulle d'un aliment au-dessus d'une marmite. */
+const foodBadge = (ing: string) => badge(`food:${ing}`, '#fdf6e3', { image: foodImage(ing) })
 
 /** Taille d'une jauge (m) : lisible de la vue du dessus de la cuisine. */
 const GAUGE_W = 0.62
-const GAUGE_H = 0.12
+const GAUGE_H = 0.13
 
 /**
- * Une jauge au-dessus d'un poste : un cadre clair, un fond sombre, la part faite en orange (vert quand
- * c'est prêt, rouge quand ça va brûler). Elle se dessine par-dessus tout ; ses matériaux sont
- * « transparents » pour passer après le décor.
+ * Une jauge au-dessus d'un poste : un cadre sombre, la part faite en orange (vert quand c'est prêt,
+ * rouge quand ça va brûler). Elle se dessine par-dessus tout ; ses matériaux sont « transparents »
+ * pour passer après le décor.
  */
 class Gauge {
   readonly root = new THREE.Group()
   private readonly fill: THREE.Mesh
   constructor() {
-    const frame = new THREE.Mesh(new THREE.PlaneGeometry(GAUGE_W + 0.04, GAUGE_H + 0.04), new THREE.MeshBasicMaterial({ color: '#f4efe2', depthTest: false, depthWrite: false, transparent: true }))
-    const back = new THREE.Mesh(new THREE.PlaneGeometry(GAUGE_W, GAUGE_H), new THREE.MeshBasicMaterial({ color: '#0b0d12', depthTest: false, depthWrite: false, transparent: true }))
-    this.fill = new THREE.Mesh(new THREE.PlaneGeometry(GAUGE_W - 0.03, GAUGE_H - 0.03), new THREE.MeshBasicMaterial({ color: '#ff8a1c', depthTest: false, depthWrite: false, transparent: true }))
+    const frame = new THREE.Mesh(new THREE.PlaneGeometry(GAUGE_W + 0.05, GAUGE_H + 0.05), new THREE.MeshBasicMaterial({ color: '#14161c', depthTest: false, depthWrite: false, transparent: true }))
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(GAUGE_W, GAUGE_H), new THREE.MeshBasicMaterial({ color: '#3a3f4b', depthTest: false, depthWrite: false, transparent: true }))
+    this.fill = new THREE.Mesh(new THREE.PlaneGeometry(GAUGE_W, GAUGE_H), new THREE.MeshBasicMaterial({ color: '#ff8a1c', depthTest: false, depthWrite: false, transparent: true }))
     frame.renderOrder = 20
     back.renderOrder = 21
     this.fill.renderOrder = 22
@@ -202,83 +293,16 @@ class Gauge {
     if (f === null) return
     const k = THREE.MathUtils.clamp(f, 0.02, 1)
     this.fill.scale.x = k
-    this.fill.position.x = -((GAUGE_W - 0.03) / 2) * (1 - k)
+    this.fill.position.x = -(GAUGE_W / 2) * (1 - k)
     ;(this.fill.material as THREE.MeshBasicMaterial).color.set(color)
   }
 }
 
-/** Le repère de chaque sorte de poste (les caisses n'en ont pas : l'ingrédient est posé dessus). */
-const STATION_ICONS: Partial<Record<StationKind, IconName>> = {
-  board: 'knife', sink: 'drop', pot: 'cooking-pot', pan: 'flame', plates: 'fork-knife', return: 'arrows-clockwise', pass: 'bell-ringing', trash: 'trash',
-}
-/** Hauteur des repères, des jauges, des images d'une marmite, et des flèches. */
-const ICON_Y = 1.2
-const GAUGE_Y = 0.78
-const BUBBLE_Y = 0.98
-const ARROW_Y = 1.75
-/** Les flèches du guidage, au plus. */
-const ARROWS = 3
-/** Hauteur des cloisons : celle des comptoirs, qu'on se passe les plats par-dessus. */
-const WALL_TOP = COUNTER_TOP
-
-/** Une flèche verte qui pointe vers le bas, au-dessus d'un poste. */
-function arrowMesh(): THREE.Object3D {
-  const shape = new THREE.Shape()
-  shape.moveTo(0, 0)
-  shape.lineTo(0.2, 0.2)
-  shape.lineTo(0.08, 0.2)
-  shape.lineTo(0.08, 0.4)
-  shape.lineTo(-0.08, 0.4)
-  shape.lineTo(-0.08, 0.2)
-  shape.lineTo(-0.2, 0.2)
-  shape.closePath()
-  const geometry = new THREE.ShapeGeometry(shape)
-  const g = new THREE.Group()
-  const edge = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: '#0b0d12', depthTest: false, depthWrite: false, transparent: true }))
-  edge.scale.setScalar(1.25)
-  edge.position.y = -0.03
-  g.scale.setScalar(1.2)
-  const body = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: '#4cd88a', depthTest: false, depthWrite: false, transparent: true }))
-  edge.renderOrder = 23
-  body.renderOrder = 24
-  g.add(edge, body)
-  g.visible = false
-  return g
-}
-
-/**
- * Les cloisons d'une cuisine à plusieurs : des comptoirs bas (on se passe les plats par-dessus), les
- * passe-plats marqués d'un carré orange.
- */
-function wallObject(walls: Rect[], stations: string[]): THREE.Object3D {
-  const g = new THREE.Group()
-  const cabinet = new THREE.MeshLambertMaterial({ color: '#2a2f3a' })
-  const top = new THREE.MeshLambertMaterial({ color: '#b9c0ca' })
-  const stripe = new THREE.MeshBasicMaterial({ color: '#ff8a1c' })
-  for (const w of walls) {
-    const sx = w.maxX - w.minX, sz = w.maxZ - w.minZ
-    const body = new THREE.Mesh(new THREE.BoxGeometry(sx, WALL_TOP - 0.03, sz), cabinet)
-    body.position.set((w.minX + w.maxX) / 2, (WALL_TOP - 0.03) / 2, (w.minZ + w.maxZ) / 2)
-    const plate = new THREE.Mesh(new THREE.BoxGeometry(sx + 0.04, 0.03, sz + 0.04), top)
-    plate.position.set(body.position.x, WALL_TOP - 0.015, body.position.z)
-    const line = new THREE.Mesh(new THREE.BoxGeometry(sx > sz ? sx : 0.05, 0.006, sx > sz ? 0.05 : sz), stripe)
-    line.position.set(body.position.x, WALL_TOP + 0.003, body.position.z)
-    g.add(body, plate, line)
-  }
-  for (const id of stations) {
-    const s = STATION_BY_ID[id]
-    if (!id.startsWith('passe-plat')) continue
-    // Le passe-plat : un carré cerclé d'orange sur le dessus de la cloison.
-    const ring = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.012, 0.42), stripe)
-    const inner = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.014, 0.34), top)
-    ring.position.set(s.x, WALL_TOP + 0.006, s.z)
-    inner.position.set(s.x, WALL_TOP + 0.008, s.z)
-    g.add(ring, inner)
-  }
-  // Basse, la cloison ne cache jamais personne : elle ne se trame pas (cf. Deck.addRuntime).
-  g.traverse((o) => (o.userData.keepMaterial = true))
-  return g
-}
+/** Hauteur des pastilles, des jauges, des bulles d'une marmite. */
+const ICON_Y = 1.0
+const ICON_SIZE = 0.4
+const GAUGE_Y = 0.66
+const BUBBLE_Y = ICON_Y
 
 /** Une flaque (le plateau renversé) : quelques taches rondes qui se chevauchent, à plat, un peu brillantes. */
 function puddle(color: string, size: number): THREE.Object3D {
@@ -296,21 +320,20 @@ function puddle(color: string, size: number): THREE.Object3D {
   return g
 }
 
-/** Pose un objet sur le pont de la cuisine, avec ses rectangles de collision (cf. Deck.addRuntime) ; rend de quoi le retirer. */
-export type PlaceOnDeck = (o: THREE.Object3D, solids: Box2[], fade: THREE.Vector3) => () => void
-
 /** Qui tient quoi : le joueur local et ses coéquipiers (leur avatar, s'il est là). */
 export type AvatarOf = (pid: string) => Avatar | null
 
-/** Un ustensile sur son feu : le modèle, l'alerte, la fumée, les images de ce qu'il contient, la lueur de la surchauffe. */
+/** Un ustensile sur son feu : le modèle, l'alerte, la fumée, les bulles de ce qu'il contient, la lueur de la surchauffe. */
 interface Burner {
-  pot: THREE.Object3D
   warn: THREE.Sprite
   smoke: THREE.Mesh[]
   bubbles: THREE.Sprite[]
   heat: THREE.Mesh
   key: string
 }
+
+/** Où se pose ce qui est sur un poste : au mur est, un peu vers la cuisine. */
+const placeOf = (s: (typeof STATIONS)[number]) => ({ x: s.x - (s.x > 16.8 ? 0.05 : 0), z: s.z - (s.kind === 'pot' || s.kind === 'pan' ? 0.02 : 0) })
 
 export class KitchenProps {
   readonly group = new THREE.Group()
@@ -321,33 +344,22 @@ export class KitchenProps {
   private readonly gauges = new Map<string, Gauge>()
   private readonly burners = new Map<string, Burner>()
   private readonly icons = new Map<string, THREE.Sprite>()
-  private readonly arrows: THREE.Object3D[] = []
   private readonly tmp = new THREE.Vector3()
-  /** Les cloisons posées, et ce qui les a fait poser (plan, ouverte). */
-  private walls: { key: string; remove: () => void } | null = null
-  /** Postes visés par les flèches. */
-  private aimed: string[] = []
   /** La flaque du plateau renversé, sur la passe. */
   private readonly spill = puddle('#7a3b17', 0.42)
-  /** Comète, le chat du bord, quand il saute sur un comptoir (chargé à la première fois). */
+  /** Comète, le chat du bord, pour l'imprévu du chat (chargé avec la cuisine). */
   private cat: { root: THREE.Object3D; mixer: THREE.AnimationMixer } | null = null
-  private catLoading = false
 
-  constructor(private readonly parent: THREE.Object3D, private readonly place: PlaceOnDeck) {
+  constructor(private readonly parent: THREE.Object3D) {
     parent.add(this.group)
-    for (let i = 0; i < ARROWS; i++) {
-      const a = arrowMesh()
-      this.arrows.push(a)
-      this.group.add(a)
-    }
     const smoke = new THREE.MeshLambertMaterial({ color: '#2a2a2a', transparent: true, opacity: 0.55, depthWrite: false })
     const heat = new THREE.MeshBasicMaterial({ color: '#ff3b1c', transparent: true, opacity: 0.4, depthWrite: false })
+    const smokeGeometry = new THREE.SphereGeometry(0.07, 8, 6)
     for (const s of STATIONS) {
-      const name = STATION_ICONS[s.kind] ?? (s.id.startsWith('passe-plat') ? 'arrows-left-right' : null)
-      if (name) {
-        // Chaque repère a son matériau (son opacité : grisé chez un coéquipier), sur la texture partagée.
-        const sprite = new THREE.Sprite(markerMaterial(name).clone())
-        sprite.scale.setScalar(0.38)
+      const material = stationBadge(s.kind)
+      if (material) {
+        const sprite = new THREE.Sprite(material)
+        sprite.scale.setScalar(ICON_SIZE)
         sprite.position.set(s.x, ICON_Y, s.z)
         sprite.renderOrder = 18
         sprite.visible = false
@@ -356,21 +368,21 @@ export class KitchenProps {
       }
       if (s.kind === 'crate') {
         // L'ingrédient, en grand, sur sa caisse.
-        const o = ingredientObject(s.ing!, 'brut', 0.3)
+        const o = ingredientObject(s.ing!, 'brut', ON_CRATE)
         o.position.set(s.x, TOP, s.z)
         this.group.add(o)
       }
       if (s.kind === 'pot' || s.kind === 'pan') {
-        const pot = model(s.kind === 'pot' ? 'pot' : 'frying-pan', s.kind === 'pot' ? 0.3 : 0.36)
+        const pot = model(s.kind === 'pot' ? 'pot' : 'frying-pan', s.kind === 'pot' ? 0.34 : 0.4)
         pot.position.set(s.x, TOP, s.z - 0.02)
         this.group.add(pot)
-        const warn = new THREE.Sprite(markerMaterial('warning-circle', '#ff3b1c'))
-        warn.scale.setScalar(0.4)
-        warn.position.set(s.x, BUBBLE_Y + 0.28, s.z - 0.1)
+        const warn = new THREE.Sprite(badge('warn', '#ff3b1c', { svg: warningSvg, color: '#ffffff' }))
+        warn.scale.setScalar(0.42)
+        warn.position.set(s.x, BUBBLE_Y + 0.3, s.z - 0.1)
         warn.renderOrder = 26
         warn.visible = false
         const puffs = [0, 1, 2].map(() => {
-          const p = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), smoke)
+          const p = new THREE.Mesh(smokeGeometry, smoke)
           p.visible = false
           this.group.add(p)
           return p
@@ -379,12 +391,11 @@ export class KitchenProps {
         glowRing.position.set(s.x, TOP + 0.004, s.z - 0.02)
         glowRing.visible = false
         this.group.add(warn, glowRing)
-        this.burners.set(s.id, { pot, warn, smoke: puffs, bubbles: [], heat: glowRing, key: '' })
+        this.burners.set(s.id, { warn, smoke: puffs, bubbles: [], heat: glowRing, key: '' })
       }
       if (s.kind === 'board') {
-        const board = model('cutting-board', 0.34)
+        const board = model('cutting-board', 0.4)
         board.position.set(s.x, TOP, s.z)
-        if (s.x < 8.3) board.rotation.y = Math.PI / 2
         this.group.add(board)
       }
       if (s.kind === 'pass') {
@@ -399,46 +410,28 @@ export class KitchenProps {
         this.gauges.set(s.id, g)
       }
     }
+    // Comète se charge tout de suite, en même temps que la cuisine : pas d'à-coup au premier imprévu du chat.
+    void rig(CAT_MODEL).then((r) => {
+      r.root.scale.setScalar(0.3)
+      const mixer = new THREE.AnimationMixer(r.root)
+      const clip = r.clips.find((c) => /idle/i.test(c.name)) ?? r.clips[0]
+      if (clip) mixer.clipAction(clip).play()
+      this.cat = { root: r.root, mixer }
+      r.root.visible = false
+      this.group.add(r.root)
+    }).catch(() => {})
   }
 
-  /**
-   * Le plan de la cuisine, pour ce joueur : les cloisons (posées ou retirées quand il change), et
-   * les repères des postes de la cuisine, pleins dans sa zone, grisés chez un coéquipier.
-   */
-  layout(state: ServiceState, you: string) {
-    const kitchen = kitchenOf(state)
-    const walls = wallsOf(state)
-    const key = `${state.kitchen}:${walls.length}`
-    if (this.walls?.key !== key) {
-      this.walls?.remove()
-      this.walls = null
-      if (walls.length) {
-        const o = wallObject(walls, kitchen.stations)
-        const solids = walls.map((w) => ({ minX: w.minX, maxX: w.maxX, minZ: w.minZ, maxZ: w.maxZ }))
-        this.walls = { key, remove: this.place(o, solids, new THREE.Vector3(12.4, 0, 10)) }
-      } else this.walls = { key, remove: () => {} }
-    }
-    for (const [id, sprite] of this.icons) {
-      sprite.visible = kitchen.stations.includes(id)
-      ;(sprite.material as THREE.SpriteMaterial).opacity = canReach(state, you, id) ? 1 : 0.35
-    }
-  }
-
-  /** Les postes que montrent les flèches du guidage (aucun : pas de flèche). */
-  aim(stations: string[]) {
-    this.aimed = stations.slice(0, ARROWS)
+  /** Le service commence : les pastilles des postes apparaissent. */
+  show() {
+    for (const sprite of this.icons.values()) sprite.visible = true
   }
 
   /** L'état a changé : chaque poste montre ce qu'il porte. */
   sync(state: ServiceState) {
     for (const s of STATIONS) {
       const st = state.stations[s.id] as (Partial<UtensilState> & Partial<CountState> & { item?: string | null }) | undefined
-      // Un poste qui n'est pas (ou plus) de la cuisine : les passe-plats, une fois les cloisons tombées.
-      if (!st) {
-        this.onStation.get(s.id)?.obj.removeFromParent()
-        this.onStation.delete(s.id)
-        continue
-      }
+      if (!st) continue
       const items = st.items ? st.items.map((id) => state.items[id]).filter(Boolean) : st.item ? [state.items[st.item]] : []
       const count = st.count ?? 0
       const key = `${items.map((it) => `${signature(it)}:${dishColor(state, it) ?? ''}`).join('|')}#${count}`
@@ -448,44 +441,38 @@ export class KitchenProps {
       const g = new THREE.Group()
       if (s.kind === 'plates') g.add(plateStack(count, false))
       else if (s.kind === 'return' || s.kind === 'sink') g.add(plateStack(count, true))
+      const inside = s.kind === 'pot' || s.kind === 'pan'
       items.forEach((it, i) => {
         const o = itemObject(it!)
-        // Dans la marmite ou la poêle : côte à côte, au fond ; sinon, posé sur le poste.
-        const inside = s.kind === 'pot' || s.kind === 'pan'
+        // Dans la marmite ou la poêle : côte à côte, au fond ; sinon, posé sur le poste, avec son ombre.
         o.position.set(inside ? (i - (items.length - 1) / 2) * 0.07 : 0, inside ? 0.05 : 0, 0)
-        if (inside) o.scale.multiplyScalar(0.75)
+        if (inside) o.scale.multiplyScalar(0.6)
+        else if (it!.kind === 'ingredient') withShadow(o)
         const color = dishColor(state, it)
         if (color) o.add(tintRing(color))
         g.add(o)
       })
-      g.position.set(s.x, s.id.startsWith('passe-plat') ? WALL_TOP + 0.015 : TOP, s.z - (s.kind === 'pot' || s.kind === 'pan' ? 0.02 : 0))
+      const at = placeOf(s)
+      g.position.set(at.x, TOP, at.z)
       if (s.kind === 'sink') g.position.set(s.x - 0.2, TOP - 0.02, s.z + 0.02)
       this.group.add(g)
       this.onStation.set(s.id, { key, obj: g })
-      // Les images de ce que contient la marmite, au-dessus d'elle, sur une pastille sombre.
+      // Les bulles de ce que contient la marmite, au-dessus d'elle.
       const b = this.burners.get(s.id)
       if (b) {
-        const bkey = (st.items ?? []).map((id) => state.items[id]?.ing).join(',')
+        const ings = (st.items ?? []).map((id) => state.items[id]?.ing).filter(Boolean) as string[]
+        const bkey = ings.join(',')
         if (bkey !== b.key) {
           b.key = bkey
           for (const sp of b.bubbles) sp.removeFromParent()
-          b.bubbles = []
-          const ings = (st.items ?? []).map((id) => state.items[id]?.ing).filter(Boolean) as string[]
-          if (ings.length) {
-            const back = new THREE.Sprite(bubbleMaterial)
-            back.scale.set(0.2 * ings.length + 0.08, 0.26, 1)
-            back.position.set(s.x, BUBBLE_Y, s.z - 0.1)
-            back.renderOrder = 24
-            b.bubbles.push(back)
-            ings.forEach((ing, i) => {
-              const sp = new THREE.Sprite(foodMaterial(ing))
-              sp.scale.setScalar(0.2)
-              sp.position.set(s.x + (i - (ings.length - 1) / 2) * 0.2, BUBBLE_Y, s.z - 0.1)
-              sp.renderOrder = 25
-              b.bubbles.push(sp)
-            })
-            this.group.add(...b.bubbles)
-          }
+          b.bubbles = ings.map((ing, i) => {
+            const sp = new THREE.Sprite(foodBadge(ing))
+            sp.scale.setScalar(0.27)
+            sp.position.set(s.x + (i - (ings.length - 1) / 2) * 0.24, BUBBLE_Y, s.z - 0.1)
+            sp.renderOrder = 25
+            return sp
+          })
+          if (b.bubbles.length) this.group.add(...b.bubbles)
         }
       }
     }
@@ -546,6 +533,9 @@ export class KitchenProps {
           p.scale.setScalar(0.6 + k * 1.6)
         })
         for (const sp of b.bubbles) sp.visible = !st?.burnt
+        // Ce qu'il contient prend la place de sa pastille (sinon, elles se chevaucheraient).
+        const sprite = this.icons.get(s.id)
+        if (sprite) sprite.visible = !b.bubbles.length || !!st?.burnt
         if (gauge) {
           if (!cook || st?.burnt) gauge.set(null)
           else if (!st?.done) gauge.set((now - cook.start) / (cook.until - cook.start))
@@ -562,57 +552,28 @@ export class KitchenProps {
       }
       if (gauge) gauge.root.quaternion.copy(camera.quaternion)
     }
-    // Les flèches : elles rebondissent au-dessus des repères visés, qui battent un peu.
-    this.arrows.forEach((a, i) => {
-      const id = this.aimed[i]
-      a.visible = !!id
-      if (!id) return
-      const s = STATION_BY_ID[id]
-      a.position.set(s.x, ARROW_Y + Math.abs(Math.sin(t * 5)) * 0.12, s.z)
-      a.quaternion.copy(camera.quaternion)
-    })
-    for (const [id, sprite] of this.icons) sprite.scale.setScalar(this.aimed.includes(id) ? 0.38 * (1.12 + Math.sin(t * 8) * 0.06) : 0.38)
     // Le plateau renversé : la flaque s'efface à mesure qu'on nettoie.
     this.spill.visible = state.event?.kind === 'spill'
     if (this.spill.visible) this.spill.scale.setScalar(1 - 0.7 * Math.min(1, (state.event?.progress ?? 0) / RULES.events.clean))
     this.updateCat(state, t)
   }
 
-  /** Comète sur son comptoir pendant l'imprévu du chat (son modèle se charge la première fois). */
+  /** Comète sur son plan pendant l'imprévu du chat ; la pastille du poste clignote. */
   private lastT = 0
   private updateCat(state: ServiceState, t: number) {
     const e = state.event?.kind === 'cat' ? state.event : null
-    if (e && !this.cat && !this.catLoading) {
-      this.catLoading = true
-      void rig(CAT_MODEL).then((r) => {
-        r.root.scale.setScalar(0.3)
-        const mixer = new THREE.AnimationMixer(r.root)
-        const clip = r.clips.find((c) => /idle/i.test(c.name)) ?? r.clips[0]
-        if (clip) mixer.clipAction(clip).play()
-        this.cat = { root: r.root, mixer }
-        r.root.visible = false
-        this.group.add(r.root)
-      }).catch(() => {})
-    }
     if (!this.cat) return
     this.cat.root.visible = !!e
     if (!e?.station) return
     const s = STATION_BY_ID[e.station]
-    this.cat.root.position.set(s.x + 0.12, (s.id.startsWith('passe-plat') ? WALL_TOP : TOP) + 0.01, s.z)
+    this.cat.root.position.set(s.x + 0.12, TOP + 0.01, s.z)
     this.cat.root.rotation.y = Math.sin(t * 1.3) * 0.4
     this.cat.mixer.update(this.lastT ? Math.min(0.1, t - this.lastT) : 0)
     this.lastT = t
-    // Il guette ce qui est posé : son repère clignote, chassez-le !
-    const sprite = this.icons.get(e.station)
-    if (sprite) sprite.visible = Math.sin(t * 10) > 0
   }
 
-  /** Fin du service : on vide les mains de chacun, les cloisons tombent, plus de repère ni de flèche. */
+  /** Fin du service : on vide les mains de chacun, plus de pastille ni d'alerte. */
   release(avatarOf: AvatarOf) {
-    this.walls?.remove()
-    this.walls = null
-    this.aimed = []
-    for (const a of this.arrows) a.visible = false
     for (const sprite of this.icons.values()) sprite.visible = false
     this.spill.visible = false
     if (this.cat) this.cat.root.visible = false

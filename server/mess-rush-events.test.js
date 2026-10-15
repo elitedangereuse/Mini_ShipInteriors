@@ -73,7 +73,7 @@ test('plateau renversé : la passe refuse les plats tant qu\'on ne l\'a pas nett
   // Le plat en main : la passe le refuse, et le guidage le fait poser.
   assert.equal(resolveAction(k.state, 'a', 'passe'), null)
   assert.equal(guide(k.state, 'a').step, 'put')
-  must(k.use('a', 'comptoir-1'))
+  must(k.use('a', 'comptoir-fond'))
   // Les mains vides : la touche nettoie ; s'éloigner arrête le geste.
   assert.deepEqual(guide(k.state, 'a'), { step: 'clean', stations: ['passe'] })
   assert.equal(resolveAction(k.state, 'a', 'passe').kind, 'clean')
@@ -86,7 +86,7 @@ test('plateau renversé : la passe refuse les plats tant qu\'on ne l\'a pas nett
   k.advance(RULES.events.clean + 0.2)
   assert.equal(k.state.event, null)
   assert.ok(k.events.some((e) => e.kind === 'event-end' && e.event === 'spill' && e.by === 'a'))
-  must(k.use('a', 'comptoir-1'))
+  must(k.use('a', 'comptoir-fond'))
   must(k.use('a', 'passe'))
   assert.equal(k.state.served, 1)
 })
@@ -95,17 +95,17 @@ test('le chat du bord : il mange ce qu\'on a laissé si personne ne le chasse ; 
   const k = service(1, ['ragout-lapin'])
   k.waitOrder()
   ingredient(k, 'x1', 'lapin-ceti', 1)
-  k.state.stations['comptoir-1'].item = 'x1'
-  force(k, { kind: 'cat', until: k.now + RULES.events.cat * 1000, station: 'comptoir-1' })
-  assert.ok(isBlocked(k.state, 'comptoir-1'))
+  k.state.stations['comptoir-fond'].item = 'x1'
+  force(k, { kind: 'cat', until: k.now + RULES.events.cat * 1000, station: 'comptoir-fond' })
+  assert.ok(isBlocked(k.state, 'comptoir-fond'))
   // Quoi qu'on tienne, la touche le chasse ; c'est la première chose que montre le guidage.
-  assert.deepEqual(resolveAction(k.state, 'a', 'comptoir-1'), { kind: 'shoo' })
-  assert.deepEqual(guide(k.state, 'a'), { step: 'shoo', stations: ['comptoir-1'] })
+  assert.deepEqual(resolveAction(k.state, 'a', 'comptoir-fond'), { kind: 'shoo' })
+  assert.deepEqual(guide(k.state, 'a'), { step: 'shoo', stations: ['comptoir-fond'] })
   // Personne ne vient : il mange le lapin et s'en va.
   k.advance(RULES.events.cat + 0.1)
-  assert.equal(k.state.stations['comptoir-1'].item, null)
+  assert.equal(k.state.stations['comptoir-fond'].item, null)
   assert.equal(k.state.items.x1, undefined)
-  assert.ok(k.events.some((e) => e.kind === 'eaten' && e.station === 'comptoir-1' && e.ing === 'lapin-ceti'))
+  assert.ok(k.events.some((e) => e.kind === 'eaten' && e.station === 'comptoir-fond' && e.ing === 'lapin-ceti'))
   assert.equal(k.state.event, null)
   // Il revient sur une planche où l'on coupe : la coupe s'arrête ; chassé, il ne mange rien.
   must(k.use('a', 'caisse-legumes'))

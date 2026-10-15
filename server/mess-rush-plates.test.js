@@ -19,19 +19,19 @@ test('deux assiettes se réunissent : le riz d\'un côté, les crevettes de l\'a
   const k = service(1, ['riz-crevettes'])
   k.waitOrder()
   plate(k, 'p1', [['riz-jaroua', 'cuit']])
-  k.state.stations['comptoir-1'].item = 'p1'
+  k.state.stations['comptoir-fond'].item = 'p1'
   plate(k, 'p2', [['crevettes-baltahsine', 'saisi']])
   k.state.hands.a = 'p2'
-  assert.equal(resolveAction(k.state, 'a', 'comptoir-1').kind, 'merge')
-  must(k.use('a', 'comptoir-1'))
+  assert.equal(resolveAction(k.state, 'a', 'comptoir-fond').kind, 'merge')
+  must(k.use('a', 'comptoir-fond'))
   // On garde son assiette, vide ; le plat est sur le comptoir.
   assert.equal(k.state.hands.a, 'p2')
   assert.deepEqual(k.state.items.p2.contents, [])
   assert.deepEqual(k.state.items.p1.contents, [['riz-jaroua', 'cuit'], ['crevettes-baltahsine', 'saisi']])
-  assert.ok(k.events.some((e) => e.kind === 'merged' && e.station === 'comptoir-1' && e.by === 'a'))
+  assert.ok(k.events.some((e) => e.kind === 'merged' && e.station === 'comptoir-fond' && e.by === 'a'))
   // L'assiette vide posée, le plat complet : à la passe.
-  must(k.use('a', 'comptoir-n'))
-  must(k.use('a', 'comptoir-1'))
+  must(k.use('a', 'comptoir-n2'))
+  must(k.use('a', 'comptoir-fond'))
   must(k.use('a', 'passe'))
   assert.equal(k.state.served, 1)
 })
@@ -40,14 +40,14 @@ test('on ne réunit ni deux assiettes vides, ni au-delà de ce que tient une ass
   const k = service(1, ['riz-crevettes'])
   k.waitOrder()
   plate(k, 'p1', [])
-  k.state.stations['comptoir-1'].item = 'p1'
+  k.state.stations['comptoir-fond'].item = 'p1'
   plate(k, 'p2', [])
   k.state.hands.a = 'p2'
-  assert.equal(resolveAction(k.state, 'a', 'comptoir-1'), null)
+  assert.equal(resolveAction(k.state, 'a', 'comptoir-fond'), null)
   k.state.items.p1.contents = [['riz-jaroua', 'cuit'], ['riz-jaroua', 'cuit'], ['riz-jaroua', 'cuit']]
   k.state.items.p2.contents = [['crevettes-baltahsine', 'saisi'], ['crevettes-baltahsine', 'saisi']]
   assert.ok(3 + 2 > RULES.plateCapacity)
-  assert.equal(resolveAction(k.state, 'a', 'comptoir-1'), null)
+  assert.equal(resolveAction(k.state, 'a', 'comptoir-fond'), null)
 })
 
 test('le guidage fait réunir deux assiettes entamées qui font un plat', () => {
@@ -55,8 +55,8 @@ test('le guidage fait réunir deux assiettes entamées qui font un plat', () => 
   k.waitOrder()
   plate(k, 'p1', [['riz-jaroua', 'cuit']])
   plate(k, 'p2', [['crevettes-baltahsine', 'saisi']])
-  k.state.stations['comptoir-1'].item = 'p1'
-  k.state.stations['comptoir-n'].item = 'p2'
+  k.state.stations['comptoir-fond'].item = 'p1'
+  k.state.stations['comptoir-n2'].item = 'p2'
   const take = guide(k.state, 'a')
   assert.equal(take.step, 'take-merge')
   must(k.use('a', take.stations[0]))
@@ -96,14 +96,14 @@ test('la vaisselle : la pile est limitée, l\'assiette servie revient sale, on l
   const pile = k.state.items[k.state.hands.a]
   assert.deepEqual([pile.kind, pile.count], ['dirty', 3])
   // Posée sur un comptoir, une autre pile s'y ajoute.
-  must(k.use('a', 'comptoir-1'))
+  must(k.use('a', 'comptoir-fond'))
   k.state.items.d2 = { id: 'd2', kind: 'dirty', count: 1 }
   k.state.hands.a = 'd2'
-  assert.equal(resolveAction(k.state, 'a', 'comptoir-1').kind, 'stack')
-  must(k.use('a', 'comptoir-1'))
+  assert.equal(resolveAction(k.state, 'a', 'comptoir-fond').kind, 'stack')
+  must(k.use('a', 'comptoir-fond'))
   assert.equal(pile.count, 4)
   // À la plonge : on la dépose, puis la touche, les mains vides, lave une assiette après l'autre.
-  must(k.use('a', 'comptoir-1'))
+  must(k.use('a', 'comptoir-fond'))
   assert.equal(resolveAction(k.state, 'a', 'plonge').kind, 'put-dirty')
   must(k.use('a', 'plonge'))
   assert.equal(sink.count, 4)

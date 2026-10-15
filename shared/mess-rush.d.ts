@@ -6,8 +6,8 @@ export declare const MESS_RETURN: { level: 0; x: number; z: number; yaw: number 
 export declare const MESS_LAYOUT: string[]
 export interface Rect { minX: number; maxX: number; minZ: number; maxZ: number }
 export declare const MESS_BOUNDS: Rect
-/** La rangée des caisses (au nord de l'ouest), le comptoir de service (les clients derrière), le sol des cuisiniers, la file des clients. */
-export declare const CRATE_ROW: Rect
+/** Les plans de travail du nord (à l'ouest), le comptoir de service (les clients derrière), le sol des cuisiniers, la file des clients. */
+export declare const NORTH_ROW: Rect
 export declare const SERVICE_COUNTER: Rect
 export declare const KITCHEN_FLOOR: Rect
 export declare const QUEUE: { minX: number; maxX: number; z: number }
@@ -21,16 +21,6 @@ export interface Station { id: string; kind: StationKind; x: number; z: number; 
 export declare const STATIONS: Station[]
 export declare const STATION_BY_ID: Record<string, Station>
 export declare const STATION_NAMES: Record<StationKind, Text>
-
-export interface KitchenZone { id: string; bounds: Rect; spawn: { x: number; z: number }; stations: string[] }
-export interface Kitchen { walls: Rect[]; zones: KitchenZone[]; stations: string[] }
-export declare const KITCHENS: Record<1 | 2 | 3 | 4, Kitchen>
-export declare function kitchenOf(state: ServiceState): Kitchen
-export declare function zoneOf(state: ServiceState, pid: string | number): KitchenZone | null
-export declare function canReach(state: ServiceState, pid: string | number, stationId: string): boolean
-export declare function wallsOf(state: ServiceState): Rect[]
-export declare function inZone(state: ServiceState, pid: string | number, x: number, z: number, margin?: number): boolean
-export declare function openKitchen(state: ServiceState): ServiceEvent[]
 
 export type Medal = 'none' | 'bronze' | 'silver' | 'gold'
 export declare const MEDALS: Medal[]
@@ -101,12 +91,6 @@ export type StationState = SlotState | UtensilState | CountState
 export interface ServiceState {
   id: string
   players: number
-  /** Le plan de la cuisine (cf. KITCHENS), d'après le nombre de joueurs au départ. */
-  kitchen: 1 | 2 | 3 | 4
-  /** La zone de chaque joueur (son rang dans le plan). */
-  zones: Record<string, number>
-  /** Les cloisons sont tombées (un cuisinier est parti) : chacun atteint tous les postes. */
-  open: boolean
   recipes: string[]
   startedAt: number
   endsAt: number
@@ -132,7 +116,7 @@ export interface ServiceState {
   wasted: number
 }
 export interface ServiceEvent {
-  kind: 'served' | 'expired' | 'wasted' | 'prepared' | 'cooked' | 'cooking' | 'burnt' | 'order' | 'dropped' | 'end' | 'emptied' | 'cleared' | 'open'
+  kind: 'served' | 'expired' | 'wasted' | 'prepared' | 'cooked' | 'cooking' | 'burnt' | 'order' | 'dropped' | 'end' | 'emptied' | 'cleared'
     | 'event' | 'event-end' | 'merged' | 'washed' | 'dirty' | 'shooed' | 'eaten'
   order?: string; recipe?: string; points?: number; combo?: number; penalty?: number; station?: string; ing?: string; process?: ProcessId; by?: string; count?: number
   event?: EventKind; until?: number; vip?: boolean
@@ -142,7 +126,7 @@ export type ActionKind = 'shoo' | 'clean' | 'work' | 'wash' | 'take-ingredient' 
   | 'take-plate' | 'take-dirty' | 'put-dirty' | 'deliver' | 'trash'
 export interface Action { kind: ActionKind; ing?: string; order?: string | null; busy?: boolean }
 export type GuideStep = 'shoo' | 'clean' | 'empty' | 'take-dish' | 'take-plate' | 'fill-plate' | 'complete' | 'merge' | 'take-merge' | 'wash' | 'take-dirty' | 'work' | 'take' | 'fetch'
-  | 'prep' | 'cook' | 'plate' | 'put' | 'wait' | 'hold' | 'deliver' | 'trash' | 'handoff' | 'need-plate'
+  | 'prep' | 'cook' | 'plate' | 'put' | 'wait' | 'hold' | 'deliver' | 'trash' | 'need-plate'
 export interface Guide { step: GuideStep; stations: string[]; ing?: string; process?: ProcessId }
 export interface ServiceResult {
   game: string
@@ -166,7 +150,7 @@ export declare function medalOf(score: number, players: number, rules?: typeof R
 export declare function comboMultiplier(combo: number, rules?: typeof RULES): number
 export declare function speedBonus(remaining: number, rules?: typeof RULES): number
 export declare function recipeValue(id: string): { points: number; time: number }
-export declare function createService(o: { id: string; seed: number; players: number; now: number; recipes?: string[]; members?: (string | number)[]; rules?: typeof RULES }): ServiceState
+export declare function createService(o: { id: string; seed: number; players: number; now: number; recipes?: string[]; rules?: typeof RULES }): ServiceState
 export declare function ingredientState(item: Item): string
 export declare function nextPrep(item: Item): ProcessId | null
 export declare function finalState(ing: string): string
