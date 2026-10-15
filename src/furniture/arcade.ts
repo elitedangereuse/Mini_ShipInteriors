@@ -605,6 +605,49 @@ const PIXEL_CELLS = PIXEL_ART.flatMap((row, j) => row.split('').map((ch, i) => (
 const PIXEL_STRAYS = ['#3690ea', '#00cc78', '#ffd635', '#b44ac0', '#51e9f4', '#ff3881']
 
 /** Pixel War : une toile blanche quadrillée, un curseur qui pose ses pixels un à un, la barre de recharge. */
+/**
+ * L'écran d'attente du Mini-CQC (le jeu du site, cf. src/game-embed.ts) : vue de dessus d'une arène,
+ * deux chasseurs qui se tournent autour en tirant, leurs traînées, et « INSÉREZ UN CRÉDIT » qui clignote.
+ */
+const drawCqc: Draw = (c, t) => {
+  c.fillStyle = '#05070d'
+  c.fillRect(0, 0, W, H)
+  // La grille de l'arène, et ses piliers.
+  c.fillStyle = '#10243a'
+  for (let x = 4; x < W; x += 12) c.fillRect(x, 6, 1, H - 22)
+  for (let y = 6; y < H - 16; y += 12) c.fillRect(0, y, W, 1)
+  c.fillStyle = '#1f4a6e'
+  for (const [x, y] of [[24, 24], [72, 24], [48, 44]]) c.fillRect(x - 3, y - 3, 6, 6)
+  // Deux chasseurs, l'orange et le bleu, chacun sur son huit, avec leurs traînées.
+  const ships: [string, number][] = [['#ff8a1c', 0], ['#39c8ff', Math.PI]]
+  for (const [color, phase] of ships) {
+    for (let k = 8; k >= 0; k--) {
+      const a = t * 1.3 + phase - k * 0.09
+      const x = W / 2 + Math.sin(a) * 34, y = 34 + Math.sin(a * 2) * 16
+      c.fillStyle = k ? `${color}${(40 - k * 4).toString(16).padStart(2, '0')}` : color
+      c.fillRect(Math.round(x) - (k ? 1 : 2), Math.round(y) - (k ? 1 : 2), k ? 2 : 4, k ? 2 : 4)
+    }
+    // Un tir, de temps en temps.
+    const a = t * 1.3 + phase
+    if (Math.sin(t * 5 + phase) > 0.6) {
+      const x = W / 2 + Math.sin(a) * 34, y = 34 + Math.sin(a * 2) * 16
+      const dx = Math.cos(a) * 34, dy = Math.cos(a * 2) * 32
+      const l = Math.hypot(dx, dy) || 1
+      c.fillStyle = '#fff6c8'
+      for (let s = 4; s < 14; s += 3) c.fillRect(Math.round(x + (dx / l) * s), Math.round(y + (dy / l) * s), 1, 1)
+    }
+  }
+  c.fillStyle = '#ff8a1c'
+  c.font = 'bold 9px monospace'
+  c.textAlign = 'center'
+  c.fillText('MINI-CQC', W / 2, H - 8)
+  if (Math.floor(t * 2) % 2) {
+    c.fillStyle = '#e8f6ff'
+    c.font = '7px monospace'
+    c.fillText(tr('INSÉREZ UN CRÉDIT', 'INSERT CREDIT'), W / 2, H - 1)
+  }
+}
+
 const drawPixelWar: Draw = (c, t) => {
   const cell = 6, ox = 27, oy = 4
   c.fillStyle = '#ffffff'
@@ -652,6 +695,8 @@ const GAMES: Record<string, { title: string; side: string; neon: string; draw: D
   srv: { title: 'SRV RALLY', side: '#8a4512', neon: ED_ORANGE, draw: drawSrv },
   // La borne de la salle de la Pixel War : elle ouvre la toile du site (cf. src/game-embed.ts).
   pixelwar: { title: 'PIXEL WAR', side: '#eef1f4', neon: '#fa6d00', draw: drawPixelWar },
+  // La borne du Mini-CQC : elle ouvre le jeu du site, en solo ou à plusieurs (cf. src/game-embed.ts).
+  cqc: { title: 'MINI-CQC', side: '#16304a', neon: '#ff8a1c', draw: drawCqc },
 }
 
 /** L'animation d'un écran : celle du jeu, ou une partie de démonstration à lui. */

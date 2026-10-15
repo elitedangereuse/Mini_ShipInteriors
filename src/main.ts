@@ -22,6 +22,7 @@ import { ShipPlanPanel } from './ship-plan/panel'
 import { drawPoster, POSTER } from './ship-plan/poster'
 import { setShipMapArt, setTotemArt } from './furniture/wayfinding'
 import { drawTotem, identityOf, TOTEM_ART } from './deck-identity'
+import { CommunityFeed } from './community-feed'
 import { showPull } from './furniture/cards'
 import { MediaRoom } from './media-room'
 import { CinemaRoom } from './cinema-room'
@@ -690,13 +691,17 @@ const chat = new Chat()
 const dialog = new Dialog()
 const lift = new LiftPanel()
 const sitePanel = new SitePanel(wallet)
+/** Le bandeau « En direct » de la salle commune et le Tableau d'honneur de la Promenade (cf. community-feed.ts). */
+const community = new CommunityFeed()
 for (const it of decks[LEVELS.findIndex((l) => l.id === 0)].interactables) {
   if (it.furniture?.model === 'reward-counter') {
     const kind = it.furniture.label === 'weekly' ? 'weekly' : 'hunt'
     it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; void sitePanel.counter(kind) }
-  } else if (it.furniture?.model === 'employee-board' || it.furniture?.model === 'score-board') {
-    const kind = it.furniture.model === 'employee-board' ? 'crew' : 'arcade'
+  } else if (it.furniture?.model === 'employee-board' || it.furniture?.model === 'honour-board' || it.furniture?.model === 'score-board') {
+    const kind = it.furniture.model === 'score-board' ? 'arcade' : 'crew'
     it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; void sitePanel.rankings(kind) }
+  } else if (it.furniture?.model === 'live-ticker') {
+    it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; sitePanel.live(community.entries()) }
   } else if (it.furniture?.model === 'ljpc-members' || it.furniture?.model === 'ljpc-codex') {
     // Les deux écrans du labo du L.J.P.C. ouvrent son registre, chacun sur son onglet.
     const tab = it.furniture.model === 'ljpc-codex' ? 'codex' : 'members'
@@ -2195,6 +2200,7 @@ function questEvent(event: QuestEvent, quest: QuestContent, detail?: string) {
   sound.jingle('win')
   questToasts.push({ kind: 'done', title: quest.title, detail: quest.reward })
   chat.add('system', tr(`Quête terminée : ${quest.title}. ${quest.reward}`, `Quest complete: ${quest.title}. ${quest.reward}`))
+  community.push(tr(`${profile.name} a terminé la quête « ${quest.title} »`, `${profile.name} completed the quest “${quest.title}”`))
   // Journal gardé dans ce navigateur (un invité, ou le site qui ne répond pas) : le site ne verse rien.
   const reward = questById(quest.id)?.reward
   if (quests.mode === 'local' && reward && (reward.credits || reward.items?.length || reward.skins?.length)) {
@@ -2662,6 +2668,7 @@ net.onMessage = (m) => {
     case 'join':
       addRemote(m.player)
       chat.add('system', [nameTag(m.player.name, m.player.verified), tr(' a embarqué.', ' came aboard.')])
+      community.push(tr(`${m.player.name} a embarqué`, `${m.player.name} came aboard`))
       break
     case 'leave': {
       const r = remotes.get(m.id)
@@ -2770,6 +2777,7 @@ net.onMessage = (m) => {
       else chiefPending = { state: m, id: m.id }
       break
     case 'jump':
+      community.push(tr(`Saut FSD vers ${SYSTEMS[m.system as SystemId]?.name ?? m.system}`, `FSD jump to ${SYSTEMS[m.system as SystemId]?.name ?? m.system}`))
       // Un pilote lance le saut FSD (nous, ou un autre) : tout le bord part. Dans la baie infestée,
       // on ne le vit pas ; on retrouvera le vaisseau dans son nouveau système.
       if (deck.def.zone || viewDeck.def.zone || deck.def.ground) systemView.set(m.system)
@@ -5565,7 +5573,7 @@ function seated(seat: Seated) {
   if (seat.item.furniture?.model === 'bar-table' && seat.item.furniture.label === 'galactic-clash') return gameEmbed.open('cards')
   const table = cardTable(seat.item.furniture?.model)
   if (table) return gameEmbed.open(table)
-  if (seat.item.furniture?.model === 'pinball' && deck.def.id === -1) return gameEmbed.open('cqc')
+  if ((seat.item.furniture?.model === 'pinball' && deck.def.id === -1) || (seat.item.furniture?.model === 'arcade' && seat.item.furniture.label === 'cqc')) return gameEmbed.open('cqc')
   if (atDesk(seat)) return gameEmbed.open('site')
   if (deck.def.id === 1 && deck.map.room(Math.round(item.position.x), Math.round(item.position.z)) === 'o') return mediaRoom.open()
   if (deck.def.id === 1 && item.furniture?.model === 'cinema-row') return void cinemaRoom.open(false)
@@ -5635,7 +5643,7 @@ function seatPrompt(seat: Seated): { main: string; space?: string } | null {
   if (arcadeGame(seat)) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
   if (seat.item.furniture?.model === 'bar-table' && seat.item.furniture.label === 'galactic-clash') return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
   if (cardTable(seat.item.furniture?.model)) return { main: tr('Se lever', 'Stand up'), space: seat.item.furniture?.model === 'clash-table' ? tr('Jouer', 'Play') : tr('Feuilleter', 'Browse') }
-  if (seat.item.furniture?.model === 'pinball' && deck.def.id === -1) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
+  if ((seat.item.furniture?.model === 'pinball' && deck.def.id === -1) || (seat.item.furniture?.model === 'arcade' && seat.item.furniture.label === 'cqc')) return { main: tr('Se lever', 'Stand up'), space: tr('Jouer', 'Play') }
   if (atDesk(seat)) return { main: tr('Se lever', 'Stand up'), space: tr('Ouvrir le site', 'Open the website') }
   if (deck.def.id === 1 && deck.map.room(Math.round(seat.item.position.x), Math.round(seat.item.position.z)) === 'o') return { main: tr('Se lever', 'Stand up'), space: tr('Écouter', 'Listen') }
   if (deck.def.id === 1 && seat.item.furniture?.model === 'cinema-row') return null
@@ -5660,7 +5668,7 @@ function seatAction(seat: Seated) {
   if (seat.item.furniture?.model === 'bar-table' && seat.item.furniture.label === 'galactic-clash') return gameEmbed.open('cards')
   const table = cardTable(seat.item.furniture?.model)
   if (table) return gameEmbed.open(table)
-  if (seat.item.furniture?.model === 'pinball' && deck.def.id === -1) return gameEmbed.open('cqc')
+  if ((seat.item.furniture?.model === 'pinball' && deck.def.id === -1) || (seat.item.furniture?.model === 'arcade' && seat.item.furniture.label === 'cqc')) return gameEmbed.open('cqc')
   if (atDesk(seat)) return gameEmbed.open('site')
   if (deck.def.id === 1 && deck.map.room(Math.round(seat.item.position.x), Math.round(seat.item.position.z)) === 'o') return mediaRoom.open()
   if (deck.def.id === 1 && seat.item.furniture?.model === 'cinema-row') return void cinemaRoom.open(false)

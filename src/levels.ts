@@ -1639,12 +1639,14 @@ export const LEVELS: LevelDef[] = [
       // Le balisage lumineux du pont, de la porte au siège du pilote.
       { model: 'bridge-guides', x: 34.5, z: 4.5, solid: false },
 
-      // --- Salle commune, à la poupe : le hall du vaisseau, comme le concourse d'une station
-      // Coriolis. Au milieu, l'îlot du hall (banquette ronde, plantes, le monument du vaisseau) ;
-      // au nord et au sud, face à face, les comptoirs de l'officier de liaison et de la
-      // scientifique du LJPC ; dans l'axe des portes, la façade de la mezzanine, son tableau
-      // d'honneur, et ses deux volées d'escalier. À l'étage, sous les grandes baies : le jukebox,
-      // deux salons qui donnent sur le hall, des plantes (cf. MEZZANINES). ---
+      // --- Salle commune, à la poupe : le hall d'accueil du vaisseau, comme le concourse d'une
+      // station Coriolis. On y arrive par le téléporteur du pont (cf. TELEPORTERS), au comptoir
+      // d'accueil. Au milieu, l'îlot du hall (banquette ronde, plantes, le monument du vaisseau) ;
+      // dans l'axe des portes, la façade de la mezzanine et ses deux volées d'escalier, et sur son
+      // garde-corps, le bandeau « En direct » (cf. src/furniture/community.ts). Au fond, derrière
+      // leur vitrine, les bureaux de l'officier de liaison (Weekly) et de la scientifique du L.J.P.C.
+      // (Chasse galactique). À l'étage, sous les grandes baies : le jukebox, deux salons qui
+      // donnent sur le hall, des plantes (cf. MEZZANINES). ---
       {
         model: 'concourse-planter', x: 5.75, z: 4.5,
         interact: tr(
@@ -1654,8 +1656,33 @@ export const LEVELS: LevelDef[] = [
       },
       { model: 'reward-counter', x: 2, z: 13.65, rot: 2, label: 'weekly', interact: tr('Officier de liaison · Weekly', 'Liaison officer · Weekly'), action: tr('Récupérer les crédits', 'Collect credits') },
       { model: 'reward-counter', x: 6, z: 13.65, rot: 2, label: 'hunt', interact: tr('Scientifique du LJPC · Chasse galactique', 'LJPC scientist · Galactic Hunt'), action: tr('Récupérer les crédits', 'Collect credits') },
-      // Le tableau d'honneur de l'équipage, sur la façade de la mezzanine, face aux portes.
-      { model: 'employee-board', x: 2.57, z: 4.5, y: -0.53, rot: 1, solid: false, interact: tr('Tableau d’honneur', 'Hall of honour'), action: tr('Consulter les classements', 'View rankings') },
+      // Les enseignes des deux bureaux, au-dessus de leur vitrine, côté hall ; une plante dans chacun.
+      { model: 'neon-sign', x: 1.2, z: 11.33, rot: 2, label: 'WEEKLY' },
+      { model: 'neon-sign', x: 7.3, z: 11.33, rot: 2, label: tr('CHASSE GALACTIQUE', 'GALACTIC HUNT') },
+      { model: 'plant-tall', x: 0.2, z: 12.15 },
+      { model: 'plant-tall', x: 8.1, z: 12.15 },
+      // Le bandeau « En direct », sur la façade de la mezzanine, face aux portes, à la place de
+      // l'ancien tableau des classements : le fil du site et les nouvelles du bord (cf.
+      // src/community-feed.ts). Le Tableau d'honneur est passé sur la Promenade.
+      {
+        model: 'live-ticker', x: 2.6, z: 4.5, y: -0.17, rot: 1, solid: false, action: tr('Lire le bandeau', 'Read the ticker'),
+        interact: tr('Le bandeau « En direct » : ce qui se passe sur le site et à bord, en temps réel.', 'The “Live” ticker: what is happening on the site and aboard, in real time.'),
+      },
+      // Le comptoir d'accueil, à côté du téléporteur, et la ligne au sol qui mène à la coursive.
+      {
+        model: 'welcome-desk', x: 6.8, z: 10.45, action: tr('Se renseigner', 'Ask for information'),
+        interact: [
+          tr('L\'hôtesse d\'accueil : « Bienvenue à bord ! Le téléporteur, juste là, dessert tous les ponts. Tapez un lieu dans sa recherche : basket, cinéma, Weekly… »', 'The receptionist: “Welcome aboard! The teleporter, right there, serves every deck. Type a place into its search: basketball, cinema, Weekly…”'),
+          tr('L\'hôtesse d\'accueil : « Les bureaux vitrés, au fond du hall : le Weekly et la Chasse galactique paient ce que vous avez gagné sur le site. »', 'The receptionist: “The glazed offices at the back of the hall: the Weekly and the Galactic Hunt pay out what you earned on the site.”'),
+          tr('L\'hôtesse d\'accueil : « Le bandeau, sous la mezzanine, suit ce qui se passe sur le site et à bord. Le Tableau d\'honneur est sur la Promenade, devant le Cobra. »', 'The receptionist: “The ticker below the mezzanine follows what is happening on the site and aboard. The Hall of honour is on the Promenade, by the Cobra.”'),
+          tr('L\'hôtesse d\'accueil : « Au pont supérieur, la grande bibliothèque ouvre les pages du Lore Explorer. À la cale, le complexe d\'entraînement. »', 'The receptionist: “On the upper deck, the great library opens the pages of the Lore Explorer. In the hold, the training complex.”'),
+          tr('L\'hôtesse d\'accueil : « Votre profil du site s\'affiche dans l\'antichambre de vos quartiers. Pensez à vous connecter. »', 'The receptionist: “Your site profile is shown in the antechamber of your quarters. Remember to sign in.”'),
+        ],
+      },
+      guide(0, [[4.45, 9.68], [7.25, 9.68], [7.25, 5.1], [8.35, 4.5]]),
+      // Devant les deux bureaux, leur nom au sol.
+      { model: 'floor-way', x: 2, z: 11.15, label: 'WEEKLY|1.5,0.55|#ffc270|s', solid: false },
+      { model: 'floor-way', x: 6.3, z: 11.15, label: tr('CHASSE GALACTIQUE', 'GALACTIC HUNT') + '|2.2,0.55|#57e6c1|s', solid: false },
       // Deux canapés tournés vers l'îlot, adossés aux escaliers.
       {
         model: 'sofa', x: 4.17, z: 1.95, rot: 1, label: 'teal',
@@ -1670,11 +1697,12 @@ export const LEVELS: LevelDef[] = [
       { model: 'plant-tall', x: 7.95, z: 7.95 },
       { model: 'monstera', x: 4.1, z: 8.95 },
       { model: 'plant', x: 7.1, z: 0.0 },
-      { model: 'plant', x: 7.1, z: 9.0 },
+      { model: 'plant', x: 8.05, z: 9.35 },
+      { model: 'monstera', x: 4, z: 12.85 },
 
       // Le plan du vaisseau, face au téléporteur du hall (cf. TELEPORTERS), et son totem, entre les deux bureaux.
       shipMap('mainHall'),
-      totem(0, 4, 12.4, 2),
+      totem(0, 2.4, 10.3, 1),
 
       // À l'étage : le jukebox au milieu des baies (tout le pont l'entend, cf. src/music.ts), deux
       // salons de part et d'autre, tournés vers le hall, et des plantes aux paliers.
@@ -1949,11 +1977,12 @@ export const LEVELS: LevelDef[] = [
       // de néon sur les murs. Deux rangées de bornes jouables, le comptoir à lots à l'ouest, les jeux
       // de plateau et le coin salon à l'est ---
       { model: 'arcade-carpet', x: 20.5, z: 7.5, label: '9.7x3.7', solid: false },
-      // Au sud, face au nord : Cargaison, Viper, Astéroïdes et un deuxième Cargaison.
+      // Au sud, face au nord : Cargaison, Viper, Astéroïdes, et la borne du Mini-CQC, le jeu de
+      // combat du site (cf. src/game-embed.ts).
       { model: 'arcade', x: 17.0, z: 9.02, rot: 2, label: 'cargo' },
       { model: 'arcade', x: 18.2, z: 9.02, rot: 2, label: 'viper' },
       { model: 'arcade', x: 19.4, z: 9.02, rot: 2, label: 'asteroids' },
-      { model: 'arcade', x: 20.6, z: 9.02, rot: 2, label: 'cargo' },
+      { model: 'arcade', x: 20.6, z: 9.02, rot: 2, label: 'cqc', action: tr('Jouer au Mini-CQC', 'Play Mini-CQC') },
       // Au nord, face au sud, de part et d'autre des portes : Ruelle Fighter II à gauche de la porte
       // ouest (son duel est unique sur le pont, cf. server/fights.js), un deuxième exemplaire des
       // jeux solo pour que tout le monde joue quand l'équipage est nombreux, Thargoid Invaders, et
@@ -2167,7 +2196,9 @@ export const LEVELS: LevelDef[] = [
 
       // --- La Promenade (cf. src/furniture/promenade.ts) : la coursive s'élargit en atrium vitré, et
       // contourne le monument au Cobra, sur sa place ronde, incrustée dans les tôles du sol. Quatre colonnes lumineuses aux angles
-      // de la place, une jardinière le long de chaque mur, un banc dans chaque alcôve. ---
+      // de la place, une jardinière le long de chaque mur, un banc dans chaque alcôve. Contre la
+      // cloison ouest, face au Cobra, le Tableau d'honneur de l'équipage entre ses deux stèles
+      // (cf. src/furniture/community.ts) : les classements du site, sur un tableau à palettes. ---
       {
         model: 'promenade-floor', x: 28, z: 4.5, solid: false,
       },
@@ -2181,14 +2212,19 @@ export const LEVELS: LevelDef[] = [
       },
       { model: 'bench', x: 28, z: 0.45, label: 'teal', interact: tr('Banc face à la verrière : on y regarde défiler les systèmes.', 'A bench facing the canopy: watch the systems go by.') },
       { model: 'bench', x: 28, z: 8.55, label: 'teal' },
-      ...[[25.8, 1.6, 1], [30.2, 1.6, 3], [25.8, 7.4, 1], [30.2, 7.4, 3]].map(([x, z, rot]): Prop => ({ model: 'promenade-planter', x, z, rot: rot as Rot })),
+      ...[[25.8, 1.6, 1], [30.2, 1.6, 3], [30.2, 7.4, 3]].map(([x, z, rot]): Prop => ({ model: 'promenade-planter', x, z, rot: rot as Rot })),
+      { model: 'honour-stele', x: 25.74, z: 6.2, rot: 1, label: tr('Honneur', 'Honour') },
+      {
+        model: 'honour-board', x: 25.69, z: 7.2, rot: 1, solid: false, action: tr('Consulter les classements', 'View rankings'),
+        interact: tr('Le Tableau d\'honneur de l\'équipage : les classements du site, à tour de rôle.', 'The crew\'s Hall of honour: the site\'s rankings, one after another.'),
+      },
+      { model: 'honour-stele', x: 25.74, z: 8.2, rot: 1, label: tr('Équipage', 'Crew') },
       ...[[26.5, 2.25], [29.5, 2.25], [26.5, 6.75], [29.5, 6.75]].map(([x, z]): Prop => ({ model: 'promenade-lamp', x, z })),
       { model: 'plant-tall', x: 26.9, z: 0.1 },
       { model: 'monstera', x: 29.1, z: 0.1 },
       // Au sud, un seul pot : la porte de service du poste de surveillance est de l'autre côté du banc.
       { model: 'plant-tall', x: 29.1, z: 8.9 },
       { model: 'telescope', x: 29.85, z: 3.05, rot: 1, interact: tr('Longue-vue : on y voit la station la plus proche… et le parking de Fleet Carriers.', 'Spyglass: you can see the nearest station… and the Fleet Carrier car park.') },
-      { model: 'telescope', x: 26.15, z: 5.95, rot: 3 },
       // Le plan du vaisseau, au débouché de la coursive, pour qui revient du poste de pilotage.
       shipMap('mainPromenade'),
 
@@ -2218,6 +2254,9 @@ export const LEVELS: LevelDef[] = [
       [5.75, 4.5, '#fff1dd', 3],
       [2, 12.8, '#d6ecff', 1.8],
       [6, 12.8, '#bff7ec', 1.8],
+      // Le bandeau « En direct », et le comptoir d'accueil.
+      [3.2, 4.5, '#ff9a4a', 0.9, undefined, 3],
+      [6.8, 10.2, '#ffe2bf', 1.4],
       [0.7, 2.4, '#ffd9a8', 1.8],
       [0.7, 6.6, '#ffd9a8', 1.8],
       [0.5, 4.5, '#ff7ad9', 1.4, 'neon'],
@@ -2260,6 +2299,8 @@ export const LEVELS: LevelDef[] = [
       // (ses colonnes éclairent d'elles-mêmes, cf. lighting/emitters.ts).
       [28, 4.5, '#cfeaff', 3.2, 'breath', 5],
       [28, 8.3, '#9fd8ff', 1.4],
+      // Le Tableau d'honneur, sous sa lampe de laiton.
+      [26.5, 7.2, '#ffe2a8', 1.3, undefined, 3],
       [23, 1.2, '#e6fbff', 2.4],
       [21.3, 0.4, '#7dffa8', 1.2],
       [24.7, 0.5, '#bff6ff', 1.2],
