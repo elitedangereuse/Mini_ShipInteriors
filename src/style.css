@@ -6171,3 +6171,25 @@ body.mess-end-on :is(.top-left, .top-right, .emotes, #phone, .about-toggle, #tou
   .star-cards { padding: 16px 12px 20px; }
   .star-cards-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
 }
+
+/* La carte de profil de l'antichambre des quartiers (cf. src/profile-card.ts) : la carte Open Graph
+ * du site à gauche, le résumé et les liens à droite ; un invité n'a que l'invitation à se connecter. */
+.profile-card {
+  flex: 1; min-height: 0; overflow: auto; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(260px, 1fr); align-items: center; gap: 32px;
+  padding: 36px 40px; background: radial-gradient(ellipse at 20% 10%, #3a2a1c 0%, #15100c 70%); color: #f6eedd;
+}
+.profile-card-og { width: 100%; height: auto; border-radius: 10px; border: 3px solid #d8b062; box-shadow: 0 0 0 8px #2a1c12, 0 0 0 10px #d8b06266, 0 24px 60px #000c; background: #0b1018; }
+.profile-card-info h3 { margin: 0 0 12px; font: 600 34px/1.1 Georgia, serif; color: #fff4dc; }
+.profile-card-text { margin: 0 0 18px; font-size: 16px; line-height: 1.55; color: #e6dac2; }
+.profile-card-stats { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 22px; padding: 0; list-style: none; }
+.profile-card-stats li { padding: 8px 14px; border: 1px solid #d8b06266; border-radius: 999px; background: #d8b06214; color: #e6dac2; font-size: 14px; }
+.profile-card-stats strong { color: #ffd58b; font-size: 17px; }
+.profile-card-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.bar-game-overlay a.profile-card-main { background: #d8b062; border-color: #d8b062; color: #1c130b; font-weight: 700; }
+.bar-game-overlay a.profile-card-main:hover { background: #ffd58b; }
+.profile-card:has(.profile-card-guest) { grid-template-columns: minmax(0, 620px); justify-content: center; align-content: center; text-align: center; }
+.profile-card-guest { margin: 0 0 18px; font: italic 18px/1.6 Georgia, serif; color: #e6dac2; }
+.profile-card:has(.profile-card-guest) .profile-card-main { justify-self: center; }
+@media (max-width: 820px) {
+  .profile-card { grid-template-columns: 1fr; padding: 20px 16px; gap: 18px; }
+}

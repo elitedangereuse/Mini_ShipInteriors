@@ -62,6 +62,7 @@ import { SECURITY } from './security'
 import { WAYFINDING } from './wayfinding'
 import { COMMUNITY } from './community'
 import { LIBRARY } from './library'
+import { ANTECHAMBER } from './antechamber'
 
 /*
  * Mobilier fait main, en primitives Three.js, rangé par zone :
@@ -121,12 +122,13 @@ import { LIBRARY } from './library'
  * - tutorial.ts : le simulateur d'accueil des nouveaux venus (grille holographique, panneaux de consignes, téléporteur) ;
  * - wayfinding.ts : la signalétique du bord (le plan du vaisseau sur son écran holographique, cf. src/ship-plan/ ; le totem de chaque téléporteur ; les lignes au sol) ;
  * - community.ts : le cœur communautaire du pont principal (le bandeau « En direct » de la salle commune, le Tableau d'honneur de la Promenade et ses stèles) ;
- * - library.ts : la grande bibliothèque du pont supérieur (rayonnages, pupitres et marqueteries des six alcôves du lore, hologramme du Lore Explorer) et le mur des cartes stellaires du planétarium.
+ * - library.ts : la grande bibliothèque du pont supérieur (rayonnages, pupitres et marqueteries des six alcôves du lore, hologramme du Lore Explorer) et le mur des cartes stellaires du planétarium ;
+ * - antechamber.ts : l'antichambre des quartiers (le cadre du profil du site, le paillasson au nom du CMDR, la console d'entrée).
  * On les place dans levels.ts comme les modèles du kit : `{ model: 'fireplace', x, z, rot }`,
  * ou dans une cabine depuis le catalogue du mode aménagement (src/cabin/catalog.ts).
  */
 
-const BUILDERS = { ...ELITE, ...COCKPIT, ...PROMENADE, ...CORRIDOR, ...CONCOURSE, ...WORKSHOP, ...BAR, ...CLUB, ...LEISURE, ...GYM, ...MEDICAL, ...KITCHEN, ...MESS_DECOR, ...MESS_RUSH_FURNITURE, ...ARCADE, ...ARCADE_DECOR, ...PIXELWAR, ...CARDS, ...MEDBAY, ...HOLD_DECOR, ...CLOSET, ...BOARD, ...COZY, ...GARDEN, ...GARDENING, ...NATURE, ...OUTDOOR, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...CLASSROOM, ...LISTENING, ...STUDIO, ...LJPC, ...LJPC_DECOR, ...PLANETARIUM, ...VENTS, ...VOIE, ...SALVAGE, ...SCAVENGERS, ...IDOT, ...HANGAR, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH, ...SPORT, ...RANGE, ...ARENA, ...FISHING, ...TUTORIAL, ...QUESTS_FURNITURE, ...QUEST_REWARDS, ...SECURITY, ...WAYFINDING, ...COMMUNITY, ...LIBRARY } satisfies Record<string, Builder>
+const BUILDERS = { ...ELITE, ...COCKPIT, ...PROMENADE, ...CORRIDOR, ...CONCOURSE, ...WORKSHOP, ...BAR, ...CLUB, ...LEISURE, ...GYM, ...MEDICAL, ...KITCHEN, ...MESS_DECOR, ...MESS_RUSH_FURNITURE, ...ARCADE, ...ARCADE_DECOR, ...PIXELWAR, ...CARDS, ...MEDBAY, ...HOLD_DECOR, ...CLOSET, ...BOARD, ...COZY, ...GARDEN, ...GARDENING, ...NATURE, ...OUTDOOR, ...DECOR, ...LIGHTS, ...PARTY, ...SITE, ...ADVENTURES, ...PETS, ...WORKS, ...CINEMA, ...CLASSROOM, ...LISTENING, ...STUDIO, ...LJPC, ...LJPC_DECOR, ...PLANETARIUM, ...VENTS, ...VOIE, ...SALVAGE, ...SCAVENGERS, ...IDOT, ...HANGAR, ...KENNEY, ...RETRO, ...ARMORY, ...POSTER_ART, ...BATH, ...SPORT, ...RANGE, ...ARENA, ...FISHING, ...TUTORIAL, ...QUESTS_FURNITURE, ...QUEST_REWARDS, ...SECURITY, ...WAYFINDING, ...COMMUNITY, ...LIBRARY, ...ANTECHAMBER } satisfies Record<string, Builder>
 
 export type CustomModel = keyof typeof BUILDERS
 

@@ -285,13 +285,29 @@ export const QUARTERS_DECK: LevelDef = {
   bubble: true,
   // La cabine de chaque joueur : sa parcelle, son entrée derrière la porte du palier (cf. src/housing/).
   cabin: { room: PLOT_ROOM, door: { x: PLOT_ORIGIN.x, z: PLOT_DOOR.z } },
+  // L'antichambre, où arrive le téléporteur : au mur ouest, le cadre du profil du site du CMDR
+  // qui habite là (soi, ou l'hôte qu'on visite ; cf. src/profile-card.ts) ; au nord, le plan du
+  // vaisseau, le totem des Quartiers et la console d'entrée ; un tapis du téléporteur à la porte,
+  // et le paillasson à son nom. Des plantes, un banc, un portemanteau : on est chez quelqu'un.
   props: [
-    { model: 'plant-tall', x: 8.25, z: 3.25 },
-    { model: 'plant-tall', x: 8.25, z: 6.75 },
-    // Le plan du vaisseau, face à l'ascenseur : la première chose qu'on voit en sortant de chez soi.
+    {
+      model: 'profile-frame', x: 3.69, z: 5, rot: 1, solid: false, action: tr('Voir le profil', 'View the profile'),
+      interact: tr('Le cadre du profil : la carte du site du CMDR qui habite ici.', 'The profile frame: the site card of the CMDR who lives here.'),
+    },
+    { model: 'plant-tall', x: 4.25, z: 3.35 },
+    { model: 'plant-tall', x: 4.25, z: 6.65 },
+    { model: 'rug', x: 9, z: 5, label: 'warm:2.2x1.0', solid: false },
+    { model: 'quarters-doormat', x: 10.7, z: 5, solid: false },
+    { model: 'plant-tall', x: 10.75, z: 3.4 },
+    { model: 'plant-tall', x: 10.75, z: 6.6 },
+    // Le plan du vaisseau, face au téléporteur : la première chose qu'on voit en sortant de chez soi.
     shipMap('quartersLanding'),
+    totem(2, 5.35, 0.86, 0),
+    { model: 'entry-console', x: 8.75, z: 0.86, interact: tr('La console de l\'entrée : un vide-poche, des clés, et la photo d\'un Cobra au soleil couchant.', 'The entry console: a tray, some keys, and a photo of a Cobra at sunset.') },
+    { model: 'k-low-bench', x: 7, z: 9.05, rot: 2 },
+    { model: 'k-coat-rack', x: 9.35, z: 8.75 },
   ],
-  lights: [[9.6, 5, '#ffe2bf', 1.6]],
+  lights: [[9.6, 5, '#ffe2bf', 1.6], [4.8, 5, '#ffe7c4', 1.2]],
 }
 
 export const LEVELS: LevelDef[] = [

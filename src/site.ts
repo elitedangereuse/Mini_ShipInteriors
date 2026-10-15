@@ -52,10 +52,18 @@ export interface NearestAdventure {
   state: 'nearest' | 'done'; located?: boolean; from?: string; title?: { fr: string; en: string }
   url?: string; system?: string | null; distance?: number
 }
+/**
+ * Le résumé d'un profil (cf. docs/refonte-ponts-site.md, `?profile=`) : ce que disent ses balises
+ * Open Graph, et ses compteurs.
+ */
+export interface ProfileReply {
+  name?: string; title?: string; description?: string; image?: string; url?: string
+  stats?: { adventures?: number; badges?: number; points?: number }
+}
 interface Reply {
   status: string; error?: string; art?: Artwork[]; pending?: Record<string, Reward[]>;
   rankings?: Ranking[]; earned?: number; balance?: number; count?: number; adventure?: NearestAdventure
-  ship?: EliteShip | null; live?: LiveRow[]
+  ship?: EliteShip | null; live?: LiveRow[]; profile?: ProfileReply | null
 }
 export async function siteRequest(query = '', body?: object): Promise<Reply | null> {
   try {

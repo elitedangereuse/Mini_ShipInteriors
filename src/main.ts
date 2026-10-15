@@ -24,6 +24,7 @@ import { setShipMapArt, setTotemArt } from './furniture/wayfinding'
 import { drawTotem, identityOf, TOTEM_ART } from './deck-identity'
 import { CommunityFeed } from './community-feed'
 import { LORE_THEMES, openLecternPage, openLoreExplorer, openShelf, openStarCards, type LoreTheme } from './lore-library'
+import { QuartersProfile, siteCmdr, type QuartersOwner } from './profile-card'
 import { showPull } from './furniture/cards'
 import { MediaRoom } from './media-room'
 import { CinemaRoom } from './cinema-room'
@@ -557,6 +558,8 @@ const barPanel = new BarPanel(wallet, cocktailEffects,
   },
 )
 const gameEmbed = new GameEmbed()
+/** La carte de profil de l'antichambre des quartiers : celle du CMDR qui habite là (cf. profile-card.ts). */
+const quartersProfile = new QuartersProfile(gameEmbed, () => loginUrl())
 // Le Comptoir des Cartes Dangereuses (pont supérieur) : la boutique de Ludo et l'ouverture des boosters.
 const cardsPanel = new CardsPanel(gameEmbed, wallet, () => (sound.isMuted ? 0 : sound.level))
 cardsPanel.onPull = (cards) => showPull(cards)
@@ -3772,6 +3775,19 @@ cabinBar.onToggleOpen = toggleOpen
  * Peut-on partir en visite d'ici ? Pas en mission dans la baie infestée, ni au sol, ni en plein
  * trajet : on y laisserait une partie en plan.
  */
+/**
+ * Les quartiers où l'on est : les siens, ou ceux de l'hôte qu'on visite. Le profil du site n'est
+ * qu'aux CMDR (un hôte absent l'est forcément : seuls des CMDR ont des quartiers ouverts).
+ */
+function quartersOwner(): QuartersOwner {
+  if (visiting) {
+    const host = remotes.get(visiting.host)
+    const cmdr = host ? host.verified : absentHosts.has(visiting.host)
+    return { cmdr: cmdr ? siteCmdr(visiting.name) : null, name: visiting.name, self: false }
+  }
+  return { cmdr: linked ? siteCmdr(profile.name) : null, name: profile.name, self: true }
+}
+
 function canTravel(explain = true): boolean {
   const ok = !riding && !groundBase.flying && !offShip(deck.def) && !zone.frozen && !arena.frozen
   if (!ok && explain) chat.add('system', tr('Pas de visite d\'ici : revenez d\'abord à bord du vaisseau.', 'No visiting from here: come back aboard the ship first.'))
@@ -5457,6 +5473,12 @@ function interactWith(item: Interactable) {
     return shipPlan.open()
   }
   if (item.furniture?.model === 'cards-counter' || item.furniture?.model === 'cards-shop' || item.furniture?.model === 'cards-altar') return cardsPanel.open()
+  if (item.furniture?.model === 'profile-frame') {
+    player.cancelPath()
+    keys.clear()
+    marker.visible = false
+    return quartersProfile.open()
+  }
   // La bibliothèque du lore et les cartes stellaires du planétarium (cf. lore-library.ts).
   const loreModel = item.furniture?.model
   if (loreModel === 'lore-bookcase' || loreModel === 'lore-lectern' || loreModel === 'lore-graph' || loreModel === 'star-card-wall') {
@@ -6392,6 +6414,8 @@ function frame() {
   }
   if (fpsShown) edgeLook(dt)
   syncCursorUi()
+  // Au pont des quartiers, le cadre de l'antichambre suit qui habite là.
+  if (deck === homeDeck) quartersProfile.sync(quartersOwner())
   // Borne d'arcade ouverte : elle couvre l'écran, le vaisseau reste figé derrière (dernière image),
   // et la borne a toute la machine pour elle.
   if (arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen) {

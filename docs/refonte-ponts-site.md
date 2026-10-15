@@ -11,7 +11,7 @@ pas. Rien ne casse si le site ne bouge pas ; il manque seulement ce qu'il apport
 | # | Côté site | Urgence | Sans lui, le jeu… |
 |---|---|---|---|
 | 1 | `?live=1` sur `outils/mini-shipinteriors-site.php` : le fil « En direct » | à faire | fait défiler les seules nouvelles du bord |
-| 2 | `?profile=<cmdr>` sur le même endpoint : le résumé du profil (carte Open Graph) | à faire | montre l'image `og-card.php` sans texte |
+| 2 | `?profile=<cmdr>` sur le même endpoint : le résumé du profil (carte Open Graph) | conseillé | lit les balises Open Graph de `profil.php`, sinon compose l'adresse d'`og-card.php` |
 | 3 | Les noms des pièces dans les statistiques de fréquentation | à faire | rien : seules les étiquettes de l'admin sont fausses |
 | 4 | Quêtes, classements, Weekly, Chasse galactique | rien à faire | — |
 
@@ -67,7 +67,64 @@ Code côté jeu : `liveFeed` dans `src/site.ts`, `src/community-feed.ts` (ce qui
 
 ## 2. Le résumé du profil : `?profile=<cmdr>`
 
-*(Rempli avec l'antichambre des quartiers : voir plus bas dans cette même PR.)*
+L'antichambre des quartiers (pont +2, là où arrive le téléporteur) montre au mur, dans un grand
+cadre, **la carte Open Graph du profil** du CMDR dont ce sont les quartiers : la sienne chez soi,
+celle de l'hôte quand on le visite. La lire ouvre une vue compacte (la carte, la bio ou les
+compteurs, le lien « Voir le profil complet »). Le paillasson, devant la porte, dit « Bienvenue
+chez CMDR … ».
+
+### Ce que le jeu fait déjà, sans rien de neuf côté site
+
+Dans l'ordre, jusqu'à ce que l'un réponde :
+
+1. `?profile=` (ci-dessous) ;
+2. la page du profil elle-même, `GET /profil.php?cmdr=<nom>` (`/en/profil.php` en anglais) : le
+   jeu y lit les balises `og:title`, `og:description`, `og:image` et `og:url` posées par
+   `og_meta_profile_tags` ;
+3. à défaut, il compose `/og-card.php?cmdr=<nom>&lang=fr_FR|en_US` et `/profil.php?cmdr=<nom>`.
+
+L'image est dessinée dans une texture : elle doit venir **de la même origine que le jeu**, ou
+porter `Access-Control-Allow-Origin` (en local seulement, où le site est servi ailleurs). Le jeu
+ramène toute adresse `*.elitedangereuse.fr` à son chemin pour rester sur la même origine.
+
+`<nom>` est le nom du CMDR tel que le jeu l'affiche, sans « CMDR » (`Aussi`). Si
+`ed_cmdr_query_value` attend autre chose (nom stocké, casse…), c'est une raison de plus de servir
+`?profile=`, qui renvoie les bonnes adresses.
+
+### La requête
+
+`GET /outils/mini-shipinteriors-site.php?profile=<nom>&lang=fr_FR` (ou `en_US`), par le
+navigateur du joueur, **publique** : on voit le profil d'un hôte sans être connecté. Une fois par
+CMDR et par session de jeu.
+
+### La réponse
+
+```json
+{
+  "status": "success",
+  "profile": {
+    "name": "Aussi",
+    "title": "CMDR Aussi",
+    "description": "Exploratrice des confins, chasseuse de Raxxla à ses heures perdues.",
+    "image": "/og-card.php?cmdr=Aussi&lang=fr_FR",
+    "url": "/profil.php?cmdr=Aussi",
+    "stats": { "adventures": 42, "badges": 87, "points": 15230 }
+  }
+}
+```
+
+| Champ | D'où le tirer |
+|---|---|
+| `name` | `og_card_profile_data()['name']` |
+| `title`, `description` | `og:title` et `og:description` de `og_meta_profile_tags()` (la bio en texte brut, sinon les compteurs) |
+| `image`, `url` | `og:image` et `og:url` (absolues ou relatives : le jeu accepte les deux) |
+| `stats` | `aventures`, `badges`, `points` d'`og_card_profile_data()` ; facultatif, affiché en pastilles |
+
+Profil inconnu : `{"status": "error", "error": "unknown"}`. Le jeu passe alors à la page du profil,
+puis à ce qu'il compose.
+
+Code côté jeu : `src/profile-card.ts` (résumé, vue compacte), `profile-frame` et
+`quarters-doormat` dans `src/furniture/antechamber.ts`.
 
 ## 3. Les statistiques de fréquentation
 
