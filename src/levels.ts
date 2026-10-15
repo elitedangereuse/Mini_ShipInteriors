@@ -10,6 +10,7 @@ import type { CabinDef } from './cabin/view'
 import type { CustomModel } from './furniture'
 import { tr } from './i18n'
 import { identityOf } from './deck-identity'
+import { LORE_SHELVES } from './lore-library'
 import { WEAPONS } from './range-weapons'
 import { ARENA_DOORS, BOARD_TABLES, FOYER_DOORS, SHIP_LAYOUTS, SHOOTING_RANGE, SPORT_COURTS, teleporterOf, THARGOID_DOORS } from '../shared/ship-layouts.js'
 import { resolveShipMapPlacement, type ShipMapPlacementId } from '../shared/ship-map-placements.js'
@@ -2833,7 +2834,13 @@ export const LEVELS: LevelDef[] = [
         model: 'star-shelf', x: 13.1, z: 5.82,
         interact: tr('Sur le dos d\'un vieux livre : « Le Cycle de la vie des étoiles ». Les pages les plus usées parlent de la fin… et du recommencement.', 'On the spine of an old book: “The Life Cycle of Stars”. The most worn pages are about the end… and the new beginning.'),
       },
-      { model: 'candles', x: 7.95, z: 9.5, solid: false },
+      { model: 'candles', x: 7.95, z: 12.65, solid: false },
+      // Au mur ouest, face au projecteur : les cartes stellaires. Chacune ouvre son système dans
+      // EDGIS, la carte galactique de la communauté (cf. src/lore-library.ts) ; la douzième est vierge.
+      {
+        model: 'star-card-wall', x: 7.69, z: 9.5, rot: 1, solid: false, action: tr('Choisir une carte', 'Pick a card'),
+        interact: tr('Les cartes stellaires de Bugenhagen : douze systèmes clés, à ouvrir dans EDGIS.', 'Bugenhagen\'s star cards: twelve key systems, to open in EDGIS.'),
+      },
       { model: 'candles', x: 14.25, z: 5.95, solid: false },
       // Les coussins des spectateurs, en cercle autour de l'hologramme (rayon 2,8, un tous les
       // 36°) ; aucun au nord : c'est le passage de la porte.
@@ -2908,6 +2915,45 @@ export const LEVELS: LevelDef[] = [
         model: 'cards-board', x: 27.2, z: 8.65, label: 'clash', solid: false,
         interact: tr('L\'affiche du Comptoir : « Galactic Clash, à toutes les tables. Boosters chez Ludo. Mauvais perdants s\'abstenir. »', 'The Counter\'s poster: “Galactic Clash, at every table. Boosters at Ludo\'s. Sore losers need not apply.”'),
       },
+
+      // --- La grande bibliothèque (14 × 6, cf. src/lore-library.ts et src/furniture/library.ts) :
+      // six alcôves, une par thème du lore, dessinées à son image. Au nord, de part et d'autre de la
+      // porte double, l'Empire et la Fédération, l'Alliance et les Thargoïdes ; à l'ouest, les
+      // Gardiens et, dans le coin sombre, les Mystères. Chacune a son rayonnage (un livre, une page
+      // du Lore Explorer), son pupitre (tout le thème) et sa marqueterie. Au centre, sur son estrade,
+      // l'hologramme du Lore Explorer ; au sud, les fauteuils de lecture. ---
+      ...([
+        ['empire', 17.6, 10.84, 0, 18.25, 12.3],
+        ['federation', 20.25, 10.84, 0, 19.6, 12.3],
+        ['alliance', 24.75, 10.84, 0, 25.4, 12.3],
+        ['thargoid', 27.4, 10.84, 0, 26.75, 12.3],
+        ['guardian', 15.84, 12.85, 1, 17.55, 13.25],
+        ['mysteries', 15.84, 15.2, 1, 17.55, 14.8],
+      ] as const).flatMap(([theme, x, z, rot, lx, lz]): Prop[] => {
+        const name = LORE_SHELVES[theme].name
+        return [
+          // La marqueterie, devant le rayonnage (un peu décalée au coin nord-ouest, où deux alcôves se touchent).
+          { model: 'lore-inlay', x: rot ? 16.5 : x, z: rot ? z + (theme === 'guardian' ? 0.1 : 0) : 11.6, rot, label: `${theme}:1.6x1.0`, solid: false },
+          { model: 'lore-bookcase', x, z, rot, label: theme, action: tr('Choisir un livre', 'Pick a book'), interact: tr(`Rayonnage · ${name}`, `Bookcase · ${name}`) },
+          { model: 'lore-lectern', x: lx, z: lz, rot, label: theme, action: tr('Lire le thème', 'Read the theme'), interact: tr(`Pupitre · ${name} : tout le thème au Lore Explorer`, `Lectern · ${name}: the whole theme in the Lore Explorer`) },
+        ]
+      }),
+      {
+        model: 'lore-graph', x: 22.5, z: 13.9, action: tr('Explorer le lore', 'Explore the lore'),
+        interact: tr('L\'hologramme du Lore Explorer : six grappes de notes, une par alcôve, et tous leurs liens.', 'The Lore Explorer hologram: six clusters of notes, one per alcove, and all their links.'),
+      },
+      // Les fauteuils de lecture, au sud, sous leurs lampes ; un globe et une plante dans le coin est.
+      { model: 'armchair', x: 19.3, z: 15.65, rot: 1, label: 'plum' },
+      { model: 'side-table', x: 20, z: 15.85 },
+      { model: 'desk-lamp', x: 20, z: 15.85, y: 0.32 },
+      { model: 'armchair', x: 20.7, z: 15.65, rot: 3, label: 'navy' },
+      { model: 'armchair', x: 24.3, z: 15.65, rot: 1, label: 'teal' },
+      { model: 'side-table', x: 25, z: 15.85 },
+      { model: 'desk-lamp', x: 25, z: 15.85, y: 0.32 },
+      { model: 'armchair', x: 25.7, z: 15.65, rot: 3, label: 'terracotta' },
+      { model: 'class-globe', x: 28.9, z: 11.3 },
+      { model: 'plant-tall', x: 28.95, z: 15.9 },
+      { model: 'floor-lamp', x: 28.95, z: 13.6 },
 
       // --- Comptoir des Cartes Dangereuses (8 × 10, cf. src/furniture/cards.ts et src/cards/) : au fond
       // du hall, derrière sa porte double. Au nord, la boutique : le mur de boosters du site sous son
@@ -3028,8 +3074,16 @@ export const LEVELS: LevelDef[] = [
       [22.5, 9.5, '#fff0dc', 1.2],
       [17.5, 9.5, '#fff0dc', 1],
       [28.6, 9.5, '#ffc46b', 1.3],
-      [19.5, 13.5, '#ffd9a8', 1.8],
-      [26, 13.5, '#ffd9a8', 1.8],
+      // Chaque alcôve a sa lueur (l'or de l'Empire, le vert thargoïde, le cramoisi des mystères…),
+      // l'hologramme la sienne, et les fauteuils de lecture leur lumière chaude.
+      [22.5, 13.9, '#bfe8ff', 1.2],
+      [17.6, 11.8, '#ffd9a0', 1.1],
+      [20.25, 11.8, '#cfe6ff', 1],
+      [24.75, 11.8, '#eaffd8', 1],
+      [27.4, 11.8, '#5fffc0', 0.9],
+      [16.7, 12.9, '#7fe8ff', 0.9],
+      [16.7, 15.2, '#ff6a5a', 0.8, 'fire'],
+      [22.5, 15.6, '#ffd9a8', 1.2],
       // Le Comptoir des Cartes Dangereuses : l'or de la boutique, l'ambre des tables et du coin canapé ; le reste
       // vient de ses meubles (cf. lighting/emitters.ts).
       [34.5, 6.6, '#ffd596', 1.6],

@@ -23,6 +23,7 @@ import { drawPoster, POSTER } from './ship-plan/poster'
 import { setShipMapArt, setTotemArt } from './furniture/wayfinding'
 import { drawTotem, identityOf, TOTEM_ART } from './deck-identity'
 import { CommunityFeed } from './community-feed'
+import { LORE_THEMES, openLecternPage, openLoreExplorer, openShelf, openStarCards, type LoreTheme } from './lore-library'
 import { showPull } from './furniture/cards'
 import { MediaRoom } from './media-room'
 import { CinemaRoom } from './cinema-room'
@@ -5456,6 +5457,18 @@ function interactWith(item: Interactable) {
     return shipPlan.open()
   }
   if (item.furniture?.model === 'cards-counter' || item.furniture?.model === 'cards-shop' || item.furniture?.model === 'cards-altar') return cardsPanel.open()
+  // La bibliothèque du lore et les cartes stellaires du planétarium (cf. lore-library.ts).
+  const loreModel = item.furniture?.model
+  if (loreModel === 'lore-bookcase' || loreModel === 'lore-lectern' || loreModel === 'lore-graph' || loreModel === 'star-card-wall') {
+    player.cancelPath()
+    keys.clear()
+    marker.visible = false
+    const theme = (LORE_THEMES as string[]).includes(item.furniture?.label ?? '') ? item.furniture!.label as LoreTheme : 'empire'
+    if (loreModel === 'lore-bookcase') return openShelf(gameEmbed, theme)
+    if (loreModel === 'lore-lectern') return openLecternPage(gameEmbed, theme)
+    if (loreModel === 'lore-graph') return openLoreExplorer(gameEmbed)
+    return openStarCards(gameEmbed)
+  }
   if (deck.def.id === 1) {
     if (item.furniture?.model === 'podcast-console' || item.furniture?.model === 'podcast-poster') return mediaRoom.open()
     if (item.furniture?.model === 'cinema-screen') return void cinemaRoom.open(false)

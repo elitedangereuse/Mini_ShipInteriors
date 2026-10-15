@@ -5108,7 +5108,7 @@ body.gardening #emotes { display: none; }
  * jeux du site, avec son propre en-tête. Noyer, laiton, velours bleu nuit ; l'ardoise de Ludo ; le
  * feutre de la table de tirage. Une seule chose brille : le sachet, puis les cartes.
  */
-.bar-game-shell iframe[hidden], .bar-game-actions a[hidden] { display: none; }
+.bar-game-shell iframe[hidden], .bar-game-actions a[hidden], .bar-game-actions button[hidden] { display: none; }
 .bar-game-bare .bar-game-header { display: none; }
 .bar-game-bare .bar-game-shell {
   width: min(1180px, 100%); height: min(800px, calc(100dvh - 32px)); border: 1px solid #c9a24a8c; border-radius: 22px;
@@ -6103,3 +6103,71 @@ body.mess-end-on :is(.top-left, .top-right, .emotes, #phone, .about-toggle, #tou
 /* À plusieurs : l'équipe sous le bandeau, ce que chacun tient. */
 .mess-rewards { display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; background: #ffb15c14; }
 .mess-rewards p { margin: 0; color: #ffd9a8; font-size: 13px; line-height: 1.45; }
+
+/* ---------------------------------------------------------------- la bibliothèque du lore (cf. src/lore-library.ts)
+ * Un rayonnage par thème : ses livres dos à dos, aux couleurs de son alcôve ; le survol d'un livre
+ * dit ce qu'il raconte, le clic l'ouvre au Lore Explorer. */
+.lore-panel {
+  --wood: #3a2618; --wood-dark: #24170e; --spine-0: #5a2a6e; --spine-1: #7a1f2e; --spine-2: #ece2c8; --spine-3: #b48a3c;
+  --band: #d8b062; --ink: #f6eedd; --accent: #d8b062; --wall: radial-gradient(ellipse at 50% 0%, #4b2a63 0%, #1b1020 70%);
+  flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; align-items: center; gap: 0;
+  padding: 28px 24px 30px; background: var(--wall); color: var(--ink);
+}
+.lore-panel[data-theme=federation] { --wood: #1d2b4a; --wood-dark: #101a30; --spine-0: #1f3f7a; --spine-1: #e8eef6; --spine-2: #a8262e; --spine-3: #5a6a80; --band: #c9d2de; --accent: #7cc4ff; --wall: radial-gradient(ellipse at 50% 0%, #1f3a66 0%, #0b1424 70%); }
+.lore-panel[data-theme=alliance] { --wood: #9a6a3e; --wood-dark: #6b4526; --spine-0: #2f6b3f; --spine-1: #d8c9a0; --spine-2: #7a4a2a; --spine-3: #4f8f5a; --band: #e8dcc0; --accent: #5fc27a; --wall: radial-gradient(ellipse at 50% 0%, #2f5a3a 0%, #13241a 70%); }
+.lore-panel[data-theme=thargoid] { --wood: #141a17; --wood-dark: #0a0e0c; --spine-0: #1f3a2e; --spine-1: #0f1a14; --spine-2: #2a4f3f; --spine-3: #355c4a; --band: #3cffb0; --accent: #3cffb0; --wall: radial-gradient(ellipse at 50% 0%, #12382a 0%, #050907 70%); }
+.lore-panel[data-theme=guardian] { --wood: #5d6672; --wood-dark: #3d444e; --spine-0: #4a525e; --spine-1: #6a7280; --spine-2: #3a414c; --spine-3: #2f4a5a; --band: #6fe3ff; --accent: #6fe3ff; --wall: radial-gradient(ellipse at 50% 0%, #22465a 0%, #0c141c 70%); }
+.lore-panel[data-theme=mysteries] { --wood: #151117; --wood-dark: #0a080b; --spine-0: #4a0f18; --spine-1: #1a1418; --spine-2: #2a1a3a; --spine-3: #6a1a2a; --band: #a8a8b4; --accent: #c8283a; --wall: radial-gradient(ellipse at 50% 0%, #4a0f18 0%, #0b070a 70%); }
+.lore-motto { margin: 0 0 26px; max-width: 760px; text-align: center; font: italic 16px/1.5 Georgia, serif; color: color-mix(in srgb, var(--ink) 82%, transparent); }
+.lore-books { display: flex; align-items: flex-end; justify-content: center; gap: 6px; min-height: 230px; padding: 0 22px; }
+.bar-game-overlay .lore-book {
+  position: relative; width: var(--w); height: var(--h); padding: 14px 0; border: 1px solid #0006; border-radius: 4px 4px 2px 2px;
+  background: linear-gradient(90deg, #0005, #fff1 18%, #0000 40%, #0003), var(--spine-0); color: var(--ink);
+  box-shadow: inset 0 10px 0 -6px var(--band), inset 0 -12px 0 -7px var(--band), 0 4px 10px #0007;
+  transition: transform .18s ease, box-shadow .18s ease; cursor: pointer;
+}
+.bar-game-overlay .lore-book[data-tone='1'] { background-color: var(--spine-1); }
+.bar-game-overlay .lore-book[data-tone='2'] { background-color: var(--spine-2); }
+.bar-game-overlay .lore-book[data-tone='3'] { background-color: var(--spine-3); }
+.lore-book span { color: var(--t0, var(--ink)); }
+.lore-book[data-tone='1'] span { color: var(--t1, var(--ink)); }
+.lore-book[data-tone='2'] span { color: var(--t2, var(--ink)); }
+.lore-book[data-tone='3'] span { color: var(--t3, var(--ink)); }
+/* Les dos clairs (crème, blanc, parchemin) portent une encre sombre. */
+.lore-panel[data-theme=empire] { --t2: #2a1a10; }
+.lore-panel[data-theme=federation] { --t1: #13203a; }
+.lore-panel[data-theme=alliance] { --t1: #2a1a10; }
+.lore-book span { display: block; margin: 0 auto; text-shadow: none; writing-mode: vertical-rl; transform: rotate(180deg); max-height: calc(var(--h) - 34px); overflow: hidden; font: 600 14px/1 Georgia, serif; letter-spacing: .02em; white-space: nowrap; text-overflow: ellipsis; }
+.bar-game-overlay .lore-book:hover, .bar-game-overlay .lore-book:focus-visible { transform: translateY(-14px); background-image: linear-gradient(90deg, #0005, #fff2 18%, #0000 40%, #0003); background-color: var(--spine-0); box-shadow: inset 0 10px 0 -6px var(--band), inset 0 -12px 0 -7px var(--band), 0 0 0 2px var(--accent), 0 10px 24px #000a; outline: none; }
+.bar-game-overlay .lore-book[data-tone='1']:hover, .bar-game-overlay .lore-book[data-tone='1']:focus-visible { background-color: var(--spine-1); }
+.bar-game-overlay .lore-book[data-tone='2']:hover, .bar-game-overlay .lore-book[data-tone='2']:focus-visible { background-color: var(--spine-2); }
+.bar-game-overlay .lore-book[data-tone='3']:hover, .bar-game-overlay .lore-book[data-tone='3']:focus-visible { background-color: var(--spine-3); }
+.lore-panel[data-theme=thargoid] .lore-book, .lore-panel[data-theme=guardian] .lore-book { box-shadow: inset 0 10px 0 -6px var(--band), inset 0 -12px 0 -7px var(--band), 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent); }
+.lore-plinth { width: min(860px, 100%); height: 22px; border-radius: 3px; background: linear-gradient(var(--wood), var(--wood-dark)); box-shadow: 0 2px 0 var(--band), 0 12px 26px #0009; }
+.lore-blurb { min-height: 48px; margin: 22px 0 18px; max-width: 760px; text-align: center; font-size: 15px; line-height: 1.5; color: color-mix(in srgb, var(--ink) 88%, transparent); }
+.lore-blurb strong { color: var(--accent); font: 600 17px Georgia, serif; }
+.bar-game-overlay .lore-all { background: color-mix(in srgb, var(--accent) 22%, #0000); border: 1px solid var(--accent); color: var(--ink); }
+.bar-game-overlay .lore-all:hover { background: color-mix(in srgb, var(--accent) 40%, #0000); }
+
+/* Les cartes stellaires du planétarium : douze cartes numériques, une étoile chacune ; la dernière est vierge. */
+.star-cards { flex: 1; min-height: 0; overflow: auto; padding: 22px 24px 28px; background: radial-gradient(ellipse at 50% 0%, #182a4a, #060b16 75%); color: #e8f2ff; }
+.star-cards-intro { margin: 0 auto 20px; max-width: 760px; text-align: center; font: italic 15px/1.5 Georgia, serif; color: #c9d8ee; }
+.star-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; max-width: 1180px; margin: 0 auto; }
+.bar-game-overlay .star-card {
+  --star: #fff1c9; display: grid; justify-items: center; gap: 6px; padding: 16px 12px 14px; min-height: 176px; text-align: center;
+  border: 1px solid #5fb6ff66; border-radius: 14px; background: linear-gradient(160deg, #13284a, #0b1628); color: #e8f2ff;
+  box-shadow: inset 0 0 0 1px #ffffff0d, 0 8px 20px #0008; transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+.bar-game-overlay .star-card:hover, .bar-game-overlay .star-card:focus-visible { transform: translateY(-4px); border-color: var(--star); background: linear-gradient(160deg, #18325c, #0e1c33); box-shadow: 0 0 0 1px var(--star), 0 12px 28px #000a; outline: none; }
+.star-card-orb { width: 58px; height: 58px; border-radius: 50%; background: radial-gradient(circle, #fff 0 12%, var(--star) 30%, transparent 70%); filter: drop-shadow(0 0 10px var(--star)); }
+.star-card strong { font: 700 17px/1.1 "DIN Alternate", "Bahnschrift", "Roboto Condensed", system-ui, sans-serif; letter-spacing: .04em; text-transform: uppercase; }
+.star-card-text { font-size: 12.5px; line-height: 1.4; color: #b9cbe4; }
+.bar-game-overlay .star-card-blank { border-style: dashed; border-color: #4a4f5a; background: linear-gradient(160deg, #1a1d24, #111318); }
+.star-card-blank .star-card-orb { background: radial-gradient(circle, #2a2d34 0 40%, transparent 70%); filter: none; }
+.bar-game-overlay .star-card-flipped { border-color: #c8283a; box-shadow: 0 0 0 1px #c8283a, 0 0 26px #c8283a55; }
+@media (max-width: 720px) {
+  .lore-books { gap: 4px; padding: 0 4px; flex-wrap: wrap; }
+  .lore-panel { padding: 18px 12px 22px; }
+  .star-cards { padding: 16px 12px 20px; }
+  .star-cards-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+}
