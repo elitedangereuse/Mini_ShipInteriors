@@ -1,4 +1,5 @@
 import { tr } from '../i18n'
+import { identityOf } from '../deck-identity'
 import { deckLabel, deckName, deckNumber, HOLO, planOf, QUARTERS_LEVEL, roomInfo, roomName, SIGN_FONT, ZONE_ORDER, ZONES } from './data'
 import { shipStack } from './stack'
 
@@ -143,21 +144,29 @@ export function drawPoster(g: Ctx, here?: { level: number; x: number; z: number 
     g.stroke(new Path2D(deck.hull))
     glow(g, null)
   }
-  // Le faisceau de l'ascenseur, d'un pont à l'autre.
-  const top = stack.decks[0].lift, bottom = stack.decks[stack.decks.length - 1].lift
+  // Les téléporteurs : un par pont, au cœur de chacun, reliés d'un pont à l'autre en pointillé, et
+  // un court faisceau au-dessus de chacun.
+  const top = stack.decks[0].lift
   glow(g, '#ffffff', 12)
-  const beam = g.createLinearGradient(0, -24, 0, bottom[1])
-  beam.addColorStop(0, 'rgba(255, 255, 255, 0)')
-  beam.addColorStop(0.12, 'rgba(255, 255, 255, 0.95)')
-  beam.addColorStop(1, 'rgba(255, 255, 255, 0.95)')
-  g.strokeStyle = beam
-  g.lineWidth = 2.5
+  g.setLineDash([5, 7])
+  g.strokeStyle = 'rgba(255, 255, 255, 0.7)'
+  g.lineWidth = 2
   g.beginPath()
-  g.moveTo(top[0], -24)
-  g.lineTo(bottom[0], bottom[1])
+  stack.decks.forEach((deck, i) => (i ? g.lineTo(deck.lift[0], deck.lift[1]) : g.moveTo(deck.lift[0], deck.lift[1])))
   g.stroke()
+  g.setLineDash([])
   for (const deck of stack.decks) {
-    dot(g, deck.lift[0], deck.lift[1], 6, HOLO.deep)
+    const [x, y] = deck.lift
+    const beam = g.createLinearGradient(0, y - 26, 0, y)
+    beam.addColorStop(0, 'rgba(255, 255, 255, 0)')
+    beam.addColorStop(1, 'rgba(255, 255, 255, 0.95)')
+    g.strokeStyle = beam
+    g.lineWidth = 2.5
+    g.beginPath()
+    g.moveTo(x, y - 26)
+    g.lineTo(x, y)
+    g.stroke()
+    dot(g, x, y, 6, HOLO.deep)
     g.lineWidth = 2.2
     g.strokeStyle = '#ffffff'
     g.stroke()
@@ -167,7 +176,7 @@ export function drawPoster(g: Ctx, here?: { level: number; x: number; z: number 
   g.font = `700 18px ${SIGN_FONT}`
   g.textAlign = 'left'
   g.fillStyle = HOLO.text
-  g.fillText(tr('ASCENSEUR', 'LIFT'), top[0] + 12, -8)
+  g.fillText(tr('TÉLÉPORTEUR', 'TELEPORTER'), top[0] + 12, top[1] - 20)
   caps(g, 0)
   g.restore()
 
@@ -177,8 +186,11 @@ export function drawPoster(g: Ctx, here?: { level: number; x: number; z: number 
     const y = 124 + i * blockH
     const plan = planOf(deck.level)
     g.textAlign = 'left'
-    glow(g, HOLO.accent, 12)
-    g.fillStyle = HOLO.accent
+    // L'étage, à la couleur du pont, son nom, et sa devise (cf. deck-identity.ts).
+    const identity = identityOf(deck.level)
+    const color = identity?.color ?? HOLO.accent
+    glow(g, color, 12)
+    g.fillStyle = color
     g.font = `700 52px ${SIGN_FONT}`
     const number = deckNumber(deck.level)
     g.fillText(number, colX, y + 50)
@@ -187,9 +199,16 @@ export function drawPoster(g: Ctx, here?: { level: number; x: number; z: number 
     caps(g, 3)
     g.fillStyle = HOLO.text
     g.font = `700 31px ${SIGN_FONT}`
-    g.fillText(deckName(deck.level).toUpperCase(), nx, y + 47)
+    const name = deckName(deck.level).toUpperCase()
+    g.fillText(name, nx, y + 47)
+    const tx = nx + g.measureText(name).width + 16
     caps(g, 0)
     glow(g, null)
+    if (identity) {
+      g.fillStyle = color
+      g.font = `600 21px ${SIGN_FONT}`
+      g.fillText(identity.tagline, tx, y + 46, Math.max(0, w - 44 - tx))
+    }
 
     // Ses pièces à voir, chacune avec la pastille de sa zone : les plus longs noms d'abord, chaque
     // nom sur la première ligne où il tient, pour en remplir le moins possible.
@@ -228,7 +247,7 @@ export function drawPoster(g: Ctx, here?: { level: number; x: number; z: number 
     g.fillText(ZONES[id].name, x + 28, y, 136)
   })
   g.fillStyle = HOLO.soft
-  g.fillText(tr(`${deckLabel(QUARTERS_LEVEL)} : chez vous, par l'ascenseur.`, `${deckLabel(QUARTERS_LEVEL)}: your home, by the lift.`), 44, h - 24)
+  g.fillText(tr(`${deckLabel(QUARTERS_LEVEL)} : chez vous, par le téléporteur.`, `${deckLabel(QUARTERS_LEVEL)}: your home, by the teleporter.`), 44, h - 24)
 
   // La balise de l'affiche, par-dessus tout : un cœur blanc, deux ondes orange.
   const at = here && stack.at(here.level, here.x, here.z)

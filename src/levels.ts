@@ -9,8 +9,10 @@ import type { GroundDef } from './base/kit'
 import type { CabinDef } from './cabin/view'
 import type { CustomModel } from './furniture'
 import { tr } from './i18n'
+import { identityOf } from './deck-identity'
+import { LORE_SHELVES } from './lore-library'
 import { WEAPONS } from './range-weapons'
-import { ARENA_DOORS, BOARD_TABLES, SHIP_LAYOUTS, SHOOTING_RANGE, SPORT_COURTS, THARGOID_DOORS } from '../shared/ship-layouts.js'
+import { ARENA_DOORS, BOARD_TABLES, FOYER_DOORS, SHIP_LAYOUTS, SHOOTING_RANGE, SPORT_COURTS, teleporterOf, THARGOID_DOORS } from '../shared/ship-layouts.js'
 import { resolveShipMapPlacement, type ShipMapPlacementId } from '../shared/ship-map-placements.js'
 import { HOUSING_LEVEL, LANDING_ROOM, PLOT_DOOR, PLOT_ORIGIN, PLOT_ROOM } from '../shared/housing-plot.js'
 import { PILOT_SEAT } from '../shared/systems.js'
@@ -206,8 +208,11 @@ export function offShip(def: LevelDef): boolean {
 /** Écart vertical entre deux ponts. */
 export const LEVEL_HEIGHT = 1.6
 
-/** L'ascenseur est au même endroit sur chaque pont. */
-export const LIFT = { x: 10, z: 5 }
+/**
+ * Le téléporteur du pont `level` (cf. TELEPORTERS) : il dépose au cœur de chaque pont, pas au
+ * même endroit d'un pont à l'autre.
+ */
+export const liftOf = (level: number): { x: number; z: number } => teleporterOf(level)
 
 /**
  * On se réveille dans ses quartiers, à deux pas du Holo-Me (cf. main.ts) ; à défaut, ici, à
@@ -231,6 +236,29 @@ const shipMap = (id: ShipMapPlacementId): Prop => {
     interact: tr('Le plan du vaisseau, pont par pont.', 'The ship map, deck by deck.'),
   }
 }
+
+/**
+ * Le totem du téléporteur (cf. src/deck-identity.ts et src/furniture/wayfinding.ts) : le pont, sa
+ * devise, ses lieux et leur direction vue du totem, et les autres ponts. On le consulte pour ouvrir
+ * le plan détaillé.
+ */
+const totem = (level: number, x: number, z: number, rot: Rot): Prop => ({
+  model: 'deck-totem', x, z, rot, label: `${level}:${x}:${z}:${rot}`,
+  action: tr('Consulter le plan', 'Read the map'),
+  interact: tr('Le totem du téléporteur : le pont, ses lieux, et le plan du vaisseau.', 'The teleporter totem: the deck, its places, and the ship map.'),
+})
+
+/** Couleur d'un pont (cf. src/deck-identity.ts) : ses totems, ses enseignes, ses lignes au sol. */
+const deckColor = (level: number) => identityOf(level)?.color ?? '#59d8ff'
+
+/** Ligne de guidage peinte au sol, de la couleur du pont, par ces points (position du jeu), du téléporteur vers une destination. */
+const guide = (level: number, points: [number, number][]): Prop => {
+  const [x, z] = points[0]
+  return { model: 'guide-line', x, z, solid: false, label: `${deckColor(level)}|${points.map(([px, pz]) => `${+(px - x).toFixed(3)},${+(pz - z).toFixed(3)}`).join(' ')}` }
+}
+
+/** Enseigne de porte, au format de celles de la coursive du pont principal, à la couleur du pont (cf. src/furniture/corridor.ts). */
+const doorSign = (level: number, x: number, z: number, rot: Rot, name: string): Prop => ({ model: 'corridor-sign', x, z, rot, label: `${name}|${deckColor(level)}`, solid: false })
 
 /** Ce qu'on lit aux balises du bouclier du hangar. */
 const SHIELD_TEXT = [
@@ -257,17 +285,33 @@ export const QUARTERS_DECK: LevelDef = {
   bubble: true,
   // La cabine de chaque joueur : sa parcelle, son entrée derrière la porte du palier (cf. src/housing/).
   cabin: { room: PLOT_ROOM, door: { x: PLOT_ORIGIN.x, z: PLOT_DOOR.z } },
+  // L'antichambre, où arrive le téléporteur : au mur ouest, le cadre du profil du site du CMDR
+  // qui habite là (soi, ou l'hôte qu'on visite ; cf. src/profile-card.ts) ; au nord, le plan du
+  // vaisseau, le totem des Quartiers et la console d'entrée ; un tapis du téléporteur à la porte,
+  // et le paillasson à son nom. Des plantes, un banc, un portemanteau : on est chez quelqu'un.
   props: [
-    { model: 'plant-tall', x: 8.25, z: 3.25 },
-    { model: 'plant-tall', x: 8.25, z: 6.75 },
-    // Le plan du vaisseau, face à l'ascenseur : la première chose qu'on voit en sortant de chez soi.
+    {
+      model: 'profile-frame', x: 3.69, z: 5, rot: 1, solid: false, action: tr('Voir le profil', 'View the profile'),
+      interact: tr('Le cadre du profil : la carte du site du CMDR qui habite ici.', 'The profile frame: the site card of the CMDR who lives here.'),
+    },
+    { model: 'plant-tall', x: 4.25, z: 3.35 },
+    { model: 'plant-tall', x: 4.25, z: 6.65 },
+    { model: 'rug', x: 9, z: 5, label: 'warm:2.2x1.0', solid: false },
+    { model: 'quarters-doormat', x: 10.7, z: 5, solid: false },
+    { model: 'plant-tall', x: 10.75, z: 3.4 },
+    { model: 'plant-tall', x: 10.75, z: 6.6 },
+    // Le plan du vaisseau, face au téléporteur : la première chose qu'on voit en sortant de chez soi.
     shipMap('quartersLanding'),
+    totem(2, 5.35, 0.86, 0),
+    { model: 'entry-console', x: 8.75, z: 0.86, interact: tr('La console de l\'entrée : un vide-poche, des clés, et la photo d\'un Cobra au soleil couchant.', 'The entry console: a tray, some keys, and a photo of a Cobra at sunset.') },
+    { model: 'k-low-bench', x: 7, z: 9.05, rot: 2 },
+    { model: 'k-coat-rack', x: 9.35, z: 8.75 },
   ],
-  lights: [[9.6, 5, '#ffe2bf', 1.6]],
+  lights: [[9.6, 5, '#ffe2bf', 1.6], [4.8, 5, '#ffe7c4', 1.2]],
 }
 
 export const LEVELS: LevelDef[] = [
-  // ======================================================== Cale : minage, bricolage, stand de tir, un bar clandestin réservé à ses habitués, et une boîte de nuit d'aliens
+  // ======================================================== Cale : entraînement et opérations. Le complexe d'entraînement, le stand de tir, CMDR Arena, le hangar, les jeux de la gaine, la zone thargoïde ; minage et bricolage ; un bar clandestin réservé à ses habitués, et une boîte de nuit d'aliens
   {
     id: -1,
     name: tr('Cale', 'Hold'),
@@ -276,7 +320,7 @@ export const LEVELS: LevelDef[] = [
     layout: SHIP_LAYOUTS['-1'],
     rooms: {
       a: tr('Atelier', 'Workshop'),
-      j: tr('Palier de la cale', 'Hold landing'),
+      j: tr('Palier du monte-charge', 'Freight lift landing'),
       c: tr('Placard à balais', 'Broom closet'),
       r: tr('Stand de tir', 'Shooting range'),
       m: tr('Raffinerie', 'Refinery'),
@@ -296,6 +340,10 @@ export const LEVELS: LevelDef[] = [
       w: tr('Gaine technique', 'Service duct'),
       s: tr('Planque des Scavengers', 'Scavengers\' den'),
       i: tr('Poste d\'exploration', 'Exploration post'),
+      z: tr('Hall d\'entraînement', 'Training hall'),
+      f: tr('Terrain de foot', 'Football pitch'),
+      o: tr('Terrain de basket', 'Basketball court'),
+      x: tr('Salle de sport', 'Gym'),
     },
     closed: {
       t: [
@@ -321,8 +369,12 @@ export const LEVELS: LevelDef[] = [
       ],
     },
     // Le bar est tenu plus proprement que le reste de la cale : dalles lisses, pas un hublot.
-    floors: { u: 'floor-panel', a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', p: 'floor-panel', h: 'floor-panel', y: 'floor-panel', k: 'floor-panel', t: 'floor-panel', s: 'floor-panel', i: 'floor-panel', c: 'floor-panel' },
-    windows: { n: 0, u: 0, a: 0.1, j: 0, r: 0, m: 0, g: 0.1, b: 0, p: 0, h: 0, y: 0, e: 0, v: 0, k: 0.15, t: 0, w: 0, s: 0, i: 0, c: 0 },
+    floors: { u: 'floor-panel', a: 'floor-panel', j: 'floor-panel', r: 'floor-panel', m: 'floor-panel', g: 'floor-panel', p: 'floor-panel', h: 'floor-panel', y: 'floor-panel', k: 'floor-panel', t: 'floor-panel', s: 'floor-panel', i: 'floor-panel', c: 'floor-panel', z: 'floor-panel', f: 'floor-panel', o: 'floor-panel', x: 'floor-panel' },
+    // Le complexe d'entraînement a ses hublots : au terrain de foot, et à la salle de sport, où l'on
+    // court face aux étoiles.
+    windows: { n: 0, u: 0, a: 0.1, j: 0, r: 0, m: 0, g: 0.1, b: 0, p: 0, h: 0, y: 0, e: 0, v: 0, k: 0.15, t: 0, w: 0, s: 0, i: 0, c: 0, z: 0, o: 0, f: 0.4, x: 0.5 },
+    // Le mur entre le terrain de basket et la salle de sport, où pendent le speed bag et l'écran des records.
+    plainWalls: [{ x: 15.5, z: 17 }],
     // Le poste de sécurité du lobby : des vitres blindées côté lobby (sa porte reste verrouillée).
     // Le lobby de l'arène, au coin sud-est du hall de la cale : une cloison vitrée entre les deux.
     // Celui de la zone thargoïde, lui, est derrière un mur plein : on n'en voit rien du hall.
@@ -364,6 +416,11 @@ export const LEVELS: LevelDef[] = [
       y: { level: 0.6, color: '#ffe6cc', dead: 0 },
       t: { level: 0.6, color: '#cfe0ff', dead: 0 },
       k: { level: 1.3, color: '#e6f0ff', dead: 0 },
+      // Le complexe d'entraînement, en pleine lumière, comme un vrai gymnase : pas une réglette morte.
+      z: { level: 1, color: '#f4f8ff', dead: 0 },
+      o: { level: 1.35, color: '#f4f8ff', dead: 0 },
+      f: { level: 1.35, color: '#f4f8ff', dead: 0 },
+      x: { level: 1.15, dead: 0 },
     },
     props: [
       // --- Sanctuaire de la Voie, caché derrière la salle des machines : d'après L'Épreuve, La
@@ -542,7 +599,8 @@ export const LEVELS: LevelDef[] = [
       { model: 'cables', x: 8.2, z: 1, solid: false },
       { model: 'stain', x: 6.9, z: 1.1, solid: false },
 
-      // --- Palier : l'ascenseur au centre (cf. LIFT) ---
+      // --- Palier du monte-charge : au centre, sa plateforme, qui ne monte plus que des caisses (le
+      // téléporteur de la cale est dans le hall, cf. TELEPORTERS) ---
       { model: 'hazard-floor', x: 10, z: 5, solid: false },
       {
         model: 'computer', x: 9, z: 4, rot: 1,
@@ -898,6 +956,11 @@ export const LEVELS: LevelDef[] = [
       // d'exploration). Les deux lobbys s'y font face, chacun sous son enseigne : la zone thargoïde
       // au nord, CMDR Arena au sud. Au mur nord, à côté de la porte de la zone : son classement ---
       { model: 'salvage-sign', x: 23.5, z: 3.66, solid: false },
+      // Le plan du vaisseau, à côté du téléporteur de la cale (cf. TELEPORTERS), son totem, et la
+      // ligne au sol qui mène au complexe d'entraînement.
+      shipMap('holdHall'),
+      totem(-1, 20.3, 6.45, 1),
+      guide(-1, [[21, 5.45], [20.62, 5.9], [20.62, 10], [20.1, 10.45]]),
       { model: 'floor-way', x: 23.5, z: 4.08, label: tr('ZONE THARGOÏDE', 'THARGOID ZONE') + '|1.8,0.95|#6dff9a|n', solid: false },
       { model: 'salvage-board', x: 21, z: 3.68, action: tr('Classement', 'Leaderboard'), interact: tr(
         'Le classement de la zone thargoïde : les équipes qui sont revenues avec leurs colis.',
@@ -909,7 +972,7 @@ export const LEVELS: LevelDef[] = [
         '« Zone thargoïde. Porte à refermer derrière soi. » Dessous, au feutre : « Elle se referme toute seule. C\'est bien ça le problème. »',
         '“Thargoid zone. Close the door behind you.” Below, in marker: “It closes by itself. That is the problem.”',
       ) },
-      { model: 'locker-row', x: 19.8, z: 9.3, rot: 1, interact: tr(
+      { model: 'locker-row', x: 19.8, z: 8.75, rot: 1, interact: tr(
         'Vestiaire du sas : combinaisons, lampes frontales, et un mot scotché : « Dans la baie, ne restez jamais plus de vingt secondes dans un casier. »',
         'Airlock locker room: suits, head torches, and a taped note: “In the bay, never stay in a locker for more than twenty seconds.”',
       ) },
@@ -963,13 +1026,185 @@ export const LEVELS: LevelDef[] = [
       { model: 'arena-garland', x: 24, z: 6.42, label: '2.9', solid: false },
       { model: 'arena-garland', x: 24, z: 9.05, label: '2.9', solid: false },
       // Le vestiaire : le banc devant les casiers, et ce qui traîne dans les coins, hors de l'allée.
-      { model: 'k-low-bench', x: 20.2, z: 7.95, rot: 1 },
+      { model: 'k-low-bench', x: 20.2, z: 7.45, rot: 1 },
       { model: 'drums', x: 22.15, z: 6.2 },
       { model: 'cables', x: 21.9, z: 7.4, rot: 1, solid: false },
       { model: 'crate', x: 22.15, z: 6.95 },
       // Devant la porte de service du mur sud (cf. SCAVENGERS_DOOR) : ce qui déborde de la gaine.
       { model: 'cables', x: 22.1, z: 10.2, rot: 1, solid: false },
       { model: 'stain', x: 22.4, z: 9.9, solid: false },
+
+      // --- Complexe d'entraînement : du coin sud-ouest du hall de la cale, une allée descend au hall
+      // d'entraînement, qui longe le bar. Il dessert, au sud, le terrain de foot, celui de basket et
+      // la salle de sport (cf. SPORT_COURTS, GYM_ROOM), que leurs quêtes ouvrent (cf.
+      // shared/quests.js). Contre son mur nord, de quoi se rafraîchir après le sport ---
+      { model: 'floor-way', x: 20, z: 12, label: tr('ENTRAÎNEMENT', 'TRAINING') + '|0.9,2.8|#f0c93a|s', solid: false },
+      { model: 'neon-sign', x: 11.5, z: 13.68, label: tr('ENTRAÎNEMENT', 'TRAINING') },
+      {
+        model: 'water-fountain', x: 1.92, z: 14.5, rot: 1,
+        interact: tr('Fontaine à eau du hall : fraîche, et presque sans goût de vaisseau. On s\'y bouscule après un match.', 'The hall water cooler: cold, and almost free of that starship taste. There\'s a queue after every game.'),
+      },
+      {
+        model: 'vending-machine', x: 3.4, z: 13.72,
+        interact: [
+          tr('Le distributeur du hall : boissons isotoniques, barres de céréales, et une canette de Lavian Brandy coincée depuis des mois.', 'The hall vending machine: isotonic drinks, cereal bars, and a can of Lavian Brandy that has been stuck for months.'),
+          tr('Une affichette : « Après le sport, on s\'hydrate. Pas chez Jacques. » Chez Jacques, c\'est juste derrière le mur.', 'A notice: “After sport, hydrate. Not at Jacques\'.” Jacques\' is right behind the wall.'),
+        ],
+      },
+      { model: 'bench', x: 8.4, z: 13.85, label: 'mustard' },
+      { model: 'bench', x: 15.6, z: 13.85, label: 'teal' },
+      shipMap('trainingHall'),
+      doorSign(-1, 5.8, 15.345, 2, tr('Terrain de foot', 'Football pitch')),
+      doorSign(-1, 12.8, 15.345, 2, tr('Terrain de basket', 'Basketball court')),
+      doorSign(-1, 18.8, 15.345, 2, tr('Salle de sport', 'Gym')),
+
+      // --- Terrain de basket : un demi-terrain, le panier sur sa glissière au mur ouest ; on tire
+      // depuis la marque, face au panier (cf. src/court.ts, SPORT_COURTS). Derrière le mur nord du
+      // hall d'entraînement, Chez Jacques : chaque rebond s'y entend ---
+      { model: 'court-floor', x: 12, z: 18.5, rot: 1, label: 'basket:5.7x6.7', solid: false },
+      {
+        model: 'basket-hoop', x: 8.66, z: SPORT_COURTS['gym-basket'].center, rot: 1, solid: false,
+        interact: tr('Le panier coulisse sur sa glissière : plus le score monte, plus il se promène. Le filet a déjà été recousu trois fois.', 'The hoop slides along its rail: the higher the score, the more it wanders. The net has been stitched back up three times.'),
+      },
+      {
+        model: 'shoot-spot', ...SPORT_COURTS['gym-basket'].spot, label: 'basket', solid: false, action: tr('Tirer au panier', 'Shoot hoops'),
+        interact: tr('La marque du tireur.', 'The shooter\'s mark.'),
+      },
+      {
+        model: 'ball-rack', x: 14.3, z: 19.7, rot: 3, label: 'basket', action: tr('Tirer au panier', 'Shoot hoops'),
+        interact: tr('Le chariot à ballons.', 'The ball cart.'),
+      },
+      { model: 'score-board', x: 9.9, z: 15.65, label: 'basket', solid: false, interact: tr('Les meilleurs tireurs du bord', 'The ship\'s top shooters'), action: tr('Consulter le classement', 'View rankings') },
+      { model: 'neon-sign', x: 14.15, z: 15.68, label: 'BASKET' },
+      { model: 'bench', x: 14.15, z: 15.9, label: 'terracotta' },
+
+      // --- Terrain de foot : la cage au mur ouest, et son gardien, une silhouette de carton sur un rail ---
+      { model: 'court-floor', x: 5, z: 18.5, rot: 1, label: 'foot:5.7x6.7', solid: false },
+      {
+        model: 'foot-goal', x: 1.66, z: SPORT_COURTS['gym-foot'].center, rot: 1,
+        interact: [
+          tr('Le gardien est en carton. Il a pourtant arrêté plus de tirs que la moitié de l\'équipage.', 'The keeper is made of cardboard. He has still saved more shots than half the crew.'),
+          tr('Sur le dos du carton, au feutre : « Propriété de Marcel. Ne pas viser la tête. »', 'On the back of the cutout, in marker: “Property of Marcel. Do not aim at the head.”'),
+        ],
+      },
+      {
+        model: 'shoot-spot', ...SPORT_COURTS['gym-foot'].spot, label: 'foot', solid: false, action: tr('Tirer au but', 'Take penalties'),
+        interact: tr('Le point de penalty.', 'The penalty spot.'),
+      },
+      {
+        model: 'ball-rack', x: 7.5, z: 19.7, rot: 3, label: 'foot', action: tr('Tirer au but', 'Take penalties'),
+        interact: tr('Le chariot à ballons.', 'The ball cart.'),
+      },
+      { model: 'score-board', x: 3.1, z: 15.65, label: 'foot', solid: false, interact: tr('Les meilleurs buteurs du bord', 'The ship\'s top scorers'), action: tr('Consulter le classement', 'View rankings') },
+      { model: 'neon-sign', x: 7.15, z: 15.68, label: 'FOOT' },
+      { model: 'bench', x: 7.15, z: 15.9, label: 'teal' },
+
+      // --- Salle de sport, façon vraie salle (cf. GYM_ROOM) : un sol de caoutchouc, et une zone par
+      // mini-jeu (cf. src/gym.ts), chacune avec son tapis, son enseigne au haut du mur sud et le record
+      // de son appareil. On y entre au nord, depuis le hall d'entraînement. Au sud,
+      // d'ouest en est : la boxe (sac de frappe, mannequin, speed bag, gants, chrono des rounds), la
+      // course (le tapis, face au hublot), le vélo, puis la musculation (miroir et haltères, banc,
+      // kettlebells, disques). Au nord-ouest, le banc sous l'écran des records et le tapis
+      // d'étirement ; près de la porte, la fontaine et le coin nettoyage. ---
+      { model: 'gym-floor', x: 18, z: 17.5, rot: 2, label: '4.7x3.7', solid: false },
+      { model: 'gym-mat', x: 16.3, z: 18.1, rot: 2, label: 'boxing:1.3x2.5', solid: false },
+      { model: 'gym-mat', x: 17.375, z: 18.45, rot: 2, label: 'gym-run:0.85x1.8', solid: false },
+      { model: 'gym-mat', x: 18.325, z: 18.45, rot: 2, label: 'gym-bike:1.05x1.8', solid: false },
+      { model: 'gym-mat', x: 19.6, z: 17.5, rot: 2, label: 'weights:1.5x3.7', solid: false },
+      { model: 'gym-logo', x: 18.1, z: 16.65, rot: 2, label: '0.8', solid: false },
+      { model: 'gym-sign', x: 16.3, z: 19.35, rot: 2, label: 'gym-punch', solid: false },
+      { model: 'gym-sign', x: 17.375, z: 19.35, rot: 2, label: 'gym-run', solid: false },
+      { model: 'gym-sign', x: 18.33, z: 19.35, rot: 2, label: 'gym-bike', solid: false },
+      { model: 'gym-sign', x: 19.62, z: 19.35, rot: 2, label: 'weights', solid: false },
+      // La boxe : le sac sur sa potence, adossée au mur ouest ; le chrono des rounds et le speed bag
+      // au même mur, le mannequin devant, les gants au mur nord.
+      {
+        model: 'punching-bag', x: 16.12, z: 18.4, rot: 1, action: tr('Frapper', 'Punch'),
+        interact: [
+          tr('Paf ! Le sac encaisse sans broncher.', 'Thwack! The bag takes it without flinching.'),
+          tr('Bim ! Quelqu\'un a dessiné un Thargoïde dessus.', 'Pow! Someone has drawn a Thargoid on it.'),
+        ],
+      },
+      {
+        model: 'round-timer', x: 15.65, z: 17.8, rot: 1, solid: false,
+        interact: tr('Le chrono des rounds : trois minutes rouges, une minute verte. Le sergent Rourke ne connaît que les rouges.', 'The round timer: three red minutes, one green. Sergeant Rourke only knows the red ones.'),
+      },
+      {
+        model: 'speed-bag', x: 15.65, z: 17.25, rot: 1, solid: false,
+        interact: [
+          tr('Le speed bag : tac-tac-tac-tac. Il paraît que Betty le fait chanter mieux que tout le monde.', 'The speed bag: rat-a-tat-tat. Word is Betty makes it sing better than anyone.'),
+          tr('La poire rebondit contre le plateau, et vous dans la figure. Il faut le rythme.', 'The bag bounces off the board, and into your face. It\'s all about rhythm.'),
+        ],
+      },
+      {
+        model: 'boxing-dummy', x: 16.55, z: 17.3, rot: 2,
+        interact: [
+          tr('Bob, le mannequin de frappe. Il a encaissé tout l\'équipage sans jamais rendre un coup. Ni un sourire.', 'Bob, the punching dummy. He has taken hits from the whole crew without ever hitting back. Or smiling.'),
+          tr('Quelqu\'un a collé une gommette « Employé du mois » sur le torse de Bob.', 'Someone has stuck an “Employee of the month” sticker on Bob\'s chest.'),
+        ],
+      },
+      {
+        model: 'glove-rack', x: 16.1, z: 19.35, rot: 2, solid: false,
+        interact: tr('Trois paires de gants, deux cordes à sauter, des bandes. Sur la paire noire, au marqueur : « Propriété de Rourke. Ne pas toucher. »', 'Three pairs of gloves, two skipping ropes, hand wraps. On the black pair, in marker: “Property of Rourke. Do not touch.”'),
+      },
+      // La course : le tapis face au hublot, à courir vers les étoiles.
+      {
+        model: 'treadmill', x: 17.375, z: 18.55, rot: 0, action: tr('Courir', 'Run'),
+        interact: [
+          tr('Tapis de course : 5 km parcourus. Le vaisseau, lui, en a fait 3 milliards.', 'Treadmill: 5 km run. The ship, meanwhile, has done 3 billion.'),
+          tr('Programme « Fuite devant un Thargoïde » : niveau 7 atteint.', '“Fleeing a Thargoid” programme: level 7 reached.'),
+          tr('On court face au hublot : la station la plus proche ne se rapproche jamais.', 'You run facing the porthole: the nearest station never gets any closer.'),
+        ],
+      },
+      // Le vélo.
+      {
+        model: 'exercise-bike', x: 18.45, z: 18.7, rot: 0, action: tr('Pédaler', 'Pedal'),
+        interact: tr(
+          'Vélo d\'appartement : il recharge les batteries de secours. Pédalez, CMDR !',
+          'Exercise bike: it charges the backup batteries. Pedal, CMDR!',
+        ),
+      },
+      // La musculation : le miroir et les haltères au mur nord, le banc au milieu, les kettlebells
+      // et les serviettes au mur est (sous le règlement), l'arbre à disques dans le coin.
+      { model: 'gym-mirror', x: 19.62, z: 19.35, rot: 2, label: '1.32', solid: false },
+      {
+        model: 'dumbbell-rack', x: 19.62, z: 19.18, rot: 2,
+        interact: tr('Le râtelier d\'haltères, du plus léger au plus lourd. Il en manque toujours une paire : elle est dans les quartiers de quelqu\'un.', 'The dumbbell rack, lightest to heaviest. A pair is always missing: it\'s in somebody\'s quarters.'),
+      },
+      {
+        model: 'weight-bench', x: 19.6, z: 17.2, rot: 2,
+        interact: tr(
+          'Banc de musculation : 60 kg… sous 0,8 g. Vous êtes plus fort que vous ne le croyez.',
+          'Weight bench: 60 kg… at 0.8 g. You are stronger than you think.',
+        ),
+      },
+      {
+        model: 'kettlebell-rack', x: 20.2, z: 18.25, rot: 3,
+        interact: tr('Kettlebells : une couleur par poids. La violette a servi à caler la porte de la soute.', 'Kettlebells: one colour per weight. The purple one was used to wedge the cargo bay door.'),
+      },
+      { model: 'plate-tree', x: 20.05, z: 16, rot: 2 },
+      { model: 'towel-shelf', x: 20.24, z: 16.58, rot: 3 },
+      {
+        model: 'gym-rules', x: 20.35, z: 16.55, rot: 3, solid: false,
+        interact: tr('Le règlement de la salle, en cinq points. Le cinquième a été ajouté au feutre, après un incident.', 'The gym rules, in five points. The fifth was added in marker, after an incident.'),
+      },
+      // Le coin repos : le banc sous l'écran des records, le tapis d'étirement, la fontaine, et le
+      // coin nettoyage près de la porte.
+      { model: 'score-board', x: 15.65, z: 16.25, rot: 1, label: 'gym', solid: false, interact: tr('Records de la salle de sport', 'Gym records'), action: tr('Consulter les records', 'View records') },
+      { model: 'bench', x: 15.95, z: 16.25, rot: 1, label: 'terracotta' },
+      { model: 'gym-mat', x: 16.85, z: 16.45, rot: 2, label: 'yoga:0.85x0.32', solid: false },
+      {
+        model: 'water-fountain', x: 16.6, z: 15.81, rot: 0, action: tr('Boire un verre d\'eau', 'Drink a glass of water'),
+        interact: [
+          tr('Une gorgée d\'eau fraîche entre deux séries. Le gobelet dit : « Hydratez-vous, CMDR. »', 'A sip of cold water between sets. The cup says: “Stay hydrated, CMDR.”'),
+          tr('Glou glou. Quelqu\'un a scotché une liste au-dessus : « Records du jour ». Elle est vide.', 'Glug glug. Someone has taped a list above it: “Today\'s records”. It\'s empty.'),
+        ],
+      },
+      {
+        model: 'cleaning-station', x: 17.15, z: 15.65, rot: 0,
+        interact: tr('Coin nettoyage : essuie-tout, désinfectant, gel. « Après la séance, on nettoie ! » Le sergent vérifie.', 'Cleaning station: paper towels, disinfectant, hand gel. “After your set, wipe it down!” The sergeant checks.'),
+      },
+
 
       // --- Gaine technique, au sud du hall de la cale (porte de service, cf. SCAVENGERS_DOOR) : une tuile de
       // large, de la tuyauterie de chaufferie le long du mur nord, une chaudière dans le cul-de-sac
@@ -1285,6 +1520,15 @@ export const LEVELS: LevelDef[] = [
       [34.3, 8.6, '#e6f0ff', 2.6],
       [36.8, 5, '#3fa8ff', 3],
       [34.4, 0.7, '#ffb45e', 1.2, 'neon'],
+      // Le complexe d'entraînement : le hall et son néon, les projecteurs des deux terrains, la
+      // lumière blanche de la salle de sport et le rouge de la boxe.
+      [6, 14.6, '#fff0dc', 1.4],
+      [15, 14.6, '#fff0dc', 1.4],
+      [11.5, 14, '#ffd36b', 1, 'neon', 3],
+      [12, 18.5, '#fff4e0', 2.4],
+      [5, 18.5, '#f2fff4', 2.4],
+      [18.2, 17.7, '#f2f6ff', 2.8],
+      [16.3, 17.6, '#ff8a7a', 1],
     ],
   },
 
@@ -1297,7 +1541,9 @@ export const LEVELS: LevelDef[] = [
       e: tr('Salle commune', 'Common room'),
       c: tr('Coursive', 'Corridor'),
       q: tr('Infirmerie', 'Medical bay'),
-      r: tr('Salle de sport', 'Gym'),
+      d: tr('Toilettes', 'Restrooms'),
+      w: tr('Bureau du Weekly', 'Weekly office'),
+      h: tr('Bureau de la Chasse galactique', 'Galactic Hunt office'),
       m: 'Mess',
       s: tr('Salon d\'arcade', 'Arcade lounge'),
       x: tr('Couloir de la Pixel War', 'Pixel War corridor'),
@@ -1334,7 +1580,9 @@ export const LEVELS: LevelDef[] = [
     lighting: {
       c: { level: 0.6, spacing: 3 },
       q: { level: 1.35, color: '#eef8ff' },
-      r: { level: 1.15 },
+      d: { level: 1.25, color: '#f2f8ff' },
+      w: { level: 1.1, color: '#e6f2ff' },
+      h: { level: 1.1, color: '#e6fff6' },
       m: { level: 0.75, color: '#ffe0bd' },
       s: { level: 0.3, color: '#b9a8ff', spacing: 3 },
       // La salle de la Pixel War est un atelier blanc : c'est la toile qui la colore.
@@ -1342,9 +1590,12 @@ export const LEVELS: LevelDef[] = [
       p: { level: 1.25, color: '#ffffff' },
       l: { level: 0.95, color: '#e4fff0' },
     },
-    // Le mur entre l'infirmerie et la salle de sport, où pendent le speed bag et l'écran des records ;
+    // Le mur entre l'infirmerie et les toilettes, où s'adossent le lavabo et le porte-serviettes ;
     // celui du labo du L.J.P.C. qui porte le registre des membres.
     plainWalls: [{ x: 15.5, z: 2 }, { x: 20.5, z: 1 }],
+    // Les deux bureaux du fond du hall, comme les boutiques du concourse d'une station Coriolis :
+    // une vitrine sur toute leur façade.
+    glazed: ['ew', 'eh'],
     // Le poste de pilotage et la Promenade sont vitrés sur l'espace ; le hall de la salle commune
     // aussi, au nord et au sud (la mezzanine, à la poupe, a ses grandes baies). L'infirmerie a sa
     // verrière au nord, à la tête des lits : on s'y repose devant les étoiles.
@@ -1405,12 +1656,14 @@ export const LEVELS: LevelDef[] = [
       // Le balisage lumineux du pont, de la porte au siège du pilote.
       { model: 'bridge-guides', x: 34.5, z: 4.5, solid: false },
 
-      // --- Salle commune, à la poupe : le hall du vaisseau, comme le concourse d'une station
-      // Coriolis. Au milieu, l'îlot du hall (banquette ronde, plantes, le monument du vaisseau) ;
-      // au nord et au sud, face à face, les comptoirs de l'officier de liaison et de la
-      // scientifique du LJPC ; dans l'axe des portes, la façade de la mezzanine, son tableau
-      // d'honneur, et ses deux volées d'escalier. À l'étage, sous les grandes baies : le jukebox,
-      // deux salons qui donnent sur le hall, des plantes (cf. MEZZANINES). ---
+      // --- Salle commune, à la poupe : le hall d'accueil du vaisseau, comme le concourse d'une
+      // station Coriolis. On y arrive par le téléporteur du pont (cf. TELEPORTERS), au comptoir
+      // d'accueil. Au milieu, l'îlot du hall (banquette ronde, plantes, le monument du vaisseau) ;
+      // dans l'axe des portes, la façade de la mezzanine et ses deux volées d'escalier, et sur son
+      // garde-corps, le bandeau « En direct » (cf. src/furniture/community.ts). Au fond, derrière
+      // leur vitrine, les bureaux de l'officier de liaison (Weekly) et de la scientifique du L.J.P.C.
+      // (Chasse galactique). À l'étage, sous les grandes baies : le jukebox, deux salons qui
+      // donnent sur le hall, des plantes (cf. MEZZANINES). ---
       {
         model: 'concourse-planter', x: 5.75, z: 4.5,
         interact: tr(
@@ -1418,10 +1671,35 @@ export const LEVELS: LevelDef[] = [
           'The hall island: ferns, flowering shrubs, and above everyone\'s heads, the ship\'s crest hovering in mid-air: “MINI SHIP INTERIORS”. Someone has stuck a “you are here” sticker on the little ship between the wings.',
         ),
       },
-      { model: 'reward-counter', x: 5.9, z: 0.35, label: 'weekly', interact: tr('Officier de liaison · Weekly', 'Liaison officer · Weekly'), action: tr('Récupérer les crédits', 'Collect credits') },
-      { model: 'reward-counter', x: 5.9, z: 8.65, rot: 2, label: 'hunt', interact: tr('Scientifique du LJPC · Chasse galactique', 'LJPC scientist · Galactic Hunt'), action: tr('Récupérer les crédits', 'Collect credits') },
-      // Le tableau d'honneur de l'équipage, sur la façade de la mezzanine, face aux portes.
-      { model: 'employee-board', x: 2.57, z: 4.5, y: -0.53, rot: 1, solid: false, interact: tr('Tableau d’honneur', 'Hall of honour'), action: tr('Consulter les classements', 'View rankings') },
+      { model: 'reward-counter', x: 2, z: 13.65, rot: 2, label: 'weekly', interact: tr('Officier de liaison · Weekly', 'Liaison officer · Weekly'), action: tr('Récupérer les crédits', 'Collect credits') },
+      { model: 'reward-counter', x: 6, z: 13.65, rot: 2, label: 'hunt', interact: tr('Scientifique du LJPC · Chasse galactique', 'LJPC scientist · Galactic Hunt'), action: tr('Récupérer les crédits', 'Collect credits') },
+      // Les enseignes des deux bureaux, au-dessus de leur vitrine, côté hall ; une plante dans chacun.
+      { model: 'neon-sign', x: 1.2, z: 11.33, rot: 2, label: 'WEEKLY' },
+      { model: 'neon-sign', x: 7.3, z: 11.33, rot: 2, label: tr('CHASSE GALACTIQUE', 'GALACTIC HUNT') },
+      { model: 'plant-tall', x: 0.2, z: 12.15 },
+      { model: 'plant-tall', x: 8.1, z: 12.15 },
+      // Le bandeau « En direct », sur la façade de la mezzanine, face aux portes, à la place de
+      // l'ancien tableau des classements : le fil du site et les nouvelles du bord (cf.
+      // src/community-feed.ts). Le Tableau d'honneur est passé sur la Promenade.
+      {
+        model: 'live-ticker', x: 2.6, z: 4.5, y: -0.17, rot: 1, solid: false, action: tr('Lire le bandeau', 'Read the ticker'),
+        interact: tr('Le bandeau « En direct » : ce qui se passe sur le site et à bord, en temps réel.', 'The “Live” ticker: what is happening on the site and aboard, in real time.'),
+      },
+      // Le comptoir d'accueil, à côté du téléporteur, et la ligne au sol qui mène à la coursive.
+      {
+        model: 'welcome-desk', x: 6.8, z: 10.45, action: tr('Se renseigner', 'Ask for information'),
+        interact: [
+          tr('L\'hôtesse d\'accueil : « Bienvenue à bord ! Le téléporteur, juste là, dessert tous les ponts. Tapez un lieu dans sa recherche : basket, cinéma, Weekly… »', 'The receptionist: “Welcome aboard! The teleporter, right there, serves every deck. Type a place into its search: basketball, cinema, Weekly…”'),
+          tr('L\'hôtesse d\'accueil : « Les bureaux vitrés, au fond du hall : le Weekly et la Chasse galactique paient ce que vous avez gagné sur le site. »', 'The receptionist: “The glazed offices at the back of the hall: the Weekly and the Galactic Hunt pay out what you earned on the site.”'),
+          tr('L\'hôtesse d\'accueil : « Le bandeau, sous la mezzanine, suit ce qui se passe sur le site et à bord. Le Tableau d\'honneur est sur la Promenade, devant le Cobra. »', 'The receptionist: “The ticker below the mezzanine follows what is happening on the site and aboard. The Hall of honour is on the Promenade, by the Cobra.”'),
+          tr('L\'hôtesse d\'accueil : « Au pont supérieur, la grande bibliothèque ouvre les pages du Lore Explorer. À la cale, le complexe d\'entraînement. »', 'The receptionist: “On the upper deck, the great library opens the pages of the Lore Explorer. In the hold, the training complex.”'),
+          tr('L\'hôtesse d\'accueil : « Votre profil du site s\'affiche dans l\'antichambre de vos quartiers. Pensez à vous connecter. »', 'The receptionist: “Your site profile is shown in the antechamber of your quarters. Remember to sign in.”'),
+        ],
+      },
+      guide(0, [[4.45, 9.68], [7.25, 9.68], [7.25, 5.1], [8.35, 4.5]]),
+      // Devant les deux bureaux, leur nom au sol.
+      { model: 'floor-way', x: 2, z: 11.15, label: 'WEEKLY|1.5,0.55|#ffc270|s', solid: false },
+      { model: 'floor-way', x: 6.3, z: 11.15, label: tr('CHASSE GALACTIQUE', 'GALACTIC HUNT') + '|2.2,0.55|#57e6c1|s', solid: false },
       // Deux canapés tournés vers l'îlot, adossés aux escaliers.
       {
         model: 'sofa', x: 4.17, z: 1.95, rot: 1, label: 'teal',
@@ -1436,7 +1714,12 @@ export const LEVELS: LevelDef[] = [
       { model: 'plant-tall', x: 7.95, z: 7.95 },
       { model: 'monstera', x: 4.1, z: 8.95 },
       { model: 'plant', x: 7.1, z: 0.0 },
-      { model: 'plant', x: 7.1, z: 9.0 },
+      { model: 'plant', x: 8.05, z: 9.35 },
+      { model: 'monstera', x: 4, z: 12.85 },
+
+      // Le plan du vaisseau, face au téléporteur du hall (cf. TELEPORTERS), et son totem, entre les deux bureaux.
+      shipMap('mainHall'),
+      totem(0, 2.4, 10.3, 1),
 
       // À l'étage : le jukebox au milieu des baies (tout le pont l'entend, cf. src/music.ts), deux
       // salons de part et d'autre, tournés vers le hall, et des plantes aux paliers.
@@ -1542,111 +1825,37 @@ export const LEVELS: LevelDef[] = [
         interact: tr('Défibrillateur. Betty dit qu\'elle n\'en a jamais eu besoin : elle a un meilleur effet sur les cœurs.', 'Defibrillator. Betty says she has never needed it: she has a better effect on hearts.'),
       },
 
-      // --- Salle de sport, façon vraie salle : un sol de caoutchouc, et une zone par mini-jeu (cf.
-      // src/gym.ts), chacune avec son tapis, son enseigne au haut du mur nord et le record de son
-      // appareil. Au nord, d'ouest en est : la boxe (sac de frappe, mannequin, speed bag, gants,
-      // chrono des rounds), la course (le tapis, face au hublot), le vélo, puis la musculation (miroir et
-      // haltères, banc, kettlebells, disques). Au sud-ouest, le banc sous l'écran des records et le
-      // tapis d'étirement ; près de la porte, la fontaine et le coin nettoyage. L'allée de la porte
-      // reste libre : le sergent y fait sa ronde (cf. shared/patrol.js). ---
-      { model: 'gym-floor', x: 18, z: 1.5, label: '4.7x3.7', solid: false },
-      { model: 'gym-mat', x: 16.3, z: 0.9, label: 'boxing:1.3x2.5', solid: false },
-      { model: 'gym-mat', x: 17.375, z: 0.55, label: 'gym-run:0.85x1.8', solid: false },
-      { model: 'gym-mat', x: 18.325, z: 0.55, label: 'gym-bike:1.05x1.8', solid: false },
-      { model: 'gym-mat', x: 19.6, z: 1.5, label: 'weights:1.5x3.7', solid: false },
-      { model: 'gym-logo', x: 18.1, z: 2.35, label: '0.8', solid: false },
-      { model: 'gym-sign', x: 16.3, z: -0.35, label: 'gym-punch', solid: false },
-      { model: 'gym-sign', x: 17.375, z: -0.35, label: 'gym-run', solid: false },
-      { model: 'gym-sign', x: 18.33, z: -0.35, label: 'gym-bike', solid: false },
-      { model: 'gym-sign', x: 19.62, z: -0.35, label: 'weights', solid: false },
-      // La boxe : le sac sur sa potence, adossée au mur ouest ; le chrono des rounds et le speed bag
-      // au même mur, le mannequin devant, les gants au mur nord.
+      // --- Toilettes, à la place de l'ancienne salle de sport : quatre cabines contre le mur nord,
+      // dont la porte se referme sur l'occupant (cf. updateStalls dans main.ts), deux lavabos au mur
+      // est, un au mur ouest. Tout est blanc : carrelage en damier au sol, faïence à mi-hauteur aux
+      // murs ouest et est, cabines, portes et meubles peints. L'allée de la porte reste libre : le
+      // sergent y fait sa ronde (cf. shared/patrol.js). ---
+      { model: 'tile-floor', x: 18, z: 1.5, label: '4.7x3.7', solid: false },
+      { model: 'tile-wall', x: 15.65, z: 2.25, rot: 1, label: '2.5', solid: false },
+      { model: 'tile-wall', x: 20.35, z: 2.25, rot: 3, label: '2.5', solid: false },
+      ...([16.1, 17, 17.9, 18.8] as const).map((x): Prop => ({
+        model: 'toilet-stall', x, z: 0.15, label: 'white',
+        interact: tr('Toilettes à dépression. Ne pas utiliser pendant un saut FSD.', 'Vacuum toilet. Do not use during an FSD jump.'),
+      })),
       {
-        model: 'punching-bag', x: 16.12, z: 0.6, rot: 1, action: tr('Frapper', 'Punch'),
-        interact: [
-          tr('Paf ! Le sac encaisse sans broncher.', 'Thwack! The bag takes it without flinching.'),
-          tr('Bim ! Quelqu\'un a dessiné un Thargoïde dessus.', 'Pow! Someone has drawn a Thargoid on it.'),
-        ],
+        model: 'sink', x: 20.12, z: 0.95, rot: 3, label: 'white',
+        interact: tr('Lavabo : le miroir affiche la météo de la station la plus proche.', 'Washbasin: the mirror shows the weather at the nearest station.'),
       },
       {
-        model: 'round-timer', x: 15.65, z: 1.2, rot: 1, solid: false,
-        interact: tr('Le chrono des rounds : trois minutes rouges, une minute verte. Le sergent Rourke ne connaît que les rouges.', 'The round timer: three red minutes, one green. Sergeant Rourke only knows the red ones.'),
+        model: 'sink', x: 20.12, z: 1.85, rot: 3, label: 'white',
+        interact: tr('Lavabo : un filet d\'eau recyclée, tiède. Mieux vaut ne pas demander recyclée d\'où.', 'Washbasin: a trickle of lukewarm recycled water. Best not to ask recycled from where.'),
       },
       {
-        model: 'speed-bag', x: 15.65, z: 1.75, rot: 1, solid: false,
-        interact: [
-          tr('Le speed bag : tac-tac-tac-tac. Il paraît que Betty le fait chanter mieux que tout le monde.', 'The speed bag: rat-a-tat-tat. Word is Betty makes it sing better than anyone.'),
-          tr('La poire rebondit contre le plateau, et vous dans la figure. Il faut le rythme.', 'The bag bounces off the board, and into your face. It\'s all about rhythm.'),
-        ],
+        model: 'hand-dryer', x: 20.35, z: 2.75, rot: 3, solid: false,
+        interact: tr('Le sèche-mains souffle un air tiède, puis s\'arrête exactement une seconde trop tôt.', 'The hand dryer blows warm air, then stops exactly one second too soon.'),
       },
       {
-        model: 'boxing-dummy', x: 16.55, z: 1.7,
-        interact: [
-          tr('Bob, le mannequin de frappe. Il a encaissé tout l\'équipage sans jamais rendre un coup. Ni un sourire.', 'Bob, the punching dummy. He has taken hits from the whole crew without ever hitting back. Or smiling.'),
-          tr('Quelqu\'un a collé une gommette « Employé du mois » sur le torse de Bob.', 'Someone has stuck an “Employee of the month” sticker on Bob\'s chest.'),
-        ],
+        model: 'sink', x: 15.88, z: 2.85, rot: 1, label: 'white',
+        interact: tr('Lavabo : quelqu\'un a écrit dans la buée du miroir « Rourke a oublié son casque ». Il n\'oublie jamais son casque.', 'Washbasin: someone has written in the mirror\'s steam “Rourke forgot his helmet”. He never forgets his helmet.'),
       },
-      {
-        model: 'glove-rack', x: 16.1, z: -0.35, solid: false,
-        interact: tr('Trois paires de gants, deux cordes à sauter, des bandes. Sur la paire noire, au marqueur : « Propriété de Rourke. Ne pas toucher. »', 'Three pairs of gloves, two skipping ropes, hand wraps. On the black pair, in marker: “Property of Rourke. Do not touch.”'),
-      },
-      // La course : le tapis face au hublot, à courir vers les étoiles.
-      {
-        model: 'treadmill', x: 17.375, z: 0.45, rot: 2, action: tr('Courir', 'Run'),
-        interact: [
-          tr('Tapis de course : 5 km parcourus. Le vaisseau, lui, en a fait 3 milliards.', 'Treadmill: 5 km run. The ship, meanwhile, has done 3 billion.'),
-          tr('Programme « Fuite devant un Thargoïde » : niveau 7 atteint.', '“Fleeing a Thargoid” programme: level 7 reached.'),
-          tr('On court face au hublot : la station la plus proche ne se rapproche jamais.', 'You run facing the porthole: the nearest station never gets any closer.'),
-        ],
-      },
-      // Le vélo.
-      {
-        model: 'exercise-bike', x: 18.45, z: 0.3, rot: 2, action: tr('Pédaler', 'Pedal'),
-        interact: tr(
-          'Vélo d\'appartement : il recharge les batteries de secours. Pédalez, CMDR !',
-          'Exercise bike: it charges the backup batteries. Pedal, CMDR!',
-        ),
-      },
-      // La musculation : le miroir et les haltères au mur nord, le banc au milieu, les kettlebells
-      // et les serviettes au mur est (sous le règlement), l'arbre à disques dans le coin.
-      { model: 'gym-mirror', x: 19.62, z: -0.35, label: '1.32', solid: false },
-      {
-        model: 'dumbbell-rack', x: 19.62, z: -0.18,
-        interact: tr('Le râtelier d\'haltères, du plus léger au plus lourd. Il en manque toujours une paire : elle est dans les quartiers de quelqu\'un.', 'The dumbbell rack, lightest to heaviest. A pair is always missing: it\'s in somebody\'s quarters.'),
-      },
-      {
-        model: 'weight-bench', x: 19.6, z: 1.8,
-        interact: tr(
-          'Banc de musculation : 60 kg… sous 0,8 g. Vous êtes plus fort que vous ne le croyez.',
-          'Weight bench: 60 kg… at 0.8 g. You are stronger than you think.',
-        ),
-      },
-      {
-        model: 'kettlebell-rack', x: 20.2, z: 0.75, rot: 3,
-        interact: tr('Kettlebells : une couleur par poids. La violette a servi à caler la porte de la soute.', 'Kettlebells: one colour per weight. The purple one was used to wedge the cargo bay door.'),
-      },
-      { model: 'plate-tree', x: 20.05, z: 3.0 },
-      { model: 'towel-shelf', x: 20.24, z: 2.42, rot: 3 },
-      {
-        model: 'gym-rules', x: 20.35, z: 2.45, rot: 3, solid: false,
-        interact: tr('Le règlement de la salle, en cinq points. Le cinquième a été ajouté au feutre, après un incident.', 'The gym rules, in five points. The fifth was added in marker, after an incident.'),
-      },
-      // Le coin repos : le banc sous l'écran des records, le tapis d'étirement, la fontaine, et le
-      // coin nettoyage près de la porte.
-      { model: 'score-board', x: 15.65, z: 2.75, rot: 1, label: 'gym', solid: false, interact: tr('Records de la salle de sport', 'Gym records'), action: tr('Consulter les records', 'View records') },
-      { model: 'bench', x: 15.95, z: 2.75, rot: 1, label: 'terracotta' },
-      { model: 'gym-mat', x: 16.85, z: 2.55, label: 'yoga:0.85x0.32', solid: false },
-      {
-        model: 'water-fountain', x: 16.6, z: 3.19, rot: 2, action: tr('Boire un verre d\'eau', 'Drink a glass of water'),
-        interact: [
-          tr('Une gorgée d\'eau fraîche entre deux séries. Le gobelet dit : « Hydratez-vous, CMDR. »', 'A sip of cold water between sets. The cup says: “Stay hydrated, CMDR.”'),
-          tr('Glou glou. Quelqu\'un a scotché une liste au-dessus : « Records du jour ». Elle est vide.', 'Glug glug. Someone has taped a list above it: “Today\'s records”. It\'s empty.'),
-        ],
-      },
-      {
-        model: 'cleaning-station', x: 17.15, z: 3.35, rot: 2,
-        interact: tr('Coin nettoyage : essuie-tout, désinfectant, gel. « Après la séance, on nettoie ! » Le sergent vérifie.', 'Cleaning station: paper towels, disinfectant, hand gel. “After your set, wipe it down!” The sergeant checks.'),
-      },
+      { model: 'towel-rail', x: 15.65, z: 1.95, rot: 1, solid: false, interact: tr('Porte-serviettes chauffant : les serviettes sont tièdes, et sentent la lavande de synthèse.', 'Heated towel rail: the towels are warm, and smell of synthetic lavender.') },
+      { model: 'bath-bin', x: 19.85, z: 3.25, solid: false },
+      { model: 'rug', x: 18, z: 2.45, label: 'bath:1.2x0.7', solid: false },
 
       // --- Mess : un self. Au nord, la salle et ses deux tables de cantine ; le comptoir la traverse
       // d'ouest en est (plateaux, bain-marie, passe du chef, desserts, boissons) ; derrière, la
@@ -1785,11 +1994,12 @@ export const LEVELS: LevelDef[] = [
       // de néon sur les murs. Deux rangées de bornes jouables, le comptoir à lots à l'ouest, les jeux
       // de plateau et le coin salon à l'est ---
       { model: 'arcade-carpet', x: 20.5, z: 7.5, label: '9.7x3.7', solid: false },
-      // Au sud, face au nord : Cargaison, Viper, Astéroïdes et un deuxième Cargaison.
+      // Au sud, face au nord : Cargaison, Viper, Astéroïdes, et la borne du Mini-CQC, le jeu de
+      // combat du site (cf. src/game-embed.ts).
       { model: 'arcade', x: 17.0, z: 9.02, rot: 2, label: 'cargo' },
       { model: 'arcade', x: 18.2, z: 9.02, rot: 2, label: 'viper' },
       { model: 'arcade', x: 19.4, z: 9.02, rot: 2, label: 'asteroids' },
-      { model: 'arcade', x: 20.6, z: 9.02, rot: 2, label: 'cargo' },
+      { model: 'arcade', x: 20.6, z: 9.02, rot: 2, label: 'cqc', action: tr('Jouer au Mini-CQC', 'Play Mini-CQC') },
       // Au nord, face au sud, de part et d'autre des portes : Ruelle Fighter II à gauche de la porte
       // ouest (son duel est unique sur le pont, cf. server/fights.js), un deuxième exemplaire des
       // jeux solo pour que tout le monde joue quand l'équipage est nombreux, Thargoid Invaders, et
@@ -1988,10 +2198,10 @@ export const LEVELS: LevelDef[] = [
       // roulement et ses feux de guidage, l'enseigne de chaque porte, des pilastres lumineux et un
       // filet de lumière au pied des cloisons, au nord (face au sud) comme au sud. ---
       { model: 'corridor-floor', x: 17, z: 4.5, solid: false },
-      // Le plan du vaisseau, face à l'ascenseur.
+      // Le plan du vaisseau, au départ de la coursive.
       shipMap('mainLanding'),
       ...([
-        [13.8, 0, tr('Infirmerie', 'Medical bay'), '#5ff2d8'], [18.8, 0, tr('Salle de sport', 'Gym'), '#ff7a5a'], [23.8, 0, tr('Labo L.J.P.C.', 'L.J.P.C. lab'), '#7dffa8'],
+        [13.8, 0, tr('Infirmerie', 'Medical bay'), '#5ff2d8'], [18.8, 0, tr('Toilettes', 'Restrooms'), '#9fd8ff'], [23.8, 0, tr('Labo L.J.P.C.', 'L.J.P.C. lab'), '#7dffa8'],
         // Celle du mess est du côté proue de sa porte : de l'autre, une colonne de la cloison la mangeait à moitié.
         [13.8, 2, 'Mess', '#ffc27a'], [17.2, 2, 'Arcade', '#ff5fd8'], [23.8, 2, 'Arcade', '#5fdcff'],
       ] as const).map(([x, rot, name, color]): Prop => ({ model: 'corridor-sign', x, z: rot ? 5.345 : 3.655, rot, label: `${name}|${color}`, solid: false })),
@@ -2003,7 +2213,9 @@ export const LEVELS: LevelDef[] = [
 
       // --- La Promenade (cf. src/furniture/promenade.ts) : la coursive s'élargit en atrium vitré, et
       // contourne le monument au Cobra, sur sa place ronde, incrustée dans les tôles du sol. Quatre colonnes lumineuses aux angles
-      // de la place, une jardinière le long de chaque mur, un banc dans chaque alcôve. ---
+      // de la place, une jardinière le long de chaque mur, un banc dans chaque alcôve. Contre la
+      // cloison ouest, face au Cobra, le Tableau d'honneur de l'équipage entre ses deux stèles
+      // (cf. src/furniture/community.ts) : les classements du site, sur un tableau à palettes. ---
       {
         model: 'promenade-floor', x: 28, z: 4.5, solid: false,
       },
@@ -2017,14 +2229,19 @@ export const LEVELS: LevelDef[] = [
       },
       { model: 'bench', x: 28, z: 0.45, label: 'teal', interact: tr('Banc face à la verrière : on y regarde défiler les systèmes.', 'A bench facing the canopy: watch the systems go by.') },
       { model: 'bench', x: 28, z: 8.55, label: 'teal' },
-      ...[[25.8, 1.6, 1], [30.2, 1.6, 3], [25.8, 7.4, 1], [30.2, 7.4, 3]].map(([x, z, rot]): Prop => ({ model: 'promenade-planter', x, z, rot: rot as Rot })),
+      ...[[25.8, 1.6, 1], [30.2, 1.6, 3], [30.2, 7.4, 3]].map(([x, z, rot]): Prop => ({ model: 'promenade-planter', x, z, rot: rot as Rot })),
+      { model: 'honour-stele', x: 25.74, z: 6.2, rot: 1, label: tr('Honneur', 'Honour') },
+      {
+        model: 'honour-board', x: 25.69, z: 7.2, rot: 1, solid: false, action: tr('Consulter les classements', 'View rankings'),
+        interact: tr('Le Tableau d\'honneur de l\'équipage : les classements du site, à tour de rôle.', 'The crew\'s Hall of honour: the site\'s rankings, one after another.'),
+      },
+      { model: 'honour-stele', x: 25.74, z: 8.2, rot: 1, label: tr('Équipage', 'Crew') },
       ...[[26.5, 2.25], [29.5, 2.25], [26.5, 6.75], [29.5, 6.75]].map(([x, z]): Prop => ({ model: 'promenade-lamp', x, z })),
       { model: 'plant-tall', x: 26.9, z: 0.1 },
       { model: 'monstera', x: 29.1, z: 0.1 },
       // Au sud, un seul pot : la porte de service du poste de surveillance est de l'autre côté du banc.
       { model: 'plant-tall', x: 29.1, z: 8.9 },
       { model: 'telescope', x: 29.85, z: 3.05, rot: 1, interact: tr('Longue-vue : on y voit la station la plus proche… et le parking de Fleet Carriers.', 'Spyglass: you can see the nearest station… and the Fleet Carrier car park.') },
-      { model: 'telescope', x: 26.15, z: 5.95, rot: 3 },
       // Le plan du vaisseau, au débouché de la coursive, pour qui revient du poste de pilotage.
       shipMap('mainPromenade'),
 
@@ -2052,8 +2269,11 @@ export const LEVELS: LevelDef[] = [
       // La salle commune : l'îlot du hall, les deux comptoirs, les salons de la mezzanine et le
       // jukebox (cf. Deck : à l'étage, les lampes montent avec le plancher).
       [5.75, 4.5, '#fff1dd', 3],
-      [5.9, 1.5, '#d6ecff', 1.8],
-      [5.9, 7.5, '#bff7ec', 1.8],
+      [2, 12.8, '#d6ecff', 1.8],
+      [6, 12.8, '#bff7ec', 1.8],
+      // Le bandeau « En direct », et le comptoir d'accueil.
+      [3.2, 4.5, '#ff9a4a', 0.9, undefined, 3],
+      [6.8, 10.2, '#ffe2bf', 1.4],
       [0.7, 2.4, '#ffd9a8', 1.8],
       [0.7, 6.6, '#ffd9a8', 1.8],
       [0.5, 4.5, '#ff7ad9', 1.4, 'neon'],
@@ -2071,9 +2291,8 @@ export const LEVELS: LevelDef[] = [
       // Le turquoise des lits, sous la verrière, et celui du scanner.
       [10.5, 0.3, '#5ff2d8', 1.3, undefined, 4],
       [13.2, 0.5, '#aefcf0', 1.2, undefined, 3],
-      // La salle de sport : une lumière blanche de salle, et le rouge de la boxe.
-      [18.2, 1.3, '#f2f6ff', 2.8],
-      [16.3, 1.4, '#ff8a7a', 1],
+      // Les toilettes : du blanc, sur la faïence.
+      [18, 1.6, '#e6f6ff', 2],
       // Le labo du L.J.P.C. : la lueur verte de sa table holographique.
       [23.15, 1.5, '#7dffa8', 1.2, undefined, 3],
       // Le mess : une tache chaude sous les suspensions de chaque table, les lampes chauffantes de
@@ -2097,6 +2316,8 @@ export const LEVELS: LevelDef[] = [
       // (ses colonnes éclairent d'elles-mêmes, cf. lighting/emitters.ts).
       [28, 4.5, '#cfeaff', 3.2, 'breath', 5],
       [28, 8.3, '#9fd8ff', 1.4],
+      // Le Tableau d'honneur, sous sa lampe de laiton.
+      [26.5, 7.2, '#ffe2a8', 1.3, undefined, 3],
       [23, 1.2, '#e6fbff', 2.4],
       [21.3, 0.4, '#7dffa8', 1.2],
       [24.7, 0.5, '#bff6ff', 1.2],
@@ -2116,7 +2337,7 @@ export const LEVELS: LevelDef[] = [
     ],
   },
 
-  // ======================================================== Pont supérieur : la vie à bord
+  // ======================================================== Pont supérieur : culture et détente
   {
     id: 1,
     name: tr('Pont supérieur', 'Upper deck'),
@@ -2127,7 +2348,6 @@ export const LEVELS: LevelDef[] = [
     rooms: {
       c: tr('Coursive', 'Corridor'),
       k: tr('Salle de classe', 'Classroom'),
-      d: tr('Toilettes', 'Restrooms'),
       // À la place des anciens quartiers du commandant.
       p: tr('Planétarium', 'Planetarium'),
       g: tr('Serre hydroponique', 'Hydroponics bay'),
@@ -2135,41 +2355,42 @@ export const LEVELS: LevelDef[] = [
       s: tr('Studio Radio Dangereuse', 'Radio Dangereuse studio'),
       n: tr('Cinéma', 'Cinema'),
       h: tr('Foyer', 'Foyer'),
-      b: tr('Terrain de basket', 'Basketball court'),
-      f: tr('Terrain de foot', 'Football pitch'),
+      l: tr('Bibliothèque', 'Library'),
       x: tr('Comptoir des Cartes Dangereuses', 'Cartes Dangereuses counter'),
     },
-    windows: { c: 0, k: 1, d: 0, p: 0.6, g: 0.5, o: 1, n: 0, s: 0, h: 0, b: 0, f: 0.4, x: 0 },
+    windows: { c: 0, k: 1, p: 0.6, g: 0.5, o: 1, n: 0, s: 0, h: 0, l: 0, x: 0 },
     // Le Comptoir des Cartes Dangereuses s'ouvre sur l'espace, à la proue, par une baie vitrée.
     canopy: { x: [1] },
-    // Le sud de la serre, sans mur entre les deux : le jardin exotique et son étang.
-    areas: [{ name: tr('Jardin exotique', 'Exotic garden'), minX: 0, maxX: 7, minZ: 9, maxZ: 14 }],
-    // Du foyer, on entre au cinéma par une porte double, capitonnée de rouge ; au fond du hall,
-    // une autre porte double ouvre sur le Comptoir des Cartes Dangereuses.
-    doubleDoors: [{ x: 22, z: 4, dir: 1, padded: true }, { x: 30, z: 9, dir: 1 }],
-    // Derrière le lavabo ouest des toilettes : un pilier lui passait au travers ; entre le salon
-    // d'écoute et le couloir du cinéma, la cloison reste sobre ; au fond du hall, sous le néon
-    // « CARTES » : un pilier le cachait à moitié.
-    plainWalls: [{ x: 12.5, z: 3 }, { x: 20.5, z: 7 }, { x: 28, z: 8.5 }, { x: 29, z: 8.5 }],
+    // Le sud de la serre, sans mur entre les deux : le jardin exotique et son étang. Le bout de la
+    // coursive qui longe le planétarium et la bibliothèque : la galerie.
+    areas: [
+      { name: tr('Jardin exotique', 'Exotic garden'), minX: 0, maxX: 7, minZ: 9, maxZ: 14 },
+      { name: tr('Galerie', 'Gallery'), minX: 15, maxX: 29, minZ: 9, maxZ: 10 },
+    ],
+    // Du foyer, on entre au cinéma par une porte double, capitonnée de rouge, et il donne sur la
+    // galerie par une autre (cf. FOYER_DOORS) ; au bout de la galerie, une porte double ouvre sur
+    // le Comptoir des Cartes Dangereuses, et une autre, au milieu, sur la bibliothèque.
+    doubleDoors: [{ x: 22, z: 4, dir: 1, padded: true }, { x: 30, z: 9, dir: 1 }, { x: FOYER_DOORS[0].x, z: FOYER_DOORS[0].z, dir: FOYER_DOORS[0].dir }, { x: 22, z: 11, dir: 0 }],
+    // Entre le salon d'écoute et le couloir du cinéma, la cloison reste sobre ; au bout de la
+    // galerie, sous le néon « CARTES » : un pilier le cachait à moitié.
+    plainWalls: [{ x: 20.5, z: 7 }, { x: 28, z: 8.5 }, { x: 29, z: 8.5 }],
     // La serre, tout en verre : les plantes voient les étoiles. Sol de tomettes.
     greenhouse: ['g'],
     floorFinish: { g: 'terracotta' },
     // Le salon voit le studio par sa vitre ; de la coursive, on voit la serre.
     glazed: ['os', 'gc'],
-    // On baisse les lumières au cinéma, un peu au salon d'écoute ; au planétarium, la nuit tombe ;
-    // au Comptoir, ce sont les cartes et les lampes des tables qui éclairent.
-    dim: { n: 0.45, o: 0.7, p: 0.3, x: 0.62 },
-    // La salle de classe, les toilettes et les terrains sont en pleine lumière ; le salon d'écoute,
-    // le studio et le foyer du cinéma, feutrés, laissent parler leurs lampes.
+    // On baisse les lumières au cinéma, un peu au salon d'écoute et à la bibliothèque ; au
+    // planétarium, la nuit tombe ; au Comptoir, ce sont les cartes et les lampes des tables qui éclairent.
+    dim: { n: 0.45, o: 0.7, p: 0.3, x: 0.62, l: 0.8 },
+    // La salle de classe est en pleine lumière ; le salon d'écoute, le studio, le foyer du cinéma
+    // et la bibliothèque, feutrés, laissent parler leurs lampes.
     lighting: {
       c: { level: 0.75, spacing: 3 },
       k: { level: 1.2 },
-      d: { level: 1.25, color: '#f2f8ff' },
       o: { level: 0.45, spacing: 3 },
       s: { level: 0.7 },
       h: { level: 0.3, spacing: 3 },
-      b: { level: 1.35, color: '#f4f8ff' },
-      f: { level: 1.35, color: '#f4f8ff' },
+      l: { level: 0.55, color: '#ffe2b8', spacing: 3 },
       x: { level: 0.45, color: '#ffcf9a', spacing: 3 },
     },
     props: [
@@ -2177,12 +2398,12 @@ export const LEVELS: LevelDef[] = [
       { model: 'rug', x: 12.9, z: 5, label: 'warm:3.8x0.7', solid: false },
       { model: 'bench', x: 12.3, z: 3.9, label: 'teal' },
       { model: 'plant-tall', x: 15.1, z: 5.2 },
-      // Le plan du vaisseau, face à l'ascenseur ; un autre au carrefour du foyer et du hall (plus bas).
+      // Le plan du vaisseau, au milieu de la coursive ; un autre dans la galerie, face au téléporteur (plus bas).
       shipMap('upperLanding'),
 
-      // --- Salle de classe (5 × 3), façon lycée : le tableau au mur ouest, la professeure Kepler
+      // --- Salle de classe (8 × 3), façon lycée : le tableau au mur ouest, la professeure Kepler
       // derrière son pupitre, huit tables d'élève tournées vers elle, en deux rangées, dont cinq
-      // libres (celles du fond, contre le mur est, le sont toutes : il les cache à moitié). Les rangées sont à cheval sur deux tuiles (z = 1,5 et 2,5) : les trois allées
+      // libres ; au fond, à la place des anciennes toilettes, le coin lecture. Les rangées sont à cheval sur deux tuiles (z = 1,5 et 2,5) : les trois allées
       // restent ouvertes aux trajets. S'asseoir à une table libre, parler à la professeure ou lire
       // le tableau ouvre le quiz (cf. src/quiz/ et main.ts) ; les personnages sont posés par
       // src/classroom.ts sur leurs emplacements, qui portent leur apparence (`label`).
@@ -2196,8 +2417,8 @@ export const LEVELS: LevelDef[] = [
         interact: tr('Le haut-parleur grésille : « Les élèves surpris à lancer des avions en papier en supercruise seront convoqués sur la passerelle. »', 'The speaker crackles: “Students caught throwing paper planes in supercruise will be summoned to the bridge.”'),
       },
       // Le parquet, son estrade et le soleil des fenêtres ; un rideau à chaque trumeau du mur nord.
-      { model: 'class-floor', x: 10, z: 2, label: '4.7x2.7', solid: false },
-      ...([7.62, 8.5, 9.5, 10.5, 11.5, 12.38] as const).map((x): Prop => ({ model: 'class-curtain', x, z: 0.65, solid: false })),
+      { model: 'class-floor', x: 11.5, z: 2, label: '7.7x2.7', solid: false },
+      ...([7.62, 8.5, 9.5, 10.5, 11.5, 12.5, 13.5, 14.5, 15.38] as const).map((x): Prop => ({ model: 'class-curtain', x, z: 0.65, solid: false })),
       {
         model: 'class-notice', x: 11, z: 3.35, rot: 2, solid: false,
         interact: [
@@ -2206,7 +2427,7 @@ export const LEVELS: LevelDef[] = [
         ],
       },
       {
-        model: 'class-locker', x: 12.24, z: 0.84, rot: 3,
+        model: 'class-locker', x: 15.24, z: 2.9, rot: 3,
         interact: tr('L\'armoire à balais. De corvée cette semaine, d\'après la liste : « Tom ». Toutes les semaines, d\'après la liste.', 'The broom cupboard. On cleaning duty this week, according to the list: “Tom”. Every week, according to the list.'),
       },
       { model: 'class-podium', x: 8.6, z: 2, rot: 1 },
@@ -2229,6 +2450,19 @@ export const LEVELS: LevelDef[] = [
           ? { model: 'class-desk', x, z, rot: 3, seats: false }
           : { model: 'class-desk', x, z, rot: 3, action: tr('S\'asseoir en classe', 'Sit in class'), interact: tr('Une table libre. Sur le bois, gravé au compas : « o7 ».', 'A free desk. Carved into the wood with a compass: “o7”.') }
       })),
+      // Le coin lecture, au fond de la classe : on y révise avant l'interro, et une affiche indique
+      // la grande bibliothèque, au bout de la coursive.
+      { model: 'rug', x: 14.2, z: 1.7, label: 'warm:1.6x1.4', solid: false },
+      {
+        model: 'bookshelf', x: 13.6, z: 0.83,
+        interact: tr('Les manuels de la classe : « Navigation pour les nuls », « Histoire de la Bulle, tome 3 », et un atlas de Colonia dont il manque la moitié des pages.', 'The class textbooks: “Navigation for Dummies”, “History of the Bubble, vol. 3”, and an atlas of Colonia missing half its pages.'),
+      },
+      { model: 'armchair', x: 14.75, z: 1.45, rot: 3, label: 'teal' },
+      { model: 'plant-tall', x: 15.15, z: 0.85 },
+      {
+        model: 'class-notice', x: 14, z: 3.35, rot: 2, solid: false,
+        interact: tr('Une affiche : « Pour aller plus loin que le programme : la grande bibliothèque, au bout de la galerie. Silence, et pas de miettes sur les Thargoïdes. »', 'A poster: “To go beyond the syllabus: the great library, at the end of the gallery. Silence, and no crumbs on the Thargoids.”'),
+      },
       // Les élèves, assis à leur table (0,16 derrière son centre, à hauteur d'assise).
       {
         model: 'class-student', x: 10.01, z: 1.5, y: 0.25, rot: 3, solid: false, label: 'human.female.c', action: tr('Parler à Zélie', 'Talk to Zélie'),
@@ -2253,33 +2487,6 @@ export const LEVELS: LevelDef[] = [
           tr('Il lève trois doigts sur quatre. Dans sa langue, cela veut dire « je connais la réponse ». Ou « bonjour ». Personne n\'est sûr.', 'He raises three fingers out of four. In his language that means “I know the answer”. Or “hello”. Nobody is sure.'),
         ],
       },
-
-      // --- Toilettes : trois cabines contre le mur nord, dont la porte se referme sur l'occupant
-      // (cf. updateStalls dans main.ts) ; deux lavabos de part et d'autre de l'entrée. Tout est
-      // blanc : carrelage en damier au sol, faïence à mi-hauteur aux murs ouest et est, cabines,
-      // portes et meubles peints.
-      { model: 'tile-floor', x: 14, z: 2, label: '2.7x2.7', solid: false },
-      { model: 'tile-wall', x: 12.65, z: 2.6, rot: 1, label: '1.75', solid: false },
-      { model: 'tile-wall', x: 15.35, z: 2.6, rot: 3, label: '1.75', solid: false },
-      {
-        model: 'hand-dryer', x: 15.35, z: 2.05, rot: 3, solid: false,
-        interact: tr('Le sèche-mains souffle un air tiède, puis s\'arrête exactement une seconde trop tôt.', 'The hand dryer blows warm air, then stops exactly one second too soon.'),
-      },
-      { model: 'bath-bin', x: 13.02, z: 3.25, solid: false },
-      ...([13.1, 14, 14.9] as const).map((x): Prop => ({
-        model: 'toilet-stall', x, z: 1.15, label: 'white',
-        interact: tr('Toilettes à dépression. Ne pas utiliser pendant un saut FSD.', 'Vacuum toilet. Do not use during an FSD jump.'),
-      })),
-      {
-        model: 'sink', x: 12.88, z: 2.85, rot: 1, label: 'white',
-        interact: tr('Lavabo : le miroir affiche la météo de la station la plus proche.', 'Washbasin: the mirror shows the weather at the nearest station.'),
-      },
-      {
-        model: 'sink', x: 15.12, z: 2.85, rot: 3, label: 'white',
-        interact: tr('Lavabo : un filet d\'eau recyclée, tiède. Mieux vaut ne pas demander recyclée d\'où.', 'Washbasin: a trickle of lukewarm recycled water. Best not to ask recycled from where.'),
-      },
-      { model: 'rug', x: 14, z: 2.45, label: 'bath:1.2x0.7', solid: false },
-      { model: 'towel-rail', x: 12.65, z: 2.05, rot: 1, solid: false, interact: tr('Porte-serviettes chauffant : les serviettes sont tièdes, et sentent la lavande de synthèse.', 'Heated towel rail: the towels are warm, and smell of synthetic lavender.') },
 
       // --- Serre hydroponique, sous verrière : grainothèque, bacs hydroponiques, cuve et récupérateur
       // d\'eau au nord ; mur végétal à l\'ouest ; bacs potagers au milieu ; à l\'ouest, la pelouse,
@@ -2592,21 +2799,21 @@ export const LEVELS: LevelDef[] = [
         ),
       },
 
-      // --- Planétarium (8 × 8), à la place des anciens quartiers : l'observatoire de Bugenhagen, comme
+      // --- Planétarium (7 × 8), à la place des anciens quartiers : l'observatoire de Bugenhagen, comme
       // à Cosmo Canyon dans Final Fantasy VII. La carte du ciel au sol ; au centre, le projecteur et
       // l'hologramme du système, qui emplit la pièce et qu'on traverse ; Bugenhagen y flotte, au
       // nord-ouest du soleil. Les bibliothèques aux murs, la lunette près de la porte, des
       // coussins tout autour pour regarder tourner les planètes (cf. src/furniture/planetarium.ts) : s'y
       // asseoir, ou observer au projecteur, lance la séance (cf. src/planetarium.ts).
-      { model: 'planetarium-floor', x: 11.5, z: 9.5, solid: false },
+      { model: 'planetarium-floor', x: 11, z: 9.5, label: '6.6x7.6', solid: false },
       // « Observer » lance la séance (cf. src/planetarium.ts), comme de s'asseoir sur un coussin.
       {
-        model: 'planetarium-projector', x: 11.5, z: 9.5, action: tr('Observer', 'Observe'),
+        model: 'planetarium-projector', x: 11, z: 9.5, action: tr('Observer', 'Observe'),
         interact: tr('Le projecteur du planétarium : une lentille de cristal, une monture de laiton, et tout un système qui en sort.', 'The planetarium projector: a crystal lens, a brass mount, and a whole star system pouring out of it.'),
       },
-      { model: 'planetarium-sky', x: 11.5, z: 9.5, solid: false },
+      { model: 'planetarium-sky', x: 11, z: 9.5, label: '3.2', solid: false },
       {
-        model: 'bugenhagen', x: 10.0, z: 8.3, action: tr('Parler à Bugenhagen', 'Talk to Bugenhagen'),
+        model: 'bugenhagen', x: 9.5, z: 8.3, action: tr('Parler à Bugenhagen', 'Talk to Bugenhagen'),
         interact: [
           tr('Bugenhagen : « Hou hou houuu ! Un visiteur ! Approche, approche… Les étoiles n\'attendent personne, mais elles aiment qu\'on les regarde. »', 'Bugenhagen: “Ho ho hooo! A visitor! Come closer, come closer… The stars wait for no one, but they like being looked at.”'),
           tr('Bugenhagen : « Tu entends ? Non ? Écoute mieux. La galaxie gémit. Quatre cents milliards d\'étoiles, et chacune a sa voix. »', 'Bugenhagen: “Do you hear it? No? Listen harder. The galaxy is groaning. Four hundred billion stars, and every one has a voice.”'),
@@ -2622,7 +2829,7 @@ export const LEVELS: LevelDef[] = [
         ],
       },
       {
-        model: 'brass-telescope', x: 8.55, z: 6.45,
+        model: 'brass-telescope', x: 8.4, z: 6.45,
         interact: [
           tr('La lunette de Bugenhagen, braquée sur la coupole et non sur le ciel. « Le vrai, je le connais par cœur », dit-il.', 'Bugenhagen\'s telescope, trained on the dome rather than the sky. “The real one I know by heart,” he says.'),
           tr('Dans l\'oculaire, la géante aux anneaux passe, énorme. Elle ne fait que trente centimètres, en vrai.', 'Through the eyepiece, the ringed giant drifts by, enormous. It\'s barely a foot across, really.'),
@@ -2640,16 +2847,22 @@ export const LEVELS: LevelDef[] = [
         interact: tr('Des cartes du ciel roulées, des registres d\'observations, et un crâne de bête dont personne ne connaît l\'espèce. Pas même Bugenhagen, qui trouve ça très drôle.', 'Rolled-up star charts, observation logs, and a beast\'s skull of unknown species. Not even Bugenhagen knows, and he finds that hilarious.'),
       },
       {
-        model: 'star-shelf', x: 13.6, z: 5.82,
+        model: 'star-shelf', x: 13.1, z: 5.82,
         interact: tr('Sur le dos d\'un vieux livre : « Le Cycle de la vie des étoiles ». Les pages les plus usées parlent de la fin… et du recommencement.', 'On the spine of an old book: “The Life Cycle of Stars”. The most worn pages are about the end… and the new beginning.'),
       },
-      { model: 'candles', x: 7.95, z: 9.5, solid: false },
-      { model: 'candles', x: 14.75, z: 5.95, solid: false },
-      // Les coussins des spectateurs, en cercle autour de l'hologramme (rayon 2,95, un tous les
+      { model: 'candles', x: 7.95, z: 12.65, solid: false },
+      // Au mur ouest, face au projecteur : les cartes stellaires. Chacune ouvre son système dans
+      // EDGIS, la carte galactique de la communauté (cf. src/lore-library.ts) ; la douzième est vierge.
+      {
+        model: 'star-card-wall', x: 7.69, z: 9.5, rot: 1, solid: false, action: tr('Choisir une carte', 'Pick a card'),
+        interact: tr('Les cartes stellaires de Bugenhagen : douze systèmes clés, à ouvrir dans EDGIS.', 'Bugenhagen\'s star cards: twelve key systems, to open in EDGIS.'),
+      },
+      { model: 'candles', x: 14.25, z: 5.95, solid: false },
+      // Les coussins des spectateurs, en cercle autour de l'hologramme (rayon 2,8, un tous les
       // 36°) ; aucun au nord : c'est le passage de la porte.
       ...(['mustard', 'teal', 'plum', 'rose', 'navy', 'terracotta', 'plum', 'teal', 'rose'] as const).map((label, i): Prop => {
         const a = ((i < 5 ? i : i + 1) * Math.PI) / 5
-        return { model: 'floor-cushion', x: +(11.5 + 2.95 * Math.sin(a)).toFixed(2), z: +(9.5 + 2.95 * Math.cos(a)).toFixed(2), label }
+        return { model: 'floor-cushion', x: +(11 + 2.8 * Math.sin(a)).toFixed(2), z: +(9.5 + 2.8 * Math.cos(a)).toFixed(2), label }
       }),
 
       // --- Cinéma : le grand écran au nord, quatre rangées face à lui, le projecteur au fond ---
@@ -2687,8 +2900,8 @@ export const LEVELS: LevelDef[] = [
       { model: 'sconce', x: 29.35, z: 2.3, rot: 3, solid: false },
       { model: 'sconce', x: 29.35, z: 6.6, rot: 3, solid: false },
 
-      // --- Foyer : le couloir du cinéma, tapis rouge et films à l'affiche ; au sud, le hall de la
-      // zone sportive, d'où l'on entre sur les deux terrains ---
+      // --- Foyer : le couloir du cinéma, tapis rouge et films à l'affiche ; au sud, sa porte double
+      // donne sur la galerie ---
       { model: 'rug', x: 21.5, z: 5.5, label: 'cinema:1.5x5.6', solid: false },
       { model: 'neon-sign', x: 21.5, z: 2.68, label: tr('CINÉMA', 'CINEMA') },
       { model: 'plant-tall', x: 20.92, z: 2.92 },
@@ -2696,20 +2909,20 @@ export const LEVELS: LevelDef[] = [
       { model: 'sconce', x: 20.65, z: 6.3, rot: 1, solid: false },
       { model: 'movie-poster', x: 20.65, z: 7.1, rot: 1, label: 'hutton', solid: false },
       { model: 'movie-poster', x: 20.65, z: 7.9, rot: 1, label: 'thargoid', solid: false },
-      {
-        model: 'water-fountain', x: 15.92, z: 9.5, rot: 1,
-        interact: tr('Fontaine à eau du hall : fraîche, et presque sans goût de vaisseau. On s\'y bouscule après un match.', 'The hall water cooler: cold, and almost free of that starship taste. There\'s a queue after every game.'),
-      },
-      {
-        model: 'vending-machine', x: 24.6, z: 8.72,
-        interact: [
-          tr('Le distributeur du hall : boissons isotoniques, barres de céréales, et une canette de Lavian Brandy coincée depuis des mois.', 'The hall vending machine: isotonic drinks, cereal bars, and a can of Lavian Brandy that has been stuck for months.'),
-          tr('Une affichette : « Après le sport, on s\'hydrate. Pas chez Jacques. »', 'A notice: “After sport, hydrate. Not at Jacques\'.”'),
-        ],
-      },
-      { model: 'bench', x: 18.6, z: 8.85, label: 'mustard' },
-      shipMap('upperSportsHall'),
-      // Le fond du hall : un tapis mène à la porte double du Comptoir des Cartes Dangereuses.
+      // --- Galerie : la coursive qui longe le planétarium et dessert la bibliothèque. Au bout, un
+      // tapis mène à la porte double du Comptoir des Cartes Dangereuses. Le téléporteur du pont
+      // est à son débouché (cf. TELEPORTERS) : son totem, le plan, les lignes au sol vers la
+      // bibliothèque, le Comptoir et le planétarium, et l'enseigne de chaque porte ---
+      shipMap('upperGallery'),
+      totem(1, 16.5, 8.86, 0),
+      guide(1, [[16.45, 10.2], [22.5, 10.2], [22.5, 10.45]]),
+      guide(1, [[16.45, 9.8], [29.45, 9.8]]),
+      guide(1, [[15.6, 9.55], [15, 8.95], [15, 6.3]]),
+      doorSign(1, 24.2, 10.345, 2, tr('Bibliothèque', 'Library')),
+      doorSign(1, 23.35, 8.655, 0, tr('Cinéma', 'Cinema')),
+      doorSign(1, 18.8, 8.655, 0, tr('Salon d\'écoute', 'Listening lounge')),
+      doorSign(1, 11.8, 5.345, 2, tr('Planétarium', 'Planetarium')),
+      doorSign(1, 9.8, 3.655, 0, tr('Salle de classe', 'Classroom')),
       { model: 'rug', x: 27.6, z: 9.5, label: 'cinema:4.6x1.2', solid: false },
       { model: 'neon-sign', x: 28.9, z: 8.68, label: tr('CARTES', 'CARDS') },
       { model: 'plant-tall', x: 29.5, z: 8.85 },
@@ -2719,45 +2932,44 @@ export const LEVELS: LevelDef[] = [
         interact: tr('L\'affiche du Comptoir : « Galactic Clash, à toutes les tables. Boosters chez Ludo. Mauvais perdants s\'abstenir. »', 'The Counter\'s poster: “Galactic Clash, at every table. Boosters at Ludo\'s. Sore losers need not apply.”'),
       },
 
-      // --- Terrain de basket : un demi-terrain, le panier sur sa glissière au mur ouest ; on tire
-      // depuis la marque, face au panier (cf. src/court.ts, SPORT_COURTS) ---
-      { model: 'court-floor', x: 19, z: 13.5, rot: 1, label: 'basket:5.7x6.7', solid: false },
+      // --- La grande bibliothèque (14 × 6, cf. src/lore-library.ts et src/furniture/library.ts) :
+      // six alcôves, une par thème du lore, dessinées à son image. Au nord, de part et d'autre de la
+      // porte double, l'Empire et la Fédération, l'Alliance et les Thargoïdes ; à l'ouest, les
+      // Gardiens et, dans le coin sombre, les Mystères. Chacune a son rayonnage (un livre, une page
+      // du Lore Explorer), son pupitre (tout le thème) et sa marqueterie. Au centre, sur son estrade,
+      // l'hologramme du Lore Explorer ; au sud, les fauteuils de lecture. ---
+      ...([
+        ['empire', 17.6, 10.84, 0, 18.25, 12.3],
+        ['federation', 20.25, 10.84, 0, 19.6, 12.3],
+        ['alliance', 24.75, 10.84, 0, 25.4, 12.3],
+        ['thargoid', 27.4, 10.84, 0, 26.75, 12.3],
+        ['guardian', 15.84, 12.85, 1, 17.55, 13.25],
+        ['mysteries', 15.84, 15.2, 1, 17.55, 14.8],
+      ] as const).flatMap(([theme, x, z, rot, lx, lz]): Prop[] => {
+        const name = LORE_SHELVES[theme].name
+        return [
+          // La marqueterie, devant le rayonnage (un peu décalée au coin nord-ouest, où deux alcôves se touchent).
+          { model: 'lore-inlay', x: rot ? 16.5 : x, z: rot ? z + (theme === 'guardian' ? 0.1 : 0) : 11.6, rot, label: `${theme}:1.6x1.0`, solid: false },
+          { model: 'lore-bookcase', x, z, rot, label: theme, action: tr('Choisir un livre', 'Pick a book'), interact: tr(`Rayonnage · ${name}`, `Bookcase · ${name}`) },
+          { model: 'lore-lectern', x: lx, z: lz, rot, label: theme, action: tr('Lire le thème', 'Read the theme'), interact: tr(`Pupitre · ${name} : tout le thème au Lore Explorer`, `Lectern · ${name}: the whole theme in the Lore Explorer`) },
+        ]
+      }),
       {
-        model: 'basket-hoop', x: 15.66, z: SPORT_COURTS['gym-basket'].center, rot: 1, solid: false,
-        interact: tr('Le panier coulisse sur sa glissière : plus le score monte, plus il se promène. Le filet a déjà été recousu trois fois.', 'The hoop slides along its rail: the higher the score, the more it wanders. The net has been stitched back up three times.'),
+        model: 'lore-graph', x: 22.5, z: 13.9, action: tr('Explorer le lore', 'Explore the lore'),
+        interact: tr('L\'hologramme du Lore Explorer : six grappes de notes, une par alcôve, et tous leurs liens.', 'The Lore Explorer hologram: six clusters of notes, one per alcove, and all their links.'),
       },
-      {
-        model: 'shoot-spot', ...SPORT_COURTS['gym-basket'].spot, label: 'basket', solid: false, action: tr('Tirer au panier', 'Shoot hoops'),
-        interact: tr('La marque du tireur.', 'The shooter\'s mark.'),
-      },
-      {
-        model: 'ball-rack', x: 21.3, z: 14.7, rot: 3, label: 'basket', action: tr('Tirer au panier', 'Shoot hoops'),
-        interact: tr('Le chariot à ballons.', 'The ball cart.'),
-      },
-      { model: 'score-board', x: 16.9, z: 10.65, label: 'basket', solid: false, interact: tr('Les meilleurs tireurs du bord', 'The ship\'s top shooters'), action: tr('Consulter le classement', 'View rankings') },
-      { model: 'neon-sign', x: 21.15, z: 10.68, label: 'BASKET' },
-      { model: 'bench', x: 21.15, z: 10.9, label: 'terracotta' },
-
-      // --- Terrain de foot : la cage au mur ouest, et son gardien, une silhouette de carton sur un rail ---
-      { model: 'court-floor', x: 26, z: 13.5, rot: 1, label: 'foot:5.7x6.7', solid: false },
-      {
-        model: 'foot-goal', x: 22.66, z: SPORT_COURTS['gym-foot'].center, rot: 1,
-        interact: [
-          tr('Le gardien est en carton. Il a pourtant arrêté plus de tirs que la moitié de l\'équipage.', 'The keeper is made of cardboard. He has still saved more shots than half the crew.'),
-          tr('Sur le dos du carton, au feutre : « Propriété de Marcel. Ne pas viser la tête. »', 'On the back of the cutout, in marker: “Property of Marcel. Do not aim at the head.”'),
-        ],
-      },
-      {
-        model: 'shoot-spot', ...SPORT_COURTS['gym-foot'].spot, label: 'foot', solid: false, action: tr('Tirer au but', 'Take penalties'),
-        interact: tr('Le point de penalty.', 'The penalty spot.'),
-      },
-      {
-        model: 'ball-rack', x: 28.5, z: 14.7, rot: 3, label: 'foot', action: tr('Tirer au but', 'Take penalties'),
-        interact: tr('Le chariot à ballons.', 'The ball cart.'),
-      },
-      { model: 'score-board', x: 24.1, z: 10.65, label: 'foot', solid: false, interact: tr('Les meilleurs buteurs du bord', 'The ship\'s top scorers'), action: tr('Consulter le classement', 'View rankings') },
-      { model: 'neon-sign', x: 28.15, z: 10.68, label: 'FOOT' },
-      { model: 'bench', x: 28.15, z: 10.9, label: 'teal' },
+      // Les fauteuils de lecture, au sud, sous leurs lampes ; un globe et une plante dans le coin est.
+      { model: 'armchair', x: 19.3, z: 15.65, rot: 1, label: 'plum' },
+      { model: 'side-table', x: 20, z: 15.85 },
+      { model: 'desk-lamp', x: 20, z: 15.85, y: 0.32 },
+      { model: 'armchair', x: 20.7, z: 15.65, rot: 3, label: 'navy' },
+      { model: 'armchair', x: 24.3, z: 15.65, rot: 1, label: 'teal' },
+      { model: 'side-table', x: 25, z: 15.85 },
+      { model: 'desk-lamp', x: 25, z: 15.85, y: 0.32 },
+      { model: 'armchair', x: 25.7, z: 15.65, rot: 3, label: 'terracotta' },
+      { model: 'class-globe', x: 28.9, z: 11.3 },
+      { model: 'plant-tall', x: 28.95, z: 15.9 },
+      { model: 'floor-lamp', x: 28.95, z: 13.6 },
 
       // --- Comptoir des Cartes Dangereuses (8 × 10, cf. src/furniture/cards.ts et src/cards/) : au fond
       // du hall, derrière sa porte double. Au nord, la boutique : le mur de boosters du site sous son
@@ -2849,11 +3061,11 @@ export const LEVELS: LevelDef[] = [
       [9.6, 2, '#ffcf99', 2.2],
       // Le soleil des fenêtres de la salle de classe.
       [11, 1.2, '#ffe6b8', 1.8],
-      [14, 2.2, '#e6f6ff', 2],
+      [14, 1.6, '#ffe6b8', 1.6],
       // Le planétarium : le soleil de l'hologramme, et les lueurs bleue et violette de la coupole.
-      [11.5, 9.5, '#ffd58a', 2],
-      [8.7, 12.4, '#7a80ff', 1.1],
-      [14.3, 7.1, '#b07bff', 0.9],
+      [11, 9.5, '#ffd58a', 2],
+      [8.5, 12.4, '#7a80ff', 1.1],
+      [13.8, 7.1, '#b07bff', 0.9],
       // La serre : les LED des bacs, le soleil de la pelouse, la lueur verte du massif.
       [4.6, 2.3, '#ffb3e6', 2.4],
       [1.4, 4.2, '#fff1c4', 2.3],
@@ -2873,13 +3085,21 @@ export const LEVELS: LevelDef[] = [
       [26.2, 1.8, '#9fb8ff', 1.8, 'screen'],
       [23.4, 7.4, '#ffb45e', 0.9],
       [28.4, 5.4, '#ff9a5a', 0.5],
-      // Le foyer et son hall, puis les projecteurs des deux terrains.
+      // Le foyer et la galerie, puis la lumière chaude de la bibliothèque.
       [21.5, 5.6, '#ffb070', 1.3],
       [22.5, 9.5, '#fff0dc', 1.2],
       [17.5, 9.5, '#fff0dc', 1],
       [28.6, 9.5, '#ffc46b', 1.3],
-      [19, 13.5, '#fff4e0', 2.4],
-      [26, 13.5, '#f2fff4', 2.4],
+      // Chaque alcôve a sa lueur (l'or de l'Empire, le vert thargoïde, le cramoisi des mystères…),
+      // l'hologramme la sienne, et les fauteuils de lecture leur lumière chaude.
+      [22.5, 13.9, '#bfe8ff', 1.2],
+      [17.6, 11.8, '#ffd9a0', 1.1],
+      [20.25, 11.8, '#cfe6ff', 1],
+      [24.75, 11.8, '#eaffd8', 1],
+      [27.4, 11.8, '#5fffc0', 0.9],
+      [16.7, 12.9, '#7fe8ff', 0.9],
+      [16.7, 15.2, '#ff6a5a', 0.8, 'fire'],
+      [22.5, 15.6, '#ffd9a8', 1.2],
       // Le Comptoir des Cartes Dangereuses : l'or de la boutique, l'ambre des tables et du coin canapé ; le reste
       // vient de ses meubles (cf. lighting/emitters.ts).
       [34.5, 6.6, '#ffd596', 1.6],

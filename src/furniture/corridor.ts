@@ -26,7 +26,7 @@ const dark = lit('#22262e', 'metal')
  */
 const DOORS: { x: number; side: -1 | 1; name: () => string; color: string }[] = [
   { x: -4, side: -1, name: () => tr('Infirmerie', 'Medical bay'), color: '#5ff2d8' },
-  { x: 1, side: -1, name: () => tr('Salle de sport', 'Gym'), color: '#ff7a5a' },
+  { x: 1, side: -1, name: () => tr('Toilettes', 'Restrooms'), color: '#9fd8ff' },
   { x: 6, side: -1, name: () => tr('Labo L.J.P.C.', 'L.J.P.C. lab'), color: '#7dffa8' },
   { x: -4, side: 1, name: () => 'Mess', color: '#ffc27a' },
   { x: 1, side: 1, name: () => 'Arcade', color: '#ff5fd8' },

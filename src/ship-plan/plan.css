@@ -76,7 +76,8 @@
 .plan-plate-here { fill: #fff; stroke: var(--accent); stroke-width: 2.2; }
 .plan-deck-label { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 9px; margin-top: 3px; font: 700 15px/1.2 var(--sign); letter-spacing: .09em; text-transform: uppercase; color: var(--text); }
 .plan-deck-label b { font-size: 23px; letter-spacing: 0; color: var(--soft); }
-.plan-deck[aria-current] .plan-deck-label b { color: var(--accent); text-shadow: 0 0 12px #ff8a1c99; }
+.plan-deck[aria-current] .plan-deck-label b { text-shadow: 0 0 12px currentColor; }
+.plan-deck-tagline { font: 600 12px/1.2 var(--sign); font-style: normal; letter-spacing: .04em; text-transform: none; }
 .plan-deck-label small, .plan-quarters small { flex-basis: 100%; grid-column: 1 / -1; font: 700 12px/1.4 var(--sign); letter-spacing: .06em; text-transform: none; color: #ffb066; }
 
 /* Le pont choisi. */
@@ -116,7 +117,7 @@
 .plan-outline { fill: none; stroke: #fff; stroke-width: .13; stroke-linejoin: round; pointer-events: none; }
 .plan-lift { pointer-events: none; }
 .plan-lift rect { fill: var(--deep); stroke: #fff; stroke-width: .07; }
-.plan-lift path { fill: #fff; }
+.plan-lift path { fill: none; stroke: #fff; stroke-width: .06; }
 .plan-you { pointer-events: none; }
 .plan-you-dot { fill: #fff; stroke: var(--accent); stroke-width: .13; }
 .plan-you-ring { fill: none; stroke: var(--accent); stroke-width: .09; transform-box: fill-box; transform-origin: center; animation: plan-pulse 1.9s ease-out infinite; }

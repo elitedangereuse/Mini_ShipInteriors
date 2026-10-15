@@ -2,7 +2,7 @@
 //   npm test
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { applyPlot, HOUSING_LEVEL, inPlot, LANDING_ROOM, PLOT_DOOR, PLOT_ROOM, PLOT_SIZES, plotRect, plotStage, straightRuns } from '../shared/housing-plot.js'
+import { applyPlot, HOUSING_LEVEL, inPlot, LANDING_ROOM, PLOT_DOOR, PLOT_ORIGIN, PLOT_ROOM, PLOT_SIZES, plotRect, plotStage, straightRuns } from '../shared/housing-plot.js'
 import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import { DIRS, ShipMap } from '../shared/ship-map.js'
 import { lineOfSight } from '../shared/sight.js'
@@ -81,7 +81,8 @@ test('le champ de force fait le tour de la parcelle, sauf contre le palier', () 
     const map = quarters()
     const plan = applyPlot(map, stage)
     const size = PLOT_SIZES[stage]
-    const landing = SHIP_LAYOUTS['2'].filter((row) => row.includes(LANDING_ROOM)).length
+    // Les tuiles du palier (l'antichambre) qui touchent la parcelle, le long de son bord ouest.
+    const landing = SHIP_LAYOUTS['2'].filter((row) => row[PLOT_ORIGIN.x - 1] === LANDING_ROOM).length
     assert.equal(plan.field.length, 4 * size - landing, `${stage}`)
     for (const e of plan.field) {
       const d = DIRS[e.dir]

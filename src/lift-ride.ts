@@ -3,19 +3,22 @@ import { $ } from './ui'
 import { icon } from './icons'
 
 /*
- * Trajet d'ascenseur : un tube de verre lumineux sort du sol autour du personnage, le reste du
- * pont s'assombrit, des anneaux défilent le long du tube (vers le bas quand on monte), et le
- * pont change pendant que tout est noir. Puis le tube se replie et la lumière revient.
- * Deux cylindres et un voile CSS : rien à charger, presque rien à dessiner.
+ * Téléportation d'un pont à l'autre : une colonne de lumière se forme autour du personnage, le
+ * reste du pont s'assombrit, des étincelles montent le long de la colonne, puis un éclair : le
+ * pont change en plein blanc, et l'on réapparaît sur le téléporteur du pont d'arrivée (qui n'est
+ * pas au même endroit, cf. TELEPORTERS). La colonne se dissipe et la lumière revient.
+ * Deux cylindres, un nuage de points et un voile CSS : rien à charger, presque rien à dessiner.
  */
 
 const RADIUS = 0.44
 const HEIGHT = 1.5
 /** Temps forts du trajet (secondes). */
 const OPEN = 0.22
-const SWAP = 0.32
-const CLOSE = 0.6
-const END = 0.88
+const SWAP = 0.36
+const CLOSE = 0.62
+const END = 0.9
+/** Étincelles qui montent dans la colonne. */
+const MOTES = 70
 
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)')
 
@@ -42,25 +45,25 @@ const FRAGMENT = `
   void main() {
     float y = vUv.y;
     if (y < uLow || y > uHigh) discard;
-    float edge = smoothstep(0.0, 0.07, y - uLow) * smoothstep(0.0, 0.07, uHigh - y);
-    // Anneaux qui défilent.
-    float s = fract(y * 4.0 + uScroll);
-    float band = pow(max(0.0, 1.0 - abs(s - 0.5) * 2.0), 16.0);
-    // Traînées de vitesse, sur une partie des génératrices.
-    float lane = floor(vUv.x * 40.0);
-    float r = fract(sin(lane * 91.7) * 43758.5453);
-    float t = fract(y * 1.3 + uScroll * (0.7 + r) + r);
-    float streak = smoothstep(0.8, 1.0, t) * step(0.5, r) * pow(1.0 - abs(fract(vUv.x * 40.0) - 0.5) * 2.0, 3.0);
+    float edge = smoothstep(0.0, 0.1, y - uLow) * smoothstep(0.0, 0.1, uHigh - y);
+    // Des rais de lumière verticaux, qui ondulent un peu : la colonne n'est pas un tube de verre.
+    float lane = vUv.x * 18.0;
+    float r = fract(sin(floor(lane) * 91.7) * 43758.5453);
+    float shaft = pow(1.0 - abs(fract(lane) - 0.5) * 2.0, 6.0) * (0.35 + 0.65 * r) * (0.6 + 0.4 * sin(uScroll * 3.0 + r * 6.28));
+    // Des étincelles qui montent, une par rai, chacune à son pas.
+    float t = fract(y * 1.6 - uScroll * (0.5 + r));
+    float spark = smoothstep(0.92, 1.0, t) * smoothstep(0.35, 0.0, abs(fract(lane) - 0.5)) * step(0.35, r);
+    // Plus vive en bas, là où l'on se dématérialise, et vers les bords.
+    float base = 1.0 - smoothstep(0.0, 0.85, y);
   #ifdef BACK
-    // Paroi du fond, opaque ou presque : elle cache le pont derrière le personnage.
-    // Plus clair derrière le personnage (en bas, au milieu) : sa silhouette se détache.
-    float halo = (1.0 - vRim) * (1.0 - smoothstep(0.0, 0.7, y));
-    vec3 col = vec3(0.03, 0.07, 0.13) + uColor * (0.1 + halo * 0.4 + band * 0.3 + streak * 0.3 + vRim * 0.2) + uFlash * 0.4;
-    gl_FragColor = vec4(col, 0.92 * edge);
+    // Paroi du fond, presque opaque : elle cache le pont derrière le personnage.
+    float halo = (1.0 - vRim) * (0.5 + base * 0.5);
+    vec3 col = vec3(0.02, 0.06, 0.12) + uColor * (0.15 + halo * 0.45 + shaft * 0.35 + spark * 0.6) + uFlash * 0.6;
+    gl_FragColor = vec4(col, 0.9 * edge);
   #else
-    // Paroi avant : du verre, lumineux sur les bords, presque invisible devant le personnage.
-    float clear = mix(0.3, 1.0, vRim);
-    vec3 col = uColor * (0.03 + vRim * vRim * 0.9 + (band * 0.5 + streak * 0.5) * clear) + uFlash * 0.35;
+    // Paroi avant : une lumière qui s'additionne, discrète devant le personnage, vive sur les bords.
+    float clear = mix(0.25, 1.0, vRim);
+    vec3 col = uColor * (0.05 + vRim * vRim * 0.8 + base * 0.15 + (shaft * 0.4 + spark * 0.9) * clear) + uFlash * 0.5;
     gl_FragColor = vec4(col, edge);
   #endif
   }`
@@ -75,12 +78,13 @@ export class LiftRide {
     uFlash: { value: 0 },
   }
   private rings: THREE.Mesh[]
+  private motes: THREE.Points
+  private moteSeeds = Array.from({ length: MOTES }, () => ({ a: Math.random() * Math.PI * 2, r: 0.12 + Math.random() * 0.3, speed: 0.5 + Math.random() * 0.9, phase: Math.random() }))
   private veil = $('lift-ride')
   private label = this.veil.querySelector<HTMLElement>('.lift-ride-label')!
   private t = -1
-  private dir = 1
   private swapped = false
-  private arrive?: () => number
+  private arrive?: () => { x: number; y: number; z: number }
   private done?: () => void
 
   constructor() {
@@ -96,7 +100,7 @@ export class LiftRide {
     }))
     back.renderOrder = 1
     front.renderOrder = 2
-    // Bords du tube : un anneau vif là où il sort du sol (ou du plafond).
+    // Le pied et le haut de la colonne : un anneau vif.
     const ringGeo = new THREE.TorusGeometry(RADIUS, 0.018, 6, 48)
     ringGeo.rotateX(Math.PI / 2)
     this.rings = [0, 1].map(() => {
@@ -104,7 +108,12 @@ export class LiftRide {
       m.renderOrder = 3
       return m
     })
-    this.group.add(back, front, ...this.rings)
+    // Les étincelles : de petits points qui montent en spirale autour du personnage.
+    const motes = new THREE.BufferGeometry()
+    motes.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MOTES * 3), 3))
+    this.motes = new THREE.Points(motes, new THREE.PointsMaterial({ color: '#dff8ff', size: 0.045, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }))
+    this.motes.renderOrder = 4
+    this.group.add(back, front, ...this.rings, this.motes)
     this.group.visible = false
   }
 
@@ -113,17 +122,16 @@ export class LiftRide {
   }
 
   /**
-   * Lance le trajet depuis ce point du pont ; `arrive` change de pont en plein noir et rend
-   * l'altitude du nouveau pont. Résolue quand le tube s'est replié.
+   * Lance la téléportation depuis ce point du pont ; `arrive` change de pont en plein éclair et
+   * rend le téléporteur d'arrivée. Résolue quand la colonne s'est dissipée.
    */
-  run(x: number, y: number, z: number, up: boolean, deckName: string, arrive: () => number): Promise<void> {
+  run(x: number, y: number, z: number, up: boolean, deckName: string, arrive: () => { x: number; y: number; z: number }): Promise<void> {
     this.group.position.set(x, y, z)
-    this.dir = up ? 1 : -1
     this.t = 0
     this.swapped = false
     this.arrive = arrive
     this.uniforms.uFlash.value = 0
-    this.label.replaceChildren(icon(up ? 'arrow-up' : 'arrow-down'), document.createTextNode(deckName))
+    this.label.replaceChildren(icon('sparkle'), document.createTextNode(deckName))
     this.veil.classList.toggle('down', !up)
     this.veil.classList.add('on')
     this.group.visible = true
@@ -135,29 +143,34 @@ export class LiftRide {
     this.t += dt
     const t = this.t
     const u = this.uniforms
-    // Tube : il sort du sol en montant, descend du plafond en descendant ; il se replie dans le sens du trajet.
+    // La colonne se forme du sol vers le haut, puis se dissipe par le bas.
     const grow = easeOut(Math.min(1, t / OPEN))
     const fold = t > CLOSE ? easeIn(Math.min(1, (t - CLOSE) / (END - CLOSE))) : 0
-    if (this.dir > 0) {
-      u.uLow.value = fold
-      u.uHigh.value = grow
-    } else {
-      u.uLow.value = 1 - grow
-      u.uHigh.value = 1 - fold
-    }
-    // Défilement : les anneaux filent en sens inverse du trajet, vite au milieu.
-    const speed = (reducedMotion.matches ? 0.6 : 3.2) * Math.sqrt(Math.sin(Math.PI * Math.min(1, t / END))) + 0.3
-    u.uScroll.value += dt * speed * this.dir
-    u.uFlash.value = Math.max(0, u.uFlash.value - dt * 5)
+    u.uLow.value = fold
+    u.uHigh.value = grow
+    // Les rais ondulent et les étincelles montent, vite au milieu.
+    const speed = (reducedMotion.matches ? 0.5 : 2.6) * Math.sqrt(Math.sin(Math.PI * Math.min(1, t / END))) + 0.3
+    u.uScroll.value += dt * speed
+    u.uFlash.value = Math.max(0, u.uFlash.value - dt * 4)
     for (const [i, ring] of this.rings.entries()) {
       ring.position.y = (i === 0 ? u.uLow.value : u.uHigh.value) * HEIGHT
       const m = ring.material as THREE.MeshBasicMaterial
       m.opacity = u.uHigh.value - u.uLow.value > 0.02 ? 0.9 : 0
     }
+    const pos = this.motes.geometry.getAttribute('position') as THREE.BufferAttribute
+    const visible = u.uHigh.value - u.uLow.value
+    for (const [i, m] of this.moteSeeds.entries()) {
+      const k = (m.phase + u.uScroll.value * m.speed * 0.5) % 1
+      const a = m.a + k * 4
+      pos.setXYZ(i, Math.cos(a) * m.r, (u.uLow.value + k * visible) * HEIGHT, Math.sin(a) * m.r)
+    }
+    pos.needsUpdate = true
+    ;(this.motes.material as THREE.PointsMaterial).opacity = Math.min(1, visible * 2)
 
     if (!this.swapped && t >= SWAP) {
       this.swapped = true
-      this.group.position.y = this.arrive?.() ?? this.group.position.y
+      const p = this.arrive?.()
+      if (p) this.group.position.set(p.x, p.y, p.z)
       if (!reducedMotion.matches) u.uFlash.value = 1
     }
     if (t >= CLOSE) this.veil.classList.remove('on')

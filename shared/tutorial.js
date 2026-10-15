@@ -32,8 +32,8 @@ export const TUTORIAL_SPAWN = { x: 1, z: 3, yaw: Math.PI / 2 }
 /** Le téléporteur, au centre de sa salle. */
 export const TUTORIAL_TELEPORTER = { x: 16.5, z: 2.5 }
 
-/** À la sortie : sur le pont principal, dans la coursive, à deux pas de l'ascenseur, regard vers la proue. */
-export const TUTORIAL_EXIT = { level: 0, x: 12, z: 4.5, yaw: Math.PI / 2 }
+/** À la sortie : sur le pont principal, sur le téléporteur du hall d'accueil (cf. TELEPORTERS), regard vers le hall. */
+export const TUTORIAL_EXIT = { level: 0, x: 4, z: 10, yaw: Math.PI }
 
 /** Une position est-elle sur le sol du simulateur ? */
 export function onTutorialFloor(x, z) {

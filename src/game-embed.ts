@@ -38,6 +38,11 @@ export class GameEmbed {
   private kicker = document.createElement('small')
   private hint = document.createElement('p')
   private link = document.createElement('a')
+  /** Retour au panneau d'où l'on vient (un rayonnage de la bibliothèque, les cartes du planétarium), cf. openUrl. */
+  private backButton = document.createElement('button')
+  private back: (() => void) | null = null
+  /** Un second lien, propre à la page (cf. openUrl). */
+  private extra = document.createElement('a')
   private previousFocus: HTMLElement | null = null
   private typed = false
   private panel: HTMLElement | null = null
@@ -65,7 +70,13 @@ export class GameEmbed {
     close.type = 'button'
     close.textContent = tr('Fermer ×', 'Close ×')
     close.onclick = () => this.close()
-    actions.append(this.link, close)
+    this.backButton.type = 'button'
+    this.backButton.hidden = true
+    this.backButton.onclick = () => this.back?.()
+    this.extra.target = '_blank'
+    this.extra.rel = 'noopener'
+    this.extra.hidden = true
+    actions.append(this.backButton, this.extra, this.link, close)
     header.append(intro, actions)
     this.frame.title = tr('Jeu du site Élite Dangereuse', 'Élite Dangereuse site game')
     this.frame.setAttribute('allow', 'fullscreen; gamepad')
@@ -93,7 +104,35 @@ export class GameEmbed {
     this.frame.src = def.url
     this.frame.title = def.title
     this.root.hidden = false
-    this.root.querySelector<HTMLButtonElement>('button')?.focus()
+    this.root.querySelector<HTMLButtonElement>('button:not([hidden])')?.focus()
+  }
+  /**
+   * Ouvre la fenêtre sur une page qui n'est pas un jeu du site : une page du Lore Explorer, un
+   * système dans EDGIS. `back` : un bouton pour revenir au panneau d'où l'on vient ; `extra` : un
+   * second lien vers un onglet.
+   */
+  openUrl(o: { kicker: string; title: string; hint: string; url: string; back?: { label: string; go: () => void }; extra?: { label: string; href: string } }) {
+    if (!this.isOpen) this.previousFocus = document.activeElement as HTMLElement
+    this.title.textContent = o.title
+    this.kicker.textContent = o.kicker
+    this.hint.textContent = o.hint
+    this.link.href = o.url
+    this.typed = false
+    this.setPanel(null)
+    if (o.back) {
+      this.back = o.back.go
+      this.backButton.textContent = `← ${o.back.label}`
+      this.backButton.hidden = false
+    }
+    if (o.extra) {
+      this.extra.textContent = o.extra.label
+      this.extra.href = o.extra.href
+      this.extra.hidden = false
+    }
+    this.frame.src = o.url
+    this.frame.title = o.title
+    this.root.hidden = false
+    ;(o.back ? this.backButton : this.root.querySelector<HTMLButtonElement>('button:not([hidden])'))?.focus()
   }
   /**
    * Ouvre la fenêtre sur un panneau du jeu, à la place d'une page du site (le Comptoir des Cartes
@@ -115,11 +154,14 @@ export class GameEmbed {
     if (this.skin) this.root.classList.add(this.skin)
     this.root.setAttribute('aria-label', o.title)
     this.root.hidden = false
-    ;(o.bare ? o.body.querySelector<HTMLElement>('[data-autofocus]') : this.root.querySelector<HTMLButtonElement>('button'))?.focus()
+    ;(o.bare ? o.body.querySelector<HTMLElement>('[data-autofocus]') : this.root.querySelector<HTMLButtonElement>('button:not([hidden])'))?.focus()
   }
   /** Le panneau à la place de la page : le lien « ouvrir dans un onglet » n'a alors pas de sens. */
   private setPanel(body: HTMLElement | null) {
     this.panel?.remove()
+    this.back = null
+    this.backButton.hidden = true
+    this.extra.hidden = true
     if (this.skin) this.root.classList.remove(this.skin)
     this.skin = ''
     this.onClose?.()

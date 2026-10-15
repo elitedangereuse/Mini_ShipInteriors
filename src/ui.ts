@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { formatCredits } from './economy/data'
 import { EN, tr } from './i18n'
 import { icon, type IconName } from './icons'
+import { identityOf, placesMatching } from './deck-identity'
 import { FACE_CHOICES, HAIR_CHOICES, HAIR_COLOR_CHOICES, PAINT_CHOICES, styleFields, TRIM_CHOICES, type StyleChoice } from './holo-style'
 import { raceOf, RACES, styleFieldsOf, variantsOf, type Look } from './looks'
 import { NO_STYLE, type LookStyle } from '../shared/look-style.js'
@@ -343,14 +344,34 @@ export class Dialog {
  * Panneau de l'ascenseur. Au clavier : flèches (ou Z/S, W/S) pour choisir l'étage,
  * Entrée ou Espace pour y aller ; E, Échap ou un clic en dehors pour fermer (cf. main.ts).
  */
+/**
+ * Le panneau du téléporteur : un bouton par pont, du plus haut au plus bas, avec sa couleur, son
+ * étage, son nom et sa devise (cf. deck-identity.ts) ; et une recherche « Où aller ? », qui montre
+ * sous chaque pont les lieux qui répondent et sélectionne le premier pont où aller.
+ */
 export class LiftPanel {
   private el = $('lift')
   private buttons = $('lift-buttons')
+  private search = $<HTMLInputElement>('lift-search')
+  private none = $('lift-none')
   private choices: { button: HTMLButtonElement; go: () => void }[] = []
   private selected = -1
+  private levels: { id: number; name: string }[] = []
+  private current = 0
+  private onPick: (id: number) => void = () => {}
 
   constructor() {
     $('lift-close').onclick = () => this.close()
+    this.search.addEventListener('input', () => this.render(true))
+    // Dans le champ de recherche, les lettres s'écrivent ; les flèches, Entrée et Échap pilotent le panneau.
+    this.search.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') this.move(e.key === 'ArrowUp' ? -1 : 1)
+      else if (e.key === 'Enter') this.confirm()
+      else if (e.key === 'Escape') this.close()
+      else return e.stopPropagation()
+      e.preventDefault()
+      e.stopPropagation()
+    })
   }
 
   get isOpen(): boolean {
@@ -362,40 +383,79 @@ export class LiftPanel {
     return target instanceof Node && this.el.contains(target)
   }
 
+  /** Le champ « Où aller ? » prend la main (touche / du clavier). */
+  focusSearch() {
+    this.search.focus()
+  }
+
   open(levels: { id: number; name: string }[], current: number, onPick: (id: number) => void) {
+    this.levels = levels
+    this.current = current
+    this.onPick = onPick
+    this.search.value = ''
+    this.render(false)
+    this.el.hidden = false
+  }
+
+  private render(searching: boolean) {
     this.buttons.replaceChildren()
     this.choices = []
-    const add = (label: HTMLElement, key: HTMLElement, here: boolean, go: () => void) => {
+    const query = this.search.value
+    let start = -1
+    let first = -1
+    // Du plus haut au plus bas, comme un vrai panneau d'ascenseur.
+    for (const l of [...this.levels].sort((a, b) => b.id - a.id)) {
+      const id = identityOf(l.id)
+      const here = l.id === this.current
       const b = document.createElement('button')
+      b.className = 'lift-deck'
+      if (id) b.style.setProperty('--deck', id.color)
+      const n = document.createElement('kbd')
+      n.textContent = l.id > 0 ? `+${l.id}` : String(l.id)
+      const text = document.createElement('span')
+      text.className = 'lift-deck-text'
+      const name = document.createElement('b')
+      name.textContent = l.name
+      text.append(name)
+      if (id) {
+        const tagline = document.createElement('small')
+        tagline.className = 'lift-tagline'
+        tagline.append(icon(id.icon), id.tagline)
+        text.append(tagline)
+      }
       if (here) {
         const tag = document.createElement('small')
         tag.className = 'lift-current'
         tag.textContent = tr('Vous êtes ici', 'You are here')
-        label.append(' ', tag)
+        name.append(' ', tag)
         b.setAttribute('aria-current', 'location')
       }
-      b.append(label, key)
+      const matches = query ? placesMatching(l.id, query) : []
+      if (matches.length) {
+        const places = document.createElement('small')
+        places.className = 'lift-places'
+        places.textContent = matches.map((p) => p.name).join(' · ')
+        text.append(places)
+        if (!here && first < 0) first = this.choices.length
+      } else if (query) b.classList.add('dim')
+      b.append(n, text)
       b.disabled = here
       const i = this.choices.length
+      const go = () => this.onPick(l.id)
       b.onclick = () => this.pick(go)
       b.onpointerenter = () => this.select(i)
       this.buttons.appendChild(b)
       this.choices.push({ button: b, go })
+      if (here) start = i
     }
-    // Du plus haut au plus bas, comme un vrai panneau d'ascenseur.
-    let start = 0
-    for (const l of [...levels].sort((a, b) => b.id - a.id)) {
-      const label = document.createElement('span')
-      label.textContent = l.name
-      const n = document.createElement('kbd')
-      n.textContent = l.id > 0 ? `+${l.id}` : String(l.id)
-      if (l.id === current) start = this.choices.length
-      add(label, n, l.id === current, () => onPick(l.id))
+    this.none.hidden = !query || first >= 0 || this.choices.some((c) => c.button.querySelector('.lift-places'))
+    // Sélection : le premier pont où aller pour cette recherche ; sinon l'étage juste au-dessus, ou juste en dessous.
+    this.selected = -1
+    if (searching && first >= 0) this.select(first)
+    else {
+      this.selected = start
+      this.move(this.selected > 0 ? -1 : 1)
     }
-    // Sélection de départ : l'étage juste au-dessus, sinon juste en dessous.
-    this.selected = start
-    this.move(this.selected > 0 ? -1 : 1)
-    this.el.hidden = false
   }
 
   /** Change d'étage sélectionné : -1 vers le haut, +1 vers le bas (l'étage actuel est sauté). */
@@ -424,6 +484,7 @@ export class LiftPanel {
   }
 
   close() {
+    this.search.blur()
     this.el.hidden = true
   }
 }

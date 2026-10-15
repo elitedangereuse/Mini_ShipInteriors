@@ -183,33 +183,35 @@ function halo(color: string, size: number, opacity = 1): THREE.Sprite {
 // ---------------------------------------------------------------- le sol
 
 /**
- * La carte du ciel, de mur à mur (7,6 × 7,6) : un bleu de nuit presque uni, quelques étoiles pâles,
+ * La carte du ciel, de mur à mur (`label` : « largeur x profondeur », 7,6 × 7,6 par défaut) : un bleu de nuit presque uni, quelques étoiles pâles,
  * cinq constellations discrètes, et au centre, autour du projecteur, l'anneau des douze signes en
  * laiton et une rose des vents estompée, dont la pointe nord montre la porte. Elle reste en
  * retrait : ce sont les planètes, au-dessus, qu'on regarde.
  */
-const planetariumFloor: Builder = ({ random }) => {
-  const S = 7.6, PX = 1024, K = PX / S
-  const map = drawnTexture(PX, PX, (c) => {
-    const bg = c.createRadialGradient(PX / 2, PX / 2, 0, PX / 2, PX / 2, PX * 0.7)
+const planetariumFloor: Builder = ({ random, label }) => {
+  const size = (label ?? '').split('x').map(Number)
+  const [W, S] = size.length === 2 && size.every((n) => n > 0) ? size : [7.6, 7.6]
+  const PX = 1024, K = PX / S, PW = Math.round(W * K)
+  const map = drawnTexture(PW, PX, (c) => {
+    const bg = c.createRadialGradient(PW / 2, PX / 2, 0, PW / 2, PX / 2, PX * 0.7)
     bg.addColorStop(0, C.nightEdge)
     bg.addColorStop(1, C.night)
     c.fillStyle = bg
-    c.fillRect(0, 0, PX, PX)
+    c.fillRect(0, 0, PW, PX)
     // Les étoiles, et quelques constellations.
     for (let i = 0; i < 150; i++) {
       const r = random() < 0.94 ? 0.6 + random() * 0.9 : 1.8 + random() * 1.2
       c.fillStyle = ['#ffffff', '#cfe0ff', '#fff2c4'][Math.floor(random() * 3)]
       c.globalAlpha = 0.18 + random() * 0.32
       c.beginPath()
-      c.arc(random() * PX, random() * PX, r, 0, Math.PI * 2)
+      c.arc(random() * PW, random() * PX, r, 0, Math.PI * 2)
       c.fill()
     }
     c.globalAlpha = 1
     for (let n = 0; n < 5; n++) {
       const a = (n / 5) * Math.PI * 2 + random()
-      const d = PX * (0.36 + random() * 0.08)
-      let x = PX / 2 + Math.cos(a) * d, y = PX / 2 + Math.sin(a) * d
+      const d = PW * (0.36 + random() * 0.08)
+      let x = PW / 2 + Math.cos(a) * d, y = PX / 2 + Math.sin(a) * d
       const pts: [number, number][] = [[x, y]]
       for (let i = 0; i < 3 + Math.floor(random() * 3); i++) {
         x += (random() - 0.5) * 90
@@ -229,7 +231,7 @@ const planetariumFloor: Builder = ({ random }) => {
       }
     }
     // L'anneau des signes, en laiton.
-    const cx = PX / 2, cy = PX / 2
+    const cx = PW / 2, cy = PX / 2
     c.globalAlpha = 0.7
     c.strokeStyle = C.gold
     for (const [r, w] of [[2.0, 3], [1.62, 2]] as const) {
@@ -266,7 +268,7 @@ const planetariumFloor: Builder = ({ random }) => {
     }
   })
   const g = new THREE.Group()
-  g.add(decal(map, S, S, 0.004))
+  g.add(decal(map, W, S, 0.004))
   return { solid: g }
 }
 
@@ -345,10 +347,10 @@ interface Body {
  * de glace, un monde émeraude et la lune brune qui le suit. Quelques étoiles flottent sur la
  * coupole. Rien n'y est solide : on traverse l'hologramme.
  */
-const planetariumSky: Builder = ({ random }) => {
+const planetariumSky: Builder = ({ random, label }) => {
   const live = new THREE.Group()
-  // La sphère céleste : méridiens et parallèles, une coupole écrasée qui frôle les murs.
-  const R = 3.4, V = 1.6, Y0 = 0.15
+  // La sphère céleste : méridiens et parallèles, une coupole écrasée qui frôle les murs (`label` : son rayon).
+  const R = Number(label) || 3.4, V = 1.6, Y0 = 0.15
   const pts: THREE.Vector3[] = []
   const at = (phi: number, theta: number) => new THREE.Vector3(R * Math.cos(phi) * Math.cos(theta), Y0 + V * Math.sin(phi), R * Math.cos(phi) * Math.sin(theta))
   for (let m = 0; m < 12; m++) {

@@ -8,7 +8,7 @@ import { DoorHints } from './door-hints'
 import { makeFadeable } from './fade'
 import { beamMaterial, buildFurniture, isCustomModel, tickFurniture, type Emitter, type FurnitureControl } from './furniture'
 import { tr } from './i18n'
-import { LEVEL_HEIGHT, LIFT, offShip, type LevelDef } from './levels'
+import { LEVEL_HEIGHT, liftOf, offShip, type LevelDef } from './levels'
 import { furnitureLight } from './lighting/emitters'
 import { bakeLightField, patchLightField, type FieldSource, type LightField } from './lighting/field'
 import { buildFixtures, generalLighting, type Fixture } from './lighting/fixtures'
@@ -1192,7 +1192,7 @@ export class Deck {
       // propres plafonniers (cf. housing/home.ts) ; ailleurs, celui de la pièce (cf. `lighting`).
       const of = (room: string) => ((this.def.dim?.[room] ?? 1) < 0.6 || this.def.unlit?.includes(room) || room === this.def.cabin?.room ? null : this.def.lighting?.[room] ?? {})
       const inArea = (x: number, z: number) => this.def.areas?.find((a) => a.lighting && x >= a.minX - 0.5 && x <= a.maxX + 0.5 && z >= a.minZ - 0.5 && z <= a.maxZ + 0.5)?.lighting
-      const general = generalLighting(this.map, this.def.theme ?? 'station', of, [...fixtures, LIFT], inArea)
+      const general = generalLighting(this.map, this.def.theme ?? 'station', of, [...fixtures, liftOf(this.def.id)], inArea)
       for (const l of general.lights) {
         // Sous une verrière, c'est le jour qui éclaire : pas de luminaire.
         const sunlit = greenhouse(Math.round(l.x), Math.round(l.z))
@@ -1678,11 +1678,12 @@ export class Deck {
   }
 
   /**
-   * Ascenseur, identique sur tous les ponts : plateforme, halo au sol qui pulse, faisceau,
-   * anneaux qui montent et panneau flottant (qui dépasse des murs : on le repère de loin).
+   * Téléporteur, au même dessin sur tous les ponts, au cœur de chacun (cf. liftOf) : plateforme,
+   * halo au sol qui pulse, faisceau, anneaux qui montent et panneau flottant (qui dépasse des
+   * murs : on le repère de loin).
    */
   private buildLift() {
-    const { x, z } = LIFT
+    const { x, z } = liftOf(this.def.id)
     const cyan = '#59d8ff'
     const base = new THREE.Mesh(
       new THREE.CylinderGeometry(0.44, 0.47, 0.06, 32),
@@ -1716,7 +1717,7 @@ export class Deck {
     this.liftSign.scale.setScalar(0.46)
     this.liftSign.position.set(x, 1.55, z)
     this.group.add(base, ring, this.liftHalo, this.liftBeam, ...this.liftRings, this.liftSign)
-    this.liftItem = { object: base, position: new THREE.Vector3(x, 0, z), label: tr('Ascenseur', 'Lift') }
+    this.liftItem = { object: base, position: new THREE.Vector3(x, 0, z), label: tr('Téléporteur', 'Teleporter') }
     this.interactables.push(this.liftItem)
   }
 
@@ -2129,15 +2130,22 @@ function liftSignTexture(): THREE.CanvasTexture {
   g.roundRect(8, 8, 112, 112, 26)
   g.fill()
   g.stroke()
-  g.fillStyle = '#bff3ff'
-  for (const [tip, base] of [[22, 56], [106, 72]]) {
+  // Le pictogramme du téléporteur : trois anneaux de lumière l'un sur l'autre, et l'éclat qui en sort.
+  g.strokeStyle = '#bff3ff'
+  g.lineWidth = 6
+  for (const [y, rx] of [[94, 34], [72, 27], [50, 20]]) {
     g.beginPath()
-    g.moveTo(64, tip)
-    g.lineTo(92, base)
-    g.lineTo(36, base)
-    g.closePath()
-    g.fill()
+    g.ellipse(64, y, rx, rx * 0.32, 0, 0, Math.PI * 2)
+    g.stroke()
   }
+  g.fillStyle = '#bff3ff'
+  g.beginPath()
+  g.moveTo(64, 14)
+  g.lineTo(71, 28)
+  g.lineTo(64, 42)
+  g.lineTo(57, 28)
+  g.closePath()
+  g.fill()
   const t = new THREE.CanvasTexture(c)
   t.colorSpace = THREE.SRGBColorSpace
   t.anisotropy = 4

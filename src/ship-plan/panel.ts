@@ -1,6 +1,7 @@
 import type { GameEmbed } from '../game-embed'
 import { tr } from '../i18n'
-import { LIFT } from '../levels'
+import { liftOf } from '../levels'
+import { identityOf } from '../deck-identity'
 import type { ShipMap } from '../map'
 import { deckLabel, deckName, deckNumber, liftTo, PLAN_LEVELS, planAreas, planOf, QUARTERS_LEVEL, roomInfo, roomName, SIGN_FONT, ZONE_ORDER, ZONES } from './data'
 import { pathOf, roomOpen, type DeckPlan, type PlanRoom } from './geometry'
@@ -203,7 +204,16 @@ export class ShipPlanPanel {
       const at = this.here.level === deck.level ? stack.at(deck.level, this.here.x, this.here.z) : null
       if (at) art.append(svg('circle', { cx: at[0], cy: at[1], r: 4.2, class: 'plan-plate-here' }))
       const name = el('span', 'plan-deck-label')
-      name.append(el('b', '', deckNumber(deck.level)), deckName(deck.level))
+      // L'étage à la couleur du pont, et sa devise (cf. deck-identity.ts).
+      const identity = identityOf(deck.level)
+      const number = el('b', '', deckNumber(deck.level))
+      if (identity) number.style.color = identity.color
+      name.append(number, deckName(deck.level))
+      if (identity) {
+        const tagline = el('em', 'plan-deck-tagline', identity.tagline)
+        tagline.style.color = identity.color
+        name.append(tagline)
+      }
       if (this.here.level === deck.level) name.append(el('small', '', tr('Vous êtes ici', 'You are here')))
       b.append(art, name)
       const item = el('li')
@@ -211,7 +221,7 @@ export class ShipPlanPanel {
       list.append(item)
     }
     const quarters = el('p', 'plan-quarters')
-    quarters.append(el('b', '', deckNumber(QUARTERS_LEVEL)), tr(`${deckName(QUARTERS_LEVEL)} : chez vous, par l'ascenseur.`, `${deckName(QUARTERS_LEVEL)}: your home, by the lift.`))
+    quarters.append(el('b', '', deckNumber(QUARTERS_LEVEL)), tr(`${deckName(QUARTERS_LEVEL)} : chez vous, par le téléporteur.`, `${deckName(QUARTERS_LEVEL)}: your home, by the teleporter.`))
     if (this.here.level === QUARTERS_LEVEL) quarters.append(el('small', '', tr('Vous êtes ici', 'You are here')))
     this.rail.replaceChildren(quarters, list)
   }
@@ -265,12 +275,12 @@ export class ShipPlanPanel {
     }
     map.append(this.outline, doors)
 
-    // L'ascenseur, au même endroit sur chaque pont.
-    const lx = LIFT.x + 0.5, lz = LIFT.z + 0.5
+    // Le téléporteur, au cœur de chaque pont (cf. TELEPORTERS) : trois anneaux de lumière.
+    const lx = liftOf(level).x + 0.5, lz = liftOf(level).z + 0.5
     map.append(svg('g', { class: 'plan-lift' },
       svg('rect', { x: lx - 0.4, y: lz - 0.4, width: 0.8, height: 0.8, rx: 0.12 }),
-      svg('path', { d: `M${lx} ${lz - 0.27}l0.17 0.2h-0.34zM${lx} ${lz + 0.27}l0.17 -0.2h-0.34z` }),
-      svg('title', {}, tr('Ascenseur', 'Lift')),
+      svg('path', { d: `M${lx - 0.24} ${lz + 0.18}a0.24 0.08 0 1 0 0.48 0a0.24 0.08 0 1 0 -0.48 0M${lx - 0.17} ${lz}a0.17 0.06 0 1 0 0.34 0a0.17 0.06 0 1 0 -0.34 0M${lx - 0.1} ${lz - 0.18}a0.1 0.04 0 1 0 0.2 0a0.1 0.04 0 1 0 -0.2 0` }),
+      svg('title', {}, tr('Téléporteur', 'Teleporter')),
     ))
 
     if (this.here.level === level) {
@@ -399,7 +409,7 @@ export class ShipPlanPanel {
 
   /** Comment aller du joueur à la pièce : il y est, elle est sur son pont, ou il faut l'ascenseur. */
   private route(level: number, room: string): string {
-    if (level !== this.here.level) return tr(`Pour y aller : prenez l'ascenseur ${liftTo(level)}.`, `To get there: take the lift ${liftTo(level)}.`)
+    if (level !== this.here.level) return tr(`Pour y aller : prenez le téléporteur ${liftTo(level)}.`, `To get there: take the teleporter ${liftTo(level)}.`)
     if (room === this.roomAt(this.here)) return tr('Vous y êtes.', 'You are in it.')
     return tr('Sur le pont où vous êtes : suivez le plan depuis votre balise.', 'On the deck you are on: follow the map from your beacon.')
   }

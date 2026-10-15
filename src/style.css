@@ -440,7 +440,7 @@ button {
 #fade.on {
   opacity: 1;
 }
-/* Trajet d'ascenseur (src/lift-ride.ts) : tout s'assombrit sauf une ellipse autour du tube. */
+/* Téléportation (src/lift-ride.ts) : tout s'assombrit sauf une ellipse autour de la colonne de lumière. */
 #lift-ride {
   position: fixed;
   inset: 0;
@@ -1597,7 +1597,9 @@ body.cctv-on #touch-pad {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: min(280px, calc(100vw - 24px));
+  width: min(360px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
   display: grid;
   gap: 8px;
   padding: 14px;
@@ -1657,6 +1659,82 @@ body.cctv-on #touch-pad {
   background: transparent;
   color: var(--muted);
   font-size: 12px;
+}
+/* Un pont : sa couleur en liseré, son étage, son nom et sa devise (cf. deck-identity.ts). */
+#lift-buttons button.lift-deck {
+  --deck: var(--cyan);
+  justify-content: flex-start;
+  gap: 12px;
+  text-align: left;
+  border-left: 4px solid var(--deck);
+}
+#lift-buttons button.lift-deck kbd {
+  min-width: 2.4em;
+  text-align: center;
+  background: var(--deck);
+  border-color: var(--deck);
+  color: #0a0f18;
+  font-weight: 700;
+}
+.lift-deck-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.lift-tagline {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--deck);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.lift-tagline .icon {
+  width: 13px;
+  height: 13px;
+}
+.lift-places {
+  color: var(--text);
+  font-size: 11px;
+  opacity: 0.85;
+}
+#lift-buttons button.lift-deck.dim {
+  opacity: 0.45;
+}
+.lift-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+}
+.lift-search:focus-within {
+  border-color: var(--cyan);
+}
+.lift-search .icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+.lift-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.lift-none {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
 }
 
 /* Au-dessus des emotes : en haut, il toucherait « Retour au site » et la barre sous ~1360 px. */
@@ -4058,6 +4136,12 @@ body:has(.cinema-room-overlay:not([hidden])) .twitch-chat { right: 372px; }
 .site-ranks li:nth-child(odd) { background: #ffffff0d; }
 .site-ranks li:hover { background: #91c9ef16; }
 .site-ranks li.site-empty { display: block; text-align: center; color: #b5cadb; padding: 22px 14px; }
+/* Le fil « En direct » : la nouvelle à gauche, son heure à droite ; le bandeau rouge du hall en tête. */
+.site-panel.site-live { width: min(720px, calc(100vw - 28px)); }
+.site-live .site-kicker { color: #ff6b5e; }
+.site-ranks.site-news { margin-bottom: 18px; max-height: 260px; overflow: auto; scrollbar-width: thin; }
+.site-ranks.site-news li { grid-template-columns: minmax(0, 1fr) auto; gap: 14px; }
+.site-ranks.site-news li > span:first-child { color: #eef7ff; }
 .site-avatar { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; background: #0e1b29; border: 2px solid #7fa3bb88; }
 .site-score { white-space: nowrap; }
 .site-rank { display: inline-grid; place-items: center; width: 28px; height: 28px; border: 1px solid #65849955; border-radius: 7px; color: #b9d2e5; font-size: 12px; }
@@ -5024,7 +5108,7 @@ body.gardening #emotes { display: none; }
  * jeux du site, avec son propre en-tête. Noyer, laiton, velours bleu nuit ; l'ardoise de Ludo ; le
  * feutre de la table de tirage. Une seule chose brille : le sachet, puis les cartes.
  */
-.bar-game-shell iframe[hidden], .bar-game-actions a[hidden] { display: none; }
+.bar-game-shell iframe[hidden], .bar-game-actions a[hidden], .bar-game-actions button[hidden] { display: none; }
 .bar-game-bare .bar-game-header { display: none; }
 .bar-game-bare .bar-game-shell {
   width: min(1180px, 100%); height: min(800px, calc(100dvh - 32px)); border: 1px solid #c9a24a8c; border-radius: 22px;
@@ -6019,3 +6103,93 @@ body.mess-end-on :is(.top-left, .top-right, .emotes, #phone, .about-toggle, #tou
 /* À plusieurs : l'équipe sous le bandeau, ce que chacun tient. */
 .mess-rewards { display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; background: #ffb15c14; }
 .mess-rewards p { margin: 0; color: #ffd9a8; font-size: 13px; line-height: 1.45; }
+
+/* ---------------------------------------------------------------- la bibliothèque du lore (cf. src/lore-library.ts)
+ * Un rayonnage par thème : ses livres dos à dos, aux couleurs de son alcôve ; le survol d'un livre
+ * dit ce qu'il raconte, le clic l'ouvre au Lore Explorer. */
+.lore-panel {
+  --wood: #3a2618; --wood-dark: #24170e; --spine-0: #5a2a6e; --spine-1: #7a1f2e; --spine-2: #ece2c8; --spine-3: #b48a3c;
+  --band: #d8b062; --ink: #f6eedd; --accent: #d8b062; --wall: radial-gradient(ellipse at 50% 0%, #4b2a63 0%, #1b1020 70%);
+  flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; align-items: center; gap: 0;
+  padding: 28px 24px 30px; background: var(--wall); color: var(--ink);
+}
+.lore-panel[data-theme=federation] { --wood: #1d2b4a; --wood-dark: #101a30; --spine-0: #1f3f7a; --spine-1: #e8eef6; --spine-2: #a8262e; --spine-3: #5a6a80; --band: #c9d2de; --accent: #7cc4ff; --wall: radial-gradient(ellipse at 50% 0%, #1f3a66 0%, #0b1424 70%); }
+.lore-panel[data-theme=alliance] { --wood: #9a6a3e; --wood-dark: #6b4526; --spine-0: #2f6b3f; --spine-1: #d8c9a0; --spine-2: #7a4a2a; --spine-3: #4f8f5a; --band: #e8dcc0; --accent: #5fc27a; --wall: radial-gradient(ellipse at 50% 0%, #2f5a3a 0%, #13241a 70%); }
+.lore-panel[data-theme=thargoid] { --wood: #141a17; --wood-dark: #0a0e0c; --spine-0: #1f3a2e; --spine-1: #0f1a14; --spine-2: #2a4f3f; --spine-3: #355c4a; --band: #3cffb0; --accent: #3cffb0; --wall: radial-gradient(ellipse at 50% 0%, #12382a 0%, #050907 70%); }
+.lore-panel[data-theme=guardian] { --wood: #5d6672; --wood-dark: #3d444e; --spine-0: #4a525e; --spine-1: #6a7280; --spine-2: #3a414c; --spine-3: #2f4a5a; --band: #6fe3ff; --accent: #6fe3ff; --wall: radial-gradient(ellipse at 50% 0%, #22465a 0%, #0c141c 70%); }
+.lore-panel[data-theme=mysteries] { --wood: #151117; --wood-dark: #0a080b; --spine-0: #4a0f18; --spine-1: #1a1418; --spine-2: #2a1a3a; --spine-3: #6a1a2a; --band: #a8a8b4; --accent: #c8283a; --wall: radial-gradient(ellipse at 50% 0%, #4a0f18 0%, #0b070a 70%); }
+.lore-motto { margin: 0 0 26px; max-width: 760px; text-align: center; font: italic 16px/1.5 Georgia, serif; color: color-mix(in srgb, var(--ink) 82%, transparent); }
+.lore-books { display: flex; align-items: flex-end; justify-content: center; gap: 6px; min-height: 230px; padding: 0 22px; }
+.bar-game-overlay .lore-book {
+  position: relative; width: var(--w); height: var(--h); padding: 14px 0; border: 1px solid #0006; border-radius: 4px 4px 2px 2px;
+  background: linear-gradient(90deg, #0005, #fff1 18%, #0000 40%, #0003), var(--spine-0); color: var(--ink);
+  box-shadow: inset 0 10px 0 -6px var(--band), inset 0 -12px 0 -7px var(--band), 0 4px 10px #0007;
+  transition: transform .18s ease, box-shadow .18s ease; cursor: pointer;
+}
+.bar-game-overlay .lore-book[data-tone='1'] { background-color: var(--spine-1); }
+.bar-game-overlay .lore-book[data-tone='2'] { background-color: var(--spine-2); }
+.bar-game-overlay .lore-book[data-tone='3'] { background-color: var(--spine-3); }
+.lore-book span { color: var(--t0, var(--ink)); }
+.lore-book[data-tone='1'] span { color: var(--t1, var(--ink)); }
+.lore-book[data-tone='2'] span { color: var(--t2, var(--ink)); }
+.lore-book[data-tone='3'] span { color: var(--t3, var(--ink)); }
+/* Les dos clairs (crème, blanc, parchemin) portent une encre sombre. */
+.lore-panel[data-theme=empire] { --t2: #2a1a10; }
+.lore-panel[data-theme=federation] { --t1: #13203a; }
+.lore-panel[data-theme=alliance] { --t1: #2a1a10; }
+.lore-book span { display: block; margin: 0 auto; text-shadow: none; writing-mode: vertical-rl; transform: rotate(180deg); max-height: calc(var(--h) - 34px); overflow: hidden; font: 600 14px/1 Georgia, serif; letter-spacing: .02em; white-space: nowrap; text-overflow: ellipsis; }
+.bar-game-overlay .lore-book:hover, .bar-game-overlay .lore-book:focus-visible { transform: translateY(-14px); background-image: linear-gradient(90deg, #0005, #fff2 18%, #0000 40%, #0003); background-color: var(--spine-0); box-shadow: inset 0 10px 0 -6px var(--band), inset 0 -12px 0 -7px var(--band), 0 0 0 2px var(--accent), 0 10px 24px #000a; outline: none; }
+.bar-game-overlay .lore-book[data-tone='1']:hover, .bar-game-overlay .lore-book[data-tone='1']:focus-visible { background-color: var(--spine-1); }
+.bar-game-overlay .lore-book[data-tone='2']:hover, .bar-game-overlay .lore-book[data-tone='2']:focus-visible { background-color: var(--spine-2); }
+.bar-game-overlay .lore-book[data-tone='3']:hover, .bar-game-overlay .lore-book[data-tone='3']:focus-visible { background-color: var(--spine-3); }
+.lore-panel[data-theme=thargoid] .lore-book, .lore-panel[data-theme=guardian] .lore-book { box-shadow: inset 0 10px 0 -6px var(--band), inset 0 -12px 0 -7px var(--band), 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent); }
+.lore-plinth { width: min(860px, 100%); height: 22px; border-radius: 3px; background: linear-gradient(var(--wood), var(--wood-dark)); box-shadow: 0 2px 0 var(--band), 0 12px 26px #0009; }
+.lore-blurb { min-height: 48px; margin: 22px 0 18px; max-width: 760px; text-align: center; font-size: 15px; line-height: 1.5; color: color-mix(in srgb, var(--ink) 88%, transparent); }
+.lore-blurb strong { color: var(--accent); font: 600 17px Georgia, serif; }
+.bar-game-overlay .lore-all { background: color-mix(in srgb, var(--accent) 22%, #0000); border: 1px solid var(--accent); color: var(--ink); }
+.bar-game-overlay .lore-all:hover { background: color-mix(in srgb, var(--accent) 40%, #0000); }
+
+/* Les cartes stellaires du planétarium : douze cartes numériques, une étoile chacune ; la dernière est vierge. */
+.star-cards { flex: 1; min-height: 0; overflow: auto; padding: 22px 24px 28px; background: radial-gradient(ellipse at 50% 0%, #182a4a, #060b16 75%); color: #e8f2ff; }
+.star-cards-intro { margin: 0 auto 20px; max-width: 760px; text-align: center; font: italic 15px/1.5 Georgia, serif; color: #c9d8ee; }
+.star-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; max-width: 1180px; margin: 0 auto; }
+.bar-game-overlay .star-card {
+  --star: #fff1c9; display: grid; justify-items: center; gap: 6px; padding: 16px 12px 14px; min-height: 176px; text-align: center;
+  border: 1px solid #5fb6ff66; border-radius: 14px; background: linear-gradient(160deg, #13284a, #0b1628); color: #e8f2ff;
+  box-shadow: inset 0 0 0 1px #ffffff0d, 0 8px 20px #0008; transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+.bar-game-overlay .star-card:hover, .bar-game-overlay .star-card:focus-visible { transform: translateY(-4px); border-color: var(--star); background: linear-gradient(160deg, #18325c, #0e1c33); box-shadow: 0 0 0 1px var(--star), 0 12px 28px #000a; outline: none; }
+.star-card-orb { width: 58px; height: 58px; border-radius: 50%; background: radial-gradient(circle, #fff 0 12%, var(--star) 30%, transparent 70%); filter: drop-shadow(0 0 10px var(--star)); }
+.star-card strong { font: 700 17px/1.1 "DIN Alternate", "Bahnschrift", "Roboto Condensed", system-ui, sans-serif; letter-spacing: .04em; text-transform: uppercase; }
+.star-card-text { font-size: 12.5px; line-height: 1.4; color: #b9cbe4; }
+.bar-game-overlay .star-card-blank { border-style: dashed; border-color: #4a4f5a; background: linear-gradient(160deg, #1a1d24, #111318); }
+.star-card-blank .star-card-orb { background: radial-gradient(circle, #2a2d34 0 40%, transparent 70%); filter: none; }
+.bar-game-overlay .star-card-flipped { border-color: #c8283a; box-shadow: 0 0 0 1px #c8283a, 0 0 26px #c8283a55; }
+@media (max-width: 720px) {
+  .lore-books { gap: 4px; padding: 0 4px; flex-wrap: wrap; }
+  .lore-panel { padding: 18px 12px 22px; }
+  .star-cards { padding: 16px 12px 20px; }
+  .star-cards-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+}
+
+/* La carte de profil de l'antichambre des quartiers (cf. src/profile-card.ts) : la carte Open Graph
+ * du site à gauche, le résumé et les liens à droite ; un invité n'a que l'invitation à se connecter. */
+.profile-card {
+  flex: 1; min-height: 0; overflow: auto; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(260px, 1fr); align-items: center; gap: 32px;
+  padding: 36px 40px; background: radial-gradient(ellipse at 20% 10%, #3a2a1c 0%, #15100c 70%); color: #f6eedd;
+}
+.profile-card-og { width: 100%; height: auto; border-radius: 10px; border: 3px solid #d8b062; box-shadow: 0 0 0 8px #2a1c12, 0 0 0 10px #d8b06266, 0 24px 60px #000c; background: #0b1018; }
+.profile-card-info h3 { margin: 0 0 12px; font: 600 34px/1.1 Georgia, serif; color: #fff4dc; }
+.profile-card-text { margin: 0 0 18px; font-size: 16px; line-height: 1.55; color: #e6dac2; }
+.profile-card-stats { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 22px; padding: 0; list-style: none; }
+.profile-card-stats li { padding: 8px 14px; border: 1px solid #d8b06266; border-radius: 999px; background: #d8b06214; color: #e6dac2; font-size: 14px; }
+.profile-card-stats strong { color: #ffd58b; font-size: 17px; }
+.profile-card-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.bar-game-overlay a.profile-card-main { background: #d8b062; border-color: #d8b062; color: #1c130b; font-weight: 700; }
+.bar-game-overlay a.profile-card-main:hover { background: #ffd58b; }
+.profile-card:has(.profile-card-guest) { grid-template-columns: minmax(0, 620px); justify-content: center; align-content: center; text-align: center; }
+.profile-card-guest { margin: 0 0 18px; font: italic 18px/1.6 Georgia, serif; color: #e6dac2; }
+.profile-card:has(.profile-card-guest) .profile-card-main { justify-self: center; }
+@media (max-width: 820px) {
+  .profile-card { grid-template-columns: 1fr; padding: 20px 16px; gap: 18px; }
+}

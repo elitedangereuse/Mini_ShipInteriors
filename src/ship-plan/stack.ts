@@ -1,17 +1,17 @@
-import { LIFT } from '../levels'
+import { liftOf } from '../levels'
 import type { ShipMap } from '../map'
 import { PLAN_LEVELS, planOf, roomInfo, ZONES } from './data'
 import { isoPoint, pathOf, roomOpen, type Point } from './geometry'
 
 /*
  * La pile des ponts : les trois ponts du plan vus en perspective, l'un au-dessus de l'autre, comme
- * dans le jeu, et traversés par l'ascenseur. C'est le dessin de l'affiche (au canvas, cf.
+ * dans le jeu, chacun avec son téléporteur. C'est le dessin de l'affiche (au canvas, cf.
  * poster.ts) et celui du sélecteur de pont de la fenêtre (en SVG, cf. panel.ts) : les deux lisent
  * les mêmes chemins.
  */
 
-/** Les ponts font au plus 40 × 17 tuiles : la pile est calée sur cette boîte, pour qu'ils s'alignent. */
-const SPAN = { w: 40, h: 17 }
+/** Les ponts font au plus 40 × 22 tuiles : la pile est calée sur cette boîte, pour qu'ils s'alignent. */
+const SPAN = { w: 40, h: 22 }
 
 export interface StackDeck {
   level: number
@@ -20,7 +20,7 @@ export interface StackDeck {
   hull: string
   /** Ses pièces : la teinte et le trait de leur zone ; `hidden` : une pièce que le plan ne nomme pas. */
   rooms: { id: string; d: string; fill: string; ink: string; hidden: boolean }[]
-  /** L'ascenseur sur ce pont, et la pointe de sa proue. */
+  /** Le téléporteur de ce pont, et la pointe de sa proue. */
   lift: Point
   bow: Point
 }
@@ -61,7 +61,7 @@ export function shipStack(unit: number, gap: number, mapOf?: (level: number) => 
         const hidden = !!info.secret && !roomOpen(plan, r.id)
         return { id: r.id, d: pathOf(r.loops, to), fill: ZONES[info.zone].fill, ink: ZONES[info.zone].ink, hidden }
       }),
-      lift: to([LIFT.x + 0.5, LIFT.z + 0.5]),
+      lift: to([liftOf(level).x + 0.5, liftOf(level).z + 0.5]),
       bow: to([maxX, bowZ.reduce((a, b) => a + b, 0) / bowZ.length]),
     }
   })

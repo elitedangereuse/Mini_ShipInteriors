@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { ShipMap } from '../shared/ship-map.js'
-import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
+import { SHIP_LAYOUTS, shipMapOptions, teleporterOf } from '../shared/ship-layouts.js'
 import { TUTORIAL_CLOSED, TUTORIAL_EXIT, TUTORIAL_LAYOUT, TUTORIAL_SPAWN, TUTORIAL_TELEPORTER, onTutorialFloor } from '../shared/tutorial.js'
 
 test('le simulateur : trois salles, une porte entre chacune, fermées au début', () => {
@@ -29,8 +29,8 @@ test('on se réveille dans le sas, le téléporteur est dans sa salle', () => {
   assert.ok(!onTutorialFloor(-1, 2))
 })
 
-test('la sortie est dans la coursive du pont principal', () => {
+test('la sortie est sur le téléporteur du hall d\'accueil, au pont principal', () => {
   const main = new ShipMap(SHIP_LAYOUTS[String(TUTORIAL_EXIT.level)], shipMapOptions(TUTORIAL_EXIT.level))
-  assert.equal(main.room(Math.round(TUTORIAL_EXIT.x), Math.round(TUTORIAL_EXIT.z)), 'c')
-  assert.equal(main.room(Math.round(TUTORIAL_EXIT.x), Math.floor(TUTORIAL_EXIT.z)), 'c')
+  assert.equal(main.room(Math.round(TUTORIAL_EXIT.x), Math.round(TUTORIAL_EXIT.z)), 'e')
+  assert.deepEqual({ x: TUTORIAL_EXIT.x, z: TUTORIAL_EXIT.z }, teleporterOf(TUTORIAL_EXIT.level))
 })

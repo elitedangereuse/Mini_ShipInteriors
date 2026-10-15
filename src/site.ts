@@ -1,5 +1,5 @@
 import { CATALOG } from './cabin/catalog'
-import { tr } from './i18n'
+import { EN, tr } from './i18n'
 import { formatCredits } from './economy/data'
 import type { Wallet } from './economy/wallet'
 import { loadLjpc } from './ljpc-site'
@@ -10,8 +10,13 @@ export const artUrl = (id: string) => `${SITE_URL}?image=${encodeURIComponent(id
 export const SITE_MODELS: Record<string, string> = { 'site-card': 'card', 'site-badge': 'badge', 'adventure-poster': 'adv' }
 interface Artwork { id: string; kind: string; label: string }
 interface Reward { reward: string; label: string; amount: number }
-interface RankingRow { rank: number; name: string; url: string; avatar?: string; score: number }
+export interface RankingRow { rank: number; name: string; url: string; avatar?: string; score: number }
 interface Ranking { id: string; label: string; unit: string; rows: RankingRow[] }
+/**
+ * Une ligne du fil « En direct » du site (cf. docs/en-direct-site.md) : son identifiant, sa date,
+ * son texte (en français, et en anglais s'il l'a), et le lien vers ce dont elle parle.
+ */
+interface LiveRow { id: string | number; at?: number | string; text?: string; text_en?: string; url?: string; kind?: string }
 /** Familles de classements du site (cf. msi_site_rankings) : équipage, bornes d'arcade, salle de sport, terrains de basket et de foot, stand de tir. */
 export type RankingKind = 'crew' | 'arcade' | 'gym' | 'basket' | 'foot' | 'range'
 const RANKING_PANELS: Record<RankingKind, { title: string; subtitle: string }> = {
@@ -47,10 +52,18 @@ export interface NearestAdventure {
   state: 'nearest' | 'done'; located?: boolean; from?: string; title?: { fr: string; en: string }
   url?: string; system?: string | null; distance?: number
 }
+/**
+ * Le résumé d'un profil (cf. docs/refonte-ponts-site.md, `?profile=`) : ce que disent ses balises
+ * Open Graph, et ses compteurs.
+ */
+export interface ProfileReply {
+  name?: string; title?: string; description?: string; image?: string; url?: string
+  stats?: { adventures?: number; badges?: number; points?: number }
+}
 interface Reply {
   status: string; error?: string; art?: Artwork[]; pending?: Record<string, Reward[]>;
   rankings?: Ranking[]; earned?: number; balance?: number; count?: number; adventure?: NearestAdventure
-  ship?: EliteShip | null
+  ship?: EliteShip | null; live?: LiveRow[]; profile?: ProfileReply | null
 }
 export async function siteRequest(query = '', body?: object): Promise<Reply | null> {
   try {
@@ -74,6 +87,39 @@ export async function nearestAdventure(): Promise<NearestAdventure | 'auth' | nu
     return reply.adventure
   }
   return reply?.error === 'auth' ? 'auth' : null
+}
+
+/** Un classement de l'équipage, prêt à afficher : son nom et son unité traduits, ses lignes. */
+export interface CrewBoard { id: string; label: string; unit: string; rows: RankingRow[] }
+
+/**
+ * Les classements de l'équipage (employés du mois, général, 30 jours, collectionneurs, podiums),
+ * pour le Tableau d'honneur de la Promenade ; null : le site ne répond pas.
+ */
+export async function crewBoards(): Promise<CrewBoard[] | null> {
+  const reply = await siteRequest('?rankings=crew')
+  if (reply?.status !== 'success') return null
+  return (reply.rankings ?? []).map((b) => ({ id: b.id, label: RANKING_LABELS[b.id] ?? b.label, unit: RANKING_UNITS[b.unit] ?? b.unit, rows: b.rows ?? [] }))
+}
+
+/** Une nouvelle du fil « En direct » du site, prête à défiler. */
+export interface LiveItem { id: string; text: string; url?: string; at?: number }
+
+/**
+ * Le fil « En direct » du site, le plus récent d'abord (cf. docs/en-direct-site.md). null : le
+ * site ne le sert pas (pas encore), ou ne répond pas ; le bandeau de la salle commune s'en passe.
+ */
+export async function liveFeed(): Promise<LiveItem[] | null> {
+  const reply = await siteRequest('?live=1')
+  if (reply?.status !== 'success' || !Array.isArray(reply.live)) return null
+  const items: LiveItem[] = []
+  for (const row of reply.live) {
+    const text = (EN && row.text_en ? row.text_en : row.text)?.replace(/\s+/g, ' ').trim()
+    if (!text) continue
+    const at = typeof row.at === 'number' ? row.at : row.at ? Date.parse(row.at) : NaN
+    items.push({ id: String(row.id), text, url: row.url ? siteHref(row.url) : undefined, at: Number.isFinite(at) ? at : undefined })
+  }
+  return items
 }
 
 /**
@@ -156,7 +202,7 @@ export class SitePanel {
   confirm() { this.buttons[this.selected]?.click() }
   private open(title: string, rankings?: RankingKind) {
     this.el.classList.toggle('site-rankings', !!rankings)
-    this.el.classList.remove('site-ljpc')
+    this.el.classList.remove('site-ljpc', 'site-live')
     this.subtitle.textContent = rankings
       ? RANKING_PANELS[rankings].subtitle
       : tr('Vos missions accomplies méritent une récompense.', 'Your completed missions deserve a reward.')
@@ -231,6 +277,45 @@ export class SitePanel {
     this.buttons = renderLjpc(this.content, data, tab)
     this.selected = Math.max(0, this.buttons.findIndex((b) => b.getAttribute('aria-pressed') === 'true'))
     this.buttons[this.selected]?.focus()
+  }
+  /**
+   * Le fil « En direct », tel que le bandeau de la salle commune le fait défiler (cf.
+   * community-feed.ts) : les nouvelles du site, un lien vers ce dont elles parlent, puis celles du
+   * bord. `site` est null quand le site ne sert pas (encore) son fil.
+   */
+  live(feed: { site: LiveItem[] | null; ship: { text: string; at: number }[] }) {
+    this.open(tr('En direct', 'Live'))
+    this.el.classList.add('site-live')
+    this.subtitle.textContent = tr('Le fil du site et les nouvelles du bord, comme sur le bandeau du hall.', 'The site\'s feed and news from aboard, as on the hall\'s ticker.')
+    const when = (at?: number) => {
+      if (!at) return ''
+      const minutes = Math.max(0, Math.round((Date.now() - at) / 60000))
+      if (minutes < 1) return tr('à l\'instant', 'just now')
+      if (minutes < 60) return tr(`il y a ${minutes} min`, `${minutes} min ago`)
+      const hours = Math.round(minutes / 60)
+      return hours < 24 ? tr(`il y a ${hours} h`, `${hours} h ago`) : new Date(at).toLocaleDateString(EN ? 'en-GB' : 'fr-FR', { day: 'numeric', month: 'short' })
+    }
+    const section = (title: string, rows: { text: string; url?: string; at?: number }[], empty: string) => {
+      const caption = document.createElement('p'); caption.className = 'site-caption'; caption.textContent = title
+      const list = document.createElement('ol'); list.className = 'site-ranks site-news'
+      for (const row of rows) {
+        const li = document.createElement('li')
+        const time = document.createElement('span'); time.className = 'site-unit'; time.textContent = when(row.at)
+        const text = row.url ? document.createElement('a') : document.createElement('span')
+        text.textContent = row.text
+        if (text instanceof HTMLAnchorElement) { text.href = row.url!; text.target = '_blank'; text.rel = 'noopener' }
+        li.append(text, time)
+        list.append(li)
+      }
+      if (!rows.length) {
+        const li = document.createElement('li'); li.className = 'site-empty'; li.textContent = empty; list.append(li)
+      }
+      return [caption, list]
+    }
+    this.content.replaceChildren(
+      ...section(tr('Sur le site', 'On the site'), feed.site ?? [], feed.site ? tr('Rien de neuf sur le site pour l\'instant.', 'Nothing new on the site for now.') : tr('Le fil du site n\'arrive pas encore jusqu\'au vaisseau.', 'The site\'s feed does not reach the ship yet.')),
+      ...section(tr('À bord', 'Aboard'), feed.ship, tr('Calme plat à bord depuis votre arrivée.', 'All quiet aboard since you arrived.')),
+    )
   }
   async rankings(kind: RankingKind = 'crew') {
     const token = this.open(RANKING_PANELS[kind].title, kind)

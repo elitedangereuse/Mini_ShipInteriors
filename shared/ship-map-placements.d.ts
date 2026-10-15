@@ -19,9 +19,12 @@ export declare const SHIP_MAP_PLACEMENTS: {
   quartersLanding: ShipMapAnchor
   holdLanding: ShipMapAnchor
   holdCrossroads: ShipMapAnchor
+  holdHall: ShipMapAnchor
+  trainingHall: ShipMapAnchor
   mainLanding: ShipMapAnchor
+  mainHall: ShipMapAnchor
   mainPromenade: ShipMapAnchor
   upperLanding: ShipMapAnchor
-  upperSportsHall: ShipMapAnchor
+  upperGallery: ShipMapAnchor
 }
 export declare function resolveShipMapPlacement(id: ShipMapPlacementId): ResolvedShipMapPlacement
