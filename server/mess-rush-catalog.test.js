@@ -81,7 +81,7 @@ test('chaque recette se cuisine de bout en bout, et la commande est servie', () 
   for (const id of Object.keys(RECIPES)) {
     const k = kitchen(createService({ id: 'g', seed: 7, players: 1, now: 0, recipes: [id] }))
     // Sans imprévu : un plateau renversé sur la passe ferait attendre la livraison.
-    k.state.nextEventAt = undefined
+    k.state.eventPlan = []
     k.waitOrder()
     const order = k.state.orders[0]
     assert.equal(order.recipe, id)

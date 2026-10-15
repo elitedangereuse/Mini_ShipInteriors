@@ -156,7 +156,35 @@ function plateStack(n: number, dirty: boolean): THREE.Object3D {
 export function itemObject(item: Item): THREE.Object3D {
   if (item.kind === 'plate') return plateObject(item.contents ?? [])
   if (item.kind === 'dirty') return plateStack(item.count ?? 1, true)
+  if (item.kind === 'extinguisher') return extinguisherObject()
   return ingredientObject(item.ing!, ingredientState(item))
+}
+
+/** L'extincteur : un corps rouge, son col noir, la poignée et le tuyau. */
+const EXT = {
+  red: new THREE.MeshLambertMaterial({ color: '#d4141e' }),
+  black: new THREE.MeshLambertMaterial({ color: '#1b1d22' }),
+  steel: new THREE.MeshLambertMaterial({ color: '#c6ccd4' }),
+  label: new THREE.MeshLambertMaterial({ color: '#f4efe2' }),
+}
+function extinguisherObject(): THREE.Object3D {
+  const g = new THREE.Group()
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.26, 16), EXT.red)
+  body.position.y = 0.13
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.06, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), EXT.red)
+  dome.position.y = 0.26
+  const label = new THREE.Mesh(new THREE.CylinderGeometry(0.061, 0.061, 0.08, 16, 1, true), EXT.label)
+  label.position.y = 0.13
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, 0.05, 10), EXT.black)
+  neck.position.y = 0.33
+  const handle = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.012, 0.025), EXT.steel)
+  handle.position.set(0.03, 0.36, 0)
+  handle.rotation.z = -0.25
+  const hose = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.008, 6, 12, Math.PI), EXT.black)
+  hose.position.set(-0.06, 0.28, 0)
+  hose.rotation.z = Math.PI / 2
+  g.add(body, dome, label, neck, handle, hose)
+  return g
 }
 
 /** Signature d'un objet : on ne refait son modèle que quand elle change. */
@@ -322,6 +350,44 @@ function foodTag(ing: string, state: string): THREE.SpriteMaterial {
   foodTags.set(key, m)
   return m
 }
+/** Un compteur rond (les assiettes propres de la pile, la vaisselle sale au retour et à la plonge). */
+const countTags = new Map<string, THREE.SpriteMaterial>()
+function countTag(n: number, fill: string): THREE.SpriteMaterial {
+  const key = `${n}:${fill}`
+  let m = countTags.get(key)
+  if (m) return m
+  const S = 128
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = S
+  const g = canvas.getContext('2d')!
+  const disc = (x: number, y: number, r: number, color: string) => {
+    g.beginPath()
+    g.arc(x, y, r, 0, Math.PI * 2)
+    g.fillStyle = color
+    g.fill()
+  }
+  disc(60, 66, 50, 'rgba(0, 0, 0, 0.35)')
+  disc(60, 58, 52, '#14161c')
+  disc(60, 58, 43, fill)
+  g.fillStyle = '#ffffff'
+  g.strokeStyle = '#14161c'
+  g.lineWidth = 8
+  g.font = '900 56px system-ui, sans-serif'
+  g.textAlign = 'center'
+  g.textBaseline = 'middle'
+  const text = `×${n}`
+  g.strokeText(text, 60, 62)
+  g.fillText(text, 60, 62)
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  m = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false })
+  countTags.set(key, m)
+  return m
+}
+/** Les couleurs des compteurs : les assiettes propres, la vaisselle sale. */
+const CLEAN = '#2fa865'
+const DIRTY = '#8a6a4a'
+
 /** Taille des icônes d'aliments (m), et leur écart. */
 const TAG_SIZE = 0.32
 const TAG_GAP = 0.03
@@ -385,12 +451,39 @@ const MOUSTACHE: Species = { id: 'moustache', model: 'cat', label: '', name: 'Mo
 /** Qui tient quoi : le joueur local et ses coéquipiers (leur avatar, s'il est là). */
 export type AvatarOf = (pid: string) => Avatar | null
 
-/** Un ustensile sur son feu : le modèle, l'alerte, la fumée, les bulles de ce qu'il contient, la lueur de la surchauffe. */
+/** Un ustensile sur son feu : l'alerte, la fumée, la lueur de la surchauffe, les flammes de l'imprévu du feu. */
 interface Burner {
   warn: THREE.Sprite
   smoke: THREE.Mesh[]
   heat: THREE.Mesh
+  flames: THREE.Group
 }
+
+/** Les flammes d'un ustensile en feu : des cônes orange et jaunes qui dansent, sur lui seul. */
+const FLAME_GEOMETRY = new THREE.ConeGeometry(0.09, 0.42, 10).translate(0, 0.21, 0)
+const FLAME_OUTER = new THREE.MeshBasicMaterial({ color: '#ff5a1c', transparent: true, opacity: 0.9, depthWrite: false })
+const FLAME_INNER = new THREE.MeshBasicMaterial({ color: '#ffd23f', transparent: true, opacity: 0.95, depthWrite: false })
+function flamesObject(): THREE.Group {
+  const g = new THREE.Group()
+  for (let i = 0; i < 7; i++) {
+    const inner = i === 6
+    const f = new THREE.Mesh(FLAME_GEOMETRY, inner || i % 2 ? FLAME_INNER : FLAME_OUTER)
+    const a = (i / 6) * Math.PI * 2
+    if (!inner) f.position.set(Math.cos(a) * 0.12, 0, Math.sin(a) * 0.12)
+    f.scale.setScalar(inner ? 1.5 : 1)
+    f.userData.phase = i * 1.37
+    f.userData.size = inner ? 1.5 : 1
+    f.renderOrder = 4
+    g.add(f)
+  }
+  g.visible = false
+  return g
+}
+
+/** La mousse de l'extincteur : quelques bouffées blanches, de la main au feu. */
+const SPRAY = 14
+const SPRAY_GEOMETRY = new THREE.SphereGeometry(0.04, 8, 6)
+const SPRAY_MATERIAL = new THREE.MeshBasicMaterial({ color: '#f4f8ff', transparent: true, opacity: 0.85, depthWrite: false })
 
 /** Où se pose ce qui est sur un poste : au mur est, un peu vers la cuisine. */
 const placeOf = (s: (typeof STATIONS)[number]) => ({ x: s.x - (s.x > 16.8 ? 0.05 : 0), z: s.z - (s.kind === 'pot' || s.kind === 'pan' ? 0.02 : 0) })
@@ -411,8 +504,13 @@ export class KitchenProps {
   private readonly right = new THREE.Vector3()
   /** La flaque du plateau renversé, sur la passe. */
   private readonly spill = puddle('#7a3b17', 0.42)
-  /** Moustache, la chatte du labo, pour l'imprévu du chat (chargée avec la cuisine). */
-  private cat: { root: THREE.Object3D; mixer: THREE.AnimationMixer } | null = null
+  /** Moustache, la chatte du labo, pour l'imprévu du chat (chargée avec la cuisine) : debout, en marche. */
+  private cat: { root: THREE.Object3D; mixer: THREE.AnimationMixer; idle: THREE.AnimationAction | null; walk: THREE.AnimationAction | null; walking: boolean } | null = null
+  /** La mousse de l'extincteur. */
+  private readonly spray: THREE.Mesh[] = []
+  /** Les lumières de la cuisine (le saut en hyperespace les fait vaciller), et leur réglage d'origine. */
+  private lights: { light: THREE.Light; intensity: number; color: THREE.Color }[] | null = null
+  private shaking = false
 
   constructor(private readonly parent: THREE.Object3D) {
     parent.add(this.group)
@@ -454,8 +552,10 @@ export class KitchenProps {
         const glowRing = new THREE.Mesh(new THREE.RingGeometry(0.14, 0.24, 24).rotateX(-Math.PI / 2), heat)
         glowRing.position.set(s.x, TOP + 0.004, s.z - 0.02)
         glowRing.visible = false
-        this.group.add(warn, glowRing)
-        this.burners.set(s.id, { warn, smoke: puffs, heat: glowRing })
+        const flames = flamesObject()
+        flames.position.set(s.x, TOP + 0.08, s.z - 0.02)
+        this.group.add(warn, glowRing, flames)
+        this.burners.set(s.id, { warn, smoke: puffs, heat: glowRing, flames })
       }
       if (s.kind === 'board') {
         const board = model('cutting-board', 0.4)
@@ -474,14 +574,24 @@ export class KitchenProps {
         this.gauges.set(s.id, g)
       }
     }
+    for (let i = 0; i < SPRAY; i++) {
+      const p = new THREE.Mesh(SPRAY_GEOMETRY, SPRAY_MATERIAL)
+      p.visible = false
+      p.renderOrder = 5
+      this.spray.push(p)
+      this.group.add(p)
+    }
     // Moustache se charge tout de suite, en même temps que la cuisine : pas d'à-coup au premier imprévu
     // du chat. La chatte noire du labo, celle qui vient mendier chez Marcel (cf. main.ts, MOUSTACHE).
     void petRig(MOUSTACHE, 'nuit').then((r) => {
       r.root.scale.setScalar(0.3)
       const mixer = new THREE.AnimationMixer(r.root)
-      const clip = r.clips.find((c) => /idle/i.test(c.name)) ?? r.clips[0]
-      if (clip) mixer.clipAction(clip).play()
-      this.cat = { root: r.root, mixer }
+      const idleClip = r.clips.find((c) => /idle/i.test(c.name)) ?? r.clips[0]
+      const walkClip = r.clips.find((c) => /walk/i.test(c.name)) ?? r.clips.find((c) => /run/i.test(c.name))
+      const idle = idleClip ? mixer.clipAction(idleClip) : null
+      const walk = walkClip ? mixer.clipAction(walkClip) : null
+      idle?.play()
+      this.cat = { root: r.root, mixer, idle, walk, walking: false }
       r.root.visible = false
       this.group.add(r.root)
     }).catch(() => {})
@@ -520,20 +630,24 @@ export class KitchenProps {
       const at = placeOf(s)
       g.position.set(at.x, TOP, at.z)
       if (s.kind === 'sink') g.position.set(s.x - 0.2, TOP - 0.02, s.z + 0.02)
+      g.userData.baseY = g.position.y
       this.group.add(g)
       this.onStation.set(s.id, { key, obj: g })
       // Les icônes de ce qui est sur le poste, à côté de sa pastille : elles partent avec l'aliment.
+      // La pile d'assiettes, le retour et la plonge : leur compte.
       const foods: [string, string][] = []
       for (const it of items) {
         if (it?.kind === 'ingredient') foods.push([it.ing!, ingredientState(it)])
         else if (it?.kind === 'plate') foods.push(...(it.contents ?? []))
       }
-      const tkey = foods.map((f) => f.join(':')).join(',')
+      const counted = s.kind === 'plates' || s.kind === 'return' || s.kind === 'sink'
+      const tkey = counted ? `#${count}` : foods.map((f) => f.join(':')).join(',')
       const shownTags = this.tags.get(s.id)
       if (shownTags?.key !== tkey) {
         for (const sp of shownTags?.sprites ?? []) sp.removeFromParent()
-        const sprites = foods.map(([ing, st]) => {
-          const sp = new THREE.Sprite(foodTag(ing, st))
+        const materials = counted ? (count > 0 ? [countTag(count, s.kind === 'plates' ? CLEAN : DIRTY)] : []) : foods.map(([ing, st]) => foodTag(ing, st))
+        const sprites = materials.map((material) => {
+          const sp = new THREE.Sprite(material)
           sp.scale.setScalar(TAG_SIZE)
           sp.renderOrder = 25
           return sp
@@ -591,8 +705,19 @@ export class KitchenProps {
         b.warn.visible = warn && Math.sin(t * 14) > -0.3
         b.heat.visible = state.event?.kind === 'overheat' && !!st
         if (b.heat.visible) (b.heat.material as THREE.MeshBasicMaterial).opacity = 0.3 + Math.abs(Math.sin(t * 6)) * 0.35
+        // Au feu : les flammes dansent sur cet ustensile seul, et baissent à mesure qu'on l'éteint.
+        const fire = state.event?.kind === 'fire' && state.event.station === s.id ? state.event : null
+        b.flames.visible = !!fire
+        if (fire) {
+          const left = 1 - 0.75 * Math.min(1, (fire.progress ?? 0) / RULES.events.fire.put)
+          b.flames.scale.setScalar(left)
+          for (const f of b.flames.children) {
+            const ph = f.userData.phase as number, size = f.userData.size as number
+            f.scale.set(size * (0.85 + 0.15 * Math.sin(t * 11 + ph)), size * (0.75 + 0.45 * Math.abs(Math.sin(t * 7 + ph))), size * (0.85 + 0.15 * Math.cos(t * 9 + ph)))
+          }
+        }
         b.smoke.forEach((p, i) => {
-          p.visible = !!st?.burnt
+          p.visible = !!st?.burnt || !!fire
           if (!p.visible) return
           const k = (t * 0.5 + i / 3) % 1
           p.position.set(s.x + Math.sin(t + i * 2) * 0.05, TOP + 0.15 + k * 0.7, s.z - 0.05)
@@ -627,29 +752,98 @@ export class KitchenProps {
         sp.position.set(s.x + this.right.x * d, ICON_Y, s.z + this.right.z * d)
       })
     }
+    // L'extincteur en action : la mousse va de la main de qui l'éteint jusqu'au feu.
+    const sprayers = Object.entries(state.work).filter(([, w]) => w.extinguish)
+    this.spray.forEach((p, i) => {
+      const w = sprayers[i % Math.max(1, sprayers.length)]
+      const avatar = w ? avatarOf(w[0]) : null
+      p.visible = !!w && !!avatar
+      if (!w || !avatar) return
+      const from = this.parent.worldToLocal(avatar.hands(this.tmp) ?? avatar.root.getWorldPosition(this.tmp).setY(avatar.root.getWorldPosition(this.tmp).y + 0.35))
+      const s = STATION_BY_ID[w[1].station]
+      const k = (t * 2.4 + i / SPRAY) % 1
+      p.position.set(from.x + (s.x - from.x) * k + Math.sin(i * 7.1) * 0.05 * k, from.y + (TOP + 0.2 - from.y) * k + Math.sin(k * Math.PI) * 0.08, from.z + (s.z - from.z) * k + Math.cos(i * 5.3) * 0.05 * k)
+      p.scale.setScalar(0.6 + k * 1.4)
+    })
+    this.hyperspace(state.event?.kind === 'hyperspace', t)
     // Le plateau renversé : la flaque s'efface à mesure qu'on nettoie.
     this.spill.visible = state.event?.kind === 'spill'
     if (this.spill.visible) this.spill.scale.setScalar(1 - 0.7 * Math.min(1, (state.event?.progress ?? 0) / RULES.events.clean))
-    this.updateCat(state, t)
+    this.updateCat(state, now, t)
   }
 
-  /** Moustache sur son plan pendant l'imprévu du chat. */
+  /**
+   * Le saut en hyperespace : les lumières vacillent doucement en bleuissant (sans éclair), et ce qui
+   * est posé sursaute de temps en temps. Tout revient comme avant à la sortie.
+   */
+  private hyperspace(on: boolean, t: number) {
+    if (!on && !this.shaking) return
+    this.shaking = on
+    if (!this.lights) {
+      this.lights = []
+      this.parent.traverse((o) => {
+        if (o instanceof THREE.PointLight || o instanceof THREE.SpotLight) this.lights!.push({ light: o, intensity: o.intensity, color: o.color.clone() })
+      })
+    }
+    const blue = new THREE.Color('#9fc2ff')
+    const k = on ? 0.78 + 0.12 * Math.sin(t * 2.3) + 0.06 * Math.sin(t * 7.3) : 1
+    for (const l of this.lights) {
+      l.light.intensity = l.intensity * k
+      l.light.color.copy(l.color)
+      if (on) l.light.color.lerp(blue, 0.35)
+    }
+    let i = 0
+    for (const { obj } of this.onStation.values()) {
+      const base = (obj.userData.baseY as number | undefined) ?? obj.position.y
+      obj.position.y = base + (on ? Math.pow(Math.max(0, Math.sin(t * 5 + i * 1.7)), 14) * 0.07 : 0)
+      i++
+    }
+  }
+
+  /**
+   * Moustache pendant son imprévu : d'abord sa promenade dans la cuisine (son chemin vient du relais,
+   * à l'heure du relais), puis un bond sur la préparation qu'elle bloque, où elle se tient.
+   */
   private lastT = 0
-  private updateCat(state: ServiceState, t: number) {
+  private updateCat(state: ServiceState, now: number, t: number) {
     const e = state.event?.kind === 'cat' ? state.event : null
     if (!this.cat) return
-    this.cat.root.visible = !!e
-    if (!e?.station) return
-    const s = STATION_BY_ID[e.station]
-    this.cat.root.position.set(s.x + 0.12, TOP + 0.01, s.z)
-    this.cat.root.rotation.y = Math.sin(t * 1.3) * 0.4
-    this.cat.mixer.update(this.lastT ? Math.min(0.1, t - this.lastT) : 0)
+    const cat = this.cat
+    cat.root.visible = !!e
+    if (!e) return
+    const path = e.path?.length ? e.path : [{ x: 12, z: 10 }, { x: 12.2, z: 10 }]
+    const walking = !e.station
+    if (walking !== cat.walking && cat.walk && cat.idle) {
+      ;(walking ? cat.walk : cat.idle).reset().fadeIn(0.2).play()
+      ;(walking ? cat.idle : cat.walk).fadeOut(0.2)
+    }
+    cat.walking = walking
+    if (walking) {
+      const f = THREE.MathUtils.clamp((now - e.at) / Math.max(1, (e.perchAt ?? now) - e.at), 0, 1)
+      const seg = f * (path.length - 1)
+      const i = Math.min(path.length - 2, Math.floor(seg))
+      const u = seg - i
+      const a = path[i], b = path[i + 1]
+      cat.root.position.set(a.x + (b.x - a.x) * u, 0, a.z + (b.z - a.z) * u)
+      cat.root.rotation.y = Math.atan2(b.x - a.x, b.z - a.z)
+    } else {
+      // Le bond, du bout de sa promenade jusque sur le plan, puis elle s'y tient.
+      const s = STATION_BY_ID[e.station!]
+      const from = path[path.length - 1]
+      const k = THREE.MathUtils.clamp((now - (e.perchAt ?? now)) / 500, 0, 1)
+      cat.root.position.set(from.x + (s.x + 0.12 - from.x) * k, (TOP + 0.01) * k + Math.sin(k * Math.PI) * 0.35, from.z + (s.z - from.z) * k)
+      cat.root.rotation.y = k < 1 ? Math.atan2(s.x - from.x, s.z - from.z) : Math.sin(t * 1.3) * 0.4
+    }
+    cat.mixer.update(this.lastT ? Math.min(0.1, t - this.lastT) : 0)
     this.lastT = t
   }
 
   /** Fin du service : on vide les mains de chacun, plus de pastille ni d'alerte. */
   release(avatarOf: AvatarOf) {
     for (const sprite of this.icons.values()) sprite.visible = false
+    this.hyperspace(false, 0)
+    for (const p of this.spray) p.visible = false
+    for (const b of this.burners.values()) b.flames.visible = false
     for (const { sprites } of this.tags.values()) for (const sp of sprites) sp.removeFromParent()
     this.tags.clear()
     this.spill.visible = false

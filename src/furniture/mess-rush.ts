@@ -182,7 +182,60 @@ const rushSink: Builder = () => {
   return { solid: g }
 }
 
+/**
+ * Le panneau de l'extincteur, au mur au-dessus de lui (face vers +z) : le pictogramme normalisé, un
+ * extincteur blanc sur fond rouge, cerclé de blanc et de noir, et le crochet en dessous.
+ */
+const rushFireSign: Builder = () => {
+  const S = 256
+  const map = drawnTexture(S, S, (g) => {
+    g.fillStyle = '#111111'
+    g.fillRect(0, 0, S, S)
+    g.fillStyle = '#ffffff'
+    g.fillRect(10, 10, S - 20, S - 20)
+    g.fillStyle = '#e0002a'
+    g.fillRect(18, 18, S - 36, S - 36)
+    // L'extincteur : le corps arrondi, le col, la poignée et le tuyau, en blanc.
+    g.fillStyle = '#ffffff'
+    const cx = 128
+    g.beginPath()
+    g.moveTo(cx - 34, 222)
+    g.lineTo(cx - 34, 108)
+    g.quadraticCurveTo(cx - 34, 80, cx - 10, 72)
+    g.lineTo(cx + 12, 72)
+    g.quadraticCurveTo(cx + 36, 80, cx + 36, 108)
+    g.lineTo(cx + 36, 222)
+    g.closePath()
+    g.fill()
+    g.fillRect(cx - 6, 50, 14, 26)
+    g.beginPath()
+    g.moveTo(cx - 4, 54)
+    g.lineTo(cx - 52, 54)
+    g.lineTo(cx - 70, 74)
+    g.lineTo(cx - 70, 86)
+    g.lineTo(cx - 62, 86)
+    g.lineTo(cx - 62, 78)
+    g.lineTo(cx - 46, 62)
+    g.lineTo(cx - 4, 62)
+    g.closePath()
+    g.fill()
+    g.beginPath()
+    g.moveTo(cx + 8, 58)
+    g.quadraticCurveTo(cx + 34, 46, cx + 44, 52)
+    g.quadraticCurveTo(cx + 40, 62, cx + 10, 66)
+    g.closePath()
+    g.fill()
+  })
+  const g = new THREE.Group()
+  const sign = mesh(new THREE.PlaneGeometry(0.42, 0.42), new THREE.MeshLambertMaterial({ map }), 0, 1.02, 0.006)
+  g.add(sign)
+  // Le crochet, sous le panneau.
+  g.add(box(0.12, 0.03, 0.05, lit(C.steelDark, 'metal'), 0, 0.62, 0.025))
+  return { solid: g }
+}
+
 export const MESS_RUSH_FURNITURE = {
+  'rush-fire-sign': rushFireSign,
   'rush-floor': rushFloor,
   'rush-counter': rushCounter,
   'rush-crate': rushCrate,

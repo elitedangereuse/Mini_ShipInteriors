@@ -22,7 +22,7 @@ import { randomBytes } from 'node:crypto'
 import { ShipMap } from '../shared/ship-map.js'
 import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import {
-  MESS_LEVEL, MESS_LOBBY, MESS_SPAWNS, RULES, STATION_BY_ID, createService, dropHeld, onMessFloor, serviceResult, serviceView,
+  EVENT_KINDS, MESS_LEVEL, MESS_LOBBY, MESS_SPAWNS, RULES, STATION_BY_ID, createService, dropHeld, onMessFloor, serviceResult, serviceView,
   stepService, stopWork, useStation, workStation,
 } from '../shared/mess-rush.js'
 import { RECIPES } from '../shared/mess-rush-catalog.js'
@@ -67,7 +67,7 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z)
  * @param {() => number} [o.now]
  * @param {() => number} [o.seed]
  * @param {string[]} [o.recipes] les recettes en jeu (toute la carte par défaut)
- * @param {boolean} [o.debug] serveur de dev : `mess:debug` raccourcit le service, choisit les recettes, fixe le score, fait venir le prochain visiteur de marque
+ * @param {boolean} [o.debug] serveur de dev : `mess:debug` raccourcit le service, choisit les recettes, fixe le score, fait venir le prochain visiteur de marque, déclenche un imprévu
  * @param {(fn: () => void, ms: number) => void} [o.later] programme une nouvelle tentative auprès du site
  */
 export function createMessRush({
@@ -397,6 +397,12 @@ export function createMessRush({
       if (data.guest === true) {
         const next = game.state.guests?.find((v) => !v.order)
         if (next) next.at = t
+      }
+      // Un imprévu au choix, tout de suite (les autres sont comptés comme déjà vus).
+      if (typeof data.event === 'string' && EVENT_KINDS.includes(data.event)) {
+        game.state.event = null
+        game.state.eventCounts = Object.fromEntries(EVENT_KINDS.filter((k) => k !== data.event).map((k) => [k, 9]))
+        game.state.eventPlan = [t, ...(game.state.eventPlan ?? [])]
       }
       game.dirty = true
       return
