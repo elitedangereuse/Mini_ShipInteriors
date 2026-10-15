@@ -67,7 +67,7 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z)
  * @param {() => number} [o.now]
  * @param {() => number} [o.seed]
  * @param {string[]} [o.recipes] les recettes en jeu (toute la carte par défaut)
- * @param {boolean} [o.debug] serveur de dev : `mess:debug` raccourcit le service, choisit les recettes, fixe le score
+ * @param {boolean} [o.debug] serveur de dev : `mess:debug` raccourcit le service, choisit les recettes, fixe le score, fait venir le prochain visiteur de marque
  * @param {(fn: () => void, ms: number) => void} [o.later] programme une nouvelle tentative auprès du site
  */
 export function createMessRush({
@@ -393,6 +393,11 @@ export function createMessRush({
         if (known.length) game.state.recipes = known
       }
       if (Number.isInteger(data.score) && data.score >= 0) game.state.score = data.score
+      // Le prochain visiteur de marque arrive tout de suite (pour essayer sa carte).
+      if (data.guest === true) {
+        const next = game.state.guests?.find((v) => !v.order)
+        if (next) next.at = t
+      }
       game.dirty = true
       return
     }

@@ -5928,9 +5928,17 @@ body.arena-end-on .arena-hud > :not(.arena-count), body.arena-end-on :is(.top-le
 .mess-step.cuire { --step: #ff7a2f; }
 .mess-step.saisir { --step: #ff4d3d; }
 /* Le bon de l'amiral : doré, il rapporte double. */
-.mess-ticket.vip { background: #fff3c4; box-shadow: 0 0 0 2px #ffd23f, 0 4px 0 #0b0d12aa; }
-.mess-ticket.vip::before { background: #d4a20f; }
-.mess-ticket-vip { color: #8a6400; font-size: 10.5px; font-style: normal; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+/* Le bon d'un visiteur de marque : une carte à lui, cerclée d'or, à sa couleur (cf. GUESTS). */
+.mess-ticket.guest { background: linear-gradient(160deg, #fff6d6, #f4ead8 55%); box-shadow: 0 0 0 3px #ffd23f, 0 0 14px #ffd23f88, 0 4px 0 #0b0d12aa; }
+.mess-ticket.guest::before { height: 34px; background: linear-gradient(90deg, var(--guest, #ffd23f), color-mix(in srgb, var(--guest, #ffd23f) 55%, #14161c)); }
+.mess-guest { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px; margin: -6px 0 2px; }
+.mess-guest-face { display: grid; place-items: center; width: 34px; height: 34px; box-sizing: border-box; border: 3px solid #14161c; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ffffff66, transparent 55%), var(--guest, #ffd23f); color: #14161c; box-shadow: 0 0 0 2px #ffd23f; }
+.mess-guest-face .icon { width: 18px; height: 18px; }
+.mess-guest-who { display: grid; min-width: 0; line-height: 1.15; }
+.mess-guest-who b { overflow: hidden; color: #fff; font-size: 13px; font-weight: 900; white-space: nowrap; text-overflow: ellipsis; text-shadow: 0 1px 0 #14161c, 0 0 4px #14161c; }
+.mess-guest-who small { overflow: hidden; color: #fff; font-size: 10px; font-weight: 700; white-space: nowrap; text-overflow: ellipsis; text-shadow: 0 1px 0 #14161c; opacity: .9; }
+.mess-guest-bonus { padding: 1px 6px; border: 2px solid #14161c; border-radius: 999px; background: #ffd23f; color: #14161c; font-size: 11px; font-style: normal; font-weight: 900; }
+.mess-guest-quote { margin: 2px 0 0; color: #5a4a3a; font-size: 10.5px; font-style: italic; line-height: 1.25; quotes: '« ' ' »'; }
 .mess-ticket-time { position: absolute; left: 0; right: 0; bottom: 0; height: 5px; background: linear-gradient(90deg, var(--bar, #4cd88a) calc(var(--left, 1) * 100%), #2a211a22 calc(var(--left, 1) * 100%)); }
 .mess-ticket-time[data-level='warn'] { --bar: #ffb15c; }
 .mess-ticket-time[data-level='late'] { --bar: #ff5a4a; }
@@ -5954,6 +5962,7 @@ body.mess-on .mess-tickets { position: fixed; top: max(10px, env(safe-area-inset
   body.mess-on .mess-ticket { width: 150px; }
   .mess-food-name { display: none; }
   .mess-recipe-row { grid-template-columns: auto auto; justify-content: space-between; }
+  .mess-guest-quote, .mess-guest-who small { display: none; }
 }
 /* Les annonces, discrètes, dans le coin en bas à droite : elles ne recouvrent jamais un poste. */
 body.mess-on .mess-toasts { position: fixed; right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); justify-items: end; }

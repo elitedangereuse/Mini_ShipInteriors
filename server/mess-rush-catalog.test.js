@@ -4,7 +4,7 @@
 //   npm test
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { DIFFICULTIES, INGREDIENTS, PROCESSES, PROTOTYPE_RECIPES, RECIPES, SOURCES } from '../shared/mess-rush-catalog.js'
+import { DIFFICULTIES, GUESTS, GUEST_RECIPES, INGREDIENTS, PROCESSES, PROTOTYPE_RECIPES, RECIPES, SERVICE_RECIPES, SOURCES } from '../shared/mess-rush-catalog.js'
 import { STATIONS, createService } from '../shared/mess-rush.js'
 import { cookRecipe, kitchen } from './mess-rush-helpers.js'
 
@@ -72,7 +72,7 @@ test('chaque recette a ses noms, sa difficulté, un plat atteignable, des étape
 })
 
 test('la sélection du prototype : trois recettes, qui passent par tous les postes de la cuisine', () => {
-  assert.deepEqual(PROTOTYPE_RECIPES.sort(), ['bouillon-legumes', 'crevettes-saisies', 'pommes-aerial'])
+  assert.deepEqual(PROTOTYPE_RECIPES.sort(), ['crevettes-pommes', 'ragout-lapin', 'riz-crevettes'])
   const used = new Set(PROTOTYPE_RECIPES.flatMap((id) => RECIPES[id].steps.map((s) => s[0])))
   for (const kind of ['crate', 'board', 'pot', 'pan', 'plates', 'pass']) assert.ok(used.has(kind), kind)
 })
@@ -90,4 +90,29 @@ test('chaque recette se cuisine de bout en bout, et la commande est servie', () 
     assert.ok(order.points >= DIFFICULTIES[RECIPES[id].difficulty].points, `${id} : points`)
     assert.equal(k.state.hands.p1, null)
   }
+})
+
+test('deux ingrédients différents pour les clients du mess, trois pour les visiteurs de marque', () => {
+  for (const [id, r] of Object.entries(RECIPES)) {
+    const ings = r.dish.contents.map(([ing]) => ing)
+    assert.equal(new Set(ings).size, ings.length, `${id} : un ingrédient en double`)
+    assert.ok(ings.length === 2 || ings.length === 3, `${id} : ${ings.length} ingrédients`)
+    assert.equal(r.difficulty, ings.length === 2 ? 'intermediaire' : 'complexe', `${id} : difficulté`)
+  }
+  assert.ok(SERVICE_RECIPES.length >= 4 && SERVICE_RECIPES.every((id) => RECIPES[id].dish.contents.length === 2))
+  assert.ok(GUEST_RECIPES.length >= 3 && GUEST_RECIPES.every((id) => RECIPES[id].dish.contents.length === 3))
+  assert.ok(!RECIPES['bouillon-legumes'], 'plus de bouillon aux trois légumes')
+})
+
+test('les visiteurs de marque : des personnages du vaisseau, chacun son plat à trois ingrédients et sa carte', () => {
+  const ids = Object.keys(GUESTS)
+  assert.ok(ids.length >= 6)
+  assert.equal(new Set(ids.map((id) => GUESTS[id].name)).size, ids.length)
+  for (const [id, g] of Object.entries(GUESTS)) {
+    assert.ok(GUEST_RECIPES.includes(g.dish), `${id} : plat`)
+    assert.match(g.color, /^#[0-9a-f]{6}$/, `${id} : couleur`)
+    assert.ok(g.icon && filled(g.role) && filled(g.quote), `${id} : carte`)
+  }
+  // Chaque plat de visiteur a au moins un amateur.
+  for (const r of GUEST_RECIPES) assert.ok(ids.some((id) => GUESTS[id].dish === r), r)
 })

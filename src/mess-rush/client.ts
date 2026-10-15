@@ -6,7 +6,7 @@ import type { Deck, Interactable } from '../deck'
 import { EN, tr } from '../i18n'
 import type { MessCrew, MessLobby, Net, ServerMessage } from '../net'
 import type { Player } from '../player'
-import { INGREDIENTS, RECIPES, type Text } from '../../shared/mess-rush-catalog.js'
+import { GUESTS, INGREDIENTS, RECIPES, type Text } from '../../shared/mess-rush-catalog.js'
 import {
   MESS_BOUNDS, MESS_LEVEL, MESS_RETURN, RULES, STATION_BY_ID, STATION_NAMES, STATIONS, ingredientState, resolveAction,
   type Action, type Item, type ServiceState, type UtensilState,
@@ -40,7 +40,7 @@ function actionLabel(a: Action, held: string, slot: string): string {
     case 'work': return a.busy ? tr('Occupé', 'Busy') : tr('Couper', 'Chop')
     case 'wash': return a.busy ? tr('Occupé', 'Busy') : tr('Laver', 'Wash')
     case 'clean': return a.busy ? tr('Occupé', 'Busy') : tr('Nettoyer', 'Clean')
-    case 'shoo': return tr('Chasser Comète', 'Shoo Comète')
+    case 'shoo': return tr('Chasser Moustache', 'Shoo Moustache')
     case 'take': return tr(`Prendre : ${slot}`, `Take: ${slot}`)
     case 'put': return tr(`Poser : ${held}`, `Put down: ${held}`)
     case 'plate-pick':
@@ -301,7 +301,7 @@ export class MessRushClient {
   }
 
   /** Ce qui se passe en cuisine : un son, et un mot discret dans le coin pour l'essentiel (servi, raté, mangé, l'équipe). */
-  private event(e: { kind: string; by?: string; recipe?: string; points?: number; combo?: number; penalty?: number; station?: string; process?: string; wait?: number; count?: number; event?: string; vip?: boolean; ing?: string }) {
+  private event(e: { kind: string; by?: string; recipe?: string; points?: number; combo?: number; penalty?: number; station?: string; process?: string; wait?: number; count?: number; event?: string; guest?: string; ing?: string }) {
     // Le plat d'un bon, à sa couleur.
     const dish = e.recipe ? RECIPES[e.recipe] : null
     const me = e.by === this.game?.you
@@ -312,7 +312,7 @@ export class MessRushClient {
     }
     switch (e.kind) {
       case 'served':
-        this.hud.toast(`+${e.points} · ${text(dish!.name)}${(e.combo ?? 0) > 1 ? ` · ×${e.combo}` : ''}`, 'good', dish!.color)
+        this.hud.toast(`+${e.points} · ${e.guest ? tr(`servi : ${GUESTS[e.guest].name}`, `served: ${GUESTS[e.guest].name}`) : text(dish!.name)}${(e.combo ?? 0) > 1 ? ` · ×${e.combo}` : ''}`, 'good', dish!.color)
         this.host.sound.play('ding', this.host.player.position, { volume: 0.5 })
         this.host.sound.credits((e.combo ?? 0) > 2)
         if (me) this.host.served()
@@ -322,7 +322,9 @@ export class MessRushClient {
         this.host.sound.kitchen('expired', null)
         break
       case 'order':
-        this.host.sound.kitchen('order', null)
+        // Un visiteur de marque : on l'annonce (son bon, à part, en dit plus).
+        if (e.guest) this.hud.toast(tr(`${GUESTS[e.guest].name} vient manger au mess !`, `${GUESTS[e.guest].name} is coming to eat!`), 'info', GUESTS[e.guest].color)
+        this.host.sound.kitchen(e.guest ? 'bell' : 'order', null)
         break
       case 'prepared':
         if (me) {
@@ -374,7 +376,7 @@ export class MessRushClient {
         this.host.sound.meow(at(e.station))
         break
       case 'eaten':
-        this.hud.toast(tr(`Comète a mangé : ${text(INGREDIENTS[e.ing!].short)}`, `Comète ate: ${text(INGREDIENTS[e.ing!].short)}`), 'bad')
+        this.hud.toast(tr(`Moustache a mangé : ${text(INGREDIENTS[e.ing!].short)}`, `Moustache ate: ${text(INGREDIENTS[e.ing!].short)}`), 'bad')
         this.host.sound.work('munch', at(e.station))
         break
       case 'away':

@@ -336,8 +336,8 @@ test('serveur de dev seulement : `mess:debug` raccourcit le service et choisit l
   const dev = harness({ debug: true })
   const { members: [b] } = dev.team(1)
   const g = dev.launch([b])
-  dev.mess.handle(b, 'mess:debug', { endIn: 5, recipes: ['pommes-aerial', 'inconnue', 'constructor', '__proto__', 'toString'], score: RULES.medals[1][0] })
-  assert.deepEqual(g.state.recipes, ['pommes-aerial'])
+  dev.mess.handle(b, 'mess:debug', { endIn: 5, recipes: ['lapin-pommes', 'inconnue', 'constructor', '__proto__', 'toString'], score: RULES.medals[1][0] })
+  assert.deepEqual(g.state.recipes, ['lapin-pommes'])
   assert.equal(g.state.score, RULES.medals[1][0])
   dev.advance(5.2)
   assert.equal(dev.last(b.id, 'mess:end').medal, 'bronze')
@@ -372,14 +372,15 @@ test('deux livraisons au même instant, pour deux commandes de la même recette 
   const h = harness()
   const { members: [a, b] } = h.team(1, 2)
   const game = h.launch([a, b])
-  game.state.recipes = ['crevettes-saisies']
+  game.state.recipes = ['crevettes-pommes']
+  game.state.guests = []
   // Cuisine ouverte (après un départ) : les deux atteignent la passe.
   game.state.open = true
   h.advance(RULES.firstOrder + 0.2 + RULES.byPlayers[2].every)
   const pending = game.state.orders.filter((o) => o.status === 'pending')
   assert.equal(pending.length, 2)
   for (const [pid, id] of [['1', 'x1'], ['2', 'x2']]) {
-    game.state.items[id] = { id, kind: 'plate', contents: [['crevettes-baltahsine', 'saisi']] }
+    game.state.items[id] = { id, kind: 'plate', contents: [['crevettes-baltahsine', 'saisi'], ['pommes-aerial', 'coupé']] }
     game.state.hands[pid] = id
   }
   h.goto(a, 'passe')
@@ -390,7 +391,7 @@ test('deux livraisons au même instant, pour deux commandes de la même recette 
   assert.equal(game.state.served, 2)
   assert.equal(game.state.combo, 2)
   // Une troisième assiette, sans commande en attente : refusée, elle reste en main.
-  game.state.items.x3 = { id: 'x3', kind: 'plate', contents: [['crevettes-baltahsine', 'saisi']] }
+  game.state.items.x3 = { id: 'x3', kind: 'plate', contents: [['crevettes-baltahsine', 'saisi'], ['pommes-aerial', 'coupé']] }
   game.state.hands['1'] = 'x3'
   h.mess.handle(a, 'mess:use', { station: 'passe' })
   assert.equal(h.last(1, 'mess:refused').code, 'nomatch')

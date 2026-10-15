@@ -4,8 +4,8 @@
 //
 // MESS RUSH 2 : peu de gestes, tous lisibles, comme dans Overcooked. Chaque ingrédient sort de sa
 // caisse ; on le coupe sur une planche, puis il cuit tout seul (marmite ou poêle) ou se sert cru ;
-// une recette dit ce qu'on attend dans l'assiette (`dish`, un même ingrédient peut y être plusieurs
-// fois) et sa couleur (`color` : son bon, son client, les assiettes qui le deviennent).
+// une recette dit ce qu'on attend dans l'assiette (`dish` : deux ou trois ingrédients différents) et
+// sa couleur (`color` : son bon, son client, les assiettes qui le deviennent).
 // server/mess-rush-catalog.test.js vérifie que tout se tient.
 //
 // Les noms affichés sont en français (et en anglais, comme tout le jeu, cf. src/i18n.ts). Le nom
@@ -85,74 +85,147 @@ export const DIFFICULTIES = {
 }
 
 /**
- * Recettes. `dish` : ce que l'assiette doit contenir, exactement (l'ingrédient et son état ; un
- * même ingrédient peut y être plusieurs fois, l'ordre n'importe pas). `steps` : les étapes, dans
- * l'ordre, pour la documentation (le test du catalogue vérifie qu'elles suivent les ingrédients).
- * `color` : la couleur du plat, toutes différentes. `prototype` : la sélection du premier essai.
+ * Recettes. `dish` : ce que l'assiette doit contenir, exactement (l'ingrédient et son état ; l'ordre
+ * n'importe pas). Chaque plat réunit des ingrédients tous différents : deux pour les clients du mess
+ * (difficulté intermédiaire), trois pour les visiteurs de marque, les personnages du vaisseau
+ * (complexe, cf. GUEST_RECIPES et RULES.guests). `steps` : les étapes, dans l'ordre, pour la
+ * documentation (le test du catalogue vérifie qu'elles suivent les ingrédients). `color` : la couleur
+ * du plat, toutes différentes. `prototype` : la sélection du premier essai.
  *
- * Les soupes et le ragoût cuisent ensemble dans une marmite (trois ingrédients) ; les crevettes se
- * saisissent à la poêle ; le riz aux crevettes et le festin réunissent sur l'assiette ce qui sort
- * de la marmite, de la poêle et de la planche.
+ * Ce qui cuit à l'eau (le lapin, les légumes, le riz) cuit ensemble dans une marmite ; les crevettes
+ * se saisissent à la poêle ; les pommes se servent coupées, crues.
  */
+const plate = (...contents) => ({ container: 'plate', contents })
+const crate = (ing) => ['crate', ing]
+const DELAY = { fr: 'Le délai expire.', en: 'The timer runs out.' }
 export const RECIPES = {
-  'pommes-aerial': {
-    name: { fr: 'Pommes d\'eden en quartiers', en: 'Eden apple slices' },
-    difficulty: 'rapide', color: '#e5484d', prototype: true,
-    dish: { container: 'plate', contents: [['pommes-aerial', 'coupé']] },
-    steps: [['crate', 'pommes-aerial'], ['board', 'couper'], ['plates'], ['pass']],
-    success: { fr: 'Les pommes coupées, en assiette, arrivent à la passe à temps.', en: 'The sliced apples, plated, reach the pass in time.' },
-    failure: { fr: 'Le délai expire.', en: 'The timer runs out.' },
-    status: 'adaptation', sources: ['fdev', 'clientFr'],
-  },
-  'crevettes-saisies': {
-    name: { fr: 'Crevettes stellaires saisies', en: 'Seared vacuum krill' },
-    difficulty: 'rapide', color: '#ff7eb6', prototype: true,
-    dish: { container: 'plate', contents: [['crevettes-baltahsine', 'saisi']] },
-    steps: [['crate', 'crevettes-baltahsine'], ['board', 'couper'], ['pan', 'saisir'], ['plates'], ['pass']],
-    success: { fr: 'Les crevettes, décortiquées et saisies, arrivent en assiette à temps.', en: 'The krill, shelled and seared, reach the pass plated in time.' },
-    failure: { fr: 'Le délai expire.', en: 'The timer runs out.' },
-    status: 'adaptation', sources: ['fdev', 'clientFr'],
-  },
-  'bouillon-legumes': {
-    name: { fr: 'Bouillon de légumes du bord', en: 'Ship\'s vegetable broth' },
-    difficulty: 'intermediaire', color: '#2fb36d', prototype: true,
-    dish: { container: 'plate', contents: [['legumes', 'cuit'], ['legumes', 'cuit'], ['legumes', 'cuit']] },
-    steps: [['crate', 'legumes'], ['board', 'couper'], ['pot', 'cuire'], ['plates'], ['pass']],
-    success: { fr: 'Trois légumes coupés, cuits ensemble à la marmite, arrivent en assiette à temps.', en: 'Three chopped vegetables, boiled together in the pot, reach the pass plated in time.' },
-    failure: { fr: 'Le délai expire.', en: 'The timer runs out.' },
-    status: 'création', sources: COMMON,
-  },
+  // --- Deux ingrédients : les clients du mess.
   'ragout-lapin': {
     name: { fr: 'Ragoût de lapin de Ceti', en: 'Ceti rabbit stew' },
-    difficulty: 'intermediaire', color: '#f76b15',
-    dish: { container: 'plate', contents: [['lapin-ceti', 'cuit'], ['legumes', 'cuit'], ['legumes', 'cuit']] },
-    steps: [['crate', 'lapin-ceti'], ['board', 'couper'], ['crate', 'legumes'], ['board', 'couper'], ['pot', 'cuire'], ['plates'], ['pass']],
-    success: { fr: 'Le lapin et deux légumes, cuits ensemble à la marmite, arrivent en assiette à temps.', en: 'The rabbit and two vegetables, boiled together in the pot, reach the pass plated in time.' },
-    failure: { fr: 'Le délai expire.', en: 'The timer runs out.' },
-    status: 'adaptation', sources: ['fdev', 'clientFr'],
+    difficulty: 'intermediaire', color: '#f76b15', prototype: true,
+    dish: plate(['lapin-ceti', 'cuit'], ['legumes', 'cuit']),
+    steps: [crate('lapin-ceti'), ['board', 'couper'], crate('legumes'), ['board', 'couper'], ['pot', 'cuire'], ['plates'], ['pass']],
+    success: { fr: 'Le lapin et les légumes, cuits ensemble à la marmite, arrivent en assiette à temps.', en: 'The rabbit and the vegetables, boiled together in the pot, reach the pass plated in time.' },
+    failure: DELAY, status: 'adaptation', sources: ['fdev', 'clientFr'],
   },
   'riz-crevettes': {
     name: { fr: 'Riz jarouan aux crevettes stellaires', en: 'Jaroua rice with vacuum krill' },
-    difficulty: 'intermediaire', color: '#8b5cf6', points: 60, time: 110,
-    dish: { container: 'plate', contents: [['riz-jaroua', 'cuit'], ['crevettes-baltahsine', 'saisi']] },
-    steps: [['crate', 'riz-jaroua'], ['pot', 'cuire'], ['crate', 'crevettes-baltahsine'], ['board', 'couper'], ['pan', 'saisir'], ['plates'], ['pass']],
+    difficulty: 'intermediaire', color: '#8b5cf6', prototype: true,
+    dish: plate(['riz-jaroua', 'cuit'], ['crevettes-baltahsine', 'saisi']),
+    steps: [crate('riz-jaroua'), ['pot', 'cuire'], crate('crevettes-baltahsine'), ['board', 'couper'], ['pan', 'saisir'], ['plates'], ['pass']],
     success: { fr: 'Le riz cuit et les crevettes saisies arrivent ensemble en assiette à temps.', en: 'The boiled rice and the seared krill reach the pass together, plated, in time.' },
-    failure: { fr: 'Le délai expire.', en: 'The timer runs out.' },
-    status: 'adaptation', sources: ['fdev', 'clientFr'],
+    failure: DELAY, status: 'adaptation', sources: ['fdev', 'clientFr'],
   },
+  'crevettes-pommes': {
+    name: { fr: 'Crevettes saisies aux pommes d\'eden', en: 'Seared krill with Eden apples' },
+    difficulty: 'intermediaire', color: '#ff7eb6', prototype: true,
+    dish: plate(['crevettes-baltahsine', 'saisi'], ['pommes-aerial', 'coupé']),
+    steps: [crate('crevettes-baltahsine'), ['board', 'couper'], ['pan', 'saisir'], crate('pommes-aerial'), ['board', 'couper'], ['plates'], ['pass']],
+    success: { fr: 'Les crevettes saisies et les quartiers de pomme arrivent en assiette à temps.', en: 'The seared krill and the apple slices reach the pass plated in time.' },
+    failure: DELAY, status: 'création', sources: ['fdev', 'clientFr'],
+  },
+  'lapin-pommes': {
+    name: { fr: 'Lapin de Ceti aux pommes d\'eden', en: 'Ceti rabbit with Eden apples' },
+    difficulty: 'intermediaire', color: '#e5484d',
+    dish: plate(['lapin-ceti', 'cuit'], ['pommes-aerial', 'coupé']),
+    steps: [crate('lapin-ceti'), ['board', 'couper'], ['pot', 'cuire'], crate('pommes-aerial'), ['board', 'couper'], ['plates'], ['pass']],
+    success: { fr: 'Le lapin cuit et les quartiers de pomme arrivent en assiette à temps.', en: 'The boiled rabbit and the apple slices reach the pass plated in time.' },
+    failure: DELAY, status: 'création', sources: ['fdev', 'clientFr'],
+  },
+  'riz-legumes': {
+    name: { fr: 'Riz jarouan aux légumes du bord', en: 'Jaroua rice with ship\'s vegetables' },
+    difficulty: 'intermediaire', color: '#2fb36d',
+    dish: plate(['riz-jaroua', 'cuit'], ['legumes', 'cuit']),
+    steps: [crate('legumes'), ['board', 'couper'], crate('riz-jaroua'), ['pot', 'cuire'], ['plates'], ['pass']],
+    success: { fr: 'Le riz et les légumes, cuits ensemble à la marmite, arrivent en assiette à temps.', en: 'The rice and the vegetables, boiled together in the pot, reach the pass plated in time.' },
+    failure: DELAY, status: 'création', sources: COMMON,
+  },
+  // --- Trois ingrédients : les visiteurs de marque.
   'festin-du-bord': {
     name: { fr: 'Festin du bord', en: 'Captain\'s feast' },
-    difficulty: 'complexe', color: '#22c5e8', points: 100, time: 150,
-    dish: { container: 'plate', contents: [['riz-jaroua', 'cuit'], ['crevettes-baltahsine', 'saisi'], ['pommes-aerial', 'coupé']] },
-    steps: [['crate', 'riz-jaroua'], ['pot', 'cuire'], ['crate', 'crevettes-baltahsine'], ['board', 'couper'], ['pan', 'saisir'], ['crate', 'pommes-aerial'], ['board', 'couper'], ['plates'], ['pass']],
+    difficulty: 'complexe', color: '#22c5e8',
+    dish: plate(['riz-jaroua', 'cuit'], ['crevettes-baltahsine', 'saisi'], ['pommes-aerial', 'coupé']),
+    steps: [crate('riz-jaroua'), ['pot', 'cuire'], crate('crevettes-baltahsine'), ['board', 'couper'], ['pan', 'saisir'], crate('pommes-aerial'), ['board', 'couper'], ['plates'], ['pass']],
     success: { fr: 'Le riz, les crevettes saisies et les pommes arrivent réunis dans une même assiette à temps.', en: 'Rice, seared krill and apples reach the pass together on one plate in time.' },
-    failure: { fr: 'Le délai expire.', en: 'The timer runs out.' },
-    status: 'création', sources: ['fdev', 'clientFr'],
+    failure: DELAY, status: 'création', sources: ['fdev', 'clientFr'],
+  },
+  'pot-au-feu': {
+    name: { fr: 'Pot-au-feu de Ceti', en: 'Ceti hotpot' },
+    difficulty: 'complexe', color: '#eab308',
+    dish: plate(['lapin-ceti', 'cuit'], ['legumes', 'cuit'], ['riz-jaroua', 'cuit']),
+    steps: [crate('lapin-ceti'), ['board', 'couper'], crate('legumes'), ['board', 'couper'], crate('riz-jaroua'), ['pot', 'cuire'], ['plates'], ['pass']],
+    success: { fr: 'Le lapin, les légumes et le riz, cuits ensemble à la marmite, arrivent en assiette à temps.', en: 'Rabbit, vegetables and rice, boiled together in the pot, reach the pass plated in time.' },
+    failure: DELAY, status: 'création', sources: ['fdev', 'clientFr'],
+  },
+  'assiette-commandant': {
+    name: { fr: 'Assiette du commandant', en: 'Commander\'s platter' },
+    difficulty: 'complexe', color: '#3b82f6',
+    dish: plate(['lapin-ceti', 'cuit'], ['legumes', 'cuit'], ['crevettes-baltahsine', 'saisi']),
+    steps: [crate('lapin-ceti'), ['board', 'couper'], crate('legumes'), ['board', 'couper'], ['pot', 'cuire'], crate('crevettes-baltahsine'), ['board', 'couper'], ['pan', 'saisir'], ['plates'], ['pass']],
+    success: { fr: 'Le lapin et les légumes de la marmite, et les crevettes saisies, arrivent dans une même assiette à temps.', en: 'Rabbit and vegetables from the pot, with seared krill, reach the pass on one plate in time.' },
+    failure: DELAY, status: 'création', sources: ['fdev', 'clientFr'],
+  },
+  'jardin-aerial': {
+    name: { fr: 'Jardin d\'Aerial', en: 'Aerial garden plate' },
+    difficulty: 'complexe', color: '#84cc16',
+    dish: plate(['legumes', 'cuit'], ['riz-jaroua', 'cuit'], ['pommes-aerial', 'coupé']),
+    steps: [crate('legumes'), ['board', 'couper'], crate('riz-jaroua'), ['pot', 'cuire'], crate('pommes-aerial'), ['board', 'couper'], ['plates'], ['pass']],
+    success: { fr: 'Les légumes et le riz de la marmite, et les quartiers de pomme, arrivent dans une même assiette à temps.', en: 'Vegetables and rice from the pot, with apple slices, reach the pass on one plate in time.' },
+    failure: DELAY, status: 'création', sources: ['fdev', 'clientFr'],
   },
 }
 
 /** Recettes de la sélection du premier essai. */
 export const PROTOTYPE_RECIPES = Object.keys(RECIPES).filter((id) => RECIPES[id].prototype)
 
-/** La carte du service : toutes les recettes (les complexes n'arrivent qu'après deux minutes, cf. RULES.complexAfter). */
-export const SERVICE_RECIPES = Object.keys(RECIPES)
+/** La carte du service : les plats à deux ingrédients, que commandent les clients du mess. */
+export const SERVICE_RECIPES = Object.keys(RECIPES).filter((id) => RECIPES[id].dish.contents.length === 2)
+
+/** Les plats à trois ingrédients : ceux des visiteurs de marque (cf. GUESTS). */
+export const GUEST_RECIPES = Object.keys(RECIPES).filter((id) => RECIPES[id].dish.contents.length === 3)
+
+/**
+ * Les visiteurs de marque : des personnages du vaisseau qui viennent manger au mess pendant le
+ * service (entre quatre et cinq par service, tirés au sort, cf. RULES.guests). Chacun commande son
+ * plat préféré, à trois ingrédients, qui rapporte plus ; son bon a sa carte à lui (sa couleur, son
+ * pictogramme, son rôle, un mot), et il fait la queue sous ses traits (cf. src/mess-rush/queue.ts).
+ * `icon` : un pictogramme de src/icons.ts.
+ */
+export const GUESTS = {
+  marcel: {
+    name: 'Chef Marcel', role: { fr: 'Le chef du mess', en: 'The mess chef' }, dish: 'pot-au-feu', color: '#d9dde3', icon: 'chef-hat',
+    quote: { fr: 'Je viens voir si vous tenez ma cuisine. Pas de pitié.', en: 'Let\'s see if you can run my kitchen. No mercy.' },
+  },
+  betty: {
+    name: 'Betty', role: { fr: 'L\'infirmière', en: 'The nurse' }, dish: 'jardin-aerial', color: '#ff5d7a', icon: 'first-aid-kit',
+    quote: { fr: 'Des légumes et des fruits : l\'infirmière l\'exige.', en: 'Vegetables and fruit: nurse\'s orders.' },
+  },
+  nico: {
+    name: 'Nico', role: { fr: 'Le mécanicien du hangar', en: 'The hangar mechanic' }, dish: 'assiette-commandant', color: '#e07a2c', icon: 'wrench',
+    quote: { fr: 'Un plein de calories, et vite : j\'ai un moteur ouvert.', en: 'A full tank of calories, quick: I\'ve got an engine open.' },
+  },
+  capucine: {
+    name: 'Capucine', role: { fr: 'La jardinière de la serre', en: 'The greenhouse gardener' }, dish: 'jardin-aerial', color: '#6f9a5a', icon: 'plant',
+    quote: { fr: 'Mes légumes, mes pommes : traitez-les bien.', en: 'My vegetables, my apples: treat them well.' },
+  },
+  rourke: {
+    name: 'Sergent Rourke', role: { fr: 'La sécurité du bord', en: 'Ship security' }, dish: 'assiette-commandant', color: '#27c6ff', icon: 'shield-warning',
+    quote: { fr: 'Ration de patrouille. Au pas de course.', en: 'Patrol ration. On the double.' },
+  },
+  odile: {
+    name: 'Odile', role: { fr: 'La contrôleuse de la zone', en: 'The zone controller' }, dish: 'festin-du-bord', color: '#5fd4ff', icon: 'eye',
+    quote: { fr: 'Entre deux rotations : un festin, s\'il vous plaît.', en: 'Between two shifts: a feast, please.' },
+  },
+  gaspard: {
+    name: 'Gaspard', role: { fr: 'Le technicien de la baie', en: 'The bay technician' }, dish: 'pot-au-feu', color: '#f2d24a', icon: 'toolbox',
+    quote: { fr: 'Quelque chose de chaud. La baie est glaciale.', en: 'Something hot. The bay is freezing.' },
+  },
+  tessa: {
+    name: 'Tessa', role: { fr: 'L\'arbitre de l\'arène', en: 'The arena referee' }, dish: 'festin-du-bord', color: '#ff8a1c', icon: 'trophy',
+    quote: { fr: 'Je chronomètre. Ne me décevez pas.', en: 'I\'m timing you. Don\'t let me down.' },
+  },
+  kael: {
+    name: 'Kael', role: { fr: 'Le chef des Scavengers', en: 'The Scavengers\' leader' }, dish: 'assiette-commandant', color: '#c9a227', icon: 'sword',
+    quote: { fr: 'Ce que vous avez de mieux. Je paie bien.', en: 'Your best. I pay well.' },
+  },
+}

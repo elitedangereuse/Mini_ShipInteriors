@@ -3,7 +3,7 @@ import { EN, tr } from '../i18n'
 import { icon, type IconName } from '../icons'
 import type { MessCrew, MessEnd, MessLobby, MessReward, MessTeam } from '../net'
 import { button, el, Modal } from '../salvage/ui'
-import { INGREDIENTS, PROCESSES, RECIPES, type Text } from '../../shared/mess-rush-catalog.js'
+import { GUESTS, INGREDIENTS, PROCESSES, RECIPES, type Text } from '../../shared/mess-rush-catalog.js'
 import { RULES, currentMedal, medalOf, type Medal, type ServiceIncident, type ServiceState } from '../../shared/mess-rush.js'
 import { nextReset } from '../../shared/mess-rush-week.js'
 import { foodImage, stateLabel } from './props'
@@ -27,7 +27,7 @@ export const MEDAL_NAMES: Record<Medal, string> = {
 /** Les imprévus qui durent (cf. EVENT_KINDS) : leur bandeau en cuisine. */
 const ALERTS: Record<string, { icon: IconName; line: string }> = {
   spill: { icon: 'broom', line: tr('Plateau renversé sur la passe : nettoyez-la', 'Tray spilled on the pass: clean it') },
-  cat: { icon: 'paw-print', line: tr('Comète est sur un plan : chassez-le', 'Comète is on a counter: shoo him') },
+  cat: { icon: 'paw-print', line: tr('Moustache est sur un plan : chassez-la', 'Moustache is on a counter: shoo her') },
   overheat: { icon: 'flame', line: tr('Surchauffe : tout cuit, et brûle, plus vite', 'Overheating: everything cooks, and burns, faster') },
 }
 
@@ -320,7 +320,7 @@ export class MessHud {
     const key = pending.map((o) => o.id).join(',')
     if (key !== this.shown) {
       this.shown = key
-      this.tickets.replaceChildren(...pending.map((o) => this.ticket(o.id, o.recipe, !!o.vip)))
+      this.tickets.replaceChildren(...pending.map((o) => this.ticket(o.id, o.recipe, o.guest)))
     }
     // Le délai de chaque bon : une barre qui se vide, du vert au rouge.
     for (const o of pending) {
@@ -350,16 +350,30 @@ export class MessHud {
   /**
    * Un bon, comme dans Overcooked : la couleur du plat, son nom, puis sa recette, une ligne par
    * ingrédient : son image, combien, et ses étapes dans l'ordre, aux couleurs des pastilles des postes
-   * (la planche, la marmite, la poêle) ; enfin son délai (l'amiral : en or, plus pressé). Rien ne dit
-   * qui fait quoi : c'est à l'équipe de s'organiser.
+   * (la planche, la marmite, la poêle) ; enfin son délai. Rien ne dit qui fait quoi : c'est à
+   * l'équipe de s'organiser.
+   *
+   * Le bon d'un visiteur de marque (cf. GUESTS) a sa carte à lui : cerclée d'or, à sa couleur, son
+   * portrait (son pictogramme), son nom et son rôle, le bonus de points, et un mot de lui en bas.
    */
-  private ticket(id: string, recipeId: string, vip = false): HTMLElement {
+  private ticket(id: string, recipeId: string, guestId?: string): HTMLElement {
     const r = RECIPES[recipeId]
-    const card = el('article', `mess-ticket ${r.difficulty}${vip ? ' vip' : ''}`)
+    const guest = guestId ? GUESTS[guestId] : null
+    const card = el('article', `mess-ticket ${r.difficulty}${guest ? ' guest' : ''}`)
     card.dataset.order = id
     // La couleur du plat : celle de son client dans la file, et des assiettes qui le deviennent.
     card.style.setProperty('--dish', r.color)
-    if (vip) card.append(el('em', 'mess-ticket-vip', tr(`Amiral · points ×${RULES.events.vip.points}`, `Admiral · points ×${RULES.events.vip.points}`)))
+    if (guest) {
+      card.style.setProperty('--guest', guest.color)
+      card.dataset.guest = guestId
+      const head = el('header', 'mess-guest')
+      const face = el('span', 'mess-guest-face')
+      face.append(icon(guest.icon as IconName))
+      const who = el('span', 'mess-guest-who')
+      who.append(el('b', '', guest.name), el('small', '', text(guest.role)))
+      head.append(face, who, el('em', 'mess-guest-bonus', `×${RULES.guests.points}`))
+      card.append(head)
+    }
     card.append(el('strong', '', text(r.name)))
     const recipe = el('ol', 'mess-recipe')
     const counts = new Map<string, number>()
@@ -386,7 +400,9 @@ export class MessHud {
       row.append(steps)
       recipe.append(row)
     }
-    card.append(recipe, el('i', 'mess-ticket-time'))
+    card.append(recipe)
+    if (guest) card.append(el('q', 'mess-guest-quote', text(guest.quote)))
+    card.append(el('i', 'mess-ticket-time'))
     return card
   }
 

@@ -12,10 +12,11 @@ import {
 import { ShipMap } from '../shared/ship-map.js'
 import { cookRecipe, first, kitchen, must } from './mess-rush-helpers.js'
 
-/** Une partie sans imprévu (cf. mess-rush-events.test.js pour eux). */
-const solo = (recipes = ['crevettes-saisies'], players = 1) => {
+const solo = (recipes = ['crevettes-pommes'], players = 1) => {
   const k = kitchen(createService({ id: 'g1', seed: 42, players, now: 0, recipes }))
+  // Sans imprévu ni visiteur de marque (cf. mess-rush-events.test.js pour eux).
   k.state.nextEventAt = undefined
+  k.state.guests = []
   return k
 }
 const ingredient = (k, id, ing, step = 0) => (k.state.items[id] = { id, kind: 'ingredient', ing, step, progress: 0 })
@@ -47,7 +48,7 @@ test('les commandes arrivent au rythme du nombre de joueurs, sans dépasser le p
   k.advance(24)
   assert.equal(pending(k), 2)
   // À quatre : cinq au plus, une toutes les 13 s.
-  const four = solo(['crevettes-saisies'], 4)
+  const four = solo(['crevettes-pommes'], 4)
   four.advance(3.1 + 13 * 4)
   assert.equal(pending(four), 5)
   four.advance(13)
@@ -58,16 +59,16 @@ test('une commande expirée est retirée et pénalisée, remet le combo à zéro
   const k = solo()
   k.waitOrder()
   const order = k.state.orders[0]
-  // Crevettes saisies : 60 s, × 1,4 seul.
-  assert.equal(order.until - order.at, 84000)
+  // Un plat à deux ingrédients : 90 s, × 1,4 seul.
+  assert.equal(order.until - order.at, 126000)
   k.state.score = 30
   k.state.combo = 3
-  k.advance(84)
+  k.advance(126)
   assert.equal(order.status, 'expired')
-  assert.equal(k.state.score, 20)
+  assert.equal(k.state.score, 10)
   assert.equal(k.state.combo, 0)
   assert.equal(k.state.expired, 1)
-  assert.ok(k.events.some((e) => e.kind === 'expired' && e.order === order.id && e.penalty === 10))
+  assert.ok(k.events.some((e) => e.kind === 'expired' && e.order === order.id && e.penalty === 20))
   k.state.score = 5
   k.advance(200)
   assert.equal(k.state.score, 0)
@@ -76,26 +77,26 @@ test('une commande expirée est retirée et pénalisée, remet le combo à zéro
 test('une livraison rapporte la valeur de la recette, le bonus de rapidité et le combo ; l\'assiette ne sert qu\'une fois', () => {
   const k = solo()
   k.waitOrder()
-  cookRecipe(k, 'p1', 'crevettes-saisies')
+  cookRecipe(k, 'p1', 'crevettes-pommes')
   const order = k.state.orders[0]
   assert.equal(order.status, 'served')
   // Livrée vite : +50 %, premier plat : × 1.
-  assert.equal(order.points, 30)
-  assert.equal(k.state.score, 30)
+  assert.equal(order.points, 60)
+  assert.equal(k.state.score, 60)
   assert.equal(k.state.combo, 1)
   // Plus rien en main : la touche ne fait rien à la passe.
   assert.equal(resolveAction(k.state, 'p1', 'passe'), null)
   assert.deepEqual(k.use('p1', 'passe'), { ok: false, code: 'state' })
   // La suivante, en combo : × 1,1.
   k.waitOrder()
-  cookRecipe(k, 'p1', 'crevettes-saisies')
-  assert.equal(k.state.orders.find((o) => o.points && o !== order).points, Math.round(20 * 1.5 * 1.1))
+  cookRecipe(k, 'p1', 'crevettes-pommes')
+  assert.equal(k.state.orders.find((o) => o.points && o !== order).points, Math.round(40 * 1.5 * 1.1))
   assert.equal(k.state.served, 2)
   assert.equal(k.state.bestCombo, 2)
 })
 
 test('une seule touche : ce qu\'elle fait dépend du poste et de ce qu\'on tient', () => {
-  const k = solo(['bouillon-legumes', 'pommes-aerial'])
+  const k = solo(['riz-legumes', 'lapin-pommes'])
   k.waitOrder()
   const act = (sid) => resolveAction(k.state, 'p1', sid)?.kind ?? null
   // Les mains vides : la caisse donne son ingrédient, la pile une assiette ; rien à faire à la passe ni à la poubelle.
@@ -136,9 +137,9 @@ test('une seule touche : ce qu\'elle fait dépend du poste et de ce qu\'on tient
 })
 
 test('un plat qui ne correspond à aucune commande est refusé et reste en main', () => {
-  const k = solo(['crevettes-saisies', 'pommes-aerial'])
+  const k = solo(['crevettes-pommes', 'lapin-pommes'])
   k.waitOrder()
-  k.state.orders[0].recipe = 'crevettes-saisies'
+  k.state.orders[0].recipe = 'crevettes-pommes'
   must(k.use('p1', 'assiettes'))
   must(k.use('p1', 'comptoir-fond'))
   must(k.use('p1', 'caisse-pommes'))
@@ -146,7 +147,7 @@ test('un plat qui ne correspond à aucune commande est refusé et reste en main'
   must(k.use('p1', 'plan-1'))
   k.advance(PROCESSES.couper.duration + 0.1)
   must(k.use('p1', 'plan-1'))
-  // La pomme coupée dans l'assiette posée, puis l'assiette en main : ce n'est pas le plat attendu.
+  // La pomme coupée seule dans l'assiette posée, puis l'assiette en main : ce n'est pas le plat attendu.
   assert.equal(resolveAction(k.state, 'p1', 'comptoir-fond').kind, 'plate-add')
   must(k.use('p1', 'comptoir-fond'))
   must(k.use('p1', 'comptoir-fond'))
@@ -202,7 +203,7 @@ test('les transitions invalides sont refusées : pas coupé, mauvais ustensile, 
 })
 
 test('la cuisson part toute seule, s\'allonge à chaque ajout, finit, puis brûle si on l\'oublie', () => {
-  const k = solo(['bouillon-legumes'])
+  const k = solo(['riz-legumes'])
   k.waitOrder()
   const pot = k.state.stations['marmite-1']
   ingredient(k, 'l1', 'legumes', 1)
@@ -244,7 +245,7 @@ test('la cuisson part toute seule, s\'allonge à chaque ajout, finit, puis brûl
 })
 
 test('deux joueurs prennent le même objet en même temps : un seul l\'a', () => {
-  const k = solo(['crevettes-saisies'], 2)
+  const k = solo(['crevettes-pommes'], 2)
   k.waitOrder()
   must(k.use('p1', 'caisse-crevettes'))
   must(k.use('p1', 'comptoir-fond'))
@@ -259,19 +260,19 @@ test('deux joueurs prennent le même objet en même temps : un seul l\'a', () =>
 })
 
 test('deux joueurs livrent le même plat : la commande n\'est servie qu\'une fois', () => {
-  const k = solo(['crevettes-saisies'], 2)
+  const k = solo(['crevettes-pommes'], 2)
   k.waitOrder()
-  cookRecipe(k, 'p1', 'crevettes-saisies')
+  cookRecipe(k, 'p1', 'crevettes-pommes')
   assert.equal(k.state.served, 1)
   // Une seconde assiette identique, sans seconde commande en attente : refusée.
-  k.state.items.x = { id: 'x', kind: 'plate', contents: [['crevettes-baltahsine', 'saisi']] }
+  k.state.items.x = { id: 'x', kind: 'plate', contents: [['crevettes-baltahsine', 'saisi'], ['pommes-aerial', 'coupé']] }
   k.state.hands.p2 = 'x'
   assert.deepEqual(k.use('p2', 'passe'), { ok: false, code: 'nomatch' })
   assert.equal(k.state.served, 1)
 })
 
 test('couper avance tant qu\'on reste à la planche, se met en pause loin d\'elle, et un seul joueur à la fois', () => {
-  const k = solo(['crevettes-saisies'], 2)
+  const k = solo(['crevettes-pommes'], 2)
   k.waitOrder()
   must(k.use('p1', 'caisse-crevettes'))
   must(k.use('p1', 'plan-1'))
@@ -310,7 +311,7 @@ test('un joueur qui part pose ce qu\'il tenait au comptoir', () => {
 test('le service finit à 5:00 : plus d\'action, le résultat et la médaille', () => {
   const k = solo()
   k.waitOrder()
-  cookRecipe(k, 'p1', 'crevettes-saisies')
+  cookRecipe(k, 'p1', 'crevettes-pommes')
   k.advance(RULES.service)
   assert.equal(k.state.status, 'ended')
   assert.ok(k.events.some((e) => e.kind === 'end'))
