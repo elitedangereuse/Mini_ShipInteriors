@@ -5894,31 +5894,39 @@ body.arena-end-on .arena-hud > :not(.arena-count), body.arena-end-on :is(.top-le
 .mess-time.late { color: #ff8f86; }
 .mess-combo { padding: 2px 8px; border-radius: 999px; background: #ffd23f; color: #1a1304; font-weight: 900; }
 .mess-combo[hidden] { display: none; }
-/* L'imprévu en cours (cf. EVENT_KINDS) : un bandeau rouge qui bat sous le score. */
-.mess-alert { display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 5px 14px; border: 3px solid #0b0d12; border-radius: 999px; background: #b5262a; color: #fff; font: 800 13px/1.2 system-ui, sans-serif; box-shadow: 0 3px 0 #0b0d12; animation: mess-alert 1s ease-in-out infinite alternate; }
+/* L'imprévu en cours (cf. EVENT_KINDS) : une pastille rouge qui bat dans le bandeau, hors de la cuisine. */
+.mess-alert { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 3px 10px; border: 2px solid #0b0d12; border-radius: 999px; background: #b5262a; color: #fff; font: 800 12.5px/1.2 system-ui, sans-serif; animation: mess-alert 1s ease-in-out infinite alternate; }
 .mess-alert[hidden] { display: none; }
-.mess-alert .icon { flex: none; width: 18px; height: 18px; color: #ffd23f; }
+.mess-alert .icon { flex: none; width: 16px; height: 16px; color: #ffd23f; }
 .mess-alert small { padding: 1px 8px; border-radius: 999px; background: #0b0d1255; font-size: 11.5px; font-variant-numeric: tabular-nums; }
-.mess-alert.sink { background: #1f5f8f; }
 .mess-alert.spill { background: #8a4a17; }
 @keyframes mess-alert { to { filter: brightness(1.25); } }
 @media (prefers-reduced-motion: reduce) {
   .mess-alert { animation: none; }
 }
 .mess-tickets { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
-.mess-ticket { position: relative; display: grid; gap: 4px; width: 168px; box-sizing: border-box; padding: 8px 10px 12px; border-radius: 4px 4px 10px 10px; background: #f4ead8; color: #2a211a; box-shadow: 0 4px 0 #0b0d12aa; overflow: hidden; }
+.mess-ticket { position: relative; display: grid; gap: 4px; width: 190px; box-sizing: border-box; padding: 8px 10px 12px; border-radius: 4px 4px 10px 10px; background: #f4ead8; color: #2a211a; box-shadow: 0 4px 0 #0b0d12aa; overflow: hidden; }
 .mess-ticket { border-left: 7px solid var(--dish, #e8772a); padding-top: 12px; }
 /* La couleur du plat (cf. RECIPES) : le bandeau du bon, son liseré, la pastille devant son nom. */
 .mess-ticket::before { content: ''; position: absolute; inset: 0 0 auto; height: 6px; background: var(--dish, #e8772a); }
 .mess-ticket strong { font-size: 13px; line-height: 1.2; }
 .mess-ticket strong::before { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 5px; border: 2px solid #2a211a; border-radius: 50%; background: var(--dish, #e8772a); vertical-align: -1px; }
 /* Le contenu du bon, en images (cf. MessHud.ticket) : l'ingrédient, combien, et ses étapes. */
-.mess-ticket-food { display: flex; flex-wrap: wrap; gap: 6px; }
-.mess-chip { position: relative; display: grid; justify-items: center; gap: 2px; padding: 3px 4px 4px; border-radius: 8px; background: #2a211a14; }
-.mess-chip img { width: 34px; height: 34px; image-rendering: auto; }
-.mess-chip b { position: absolute; top: -2px; right: -4px; padding: 0 4px; border-radius: 999px; background: #2a211a; color: #f4ead8; font-size: 10.5px; line-height: 16px; }
-.mess-chip-steps { display: flex; gap: 2px; }
-.mess-chip-steps .icon { width: 12px; height: 12px; padding: 2px; border-radius: 50%; background: #2a211a; color: #ffb15c; }
+/* La recette du bon : une ligne par ingrédient, son image, combien, son nom, puis ses étapes aux couleurs des pastilles des postes. */
+.mess-recipe { display: grid; gap: 3px; margin: 2px 0 0; padding: 0; list-style: none; }
+.mess-recipe-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px; padding: 2px 4px 2px 2px; border-radius: 8px; background: #2a211a12; }
+.mess-food { position: relative; display: block; width: 32px; height: 32px; }
+.mess-food img { width: 32px; height: 32px; }
+.mess-food b { position: absolute; right: -6px; bottom: -3px; padding: 0 4px; border: 2px solid #f4ead8; border-radius: 999px; background: #2a211a; color: #f4ead8; font-size: 10.5px; line-height: 13px; }
+.mess-food-name { overflow: hidden; font-size: 11.5px; font-weight: 800; white-space: nowrap; text-overflow: ellipsis; }
+.mess-steps { display: flex; align-items: center; gap: 2px; }
+.mess-step { position: relative; display: grid; place-items: center; width: 20px; height: 20px; box-sizing: border-box; border: 2px solid #14161c; border-radius: 50%; background: var(--step, #ffb020); color: #fff; }
+.mess-step + .mess-step { margin-left: 9px; }
+.mess-step + .mess-step::before { content: '›'; position: absolute; left: -10px; top: 50%; transform: translateY(-55%); color: #2a211a; font: 900 13px/1 system-ui, sans-serif; }
+.mess-step .icon { width: 11px; height: 11px; }
+.mess-step.couper { --step: #ffb020; }
+.mess-step.cuire { --step: #ff7a2f; }
+.mess-step.saisir { --step: #ff4d3d; }
 /* Le bon de l'amiral : doré, il rapporte double. */
 .mess-ticket.vip { background: #fff3c4; box-shadow: 0 0 0 2px #ffd23f, 0 4px 0 #0b0d12aa; }
 .mess-ticket.vip::before { background: #d4a20f; }
@@ -5939,18 +5947,18 @@ body.arena-end-on .arena-hud > :not(.arena-count), body.arena-end-on :is(.top-le
 }
 .mess-quit { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 12px; border: 3px solid #0b0d12; border-radius: 12px; background: #1b2030f2; color: #e8eaee; font: 800 12px/1 system-ui, sans-serif; box-shadow: 0 3px 0 #0b0d12; cursor: pointer; pointer-events: auto; }
 .mess-quit .icon { width: 15px; height: 15px; }
-/* La consigne du guidage, en bas de l'écran, au-dessus des emotes : verte comme les flèches au-dessus des postes. */
-.mess-hint { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom)); transform: translateX(-50%); display: inline-flex; align-items: center; gap: 8px; max-width: calc(100vw - 32px); margin: 0; padding: 7px 16px; border: 3px solid #0b0d12; border-radius: 999px; background: #1b2030f2; color: #e8eaee; font: 800 14px/1.2 system-ui, sans-serif; box-shadow: 0 3px 0 #0b0d12; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mess-hint[hidden] { display: none; }
-.mess-hint .icon { flex: none; width: 18px; height: 18px; color: #4cd88a; }
-/* Au doigt, pas de barre d'emotes : la consigne descend tout en bas, entre le stick et le bouton d'action. */
-@media (pointer: coarse) {
-  .mess-hint { bottom: calc(8px + env(safe-area-inset-bottom)); max-width: calc(100vw - 280px); font-size: 13px; }
+/* En cuisine, la vue du dessus laisse une colonne libre à gauche (cf. KITCHEN_HUD dans main.ts) : les bons s'y rangent, du plus ancien au plus récent. */
+body.mess-on .mess-tickets { position: fixed; top: max(10px, env(safe-area-inset-top)); bottom: 10px; left: max(10px, env(safe-area-inset-left)); flex-direction: column; flex-wrap: nowrap; justify-content: flex-start; overflow: hidden; }
+/* Plus étroit, le bon garde l'image et les étapes ; le nom de l'ingrédient s'efface (cf. KITCHEN_HUD.left dans main.ts). */
+@media (max-width: 899px) {
+  body.mess-on .mess-ticket { width: 150px; }
+  .mess-food-name { display: none; }
+  .mess-recipe-row { grid-template-columns: auto auto; justify-content: space-between; }
 }
-/* En cuisine, la vue du dessus laisse les côtés libres : les bons s'y rangent en colonne, à gauche. */
-body.mess-on .mess-tickets { position: fixed; top: calc(max(10px, env(safe-area-inset-top)) + 64px); left: max(16px, env(safe-area-inset-left)); flex-direction: column; flex-wrap: nowrap; justify-content: flex-start; }
-/* En service, comme dans l'arène : le bandeau et les bons prennent le haut de l'écran. */
-body.mess-on :is(.top-left > :not(.site-logo), #phone, #quest-phone, .about-toggle) { display: none; }
+/* Les annonces, discrètes, dans le coin en bas à droite : elles ne recouvrent jamais un poste. */
+body.mess-on .mess-toasts { position: fixed; right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); justify-items: end; }
+/* En service : rien d'autre que la cuisine, le bandeau et les bons (ni logo, ni emotes, ni téléphone). */
+body.mess-on :is(.top-left, .emotes, #phone, #quest-phone, .about-toggle) { display: none; }
 body.mess-on :is(.top-right) { visibility: hidden; }
 @media (max-width: 720px) {
   /* Sur un téléphone, le bandeau prend la largeur : le bouton Quitter passe au-dessus, à droite. */
@@ -5976,13 +5984,5 @@ body.mess-end-on :is(.top-left, .top-right, .emotes, #phone, .about-toggle, #tou
   .mess-end-card { top: 56%; max-height: calc(100dvh - 280px); }
 }
 /* À plusieurs : l'équipe sous le bandeau, ce que chacun tient. */
-.mess-crew-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
-.mess-crew-row[hidden] { display: none; }
-.mess-mate { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border: 2px solid #0b0d12; border-radius: 999px; background: #1b2030e6; font-size: 12px; }
-.mess-mate .icon { width: 13px; height: 13px; color: #ffb15c; }
-.mess-mate small { color: #c5cbd4; }
-.mess-mate.me { border-color: #ffb15c; }
-.mess-mate.away { opacity: .6; }
-.mess-mate.away small { color: #ff9a8f; }
 .mess-rewards { display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; background: #ffb15c14; }
 .mess-rewards p { margin: 0; color: #ffd9a8; font-size: 13px; line-height: 1.45; }

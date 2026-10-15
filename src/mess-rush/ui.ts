@@ -3,7 +3,7 @@ import { EN, tr } from '../i18n'
 import { icon, type IconName } from '../icons'
 import type { MessCrew, MessEnd, MessLobby, MessReward, MessTeam } from '../net'
 import { button, el, Modal } from '../salvage/ui'
-import { INGREDIENTS, RECIPES, type Text } from '../../shared/mess-rush-catalog.js'
+import { INGREDIENTS, PROCESSES, RECIPES, type Text } from '../../shared/mess-rush-catalog.js'
 import { RULES, currentMedal, medalOf, type Medal, type ServiceIncident, type ServiceState } from '../../shared/mess-rush.js'
 import { nextReset } from '../../shared/mess-rush-week.js'
 import { foodImage, stateLabel } from './props'
@@ -182,8 +182,8 @@ export class MessPanel extends Modal {
     hero.append(
       el('strong', '', tr('Placez-vous dans un salon', 'Pick a lobby')),
       el('p', '', tr(
-        `Le coup de feu au mess : de un à quatre, vous tenez la cuisine pendant ${RULES.service / 60} minutes. Les clients font la queue à la passe, chacun son bon : on prend l'ingrédient à sa caisse, on le coupe, on le met au feu (ça cuit tout seul, mais ça brûle si on l'oublie), on dresse, on sert. Les assiettes reviennent sales : on fait la vaisselle. À plusieurs, chacun tient son poste et l'on se passe tout par-dessus les cloisons. Le score est celui de toute l'équipe.`,
-        `Rush hour in the mess: one to four of you run the kitchen for ${RULES.service / 60} minutes. Customers queue at the pass, one ticket each: grab the ingredient from its crate, chop it, put it on the heat (it cooks by itself, but burns if you forget it), plate up, serve. Plates come back dirty: do the dishes. With several cooks, each holds a station and everything goes across the partitions. The score belongs to the whole team.`,
+        `Le coup de feu au mess : de un à quatre, vous tenez la cuisine pendant ${RULES.service / 60} minutes. Les clients font la queue à la passe, chacun son bon : on prend l'ingrédient à sa caisse, on le coupe, on le met au feu (ça cuit tout seul, mais ça brûle si on l'oublie), on dresse, on sert. Les assiettes reviennent sales : on fait la vaisselle. À plusieurs, la cuisine est ouverte : à vous de vous organiser. Le score est celui de toute l'équipe.`,
+        `Rush hour in the mess: one to four of you run the kitchen for ${RULES.service / 60} minutes. Customers queue at the pass, one ticket each: grab the ingredient from its crate, chop it, put it on the heat (it cooks by itself, but burns if you forget it), plate up, serve. Plates come back dirty: do the dishes. With several cooks, the kitchen is open: it's up to you to get organised. The score belongs to the whole team.`,
       )),
     )
     stage.append(hero, ...[this.rewards()].filter((b): b is HTMLElement => !!b), this.controls())
@@ -193,8 +193,8 @@ export class MessPanel extends Modal {
   private controls(): HTMLElement {
     const box = el('p', 'salvage-note')
     box.textContent = tr(
-      'Une seule touche (E ou Espace, A ou ×) : elle fait ce qu\'il y a à faire au poste qu\'on regarde. Prendre, poser, couper (restez devant la planche), mettre au feu, dresser, servir, laver, chasser le chat. Les flèches vertes montrent la prochaine étape ; les bons, ce qu\'il faut dans l\'assiette.',
-      'One key (E or Space, A or ×): it does whatever there is to do at the station you face. Take, put down, chop (stay at the board), put on the heat, plate up, serve, wash up, shoo the cat. Green arrows show the next step; tickets show what goes on the plate.',
+      'Une seule touche (E ou Espace, A ou ×) : elle fait ce qu\'il y a à faire au poste qu\'on regarde. Prendre, poser, couper (restez devant la planche), mettre au feu, dresser, servir, laver, chasser le chat. Chaque bon donne la recette de son plat : à vous de vous répartir le travail.',
+      'One key (E or Space, A or ×): it does whatever there is to do at the station you face. Take, put down, chop (stay at the board), put on the heat, plate up, serve, wash up, shoo the cat. Each ticket shows its dish\'s recipe: it\'s up to you to share out the work.',
     )
     return box
   }
@@ -253,18 +253,13 @@ export class MessHud {
   private readonly score = el('strong', 'mess-score')
   private readonly combo = el('span', 'mess-combo')
   private readonly medal = el('span', 'mess-medal')
-  private readonly crew = el('div', 'mess-crew-row')
-  private crewKey = ''
   private readonly tickets = el('div', 'mess-tickets')
   private readonly toasts = el('div', 'mess-toasts')
-  /** L'imprévu en cours, sous le bandeau (cf. EVENT_KINDS). */
-  private readonly alert = el('p', 'mess-alert')
+  /** L'imprévu en cours, dans le bandeau (cf. EVENT_KINDS) : il ne recouvre pas la cuisine. */
+  private readonly alert = el('span', 'mess-alert')
   private readonly alertText = el('span')
   private readonly alertMore = el('small')
   private alertKind = ''
-  /** La consigne du guidage, en bas de l'écran (cf. client.ts, hintText). */
-  private readonly hintBox = el('p', 'mess-hint')
-  private readonly hintText = el('span')
   private readonly quit: HTMLButtonElement
   private armed = 0
   private shown = ''
@@ -276,7 +271,8 @@ export class MessHud {
     t.append(icon('bowl-steam'), this.time)
     const s = el('span', 'mess-cell')
     s.append(el('small', '', tr('Score', 'Score')), this.score)
-    bar.append(t, s, this.combo, this.medal)
+    this.alert.hidden = true
+    bar.append(t, s, this.combo, this.medal, this.alert)
     // Quitter : deux clics (le premier arme, le second confirme), comme dans la zone thargoïde.
     this.quit = button(tr('Quitter le service', 'Leave service'), () => {
       if (performance.now() < this.armed) {
@@ -287,18 +283,8 @@ export class MessHud {
         this.quit.lastChild!.textContent = tr('Confirmer ?', 'Confirm?')
       }
     }, 'mess-quit', 'sign-out')
-    this.hintBox.append(icon('chef-hat'), this.hintText)
-    this.hintBox.hidden = true
-    this.alert.hidden = true
-    this.root.append(bar, this.alert, this.crew, this.tickets, this.toasts, this.hintBox, this.quit)
+    this.root.append(bar, this.tickets, this.toasts, this.quit)
     document.body.append(this.root)
-  }
-
-  /** La consigne du moment (vide : rien à dire). */
-  hint(line: string) {
-    if (this.hintText.textContent === line && this.hintBox.hidden === !line) return
-    this.hintText.textContent = line
-    this.hintBox.hidden = !line
   }
 
   show() {
@@ -309,29 +295,10 @@ export class MessHud {
   hide() {
     this.root.hidden = true
     this.tickets.replaceChildren()
-    this.crew.replaceChildren()
-    this.hint('')
+    this.toasts.replaceChildren()
     this.incident(null, 0)
-    this.shown = this.crewKey = ''
+    this.shown = ''
     document.body.classList.remove('mess-on')
-  }
-
-  /**
-   * L'équipe, à plusieurs : qui est en cuisine, ce que chacun tient, qui a perdu la liaison (seul,
-   * la rangée ne s'affiche pas).
-   */
-  team(members: { name: string; me: boolean; holding: string; away: boolean }[]) {
-    const key = JSON.stringify(members)
-    if (key === this.crewKey) return
-    this.crewKey = key
-    this.crew.hidden = members.length < 2
-    this.crew.replaceChildren(...members.map((m) => {
-      const chip = el('span', `mess-mate${m.me ? ' me' : ''}${m.away ? ' away' : ''}`)
-      chip.append(icon('chef-hat'), el('strong', '', m.name))
-      if (m.away) chip.append(el('small', '', tr('liaison perdue', 'link lost')))
-      else if (m.holding) chip.append(el('small', '', m.holding))
-      return chip
-    }))
   }
 
   /** À chaque image : les chiffres, et les bons (refaits quand les commandes changent). */
@@ -381,9 +348,10 @@ export class MessHud {
   }
 
   /**
-   * Un bon, comme dans Overcooked : la couleur du plat, son nom, puis ce qu'il faut dans l'assiette
-   * en images (l'ingrédient, combien, et les pictogrammes de ses étapes : couper, la marmite, la
-   * poêle), et son délai (l'amiral : en or, plus pressé).
+   * Un bon, comme dans Overcooked : la couleur du plat, son nom, puis sa recette, une ligne par
+   * ingrédient : son image, combien, et ses étapes dans l'ordre, aux couleurs des pastilles des postes
+   * (la planche, la marmite, la poêle) ; enfin son délai (l'amiral : en or, plus pressé). Rien ne dit
+   * qui fait quoi : c'est à l'équipe de s'organiser.
    */
   private ticket(id: string, recipeId: string, vip = false): HTMLElement {
     const r = RECIPES[recipeId]
@@ -393,34 +361,42 @@ export class MessHud {
     card.style.setProperty('--dish', r.color)
     if (vip) card.append(el('em', 'mess-ticket-vip', tr(`Amiral · points ×${RULES.events.vip.points}`, `Admiral · points ×${RULES.events.vip.points}`)))
     card.append(el('strong', '', text(r.name)))
-    const row = el('div', 'mess-ticket-food')
+    const recipe = el('ol', 'mess-recipe')
     const counts = new Map<string, number>()
     for (const [ing, state] of r.dish.contents) counts.set(`${ing}|${state}`, (counts.get(`${ing}|${state}`) ?? 0) + 1)
     for (const [key, n] of counts) {
       const [ing, state] = key.split('|')
-      const chip = el('span', 'mess-chip')
-      chip.title = component(ing, state)
+      const row = el('li', 'mess-recipe-row')
+      row.title = component(ing, state)
+      const food = el('span', 'mess-food')
       const img = document.createElement('img')
-      img.src = foodImage(ing, state === 'saisi' || state === 'cuit' ? 'brut' : state)
-      img.alt = component(ing, state)
-      chip.append(img)
-      if (n > 1) chip.append(el('b', '', `×${n}`))
-      const steps = el('span', 'mess-chip-steps')
-      for (const p of [...INGREDIENTS[ing].prep, ...INGREDIENTS[ing].cook]) steps.append(icon(STEP_ICONS[p]))
-      if (steps.childElementCount) chip.append(steps)
-      row.append(chip)
+      img.src = foodImage(ing)
+      img.alt = ''
+      img.decoding = 'async'
+      food.append(img)
+      if (n > 1) food.append(el('b', '', `×${n}`))
+      row.append(food, el('span', 'mess-food-name', text(INGREDIENTS[ing].short)))
+      const steps = el('span', 'mess-steps')
+      for (const p of [...INGREDIENTS[ing].prep, ...INGREDIENTS[ing].cook]) {
+        const step = el('span', `mess-step ${p}`)
+        step.title = text(PROCESSES[p].verb)
+        step.append(icon(STEP_ICONS[p]))
+        steps.append(step)
+      }
+      row.append(steps)
+      recipe.append(row)
     }
-    card.append(row, el('i', 'mess-ticket-time'))
+    card.append(recipe, el('i', 'mess-ticket-time'))
     return card
   }
 
-  /** Une ligne qui monte au-dessus des bons (livraison, expiration, refus), quelques secondes. */
+  /** Un mot discret dans le coin en bas à droite (livraison, client parti, l'équipe), quelques secondes. */
   toast(line: string, kind: 'good' | 'bad' | 'info' = 'info', color?: string) {
     const t = el('p', `mess-toast ${kind}${color ? ' dish' : ''}`, line)
     if (color) t.style.setProperty('--dish', color)
     this.toasts.append(t)
     setTimeout(() => t.remove(), 2600)
-    while (this.toasts.childElementCount > 4) this.toasts.firstElementChild?.remove()
+    while (this.toasts.childElementCount > 3) this.toasts.firstElementChild?.remove()
   }
 }
 

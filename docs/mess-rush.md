@@ -898,3 +898,87 @@ ne reste les bras croisés ; `server/mess-rush-plates.test.js`, la vaisselle et 
 - Les vrais trajets : les robots n'en ont pas ; la colonne du milieu, à trois, attend-elle trop ?
 - Le temps avant de brûler (9 s, 6 s) et la vitesse de la vaisselle, avec la latence réelle.
 - La place de Comète : sur une planche où l'on coupe, il agace peut-être plus qu'il n'amuse.
+
+## Mise à jour 2.1
+
+Retours après les essais de la 2.0, avec une capture d'Overcooked comme modèle : une seule cuisine
+ouverte, des comptoirs tout autour et le milieu libre, des aliments qu'on reconnaît de loin, et aux
+joueurs de s'organiser.
+
+### Une cuisine ouverte
+
+Plus de cloisons, de zones ni de passe-plats, à tous les effectifs : chacun atteint tous les postes
+et choisit ce qu'il fait (`KITCHENS`, `zoneOf`, `canReach`, `openKitchen` et l'état `zones`/`open`
+disparaissent ; le relais place chacun à son arrivée, `MESS_SPAWNS`, et l'accepte partout sur le sol).
+Les postes suivent les murs, comme sur la capture :
+
+| Où | Quoi |
+|---|---|
+| Mur ouest | les cinq caisses, une par ingrédient |
+| Mur du fond | un comptoir, deux planches, un comptoir, les deux marmites, un comptoir, les deux poêles, un comptoir, la plonge, une poubelle dans le coin |
+| Mur est | la pile d'assiettes propres (près de la plonge), deux comptoirs |
+| Nord | une poubelle dans le coin, une planche (près des premières caisses), des plans de travail, puis le comptoir de service : la passe, le retour de vaisselle, des comptoirs |
+
+Plus aucun ingrédient près de la caisse : les caisses sont au mur ouest, à deux ou trois pas d'une
+planche. Le milieu reste libre ; le logo est peint au sol.
+
+### Brûler plus tard
+
+Le temps entre « cuit » et « brûlé » passe de 9 à 24 s pour la marmite et de 6 à 18 s pour la
+poêle ; l'alerte clignote les 6 dernières secondes (`RULES.cook`).
+
+### La vue
+
+Fixe, comme dans Overcooked : toute la cuisine, ses murs et la file des clients, sans suivre le
+cuisinier (`MessRushClient.focus`, `KITCHEN_SPAN` dans main.ts). La vue se décale pour laisser à
+gauche la colonne des bons, et en haut le bandeau : rien ne recouvre la cuisine.
+
+### Plus de flèches : les bons donnent la recette
+
+Les flèches et la consigne du guidage sont retirées : c'est aux joueurs de s'organiser. Chaque bon
+donne la recette de son plat, une ligne par ingrédient : son image, combien, son nom, et ses étapes
+dans l'ordre (couper, marmite, poêle), aux couleurs des pastilles des postes. Le guidage (`guide`)
+reste dans les règles pour les robots des essais et de l'équilibrage.
+
+Les aliments sont plus gros (posés, portés, sur leur caisse), avec une ombre qui les détache du
+comptoir ; coupés, ils sont en morceaux (deux moitiés de pomme, trois morceaux pour le reste), cuits
+ou saisis, dorés, brûlés, noirs.
+
+### L'interface
+
+- Les pastilles des postes sont rondes, façon dessin animé : un gros cerne, un fond vif (la planche
+  ambre, la marmite orange, la poêle rouge, la plonge bleue, les assiettes vertes, la passe jaune),
+  le pictogramme plein. Ce que contient une marmite prend la place de sa pastille, en bulles.
+- Plus de noms des joueurs sous le chrono, plus de barre d'emotes ni de logo en cuisine.
+- L'imprévu en cours s'affiche dans le bandeau du haut, hors de la cuisine.
+- Les annonces se limitent à l'essentiel (plat servi, client parti, ce que Comète a mangé, l'équipe)
+  et passent dans le coin en bas à droite ; les refus qui ne disent rien (« rien à faire ici ») ne
+  s'affichent plus.
+
+### Les ressources
+
+- Les flashs noirs : la résolution adaptative changeait la densité de pixels juste après le rendu,
+  ce qui efface le canevas, et l'écran restait noir une image. La nouvelle densité s'applique
+  maintenant juste avant de dessiner (`pendingDpr` dans main.ts).
+- Les shaders de la cuisine se compilent au salon (`renderer.compileAsync`), et Comète se charge avec
+  la cuisine, plus au premier imprévu du chat.
+- Le pack du Food Kit ne garde que les onze modèles utilisés (152 Ko au lieu de 366).
+
+### L'équilibrage
+
+Mesuré avec les robots du guidage (sans trajets, imprévus compris, six graines) :
+
+| Joueurs | Plats servis | Score | Part des gestes |
+|---|---|---|---|
+| 1 | 14,7 | 1 145 | — |
+| 2 | 21,7 | 2 006 | 53 / 47 % |
+| 3 | 25,0 | 2 354 | 37 / 34 / 30 % |
+| 4 | 28,2 | 2 722 | 30 / 28 / 23 / 19 % |
+
+Aucun bon n'expire, rien ne brûle. Les médailles sont recalées à environ 30, 50 et 70 % de ces scores.
+
+### À confirmer en jeu (2.1)
+
+- Le trajet des caisses du milieu du mur ouest jusqu'à une planche (deux à trois pas).
+- À quatre dans une cuisine ouverte : les bousculades devant les planches et la plonge.
+- La lisibilité des aliments coupés (en morceaux) dans les mains et sur les comptoirs.

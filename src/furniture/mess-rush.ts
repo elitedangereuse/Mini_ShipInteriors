@@ -82,8 +82,8 @@ const rushFloor: Builder = () => {
       }
     }
     for (const s of STATIONS) {
-      if (!['board', 'pot', 'pan', 'sink', 'pass'].includes(s.kind)) continue
-      if (s.x < 8.3) mat(8.45, s.z, 0.32, 0.8)
+      if (!['board', 'pot', 'pan', 'sink', 'pass', 'plates'].includes(s.kind)) continue
+      if (s.x > 16.8) mat(16.6, s.z, 0.32, 0.7)
       else if (s.z > 11.5) mat(s.x, 11.6, 0.6, 0.32)
       else mat(s.x, 8.55, 0.7, 0.32)
     }
@@ -94,9 +94,9 @@ const rushFloor: Builder = () => {
   floor.receiveShadow = true
   const g = new THREE.Group()
   g.add(floor)
-  // Le logo, peint au sol entre les fourneaux et le comptoir de service.
+  // Le logo, peint au milieu du sol, que la cuisine laisse libre.
   const live = new THREE.Group()
-  const logo = mesh(new THREE.PlaneGeometry(1.5, 1.5 * (778 / 1024)), new THREE.MeshBasicMaterial({ map: rushLogo(), transparent: true, opacity: 0.32, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 }), 12.4 - (x0 + x1) / 2, 0.009, 10.1 - (z0 + z1) / 2)
+  const logo = mesh(new THREE.PlaneGeometry(1.8, 1.8 * (778 / 1024)), new THREE.MeshBasicMaterial({ map: rushLogo(), transparent: true, opacity: 0.3, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 }), 12.5 - (x0 + x1) / 2, 0.009, 10.35 - (z0 + z1) / 2)
   logo.rotation.x = -Math.PI / 2
   logo.rotation.z = Math.PI
   live.add(logo)

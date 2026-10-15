@@ -40,13 +40,13 @@ export const MESS_LAYOUT = [
 export const MESS_BOUNDS = { minX: 7.65, maxX: 17.35, minZ: 6.65, maxZ: 12.35 }
 
 /**
- * Les meubles du nord (cf. mess-rush/level.ts) : à l'ouest, la rangée des caisses ; ailleurs, le
- * comptoir de service, d'une cloison au mur est, les clients derrière.
+ * Le comptoir du nord : à l'ouest, une rangée de plans de travail ; ailleurs, le comptoir de service,
+ * les clients derrière. On n'y range aucun ingrédient : les caisses sont au mur ouest, près des planches.
  */
-export const CRATE_ROW = { minX: MESS_BOUNDS.minX, maxX: 10.75, minZ: 7.75, maxZ: 8.35 }
+export const NORTH_ROW = { minX: MESS_BOUNDS.minX, maxX: 10.75, minZ: 7.75, maxZ: 8.35 }
 export const SERVICE_COUNTER = { minX: 10.75, maxX: MESS_BOUNDS.maxX, minZ: 7.75, maxZ: 8.35 }
 
-/** Le sol des cuisiniers : des caisses et du comptoir de service au mur du fond. */
+/** Le sol des cuisiniers : du comptoir du nord au mur du fond. */
 export const KITCHEN_FLOOR = { minX: MESS_BOUNDS.minX, maxX: MESS_BOUNDS.maxX, minZ: SERVICE_COUNTER.maxZ, maxZ: MESS_BOUNDS.maxZ }
 
 /** La file des clients, de l'autre côté du comptoir de service (cf. src/mess-rush/queue.ts). */
@@ -55,12 +55,12 @@ export const QUEUE = { minX: 11.2, maxX: 16.9, z: 7.15 }
 /** Hauteur du dessus des meubles de la cuisine : à la taille des cuisiniers (0,67 m), comme dans Overcooked. */
 export const COUNTER_TOP = 0.34
 
-/** Où l'on arrive dans la cuisine ouverte (un seul cuisinier) : au milieu, devant les fourneaux. */
+/** Où arrive chaque cuisinier (dans l'ordre du salon) : au milieu de la cuisine, face aux fourneaux. */
 export const MESS_SPAWNS = [
-  { x: 12.4, z: 10.3 },
-  { x: 9.4, z: 10.6 },
-  { x: 15.6, z: 10.3 },
-  { x: 9.4, z: 9.1 },
+  { x: 11.4, z: 10.4 },
+  { x: 13.4, z: 10.4 },
+  { x: 11.4, z: 9.3 },
+  { x: 13.4, z: 9.3 },
 ]
 
 /** Une position est-elle sur le sol des cuisiniers ? */
@@ -76,160 +76,60 @@ export function onMessFloor(x, z) {
  * - `plates` : la pile d'assiettes propres (comptées) ;
  * - `return` : le retour de vaisselle, où reviennent les assiettes sales après chaque plat servi ;
  * - `sink` : la plonge, où l'on lave les assiettes sales (on reste devant) ;
- * - `counter` : une place de comptoir (les passe-plats : dans une cloison, entre deux zones) ;
+ * - `counter` : une place de comptoir, où poser ce qu'on veut ;
  * - `pass` : la passe, où l'on livre ;
  * - `trash` : une poubelle, dans un coin.
  *
- * À l'ouest, le garde-manger et la découpe (les caisses, deux planches) ; au milieu, les fourneaux
- * (deux marmites, deux poêles) et la pile d'assiettes ; à l'est, la passe, le retour de vaisselle et
- * la plonge. Ce sont tous les postes possibles : une cuisine ne garde que ceux de son plan (cf.
- * KITCHENS) ; les passe-plats n'existent qu'avec leur cloison.
+ * Une seule cuisine ouverte, comme dans Overcooked, des comptoirs tout autour et le milieu libre :
+ * chacun choisit ce qu'il fait. Elle se lit comme une chaîne, d'ouest en est : les caisses au mur
+ * ouest, les planches juste à côté (au fond et au nord), puis les fourneaux (deux marmites, deux poêles), la plonge
+ * et les assiettes propres à l'est ; au nord, le comptoir de service avec la passe et le retour de
+ * vaisselle, les clients derrière.
  */
 export const STATIONS = [
-  // L'ouest : la rangée des caisses (au nord), une planche et un comptoir au mur ouest ; au fond, une
-  // planche et deux caisses, et la poubelle dans le coin.
-  { id: 'caisse-lapin', kind: 'crate', ing: 'lapin-ceti', x: 8.05, z: 8.05 },
-  { id: 'caisse-crevettes', kind: 'crate', ing: 'crevettes-baltahsine', x: 8.75, z: 8.05 },
-  { id: 'comptoir-n', kind: 'counter', x: 9.5, z: 8.05 },
-  { id: 'comptoir-o', kind: 'counter', x: 10.25, z: 8.05 },
-  { id: 'plan-2', kind: 'board', x: 7.925, z: 9.25 },
-  { id: 'comptoir-so', kind: 'counter', x: 7.925, z: 10.95 },
-  { id: 'poubelle-so', kind: 'trash', x: 7.98, z: 12.02 },
-  { id: 'plan-1', kind: 'board', x: 8.85, z: 12.075 },
-  { id: 'caisse-legumes', kind: 'crate', ing: 'legumes', x: 9.75, z: 12.075 },
-  // Le milieu : les fourneaux au fond ; au nord, la caisse de riz, un comptoir et la pile d'assiettes.
-  { id: 'marmite-1', kind: 'pot', x: 11.45, z: 12.075 },
-  { id: 'marmite-2', kind: 'pot', x: 12.05, z: 12.075 },
-  { id: 'poele-1', kind: 'pan', x: 12.85, z: 12.075 },
-  { id: 'poele-2', kind: 'pan', x: 13.45, z: 12.075 },
-  { id: 'caisse-riz', kind: 'crate', ing: 'riz-jaroua', x: 11.4, z: 8.05 },
-  { id: 'comptoir-1', kind: 'counter', x: 12.2, z: 8.05 },
-  { id: 'assiettes', kind: 'plates', x: 13.3, z: 8.05 },
-  // L'est : la passe, le retour de vaisselle et la caisse de pommes au comptoir de service ; la
-  // plonge et une planche au fond ; une poubelle dans chaque coin.
-  { id: 'passe', kind: 'pass', x: 14.8, z: 8.05 },
-  { id: 'retour', kind: 'return', x: 15.7, z: 8.05 },
-  { id: 'caisse-pommes', kind: 'crate', ing: 'pommes-aerial', x: 16.5, z: 8.05 },
-  { id: 'poubelle-ne', kind: 'trash', x: 17.02, z: 8.62 },
-  { id: 'plonge', kind: 'sink', x: 14.75, z: 12.075 },
-  { id: 'plan-3', kind: 'board', x: 15.85, z: 12.075 },
-  { id: 'poubelle-se', kind: 'trash', x: 17.02, z: 12.02 },
-  // Les passe-plats : deux dans chaque cloison, et, à quatre, un dans la cloison de l'ouest.
-  { id: 'passe-plat-o-n', kind: 'counter', x: 10.875, z: 9.15 },
-  { id: 'passe-plat-o-s', kind: 'counter', x: 10.875, z: 11.0 },
-  { id: 'passe-plat-e-n', kind: 'counter', x: 14.025, z: 9.15 },
-  { id: 'passe-plat-e-s', kind: 'counter', x: 14.025, z: 11.0 },
-  { id: 'passe-plat-ouest', kind: 'counter', x: 9.3, z: 10.075 },
+  // Le mur ouest : les cinq caisses, une par ingrédient.
+  { id: 'caisse-lapin', kind: 'crate', ing: 'lapin-ceti', x: 7.95, z: 8.75 },
+  { id: 'caisse-legumes', kind: 'crate', ing: 'legumes', x: 7.95, z: 9.42 },
+  { id: 'caisse-crevettes', kind: 'crate', ing: 'crevettes-baltahsine', x: 7.95, z: 10.09 },
+  { id: 'caisse-riz', kind: 'crate', ing: 'riz-jaroua', x: 7.95, z: 10.76 },
+  { id: 'caisse-pommes', kind: 'crate', ing: 'pommes-aerial', x: 7.95, z: 11.43 },
+  // Le mur du fond : un comptoir dans le coin, deux planches (près des dernières caisses), un comptoir,
+  // les fourneaux, un comptoir, la plonge, et la poubelle dans le coin.
+  { id: 'comptoir-so', kind: 'counter', x: 8.3, z: 12.075 },
+  { id: 'plan-1', kind: 'board', x: 9.05, z: 12.075 },
+  { id: 'plan-2', kind: 'board', x: 9.8, z: 12.075 },
+  { id: 'comptoir-fo', kind: 'counter', x: 10.55, z: 12.075 },
+  { id: 'marmite-1', kind: 'pot', x: 11.43, z: 12.075 },
+  { id: 'marmite-2', kind: 'pot', x: 12.07, z: 12.075 },
+  { id: 'comptoir-fond', kind: 'counter', x: 12.85, z: 12.075 },
+  { id: 'poele-1', kind: 'pan', x: 13.63, z: 12.075 },
+  { id: 'poele-2', kind: 'pan', x: 14.27, z: 12.075 },
+  { id: 'comptoir-se', kind: 'counter', x: 15.0, z: 12.075 },
+  { id: 'plonge', kind: 'sink', x: 15.9, z: 12.075 },
+  { id: 'poubelle-se', kind: 'trash', x: 16.95, z: 12.02 },
+  // Le mur est : la pile d'assiettes propres (près de la plonge) et deux comptoirs.
+  { id: 'assiettes', kind: 'plates', x: 17.075, z: 11.2 },
+  { id: 'comptoir-e1', kind: 'counter', x: 17.075, z: 10.35 },
+  { id: 'comptoir-e2', kind: 'counter', x: 17.075, z: 9.5 },
+  // Le nord : la poubelle dans le coin, une planche (près des premières caisses) et des plans de
+  // travail, puis le comptoir de service (la passe, le retour de vaisselle) ; aucun ingrédient près
+  // de la caisse.
+  { id: 'poubelle-no', kind: 'trash', x: 7.98, z: 8.05 },
+  { id: 'plan-3', kind: 'board', x: 8.75, z: 8.05 },
+  { id: 'comptoir-n2', kind: 'counter', x: 9.5, z: 8.05 },
+  { id: 'comptoir-n3', kind: 'counter', x: 10.25, z: 8.05 },
+  { id: 'comptoir-n4', kind: 'counter', x: 11.2, z: 8.05 },
+  { id: 'comptoir-n5', kind: 'counter', x: 12.0, z: 8.05 },
+  { id: 'passe', kind: 'pass', x: 13.2, z: 8.05 },
+  { id: 'retour', kind: 'return', x: 14.5, z: 8.05 },
+  { id: 'comptoir-n6', kind: 'counter', x: 15.5, z: 8.05 },
+  { id: 'comptoir-n7', kind: 'counter', x: 16.3, z: 8.05 },
+  { id: 'comptoir-ne', kind: 'counter', x: 17.0, z: 8.05 },
 ]
 
 /** Les postes, par identifiant. */
 export const STATION_BY_ID = Object.fromEntries(STATIONS.map((s) => [s.id, s]))
-
-// ---------------------------------------------------------------- les plans de la cuisine
-
-/**
- * Les cloisons, comme dans Overcooked : à plusieurs, chacun tient sa zone et l'on se passe les
- * plats par-dessus. Des comptoirs bas, de la rangée du nord au mur du fond : entre l'ouest et les
- * fourneaux, entre les fourneaux et l'est ; à quatre, une cloison coupe aussi l'ouest en deux.
- * Les deux premières courent du nord au sud, dans l'axe de la caméra : elles ne cachent personne.
- */
-const WALL_WM = { minX: 10.75, maxX: 11.0, minZ: KITCHEN_FLOOR.minZ, maxZ: 11.8 }
-const WALL_ME = { minX: 13.9, maxX: 14.15, minZ: KITCHEN_FLOOR.minZ, maxZ: 11.8 }
-const WALL_WEST = { minX: 8.2, maxX: WALL_WM.minX, minZ: 9.95, maxZ: 10.2 }
-
-const ALL_Z = { minZ: KITCHEN_FLOOR.minZ, maxZ: KITCHEN_FLOOR.maxZ }
-const WEST = { minX: MESS_BOUNDS.minX, maxX: WALL_WM.minX }
-const MIDDLE = { minX: WALL_WM.maxX, maxX: WALL_ME.minX }
-const EAST = { minX: WALL_ME.maxX, maxX: MESS_BOUNDS.maxX }
-
-/**
- * Les postes de chaque coin de la cuisine. L'ouest prend et coupe (le nord : le lapin, les
- * légumes et le riz ; le sud : les crevettes et les pommes) ; le milieu cuit et dresse ; l'est sert,
- * dessert et lave : une chaîne où chacun attend l'autre, comme dans Overcooked.
- */
-const W_N = ['caisse-lapin', 'caisse-crevettes', 'comptoir-n', 'comptoir-o', 'plan-2', 'passe-plat-o-n', 'passe-plat-ouest']
-const W_S = ['poubelle-so', 'plan-1', 'caisse-legumes', 'comptoir-so', 'passe-plat-o-s', 'passe-plat-ouest']
-const MID = ['marmite-1', 'marmite-2', 'poele-1', 'poele-2', 'caisse-riz', 'comptoir-1', 'assiettes', 'passe-plat-o-n', 'passe-plat-o-s', 'passe-plat-e-n', 'passe-plat-e-s']
-const E = ['passe', 'retour', 'caisse-pommes', 'poubelle-ne', 'plonge', 'plan-3', 'poubelle-se', 'passe-plat-e-n', 'passe-plat-e-s']
-const union = (...lists) => [...new Set(lists.flat())]
-const without = (list, ...ids) => list.filter((id) => !ids.includes(id))
-const W = without(union(W_N, W_S), 'passe-plat-ouest')
-const OPEN = STATIONS.map((s) => s.id).filter((id) => !id.startsWith('passe-plat'))
-
-/**
- * Le plan de la cuisine selon le nombre de cuisiniers : ses zones (une par joueur, dans l'ordre du
- * salon), et les cloisons à élever. Chaque zone dit son sol (`bounds`), où l'on y arrive, et les
- * postes qu'on y atteint ; un poste partagé par deux zones est un passe-plat.
- * - 1 : toute la cuisine ;
- * - 2 : l'ouest, le commis (prendre et couper le lapin, les légumes, les crevettes), et l'est, le
- *   chef (le riz, les pommes, la cuisson, le dressage, la passe, la vaisselle), séparés par la cloison
- *   de l'ouest ;
- * - 3 : l'ouest (prendre, couper), le milieu (cuire, dresser), l'est (servir, laver) ;
- * - 4 : l'ouest coupé en deux (le nord et le sud ont chacun leurs caisses et leur planche), le milieu, l'est.
- */
-export const KITCHENS = {
-  1: {
-    walls: [],
-    zones: [{ id: 'all', bounds: { minX: MESS_BOUNDS.minX, maxX: MESS_BOUNDS.maxX, ...ALL_Z }, spawn: MESS_SPAWNS[0], stations: OPEN }],
-  },
-  2: {
-    walls: [WALL_WM],
-    zones: [
-      { id: 'west', bounds: { ...WEST, ...ALL_Z }, spawn: { x: 9.4, z: 10.6 }, stations: W },
-      { id: 'east', bounds: { minX: WALL_WM.maxX, maxX: MESS_BOUNDS.maxX, ...ALL_Z }, spawn: { x: 13.0, z: 10.3 }, stations: without(union(MID, E), 'passe-plat-e-n', 'passe-plat-e-s') },
-    ],
-  },
-  3: {
-    walls: [WALL_WM, WALL_ME],
-    zones: [
-      { id: 'west', bounds: { ...WEST, ...ALL_Z }, spawn: { x: 9.4, z: 10.6 }, stations: W },
-      { id: 'middle', bounds: { ...MIDDLE, ...ALL_Z }, spawn: { x: 12.4, z: 10.3 }, stations: MID },
-      { id: 'east', bounds: { ...EAST, ...ALL_Z }, spawn: { x: 15.6, z: 10.3 }, stations: E },
-    ],
-  },
-  4: {
-    walls: [WALL_WM, WALL_ME, WALL_WEST],
-    zones: [
-      { id: 'west-north', bounds: { ...WEST, minZ: KITCHEN_FLOOR.minZ, maxZ: WALL_WEST.minZ }, spawn: { x: 9.4, z: 9.1 }, stations: W_N },
-      { id: 'middle', bounds: { ...MIDDLE, ...ALL_Z }, spawn: { x: 12.4, z: 10.3 }, stations: MID },
-      { id: 'east', bounds: { ...EAST, ...ALL_Z }, spawn: { x: 15.6, z: 10.3 }, stations: E },
-      { id: 'west-south', bounds: { ...WEST, minZ: WALL_WEST.maxZ, maxZ: KITCHEN_FLOOR.maxZ }, spawn: { x: 9.4, z: 11.1 }, stations: W_S },
-    ],
-  },
-}
-
-// Les postes de chaque plan : ceux de toutes ses zones.
-for (const k of Object.values(KITCHENS)) k.stations = union(...k.zones.map((z) => z.stations))
-
-/** Le plan de la cuisine de cette partie (ouverte : celui d'un cuisinier seul, sans cloison). */
-export function kitchenOf(state) {
-  return state.open ? KITCHENS[1] : KITCHENS[state.kitchen ?? 1] ?? KITCHENS[1]
-}
-
-/** La zone d'un joueur, ou null : cuisine ouverte (seul, ou après un départ), ou joueur inconnu. */
-export function zoneOf(state, pid) {
-  if (state.open) return null
-  const i = state.zones?.[String(pid)]
-  return i === undefined ? null : kitchenOf(state).zones[i] ?? null
-}
-
-/** Le joueur atteint-il ce poste, de sa zone ? (Cuisine ouverte : tous ceux de la cuisine.) */
-export function canReach(state, pid, stationId) {
-  return (zoneOf(state, pid) ?? kitchenOf(state)).stations.includes(stationId)
-}
-
-/** Les cloisons élevées dans cette partie (aucune une fois la cuisine ouverte). */
-export function wallsOf(state) {
-  return state.open ? [] : kitchenOf(state).walls
-}
-
-/** Une position est-elle sur le sol de la zone du joueur (à `margin` près) ? */
-export function inZone(state, pid, x, z, margin = 0.15) {
-  const zone = zoneOf(state, pid)
-  if (!zone) return onMessFloor(x, z)
-  const b = zone.bounds
-  return x > b.minX - margin && x < b.maxX + margin && z > b.minZ - margin && z < b.maxZ + margin
-}
+const STATION_IDS = STATIONS.map((s) => s.id)
 
 /** Range un objet qui n'a plus de place : une assiette retourne à la pile, la vaisselle sale au retour. */
 function stow(state, id) {
@@ -238,30 +138,6 @@ function stow(state, id) {
   if (item?.kind === 'plate' && state.stations.assiettes) state.stations.assiettes.count += 1
   else if (item?.kind === 'dirty' && state.stations.retour) state.stations.retour.count += item.count
   else state.wasted += 1
-}
-
-/**
- * Un cuisinier quitte la brigade pour de bon : les cloisons tombent, et chacun atteint tous les
- * postes (sinon, sa zone n'aurait plus personne, et des plats deviendraient impossibles). La
- * cuisine reprend le plan d'un cuisinier seul : ce que portaient les passe-plats va sur la place
- * libre la plus proche (sinon, il est rangé).
- */
-export function openKitchen(state) {
-  if (state.open || kitchenOf(state).walls.length === 0) return []
-  state.open = true
-  const kept = KITCHENS[1].stations
-  for (const id of Object.keys(state.stations)) {
-    if (kept.includes(id)) continue
-    const item = state.stations[id].item
-    delete state.stations[id]
-    if (!item) continue
-    const from = STATION_BY_ID[id]
-    const far = (s) => Math.hypot(STATION_BY_ID[s].x - from.x, STATION_BY_ID[s].z - from.z)
-    const free = kept.filter((s) => STATION_BY_ID[s].kind === 'counter' && state.stations[s] && !state.stations[s].item).sort((a, b) => far(a) - far(b))[0]
-    if (free) state.stations[free].item = item
-    else stow(state, item)
-  }
-  return [{ kind: 'open' }]
 }
 
 /** Noms des postes (invites). */
@@ -307,7 +183,7 @@ export const RULES = {
   plateCapacity: 4,
   potCapacity: 3,
   panCapacity: 1,
-  cook: { potExtra: 1.5, burn: { pot: 9, pan: 6 }, warn: 3.5 },
+  cook: { potExtra: 1.5, burn: { pot: 24, pan: 18 }, warn: 6 },
   plates: { 1: 3, 2: 4, 3: 4, 4: 5 },
   plateReturn: 7,
   wash: 1.5,
@@ -330,12 +206,12 @@ export const RULES = {
   // fois plus en `vip.time` fois moins de temps.
   events: { first: 50, every: [30, 45], quiet: 20, clean: 2.5, cat: 7, overheat: { time: 15, speed: 1.7 }, vip: { points: 2, time: 0.75 } },
   // Les médailles : environ 30, 50 et 70 % de ce que font des robots qui suivent le guidage sans
-  // jamais marcher (cf. server/mess-rush-kitchens.test.js) ; à trois, pas moins qu'à deux.
+  // jamais marcher (cf. server/mess-rush-kitchens.test.js), dans la cuisine ouverte.
   medals: {
-    1: [330, 545, 765],
-    2: [510, 850, 1190],
-    3: [510, 850, 1190],
-    4: [620, 1040, 1450],
+    1: [345, 570, 800],
+    2: [600, 1000, 1400],
+    3: [705, 1175, 1650],
+    4: [815, 1360, 1905],
   },
 }
 
@@ -390,16 +266,13 @@ function random(state) {
 /**
  * Une nouvelle partie, en service dès `now`. `recipes` : les recettes qui peuvent sortir (la carte
  * du nombre de joueurs par défaut, cf. menuFor ; les complexes, après RULES.complexAfter).
- * `members` : les joueurs, dans l'ordre du salon ; chacun reçoit la zone du même rang dans le plan
- * de la cuisine (cf. KITCHENS). Sans eux, la cuisine est ouverte à tous.
- * @param {{ id: string, seed: number, players: number, now: number, recipes?: string[], members?: (string | number)[], rules?: typeof RULES }} o
+ * La cuisine est ouverte : chacun atteint tous les postes et choisit ce qu'il fait.
+ * @param {{ id: string, seed: number, players: number, now: number, recipes?: string[], rules?: typeof RULES }} o
  */
-export function createService({ id, seed, players, now, recipes, members = [], rules = RULES }) {
+export function createService({ id, seed, players, now, recipes, rules = RULES }) {
   const n = Math.min(4, Math.max(1, players))
-  const kitchen = KITCHENS[n]
   const stations = {}
   for (const s of STATIONS) {
-    if (!kitchen.stations.includes(s.id)) continue
     if (UTENSILS.includes(s.kind)) stations[s.id] = { items: [], cook: null, done: false, burnt: false }
     else if (s.kind === 'board' || s.kind === 'counter') stations[s.id] = { item: null }
     else if (s.kind === 'plates') stations[s.id] = { count: rules.plates[n] }
@@ -409,9 +282,6 @@ export function createService({ id, seed, players, now, recipes, members = [], r
   return {
     id,
     players: n,
-    kitchen: n,
-    zones: Object.fromEntries(members.slice(0, kitchen.zones.length).map((m, i) => [String(m), i])),
-    open: false,
     recipes: [...(recipes ?? menuFor(n, SERVICE_RECIPES, rules))],
     startedAt: now,
     endsAt: now + rules.service * 1000,
@@ -544,7 +414,7 @@ function canCook(state, item, stationId, rules) {
  */
 export function resolveAction(state, pid, stationId, rules = RULES) {
   const station = STATION_BY_ID[stationId]
-  if (!station || state.status !== 'running' || !canReach(state, pid, stationId)) return null
+  if (!station || state.status !== 'running') return null
   const hand = held(state, pid)
   const s = state.stations[stationId]
   const busy = () => {
@@ -762,7 +632,7 @@ export function stopWork(state, pid) {
 
 /**
  * Un joueur quitte la cuisine (coupure, abandon) : ce qu'il tenait est posé sur la première place
- * libre du comptoir (de sa zone d'abord), ou rangé (une assiette à sa pile, un ingrédient perdu).
+ * libre du comptoir, ou rangé (une assiette à sa pile, un ingrédient perdu).
  */
 export function dropHeld(state, pid) {
   stopWork(state, pid)
@@ -770,7 +640,7 @@ export function dropHeld(state, pid) {
   delete state.hands[pid]
   if (!id) return []
   const counters = STATIONS.filter((s) => s.kind === 'counter' && state.stations[s.id] && !state.stations[s.id].item)
-  const free = counters.find((s) => canReach(state, pid, s.id)) ?? counters[0]
+  const free = counters[0]
   if (free) {
     state.stations[free.id].item = id
     return [{ kind: 'dropped', by: pid, station: free.id }]
@@ -875,9 +745,8 @@ function stepEvent(state, now, rules) {
     return [...events, ...endEvent(state, now, rules)]
   }
   if (state.nextEventAt === undefined || now < state.nextEventAt || now >= state.endsAt - rules.events.quiet * 1000) return []
-  const kitchen = kitchenOf(state)
   // Le chat vise d'abord un ingrédient posé ; à défaut, il s'assoit sur une planche ou un comptoir libre.
-  const perches = kitchen.stations.filter((id) => ['board', 'counter'].includes(STATION_BY_ID[id].kind) && state.stations[id])
+  const perches = STATIONS.filter((s) => ['board', 'counter'].includes(s.kind) && state.stations[s.id]).map((s) => s.id)
   const food = perches.filter((id) => state.items[state.stations[id].item]?.kind === 'ingredient')
   const possible = EVENT_KINDS.filter((k) => k !== 'cat' || perches.length)
   const kind = possible[Math.floor(random(state) * possible.length)]
@@ -1050,21 +919,20 @@ export function stepService(state, now, dt, near, rules = RULES) {
 // ---------------------------------------------------------------- le guidage
 
 /**
- * Le prochain geste utile d'un joueur, pour les flèches et la consigne (cf. src/mess-rush/client.ts),
- * et pour les robots des essais. `step` dit quoi, `stations` où : des postes de sa zone, ou, quand le
- * poste utile est chez un coéquipier, un passe-plat vers lui (`handoff`). null : rien d'évident.
+ * Le prochain geste utile d'un joueur, pour les robots des essais et de l'équilibrage (le jeu n'en
+ * montre rien : c'est aux joueurs de s'organiser). `step` dit quoi, `stations` où. null : rien
+ * d'évident.
  *
  * Les mains pleines : ce qui fait avancer ce qu'on tient (couper, cuire, dresser, livrer, laver la
  * vaisselle, jeter ce qui ne sert à rien). Les mains vides, dans l'ordre : chasser le chat, nettoyer
  * la passe, vider ce qui a brûlé, prendre un plat prêt à livrer, prendre une assiette pour ce qui est
- * prêt, laver s'il n'y a plus d'assiettes, couper, faire passer un ingrédient, réunir deux assiettes,
+ * prêt, laver s'il n'y a plus d'assiettes, couper, déplacer un ingrédient, réunir deux assiettes,
  * prendre ce qui manque aux bons dans les caisses, puis la vaisselle.
  * @returns {{ step: string, stations: string[], ing?: string, process?: string } | null}
  */
 export function guide(state, pid, rules = RULES) {
   if (state.status !== 'running') return null
-  const kitchen = kitchenOf(state)
-  const mine = (id) => canReach(state, pid, id)
+  const ids = STATION_IDS
   const kind = (id) => STATION_BY_ID[id].kind
   const slot = (id) => state.stations[id]
   const itemAt = (id) => (slot(id)?.item ? state.items[slot(id).item] ?? null : null)
@@ -1092,24 +960,16 @@ export function guide(state, pid, rules = RULES) {
   /** Un ingrédient prêt à dresser tel quel (coupé, qui ne cuit pas), et qu'un bon attend. */
   const rawReady = (it) => it?.kind === 'ingredient' && !nextPrep(it) && !cookProcess(it.ing) && wanted(it.ing)
   const partial = (id) => kind(id) === 'counter' && itemAt(id)?.kind === 'plate' && contentsOf(itemAt(id)).length > 0 && !matchingOrder(state, itemAt(id))
-  const platesHere = kitchen.stations.some((id) => kind(id) === 'plates' && mine(id))
   const rack = slot('assiettes')
+  /** Un coéquipier y fait déjà un geste (couper, laver, nettoyer) : on va ailleurs. */
+  const taken = (id) => Object.entries(state.work).some(([p, w]) => p !== String(pid) && w.station === id)
 
-  /** Les postes qui conviennent, dans sa zone ; sinon, un passe-plat libre vers une zone qui en a. */
-  const toward = (step, ok, extra = {}) => {
-    const all = kitchen.stations.filter(ok)
-    const here = all.filter(mine)
-    if (here.length) return { step, stations: here, ...extra }
-    if (!all.length) return null
-    const zones = kitchen.zones.filter((z) => z.stations.some((id) => all.includes(id)))
-    const shared = kitchen.stations.filter((id) => freeCounter(id) && mine(id) && zones.some((z) => z.stations.includes(id)))
-    return shared.length ? { step: 'handoff', stations: shared, ...extra } : null
-  }
-  /** Les postes qui conviennent, dans sa zone seulement (les mains vides, on ne passe rien). */
+  /** Les postes qui conviennent (`extra` : ce qu'on précise, ou de quoi le calculer au premier). */
   const here = (step, ok, extra = {}) => {
-    const list = kitchen.stations.filter((id) => mine(id) && ok(id))
+    const list = ids.filter(ok)
     return list.length ? { step, stations: list, ...(typeof extra === 'function' ? extra(list[0]) : extra) } : null
   }
+  const toward = here
   const putDown = () => toward('put', freeCounter) ?? { step: 'hold', stations: [] }
 
   const hand = held(state, pid)
@@ -1132,14 +992,12 @@ export function guide(state, pid, rules = RULES) {
       // Prêt tel quel : dans une assiette entamée qu'il complète, sinon posé près des assiettes.
       const plate = toward('plate', (id) => partial(id) && room(itemAt(id), 1, rules) && fits([...keysOf(contentsOf(itemAt(id))), componentKey(hand.ing, ingredientState(hand))]), extra)
       if (plate) return plate
-      return platesHere ? toward('put', (id) => freeCounter(id) && mine(id), extra) ?? putDown() : toward('put', (id) => kind(id) === 'plates', extra) ?? putDown()
+      return toward('put', freeCounter, extra) ?? putDown()
     }
     // Une assiette.
     const got = keysOf(contentsOf(hand))
     if (got.length && matchingOrder(state, hand)) {
-      const open = (id) => kind(id) === 'pass' && !isBlocked(state, id)
-      const spilled = kitchen.stations.some((id) => kind(id) === 'pass' && mine(id)) && !kitchen.stations.some((id) => open(id) && mine(id))
-      return spilled ? putDown() : toward('deliver', open) ?? putDown()
+      return toward('deliver', (id) => kind(id) === 'pass' && !isBlocked(state, id)) ?? putDown()
     }
     if (got.length && !fits(got)) return toward('trash', (id) => kind(id) === 'trash') ?? putDown()
     const fill = toward(got.length ? 'complete' : 'fill-plate', (id) => {
@@ -1154,26 +1012,24 @@ export function guide(state, pid, rules = RULES) {
       if (merge) return merge
     }
     // Rien de prêt : on la pose en attendant (sur un comptoir de sa zone).
-    return toward('wait', (id) => freeCounter(id) && mine(id)) ?? { step: 'hold', stations: [] }
+    return toward('wait', freeCounter) ?? { step: 'hold', stations: [] }
   }
 
   function idle() {
     // L'urgence : le chat sur un comptoir, la passe renversée, ce qui a brûlé.
     const cat = here('shoo', (id) => state.event?.kind === 'cat' && state.event.station === id)
     if (cat) return cat
-    const spill = here('clean', (id) => kind(id) === 'pass' && isBlocked(state, id))
+    const spill = here('clean', (id) => kind(id) === 'pass' && isBlocked(state, id) && !taken(id))
     if (spill) return spill
     const burnt = here('empty', (id) => utensil(id) && !!slot(id)?.burnt)
     if (burnt) return burnt
-    // Un plat complet posé : à livrer, si l'on atteint la passe (sinon, un coéquipier l'a posé là pour elle).
-    const reachPass = kitchen.stations.some((id) => kind(id) === 'pass' && mine(id))
-    const passZones = kitchen.zones.filter((z) => z.stations.some((id) => kind(id) === 'pass'))
-    const dish = here('take-dish', (id) => kind(id) === 'counter' && !!matchingOrder(state, itemAt(id)) && (reachPass || !passZones.some((z) => z.stations.includes(id))))
+    // Un plat complet posé : à livrer.
+    const dish = here('take-dish', (id) => kind(id) === 'counter' && !!matchingOrder(state, itemAt(id)))
     if (dish) return dish
     // Prêt à dresser (un ustensile cuit, un ingrédient coupé qui se sert cru) : une assiette (entamée qu'il complète, ou la pile).
     const readyAt = (id) => ready(id) || (['board', 'counter'].includes(kind(id)) && rawReady(itemAt(id)))
     const readyKeys = (id) => (utensil(id) ? utensilKeys(state, slot(id)) : [componentKey(itemAt(id).ing, ingredientState(itemAt(id)))])
-    const readyHere = kitchen.stations.filter((id) => mine(id) && readyAt(id))
+    const readyHere = ids.filter(readyAt)
     if (readyHere.length) {
       const fitsPlate = (id) => partial(id) && readyHere.some((r) => fits([...keysOf(contentsOf(itemAt(id))), ...readyKeys(r)]))
       const plate = here('take-plate', fitsPlate) ?? here('take-plate', (id) => kind(id) === 'plates' && slot(id).count > 0)
@@ -1181,7 +1037,7 @@ export function guide(state, pid, rules = RULES) {
       if (plate) return plate
     }
     // Plus d'assiettes propres : la vaisselle d'abord.
-    const sinkFull = (id) => kind(id) === 'sink' && slot(id)?.count > 0
+    const sinkFull = (id) => kind(id) === 'sink' && slot(id)?.count > 0 && !taken(id)
     if (rack && rack.count === 0) {
       const wash = here('wash', sinkFull)
       if (wash) return wash
@@ -1189,7 +1045,7 @@ export function guide(state, pid, rules = RULES) {
       if (dirty) return dirty
     }
     // Couper ce qui attend sur une planche.
-    const chop = here('work', (id) => kind(id) === 'board' && !!itemAt(id) && nextPrep(itemAt(id)) === 'couper' && wanted(itemAt(id).ing) && !isBlocked(state, id),
+    const chop = here('work', (id) => kind(id) === 'board' && !!itemAt(id) && nextPrep(itemAt(id)) === 'couper' && wanted(itemAt(id).ing) && !isBlocked(state, id) && !taken(id),
       (id) => ({ ing: itemAt(id).ing, process: 'couper' }))
     if (chop) return chop
     // Un ingrédient posé qui attend ailleurs une planche, un ustensile ou une assiette.
@@ -1202,20 +1058,15 @@ export function guide(state, pid, rules = RULES) {
       const it = itemAt(id)
       if (!['counter', 'board'].includes(kind(id)) || it?.kind !== 'ingredient' || !wanted(it.ing)) return false
       if (kind(id) === 'board' && nextPrep(it)) return false
-      // Prêt à dresser, chez qui a les assiettes : il le dressera (cf. plus haut), on ne le déplace pas.
-      if (!nextPrep(it) && !cookProcess(it.ing) && platesHere) return false
-      const ok = need(it)
-      if (kitchen.stations.some((s) => mine(s) && ok(s))) return true
-      // Déjà là où une zone qui sait le traiter l'atteint : on le lui laisse.
-      const able = kitchen.zones.filter((z) => z.stations.some(ok))
-      if (able.some((z) => z.stations.includes(id))) return false
-      return kitchen.stations.some((s) => s !== id && freeCounter(s) && mine(s) && able.some((z) => z.stations.includes(s)))
+      // Prêt à dresser tel quel : on le dressera (cf. plus haut), on ne le déplace pas.
+      if (!nextPrep(it) && !cookProcess(it.ing)) return false
+      return ids.some(need(it))
     }, (id) => ({ ing: itemAt(id).ing }))
     if (take) return take
     // Deux assiettes entamées qui font ensemble le plat d'un bon : on en prend une.
-    const pair = here('take-merge', (id) => partial(id) && kitchen.stations.some((q) => q !== id && mine(q) && partial(q) && fits([...keysOf(contentsOf(itemAt(id))), ...keysOf(contentsOf(itemAt(q)))])))
+    const pair = here('take-merge', (id) => partial(id) && ids.some((q) => q !== id && partial(q) && fits([...keysOf(contentsOf(itemAt(id))), ...keysOf(contentsOf(itemAt(q)))])))
     if (pair) return pair
-    // Ce qui manque aux bons (du plus ancien au plus récent) : à sa caisse, si elle est dans sa zone.
+    // Ce qui manque aux bons (du plus ancien au plus récent) : à sa caisse.
     const have = new Map()
     const count = (ing) => have.set(ing, (have.get(ing) ?? 0) + 1)
     for (const it of Object.values(state.items)) {

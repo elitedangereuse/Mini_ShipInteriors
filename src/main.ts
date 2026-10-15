@@ -2373,27 +2373,34 @@ let messKitchen: Deck | null = null
 let messBefore: { heading: number; zoom: number } | null = null
 /**
  * La vue de la cuisine : presque à la verticale, du côté de la passe (le nord), les postes du mur
- * du fond face à soi ; assez plongeante pour qu'aucun comptoir ne cache un cuisinier.
+ * du fond face à soi ; assez plongeante pour qu'aucun comptoir ne cache un cuisinier. Fixe, comme
+ * dans Overcooked : toute la cuisine, toujours au même endroit de l'écran.
  */
 const KITCHEN_ELEVATION = THREE.MathUtils.degToRad(62)
 /**
- * Ce que la vue du dessus montre de la cuisine (m) : la cuisine seule (sans la salle du self),
- * presque entière, autour du cuisinier (la vue le suit sans sortir des murs, cf.
- * MessRushClient.focus) ; la file des clients passe en bas de l'écran.
+ * Ce que la vue du dessus montre de la pièce (m) : toute la cuisine, ses murs et la file des clients
+ * (en bas de l'écran), autour de son milieu (cf. MessRushClient.focus).
  */
-const KITCHEN_SPAN = { width: 7.6, depth: 4.9 }
+const KITCHEN_SPAN = { width: 10.1, depth: 6.0 }
 /**
- * Place que prennent le bandeau (en haut), et la consigne et les emotes (en bas), en pixels ; sur un
- * écran bas (un téléphone en paysage), une part de la hauteur au plus.
+ * Place que prennent le bandeau (en haut), la colonne des bons (à gauche) et le bas de l'écran, en
+ * pixels : la cuisine tient dans le reste, rien ne la recouvre. Sur un petit écran, une part de la
+ * taille au plus (les bons s'y font plus étroits, cf. style.css).
  */
-const KITCHEN_HUD = { top: 110, bottom: 100 }
-const kitchenHud = () => ({ top: Math.min(KITCHEN_HUD.top, innerHeight * 0.16), bottom: Math.min(KITCHEN_HUD.bottom, innerHeight * 0.13) })
-/** Le zoom qui montre toute la cuisine entre le bandeau du haut et celui du bas, sur cet écran. */
+const KITCHEN_HUD = { top: 64, bottom: 16 }
+const kitchenHud = () => ({
+  top: Math.min(KITCHEN_HUD.top, innerHeight * 0.16),
+  bottom: Math.min(KITCHEN_HUD.bottom, innerHeight * 0.04),
+  // La colonne des bons : leur largeur (cf. .mess-ticket dans style.css), et ses marges.
+  left: innerWidth >= 900 ? 210 : innerWidth > 640 ? 168 : 156,
+})
+/** Le zoom qui montre toute la cuisine dans la place que laisse l'interface, sur cet écran. */
 function kitchenZoom(): number {
   const hud = kitchenHud()
-  const free = Math.max(0.35, (innerHeight - hud.top - hud.bottom) / innerHeight)
-  const tall = (KITCHEN_SPAN.depth * Math.sin(KITCHEN_ELEVATION) + 2.2 * Math.cos(KITCHEN_ELEVATION)) / 2 / free
-  const wide = KITCHEN_SPAN.width / 2 / (innerWidth / innerHeight)
+  const freeH = Math.max(0.35, (innerHeight - hud.top - hud.bottom) / innerHeight)
+  const freeW = Math.max(0.5, (innerWidth - hud.left) / innerWidth)
+  const tall = (KITCHEN_SPAN.depth * Math.sin(KITCHEN_ELEVATION) + 2.2 * Math.cos(KITCHEN_ELEVATION)) / 2 / freeH
+  const wide = KITCHEN_SPAN.width / 2 / (innerWidth / innerHeight) / freeW
   return Math.max(tall, wide)
 }
 function kitchenDeck(): Deck {
@@ -2429,7 +2436,12 @@ const messRush = new MessRushClient({
   served: () => kitchen.addServed(),
   stowTray: () => kitchen.stowTray(),
   playing: soberUp,
-  place: (o, solids, fade) => kitchenDeck().addRuntime(o, solids, fade),
+  warm: () => {
+    const g = kitchenDeck().group
+    const shown = g.visible
+    g.visible = true
+    void renderer.compileAsync(g, iso.camera, scene).catch(() => {}).finally(() => (g.visible = shown || deck === messKitchen))
+  },
   credited: (earned, balance) => wallet.site({ earned, balance }),
   view: kitchenView,
   music: (on) => (on ? messServiceMusic.start() : messServiceMusic.stop()),
@@ -2449,7 +2461,7 @@ function kitchenView(on: boolean) {
     iso.turnTo(Math.PI, false)
     iso.zoomTo(zoom)
     const hud = kitchenHud()
-    iso.frameCenter(0, (hud.bottom - hud.top) / 2, innerHeight)
+    iso.frameCenter(hud.left / 2, (hud.bottom - hud.top) / 2, innerHeight)
     iso.settle()
     iso.locked = true
   } else if (messBefore) {
@@ -6282,6 +6294,12 @@ const PATIENCE = 15
 let patience = PATIENCE
 /** Secondes écoulées depuis le dernier essai d'un niveau qui avait peiné. */
 let sinceRetry = Infinity
+/**
+ * La densité décidée à la fin d'une image, appliquée au début de la suivante, juste avant de dessiner :
+ * changer la densité redimensionne le canevas, ce qui l'efface ; appliquée après le rendu, l'écran
+ * restait noir le temps d'une image (les « flashs noirs » en cuisine, où la densité bougeait souvent).
+ */
+let pendingDpr: number | null = null
 /** Durées des images de la seconde en cours, et le temps passé à les préparer (cf. la résolution adaptative). */
 const frameTimes = new Float32Array(256)
 const busyTimes = new Float32Array(256)
@@ -6302,6 +6320,10 @@ let frozenAt = 0
 
 function frame() {
   const frameStart = performance.now()
+  if (pendingDpr !== null) {
+    renderer.setPixelRatio(pendingDpr)
+    pendingDpr = null
+  }
   timer.update()
   const dt = Math.min(timer.getDelta(), 0.05)
   gym.update()
@@ -6814,7 +6836,7 @@ function frame() {
       if (sinceRetry < 10) patience = Math.min(240, patience * 2)
       dprCeiling = dpr - 0.25
       dpr = Math.max(floor, dpr - 0.25)
-      renderer.setPixelRatio(dpr)
+      pendingDpr = dpr
       fastWindows = 0
     } else {
       // Un essai qui tient depuis cinq minutes : la patience revient à la normale.
@@ -6823,7 +6845,7 @@ function frame() {
         fastWindows++
         if (dpr < dprCeiling && fastWindows >= 3) {
           dpr = Math.min(dprCeiling, dpr + 0.25)
-          renderer.setPixelRatio(dpr)
+          pendingDpr = dpr
           fastWindows = 0
         } else if (dprCeiling < MAX_DPR && fastWindows >= patience) {
           dprCeiling = Math.min(MAX_DPR, dprCeiling + 0.25)

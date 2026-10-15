@@ -8,20 +8,20 @@ import type { MessCrew, MessLobby, Net, ServerMessage } from '../net'
 import type { Player } from '../player'
 import { INGREDIENTS, RECIPES, type Text } from '../../shared/mess-rush-catalog.js'
 import {
-  MESS_BOUNDS, MESS_LEVEL, MESS_RETURN, RULES, STATION_BY_ID, STATION_NAMES, STATIONS, canReach, guide, ingredientState, resolveAction,
-  type Action, type Guide, type Item, type ServiceState, type UtensilState,
+  MESS_BOUNDS, MESS_LEVEL, MESS_RETURN, RULES, STATION_BY_ID, STATION_NAMES, STATIONS, ingredientState, resolveAction,
+  type Action, type Item, type ServiceState, type UtensilState,
 } from '../../shared/mess-rush.js'
-import { KitchenProps, stateLabel, type PlaceOnDeck } from './props'
+import { KitchenProps, stateLabel } from './props'
 import { MessQueue } from './queue'
 import { MessEndScreen, MessHud, MessPanel, type MessWeek } from './ui'
 
 /*
  * MESS RUSH côté joueur (cf. docs/mess-rush.md) : le salon au rail des bons du mess, l'entrée dans
  * la cuisine instanciée, les postes (une seule touche, E ou Espace, comme dans Overcooked : elle fait
- * ce qu'il y a à faire au poste qu'on regarde, selon ce qu'on tient), les postes de sa zone seulement
- * quand la cuisine est cloisonnée, les flèches et la consigne du guidage, la file des clients, les
- * sons de la cuisine, le bandeau du service, l'écran de fin, et la reprise après une coupure (le
- * ticket du service est gardé dans ce navigateur).
+ * ce qu'il y a à faire au poste qu'on regarde, selon ce qu'on tient), la file des clients, les sons
+ * de la cuisine, le bandeau du service (les bons et leur recette : c'est aux joueurs de s'organiser,
+ * rien ne leur dit quoi faire), l'écran de fin, et la reprise après une coupure (le ticket du service
+ * est gardé dans ce navigateur).
  *
  * Le relais fait autorité : on ne fait qu'envoyer ce qu'on veut faire, et l'on dessine l'état qu'il
  * renvoie. Les invites, elles, se calculent ici, avec la même fonction que l'arbitre
@@ -30,58 +30,8 @@ import { MessEndScreen, MessHud, MessPanel, type MessWeek } from './ui'
 
 const text = (t: Text) => (EN ? t.en : t.fr)
 
-/**
- * Le milieu de la cuisine, un peu vers la file des clients (le bas de l'écran, que les emotes et la
- * consigne recouvrent en partie) : la vue du dessus s'y tient, en suivant un peu le cuisinier (cf. `focus`).
- */
-const KITCHEN_CENTER = { x: (MESS_BOUNDS.minX + MESS_BOUNDS.maxX) / 2, z: (MESS_BOUNDS.minZ + MESS_BOUNDS.maxZ) / 2 - 0.2 }
-/**
- * La vue, plus serrée que la pièce (cf. KITCHEN_SPAN dans main.ts), suit le cuisinier à moitié, et
- * jamais plus loin du milieu que ce qui garde les murs à l'écran (m, en x et en z).
- */
-const FOLLOW = { share: 0.5, x: 0.95, z: 0.35 }
-
-/** La consigne du bandeau, courte, d'après le guidage (cf. `guide` dans shared/mess-rush.js). */
-function hintText(g: Guide | null): string {
-  if (!g) return ''
-  const ing = g.ing ? text(INGREDIENTS[g.ing].short) : ''
-  switch (g.step) {
-    case 'fetch': return tr(`Prenez : ${ing}`, `Grab: ${ing}`)
-    case 'prep': return tr(`À couper : ${ing}`, `To chop: ${ing}`)
-    case 'work': return tr(`Coupez : ${ing}`, `Chop: ${ing}`)
-    case 'cook': return tr(`Au feu : ${ing}`, `On the heat: ${ing}`)
-    case 'plate': return tr(`Dans l'assiette : ${ing}`, `Onto the plate: ${ing}`)
-    case 'put': return tr(ing ? `Posez-le près des assiettes : ${ing}` : 'Posez-le', ing ? `Put it by the plates: ${ing}` : 'Put it down')
-    case 'take-plate': return tr('C\'est prêt : une assiette !', 'It\'s ready: grab a plate!')
-    case 'need-plate': return tr('C\'est prêt, mais plus d\'assiettes : la vaisselle !', 'It\'s ready, but no plates left: do the dishes!')
-    case 'fill-plate':
-    case 'complete': return tr('Dressez l\'assiette', 'Plate it up')
-    case 'merge': return tr('Versez votre assiette dans l\'autre', 'Pour your plate into the other one')
-    case 'take-merge': return tr('Réunissez ces deux assiettes', 'Merge these two plates')
-    case 'wait':
-    case 'hold': return tr('Posez l\'assiette en attendant la suite', 'Put the plate down until the rest is ready')
-    case 'deliver': return tr('À la passe !', 'To the pass!')
-    case 'take-dish': return tr('Un plat est prêt : servez-le', 'A dish is ready: serve it')
-    case 'take': return tr(`Pour vous : ${ing}`, `For you: ${ing}`)
-    case 'trash': return tr('Ça ne sert à aucun bon : poubelle', 'No ticket needs that: bin it')
-    case 'wash': return tr('À la plonge !', 'To the sink!')
-    case 'take-dirty': return tr('Vaisselle sale au retour', 'Dirty plates are back')
-    case 'empty': return tr('C\'est brûlé : videz-le', 'It\'s burnt: empty it')
-    case 'clean': return tr('Plateau renversé : nettoyez la passe', 'Spilled tray: clean the pass')
-    case 'shoo': return tr('Comète est sur le plan : chassez-le !', 'Comète is on the counter: shoo him!')
-    case 'handoff': return tr(`Passez-le à l'équipe${ing ? ` : ${ing}` : ''}`, `Hand it to the team${ing ? `: ${ing}` : ''}`)
-  }
-  return ''
-}
-
-/** L'annonce des imprévus (cf. EVENT_KINDS dans shared/mess-rush.js). */
-const INCIDENTS: Record<string, string> = {
-  spill: tr('Un plateau renversé sur la passe : nettoyez-la !', 'A tray spilled on the pass: clean it!'),
-  cat: tr('Comète a sauté sur un plan : chassez-le avant qu\'il ne mange tout !', 'Comète jumped on a counter: shoo him before he eats it all!'),
-  overheat: tr('Surchauffe des fourneaux : tout cuit, et brûle, plus vite !', 'The ranges are overheating: everything cooks, and burns, faster!'),
-  rush: tr('Coup de feu : deux bons d\'un coup !', 'Rush hour: two tickets at once!'),
-  vip: tr('L\'amiral est à bord : son bon rapporte double, mais il est pressé !', 'The admiral is aboard: their ticket pays double, but they\'re in a hurry!'),
-}
+/** Le milieu de la pièce, file des clients comprise : la vue du dessus s'y tient, fixe (cf. `focus`). */
+const KITCHEN_CENTER = { x: (MESS_BOUNDS.minX + MESS_BOUNDS.maxX) / 2, z: (MESS_BOUNDS.minZ + MESS_BOUNDS.maxZ) / 2 }
 
 /** L'invite de la touche, d'après ce qu'elle fera (cf. resolveAction). */
 function actionLabel(a: Action, held: string, slot: string): string {
@@ -154,10 +104,8 @@ async function fetchWeek(): Promise<MessWeek | null> {
 
 /** Ce que disent les refus du relais. */
 const REFUSED: Record<string, string> = {
-  far: tr('Trop loin du poste.', 'Too far from the station.'),
   busy: tr('Quelqu\'un y travaille déjà.', 'Someone is already working there.'),
   nomatch: tr('Aucune commande n\'attend ce plat.', 'No order is waiting for this dish.'),
-  state: tr('Rien à faire ici pour l\'instant.', 'Nothing to do here right now.'),
   over: tr('Le service est terminé.', 'The service is over.'),
 }
 
@@ -193,8 +141,8 @@ export interface MessRushHost {
   stowTray: () => boolean
   /** Le service commence pour ce joueur : les effets des cocktails de Jacques s'arrêtent (cf. src/bar.ts). */
   playing: () => void
-  /** Pose un objet sur le pont de la cuisine, avec ses collisions (les cloisons, cf. Deck.addRuntime). */
-  place: PlaceOnDeck
+  /** Prépare les shaders de la cuisine (au salon, pendant qu'on attend), cf. renderer.compileAsync. */
+  warm: () => void
   /** Les crédits confirmés par le site arrivent au portefeuille. */
   credited: (earned: number, balance: number) => void
   /**
@@ -228,8 +176,7 @@ export class MessRushClient {
   private working: string | null = null
   /** Ce qu'on tenait au dernier état reçu (un son quand on prend ou pose). */
   private holding: string | null = null
-  /** Les postes qu'on atteint (de sa zone), tels qu'on les a donnés à viser ; et le centre de la vue. */
-  private reachKey = ''
+  /** Le centre de la vue. */
   private readonly center = new THREE.Vector3()
   private readonly panel: MessPanel
   private readonly hud: MessHud
@@ -312,7 +259,6 @@ export class MessRushClient {
         this.game.members = m.members
         this.game.offset = m.now - Date.now()
         this.props?.sync(m.state)
-        if (this.phase === 'kitchen') this.arrange()
         // Prendre, poser : un petit son, d'après ce que le relais a accepté.
         const hand = m.state.hands[this.game.you] ?? null
         if (hand !== this.holding && this.phase === 'kitchen') this.host.sound.ui(hand ? 'pick' : 'drop')
@@ -323,7 +269,8 @@ export class MessRushClient {
         if (m.game === this.game?.id) for (const e of m.events) this.event(e)
         break
       case 'mess:refused':
-        if (m.game === this.game?.id) this.hud.toast(REFUSED[m.code] ?? REFUSED.state, 'info')
+        // Seuls les refus qui apprennent quelque chose (le reste se lit dans l'invite) : pas de bruit pour rien.
+        if (m.game === this.game?.id && (m.code === 'nomatch' || m.code === 'over')) this.hud.toast(REFUSED[m.code], 'info')
         break
       case 'mess:left':
         if (m.game === this.game?.id) {
@@ -353,7 +300,7 @@ export class MessRushClient {
     if (t && this.host.net.online && !this.game) this.host.net.sendMess('resume', t)
   }
 
-  /** Ce qui se passe en cuisine : un mot au-dessus des bons, et un son. */
+  /** Ce qui se passe en cuisine : un son, et un mot discret dans le coin pour l'essentiel (servi, raté, mangé, l'équipe). */
   private event(e: { kind: string; by?: string; recipe?: string; points?: number; combo?: number; penalty?: number; station?: string; process?: string; wait?: number; count?: number; event?: string; vip?: boolean; ing?: string }) {
     // Le plat d'un bon, à sa couleur.
     const dish = e.recipe ? RECIPES[e.recipe] : null
@@ -365,20 +312,16 @@ export class MessRushClient {
     }
     switch (e.kind) {
       case 'served':
-        this.hud.toast(`+${e.points} · ${text(dish!.name)}${e.vip ? tr(' · l\'amiral est ravi', ' · the admiral is delighted') : ''}${me ? '' : ` · ${who(e.by)}`}${(e.combo ?? 0) > 1 ? ` · combo ×${e.combo}` : ''}`, 'good', dish!.color)
+        this.hud.toast(`+${e.points} · ${text(dish!.name)}${(e.combo ?? 0) > 1 ? ` · ×${e.combo}` : ''}`, 'good', dish!.color)
         this.host.sound.play('ding', this.host.player.position, { volume: 0.5 })
         this.host.sound.credits((e.combo ?? 0) > 2)
         if (me) this.host.served()
         break
       case 'expired':
-        this.hud.toast(tr(`Le client s'en va, fâché : ${text(dish!.name)} (−${e.penalty})`, `The customer storms off: ${text(dish!.name)} (−${e.penalty})`), 'bad', dish!.color)
+        this.hud.toast(`−${e.penalty} · ${text(dish!.name)}`, 'bad', dish!.color)
         this.host.sound.kitchen('expired', null)
         break
-      case 'cleared':
-        this.hud.toast(tr(`Ce qu'on préparait pour ce bon part à la poubelle (${e.count}).`, `What was being made for that ticket goes in the bin (${e.count}).`), 'info')
-        break
       case 'order':
-        this.hud.toast(tr(`Un client au comptoir : ${text(dish!.name)}`, `A customer at the counter: ${text(dish!.name)}`), 'info', dish!.color)
         this.host.sound.kitchen('order', null)
         break
       case 'prepared':
@@ -395,7 +338,6 @@ export class MessRushClient {
         this.host.sound.kitchen('bell', at(e.station))
         break
       case 'burnt':
-        this.hud.toast(tr('Ça a brûlé ! Videz l\'ustensile.', 'It burnt! Empty the pot.'), 'bad')
         this.host.sound.kitchen('expired', at(e.station))
         this.host.sound.work('hiss', at(e.station))
         break
@@ -406,46 +348,34 @@ export class MessRushClient {
         this.host.sound.kitchen('trash', at(e.station))
         break
       case 'wasted':
-        if (me) {
-          this.hud.toast(tr('À la poubelle.', 'Binned.'), 'info')
-          this.host.sound.kitchen('trash', this.host.player.position)
-        }
+        if (me) this.host.sound.kitchen('trash', this.host.player.position)
         break
       case 'merged':
         // Deux assiettes réunies : le petit bruit d'une assiette posée.
-        if (me) this.hud.toast(tr('Les deux assiettes n\'en font plus qu\'une.', 'The two plates are now one.'), 'good')
         this.host.sound.kitchen('ready', at(e.station))
         break
       case 'emptied':
-        if (me) this.hud.toast(tr('Vidé : c\'est perdu.', 'Emptied: it\'s lost.'), 'info')
         this.host.sound.kitchen('trash', at(e.station))
         break
       case 'event':
-        // Un imprévu : le bandeau le tient affiché (cf. MessHud) ; ici, l'annonce et son bruit.
-        if (e.event && INCIDENTS[e.event]) this.hud.toast(INCIDENTS[e.event], 'bad')
+        // Un imprévu : le bandeau du haut le tient affiché (cf. MessHud) ; ici, son bruit.
         if (e.event === 'cat') this.host.sound.meow(at(e.station))
         else if (e.event === 'overheat') this.host.sound.work('hiss', this.host.player.position)
         else if (e.event === 'spill') this.host.sound.kitchen('trash', at(e.station ?? 'passe'))
         else this.host.sound.kitchen('order', null)
         break
       case 'event-end':
-        if (e.event === 'overheat') this.hud.toast(tr('Les fourneaux refroidissent.', 'The ranges cool down.'), 'good')
-        else if (e.event === 'spill') {
-          this.hud.toast(tr(`Passe nettoyée${e.by && !me ? ` par ${who(e.by)}` : ''} : on peut servir.`, `Pass cleaned${e.by && !me ? ` by ${who(e.by)}` : ''}: you can serve.`), 'good')
+        if (e.event === 'spill') {
           if (me) this.working = null
           this.host.sound.kitchen('ready', this.host.player.position)
         }
         break
       case 'shooed':
-        this.hud.toast(tr(`${me ? 'Vous chassez' : `${who(e.by)} chasse`} Comète du comptoir.`, `${me ? 'You shoo' : `${who(e.by)} shoos`} Comète off the counter.`), 'good')
         this.host.sound.meow(at(e.station))
         break
       case 'eaten':
-        this.hud.toast(tr(`Comète a mangé : ${text(INGREDIENTS[e.ing!].short)}.`, `Comète ate: ${text(INGREDIENTS[e.ing!].short)}.`), 'bad')
+        this.hud.toast(tr(`Comète a mangé : ${text(INGREDIENTS[e.ing!].short)}`, `Comète ate: ${text(INGREDIENTS[e.ing!].short)}`), 'bad')
         this.host.sound.work('munch', at(e.station))
-        break
-      case 'open':
-        this.hud.toast(tr('Un cuisinier est parti : les cloisons tombent, toute la cuisine est à vous.', 'A cook has left: the partitions come down, the whole kitchen is yours.'), 'info')
         break
       case 'away':
         this.hud.toast(tr(`${who(e.by)} a perdu la liaison : sa place l'attend une minute.`, `${who(e.by)} lost the link: their place waits a minute.`), 'info')
@@ -473,8 +403,10 @@ export class MessRushClient {
     this.ready ??= loadPack(FOOD_PACK).then(() => {
       const kitchen = this.host.kitchenDeck()
       this.bindStations(kitchen)
-      this.props = new KitchenProps(kitchen.group, this.host.place)
+      this.props = new KitchenProps(kitchen.group)
       this.queue = new MessQueue(kitchen.group)
+      // Les shaders de la cuisine se préparent maintenant, au salon : pas d'à-coup en plein service.
+      this.host.warm()
       return this.props
     }, (e) => {
       this.ready = null
@@ -507,7 +439,7 @@ export class MessRushClient {
       if (!this.game || this.game.id !== id) return
     }
     props.sync(this.game.state)
-    this.reachKey = ''
+    props.show()
     this.arrange()
     // En cuisine, on a les mains libres : le plateau du self repart au chariot.
     const stowed = this.host.stowTray()
@@ -541,30 +473,18 @@ export class MessRushClient {
     }
   }
 
-  /**
-   * Le plan de la cuisine a pu changer (début du service, cloisons tombées) : les cloisons et les
-   * repères, et les postes qu'on vise, ceux qu'on atteint de sa zone.
-   */
+  /** Le service commence : tous les postes deviennent des objets qu'on vise (une fois). */
   private arrange() {
-    if (!this.game) return
-    const { state, you } = this.game
-    this.props?.layout(state, you)
-    const reach = [...this.stationItems].filter(([, id]) => canReach(state, you, id))
-    const key = reach.map(([, id]) => id).join(',')
-    if (key === this.reachKey) return
-    this.reachKey = key
-    const list = this.host.kitchenDeck().interactables
-    for (let i = list.length - 1; i >= 0; i--) if (this.stationItems.has(list[i])) list.splice(i, 1)
-    list.push(...reach.map(([it]) => it))
+    if (this.armed) return
+    this.armed = true
+    this.host.kitchenDeck().interactables.push(...this.stationItems.keys())
   }
+  private armed = false
 
-  /** La vue du dessus : le milieu de la cuisine, tiré vers le cuisinier (null : hors de la cuisine). */
+  /** La vue du dessus, fixe : le milieu de la cuisine (null : hors de la cuisine). */
   get focus(): THREE.Vector3 | null {
     if (!this.inKitchen) return null
-    const p = this.host.player.position
-    const dx = THREE.MathUtils.clamp((p.x - KITCHEN_CENTER.x) * FOLLOW.share, -FOLLOW.x, FOLLOW.x)
-    const dz = THREE.MathUtils.clamp((p.z - KITCHEN_CENTER.z) * FOLLOW.share, -FOLLOW.z, FOLLOW.z)
-    return this.center.set(KITCHEN_CENTER.x + dx, this.host.kitchenDeck().y, KITCHEN_CENTER.z + dz)
+    return this.center.set(KITCHEN_CENTER.x, this.host.kitchenDeck().y, KITCHEN_CENTER.z)
   }
 
   /** Retour au vrai mess (fin du service, abandon, coupure). */
@@ -579,10 +499,10 @@ export class MessRushClient {
     this.game = null
     this.holding = null
     // Plus de poste à viser au mess d'à côté : la cuisine attend le prochain service.
-    if (this.reachKey) {
+    if (this.armed) {
       const list = this.host.kitchenDeck().interactables
       for (let i = list.length - 1; i >= 0; i--) if (this.stationItems.has(list[i])) list.splice(i, 1)
-      this.reachKey = ''
+      this.armed = false
     }
     if (wasIn) this.host.view(false)
     if (wasIn && this.host.deck() === this.host.kitchenDeck()) {
@@ -629,8 +549,8 @@ export class MessRushClient {
   }
 
   /**
-   * Le poste visé, à portée de main et de sa zone : celui qu'on regarde, comme dans Overcooked.
-   * Sans cela, devant une poêle, on visait le passe-plat ou le bac de la cloison voisine, plus près.
+   * Le poste visé, à portée de main : celui qu'on regarde, comme dans Overcooked. Sans cela, devant
+   * une poêle, on visait le comptoir voisin, plus près.
    * Un poste de côté compte jusqu'à deux fois sa distance, un poste dans le dos trois fois ; un poste
    * où la touche ne ferait rien compte un mètre de plus (une seule touche : elle va à ce qui sert).
    */
@@ -641,7 +561,7 @@ export class MessRushClient {
     let best: string | null = null
     let bestScore = Infinity
     for (const s of STATIONS) {
-      if (!this.game || !canReach(this.game.state, this.game.you, s.id)) continue
+      if (!this.game) continue
       const dx = s.x - p.x, dz = s.z - p.z
       const d = Math.hypot(dx, dz)
       if (d > 1.45) continue
@@ -704,18 +624,10 @@ export class MessRushClient {
   update() {
     if (!this.game || this.phase !== 'kitchen') return
     const now = this.serverNow()
-    const { state, members, you } = this.game
-    // Le guidage : les flèches au-dessus des postes utiles, et la consigne du bandeau.
-    const next = guide(state, you)
-    this.props?.aim(next?.stations ?? [])
-    this.hud.hint(hintText(next))
+    const { state } = this.game
     this.props?.update(state, now, (pid) => this.avatar(pid), this.host.camera())
     this.queue?.update(state, now, this.clock())
     this.hud.update(state, now)
-    this.hud.team(members.filter((m) => m.status !== 'left' && m.status !== 'gone').map((m) => {
-      const id = state.hands[m.id]
-      return { name: m.name, me: m.id === you, holding: id && state.items[id] ? itemName(state.items[id]) : '', away: m.status === 'away' }
-    }))
     // Un geste actif s'arrête quand on s'éloigne du poste (le relais le constate aussi).
     if (this.working) {
       const s = STATION_BY_ID[this.working]
