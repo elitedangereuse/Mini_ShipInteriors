@@ -11,10 +11,11 @@ import {
 } from '../shared/mess-rush.js'
 import { kitchen, must } from './mess-rush-helpers.js'
 
-/** Une partie sans imprévu (cf. mess-rush-events.test.js pour eux). */
+/** Une partie sans imprévu ni visiteur de marque (cf. mess-rush-events.test.js pour eux). */
 const service = (players, recipes) => {
   const k = kitchen(createService({ id: 'g', seed: 7, players, now: 0, ...(recipes ? { recipes } : {}) }))
   k.state.nextEventAt = undefined
+  k.state.guests = []
   return k
 }
 
@@ -67,8 +68,9 @@ test('à plusieurs, la cuisine est ouverte : chacun atteint tous les postes et c
 })
 
 test('la carte suit le nombre de joueurs', () => {
+  // Les clients du mess commandent les plats à deux ingrédients, à tous les effectifs.
+  for (const n of [1, 2, 3, 4]) assert.deepEqual(menuFor(n), SERVICE_RECIPES)
   assert.ok(!menuFor(1).includes('festin-du-bord'))
-  for (const n of [2, 3, 4]) assert.deepEqual(menuFor(n), SERVICE_RECIPES)
   assert.deepEqual(service(1).state.recipes, menuFor(1))
   // Une liste imposée (serveur de dev) reste telle quelle.
   assert.deepEqual(service(1, ['festin-du-bord']).state.recipes, ['festin-du-bord'])
@@ -105,36 +107,48 @@ test('un bon expire : ce qu\'on lui préparait disparaît, sauf ce qu\'un autre 
 })
 
 test('le guidage mène une recette de bout en bout, seul, à une seule touche', () => {
-  const k = service(1, ['crevettes-saisies'])
+  const k = service(1, ['crevettes-pommes'])
   k.waitOrder()
   const step = () => guide(k.state, 'a')
-  const ing = 'crevettes-baltahsine'
-  assert.deepEqual(step(), { step: 'fetch', stations: ['caisse-crevettes'], ing })
+  const krill = 'crevettes-baltahsine', apple = 'pommes-aerial'
+  // Les crevettes : la caisse, la planche, la poêle (ça saisit tout seul).
+  assert.deepEqual(step(), { step: 'fetch', stations: ['caisse-crevettes'], ing: krill })
   must(k.use('a', 'caisse-crevettes'))
-  assert.deepEqual(step(), { step: 'prep', stations: ['plan-1', 'plan-2', 'plan-3'], ing, process: 'couper' })
+  assert.deepEqual(step(), { step: 'prep', stations: ['plan-1', 'plan-2', 'plan-3'], ing: krill, process: 'couper' })
   must(k.use('a', 'plan-2'))
-  assert.deepEqual(step(), { step: 'work', stations: ['plan-2'], ing, process: 'couper' })
+  assert.deepEqual(step(), { step: 'work', stations: ['plan-2'], ing: krill, process: 'couper' })
   must(k.use('a', 'plan-2'))
   k.advance(PROCESSES.couper.duration + 0.1)
-  assert.deepEqual(step(), { step: 'take', stations: ['plan-2'], ing })
+  assert.deepEqual(step(), { step: 'take', stations: ['plan-2'], ing: krill })
   must(k.use('a', 'plan-2'))
-  assert.deepEqual(step(), { step: 'cook', stations: ['poele-1', 'poele-2'], ing, process: 'saisir' })
+  assert.deepEqual(step(), { step: 'cook', stations: ['poele-1', 'poele-2'], ing: krill, process: 'saisir' })
   must(k.use('a', 'poele-1'))
-  // Ça saisit tout seul : rien à faire en attendant.
-  assert.equal(step(), null)
-  k.advance(PROCESSES.saisir.duration + 0.1)
+  // Pendant que ça saisit : la pomme, coupée, qui se sert crue.
+  assert.deepEqual(step(), { step: 'fetch', stations: ['caisse-pommes'], ing: apple })
+  must(k.use('a', 'caisse-pommes'))
+  must(k.use('a', step().stations[0]))
+  must(k.use('a', step().stations[0]))
+  k.advance(PROCESSES.couper.duration + 0.1)
+  // La pomme est prête, et les crevettes saisies : une assiette, la pomme, les crevettes, la passe.
+  k.advance(PROCESSES.saisir.duration)
   assert.deepEqual(step(), { step: 'take-plate', stations: ['assiettes'] })
   must(k.use('a', 'assiettes'))
-  assert.deepEqual(step(), { step: 'fill-plate', stations: ['poele-1'] })
-  must(k.use('a', 'poele-1'))
+  assert.equal(step().step, 'fill-plate')
+  must(k.use('a', step().stations[0]))
+  assert.equal(step().step, 'complete')
+  must(k.use('a', step().stations[0]))
   assert.deepEqual(step(), { step: 'deliver', stations: ['passe'] })
+  must(k.use('a', 'passe'))
+  assert.equal(k.state.served, 1)
   // Une assiette qui ne correspond à rien : à la poubelle.
-  k.state.items[k.state.hands.a].contents = [['legumes', 'cuit']]
+  must(k.use('a', 'assiettes'))
+  k.state.items[k.state.hands.a].contents = [['legumes', 'cuit'], ['lapin-ceti', 'brûlé']]
+  k.waitOrder()
   assert.equal(step().step, 'trash')
 })
 
 test('la vaisselle : quand la pile est vide, le guidage envoie laver', () => {
-  const k = service(1, ['crevettes-saisies'])
+  const k = service(1, ['crevettes-pommes'])
   k.waitOrder()
   k.state.stations.assiettes.count = 0
   k.state.stations.retour.count = 2
@@ -153,21 +167,18 @@ test('la vaisselle : quand la pile est vide, le guidage envoie laver', () => {
 })
 
 test('à plusieurs, les robots se répartissent les postes : jamais deux à la même planche', () => {
-  const k = service(3, ['bouillon-legumes'])
+  const k = service(2, ['ragout-lapin'])
   k.waitOrder()
-  for (const pid of ['a', 'b', 'c']) {
-    const g = guide(k.state, pid)
-    if (g?.stations.length) must(k.use(pid, g.stations[0]), pid)
-  }
-  // Trois légumes, trois cuisiniers : chacun le sien, puis chacun sa planche.
-  assert.deepEqual(['a', 'b', 'c'].map((p) => k.state.items[k.state.hands[p]]?.ing), ['legumes', 'legumes', 'legumes'])
-  for (const pid of ['a', 'b', 'c']) must(k.use(pid, guide(k.state, pid).stations[0]), pid)
-  for (const pid of ['a', 'b', 'c']) {
+  // Le lapin pour l'un, les légumes pour l'autre ; puis chacun sa planche.
+  for (const pid of ['a', 'b']) must(k.use(pid, guide(k.state, pid).stations[0]), pid)
+  assert.deepEqual(['a', 'b'].map((p) => k.state.items[k.state.hands[p]]?.ing).sort(), ['lapin-ceti', 'legumes'])
+  for (const pid of ['a', 'b']) must(k.use(pid, guide(k.state, pid).stations[0]), pid)
+  for (const pid of ['a', 'b']) {
     const g = guide(k.state, pid)
     assert.equal(g.step, 'work')
     must(k.use(pid, g.stations[0]), pid)
   }
-  assert.equal(new Set(Object.values(k.state.work).map((w) => w.station)).size, 3)
+  assert.equal(new Set(Object.values(k.state.work).map((w) => w.station)).size, 2)
 })
 
 test('chaque recette de la carte : chaque geste a son poste', () => {

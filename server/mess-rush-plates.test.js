@@ -6,11 +6,12 @@ import { test } from 'node:test'
 import { RULES, createService, guide, resolveAction } from '../shared/mess-rush.js'
 import { cookRecipe, kitchen, must } from './mess-rush-helpers.js'
 
-/** Une partie sans imprévu. */
+/** Une partie sans imprévu ni visiteur de marque. */
 const service = (players, recipes) => {
   const members = ['a', 'b', 'c', 'd'].slice(0, players)
   const k = kitchen(createService({ id: 'g', seed: 7, players, now: 0, members, ...(recipes ? { recipes } : {}) }))
   k.state.nextEventAt = undefined
+  k.state.guests = []
   return k
 }
 const plate = (k, id, contents) => (k.state.items[id] = { id, kind: 'plate', contents })
@@ -70,13 +71,13 @@ test('le guidage fait réunir deux assiettes entamées qui font un plat', () => 
 })
 
 test('la vaisselle : la pile est limitée, l\'assiette servie revient sale, on la lave à la plonge', () => {
-  const k = service(1, ['pommes-aerial'])
+  const k = service(1, ['lapin-pommes'])
   k.waitOrder()
   const rack = k.state.stations.assiettes
   const back = k.state.stations.retour
   const sink = k.state.stations.plonge
   assert.equal(rack.count, RULES.plates[1])
-  cookRecipe(k, 'a', 'pommes-aerial')
+  cookRecipe(k, 'a', 'lapin-pommes')
   assert.equal(rack.count, RULES.plates[1] - 1)
   // Elle revient au retour de vaisselle un peu plus tard.
   k.advance(RULES.plateReturn - 0.2)

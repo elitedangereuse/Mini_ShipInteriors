@@ -982,3 +982,82 @@ Aucun bon n'expire, rien ne brûle. Les médailles sont recalées à environ 30,
 - Le trajet des caisses du milieu du mur ouest jusqu'à une planche (deux à trois pas).
 - À quatre dans une cuisine ouverte : les bousculades devant les planches et la plonge.
 - La lisibilité des aliments coupés (en morceaux) dans les mains et sur les comptoirs.
+
+## Mise à jour 2.2
+
+Retours après les essais de la 2.1 : voir les aliments sur les postes, des plats à deux ou trois
+ingrédients différents, des visiteurs de marque tirés de l'équipage, et des imprévus mieux répartis.
+
+### Les icônes des aliments
+
+Chaque aliment a son icône (`foodTag` dans props.ts) : une pastille ronde cerclée de sa couleur,
+son image et, en bas à droite, le repère de ce qu'on lui a fait (couteau : coupé, marmite : cuit,
+flamme : saisi ; noircie une fois brûlé). Tant qu'un aliment est sur un poste (planche, marmite,
+poêle, comptoir, ou dans une assiette posée), son icône s'affiche à côté de la pastille du poste
+(centrée sur un comptoir, qui n'en a pas) ; elle part avec lui. On suit ainsi chaque aliment depuis
+sa caisse.
+
+### Les recettes
+
+Plus de plat au même ingrédient répété (le bouillon aux trois légumes) ni à un seul ingrédient :
+chaque plat réunit des ingrédients tous différents.
+
+| Pour qui | Plats |
+|---|---|
+| Les clients du mess : deux ingrédients (`SERVICE_RECIPES`) | ragoût de lapin (lapin, légumes), riz aux crevettes (riz, crevettes), crevettes aux pommes, lapin aux pommes, riz aux légumes |
+| Les visiteurs de marque : trois ingrédients (`GUEST_RECIPES`) | festin du bord (riz, crevettes, pommes), pot-au-feu de Ceti (lapin, légumes, riz), assiette du commandant (lapin, légumes, crevettes), jardin d'Aerial (légumes, riz, pommes) |
+
+### Les visiteurs de marque
+
+L'amiral disparaît. À chaque service, entre quatre et cinq personnages du vaisseau viennent manger
+(`RULES.guests`, `planGuests`) : tous différents, tirés au sort, un par tranche du service (de 30 s
+après le début à 55 s avant la fin). Chacun commande son plat préféré, à trois ingrédients, qui
+rapporte deux fois plus ; il arrive à son heure même quand la file est pleine.
+
+| Visiteur | Rôle | Plat |
+|---|---|---|
+| Chef Marcel | le chef du mess | pot-au-feu de Ceti |
+| Betty | l'infirmière | jardin d'Aerial |
+| Nico | le mécanicien du hangar | assiette du commandant |
+| Capucine | la jardinière de la serre | jardin d'Aerial |
+| Sergent Rourke | la sécurité du bord | assiette du commandant |
+| Odile | la contrôleuse de la zone | festin du bord |
+| Gaspard | le technicien de la baie | pot-au-feu de Ceti |
+| Tessa | l'arbitre de l'arène | festin du bord |
+| Kael | le chef des Scavengers | assiette du commandant |
+
+Son bon a sa propre carte : cerclée d'or, un bandeau à sa couleur, son portrait (son pictogramme),
+son nom et son rôle, le bonus « ×2 », la recette, et un mot de lui en bas. Dans la file, il vient
+sous ses traits du bord (`chefRig`, `nurseRig`, `mechanicRig`… ; le sergent laisse son fusil au
+râtelier), sa bulle à sa couleur, cerclée d'or. Son arrivée s'annonce dans le coin. Sur le serveur
+de dev, `__game.net.sendMess('debug', { guest: true })` fait venir le prochain tout de suite.
+
+Au passage, les clients ordinaires ne se partagent plus un même modèle quand deux ont la même tenue
+(le second « volait » le corps du premier).
+
+### Les imprévus
+
+Le coup de feu, le plateau renversé, la surchauffe et Moustache ont la même chance d'être tirés ;
+chaque fois qu'un imprévu est déjà survenu dans la partie, sa chance est multipliée par 0,35
+(`RULES.events.repeat`, `eventCounts`). Le même imprévu deux fois de suite tombe à moins d'une fois
+sur dix. Le chat de l'imprévu est désormais Moustache, la chatte noire du labo du L.J.P.C., celle
+qui vient mendier chez Marcel : chargée avec sa robe noire.
+
+### L'équilibrage
+
+Mesuré avec les robots du guidage (sans trajets, imprévus et visiteurs compris, six graines) :
+
+| Joueurs | Plats servis | Score | Part des gestes |
+|---|---|---|---|
+| 1 | 14,0 | 2 346 | — |
+| 2 | 22,7 | 3 248 | 51 / 49 % |
+| 3 | 27,3 | 3 676 | 36 / 33 / 31 % |
+| 4 | 30,0 | 3 916 | 29 / 27 / 24 / 21 % |
+
+Tous les visiteurs sont servis, aucun bon n'expire. Les médailles sont recalées à environ 30, 50 et
+70 % de ces scores.
+
+### À confirmer en jeu (2.2)
+
+- La place des icônes d'aliments sur les postes voisins (le comptoir du nord, serré).
+- Le rythme des visiteurs : quatre ou cinq plats à trois ingrédients, en plus des clients.

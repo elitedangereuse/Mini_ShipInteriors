@@ -13,7 +13,7 @@
 // que l'arbitre). Les fonctions qui le changent sont pures, à l'horloge près (`now`, en ms), que
 // l'appelant fournit.
 
-import { DIFFICULTIES, INGREDIENTS, PROCESSES, RECIPES, SERVICE_RECIPES } from './mess-rush-catalog.js'
+import { DIFFICULTIES, GUESTS, GUEST_RECIPES, INGREDIENTS, PROCESSES, RECIPES, SERVICE_RECIPES } from './mess-rush-catalog.js'
 
 /** « Pont » de la cuisine de MESS RUSH : une instance hors des ponts du vaisseau. */
 export const MESS_LEVEL = -6
@@ -166,8 +166,10 @@ const UTENSILS = ['pot', 'pan']
  *   est cuit ne brûle (marmite, poêle), et l'alerte avant (`warn`) ;
  * - vaisselle : les assiettes au départ (selon le nombre de joueurs), le temps avant qu'une
  *   assiette servie ne revienne sale, le temps pour en laver une ;
- * - commandes : première commande, recettes complexes, rythme et carte selon le nombre de joueurs
- *   (`without` : les recettes qu'on ne sert pas à ce nombre) ;
+ * - commandes : première commande, rythme selon le nombre de joueurs (`without` : des recettes
+ *   qu'on ne servirait pas à ce nombre) ;
+ * - visiteurs de marque : combien par service, quand (`from` après le début, `until` avant la fin),
+ *   et combien leur plat rapporte de plus ;
  * - score : bonus de rapidité (part du délai restant → bonus), combo, pénalité d'expiration ;
  * - médailles : seuils selon le nombre de joueurs, [bronze, argent, or]. Bronze = victoire.
  */
@@ -188,13 +190,16 @@ export const RULES = {
   plateReturn: 7,
   wash: 1.5,
   firstOrder: 3,
-  complexAfter: 120,
   byPlayers: {
-    1: { maxOrders: 2, every: 25, timeScale: 1.4, without: ['festin-du-bord'] },
-    2: { maxOrders: 3, every: 20, timeScale: 1.4, without: [] },
-    3: { maxOrders: 4, every: 16, timeScale: 1.35, without: [] },
-    4: { maxOrders: 5, every: 13, timeScale: 1.3, without: [] },
+    1: { maxOrders: 2, every: 25, timeScale: 1.4 },
+    2: { maxOrders: 3, every: 20, timeScale: 1.4 },
+    3: { maxOrders: 4, every: 16, timeScale: 1.35 },
+    4: { maxOrders: 5, every: 13, timeScale: 1.3 },
   },
+  // Les visiteurs de marque (cf. GUESTS) : entre `count[0]` et `count[1]` par service, chacun
+  // différent, répartis entre `from` secondes après le début et `until` secondes avant la fin ; leur
+  // plat (trois ingrédients) rapporte `points` fois plus.
+  guests: { count: [4, 5], from: 30, until: 55, points: 2 },
   speedBonus: [[2 / 3, 0.5], [1 / 3, 0.25]],
   combo: { step: 0.1, max: 1.5 },
   expiredPenalty: 0.5,
@@ -202,16 +207,17 @@ export const RULES = {
   // (de… à…) secondes après la fin du précédent, jamais dans les `quiet` dernières. Le plateau
   // renversé se nettoie en `clean` secondes ; le chat mange ce qu'il convoite au bout de `cat`
   // secondes, si personne ne le chasse ; la surchauffe dure `overheat.time` secondes et fait tout
-  // cuire (et brûler) `overheat.speed` fois plus vite ; le bon de l'amiral rapporte `vip.points`
-  // fois plus en `vip.time` fois moins de temps.
-  events: { first: 50, every: [30, 45], quiet: 20, clean: 2.5, cat: 7, overheat: { time: 15, speed: 1.7 }, vip: { points: 2, time: 0.75 } },
+  // cuire (et brûler) `overheat.speed` fois plus vite. Le tirage : chaque imprévu a la même chance,
+  // multipliée par `repeat` à chaque fois qu'il est déjà survenu dans la partie.
+  events: { first: 50, every: [30, 45], quiet: 20, clean: 2.5, cat: 7, overheat: { time: 15, speed: 1.7 }, repeat: 0.35 },
   // Les médailles : environ 30, 50 et 70 % de ce que font des robots qui suivent le guidage sans
-  // jamais marcher (cf. server/mess-rush-kitchens.test.js), dans la cuisine ouverte.
+  // jamais marcher (cf. server/mess-rush-kitchens.test.js), dans la cuisine ouverte, visiteurs de
+  // marque compris.
   medals: {
-    1: [345, 570, 800],
-    2: [600, 1000, 1400],
-    3: [705, 1175, 1650],
-    4: [815, 1360, 1905],
+    1: [700, 1170, 1640],
+    2: [975, 1625, 2275],
+    3: [1100, 1840, 2575],
+    4: [1175, 1960, 2740],
   },
 }
 
@@ -264,9 +270,10 @@ function random(state) {
 }
 
 /**
- * Une nouvelle partie, en service dès `now`. `recipes` : les recettes qui peuvent sortir (la carte
- * du nombre de joueurs par défaut, cf. menuFor ; les complexes, après RULES.complexAfter).
- * La cuisine est ouverte : chacun atteint tous les postes et choisit ce qu'il fait.
+ * Une nouvelle partie, en service dès `now`. `recipes` : les plats que commandent les clients du
+ * mess (la carte du nombre de joueurs par défaut, cf. menuFor) ; les visiteurs de marque, eux, ont
+ * leur programme, tiré au sort ici (`guests`, cf. planGuests). La cuisine est ouverte : chacun
+ * atteint tous les postes et choisit ce qu'il fait.
  * @param {{ id: string, seed: number, players: number, now: number, recipes?: string[], rules?: typeof RULES }} o
  */
 export function createService({ id, seed, players, now, recipes, rules = RULES }) {
@@ -279,7 +286,7 @@ export function createService({ id, seed, players, now, recipes, rules = RULES }
     else if (s.kind === 'return') stations[s.id] = { count: 0, pending: [] }
     else if (s.kind === 'sink') stations[s.id] = { count: 0, progress: 0 }
   }
-  return {
+  const state = {
     id,
     players: n,
     recipes: [...(recipes ?? menuFor(n, SERVICE_RECIPES, rules))],
@@ -291,6 +298,7 @@ export function createService({ id, seed, players, now, recipes, rules = RULES }
     orderSeq: 0,
     nextOrderAt: now + rules.firstOrder * 1000,
     event: null,
+    eventCounts: {},
     nextEventAt: now + rules.events.first * 1000,
     orders: [],
     items: {},
@@ -304,6 +312,8 @@ export function createService({ id, seed, players, now, recipes, rules = RULES }
     expired: 0,
     wasted: 0,
   }
+  state.guests = planGuests(state, rules)
+  return state
 }
 
 /** L'état d'un ingrédient : brut, puis le résultat de son dernier geste, ou de sa cuisson ; brûlé. */
@@ -594,7 +604,7 @@ export function useStation(state, pid, stationId, _pick, now, rules = RULES) {
       const remaining = Math.max(0, (order.until - now) / (order.until - order.at))
       state.combo += 1
       state.bestCombo = Math.max(state.bestCombo, state.combo)
-      const points = Math.round(base * (order.vip ? rules.events.vip.points : 1) * (1 + speedBonus(remaining, rules)) * comboMultiplier(state.combo, rules))
+      const points = Math.round(base * (order.guest ? rules.guests.points : 1) * (1 + speedBonus(remaining, rules)) * comboMultiplier(state.combo, rules))
       order.status = 'served'
       order.done = now
       order.points = points
@@ -604,7 +614,7 @@ export function useStation(state, pid, stationId, _pick, now, rules = RULES) {
       state.hands[pid] = null
       // L'assiette revient sale au retour de vaisselle, un peu plus tard.
       state.stations.retour?.pending.push(now + rules.plateReturn * 1000)
-      events.push({ kind: 'served', order: order.id, recipe: order.recipe, points, combo: state.combo, by: pid, ...(order.vip ? { vip: true } : {}) })
+      events.push({ kind: 'served', order: order.id, recipe: order.recipe, points, combo: state.combo, by: pid, ...(order.guest ? { guest: order.guest } : {}) })
       break
     }
     case 'trash':
@@ -696,14 +706,18 @@ export function clearUnneeded(state) {
  * service), annoncés à toute l'équipe. Tous se règlent en jouant, aucun ne punit sans recours :
  * - `spill` (un plateau renversé sur la passe) : plus de livraison tant qu'on ne l'a pas nettoyée
  *   (la touche, les mains vides, RULES.events.clean secondes) ;
- * - `cat` (Comète, le chat du bord, saute sur un comptoir ou une planche) : il mange ce qui s'y
- *   trouve au bout de RULES.events.cat secondes, si personne ne vient le chasser (la touche) ;
+ * - `cat` (Moustache, la chatte du labo, qui vient mendier en cuisine, saute sur un comptoir ou une
+ *   planche) : elle mange ce qui s'y
+ *   trouve au bout de RULES.events.cat secondes, si personne ne vient la chasser (la touche) ;
  * - `overheat` (surchauffe des fourneaux) : tout cuit, et brûle, plus vite un moment : il faut
  *   surveiller ses marmites ;
- * - `rush` (coup de feu) : deux bons d'un coup ;
- * - `vip` (l'amiral à bord) : un bon doré, plus pressé, qui rapporte plus.
+ * - `rush` (coup de feu) : deux bons d'un coup.
+ *
+ * Le tirage est équitable : chacun a la même chance, réduite (RULES.events.repeat) à chaque fois
+ * qu'il est déjà survenu dans la partie (`eventCounts`) ; on ne revoit pas Moustache trois fois de suite.
+ * Les visiteurs de marque ne sont pas des imprévus : ils ont leur programme (cf. planGuests).
  */
-export const EVENT_KINDS = ['spill', 'cat', 'overheat', 'rush', 'vip']
+export const EVENT_KINDS = ['spill', 'cat', 'overheat', 'rush']
 
 /** Un poste hors d'usage à cause d'un imprévu (la passe renversée, le chat assis dessus) ? */
 export function isBlocked(state, stationId) {
@@ -730,7 +744,7 @@ function stepEvent(state, now, rules) {
   const e = state.event
   if (e) {
     if (!e.until || now < e.until) return []
-    // Le chat n'a pas été chassé : il mange ce qui était sur le comptoir.
+    // Moustache n'a pas été chassée : elle mange ce qui était sur le comptoir.
     const events = []
     if (e.kind === 'cat') {
       const s = state.stations[e.station]
@@ -748,9 +762,11 @@ function stepEvent(state, now, rules) {
   // Le chat vise d'abord un ingrédient posé ; à défaut, il s'assoit sur une planche ou un comptoir libre.
   const perches = STATIONS.filter((s) => ['board', 'counter'].includes(s.kind) && state.stations[s.id]).map((s) => s.id)
   const food = perches.filter((id) => state.items[state.stations[id].item]?.kind === 'ingredient')
-  const possible = EVENT_KINDS.filter((k) => k !== 'cat' || perches.length)
-  const kind = possible[Math.floor(random(state) * possible.length)]
   const r = rules.events
+  const possible = EVENT_KINDS.filter((k) => k !== 'cat' || perches.length)
+  const seen = (state.eventCounts ??= {})
+  const kind = weighted(state, possible.map((k) => [k, r.repeat ** (seen[k] ?? 0)]))
+  seen[kind] = (seen[kind] ?? 0) + 1
   const events = []
   if (kind === 'spill') {
     state.event = { kind, at: now, progress: 0, station: 'passe' }
@@ -764,28 +780,54 @@ function stepEvent(state, now, rules) {
     state.event = { kind, at: now, until: now + r.overheat.time * 1000 }
     events.push({ kind: 'event', event: kind, until: state.event.until })
   } else {
-    // Le coup de feu et l'amiral : des bons, tout de suite (un peu au-delà du plafond).
+    // Le coup de feu : deux bons, tout de suite (un peu au-delà du plafond).
     events.push({ kind: 'event', event: kind })
     const { maxOrders } = pace(state.players, rules)
-    for (let i = 0; i < (kind === 'rush' ? 2 : 1); i++) {
+    for (let i = 0; i < 2; i++) {
       if (state.orders.filter((o) => o.status === 'pending').length >= maxOrders + 2) break
-      const order = spawnOrder(state, now, rules, kind === 'vip')
-      if (order) events.push({ kind: 'order', order: order.id, recipe: order.recipe, ...(order.vip ? { vip: true } : {}) })
+      const order = spawnOrder(state, now, rules)
+      if (order) events.push({ kind: 'order', order: order.id, recipe: order.recipe })
     }
     state.nextEventAt = now + between(state, r.every) * 1000
   }
   return events
 }
 
-function spawnOrder(state, now, rules, vip = false) {
-  const elapsed = (now - state.startedAt) / 1000
-  const pool = state.recipes.filter((r) => RECIPES[r].difficulty !== 'complexe' || elapsed >= rules.complexAfter)
+/** Tire au sort dans une liste pondérée de paires [valeur, poids]. */
+function weighted(state, list) {
+  let r = random(state) * list.reduce((t, [, w]) => t + w, 0)
+  for (const [value, w] of list) if ((r -= w) < 0) return value
+  return list[list.length - 1][0]
+}
+
+/**
+ * Le programme des visiteurs de marque d'un service : entre RULES.guests.count[0] et [1]
+ * personnages du vaisseau (cf. GUESTS), tous différents, chacun à son heure, répartis sur le service
+ * (un par tranche, à un moment tiré au sort dans sa tranche).
+ */
+function planGuests(state, rules) {
+  const g = rules.guests
+  const n = g.count[0] + Math.floor(random(state) * (g.count[1] - g.count[0] + 1))
+  const pool = Object.keys(GUESTS)
+  const picked = []
+  while (picked.length < n && pool.length) picked.push(pool.splice(Math.floor(random(state) * pool.length), 1)[0])
+  const from = state.startedAt + g.from * 1000
+  const slot = (state.endsAt - g.until * 1000 - from) / Math.max(1, picked.length)
+  return picked.map((guest, i) => ({ guest, at: Math.round(from + slot * (i + random(state) * 0.6)) }))
+}
+
+/**
+ * Un nouveau bon : d'un client du mess (un plat de la carte, cf. `state.recipes`), ou d'un visiteur
+ * de marque (`guest` : son plat préféré, à trois ingrédients).
+ */
+function spawnOrder(state, now, rules, guest) {
+  const pool = guest ? [GUESTS[guest]?.dish ?? GUEST_RECIPES[0]] : state.recipes
   if (!pool.length) return null
   const recipe = pool[Math.floor(random(state) * pool.length)]
   const { time } = recipeValue(recipe)
   state.orderSeq += 1
-  const scale = pace(state.players, rules).timeScale * (vip ? rules.events.vip.time : 1)
-  const order = { id: `c${state.orderSeq}`, recipe, at: now, until: now + time * scale * 1000, status: 'pending', ...(vip ? { vip: true } : {}) }
+  const scale = pace(state.players, rules).timeScale
+  const order = { id: `c${state.orderSeq}`, recipe, at: now, until: now + Math.round(time * scale * 1000), status: 'pending', ...(guest ? { guest } : {}) }
   state.orders.push(order)
   return order
 }
@@ -903,6 +945,14 @@ export function stepService(state, now, dt, near, rules = RULES) {
   }
   // Les imprévus.
   events.push(...stepEvent(state, now, rules))
+  // Les visiteurs de marque, à leur heure, quel que soit le nombre de bons en attente.
+  for (const v of state.guests ?? []) {
+    if (v.order || now < v.at) continue
+    const order = spawnOrder(state, now, rules, v.guest)
+    if (!order) continue
+    v.order = order.id
+    events.push({ kind: 'order', order: order.id, recipe: order.recipe, guest: v.guest })
+  }
   // Les nouvelles commandes : au rythme du nombre de joueurs, sans dépasser le plafond ; tout de
   // suite si la cuisine n'en a plus aucune.
   const { maxOrders, every } = pace(state.players, rules)

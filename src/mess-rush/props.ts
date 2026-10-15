@@ -8,7 +8,8 @@ import forkKnifeSvg from '@phosphor-icons/core/fill/fork-knife-fill.svg?raw'
 import knifeSvg from '@phosphor-icons/core/fill/knife-fill.svg?raw'
 import trashSvg from '@phosphor-icons/core/fill/trash-fill.svg?raw'
 import warningSvg from '@phosphor-icons/core/fill/warning-fill.svg?raw'
-import { CAT_MODEL, FOOD_PACK, packModel, rig } from '../assets'
+import { FOOD_PACK, packModel } from '../assets'
+import { petRig, type Species } from '../pets'
 import type { Avatar } from '../avatar'
 import { EN } from '../i18n'
 import { INGREDIENTS, PROCESSES, RECIPES, type StationKind } from '../../shared/mess-rush-catalog.js'
@@ -25,9 +26,10 @@ import {
  * feu, ce qu'elles contiennent (en bulles au-dessus), leur jauge, l'alerte quand ça va brûler et la
  * fumée quand c'est brûlé ; la pile d'assiettes propres, la vaisselle sale au retour et dans la
  * plonge ; un anneau de la couleur du plat sous chaque assiette qui le devient ; une pastille ronde
- * au-dessus de chaque poste ; et les imprévus : le plateau renversé sur la passe, Comète sur son
+ * au-dessus de chaque poste, et à côté, l'icône de chaque aliment qui y est posé ; et les imprévus :
+ * le plateau renversé sur la passe, Moustache sur son
  * plan, les feux en surchauffe. Les modèles viennent du Food Kit de Kenney (cf. FOOD_PACK), chargé à
- * l'ouverture du salon ; Comète se charge avec lui, pas au milieu du service.
+ * l'ouverture du salon ; Moustache se charge avec lui, pas au milieu du service.
  */
 
 /** Hauteur des comptoirs, des planches et des fourneaux (cf. furniture/mess-rush.ts). */
@@ -263,8 +265,66 @@ const stationBadge = (kind: StationKind) => {
   const b = STATION_BADGES[kind]
   return b ? badge(`station:${kind}`, b.fill, { svg: b.svg, color: b.color ?? '#ffffff' }) : null
 }
-/** La bulle d'un aliment au-dessus d'une marmite. */
-const foodBadge = (ing: string) => badge(`food:${ing}`, '#fdf6e3', { image: foodImage(ing) })
+/** Le repère de ce qu'on a fait à un aliment, sur son icône : coupé, cuit, saisi, brûlé. */
+const STATE_PIPS: Record<string, { svg: string; fill: string }> = {
+  coupé: { svg: knifeSvg, fill: '#ffb020' },
+  cuit: { svg: potSvg, fill: '#ff7a2f' },
+  saisi: { svg: flameSvg, fill: '#ff4d3d' },
+  brûlé: { svg: warningSvg, fill: '#14161c' },
+}
+
+/**
+ * L'icône d'un aliment, dans son état : une pastille ronde cerclée de sa couleur, son image (noircie
+ * une fois brûlé) et, en bas à droite, le repère de ce qu'on lui a fait (couteau, marmite, flamme).
+ * Elle s'affiche à côté de la pastille d'un poste tant que l'aliment y est (cf. KitchenProps.sync).
+ */
+const foodTags = new Map<string, THREE.SpriteMaterial>()
+function foodTag(ing: string, state: string): THREE.SpriteMaterial {
+  const key = `${ing}:${state}`
+  let m = foodTags.get(key)
+  if (m) return m
+  const S = 128
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = S
+  const g = canvas.getContext('2d')!
+  const disc = (x: number, y: number, r: number, color: string) => {
+    g.beginPath()
+    g.arc(x, y, r, 0, Math.PI * 2)
+    g.fillStyle = color
+    g.fill()
+  }
+  disc(60, 66, 52, 'rgba(0, 0, 0, 0.35)')
+  disc(60, 58, 54, '#14161c')
+  disc(60, 58, 46, INGREDIENTS[ing].color)
+  disc(60, 58, 38, '#fdf6e3')
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.anisotropy = 4
+  const load = (src: string) => new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = src
+  })
+  const pip = STATE_PIPS[state]
+  void Promise.all([load(foodImage(ing, state)), pip ? load(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(pip.svg.replace(/currentColor/g, '#ffffff'))}`) : null]).then(([food, glyph]) => {
+    if (state === 'brûlé') g.filter = 'brightness(0.3) saturate(0.4)'
+    g.drawImage(food, 26, 24, 68, 68)
+    g.filter = 'none'
+    if (pip && glyph) {
+      disc(100, 98, 24, '#14161c')
+      disc(100, 98, 18, pip.fill)
+      g.drawImage(glyph, 89, 87, 22, 22)
+    }
+    texture.needsUpdate = true
+  }).catch(() => {})
+  m = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false })
+  foodTags.set(key, m)
+  return m
+}
+/** Taille des icônes d'aliments (m), et leur écart. */
+const TAG_SIZE = 0.32
+const TAG_GAP = 0.03
 
 /** Taille d'une jauge (m) : lisible de la vue du dessus de la cuisine. */
 const GAUGE_W = 0.62
@@ -302,7 +362,6 @@ class Gauge {
 const ICON_Y = 1.0
 const ICON_SIZE = 0.4
 const GAUGE_Y = 0.66
-const BUBBLE_Y = ICON_Y
 
 /** Une flaque (le plateau renversé) : quelques taches rondes qui se chevauchent, à plat, un peu brillantes. */
 function puddle(color: string, size: number): THREE.Object3D {
@@ -320,6 +379,9 @@ function puddle(color: string, size: number): THREE.Object3D {
   return g
 }
 
+/** Moustache, la chatte noire du labo du L.J.P.C. (la même espèce que dans main.ts). */
+const MOUSTACHE: Species = { id: 'moustache', model: 'cat', label: '', name: 'Moustache', scale: 0.24, voice: 'meow', home: 'cushion', says: [] }
+
 /** Qui tient quoi : le joueur local et ses coéquipiers (leur avatar, s'il est là). */
 export type AvatarOf = (pid: string) => Avatar | null
 
@@ -327,9 +389,7 @@ export type AvatarOf = (pid: string) => Avatar | null
 interface Burner {
   warn: THREE.Sprite
   smoke: THREE.Mesh[]
-  bubbles: THREE.Sprite[]
   heat: THREE.Mesh
-  key: string
 }
 
 /** Où se pose ce qui est sur un poste : au mur est, un peu vers la cuisine. */
@@ -345,9 +405,13 @@ export class KitchenProps {
   private readonly burners = new Map<string, Burner>()
   private readonly icons = new Map<string, THREE.Sprite>()
   private readonly tmp = new THREE.Vector3()
+  /** Les icônes des aliments posés sur chaque poste, et leur signature. */
+  private readonly tags = new Map<string, { key: string; sprites: THREE.Sprite[] }>()
+  /** La droite de l'écran, à plat : les icônes s'alignent à côté de la pastille du poste. */
+  private readonly right = new THREE.Vector3()
   /** La flaque du plateau renversé, sur la passe. */
   private readonly spill = puddle('#7a3b17', 0.42)
-  /** Comète, le chat du bord, pour l'imprévu du chat (chargé avec la cuisine). */
+  /** Moustache, la chatte du labo, pour l'imprévu du chat (chargée avec la cuisine). */
   private cat: { root: THREE.Object3D; mixer: THREE.AnimationMixer } | null = null
 
   constructor(private readonly parent: THREE.Object3D) {
@@ -378,7 +442,7 @@ export class KitchenProps {
         this.group.add(pot)
         const warn = new THREE.Sprite(badge('warn', '#ff3b1c', { svg: warningSvg, color: '#ffffff' }))
         warn.scale.setScalar(0.42)
-        warn.position.set(s.x, BUBBLE_Y + 0.3, s.z - 0.1)
+        warn.position.set(s.x, ICON_Y + 0.3, s.z - 0.1)
         warn.renderOrder = 26
         warn.visible = false
         const puffs = [0, 1, 2].map(() => {
@@ -391,7 +455,7 @@ export class KitchenProps {
         glowRing.position.set(s.x, TOP + 0.004, s.z - 0.02)
         glowRing.visible = false
         this.group.add(warn, glowRing)
-        this.burners.set(s.id, { warn, smoke: puffs, bubbles: [], heat: glowRing, key: '' })
+        this.burners.set(s.id, { warn, smoke: puffs, heat: glowRing })
       }
       if (s.kind === 'board') {
         const board = model('cutting-board', 0.4)
@@ -410,8 +474,9 @@ export class KitchenProps {
         this.gauges.set(s.id, g)
       }
     }
-    // Comète se charge tout de suite, en même temps que la cuisine : pas d'à-coup au premier imprévu du chat.
-    void rig(CAT_MODEL).then((r) => {
+    // Moustache se charge tout de suite, en même temps que la cuisine : pas d'à-coup au premier imprévu
+    // du chat. La chatte noire du labo, celle qui vient mendier chez Marcel (cf. main.ts, MOUSTACHE).
+    void petRig(MOUSTACHE, 'nuit').then((r) => {
       r.root.scale.setScalar(0.3)
       const mixer = new THREE.AnimationMixer(r.root)
       const clip = r.clips.find((c) => /idle/i.test(c.name)) ?? r.clips[0]
@@ -457,23 +522,24 @@ export class KitchenProps {
       if (s.kind === 'sink') g.position.set(s.x - 0.2, TOP - 0.02, s.z + 0.02)
       this.group.add(g)
       this.onStation.set(s.id, { key, obj: g })
-      // Les bulles de ce que contient la marmite, au-dessus d'elle.
-      const b = this.burners.get(s.id)
-      if (b) {
-        const ings = (st.items ?? []).map((id) => state.items[id]?.ing).filter(Boolean) as string[]
-        const bkey = ings.join(',')
-        if (bkey !== b.key) {
-          b.key = bkey
-          for (const sp of b.bubbles) sp.removeFromParent()
-          b.bubbles = ings.map((ing, i) => {
-            const sp = new THREE.Sprite(foodBadge(ing))
-            sp.scale.setScalar(0.27)
-            sp.position.set(s.x + (i - (ings.length - 1) / 2) * 0.24, BUBBLE_Y, s.z - 0.1)
-            sp.renderOrder = 25
-            return sp
-          })
-          if (b.bubbles.length) this.group.add(...b.bubbles)
-        }
+      // Les icônes de ce qui est sur le poste, à côté de sa pastille : elles partent avec l'aliment.
+      const foods: [string, string][] = []
+      for (const it of items) {
+        if (it?.kind === 'ingredient') foods.push([it.ing!, ingredientState(it)])
+        else if (it?.kind === 'plate') foods.push(...(it.contents ?? []))
+      }
+      const tkey = foods.map((f) => f.join(':')).join(',')
+      const shownTags = this.tags.get(s.id)
+      if (shownTags?.key !== tkey) {
+        for (const sp of shownTags?.sprites ?? []) sp.removeFromParent()
+        const sprites = foods.map(([ing, st]) => {
+          const sp = new THREE.Sprite(foodTag(ing, st))
+          sp.scale.setScalar(TAG_SIZE)
+          sp.renderOrder = 25
+          return sp
+        })
+        if (sprites.length) this.group.add(...sprites)
+        this.tags.set(s.id, { key: tkey, sprites })
       }
     }
   }
@@ -532,10 +598,6 @@ export class KitchenProps {
           p.position.set(s.x + Math.sin(t + i * 2) * 0.05, TOP + 0.15 + k * 0.7, s.z - 0.05)
           p.scale.setScalar(0.6 + k * 1.6)
         })
-        for (const sp of b.bubbles) sp.visible = !st?.burnt
-        // Ce qu'il contient prend la place de sa pastille (sinon, elles se chevaucheraient).
-        const sprite = this.icons.get(s.id)
-        if (sprite) sprite.visible = !b.bubbles.length || !!st?.burnt
         if (gauge) {
           if (!cook || st?.burnt) gauge.set(null)
           else if (!st?.done) gauge.set((now - cook.start) / (cook.until - cook.start))
@@ -552,13 +614,26 @@ export class KitchenProps {
       }
       if (gauge) gauge.root.quaternion.copy(camera.quaternion)
     }
+    // Les icônes des aliments : à droite de la pastille du poste (à l'écran), ou centrées sur le
+    // comptoir qui n'en a pas.
+    this.right.set(1, 0, 0).applyQuaternion(camera.quaternion).setY(0).normalize()
+    for (const [id, { sprites }] of this.tags) {
+      if (!sprites.length) continue
+      const s = STATION_BY_ID[id]
+      const step = TAG_SIZE + TAG_GAP
+      const first = this.icons.has(id) ? ICON_SIZE / 2 + TAG_GAP + TAG_SIZE / 2 : -((sprites.length - 1) * step) / 2
+      sprites.forEach((sp, i) => {
+        const d = first + i * step
+        sp.position.set(s.x + this.right.x * d, ICON_Y, s.z + this.right.z * d)
+      })
+    }
     // Le plateau renversé : la flaque s'efface à mesure qu'on nettoie.
     this.spill.visible = state.event?.kind === 'spill'
     if (this.spill.visible) this.spill.scale.setScalar(1 - 0.7 * Math.min(1, (state.event?.progress ?? 0) / RULES.events.clean))
     this.updateCat(state, t)
   }
 
-  /** Comète sur son plan pendant l'imprévu du chat ; la pastille du poste clignote. */
+  /** Moustache sur son plan pendant l'imprévu du chat. */
   private lastT = 0
   private updateCat(state: ServiceState, t: number) {
     const e = state.event?.kind === 'cat' ? state.event : null
@@ -575,6 +650,8 @@ export class KitchenProps {
   /** Fin du service : on vide les mains de chacun, plus de pastille ni d'alerte. */
   release(avatarOf: AvatarOf) {
     for (const sprite of this.icons.values()) sprite.visible = false
+    for (const { sprites } of this.tags.values()) for (const sp of sprites) sp.removeFromParent()
+    this.tags.clear()
     this.spill.visible = false
     if (this.cat) this.cat.root.visible = false
     for (const b of this.burners.values()) {

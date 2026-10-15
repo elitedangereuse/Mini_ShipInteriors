@@ -51,3 +51,7 @@ export interface Recipe {
 export declare const RECIPES: Record<string, Recipe>
 export declare const PROTOTYPE_RECIPES: string[]
 export declare const SERVICE_RECIPES: string[]
+export declare const GUEST_RECIPES: string[]
+/** Un visiteur de marque : un personnage du vaisseau, son rôle, son plat préféré, sa couleur et un mot. */
+export interface Guest { name: string; role: Text; dish: string; color: string; icon: string; quote: Text }
+export declare const GUESTS: Record<string, Guest>

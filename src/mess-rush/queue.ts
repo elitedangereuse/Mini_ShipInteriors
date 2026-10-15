@@ -1,16 +1,26 @@
 import * as THREE from 'three'
+import { refereeRig } from '../arena/referee'
+import type { Rig } from '../assets'
 import { Avatar } from '../avatar'
+import { chefRig } from '../chef'
+import { gardenerRig } from '../gardener'
 import { iconSvg, type IconName } from '../icons'
 import { lookRig, parseLook } from '../looks'
-import { RECIPES } from '../../shared/mess-rush-catalog.js'
+import { mechanicRig } from '../mechanic'
+import { nurseRig } from '../nurse'
+import { soldierRig } from '../patrol'
+import { controllerRig } from '../salvage/controller'
+import { technicianRig } from '../salvage/technician'
+import { GUESTS, RECIPES } from '../../shared/mess-rush-catalog.js'
 import { QUEUE, type ServiceState } from '../../shared/mess-rush.js'
 
 /*
  * La file des clients de MESS RUSH, derrière le comptoir de service (cf. QUEUE dans
  * shared/mess-rush.js) : un client par bon. Il arrive par l'est, prend sa place dans la file et
- * attend, sa bulle au-dessus de la tête : la couleur de son plat (celle de son bon, cf. RECIPES),
- * une assiette ou la couronne de l'amiral, et sa patience qui baisse avec le délai du
- * bon. Servi, il saute de joie et s'en va content par l'ouest ; son bon expiré, il fait non de la
+ * attend, sa bulle au-dessus de la tête : la couleur de son plat (celle de son bon, cf. RECIPES)
+ * et une assiette, et sa patience qui baisse avec le délai du bon. Un visiteur de marque (cf.
+ * GUESTS) vient sous ses traits, ceux qu'il a à bord (le chef Marcel, Betty, Nico…), sa bulle à sa
+ * couleur, cerclée d'or, avec son pictogramme. Servi, il saute de joie et s'en va content par l'ouest ; son bon expiré, il fait non de la
  * tête et s'en va fâché. Rien de tout cela ne passe par le relais : la file se lit dans les bons de
  * l'état du service, que toute l'équipe partage.
  */
@@ -20,6 +30,24 @@ const LOOKS = [
   'human.male.a', 'human.female.b', 'suit.male.c.maverick', 'human.female.d', 'alien.male.b.blue',
   'human.male.e', 'suit.female.a.flight', 'human.female.f', 'alien.female.d.blue', 'human.male.c',
 ]
+/** Les visiteurs de marque, sous leurs traits du bord (cf. chef.ts, nurse.ts…). */
+const GUEST_RIGS: Record<string, () => Promise<Rig>> = {
+  marcel: chefRig,
+  betty: nurseRig,
+  nico: mechanicRig,
+  capucine: gardenerRig,
+  rourke: async () => {
+    const r = await soldierRig()
+    // Au mess, le fusil reste au râtelier.
+    r.rifle.visible = false
+    return r
+  },
+  odile: controllerRig,
+  gaspard: technicianRig,
+  tessa: refereeRig,
+  kael: () => lookRig(parseLook('suit.male.d.kael')),
+}
+
 /** Leurs places dans la file, d'ouest en est. */
 const SLOTS = 7
 /** Leur pas (m/s), et d'où ils viennent, où ils vont. */
@@ -29,10 +57,10 @@ const EXIT_X = QUEUE.minX - 0.5
 /** Hauteur de la bulle au-dessus d'eux. */
 const BUBBLE_Y = 1.15
 
-/** La bulle d'un client : un disque de la couleur de son plat, cerclé de sombre, et ce qu'il attend. */
+/** La bulle d'un client : un disque de la couleur de son plat, cerclé de sombre (d'or, pour un visiteur de marque), et ce qu'il attend. */
 const bubbles = new Map<string, THREE.SpriteMaterial>()
-function bubbleMaterial(color: string, glyph: IconName): THREE.SpriteMaterial {
-  const key = `${color}:${glyph}`
+function bubbleMaterial(color: string, glyph: IconName, ring = '#0b0d12'): THREE.SpriteMaterial {
+  const key = `${color}:${glyph}:${ring}`
   let m = bubbles.get(key)
   if (m) return m
   const S = 128
@@ -44,7 +72,7 @@ function bubbleMaterial(color: string, glyph: IconName): THREE.SpriteMaterial {
   g.fillStyle = color
   g.fill()
   g.lineWidth = 10
-  g.strokeStyle = '#0b0d12'
+  g.strokeStyle = ring
   g.stroke()
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace
@@ -86,8 +114,6 @@ interface Customer {
 export class MessQueue {
   readonly group = new THREE.Group()
   private readonly customers = new Map<string, Customer>()
-  /** Les tenues, chargées une fois (une promesse par tenue). */
-  private readonly rigs = new Map<number, Promise<Awaited<ReturnType<typeof lookRig>>>>()
   private readonly barBack = flat('#0b0d12')
   private readonly moodHappy: THREE.SpriteMaterial
   private readonly moodAngry: THREE.SpriteMaterial
@@ -101,7 +127,7 @@ export class MessQueue {
   /** À chaque image : les clients des bons en attente arrivent, ceux des bons finis s'en vont. */
   update(state: ServiceState, now: number, dt: number) {
     const pending = state.orders.filter((o) => o.status === 'pending')
-    for (const o of pending) if (!this.customers.has(o.id)) this.arrive(o.id, o.recipe, !!o.vip)
+    for (const o of pending) if (!this.customers.has(o.id)) this.arrive(o.id, o.recipe, o.guest)
     for (const c of this.customers.values()) {
       const o = state.orders.find((x) => x.id === c.order)
       if (!c.leaving && o && o.status !== 'pending') this.leave(c, o.status === 'served' ? 'happy' : 'angry')
@@ -116,16 +142,17 @@ export class MessQueue {
     }
   }
 
-  /** Un nouveau bon : un client arrive par l'est, vers la première place libre. */
-  private arrive(order: string, recipe: string, vip: boolean) {
+  /** Un nouveau bon : un client arrive par l'est, vers la première place libre (un visiteur de marque, sous ses traits). */
+  private arrive(order: string, recipe: string, guest?: string) {
     const taken = new Set([...this.customers.values()].filter((c) => !c.leaving).map((c) => c.slot))
     let slot = 0
     while (taken.has(slot) && slot < SLOTS - 1) slot++
     const root = new THREE.Group()
     root.position.set(ENTER_X, 0, QUEUE.z)
     const color = RECIPES[recipe].color
-    const bubble = new THREE.Sprite(bubbleMaterial(color, vip ? 'crown' : 'fork-knife'))
-    bubble.scale.setScalar(0.42)
+    const vip = guest ? GUESTS[guest] : null
+    const bubble = new THREE.Sprite(vip ? bubbleMaterial(vip.color, vip.icon as IconName, '#ffd23f') : bubbleMaterial(color, 'fork-knife'))
+    bubble.scale.setScalar(vip ? 0.5 : 0.42)
     bubble.position.y = BUBBLE_Y
     bubble.renderOrder = 25
     const mood = new THREE.Sprite(this.moodHappy)
@@ -148,9 +175,9 @@ export class MessQueue {
     const look = [...order].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7) % LOOKS.length
     const c: Customer = { order, avatar: null, root, bubble, mood, bar, fill, slot, x: ENTER_X, z: QUEUE.z, leaving: null, linger: 0, look }
     this.customers.set(order, c)
-    // La tenue, une fois chargée (la bulle arrive tout de suite).
-    let rig = this.rigs.get(look)
-    if (!rig) this.rigs.set(look, (rig = lookRig(parseLook(LOOKS[look]))))
+    // La tenue, une fois chargée (la bulle arrive tout de suite). Un modèle par client : deux clients
+    // à la même tenue ne se partagent pas le même squelette (le fichier, lui, n'est chargé qu'une fois).
+    const rig = guest && GUEST_RIGS[guest] ? GUEST_RIGS[guest]() : lookRig(parseLook(LOOKS[look]))
     void rig.then((r) => {
       if (this.customers.get(order) !== c) return
       c.avatar = new Avatar(r)

@@ -45,18 +45,20 @@ export declare const RULES: {
   plateReturn: number
   wash: number
   firstOrder: number
-  complexAfter: number
   byPlayers: Record<1 | 2 | 3 | 4, Pace>
   speedBonus: [number, number][]
   combo: { step: number; max: number }
   expiredPenalty: number
   /** Les imprévus (cf. EVENT_KINDS). */
-  events: { first: number; every: [number, number]; quiet: number; clean: number; cat: number; overheat: { time: number; speed: number }; vip: { points: number; time: number } }
+  /** Les visiteurs de marque : combien par service, de quand à quand (s), le multiplicateur de leurs points. */
+  guests: { count: [number, number]; from: number; until: number; points: number }
+  /** Les imprévus (cf. EVENT_KINDS) ; `repeat` : la chance d'un imprévu déjà survenu, multipliée d'autant à chaque fois. */
+  events: { first: number; every: [number, number]; quiet: number; clean: number; cat: number; overheat: { time: number; speed: number }; repeat: number }
   medals: Record<1 | 2 | 3 | 4, [number, number, number]>
 }
 
-/** Les imprévus : plateau renversé sur la passe, le chat du bord sur un comptoir, surchauffe des fourneaux, coup de feu, l'amiral à bord. */
-export type EventKind = 'spill' | 'cat' | 'overheat' | 'rush' | 'vip'
+/** Les imprévus : plateau renversé sur la passe, le chat du bord sur un comptoir, surchauffe des fourneaux, coup de feu. */
+export type EventKind = 'spill' | 'cat' | 'overheat' | 'rush'
 export declare const EVENT_KINDS: EventKind[]
 /** L'imprévu en cours : sa fin (le chat, la surchauffe), le nettoyage en cours (le plateau), son poste (la passe, le comptoir du chat). */
 export interface ServiceIncident { kind: EventKind; at: number; until?: number; progress?: number; station?: string }
@@ -78,7 +80,10 @@ export interface Item {
   /** Pile d'assiettes sales : combien. */
   count?: number
 }
-export interface Order { id: string; recipe: string; at: number; until: number; status: 'pending' | 'served' | 'expired'; done?: number; points?: number; vip?: boolean }
+/** Un bon ; `guest` : celui d'un visiteur de marque (cf. GUESTS). */
+export interface Order { id: string; recipe: string; at: number; until: number; status: 'pending' | 'served' | 'expired'; done?: number; points?: number; guest?: string }
+/** Une visite de marque au programme du service : qui, à quelle heure, et son bon une fois arrivé. */
+export interface GuestVisit { guest: string; at: number; order?: string }
 /** Une cuisson : de quand à quand, quand ça brûle, laquelle. */
 export interface Cooking { start: number; until: number; burnAt: number; process: ProcessId }
 /** Une planche, une place de comptoir. */
@@ -103,6 +108,10 @@ export interface ServiceState {
   /** L'imprévu en cours, et l'heure du prochain tirage. */
   event?: ServiceIncident | null
   nextEventAt?: number
+  /** Combien de fois chaque imprévu est déjà survenu (le tirage en tient compte). */
+  eventCounts?: Partial<Record<EventKind, number>>
+  /** Les visiteurs de marque du service, à leur heure. */
+  guests?: GuestVisit[]
   orders: Order[]
   items: Record<string, Item>
   stations: Record<string, StationState>
@@ -119,7 +128,7 @@ export interface ServiceEvent {
   kind: 'served' | 'expired' | 'wasted' | 'prepared' | 'cooked' | 'cooking' | 'burnt' | 'order' | 'dropped' | 'end' | 'emptied' | 'cleared'
     | 'event' | 'event-end' | 'merged' | 'washed' | 'dirty' | 'shooed' | 'eaten'
   order?: string; recipe?: string; points?: number; combo?: number; penalty?: number; station?: string; ing?: string; process?: ProcessId; by?: string; count?: number
-  event?: EventKind; until?: number; vip?: boolean
+  event?: EventKind; until?: number; guest?: string
 }
 /** Ce que fait la touche à un poste. */
 export type ActionKind = 'shoo' | 'clean' | 'work' | 'wash' | 'take-ingredient' | 'take' | 'put' | 'plate-pick' | 'plate-add' | 'merge' | 'stack' | 'fill' | 'serve' | 'empty'
