@@ -132,52 +132,7 @@ const deckTotem: Builder = ({ label = '' }) => {
 
 // ---------------------------------------------------------------- les lignes au sol
 
-/** Matériau des lignes au sol d'une couleur (partagé) : de la lumière, à peine translucide. */
-const lineMaterials = new Map<string, THREE.MeshBasicMaterial>()
-const lineMaterial = (color: string) => {
-  let m = lineMaterials.get(color)
-  if (!m) lineMaterials.set(color, (m = keepShared(new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, toneMapped: false }))))
-  return m
-}
-
-/**
- * Ligne de guidage peinte au sol, de la couleur du pont : un filet lumineux et, de loin en loin,
- * un chevron qui montre le sens. `label` : « couleur|x,z x,z … », ses points par rapport au
- * meuble (dans le repère du pont, quel que soit `rot`), du téléporteur vers la destination.
- */
-const guideLine: Builder = ({ label = '' }) => {
-  const [color = '#59d8ff', path = ''] = label.split('|')
-  const points = path.trim().split(/\s+/).map((p) => p.split(',').map(Number)).filter((p) => p.length === 2 && p.every(Number.isFinite))
-  const g = new THREE.Group()
-  const m = lineMaterial(color)
-  const Y = 0.009
-  for (let i = 1; i < points.length; i++) {
-    const [ax, az] = points[i - 1], [bx, bz] = points[i]
-    const len = Math.hypot(bx - ax, bz - az)
-    if (len < 1e-3) continue
-    const angle = Math.atan2(bx - ax, bz - az)
-    const strip = part(new THREE.PlaneGeometry(0.06, len + 0.06), m, (ax + bx) / 2, Y, (az + bz) / 2)
-    strip.rotation.set(-Math.PI / 2, 0, angle)
-    g.add(strip)
-    // Un chevron tous les 0,7, pointe vers la destination.
-    for (let d = 0.45; d < len - 0.15; d += 0.7) {
-      const k = d / len
-      const chevron = new THREE.Group()
-      chevron.position.set(ax + (bx - ax) * k, Y + 0.001, az + (bz - az) * k)
-      chevron.rotation.y = angle
-      for (const side of [-1, 1]) {
-        const arm = part(new THREE.PlaneGeometry(0.045, 0.16), m, side * 0.05, 0, -0.03)
-        arm.rotation.set(-Math.PI / 2, 0, -side * 0.75)
-        chevron.add(arm)
-      }
-      g.add(chevron)
-    }
-  }
-  return { solid: g }
-}
-
 export const WAYFINDING = {
   'ship-map': shipMap,
   'deck-totem': deckTotem,
-  'guide-line': guideLine,
 } satisfies Record<string, Builder>

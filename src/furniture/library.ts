@@ -3,7 +3,7 @@ import { beamMaterial, box, cylinder, decal, drawnTexture, glow, instanced, keep
 
 /*
  * La grande bibliothèque du pont supérieur (cf. src/lore-library.ts) : six alcôves, une par thème
- * du lore, chacune avec son rayonnage, son pupitre et sa marqueterie au sol, dessinés à son image ;
+ * du lore, chacune avec son rayonnage et sa marqueterie au sol, dessinés à son image ;
  * au centre, l'hologramme du Lore Explorer, un graphe de notes qui tourne sur son estrade. Et, au
  * planétarium, le mur des cartes stellaires qui ouvrent EDGIS.
  * - L'Empire : marbre blanc, colonnes, or et velours pourpre, fronton en arc et l'aigle impérial ;
@@ -145,6 +145,15 @@ function emblem(theme: Theme): THREE.CanvasTexture {
   return t
 }
 
+const emblemUrls = new Map<Theme, string>()
+/** L'emblème d'un thème, en image : les fenêtres de la bibliothèque le reprennent (cf. src/lore-library.ts). */
+export function emblemImage(theme: string): string {
+  const t = themeOf(theme)
+  let url = emblemUrls.get(t)
+  if (!url) emblemUrls.set(t, (url = (emblem(t).image as HTMLCanvasElement).toDataURL()))
+  return url
+}
+
 const emblemMaterials = new Map<Theme, THREE.MeshBasicMaterial>()
 /** Plaque de l'emblème (w × w, face à +z). */
 function emblemPlate(theme: Theme, w: number, x: number, y: number, z: number) {
@@ -175,7 +184,7 @@ function books(g: THREE.Group, x0: number, x1: number, y: number, theme: Theme, 
   }
 }
 
-/** Un livre ouvert à plat, sur un pupitre ou une tablette. */
+/** Un livre ouvert à plat, sur une tablette. */
 function openBook(g: THREE.Group, x: number, y: number, z: number, cover: string, tilt = 0) {
   const b = new THREE.Group()
   b.add(box(0.3, 0.012, 0.21, lit(cover), 0, 0, 0))
@@ -382,28 +391,7 @@ const loreBookcase: Builder = ({ label, random }) => {
   return { solid: g }
 }
 
-// ---------------------------------------------------------------- pupitres et marqueteries
-
-/** Le pupitre d'une alcôve (face à +z) : un livre ouvert sur un plan incliné, l'emblème du thème en façade. */
-const loreLectern: Builder = ({ label }) => {
-  const theme = themeOf(label), look = LOOK[theme]
-  const g = new THREE.Group()
-  const body = theme === 'empire' ? lit('#eee8dc') : theme === 'federation' ? lit('#1d2b4a', 'metal') : theme === 'alliance' ? lit('#9a6a3e', 'wood')
-    : theme === 'thargoid' ? lit('#141a17', 'metal') : theme === 'guardian' ? lit('#69727f') : lit('#151117')
-  const trim = theme === 'thargoid' || theme === 'guardian' ? glow(look.accent) : lit(look.band, 'metal')
-  g.add(box(0.42, 0.05, 0.36, body, 0, 0.025, 0), box(0.14, 0.82, 0.14, body, 0, 0.45, 0))
-  g.add(box(0.15, 0.02, 0.15, trim, 0, 0.12, 0), box(0.15, 0.02, 0.15, trim, 0, 0.78, 0))
-  const top = new THREE.Group()
-  top.add(box(0.5, 0.04, 0.36, body, 0, 0, 0), box(0.5, 0.012, 0.012, trim, 0, 0.012, 0.18))
-  openBook(top, 0, 0.03, 0, look.spines[0], 0)
-  top.position.set(0, 0.88, 0)
-  top.rotation.x = 0.32
-  g.add(top)
-  g.add(emblemPlate(theme, 0.13, 0, 0.55, 0.072))
-  // Le marque-page lumineux : le thème entier est à un clic.
-  g.add(box(0.02, 0.12, 0.004, glow(look.accent), 0.06, 0.82, 0.19))
-  return { solid: g }
-}
+// ---------------------------------------------------------------- les marqueteries
 
 /** La marqueterie au sol d'une alcôve (`label` : thème[:LxP]) : une bordure, des filets, l'emblème au milieu. */
 const loreInlay: Builder = ({ label = 'empire' }) => {
@@ -574,7 +562,6 @@ const starCardWall: Builder = () => {
 
 export const LIBRARY = {
   'lore-bookcase': loreBookcase,
-  'lore-lectern': loreLectern,
   'lore-inlay': loreInlay,
   'lore-graph': loreGraph,
   'star-card-wall': starCardWall,

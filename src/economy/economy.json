@@ -158,7 +158,14 @@
     "alien.green": 35000, "alien.blue": 35000, "alien.violet": 35000,
     "robot.g": 50000, "robot.h": 50000, "robot.d": 40000,
     "creature.orc": 45000, "creature.o": 45000, "creature.l": 45000,
-    "guardian.a": 150000, "guardian.b": 150000, "guardian.c": 150000, "guardian.s": 200000
+    "guardian.a": 150000, "guardian.b": 150000, "guardian.c": 150000, "guardian.s": 200000,
+    "suit.basket": 30000, "suit.football": 30000, "suit.marksman": 40000, "suit.boxer": 30000
+  },
+  "sportSkins": {
+    "suit.basket": { "game": "gym-basket", "score": 2100 },
+    "suit.football": { "game": "gym-foot", "score": 2100 },
+    "suit.marksman": { "game": "gym-range", "score": 6000 },
+    "suit.boxer": { "game": "gym-punch", "score": 5000 }
   },
   "tasks": {
     "trash": { "reward": 400, "duration": 1.5, "period": 600, "chance": 0.45 },
@@ -181,15 +188,15 @@
     { "id": "cale-limpets-raffinerie", "task": "limpets", "deck": -1, "x": 15.7, "z": 6.25 },
     { "id": "cale-spill-raffinerie", "task": "spill", "deck": -1, "x": 13.5, "z": 6.6, "variant": "coolant" },
     { "id": "cale-steam-raffinerie", "task": "steam", "deck": -1, "x": 12, "z": 7, "wall": 3 },
-    { "id": "cale-crates-soute", "task": "crates", "deck": -1, "x": 17.45, "z": 5.5, "rot": 1 },
+    { "id": "cale-crates-soute", "task": "crates", "deck": -1, "x": 24.25, "z": 7.85, "rot": 1 },
     { "id": "cale-trash-palier", "task": "trash", "deck": -1, "x": 10.7, "z": 5.93, "variant": "scrap" },
-    { "id": "cale-broken-soute", "task": "broken", "deck": -1, "x": 18, "z": 6, "wall": 1 },
+    { "id": "cale-broken-soute", "task": "broken", "deck": -1, "x": 20, "z": 10, "wall": 3 },
 
     { "id": "pp-filter-machines", "task": "filter", "deck": 0, "x": 7, "z": 6.4, "rot": 2 },
-    { "id": "pp-console-machines", "task": "console", "deck": 0, "x": 7, "z": 2.6 },
+    { "id": "pp-console-machines", "task": "console", "deck": 0, "x": 6.9, "z": 8.6 },
     { "id": "pp-breach-machines", "task": "breach", "deck": 0, "x": 9, "z": 5, "wall": 2 },
     { "id": "pp-steam-machines", "task": "steam", "deck": 0, "x": 8, "z": 6, "wall": 1 },
-    { "id": "pp-spill-machines", "task": "spill", "deck": 0, "x": 7, "z": 3.3, "variant": "oil" },
+    { "id": "pp-spill-machines", "task": "spill", "deck": 0, "x": 5.3, "z": 8.8, "variant": "oil" },
     { "id": "pp-trash-coursive", "task": "trash", "deck": 0, "x": 19.4, "z": 4.3 },
     { "id": "pp-fur-coursive", "task": "fur", "deck": 0, "x": 12.35, "z": 4.92 },
     { "id": "pp-broken-coursive", "task": "broken", "deck": 0, "x": 17, "z": 4, "wall": 0 },

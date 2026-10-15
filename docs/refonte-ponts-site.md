@@ -2,8 +2,8 @@
 
 Spécification pour le dépôt du site (`elitedangereuselight`), à l'attention de Mika. La refonte
 des ponts du vaisseau (téléporteur au cœur de chaque pont, complexe d'entraînement dans la cale,
-bibliothèque du lore, hall d'accueil, antichambre des quartiers) se passe presque entièrement du
-site : le jeu est prêt, et chaque branchement ci-dessous a son repli tant que le site ne le sert
+bibliothèque du lore, hall d'accueil, antichambre des quartiers, puis le Vestiaire des Légendes
+et ses tenues de sport) se passe presque entièrement du site : le jeu est prêt, et chaque branchement ci-dessous a son repli tant que le site ne le sert
 pas. Rien ne casse si le site ne bouge pas ; il manque seulement ce qu'il apporte.
 
 ## En bref
@@ -13,7 +13,8 @@ pas. Rien ne casse si le site ne bouge pas ; il manque seulement ce qu'il apport
 | 1 | `?live=1` sur `outils/mini-shipinteriors-site.php` : le fil « En direct » | à faire | fait défiler les seules nouvelles du bord |
 | 2 | `?profile=<cmdr>` sur le même endpoint : le résumé du profil (carte Open Graph) | conseillé | lit les balises Open Graph de `profil.php`, sinon compose l'adresse d'`og-card.php` |
 | 3 | Les noms des pièces dans les statistiques de fréquentation | à faire | rien : seules les étiquettes de l'admin sont fausses |
-| 4 | Quêtes, classements, Weekly, Chasse galactique | rien à faire | — |
+| 4 | Les tenues de sport : verser `suit.basket`, `suit.football`, `suit.marksman`, `suit.boxer` au palier de record | à faire | montre la progression au casier, mais personne ne reçoit les tenues |
+| 5 | Quêtes, classements, Weekly, Chasse galactique, tâches de bord | rien à faire | — |
 
 ## 1. Le fil « En direct » : `?live=1`
 
@@ -136,24 +137,72 @@ l'admin du site donne un nom aux clés, voici les changements.
 |---|---|---|
 | `0:r` | Salle de sport | *(n'existe plus)* |
 | `0:d` | — | Toilettes (à la place de la salle de sport) |
-| `0:w` | — | Bureau du Weekly (vitré, dans le hall) |
-| `0:h` | — | Bureau de la Chasse galactique (vitré, dans le hall) |
-| `0:e` | Salle commune | Salle commune / hall d'accueil (agrandie) |
+| `0:w` | — | Boutique du Weekly (vitrée, au nord du hall) |
+| `0:h` | — | Labo de la Chasse galactique (vitré, au nord du hall) |
+| `0:e` | Salle commune | Salle commune / hall d'accueil (agrandie, avec un salon au sud) |
 | `1:b` | Terrain de basket | *(n'existe plus)* |
 | `1:f` | Terrain de foot | *(n'existe plus)* |
 | `1:d` | Toilettes | *(n'existe plus)* |
 | `1:h` | Foyer (du cinéma à la zone sportive) | Foyer (du cinéma à la galerie) |
 | `1:c` | Coursive | Coursive et galerie (le téléporteur y est) |
 | `1:l` | — | Bibliothèque |
-| `-1:p` | Hall de la cale | Hall de la cale, agrandi (le téléporteur y est) |
+| `-1:p` | Hall de la cale | Hall de la cale, agrandi jusqu'à l'ancienne soute (le téléporteur y est) |
+| `-1:g` | Soute | *(n'existe plus : la cloison est tombée, c'est le hall, `-1:p`)* |
+| `-1:y` | Lobby de l'arène | Lobby de l'arène (déplacé au nord-ouest du hall) |
+| `-1:l` | — | Vestiaire des Légendes |
 | `-1:z` | — | Hall d'entraînement |
 | `-1:x` | — | Salle de sport |
 | `-1:o` | — | Terrain de basket |
 | `-1:f` | — | Terrain de foot |
 | `-1:j` | Palier de la cale (l'ascenseur) | Palier du monte-charge, vers l'arrière-cale |
-| `2:a` | Antichambre des quartiers | Antichambre des quartiers, agrandie (le téléporteur y est) |
+| `2:a` | Antichambre des quartiers | Antichambre des quartiers (le téléporteur y est) |
 
-## 4. Rien à changer
+## 4. Les tenues de sport du Vestiaire des Légendes
+
+Dans la cale, à côté du hall d'entraînement, le **Vestiaire des Légendes** affiche un maillot par
+sport, floqué au nom de qui détient le record du bord, et le **casier** du joueur : pour chaque
+sport, son record et la tenue de sport du Holo-Me qu'il gagne. Ces tenues ne s'achètent pas : comme
+les apparences des quêtes, **c'est le site qui les verse**.
+
+### La règle
+
+Dans `src/economy/economy.json` (le fichier que le site relit déjà) :
+
+```json
+"sportSkins": {
+  "suit.basket":   { "game": "gym-basket", "score": 2100 },
+  "suit.football": { "game": "gym-foot",   "score": 2100 },
+  "suit.marksman": { "game": "gym-range",  "score": 6000 },
+  "suit.boxer":    { "game": "gym-punch",  "score": 5000 }
+}
+```
+
+Chaque palier est un palier de crédits du même jeu (`arcade.tiers`, vérifié par
+`server/economy.test.js`). Les quatre clés ont aussi un prix dans `skins` (30 000 à 40 000 CR) :
+c'est leur valeur de référence, **pas une offre**.
+
+### Ce que le site fait
+
+1. **À l'inscription d'un score** (`POST outils/mini-shipinteriors-scores.php`, là où
+   `phputils/mini_shipinteriors/credits.php` verse déjà les paliers) : si le CMDR atteint ou
+   dépasse le `score` d'une règle de `sportSkins` pour ce `game`, ajouter la clé (`suit.basket`…)
+   à ses apparences, une seule fois, comme une récompense de quête. Le score est déjà contrôlé
+   (points par seconde) ; rien d'autre à vérifier.
+2. **Rattrapage** : une fois, pour les CMDR dont le meilleur score enregistré dépasse déjà un
+   palier, verser la tenue (une requête sur la table des scores suffit).
+3. **Ne pas les vendre** : refuser l'achat d'une clé de `sportSkins` (`{ "skin": "suit.basket" }`)
+   comme celui d'une apparence de quête. Le jeu ne propose pas l'achat (le Holo-Me dit comment la
+   gagner), mais le site fait foi.
+
+Le portefeuille (`wallet.skins`) les rend ensuite comme les autres apparences. Côté jeu, rien à
+attendre : après un score qui atteint un palier, le jeu relit le portefeuille, et la tenue apparaît
+au Holo-Me sans recharger (`onScoreSaved` dans `src/arcade/scores.ts`, cf. `src/main.ts`). Tant
+que le site ne la verse pas, le casier dit « palier atteint, le site la verse à votre Holo-Me ».
+
+Code côté jeu : `src/legends.ts` (le casier, les maillots), `src/furniture/legends.ts` (le
+mobilier), `sportSkins` dans `src/economy/data.ts`, les tenues dans `src/looks.ts`.
+
+## 5. Rien à changer
 
 - **Quêtes** : `quest_list.php` ne connaît pas les pièces, seulement les étapes et les
   récompenses, qui n'ont pas bougé. Les quêtes de la salle de sport, du basket et du foot ouvrent
@@ -161,5 +210,8 @@ l'admin du site donne un nom aux clés, voici les changements.
 - **Classements** : le Tableau d'honneur de la Promenade lit `?rankings=crew`, comme l'ancien
   tableau de la salle commune. Les records de la salle de sport et des terrains gardent leurs
   identifiants (`gym-run`, `gym-basket`, `gym-foot`…).
-- **Weekly et Chasse galactique** : les bureaux vitrés appellent `?pending=weekly|hunt` et
+- **Weekly et Chasse galactique** : les boutiques vitrées appellent `?pending=weekly|hunt` et
   `POST {kind}` comme les anciens comptoirs.
+- **Tâches de bord** : des postes (`spots` dans `economy.json`) ont bougé avec le hall de la cale
+  et les boutiques du hall d'accueil, mais leurs identifiants (`cale-crates-soute`, `cale-broken-soute`,
+  `pp-console-machines`, `pp-spill-machines`…) ne changent pas.

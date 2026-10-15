@@ -253,7 +253,7 @@ export const QUEST_CONTENT: QuestContent[] = [
     epilogue: tr('Jameson dort dans vos quartiers, loin des réacteurs. Nico passe « par hasard », un jour sur deux.', 'Jameson sleeps in your quarters, far from the reactors. Nico drops by “by chance” every other day.'),
     props: [
       {
-        id: 'bowl', deck: -1, x: 18.03, z: 6.17, fixed: true, model: 'quest-bowl',
+        id: 'bowl', deck: -1, x: 24.45, z: 9.35, fixed: true, model: 'quest-bowl',
         label: tr('Examiner la gamelle', 'Examine the bowl'), when: either(unstarted, during(0, 3)),
         idle: tr('La gamelle de Jameson. Toujours pleine, toujours intacte.', 'Jameson\'s bowl. Still full, still untouched.'),
       },

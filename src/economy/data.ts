@@ -94,6 +94,8 @@ interface Economy {
   passive: { perMinute: number; beat: number; minGap: number; maxGap: number; daily: number }
   items: Record<string, number>
   skins: Record<string, number>
+  /** Les tenues de sport du Vestiaire des Légendes : le jeu et le score qui les gagnent (le site les verse). */
+  sportSkins?: Record<string, { game: string; score: number }>
   plot?: number[]
   boosters?: { prices: number[] }
   salvage: { parcel: number; enemyBonus: number; daily: number; minPerParcel: number }
@@ -121,6 +123,9 @@ export const itemPrice = (id: string): number | null => ECONOMY.items[id] ?? nul
 
 /** Prix d'une apparence (clé de skins.ts : « suit.artemis »…), ou null si elle est gratuite. */
 export const skinPrice = (product: string): number | null => ECONOMY.skins[product] ?? null
+
+/** Les tenues de sport (clé de skins.ts) et le record qui les gagne ; elles ne s'achètent pas. */
+export const sportSkins = (): Record<string, { game: string; score: number }> => ECONOMY.sportSkins ?? {}
 
 /** Prix d'un cocktail, débité à chaque verre. */
 export const drinkPrice = (id: string): number | null => ECONOMY.drinks[id] ?? null

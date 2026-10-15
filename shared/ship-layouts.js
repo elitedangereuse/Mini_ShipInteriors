@@ -9,43 +9,46 @@ import { ShipMap } from './ship-map.js'
 
 export const SHIP_LAYOUTS = {
   // Cale : entraînement et opérations. À la poupe, la salle des machines, derrière l'atelier, et
-  // cachée derrière elle, le sanctuaire de la Voie. Chez Jacques, le bar clandestin, ne s'ouvre que
-  // depuis le fond de la soute, et aux seuls habitués (cf. BAR_ROOM). À l'est de la soute, le hall
-  // de la cale ('p'), où arrive le téléporteur (cf. TELEPORTERS) : deux rangées qui filent de la
-  // soute au hangar du Krait, collé à lui et ouvert sur l'espace à la proue, et un vestiaire qui
-  // descend au sud-ouest. Il dessert deux lobbys, face à face, chacun derrière sa porte double. Au
-  // nord, celui de la zone thargoïde (SOC-06, 'h', cf. THARGOID_DOORS), une pièce fermée d'où
-  // partent les missions : la salle de briefing, l'alcôve de la porte blindée et, derrière ses
-  // vitres, le poste de sécurité de la zone ('t', verrouillé). Au sud-est, celui de l'arène ('y',
-  // 3 × 5, cf. ARENA_DOORS), derrière une cloison vitrée. Au-dessus de la salle des machines, au
-  // bout d'un couloir de service qui part du palier, le Zorb, la boîte de nuit des aliens ('n', cf.
-  // CLUB_ROOM). Au nord du palier, à la place de l'ancienne baie de réparation, le stand de tir
-  // ('r', cf. SHOOTING_RANGE). Entre l'atelier et la descente de ce couloir, au-dessus du palier,
-  // le placard à balais ('c', 2 × 2), dont la porte donne sur le couloir (cf. CLOSET_DOOR).
+  // cachée derrière elle, le sanctuaire de la Voie. Au milieu, le hall de la cale ('p'), où arrive
+  // le téléporteur (cf. TELEPORTERS) : une seule grande pièce depuis que la cloison de l'ancienne
+  // soute est tombée (ses caisses sont rangées dans le coin sud-est), qui file jusqu'au hangar du
+  // Krait, collé à lui et ouvert sur l'espace à la proue. Chez Jacques, le bar clandestin, ne
+  // s'ouvre que depuis le fond du hall, et aux seuls habitués (cf. BAR_ROOM) ; une porte de service
+  // donne sur la salle des machines (cf. REFINERY_DOOR). Le hall dessert deux lobbys, chacun
+  // derrière sa porte double. Au nord, celui de la zone thargoïde (SOC-06, 'h', cf. THARGOID_DOORS),
+  // une pièce fermée d'où partent les missions : la salle de briefing, l'alcôve de la porte blindée
+  // et, derrière ses vitres, le poste de sécurité de la zone ('t', verrouillé). À l'ouest, celui de
+  // l'arène ('y', 3 × 5, cf. ARENA_DOORS), derrière une cloison vitrée. Au-dessus de la salle des
+  // machines, au bout d'un couloir de service qui part du palier, le Zorb, la boîte de nuit des
+  // aliens ('n', cf. CLUB_ROOM). Au nord du palier, à la place de l'ancienne baie de réparation, le
+  // stand de tir ('r', cf. SHOOTING_RANGE). Entre l'atelier et la descente de ce couloir, au-dessus
+  // du palier, le placard à balais ('c', 2 × 2), dont la porte donne sur le couloir (cf. CLOSET_DOOR).
   // Au sud du hall, par une porte de service (cf. SCAVENGERS_DOOR), une gaine technique d'une
   // tuile de large ('w') file vers l'est jusqu'au local du ventilateur ; de là, on entre dans la
   // planque des Scavengers ('s'), où l'on joue au jeu du même nom. Passé le ventilateur, la gaine
   // continue de deux tuiles jusqu'au poste d'exploration ('i'), sous le hangar : la pièce
   // d'It's Dangerous Out There, l'autre jeu qu'on lance depuis la cale.
-  // Du coin sud-ouest du hall, une allée descend au complexe d'entraînement : le hall
-  // d'entraînement ('z'), qui longe le bar, et derrière ses cloisons vitrées, le terrain de foot
-  // ('f'), celui de basket ('o', cf. SPORT_COURTS) et la salle de sport ('x', cf. GYM_ROOM).
+  // Du coin sud-ouest du hall, une allée de deux tuiles descend, par une porte double, au complexe
+  // d'entraînement : le hall d'entraînement ('z'), qui longe le bar, et derrière ses cloisons
+  // vitrées, le terrain de foot ('f'), celui de basket ('o', cf. SPORT_COURTS) et la salle de sport
+  // ('x', cf. GYM_ROOM). Entre la Voie et le bar, le Vestiaire des Légendes ('l'), qui s'ouvre par
+  // une porte double sur le hall d'entraînement.
   '-1': [
     'nnnnuuu     rrrrr   ttthhhkkkkkkkkkkkk  ',
     'nnn+uuuuuuu rrrrr   ttthhhkkkkkkkkkkkk  ',
-    'nnnnaaaaccu rrrrrgg hhhhhhkkkkkkkkkkkk  ',
-    'eeeeaaaacc+ rrrrr+g hhhhhhkkkkkkkkkkkk  ',
-    'eeeeaaaa jjj+rr+rgg pppppp+kkkkkkkkkkk  ',
-    'eee+aaaa+jjjmmmmmgg+pppppp+kkkkkkkkkkk  ',
-    'eeeeaaaa jjj+mmmm+g pppyyykkkkkkkkkkkk  ',
-    'eeeeaaaa    mmmmmgg pppyyykkkkkkkkkkkk  ',
-    'vv+vv       mmmmm+  pppyyykkkkkkkkkkkk  ',
-    'vvvvv    bbbbbbbbbb pppyyykkkkkkkkkkkk  ',
-    'vvvvv    bbbbbbbbbb pppyyykkkkkkkkkkkk  ',
-    'vvvvv    bbbbbbbbbb pwwwwwwwwwww+iiiii  ',
-    'vvvvv    bbbbbbbbbb p ssssssww  iiiiii  ',
-    '         bbbbbbbbbb p sssss+ww  iiiiii  ',
-    '  zzzzzzzzzzzzzzzzzz+ ssssssww  iiiiii  ',
+    'nnnnaaaaccu rrrrryyyhhhhhhkkkkkkkkkkkk  ',
+    'eeeeaaaacc+ rrrrryyyhhhhhhkkkkkkkkkkkk  ',
+    'eeeeaaaa jjj+rr+ryyypppppp+kkkkkkkkkkk  ',
+    'eee+aaaa+jjjmmmmmyyypppppp+kkkkkkkkkkk  ',
+    'eeeeaaaa jjj+mmmmyyyppppppkkkkkkkkkkkk  ',
+    'eeeeaaaa    mmmmmpppppppppkkkkkkkkkkkk  ',
+    'vv+vv       mmmmm+  ppppppkkkkkkkkkkkk  ',
+    'vvvvvllllbbbbbbbbbb ppppppkkkkkkkkkkkk  ',
+    'vvvvvllllbbbbbbbbbb ppppppkkkkkkkkkkkk  ',
+    'vvvvvllllbbbbbbbbbbppwwwwwwwwwww+iiiii  ',
+    'vvvvvllllbbbbbbbbbbpp ssssssww  iiiiii  ',
+    '     llllbbbbbbbbbbpp sssss+ww  iiiiii  ',
+    '  zzzz++zzzzzzzzzzz++ ssssssww  iiiiii  ',
     '  zzz+zzzzzz+zzzzz+zz ssssssww  iiiiii  ',
     '  fffffffoooooooxxxxx                   ',
     '  fffffffoooooooxxxxx                   ',
@@ -56,8 +59,8 @@ export const SHIP_LAYOUTS = {
   ],
   // Pont principal : le cœur communautaire. À la poupe, la salle commune, le hall d'accueil du
   // vaisseau, où arrive le téléporteur (cf. TELEPORTERS), avec sa mezzanine (cf. MEZZANINES) et,
-  // au fond, deux boutiques vitrées : celle du Weekly ('w') et celle de la Chasse galactique
-  // ('h'). La coursive file vers le poste de pilotage et ses verrières, à la proue, et s'ouvre
+  // au nord, côte à côte, deux boutiques vitrées : celle du Weekly ('w') et celle de la Chasse
+  // galactique ('h'), chacune derrière sa porte (cf. OFFICE_DOORS). La coursive file vers le poste de pilotage et ses verrières, à la proue, et s'ouvre
   // juste avant sur la Promenade, un atrium vitré autour de la maquette du Cobra. Au nord, le labo
   // du LJPC et les toilettes ('d', cf. TOILET_ROOM dans vents.js) ; au sud, la grande salle
   // d'arcade (deux portes) et le mess, un self dont la cuisine occupe le fond. Au nord, contre la
@@ -68,10 +71,10 @@ export const SHIP_LAYOUTS = {
   // ('x') qui descend vers la salle de la Pixel War ('p', 5 × 3), entre la cuisine du mess et le
   // poste de surveillance.
   '0': [
-    '  eeeeee qqqqqqqdddddlllll ccc          ',
-    ' eeeeeeeeqqqqqqqdddddlllllccccc bbb     ',
-    'eeeeeeeeeqqqqqqqdddddlllllccccc bbbbb   ',
-    'eeeeeeeeeqqqq+qqdd+ddll+llccccc bbbbbbb ',
+    '  eewwehhqqqqqqqdddddlllll ccc          ',
+    ' eeewwehhqqqqqqqdddddlllllccccc bbb     ',
+    'eeeewwehhqqqqqqqdddddlllllccccc bbbbb   ',
+    'eeeewwehhqqqq+qqdd+ddll+llccccc bbbbbbb ',
     'eeeeeeee+cccccccccccccccccccccc+bbbbbbb ',
     'eeeeeeee+cccccccccccccccccccccc+bbbbbbb ',
     'eeeeeeeeemmmm+mmss+ssss+ssccccc bbbbbbb ',
@@ -80,16 +83,16 @@ export const SHIP_LAYOUTS = {
     'eeeeeeeeemmmmmmmssssssssss ccc          ',
     'eeeeeeeeemmmmmmmx          +            ',
     'eeeeeeeeemmmmmmmx       vvvvvvv         ',
-    'ww+weh+hhmmmmmmmppppp   vvvvvvv         ',
-    'wwwwehhhh       ppppp   vvvvvvv         ',
-    ' wwwehhh        ppppp   vvvvvvv         ',
+    'eeeeeeeeemmmmmmmppppp   vvvvvvv         ',
+    'eeeeeeeee       ppppp   vvvvvvv         ',
+    ' eeeeeee        ppppp   vvvvvvv         ',
   ],
   // Pont supérieur : culture et détente. À l'ouest, la grande serre de Capucine, sous verrière, aux
   // coins cassés : au nord, la serre hydroponique, face à la coursive ; au sud, sans mur entre les
   // deux, le jardin exotique et son étang (cf. GARDEN_SOUTH dans gardener.js), le long du
   // planétarium. Au nord de la coursive, la salle de classe, puis le studio de Radio Dangereuse,
   // derrière la vitre du salon d'écoute ('o', 5 × 5). Au sud de la coursive, à la place des
-  // anciens quartiers, le planétarium de Bugenhagen ('p', 7 × 8, cf. PLANETARIUM_ROOM). La coursive
+  // anciens quartiers, le planétarium de Bugenhagen ('p', 6 × 8, cf. PLANETARIUM_ROOM). La coursive
   // longe son flanc est et devient la galerie, où arrive le téléporteur (cf. TELEPORTERS) : le
   // salon d'écoute et le foyer du cinéma ('h', porte double vers la galerie, cf. FOYER_DOORS) y
   // donnent au nord, la grande bibliothèque du lore ('l', 14 × 6, cf. LIBRARY_ROOM) au sud, par
@@ -103,14 +106,14 @@ export const SHIP_LAYOUTS = {
     'ggggggggk+kkkkkksss+ hhnnnnnnn         ',
     'ggggggggcccccccc+ooooh+nnnnnnn         ',
     'gggggggg+cccccccoooo+h+nnnnnnn xxxxxxxx',
-    'ggggggggppp+pppcooooohhnnnnnnn xxxxxxxx',
-    'ggggggggpppppppcooooohhnnnnnnn xxxxxxxx',
-    'ggggggggpppppppcoo+oohhnnnnnnn xxxxxxxx',
-    'ggggggggpppppppccccccccccccccc+xxxxxxxx',
-    'ggggggggpppppppccccccccccccccc+xxxxxxxx',
-    'ggggggggppppppp llllll++llllll xxxxxxxx',
-    'ggggggggppppppp llllllllllllll xxxxxxxx',
-    ' gggggggppppppp llllllllllllll xxxxxxxx',
+    'ggggggggppp+ppccooooohhnnnnnnn xxxxxxxx',
+    'ggggggggppppppccooooohhnnnnnnn xxxxxxxx',
+    'ggggggggppppppccoo+oohhnnnnnnn xxxxxxxx',
+    'ggggggggppppppcccccccccccccccc+xxxxxxxx',
+    'ggggggggppppppcccccccccccccccc+xxxxxxxx',
+    'ggggggggpppppp  llllll++llllll xxxxxxxx',
+    'ggggggggpppppp  llllllllllllll xxxxxxxx',
+    ' gggggggpppppp  llllllllllllll xxxxxxxx',
     '  gggggg        llllllllllllll xxxxxxxx',
     '                llllllllllllll         ',
     '                llllllllllllll         ',
@@ -121,15 +124,15 @@ export const SHIP_LAYOUTS = {
   // plus, et l'antichambre ne touche la parcelle que sur les cinq tuiles de l'ancien palier.
   '2': [
     '            ',
-    '     aaaaa  ',
-    '    aaaaaaa ',
-    '    aaaaaaaa',
-    '    aaaaaaaa',
-    '    aaaaaaaa',
-    '    aaaaaaaa',
-    '    aaaaaaaa',
-    '    aaaaaaa ',
-    '     aaaaa  ',
+    '            ',
+    '       aaaa ',
+    '      aaaaaa',
+    '      aaaaaa',
+    '      aaaaaa',
+    '      aaaaaa',
+    '      aaaaaa',
+    '       aaaa ',
+    '            ',
   ],
 }
 
@@ -139,10 +142,10 @@ export const SHIP_LAYOUTS = {
  * quartiers reste à l'ouest de la parcelle, dont les maisons sont enregistrées en coordonnées absolues.
  */
 export const TELEPORTERS = {
-  '-1': { x: 21, z: 5 },
+  '-1': { x: 22, z: 7 },
   '0': { x: 4, z: 10 },
   '1': { x: 16, z: 10 },
-  '2': { x: 7, z: 5 },
+  '2': { x: 8, z: 5 },
 }
 
 /** Le téléporteur du pont `level` ; celui du pont principal à défaut. */
@@ -253,7 +256,7 @@ function mezzanineWalls(level) {
  */
 export function shipMapOptions(level) {
   const id = String(level)
-  const doors = id === '-1' ? [SECURITY_DOOR, SCAVENGERS_DOOR, CLOSET_DOOR, ...THARGOID_DOORS, ...ARENA_DOORS] : id === '0' ? PIXEL_WAR_DOORS : id === '1' ? FOYER_DOORS : id === '2' ? [PLOT_DOOR] : []
+  const doors = id === '-1' ? [SECURITY_DOOR, SCAVENGERS_DOOR, CLOSET_DOOR, REFINERY_DOOR, ...THARGOID_DOORS, ...ARENA_DOORS] : id === '0' ? [...PIXEL_WAR_DOORS, ...OFFICE_DOORS] : id === '1' ? FOYER_DOORS : id === '2' ? [PLOT_DOOR] : []
   return { closed: CLOSED_ROOMS[level] ?? '', doors, walls: mezzanineWalls(id) }
 }
 
@@ -281,7 +284,10 @@ export const SCAVENGERS_DOOR = { x: 22, z: 11, dir: 0 }
 export const THARGOID_DOORS = [{ x: 23, z: 4, dir: 0 }, { x: 24, z: 4, dir: 0 }]
 
 /** La porte double du lobby de l'arène (cale), dans sa cloison nord : elle donne sur le hall de la cale. */
-export const ARENA_DOORS = [{ x: 23, z: 6, dir: 0 }, { x: 24, z: 6, dir: 0 }]
+export const ARENA_DOORS = [{ x: 18, z: 6, dir: 2 }, { x: 19, z: 6, dir: 2 }]
+
+/** La porte de la raffinerie (cale) sur le hall, dans le mur ouest de son aile : posée sur le bord ouest de la tuile du hall. */
+export const REFINERY_DOOR = { x: 17, z: 7, dir: 3 }
 
 /** La porte du placard à balais de la cale, dans son mur est : elle donne sur le couloir de service du Zorb. */
 export const CLOSET_DOOR = { x: 9, z: 2, dir: 1 }
@@ -291,6 +297,12 @@ export const CLOSET_DOOR = { x: 9, z: 2, dir: 1 }
  * tuile : celle du salon d'arcade, dans son mur sud, et celle de la salle, au bout du couloir.
  */
 export const PIXEL_WAR_DOORS = [{ x: 16, z: 10, dir: 0 }, { x: 16, z: 12, dir: 0 }]
+
+/**
+ * Les portes des deux bureaux vitrés du hall d'accueil (pont principal), au fond de la salle
+ * commune : chacune sur le bord sud de sa tuile, du côté de la niche qui les sépare.
+ */
+export const OFFICE_DOORS = [{ x: 5, z: 3, dir: 2 }, { x: 7, z: 3, dir: 2 }]
 
 /** La porte double du foyer du cinéma (pont supérieur), dans son mur sud : elle donne sur la galerie. */
 export const FOYER_DOORS = [{ x: 21, z: 8, dir: 2 }, { x: 22, z: 8, dir: 2 }]

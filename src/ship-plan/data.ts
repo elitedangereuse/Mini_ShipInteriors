@@ -51,9 +51,10 @@ const QUEST_LOCK = tr('S\'ouvre au fil d\'une quête du bord (journal : touche J
 const ROOMS: Record<string, Record<string, RoomInfo>> = {
   '-1': {
     j: { zone: 'way', what: tr('Le monte-charge, au milieu : l\'arrière-cale part d\'ici, vers l\'atelier, le stand de tir et le Zorb.', 'The freight lift, in the middle: the back of the hold starts here, towards the workshop, the shooting range and the Zorb.') },
-    p: { zone: 'way', what: tr('Le téléporteur de la cale, et les portes de la zone thargoïde, de CMDR Arena, du hangar et des Scavengers. Au sud-ouest, l\'allée du complexe d\'entraînement.', 'The hold\'s teleporter, and the doors to the Thargoid zone, CMDR Arena, the hangar and the Scavengers. To the south-west, the path to the training complex.') },
+    p: { zone: 'way', what: tr('Le téléporteur de la cale au milieu d\'un grand hall, la soute dans son coin, et les portes de la zone thargoïde, de CMDR Arena, du hangar, de la raffinerie et des Scavengers. Au sud-ouest, l\'allée du complexe d\'entraînement.', 'The hold\'s teleporter in the middle of a big hall, the cargo bay in its corner, and the doors to the Thargoid zone, CMDR Arena, the hangar, the refinery and the Scavengers. To the south-west, the path to the training complex.') },
     y: { zone: 'sport', what: tr('Le terminal de CMDR Arena et le guichet de Tessa, l\'arbitre : duels par équipes, jusqu\'à trois contre trois.', 'The CMDR Arena terminal and Tessa the referee\'s booth: team duels, up to three versus three.'), star: true },
-    z: { zone: 'sport', what: tr('Le hall du complexe d\'entraînement : de quoi se rafraîchir, et les portes du foot, du basket et de la salle de sport.', 'The training complex hall: refreshments, and the doors to football, basketball and the gym.') },
+    z: { zone: 'sport', what: tr('Le hall du complexe d\'entraînement : de quoi se rafraîchir, et les portes du foot, du basket, de la salle de sport et du Vestiaire des Légendes.', 'The training complex hall: refreshments, and the doors to football, basketball, the gym and the Legends\' locker room.') },
+    l: { zone: 'sport', what: tr('Casiers et douches, les maillots floqués des recordmen du bord, la vitrine des coupes, et dans son casier, les tenues de sport du Holo-Me à gagner.', 'Lockers and showers, the shirts of the ship\'s record holders, the trophy cabinet, and in your locker, Holo-Me sportswear to earn.'), star: true },
     x: { zone: 'sport', what: tr('Boxe, course, vélo et musculation : un mini-jeu par appareil, et ses records.', 'Boxing, running, cycling and weights: a mini-game per machine, with records.'), locked: QUEST_LOCK, star: true },
     o: { zone: 'sport', what: tr('Un demi-terrain : on tire au panier depuis la marque.', 'A half court: shoot hoops from the mark.'), locked: QUEST_LOCK },
     f: { zone: 'sport', what: tr('Une cage, un gardien en carton, des tirs au but.', 'A goal, a cardboard keeper, penalty shots.'), locked: QUEST_LOCK },
@@ -68,7 +69,6 @@ const ROOMS: Record<string, Record<string, RoomInfo>> = {
     },
     r: { zone: 'sport', what: tr('Cinq armes au mur, des cibles, et un classement.', 'Five weapons on the wall, targets, and a leaderboard.'), locked: QUEST_LOCK, star: true },
     m: { zone: 'work', what: tr('Fusion du minerai, lingots et drones collecteurs. Des tâches de bord y rapportent des crédits.', 'Ore smelting, ingots and collector limpets. Ship chores pay credits.') },
-    g: { zone: 'work', what: tr('Conteneurs et cargaison. Elle relie le stand de tir, la raffinerie et le lobby.', 'Containers and cargo. It links the shooting range, the refinery and the lobby.') },
     b: {
       zone: 'play', secret: true,
       what: tr('Le bar des habitués : les cocktails de Jacques, un flipper Mini-CQC et des tables de Galactic Clash.', 'The regulars\' bar: Jacques\' cocktails, a Mini-CQC pinball and Galactic Clash tables.'),

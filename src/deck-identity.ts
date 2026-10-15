@@ -52,7 +52,7 @@ const DECKS: Record<string, DeckIdentity> = {
     color: '#ff8a1f',
     icon: 'users-three',
     places: [
-      { name: tr('Weekly · Chasse galactique', 'Weekly · Galactic Hunt'), to: { x: 4, z: 11.8 }, keywords: 'weekly chasse galactique ljpc credits recompenses bureaux boutiques' },
+      { name: tr('Weekly · Chasse galactique', 'Weekly · Galactic Hunt'), to: { x: 6, z: 3.4 }, keywords: 'weekly chasse galactique ljpc credits recompenses bureaux boutiques' },
       { name: tr('Mezzanine · jukebox', 'Mezzanine · jukebox'), to: { x: 3.6, z: 6.5 }, keywords: 'mezzanine jukebox musique salon en direct' },
       { name: tr('Infirmerie · toilettes · mess', 'Medical bay · restrooms · mess'), to: { x: 8.6, z: 4.5 }, keywords: 'infirmerie betty soins toilettes wc mess cantine marcel manger mess rush cuisine' },
       { name: tr('Arcade · Mini-CQC · Pixel War', 'Arcade · Mini-CQC · Pixel War'), to: { x: 8.6, z: 4.5 }, keywords: 'arcade bornes jeux mini-cqc cqc pixel war flipper peluches echecs dames' },
@@ -65,12 +65,12 @@ const DECKS: Record<string, DeckIdentity> = {
     color: '#f0c93a',
     icon: 'barbell',
     places: [
-      { name: tr('Entraînement : sport, basket, foot', 'Training: gym, basketball, football'), to: { x: 20, z: 10.8 }, keywords: 'entrainement salle de sport gym basket foot football musculation boxe velo course tapis' },
-      { name: 'CMDR Arena', to: { x: 23.5, z: 5.7 }, keywords: 'arena arene cmdr duel equipes cqc tessa' },
+      { name: tr('Entraînement : sport, basket, foot, vestiaire', 'Training: gym, basketball, football, lockers'), to: { x: 19.5, z: 11 }, keywords: 'entrainement salle de sport gym basket foot football musculation boxe velo course tapis vestiaire legendes casier douche maillots trophees coupes tenue sport' },
+      { name: 'CMDR Arena', to: { x: 18.5, z: 6.8 }, keywords: 'arena arene cmdr duel equipes cqc tessa' },
       { name: tr('Zone thargoïde', 'Thargoid zone'), to: { x: 23.5, z: 3.3 }, keywords: 'zone thargoide thargoid cargaison recuperation odile mission' },
       { name: tr('Hangar', 'Hangar'), to: { x: 26.4, z: 4.5 }, keywords: 'hangar krait nico mecano boulon vaisseau' },
       { name: tr('Scavengers · exploration', 'Scavengers · exploration'), to: { x: 22, z: 10.8 }, keywords: 'scavengers kael aria its dangerous out there idot exploration gaine' },
-      { name: tr('Tir · atelier · arrière-cale', 'Range · workshop · back of the hold'), to: { x: 19.3, z: 5 }, keywords: 'stand de tir armes cibles atelier raffinerie soute machines jacques bar zorb boite de nuit voie' },
+      { name: tr('Tir · atelier · arrière-cale', 'Range · workshop · back of the hold'), to: { x: 16.6, z: 7 }, keywords: 'stand de tir armes cibles atelier raffinerie soute machines jacques bar zorb boite de nuit voie' },
     ],
   },
 }

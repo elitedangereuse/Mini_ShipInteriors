@@ -13,7 +13,7 @@ import { loadLjpc } from './ljpc-site'
 import * as THREE from 'three'
 import type { ArcadeCabinet } from './arcade/cabinet'
 import { isGameId, RANGE_ID, type GameId } from './arcade/game'
-import { fetchBoard, fetchRecords } from './arcade/scores'
+import { fetchBoard, fetchRecords, onScoreSaved } from './arcade/scores'
 import { BoardGames } from './board/games'
 import { BarPanel, CocktailEffects } from './bar'
 import { GameEmbed } from './game-embed'
@@ -23,8 +23,9 @@ import { drawPoster, POSTER } from './ship-plan/poster'
 import { setShipMapArt, setTotemArt } from './furniture/wayfinding'
 import { drawTotem, identityOf, TOTEM_ART } from './deck-identity'
 import { CommunityFeed } from './community-feed'
-import { LORE_THEMES, openLecternPage, openLoreExplorer, openShelf, openStarCards, type LoreTheme } from './lore-library'
+import { LORE_THEMES, openLoreExplorer, openShelf, openStarCards, setLoreSound, type LoreTheme } from './lore-library'
 import { QuartersProfile, siteCmdr, type QuartersOwner } from './profile-card'
+import { initLegends, openLocker, sportSkinHint } from './legends'
 import { showPull } from './furniture/cards'
 import { MediaRoom } from './media-room'
 import { CinemaRoom } from './cinema-room'
@@ -38,7 +39,7 @@ import { deleteLetter, fetchCrew, markLettersRead, sendLetter, type CrewDirector
 import { defaultLayout, LEGACY_BOUNDS, normalizeLayout, serializeLayout, type CabinItem, type CabinLayout } from './cabin/layout'
 import { CabinStore, requestCabin, type SiteCabin } from './cabin/storage'
 import { devBar, devCmdr, devLjpc, devVoie, fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
-import { ECONOMY, formatCredits, skinPrice, type JobKind, plotPrice } from './economy/data'
+import { ECONOMY, formatCredits, skinPrice, sportSkins, type JobKind, plotPrice } from './economy/data'
 import { CreditsHud } from './economy/hud'
 import { taskOf } from './economy/schedule'
 import { allLooks, lookOwned, skinProduct, starterLook } from './economy/skins'
@@ -558,6 +559,14 @@ const barPanel = new BarPanel(wallet, cocktailEffects,
   },
 )
 const gameEmbed = new GameEmbed()
+/** Le mur des maillots du Vestiaire des Légendes suit les records du bord (cf. legends.ts). */
+initLegends()
+// Un record qui atteint le palier d'une tenue de sport : le site la verse au CMDR, on relit son
+// portefeuille pour qu'elle apparaisse au Holo-Me sans recharger.
+onScoreSaved((game, score) => {
+  const earned = Object.entries(sportSkins()).some(([skin, rule]) => rule.game === game && score >= rule.score && !wallet.skins.has(skin))
+  if (earned) void wallet.load()
+})
 /** La carte de profil de l'antichambre des quartiers : celle du CMDR qui habite là (cf. profile-card.ts). */
 const quartersProfile = new QuartersProfile(gameEmbed, () => loginUrl())
 // Le Comptoir des Cartes Dangereuses (pont supérieur) : la boutique de Ludo et l'ouverture des boosters.
@@ -647,6 +656,8 @@ catDeck.interactables.push(catInteractable)
 let cometeHere = true
 
 const sound = new Sound()
+// Une page qu'on tourne, à chaque livre qu'on survole dans un rayonnage de la bibliothèque.
+setLoreSound(() => sound.page())
 scene.add(sound.rig)
 
 /** Jukebox du pont principal (celui de la salle commune), de la cale (celui du bar) et des quartiers où l'on se trouve. */
@@ -3051,7 +3062,9 @@ chat.add(
 const wardrobe = new WardrobePanel({
   price: (look) => (lookOwned(look, wallet) ? null : skinPrice(skinProduct(look)!)),
   // Une apparence qu'une quête offre ne s'achète pas (cf. QUEST_UNLOCKS).
-  quest: (look) => !lookOwned(look, wallet) && `skin:${skinProduct(look)}` in QUEST_UNLOCKS,
+  quest: (look) => !lookOwned(look, wallet) && (`skin:${skinProduct(look)}` in QUEST_UNLOCKS || (skinProduct(look) ?? '') in sportSkins()),
+  // Une tenue de sport se gagne avec un record (cf. legends.ts).
+  earn: (look) => sportSkinHint(skinProduct(look)),
   blocked: shopBlocked,
   balance: () => wallet.balance,
   buy: async (look) => {
@@ -5473,6 +5486,12 @@ function interactWith(item: Interactable) {
     return shipPlan.open()
   }
   if (item.furniture?.model === 'cards-counter' || item.furniture?.model === 'cards-shop' || item.furniture?.model === 'cards-altar') return cardsPanel.open()
+  if (item.furniture?.model === 'legends-lockers' || item.furniture?.model === 'legends-wall') {
+    player.cancelPath()
+    keys.clear()
+    marker.visible = false
+    return openLocker(gameEmbed, { owns: (product) => wallet.skins.has(product), linked, loginUrl: loginUrl() })
+  }
   if (item.furniture?.model === 'profile-frame') {
     player.cancelPath()
     keys.clear()
@@ -5481,13 +5500,12 @@ function interactWith(item: Interactable) {
   }
   // La bibliothèque du lore et les cartes stellaires du planétarium (cf. lore-library.ts).
   const loreModel = item.furniture?.model
-  if (loreModel === 'lore-bookcase' || loreModel === 'lore-lectern' || loreModel === 'lore-graph' || loreModel === 'star-card-wall') {
+  if (loreModel === 'lore-bookcase' || loreModel === 'lore-graph' || loreModel === 'star-card-wall') {
     player.cancelPath()
     keys.clear()
     marker.visible = false
     const theme = (LORE_THEMES as string[]).includes(item.furniture?.label ?? '') ? item.furniture!.label as LoreTheme : 'empire'
     if (loreModel === 'lore-bookcase') return openShelf(gameEmbed, theme)
-    if (loreModel === 'lore-lectern') return openLecternPage(gameEmbed, theme)
     if (loreModel === 'lore-graph') return openLoreExplorer(gameEmbed)
     return openStarCards(gameEmbed)
   }

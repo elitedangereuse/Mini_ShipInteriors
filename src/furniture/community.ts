@@ -34,10 +34,10 @@ export function setCommunityFeed(f: CommunityFeed) {
 
 // ---------------------------------------------------------------- le bandeau « En direct »
 
-/** Le bandeau : 1,9 de long, un écran à LED étroit dans un caisson sombre liseré d'orange. */
-const TW = 1.9, TH = 0.26, TY = 0.62
-/** Défilement du texte (pixels de l'écran par seconde). */
-const SPEED = 90
+/** Le bandeau : toute la largeur de la façade de la mezzanine, un écran à LED dans un caisson sombre liseré d'orange. */
+const TW = 1.96, TH = 0.46, TY = 0.62
+/** Défilement du texte (pixels de l'écran par seconde) : une nouvelle se lit en quelques secondes. */
+const SPEED = 300
 
 /**
  * Bandeau « En direct » (face à +z) : à gauche, le voyant rouge « EN DIRECT » ; à droite, les
@@ -47,7 +47,7 @@ const liveTicker: Builder = () => {
   const g = new THREE.Group()
   g.add(box(TW + 0.06, TH + 0.06, 0.05, lit('#101217', 'metal'), 0, TY, -0.01, 0.01))
   for (const s of [-1, 1]) g.add(box(TW + 0.06, 0.012, 0.012, glow('#ff8a1c'), 0, TY + s * (TH / 2 + 0.03), 0.018))
-  const PW = 1536, PH = Math.round((PW * TH) / TW)
+  const PW = 2048, PH = Math.round((PW * TH) / TW)
   const label = tr('EN DIRECT', 'LIVE')
   const small = `700 ${Math.round(PH * 0.4)}px "DIN Alternate", "Bahnschrift", "Roboto Condensed", system-ui, sans-serif`
   /** Largeur du voyant : mesurée au premier dessin, à la taille de son texte. */
@@ -58,7 +58,7 @@ const liveTicker: Builder = () => {
   const screen = animatedScreen(PW, PH, 30, (c, t) => {
     if (!tag) {
       c.font = small
-      tag = Math.ceil(66 + c.measureText(label).width + 30)
+      tag = Math.ceil(PH * 0.55 + c.measureText(label).width + PH * 0.15)
     }
     c.fillStyle = '#07080b'
     c.fillRect(0, 0, PW, PH)
@@ -85,19 +85,19 @@ const liveTicker: Builder = () => {
     c.restore()
     // Les LED : une trame sombre par-dessus.
     c.fillStyle = 'rgba(0, 0, 0, 0.28)'
-    for (let x = tag; x < PW; x += 6) c.fillRect(x, 0, 2, PH)
-    for (let y = 0; y < PH; y += 6) c.fillRect(tag, y, PW - tag, 2)
+    for (let x = tag; x < PW; x += 8) c.fillRect(x, 0, 3, PH)
+    for (let y = 0; y < PH; y += 8) c.fillRect(tag, y, PW - tag, 3)
     // Le voyant « EN DIRECT ».
     c.fillStyle = '#c62828'
     c.fillRect(0, 0, tag, PH)
     c.fillStyle = Math.floor(t * 1.5) % 2 ? '#ffffff' : '#ffb4b4'
     c.beginPath()
-    c.arc(38, PH / 2, PH * 0.14, 0, Math.PI * 2)
+    c.arc(PH * 0.26, PH / 2, PH * 0.12, 0, Math.PI * 2)
     c.fill()
     c.fillStyle = '#ffffff'
     c.font = small
     c.textBaseline = 'middle'
-    c.fillText(label, 66, PH / 2 + 2)
+    c.fillText(label, PH * 0.48, PH / 2 + 2)
   })
   const live = new THREE.Group()
   live.add(part(new THREE.PlaneGeometry(TW, TH), keepShared(new THREE.MeshBasicMaterial({ map: screen.texture, toneMapped: false })), 0, TY, 0.017))

@@ -24,6 +24,17 @@ test('complexe d\'entraînement : du hall de la cale au hall d\'entraînement, p
   for (let z = 16; z <= 19; z++) for (let x = 16; x <= 20; x++) assert.equal(hold.room(x, z), GYM_ROOM.room, `salle de sport en ${x}, ${z}`)
 })
 
+test('complexe d\'entraînement : une allée de deux tuiles y descend, et le vestiaire s\'ouvre sur son hall', () => {
+  // L'allée, depuis le coin sud-ouest du hall de la cale, jusqu'à sa porte double.
+  for (let z = 11; z <= 13; z++) for (const x of [19, 20]) assert.equal(hold.room(x, z), 'p', `allée en ${x}, ${z}`)
+  /** Portes entre les pièces a et b. */
+  const doors = (a, b) => hold.doors.filter((d) => [hold.room(d.x, d.z), hold.room(d.x + DIRS[d.dir].dx, d.z + DIRS[d.dir].dz)].sort().join('') === [a, b].sort().join(''))
+  assert.equal(doors('p', 'z').length, 2, 'porte double de l\'allée')
+  // Le Vestiaire des Légendes, entre la Voie et le bar, ne s'ouvre que sur le hall d'entraînement.
+  assert.equal(doors('l', 'z').length, 2, 'porte double du vestiaire')
+  assert.deepEqual([...holdLinks].filter((l) => l[0] === 'l'), ['lz'])
+})
+
 test('complexe d\'entraînement : chaque marque de tir est sur son terrain, face au mur ouest de la pièce', () => {
   for (const [game, court] of Object.entries(SPORT_COURTS)) {
     assert.equal(court.level, -1, game)

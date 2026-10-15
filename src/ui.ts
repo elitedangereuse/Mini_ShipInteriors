@@ -537,8 +537,10 @@ export function bootDone() {
 export interface WardrobeShop {
   /** Prix d'une apparence qu'on n'a pas encore, ou null (offerte, ou déjà achetée). */
   price(look: Look): number | null
-  /** Cette apparence, qu'on n'a pas, ne s'achète pas : une quête du bord l'offre. */
+  /** Cette apparence, qu'on n'a pas, ne s'achète pas : une quête du bord l'offre, ou un record. */
   quest(look: Look): boolean
+  /** Comment la gagner, quand elle ne s'achète pas (sinon : « une quête du bord l'offre »). */
+  earn?(look: Look): string | null
   /** Pourquoi on ne peut pas acheter en ce moment (invité, site injoignable…), ou null. */
   blocked(): string | null
   balance(): number
@@ -813,7 +815,7 @@ export class WardrobePanel {
       note.append(icon('lock-simple'), document.createTextNode(tr('Se gagne à bord', 'Earned aboard')))
       const w = document.createElement('div')
       w.className = 'wr-why'
-      w.textContent = tr('Cette apparence ne s\'achète pas : une quête du bord l\'offre. Ouvrez l\'œil.', 'This look can\'t be bought: a quest aboard awards it. Keep your eyes open.')
+      w.textContent = shop.earn?.(this.look) ?? tr('Cette apparence ne s\'achète pas : une quête du bord l\'offre. Ouvrez l\'œil.', 'This look can\'t be bought: a quest aboard awards it. Keep your eyes open.')
       note.append(w)
       rows.push(note)
       actions.append(cancel)

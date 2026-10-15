@@ -20,20 +20,20 @@ import { lineOfSight } from './sight.js'
 /** « Pont » de l'arène : hors du vaisseau, sous les autres (baie infestée -2, conduits -3, simulateur -4). */
 export const ARENA_LEVEL = -5
 /**
- * Le lobby de l'arène : la pièce 'y' de la cale (cf. shared/ship-layouts.js), au coin sud-est du
- * hall de la cale ('p'), d'où l'on vient. On garde sa place dans un lobby du terminal tant qu'on
- * reste dans l'une ou l'autre.
+ * Le lobby de l'arène : la pièce 'y' de la cale (cf. shared/ship-layouts.js), à l'ouest du hall de
+ * la cale ('p'), d'où l'on vient, à la place de l'ancienne soute. On garde sa place dans un lobby
+ * du terminal tant qu'on reste dans l'une ou l'autre.
  */
 export const ARENA_LOBBY = { level: -1, room: 'y', rooms: 'yp' }
 /** Où l'on revient (fin de partie, abandon) : devant le terminal. */
-export const ARENA_RETURN = { x: 23.8, z: 7 }
-/** Le terminal, contre la cloison ouest, près de la porte (cf. src/levels.ts). */
-export const ARENA_TERMINAL = { x: 22.92, z: 7 }
+export const ARENA_RETURN = { x: 18.2, z: 5 }
+/** Le terminal, contre la cloison vitrée de l'est, près de la porte (cf. src/levels.ts). */
+export const ARENA_TERMINAL = { x: 19.08, z: 5 }
 /**
- * Le guichet de l'arbitre, adossé à la cloison ouest, tourné vers l'est (`yaw`) : où elle se tient
+ * Le guichet de l'arbitre, adossé à la cloison est, tourné vers l'ouest (`yaw`) : où elle se tient
  * derrière sa vitre, et où l'on se met pour lui parler, devant le comptoir.
  */
-export const ARENA_BOOTH = { x: 22.97, z: 9.3, yaw: Math.PI / 2, referee: { x: 23.05, z: 9.3 }, counter: { x: 24.25, z: 9.3 } }
+export const ARENA_BOOTH = { x: 19.03, z: 2.7, yaw: -Math.PI / 2, referee: { x: 18.95, z: 2.7 }, counter: { x: 17.75, z: 2.7 } }
 
 /**
  * Chiffres de la partie (tuiles et secondes).

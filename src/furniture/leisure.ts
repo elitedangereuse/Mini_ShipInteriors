@@ -313,26 +313,31 @@ const punchingBag: Builder = () => {
 
 /** Enseigne au néon (texte : `label`), qui grésille de temps en temps. */
 const neonSign: Builder = ({ label = 'ARCADE' }) => {
-  const texture = drawnTexture(512, 160, (c) => {
+  // L'enseigne s'allonge avec son texte : « ENTRAÎNEMENT » ou « CHASSE GALACTIQUE » y tiennent en entier.
+  const font = '800 92px system-ui, sans-serif'
+  const measure = document.createElement('canvas').getContext('2d')!
+  measure.font = font
+  const CW = Math.max(512, Math.ceil(measure.measureText(label).width) + 120)
+  const texture = drawnTexture(CW, 160, (c) => {
     c.textAlign = 'center'
     c.textBaseline = 'middle'
-    c.font = '800 92px system-ui, sans-serif'
+    c.font = font
     c.shadowColor = '#ff4fd8'
     c.shadowBlur = 26
     c.fillStyle = '#ffd6f6'
-    c.fillText(label, 256, 84)
-    c.fillText(label, 256, 84)
+    c.fillText(label, CW / 2, 84)
+    c.fillText(label, CW / 2, 84)
     c.shadowColor = '#39e0ff'
     c.shadowBlur = 16
     c.strokeStyle = '#8ff4ff'
     c.lineWidth = 7
     c.beginPath()
-    c.roundRect(14, 14, 484, 132, 30)
+    c.roundRect(14, 14, CW - 28, 132, 30)
     c.stroke()
   })
   const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false })
   const live = new THREE.Group()
-  live.add(part(new THREE.PlaneGeometry(0.9, 0.28), material, 0, 0.95, 0))
+  live.add(part(new THREE.PlaneGeometry((0.9 * CW) / 512, 0.28), material, 0, 0.95, 0))
   return {
     live,
     update: (t) => {
