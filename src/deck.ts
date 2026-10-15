@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { renderQuality } from './quality'
 import { withSurface } from './surfaces'
 import { floorFinishes, station, themes, type StationModel, type Theme, type ThemeMaterials } from './assets'
+import { floorStyleMaterial, floorTileGeometry } from './floor-styles'
 import { CabinView } from './cabin/view'
 import { DoorHints } from './door-hints'
 import { makeFadeable } from './fade'
@@ -1144,6 +1145,16 @@ export class Deck {
           slab.receiveShadow = true
           slab.updateMatrixWorld(true)
           this.addStatic(slab, false)
+          continue
+        }
+        const style = this.def.floorStyle?.[room]
+        if (style) {
+          // Un sol dessiné : une dalle dont le dessus prend sa part du motif de la pièce.
+          const tile = new THREE.Mesh(floorTileGeometry(style, x, z, -FLOOR_Y), floorStyleMaterial(style))
+          tile.position.set(x, FLOOR_Y / 2, z)
+          tile.receiveShadow = true
+          tile.updateMatrixWorld(true)
+          this.addStatic(tile, false)
           continue
         }
         let model: StationModel = this.def.floors?.[room] ?? 'floor'

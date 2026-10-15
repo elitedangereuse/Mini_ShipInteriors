@@ -59,6 +59,14 @@ test('paliers d\'arcade et de sport : scores et primes croissants', () => {
   for (const sport of ['gym-run', 'gym-bike', 'gym-punch']) assert.equal(E.arcade.tiers[sport].reduce((n, [, cr]) => n + cr, 0), 3700)
 })
 
+test('tenues de sport : chacune a son prix de référence et se gagne à un palier de son sport', () => {
+  assert.ok(Object.keys(E.sportSkins).length > 0)
+  for (const [skin, { game, score }] of Object.entries(E.sportSkins)) {
+    assert.ok(isCount(E.skins[skin]), `${skin} : prix`)
+    assert.ok(E.arcade.tiers[game]?.some(([s]) => s === score), `${skin} : palier ${score} de ${game}`)
+  }
+})
+
 test('progression : un équipage moyen se paie le premier agrandissement de sa parcelle en une semaine, les deux en un mois', () => {
   // Joueur « Équipage » : revenu passif, et la moitié des tâches qui apparaissent.
   const perHour = E.passive.perMinute * 60 + tasksPerHour() / 2

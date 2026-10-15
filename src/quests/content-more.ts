@@ -165,7 +165,7 @@ export const MORE_QUESTS: QuestContent[] = [
       { id: 'relay-main', deck: 0, x: 26.35, z: 3.3, model: 'quest-relay', label: tr('Examiner le boîtier', 'Examine the box'), when: missing(1, 1) },
       { id: 'relay-hold', deck: -1, x: 7.36, z: 1.06, model: 'quest-relay', label: tr('Examiner le boîtier', 'Examine the box'), when: missing(1, 2) },
       {
-        id: 'transmitter', deck: -1, x: 17.25, z: 2.35, model: 'quest-transmitter',
+        id: 'transmitter', deck: -1, x: 25.2, z: 9.35, model: 'quest-transmitter',
         label: tr('Examiner l\'émetteur', 'Examine the transmitter'), when: during(2, 3),
         idle: tr('La cassette tourne à vide. « 88.8, NUIT 412 ».', 'The cassette runs empty. “88.8, NIGHT 412”.'),
       },

@@ -174,33 +174,7 @@ const quartersDoormat: Builder = () => {
   return { solid: g, live, update: () => screen.update() }
 }
 
-// ---------------------------------------------------------------- la console d'entrée
-
-/** La console de l'entrée (face à +z) : un plateau de noyer, un vide-poche, une lampe, un cadre photo et un bouquet. */
-const entryConsole: Builder = ({ random }) => {
-  const g = new THREE.Group()
-  const walnut = lit('#4a2e1c', 'wood'), brass = lit('#d8b062', 'metal')
-  g.add(box(1.1, 0.04, 0.34, walnut, 0, 0.78, 0, 0.01))
-  for (const x of [-0.5, 0.5]) for (const z of [-0.13, 0.13]) g.add(box(0.035, 0.76, 0.035, walnut, x, 0.38, z))
-  g.add(box(1.0, 0.03, 0.28, walnut, 0, 0.2, 0))
-  // La lampe, le vide-poche et ses clés, le cadre photo, le bouquet.
-  g.add(box(0.12, 0.02, 0.12, brass, -0.38, 0.81, 0), box(0.02, 0.28, 0.02, brass, -0.38, 0.95, 0), box(0.22, 0.14, 0.22, glow('#ffe2b0'), -0.38, 1.13, 0))
-  g.add(box(0.16, 0.025, 0.11, lit('#2a2f3a', 'metal'), -0.05, 0.81, 0.05), box(0.05, 0.012, 0.02, brass, -0.06, 0.83, 0.05))
-  const frame = box(0.16, 0.2, 0.02, brass, 0.16, 0.9, -0.08)
-  frame.rotation.x = -0.15
-  g.add(frame, box(0.12, 0.16, 0.004, lit('#8fb4d8'), 0.16, 0.9, -0.068))
-  g.add(box(0.1, 0.16, 0.1, lit('#e9e2d6'), 0.4, 0.88, 0))
-  for (let k = 0; k < 7; k++) {
-    const a = random() * Math.PI * 2, r = random() * 0.06
-    g.add(box(0.05, 0.05, 0.05, lit(['#e85a7a', '#ffd166', '#f4a3c0', '#ffffff'][k % 4]), 0.4 + Math.cos(a) * r, 1.0 + random() * 0.1, Math.sin(a) * r))
-  }
-  // Deux paniers sous le plateau.
-  for (const x of [-0.24, 0.24]) g.add(box(0.36, 0.16, 0.24, lit('#b8925a', 'cloth'), x, 0.3, 0))
-  return { solid: g }
-}
-
 export const ANTECHAMBER = {
   'profile-frame': profileFrame,
   'quarters-doormat': quartersDoormat,
-  'entry-console': entryConsole,
 } satisfies Record<string, Builder>

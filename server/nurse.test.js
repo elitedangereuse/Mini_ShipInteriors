@@ -18,9 +18,11 @@ const inFurniture = ({ x, z }) => NURSE_OBSTACLES.find((r) => x > r.minX - 0.12 
 const inRoom = ({ x, z }) => map.room(Math.round(x), Math.round(z)) === NURSE_ROOM && x > 8.8 && x < 15.2 && z > -0.2 && z < 3.2
 const at = ({ x, z }) => `(${x.toFixed(2)}, ${z.toFixed(2)})`
 
-test('l\'infirmerie occupe la place laissée libre jusqu\'à la salle commune', () => {
+test('l\'infirmerie occupe la place laissée libre jusqu\'aux boutiques de la salle commune', () => {
   for (let z = 0; z <= 3; z++) for (let x = 9; x <= 15; x++) assert.equal(map.room(x, z), NURSE_ROOM, `tuile (${x}, ${z})`)
-  assert.equal(map.room(8, 1), 'e')
+  // À l'ouest, la boutique de la Chasse galactique, au nord de la salle commune.
+  assert.equal(map.room(8, 1), 'h')
+  assert.equal(map.room(8, 4), 'e')
   // À l'est, les toilettes, à la place de l'ancienne salle de sport.
   assert.equal(map.room(16, 1), 'd')
 })

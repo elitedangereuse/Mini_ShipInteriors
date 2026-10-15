@@ -1,11 +1,12 @@
 import type { GameEmbed } from './game-embed'
+import { emblemImage } from './furniture/library'
 import { tr } from './i18n'
 
 /*
  * La grande bibliothèque du pont supérieur et les cartes stellaires du planétarium : leurs livres
  * ouvrent les pages du Lore Explorer de la communauté (https://elitedangereuse.github.io/LoreExplorer/),
  * leurs cartes, les systèmes d'EDGIS. Six alcôves, une par grand thème du lore : un rayonnage
- * (cf. src/furniture/library.ts) dont chaque livre est une page, un pupitre qui ouvre tout le thème.
+ * (cf. src/furniture/library.ts) dont chaque livre est une page, et tout le thème d'un bouton.
  * Les pages s'ouvrent dans la fenêtre du jeu (cf. GameEmbed.openUrl), avec un lien vers un onglet.
  */
 
@@ -25,7 +26,7 @@ export interface LoreShelf {
   name: string
   /** Ce que dit le rayonnage de lui-même, sous son nom. */
   motto: string
-  /** L'étiquette du thème au Lore Explorer ; à défaut, le pupitre ouvre la page `entry`. */
+  /** L'étiquette du thème au Lore Explorer ; à défaut, « tout le thème » ouvre la page `entry`. */
   tag?: string
   entry: string
   books: LoreBook[]
@@ -153,57 +154,140 @@ const PLANETARIUM_KICKER = tr('PONT SUPÉRIEUR · PLANÉTARIUM', 'UPPER DECK · 
 function spineSize(title: string) {
   let h = 0
   for (const c of title) h = (h * 31 + c.charCodeAt(0)) >>> 0
-  return { height: 168 + (h % 48), width: 44 + ((h >> 6) % 16) }
+  return { height: 196 + (h % 56), width: 50 + ((h >> 6) % 18), lean: (h >> 11) % 9 === 0 }
 }
 
-/** Le rayonnage d'un thème : ses livres, dos à dos ; chacun ouvre sa page du Lore Explorer. */
+let pageSound: (() => void) | null = null
+/** Le son d'une page qu'on tourne, à chaque livre qu'on survole (le jeu le fournit, cf. main.ts). */
+export function setLoreSound(play: () => void) {
+  pageSound = play
+}
+
+/**
+ * Le rayonnage d'un thème, en grand : le décor de l'alcôve (son emblème en filigrane, sa lumière,
+ * des poussières qui flottent), les livres en relief sur leur tablette, et à côté la page du livre
+ * choisi, qui se tourne à chaque livre. Survol, flèches ou Tab pour parcourir ; clic ou Entrée
+ * pour ouvrir sa page du Lore Explorer.
+ */
 export function openShelf(embed: GameEmbed, theme: LoreTheme) {
   const shelf = LORE_SHELVES[theme]
   const body = document.createElement('div')
   body.className = 'lore-panel'
   body.dataset.theme = theme
+  body.style.setProperty('--emblem', `url(${emblemImage(theme)})`)
+  const backdrop = document.createElement('div')
+  backdrop.className = 'lore-backdrop'
+  const motes = document.createElement('div')
+  motes.className = 'lore-motes'
+  for (let i = 0; i < 18; i++) {
+    const m = document.createElement('span')
+    m.style.setProperty('--x', `${(i * 53) % 100}%`)
+    m.style.setProperty('--d', `${9 + ((i * 7) % 9)}s`)
+    m.style.setProperty('--delay', `${-((i * 1.7) % 9)}s`)
+    m.style.setProperty('--s', `${2 + (i % 3)}px`)
+    motes.append(m)
+  }
   const motto = document.createElement('p')
   motto.className = 'lore-motto'
   motto.textContent = shelf.motto
+
+  // Le meuble : son fronton (l'emblème), ses livres, sa tablette.
+  const stage = document.createElement('div')
+  stage.className = 'lore-stage'
+  const bookcase = document.createElement('div')
+  bookcase.className = 'lore-case'
+  const crown = document.createElement('div')
+  crown.className = 'lore-crown'
+  const crest = document.createElement('img')
+  crest.src = emblemImage(theme)
+  crest.alt = ''
+  crown.append(crest)
   const row = document.createElement('div')
   row.className = 'lore-books'
-  const blurb = document.createElement('p')
-  blurb.className = 'lore-blurb'
-  blurb.setAttribute('aria-live', 'polite')
-  const show = (b: LoreBook | null) => {
-    blurb.replaceChildren()
-    if (!b) { blurb.textContent = tr('Choisissez un livre : il s\'ouvre sur sa page du Lore Explorer.', 'Pick a book: it opens on its Lore Explorer page.'); return }
-    const strong = document.createElement('strong')
-    strong.textContent = b.title
-    blurb.append(strong, ` · ${b.blurb}`)
+  row.setAttribute('role', 'list')
+  const plinth = document.createElement('div')
+  plinth.className = 'lore-plinth'
+  bookcase.append(crown, row, plinth)
+
+  // La page du livre choisi.
+  const reader = document.createElement('aside')
+  reader.className = 'lore-reader'
+  const page = document.createElement('div')
+  page.className = 'lore-page'
+  const chapter = document.createElement('span')
+  chapter.className = 'lore-chapter'
+  const heading = document.createElement('h3')
+  const text = document.createElement('p')
+  const open = document.createElement('button')
+  open.type = 'button'
+  open.className = 'lore-open'
+  open.textContent = tr('Ouvrir la page ↗', 'Open the page ↗')
+  const seal = document.createElement('img')
+  seal.className = 'lore-seal'
+  seal.src = emblemImage(theme)
+  seal.alt = ''
+  page.append(chapter, heading, text, open, seal)
+  reader.append(page)
+  stage.append(bookcase, reader)
+
+  const buttons: HTMLButtonElement[] = []
+  let current = -1
+  const show = (i: number, quiet = false) => {
+    if (i === current) return
+    current = i
+    const b = shelf.books[i]
+    buttons.forEach((el, k) => el.classList.toggle('is-out', k === i))
+    chapter.textContent = tr(`${shelf.name} · livre ${i + 1} sur ${shelf.books.length}`, `${shelf.name} · book ${i + 1} of ${shelf.books.length}`)
+    heading.textContent = b.title
+    text.textContent = b.blurb
+    open.onclick = () => openLorePage(embed, theme, b)
+    // La page se tourne : on relance son animation.
+    page.classList.remove('turn')
+    void page.offsetWidth
+    page.classList.add('turn')
+    if (!quiet) pageSound?.()
   }
   shelf.books.forEach((b, i) => {
     const button = document.createElement('button')
     button.type = 'button'
     button.className = 'lore-book'
+    button.setAttribute('role', 'listitem')
     const size = spineSize(b.title)
     button.style.setProperty('--h', `${size.height}px`)
     button.style.setProperty('--w', `${size.width}px`)
+    if (size.lean && i === shelf.books.length - 1) button.classList.add('lean')
     button.dataset.tone = String(i % 4)
     const title = document.createElement('span')
     title.textContent = b.title
     button.append(title)
     button.setAttribute('aria-label', `${b.title} · ${b.blurb}`)
-    button.onmouseenter = button.onfocus = () => show(b)
+    button.onmouseenter = button.onfocus = () => show(i)
     button.onclick = () => openLorePage(embed, theme, b)
+    buttons.push(button)
     row.append(button)
   })
-  show(null)
+  row.addEventListener('keydown', (e) => {
+    const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+    if (!step) return
+    e.preventDefault()
+    buttons[(Math.max(0, current) + step + buttons.length) % buttons.length].focus()
+  })
+  show(0, true)
+
+  const foot = document.createElement('div')
+  foot.className = 'lore-foot'
   const all = document.createElement('button')
   all.type = 'button'
   all.className = 'lore-all'
   all.textContent = shelf.tag
     ? tr(`Tout le thème « ${shelf.name} » au Lore Explorer`, `The whole “${shelf.name}” theme in the Lore Explorer`)
     : tr('Ouvrir le Lore Explorer sur Raxxla', 'Open the Lore Explorer on Raxxla')
-  all.onclick = () => openLecternPage(embed, theme)
-  const plinth = document.createElement('div')
-  plinth.className = 'lore-plinth'
-  body.append(motto, row, plinth, blurb, all)
+  all.onclick = () => openThemePage(embed, theme)
+  const keys = document.createElement('span')
+  keys.className = 'lore-keys'
+  keys.textContent = tr('← → pour parcourir · Entrée pour ouvrir', '← → to browse · Enter to open')
+  foot.append(all, keys)
+  body.append(backdrop, motes, motto, stage, foot)
   embed.openPanel({
     kicker: LIBRARY_KICKER,
     title: tr(`Rayonnage · ${shelf.name}`, `Bookcase · ${shelf.name}`),
@@ -211,7 +295,7 @@ export function openShelf(embed: GameEmbed, theme: LoreTheme) {
     body,
     skin: 'lore-skin',
   })
-  row.querySelector<HTMLButtonElement>('button')?.focus()
+  buttons[0]?.focus({ preventScroll: true })
 }
 
 /** Un livre ouvert : sa page du Lore Explorer, et le retour au rayonnage. */
@@ -226,8 +310,8 @@ function openLorePage(embed: GameEmbed, theme: LoreTheme, b: LoreBook) {
   })
 }
 
-/** Le pupitre d'une alcôve : tout son thème au Lore Explorer (ou Raxxla, pour les mystères, qui n'ont pas d'étiquette). */
-export function openLecternPage(embed: GameEmbed, theme: LoreTheme) {
+/** Tout le thème d'une alcôve au Lore Explorer (ou Raxxla, pour les mystères, qui n'ont pas d'étiquette). */
+export function openThemePage(embed: GameEmbed, theme: LoreTheme) {
   const shelf = LORE_SHELVES[theme]
   embed.openUrl({
     kicker: LIBRARY_KICKER,

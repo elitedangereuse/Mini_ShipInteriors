@@ -81,6 +81,10 @@ export type Submission =
   | { kind: 'guest' }
   | { kind: 'error' }
 
+/** Prévenu de chaque score que le site a gardé (cf. main.ts : les tenues de sport qu'un record gagne). */
+let onSaved: ((game: ScoreGame, score: number) => void) | null = null
+export const onScoreSaved = (f: (game: ScoreGame, score: number) => void) => { onSaved = f }
+
 /** Inscrit un score (le site garde le meilleur de chaque CMDR). */
 export async function submitScore(game: ScoreGame, score: number, level: number, duration: number): Promise<Submission> {
   try {
@@ -102,6 +106,7 @@ export async function submitScore(game: ScoreGame, score: number, level: number,
       c && Number.isFinite(c.earned) && Number.isFinite(c.balance)
         ? { earned: c.earned!, balance: c.balance!, tiers: Array.isArray(c.tiers) ? c.tiers.filter(Number.isFinite) : [], record: c.record === true }
         : null
+    onSaved?.(game, Math.floor(score))
     return { kind: 'saved', board: b, best: data.best === true, credits }
   } catch {
     return { kind: 'error' }

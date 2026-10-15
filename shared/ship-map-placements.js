@@ -14,12 +14,11 @@ export const SHIP_MAP_WALL_CLEARANCE = 0.05
  */
 export const SHIP_MAP_PLACEMENTS = {
   // Au mur nord de l'antichambre des quartiers, dans l'axe de son téléporteur.
-  quartersLanding: { level: 2, x: 7, z: 1, dir: 0, along: 0.5 },
+  quartersLanding: { level: 2, x: 8, z: 2, dir: 0, along: 0.5 },
   // Au centre de la cloison sud du palier du monte-charge, loin de sa porte et de ses montants.
   holdLanding: { level: -1, x: 10, z: 6, dir: 2 },
-  holdCrossroads: { level: -1, x: 17, z: 5, dir: 3, along: 0.5 },
-  // Dans le hall de la cale, à côté de son téléporteur, contre la cloison de la soute.
-  holdHall: { level: -1, x: 20, z: 4, dir: 3 },
+  // Dans le hall de la cale, au mur ouest, face à son téléporteur.
+  holdHall: { level: -1, x: 20, z: 9, dir: 3 },
   // Au mur nord du hall d'entraînement, contre le bar.
   trainingHall: { level: -1, x: 13, z: 14, dir: 0, along: 0.5 },
   mainLanding: { level: 0, x: 10, z: 4, dir: 0 },
@@ -28,7 +27,7 @@ export const SHIP_MAP_PLACEMENTS = {
   mainPromenade: { level: 0, x: 26, z: 3, dir: 3 },
   upperLanding: { level: 1, x: 11, z: 4, dir: 0 },
   // Au bout de la coursive, là où elle tourne vers la galerie, contre la cloison du planétarium.
-  upperGallery: { level: 1, x: 15, z: 7, dir: 3 },
+  upperGallery: { level: 1, x: 14, z: 7, dir: 3 },
 }
 
 /** Position et rotation dans le monde d'une affiche ancrée à sa cloison. */

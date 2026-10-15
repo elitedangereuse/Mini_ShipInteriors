@@ -513,6 +513,42 @@ export class Sound {
     })
   }
 
+  /**
+   * Une page qu'on tourne, tout doux (non spatialisé) : un froissement de papier, du bruit filtré
+   * qui glisse de l'aigu vers le médium, et le souffle feutré de la reliure.
+   */
+  page() {
+    if (!this.ready) return
+    const ctx = this.ctx
+    const out = this.output(null, { volume: 0.06 }).input
+    const t = ctx.currentTime + 0.01
+    const rustle = ctx.createBufferSource()
+    rustle.buffer = this.whiteNoise
+    const bp = ctx.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.Q.value = 0.9
+    bp.frequency.setValueAtTime(4200, t)
+    bp.frequency.exponentialRampToValueAtTime(1600, t + 0.2)
+    const env = ctx.createGain()
+    env.gain.setValueAtTime(0, t)
+    env.gain.linearRampToValueAtTime(0.9, t + 0.03)
+    env.gain.setTargetAtTime(0, t + 0.08, 0.06)
+    rustle.connect(bp).connect(env).connect(out)
+    rustle.start(t, Math.random() * 0.5)
+    rustle.stop(t + 0.4)
+    const thump = ctx.createOscillator()
+    thump.type = 'sine'
+    thump.frequency.setValueAtTime(190, t)
+    thump.frequency.exponentialRampToValueAtTime(120, t + 0.12)
+    const soft = ctx.createGain()
+    soft.gain.setValueAtTime(0, t)
+    soft.gain.linearRampToValueAtTime(0.25, t + 0.01)
+    soft.gain.setTargetAtTime(0, t + 0.02, 0.04)
+    thump.connect(soft).connect(out)
+    thump.start(t)
+    thump.stop(t + 0.3)
+  }
+
   /** Miaulement : dent de scie filtrée par deux formants qui glissent (« mi-a-ou »). */
   meow(pos: THREE.Vector3) {
     if (!this.ready) return

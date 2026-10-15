@@ -18,10 +18,10 @@ test('stand de tir : ses cotes sont celles de la pièce, faces intérieures des 
   )
 })
 
-test('stand de tir : on y entre par le palier, la raffinerie et la soute, toujours derrière le pas de tir', () => {
+test('stand de tir : on y entre par le palier et la raffinerie, toujours derrière le pas de tir', () => {
   const doors = map.doors.filter((d) => [map.room(d.x, d.z), map.room(d.x + DIRS[d.dir].dx, d.z + DIRS[d.dir].dz)].includes(R.room))
   const others = doors.map((d) => [map.room(d.x, d.z), map.room(d.x + DIRS[d.dir].dx, d.z + DIRS[d.dir].dz)].find((r) => r !== R.room)).sort()
-  assert.deepEqual(others, ['g', 'j', 'm'])
+  assert.deepEqual(others, ['j', 'm'])
   // Personne ne débouche dans le couloir des cibles : chaque porte donne au sud du comptoir.
   for (const d of doors) {
     const z = map.room(d.x, d.z) === R.room ? d.z : d.z + DIRS[d.dir].dz

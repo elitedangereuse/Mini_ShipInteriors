@@ -18,7 +18,6 @@ export declare const SHIP_MAP_WALL_CLEARANCE: number
 export declare const SHIP_MAP_PLACEMENTS: {
   quartersLanding: ShipMapAnchor
   holdLanding: ShipMapAnchor
-  holdCrossroads: ShipMapAnchor
   holdHall: ShipMapAnchor
   trainingHall: ShipMapAnchor
   mainLanding: ShipMapAnchor
