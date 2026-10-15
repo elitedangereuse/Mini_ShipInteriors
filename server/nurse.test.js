@@ -21,7 +21,8 @@ const at = ({ x, z }) => `(${x.toFixed(2)}, ${z.toFixed(2)})`
 test('l\'infirmerie occupe la place laissée libre jusqu\'à la salle commune', () => {
   for (let z = 0; z <= 3; z++) for (let x = 9; x <= 15; x++) assert.equal(map.room(x, z), NURSE_ROOM, `tuile (${x}, ${z})`)
   assert.equal(map.room(8, 1), 'e')
-  assert.equal(map.room(16, 1), 'r')
+  // À l'est, les toilettes, à la place de l'ancienne salle de sport.
+  assert.equal(map.room(16, 1), 'd')
 })
 
 test('elle avance sans jamais sauter, y compris d\'un tour au suivant', () => {

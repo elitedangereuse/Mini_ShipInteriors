@@ -440,7 +440,7 @@ button {
 #fade.on {
   opacity: 1;
 }
-/* Trajet d'ascenseur (src/lift-ride.ts) : tout s'assombrit sauf une ellipse autour du tube. */
+/* Téléportation (src/lift-ride.ts) : tout s'assombrit sauf une ellipse autour de la colonne de lumière. */
 #lift-ride {
   position: fixed;
   inset: 0;

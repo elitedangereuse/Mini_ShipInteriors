@@ -9,7 +9,7 @@ export declare const VENT_GRATE: { x: number; z: number }
 export declare const VENT_GRATE_REACH: number
 /** Où l'on atterrit Chez Jacques (pont de la cale). */
 export declare const BAR_DROP: { level: -1; x: number; z: number }
-/** Pièce des toilettes du pont supérieur : on n'entre dans les conduits que de là. */
-export declare const TOILET_ROOM: { level: 1; room: 'd' }
+/** Pièce des toilettes du pont principal : on n'entre dans les conduits que de là. */
+export declare const TOILET_ROOM: { level: 0; room: 'd' }
 /** Devant la grille (à portée) ? */
 export declare function atVentGrate(p: { x: number; z: number }): boolean

@@ -43,8 +43,19 @@ export declare const SHOOTING_RANGE: { level: number; room: string; minX: number
 /** Tables de jeux de plateau (pont principal), par jeu. */
 export declare const BOARD_TABLES: Record<'draughts' | 'guardian-connect' | 'imperial-chess', { level: number; x: number; z: number }>
 
-/** Terrains de la zone sportive (pont supérieur), par jeu : pièce, marque de tir, mur visé (x de sa face) et milieu de la cible le long de ce mur. */
+/** Terrains du complexe d'entraînement (cale), par jeu : pièce, marque de tir, mur visé (x de sa face) et milieu de la cible le long de ce mur. */
 export declare const SPORT_COURTS: Record<'gym-basket' | 'gym-foot', { level: number; room: string; spot: { x: number; z: number }; wall: number; center: number }>
 
 /** Le Comptoir des Cartes Dangereuses (pont supérieur) : sa pièce, les faces intérieures de ses murs, son comptoir. */
 export declare const CARD_ROOM: { level: number; room: string; minX: number; maxX: number; minZ: number; maxZ: number; counter: { x: number; z: number } }
+
+/** Le téléporteur de chaque pont (tuile) : il dépose au cœur du pont. */
+export declare const TELEPORTERS: Record<'-1' | '0' | '1' | '2', { x: number; z: number }>
+/** Le téléporteur du pont `level` (celui du pont principal à défaut). */
+export declare function teleporterOf(level: number | string): { x: number; z: number }
+/** La porte double du foyer du cinéma (pont supérieur), vers la galerie. */
+export declare const FOYER_DOORS: { x: number; z: number; dir: number }[]
+/** La salle de sport du complexe d'entraînement (cale). */
+export declare const GYM_ROOM: { level: number; room: string }
+/** La grande bibliothèque du lore (pont supérieur) : sa pièce et les faces intérieures de ses murs. */
+export declare const LIBRARY_ROOM: { level: number; room: string; minX: number; maxX: number; minZ: number; maxZ: number }

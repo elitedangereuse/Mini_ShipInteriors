@@ -366,7 +366,7 @@ export const QUEST_CONTENT: QuestContent[] = [
     title: tr('Poids lourds', 'Heavy lifting'),
     icon: 'barbell',
     pitch: tr('Une salle de sport fermée faute de poids. À bord, ce qui est lourd finit toujours par servir à autre chose.', 'A gym closed for lack of weights. Aboard, anything heavy always ends up being used for something else.'),
-    reward: tr('La salle de sport du pont principal, ouverte pour de bon, et 5 000 CR.', 'The gym on the main deck, open for good, and 5,000 CR.'),
+    reward: tr('La salle de sport du complexe d\'entraînement, dans la cale, ouverte pour de bon, et 5 000 CR.', 'The gym in the hold\'s training complex, open for good, and 5,000 CR.'),
     offer: {
       on: 'door',
       accept: tr('Retrouver les poids', 'Track down the weights'),
@@ -452,8 +452,8 @@ export const QUEST_CONTENT: QuestContent[] = [
     id: 'silence-on-dribble',
     title: tr('Silence, on dribble', 'Quiet on the court'),
     icon: 'basketball',
-    pitch: tr('Un terrain de basket fermé pour tapage. Le plaignant habite juste derrière le mur, et il a cent trente ans.', 'A basketball court closed for noise. The plaintiff lives right behind the wall, and he is a hundred and thirty years old.'),
-    reward: tr('Le terrain de basket du pont supérieur, ouvert pour de bon, et 5 000 CR.', 'The basketball court on the upper deck, open for good, and 5,000 CR.'),
+    pitch: tr('Un terrain de basket fermé pour tapage. Le plaignant habite deux ponts plus haut, et il a cent trente ans.', 'A basketball court closed for noise. The plaintiff lives two decks up, and he is a hundred and thirty years old.'),
+    reward: tr('Le terrain de basket du complexe d\'entraînement, dans la cale, ouvert pour de bon, et 5 000 CR.', 'The basketball court in the hold\'s training complex, open for good, and 5,000 CR.'),
     offer: {
       on: 'door',
       accept: tr('Régler ça entre voisins', 'Settle it between neighbours'),
@@ -467,11 +467,11 @@ export const QUEST_CONTENT: QuestContent[] = [
     locked: [n('« Fermé pour cause de tremblements de ciel. » L\'encre violette n\'a pas séché d\'hier.', '“Closed on account of sky tremors.” The violet ink did not dry yesterday.')],
     steps: [
       {
-        note: tr('Quelqu\'un se plaint que le ciel tremble. Le terrain a un voisin, juste derrière son mur.', 'Someone complains that the sky is shaking. The court has a neighbour, right behind its wall.'),
+        note: tr('Quelqu\'un se plaint que le ciel tremble. Dans la cale, il n\'y a pas de ciel : il faut chercher plus haut.', 'Someone complains that the sky is shaking. There is no sky in the hold: you have to look higher up.'),
         hooks: [{
           on: 'item:1:bugenhagen',
           scene: [
-            bugenhagen('Hou hou… Le terrain ? Oui, c\'est moi. Chaque rebond de ballon fait sauter mon projecteur.', 'Ho ho… The court? Yes, that was me. Every bounce of the ball makes my projector skip.'),
+            bugenhagen('Hou hou… Le terrain ? Oui, c\'est moi. Deux ponts plus bas, chaque rebond de ballon remonte la charpente du vaisseau, et fait sauter mon projecteur.', 'Ho ho… The court? Yes, that was me. Two decks down, every bounce of the ball climbs the ship\'s frame and makes my projector skip.'),
             bugenhagen('Hier, en pleine séance, Saturne a perdu ses anneaux. Trois écoliers ont pleuré. Le quatrième a applaudi, c\'est pire.', 'Yesterday, mid-show, Saturn lost its rings. Three schoolchildren cried. The fourth clapped, which is worse.'),
             me('Et si le projecteur ne sautait plus ?', 'And if the projector stopped skipping?'),
             bugenhagen('Alors ils dribbleraient jusqu\'à la fin des temps, et je n\'en saurais rien. Hou hou ! Mais on n\'arrête pas un tremblement avec de bonnes intentions.', 'Then they could dribble until the end of time and I would never know. Ho ho! But you don\'t stop a tremor with good intentions.'),
@@ -495,7 +495,7 @@ export const QUEST_CONTENT: QuestContent[] = [
             found: tr('La professeure Kepler a fait le calcul : la mousse va sous le socle du projecteur, pas contre le mur.', 'Professor Kepler did the maths: the foam goes under the projector\'s base, not against the wall.'),
             scene: [
               kepler('Une question d\'acoustique ? Enfin une vraie question. Asseyez-vous. Non, restez debout, ce sera court.', 'An acoustics question? A real question at last. Sit down. No, stay standing, this will be quick.'),
-              kepler('Le ballon frappe le sol, le plancher passe sous la cloison, et le socle du projecteur est vissé dedans. Le coupable n\'est pas le ballon : c\'est le socle.', 'The ball hits the floor, the floor runs under the partition, and the projector\'s base is bolted to it. The culprit isn\'t the ball: it\'s the base.'),
+              kepler('Le ballon frappe le pont de la cale, la charpente porte le choc jusqu\'ici comme une corde de violon, et le socle du projecteur est vissé dessus. Le coupable n\'est pas le ballon : c\'est le socle.', 'The ball hits the hold\'s deck, the frame carries the shock up here like a violin string, and the projector\'s base is bolted onto it. The culprit isn\'t the ball: it\'s the base.'),
               kepler('Inutile de doubler le mur. Glissez la mousse sous les pieds du projecteur : il ne doit plus toucher le plancher. Vous notez ?', 'No point lining the wall. Slide the foam under the projector\'s feet: it must no longer touch the floor. Are you taking notes?'),
               kepler('Et dites à Bugenhagen que Saturne n\'a pas « perdu ses anneaux ». Elle a subi une résonance. Ce n\'est pas pareil.', 'And tell Bugenhagen that Saturn did not “lose its rings”. It underwent resonance. That is not the same thing.'),
             ],
@@ -529,8 +529,8 @@ export const QUEST_CONTENT: QuestContent[] = [
     props: [
       { id: 'foam', deck: 1, x: 18.4, z: 2.6, model: 'quest-foam-box', label: tr('Examiner le carton', 'Examine the box'), when: missing(1, 0) },
       // Autour du projecteur du planétarium (cf. levels.ts) : l'endroit à caler, puis la mousse posée.
-      { id: 'base-mark', deck: 1, x: 11.5, z: 9.5, fixed: true, model: 'quest-base-mark', when: during(2) },
-      { id: 'base-foam', deck: 1, x: 11.5, z: 9.5, fixed: true, model: 'quest-base-foam', when: (s) => !!s && (s.done || s.step >= 3) },
+      { id: 'base-mark', deck: 1, x: 11, z: 9.5, fixed: true, model: 'quest-base-mark', when: during(2) },
+      { id: 'base-foam', deck: 1, x: 11, z: 9.5, fixed: true, model: 'quest-base-foam', when: (s) => !!s && (s.done || s.step >= 3) },
     ],
   },
 
@@ -540,7 +540,7 @@ export const QUEST_CONTENT: QuestContent[] = [
     title: tr('Le dernier match', 'The last match'),
     icon: 'soccer-ball',
     pitch: tr('Un terrain fermé depuis une finale, et une photo d\'équipe où quelqu\'un manque à l\'appel.', 'A pitch closed since a final, and a team photo where someone is missing from roll call.'),
-    reward: tr('Le terrain de foot du pont supérieur, ouvert pour de bon, et 5 000 CR.', 'The football pitch on the upper deck, open for good, and 5,000 CR.'),
+    reward: tr('Le terrain de foot du complexe d\'entraînement, dans la cale, ouvert pour de bon, et 5 000 CR.', 'The football pitch in the hold\'s training complex, open for good, and 5,000 CR.'),
     offer: {
       on: 'door',
       accept: tr('Demander ce qui s\'est passé', 'Ask what happened'),

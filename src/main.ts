@@ -57,7 +57,7 @@ import { lineOfSight } from '../shared/sight.js'
 import { DIRS } from './map'
 import { EN, localizeAttributes, tr } from './i18n'
 import { LightRig, steadyShadows } from './lighting/rig'
-import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, LIFT, offShip, SPAWN } from './levels'
+import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, liftOf, offShip, SPAWN } from './levels'
 import { hydrateIcons, icon, type IconName } from './icons'
 import { lookId, lookPath, lookRig, parseLook, raceOf, variantsOf, type Look } from './looks'
 import { JukeboxPanel, JukeboxPlayer, trackById, type MusicOptions, type Track } from './music'
@@ -118,7 +118,7 @@ import { fishById, FISHING_DOCK, FISHING_LEVEL, QUEST_FISH } from '../shared/fis
 import { ToiletFlushes } from './toilet-flush'
 import { PlanetariumShow } from './planetarium'
 import { Vents } from './vents'
-import { BAR_DROP, VENT_DROP } from '../shared/vents.js'
+import { BAR_DROP, TOILET_ROOM, VENT_DROP } from '../shared/vents.js'
 import { SalvageClient } from './salvage/client'
 import { ArenaClient } from './arena/client'
 import { MessRushClient } from './mess-rush/client'
@@ -308,7 +308,7 @@ let cabinStore = account ? new CabinStore(account.name) : null
 // La feuille des affiches du plan du vaisseau (cf. src/furniture/wayfinding.ts), avant de bâtir les ponts qui les portent.
 setShipMapArt({ ...POSTER, draw: drawPoster })
 const decks = LEVELS.map((def) => new Deck(def))
-/** Les conduits de ventilation, hors des ponts de l'ascenseur : on y tombe par les toilettes (cf. flushToVents). */
+/** Les conduits de ventilation, hors des ponts du téléporteur : on y tombe par les toilettes (cf. flushToVents). */
 const vents = new Vents({ renderer, scene, squeak: (at) => sound.squeak(at) })
 decks.push(vents.deck)
 /** Le simulateur d'accueil, où les nouveaux venus apprennent les gestes de base (cf. tutorial.ts). */
@@ -687,7 +687,7 @@ for (const it of decks[LEVELS.findIndex((l) => l.id === 0)].interactables) {
     const kind = it.furniture.label === 'weekly' ? 'weekly' : 'hunt'
     it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; void sitePanel.counter(kind) }
   } else if (it.furniture?.model === 'employee-board' || it.furniture?.model === 'score-board') {
-    const kind = it.furniture.model === 'employee-board' ? 'crew' : it.furniture.label === 'gym' ? 'gym' : 'arcade'
+    const kind = it.furniture.model === 'employee-board' ? 'crew' : 'arcade'
     it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; void sitePanel.rankings(kind) }
   } else if (it.furniture?.model === 'ljpc-members' || it.furniture?.model === 'ljpc-codex') {
     // Les deux écrans du labo du L.J.P.C. ouvrent son registre, chacun sur son onglet.
@@ -723,10 +723,11 @@ for (const d of decks) for (const it of d.interactables) {
   // seated() appelle cette action une fois le personnage installé sur l'appareil.
   if (sport) it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; gym.start(sport) }
 }
-// Zone sportive (pont supérieur) : on tire depuis la marque, ou en prenant un ballon au chariot ;
-// l'écran de chaque terrain ouvre son classement.
-const court = new CourtGame(deckById(1).group, dialog, wallet)
-for (const it of deckById(1).interactables) {
+// Terrains du complexe d'entraînement (cale) : on tire depuis la marque, ou en prenant un ballon
+// au chariot ; l'écran de chaque terrain ouvre son classement.
+const COURT_LEVEL = SPORT_COURTS['gym-basket'].level
+const court = new CourtGame(deckById(COURT_LEVEL).group, dialog, wallet)
+for (const it of deckById(COURT_LEVEL).interactables) {
   const model = it.furniture?.model, label = it.furniture?.label
   if (label !== 'basket' && label !== 'foot') continue
   if (model === 'score-board') it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; void sitePanel.rankings(label) }
@@ -734,7 +735,7 @@ for (const it of deckById(1).interactables) {
 }
 /** Le personnage va se placer sur la marque, face à la cible, et la partie commence. */
 function startCourt(id: CourtId) {
-  if (court.active || player.gliding || deck.def.id !== 1) return
+  if (court.active || player.gliding || deck.def.id !== COURT_LEVEL) return
   const target = deck.interactables.find((it) => it.furniture?.model === (id === 'gym-basket' ? 'basket-hoop' : 'foot-goal'))?.control
   if (target?.kind !== 'target') return
   stopWork()
@@ -782,8 +783,10 @@ for (const it of rangeMounts) {
     if (weapon) stand.take(weapon.id)
   }
 }
+// Les écrans des records de la cale : le stand de tir, et la salle de sport du complexe d'entraînement.
 for (const it of deckById(-1).interactables) {
-  if (it.furniture?.model === 'score-board' && it.furniture.label === 'range') it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; void sitePanel.rankings('range') }
+  const label = it.furniture?.label
+  if (it.furniture?.model === 'score-board' && (label === 'range' || label === 'gym')) it.onInteract = () => { stopWork(); player.cancelPath(); keys.clear(); marker.visible = false; void sitePanel.rankings(label) }
 }
 /** Vue de dessus du stand : la caméra relevée, au sud, les cibles en haut de l'écran. */
 const RANGE_ELEVATION = THREE.MathUtils.degToRad(50)
@@ -1336,7 +1339,7 @@ if (newcomer) {
 
 /**
  * Au téléporteur du simulateur (ou formation passée) : un éclair, et l'on se retrouve sur le pont
- * principal, dans la coursive, à deux pas de l'ascenseur. La formation ne reviendra plus d'elle-même.
+ * principal, sur le téléporteur du hall d'accueil. La formation ne reviendra plus d'elle-même.
  */
 async function leaveTutorial(skipped: boolean) {
   if (riding || deck !== tutorialDeck) return
@@ -1365,13 +1368,13 @@ async function leaveTutorial(skipped: boolean) {
   } else {
     sound.jingle('win')
     dialog.show(tr(
-      `${INSTRUCTOR}, à la radio : « Bienvenue sur le pont principal, commandant ! L'ascenseur, juste là, vous mène partout. Bon vol. o7 »`,
-      `${INSTRUCTOR}, over the radio: “Welcome to the main deck, commander! The lift, right there, takes you everywhere. Fly safe. o7”`,
+      `${INSTRUCTOR}, à la radio : « Bienvenue au hall d'accueil du pont principal, commandant ! Le téléporteur, sous vos pieds, vous mène à tous les ponts. Bon vol. o7 »`,
+      `${INSTRUCTOR}, over the radio: “Welcome to the main deck's welcome hall, commander! The teleporter, right under your feet, takes you to every deck. Fly safe. o7”`,
     ))
   }
   chat.add('system', tr(
-    'À bord : l\'ascenseur dessert les ponts ; vos quartiers et le Holo-Me (votre apparence) sont au pont des quartiers. Les repères orange sont des tâches de bord, payées en crédits. Tab : l\'annuaire des joueurs · H : l\'aide · /tuto : refaire la formation.',
-    'Aboard: the lift serves every deck; your quarters and the Holo-Me (your look) are on the quarters deck. Orange markers are ship chores, paid in credits. Tab: player directory · H: help · /tuto: take the training again.',
+    'À bord : le téléporteur de chaque pont dessert tous les autres ; vos quartiers et le Holo-Me (votre apparence) sont au pont des quartiers. Les repères orange sont des tâches de bord, payées en crédits. Tab : l\'annuaire des joueurs · H : l\'aide · /tuto : refaire la formation.',
+    'Aboard: each deck\'s teleporter serves all the others; your quarters and the Holo-Me (your look) are on the quarters deck. Orange markers are ship chores, paid in credits. Tab: player directory · H: help · /tuto: take the training again.',
   ))
 }
 
@@ -3224,10 +3227,9 @@ function jukeboxKey(e: KeyboardEvent): boolean {
   return true
 }
 
-// ------------------------------------------------------------------ ascenseur
+// ------------------------------------------------------------------ téléporteur
 
 let riding = false
-const liftTile = { x: LIFT.x, z: LIFT.z }
 const liftRide = new LiftRide()
 scene.add(liftRide.group)
 
@@ -3236,34 +3238,41 @@ function openLift() {
 }
 for (const d of decks) if (d.liftInteractable) d.liftInteractable.onInteract = openLift
 
+/**
+ * Téléportation vers un autre pont : on part du téléporteur de ce pont et l'on arrive sur celui du
+ * pont visé, qui n'est pas au même endroit (cf. TELEPORTERS).
+ */
 async function ride(target: number) {
   if (riding || target === deck.def.id) return
   riding = true
   player.cancelPath()
-  player.position.x = LIFT.x
-  player.position.z = LIFT.z
+  const from = liftOf(deck.def.id), to = liftOf(target)
+  player.position.x = from.x
+  player.position.z = from.z
   marker.visible = false
-  sound.play('lift', new THREE.Vector3(LIFT.x, deck.y + 0.5, LIFT.z), { volume: 0.2 })
+  sound.play('lift', new THREE.Vector3(from.x, deck.y + 0.5, from.z), { volume: 0.2 })
   const next = deckById(target)
   for (const d of decks) d.showLiftBeam(false)
-  // On s'approche du tube le temps du trajet, puis on revient au cadrage du joueur.
+  // On s'approche de la colonne le temps du trajet, puis on revient au cadrage du joueur.
   const zoom = iso.zoomLevel
   iso.zoomTo(Math.min(zoom, 3.4))
-  // Le pont change en plein noir, au milieu du trajet dans le tube (cf. lift-ride.ts).
-  await liftRide.run(LIFT.x, deck.y, LIFT.z, next.y > deck.y, next.def.name, () => {
+  // Le pont change dans l'éclair, au milieu de la téléportation (cf. lift-ride.ts).
+  await liftRide.run(from.x, deck.y, from.z, next.y > deck.y, next.def.name, () => {
     // Changer de pont met fin à une visite : on retrouvera ses propres quartiers.
     if (visiting) {
       const host = visiting.name
       net.sendVisit(null)
       leaveVisit(tr(`Fin de la visite chez ${host} : vos quartiers vous attendent.`, `Your visit to ${host} is over: your own quarters await.`))
     }
+    player.position.x = to.x
+    player.position.z = to.z
     setDeck(next)
     // L'écran est noir : toutes les textures du pont partent maintenant, pas à la première vue de chaque pièce.
     deckTextures.flush()
     deck.pulseLift()
     net.sendState({ x: player.position.x, z: player.position.z, yaw: player.heading, level: deck.def.id, anim: 'idle' }, Infinity)
     sound.play('ding', null, { volume: 0.1 })
-    return deck.y
+    return { x: to.x, y: deck.y, z: to.z }
   })
   for (const d of decks) d.showLiftBeam(true)
   iso.zoomTo(zoom)
@@ -3823,9 +3832,10 @@ async function enterVisit(host: number) {
   // Raccompagné (ou hôte parti) pendant le fondu : on n'entre pas.
   if (seq === visitSeq) {
     visiting = { host, name }
-    // Sur le palier de l'ascenseur, au pont des quartiers, face à la porte de la parcelle.
+    // Sur le téléporteur de l'antichambre, au pont des quartiers, face à la porte de la parcelle.
     if (deck !== homeDeck) setDeck(homeDeck)
-    player.position.set(LIFT.x, homeDeck.y, LIFT.z)
+    const pad = liftOf(homeDeck.def.id)
+    player.position.set(pad.x, homeDeck.y, pad.z)
     player.setHeading(Math.PI / 2)
     showCabin()
     iso.snapTo(player.position)
@@ -3836,7 +3846,7 @@ async function enterVisit(host: number) {
   await fadeScreen(false)
   riding = false
   if (seq === visitSeq && visiting?.host === host) {
-    chat.add('system', tr(`Vous voici dans les quartiers de ${name}. « Rentrer chez moi » ou l'ascenseur vous ramènent chez vous.`, `You are in ${name}'s quarters. “Go home” or the lift takes you back to yours.`))
+    chat.add('system', tr(`Vous voici dans les quartiers de ${name}. « Rentrer chez moi » ou le téléporteur vous ramènent chez vous.`, `You are in ${name}'s quarters. “Go home” or the teleporter takes you back to yours.`))
   }
 }
 
@@ -3875,7 +3885,7 @@ async function bringHome() {
   await fadeScreen(true)
   // Invité ailleurs pendant le fondu : on laisse faire l'entrée.
   if (seq === visitSeq && !visiting) {
-    if (deck === homeDeck) player.position.set(LIFT.x, homeDeck.y, LIFT.z)
+    if (deck === homeDeck) player.position.set(liftOf(homeDeck.def.id).x, homeDeck.y, liftOf(homeDeck.def.id).z)
     else {
       setDeck(homeDeck)
       const s = spawnPoint()
@@ -5234,7 +5244,7 @@ function drawMinimap() {
   if (minimapEl.hidden !== !shown) minimapEl.hidden = !shown
   if (!shown) return
   const others = [...remotes.values()].filter((r) => r.group.visible && r.level === deck.def.id).map((r) => r.group.position)
-  minimap.draw(deck.map, deck.def.id, player.position.x, player.position.z, fps.yaw, liftTile, others, timer.getElapsed())
+  minimap.draw(deck.map, deck.def.id, player.position.x, player.position.z, fps.yaw, liftOf(deck.def.id), others, timer.getElapsed())
 }
 /**
  * Bas des invites et bulles posées à l'écran en vue subjective : au-dessus de la barre d'emotes.
@@ -5462,7 +5472,7 @@ function sendState(now = false) {
 
 /**
  * Retient pour cet onglet où l'on se tient, qu'un rechargement nous y ramène (cf. resumePoint).
- * Assis, en trajet (ascenseur, fondu, toilettes), dans la zone thargoïde, les conduits ou sur la base au sol :
+ * Assis, en trajet (téléporteur, fondu, toilettes), dans la zone thargoïde, les conduits ou sur la base au sol :
  * on garde la dernière place à bord.
  */
 function saveWhere() {
@@ -5854,11 +5864,11 @@ const FLUSH_MORAL = tr('Les toilettes à dépression n\'aiment pas les sauts FSD
 
 const isToilet = (model?: string) => model === 'toilet' || model === 'toilet-stall'
 
-/** Assis sur des toilettes du pont supérieur ? */
-const onToilet = (seat: Seated | null) => !!seat && deck.def.id === 1 && isToilet(seat.item.furniture?.model)
+/** Assis sur des toilettes du pont principal (cf. TOILET_ROOM) ? */
+const onToilet = (seat: Seated | null) => !!seat && deck.def.id === TOILET_ROOM.level && isToilet(seat.item.furniture?.model)
 
 /**
- * Au moment du saut, et tant que dure la traversée, les toilettes du pont supérieur aspirent
+ * Au moment du saut, et tant que dure la traversée, les toilettes du pont principal aspirent
  * leurs occupants (« Ne pas utiliser pendant un saut FSD ») : nous, qui tombons dans les conduits
  * (ici, ou en nous asseyant en plein saut, cf. seated), et les autres joueurs assis dessus (leur
  * propre client les y envoie, cf. flushLatecomers).
@@ -5872,20 +5882,20 @@ function flushCrew() {
 }
 
 /**
- * Pendant la traversée, aspire les autres joueurs assis sur des toilettes du pont supérieur, une
+ * Pendant la traversée, aspire les autres joueurs assis sur des toilettes du pont principal, une
  * fois chacun : derrière la porte de sa cabine, on ne le voit pas, mais on entend la chasse.
  */
 function flushLatecomers() {
-  if (!jumpTravel || deck.def.id !== 1) return
+  if (!jumpTravel || deck.def.id !== TOILET_ROOM.level) return
   let toilets: Interactable[] | null = null
   for (const r of remotes.values()) {
-    if (flushed.has(r.id) || !r.avatar || !aboard(r) || r.level !== 1 || r.pose !== 'sit') continue
+    if (flushed.has(r.id) || !r.avatar || !aboard(r) || r.level !== TOILET_ROOM.level || r.pose !== 'sit') continue
     toilets ??= deck.interactables.filter((it) => isToilet(it.furniture?.model))
     const on = toilets.some((it) => it.seats?.(r.target).some((s) => Math.hypot(s.x - r.target.x, s.z - r.target.z) < 0.25))
     if (!on) continue
     flushed.add(r.id)
     const bowl = new THREE.Vector3(r.target.x, deck.y + 0.25, r.target.z)
-    flushes.start(r.avatar.root, bowl, () => r.level !== 1)
+    flushes.start(r.avatar.root, bowl, () => r.level !== TOILET_ROOM.level)
     sound.flush(bowl)
     chat.add('system', tr(`Les toilettes à dépression ont aspiré ${r.name} en plein saut FSD. Direction : les conduits de ventilation.`, `The vacuum toilet sucked ${r.name} down mid-jump. Next stop: the ventilation ducts.`))
   }
@@ -5900,13 +5910,13 @@ const aboard = (r: RemotePlayer) => r.group.visible || stallHidden.has(r)
 let stallItems: Interactable[] | null = null
 
 /**
- * Cabines des toilettes du pont supérieur : la porte se referme sur celui qui s'y est assis, et
+ * Cabines des toilettes du pont principal : la porte se referme sur celui qui s'y est assis, et
  * on ne le voit plus du dehors ; enfermés dans la nôtre, on ne voit plus personne. À appeler à
  * chaque image, une fois la visibilité des autres joueurs décidée.
  */
 function updateStalls() {
   stallHidden.clear()
-  if (deck.def.id !== 1) return
+  if (deck.def.id !== TOILET_ROOM.level) return
   stallItems ??= deck.interactables.filter((it) => it.control?.kind === 'stall')
   const mine = seating.settled ? seating.current!.item : null
   const inside = !!mine && stallItems.includes(mine)
@@ -5920,7 +5930,7 @@ function updateStalls() {
     let shut = it === mine
     const spot = it.seats!(it.position)[0]
     for (const r of remotes.values()) {
-      if (r.level !== 1 || r.pose !== 'sit' || Math.hypot(r.group.position.x - spot.x, r.group.position.z - spot.z) > 0.08) continue
+      if (r.level !== TOILET_ROOM.level || r.pose !== 'sit' || Math.hypot(r.group.position.x - spot.x, r.group.position.z - spot.z) > 0.08) continue
       shut = true
       hide(r)
     }
@@ -6032,7 +6042,7 @@ function landingSpot(hold: Deck, x: number, z: number, room?: string): { x: numb
       if (open(tx, tz) && (!best || Math.hypot(tx - x, tz - z) < Math.hypot(best.x - x, best.z - z))) best = { x: tx, z: tz }
     }
   }
-  return best ?? { x: LIFT.x, z: LIFT.z }
+  return best ?? liftOf(hold.def.id)
 }
 
 // ------------------------------------------------------------------ tâches de bord
@@ -6047,12 +6057,13 @@ const board = new TaskBoard(decks, wallet)
 board.closed = (d, x, z) => questLocked(d.def.id, d.map.room(Math.round(x), Math.round(z)))
 // Une quête terminée ouvre une pièce : ses tâches arrivent.
 quests.subscribe(() => board.refresh())
-// Une pièce se referme sur nous (le journal du site contredit celui de ce navigateur) : retour au palier de l'ascenseur.
+// Une pièce se referme sur nous (le journal du site contredit celui de ce navigateur) : retour au téléporteur du pont.
 evictFrom = (level, room) => {
   if (deck.def.id !== level || deck.map.room(Math.round(player.position.x), Math.round(player.position.z)) !== room) return
   seating.leave()
   player.cancelPath()
-  player.position.set(LIFT.x, deck.y, LIFT.z)
+  const pad = liftOf(deck.def.id)
+  player.position.set(pad.x, deck.y, pad.z)
   iso.snapTo(player.position)
   sendState(true)
 }
@@ -6328,7 +6339,7 @@ function frame() {
   const dt = Math.min(timer.getDelta(), 0.05)
   gym.update()
   // Changement de pont en pleine partie (saut FSD, téléportation) : elle s'arrête.
-  if (court.active && deck.def.id !== 1) court.stop()
+  if (court.active && deck.def.id !== COURT_LEVEL) court.stop()
   court.update(dt)
   if (court.active) player.setHeading(court.heading)
   // Le stand de tir : on rend l'arme en quittant la pièce (ou la cale).
@@ -6708,8 +6719,8 @@ function frame() {
     // Dans l'arène, on quitte la partie par son bouton du haut de l'écran : pas de croix sous le pouce.
     cancel: panelOpen || stand.active || gym.active || court.active || fishing.active || barPanel.isOpen || gardenPanel.isOpen || wardrobe.isOpen || phone.isOpen || questJournal.isOpen || !!cctv?.active || !!working || !!claw || !$('about').hidden,
   })
-  // On s'éloigne de l'ascenseur ou du jukebox : le panneau se ferme.
-  if (lift.isOpen && Math.hypot(player.position.x - liftTile.x, player.position.z - liftTile.z) > 1.6) lift.close()
+  // On s'éloigne du téléporteur ou du jukebox : le panneau se ferme.
+  if (lift.isOpen && Math.hypot(player.position.x - liftOf(deck.def.id).x, player.position.z - liftOf(deck.def.id).z) > 1.6) lift.close()
   if (jukebox.isOpen && jukeboxNear && Math.hypot(player.position.x - jukeboxNear.x, player.position.z - jukeboxNear.z) > 2) jukebox.close()
   // Le Zorb : sa porte suit l'apparence portée ; un alien qui redevient humain dans la salle est
   // raccompagné au couloir (le relais ne l'y accepterait plus).

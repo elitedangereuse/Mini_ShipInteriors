@@ -21,7 +21,7 @@ export const PATROL_HOLD = 8
 export const PATROL_POSTS = [
   { room: 'e', path: [[13, 6], [13, 5], [8.6, 4.5], [7.6, 3.2], [6.4, 2.6]], watch: 6 },
   { room: 'q', path: [[7.6, 3.2], [8.6, 4.3], [9, 4], [13, 4], [13, 2]], watch: 5 },
-  { room: 'r', path: [[13, 4], [18, 4], [18, 2]], watch: 5 },
+  { room: 'd', path: [[13, 4], [18, 4], [18, 2]], watch: 5 },
   { room: 'c', path: [[18, 4], [22.5, 4.5]], watch: 3 },
   { room: 'b', path: [[26, 4], [29, 3], [30, 4], [32, 4], [34, 3]], watch: 7 },
   { room: 'promenade', path: [[32, 4], [30, 4], [28, 2]], watch: 6 },

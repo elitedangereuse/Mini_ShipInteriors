@@ -23,12 +23,12 @@ export const QUESTS = [
   { id: 'gamelle-vide', steps: [0, 3, 0, 0], reward: { items: ['pet-chien'] } },
   // Le stand de tir de la cale.
   { id: 'permis-de-tir', steps: [0, 2, 0], room: { level: -1, room: 'r' }, reward: { credits: 5000 } },
-  // La salle de sport du pont principal.
-  { id: 'poids-lourds', steps: [0, 3, 0], room: { level: 0, room: 'r' }, reward: { credits: 5000 } },
-  // Le terrain de basket du pont supérieur.
-  { id: 'silence-on-dribble', steps: [0, 2, 0, 0], room: { level: 1, room: 'b' }, reward: { credits: 5000 } },
-  // Le terrain de foot du pont supérieur.
-  { id: 'dernier-match', steps: [3, 0, 0, 0], room: { level: 1, room: 'f' }, reward: { credits: 5000 } },
+  // La salle de sport du complexe d'entraînement, dans la cale.
+  { id: 'poids-lourds', steps: [0, 3, 0], room: { level: -1, room: 'x' }, reward: { credits: 5000 } },
+  // Le terrain de basket du complexe d'entraînement.
+  { id: 'silence-on-dribble', steps: [0, 2, 0, 0], room: { level: -1, room: 'o' }, reward: { credits: 5000 } },
+  // Le terrain de foot du complexe d'entraînement.
+  { id: 'dernier-match', steps: [3, 0, 0, 0], room: { level: -1, room: 'f' }, reward: { credits: 5000 } },
   // Le mannequin de l'atelier : son apparence, au Holo-Me.
   { id: 'quatre-cent-douze', steps: [0, 3, 0], reward: { skins: ['robot.d'] } },
   // Écho, la projection que personne n'a validée : l'apparence « Hologramme », au Holo-Me.

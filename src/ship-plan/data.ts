@@ -1,5 +1,5 @@
 import { tr } from '../i18n'
-import { LEVELS, LIFT } from '../levels'
+import { LEVELS, liftOf } from '../levels'
 import { ShipMap } from '../map'
 import { mezzanineOf, shipMapOptions } from '../../shared/ship-layouts.js'
 import { HOUSING_LEVEL } from '../../shared/housing-plot.js'
@@ -50,7 +50,13 @@ const QUEST_LOCK = tr('S\'ouvre au fil d\'une quête du bord (journal : touche J
 
 const ROOMS: Record<string, Record<string, RoomInfo>> = {
   '-1': {
-    j: { zone: 'way', what: tr('L\'ascenseur, au milieu. Tout le reste de la cale part d\'ici.', 'The lift, in the middle. The rest of the hold starts here.') },
+    j: { zone: 'way', what: tr('Le monte-charge, au milieu : l\'arrière-cale part d\'ici, vers l\'atelier, le stand de tir et le Zorb.', 'The freight lift, in the middle: the back of the hold starts here, towards the workshop, the shooting range and the Zorb.') },
+    p: { zone: 'way', what: tr('Le téléporteur de la cale, et les portes de la zone thargoïde, de CMDR Arena, du hangar et des Scavengers. Au sud-ouest, l\'allée du complexe d\'entraînement.', 'The hold\'s teleporter, and the doors to the Thargoid zone, CMDR Arena, the hangar and the Scavengers. To the south-west, the path to the training complex.') },
+    y: { zone: 'sport', what: tr('Le terminal de CMDR Arena et le guichet de Tessa, l\'arbitre : duels par équipes, jusqu\'à trois contre trois.', 'The CMDR Arena terminal and Tessa the referee\'s booth: team duels, up to three versus three.'), star: true },
+    z: { zone: 'sport', what: tr('Le hall du complexe d\'entraînement : de quoi se rafraîchir, et les portes du foot, du basket et de la salle de sport.', 'The training complex hall: refreshments, and the doors to football, basketball and the gym.') },
+    x: { zone: 'sport', what: tr('Boxe, course, vélo et musculation : un mini-jeu par appareil, et ses records.', 'Boxing, running, cycling and weights: a mini-game per machine, with records.'), locked: QUEST_LOCK, star: true },
+    o: { zone: 'sport', what: tr('Un demi-terrain : on tire au panier depuis la marque.', 'A half court: shoot hoops from the mark.'), locked: QUEST_LOCK },
+    f: { zone: 'sport', what: tr('Une cage, un gardien en carton, des tirs au but.', 'A goal, a cardboard keeper, penalty shots.'), locked: QUEST_LOCK },
     a: { zone: 'work', what: tr('Établis, soudure et ferraille : on y bricole, et des tâches de bord y rapportent des crédits.', 'Workbenches, welding and scrap: tinker here, and ship chores pay credits.'), star: true },
     e: { zone: 'work', what: tr('Le réacteur dans sa cage et le FSD. On y entre par l\'atelier.', 'The reactor in its cage and the FSD. Enter through the workshop.') },
     c: { zone: 'way', what: tr('Seau, balais et robot laveur, sous une ampoule nue.', 'Bucket, brooms and a cleaning robot, under a bare bulb.') },
@@ -77,10 +83,12 @@ const ROOMS: Record<string, Record<string, RoomInfo>> = {
     i: { zone: 'play', what: tr('Le poste d\'où l\'on joue à It\'s Dangerous Out There, devant sa baie d\'observation.', 'The station where you play It\'s Dangerous Out There, by its observation bay.') },
   },
   '0': {
-    e: { zone: 'life', what: tr('Le hall du vaisseau : les comptoirs de l\'officier de liaison et du L.J.P.C., le tableau d\'honneur, et à l\'étage la mezzanine et son jukebox.', 'The ship\'s hall: the liaison officer\'s and L.J.P.C. counters, the honours board, and upstairs the mezzanine and its jukebox.'), star: true },
+    e: { zone: 'life', what: tr('Le hall d\'accueil du vaisseau et son téléporteur : les bureaux vitrés du Weekly et de la Chasse galactique, et à l\'étage la mezzanine et son jukebox.', 'The ship\'s welcome hall and its teleporter: the glazed Weekly and Galactic Hunt offices, and upstairs the mezzanine and its jukebox.'), star: true },
+    w: { zone: 'life', what: tr('L\'officier de liaison paie les Weekly du site.', 'The liaison officer pays out the site\'s Weeklies.') },
+    h: { zone: 'lore', what: tr('La scientifique du L.J.P.C. paie les cibles validées de la Chasse galactique.', 'The L.J.P.C. scientist pays out validated Galactic Hunt targets.') },
+    d: { zone: 'life', what: tr('Quatre cabines et trois lavabos. Tirer la chasse pendant un saut est déconseillé.', 'Four stalls and three sinks. Flushing during a jump is not advised.') },
     c: { zone: 'way', what: tr('De la salle commune au poste de pilotage. Avant la proue, elle s\'élargit en Promenade, un atrium vitré autour de la maquette du Cobra.', 'From the common room to the cockpit. Before the bow it widens into the Promenade, a glazed atrium around the Cobra model.') },
     q: { zone: 'life', what: tr('Betty soigne : allongez-vous sur un lit, elle vient en consultation.', 'Betty takes care of you: lie down on a bed and she comes over.') },
-    r: { zone: 'sport', what: tr('Boxe, course, vélo et musculation : un mini-jeu par appareil, et ses records.', 'Boxing, running, cycling and weights: a mini-game per machine, with records.'), locked: QUEST_LOCK, star: true },
     m: { zone: 'life', what: tr('Le self de Marcel. On y mange, et on donne un coup de main en cuisine contre des crédits.', 'Marcel\'s canteen. Eat here, and lend a hand in the kitchen for credits.'), star: true },
     s: { zone: 'play', what: tr('Bornes jouables, flipper, pince à peluches, et trois jeux de plateau à deux.', 'Playable cabinets, pinball, a claw machine, and three two-player board games.'), star: true },
     x: { zone: 'way', what: tr('Du salon d\'arcade à la salle de la Pixel War.', 'From the arcade lounge to the Pixel War room.') },
@@ -90,17 +98,15 @@ const ROOMS: Record<string, Record<string, RoomInfo>> = {
     v: { zone: 'work', what: tr('Les caméras du bord, sur le pupitre du sergent.', 'The ship\'s cameras, on the sergeant\'s desk.'), locked: QUEST_LOCK },
   },
   '1': {
-    c: { zone: 'way', what: tr('L\'ascenseur, la serre d\'un côté, le salon d\'écoute de l\'autre.', 'The lift, the greenhouse on one side, the listening lounge on the other.') },
+    c: { zone: 'way', what: tr('De la serre à la galerie, le long du planétarium. Dans la galerie, le téléporteur, et les portes de la bibliothèque, du foyer du cinéma et du Comptoir des Cartes Dangereuses.', 'From the greenhouse to the gallery, along the planetarium. In the gallery, the teleporter, and the doors to the library, the cinema foyer and the Cartes Dangereuses counter.') },
+    l: { zone: 'lore', what: tr('Les alcôves de l\'Empire, de la Fédération, de l\'Alliance, des Thargoïdes, des Gardiens et des mystères : chaque livre ouvre une page du Lore Explorer.', 'The alcoves of the Empire, the Federation, the Alliance, the Thargoids, the Guardians and the mysteries: each book opens a Lore Explorer page.'), star: true },
     k: { zone: 'lore', what: tr('L\'interro de la professeure Kepler : asseyez-vous à une table pour le quiz.', 'Professor Kepler\'s test: sit at a desk to take the quiz.') },
-    d: { zone: 'life', what: tr('Trois cabines et deux lavabos. Tirer la chasse pendant un saut est déconseillé.', 'Three stalls and two sinks. Flushing during a jump is not advised.') },
     p: { zone: 'lore', what: tr('Bugenhagen et l\'hologramme du système : asseyez-vous pour la séance.', 'Bugenhagen and the system hologram: sit down for the show.'), star: true },
     g: { zone: 'lore', what: tr('Le potager de Capucine sous verrière. Au sud, le jardin exotique et son étang, où l\'on pêche.', 'Capucine\'s kitchen garden under glass. To the south, the exotic garden and its pond, where you fish.'), star: true },
     o: { zone: 'play', what: tr('Les émissions de Radio Dangereuse, au coin du feu.', 'Radio Dangereuse shows, by the fire.') },
     s: { zone: 'play', what: tr('Les animateurs autour de leur table, derrière la vitre du salon.', 'The hosts around their table, behind the lounge window.') },
     n: { zone: 'play', what: tr('Le grand écran, pour regarder à plusieurs ; la régie est au fond.', 'The big screen, to watch together; the booth is at the back.'), star: true },
-    h: { zone: 'way', what: tr('Du cinéma au hall de la zone sportive, puis au Comptoir des Cartes Dangereuses.', 'From the cinema to the sports hall, then to the Cartes Dangereuses counter.') },
-    b: { zone: 'sport', what: tr('Un demi-terrain : on tire au panier depuis la marque.', 'A half court: shoot hoops from the mark.'), locked: QUEST_LOCK },
-    f: { zone: 'sport', what: tr('Une cage, un gardien en carton, des tirs au but.', 'A goal, a cardboard keeper, penalty shots.'), locked: QUEST_LOCK },
+    h: { zone: 'way', what: tr('Le couloir du cinéma, tapis rouge et films à l\'affiche, entre le cinéma et la galerie.', 'The cinema corridor, red carpet and films showing, between the cinema and the gallery.') },
     x: { zone: 'play', what: tr('Les boosters de Ludo, les tables de Galactic Clash et les pupitres de collection.', 'Ludo\'s boosters, the Galactic Clash tables and the collection desks.'), star: true },
   },
 }
@@ -108,13 +114,13 @@ const ROOMS: Record<string, Record<string, RoomInfo>> = {
 /** Les ponts du plan, du plus haut au plus bas : ceux qu'on visite. Les quartiers, privés, n'y sont qu'une mention. */
 export const PLAN_LEVELS = [1, 0, -1]
 
-/** Nom d'un pont, et son étage tel que l'ascenseur l'écrit (« +1 », « 0 », « -1 »). */
+/** Nom d'un pont, et son étage tel que le téléporteur l'écrit (« +1 », « 0 », « -1 »). */
 export const deckName = (level: number) => LEVELS.find((l) => l.id === level)?.name ?? ''
 export const deckNumber = (level: number) => (level > 0 ? `+${level}` : String(level))
 /** Les quartiers, tels que l'affiche et la fenêtre les mentionnent : « Quartiers (+2) ». */
 export const QUARTERS_LEVEL = HOUSING_LEVEL
 export const deckLabel = (level: number) => `${deckName(level)} (${deckNumber(level)})`
-/** « Prenez l'ascenseur… » jusqu'à ce pont. */
+/** « Prenez le téléporteur… » jusqu'à ce pont. */
 export const liftTo = (level: number) => ({
   '1': tr('jusqu\'au pont supérieur (+1)', 'to the upper deck (+1)'),
   '0': tr('jusqu\'au pont principal (0)', 'to the main deck (0)'),
@@ -161,6 +167,7 @@ export function staticMap(level: number): ShipMap {
 /** Géométrie du plan d'un pont (cf. geometry.ts), le nom d'une pièce laissant la place à ceux de ses parties. */
 export function planOf(level: number, map: ShipMap = staticMap(level)): DeckPlan {
   const areas = planAreas(level)
-  // Pas de nom non plus sur la tuile de l'ascenseur : son pictogramme y est.
-  return deckPlan(map, (room, x, z) => (x === LIFT.x && z === LIFT.z) || areas.some((a) => a.room === room && x >= a.minX && x <= a.maxX && z >= a.minZ && z <= a.maxZ))
+  // Pas de nom non plus sur la tuile du téléporteur : son pictogramme y est.
+  const lift = liftOf(level)
+  return deckPlan(map, (room, x, z) => (x === lift.x && z === lift.z) || areas.some((a) => a.room === room && x >= a.minX && x <= a.maxX && z >= a.minZ && z <= a.maxZ))
 }

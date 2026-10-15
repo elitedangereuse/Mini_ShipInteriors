@@ -560,7 +560,7 @@ describe('saut FSD', () => {
       assert.equal(cw.you.bar, false)
       const seen = (id) => next(observer, 'state', (m) => m.id === id)
       const inBar = { x: 13, z: 11, level: -1, yaw: 0, anim: 'idle' }
-      const onToilet = { x: 14, z: 1, level: 1, yaw: 0, anim: 'idle', pose: 'sit', py: 0.3 }
+      const onToilet = { x: 17, z: 0, level: 0, yaw: 0, anim: 'idle', pose: 'sit', py: 0.3 }
       const inVents = { x: VENT_DROP.x, z: VENT_DROP.z, level: VENT_LEVEL, yaw: 0, anim: 'idle' }
       const atGrate = { x: VENT_GRATE.x, z: VENT_GRATE.z, level: VENT_LEVEL, yaw: 0, anim: 'idle' }
 
@@ -568,11 +568,11 @@ describe('saut FSD', () => {
       let state = seen(gw.id)
       guest.emit('state', inBar)
       guest.emit('state', onToilet)
-      assert.equal((await state).level, 1)
+      assert.equal((await state).level, 0)
       state = seen(gw.id)
       guest.emit('state', inVents)
       guest.emit('state', { ...onToilet, yaw: 1 })
-      assert.equal((await state).level, 1)
+      assert.equal((await state).level, 0)
       assert.deepEqual(await guest.timeout(3000).emitWithAck('vents:exit', {}), { ok: false })
 
       // Le saut part ; pendant la traversée, les toilettes aspirent ceux qui y sont assis, pas celui de la coursive.
@@ -582,12 +582,12 @@ describe('saut FSD', () => {
       await jumped
       mock.timers.tick((JUMP_CHARGE + 1) * 1000)
       state = seen(cw.id)
-      const seated = next(observer, 'state', (m) => m.id === cw.id && (m.level !== 1 || m.pose === 'sit'))
-      cmdr.emit('state', { x: 10, z: 4, level: 1, yaw: 0, anim: 'idle' })
+      const seated = next(observer, 'state', (m) => m.id === cw.id && (m.level !== 0 || m.pose === 'sit'))
+      cmdr.emit('state', { x: 10, z: 4, level: 0, yaw: 0, anim: 'idle' })
       cmdr.emit('state', inVents)
       cmdr.emit('state', onToilet)
       assert.equal((await state).x, 10)
-      assert.equal((await seated).level, 1)
+      assert.equal((await seated).level, 0)
       // L'invité, assis depuis avant le saut, redit sa position pendant la traversée : aspiré lui aussi.
       state = seen(gw.id)
       guest.emit('state', onToilet)

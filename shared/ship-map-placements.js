@@ -13,14 +13,22 @@ export const SHIP_MAP_WALL_CLEARANCE = 0.05
  * la cloison : il ne peut donc plus dériver dans son épaisseur lors d'un changement de plan.
  */
 export const SHIP_MAP_PLACEMENTS = {
-  quartersLanding: { level: 2, x: 10, z: 3, dir: 0 },
-  // Au centre de la cloison sud : dans l'axe de l'ascenseur, loin de sa porte et de ses montants.
+  // Au mur nord de l'antichambre des quartiers, dans l'axe de son téléporteur.
+  quartersLanding: { level: 2, x: 7, z: 1, dir: 0, along: 0.5 },
+  // Au centre de la cloison sud du palier du monte-charge, loin de sa porte et de ses montants.
   holdLanding: { level: -1, x: 10, z: 6, dir: 2 },
   holdCrossroads: { level: -1, x: 17, z: 5, dir: 3, along: 0.5 },
+  // Dans le hall de la cale, à côté de son téléporteur, contre la cloison de la soute.
+  holdHall: { level: -1, x: 20, z: 4, dir: 3 },
+  // Au mur nord du hall d'entraînement, contre le bar.
+  trainingHall: { level: -1, x: 13, z: 14, dir: 0, along: 0.5 },
   mainLanding: { level: 0, x: 10, z: 4, dir: 0 },
+  // Dans le hall d'accueil, face à son téléporteur, contre la cloison du mess.
+  mainHall: { level: 0, x: 8, z: 10, dir: 1, along: 0.5 },
   mainPromenade: { level: 0, x: 26, z: 3, dir: 3 },
   upperLanding: { level: 1, x: 11, z: 4, dir: 0 },
-  upperSportsHall: { level: 1, x: 23, z: 9, dir: 0, along: 0.2 },
+  // Dans la galerie, à côté de son téléporteur, contre la cloison du salon d'écoute.
+  upperGallery: { level: 1, x: 16, z: 9, dir: 0, along: 0.5 },
 }
 
 /** Position et rotation dans le monde d'une affiche ancrée à sa cloison. */

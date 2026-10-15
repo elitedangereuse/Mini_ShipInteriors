@@ -101,7 +101,7 @@ test('la dernière étape termine la quête, pour de bon', () => {
 })
 
 test('les pièces fermées par une quête existent, et toutes leurs portes donnent sur une pièce ouverte', () => {
-  assert.deepEqual(QUEST_ROOMS.map((r) => `${r.level}:${r.room}`).sort(), ['-1:r', '0:r', '0:v', '1:b', '1:f'])
+  assert.deepEqual(QUEST_ROOMS.map((r) => `${r.level}:${r.room}`).sort(), ['-1:f', '-1:o', '-1:r', '-1:x', '0:v'])
   for (const { quest, level, room } of QUEST_ROOMS) {
     const map = new ShipMap(SHIP_LAYOUTS[String(level)], shipMapOptions(level))
     assert.equal(questOfRoom(level, room), quest)
@@ -186,7 +186,7 @@ describe('relais : les pièces fermées par une quête', () => {
     return seen.some((m) => m.level === at.level && m.x === at.x && m.z === at.z)
   }
   /** Au milieu de chaque pièce fermée. */
-  const INSIDE = { 'permis-de-tir': { x: 14, z: 1, level: -1 }, 'poids-lourds': { x: 18, z: 1, level: 0 }, 'silence-on-dribble': { x: 19, z: 13, level: 1 }, 'dernier-match': { x: 26, z: 13, level: 1 }, 'tour-de-garde': { x: 27, z: 12, level: 0 } }
+  const INSIDE = { 'permis-de-tir': { x: 14, z: 1, level: -1 }, 'poids-lourds': { x: 18, z: 18, level: -1 }, 'silence-on-dribble': { x: 12, z: 18, level: -1 }, 'dernier-match': { x: 5, z: 18, level: -1 }, 'tour-de-garde': { x: 27, z: 12, level: 0 } }
 
   before(async () => {
     siteUrl = await listen(site)
