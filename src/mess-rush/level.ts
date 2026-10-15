@@ -8,7 +8,7 @@ import { MESS_BOUNDS, MESS_LAYOUT, MESS_LEVEL, NORTH_ROW, SERVICE_COUNTER, STATI
  * shared/mess-rush.js), à l'échelle de ses cuisiniers : des meubles bas, rien qui leur arrive à la
  * tête (cf. furniture/mess-rush.ts). Comme dans Overcooked, une seule pièce ouverte, des comptoirs
  * tout autour et le milieu libre : au mur ouest, les caisses d'ingrédients ; au fond, les planches,
- * les fourneaux et la plonge ; au mur est, les assiettes propres ; au nord, des plans de travail puis
+ * les fourneaux (l'extincteur entre eux, son panneau au mur) et la plonge ; au mur est, les assiettes propres ; au nord, des plans de travail puis
  * le comptoir de service (la passe, le retour de vaisselle), et derrière lui l'allée où les clients
  * font la queue. Une poubelle dans deux coins.
  *
@@ -35,6 +35,8 @@ const PROPS: Prop[] = [
   { model: 'rush-stove', x: mid('marmite-1', 'marmite-2'), z: WALL_Z, rot: 2 },
   counter(12.44, 13.26, WALL_Z, 'wall'),
   { model: 'rush-stove', x: mid('poele-1', 'poele-2'), z: WALL_Z, rot: 2 },
+  // Le panneau de l'extincteur, au mur entre les deux fourneaux, au-dessus de son crochet.
+  { model: 'rush-fire-sign', x: at('extincteur').x, z: MESS_BOUNDS.maxZ - 0.01, rot: 2, solid: false },
   counter(14.64, 15.35, WALL_Z, 'wall'),
   { model: 'rush-sink', x: at('plonge').x, z: WALL_Z, rot: 2 },
   // --- Le mur est : les assiettes propres et deux comptoirs.

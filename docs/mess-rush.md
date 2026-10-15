@@ -1061,3 +1061,55 @@ Tous les visiteurs sont servis, aucun bon n'expire. Les médailles sont recalée
 
 - La place des icônes d'aliments sur les postes voisins (le comptoir du nord, serré).
 - Le rythme des visiteurs : quatre ou cinq plats à trois ingrédients, en plus des clients.
+
+## Mise à jour 2.3
+
+Retours après les essais de la 2.2 : des commandes trop rapprochées en seconde moitié, les assiettes
+à compter, des imprévus qu'on ne voyait pas, et trois imprévus revus ou nouveaux.
+
+### Le rythme des commandes
+
+- Un bon toutes les 30 s seul (au lieu de 25), 24 s à deux (20), 20 s à trois (16), 17 s à quatre (13).
+- Plus aucun bon en attente : le suivant arrive au plus tard 6 s après (`RULES.refill`), et non
+  plus tout de suite ; une équipe rapide n'en reçoit plus davantage.
+- Un visiteur de marque prend la place d'un client : le bon suivant attend d'autant, et il ne passe
+  un plafond plein que d'une place.
+
+Les robots servent moins de plats (15,2 à deux au lieu de 22,7) et les médailles sont recalées.
+
+### Les assiettes
+
+Le bandeau compte les assiettes propres (la pile, en vert, en rouge quand il n'y en a plus) et
+sales (au retour, à la plonge, en main ou posées) ; à côté des pastilles de la pile, du retour et de
+la plonge, un compteur rond (« ×3 »).
+
+### Les imprévus
+
+Deux imprévus par service, à des moments tirés au sort (`RULES.events.slots`, `planEvents`) : un
+dans les deux premières minutes et demie (40 à 135 s), l'autre dans la seconde moitié (165 à
+250 s), jamais deux fois le même. Leur arrivée s'annonce dans le bandeau : la pastille y affiche
+leur titre en gros trois secondes (« AU FEU ! », « MOUSTACHE EST LÀ ! »…), puis ce qu'il faut faire.
+Le coup de feu, qui n'avait aucun bandeau, a désormais son annonce. Sur le serveur de dev,
+`mess:debug { event: 'fire' }` en déclenche un.
+
+| Imprévu | Ce qui se passe | La parade |
+|---|---|---|
+| Plateau renversé | la passe est bloquée | la nettoyer (la touche, mains vides) |
+| Moustache est là | elle se promène 10 s dans la cuisine (on la voit, on ne peut rien lui faire), puis saute sur une préparation et la bloque | la chasser (la touche) avant 7 s, sinon elle la mange |
+| Surchauffe | tout cuit et brûle 1,7 fois plus vite pendant 15 s | surveiller ses feux |
+| Coup de feu | deux bons d'un coup | — |
+| Passage en hyperespace | 12 s : la lumière vacille doucement en bleuissant, des traînées d'étoiles défilent au bord de l'écran, ce qui est posé sursaute ; couper, laver, nettoyer et éteindre vont deux fois moins vite (la cuisson continue) | faire autre chose en attendant |
+| Au feu ! | une marmite ou une poêle (de préférence celle qui cuit) s'enflamme : de grandes flammes sur elle seule, la cuisson s'arrête | prendre l'extincteur au mur, entre les fourneaux, et l'éteindre (la touche, 1,5 s) ; laissé 25 s, ce qu'elle contenait brûle |
+
+L'extincteur (le poste `extincteur`, à la place d'un comptoir entre les deux fourneaux) est un
+objet qu'on prend, qu'on pose sur un comptoir et qu'on raccroche ; il ne se jette pas, et revient
+à son crochet quand celui qui le tient quitte la cuisine. Au-dessus, au mur, son panneau : un
+extincteur blanc sur fond rouge, cerclé de blanc et de noir (`rush-fire-sign`). En action, une
+mousse blanche va de la main de qui l'éteint jusqu'au feu, et les flammes baissent.
+
+### À confirmer en jeu (2.3)
+
+- Le rythme : assez calme en fin de partie, sans s'ennuyer à trois ou quatre.
+- Le saut en hyperespace : l'effet de lumière et les traînées, sur un grand écran comme sur un
+  téléphone.
+- La taille des flammes, et le chemin jusqu'à l'extincteur depuis l'autre fourneau.

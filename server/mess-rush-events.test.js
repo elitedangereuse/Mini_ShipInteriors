@@ -1,14 +1,15 @@
-// MESS RUSH, les imprévus et le partage du travail (shared/mess-rush.js) : un imprévu à la fois, ni
-// trop tôt ni dans les dernières secondes, et chacun se règle en jouant : le plateau renversé bloque
-// la passe jusqu'au nettoyage, le chat mange ce qu'on laisse si on ne le chasse pas, la surchauffe
-// fait cuire et brûler plus vite, le coup de feu ajoute des bons ; le tirage est équitable ; les
-// visiteurs de marque (des personnages du vaisseau) viennent à leur heure ; et à plusieurs,
-// chacun a sa part du travail.
+// MESS RUSH, les imprévus et le partage du travail (shared/mess-rush.js) : deux imprévus par service
+// (un dans chaque moitié), jamais deux fois le même, et chacun se règle en jouant : le plateau
+// renversé bloque la passe jusqu'au nettoyage, Moustache se promène puis mange ce qu'on laisse si on
+// ne la chasse pas, la surchauffe fait cuire et brûler plus vite, le coup de feu ajoute des bons, le
+// saut en hyperespace fait trembler les mains, le feu s'éteint à l'extincteur ; les visiteurs de
+// marque (des personnages du vaisseau) viennent à leur heure ; et à plusieurs, chacun a sa part du
+// travail.
 //   npm test
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { GUESTS, PROCESSES, RECIPES } from '../shared/mess-rush-catalog.js'
-import { EVENT_KINDS, RULES, createService, guide, isBlocked, recipeValue, resolveAction, stepService } from '../shared/mess-rush.js'
+import { EVENT_KINDS, RULES, createService, dropHeld, guide, isBlocked, recipeValue, resolveAction, stepService } from '../shared/mess-rush.js'
 import { cookRecipe, kitchen, must } from './mess-rush-helpers.js'
 
 const service = (players = 1, recipes, seed = 7) => {
@@ -18,8 +19,10 @@ const service = (players = 1, recipes, seed = 7) => {
 /** Un imprévu imposé, et plus d'autre tirage pendant l'essai. */
 const force = (k, event) => {
   k.state.event = { at: k.now, ...event }
-  k.state.nextEventAt = Infinity
+  k.state.eventPlan = []
 }
+/** Moustache, déjà sur son plan (sa promenade finie). */
+const perched = (k, station) => force(k, { kind: 'cat', perchAt: k.now, station, until: k.now + RULES.events.cat.perch * 1000 })
 const ingredient = (k, id, ing, step = 0) => (k.state.items[id] = { id, kind: 'ingredient', ing, step, progress: 0 })
 
 /** Les imprévus d'un service entier (personne ne cuisine, l'est nettoie la passe), dans l'ordre. */
@@ -32,24 +35,23 @@ function timeline(seed) {
   return k.events.filter((e) => e.kind === 'event' || e.kind === 'event-end')
 }
 
-test('un imprévu à la fois, pas avant la première minute, jamais dans les dernières secondes', () => {
+test('deux imprévus par service : un dans chaque moitié, à un moment tiré au sort, jamais deux fois le même', () => {
   const seen = new Set()
-  for (const seed of [1, 2, 3, 4, 5]) {
+  for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
     const k = service(2, undefined, seed)
     let active = null
-    let count = 0
+    const starts = []
     for (let t = 0; t < RULES.service; t += 0.1) {
       k.advance(0.1)
-      // Un plateau renversé reste là tant qu'on ne nettoie pas : le cuisinier de l'est s'en charge.
+      // Un plateau renversé reste là tant qu'on ne nettoie pas : quelqu'un s'en charge.
       if (k.state.event?.kind === 'spill' && !k.state.work.b) k.use('b', 'passe')
       for (const e of k.events.splice(0)) {
         if (e.kind === 'event') {
-          count++
+          starts.push([k.now, e.event])
           seen.add(e.event)
-          assert.ok(k.now >= RULES.events.first * 1000, `trop tôt : ${k.now}`)
           assert.ok(k.now < k.state.endsAt - RULES.events.quiet * 1000, 'trop tard')
           // (Le coup de feu ne dure pas : pas d'imprévu en cours.)
-          if (['spill', 'cat', 'overheat'].includes(e.event)) {
+          if (e.event !== 'rush') {
             assert.equal(active, null, 'deux imprévus à la fois')
             active = e.event
           }
@@ -57,7 +59,13 @@ test('un imprévu à la fois, pas avant la première minute, jamais dans les der
         if (e.kind === 'event-end') active = null
       }
     }
-    assert.ok(count >= 2, `graine ${seed} : ${count} imprévus`)
+    assert.equal(starts.length, 2, `graine ${seed} : ${starts.length} imprévus`)
+    const [[t1, k1], [t2, k2]] = starts
+    const [s1, s2] = RULES.events.slots
+    assert.ok(t1 >= s1[0] * 1000 && t1 <= s1[1] * 1000 + 100, `premier à ${t1}`)
+    assert.ok(t1 <= 150000, 'le premier dans les deux minutes et demie')
+    assert.ok(t2 >= s2[0] * 1000 && t2 >= 150000, `second à ${t2}`)
+    assert.notEqual(k1, k2)
   }
   assert.ok(seen.size >= 4, [...seen].join(', '))
   // La même graine, les mêmes imprévus : tout le monde vit le même service.
@@ -74,7 +82,7 @@ test('plateau renversé : la passe refuse les plats tant qu\'on ne l\'a pas nett
   // Le plat en main : la passe le refuse, et le guidage le fait poser.
   assert.equal(resolveAction(k.state, 'a', 'passe'), null)
   assert.equal(guide(k.state, 'a').step, 'put')
-  must(k.use('a', 'comptoir-fond'))
+  must(k.use('a', 'comptoir-fo'))
   // Les mains vides : la touche nettoie ; s'éloigner arrête le geste.
   assert.deepEqual(guide(k.state, 'a'), { step: 'clean', stations: ['passe'] })
   assert.equal(resolveAction(k.state, 'a', 'passe').kind, 'clean')
@@ -87,32 +95,42 @@ test('plateau renversé : la passe refuse les plats tant qu\'on ne l\'a pas nett
   k.advance(RULES.events.clean + 0.2)
   assert.equal(k.state.event, null)
   assert.ok(k.events.some((e) => e.kind === 'event-end' && e.event === 'spill' && e.by === 'a'))
-  must(k.use('a', 'comptoir-fond'))
+  must(k.use('a', 'comptoir-fo'))
   must(k.use('a', 'passe'))
   assert.equal(k.state.served, 1)
 })
 
-test('le chat du bord : il mange ce qu\'on a laissé si personne ne le chasse ; la touche le chasse', () => {
+test('Moustache est là : elle se promène d\'abord (intouchable), puis saute sur une préparation ; la touche la chasse, sinon elle mange', () => {
   const k = service(1, ['ragout-lapin'])
   k.waitOrder()
   ingredient(k, 'x1', 'lapin-ceti', 1)
-  k.state.stations['comptoir-fond'].item = 'x1'
-  force(k, { kind: 'cat', until: k.now + RULES.events.cat * 1000, station: 'comptoir-fond' })
-  assert.ok(isBlocked(k.state, 'comptoir-fond'))
-  // Quoi qu'on tienne, la touche le chasse ; c'est la première chose que montre le guidage.
-  assert.deepEqual(resolveAction(k.state, 'a', 'comptoir-fond'), { kind: 'shoo' })
-  assert.deepEqual(guide(k.state, 'a'), { step: 'shoo', stations: ['comptoir-fond'] })
-  // Personne ne vient : il mange le lapin et s'en va.
-  k.advance(RULES.events.cat + 0.1)
-  assert.equal(k.state.stations['comptoir-fond'].item, null)
+  k.state.stations['comptoir-fo'].item = 'x1'
+  force(k, { kind: 'cat', perchAt: k.now + RULES.events.cat.prowl * 1000, path: [{ x: 9, z: 10 }, { x: 12, z: 10.5 }], station: null })
+  // La promenade : on la voit, on ne peut rien lui faire, elle ne bloque rien.
+  for (const id of ['comptoir-fo', 'plan-1', 'passe']) assert.ok(!isBlocked(k.state, id))
+  assert.notEqual(resolveAction(k.state, 'a', 'comptoir-fo')?.kind, 'shoo')
+  assert.notEqual(guide(k.state, 'a')?.step, 'shoo')
+  k.advance(RULES.events.cat.prowl - 0.5)
+  assert.equal(k.state.event.station, null)
+  // Elle saute sur la seule préparation posée : le lapin.
+  k.advance(0.6)
+  assert.equal(k.state.event.station, 'comptoir-fo')
+  assert.ok(k.events.some((e) => e.kind === 'perch' && e.station === 'comptoir-fo'))
+  assert.ok(isBlocked(k.state, 'comptoir-fo'))
+  // Quoi qu'on tienne, la touche la chasse ; c'est la première chose que montre le guidage.
+  assert.deepEqual(resolveAction(k.state, 'a', 'comptoir-fo'), { kind: 'shoo' })
+  assert.deepEqual(guide(k.state, 'a'), { step: 'shoo', stations: ['comptoir-fo'] })
+  // Personne ne vient : elle mange le lapin et s'en va.
+  k.advance(RULES.events.cat.perch + 0.1)
+  assert.equal(k.state.stations['comptoir-fo'].item, null)
   assert.equal(k.state.items.x1, undefined)
-  assert.ok(k.events.some((e) => e.kind === 'eaten' && e.station === 'comptoir-fond' && e.ing === 'lapin-ceti'))
+  assert.ok(k.events.some((e) => e.kind === 'eaten' && e.station === 'comptoir-fo' && e.ing === 'lapin-ceti'))
   assert.equal(k.state.event, null)
-  // Il revient sur une planche où l'on coupe : la coupe s'arrête ; chassé, il ne mange rien.
+  // Sur une planche où l'on coupe : la coupe s'arrête ; chassée, elle ne mange rien.
   must(k.use('a', 'caisse-legumes'))
   must(k.use('a', 'plan-1'))
   must(k.use('a', 'plan-1'))
-  force(k, { kind: 'cat', until: k.now + RULES.events.cat * 1000, station: 'plan-1' })
+  perched(k, 'plan-1')
   k.advance(0.2)
   assert.equal(k.state.work.a, undefined)
   must(k.use('a', 'plan-1'))
@@ -122,6 +140,76 @@ test('le chat du bord : il mange ce qu\'on a laissé si personne ne le chasse ; 
   assert.ok(k.state.stations['plan-1'].item)
   must(k.use('a', 'plan-1'))
   assert.equal(k.state.work.a.station, 'plan-1')
+})
+
+test('passage en hyperespace : tout tremble, couper et laver vont moins vite, la cuisson continue', () => {
+  const k = service(1, ['ragout-lapin'])
+  k.waitOrder()
+  must(k.use('a', 'caisse-lapin'))
+  must(k.use('a', 'plan-1'))
+  ingredient(k, 'l2', 'legumes', 1)
+  k.state.stations['comptoir-fo'].item = 'l2'
+  force(k, { kind: 'hyperspace', until: k.now + RULES.events.hyperspace.time * 1000 })
+  must(k.use('a', 'plan-1'))
+  k.advance(1)
+  const lapin = k.state.items[k.state.stations['plan-1'].item]
+  assert.ok(Math.abs(lapin.progress - RULES.events.hyperspace.slow) < 0.02, String(lapin.progress))
+  // La marmite, elle, cuit à son rythme.
+  must(k.use('a', 'comptoir-fo'))
+  must(k.use('a', 'marmite-1'))
+  const pot = k.state.stations['marmite-1']
+  const until = pot.cook.until
+  k.advance(RULES.events.hyperspace.time)
+  assert.equal(k.state.event, null)
+  assert.ok(k.events.some((e) => e.kind === 'event-end' && e.event === 'hyperspace'))
+  assert.equal(pot.cook.until, until)
+  assert.equal(pot.done, true)
+})
+
+test('au feu ! une marmite s\'enflamme : on prend l\'extincteur au mur et on l\'éteint ; laissée, elle brûle', () => {
+  const k = service(1, ['ragout-lapin'])
+  k.waitOrder()
+  ingredient(k, 'l1', 'lapin-ceti', 1)
+  k.state.hands.a = 'l1'
+  must(k.use('a', 'marmite-1'))
+  const pot = k.state.stations['marmite-1']
+  const until = pot.cook.until
+  force(k, { kind: 'fire', station: 'marmite-1', until: k.now + RULES.events.fire.time * 1000, progress: 0 })
+  assert.ok(isBlocked(k.state, 'marmite-1'))
+  // Les mains vides, ou autre chose en main : rien à faire au feu. Le guidage envoie à l'extincteur.
+  assert.equal(resolveAction(k.state, 'a', 'marmite-1'), null)
+  assert.deepEqual(guide(k.state, 'a'), { step: 'take-extinguisher', stations: ['extincteur'] })
+  // Pendant le feu, la cuisson s'arrête.
+  k.advance(3)
+  assert.ok(pot.cook.until - until >= 2900)
+  must(k.use('a', 'extincteur'))
+  assert.equal(k.state.items[k.state.hands.a].kind, 'extinguisher')
+  assert.equal(k.state.stations.extincteur.item, null)
+  assert.deepEqual(resolveAction(k.state, 'a', 'marmite-1'), { kind: 'extinguish', busy: false })
+  assert.deepEqual(guide(k.state, 'a'), { step: 'extinguish', stations: ['marmite-1'] })
+  must(k.use('a', 'marmite-1'))
+  k.advance(RULES.events.fire.put + 0.1)
+  assert.equal(k.state.event, null)
+  assert.ok(k.events.some((e) => e.kind === 'event-end' && e.event === 'fire' && e.by === 'a'))
+  assert.equal(pot.burnt, false)
+  // On raccroche l'extincteur (le guidage le propose) ; la marmite reprend sa cuisson.
+  assert.deepEqual(guide(k.state, 'a'), { step: 'hang', stations: ['extincteur'] })
+  must(k.use('a', 'extincteur'))
+  assert.equal(k.state.stations.extincteur.item, 'ext')
+  k.advance(PROCESSES.cuire.duration)
+  assert.equal(pot.done, true)
+  // Un autre feu, laissé : ce qu'il y avait brûle, et le feu retombe.
+  force(k, { kind: 'fire', station: 'marmite-1', until: k.now + RULES.events.fire.time * 1000, progress: 0 })
+  k.advance(RULES.events.fire.time + 0.1)
+  assert.equal(pot.burnt, true)
+  assert.equal(k.state.event, null)
+  // L'extincteur ne se jette pas, et revient à son crochet quand celui qui le tient s'en va.
+  must(k.use('a', 'extincteur'))
+  assert.equal(resolveAction(k.state, 'a', 'poubelle-no'), null)
+  must(k.use('a', 'comptoir-fo'))
+  must(k.use('a', 'comptoir-fo'))
+  dropHeld(k.state, 'a')
+  assert.equal(k.state.stations.extincteur.item, 'ext')
 })
 
 test('surchauffe : tout cuit, et brûle, plus vite ; il faut surveiller ses feux', () => {
@@ -155,41 +243,29 @@ test('surchauffe : tout cuit, et brûle, plus vite ; il faut surveiller ses feux
 })
 
 test('le coup de feu : deux bons d\'un coup', () => {
-  for (let seed = 1; seed < 400; seed++) {
-    const k = service(1, ['crevettes-pommes'], seed)
-    k.state.guests = []
-    k.advance(RULES.events.first + 0.2)
-    const at = k.events.find((e) => e.kind === 'event' && e.event === 'rush')
-    if (!at) continue
-    const i = k.events.indexOf(at)
-    assert.equal(k.events.slice(i + 1, i + 3).filter((e) => e.kind === 'order').length, 2)
-    return
-  }
-  assert.fail('jamais de coup de feu')
+  const k = service(1, ['crevettes-pommes'])
+  k.state.guests = []
+  k.waitOrder()
+  force(k, { kind: 'rush' })
+  k.state.event = null
+  k.state.eventCounts = { spill: 1, cat: 1, overheat: 1, hyperspace: 1, fire: 1 }
+  k.state.eventPlan = [k.now + 100]
+  const before = k.state.orders.length
+  k.advance(0.2)
+  assert.ok(k.events.some((e) => e.kind === 'event' && e.event === 'rush'))
+  assert.equal(k.state.orders.length - before, 2)
 })
 
-test('le tirage des imprévus est équitable, et ce qui est déjà arrivé revient moins', () => {
+test('le tirage des imprévus est équitable', () => {
   const first = {}
-  let again = 0, pairs = 0
-  for (let seed = 1; seed <= 400; seed++) {
+  for (let seed = 1; seed <= 600; seed++) {
     const k = service(2, undefined, seed)
-    const seen = []
-    for (let t = 0; t < RULES.service && seen.length < 2; t += 1) {
-      k.advance(1)
-      if (k.state.event?.kind === 'spill' && !k.state.work.b) k.use('b', 'passe')
-      for (const e of k.events.splice(0)) if (e.kind === 'event') seen.push(e.event)
-    }
-    first[seen[0]] = (first[seen[0]] ?? 0) + 1
-    if (seen.length === 2) {
-      pairs++
-      if (seen[1] === seen[0]) again++
-    }
+    k.advance(RULES.events.slots[0][1] + 1)
+    const e = k.events.find((x) => x.kind === 'event')
+    first[e.event] = (first[e.event] ?? 0) + 1
   }
-  // Chacun sort à peu près une fois sur quatre (le chat aussi : plus de « Moustache » à chaque service).
-  for (const kind of EVENT_KINDS) assert.ok(first[kind] > 400 * 0.15 && first[kind] < 400 * 0.35, `${kind} : ${first[kind]} / 400`)
-  // Le même deux fois de suite : bien moins d'une fois sur quatre.
-  assert.ok(again / pairs < 0.16, `${again} / ${pairs}`)
-  assert.equal(RULES.events.repeat < 1, true)
+  // Chacun sort à peu près une fois sur six (Moustache aussi).
+  for (const kind of EVENT_KINDS) assert.ok(first[kind] > 600 * 0.09 && first[kind] < 600 * 0.25, `${kind} : ${first[kind]} / 600`)
 })
 
 test('les visiteurs de marque : quatre ou cinq personnages du vaisseau par service, chacun à son heure, son plat rapporte double', () => {
@@ -210,7 +286,7 @@ test('les visiteurs de marque : quatre ou cinq personnages du vaisseau par servi
   assert.deepEqual([...counts].sort(), [4, 5])
   // Le premier arrive, à son heure, même quand la file est pleine : son plat préféré, à trois ingrédients.
   const k = service(1, ['crevettes-pommes'])
-  k.state.nextEventAt = undefined
+  k.state.eventPlan = []
   const visit = k.state.guests[0]
   k.advance((visit.at - k.now) / 1000 - 0.2)
   assert.ok(!k.state.orders.some((o) => o.guest))

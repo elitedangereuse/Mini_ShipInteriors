@@ -41,6 +41,7 @@ function actionLabel(a: Action, held: string, slot: string): string {
     case 'wash': return a.busy ? tr('Occupé', 'Busy') : tr('Laver', 'Wash')
     case 'clean': return a.busy ? tr('Occupé', 'Busy') : tr('Nettoyer', 'Clean')
     case 'shoo': return tr('Chasser Moustache', 'Shoo Moustache')
+    case 'extinguish': return a.busy ? tr('Occupé', 'Busy') : tr('Éteindre le feu', 'Put out the fire')
     case 'take': return tr(`Prendre : ${slot}`, `Take: ${slot}`)
     case 'put': return tr(`Poser : ${held}`, `Put down: ${held}`)
     case 'plate-pick':
@@ -360,14 +361,23 @@ export class MessRushClient {
         this.host.sound.kitchen('trash', at(e.station))
         break
       case 'event':
-        // Un imprévu : le bandeau du haut le tient affiché (cf. MessHud) ; ici, son bruit.
-        if (e.event === 'cat') this.host.sound.meow(at(e.station))
+        // Un imprévu : son titre, un instant, sous le bandeau, qui le garde ensuite (cf. MessHud) ; et son bruit.
+        if (e.event) this.hud.announce(e.event)
+        if (e.event === 'cat') this.host.sound.meow(this.host.player.position)
         else if (e.event === 'overheat') this.host.sound.work('hiss', this.host.player.position)
         else if (e.event === 'spill') this.host.sound.kitchen('trash', at(e.station ?? 'passe'))
-        else this.host.sound.kitchen('order', null)
+        else if (e.event === 'hyperspace') this.host.sound.fsd(1.5, RULES.events.hyperspace.time - 1.5)
+        else if (e.event === 'fire') {
+          this.host.sound.work('sizzle', at(e.station))
+          this.host.sound.kitchen('expired', at(e.station))
+        } else this.host.sound.kitchen('order', null)
+        break
+      case 'perch':
+        // Moustache a fini sa promenade : elle saute sur une préparation.
+        this.host.sound.meow(at(e.station))
         break
       case 'event-end':
-        if (e.event === 'spill') {
+        if (e.event === 'spill' || e.event === 'fire') {
           if (me) this.working = null
           this.host.sound.kitchen('ready', this.host.player.position)
         }
@@ -495,6 +505,7 @@ export class MessRushClient {
     this.phase = 'ship'
     this.working = null
     this.hud.hide()
+    document.body.classList.remove('mess-hyperspace')
     this.host.music(false)
     this.queue?.clear()
     this.props?.release((pid) => this.avatar(pid))
@@ -542,10 +553,10 @@ export class MessRushClient {
       return
     }
     this.working = null
-    if (action && ['work', 'wash', 'clean'].includes(action.kind)) {
+    if (action && ['work', 'wash', 'clean', 'extinguish'].includes(action.kind)) {
       this.working = stationId
       const p = this.host.player.position
-      this.host.sound.work(action.kind === 'work' ? 'chop' : action.kind === 'wash' ? 'water' : 'scrub', p)
+      this.host.sound.work(action.kind === 'work' ? 'chop' : action.kind === 'wash' ? 'water' : action.kind === 'extinguish' ? 'hiss' : 'scrub', p)
     }
     this.host.net.sendMess('use', { station: stationId })
   }
@@ -616,6 +627,7 @@ export class MessRushClient {
     const slot = st?.item ? state.items[st.item] : null
     if (action) return { main: actionLabel(action, held ? itemName(held) : '', slot ? itemName(slot) : '') }
     const name = kind === 'crate' ? text(INGREDIENTS[STATION_BY_ID[station].ing!].short) : text(STATION_NAMES[kind])
+    if ((kind === 'pot' || kind === 'pan') && state.event?.kind === 'fire' && state.event.station === station) return { main: tr(`${name} en feu : l'extincteur !`, `${name} on fire: get the extinguisher!`) }
     if ((kind === 'pot' || kind === 'pan') && st?.done && !held) return { main: tr(`${name} : il faut une assiette`, `${name}: you need a plate`) }
     if ((kind === 'pot' || kind === 'pan') && st?.cook && !st.done) return { main: tr(`${name} : ça cuit…`, `${name}: cooking…`) }
     return { main: name }
@@ -627,6 +639,8 @@ export class MessRushClient {
     if (!this.game || this.phase !== 'kitchen') return
     const now = this.serverNow()
     const { state } = this.game
+    // Le saut en hyperespace : l'écran (cf. style.css, .mess-warp) en plus de la scène (cf. props.ts).
+    document.body.classList.toggle('mess-hyperspace', state.event?.kind === 'hyperspace')
     this.props?.update(state, now, (pid) => this.avatar(pid), this.host.camera())
     this.queue?.update(state, now, this.clock())
     this.hud.update(state, now)
@@ -662,6 +676,7 @@ export class MessRushClient {
 /** Le nom d'un objet de la partie : « Lapin coupé », « Assiette (Riz cuit, Crevettes saisies) », « Assiettes sales (2) ». */
 export function itemName(item: Item): string {
   if (item.kind === 'dirty') return tr(`Assiettes sales (${item.count})`, `Dirty plates (${item.count})`)
+  if (item.kind === 'extinguisher') return tr('Extincteur', 'Fire extinguisher')
   if (item.kind === 'plate') {
     const parts = (item.contents ?? []).map(([ing, state]) => {
       const s = stateLabel(ing, state)

@@ -350,7 +350,7 @@ test('à quatre : le rythme de quatre ; qui quitte rejoint un autre salon, l\'é
   assert.equal(game.state.players, 4)
   assert.equal(h.last(4, 'mess:start').state.players, 4)
   // Cinq commandes au plus, une toutes les 13 s (sans imprévu : un coup de feu en ajouterait).
-  game.state.nextEventAt = undefined
+  game.state.eventPlan = []
   h.advance(RULES.firstOrder + 0.2 + RULES.byPlayers[4].every * 4)
   assert.equal(game.state.orders.filter((o) => o.status === 'pending').length, 5)
   // Le quatrième abandonne : il rentre au mess, et peut prendre un autre salon.

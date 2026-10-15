@@ -26,9 +26,22 @@ export const MEDAL_NAMES: Record<Medal, string> = {
 
 /** Les imprévus qui durent (cf. EVENT_KINDS) : leur bandeau en cuisine. */
 const ALERTS: Record<string, { icon: IconName; line: string }> = {
-  spill: { icon: 'broom', line: tr('Plateau renversé sur la passe : nettoyez-la', 'Tray spilled on the pass: clean it') },
-  cat: { icon: 'paw-print', line: tr('Moustache est sur un plan : chassez-la', 'Moustache is on a counter: shoo her') },
-  overheat: { icon: 'flame', line: tr('Surchauffe : tout cuit, et brûle, plus vite', 'Overheating: everything cooks, and burns, faster') },
+  spill: { icon: 'broom', line: tr('Plateau renversé : nettoyez la passe', 'Tray spilled: clean the pass') },
+  prowl: { icon: 'paw-print', line: tr('Moustache rôde dans la cuisine', 'Moustache is prowling') },
+  cat: { icon: 'paw-print', line: tr('Moustache sur un plan : chassez-la !', 'Moustache on a counter: shoo her!') },
+  overheat: { icon: 'flame', line: tr('Surchauffe : tout va plus vite', 'Overheating: everything is faster') },
+  hyperspace: { icon: 'rocket-launch', line: tr('Hyperespace : les gestes ralentissent', 'Hyperspace: hands slow down') },
+  fire: { icon: 'flame', line: tr('Au feu ! L\'extincteur, entre les fourneaux', 'Fire! Extinguisher between the ranges') },
+}
+
+/** Le titre de chaque imprévu, un instant, quand il arrive. */
+const TITLES: Record<string, { icon: IconName; line: string }> = {
+  spill: { icon: 'broom', line: tr('PLATEAU RENVERSÉ !', 'TRAY SPILLED!') },
+  cat: { icon: 'paw-print', line: tr('MOUSTACHE EST LÀ !', 'MOUSTACHE IS HERE!') },
+  overheat: { icon: 'flame', line: tr('SURCHAUFFE !', 'OVERHEATING!') },
+  rush: { icon: 'bell-ringing', line: tr('COUP DE FEU !', 'RUSH HOUR!') },
+  hyperspace: { icon: 'rocket-launch', line: tr('PASSAGE EN HYPERESPACE', 'JUMPING TO HYPERSPACE') },
+  fire: { icon: 'flame', line: tr('AU FEU !', 'FIRE!') },
 }
 
 /** Le geste de chaque étape d'un ingrédient, en pictogramme sur les bons (couper, la marmite, la poêle). */
@@ -260,6 +273,12 @@ export class MessHud {
   private readonly alertText = el('span')
   private readonly alertMore = el('small')
   private alertKind = ''
+  /** L'imprévu qui vient d'arriver : la pastille du bandeau montre son titre, en gros, un instant. */
+  private intro = ''
+  private introUntil = 0
+  /** Les assiettes propres (la pile) et sales (au retour, à la plonge, en main ou posées). */
+  private readonly clean = el('strong')
+  private readonly dirty = el('strong')
   private readonly quit: HTMLButtonElement
   private armed = 0
   private shown = ''
@@ -272,7 +291,14 @@ export class MessHud {
     const s = el('span', 'mess-cell')
     s.append(el('small', '', tr('Score', 'Score')), this.score)
     this.alert.hidden = true
-    bar.append(t, s, this.combo, this.medal, this.alert)
+    const plates = el('span', 'mess-plates')
+    plates.title = tr('Assiettes propres · sales', 'Clean · dirty plates')
+    const cleanChip = el('span', 'mess-plate clean')
+    cleanChip.append(icon('fork-knife'), this.clean)
+    const dirtyChip = el('span', 'mess-plate dirty')
+    dirtyChip.append(icon('drop'), this.dirty)
+    plates.append(cleanChip, dirtyChip)
+    bar.append(t, s, plates, this.combo, this.medal, this.alert)
     // Quitter : deux clics (le premier arme, le second confirme), comme dans la zone thargoïde.
     this.quit = button(tr('Quitter le service', 'Leave service'), () => {
       if (performance.now() < this.armed) {
@@ -283,7 +309,8 @@ export class MessHud {
         this.quit.lastChild!.textContent = tr('Confirmer ?', 'Confirm?')
       }
     }, 'mess-quit', 'sign-out')
-    this.root.append(bar, this.tickets, this.toasts, this.quit)
+    // Le saut en hyperespace : des traînées d'étoiles au bord de l'écran (le milieu reste clair).
+    this.root.append(el('div', 'mess-warp'), bar, this.tickets, this.toasts, this.quit)
     document.body.append(this.root)
   }
 
@@ -296,6 +323,7 @@ export class MessHud {
     this.root.hidden = true
     this.tickets.replaceChildren()
     this.toasts.replaceChildren()
+    this.introUntil = 0
     this.incident(null, 0)
     this.shown = ''
     document.body.classList.remove('mess-on')
@@ -304,6 +332,13 @@ export class MessHud {
   /** À chaque image : les chiffres, et les bons (refaits quand les commandes changent). */
   update(state: ServiceState, now: number) {
     this.time.textContent = clock((state.endsAt - now) / 1000)
+    // Les assiettes : propres sur la pile ; sales au retour, à la plonge, et là où on les a posées.
+    const count = (id: string) => (state.stations[id] as { count?: number } | undefined)?.count ?? 0
+    let dirty = count('retour') + count('plonge')
+    for (const it of Object.values(state.items)) if (it.kind === 'dirty') dirty += it.count ?? 0
+    this.clean.textContent = String(count('assiettes'))
+    this.dirty.textContent = String(dirty)
+    this.clean.parentElement!.classList.toggle('empty', count('assiettes') === 0)
     this.time.classList.toggle('late', state.endsAt - now < 30000)
     this.score.textContent = String(state.score)
     this.combo.textContent = state.combo > 1 ? `×${state.combo}` : ''
@@ -334,17 +369,35 @@ export class MessHud {
 
   /** L'imprévu en cours : un bandeau rouge sous le score (ce qui se passe, ce qu'il reste à tenir ou à nettoyer). */
   private incident(event: ServiceIncident | null, now: number) {
-    const kind = event && ALERTS[event.kind] ? event.kind : ''
-    if (kind !== this.alertKind) {
-      this.alertKind = kind
+    // Moustache : d'abord sa promenade (on ne peut rien faire), puis son plan (on la chasse). Un
+    // imprévu qui arrive : son titre, en gros, le temps de l'annonce (le coup de feu n'a que celle-ci).
+    const intro = performance.now() < this.introUntil ? this.intro : ''
+    const key = intro ? `intro:${intro}` : event?.kind === 'cat' && !event.station ? 'prowl' : event?.kind ?? ''
+    const kind = intro || (event && ALERTS[key] ? key : '')
+    if (key !== this.alertKind) {
+      this.alertKind = key
       this.alert.hidden = !kind
-      this.alert.className = `mess-alert ${kind}`
-      if (kind) this.alert.replaceChildren(icon(ALERTS[kind].icon), this.alertText, this.alertMore)
-      this.alertText.textContent = kind ? ALERTS[kind].line : ''
+      this.alert.className = `mess-alert ${intro ? `${intro} intro` : kind}`
+      if (kind) this.alert.replaceChildren(icon((intro ? TITLES[intro] : ALERTS[kind]).icon), this.alertText, this.alertMore)
+      this.alertText.textContent = intro ? TITLES[intro].line : kind ? ALERTS[kind].line : ''
     }
+    if (intro) {
+      this.alertMore.hidden = true
+      return
+    }
+    this.alertMore.hidden = false
     if (!event || !kind) return
-    if (event.until) this.alertMore.textContent = `${Math.max(0, Math.ceil((event.until - now) / 1000))} s`
+    const until = kind === 'prowl' ? event.perchAt : event.until
+    if (event.kind === 'fire' && event.progress) this.alertMore.textContent = `${Math.round((event.progress / RULES.events.fire.put) * 100)} %`
+    else if (until) this.alertMore.textContent = `${Math.max(0, Math.ceil((until - now) / 1000))} s`
     else this.alertMore.textContent = event.progress ? `${Math.round((event.progress / RULES.events.clean) * 100)} %` : tr('mains vides', 'empty hands')
+  }
+
+  /** Un imprévu arrive : la pastille du bandeau affiche son titre, en gros, trois secondes (hors de la cuisine). */
+  announce(kind: string) {
+    if (!TITLES[kind]) return
+    this.intro = kind
+    this.introUntil = performance.now() + 3000
   }
 
   /**

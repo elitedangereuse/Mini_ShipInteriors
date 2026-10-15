@@ -15,7 +15,7 @@ import { cookRecipe, first, kitchen, must } from './mess-rush-helpers.js'
 const solo = (recipes = ['crevettes-pommes'], players = 1) => {
   const k = kitchen(createService({ id: 'g1', seed: 42, players, now: 0, recipes }))
   // Sans imprévu ni visiteur de marque (cf. mess-rush-events.test.js pour eux).
-  k.state.nextEventAt = undefined
+  k.state.eventPlan = []
   k.state.guests = []
   return k
 }
@@ -38,21 +38,31 @@ test('la cuisine : une seule pièce, les postes et les arrivées sur son sol', (
 
 test('les commandes arrivent au rythme du nombre de joueurs, sans dépasser le plafond', () => {
   const k = solo()
+  const every = RULES.byPlayers[1].every
   k.advance(2.9)
   assert.equal(k.state.orders.length, 0)
   k.advance(0.2)
   assert.equal(k.state.orders.length, 1)
-  // Seul : deux au plus, une toutes les 25 s.
-  k.advance(25)
+  // Seul : deux au plus, une toutes les `every` secondes.
+  k.advance(every)
   assert.equal(pending(k), 2)
-  k.advance(24)
+  k.advance(every)
   assert.equal(pending(k), 2)
-  // À quatre : cinq au plus, une toutes les 13 s.
+  // À quatre : cinq au plus.
   const four = solo(['crevettes-pommes'], 4)
-  four.advance(3.1 + 13 * 4)
+  four.advance(3.1 + RULES.byPlayers[4].every * 4)
   assert.equal(pending(four), 5)
-  four.advance(13)
+  four.advance(RULES.byPlayers[4].every)
   assert.equal(pending(four), 5)
+  // Plus aucun bon : le suivant ne tarde pas, mais n'arrive pas tout de suite non plus.
+  const quick = solo()
+  quick.waitOrder()
+  cookRecipe(quick, 'p1', 'crevettes-pommes')
+  assert.equal(pending(quick), 0)
+  quick.advance(RULES.refill - 0.5)
+  assert.equal(pending(quick), 0)
+  quick.advance(0.6)
+  assert.equal(pending(quick), 1)
 })
 
 test('une commande expirée est retirée et pénalisée, remet le combo à zéro, et le score ne descend pas sous 0', () => {
@@ -108,7 +118,7 @@ test('une seule touche : ce qu\'elle fait dépend du poste et de ce qu\'on tient
   // Un légume en main : on le pose (planche, comptoir), on le jette ; ni marmite (pas coupé) ni caisse.
   must(k.use('p1', 'caisse-legumes'))
   assert.equal(act('plan-1'), 'put')
-  assert.equal(act('comptoir-fond'), 'put')
+  assert.equal(act('comptoir-fo'), 'put')
   assert.equal(act('poubelle-se'), 'trash')
   assert.equal(act('marmite-1'), null)
   assert.equal(act('caisse-pommes'), null)
@@ -141,16 +151,16 @@ test('un plat qui ne correspond à aucune commande est refusé et reste en main'
   k.waitOrder()
   k.state.orders[0].recipe = 'crevettes-pommes'
   must(k.use('p1', 'assiettes'))
-  must(k.use('p1', 'comptoir-fond'))
+  must(k.use('p1', 'comptoir-fo'))
   must(k.use('p1', 'caisse-pommes'))
   must(k.use('p1', 'plan-1'))
   must(k.use('p1', 'plan-1'))
   k.advance(PROCESSES.couper.duration + 0.1)
   must(k.use('p1', 'plan-1'))
   // La pomme coupée seule dans l'assiette posée, puis l'assiette en main : ce n'est pas le plat attendu.
-  assert.equal(resolveAction(k.state, 'p1', 'comptoir-fond').kind, 'plate-add')
-  must(k.use('p1', 'comptoir-fond'))
-  must(k.use('p1', 'comptoir-fond'))
+  assert.equal(resolveAction(k.state, 'p1', 'comptoir-fo').kind, 'plate-add')
+  must(k.use('p1', 'comptoir-fo'))
+  must(k.use('p1', 'comptoir-fo'))
   const plate = k.state.items[k.state.hands.p1]
   assert.deepEqual(plate.contents, [['pommes-aerial', 'coupé']])
   assert.deepEqual(resolveAction(k.state, 'p1', 'passe'), { kind: 'deliver', order: null })
@@ -234,7 +244,7 @@ test('la cuisson part toute seule, s\'allonge à chaque ajout, finit, puis brûl
   assert.ok(k.events.some((e) => e.kind === 'burnt' && e.station === 'marmite-1'))
   must(k.use('p1', 'assiettes'))
   assert.equal(resolveAction(k.state, 'p1', 'marmite-1'), null)
-  must(k.use('p1', 'comptoir-fond'))
+  must(k.use('p1', 'comptoir-fo'))
   assert.deepEqual(resolveAction(k.state, 'p1', 'marmite-1'), { kind: 'empty' })
   must(k.use('p1', 'marmite-1'))
   assert.deepEqual(pot, { items: [], cook: null, done: false, burnt: false })
@@ -248,11 +258,11 @@ test('deux joueurs prennent le même objet en même temps : un seul l\'a', () =>
   const k = solo(['crevettes-pommes'], 2)
   k.waitOrder()
   must(k.use('p1', 'caisse-crevettes'))
-  must(k.use('p1', 'comptoir-fond'))
-  const id = k.state.stations['comptoir-fond'].item
+  must(k.use('p1', 'comptoir-fo'))
+  const id = k.state.stations['comptoir-fo'].item
   // Les deux demandes arrivent dans le même pas : le relais les traite l'une après l'autre.
-  const a = k.use('p1', 'comptoir-fond')
-  const b = k.use('p2', 'comptoir-fond')
+  const a = k.use('p1', 'comptoir-fo')
+  const b = k.use('p2', 'comptoir-fo')
   assert.equal(a.ok, true)
   assert.deepEqual(b, { ok: false, code: 'state' })
   assert.equal(k.state.hands.p1, id)

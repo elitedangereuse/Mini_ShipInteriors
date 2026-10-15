@@ -1,7 +1,7 @@
 /** Un texte affiché, dans les deux langues du jeu. */
 export interface Text { fr: string; en: string }
 export type ProcessId = 'couper' | 'cuire' | 'saisir'
-export type StationKind = 'crate' | 'board' | 'pot' | 'pan' | 'sink' | 'plates' | 'return' | 'counter' | 'pass' | 'trash'
+export type StationKind = 'crate' | 'board' | 'pot' | 'pan' | 'sink' | 'plates' | 'return' | 'counter' | 'pass' | 'trash' | 'extinguisher'
 export type CatalogStatus = 'canonique' | 'adaptation' | 'création'
 export type Difficulty = 'rapide' | 'intermediaire' | 'complexe'
 

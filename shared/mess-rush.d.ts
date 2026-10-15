@@ -52,21 +52,30 @@ export declare const RULES: {
   /** Les imprévus (cf. EVENT_KINDS). */
   /** Les visiteurs de marque : combien par service, de quand à quand (s), le multiplicateur de leurs points. */
   guests: { count: [number, number]; from: number; until: number; points: number }
-  /** Les imprévus (cf. EVENT_KINDS) ; `repeat` : la chance d'un imprévu déjà survenu, multipliée d'autant à chaque fois. */
-  events: { first: number; every: [number, number]; quiet: number; clean: number; cat: number; overheat: { time: number; speed: number }; repeat: number }
+  /** Plus aucun bon en attente : le suivant arrive au plus tard au bout de… (s). */
+  refill: number
+  /** Les imprévus (cf. EVENT_KINDS) : un par créneau de `slots` ; `repeat` : la chance d'un imprévu déjà survenu, multipliée d'autant à chaque fois. */
+  events: {
+    slots: [number, number][]; quiet: number; clean: number; cat: { prowl: number; perch: number }; overheat: { time: number; speed: number }
+    hyperspace: { time: number; slow: number }; fire: { time: number; put: number }; repeat: number
+  }
   medals: Record<1 | 2 | 3 | 4, [number, number, number]>
 }
 
-/** Les imprévus : plateau renversé sur la passe, le chat du bord sur un comptoir, surchauffe des fourneaux, coup de feu. */
-export type EventKind = 'spill' | 'cat' | 'overheat' | 'rush'
+/** Les imprévus : plateau renversé sur la passe, Moustache sur un comptoir, surchauffe des fourneaux, coup de feu, passage en hyperespace, au feu. */
+export type EventKind = 'spill' | 'cat' | 'overheat' | 'rush' | 'hyperspace' | 'fire'
 export declare const EVENT_KINDS: EventKind[]
-/** L'imprévu en cours : sa fin (le chat, la surchauffe), le nettoyage en cours (le plateau), son poste (la passe, le comptoir du chat). */
-export interface ServiceIncident { kind: EventKind; at: number; until?: number; progress?: number; station?: string }
+/**
+ * L'imprévu en cours : sa fin (Moustache, la surchauffe, le saut, le feu), le nettoyage ou
+ * l'extinction en cours (`progress`), son poste (la passe, le plan de Moustache, l'ustensile en feu) ;
+ * Moustache : quand elle saute (`perchAt`) et où elle se promène avant (`path`).
+ */
+export interface ServiceIncident { kind: EventKind; at: number; until?: number; progress?: number; station?: string | null; perchAt?: number; path?: { x: number; z: number }[] }
 
 export interface Item {
   id: string
   /** Un ingrédient, une assiette (propre, garnie ou non), une pile d'assiettes sales. */
-  kind: 'ingredient' | 'plate' | 'dirty'
+  kind: 'ingredient' | 'plate' | 'dirty' | 'extinguisher'
   ing?: string
   /** Gestes faits (cf. `prep` de l'ingrédient). */
   step?: number
@@ -108,15 +117,16 @@ export interface ServiceState {
   /** L'imprévu en cours, et l'heure du prochain tirage. */
   event?: ServiceIncident | null
   nextEventAt?: number
-  /** Combien de fois chaque imprévu est déjà survenu (le tirage en tient compte). */
+  /** Combien de fois chaque imprévu est déjà survenu (le tirage en tient compte), et l'heure des prochains. */
   eventCounts?: Partial<Record<EventKind, number>>
+  eventPlan?: number[]
   /** Les visiteurs de marque du service, à leur heure. */
   guests?: GuestVisit[]
   orders: Order[]
   items: Record<string, Item>
   stations: Record<string, StationState>
   hands: Record<string, string | null>
-  work: Record<string, { station: string; item?: string; clean?: boolean; wash?: boolean }>
+  work: Record<string, { station: string; item?: string; clean?: boolean; wash?: boolean; extinguish?: boolean }>
   score: number
   combo: number
   bestCombo: number
@@ -126,16 +136,16 @@ export interface ServiceState {
 }
 export interface ServiceEvent {
   kind: 'served' | 'expired' | 'wasted' | 'prepared' | 'cooked' | 'cooking' | 'burnt' | 'order' | 'dropped' | 'end' | 'emptied' | 'cleared'
-    | 'event' | 'event-end' | 'merged' | 'washed' | 'dirty' | 'shooed' | 'eaten'
+    | 'event' | 'event-end' | 'merged' | 'washed' | 'dirty' | 'shooed' | 'eaten' | 'perch'
   order?: string; recipe?: string; points?: number; combo?: number; penalty?: number; station?: string; ing?: string; process?: ProcessId; by?: string; count?: number
   event?: EventKind; until?: number; guest?: string
 }
 /** Ce que fait la touche à un poste. */
 export type ActionKind = 'shoo' | 'clean' | 'work' | 'wash' | 'take-ingredient' | 'take' | 'put' | 'plate-pick' | 'plate-add' | 'merge' | 'stack' | 'fill' | 'serve' | 'empty'
-  | 'take-plate' | 'take-dirty' | 'put-dirty' | 'deliver' | 'trash'
+  | 'take-plate' | 'take-dirty' | 'put-dirty' | 'deliver' | 'trash' | 'extinguish'
 export interface Action { kind: ActionKind; ing?: string; order?: string | null; busy?: boolean }
 export type GuideStep = 'shoo' | 'clean' | 'empty' | 'take-dish' | 'take-plate' | 'fill-plate' | 'complete' | 'merge' | 'take-merge' | 'wash' | 'take-dirty' | 'work' | 'take' | 'fetch'
-  | 'prep' | 'cook' | 'plate' | 'put' | 'wait' | 'hold' | 'deliver' | 'trash' | 'need-plate'
+  | 'prep' | 'cook' | 'plate' | 'put' | 'wait' | 'hold' | 'deliver' | 'trash' | 'need-plate' | 'take-extinguisher' | 'extinguish' | 'hang'
 export interface Guide { step: GuideStep; stations: string[]; ing?: string; process?: ProcessId }
 export interface ServiceResult {
   game: string

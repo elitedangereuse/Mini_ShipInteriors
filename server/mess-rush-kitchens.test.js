@@ -14,7 +14,7 @@ import { kitchen, must } from './mess-rush-helpers.js'
 /** Une partie sans imprévu ni visiteur de marque (cf. mess-rush-events.test.js pour eux). */
 const service = (players, recipes) => {
   const k = kitchen(createService({ id: 'g', seed: 7, players, now: 0, ...(recipes ? { recipes } : {}) }))
-  k.state.nextEventAt = undefined
+  k.state.eventPlan = []
   k.state.guests = []
   return k
 }
@@ -92,7 +92,7 @@ test('un bon expire : ce qu\'on lui préparait disparaît, sauf ce qu\'un autre 
   k.state.stations['plan-1'].item = 'x2'
   k.state.work.a = { station: 'plan-1', item: 'x2' }
   k.state.stations['poele-1'].items = ['x3']
-  k.state.stations['comptoir-fond'].item = 'x4'
+  k.state.stations['comptoir-fo'].item = 'x4'
   k.advance((ragout.until - k.now) / 1000 + 0.1)
   assert.equal(ragout.status, 'expired')
   assert.equal(k.state.hands.a, null)
