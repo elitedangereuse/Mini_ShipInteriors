@@ -24,6 +24,11 @@ export interface Occluder {
    * quand le joueur est dans un escalier (cf. FadeFocus.stairs).
    */
   stair?: boolean
+  /**
+   * Garde-corps d'une mezzanine, ou meuble accroché contre lui (le bandeau « En direct ») : il ne
+   * s'estompe pas quand le joueur est sur la mezzanine (cf. FadeFocus.upstairs).
+   */
+  facade?: boolean
 }
 
 /** Fondu de chaque occulteur fusionné (1 = opaque), lu par les shaders dans une texture. */
@@ -198,6 +203,11 @@ export interface FadeFocus {
    * flotte dans le vide).
    */
   stairs?: boolean
+  /**
+   * Le joueur est sur le plancher d'une mezzanine : ses garde-corps et ce qui y est accroché
+   * restent pleins (au-dessus d'eux, il n'est pas caché ; sans eux, le bandeau flotterait).
+   */
+  upstairs?: boolean
 }
 
 const _right = new THREE.Vector3()
@@ -220,6 +230,7 @@ export function updateOccluders(list: Occluder[], fades: FadeBuffer | null, view
       hide = ahead > 0.1 && ahead < 3 && Math.abs(_v.dot(right)) < 1.6
       if (hide && view.keep && Math.abs(o.center.x - view.keep.x) < 0.02 && Math.abs(o.center.z - view.keep.z) < 0.02) hide = false
       if (hide && view.stairs && o.stair) hide = false
+      if (hide && view.upstairs && o.facade) hide = false
     }
     const before = o.value
     o.value = o.off ? 0 : THREE.MathUtils.damp(o.value, hide ? 0.25 : 1, 8, dt)

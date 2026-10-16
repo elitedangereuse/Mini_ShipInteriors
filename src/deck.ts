@@ -1674,14 +1674,32 @@ export class Deck {
   private stairsMarked = false
   /**
    * Marque, une fois, les occulteurs collés à la mezzanine (à moins de 0,6 d'une de ses tuiles) :
-   * sa façade, ses garde-corps, le mobilier qui y est accroché (cf. Occluder.stair).
+   * sa façade, ses garde-corps, le mobilier qui y est accroché (cf. Occluder.stair) ; et, plus
+   * étroitement, ses garde-corps et ce qui est accroché contre eux (cf. Occluder.facade).
    */
   private markStairOccluders() {
     if (this.stairsMarked || !this.mezzanine) return
     this.stairsMarked = true
     const tiles = [...this.mezzanine.tiles.values()]
     const near = (c: THREE.Vector3) => tiles.some((t) => Math.abs(c.x - t.x) <= 1.1 && Math.abs(c.z - t.z) <= 1.1)
-    for (const o of [...this.occluders, ...this.ceilingOccluders]) if (near(o.center)) o.stair = true
+    // Ses garde-corps (milieux des arêtes murées autour de ses tuiles), et ce qui y est accroché :
+    // à moins de 0,35 d'un garde-corps, en face d'un de ses pans.
+    const rails: { x: number; z: number; alongX: boolean }[] = []
+    for (const t of tiles) {
+      for (let dir = 0; dir < 4; dir++) {
+        if (!this.map.walls.has(this.map.edgeKey(t.x, t.z, dir))) continue
+        rails.push({ x: t.x + DIRS[dir].dx * 0.5, z: t.z + DIRS[dir].dz * 0.5, alongX: DIRS[dir].dz !== 0 })
+      }
+    }
+    const onRail = (c: THREE.Vector3) => rails.some((r) => {
+      const across = r.alongX ? c.z - r.z : c.x - r.x
+      const along = r.alongX ? c.x - r.x : c.z - r.z
+      return Math.abs(across) <= 0.35 && Math.abs(along) <= 0.55
+    })
+    for (const o of [...this.occluders, ...this.ceilingOccluders]) {
+      if (near(o.center)) o.stair = true
+      if (onRail(o.center)) o.facade = true
+    }
   }
 
   /** Mezzanine du pont (cf. src/mezzanine.ts) : plancher, façade, escaliers, garde-corps. */
@@ -1880,10 +1898,13 @@ export class Deck {
 
     // Murs et gros meubles entre la caméra et le joueur : tramés. Sauf, dans un escalier de la
     // mezzanine, ce qui l'encadre.
-    const stairs = !!this.mezzanine && (mezzanineTile(this.mezzanine, focus.x, focus.z)?.stair ?? -1) >= 0
-    if (stairs) this.markStairOccluders()
-    if (updateOccluders(this.occluders, this.fades, { focus, toCamera, cabin: editing, keep, stairs }, fade)) this.fades.texture.needsUpdate = true
-    if (this.ceiling.visible && updateOccluders(this.ceilingOccluders, this.ceilingFades, { focus, toCamera, cabin: editing, keep, stairs }, fade)) this.ceilingFades.texture.needsUpdate = true
+    // Et sur son plancher, ses garde-corps et le bandeau qui y est accroché.
+    const tile = this.mezzanine ? mezzanineTile(this.mezzanine, focus.x, focus.z) : undefined
+    const stairs = !!tile && tile.stair >= 0
+    const upstairs = !!tile && tile.stair < 0
+    if (tile) this.markStairOccluders()
+    if (updateOccluders(this.occluders, this.fades, { focus, toCamera, cabin: editing, keep, stairs, upstairs }, fade)) this.fades.texture.needsUpdate = true
+    if (this.ceiling.visible && updateOccluders(this.ceilingOccluders, this.ceilingFades, { focus, toCamera, cabin: editing, keep, stairs, upstairs }, fade)) this.ceilingFades.texture.needsUpdate = true
 
     this.glowMat.uniforms.uTime.value = this.time
     for (const s of this.shields) s.update(dt, toCamera, this.ceiling.visible ? this.ceilingY : null)
