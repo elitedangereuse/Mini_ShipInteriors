@@ -36,7 +36,8 @@ export function setCommunityFeed(f: CommunityFeed) {
 
 /**
  * Le bandeau : un ruban à LED, fin, dans un caisson sombre liseré d'orange. Son `label` :
- * « longueur|décalage|sans-voyant » (mètres). Un ruban peut être coupé en tronçons (autour d'une
+ * « longueur|décalage|sans-voyant|hauteur » (mètres ; `hauteur` : celle de son milieu au-dessus du sol,
+ * pour le poser sur deux poteaux). Un ruban peut être coupé en tronçons (autour d'une
  * ouverture) : chacun montre sa part d'un même ruban, `décalage` étant la distance de son bord
  * gauche au bord gauche du premier tronçon ; le texte passe de l'un à l'autre sans à-coup. Seul le
  * premier porte le voyant « EN DIRECT ».
@@ -78,7 +79,7 @@ function halo(): THREE.Texture {
  * change à la fin d'un tour.
  */
 const liveTicker: Builder = ({ label = '' }) => {
-  const [length, offset, bare] = label.split('|')
+  const [length, offset, bare, standing] = label.split('|')
   const TW = Number(length) || 2
   /** Où commence ce tronçon dans le ruban (pixels), et s'il porte le voyant. */
   const shiftM = Number(offset) || 0
@@ -103,6 +104,17 @@ const liveTicker: Builder = ({ label = '' }) => {
   // Les pattes qui le tiennent à la façade, tous les mètres et demi environ.
   const legs = Math.max(2, Math.round(TW / 1.5) + 1)
   for (let i = 0; i < legs; i++) g.add(box(0.03, TH + 0.1, 0.025, steel, -TW / 2 + 0.2 + (i * (TW - 0.4)) / (legs - 1), 0, -0.045))
+  // Posé au sol (`standing` : la hauteur de son milieu) : un poteau sous chaque embout, sur sa platine.
+  const lift = Number(standing) || 0
+  if (lift > TH / 2 + 0.06) {
+    const tall = lift - TH / 2 - 0.06
+    for (const s of [-1, 1]) {
+      const x = s * (TW / 2 + 0.045)
+      g.add(box(0.035, tall, 0.035, steel, x, -lift + tall / 2, 0, 0.006))
+      g.add(box(0.1, 0.012, 0.09, dark, x, -lift + 0.006, 0, 0.004))
+      g.add(box(0.04, 0.02, 0.04, orange, x, -TH / 2 - 0.07, 0))
+    }
+  }
   // L'écran fait au plus 3584 pixels de large : son canvas lui ajoute de quoi défiler, sous la
   // limite de 4096 des cartes graphiques.
   const PW = Math.min(3584, Math.round(TW * DENSITY)), PH = Math.round((PW * TH) / TW)

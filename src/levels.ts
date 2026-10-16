@@ -1743,7 +1743,7 @@ export const LEVELS: LevelDef[] = [
       // tronçons, de part et d'autre du palier des escaliers, d'un même ruban : le texte entre au
       // nord, passe le palier et sort au sud, sous le voyant « EN DIRECT ». Le Tableau d'honneur est
       // passé sur la Promenade.
-      ...[{ z: 9.5, label: '3.8' }, { z: 4.5, label: '3.8|5|bare' }].map(({ z, label }): Prop => ({
+      ...[{ z: 9.5, label: '3.8|0||0.6' }, { z: 4.5, label: '3.8|5|bare|0.6' }].map(({ z, label }): Prop => ({
         model: 'live-ticker', x: 2.62, z, y: 0.6, rot: 1, label, solid: false, action: tr('Lire le bandeau', 'Read the ticker'),
         interact: tr('Le bandeau « En direct » : ce qui se passe sur le site et à bord, en temps réel.', 'The “Live” ticker: what is happening on the site and aboard, in real time.'),
       })),
@@ -1756,8 +1756,8 @@ export const LEVELS: LevelDef[] = [
       { model: 'coffee-table', x: 4.5, z: 12.95, rot: 1 },
       { model: 'armchair', x: 5.65, z: 12.95, rot: 3, label: 'navy' },
       { model: 'armchair', x: 4.5, z: 14.0, rot: 2, label: 'plum' },
-      { model: 'monstera', x: 7.6, z: 13.9 },
-      { model: 'plant-tall', x: 8.1, z: 12.0 },
+      { model: 'monstera', x: 6.95, z: 13.75 },
+      { model: 'plant-tall', x: 7.9, z: 12.05 },
       // De grandes plantes de part et d'autre des portes, au pied de la mezzanine, entre les vitrines.
       { model: 'plant-tall', x: 8.05, z: 3.2 },
       { model: 'plant-tall', x: 8.05, z: 5.85 },
@@ -1770,7 +1770,8 @@ export const LEVELS: LevelDef[] = [
       // À l'étage : le jukebox au milieu des baies (tout le pont l'entend, cf. src/music.ts), deux
       // salons de part et d'autre, tournés vers le hall, et des plantes.
       { model: 'jukebox', x: -0.17, z: 4.5, rot: 1, action: tr('Choisir un morceau', 'Pick a song'), music: true },
-      { model: 'rug-round', x: 1.05, z: 4.5, solid: false },
+      // Le tapis du jukebox, au nord de la volée, pour ne pas mordre sur l'escalier.
+      { model: 'rug-round', x: 0.75, z: 3.8, solid: false },
       { model: 'plant-tall', x: -0.08, z: 3.62 },
       { model: 'plant-tall', x: -0.08, z: 5.38 },
       { model: 'sofa', x: 0.0, z: 2.35, rot: 1, label: 'mustard', interact: tr('Le salon de la mezzanine : d\'ici, on voit tout le hall, et derrière soi, toute la galaxie.', 'The mezzanine lounge: from here you can see the whole hall, and behind you, the whole galaxy.') },
@@ -1815,9 +1816,9 @@ export const LEVELS: LevelDef[] = [
         model: 'sofa', x: 1.1, z: 13.75, rot: 2, label: 'teal',
         interact: tr('Le coin de l\'aquarium : les étoiles dans le dos, les poissons devant. Le meilleur endroit du bord pour ne rien faire.', 'The aquarium corner: the stars behind you, the fish in front. The best place aboard to do nothing.'),
       },
-      { model: 'floor-cushion', x: 0.05, z: 12.55 },
-      { model: 'k-lamp-round-floor', x: -0.05, z: 13.45 },
-      { model: 'plant-tall', x: 2.15, z: 14.1 },
+      { model: 'floor-cushion', x: 0.35, z: 13.0 },
+      { model: 'k-lamp-round-floor', x: 0.05, z: 12.4 },
+      { model: 'plant-tall', x: 2.05, z: 13.85 },
 
       // --- Infirmerie : le domaine de Betty (cf. src/nurse.ts). Trois lits en box le long du mur
       // nord (on s'y allonge, et Betty vient en consultation, cf. src/infirmary.ts), le scanner, le

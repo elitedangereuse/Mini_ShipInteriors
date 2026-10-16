@@ -1671,6 +1671,19 @@ export class Deck {
     this.lights.push({ position: at.clone().setY(at.y + this.y), color, intensity: l.intensity, flicker: l.flicker, distance: 2.5 + 2 * l.intensity, ambient: l.soft })
   }
 
+  private stairsMarked = false
+  /**
+   * Marque, une fois, les occulteurs collés à la mezzanine (à moins de 0,6 d'une de ses tuiles) :
+   * sa façade, ses garde-corps, le mobilier qui y est accroché (cf. Occluder.stair).
+   */
+  private markStairOccluders() {
+    if (this.stairsMarked || !this.mezzanine) return
+    this.stairsMarked = true
+    const tiles = [...this.mezzanine.tiles.values()]
+    const near = (c: THREE.Vector3) => tiles.some((t) => Math.abs(c.x - t.x) <= 1.1 && Math.abs(c.z - t.z) <= 1.1)
+    for (const o of [...this.occluders, ...this.ceilingOccluders]) if (near(o.center)) o.stair = true
+  }
+
   /** Mezzanine du pont (cf. src/mezzanine.ts) : plancher, façade, escaliers, garde-corps. */
   private buildMezzanine() {
     if (!this.mezzanine) return
@@ -1865,9 +1878,12 @@ export class Deck {
 
     if (!focus) return
 
-    // Murs et gros meubles entre la caméra et le joueur : tramés.
-    if (updateOccluders(this.occluders, this.fades, { focus, toCamera, cabin: editing, keep }, fade)) this.fades.texture.needsUpdate = true
-    if (this.ceiling.visible && updateOccluders(this.ceilingOccluders, this.ceilingFades, { focus, toCamera, cabin: editing, keep }, fade)) this.ceilingFades.texture.needsUpdate = true
+    // Murs et gros meubles entre la caméra et le joueur : tramés. Sauf, dans un escalier de la
+    // mezzanine, ce qui l'encadre.
+    const stairs = !!this.mezzanine && (mezzanineTile(this.mezzanine, focus.x, focus.z)?.stair ?? -1) >= 0
+    if (stairs) this.markStairOccluders()
+    if (updateOccluders(this.occluders, this.fades, { focus, toCamera, cabin: editing, keep, stairs }, fade)) this.fades.texture.needsUpdate = true
+    if (this.ceiling.visible && updateOccluders(this.ceilingOccluders, this.ceilingFades, { focus, toCamera, cabin: editing, keep, stairs }, fade)) this.ceilingFades.texture.needsUpdate = true
 
     this.glowMat.uniforms.uTime.value = this.time
     for (const s of this.shields) s.update(dt, toCamera, this.ceiling.visible ? this.ceilingY : null)

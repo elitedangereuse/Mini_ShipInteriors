@@ -19,6 +19,11 @@ export interface Occluder {
   outward?: { x: number; z: number }
   /** Effacé tout à fait : un grand meuble sous le couvercle d'une pièce fermée, qui dépasserait des murs. */
   off?: boolean
+  /**
+   * Collé à une mezzanine (sa façade, ses garde-corps, ce qui y est accroché) : il ne s'estompe pas
+   * quand le joueur est dans un escalier (cf. FadeFocus.stairs).
+   */
+  stair?: boolean
 }
 
 /** Fondu de chaque occulteur fusionné (1 = opaque), lu par les shaders dans une texture. */
@@ -187,6 +192,12 @@ export interface FadeFocus {
    * si son centre passe devant le joueur (couché dans un lit, on reste dans le lit).
    */
   keep?: { x: number; z: number } | null
+  /**
+   * Le joueur monte ou descend un escalier de mezzanine : la façade et les garde-corps qui
+   * l'encadrent restent pleins (ils ne cachent qu'un joueur à mi-hauteur, et l'escalier sans eux
+   * flotte dans le vide).
+   */
+  stairs?: boolean
 }
 
 const _right = new THREE.Vector3()
@@ -208,6 +219,7 @@ export function updateOccluders(list: Occluder[], fades: FadeBuffer | null, view
       const ahead = _v.dot(toCamera)
       hide = ahead > 0.1 && ahead < 3 && Math.abs(_v.dot(right)) < 1.6
       if (hide && view.keep && Math.abs(o.center.x - view.keep.x) < 0.02 && Math.abs(o.center.z - view.keep.z) < 0.02) hide = false
+      if (hide && view.stairs && o.stair) hide = false
     }
     const before = o.value
     o.value = o.off ? 0 : THREE.MathUtils.damp(o.value, hide ? 0.25 : 1, 8, dt)
