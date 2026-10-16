@@ -3,6 +3,7 @@ import { BLASTER_PACK, packModel } from './assets'
 import { fetchBoard, localBest, saveLocalBest, submitScore } from './arcade/scores'
 import { RANGE_ID } from './arcade/game'
 import { formatCredits } from './economy/data'
+import { fuse } from './gear'
 import type { Wallet } from './economy/wallet'
 import { tr } from './i18n'
 import type { RangeTune } from './range-music'
@@ -258,6 +259,22 @@ const SOOT = new THREE.Color('#0b0b0d')
 const ALARM = new THREE.Color('#ff3b2f')
 const MINT = new THREE.Color('#8dffd0')
 const GOLD = new THREE.MeshLambertMaterial({ color: '#ffc93a', emissive: '#8a5a00' })
+
+/**
+ * Disques des cibles, fondus une fois (cf. fuse) : le modèle du kit compte jusqu'à seize morceaux,
+ * un appel de dessin chacun, dans la vue comme dans la passe d'ombre. Chaque cible en est un clone.
+ */
+const discs = new Map<string, THREE.Object3D>()
+function targetDisc(small: boolean, gold: boolean): THREE.Object3D {
+  const key = `${small}:${gold}`
+  let disc = discs.get(key)
+  if (!disc) {
+    disc = packModel(small ? 'target-small' : 'target-large', BLASTER_PACK).clone(true)
+    if (gold) disc.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = GOLD })
+    discs.set(key, (disc = fuse(disc)))
+  }
+  return disc.clone(true)
+}
 const rand = (a: number) => (Math.random() * 2 - 1) * a
 const easeOutBack = (u: number) => 1 + 2.7 * (u - 1) ** 3 + 1.7 * (u - 1) ** 2
 
@@ -1271,10 +1288,9 @@ export class RangeGame {
   /** Cible du kit, face au tireur, sur sa tige et son socle. */
   protected makeTarget(small: boolean, gold = false): Pick<Target, 'root' | 'disc' | 'pole' | 'ring'> {
     const root = new THREE.Group()
-    const disc = packModel(small ? 'target-small' : 'target-large', BLASTER_PACK).clone(true)
+    const disc = targetDisc(small, gold)
     // Le modèle est fin le long de x : un quart de tour le met face au sud.
     disc.rotation.y = Math.PI / 2
-    if (gold) disc.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = GOLD })
     const pole = new THREE.Mesh(this.poleGeo, this.poleMat)
     // Un halo au pied de la cible : il jaillit quand elle sort, puis veille.
     const ring = this.sprite()

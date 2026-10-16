@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { BLASTER_PACK } from '../assets'
 import { tr } from '../i18n'
 import { rangeState, weaponById, WEAPONS } from '../range-weapons'
@@ -336,6 +337,31 @@ const rangeSpares: Builder = () => {
 }
 
 /**
+ * Un modèle du kit fondu en un seul maillage de matériau `material` (les blasters en hologramme :
+ * vingt-huit morceaux, autant d'appels de dessin). Sans ombre : c'est de la lumière.
+ */
+function fusedModel(model: THREE.Object3D, material: THREE.Material): THREE.Mesh {
+  model.updateMatrixWorld(true)
+  const inverse = model.matrixWorld.clone().invert()
+  const local = new THREE.Matrix4()
+  const geos: THREE.BufferGeometry[] = []
+  model.traverse((o) => {
+    const m = o as THREE.Mesh
+    if (!m.isMesh) return
+    const g = m.geometry.index ? m.geometry.toNonIndexed() : new THREE.BufferGeometry().copy(m.geometry)
+    for (const name of Object.keys(g.attributes)) if (name !== 'position' && name !== 'normal' && name !== 'uv') g.deleteAttribute(name)
+    if (!g.getAttribute('uv')) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2))
+    geos.push(g.applyMatrix4(local.multiplyMatrices(inverse, m.matrixWorld)))
+  })
+  const mesh = new THREE.Mesh(mergeGeometries(geos)!, material)
+  for (const g of geos) g.dispose()
+  mesh.position.copy(model.position)
+  mesh.quaternion.copy(model.quaternion)
+  mesh.scale.copy(model.scale)
+  return mesh
+}
+
+/**
  * Terminal de l'arène, dans le lobby de la zone thargoïde (cf. src/arena/) : un pupitre incliné
  * (« ARÈNE »), et au-dessus, en hologramme, deux blasters croisés qui tournent.
  */
@@ -399,9 +425,7 @@ const arenaTerminal: Builder = () => {
   const holo = new THREE.Group()
   holo.position.set(0, 1.06, -0.12)
   ;[[C.orange, 0.6], [C.led, -0.6]].forEach(([color, tilt]) => {
-    const gun = blaster('blaster-e', 0.42)
-    const material = holoMaterial(null, color as string, 0.8, 0, true)
-    gun.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = material })
+    const gun = fusedModel(blaster('blaster-e', 0.42), holoMaterial(null, color as string, 0.8, 0, true))
     gun.position.y = -0.06
     gun.rotation.x = tilt as number
     holo.add(gun)
