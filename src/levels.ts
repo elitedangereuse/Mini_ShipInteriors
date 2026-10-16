@@ -1707,7 +1707,7 @@ export const LEVELS: LevelDef[] = [
       // du hall. À l'étage, sous les grandes baies : le jukebox, deux salons, des plantes (cf.
       // MEZZANINES). ---
       {
-        model: 'concourse-planter', x: 6.1, z: 7,
+        model: 'concourse-planter', x: 5.5, z: 7,
         interact: tr(
           'L\'îlot du hall : des fougères, des buissons fleuris, et au-dessus des têtes, le blason du vaisseau en lévitation : « MINI SHIP INTERIORS ». Quelqu\'un a collé une gommette « vous êtes ici » sur le petit vaisseau entre les ailes.',
           'The hall island: ferns, flowering shrubs, and above everyone\'s heads, the ship\'s crest hovering in mid-air: “MINI SHIP INTERIORS”. Someone has stuck a “you are here” sticker on the little ship between the wings.',
@@ -2349,7 +2349,7 @@ export const LEVELS: LevelDef[] = [
       // La salle commune : l'îlot du hall, les deux bureaux (l'or du Weekly, le vert d'eau du labo),
       // le salon du sud, les salons de la mezzanine et le jukebox (cf. Deck : à l'étage, les lampes
       // montent avec le plancher).
-      [6.1, 7, '#fff1dd', 3],
+      [5.5, 7, '#fff1dd', 3],
       [4, 1.2, '#ffd9a0', 1.6],
       [7, 1.2, '#bff7ec', 1.6],
       [4.4, 12.9, '#ffe2bf', 1.6],
