@@ -156,6 +156,15 @@ export const TRACKS: Track[] = [
     ],
   },
   {
+    // La musique de service de MESS RUSH, également disponible à la platine du jukebox.
+    id: 'mess-rush', title: 'MESS RUSH', artist: 'Ben Carter Jr', style: 'chiptune',
+    cover: 'mess-rush.png', duration: 150.024, bpm: null, offset: 0,
+    mood: tr('La bande originale du service : Arcade Groove, le coup de feu en cuisine.', 'The service soundtrack: Arcade Groove, the dinner rush in the kitchen.'),
+    songs: [
+      { title: 'Arcade Groove', file: 'mess-rush/arcade-groove.mp3', duration: 150.024 },
+    ],
+  },
+  {
     // La bande originale de Scavengers, le jeu de fouille d'épaves du site : ses six ambiances, que
     // le jeu mixe en direct, fondues en une piste chacune (cf. scripts/mix-scavengers-music.sh).
     id: 'scavengers', title: 'Scavengers', artist: 'OptimusKoala', style: 'ambient',
