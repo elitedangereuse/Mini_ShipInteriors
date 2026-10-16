@@ -213,8 +213,8 @@ export const PLANETARIUM_ROOM = 'p'
 /**
  * Mezzanines des ponts (cf. shared/mezzanine.js) : un étage dans une pièce, par pont.
  * Au pont principal, celle de la salle commune : à la poupe, sous les grandes baies vitrées, trois
- * tuiles de profondeur, de la boutique du Weekly, au nord, jusqu'au bout de la salle, au sud. Sa
- * façade file droite tout du long ; en son milieu, dans l'axe de l'îlot du hall, un palier
+ * tuiles de profondeur, de la boutique du Weekly, au nord, jusqu'à trois tuiles du bout de la
+ * salle : dessous, le coin de l'aquarium. Sa façade file droite tout du long ; en son milieu, dans l'axe de l'îlot du hall, un palier
  * s'enfonce dans la mezzanine, et deux volées symétriques en partent, l'une vers le nord, l'autre
  * vers le sud, encastrées derrière le garde-corps.
  */
@@ -235,9 +235,6 @@ export const MEZZANINES = {
       'MMv',
       'MMM',
       'MMM',
-      'MMM',
-      'MMM',
-      ' MM',
     ],
   },
 }

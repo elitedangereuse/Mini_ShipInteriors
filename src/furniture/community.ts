@@ -34,7 +34,13 @@ export function setCommunityFeed(f: CommunityFeed) {
 
 // ---------------------------------------------------------------- le bandeau « En direct »
 
-/** Le bandeau : un ruban à LED, fin, dans un caisson sombre liseré d'orange ; sa longueur est son `label`. */
+/**
+ * Le bandeau : un ruban à LED, fin, dans un caisson sombre liseré d'orange. Son `label` :
+ * « longueur|décalage|sans-voyant » (mètres). Un ruban peut être coupé en tronçons (autour d'une
+ * ouverture) : chacun montre sa part d'un même ruban, `décalage` étant la distance de son bord
+ * gauche au bord gauche du premier tronçon ; le texte passe de l'un à l'autre sans à-coup. Seul le
+ * premier porte le voyant « EN DIRECT ».
+ */
 const TH = 0.2
 /** Défilement du texte (pixels de l'écran par seconde) : à peu près 0,8 m/s. */
 const SPEED = 280
@@ -42,13 +48,17 @@ const SPEED = 280
 const DENSITY = 340
 
 /**
- * Bandeau « En direct » (face à +z), comme le ruban lumineux d'un balcon de stade, tout le long du
- * garde-corps de la mezzanine (`label` : sa longueur, en mètres) : à gauche, le voyant rouge
- * « EN DIRECT » ; puis les nouvelles qui défilent sans fin en lettres ambre, séparées d'un losange,
- * répétées d'un bout à l'autre. Le texte change à la fin d'un tour.
+ * Bandeau « En direct » (face à +z), comme le ruban lumineux du front d'un balcon de stade, sous le
+ * plancher de la mezzanine : à gauche, le voyant rouge « EN DIRECT » ; puis les nouvelles qui
+ * défilent sans fin en lettres ambre, séparées d'un losange, répétées d'un bout à l'autre. Le texte
+ * change à la fin d'un tour.
  */
-const liveTicker: Builder = ({ label }) => {
-  const TW = Number(label) || 2
+const liveTicker: Builder = ({ label = '' }) => {
+  const [length, offset, bare] = label.split('|')
+  const TW = Number(length) || 2
+  /** Où commence ce tronçon dans le ruban (pixels), et s'il porte le voyant. */
+  const shift = (Number(offset) || 0) * DENSITY
+  const tagged = !bare
   const g = new THREE.Group()
   g.add(box(TW + 0.04, TH + 0.04, 0.04, lit('#101217', 'metal'), 0, 0, -0.01, 0.01))
   for (const s of [-1, 1]) g.add(box(TW + 0.04, 0.01, 0.012, glow('#ff8a1c'), 0, s * (TH / 2 + 0.02), 0.012))
@@ -58,8 +68,8 @@ const liveTicker: Builder = ({ label }) => {
   /** Largeur du voyant : mesurée au premier dessin, à la taille de son texte. */
   let tag = 0
   let text = ''
-  let start = 0
   let width = 0
+  let phase = -1
   const screen = animatedScreen(PW, PH, 30, (c, t) => {
     if (!tag) {
       c.font = font(0.42)
@@ -68,28 +78,35 @@ const liveTicker: Builder = ({ label }) => {
     c.fillStyle = '#07080b'
     c.fillRect(0, 0, PW, PH)
     c.font = font(0.62)
-    // Un tour fini (ou pas encore commencé) : on reprend les nouvelles du moment.
-    if (!text || (t - start) * SPEED >= width) {
-      start = t
+    // Un tour fini (ou pas encore commencé) : on reprend les nouvelles du moment. La phase suit
+    // l'horloge, pas le tronçon : tous les tronçons d'un ruban défilent ensemble.
+    const now = width ? (t * SPEED) % width : 0
+    if (!text || now < phase) {
       const items = feed?.ticker() ?? []
       text = (items.length ? items.join('   ◆   ') : tr('Le fil du bord est calme. Revenez dans un instant.', 'The ship\'s feed is quiet. Check back in a moment.')) + '   ◆   '
       width = Math.max(1, c.measureText(text).width)
     }
+    phase = (t * SPEED) % width
     // Les nouvelles, de droite à gauche, bout à bout sur toute la longueur.
     c.save()
     c.beginPath()
-    c.rect(tag, 0, PW - tag, PH)
+    const from = tagged ? tag : 0
+    c.rect(from, 0, PW - from, PH)
     c.clip()
     c.textBaseline = 'middle'
     c.fillStyle = '#ffb366'
     c.shadowColor = '#ff8a1c'
     c.shadowBlur = 8
-    for (let x = tag - (t - start) * SPEED; x < PW; x += width) c.fillText(text, x, PH / 2 + 2)
+    // La première copie qui touche le bord gauche du tronçon, puis les suivantes.
+    let x = (tag - phase - shift) % width
+    if (x > 0) x -= width
+    for (; x < PW; x += width) c.fillText(text, x, PH / 2 + 2)
     c.restore()
     // Les LED : une trame sombre par-dessus.
     c.fillStyle = 'rgba(0, 0, 0, 0.28)'
-    for (let x = tag; x < PW; x += 6) c.fillRect(x, 0, 2, PH)
-    for (let y = 0; y < PH; y += 6) c.fillRect(tag, y, PW - tag, 2)
+    for (let x = from; x < PW; x += 6) c.fillRect(x, 0, 2, PH)
+    for (let y = 0; y < PH; y += 6) c.fillRect(from, y, PW - from, 2)
+    if (!tagged) return
     // Le voyant « EN DIRECT ».
     c.fillStyle = '#c62828'
     c.fillRect(0, 0, tag, PH)

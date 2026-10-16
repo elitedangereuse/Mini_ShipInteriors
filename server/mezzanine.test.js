@@ -43,7 +43,7 @@ test('on monte par les escaliers, pas par-dessus le garde-corps', () => {
   assert.equal(main.edge(2, 7, 3), 'wall')
   // Sur le plancher, on circule librement, jusqu'au bout de la salle.
   assert.equal(main.edge(1, 4, 2), 'open')
-  assert.equal(main.edge(1, 12, 2), 'open')
+  assert.equal(main.edge(1, 10, 2), 'open')
   // Au nord, le plancher s'adosse à la boutique du Weekly : un mur, pas un garde-corps.
   assert.equal(main.edge(2, 1, 1), 'wall')
   assert.equal(main.room(3, 1), 'w')

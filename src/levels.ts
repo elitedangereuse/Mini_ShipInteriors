@@ -1738,14 +1738,15 @@ export const LEVELS: LevelDef[] = [
       },
       { model: 'plant', x: 8.05, z: 2.05 },
       { model: 'neon-sign', x: 7, z: 2.74, y: 0.5, label: tr('CHASSE GALACTIQUE', 'GALACTIC HUNT') },
-      // Le bandeau « En direct », un ruban lumineux tout le long du garde-corps de la mezzanine, de la
-      // boutique du Weekly au bout de la salle (il passe au-dessus du palier des escaliers) : le fil
-      // du site et les nouvelles du bord (cf. src/community-feed.ts). Le Tableau d'honneur est passé
-      // sur la Promenade.
-      {
-        model: 'live-ticker', x: 2.62, z: 8.5, y: 0.95, rot: 1, label: '11.8', solid: false, action: tr('Lire le bandeau', 'Read the ticker'),
+      // Le bandeau « En direct », un ruban lumineux au front de la mezzanine, sous son plancher, face
+      // aux portes : le fil du site et les nouvelles du bord (cf. src/community-feed.ts). Deux
+      // tronçons, de part et d'autre du palier des escaliers, d'un même ruban : le texte entre au
+      // nord, passe le palier et sort au sud, sous le voyant « EN DIRECT ». Le Tableau d'honneur est
+      // passé sur la Promenade.
+      ...[{ z: 9.5, label: '3.8' }, { z: 4.5, label: '3.8|5|bare' }].map(({ z, label }): Prop => ({
+        model: 'live-ticker', x: 2.62, z, y: 0.6, rot: 1, label, solid: false, action: tr('Lire le bandeau', 'Read the ticker'),
         interact: tr('Le bandeau « En direct » : ce qui se passe sur le site et à bord, en temps réel.', 'The “Live” ticker: what is happening on the site and aboard, in real time.'),
-      },
+      })),
       // Au sud, le salon du hall, adossé à la façade de la mezzanine : un canapé, la table basse,
       // deux fauteuils tournés vers lui, et des plantes.
       {
@@ -1768,8 +1769,7 @@ export const LEVELS: LevelDef[] = [
       shipMap('mainHall'),
 
       // À l'étage : le jukebox au milieu des baies (tout le pont l'entend, cf. src/music.ts), deux
-      // salons de part et d'autre, tournés vers le hall, et des plantes ; au sud, le salon des
-      // baies, sur la partie prolongée de la mezzanine.
+      // salons de part et d'autre, tournés vers le hall, et des plantes.
       { model: 'jukebox', x: -0.17, z: 4.5, rot: 1, action: tr('Choisir un morceau', 'Pick a song'), music: true },
       { model: 'rug-round', x: 1.05, z: 4.5, solid: false },
       { model: 'plant-tall', x: -0.08, z: 3.62 },
@@ -1783,12 +1783,28 @@ export const LEVELS: LevelDef[] = [
       { model: 'floor-lamp', x: 0.05, z: 1.55 },
       { model: 'monstera', x: 1.1, z: 7.9 },
       { model: 'floor-lamp', x: 0.05, z: 7.45 },
-      { model: 'sofa', x: 0.0, z: 12.0, rot: 1, label: 'teal', interact: tr('Le salon des baies : le dos aux étoiles, le hall à ses pieds.', 'The bay lounge: the stars at your back, the hall at your feet.') },
-      { model: 'coffee-table', x: 1.15, z: 12.0, rot: 1 },
       { model: 'plant-tall', x: 0.1, z: 10.45 },
-      { model: 'floor-lamp', x: 0.05, z: 13.3 },
       { model: 'beanbag', x: 1.4, z: 10.9, label: 'rose' },
-      { model: 'beanbag', x: 1.7, z: 13.85, label: 'teal' },
+
+      // Sous le bout de la mezzanine, au coin des baies de la poupe : le coin de l'aquarium. Un
+      // aquarium encastré sous le plancher, et face à lui, dos aux étoiles, un canapé moelleux sur un
+      // tapis rond ; des coussins, une lampe, des plantes.
+      {
+        model: 'aquarium', x: 1.0, z: 11.95, rot: 0, action: tr('Observer', 'Watch'),
+        interact: [
+          tr('L\'aquarium du hall : des poissons de Lave, paraît-il. Ils tournent en rond, comme les CMDR qui attendent leur Weekly.', 'The hall aquarium: Lave fish, supposedly. They swim in circles, like CMDRs waiting for their Weekly.'),
+          tr('Une plaque : « Ne pas nourrir après le saut FSD. » Personne ne sait pourquoi, et personne n\'a essayé.', 'A plaque: “Do not feed after an FSD jump.” Nobody knows why, and nobody has tried.'),
+        ],
+      },
+      { model: 'monstera', x: 2.1, z: 12.0 },
+      { model: 'k-rug-rounded', x: 1.05, z: 12.95, solid: false },
+      {
+        model: 'sofa', x: 1.1, z: 13.75, rot: 2, label: 'teal',
+        interact: tr('Le coin de l\'aquarium : les étoiles dans le dos, les poissons devant. Le meilleur endroit du bord pour ne rien faire.', 'The aquarium corner: the stars behind you, the fish in front. The best place aboard to do nothing.'),
+      },
+      { model: 'floor-cushion', x: 0.05, z: 12.55 },
+      { model: 'k-lamp-round-floor', x: -0.05, z: 13.45 },
+      { model: 'plant-tall', x: 2.15, z: 14.1 },
 
       // --- Infirmerie : le domaine de Betty (cf. src/nurse.ts). Trois lits en box le long du mur
       // nord (on s'y allonge, et Betty vient en consultation, cf. src/infirmary.ts), le scanner, le
@@ -2324,10 +2340,11 @@ export const LEVELS: LevelDef[] = [
       [4, 1.2, '#ffd9a0', 1.6],
       [7, 1.2, '#bff7ec', 1.6],
       [4.4, 12.9, '#ffe2bf', 1.6],
-      // Le bandeau « En direct », tout le long de la mezzanine, et le salon des baies.
-      [3.2, 5.5, '#ff9a4a', 1, undefined, 3.5],
-      [3.2, 11.5, '#ff9a4a', 1, undefined, 3.5],
-      [0.7, 12.2, '#ffd9a8', 1.8],
+      // Le bandeau « En direct », sous la mezzanine, et le coin de l'aquarium (sa lueur bleue, une lampe).
+      [3.2, 4.5, '#ff9a4a', 1, undefined, 3.5],
+      [3.2, 9.5, '#ff9a4a', 1, undefined, 3.5],
+      [1, 12.4, '#5fd4ff', 1.2, undefined, 3],
+      [0.3, 13.4, '#ffd9a8', 1.4],
       [0.7, 2.4, '#ffd9a8', 1.8],
       [0.7, 6.6, '#ffd9a8', 1.8],
       [0.5, 4.5, '#ff7ad9', 1.4, 'neon'],
