@@ -1298,7 +1298,9 @@ export class Deck {
           let clear = true
           if (exterior && (hsh % 1000) / 1000 < windowRate && !this.doorPocket(x, z, dir)) model = 'wall-window'
           else if (!exterior && hsh % 5 === 0 && !this.def.plainWalls?.some((w) => w.x === cx && w.z === cz)) model = 'wall-pillar'
-          const glazed = !!other && this.def.glazed?.some((pair) => pair.includes(room) && pair.includes(other))
+          // Une vitrine donne sur le sol du hall : contre le flanc d'une mezzanine, le mur reste plein.
+          const onMezzanine = !!this.mezzanine && (this.mezzanine.tiles.has(`${x},${z}`) || this.mezzanine.tiles.has(`${x + d.dx},${z + d.dz}`))
+          const glazed = !!other && !onMezzanine && this.def.glazed?.some((pair) => pair.includes(room) && pair.includes(other))
           // Une serre : tous ses murs extérieurs sont vitrés, et ses cloisons vitrées ont le même cadre.
           const green = !!this.def.greenhouse?.includes(room) || (!!other && !!this.def.greenhouse?.includes(other))
           if (exterior && this.mezzanine?.tiles.get(`${x},${z}`)?.stair === -1) {

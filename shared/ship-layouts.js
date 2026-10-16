@@ -14,11 +14,13 @@ export const SHIP_LAYOUTS = {
   // soute est tombée (ses caisses sont rangées dans le coin sud-est), qui file jusqu'au hangar du
   // Krait, collé à lui et ouvert sur l'espace à la proue. Chez Jacques, le bar clandestin, ne
   // s'ouvre que depuis le fond du hall, et aux seuls habitués (cf. BAR_ROOM) ; une porte de service
-  // donne sur la salle des machines (cf. REFINERY_DOOR). Le hall dessert deux lobbys, chacun
-  // derrière sa porte double. Au nord, celui de la zone thargoïde (SOC-06, 'h', cf. THARGOID_DOORS),
-  // une pièce fermée d'où partent les missions : la salle de briefing, l'alcôve de la porte blindée
-  // et, derrière ses vitres, le poste de sécurité de la zone ('t', verrouillé). À l'ouest, celui de
-  // l'arène ('y', 3 × 5, cf. ARENA_DOORS), derrière une cloison vitrée. Au-dessus de la salle des
+  // donne sur la salle des machines (cf. REFINERY_DOOR). Le hall dessert deux lobbys, côte à côte
+  // au nord, chacun derrière sa porte double : celui de la zone thargoïde (SOC-06, 'h', cf.
+  // THARGOID_DOORS), une pièce fermée d'où partent les missions : la salle de briefing, l'alcôve de
+  // la porte blindée et, derrière ses vitres, le poste de sécurité de la zone ('t', verrouillé) ; à
+  // côté, à l'ouest, au même niveau, celui de l'arène ('y', 3 × 4, cf. ARENA_DOORS), derrière une
+  // cloison vitrée. Le hall s'étend jusqu'à la raffinerie, d'un seul tenant : la porte du bar
+  // s'ouvre dans son mur sud (cf. BAR_DOOR), et le plan du vaisseau est au mur ouest. Au-dessus de la salle des
   // machines, au bout d'un couloir de service qui part du palier, le Zorb, la boîte de nuit des
   // aliens ('n', cf. CLUB_ROOM). Au nord du palier, à la place de l'ancienne baie de réparation, le
   // stand de tir ('r', cf. SHOOTING_RANGE). Entre l'atelier et la descente de ce couloir, au-dessus
@@ -27,29 +29,31 @@ export const SHIP_LAYOUTS = {
   // tuile de large ('w') file vers l'est jusqu'au local du ventilateur ; de là, on entre dans la
   // planque des Scavengers ('s'), où l'on joue au jeu du même nom. Passé le ventilateur, la gaine
   // continue de deux tuiles jusqu'au poste d'exploration ('i'), sous le hangar : la pièce
-  // d'It's Dangerous Out There, l'autre jeu qu'on lance depuis la cale.
+  // d'It's Dangerous Out There, l'autre jeu qu'on lance depuis la cale. La planque et le poste ont
+  // repris les recoins vides qui les séparaient de leurs voisins ; le palier du monte-charge aussi,
+  // devenu le quai de fret de la cale, et le Vestiaire des Légendes, qui gagne une rangée au nord.
   // Du coin sud-ouest du hall, une allée de deux tuiles descend, par une porte double, au complexe
   // d'entraînement : le hall d'entraînement ('z'), qui longe le bar, et derrière ses cloisons
   // vitrées, le terrain de foot ('f'), celui de basket ('o', cf. SPORT_COURTS) et la salle de sport
   // ('x', cf. GYM_ROOM). Entre la Voie et le bar, le Vestiaire des Légendes ('l'), qui s'ouvre par
   // une porte double sur le hall d'entraînement.
   '-1': [
-    'nnnnuuu     rrrrr   ttthhhkkkkkkkkkkkk  ',
-    'nnn+uuuuuuu rrrrr   ttthhhkkkkkkkkkkkk  ',
+    'nnnnuuu     rrrrryyyttthhhkkkkkkkkkkkk  ',
+    'nnn+uuuuuuu rrrrryyyttthhhkkkkkkkkkkkk  ',
     'nnnnaaaaccu rrrrryyyhhhhhhkkkkkkkkkkkk  ',
     'eeeeaaaacc+ rrrrryyyhhhhhhkkkkkkkkkkkk  ',
-    'eeeeaaaa jjj+rr+ryyypppppp+kkkkkkkkkkk  ',
-    'eee+aaaa+jjjmmmmmyyypppppp+kkkkkkkkkkk  ',
-    'eeeeaaaa jjj+mmmmyyyppppppkkkkkkkkkkkk  ',
-    'eeeeaaaa    mmmmmpppppppppkkkkkkkkkkkk  ',
-    'vv+vv       mmmmm+  ppppppkkkkkkkkkkkk  ',
-    'vvvvvllllbbbbbbbbbb ppppppkkkkkkkkkkkk  ',
-    'vvvvvllllbbbbbbbbbb ppppppkkkkkkkkkkkk  ',
+    'eeeeaaaajjjj+rr+rppppppppp+kkkkkkkkkkk  ',
+    'eee+aaaa+jjjmmmmmppppppppp+kkkkkkkkkkk  ',
+    'eeeeaaaajjjj+mmmmpppppppppkkkkkkkkkkkk  ',
+    'eeeeaaaajjjjmmmmmpppppppppkkkkkkkkkkkk  ',
+    'vv+vvlllljjjmmmmmpppppppppkkkkkkkkkkkk  ',
+    'vvvvvllllbbbbbbbbbbpppppppkkkkkkkkkkkk  ',
+    'vvvvvllllbbbbbbbbbbpppppppkkkkkkkkkkkk  ',
     'vvvvvllllbbbbbbbbbbppwwwwwwwwwww+iiiii  ',
-    'vvvvvllllbbbbbbbbbbpp ssssssww  iiiiii  ',
-    '     llllbbbbbbbbbbpp sssss+ww  iiiiii  ',
-    '  zzzz++zzzzzzzzzzz++ ssssssww  iiiiii  ',
-    '  zzz+zzzzzz+zzzzz+zz ssssssww  iiiiii  ',
+    'vvvvvllllbbbbbbbbbbppssssssswwiiiiiiii  ',
+    '     llllbbbbbbbbbbppssssss+wwiiiiiiii  ',
+    '  zzzz++zzzzzzzzzzz+zssssssswwiiiiiiii  ',
+    '  zzz+zzzzzz+zzzzz+zzssssssswwiiiiiiii  ',
     '  fffffffoooooooxxxxx                   ',
     '  fffffffoooooooxxxxx                   ',
     '  fffffffoooooooxxxxx                   ',
@@ -59,8 +63,8 @@ export const SHIP_LAYOUTS = {
   ],
   // Pont principal : le cœur communautaire. À la poupe, la salle commune, le hall d'accueil du
   // vaisseau, où arrive le téléporteur (cf. TELEPORTERS), avec sa mezzanine (cf. MEZZANINES) et,
-  // au nord, côte à côte, deux boutiques vitrées : celle du Weekly ('w') et celle de la Chasse
-  // galactique ('h'), chacune derrière sa porte (cf. OFFICE_DOORS). La coursive file vers le poste de pilotage et ses verrières, à la proue, et s'ouvre
+  // au nord, côte à côte, deux boutiques carrées (3 × 3) à vitrine : celle du Weekly ('w') et celle
+  // de la Chasse galactique ('h'), chacune derrière sa porte (cf. OFFICE_DOORS). La coursive file vers le poste de pilotage et ses verrières, à la proue, et s'ouvre
   // juste avant sur la Promenade, un atrium vitré autour de la maquette du Cobra. Au nord, le labo
   // du LJPC et les toilettes ('d', cf. TOILET_ROOM dans vents.js) ; au sud, la grande salle
   // d'arcade (deux portes) et le mess, un self dont la cuisine occupe le fond. Au nord, contre la
@@ -71,10 +75,10 @@ export const SHIP_LAYOUTS = {
   // ('x') qui descend vers la salle de la Pixel War ('p', 5 × 3), entre la cuisine du mess et le
   // poste de surveillance.
   '0': [
-    '  eewwehhqqqqqqqdddddlllll ccc          ',
-    ' eeewwehhqqqqqqqdddddlllllccccc bbb     ',
-    'eeeewwehhqqqqqqqdddddlllllccccc bbbbb   ',
-    'eeeewwehhqqqq+qqdd+ddll+llccccc bbbbbbb ',
+    '  ewwwhhhqqqqqqqdddddlllll ccc          ',
+    ' eewwwhhhqqqqqqqdddddlllllccccc bbb     ',
+    'eeewwwhhhqqqqqqqdddddlllllccccc bbbbb   ',
+    'eeeeeeeeeqqqq+qqdd+ddll+llccccc bbbbbbb ',
     'eeeeeeee+cccccccccccccccccccccc+bbbbbbb ',
     'eeeeeeee+cccccccccccccccccccccc+bbbbbbb ',
     'eeeeeeeeemmmm+mmss+ssss+ssccccc bbbbbbb ',
@@ -208,19 +212,19 @@ export const PLANETARIUM_ROOM = 'p'
 /**
  * Mezzanines des ponts (cf. shared/mezzanine.js) : un étage dans une pièce, par pont.
  * Au pont principal, celle de la salle commune : à la poupe, sous les grandes baies vitrées,
- * trois tuiles de profondeur. On y monte par deux volées qui partent du pied de sa façade, dans
- * l'axe des portes du hall, et débouchent chacune sur un palier, au nord et au sud ; celui du sud
- * va jusqu'au mur, au-dessus de l'entrée du hall d'accueil.
+ * trois tuiles de profondeur. On y monte par une volée qui part du pied de sa façade, au sud de
+ * l'axe des portes du hall, et débouche sur un palier qui va jusqu'au mur, au-dessus de l'entrée
+ * du hall d'accueil. Au nord, elle s'adosse à la boutique du Weekly.
  */
 export const MEZZANINES = {
   '0': {
     room: 'e',
     height: 0.8,
     plan: [
-      '  MM',
-      ' MMM',
-      'MMM^',
-      'MMM^',
+      '  M',
+      ' MM',
+      'MMM',
+      'MMM',
       'MMM ',
       'MMM ',
       'MMMv',
@@ -256,7 +260,7 @@ function mezzanineWalls(level) {
  */
 export function shipMapOptions(level) {
   const id = String(level)
-  const doors = id === '-1' ? [SECURITY_DOOR, SCAVENGERS_DOOR, CLOSET_DOOR, REFINERY_DOOR, ...THARGOID_DOORS, ...ARENA_DOORS] : id === '0' ? [...PIXEL_WAR_DOORS, ...OFFICE_DOORS] : id === '1' ? FOYER_DOORS : id === '2' ? [PLOT_DOOR] : []
+  const doors = id === '-1' ? [SECURITY_DOOR, SCAVENGERS_DOOR, CLOSET_DOOR, REFINERY_DOOR, BAR_DOOR, TRAINING_DOOR, ...THARGOID_DOORS, ...ARENA_DOORS] : id === '0' ? [...PIXEL_WAR_DOORS, ...OFFICE_DOORS] : id === '1' ? FOYER_DOORS : id === '2' ? [PLOT_DOOR] : []
   return { closed: CLOSED_ROOMS[level] ?? '', doors, walls: mezzanineWalls(id) }
 }
 
@@ -283,8 +287,20 @@ export const SCAVENGERS_DOOR = { x: 22, z: 11, dir: 0 }
  */
 export const THARGOID_DOORS = [{ x: 23, z: 4, dir: 0 }, { x: 24, z: 4, dir: 0 }]
 
-/** La porte double du lobby de l'arène (cale), dans sa cloison nord : elle donne sur le hall de la cale. */
-export const ARENA_DOORS = [{ x: 18, z: 6, dir: 2 }, { x: 19, z: 6, dir: 2 }]
+/**
+ * La porte double du lobby de l'arène (cale), dans sa cloison vitrée, au sud : elle donne sur le
+ * hall de la cale, à côté de celle du lobby de la zone thargoïde. Posée sur le bord nord des tuiles du hall.
+ */
+export const ARENA_DOORS = [{ x: 18, z: 4, dir: 0 }, { x: 19, z: 4, dir: 0 }]
+
+/** La porte de Chez Jacques (cale), dans le mur sud du hall : posée sur le bord sud de la tuile du hall. */
+export const BAR_DOOR = { x: 17, z: 8, dir: 2 }
+
+/**
+ * Le battant est de la porte double de l'allée du complexe d'entraînement (cale), sur le bord nord
+ * de sa tuile : posé à la main, la planque des Scavengers étant sa voisine à l'est.
+ */
+export const TRAINING_DOOR = { x: 20, z: 14, dir: 0 }
 
 /** La porte de la raffinerie (cale) sur le hall, dans le mur ouest de son aile : posée sur le bord ouest de la tuile du hall. */
 export const REFINERY_DOOR = { x: 17, z: 7, dir: 3 }
@@ -299,10 +315,10 @@ export const CLOSET_DOOR = { x: 9, z: 2, dir: 1 }
 export const PIXEL_WAR_DOORS = [{ x: 16, z: 10, dir: 0 }, { x: 16, z: 12, dir: 0 }]
 
 /**
- * Les portes des deux bureaux vitrés du hall d'accueil (pont principal), au fond de la salle
- * commune : chacune sur le bord sud de sa tuile, du côté de la niche qui les sépare.
+ * Les portes des deux boutiques vitrées du hall d'accueil (pont principal), au fond de la salle
+ * commune : chacune au milieu de sa vitrine, sur le bord sud de sa tuile.
  */
-export const OFFICE_DOORS = [{ x: 5, z: 3, dir: 2 }, { x: 7, z: 3, dir: 2 }]
+export const OFFICE_DOORS = [{ x: 4, z: 2, dir: 2 }, { x: 7, z: 2, dir: 2 }]
 
 /** La porte double du foyer du cinéma (pont supérieur), dans son mur sud : elle donne sur la galerie. */
 export const FOYER_DOORS = [{ x: 21, z: 8, dir: 2 }, { x: 22, z: 8, dir: 2 }]

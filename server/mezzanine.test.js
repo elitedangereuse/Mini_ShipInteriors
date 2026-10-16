@@ -14,10 +14,10 @@ const main = new ShipMap(SHIP_LAYOUTS['0'], shipMapOptions(0))
 test('le sol monte le long des escaliers, sans marche entre le pied, les marches et le plancher', () => {
   assert.equal(mezzanineHeight(mezz, 5, 5), 0)
   assert.equal(mezzanineHeight(mezz, 1, 5), mezz.height)
-  // Volée nord : de (3, 3,5), au pied, à (3, 1,5), au palier.
-  let prev = mezzanineHeight(mezz, 3, 3.5)
+  // La volée : de (3, 5,5), au pied, à (3, 7,5), au palier.
+  let prev = mezzanineHeight(mezz, 3, 5.5)
   assert.equal(prev, 0)
-  for (let z = 3.5; z >= 1.5; z -= 0.05) {
+  for (let z = 5.5; z <= 7.5; z += 0.05) {
     const h = mezzanineHeight(mezz, 3, z)
     assert.ok(h >= prev - 1e-9 && h - prev < 0.05, `saut en z = ${z.toFixed(2)}`)
     prev = h
@@ -26,13 +26,16 @@ test('le sol monte le long des escaliers, sans marche entre le pied, les marches
 })
 
 test('on monte par les escaliers, pas par-dessus le garde-corps', () => {
-  // Pied de la volée nord → première marche ; haut de la volée → palier.
-  assert.equal(main.edge(3, 4, 0), 'open')
-  assert.equal(main.edge(3, 2, 0), 'open')
-  // Du hall au plancher, et du flanc d'une marche au hall : garde-corps.
-  assert.equal(main.edge(3, 5, 3), 'wall')
-  assert.equal(main.edge(3, 2, 1), 'wall')
-  assert.equal(main.edge(3, 2, 3), 'wall')
+  // Pied de la volée → première marche ; haut de la volée → palier.
+  assert.equal(main.edge(3, 5, 2), 'open')
+  assert.equal(main.edge(3, 7, 2), 'open')
+  // Du hall au plancher, et du flanc d'une marche au hall ou au plancher : garde-corps.
+  assert.equal(main.edge(3, 4, 3), 'wall')
+  assert.equal(main.edge(3, 6, 1), 'wall')
+  assert.equal(main.edge(3, 6, 3), 'wall')
+  // Au nord, le plancher s'adosse à la boutique du Weekly : un mur, pas un garde-corps.
+  assert.equal(main.edge(2, 1, 1), 'wall')
+  assert.equal(main.room(3, 1), 'w')
   // Sur le plancher, on circule librement.
   assert.equal(main.edge(1, 4, 2), 'open')
 })

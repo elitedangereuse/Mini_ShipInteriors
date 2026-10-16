@@ -25,15 +25,15 @@ export const ARENA_LEVEL = -5
  * du terminal tant qu'on reste dans l'une ou l'autre.
  */
 export const ARENA_LOBBY = { level: -1, room: 'y', rooms: 'yp' }
-/** Où l'on revient (fin de partie, abandon) : devant le terminal. */
-export const ARENA_RETURN = { x: 18.2, z: 5 }
-/** Le terminal, contre la cloison vitrée de l'est, près de la porte (cf. src/levels.ts). */
-export const ARENA_TERMINAL = { x: 19.08, z: 5 }
+/** Où l'on revient (fin de partie, abandon) : au milieu du lobby, entre le terminal et le guichet. */
+export const ARENA_RETURN = { x: 17.9, z: 2.3 }
+/** Le terminal, contre le mur ouest, face au guichet (cf. src/levels.ts). */
+export const ARENA_TERMINAL = { x: 16.92, z: 1.7 }
 /**
- * Le guichet de l'arbitre, adossé à la cloison est, tourné vers l'ouest (`yaw`) : où elle se tient
+ * Le guichet de l'arbitre, adossé au mur est, tourné vers l'ouest (`yaw`) : où elle se tient
  * derrière sa vitre, et où l'on se met pour lui parler, devant le comptoir.
  */
-export const ARENA_BOOTH = { x: 19.03, z: 2.7, yaw: -Math.PI / 2, referee: { x: 18.95, z: 2.7 }, counter: { x: 17.75, z: 2.7 } }
+export const ARENA_BOOTH = { x: 19.03, z: 1.15, yaw: -Math.PI / 2, referee: { x: 18.95, z: 1.15 }, counter: { x: 17.75, z: 1.15 } }
 
 /**
  * Chiffres de la partie (tuiles et secondes).

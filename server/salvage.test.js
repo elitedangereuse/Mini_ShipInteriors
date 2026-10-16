@@ -80,8 +80,8 @@ function harness(seed = 20260929, options = {}) {
 test('le lobby est sa pièce de la cale, et le hall à sa porte', () => {
   assert.ok(inLobby({ level: -1, x: 22, z: 3 }))
   assert.ok(inLobby({ level: -1, x: 22, z: 5 }))
-  // Le lobby de l'arène, à l'ouest du hall, n'en est pas.
-  assert.equal(inLobby({ level: -1, x: 18, z: 4 }), false)
+  // Le lobby de l'arène, à côté, au nord du hall, n'en est pas.
+  assert.equal(inLobby({ level: -1, x: 18, z: 2 }), false)
   assert.equal(inLobby({ level: -1, x: 15, z: 5 }), false)
   assert.equal(inLobby({ level: 0, x: 22, z: 5 }), false)
 })
