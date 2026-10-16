@@ -159,6 +159,6 @@ export { film, filmGlow } from './cinema'
 export { studio } from './studio'
 export { cargoCanister, flareStick, lockerParts } from './salvage'
 export {
-  beamMaterial, disposeFurniture, ED_ORANGE, holoTime, keepShared, tickFurniture, type BagControl, type ClawControl, type ClawResult, type Emitter,
+  beamMaterial, disposeFurniture, drawScreens, ED_ORANGE, holoTime, keepShared, tickFurniture, type BagControl, type ClawControl, type ClawResult, type Emitter,
   type FurnitureControl,
 } from './kit'

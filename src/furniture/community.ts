@@ -103,72 +103,135 @@ const liveTicker: Builder = ({ label = '' }) => {
   // Les pattes qui le tiennent à la façade, tous les mètres et demi environ.
   const legs = Math.max(2, Math.round(TW / 1.5) + 1)
   for (let i = 0; i < legs; i++) g.add(box(0.03, TH + 0.1, 0.025, steel, -TW / 2 + 0.2 + (i * (TW - 0.4)) / (legs - 1), 0, -0.045))
-  const PW = Math.min(4096, Math.round(TW * DENSITY)), PH = Math.round((PW * TH) / TW)
+  // L'écran fait au plus 3584 pixels de large : son canvas lui ajoute de quoi défiler, sous la
+  // limite de 4096 des cartes graphiques.
+  const PW = Math.min(3584, Math.round(TW * DENSITY)), PH = Math.round((PW * TH) / TW)
   /** Pixels par mètre réels de ce tronçon (plafonnés pour un ruban très long). */
   const scale = PW / TW
   const tagText = tr('EN DIRECT', 'LIVE')
   const font = (k: number) => `700 ${Math.round(PH * k)}px "DIN Alternate", "Bahnschrift", "Roboto Condensed", system-ui, sans-serif`
-  /** Largeur du voyant : mesurée au premier dessin, à la taille de son texte. */
-  let tag = 0
-  let text = ''
-  let width = 0
-  let phase = -1
-  const screen = animatedScreen(PW, PH, 30, (c, t) => {
-    if (!tag) {
-      c.font = font(0.42)
-      tag = Math.ceil(PH * 0.55 + c.measureText(tagText).width + PH * 0.2)
-    }
+  // La largeur du voyant, à la taille de son texte : le texte de tous les tronçons s'y cale.
+  const measure = document.createElement('canvas').getContext('2d')!
+  measure.font = font(0.42)
+  const tag = Math.ceil(PH * 0.55 + measure.measureText(tagText).width + PH * 0.2)
+  /** La partie qui défile (pixels) : tout le tronçon, ou ce qui suit le voyant. */
+  const from = tagged ? tag : 0
+  const SW = PW - from
+  /**
+   * Le texte ne se redessine pas à chaque image : le canvas, un peu plus large que l'écran (une
+   * seconde de défilement), porte une bande du ruban, et c'est la carte graphique qui la fait
+   * glisser, LED par LED (la texture se décale d'un pas de la trame : la trame reste en place). Le
+   * canvas se redessine quand la bande a parcouru la moitié de sa marge, deux fois par seconde au
+   * lieu de trente.
+   */
+  const CW = Math.min(4096, SW + Math.round((SPEED * scale) / DENSITY))
+  const margin = CW - SW
+  const pitch = Math.max(3, Math.round((PITCH * scale) / DENSITY)), gap = Math.max(1, Math.round(pitch / 3))
+  /** Position dans le ruban (pixels) de la colonne de gauche de la partie qui défile, à l'instant `t`. */
+  const at = (t: number) => (t * SPEED * scale) / DENSITY + shiftM * scale + from - tag
+  /** Position dans le ruban de la colonne 0 du canvas, au dernier dessin (un multiple du pas). */
+  let drawn = NaN
+  const screen = animatedScreen(CW, PH, 30, (c, t) => {
+    const q = Math.floor(at(t) / pitch) * pitch
+    if (q - drawn >= 0 && q - drawn < margin / 2) return false
+    drawn = q
     c.fillStyle = '#07080b'
-    c.fillRect(0, 0, PW, PH)
+    c.fillRect(0, 0, CW, PH)
     c.font = font(0.62)
-    // Un tour fini (ou pas encore commencé) : on reprend les nouvelles du moment. La phase suit
-    // l'horloge, pas le tronçon : tous les tronçons d'un ruban défilent ensemble.
-    const shift = shiftM * scale
-    const now = width ? (t * SPEED * scale / DENSITY) % width : 0
-    if (!text || now < phase) {
-      const items = feed?.ticker() ?? []
-      text = (items.length ? items.join('   ◆   ') : tr('Le fil du bord est calme. Revenez dans un instant.', 'The ship\'s feed is quiet. Check back in a moment.')) + '   ◆   '
-      width = Math.max(1, c.measureText(text).width)
-    }
-    phase = (t * SPEED * scale / DENSITY) % width
-    // Les nouvelles, de droite à gauche, bout à bout sur toute la longueur.
-    c.save()
-    c.beginPath()
-    const from = tagged ? tag : 0
-    c.rect(from, 0, PW - from, PH)
-    c.clip()
+    // Les nouvelles, de droite à gauche, bout à bout, tour après tour (cf. ribbonRuns).
+    const u0 = q / scale, u1 = (q + CW) / scale
+    const runs = ribbonRuns(c, scale, u1)
     c.textBaseline = 'middle'
     c.fillStyle = '#ffb366'
     c.shadowColor = '#ff8a1c'
     c.shadowBlur = PH * 0.08
-    // La première copie qui touche le bord gauche du tronçon, puis les suivantes.
-    let x = (tag - phase - shift) % width
-    if (x > 0) x -= width
-    for (; x < PW; x += width) c.fillText(text, x, PH / 2 + 2)
-    c.restore()
-    // Les LED : une trame sombre par-dessus.
+    runs.forEach((run, i) => {
+      const a = i ? Math.max(u0, run.start) : u0, b = Math.min(u1, runs[i + 1]?.start ?? u1)
+      if (a >= b) return
+      c.save()
+      c.beginPath()
+      c.rect((a - u0) * scale, 0, (b - a) * scale, PH)
+      c.clip()
+      const width = run.width * scale
+      // La première copie qui touche le bord gauche de la bande, puis les suivantes.
+      let x = ((((run.start - u0) * scale) % width) + width) % width - width
+      for (; x < CW; x += width) c.fillText(run.text, x, PH / 2 + 2)
+      c.restore()
+    })
+    c.shadowBlur = 0
+    // Les LED : une trame sombre par-dessus, calée sur le pas (la bande ne glisse que d'un pas entier).
     c.fillStyle = 'rgba(0, 0, 0, 0.28)'
-    const pitch = Math.max(3, Math.round((PITCH * scale) / DENSITY)), gap = Math.max(1, Math.round(pitch / 3))
-    for (let x = from; x < PW; x += pitch) c.fillRect(x, 0, gap, PH)
-    for (let y = 0; y < PH; y += pitch) c.fillRect(from, y, PW - from, gap)
-    if (!tagged) return
-    // Le voyant « EN DIRECT ».
-    c.fillStyle = '#c62828'
-    c.fillRect(0, 0, tag, PH)
-    c.fillStyle = Math.floor(t * 1.5) % 2 ? '#ffffff' : '#ffb4b4'
-    c.beginPath()
-    c.arc(PH * 0.28, PH / 2, PH * 0.13, 0, Math.PI * 2)
-    c.fill()
-    c.fillStyle = '#ffffff'
-    c.font = font(0.42)
-    c.textBaseline = 'middle'
-    c.fillText(tagText, PH * 0.52, PH / 2 + 2)
+    for (let x = 0; x < CW; x += pitch) c.fillRect(x, 0, gap, PH)
+    for (let y = 0; y < PH; y += pitch) c.fillRect(0, y, CW, gap)
   })
+  screen.texture.repeat.set(SW / CW, 1)
+  let now = 0
   const live = new THREE.Group()
-  live.add(part(new THREE.PlaneGeometry(TW, TH), keepShared(new THREE.MeshBasicMaterial({ map: screen.texture, toneMapped: false })), 0, 0, 0.012))
+  const band = part(new THREE.PlaneGeometry(SW / scale, TH), keepShared(new THREE.MeshBasicMaterial({ map: screen.texture, toneMapped: false })), -TW / 2 + (from + SW / 2) / scale, 0, 0.012)
+  // Le décalage se règle juste avant le dessin, après le dernier redessin du canvas (cf. drawScreens).
+  band.onBeforeRender = () => {
+    const shift = Math.floor(at(now) / pitch) * pitch - drawn
+    screen.texture.offset.x = Number.isFinite(shift) ? Math.min(margin, Math.max(0, shift)) / CW : 0
+  }
+  live.add(band)
+  let dot: THREE.MeshBasicMaterial | null = null
+  if (tagged) {
+    // Le voyant « EN DIRECT », fixe : une plaque rouge, et sa pastille qui clignote.
+    const plate = drawnTexture(tag, PH, (c) => {
+      c.fillStyle = '#c62828'
+      c.fillRect(0, 0, tag, PH)
+      c.fillStyle = '#ffffff'
+      c.font = font(0.42)
+      c.textBaseline = 'middle'
+      c.fillText(tagText, PH * 0.52, PH / 2 + 2)
+    })
+    live.add(part(new THREE.PlaneGeometry(tag / scale, TH), keepShared(new THREE.MeshBasicMaterial({ map: keepShared(plate), toneMapped: false })), -TW / 2 + tag / scale / 2, 0, 0.012))
+    dot = keepShared(new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false }))
+    live.add(part(new THREE.CircleGeometry((PH * 0.13) / scale, 20), dot, -TW / 2 + (PH * 0.28) / scale, 0, 0.0125))
+  }
   // Sa lueur sur la façade, autour du caisson.
   live.add(part(new THREE.PlaneGeometry(TW + 0.5, TH + 0.42), keepShared(new THREE.MeshBasicMaterial({ map: halo(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })), 0, -0.01, -0.03))
-  return { solid: g, live, update: (t) => screen.tick(t) }
+  return {
+    solid: g,
+    live,
+    update: (t) => {
+      now = t
+      dot?.color.set(Math.floor(t * 1.5) % 2 ? '#ffffff' : '#ffb4b4')
+      screen.tick(t)
+    },
+  }
+}
+
+/** Un tour du ruban : son texte, sa longueur, et où il commence dans le ruban (mètres). */
+interface TickerRun {
+  start: number
+  text: string
+  width: number
+}
+/** Les tours du ruban, partagés par ses tronçons : ils défilent ensemble, et changent ensemble. */
+const runs: TickerRun[] = []
+/** Jusqu'où le ruban a déjà été dessiné, par l'un ou l'autre tronçon (mètres). */
+let ribbonDrawn = 0
+
+/**
+ * Les tours du ruban jusqu'à `until` (mètres). Les nouvelles changent à la fin d'un tour : un
+ * nouveau texte commence à la fin du tour en cours, au-delà de tout ce qui a déjà été dessiné,
+ * pour qu'aucun tronçon ne voie changer ce qu'il montre.
+ */
+function ribbonRuns(c: CanvasRenderingContext2D, scale: number, until: number): TickerRun[] {
+  const items = feed?.ticker() ?? []
+  const text = (items.length ? items.join('   ◆   ') : tr('Le fil du bord est calme. Revenez dans un instant.', 'The ship\'s feed is quiet. Check back in a moment.')) + '   ◆   '
+  const last = runs.at(-1)
+  const width = () => Math.max(1, c.measureText(text).width) / scale
+  if (!last) runs.push({ start: 0, text, width: width() })
+  else if (text !== last.text) {
+    // Pas encore dessiné : on le remplace ; sinon le nouveau texte attend la fin d'un tour.
+    if (ribbonDrawn <= last.start && runs.length > 1) Object.assign(last, { text, width: width() })
+    else runs.push({ start: last.start + Math.max(1, Math.ceil((ribbonDrawn - last.start) / last.width)) * last.width, text, width: width() })
+    if (runs.length > 4) runs.shift()
+  }
+  ribbonDrawn = Math.max(ribbonDrawn, until)
+  return runs
 }
 
 // ---------------------------------------------------------------- le Tableau d'honneur
@@ -178,6 +241,8 @@ const SERIF = 'Georgia, "Times New Roman", serif'
 const FLAP = '"DIN Alternate", "Bahnschrift", "Roboto Condensed", system-ui, sans-serif'
 /** Un classement reste affiché tant de secondes, puis les palettes tournent jusqu'au suivant. */
 const HOLD = 9
+/** Après un changement de classement, les palettes ont toutes fini de tourner (s). */
+const SETTLED = 1.7
 /** Caractères des palettes, dans l'ordre où elles défilent. */
 const FLAPS = ' ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-.'
 
@@ -203,6 +268,8 @@ const honourBoard: Builder = () => {
   let shown = -1
   let switchedAt = -100
   let previous: string[] = []
+  /** Ce qu'affiche le tableau, palettes posées : tant que rien n'en change, il ne se redessine pas. */
+  let still = ''
   const screen = animatedScreen(PW, PH, 20, (c, t) => {
     const boards = feed?.boards() ?? []
     const index = boards.length ? Math.floor(t / HOLD) % boards.length : -1
@@ -211,6 +278,23 @@ const honourBoard: Builder = () => {
       shown = index
       switchedAt = t
     }
+    // Les rangées de palettes : le nom du classement, puis ses cinq premiers.
+    const lines = board
+      ? [flapText(board.label, COLS), ...[0, 1, 2, 3, 4].map((i) => (board.rows[i] ? flapText(board.rows[i].name, 14) : ''.padEnd(14)))]
+      : [flapText(tr('Le site ne répond pas', 'The site is not answering'), COLS), ...[0, 1, 2, 3, 4].map(() => ''.padEnd(14))]
+    if (shown !== -2 && lines.join() !== previous.join() && t - switchedAt > 4) {
+      // Les données ont changé sous le même classement : les palettes tournent à nouveau.
+      switchedAt = t
+    }
+    previous = lines
+    // Palettes posées (la dernière, le score du cinquième, tombe 1,6 s après le changement) : on
+    // ne redessine que si les scores, l'unité ou un portrait arrivé changent l'image.
+    if (t > switchedAt + SETTLED) {
+      const portraits = board?.rows.slice(0, 3).map((r) => (r.avatar && feed?.avatar(r.avatar) ? 1 : 0)).join('') ?? ''
+      const key = `${index}|${lines.join()}|${board?.rows.slice(0, 5).map((r) => `${r.rank}:${r.score}`).join() ?? ''}|${board?.unit ?? ''}|${portraits}`
+      if (key === still) return false
+      still = key
+    } else still = ''
     // Le fond : un noir profond, un filet de laiton, le titre gravé.
     c.fillStyle = '#0b0b0e'
     c.fillRect(0, 0, PW, PH)
@@ -223,14 +307,6 @@ const honourBoard: Builder = () => {
     c.textBaseline = 'alphabetic'
     c.fillText(tr('TABLEAU D’HONNEUR', 'HALL OF HONOUR'), PW / 2, 92)
     c.fillRect(PW / 2 - 260, 112, 520, 2)
-    // Les rangées de palettes : le nom du classement, puis ses cinq premiers.
-    const lines = board
-      ? [flapText(board.label, COLS), ...[0, 1, 2, 3, 4].map((i) => (board.rows[i] ? flapText(board.rows[i].name, 14) : ''.padEnd(14)))]
-      : [flapText(tr('Le site ne répond pas', 'The site is not answering'), COLS), ...[0, 1, 2, 3, 4].map(() => ''.padEnd(14))]
-    if (shown !== -2 && lines.join() !== previous.join() && t - switchedAt > 4) {
-      // Les données ont changé sous le même classement : les palettes tournent à nouveau.
-      switchedAt = t
-    }
     const settle = (row: number, col: number) => switchedAt + 0.35 + col * 0.045 + row * 0.12
     const cell = (x: number, y: number, w: number, h: number, ch: string, settled: boolean, size: number, color = '#f3f0e6') => {
       c.fillStyle = '#1b1b20'
@@ -294,7 +370,6 @@ const honourBoard: Builder = () => {
         c.fillText(board?.unit ?? '', PW - 56, y + 60)
       }
     }
-    previous = lines
   })
   const live = new THREE.Group()
   live.add(part(new THREE.PlaneGeometry(BW, BH), keepShared(new THREE.MeshBasicMaterial({ map: screen.texture, toneMapped: false })), 0, BY, 0.032))
