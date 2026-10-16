@@ -42,10 +42,34 @@ export function setCommunityFeed(f: CommunityFeed) {
  * premier porte le voyant « EN DIRECT ».
  */
 const TH = 0.2
-/** Défilement du texte (pixels de l'écran par seconde) : à peu près 0,8 m/s. */
-const SPEED = 280
-/** Densité de l'écran (pixels par mètre). */
-const DENSITY = 340
+/** Densité de l'écran (pixels par mètre) : des lettres nettes même de près, en vue subjective. */
+const DENSITY = 900
+/** Défilement du texte (pixels de l'écran par seconde) : 0,8 m/s. */
+const SPEED = 0.8 * DENSITY
+/** Pas de la trame des LED (pixels) : une LED tous les 1,8 cm environ. */
+const PITCH = Math.round(DENSITY / 56)
+
+/** La lueur du ruban sur la façade : un orange qui s'évanouit vers les bords (partagée). */
+let haloTexture: THREE.Texture | null = null
+function halo(): THREE.Texture {
+  return (haloTexture ??= keepShared(drawnTexture(256, 64, (c) => {
+    const v = c.createLinearGradient(0, 0, 0, 64)
+    v.addColorStop(0, 'rgba(255, 138, 28, 0)')
+    v.addColorStop(0.5, 'rgba(255, 138, 28, 0.55)')
+    v.addColorStop(1, 'rgba(255, 138, 28, 0)')
+    c.fillStyle = v
+    c.fillRect(0, 0, 256, 64)
+    // Les bouts s'éteignent aussi.
+    c.globalCompositeOperation = 'destination-in'
+    const h = c.createLinearGradient(0, 0, 256, 0)
+    h.addColorStop(0, 'rgba(0, 0, 0, 0)')
+    h.addColorStop(0.08, 'rgba(0, 0, 0, 1)')
+    h.addColorStop(0.92, 'rgba(0, 0, 0, 1)')
+    h.addColorStop(1, 'rgba(0, 0, 0, 0)')
+    c.fillStyle = h
+    c.fillRect(0, 0, 256, 64)
+  })))
+}
 
 /**
  * Bandeau « En direct » (face à +z), comme le ruban lumineux du front d'un balcon de stade, sous le
@@ -57,12 +81,31 @@ const liveTicker: Builder = ({ label = '' }) => {
   const [length, offset, bare] = label.split('|')
   const TW = Number(length) || 2
   /** Où commence ce tronçon dans le ruban (pixels), et s'il porte le voyant. */
-  const shift = (Number(offset) || 0) * DENSITY
+  const shiftM = Number(offset) || 0
   const tagged = !bare
   const g = new THREE.Group()
-  g.add(box(TW + 0.04, TH + 0.04, 0.04, lit('#101217', 'metal'), 0, 0, -0.01, 0.01))
-  for (const s of [-1, 1]) g.add(box(TW + 0.04, 0.01, 0.012, glow('#ff8a1c'), 0, s * (TH / 2 + 0.02), 0.012))
+  const steel = lit('#3a414f', 'metal'), dark = lit('#101217', 'metal'), orange = glow('#ff8a1c')
+  // Le caisson, et son cadre d'acier brossé.
+  g.add(box(TW + 0.06, TH + 0.06, 0.045, dark, 0, 0, -0.012, 0.01))
+  g.add(box(TW + 0.06, 0.018, 0.05, steel, 0, -TH / 2 - 0.03, -0.008))
+  // La visière : elle avance au-dessus de l'écran, son filet orange dessous.
+  g.add(box(TW + 0.1, 0.022, 0.085, steel, 0, TH / 2 + 0.04, 0.012, 0.006))
+  g.add(box(TW + 0.06, 0.008, 0.012, orange, 0, TH / 2 + 0.026, 0.05))
+  // Le filet orange du bas, au ras de l'écran.
+  g.add(box(TW + 0.02, 0.008, 0.012, orange, 0, -TH / 2 - 0.018, 0.016))
+  // Les embouts, à chaque bout : un capot d'acier, une vis, un voyant.
+  for (const s of [-1, 1]) {
+    const x = s * (TW / 2 + 0.045)
+    g.add(box(0.05, TH + 0.12, 0.07, steel, x, 0, 0, 0.008))
+    g.add(box(0.03, TH + 0.08, 0.004, dark, x, 0, 0.036))
+    g.add(box(0.012, 0.012, 0.006, orange, x, TH / 2 - 0.01, 0.04))
+  }
+  // Les pattes qui le tiennent à la façade, tous les mètres et demi environ.
+  const legs = Math.max(2, Math.round(TW / 1.5) + 1)
+  for (let i = 0; i < legs; i++) g.add(box(0.03, TH + 0.1, 0.025, steel, -TW / 2 + 0.2 + (i * (TW - 0.4)) / (legs - 1), 0, -0.045))
   const PW = Math.min(4096, Math.round(TW * DENSITY)), PH = Math.round((PW * TH) / TW)
+  /** Pixels par mètre réels de ce tronçon (plafonnés pour un ruban très long). */
+  const scale = PW / TW
   const tagText = tr('EN DIRECT', 'LIVE')
   const font = (k: number) => `700 ${Math.round(PH * k)}px "DIN Alternate", "Bahnschrift", "Roboto Condensed", system-ui, sans-serif`
   /** Largeur du voyant : mesurée au premier dessin, à la taille de son texte. */
@@ -80,13 +123,14 @@ const liveTicker: Builder = ({ label = '' }) => {
     c.font = font(0.62)
     // Un tour fini (ou pas encore commencé) : on reprend les nouvelles du moment. La phase suit
     // l'horloge, pas le tronçon : tous les tronçons d'un ruban défilent ensemble.
-    const now = width ? (t * SPEED) % width : 0
+    const shift = shiftM * scale
+    const now = width ? (t * SPEED * scale / DENSITY) % width : 0
     if (!text || now < phase) {
       const items = feed?.ticker() ?? []
       text = (items.length ? items.join('   ◆   ') : tr('Le fil du bord est calme. Revenez dans un instant.', 'The ship\'s feed is quiet. Check back in a moment.')) + '   ◆   '
       width = Math.max(1, c.measureText(text).width)
     }
-    phase = (t * SPEED) % width
+    phase = (t * SPEED * scale / DENSITY) % width
     // Les nouvelles, de droite à gauche, bout à bout sur toute la longueur.
     c.save()
     c.beginPath()
@@ -96,7 +140,7 @@ const liveTicker: Builder = ({ label = '' }) => {
     c.textBaseline = 'middle'
     c.fillStyle = '#ffb366'
     c.shadowColor = '#ff8a1c'
-    c.shadowBlur = 8
+    c.shadowBlur = PH * 0.08
     // La première copie qui touche le bord gauche du tronçon, puis les suivantes.
     let x = (tag - phase - shift) % width
     if (x > 0) x -= width
@@ -104,8 +148,9 @@ const liveTicker: Builder = ({ label = '' }) => {
     c.restore()
     // Les LED : une trame sombre par-dessus.
     c.fillStyle = 'rgba(0, 0, 0, 0.28)'
-    for (let x = from; x < PW; x += 6) c.fillRect(x, 0, 2, PH)
-    for (let y = 0; y < PH; y += 6) c.fillRect(from, y, PW - from, 2)
+    const pitch = Math.max(3, Math.round((PITCH * scale) / DENSITY)), gap = Math.max(1, Math.round(pitch / 3))
+    for (let x = from; x < PW; x += pitch) c.fillRect(x, 0, gap, PH)
+    for (let y = 0; y < PH; y += pitch) c.fillRect(from, y, PW - from, gap)
     if (!tagged) return
     // Le voyant « EN DIRECT ».
     c.fillStyle = '#c62828'
@@ -121,6 +166,8 @@ const liveTicker: Builder = ({ label = '' }) => {
   })
   const live = new THREE.Group()
   live.add(part(new THREE.PlaneGeometry(TW, TH), keepShared(new THREE.MeshBasicMaterial({ map: screen.texture, toneMapped: false })), 0, 0, 0.012))
+  // Sa lueur sur la façade, autour du caisson.
+  live.add(part(new THREE.PlaneGeometry(TW + 0.5, TH + 0.42), keepShared(new THREE.MeshBasicMaterial({ map: halo(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })), 0, -0.01, -0.03))
   return { solid: g, live, update: (t) => screen.tick(t) }
 }
 

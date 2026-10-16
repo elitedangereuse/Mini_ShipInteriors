@@ -1762,7 +1762,6 @@ export const LEVELS: LevelDef[] = [
       { model: 'plant-tall', x: 8.05, z: 3.2 },
       { model: 'plant-tall', x: 8.05, z: 5.85 },
       { model: 'plant-tall', x: 5.5, z: 3.05 },
-      { model: 'monstera', x: 4.1, z: 8.95 },
       { model: 'plant', x: 8.05, z: 9.35 },
 
       // Le plan du vaisseau, face au téléporteur du hall (cf. TELEPORTERS).
@@ -1783,8 +1782,22 @@ export const LEVELS: LevelDef[] = [
       { model: 'floor-lamp', x: 0.05, z: 1.55 },
       { model: 'monstera', x: 1.1, z: 7.9 },
       { model: 'floor-lamp', x: 0.05, z: 7.45 },
+      // Au bout sud de l'étage, au-dessus du coin de l'aquarium : le coin des contemplatifs. Une
+      // longue-vue braquée sur les baies, un tourne-disque sur sa sellette, des coussins, et une
+      // vitrine où tourne une maquette de Cobra.
+      { model: 'telescope', x: 0.05, z: 8.85, rot: 3, interact: tr('La longue-vue de la mezzanine : braquée sur le sillage du vaisseau. On y voit surtout ce qu\'on vient de quitter.', 'The mezzanine spyglass: aimed at the ship\'s wake. Mostly, you see what you just left behind.') },
+      { model: 'floor-cushion', x: 1.05, z: 8.7, label: 'plum' },
+      { model: 'side-table', x: 0.95, z: 9.8 },
+      {
+        model: 'record-player', x: 0.95, z: 9.8, y: 0.3125, solid: false,
+        interact: tr('Un tourne-disque, quand le jukebox se tait. Sur la platine : « Blue Danube », évidemment, pour les amarrages.', 'A record player, for when the jukebox is quiet. On the turntable: “Blue Danube”, of course, for dockings.'),
+      },
       { model: 'plant-tall', x: 0.1, z: 10.45 },
       { model: 'beanbag', x: 1.4, z: 10.9, label: 'rose' },
+      {
+        model: 'display-case', x: 2.05, z: 10.85, rot: 2,
+        interact: tr('La vitrine : une maquette de Cobra Mk III qui tourne sous verre. L\'étiquette dit « Premier vaisseau du bord ». Personne n\'est d\'accord sur lequel.', 'The display case: a Cobra Mk III model turning under glass. The label says “The ship\'s first vessel”. Nobody agrees on which one.'),
+      },
 
       // Sous le bout de la mezzanine, au coin des baies de la poupe : le coin de l'aquarium. Un
       // aquarium encastré sous le plancher, et face à lui, dos aux étoiles, un canapé moelleux sur un
