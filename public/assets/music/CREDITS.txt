@@ -416,8 +416,8 @@ mess-rush/arcade-groove.mp3 : « Arcade Groove » : la musique du service, en
                               cuisine.
 Fournis par Benjamin Grande le 14/10/2026 ; leurs métadonnées indiquent une
 création avec Suno. Licence à renseigner.
-« Arcade Groove » est aussi proposé dans le jukebox comme album « MESS RUSH »
-de Ben Carter Jr (src/music.ts, pochette public/assets/music/covers/mess-rush.png).
+Les deux morceaux sont aussi proposés dans le jukebox, album « MESS RUSH » de
+Ben Carter Jr (src/music.ts, pochette public/assets/music/covers/mess-rush.png).
 Fichiers d'origine, renommés, non retraités (MP3 stéréo 48 kHz ; -15,5 et
 -13,7 LUFS intégrés, crête -3,3 et -0,6 dBFS). Ils finissent sur un blanc
 (0,26 et 0,68 s) : le jeu boucle juste avant (149,42 et 149,29 s), cf.

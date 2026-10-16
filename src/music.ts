@@ -156,11 +156,13 @@ export const TRACKS: Track[] = [
     ],
   },
   {
-    // La musique de service de MESS RUSH, également disponible à la platine du jukebox.
+    // Les deux musiques de MESS RUSH (cf. src/mess-rush/music.ts), également disponibles à la
+    // platine du jukebox : celle de la platine du mess, sans son vinyle, et celle du service.
     id: 'mess-rush', title: 'MESS RUSH', artist: 'Ben Carter Jr', style: 'chiptune',
-    cover: 'mess-rush.png', duration: 150.024, bpm: null, offset: 0,
-    mood: tr('La bande originale du service : Arcade Groove, le coup de feu en cuisine.', 'The service soundtrack: Arcade Groove, the dinner rush in the kitchen.'),
+    cover: 'mess-rush.png', duration: 299.736, bpm: null, offset: 0,
+    mood: tr('La bande originale du mess : MESS RUSH, sur la platine de la salle, puis Arcade Groove, le coup de feu en cuisine.', 'The mess soundtrack: MESS RUSH, on the hall turntable, then Arcade Groove, the dinner rush in the kitchen.'),
     songs: [
+      { title: 'MESS RUSH', file: 'mess-rush/mess-rush.mp3', duration: 149.712 },
       { title: 'Arcade Groove', file: 'mess-rush/arcade-groove.mp3', duration: 150.024 },
     ],
   },
