@@ -135,7 +135,14 @@ const podcastPoster: Builder = ({ label }) => {
   const show = label === 'galeres' || label === 'gg' ? label : 'radio'
   const g = new THREE.Group()
   g.add(box(0.54, 0.74, 0.03, lit(C.woodDark, 'wood'), 0, 0.56, 0.015, 0.01))
-  const paint = (c: CanvasRenderingContext2D, logo?: HTMLImageElement, ship?: HTMLImageElement, t = 0) => {
+  /** Où se pose le logo sur l'affiche (pixels de son canvas). */
+  const place = (logo: HTMLImageElement) => {
+    const maxW = show === 'gg' ? 250 : 272, maxH = show === 'radio' ? 160 : show === 'gg' ? 250 : 292
+    const scale = Math.min(maxW / logo.width, maxH / logo.height)
+    const w = logo.width * scale, h = logo.height * scale
+    return { x: (320 - w) / 2, y: show === 'gg' ? 38 : (350 - h) / 2, w, h }
+  }
+  const paint = (c: CanvasRenderingContext2D, logo?: HTMLImageElement) => {
     c.clearRect(0, 0, 320, 440)
     const gradient = c.createLinearGradient(0, 0, 320, 440)
     gradient.addColorStop(0, show === 'radio' ? '#332316' : show === 'gg' ? '#1a1410' : '#15204c')
@@ -156,47 +163,44 @@ const podcastPoster: Builder = ({ label }) => {
     c.font = '700 17px system-ui, sans-serif'
     c.fillText(show === 'radio' ? tr('LE PODCAST À BORD', 'THE PODCAST ON BOARD') : tr('MINI SÉRIE AUDIO', 'AUDIO MINI-SERIES'), 160, 388)
     if (logo) {
-      const maxW = show === 'gg' ? 250 : 272, maxH = show === 'radio' ? 160 : show === 'gg' ? 250 : 292
-      const scale = Math.min(maxW / logo.width, maxH / logo.height)
-      const w = logo.width * scale, h = logo.height * scale
-      const x = (320 - w) / 2, y = show === 'gg' ? 38 : (350 - h) / 2
+      const { x, y, w, h } = place(logo)
       c.drawImage(logo, x, y, w, h)
-      if (ship) {
-        // Même frémissement que dans le SVG, mais sur la seule couche du vaisseau.
-        const dx = Math.sin(t * 18) * 0.8, dy = Math.cos(t * 23) * 0.8
-        c.drawImage(ship, x + dx, y + dy, w, h)
-      }
     }
   }
   const art = drawnTexture(320, 440, paint)
-  const canvas = art.image as HTMLCanvasElement
-  const context = canvas.getContext('2d')!
-  let logo: HTMLImageElement | undefined, ship: HTMLImageElement | undefined
+  const context = (art.image as HTMLCanvasElement).getContext('2d')!
+  // L'ancienne affiche des Galères : le vaisseau frémit, comme dans le SVG. Il a sa propre plaque,
+  // qui bouge d'un souffle : l'affiche ne se redessine jamais (redessiner le SVG douze fois par
+  // seconde faisait ramer tout le pont).
+  const live = show === 'galeres' ? new THREE.Group() : undefined
+  let ship: THREE.Mesh | null = null
   if (show !== 'galeres') {
     const image = new Image()
-    image.onload = () => { logo = image; paint(context, logo); art.needsUpdate = true }
+    image.onload = () => { paint(context, image); art.needsUpdate = true }
     image.src = BASE + (show === 'radio' ? 'shows/radio-dangereuse.png' : 'shows/galeres-galactiques-logo.svg')
   } else {
     void galeresPosterLayers().then(([background, vessel]) => {
-      logo = background
-      ship = vessel
-      paint(context, logo, ship)
+      paint(context, background)
       art.needsUpdate = true
+      const { x, y, w, h } = place(background)
+      const layer = drawnTexture(320, 440, (c) => c.drawImage(vessel, x, y, w, h))
+      ship = part(new THREE.PlaneGeometry(0.48, 0.66), new THREE.MeshBasicMaterial({ map: layer, transparent: true, depthWrite: false }), 0, 0.56, 0.033)
+      live!.add(ship)
     }).catch(() => { /* Le cadre reste lisible si l'image ne charge pas. */ })
   }
   g.add(part(new THREE.PlaneGeometry(0.48, 0.66), new THREE.MeshBasicMaterial({ map: art }), 0, 0.56, 0.032))
   // Rampe : un bras, une réglette lumineuse au-dessus du cadre.
   g.add(barZ(0.006, 0.08, lit(C.brass, 'metal'), 0, 0.95, 0.04, 6), box(0.26, 0.022, 0.03, lit(C.brass, 'metal'), 0, 0.95, 0.08, 0.006))
   g.add(box(0.22, 0.004, 0.02, glow('#fff0cf'), 0, 0.938, 0.08))
-  let frame = -1
   return {
     solid: g,
-    ...(show === 'galeres' ? { update(t: number) {
-      if (!logo || !ship || Math.floor(t * 12) === frame) return
-      frame = Math.floor(t * 12)
-      paint(context, logo, ship, t)
-      art.needsUpdate = true
-    } } : {}),
+    ...(live ? {
+      live,
+      update(t: number) {
+        // 0,8 pixel de l'affiche, en mètres (le canvas descend, la plaque monte).
+        if (ship) ship.position.set((Math.sin(t * 18) * 0.8 * 0.48) / 320, 0.56 - (Math.cos(t * 23) * 0.8 * 0.66) / 440, 0.033)
+      },
+    } : {}),
   }
 }
 

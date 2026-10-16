@@ -547,14 +547,61 @@ export function drawnTexture(w: number, h: number, draw: (g: CanvasRenderingCont
 }
 
 /**
+ * Budget des écrans animés, par image. Redessiner un canvas et le renvoyer à la carte graphique
+ * coûte bien plus que sa taille : le navigateur dessine le canvas, puis synchronise son contexte
+ * avec celui de WebGL avant la copie. Une dizaine d'écrans à l'image (les bornes de l'arcade, les
+ * moniteurs de l'infirmerie, le bandeau) suffisaient à faire ramer une machine moyenne, quand la
+ * serre, sans écran, restait fluide. Les écrans demandent donc leur tour (cf. animatedScreen), et
+ * `drawScreens` en redessine au plus `count` par image, et pas plus de `pixels` en tout (le
+ * premier passe toujours), les plus anciens d'abord : quand beaucoup d'écrans sont à l'image,
+ * chacun ralentit un peu, au lieu que l'image entière ralentisse.
+ */
+export const screenBudget = { count: 2, pixels: 400_000 }
+
+interface ScreenTurn {
+  /** Redessine l'écran ; faux s'il n'avait rien de neuf à montrer (cela ne compte pas dans le budget). */
+  draw: () => boolean
+  /** Dernier dessin (rang d'image) : le plus ancien passe en premier. */
+  drawn: number
+  pixels: number
+}
+const turns: ScreenTurn[] = []
+/** Rang de l'image, pour l'ancienneté des écrans. */
+let screenFrame = 0
+/** Tant que personne n'appelle drawScreens (la galerie de debug), les écrans se dessinent tout de suite. */
+let scheduled = false
+
+/** Redessine, dans le budget de l'image, les écrans qui ont demandé leur tour (une fois par image, avant le rendu). */
+export function drawScreens() {
+  scheduled = true
+  screenFrame++
+  if (!turns.length) return
+  turns.sort((a, b) => a.drawn - b.drawn)
+  // En mode léger, un seul écran par image.
+  const count = renderQuality.light ? 1 : screenBudget.count
+  let n = 0, pixels = 0
+  for (const turn of turns) {
+    if (n >= count || (n > 0 && pixels + turn.pixels > screenBudget.pixels)) break
+    if (!turn.draw()) continue
+    n++
+    pixels += turn.pixels
+  }
+  turns.length = 0
+}
+
+/**
  * Écran animé : un canvas redessiné à cadence réduite (bornes d'arcade, moniteurs).
  * `tick(t)` ne redessine (et ne renvoie la texture au GPU) qu'à chaque nouvelle image, et
  * seulement si l'écran est à l'image : tant que la précédente n'est pas partie au GPU (Three.js
  * n'envoie une texture qu'au moment de dessiner ce qui la porte), l'écran est hors champ ou sur
  * un pont caché, et la dessiner encore ne servirait à rien. Revenu dans le champ, il montre sa
  * dernière image le temps d'une frame, puis repart.
+ *
+ * Il dessine à son tour, dans le budget de l'image (cf. drawScreens). `draw` peut répondre
+ * `false` quand rien n'a changé depuis l'image précédente (sans avoir touché au canvas) : la
+ * texture ne repart pas au GPU.
  */
-export function animatedScreen(w: number, h: number, fps: number, draw: (g: CanvasRenderingContext2D, t: number) => void) {
+export function animatedScreen(w: number, h: number, fps: number, draw: (g: CanvasRenderingContext2D, t: number) => boolean | void) {
   const c = document.createElement('canvas')
   c.width = w
   c.height = h
@@ -565,18 +612,37 @@ export function animatedScreen(w: number, h: number, fps: number, draw: (g: Canv
   texture.magFilter = THREE.NearestFilter
   let frame = -1
   let pending = true
+  let asked = -1
+  let time = 0
   texture.onUpdate = () => {
     pending = false
+  }
+  const turn: ScreenTurn = {
+    pixels: w * h,
+    drawn: -1,
+    draw() {
+      turn.drawn = screenFrame
+      frame = Math.floor(time * fps)
+      if (draw(g, time) === false) return false
+      texture.needsUpdate = true
+      pending = true
+      return true
+    },
   }
   return {
     texture,
     tick(t: number) {
       const f = Math.floor(t * fps)
       if (f === frame || pending) return
-      frame = f
-      draw(g, t)
-      texture.needsUpdate = true
-      pending = true
+      time = t
+      if (!scheduled) {
+        turn.draw()
+        return
+      }
+      // Un tour par image : l'écran reste dans la file jusqu'au prochain drawScreens.
+      if (asked === screenFrame) return
+      asked = screenFrame
+      turns.push(turn)
     },
   }
 }

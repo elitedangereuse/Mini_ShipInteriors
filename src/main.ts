@@ -53,7 +53,7 @@ import { Cat } from './cat'
 import { MAX_PETS, petRig, speciesOfItem, type Species } from './pets'
 import { Deck, firstPersonGlass, type Interactable, type IsoView } from './deck'
 import { Minimap } from './minimap'
-import { beatAt, beatPulse, film, filmGlow, holoMeGlow, holoTime, studio, type ClawControl, type ClawResult } from './furniture'
+import { beatAt, beatPulse, drawScreens, film, filmGlow, holoMeGlow, holoTime, studio, type ClawControl, type ClawResult } from './furniture'
 import { GamepadControls, type GamepadInput } from '../shared/gamepad.js'
 import { TouchGamepad } from './touch-gamepad'
 import { PadCursor, PadKeys, PadUi } from './pad-ui'
@@ -6891,6 +6891,8 @@ function frame() {
   Avatar.live.clear()
   fitShadow()
   deckTextures.update()
+  // Les écrans animés à l'image se redessinent à leur tour, dans le budget de l'image (cf. furniture/kit.ts).
+  drawScreens()
   // Dans la baie (ou par les caméras), tout passe par le brouillard de guerre (cf. salvage/fog.ts).
   // Dans les conduits de ventilation aussi (cf. vents.ts).
   // Par les caméras de surveillance, à travers leur tube cathodique (cf. cctv.ts).
