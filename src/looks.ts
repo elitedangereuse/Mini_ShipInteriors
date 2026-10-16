@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { rig, type Rig } from './assets'
 import type { FaceControl } from './avatar'
 import { holoTime } from './furniture/kit'
+import { bakeGear } from './gear'
 import { applyStyle, paintSuit, styleFields, styleFor, type Persona } from './holo-style'
 import { tr } from './i18n'
 import type { IconName } from './icons'
@@ -885,9 +886,12 @@ async function buildRig(s: ModelSpec): Promise<LookRig> {
   })
   // Coiffure et visage d'abord : le casque se taille sur la tête coiffée.
   let face = s.mini && s.style ? await applyStyle(r.root, s.mini, s.style, s.suit?.helmet === 'visor', s.persona) : undefined
-  if (s.antennae) addAntennae(r.root)
-  if (s.suit) addSuitGear(r.root, s.suit)
-  if (s.guardian) addGuardianGear(r.root, s.guardian)
+  // Antennes, combinaison, ornements : cuits en quelques maillages (cf. gear.ts).
+  bakeGear(r.root, () => {
+    if (s.antennae) addAntennae(r.root)
+    if (s.suit) addSuitGear(r.root, s.suit)
+    if (s.guardian) addGuardianGear(r.root, s.guardian)
+  })
   if (s.aria) face = ariaProjection(r.root, r.root.scale.x)
   else if (s.holo) hologram(r.root, r.root.scale.x)
   return { ...r, face, height: s.height + (s.suit && s.suit.helmet !== 'none' ? 0.05 : 0) + (s.guardian ? 0.08 : 0) + (s.aria ? ARIA_RISE : 0) }

@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { Avatar } from '../avatar'
+import { bakeGear } from '../gear'
 import { tr } from '../i18n'
 import { boxInBone, suitRig, type SuitStyle } from '../looks'
 import { dampAngle } from '../player'
@@ -80,7 +81,7 @@ function addControllerGear(root: THREE.Object3D) {
 /** Odile, casque sur les oreilles. */
 export async function controllerRig() {
   const r = await suitRig('female', 'c', CONTROL_SUIT)
-  addControllerGear(r.root)
+  bakeGear(r.root, () => addControllerGear(r.root))
   return r
 }
 

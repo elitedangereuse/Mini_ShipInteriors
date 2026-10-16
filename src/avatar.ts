@@ -470,6 +470,21 @@ export class Avatar {
     this.model.visible = !hidden
   }
 
+  /** Ce qui porte son ombre (relevé au premier appel de `shadowed`). */
+  private casters: THREE.Object3D[] | null = null
+
+  /**
+   * Loin du joueur, il ne porte plus d'ombre (cf. main.ts) : chaque personnage coûtait ses appels
+   * de dessin dans la passe d'ombre, pour une tache qu'on ne remarque que de près.
+   */
+  set shadowed(on: boolean) {
+    if (!this.casters) {
+      this.casters = []
+      this.model.traverse((o) => { if (o.castShadow) this.casters!.push(o) })
+    }
+    for (const o of this.casters) o.castShadow = on
+  }
+
   update(dt: number) {
     Avatar.live.add(this)
     let hop = 0

@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { rig } from './assets'
 import type { FaceControl } from './avatar'
+import { fuse } from './gear'
 import { tr } from './i18n'
 import { recolored } from './recolor'
 import { NO_STYLE, type LookStyle } from '../shared/look-style.js'
@@ -671,7 +672,8 @@ class Face implements FaceControl {
     }
     this.mesh.geometry = this.head.blank
     if (!this.drawn.has(e)) {
-      const g = drawExpression(e as Expression, this.head.face!)
+      // Un trait, un maillage : fondus en un ou deux (cf. gear.ts).
+      const g = fuse(drawExpression(e as Expression, this.head.face!))
       this.holder.add(g)
       this.drawn.set(e, g)
     }
@@ -702,6 +704,6 @@ export async function applyStyle(root: THREE.Object3D, own: string, style: LookS
   holder.matrixAutoUpdate = false
   holder.matrix.copy(head.matrixWorld).invert().multiply(mesh.matrixWorld)
   head.add(holder)
-  if (persona) holder.add(drawMarks(persona, styled.face))
+  if (persona) holder.add(fuse(drawMarks(persona, styled.face)))
   return new Face(mesh, styled, holder, style.face || (who?.face ?? ''))
 }

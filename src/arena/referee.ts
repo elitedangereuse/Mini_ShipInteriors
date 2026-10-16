@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { Avatar } from '../avatar'
+import { bakeGear } from '../gear'
 import { tr } from '../i18n'
 import { suitRig, type SuitStyle } from '../looks'
 import { dampAngle } from '../player'
@@ -37,7 +38,7 @@ function addRefereeGear(root: THREE.Object3D) {
 
 export async function refereeRig() {
   const r = await suitRig('female', 'a', REFEREE_SUIT)
-  addRefereeGear(r.root)
+  bakeGear(r.root, () => addRefereeGear(r.root))
   return r
 }
 

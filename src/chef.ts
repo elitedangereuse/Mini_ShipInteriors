@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { Avatar } from './avatar'
 import type { Deck } from './deck'
+import { bakeGear } from './gear'
 import { tr } from './i18n'
 import { boxInBone, suitRig, type SuitStyle } from './looks'
 import type { Menu } from './menu'
@@ -103,7 +104,7 @@ function addChefGear(root: THREE.Object3D) {
 /** Marcel, prêt à cuisiner. */
 export async function chefRig() {
   const r = await suitRig('male', 'e', CHEF_SUIT)
-  addChefGear(r.root)
+  bakeGear(r.root, () => addChefGear(r.root))
   return { ...r, height: r.height + 0.12 }
 }
 

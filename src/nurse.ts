@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { Avatar } from './avatar'
 import type { Deck } from './deck'
+import { bakeGear } from './gear'
 import { tr } from './i18n'
 import { boxInBone, lookRig, parseLook } from './looks'
 import type { NurseState } from './net'
@@ -239,11 +240,13 @@ export async function nurseRig() {
     if (src.map) own.map = bettyTexture(src.map)
     m.material = own
   }
-  if (head && headMesh) {
-    paintFace(headMesh, head)
-    addCap(headMesh, head)
-  }
-  if (torso) addDress(torso)
+  bakeGear(root, () => {
+    if (head && headMesh) {
+      paintFace(headMesh, head)
+      addCap(headMesh, head)
+    }
+    if (torso) addDress(torso)
+  })
   return { ...r, height: r.height + 0.06 }
 }
 

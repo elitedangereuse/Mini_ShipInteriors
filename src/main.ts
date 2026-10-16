@@ -46,6 +46,7 @@ import { allLooks, lookOwned, skinProduct, starterLook } from './economy/skins'
 import { markerMaterial, TASK_INFO, TaskBoard, type LiveTask, type WorkSound } from './economy/tasks'
 import { Wallet } from './economy/wallet'
 import { Sound } from './audio'
+import { syncAtlases } from './atlas'
 import { Avatar, EARNED_EMOTES, emoteNamed, EMOTES } from './avatar'
 import { IsoCamera, ZOOM_MAX } from './camera'
 import { FirstPersonCamera } from './fps'
@@ -1157,6 +1158,9 @@ let shadowFit = SHADOW_SHIP
 const _rayNear = new THREE.Vector3()
 const _rayFar = new THREE.Vector3()
 const _seen = new THREE.Vector3()
+const _me = new THREE.Vector3()
+/** Au-delà de cette distance du joueur (m), un personnage ne porte plus d'ombre (cf. Avatar.shadowed). */
+const AVATAR_SHADOW_RANGE = 6
 
 /**
  * Cadre l'ombre du soleil. En vue isométrique, elle ne couvre que la partie du pont que voit la
@@ -6887,12 +6891,19 @@ function frame() {
   const isoView = !fpsShown && culling.on ? framedView() : null
   for (const d of decks) d.cull(fpsShown && d === viewDeck && culling.on ? fps.eyes(fpsHead) : null, d === viewDeck ? isoView : null)
   // Les personnages suivent leur pièce : derrière un mur, ils coûtaient chacun des dizaines d'appels de dessin.
-  for (const a of Avatar.live) a.occluded = fpsShown && a !== player.avatar && !viewDeck.sees(a.root.getWorldPosition(_seen).x, _seen.z)
+  const me = player.avatar.root.getWorldPosition(_me)
+  for (const a of Avatar.live) {
+    a.root.getWorldPosition(_seen)
+    a.occluded = fpsShown && a !== player.avatar && !viewDeck.sees(_seen.x, _seen.z)
+    // Seuls les personnages proches portent leur ombre (cf. Avatar.shadowed).
+    a.shadowed = Math.hypot(_seen.x - me.x, _seen.z - me.z) < AVATAR_SHADOW_RANGE
+  }
   Avatar.live.clear()
   fitShadow()
   deckTextures.update()
   // Les écrans animés à l'image se redessinent à leur tour, dans le budget de l'image (cf. furniture/kit.ts).
   drawScreens()
+  syncAtlases()
   // Dans la baie (ou par les caméras), tout passe par le brouillard de guerre (cf. salvage/fog.ts).
   // Dans les conduits de ventilation aussi (cf. vents.ts).
   // Par les caméras de surveillance, à travers leur tube cathodique (cf. cctv.ts).

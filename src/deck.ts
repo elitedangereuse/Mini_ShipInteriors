@@ -129,6 +129,8 @@ export const CEILING_Y = 2.2
  * traversait le linteau. Cadre, battants et voyant montent d'autant ; l'ouverture atteint 1.
  */
 export const TALL_DOOR = 1.43
+/** Étiquette de fusion des encadrements de porte (cf. StaticMerge.add) : un maillage à part, qu'on grandit d'un bloc. */
+const DOOR_FRAME = 'door-frame'
 /** Dessus des murs de la baie infestée (cf. salvage/kit.ts) ; ceux du vaisseau font 1. */
 const ZONE_WALL_TOP = 1.06
 const DOOR_RANGE = 1.3
@@ -894,9 +896,9 @@ export class Deck {
     this.merge.add(o, cast)
   }
 
-  /** Occulteur immobile : fusionné, tramé via la texture de fondu. */
-  private addFading(o: THREE.Object3D, center: THREE.Vector3, outward?: Occluder['outward']) {
-    this.occluders.push(this.merge.addFading(o, center, undefined, outward))
+  /** Occulteur immobile : fusionné, tramé via la texture de fondu (cf. StaticMerge.add pour `tag`). */
+  private addFading(o: THREE.Object3D, center: THREE.Vector3, outward?: Occluder['outward'], tag?: string) {
+    this.occluders.push(this.merge.addFading(o, center, undefined, outward, tag))
   }
 
   /**
@@ -920,7 +922,10 @@ export class Deck {
 
   private flushStatic() {
     this.fades = fadeBuffer(this.merge.fadingCount)
-    this.celled.push(...this.merge.flush(this.group, this.fades.texture))
+    const meshes = this.merge.flush(this.group, this.fades.texture)
+    this.celled.push(...meshes)
+    // Les encadrements de porte, fondus ensemble : ils grandissent d'un bloc en vue subjective.
+    this.registerTall(meshes.filter((m) => m.userData.tag === DOOR_FRAME))
   }
 
   /** Cellule d'un objet (cf. visibility.ts) : les pièces que touche son encombrement. */
@@ -928,10 +933,13 @@ export class Deck {
     return this.sight?.cellOf(extent.min.x, extent.max.x, extent.min.z, extent.max.z) ?? 0
   }
 
-  /** Une fusion de géométrie immobile, rangée par cellule là où le pont trie ce qu'il dessine (cf. cull). */
+  /**
+   * Une fusion de géométrie immobile, rangée par cellule là où le pont trie ce qu'il dessine (cf.
+   * cull), ses images fixes rangées en atlas (cf. atlas.ts).
+   */
   private merging(): StaticMerge {
     const sight = this.sight
-    return new StaticMerge(sight && ((extent) => this.cellOf(extent)), sight && ((cell) => sight.cellRank(cell)))
+    return new StaticMerge(sight && ((extent) => this.cellOf(extent)), sight && ((cell) => sight.cellRank(cell)), true)
   }
 
   /**
@@ -1414,9 +1422,7 @@ export class Deck {
     const first = this.def.doubleDoors?.some((e) => this.map.edgeKey(e.x, e.z, e.dir) === key) ?? false
     const second = !first && (this.def.doubleDoors?.some((e) => this.map.edgeKey(e.x + along.dx, e.z + along.dz, e.dir) === key) ?? false)
     if (second) {
-      const frame = this.place('wall-door-edge', cx, 0, cz, alongX ? Math.PI : Math.PI / 2)
-      this.addOccluder([frame], new THREE.Vector3(cx, 0.5, cz), this.cabinOutward(cx, cz))
-      this.registerTall([frame])
+      this.addFading(this.place('wall-door-edge', cx, 0, cz, alongX ? Math.PI : Math.PI / 2), new THREE.Vector3(cx, 0.5, cz), this.cabinOutward(cx, cz), DOOR_FRAME)
       this.walls.push({ x: cx, z: cz, alongX, model: 'door' })
       // Le montant, au bout de l'ouverture (qui fait 1,6 sur les deux tuiles).
       if (alongX) this.colliders.push({ minX: cx + 0.3, maxX: cx + 0.5, minZ: cz - t, maxZ: cz + t })
@@ -1436,6 +1442,9 @@ export class Deck {
     panel.scale.set(first ? 1.3 : 0.98, 0.99, 0.9)
     const pair = first ? this.place('door-double', mx, 0, mz, rot) : undefined
     pair?.scale.set(1.3, 0.99, 0.9)
+    // Pas d'ombre : on ne la distinguait pas de celle du mur et de l'encadrement, et elle coûtait
+    // un appel de dessin par battant dans la passe d'ombre.
+    for (const leaf of pair ? [panel, pair] : [panel]) leaf.traverse((o) => { o.castShadow = false })
     // Porte capitonnée (le cinéma) : du velours rouge sur les deux faces de chaque battant.
     if (pair && this.def.doubleDoors?.some((e) => e.padded && this.map.edgeKey(e.x, e.z, e.dir) === key)) for (const leaf of [panel, pair]) padDoor(leaf)
     // Voyant rouge au-dessus de l'ouverture, des deux côtés : la porte est verrouillée.
@@ -1443,9 +1452,12 @@ export class Deck {
     lamp.position.set(mx, 0.84, mz)
     lamp.rotation.y = rot
     lamp.visible = this.map.isLocked(x, z, dir)
-    // Tramé avec la porte : il s'efface avec elle devant le joueur.
-    this.addOccluder(pair ? [frame, panel, pair, lamp] : [frame, panel, lamp], new THREE.Vector3(cx, 0.5, cz), this.cabinOutward(cx, cz))
-    this.registerTall(pair ? [frame, panel, pair, lamp] : [frame, panel, lamp])
+    // L'encadrement, immobile, est fondu avec les autres (un appel de dessin pour tout le pont) ;
+    // battants et voyant restent à part. Même centre : tout s'efface ensemble devant le joueur.
+    const outward = this.cabinOutward(cx, cz)
+    this.addFading(frame, new THREE.Vector3(cx, 0.5, cz), outward, DOOR_FRAME)
+    this.addOccluder(pair ? [panel, pair, lamp] : [panel, lamp], new THREE.Vector3(cx, 0.5, cz), outward)
+    this.registerTall(pair ? [panel, pair, lamp] : [panel, lamp])
     // Après le tramage : le verre des hublots garde son matériau.
     if (this.sight) for (const leaf of pair ? [panel, pair] : [panel]) glazeLeaf(leaf)
     this.walls.push({ x: cx, z: cz, alongX, model: 'door' })

@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { Avatar } from './avatar'
 import type { Deck } from './deck'
+import { bakeGear } from './gear'
 import type { TaskKind } from './economy/data'
 import { tr } from './i18n'
 import { suitRig, type SuitStyle } from './looks'
@@ -151,14 +152,15 @@ function laserRifle(m: ReturnType<typeof armorMaterials>): THREE.Group {
 export async function soldierRig() {
   const r = await suitRig('male', 'd', SOLDIER_SUIT)
   const m = armorMaterials()
-  addArmor(r.root, m)
+  bakeGear(r.root, () => addArmor(r.root, m))
   const torso = r.root.getObjectByName('torso')
-  const rifle = laserRifle(m)
+  const gun = laserRifle(m)
   // Entre les deux mains, légèrement pointé vers le sol (arme basse, doigt hors de la détente).
-  rifle.scale.setScalar(1.6)
-  rifle.position.set(-0.03, 0.05, 0.3)
-  rifle.rotation.set(0.18, 0, 0)
-  ;(torso ?? r.root).add(rifle)
+  gun.scale.setScalar(1.6)
+  gun.position.set(-0.03, 0.05, 0.3)
+  gun.rotation.set(0.18, 0, 0)
+  // Cuit à part : l'arène et le mess le cachent (rifle.visible).
+  const rifle = bakeGear(r.root, () => (torso ?? r.root).add(gun), true) ?? gun
   return { ...r, rifle }
 }
 

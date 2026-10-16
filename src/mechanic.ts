@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { Avatar } from './avatar'
 import type { Deck } from './deck'
 import { ED_ORANGE } from './furniture'
+import { bakeGear } from './gear'
 import { tr } from './i18n'
 import { boxInBone, suitRig, type SuitStyle } from './looks'
 import type { MechanicState } from './net'
@@ -106,7 +107,7 @@ function addMechanicGear(root: THREE.Object3D) {
 /** Nico, prêt à bricoler. */
 export async function mechanicRig() {
   const r = await suitRig('male', 'd', MECH_SUIT)
-  addMechanicGear(r.root)
+  bakeGear(r.root, () => addMechanicGear(r.root))
   return { ...r, height: r.height + 0.04 }
 }
 

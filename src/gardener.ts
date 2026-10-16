@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { Avatar } from './avatar'
 import type { Deck } from './deck'
+import { bakeGear } from './gear'
 import { tr } from './i18n'
 import { boxInBone, suitRig, type SuitStyle } from './looks'
 import type { GardenerState } from './net'
@@ -120,7 +121,7 @@ function addGardenGear(root: THREE.Object3D) {
 /** Capucine, prête à jardiner. */
 export async function gardenerRig() {
   const r = await suitRig('female', 'd', GARDEN_SUIT)
-  addGardenGear(r.root)
+  bakeGear(r.root, () => addGardenGear(r.root))
   return { ...r, height: r.height + 0.06 }
 }
 

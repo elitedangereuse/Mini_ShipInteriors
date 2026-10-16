@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { Avatar } from '../avatar'
+import { bakeGear } from '../gear'
 import { tr } from '../i18n'
 import { boxInBone, suitRig, type SuitStyle } from '../looks'
 
@@ -70,7 +71,7 @@ function addTechnicianGear(root: THREE.Object3D) {
 /** Gaspard, prêt à paniquer. */
 export async function technicianRig() {
   const r = await suitRig('male', 'b', TECH_SUIT)
-  addTechnicianGear(r.root)
+  bakeGear(r.root, () => addTechnicianGear(r.root))
   return r
 }
 

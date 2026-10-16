@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { stillTexture } from '../atlas'
 import { renderQuality } from '../quality'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
@@ -534,7 +535,10 @@ export function pointCloud(positions: Float32Array, colors: Float32Array, sizes:
 
 // ---------------------------------------------------------------- textures dessinées
 
-/** Texture dessinée une fois dans un canvas (enseignes, décalcomanies). */
+/**
+ * Texture dessinée une fois dans un canvas (enseignes, décalcomanies). Fixe : posée sur le pont, elle
+ * rejoint un atlas (cf. atlas.ts) ; pour la redessiner ensuite, en faire une autre.
+ */
 export function drawnTexture(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void): THREE.CanvasTexture {
   const c = document.createElement('canvas')
   c.width = w
@@ -543,7 +547,7 @@ export function drawnTexture(w: number, h: number, draw: (g: CanvasRenderingCont
   const t = new THREE.CanvasTexture(c)
   t.colorSpace = THREE.SRGBColorSpace
   t.anisotropy = 4
-  return t
+  return stillTexture(t)
 }
 
 /**

@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { atlasable, packTextures, remapUv, samplingKey, uvInside } from './atlas'
 import { makeIndexedFadeable } from './fade'
 
 /**
@@ -56,6 +57,41 @@ export interface CellRange {
 
 const _extent = new THREE.Box3()
 
+/** Ce qui se fond en un maillage : la géométrie de même matériau (cf. StaticMerge.add). */
+interface Part {
+  material: THREE.Material
+  geos: THREE.BufferGeometry[]
+  cells: number[]
+  cast: boolean
+  fading: boolean
+  tag?: string
+  /** Page d'atlas que porte le matériau (cf. packPictures). */
+  page?: THREE.Texture
+}
+
+/**
+ * Cartes qu'une image rangée dans un atlas ne doit pas avoir : seule sa couleur (`map`) se range,
+ * et sa lueur (`emissiveMap`) si c'est la même image (une enseigne lumineuse).
+ */
+const OTHER_MAPS = ['alphaMap', 'aoMap', 'bumpMap', 'displacementMap', 'envMap', 'lightMap', 'normalMap', 'specularMap', 'roughnessMap', 'metalnessMap'] as const
+
+/**
+ * Tout ce qui fait le rendu d'une image, sauf sa texture : deux images de même clé se dessinent
+ * ensemble une fois rangées dans le même atlas. Null : à laisser telle quelle.
+ */
+function pictureKey(material: THREE.Material): string | null {
+  const m = material as THREE.MeshPhongMaterial
+  if (!atlasable(m.map) || m.userData.surfaceAttribute || Object.hasOwn(m, 'onBeforeCompile') || Object.hasOwn(m, 'customProgramCacheKey')) return null
+  if (!['MeshBasicMaterial', 'MeshLambertMaterial', 'MeshPhongMaterial'].includes(m.type)) return null
+  if (OTHER_MAPS.some((k) => (m as unknown as Record<string, unknown>)[k]) || (m.emissiveMap && m.emissiveMap !== m.map)) return null
+  return [
+    !!m.emissiveMap,
+    m.type, m.color.getHex(), m.side, m.transparent, m.opacity, m.alphaTest, m.depthWrite, m.depthTest, m.blending, m.toneMapped, m.fog,
+    m.polygonOffset, m.polygonOffsetFactor, m.polygonOffsetUnits, m.vertexColors, m.premultipliedAlpha, m.alphaToCoverage, m.colorWrite,
+    m.emissive?.getHex(), m.emissiveIntensity, m.shininess, m.specular?.getHex(), m.flatShading, samplingKey(m.map!),
+  ].join('|')
+}
+
 /**
  * Image à plat (affiche, écran, décalque au sol) : un seul plan texturé, plaqué contre un mur ou
  * posé au sol. Son ombre tomberait sur ce qui la porte, à moins d'un centimètre : elle ne se voit
@@ -73,7 +109,7 @@ function flatPicture(g: THREE.BufferGeometry, material: THREE.Material): boolean
  * Un objet « tramable » garde son propre fondu : ses sommets portent son index (`aOcc`).
  */
 export class StaticMerge {
-  private parts = new Map<string, { material: THREE.Material; geos: THREE.BufferGeometry[]; cells: number[]; cast: boolean; fading: boolean }>()
+  private parts = new Map<string, Part>()
   private fading = 0
   private readonly local = new THREE.Matrix4()
 
@@ -82,8 +118,10 @@ export class StaticMerge {
    *   alors rangée par cellule (`userData.cells`), pour n'en dessiner qu'une partie (cf. Deck.cull)
    * @param cellRank rang d'une cellule dans ce rangement : des pièces voisines y sont voisines, et les
    *   pièces que montre la caméra forment le plus souvent une seule tranche (un appel de dessin)
+   * @param atlas ranger les images fixes dans des atlas (cf. atlas.ts) : celles qui se dessinent de la
+   *   même façon ne font plus qu'un maillage
    */
-  constructor(private readonly cellOf?: (extent: THREE.Box3) => number, private readonly cellRank?: (cell: number) => number) {}
+  constructor(private readonly cellOf?: (extent: THREE.Box3) => number, private readonly cellRank?: (cell: number) => number, private readonly atlas = false) {}
 
   /** Nombre d'occulteurs fusionnés (taille de la texture de fondu). */
   get fadingCount(): number {
@@ -93,8 +131,10 @@ export class StaticMerge {
   /**
    * @param occ index d'occulteur : l'objet pourra être tramé individuellement
    * @param frame inverse de la matrice monde du repère où la géométrie sera posée (défaut : le monde)
+   * @param tag fusionné à part, avec les objets de même étiquette (`userData.tag` du maillage) :
+   *   ce qu'on transforme d'un bloc après coup (les encadrements de porte, grandis en vue subjective)
    */
-  add(o: THREE.Object3D, cast: boolean, occ?: number, frame?: THREE.Matrix4) {
+  add(o: THREE.Object3D, cast: boolean, occ?: number, frame?: THREE.Matrix4, tag?: string) {
     o.updateMatrixWorld(true)
     const cell = this.cellOf?.(_extent.setFromObject(o)) ?? 0
     o.traverse((c) => {
@@ -113,19 +153,59 @@ export class StaticMerge {
       const fading = occ !== undefined
       if (fading) g.setAttribute('aOcc', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count).fill(occ), 1))
       const shadow = cast && !flatPicture(g, material)
-      const key = `${material.uuid}:${shadow}:${fading}`
+      const key = `${material.uuid}:${shadow}:${fading}:${tag ?? ''}`
       let part = this.parts.get(key)
-      if (!part) this.parts.set(key, (part = { material, geos: [], cells: [], cast: shadow, fading }))
+      if (!part) this.parts.set(key, (part = { material, geos: [], cells: [], cast: shadow, fading, tag }))
       part.geos.push(g)
       part.cells.push(cell)
     })
   }
 
   /** Occulteur immobile : fusionné, tramé via la texture de fondu. */
-  addFading(o: THREE.Object3D, center: THREE.Vector3, frame?: THREE.Matrix4, outward?: Occluder['outward']): Occluder {
+  addFading(o: THREE.Object3D, center: THREE.Vector3, frame?: THREE.Matrix4, outward?: Occluder['outward'], tag?: string): Occluder {
     const occluder: Occluder = { center, value: 1, index: this.fading++, outward }
-    this.add(o, true, occluder.index, frame)
+    this.add(o, true, occluder.index, frame, tag)
     return occluder
+  }
+
+  /**
+   * Images fixes (cf. atlas.ts) : les parts qui ne diffèrent que par leur texture sont rangées dans
+   * des pages d'atlas, une part par page.
+   */
+  private packPictures() {
+    const groups = new Map<string, [string, Part][]>()
+    for (const entry of this.parts) {
+      const [, part] = entry
+      const key = pictureKey(part.material)
+      if (key === null || !part.geos.every(uvInside)) continue
+      const id = `${key}:${part.cast}:${part.fading}:${part.tag ?? ''}`
+      let group = groups.get(id)
+      if (!group) groups.set(id, (group = []))
+      group.push(entry)
+    }
+    let n = 0
+    for (const group of groups.values()) {
+      const textures = [...new Set(group.map(([, p]) => (p.material as THREE.MeshBasicMaterial).map!))]
+      if (textures.length < 2) continue
+      const rects = packTextures(textures)
+      const pages = new Map<THREE.Texture, Part>()
+      for (const [key, part] of group) {
+        const source = (part.material as THREE.MeshBasicMaterial).map!
+        const rect = rects.get(source)!
+        let packed = pages.get(rect.page)
+        if (!packed) {
+          const material = part.material.clone() as THREE.MeshLambertMaterial
+          material.map = rect.page
+          if (material.emissiveMap) material.emissiveMap = rect.page
+          pages.set(rect.page, (packed = { material, geos: [], cells: [], cast: part.cast, fading: part.fading, tag: part.tag, page: rect.page }))
+          this.parts.set(`atlas:${n++}`, packed)
+        }
+        for (const g of part.geos) remapUv(g, source, rect)
+        packed.geos.push(...part.geos)
+        packed.cells.push(...part.cells)
+        this.parts.delete(key)
+      }
+    }
   }
 
   /**
@@ -133,6 +213,7 @@ export class StaticMerge {
    * @param fades texture de fondu des occulteurs fusionnés (inutile s'il n'y en a pas)
    */
   flush(parent: THREE.Object3D, fades?: THREE.DataTexture): THREE.Mesh[] {
+    if (this.atlas) this.packPictures()
     const meshes: THREE.Mesh[] = []
     for (const part of this.parts.values()) {
       // Rangée par cellule, la géométrie de chacune se suit dans le maillage.
@@ -154,12 +235,16 @@ export class StaticMerge {
       }
       if (!merged) continue
       const material = part.fading ? makeIndexedFadeable(part.material, fades!) : part.material
+      // Une page d'atlas est à ce maillage seul : elle part avec son matériau.
+      const page = part.page
+      if (page) material.addEventListener('dispose', () => page.dispose())
       const mesh = new THREE.Mesh(merged, material)
       if (this.cellOf) mesh.userData.cells = ranges
       mesh.castShadow = part.cast
       mesh.receiveShadow = true
       // Matériau créé pour ce maillage (à libérer avec lui), et non le matériau partagé d'origine.
-      mesh.userData.ownMaterial = part.fading
+      mesh.userData.ownMaterial = part.fading || !!page
+      if (part.tag) mesh.userData.tag = part.tag
       parent.add(mesh)
       meshes.push(mesh)
     }
