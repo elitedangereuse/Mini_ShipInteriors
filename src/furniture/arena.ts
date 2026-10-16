@@ -157,27 +157,31 @@ const arenaFloor: Builder = ({ label }) => {
   return { solid: new THREE.Group().add(decal(texture, w, d, 0.008)) }
 }
 
-/** Marquage au sol devant la porte, côté zone thargoïde : « CMDR ARENA », et la flèche. */
+/**
+ * Marquage au sol devant la porte, dans le hall : « CMDR ARENA » et la flèche vers la porte, au
+ * nord, dans le même sens que le marquage de la zone thargoïde (il se lit en arrivant du hall). Le
+ * filet du bas aux couleurs des camps, chacun de son côté du lobby (bleu à l'ouest, orange à l'est).
+ */
 const arenaEntry: Builder = () => {
   const texture = drawnTexture(512, 200, (c) => {
     c.clearRect(0, 0, 512, 200)
     c.fillStyle = '#14161acc'
     c.fillRect(0, 0, 512, 200)
-    c.fillStyle = C.orange
-    c.fillRect(0, 0, 256, 14)
     c.fillStyle = C.blue
-    c.fillRect(256, 0, 256, 14)
+    c.fillRect(0, 186, 256, 14)
+    c.fillStyle = C.orange
+    c.fillRect(256, 186, 256, 14)
+    c.fillStyle = C.orange
+    c.beginPath()
+    c.moveTo(216, 50)
+    c.lineTo(256, 8)
+    c.lineTo(296, 50)
+    c.fill()
     c.font = 'bold 76px system-ui, sans-serif'
     c.textAlign = 'center'
     c.textBaseline = 'middle'
     c.fillStyle = C.line
-    c.fillText('CMDR ARENA', 256, 90, 480)
-    c.fillStyle = C.orange
-    c.beginPath()
-    c.moveTo(216, 150)
-    c.lineTo(256, 192)
-    c.lineTo(296, 150)
-    c.fill()
+    c.fillText('CMDR ARENA', 256, 116, 480)
   })
   return { solid: new THREE.Group().add(decal(texture, 1.8, 0.7, 0.009)) }
 }

@@ -18,8 +18,10 @@ const upperLinks = linksOf(upper)
 
 test('complexe d\'entraînement : du hall de la cale au hall d\'entraînement, puis aux trois salles', () => {
   for (const link of ['pz', 'zf', 'zo', 'zx']) assert.ok(holdLinks.has(link), `porte ${link}`)
-  // Les terrains et la salle de sport ne communiquent pas entre eux, ni avec le bar.
-  for (const link of ['fo', 'ox', 'fx', 'zb', 'ob']) assert.ok(!holdLinks.has(link), `pas de porte ${link}`)
+  // Les terrains et la salle de sport ne communiquent pas entre eux, ni avec le bar ; le bar, lui,
+  // a sa porte du fond sur le hall d'entraînement.
+  for (const link of ['fo', 'ox', 'fx', 'ob']) assert.ok(!holdLinks.has(link), `pas de porte ${link}`)
+  assert.ok(holdLinks.has('zb'), 'porte du fond du bar')
   // La salle de sport : cinq tuiles sur quatre, sans trou.
   for (let z = 16; z <= 19; z++) for (let x = 16; x <= 20; x++) assert.equal(hold.room(x, z), GYM_ROOM.room, `salle de sport en ${x}, ${z}`)
 })

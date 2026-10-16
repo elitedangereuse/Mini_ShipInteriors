@@ -35,7 +35,7 @@ export declare const THARGOID_DOORS: { x: number; z: number; dir: number }[]
 /** La porte double du lobby de l'arène (cale). */
 export declare const ARENA_DOORS: { x: number; z: number; dir: number }[]
 export declare const REFINERY_DOOR: { x: number; z: number; dir: number }
-export declare const BAR_DOOR: { x: number; z: number; dir: number }
+export declare const BAR_DOORS: { x: number; z: number; dir: number }[]
 export declare const TRAINING_DOOR: { x: number; z: number; dir: number }
 export declare const OFFICE_DOORS: { x: number; z: number; dir: number }[]
 /** Le poste de surveillance du pont principal : sa pièce, et le pupitre des caméras. */

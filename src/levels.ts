@@ -864,7 +864,8 @@ export const LEVELS: LevelDef[] = [
       { model: 'bar-chair', x: 12.48, z: 12.2, rot: 1 },
       { model: 'bar-chair', x: 13.52, z: 12.2, rot: 3 },
       { model: 'bar-chair', x: 13, z: 12.74, rot: 2 },
-      { model: 'pinball', x: 17.25, z: 12.55, rot: 3, label: 'thargoid', action: tr('Jouer au Mini-CQC', 'Play Mini-CQC') },
+      // Contre le mur sud, entre deux tables : la porte du fond s'ouvre à côté de la banquette.
+      { model: 'pinball', x: 14.35, z: 12.75, rot: 2, label: 'thargoid', action: tr('Jouer au Mini-CQC', 'Play Mini-CQC') },
       { model: 'bar-table', x: 15.7, z: 12.3 },
       { model: 'bar-chair', x: 15.18, z: 12.3, rot: 1 },
       { model: 'bar-chair', x: 16.22, z: 12.3, rot: 3 },
@@ -874,16 +875,16 @@ export const LEVELS: LevelDef[] = [
         interact: tr('Banquette du fond : la place de ceux qui ne veulent pas qu\'on voie leur visage.', 'Back booth: the seat for those who would rather not show their face.'),
       },
       { model: 'bar-table', x: 17.2, z: 10.9 },
-      // La marchandise, à deux pas de l'entrée de la soute.
+      // La marchandise, dans l'angle, à côté de la porte du hall.
       {
-        model: 'crate', x: 18, z: 9.1,
+        model: 'crate', x: 17, z: 9.1,
         interact: tr(
           'Caisses marquées « PIÈCES DÉTACHÉES ». Elles tintent quand on les secoue.',
           'Crates marked “SPARE PARTS”. They clink when you shake them.',
         ),
       },
-      { model: 'crate', x: 18, z: 9.1, y: 0.4 },
-      { model: 'crate', x: 18.02, z: 9.62 },
+      { model: 'crate', x: 17, z: 9.1, y: 0.4 },
+      { model: 'crate', x: 16.4, z: 9.12 },
       { model: 'plant-tall', x: 17.95, z: 12.95 },
 
       // --- Lobby de la zone thargoïde (SOC-06), une pièce fermée au nord du hall de la cale, derrière
@@ -958,10 +959,8 @@ export const LEVELS: LevelDef[] = [
       // raffinerie et Chez Jacques ; au sud, la porte de service de la gaine technique (Scavengers,
       // poste d'exploration) et l'allée du complexe d'entraînement ---
       { model: 'salvage-sign', x: 23.5, z: 3.66, solid: false },
-      // Le plan du vaisseau au mur ouest, à côté de la porte du bar, face au téléporteur (cf.
-      // TELEPORTERS) ; le totem du pont, à côté du téléporteur.
+      // Le plan du vaisseau au mur ouest, à côté de la vitrine de CMDR Arena, face au téléporteur (cf. TELEPORTERS).
       shipMap('holdHall'),
-      totem(-1, 20.3, 8.1, 1),
       { model: 'floor-way', x: 23.5, z: 4.08, label: tr('ZONE THARGOÏDE', 'THARGOID ZONE') + '|1.8,0.95|#6dff9a|n', solid: false },
       { model: 'salvage-board', x: 21, z: 3.68, action: tr('Classement', 'Leaderboard'), interact: tr(
         'Le classement de la zone thargoïde : les équipes qui sont revenues avec leurs colis.',
@@ -978,9 +977,8 @@ export const LEVELS: LevelDef[] = [
       // couleurs des deux équipes ; le guichet de l'arbitre (cf. src/arena/referee.ts) contre le mur
       // est, et en face, contre le mur ouest, le terminal où l'on se place dans un lobby ; au mur
       // nord, le classement, bien en vue, le trophée dans l'angle ; une bannière par équipe, de son
-      // côté du sol (les bleus à l'ouest, les orange à l'est). Dans le
-      // hall, devant la vitrine : le tableau des personnages, au mur ouest, et l'hologramme ---
-      { model: 'arena-entry', x: 18.5, z: 4.02, rot: 2, solid: false },
+      // côté du sol (les bleus à l'ouest, les orange à l'est) ; près de la porte, l'hologramme ---
+      { model: 'arena-entry', x: 18.5, z: 4.02, solid: false },
       { model: 'arena-floor', x: 18, z: 1.5, rot: 2, label: '2.7,3.7', solid: false },
       // Le logo de CMDR Arena : sur l'enseigne lumineuse, au-dessus de la porte (elle est du côté du
       // hall, contre la cloison), et peint au sol, sans son fond, au milieu du lobby.
@@ -1004,15 +1002,9 @@ export const LEVELS: LevelDef[] = [
       ] },
       { model: 'arena-garland', x: 18, z: 0.55, rot: 2, label: '2.7', solid: false },
       { model: 'arena-garland', x: 18, z: 2.5, rot: 2, label: '2.7', solid: false },
-      // Dans le hall, au mur ouest, à côté de la vitrine : les personnages qu'on y joue.
-      { model: 'arena-roster', x: 16.67, z: 5, rot: 1, solid: false, interact: [
-        tr('Les six personnages de CMDR Arena : Rourke, Marcel, Nico et Boulon, Betty, Capucine, Jacques. L\'équipage au complet, sauf qu\'ici il riposte.', 'The six CMDR Arena characters: Rourke, Marcel, Nico & Bolt, Betty, Capucine, Jacques. The whole crew, except here it shoots back.'),
-        tr('Un mot scotché sous la case de Marcel : « Les tomates sont comptées. Signé : le chef. »', 'A note taped under Marcel\'s box: “The tomatoes are counted. Signed: the chef.”'),
-        tr('Quelqu\'un a écrit au feutre sous Jacques : « On ne boit pas les munitions. »', 'Someone wrote in marker under Jacques: “Do not drink the ammunition.”'),
-      ] },
-      // Et devant, l'hologramme de l'arène : on y regarde la partie en cours.
+      // Dans l'angle sud-ouest, à côté de la porte : l'hologramme de l'arène. On y regarde la partie en cours.
       {
-        model: 'arena-holo', x: 17.65, z: 6.15, rot: 2, solid: false, action: tr('Regarder une partie', 'Watch a match'),
+        model: 'arena-holo', x: 17.1, z: 2.88, rot: 2, solid: false, action: tr('Regarder une partie', 'Watch a match'),
         interact: tr('L\'hologramme de l\'arène : son plan, ses conteneurs, ses buissons. Quand une partie se joue, il passe au rouge.', 'The arena hologram: its layout, its containers, its bushes. It turns red when a match is on.'),
       },
       // La soute, abattue dans le coin sud-est du hall : conteneurs et caisses, fûts, le laser minier
@@ -1746,37 +1738,25 @@ export const LEVELS: LevelDef[] = [
       },
       { model: 'plant', x: 8.05, z: 2.05 },
       { model: 'neon-sign', x: 7, z: 2.74, y: 0.5, label: tr('CHASSE GALACTIQUE', 'GALACTIC HUNT') },
-      // Le bandeau « En direct », sur la façade de la mezzanine, face aux portes, à la place de
-      // l'ancien tableau des classements : le fil du site et les nouvelles du bord (cf.
-      // src/community-feed.ts). Le Tableau d'honneur est passé sur la Promenade.
+      // Le bandeau « En direct », un ruban lumineux tout le long du garde-corps de la mezzanine, de la
+      // boutique du Weekly au bout de la salle (il passe au-dessus du palier des escaliers) : le fil
+      // du site et les nouvelles du bord (cf. src/community-feed.ts). Le Tableau d'honneur est passé
+      // sur la Promenade.
       {
-        model: 'live-ticker', x: 2.6, z: 4.5, y: -0.19, rot: 1, solid: false, action: tr('Lire le bandeau', 'Read the ticker'),
+        model: 'live-ticker', x: 2.62, z: 8.5, y: 0.95, rot: 1, label: '11.8', solid: false, action: tr('Lire le bandeau', 'Read the ticker'),
         interact: tr('Le bandeau « En direct » : ce qui se passe sur le site et à bord, en temps réel.', 'The “Live” ticker: what is happening on the site and aboard, in real time.'),
       },
-      // Le comptoir d'accueil, à côté du téléporteur.
+      // Au sud, le salon du hall, adossé à la façade de la mezzanine : un canapé, la table basse,
+      // deux fauteuils tournés vers lui, et des plantes.
       {
-        model: 'welcome-desk', x: 6.8, z: 10.45, action: tr('Se renseigner', 'Ask for information'),
-        interact: [
-          tr('L\'hôtesse d\'accueil : « Bienvenue à bord ! Le téléporteur, juste là, dessert tous les ponts. Tapez un lieu dans sa recherche : basket, cinéma, Weekly… »', 'The receptionist: “Welcome aboard! The teleporter, right there, serves every deck. Type a place into its search: basketball, cinema, Weekly…”'),
-          tr('L\'hôtesse d\'accueil : « Les bureaux vitrés, au fond du hall : le Weekly et la Chasse galactique paient ce que vous avez gagné sur le site. »', 'The receptionist: “The glazed offices at the back of the hall: the Weekly and the Galactic Hunt pay out what you earned on the site.”'),
-          tr('L\'hôtesse d\'accueil : « Le bandeau, sous la mezzanine, suit ce qui se passe sur le site et à bord. Le Tableau d\'honneur est sur la Promenade, devant le Cobra. »', 'The receptionist: “The ticker below the mezzanine follows what is happening on the site and aboard. The Hall of honour is on the Promenade, by the Cobra.”'),
-          tr('L\'hôtesse d\'accueil : « Au pont supérieur, la grande bibliothèque ouvre les pages du Lore Explorer. À la cale, le complexe d\'entraînement. »', 'The receptionist: “On the upper deck, the great library opens the pages of the Lore Explorer. In the hold, the training complex.”'),
-          tr('L\'hôtesse d\'accueil : « Votre profil du site s\'affiche dans l\'antichambre de vos quartiers. Pensez à vous connecter. »', 'The receptionist: “Your site profile is shown in the antechamber of your quarters. Remember to sign in.”'),
-        ],
-      },
-      // Au sud, le salon du hall : deux canapés face à face autour d'une table basse, deux fauteuils.
-      {
-        model: 'sofa', x: 1.0, z: 12.95, rot: 1, label: 'teal',
+        model: 'sofa', x: 3.35, z: 12.95, rot: 1, label: 'mustard',
         interact: tr('Canapé du hall : on s\'y retrouve entre deux missions, et on refait la galaxie.', 'Hall sofa: where the crew meets between missions to put the galaxy to rights.'),
       },
-      { model: 'coffee-table', x: 2.15, z: 12.95, rot: 1 },
-      { model: 'sofa', x: 3.3, z: 12.95, rot: 3, label: 'mustard' },
-      { model: 'armchair', x: 5.6, z: 12.95, rot: 1, label: 'navy' },
-      { model: 'side-table', x: 6.35, z: 12.95 },
-      { model: 'armchair', x: 7.1, z: 12.95, rot: 3, label: 'plum' },
-      { model: 'monstera', x: 4.4, z: 13.75 },
+      { model: 'coffee-table', x: 4.5, z: 12.95, rot: 1 },
+      { model: 'armchair', x: 5.65, z: 12.95, rot: 3, label: 'navy' },
+      { model: 'armchair', x: 4.5, z: 14.0, rot: 2, label: 'plum' },
+      { model: 'monstera', x: 7.6, z: 13.9 },
       { model: 'plant-tall', x: 8.1, z: 12.0 },
-      { model: 'plant-tall', x: 0.15, z: 11.55 },
       // De grandes plantes de part et d'autre des portes, au pied de la mezzanine, entre les vitrines.
       { model: 'plant-tall', x: 8.05, z: 3.2 },
       { model: 'plant-tall', x: 8.05, z: 5.85 },
@@ -1784,12 +1764,12 @@ export const LEVELS: LevelDef[] = [
       { model: 'monstera', x: 4.1, z: 8.95 },
       { model: 'plant', x: 8.05, z: 9.35 },
 
-      // Le plan du vaisseau, face au téléporteur du hall (cf. TELEPORTERS), et son totem.
+      // Le plan du vaisseau, face au téléporteur du hall (cf. TELEPORTERS).
       shipMap('mainHall'),
-      totem(0, 2.4, 10.3, 1),
 
       // À l'étage : le jukebox au milieu des baies (tout le pont l'entend, cf. src/music.ts), deux
-      // salons de part et d'autre, tournés vers le hall, et des plantes aux paliers.
+      // salons de part et d'autre, tournés vers le hall, et des plantes ; au sud, le salon des
+      // baies, sur la partie prolongée de la mezzanine.
       { model: 'jukebox', x: -0.17, z: 4.5, rot: 1, action: tr('Choisir un morceau', 'Pick a song'), music: true },
       { model: 'rug-round', x: 1.05, z: 4.5, solid: false },
       { model: 'plant-tall', x: -0.08, z: 3.62 },
@@ -1797,14 +1777,18 @@ export const LEVELS: LevelDef[] = [
       { model: 'sofa', x: 0.0, z: 2.35, rot: 1, label: 'mustard', interact: tr('Le salon de la mezzanine : d\'ici, on voit tout le hall, et derrière soi, toute la galaxie.', 'The mezzanine lounge: from here you can see the whole hall, and behind you, the whole galaxy.') },
       { model: 'coffee-table', x: 1.3, z: 2.35, rot: 1 },
       { model: 'sofa', x: 0.0, z: 6.65, rot: 1, label: 'navy' },
-      { model: 'coffee-table', x: 1.3, z: 6.65, rot: 1 },
+      { model: 'coffee-table', x: 1.1, z: 6.65, rot: 1 },
       { model: 'bookshelf', x: 2.0, z: -0.2, interact: tr('Bibliothèque commune : guides de minage, romans de Drew Wagar, et un manuel du Cobra annoté au crayon.', 'Shared bookshelf: mining guides, Drew Wagar novels, and a Cobra manual annotated in pencil.') },
       { model: 'monstera', x: 1.1, z: 1.1 },
       { model: 'floor-lamp', x: 0.05, z: 1.55 },
       { model: 'monstera', x: 1.1, z: 7.9 },
       { model: 'floor-lamp', x: 0.05, z: 7.45 },
-      { model: 'beanbag', x: 2.1, z: 8.95, label: 'rose' },
-      { model: 'beanbag', x: 2.95, z: 9.05, label: 'teal' },
+      { model: 'sofa', x: 0.0, z: 12.0, rot: 1, label: 'teal', interact: tr('Le salon des baies : le dos aux étoiles, le hall à ses pieds.', 'The bay lounge: the stars at your back, the hall at your feet.') },
+      { model: 'coffee-table', x: 1.15, z: 12.0, rot: 1 },
+      { model: 'plant-tall', x: 0.1, z: 10.45 },
+      { model: 'floor-lamp', x: 0.05, z: 13.3 },
+      { model: 'beanbag', x: 1.4, z: 10.9, label: 'rose' },
+      { model: 'beanbag', x: 1.7, z: 13.85, label: 'teal' },
 
       // --- Infirmerie : le domaine de Betty (cf. src/nurse.ts). Trois lits en box le long du mur
       // nord (on s'y allonge, et Betty vient en consultation, cf. src/infirmary.ts), le scanner, le
@@ -2339,10 +2323,11 @@ export const LEVELS: LevelDef[] = [
       [6.1, 7, '#fff1dd', 3],
       [4, 1.2, '#ffd9a0', 1.6],
       [7, 1.2, '#bff7ec', 1.6],
-      [3.6, 12.6, '#ffe2bf', 1.6],
-      // Le bandeau « En direct », et le comptoir d'accueil.
-      [3.2, 4.5, '#ff9a4a', 1.1, undefined, 3.5],
-      [6.8, 10.2, '#ffe2bf', 1.4],
+      [4.4, 12.9, '#ffe2bf', 1.6],
+      // Le bandeau « En direct », tout le long de la mezzanine, et le salon des baies.
+      [3.2, 5.5, '#ff9a4a', 1, undefined, 3.5],
+      [3.2, 11.5, '#ff9a4a', 1, undefined, 3.5],
+      [0.7, 12.2, '#ffd9a8', 1.8],
       [0.7, 2.4, '#ffd9a8', 1.8],
       [0.7, 6.6, '#ffd9a8', 1.8],
       [0.5, 4.5, '#ff7ad9', 1.4, 'neon'],

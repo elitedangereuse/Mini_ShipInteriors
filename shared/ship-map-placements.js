@@ -17,8 +17,8 @@ export const SHIP_MAP_PLACEMENTS = {
   quartersLanding: { level: 2, x: 8, z: 2, dir: 0, along: 0.5 },
   // Au mur sud du quai de fret du palier du monte-charge, contre le bar.
   holdLanding: { level: -1, x: 10, z: 8, dir: 2 },
-  // Dans le hall de la cale, au mur ouest, à côté de la porte du bar, face au téléporteur.
-  holdHall: { level: -1, x: 17, z: 8, dir: 3 },
+  // Dans le hall de la cale, au mur ouest, à côté de la vitrine de CMDR Arena, face au téléporteur.
+  holdHall: { level: -1, x: 17, z: 5, dir: 3 },
   // Au mur nord du hall d'entraînement, contre le bar.
   trainingHall: { level: -1, x: 13, z: 14, dir: 0, along: 0.5 },
   mainLanding: { level: 0, x: 10, z: 4, dir: 0 },

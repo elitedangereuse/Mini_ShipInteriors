@@ -14,35 +14,44 @@ const main = new ShipMap(SHIP_LAYOUTS['0'], shipMapOptions(0))
 test('le sol monte le long des escaliers, sans marche entre le pied, les marches et le plancher', () => {
   assert.equal(mezzanineHeight(mezz, 5, 5), 0)
   assert.equal(mezzanineHeight(mezz, 1, 5), mezz.height)
-  // La volée : de (3, 5,5), au pied, à (3, 7,5), au palier.
-  let prev = mezzanineHeight(mezz, 3, 5.5)
-  assert.equal(prev, 0)
-  for (let z = 5.5; z <= 7.5; z += 0.05) {
-    const h = mezzanineHeight(mezz, 3, z)
-    assert.ok(h >= prev - 1e-9 && h - prev < 0.05, `saut en z = ${z.toFixed(2)}`)
-    prev = h
+  // Les deux volées partent du même palier, (2, 7), au pied de la façade : l'une monte au nord, de
+  // z = 6,5 à 4,5, l'autre au sud, de z = 7,5 à 9,5.
+  for (const [from, to] of [[6.5, 4.5], [7.5, 9.5]]) {
+    const step = Math.sign(to - from) * 0.05
+    let prev = mezzanineHeight(mezz, 2, from)
+    assert.equal(prev, 0)
+    for (let z = from; Math.abs(z - from) <= Math.abs(to - from) + 1e-9; z += step) {
+      const h = mezzanineHeight(mezz, 2, z)
+      assert.ok(h >= prev - 1e-9 && h - prev < 0.05, `saut en z = ${z.toFixed(2)}`)
+      prev = h
+    }
+    assert.ok(Math.abs(prev - mezz.height) < 1e-9)
   }
-  assert.ok(Math.abs(prev - mezz.height) < 1e-9)
 })
 
 test('on monte par les escaliers, pas par-dessus le garde-corps', () => {
-  // Pied de la volée → première marche ; haut de la volée → palier.
-  assert.equal(main.edge(3, 5, 2), 'open')
-  assert.equal(main.edge(3, 7, 2), 'open')
-  // Du hall au plancher, et du flanc d'une marche au hall ou au plancher : garde-corps.
+  // Du hall au palier ; du palier à chaque volée ; du haut de chaque volée au plancher.
+  assert.equal(main.edge(3, 7, 3), 'open')
+  assert.equal(main.edge(2, 7, 0), 'open')
+  assert.equal(main.edge(2, 7, 2), 'open')
+  assert.equal(main.edge(2, 5, 0), 'open')
+  assert.equal(main.edge(2, 9, 2), 'open')
+  // Du hall au plancher ou à une marche, du palier ou d'une marche au plancher : garde-corps.
   assert.equal(main.edge(3, 4, 3), 'wall')
-  assert.equal(main.edge(3, 6, 1), 'wall')
   assert.equal(main.edge(3, 6, 3), 'wall')
+  assert.equal(main.edge(2, 6, 3), 'wall')
+  assert.equal(main.edge(2, 7, 3), 'wall')
+  // Sur le plancher, on circule librement, jusqu'au bout de la salle.
+  assert.equal(main.edge(1, 4, 2), 'open')
+  assert.equal(main.edge(1, 12, 2), 'open')
   // Au nord, le plancher s'adosse à la boutique du Weekly : un mur, pas un garde-corps.
   assert.equal(main.edge(2, 1, 1), 'wall')
   assert.equal(main.room(3, 1), 'w')
-  // Sur le plancher, on circule librement.
-  assert.equal(main.edge(1, 4, 2), 'open')
 })
 
 test('le garde-corps arrête la vue : on n\'utilise pas, d\'en bas, ce qui est à l\'étage', () => {
   const jukebox = { x: -0.17, z: 4.5 }
-  assert.ok(lineOfSight(main, { x: 1.5, z: 4.5 }, jukebox))
+  assert.ok(lineOfSight(main, { x: 1.2, z: 4.5 }, jukebox))
   assert.equal(lineOfSight(main, { x: 3.2, z: 4.5 }, jukebox), false)
   // Le tableau d'honneur, sur la façade : on le lit du hall, pas du plancher au-dessus.
   const board = { x: 2.57, z: 4.5 }

@@ -20,7 +20,8 @@ export const SHIP_LAYOUTS = {
   // la porte blindée et, derrière ses vitres, le poste de sécurité de la zone ('t', verrouillé) ; à
   // côté, à l'ouest, au même niveau, celui de l'arène ('y', 3 × 4, cf. ARENA_DOORS), derrière une
   // cloison vitrée. Le hall s'étend jusqu'à la raffinerie, d'un seul tenant : la porte du bar
-  // s'ouvre dans son mur sud (cf. BAR_DOOR), et le plan du vaisseau est au mur ouest. Au-dessus de la salle des
+  // s'ouvre dans son mur sud, au bord est (cf. BAR_DOORS), et le plan du vaisseau est au mur ouest.
+  // Le bar a une seconde porte, au sud, sur le hall d'entraînement. Au-dessus de la salle des
   // machines, au bout d'un couloir de service qui part du palier, le Zorb, la boîte de nuit des
   // aliens ('n', cf. CLUB_ROOM). Au nord du palier, à la place de l'ancienne baie de réparation, le
   // stand de tir ('r', cf. SHOOTING_RANGE). Entre l'atelier et la descente de ce couloir, au-dessus
@@ -211,10 +212,11 @@ export const PLANETARIUM_ROOM = 'p'
 
 /**
  * Mezzanines des ponts (cf. shared/mezzanine.js) : un étage dans une pièce, par pont.
- * Au pont principal, celle de la salle commune : à la poupe, sous les grandes baies vitrées,
- * trois tuiles de profondeur. On y monte par une volée qui part du pied de sa façade, au sud de
- * l'axe des portes du hall, et débouche sur un palier qui va jusqu'au mur, au-dessus de l'entrée
- * du hall d'accueil. Au nord, elle s'adosse à la boutique du Weekly.
+ * Au pont principal, celle de la salle commune : à la poupe, sous les grandes baies vitrées, trois
+ * tuiles de profondeur, de la boutique du Weekly, au nord, jusqu'au bout de la salle, au sud. Sa
+ * façade file droite tout du long ; en son milieu, dans l'axe de l'îlot du hall, un palier
+ * s'enfonce dans la mezzanine, et deux volées symétriques en partent, l'une vers le nord, l'autre
+ * vers le sud, encastrées derrière le garde-corps.
  */
 export const MEZZANINES = {
   '0': {
@@ -225,12 +227,17 @@ export const MEZZANINES = {
       ' MM',
       'MMM',
       'MMM',
-      'MMM ',
-      'MMM ',
-      'MMMv',
-      'MMMv',
-      'MMMM',
-      'MMMM',
+      'MMM',
+      'MM^',
+      'MM^',
+      'MM ',
+      'MMv',
+      'MMv',
+      'MMM',
+      'MMM',
+      'MMM',
+      'MMM',
+      ' MM',
     ],
   },
 }
@@ -260,7 +267,7 @@ function mezzanineWalls(level) {
  */
 export function shipMapOptions(level) {
   const id = String(level)
-  const doors = id === '-1' ? [SECURITY_DOOR, SCAVENGERS_DOOR, CLOSET_DOOR, REFINERY_DOOR, BAR_DOOR, TRAINING_DOOR, ...THARGOID_DOORS, ...ARENA_DOORS] : id === '0' ? [...PIXEL_WAR_DOORS, ...OFFICE_DOORS] : id === '1' ? FOYER_DOORS : id === '2' ? [PLOT_DOOR] : []
+  const doors = id === '-1' ? [SECURITY_DOOR, SCAVENGERS_DOOR, CLOSET_DOOR, REFINERY_DOOR, ...BAR_DOORS, TRAINING_DOOR, ...THARGOID_DOORS, ...ARENA_DOORS] : id === '0' ? [...PIXEL_WAR_DOORS, ...OFFICE_DOORS] : id === '1' ? FOYER_DOORS : id === '2' ? [PLOT_DOOR] : []
   return { closed: CLOSED_ROOMS[level] ?? '', doors, walls: mezzanineWalls(id) }
 }
 
@@ -293,8 +300,12 @@ export const THARGOID_DOORS = [{ x: 23, z: 4, dir: 0 }, { x: 24, z: 4, dir: 0 }]
  */
 export const ARENA_DOORS = [{ x: 18, z: 4, dir: 0 }, { x: 19, z: 4, dir: 0 }]
 
-/** La porte de Chez Jacques (cale), dans le mur sud du hall : posée sur le bord sud de la tuile du hall. */
-export const BAR_DOOR = { x: 17, z: 8, dir: 2 }
+/**
+ * Les deux portes de Chez Jacques (cale) : celle du hall, au bord est de son mur sud (posée sur le
+ * bord sud de la tuile du hall), et celle du fond du bar, sur le hall d'entraînement (posée sur le
+ * bord sud de la tuile du bar ; pas en x 18, où coulisse un battant de la porte double de l'allée).
+ */
+export const BAR_DOORS = [{ x: 18, z: 8, dir: 2 }, { x: 17, z: 13, dir: 2 }]
 
 /**
  * Le battant est de la porte double de l'allée du complexe d'entraînement (cale), sur le bord nord

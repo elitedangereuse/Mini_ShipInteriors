@@ -3,8 +3,8 @@ import { animatedScreen, box, drawnTexture, glow, keepShared, lit, part, type Bu
 import { tr } from '../i18n'
 
 /*
- * Le cœur communautaire du pont principal : le bandeau « En direct » de la salle commune, qui fait
- * défiler les nouvelles du site et du bord, et le Tableau d'honneur de la Promenade, un tableau à
+ * Le cœur communautaire du pont principal : le bandeau « En direct » de la salle commune, un ruban
+ * lumineux tout le long de la mezzanine, qui fait défiler les nouvelles du site et du bord, et le Tableau d'honneur de la Promenade, un tableau à
  * palettes, comme ceux des grandes gares, entre deux stèles de marbre noir et de laiton, qui fait
  * défiler les classements de l'équipage. Le jeu leur fournit leurs données (cf. setCommunityFeed) :
  * le mobilier ne parle pas au site.
@@ -34,22 +34,27 @@ export function setCommunityFeed(f: CommunityFeed) {
 
 // ---------------------------------------------------------------- le bandeau « En direct »
 
-/** Le bandeau : toute la largeur de la façade de la mezzanine, un écran à LED dans un caisson sombre liseré d'orange. */
-const TW = 1.96, TH = 0.46, TY = 0.62
-/** Défilement du texte (pixels de l'écran par seconde) : une nouvelle se lit en quelques secondes. */
-const SPEED = 300
+/** Le bandeau : un ruban à LED, fin, dans un caisson sombre liseré d'orange ; sa longueur est son `label`. */
+const TH = 0.2
+/** Défilement du texte (pixels de l'écran par seconde) : à peu près 0,8 m/s. */
+const SPEED = 280
+/** Densité de l'écran (pixels par mètre). */
+const DENSITY = 340
 
 /**
- * Bandeau « En direct » (face à +z) : à gauche, le voyant rouge « EN DIRECT » ; à droite, les
- * nouvelles qui défilent en lettres ambre, séparées d'un losange. Le texte change entre deux tours.
+ * Bandeau « En direct » (face à +z), comme le ruban lumineux d'un balcon de stade, tout le long du
+ * garde-corps de la mezzanine (`label` : sa longueur, en mètres) : à gauche, le voyant rouge
+ * « EN DIRECT » ; puis les nouvelles qui défilent sans fin en lettres ambre, séparées d'un losange,
+ * répétées d'un bout à l'autre. Le texte change à la fin d'un tour.
  */
-const liveTicker: Builder = () => {
+const liveTicker: Builder = ({ label }) => {
+  const TW = Number(label) || 2
   const g = new THREE.Group()
-  g.add(box(TW + 0.06, TH + 0.06, 0.05, lit('#101217', 'metal'), 0, TY, -0.01, 0.01))
-  for (const s of [-1, 1]) g.add(box(TW + 0.06, 0.012, 0.012, glow('#ff8a1c'), 0, TY + s * (TH / 2 + 0.03), 0.018))
-  const PW = 2048, PH = Math.round((PW * TH) / TW)
-  const label = tr('EN DIRECT', 'LIVE')
-  const small = `700 ${Math.round(PH * 0.4)}px "DIN Alternate", "Bahnschrift", "Roboto Condensed", system-ui, sans-serif`
+  g.add(box(TW + 0.04, TH + 0.04, 0.04, lit('#101217', 'metal'), 0, 0, -0.01, 0.01))
+  for (const s of [-1, 1]) g.add(box(TW + 0.04, 0.01, 0.012, glow('#ff8a1c'), 0, s * (TH / 2 + 0.02), 0.012))
+  const PW = Math.min(4096, Math.round(TW * DENSITY)), PH = Math.round((PW * TH) / TW)
+  const tagText = tr('EN DIRECT', 'LIVE')
+  const font = (k: number) => `700 ${Math.round(PH * k)}px "DIN Alternate", "Bahnschrift", "Roboto Condensed", system-ui, sans-serif`
   /** Largeur du voyant : mesurée au premier dessin, à la taille de son texte. */
   let tag = 0
   let text = ''
@@ -57,50 +62,48 @@ const liveTicker: Builder = () => {
   let width = 0
   const screen = animatedScreen(PW, PH, 30, (c, t) => {
     if (!tag) {
-      c.font = small
-      tag = Math.ceil(PH * 0.55 + c.measureText(label).width + PH * 0.15)
+      c.font = font(0.42)
+      tag = Math.ceil(PH * 0.55 + c.measureText(tagText).width + PH * 0.2)
     }
     c.fillStyle = '#07080b'
     c.fillRect(0, 0, PW, PH)
+    c.font = font(0.62)
     // Un tour fini (ou pas encore commencé) : on reprend les nouvelles du moment.
-    if (!text || (t - start) * SPEED > width + (PW - tag)) {
-      // Au premier tour, le texte part déjà du bord gauche : le bandeau n'est jamais vide à l'arrivée.
-      start = text ? t : t - (PW - tag - 24) / SPEED
+    if (!text || (t - start) * SPEED >= width) {
+      start = t
       const items = feed?.ticker() ?? []
-      text = items.length ? items.join('   ◆   ') + '   ◆   ' : tr('Le fil du bord est calme. Revenez dans un instant.', 'The ship\'s feed is quiet. Check back in a moment.')
-      c.font = `700 ${Math.round(PH * 0.56)}px "DIN Alternate", "Bahnschrift", "Roboto Condensed", system-ui, sans-serif`
-      width = c.measureText(text).width
+      text = (items.length ? items.join('   ◆   ') : tr('Le fil du bord est calme. Revenez dans un instant.', 'The ship\'s feed is quiet. Check back in a moment.')) + '   ◆   '
+      width = Math.max(1, c.measureText(text).width)
     }
-    // Les nouvelles, de droite à gauche.
+    // Les nouvelles, de droite à gauche, bout à bout sur toute la longueur.
     c.save()
     c.beginPath()
     c.rect(tag, 0, PW - tag, PH)
     c.clip()
-    c.font = `700 ${Math.round(PH * 0.56)}px "DIN Alternate", "Bahnschrift", "Roboto Condensed", system-ui, sans-serif`
     c.textBaseline = 'middle'
     c.fillStyle = '#ffb366'
     c.shadowColor = '#ff8a1c'
-    c.shadowBlur = 10
-    c.fillText(text, PW - (t - start) * SPEED, PH / 2 + 2)
+    c.shadowBlur = 8
+    for (let x = tag - (t - start) * SPEED; x < PW; x += width) c.fillText(text, x, PH / 2 + 2)
     c.restore()
     // Les LED : une trame sombre par-dessus.
     c.fillStyle = 'rgba(0, 0, 0, 0.28)'
-    for (let x = tag; x < PW; x += 8) c.fillRect(x, 0, 3, PH)
-    for (let y = 0; y < PH; y += 8) c.fillRect(tag, y, PW - tag, 3)
+    for (let x = tag; x < PW; x += 6) c.fillRect(x, 0, 2, PH)
+    for (let y = 0; y < PH; y += 6) c.fillRect(tag, y, PW - tag, 2)
     // Le voyant « EN DIRECT ».
     c.fillStyle = '#c62828'
     c.fillRect(0, 0, tag, PH)
     c.fillStyle = Math.floor(t * 1.5) % 2 ? '#ffffff' : '#ffb4b4'
     c.beginPath()
-    c.arc(PH * 0.26, PH / 2, PH * 0.12, 0, Math.PI * 2)
+    c.arc(PH * 0.28, PH / 2, PH * 0.13, 0, Math.PI * 2)
     c.fill()
     c.fillStyle = '#ffffff'
-    c.font = small
+    c.font = font(0.42)
     c.textBaseline = 'middle'
-    c.fillText(label, PH * 0.48, PH / 2 + 2)
+    c.fillText(tagText, PH * 0.52, PH / 2 + 2)
   })
   const live = new THREE.Group()
-  live.add(part(new THREE.PlaneGeometry(TW, TH), keepShared(new THREE.MeshBasicMaterial({ map: screen.texture, toneMapped: false })), 0, TY, 0.017))
+  live.add(part(new THREE.PlaneGeometry(TW, TH), keepShared(new THREE.MeshBasicMaterial({ map: screen.texture, toneMapped: false })), 0, 0, 0.012))
   return { solid: g, live, update: (t) => screen.tick(t) }
 }
 
