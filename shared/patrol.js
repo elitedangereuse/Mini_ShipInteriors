@@ -19,13 +19,13 @@ export const PATROL_HOLD = 8
  * (vérifiés dans le jeu ; à refaire si le mobilier du pont bouge).
  */
 export const PATROL_POSTS = [
-  { room: 'e', path: [[13, 6], [13, 5], [8.6, 4.5], [7.6, 3.2], [6.4, 2.6]], watch: 6 },
-  { room: 'q', path: [[7.6, 3.2], [8.6, 4.3], [9, 4], [13, 4], [13, 2]], watch: 5 },
+  { room: 'e', path: [[13, 6], [13, 5], [8.6, 4.5], [5.6, 4.4], [5.1, 4.9]], watch: 6 },
+  { room: 'q', path: [[8.6, 4.3], [9, 4], [13, 4], [13, 2]], watch: 5 },
   { room: 'd', path: [[13, 4], [18, 4], [18, 2]], watch: 5 },
   { room: 'c', path: [[18, 4], [22.5, 4.5]], watch: 3 },
   { room: 'b', path: [[26, 4], [29, 3], [30, 4], [32, 4], [34, 3]], watch: 7 },
   { room: 'promenade', path: [[32, 4], [30, 4], [28, 2]], watch: 6 },
-  { room: 'promenade', path: [[29, 4], [29, 7], [28, 7.5]], watch: 5 },
+  { room: 'promenade', path: [[29.2, 3.45], [29.7, 3.7], [29.7, 5.5], [28, 7.5]], watch: 5 },
   { room: 's', path: [[26, 5], [23, 5], [23, 7], [19, 7]], watch: 5 },
   { room: 'm', path: [[18, 6], [18, 5], [13, 5], [13, 6], [12, 7]], watch: 5 },
 ]
