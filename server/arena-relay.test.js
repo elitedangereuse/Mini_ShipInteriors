@@ -78,6 +78,10 @@ test('un salon se forme au lobby, la partie part, et l\'arène reste entre ses j
   a.emit('state', LOBBY)
   b.emit('state', { ...LOBBY, x: 23 })
   await next(other, 'state', (m) => m.id === wb.id)
+  // Des invités : le relais croit les quêtes qu'ils disent avoir terminées, et leur ouvre leurs personnages.
+  const told = (socket, done) => new Promise((resolve) => socket.emit('quests', { done }, resolve))
+  assert.deepEqual((await told(a, ['bon-pour-le-service', 'visite-medicale'])).done, ['bon-pour-le-service', 'visite-medicale'])
+  await told(b, ['bon-pour-le-service'])
   const opened = next(b, 'arena:lobby', (m) => m.rooms[0].members.length === 1)
   a.emit('arena:join', { room: 1, character: 'betty' })
   const room = (await opened).rooms[0]

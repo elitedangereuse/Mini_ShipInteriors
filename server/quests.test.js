@@ -11,8 +11,9 @@ import { cookieValue } from './cmdr.js'
 import { attachRelay, WS_PATH } from './relay.js'
 import { fetchQuestsDone } from './site.js'
 import {
-  knownQuests, QUEST_ROOMS, QUEST_UNLOCKS, questAdvance, questAvailable, questById, questFlag, questOfRoom, QUESTS, questsOpenedBy, questStarted, stepComplete,
+  arenaCharacters, characterQuest, knownQuests, QUEST_ROOMS, QUEST_UNLOCKS, questAdvance, questAvailable, questById, questFlag, questOfRoom, QUESTS, questsOpenedBy, questStarted, stepComplete,
 } from '../shared/quests.js'
+import { CHARACTER_IDS } from '../shared/arena.js'
 import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import { DIRS, ShipMap } from '../shared/ship-map.js'
 
@@ -49,13 +50,16 @@ test('une quête peut en attendre d\'autres : elles existent, sans boucle, et s\
     for (const q of QUESTS) if (questAvailable(q, done)) done.add(q.id)
   }
   assert.equal(done.size, QUESTS.length)
-  // Celles du début n'attendent rien ; les autres attendent d'avoir fait leurs preuves.
-  assert.ok(questAvailable(questById('gamelle-vide'), []))
+  // Seule la première recrue de l'arène n'attend rien ; les histoires du bord attendent la leur.
+  assert.deepEqual(QUESTS.filter((q) => questAvailable(q, [])).map((q) => q.id), ['bon-pour-le-service', 'scavengers'])
+  assert.equal(questAvailable(questById('gamelle-vide'), ['bon-pour-le-service']), false)
+  assert.ok(questAvailable(questById('gamelle-vide'), ['bon-pour-le-service', 'calibrage']))
   const garde = questById('tour-de-garde')
   assert.equal(questAvailable(garde, []), false)
   assert.equal(questAvailable(garde, ['permis-de-tir', 'dernier-match']), false)
   assert.equal(questAvailable(garde, new Set(['permis-de-tir', 'dernier-match', 'dossier-aria'])), true)
-  assert.deepEqual(questsOpenedBy('gamelle-vide', ['gamelle-vide']), ['recette-de-jacques'])
+  assert.deepEqual(questsOpenedBy('gamelle-vide', ['gamelle-vide']), [])
+  assert.deepEqual(questsOpenedBy('dernier-verre', ['gamelle-vide', 'dernier-verre']), ['recette-de-jacques'])
   // La séance de minuit en attend deux : la première terminée ne suffit pas.
   assert.deepEqual(questsOpenedBy('essayage', ['essayage']), [])
   assert.deepEqual(questsOpenedBy('essayage', ['essayage', 'frequence-fantome']), ['seance-de-minuit'])
@@ -117,6 +121,17 @@ test('les pièces fermées par une quête existent, et toutes leurs portes donne
   assert.equal(questOfRoom(0, 'c'), null)
   assert.equal(questOfRoom(2, 'r'), null)
   assert.equal(questOfRoom(-1, null), null)
+})
+
+test('chaque personnage de CMDR Arena s\'ouvre par une quête, et une seule', () => {
+  for (const c of CHARACTER_IDS) assert.equal(QUESTS.filter((q) => q.character === c).length, 1, c)
+  for (const q of QUESTS) if (q.character) assert.ok(CHARACTER_IDS.includes(q.character), q.id)
+  assert.equal(characterQuest('rourke'), 'bon-pour-le-service')
+  assert.equal(characterQuest('personne'), null)
+  assert.deepEqual(arenaCharacters([]), [])
+  assert.deepEqual(arenaCharacters(new Set(['bon-pour-le-service', 'gamelle-vide', 'dernier-verre'])), ['rourke', 'jacques'])
+  // La recrue du sergent ouvre toutes les autres.
+  assert.deepEqual(questsOpenedBy('bon-pour-le-service', ['bon-pour-le-service']).filter((id) => questById(id).character).map((id) => questById(id).character).sort(), ['betty', 'capucine', 'jacques', 'marcel', 'nico'])
 })
 
 test('le site suit les mêmes quêtes, aux mêmes étapes et aux mêmes récompenses (phputils/mini_shipinteriors/quest_list.php)', (t) => {

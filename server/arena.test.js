@@ -164,6 +164,27 @@ test('arène : le site gardien se joue sur deux hauteurs, au-dessus du gouffre',
   assert.ok(!castArena(zone, { x: 2, y: R.aim, z: 7 }, east, 30, [{ id: 6, x: 20, z: 7 }]).body)
 })
 
+test('arène : on ne prend que les personnages que ses quêtes ont ouverts', () => {
+  const open = new Map([[1, []], [2, ['marcel', 'betty']]])
+  const h = harness({ unlocked: (p) => open.get(p.id) ?? [] })
+  const a = h.add(1), b = h.add(2)
+  // Aucun personnage : pas de lobby.
+  h.arena.handle(a, 'arena:join', { room: 1, character: 'rourke' })
+  assert.equal(h.last(1, 'arena:error').code, 'locked')
+  assert.equal(h.arena.snapshot().rooms[0].members.length, 0)
+  // Un personnage fermé demandé : le premier ouvert à la place.
+  h.arena.handle(b, 'arena:join', { room: 1, character: 'nico' })
+  assert.equal(h.lobby().rooms[0].members[0].character, 'marcel')
+  h.arena.handle(b, 'arena:character', { character: 'jacques' })
+  assert.equal(h.last(2, 'arena:error').code, 'locked')
+  h.arena.handle(b, 'arena:character', { character: 'betty' })
+  assert.equal(h.lobby().rooms[0].members[0].character, 'betty')
+  // Sa quête terminée, le personnage s'ouvre.
+  open.set(1, ['rourke'])
+  h.arena.handle(a, 'arena:join', { room: 1 })
+  assert.equal(h.lobby().rooms[0].members.find((m) => m.id === 1).character, 'rourke')
+})
+
 test('arène : le chef choisit le plan ; la partie s\'y joue, et le relais n\'accepte que son sol', () => {
   const h = harness()
   const a = h.add(1), b = h.add(2)

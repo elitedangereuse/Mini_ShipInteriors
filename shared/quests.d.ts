@@ -14,6 +14,8 @@ export interface QuestDef {
   /** Pièce fermée tant que la quête n'est pas terminée. */
   room?: { level: number; room: string }
   reward?: QuestReward
+  /** Le personnage de CMDR Arena qu'elle ouvre. */
+  character?: string
 }
 
 /** Où en est un joueur : étape en cours, éléments réunis (un bit chacun), quête terminée. */
@@ -29,6 +31,10 @@ export declare function questById(id: unknown): QuestDef | undefined
 export declare function questAvailable(def: QuestDef, done: Iterable<string>): boolean
 /** Quêtes que la fin de `id` rend disponibles, pour qui a terminé `done` (elle comprise). */
 export declare function questsOpenedBy(id: string, done: Iterable<string>): string[]
+/** Quête qui ouvre le personnage `character` à CMDR Arena, ou null. */
+export declare function characterQuest(character: string): string | null
+/** Personnages de CMDR Arena ouverts à qui a terminé les quêtes `done`. */
+export declare function arenaCharacters(done: Iterable<string>): string[]
 /** Pièces fermées tant que leur quête n'est pas terminée. */
 export declare const QUEST_ROOMS: { quest: string; level: number; room: string }[]
 /** Quête qui ouvre la pièce `room` du pont `level`, ou null si elle est ouverte à tous. */

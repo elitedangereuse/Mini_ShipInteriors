@@ -2,11 +2,11 @@ import { tr } from '../i18n'
 import { icon } from '../icons'
 import type { ArenaCharacterStats, ArenaEnd, ArenaLobby, ArenaRoom, ArenaStats } from '../net'
 import { button, el, Modal } from '../salvage/ui'
-import { ARENA_MAPS, ARENA_RULES, ARENA_TEAMS, DEFAULT_CHARACTER, arenaMap, arenaZone, type ArenaMapId, type CharacterId } from '../../shared/arena.js'
+import { ARENA_MAPS, ARENA_RULES, ARENA_TEAMS, CHARACTER_IDS, DEFAULT_CHARACTER, arenaMap, arenaZone, type ArenaMapId, type CharacterId } from '../../shared/arena.js'
 import { CHARACTERS, characterById, type Character } from './characters'
 import { arrow, moveFocus } from './nav'
 import { loadPortraits } from './portraits'
-import { CharacterPicker, faceOf } from './select'
+import { CharacterPicker, faceOf, type CharacterLocks } from './select'
 import { arenaFx } from './settings'
 
 /*
@@ -109,10 +109,10 @@ export class ArenaPanel extends Modal {
   private readonly hints = el('p', 'arena-hints')
   private controls: PanelControls = 'keyboard'
 
-  constructor(private actions: ArenaPanelActions) {
+  constructor(private actions: ArenaPanelActions, private locks: CharacterLocks) {
     super(tr('CMDR ARENA · INSCRIPTIONS', 'CMDR ARENA · SIGN-UP'), tr('Duel par équipes', 'Team duel'))
     this.root.classList.add('arena-panel')
-    this.picker = new CharacterPicker(this._character, (id) => this.pick(id))
+    this.picker = new CharacterPicker(this._character, (id) => this.pick(id), locks)
     // Les visages arrivent : les équipes les montrent aussi.
     this.picker.onFaces = () => { if (this.isOpen) this.render() }
     // Sous le titre, les commandes du clavier ou de la manette.
@@ -143,6 +143,12 @@ export class ArenaPanel extends Modal {
   set character(id: CharacterId) {
     this._character = id
     this.picker.set(id)
+  }
+
+  /** Un personnage vient de s'ouvrir : les cadenas et l'accueil suivent. */
+  refreshLocks() {
+    this.picker.refresh()
+    if (this.isOpen) this.render()
   }
 
   open() {
@@ -298,6 +304,15 @@ export class ArenaPanel extends Modal {
         `Two teams, up to ${ARENA_RULES.team} vs ${ARENA_RULES.team}, in the bay's stadium, deep in a Thargoid hive or among the ruins of a Guardian site. Everyone plays a crew member, with their own weapon and style. Solo against the bots, or with whoever plays with you: they fill the teams. Best of ${ARENA_RULES.rounds} rounds.`,
       )),
     )
+    // Personne d'ouvert : l'équipage prête ses traits à qui l'a aidé ; le sergent d'abord.
+    if (!CHARACTER_IDS.some((id) => this.locks.open(id))) {
+      const lock = el('p', 'arena-hero-lock')
+      lock.append(icon('lock-simple'), el('span', '', tr(
+        'Tous les personnages sont verrouillés : chacun s\'ouvre par une quête de l\'équipage. Le sergent Rourke recrute, sur le pont principal.',
+        'Every character is locked: each one opens with a quest from the crew. Sergeant Rourke is recruiting, on the main deck.',
+      )))
+      hero.append(lock)
+    }
     const [teams, mine, match] = this.columns(stage)
     teams.append(hero)
     mine.append(el('span', 'arena-heading', tr('Votre personnage', 'Your character')), this.picker.root)
@@ -901,7 +916,7 @@ export class ArenaHud {
    * @param title le verdict d'un spectateur (« Victoire de l'équipe Orange ») : pour lui, ni victoire ni défaite
    * @param next le personnage du joueur pour la partie suivante, et quoi faire s'il en change (pas pour un spectateur)
    */
-  showEnd(r: ArenaEnd, team: number, self: number, order: number[], onBack: () => void, title?: string, next?: { character: CharacterId; pick(id: CharacterId): void }) {
+  showEnd(r: ArenaEnd, team: number, self: number, order: number[], onBack: () => void, title?: string, next?: { character: CharacterId; pick(id: CharacterId): void; open(id: CharacterId): boolean }) {
     this.end.replaceChildren()
     this.cards.clear()
     this.quit.hidden = true
@@ -1018,7 +1033,7 @@ export class ArenaHud {
   }
 
   /** Le personnage de la partie suivante : six visages ; le choisi ressort. */
-  private nextPick(next: { character: CharacterId; pick(id: CharacterId): void }): HTMLElement {
+  private nextPick(next: { character: CharacterId; pick(id: CharacterId): void; open(id: CharacterId): boolean }): HTMLElement {
     const box = el('nav', 'arena-next')
     box.setAttribute('aria-label', tr('Personnage pour la partie suivante', 'Character for the next match'))
     box.append(el('span', 'arena-next-label', tr('Partie suivante', 'Next match')))
@@ -1034,6 +1049,8 @@ export class ArenaHud {
         next.pick(c.id)
         draw(c.id)
       }, 'arena-next-pick')
+      // Un personnage que ses quêtes n'ont pas ouvert ne se prend pas pour la suivante non plus.
+      b.disabled = !next.open(c.id)
       b.dataset.key = `next-${c.id}`
       b.title = c.name
       b.setAttribute('aria-label', tr(`Jouer ${c.name} à la partie suivante`, `Play ${c.name} next match`))

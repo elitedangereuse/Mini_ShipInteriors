@@ -19,6 +19,7 @@ import {
   type ArenaMapId, type ArenaZone, type CharacterId,
 } from '../../shared/arena.js'
 import { characterById, Drone, warmCharacters } from './characters'
+import type { CharacterLocks } from './select'
 import { arenaExtras, arenaLevel, type ArenaExtras } from './deck'
 import { ArenaGun, type ArenaBody } from './gun'
 import { guardianExtras, guardianLevel } from './guardian'
@@ -166,6 +167,8 @@ export interface ArenaHost {
   armed(gun: ArenaGun): void
   /** Ce que le joueur tient en main : clavier et souris, manette, ou le doigt. */
   controls(): PanelControls
+  /** Les personnages que ses quêtes lui ont ouverts (cf. CharacterLocks). */
+  locks: CharacterLocks
 }
 
 interface Fighter extends ArenaFighter {
@@ -239,6 +242,7 @@ const ERRORS: Record<string, string> = {
   leader: tr('Seul le chef du lobby règle la partie.', 'Only the lobby leader sets the match.'),
   crowded: tr('Trop de monde dans un camp pour ce format.', 'Too many players on one side for that format.'),
   alone: tr('Sans bots, il faut quelqu\'un dans le camp d\'en face.', 'Without bots, someone has to be on the other side.'),
+  locked: tr('Personnage verrouillé : chacun s\'ouvre par une quête de l\'équipage. Le sergent Rourke recrute, sur le pont principal.', 'Character locked: each one opens with a quest from the crew. Sergeant Rourke is recruiting, on the main deck.'),
 }
 /** Pourquoi une partie n'a pas été notée au classement. */
 const UNRANKED: Record<string, string> = {
@@ -314,7 +318,8 @@ export class ArenaClient {
     } catch {}
     this.panel = new ArenaPanel({
       join: (room, team) => {
-        host.net.sendArena('join', { room, team, character: this.character })
+        // Le relais prend le premier personnage ouvert si celui-là ne l'est pas, ou refuse s'il n'y en a aucun.
+        host.net.sendArena('join', { room, team, character: this.playable() ?? this.character })
         void loadZoneKit()
         warmCharacters()
       },
@@ -327,8 +332,8 @@ export class ArenaClient {
         host.net.sendArena('ready', { ready: on })
         if (on) void loadZoneKit()
       },
-    })
-    this.panel.character = this.character
+    }, host.locks)
+    this.panel.character = this.playable() ?? this.character
     this.hud.onQuit = () => this.quit()
     this.hud.onFollow = (step) => this.cycle(step)
     this.ranking.onLoaded = (r) => this.showRanks(r)
@@ -510,6 +515,19 @@ export class ArenaClient {
       localStorage.setItem(CHARACTER_KEY, id)
     } catch {}
     this.nextCharacter = true
+  }
+
+  /** Celui qu'on a choisi s'il est ouvert, sinon le premier qui l'est ; null : aucun encore. */
+  private playable(): CharacterId | null {
+    if (this.host.locks.open(this.character)) return this.character
+    return (CHARACTER_IDS as CharacterId[]).find((id) => this.host.locks.open(id)) ?? null
+  }
+
+  /** Une quête vient d'ouvrir un personnage : le terminal le montre, et on le prend si l'on n'en avait aucun. */
+  refreshLocks() {
+    const pick = this.playable()
+    if (pick && pick !== this.character) this.character = this.panel.character = pick
+    this.panel.refreshLocks()
   }
 
   /** Le personnage choisi au terminal (on le garde ensuite toute la partie). */
@@ -1348,7 +1366,7 @@ export class ArenaClient {
     this.hud.showEnd(r, g.team, self, entries.map((e) => e.id), () => {
       this.endTimer = 0
       void this.leave()
-    }, g.watching ? verdict : undefined, g.watching ? undefined : { character: this.character, pick: (id) => this.chooseNext(id) })
+    }, g.watching ? verdict : undefined, g.watching ? undefined : { character: this.character, pick: (id) => this.chooseNext(id), open: (id) => this.host.locks.open(id) })
     // Le site a pu répondre avant le lever de rideau.
     const ranked = this.rankedAs
     if (ranked?.game === r.game) this.hud.ranked(ranked.ok ? tr('Partie comptée au classement', 'Match counted in the ranking') : UNRANKED[ranked.reason ?? 'site'], ranked.ok)

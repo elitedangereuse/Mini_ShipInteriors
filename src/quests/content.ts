@@ -7,6 +7,7 @@ import { NURSE } from '../nurse'
 import { SERGEANT } from '../patrol'
 import type { QuestState } from '../../shared/quests.js'
 import type { Line } from './cinematic'
+import { ARENA_QUESTS } from './content-arena'
 import { MORE_QUESTS } from './content-more'
 
 /*
@@ -156,6 +157,8 @@ const either = (...whens: When[]): When => (s) => whens.some((w) => w(s))
 // ---------------------------------------------------------------- les quêtes
 
 export const QUEST_CONTENT: QuestContent[] = [
+  // Les recrues de CMDR Arena d'abord : elles ouvrent tout le reste (cf. content-arena.ts).
+  ...ARENA_QUESTS,
   // ============================================================ La gamelle vide
   {
     id: 'gamelle-vide',

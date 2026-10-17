@@ -82,7 +82,7 @@ import { createCinema } from './cinema.js'
 import { BAR_ROOM, BOARD_TABLES, CLUB_ROOM, SHIP_LAYOUTS, isAlienLook, shipMapOptions } from '../shared/ship-layouts.js'
 import { TOILET_ROOM, VENT_LAYOUT, VENT_LEVEL, atVentGrate } from '../shared/vents.js'
 import { TUTORIAL_LAYOUT, TUTORIAL_LEVEL } from '../shared/tutorial.js'
-import { knownQuests, questOfRoom } from '../shared/quests.js'
+import { arenaCharacters, knownQuests, questOfRoom } from '../shared/quests.js'
 import { DIRS, ShipMap } from '../shared/ship-map.js'
 import { applyPlot, HOUSING_LEVEL, PLOT_DOOR, PLOT_ORIGIN } from '../shared/housing-plot.js'
 import { applyWalls, unpackHome } from '../shared/housing-home.js'
@@ -531,6 +531,8 @@ export function attachRelay(
     debug: devCmdr,
     // Les statistiques des personnages : dans ce fichier s'il est donné (ARENA_STATS_FILE), sinon en mémoire.
     stats: createArenaStats({ file: arenaStatsFile, error }),
+    // Chaque personnage s'ouvre par sa quête (cf. shared/quests.js) : celles que le relais connaît du joueur.
+    unlocked: (p) => arenaCharacters(p.quests ?? []),
   })
   httpServer.on('close', () => arena.flushStats())
   const arenaTimer = setInterval(() => arena.tick(0.05), 50)

@@ -1078,6 +1078,32 @@ kbd .icon {
   color: var(--muted);
   font-size: 12px;
 }
+/* Un personnage débloqué à CMDR Arena : son visage à gauche, aux couleurs de sa fiche au terminal. */
+.quest-toast.unlock {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 20px 10px 12px;
+  border-color: color-mix(in srgb, var(--char) 70%, transparent);
+  background: linear-gradient(100deg, color-mix(in srgb, var(--char) 26%, #11141a) 0%, rgba(16, 18, 24, 0.94) 55%);
+  box-shadow: 0 0 34px color-mix(in srgb, var(--char) 30%, transparent);
+  text-align: left;
+}
+.quest-toast.unlock .arena-face {
+  flex: none;
+  width: 58px;
+  height: 58px;
+  box-shadow: inset 0 0 0 2px var(--char), 0 0 16px color-mix(in srgb, var(--char) 50%, transparent);
+  animation: quest-unlock-face 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.4);
+}
+.quest-toast.unlock .quest-toast-kicker {
+  color: var(--char);
+}
+@keyframes quest-unlock-face {
+  from {
+    transform: scale(0.4) rotate(-12deg);
+  }
+}
 @keyframes quest-toast-in {
   from {
     opacity: 0;
@@ -5454,6 +5480,16 @@ body.gardening #emotes { display: none; }
 .arena-face img { width: 100%; height: 100%; object-fit: cover; }
 .arena-face .icon { width: 44%; height: 44%; }
 .arena-char.on .arena-face { box-shadow: inset 0 0 0 2px var(--char), 0 0 14px color-mix(in srgb, var(--char) 45%, transparent); }
+/* Un personnage que ses quêtes n'ont pas encore ouvert : son visage éteint, un cadenas ; on lit sa fiche, sans le prendre. */
+.arena-char-lock { position: absolute; top: 6px; right: 6px; display: none; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #2a2f3a; color: #ffd23f; }
+.arena-char-lock .icon { width: 12px; height: 12px; }
+.arena-char.locked .arena-char-lock { display: grid; }
+.arena-char.locked .arena-face { filter: grayscale(1) brightness(.55); }
+.arena-char.locked strong, .arena-char.locked .arena-char-role, .arena-char.locked .arena-diff { opacity: .55; }
+.arena-panel .arena-char.viewed { border-style: dashed; border-color: var(--char); }
+.arena-pick-lock { display: flex; align-items: center; gap: 8px; margin: 0; padding: 7px 10px; border: 1px solid #ffd23f55; border-radius: 8px; background: #ffd23f12; color: #ffe27a; font-size: 12.5px; line-height: 1.35; }
+.arena-pick-lock .icon, .arena-hero-lock .icon { flex: none; width: 15px; height: 15px; }
+.arena-hero-lock { display: flex; align-items: flex-start; gap: 8px; margin: 4px 0 0; color: #ffe27a !important; }
 .arena-face.small { width: 40px; height: 40px; }
 .arena-face.mini { width: 30px; height: 30px; }
 /* La difficulté : trois crans. */
@@ -5766,6 +5802,8 @@ body.arena-end-on .arena-hud > :not(.arena-count), body.arena-end-on :is(.top-le
 .arena-next-pick:hover { border-color: color-mix(in srgb, var(--char) 60%, transparent); }
 .arena-next-pick.on { border-color: var(--char); box-shadow: 0 0 10px color-mix(in srgb, var(--char) 55%, transparent); }
 .arena-next-pick:not(.on) .arena-face { filter: saturate(.55) brightness(.8); }
+.arena-next-pick:disabled { cursor: default; }
+.arena-next-pick:disabled .arena-face { filter: grayscale(1) brightness(.45); }
 /* Le joueur star : sa fiche est dorée, et le dit dessous. */
 .arena-card.star { border-color: #ffd23f; border-top-color: var(--tint); }
 .arena-star { position: absolute; left: 50%; top: 100%; transform: translate(-50%, -5px); padding: 2px 8px; border: 2px solid #0b0d12; border-radius: 999px; background: #ffd23f; color: #1a1304; font-size: 10px; font-weight: 900; white-space: nowrap; }

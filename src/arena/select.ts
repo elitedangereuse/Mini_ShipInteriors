@@ -22,6 +22,16 @@ import { DIFFICULTY } from './roster'
 
 const SHEET_KEY = 'mini-shipinteriors-arena-sheet'
 
+/**
+ * Les personnages ouverts au joueur : chacun s'ouvre par sa quête (cf. `character` dans
+ * shared/quests.js). Un personnage fermé se regarde (sa fiche, sa démonstration), mais ne se prend pas.
+ */
+export interface CharacterLocks {
+  open(id: CharacterId): boolean
+  /** Le titre de la quête qui l'ouvre. */
+  quest(id: CharacterId): string | null
+}
+
 /** Un nombre, à la française (virgule) ou à l'anglaise. */
 const num = (n: number) => tr(String(n).replace('.', ','), String(n))
 const pct = (u: number) => `${Math.round(Math.max(0.04, Math.min(1, u)) * 100)}%`
@@ -66,6 +76,8 @@ export class CharacterPicker {
   private readonly sheet = el('article', 'arena-pick')
   private readonly demo = new AttackDemo()
   private current: CharacterId
+  /** Le personnage dont on lit la fiche : celui qu'on a pris, ou un fermé qu'on regarde. */
+  private shown: CharacterId
   /** La fiche détaillée est dépliée ; on y compare avec ce personnage (null : personne). */
   private details = false
   private compare: CharacterId | null = null
@@ -73,8 +85,8 @@ export class CharacterPicker {
   onFaces?: () => void
   private facing = false
 
-  constructor(current: CharacterId, private onPick: (id: CharacterId) => void) {
-    this.current = current
+  constructor(current: CharacterId, private onPick: (id: CharacterId) => void, private locks: CharacterLocks) {
+    this.current = this.shown = current
     try {
       const saved = JSON.parse(localStorage.getItem(SHEET_KEY) ?? '{}') as { details?: unknown; compare?: unknown }
       this.details = saved.details === true
@@ -94,7 +106,10 @@ export class CharacterPicker {
       // Au clavier, les chiffres choisissent (cf. ArenaPanel) : on le rappelle dans un coin.
       const key = el('kbd', 'arena-char-key', String(i + 1))
       key.setAttribute('aria-hidden', 'true')
-      b.append(faceOf(c), el('strong', '', c.name), el('span', 'arena-char-role', c.role), difficulty(c), check, key)
+      const lock = el('span', 'arena-char-lock')
+      lock.append(icon('lock-simple'))
+      lock.setAttribute('aria-hidden', 'true')
+      b.append(faceOf(c), el('strong', '', c.name), el('span', 'arena-char-role', c.role), difficulty(c), check, lock, key)
       this.cards.set(c.id, b)
       grid.append(b)
     })
@@ -120,13 +135,18 @@ export class CharacterPicker {
   /** Le personnage choisi a changé (le relais, ou ce panneau) : la carte et la fiche suivent. */
   set(id: CharacterId) {
     if (id === this.current) return
-    this.current = id
+    this.current = this.shown = id
+    this.render()
+  }
+
+  /** Un personnage vient de s'ouvrir (une quête terminée) : les cadenas suivent. */
+  refresh() {
     this.render()
   }
 
   /** Le personnage d'avant ou d'après (LB, RB à la manette). */
   cycle(step: number) {
-    const i = CHARACTER_IDS.indexOf(this.current)
+    const i = CHARACTER_IDS.indexOf(this.shown)
     const next = CHARACTER_IDS[(i + step + CHARACTER_IDS.length) % CHARACTER_IDS.length] as CharacterId
     this.pick(next)
     this.cards.get(next)?.focus({ preventScroll: true })
@@ -165,7 +185,9 @@ export class CharacterPicker {
   }
 
   private pick(id: CharacterId) {
-    if (id !== this.current) {
+    this.shown = id
+    // Fermé : on lit sa fiche, et ce qui l'ouvre ; on garde celui qu'on avait.
+    if (id !== this.current && this.locks.open(id)) {
       // Choisir celui qu'on comparait : on compare alors avec celui qu'on quitte.
       if (this.compare === id) this.compare = this.current
       this.current = id
@@ -184,8 +206,8 @@ export class CharacterPicker {
   /** « Comparer » : la fiche détaillée s'ouvre, avec le dernier comparé ou le suivant. */
   private startCompare() {
     this.details = true
-    if (!this.compare || this.compare === this.current) {
-      const i = CHARACTER_IDS.indexOf(this.current)
+    if (!this.compare || this.compare === this.shown) {
+      const i = CHARACTER_IDS.indexOf(this.shown)
       this.compare = CHARACTER_IDS[(i + 1) % CHARACTER_IDS.length] as CharacterId
     }
     this.save()
@@ -203,11 +225,15 @@ export class CharacterPicker {
     // Ce qui avait le focus dans la fiche le retrouve une fois refaite.
     const active = document.activeElement
     const focused = active instanceof HTMLElement && this.sheet.contains(active) ? active.dataset.key : undefined
-    const c = characterById(this.current)
+    const c = characterById(this.shown)
     for (const [id, b] of this.cards) {
-      const on = id === this.current
+      const open = this.locks.open(id)
+      const on = id === this.current && open
       b.classList.toggle('on', on)
+      b.classList.toggle('locked', !open)
+      b.classList.toggle('viewed', id === this.shown && !on)
       b.setAttribute('aria-checked', String(on))
+      b.setAttribute('aria-label', open ? `${characterById(id).name}, ${characterById(id).role}` : tr(`${characterById(id).name}, verrouillé`, `${characterById(id).name}, locked`))
     }
     this.sheet.style.setProperty('--char', c.color)
     const text = el('div', 'arena-pick-text')
@@ -224,7 +250,17 @@ export class CharacterPicker {
     const cmp = button(tr('Comparer', 'Compare'), () => this.startCompare(), 'arena-compare-start', 'arrows-left-right')
     cmp.dataset.key = 'compare'
     tools.append(more, cmp)
-    text.append(head, el('p', 'arena-pick-style', c.style), traits, tools)
+    text.append(head)
+    if (!this.locks.open(c.id)) {
+      // Fermé : la quête qui l'ouvre, à la place de « choisir ».
+      const quest = this.locks.quest(c.id)
+      const lock = el('p', 'arena-pick-lock')
+      lock.append(icon('lock-simple'), el('span', '', quest
+        ? tr(`Verrouillé : terminez la quête « ${quest} » pour le jouer.`, `Locked: complete the quest “${quest}” to play this character.`)
+        : tr('Verrouillé.', 'Locked.')))
+      text.append(lock)
+    }
+    text.append(el('p', 'arena-pick-style', c.style), traits, tools)
     this.demo.show(c.id, c.name)
     const top = el('div', 'arena-pick-top')
     top.append(text, this.demo.root)
@@ -288,7 +324,7 @@ export class CharacterPicker {
       b.append(faceOf(o, 'arena-face small'))
       row.append(b)
     }
-    if (other) {
+    if (other && this.locks.open(other.id)) {
       const take = button(tr(`Choisir ${other.name}`, `Pick ${other.name}`), () => this.pick(other.id), 'arena-take', 'check')
       take.dataset.key = 'take'
       take.style.setProperty('--char', other.color)

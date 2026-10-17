@@ -418,7 +418,130 @@ const beatMark: Builder = () => {
   return { live: decal(texture, 0.5, 0.5, 0.012) }
 }
 
+// ---------------------------------------------------------------- Les recrues de CMDR Arena
+
+/**
+ * La balise de calibrage du poste de pilotage : un trépied, une tête ronde, un bouton rouge et un
+ * anneau cyan qui tourne en attendant qu'on l'allume.
+ */
+const beacon: Builder = () => {
+  const g = new THREE.Group()
+  const live = new THREE.Group()
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2
+    const leg = cylinder(0.008, 0.01, 0.46, lit(C.steelDark, 'metal'), Math.cos(a) * 0.09, 0.22, Math.sin(a) * 0.09, 6)
+    leg.rotation.set(Math.sin(a) * 0.38, 0, -Math.cos(a) * 0.38)
+    g.add(leg)
+  }
+  g.add(cylinder(0.07, 0.08, 0.1, lit('#3a414d', 'metal'), 0, 0.48, 0, 14), sphere(0.05, lit(C.steel, 'metal'), 0, 0.55, 0, 12))
+  g.add(cylinder(0.014, 0.014, 0.012, lit(C.red), 0, 0.47, 0.078, 10))
+  g.children.at(-1)!.rotation.x = Math.PI / 2
+  const ring = new THREE.Group()
+  ring.position.y = 0.6
+  const halo = part(new THREE.TorusGeometry(0.075, 0.006, 6, 24), glow(C.cyan))
+  halo.rotation.x = Math.PI / 2
+  const dot = part(new THREE.SphereGeometry(0.012, 8, 6), glow('#e6fbff'), 0.075, 0, 0)
+  ring.add(halo, dot)
+  live.add(ring)
+  return { solid: g, live, update: (t) => (ring.rotation.y = t * 2.4) }
+}
+
+/**
+ * Une pousse carnivore échappée de la serre : sa motte de terre, une tige, et une tête à deux
+ * mâchoires dentées qui claquent dans le vide.
+ */
+const sprout: Builder = ({ random }) => {
+  const g = new THREE.Group()
+  const live = new THREE.Group()
+  const clod = sphere(0.1, lit('#4a3322'), 0, 0.02, 0, 10)
+  clod.scale.set(1, 0.4, 1)
+  g.add(clod)
+  for (let i = 0; i < 3; i++) {
+    const a = random() * Math.PI * 2
+    const leaf = sphere(0.045, lit('#4fae3e'), Math.cos(a) * 0.06, 0.05, Math.sin(a) * 0.06, 6)
+    leaf.scale.set(1.4, 0.25, 0.6)
+    leaf.rotation.y = -a
+    g.add(leaf)
+  }
+  g.add(cylinder(0.012, 0.016, 0.2, lit('#3f8f34'), 0, 0.13, 0, 6))
+  // La tête, tournée vers +z : deux demi-sphères qui s'ouvrent et se ferment.
+  const head = new THREE.Group()
+  head.position.set(0, 0.25, 0.02)
+  const jaw = (up: boolean) => {
+    const j = new THREE.Group()
+    const shell = part(new THREE.SphereGeometry(0.065, 12, 6, 0, Math.PI * 2, up ? 0 : Math.PI / 2, Math.PI / 2), lit(up ? '#8ad94a' : '#6fbf3a'))
+    j.add(shell)
+    for (let i = 0; i < 5; i++) {
+      const a = -Math.PI / 2 + (i / 4) * Math.PI
+      const tooth = part(new THREE.ConeGeometry(0.008, 0.022, 4), lit(C.cream), Math.sin(a) * 0.055, up ? -0.008 : 0.008, Math.cos(a) * 0.055)
+      if (up) tooth.rotation.x = Math.PI
+      j.add(tooth)
+    }
+    return j
+  }
+  const top = jaw(true), bottom = jaw(false)
+  head.add(top, bottom)
+  live.add(head)
+  const phase = random() * 6
+  return {
+    solid: g, live,
+    update: (t) => {
+      // Elle claque deux fois, puis guette.
+      const k = (t * 1.3 + phase) % 3
+      const open = k < 1 ? Math.abs(Math.sin(k * Math.PI * 2)) * 0.6 : 0.12
+      top.rotation.x = -open
+      bottom.rotation.x = open * 0.4
+      head.rotation.y = Math.sin(t * 0.7 + phase) * 0.5
+    },
+  }
+}
+
+/** L'ardoise de Chez Jacques, sur son chevalet : le nom du bar, le cocktail du jour, et un indice. */
+const slate: Builder = () => {
+  const board = drawnTexture(128, 176, (c) => {
+    c.fillStyle = '#1d2420'
+    c.fillRect(0, 0, 128, 176)
+    c.fillStyle = 'rgba(240, 240, 230, 0.92)'
+    c.textAlign = 'center'
+    c.font = 'bold 17px serif'
+    c.fillText('CHEZ', 64, 28)
+    c.fillText('JACQUES', 64, 48)
+    c.font = 'italic 11px serif'
+    c.fillText('cocktail du jour :', 64, 74)
+    c.font = 'bold 13px serif'
+    c.fillText('SURPRISE', 64, 90)
+    // Un verre à cocktail, à la craie.
+    c.strokeStyle = 'rgba(240, 240, 230, 0.85)'
+    c.lineWidth = 2
+    c.beginPath(); c.moveTo(46, 104); c.lineTo(82, 104); c.lineTo(64, 124); c.closePath(); c.stroke()
+    c.beginPath(); c.moveTo(64, 124); c.lineTo(64, 140); c.moveTo(54, 141); c.lineTo(74, 141); c.stroke()
+    c.fillStyle = '#b6ff3a'
+    c.beginPath(); c.arc(76, 100, 4, 0, Math.PI * 2); c.fill()
+    c.fillStyle = 'rgba(240, 240, 230, 0.7)'
+    c.font = 'italic 9px serif'
+    c.fillText('entrée : là où personne', 64, 158)
+    c.fillText('ne passe', 64, 169)
+  })
+  const g = new THREE.Group()
+  const wood = lit(C.wood)
+  // Deux panneaux en A, le dos contre le devant ; la face écrite regarde +z.
+  for (const s of [1, -1]) {
+    const leaf = new THREE.Group()
+    leaf.position.set(0, 0, s * 0.11)
+    leaf.rotation.x = s * -0.2
+    leaf.add(box(0.36, 0.56, 0.02, wood, 0, 0.29, 0, 0.006))
+    if (s > 0) leaf.add(part(new THREE.PlaneGeometry(0.31, 0.48), new THREE.MeshLambertMaterial({ map: board }), 0, 0.3, 0.012))
+    else leaf.add(box(0.31, 0.48, 0.004, lit('#1d2420'), 0, 0.3, -0.012))
+    g.add(leaf)
+  }
+  g.add(barX(0.006, 0.34, lit(C.steelDark, 'metal'), 0, 0.2, 0, 6))
+  return { solid: g }
+}
+
 export const QUEST_REWARDS = {
+  'quest-beacon': beacon,
+  'quest-sprout': sprout,
+  'quest-slate': slate,
   'quest-headset': headset,
   'quest-logbook': logbook,
   'quest-relay': relay,

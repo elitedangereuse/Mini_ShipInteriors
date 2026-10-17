@@ -126,6 +126,7 @@ import { PlanetariumShow } from './planetarium'
 import { Vents } from './vents'
 import { BAR_DROP, TOILET_ROOM, VENT_DROP } from '../shared/vents.js'
 import { SalvageClient } from './salvage/client'
+import { characterById, type Character } from './arena/characters'
 import { ArenaClient } from './arena/client'
 import { MessRushClient } from './mess-rush/client'
 import { MessLobbyMusic, MessServiceMusic } from './mess-rush/music'
@@ -134,7 +135,9 @@ import { MESS_LEVEL } from '../shared/mess-rush.js'
 import { DINERS_ROOM } from '../shared/diners.js'
 import { STAGE_AZIMUTH, STAGE_ELEVATION } from './arena/podium'
 import { ArenaLobbyMusic } from './arena/music'
-import { ARENA_LEVEL, ARENA_LOBBY } from '../shared/arena.js'
+import { loadPortraits } from './arena/portraits'
+import { faceOf } from './arena/select'
+import { ARENA_LEVEL, ARENA_LOBBY, type CharacterId } from '../shared/arena.js'
 import { LOBBY as SALVAGE_LOBBY, LOBBY_RETURN, ZONE_LEVEL } from '../shared/salvage.js'
 import { SalvageLobbyMusic } from './salvage/music'
 import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel, type ScreenBox } from './ui'
@@ -148,7 +151,7 @@ import { GHOST_FISH_EVENT } from './quests/content-more'
 import { QuestJournal, QuestToasts } from './quests/journal'
 import { QuestStore } from './quests/store'
 import { QuestWorld, type QuestEvent } from './quests/world'
-import { QUEST_REELS, QUEST_ROOMS, QUEST_UNLOCKS, questById, questOfRoom, questsOpenedBy } from '../shared/quests.js'
+import { arenaCharacters, characterQuest, QUEST_REELS, QUEST_ROOMS, QUEST_UNLOCKS, questById, questOfRoom, questsOpenedBy } from '../shared/quests.js'
 
 // ------------------------------------------------------------------ profil
 
@@ -2220,6 +2223,9 @@ function questEvent(event: QuestEvent, quest: QuestContent, detail?: string) {
   questToasts.push({ kind: 'done', title: quest.title, detail: quest.reward })
   chat.add('system', tr(`Quête terminée : ${quest.title}. ${quest.reward}`, `Quest complete: ${quest.title}. ${quest.reward}`))
   community.push(tr(`${profile.name} a terminé la quête « ${quest.title} »`, `${profile.name} completed the quest “${quest.title}”`))
+  // Une recrue de l'arène : son personnage s'ouvre à CMDR Arena (le relais l'apprend avec les quêtes terminées).
+  const recruit = questById(quest.id)?.character
+  if (recruit) arenaUnlocked(characterById(recruit as CharacterId))
   // Journal gardé dans ce navigateur (un invité, ou le site qui ne répond pas) : le site ne verse rien.
   const reward = questById(quest.id)?.reward
   if (quests.mode === 'local' && reward && (reward.credits || reward.items?.length || reward.skins?.length)) {
@@ -2232,6 +2238,21 @@ function questEvent(event: QuestEvent, quest: QuestContent, detail?: string) {
     questToasts.push({ kind: 'rumor', title: next.rumor, detail: '' })
     chat.add('system', tr(`On raconte à bord… ${next.rumor}`, `Word aboard is… ${next.rumor}`))
   }
+}
+/** Accord de « débloqué » : Betty et Capucine au féminin, Nico et Boulon au pluriel. */
+const UNLOCKED_FR: Partial<Record<CharacterId, string>> = { betty: 'débloquée', capucine: 'débloquée', nico: 'débloqués' }
+/** Un personnage s'ouvre à CMDR Arena : un bandeau à son visage, et le chat. */
+function arenaUnlocked(c: Character) {
+  // Son visage se rend pendant que le bandeau de la quête se lit.
+  void loadPortraits()
+  const title = tr(`${c.name} ${UNLOCKED_FR[c.id] ?? 'débloqué'}`, `${c.name} unlocked`)
+  questToasts.push({
+    kind: 'unlock', title, color: c.color,
+    detail: tr(`Jouable dans CMDR Arena · ${c.role}`, `Playable in CMDR Arena · ${c.role}`),
+    face: () => faceOf(c),
+    shown: () => sound.jingle('coin'),
+  })
+  chat.add('system', tr(`${title} dans CMDR Arena. Le terminal de l'arène est au lobby de la cale.`, `${title} in CMDR Arena. The arena terminal is in the hold lobby.`))
 }
 // La récompense d'une quête est versée par le site : le compte (crédits, objets, apparences) est à relire.
 quests.onReward = () => void wallet.load()
@@ -2301,6 +2322,11 @@ const STAGE_RISE = 0.05
 let arenaView: { heading: number; zoom: number; eyes: boolean; shoulder: boolean } | null = null
 arenaMode = new ArenaClient({
   scene, iso, player, sound, net, dialog, wallet,
+  // Chaque personnage s'ouvre par sa quête (cf. shared/quests.js) ; le relais vérifie de son côté.
+  locks: {
+    open: (id) => arenaCharacters(quests.done()).includes(id),
+    quest: (id) => QUEST_CONTENT.find((q) => q.id === characterQuest(id))?.title ?? null,
+  },
   playing: soberUp,
   deck: () => deck,
   hold: deckById(-1),
@@ -2405,6 +2431,8 @@ arenaMode = new ArenaClient({
     }
   },
 })
+// Une quête terminée peut ouvrir un personnage : le terminal de l'arène suit.
+quests.subscribe(() => arenaMode?.refreshLocks())
 const arena = arenaMode
 // MESS RUSH (cf. mess-rush/) : le salon au rail des bons du mess, la cuisine instanciée (construite à
 // la première entrée, comme la base au sol), le service.

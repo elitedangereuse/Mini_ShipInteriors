@@ -90,8 +90,10 @@ const outsideEnemyBase = (zone, team, p) => !inBase(zone, 1 - team, p)
 /**
  * @param stats les statistiques par personnage (cf. arena-stats.js) : chaque partie finie y est
  *   comptée ; sans, elles restent en mémoire
+ * @param unlocked les personnages qu'un joueur peut prendre (cf. arenaCharacters dans
+ *   shared/quests.js : chacun s'ouvre par sa quête) ; sans, tous
  */
-export function createArena({ playerById, emit, broadcast, report = async () => false, now = Date.now, random = Math.random, log = () => {}, debug = false, stats = createArenaStats({ now }) }) {
+export function createArena({ playerById, emit, broadcast, report = async () => false, now = Date.now, random = Math.random, log = () => {}, debug = false, stats = createArenaStats({ now }), unlocked = () => CHARACTER_IDS }) {
   // Les salons, fixes : id -> salon (vide tant que personne ne s'y est placé).
   const rooms = new Map(Array.from({ length: R.lobbies }, (_, i) => [i + 1, { id: i + 1, members: new Map(), game: null }]))
   const reset = (r) => Object.assign(r, { leader: null, map: ARENA_MAPS[0].id, size: 3, bots: true, skill: 1, goal: R.goal, status: 'forming', startAt: 0 })
@@ -158,9 +160,13 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
         const wanted = data.team === 0 || data.team === 1 ? data.team : count(room, 0) <= count(room, 1) ? 0 : 1
         const team = count(room, wanted) < room.size ? wanted : 1 - wanted
         if (count(room, team) >= room.size) return error(p, 'full')
+        // Le personnage demandé s'il est ouvert, sinon le premier qui l'est ; aucun : pas de partie.
+        const open = unlocked(p)
+        if (!open.length) return error(p, 'locked')
+        const pick = character && open.includes(character) ? character : open.includes(DEFAULT_CHARACTER) ? DEFAULT_CHARACTER : open[0]
         if (r) { leaveRoom(p); unready(r) }
         if (!room.members.size) room.leader = p.id
-        room.members.set(p.id, { name: p.name, team, character: character ?? DEFAULT_CHARACTER, ready: false })
+        room.members.set(p.id, { name: p.name, team, character: pick, ready: false })
         roomOf.set(p.id, room)
         unready(room)
         break
@@ -203,6 +209,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       case 'arena:character': {
         const m = r?.members.get(p.id)
         if (!m || !character || character === m.character) return
+        if (!unlocked(p).includes(character)) return error(p, 'locked')
         m.character = character
         break
       }
