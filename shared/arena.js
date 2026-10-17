@@ -15,7 +15,6 @@
 // Chacun choisit son personnage au lobby et le garde toute la partie.
 
 import { DIRS } from './ship-map.js'
-import { lineOfSight } from './sight.js'
 
 /** « Pont » de l'arène : hors du vaisseau, sous les autres (baie infestée -2, conduits -3, simulateur -4). */
 export const ARENA_LEVEL = -5
@@ -299,6 +298,20 @@ const PROPS = { '=': 'container', H: 'container', c: 'crates', p: 'pillar', P: '
 const HIGH = 'uPXG'
 /** Le sol du haut, où l'on se tient (une rampe y monte). */
 const TOP = 'uG'
+/**
+ * Ce que les balles touchent d'un obstacle qui ne remplit pas sa tuile (cf. castArena) : un cercle
+ * de rayon `r`, centré sur l'obstacle, ou un octogone (`a` : sa demi-largeur, `b` : sa demi-largeur
+ * en diagonale). Le reste de la tuile ne les arrête pas ; les pas, si (cf. blocked). Ces mesures
+ * suivent les modèles (un peu plus larges, qu'une balle ne semble jamais les traverser) : la cosse
+ * de la ruche (cf. thargoidSpire, src/furniture/salvage.ts), le pilier de la baie (cf. pillar,
+ * src/arena/deck.ts), l'obélisque et le socle de la relique du site gardien, le socle du cœur de la
+ * ruche, octogonal, et ses cristaux aux coins (cf. src/arena/hive.ts, src/arena/guardian.ts).
+ */
+const SHAPES = {
+  hive: { pod: { r: 0.3 }, core: { a: 1.5, b: 1.75 } },
+  bay: { pillar: { r: 0.46 } },
+  guardian: { pillar: { r: 0.33 }, core: { r: 0.58 } },
+}
 
 const cached = new Map()
 
@@ -325,6 +338,8 @@ export function arenaZone(id) {
   const room = new Array(N)
   const spawns = [[], []]
   const containers = []
+  /** La silhouette de l'obstacle de chaque tuile, s'il ne la remplit pas (cf. SHAPES). */
+  const shapes = new Array(N).fill(null)
   const done = new Uint8Array(N)
   const elev = new Float64Array(N)
   const stairs = new Int8Array(N).fill(-1)
@@ -366,6 +381,11 @@ export function arenaZone(id) {
         }
       }
       containers.push({ x, z, w, d, kind: PROPS[c], color: (x * 7 + z * 13) % 3, flip: (x + z) % 2 === 1 })
+      const shape = SHAPES[map.id]?.[PROPS[c]]
+      if (shape) {
+        const s = { x: x + (w - 1) / 2, z: z + (d - 1) / 2, ...shape }
+        for (let tz = z; tz < z + d; tz++) for (let tx = x; tx < x + w; tx++) shapes[idx(tx, tz)] = s
+      }
     }
   }
   // Garde-corps : le haut ne se rejoint que par ses rampes (et une rampe, que par son bas, son haut,
@@ -421,7 +441,7 @@ export function arenaZone(id) {
   }
   const zone = {
     id: map.id, plan,
-    width: W, height: H, blocked, pit, bush, room, open, adj, spawns, containers,
+    width: W, height: H, blocked, pit, bush, room, open, adj, spawns, containers, shapes,
     layout: plan.map((line) => line.replace(/[#v]/g, ' ').replace(/[^ ]/g, 'a')),
     stairs, elev, top, rails,
     walkMap: walk, sightMap: sight,
@@ -446,12 +466,12 @@ export function arenaGround(zone, p) {
 }
 
 /**
- * Rien ne sépare `from` de `to` dans l'arène (ni cloison, ni conteneur). Sur un plan à deux
+ * Rien ne sépare `from` de `to` dans l'arène (ni cloison, ni conteneur) : le regard va où va une
+ * balle (cf. castArena), y compris au ras d'un pilier ou d'une cosse. Sur un plan à deux
  * hauteurs, le regard part de la hauteur d'un tir à plat au-dessus du sol de chacun, et une falaise
  * l'arrête comme une balle : d'en bas, on ne voit que qui se tient près du bord du haut.
  */
 export function arenaSight(zone, from, to) {
-  if (!zone.top) return lineOfSight(zone.sightMap, from, to)
   const a = { x: from.x, y: arenaGround(zone, from) + ARENA_RULES.aim, z: from.z }
   const dx = to.x - a.x, dy = arenaGround(zone, to) + ARENA_RULES.aim - a.y, dz = to.z - a.z
   const len = Math.hypot(dx, dy, dz)
@@ -548,6 +568,47 @@ export function shotOrigin(zone, foot, want) {
   return { x: foot.x, z: foot.z }
 }
 
+/** La tuile (x, z), dans l'arène, porte un obstacle à silhouette (cf. SHAPES). */
+function shaped(zone, x, z) {
+  return x >= 0 && z >= 0 && x < zone.width && z < zone.height && zone.shapes[z * zone.width + x] !== null
+}
+
+/**
+ * Où la demi-droite p + t·d entre dans la silhouette `s` (cf. SHAPES), vue de dessus : `t` (0 si elle
+ * part de dedans) et la normale du point touché ; null si elle la manque.
+ */
+function shapeHit(s, p, d) {
+  const ox = p.x - s.x, oz = p.z - s.z
+  if (s.r) {
+    const c = ox * ox + oz * oz - s.r * s.r
+    if (c <= 0) return { t: 0, normal: [-d.x, 0, -d.z] }
+    const flat = d.x * d.x + d.z * d.z
+    if (flat < 1e-12) return null
+    const half = (ox * d.x + oz * d.z) / flat
+    const disc = half * half - c / flat
+    if (disc < 0 || half >= 0) return null
+    const t = -half - Math.sqrt(disc)
+    const nx = ox + d.x * t, nz = oz + d.z * t, n = Math.hypot(nx, nz)
+    return { t, normal: [nx / n, 0, nz / n] }
+  }
+  // L'octogone : l'intersection de quatre bandes (deux droites, deux diagonales).
+  const k = Math.SQRT1_2
+  let enter = -Infinity, exit = Infinity, normal = null
+  for (const [nx, nz, w] of [[1, 0, s.a], [0, 1, s.a], [k, k, s.b], [k, -k, s.b]]) {
+    const o = ox * nx + oz * nz, v = d.x * nx + d.z * nz
+    if (Math.abs(v) < 1e-12) {
+      if (Math.abs(o) > w) return null
+      continue
+    }
+    const t0 = Math.min((-w - o) / v, (w - o) / v), t1 = Math.max((-w - o) / v, (w - o) / v)
+    if (t0 > enter) { enter = t0; normal = v > 0 ? [-nx, 0, -nz] : [nx, 0, nz] }
+    exit = Math.min(exit, t1)
+  }
+  if (enter > exit || exit < 0) return null
+  if (enter <= 0) return { t: 0, normal: [-d.x, 0, -d.z] }
+  return { t: enter, normal }
+}
+
 /**
  * Premier obstacle sur la demi-droite p + t·d (d de longueur 1), à moins de `max` : un combattant
  * (`body` : son identifiant), sinon une cloison, un conteneur, le sol ou le plafond (`normal`).
@@ -575,16 +636,33 @@ export function castArena(zone, p, d, max, bodies, skip) {
 
   // Les tuiles traversées, l'une après l'autre : la première qui est pleine arrête la balle.
   let x = Math.round(p.x), z = Math.round(p.z)
-  if (solid(x, z)) return { t: 0, body: null, normal: [-d.x, 0, -d.z], wall: false }
   const sx = Math.sign(d.x), sz = Math.sign(d.z)
   let nextX = sx ? (x + sx * 0.5 - p.x) / d.x : Infinity
   let nextZ = sz ? (z + sz * 0.5 - p.z) / d.z : Infinity
   const stepX = sx ? 1 / Math.abs(d.x) : Infinity, stepZ = sz ? 1 / Math.abs(d.z) : Infinity
+  // Un obstacle qui ne remplit pas sa tuile (cf. SHAPES) : touché s'il l'est avant d'en sortir.
+  const shapeIn = (x, z) => {
+    const hit = shapeHit(zone.shapes[z * W + x], p, d)
+    return hit && hit.t <= Math.min(nextX, nextZ) ? hit : null
+  }
+  if (solid(x, z)) {
+    const hit = shaped(zone, x, z) ? shapeIn(x, z) : { t: 0 }
+    if (hit?.t === 0) return { t: 0, body: null, normal: [-d.x, 0, -d.z], wall: false }
+    if (hit && hit.t < t) { t = hit.t; normal = hit.normal }
+  }
   for (let guard = 0; guard < 128; guard++) {
     const u = Math.min(nextX, nextZ)
     if (u >= t) break
     const alongX = nextX < nextZ
     if (alongX) { x += sx; nextX += stepX } else { z += sz; nextZ += stepZ }
+    if (solid(x, z) && shaped(zone, x, z)) {
+      const hit = shapeIn(x, z)
+      if (!hit || hit.t >= t) continue
+      t = hit.t
+      normal = hit.normal
+      wall = false
+      break
+    }
     if (solid(x, z)) {
       t = Math.max(0, u)
       normal = alongX ? [-sx, 0, 0] : [0, 0, -sz]
@@ -636,11 +714,20 @@ function castRelief(zone, p, d, max, bodies, skip, solid) {
   const at = (u) => ({ x: p.x + d.x * u, z: p.z + d.z * u })
   // Sous le sol de sa propre tuile : arrêtée d'emblée.
   let x = Math.round(p.x), z = Math.round(p.z)
-  if (solid(x, z) || p.y < arenaGround(zone, p) - 1e-6) return { t: 0, body: null, normal: solid(x, z) ? [-d.x, 0, -d.z] : [0, 1, 0], wall: false }
   const sx = Math.sign(d.x), sz = Math.sign(d.z)
   let nextX = sx ? (x + sx * 0.5 - p.x) / d.x : Infinity
   let nextZ = sz ? (z + sz * 0.5 - p.z) / d.z : Infinity
   const stepX = sx ? 1 / Math.abs(d.x) : Infinity, stepZ = sz ? 1 / Math.abs(d.z) : Infinity
+  const shapeIn = (x, z) => {
+    const hit = shapeHit(zone.shapes[z * W + x], p, d)
+    return hit && hit.t <= Math.min(nextX, nextZ) ? hit : null
+  }
+  if (solid(x, z)) {
+    const hit = shaped(zone, x, z) ? shapeIn(x, z) : { t: 0 }
+    if (hit?.t === 0) return { t: 0, body: null, normal: [-d.x, 0, -d.z], wall: false }
+    if (hit && hit.t < t) { t = hit.t; normal = hit.normal }
+  }
+  if (p.y < arenaGround(zone, p) - 1e-6) return { t: 0, body: null, normal: [0, 1, 0], wall: false }
   let from = 0
   const low = arenaGround(zone, p) < zone.top - 1e-6
   for (let guard = 0; guard < 128; guard++) {
@@ -668,7 +755,11 @@ function castRelief(zone, p, d, max, bodies, skip, solid) {
       wall = false
       break
     }
-    if (solid(x, z)) {
+    if (solid(x, z) && shaped(zone, x, z)) {
+      // Sans s'arrêter : elle peut encore plonger sous le sol de la tuile avant de le toucher.
+      const hit = shapeIn(x, z)
+      if (hit && hit.t < t) { t = hit.t; normal = hit.normal; wall = false }
+    } else if (solid(x, z)) {
       t = Math.max(0, u)
       normal = edge
       wall = x < 0 || z < 0 || x >= W || z >= H || zone.room[z * W + x] === ' '

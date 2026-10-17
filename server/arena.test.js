@@ -246,6 +246,27 @@ test('arène : une balle s\'arrête sur un conteneur, une cloison, le sol, ou un
   assert.equal(hit.normal, null)
 })
 
+test('arène : une balle frôle une cosse ou le coin du cœur de la ruche sans buter sur le bord de leur tuile', () => {
+  const zone = arenaZone('hive')
+  const east = { x: 1, y: 0, z: 0 }
+  // La cosse de (4, 7) : en plein milieu, arrêtée à son tronc ; à 0,4 de lui, elle passe.
+  let hit = castArena(zone, { x: 2, y: R.aim, z: 7 }, east, 30, [])
+  assert.ok(Math.abs(hit.t - (2 - 0.3)) < 1e-9)
+  assert.deepEqual(hit.normal, [-1, 0, 0])
+  hit = castArena(zone, { x: 2, y: R.aim, z: 7.4 }, east, 30, [])
+  assert.ok(Math.abs(hit.t - 7.5) < 1e-9, 'jusqu\'au flanc du cœur, en x = 9,5')
+  // Au ras du coin du cœur (3 × 3 en (10, 6)) : son socle octogonal, pas le coin de sa tuile.
+  hit = castArena(zone, { x: 8, y: R.aim, z: 5.6 }, east, 30, [])
+  assert.ok(hit.t > 1.8 && hit.t < 2, `t = ${hit.t}`)
+  assert.equal(hit.wall, false)
+  // Partie de dedans (le bord de la tuile d'une cosse) vers elle : touchée, pas d'emblée.
+  hit = castArena(zone, { x: 3.6, y: R.aim, z: 7 }, east, 30, [])
+  assert.ok(Math.abs(hit.t - 0.1) < 1e-9)
+  // Le regard suit les balles.
+  assert.ok(arenaSight(zone, { x: 2, z: 7.4 }, { x: 6, z: 7.4 }))
+  assert.ok(!arenaSight(zone, { x: 2, z: 7 }, { x: 6, z: 7 }))
+})
+
 test('arène : l\'explosion blesse moins loin de son centre, pas au-delà de son rayon', () => {
   const tomato = C.marcel.weapon
   assert.equal(blastDamage(tomato, 0), tomato.damage)

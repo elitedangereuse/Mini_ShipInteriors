@@ -104,6 +104,8 @@ export interface ArenaZone {
   /** Garde-corps (falaises, flancs des rampes) : arêtes entre deux tuiles libres qu'on ne franchit pas (vers l'est ou le sud). */
   rails: { x: number; z: number; dir: number }[]
   containers: (Omit<ZoneContainer, 'kind'> & { kind: 'container' | 'crates' | 'pillar' | 'pod' | 'core' })[]
+  /** Silhouette de l'obstacle de chaque tuile, s'il ne la remplit pas (ce que les balles en touchent) : un cercle ou un octogone. */
+  shapes: ({ x: number; z: number; r?: number; a?: number; b?: number } | null)[]
   walkMap: PlanMap
   sightMap: PlanMap
 }
