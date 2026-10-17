@@ -182,6 +182,8 @@ export class DoorHints {
       depthFunc: THREE.GreaterDepth,
       toneMapped: false,
       side: THREE.DoubleSide,
+      // Un panneau plat : une passe suffit (three.js dessine sinon chaque face à son tour).
+      forceSinglePass: true,
     })
     const mesh = new THREE.Mesh(DoorHints.geometry, material)
     mesh.scale.set(WIDTH[kind], HEIGHT, 1)

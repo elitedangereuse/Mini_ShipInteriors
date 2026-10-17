@@ -7149,8 +7149,9 @@ addEventListener('resize', () => {
 /**
  * Une matière transparente à deux faces est dessinée deux fois par three.js (faces arrière, puis
  * avant), qui recherche son shader à chaque passe. Sur un panneau plat (vitre, affiche, reflet), un
- * pixel ne voit jamais qu'une face : une seule passe donne la même image. Une matière qu'emploie
- * aussi un volume garde ses deux passes.
+ * pixel ne voit jamais qu'une face ; une lumière additive qui n'écrit pas la profondeur (cônes des
+ * projecteurs) s'additive dans n'importe quel ordre : une seule passe donne la même image. Une
+ * matière qu'emploie aussi un volume ordinaire garde ses deux passes.
  */
 function singlePassPanes(root: THREE.Object3D) {
   const flat = new Map<THREE.Material, boolean>()
@@ -7159,6 +7160,10 @@ function singlePassPanes(root: THREE.Object3D) {
     if (!mesh.isMesh) return
     for (const m of [mesh.material].flat()) {
       if (!m.transparent || m.side !== THREE.DoubleSide || m.forceSinglePass) continue
+      if (m.blending === THREE.AdditiveBlending && !m.depthWrite) {
+        m.forceSinglePass = true
+        continue
+      }
       const box = mesh.geometry.boundingBox ?? (mesh.geometry.computeBoundingBox(), mesh.geometry.boundingBox!)
       const thin = Math.min(box.max.x - box.min.x, box.max.y - box.min.y, box.max.z - box.min.z) < 1e-4
       flat.set(m, (flat.get(m) ?? true) && thin)

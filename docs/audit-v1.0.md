@@ -45,7 +45,33 @@ Mesuré au démarrage, en 1280 × 720, sur chacun des trois ponts communs :
   budget pour les écrans animés. Les gains restants sont des centaines de microsecondes par image,
   pas des millisecondes.
 
-<!-- MESURES-APRES -->
+## Avant et après
+
+Même machine, même navigateur, la version d'origine et la version corrigée servies côte à côte,
+après un tour de chauffe des ponts (le rendu logiciel compile les shaders à leur première
+utilisation, ce qui fausserait la première visite) :
+
+| | Avant | Après |
+|---|---|---|
+| Démarrage jusqu'au HUD | 35,7 s | 22,4 à 24,0 s |
+| Appels de dessin, pont principal | 485 | 464 |
+| Appels de dessin, pont supérieur | 212 | 208 |
+| Appels de dessin, cale | 390 | 369 |
+| Shaders recherchés de force à chaque image (principal, supérieur, cale) | 24, 22, 46 | 4, 4, 2 |
+| Pochettes du jukebox | 10,9 Mo | 108 ko |
+| Musiques décodées gardées en mémoire, après toutes les activités | ≈ 400 Mio | celles qui jouent + 2 |
+| Géométries ajoutées par 4 essayages au Holo-Me | +28 | 0 |
+| Relais : paquet `{ toString: 0 }` | arrêt du serveur | ignoré |
+
+- **Démarrage.** C'est le rendu logiciel du conteneur, donc lent en valeur absolue. Le gain vient
+  de la recoloration et des personnages téléchargés d'un coup.
+- **Temps du script par image.** Hors attente du GPU, il reste entre 14 et 21 ms sur ce
+  processeur lent. Les gains par image (mobilier caché, rayons, portes, mini-carte, survol) sont
+  de quelques centaines de microsecondes : ils se mesurent au chronomètre, méthode par méthode,
+  mais restent dans le bruit d'une image entière.
+- **GPU.** Les gains du côté GPU (lumières éteintes sautées, une passe au lieu de deux, ombres une
+  image sur deux sur téléphone, brouillard sans anticrénelage) ne se lisent pas sur le rendu
+  logiciel : ils sont à constater sur une vraie carte graphique et sur téléphone.
 
 ## Corrigé
 
@@ -160,8 +186,9 @@ Mesuré au démarrage, en 1280 × 720, sur chacun des trois ponts communs :
   sont désormais sautées dans le shader, sans changer l'image. Voir `skipDarkLights` dans
   `src/lighting/rig.ts`.
 - **Double passe des transparents.** Les matières transparentes à deux faces étaient dessinées
-  deux fois par image, avec une recherche de shader à chaque passe : 16 à 22 objets par image,
-  plus les traînées des balles. Sur les panneaux plats, une seule passe donne la même image.
+  deux fois par image, avec une recherche de shader à chaque passe : 11 à 23 objets par image (vitres, affiches,
+  silhouettes des portes, cônes des projecteurs), plus les traînées des balles. Sur un panneau plat,
+  ou pour une lumière additive qui n'écrit pas la profondeur, une seule passe donne la même image.
 - **Caustic Sour.** La lumière de ce cocktail changeait le nombre de lumières de la scène : tous
   les shaders éclairés se recompilaient (un à-coup), puis encore à chaque pièce découverte. Elle
   prend maintenant une lumière de la réserve.
