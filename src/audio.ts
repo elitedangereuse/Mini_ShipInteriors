@@ -74,6 +74,9 @@ const VOICES: Record<Exclude<Voice, 'meow'>, {
 /** Écran tactile (téléphone) : le son se spatialise au plus simple (cf. Sound.panner). */
 const LIGHT = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
 
+/** Morceaux de fond qui ne jouent plus gardés décodés (cf. Sound.keepTunes), les derniers écoutés. */
+const IDLE_TUNES = 2
+
 export class Sound {
   readonly listener = new THREE.AudioListener()
   /** Objet à placer dans la scène ; porte l'auditeur. */
@@ -162,7 +165,8 @@ export class Sound {
     if (this.started) return
     if (!this.loading) {
       this.loading = (async () => {
-        const names = Object.values(SOUNDS).flat()
+        // Un fichier que plusieurs sons partagent (les pas sur moquette) n'est chargé qu'une fois.
+        const names = [...new Set(Object.values(SOUNDS).flat())]
         await Promise.all(
           names.map(async (n) => {
             try {
@@ -385,9 +389,31 @@ export class Sound {
     return gain
   }
 
+  /** Les morceaux décodés (ou en chargement), par fichier, du moins récemment écouté au plus récent. */
   private tunes = new Map<string, Promise<AudioBuffer | null>>()
+  /** Les voix de chaque morceau qui attendent son tampon, jouent ou s'éteignent en fondu : on le leur laisse. */
+  private playing = new Map<string, number>()
   /** Les raccords déjà préparés (cf. seam), par fichier : le début de la boucle et sa fin, en secondes du tampon. */
   private seams = new Map<string, [number, number]>()
+
+  /**
+   * Le morceau devient le dernier écouté ; on oublie ceux qui ne jouent plus, sauf les deux derniers
+   * (on revient au lobby sans attendre son décodage) : décodé, un morceau pèse de 11 à 64 Mio.
+   */
+  private keepTunes(file: string) {
+    const tune = this.tunes.get(file)
+    if (tune) {
+      this.tunes.delete(file)
+      this.tunes.set(file, tune)
+    }
+    let idle = 0
+    for (const f of [...this.tunes.keys()].reverse()) {
+      if (this.playing.has(f) || ++idle <= IDLE_TUNES) continue
+      this.tunes.delete(f)
+      // Le raccord est écrit dans le tampon : un nouveau décodage le refera.
+      this.seams.delete(f)
+    }
+  }
 
   /**
    * Prépare le raccord d'une boucle qui ne prend qu'une partie du morceau (cf. MusicOptions.loop) :
@@ -421,7 +447,8 @@ export class Sound {
 
   /**
    * Musique de fond, en boucle, non spatialisée (les mini-jeux de la zone sportive, CMDR Arena) : un
-   * fichier de `music/`, chargé à la première écoute ; elle entre et sort en fondu.
+   * fichier de `music/`, chargé à la première écoute ; elle entre et sort en fondu. Son tampon
+   * décodé reste tant qu'elle joue, puis tant qu'elle est l'une des deux dernières écoutées (cf. keepTunes).
    */
   music(file: string, volume = 0.3, o: MusicOptions = {}): { stop: () => void } {
     let stopped = false
@@ -431,8 +458,20 @@ export class Sound {
       tune = fetch(`${BASE}music/${file}`).then(async (res) => (res.ok ? await this.ctx.decodeAudioData(await res.arrayBuffer()) : null)).catch(() => null)
       this.tunes.set(file, tune)
     }
+    // Cette voix garde le tampon jusqu'à la fin de son fondu (ou jusqu'à ce qu'elle renonce à jouer).
+    this.playing.set(file, (this.playing.get(file) ?? 0) + 1)
+    let held = true
+    const done = () => {
+      if (!held) return
+      held = false
+      const n = this.playing.get(file)! - 1
+      if (n) this.playing.set(file, n)
+      else this.playing.delete(file)
+      this.keepTunes(file)
+    }
+    this.keepTunes(file)
     void tune.then((buffer) => {
-      if (stopped || !buffer || !this.ready) return
+      if (stopped || !buffer || !this.ready) return done()
       const src = this.ctx.createBufferSource()
       src.buffer = buffer
       src.loop = true
@@ -450,6 +489,7 @@ export class Sound {
       src.onended = () => {
         chain.disconnect()
         this.release(input)
+        done()
       }
       gain.gain.linearRampToValueAtTime(volume, this.ctx.currentTime + 0.6)
       src.start(0, at)

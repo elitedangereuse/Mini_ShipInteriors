@@ -244,14 +244,17 @@ Ils sont présentés comme quatre albums dans le jukebox. Ces créations ne sont
 pas couvertes par les licences CC0/domaine public indiquées plus haut.
 Les huit MP3 des deux premiers albums sont des copies audio sans réencodage,
 sans image ID3 ; leurs originaux restent dans le dossier musiques/ du projet.
+Les pochettes PNG fournies (1024 à 1254 px : celles-ci, CMDR Arena, Corrupted
+Lobby et MESS RUSH) sont réduites pour le jukebox en WebP 256 × 256 par
+scripts/import-jukebox-covers.py ; les originaux restent dans l'historique git.
 
-Dangerous Spaces — Ben Carter Jr — pochette dangerous-spaces.png
+Dangerous Spaces — Ben Carter Jr — pochette dangerous-spaces.webp
   01 Infinite Drift       dangerous-spaces-01.mp3      5:03
   02 Orbit of Glass       dangerous-spaces-02.mp3      4:21
   03 And beyond          dangerous-spaces-03.mp3      4:49
   04 H.O.P.E.            dangerous-spaces-04.mp3      4:30
 
-The End of Everything — Ben Carter Jr — pochette end-of-everything.png
+The End of Everything — Ben Carter Jr — pochette end-of-everything.webp
   01 Abyssal Silence     end-of-everything-01.mp3     5:10
   02 Alone               end-of-everything-02.mp3     4:14
   03 No Safety           end-of-everything-03.mp3     4:47
@@ -417,7 +420,7 @@ mess-rush/arcade-groove.mp3 : « Arcade Groove » : la musique du service, en
 Fournis par Benjamin Grande le 14/10/2026 ; leurs métadonnées indiquent une
 création avec Suno. Licence à renseigner.
 Les deux morceaux sont aussi proposés dans le jukebox, album « MESS RUSH » de
-Ben Carter Jr (src/music.ts, pochette public/assets/music/covers/mess-rush.png).
+Ben Carter Jr (src/music.ts, pochette public/assets/music/covers/mess-rush.webp).
 Fichiers d'origine, renommés, non retraités (MP3 stéréo 48 kHz ; -15,5 et
 -13,7 LUFS intégrés, crête -3,3 et -0,6 dBFS). Ils finissent sur un blanc
 (0,26 et 0,68 s) : le jeu boucle juste avant (149,42 et 149,29 s), cf.
