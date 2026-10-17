@@ -484,7 +484,7 @@ export class ArenaClient {
   private refresh() {
     this.panel.update(this.lobby, this.host.net.id, this.host.net.online)
     // Le tableau du mur et l'hologramme du lobby disent les parties en cours.
-    const games = this.lobby.rooms.filter((r) => r.status === 'playing').map((r) => ({ lobby: r.id, map: r.map, rounds: r.rounds ?? [0, 0], score: r.score ?? [0, 0] }))
+    const games = this.lobby.rooms.filter((r) => r.status === 'playing').map((r) => ({ lobby: r.id, map: r.map!, rounds: r.rounds ?? [0, 0], score: r.score ?? [0, 0] }))
     if (JSON.stringify(games) === JSON.stringify(arenaLive.games)) return
     arenaLive.games = games
     arenaLive.stamp++

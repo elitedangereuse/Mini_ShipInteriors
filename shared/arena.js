@@ -4,7 +4,7 @@
 // client, qui la dessine et y fait jouer le moteur du stand (cf. src/range.ts, src/arena/).
 //
 // Le terminal de l'arène est dans son propre lobby (la pièce 'y' de la cale, cf. ARENA_LOBBY). Le
-// chef du lobby choisit le plan de la partie (ARENA_MAPS : la baie, un stade tous projecteurs
+// plan de la partie est tiré au hasard à son lancement (ARENA_MAPS : la baie, un stade tous projecteurs
 // allumés ; la ruche, une structure thargoïde), une base par équipe à chaque bout. Tout obstacle y
 // occupe sa tuile entière, du sol au plafond : il arrête les pas, la vue et les balles, pour le
 // relais comme pour le client, quelle que soit la vue. Seuls les buissons laissent tout passer : on s'y cache.

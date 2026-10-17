@@ -29,6 +29,7 @@ function harness(options = {}) {
     },
     now: () => t,
     random: mulberry32(11),
+    pickMap: () => 'bay',
     debug: true,
     ...options,
   })
@@ -185,21 +186,20 @@ test('arène : on ne prend que les personnages que ses quêtes ont ouverts', () 
   assert.equal(h.lobby().rooms[0].members.find((m) => m.id === 1).character, 'rourke')
 })
 
-test('arène : le chef choisit le plan ; la partie s\'y joue, et le relais n\'accepte que son sol', () => {
-  const h = harness()
+test('arène : le plan est tiré au hasard au lancement ; la partie s\'y joue, et le relais n\'accepte que son sol', () => {
+  // Le tirage tombe sur le dernier plan, la ruche.
+  const h = harness({ pickMap: undefined, random: () => 0.99 })
   const a = h.add(1), b = h.add(2)
   h.arena.handle(a, 'arena:join', { room: 1 })
-  assert.equal(h.lobby().rooms[0].map, ARENA_MAPS[0].id)
-  h.arena.handle(a, 'arena:settings', { size: 1, bots: false, map: 'hive' })
-  h.arena.handle(a, 'arena:settings', { map: 'nulle-part' })
-  assert.equal(h.lobby().rooms[0].map, 'hive')
+  assert.equal(h.lobby().rooms[0].map, null)
+  h.arena.handle(a, 'arena:settings', { size: 1, bots: false, map: 'bay' })
+  // Le plan ne se choisit pas.
+  assert.equal(h.lobby().rooms[0].map, null)
   h.arena.handle(b, 'arena:join', { room: 1 })
-  // Un autre que le chef n'y touche pas.
-  h.arena.handle(b, 'arena:settings', { map: 'bay' })
-  assert.equal(h.last(2, 'arena:error').code, 'leader')
   for (const p of [a, b]) h.arena.handle(p, 'arena:ready', { ready: true })
   h.advance(R.countdown + 0.1)
   assert.equal(h.last(1, 'arena:start').map, 'hive')
+  assert.equal(h.lobby().rooms[0].map, 'hive')
   for (const p of [a, b]) h.arrive(p)
   const game = h.arena.gameOf(a)
   assert.equal(game.zone.id, 'hive')
@@ -331,7 +331,7 @@ test('arène : quatre lobbys fixes ; on s\'y place, on en change, et chacun joue
   assert.deepEqual(room(4).members.map((m) => [m.id, m.team]), [[3, 0], [1, 1]])
   // Le dernier parti : le lobby reste, vide, avec ses réglages de départ.
   h.arena.handle(b, 'arena:leave', {})
-  assert.deepEqual(room(2), { id: 2, leader: null, map: 'bay', size: 3, bots: true, skill: 1, goal: R.goal, status: 'forming', startsIn: undefined, members: [] })
+  assert.deepEqual(room(2), { id: 2, leader: null, map: null, size: 3, bots: true, skill: 1, goal: R.goal, status: 'forming', startsIn: undefined, members: [] })
   // Deux lobbys jouent chacun de son côté.
   h.arena.handle(b, 'arena:join', { room: 1 })
   for (const p of [a, b, c]) h.arena.handle(p, 'arena:ready', { ready: true })
@@ -838,7 +838,7 @@ test('arène : qui part est remplacé par un bot ; sans bots, une équipe vide p
   assert.deepEqual(h.lobby().rooms[0].members.map((m) => m.id), [1])
   // Le dernier joueur parti, la partie s'arrête et le lobby se libère, avec ses réglages de départ.
   h.arena.handle(a, 'arena:quit', {})
-  assert.deepEqual(h.lobby().rooms[0], { id: 1, leader: null, map: 'bay', size: 3, bots: true, skill: 1, goal: R.goal, status: 'forming', startsIn: undefined, members: [] })
+  assert.deepEqual(h.lobby().rooms[0], { id: 1, leader: null, map: null, size: 3, bots: true, skill: 1, goal: R.goal, status: 'forming', startsIn: undefined, members: [] })
 
   const h2 = harness()
   const c = h2.add(1), d = h2.add(2)

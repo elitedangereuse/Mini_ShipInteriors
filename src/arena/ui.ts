@@ -2,7 +2,7 @@ import { tr } from '../i18n'
 import { icon } from '../icons'
 import type { ArenaCharacterStats, ArenaEnd, ArenaLobby, ArenaRoom, ArenaStats } from '../net'
 import { button, el, Modal } from '../salvage/ui'
-import { ARENA_MAPS, ARENA_RULES, ARENA_TEAMS, CHARACTER_IDS, DEFAULT_CHARACTER, arenaMap, arenaZone, type ArenaMapId, type CharacterId } from '../../shared/arena.js'
+import { ARENA_RULES, ARENA_TEAMS, CHARACTER_IDS, DEFAULT_CHARACTER, arenaMap, type CharacterId } from '../../shared/arena.js'
 import { CHARACTERS, characterById, type Character } from './characters'
 import { arrow, moveFocus } from './nav'
 import { loadPortraits } from './portraits'
@@ -23,50 +23,11 @@ const SKILLS = [tr('Recrues', 'Rookies'), tr('Pilotes', 'Pilots'), tr('Élite', 
 const format = (size: number) => tr(`${size} contre ${size}`, `${size} vs ${size}`)
 /** Le nom d'un plan, dans la langue du joueur. */
 const mapName = (id: string) => tr(...arenaMap(id).name)
-/** Ce qu'est chaque plan, en une ligne, au terminal. */
-const MAP_BLURBS: Record<ArenaMapId, string> = {
-  bay: tr('Le stade de CMDR Arena : trois allées, des tribunes pleines.', 'The CMDR Arena stadium: three lanes, packed stands.'),
-  guardian: tr('Des ruines gardiennes, de nuit, sur deux hauteurs : le promontoire de la relique domine.', 'Guardian ruins at night, on two levels: the relic\'s ridge looms over all.'),
-  hive: tr('Une ruche thargoïde en chrysalide : au milieu, la chambre du cœur et ses quatre portes.', 'A chrysalis-shaped Thargoid hive: the heart chamber and its four doors at its centre.'),
-}
-/** Couleurs de la vignette de chaque plan : le sol, les obstacles, les buissons. */
-const MAP_TINTS: Record<ArenaMapId, [string, string, string]> = {
-  bay: ['#d9ae5f', '#3a4250', '#4f9d3a'],
-  guardian: ['#4a403a', '#12161c', '#8fb9d9'],
-  hive: ['#1d3326', '#0b120e', '#39ff88'],
-}
-
-/** La vignette d'un plan : une tuile par case, les deux bases à la couleur de leur camp. */
-function mapThumb(id: ArenaMapId): HTMLCanvasElement {
-  const zone = arenaZone(id)
-  const S = 4
-  const canvas = document.createElement('canvas')
-  canvas.width = zone.width * S
-  canvas.height = zone.height * S
-  canvas.className = 'arena-map-thumb'
-  const c = canvas.getContext('2d')!
-  const [floor, solid, bush] = MAP_TINTS[id]
-  for (let z = 0; z < zone.height; z++) {
-    for (let x = 0; x < zone.width; x++) {
-      const t = zone.plan[z][x]
-      if (t === ' ') continue
-      c.fillStyle = zone.blocked[z * zone.width + x] ? solid : t === 'g' || t === 'G' ? bush : x < 3 ? ARENA_TEAMS[0].color : x >= zone.width - 3 ? ARENA_TEAMS[1].color : floor
-      // Le haut, plus clair ; une rampe, entre les deux.
-      if (t === 'u') c.fillStyle = '#7d8a99'
-      if (t === 'r') c.fillStyle = '#5e6670'
-      // Le gouffre : on le laisse vide.
-      if (t === 'v') continue
-      c.fillRect(x * S, z * S, S, S)
-    }
-  }
-  return canvas
-}
-
 export interface ArenaPanelActions {
   join(room: number, team?: number): void
   leave(): void
   side(team: number): void
-  settings(s: { size?: number; bots?: boolean; skill?: number; goal?: number; map?: ArenaMapId }): void
+  settings(s: { size?: number; bots?: boolean; skill?: number; goal?: number }): void
   character(id: CharacterId): void
   ready(on: boolean): void
   /** Regarder la partie en cours d'un lobby, en spectateur. */
@@ -288,7 +249,7 @@ export class ArenaPanel extends Modal {
     }
     const names = r.members.map((m) => (m.id === this.self ? tr('vous', 'you') : m.name)).join(', ')
     const bots = r.bots ? tr(`bots ${SKILLS[r.skill].toLowerCase()}`, `${SKILLS[r.skill].toLowerCase()} bots`) : tr('sans bots', 'no bots')
-    b.append(el('span', 'arena-tile-detail', r.members.length ? `${mapName(r.map)} · ${format(r.size)} · ${r.goal} pts · ${bots}` : tr('Le premier arrivé règle la partie', 'First in sets the match')))
+    b.append(el('span', 'arena-tile-detail', r.members.length ? `${r.map ? `${mapName(r.map)} · ` : ''}${format(r.size)} · ${r.goal} pts · ${bots}` : tr('Le premier arrivé règle la partie', 'First in sets the match')))
     if (names) b.append(el('span', 'arena-tile-names', names))
     if (own) b.append(el('span', 'arena-tile-own', tr('Votre lobby', 'Your lobby')))
     return b
@@ -365,7 +326,7 @@ export class ArenaPanel extends Modal {
     const leader = r.leader === this.self
     const me = r.members.find((m) => m.id === this.self)!
     const title = el('div', 'arena-title')
-    title.append(el('strong', '', `Lobby ${r.id}`), el('span', '', `${mapName(r.map)} · ${format(r.size)} · ${tr(`${ARENA_RULES.wins} manches gagnantes · une manche : ${r.goal} points`, `best of ${ARENA_RULES.rounds} · a round: ${r.goal} points`)}`))
+    title.append(el('strong', '', `Lobby ${r.id}`), el('span', '', `${format(r.size)} · ${tr(`${ARENA_RULES.wins} manches gagnantes · une manche : ${r.goal} points`, `best of ${ARENA_RULES.rounds} · a round: ${r.goal} points`)}`))
     stage.append(title)
     const [teams, mine, match] = this.columns(stage)
 
@@ -429,25 +390,6 @@ export class ArenaPanel extends Modal {
       box.append(row)
       return box
     }
-    // Le plan : une carte par plan, sa vignette, son nom, ce qu'il est.
-    const maps = el('div', 'arena-maps')
-    maps.setAttribute('role', 'radiogroup')
-    maps.setAttribute('aria-label', tr('Plan', 'Map'))
-    for (const m of ARENA_MAPS) {
-      const on = m.id === r.map
-      const b = button('', () => this.actions.settings({ map: m.id }), `arena-map${on ? ' on' : ''}`)
-      b.setAttribute('role', 'radio')
-      b.setAttribute('aria-checked', String(on))
-      b.dataset.key = `map-${m.id}`
-      b.disabled = !leader && !on
-      if (!leader) b.tabIndex = -1
-      const text = el('span', 'arena-map-text')
-      text.append(el('strong', '', mapName(m.id)), el('small', '', MAP_BLURBS[m.id]))
-      b.append(mapThumb(m.id), text)
-      maps.append(b)
-    }
-    match.append(el('span', 'arena-heading', tr('Plan', 'Map')), maps)
-
     const crowd = Math.max(1, ...ARENA_TEAMS.map((t) => r.members.filter((m) => m.team === t.id).length))
     const sizes = Array.from({ length: ARENA_RULES.team }, (_, i) => i + 1).filter((n) => n >= crowd || n === r.size)
     settings.append(

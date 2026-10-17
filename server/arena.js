@@ -92,11 +92,13 @@ const outsideEnemyBase = (zone, team, p) => !inBase(zone, 1 - team, p)
  *   comptée ; sans, elles restent en mémoire
  * @param unlocked les personnages qu'un joueur peut prendre (cf. arenaCharacters dans
  *   shared/quests.js : chacun s'ouvre par sa quête) ; sans, tous
+ * @param pickMap le plan d'une partie qui se lance ; sans, un au hasard
  */
-export function createArena({ playerById, emit, broadcast, report = async () => false, now = Date.now, random = Math.random, log = () => {}, debug = false, stats = createArenaStats({ now }), unlocked = () => CHARACTER_IDS }) {
+export function createArena({ playerById, emit, broadcast, report = async () => false, now = Date.now, random = Math.random, log = () => {}, debug = false, stats = createArenaStats({ now }), unlocked = () => CHARACTER_IDS, pickMap = () => ARENA_MAPS[Math.floor(random() * ARENA_MAPS.length)].id }) {
   // Les salons, fixes : id -> salon (vide tant que personne ne s'y est placé).
   const rooms = new Map(Array.from({ length: R.lobbies }, (_, i) => [i + 1, { id: i + 1, members: new Map(), game: null }]))
-  const reset = (r) => Object.assign(r, { leader: null, map: ARENA_MAPS[0].id, size: 3, bots: true, skill: 1, goal: R.goal, status: 'forming', startAt: 0 })
+  // Le plan est tiré au hasard au lancement de chaque partie (cf. startGame) : aucun au lobby.
+  const reset = (r) => Object.assign(r, { leader: null, map: null, size: 3, bots: true, skill: 1, goal: R.goal, status: 'forming', startAt: 0 })
   for (const r of rooms.values()) reset(r)
   const roomOf = new Map() // id du joueur -> salon
 
@@ -199,10 +201,9 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
         const bots = typeof data.bots === 'boolean' ? data.bots : r.bots
         const skill = Number.isInteger(data.skill) ? Math.min(ARENA_SKILLS.length - 1, Math.max(0, data.skill)) : r.skill
         const goal = R.goals.includes(data.goal) ? data.goal : r.goal
-        const map = ARENA_MAPS.some((m) => m.id === data.map) ? data.map : r.map
-        if (size === r.size && bots === r.bots && skill === r.skill && goal === r.goal && map === r.map) return
+        if (size === r.size && bots === r.bots && skill === r.skill && goal === r.goal) return
         if (count(r, 0) > size || count(r, 1) > size) return error(p, 'crowded')
-        Object.assign(r, { size, bots, skill, goal, map })
+        Object.assign(r, { size, bots, skill, goal })
         unready(r)
         break
       }
@@ -290,6 +291,8 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
 
   function startGame(r) {
     const t = now()
+    // Un plan au hasard parmi tous (une partie simulée garde le sien).
+    if (!r.map) r.map = pickMap()
     const game = {
       id: randomBytes(8).toString('hex'), room: r, zone: arenaZone(r.map), size: r.size, startedAt: t, liveAt: t + R.warmup * 1000,
       endsAt: t + (R.warmup + R.duration) * 1000, goal: r.goal, score: [0, 0], round: 1, rounds: [0, 0], skill: ARENA_SKILLS[r.skill], fighters: new Map(), bullets: [],
@@ -822,6 +825,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     const r = game.room
     r.game = null
     r.status = 'forming'
+    r.map = null
     unready(r)
     const t = now()
     const duration = Math.round((t - game.startedAt) / 1000)
@@ -897,6 +901,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
       game.ended = true
       r.game = null
       r.status = 'forming'
+      r.map = null
       if (!r.members.size) reset(r)
     } else if (r.bots) {
       // Un bot prend sa place, à la base de son équipe.

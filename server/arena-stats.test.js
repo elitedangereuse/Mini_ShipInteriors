@@ -82,7 +82,7 @@ test('statistiques : une vraie partie les nourrit (tirs, touches, commande, tir 
   let t = 1_000_000
   const players = new Map()
   const arena = createArena({
-    playerById: (id) => players.get(id), emit: () => {}, broadcast: () => {}, now: () => t, random: mulberry32(5), debug: true,
+    playerById: (id) => players.get(id), emit: () => {}, broadcast: () => {}, now: () => t, random: mulberry32(5), pickMap: () => 'bay', debug: true,
   })
   const advance = (s) => { for (let i = 0; i < Math.round(s * 20); i++) { t += 50; arena.tick(0.05) } }
   const a = { id: 1, name: 'CMDR A', level: -1, x: 24, z: 8, yaw: 0, anim: 'idle' }

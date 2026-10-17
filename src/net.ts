@@ -241,8 +241,8 @@ export interface ArenaMember { id: number; name: string; verified: boolean; team
 export interface ArenaRoom {
   id: number
   leader: number | null
-  /** Le plan de la partie (cf. ARENA_MAPS). */
-  map: ArenaMapId
+  /** Le plan de la partie, tiré au hasard à son lancement (cf. ARENA_MAPS) ; aucun au lobby. */
+  map: ArenaMapId | null
   /** Joueurs par équipe ; `bots` : ils complètent les deux équipes, au niveau `skill` (0 à 2). */
   size: number
   bots: boolean
