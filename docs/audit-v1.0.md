@@ -61,6 +61,7 @@ utilisation, ce qui fausserait la première visite) :
 | Musiques décodées gardées en mémoire, après toutes les activités | ≈ 400 Mio | celles qui jouent + 2 |
 | Géométries ajoutées par 4 essayages au Holo-Me | +28 | 0 |
 | Relais : paquet `{ toString: 0 }` | arrêt du serveur | ignoré |
+| Zone thargoïde : rafale de 64 positions en 64 ms | 64 acceptées (32 tuiles) | 1 acceptée |
 
 - **Démarrage.** C'est le rendu logiciel du conteneur, donc lent en valeur absolue. Le gain vient
   de la recoloration et des personnages téléchargés d'un coup.
@@ -94,6 +95,16 @@ utilisation, ce qui fausserait la première visite) :
   68 000 messages par seconde.
   - Chacun a désormais son débit, plus un plafond global de 300 messages par seconde.
   - Un changement d'apparence au-delà du débit attend au lieu de se perdre.
+- **Triche de vitesse (zone thargoïde, arène).** Chaque position avait droit à la course depuis la
+  précédente plus une marge : une rafale de messages cumulait ces marges. 32 tuiles passaient en
+  64 ms, et l'on traversait les murs (un saut de 5 tuiles en ligne droite là où le chemin en fait
+  13). La zone paie des crédits.
+  - La course permise est désormais une réserve, comme pour MESS RUSH : elle se recharge au rythme
+    de la course et chaque position l'use.
+  - On doit pouvoir y marcher : ligne droite praticable, sinon un vrai chemin à peine plus long
+    (`walkReach` dans `shared/salvage.js`).
+  - Une vraie course, coins coupés et messages arrivés groupés, passe en entier : c'est vérifié
+    par un test.
 - **Places à bord.** 80 poignées de main simultanées faisaient embarquer 80 joueurs (le maximum est
   32).
 - **Récompenses.**
@@ -117,8 +128,10 @@ utilisation, ce qui fausserait la première visite) :
   - pas de plages d'octets pour l'audio, pas de 304, pas de gzip ;
   - un téléchargement interrompu perdait un descripteur de fichier, et une erreur de lecture
     arrêtait le serveur.
-- **Tests.** 14 nouveaux, qui échouent sur l'ancien code. Il y a désormais 504 tests (502 réussis,
-  2 ignorés, aucun échec).
+- **Tests.** 17 nouveaux ; ceux qui visent un défaut échouent sur l'ancien code. Il y a désormais
+  507 tests (505 réussis, 2 ignorés, aucun échec). Le test qui ramasse un colis au fond de la baie
+  marchait à 10 tuiles/s et ne passait que grâce à la faille : il court désormais à vraie vitesse,
+  ennemi figé.
 
 ### Données des joueurs
 
@@ -289,10 +302,6 @@ Classé par intérêt pour la v1.0. Rien de bloquant n'y reste.
 
 ### Relais
 
-- **Triche de vitesse.** La zone thargoïde (qui paie des crédits) et l'arène acceptent, à chaque
-  message, la distance permise plus une marge. Une rafale de messages cumule ces marges : 32 tuiles
-  en 64 ms acceptées, et des sauts à travers les murs. MESS RUSH a déjà la bonne parade : une
-  réserve de foulée et un contrôle en ligne droite. À reprendre pour les deux autres.
 - **Positions.** Chaque position est encodée une fois par destinataire, jamais en `volatile`, et
   envoyée même à ceux qui sont seuls dans leurs quartiers. Mesuré : 32 joueurs à 10 Hz font
   9 920 envois par seconde et 13,5 % d'un cœur. Des salles socket.io par pont et par instance la
@@ -391,12 +400,15 @@ de passer en `Terminé` :
 10. **Zone thargoïde.** Changer de réseau en pleine mission (Wi-Fi vers 4G) : la mission reprend.
     Les colis au fond de la baie (au-delà de z = 30) se ramassent. Les battements de cœur et le
     détecteur sonnent comme avant.
-11. **Jukebox.** Les pochettes s'affichent nettes dans la liste et dans « À l'écoute ».
-12. **Contrôles.**
+11. **Vitesse, zone et arène.** Courir, longer les murs, tourner aux coins, sur une connexion
+    médiocre : les coéquipiers vous voient bouger normalement, sans à-coups, et ramasser un colis ne
+    répond jamais « trop loin » quand on est dessus.
+12. **Jukebox.** Les pochettes s'affichent nettes dans la liste et dans « À l'écoute ».
+13. **Contrôles.**
     - Marcher en ouvrant le combiné et en cliquant dans un champ : le personnage s'arrête.
     - La molette sur le journal fait défiler sans zoomer.
     - En vue subjective, après une partie de basket, un clic reprend la mire.
-13. **Safari sur iOS 15**, si un appareil est disponible : le CMDR est reconnu.
+14. **Safari sur iOS 15**, si un appareil est disponible : le CMDR est reconnu.
 
 ## Annexe : modèles jamais chargés
 

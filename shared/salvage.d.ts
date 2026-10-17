@@ -153,6 +153,7 @@ export declare function findPath(zone: Zone, from: { x: number; z: number }, to:
 export declare function sightOrigin(zone: Zone, p: { x: number; z: number }): { x: number; z: number }
 export declare function zoneSight(zone: Zone, from: { x: number; z: number }, to: { x: number; z: number }, high?: boolean): boolean
 export declare function straightWalk(zone: Zone, from: { x: number; z: number }, to: { x: number; z: number }, radius?: number): boolean
+export declare function walkReach(zone: Zone, from: { x: number; z: number }, to: { x: number; z: number }, allowed: number): boolean
 export declare function smoothPath(zone: Zone, from: { x: number; z: number }, tiles: Tile[]): Tile[]
 export declare function pickSpawns(zone: Zone, count: number, monsters: { x: number; z: number }[], random: () => number): Tile[]
 export declare function lockerSpot(locker: Locker): { x: number; z: number }

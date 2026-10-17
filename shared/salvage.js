@@ -1049,6 +1049,18 @@ export function straightWalk(zone, from, to, radius = 0.2) {
   return true
 }
 
+/**
+ * On a pu marcher de `from` à `to` sans dépasser `allowed` tuiles : en ligne droite praticable, ou
+ * par un chemin de tuiles à peine plus long (il suit à angle droit les coins qu'une marche coupe en
+ * biais). Un saut à travers un mur, ou plus loin que la course, ne l'est pas (cf. le relais).
+ */
+export function walkReach(zone, from, to, allowed) {
+  if (Math.hypot(to.x - from.x, to.z - from.z) > allowed) return false
+  if (straightWalk(zone, from, to, 0)) return true
+  const path = findPath(zone, from, to)
+  return !!path && path.length - 1 <= allowed * Math.SQRT2 + 1
+}
+
 /** Raccourcit un chemin de tuiles : on file tout droit tant que c'est praticable. */
 export function smoothPath(zone, from, tiles) {
   const out = []

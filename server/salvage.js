@@ -39,7 +39,7 @@ import { DIRS, ShipMap } from '../shared/ship-map.js'
 import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import {
   distances, findPath, floorFx, FX, generateZone, inAirlock, isLit, LOBBY, lockerFront, lockerSpot, mulberry32, pickSpawns, RULES, salvageGrade,
-  salvagePar, smoothPath, tileOf, walkable, ZONE_LEVEL, zoneSight,
+  salvagePar, smoothPath, tileOf, walkable, walkReach, ZONE_LEVEL, zoneSight,
 } from '../shared/salvage.js'
 
 const HOLD = new ShipMap(SHIP_LAYOUTS[String(LOBBY.level)], shipMapOptions(LOBBY.level))
@@ -50,7 +50,12 @@ const SEARCH_CHANCE = 0.22
 const SEARCH_AGAIN = 15
 /** Intervalle des bruits de course (s). */
 const STEP_NOISE = 0.45
-/** Une position plus lointaine que la vitesse ne le permet est ignorée (marge en tuiles). */
+/**
+ * Une position plus lointaine que la vitesse ne le permet est ignorée : la course permise est une
+ * réserve (marge de départ, en tuiles) qui se recharge au rythme de la course, deux secondes au
+ * plus, et que chaque position use ; une rafale de positions ne la cumule donc pas (cf.
+ * mess-rush.js). Et l'on y marche : un saut à travers un mur est refusé (cf. walkReach).
+ */
 const SLACK = 0.9
 /** Délai pour entrer dans la baie après le départ (ou le retour) : au-delà, c'est un abandon (ms). */
 const ARRIVAL = 30000
@@ -210,7 +215,7 @@ export function createSalvage({
       const p = playerById(id)
       game.members.set(id, {
         id, name: p?.name ?? '?', verified: !!p?.verified, cookie: p?.cookie ?? null, status: 'arriving',
-        spawn: spawns[i], x: spawns[i].x, z: spawns[i].z, at: now(), carrying: null, hidden: null, hiddenAt: 0, seen: false,
+        spawn: spawns[i], x: spawns[i].x, z: spawns[i].z, at: now(), stride: SLACK, carrying: null, hidden: null, hiddenAt: 0, seen: false,
         cooldown: 0, flares: 0, noiseAt: 0, sprint: false, glass: null,
         // Chiffres de fin de mission.
         stats: { delivered: 0, spotted: 0, flares: 0, hides: 0, captured: 0 },
@@ -288,6 +293,7 @@ export function createSalvage({
     m.x = front.x
     m.z = front.z
     m.at = now()
+    m.stride = SLACK
     noise(game, front, kind === 'eject' ? RULES.noise.eject : RULES.noise.locker)
     tell(game, { kind, id: m.id, locker: locker.id })
   }
@@ -519,12 +525,15 @@ export function createSalvage({
     const zone = game.zone
     const t = tileOf(zone, { x, z })
     if (!t || !walkable(zone, t.x, t.z)) return false
-    const elapsed = Math.min(2, (now() - m.at) / 1000)
-    const speed = RULES.sprint * (m.carrying !== null ? RULES.carry : 1) * 1.25
-    if (m.status === 'alive' && Math.hypot(x - m.x, z - m.z) > speed * elapsed + SLACK) return false
+    if (m.status === 'alive' && !walkReach(zone, m, { x, z }, stride(m))) return false
     if (m.status === 'arriving' && Math.hypot(x - m.spawn.x, z - m.spawn.z) > 1.5) return false
     return true
   }
+
+  /** La course, chargé ou non, avec de la marge pour le retard du réseau (tuiles/s). */
+  const speedOf = (m) => RULES.sprint * (m.carrying !== null ? RULES.carry : 1) * 1.25
+  /** La course permise d'un membre depuis sa dernière position acceptée (cf. SLACK). */
+  const stride = (m) => Math.min(speedOf(m) * 2 + SLACK, m.stride + speedOf(m) * Math.max(0, now() - m.at) / 1000)
 
   /** Après chaque position acceptée (ou changement de pont) d'un joueur. */
   function moved(p) {
@@ -547,11 +556,13 @@ export function createSalvage({
       if (m.status === 'alive' || (m.status === 'arriving' && now() - m.arrivingSince > ARRIVAL)) quit(game, m)
       return
     }
-    if (m.status === 'arriving') {
+    const arrived = m.status === 'arriving'
+    if (arrived) {
       m.status = 'alive'
       tell(game, { kind: 'arrive', id: m.id })
     }
     if (m.status !== 'alive' || m.hidden !== null) return
+    m.stride = arrived ? SLACK : Math.max(0, stride(m) - Math.hypot(p.x - m.x, p.z - m.z))
     m.x = p.x
     m.z = p.z
     m.at = now()
@@ -650,7 +661,7 @@ export function createSalvage({
     for (const mon of game.monsters) if (mon.target === old) mon.target = null
     if (m.status === 'away') {
       const pad = game.zone.airlock.pad
-      Object.assign(m, { status: 'arriving', spawn: { x: pad.x, z: pad.z }, x: pad.x, z: pad.z, at: now(), arrivingSince: now() })
+      Object.assign(m, { status: 'arriving', spawn: { x: pad.x, z: pad.z }, x: pad.x, z: pad.z, at: now(), stride: SLACK, arrivingSince: now() })
     }
     emit(p.id, 'salvage:start', { ...startMessage(game, m), resumed: true })
     tell(game, { kind: 'back', id: p.id, old })

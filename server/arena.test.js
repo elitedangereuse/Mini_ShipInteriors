@@ -70,7 +70,11 @@ function harness(options = {}) {
     for (const p of [a, ...others]) arrive(p)
     return arena.gameOf(a)
   }
-  return { arena, add, advance, last, events, lobby, arrive, put, start, sent, reports, clock: () => t }
+  /** L'horloge avance sans que la partie avance (des positions qui arrivent rapprochées). */
+  const wait = (ms) => {
+    t += ms
+  }
+  return { arena, add, advance, wait, last, events, lobby, arrive, put, start, sent, reports, clock: () => t }
 }
 
 test('arène : chaque plan est d\'un seul tenant, équitable, trois points d\'apparition par équipe', () => {
@@ -387,6 +391,35 @@ test('arène : une position n\'est acceptée que debout, sur le sol, à portée 
   assert.ok(!h.arena.accepts(a, a.x + 12, a.z), 'trop loin')
   assert.ok(!h.arena.accepts(a, 3, 1), 'dans une caisse')
   assert.ok(!h.arena.accepts(h.add(9), 1, 1), 'pas dans une partie')
+})
+
+test('arène : une course passe à son rythme, pas en rafale (la marge ne se cumule pas)', () => {
+  const h = harness()
+  const a = h.add(1)
+  const game = h.start(a, [], { size: 1 })
+  h.advance(R.warmup + 0.1)
+  const f = game.fighters.get(1)
+  // Un chemin de son camp, découpé en pas de 0,3 tuile.
+  const goal = { x: Math.round(game.zone.width / 2) - 1, z: Math.round(a.z) }
+  const path = findPath(game.zone, a, goal)
+  assert.ok(path && path.length > 5, 'un chemin')
+  const steps = []
+  for (let i = 1; i < path.length; i++) for (const k of [1 / 3, 2 / 3, 1]) steps.push({ x: path[i - 1].x + (path[i].x - path[i - 1].x) * k, z: path[i - 1].z + (path[i].z - path[i - 1].z) * k })
+  const run = (gap) => {
+    h.put(a, path[0].x, path[0].z)
+    f.stride = 0.9
+    let accepted = 0
+    for (const q of steps) {
+      h.wait(gap)
+      if (!h.arena.accepts(a, q.x, q.z)) break
+      Object.assign(a, q)
+      h.arena.moved(a)
+      accepted++
+    }
+    return accepted
+  }
+  assert.equal(run(100), steps.length, 'à pleine course, une position toutes les 100 ms')
+  assert.ok(run(1) <= 3, 'une rafale, une position par milliseconde')
 })
 
 test('arène : chaque camp reste à sa base avant le départ et ne peut jamais entrer dans la base adverse', () => {
