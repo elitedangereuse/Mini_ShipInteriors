@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { keepShared } from './dispose'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import type { Avatar } from './avatar'
 import type { Deck, Interactable } from './deck'
@@ -247,9 +248,10 @@ export class Infirmary {
 
 // --------------------------------------------------------------- pansement
 
-const plasterMat = new THREE.MeshLambertMaterial({ color: '#ff8fbd' })
-const padMat = new THREE.MeshLambertMaterial({ color: '#ffffff' })
-const heartMat = new THREE.MeshBasicMaterial({ color: '#e0263a' })
+// Partagés par tous les pansements : un personnage libéré (cf. disposeOwned) ne les emporte pas.
+const plasterMat = keepShared(new THREE.MeshLambertMaterial({ color: '#ff8fbd' }))
+const padMat = keepShared(new THREE.MeshLambertMaterial({ color: '#ffffff' }))
+const heartMat = keepShared(new THREE.MeshBasicMaterial({ color: '#e0263a' }))
 
 /**
  * Deux bandes roses en croix, compresse blanche au milieu, un cœur rouge : le pansement de Betty

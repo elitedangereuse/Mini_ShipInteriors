@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js'
+import { keepShared } from './dispose'
 import { recolored } from './recolor'
 import { withSurface, type Surface } from './surfaces'
 
@@ -179,9 +180,10 @@ const MATTERS: Record<Theme, { shell: Surface; furniture: Surface }> = {
   sim: { shell: 'hull', furniture: 'metal' },
 }
 
+/** Le matériau du kit, repeint : partagé par tous les ponts de son ambiance. */
 function painted(name: string, p: Paint): THREE.MeshLambertMaterial {
-  const m = stationMaterial.clone()
-  if (stationMaterial.map) m.map = recolored(stationMaterial.map, name, p)
+  const m = keepShared(stationMaterial.clone())
+  if (stationMaterial.map) m.map = keepShared(recolored(stationMaterial.map, name, p))
   return m
 }
 
@@ -214,13 +216,24 @@ function flatPalette(map: THREE.Texture | null) {
   map.needsUpdate = true
 }
 
+/**
+ * Un modèle, téléchargé de nouveau après un échec (réseau mobile, coupure d'un instant) : un seul
+ * fichier perdu arrêtait le démarrage.
+ */
+function fetchModel(url: string, tries = 3): Promise<GLTF> {
+  return loader.loadAsync(url).catch((e) => {
+    if (tries <= 1) throw e
+    return new Promise<void>((resolve) => setTimeout(resolve, 1500)).then(() => fetchModel(url, tries - 1))
+  })
+}
+
 function load(path: string): Promise<GLTF> {
   const hit = cache.get(path)
   if (hit) return Promise.resolve(hit)
   let p = pending.get(path)
   if (!p) {
     // L'empreinte des modèles change avec eux : sans elle, le navigateur ressert l'ancien fichier.
-    p = loader.loadAsync(`${BASE}${path}?v=${import.meta.env.VITE_MODELS_STAMP}`).then((gltf) => {
+    p = fetchModel(`${BASE}${path}?v=${import.meta.env.VITE_MODELS_STAMP}`).then((gltf) => {
       const converted = new Map<THREE.Material, THREE.Material>()
       gltf.scene.traverse((o) => {
         const mesh = o as THREE.Mesh
@@ -237,6 +250,12 @@ function load(path: string): Promise<GLTF> {
           if (!dst) converted.set(src, (dst = toLambert(src)))
           mesh.material = dst
         }
+        // Les instances du modèle (station, packModel, rig) partagent tout cela : qui libère une
+        // instance (cf. disposeOwned) le laisse aux autres.
+        keepShared(mesh.geometry)
+        keepShared(mesh.material as THREE.Material)
+        const m = mesh.material as THREE.MeshLambertMaterial
+        for (const t of [m.map, m.emissiveMap]) if (t) keepShared(t)
       })
       cache.set(path, gltf)
       return gltf
@@ -274,30 +293,30 @@ export async function preload(extra: string[], onProgress: (ratio: number) => vo
     accent: (l, c) => set(c, 44, 0.88, l * 0.82),
     screen: (l, c) => set(c, 205, 0.2, 0.3 + l * 0.3),
   })
-  floorFinishes.silver = withSurface(new THREE.MeshPhongMaterial({
-    map: stationMaterial.map ? recolored(stationMaterial.map, 'silver-floor', silver) : null,
+  floorFinishes.silver = keepShared(withSurface(new THREE.MeshPhongMaterial({
+    map: stationMaterial.map ? keepShared(recolored(stationMaterial.map, 'silver-floor', silver)) : null,
     specular: '#8e9aab',
     shininess: 60,
-  }), 'hull')
+  }), 'hull'))
   // Tomettes : les aciers deviennent terre cuite (du brun des joints à l'orange des carreaux).
   const terracotta = paint({
     steel: (l, c) => set(c, 16, 0.5, 0.2 + l * 0.42),
     screen: (l, c) => set(c, 20, 0.3, 0.3 + l * 0.3),
   })
-  floorFinishes.terracotta = withSurface(new THREE.MeshLambertMaterial({
-    map: stationMaterial.map ? recolored(stationMaterial.map, 'terracotta-floor', terracotta) : null,
-  }), 'tile')
+  floorFinishes.terracotta = keepShared(withSurface(new THREE.MeshLambertMaterial({
+    map: stationMaterial.map ? keepShared(recolored(stationMaterial.map, 'terracotta-floor', terracotta)) : null,
+  }), 'tile'))
   // Graphite : le pont sombre d'un poste de pilotage, où se reflètent les instruments (Phong).
   const graphite = paint({
     steel: (l, c) => set(c, 218, 0.12, 0.05 + l * 0.2),
     accent: (l, c) => set(c, 26, 0.95, l * 0.6),
     screen: (l, c) => set(c, 212, 0.25, 0.1 + l * 0.2),
   })
-  floorFinishes.graphite = withSurface(new THREE.MeshPhongMaterial({
-    map: stationMaterial.map ? recolored(stationMaterial.map, 'graphite-floor', graphite) : null,
+  floorFinishes.graphite = keepShared(withSurface(new THREE.MeshPhongMaterial({
+    map: stationMaterial.map ? keepShared(recolored(stationMaterial.map, 'graphite-floor', graphite)) : null,
     specular: '#5a6478',
     shininess: 90,
-  }), 'hull')
+  }), 'hull'))
 }
 
 /** Instance d'un modèle statique (partage géométrie et matériau). */

@@ -2248,6 +2248,7 @@ cctv = new ShipCameras({
   floor: (level) => deckById(level).y,
   deckName: (level) => deckById(level).def.name,
   voice: () => sound.voice(null, 0.07),
+  release: (voice) => sound.release(voice),
 })
 function openCameras() {
   stopWork()
@@ -2380,6 +2381,7 @@ const STAGE_RISE = 0.05
 let arenaView: { heading: number; zoom: number; eyes: boolean; shoulder: boolean } | null = null
 arenaMode = new ArenaClient({
   scene, iso, player, sound, net, dialog, wallet,
+  built: (arenaDeck) => deckTextures.adopt(arenaDeck),
   // Chaque personnage s'ouvre par sa quête (cf. shared/quests.js) ; le relais vérifie de son côté.
   locks: {
     open: (id) => arenaCharacters(quests.done()).includes(id),
@@ -2688,7 +2690,8 @@ function addRemote(s: PlayerState) {
 function removeRemote(id: number) {
   const r = remotes.get(id)
   if (!r) return
-  scene.remove(r.group)
+  // Il quitte la scène, et son personnage libère sa mémoire GPU (cf. RemotePlayer.dispose).
+  r.dispose()
   bubbles.detach(`p${id}`)
   remotes.delete(id)
 }

@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { rig } from './assets'
 import type { FaceControl } from './avatar'
+import { keepShared } from './dispose'
 import { fuse } from './gear'
 import { tr } from './i18n'
 import { recolored } from './recolor'
@@ -426,7 +427,8 @@ async function buildHead(own: string, ownMesh: THREE.SkinnedMesh, hair: string, 
   const bone = ownMesh.skeleton.bones.findIndex((b) => b.name === 'head')
   const face = measureFace(features)
   if (face && glasses > face.front) face.front = glasses
-  return { geometry: soup.build(bone), blank: blank.build(bone), face }
+  // Calculée une fois par combinaison, elle coiffe tous ceux qui la portent (cf. styledHead).
+  return { geometry: keepShared(soup.build(bone)), blank: keepShared(blank.build(bone)), face }
 }
 
 /** Ajoute une pièce (boîte arrondie…) à la tête, toute d'une couleur de la palette. */
@@ -517,8 +519,9 @@ function hairMaterial(src: THREE.MeshLambertMaterial, id: string, skin: string):
   const key = `${src.uuid}:${id}:${skin}`
   let m = hairMaterials.get(key)
   if (!m) {
-    const c = src.clone()
-    if (src.map) c.map = hairTexture(src.map, id, skin)
+    // Partagé par tous ceux qui ont ces cheveux (cf. keepShared).
+    const c = keepShared(src.clone())
+    if (src.map) c.map = keepShared(hairTexture(src.map, id, skin))
     hairMaterials.set(key, (m = c))
   }
   return m
@@ -529,13 +532,14 @@ function hairMaterial(src: THREE.MeshLambertMaterial, id: string, skin: string):
 /** Expressions dessinables : les permanentes (FACE_CHOICES), et celles que jouent les emotes. */
 type Expression = 'sm' | 'se' | 'su' | 'ma' | 'gr' | 'wi' | 'zz' | 'fr' | 'ka'
 
-const INK = new THREE.MeshBasicMaterial({ color: '#1b1820' })
-const SHINE = new THREE.MeshBasicMaterial({ color: '#ffffff' })
-const MOUTH = new THREE.MeshBasicMaterial({ color: '#5c1d2a' })
-const IRIS = new THREE.MeshBasicMaterial({ color: '#4a7c59' })
-const SCAR = new THREE.MeshBasicMaterial({ color: '#9c5f47' })
-const STUBBLE = new THREE.MeshBasicMaterial({ color: '#6b4a30', transparent: true, opacity: 0.3, depthWrite: false })
-const BRISTLE = new THREE.MeshBasicMaterial({ color: '#7a5638' })
+/** Les encres des traits, communes à tous les visages (cf. keepShared). */
+const INK = keepShared(new THREE.MeshBasicMaterial({ color: '#1b1820' }))
+const SHINE = keepShared(new THREE.MeshBasicMaterial({ color: '#ffffff' }))
+const MOUTH = keepShared(new THREE.MeshBasicMaterial({ color: '#5c1d2a' }))
+const IRIS = keepShared(new THREE.MeshBasicMaterial({ color: '#4a7c59' }))
+const SCAR = keepShared(new THREE.MeshBasicMaterial({ color: '#9c5f47' }))
+const STUBBLE = keepShared(new THREE.MeshBasicMaterial({ color: '#6b4a30', transparent: true, opacity: 0.3, depthWrite: false }))
+const BRISTLE = keepShared(new THREE.MeshBasicMaterial({ color: '#7a5638' }))
 
 /** Arc de cercle (épaisseur `w`), de `from` sur `span` radians ; 0 : à droite, π/2 : en haut. */
 const arc = (r: number, w: number, from: number, span: number) => new THREE.RingGeometry(r - w / 2, r + w / 2, 18, 1, from, span)

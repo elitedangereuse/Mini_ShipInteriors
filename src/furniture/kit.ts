@@ -3,6 +3,7 @@ import { stillTexture } from '../atlas'
 import { renderQuality } from '../quality'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { disposeOwned, keepShared } from '../dispose'
 import { guessSurface, surfaceKind, withSurface, withSurfaceAttribute, type Surface } from '../surfaces'
 import { separateCoplanar, type Piece } from './coplanar'
 
@@ -100,46 +101,22 @@ export const ED_ORANGE = '#ff8a1c'
 // ---------------------------------------------------------------- matériaux
 
 const shared = new Map<string, THREE.Material>()
-/** Matériaux et textures communs à plusieurs meubles : on ne les libère jamais (cf. disposeFurniture). */
-const keep = new WeakSet<object>()
+
+// Matériaux et textures communs à plusieurs meubles : marqués partagés, on ne les libère jamais
+// (cf. disposeFurniture ; le registre est celui de tout le jeu, cf. src/dispose.ts).
+export { keepShared }
 
 function sharedMaterial<M extends THREE.Material>(key: string, make: () => M): M {
   let m = shared.get(key)
-  if (!m) {
-    shared.set(key, (m = make()))
-    keep.add(m)
-  }
+  if (!m) shared.set(key, (m = keepShared(make())))
   return m as M
-}
-
-/** Marque un matériau ou une texture comme partagé : disposeFurniture ne le libère pas. */
-export function keepShared<T extends object>(o: T): T {
-  keep.add(o)
-  return o
 }
 
 /**
  * Libère la mémoire GPU d'un meuble retiré (géométries, matériaux et textures qui lui sont
- * propres) ; les matériaux partagés restent.
+ * propres) ; ce qui est partagé (keepShared : matériaux communs, modèles chargés) reste.
  */
-export function disposeFurniture(root: THREE.Object3D) {
-  root.traverse((o) => {
-    const m = o as THREE.Mesh
-    if (!m.geometry) return
-    m.geometry.dispose()
-    for (const material of Array.isArray(m.material) ? m.material : [m.material]) {
-      if (!material || keep.has(material)) continue
-      for (const value of Object.values(material)) {
-        if ((value as THREE.Texture)?.isTexture && !keep.has(value)) (value as THREE.Texture).dispose()
-      }
-      const uniforms = (material as THREE.ShaderMaterial).uniforms
-      if (uniforms) {
-        for (const u of Object.values(uniforms)) if ((u.value as THREE.Texture)?.isTexture && !keep.has(u.value)) u.value.dispose()
-      }
-      material.dispose()
-    }
-  })
-}
+export const disposeFurniture = disposeOwned
 
 /**
  * Matériau mat, éclairé, d'une couleur (partagé) ; `surface` : sa matière (bois, tissu, cuir…,

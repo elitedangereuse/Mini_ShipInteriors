@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { BLASTER_PACK, packModel } from '../assets'
 import { chefRig } from '../chef'
+import { disposeOwned, keepShared } from '../dispose'
 import { jacquesFace } from '../furniture/bar'
 import { recolored } from '../recolor'
 import { gardenerRig } from '../gardener'
@@ -192,7 +193,8 @@ async function jacquesRig(): Promise<LookRig> {
     const m = o as THREE.Mesh
     if (!m.isMesh) return
     const material = (m.material as THREE.MeshBasicMaterial).clone()
-    if (material.map) material.map = enamel(material.map)
+    // La texture repeinte est en cache, commune à tous les Jacques (cf. keepShared) ; le matériau, à lui.
+    if (material.map) material.map = keepShared(enamel(material.map))
     m.material = material
   })
   const black = lambert('#141519'), cream = lambert('#f4f1ea'), red = lambert('#b0202a'), brass = lambert('#c9a24a'), steel = lambert('#3a3f47')
@@ -365,6 +367,12 @@ export class Drone {
 
   constructor() {
     this.root = this.parts.group
+  }
+
+  /** Il s'en va avec son pilote (fin de partie, de la scène de fin) : il est fait pour lui seul, tout est libéré. */
+  dispose() {
+    this.root.removeFromParent()
+    disposeOwned(this.root)
   }
 
   /** @param scanning il repère un adversaire caché dans un buisson tout proche */

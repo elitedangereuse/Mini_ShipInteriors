@@ -70,9 +70,20 @@ function weathered(hsl: { h: number; s: number; l: number }, c: THREE.Color) {
 
 let loading: Promise<ZoneKit> | null = null
 
-/** Charge le kit (une fois) : au premier départ en mission. */
+/** Charge le kit (une fois) : au premier départ en mission. Un échec ne reste pas en mémoire : le prochain appel retente. */
 export function loadZoneKit(): Promise<ZoneKit> {
-  return (loading ??= build())
+  if (!loading) {
+    const p = (loading = build())
+    p.catch(() => {
+      if (loading === p) loading = null
+    })
+  }
+  return loading
+}
+
+/** Charge le kit d'avance (on attend l'équipe au terminal) : un échec se dira au départ (cf. loadZoneKit). */
+export function warmZoneKit() {
+  loadZoneKit().catch(() => {})
 }
 
 /**

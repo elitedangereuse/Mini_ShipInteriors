@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { disposeOwned, keepShared } from '../dispose'
 import { compact, cylinder, glow, lit, mesh } from '../furniture/kit'
 
 /*
@@ -26,9 +27,9 @@ const C = {
 
 /**
  * Carapace un peu brillante (la lampe frontale y accroche des reflets), à peine émissive : la
- * silhouette se détache du noir d'un vert très sombre.
+ * silhouette se détache du noir d'un vert très sombre. Commune à tous les Thargoïdes.
  */
-const CHITIN = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.32, metalness: 0.45, emissive: '#06140d' })
+const CHITIN = keepShared(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.32, metalness: 0.45, emissive: '#06140d' }))
 
 export type ThargoidMood = 'patrol' | 'investigate' | 'chase' | 'lured' | 'look' | 'search' | 'attack'
 
@@ -267,6 +268,12 @@ export class ThargoidBody {
       const m = o as THREE.Mesh
       if (m.isMesh) m.castShadow = m.material === CHITIN
     })
+  }
+
+  /** Fin de mission : ses membres fusionnés et ses lueurs, à lui seul, sont libérés (la carapace reste). */
+  dispose() {
+    this.root.removeFromParent()
+    disposeOwned(this.root)
   }
 
   /**

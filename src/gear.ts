@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { keepShared } from './dispose'
 
 /*
  * Accessoires cuits : ce qu'on accroche aux os d'un personnage (casque, plastron, toque, sacoches)
@@ -98,9 +99,11 @@ function prepare(mesh: THREE.Mesh, matrix: THREE.Matrix4, textured: boolean, bon
 function bakedMaterial(key: string, src: Colored): THREE.Material {
   let m = bakedMaterials.get(key)
   if (!m) {
-    const c = src.clone() as Colored
+    // Partagé d'un personnage à l'autre, ses textures avec : qui en libère un les laisse aux autres.
+    const c = keepShared(src.clone() as Colored)
     c.color.set(0xffffff)
     c.vertexColors = true
+    for (const t of [c.map, (c as THREE.Material as THREE.MeshLambertMaterial).emissiveMap]) if (t) keepShared(t)
     bakedMaterials.set(key, (m = c))
   }
   return m

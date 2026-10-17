@@ -1,16 +1,44 @@
 import * as THREE from 'three'
 import { box, mesh, part, lit, glow, drawnTexture, animatedScreen, keepShared, type Builder } from './kit'
+import { releaseShared } from '../dispose'
 import { wallScreenHousing } from './decor'
 import { tr } from '../i18n'
 import { REWARD_COUNTER } from './reward-counter'
 import { renderQuality } from '../quality'
 import { courtBoards, records, sportRecords, type BoardId } from '../arcade/game'
 
+/**
+ * Visuels du site, par identifiant (un canvas de 512² et sa texture chacun), du moins récemment servi
+ * au plus récent. Les cadres des quartiers qu'on visite en ajoutent sans cesse : on garde les
+ * MAX_PRINTS derniers montrés (cf. tickArtwork) ou demandés. Un visuel oublié rend sa texture à la
+ * carte graphique ; un cadre qui le montre encore la renvoie depuis son canvas (un visuel animé
+ * continue de s'animer, cf. animated), et ce visuel n'est plus partagé : il part avec ses cadres.
+ */
+const MAX_PRINTS = 48
 const prints = new Map<string, THREE.MeshBasicMaterial>()
 const printLoads = new Map<string, Promise<void>>()
-/** Visuels SVG animés (badges, emblèmes de la Voie) : redessinés au fil du temps, cf. tickArtwork. */
-const animated = new Map<string, { svg: string; draw: (img: HTMLImageElement) => void; busy: boolean; last: number }>()
+/** Visuels SVG animés (badges, emblèmes de la Voie), par matériau : redessinés au fil du temps, cf. tickArtwork. */
+const animated = new WeakMap<THREE.Material, { svg: string; draw: (img: HTMLImageElement) => void; busy: boolean; last: number }>()
 const ANIMATION = /(?:-webkit-)?animation\s*:/
+
+/** Le visuel vient de servir : il passe en tête (cf. MAX_PRINTS). */
+function touch(id: string, material: THREE.MeshBasicMaterial) {
+  if (prints.get(id) !== material) return
+  prints.delete(id)
+  prints.set(id, material)
+}
+
+/** Les visuels de trop, les moins récemment servis, sont oubliés (cf. MAX_PRINTS). */
+function trim() {
+  for (const [id, material] of prints) {
+    if (prints.size <= MAX_PRINTS) return
+    prints.delete(id)
+    printLoads.delete(id)
+    material.map?.dispose()
+    if (material.map) releaseShared(material.map)
+    releaseShared(material)
+  }
+}
 
 /**
  * SVG figé à l'instant `t` (secondes) : un navigateur ne dessine dans un canvas que la première
@@ -41,9 +69,11 @@ function svgImage(svg: string): Promise<HTMLImageElement> {
 /**
  * Nouvelle image des visuels animés, une dizaine de fois par seconde au plus (moins en mode
  * léger) ; chaque visuel partagé n'est redessiné qu'une fois, quel que soit le nombre de cadres.
+ * Montré, un visuel reste en tête du cache (cf. MAX_PRINTS).
  */
-function tickArtwork(key: string) {
-  const a = animated.get(key)
+function tickArtwork(material: THREE.MeshBasicMaterial) {
+  touch(material.userData.artwork, material)
+  const a = animated.get(material)
   const now = performance.now()
   if (!a || a.busy || now - a.last < (renderQuality.light ? 500 : 100)) return
   a.busy = true
@@ -54,7 +84,10 @@ function tickArtwork(key: string) {
 /** Shared placeholder map survives merging; update it after the site image arrives. */
 function artwork(id: string) {
   let material = prints.get(id)
-  if (material) return material
+  if (material) {
+    touch(id, material)
+    return material
+  }
   const badge = id.startsWith('badge:')
   const poster = id.startsWith('adv:')
   const width = id.startsWith('card:') ? 371 : 512
@@ -63,7 +96,10 @@ function artwork(id: string) {
     g.fillStyle = '#ffae48'; g.font = '40px sans-serif'; g.textAlign = 'center'; g.fillText('…', width / 2, 270)
   }))
   material = keepShared(new THREE.MeshBasicMaterial({ map, transparent: badge, alphaTest: badge ? 0.05 : 0 }))
+  material.userData.artwork = id
   prints.set(id, material)
+  trim()
+  const made = material
   if (typeof Image !== 'undefined' && /^(card|badge|adv):[a-f0-9]{16}$/.test(id)) {
     let loaded!: () => void
     printLoads.set(id, new Promise<void>((resolve) => { loaded = resolve }))
@@ -87,7 +123,7 @@ function artwork(id: string) {
         if ((response.headers.get('Content-Type') ?? '').startsWith('image/svg+xml')) {
           const svg = await response.text()
           draw(await svgImage(ANIMATION.test(svg) ? seekSvg(svg, (performance.now() / 1000) % 3600) : svg), true)
-          if (ANIMATION.test(svg)) animated.set(id, { svg, draw: (img) => draw(img, true), busy: false, last: performance.now() })
+          if (ANIMATION.test(svg)) animated.set(made, { svg, draw: (img) => draw(img, true), busy: false, last: performance.now() })
         } else {
           const url = URL.createObjectURL(await response.blob())
           const img = new Image()
@@ -135,15 +171,17 @@ const artFrame: Builder = ({ label }) => {
     for (let i = 0; i < positions.count; i++) {
       uv.setXY(i, positions.getX(i) / 0.58 + 0.5, positions.getY(i) / 0.58 + 0.5)
     }
+    const art = artwork(label)
     g.add(mesh(new THREE.ExtrudeGeometry(shape, { depth: 0.025, bevelEnabled: false }), lit('#614a3b'), 0, 0.65, 0),
-      mesh(front, artwork(label), 0, 0.65, 0.026))
-    return { solid: g, update: () => tickArtwork(label) }
+      mesh(front, art, 0, 0.65, 0.026))
+    return { solid: g, update: () => tickArtwork(art) }
   }
   const card = label?.startsWith('card:')
   const w = card ? 0.42 : 0.58, h = card ? 0.58 : 0.58
+  const art = artwork(label ?? '')
   g.add(box(w + 0.05, h + 0.05, 0.025, lit('#d6ad65'), 0, 0.65, 0.0125))
-  g.add(mesh(new THREE.PlaneGeometry(w, h), artwork(label ?? ''), 0, 0.65, 0.026))
-  return { solid: g, update: () => tickArtwork(label ?? '') }
+  g.add(mesh(new THREE.PlaneGeometry(w, h), art, 0, 0.65, 0.026))
+  return { solid: g, update: () => tickArtwork(art) }
 }
 const employeeBoard: Builder = () => {
   const g = wallScreenHousing(1.42, 0.82, 0.90)

@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { keepShared } from '../dispose'
 
 /*
  * Le contour des combattants, à la couleur de ce qu'ils sont pour le joueur (cf. palette.ts) : on
@@ -51,13 +52,40 @@ function smoothNormals(geometry: THREE.BufferGeometry): THREE.BufferAttribute | 
   return attribute
 }
 
+/** La coque de chaque géométrie : une par géométrie d'origine, que se partagent tous ceux qui la portent. */
+const hulls = new WeakMap<THREE.BufferGeometry, THREE.BufferGeometry>()
+
+/**
+ * La géométrie de la coque d'un maillage : elle partage les tampons de l'original et y ajoute ses
+ * normales lissées ; null s'il n'a pas de normales. Ce n'est pas à disposeOwned de la libérer (elle
+ * est marquée partagée) : libérer ses tampons, ce serait libérer ceux de l'original, que d'autres
+ * dessinent peut-être encore. Elle part avec l'original : libéré, plus personne ne le dessine.
+ */
+function hullGeometry(source: THREE.BufferGeometry): THREE.BufferGeometry | null {
+  const known = hulls.get(source)
+  if (known) return known
+  const normals = smoothNormals(source)
+  if (!normals) return null
+  const geometry = keepShared(new THREE.BufferGeometry())
+  for (const [name, attribute] of Object.entries(source.attributes)) geometry.setAttribute(name, attribute)
+  geometry.setAttribute('outlineNormal', normals)
+  geometry.index = source.index
+  geometry.groups = source.groups
+  geometry.boundingSphere = source.boundingSphere
+  geometry.boundingBox = source.boundingBox
+  hulls.set(source, geometry)
+  source.addEventListener('dispose', () => geometry.dispose())
+  return geometry
+}
+
+/** La matière du trait de chaque couleur, partagée par tous les combattants. */
 const materials = new Map<string, THREE.MeshBasicMaterial>()
 
 /** La matière du trait d'une couleur (partagée). */
 export function outlineMaterial(color: string): THREE.MeshBasicMaterial {
   let m = materials.get(color)
   if (m) return m
-  m = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide, toneMapped: false })
+  m = keepShared(new THREE.MeshBasicMaterial({ color, side: THREE.BackSide, toneMapped: false }))
   m.onBeforeCompile = (shader) => {
     shader.uniforms.outlineWidth = OUTLINE
     shader.vertexShader = shader.vertexShader
@@ -107,17 +135,8 @@ export function outline(root: THREE.Object3D, color: string) {
     meshes.push(mesh)
   })
   for (const mesh of meshes) {
-    const normals = smoothNormals(mesh.geometry)
-    if (!normals) continue
-    // Une géométrie à soi, qui partage les tampons de l'original et y ajoute ses normales lissées.
-    // Elle ne se libère jamais (dispose) : ce serait libérer les tampons de l'original.
-    const geometry = new THREE.BufferGeometry()
-    for (const [name, attribute] of Object.entries(mesh.geometry.attributes)) geometry.setAttribute(name, attribute)
-    geometry.setAttribute('outlineNormal', normals)
-    geometry.index = mesh.geometry.index
-    geometry.groups = mesh.geometry.groups
-    geometry.boundingSphere = mesh.geometry.boundingSphere
-    geometry.boundingBox = mesh.geometry.boundingBox
+    const geometry = hullGeometry(mesh.geometry)
+    if (!geometry) continue
     const skinned = mesh as THREE.SkinnedMesh
     let hull: THREE.Mesh
     if (skinned.isSkinnedMesh) {

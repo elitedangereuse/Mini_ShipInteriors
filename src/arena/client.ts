@@ -3,6 +3,7 @@ import type { Sound } from '../audio'
 import type { Avatar } from '../avatar'
 import type { IsoCamera } from '../camera'
 import { Deck, type Box2 } from '../deck'
+import { keepShared } from '../dispose'
 import type { Wallet } from '../economy/wallet'
 import { tr } from '../i18n'
 import type { LookRig } from '../looks'
@@ -10,7 +11,7 @@ import type { ArenaEnd, ArenaEvent, ArenaFighter, ArenaLobby, ArenaStart, ArenaS
 import type { Player } from '../player'
 import { RangeSfx } from '../range-sfx'
 import { RemotePlayer } from '../remote'
-import { loadZoneKit, type ZoneKit } from '../salvage/kit'
+import { loadZoneKit, warmZoneKit, type ZoneKit } from '../salvage/kit'
 import { SalvageSfx } from '../salvage/sfx'
 import type { Dialog } from '../ui'
 import type { LevelDef } from '../levels'
@@ -63,8 +64,8 @@ import { ArenaHud, ArenaPanel, fetchRanking, RankingPanel, TEAM_NAMES, type Pane
  * suit un combattant (← et → en changent), et l'on n'a ni arme ni corps : pour le bord, on est resté au lobby.
  */
 
-/** Le fantôme : ce que devient un combattant éliminé, à sa base, le temps de revenir en jeu. */
-const GHOST = new THREE.MeshBasicMaterial({ color: '#bfeaff', transparent: true, opacity: 0.4, depthWrite: false })
+/** Le fantôme : ce que devient un combattant éliminé, à sa base, le temps de revenir en jeu (partagé par tous). */
+const GHOST = keepShared(new THREE.MeshBasicMaterial({ color: '#bfeaff', transparent: true, opacity: 0.4, depthWrite: false }))
 
 /** Passe un personnage en fantôme (translucide, bleuté, sans contour), ou lui rend ses couleurs. Sans effet s'il l'est déjà. */
 function haunt(avatar: Avatar | undefined, on: boolean) {
@@ -169,6 +170,8 @@ export interface ArenaHost {
   controls(): PanelControls
   /** Les personnages que ses quêtes lui ont ouverts (cf. CharacterLocks). */
   locks: CharacterLocks
+  /** Une arène vient d'être bâtie (cachée) : le jeu la compte parmi ses ponts (mémoire graphique, cf. DeckTextures). */
+  built?(deck: Deck): void
 }
 
 interface Fighter extends ArenaFighter {
@@ -320,7 +323,7 @@ export class ArenaClient {
       join: (room, team) => {
         // Le relais prend le premier personnage ouvert si celui-là ne l'est pas, ou refuse s'il n'y en a aucun.
         host.net.sendArena('join', { room, team, character: this.playable() ?? this.character })
-        void loadZoneKit()
+        warmZoneKit()
         warmCharacters()
       },
       leave: () => host.net.sendArena('leave'),
@@ -330,7 +333,7 @@ export class ArenaClient {
       watch: (room) => this.watch(room),
       ready: (on) => {
         host.net.sendArena('ready', { ready: on })
-        if (on) void loadZoneKit()
+        if (on) warmZoneKit()
       },
     }, host.locks)
     this.panel.character = this.playable() ?? this.character
@@ -477,7 +480,7 @@ export class ArenaClient {
     this.refresh()
     this.panel.setControls(this.host.controls())
     this.panel.open()
-    void loadZoneKit()
+    warmZoneKit()
     warmCharacters()
   }
 
@@ -494,7 +497,7 @@ export class ArenaClient {
   private watch(room: number) {
     if (this.game) return
     this.host.net.sendArena('watch', { room })
-    void loadZoneKit()
+    warmZoneKit()
     warmCharacters()
   }
 
@@ -614,6 +617,7 @@ export class ArenaClient {
       return team === g.team ? { color: g.tint.ally, foe: false } : { color: g.tint.enemy, foe: true }
     }, (x, z) => arenaGround(this.zone, { x, z }), (id) => this.seenAt(id))
     this.host.scene.add(deck.group)
+    this.host.built?.(deck)
     const built: Built = { zone, deck, extras, podium: null }
     this.built.set(zone.id, built)
     if (this.gun) return this.use(built)
@@ -697,11 +701,23 @@ export class ArenaClient {
     // Un spectateur ne joue pas : ses cocktails continuent.
     if (!watching) this.host.playing()
     await this.host.moveTo(deck, m.spawn, () => {
+      // Reparti pendant le fondu (cf. plus bas) : ni la vue de la partie, ni ses traits.
+      if (this.game !== game) return
       this.host.view('match', { team: m.team })
       if (rig) this.dress(rig, mine!)
     })
-    // Reparti entre-temps (liaison perdue pendant le fondu).
-    if (this.game !== game) return
+    if (this.game !== game) {
+      // Reparti pendant le fondu (liaison perdue, abandon) : le retour au lobby n'avait pas lieu
+      // d'être, on n'était pas encore dans l'arène (cf. leaveNow). On y est arrivé quand même :
+      // on rentre, sauf si une autre partie nous y emmène déjà (dispose a rendu la phase du bord).
+      if ((this.phase as Phase) === 'ship' && this.host.deck() === deck) {
+        await this.host.moveTo(this.host.hold, ARENA_RETURN, () => {
+          this.unstage()
+          this.undress()
+        })
+      }
+      return
+    }
     this.phase = 'arena'
     this.host.face(m.spawn.yaw)
     // Au départ, chacun apparaît à sa base, dans son faisceau.
@@ -784,9 +800,13 @@ export class ArenaClient {
     this.gun?.disarm(id)
     this.hud.dropPlate(id)
     f.mark.dispose()
-    f.drone?.root.removeFromParent()
-    if (f.puppet) f.puppet.group.removeFromParent()
-    else haunt(this.host.player.avatar, false)
+    // Sa doublure et Boulon ne servent plus : leur mémoire GPU est libérée (rendue à ses couleurs
+    // d'abord, la doublure libère les siennes et non le fantôme partagé).
+    f.drone?.dispose()
+    if (f.puppet) {
+      haunt(f.puppet.avatar, false)
+      f.puppet.dispose()
+    } else haunt(this.host.player.avatar, false)
   }
 
   /** Pose les frontières des bases dans les collisions du joueur local. */

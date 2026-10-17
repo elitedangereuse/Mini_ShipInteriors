@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { rig, type Rig } from './assets'
+import { keepShared } from './dispose'
 import { tr } from './i18n'
 import { recolored, type HSL } from './recolor'
 
@@ -184,7 +185,8 @@ function splitModel(model: string, root: THREE.Object3D): Split {
     }
     const painted: number[] = [], original: number[] = []
     for (let t = 0; t < m.tris; t++) (kept(t) ? original : painted).push(m.index[t * 3], m.index[t * 3 + 1], m.index[t * 3 + 2])
-    const g = m.mesh.geometry.clone()
+    // Une par modèle, que se partagent tous les animaux de l'espèce (cf. keepShared).
+    const g = keepShared(m.mesh.geometry.clone())
     g.setIndex([...painted, ...original])
     g.clearGroups()
     g.addGroup(0, painted.length, 0)
@@ -212,11 +214,12 @@ export async function petRig(species: Species, coat: string | undefined): Promis
     const key = `${species.model}:${c.id}`
     let m = painted.get(key)
     if (!m) {
-      m = src.clone()
-      m.map = recolored(src.map, `coat:${key}`, (h, col, x, y) => {
+      // Une robe par espèce, partagée par tous ceux qui la portent.
+      m = keepShared(src.clone())
+      m.map = keepShared(recolored(src.map, `coat:${key}`, (h, col, x, y) => {
         const img = src.map!.image as { width: number; height: number }
         if (split.fur.has(swatchOf(x / img.width, y / img.height))) paint(h, col)
-      })
+      }))
       painted.set(key, m)
     }
     mesh.geometry = split.geometries.get(mesh.name) ?? mesh.geometry

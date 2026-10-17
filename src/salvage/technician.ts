@@ -215,7 +215,8 @@ export class Technician {
     this.avatar.update(dt)
   }
 
+  /** Fin de mission : il quitte la baie, et son personnage (un par mission) est libéré. */
   dispose() {
-    this.root.removeFromParent()
+    this.avatar.dispose()
   }
 }

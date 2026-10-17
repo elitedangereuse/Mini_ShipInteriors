@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { keepShared } from './dispose'
 
 export interface HSL {
   h: number
@@ -120,6 +121,7 @@ export function recolored(src: THREE.Texture, key: string, recolor: (hsl: HSL, c
   t.magFilter = src.magFilter
   t.minFilter = src.minFilter
   t.generateMipmaps = src.generateMipmaps
-  cache.set(cacheKey, t)
+  // Prêtée à tous les personnages qui la portent : en libérer un ne la libère pas (cf. disposeOwned).
+  cache.set(cacheKey, keepShared(t))
   return t
 }

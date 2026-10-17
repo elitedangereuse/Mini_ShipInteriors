@@ -129,6 +129,7 @@ export class MonsterView {
 
   dispose() {
     this.group.removeFromParent()
+    for (const m of this.monsters.values()) m.body.dispose()
     this.group.clear()
     this.monsters.clear()
     this.last.clear()
