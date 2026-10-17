@@ -1315,6 +1315,21 @@ describe('quartiers', () => {
     guest.disconnect()
   })
 
+  test('un visiteur ne rétablit pas la musique de l\'hôte de loin : seul l\'hôte le peut', async () => {
+    const { host, wh, guest, wg } = await hostAndGuest()
+    host.emit('invite', { to: wg.id })
+    await next(guest, 'invite')
+    const entered = next(guest, 'music')
+    guest.emit('visit', { host: wh.id })
+    await entered
+    // À l'entrée de la parcelle, à trois pas du jukebox (13, 8) : hors de portée.
+    const far = next(guest, 'music', (m) => m.far)
+    const unheard = receives(host, 'music', 300)
+    guest.emit('music', { where: 'cabin', track: 'disco', x: 13, z: 8, at: 5 })
+    assert.equal((await far).track, null)
+    assert.equal(await unheard, false)
+  })
+
   test('l\'hôte raccompagne son visiteur ; s\'il débarque, ses visiteurs rentrent chez eux', async () => {
     const { host, wh, guest, wg } = await hostAndGuest()
     host.emit('invite', { to: wg.id })
@@ -1477,5 +1492,129 @@ describe('annuaire', () => {
     const entered = next(adam, 'visit', (m) => m.id === wa.id)
     a.emit('visit', { cmdr: 'Adam+Fauster' })
     assert.deepEqual(await entered, { id: wa.id, cabin: wad.id })
+  })
+})
+
+describe('robustesse', () => {
+  test('une charge hostile ({ toString }) ne fait pas tomber le relais', async () => {
+    const hostile = { toString: 0 }
+    // Jusque dans la poignée de main : l'invité prend le nom par défaut.
+    const a = client({ auth: { name: hostile } })
+    const wa = await next(a, 'welcome')
+    assert.equal(wa.you.name, 'CMDR Jameson')
+    const b = client({ auth: { name: 'CMDR Témoin' } })
+    const wb = await welcome(b)
+    a.emit('chat', { text: hostile })
+    assert.deepEqual(await a.timeout(2000).emitWithAck('whisper', { to: wb.id, text: hostile }), { ok: false, reason: 'empty' })
+    a.emit('state', AT_JUKEBOX)
+    a.emit('music', { where: 'deck', track: hostile, x: 11.3, z: 5.82 })
+    a.emit('visit', { cmdr: hostile })
+    const profile = next(b, 'profile', (m) => m.id === wa.id)
+    a.emit('profile', { name: hostile, skin: hostile })
+    assert.deepEqual(await profile, { id: wa.id, name: 'CMDR Jameson', verified: false, skin: 'human.male.c' })
+    // Toujours à bord, et le relais aussi : le message suivant passe, seul.
+    const heard = next(b, 'chat')
+    a.emit('chat', { text: 'o7' })
+    assert.equal((await heard).text, 'o7')
+    assert.equal(a.connected, true)
+  })
+
+  test('les caractères invisibles (contrôles, largeur nulle, bidi) sont retirés des noms et des messages', async () => {
+    const a = client({ auth: { name: '\u202eCMDR\u200b Rip\u2066ley\ufeff' } })
+    const wa = await welcome(a)
+    assert.equal(wa.you.name, 'CMDR Ripley')
+    const b = client({ auth: { name: 'CMDR Témoin' } })
+    await welcome(b)
+    // Le liant (ZWJ) d'un émoji reste : l'astronaute (femme + liant + fusée).
+    const heard = next(b, 'chat')
+    a.emit('chat', { text: '\u202eo7\u0085 \u{1F469}\u200d\u{1F680}\u200b\u2069' })
+    assert.equal((await heard).text, 'o7 \u{1F469}\u200d\u{1F680}')
+  })
+
+  test('rafales : positions, emotes et profils sont bornés ; qui inonde le relais est débarqué', async () => {
+    const a = client({ auth: { name: 'CMDR Rafale' } })
+    const wa = await welcome(a)
+    const b = client({ auth: { name: 'CMDR Témoin' } })
+    await welcome(b)
+    const counts = { state: 0, emote: 0, profile: 0 }
+    for (const event of Object.keys(counts)) b.on(event, (m) => { if (m.id === wa.id) counts[event]++ })
+    for (let i = 0; i < 90; i++) {
+      a.emit('state', { x: 10 + (i % 10) / 10, z: 3, yaw: 0, level: 0, anim: 'walk' })
+      a.emit('emote', { emote: 'danse' })
+      a.emit('profile', { name: 'CMDR Rafale', skin: 'human.male.c' })
+    }
+    await new Promise((r) => setTimeout(r, 400))
+    // Une seconde de réserve, et au plus une recharge pendant la rafale.
+    assert.ok(counts.state >= 10 && counts.state <= 60, `positions : ${counts.state}`)
+    assert.ok(counts.emote >= 5 && counts.emote <= 15, `emotes : ${counts.emote}`)
+    assert.ok(counts.profile >= 3 && counts.profile <= 9, `profils : ${counts.profile}`)
+    assert.equal(a.connected, true, 'une rafale (270 messages) ne suffit pas à être débarqué')
+    const gone = once(a, 'disconnect')
+    for (let i = 0; i < 700; i++) a.emit('emote', { emote: 'danse' })
+    assert.equal((await gone)[0], 'io server disconnect')
+  })
+
+  test('essayages en rafale au Holo-Me : le bord finit par voir la dernière apparence choisie', async () => {
+    const a = client({ auth: { name: 'CMDR Essayage' } })
+    const wa = await welcome(a)
+    const b = client({ auth: { name: 'CMDR Témoin' } })
+    await welcome(b)
+    const skins = ['human.male.a', 'human.male.b', 'human.male.c', 'human.male.d', 'human.male.e', 'human.male.f']
+    for (let i = 0; i < 12; i++) a.emit('profile', { name: 'CMDR Essayage', skin: skins[i % skins.length] })
+    a.emit('profile', { name: 'CMDR Essayage', skin: 'robot.g' })
+    // Au-delà du débit, le dernier changement part au remplissage suivant (une seconde au plus).
+    await next(b, 'profile', (m) => m.id === wa.id && m.skin === 'robot.g')
+  })
+
+  test('cinéma : seule la régie dit la durée de la vidéo ; un spectateur n\'écourte pas la séance', async () => {
+    const operator = client()
+    const viewer = client()
+    const catalog = next(operator, 'cinema:state', (m) => m.trailers.some((t) => t.id === cinemaTrailer.id))
+    const wo = await welcome(operator)
+    await welcome(viewer)
+    await catalog
+    viewer.emit('state', { x: 24, z: 5, level: 1, yaw: 0, anim: 'idle', pose: 'sit', py: 0.31 })
+    const occupied = next(operator, 'cinema:state', (m) => m.operator === wo.id)
+    operator.emit('state', { x: 28.65, z: 7.51, level: 1, yaw: 0, anim: 'idle', pose: 'sit', py: 0.31 })
+    await occupied
+    const t0 = Date.now()
+    const shown = next(viewer, 'cinema:state', (m) => m.selected === cinemaTrailer.id && m.since >= t0)
+    operator.emit('cinema:choose', { id: cinemaTrailer.id })
+    const { since } = await shown
+    // Le spectateur prétend que le trailer dure une seconde : la séance continue.
+    viewer.emit('cinema:duration', { id: cinemaTrailer.id, since, duration: 1 })
+    assert.equal(await receives(viewer, 'cinema:state', 1500, (m) => m.selected === null), false)
+    // La régie le dit : la séance s'arrête, pour tous.
+    const ended = next(viewer, 'cinema:state', (m) => m.selected === null)
+    operator.emit('cinema:duration', { id: cinemaTrailer.id, since, duration: 1 })
+    await ended
+  })
+
+  test('vaisseau complet : des poignées de main simultanées ne dépassent pas les places à bord', async () => {
+    // Un site qui répond lentement : toutes les poignées de main attendent en même temps.
+    const slow = createServer((_req, res) => setTimeout(() => {
+      res.setHeader('Content-Type', 'application/json')
+      res.end(JSON.stringify({ cmdr: null }))
+    }, 300))
+    const slowUrl = await listen(slow)
+    const http = createServer()
+    const full = attachRelay(http, { log: () => {}, error: () => {}, cmdrUrl: `${slowUrl}/outils/mini-shipinteriors-cmdr.php` })
+    const fullUrl = await listen(http)
+    const sockets = Array.from({ length: 40 }, (_, i) => connect(fullUrl, {
+      path: WS_PATH, auth: { name: `CMDR ${i}` }, extraHeaders: { Origin: fullUrl, Cookie: `ED_LOGGED_CMDR_ID=jeton-${i}` }, reconnection: false, forceNew: true,
+    }))
+    try {
+      const outcomes = await Promise.all(sockets.map((s) => new Promise((resolve) => {
+        s.once('welcome', () => resolve('welcome'))
+        s.once('connect_error', (err) => resolve(err.message))
+      })))
+      assert.equal(outcomes.filter((o) => o === 'welcome').length, 32)
+      assert.equal(outcomes.filter((o) => o === 'Vaisseau complet').length, 8)
+    } finally {
+      for (const s of sockets) s.disconnect()
+      full.close()
+      slow.closeAllConnections()
+      slow.close()
+    }
   })
 })

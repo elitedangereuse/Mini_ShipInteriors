@@ -78,7 +78,7 @@ import { COOKIE, cleanCmdrName, cmdrIdentityFromCookie, cookieValue } from './cm
 import { createSalvage, GAME_ACTIONS, LOBBY_ACTIONS } from './salvage.js'
 import { salvageMinDuration } from '../shared/salvage.js'
 import { readFileSync } from 'node:fs'
-import { createCinema } from './cinema.js'
+import { cinemaOperator, createCinema } from './cinema.js'
 import { BAR_ROOM, BOARD_TABLES, CLUB_ROOM, PATRON_ROOM, SHIP_LAYOUTS, isAlienLook, isPatronLook, shipMapOptions } from '../shared/ship-layouts.js'
 import { TOILET_ROOM, VENT_LAYOUT, VENT_LEVEL, atVentGrate } from '../shared/vents.js'
 import { TUTORIAL_LAYOUT, TUTORIAL_LEVEL } from '../shared/tutorial.js'
@@ -130,6 +130,11 @@ const SALVAGE_ECONOMY = (() => {
 })()
 
 const MAX_PLAYERS = 32
+/**
+ * Messages par seconde d'un client, au plus : bien au-delà de ce qu'envoie le jeu (positions,
+ * tirs de l'arène, commandes du duel : une centaine au plus). Au-delà, il est débarqué.
+ */
+const MAX_PACKETS = 300
 const MAX_TEXT = 200
 const MAX_NAME = 32
 // Emotes (src/avatar.ts), puis réactions (médaillons du site, src/reactions.ts).
@@ -208,11 +213,16 @@ const TRACK = /^[a-z0-9-]{1,24}$/
 /** Après un saut, le réacteur refroidit un peu avant le suivant (ms). */
 const FSD_COOLDOWN = 2000
 
-const clean = (s, max) =>
-  String(s ?? '')
-    .replace(/[\u0000-\u001f\u007f]/g, '')
-    .trim()
-    .slice(0, max)
+/**
+ * Caractères invisibles : contrôles (C0, C1), espaces sans largeur, marques et enchâssements de
+ * direction (bidi), indicateur d'ordre des octets. Ils servent à imiter le nom d'un autre, ou à
+ * retourner le texte qui suit dans le chat de tout le bord.
+ */
+const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g
+/** Dans un message, le liant (ZWJ, U+200D) reste : il compose des émojis (l'astronaute, femme + liant + fusée). */
+const INVISIBLE_TEXT = /[\u0000-\u001f\u007f-\u009f\u200b\u200c\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g
+/** Une chaîne envoyée par un client, sans ses caractères invisibles ; tout autre type (objet, nombre…) compte pour vide. */
+const clean = (s, max, invisible = INVISIBLE) => (typeof s === 'string' ? s.replace(invisible, '').trim().slice(0, max) : '')
 const num = (v, lo, hi) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null)
 const obj = (v) => (v && typeof v === 'object' ? v : {})
 
@@ -254,9 +264,52 @@ export function attachRelay(
     // Un aménagement de quartiers plein (160 objets, extensions comprises) fait ~13 Ko.
     maxHttpBufferSize: 32768,
     allowRequest: (req, callback) => callback(null, sameOrigin(req)),
+    // Une liaison morte (changement de réseau, téléphone en veille) se voit en ~20 s, au lieu
+    // de ~45 s par défaut : le joueur ne reste pas si longtemps à bord en fantôme, et sa place
+    // en mission (cf. RULES.reconnect) commence plus tôt à l'attendre.
+    pingInterval: 10000,
+    pingTimeout: 10000,
   })
   const players = new Map() // socket.id -> joueur
   const sockets = new Map() // id du joueur -> socket
+  /**
+   * Une boucle du jeu (zone thargoïde, arène, MESS RUSH) qui lève une exception ne doit pas arrêter
+   * le relais (server/index.js sort sur toute exception non rattrapée) : l'erreur est journalisée,
+   * une fois par minute au plus (elle se répète à chaque pas), et la boucle continue.
+   */
+  const ticker = (name, step) => {
+    let reported = 0
+    return () => {
+      try {
+        step()
+      } catch (err) {
+        if (Date.now() - reported < 60000) return
+        reported = Date.now()
+        error(`[relais] ${name} : ${err?.stack ?? err}`)
+      }
+    }
+  }
+  /**
+   * De même pour un gestionnaire d'évènement d'un joueur qui lève une exception, ou dont la promesse
+   * échoue : l'erreur est journalisée, et le joueur débarqué. Son départ (cf. `disconnect`) le
+   * retire de ce qu'il occupait (plateau, missions, jukebox…), plutôt que de le laisser à bord dans
+   * un état appliqué à moitié ; et une charge qui fait lever le relais ne se rejoue pas en boucle
+   * dans le journal.
+   */
+  const guarded = (socket, event, handler) => {
+    const fault = (err) => {
+      error(`[relais] « ${event} » a échoué (${socket.id}) : ${err?.stack ?? err}`)
+      socket.disconnect(true)
+    }
+    return (...args) => {
+      try {
+        const result = handler(...args)
+        if (typeof result?.then === 'function') result.then(undefined, fault)
+      } catch (err) {
+        fault(err)
+      }
+    }
+  }
   const cinema = createCinema({ cmdrUrl, players: () => [...players.values()], emit: (event, state) => io.emit(event, state), error,
     youtubeKey, fetcher: youtubeFetch, relaySecret })
   httpServer.on('close', () => cinema.dispose())
@@ -506,7 +559,7 @@ export function attachRelay(
   }
   /** Hôte d'une instance des quartiers : le joueur à bord, ou les quartiers d'un absent (son aménagement compte). */
   const hostOf = (id) => playerById(id) ?? absentById.get(id)
-  const fights = fightRelay(playerById, id => sockets.get(id))
+  const fights = fightRelay(playerById, id => sockets.get(id), error)
   const salvage = createSalvage({
     playerById,
     emit: (id, event, data) => sockets.get(id)?.emit(event, data),
@@ -517,7 +570,7 @@ export function attachRelay(
     // Serveur de dev : les essais dans le navigateur peuvent figer ou placer les ennemis.
     debug: devCmdr,
   })
-  const salvageTimer = setInterval(() => salvage.tick(0.1), 100)
+  const salvageTimer = setInterval(ticker('zone thargoïde', () => salvage.tick(0.1)), 100)
   salvageTimer.unref?.()
   httpServer.on('close', () => clearInterval(salvageTimer))
   // L'arène (cf. arena.js) : ses quatre lobbys se remplissent au même sas, chaque partie a son instance,
@@ -535,7 +588,7 @@ export function attachRelay(
     unlocked: (p) => arenaCharacters(p.quests ?? []),
   })
   httpServer.on('close', () => arena.flushStats())
-  const arenaTimer = setInterval(() => arena.tick(0.05), 50)
+  const arenaTimer = setInterval(ticker('arène', () => arena.tick(0.05)), 50)
   arenaTimer.unref?.()
   httpServer.on('close', () => clearInterval(arenaTimer))
   // MESS RUSH (cf. mess-rush.js) : ses salons au vrai mess, chaque service dans son instance de la
@@ -551,7 +604,7 @@ export function attachRelay(
     // Serveur de dev : les essais dans le navigateur peuvent raccourcir le service.
     debug: devCmdr,
   })
-  const messTimer = setInterval(() => messRush.tick(), 100)
+  const messTimer = setInterval(ticker('MESS RUSH', () => messRush.tick()), 100)
   messTimer.unref?.()
   httpServer.on('close', () => clearInterval(messTimer))
   // La fréquentation, racontée au site toutes les cinq minutes (cf. site-stats.js) : joueurs à bord,
@@ -615,16 +668,35 @@ export function attachRelay(
   }
 
   // Avant d'embarquer : place à bord, puis identité (le site est interrogé une fois par connexion).
+  // Chaque poignée de main en cours retient sa place le temps que le site réponde : sans cela, des
+  // connexions simultanées passeraient toutes le contrôle avant que la première soit à bord.
+  let boarding = 0
   io.use(async (socket, next) => {
-    if (players.size >= MAX_PLAYERS) return next(new Error('Vaisseau complet'))
-    const auth = obj(socket.handshake.auth)
-    socket.data.identity = devCmdr && auth.cmdr
-      ? { name: cleanCmdrName(auth.cmdr), ljpc: auth.ljpc === true, voie: auth.voie === true, bar: auth.bar === true, patreon: auth.patreon === true }
-      : await cmdrIdentityFromCookie(socket.handshake.headers.cookie, { url: cmdrUrl, secret: relaySecret, error })
+    if (players.size + boarding >= MAX_PLAYERS) return next(new Error('Vaisseau complet'))
+    boarding++
+    let identity
+    try {
+      const auth = obj(socket.handshake.auth)
+      identity = devCmdr && auth.cmdr
+        ? { name: cleanCmdrName(auth.cmdr), ljpc: auth.ljpc === true, voie: auth.voie === true, bar: auth.bar === true, patreon: auth.patreon === true }
+        : await cmdrIdentityFromCookie(socket.handshake.headers.cookie, { url: cmdrUrl, secret: relaySecret, error })
+    } catch (err) {
+      error(`[relais] poignée de main interrompue : ${err?.stack ?? err}`)
+      return next(new Error('Relais indisponible'))
+    } finally {
+      boarding--
+    }
+    socket.data.identity = identity
     next()
   })
 
-  io.on('connection', (socket) => {
+  /** Un joueur embarque : son état, l'accueil, puis ce qu'il peut demander au relais. */
+  const embark = (socket) => {
+    // Poignée de main passée juste avant que le vaisseau se remplisse : il reste à quai.
+    if (players.size >= MAX_PLAYERS) {
+      log(`[relais] vaisseau complet : la connexion ${socket.id} est refusée`)
+      return socket.disconnect(true)
+    }
     const auth = obj(socket.handshake.auth)
     const identity = socket.data.identity
     const cmdr = identity?.name
@@ -659,10 +731,8 @@ export function attachRelay(
     }
     player.cabin = player.id
     player.name = cmdr ? `CMDR ${cmdr}` : guestName(auth.name, player)
-    players.set(socket.id, player)
-    sockets.set(player.id, socket)
-    siteStats.open(player)
-    socket.emit('welcome', {
+    // L'accueil est prêt avant que le joueur soit inscrit à bord (rien de ce qui suit ne peut échouer).
+    const welcome = {
       id: player.id,
       // `welcome` : première connexion du CMDR, le site vient de lui décerner le badge du jeu.
       you: { name: player.name, verified: player.verified, ljpc: player.ljpc, voie: player.voie, bar: player.bar, patreon: player.patreon, welcome: !!cmdr && identity.welcome === true },
@@ -684,17 +754,35 @@ export function attachRelay(
       mess: messRush.snapshot(),
       // Quartiers d'absents où se trouvent des visiteurs : de quoi dire chez qui ils sont.
       homes: [...absentById.values()].map((h) => ({ id: h.id, name: `CMDR ${h.name}` })),
-    })
+    }
+    players.set(socket.id, player)
+    sockets.set(player.id, socket)
+    siteStats.open(player)
+    socket.emit('welcome', welcome)
     socket.emit('cinema:state', cinema.snapshot())
     void cinema.refresh().then(() => socket.connected && socket.emit('cinema:state', cinema.snapshot()))
     socket.broadcast.emit('join', { player: publicState(player) })
     log(`[relais] ${player.name}${player.verified ? ' (CMDR vérifié)' : ''} (#${player.id}) a embarqué — ${players.size} à bord`)
 
-    fights.connect(socket, player)
+    // Chaque évènement du joueur passe par `guarded` (cf. plus haut), ceux du duel aussi.
+    const listen = (event, handler) => socket.on(event, guarded(socket, event, handler))
+    fights.connect(socket, player, listen)
 
+    // Le client envoie sa position dix fois par seconde au plus (cf. sendState dans src/net.ts),
+    // plus un envoi forcé à chaque changement de pont : trois fois plus, c'est déjà une rafale.
+    let stateBudget = 30
+    // Emotes et réactions (et le geste d'une interaction), changements de nom et d'apparence : à
+    // la main. Ils vont à tout le bord.
+    let emoteBudget = 10
+    let profileBudget = 8
+    // Au-delà du débit (des essayages en rafale au Holo-Me), le dernier changement demandé attend
+    // le prochain remplissage plutôt que de se perdre : le bord finit par voir l'apparence choisie.
+    let profileLater = null
     let chatBudget = 5
     let inviteBudget = 3
     let visitBudget = 3
+    // Entrer dans des quartiers : tout le bord apprend chez qui l'on est, et l'on reçoit leur aménagement.
+    let enterBudget = 5
     let cabinBudget = 10
     let musicBudget = 3
     let cinemaBudget = 3
@@ -710,10 +798,26 @@ export function attachRelay(
     let arenaBudget = 40
     let messBudget = 20
     let questBudget = 3
+    let packets = 0
     const refill = setInterval(() => {
+      packets = 0
+      stateBudget = Math.min(30, stateBudget + 30)
+      emoteBudget = Math.min(10, emoteBudget + 5)
+      profileBudget = Math.min(8, profileBudget + 1)
+      if (profileLater && profileBudget >= 1) {
+        const raw = profileLater
+        profileLater = null
+        profileBudget--
+        try {
+          applyProfile(raw)
+        } catch (err) {
+          error(`[relais] « profile » a échoué (${socket.id}) : ${err?.stack ?? err}`)
+        }
+      }
       chatBudget = Math.min(5, chatBudget + 1)
       inviteBudget = Math.min(3, inviteBudget + 0.25)
       visitBudget = Math.min(3, visitBudget + 0.25)
+      enterBudget = Math.min(5, enterBudget + 0.5)
       cabinBudget = Math.min(10, cabinBudget + 5)
       musicBudget = Math.min(3, musicBudget + 0.5)
       cinemaBudget = Math.min(3, cinemaBudget + 0.5)
@@ -730,10 +834,20 @@ export function attachRelay(
       messBudget = Math.min(20, messBudget + 10)
       questBudget = Math.min(3, questBudget + 0.25)
     }, 1000)
+    // Garde-fou, tous évènements confondus (cf. MAX_PACKETS) : un client qui inonde le relais est débarqué.
+    socket.use((_packet, next) => {
+      if (++packets <= MAX_PACKETS) return next()
+      if (!socket.connected) return
+      log(`[relais] ${player.name} (#${player.id}) débarqué : plus de ${MAX_PACKETS} messages en une seconde`)
+      socket.disconnect(true)
+    })
 
-    socket.on('state', (raw) => {
+    listen('state', (raw) => {
+      if (stateBudget < 1) return
+      stateBudget--
       const m = obj(raw)
-      const x = num(m.x, -5, 50), z = num(m.z, -5, 30), yaw = num(m.yaw, -10, 10)
+      // Les bornes du plus grand des plans (la baie infestée : 46 × 34) ; chaque pont instancié vérifie son sol.
+      const x = num(m.x, -5, 50), z = num(m.z, -5, 50), yaw = num(m.yaw, -10, 10)
       if (x === null || z === null || yaw === null || !(LEVELS.has(m.level) || m.level === ZONE_LEVEL || m.level === ARENA_LEVEL || m.level === BASE_LEVEL || m.level === VENT_LEVEL || m.level === TUTORIAL_LEVEL || m.level === MESS_LEVEL)) return
       // Les conduits de ventilation : sur leur sol, et l'on n'y entre qu'aspiré par des toilettes du
       // pont supérieur pendant la traversée d'un saut FSD (cf. flushed, plus bas).
@@ -797,7 +911,7 @@ export function attachRelay(
     })
 
     for (const event of [...LOBBY_ACTIONS, ...GAME_ACTIONS, ...(devCmdr ? ['salvage:debug'] : [])]) {
-      socket.on(event, (raw) => {
+      listen(event, (raw) => {
         if (salvageBudget < 1) return
         salvageBudget--
         salvage.handle(player, event, raw)
@@ -805,7 +919,7 @@ export function attachRelay(
     }
 
     for (const event of [...ARENA_LOBBY_ACTIONS, ...ARENA_GAME_ACTIONS, ...(devCmdr ? ['arena:debug'] : [])]) {
-      socket.on(event, (raw) => {
+      listen(event, (raw) => {
         if (arenaBudget < 1) return
         arenaBudget--
         arena.handle(player, event, raw)
@@ -813,14 +927,14 @@ export function attachRelay(
     }
 
     for (const event of [...MESS_ACTIONS, ...(devCmdr ? ['mess:debug'] : [])]) {
-      socket.on(event, (raw) => {
+      listen(event, (raw) => {
         if (messBudget < 1) return
         messBudget--
         messRush.handle(player, event, raw)
       })
     }
 
-    socket.on('cinema:choose', async (raw) => {
+    listen('cinema:choose', async (raw) => {
       if (cinemaBudget < 1) return socket.emit('cinema:error', { reason: 'busy' })
       cinemaBudget--
       const id = obj(raw).id
@@ -828,42 +942,44 @@ export function attachRelay(
       if (reason) socket.emit('cinema:error', { reason })
     })
 
-    socket.on('cinema:search', async (raw, reply) => {
+    listen('cinema:search', async (raw, reply) => {
       if (typeof reply !== 'function') return
       if (Date.now() - lastCinemaSearch < 2000) return reply({ reason: 'busy', videos: [] })
       lastCinemaSearch = Date.now()
       reply(await cinema.search(player, obj(raw).query))
     })
 
-    socket.on('cinema:video', async (raw) => {
+    listen('cinema:video', async (raw) => {
       if (cinemaBudget < 1) return socket.emit('cinema:error', { reason: 'busy' })
       cinemaBudget--
       const reason = await cinema.chooseVideo(player, obj(raw).video)
       if (reason) socket.emit('cinema:error', { reason })
     })
 
-    socket.on('cinema:streams', async (raw, reply) => {
+    listen('cinema:streams', async (raw, reply) => {
       if (typeof reply !== 'function') return
       if (Date.now() - lastCinemaSearch < 2000) return reply({ reason: 'busy', streams: [] })
       lastCinemaSearch = Date.now()
       reply(await cinema.searchStreams(player, obj(raw).query))
     })
 
-    socket.on('cinema:stream', async (raw) => {
+    listen('cinema:stream', async (raw) => {
       if (cinemaBudget < 1) return socket.emit('cinema:error', { reason: 'busy' })
       cinemaBudget--
       const reason = await cinema.chooseStream(player, obj(raw).channel)
       if (reason) socket.emit('cinema:error', { reason })
     })
 
-    socket.on('cinema:duration', (raw) => {
-      if (player.level !== 1) return
+    // La durée de la vidéo, que dit le lecteur YouTube : de la régie seulement (chacun dans la salle
+    // la connaît, mais un spectateur ne doit pas pouvoir écourter la séance de tous).
+    listen('cinema:duration', (raw) => {
+      if (cinemaOperator(players.values()) !== player.id) return
       const { id, since, duration } = obj(raw)
       cinema.reportDuration(id, since, duration)
     })
 
-    socket.on('chat', (raw) => {
-      const text = clean(obj(raw).text, MAX_TEXT)
+    listen('chat', (raw) => {
+      const text = clean(obj(raw).text, MAX_TEXT, INVISIBLE_TEXT)
       if (!text || chatBudget <= 0) return
       chatBudget--
       const msg = { id: player.id, name: player.name, verified: player.verified, text }
@@ -872,10 +988,10 @@ export function attachRelay(
 
     // Chuchoter à un joueur à bord, où qu'il soit : lui seul le reçoit. L'expéditeur apprend si le
     // message est parti, ou pourquoi (gone : il n'est plus à bord, busy : trop de messages d'un coup).
-    socket.on('whisper', (raw, ack) => {
+    listen('whisper', (raw, ack) => {
       const reply = typeof ack === 'function' ? ack : () => {}
       const m = obj(raw)
-      const text = clean(m.text, MAX_TEXT)
+      const text = clean(m.text, MAX_TEXT, INVISIBLE_TEXT)
       const to = playerById(m.to)
       if (!text) return reply({ ok: false, reason: 'empty' })
       if (!to || to === player) return reply({ ok: false, reason: 'gone' })
@@ -886,20 +1002,27 @@ export function attachRelay(
     })
 
     // « J'ai écrit à ce CMDR sur le site » : le destinataire à bord relit ses messages aussitôt.
-    socket.on('nudge', (raw) => {
+    listen('nudge', (raw) => {
       const to = playerById(obj(raw).to)
       if (!to || to === player || chatBudget <= 0) return
       chatBudget--
       sockets.get(to.id)?.emit('nudge', { id: player.id })
     })
 
-    socket.on('emote', (raw) => {
+    listen('emote', (raw) => {
       const emote = obj(raw).emote
-      if (!EMOTES.has(emote)) return
+      if (!EMOTES.has(emote) || emoteBudget < 1) return
+      emoteBudget--
       for (const p of players.values()) if (p !== player && hears(player, p)) sockets.get(p.id)?.emit('emote', { id: player.id, emote })
     })
 
-    socket.on('profile', (raw) => {
+    listen('profile', (raw) => {
+      if (profileBudget < 1) return void (profileLater = raw)
+      profileBudget--
+      profileLater = null
+      applyProfile(raw)
+    })
+    function applyProfile(raw) {
       const m = obj(raw)
       // Le nom d'un CMDR vérifié vient du site : il ne se change pas en jeu.
       if (!player.verified && clean(m.name, MAX_NAME)) player.name = guestName(m.name, player)
@@ -914,10 +1037,10 @@ export function attachRelay(
           emitBoard(state)
         }
       }
-    })
+    }
 
     // Jeux de plateau : deux places maximum, un seul état validé par le relais pour chaque table.
-    socket.on('board:join', (raw) => {
+    listen('board:join', (raw) => {
       if (boardBudget-- <= 0) return socket.emit('board:error', { game: '', table: '', code: 'busy' })
       const m = obj(raw)
       const game = typeof m.game === 'string' ? m.game : ''
@@ -939,7 +1062,7 @@ export function attachRelay(
       emitBoard(state)
     })
 
-    socket.on('board:move', (raw) => {
+    listen('board:move', (raw) => {
       if (boardBudget-- <= 0) return socket.emit('board:error', { game: '', table: '', code: 'busy' })
       const m = obj(raw)
       const key = boardKey(m.game, m.table)
@@ -948,25 +1071,25 @@ export function attachRelay(
       emitBoard(state)
     })
 
-    socket.on('board:leave', () => leaveBoard(player))
+    listen('board:leave', () => leaveBoard(player))
 
     // Jukebox : un morceau (ou le silence) au pont principal, à la cale, ou dans les quartiers où l'on est,
     // depuis son début ou `at` secondes plus loin (un hôte reconnecté rend la sienne au relais).
     // Trop de choix d'un coup : le demandeur, qui joue déjà le sien, retrouve celui de tous.
-    socket.on('music', (raw) => {
+    listen('music', (raw) => {
       const m = obj(raw)
       if (!JUKEBOX_LEVEL.has(m.where)) return
       const instance = m.where === 'cabin' ? player.cabin : m.where === 'deck' ? 0 : -1
       if (musicBudget < 1) return socket.emit('music', { id: 0, ...musicOf(instance), busy: true })
-      const track = m.track === null ? null : TRACK.test(String(m.track)) ? String(m.track) : undefined
+      const track = m.track === null ? null : typeof m.track === 'string' && TRACK.test(m.track) ? m.track : undefined
       const x = num(m.x, -5, 50), z = num(m.z, -5, 32)
       if (track === undefined || x === null || z === null) return
       const song = Number.isInteger(m.song) && m.song >= 0 && m.song <= 3 ? m.song : 0
       const loop = m.loop === true
       const shuffle = m.shuffle === true
       const seed = Number.isInteger(m.seed) && m.seed >= 0 && m.seed <= 0xffffffff ? m.seed : 0
-      // Au jukebox, et de ce côté du mur ; sauf l'hôte reconnecté qui rend sa musique (`at`).
-      const restore = m.where === 'cabin' && m.at !== undefined
+      // Au jukebox, et de ce côté du mur ; sauf l'hôte reconnecté qui rend sa musique (`at`), chez lui.
+      const restore = m.where === 'cabin' && m.at !== undefined && player.cabin === player.id
       const host = m.where === 'cabin' ? hostOf(player.cabin) : undefined
       if (!restore && !reaches(player, JUKEBOX_LEVEL.get(m.where), { x, z }, host)) return socket.emit('music', { id: 0, ...musicOf(instance), far: true })
       musicBudget--
@@ -980,7 +1103,7 @@ export function attachRelay(
     })
 
     // On parle au sergent : à portée de lui (sans mur entre les deux), une réplique toutes les 2 s au plus.
-    socket.on('patrol:talk', () => {
+    listen('patrol:talk', () => {
       if (patrolBudget < 1) return
       const now = Date.now()
       const at = patrolAt(patrolTime(patrol, now))
@@ -992,7 +1115,7 @@ export function attachRelay(
     })
 
     // On parle au chef : à portée de lui (à sa place dans la tournée, ou au bout du self s'il y attend un commis).
-    socket.on('chef:talk', () => {
+    listen('chef:talk', () => {
       if (chefBudget < 1) return
       const now = Date.now()
       const at = cookUntil(now) ? CHEF_WAIT : chefAt(chefTime(chef, now))
@@ -1005,7 +1128,7 @@ export function attachRelay(
 
     // On cuisine avec le chef (on), ou on a fini (off) : se mettre aux fourneaux, seulement depuis le
     // mess ; finir ne coûte rien (il n'y a rien à finir sans avoir commencé).
-    socket.on('chef:cook', (raw) => {
+    listen('chef:cook', (raw) => {
       const on = obj(raw).on === true
       if (on) {
         if (chefBudget < 1 || player.level !== CHEF_LEVEL || MAPS.get(CHEF_LEVEL).room(Math.round(player.x), Math.round(player.z)) !== CHEF_ROOM) return
@@ -1015,7 +1138,7 @@ export function attachRelay(
     })
 
     // On parle à l'infirmière : à portée d'elle (à sa place dans la tournée, ou au chevet où elle consulte).
-    socket.on('nurse:talk', () => {
+    listen('nurse:talk', () => {
       if (nurseBudget < 1) return
       const now = Date.now()
       nurseState(now)
@@ -1029,7 +1152,7 @@ export function attachRelay(
 
     // On l'appelle depuis un lit de l'infirmerie (on), ou la consultation est finie (off ; `healed` :
     // menée à son terme). Une consultation à la fois : elle ne quitte pas un autre patient.
-    socket.on('nurse:care', (raw) => {
+    listen('nurse:care', (raw) => {
       const m = obj(raw)
       const now = Date.now()
       nurseState(now)
@@ -1049,7 +1172,7 @@ export function attachRelay(
     })
 
     // On parle au mécano : à portée de lui (à sa place dans la tournée, ou au nez du Krait s'il y attend un aide).
-    socket.on('mech:talk', () => {
+    listen('mech:talk', () => {
       if (mechBudget < 1) return
       const now = Date.now()
       const at = burn.until > now ? MECH_PANIC : helpUntil(now) ? MECH_WAIT : mechAt(mechTime(mech, now))
@@ -1062,7 +1185,7 @@ export function attachRelay(
 
     // On aide le mécano (on : une étape de plus de la révision), ou on a fini (off) : seulement
     // depuis le hangar ; finir ne coûte rien.
-    socket.on('mech:help', (raw) => {
+    listen('mech:help', (raw) => {
       const on = obj(raw).on === true
       if (on) {
         if (mechBudget < 1 || player.level !== MECH_LEVEL || MAPS.get(MECH_LEVEL).room(Math.round(player.x), Math.round(player.z)) !== MECH_ROOM) return
@@ -1073,7 +1196,7 @@ export function attachRelay(
 
     // On parle à la jardinière : à portée d'elle (à sa place dans la tournée, ou sur les pas japonais
     // si elle y attend un aide).
-    socket.on('garden:talk', () => {
+    listen('garden:talk', () => {
       if (gardenBudget < 1) return
       const now = Date.now()
       const at = growUntil(now) ? GARDEN_WAIT : gardenAt(gardenTime(garden, now))
@@ -1086,7 +1209,7 @@ export function attachRelay(
 
     // On aide la jardinière (on : une étape de plus de la fiche), ou on a fini (off) : seulement
     // depuis la serre ; finir ne coûte rien.
-    socket.on('garden:help', (raw) => {
+    listen('garden:help', (raw) => {
       const on = obj(raw).on === true
       if (on) {
         if (gardenBudget < 1 || player.level !== GARDEN_LEVEL || MAPS.get(GARDEN_LEVEL).room(Math.round(player.x), Math.round(player.z)) !== GARDEN_ROOM) return
@@ -1097,7 +1220,7 @@ export function attachRelay(
 
     // Réacteurs du Krait : on les met en route installé aux commandes (dans la cale), on les coupe
     // si c'est soi qui les a lancés ; tout le bord voit Nico paniquer.
-    socket.on('krait:engines', (raw) => {
+    listen('krait:engines', (raw) => {
       const on = obj(raw).on === true
       if (on) {
         if (mechBudget < 1 || player.level !== MECH_LEVEL || !inCockpit(player)) return
@@ -1107,7 +1230,7 @@ export function attachRelay(
     })
 
     // On parle à Ada, la cheffe de la base : à portée d'elle, sur la base.
-    socket.on('chief:talk', () => {
+    listen('chief:talk', () => {
       if (chiefBudget < 1) return
       const now = Date.now()
       if (!reaches(player, BASE_LEVEL, chiefAt(chiefTime(chief, now)))) return
@@ -1119,7 +1242,7 @@ export function attachRelay(
 
     // Réacteurs du Krait de la base : on les met en route installé aux commandes, on les coupe si
     // c'est soi qui les a lancés ; tous ceux qui sont sur la base les voient.
-    socket.on('base:engines', (raw) => {
+    listen('base:engines', (raw) => {
       const on = obj(raw).on === true
       if (on) {
         if (chiefBudget < 1 || !inBaseCockpit(player)) return
@@ -1129,7 +1252,7 @@ export function attachRelay(
     })
 
     // Saut FSD : installé dans le siège du pilote, et pas pendant un autre saut. Tout le bord le vit.
-    socket.on('jump', () => {
+    listen('jump', () => {
       const now = Date.now()
       if (now < jumpEnds || player.level !== PILOT_SEAT.level || player.pose !== 'pilot') return
       if (Math.hypot(player.x - PILOT_SEAT.x, player.z - PILOT_SEAT.z) > 1) return
@@ -1143,7 +1266,7 @@ export function attachRelay(
     // devient un habitué. Un CMDR le reste (le site lui donne le badge du bar) ; un invité, le temps
     // de sa session. Réponse : { ok, badge } (badge : 'new' s'il vient d'être décerné, 'had' sinon).
     let barPending = false
-    socket.on('vents:exit', async (_raw, ack) => {
+    listen('vents:exit', async (_raw, ack) => {
       const reply = typeof ack === 'function' ? ack : () => {}
       if (player.level !== VENT_LEVEL || !atVentGrate(player)) return reply({ ok: false })
       if (barPending) return
@@ -1160,7 +1283,7 @@ export function attachRelay(
     // ouvrent des pièces. Pour un CMDR, le relais redemande au site, qui fait foi ; un invité joue
     // dans son navigateur, et un CMDR dont le site ne sait rien dire aussi : on les croit.
     // Réponse : { ok, done } (les quêtes retenues).
-    socket.on('quests', async (raw, ack) => {
+    listen('quests', async (raw, ack) => {
       const reply = typeof ack === 'function' ? ack : () => {}
       if (questBudget < 1) return reply({ ok: false })
       questBudget--
@@ -1173,7 +1296,7 @@ export function attachRelay(
 
     // Aménagement de ses quartiers (CMDR vérifiés seulement), transmis à ceux qui s'y trouvent.
     let cabinRevision = 0
-    socket.on('cabin', async (raw) => {
+    listen('cabin', async (raw) => {
       if (!player.verified || cabinBudget < 1) return
       const layout = sanitizeLayout(obj(raw).layout)
       if (!layout) return
@@ -1196,7 +1319,7 @@ export function attachRelay(
     // Invitation dans ses quartiers (CMDR vérifiés seulement), valable une minute. L'hôte apprend
     // si elle est partie, ou pourquoi (guest : il n'est pas CMDR, gone : l'invité n'est plus à
     // bord, here : déjà chez lui, busy : trop d'invitations d'un coup).
-    socket.on('invite', (raw, ack) => {
+    listen('invite', (raw, ack) => {
       const reply = typeof ack === 'function' ? ack : () => {}
       const to = playerById(obj(raw).to)
       if (!player.verified) return reply({ ok: false, reason: 'guest' })
@@ -1212,7 +1335,7 @@ export function attachRelay(
     // Sonner chez un CMDR à bord : il l'apprend, à lui d'inviter. Le visiteur apprend si ça a
     // sonné, ou pourquoi pas (gone : il n'est plus à bord, guest : un invité n'a pas de quartiers
     // où recevoir, here : on y est déjà, busy : trop de coups de sonnette).
-    socket.on('ring', (raw, ack) => {
+    listen('ring', (raw, ack) => {
       const reply = typeof ack === 'function' ? ack : () => {}
       const host = playerById(obj(raw).to)
       if (!host || host === player) return reply({ ok: false, reason: 'gone' })
@@ -1224,7 +1347,7 @@ export function attachRelay(
       reply({ ok: true })
     })
 
-    socket.on('decline', (raw) => {
+    listen('decline', (raw) => {
       const host = playerById(obj(raw).to)
       if (!host?.invited.delete(player.id)) return
       sockets.get(host.id)?.emit('decline', { id: player.id, name: player.name })
@@ -1277,14 +1400,17 @@ export function attachRelay(
 
     // Entrer dans les quartiers d'un hôte (sur invitation, ou sans s'ils sont ouverts), dans ceux,
     // ouverts, d'un CMDR absent (`cmdr`), ou rentrer chez soi (host absent).
-    socket.on('visit', (raw) => {
-      if (typeof obj(raw).cmdr === 'string') return void visitAbsent(obj(raw).cmdr)
+    listen('visit', (raw) => {
+      // Rendue à `guarded` : une erreur pendant l'attente du site est journalisée comme les autres.
+      if (typeof obj(raw).cmdr === 'string') return visitAbsent(obj(raw).cmdr)
       const hostId = obj(raw).host
       if (hostId === null || hostId === undefined || hostId === player.id) return moveTo(player, player.id)
       const host = playerById(hostId)
       const until = host?.invited.get(player.id) ?? 0
       // Invitation expirée ou inconnue, quartiers fermés.
       if (!host || (until < Date.now() && !host.open)) return refuseVisit()
+      if (enterBudget < 1) return refuseVisit()
+      enterBudget--
       host.invited.delete(player.id)
       // L'aménagement d'abord : le visiteur entre dans des quartiers déjà meublés.
       socket.emit('cabin', { id: host.id, layout: host.layout })
@@ -1292,41 +1418,63 @@ export function attachRelay(
     })
 
     // L'hôte raccompagne un visiteur : celui-ci rentre chez lui.
-    socket.on('kick', (raw) => {
+    listen('kick', (raw) => {
       const guest = playerById(obj(raw).id)
       if (guest && guest !== player && guest.cabin === player.id) moveTo(guest, guest.id, player.id)
     })
 
-    socket.on('disconnect', () => {
-      clearInterval(refill)
-      leaveBoard(player)
-      salvage.leave(player)
-      arena.leave(player)
-      messRush.leave(player)
-      siteStats.close(player)
-      players.delete(socket.id)
-      sockets.delete(player.id)
-      cinema.operatorChanged()
-      music.delete(player.id)
-      // Son commis parti, le chef reprend sa tournée.
-      if (setCook(player, false)) socket.broadcast.emit('chef', { id: player.id, ...chefState() })
-      // Son aide parti, ou son pilote (les réacteurs se coupent), le mécano reprend sa tournée.
-      const helped = setHelp(player, false)
-      if (setBurn(player, false) || helped) socket.broadcast.emit('mechanic', { id: player.id, ...mechState() })
-      // Son aide parti, la jardinière reprend sa tournée.
-      if (setGrow(player, false)) socket.broadcast.emit('gardener', { id: player.id, ...gardenState() })
-      // Son pilote parti, les réacteurs du Krait de la base se coupent.
-      if (setBaseBurn(player, false)) socket.broadcast.emit('chief', { id: player.id, ...chiefState() })
-      // Son patient parti, l'infirmière reprend sa tournée ; son pansement part avec lui.
-      const hadPatch = patched.delete(player.id)
-      if (endCare(player, false) || hadPatch) socket.broadcast.emit('nurse', { id: player.id, ...nurseState() })
-      // Plus personne à bord : les jukebox de la salle commune et du bar se taisent.
-      if (!players.size) music.clear()
-      socket.broadcast.emit('leave', { id: player.id })
-      // Ses visiteurs rentrent chez eux.
-      for (const p of players.values()) if (p.cabin === player.id) moveTo(p, p.id)
-      log(`[relais] ${player.name} (#${player.id}) a débarqué — ${players.size} à bord`)
+    listen('disconnect', () => {
+      // Une activité qui lève en le laissant partir (cf. `guarded`) ne le laisse pas à bord en fantôme.
+      try {
+        clearInterval(refill)
+        leaveBoard(player)
+        salvage.leave(player)
+        arena.leave(player)
+        messRush.leave(player)
+      } finally {
+        siteStats.close(player)
+        players.delete(socket.id)
+        sockets.delete(player.id)
+        cinema.operatorChanged()
+        music.delete(player.id)
+        // Son commis parti, le chef reprend sa tournée.
+        if (setCook(player, false)) socket.broadcast.emit('chef', { id: player.id, ...chefState() })
+        // Son aide parti, ou son pilote (les réacteurs se coupent), le mécano reprend sa tournée.
+        const helped = setHelp(player, false)
+        if (setBurn(player, false) || helped) socket.broadcast.emit('mechanic', { id: player.id, ...mechState() })
+        // Son aide parti, la jardinière reprend sa tournée.
+        if (setGrow(player, false)) socket.broadcast.emit('gardener', { id: player.id, ...gardenState() })
+        // Son pilote parti, les réacteurs du Krait de la base se coupent.
+        if (setBaseBurn(player, false)) socket.broadcast.emit('chief', { id: player.id, ...chiefState() })
+        // Son patient parti, l'infirmière reprend sa tournée ; son pansement part avec lui.
+        const hadPatch = patched.delete(player.id)
+        if (endCare(player, false) || hadPatch) socket.broadcast.emit('nurse', { id: player.id, ...nurseState() })
+        // Plus personne à bord : les jukebox de la salle commune et du bar se taisent.
+        if (!players.size) music.clear()
+        socket.broadcast.emit('leave', { id: player.id })
+        // Ses visiteurs rentrent chez eux.
+        for (const p of players.values()) if (p.cabin === player.id) moveTo(p, p.id)
+        log(`[relais] ${player.name} (#${player.id}) a débarqué — ${players.size} à bord`)
+      }
     })
+  }
+
+  io.on('connection', (socket) => {
+    try {
+      embark(socket)
+    } catch (err) {
+      // L'embarquement non plus ne doit pas arrêter le relais : le joueur est débarqué ; inscrit à
+      // bord avant que son départ soit branché, il est effacé.
+      error(`[relais] embarquement interrompu (${socket.id}) : ${err?.stack ?? err}`)
+      socket.disconnect(true)
+      const ghost = players.get(socket.id)
+      if (ghost) {
+        players.delete(socket.id)
+        sockets.delete(ghost.id)
+        siteStats.close(ghost)
+        io.emit('leave', { id: ghost.id })
+      }
+    }
   })
   return io
 }

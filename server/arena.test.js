@@ -980,12 +980,13 @@ test('arène : chaque partie finie est déclarée au site pour le classement, et
     fireAt(h, c, d)
     h.advance(0.25)
   }
-  assert.equal(h.last(1, 'arena:end').winner, 0)
+  const end = h.last(1, 'arena:end')
+  assert.equal(end.winner, 0)
   await new Promise((done) => setTimeout(done, 0))
-  // L'invité n'a pas de compte : pas de ligne pour lui.
+  // L'invité n'a pas de compte : pas de ligne pour lui. Avec le résultat, la durée de la partie et ce qui l'a finie.
   assert.deepEqual(h.reports, [
-    { id: 1, cookie: 'ED_LOGGED_CMDR_ID=jeton-1', game: game.id, result: 'won', kills: 1, deaths: 0, size: 2 },
-    { id: 2, cookie: 'ED_LOGGED_CMDR_ID=jeton-2', game: game.id, result: 'lost', kills: 0, deaths: 1, size: 2 },
+    { id: 1, cookie: 'ED_LOGGED_CMDR_ID=jeton-1', game: game.id, result: 'won', kills: 1, deaths: 0, size: 2, duration: end.duration, reason: end.reason },
+    { id: 2, cookie: 'ED_LOGGED_CMDR_ID=jeton-2', game: game.id, result: 'lost', kills: 0, deaths: 1, size: 2, duration: end.duration, reason: end.reason },
   ])
   assert.deepEqual(h.last(1, 'arena:ranked'), { game: game.id, ok: true })
   assert.deepEqual(h.last(3, 'arena:ranked'), { game: game.id, ok: false, reason: 'guest' })
@@ -994,9 +995,36 @@ test('arène : chaque partie finie est déclarée au site pour le classement, et
   const down = harness({ report: async () => { throw new Error('site injoignable') } })
   const f = down.add(2), g = down.add(3)
   const lost = down.start(f, [g], { size: 1, bots: false })
+  down.advance(61)
   down.arena.handle(g, 'arena:quit', {})
   await new Promise((done) => setTimeout(done, 0))
   assert.deepEqual(down.last(2, 'arena:ranked'), { game: lost.id, ok: false, reason: 'site' })
+})
+
+test('arène : un forfait au coup d\'envoi n\'est pas classé ; plus tard, si', async () => {
+  // Un CMDR et un second onglet, invité dans l'équipe d'en face, sans bots : l'invité abandonne aussitôt.
+  const h = harness()
+  const a = h.add(1), alt = h.add(2)
+  Object.assign(alt, { verified: false, cookie: null })
+  h.start(a, [alt], { size: 1, bots: false })
+  h.advance(R.warmup + 5)
+  h.arena.handle(alt, 'arena:quit', {})
+  assert.deepEqual([h.last(1, 'arena:end').winner, h.last(1, 'arena:end').reason], [0, 'forfeit'])
+  await new Promise((done) => setTimeout(done, 0))
+  assert.deepEqual(h.reports, [], 'rien n\'est déclaré au site')
+  assert.equal(h.last(1, 'arena:ranked'), undefined)
+
+  // Une vraie partie, abandonnée au bout d'une minute et plus : la victoire compte.
+  const h2 = harness()
+  const c = h2.add(1), d = h2.add(2)
+  const game = h2.start(c, [d], { size: 1, bots: false })
+  h2.advance(61)
+  h2.arena.handle(d, 'arena:quit', {})
+  await new Promise((done) => setTimeout(done, 0))
+  // Le partant n'est plus de la partie : seul le gagnant est déclaré.
+  assert.deepEqual(h2.reports.map((r) => [r.id, r.game, r.result, r.reason]), [[1, game.id, 'won', 'forfeit']])
+  assert.ok(h2.reports[0].duration >= 61)
+  assert.deepEqual(h2.last(1, 'arena:ranked'), { game: game.id, ok: true })
 })
 
 test('arène : un spectateur reçoit la partie en cours sans y être, jusqu\'à ce qu\'il s\'en aille', () => {

@@ -1,13 +1,20 @@
 import { randomInt } from 'node:crypto'
 import { fighterProfile } from '../shared/fight-roster.js'
 import { FightSimulation } from '../shared/fight.js'
+import { HOUSING_LEVEL } from '../shared/housing-plot.js'
 
 const BUTTONS = new Set(['left', 'right', 'up', 'down', 'a', 'b', 'c'])
 const pad = () => ({ held: new Set(), pressed: new Set() })
-const room = p => p.level === 0 ? 'deck' : p.level === 1 ? `cabin:${p.cabin}` : null
+// Où se trouve une borne Ruelle Fighter II : la salle d'arcade du pont principal (cf. src/levels.ts), et
+// les quartiers (la borne du catalogue, cf. src/cabin/catalog.ts), un duel par instance. Le pont
+// supérieur n'en a pas.
+const room = p => p.level === 0 ? 'deck' : p.level === HOUSING_LEVEL ? `cabin:${p.cabin}` : null
 
-/** Matchmaking par pont/cabine. Le serveur simule, les clients n'envoient que leurs commandes. */
-export function fightRelay(playerById, socketById) {
+/**
+ * Matchmaking par pont/cabine. Le serveur simule, les clients n'envoient que leurs commandes.
+ * `error` : journal d'une simulation qui lève une exception (le duel s'arrête, le relais continue).
+ */
+export function fightRelay(playerById, socketById, error = console.error) {
   const matches = new Map()
   let serial = 0
   const emit = match => {
@@ -38,6 +45,19 @@ export function fightRelay(playerById, socketById) {
     match.players.forEach(p => { p.pad = pad(); p.at = Date.now() })
     let previous = performance.now(), frames = 0
     match.timer = setInterval(() => {
+      try { frame() } catch (err) {
+        // Une simulation qui lève (et lèverait à chaque image) : le duel s'arrête, chacun l'apprend à sa borne.
+        error(`[duel] ${match.room} arrêté : ${err?.stack ?? err}`)
+        stop(match)
+        if (matches.get(match.room) === match) matches.delete(match.room)
+        for (const p of match.players) {
+          const player = playerById(p.id)
+          if (player?.fightRoom === match.room) player.fightRoom = null
+          socketById(p.id)?.emit('fight:error', { code: 'unavailable' })
+        }
+      }
+    }, 1000 / 60)
+    const frame = () => {
       for (const p of [...match.players]) {
         const player = playerById(p.id)
         if (!player || room(player) !== match.room) { if (player) leave(player); return }
@@ -51,13 +71,14 @@ export function fightRelay(playerById, socketById) {
       match.players.forEach(p => p.pad.pressed.clear())
       if (++frames % 2 === 0 || match.game.over) emit(match)
       if (match.game.over) stop(match)
-    }, 1000 / 60)
+    }
     match.timer.unref?.()
     emit(match)
   }
-  const connect = (socket, player) => {
+  /** `on` : branche un gestionnaire sur la socket (le relais y ajoute sa garde, cf. `guarded`). */
+  const connect = (socket, player, on = (event, handler) => socket.on(event, handler)) => {
     let lastJoin = 0, inputWindow = 0, inputCount = 0
-    socket.on('fight:join', raw => {
+    on('fight:join', raw => {
       const key = room(player)
       if (!key) return socket.emit('fight:error', { code: 'unavailable' })
       const existing = matches.get(player.fightRoom)
@@ -74,7 +95,7 @@ export function fightRelay(playerById, socketById) {
       if (match.players.length === 2) start(match)
       else emit(match)
     })
-    socket.on('fight:input', raw => {
+    on('fight:input', raw => {
       const match = matches.get(player.fightRoom)
       const participant = match?.players.find(p => p.id === player.id)
       if (!participant || !match.game || match.game.over || raw?.session !== match.session) return
@@ -86,7 +107,7 @@ export function fightRelay(playerById, socketById) {
       for (const b of raw.pressed) if (BUTTONS.has(b)) participant.pad.pressed.add(b)
       participant.at = now
     })
-    socket.on('fight:rematch', () => {
+    on('fight:rematch', () => {
       const match = matches.get(player.fightRoom)
       if (!match?.game?.over || match.players.length !== 2) return
       if (match.rematch.has(player.id)) return
@@ -94,8 +115,8 @@ export function fightRelay(playerById, socketById) {
       if (match.rematch.size === 2) start(match)
       else emit(match)
     })
-    socket.on('fight:leave', () => leave(player))
-    socket.on('disconnect', () => leave(player))
+    on('fight:leave', () => leave(player))
+    on('disconnect', () => leave(player))
   }
   return { connect, leave }
 }

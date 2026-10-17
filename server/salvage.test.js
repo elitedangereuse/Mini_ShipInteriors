@@ -521,8 +521,89 @@ test('déconnexion : le colis tombe, la place attend une minute, puis la partie 
   h.advance(RULES.reconnect + 0.5)
   assert.equal(game.members.get(1).status, 'gone')
   assert.equal(h.last(2, 'salvage:end')?.won, false)
-  // Le partant a quitté l'équipe ; l'autre y reste.
-  assert.deepEqual(h.broadcasts.at(-1).data.teams[0].members.map((m) => m.id), [2])
+  // Le partant a quitté l'équipe, comme celui qui a abandonné : le lobby est libre.
+  assert.deepEqual(h.broadcasts.at(-1).data.teams[0].members.map((m) => m.id), [])
+})
+
+test('abandon : le partant n\'est plus de l\'équipe ni de la baie, et repart ailleurs ; le dernier ferme la partie', () => {
+  const h = harness()
+  const { members: [a, b] } = h.team(1, 2)
+  const game = h.launch([a, b])
+  game.monsters.length = 0
+  h.arrive(a)
+  h.arrive(b)
+  // Le chef abandonne : l'équipe continue, l'autre prend la main.
+  h.salvage.handle(a, 'salvage:quit', {})
+  assert.equal(game.members.get(1).status, 'left')
+  assert.ok(h.last(2, 'salvage:event', (e) => e.kind === 'quit' && e.id === 1))
+  assert.deepEqual([...h.salvage.teammates(b)], [2], 'le chat et les positions de la baie ne vont plus au partant')
+  assert.equal(h.salvage.teammates(a).size, 0)
+  let lobby = h.broadcasts.at(-1).data.teams[0]
+  assert.deepEqual([lobby.members.map((m) => m.id), lobby.leader, lobby.status], [[2], 2, 'playing'])
+  // Il ne reçoit plus l'état de la baie.
+  const states = () => h.sent.filter((m) => m.id === 1 && m.event === 'salvage:state').length
+  const before = states()
+  h.advance(0.5)
+  assert.equal(states(), before)
+  // Revenu au lobby, il se place dans un autre.
+  Object.assign(a, { level: -1, x: 22, z: 5 })
+  h.salvage.moved(a)
+  h.salvage.handle(a, 'salvage:join', { team: 2 })
+  assert.equal(h.last(1, 'salvage:error'), undefined)
+  assert.deepEqual(h.broadcasts.at(-1).data.teams[1].members.map((m) => m.id), [1])
+  // Le dernier abandonne : la partie s'arrête et son lobby se libère ; l'autre, déjà ailleurs, n'en sait rien.
+  h.salvage.handle(b, 'salvage:quit', {})
+  assert.equal(h.last(2, 'salvage:end')?.won, false)
+  assert.equal(h.last(1, 'salvage:end'), undefined)
+  lobby = h.broadcasts.at(-1).data.teams[0]
+  assert.deepEqual([lobby.members, lobby.leader, lobby.status], [[], null, 'forming'])
+  assert.deepEqual(h.broadcasts.at(-1).data.teams[1].members.map((m) => m.id), [1])
+})
+
+test('abandon : qui a quitté la mission n\'est pas payé de la victoire de son équipe', async () => {
+  /** B abandonne, A rapporte le colis seul. */
+  const run = async (options) => {
+    const h = harness(20260929, options)
+    const { members: [a, b] } = h.team(1, 2)
+    const game = h.launch([a, b])
+    game.monsters.length = 0
+    h.arrive(a)
+    h.arrive(b)
+    h.salvage.handle(b, 'salvage:quit', {})
+    h.walk(a, game.zone.cargo[0])
+    h.salvage.handle(a, 'salvage:pickup', { kind: 'cargo', id: 0 })
+    h.walk(a, game.zone.airlock.pad)
+    assert.ok(h.last(1, 'salvage:end')?.won)
+    await new Promise((r) => setImmediate(r))
+    return h
+  }
+  const paid = await run()
+  assert.deepEqual(paid.rewards.map((r) => r.member), [1])
+  assert.equal(paid.last(2, 'salvage:reward'), undefined)
+  // Trop rapide pour être payée : seul celui qui est resté l'apprend.
+  const early = await run({ minDuration: () => 3600 })
+  assert.equal(early.last(1, 'salvage:reward').refused, 'early')
+  assert.equal(early.last(2, 'salvage:reward'), undefined)
+})
+
+test('arrivée manquée : sans plus rien envoyer, un membre jamais entré dans la baie l\'abandonne au bout du délai', () => {
+  const h = harness()
+  const { members: [a, b] } = h.team(1, 2)
+  const game = h.launch([a, b])
+  game.monsters.length = 0
+  h.arrive(a)
+  // B reste en route (un onglet figé) : il ne dit plus rien au relais.
+  h.advance(29)
+  assert.equal(game.members.get(2).status, 'arriving')
+  h.advance(2)
+  assert.equal(game.members.get(2).status, 'left')
+  assert.ok(h.last(1, 'salvage:event', (e) => e.kind === 'quit' && e.id === 2))
+  assert.equal(h.last(1, 'salvage:end'), undefined, 'A continue')
+  // Il n'est plus de l'équipe : il peut se placer dans un autre lobby.
+  assert.equal(h.salvage.gameOf(b), null)
+  h.salvage.handle(b, 'salvage:join', { team: 2 })
+  assert.deepEqual(h.broadcasts.at(-1).data.teams[1].members.map((m) => m.id), [2])
+  assert.deepEqual(h.broadcasts.at(-1).data.teams[0].members.map((m) => m.id), [1])
 })
 
 test('reconnexion : avec son ticket, un joueur en course retrouve sa place, au sas d\'extraction', () => {

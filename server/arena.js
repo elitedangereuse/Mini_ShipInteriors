@@ -61,6 +61,12 @@ export function inLobby(p) {
 const SLACK = 0.9
 /** Délai pour entrer dans l'arène après le départ : au-delà, c'est un abandon (ms). */
 const ARRIVAL = 20000
+/**
+ * Un forfait plus court que ça (s, échauffement compris) n'est pas déclaré au site : sinon un
+ * second onglet, invité dans l'équipe d'en face, abandonnerait au coup d'envoi pour offrir une
+ * victoire classée en quelques secondes.
+ */
+const FORFEIT_MIN = 60
 /** Ce que le client tient en main, dit avec chaque tir (`c`) : souris, manette, doigt (cf. arena-stats.js). */
 const CONTROL_CODES = { m: 'mouse', g: 'gamepad', t: 'touch' }
 /** Garde-fou : une balle encore en vol après ce délai s'éteint (s). C'est sa portée qui l'arrête, bien avant. */
@@ -478,7 +484,8 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     const origin = { ...shotOrigin(game.zone, f, { x: o[0], z: o[2] }), y: Math.min(floor + 1, Math.max(floor + 0.05, o[1])) }
     f.tokens--
     f.firedAt = t
-    f.control = CONTROL_CODES[data.c] ?? f.control
+    // Une clé du client : pas une propriété héritée (`constructor`, `__proto__`…).
+    f.control = Object.hasOwn(CONTROL_CODES, data.c) ? CONTROL_CODES[data.c] : f.control
     shoot(game, f, origin, dirs, w.lob ? data.r : 0, data.a === 1)
   }
 
@@ -843,15 +850,21 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     stats.record({ map: game.zone.id, size: game.size, winner, fighters: [...[...game.fighters.values()].map((f) => recordOf(game, f, t)), ...game.left] })
     if (!r.members.size) reset(r)
     // Le classement : la partie de chaque CMDR qui l'a finie, déclarée au site ; chacun apprend si
-    // la sienne a été notée (un invité n'a pas de compte ; `site` : le site ne l'a pas prise).
+    // la sienne a été notée (un invité n'a pas de compte ; `site` : le site ne l'a pas prise). Un
+    // forfait trop rapide (cf. FORFEIT_MIN) n'est déclaré à personne, et rien n'en est dit.
+    const unranked = reason === 'forfeit' && duration < FORFEIT_MIN
+    if (unranked) log(`[arène] partie ${game.id} : forfait au bout de ${duration} s, non déclaré au site`)
     for (const f of game.fighters.values()) {
-      if (f.bot) continue
+      if (f.bot || unranked) continue
       const told = (ok, reason) => emit(f.id, 'arena:ranked', { game: game.id, ok, ...(ok ? {} : { reason }) })
       if (!f.verified || !f.cookie) {
         told(false, 'guest')
         continue
       }
-      const result = { game: game.id, result: winner < 0 ? 'draw' : winner === f.team ? 'won' : 'lost', kills: f.kills, deaths: f.deaths, size: game.size }
+      const result = {
+        game: game.id, result: winner < 0 ? 'draw' : winner === f.team ? 'won' : 'lost', kills: f.kills, deaths: f.deaths, size: game.size,
+        duration: Math.max(0, duration), reason,
+      }
       void Promise.resolve().then(() => report(f, result)).catch(() => false).then((ok) => told(!!ok, 'site'))
     }
     log(`[arène] partie ${game.id} : ${winner < 0 ? 'égalité' : `équipe ${winner ? 'B' : 'A'}`} (${game.rounds.join(' manches à ')}, ${reason})`)

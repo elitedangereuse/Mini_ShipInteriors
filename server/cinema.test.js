@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { once } from 'node:events'
 import { createServer } from 'node:http'
 import { test } from 'node:test'
-import { cinemaOperator, createCinema, PROJECTION_SEAT } from './cinema.js'
+import { cinemaOperator, createCinema, PROJECTION_SEAT, YOUTUBE_SEARCHES_PER_HOUR } from './cinema.js'
 
 const trailer = { id: 42, title: 'Le Détournement', image: '/outils/mini-shipinteriors-cinema.php?image=42', video: 'JMo_6uawuBg' }
 
@@ -132,6 +132,28 @@ test('sans clé API, un lien YouTube peut tout de même être projeté', async (
     assert.equal(found.videos[0].video, 'dQw4w9WgXcQ')
     assert.equal(await cinema.chooseVideo(operator, found.videos[0].video), null)
     assert.equal(cinema.snapshot().youtube.video, 'dQw4w9WgXcQ')
+  } finally { cinema.dispose() }
+})
+
+test('les recherches YouTube sont comptées pour tout le bord : tant par heure, puis on patiente', async () => {
+  const operator = { id: 3, ...PROJECTION_SEAT, pose: 'sit' }
+  let clock = Date.now()
+  let calls = 0
+  const cinema = createCinema({ cmdrUrl: '', players: () => [operator], emit: () => {}, error: () => {}, now: () => clock, youtubeKey: 'clé',
+    fetcher: async () => {
+      calls++
+      return { ok: true, json: async () => ({ items: [{ id: { videoId: 'dQw4w9WgXcQ' }, snippet: { title: 'Cobra Mk III', liveBroadcastContent: 'none' } }] }) }
+    } })
+  try {
+    for (let i = 0; i < YOUTUBE_SEARCHES_PER_HOUR; i++) assert.equal((await cinema.search(operator, `recherche ${i}`)).videos.length, 1)
+    // Une de plus dans l'heure : refusée sans solliciter YouTube ; le cache et les liens restent servis.
+    assert.equal((await cinema.search(operator, 'une de trop')).reason, 'busy')
+    assert.equal((await cinema.search(operator, 'recherche 0')).videos.length, 1)
+    assert.equal((await cinema.search(operator, 'https://youtu.be/dQw4w9WgXcQ')).videos.length, 1)
+    assert.equal(calls, YOUTUBE_SEARCHES_PER_HOUR)
+    clock += 3600000
+    assert.equal((await cinema.search(operator, 'une de trop')).videos.length, 1)
+    assert.equal(calls, YOUTUBE_SEARCHES_PER_HOUR + 1)
   } finally { cinema.dispose() }
 })
 
