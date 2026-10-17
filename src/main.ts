@@ -5487,7 +5487,8 @@ function tryInteract() {
 /**
  * Ouvre Scavengers (depuis le poste de la planque, ou celui qu'on a posé chez soi). La première
  * fois, les apparences de Kael et d'ARIA arrivent au Holo-Me : une « quête » d'une seule étape,
- * sans récit, que le site tient comme les autres (cf. shared/quests.js).
+ * sans récit, que le site tient comme les autres (cf. shared/quests.js). Elle attend la recrue du
+ * sergent : avant, le jeu s'ouvre sans rien offrir, et l'offrira à la partie suivante.
  */
 function openScavengers() {
   gameEmbed.open('scavengers')

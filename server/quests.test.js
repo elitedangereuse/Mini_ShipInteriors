@@ -50,8 +50,9 @@ test('une quête peut en attendre d\'autres : elles existent, sans boucle, et s\
     for (const q of QUESTS) if (questAvailable(q, done)) done.add(q.id)
   }
   assert.equal(done.size, QUESTS.length)
-  // Seule la première recrue de l'arène n'attend rien ; les histoires du bord attendent la leur.
-  assert.deepEqual(QUESTS.filter((q) => questAvailable(q, [])).map((q) => q.id), ['bon-pour-le-service', 'scavengers'])
+  // Seule la recrue du sergent n'attend rien ; elle ouvre les autres recrues, et chaque histoire du bord attend la sienne.
+  assert.deepEqual(QUESTS.filter((q) => questAvailable(q, [])).map((q) => q.id), ['bon-pour-le-service'])
+  assert.ok(questAvailable(questById('scavengers'), ['bon-pour-le-service']))
   assert.equal(questAvailable(questById('gamelle-vide'), ['bon-pour-le-service']), false)
   assert.ok(questAvailable(questById('gamelle-vide'), ['bon-pour-le-service', 'calibrage']))
   const garde = questById('tour-de-garde')

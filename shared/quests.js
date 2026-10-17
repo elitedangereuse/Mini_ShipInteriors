@@ -52,8 +52,9 @@ export const QUESTS = [
   // Écho, la projection que personne n'a validée : l'apparence « Hologramme », au Holo-Me.
   { id: 'essayage', steps: [3, 0, 0], requires: ['bon-pour-le-service'], reward: { skins: ['holo.echo'] } },
   // Pas une histoire, une formalité : lancer Scavengers depuis un de ses postes (cf. main.ts) offre
-  // les apparences de Kael et d'ARIA. Le journal ne la montre pas (elle n'a pas de récit).
-  { id: 'scavengers', steps: [0], reward: { skins: ['suit.kael', 'holo.aria'] } },
+  // les apparences de Kael et d'ARIA. Le journal ne la montre pas (elle n'a pas de récit). Comme
+  // tout le reste, elle attend la recrue du sergent : avant, le jeu s'ouvre sans rien offrir.
+  { id: 'scavengers', steps: [0], requires: ['bon-pour-le-service'], reward: { skins: ['suit.kael', 'holo.aria'] } },
   // --- Celles qui se méritent : elles attendent d'autres histoires (`requires`).
   // L'émission pirate : son album au jukebox (cf. src/music.ts), et le poste qui la captait.
   { id: 'frequence-fantome', steps: [0, 3, 0, 0], requires: ['silence-on-dribble'], reward: { items: ['pirate-radio'] } },
