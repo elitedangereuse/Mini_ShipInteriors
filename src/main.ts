@@ -308,7 +308,10 @@ sun.shadow.normalBias = 0.03
 // ------------------------------------------------------------------ monde
 
 // Les modèles font l'essentiel de l'attente : 90 % de la jauge, le reste pour le site et le montage.
-await preload([lookPath(parseLook(profile.skin)), `ships/${chosenShip()}.glb`], (r) => bootProgress(r * 0.9))
+// Les Mini Characters (l'équipage, les dîneurs, la plupart des visiteurs) partent avec le reste :
+// chaque personnage de l'équipage attendait le sien pendant le montage des ponts, en quatre vagues.
+const MINI_CHARACTERS = ['female', 'male'].flatMap((sex) => [...'abcdef'].map((v) => `characters/character-${sex}-${v}.glb`))
+await preload([lookPath(parseLook(profile.skin)), `ships/${chosenShip()}.glb`, ...MINI_CHARACTERS], (r) => bootProgress(r * 0.9))
 bootProgress(0.94, tr('Identification du CMDR', 'Identifying CMDR'))
 const account = await within(accountRequest, 3000, null)
 if (account) {
