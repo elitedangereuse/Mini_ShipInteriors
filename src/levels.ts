@@ -901,11 +901,10 @@ export const LEVELS: LevelDef[] = [
         model: 'salvage-terminal', x: 22, z: 2.45, action: tr('Préparer une mission', 'Prepare a mission'),
         interact: tr('Terminal de mission : récupération de cargaison en zone thargoïde.', 'Mission terminal: cargo recovery in a Thargoid zone.'),
       },
-      // Le poste de sécurité : les écrans de la baie au mur, le bureau d'Odile, ses classeurs.
-      { model: 'surveillance-wall', x: 21, z: -0.16, solid: false },
-      { model: 'security-desk', x: 21, z: 1.12 },
-      { model: 'k-side-table-drawers', x: 19.85, z: 1.15, rot: 1 },
-      { model: 'k-potted-plant', x: 22.2, z: -0.15 },
+      // Le poste de sécurité : les écrans de la baie au mur, le bureau d'Odile, une plante dans l'angle.
+      { model: 'surveillance-wall', x: 21.5, z: -0.16, solid: false },
+      { model: 'security-desk', x: 21.35, z: 1.12 },
+      { model: 'k-potted-plant', x: 22.25, z: 1.15 },
       { model: 'intercom', x: 21.75, z: 1.78, solid: false },
       // L'alcôve : la porte blindée, sa zone de dépôt, le portique de décontamination.
       { model: 'blast-door', x: 24, z: -0.46, solid: false, interact: tr(
@@ -935,13 +934,13 @@ export const LEVELS: LevelDef[] = [
       { model: 'stain', x: 24.5, z: 2.5, solid: false },
       // Le mur ouest : les caméras pour suivre son équipe ; sous les vitres d'Odile, les fusées.
       {
-        model: 'surveillance-wall', x: 19.86, z: 2.5, rot: 1, action: tr('Caméras', 'Cameras'),
+        model: 'surveillance-wall', x: 20.86, z: 2.5, rot: 1, action: tr('Caméras', 'Cameras'),
         interact: [
           tr('Dix caméras dans la baie de stockage. Sur la trois, quelque chose vient de passer. Ou pas.', 'Ten cameras in the storage bay. On number three, something just walked past. Or not.'),
           tr('Les caméras filment la baie infestée. En mission, elles suivent l\'équipe.', 'The cameras watch the infested bay. During a mission, they follow the crew.'),
         ],
       },
-      { model: 'flare-crate', x: 20.75, z: 1.82, interact: tr(
+      { model: 'flare-crate', x: 21.3, z: 1.8, interact: tr(
         'Des fusées d\'appel rouges. Lancées dans la baie, elles attirent ce qui y rôde pendant quelques secondes.',
         'Red decoy flares. Thrown in the bay, they draw whatever prowls there for a few seconds.',
       ) },
@@ -951,7 +950,7 @@ export const LEVELS: LevelDef[] = [
         tr('Au milieu, la salle des machines, l\'aire de stockage et le nid, en vert. Au sud, le quai de chargement éclairé, le sas d\'extraction, et la zone effondrée.', 'In the middle, the machine room, the storage yard and the nest, in green. South, the lit loading dock, the extraction airlock, and the collapsed zone.'),
         tr('Un écho rouge tourne autour du nid. La légende dit « échos simulés ». La légende ment peut-être.', 'A red echo circles the nest. The legend says “simulated echoes”. The legend may be lying.'),
       ] },
-      { model: 'cables', x: 21.2, z: 3.2, solid: false },
+      { model: 'cables', x: 21.7, z: 3.2, solid: false },
 
       // --- Hall de la cale : un grand plateau ouvert, de la raffinerie au hangar, la soute abattue
       // dans son coin sud-est, son téléporteur au milieu. Au nord, côte à côte, la zone thargoïde,
@@ -979,11 +978,11 @@ export const LEVELS: LevelDef[] = [
       // nord, le classement, bien en vue, le trophée dans l'angle ; une bannière par équipe, de son
       // côté du sol (les bleus à l'ouest, les orange à l'est) ; près de la porte, l'hologramme ---
       { model: 'arena-entry', x: 18.5, z: 4.02, solid: false },
-      { model: 'arena-floor', x: 18, z: 1.5, rot: 2, label: '2.7,3.7', solid: false },
+      { model: 'arena-floor', x: 18.5, z: 1.5, rot: 2, label: '3.7,3.7', solid: false },
       // Le logo de CMDR Arena : sur l'enseigne lumineuse, au-dessus de la porte (elle est du côté du
       // hall, contre la cloison), et peint au sol, sans son fond, au milieu du lobby.
       { model: 'arena-sign', x: 18.5, z: 3.66, rot: 0, solid: false },
-      { model: 'arena-logo', x: 18, z: 1.5, rot: 2, label: '1.6', solid: false },
+      { model: 'arena-logo', x: 18.5, z: 1.5, rot: 2, label: '1.6', solid: false },
       {
         model: 'arena-terminal', x: ARENA_TERMINAL.x, z: ARENA_TERMINAL.z, rot: 1, action: tr('Jouer à CMDR Arena', 'Play CMDR Arena'),
         interact: tr('Terminal de CMDR Arena : duels par équipes, jusqu\'à trois contre trois.', 'CMDR Arena terminal: team duels, up to three versus three.'),
@@ -991,17 +990,17 @@ export const LEVELS: LevelDef[] = [
       { model: 'arena-booth', x: ARENA_BOOTH.x, z: ARENA_BOOTH.z, rot: 3 },
       // Au mur nord : le classement des joueurs, tenu par le site.
       {
-        model: 'arena-board', x: 17.85, z: -0.33, rot: 0, solid: false, action: tr('Classement', 'Ranking'),
+        model: 'arena-board', x: 18.35, z: -0.33, rot: 0, solid: false, action: tr('Classement', 'Ranking'),
         interact: tr('Le classement de CMDR Arena : les CMDR par victoires.', 'The CMDR Arena ranking: CMDRs by wins.'),
       },
       { model: 'arena-banner', x: 16.66, z: 0.45, rot: 1, label: 'blue', solid: false },
-      { model: 'arena-banner', x: 19.34, z: 2.75, rot: 3, label: 'orange', solid: false },
-      { model: 'arena-trophy', x: 19.12, z: -0.12, rot: 2, interact: [
+      { model: 'arena-banner', x: 20.34, z: 2.75, rot: 3, label: 'orange', solid: false },
+      { model: 'arena-trophy', x: 20.12, z: -0.12, rot: 2, interact: [
         tr('La coupe de CMDR Arena. Le socle est gravé : « À celui qui tire le dernier. »', 'The CMDR Arena cup. The plinth is engraved: “To whoever shoots last.”'),
         tr('La coupe est vissée au socle. Tessa a ses raisons.', 'The cup is bolted to the plinth. Tessa has her reasons.'),
       ] },
-      { model: 'arena-garland', x: 18, z: 0.55, rot: 2, label: '2.7', solid: false },
-      { model: 'arena-garland', x: 18, z: 2.5, rot: 2, label: '2.7', solid: false },
+      { model: 'arena-garland', x: 18.5, z: 0.55, rot: 2, label: '3.7', solid: false },
+      { model: 'arena-garland', x: 18.5, z: 2.5, rot: 2, label: '3.7', solid: false },
       // Dans l'angle sud-ouest, à côté de la porte : l'hologramme de l'arène. On y regarde la partie en cours.
       {
         model: 'arena-holo', x: 17.1, z: 2.88, rot: 2, solid: false, action: tr('Regarder une partie', 'Watch a match'),

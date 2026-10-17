@@ -18,7 +18,7 @@ export const SHIP_LAYOUTS = {
   // au nord, chacun derrière sa porte double : celui de la zone thargoïde (SOC-06, 'h', cf.
   // THARGOID_DOORS), une pièce fermée d'où partent les missions : la salle de briefing, l'alcôve de
   // la porte blindée et, derrière ses vitres, le poste de sécurité de la zone ('t', verrouillé) ; à
-  // côté, à l'ouest, au même niveau, celui de l'arène ('y', 3 × 4, cf. ARENA_DOORS), derrière une
+  // côté, à l'ouest, au même niveau, celui de l'arène ('y', 4 × 4, cf. ARENA_DOORS), derrière une
   // cloison vitrée. Le hall s'étend jusqu'à la raffinerie, d'un seul tenant : la porte du bar
   // s'ouvre dans son mur sud, au bord est (cf. BAR_DOORS), et le plan du vaisseau est au mur ouest.
   // Le bar a une seconde porte, au sud, sur le hall d'entraînement. Au-dessus de la salle des
@@ -39,10 +39,10 @@ export const SHIP_LAYOUTS = {
   // ('x', cf. GYM_ROOM). Entre la Voie et le bar, le Vestiaire des Légendes ('l'), qui s'ouvre par
   // une porte double sur le hall d'entraînement.
   '-1': [
-    'nnnnuuu     rrrrryyyttthhhkkkkkkkkkkkk  ',
-    'nnn+uuuuuuu rrrrryyyttthhhkkkkkkkkkkkk  ',
-    'nnnnaaaaccu rrrrryyyhhhhhhkkkkkkkkkkkk  ',
-    'eeeeaaaacc+ rrrrryyyhhhhhhkkkkkkkkkkkk  ',
+    'nnnnuuu     rrrrryyyytthhhkkkkkkkkkkkk  ',
+    'nnn+uuuuuuu rrrrryyyytthhhkkkkkkkkkkkk  ',
+    'nnnnaaaaccu rrrrryyyyhhhhhkkkkkkkkkkkk  ',
+    'eeeeaaaacc+ rrrrryyyyhhhhhkkkkkkkkkkkk  ',
     'eeeeaaaajjjj+rr+rppppppppp+kkkkkkkkkkk  ',
     'eee+aaaa+jjjmmmmmppppppppp+kkkkkkkkkkk  ',
     'eeeeaaaajjjj+mmmmpppppppppkkkkkkkkkkkk  ',

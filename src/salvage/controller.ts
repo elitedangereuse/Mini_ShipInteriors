@@ -18,7 +18,7 @@ import { dampAngle } from '../player'
 export const CONTROLLER = 'Odile'
 
 /** Où elle se tient (coordonnées de la cale) et où l'on se met pour lui parler, à l'interphone. */
-export const CONTROL_POST = { at: { x: 21, z: 0.62 }, intercom: { x: 21, z: 2.05 }, screens: { x: 21, z: -0.4 } }
+export const CONTROL_POST = { at: { x: 21.35, z: 0.62 }, intercom: { x: 21.5, z: 2.05 }, screens: { x: 21.5, z: -0.4 } }
 
 /** Uniforme bleu nuit de la sécurité, galons orange d'Elite, gants noirs. */
 const CONTROL_SUIT: SuitStyle = {
