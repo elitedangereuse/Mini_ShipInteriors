@@ -43,7 +43,7 @@ const site = createServer((req, res) => {
     // Première connexion de Rackam : le site lui décerne le badge du jeu, une fois, et le dit.
     const welcome = name === 'Rackam' && !welcomed.has(name)
     if (welcome) welcomed.add(name)
-    res.end(JSON.stringify({ cmdr: name, ljpc: name === 'Adam Fauster', voie: name === 'Adam Fauster', bar: name === 'Adam Fauster', welcome }))
+    res.end(JSON.stringify({ cmdr: name, ljpc: name === 'Adam Fauster', voie: name === 'Adam Fauster', bar: name === 'Adam Fauster', patreon: name === 'Adam Fauster', welcome }))
   }
 })
 
@@ -159,7 +159,7 @@ const welcome = (socket) =>
 describe('identité', () => {
   test('un cookie reconnu par le site donne un CMDR vérifié', async () => {
     const w = await welcome(client({ cookie: 'autre=1; ED_LOGGED_CMDR_ID=jeton-adam', auth: { name: 'CMDR Usurpateur' } }))
-    assert.deepEqual(w.you, { name: 'CMDR Adam Fauster', verified: true, ljpc: true, voie: true, bar: true, welcome: false })
+    assert.deepEqual(w.you, { name: 'CMDR Adam Fauster', verified: true, ljpc: true, voie: true, bar: true, patreon: true, welcome: false })
     // Seul le cookie du site est relayé, pas les autres cookies du navigateur.
     assert.equal(seen.at(-1), 'ED_LOGGED_CMDR_ID=jeton-adam')
   })
@@ -175,24 +175,24 @@ describe('identité', () => {
   test('sans cookie, invité avec le nom de son choix', async () => {
     const before = seen.length
     const w = await welcome(client({ auth: { name: 'CMDR Ripley' } }))
-    assert.deepEqual(w.you, { name: 'CMDR Ripley', verified: false, ljpc: false, voie: false, bar: false, welcome: false })
+    assert.deepEqual(w.you, { name: 'CMDR Ripley', verified: false, ljpc: false, voie: false, bar: false, patreon: false, welcome: false })
     assert.equal(seen.length, before, 'le site n\'est pas interrogé sans cookie')
   })
 
   test('un cookie inconnu du site reste invité', async () => {
     const w = await welcome(client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-bidon', auth: { name: 'CMDR Solo' } }))
-    assert.deepEqual(w.you, { name: 'CMDR Solo', verified: false, ljpc: false, voie: false, bar: false, welcome: false })
+    assert.deepEqual(w.you, { name: 'CMDR Solo', verified: false, ljpc: false, voie: false, bar: false, patreon: false, welcome: false })
   })
 
   test('hors serveur de dev, le nom de CMDR envoyé par le client est ignoré', async () => {
     const w = await welcome(client({ auth: { name: 'CMDR Kirk', cmdr: 'Adam Fauster' } }))
-    assert.deepEqual(w.you, { name: 'CMDR Kirk', verified: false, ljpc: false, voie: false, bar: false, welcome: false })
+    assert.deepEqual(w.you, { name: 'CMDR Kirk', verified: false, ljpc: false, voie: false, bar: false, patreon: false, welcome: false })
   })
 
   test('un invité ne prend pas le nom d\'un CMDR vérifié à bord', async () => {
     await welcome(client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-rackam' }))
     const w = await welcome(client({ auth: { name: 'cmdr rackam' } }))
-    assert.deepEqual(w.you, { name: 'cmdr rackam (invité)', verified: false, ljpc: false, voie: false, bar: false, welcome: false })
+    assert.deepEqual(w.you, { name: 'cmdr rackam (invité)', verified: false, ljpc: false, voie: false, bar: false, patreon: false, welcome: false })
   })
 
   test('un CMDR vérifié ne change pas de nom en jeu', async () => {
@@ -238,6 +238,37 @@ describe('identité', () => {
     const memberState = next(observer, 'state', (m) => m.id === memberWelcome.id)
     member.emit('state', { x: 23, z: 1, level: 0, yaw: 0, anim: 'idle' })
     assert.equal((await memberState).z, 1)
+  })
+
+  test('le salon des mécènes refuse qui ne soutient pas le site sur Patreon', async () => {
+    const observer = client()
+    await welcome(observer)
+    const guest = client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-rackam' })
+    const guestWelcome = await welcome(guest)
+    assert.equal(guestWelcome.you.patreon, false)
+    const guestState = next(observer, 'state', (m) => m.id === guestWelcome.id)
+    guest.emit('state', { x: 22, z: 12, level: 0, yaw: 0, anim: 'idle' })
+    guest.emit('state', { x: 22, z: 8, level: 0, yaw: 0, anim: 'idle' })
+    assert.equal((await guestState).z, 8)
+
+    const patron = client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-adam' })
+    const patronWelcome = await welcome(patron)
+    assert.equal(patronWelcome.you.patreon, true)
+    const patronState = next(observer, 'state', (m) => m.id === patronWelcome.id)
+    patron.emit('state', { x: 22, z: 12, level: 0, yaw: 0, anim: 'idle' })
+    assert.equal((await patronState).z, 12)
+  })
+
+  test('la combinaison Mécène ne se porte qu’en soutenant le site sur Patreon', async () => {
+    const guest = client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-rackam', auth: { skin: 'suit.male.c.patron' } })
+    await welcome(guest)
+    guest.emit('profile', { skin: 'suit.female.b.patron.--se-bk-yl' })
+    assert.equal((await once(guest, 'profile'))[0].skin, 'human.female.b')
+
+    const patron = client({ cookie: 'ED_LOGGED_CMDR_ID=jeton-adam' })
+    await welcome(patron)
+    patron.emit('profile', { skin: 'suit.female.b.patron' })
+    assert.equal((await once(patron, 'profile'))[0].skin, 'suit.female.b.patron')
   })
 
   test('le sanctuaire de la Voie refuse les non-adeptes et accepte l’épreuve accomplie', async () => {

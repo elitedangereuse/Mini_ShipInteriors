@@ -163,7 +163,7 @@ const site = createServer((req, res) => {
     }))
   }
   if (req.url.startsWith('/outils/mini-shipinteriors-cinema.php')) return void res.end(JSON.stringify({ status: 'success', trailers: [], live: false, liveTitle: '' }))
-  res.end(JSON.stringify({ cmdr, ljpc: false, voie: false, bar: false, welcome: false, quests: cmdr && siteQuests.known ? siteQuests.done : null }))
+  res.end(JSON.stringify({ cmdr, ljpc: false, voie: false, bar: false, patreon: false, welcome: false, quests: cmdr && siteQuests.known ? siteQuests.done : null }))
 })
 
 const listen = async (server) => {

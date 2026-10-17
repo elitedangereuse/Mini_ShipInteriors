@@ -1586,11 +1586,14 @@ export const LEVELS: LevelDef[] = [
       b: tr('Poste de pilotage', 'Cockpit'),
       l: tr('Labo du L.J.P.C.', 'L.J.P.C. lab'),
       v: tr('Poste de surveillance', 'Surveillance room'),
+      g: tr('Salon des mécènes', 'Patrons\' lounge'),
     },
     closed: {
       l: tr('Accès réservé aux membres du L.J.P.C. Terminez l’aventure « Connais ton ennemi » pour entrer.', 'Access reserved for L.J.P.C. members. Complete the “Know Your Enemy” adventure to enter.'),
       // Le poste de surveillance, tant que sa quête ne l'a pas ouvert (cf. shared/quests.js).
       v: tr('Une porte de service, sans plaque ni poignée. Derrière, quelque chose bourdonne. Elle ne s’ouvre pas.', 'A service door, with no plate and no handle. Behind it, something hums. It does not open.'),
+      // Le salon des mécènes, pour qui ne soutient pas le site sur Patreon (cf. PATRON_ROOM).
+      g: tr('Le salon des mécènes : réservé à ceux qui soutiennent l’Élite Dangereuse sur Patreon. Liez votre compte sur la page Patreon du site, et la porte s’ouvrira.', 'The patrons\' lounge: reserved for those who support Élite Dangereuse on Patreon. Link your account on the site\'s Patreon page, and the door will open.'),
     },
     // La Promenade baisse ses dalles : ce sont ses projecteurs et ses colonnes qui l'éclairent.
     // Derrière le comptoir du mess, la cuisine de Marcel : blanche et crue, quand la salle est chaude.
@@ -1611,9 +1614,9 @@ export const LEVELS: LevelDef[] = [
     flatFloor: { c: '#b4b9c8' },
     // Le poste de surveillance n'a pas un hublot : on n'y regarde que des écrans, dans la pénombre.
     // Le salon d'arcade non plus : une salle de jeux est une grotte.
-    windows: { v: 0, s: 0, x: 0, p: 0 },
+    windows: { v: 0, s: 0, x: 0, p: 0, g: 0 },
     // Le poste de pilotage aussi est tamisé : on y pilote à la lueur des instruments.
-    dim: { v: 0.4, s: 0.45, b: 0.5 },
+    dim: { v: 0.4, s: 0.45, b: 0.5, g: 0.75 },
     // La coursive n'a qu'une dalle de loin en loin ; l'infirmerie est blanche et crue, le mess
     // chaud, la salle d'arcade sombre, pour ses écrans (le poste de pilotage, tamisé, n'a que ses lampes).
     lighting: {
@@ -1628,6 +1631,8 @@ export const LEVELS: LevelDef[] = [
       x: { level: 0.6 },
       p: { level: 1.25, color: '#ffffff' },
       l: { level: 0.95, color: '#e4fff0' },
+      // Le salon des mécènes : une lumière d'or, tamisée, de salon de grand hôtel.
+      g: { level: 0.7, color: '#ffe2b0' },
     },
     // Le mur entre l'infirmerie et les toilettes, où s'adossent le lavabo et le porte-serviettes ;
     // celui du labo du L.J.P.C. qui porte le registre des membres.
@@ -1760,7 +1765,15 @@ export const LEVELS: LevelDef[] = [
       // De grandes plantes de part et d'autre des portes, au pied de la mezzanine, entre les vitrines.
       { model: 'plant-tall', x: 8.05, z: 3.2 },
       { model: 'plant-tall', x: 8.05, z: 5.85 },
-      { model: 'plant-tall', x: 5.5, z: 3.05 },
+      // Entre les deux bureaux, face au hall : la plaque des mécènes, où sont gravés les noms des
+      // soutiens Patreon du site (cf. src/furniture/patron.ts).
+      {
+        model: 'patron-roll', x: 5.5, z: 3.17,
+        interact: [
+          tr('La plaque des mécènes : les commandants qui soutiennent l\'Élite Dangereuse sur Patreon. Leurs noms restent gravés tant qu\'ils soutiennent le site.', 'The patrons\' plaque: the commanders who support Élite Dangereuse on Patreon. Their names stay engraved for as long as they support the site.'),
+          tr('Soutenez le site sur Patreon et liez votre compte sur sa page Patreon : votre nom rejoindra la plaque, et le salon des mécènes, au fond de l\'arcade, vous ouvrira sa porte.', 'Support the site on Patreon and link your account on its Patreon page: your name will join the plaque, and the patrons\' lounge, at the back of the arcade, will open its door to you.'),
+        ],
+      },
       { model: 'plant', x: 8.05, z: 9.35 },
 
       // Le plan du vaisseau, face au téléporteur du hall (cf. TELEPORTERS).
@@ -2112,7 +2125,7 @@ export const LEVELS: LevelDef[] = [
       { model: 'score-board', x: 15.65, z: 8.45, rot: 1, label: 'arcade', solid: false, interact: 'High scores', action: tr('Consulter les high scores', 'View high scores') },
       // Au mur sud, après les bornes : le monnayeur.
       {
-        model: 'token-machine', x: 21.5, z: 9.35, rot: 2,
+        model: 'token-machine', x: 21.12, z: 9.35, rot: 2,
         interact: [
           tr('Monnayeur : il avale un billet de dix crédits, réfléchit, et le recrache. Les bornes du bord sont gratuites, de toute façon.', 'Change machine: it swallows a ten-credit note, thinks about it, and spits it back out. The ship\'s cabinets are free anyway.'),
           tr('Un jeton traîne dans la sébile, frappé d\'un Cobra. Au dos : « Sans valeur marchande ».', 'A token lies in the tray, stamped with a Cobra. On the back: “No cash value”.'),
@@ -2123,7 +2136,9 @@ export const LEVELS: LevelDef[] = [
       { model: 'arcade-neon', x: 20.5, z: 5.65, label: '4', solid: false },
       { model: 'arcade-neon', x: 24.425, z: 5.65, label: '1.85', solid: false },
       { model: 'arcade-neon', x: 25.35, z: 7.5, rot: 3, label: '3.7', solid: false },
-      { model: 'arcade-neon', x: 20.925, z: 9.35, rot: 2, label: '8.85|yellow|purple', solid: false },
+      // Au sud, le tube s'interrompt au-dessus de la porte du salon des mécènes.
+      { model: 'arcade-neon', x: 19, z: 9.35, rot: 2, label: '5|yellow|purple', solid: false },
+      { model: 'arcade-neon', x: 23.925, z: 9.35, rot: 2, label: '2.85|yellow|purple', solid: false },
       // Fresques et mots de néon du coin salon.
       { model: 'arcade-mural', x: 23.3, z: 9.35, rot: 2, label: 'jazz', solid: false },
       { model: 'arcade-mural', x: 25.35, z: 8.2, rot: 3, label: 'memphis', solid: false },
@@ -2168,6 +2183,47 @@ export const LEVELS: LevelDef[] = [
       },
       { model: 'beanbag', x: 18.1, z: 13.85, label: 'teal' },
 
+      // --- Salon des mécènes (cf. src/furniture/patron.ts), réservé aux soutiens Patreon du site :
+      // dans le mur sud de l'arcade, à côté du canapé, une porte sous l'enseigne « MÉCÈNES », un
+      // tapis rouge devant. Derrière, un petit salon Art déco de 3 × 5, noir et or : le blason du
+      // site au mur ouest, en entrant, puis le Chesterfield, face à deux fauteuils club autour du
+      // champagne, et au fond, le bar ---
+      { model: 'patron-sign', x: 22, z: 9.35, rot: 2, solid: false },
+      { model: 'patron-runner', x: 22, z: 8.95, label: '0.9x0.8', solid: false },
+      { model: 'patron-floor', x: 22, z: 12, label: '3x5', solid: false },
+      {
+        model: 'patron-crest', x: 20.65, z: 10.95, rot: 1, solid: false,
+        interact: [
+          tr('Le blason des mécènes : un soleil d\'or autour du monogramme du site, et un ruban, « MERCI ». Il est pour vous.', 'The patrons\' crest: a golden sun around the site\'s monogram, and a ribbon, “THANK YOU”. It is for you.'),
+          tr('Grâce à vous, le site tient debout : l\'hébergement, les serveurs, et de quoi pousser les aventures toujours plus loin.', 'Thanks to you, the site stays up: the hosting, the servers, and enough to push the adventures ever further.'),
+        ],
+      },
+      {
+        model: 'patron-sofa', x: 21.02, z: 12.4, rot: 1,
+        interact: tr('Le Chesterfield des mécènes : velours lie-de-vin, capitonné à la main. On s\'y enfonce comme dans un siège de Beluga.', 'The patrons\' Chesterfield: wine-red velvet, hand-tufted. You sink into it like a Beluga seat.'),
+      },
+      {
+        model: 'patron-table', x: 22.05, z: 12.4,
+        interact: [
+          tr('Une bouteille de Lavian Brandy dans le seau, et deux coupes. La maison offre.', 'A bottle of Lavian Brandy in the bucket, and two glasses. On the house.'),
+          tr('Sous le seau, un carton : « Aux mécènes. Sans vous, pas d\'Élite Dangereuse. o7 — ThArGosu et OptimusKoala ».', 'Under the bucket, a card: “To the patrons. Without you, no Élite Dangereuse. o7 — ThArGosu and OptimusKoala”.'),
+        ],
+      },
+      { model: 'patron-armchair', x: 22.98, z: 11.85, rot: 3 },
+      { model: 'patron-armchair', x: 22.98, z: 12.95, rot: 3 },
+      {
+        model: 'patron-bar', x: 20.65, z: 13.8, rot: 1, action: tr('Se servir une coupe', 'Pour a glass'),
+        interact: [
+          tr('Une coupe de champagne de Lave. Les bulles montent en spirale, comme un vaisseau en approche.', 'A glass of Lave champagne. The bubbles rise in a spiral, like a ship on approach.'),
+          tr('Le miroir fumé vous renvoie votre reflet, coupe à la main. Vous avez l\'air important.', 'The smoked mirror shows your reflection, glass in hand. You look important.'),
+          tr('Au fond du bar, une bouteille poussiéreuse : « Réserve personnelle de Jacques. Ne pas toucher. » Jacques n\'est pas là.', 'At the back of the bar, a dusty bottle: “Jacques\'s private stock. Do not touch.” Jacques is not here.'),
+        ],
+      },
+      { model: 'patron-lamp', x: 21.0, z: 10.05 },
+      { model: 'patron-lamp', x: 23.0, z: 14.0 },
+      { model: 'plant-tall', x: 23.05, z: 10.0 },
+      { model: 'monstera', x: 22.2, z: 14.0 },
+
       {
         model: 'holo-draughts', x: BOARD_TABLES.draughts.x, z: BOARD_TABLES.draughts.z, action: tr('Jouer aux dames', 'Play draughts'),
         interact: tr('Table holographique : les pièces attendent deux adversaires.', 'Holographic table: the pieces await two opponents.'),
@@ -2185,7 +2241,6 @@ export const LEVELS: LevelDef[] = [
         interact: tr('Canapé du salon : la meilleure place pour regarder les autres perdre.', 'Lounge sofa: the best seat for watching others lose.'),
       },
       { model: 'beanbag', x: 24.85, z: 9.0, label: 'teal' },
-      { model: 'beanbag', x: 22.2, z: 8.95, label: 'mustard' },
       { model: 'plant-tall', x: 25.1, z: 7.1 },
 
       // --- Labo du L.J.P.C., d'après l'aventure « Connais ton ennemi » : James devant son tableau
@@ -2413,6 +2468,12 @@ export const LEVELS: LevelDef[] = [
       [18.6, 12.6, '#ffffff', 2.2],
       [16.5, 13.4, '#fff3e0', 1.2, undefined, 4],
       [28, 8, '#9fd8ff', 1.4],
+      // Le salon des mécènes : l'or des deux lampadaires, le blason, et la lampe de la plaque, dans le hall.
+      [21.1, 10.4, '#ffd38a', 1.5, undefined, 3.5],
+      [22.9, 13.6, '#ffc878', 1.4, undefined, 3.5],
+      [21.0, 10.95, '#ffe3a0', 1, 'breath', 2.5],
+      [22, 9.0, '#ffd36b', 0.8, undefined, 2.2],
+      [5.5, 3.6, '#ffe2a8', 1, undefined, 2.5],
       // Le poste de surveillance : rien que la lueur de ses écrans, et la veilleuse du lit de camp.
       [25.2, 11.6, '#7fd6ff', 2.2],
       [29.2, 11.6, '#7fd6ff', 2, 'neon'],

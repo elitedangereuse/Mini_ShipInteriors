@@ -22,7 +22,7 @@ import { Pathfinder } from './pathfinding'
 import { roomCover, type RoomCover } from './room-cover'
 import type { Doorway } from './physics'
 import { DOOR_GAP } from '../shared/sight.js'
-import { BAR_ROOM, CLUB_ROOM, mezzanineOf, shipMapOptions } from '../shared/ship-layouts.js'
+import { BAR_ROOM, CLUB_ROOM, PATRON_ROOM, mezzanineOf, shipMapOptions } from '../shared/ship-layouts.js'
 import { SHIP_WALL_THICKNESS } from '../shared/ship-geometry.js'
 import { QUEST_ROOMS } from '../shared/quests.js'
 import { mezzanineHeight, mezzanineTile, type Mezzanine } from '../shared/mezzanine.js'
@@ -577,7 +577,7 @@ export class Deck {
     this.map = new ShipMap(def.layout, def.zone?.map ?? def.mapOptions ?? (def.ground ? {} : shipMapOptions(def.id)))
     this.mezzanine = def.zone || def.mapOptions || def.ground ? null : mezzanineOf(def.id)
     if (def.id === 0) for (const d of this.map.doors) {
-      if (this.doorRoom(d.x, d.z, d.dir, 'l')) this.map.lock(d.x, d.z, d.dir)
+      if (['l', PATRON_ROOM].some((room) => this.doorRoom(d.x, d.z, d.dir, room))) this.map.lock(d.x, d.z, d.dir)
     }
     if (def.id === -1) for (const d of this.map.doors) {
       if (['v', CLUB_ROOM, BAR_ROOM].some((room) => this.doorRoom(d.x, d.z, d.dir, room))) this.map.lock(d.x, d.z, d.dir)
@@ -612,7 +612,12 @@ export class Deck {
     }
     this.buildProps()
     this.buildMezzanine()
-    if (def.id === 0) this.buildRoomCover('l', '#2a3648', '#5aa2f0')
+    if (def.id === 0) {
+      this.buildRoomCover('l', '#2a3648', '#5aa2f0')
+      // Le salon des mécènes : une plaque lie-de-vin liserée d'or (le poste de surveillance voisin a
+      // le liseré jaune des quêtes, sur une plaque d'acier).
+      this.buildRoomCover(PATRON_ROOM, '#3a1220', '#f2c14e')
+    }
     if (def.id === -1) {
       // Le sanctuaire de la Voie se cache : une plaque nue, noire.
       this.buildRoomCover('v', '#070707')
@@ -713,6 +718,11 @@ export class Deck {
   /** Chez Jacques n'ouvre qu'à ses habitués, ceux qui y sont déjà entrés par les conduits (cf. shared/vents.js). */
   setBarAccess(regular: boolean) {
     if (this.def.id === -1) this.setRoomAccess(BAR_ROOM, regular)
+  }
+
+  /** Le salon des mécènes n'ouvre qu'aux soutiens Patreon du site : pour les autres, sa porte et son plafond restent fermés. */
+  setPatronAccess(patron: boolean) {
+    if (this.def.id === 0) this.setRoomAccess(PATRON_ROOM, patron)
   }
 
   /**

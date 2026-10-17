@@ -55,6 +55,9 @@ export const SEATS: Partial<Record<CustomModel | StationModel, Seat[]>> = {
   // Assez près du bord avant pour que les jambes pendent hors des coussins.
   sofa: [sit(-0.38, 0.22, 0.3), sit(0, 0.22, 0.3), sit(0.38, 0.22, 0.3)],
   armchair: [sit(0, 0.08, 0.28)],
+  // Le salon des mécènes (cf. furniture/patron.ts) : le Chesterfield et les fauteuils club.
+  'patron-sofa': [sit(-0.38, 0.22, 0.3), sit(0, 0.22, 0.3), sit(0.38, 0.22, 0.3)],
+  'patron-armchair': [sit(0, 0.08, 0.31)],
   'bar-chair': [sit(0, 0.03, 0.27)],
   // Face au comptoir : on grimpe dessus par derrière.
   'bar-stool': [sit(0, 0, 0.43, 0, [0, -0.45])],

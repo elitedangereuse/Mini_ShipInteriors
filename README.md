@@ -78,7 +78,7 @@ npm run dev        # http://localhost:5173 : le jeu et le relais multijoueur
 npm test           # les tests (relais, règles des jeux, économie…)
 ```
 
-Ouvrir deux onglets suffit pour jouer à deux. En dev, `?cmdr=Nom` simule un CMDR connecté, et `window.__game` expose de quoi piloter le jeu depuis la console.
+Ouvrir deux onglets suffit pour jouer à deux. En dev, `?cmdr=Nom` simule un CMDR connecté (`&patreon=1` en fait un soutien Patreon du site, qui entre au salon des mécènes et porte la combinaison Mécène), et `window.__game` expose de quoi piloter le jeu depuis la console.
 
 Pour un serveur autonome, sur un seul port :
 

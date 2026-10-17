@@ -52,10 +52,10 @@ const DECKS: Record<string, DeckIdentity> = {
     color: '#ff8a1f',
     icon: 'users-three',
     places: [
-      { name: tr('Weekly · Chasse galactique', 'Weekly · Galactic Hunt'), to: { x: 6, z: 3.4 }, keywords: 'weekly chasse galactique ljpc credits recompenses bureaux boutiques' },
+      { name: tr('Weekly · Chasse galactique', 'Weekly · Galactic Hunt'), to: { x: 6, z: 3.4 }, keywords: 'weekly chasse galactique ljpc credits recompenses bureaux boutiques plaque mecenes patreon' },
       { name: tr('Mezzanine · jukebox', 'Mezzanine · jukebox'), to: { x: 3.6, z: 6.5 }, keywords: 'mezzanine jukebox musique salon en direct' },
       { name: tr('Infirmerie · toilettes · mess', 'Medical bay · restrooms · mess'), to: { x: 8.6, z: 4.5 }, keywords: 'infirmerie betty soins toilettes wc mess cantine marcel manger mess rush cuisine' },
-      { name: tr('Arcade · Mini-CQC · Pixel War', 'Arcade · Mini-CQC · Pixel War'), to: { x: 8.6, z: 4.5 }, keywords: 'arcade bornes jeux mini-cqc cqc pixel war flipper peluches echecs dames' },
+      { name: tr('Arcade · Mini-CQC · Pixel War', 'Arcade · Mini-CQC · Pixel War'), to: { x: 8.6, z: 4.5 }, keywords: 'arcade bornes jeux mini-cqc cqc pixel war flipper peluches echecs dames salon des mecenes patreon soutien' },
       { name: tr('Labo du L.J.P.C.', 'L.J.P.C. lab'), to: { x: 8.6, z: 4.5 }, keywords: 'ljpc labo codex enquete' },
       { name: tr('Promenade · pilotage', 'Promenade · cockpit'), to: { x: 8.6, z: 4.5 }, keywords: 'promenade tableau d honneur classement cobra pilotage cockpit carte galactique edgis saut fsd' },
     ],

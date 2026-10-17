@@ -79,7 +79,7 @@ import { createSalvage, GAME_ACTIONS, LOBBY_ACTIONS } from './salvage.js'
 import { salvageMinDuration } from '../shared/salvage.js'
 import { readFileSync } from 'node:fs'
 import { createCinema } from './cinema.js'
-import { BAR_ROOM, BOARD_TABLES, CLUB_ROOM, SHIP_LAYOUTS, isAlienLook, shipMapOptions } from '../shared/ship-layouts.js'
+import { BAR_ROOM, BOARD_TABLES, CLUB_ROOM, PATRON_ROOM, SHIP_LAYOUTS, isAlienLook, isPatronLook, shipMapOptions } from '../shared/ship-layouts.js'
 import { TOILET_ROOM, VENT_LAYOUT, VENT_LEVEL, atVentGrate } from '../shared/vents.js'
 import { TUTORIAL_LAYOUT, TUTORIAL_LEVEL } from '../shared/tutorial.js'
 import { arenaCharacters, knownQuests, questOfRoom } from '../shared/quests.js'
@@ -619,7 +619,7 @@ export function attachRelay(
     if (players.size >= MAX_PLAYERS) return next(new Error('Vaisseau complet'))
     const auth = obj(socket.handshake.auth)
     socket.data.identity = devCmdr && auth.cmdr
-      ? { name: cleanCmdrName(auth.cmdr), ljpc: auth.ljpc === true, voie: auth.voie === true, bar: auth.bar === true }
+      ? { name: cleanCmdrName(auth.cmdr), ljpc: auth.ljpc === true, voie: auth.voie === true, bar: auth.bar === true, patreon: auth.patreon === true }
       : await cmdrIdentityFromCookie(socket.handshake.headers.cookie, { url: cmdrUrl, secret: relaySecret, error })
     next()
   })
@@ -638,11 +638,13 @@ export function attachRelay(
       voie: !!cmdr && identity.voie === true,
       // Habitué de Chez Jacques : le badge du site, ou la grille des conduits atteinte pendant cette session.
       bar: !!cmdr && identity.bar === true,
+      // Soutien du site sur Patreon, compte lié (cf. patreon.php) : le salon des mécènes et la combinaison Mécène.
+      patreon: !!cmdr && identity.patreon === true,
       // Aspiré par des toilettes pendant un saut : jusqu'à quand il peut entrer dans les conduits (ms, 0 : non).
       flushed: 0,
       // Quêtes terminées (cf. shared/quests.js) : celles que dit le site, ou qu'annonce un invité (cf. `quests`, plus bas).
       quests: new Set(cmdr ? knownQuests(identity.quests) : []),
-      skin: validLook(auth.skin) ? auth.skin : 'human.female.b',
+      skin: validLook(auth.skin) && (!isPatronLook(auth.skin) || (!!cmdr && identity.patreon === true)) ? auth.skin : 'human.female.b',
       // Point d'apparition : l'entrée de sa parcelle, sur le pont des quartiers (cf. SPAWN dans src/levels.ts).
       x: PLOT_ORIGIN.x + 1, z: PLOT_DOOR.z, level: HOUSING_LEVEL, yaw: 0, anim: 'idle', pose: '', py: 0,
       // Instance des quartiers : les siens (id du joueur qui reçoit), son aménagement, ses invitations.
@@ -663,7 +665,7 @@ export function attachRelay(
     socket.emit('welcome', {
       id: player.id,
       // `welcome` : première connexion du CMDR, le site vient de lui décerner le badge du jeu.
-      you: { name: player.name, verified: player.verified, ljpc: player.ljpc, voie: player.voie, bar: player.bar, welcome: !!cmdr && identity.welcome === true },
+      you: { name: player.name, verified: player.verified, ljpc: player.ljpc, voie: player.voie, bar: player.bar, patreon: player.patreon, welcome: !!cmdr && identity.welcome === true },
       // Ceux qui sont dans la baie infestée y sont annoncés (pont -2) : le client ne les montre pas.
       players: [...players.values()].filter((p) => p !== player).map(publicState),
       // Les jukebox du pont principal et de la cale, silence compris : après une reconnexion, on se recale.
@@ -747,6 +749,8 @@ export function attachRelay(
       // Le simulateur d'accueil : sur son sol seulement.
       if (m.level === TUTORIAL_LEVEL && !MAPS.get(TUTORIAL_LEVEL).isFloor(Math.round(x), Math.round(z))) return
       if (m.level === 0 && MAPS.get(0).room(Math.round(x), Math.round(z)) === 'l' && !player.ljpc) return
+      // Le salon des mécènes : seulement pour les soutiens Patreon.
+      if (m.level === 0 && MAPS.get(0).room(Math.round(x), Math.round(z)) === PATRON_ROOM && !player.patreon) return
       if (m.level === -1 && MAPS.get(-1).room(Math.round(x), Math.round(z)) === 'v' && !player.voie) return
       // Le Zorb : le videur ne laisse passer que les aliens.
       if (m.level === -1 && MAPS.get(-1).room(Math.round(x), Math.round(z)) === CLUB_ROOM && !isAlienLook(player.skin)) return
@@ -899,7 +903,8 @@ export function attachRelay(
       const m = obj(raw)
       // Le nom d'un CMDR vérifié vient du site : il ne se change pas en jeu.
       if (!player.verified && clean(m.name, MAX_NAME)) player.name = guestName(m.name, player)
-      if (validLook(m.skin)) player.skin = m.skin
+      // La combinaison Mécène ne se porte que si l'on soutient le site sur Patreon.
+      if (validLook(m.skin) && (!isPatronLook(m.skin) || player.patreon)) player.skin = m.skin
       io.emit('profile', { id: player.id, name: player.name, verified: player.verified, skin: player.skin })
       if (player.boardKey) {
         const state = boards.get(player.boardKey)

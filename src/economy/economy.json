@@ -159,7 +159,8 @@
     "robot.g": 50000, "robot.h": 50000, "robot.d": 40000,
     "creature.orc": 45000, "creature.o": 45000, "creature.l": 45000,
     "guardian.a": 150000, "guardian.b": 150000, "guardian.c": 150000, "guardian.s": 200000,
-    "suit.basket": 30000, "suit.football": 30000, "suit.marksman": 40000, "suit.boxer": 30000
+    "suit.basket": 30000, "suit.football": 30000, "suit.marksman": 40000, "suit.boxer": 30000,
+    "suit.patron": 100000
   },
   "sportSkins": {
     "suit.basket": { "game": "gym-basket", "score": 2100 },

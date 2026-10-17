@@ -1,11 +1,13 @@
 import { setCommunityFeed, type HonourBoardData } from './furniture/community'
+import { setPatrons } from './furniture/patron'
 import { tr } from './i18n'
-import { crewBoards, liveFeed, siteHref, type LiveItem } from './site'
+import { crewBoards, liveFeed, patronRoll, siteHref, type LiveItem } from './site'
 
 /*
  * Les données du cœur communautaire du pont principal (cf. src/furniture/community.ts) : le fil
  * « En direct » du site et les nouvelles du bord pour le bandeau de la salle commune, les
- * classements de l'équipage et les portraits des premiers pour le Tableau d'honneur.
+ * classements de l'équipage et les portraits des premiers pour le Tableau d'honneur, les noms des
+ * mécènes pour leur plaque (cf. furniture/patron.ts).
  */
 
 /** Nouvelles du bord gardées pour le bandeau (les plus récentes). */
@@ -33,6 +35,8 @@ export class CommunityFeed {
   private site: LiveItem[] | null = null
   private ship: { text: string; at: number }[] = []
   private avatars = new Map<string, HTMLImageElement | null>()
+  /** Le site a déjà donné les noms des mécènes. */
+  private patronsKnown = false
 
   constructor() {
     setCommunityFeed({ ticker: () => this.ticker(), boards: () => this.boards, avatar: (url) => this.avatar(url) })
@@ -63,7 +67,11 @@ export class CommunityFeed {
   }
 
   private async refresh() {
-    const [boards, live] = await Promise.all([crewBoards(), liveFeed()])
+    const [boards, live, patrons] = await Promise.all([crewBoards(), liveFeed(), patronRoll()])
+    // La plaque garde les derniers noms reçus quand le site ne répond plus.
+    if (patrons) setPatrons(patrons)
+    else if (!this.patronsKnown) setPatrons(null)
+    this.patronsKnown ||= !!patrons
     if (boards) this.boards = boards.filter((b) => b.rows.length).map((b) => ({ label: b.label, unit: b.unit, rows: b.rows.map((r) => ({ rank: r.rank, name: r.name, score: r.score, avatar: r.avatar })) }))
     if (live) this.site = live
   }

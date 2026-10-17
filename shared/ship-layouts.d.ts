@@ -13,6 +13,12 @@ export declare const CLUB_ROOM: 'n'
 export declare const BAR_ROOM: 'b'
 /** Apparence d'alien (identifiant du Holo-Me, ex. « alien.male.c.blue ») ? */
 export declare function isAlienLook(skin: unknown): boolean
+/** Le salon des mécènes, au pont principal (lettre de sa pièce) : réservé aux soutiens Patreon du site. */
+export declare const PATRON_ROOM: 'g'
+/** La porte du salon des mécènes, dans le mur sud du salon d'arcade. */
+export declare const PATRON_DOOR: { x: number; z: number; dir: number }
+/** La combinaison Mécène (« suit.female.b.patron »), réservée aux soutiens Patreon ? */
+export declare function isPatronLook(skin: unknown): boolean
 
 /** Le planétarium de Bugenhagen, au pont supérieur (lettre de sa pièce). */
 export declare const PLANETARIUM_ROOM: 'p'

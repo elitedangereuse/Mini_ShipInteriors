@@ -38,11 +38,11 @@ import { contactKey, CrewPhone, type Contact, type PhoneData } from './crew/phon
 import { deleteLetter, fetchCrew, markLettersRead, sendLetter, type CrewDirectory, type LetterRefusal } from './crew/site'
 import { defaultLayout, LEGACY_BOUNDS, normalizeLayout, serializeLayout, type CabinItem, type CabinLayout } from './cabin/layout'
 import { CabinStore, requestCabin, type SiteCabin } from './cabin/storage'
-import { devBar, devCmdr, devLjpc, devVoie, fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
+import { devBar, devCmdr, devLjpc, devPatreon, devVoie, fetchCmdrAccount, isLegacyDefaultName, randomCmdrName } from './cmdr'
 import { ECONOMY, formatCredits, skinPrice, sportSkins, type JobKind, plotPrice } from './economy/data'
 import { CreditsHud } from './economy/hud'
 import { taskOf } from './economy/schedule'
-import { allLooks, lookOwned, skinProduct, starterLook } from './economy/skins'
+import { allLooks, lookOwned, PATRON_SKIN, setPatronSkin, skinProduct, starterLook } from './economy/skins'
 import { markerMaterial, TASK_INFO, TaskBoard, type LiveTask, type WorkSound } from './economy/tasks'
 import { Wallet } from './economy/wallet'
 import { Sound } from './audio'
@@ -119,7 +119,7 @@ import { ClubCrowd, ClubMusic, clubProximity } from './club'
 import { Kael } from './scavengers'
 import { ClassCrowd } from './classroom'
 import { QuizPanel } from './quiz/panel'
-import { BAR_ROOM, CLUB_ROOM, PLANETARIUM_ROOM, SPORT_COURTS, isAlienLook } from '../shared/ship-layouts.js'
+import { BAR_ROOM, CLUB_ROOM, PATRON_ROOM, PLANETARIUM_ROOM, SPORT_COURTS, isAlienLook } from '../shared/ship-layouts.js'
 import { fishById, FISHING_DOCK, FISHING_LEVEL, QUEST_FISH } from '../shared/fishing.js'
 import { ToiletFlushes } from './toilet-flush'
 import { PlanetariumShow } from './planetarium'
@@ -216,6 +216,8 @@ let ljpcMember = false
 let voieAdept = false
 /** Habitué de Chez Jacques, le bar de la cale : on y est déjà entré par les conduits de ventilation (cf. liftGrate). */
 let barRegular = false
+/** Soutien du site sur Patreon, compte lié (cf. patreon.php) : le salon des mécènes et la combinaison Mécène. */
+let patronMember = false
 
 // ------------------------------------------------------------------ rendu
 
@@ -298,6 +300,8 @@ if (account) {
   ljpcMember = account.ljpc
   voieAdept = account.voie
   barRegular = account.bar
+  patronMember = account.patreon
+  setPatronSkin(patronMember)
 }
 /**
  * Journal de quêtes (cf. src/quests/) : celui que le site garde pour un CMDR, sinon celui de ce
@@ -386,6 +390,15 @@ const barEntrance = deckById(-1).map.doors.find((door) => {
 })
 const barDoorItem = barEntrance && deckById(-1).doorExamine(barEntrance.x, barEntrance.z, barEntrance.dir)
 if (barDoorItem) barDoorItem.label = tr('Accès réservé', 'Restricted access')
+// Le salon des mécènes, au fond de l'arcade : sa porte ne s'ouvre qu'aux soutiens Patreon du site.
+deckById(0).setPatronAccess(patronMember)
+const patronEntrance = deckById(0).map.doors.find((door) => {
+  const d = DIRS[door.dir]
+  const map = deckById(0).map
+  return map.room(door.x, door.z) === PATRON_ROOM || map.room(door.x + d.dx, door.z + d.dz) === PATRON_ROOM
+})
+const patronDoorItem = patronEntrance && deckById(0).doorExamine(patronEntrance.x, patronEntrance.z, patronEntrance.dir)
+if (patronDoorItem) patronDoorItem.label = tr('Réservé aux mécènes', 'Patrons only')
 /** L'IA de la porte du bar a déjà refoulé le joueur qui s'en approchait (une fois par visite). */
 let barWarned = false
 // Le Zorb, la boîte de nuit de la cale : son videur n'ouvre qu'à qui porte une apparence d'alien
@@ -501,6 +514,8 @@ function resumePoint(): { deck: Deck; x: number; z: number; yaw: number } | null
     if (!d || ![w.x, w.z, w.yaw].every(Number.isFinite)) return null
     // Un invité devenu habitué du bar ne l'est plus après un rechargement : il se réveille chez lui.
     if (d.def.id === -1 && !barRegular && d.map.room(Math.round(w.x), Math.round(w.z)) === BAR_ROOM) return null
+    // Un soutien Patreon qui ne l'est plus (ou que le site n'a pas encore reconnu) : il se réveille chez lui.
+    if (d.def.id === 0 && !patronMember && d.map.room(Math.round(w.x), Math.round(w.z)) === PATRON_ROOM) return null
     // Une pièce qu'une quête ouvre, et dont le journal n'a pas (encore) dit qu'elle est terminée.
     if (questLocked(d.def.id, d.map.room(Math.round(w.x), Math.round(w.z)))) return null
     return d.pathfinder.walkable(Math.round(w.x), Math.round(w.z)) ? { deck: d, x: w.x, z: w.z, yaw: w.yaw } : null
@@ -2089,7 +2104,7 @@ function ambience(dt: number) {
 // ------------------------------------------------------------------ réseau
 
 const remotes = new Map<number, RemotePlayer>()
-const net = new Net(profile, devCmdr(), devLjpc(), devVoie(), devBar())
+const net = new Net(profile, devCmdr(), devLjpc(), devVoie(), devBar(), devPatreon())
 
 // ------------------------------------------------------------------ quêtes
 
@@ -2664,6 +2679,9 @@ net.onMessage = (m) => {
       ljpcMember = m.you.ljpc
       voieAdept = m.you.voie
       barRegular = m.you.bar === true
+      patronMember = m.you.patreon === true
+      setPatronSkin(patronMember)
+      deckById(0).setPatronAccess(patronMember)
       deckById(0).setLjpcAccess(ljpcMember)
       // Les écrans du labo (registre des membres, Codex) demandent leurs données au site.
       if (ljpcMember) void loadLjpc()
@@ -2678,6 +2696,8 @@ net.onMessage = (m) => {
         net.sendCabin(cabinPayload())
       }
       updateIdentity()
+      // La combinaison Mécène ne se garde qu'en soutenant le site sur Patreon.
+      checkLook()
       // Nos quêtes terminées : un invité les annonce, le relais relit celles d'un CMDR sur le site.
       tellQuests(true)
       for (const p of m.players) addRemote(p)
@@ -3094,9 +3114,11 @@ chat.add(
 const wardrobe = new WardrobePanel({
   price: (look) => (lookOwned(look, wallet) ? null : skinPrice(skinProduct(look)!)),
   // Une apparence qu'une quête offre ne s'achète pas (cf. QUEST_UNLOCKS).
-  quest: (look) => !lookOwned(look, wallet) && (`skin:${skinProduct(look)}` in QUEST_UNLOCKS || (skinProduct(look) ?? '') in sportSkins()),
-  // Une tenue de sport se gagne avec un record (cf. legends.ts).
-  earn: (look) => sportSkinHint(skinProduct(look)),
+  quest: (look) => !lookOwned(look, wallet) && (`skin:${skinProduct(look)}` in QUEST_UNLOCKS || (skinProduct(look) ?? '') in sportSkins() || skinProduct(look) === PATRON_SKIN),
+  // Une tenue de sport se gagne avec un record (cf. legends.ts) ; la combinaison Mécène, en soutenant le site.
+  earn: (look) => skinProduct(look) === PATRON_SKIN
+    ? tr('La combinaison des mécènes : elle ne s\'achète pas. Soutenez l\'Élite Dangereuse sur Patreon et liez votre compte sur la page Patreon du site pour la porter.', 'The patrons\' suit: it can\'t be bought. Support Élite Dangereuse on Patreon and link your account on the site\'s Patreon page to wear it.')
+    : sportSkinHint(skinProduct(look)),
   blocked: shopBlocked,
   balance: () => wallet.balance,
   buy: async (look) => {
@@ -5469,6 +5491,7 @@ function hiddenRestrictedItem(item: Interactable): boolean {
     || (!voieAdept && deck.def.id === -1 && room === 'v' && item !== voieDoorItem)
     || (!clubAlien && deck.def.id === -1 && room === CLUB_ROOM && item !== clubDoorItem)
     || (!barRegular && deck.def.id === -1 && room === BAR_ROOM && item !== barDoorItem)
+    || (!patronMember && deck.def.id === 0 && room === PATRON_ROOM && item !== patronDoorItem)
     // Une pièce que sa quête n'a pas encore ouverte : on n'y touche à rien, sauf à sa porte.
     || (questLocked(deck.def.id, room) && !questWorld.doorItems.has(item))
 }
@@ -6521,7 +6544,8 @@ function frame() {
     r.update(world)
     const room = r.level === ZONE_LEVEL ? null : deckById(r.level)?.map.room(Math.round(r.group.position.x), Math.round(r.group.position.z))
     r.group.visible = sees(r) && (ljpcMember || r.level !== 0 || room !== 'l') && (voieAdept || r.level !== -1 || room !== 'v') && (clubAlien || r.level !== -1 || room !== CLUB_ROOM)
-      && (barRegular || r.level !== -1 || room !== BAR_ROOM) && !questLocked(r.level, room ?? null) && !inOwnShip(r)
+      && (barRegular || r.level !== -1 || room !== BAR_ROOM) && (patronMember || r.level !== 0 || room !== PATRON_ROOM)
+      && !questLocked(r.level, room ?? null) && !inOwnShip(r)
   }
   updateStalls()
   flushLatecomers()

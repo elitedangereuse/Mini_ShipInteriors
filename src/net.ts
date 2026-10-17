@@ -408,7 +408,7 @@ export type MessAction = 'join' | 'leave' | 'ready' | 'resume' | 'use' | 'work' 
 
 export type ServerMessage =
   /** À la connexion : qui l'on est, qui est à bord, et le jukebox du pont principal. */
-  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean; bar?: boolean; welcome?: boolean }; players: PlayerState[]; homes?: { id: number; name: string }[]; music?: MusicState; hold?: MusicState; system?: SystemId; patrol?: PatrolState; chef?: ChefState; diners?: DinersState; nurse?: NurseState; mechanic?: MechanicState; gardener?: GardenerState; chief?: ChiefState; salvage?: SalvageLobby; arena?: ArenaLobby; mess?: MessLobby }
+  | { t: 'welcome'; id: number; you: { name: string; verified: boolean; ljpc: boolean; voie: boolean; bar?: boolean; patreon?: boolean; welcome?: boolean }; players: PlayerState[]; homes?: { id: number; name: string }[]; music?: MusicState; hold?: MusicState; system?: SystemId; patrol?: PatrolState; chef?: ChefState; diners?: DinersState; nurse?: NurseState; mechanic?: MechanicState; gardener?: GardenerState; chief?: ChiefState; salvage?: SalvageLobby; arena?: ArenaLobby; mess?: MessLobby }
   | { t: 'join'; player: PlayerState }
   | { t: 'leave'; id: number }
   | { t: 'state'; id: number; x: number; z: number; yaw: number; level: number; anim: string; pose?: string; py?: number }
@@ -545,13 +545,14 @@ export class Net {
     private devLjpc = false,
     private devVoie = false,
     private devBar = false,
+    private devPatreon = false,
   ) {}
 
   connect() {
     const socket = io({
       path: WS_PATH,
       // Relu à chaque (re)connexion : le relais reçoit le nom et l'apparence du moment.
-      auth: (cb) => cb({ ...this.profile, cmdr: this.devCmdr, ljpc: this.devLjpc, voie: this.devVoie, bar: this.devBar }),
+      auth: (cb) => cb({ ...this.profile, cmdr: this.devCmdr, ljpc: this.devLjpc, voie: this.devVoie, bar: this.devBar, patreon: this.devPatreon }),
       // Délai croissant (hébergement statique sans relais : on insiste de moins en moins).
       reconnectionDelay: 2000,
       reconnectionDelayMax: 30000,

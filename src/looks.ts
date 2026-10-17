@@ -181,6 +181,22 @@ export const RACES: Race[] = [
           gear: 'kael',
         },
       },
+      {
+        // Mécène : noir profond et liserés d'or, casque à visière dorée. Elle ne s'achète pas : elle
+        // se porte tant qu'on soutient le site sur Patreon (cf. PATRON_SKIN dans economy/skins.ts).
+        id: 'patron',
+        label: tr('Mécène', 'Patron'),
+        swatch: '#e2b54a',
+        trimAt: 0.85,
+        suit: {
+          ramp: [[0, '#0a0907'], [0.35, '#17150f'], [0.62, '#262219'], [0.8, '#3a3426'], [0.855, '#b8862a'], [0.93, '#e8b84a'], [1, '#fff0b8']],
+          glove: '#17150f',
+          helmet: 'visor',
+          shell: '#14120d',
+          visor: '#ffc94a',
+          light: '#ffd76a',
+        },
+      },
       // Les tenues de sport du Vestiaire des Légendes (cale) : elles ne s'achètent pas, un record
       // les gagne (cf. `sportSkins` dans economy.json, src/legends.ts).
       {

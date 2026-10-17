@@ -42,7 +42,7 @@ export function cleanCmdrName(name) {
  * badge du jeu, et le dit (`welcome`).
  * `stored` : le nom tel que le site le stocke (cmdr.name), qu'il ne confie qu'au relais : pour les
  * statistiques de fréquentation (cf. site-stats.js), jamais pour l'affichage.
- * @returns {Promise<{name: string, stored: string, ljpc: boolean, voie: boolean, bar: boolean, welcome: boolean, quests: string[] | null} | null>} identité vérifiée, ou null (invité, site injoignable)
+ * @returns {Promise<{name: string, stored: string, ljpc: boolean, voie: boolean, bar: boolean, patreon: boolean, welcome: boolean, quests: string[] | null} | null>} identité vérifiée, ou null (invité, site injoignable)
  */
 export async function cmdrIdentityFromCookie(cookieHeader, { url, secret = '', timeoutMs = 3000, error = console.error } = {}) {
   const value = cookieValue(cookieHeader)
@@ -64,7 +64,7 @@ export async function cmdrIdentityFromCookie(cookieHeader, { url, secret = '', t
     const name = cleanCmdrName(data?.cmdr)
     if (!name) return null
     return {
-      name, stored: typeof data?.stored === 'string' && data.stored.length <= 200 ? data.stored : '', ljpc: data?.ljpc === true, voie: data?.voie === true, bar: data?.bar === true, welcome: data?.welcome === true,
+      name, stored: typeof data?.stored === 'string' && data.stored.length <= 200 ? data.stored : '', ljpc: data?.ljpc === true, voie: data?.voie === true, bar: data?.bar === true, patreon: data?.patreon === true, welcome: data?.welcome === true,
       // Quêtes terminées (elles ouvrent des pièces, cf. shared/quests.js) ; null : le site ne sait pas le dire.
       quests: Array.isArray(data?.quests) ? knownQuests(data.quests) : null,
     }

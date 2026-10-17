@@ -10,6 +10,18 @@ import type { Wallet } from './wallet'
  * prix dans economy.json est gratuite. On essaie tout au Holo-Me ; on ne porte que ce qu'on a.
  */
 
+/**
+ * La combinaison Mécène : elle a un prix dans economy.json pour être une apparence « à soi », mais
+ * ne s'achète pas : elle se porte tant que le site dit que l'on soutient l'Élite Dangereuse sur
+ * Patreon (cf. setPatronSkin).
+ */
+export const PATRON_SKIN = 'suit.patron'
+let patron = false
+/** Le site (ou le relais) dit si le joueur soutient le site sur Patreon. */
+export function setPatronSkin(on: boolean) {
+  patron = on
+}
+
 /** Races dont on achète une teinte (pour tous les modèles), plutôt qu'un modèle. */
 const BY_TINT = new Set<string>(['suit', 'alien', 'holo'])
 
@@ -22,6 +34,7 @@ export function skinProduct(look: Look): string | null {
 /** Le joueur peut-il porter cette apparence (gratuite, ou achetée) ? */
 export function lookOwned(look: Look, wallet: Wallet): boolean {
   const product = skinProduct(look)
+  if (product === PATRON_SKIN) return patron
   return product === null || wallet.skins.has(product)
 }
 

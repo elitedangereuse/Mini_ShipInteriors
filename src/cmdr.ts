@@ -59,19 +59,24 @@ export function devBar(): boolean {
   return import.meta.env.DEV && new URLSearchParams(location.search).get('bar') === '1'
 }
 
+/** Dev uniquement : ?patreon=1 simule un soutien Patreon du site (salon des mécènes, combinaison Mécène). */
+export function devPatreon(): boolean {
+  return import.meta.env.DEV && new URLSearchParams(location.search).get('patreon') === '1'
+}
+
 /**
  * Nom du CMDR connecté au site (sans le préfixe « CMDR »), ou null (invité, site injoignable).
  * Sert à l'affichage : c'est le relais, en faisant reconnaître le cookie par le site, qui
  * décide du nom et de la marque « vérifié ».
  */
-export async function fetchCmdrAccount(timeoutMs = 3000): Promise<{ name: string; ljpc: boolean; voie: boolean; bar: boolean } | null> {
+export async function fetchCmdrAccount(timeoutMs = 3000): Promise<{ name: string; ljpc: boolean; voie: boolean; bar: boolean; patreon: boolean } | null> {
   const simulated = devCmdr()
-  if (simulated) return { name: simulated, ljpc: devLjpc(), voie: devVoie(), bar: devBar() }
+  if (simulated) return { name: simulated, ljpc: devLjpc(), voie: devVoie(), bar: devBar(), patreon: devPatreon() }
   try {
     const res = await fetch(CMDR_URL, { credentials: 'same-origin', signal: AbortSignal.timeout(timeoutMs) })
     if (!res.ok) return null
-    const data = (await res.json()) as { cmdr?: string | null; ljpc?: boolean; voie?: boolean; bar?: boolean }
-    return typeof data.cmdr === 'string' && data.cmdr.trim() ? { name: data.cmdr.trim(), ljpc: data.ljpc === true, voie: data.voie === true, bar: data.bar === true } : null
+    const data = (await res.json()) as { cmdr?: string | null; ljpc?: boolean; voie?: boolean; bar?: boolean; patreon?: boolean }
+    return typeof data.cmdr === 'string' && data.cmdr.trim() ? { name: data.cmdr.trim(), ljpc: data.ljpc === true, voie: data.voie === true, bar: data.bar === true, patreon: data.patreon === true } : null
   } catch {
     return null
   }

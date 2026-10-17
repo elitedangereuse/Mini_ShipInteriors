@@ -63,7 +63,7 @@ export interface ProfileReply {
 interface Reply {
   status: string; error?: string; art?: Artwork[]; pending?: Record<string, Reward[]>;
   rankings?: Ranking[]; earned?: number; balance?: number; count?: number; adventure?: NearestAdventure
-  ship?: EliteShip | null; live?: LiveRow[]; profile?: ProfileReply | null
+  ship?: EliteShip | null; live?: LiveRow[]; profile?: ProfileReply | null; patrons?: { name?: unknown; tier?: unknown }[]
 }
 export async function siteRequest(query = '', body?: object): Promise<Reply | null> {
   try {
@@ -100,6 +100,19 @@ export async function crewBoards(): Promise<CrewBoard[] | null> {
   const reply = await siteRequest('?rankings=crew')
   if (reply?.status !== 'success') return null
   return (reply.rankings ?? []).map((b) => ({ id: b.id, label: RANKING_LABELS[b.id] ?? b.label, unit: RANKING_UNITS[b.unit] ?? b.unit, rows: b.rows ?? [] }))
+}
+
+/**
+ * Les soutiens Patreon du site, les plus hauts paliers d'abord (cf. patreonBuildRoll côté site) :
+ * leur nom visible et leur palier, pour la plaque des mécènes de la salle commune. null : le site
+ * ne répond pas.
+ */
+export async function patronRoll(): Promise<{ name: string; tier: string }[] | null> {
+  const reply = await siteRequest('?patrons=1')
+  if (reply?.status !== 'success' || !Array.isArray(reply.patrons)) return null
+  return reply.patrons
+    .filter((p) => typeof p.name === 'string' && p.name.trim())
+    .map((p) => ({ name: (p.name as string).trim().slice(0, 40), tier: typeof p.tier === 'string' ? p.tier : 'supporter' }))
 }
 
 /** Une nouvelle du fil « En direct » du site, prête à défiler. */

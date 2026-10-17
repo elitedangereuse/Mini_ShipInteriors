@@ -74,7 +74,9 @@ export const SHIP_LAYOUTS = {
   // que sa quête n'est pas terminée (cf. quests.js). Dans le coin sud-ouest de la salle d'arcade, à
   // côté du tableau des scores, une porte (cf. PIXEL_WAR_DOORS) donne sur un couloir de deux tuiles
   // ('x') qui descend vers la salle de la Pixel War ('p', 5 × 3), entre la cuisine du mess et le
-  // poste de surveillance.
+  // poste de surveillance. Entre ces deux salles, le salon des mécènes ('g', 3 × 5, cf.
+  // PATRON_ROOM), réservé à qui soutient le site sur Patreon : sa porte s'ouvre dans le mur sud de
+  // l'arcade, à côté du canapé (cf. PATRON_DOOR).
   '0': [
     '  ewwwhhhqqqqqqqdddddlllll ccc          ',
     ' eewwwhhhqqqqqqqdddddlllllccccc bbb     ',
@@ -86,11 +88,11 @@ export const SHIP_LAYOUTS = {
     'eeeeeeeeemmmmmmmssssssssssccccc bbbbb   ',
     'eeeeeeeeemmmmmmmssssssssssccccc bbb     ',
     'eeeeeeeeemmmmmmmssssssssss ccc          ',
-    'eeeeeeeeemmmmmmmx          +            ',
-    'eeeeeeeeemmmmmmmx       vvvvvvv         ',
-    'eeeeeeeeemmmmmmmppppp   vvvvvvv         ',
-    'eeeeeeeee       ppppp   vvvvvvv         ',
-    ' eeeeeee        ppppp   vvvvvvv         ',
+    'eeeeeeeeemmmmmmmx    ggg   +            ',
+    'eeeeeeeeemmmmmmmx    gggvvvvvvv         ',
+    'eeeeeeeeemmmmmmmpppppgggvvvvvvv         ',
+    'eeeeeeeee       pppppgggvvvvvvv         ',
+    ' eeeeeee        pppppgggvvvvvvv         ',
   ],
   // Pont supérieur : culture et détente. À l'ouest, la grande serre de Capucine, sous verrière, aux
   // coins cassés : au nord, la serre hydroponique, face à la coursive ; au sud, sans mur entre les
@@ -198,8 +200,21 @@ export const CLUB_ROOM = 'n'
  */
 export const BAR_ROOM = 'b'
 
+/**
+ * Le salon des mécènes, au pont principal, entre la salle de la Pixel War et le poste de
+ * surveillance : sa porte ne s'ouvre qu'à qui soutient le site sur Patreon et a lié son compte
+ * (cf. patreon.php du site).
+ */
+export const PATRON_ROOM = 'g'
+
 /** Apparence d'alien (identifiant du Holo-Me, ex. « alien.male.c.blue », cf. src/looks.ts). */
 export const isAlienLook = (skin) => typeof skin === 'string' && skin.startsWith('alien.')
+
+/**
+ * La combinaison Mécène (« suit.female.b.patron », cf. src/looks.ts) : réservée, comme leur salon,
+ * à qui soutient le site sur Patreon.
+ */
+export const isPatronLook = (skin) => typeof skin === 'string' && skin.startsWith('suit.') && skin.split('.')[3] === 'patron'
 
 /**
  * Le poste de surveillance du pont principal, sous la Promenade : la lettre de sa pièce, et le
@@ -259,12 +274,13 @@ function mezzanineWalls(level) {
 /**
  * Plan d'un pont : portes des pièces en travaux verrouillées ; dans la cale, celle du poste de
  * sécurité ; au pont des quartiers, la porte de l'antichambre vers la parcelle (cf. applyPlot) ;
- * au pont principal, les garde-corps de la mezzanine et les portes du couloir de la Pixel War ; au
+ * au pont principal, les garde-corps de la mezzanine, les portes du couloir de la Pixel War et celle
+ * du salon des mécènes ; au
  * pont supérieur, la porte double du foyer du cinéma vers la galerie.
  */
 export function shipMapOptions(level) {
   const id = String(level)
-  const doors = id === '-1' ? [SECURITY_DOOR, SCAVENGERS_DOOR, CLOSET_DOOR, REFINERY_DOOR, ...BAR_DOORS, TRAINING_DOOR, ...THARGOID_DOORS, ...ARENA_DOORS] : id === '0' ? [...PIXEL_WAR_DOORS, ...OFFICE_DOORS] : id === '1' ? FOYER_DOORS : id === '2' ? [PLOT_DOOR] : []
+  const doors = id === '-1' ? [SECURITY_DOOR, SCAVENGERS_DOOR, CLOSET_DOOR, REFINERY_DOOR, ...BAR_DOORS, TRAINING_DOOR, ...THARGOID_DOORS, ...ARENA_DOORS] : id === '0' ? [...PIXEL_WAR_DOORS, PATRON_DOOR, ...OFFICE_DOORS] : id === '1' ? FOYER_DOORS : id === '2' ? [PLOT_DOOR] : []
   return { closed: CLOSED_ROOMS[level] ?? '', doors, walls: mezzanineWalls(id) }
 }
 
@@ -321,6 +337,9 @@ export const CLOSET_DOOR = { x: 9, z: 2, dir: 1 }
  * tuile : celle du salon d'arcade, dans son mur sud, et celle de la salle, au bout du couloir.
  */
 export const PIXEL_WAR_DOORS = [{ x: 16, z: 10, dir: 0 }, { x: 16, z: 12, dir: 0 }]
+
+/** La porte du salon des mécènes (pont principal), dans le mur sud du salon d'arcade : sur le bord nord de sa tuile. */
+export const PATRON_DOOR = { x: 22, z: 10, dir: 0 }
 
 /**
  * Les portes des deux boutiques vitrées du hall d'accueil (pont principal), au fond de la salle
