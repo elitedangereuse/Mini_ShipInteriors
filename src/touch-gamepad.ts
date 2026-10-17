@@ -9,6 +9,20 @@ const RUN_REACH = 0.85
 const AIM_SLACK = 0.3
 /** Durée (ms) au-delà de laquelle un appui sans glisser n'est plus un toucher. */
 const TAP_TIME = 350
+/** Course du bouton d'un stick, en part de sa largeur (le bord de son anneau). */
+const KNOB_SPAN = 0.32
+
+/**
+ * Comment un stick lit le doigt. `relative` : le geste part de là où le pouce se pose (à au plus
+ * `slip` de largeur du centre), pas du centre : un pouce posé de travers ne vise pas déjà loin.
+ * `span` : course qui donne le plein débattement, en part de la largeur (KNOB_SPAN par défaut) ;
+ * plus longue, elle dose plus finement (la distance d'un lancer).
+ */
+interface StickFeel {
+  relative?: boolean
+  slip?: number
+  span?: number
+}
 
 /**
  * Un stick analogique à l'écran. Il suit son doigt depuis la fenêtre, sans capture du pointeur :
@@ -40,24 +54,29 @@ class TouchStick {
   private farthest = 0
   private lastClientX = 0
   private lastClientY = 0
+  /** D'où part le geste, depuis le centre du stick (px) : 0 sauf pour un stick `relative`. */
+  private originX = 0
+  private originY = 0
 
-  constructor(private el: HTMLElement) {
+  constructor(private el: HTMLElement, feel: StickFeel = {}) {
     this.knob = el.querySelector<HTMLElement>('.touch-stick-knob')!
     const move = (e: PointerEvent) => {
       if (e.pointerId !== this.pointer) return
       const rect = el.getBoundingClientRect()
-      const radius = rect.width * 0.32
-      const dx = e.clientX - (rect.left + rect.width / 2)
-      const dy = e.clientY - (rect.top + rect.height / 2)
+      const radius = rect.width * (feel.span ?? KNOB_SPAN)
+      const dx = e.clientX - (rect.left + rect.width / 2) - this.originX
+      const dy = e.clientY - (rect.top + rect.height / 2) - this.originY
       const scale = Math.min(1, radius / Math.max(1, Math.hypot(dx, dy)))
       const x = dx * scale / radius, y = dy * scale / radius
-      this.movedX += (e.clientX - this.lastClientX) / radius
-      this.movedY += (e.clientY - this.lastClientY) / radius
+      // Le regard (vue subjective) garde sa sensibilité, quelle que soit la course du stick.
+      const look = rect.width * KNOB_SPAN
+      this.movedX += (e.clientX - this.lastClientX) / look
+      this.movedY += (e.clientY - this.lastClientY) / look
       this.lastClientX = e.clientX
       this.lastClientY = e.clientY
       this.x = x
       this.y = y
-      this.knob.style.transform = `translate(${dx * scale}px, ${dy * scale}px)`
+      this.knob.style.transform = `translate(${this.originX + dx * scale}px, ${this.originY + dy * scale}px)`
       this.farthest = Math.max(this.farthest, this.reach)
       el.classList.toggle('aiming', this.reach >= AIM_SLACK)
       e.preventDefault()
@@ -69,6 +88,14 @@ class TouchStick {
       this.farthest = 0
       this.lastClientX = e.clientX
       this.lastClientY = e.clientY
+      this.originX = this.originY = 0
+      if (feel.relative) {
+        const rect = el.getBoundingClientRect()
+        const ox = e.clientX - (rect.left + rect.width / 2), oy = e.clientY - (rect.top + rect.height / 2)
+        const k = Math.min(1, (rect.width * (feel.slip ?? 0.2)) / Math.max(1, Math.hypot(ox, oy)))
+        this.originX = ox * k
+        this.originY = oy * k
+      }
       move(e)
       this.movedX = this.movedY = 0
     }
@@ -137,8 +164,12 @@ class TouchStick {
  */
 export class TouchGamepad {
   private stick = new TouchStick(document.getElementById('touch-stick')!)
-  /** Stick de droite : le regard en vue subjective ou à la troisième personne, le tir au stand de tir (cf. mobile.css). */
-  private aim = new TouchStick(document.getElementById('touch-aim')!)
+  /**
+   * Stick de droite : le regard en vue subjective ou à la troisième personne, le tir au stand de tir
+   * et dans l'arène (cf. mobile.css). Il part de là où le pouce se pose, et sa course est longue :
+   * la distance d'un lancer (Capucine, Jacques) se dose au doigt, sans partir au bout de la portée.
+   */
+  private aim = new TouchStick(document.getElementById('touch-aim')!, { relative: true, span: 0.46 })
   private pending = new Set<Button>()
   private direction = 0
   private flareButton = document.getElementById('touch-flare')!
