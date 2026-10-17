@@ -73,7 +73,7 @@ function weaponCrate(variant: number): THREE.Object3D {
 
 /**
  * Pilier : un fût d'acier à pans coupés sur son socle, ceinturé d'un anneau lumineux, une balise
- * au sommet. Il remplit sa tuile, comme ce qu'il arrête.
+ * au sommet. Son socle remplit sa tuile ; les balles s'arrêtent sur son fût (cf. SHAPES, shared/arena.js).
  */
 function pillar(height = PILLAR_H, top = true): THREE.Object3D {
   const g = new THREE.Group()
