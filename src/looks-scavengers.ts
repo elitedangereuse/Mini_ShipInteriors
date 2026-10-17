@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { FaceControl } from './avatar'
+import { keepShared } from './dispose'
 import { holoTime } from './furniture/kit'
 
 /*
@@ -27,6 +28,13 @@ const glow = (color: string) => new THREE.MeshBasicMaterial({ color })
 const rbox = (w: number, h: number, d: number, m: THREE.Material, r = 0.01) => new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 1, Math.min(r, w / 2, h / 2, d / 2) * 0.999), m)
 const at = <T extends THREE.Object3D>(o: T, x: number, y: number, z: number): T => {
   o.position.set(x, y, z)
+  return o
+}
+
+/** Les kits de Kael et d'ARIA servent à tous ceux qui les portent : partagés, leurs textures comprises (cf. keepShared). */
+function shared<T extends THREE.Material | THREE.BufferGeometry>(o: T): T {
+  keepShared(o)
+  for (const v of Object.values(o)) if ((v as THREE.Texture | null)?.isTexture) keepShared(v as THREE.Texture)
   return o
 }
 
@@ -63,7 +71,7 @@ function kaelMats() {
   const screen = new THREE.CanvasTexture(c)
   screen.colorSpace = THREE.SRGBColorSpace
   screen.magFilter = THREE.NearestFilter
-  return (kaelMaterials = {
+  kaelMaterials = {
     suitLight: lit(K.suitLight),
     suitDark: lit(K.suitDark),
     strap: lit(K.strap),
@@ -76,7 +84,9 @@ function kaelMats() {
     fuel: glow(K.fuel),
     upgrade: glow(K.upgrade),
     screen: new THREE.MeshBasicMaterial({ map: screen }),
-  })
+  }
+  for (const m of Object.values(kaelMaterials)) shared(m)
+  return kaelMaterials
 }
 
 /** L'équipement de Kael, par-dessus sa combinaison. */
@@ -399,7 +409,7 @@ function aria(): AriaKit {
   g.fillRect(0, 0, 4, 64)
   const beam = new THREE.CanvasTexture(fade)
   beam.colorSpace = THREE.SRGBColorSpace
-  return (ariaKit = {
+  ariaKit = {
     body: light({ body: true }, 1),
     shell: light({ bob: true }, 0.92),
     bright: ariaShader(new THREE.MeshBasicMaterial({ color: A.glow, transparent: true, opacity: 0.95 }), { bob: true, pulse: true }),
@@ -412,13 +422,15 @@ function aria(): AriaKit {
     rear,
     nodes: [mergeGeometries(bright), mergeGeometries(dim)],
     faces: new Map(),
-  })
+  }
+  for (const o of [ariaKit.body, ariaKit.shell, ariaKit.bright, ariaKit.dim, ariaKit.ring, ariaKit.beam, ariaKit.back, ariaKit.plate, ariaKit.front, ariaKit.rear, ...ariaKit.nodes]) shared(o)
+  return ariaKit
 }
 
 function ariaFace(mood: Mood): THREE.Material {
   const kit = aria()
   let m = kit.faces.get(mood)
-  if (!m) kit.faces.set(mood, (m = ariaShader(new THREE.MeshBasicMaterial({ map: pixels((g) => drawAriaFace(g, mood)), transparent: true, opacity: 0.97 }), { bob: true, blink: true })))
+  if (!m) kit.faces.set(mood, (m = shared(ariaShader(new THREE.MeshBasicMaterial({ map: pixels((g) => drawAriaFace(g, mood)), transparent: true, opacity: 0.97 }), { bob: true, blink: true }))))
   return m
 }
 

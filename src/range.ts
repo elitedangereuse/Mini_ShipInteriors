@@ -1008,7 +1008,8 @@ export class RangeGame {
     let it = this.spare.pop()
     if (!it) {
       const ribbon = () => {
-        const mesh = new THREE.Mesh(RIBBON, new THREE.MeshBasicMaterial({ map: this.ribbon, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }))
+        // Un ruban plat : une passe suffit (three.js dessine sinon deux fois chaque face transparente à deux côtés).
+        const mesh = new THREE.Mesh(RIBBON, new THREE.MeshBasicMaterial({ map: this.ribbon, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, forceSinglePass: true }))
         mesh.matrixAutoUpdate = false
         mesh.frustumCulled = false
         return mesh
@@ -1018,7 +1019,7 @@ export class RangeGame {
     }
     if (this.shaded && !it.shade) {
       // L'ombre (l'arène) : sombre, en mélange ordinaire, dessinée avant la traînée qui l'éclaire.
-      const shade = new THREE.Mesh(RIBBON, new THREE.MeshBasicMaterial({ map: this.ribbon, color: '#05070b', transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }))
+      const shade = new THREE.Mesh(RIBBON, new THREE.MeshBasicMaterial({ map: this.ribbon, color: '#05070b', transparent: true, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true, toneMapped: false }))
       shade.matrixAutoUpdate = false
       shade.frustumCulled = false
       shade.renderOrder = 4

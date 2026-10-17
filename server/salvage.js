@@ -23,7 +23,8 @@
 // Fin : chacun reçoit la note de la mission (S à D, cf. salvageGrade) et ses chiffres (captures,
 // repérages, fusées, casiers, colis de chacun).
 //
-// Gains : une victoire paie chaque membre CMDR, y compris ceux qui ont été capturés ; le relais
+// Gains : une victoire paie chaque membre CMDR, y compris ceux qui ont été capturés (et ceux qui ont
+// perdu la liaison, le temps qu'ils reviennent), mais pas ceux qui l'ont abandonnée ; le relais
 // transmet le résultat au site (cf. `reward`), qui ne paie qu'une fois par partie et par CMDR, et
 // qu'un nombre de missions par jour (`salvage.daily` dans economy.json). Une victoire plus rapide que
 // possible (`minDuration`, cf. salvageMinDuration) n'est pas transmise : le relais la note au journal.
@@ -38,7 +39,7 @@ import { DIRS, ShipMap } from '../shared/ship-map.js'
 import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import {
   distances, findPath, floorFx, FX, generateZone, inAirlock, isLit, LOBBY, lockerFront, lockerSpot, mulberry32, pickSpawns, RULES, salvageGrade,
-  salvagePar, smoothPath, tileOf, walkable, ZONE_LEVEL, zoneSight,
+  salvagePar, smoothPath, tileOf, walkable, walkReach, ZONE_LEVEL, zoneSight,
 } from '../shared/salvage.js'
 
 const HOLD = new ShipMap(SHIP_LAYOUTS[String(LOBBY.level)], shipMapOptions(LOBBY.level))
@@ -49,7 +50,12 @@ const SEARCH_CHANCE = 0.22
 const SEARCH_AGAIN = 15
 /** Intervalle des bruits de course (s). */
 const STEP_NOISE = 0.45
-/** Une position plus lointaine que la vitesse ne le permet est ignorée (marge en tuiles). */
+/**
+ * Une position plus lointaine que la vitesse ne le permet est ignorée : la course permise est une
+ * réserve (marge de départ, en tuiles) qui se recharge au rythme de la course, deux secondes au
+ * plus, et que chaque position use ; une rafale de positions ne la cumule donc pas (cf.
+ * mess-rush.js). Et l'on y marche : un saut à travers un mur est refusé (cf. walkReach).
+ */
 const SLACK = 0.9
 /** Délai pour entrer dans la baie après le départ (ou le retour) : au-delà, c'est un abandon (ms). */
 const ARRIVAL = 30000
@@ -209,7 +215,7 @@ export function createSalvage({
       const p = playerById(id)
       game.members.set(id, {
         id, name: p?.name ?? '?', verified: !!p?.verified, cookie: p?.cookie ?? null, status: 'arriving',
-        spawn: spawns[i], x: spawns[i].x, z: spawns[i].z, at: now(), carrying: null, hidden: null, hiddenAt: 0, seen: false,
+        spawn: spawns[i], x: spawns[i].x, z: spawns[i].z, at: now(), stride: SLACK, carrying: null, hidden: null, hiddenAt: 0, seen: false,
         cooldown: 0, flares: 0, noiseAt: 0, sprint: false, glass: null,
         // Chiffres de fin de mission.
         stats: { delivered: 0, spotted: 0, flares: 0, hides: 0, captured: 0 },
@@ -239,8 +245,9 @@ export function createSalvage({
 
   const gameOf = (p) => teamOf.get(p.id)?.game ?? null
   const memberOf = (p) => gameOf(p)?.members.get(p.id) ?? null
+  // Qui a abandonné n'en entend plus parler : il est peut-être déjà dans une autre équipe.
   const toGame = (game, event, data) => {
-    for (const m of game.members.values()) if (m.connected) emit(m.id, event, data)
+    for (const m of game.members.values()) if (m.connected && m.status !== 'left') emit(m.id, event, data)
   }
   const tell = (game, data) => toGame(game, 'salvage:event', data)
 
@@ -286,6 +293,7 @@ export function createSalvage({
     m.x = front.x
     m.z = front.z
     m.at = now()
+    m.stride = SLACK
     noise(game, front, kind === 'eject' ? RULES.noise.eject : RULES.noise.locker)
     tell(game, { kind, id: m.id, locker: locker.id })
   }
@@ -343,6 +351,8 @@ export function createSalvage({
       stats: [...game.members.values()].map((m) => ({ id: m.id, name: m.name, ...m.stats })),
     }
     toGame(game, 'salvage:end', report)
+    // Qui a abandonné et n'a pas rejoint d'autre équipe apprend aussi la fin : son client referme la baie.
+    for (const m of game.members.values()) if (m.connected && m.status === 'left' && !teamOf.has(m.id)) emit(m.id, 'salvage:end', report)
     // Membres partis du vaisseau (ou pas encore revenus) : ils quittent l'équipe ; qui revient
     // plus tard apprendra le résultat.
     const absent = new Set([...game.members.values()].filter((m) => !m.connected).map((m) => m.id))
@@ -353,14 +363,16 @@ export function createSalvage({
     log(`[salvage] mission ${game.id} : ${won ? 'réussie' : reason === 'timeout' ? 'annulée' : 'échouée'}, ${game.delivered}/${game.settings.parcels} colis en ${duration} s`)
     announce()
     if (!won) return
+    // Payés : les CMDR restés dans la partie (capturés compris) ; pas qui l'a abandonnée, ni qui n'est
+    // jamais revenu après une coupure.
+    const paid = [...game.members.values()].filter((m) => m.verified && m.cookie && m.status !== 'left' && m.status !== 'gone')
     const least = minDuration(game.settings.parcels, game.settings.team)
     if (duration < least) {
       log(`[salvage] mission ${game.id} trop rapide pour être payée (${duration} s, ${least} s au moins) : partie suspecte`)
-      for (const m of game.members.values()) if (m.verified && m.cookie) emit(m.id, 'salvage:reward', { game: game.id, earned: 0, refused: 'early' })
+      for (const m of paid) emit(m.id, 'salvage:reward', { game: game.id, earned: 0, refused: 'early' })
       return
     }
-    for (const m of game.members.values()) {
-      if (!m.verified || !m.cookie) continue
+    for (const m of paid) {
       void reward(m, result).then((r) => {
         if (!r) return
         // Ce que la victoire rapporte sur le site, payée ou non : boosters de la semaine, badge de la zone.
@@ -452,20 +464,33 @@ export function createSalvage({
         tell(game, { kind: 'flare', id: m.id, x, z, burn: RULES.flare.burn, count: m.flares })
         return
       }
-      case 'salvage:quit': {
+      case 'salvage:quit':
         // Abandon : un joueur actif lâche son colis et quitte la partie ; un joueur capturé
         // arrête de la suivre. Chacun revient au lobby.
-        if (m.status === 'alive' || m.status === 'arriving') {
-          if (m.hidden !== null) unhide(game, m)
-          drop(game, m)
-          m.status = 'left'
-          tell(game, { kind: 'quit', id: m.id })
-          checkEnd(game)
-        }
+        if (m.status === 'alive' || m.status === 'arriving') quit(game, m)
         return
-      }
       default:
     }
+  }
+
+  /**
+   * Un joueur actif quitte la partie (abandon, retour au vaisseau, arrivée manquée) : il lâche son
+   * colis, n'est plus de l'équipe (comme lobby.release pour MESS RUSH) et peut se placer dans un
+   * autre lobby ; l'équipe continue sans lui, et n'a plus de chef s'il était le dernier.
+   */
+  function quit(game, m) {
+    if (m.hidden !== null) unhide(game, m)
+    drop(game, m)
+    m.status = 'left'
+    const t = game.team
+    teamOf.delete(m.id)
+    t.members = t.members.filter((id) => id !== m.id)
+    t.ready.delete(m.id)
+    if (t.leader === m.id) t.leader = t.members[0] ?? null
+    tell(game, { kind: 'quit', id: m.id })
+    checkEnd(game)
+    // La partie finie, endGame a déjà annoncé les lobbys.
+    if (!game.ended) announce()
   }
 
   function handle(p, action, raw) {
@@ -500,12 +525,15 @@ export function createSalvage({
     const zone = game.zone
     const t = tileOf(zone, { x, z })
     if (!t || !walkable(zone, t.x, t.z)) return false
-    const elapsed = Math.min(2, (now() - m.at) / 1000)
-    const speed = RULES.sprint * (m.carrying !== null ? RULES.carry : 1) * 1.25
-    if (m.status === 'alive' && Math.hypot(x - m.x, z - m.z) > speed * elapsed + SLACK) return false
+    if (m.status === 'alive' && !walkReach(zone, m, { x, z }, stride(m))) return false
     if (m.status === 'arriving' && Math.hypot(x - m.spawn.x, z - m.spawn.z) > 1.5) return false
     return true
   }
+
+  /** La course, chargé ou non, avec de la marge pour le retard du réseau (tuiles/s). */
+  const speedOf = (m) => RULES.sprint * (m.carrying !== null ? RULES.carry : 1) * 1.25
+  /** La course permise d'un membre depuis sa dernière position acceptée (cf. SLACK). */
+  const stride = (m) => Math.min(speedOf(m) * 2 + SLACK, m.stride + speedOf(m) * Math.max(0, now() - m.at) / 1000)
 
   /** Après chaque position acceptée (ou changement de pont) d'un joueur. */
   function moved(p) {
@@ -525,14 +553,16 @@ export function createSalvage({
     if (!m) return
     if (p.level !== ZONE_LEVEL) {
       // Revenu au vaisseau en pleine partie sans l'avoir quittée : c'est un abandon.
-      if (m.status === 'alive' || (m.status === 'arriving' && now() - m.arrivingSince > ARRIVAL)) gameAction(p, game, 'salvage:quit', {})
+      if (m.status === 'alive' || (m.status === 'arriving' && now() - m.arrivingSince > ARRIVAL)) quit(game, m)
       return
     }
-    if (m.status === 'arriving') {
+    const arrived = m.status === 'arriving'
+    if (arrived) {
       m.status = 'alive'
       tell(game, { kind: 'arrive', id: m.id })
     }
     if (m.status !== 'alive' || m.hidden !== null) return
+    m.stride = arrived ? SLACK : Math.max(0, stride(m) - Math.hypot(p.x - m.x, p.z - m.z))
     m.x = p.x
     m.z = p.z
     m.at = now()
@@ -631,7 +661,7 @@ export function createSalvage({
     for (const mon of game.monsters) if (mon.target === old) mon.target = null
     if (m.status === 'away') {
       const pad = game.zone.airlock.pad
-      Object.assign(m, { status: 'arriving', spawn: { x: pad.x, z: pad.z }, x: pad.x, z: pad.z, at: now(), arrivingSince: now() })
+      Object.assign(m, { status: 'arriving', spawn: { x: pad.x, z: pad.z }, x: pad.x, z: pad.z, at: now(), stride: SLACK, arrivingSince: now() })
     }
     emit(p.id, 'salvage:start', { ...startMessage(game, m), resumed: true })
     tell(game, { kind: 'back', id: p.id, old })
@@ -643,7 +673,7 @@ export function createSalvage({
   function teammates(p) {
     const game = gameOf(p)
     if (!game) return new Set()
-    return new Set([...game.members.values()].filter((m) => m.status !== 'gone').map((m) => m.id))
+    return new Set([...game.members.values()].filter((m) => m.status !== 'gone' && m.status !== 'left').map((m) => m.id))
   }
 
   // ------------------------------------------------------------------ ennemis
@@ -868,12 +898,15 @@ export function createSalvage({
   function stepGame(game, dt) {
     const t = now()
     const zone = game.zone
-    // Déconnectés trop longtemps : ils ne reviendront plus dans cette partie.
-    for (const m of game.members.values()) {
-      if (m.status !== 'away' || t < m.awayUntil) continue
-      m.status = 'gone'
-      tell(game, { kind: 'gone', id: m.id })
-      checkEnd(game)
+    // Déconnectés trop longtemps : ils ne reviendront plus dans cette partie. Jamais entrés dans la
+    // baie (un client resté en route, sans plus rien envoyer) : ils l'abandonnent.
+    for (const m of [...game.members.values()]) {
+      if (m.status === 'arriving' && t - m.arrivingSince > ARRIVAL) quit(game, m)
+      else if (m.status === 'away' && t >= m.awayUntil) {
+        m.status = 'gone'
+        tell(game, { kind: 'gone', id: m.id })
+        checkEnd(game)
+      }
       if (game.ended) return
     }
     // Bruits de course : un pas sonore de temps en temps, plus fort avec un colis.

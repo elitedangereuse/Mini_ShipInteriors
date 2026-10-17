@@ -69,6 +69,8 @@ export interface CctvHost {
   deckName(level: number): string
   /** Sortie son de l'interface (les parasites d'un changement de caméra) ; null si le son est coupé. */
   voice(): AudioNode | null
+  /** Rend une sortie de `voice`, son fini (cf. Sound.release) ; sans, on la débranche (elle n'est pas spatialisée). */
+  release?(voice: AudioNode): void
 }
 
 const QUARTER = Math.PI / 2
@@ -269,6 +271,8 @@ export class ShipCameras {
     const gain = ctx.createGain()
     gain.gain.value = 0.5
     source.connect(filter).connect(gain).connect(out)
+    // Fini, il quitte le graphe audio.
+    source.onended = () => (this.host.release ? this.host.release(out) : out.disconnect())
     source.start()
   }
 

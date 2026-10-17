@@ -8,8 +8,13 @@ import { petPreview } from '../pets'
 
 /*
  * Vignettes du catalogue : chaque objet rendu seul, en vue isométrique, dans un petit rendu
- * hors écran (son propre contexte WebGL, libéré une fois la file vidée). Un objet accroché est
- * montré sur un pan de mur. Les images sont gardées en mémoire (une par objet et variante).
+ * hors écran (son propre contexte WebGL, créé à la première vignette et gardé ensuite). Un objet
+ * accroché est montré sur un pan de mur. Les images sont gardées en mémoire (une par objet et
+ * variante).
+ *
+ * Le contexte était rendu après quatre secondes sans vignette : chaque passage au catalogue
+ * recompilait ses shaders, et chaque rendu abandonné restait en mémoire, accroché aux matières
+ * partagées du jeu qu'il avait dessinées (three.js ne retire pas ses écouteurs de `dispose`).
  */
 
 const SIZE = 176
@@ -21,7 +26,6 @@ let renderer: THREE.WebGLRenderer | null = null
 let scene: THREE.Scene
 let camera: THREE.OrthographicCamera
 let wall: THREE.Mesh
-let idle = 0
 let running = false
 
 function setup() {
@@ -113,12 +117,6 @@ async function pump() {
   const job = queue.shift()
   if (!job) {
     running = false
-    // File vide depuis un moment : on rend le contexte WebGL.
-    idle = window.setTimeout(() => {
-      renderer?.dispose()
-      renderer?.forceContextLoss()
-      renderer = null
-    }, 4000)
     return
   }
   let url = ''
@@ -143,7 +141,6 @@ export function thumbnail(entry: CatalogEntry, variant: string | undefined, cb: 
   if (list) return void list.push(cb)
   waiting.set(key, [cb])
   queue.push({ key, entry, variant })
-  clearTimeout(idle)
   if (!running) {
     running = true
     setTimeout(pump, 0)

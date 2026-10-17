@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { keepShared } from './dispose'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { rig, type Rig } from './assets'
 import type { FaceControl } from './avatar'
@@ -594,13 +595,14 @@ const suitMaterials = new Map<SuitStyle, Record<'shell' | 'visor' | 'glass' | 'l
 function suitMaterialsOf(s: SuitStyle) {
   let m = suitMaterials.get(s)
   if (!m) {
+    // Prêtés à tous ceux qui portent cette combinaison : en libérer un ne les libère pas (cf. disposeOwned).
     m = {
-      shell: new THREE.MeshLambertMaterial({ color: s.shell }),
-      dark: new THREE.MeshLambertMaterial({ color: s.glove }),
+      shell: keepShared(new THREE.MeshLambertMaterial({ color: s.shell })),
+      dark: keepShared(new THREE.MeshLambertMaterial({ color: s.glove })),
       // Visière : légèrement lumineuse, pour se lire même dans les coins sombres.
-      visor: new THREE.MeshLambertMaterial({ color: s.visor, emissive: s.visor, emissiveIntensity: 0.45 }),
-      glass: new THREE.MeshLambertMaterial({ color: s.visor, emissive: s.visor, emissiveIntensity: 0.25, transparent: true, opacity: 0.3, depthWrite: false }),
-      light: new THREE.MeshBasicMaterial({ color: s.light }),
+      visor: keepShared(new THREE.MeshLambertMaterial({ color: s.visor, emissive: s.visor, emissiveIntensity: 0.45 })),
+      glass: keepShared(new THREE.MeshLambertMaterial({ color: s.visor, emissive: s.visor, emissiveIntensity: 0.25, transparent: true, opacity: 0.3, depthWrite: false })),
+      light: keepShared(new THREE.MeshBasicMaterial({ color: s.light })),
     }
     suitMaterials.set(s, m)
   }
@@ -842,13 +844,13 @@ function holoMaterial(src: THREE.MeshLambertMaterial): THREE.Material {
   const key = src.map ?? null
   let m = holoMaterials.get(key)
   if (m) return m
-  m = holoShader(new THREE.MeshBasicMaterial({ map: src.map ? holoTexture(src.map) : null, color: src.map ? '#ffffff' : '#7fe9ff', transparent: true, opacity: 0.92, side: src.side }))
+  m = keepShared(holoShader(new THREE.MeshBasicMaterial({ map: src.map ? holoTexture(src.map) : null, color: src.map ? '#ffffff' : '#7fe9ff', transparent: true, opacity: 0.92, side: src.side })))
   holoMaterials.set(key, m)
   return m
 }
 
 /** Halo au sol d'une projection : l'anneau du projecteur, qui la suit. */
-const holoRing = new THREE.MeshBasicMaterial({ color: '#6fe8ff', transparent: true, opacity: 0.5, depthWrite: false, toneMapped: false })
+const holoRing = keepShared(new THREE.MeshBasicMaterial({ color: '#6fe8ff', transparent: true, opacity: 0.5, depthWrite: false, toneMapped: false }))
 
 /**
  * Fait d'un personnage une projection du Holo-Me : chaque matériau devient de la lumière, plus

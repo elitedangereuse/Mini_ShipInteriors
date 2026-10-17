@@ -10,10 +10,33 @@ import type { Sound } from '../audio'
  */
 
 export class SalvageSfx {
+  /** L'instant (horloge du contexte) où se tait la dernière voix du son en cours de construction. */
+  private until = 0
+
   constructor(private sound: Sound) {}
 
   private get ctx(): AudioContext {
     return this.sound.ctx
+  }
+
+  /** La sortie d'un nouveau son (cf. Sound.voice) ; finie, elle quitte le graphe audio (cf. done). */
+  private voice(pos: THREE.Vector3 | null, volume: number, ref?: number, rolloff?: number): AudioNode | null {
+    this.until = 0
+    return this.sound.voice(pos, volume, ref, rolloff)
+  }
+
+  /** Une voix du son s'arrête à l'instant `at`. */
+  private stop(node: AudioScheduledSourceNode, at: number) {
+    node.stop(at)
+    this.until = Math.max(this.until, at)
+  }
+
+  /**
+   * Le son est construit : sa sortie est rendue (cf. Sound.release) une fois sa dernière voix
+   * arrêtée. Sans cela, chaque chant, chaque casier reste branché, et le rendu du son finit par saturer.
+   */
+  private done(out: AudioNode) {
+    window.setTimeout(() => this.sound.release(out), Math.max(0, this.until - this.ctx.currentTime) * 1000 + 100)
   }
 
   /** Oscillateur à enveloppe (attaque, maintien, relâche), branché sur `out`. */
@@ -29,7 +52,7 @@ export class SalvageSfx {
     env.gain.setTargetAtTime(0, t + len * 0.6, len * 0.25)
     osc.connect(env).connect(out)
     osc.start(t)
-    osc.stop(t + len + 0.2)
+    this.stop(osc, t + len + 0.2)
   }
 
   /** Souffle de bruit filtré (passe-bande), à enveloppe. */
@@ -49,7 +72,7 @@ export class SalvageSfx {
     env.gain.setTargetAtTime(0, t + len * 0.7, len * 0.15)
     src.connect(band).connect(env).connect(out)
     src.start(t, Math.random() * 0.5)
-    src.stop(t + len + 0.3)
+    this.stop(src, t + len + 0.3)
   }
 
   /**
@@ -66,7 +89,7 @@ export class SalvageSfx {
     mod.connect(ring.gain)
     ring.connect(out)
     mod.start(t)
-    mod.stop(t + len + 0.2)
+    this.stop(mod, t + len + 0.2)
     return ring
   }
 
@@ -75,7 +98,7 @@ export class SalvageSfx {
    * par-dessus comme un chant de baleine, et quelques cliquetis de carapace.
    */
   groan(pos: THREE.Vector3, angry = false) {
-    const out = this.sound.voice(pos, angry ? 0.5 : 0.34, 1.4, 1.1)
+    const out = this.voice(pos, angry ? 0.5 : 0.34, 1.4, 1.1)
     if (!out) return
     const ctx = this.ctx
     const t = ctx.currentTime + 0.01
@@ -103,7 +126,7 @@ export class SalvageSfx {
       o.frequency.linearRampToValueAtTime(48 * pitch + detune, t + len)
       o.connect(formant)
       o.start(t)
-      o.stop(t + len + 0.05)
+      this.stop(o, t + len + 0.05)
     }
     // Chant : une sinusoïde qui glisse vers le bas, vibrée, à peine modulée.
     const song = ctx.createOscillator()
@@ -121,15 +144,16 @@ export class SalvageSfx {
     song.connect(songGain).connect(this.ring(env, t, len, 170 * pitch))
     song.start(t)
     vib.start(t)
-    song.stop(t + len + 0.05)
-    vib.stop(t + len + 0.05)
+    this.stop(song, t + len + 0.05)
+    this.stop(vib, t + len + 0.05)
     // Cliquetis de carapace, au début.
     for (let i = 0; i < 3 + Math.floor(Math.random() * 3); i++) this.hiss(out, t + i * 0.07 + Math.random() * 0.03, 0.03, 3200 + Math.random() * 1500, 4, 0.5)
+    this.done(out)
   }
 
   /** Il vous a repéré : un crissement métallique qui monte, et un souffle. */
   shriek(pos: THREE.Vector3) {
-    const out = this.sound.voice(pos, 0.45, 1.6, 1)
+    const out = this.voice(pos, 0.45, 1.6, 1)
     if (!out) return
     const ctx = this.ctx
     const t = ctx.currentTime + 0.01
@@ -147,9 +171,10 @@ export class SalvageSfx {
       o.frequency.exponentialRampToValueAtTime(f1, t + len * 0.8)
       o.connect(ring)
       o.start(t)
-      o.stop(t + len + 0.1)
+      this.stop(o, t + len + 0.1)
     }
     this.hiss(out, t, len, 2600, 2, 0.6, 5200)
+    this.done(out)
   }
 
   /** Pas d'un Thargoïde : griffes sur le métal (le pas du vaisseau, plus grave). */
@@ -159,89 +184,98 @@ export class SalvageSfx {
 
   /** Battement de cœur (non spatialisé) ; `fear` de 0 à 1 le rend plus fort. */
   heartbeat(fear: number) {
-    const out = this.sound.voice(null, 0.1 + fear * 0.28)
+    const out = this.voice(null, 0.1 + fear * 0.28)
     if (!out) return
     const t = this.ctx.currentTime + 0.01
     for (const [dt, k] of [[0, 1], [0.16, 0.7]] as const) {
       this.tone(out, 'sine', 62, 38, t + dt, 0.16, k)
     }
+    this.done(out)
   }
 
   /** Fusée allumée : un craquement, puis un chuintement qui dure `burn` secondes. */
   flare(pos: THREE.Vector3, burn: number) {
-    const out = this.sound.voice(pos, 0.3, 1.3, 1.1)
+    const out = this.voice(pos, 0.3, 1.3, 1.1)
     if (!out) return
     const t = this.ctx.currentTime + 0.01
     this.hiss(out, t, 0.18, 3200, 1, 1)
     this.hiss(out, t + 0.1, burn, 2600, 0.7, 0.35)
+    this.done(out)
   }
 
   /** Porte de casier : un claquement métallique (plus fort quand on en est éjecté ou tiré). */
   locker(pos: THREE.Vector3, loud = false) {
-    const out = this.sound.voice(pos, loud ? 0.4 : 0.22, 1.2, 1.3)
+    const out = this.voice(pos, loud ? 0.4 : 0.22, 1.2, 1.3)
     if (!out) return
     const t = this.ctx.currentTime + 0.01
     this.tone(out, 'square', 320, 180, t, 0.08, 0.6)
     this.tone(out, 'triangle', 1240, 900, t + 0.01, 0.22, 0.25)
     this.hiss(out, t, 0.1, 1800, 1.5, 0.6)
+    this.done(out)
   }
 
   /** Casier fouillé : on secoue la porte, plusieurs fois. */
   rattle(pos: THREE.Vector3) {
-    const out = this.sound.voice(pos, 0.3, 1.2, 1.2)
+    const out = this.voice(pos, 0.3, 1.2, 1.2)
     if (!out) return
     const t = this.ctx.currentTime + 0.01
     for (let i = 0; i < 4; i++) this.tone(out, 'square', 260 + Math.random() * 60, 150, t + i * 0.18, 0.06, 0.5)
+    this.done(out)
   }
 
   /** Colis ramassé : deux notes claires. */
   pickup() {
-    const out = this.sound.voice(null, 0.1)
+    const out = this.voice(null, 0.1)
     if (!out) return
     const t = this.ctx.currentTime + 0.01
     this.tone(out, 'triangle', 660, 660, t, 0.1)
     this.tone(out, 'triangle', 990, 990, t + 0.09, 0.16)
+    this.done(out)
   }
 
   /** Colis livré au sas : un arpège qui monte, et le monte-charge. */
   deposit() {
-    const out = this.sound.voice(null, 0.1)
+    const out = this.voice(null, 0.1)
     if (!out) return
     const t = this.ctx.currentTime + 0.01
     ;[523, 659, 784, 1047].forEach((f, i) => this.tone(out, 'triangle', f, f, t + i * 0.08, 0.14))
     this.hiss(out, t, 1.2, 400, 0.8, 0.4, 900)
+    this.done(out)
   }
 
   /** Capture : un rugissement et un choc sourd, pour celui qui est attrapé comme pour son équipe. */
   capture(pos: THREE.Vector3 | null) {
-    const out = this.sound.voice(pos, pos ? 0.55 : 0.4, 1.8, 1)
+    const out = this.voice(pos, pos ? 0.55 : 0.4, 1.8, 1)
     if (!out) return
     const t = this.ctx.currentTime + 0.01
     this.tone(out, 'sawtooth', 120, 60, t, 0.9, 0.9)
     this.tone(out, 'sine', 90, 30, t + 0.25, 0.4, 1)
     this.hiss(out, t, 0.9, 700, 1, 0.9, 300)
+    this.done(out)
   }
 
   /** Détecteur de cargaison : un bip, plus aigu quand le colis est proche. */
   detector(near: number) {
-    const out = this.sound.voice(null, 0.035 + near * 0.03)
+    const out = this.voice(null, 0.035 + near * 0.03)
     if (!out) return
     const t = this.ctx.currentTime + 0.005
     const f = 880 + near * 700
     this.tone(out, 'sine', f, f, t, 0.07)
+    this.done(out)
   }
 
   /** Ramasser une fusée, ou n'en rien pouvoir faire. */
   click(ok = true) {
-    const out = this.sound.voice(null, 0.07)
+    const out = this.voice(null, 0.07)
     if (!out) return
     const t = this.ctx.currentTime + 0.005
     this.tone(out, 'square', ok ? 1200 : 300, ok ? 1500 : 220, t, 0.06)
+    this.done(out)
   }
 
   /** Un pas sur du verre brisé : des éclats qui crissent et tintent (les ennemis l'entendent aussi). */
   crunch(pos: THREE.Vector3) {
-    const out = this.sound.voice(pos, 0.26, 1.2, 1.3)
+    const out = this.voice(pos, 0.26, 1.2, 1.3)
     if (!out) return
     const t = this.ctx.currentTime + 0.005
     this.hiss(out, t, 0.12, 4200, 1.2, 0.9, 2600)
@@ -249,6 +283,7 @@ export class SalvageSfx {
       const f = 2800 + Math.random() * 2600
       this.tone(out, 'triangle', f, f * 0.93, t + 0.01 + Math.random() * 0.09, 0.05, 0.28)
     }
+    this.done(out)
   }
 
   /**
@@ -256,7 +291,7 @@ export class SalvageSfx {
    * chœur de chants métalliques qui lui répond.
    */
   hive() {
-    const out = this.sound.voice(null, 0.22)
+    const out = this.voice(null, 0.22)
     if (!out) return
     const ctx = this.ctx
     const t = ctx.currentTime + 0.05
@@ -278,27 +313,30 @@ export class SalvageSfx {
       o.frequency.linearRampToValueAtTime(f * 0.8, t + len)
       o.connect(lp)
       o.start(t)
-      o.stop(t + len + 0.1)
+      this.stop(o, t + len + 0.1)
     }
     this.hiss(out, t, len, 180, 0.7, 0.5, 90)
     for (let i = 0; i < 3; i++) this.tone(out, 'sine', 520 + i * 90, 300 + i * 40, t + 0.6 + i * 0.5, 1.1, 0.12)
+    this.done(out)
   }
 
   /** Parasites d'un moniteur de surveillance qui change de caméra (non spatialisés). */
   static(len = 0.35) {
-    const out = this.sound.voice(null, 0.08)
+    const out = this.voice(null, 0.08)
     if (!out) return
     const t = this.ctx.currentTime + 0.005
     this.hiss(out, t, len, 3000, 0.4, 1)
     this.tone(out, 'square', 60, 60, t, len * 0.8, 0.2)
+    this.done(out)
   }
 
   /** Fin de mission : victoire (fanfare brève) ou défaite (trois notes qui tombent). */
   end(won: boolean) {
-    const out = this.sound.voice(null, 0.09)
+    const out = this.voice(null, 0.09)
     if (!out) return
     const t = this.ctx.currentTime + 0.01
     if (won) [523, 659, 784, 1047, 784, 1047].forEach((f, i) => this.tone(out, 'triangle', f, f, t + i * 0.1, i === 5 ? 0.4 : 0.12))
     else [392, 330, 262, 196].forEach((f, i) => this.tone(out, 'sawtooth', f, f * 0.98, t + i * 0.22, 0.26, 0.6))
+    this.done(out)
   }
 }

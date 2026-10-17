@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import type { Rig } from './assets'
+import { disposeOwned } from './dispose'
 import { tr } from './i18n'
 import type { IconName } from './icons'
 import type { PoseId } from './seats'
@@ -485,7 +486,27 @@ export class Avatar {
     for (const o of this.casters) o.castShadow = on
   }
 
+  private disposed = false
+
+  /**
+   * Il quitte la scène pour de bon : ses animations s'arrêtent, et la mémoire GPU de ce qui lui est
+   * propre (géométries, matériaux, textures, squelette) est libérée ; ce que son modèle partage avec
+   * d'autres (le fichier chargé, les têtes coiffées, les matériaux cuits…, cf. keepShared) reste.
+   */
+  dispose() {
+    if (this.disposed) return
+    this.disposed = true
+    Avatar.live.delete(this)
+    this.mixer.stopAllAction()
+    this.mixer.uncacheRoot(this.model)
+    this.actions.clear()
+    this.current = undefined
+    this.root.removeFromParent()
+    disposeOwned(this.root)
+  }
+
   update(dt: number) {
+    if (this.disposed) return
     Avatar.live.add(this)
     let hop = 0
     let sway = 0

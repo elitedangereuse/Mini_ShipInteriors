@@ -256,7 +256,9 @@ function chessMove(state, color, move, finish = true) {
     next.board[y][rookX] = null
   }
   if (kind === 'p' && (ty === 0 || ty === 7)) {
-    const promotion = ['q', 'r', 'b', 'n'].includes(String(move.promote).toLowerCase()) ? String(move.promote).toLowerCase() : 'q'
+    // La pièce choisie par le client (une chaîne ; tout autre type compte pour la dame).
+    const wanted = typeof move.promote === 'string' ? move.promote.toLowerCase() : ''
+    const promotion = ['q', 'r', 'b', 'n'].includes(wanted) ? wanted : 'q'
     next.board[ty][tx] = color === 'white' ? promotion.toUpperCase() : promotion
   }
   if (kind === 'p' && ay === 2) next.enPassant = [tx, y + (color === 'white' ? -1 : 1)]

@@ -104,6 +104,10 @@ export interface DoorState {
   animate?: (open: number) => void
   /** Porte sans chuintement pneumatique (bois, perles…). */
   quiet?: boolean
+  /** Verrouillée sur le plan, relu quand il change (cf. Deck.readLocks). */
+  locked?: boolean
+  /** Temps passé pont caché, que le battant n'a pas encore rattrapé (cf. Deck.update). */
+  rest?: number
 }
 
 /** Où se range la collision d'une porte ouverte : hors de portée de tout. */
@@ -152,6 +156,29 @@ const BRIDGE = 6000
 
 const PICK_MATERIAL = new THREE.MeshBasicMaterial()
 const _extent = new THREE.Box3()
+
+/**
+ * Meubles dont l'animation sert hors de leur pièce : elle tourne même quand on ne les voit pas (cf.
+ * Deck.update). L'écran du cinéma règle l'horloge du film (cf. `film`), que suivent la lumière de
+ * la salle et le faisceau du projecteur.
+ */
+const DRIVERS = new Set(['cinema-screen'])
+
+/**
+ * Objet posé une fois pour toutes (géométrie fusionnée, volume de clic, groupe de cellule…) :
+ * three.js ne recompose plus sa matrice à chaque image. Rien ne doit plus le déplacer.
+ */
+function freeze(o: THREE.Object3D) {
+  o.updateMatrix()
+  o.matrixAutoUpdate = false
+}
+
+/** Les mêmes nombres, dans le même ordre. */
+function sameNumbers(a: number[], b: number[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  return true
+}
 
 /**
  * Un groupe caché n'est pas dessiné, mais three.js recalcule quand même, à chaque image, la matrice
@@ -226,6 +253,7 @@ function canopyGlass(panes: { x: number; z: number; alongX: boolean }[], bottom 
   const mesh = new THREE.Mesh(mergeGeometries(geos), material)
   for (const g of geos) g.dispose()
   mesh.renderOrder = 2
+  freeze(mesh)
   return mesh
 }
 
@@ -349,6 +377,9 @@ const PORTHOLE_GLASS = new THREE.ShaderMaterial({
   transparent: true,
   // Il écrit sa profondeur : les étoiles, dessinées en dernier, ne passent pas par-dessus.
   side: THREE.DoubleSide,
+  // Un carreau plat ne se recouvre pas lui-même : ses deux faces partent en une passe (three.js en
+  // fait sinon deux, l'une pour l'envers, l'autre pour l'endroit).
+  forceSinglePass: true,
   visible: false,
 })
 const _leaf = new THREE.Box3()
@@ -366,6 +397,8 @@ function glazeLeaf(leaf: THREE.Object3D) {
     glass.scale.set(size.z * 0.96, size.y * 0.96, 1)
   } else glass.scale.set(size.x * 0.96, size.y * 0.96, 1)
   _leaf.getCenter(glass.position)
+  // Il suit le battant, sans bouger dans son repère.
+  freeze(glass)
   mesh.add(glass)
 }
 
@@ -506,6 +539,11 @@ export class Deck {
 
   private occluders: Occluder[] = []
   private doors: DoorState[] = []
+  /** Version du plan (cf. ShipMap.version) d'après laquelle les verrous des portes ont été relus (cf. readLocks). */
+  private lockStamp = -1
+  /** Des battants ont pris du retard, pont caché (cf. DoorState.rest). */
+  private doorsBehind = false
+  private readonly doorLocked = (d: DoorState) => !!d.locked
   private hints = new DoorHints()
   private merge!: StaticMerge
   private fades!: FadeBuffer
@@ -526,6 +564,12 @@ export class Deck {
   private seen = new Uint8Array(0)
   private shown = new Uint8Array(0)
   private cellSeen = new Uint8Array(0)
+  /**
+   * Ce qu'ont vu les yeux de la vue subjective (cf. cull), et d'où : leur place et leur champ, les
+   * portes ouvertes, les murs percés. Tant que rien de cela ne change, les rayons ne repartent pas.
+   */
+  private glance = { key: [] as number[], seen: new Uint8Array(0), all: false }
+  private glanceKey: number[] = []
   /** Emprise (tuiles) de ce que dessine le pont, quand ce n'est pas tout : le soleil y cadre ses ombres (cf. main.ts). */
   seenBounds: Box2 | null = null
   private time = 0
@@ -540,8 +584,16 @@ export class Deck {
   private liftSign?: THREE.Sprite
   private liftItem?: Interactable
   private liftBoost = 0
-  /** Animations du mobilier (hologrammes, drones…). */
-  private animated: { update: (t: number) => void; interactive: boolean }[] = []
+  /**
+   * Animations du mobilier (hologrammes, drones…). `live` : ce qu'elles animent, quand elles peuvent
+   * attendre qu'on le revoie (cf. update) ; `own` : le pont le cache lui-même (Zorb fermé, pièce à
+   * débloquer) ; `asleep` : sautée parce qu'on ne le voyait pas, à remettre à l'heure (cf. cull).
+   */
+  private animated: { update: (t: number) => void; interactive: boolean; live?: THREE.Object3D; own?: boolean; asleep?: boolean }[] = []
+  /** Une animation au moins attend que son meuble reparaisse. */
+  private dozing = false
+  /** Des cellules, ou des meubles que le pont cachait, viennent de reparaître : qui dort est à revoir (cf. wake). */
+  private reshown = false
   private decorationFrame = -1
   /** Peinture de la coque et du mobilier du kit sur ce pont. */
   readonly theme: ThemeMaterials
@@ -633,7 +685,10 @@ export class Deck {
     this.buildCeiling()
 
     const halos = buildHalos(this.halos)
-    if (halos) this.group.add(halos)
+    if (halos) {
+      freeze(halos)
+      this.group.add(halos)
+    }
     this.pathfinder = new Pathfinder(this.map, this.blockedTiles, this.colliders)
     if (def.bubble) this.home = new HomeView(this)
     // Ses meubles viennent de l'aménagement du joueur (cf. main.ts) : ils s'ajoutent au reste du pont.
@@ -713,6 +768,7 @@ export class Deck {
     if (this.def.id !== -1) return
     this.setRoomAccess(CLUB_ROOM, alien)
     for (const o of this.clubLive) o.visible = alien
+    this.reshown = true
   }
 
   /** Chez Jacques n'ouvre qu'à ses habitués, ceux qui y sont déjà entrés par les conduits (cf. shared/vents.js). */
@@ -765,6 +821,7 @@ export class Deck {
       this.settle(cover)
     }
     for (const o of this.roomLive.get(room) ?? []) o.visible = open
+    this.reshown = true
     for (const o of this.roomTall.get(room) ?? []) o.off = !open
   }
 
@@ -839,6 +896,8 @@ export class Deck {
   /** Porte construite après coup (pièces des extensions de quartiers) : elle s'ouvre comme les autres. */
   registerDoor(door: DoorState) {
     this.doors.push(door)
+    this.lockStamp = -1
+    this.glance.key.length = 0
   }
 
   /** Invite d'une porte verrouillée à la construction (pour lui donner une action, cf. main.ts). */
@@ -849,9 +908,10 @@ export class Deck {
 
   /** Ouvertures des portes où l'on passe (cf. funnelDoorway). */
   doorways(): Doorway[] {
+    this.readLocks()
     const out: Doorway[] = []
     for (const d of this.doors) {
-      if (this.map.isLocked(d.x, d.z, d.dir)) continue
+      if (d.locked) continue
       out.push({ x: d.center.x, z: d.center.z, alongX: d.axis.x !== 0, half: d.pair ? 0.8 : DOOR_GAP / 2 })
     }
     return out
@@ -861,6 +921,36 @@ export class Deck {
     const i = this.doors.indexOf(door)
     if (i >= 0) this.doors.splice(i, 1)
     this.hints.remove(door)
+    this.glance.key.length = 0
+  }
+
+  /**
+   * Verrous des portes, relus sur le plan quand il a changé (cf. ShipMap.version) plutôt qu'à
+   * chaque image : leur voyant, et l'invite d'une porte verrouillée.
+   */
+  private readLocks() {
+    if (this.lockStamp === this.map.version) return
+    this.lockStamp = this.map.version
+    for (const d of this.doors) {
+      const locked = (d.locked = this.map.isLocked(d.x, d.z, d.dir))
+      d.lamp.visible = locked
+      if (!d.examine) continue
+      const i = this.interactables.indexOf(d.examine)
+      if (locked && i < 0) this.interactables.push(d.examine)
+      else if (!locked && i >= 0) this.interactables.splice(i, 1)
+    }
+  }
+
+  /** Le battant avance vers où il va pendant `dt`, plus le retard pris pont caché (cf. update), et se pose. */
+  private swing(d: DoorState, dt: number) {
+    d.open = THREE.MathUtils.damp(d.open, d.wanted ? 1 : 0, 10, dt + (d.rest ?? 0))
+    d.rest = 0
+    if (d.animate) d.animate(d.open)
+    else if (d.pair) {
+      // Chaque battant (0,8 de large) part de son côté et rentre dans le mur.
+      d.panel.position.copy(d.center).addScaledVector(d.axis, -0.4 - d.open * 0.78)
+      d.pair.position.copy(d.center).addScaledVector(d.axis, 0.4 + d.open * 0.78)
+    } else d.panel.position.copy(d.center).addScaledVector(d.axis, d.open * 0.42)
   }
 
   /**
@@ -891,6 +981,7 @@ export class Deck {
     const volume = new THREE.Mesh(new THREE.BoxGeometry(size.x, size.y, size.z), PICK_MATERIAL)
     box.getCenter(volume.position)
     volume.visible = false
+    freeze(volume)
     this.group.add(volume)
     return volume
   }
@@ -934,8 +1025,10 @@ export class Deck {
     this.fades = fadeBuffer(this.merge.fadingCount)
     const meshes = this.merge.flush(this.group, this.fades.texture)
     this.celled.push(...meshes)
-    // Les encadrements de porte, fondus ensemble : ils grandissent d'un bloc en vue subjective.
+    // Les encadrements de porte, fondus ensemble : ils grandissent d'un bloc en vue subjective. Le
+    // reste ne bouge plus.
     this.registerTall(meshes.filter((m) => m.userData.tag === DOOR_FRAME))
+    for (const m of meshes) if (m.userData.tag !== DOOR_FRAME) freeze(m)
   }
 
   /** Cellule d'un objet (cf. visibility.ts) : les pièces que touche son encombrement. */
@@ -963,6 +1056,8 @@ export class Deck {
     if (!housing) {
       this.cellGroups.set(cell, (housing = new THREE.Group()))
       restWhenHidden(housing)
+      // À l'origine du pont pour toujours : seul ce qu'il porte bouge.
+      freeze(housing)
       this.group.add(housing)
     }
     return housing
@@ -993,6 +1088,45 @@ export class Deck {
    * mobilier animé compris. Ni l'un ni l'autre (pont filmé) : tout le pont.
    */
   cull(eyes: Eye[] | null, view: IsoView | null = null) {
+    // Pont affiché depuis son update (changement de vue en cours d'image) : ses portes rattrapent
+    // leur retard, avant qu'on ne regarde au travers.
+    if (this.doorsBehind && this.group.visible) {
+      for (const d of this.doors) if (d.rest) this.swing(d, 0)
+      this.doorsBehind = false
+    }
+    this.cullRooms(eyes, view)
+    // Le mobilier animé qui reparaît se remet à l'heure avant d'être dessiné (cf. update).
+    if (this.dozing && this.reshown && this.group.visible) this.wake()
+  }
+
+  /** Animations sautées dont le meuble se voit de nouveau (cf. update) : jouées à l'heure de cette image. */
+  private wake() {
+    this.reshown = false
+    let still = false
+    for (const a of this.animated) {
+      if (!a.asleep) continue
+      if (!this.showing(a)) {
+        still = true
+        continue
+      }
+      a.asleep = false
+      a.update(this.time)
+    }
+    this.dozing = still
+  }
+
+  /**
+   * Ce que le pont dessine de ce meuble animé est-il à l'image : sa cellule (cf. cull), et lui-même
+   * quand c'est le pont qui le cache (Zorb fermé, pièce à débloquer) ?
+   */
+  private showing(a: { live?: THREE.Object3D; own?: boolean }): boolean {
+    const live = a.live!
+    if (a.own && !live.visible) return false
+    for (let o = live.parent; o && o !== this.group; o = o.parent) if (!o.visible) return false
+    return true
+  }
+
+  private cullRooms(eyes: Eye[] | null, view: IsoView | null) {
     const sight = this.sight
     if (!sight) return
     if (!this.seen.length) {
@@ -1004,17 +1138,39 @@ export class Deck {
     seen.fill(0)
     if (view && !eyes) sight.framed(seen, (room, out) => this.roomBox(room, view.shadow, out), view.frustum)
     if (eyes) {
+      // Ce qui décide de ce que voient les yeux (cf. glance) : leur place et leur champ, les portes
+      // ouvertes, les murs percés.
+      const key = this.glanceKey
+      key.length = 0
+      key.push(eyes.length)
+      for (const eye of eyes) key.push(eye.x, eye.z, eye.toward, eye.half)
+      key.push(this.doors.length)
       // De très loin, une porte fermée ne laisse plus voir sa pièce ; le second battant d'une porte double suit le premier.
       for (const d of this.doors) {
         const open = d.open > 0.02
         sight.setDoor(d.x, d.z, d.dir, open)
         if (d.pair) sight.setDoor(d.x + Math.abs(d.axis.x), d.z + Math.abs(d.axis.z), d.dir, open)
+        key.push(open ? 1 : 0)
       }
-      // Un mur tramé parce qu'il cache le personnage laisse voir la pièce d'à côté.
-      for (const e of this.edgeOccluders) if (e.occluder.value < 1) sight.pierce(e.x, e.z, e.dir)
-      // Un œil hors de toute pièce (la caméra passée dans un mur) : on ne sait pas ce qu'il voit.
-      for (const eye of eyes) if (!sight.look(seen, eye)) all = true
-      sight.mend()
+      const walls = this.edgeOccluders
+      for (let i = 0; i < walls.length; i++) if (walls[i].occluder.value < 1) key.push(i)
+      const memo = this.glance
+      if (sameNumbers(key, memo.key)) {
+        // Rien de tout cela n'a bougé (on est immobile) : ils voient ce qu'ils voyaient.
+        seen.set(memo.seen)
+        all = memo.all
+      } else {
+        // Un mur tramé parce qu'il cache le personnage laisse voir la pièce d'à côté.
+        for (const e of walls) if (e.occluder.value < 1) sight.pierce(e.x, e.z, e.dir)
+        // Un œil hors de toute pièce (la caméra passée dans un mur) : on ne sait pas ce qu'il voit.
+        for (const eye of eyes) if (!sight.look(seen, eye)) all = true
+        sight.mend()
+        if (memo.seen.length !== seen.length) memo.seen = new Uint8Array(seen.length)
+        memo.seen.set(seen)
+        memo.all = all
+        this.glanceKey = memo.key
+        memo.key = key
+      }
     }
     if (all) seen.fill(1)
     // Vu d'en haut, une pièce fermée reste sous son couvercle : ni son mobilier ni son sol ne sont
@@ -1053,6 +1209,7 @@ export class Deck {
       mesh.material = mesh.userData.sliced ??= [solo]
     }
     for (const [cell, housing] of this.cellGroups) housing.visible = !!this.cellSeen[cell]
+    this.reshown = true
 
     this.seenBounds = null
     if (all) return
@@ -1249,6 +1406,8 @@ export class Deck {
       m.castShadow = false
       this.celled.push(m)
     }
+    // Rien de ce plafond ne bouge : dalles, luminaires, haut des murs, verrières.
+    for (const m of this.ceiling.children) freeze(m)
     this.ceiling.visible = false
     this.group.add(this.ceiling)
   }
@@ -1588,6 +1747,8 @@ export class Deck {
         const f = buildFurniture(p.model, p.label, hash(Math.round(p.x * 10), Math.round(p.z * 10)))
         control = f.control
         extent = f.extent
+        // Le pont le cache lui-même tant que sa pièce lui est fermée (cf. showing).
+        let own = false
         if (f.live) {
           f.live.position.set(p.x, y, p.z)
           f.live.rotation.y = rotY
@@ -1597,12 +1758,17 @@ export class Deck {
           if (club) this.clubLive.push(f.live)
           // Dans une pièce à débloquer : caché sous son couvercle, tant qu'elle est fermée (cf. setRoomAccess).
           const closed = this.map.room(Math.round(p.x), Math.round(p.z))
-          if (closed && this.questRooms.includes(closed)) {
+          const quest = !!closed && this.questRooms.includes(closed)
+          if (quest) {
             f.live.visible = false
             this.roomLive.set(closed, [...(this.roomLive.get(closed) ?? []), f.live])
           }
+          own = club || quest
         }
-        if (f.update) this.animated.push({ update: f.update, interactive: !!f.control })
+        // Ce qu'on manipule, et ce dont l'animation sert ailleurs, tournent toujours ; le reste attend
+        // qu'on le revoie (cf. update).
+        const always = !!f.control || DRIVERS.has(p.model)
+        if (f.update) this.animated.push({ update: f.update, interactive: !!f.control, live: always ? undefined : f.live, own })
         if (f.emitter) this.addEmitter(f.emitter, new THREE.Vector3(p.x, this.y + y + 0.6, p.z))
         // Hologramme pur : ni collision, ni interaction.
         if (!f.solid) continue
@@ -1739,7 +1905,10 @@ export class Deck {
     const parts = buildMezzanine(this.mezzanine, [...rails.values()], this.theme.shell, floor)
     for (const o of parts.statics) this.addStatic(o, true)
     for (const f of parts.fading) this.addFading(f.object, f.center)
-    if (parts.glass) this.group.add(parts.glass)
+    if (parts.glass) {
+      freeze(parts.glass)
+      this.group.add(parts.glass)
+    }
     this.colliders.push(...parts.colliders)
   }
 
@@ -1782,6 +1951,9 @@ export class Deck {
     this.liftSign = new THREE.Sprite(new THREE.SpriteMaterial({ map: liftSignTexture(), transparent: true, depthWrite: false }))
     this.liftSign.scale.setScalar(0.46)
     this.liftSign.position.set(x, 1.55, z)
+    // Le socle et son anneau ne bougent pas ; le reste s'anime (cf. update).
+    freeze(base)
+    freeze(ring)
     this.group.add(base, ring, this.liftHalo, this.liftBeam, ...this.liftRings, this.liftSign)
     this.liftItem = { object: base, position: new THREE.Vector3(x, 0, z), label: tr('Téléporteur', 'Teleporter') }
     this.interactables.push(this.liftItem)
@@ -1892,29 +2064,27 @@ export class Deck {
     for (const c of this.covers.values()) if (c.cover.visible) c.pierce(pierced)
 
     // Portes automatiques (sauf celles qui sont verrouillées).
+    this.readLocks()
+    // Pont caché : ses portes s'ouvrent toujours devant qui passe (on entend celles du pont où l'on
+    // est, cf. onDoor), mais leurs battants attendent qu'il reparaisse pour rattraper leur retard.
+    const shown = this.group.visible
     for (const d of this.doors) {
-      const locked = this.map.isLocked(d.x, d.z, d.dir)
-      d.lamp.visible = locked
-      if (d.examine) {
-        const i = this.interactables.indexOf(d.examine)
-        if (locked && i < 0) this.interactables.push(d.examine)
-        else if (!locked && i >= 0) this.interactables.splice(i, 1)
-      }
-      const wanted = !locked && actors.some((a) => Math.hypot(a.x - d.center.x, a.z - d.center.z) < DOOR_RANGE)
+      const wanted = !d.locked && actors.some((a) => Math.hypot(a.x - d.center.x, a.z - d.center.z) < DOOR_RANGE)
       if (wanted !== d.wanted) {
+        // Le chemin que le battant aurait fait, pont caché, vers où il allait.
+        if (d.rest) d.open = THREE.MathUtils.damp(d.open, d.wanted ? 1 : 0, 10, d.rest)
+        d.rest = 0
         d.wanted = wanted
         if (!d.quiet) this.onDoor?.(new THREE.Vector3(d.center.x, this.y + 0.5, d.center.z), wanted)
       }
-      d.open = THREE.MathUtils.damp(d.open, wanted ? 1 : 0, 10, dt)
-      if (d.animate) d.animate(d.open)
-      else if (d.pair) {
-        // Chaque battant (0,8 de large) part de son côté et rentre dans le mur.
-        d.panel.position.copy(d.center).addScaledVector(d.axis, -0.4 - d.open * 0.78)
-        d.pair.position.copy(d.center).addScaledVector(d.axis, 0.4 + d.open * 0.78)
-      } else d.panel.position.copy(d.center).addScaledVector(d.axis, d.open * 0.42)
+      if (shown) this.swing(d, dt)
+      else {
+        d.rest = (d.rest ?? 0) + dt
+        this.doorsBehind = true
+      }
     }
 
-    this.hints.update(this.doors, (d) => this.map.isLocked(d.x, d.z, d.dir), actors, focus, toCamera, this.doorHints, this.time, fade)
+    this.hints.update(this.doors, this.doorLocked, actors, focus, toCamera, this.doorHints, this.time, fade)
 
     if (!focus) return
 
@@ -1950,7 +2120,17 @@ export class Deck {
     const frame = Math.floor(this.time * 12)
     const decorate = !renderQuality.light || frame !== this.decorationFrame
     this.decorationFrame = frame
-    for (const a of this.animated) if (decorate || a.interactive) a.update(this.time)
+    for (const a of this.animated) {
+      if (!decorate && !a.interactive) continue
+      // Meuble qu'on ne dessine pas (sa pièce est hors champ, derrière les murs, fermée) : il attend
+      // d'être revu, et se remet alors à l'heure (cf. cull).
+      if (a.live && !this.showing(a)) {
+        a.asleep = this.dozing = true
+        continue
+      }
+      a.asleep = false
+      a.update(this.time)
+    }
     this.cabin?.update(this.time, fade, { focus: editing && this.cabin ? this.cabin.center : focus, toCamera, cabin: editing, keep })
 
     if (this.core && this.coreMat) {
@@ -2091,12 +2271,18 @@ function roofGlassTexture(): THREE.CanvasTexture {
 }
 let roofGlass: THREE.CanvasTexture | null = null
 const roofGlassMaterials = new Map<string, THREE.MeshBasicMaterial>()
-/** Matériau du verre d'une verrière de plafond, de cette teinte (il ne dépend pas des lampes, qui sont au-dessus). */
-function roofGlassMaterial(tint: string): THREE.MeshBasicMaterial {
-  let m = roofGlassMaterials.get(tint)
+/**
+ * Matériau du verre d'une verrière de plafond, de cette teinte (il ne dépend pas des lampes, qui sont
+ * au-dessus). `flat` : tout le verre est dans un même plan (la verrière d'une serre, pas le dôme des
+ * quartiers), il ne se recouvre jamais lui-même : ses deux faces partent en une passe, au lieu des
+ * deux que three.js fait pour un objet transparent vu des deux côtés.
+ */
+function roofGlassMaterial(tint: string, flat = false): THREE.MeshBasicMaterial {
+  const key = flat ? `${tint}|flat` : tint
+  let m = roofGlassMaterials.get(key)
   if (!m) {
     roofGlass ??= roofGlassTexture()
-    roofGlassMaterials.set(tint, (m = new THREE.MeshBasicMaterial({ color: tint, map: roofGlass, transparent: true, depthWrite: false, side: THREE.DoubleSide })))
+    roofGlassMaterials.set(key, (m = new THREE.MeshBasicMaterial({ color: tint, map: roofGlass, transparent: true, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: flat })))
   }
   return m
 }
@@ -2129,7 +2315,8 @@ export function greenhouseRoof(tiles: { x: number; z: number }[], y: number, tin
     ribGeos.push(new THREE.BoxGeometry(1, 0.05, 0.04).translate(x, y - 0.02, z - 0.5), new THREE.BoxGeometry(0.04, 0.05, 1).translate(x - 0.5, y - 0.02, z))
     ribGeos.push(new THREE.BoxGeometry(1, 0.03, 0.02).translate(x, y - 0.015, z))
   }
-  const glass = new THREE.Mesh(mergeGeometries(glassGeos), roofGlassMaterial(tint))
+  // Tous ses carreaux sont à la même hauteur.
+  const glass = new THREE.Mesh(mergeGeometries(glassGeos), roofGlassMaterial(tint, true))
   glass.renderOrder = 2
   const ribs = new THREE.Mesh(mergeGeometries(ribGeos), GREENHOUSE_FRAME)
   for (const geo of [...glassGeos, ...ribGeos]) geo.dispose()

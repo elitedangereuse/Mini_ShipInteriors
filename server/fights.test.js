@@ -6,6 +6,7 @@ import { io as connect } from 'socket.io-client'
 import { attachRelay, WS_PATH } from './relay.js'
 import { FIGHT_STAGES } from '../shared/fight-stages.js'
 import { FightSimulation } from '../shared/fight.js'
+import { HOUSING_LEVEL } from '../shared/housing-plot.js'
 
 const pad = (held = [], pressed = []) => ({ held: new Set(held), pressed: new Set(pressed) })
 const advance = (game, seconds, input = pad()) => { for (let i = 0; i < Math.round(seconds * 120); i++) game.step(1 / 120, i ? { ...input, pressed: new Set(), ...(input.second ? { second: { ...input.second, pressed: new Set() } } : {}) } : input) }
@@ -107,7 +108,8 @@ test('la revanche attend les deux accords et les cabines restent séparées', as
   const players = new Map(), sockets = new Map()
   const manager = fightRelay(id => players.get(id), id => sockets.get(id))
   const add = (id, cabin, fighter = 'nova') => {
-    const player = { id, name: `Player ${id}`, level: 1, cabin }
+    // Dans ses quartiers (le pont des quartiers, une instance par hôte), devant une borne posée.
+    const player = { id, name: `Player ${id}`, level: HOUSING_LEVEL, cabin }
     const socket = new EventEmitter(); socket.on('fight:state', s => { socket.state = s })
     players.set(id, player); sockets.set(id, socket); manager.connect(socket, player); socket.emit('fight:join', { fighter }); return socket
   }
@@ -128,6 +130,11 @@ test('la revanche attend les deux accords et les cabines restent séparées', as
   assert.equal(isolated.state.status, 'waiting')
   assert.equal(isolated.state.players[0].fighter, 'nova')
   assert.deepEqual(a.state.snapshot.fighters.map(f => f.character), ['atlas', 'rook'])
+  // Le pont supérieur n'a pas de borne Ruelle Fighter : pas de duel.
+  const upper = new EventEmitter(); upper.on('fight:error', e => { upper.error = e })
+  const deckOne = { id: 9, name: 'Player 9', level: 1, cabin: 9 }
+  players.set(9, deckOne); sockets.set(9, upper); manager.connect(upper, deckOne); upper.emit('fight:join', { fighter: 'nova' })
+  assert.deepEqual(upper.error, { code: 'unavailable' })
   for (const player of players.values()) manager.leave(player)
 })
 

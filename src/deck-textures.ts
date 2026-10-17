@@ -46,8 +46,19 @@ export class DeckTextures {
   /** Depuis quand (secondes) chaque pont est caché ; supprimé quand sa mémoire est rendue. */
   private readonly hiddenSince = new Map<Deck, number>()
   private shown: Deck | null = null
+  /** Ponts bâtis hors de la liste du jeu (les arènes, cf. adopt). */
+  private readonly adopted: Deck[] = []
 
   constructor(private readonly renderer: THREE.WebGLRenderer, private readonly scene: THREE.Scene, private readonly decks: readonly Deck[]) {}
+
+  /**
+   * Un pont que le jeu ne range pas avec les autres (une arène) : caché, sa mémoire se rend comme la
+   * leur. Sans cela, il ne la rendait jamais, et ce qu'il partage avec le vaisseau restait compté
+   * comme affiché.
+   */
+  adopt(deck: Deck) {
+    if (!this.adopted.includes(deck)) this.adopted.push(deck)
+  }
 
   /**
    * Le pont affiché change : ses textures partent au GPU, toutes à la fois si l'écran est noir
@@ -86,7 +97,7 @@ export class DeckTextures {
 
   /** Rend la mémoire des textures de ce pont que rien d'affiché ne partage. */
   private release(deck: Deck) {
-    const hidden = new Set(this.decks.filter((d) => !d.group.visible).map((d) => d.group as THREE.Object3D))
+    const hidden = new Set([...this.decks, ...this.adopted].filter((d) => !d.group.visible).map((d) => d.group as THREE.Object3D))
     const used = texturesOf(this.scene, new Set(), (o) => hidden.has(o))
     for (const t of texturesOf(deck.group, new Set())) if (managed(t) && !used.has(t)) t.dispose()
   }

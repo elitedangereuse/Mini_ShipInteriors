@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createSalvage, inLobby } from './salvage.js'
-import { distances, findPath, inAirlock, lockerFront, lockerSpot, mulberry32, RULES, walkable, ZONE_LEVEL } from '../shared/salvage.js'
+import { distances, findPath, inAirlock, lockerFront, lockerSpot, mulberry32, RULES, smoothPath, walkable, ZONE_LEVEL } from '../shared/salvage.js'
 
 /** Relais simulé : joueurs, horloge, messages envoyés et gains demandés au site. */
 function harness(seed = 20260929, options = {}) {
@@ -74,7 +74,11 @@ function harness(seed = 20260929, options = {}) {
     advance(RULES.countdown + 0.2)
     return salvage.gameOf(members[0])
   }
-  return { salvage, players, sent, broadcasts, rewards, add, advance, last, arrive, walk, team, launch, now: () => t }
+  /** L'horloge avance sans que la partie avance (des positions qui arrivent rapprochées). */
+  const clock = (ms) => {
+    t += ms
+  }
+  return { salvage, players, sent, broadcasts, rewards, add, advance, clock, last, arrive, walk, team, launch, now: () => t }
 }
 
 test('le lobby est sa pièce de la cale, et le hall à sa porte', () => {
@@ -178,6 +182,64 @@ test('position dans la baie : sur le sol, et pas plus vite qu\'on ne court', () 
   assert.equal(game.members.get(1).status, 'alive')
   const far = game.zone.cargo[0]
   assert.equal(h.salvage.accepts(a, far.x, far.z), false, 'téléportation')
+})
+
+test('position dans la baie : une rafale ne cumule pas la marge, et l\'on ne saute pas un mur', () => {
+  const h = harness()
+  const { members: [a] } = h.team(1)
+  const game = h.launch([a])
+  const zone = game.zone
+  game.monsters.length = 0
+  h.arrive(a)
+  // Une rafale : soixante positions à une demi-tuile l'une de l'autre, une par milliseconde, sur un chemin praticable.
+  const path = findPath(zone, a, zone.cargo[0])
+  const steps = []
+  for (let i = 1; i < path.length; i++) for (const k of [0.5, 1]) steps.push({ x: path[i - 1].x + (path[i].x - path[i - 1].x) * k, z: path[i - 1].z + (path[i].z - path[i - 1].z) * k })
+  let accepted = 0
+  for (const q of steps.slice(0, 60)) {
+    h.clock(1)
+    if (!h.salvage.accepts(a, q.x, q.z)) continue
+    Object.assign(a, q)
+    h.salvage.moved(a)
+    accepted++
+  }
+  assert.ok(accepted <= 3, `${accepted} positions acceptées en 60 ms`)
+  // Immobile deux secondes, puis un saut en ligne droite vers une tuile qu'un mur sépare : refusé.
+  h.clock(2000)
+  let wall = null
+  for (let dz = -6; dz <= 6 && !wall; dz++) for (let dx = -6; dx <= 6 && !wall; dx++) {
+    const to = { x: Math.round(a.x) + dx, z: Math.round(a.z) + dz }
+    const route = walkable(zone, to.x, to.z) && Math.hypot(dx, dz) >= 3 && findPath(zone, a, to)
+    if (route && route.length > Math.hypot(dx, dz) * 2.5 + 2) wall = to
+  }
+  assert.ok(wall, 'une tuile derrière un mur')
+  assert.equal(h.salvage.accepts(a, wall.x, wall.z), false, 'à travers le mur')
+})
+
+test('position dans la baie : une vraie course, coins coupés et positions groupées, passe en entier', () => {
+  const h = harness()
+  const { members: [a] } = h.team(1)
+  const game = h.launch([a], { parcels: 6, enemies: 1 })
+  const zone = game.zone
+  game.monsters.length = 0
+  h.arrive(a)
+  // Le chemin le plus long vers un colis, lissé comme le client le fait (en coupant les coins).
+  const target = [...zone.cargo].sort((u, v) => findPath(zone, a, v).length - findPath(zone, a, u).length)[0]
+  const corners = [{ x: a.x, z: a.z }, ...smoothPath(zone, a, findPath(zone, a, target).slice(1))]
+  // À pleine course (3,4 tuiles/s), une position toutes les 100 ms… qui arrivent par trois, toutes les 300 ms.
+  const points = []
+  for (let i = 1; i < corners.length; i++) {
+    const from = corners[i - 1], to = corners[i]
+    const n = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.z - from.z) / (RULES.sprint * 0.1)))
+    for (let k = 1; k <= n; k++) points.push({ x: from.x + ((to.x - from.x) * k) / n, z: from.z + ((to.z - from.z) * k) / n })
+  }
+  assert.ok(points.length > 30, 'une course assez longue')
+  points.forEach((q, i) => {
+    h.clock(i % 3 === 0 ? 300 : 0)
+    assert.ok(h.salvage.accepts(a, q.x, q.z), `position ${i} (${q.x.toFixed(2)}, ${q.z.toFixed(2)})`)
+    Object.assign(a, q)
+    h.salvage.moved(a)
+  })
 })
 
 test('solo : ramasser le colis, le rapporter au sas, gagner et être payé une fois', async () => {
@@ -521,8 +583,89 @@ test('déconnexion : le colis tombe, la place attend une minute, puis la partie 
   h.advance(RULES.reconnect + 0.5)
   assert.equal(game.members.get(1).status, 'gone')
   assert.equal(h.last(2, 'salvage:end')?.won, false)
-  // Le partant a quitté l'équipe ; l'autre y reste.
-  assert.deepEqual(h.broadcasts.at(-1).data.teams[0].members.map((m) => m.id), [2])
+  // Le partant a quitté l'équipe, comme celui qui a abandonné : le lobby est libre.
+  assert.deepEqual(h.broadcasts.at(-1).data.teams[0].members.map((m) => m.id), [])
+})
+
+test('abandon : le partant n\'est plus de l\'équipe ni de la baie, et repart ailleurs ; le dernier ferme la partie', () => {
+  const h = harness()
+  const { members: [a, b] } = h.team(1, 2)
+  const game = h.launch([a, b])
+  game.monsters.length = 0
+  h.arrive(a)
+  h.arrive(b)
+  // Le chef abandonne : l'équipe continue, l'autre prend la main.
+  h.salvage.handle(a, 'salvage:quit', {})
+  assert.equal(game.members.get(1).status, 'left')
+  assert.ok(h.last(2, 'salvage:event', (e) => e.kind === 'quit' && e.id === 1))
+  assert.deepEqual([...h.salvage.teammates(b)], [2], 'le chat et les positions de la baie ne vont plus au partant')
+  assert.equal(h.salvage.teammates(a).size, 0)
+  let lobby = h.broadcasts.at(-1).data.teams[0]
+  assert.deepEqual([lobby.members.map((m) => m.id), lobby.leader, lobby.status], [[2], 2, 'playing'])
+  // Il ne reçoit plus l'état de la baie.
+  const states = () => h.sent.filter((m) => m.id === 1 && m.event === 'salvage:state').length
+  const before = states()
+  h.advance(0.5)
+  assert.equal(states(), before)
+  // Revenu au lobby, il se place dans un autre.
+  Object.assign(a, { level: -1, x: 22, z: 5 })
+  h.salvage.moved(a)
+  h.salvage.handle(a, 'salvage:join', { team: 2 })
+  assert.equal(h.last(1, 'salvage:error'), undefined)
+  assert.deepEqual(h.broadcasts.at(-1).data.teams[1].members.map((m) => m.id), [1])
+  // Le dernier abandonne : la partie s'arrête et son lobby se libère ; l'autre, déjà ailleurs, n'en sait rien.
+  h.salvage.handle(b, 'salvage:quit', {})
+  assert.equal(h.last(2, 'salvage:end')?.won, false)
+  assert.equal(h.last(1, 'salvage:end'), undefined)
+  lobby = h.broadcasts.at(-1).data.teams[0]
+  assert.deepEqual([lobby.members, lobby.leader, lobby.status], [[], null, 'forming'])
+  assert.deepEqual(h.broadcasts.at(-1).data.teams[1].members.map((m) => m.id), [1])
+})
+
+test('abandon : qui a quitté la mission n\'est pas payé de la victoire de son équipe', async () => {
+  /** B abandonne, A rapporte le colis seul. */
+  const run = async (options) => {
+    const h = harness(20260929, options)
+    const { members: [a, b] } = h.team(1, 2)
+    const game = h.launch([a, b])
+    game.monsters.length = 0
+    h.arrive(a)
+    h.arrive(b)
+    h.salvage.handle(b, 'salvage:quit', {})
+    h.walk(a, game.zone.cargo[0])
+    h.salvage.handle(a, 'salvage:pickup', { kind: 'cargo', id: 0 })
+    h.walk(a, game.zone.airlock.pad)
+    assert.ok(h.last(1, 'salvage:end')?.won)
+    await new Promise((r) => setImmediate(r))
+    return h
+  }
+  const paid = await run()
+  assert.deepEqual(paid.rewards.map((r) => r.member), [1])
+  assert.equal(paid.last(2, 'salvage:reward'), undefined)
+  // Trop rapide pour être payée : seul celui qui est resté l'apprend.
+  const early = await run({ minDuration: () => 3600 })
+  assert.equal(early.last(1, 'salvage:reward').refused, 'early')
+  assert.equal(early.last(2, 'salvage:reward'), undefined)
+})
+
+test('arrivée manquée : sans plus rien envoyer, un membre jamais entré dans la baie l\'abandonne au bout du délai', () => {
+  const h = harness()
+  const { members: [a, b] } = h.team(1, 2)
+  const game = h.launch([a, b])
+  game.monsters.length = 0
+  h.arrive(a)
+  // B reste en route (un onglet figé) : il ne dit plus rien au relais.
+  h.advance(29)
+  assert.equal(game.members.get(2).status, 'arriving')
+  h.advance(2)
+  assert.equal(game.members.get(2).status, 'left')
+  assert.ok(h.last(1, 'salvage:event', (e) => e.kind === 'quit' && e.id === 2))
+  assert.equal(h.last(1, 'salvage:end'), undefined, 'A continue')
+  // Il n'est plus de l'équipe : il peut se placer dans un autre lobby.
+  assert.equal(h.salvage.gameOf(b), null)
+  h.salvage.handle(b, 'salvage:join', { team: 2 })
+  assert.deepEqual(h.broadcasts.at(-1).data.teams[1].members.map((m) => m.id), [2])
+  assert.deepEqual(h.broadcasts.at(-1).data.teams[0].members.map((m) => m.id), [1])
 })
 
 test('reconnexion : avec son ticket, un joueur en course retrouve sa place, au sas d\'extraction', () => {

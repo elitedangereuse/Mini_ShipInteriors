@@ -89,7 +89,7 @@ export const TRACKS: Track[] = [
   },
   {
     id: 'dangerous-spaces', title: 'Dangerous Spaces', artist: 'Ben Carter Jr', style: 'ambient',
-    cover: 'dangerous-spaces.png', duration: 1123.52, bpm: null, offset: 0,
+    cover: 'dangerous-spaces.webp', duration: 1123.52, bpm: null, offset: 0,
     mood: tr('Quatre voyages contemplatifs aux confins de l’espace.', 'Four contemplative journeys to the edge of space.'),
     songs: [
       { title: 'Infinite Drift', file: 'dangerous-spaces-01.mp3', duration: 303.12 },
@@ -100,7 +100,7 @@ export const TRACKS: Track[] = [
   },
   {
     id: 'end-of-everything', title: 'The End of Everything', artist: 'Ben Carter Jr', style: 'ambient',
-    cover: 'end-of-everything.png', duration: 1107.96, bpm: null, offset: 0,
+    cover: 'end-of-everything.webp', duration: 1107.96, bpm: null, offset: 0,
     mood: tr('Quatre paysages sonores sombres et majestueux.', 'Four dark, majestic soundscapes.'),
     songs: [
       { title: 'Abyssal Silence', file: 'end-of-everything-01.mp3', duration: 309.89 },
@@ -135,7 +135,7 @@ export const TRACKS: Track[] = [
     // La bande originale de CMDR Arena : la sono du lobby, les trois plans de combat et la fanfare
     // de victoire, également jouées dans le mode lui-même (cf. src/arena/music.ts).
     id: 'cmdr-arena', title: 'CMDR Arena', artist: 'Ben Carter Jr', style: 'synthwave',
-    cover: 'cmdr-arena.png', duration: 459.072, bpm: null, offset: 0,
+    cover: 'cmdr-arena.webp', duration: 459.072, bpm: null, offset: 0,
     mood: tr('Cinq morceaux pour choisir son combattant, traverser les arènes et célébrer la victoire.', 'Five tracks for choosing a fighter, crossing the arenas and celebrating victory.'),
     songs: [
       { title: 'Game Menu Groove', file: 'cmdr-arena/game-menu-groove.mp3', duration: 67.704 },
@@ -149,7 +149,7 @@ export const TRACKS: Track[] = [
     // La musique glitchée du lobby de récupération thargoïde, sans le filtre de sa mauvaise sono
     // de sécurité (cf. src/salvage/music.ts).
     id: 'corrupted-lobby', title: 'Corrupted Lobby', artist: 'Ben Carter Jr', style: 'ambient',
-    cover: 'corrupted-lobby.png', duration: 137.664, bpm: null, offset: 0,
+    cover: 'corrupted-lobby.webp', duration: 137.664, bpm: null, offset: 0,
     mood: tr('Le signal corrompu du lobby de récupération : métal noir, alarmes rouges et pulsations thargoïdes.', 'The salvage lobby’s corrupted signal: black metal, red alarms and Thargoid pulses.'),
     songs: [
       { title: 'Corrupted Lobby', file: 'thargoid-salvage/corrupted-lobby.mp3', duration: 137.664 },
@@ -159,7 +159,7 @@ export const TRACKS: Track[] = [
     // Les deux musiques de MESS RUSH (cf. src/mess-rush/music.ts), également disponibles à la
     // platine du jukebox : celle de la platine du mess, sans son vinyle, et celle du service.
     id: 'mess-rush', title: 'MESS RUSH', artist: 'Ben Carter Jr', style: 'chiptune',
-    cover: 'mess-rush.png', duration: 299.736, bpm: null, offset: 0,
+    cover: 'mess-rush.webp', duration: 299.736, bpm: null, offset: 0,
     mood: tr('La bande originale du mess : MESS RUSH, sur la platine de la salle, puis Arcade Groove, le coup de feu en cuisine.', 'The mess soundtrack: MESS RUSH, on the hall turntable, then Arcade Groove, the dinner rush in the kitchen.'),
     songs: [
       { title: 'MESS RUSH', file: 'mess-rush/mess-rush.mp3', duration: 149.712 },

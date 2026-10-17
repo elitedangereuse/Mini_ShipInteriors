@@ -125,6 +125,8 @@ interface Hint {
 
 export class DoorHints {
   private hints = new Map<DoorState, Hint>()
+  /** Rien à montrer, et tous les repères éteints : il n'y a plus rien à faire tant que cela dure. */
+  private idle = false
   private static geometry = new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0)
   private static floorGeometry = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
 
@@ -133,6 +135,10 @@ export class DoorHints {
    * @param show faux en mode photo : la scène sans rien par-dessus
    */
   update(doors: DoorState[], locked: (d: DoorState) => boolean, actors: THREE.Vector3[], focus: THREE.Vector3 | null, toCamera: THREE.Vector3, show: boolean, time: number, dt: number) {
+    // Sans joueur à guider (pont caché, mode photo, vue subjective), les repères s'éteignent, puis restent éteints.
+    const guiding = !!focus && show
+    if (!guiding && this.idle) return
+    let lit = false
     const pulse = 0.85 + Math.sin(time * 2.4) * 0.15
     for (const d of doors) {
       const h = this.hints.get(d) ?? this.create(d)
@@ -149,11 +155,13 @@ export class DoorHints {
       h.value = THREE.MathUtils.damp(h.value, goal, 8, dt)
       if (h.value < 0.01) h.value = 0
       h.mesh.visible = h.value > 0
+      if (h.value || h.floorValue) lit = true
       if (!h.mesh.visible) continue
       h.material.opacity = h.value * pulse
       const side = h.normal.dot(toCamera) >= 0 ? 1 : -1
       h.mesh.position.copy(d.center).addScaledVector(h.normal, side * OUTSET).setY(BASE)
     }
+    this.idle = !guiding && !lit
   }
 
   /** Ce personnage est à la porte, ou entre elle et la caméra. */
@@ -174,6 +182,8 @@ export class DoorHints {
       depthFunc: THREE.GreaterDepth,
       toneMapped: false,
       side: THREE.DoubleSide,
+      // Un panneau plat : une passe suffit (three.js dessine sinon chaque face à son tour).
+      forceSinglePass: true,
     })
     const mesh = new THREE.Mesh(DoorHints.geometry, material)
     mesh.scale.set(WIDTH[kind], HEIGHT, 1)

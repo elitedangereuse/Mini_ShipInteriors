@@ -5,6 +5,11 @@
 import { QUEST_REELS } from '../shared/quests.js'
 
 export const PROJECTION_SEAT = { level: 1, x: 28.65, z: 7.55 }
+/**
+ * Recherches YouTube par heure, tous joueurs confondus : chacune coûte au quota de la clé (le même
+ * pour tout le bord), en plus des deux secondes que chaque joueur attend entre deux recherches.
+ */
+export const YOUTUBE_SEARCHES_PER_HOUR = 30
 
 export function cinemaOperator(players) {
   return [...players].filter((p) => p.level === PROJECTION_SEAT.level && p.pose === 'sit'
@@ -55,6 +60,8 @@ export function createCinema({ cmdrUrl, players, emit, error = console.error, no
   let endTimer = null
   const foundVideos = new Map()
   const searchCache = new Map()
+  /** Instants des recherches YouTube de la dernière heure (cf. YOUTUBE_SEARCHES_PER_HOUR). */
+  const searches = []
   const foundStreams = new Map()
   const streamCache = new Map()
 
@@ -145,6 +152,9 @@ export function createCinema({ cmdrUrl, players, emit, error = console.error, no
     const normalized = query.trim().toLocaleLowerCase()
     const cached = searchCache.get(normalized)
     if (cached && now() - cached.at < 300000) return { videos: cached.videos }
+    while (searches.length && now() - searches[0] >= 3600000) searches.shift()
+    if (searches.length >= YOUTUBE_SEARCHES_PER_HOUR) return { reason: 'busy', videos: [] }
+    searches.push(now())
     try {
       const url = new URL('https://www.googleapis.com/youtube/v3/search')
       for (const [key, value] of Object.entries({ part: 'snippet', type: 'video', videoEmbeddable: 'true', videoSyndicated: 'true',

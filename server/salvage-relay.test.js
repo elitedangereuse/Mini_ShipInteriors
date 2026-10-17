@@ -8,7 +8,7 @@ import { after, afterEach, before, test } from 'node:test'
 import { io as connect } from 'socket.io-client'
 import { attachRelay, WS_PATH } from './relay.js'
 import { postSalvageResult } from './site.js'
-import { RULES, ZONE_LEVEL } from '../shared/salvage.js'
+import { findPath, generateZone, RULES, ZONE_LEVEL } from '../shared/salvage.js'
 
 const ACCOUNTS = { 'jeton-adam': 'Adam Fauster', 'jeton-rackam': 'Rackam' }
 const site = createServer((req, res) => {
@@ -107,11 +107,72 @@ test('une équipe se forme au lobby, part en mission, et la baie reste entre co�
   const state = await next(adam, 'salvage:state')
   assert.equal(state.monsters.length, sa.enemies)
   assert.equal(state.cargo.length, sa.parcels)
-  // Une position impossible (au bout de la baie) est ignorée.
-  const ignored = silent(rackam, 'state', (m) => m.id === wa.id && m.x === 0 && m.z === 0, 300)
-  adam.emit('state', { x: 0, z: 0, yaw: 0, level: ZONE_LEVEL, anim: 'idle' })
+  // Une position impossible (au bout de la baie, à l'opposé du point de départ) est ignorée.
+  const far = { x: sa.spawn.x < 23 ? 45 : 0, z: sa.spawn.z < 17 ? 33 : 0 }
+  const ignored = silent(rackam, 'state', (m) => m.id === wa.id && m.x === far.x && m.z === far.z, 300)
+  adam.emit('state', { ...far, yaw: 0, level: ZONE_LEVEL, anim: 'idle' })
   await ignored
   assert.ok(RULES.team >= 2 && wo.id)
+})
+
+test('au fond de la baie (au-delà de z = 30, elle en fait 34), la position passe et le colis se ramasse', async () => {
+  // Son relais, de serveur de dev, pour figer l'ennemi : à vraie vitesse (le relais refuse plus vite
+  // que la course), la marche dure plus longtemps que la trêve du départ (RULES.grace).
+  const server = createServer()
+  const dev = attachRelay(server, { log: () => {}, error: () => {}, devCmdr: true })
+  const devUrl = await listen(server)
+  const a = connect(devUrl, { path: WS_PATH, auth: { skin: 'human.male.c' }, extraHeaders: { Origin: devUrl }, reconnection: false, forceNew: true })
+  clients.push(a)
+  try {
+    const wa = await welcome(a)
+    const errors = []
+    a.on('salvage:error', (e) => errors.push(e.code))
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+    const team = wa.salvage.teams.find((t) => t.status === 'forming' && !t.members.length).id
+    a.emit('state', LOBBY)
+    await sleep(100)
+    // La baie est tirée au hasard : on repart jusqu'à en avoir une avec un colis au fond, pas trop loin.
+    for (let attempt = 0; attempt < 15; attempt++) {
+      const started = next(a, 'salvage:start')
+      a.emit('salvage:join', { team })
+      a.emit('salvage:settings', { parcels: 6, enemies: 1 })
+      a.emit('salvage:ready', { ready: true })
+      const st = await started
+      const zone = generateZone(st.seed, { team: st.team, parcels: st.parcels, enemies: st.enemies })
+      let at = { x: st.spawn.x, z: st.spawn.z }
+      a.emit('state', { ...at, yaw: 0, level: ZONE_LEVEL, anim: 'walk' })
+      a.emit('salvage:debug', { freeze: true })
+      // Le plus proche des colis du fond, à moins de soixante pas.
+      const [cargo, path] = zone.cargo.filter((c) => c.z > 30)
+        .map((c) => [c, findPath(zone, at, { x: Math.round(c.x), z: Math.round(c.z) })])
+        .filter(([, p]) => p && p.length <= 60)
+        .sort(([, p], [, q]) => p.length - q.length)[0] ?? []
+      if (!path) {
+        a.emit('salvage:quit', {})
+        a.emit('state', LOBBY)
+        await sleep(150)
+        continue
+      }
+      // Par demi-tuile, au pas de course (un peu moins de 4 tuiles par seconde).
+      for (const step of path.slice(1)) {
+        for (const k of [0.5, 1]) {
+          a.emit('state', { x: at.x + (step.x - at.x) * k, z: at.z + (step.z - at.z) * k, yaw: 0, level: ZONE_LEVEL, anim: 'walk' })
+          await sleep(130)
+        }
+        at = step
+      }
+      await sleep(150)
+      const picked = next(a, 'salvage:event', (e) => e.kind === 'pickup' && e.id === wa.id && e.cargo === cargo.id)
+      a.emit('salvage:pickup', { kind: 'cargo', id: cargo.id })
+      await picked
+      assert.deepEqual(errors, [])
+      a.emit('salvage:quit', {})
+      return
+    }
+    assert.fail('pas de colis au fond de la baie en quinze missions')
+  } finally {
+    dev.close()
+  }
 })
 
 test('le résultat part au site avec le cookie du CMDR et la clé du relais', async () => {

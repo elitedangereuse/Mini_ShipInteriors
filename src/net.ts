@@ -564,7 +564,10 @@ export class Net {
         else this.receive(t, data)
       })
     }
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
+      // Débarqué par le relais (une erreur en traitant l'un de nos messages, vaisseau plein) :
+      // socket.io ne se reconnecte pas de lui-même, on y retourne un peu plus tard.
+      if (reason === 'io server disconnect') setTimeout(() => !socket.connected && socket.connect(), 15000)
       // Après les messages reçus avant elle (la latence simulée les retient encore).
       const gone = () => {
         if (!this.online) return

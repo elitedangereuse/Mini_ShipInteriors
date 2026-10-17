@@ -109,3 +109,21 @@ test('Échec Impérial : les coups de base et les tours sont validés', () => {
   assert.equal(applyBoardMove(game, game.players[0], { from: [6, 7], to: [5, 5] }), true)
   assert.equal(game.turn, 'black')
 })
+
+test('Échec Impérial : la promotion choisie est une chaîne ; toute autre valeur donne une dame, sans faire lever le relais', () => {
+  const promote = (choice) => {
+    const game = newBoardGame('imperial-chess', 'imperial-chess')
+    game.players = [player(1, 'white'), player(2, 'black')]
+    game.status = 'playing'
+    game.castling = ''
+    game.board = Array.from({ length: 8 }, () => Array(8).fill(null))
+    game.board[1][0] = 'P'
+    game.board[7][4] = 'K'
+    game.board[3][7] = 'k'
+    assert.equal(applyBoardMove(game, game.players[0], { from: [0, 1], to: [0, 0], promote: choice }), true)
+    return game.board[0][0]
+  }
+  assert.equal(promote('n'), 'N')
+  assert.equal(promote('R'), 'R')
+  for (const choice of [{ toString: 0 }, { toString: () => 'n' }, 7, null, undefined, 'roi']) assert.equal(promote(choice), 'Q')
+})

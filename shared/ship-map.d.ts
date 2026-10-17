@@ -35,6 +35,11 @@ export interface ShipMapOptions {
 export declare class ShipMap {
   readonly width: number
   readonly height: number
+  /**
+   * Compteur des changements du plan (pièces, portes, verrous, murs) : qui garde ce qu'il en a
+   * tiré (la mini-carte, les voyants des portes) le refait quand il a bougé.
+   */
+  readonly version: number
   readonly doors: Door[]
   /** Arêtes murées à l'intérieur d'une pièce (cf. edgeKey) : labyrinthe de la zone, cloisons des quartiers. */
   readonly walls: Set<string>

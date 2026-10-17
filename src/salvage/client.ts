@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import type { Sound } from '../audio'
 import type { IsoCamera } from '../camera'
 import { Deck } from '../deck'
+import { isShared } from '../dispose'
 import type { Wallet } from '../economy/wallet'
 import { tr } from '../i18n'
 import type { Net, SalvageEnd, SalvageEvent, SalvageLobby, SalvageMember, SalvageStart, SalvageState, ServerMessage } from '../net'
@@ -17,7 +18,7 @@ import { DIRS } from '../../shared/ship-map.js'
 import { CONTROL_POST, CONTROLLER, Controller, controllerRig, type ControllerReport } from './controller'
 import { FogOfWar } from './fog'
 import { ZoneItems } from './items'
-import { loadZoneKit } from './kit'
+import { loadZoneKit, warmZoneKit, type ZoneKit } from './kit'
 import { MonsterView } from './monsters'
 import { SalvageSfx } from './sfx'
 import { Technician, technicianRig, TECHNICIAN } from './technician'
@@ -123,6 +124,8 @@ function heading(from: { x: number; z: number }, to: { x: number; z: number }): 
  * place (cf. `resume` dans server/salvage.js).
  */
 const TICKET_KEY = 'mini-shipinteriors-salvage'
+/** Place encore tenue par une autre liaison (`elsewhere`) : on redemande toutes les tant de secondes. */
+const RESUME_EVERY = 5
 let ticketMemo: { game: string; ticket: string } | null = null
 const ticketStore = {
   get(): { game: string; ticket: string } | null {
@@ -193,6 +196,8 @@ export class SalvageClient {
   /** Revenu en capturé : on ouvre les caméras dès que l'équipe est là. */
   private resumeWatch = false
   private resumeTries = 0
+  /** Réponses « encore joué ailleurs » reçues depuis la connexion (cf. RESUME_EVERY). */
+  private elsewhereTries = 0
   private resumeTimer = 0
   /** Retour au lobby en cours : un seul trajet à la fois. */
   private leaving: Promise<void> | null = null
@@ -213,7 +218,7 @@ export class SalvageClient {
       ready: (on) => {
         host.net.sendSalvage('ready', { ready: on })
         // Le kit de la baie se charge pendant qu'on attend l'équipe.
-        if (on) void loadZoneKit()
+        if (on) warmZoneKit()
       },
       leaderboard: () => void this.boardPanel.open(),
     })
@@ -364,7 +369,7 @@ export class SalvageClient {
   openTerminal() {
     this.refreshLobby()
     this.lobbyPanel.open()
-    void loadZoneKit()
+    warmZoneKit()
   }
 
   openLeaderboard() {
@@ -394,6 +399,7 @@ export class SalvageClient {
         this.refreshLobby()
         // Une mission en cours avant la coupure (ou le rechargement) : on demande à y revenir.
         this.resumeTries = 0
+        this.elsewhereTries = 0
         this.askResume()
         break
       }
@@ -408,8 +414,13 @@ export class SalvageClient {
           ticketStore.clear()
           break
         }
-        // La mission se joue dans un autre onglet : on le laisse faire.
-        if (m.code === 'elsewhere') break
+        // Encore tenue par une autre liaison : l'ancienne, coupée sans que le relais le sache encore
+        // (changement de réseau), ou un autre onglet. On réessaie le temps que la place attend (cf.
+        // mess-rush/client.ts) ; un autre onglet qui joue, on finit par le laisser faire.
+        if (m.code === 'elsewhere') {
+          if (this.elsewhereTries++ < RULES.reconnect / RESUME_EVERY) this.resumeTimer = window.setTimeout(() => this.askResume(), RESUME_EVERY * 1000)
+          break
+        }
         if (this.lobbyPanel.isOpen) this.lobbyPanel.message(ERRORS[m.code] ?? tr('Action refusée.', 'Action refused.'))
         else if (this.game) {
           this.host.dialog.show(ERRORS[m.code] ?? tr('Impossible pour l\'instant.', 'Not possible right now.'))
@@ -475,7 +486,18 @@ export class SalvageClient {
     if (this.game) this.dispose()
     ticketStore.set(m.game, m.ticket)
     this.phase = 'loading'
-    const [kit, techRig] = await Promise.all([loadZoneKit(), technicianRig()])
+    let kit: ZoneKit, techRig: Awaited<ReturnType<typeof technicianRig>>
+    try {
+      ;[kit, techRig] = await Promise.all([loadZoneKit(), technicianRig()])
+    } catch {
+      // La baie n'a pas pu se charger : on rend sa place, plutôt que de rester figé au lobby (le
+      // relais nous garderait dans la mission).
+      this.phase = 'ship'
+      ticketStore.clear()
+      this.host.net.sendSalvage('quit')
+      this.host.dialog.show(tr('La mission n\'a pas pu se charger : réessayez dans un instant.', 'The mission failed to load: try again in a moment.'))
+      return
+    }
     const zone = generateZone(m.seed, { team: m.team, parcels: m.parcels, enemies: m.enemies })
     const deck = new Deck(zoneLevel(zone, kit))
     // Une tuile de conteneur, de caisses, de bac ou d'excroissance est bloquée tout entière, comme
@@ -590,7 +612,8 @@ export class SalvageClient {
     g.deck.group.traverse((o) => {
       const mesh = o as THREE.Mesh
       if (!mesh.isMesh) return
-      mesh.geometry.dispose()
+      // Les modèles du kit, gardés pour la mission suivante, gardent aussi leurs géométries (cf. keepShared).
+      if (!isShared(mesh.geometry)) mesh.geometry.dispose()
       if (mesh.userData.ownMaterial) (mesh.material as THREE.Material).dispose()
     })
     this.fog.setZone(null)

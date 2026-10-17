@@ -130,6 +130,13 @@ export class FishingGame {
   stop() {
     const s = this.session
     if (!s) return
+    // Ferré, le poisson sortait de l'eau : il est pris, même si l'on range la canne avant de le voir
+    // (une prise de quête ne se perd pas).
+    if (s.phase === 'reel') {
+      this.onSound?.(s.fish!.rarity === 'epic' || s.fish!.rarity === 'legendary' || !this.collection.has(s.fish!.id) ? 'rare' : 'catch', this.bobber.position)
+      this.onCatch?.(s.fish!, s.size)
+      void this.collection.add(s.fish!.id, s.size)
+    }
     this.session = undefined
     this.padFire = false
     this.gear.visible = false

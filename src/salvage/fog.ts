@@ -164,10 +164,14 @@ export class FogOfWar {
     return t
   }
 
-  /** Taille du rendu (pixels réels) ; `light` : sans anticrénelage (mode léger). */
+  /**
+   * Taille du rendu (pixels réels) ; `light` : sans anticrénelage (mode léger). Sur un écran dense,
+   * l'image du jeu n'en a pas non plus (cf. main.ts, `antialias`) : quatre échantillons en demi-flottants
+   * y coûtaient plus que tout le reste de la baie.
+   */
   resize(light = false) {
     const size = this.renderer.getDrawingBufferSize(new THREE.Vector2())
-    const samples = light ? 0 : 4
+    const samples = light || !this.renderer.getContext().getContextAttributes()?.antialias ? 0 : 4
     if (this.target.width === size.x && this.target.height === size.y && this.target.samples === samples) return
     this.target.dispose()
     this.target.depthTexture?.dispose()

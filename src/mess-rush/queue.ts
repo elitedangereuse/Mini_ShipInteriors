@@ -225,19 +225,19 @@ export class MessQueue {
       c.avatar.update(dt)
     }
     // Arrivé à la sortie : il disparaît.
-    if (c.leaving && c.linger <= 0 && d < 0.05) {
-      c.root.removeFromParent()
-      c.fill.material.dispose()
-      this.customers.delete(c.order)
-    }
+    if (c.leaving && c.linger <= 0 && d < 0.05) this.remove(c)
+  }
+
+  /** Un client s'en va pour de bon : son personnage (un par bon) est libéré, sa barre de patience aussi. */
+  private remove(c: Customer) {
+    c.root.removeFromParent()
+    c.avatar?.dispose()
+    c.fill.material.dispose()
+    this.customers.delete(c.order)
   }
 
   /** Fin du service : la file se vide d'un coup. */
   clear() {
-    for (const c of this.customers.values()) {
-      c.root.removeFromParent()
-      c.fill.material.dispose()
-    }
-    this.customers.clear()
+    for (const c of [...this.customers.values()]) this.remove(c)
   }
 }

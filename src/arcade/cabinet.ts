@@ -657,10 +657,11 @@ export class ArcadeCabinet {
     this.result = 'pending'
     const id = this.id
     void submitScore(id, game.score, game.level, this.duration).then((r) => {
+      // Les crédits gagnés comptent, même si l'on a quitté la borne ou relancé une partie entre-temps.
+      if (r.kind === 'saved' && r.credits) this.host.onCredits?.(r.credits)
       if (this.id !== id || this.game !== game) return
       this.result = r
       if (r.kind === 'saved') this.board = r.board
-      if (r.kind === 'saved' && r.credits) this.host.onCredits?.(r.credits)
       if (r.kind === 'saved' && ((r.best && r.board.me?.rank === 1) || r.credits)) this.play('life')
     })
   }

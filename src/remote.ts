@@ -26,6 +26,8 @@ export class RemotePlayer {
   private anim: Locomotion = 'idle'
   private stride = 0
   private pendingEmote: string | null = null
+  /** Parti (cf. dispose) : un modèle qui arrive après ne s'installe plus. */
+  private gone = false
   onStep?: (position: THREE.Vector3, sprint: boolean) => void
 
   constructor(
@@ -51,8 +53,10 @@ export class RemotePlayer {
   async load() {
     const skin = this.skin
     const r = await (this.rigOf ? this.rigOf() : lookRig(parseLook(skin)))
-    if (skin !== this.skin) return // changé entre-temps
-    if (this.avatar) this.group.remove(this.avatar.root)
+    // Changé entre-temps, ou parti : ce modèle-là, jamais dessiné, n'a rien pris à la carte graphique.
+    if (skin !== this.skin || this.gone) return
+    // L'ancien personnage ne sert plus : sa mémoire GPU est libérée (cf. Avatar.dispose).
+    this.avatar?.dispose()
     this.avatar = new Avatar(r)
     this.group.add(this.avatar.root)
     this.avatar.setPose(this.pose)
@@ -75,6 +79,14 @@ export class RemotePlayer {
   emote(id: string) {
     if (this.avatar) this.avatar.playEmote(id)
     else this.pendingEmote = id
+  }
+
+  /** Il quitte la scène pour de bon (déconnecté, fin de partie) : son personnage est libéré. */
+  dispose() {
+    this.gone = true
+    this.group.removeFromParent()
+    this.avatar?.dispose()
+    this.avatar = undefined
   }
 
   update(dt: number) {

@@ -55,9 +55,10 @@ export class Player {
     this.root.add(avatar.root)
   }
 
-  /** Change d'apparence (autre personnage du pack). */
+  /** Change d'apparence (autre personnage du pack) ; l'ancien personnage est libéré (cf. Avatar.dispose). */
   setAvatar(avatar: Avatar) {
-    this.root.remove(this.avatar.root)
+    if (avatar === this.avatar) return
+    this.avatar.dispose()
     this.avatar = avatar
     this.root.add(avatar.root)
   }
@@ -207,7 +208,8 @@ export class Player {
       this.yaw = Math.atan2(dir.x, dir.z)
 
       const moved = Math.hypot(next.x - bx, next.z - bz)
-      const realSpeed = moved / dt
+      // Instant figé du mode photo (dt nul) : 0/0 donnait NaN, qui figeait l'animation de marche.
+      const realSpeed = dt > 0 ? moved / dt : 0
       // Bloqué contre un obstacle en suivant un chemin : on abandonne.
       this.stuckTime = realSpeed < speed * 0.2 && this.path.length ? this.stuckTime + dt : 0
       if (this.stuckTime > 0.6) this.cancelPath()

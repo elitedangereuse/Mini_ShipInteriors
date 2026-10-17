@@ -9,6 +9,7 @@ import knifeSvg from '@phosphor-icons/core/fill/knife-fill.svg?raw'
 import trashSvg from '@phosphor-icons/core/fill/trash-fill.svg?raw'
 import warningSvg from '@phosphor-icons/core/fill/warning-fill.svg?raw'
 import { FOOD_PACK, packModel } from '../assets'
+import { keepShared } from '../dispose'
 import { petRig, type Species } from '../pets'
 import type { Avatar } from '../avatar'
 import { EN } from '../i18n'
@@ -160,27 +161,38 @@ export function itemObject(item: Item): THREE.Object3D {
   return ingredientObject(item.ing!, ingredientState(item))
 }
 
-/** L'extincteur : un corps rouge, son col noir, la poignée et le tuyau. */
+/**
+ * L'extincteur : un corps rouge, son col noir, la poignée et le tuyau. On en refait un chaque fois
+ * qu'on le prend ou le pose (cf. signature) : ses formes et ses matières sont communes à tous.
+ */
 const EXT = {
-  red: new THREE.MeshLambertMaterial({ color: '#d4141e' }),
-  black: new THREE.MeshLambertMaterial({ color: '#1b1d22' }),
-  steel: new THREE.MeshLambertMaterial({ color: '#c6ccd4' }),
-  label: new THREE.MeshLambertMaterial({ color: '#f4efe2' }),
+  red: keepShared(new THREE.MeshLambertMaterial({ color: '#d4141e' })),
+  black: keepShared(new THREE.MeshLambertMaterial({ color: '#1b1d22' })),
+  steel: keepShared(new THREE.MeshLambertMaterial({ color: '#c6ccd4' })),
+  label: keepShared(new THREE.MeshLambertMaterial({ color: '#f4efe2' })),
+}
+const EXT_SHAPE = {
+  body: keepShared(new THREE.CylinderGeometry(0.06, 0.06, 0.26, 16)),
+  dome: keepShared(new THREE.SphereGeometry(0.06, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2)),
+  label: keepShared(new THREE.CylinderGeometry(0.061, 0.061, 0.08, 16, 1, true)),
+  neck: keepShared(new THREE.CylinderGeometry(0.02, 0.025, 0.05, 10)),
+  handle: keepShared(new THREE.BoxGeometry(0.1, 0.012, 0.025)),
+  hose: keepShared(new THREE.TorusGeometry(0.06, 0.008, 6, 12, Math.PI)),
 }
 function extinguisherObject(): THREE.Object3D {
   const g = new THREE.Group()
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.26, 16), EXT.red)
+  const body = new THREE.Mesh(EXT_SHAPE.body, EXT.red)
   body.position.y = 0.13
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.06, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), EXT.red)
+  const dome = new THREE.Mesh(EXT_SHAPE.dome, EXT.red)
   dome.position.y = 0.26
-  const label = new THREE.Mesh(new THREE.CylinderGeometry(0.061, 0.061, 0.08, 16, 1, true), EXT.label)
+  const label = new THREE.Mesh(EXT_SHAPE.label, EXT.label)
   label.position.y = 0.13
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, 0.05, 10), EXT.black)
+  const neck = new THREE.Mesh(EXT_SHAPE.neck, EXT.black)
   neck.position.y = 0.33
-  const handle = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.012, 0.025), EXT.steel)
+  const handle = new THREE.Mesh(EXT_SHAPE.handle, EXT.steel)
   handle.position.set(0.03, 0.36, 0)
   handle.rotation.z = -0.25
-  const hose = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.008, 6, 12, Math.PI), EXT.black)
+  const hose = new THREE.Mesh(EXT_SHAPE.hose, EXT.black)
   hose.position.set(-0.06, 0.28, 0)
   hose.rotation.z = Math.PI / 2
   g.add(body, dome, label, neck, handle, hose)

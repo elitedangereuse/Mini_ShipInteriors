@@ -41,7 +41,7 @@ import {
   ARENA_BOTS, ARENA_CHARACTERS, ARENA_LEVEL, ARENA_LOBBY, ARENA_MAPS, ARENA_RULES as R, ARENA_SKILLS, CHARACTER_IDS, DEFAULT_CHARACTER,
   arenaGround, arenaHidden, arenaSight, arenaSpawn, arenaZone, blastDamage, bushSight, castArena, inArenaBase, lobTarget, lobTime, shotOrigin, spawnYaw,
 } from '../shared/arena.js'
-import { findPath, smoothPath, straightWalk, walkable } from '../shared/salvage.js'
+import { findPath, smoothPath, straightWalk, walkable, walkReach } from '../shared/salvage.js'
 import { ShipMap } from '../shared/ship-map.js'
 import { SHIP_LAYOUTS, shipMapOptions } from '../shared/ship-layouts.js'
 import { breakdown, createArenaStats, summarize } from './arena-stats.js'
@@ -57,10 +57,21 @@ const HOLD = new ShipMap(SHIP_LAYOUTS[String(ARENA_LOBBY.level)], shipMapOptions
 export function inLobby(p) {
   return p.level === ARENA_LOBBY.level && ARENA_LOBBY.rooms.includes(HOLD.room(Math.round(p.x), Math.round(p.z)) ?? ' ')
 }
-/** Une position plus lointaine que la vitesse ne le permet est ignorée (marge en tuiles). */
+/**
+ * Une position plus lointaine que la vitesse ne le permet est ignorée : la course permise est une
+ * réserve (marge de départ, en tuiles) qui se recharge au rythme de la course, deux secondes au
+ * plus, et que chaque position use ; une rafale de positions ne la cumule donc pas (cf.
+ * mess-rush.js). Et l'on y marche : un saut à travers un mur est refusé (cf. walkReach).
+ */
 const SLACK = 0.9
 /** Délai pour entrer dans l'arène après le départ : au-delà, c'est un abandon (ms). */
 const ARRIVAL = 20000
+/**
+ * Un forfait plus court que ça (s, échauffement compris) n'est pas déclaré au site : sinon un
+ * second onglet, invité dans l'équipe d'en face, abandonnerait au coup d'envoi pour offrir une
+ * victoire classée en quelques secondes.
+ */
+const FORFEIT_MIN = 60
 /** Ce que le client tient en main, dit avec chaque tir (`c`) : souris, manette, doigt (cf. arena-stats.js). */
 const CONTROL_CODES = { m: 'mouse', g: 'gamepad', t: 'touch' }
 /** Garde-fou : une balle encore en vol après ce délai s'éteint (s). C'est sa portée qui l'arrête, bien avant. */
@@ -270,7 +281,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     // Ses coéquipiers debout, et ceux qui attendent déjà à la base de revenir en jeu.
     const mates = [...game.fighters.values()].filter((m) => m !== f && m.team === f.team && (m.alive || m.waiting))
     const at = arenaSpawn(game.zone, f.team, standing(game, 1 - f.team), mates)
-    Object.assign(f, { x: at.x, z: at.z, yaw: spawnYaw(game.zone, at), at: now(), warp: true, path: [] })
+    Object.assign(f, { x: at.x, z: at.z, yaw: spawnYaw(game.zone, at), at: now(), stride: SLACK, warp: true, path: [] })
   }
 
   /**
@@ -405,7 +416,7 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     // Éliminé, il attendait déjà à sa base (cf. hurt) : il y reste.
     if (!f.waiting) place(game, f)
     Object.assign(f, {
-      hp: f.max, alive: true, waiting: false, at: now(), respawnAt: 0, shieldUntil: now() + R.shield * 1000, tokens: w.mag, tokensAt: now(), ammo: w.mag,
+      hp: f.max, alive: true, waiting: false, at: now(), stride: SLACK, respawnAt: 0, shieldUntil: now() + R.shield * 1000, tokens: w.mag, tokensAt: now(), ammo: w.mag,
       reloadUntil: 0, lastSeen: null, seen: 0,
     })
     // Une nouvelle vie (pour sa durée de survie), qui part au coup d'envoi s'il n'est pas encore donné.
@@ -478,7 +489,8 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     const origin = { ...shotOrigin(game.zone, f, { x: o[0], z: o[2] }), y: Math.min(floor + 1, Math.max(floor + 0.05, o[1])) }
     f.tokens--
     f.firedAt = t
-    f.control = CONTROL_CODES[data.c] ?? f.control
+    // Une clé du client : pas une propriété héritée (`constructor`, `__proto__`…).
+    f.control = Object.hasOwn(CONTROL_CODES, data.c) ? CONTROL_CODES[data.c] : f.control
     shoot(game, f, origin, dirs, w.lob ? data.r : 0, data.a === 1)
   }
 
@@ -843,15 +855,21 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     stats.record({ map: game.zone.id, size: game.size, winner, fighters: [...[...game.fighters.values()].map((f) => recordOf(game, f, t)), ...game.left] })
     if (!r.members.size) reset(r)
     // Le classement : la partie de chaque CMDR qui l'a finie, déclarée au site ; chacun apprend si
-    // la sienne a été notée (un invité n'a pas de compte ; `site` : le site ne l'a pas prise).
+    // la sienne a été notée (un invité n'a pas de compte ; `site` : le site ne l'a pas prise). Un
+    // forfait trop rapide (cf. FORFEIT_MIN) n'est déclaré à personne, et rien n'en est dit.
+    const unranked = reason === 'forfeit' && duration < FORFEIT_MIN
+    if (unranked) log(`[arène] partie ${game.id} : forfait au bout de ${duration} s, non déclaré au site`)
     for (const f of game.fighters.values()) {
-      if (f.bot) continue
+      if (f.bot || unranked) continue
       const told = (ok, reason) => emit(f.id, 'arena:ranked', { game: game.id, ok, ...(ok ? {} : { reason }) })
       if (!f.verified || !f.cookie) {
         told(false, 'guest')
         continue
       }
-      const result = { game: game.id, result: winner < 0 ? 'draw' : winner === f.team ? 'won' : 'lost', kills: f.kills, deaths: f.deaths, size: game.size }
+      const result = {
+        game: game.id, result: winner < 0 ? 'draw' : winner === f.team ? 'won' : 'lost', kills: f.kills, deaths: f.deaths, size: game.size,
+        duration: Math.max(0, duration), reason,
+      }
       void Promise.resolve().then(() => report(f, result)).catch(() => false).then((ok) => told(!!ok, 'site'))
     }
     log(`[arène] partie ${game.id} : ${winner < 0 ? 'égalité' : `équipe ${winner ? 'B' : 'A'}`} (${game.rounds.join(' manches à ')}, ${reason})`)
@@ -965,10 +983,14 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     const at = { x, z }
     // Avant le signal, chacun reste dans sa base ; pendant la manche, la base adverse reste interdite.
     if (!outsideEnemyBase(game.zone, f.team, at) || (now() < game.liveAt && !inBase(game.zone, f.team, at))) return false
-    const far = Math.hypot(x - f.x, z - f.z)
-    if (f.warp) return far <= 1.6
-    return far <= R.sprint * statsOf(f.character).speed * 1.25 * Math.min(2, (now() - f.at) / 1000) + SLACK
+    if (f.warp) return Math.hypot(x - f.x, z - f.z) <= 1.6
+    return walkReach(game.zone, f, at, stride(f))
   }
+
+  /** La course du personnage, avec de la marge pour le retard du réseau (tuiles/s). */
+  const speedOf = (f) => R.sprint * statsOf(f.character).speed * 1.25
+  /** La course permise depuis la dernière position acceptée (cf. SLACK). */
+  const stride = (f) => Math.min(speedOf(f) * 2 + SLACK, f.stride + speedOf(f) * Math.max(0, now() - f.at) / 1000)
 
   /** Après chaque position acceptée (ou changement de pont) d'un joueur. */
   function moved(p) {
@@ -993,7 +1015,8 @@ export function createArena({ playerById, emit, broadcast, report = async () => 
     }
     f.arrived = true
     if (!f.alive) return
-    Object.assign(f, { x: p.x, z: p.z, yaw: p.yaw, anim: p.anim, at: now(), warp: false })
+    const left = f.warp ? SLACK : Math.max(0, stride(f) - Math.hypot(p.x - f.x, p.z - f.z))
+    Object.assign(f, { x: p.x, z: p.z, yaw: p.yaw, anim: p.anim, at: now(), stride: left, warp: false })
   }
 
   /** Départ du vaisseau (déconnexion). */

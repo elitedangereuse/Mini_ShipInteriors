@@ -165,7 +165,11 @@ export class Podium {
   }
 
   clear() {
-    for (const f of this.figures) f.puppet.group.removeFromParent()
+    // Les doublures (et Boulon) ne servent qu'à cette scène : libérées.
+    for (const f of this.figures) {
+      f.puppet.dispose()
+      f.drone?.dispose()
+    }
     this.figures = []
     this.decor.clear()
     for (const o of this.owned) o.dispose()
