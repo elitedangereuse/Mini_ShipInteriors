@@ -34,7 +34,7 @@ export const QUESTS = [
   { id: 'calibrage', steps: [0, 0], requires: ['bon-pour-le-service'], character: 'nico' },
   // Deux pousses carnivores échappées de la serre, sur deux ponts.
   { id: 'mauvaises-herbes', steps: [2, 0], requires: ['bon-pour-le-service'], character: 'capucine' },
-  // L'ardoise d'un bar qui n'a pas de porte : il faut trouver Chez Jacques.
+  // L'ardoise d'un bar introuvable : il faut trouver Chez Jacques, sans indice.
   { id: 'dernier-verre', steps: [0], requires: ['bon-pour-le-service'], character: 'jacques' },
   // --- Les histoires du bord : chacune attend la quête d'arène de qui la raconte.
   // Le chien égaré : son panier, dans le catalogue des quartiers.

@@ -22,8 +22,9 @@ import type { QuestContent, When } from './content'
  *                         ├► Le dernier verre ────────► La recette de Jacques (avec La gamelle vide)
  *                         └► Permis de tir, L'essayage
  *
- * Plus directes que les autres : leur journal dit où aller, c'est leur rôle. Mêmes outils
- * d'écriture que content.ts.
+ * Plus directes que les autres : leur journal dit où aller, c'est leur rôle. Sauf Le dernier
+ * verre : le bar de Jacques se cherche, sans indice sur son entrée. Mêmes outils d'écriture que
+ * content.ts.
  */
 
 const line = (who: string | undefined, fr: string, en: string, more: Partial<Line> = {}): Line => ({ who, text: tr(fr, en), ...more })
@@ -298,7 +299,7 @@ export const ARENA_QUESTS: QuestContent[] = [
     id: 'dernier-verre',
     title: tr('Le dernier verre', 'One last drink'),
     icon: 'martini',
-    pitch: tr('Une ardoise vante un bar que personne n\'a jamais vu. Son entrée n\'est pas une porte.', 'A chalkboard advertises a bar nobody has ever seen. Its entrance isn\'t a door.'),
+    pitch: tr('Une ardoise vante un bar que personne n\'a jamais vu.', 'A chalkboard advertises a bar nobody has ever seen.'),
     reward: unlocks('Jacques'),
     rumor: tr('Au mess, quelqu\'un a posé une ardoise de bar. Marcel jure que ce n\'est pas la sienne.', 'In the mess, someone has put up a bar chalkboard. Marcel swears it isn\'t his.'),
     offer: {
@@ -307,13 +308,13 @@ export const ARENA_QUESTS: QuestContent[] = [
       decline: tr('Laisser l\'ardoise', 'Leave the chalkboard'),
       scene: [
         n('Une ardoise de bistrot, posée contre le mur du mess. À la craie, d\'une écriture penchée : CHEZ JACQUES. COCKTAIL DU JOUR : SURPRISE.', 'A bistro chalkboard, propped against the mess wall. In chalk, in slanted handwriting: CHEZ JACQUES. COCKTAIL OF THE DAY: SURPRISE.'),
-        n('Dessous, plus petit : « Entrée par là où personne ne passe. Prévoir de quoi tirer la chasse. »', 'Underneath, smaller: “Way in: wherever nobody goes. Be ready to flush.”'),
-        n('Aucune flèche, aucun plan. Juste une odeur de menthe, et un léger courant d\'air qui sort de la grille d\'aération.', 'No arrow, no map. Just a smell of mint, and a faint draught coming out of the air vent.'),
+        n('Dessous, plus petit : « Les habitués savent où nous trouver. »', 'Underneath, smaller: “Regulars know where to find us.”'),
+        n('Pas d\'adresse, pas de plan. Au mess, personne n\'a l\'air d\'en savoir plus.', 'No address, no map. Nobody in the mess seems to know any more.'),
       ],
     },
     steps: [
       {
-        note: tr('« Entrée par là où personne ne passe. Prévoir de quoi tirer la chasse. » Les conduits d\'aération mènent partout, paraît-il.', '“Way in: wherever nobody goes. Be ready to flush.” They say the air ducts lead everywhere.'),
+        note: tr('Chez Jacques est quelque part à bord. Les habitués savent où ; aucun n\'en dira plus.', 'Chez Jacques is somewhere aboard. Regulars know where; none of them will say.'),
         hooks: [{
           on: 'item:-1:bartender',
           scene: [
@@ -331,7 +332,7 @@ export const ARENA_QUESTS: QuestContent[] = [
       {
         id: 'slate', deck: 0, x: 10.13, z: 8.39, model: 'quest-slate',
         label: tr('Lire l\'ardoise', 'Read the chalkboard'),
-        idle: tr('CHEZ JACQUES. Entrée par là où personne ne passe.', 'CHEZ JACQUES. Way in: wherever nobody goes.'),
+        idle: tr('CHEZ JACQUES. Les habitués savent où nous trouver.', 'CHEZ JACQUES. Regulars know where to find us.'),
         when: (s) => unstarted(s) || during(0)(s),
       },
     ],

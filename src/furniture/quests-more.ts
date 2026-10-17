@@ -496,7 +496,7 @@ const sprout: Builder = ({ random }) => {
   }
 }
 
-/** L'ardoise de Chez Jacques, sur son chevalet : le nom du bar, le cocktail du jour, et un indice. */
+/** L'ardoise de Chez Jacques, sur son chevalet : le nom du bar, le cocktail du jour, et pas d'adresse. */
 const slate: Builder = () => {
   const board = drawnTexture(128, 176, (c) => {
     c.fillStyle = '#1d2420'
@@ -519,8 +519,8 @@ const slate: Builder = () => {
     c.beginPath(); c.arc(76, 100, 4, 0, Math.PI * 2); c.fill()
     c.fillStyle = 'rgba(240, 240, 230, 0.7)'
     c.font = 'italic 9px serif'
-    c.fillText('entrée : là où personne', 64, 158)
-    c.fillText('ne passe', 64, 169)
+    c.fillText('les habitués savent', 64, 158)
+    c.fillText('où nous trouver', 64, 169)
   })
   const g = new THREE.Group()
   const wood = lit(C.wood)
