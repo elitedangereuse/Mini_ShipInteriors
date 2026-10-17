@@ -1,3 +1,4 @@
+import './polyfills'
 import { GymGame, type Sport } from './gym'
 import { CourtGame } from './court'
 import { RangeGame } from './range'
@@ -62,7 +63,7 @@ import { setupMobile } from './mobile'
 import { lineOfSight } from '../shared/sight.js'
 import { DIRS } from './map'
 import { EN, localizeAttributes, tr } from './i18n'
-import { LightRig, steadyShadows } from './lighting/rig'
+import { LightRig, skipDarkLights, steadyShadows } from './lighting/rig'
 import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, liftOf, offShip, SPAWN } from './levels'
 import { hydrateIcons, icon, type IconName } from './icons'
 import { lookId, lookPath, lookRig, parseLook, raceOf, variantsOf, type Look } from './looks'
@@ -119,7 +120,7 @@ import { ClubCrowd, ClubMusic, clubProximity } from './club'
 import { Kael } from './scavengers'
 import { ClassCrowd } from './classroom'
 import { QuizPanel } from './quiz/panel'
-import { BAR_ROOM, CLUB_ROOM, PATRON_ROOM, PLANETARIUM_ROOM, SPORT_COURTS, isAlienLook } from '../shared/ship-layouts.js'
+import { BAR_ROOM, BOARD_TABLES, CLUB_ROOM, PATRON_ROOM, PLANETARIUM_ROOM, SPORT_COURTS, isAlienLook } from '../shared/ship-layouts.js'
 import { fishById, FISHING_DOCK, FISHING_LEVEL, QUEST_FISH } from '../shared/fishing.js'
 import { ToiletFlushes } from './toilet-flush'
 import { PlanetariumShow } from './planetarium'
@@ -140,7 +141,7 @@ import { faceOf } from './arena/select'
 import { ARENA_LEVEL, ARENA_LOBBY, type CharacterId } from '../shared/arena.js'
 import { LOBBY as SALVAGE_LOBBY, LOBBY_RETURN, ZONE_LEVEL } from '../shared/salvage.js'
 import { SalvageLobbyMusic } from './salvage/music'
-import { $, bootDone, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel, type ScreenBox } from './ui'
+import { $, bootDone, bootFailed, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel, type ScreenBox } from './ui'
 import { LiftRide } from './lift-ride'
 import { INSTRUCTOR, Instructor, instructorRig, Tutorial, TUTORIAL_DECK } from './tutorial'
 import { TUTORIAL_EXIT, TUTORIAL_LEVEL, TUTORIAL_SPAWN } from '../shared/tutorial.js'
@@ -152,6 +153,9 @@ import { QuestJournal, QuestToasts } from './quests/journal'
 import { QuestStore } from './quests/store'
 import { QuestWorld, type QuestEvent } from './quests/world'
 import { arenaCharacters, characterQuest, QUEST_REELS, QUEST_ROOMS, QUEST_UNLOCKS, questById, questOfRoom, questsOpenedBy } from '../shared/quests.js'
+
+// Une erreur pendant le démarrage (un modèle qui ne se télécharge pas…) l'arrêtait sans un mot.
+for (const type of ['error', 'unhandledrejection']) addEventListener(type, () => bootFailed())
 
 // ------------------------------------------------------------------ profil
 
@@ -196,6 +200,12 @@ void wallet.load()
  */
 const within = <T,>(request: Promise<T>, ms: number, fallback: T) =>
   Promise.race([request, new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms))])
+/**
+ * Fin du démarrage, juste avant la première image : une réponse du site arrivée pendant le
+ * montage des ponts attend jusque-là (ce qu'elle touche n'existe pas encore tout à fait).
+ */
+let markBooted!: () => void
+const booted = new Promise<void>((resolve) => (markBooted = resolve))
 
 /**
  * `name` : nom affiché (CMDR du site si le compte est lié, sinon nom d'invité).
@@ -224,7 +234,8 @@ let patronMember = false
 const coarsePointer = matchMedia('(pointer: coarse)').matches
 // Sur téléphone, 1,5 pixel physique par pixel CSS suffit et évite de remplir jusqu'à quatre
 // fois plus de fragments que nécessaire. La résolution adaptative continue d'affiner ce choix.
-const MAX_DPR = Math.min(devicePixelRatio, coarsePointer ? 1.5 : 2)
+// Recalculée quand la fenêtre change d'écran ou que le zoom du navigateur change (cf. watchDensity).
+let MAX_DPR = Math.min(devicePixelRatio, coarsePointer ? 1.5 : 2)
 renderQuality.light = store.get('mini-shipinteriors-light') === 'true'
 let dpr = Math.min(MAX_DPR, coarsePointer ? 1.25 : 1.5)
 // Sur un écran dense (Retina), pas d'anticrénelage multi-échantillon : à cette finesse il ne se voit
@@ -245,7 +256,12 @@ renderer.setSize(innerWidth, innerHeight)
 renderer.setClearColor(0x000000, 1)
 renderer.shadowMap.enabled = !renderQuality.light
 renderer.shadowMap.type = THREE.PCFShadowMap
+// Au doigt (téléphone), la carte d'ombre ne se redessine qu'une image sur deux (cf. frame) : la
+// passe d'ombre redessinait à chaque image une centaine d'objets. Les ombres fixes n'en bougent pas
+// (la carte et son cadre ne changent qu'ensemble) ; celles des personnages suivent à 30 i/s.
+renderer.shadowMap.autoUpdate = !coarsePointer
 steadyShadows()
+skipDarkLights()
 renderer.toneMapping = THREE.ACESFilmicToneMapping
 renderer.toneMappingExposure = 1.1
 $('app').appendChild(renderer.domElement)
@@ -279,7 +295,8 @@ const SUN_OFFSET = new THREE.Vector3(-6, 14, 4)
 /** Demi-côté du cadre d'ombre qui couvre tout le vaisseau, sur une carte de 2048 texels. */
 const SHADOW_SHIP = 20
 const SHADOW_TEXEL = (2 * SHADOW_SHIP) / 2048
-sun.castShadow = true
+// Le mode léger s'en passe (cf. updateLightMode).
+sun.castShadow = !renderQuality.light
 sun.shadow.mapSize.set(2048, 2048)
 sun.shadow.camera.left = sun.shadow.camera.bottom = -SHADOW_SHIP
 sun.shadow.camera.right = sun.shadow.camera.top = SHADOW_SHIP
@@ -466,8 +483,24 @@ function connectStore(store: CabinStore, site: SiteCabin | null): CabinLayout {
   const layout = normalizeLayout(raw, LEGACY_BOUNDS)
   const home = homeOf(raw, layout, store.account)
   homePlan = home.plan
-  if (upload || home.fresh) store.save(layout)
+  // Sans réponse du site, rien ne s'enregistre : des quartiers d'origine gardés ici, datés de
+  // maintenant, remplaceraient au site les vrais à la prochaine visite.
+  if (site && (upload || home.fresh)) store.save(layout)
+  if (!site) retryCabin(store)
   return layout
+}
+
+/** Attente avant de redemander ses quartiers au site, doublée à chaque nouvel échec (ms). */
+let cabinRetry = 20000
+/** Le site n'a pas rendu ses quartiers : on les redemande plus tard (d'ici là, on n'aménage pas, cf. canDecorate). */
+function retryCabin(store: CabinStore) {
+  const wait = cabinRetry
+  cabinRetry = Math.min(cabinRetry * 2, 5 * 60000)
+  setTimeout(() => void Promise.all([requestCabin(15000), booted]).then(([site]) => {
+    if (cabinStore !== store || store.reached) return
+    if (site) siteAnswered(store, site)
+    else retryCabin(store)
+  }), wait)
 }
 
 /**
@@ -483,7 +516,7 @@ let ownLayout: CabinLayout = !cabinStore
     : normalizeLayout(cabinStore.localCopy, LEGACY_BOUNDS)
 if (cabinStore && siteCabin === undefined) {
   const store = cabinStore
-  void cabinRequest.then((site) => siteAnswered(store, site))
+  void Promise.all([cabinRequest, booted]).then(([site]) => siteAnswered(store, site))
 }
 // En attendant le site, la parcelle que ce navigateur connaît (elle n'est enregistrée qu'à sa
 // réponse, cf. siteAnswered) ; pour un invité, les quartiers d'origine transposés.
@@ -560,7 +593,7 @@ function hullSides(): HullSides {
 
 const player = new Player(new Avatar(await lookRig(parseLook(profile.skin))), deck.colliders)
 player.doorways = () => deck.doorways()
-const cocktailEffects = new CocktailEffects(player, scene)
+const cocktailEffects = new CocktailEffects(player, scene, lighting)
 /** Une partie de la zone, de l'arène ou de MESS RUSH commence : elle se joue sans les cocktails de Jacques. */
 function soberUp() {
   if (cocktailEffects.clear()) dialog.show(tr('Les effets de vos cocktails se dissipent : la partie se joue sans.', 'Your cocktails wear off: the game is played without them.'))
@@ -793,6 +826,8 @@ function startCourt(id: CourtId) {
   const far = Math.hypot(spot.x - player.position.x, spot.z - player.position.z)
   player.glideTo({ x: spot.x, y: deck.y, z: spot.z, yaw: -Math.PI / 2 }, far / 2.2, far > 0.05, () => {
     unlockCursor()
+    // En vue subjective, la mire se reprend au premier clic après la partie.
+    relock = fpsWanted
     curtain()
     // Le résumé de la partie précédente ne reste pas sous la jauge.
     $('dialog').hidden = true
@@ -900,6 +935,7 @@ function startFishing() {
   const far = Math.hypot(FISHING_DOCK.x - player.position.x, FISHING_DOCK.z - player.position.z)
   player.glideTo({ x: FISHING_DOCK.x, y: deck.y, z: FISHING_DOCK.z, yaw: 0 }, far / 2.2, far > 0.05, () => {
     unlockCursor()
+    relock = fpsWanted
     $('dialog').hidden = true
     fishing.start()
   })
@@ -935,6 +971,7 @@ function openQuiz() {
   keys.clear()
   marker.visible = false
   unlockCursor()
+  relock = fpsWanted
   $('dialog').hidden = true
   quiz.open()
 }
@@ -1111,6 +1148,8 @@ function setDeck(next: Deck) {
   // On quitte le pupitre des caméras en changeant de pont (une invitation acceptée, un saut).
   cctv?.close(false)
   seating.leave()
+  // Un glissement vers un terrain ou le ponton de l'ancien pont ne se poursuit pas sur le nouveau.
+  player.stopGlide()
   // Dans les conduits de ventilation, tout résonne, et l'on regarde de près ; le zoom d'avant revient à la sortie.
   if (!!next.def.vents !== !!deck.def.vents) {
     sound.setEcho(next.def.vents ? 0.8 : 0)
@@ -1238,6 +1277,7 @@ function fitShadow() {
     shadow.camera.updateProjectionMatrix()
     const size = Math.round((2 * half) / SHADOW_TEXEL)
     shadow.mapSize.set(size, size)
+    renderer.shadowMap.needsUpdate = true
   }
 }
 setDeck(deck)
@@ -3085,7 +3125,7 @@ async function command(text: string) {
         'system',
         tr(
           `Commandes : /nom CMDR Pseudo (invités) · /perso · /inviter CMDR Nom · /w CMDR Nom message · /credits · /taches · /quetes (le journal) · /tuto (la formation) · ${emotes}`,
-          `Commands: /name CMDR Nickname (guests) · /random · /invite CMDR Name · /w CMDR Name message · /credits · /chores · /tuto (the training) · ${emotes}`,
+          `Commands: /name CMDR Nickname (guests) · /random · /invite CMDR Name · /w CMDR Name message · /credits · /chores · /quests (the journal) · /tuto (the training) · ${emotes}`,
         ),
       )
     }
@@ -3512,7 +3552,7 @@ function adoptAccount() {
   const layout = normalizeLayout(store.localCopy, LEGACY_BOUNDS)
   homePlan = homeOf(store.localCopy, layout, store.account).plan
   setOwnLayout(layout)
-  void requestCabin().then((site) => siteAnswered(store, site))
+  void Promise.all([requestCabin(), booted]).then(([site]) => siteAnswered(store, site))
 }
 
 /** Le site répond en cours de partie : ses quartiers remplacent ceux montrés en attendant. */
@@ -3541,7 +3581,13 @@ async function openEditor() {
   await loadSiteArt()
   if (editing() || riding || visiting || photo.active) return
   if (!editor) {
-    await loadEditor()
+    try {
+      await loadEditor()
+    } catch {
+      // Module introuvable (une nouvelle version en ligne a remplacé ses fichiers) : l'échec se
+      // répète tant que la page n'est pas rechargée (cf. openArcade).
+      return chat.add('system', tr('Le mode aménagement ne se charge pas : rechargez la page.', 'Decoration mode failed to load: reload the page.'))
+    }
     // On a pu partir (ascenseur, invitation) pendant le chargement.
     if (!editor || editing() || riding || visiting || photo.active || deck !== homeDeck) return
   }
@@ -3572,7 +3618,7 @@ async function openEditor() {
  * une fois que le site a rendu ce qu'il garde : sinon, le refus est dit dans le chat.
  */
 function canDecorate(): boolean {
-  if (linked && cabinStore?.ready) return true
+  if (linked && cabinStore?.reached) return true
   chat.add('system', linked
     ? tr('Vos quartiers arrivent du site, encore un instant…', 'Your quarters are on their way from the site, just a moment…')
     : tr('Aménager ses quartiers est réservé aux CMDR connectés à elitedangereuse.fr.', 'Only CMDRs logged in to elitedangereuse.fr can decorate their quarters.'))
@@ -3581,7 +3627,7 @@ function canDecorate(): boolean {
 
 /** Enregistre sa parcelle avec ses quartiers (jamais avant la réponse du site : on écraserait celle qu'il garde). */
 function saveHome() {
-  if (cabinStore?.ready) cabinStore.save(ownLayout)
+  if (cabinStore?.reached) cabinStore.save(ownLayout)
 }
 
 /** Dernier mode ouvert sur la parcelle : le mobilier (mode aménagement) ou la construction. */
@@ -3631,7 +3677,11 @@ async function openBuilder() {
       },
     })
   })
-  await builderLoading
+  try {
+    await builderLoading
+  } catch {
+    return chat.add('system', tr('Le mode construction ne se charge pas : rechargez la page.', 'Build mode failed to load: reload the page.'))
+  }
   if (!builder || editing() || riding || photo.active || deck !== homeDeck) return
   lift.close()
   jukebox.close()
@@ -3643,6 +3693,16 @@ async function openBuilder() {
   document.body.classList.add('editing')
   builder.start(homePlan, homeDeck.home!.stage)
   homeMode = 'build'
+  // La construction n'a pas de témoin d'enregistrement : un échec (session expirée, site en panne)
+  // se dit dans le chat, une fois, et son rétablissement aussi.
+  if (cabinStore) {
+    let failed = cabinStore.state === 'error'
+    cabinStore.onState = (state) => {
+      if (state === 'error' && !failed) chat.add('system', tr('Quartiers non enregistrés : le site ne répond pas, nouvel essai dans un instant.', 'Quarters not saved: the site is not answering, retrying shortly.'))
+      if (state === 'saved' && failed) chat.add('system', tr('Quartiers enregistrés.', 'Quarters saved.'))
+      if (state === 'error' || state === 'saved') failed = state === 'error'
+    }
+  }
   const z = builder.fitZoom()
   iso.zoomMax = Math.max(iso.zoomMax, z)
   iso.zoomTo(z)
@@ -4348,11 +4408,13 @@ addEventListener('keydown', (e) => {
   // En vol vers la base au sol (ou retour) : l'écran de voyage couvre tout, rien à faire.
   if (groundBase.flying) return e.preventDefault()
   if (barPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen) { if (e.code === 'Escape') { barPanel.close(); gameEmbed.close(); mediaRoom.close(); cinemaRoom.close() }; e.preventDefault(); return }
+  // Un jeu de plateau ouvert couvre l'écran (il se ferme lui-même sur Échap) : rien ne joue derrière.
+  if (boardGames.isOpen) return
   // Une scène de quête : ses touches seulement, tant qu'elle se joue.
   if (cinematic.key(e)) return
-  // Au pupitre des caméras : ←/→ changent de caméra, Échap ou E les quittent.
-  if (cctv?.keyDown(e)) return
-  if (gym.key(e)) return
+  // Au pupitre des caméras : ←/→ changent de caméra, Échap ou E les quittent (pas pendant qu'on écrit).
+  if (!chat.typing && cctv?.keyDown(e)) return
+  if (!chat.typing && gym.key(e)) return
   if (!chat.typing && court.key(e)) return
   if (!chat.typing && arena.keyDown(e)) return
   if (!chat.typing && range.key(e)) return
@@ -4439,6 +4501,11 @@ addEventListener('keydown', (e) => {
 addEventListener('keyup', (e) => { keys.delete(e.code); court.keyUp(e); range.keyUp(e) })
 addEventListener('blur', () => keys.clear())
 chat.onOpen = () => keys.clear()
+// Un champ du combiné ou du chat Twitch garde pour lui le relâchement des touches : celles tenues
+// en y entrant feraient marcher le personnage pendant qu'on écrit.
+addEventListener('focusin', (e) => {
+  if (e.target instanceof HTMLElement && (e.target.matches('input:not([type=range]):not([type=checkbox]), textarea, select') || e.target.isContentEditable)) keys.clear()
+})
 
 const inputDir = new THREE.Vector3()
 function keyboardDirection(): THREE.Vector3 {
@@ -4471,8 +4538,17 @@ function padBack(): boolean {
 }
 
 /** Un panneau tient l'écran : la manette y mène son cadre de sélection, sans qu'on le demande. */
+/**
+ * Écrans de fin de la zone, de l'arène et de MESS RUSH : collections que le navigateur tient à
+ * jour (un `querySelector` à chaque image parcourait tout le document).
+ */
+const endScreens = [document.getElementsByClassName('salvage-end'), document.getElementsByClassName('arena-end')]
+function endScreenShown(): boolean {
+  for (const list of endScreens) for (let i = 0; i < list.length; i++) if (!(list[i] as HTMLElement).hidden) return true
+  return false
+}
 function padModal(): boolean {
-  return $('mobile-entry').hidden !== true || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || boardGames.isOpen || quiz.isOpen || fishBook.isOpen || wardrobe.isOpen || zone.panelOpen || arena.panelOpen || messRush.panelOpen || shipPicker.isOpen || !!document.querySelector('.salvage-end:not([hidden]), .arena-end:not([hidden])')
+  return $('mobile-entry').hidden !== true || barPanel.isOpen || gardenPanel.isOpen || gameEmbed.isOpen || mediaRoom.isOpen || cinemaRoom.isOpen || boardGames.isOpen || quiz.isOpen || fishBook.isOpen || wardrobe.isOpen || zone.panelOpen || arena.panelOpen || messRush.panelOpen || shipPicker.isOpen || endScreenShown()
 }
 
 /** Rien ne sort de la manette à cette image : ni déplacement, ni bouton. */
@@ -4791,8 +4867,15 @@ function movementDirection(pad: GamepadInput): THREE.Vector3 {
   return input
 }
 
+/** La molette fait défiler un panneau (journal, combiné, aide, chat…) : elle ne zoome pas la vue derrière. */
+function scrollsPanel(e: WheelEvent): boolean {
+  for (let el = e.target instanceof Element ? e.target : null; el && el !== document.body; el = el.parentElement) {
+    if (el.scrollHeight > el.clientHeight && /auto|scroll/.test(getComputedStyle(el).overflowY)) return true
+  }
+  return false
+}
 addEventListener('wheel', (e) => {
-  if (!barPanel.isOpen && !cinemaRoom.isOpen && !fpsShown) iso.zoomBy(Math.exp(e.deltaY * 0.001))
+  if (!barPanel.isOpen && !cinemaRoom.isOpen && !fpsShown && !scrollsPanel(e)) iso.zoomBy(Math.exp(e.deltaY * 0.001))
 }, { passive: true })
 // Dans l'arène, la vue garde son cap : son camp en bas de l'écran.
 $('rot-left').onclick = () => { if (!arenaMode?.inArena) iso.rotate(-1) }
@@ -4809,6 +4892,10 @@ function updateLightMode() {
   const light = renderQuality.light
   renderer.setPixelRatio(light ? Math.min(MAX_DPR, 0.75) : dpr)
   renderer.shadowMap.enabled = !light
+  // Le soleil cesse aussi de porter son ombre : c'est ce qui fait changer de shader aux matières.
+  // Sans cela, elles gardaient la dernière carte d'ombre, figée (et son coût), ou n'en recevaient
+  // plus aucune en quittant un mode léger choisi au chargement.
+  sun.castShadow = !light
   renderer.shadowMap.needsUpdate = true
   const button = $('light-mode')
   button.setAttribute('aria-pressed', String(light))
@@ -4957,7 +5044,7 @@ canvas.addEventListener('pointermove', (e) => {
   // En aménagement, le doigt passe par editTouch (cf. plus bas) : un second doigt peut l'interrompre.
   if (editing()) {
     if (e.pointerType === 'mouse') activeEditor()!.pointerMove(e)
-  } else pendingMove = e
+  } else if (!cursorLocked()) pendingMove = e // Souris capturée (vue subjective) : elle tourne le regard, rien à survoler.
 })
 function processHover() {
   if (!pendingMove) return
@@ -5104,6 +5191,11 @@ canvas.addEventListener('pointercancel', liftFinger)
 addEventListener('blur', () => {
   fingers.clear()
   pinch = null
+  // Alt-Tab pendant un glisser du clic droit : la caméra ne doit pas tourner ensuite au moindre mouvement.
+  if (freeLook) {
+    freeLook = null
+    canvas.style.cursor = 'default'
+  }
   if (editTouch?.started) activeEditor()?.pointerCancel()
   editTouch = null
 })
@@ -5350,7 +5442,8 @@ function drawMinimap() {
   if (minimapEl.hidden !== !shown) minimapEl.hidden = !shown
   if (!shown) return
   const others = [...remotes.values()].filter((r) => r.group.visible && r.level === deck.def.id).map((r) => r.group.position)
-  minimap.draw(deck.map, deck.def.id, player.position.x, player.position.z, fps.yaw, liftOf(deck.def.id), others, timer.getElapsed())
+  // Le simulateur et la base au sol n'ont pas de téléporteur : pas de faux anneau sur leur plan.
+  minimap.draw(deck.map, deck.def.id, player.position.x, player.position.z, fps.yaw, deck.liftInteractable ? liftOf(deck.def.id) : null, others, timer.getElapsed())
 }
 /**
  * Bas des invites et bulles posées à l'écran en vue subjective : au-dessus de la barre d'emotes.
@@ -5805,10 +5898,11 @@ function arcadeGame(seat: Seated): GameId | null {
 function boardGame(seat: Seated): { game: BoardGameId; table: string } | null {
   if (seat.spot.pose !== 'sit') return null
   const model = seat.item.furniture?.model
-  if (model === 'holo-draughts') return { game: 'draughts', table: 'draughts' }
-  if (model === 'guardian-connect') return { game: 'guardian-connect', table: 'guardian-connect' }
-  if (model === 'imperial-chess') return { game: 'imperial-chess', table: 'imperial-chess' }
-  return null
+  const game: BoardGameId | null = model === 'holo-draughts' ? 'draughts' : model === 'guardian-connect' ? 'guardian-connect' : model === 'imperial-chess' ? 'imperial-chess' : null
+  // Le relais ne tient que les tables du salon : celles des quartiers sont du décor (pas de « Jouer »
+  // qui finirait sur « table indisponible »).
+  if (!game || deck.def.id !== BOARD_TABLES[game].level) return null
+  return { game, table: game }
 }
 
 async function openArcade(seat: Seated, game: GameId) {
@@ -5950,7 +6044,8 @@ function fsdJump() {
  * @param by nom du pilote, si ce n'est pas nous
  */
 async function playJump(system: SystemId, by: string | null) {
-  if (jumping) return
+  // Un système inconnu (relais plus récent que cette page) : pas de saut, plutôt qu'un réacteur bloqué.
+  if (jumping || !SYSTEMS[system]) return
   jumping = true
   const { name, arrival } = SYSTEMS[system]
   const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -6431,6 +6526,20 @@ let dprCeiling = MAX_DPR
  * de saccader. Seulement si c'est la carte graphique qui peine (cf. frame).
  */
 const MIN_DPR = 0.75
+/**
+ * La fenêtre passe sur un écran d'une autre densité, ou le zoom du navigateur change : le plafond de
+ * densité suit (il restait celui du chargement, flou sur un écran plus fin, ou trop de pixels).
+ */
+function watchDensity() {
+  matchMedia(`(resolution: ${devicePixelRatio}dppx)`).addEventListener('change', () => {
+    MAX_DPR = Math.min(devicePixelRatio, coarsePointer ? 1.5 : 2)
+    dprCeiling = MAX_DPR
+    dpr = Math.min(dpr, MAX_DPR)
+    pendingDpr = renderQuality.light ? Math.min(MAX_DPR, 0.75) : dpr
+    watchDensity()
+  }, { once: true })
+}
+watchDensity()
 /** Secondes d'aisance avant de retenter un niveau qui a peiné : double quand l'essai échoue encore. */
 const PATIENCE = 15
 let patience = PATIENCE
@@ -6454,6 +6563,11 @@ function slowFrame(times: Float32Array, n: number): number {
   return sorted[Math.min(n - 1, Math.floor(n * 0.9))]
 }
 let promptText = ''
+/** Une image sur deux, au doigt : la carte d'ombre se redessine (cf. shadowMap.autoUpdate). */
+let shadowBeat = false
+/** Prochain coup d'œil de la mire (ms, cf. performance.now) et ce qu'elle y a vu. */
+let aimCheck = 0
+let aimLit = false
 /** Chronomètre des « Zzz » de ceux qui dorment. */
 let snore = 0
 /** Prochaine mise à l'heure des tâches de bord ; instant figé par le mode photo. */
@@ -6461,6 +6575,8 @@ let taskClock = 0
 let frozenAt = 0
 
 function frame() {
+  // L'image suivante est demandée d'abord : une erreur dans celle-ci ne fige pas le jeu pour de bon.
+  requestAnimationFrame(frame)
   const frameStart = performance.now()
   if (pendingDpr !== null) {
     renderer.setPixelRatio(pendingDpr)
@@ -6492,10 +6608,7 @@ function frame() {
   if (deck === homeDeck) quartersProfile.sync(quartersOwner())
   // Borne d'arcade ouverte : elle couvre l'écran, le vaisseau reste figé derrière (dernière image),
   // et la borne a toute la machine pour elle.
-  if (arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen) {
-    requestAnimationFrame(frame)
-    return
-  }
+  if (arcade?.isOpen || boardGames.isOpen || gameEmbed.isOpen) return
   // Horloge de la soirée : celle des meubles (danseurs, platines).
   tempo.now = holoTime.value
 
@@ -6533,8 +6646,13 @@ function frame() {
   // Mode photo, instant figé : personnages, meubles et étoiles s'arrêtent ; la caméra, non.
   const world = photo.frozen ? 0 : dt
   if (!editing() && !photo.active && !range.active && !cinematic.active && !cctv?.active) processHover()
-  // Mire sur un objet utilisable : elle s'allume.
-  crosshair.classList.toggle('aim', fpsShown && cursorLocked() && !!pick(screenCenter()).item)
+  // Mire sur un objet utilisable : elle s'allume. Dix lancers de rayon par seconde suffisent.
+  const aiming = fpsShown && cursorLocked()
+  if (aiming && frameStart >= aimCheck) {
+    aimCheck = frameStart + 100
+    aimLit = !!pick(screenCenter()).item
+  }
+  crosshair.classList.toggle('aim', aiming && aimLit)
   player.update(world, input, zone.sprint(touchRun || autoSprint !== (pad.sprint || keys.has('ShiftLeft') || keys.has('ShiftRight'))))
   // La mezzanine et ses escaliers : on monte (installé sur un meuble, la place donne la hauteur).
   if ((deck.mezzanine || deck.def.relief) && !player.gliding && !seating.current) player.position.y = deck.y + deck.ground(player.position.x, player.position.z)
@@ -6953,6 +7071,7 @@ function frame() {
   }
   Avatar.live.clear()
   fitShadow()
+  if (coarsePointer && (shadowBeat = !shadowBeat)) renderer.shadowMap.needsUpdate = true
   deckTextures.update()
   // Les écrans animés à l'image se redessinent à leur tour, dans le budget de l'image (cf. furniture/kit.ts).
   drawScreens()
@@ -7010,7 +7129,6 @@ function frame() {
     perfTime = 0
     perfFrames = 0
   }
-  requestAnimationFrame(frame)
 }
 
 addEventListener('resize', () => {
@@ -7021,6 +7139,28 @@ addEventListener('resize', () => {
   fps.resize(innerWidth / innerHeight)
   syncMobileEntry()
 })
+
+/**
+ * Une matière transparente à deux faces est dessinée deux fois par three.js (faces arrière, puis
+ * avant), qui recherche son shader à chaque passe. Sur un panneau plat (vitre, affiche, reflet), un
+ * pixel ne voit jamais qu'une face : une seule passe donne la même image. Une matière qu'emploie
+ * aussi un volume garde ses deux passes.
+ */
+function singlePassPanes(root: THREE.Object3D) {
+  const flat = new Map<THREE.Material, boolean>()
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh
+    if (!mesh.isMesh) return
+    for (const m of [mesh.material].flat()) {
+      if (!m.transparent || m.side !== THREE.DoubleSide || m.forceSinglePass) continue
+      const box = mesh.geometry.boundingBox ?? (mesh.geometry.computeBoundingBox(), mesh.geometry.boundingBox!)
+      const thin = Math.min(box.max.x - box.min.x, box.max.y - box.min.y, box.max.z - box.min.z) < 1e-4
+      flat.set(m, (flat.get(m) ?? true) && thin)
+    }
+  })
+  for (const [m, thin] of flat) if (thin) m.forceSinglePass = true
+}
+singlePassPanes(scene)
 
 // Compile tous les shaders avant la première image (pas d'à-coup au premier fondu de mur), et
 // envoie les textures du pont de départ pendant l'écran de chargement.
@@ -7040,6 +7180,7 @@ for (const id of Object.keys(SPORT_COURTS) as CourtId[]) void fetchBoard(id)
 void fetchBoard(RANGE_ID)
 updateNetStatus()
 updateIdentity()
+markBooted()
 frame()
 
 // Accès de debug (dev uniquement) : window.__game dans la console.

@@ -59,6 +59,23 @@ export function steadyShadows() {
   if (chunk.includes(noisy)) THREE.ShaderChunk.shadowmap_pars_fragment = chunk.replaceAll(noisy, 'float phi = 0.0;')
 }
 
+/**
+ * Lumières éteintes passées. three.js déroule ses lumières ponctuelles dans chaque shader éclairé et
+ * les calcule toutes, pour chaque pixel, même à l'intensité 0 : celles de la réserve qui attendent
+ * une lampe, la lanterne des conduits, celles de la baie infestée (onze en tout, dont trois presque
+ * toujours noires). Une lumière noire n'ajoute rien : la sauter donne la même image, et ce test ne
+ * dépend que d'un uniforme (tous les pixels prennent la même branche). À appeler avant la
+ * compilation du premier shader.
+ */
+export function skipDarkLights() {
+  const chunk = THREE.ShaderChunk.lights_fragment_begin
+  const start = '\t\tpointLight = pointLights[ i ];\n'
+  const from = chunk.indexOf(start)
+  const end = from < 0 ? -1 : chunk.indexOf('\t}\n\t#pragma unroll_loop_end', from)
+  if (from < 0 || end < 0) return
+  THREE.ShaderChunk.lights_fragment_begin = `${chunk.slice(0, from)}${start}\t\tif ( pointLight.color != vec3( 0.0 ) ) {\n${chunk.slice(from + start.length, end)}\t\t}\n${chunk.slice(end)}`
+}
+
 /** Portée d'une lampe qui n'en dit rien. */
 export const LIGHT_DISTANCE = 7
 /** Taille de la réserve : fixe, pour que changer de pont ne recompile aucun shader. */
@@ -102,6 +119,8 @@ export class LightRig {
   private dimming = 1
   /** Lampes baissées pendant la séance du planétarium (1 : pleines). */
   private lampDim = 1
+  /** Lampe que le joueur porte sur lui (la lueur d'un cocktail, cf. bar.ts), en tête de la réserve. */
+  private carried: LightSource | null = null
 
   constructor(scene: THREE.Scene) {
     scene.add(this.hemi, this.sun, this.sun.target)
@@ -172,6 +191,17 @@ export class LightRig {
     this.from.x = Infinity
   }
 
+  /**
+   * Une lampe qui suit le joueur (null : plus aucune) : elle prend une lumière de la réserve. Lui
+   * ajouter sa propre PointLight changeait le nombre de lumières de la scène, et recompilait tous
+   * les shaders éclairés (un à-coup, puis d'autres à chaque pièce découverte).
+   */
+  carry(source: LightSource | null) {
+    if (source === this.carried) return
+    this.carried = source
+    this.refresh()
+  }
+
   /** Baisse l'ambiance (pièce tamisée) ; 1 : pleine. */
   dim(k: number) {
     if (k === this.dimming) return
@@ -222,7 +252,8 @@ export class LightRig {
       // Le mode léger fige les lampes : pas de vacillement.
       const driver = s.flicker && !renderQuality.light ? this.drivers.get(s.flicker) : undefined
       driver?.(s, l, i, t)
-      l.intensity *= slot.gain * this.lampDim * (s.flicker || !this.general ? 1 : POOL_SHARE)
+      // Le champ de lumière ne connaît pas la lampe portée : sa vraie lumière éclaire seule.
+      l.intensity *= slot.gain * this.lampDim * (s.flicker || !this.general || s === this.carried ? 1 : POOL_SHARE)
     }
   }
 
@@ -231,7 +262,8 @@ export class LightRig {
     const first = this.from.x === Infinity
     this.from.copy(focus)
     const weight = (s: LightSource) => (s.position.distanceToSquared(focus) + 1) / ((this.byIntensity ? s.intensity : 1) * (s.flicker ? 2.5 : 1))
-    this.wanted = this.sources.filter((s) => !s.ambient && !this.hidden(s)).sort((a, b) => weight(a) - weight(b)).slice(0, POOL)
+    const lamps = this.sources.filter((s) => !s.ambient && !this.hidden(s)).sort((a, b) => weight(a) - weight(b))
+    this.wanted = (this.carried ? [this.carried, ...lamps] : lamps).slice(0, POOL)
     this.fill(first ? 1 : 0)
   }
 

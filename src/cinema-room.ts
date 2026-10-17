@@ -556,6 +556,12 @@ export class CinemaRoom {
   }
 
   /** Aligne le lecteur HTML sur la toile 3D de la salle, même pendant les mouvements de caméra. */
+  /** Lecteur caché (hors champ, hors du pont) : appelé à chaque image, il n'écrit dans la page que ce qui change. */
+  private hideStage() {
+    if (!this.stage.hidden) this.stage.hidden = true
+    if (!this.volumeControl.hidden) this.volumeControl.hidden = true
+  }
+
   placeScreen(camera: THREE.Camera, onCinemaDeck: boolean, inCinemaRoom: boolean, x: number, y: number, z: number) {
     const stream = this.stream
     if (onCinemaDeck !== this.onCinemaDeck) {
@@ -591,8 +597,7 @@ export class CinemaRoom {
       }
     }
     if (this.playing === 'none' || !this.playing || !onCinemaDeck) {
-      this.stage.hidden = true
-      this.volumeControl.hidden = true
+      this.hideStage()
       return
     }
     const { width, height, centerY, depth } = CINEMA_SCREEN
@@ -601,8 +606,7 @@ export class CinemaRoom {
     // les murs ne le cacheraient pas. La toile 3D (affiche de la séance) prend alors le relais.
     const perspective = (camera as THREE.PerspectiveCamera).isPerspectiveCamera === true
     if (camera.position.z <= screenZ || (perspective && !inCinemaRoom)) {
-      this.stage.hidden = true
-      this.volumeControl.hidden = true
+      this.hideStage()
       return
     }
     const tl = this.topLeft.set(x - width / 2, y + centerY + height / 2, screenZ)
@@ -611,8 +615,7 @@ export class CinemaRoom {
     const br = this.bottomRight.set(x + width / 2, y + centerY - height / 2, screenZ)
     const clip = this.toClip.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
     if (!this.frustum.setFromProjectionMatrix(clip).intersectsBox(this.bounds.setFromPoints([tl, tr, bl, br]))) {
-      this.stage.hidden = true
-      this.volumeControl.hidden = true
+      this.hideStage()
       return
     }
     // Coin à l'écran, ou null s'il est derrière l'œil (sa projection 2D n'a alors plus de sens).
@@ -624,8 +627,7 @@ export class CinemaRoom {
     // Vu de trop loin pour y cliquer : la toile 3D suffit.
     if (a && b && c && d && Math.max(Math.hypot(b.x - a.x, b.y - a.y), Math.hypot(d.x - c.x, d.y - c.y)) < 30
       && Math.max(Math.hypot(c.x - a.x, c.y - a.y), Math.hypot(d.x - b.x, d.y - b.y)) < 12) {
-      this.stage.hidden = true
-      this.volumeControl.hidden = true
+      this.hideStage()
       return
     }
     // Pixel du lecteur -> point de la toile -> caméra -> écran, en coordonnées homogènes : le navigateur

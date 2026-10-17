@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { drinkPrice, formatCredits } from './economy/data'
 import type { Wallet } from './economy/wallet'
 import { tr } from './i18n'
+import type { LightRig, LightSource } from './lighting/rig'
 import type { Player } from './player'
 
 const DRINKS = [
@@ -19,8 +20,12 @@ export class CocktailEffects {
   private trail: { mesh: THREE.Mesh; life: number }[] = []
   private lastTrail = 0
   private geometry = new THREE.SphereGeometry(0.035, 8, 6)
+  /** Les deux teintes des étincelles du Stellar Kick (une matière par étincelle, refaite toutes les 75 ms, ne servait à rien). */
+  private sparks = [new THREE.MeshBasicMaterial({ color: '#82eaff' }), new THREE.MeshBasicMaterial({ color: '#fff1b5' })]
+  /** Lueur du Caustic Sour : une lampe de la réserve qui suit le joueur (cf. LightRig.carry). */
+  private glow: LightSource = { position: new THREE.Vector3(), color: new THREE.Color('#99ff51'), intensity: 2.5, distance: 2.3 }
 
-  constructor(private player: Player, private scene: THREE.Scene) {}
+  constructor(private player: Player, private scene: THREE.Scene, private lighting: LightRig) {}
 
   remaining(id: DrinkId): number {
     return Math.max(0, Math.ceil(((this.active.get(id)?.until ?? 0) - Date.now()) / 1000))
@@ -46,9 +51,8 @@ export class CocktailEffects {
       ring(0.31, '#a978ff', 0.045)
       ring(0.42, '#7952cf', 0.03)
     } else if (id === 'caustic-sour') {
-      const light = new THREE.PointLight('#99ff51', 2.5, 2.3)
-      light.position.y = 0.55
-      group.add(light)
+      this.player.root.getWorldPosition(this.glow.position).y += 0.55
+      this.lighting.carry(this.glow)
       ring(0.38, '#a9ff6d', 0.08)
       for (let i = 0; i < 7; i++) orb(0.025, '#bfff75', Math.sin(i * 2.4) * 0.32, 0.17 + i * 0.11, Math.cos(i * 2.4) * 0.32)
     } else if (id === 'imperial-crush') {
@@ -90,6 +94,7 @@ export class CocktailEffects {
       }
     })
     this.active.delete(id)
+    if (id === 'caustic-sour') this.lighting.carry(null)
     this.player.speedMultiplier = this.active.has('night-conda') ? 1.45 : 1
   }
 
@@ -104,7 +109,10 @@ export class CocktailEffects {
       })
       if (id === 'night-conda') effect.group.scale.setScalar(1 + Math.sin(t * 8) * 0.08)
       if (id === 'colonia-dream') effect.group.rotation.y += dt * 0.35
-      if (id === 'caustic-sour') effect.group.rotation.y += dt * 0.45
+      if (id === 'caustic-sour') {
+        effect.group.rotation.y += dt * 0.45
+        this.player.root.getWorldPosition(this.glow.position).y += 0.55
+      }
     }
     for (const particle of this.trail) {
       particle.life -= dt
@@ -114,12 +122,11 @@ export class CocktailEffects {
     this.trail = this.trail.filter((particle) => {
       if (particle.life > 0) return true
       particle.mesh.removeFromParent()
-      ;(particle.mesh.material as THREE.Material).dispose()
       return false
     })
     if (!this.active.has('stellar-kick') || (!this.player.moving && this.player.avatar.locomotion === 'idle') || now - this.lastTrail < 75) return
     this.lastTrail = now
-    const p = new THREE.Mesh(this.geometry, new THREE.MeshBasicMaterial({ color: Math.random() > 0.5 ? '#82eaff' : '#fff1b5' }))
+    const p = new THREE.Mesh(this.geometry, this.sparks[Math.random() > 0.5 ? 0 : 1])
     p.position.set(this.player.position.x + (Math.random() - 0.5) * 0.35, this.player.position.y + 0.1 + Math.random() * 0.45, this.player.position.z + (Math.random() - 0.5) * 0.35)
     this.scene.add(p)
     this.trail.push({ mesh: p, life: 0.8 })

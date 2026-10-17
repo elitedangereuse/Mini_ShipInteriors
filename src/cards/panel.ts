@@ -300,7 +300,14 @@ export class CardsPanel {
           : result.reason === 'guest' ? tr('Connectez-vous au site pour acheter des boosters.', 'Sign in to the site to buy boosters.')
             : tr('Le terminal de Ludo ne répond pas. Réessayez.', 'Ludo\'s terminal is not answering. Try again.')
       this.onSound?.('deny')
-      if (result.reason === 'max') void this.refresh()
+      // Sans réponse nette (délai dépassé), l'achat a pu passer au site : le prix affiché serait
+      // celui du booster d'avant, et le clic suivant paierait le suivant, plus cher. Le stock et le
+      // solde sont relus avant qu'on puisse recliquer.
+      if (result.reason === 'offline' || result.reason === 'max') {
+        this.busy = true
+        await Promise.all([this.refresh(), this.wallet.load()])
+        this.busy = false
+      }
     }
     if (this.pull) return
     this.renderSlate()

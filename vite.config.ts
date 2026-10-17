@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { defineConfig, loadEnv, type Plugin, type ProxyOptions } from 'vite'
 import { attachRelay } from './server/relay.js'
 
@@ -112,7 +113,9 @@ export default defineConfig({
   plugins: [relay(), economy()],
   // Le client demande au site qui est connecté, ses quartiers, les scores des bornes et ses
   // crédits (même origine en prod) : en local, on relaie au site Docker.
-  server: { proxy: SITE_PROXY },
+  // assets/ (les packs de Kenney, cf. AGENTS.md) n'est pas servi : ses 90 000 fichiers épuisaient
+  // les surveillances de fichiers du système, et le serveur de dev s'arrêtait (ENOSPC).
+  server: { proxy: SITE_PROXY, watch: { ignored: [fileURLToPath(new URL('./assets/', import.meta.url)) + '**'] } },
   preview: { proxy: SITE_PROXY },
   // Tout le vaisseau est bâti au démarrage : son code est rangé en morceaux qui suivent les
   // couches du jeu (chacun contient aussi ce dont il dépend et qu'aucun morceau plus bas n'a

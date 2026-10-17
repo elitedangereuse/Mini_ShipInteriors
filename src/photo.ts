@@ -72,8 +72,8 @@ export class PhotoMode {
     this.hint = document.createElement('div')
     this.hint.className = 'photo-hint'
     this.hint.textContent = tr(
-      'Clic droit + glisser : tourner et incliner · Maj : déplacer la vue · molette : zoom · 1…7 : poses · Espace : photo · Échap : quitter',
-      'Right-drag: orbit and tilt · Shift: pan · wheel: zoom · 1…7: poses · Space: take photo · Esc: leave',
+      'Clic droit + glisser : tourner et incliner · Maj : déplacer la vue · molette : zoom · 1…8 : poses · Espace : photo · Échap : quitter',
+      'Right-drag: orbit and tilt · Shift: pan · wheel: zoom · 1…8: poses · Space: take photo · Esc: leave',
     )
     this.bar = document.createElement('div')
     this.bar.className = 'photo-bar panel'

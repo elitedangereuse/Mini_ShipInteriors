@@ -709,7 +709,7 @@ export class SystemView {
 
   /** Arrive dans le système `id` (sans animation si on y est déjà). */
   set(id: SystemId) {
-    if (id === this.id) return
+    if (id === this.id || !SYSTEMS[id]) return
     this.id = id
     this.current.dispose()
     this.current = build(id)

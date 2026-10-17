@@ -513,6 +513,13 @@ export function bootProgress(ratio: number, step = BOOT_STEPS[Math.min(BOOT_STEP
   $('boot-step').textContent = step
 }
 
+/** Le démarrage a échoué (un modèle qui ne vient pas, réseau coupé) : on le dit, plutôt qu'une jauge figée. */
+export function bootFailed() {
+  const root = document.getElementById('loading')
+  if (!root || root.classList.contains('done')) return
+  $('boot-step').textContent = tr('Échec du chargement : rechargez la page', 'Loading failed: please reload the page')
+}
+
 /** Vaisseau prêt : le saut, puis l'écran quitte la page (ses animations ne tournent plus). */
 export function bootDone() {
   bootProgress(1, tr('Systèmes en ligne', 'Systems online'))

@@ -54,7 +54,9 @@ export async function requestCabin(timeoutMs = 10000): Promise<SiteCabin | null>
   try {
     const res = await fetch(CABIN_URL, { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(timeoutMs) })
     if (!res.ok) return null
-    const data = (await res.json()) as { cabin?: unknown; updated?: unknown; session?: unknown; seq?: unknown }
+    const data = (await res.json()) as { status?: unknown; cabin?: unknown; updated?: unknown; session?: unknown; seq?: unknown }
+    // Une erreur dite par le site n'est pas « jamais aménagé » : on y prendrait les quartiers d'origine.
+    if (!data || typeof data !== 'object' || (data.status !== undefined && data.status !== 'success')) return null
     return {
       cabin: data.cabin ?? null,
       updated: typeof data.updated === 'number' ? data.updated : null,
@@ -100,6 +102,14 @@ export class CabinStore {
   /** Le site a répondu, ou ne répondra pas : l'aménagement peut changer sans rien écraser. */
   get ready(): boolean {
     return this.remote !== null
+  }
+
+  /**
+   * Le site a rendu ce qu'il garde. Sans sa réponse, on ne sait rien de ses quartiers : en aménager
+   * d'autres dans ce navigateur, plus récents, les écraserait au site à la prochaine visite.
+   */
+  get reached(): boolean {
+    return this.remote === true
   }
 
   /** Où en est l'enregistrement : à afficher à l'ouverture du mode aménagement. */
@@ -190,6 +200,8 @@ export class CabinStore {
         keepalive,
       })
       if (!res.ok) throw new Error(String(res.status))
+      const reply = (await res.json().catch(() => null)) as { status?: unknown } | null
+      if (reply && reply.status !== undefined && reply.status !== 'success') throw new Error(String(reply.status))
       if (version !== this.version) return
       this.removeLocal()
       this.report('saved')

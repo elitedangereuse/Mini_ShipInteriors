@@ -146,7 +146,7 @@ export class PadCursor {
   }
 
   hide() {
-    this.el.hidden = true
+    if (!this.el.hidden) this.el.hidden = true
   }
 
   /** Le curseur, vu comme un événement de souris (bouton gauche). */
