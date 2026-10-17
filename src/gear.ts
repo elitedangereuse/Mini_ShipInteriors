@@ -185,6 +185,63 @@ export function bakeGear(root: THREE.Object3D, build: () => void, apart = false)
 }
 
 /**
+ * Cuit un personnage sans peau (robots du kit, créatures : chaque membre est un maillage que son
+ * nœud fait tourner), avec ce qu'on lui a accroché : toutes ses pièces simples (cf. bakeable) en
+ * un maillage à squelette par sorte de matériau, dont les os sont les pièces elles-mêmes. Elles
+ * restent en place, l'animation les fait toujours tourner et l'on mesure toujours leurs sommets
+ * (le bras, l'assise, cf. avatar.ts), mais elles ne se dessinent plus (aucun calque : ni la caméra
+ * ni l'ombre ne les voient) et ne prennent pas de contour (cf. arena/outline.ts). Le robot de
+ * Jacques et son habit : une quarantaine d'appels de dessin, contour compris, ramenés à quelques-uns.
+ * Sans effet sur un personnage à peau (cf. bakeGear) ou déjà cuit.
+ */
+export function bakeRigid(root: THREE.Object3D): void {
+  if (root.userData.bakedRigid) return
+  let skinned = false
+  root.traverse((o) => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) skinned = true })
+  if (skinned) return
+  root.userData.bakedRigid = true
+  root.updateMatrixWorld(true)
+  const parts = new Map<string, { material: Colored; meshes: THREE.Mesh[] }>()
+  const bones: THREE.Mesh[] = []
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh
+    if (!bakeable(mesh)) return
+    for (let p: THREE.Object3D | null = mesh; p && p !== root; p = p.parent) if (!p.visible || p.userData.live) return
+    const key = signature(mesh)
+    let part = parts.get(key)
+    if (!part) parts.set(key, (part = { material: mesh.material as Colored, meshes: [] }))
+    part.meshes.push(mesh)
+    bones.push(mesh)
+  })
+  if (bones.length < 2) return
+  // Les os : les pièces, dans leur pose du moment (celle de la liaison).
+  const skeleton = new THREE.Skeleton(bones as unknown as THREE.Bone[])
+  const inverse = root.matrixWorld.clone().invert()
+  for (const [key, part] of parts) {
+    const textured = !!part.material.map
+    const geos = part.meshes.map((mesh) => prepare(mesh, _bone.multiplyMatrices(inverse, mesh.matrixWorld), textured, bones.indexOf(mesh)))
+    const merged = mergeGeometries(geos, false)
+    for (const g of geos) g.dispose()
+    if (!merged) continue
+    const first = part.meshes[0]
+    const mesh = new THREE.SkinnedMesh(merged, bakedMaterial(key, part.material))
+    mesh.name = 'rigid-baked'
+    mesh.castShadow = first.castShadow
+    mesh.receiveShadow = first.receiveShadow
+    mesh.renderOrder = first.renderOrder
+    // Ses sommets suivent les os : sa boîte au repos ne dit pas où il est.
+    mesh.frustumCulled = false
+    root.add(mesh)
+    mesh.updateMatrixWorld(true)
+    mesh.bind(skeleton, mesh.matrixWorld)
+  }
+  for (const mesh of bones) {
+    mesh.layers.disableAll()
+    mesh.userData.noOutline = true
+  }
+}
+
+/**
  * Retire les pièces d'origine, et avec elles les groupes qu'elles laissent vides (sauf ceux que
  * `keep` désigne).
  */

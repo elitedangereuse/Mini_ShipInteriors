@@ -113,10 +113,13 @@ interface Shown {
   head?: THREE.Group
   jaws?: [THREE.Object3D, THREE.Object3D]
   linings?: THREE.Mesh[]
-  /** La flaque : sa nappe, ses flammèches (dessus, et le long du bord), ses bulles. */
+  /**
+   * La flaque : sa nappe, ses flammèches (dessus, et le long du bord), ses bulles. Flammèches et
+   * bulles sont chacune un seul maillage instancié (un appel de dessin, au lieu d'un par flammèche).
+   */
   pool?: THREE.Mesh
-  flames?: THREE.Mesh[]
-  bubbles?: { mesh: THREE.Mesh; phase: number; speed: number }[]
+  flames?: { mesh: THREE.InstancedMesh; items: { x: number; z: number; phase: number; rim: boolean }[] }
+  bubbles?: { mesh: THREE.InstancedMesh; items: { x: number; z: number; phase: number; speed: number }[] }
   age: number
   left: number
   /** Depuis quand elle a mordu (s), et vers où (repère du piège). */
@@ -178,6 +181,10 @@ function flowerModel() {
 
 const easeOutBack = (u: number) => 1 + 2.4 * (u - 1) ** 3 + 1.4 * (u - 1) ** 2
 const _p = new THREE.Vector3()
+const _q = new THREE.Quaternion()
+const _s = new THREE.Vector3()
+const _m = new THREE.Matrix4()
+const UP = new THREE.Vector3(0, 1, 0)
 
 export class Traps {
   readonly group = new THREE.Group()
@@ -293,28 +300,29 @@ export class Traps {
       pool.position.y = 0.025
       pool.renderOrder = 1
       root.add(pool)
-      const flames: THREE.Mesh[] = []
       // Des flammèches dessus, et tout le long du bord : on voit jusqu'où la flaque brûle.
       const rim = arenaFx.reduced ? 8 : 14
-      for (let i = 0; i < 9 + rim; i++) {
-        const m = new THREE.Mesh(flame, this.flameMat)
-        const onRim = i >= 9
-        const a = onRim ? ((i - 9) / rim) * Math.PI * 2 : (i / 9) * Math.PI * 2 + Math.random()
-        const r = onRim ? radius * 0.9 : Math.sqrt(Math.random()) * radius * 0.75
-        m.position.set(Math.cos(a) * r, 0.02, Math.sin(a) * r)
-        m.userData.phase = Math.random() * 10
-        m.userData.rim = onRim
-        if (onRim) m.scale.setScalar(0.7)
-        root.add(m)
-        flames.push(m)
+      const flames = {
+        mesh: new THREE.InstancedMesh(flame, this.flameMat, 9 + rim),
+        items: Array.from({ length: 9 + rim }, (_, i) => {
+          const onRim = i >= 9
+          const a = onRim ? ((i - 9) / rim) * Math.PI * 2 : (i / 9) * Math.PI * 2 + Math.random()
+          const r = onRim ? radius * 0.9 : Math.sqrt(Math.random()) * radius * 0.75
+          return { x: Math.cos(a) * r, z: Math.sin(a) * r, phase: Math.random() * 10, rim: onRim }
+        }),
       }
-      const bubbles = arenaFx.reduced ? [] : Array.from({ length: 5 }, () => {
-        const mesh = new THREE.Mesh(BUBBLE, this.bubbleMat)
-        const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * radius * 0.7
-        mesh.position.set(Math.cos(a) * r, 0.03, Math.sin(a) * r)
-        root.add(mesh)
-        return { mesh, phase: Math.random(), speed: 0.8 + Math.random() * 0.8 }
-      })
+      const bubbles = {
+        mesh: new THREE.InstancedMesh(BUBBLE, this.bubbleMat, arenaFx.reduced ? 0 : 5),
+        items: Array.from({ length: arenaFx.reduced ? 0 : 5 }, () => {
+          const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * radius * 0.7
+          return { x: Math.cos(a) * r, z: Math.sin(a) * r, phase: Math.random(), speed: 0.8 + Math.random() * 0.8 }
+        }),
+      }
+      for (const m of [flames.mesh, bubbles.mesh]) {
+        // Leurs instances bougent : pas de tri par la boîte de la géométrie seule.
+        m.frustumCulled = false
+        root.add(m)
+      }
       Object.assign(s, { pool, flames, bubbles })
       this.onSound?.('ignite', root.position)
     }
@@ -389,22 +397,27 @@ export class Traps {
   private fire(s: Shown, dt: number, fade: number) {
     const t = s.age + s.phase
     s.pool!.scale.setScalar(FIRE.radius * 0.92 * Math.min(1, s.age / 0.15, Math.max(0.05, fade)) * (0.97 + Math.sin(t * 9) * 0.03))
-    for (const m of s.flames!) {
-      const p = (m.userData.phase as number) + s.age
-      const base = m.userData.rim ? 0.7 : 1
-      m.scale.set(base, base * (0.6 + Math.abs(Math.sin(p * 7)) * 0.9) * fade, base)
-      m.rotation.y = p * 3
-    }
-    for (const b of s.bubbles!) {
+    const flames = s.flames!
+    flames.items.forEach((m, i) => {
+      const p = m.phase + s.age
+      const base = m.rim ? 0.7 : 1
+      _q.setFromAxisAngle(UP, p * 3)
+      flames.mesh.setMatrixAt(i, _m.compose(_p.set(m.x, 0.02, m.z), _q, _s.set(base, base * (0.6 + Math.abs(Math.sin(p * 7)) * 0.9) * fade, base)))
+    })
+    flames.mesh.instanceMatrix.needsUpdate = true
+    const bubbles = s.bubbles!
+    bubbles.items.forEach((b, i) => {
       // Une bulle gonfle, crève, et reprend ailleurs.
       b.phase += dt * b.speed
       const k = b.phase % 1
-      b.mesh.scale.setScalar(Math.max(0.01, Math.sin(k * Math.PI) * fade))
       if (k < dt * b.speed) {
         const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * FIRE.radius * 0.7
-        b.mesh.position.set(Math.cos(a) * r, 0.03, Math.sin(a) * r)
+        b.x = Math.cos(a) * r
+        b.z = Math.sin(a) * r
       }
-    }
+      bubbles.mesh.setMatrixAt(i, _m.compose(_p.set(b.x, 0.03, b.z), _q.identity(), _s.setScalar(Math.max(0.01, Math.sin(k * Math.PI) * fade))))
+    })
+    bubbles.mesh.instanceMatrix.needsUpdate = true
     // Elle crépite (on l'entend sans la voir), de temps en temps.
     if (!s.gone && (s.crackle -= dt) <= 0) {
       s.crackle = 0.3 + Math.random() * 0.25
@@ -420,6 +433,8 @@ export class Traps {
   /** Retire un piège de la scène, et ce qui n'est qu'à lui (ses matières, l'arc de son temps). */
   private drop(s: Shown) {
     s.root.removeFromParent()
+    // Leurs matrices d'instance sont à elles (géométrie et matière, partagées, restent).
+    for (const m of [s.flames?.mesh, s.bubbles?.mesh]) m?.dispose()
     for (const m of [s.mark, s.border, s.timer]) (m.material as THREE.Material).dispose()
     s.timer.geometry.dispose()
   }

@@ -196,6 +196,8 @@ export class ArenaGun extends RangeGame {
    */
   healTarget: number | null = null
   fullTarget: number | null = null
+  /** Traînées aux couleurs exactes de la palette, sur leur ombre (cf. RangeGame.flatTrails). */
+  protected override flatTrails = true
   /** Les objets lancés en vol, et les modèles (tomates, seringues) qui suivent leur projectile, avec leur ombre. */
   private lobs: Lob[] = []
   private readonly balls = new Map<Bullet, { mesh: THREE.Object3D; shadow: THREE.Mesh | null; drip: number }>()
@@ -640,17 +642,10 @@ export class ArenaGun extends RangeGame {
   private style(b: Bullet, arm: ArenaArm, tint: string, heal: boolean) {
     const st = b.streak
     const trail = paint(heal ? HEAL_TINT : tint)
-    const m = st.trail.material as THREE.MeshBasicMaterial
-    // En mélange ordinaire, sur son ombre : une lumière additive se délaverait sur le sable (le rouge
-    // d'un adversaire y tournerait au jaune) ; la couleur exacte de la palette, sans le rendu filmique.
-    if (m.blending !== THREE.NormalBlending || m.toneMapped) {
-      m.blending = THREE.NormalBlending
-      m.toneMapped = false
-      m.needsUpdate = true
-    }
-    m.color.copy(trail)
-    ;(st.bolt.material as THREE.MeshBasicMaterial).color.copy(_c.copy(paint(arm.color)).lerp(WHITE, 0.4))
-    ;(st.glow.material as THREE.SpriteMaterial).color.copy(heal ? trail : paint(arm.color))
+    // La traînée, en mélange ordinaire sur son ombre (cf. flatTrails) : la couleur exacte de la palette.
+    st.trail.copy(trail)
+    st.bolt.copy(_c.copy(paint(arm.color)).lerp(WHITE, 0.4))
+    st.glow.copy(heal ? trail : paint(arm.color))
     st.width = TRAIL[arm.id] * (this.fpsView ? LOOK_THIN : 1)
     if (arm.pierce) {
       st.life = 0.5

@@ -4,6 +4,7 @@ import { fetchBoard, localBest, saveLocalBest, submitScore } from './arcade/scor
 import { RANGE_ID } from './arcade/game'
 import { formatCredits } from './economy/data'
 import { fuse } from './gear'
+import { QuadBatch } from './quad-batch'
 import type { Wallet } from './economy/wallet'
 import { tr } from './i18n'
 import type { RangeTune } from './range-music'
@@ -141,17 +142,15 @@ export interface Shot {
 
 /**
  * Ce qu'on voit d'une balle : le trait lumineux qui file (`bolt`, et son halo `glow`), et la
- * traînée qu'il laisse du canon jusqu'à lui (`trail`), qui s'efface en une demi-seconde.
+ * traînée qu'il laisse du canon jusqu'à lui (`trail`), qui s'efface en une demi-seconde ; leurs
+ * couleurs. Dans l'arène, la traînée a aussi son ombre : un ruban sombre, plus large, dessous, qui
+ * la détache d'un sol clair où une lumière additive s'effacerait (cf. RangeGame.shaded). Toutes les
+ * balles se dessinent ensemble, une matière à la fois (cf. QuadBatch).
  */
 export interface Streak {
-  trail: THREE.Mesh
-  bolt: THREE.Mesh
-  glow: THREE.Sprite
-  /**
-   * L'ombre de la traînée (l'arène) : un ruban sombre, plus large, dessous, qui la détache d'un sol
-   * clair où une lumière additive s'effacerait.
-   */
-  shade?: THREE.Mesh
+  trail: THREE.Color
+  bolt: THREE.Color
+  glow: THREE.Color
   from: THREE.Vector3
   head: THREE.Vector3
   /** Largeur de la traînée : plus fine en vue subjective, où elle part de tout près. */
@@ -247,8 +246,7 @@ const _v = new THREE.Vector3()
 const _w = new THREE.Vector3()
 const _x = new THREE.Vector3()
 const _y = new THREE.Vector3()
-const _z = new THREE.Vector3()
-const _l = new THREE.Vector3()
+const WHITE = new THREE.Color(1, 1, 1)
 const _q = new THREE.Quaternion()
 const _e = new THREE.Euler()
 const _ray = new THREE.Raycaster()
@@ -281,7 +279,6 @@ const easeOutBack = (u: number) => 1 + 2.7 * (u - 1) ** 3 + 1.7 * (u - 1) ** 2
 /** Pavé d'un mètre le long de +z, à étirer d'un point à un autre (le laser). */
 const BEAM = new THREE.BoxGeometry(1, 1, 1).translate(0, 0, 0.5)
 /** Ruban d'un mètre le long de +z, large d'un mètre le long de x : `v` vaut 1 à son départ, 0 à sa pointe. */
-const RIBBON = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(0, 0, 0.5)
 
 /** Texture d'un ruban : doux sur ses bords, et qui naît peu à peu (son départ, près du canon, est transparent). */
 function ribbonTexture(): THREE.CanvasTexture {
@@ -339,7 +336,17 @@ export class RangeGame {
   protected spare: Streak[] = []
   protected debris: Debris[] = []
   protected marks: { mesh: THREE.Mesh; age: number; color: THREE.Color }[] = []
-  protected bursts: { sprite: THREE.Sprite; age: number; size: number }[] = []
+  protected bursts: { at: THREE.Vector3; color: THREE.Color; age: number; size: number }[] = []
+  /**
+   * Les rubans et halos de toutes les balles, une matière chacun (cf. Streak) : créés au premier
+   * tir, quand `shaded` et `flatTrails` sont fixés.
+   */
+  private batches: { shade: QuadBatch; trail: QuadBatch; bolt: QuadBatch; glow: QuadBatch } | null = null
+  /**
+   * Traînées en mélange ordinaire, aux couleurs exactes (l'arène : une lumière additive se délaverait
+   * sur le sable, le rouge d'un adversaire y tournerait au jaune) ; sinon, additives.
+   */
+  protected flatTrails = false
   protected readonly spark = new THREE.BoxGeometry(0.016, 0.016, 0.016)
   protected readonly mark = new THREE.CircleGeometry(0.022, 12)
   protected readonly poleGeo = new THREE.CylinderGeometry(0.012, 0.016, 1, 6).translate(0, 0.5, 0)
@@ -1005,28 +1012,7 @@ export class RangeGame {
   }
 
   protected streak(from: THREE.Vector3, color: THREE.Color, width: number): Streak {
-    let it = this.spare.pop()
-    if (!it) {
-      const ribbon = () => {
-        // Un ruban plat : une passe suffit (three.js dessine sinon deux fois chaque face transparente à deux côtés).
-        const mesh = new THREE.Mesh(RIBBON, new THREE.MeshBasicMaterial({ map: this.ribbon, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, forceSinglePass: true }))
-        mesh.matrixAutoUpdate = false
-        mesh.frustumCulled = false
-        return mesh
-      }
-      it = { trail: ribbon(), bolt: ribbon(), glow: this.sprite(), from: new THREE.Vector3(), head: new THREE.Vector3(), width, age: 0, flying: true }
-      this.live.add(it.trail, it.bolt, it.glow)
-    }
-    if (this.shaded && !it.shade) {
-      // L'ombre (l'arène) : sombre, en mélange ordinaire, dessinée avant la traînée qui l'éclaire.
-      const shade = new THREE.Mesh(RIBBON, new THREE.MeshBasicMaterial({ map: this.ribbon, color: '#05070b', transparent: true, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true, toneMapped: false }))
-      shade.matrixAutoUpdate = false
-      shade.frustumCulled = false
-      shade.renderOrder = 4
-      for (const o of [it.trail, it.bolt, it.glow]) o.renderOrder = 5
-      this.live.add(shade)
-      it.shade = shade
-    }
+    const it = this.spare.pop() ?? { trail: new THREE.Color(), bolt: new THREE.Color(), glow: new THREE.Color(), from: new THREE.Vector3(), head: new THREE.Vector3(), width, age: 0, flying: true }
     it.from.copy(from)
     it.head.copy(from)
     it.width = width
@@ -1034,76 +1020,60 @@ export class RangeGame {
     it.flying = true
     it.life = undefined
     it.boltLength = undefined
-    for (const o of [it.trail, it.bolt, it.glow]) {
-      o.visible = false
-      ;(o.material as THREE.MeshBasicMaterial).color.copy(color)
-    }
-    if (it.shade) it.shade.visible = false
+    for (const c of [it.trail, it.bolt, it.glow]) c.copy(color)
     this.streaks.push(it)
     return it
   }
 
-  /** Étire un ruban de `a` à `b`, large de `width`, tourné vers la caméra. */
-  protected lay(mesh: THREE.Mesh, a: THREE.Vector3, b: THREE.Vector3, width: number, camera: THREE.Camera, origin: THREE.Vector3) {
-    const len = _z.subVectors(b, a).length()
-    mesh.visible = len > 1e-4
-    if (!mesh.visible) return
-    _z.divideScalar(len)
-    // Vers la caméra : depuis le milieu du ruban ; pour une caméra orthographique, à contre-sens de son regard.
-    if ((camera as THREE.OrthographicCamera).isOrthographicCamera) camera.getWorldDirection(_y).negate()
-    else camera.getWorldPosition(_y).sub(origin).sub(a).addScaledVector(_z, -len / 2)
-    _x.crossVectors(_z, _y)
-    if (_x.lengthSq() < 1e-8) _x.crossVectors(_z, UP)
-    _x.normalize()
-    _y.crossVectors(_x, _z)
-    mesh.matrix.makeBasis(_x.multiplyScalar(width), _y, _l.copy(_z).multiplyScalar(len)).setPosition(a)
+  /** Les rubans et halos des balles (cf. batches) : l'ombre d'abord, puis la traînée, le trait, le halo. */
+  private streakBatches() {
+    if (this.batches) return this.batches
+    const glowing = { map: this.halo, blending: THREE.AdditiveBlending }
+    this.batches = {
+      shade: new QuadBatch({ map: this.ribbon, color: '#05070b', toneMapped: false }, 4),
+      trail: new QuadBatch(this.flatTrails ? { map: this.ribbon, toneMapped: false } : { map: this.ribbon, blending: THREE.AdditiveBlending }, 5),
+      bolt: new QuadBatch({ map: this.ribbon, blending: THREE.AdditiveBlending }, 5),
+      glow: new QuadBatch(glowing, 5),
+    }
+    for (const b of Object.values(this.batches)) this.live.add(b.mesh)
+    return this.batches
   }
 
   /** Les balles en vol, leurs traînées, les éclats de lumière. */
   protected updateStreaks(dt: number, camera: THREE.Camera, origin: THREE.Vector3) {
     const tail = new THREE.Vector3()
+    const batches = this.streakBatches()
+    for (const b of Object.values(batches)) b.begin()
+    // Vers la caméra : sa position dans le repère du stand ; une caméra orthographique, son regard.
+    const eye = camera.getWorldPosition(_y).sub(origin)
+    const look = (camera as THREE.OrthographicCamera).isOrthographicCamera ? camera.getWorldDirection(_x) : null
     this.streaks = this.streaks.filter((it) => {
       it.age += dt
       const k = 1 - it.age / (it.life ?? 0.5)
       if (k <= 0 && !it.flying) {
-        it.trail.visible = it.bolt.visible = it.glow.visible = false
-        if (it.shade) it.shade.visible = false
         this.spare.push(it)
         return false
       }
-      this.lay(it.trail, it.from, it.head, it.width, camera, origin)
-      ;(it.trail.material as THREE.MeshBasicMaterial).opacity = Math.max(0, k) * this.trailOpacity
-      if (it.shade) {
-        // L'ombre, sous la traînée : plus large, et qui s'efface avec elle.
-        it.shade.visible = this.shaded
-        if (this.shaded) {
-          this.lay(it.shade, it.from, it.head, it.width * 2.6, camera, origin)
-          ;(it.shade.material as THREE.MeshBasicMaterial).opacity = Math.max(0, k) * this.shadeOpacity
-        }
-      }
+      // L'ombre, sous la traînée : plus large, et qui s'efface avec elle.
+      if (this.shaded) batches.shade.ribbon(it.from, it.head, it.width * 2.6, eye, look, WHITE, Math.max(0, k) * this.shadeOpacity)
+      batches.trail.ribbon(it.from, it.head, it.width, eye, look, it.trail, Math.max(0, k) * this.trailOpacity)
       // Le trait : court, vif, derrière la pointe de la balle.
       const len = it.from.distanceTo(it.head)
-      it.bolt.visible = it.glow.visible = it.flying && len > 1e-4
-      if (it.bolt.visible) {
+      if (it.flying && len > 1e-4) {
         tail.lerpVectors(it.head, it.from, Math.min(1, (it.boltLength ?? 0.55) / len))
-        this.lay(it.bolt, tail, it.head, it.width * 2.4, camera, origin)
-        it.glow.position.copy(it.head)
-        it.glow.scale.setScalar(it.width * 5)
+        batches.bolt.ribbon(tail, it.head, it.width * 2.4, eye, look, it.bolt, 1)
+        batches.glow.billboard(it.head, it.width * 5, camera, it.glow, 1)
       }
       return true
     })
     this.bursts = this.bursts.filter((b) => {
       b.age += dt
       const k = 1 - b.age / 0.14
-      if (k <= 0) {
-        this.live.remove(b.sprite)
-        b.sprite.material.dispose()
-        return false
-      }
-      b.sprite.scale.setScalar(b.size * (0.5 + k * 0.5))
-      b.sprite.material.opacity = k
+      if (k <= 0) return false
+      batches.glow.billboard(b.at, b.size * (0.5 + k * 0.5), camera, b.color, k)
       return true
     })
+    for (const b of Object.values(batches)) b.end()
   }
 
   /** Les traînées ont une ombre (cf. Streak.shade), de cette opacité au départ ; et la leur. */
@@ -1113,12 +1083,7 @@ export class RangeGame {
 
   /** Éclat de lumière, là où une balle frappe. */
   protected burst(at: THREE.Vector3, color: THREE.Color, size: number) {
-    const sprite = this.sprite()
-    sprite.material.color.copy(color)
-    sprite.position.copy(at)
-    sprite.scale.setScalar(size)
-    this.live.add(sprite)
-    this.bursts.push({ sprite, age: 0, size })
+    this.bursts.push({ at: at.clone(), color: color.clone(), age: 0, size })
   }
 
   /** Le plasma explose : un grand éclat, et toutes les cibles prises dans son rayon volent en morceaux. */
@@ -1455,14 +1420,14 @@ export class RangeGame {
     const revision = ++this.revision
     this.held = this.queued = false
     for (const t of s.targets) this.live.remove(t.root)
-    for (const it of this.streaks) { it.trail.visible = it.bolt.visible = it.glow.visible = false; if (it.shade) it.shade.visible = false; this.spare.push(it) }
+    this.spare.push(...this.streaks)
     this.streaks = []
     for (const p of this.debris) this.live.remove(p.mesh)
     this.debris = []
     for (const m of this.marks) this.dropMark(m)
     this.marks = []
-    for (const b of this.bursts) { this.live.remove(b.sprite); b.sprite.material.dispose() }
     this.bursts = []
+    if (this.batches) for (const b of Object.values(this.batches)) { b.begin(); b.end() }
     for (const gun of [...this.hand, ...this.view]) gun.root.visible = false
     this.live.visible = false
     this.idle.visible = true

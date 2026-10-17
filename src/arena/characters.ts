@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { BLASTER_PACK, packModel } from '../assets'
 import { chefRig } from '../chef'
 import { disposeOwned, keepShared } from '../dispose'
+import { bakeRigid, fuse } from '../gear'
 import { jacquesFace } from '../furniture/bar'
 import { recolored } from '../recolor'
 import { gardenerRig } from '../gardener'
@@ -115,7 +116,8 @@ function seedBag(): THREE.Object3D {
 /** Le cocktail de Jacques, dans sa main (à la taille d'un pistolet du kit) : le verre, et sa mixture verte qui luit. */
 function cocktail(): THREE.Object3D {
   const g = new THREE.Group()
-  const glass = packModel('food-cocktail', BLASTER_PACK).clone(true)
+  // Une vingtaine de pièces dans le kit : fondues, un appel de dessin (en main comme en vol).
+  const glass = fuse(packModel('food-cocktail', BLASTER_PACK).clone(true))
   glass.scale.setScalar(0.7)
   const brew = new THREE.Mesh(BREW, BREW_MAT)
   brew.scale.set(1.4, 0.6, 1.4)
@@ -133,7 +135,7 @@ function thrownCocktail(): THREE.Object3D {
 
 /** Une tomate en vol. */
 function tomato(): THREE.Object3D {
-  const g = packModel('food-tomato', BLASTER_PACK).clone(true)
+  const g = fuse(packModel('food-tomato', BLASTER_PACK).clone(true))
   g.scale.setScalar(0.55)
   return g
 }
@@ -254,6 +256,8 @@ async function jacquesRig(): Promise<LookRig> {
     })
     head.add(bezel, screen, ...ears)
   }
+  // Une quarantaine de pièces, chacune un appel de dessin et un contour : fondues (cf. gear.ts).
+  bakeRigid(root)
   return { ...r, height: r.height + 0.04 }
 }
 
