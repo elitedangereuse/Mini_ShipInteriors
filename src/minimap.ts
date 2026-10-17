@@ -31,19 +31,29 @@ export class Minimap {
   private readonly ctx: CanvasRenderingContext2D
   private readonly plan = document.createElement('canvas')
   private planKey = ''
-  /** Prochain redessin forcé du plan (portes verrouillées, pièces d'extension). */
-  private refresh = 0
+  /** Plan dessiné, et où il en était (cf. ShipMap.version) : une porte, un verrou, une pièce qui change le fait redessiner. */
+  private planMap: ShipMap | null = null
+  private planVersion = -1
+  /**
+   * Taille (CSS) du disque, relevée quand elle change : la lire à chaque image forcerait le
+   * navigateur à refaire la mise en page. 0 : inconnue (caché, il ne mesure rien), on la lit.
+   */
+  private size = 0
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext('2d')!
+    new ResizeObserver(() => (this.size = canvas.clientWidth)).observe(canvas)
+    // Le navigateur peut reprendre la mémoire d'un canvas : il revient vide, le plan est à refaire.
+    this.plan.addEventListener('contextrestored', () => (this.planVersion = -1))
   }
 
   /**
    * @param yaw azimut du regard (cf. FirstPersonCamera.yaw) : on regarde vers (-sin yaw, -cos yaw)
    * @param lift tuile de l'ascenseur, s'il y en a un sur ce pont
+   * @param _now heure du jeu, dont le plan n'a plus besoin (il suit les changements du plan)
    */
-  draw(map: ShipMap, deckId: number, x: number, z: number, yaw: number, lift: MinimapMarker | null, others: MinimapMarker[], now: number) {
-    const size = this.canvas.clientWidth
+  draw(map: ShipMap, deckId: number, x: number, z: number, yaw: number, lift: MinimapMarker | null, others: MinimapMarker[], _now?: number) {
+    const size = this.size || (this.size = this.canvas.clientWidth)
     if (!size) return
     const dpr = Math.min(devicePixelRatio, 2)
     const px = Math.round(size * dpr)
@@ -51,9 +61,10 @@ export class Minimap {
 
     const room = map.room(Math.round(x), Math.round(z)) ?? ''
     const key = `${deckId}|${room}|${map.width}x${map.height}|${dpr}`
-    if (key !== this.planKey || now > this.refresh) {
+    if (key !== this.planKey || map !== this.planMap || map.version !== this.planVersion) {
       this.planKey = key
-      this.refresh = now + 1
+      this.planMap = map
+      this.planVersion = map.version
       this.drawPlan(map, room, dpr)
     }
 
@@ -116,8 +127,10 @@ export class Minimap {
   /** Pièces, murs et portes du pont, la pièce courante éclaircie. */
   private drawPlan(map: ShipMap, here: string, dpr: number) {
     const s = TILE * dpr
-    this.plan.width = Math.ceil((map.width + PAD * 2) * s)
-    this.plan.height = Math.ceil((map.height + PAD * 2) * s)
+    // Redonner sa taille au canvas, même inchangée, le réalloue : seulement si elle change.
+    const w = Math.ceil((map.width + PAD * 2) * s), h = Math.ceil((map.height + PAD * 2) * s)
+    if (this.plan.width !== w) this.plan.width = w
+    if (this.plan.height !== h) this.plan.height = h
     const g = this.plan.getContext('2d')!
     g.clearRect(0, 0, this.plan.width, this.plan.height)
     // Coin haut-gauche de la tuile (x, z), qui s'étend de x - 0,5 à x + 0,5.

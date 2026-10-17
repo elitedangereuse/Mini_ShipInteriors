@@ -15,6 +15,41 @@ export const DIRS = [
   { dx: -1, dz: 0 }, // 3 ouest
 ]
 
+/**
+ * Ensemble d'arêtes du plan qui compte ses changements dans `version` (cf. ShipMap) : les
+ * quartiers y posent et y retirent leurs cloisons directement (cf. housing-home.js).
+ */
+class EdgeSet extends Set {
+  /** Privé : ni copié, ni sérialisé avec l'ensemble. */
+  #map
+
+  /** @param {ShipMap} map */
+  constructor(map) {
+    super()
+    this.#map = map
+  }
+
+  add(key) {
+    if (!this.has(key)) {
+      super.add(key)
+      this.#map.version++
+    }
+    return this
+  }
+
+  delete(key) {
+    if (!super.delete(key)) return false
+    this.#map.version++
+    return true
+  }
+
+  clear() {
+    if (!this.size) return
+    super.clear()
+    this.#map.version++
+  }
+}
+
 export class ShipMap {
   /**
    * @param {string[]} layout
@@ -24,15 +59,20 @@ export class ShipMap {
    *   walls : murs entre deux tuiles d'une même pièce (le labyrinthe de la zone thargoïde)
    */
   constructor(layout, options = {}) {
+    /**
+     * Compteur des changements du plan (pièces, portes, verrous, murs) : qui garde ce qu'il en a
+     * tiré (la mini-carte, les voyants des portes) le refait quand il a bougé.
+     */
+    this.version = 0
     /** Portes : tuile de la porte et direction (0..3) vers la tuile de l'autre côté. */
     this.doors = []
-    this.doorEdges = new Set()
+    this.doorEdges = new EdgeSet(this)
     /** Arêtes des portes verrouillées. */
-    this.locked = new Set()
+    this.locked = new EdgeSet(this)
     /** Arêtes murées à l'intérieur d'une pièce. */
-    this.walls = new Set()
+    this.walls = new EdgeSet(this)
     /** Murs bas (demi-murs des quartiers) : ils arrêtent les pas, pas la vue (cf. sight.js). */
-    this.low = new Set()
+    this.low = new EdgeSet(this)
     this.height = layout.length
     this.width = Math.max(...layout.map((l) => l.length))
     this.rooms = layout.map((line) =>
@@ -74,6 +114,7 @@ export class ShipMap {
   /** Change la pièce d'une tuile (null : du vide), le plan s'agrandissant au besoin. */
   setRoom(x, z, room) {
     if (x < 0 || z < 0) throw new Error(`Tuile hors du plan (${x}, ${z})`)
+    if (this.rawRoom(x, z) !== room || x >= this.width || z >= this.height) this.version++
     while (this.rooms.length <= z) this.rooms.push([])
     this.rooms[z][x] = room
     for (let r = 0; r < this.rooms.length; r++) while (this.rooms[r].length <= x) this.rooms[r].push(null)
