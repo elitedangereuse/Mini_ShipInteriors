@@ -502,26 +502,55 @@ const BOOT_STEPS = EN ? ['Power plant', 'Power distributor', 'Life support', 'Sh
 /** Circonférence de la jauge (rayon 57, cf. index.html). */
 const BOOT_ARC = 358.14
 
-/** Écran de démarrage : charge de 0 à 1, et l'étape en cours (par défaut, selon la charge). */
-export function bootProgress(ratio: number, step = BOOT_STEPS[Math.min(BOOT_STEPS.length - 1, Math.floor(ratio * BOOT_STEPS.length))]) {
+/** Charge vraie (plancher de la jauge) et charge affichée, qui avance toujours un peu. */
+let bootFloor = 0
+let bootShown = 0
+let bootTicker = 0
+
+function paintBoot(ratio: number) {
   const percent = Math.round(ratio * 100)
   const root = $('loading')
   root.style.setProperty('--p', String(ratio))
   root.setAttribute('aria-valuenow', String(percent))
   $('boot-arc').style.strokeDashoffset = String(BOOT_ARC * (1 - ratio))
   $('boot-pct').textContent = `${percent}\u202f%`
+}
+
+/**
+ * Entre deux annonces, la jauge continue d'avancer d'elle-même vers 99 %, de plus en plus
+ * lentement : une attente du site ou un montage long ne la fige plus. Elle ne recule jamais.
+ */
+function tickBoot() {
+  bootShown = Math.max(bootFloor, bootShown + (0.99 - bootShown) * 0.012)
+  paintBoot(bootShown)
+}
+
+/** Écran de démarrage : charge de 0 à 1, et l'étape en cours (par défaut, selon la charge). */
+export function bootProgress(ratio: number, step = BOOT_STEPS[Math.min(BOOT_STEPS.length - 1, Math.floor(ratio * BOOT_STEPS.length))]) {
+  bootFloor = Math.max(bootFloor, ratio)
+  bootShown = Math.max(bootShown, bootFloor)
+  paintBoot(bootShown)
   $('boot-step').textContent = step
+  if (!bootTicker && ratio < 1) bootTicker = window.setInterval(tickBoot, 50)
+}
+
+/** Nouvelle étape du démarrage, puis une image pour la peindre avant un long calcul. */
+export function bootStep(ratio: number, step: string): Promise<void> {
+  bootProgress(ratio, step)
+  return new Promise((r) => setTimeout(r, 0))
 }
 
 /** Le démarrage a échoué (un modèle qui ne vient pas, réseau coupé) : on le dit, plutôt qu'une jauge figée. */
 export function bootFailed() {
   const root = document.getElementById('loading')
   if (!root || root.classList.contains('done')) return
+  clearInterval(bootTicker)
   $('boot-step').textContent = tr('Échec du chargement : rechargez la page', 'Loading failed: please reload the page')
 }
 
 /** Vaisseau prêt : le saut, puis l'écran quitte la page (ses animations ne tournent plus). */
 export function bootDone() {
+  clearInterval(bootTicker)
   bootProgress(1, tr('Systèmes en ligne', 'Systems online'))
   const root = $('loading')
   // Laisser peindre la jauge pleine avant la pause, puis lancer le saut.

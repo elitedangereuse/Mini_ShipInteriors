@@ -141,7 +141,7 @@ import { faceOf } from './arena/select'
 import { ARENA_LEVEL, ARENA_LOBBY, type CharacterId } from '../shared/arena.js'
 import { LOBBY as SALVAGE_LOBBY, LOBBY_RETURN, ZONE_LEVEL } from '../shared/salvage.js'
 import { SalvageLobbyMusic } from './salvage/music'
-import { $, bootDone, bootFailed, bootProgress, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel, type ScreenBox } from './ui'
+import { $, bootDone, bootFailed, bootProgress, bootStep, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel, type ScreenBox } from './ui'
 import { LiftRide } from './lift-ride'
 import { INSTRUCTOR, Instructor, instructorRig, Tutorial, TUTORIAL_DECK } from './tutorial'
 import { TUTORIAL_EXIT, TUTORIAL_LEVEL, TUTORIAL_SPAWN } from '../shared/tutorial.js'
@@ -329,8 +329,10 @@ if (account) {
  * faut le savoir avant de dire où l'on se réveille (cf. resumePoint).
  */
 const quests = new QuestStore()
+bootProgress(0.95, tr('Lecture du journal de bord', 'Reading the logbook'))
 await within(quests.load(account?.name ?? null), 3000, undefined)
 /** Réponse du site sur les quartiers du CMDR, si elle est arrivée à temps (undefined : pas encore). */
+if (account) bootProgress(0.96, tr('Ouverture des quartiers', 'Opening the quarters'))
 const siteCabin = account ? await within<SiteCabin | null | undefined>(cabinRequest, 3000, undefined) : undefined
 /**
  * Enregistrement des quartiers d'un CMDR : sur le site, ou dans ce navigateur s'il ne répond pas.
@@ -347,6 +349,7 @@ setTotemArt({
   draw: (g, label) => drawTotem(g, label, levelName),
   color: (label) => identityOf(Number(label.split(':')[0]))?.color ?? '#59d8ff',
 })
+await bootStep(0.97, tr('Assemblage des ponts', 'Assembling the decks'))
 const decks = LEVELS.map((def) => new Deck(def))
 /** Les conduits de ventilation, hors des ponts du téléporteur : on y tombe par les toilettes (cf. flushToVents). */
 const vents = new Vents({ renderer, scene, squeak: (at) => sound.squeak(at) })
@@ -7176,6 +7179,7 @@ singlePassPanes(scene)
 
 // Compile tous les shaders avant la première image (pas d'à-coup au premier fondu de mur), et
 // envoie les textures du pont de départ pendant l'écran de chargement.
+await bootStep(0.98, tr('Calibrage des systèmes', 'Calibrating systems'))
 for (const d of decks) d.group.visible = true
 renderer.compile(scene, iso.camera)
 setDeck(deck)
