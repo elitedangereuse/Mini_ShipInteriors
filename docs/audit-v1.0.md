@@ -33,7 +33,6 @@ Mesuré au démarrage, en 1280 × 720, sur chacun des trois ponts communs :
 
 | | Pont principal (0) | Pont supérieur (1) | Cale (-1) |
 |---|---|---|---|
-| Appels de dessin | 465 | 250 | 380 |
 | Triangles | 364 k | 446 k | 268 k |
 | Programmes de shader (tout le jeu) | 143 | 143 | 145 |
 | Lumières ponctuelles évaluées par pixel | 11 | 11 | 11 |
@@ -186,9 +185,10 @@ utilisation, ce qui fausserait la première visite) :
   sont désormais sautées dans le shader, sans changer l'image. Voir `skipDarkLights` dans
   `src/lighting/rig.ts`.
 - **Double passe des transparents.** Les matières transparentes à deux faces étaient dessinées
-  deux fois par image, avec une recherche de shader à chaque passe : 11 à 23 objets par image (vitres, affiches,
-  silhouettes des portes, cônes des projecteurs), plus les traînées des balles. Sur un panneau plat,
-  ou pour une lumière additive qui n'écrit pas la profondeur, une seule passe donne la même image.
+  deux fois par image, avec une recherche de shader à chaque passe : 11 à 23 objets par image
+  (vitres, affiches, silhouettes des portes, cônes des projecteurs), plus les traînées des balles.
+  Sur un panneau plat, ou pour une lumière additive qui n'écrit pas la profondeur, une seule passe
+  donne la même image.
 - **Caustic Sour.** La lumière de ce cocktail changeait le nombre de lumières de la scène : tous
   les shaders éclairés se recompilaient (un à-coup), puis encore à chaque pièce découverte. Elle
   prend maintenant une lumière de la réserve.
@@ -243,8 +243,8 @@ utilisation, ce qui fausserait la première visite) :
   - le technicien et les Thargoïdes de la zone.
 
   Le registre `src/dispose.ts` (`keepShared`, `disposeOwned`) et `Avatar.dispose` libèrent ce qui
-  est propre à chacun et gardent ce qui est partagé. Mesuré : 4 essayages ajoutaient 28 géométries
-  ; après correction, plus rien.
+  est propre à chacun et gardent ce qui est partagé. Mesuré : 4 essayages ajoutaient 28
+  géométries ; après correction, plus aucune.
 - **Musiques de fond.** Un morceau décodé pèse de 11 à 64 Mio et restait en mémoire pour toujours,
   soit environ 400 Mio après toutes les activités. On ne garde plus que ceux qui jouent et les deux
   derniers écoutés.
@@ -271,8 +271,6 @@ utilisation, ce qui fausserait la première visite) :
 
 - **Serveur de dev.** Vite surveillait `assets/` (90 000 fichiers) et s'arrêtait dès que la limite
   du système était atteinte (ENOSPC). Il surveille désormais 977 fichiers.
-
-<!-- CORRIGE-SUITE -->
 
 ## Reste à faire
 
@@ -356,8 +354,8 @@ Classé par intérêt pour la v1.0. Rien de bloquant n'y reste.
   retélécharger les 13 Mo. `ships/catalog.json` et `paints.json` n'y entrent pas.
 - **45 modèles de la station.** Chacun décode sa propre copie de la même palette de 7 ko : 45
   requêtes, et environ 45 Mo de mémoire sur téléphone.
-- **Fichiers inutilisés.** 59 GLB, 586 ko, jamais téléchargés : 52 dans `station/`, 6 dans
-  `space/`, 1 dans `zone/`. La liste est dans le rapport d'audit des assets.
+- **Fichiers inutilisés.** 59 GLB, 586 ko, jamais téléchargés (liste en annexe). Ils ne pèsent
+  que sur le déploiement.
 - **`assets/`** (les packs Kenney) met 1,3 Go et 91 000 fichiers dans git.
 - **Bundle.** Le morceau `furniture` dépasse l'alerte de 900 ko (998 ko) : c'est du vrai contenu
   (77 meubles faits main). Il n'y a ni module en double ni code de debug, et seules les icônes
@@ -399,3 +397,25 @@ de passer en `Terminé` :
     - La molette sur le journal fait défiler sans zoomer.
     - En vue subjective, après une partie de basket, un clic reprend la mire.
 13. **Safari sur iOS 15**, si un appareil est disponible : le CMDR est reconnu.
+
+## Annexe : modèles jamais chargés
+
+Vérifiés contre les listes de modèles du code (`STATION_MODELS` dans `src/assets.ts`, `MODELS`
+dans `src/base/kit.ts`, `MODULAR`, `TRAIN` et `SPACE` dans `src/salvage/kit.ts`) et contre les
+chemins construits (vaisseaux, animaux, personnages, musiques, sons). Tous dans `public/assets/`.
+
+- `station/` (52) : balcony-floor-center, balcony-floor-corner, balcony-floor,
+  balcony-rail-center, balcony-rail-corner, balcony-rail, bed-double-cover, bed-single-cover,
+  chair-armrest, chair-cushion-headrest, chair-headrest, container-flat-open, door-double-closed,
+  door-double-half, door-single-closed, door-single-half, floor-corner, floor-panel-corner,
+  floor-panel-end, pipe-bend-diagonal, pipe-end, pipe-ring, rail-narrow, rail,
+  stairs-corner-inner, stairs-corner, stairs-handrail-single, stairs-handrail, stairs-ramp,
+  stairs-small-center, stairs-small-corner-inner, stairs-small-corner,
+  stairs-small-edge-handrail, stairs-small-edge, stairs-small-edges-handrail, stairs-small-edges,
+  stairs, structure-barrier-high, table-inset-small, wall-banner, wall-corner-banner,
+  wall-corner-round-banner, wall-corner-round, wall-door-banner, wall-door-center,
+  wall-door-edge-banner, wall-door-wide-banner, wall-door-wide, wall-pillar-banner,
+  wall-window-banner, wall-window-frame, wall-window-shutters (`.glb`).
+- `space/` (6) : craft_cargoB, craft_racer, craft_speederA, craft_speederB, craft_speederC,
+  craft_speederD (`.glb`).
+- `zone/` (1) : template-wall-corner.glb.
