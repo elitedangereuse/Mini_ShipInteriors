@@ -5843,7 +5843,8 @@ function bindPose() {
  */
 function seatPrompt(seat: Seated): { main: string; space?: string } | null {
   // Aux commandes d'un Krait (au hangar, ou sur la base au sol) : les réacteurs, puis le décollage.
-  if (hangar.aboardKrait) return { main: tr('Se lever', 'Stand up'), space: hangar.engines ? tr('Décoller', 'Take off') : tr('Démarrer les réacteurs', 'Start the thrusters') }
+  // Le décollage vers la base au sol est désactivé : Espace allume et coupe les réacteurs, sans plus.
+  if (hangar.aboardKrait) return { main: tr('Se lever', 'Stand up'), space: hangar.engines ? tr('Couper les réacteurs', 'Cut the thrusters') : tr('Démarrer les réacteurs', 'Start the thrusters') }
   if (groundBase.aboardKrait) return { main: tr('Se lever', 'Stand up'), space: groundBase.engines ? tr('Décoller', 'Take off') : tr('Démarrer les réacteurs', 'Start the thrusters') }
   if (claw) return { main: tr('Quitter', 'Leave'), space: claw.control.busy ? undefined : tr('Lâcher la pince', 'Drop the claw') }
   if (canJump(seat)) return { main: tr('Se lever', 'Stand up'), space: jumping ? undefined : tr('Saut FSD', 'FSD jump') }
@@ -5867,7 +5868,7 @@ function seatPrompt(seat: Seated): { main: string; space?: string } | null {
 /** Espace, installé sur un meuble. */
 function seatAction(seat: Seated) {
   if (planetarium.talking) return planetarium.next()
-  if (hangar.aboardKrait) return hangar.engines ? void groundBase.fly(true) : hangar.toggleEngines()
+  if (hangar.aboardKrait) return hangar.toggleEngines()
   if (groundBase.aboardKrait) return groundBase.seatAction()
   if (claw) return dropClaw()
   if (canJump(seat)) return void fsdJump()

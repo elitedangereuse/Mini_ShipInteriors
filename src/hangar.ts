@@ -25,8 +25,8 @@ import { MECH_HELP, MECH_ROOM } from '../shared/mechanic.js'
  * Cockpit : installé aux commandes (l'escabeau, cf. ship-bay.ts), le vaisseau ne s'estompe pas autour de
  * soi, ses tuyères s'éveillent, et Nico proteste s'il est dans le coin. Espace met les réacteurs
  * en route (quelques secondes au plus, cf. KRAIT_BURN) : ils rugissent, la cale tremble, et Nico
- * panique, pour tout le bord ; se lever les coupe. Espace encore, réacteurs allumés : on décolle
- * vers la base au sol (cf. base/client.ts).
+ * panique, pour tout le bord ; se lever, ou Espace encore, les coupe. Le décollage vers la base au
+ * sol (cf. base/client.ts) est désactivé pour l'instant.
  */
 
 type Station = 'parts' | 'thruster' | 'welder' | 'console' | 'cart' | 'fuel' | 'chock-port' | 'chock-starboard' | 'krait'
@@ -131,7 +131,7 @@ const ABOARD = [
 /** Ce qu'on lit en mettant les réacteurs en route. */
 const IGNITION = [
   tr('Tu appuies sur le gros bouton rouge. Les réacteurs de ton {ship} s\'éveillent dans un sifflement, puis rugissent. Espace pour décoller.', 'You press the big red button. Your {ship}\'s thrusters wake with a whine, then roar. Space to take off.'),
-  tr('Contact ! Ton {ship} vibre de la verrière au train, et le hangar avec lui. Quelque part, Nico hurle. Espace pour décoller.', 'Ignition! Your {ship} shakes from canopy to landing gear, and the hangar with it. Somewhere, Nico screams. Space to take off.'),
+  tr('Contact ! Ton {ship} vibre de la verrière au train, et le hangar avec lui. Quelque part, Nico hurle. Espace pour les couper.', 'Ignition! Your {ship} shakes from canopy to landing gear, and the hangar with it. Somewhere, Nico screams. Space to cut them.'),
 ]
 
 /** Espace aux commandes, quand les réacteurs d'un autre vaisseau tournent déjà (le relais n'en suit qu'un à la fois). */

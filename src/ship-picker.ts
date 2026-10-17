@@ -80,8 +80,8 @@ export class ShipPicker extends Modal {
     const intro = document.createElement('p')
     intro.className = 'salvage-intro'
     intro.textContent = tr(
-      'Le vaisseau posé sur le pad, celui que vous pilotez jusqu\'à la base au sol. Chacun voit le sien : celui de votre CMDR dans Elite Dangerous, tant que vous n\'en choisissez pas un autre ici.',
-      'The ship parked on the pad, the one you fly down to the ground base. Everyone sees their own: the one your CMDR flies in Elite Dangerous, until you pick another one here.',
+      'Le vaisseau posé sur le pad. Chacun voit le sien : celui de votre CMDR dans Elite Dangerous, tant que vous n\'en choisissez pas un autre ici.',
+      'The ship parked on the pad. Everyone sees their own: the one your CMDR flies in Elite Dangerous, until you pick another one here.',
     )
     this.grid.className = 'ship-picker-grid'
     this.grid.setAttribute('role', 'group')

@@ -612,7 +612,7 @@ export class Net {
     const force = now === Infinity
     if (!force && now - this.lastSent < 100) return
     const round = (v: number) => Math.round(v * 100) / 100
-    const msg = { x: round(s.x), z: round(s.z), yaw: round(s.yaw), level: s.level, anim: s.anim, ...(s.pose ? { pose: s.pose, py: round(s.py ?? 0) } : {}) }
+    const msg = { x: round(s.x), z: round(s.z), yaw: round(s.yaw), level: s.level, anim: s.anim, ...(s.pose ? { pose: s.pose } : {}), ...(s.pose || s.py ? { py: round(s.py ?? 0) } : {}) }
     const key = JSON.stringify(msg)
     if (!force && key === this.last && now - this.lastSent < 2000) return
     this.last = key

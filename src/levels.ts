@@ -982,7 +982,7 @@ export const LEVELS: LevelDef[] = [
       // Le logo de CMDR Arena : sur l'enseigne lumineuse, au-dessus de la porte (elle est du côté du
       // hall, contre la cloison), et peint au sol, sans son fond, au milieu du lobby.
       { model: 'arena-sign', x: 18.5, z: 3.66, rot: 0, solid: false },
-      { model: 'arena-logo', x: 18.5, z: 1.5, rot: 2, label: '1.6', solid: false },
+      { model: 'arena-logo', x: 18.5, z: 1.5, rot: 0, label: '1.6', solid: false },
       {
         model: 'arena-terminal', x: ARENA_TERMINAL.x, z: ARENA_TERMINAL.z, rot: 1, action: tr('Jouer à CMDR Arena', 'Play CMDR Arena'),
         interact: tr('Terminal de CMDR Arena : duels par équipes, jusqu\'à trois contre trois.', 'CMDR Arena terminal: team duels, up to three versus three.'),
