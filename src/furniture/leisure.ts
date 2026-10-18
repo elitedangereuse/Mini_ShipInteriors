@@ -355,7 +355,18 @@ const neonSign: Builder = ({ label = 'ARCADE' }) => {
 const vendingMachine: Builder = ({ random }) => {
   const g = new THREE.Group()
   const body = lit('#e0701e'), dark = lit(C.black), chrome = lit(C.chrome, 'metal')
-  g.add(box(0.66, 0.96, 0.42, body, 0, 0.48, 0.21, 0.02), box(0.5, 0.74, 0.02, dark, -0.06, 0.55, 0.42))
+  // La caisse est creuse derrière la vitre (x de -0,30 à 0,18, y de 0,19 à 0,93) : un couvercle,
+  // deux flancs pleins, le fond et le bas de la vitrine. Pleine, elle enterrait la vitrine, et la
+  // vitre se battait avec un panneau noir posé dans son plan.
+  g.add(
+    box(0.66, 0.03, 0.42, body, 0, 0.945, 0.21),
+    box(0.03, 0.93, 0.42, body, -0.315, 0.465, 0.21),
+    box(0.15, 0.93, 0.42, body, 0.255, 0.465, 0.21),
+    box(0.48, 0.74, 0.27, body, -0.06, 0.56, 0.135),
+    box(0.48, 0.19, 0.42, body, -0.06, 0.095, 0.21),
+  )
+  // Liseré noir autour de la vitre.
+  for (const [w, h, x, y] of [[0.5, 0.012, -0.06, 0.925], [0.5, 0.012, -0.06, 0.195], [0.012, 0.74, -0.304, 0.56], [0.012, 0.74, 0.184, 0.56]]) g.add(box(w, h, 0.006, dark, x, y, 0.423))
   // Fronton.
   const sign = drawnTexture(256, 48, (c) => {
     c.fillStyle = '#17181b'
