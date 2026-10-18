@@ -59,6 +59,8 @@ export interface Interactable {
    * son escabeau, puisqu'on s'assoit dans le cockpit (cf. ship-bay.ts). Par défaut, le meuble lui-même.
    */
   keep?: THREE.Vector3
+  /** Invite d'une porte verrouillée : posée sur l'arête, elle s'examine des deux côtés (cf. inSight). */
+  door?: true
 }
 
 /** Sons d'ambiance d'un pont : ceux des meubles, plus les bips des consoles du cockpit. */
@@ -1651,6 +1653,7 @@ export class Deck {
       position: new THREE.Vector3(mx, 0, mz),
       label: tr('Examiner', 'Examine'),
       text: () => this.closedText(x, z, dir) ?? tr('Porte verrouillée.', 'Locked door.'),
+      door: true,
     }
     if (this.map.isLocked(x, z, dir)) this.interactables.push(state.examine)
 
@@ -1700,6 +1703,7 @@ export class Deck {
         position: new THREE.Vector3(cx, 0, cz),
         label: tr('Examiner', 'Examine'),
         text: () => this.closedText(x, z, dir) ?? tr('Porte verrouillée.', 'Locked door.'),
+        door: true,
       })
       this.colliders.push(alongX ? { minX: cx - g, maxX: cx + g, minZ: cz - t, maxZ: cz + t } : { minX: cx - t, maxX: cx + t, minZ: cz - g, maxZ: cz + g })
     }

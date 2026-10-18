@@ -5642,6 +5642,12 @@ function distanceTo(item: Interactable): number {
 
 /** Rien ne sépare le joueur de l'objet : ni mur ni cloison (cf. shared/sight.js). */
 function inSight(item: Interactable): boolean {
+  // Une porte verrouillée compte pour un mur (cf. ShipMap.edge) : on vise son battant de notre côté.
+  if (item.door) {
+    const dx = player.position.x - item.position.x, dz = player.position.z - item.position.z
+    const len = Math.hypot(dx, dz) || 1
+    return lineOfSight(deck.map, player.position, { x: item.position.x + (dx / len) * 0.2, z: item.position.z + (dz / len) * 0.2 })
+  }
   return lineOfSight(deck.map, player.position, item.position)
 }
 
