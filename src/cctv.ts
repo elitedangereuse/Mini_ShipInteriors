@@ -74,6 +74,19 @@ export interface CctvHost {
 }
 
 const QUARTER = Math.PI / 2
+
+/**
+ * Copie de l'écran, lissée comme l'était la cible de rendu (le tube la bombe). En RGB, comme le
+ * canvas (sans alpha) : une copie en RGBA serait refusée par WebGL.
+ */
+function cctvFrame(w: number, h: number): THREE.FramebufferTexture {
+  const t = new THREE.FramebufferTexture(w, h)
+  t.format = THREE.RGBFormat
+  t.internalFormat = 'RGB8'
+  t.minFilter = t.magFilter = THREE.LinearFilter
+  return t
+}
+
 const pad = (n: number) => String(n).padStart(2, '0')
 
 function button(className: string, glyph: Parameters<typeof icon>[0], label: string, onClick: () => void, text = ''): HTMLButtonElement {
@@ -106,7 +119,12 @@ export class ShipCameras {
   private readonly stamp = document.createElement('time')
   private readonly dead = document.createElement('p')
 
-  private target: THREE.WebGLRenderTarget
+  /**
+   * L'image du jeu, recopiée de l'écran. Rendre la scène dans une cible à part compilait une
+   * seconde version de chacun de ses shaders (sans tone mapping, en linéaire) : le jeu figeait
+   * plusieurs secondes à l'ouverture, puis à chaque pièce filmée pour la première fois.
+   */
+  private frame = cctvFrame(1, 1)
   private readonly material: THREE.ShaderMaterial
   private readonly quadScene = new THREE.Scene()
   private readonly quadCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
@@ -115,7 +133,6 @@ export class ShipCameras {
   onToggle?: (open: boolean) => void
 
   constructor(private readonly host: CctvHost) {
-    this.target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 0 })
     this.material = new THREE.ShaderMaterial({
       uniforms: { tColor: { value: null }, uStatic: { value: 0 }, uDead: { value: 0 }, uTime: { value: 0 }, uRes: { value: new THREE.Vector2(1, 1) } },
       vertexShader: `
@@ -133,6 +150,8 @@ export class ShipCameras {
         uniform float uTime;
         uniform vec2 uRes;
         varying vec2 vUv;
+        // L'image recopiée est déjà passée au tone mapping et en sRGB : on la repasse en linéaire.
+        vec3 linear(vec3 c) { return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)); }
         float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
         void main() {
           vec2 c = vUv - 0.5;
@@ -145,7 +164,7 @@ export class ShipCameras {
             return;
           }
           vec2 shift = (uv - 0.5) * 0.007 + vec2(0.0016, 0.0);
-          vec3 rgb = vec3(texture2D(tColor, uv + shift).r, texture2D(tColor, uv).g, texture2D(tColor, uv - shift).b);
+          vec3 rgb = linear(vec3(texture2D(tColor, uv + shift).r, texture2D(tColor, uv).g, texture2D(tColor, uv - shift).b));
           // Une caméra de surveillance : presque du noir et blanc, tiré vers le bleu du phosphore.
           float lum = dot(rgb, vec3(0.299, 0.587, 0.114));
           rgb = mix(rgb, vec3(lum * 0.86, lum * 1.02, lum * 1.16), 0.72) * 1.18 + vec3(0.004, 0.008, 0.014);
@@ -156,15 +175,17 @@ export class ShipCameras {
           rgb = rgb * line * (0.97 + 0.03 * sin(uTime * 55.0)) + band + (grain - 0.5) * 0.06;
           float vig = pow(max(0.0, 16.0 * uv.x * uv.y * (1.0 - uv.x) * (1.0 - uv.y)), 0.3);
           gl_FragColor = vec4(max(rgb * vig, vec3(0.0)), 1.0);
-          #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }`,
       depthTest: false,
       depthWrite: false,
+      toneMapped: false,
     })
     const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.material)
     quad.frustumCulled = false
     this.quadScene.add(quad)
+    // Compilé pendant le chargement, pas à la première image des caméras.
+    host.renderer.compile(this.quadScene, this.quadCamera)
     this.build()
   }
 
@@ -301,17 +322,18 @@ export class ShipCameras {
     this.tick()
     const r = this.host.renderer
     const size = r.getDrawingBufferSize(new THREE.Vector2())
-    if (this.target.width !== size.x || this.target.height !== size.y) this.target.setSize(size.x, size.y)
+    if (this.frame.image.width !== size.x || this.frame.image.height !== size.y) {
+      this.frame.dispose()
+      this.frame = cctvFrame(size.x, size.y)
+    }
     const u = this.material.uniforms
     u.uStatic.value = this.noise
     u.uDead.value = this.current.dead ? 1 : 0
     u.uTime.value = this.clock
     u.uRes.value.set(size.x, size.y)
-    u.tColor.value = this.target.texture
-    r.setRenderTarget(this.target)
-    r.clear()
+    u.tColor.value = this.frame
     r.render(scene, camera)
-    r.setRenderTarget(null)
+    r.copyFramebufferToTexture(this.frame)
     r.render(this.quadScene, this.quadCamera)
     return true
   }
