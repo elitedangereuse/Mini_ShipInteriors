@@ -9,7 +9,7 @@ import type { Net, SalvageEnd, SalvageEvent, SalvageLobby, SalvageMember, Salvag
 import type { Player } from '../player'
 import type { RemotePlayer } from '../remote'
 import type { Dialog } from '../ui'
-import { cargoCanister } from '../furniture'
+import { backCrate } from './carry'
 import {
   BAY_BOOTH, BAY_CAMERAS, floorFx, FX, generateZone, groundHeight, inAirlock, LOBBY_RETURN, sightOrigin, lockerFront, lockerSpot, RULES, walkable, ZONE_LEVEL,
   zoneSight, type Zone,
@@ -876,34 +876,17 @@ export class SalvageClient {
     }
   }
 
-  /** Accroche un colis dans le dos du porteur (os du torse : il suit les animations). */
+  /** Accroche un colis dans le dos du porteur (cf. backCrate). */
   private carry(id: number) {
     const g = this.game!
     const avatar = id === this.host.net.id ? this.host.player.avatar : this.host.remotes.get(id)?.avatar
     const torso = avatar?.root.getObjectByName('torso')
     const current = g.carried.get(id)
-    if (!torso || current?.parent === torso) return
+    if (!avatar || !torso || current?.parent === torso) return
     current?.removeFromParent()
-    const c = cargoCanister(1)
-    // Repère de l'os, unités du modèle : on le recale sur la taille réelle du torse.
-    const box = new THREE.Box3()
-    torso.updateMatrixWorld(true)
-    const inv = new THREE.Matrix4().copy(torso.matrixWorld).invert()
-    torso.traverse((o) => {
-      const mesh = o as THREE.Mesh
-      if (!mesh.isMesh || !mesh.geometry) return
-      mesh.geometry.computeBoundingBox()
-      box.union(mesh.geometry.boundingBox!.clone().applyMatrix4(mesh.matrixWorld).applyMatrix4(inv))
-    })
-    if (box.isEmpty()) box.set(new THREE.Vector3(-0.4, 0, -0.3), new THREE.Vector3(0.4, 0.9, 0.3))
-    // Plaqué dans le dos, à sa taille réelle (celle du colis posé au sol), le bas au niveau des
-    // hanches : le porteur le sent passer.
-    const world = torso.getWorldScale(new THREE.Vector3()).y || 1
-    const scale = 1 / world
-    c.scale.setScalar(scale)
-    c.position.set((box.min.x + box.max.x) / 2, box.min.y, box.min.z - 0.1 * scale)
-    torso.add(c)
-    g.carried.set(id, c)
+    const c = backCrate(avatar.root)
+    if (c) g.carried.set(id, c)
+    else g.carried.delete(id)
   }
 
   private event(e: SalvageEvent) {

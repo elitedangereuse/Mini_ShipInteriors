@@ -9,6 +9,8 @@
 // (&look=robot.g pour un autre modèle, &only=sofa,cozy-bed).
 // Avec ?emote=o7 : une emote jouée en boucle par plusieurs apparences (&looks=…, &at=0.8 : figée à 0,8 s ;
 // &salute=x,y,z : l'angle du bras pour le salut ; &plaster : avec le pansement de Betty).
+// Avec ?colis : le colis de la zone thargoïde dans le dos de chaque sorte de personnage, en marche
+// (&looks=… ; &at=0.3 : figé ; &side, &back pour la vue).
 // Avec ?thargoid : le Thargoïde de la zone thargoïde dans chacune de ses humeurs, sur place, à côté
 // d'un CMDR pour l'échelle (&dark : dans le noir, à la lampe frontale ; &at=1.2 : figé ; &only=chase,attack).
 // Avec ?mechanic : Nico, le mécano du hangar, et le Mini Character dont il est fait (mêmes options que ?nurse).
@@ -42,6 +44,7 @@ import { lookRig, parseLook } from '../looks'
 import { placeSeats, SEATS } from '../seats'
 import { tempo } from '../tempo'
 import { ThargoidBody, type ThargoidMood } from '../salvage/thargoid'
+import { backCrate } from '../salvage/carry'
 import { nurseRig } from '../nurse'
 import { mechanicRig } from '../mechanic'
 import { gardenerRig } from '../gardener'
@@ -114,6 +117,7 @@ else if (params.has('mechanic')) await showNurse(mechanicRig, 'human.male.d')
 else if (params.has('gardener')) await showNurse(gardenerRig, 'human.female.d')
 else if (params.has('emote')) await showEmote(params.get('emote')!)
 else if (params.has('thargoid')) await showThargoid()
+else if (params.has('colis')) await showCrates()
 else if (params.has('holo')) await showHolo()
 else if (params.has('arena')) await showArena()
 else if (params.has('parcelle')) showPlot()
@@ -250,6 +254,42 @@ async function showArena() {
     if (!at) {
       for (const a of avatars) a.update(dt)
       if ((next -= dt) <= 0) { next = 1.2; play() }
+    }
+    renderer.render(scene, cam)
+    requestAnimationFrame(frame)
+  }
+  frame()
+}
+
+/** Le colis de la zone thargoïde dans le dos de chaque sorte de personnage, en marche (cf. salvage/carry.ts). */
+async function showCrates() {
+  const looks = (params.get('looks') ?? [
+    'human.male.a', 'human.female.c', 'suit.female.b.flight', 'suit.male.a.maverick', 'suit.male.c.kael', 'suit.female.d.basket',
+    'alien.male.d', 'robot.g', 'robot.h', 'robot.d', 'creature.orc', 'creature.o', 'creature.l',
+    'guardian.a', 'guardian.b', 'guardian.c', 'guardian.s', 'holo.echo',
+  ].join(',')).split(',')
+  const at = params.get('at')
+  const avatars: Avatar[] = []
+  for (const [i, id] of looks.entries()) {
+    const a = new Avatar(await lookRig(parseLook(id)))
+    a.root.position.set(((i % COLS) - (COLS - 1) / 2) * 1.1, -Math.floor(i / COLS) * 1.3, 0)
+    scene.add(a.root)
+    a.setLocomotion('walk', 0.8)
+    a.update(0)
+    backCrate(a.root)
+    avatars.push(a)
+    const l = label(id)
+    l.position.set(a.root.position.x, a.root.position.y - 0.2, 0.4)
+    scene.add(l)
+  }
+  if (at) for (const a of avatars) a.update(+at)
+  const clock = new THREE.Timer()
+  function frame() {
+    clock.update()
+    const dt = Math.min(clock.getDelta(), 0.05)
+    for (const a of avatars) {
+      a.setLocomotion('walk', 0.8)
+      a.update(at ? 0 : dt)
     }
     renderer.render(scene, cam)
     requestAnimationFrame(frame)
