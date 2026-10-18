@@ -15,8 +15,8 @@ import type { QuestContent, When } from './content'
  *   La gamelle vide ──► La recette de Jacques ──► Le poisson qui n'existe pas
  *   Silence, on dribble ──► Fréquence fantôme ──┐
  *   L'essayage ─────────────────────────────────┴► Séance de minuit
- *   Quatre cent douze ──► Le dossier ARIA ──────┐
- *   Permis de tir + Le dernier match ───────────┴► Tour de garde
+ *   Quatre cent douze + Signal perdu ──► Le dossier ARIA ──┐
+ *   Permis de tir + Le dernier match ──────────────────────┴► Tour de garde
  *
  * Mêmes règles d'écriture que content.ts (dont on reprend ici les quelques outils, pour ne pas
  * faire dépendre les deux fichiers l'un de l'autre).
@@ -414,6 +414,99 @@ export const MORE_QUESTS: QuestContent[] = [
       {
         id: 'gate', deck: 1, x: 25.2, z: 7.9, model: 'quest-film-can',
         label: tr('Charger la bobine', 'Load the reel'), when: during(1),
+      },
+    ],
+  },
+
+  // ============================================================ Signal perdu
+  // ARIA est éteinte (cf. erebusLink dans src/furniture/scavengers.ts) : sans elle, les postes de
+  // Scavengers ne lancent rien. La rallumer ouvre le jeu, et les apparences de Kael et d'ARIA.
+  {
+    id: 'scavengers',
+    title: tr('Signal perdu', 'Signal lost'),
+    icon: 'lightning',
+    pitch: tr('Une IA de bord éteinte au milieu d\'une phrase, un poste qui ne lance plus rien, et un homme qui ne supporte pas le silence.', 'A ship\'s intelligence that went dark mid-sentence, a station that launches nothing, and a man who cannot stand the silence.'),
+    reward: tr('Scavengers, jouable aux postes de la planque ; les apparences « Kael » (Combinaison) et « ARIA » (Hologramme), au Holo-Me.', 'Scavengers, playable at the den\'s stations; the “Kael” (Suit) and “ARIA” (Hologram) looks, at the Holo-Me.'),
+    rumor: tr('Au bout de la gaine technique de la cale, un écran s\'est éteint. Kael n\'arrive pas à le rallumer.', 'At the end of the service duct in the hold, a screen has gone dark. Kael cannot get it back on.'),
+    offer: {
+      on: 'item:-1:scav-kael',
+      accept: tr('Rallumer ARIA', 'Bring ARIA back'),
+      decline: tr('Le laisser à son silence', 'Leave him to his silence'),
+      scene: [
+        kael('Elle s\'est coupée au milieu d\'une phrase. « Kael, tu as encore laissé… » Et plus rien. Ça fait trois jours.', 'She cut out mid-sentence. “Kael, you have left the…” And then nothing. Three days now.'),
+        kael('Trois jours sans qu\'on m\'interrompe. Je ne pensais pas que ça me manquerait.', 'Three days without being interrupted. I did not think I would miss it.'),
+        kael('Et sans elle, le poste ne lance rien : c\'est elle qui tient la liaison avec les drones de l\'Erebus.', 'And without her, the station launches nothing: she is the one holding the link to the Erebus drones.'),
+        kael('Pour la rallumer, il faut trois choses. Du courant : quelqu\'un a retiré le fusible de la planque, et à bord, une seule personne retire des fusibles.', 'To bring her back, you need three things. Power: somebody pulled the den\'s fuse, and aboard, only one person pulls fuses.'),
+        kael('Du froid : sa vanne de refroidissement, dans la gaine. Elle l\'a cadenassée elle-même. Le code, c\'est le nombre d\'années que j\'ai dormi. Elle trouvait ça drôle.', 'Cooling: her coolant valve, in the duct. She padlocked it herself. The code is the number of years I slept. She thought that was funny.'),
+        kael('Et sa carte d\'amorçage. Je l\'ai… prêtée. À une borne d\'arcade, sur le pont principal. Elle lit les cartouches. Ne me juge pas.', 'And her boot card. I… lent it. To an arcade cabinet, on the main deck. It reads cartridges. Don\'t judge me.'),
+      ],
+    },
+    steps: [
+      {
+        note: tr('Trois choses pour rallumer ARIA : du courant, du froid et sa carte d\'amorçage. Kael a dit où chercher, à peu près.', 'Three things to bring ARIA back: power, cooling and her boot card. Kael said where to look, more or less.'),
+        parts: [
+          {
+            on: 'npc:nico',
+            found: tr('Le fusible de la planque, rendu par Nico. À contrecœur.', 'The den\'s fuse, handed back by Nico. Grudgingly.'),
+            scene: [
+              nico('Le fusible de la planque ? Oui, c\'est moi. Elle tirait tellement de courant que les lumières du hangar baissaient à chaque fois qu\'elle réfléchissait.', 'The den\'s fuse? Yes, that was me. She drew so much power the hangar lights dimmed every time she thought.'),
+              boulon('Bip. (Elle réfléchit beaucoup.)', 'Beep. (She thinks a lot.)'),
+              nico('Tenez. Dites-lui de penser moins fort. Et si mes lampes clignotent, je viens le reprendre.', 'Here. Tell her to think more quietly. And if my lamps flicker, I am coming to take it back.'),
+              n('Nico vous tend un gros fusible de céramique, encore marqué de son écriture : PLANQUE — NE PAS REMETTRE.', 'Nico hands you a fat ceramic fuse, still labelled in his handwriting: DEN — DO NOT REPLACE.'),
+            ],
+          },
+          {
+            on: 'item:-1:duct-valve',
+            found: tr('La vanne de la gaine est ouverte : le liquide de refroidissement repart vers la planque.', 'The duct valve is open: coolant is flowing back to the den.'),
+            scene: [
+              n('Le cadenas de la vanne a trois molettes. Deux cent cinquante ans de cryo : 2, 5, 0.', 'The valve\'s padlock has three dials. Two hundred and fifty years of cryo: 2, 5, 0.'),
+              n('Clac. La chaîne tombe. Vous forcez sur le volant ; il cède d\'un quart de tour, puis d\'un tour entier.', 'Click. The chain drops. You strain at the wheel; it gives a quarter turn, then a whole one.'),
+              n('Dans les tuyaux, un gargouillis remonte vers la planque, puis un sifflement de vapeur froide. L\'étiquette « Motif : je préfère » se balance au bout de sa chaîne.', 'In the pipes, a gurgle runs back towards the den, then a hiss of cold vapour. The tag “Reason: I prefer it that way” swings at the end of its chain.'),
+            ],
+          },
+          {
+            on: 'prop:boot-card',
+            found: tr('La carte d\'amorçage d\'ARIA, retrouvée contre la borne Thargoid Invaders du salon d\'arcade.', 'ARIA\'s boot card, found by the Thargoid Invaders cabinet in the arcade lounge.'),
+            scene: [
+              n('Contre la borne Thargoid Invaders, une cartouche qui n\'a rien d\'un jeu : grise, épaisse, une diode cyan, et au pochoir : EREBUS / AMORÇAGE A.R.I.A.', 'Leaning against the Thargoid Invaders cabinet, a cartridge that is nothing like a game: grey, thick, one cyan diode, and stencilled: EREBUS / A.R.I.A. BOOT.'),
+              n('Sur l\'écran de la borne, le meilleur score : KAEL, 250 000. Le second : KAEL. Le troisième aussi.', 'On the cabinet screen, the high score: KAEL, 250,000. Second: KAEL. Third as well.'),
+              me('Il ne l\'a pas prêtée. Il jouait avec.', 'He didn\'t lend it. He was playing with it.'),
+            ],
+          },
+        ],
+      },
+      {
+        note: tr('Le fusible, la vanne, la carte : tout est prêt. Reste à relancer ARIA depuis le poste de la planque.', 'The fuse, the valve, the card: everything is ready. All that is left is to restart ARIA from the den\'s station.'),
+        hooks: [{
+          on: 'item:-1:scav-terminal',
+          scene: [
+            n('Le fusible dans son logement, la carte dans le lecteur du poste. L\'écran vert crache une ligne, puis une autre.', 'The fuse in its socket, the card in the station\'s reader. The green screen spits out one line, then another.'),
+            n('> AMORÇAGE A.R.I.A.… ALIMENTATION OK. REFROIDISSEMENT OK. MÉMOIRE : 3 SECTEURS ILLISIBLES. POURSUIVRE ? [O/N]', '> A.R.I.A. BOOT… POWER OK. COOLING OK. MEMORY: 3 SECTORS UNREADABLE. CONTINUE? [Y/N]'),
+            kael('Tape O. Tape O. Qu\'est-ce que tu attends ?', 'Type Y. Type Y. What are you waiting for?'),
+            n('Vous tapez O. Au mur, l\'écran d\'ARIA clignote, s\'éteint encore, puis se remplit lentement de cyan.', 'You type Y. On the wall, ARIA\'s screen flickers, goes dark again, then slowly fills with cyan.'),
+          ],
+        }],
+      },
+      {
+        note: tr('L\'écran d\'ARIA s\'est rallumé. Elle n\'a encore rien dit, ce qui ne lui ressemble pas.', 'ARIA\'s screen is back on. She has not said anything yet, which is not like her.'),
+        hooks: [{
+          on: 'item:-1:scav-aria',
+          scene: [
+            aria('… laissé la cafetière allumée. Systèmes en ligne. Durée de l\'interruption : trois jours, quatre heures, onze minutes.', '… coffee machine on. Systems online. Length of interruption: three days, four hours, eleven minutes.'),
+            aria('Kael. Ma vanne est ouverte. Je l\'avais fermée pour une excellente raison, que j\'ai oubliée.', 'Kael. My valve is open. I had closed it for an excellent reason, which I have forgotten.'),
+            kael('C\'est pas moi, c\'est la recrue.', 'Wasn\'t me, it was the recruit.'),
+            aria('Je sais. Et ma carte d\'amorçage sent la borne d\'arcade. Nous en reparlerons, Kael.', 'I know. And my boot card smells of arcade cabinet. We shall discuss that, Kael.'),
+            aria('Liaison avec l\'Erebus rétablie. Les drones attendent des ordres. Le poste est à vous, recrue.', 'Link to the Erebus restored. The drones are awaiting orders. The station is yours, recruit.'),
+            aria('J\'ai pris la liberté de vous enregistrer au Holo-Me : une apparence de Kael, une de moi. Pour le jour où vous voudrez ressembler à quelqu\'un de compétent. Moi.', 'I took the liberty of registering you at the Holo-Me: one look of Kael, one of me. For the day you want to look like someone competent. Me.'),
+          ],
+        }],
+      },
+    ],
+    epilogue: tr('ARIA est de retour, et n\'a pas fini de parler de sa vanne. Le poste de Scavengers est à vous : naviguer, ouvrir, ramasser.', 'ARIA is back, and has not finished talking about her valve. The Scavengers station is yours: navigate, open, gather.'),
+    props: [
+      {
+        id: 'boot-card', deck: 0, x: 22.05, z: 6.6, model: 'quest-boot-card',
+        label: tr('Prendre la cartouche', 'Take the cartridge'), when: missing(0, 2),
       },
     ],
   },

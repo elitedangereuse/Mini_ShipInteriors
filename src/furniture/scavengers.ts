@@ -44,6 +44,14 @@ const C = {
   suitDark: '#2d3748',
 }
 
+/**
+ * La liaison avec l'Erebus, telle que la vit ce joueur (cf. la quête « Signal perdu », main.ts) :
+ * tant qu'ARIA n'est pas rallumée, son écran de la planque dort (`aria`), et tant que la quête
+ * n'est pas finie, les postes du jeu n'affichent que leur écran de veille (`game`). Ailleurs (la
+ * galerie), tout est allumé.
+ */
+export const erebusLink = { aria: true, game: true }
+
 type G = CanvasRenderingContext2D
 const rect = (g: G, x: number, y: number, w: number, h: number, color: string) => {
   g.fillStyle = color
@@ -460,6 +468,40 @@ function drawAria(c: G, t: number) {
   for (const [x, y] of [[3, 3], [28, 3], [3, 28], [28, 28]]) rect(c, x, y, 1, 1, A.circuit)
 }
 
+/** ARIA éteinte : un écran noir, son reflet, et la diode de veille qui respire. */
+function drawAsleep(c: G, t: number) {
+  rect(c, 0, 0, 128, 128, '#020509')
+  const sheen = c.createLinearGradient(0, 0, 128, 128)
+  sheen.addColorStop(0, 'rgba(128, 240, 255, 0.05)')
+  sheen.addColorStop(0.5, 'rgba(128, 240, 255, 0)')
+  c.fillStyle = sheen
+  c.fillRect(0, 0, 128, 128)
+  const breath = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(t * 1.2))
+  c.fillStyle = `rgba(0, 229, 255, ${0.25 * breath})`
+  c.fillRect(58, 104, 12, 4)
+  c.fillStyle = `rgba(0, 229, 255, ${breath})`
+  c.fillRect(62, 105, 4, 2)
+  c.fillStyle = 'rgba(0, 145, 161, 0.35)'
+  c.font = 'bold 9px monospace'
+  c.textAlign = 'center'
+  c.fillText(tr('VEILLE', 'STANDBY'), 64, 98)
+  scanlines(c, 128, 128, 4)
+}
+
+/** Le poste sans ARIA : la liaison avec l'Erebus ne répond pas. */
+function drawNoCarrier(c: G, t: number) {
+  rect(c, 0, 0, 256, 192, '#050a06')
+  c.font = 'bold 14px monospace'
+  c.textAlign = 'left'
+  c.fillStyle = C.phosphorDim
+  c.fillText('> LINK EREBUS', 14, 40)
+  c.fillText(`> A.R.I.A. ${tr('HORS LIGNE', 'OFFLINE')}`, 14, 64)
+  c.fillStyle = Math.floor(t * 1.5) % 2 ? C.threat : C.phosphorDim
+  c.fillText(tr('AUCUNE RÉPONSE', 'NO CARRIER'), 14, 100)
+  c.fillStyle = C.phosphorDim
+  c.fillText('>' + (Math.floor(t * 2) % 2 ? '_' : ''), 14, 136)
+}
+
 // ---------------------------------------------------------------- la planque
 
 /** Plan d'épave du jeu (vue de mission) : salles reliées, portes, deux drones, une menace. */
@@ -581,8 +623,9 @@ const scavTerminal: Builder = () => {
   g.add(box(0.46, 0.35, 0.02, lit('#0b0d0b'), -0.08, 0.675, 0.108))
   g.add(box(0.012, 0.012, 0.01, glow(C.phosphor), 0.14, 0.475, 0.112))
   const main = animatedScreen(256, 192, 8, (c, t) => {
-    // L'écran-titre, puis une mission, en boucle.
-    if (t % 30 < 12) drawTitle(c, t % 30)
+    // L'écran-titre, puis une mission, en boucle ; sans ARIA, la liaison qui ne répond pas.
+    if (!erebusLink.game) drawNoCarrier(c, t)
+    else if (t % 30 < 12) drawTitle(c, t % 30)
     else drawMission(c, t)
     scanlines(c, 256, 192)
   })
@@ -598,6 +641,14 @@ const scavTerminal: Builder = () => {
     rect(c, 0, 0, 128, 96, '#050705')
     c.font = 'bold 11px monospace'
     c.textAlign = 'left'
+    if (!erebusLink.game) {
+      for (let i = 0; i < 3; i++) {
+        c.fillStyle = C.phosphorDim
+        c.fillText(`D${i + 1}`, 6, 18 + i * 29)
+        c.fillText('--', 84, 18 + i * 29)
+      }
+      return scanlines(c, 128, 96, 2)
+    }
     const drones = [
       { name: 'D1', hp: 0.9 - 0.1 * Math.abs(Math.sin(t * 0.2)), color: C.phosphor },
       { name: 'D2', hp: 0.45 + 0.08 * Math.sin(t * 0.5), color: C.scrap },
@@ -643,7 +694,8 @@ const scavTerminal: Builder = () => {
     update: (t) => {
       main.tick(t)
       status.tick(t)
-      leds.forEach((m, i) => m.color.set(i === 1 ? C.scrap : C.phosphor).multiplyScalar(Math.sin(t * (7 + i * 3.3) + i) > 0 ? 1 : 0.2))
+      if (!erebusLink.game) leds.forEach((m, i) => m.color.set(i === 1 ? C.threat : C.phosphorDim).multiplyScalar(i === 1 && t % 1.6 < 0.8 ? 1 : 0.3))
+      else leds.forEach((m, i) => m.color.set(i === 1 ? C.scrap : C.phosphor).multiplyScalar(Math.sin(t * (7 + i * 3.3) + i) > 0 ? 1 : 0.2))
     },
   }
 }
@@ -652,8 +704,10 @@ const scavTerminal: Builder = () => {
  * ARIA, l'IA de l'Erebus (adossée, face à +z, 1,5 de large) : son visage sur un grand écran à
  * coins coupés, deux colonnes de télémétrie, et la gerbe de câbles qui l'alimente.
  */
-const scavAria: Builder = ({ random }) => {
+const scavAria: Builder = ({ random, label }) => {
   const g = new THREE.Group(), live = new THREE.Group()
+  // Seule celle de la planque (`den`, cf. levels.ts) attend qu'on la rallume.
+  const asleep = () => label === 'den' && !erebusLink.aria
   const dark = lit(C.ironDark, 'metal')
   // Châssis à pans coupés.
   const frame = new THREE.Shape()
@@ -664,6 +718,7 @@ const scavAria: Builder = ({ random }) => {
   const body = mesh(new THREE.ExtrudeGeometry(frame, { depth: 0.06, bevelEnabled: false }), dark, 0, 0.54, 0)
   g.add(body)
   const face = animatedScreen(128, 128, 10, (c, t) => {
+    if (asleep()) return drawAsleep(c, t)
     c.save()
     c.scale(4, 4)
     drawAria(c, t)
@@ -688,6 +743,7 @@ const scavAria: Builder = ({ random }) => {
     const rows = Array.from({ length: 14 }, () => ({ w: 0.2 + next() * 0.8, speed: 0.3 + next() * 1.5, phase: next() * 6 }))
     const screen = animatedScreen(48, 160, 6, (c, t) => {
       rect(c, 0, 0, 48, 160, '#04121c')
+      if (asleep()) return
       rows.forEach((r, i) => {
         const w = 40 * r.w * (0.6 + 0.4 * Math.sin(t * r.speed + r.phase))
         rect(c, 4, 6 + i * 11, w, 5, i % 5 === 2 ? '#80f0ff' : i % 3 ? '#00bcd4' : '#006070')
@@ -720,7 +776,7 @@ const scavAria: Builder = ({ random }) => {
     update: (t) => {
       face.tick(t)
       for (const s of columns) s.tick(t)
-      edge.color.set(C.aria).multiplyScalar(0.7 + 0.3 * Math.sin(t * 1.4))
+      edge.color.set(C.aria).multiplyScalar(asleep() ? 0.06 : 0.7 + 0.3 * Math.sin(t * 1.4))
     },
   }
 }

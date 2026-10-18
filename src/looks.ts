@@ -165,8 +165,8 @@ export const RACES: Race[] = [
       {
         // Kael, le héros de Scavengers : sa tête (cf. `persona`), sa combinaison ardoise (ses
         // liserés restent gris tant qu'on ne les repeint pas : le vert phosphore est sur son
-        // équipement, cf. looks-scavengers.ts). Elle ne s'achète pas : lancer le jeu depuis un de
-        // ses postes l'offre (cf. shared/quests.js).
+        // équipement, cf. looks-scavengers.ts). Elle ne s'achète pas : la quête « Signal perdu »
+        // l'offre (cf. shared/quests.js).
         id: 'kael',
         label: 'Kael',
         swatch: '#4a5568',

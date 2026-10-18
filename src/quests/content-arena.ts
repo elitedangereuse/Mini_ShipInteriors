@@ -20,7 +20,7 @@ import type { QuestContent, When } from './content'
  *                         ├► Calibrage ───────────────► La gamelle vide, Quatre cent douze
  *                         ├► Mauvaises herbes ────────► Silence, on dribble
  *                         ├► Le dernier verre ────────► La recette de Jacques (avec La gamelle vide)
- *                         └► Permis de tir, L'essayage, Scavengers (les apparences de Kael et d'ARIA)
+ *                         └► Permis de tir, L'essayage, Signal perdu (Scavengers, et les apparences de Kael et d'ARIA)
  *
  * Plus directes que les autres : leur journal dit où aller, c'est leur rôle. Sauf Le dernier
  * verre : le bar de Jacques se cherche, sans indice sur son entrée. Mêmes outils d'écriture que

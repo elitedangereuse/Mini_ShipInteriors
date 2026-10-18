@@ -86,6 +86,7 @@ import { chosenShip, pickedShip, saveEliteShip, saveShip, ShipBay } from './ship
 import { ShipPicker } from './ship-picker'
 import { elitePaintOf, FACTORY, findPaint, paintOf, saveElitePaint, savePaint } from './ship-paint'
 import { hangarDisplay, kraitPower } from './furniture/hangar'
+import { erebusLink } from './furniture/scavengers'
 import { edShipFromElite, silhouetteRects } from './ed-ships'
 import { GARDENER, Gardener, gardenerRig, type GardenerReport } from './gardener'
 import { GARDEN_LEVEL } from '../shared/gardener.js'
@@ -443,6 +444,35 @@ void ClubCrowd.load(deckById(-1)).then((crowd) => {
 /** Kael, dans la planque des Scavengers (cf. src/scavengers.ts) : chargé après le reste, lui aussi. */
 let kael: Kael | null = null
 void Kael.load(deckById(-1)).then((k) => { kael = k })
+/**
+ * ARIA, éteinte tant qu'on ne l'a pas rallumée (cf. la quête « Signal perdu », shared/quests.js) :
+ * son écran se rallume au poste (étape 2), le jeu s'ouvre à la fin de la quête. D'ici là, elle et
+ * Kael n'ont pas les mêmes répliques.
+ */
+function syncErebusLink() {
+  const state = quests.state('scavengers')
+  erebusLink.aria = !!state && (state.done || state.step >= 2)
+  erebusLink.game = !!state?.done
+}
+syncErebusLink()
+quests.subscribe(syncErebusLink)
+const ARIA_ASLEEP = [
+  tr('L\'écran d\'ARIA est noir. Dans un coin, une diode cyan respire, très lentement.', 'ARIA\'s screen is black. In one corner, a cyan diode breathes, very slowly.'),
+  tr('Vous tapotez le cadre. Rien. Pour une fois, personne ne vous fait remarquer que c\'est inutile.', 'You tap the frame. Nothing. For once, nobody points out that it is pointless.'),
+  tr('Sur l\'écran éteint, votre reflet, et celui de Kael derrière vous, qui attend.', 'On the dark screen, your reflection, and Kael\'s behind you, waiting.'),
+]
+const KAEL_ALONE = [
+  tr('Kael : « Elle s\'est coupée au milieu d\'une phrase. Je ne saurai jamais ce que j\'avais encore laissé allumé. »', 'Kael: “She cut out mid-sentence. I will never know what I had left on this time.”'),
+  tr('Kael : « Sans ARIA, le poste ne lance rien. Je tape les commandes quand même. Par habitude. »', 'Kael: “Without ARIA, the station launches nothing. I type the commands anyway. Out of habit.”'),
+  tr('Kael : « Trois jours de silence. Je parle aux drones, maintenant. Ils ne répondent pas non plus. »', 'Kael: “Three days of silence. I talk to the drones now. They don\'t answer either.”'),
+]
+for (const it of deckById(-1).interactables) {
+  const model = it.furniture?.model
+  if (model !== 'scav-kael' && !(model === 'scav-aria' && it.furniture?.label === 'den')) continue
+  const awake = it.text
+  const asleep = model === 'scav-kael' ? KAEL_ALONE : ARIA_ASLEEP
+  it.text = () => (erebusLink.aria ? (typeof awake === 'function' ? awake() : awake) ?? '' : asleep)
+}
 for (const it of deckById(-1).interactables) {
   // Sur la piste du Zorb, on danse.
   if (it.furniture?.model === 'dance-floor') it.onInteract = () => emote('danse')
@@ -5610,21 +5640,13 @@ function tryInteract() {
 }
 
 /**
- * Ouvre Scavengers (depuis le poste de la planque, ou celui qu'on a posé chez soi). La première
- * fois, les apparences de Kael et d'ARIA arrivent au Holo-Me : une « quête » d'une seule étape,
- * sans récit, que le site tient comme les autres (cf. shared/quests.js). Elle attend la recrue du
- * sergent : avant, le jeu s'ouvre sans rien offrir, et l'offrira à la partie suivante.
+ * Ouvre Scavengers (depuis le poste de la planque, ou celui qu'on a posé chez soi), une fois ARIA
+ * rallumée (la quête « Signal perdu ») : avant, le poste ne répond pas.
  */
 function openScavengers() {
-  gameEmbed.open('scavengers')
-  const quest = 'scavengers'
-  if (!quests.ready || quests.isDone(quest)) return
-  if (!quests.state(quest)) quests.start(quest)
-  // Un invité n'a pas de garde-robe à remplir : pas d'annonce.
-  if (quests.advance(quest) && linked) {
-    sound.credits(true)
-    chat.add('system', tr('Lien avec l\'Erebus établi : les apparences « Kael » (Combinaison) et « ARIA » (Hologramme) sont à toi, au Holo-Me.', 'Link to the Erebus established: the “Kael” (Suit) and “ARIA” (Hologram) looks are yours, at the Holo-Me.'))
-  }
+  if (erebusLink.game) return gameEmbed.open('scavengers')
+  player.interact()
+  dialog.show(tr('Le poste ne répond pas : LIAISON EREBUS, AUCUNE RÉPONSE. Sans ARIA, il ne lance rien.', 'The station does not respond: EREBUS LINK, NO CARRIER. Without ARIA, it launches nothing.'))
 }
 
 function interactWith(item: Interactable) {

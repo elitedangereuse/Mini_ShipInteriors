@@ -13,7 +13,7 @@ import { dampAngle } from './player'
  * que dans l'affichage : chaque client a le sien.
  */
 
-/** Son apparence : celle que les joueurs gagnent en lançant le jeu, telle quelle. */
+/** Son apparence : celle que les joueurs gagnent en rallumant ARIA (« Signal perdu »), telle quelle. */
 const KAEL_LOOK = 'suit.male.d.kael'
 
 /** À cette distance, il se tourne vers le joueur. */

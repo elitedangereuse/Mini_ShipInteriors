@@ -51,10 +51,9 @@ export const QUESTS = [
   { id: 'quatre-cent-douze', steps: [0, 3, 0], requires: ['calibrage'], reward: { skins: ['robot.d'] } },
   // Écho, la projection que personne n'a validée : l'apparence « Hologramme », au Holo-Me.
   { id: 'essayage', steps: [3, 0, 0], requires: ['bon-pour-le-service'], reward: { skins: ['holo.echo'] } },
-  // Pas une histoire, une formalité : lancer Scavengers depuis un de ses postes (cf. main.ts) offre
-  // les apparences de Kael et d'ARIA. Le journal ne la montre pas (elle n'a pas de récit). Comme
-  // tout le reste, elle attend la recrue du sergent : avant, le jeu s'ouvre sans rien offrir.
-  { id: 'scavengers', steps: [0], requires: ['bon-pour-le-service'], reward: { skins: ['suit.kael', 'holo.aria'] } },
+  // ARIA, éteinte dans la planque de la cale : la rallumer ouvre Scavengers à ses postes (cf.
+  // main.ts : avant, ils ne lancent rien) et offre les apparences de Kael et d'ARIA.
+  { id: 'scavengers', steps: [3, 0, 0], requires: ['bon-pour-le-service'], reward: { skins: ['suit.kael', 'holo.aria'] } },
   // --- Celles qui se méritent : elles attendent d'autres histoires (`requires`).
   // L'émission pirate : son album au jukebox (cf. src/music.ts), et le poste qui la captait.
   { id: 'frequence-fantome', steps: [0, 3, 0, 0], requires: ['silence-on-dribble'], reward: { items: ['pirate-radio'] } },
@@ -64,8 +63,8 @@ export const QUESTS = [
   { id: 'poisson-fantome', steps: [0, 0, 0, 0], requires: ['recette-de-jacques'], reward: { credits: 3000 } },
   // La bobine sans étiquette : son film à la régie du cinéma, et un projecteur pour ses quartiers.
   { id: 'seance-de-minuit', steps: [3, 0], requires: ['frequence-fantome', 'essayage'], reward: { items: ['reel-projector'] } },
-  // La mémoire d'ARIA : son écran, pour ses quartiers.
-  { id: 'dossier-aria', steps: [3, 0, 0], requires: ['quatre-cent-douze'], reward: { credits: 5000, items: ['scav-aria'] } },
+  // La mémoire d'ARIA : son écran, pour ses quartiers. Il faut l'avoir rallumée d'abord.
+  { id: 'dossier-aria', steps: [3, 0, 0], requires: ['quatre-cent-douze', 'scavengers'], reward: { credits: 5000, items: ['scav-aria'] } },
   // La ronde du sergent : le poste de surveillance, sous la Promenade, et ses caméras.
   { id: 'tour-de-garde', steps: [4, 0, 0], requires: ['permis-de-tir', 'dernier-match', 'dossier-aria'], room: { level: 0, room: 'v' }, reward: { credits: 5000 } },
 ]

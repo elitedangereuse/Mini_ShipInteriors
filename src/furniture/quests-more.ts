@@ -538,6 +538,39 @@ const slate: Builder = () => {
   return { solid: g }
 }
 
+/**
+ * La carte d'amorçage d'ARIA (« Signal perdu ») : une grosse cartouche grise au pochoir de l'Erebus,
+ * appuyée contre une borne d'arcade, sa diode cyan en veille.
+ */
+const bootCard: Builder = () => {
+  const g = new THREE.Group()
+  const live = new THREE.Group()
+  const tilt = new THREE.Group()
+  tilt.position.set(0, 0, 0.04)
+  tilt.rotation.x = -0.32
+  tilt.add(box(0.22, 0.27, 0.05, lit('#5b6068'), 0, 0.135, 0, 0.01))
+  tilt.add(box(0.16, 0.03, 0.056, lit(C.iron, 'metal'), 0, 0.018, 0))
+  const label = drawnTexture(64, 64, (c) => {
+    c.fillStyle = '#0a1628'
+    c.fillRect(0, 0, 64, 64)
+    c.fillStyle = C.cyan
+    c.font = 'bold 11px monospace'
+    c.textAlign = 'center'
+    c.fillText('EREBUS', 32, 24)
+    c.fillText('A.R.I.A.', 32, 42)
+    c.fillRect(8, 50, 48, 2)
+  })
+  tilt.add(part(new THREE.PlaneGeometry(0.15, 0.15), new THREE.MeshBasicMaterial({ map: label }), 0, 0.155, 0.026))
+  g.add(tilt)
+  const ledTilt = new THREE.Group()
+  ledTilt.position.copy(tilt.position)
+  ledTilt.rotation.copy(tilt.rotation)
+  const led = part(new THREE.BoxGeometry(0.022, 0.022, 0.008), glow(C.cyan), 0.075, 0.05, 0.028)
+  ledTilt.add(led)
+  live.add(ledTilt)
+  return { solid: g, live, update: (t) => (led.visible = t % 2.4 < 1.6) }
+}
+
 export const QUEST_REWARDS = {
   'quest-beacon': beacon,
   'quest-sprout': sprout,
@@ -556,6 +589,7 @@ export const QUEST_REWARDS = {
   'quest-film-strip': filmStrip,
   'reel-projector': reelProjector,
   'quest-data-shard': dataShard,
+  'quest-boot-card': bootCard,
   'quest-checkpoint': checkpoint,
   'quest-beat-mark': beatMark,
 } satisfies Record<string, Builder>

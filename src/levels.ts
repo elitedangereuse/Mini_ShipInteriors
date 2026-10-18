@@ -1294,7 +1294,7 @@ export const LEVELS: LevelDef[] = [
       },
       { model: 'scav-sign', x: 25.85, z: 11.64, solid: false },
       {
-        model: 'scav-aria', x: 24, z: 11.64, solid: false, action: tr('Parler à ARIA', 'Talk to ARIA'),
+        model: 'scav-aria', x: 24, z: 11.64, label: 'den', solid: false, action: tr('Parler à ARIA', 'Talk to ARIA'),
         interact: [
           tr('ARIA : « Systèmes en ligne. Recherche d\'épaves abandonnées. » Son regard cyan te suit dans la pièce.', 'ARIA: “Systems online. Scanning for derelict ships.” Her cyan gaze follows you around the room.'),
           tr('ARIA : « On connaît la chanson. Passer le briefing ? » Tu n\'as rien demandé.', 'ARIA: “We know the drill. Skip the briefing?” You did not ask for anything.'),

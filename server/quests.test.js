@@ -53,6 +53,9 @@ test('une quête peut en attendre d\'autres : elles existent, sans boucle, et s\
   // Seule la recrue du sergent n'attend rien ; elle ouvre les autres recrues, et chaque histoire du bord attend la sienne.
   assert.deepEqual(QUESTS.filter((q) => questAvailable(q, [])).map((q) => q.id), ['bon-pour-le-service'])
   assert.ok(questAvailable(questById('scavengers'), ['bon-pour-le-service']))
+  // Le dossier ARIA attend qu'on l'ait rallumée.
+  assert.equal(questAvailable(questById('dossier-aria'), ['bon-pour-le-service', 'calibrage', 'quatre-cent-douze']), false)
+  assert.ok(questAvailable(questById('dossier-aria'), ['bon-pour-le-service', 'calibrage', 'quatre-cent-douze', 'scavengers']))
   assert.equal(questAvailable(questById('gamelle-vide'), ['bon-pour-le-service']), false)
   assert.ok(questAvailable(questById('gamelle-vide'), ['bon-pour-le-service', 'calibrage']))
   const garde = questById('tour-de-garde')
