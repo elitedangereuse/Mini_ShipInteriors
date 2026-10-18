@@ -326,8 +326,12 @@ export const BAR_DOORS = [{ x: 18, z: 8, dir: 2 }, { x: 17, z: 13, dir: 2 }]
  */
 export const TRAINING_DOOR = { x: 20, z: 14, dir: 0 }
 
-/** La porte de la raffinerie (cale) sur le hall, dans le mur ouest de son aile : posée sur le bord ouest de la tuile du hall. */
-export const REFINERY_DOOR = { x: 17, z: 7, dir: 3 }
+/**
+ * La porte de la raffinerie (cale) sur le hall, dans le mur ouest de son aile : posée sur le bord
+ * ouest de la tuile du hall. Une tuile au nord de la benne de minerai (cf. skip-rocks), qui la
+ * collait ; juste au sud du plan du vaisseau du hall (cf. holdHall).
+ */
+export const REFINERY_DOOR = { x: 17, z: 6, dir: 3 }
 
 /** La porte du placard à balais de la cale, dans son mur est : elle donne sur le couloir de service du Zorb. */
 export const CLOSET_DOOR = { x: 9, z: 2, dir: 1 }
