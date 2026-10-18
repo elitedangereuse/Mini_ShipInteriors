@@ -137,8 +137,10 @@ export function buildMezzanine(mezz: Mezzanine, rails: { x: number; z: number; d
       const low = floorSide === a ? b : a
       const toLow = floorSide === a ? 1 : -1
       const lx = d.dx * toLow, lz = d.dz * toLow
-      g.add(put(solidBox(1, h, RAIL_T, shell), cx, cz, edgeAngle, 0, h / 2))
-      g.add(put(solidBox(1.02, 0.05, RAIL_T + 0.05, shell), cx, cz, edgeAngle, 0, h - 0.025))
+      // Façade arrêtée sous le plancher, chapeau qui le dépasse d'un centimètre : aucune face au
+      // ras du dessus des dalles (h), où elles scintilleraient avec lui.
+      g.add(put(solidBox(1, h - 0.01, RAIL_T, shell), cx, cz, edgeAngle, 0, (h - 0.01) / 2))
+      g.add(put(solidBox(1.02, 0.05, RAIL_T + 0.05, shell), cx, cz, edgeAngle, 0, h - 0.015))
       // Côté sol (pas côté escalier, contre lequel la façade est un mur) : le bandeau orange.
       if (!low) {
         const strip = put(new THREE.Mesh(new THREE.BoxGeometry(1, 0.035, 0.012), TRIM), cx + lx * (RAIL_T / 2 + 0.006), cz + lz * (RAIL_T / 2 + 0.006), edgeAngle, 0, h - 0.11)
