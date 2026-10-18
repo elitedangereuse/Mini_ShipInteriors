@@ -209,7 +209,9 @@ export function layOnGround(o: THREE.Object3D, mezz: Mezzanine | null, x: number
 export function bayFrame(cx: number, cz: number, alongX: boolean, shell: THREE.Material): THREE.Object3D {
   const g = new THREE.Group()
   const angle = alongX ? 0 : Math.PI / 2
-  g.add(put(new THREE.Mesh(new THREE.BoxGeometry(1, 0.03, 0.32), TRIM), cx, cz, angle, 0, 1.015))
+  // Le bandeau s'arrête 5 mm sous le dessus des poteaux d'angle (POST_H) où entrent ses bouts :
+  // au même niveau, les deux dessus scintillaient quand la caméra tournait.
+  g.add(put(new THREE.Mesh(new THREE.BoxGeometry(1, 0.025, 0.32), TRIM), cx, cz, angle, 0, 1.0125))
   g.add(put(solidBox(1, BAY_FRAME_TOP - BAY_TOP, 0.24, shell), cx, cz, angle, 0, (BAY_TOP + BAY_FRAME_TOP) / 2))
   for (const u of [-0.5, 0.5]) g.add(put(solidBox(0.07, BAY_FRAME_TOP - 1, 0.2, shell), cx, cz, angle, u, (1 + BAY_FRAME_TOP) / 2))
   g.updateMatrixWorld(true)
