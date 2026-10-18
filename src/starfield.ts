@@ -99,7 +99,9 @@ export class Starfield {
           uTravel: { value: 0 },
           uSpeed: { value: l.speed },
           uCenter: { value: new THREE.Vector3() },
-          uSize: { value: l.size * Math.min(devicePixelRatio, 2) },
+          // Suit la densité du rendu (cf. onBeforeRender), et non celle de l'écran : en mode léger ou
+          // en résolution adaptative, les étoiles grossissaient d'autant.
+          uSize: { value: l.size },
           uColor: { value: new THREE.Color(l.color) },
         },
         vertexShader: `
@@ -125,7 +127,10 @@ export class Starfield {
         depthWrite: false,
       })
       const points = new THREE.Points(geo, mat)
-      points.onBeforeRender = () => geo.setDrawRange(0, renderQuality.light ? Math.ceil(l.count / 4) : l.count)
+      points.onBeforeRender = (renderer) => {
+        geo.setDrawRange(0, renderQuality.light ? Math.ceil(l.count / 4) : l.count)
+        mat.uniforms.uSize.value = l.size * renderer.getPixelRatio()
+      }
       points.frustumCulled = false
       points.renderOrder = -1
       this.group.add(points)
@@ -187,20 +192,23 @@ function starDome(): THREE.Points {
   for (let i = 0; i < COUNT; i++) {
     v.randomDirection().multiplyScalar(RADIUS).toArray(positions, i * 3)
     palette[Math.floor(Math.random() * palette.length)].toArray(colors, i * 3)
-    sizes[i] = (Math.random() < 0.08 ? 3.2 : 1.4 + Math.random() * 1.2) * Math.min(devicePixelRatio, 2)
+    sizes[i] = Math.random() < 0.08 ? 3.2 : 1.4 + Math.random() * 1.2
   }
   const geo = new THREE.BufferGeometry()
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
   geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
   geo.setAttribute('aSize', new THREE.Float32BufferAttribute(sizes, 1))
   const mat = new THREE.ShaderMaterial({
+    // Densité du rendu (cf. onBeforeRender).
+    uniforms: { uScale: { value: 1 } },
     vertexShader: `
       attribute float aSize;
       attribute vec3 color;
+      uniform float uScale;
       varying vec3 vColor;
       void main() {
         vColor = color;
-        gl_PointSize = aSize;
+        gl_PointSize = aSize * uScale;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }`,
     fragmentShader: `
@@ -213,6 +221,9 @@ function starDome(): THREE.Points {
     depthWrite: false,
   })
   const dome = new THREE.Points(geo, mat)
+  dome.onBeforeRender = (renderer) => {
+    mat.uniforms.uScale.value = renderer.getPixelRatio()
+  }
   dome.frustumCulled = false
   dome.renderOrder = -1
   dome.visible = false
