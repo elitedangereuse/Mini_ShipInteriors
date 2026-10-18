@@ -374,8 +374,9 @@ export const LEVELS: LevelDef[] = [
     // Le complexe d'entraînement a ses hublots : au terrain de foot, et à la salle de sport, où l'on
     // court face aux étoiles.
     windows: { n: 0, u: 0, a: 0.1, j: 0, r: 0, m: 0, b: 0, p: 0, l: 0, h: 0, y: 0, e: 0, v: 0, k: 0.15, t: 0, w: 0, s: 0, i: 0, c: 0, z: 0, o: 0, f: 0.4, x: 0.5 },
-    // Le mur entre le terrain de basket et la salle de sport, où pendent le speed bag et l'écran des records.
-    plainWalls: [{ x: 15.5, z: 17 }],
+    // Le mur entre le terrain de basket et la salle de sport, où pendent le speed bag et l'écran des
+    // records ; et devant la salle de sport, sous son enseigne : un pilier la cachait.
+    plainWalls: [{ x: 15.5, z: 17 }, { x: 19, z: 15.5 }],
     // Le poste de sécurité du lobby : des vitres blindées côté lobby (sa porte reste verrouillée).
     // Le lobby de l'arène, à l'ouest du hall de la cale : une cloison vitrée entre les deux.
     // Celui de la zone thargoïde, lui, est derrière un mur plein : on n'en voit rien du hall.
