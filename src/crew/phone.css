@@ -762,6 +762,57 @@ button.ph-row-main:hover {
 #quest-phone .ph-list {
   padding-top: 12px;
 }
+/* La progression du bord : une barre à un cran par quête (--n), jaune des quêtes, chanfreinée. */
+.qp-progress {
+  padding: 0 16px 12px;
+}
+.qp-progress-text {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 5px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.qp-progress-text b {
+  color: var(--qp);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.qp-progress-track {
+  position: relative;
+  height: 8px;
+  background: rgba(255, 210, 74, 0.12);
+  clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px);
+}
+.qp-progress-track i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, rgba(255, 210, 74, 0.7), var(--qp));
+  transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* Les crans : un trait sombre entre deux quêtes. */
+.qp-progress-track::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg, transparent 0 calc(100% / var(--n) - 2px), var(--ph-ink) calc(100% / var(--n) - 2px) calc(100% / var(--n)));
+}
+.qp-progress.full .qp-progress-text span {
+  color: var(--qp);
+}
+.qp-progress.full .qp-progress-track i {
+  background: linear-gradient(90deg, var(--qp), #fff3c4, var(--qp));
+}
+@media (prefers-reduced-motion: reduce) {
+  .qp-progress-track i {
+    transition: none;
+  }
+}
 
 /* ---------- écran large, peu haut ---------- */
 /* Le combiné ouvert recouvrirait le bloc du vaisseau : la colonne de gauche se pousse à côté de lui. */
@@ -804,6 +855,12 @@ button.ph-row-main:hover {
   #quest-phone .ph-head {
     padding-left: 14px;
     padding-right: 64px;
+  }
+  .qp-progress {
+    padding: 0 14px 6px;
+  }
+  .qp-progress-text {
+    margin-bottom: 3px;
   }
   .ph-head {
     display: flex;

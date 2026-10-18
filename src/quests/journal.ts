@@ -8,6 +8,8 @@ import type { QuestStore } from './store'
  * Le journal de quêtes : un second combiné, frère de l'annuaire (cf. crew/phone.ts), qui flotte au
  * même endroit et se réduit à sa propre languette, sous celle de l'équipage. Même habit (cf.
  * crew/phone.css), en jaune des quêtes et chanfreins inversés, pour qu'on ne les confonde pas.
+ * En tête, la progression du bord : combien de quêtes terminées, sur combien en tout (celles qu'on
+ * n'a pas encore découvertes comprises).
  * Deux onglets : « En cours » (ce qu'on sait à cette étape) et « Terminées ». Une quête se déplie
  * d'un clic : son histoire, ce qu'on a déjà appris, ce qu'elle rapporte, et de quoi l'abandonner
  * (deux clics). J ouvre et referme le journal.
@@ -31,6 +33,10 @@ export class QuestJournal {
   private readonly body = el('section', 'ph-body')
   private readonly kept = el('span', 'ph-link')
   private readonly summary = el('p', 'ph-summary')
+  private readonly progress = el('div', 'qp-progress')
+  private readonly progressCount = el('b')
+  private readonly progressLabel = el('span')
+  private readonly progressFill = el('i')
   private readonly segs = new Map<Tab, HTMLButtonElement>()
   private readonly log = el('div', 'ph-list quest-log')
   /** Quêtes dépliées. */
@@ -83,8 +89,18 @@ export class QuestJournal {
     }
     add('active', tr('En cours', 'In progress'))
     add('done', tr('Terminées', 'Completed'))
+    // La progression : une barre à un cran par quête.
+    this.progress.setAttribute('role', 'progressbar')
+    this.progress.setAttribute('aria-valuemin', '0')
+    this.progress.setAttribute('aria-valuemax', String(QUEST_CONTENT.length))
+    this.progress.style.setProperty('--n', String(QUEST_CONTENT.length))
+    const progressText = el('div', 'qp-progress-text')
+    progressText.append(this.progressLabel, this.progressCount)
+    const track = el('div', 'qp-progress-track')
+    track.append(this.progressFill)
+    this.progress.append(progressText, track)
     const view = el('div', 'ph-view')
-    view.append(head, seg, this.log)
+    view.append(head, this.progress, seg, this.log)
     const screen = el('div', 'ph-screen')
     screen.append(view)
     this.body.append(status, screen)
@@ -191,7 +207,17 @@ export class QuestJournal {
     this.tabCount.textContent = active ? String(active) : ''
     this.tabBadge.textContent = this.news ? '!' : ''
     this.tab.classList.toggle('alert', this.news)
-    this.summary.textContent = EN ? `${active} in progress, ${done} completed` : `${active} en cours, ${done} terminée${done > 1 ? 's' : ''}`
+    const total = QUEST_CONTENT.length
+    const unknown = total - active - done
+    this.summary.textContent = EN
+      ? `${active} in progress, ${unknown} still to discover`
+      : `${active} en cours, ${unknown} encore à découvrir`
+    this.progressLabel.textContent = done === total ? tr('Toutes les quêtes du bord sont terminées !', 'Every quest aboard is complete!') : tr('Quêtes terminées', 'Quests completed')
+    this.progressCount.textContent = `${done} / ${total}`
+    this.progressFill.style.width = `${(done / total) * 100}%`
+    this.progress.classList.toggle('full', done === total)
+    this.progress.setAttribute('aria-valuenow', String(done))
+    this.progress.setAttribute('aria-valuetext', EN ? `${done} of ${total} quests completed` : `${done} quête${done > 1 ? 's' : ''} terminée${done > 1 ? 's' : ''} sur ${total}`)
     // Où le journal est gardé : un invité n'a que ce navigateur.
     this.kept.textContent = this.store.mode === 'site' ? tr('Site', 'Site') : this.store.mode === 'local' ? tr('Ce navigateur', 'This browser') : ''
     this.kept.title = this.store.mode === 'site'
