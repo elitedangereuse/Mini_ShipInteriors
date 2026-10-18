@@ -26,8 +26,6 @@ export const SHIP_MAP_PLACEMENTS = {
   mainHall: { level: 0, x: 8, z: 10, dir: 1, along: 0.5 },
   mainPromenade: { level: 0, x: 26, z: 3, dir: 3 },
   upperLanding: { level: 1, x: 11, z: 4, dir: 0 },
-  // Au bout de la coursive, là où elle tourne vers la galerie, contre la cloison du planétarium.
-  upperGallery: { level: 1, x: 14, z: 7, dir: 3 },
 }
 
 /** Position et rotation dans le monde d'une affiche ancrée à sa cloison. */

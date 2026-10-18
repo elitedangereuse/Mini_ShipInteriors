@@ -24,6 +24,5 @@ export declare const SHIP_MAP_PLACEMENTS: {
   mainHall: ShipMapAnchor
   mainPromenade: ShipMapAnchor
   upperLanding: ShipMapAnchor
-  upperGallery: ShipMapAnchor
 }
 export declare function resolveShipMapPlacement(id: ShipMapPlacementId): ResolvedShipMapPlacement

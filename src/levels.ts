@@ -2545,7 +2545,7 @@ export const LEVELS: LevelDef[] = [
       // --- Coursive ---
       { model: 'rug', x: 12.9, z: 5, label: 'warm:3.8x0.7', solid: false },
       { model: 'bench', x: 12.3, z: 3.9, label: 'teal' },
-      // Le plan du vaisseau, au milieu de la coursive ; un autre dans la galerie, face au téléporteur (plus bas).
+      // Le plan du vaisseau, au milieu de la coursive.
       shipMap('upperLanding'),
 
       // --- Salle de classe (8 × 3), façon lycée : le tableau au mur ouest, la professeure Kepler
@@ -3058,9 +3058,8 @@ export const LEVELS: LevelDef[] = [
       { model: 'movie-poster', x: 20.65, z: 7.9, rot: 1, label: 'thargoid', solid: false },
       // --- Galerie : la coursive qui longe le planétarium et dessert la bibliothèque. Au bout, un
       // tapis mène à la porte double du Comptoir des Cartes Dangereuses. Le téléporteur du pont
-      // est à son débouché (cf. TELEPORTERS) : son totem, le plan, les lignes au sol vers la
+      // est à son débouché (cf. TELEPORTERS) : son totem, les lignes au sol vers la
       // bibliothèque, le Comptoir et le planétarium, et l'enseigne de chaque porte ---
-      shipMap('upperGallery'),
       totem(1, 16.5, 8.86, 0),
       doorSign(1, 24.2, 10.345, 2, tr('Bibliothèque', 'Library')),
       doorSign(1, 23.35, 8.655, 0, tr('Cinéma', 'Cinema')),
