@@ -90,6 +90,25 @@
         }
         warp.innerHTML = html
       })()
+      // La jauge part dès l'affichage, pendant que le script du jeu se télécharge, au pas de celle
+      // du jeu ; de plus en plus lentement s'il tarde. Le jeu la reprend d'ici (data-shown, cf.
+      // bootProgress dans ui.ts).
+      ;(function () {
+        var root = document.getElementById('loading')
+        var shown = 0
+        var last = performance.now()
+        function tick(now) {
+          if (root.dataset.game) return
+          shown = Math.min(0.2, shown + Math.max(0.004, Math.min(0.2, (0.12 - shown) / 1.5)) * Math.min(0.05, Math.max(0, now - last) / 1000))
+          last = now
+          root.dataset.shown = String(shown)
+          root.style.setProperty('--p', String(shown))
+          document.getElementById('boot-arc').style.strokeDashoffset = String(358.14 * (1 - shown))
+          document.getElementById('boot-pct').textContent = Math.floor(shown * 100) + ' %'
+          requestAnimationFrame(tick)
+        }
+        requestAnimationFrame(tick)
+      })()
     </script>
 
     <div id="hud" hidden>

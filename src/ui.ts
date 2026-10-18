@@ -502,66 +502,135 @@ const BOOT_STEPS = EN ? ['Power plant', 'Power distributor', 'Life support', 'Sh
 /** Circonférence de la jauge (rayon 57, cf. index.html). */
 const BOOT_ARC = 358.14
 
-/** Charge vraie (plancher de la jauge) et charge affichée, qui avance toujours un peu. */
+/** Part de la jauge pour le téléchargement des modèles (cf. bootModels). */
+const BOOT_MODELS = 0.25
+/**
+ * Allure de la jauge, par seconde : elle avance d'elle-même à ce pas régulier, qu'importe la
+ * façon dont la charge vraie arrive (les modèles d'un coup, puis de longs montages sans nouvelles).
+ */
+const BOOT_PACE = 0.2
+/**
+ * Près du bout de l'étape, elle ralentit : chaque seconde, elle en fait la moitié de ce qui reste
+ * (environ). Un réseau lent la voit ralentir, pas s'arrêter.
+ */
+const BOOT_EASE = 1.5
+/** Son pas le plus lent, quand l'étape en cours tarde vraiment. */
+const BOOT_CREEP = 0.004
+/** En retard sur la charge vraie, elle rattrape plus vite, mais sans sauter. */
+const BOOT_CATCH_UP = 0.9
+
+/**
+ * Charge vraie (plancher de la jauge), bout de l'étape en cours (plafond : la jauge n'y va pas
+ * avant elle) et charge affichée, qui ne recule jamais.
+ */
 let bootFloor = 0
+let bootCeil = 0
 let bootShown = 0
-let bootTicker = 0
+let bootFrame = 0
+let bootLast = 0
+/** Appelé quand la jauge affichée a rejoint la charge vraie (cf. bootStep, bootDone). */
+let bootCaught: (() => void) | null = null
 
 function paintBoot(ratio: number) {
-  const percent = Math.round(ratio * 100)
+  // Arrondi par défaut : 100 % quand c'est fini, pas à 99,5.
+  const percent = Math.floor(ratio * 100)
   const root = $('loading')
   root.style.setProperty('--p', String(ratio))
   root.setAttribute('aria-valuenow', String(percent))
   $('boot-arc').style.strokeDashoffset = String(BOOT_ARC * (1 - ratio))
-  $('boot-pct').textContent = `${percent}\u202f%`
+  $('boot-pct').textContent = `${percent} %`
 }
 
 /**
- * Entre deux annonces, la jauge continue d'avancer d'elle-même vers 99 %, de plus en plus
- * lentement : une attente du site ou un montage long ne la fige plus. Elle ne recule jamais.
+ * Une image de la jauge : elle avance au pas, ralentit à l'approche du bout de l'étape en cours,
+ * et rattrape la charge vraie quand celle-ci la devance. Un long calcul (le montage d'un pont) fige
+ * la page : au retour, l'écart ne compte que pour une image, la jauge ne saute pas.
  */
-function tickBoot() {
-  bootShown = Math.max(bootFloor, bootShown + (0.99 - bootShown) * 0.012)
+function tickBoot(now: number) {
+  // L'heure d'une image peut précéder celle relevée au départ (cf. bootProgress) : pas de pas en arrière.
+  const dt = Math.min(0.05, Math.max(0, now - bootLast) / 1000)
+  bootLast = now
+  const pace = bootShown < bootFloor ? BOOT_CATCH_UP : Math.max(BOOT_CREEP, Math.min(BOOT_PACE, (bootCeil - bootShown) / BOOT_EASE))
+  bootShown = Math.min(Math.max(bootFloor, bootCeil - 0.001), bootShown + pace * dt)
   paintBoot(bootShown)
+  if (bootCaught && bootShown >= bootFloor - 0.005) {
+    const caught = bootCaught
+    bootCaught = null
+    caught()
+  }
+  if (bootFrame) bootFrame = requestAnimationFrame(tickBoot)
 }
 
-/** Écran de démarrage : charge de 0 à 1, et l'étape en cours (par défaut, selon la charge). */
-export function bootProgress(ratio: number, step = BOOT_STEPS[Math.min(BOOT_STEPS.length - 1, Math.floor(ratio * BOOT_STEPS.length))]) {
+/**
+ * Écran de démarrage : la charge vraie de 0 à 1, le bout de l'étape qui commence (la jauge y
+ * avance d'elle-même en attendant) et son nom.
+ */
+export function bootProgress(ratio: number, step: string, until = ratio) {
   bootFloor = Math.max(bootFloor, ratio)
-  bootShown = Math.max(bootShown, bootFloor)
-  paintBoot(bootShown)
+  bootCeil = Math.max(bootCeil, until, bootFloor)
   $('boot-step').textContent = step
-  if (!bootTicker && ratio < 1) bootTicker = window.setInterval(tickBoot, 50)
+  if (!bootFrame) {
+    // La jauge est partie avant le script du jeu (cf. index.html) : elle reprend d'où elle en est.
+    const root = $('loading')
+    root.dataset.game = '1'
+    bootShown = Math.max(bootShown, Number(root.dataset.shown) || 0)
+    bootLast = performance.now()
+    bootFrame = requestAnimationFrame(tickBoot)
+  }
 }
 
-/** Nouvelle étape du démarrage, puis une image pour la peindre avant un long calcul. */
-export function bootStep(ratio: number, step: string): Promise<void> {
-  bootProgress(ratio, step)
-  return new Promise((r) => setTimeout(r, 0))
+/** Téléchargement des modèles, de 0 à 1 : le début de la jauge, systèmes mis sous tension l'un après l'autre. */
+export function bootModels(ratio: number) {
+  bootProgress(ratio * BOOT_MODELS, BOOT_STEPS[Math.min(BOOT_STEPS.length - 1, Math.floor(ratio * BOOT_STEPS.length))], BOOT_MODELS)
+}
+
+/**
+ * Nouvelle étape du démarrage, avant un long calcul : on laisse d'abord la jauge rejoindre la
+ * charge vraie (un quart de seconde au plus) pour qu'elle glisse au lieu de sauter d'un bloc à
+ * l'autre, et peindre l'étape.
+ */
+export function bootStep(ratio: number, step: string, until = ratio): Promise<void> {
+  bootProgress(ratio, step, until)
+  return new Promise((resolve) => {
+    const go = () => {
+      clearTimeout(late)
+      bootCaught = null
+      setTimeout(resolve, 0)
+    }
+    const late = setTimeout(go, 250)
+    bootCaught = go
+  })
 }
 
 /** Le démarrage a échoué (un modèle qui ne vient pas, réseau coupé) : on le dit, plutôt qu'une jauge figée. */
 export function bootFailed() {
   const root = document.getElementById('loading')
   if (!root || root.classList.contains('done')) return
-  clearInterval(bootTicker)
+  cancelAnimationFrame(bootFrame)
+  bootFrame = 0
   $('boot-step').textContent = tr('Échec du chargement : rechargez la page', 'Loading failed: please reload the page')
 }
 
-/** Vaisseau prêt : le saut, puis l'écran quitte la page (ses animations ne tournent plus). */
+/** Vaisseau prêt : la jauge finit sa course, puis le saut, et l'écran quitte la page (ses animations ne tournent plus). */
 export function bootDone() {
-  clearInterval(bootTicker)
-  bootProgress(1, tr('Systèmes en ligne', 'Systems online'))
+  const step = tr('Systèmes en ligne', 'Systems online')
+  bootProgress(0.92, step, 0.99)
   const root = $('loading')
-  // Laisser peindre la jauge pleine avant la pause, puis lancer le saut.
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        root.classList.add('done')
-        setTimeout(() => root.remove(), 1300)
-      }, 400)
-    })
-  })
+  // Le reste du script de démarrage tourne encore d'un bloc : la jauge ne finit qu'après lui.
+  setTimeout(() => {
+    bootProgress(1, step)
+    bootCaught = finish
+  }, 0)
+  const finish = () => {
+    cancelAnimationFrame(bootFrame)
+    bootFrame = 0
+    paintBoot(1)
+    // Laisser voir la jauge pleine un instant, puis lancer le saut.
+    setTimeout(() => {
+      root.classList.add('done')
+      setTimeout(() => root.remove(), 1300)
+    }, 400)
+  }
 }
 
 // --------------------------------------------------------------- garde-robe

@@ -142,7 +142,7 @@ import { faceOf } from './arena/select'
 import { ARENA_LEVEL, ARENA_LOBBY, type CharacterId } from '../shared/arena.js'
 import { LOBBY as SALVAGE_LOBBY, LOBBY_RETURN, ZONE_LEVEL } from '../shared/salvage.js'
 import { SalvageLobbyMusic } from './salvage/music'
-import { $, bootDone, bootFailed, bootProgress, bootStep, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel, type ScreenBox } from './ui'
+import { $, bootDone, bootFailed, bootModels, bootProgress, bootStep, Bubbles, Chat, Dialog, fadeScreen, LiftPanel, nameTag, WardrobePanel, type ScreenBox } from './ui'
 import { LiftRide } from './lift-ride'
 import { INSTRUCTOR, Instructor, instructorRig, Tutorial, TUTORIAL_DECK } from './tutorial'
 import { TUTORIAL_EXIT, TUTORIAL_LEVEL, TUTORIAL_SPAWN } from '../shared/tutorial.js'
@@ -308,12 +308,13 @@ sun.shadow.normalBias = 0.03
 
 // ------------------------------------------------------------------ monde
 
-// Les modèles font l'essentiel de l'attente : 90 % de la jauge, le reste pour le site et le montage.
+// La jauge suit le temps qu'on attend : les modèles (un quart de la jauge, souvent déjà en cache),
+// le site, puis le montage des ponts, qui fige la page pendant des secondes (cf. bootStep).
 // Les Mini Characters (l'équipage, les dîneurs, la plupart des visiteurs) partent avec le reste :
 // chaque personnage de l'équipage attendait le sien pendant le montage des ponts, en quatre vagues.
 const MINI_CHARACTERS = ['female', 'male'].flatMap((sex) => [...'abcdef'].map((v) => `characters/character-${sex}-${v}.glb`))
-await preload([lookPath(parseLook(profile.skin)), `ships/${chosenShip()}.glb`, ...MINI_CHARACTERS], (r) => bootProgress(r * 0.9))
-bootProgress(0.94, tr('Identification du CMDR', 'Identifying CMDR'))
+await preload([lookPath(parseLook(profile.skin)), `ships/${chosenShip()}.glb`, ...MINI_CHARACTERS], bootModels)
+bootProgress(0.25, tr('Identification du CMDR', 'Identifying CMDR'), 0.28)
 const account = await within(accountRequest, 3000, null)
 if (account) {
   linked = true
@@ -330,10 +331,10 @@ if (account) {
  * faut le savoir avant de dire où l'on se réveille (cf. resumePoint).
  */
 const quests = new QuestStore()
-bootProgress(0.95, tr('Lecture du journal de bord', 'Reading the logbook'))
+bootProgress(0.28, tr('Lecture du journal de bord', 'Reading the logbook'), 0.3)
 await within(quests.load(account?.name ?? null), 3000, undefined)
 /** Réponse du site sur les quartiers du CMDR, si elle est arrivée à temps (undefined : pas encore). */
-if (account) bootProgress(0.96, tr('Ouverture des quartiers', 'Opening the quarters'))
+if (account) bootProgress(0.3, tr('Ouverture des quartiers', 'Opening the quarters'), 0.32)
 const siteCabin = account ? await within<SiteCabin | null | undefined>(cabinRequest, 3000, undefined) : undefined
 /**
  * Enregistrement des quartiers d'un CMDR : sur le site, ou dans ce navigateur s'il ne répond pas.
@@ -350,8 +351,13 @@ setTotemArt({
   draw: (g, label) => drawTotem(g, label, levelName),
   color: (label) => identityOf(Number(label.split(':')[0]))?.color ?? '#59d8ff',
 })
-await bootStep(0.97, tr('Assemblage des ponts', 'Assembling the decks'))
-const decks = LEVELS.map((def) => new Deck(def))
+// Un pont à la fois, la jauge peinte entre deux : chacun fige la page un long moment.
+const decks: Deck[] = []
+for (const [i, def] of LEVELS.entries()) {
+  await bootStep(0.32 + (0.46 * i) / LEVELS.length, tr('Assemblage des ponts', 'Assembling the decks'), 0.32 + (0.46 * (i + 1)) / LEVELS.length)
+  decks.push(new Deck(def))
+}
+await bootStep(0.78, tr('Mise en service des équipements', 'Commissioning the equipment'), 0.82)
 /** Les conduits de ventilation, hors des ponts du téléporteur : on y tombe par les toilettes (cf. flushToVents). */
 const vents = new Vents({ renderer, scene, squeak: (at) => sound.squeak(at) })
 decks.push(vents.deck)
@@ -7201,7 +7207,7 @@ singlePassPanes(scene)
 
 // Compile tous les shaders avant la première image (pas d'à-coup au premier fondu de mur), et
 // envoie les textures du pont de départ pendant l'écran de chargement.
-await bootStep(0.98, tr('Calibrage des systèmes', 'Calibrating systems'))
+await bootStep(0.82, tr('Calibrage des systèmes', 'Calibrating systems'), 0.92)
 for (const d of decks) d.group.visible = true
 renderer.compile(scene, iso.camera)
 setDeck(deck)
