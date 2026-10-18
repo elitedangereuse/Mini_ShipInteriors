@@ -541,10 +541,11 @@ button {
 .top-left .panel {
   position: static;
 }
-/* Logo du site (assets/images/logo.svg d'elitedangereuse.fr, texte vectorisé : pas de police à charger). */
+/* Logo du jeu avec titre vectorisé : pas de police à charger. */
 .site-logo {
   display: block;
-  width: 200px;
+  width: 240px;
+  max-width: calc(100vw - 32px);
   height: auto;
   /* Lisible aussi quand le logo passe sur le décor éclairé (mobile). */
   filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.9));
@@ -1906,7 +1907,7 @@ body.cctv-on #touch-pad {
     display: none;
   }
   .site-logo {
-    width: 140px;
+    width: 200px;
   }
   /* En haut, « Retour au site » (icône seule) et la barre prennent toute la largeur : sans le
      curseur de volume (le bouton son reste), la ligne tient, et le logo et le bloc du vaisseau

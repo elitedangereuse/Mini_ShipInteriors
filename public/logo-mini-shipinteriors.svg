@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="msi-mark-title msi-mark-desc">
+  <title id="msi-mark-title">Mini Ship Interiors</title>
+  <desc id="msi-mark-desc">Une pièce de vaisseau ouverte en isométrique : verrière orange, petit CMDR et téléporteur cyan, sur une coque à la proue effilée.</desc>
+  <g id="msi-mark" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Silhouette : une tranche de vaisseau, ouverte sur la vie à bord. -->
+    <path fill="#0b1525" stroke="#0b1525" stroke-width="12" d="m256 48 188 108v102l30 34v38l-194 116h-48L38 330v-38l30-34V156Z"/>
+    <!-- Coque et petites ailes latérales. -->
+    <path fill="#4c6278" d="m68 258-30 34 30 18 36-31Zm376 0 30 34-30 18-36-31Z"/>
+    <path fill="#283a50" d="M38 292v38l194 116 24-40L68 298Zm436 0v38L280 446l-24-40 188-108Z"/>
+    <path fill="#ff8a26" d="m232 416 24-14 24 14v30h-48Z"/>
+    <path fill="#ffb64f" d="m232 416 24-14 24 14-24 14Z"/>
+    <!-- Sol et épaisseur du pont. -->
+    <path fill="#b9c7d1" d="m68 282 188-108 188 108-188 110Z"/>
+    <path fill="#a3b4c2" d="m256 174 188 108-188 110V284L68 282Z"/>
+    <path fill="none" stroke="#8297aa" stroke-width="3" d="m116 310 188-108m-94 163 188-109M116 254l188 110m-95-164 188 110"/>
+    <path fill="#627a91" d="M68 282v24l188 110v-24Z"/>
+    <path fill="#3a5067" d="m256 392 188-110v24L256 416Z"/>
+    <path fill="none" stroke="#ffb03a" stroke-width="7" d="m78 299 178 104 178-104"/>
+    <!-- Murs arrière : lumière froide, bande orange et montants épais. -->
+    <path fill="#6e879f" d="m68 160 188-108v122L68 282Z"/>
+    <path fill="#3d526b" d="m256 52 188 108v122L256 174Z"/>
+    <path fill="#8fa5b7" d="m68 160 188-108 188 108-12 7-176-101L80 167Z"/>
+    <path fill="#22364d" d="m80 178 164-94v73L80 261Z"/>
+    <path fill="#ffad43" d="m80 244 164-94v17L80 261Z"/>
+    <!-- Verrière facettée : l'espace derrière la salle. -->
+    <path fill="#477082" d="m88 183 56-32-56 82Zm69-40 74-43-74 95Z"/>
+    <path fill="#a9dbe3" d="m88 183 36-21-36 49Zm69-40 42-24-42 54Z"/>
+    <path fill="none" stroke="#849caf" stroke-width="9" d="M150 140v72m-70 50V174m164-94v95"/>
+    <!-- Porte au fond du pont. -->
+    <path fill="#182c42" d="m281 95 61 35v94l-61-35Z"/>
+    <path fill="#d3dfe5" d="m289 109 45 26v78l-9-5v-69l-27-15v68l-9-5Z"/>
+    <path fill="#ffb03a" d="m298 124 27 15v8l-27-15Z"/>
+    <path fill="#849bad" d="m281 189 61 35-15 8-61-35Z"/>
+    <!-- Console du téléporteur. -->
+    <path fill="#192e43" d="m369 176 48 27v39l-48-27Z"/>
+    <path fill="#59d8ff" d="m377 188 32 18v17l-32-18Z"/>
+    <path fill="none" stroke="#daf8ff" stroke-width="3" d="m382 197 19 11m-19-4 11 6"/>
+    <!-- Banquette : un intérieur habité, comme les espaces communs du jeu. -->
+    <path fill="#263e57" d="m109 266 48-28 44 25v29l-48 28-44-25Z"/>
+    <path fill="#3e6782" d="m109 266 48-28 44 25-48 28Z"/>
+    <path fill="#20374f" d="M109 246v25l44 25v-25Z"/>
+    <path fill="#547f99" d="m109 246 10-6 44 25-10 6Z"/>
+    <path fill="#ffb03a" d="m113 286 40 23v6l-40-23Z"/>
+    <!-- Plateforme et colonne holographique. -->
+    <ellipse cx="343" cy="298" rx="43" ry="25" fill="#152c41"/>
+    <path fill="#284b60" d="M300 291v9c0 14 19 25 43 25s43-11 43-25v-9Z"/>
+    <ellipse cx="343" cy="291" rx="43" ry="25" fill="#8ef0f0"/>
+    <ellipse cx="343" cy="291" rx="32" ry="18" fill="#24566b"/>
+    <path fill="#59d8ff" fill-opacity=".18" d="M308 224v64c0 11 16 20 35 20s35-9 35-20v-64Z"/>
+    <ellipse cx="343" cy="224" rx="35" ry="20" fill="#59d8ff" fill-opacity=".18" stroke="#9cf3ff" stroke-width="3"/>
+    <path fill="none" stroke="#9cf3ff" stroke-width="3" d="M308 224v42m70-42v42"/>
+    <path fill="none" stroke="#b1f8ff" stroke-width="5" d="m333 285 10 6 10-6m-10-10v16"/>
+    <!-- Petit CMDR aux proportions des personnages low-poly. -->
+    <ellipse cx="239" cy="333" rx="27" ry="14" fill="#496278" fill-opacity=".5"/>
+    <path fill="#14283d" d="m220 302-2 25 16 8 5-22 7 22 15-8-4-25Z"/>
+    <path fill="#f58a2b" d="m220 269-12 16 5 24 13-5 13 8 16-9 9 4 4-23-13-15Z"/>
+    <path fill="#ffbd63" d="m220 269 18-10 17 10-16 11Z"/>
+    <path fill="#293e55" d="m239 280 16-11 13 15-4 23-9-4-16 9Z"/>
+    <path fill="#ffb03a" d="m247 287 7-4v13l-7 4Z"/>
+    <path fill="#b9cbd5" d="m218 248 7-15 20-6 16 13v22l-21 13-19-10Z"/>
+    <path fill="#e1e9eb" d="m218 248 21 12 22-20-16-13-20 6Z"/>
+    <path fill="#0b2639" d="m221 249 18 10 22-13v12l-21 13-19-10Z"/>
+    <path fill="#72e4f5" d="m240 259 17-10v5l-17 10Z"/>
+    <!-- Trappe et feux de position sur la coque. -->
+    <path fill="#d7e2e6" d="m99 321 34 20v7l-34-20Zm280 20 34-20v7l-34 20Z"/>
+    <path fill="#59d8ff" d="m52 306 12 7v9l-12-7Zm396 7 12-7v9l-12 7Z"/>
+  </g>
+</svg>
