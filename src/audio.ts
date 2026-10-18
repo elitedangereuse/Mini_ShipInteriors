@@ -980,6 +980,35 @@ export class Sound {
   }
 
   /**
+   * Une étape de quête franchie (non spatialisé) : trois notes de clochette qui montent (mi, si,
+   * mi), puis deux éclats d'aigu. Plus doux que l'air de victoire, qui reste pour la fin de quête.
+   */
+  questStep() {
+    if (!this.ready) return
+    const ctx = this.ctx
+    const out = this.output(null, { volume: 0.08 }).input
+    const t0 = ctx.currentTime + 0.01
+    // Une clochette : la fondamentale, et un partiel inharmonique (×2,76) qui s'éteint plus vite.
+    const bell = (f: number, t: number, len: number, gain = 1) => {
+      for (const [ratio, level, decay] of [[1, 1, len], [2.76, 0.35, len * 0.3]] as const) {
+        const osc = ctx.createOscillator()
+        osc.type = 'sine'
+        osc.frequency.value = f * ratio
+        const env = ctx.createGain()
+        env.gain.setValueAtTime(0, t)
+        env.gain.linearRampToValueAtTime(gain * level, t + 0.005)
+        env.gain.setTargetAtTime(0, t + 0.01, decay / 4)
+        osc.connect(env).connect(out)
+        osc.start(t)
+        osc.stop(t + decay + 0.1)
+      }
+    }
+    ;[659, 988, 1319].forEach((f, i) => bell(f, t0 + i * 0.075, i === 2 ? 1.1 : 0.45))
+    bell(2637, t0 + 0.26, 0.25, 0.25)
+    bell(3136, t0 + 0.32, 0.3, 0.2)
+  }
+
+  /**
    * Saut FSD : le moteur se charge (un sifflement qui monte, `charge` secondes), puis le saut
    * (un grondement et un souffle), puis l'arrivée.
    */

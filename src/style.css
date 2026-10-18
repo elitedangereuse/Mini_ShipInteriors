@@ -947,6 +947,29 @@ kbd .icon {
 .quest-note {
   margin-top: 2px;
 }
+/* Ce qui vient d'arriver, tant que le journal n'a pas été lu. */
+.quest-news {
+  margin-top: 5px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(255, 210, 74, 0.12);
+  color: #ffe9a8;
+  font-size: 12px;
+}
+.quest-done .quest-news {
+  background: rgba(125, 255, 168, 0.1);
+  color: #bfe8cf;
+}
+.quest-news .icon {
+  margin-right: 5px;
+  vertical-align: -2px;
+}
+.quest-news b {
+  margin-right: 5px;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 .quest-parts,
 .quest-past {
   display: grid;
@@ -1078,6 +1101,12 @@ kbd .icon {
   margin-top: 2px;
   color: var(--muted);
   font-size: 12px;
+}
+/* Une étape franchie : sa phrase se lit, c'est elle la nouvelle. */
+.quest-toast.step .quest-toast-detail {
+  margin-top: 3px;
+  color: #ffe9a8;
+  font-size: 13.5px;
 }
 /* Un personnage débloqué à CMDR Arena : son visage à gauche, aux couleurs de sa fiche au terminal. */
 .quest-toast.unlock {

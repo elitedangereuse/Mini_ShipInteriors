@@ -45,8 +45,12 @@ export class QuestJournal {
   private armed: { id: string; timer: number } | null = null
   /** Quête à mettre en avant (elle vient de bouger). */
   private fresh: string | null = null
-  /** Une quête a bougé depuis que le journal est réduit : la languette le signale. */
-  private news = false
+  /**
+   * Quêtes qui ont bougé depuis la dernière fois qu'on a lu le journal : la languette le signale
+   * tant qu'on ne l'a pas ouvert, et leur carte redit ce qui vient d'arriver ; true : une étape a
+   * été franchie (pas seulement un élément trouvé).
+   */
+  private readonly unread = new Map<string, boolean>()
   /** Abandon confirmé. */
   onAbandon?: (quest: QuestContent) => void
   /** Ouvert ou réduit. */
@@ -55,8 +59,6 @@ export class QuestJournal {
   constructor(private readonly store: QuestStore) {
     const title = tr('Quêtes', 'Quests')
     this.tab.type = 'button'
-    this.tab.title = tr('Journal de quêtes (J)', 'Quest journal (J)')
-    this.tab.setAttribute('aria-label', this.tab.title)
     this.tab.setAttribute('aria-controls', 'quest-phone-body')
     this.tab.append(icon('scroll'), this.tabCount, this.tabBadge)
     this.tab.onclick = () => this.toggle()
@@ -148,20 +150,21 @@ export class QuestJournal {
     document.body.classList.toggle('quest-phone-open', open)
     this.tab.setAttribute('aria-expanded', String(open))
     this.body.inert = !open
-    if (open) this.news = false
-    else {
+    if (!open) {
+      // Refermé : ce qui était nouveau a été lu.
+      if (announce) this.unread.clear()
       this.disarm()
       if (this.root.contains(document.activeElement)) (document.activeElement as HTMLElement).blur()
     }
     this.render()
   }
 
-  /** Une quête vient de bouger : on la retrouvera dépliée, en tête du journal. */
-  highlight(id: string) {
+  /** Une quête vient de bouger (`crossed` : une étape franchie) : on la retrouvera dépliée, en tête du journal. */
+  highlight(id: string, crossed = false) {
     this.fresh = id
     this.open.add(id)
     this.pane = this.store.isDone(id) ? 'done' : 'active'
-    if (!this.isOpen) this.news = true
+    if (!this.isOpen) this.unread.set(id, crossed || this.unread.get(id) === true)
     this.render()
   }
 
@@ -205,8 +208,14 @@ export class QuestJournal {
     const active = QUEST_CONTENT.filter((q) => this.store.state(q.id) && !this.store.isDone(q.id)).length
     const done = QUEST_CONTENT.filter((q) => this.store.isDone(q.id)).length
     this.tabCount.textContent = active ? String(active) : ''
-    this.tabBadge.textContent = this.news ? '!' : ''
-    this.tab.classList.toggle('alert', this.news)
+    const news = this.unread.size
+    this.tabBadge.textContent = news ? '!' : ''
+    this.tab.classList.toggle('alert', news > 0)
+    const title = tr('Journal de quêtes (J)', 'Quest journal (J)')
+    this.tab.title = !news ? title
+      : news > 1 ? tr(`${title} · ${news} quêtes ont avancé`, `${title} · ${news} quests moved on`)
+      : tr(`${title} · une quête a avancé`, `${title} · a quest moved on`)
+    this.tab.setAttribute('aria-label', this.tab.title)
     const total = QUEST_CONTENT.length
     const unknown = total - active - done
     this.summary.textContent = EN
@@ -260,6 +269,12 @@ export class QuestJournal {
     return head
   }
 
+  private newsLine(label: string, text: string): HTMLElement {
+    const line = el('div', 'quest-news')
+    line.append(icon('sparkle'), el('b', '', label), text)
+    return line
+  }
+
   private rewardLine(quest: QuestContent): HTMLElement {
     const line = el('div', 'quest-reward')
     line.append(icon('gift'), quest.reward)
@@ -277,7 +292,11 @@ export class QuestJournal {
     const card = el('div', 'quest')
     card.dataset.quest = quest.id
     card.classList.toggle('fresh', quest.id === this.fresh)
-    card.append(this.head(quest, quest.icon, `${state.step + 1}/${quest.steps.length}`), el('div', 'quest-note', step.note))
+    card.append(this.head(quest, quest.icon, `${state.step + 1}/${quest.steps.length}`))
+    // Pas encore lue : ce qui vient d'arriver, au cas où le bandeau serait passé inaperçu.
+    const last = quest.steps[state.step - 1]?.toast
+    if (this.unread.get(quest.id) && last) card.append(this.newsLine(tr('Étape franchie', 'Step complete'), last))
+    card.append(el('div', 'quest-note', step.note))
     if (step.parts?.length) {
       const list = el('ul', 'quest-parts')
       let missing = 0
@@ -313,7 +332,9 @@ export class QuestJournal {
   private doneCard(quest: QuestContent): HTMLElement {
     const card = el('div', 'quest quest-done')
     card.dataset.quest = quest.id
-    card.append(this.head(quest, 'check', ''), el('div', 'quest-note', quest.epilogue))
+    card.append(this.head(quest, 'check', ''))
+    if (this.unread.has(quest.id)) card.append(this.newsLine(tr('Quête terminée', 'Quest complete'), quest.reward))
+    card.append(el('div', 'quest-note', quest.epilogue))
     if (!this.open.has(quest.id)) return card
     const more = el('div', 'quest-more')
     more.append(el('div', 'quest-pitch', quest.pitch))
@@ -329,6 +350,8 @@ export class QuestJournal {
 
 interface Toast {
   kind: 'start' | 'step' | 'done' | 'rumor' | 'unlock'
+  /** Au-dessus du titre ; sans lui, celui de son genre. */
+  kicker?: string
   title: string
   detail: string
   /** Un personnage débloqué à CMDR Arena : son visage (fait au moment de l'afficher : il a eu le temps de se rendre), à sa couleur. */
@@ -362,9 +385,9 @@ export class QuestToasts {
     this.showing = !!toast
     if (!toast) return
     const box = el('div', `quest-toast ${toast.kind}`)
-    const kicker = { start: tr('Nouvelle quête', 'New quest'), step: tr('Journal mis à jour', 'Journal updated'), done: tr('Quête terminée', 'Quest complete'), rumor: tr('On raconte à bord…', 'Word aboard is…'), unlock: 'CMDR Arena' }[toast.kind]
+    const kicker = toast.kicker ?? { start: tr('Nouvelle quête', 'New quest'), step: tr('Journal mis à jour', 'Journal updated'), done: tr('Quête terminée', 'Quest complete'), rumor: tr('On raconte à bord…', 'Word aboard is…'), unlock: 'CMDR Arena' }[toast.kind]
     const head = el('div', 'quest-toast-kicker')
-    head.append(icon(toast.kind === 'done' ? 'check' : toast.kind === 'rumor' ? 'chat-circle-dots' : toast.kind === 'unlock' ? 'lock-simple-open' : 'scroll'), kicker)
+    head.append(icon(toast.kind === 'done' ? 'check' : toast.kind === 'step' ? 'seal-check' : toast.kind === 'rumor' ? 'chat-circle-dots' : toast.kind === 'unlock' ? 'lock-simple-open' : 'scroll'), kicker)
     const text = el('div', 'quest-toast-text')
     text.append(head, el('div', 'quest-toast-title', toast.title))
     if (toast.detail) text.append(el('div', 'quest-toast-detail', toast.detail))
@@ -373,13 +396,13 @@ export class QuestToasts {
     box.append(text)
     this.root.replaceChildren(box)
     toast.shown?.()
-    // Une quête terminée reste plus longtemps : sa récompense se lit.
+    // Une quête terminée reste plus longtemps : sa récompense se lit ; une étape, le temps de sa phrase.
     window.setTimeout(() => {
       box.classList.add('out')
       window.setTimeout(() => {
         box.remove()
         this.next()
       }, 350)
-    }, toast.kind === 'done' || toast.kind === 'rumor' || toast.kind === 'unlock' ? 6500 : 3400)
+    }, toast.kind === 'done' || toast.kind === 'rumor' || toast.kind === 'unlock' ? 6500 : toast.kind === 'step' && toast.detail ? 5000 : 3400)
   }
 }

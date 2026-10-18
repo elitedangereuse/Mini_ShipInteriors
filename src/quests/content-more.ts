@@ -68,6 +68,7 @@ export const MORE_QUESTS: QuestContent[] = [
     steps: [
       {
         note: tr('Une émission que Radio Dangereuse ne diffuse pas. Un studio note tout ce qui passe à l\'antenne, même ce qui n\'est pas à lui.', 'A broadcast Radio Dangereuse doesn\'t air. A studio logs everything on the air, even what isn\'t its own.'),
+        toast: tr('Le journal d\'antenne le confirme : toutes les nuits à 03:12, quelqu\'un émet sur 88.8.', 'The broadcast log confirms it: every night at 03:12, someone is on 88.8.'),
         hooks: [{
           on: 'prop:logbook',
           scene: [
@@ -79,6 +80,7 @@ export const MORE_QUESTS: QuestContent[] = [
       },
       {
         note: tr('Un signal trop faible pour traverser trois ponts : quelque chose le répète, un pont après l\'autre.', 'A signal too weak to cross three decks: something repeats it, one deck after another.'),
+        toast: tr('Trois relais retrouvés, trois flèches au feutre : le signal remonte de tout en bas.', 'Three repeaters found, three marker arrows: the signal climbs up from the very bottom.'),
         parts: [
           {
             on: 'prop:relay-upper',
@@ -108,6 +110,7 @@ export const MORE_QUESTS: QuestContent[] = [
       },
       {
         note: tr('Trois relais, trois flèches. La dernière montre la soute de la cale.', 'Three repeaters, three arrows. The last one points at the cargo bay in the hold.'),
+        toast: tr('Un émetteur bricolé, une trace de pince à trois doigts. Vous connaissez quelqu\'un de cette taille.', 'A makeshift transmitter, a three-fingered gripper print. You know someone that size.'),
         hooks: [{
           on: 'prop:transmitter',
           scene: [
@@ -194,6 +197,7 @@ export const MORE_QUESTS: QuestContent[] = [
     steps: [
       {
         note: tr('Trois ingrédients : un qui pousse sous verre, un qui luit dans l\'eau, un qui ne devrait pas être à bord.', 'Three ingredients: one that grows under glass, one that glows in water, one that should not be aboard.'),
+        toast: tr('Menthe de Lave, algue qui luit, goutte de résine : les trois miettes de Jacques sont réunies.', 'Lavian mint, glowing alga, a drop of resin: Jacques\' three crumbs are together.'),
         parts: [
           {
             on: 'prop:mint',
@@ -225,6 +229,7 @@ export const MORE_QUESTS: QuestContent[] = [
       },
       {
         note: tr('Les trois ingrédients sont là, mais dans quel ordre, et combien ? À bord, un seul autre connaît les doses par cœur.', 'All three ingredients are here, but in what order, and how much? Only one other person aboard knows measures by heart.'),
+        toast: tr('Marcel a lâché les doses : trois, deux, un. Et on ne secoue pas, on frappe.', 'Marcel gave up the measures: three, two, one. And you don\'t shake, you strike.'),
         hooks: [{
           on: 'npc:marcel',
           scene: [
@@ -282,6 +287,7 @@ export const MORE_QUESTS: QuestContent[] = [
     steps: [
       {
         note: tr('Un poisson violet, qui luit, et qui ne reste jamais. S\'il existe, il a bien dû laisser quelque chose au bord de l\'eau.', 'A violet fish that glows and never stays. If it exists, it must have left something at the water\'s edge.'),
+        toast: tr('Une écaille violette, froide, pas tout à fait là. Capucine n\'a pas rêvé.', 'A violet scale, cold, not quite there. Capucine wasn\'t dreaming.'),
         hooks: [{
           on: 'prop:scale',
           scene: [
@@ -293,6 +299,7 @@ export const MORE_QUESTS: QuestContent[] = [
       },
       {
         note: tr('Une écaille qui n\'est pas tout à fait là. Le vieux du planétarium étudie le ciel, et ce qu\'il y a entre.', 'A scale that is not quite there. The old man in the planetarium studies the sky, and what lies between.'),
+        toast: tr('Bugenhagen a percé le secret : le poisson nage dans le sillage des sauts FSD.', 'Bugenhagen cracked it: the fish swims in the wake of FSD jumps.'),
         hooks: [{
           on: 'item:1:bugenhagen',
           scene: [
@@ -307,6 +314,7 @@ export const MORE_QUESTS: QuestContent[] = [
       },
       {
         note: tr('Il ne vit pas dans l\'étang, il y passe : dans les cinq minutes qui suivent un saut FSD. Il faut y être, la ligne à l\'eau.', 'It doesn\'t live in the pond, it passes through: within five minutes of an FSD jump. You have to be there, line in the water.'),
+        toast: tr('Une koï du sillage au bout de la ligne ! Elle a l\'air de consulter sa montre.', 'A wake koi on the end of your line! It seems to be checking its watch.'),
         hooks: [{
           on: `event:${GHOST_FISH_EVENT}`,
           scene: [
@@ -360,6 +368,7 @@ export const MORE_QUESTS: QuestContent[] = [
     steps: [
       {
         note: tr('« Le reste est derrière ce que tu regardes sans voir. » Trois coupures : trois morceaux de pellicule.', '“The rest is behind what you look at without seeing.” Three cuts: three pieces of film.'),
+        toast: tr('Trois morceaux de pellicule tirés de derrière les affiches : la bobine est complète.', 'Three pieces of film pulled from behind the posters: the reel is complete.'),
         parts: [
           {
             on: 'prop:strip-foyer',
@@ -444,6 +453,7 @@ export const MORE_QUESTS: QuestContent[] = [
     steps: [
       {
         note: tr('Trois choses pour rallumer ARIA : du courant, du froid et sa carte d\'amorçage. Kael a dit où chercher, à peu près.', 'Three things to bring ARIA back: power, cooling and her boot card. Kael said where to look, more or less.'),
+        toast: tr('Fusible, vanne, carte d\'amorçage : vous avez tout ce qu\'il faut pour rallumer ARIA.', 'Fuse, valve, boot card: you have everything needed to bring ARIA back.'),
         parts: [
           {
             on: 'npc:nico',
@@ -477,6 +487,7 @@ export const MORE_QUESTS: QuestContent[] = [
       },
       {
         note: tr('Le fusible, la vanne, la carte : tout est prêt. Reste à relancer ARIA depuis le poste de la planque.', 'The fuse, the valve, the card: everything is ready. All that is left is to restart ARIA from the den\'s station.'),
+        toast: tr('Amorçage lancé : l\'écran d\'ARIA se remplit lentement de cyan.', 'Boot started: ARIA\'s screen is slowly filling with cyan.'),
         hooks: [{
           on: 'item:-1:scav-terminal',
           scene: [
@@ -533,6 +544,7 @@ export const MORE_QUESTS: QuestContent[] = [
     steps: [
       {
         note: tr('Trois fragments de la mémoire d\'ARIA, sur des cartes, près de consoles qu\'elle ne surveille pas.', 'Three fragments of ARIA\'s memory, on cards, near consoles she doesn\'t watch.'),
+        toast: tr('Les trois journaux cachés d\'ARIA sont entre vos mains. Le dernier pèse lourd.', 'ARIA\'s three hidden logs are in your hands. The last one weighs heavy.'),
         parts: [
           {
             on: 'prop:shard-cockpit',
@@ -563,6 +575,7 @@ export const MORE_QUESTS: QuestContent[] = [
       },
       {
         note: tr('Trois journaux qu\'ARIA a sortis d\'elle-même. Ils sont à elle : c\'est à elle de dire ce qu\'on en fait.', 'Three logs ARIA took out of herself. They are hers: it is for her to say what is done with them.'),
+        toast: tr('ARIA a repris ses souvenirs. Elle se souvient, et c\'est plus lourd qu\'avant.', 'ARIA has taken her memories back. She remembers, and it is heavier than before.'),
         hooks: [{
           on: 'item:-1:scav-aria',
           confirm: {
@@ -632,6 +645,7 @@ export const MORE_QUESTS: QuestContent[] = [
     steps: [
       {
         note: tr('Quatre bornes de ronde sur le pont principal : là où l\'on mange, là où l\'on joue, là où l\'on se retrouve, là où l\'on se soigne.', 'Four beat stations on the main deck: where people eat, where they play, where they meet, where they are patched up.'),
+        toast: tr('Ronde complète : quatre bornes badgées, et une cinquième ligne sur le registre.', 'Beat complete: four stations badged, and a fifth line in the register.'),
         parts: [
           {
             on: 'prop:beat-mess',
@@ -672,6 +686,7 @@ export const MORE_QUESTS: QuestContent[] = [
       },
       {
         note: tr('Les quatre bornes ont badgé. Sur la dernière, une cinquième ligne, que le sergent n\'a pas donnée : « P5. Sous la Promenade. »', 'All four stations badged. On the last one, a fifth line the sergeant never gave: “P5. Under the Promenade.”'),
+        toast: tr('La borne P5 a badgé. Derrière la porte sans poignée, des dizaines d\'écrans bourdonnent.', 'Station P5 badged. Behind the handleless door, dozens of screens hum.'),
         hooks: [{
           on: 'door',
           scene: [

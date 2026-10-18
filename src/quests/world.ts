@@ -186,6 +186,7 @@ export class QuestWorld {
       q.steps.forEach((step, i) => {
         if ((step.parts?.length ?? 0) !== (def.steps[i] ?? 0)) console.warn(`Quête ${q.id}, étape ${i} : ${step.parts?.length ?? 0} éléments racontés, ${def.steps[i]} dans shared/quests.js`)
         if (!step.parts?.length && !step.hooks?.length) console.warn(`Quête ${q.id}, étape ${i} : rien ne la termine`)
+        if (!step.toast && i < q.steps.length - 1) console.warn(`Quête ${q.id}, étape ${i} : pas de bandeau quand elle est franchie (toast)`)
       })
       const own = new Set([...(q.props ?? []).map((p) => `prop:${p.id}`), ...(q.actors ?? []).map((a) => `actor:${a.id}`)])
       for (const on of [q.offer.on, ...q.steps.flatMap((s) => stepHooks(s).map((h) => h.hook.on))]) {

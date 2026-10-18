@@ -69,6 +69,7 @@ export const ARENA_QUESTS: QuestContent[] = [
     steps: [
       {
         note: tr('Le terminal d\'inscription est au lobby de CMDR Arena, dans la cale : l\'ascenseur, tout en bas.', 'The sign-up terminal is in the CMDR Arena lobby, in the hold: take the lift all the way down.'),
+        toast: tr('Inscrit au terminal de CMDR Arena. Six cadenas, aucun personnage : le sergent vous doit une signature.', 'Signed up at the CMDR Arena terminal. Six padlocks, no character: the sergeant owes you a signature.'),
         hooks: [{
           on: 'item:-1:arena-terminal',
           scene: [
@@ -116,6 +117,7 @@ export const ARENA_QUESTS: QuestContent[] = [
     steps: [
       {
         note: tr('Des tomates bien mûres, de la serre hydroponique : Capucine les cultive, au pont supérieur.', 'Nice ripe tomatoes, from the hydroponics bay: Capucine grows them, on the upper deck.'),
+        toast: tr('Une cagette de tomates cabossées, les plus moches de la serre. Elles éclatent très bien, paraît-il.', 'A crate of dented tomatoes, the ugliest in the greenhouse. They burst beautifully, apparently.'),
         hooks: [{
           on: 'npc:capucine',
           scene: [
@@ -161,6 +163,7 @@ export const ARENA_QUESTS: QuestContent[] = [
     steps: [
       {
         note: tr('Un pistolet à seringues qui se bloque, à faire régler par Nico, le mécanicien du hangar, dans la cale.', 'A syringe gun that jams, for Nico to fix: the mechanic in the hangar, down in the hold.'),
+        toast: tr('Nico a changé le ressort sans regarder. Le pistolet de Betty ne se bloquera plus.', 'Nico swapped the spring without looking. Betty\'s gun won\'t jam any more.'),
         hooks: [{
           on: 'npc:nico',
           scene: [
@@ -207,6 +210,7 @@ export const ARENA_QUESTS: QuestContent[] = [
     steps: [
       {
         note: tr('La balise de calibrage est au poste de pilotage, à l\'avant du pont principal.', 'The calibration beacon is in the cockpit, at the front of the main deck.'),
+        toast: tr('La balise a sifflé, tourné trois fois sur elle-même, et son signal file vers la cale.', 'The beacon whistled, spun three times, and its signal is on its way to the hold.'),
         hooks: [{
           on: 'prop:beacon',
           scene: [
@@ -257,6 +261,7 @@ export const ARENA_QUESTS: QuestContent[] = [
     steps: [
       {
         note: tr('Deux pousses carnivores : une sur le pont principal, sans doute là où l\'on se retrouve ; une au pont supérieur, là où l\'on vient lire.', 'Two carnivorous sprouts: one on the main deck, probably where people gather; one on the upper deck, where people come to read.'),
+        toast: tr('Les deux pousses carnivores sont dans votre sac. Vous avez meilleur goût qu\'un traité de botanique.', 'Both carnivorous sprouts are in your bag. You taste better than a botany treatise.'),
         parts: [
           {
             on: 'prop:sprout-common',

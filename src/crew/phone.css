@@ -718,6 +718,19 @@ button.ph-row-main:hover {
   background: #ffd24a;
   color: #1a1204;
 }
+/* Une quête a bougé : la pastille bat, et la languette luit, jusqu'à ce qu'on ouvre le journal. */
+.qp-tab.alert .ph-badge {
+  animation: ph-ping 1.6s ease-in-out infinite;
+}
+.qp-tab.alert::before {
+  animation: qp-glow 1.6s ease-in-out infinite;
+}
+@keyframes qp-glow {
+  50% {
+    background: linear-gradient(160deg, rgba(92, 78, 30, 0.98), rgba(30, 26, 18, 0.98));
+    box-shadow: inset 3px 0 12px rgba(255, 210, 74, 0.55);
+  }
+}
 #quest-phone .ph-body {
   background: linear-gradient(210deg, var(--qp) 0, rgba(255, 210, 74, 0.25) 22%, var(--ph-line) 55%, rgba(125, 255, 168, 0.5) 100%);
 }
@@ -928,7 +941,8 @@ button.ph-row-main:hover {
   .top-left {
     transition: none;
   }
-  .ph-tab.alert .ph-badge {
+  .ph-tab.alert .ph-badge,
+  .qp-tab.alert::before {
     animation: none;
   }
 }

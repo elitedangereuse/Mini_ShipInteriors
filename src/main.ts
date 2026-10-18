@@ -2328,7 +2328,7 @@ function openCameras() {
 
 /** Une quête commence, avance ou se termine : le journal la met en avant, un bandeau et le chat le disent. */
 function questEvent(event: QuestEvent, quest: QuestContent, detail?: string) {
-  questJournal.highlight(quest.id)
+  questJournal.highlight(quest.id, event === 'step' || event === 'done')
   if (event === 'part') {
     sound.ui('pick')
     return chat.add('system', tr(`Journal · ${quest.title} : ${detail}`, `Journal · ${quest.title}: ${detail}`))
@@ -2340,8 +2340,15 @@ function questEvent(event: QuestEvent, quest: QuestContent, detail?: string) {
     return chat.add('system', tr(`Nouvelle quête : ${quest.title}. ${where}`, `New quest: ${quest.title}. ${where}`))
   }
   if (event === 'step') {
-    sound.ui('pick')
-    return questToasts.push({ kind: 'step', title: quest.title, detail: '' })
+    // L'étape franchie est celle d'avant (le journal est déjà passé à la suivante).
+    const done = (quests.state(quest.id)?.step ?? 1) - 1
+    const toast = quest.steps[done]?.toast ?? ''
+    if (toast) chat.add('system', tr(`Journal · ${quest.title} : ${toast}`, `Journal · ${quest.title}: ${toast}`))
+    return questToasts.push({
+      kind: 'step', title: quest.title, detail: toast,
+      kicker: tr(`Étape ${done + 1} sur ${quest.steps.length} franchie`, `Step ${done + 1} of ${quest.steps.length} complete`),
+      shown: () => sound.questStep(),
+    })
   }
   sound.jingle('win')
   questToasts.push({ kind: 'done', title: quest.title, detail: quest.reward })
@@ -7102,13 +7109,6 @@ function frame() {
       dialog.show(Array.isArray(lines) ? lines[0] : lines ?? '')
     } else if (!near && barWarned && Math.hypot(player.position.x - barDoorItem.position.x, player.position.z - barDoorItem.position.z) > 4) barWarned = false
   }
-  if (deckById(-1).group.visible) clubCrowd?.update(world)
-  if (deckById(-1).group.visible) kael?.update(world, deck.def.id === -1 ? player.position : null)
-  if (deckById(1).group.visible) classCrowd?.update(world)
-  // Chaque jukebox remplit sa pièce en stéréo ; derrière une cloison, il reste sourd et lointain.
-  // Un autre pont est silencieux. Le repère des pièces suit la carte du pont, portes comprises.
-  for (const [music, source] of [[deckMusic, deckById(0)], [holdMusic, deckById(-1)], [cabinMusic, homeDeck]] as const) {
-    const playing = music.playing
   if (questDoorWarned) {
     const { item } = questDoorWarned
     if (questDoorWarned.level !== deck.def.id || Math.hypot(player.position.x - item.position.x, player.position.z - item.position.z) > 4) questDoorWarned = null
@@ -7123,6 +7123,13 @@ function frame() {
         : tr('Cette pièce est fermée : une quête en débloque l\'accès.', 'This room is locked: a quest unlocks it.'))
     }
   }
+  if (deckById(-1).group.visible) clubCrowd?.update(world)
+  if (deckById(-1).group.visible) kael?.update(world, deck.def.id === -1 ? player.position : null)
+  if (deckById(1).group.visible) classCrowd?.update(world)
+  // Chaque jukebox remplit sa pièce en stéréo ; derrière une cloison, il reste sourd et lointain.
+  // Un autre pont est silencieux. Le repère des pièces suit la carte du pont, portes comprises.
+  for (const [music, source] of [[deckMusic, deckById(0)], [holdMusic, deckById(-1)], [cabinMusic, homeDeck]] as const) {
+    const playing = music.playing
     const jukeboxRoom = playing && source.map.room(Math.round(playing.x), Math.round(playing.z))
     const playerRoom = source === deck ? source.map.room(Math.round(player.position.x), Math.round(player.position.z)) : null
     // Dans la boîte de nuit, on n'entend plus le jukebox du bar.

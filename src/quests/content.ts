@@ -49,6 +49,11 @@ export interface Part extends Hook {
 export interface Step {
   /** Ce qu'en dit le journal : ce qu'on sait, pas ce qu'il faut faire. */
   note: string
+  /**
+   * Le bandeau quand l'étape est franchie : ce qu'on vient d'accomplir, en une phrase. Toutes les
+   * étapes en ont un, sauf la dernière (la fin de quête a le sien).
+   */
+  toast?: string
   /** Étape simple : une de ces scènes la termine. */
   hooks?: Hook[]
   /** Étape à éléments : toutes ces scènes, dans l'ordre qu'on veut (cf. `steps` dans shared/quests.js). */
@@ -179,6 +184,7 @@ export const QUEST_CONTENT: QuestContent[] = [
     steps: [
       {
         note: tr('Quelqu\'un remplit cette gamelle. Dans une soute, on n\'est jamais loin d\'un hangar.', 'Someone keeps this bowl full. In a cargo bay, you are never far from a hangar.'),
+        toast: tr('Nico a avoué : la gamelle est à Jameson, un passager clandestin qui déteste les sauts.', 'Nico owned up: the bowl belongs to Jameson, a stowaway who hates jumps.'),
         hooks: [{
           on: 'npc:nico',
           scene: [
@@ -194,6 +200,7 @@ export const QUEST_CONTENT: QuestContent[] = [
       },
       {
         note: tr('Jameson vole, se réchauffe et laisse des traces. En trois jours, quelqu\'un a bien dû voir quelque chose.', 'Jameson steals, keeps warm and leaves tracks. In three days, somebody must have seen something.'),
+        toast: tr('Saucisses volées, patte soignée, traces de suie : vous tenez la piste de Jameson, et une saucisse de Lave en poche.', 'Stolen sausages, a patched paw, sooty prints: you\'re on Jameson\'s trail, with a Lave sausage in your pocket.'),
         parts: [
           {
             on: 'npc:marcel',
@@ -226,6 +233,7 @@ export const QUEST_CONTENT: QuestContent[] = [
       },
       {
         note: tr('Du chaud, de la suie, quelque chose qui ronronne. Il n\'y a pas beaucoup d\'endroits comme ça à bord.', 'Warmth, soot, something that hums. There aren\'t many places like that aboard.'),
+        toast: tr('Jameson a mangé la saucisse dans votre main. Il ne vous lâche plus d\'une semelle.', 'Jameson ate the sausage from your hand. He won\'t leave your heels now.'),
         hooks: [{
           on: 'actor:jameson',
           scene: [
@@ -296,6 +304,7 @@ export const QUEST_CONTENT: QuestContent[] = [
     steps: [
       {
         note: tr('La sécurité a fermé le stand. La sécurité porte un casque et fait des rondes.', 'Security closed the range. Security wears a helmet and walks a beat.'),
+        toast: tr('Rourke a posé ses conditions : une vue certifiée, et la clé du râtelier. Pas avant.', 'Rourke has set his terms: certified eyesight, and the rack key. Not before.'),
         hooks: [{
           on: 'npc:rourke',
           scene: [
@@ -310,6 +319,7 @@ export const QUEST_CONTENT: QuestContent[] = [
       },
       {
         note: tr('Il faut y voir clair, et retrouver une clé confiée à « quelqu\'un qui répare tout ».', 'You need to see straight, and to find a key entrusted to “someone who repairs everything”.'),
+        toast: tr('Certificat tamponné, clé tirée du minerai : le dossier est complet.', 'Certificate stamped, key pulled out of the ore: the file is complete.'),
         parts: [
           {
             on: 'npc:betty',
@@ -384,6 +394,7 @@ export const QUEST_CONTENT: QuestContent[] = [
     steps: [
       {
         note: tr('L\'avis est signé de l\'infirmerie.', 'The notice is signed by the medical bay.'),
+        toast: tr('Betty a fermé la salle : quarante-quatre kilos de fonte ont été « empruntés ».', 'Betty closed the gym: forty-four kilos of cast iron were “borrowed”.'),
         hooks: [{
           on: 'npc:betty',
           scene: [
@@ -396,6 +407,7 @@ export const QUEST_CONTENT: QuestContent[] = [
       },
       {
         note: tr('Quarante-quatre kilos de fonte, « empruntés ». Qui, à bord, a besoin de quelque chose de lourd ?', 'Forty-four kilos of cast iron, “borrowed”. Who aboard needs something heavy?'),
+        toast: tr('Kettlebell, haltères, disque : toute la fonte est récupérée. Trois emprunteurs font la tête.', 'Kettlebell, dumbbells, plate: all the iron is back. Three borrowers are sulking.'),
         parts: [
           {
             on: 'prop:kettlebell',
@@ -471,6 +483,7 @@ export const QUEST_CONTENT: QuestContent[] = [
     steps: [
       {
         note: tr('Quelqu\'un se plaint que le ciel tremble. Dans la cale, il n\'y a pas de ciel : il faut chercher plus haut.', 'Someone complains that the sky is shaking. There is no sky in the hold: you have to look higher up.'),
+        toast: tr('Le plaignant, c\'est Bugenhagen : chaque rebond fait perdre ses anneaux à Saturne.', 'The plaintiff is Bugenhagen: every bounce makes Saturn lose its rings.'),
         hooks: [{
           on: 'item:1:bugenhagen',
           scene: [
@@ -484,6 +497,7 @@ export const QUEST_CONTENT: QuestContent[] = [
       },
       {
         note: tr('Il faut de quoi étouffer des secousses, et quelqu\'un qui sache calculer où. Le bruit a ses spécialistes, à cet étage.', 'You need something to muffle the shaking, and someone who can work out where. Noise has its specialists on this deck.'),
+        toast: tr('Un carton de mousse et le calcul de Kepler : le coupable n\'est pas le ballon, c\'est le socle.', 'A box of foam and Kepler\'s maths: the culprit isn\'t the ball, it\'s the base.'),
         parts: [
           {
             on: 'prop:foam',
@@ -507,6 +521,7 @@ export const QUEST_CONTENT: QuestContent[] = [
       },
       {
         note: tr('La mousse et le calcul. Il ne manque que la machine dont tout le ciel sort, et quelqu\'un pour se glisser dessous.', 'The foam and the maths. All that\'s missing is the machine the whole sky pours out of, and someone to crawl underneath.'),
+        toast: tr('Le projecteur repose sur la mousse. Vous tapez du talon : il ne bronche plus.', 'The projector rests on foam. You stamp your heel: it doesn\'t flinch.'),
         hooks: [{
           on: 'item:1:planetarium-projector',
           scene: [
@@ -558,6 +573,7 @@ export const QUEST_CONTENT: QuestContent[] = [
     steps: [
       {
         note: tr('Cinq visages sur la photo. Quatre sont encore à bord, et trois d\'entre eux parlent volontiers.', 'Five faces in the photo. Four are still aboard, and three of them like to talk.'),
+        toast: tr('Trois souvenirs d\'Ilse Varga, et un même nom derrière le cadenas : le sergent.', 'Three memories of Ilse Varga, and the same name behind the padlock: the sergeant.'),
         parts: [
           {
             on: 'npc:marcel',
@@ -593,6 +609,7 @@ export const QUEST_CONTENT: QuestContent[] = [
       },
       {
         note: tr('Tous disent la même chose : c\'est le sergent qui a posé le cadenas. Il était son second.', 'They all say the same thing: the sergeant put the padlock on. He was her vice-captain.'),
+        toast: tr('Rourke vous a confié le dernier message de Varga. Il ne l\'a jamais écouté.', 'Rourke handed you Varga\'s last message. He never listened to it.'),
         hooks: [{
           on: 'npc:rourke',
           scene: [
@@ -607,6 +624,7 @@ export const QUEST_CONTENT: QuestContent[] = [
       },
       {
         note: tr('Un enregistreur, et un endroit d\'où l\'on regarde la route de Beagle Point.', 'A recorder, and a place from which you can look at the route to Beagle Point.'),
+        toast: tr('Varga a parlé : « Ne fermez rien. Jouez sans moi. »', 'Varga has spoken: “Don\'t close anything. Play without me.”'),
         hooks: [{
           on: 'item:0:galaxy-map',
           scene: [
@@ -660,6 +678,7 @@ export const QUEST_CONTENT: QuestContent[] = [
     steps: [
       {
         note: tr('Sa batterie ne tiendra pas longtemps. Quelqu\'un, dans cette cale, sait de quoi vit un mannequin.', 'Its battery won\'t last long. Someone in this hold knows what a dummy lives on.'),
+        toast: tr('Une cellule neuve et l\'enregistreur de vol de T-0 : de quoi lui rapporter dehors.', 'A fresh cell and T-0\'s flight recorder: enough to bring it outside.'),
         hooks: [{
           on: 'npc:nico',
           scene: [
@@ -672,6 +691,7 @@ export const QUEST_CONTENT: QuestContent[] = [
       },
       {
         note: tr('T-0 demande à quoi ressemble dehors. Un enregistreur, trois choses à y mettre : ce qu\'on voit de plus loin, ce qu\'on entend de mieux, ce qui vit.', 'T-0 asks what outside looks like. One recorder, three things to put on it: the farthest thing you can see, the best thing you can hear, something that lives.'),
+        toast: tr('Une planète, un rire, un arbre : l\'enregistreur est plein de dehors.', 'A planet, a laugh, a tree: the recorder is full of outside.'),
         parts: [
           {
             on: 'item:1:brass-telescope',
@@ -746,6 +766,7 @@ export const QUEST_CONTENT: QuestContent[] = [
     steps: [
       {
         note: tr('Écho ne se souvient que de morceaux : un endroit où l\'on rit dans le noir, un endroit où l\'on a moins peur des sauts, un endroit où l\'on veille quand tout le bord dort.', 'Echo only remembers pieces: a place where people laugh in the dark, a place where jumps are less frightening, a place where someone keeps watch while the whole ship sleeps.'),
+        toast: tr('Les trois éclats d\'Écho sont recueillis : un rire, un arbre, un café froid.', 'Echo\'s three shards are gathered: a laugh, a tree, a cold coffee.'),
         parts: [
           {
             on: 'prop:shard-cinema',
@@ -778,6 +799,7 @@ export const QUEST_CONTENT: QuestContent[] = [
       },
       {
         note: tr('Quelqu\'un qui riait au dernier rang, craignait les sauts et veillait la nuit à la place du copilote. À bord, les listes d\'équipage sont tenues par la sécurité.', 'Someone who laughed in the back row, feared jumps and kept the night watch in the co-pilot\'s seat. Aboard, security keeps the crew lists.'),
+        toast: tr('Rourke lui a rendu un nom : la lieutenante Maren Solis, partie en courant.', 'Rourke has given her a name back: Lieutenant Maren Solis, who left at a run.'),
         hooks: [{
           on: 'npc:rourke',
           scene: [
