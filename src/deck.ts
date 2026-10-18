@@ -813,6 +813,7 @@ export class Deck {
   /** Ouvre ou ferme une pièce réservée : ses portes, et le couvercle qui la cache. */
   private setRoomAccess(room: string, open: boolean) {
     for (const d of this.map.doors) if (this.doorRoom(d.x, d.z, d.dir, room)) this.map.lock(d.x, d.z, d.dir, !open)
+    this.lockStamp = -1
     this.syncLocks()
     this.pathfinder.invalidate()
     const cover = this.covers.get(room)
@@ -1642,18 +1643,16 @@ export class Deck {
       lamp,
       pair,
     })
-    // Porte verrouillée : on l'examine (pièce en travaux, extension de quartiers à débloquer). Une
-    // porte d'extension se déverrouille en cours de partie : l'invite disparaît alors (cf. update).
-    if (this.map.isLocked(x, z, dir)) {
-      const state = this.doors[this.doors.length - 1]
-      state.examine = {
-        object: panel,
-        position: new THREE.Vector3(mx, 0, mz),
-        label: tr('Examiner', 'Examine'),
-        text: () => this.closedText(x, z, dir) ?? tr('Porte verrouillée.', 'Locked door.'),
-      }
-      this.interactables.push(state.examine)
+    // Porte verrouillée : on l'examine (pièce en travaux, extension de quartiers à débloquer, pièce
+    // qu'une quête ouvre). L'invite suit le verrou en cours de partie (cf. readLocks).
+    const state = this.doors[this.doors.length - 1]
+    state.examine = {
+      object: panel,
+      position: new THREE.Vector3(mx, 0, mz),
+      label: tr('Examiner', 'Examine'),
+      text: () => this.closedText(x, z, dir) ?? tr('Porte verrouillée.', 'Locked door.'),
     }
+    if (this.map.isLocked(x, z, dir)) this.interactables.push(state.examine)
 
     // Ouverture, de part et d'autre du milieu : 0,6, ou 1,6 pour une porte double (son second
     // montant est posé avec la seconde arête).
