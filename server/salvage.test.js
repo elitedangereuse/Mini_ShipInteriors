@@ -420,6 +420,9 @@ test('capture : l\'ennemi au contact attrape le joueur, qui lâche son colis ; l
   assert.equal(end?.won, false)
   await new Promise((r) => setImmediate(r))
   assert.equal(h.rewards.length, 0)
+  // La partie finie, le lobby est libéré : personne n'y reste, ses réglages reviennent au départ.
+  assert.deepEqual(h.salvage.snapshot().teams[0], { id: 1, leader: null, parcels: 1, enemies: 1, status: 'forming', startsIn: undefined, members: [] })
+  assert.equal(h.salvage.gameOf(a), null)
 })
 const M_ATTACK = RULES.monster.attack + 0.2
 
@@ -782,9 +785,10 @@ test('endurance : deux minutes de missions à quatre, six ennemis, sans erreur n
     let missions = 0
     for (let step = 0; step < 1200; step++) {
       if (!game || h.salvage.gameOf(members[0]) !== game) {
-        // Mission finie (ou pas encore partie) : retour au lobby, et on repart.
+        // Mission finie (ou pas encore partie) : retour au lobby, l'équipe se reforme, et on repart.
         for (const p of members) Object.assign(p, { level: -1, x: 22, z: 5, anim: 'idle' })
         for (const p of members) h.salvage.moved(p)
+        for (const p of members) h.salvage.handle(p, 'salvage:join', { team: 1 })
         game = h.launch(members, { parcels: 6, enemies: 6 })
         for (const p of members) h.arrive(p)
         targets.clear()

@@ -371,6 +371,8 @@ export class MissionHud {
   private readonly spectator = el('div', 'salvage-spectator')
   private readonly spectatorName = el('strong')
   private readonly spectatorKind = el('span')
+  private readonly spectatorLeave: HTMLButtonElement
+  private leaveTimer = 0
   /** Habillage du moniteur : coins de visée, « REC », date et heure de la baie, temps de mission. */
   private readonly cctv = el('div', 'salvage-cctv')
   private readonly cctvClock = el('span', 'salvage-cctv-clock')
@@ -403,6 +405,7 @@ export class MissionHud {
     const next = button('', () => this.onCamera?.(1), '', 'caret-right')
     next.setAttribute('aria-label', tr('Caméra suivante', 'Next camera'))
     const leave = button(tr('Quitter les caméras', 'Leave the cameras'), () => this.onCameraClose?.(), 'salvage-quiet', 'sign-out')
+    this.spectatorLeave = leave
     const label = el('div', 'salvage-spectator-label')
     this.spectatorKind.textContent = tr('CAMÉRA ALLIÉE', 'ALLY CAMERA')
     label.append(icon('video-camera'), this.spectatorKind, this.spectatorName)
@@ -506,11 +509,21 @@ export class MissionHud {
   camera(name: string | null, kind: 'ally' | 'fixed' = 'ally', number = 0) {
     this.spectator.hidden = name === null
     this.cctv.hidden = name === null
+    this.armLeave(false)
     document.body.classList.toggle('salvage-watching', name !== null)
     if (name === null) return
     this.spectatorName.textContent = name
     this.spectatorKind.textContent = kind === 'ally' ? tr('CAMÉRA ALLIÉE', 'ALLY CAMERA') : `CAM ${String(number).padStart(2, '0')}`
     this.cctvSecond = -1
+  }
+
+  /** Le bouton « Quitter les caméras » attend sa confirmation (trois secondes). */
+  armLeave(on = true) {
+    clearTimeout(this.leaveTimer)
+    // Le texte suit l'icône (cf. button).
+    this.spectatorLeave.lastChild!.textContent = on ? tr('Confirmer : quitter', 'Confirm: leave') : tr('Quitter les caméras', 'Leave the cameras')
+    this.spectatorLeave.classList.toggle('armed', on)
+    if (on) this.leaveTimer = window.setTimeout(() => this.armLeave(false), 3000)
   }
 
   /** Horloge du moniteur : la date de la baie (l'an 3312 d'Elite) et le temps de mission. */

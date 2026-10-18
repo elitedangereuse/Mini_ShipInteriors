@@ -6,6 +6,7 @@
 // qui l'on veut, et l'on en change librement. Le premier arrivé en est le chef : il choisit le
 // nombre de colis et d'ennemis ; chacun se déclare prêt, et la mission part quelques secondes après
 // le dernier. Sortir de la pièce et du hall de la cale, c'est quitter son lobby ; un lobby vidé retrouve ses réglages de départ.
+// Une partie finie libère le sien : chacun repasse au terminal pour repartir.
 //
 // Partie : une instance par équipe (sa graine, ses colis, ses ennemis, ses casiers, sa fusée).
 // Le relais tire la baie (cf. shared/salvage.js), place les joueurs loin des ennemis, puis fait
@@ -353,12 +354,11 @@ export function createSalvage({
     toGame(game, 'salvage:end', report)
     // Qui a abandonné et n'a pas rejoint d'autre équipe apprend aussi la fin : son client referme la baie.
     for (const m of game.members.values()) if (m.connected && m.status === 'left' && !teamOf.has(m.id)) emit(m.id, 'salvage:end', report)
-    // Membres partis du vaisseau (ou pas encore revenus) : ils quittent l'équipe ; qui revient
-    // plus tard apprendra le résultat.
-    const absent = new Set([...game.members.values()].filter((m) => !m.connected).map((m) => m.id))
-    t.members = t.members.filter((id) => !absent.has(id))
-    if (!t.members.length) reset(t)
-    else if (absent.has(t.leader)) t.leader = t.members[0]
+    // La partie finie, le lobby est libéré : chacun reforme une équipe au terminal (qui est parti du
+    // vaisseau, ou pas encore revenu, apprendra le résultat avec son ticket).
+    for (const id of t.members) teamOf.delete(id)
+    t.members = []
+    reset(t)
     finished.set(game.id, { result: report, tickets: new Set([...game.members.values()].map((m) => m.ticket)), until: now() + KEEP_RESULT })
     log(`[salvage] mission ${game.id} : ${won ? 'réussie' : reason === 'timeout' ? 'annulée' : 'échouée'}, ${game.delivered}/${game.settings.parcels} colis en ${duration} s`)
     announce()

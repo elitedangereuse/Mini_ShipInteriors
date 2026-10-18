@@ -191,6 +191,8 @@ export class SalvageClient {
   private beatClock = 0
   private beepClock = 0
   private quitArmed = 0
+  /** Quitter les caméras demande confirmation (un second appui dans les trois secondes). */
+  private closeArmed = 0
   private endTimer = 0
   private caughtTimer = 0
   /** Revenu en capturé : on ouvre les caméras dès que l'équipe est là. */
@@ -248,7 +250,7 @@ export class SalvageClient {
     this.hud.onQuit = () => this.abort()
     this.hud.onThrow = () => this.throwFlare()
     this.hud.onCamera = (step) => this.cycle(step)
-    this.hud.onCameraClose = () => this.stopWatching()
+    this.hud.onCameraClose = () => this.closeCameras()
     void this.buildController()
   }
 
@@ -378,12 +380,15 @@ export class SalvageClient {
 
   /** Le mur des caméras : suivre ses coéquipiers encore en mission, ou les caméras de la baie. */
   openCameras(): boolean {
-    const g = this.game
-    if (!g || g.end || this.inZone) return false
-    const feeds = this.feeds()
-    if (!feeds.length) return false
-    this.watch(feeds[0], true)
+    if (!this.canWatch) return false
+    this.watch(this.feeds()[0], true)
     return true
+  }
+
+  /** Capturé, revenu au lobby : sa mission continue, et l'on peut encore suivre son équipe. */
+  get canWatch(): boolean {
+    const g = this.game
+    return !!g && !g.end && !this.inZone && this.phase === 'ship' && this.feeds().length > 0
   }
 
   private refreshLobby() {
@@ -719,7 +724,7 @@ export class SalvageClient {
     if (this.phase === 'watching') {
       if (e.code === 'ArrowLeft' || e.code === 'KeyA') this.cycle(-1)
       else if (e.code === 'ArrowRight' || e.code === 'KeyD') this.cycle(1)
-      else if (e.code === 'Escape' || e.code === 'KeyE') this.stopWatching()
+      else if (e.code === 'Escape' || e.code === 'KeyE') this.closeCameras()
       else return false
       e.preventDefault()
       return true
@@ -795,8 +800,22 @@ export class SalvageClient {
     this.watch(feeds[(i + step + feeds.length) % feeds.length])
   }
 
+  /** Quitter les caméras (deux appuis) : retour au lobby ; la porte blindée les rend. */
+  private closeCameras() {
+    const now = performance.now()
+    if (now - this.closeArmed > 3000) {
+      this.closeArmed = now
+      this.hud.armLeave()
+      this.host.dialog.show(tr('Quitter les caméras ? Recommencez pour revenir au lobby.', 'Leave the cameras? Do it again to go back to the lobby.'))
+      return
+    }
+    this.stopWatching()
+    this.host.dialog.show(tr('Retour au lobby. Votre équipe est encore en mission : la porte blindée vous rend les caméras.', 'Back in the lobby. Your crew is still on the mission: the blast door gives you the cameras back.'))
+  }
+
   private stopWatching(restore = true) {
     if (this.phase !== 'watching') return
+    this.closeArmed = 0
     this.watching = null
     this.phase = 'ship'
     this.fog.crt = false

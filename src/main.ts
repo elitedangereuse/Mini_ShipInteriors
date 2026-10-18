@@ -2693,6 +2693,15 @@ for (const it of deckById(-1).interactables) {
     player.interact()
     if (!zone.openCameras()) showText(it.text)
   }
+  else if (model === 'blast-door') {
+    // Capturé, revenu au lobby pendant que son équipe continue : la porte rend les caméras.
+    const examine = it.label
+    Object.defineProperty(it, 'label', { get: () => (zone.canWatch ? tr('Suivre son équipe', 'Follow your crew') : examine) })
+    it.onInteract = () => {
+      player.interact()
+      if (!zone.openCameras()) showText(it.text)
+    }
+  }
 }
 const boardGames = new BoardGames({
   playerId: () => net.id,
@@ -3072,6 +3081,8 @@ net.connect()
 // ------------------------------------------------------------------ chat & emotes
 
 function emote(id: string) {
+  // Derrière les caméras de la baie (capturé), caché ou en route : le personnage ne joue rien.
+  if (zone.frozen) return
   // Assis ou couché : on se relève d'abord.
   if (seating.current) return seating.stand(() => emote(id))
   const def = player.avatar.playEmote(id)
