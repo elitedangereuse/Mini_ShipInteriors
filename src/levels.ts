@@ -1789,12 +1789,15 @@ export const LEVELS: LevelDef[] = [
       { model: 'plant-tall', x: -0.08, z: 5.38 },
       { model: 'sofa', x: 0.0, z: 2.35, rot: 1, label: 'mustard', interact: tr('Le salon de la mezzanine : d\'ici, on voit tout le hall, et derrière soi, toute la galaxie.', 'The mezzanine lounge: from here you can see the whole hall, and behind you, the whole galaxy.') },
       { model: 'coffee-table', x: 1.3, z: 2.35, rot: 1 },
+      // Sa table basse, un peu en retrait vers le nord, et la monstera rangée contre le garde-corps
+      // ouest : la colonne de tuiles le long des baies reste libre, et l'on traverse l'étage, ou
+      // l'on s'assoit, par le sud aussi bien que par le nord.
       { model: 'sofa', x: 0.0, z: 6.65, rot: 1, label: 'navy' },
-      { model: 'coffee-table', x: 1.1, z: 6.65, rot: 1 },
+      { model: 'coffee-table', x: 1.2, z: 6.45, rot: 1 },
       { model: 'bookshelf', x: 2.0, z: -0.2, interact: tr('Bibliothèque commune : guides de minage, romans de Drew Wagar, et un manuel du Cobra annoté au crayon.', 'Shared bookshelf: mining guides, Drew Wagar novels, and a Cobra manual annotated in pencil.') },
       { model: 'monstera', x: 1.1, z: 1.1 },
       { model: 'floor-lamp', x: 0.05, z: 1.55 },
-      { model: 'monstera', x: 1.1, z: 7.9 },
+      { model: 'monstera', x: 0.0, z: 8.15 },
       { model: 'floor-lamp', x: 0.05, z: 7.45 },
       // Au bout sud de l'étage, au-dessus du coin de l'aquarium : le coin des contemplatifs. Une
       // longue-vue braquée sur les baies, un tourne-disque sur sa sellette, des coussins, et une
