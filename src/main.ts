@@ -441,6 +441,20 @@ const patronDoorItem = patronEntrance && deckById(0).doorExamine(patronEntrance.
 if (patronDoorItem) patronDoorItem.label = tr('Réservé aux mécènes', 'Patrons only')
 /** L'IA de la porte du bar a déjà refoulé le joueur qui s'en approchait (une fois par visite). */
 let barWarned = false
+/**
+ * Les portes des pièces qu'une quête ouvre (cf. QUEST_ROOMS) : qui s'en approche avant de l'avoir
+ * terminée apprend, une fois par approche, quelle quête lui en donnera l'accès.
+ */
+const questDoors = QUEST_ROOMS.flatMap(({ quest, level, room }) => {
+  const d = deckById(level)
+  return d.map.doors.flatMap((door) => {
+    const step = DIRS[door.dir]
+    if (d.map.room(door.x, door.z) !== room && d.map.room(door.x + step.dx, door.z + step.dz) !== room) return []
+    const item = d.doorExamine(door.x, door.z, door.dir)
+    return item ? [{ quest, level, item }] : []
+  })
+})
+let questDoorWarned: (typeof questDoors)[number] | null = null
 // Le Zorb, la boîte de nuit de la cale : son videur n'ouvre qu'à qui porte une apparence d'alien
 // (cf. clubStep). Aux autres, il répète ce qu'on lit sur la porte.
 let clubAlien = isAlienLook(profile.skin)
@@ -7095,6 +7109,20 @@ function frame() {
   // Un autre pont est silencieux. Le repère des pièces suit la carte du pont, portes comprises.
   for (const [music, source] of [[deckMusic, deckById(0)], [holdMusic, deckById(-1)], [cabinMusic, homeDeck]] as const) {
     const playing = music.playing
+  if (questDoorWarned) {
+    const { item } = questDoorWarned
+    if (questDoorWarned.level !== deck.def.id || Math.hypot(player.position.x - item.position.x, player.position.z - item.position.z) > 4) questDoorWarned = null
+  } else if (!riding && !cinematic.active) {
+    const near = questDoors.find((q) => q.level === deck.def.id && !quests.isDone(q.quest)
+      && Math.hypot(player.position.x - q.item.position.x, player.position.z - q.item.position.z) < 1.2)
+    if (near) {
+      questDoorWarned = near
+      const title = QUEST_CONTENT.find((q) => q.id === near.quest)?.title
+      dialog.show(title
+        ? tr(`Cette pièce est fermée. Terminez la quête « ${title} » pour en débloquer l'accès.`, `This room is locked. Complete the quest “${title}” to unlock it.`)
+        : tr('Cette pièce est fermée : une quête en débloque l\'accès.', 'This room is locked: a quest unlocks it.'))
+    }
+  }
     const jukeboxRoom = playing && source.map.room(Math.round(playing.x), Math.round(playing.z))
     const playerRoom = source === deck ? source.map.room(Math.round(player.position.x), Math.round(player.position.z)) : null
     // Dans la boîte de nuit, on n'entend plus le jukebox du bar.
