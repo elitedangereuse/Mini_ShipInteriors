@@ -5328,11 +5328,12 @@ body.gardening #emotes { display: none; }
 .ludo-card:not(.flipped):hover .ludo-card-inner, .ludo-card:not(.flipped):focus-visible .ludo-card-inner { translate: 0 -10px; box-shadow: 0 26px 34px #000a, 0 0 0 2px #ecd9a4b3; }
 .ludo-card.flipped .ludo-card-inner { transform: rotateY(180deg); rotate: 0deg; animation: ludo-lift .8s ease-in-out; box-shadow: 0 16px 26px #0009, 0 0 26px color-mix(in srgb, var(--glow), transparent 45%); }
 @keyframes ludo-lift { 45% { translate: 0 -30px; scale: 1.08; } }
-.ludo-card-back, .ludo-card-front, .ludo-card-foil { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.ludo-card-back, .ludo-card-front { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
 .ludo-card-back { object-fit: cover; background: #0c0c0e; }
-.ludo-card-front { object-fit: cover; background: #101726; transform: rotateY(180deg); }
+.ludo-card-front { display: block; overflow: hidden; background: #101726; transform: rotateY(180deg); isolation: isolate; }
+.ludo-card-front img { display: block; width: 100%; height: 100%; object-fit: cover; }
 /* Le reflet : un passage pour une rare, un va-et-vient pour une ultra-rare, l'arc-en-ciel d'une mythique. */
-.ludo-card-foil { transform: rotateY(180deg) translateZ(1px); pointer-events: none; opacity: 0; background: linear-gradient(115deg, transparent 38%, #ffffffb8 50%, transparent 62%) no-repeat; background-size: 280% 100%; mix-blend-mode: screen; }
+.ludo-card-foil { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: linear-gradient(115deg, transparent 38%, #ffffffb8 50%, transparent 62%) no-repeat; background-size: 280% 100%; mix-blend-mode: screen; }
 .ludo-card.flipped.rarity-r .ludo-card-foil { opacity: 1; animation: ludo-sweep 1.1s .55s ease-out both; }
 .ludo-card.flipped.rarity-u .ludo-card-foil { opacity: 1; animation: ludo-sweep 2.6s .55s ease-in-out infinite; }
 .ludo-card.flipped.rarity-m .ludo-card-foil { opacity: 1; background-image: linear-gradient(115deg, transparent 30%, #ff7ad9b3 42%, #ffe98ab3 50%, #7ae3ffb3 58%, transparent 70%); animation: ludo-sweep 2.2s .55s ease-in-out infinite; }

@@ -362,10 +362,14 @@ export class CardsPanel {
       const back = el('img', 'ludo-card-back')
       back.src = backUrl(true)
       back.alt = ''
-      const front = el('img', 'ludo-card-front')
-      front.src = cardUrl(card.key)
-      front.alt = ''
-      inner.append(back, front, el('span', 'ludo-card-foil'))
+      const art = el('img')
+      art.src = cardUrl(card.key)
+      art.alt = ''
+      // La face et son reflet dans un seul calque retourné : le mélange du reflet aplatit
+      // son parent, et dans la carte même il montrait la face en miroir.
+      const front = el('span', 'ludo-card-front')
+      front.append(art, el('span', 'ludo-card-foil'))
+      inner.append(back, front)
       slot.append(el('span', 'ludo-card-aura'), inner, el('small'))
       hand.append(slot)
       this.timers.push(window.setTimeout(() => this.sound('card-place', 0.8), 120 + i * DEAL_GAP))
