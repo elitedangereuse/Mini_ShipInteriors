@@ -6627,6 +6627,10 @@ function slowFrame(times: Float32Array, n: number): number {
   sorted.sort()
   return sorted[Math.min(n - 1, Math.floor(n * 0.9))]
 }
+/** Début de la dernière image dessinée (ms, cf. performance.now). */
+let lastFrame = -Infinity
+/** Écart minimal entre deux images en mode léger : sous 1/90 s, l'image attend le battement suivant. */
+const LIGHT_FRAME_GAP = 1000 / 90
 let promptText = ''
 /** Une image sur deux, au doigt : la carte d'ombre se redessine (cf. shadowMap.autoUpdate). */
 let shadowBeat = false
@@ -6643,6 +6647,10 @@ function frame() {
   // L'image suivante est demandée d'abord : une erreur dans celle-ci ne fige pas le jeu pour de bon.
   requestAnimationFrame(frame)
   const frameStart = performance.now()
+  // Mode léger, sur un écran à plus de 90 Hz (120, 144…) : une image sur deux, à pas régulier. Le jeu
+  // n'y gagne rien à l'œil, et la machine y fait deux fois moins de travail (chaleur, batterie).
+  if (renderQuality.light && frameStart - lastFrame < LIGHT_FRAME_GAP) return
+  lastFrame = frameStart
   if (pendingDpr !== null) {
     renderer.setPixelRatio(pendingDpr)
     pendingDpr = null
