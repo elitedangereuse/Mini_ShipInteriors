@@ -239,7 +239,16 @@ const coarsePointer = matchMedia('(pointer: coarse)').matches
 // Recalculée quand la fenêtre change d'écran ou que le zoom du navigateur change (cf. watchDensity).
 let MAX_DPR = Math.min(devicePixelRatio, coarsePointer ? 1.5 : 2)
 renderQuality.light = store.get('mini-shipinteriors-light') === 'true'
-let dpr = Math.min(MAX_DPR, coarsePointer ? 1.25 : 1.5)
+/**
+ * Mode léger : la résolution adaptative y travaille entre 0,5 et 1 (au lieu de 0,75 figé) ; elle part de
+ * 0,75 et ne descend sous ce départ que si c'est la carte graphique qui peine (cf. frame).
+ */
+const LIGHT_DPR = { start: 0.75, max: 1, min: 0.5 }
+/** Densité de départ du profil graphique choisi. */
+const startDpr = () => Math.min(MAX_DPR, renderQuality.light ? LIGHT_DPR.start : coarsePointer ? 1.25 : 1.5)
+/** Densité la plus haute du profil graphique choisi. */
+const topDpr = () => (renderQuality.light ? Math.min(MAX_DPR, LIGHT_DPR.max) : MAX_DPR)
+let dpr = startDpr()
 // Sur un écran dense (Retina), pas d'anticrénelage multi-échantillon : à cette finesse il ne se voit
 // presque plus, et il coûtait près de 40 % du temps d'image (mesuré en vue subjective, densité 2).
 // La résolution adaptative garde alors plus souvent la pleine densité. Il se choisit à la création.
@@ -253,7 +262,7 @@ const renderer = new THREE.WebGLRenderer({
   context: glCanvas.getContext('webgl2', { alpha: false, antialias, stencil: false, powerPreference: 'high-performance' }) ?? undefined,
   antialias,
 })
-renderer.setPixelRatio(renderQuality.light ? Math.min(MAX_DPR, 0.75) : dpr)
+renderer.setPixelRatio(dpr)
 renderer.setSize(innerWidth, innerHeight)
 renderer.setClearColor(0x000000, 1)
 renderer.shadowMap.enabled = !renderQuality.light
@@ -4938,7 +4947,7 @@ $('help-toggle').onclick = () => ($('help').hidden = !$('help').hidden)
 $('photo-toggle').onclick = () => openPhoto()
 function updateLightMode() {
   const light = renderQuality.light
-  renderer.setPixelRatio(light ? Math.min(MAX_DPR, 0.75) : dpr)
+  renderer.setPixelRatio(dpr)
   renderer.shadowMap.enabled = !light
   // Le soleil cesse aussi de porter son ombre : c'est ce qui fait changer de shader aux matières.
   // Sans cela, elles gardaient la dernière carte d'ombre, figée (et son coût), ou n'en recevaient
@@ -4954,6 +4963,10 @@ $('light-mode').onclick = () => {
   renderQuality.light = !renderQuality.light
   store.set('mini-shipinteriors-light', String(renderQuality.light))
   perfTime = perfFrames = fastWindows = 0
+  settling = 3
+  // La résolution adaptative repart du départ du profil choisi.
+  dpr = startDpr()
+  dprCeiling = topDpr()
   updateLightMode()
 }
 updateLightMode()
@@ -6565,8 +6578,14 @@ const actors = new Map<Deck, THREE.Vector3[]>(decks.map((d) => [d, []]))
 let perfTime = 0
 let perfFrames = 0
 let fastWindows = 0
+/**
+ * Secondes que la résolution adaptative laisse passer sans juger, au démarrage et après un changement
+ * de profil graphique : les shaders s'y compilent, et ces images lentes faisaient baisser la densité
+ * (et son plafond) pour quinze secondes au moins.
+ */
+let settling = 3
 /** Densité de pixels maximale autorisée ; redescend si l'affichage a déjà peiné à ce niveau. */
-let dprCeiling = MAX_DPR
+let dprCeiling = topDpr()
 /**
  * Sous la pleine densité (1), quand même elle ne tient pas 60 i/s : l'image s'adoucit plutôt que
  * de saccader. Seulement si c'est la carte graphique qui peine (cf. frame).
@@ -6579,9 +6598,9 @@ const MIN_DPR = 0.75
 function watchDensity() {
   matchMedia(`(resolution: ${devicePixelRatio}dppx)`).addEventListener('change', () => {
     MAX_DPR = Math.min(devicePixelRatio, coarsePointer ? 1.5 : 2)
-    dprCeiling = MAX_DPR
-    dpr = Math.min(dpr, MAX_DPR)
-    pendingDpr = renderQuality.light ? Math.min(MAX_DPR, 0.75) : dpr
+    dprCeiling = topDpr()
+    dpr = Math.min(dpr, dprCeiling)
+    pendingDpr = dpr
     watchDensity()
   }, { once: true })
 }
@@ -7145,10 +7164,12 @@ function frame() {
   perfTime += spent
   if (perfTime > 1) {
     const n = Math.min(perfFrames, frameTimes.length)
-    const typical = renderQuality.light || document.hidden ? 0 : slowFrame(frameTimes, n)
-    // Sous la pleine densité, seulement si le jeu prépare chaque image bien plus vite que 60 i/s :
-    // c'est alors la carte graphique qui ne suit pas, et moins de pixels la soulagent.
-    const floor = typical && slowFrame(busyTimes, n) < 1 / 75 ? MIN_DPR : 1
+    const typical = document.hidden || settling-- > 0 ? 0 : slowFrame(frameTimes, n)
+    // Sous la pleine densité (sous le départ, en mode léger), seulement si le jeu prépare chaque image
+    // bien plus vite que 60 i/s : c'est alors la carte graphique qui ne suit pas, et moins de pixels la
+    // soulagent.
+    const gpuBound = !!typical && slowFrame(busyTimes, n) < 1 / 75
+    const floor = renderQuality.light ? (gpuBound ? LIGHT_DPR.min : LIGHT_DPR.start) : gpuBound ? MIN_DPR : 1
     sinceRetry++
     if (typical > 1 / 55 && dpr > floor) {
       // Le niveau qu'on retentait peine encore : le prochain essai attendra deux fois plus.
@@ -7166,8 +7187,8 @@ function frame() {
           dpr = Math.min(dprCeiling, dpr + 0.25)
           pendingDpr = dpr
           fastWindows = 0
-        } else if (dprCeiling < MAX_DPR && fastWindows >= patience) {
-          dprCeiling = Math.min(MAX_DPR, dprCeiling + 0.25)
+        } else if (dprCeiling < topDpr() && fastWindows >= patience) {
+          dprCeiling = Math.min(topDpr(), dprCeiling + 0.25)
           sinceRetry = 0
         }
       } else fastWindows = 0
