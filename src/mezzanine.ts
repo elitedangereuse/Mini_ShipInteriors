@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { solidBox, type Box2 } from './deck'
 import { DIRS } from './map'
 import { withSurface } from './surfaces'
-import type { Mezzanine, MezzanineTile } from '../shared/mezzanine.js'
+import { mezzanineTile, type Mezzanine, type MezzanineTile } from '../shared/mezzanine.js'
 
 /*
  * Mezzanine d'une pièce (cf. shared/mezzanine.js) : son plancher, sa façade, ses escaliers et ses
@@ -181,6 +181,24 @@ export function buildMezzanine(mezz: Mezzanine, rails: { x: number; z: number; d
     parts.glass = mesh
   }
   return parts
+}
+
+const _tilt = new THREE.Quaternion()
+const _axis = new THREE.Vector3()
+
+/**
+ * Pose à plat un repère au sol (carré de survol, marqueur de destination : un anneau couché) déjà
+ * placé à la hauteur du sol en (x, z). Sur une marche, il suit la pente de la volée, une demi-marche
+ * plus haut : il passe juste au-dessus des nez de marche, qui le coupaient quand il restait à plat.
+ */
+export function layOnGround(o: THREE.Object3D, mezz: Mezzanine | null, x: number, z: number) {
+  o.rotation.set(-Math.PI / 2, 0, 0)
+  const t = mezz ? mezzanineTile(mezz, x, z) : undefined
+  if (!mezz || !t || t.stair < 0) return
+  const rise = mezz.height / t.run
+  const d = DIRS[t.stair]
+  o.position.y += rise / STEPS / 2
+  o.quaternion.premultiply(_tilt.setFromAxisAngle(_axis.set(-d.dz, 0, d.dx), Math.atan(rise)))
 }
 
 /**

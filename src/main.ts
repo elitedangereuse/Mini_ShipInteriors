@@ -62,6 +62,7 @@ import { PadCursor, PadKeys, PadUi } from './pad-ui'
 import { setupMobile } from './mobile'
 import { lineOfSight } from '../shared/sight.js'
 import { DIRS } from './map'
+import { layOnGround } from './mezzanine'
 import { EN, localizeAttributes, tr } from './i18n'
 import { LightRig, skipDarkLights, steadyShadows } from './lighting/rig'
 import { CAT_SPAWN, DEFAULT_AMBIENCE, LEVEL_HEIGHT, LEVELS, liftOf, offShip, SPAWN } from './levels'
@@ -777,9 +778,11 @@ for (const [where, level] of Object.entries(JUKEBOX_DECKS) as ['deck' | 'hold', 
 }
 
 // Repère de la tuile survolée (carré) et de la destination (anneau).
+// Le carré de survol et le marqueur passent devant ce qui est à leur hauteur : le bord du carré
+// tombe pile sur le chapeau de la façade de la mezzanine, au ras du plancher, et y scintillait.
 const hover = new THREE.Mesh(
   new THREE.RingGeometry(0.6, 0.7, 4, 1, Math.PI / 4),
-  new THREE.MeshBasicMaterial({ color: '#59d8ff', transparent: true, opacity: 0.5, depthWrite: false }),
+  new THREE.MeshBasicMaterial({ color: '#59d8ff', transparent: true, opacity: 0.5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }),
 )
 hover.rotation.x = -Math.PI / 2
 hover.visible = false
@@ -787,7 +790,7 @@ scene.add(hover)
 
 const marker = new THREE.Mesh(
   new THREE.RingGeometry(0.18, 0.26, 32),
-  new THREE.MeshBasicMaterial({ color: '#ffb03a', transparent: true, depthWrite: false }),
+  new THREE.MeshBasicMaterial({ color: '#ffb03a', transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }),
 )
 marker.rotation.x = -Math.PI / 2
 marker.visible = false
@@ -5097,7 +5100,10 @@ function processHover() {
   pendingMove = null
   canvas.style.cursor = item ? 'pointer' : 'default'
   hover.visible = !fpsShown && !!tile && deck.pathfinder.walkable(tile.x, tile.z)
-  if (tile) hover.position.set(tile.x, deck.y + deck.ground(tile.x, tile.z) + 0.01, tile.z)
+  if (tile) {
+    hover.position.set(tile.x, deck.y + deck.ground(tile.x, tile.z) + 0.01, tile.z)
+    layOnGround(hover, deck.mezzanine, tile.x, tile.z)
+  }
 }
 
 // Caméra libre : clic droit ou clic molette maintenu, puis glisser. Horizontalement on tourne
@@ -5541,6 +5547,7 @@ function goTo(tile: Tile, onArrive?: () => void): boolean {
     onArrive?.()
   }
   marker.position.set(tile.x, deck.y + deck.ground(tile.x, tile.z) + 0.02, tile.z)
+  layOnGround(marker, deck.mezzanine, tile.x, tile.z)
   marker.visible = true
   return true
 }
@@ -5790,6 +5797,7 @@ function walkTo(to: { x: number; z: number }, arrived: () => void): boolean {
     arrived()
   }
   marker.position.set(to.x, deck.y + deck.ground(to.x, to.z) + 0.02, to.z)
+  layOnGround(marker, deck.mezzanine, to.x, to.z)
   marker.visible = true
   return true
 }
