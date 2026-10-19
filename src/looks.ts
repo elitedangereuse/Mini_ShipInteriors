@@ -8,6 +8,7 @@ import { bakeGear } from './gear'
 import { applyStyle, paintSuit, styleFields, styleFor, type Persona } from './holo-style'
 import { tr } from './i18n'
 import type { IconName } from './icons'
+import { addPatronGear, addPatronHelmet, patronCollar } from './looks-patron'
 import { addKaelGear, ARIA_RISE, ariaProjection } from './looks-scavengers'
 import { recolored } from './recolor'
 import { isStyleSegment, parseStyle, styleSegment, type LookStyle } from '../shared/look-style.js'
@@ -54,8 +55,8 @@ export interface SuitStyle {
   visor: string
   /** Voyants (sac dorsal, lampe du casque). */
   light: string
-  /** Équipement propre à un personnage, à la place du col (cf. looks-scavengers.ts). */
-  gear?: 'kael'
+  /** Équipement propre à un personnage, à la place du col (cf. looks-scavengers.ts, looks-patron.ts). */
+  gear?: 'kael' | 'patron'
 }
 
 interface GuardianStyle {
@@ -183,19 +184,20 @@ export const RACES: Race[] = [
         },
       },
       {
-        // Mécène : noir profond et liserés d'or, casque à visière dorée. Elle ne s'achète pas : elle
-        // se porte tant qu'on soutient le site sur Patreon (cf. PATRON_SKIN dans economy/skins.ts).
+        // Mécène : tenue d'apparat noire et or à cape pourpre (cf. looks-patron.ts). Elle ne s'achète
+        // pas : elle se porte tant qu'on soutient le site sur Patreon (cf. PATRON_SKIN dans economy/skins.ts).
         id: 'patron',
         label: tr('Mécène', 'Patron'),
         swatch: '#e2b54a',
         trimAt: 0.85,
         suit: {
-          ramp: [[0, '#0a0907'], [0.35, '#17150f'], [0.62, '#262219'], [0.8, '#3a3426'], [0.855, '#b8862a'], [0.93, '#e8b84a'], [1, '#fff0b8']],
-          glove: '#17150f',
+          ramp: [[0, '#0d0c12'], [0.35, '#1c1a24'], [0.62, '#2c2935'], [0.8, '#3f3a47'], [0.855, '#b8862a'], [0.93, '#e8b84a'], [1, '#fff0b8']],
+          glove: '#1c1a24',
           helmet: 'visor',
-          shell: '#14120d',
+          shell: '#1a1820',
           visor: '#ffc94a',
           light: '#ffd76a',
+          gear: 'patron',
         },
       },
       // Les tenues de sport du Vestiaire des Légendes (cale) : elles ne s'achètent pas, un record
@@ -624,8 +626,9 @@ function addSuitGear(root: THREE.Object3D, s: SuitStyle) {
 
   if (s.gear === 'kael') addKaelGear(root)
   else {
+    if (s.gear === 'patron') addPatronGear(root)
     // Col : anneau à la base de la tête.
-    const collar = new THREE.Mesh(new THREE.TorusGeometry(size.x * 0.42, 0.035, 6, 20), mat.shell)
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(size.x * 0.42, 0.035, 6, 20), s.gear === 'patron' ? patronCollar() : mat.shell)
     collar.rotation.x = Math.PI / 2
     collar.position.set(center.x, hb.min.y + 0.02, center.z + size.z * 0.05)
     head.add(collar)
@@ -642,12 +645,15 @@ function addSuitGear(root: THREE.Object3D, s: SuitStyle) {
       const visor = new THREE.Mesh(new RoundedBoxGeometry(w * 0.8, h * 0.46, 0.06, 2, 0.025), mat.visor)
       visor.position.set(center.x, shell.position.y - h * 0.04, front - 0.015)
       head.add(visor)
+      if (s.gear === 'patron') addPatronHelmet(head, shell.position, w, h, d, visor.position.y)
     } else {
       // Bulle : cerclage opaque en bas, pour qu'on la distingue.
       const rim = new THREE.Mesh(new RoundedBoxGeometry(w * 1.02, h * 0.12, d * 1.02, 1, 0.02), mat.shell)
       rim.position.copy(shell.position).setY(shell.position.y - h * 0.46)
       head.add(rim)
     }
+    // La Mécène a sa cape à la place du sac, ses ailes à la place de la lampe (cf. looks-patron.ts).
+    if (s.gear === 'patron') return
     // Lampe frontale sur le côté du casque.
     const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.07), mat.light)
     lamp.position.set(center.x + w * 0.5, shell.position.y + h * 0.12, front - d * 0.2)
